@@ -2,18 +2,17 @@ package k8saudit
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 
+	json "github.com/json-iterator/go"
+	"gitlab.com/piccolo_su/vegeta/pkg/dal"
+	"gitlab.com/security-rd/go-pkg/databases"
 	"gitlab.com/security-rd/go-pkg/pb"
 	"gitlab.com/security-rd/go-pkg/storeerror"
-
-	"gitlab.com/piccolo_su/vegeta/pkg/dal"
-	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
 )
 
 type store struct {
-	db *rdbtools.GormWrapper
+	db *databases.RDBInstance
 }
 
 const (
@@ -21,7 +20,7 @@ const (
 )
 
 func (s *store) LoadSyslogSettings(ctx context.Context) (*pb.SyslogSetting, error) {
-	config, err := dal.GetConfig(ctx, s.db, auditSyslogConfigKey)
+	config, err := dal.GetConfig(ctx, s.db.GetReadDB(), auditSyslogConfigKey)
 	if err != nil {
 		return nil, storeerror.WrapError(storeerror.ErrCodeUnknown, err)
 	}
@@ -45,7 +44,7 @@ func (s *store) UpdateSyslogSettings(ctx context.Context, setting *pb.SyslogSett
 		return storeerror.WrapError(storeerror.ErrCodeUnknown, err)
 	}
 
-	err = dal.SetConfig(ctx, s.db, auditSyslogConfigKey, jsonContent)
+	err = dal.SetConfig(ctx, s.db.Get(), auditSyslogConfigKey, jsonContent)
 	if err != nil {
 		return storeerror.WrapError(storeerror.ErrCodeUnknown, err)
 	}

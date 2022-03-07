@@ -314,6 +314,7 @@ paths:
         type: string
       produces:
       - application/json
+      responses: {}
       summary: Delete security policy
     get:
       description: Get security policy
@@ -434,6 +435,7 @@ paths:
         type: string
       produces:
       - application/json
+      responses: {}
       summary: List security policy profile data
     put:
       consumes:
@@ -495,6 +497,7 @@ paths:
           type: array
       produces:
       - application/json
+      responses: {}
       summary: Update policy resource profile
   /api/v1/policy/{policyID}/{profileKind}/train/abort:
     post:

@@ -17,7 +17,7 @@ import (
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
-	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
+	"gitlab.com/security-rd/go-pkg/databases"
 	"gorm.io/gorm"
 	v1 "k8s.io/api/apps/v1"
 	batchv1 "k8s.io/api/batch/v1"
@@ -34,7 +34,7 @@ const (
 )
 
 type SecResourceService struct {
-	db          *rdbtools.GormWrapper
+	db          *databases.RDBInstance
 	k8sClient   *kubernetes.Clientset
 	myNamespace string
 }
@@ -46,7 +46,7 @@ var (
 
 func Init(
 	ctx context.Context,
-	db *rdbtools.GormWrapper,
+	db *databases.RDBInstance,
 	k8sClient *kubernetes.Clientset,
 ) error {
 	myNamespace := os.Getenv("MY_POD_NAMESPACE")
@@ -90,7 +90,7 @@ func (s *SecResourceService) ListNamespaces(ctx context.Context, cluster string,
 		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
 			return namespaces, int(len(namespaces)), nil
 		}
-		return namespaces, int(len(namespaces)), PostgresError(http.StatusInternalServerError, fmt.Errorf("Error when listing resoures in database: %w", result.Error))
+		return namespaces, int(len(namespaces)), RDBError(http.StatusInternalServerError, fmt.Errorf("Error when listing resoures in database: %w", result.Error))
 	}
 
 	return namespaces, int(len(namespaces)), nil
@@ -124,7 +124,7 @@ func (s *SecResourceService) ListResourceNames(ctx context.Context, cluster, nam
 		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
 			return resourceNames, int(len(resourceNames)), nil
 		}
-		return resourceNames, int(len(resourceNames)), PostgresError(http.StatusInternalServerError, fmt.Errorf("Error when listing resoures in database: %w", result.Error))
+		return resourceNames, int(len(resourceNames)), RDBError(http.StatusInternalServerError, fmt.Errorf("Error when listing resoures in database: %w", result.Error))
 	}
 
 	return resourceNames, int(len(resourceNames)), nil
@@ -155,7 +155,7 @@ func (s *SecResourceService) ListResourceKinds(ctx context.Context, cluster, nam
 		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
 			return resourceKinds, int(len(resourceKinds)), nil
 		}
-		return resourceKinds, int(len(resourceKinds)), PostgresError(http.StatusInternalServerError, fmt.Errorf("Error when listing resoures in database: %w", result.Error))
+		return resourceKinds, int(len(resourceKinds)), RDBError(http.StatusInternalServerError, fmt.Errorf("Error when listing resoures in database: %w", result.Error))
 	}
 
 	return resourceKinds, int(len(resourceKinds)), nil
@@ -180,7 +180,7 @@ func (s *SecResourceService) ListClusters(ctx context.Context, unattached bool) 
 		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
 			return clusters, int(len(clusters)), nil
 		}
-		return clusters, int(len(clusters)), PostgresError(http.StatusInternalServerError, fmt.Errorf("Error when listing resoures in database: %w", result.Error))
+		return clusters, int(len(clusters)), RDBError(http.StatusInternalServerError, fmt.Errorf("Error when listing resoures in database: %w", result.Error))
 	}
 
 	return clusters, int(len(clusters)), nil
@@ -236,7 +236,7 @@ func (s *SecResourceService) ListResources(ctx context.Context, cluster, namespa
 		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
 			return resources, int(totalCount), nil
 		}
-		return resources, int(totalCount), PostgresError(http.StatusInternalServerError, fmt.Errorf("Error when listing resoures in database: %w", result.Error))
+		return resources, int(totalCount), RDBError(http.StatusInternalServerError, fmt.Errorf("Error when listing resoures in database: %w", result.Error))
 	}
 
 	return resources, int(totalCount), nil

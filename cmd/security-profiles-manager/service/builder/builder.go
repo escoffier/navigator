@@ -14,7 +14,7 @@ import (
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
-	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
+	"gitlab.com/security-rd/go-pkg/databases"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 	corev1 "k8s.io/api/core/v1"
@@ -24,7 +24,7 @@ import (
 )
 
 type SecProfileBuilderService struct {
-	db          *rdbtools.GormWrapper
+	db          *databases.RDBInstance
 	redisClient *redis.Client
 	mutex       *sync.Mutex
 	k8sClient   *kubernetes.Clientset
@@ -37,7 +37,7 @@ var (
 
 func Init(
 	ctx context.Context,
-	db *rdbtools.GormWrapper,
+	db *databases.RDBInstance,
 	redisClient *redis.Client,
 	k8sClient *kubernetes.Clientset,
 ) error {
@@ -151,7 +151,7 @@ func (s *SecProfileBuilderService) StartTraining(ctx context.Context, policyID i
 	result := intermediateQuery.Preload(clause.Associations).First(&p, policyID)
 	if result.Error != nil {
 		if !errors.Is(result.Error, gorm.ErrRecordNotFound) {
-			return PostgresError(http.StatusInternalServerError, fmt.Errorf("Error when getting policy in database: %w", result.Error))
+			return RDBError(http.StatusInternalServerError, fmt.Errorf("Error when getting policy in database: %w", result.Error))
 		}
 		return NewNotFoundError(http.StatusBadRequest, fmt.Errorf("Policy does not exist in database: %w", result.Error))
 	}

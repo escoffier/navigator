@@ -13,18 +13,17 @@ import (
 	"time"
 
 	param "github.com/oceanicdev/chi-param"
-	"gorm.io/gorm"
-
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/captcha"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/session"
 	"gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	"gitlab.com/piccolo_su/vegeta/pkg/dal"
 	"gitlab.com/piccolo_su/vegeta/pkg/ldap"
-	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/radius"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
+	"gitlab.com/security-rd/go-pkg/logging"
+	"gorm.io/gorm"
 )
 
 const (
@@ -72,7 +71,7 @@ func (api *api) UpdateLdapConf() http.HandlerFunc {
 			return
 		}
 
-		err = dal.SetConfig(ctx, api.rdb, model.LdapConfKey, conf.Encode())
+		err = dal.SetConfig(ctx, api.rdb.Get(), model.LdapConfKey, conf.Encode())
 		if err != nil {
 			apperror.RespAndLog(w, ctx, err)
 			return
@@ -144,7 +143,7 @@ func (api *api) UpdateLdapCert() http.HandlerFunc {
 			return
 		}
 
-		err = dal.BatchSetConfig(ctx, api.rdb, configs)
+		err = dal.BatchSetConfig(ctx, api.rdb.Get(), configs)
 		if err != nil {
 			apperror.RespAndLog(w, ctx, err)
 			return
@@ -182,7 +181,7 @@ func (api *api) GetLdapCertInfo() http.HandlerFunc {
 }
 
 func (api *api) getLdapCertInfo(ctx context.Context) (*LdapCertInfo, error) {
-	configs, err := dal.BatchGetConfig(ctx, api.rdb,
+	configs, err := dal.BatchGetConfig(ctx, api.rdb.GetReadDB(),
 		[]string{model.LdapCAKey, model.LdapClientKey, model.LdapClientCertKey})
 	if err != nil {
 		return nil, err
@@ -227,7 +226,7 @@ func (api *api) UpdateRadiusConf() http.HandlerFunc {
 			return
 		}
 
-		err = dal.SetConfig(ctx, api.rdb, model.RadiusConfKey, conf.Encode())
+		err = dal.SetConfig(ctx, api.rdb.Get(), model.RadiusConfKey, conf.Encode())
 		if err != nil {
 			apperror.RespAndLog(w, ctx, err)
 			return
@@ -252,7 +251,7 @@ func (api *api) GetRadiusConf() http.HandlerFunc {
 }
 
 func (api *api) getLdapConf(ctx context.Context) (*model.LdapServerConf, error) {
-	conf, err := dal.GetConfig(ctx, api.rdb, model.LdapConfKey)
+	conf, err := dal.GetConfig(ctx, api.rdb.Get(), model.LdapConfKey)
 	if err != nil {
 		return nil, err
 	}
@@ -267,7 +266,7 @@ func (api *api) getLdapConf(ctx context.Context) (*model.LdapServerConf, error) 
 }
 
 func (api *api) getRadiusConf(ctx context.Context) (*model.RadiusServerConf, error) {
-	conf, err := dal.GetConfig(ctx, api.rdb, model.RadiusConfKey)
+	conf, err := dal.GetConfig(ctx, api.rdb.Get(), model.RadiusConfKey)
 	if err != nil {
 		return nil, err
 	}
@@ -398,10 +397,10 @@ func (api *api) getLdapTlsConfig(ctx context.Context, serverName string) *tls.Co
 	if result.ServerName == "" {
 		result.InsecureSkipVerify = true
 	}
-	configs, err := dal.BatchGetConfig(ctx, api.rdb,
+	configs, err := dal.BatchGetConfig(ctx, api.rdb.GetReadDB(),
 		[]string{model.LdapCAKey, model.LdapClientKey, model.LdapClientCertKey})
 	if err != nil {
-		logging.GetLogger().Err(err).Msg("getLdapTlsConfig from db fail")
+		logging.Get().Err(err).Msg("getLdapTlsConfig from db fail")
 		return result
 	}
 
@@ -421,14 +420,14 @@ func (api *api) getLdapTlsConfig(ctx context.Context, serverName string) *tls.Co
 		if clientCertPool.AppendCertsFromPEM(ca) {
 			result.RootCAs = clientCertPool
 		} else {
-			logging.GetLogger().Error().Msg("AppendCertsFromPEM fail")
+			logging.Get().Error().Msg("AppendCertsFromPEM fail")
 		}
 	}
 
 	if len(clientCert) > 0 && len(clientKey) > 0 {
 		cert, err := tls.X509KeyPair(clientCert, clientKey)
 		if err != nil {
-			logging.GetLogger().Err(err).Msg("ldap cert X509KeyPair fail")
+			logging.Get().Err(err).Msg("ldap cert X509KeyPair fail")
 		} else {
 			result.Certificates = []tls.Certificate{cert}
 		}
@@ -663,20 +662,20 @@ func (api *api) GetLdapGroupList() http.HandlerFunc {
 			limit = maxLdapGroupBatchSize
 		}
 
-		count, err := dal.GetLdapGroupCount(ctx, api.rdb.Get())
+		count, err := dal.GetLdapGroupCount(ctx, api.rdb.GetReadDB())
 		if err != nil {
 			apperror.RespAndLog(w, ctx, err)
 			return
 		}
 
-		groups, err := dal.GetLdapGroupList(ctx, api.rdb.Get(), int(offset), int(limit))
+		groups, err := dal.GetLdapGroupList(ctx, api.rdb.GetReadDB(), int(offset), int(limit))
 		if err != nil {
 			apperror.RespAndLog(w, ctx, err)
 			return
 		}
 
 		moduleIDs := model.GetModuleIDByGroups(groups)
-		modules, err := dal.GetModules(ctx, api.rdb.Get(), moduleIDs)
+		modules, err := dal.GetModules(ctx, api.rdb.GetReadDB(), moduleIDs)
 		if err != nil {
 			apperror.RespAndLog(w, ctx, err)
 			return
@@ -796,7 +795,7 @@ func (api *api) UpdateLdapGroup() http.HandlerFunc {
 			return
 		}
 
-		exist, err := dal.CheckLdapGroupExists(ctx, api.rdb.Get(), cliReq.ID)
+		exist, err := dal.CheckLdapGroupExists(ctx, api.rdb.GetReadDB(), cliReq.ID)
 		if err != nil {
 			apperror.RespAndLog(w, ctx, err)
 			return
@@ -862,7 +861,7 @@ func (api *api) checkLdapGroup(ctx context.Context, name, role string, modules [
 	var moduleGroups []*model.ModuleGroup
 	if len(modules) > 0 {
 		var err error
-		moduleGroups, err = dal.GetModules(ctx, api.rdb.Get(), modules)
+		moduleGroups, err = dal.GetModules(ctx, api.rdb.GetReadDB(), modules)
 		if err != nil {
 			return nil, CheckLdapGroupInterError
 		}

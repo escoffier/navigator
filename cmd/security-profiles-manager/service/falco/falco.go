@@ -11,8 +11,8 @@ import (
 
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
-	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
+	"gitlab.com/security-rd/go-pkg/databases"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 	v1 "k8s.io/api/core/v1"
@@ -660,7 +660,7 @@ const (
 )
 
 type FalcoService struct {
-	db        *rdbtools.GormWrapper
+	db        *databases.RDBInstance
 	k8sClient *kubernetes.Clientset
 }
 
@@ -670,7 +670,7 @@ var (
 )
 
 func Init(
-	db *rdbtools.GormWrapper,
+	db *databases.RDBInstance,
 	k8sClient *kubernetes.Clientset,
 ) error {
 	once.Do(func() {

@@ -12,16 +12,16 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/data/env"
 	"gitlab.com/piccolo_su/vegeta/cmd/data/tool/conf"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
-	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
+	"gitlab.com/security-rd/go-pkg/databases"
 )
 
 type PostgresCleaner struct {
-	db     *rdbtools.GormWrapper
+	db     *databases.RDBInstance
 	tables []*conf.RDBDumpItem
 }
 
-func NewPostgresCleaner(db *rdbtools.GormWrapper, tables []*conf.RDBDumpItem) *PostgresCleaner {
+func NewPostgresCleaner(db *databases.RDBInstance, tables []*conf.RDBDumpItem) *PostgresCleaner {
 	return &PostgresCleaner{
 		db:     db,
 		tables: tables,
@@ -169,7 +169,7 @@ func getPrimaryKeySortColumns(table *conf.RDBDumpItem, sort string) string {
 
 	var result string
 	for i := range table.PrimaryKey {
-		if i != len(table.PrimaryKey) - 1 {
+		if i != len(table.PrimaryKey)-1 {
 			result += fmt.Sprintf("%s %s, ", table.PrimaryKey[i], sort)
 		} else {
 			result += fmt.Sprintf("%s %s", table.PrimaryKey[i], sort)

@@ -10,7 +10,7 @@ import (
 	json "github.com/json-iterator/go"
 	"gitlab.com/piccolo_su/vegeta/pkg/dal"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
-	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
+	"gitlab.com/security-rd/go-pkg/databases"
 	"gitlab.com/security-rd/go-pkg/logging"
 	"gorm.io/gorm"
 )
@@ -288,10 +288,10 @@ var (
 )
 
 type TaskManager struct {
-	rdb *rdbtools.GormWrapper
+	rdb *databases.RDBInstance
 }
 
-func newTaskManager(rdb *rdbtools.GormWrapper) *TaskManager {
+func newTaskManager(rdb *databases.RDBInstance) *TaskManager {
 	tm := TaskManager{
 		rdb: rdb,
 	}
@@ -421,7 +421,7 @@ func (tm *TaskManager) checkTaskState(ctx context.Context, now time.Time) {
 
 	offset := 0
 	for {
-		tasks, err := dal.GetImmuneTasks(context.Background(), tm.rdb.Get(), dal.NewImmuneTasksQuery().WithState(model.TStateLearning), offset, 30)
+		tasks, err := dal.GetImmuneTasks(context.Background(), tm.rdb.GetReadDB(), dal.NewImmuneTasksQuery().WithState(model.TStateLearning), offset, 30)
 		if err != nil {
 			logging.Get().Err(err).Msgf("get tasks error")
 			break

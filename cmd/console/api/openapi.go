@@ -9,14 +9,13 @@ import (
 	"time"
 
 	"github.com/go-chi/chi"
-
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/openapiauth"
 	"gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	"gitlab.com/piccolo_su/vegeta/pkg/dal"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
-	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
+	"gitlab.com/security-rd/go-pkg/databases"
 )
 
 func (api *api) openapiAuth() func(chi.Router) {
@@ -56,7 +55,7 @@ func (api *api) getOpenAPIToken() http.HandlerFunc {
 			return
 		}
 
-		token, ok, err := dal.GetUserAuthTokenByUsername(ctx, api.rdb.Get(), user.Username)
+		token, ok, err := dal.GetUserAuthTokenByUsername(ctx, api.rdb.GetReadDB(), user.Username)
 		if err != nil {
 			apperror.RespAndLog(w, ctx, err)
 			return
@@ -66,7 +65,7 @@ func (api *api) getOpenAPIToken() http.HandlerFunc {
 			return
 		}
 
-		modules, err := dal.GetModuleGroup(ctx, api.rdb, user.ModuleID)
+		modules, err := dal.GetModuleGroup(ctx, api.rdb.GetReadDB(), user.ModuleID)
 		if err != nil {
 			apperror.RespAndLog(w, ctx, err)
 			return
@@ -97,7 +96,7 @@ func (api *api) newOpenAPIToken() http.HandlerFunc {
 			return
 		}
 
-		user, ok, err := dal.GetUserByToken(ctx, api.rdb.Get(), cliReq.AuthToken)
+		user, ok, err := dal.GetUserByToken(ctx, api.rdb.GetReadDB(), cliReq.AuthToken)
 		if err != nil {
 			apperror.RespAndLog(w, ctx, err)
 			return
@@ -138,7 +137,7 @@ func (api *api) newOpenAPIToken() http.HandlerFunc {
 	}
 }
 
-func openAPIAccessCheck(postgresDB *rdbtools.GormWrapper) func(http.Handler) http.Handler {
+func openAPIAccessCheck(rdb *databases.RDBInstance) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			timeoutCtx, cancel := context.WithTimeout(r.Context(), OpenAPIAuthTimeout)
@@ -161,7 +160,7 @@ func openAPIAccessCheck(postgresDB *rdbtools.GormWrapper) func(http.Handler) htt
 				return
 			}
 
-			exists, user, err := dal.SelectUser(timeoutCtx, postgresDB.Get(), username)
+			exists, user, err := dal.SelectUser(timeoutCtx, rdb.GetReadDB(), username)
 			if err != nil {
 				apperror.RespAndLog(w, r.Context(), err)
 				return
@@ -192,7 +191,7 @@ func openAPIAccessCheck(postgresDB *rdbtools.GormWrapper) func(http.Handler) htt
 				return
 			}
 
-			accessListUrl, err := dal.GetAccessUrl(postgresDB, user.ModuleID)
+			accessListUrl, err := dal.GetAccessUrl(rdb.GetReadDB(), user.ModuleID)
 			if err != nil {
 				apperror.RespAndLog(w, r.Context(),
 					apperror.NewMongoError(http.StatusInsufficientStorage,

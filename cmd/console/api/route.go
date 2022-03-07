@@ -10,17 +10,16 @@ import (
 	"github.com/go-chi/chi"
 	"github.com/go-chi/jwtauth"
 	"github.com/go-redis/redis/v8"
-	"gitlab.com/security-rd/go-pkg/logging"
-	"gitlab.com/security-rd/go-pkg/pb"
-
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/session"
 	"gitlab.com/piccolo_su/vegeta/pkg/api/apikey"
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	"gitlab.com/piccolo_su/vegeta/pkg/dal"
 	"gitlab.com/piccolo_su/vegeta/pkg/harbor"
-	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
+	"gitlab.com/security-rd/go-pkg/databases"
+	"gitlab.com/security-rd/go-pkg/logging"
+	"gitlab.com/security-rd/go-pkg/pb"
 )
 
 const (
@@ -34,7 +33,7 @@ func SetupRoutes(
 	ctx context.Context,
 	r *chi.Mux,
 	tokenAuth *jwtauth.JWTAuth,
-	rdb *rdbtools.GormWrapper,
+	rdb *databases.RDBInstance,
 	scannerURL string,
 	secProfileCoreURL string,
 	microsegURL string,
@@ -114,7 +113,7 @@ const (
 	accessCheckTimeout = time.Second * 3
 )
 
-func jwtAccessCheck(postgresDB *rdbtools.GormWrapper) func(http.Handler) http.Handler {
+func jwtAccessCheck(rdb *databases.RDBInstance) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			ctx, cancel := context.WithTimeout(r.Context(), accessCheckTimeout)
@@ -171,7 +170,7 @@ func jwtAccessCheck(postgresDB *rdbtools.GormWrapper) func(http.Handler) http.Ha
 				return
 			}
 
-			accessListUrl, err := dal.GetAccessUrl(postgresDB, userSession.ModuleID)
+			accessListUrl, err := dal.GetAccessUrl(rdb.GetReadDB(), userSession.ModuleID)
 			if err != nil {
 				RespAndLog(w, r.Context(), fmt.Errorf("select access error: %w", err))
 				return

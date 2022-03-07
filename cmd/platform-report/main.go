@@ -7,19 +7,15 @@ import (
 	"time"
 
 	"github.com/sirupsen/logrus"
-	"gitlab.com/security-rd/go-pkg/databases"
-	_ "go.uber.org/automaxprocs"
-	"gorm.io/gorm"
-
 	"gitlab.com/piccolo_su/vegeta/cmd/platform-report/def"
 	"gitlab.com/piccolo_su/vegeta/cmd/platform-report/env"
 	"gitlab.com/piccolo_su/vegeta/cmd/platform-report/notifyhandler"
 	"gitlab.com/piccolo_su/vegeta/cmd/platform-report/reporter"
 	"gitlab.com/piccolo_su/vegeta/cmd/platform-report/taskmanager"
-	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
-	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
+	"gitlab.com/security-rd/go-pkg/databases"
+	_ "go.uber.org/automaxprocs"
 )
 
 var (
@@ -28,7 +24,7 @@ var (
 	startTimestamp = int64(util.GetIntValWithDefault(env.StartTimestamp, 0))
 	endTimestamp   = int64(util.GetIntValWithDefault(env.EndTimestamp, 0))
 	maxTaskTime    = time.Duration(util.GetIntValWithDefault(env.MaxTaskTimeSec, env.DefaultMaxTaskTimeSec)) * time.Second
-	db             *rdbtools.GormWrapper
+	db             *databases.RDBInstance
 	manager        def.TaskManager
 	handler        def.NotifyHandler
 	emailConf      = &def.EmailConf{
@@ -115,7 +111,7 @@ func handleTask() (err error) {
 		EndTimestamp:   endTimestamp,
 	}
 
-	clusterItems := reporter.GetClusters(ctx, db, clusters, util.GetTimeByMillisecondTimestamp(endTimestamp))
+	clusterItems := reporter.GetClusters(ctx, db.GetReadDB(), clusters, util.GetTimeByMillisecondTimestamp(endTimestamp))
 	clusterKeyHash := reporter.GenerateClusterKeyHash(clusterItems)
 	for category := range categoryHash {
 		switch category {
@@ -124,15 +120,15 @@ func handleTask() (err error) {
 				report.EventsReport = &model.EventsReport{}
 				continue
 			}
-			report.EventsReport = reporter.LoadEventsReport(ctx, db, startTimestamp, endTimestamp, clusterKeyHash)
+			report.EventsReport = reporter.LoadEventsReport(ctx, db.GetReadDB(), startTimestamp, endTimestamp, clusterKeyHash)
 		case model.ReportCategoryAssets:
 			if len(clusterItems) == 0 {
 				report.AssetsReport = &model.AssetsReport{}
 				continue
 			}
-			report.AssetsReport = reporter.LoadAssetsReport(ctx, db, clusterItems, endTimestamp)
+			report.AssetsReport = reporter.LoadAssetsReport(ctx, db.GetReadDB(), clusterItems, endTimestamp)
 		case model.ReportCategoryImages:
-			report.ImagesReport = reporter.LoadImagesReport(ctx, db, endTimestamp)
+			report.ImagesReport = reporter.LoadImagesReport(ctx, db.GetReadDB(), endTimestamp)
 		default:
 			logrus.Errorf("unexpected report category:%s", category)
 		}
@@ -202,15 +198,9 @@ func finishTask(ctx context.Context, templateID int32, uuid string, content []by
 	return util.RetryWithBackoff(ctx, finish)
 }
 
-func newDBFromEnv() (*rdbtools.GormWrapper, error) {
-	return rdbtools.GormWrapperOpen(1*time.Second, func() (*gorm.DB, error) {
-		ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
-		defer cancel()
-		db, err := databases.GetMysqlWithEnv(ctx)
-		if err != nil {
-			logging.GetLogger().Error().Msg(fmt.Sprintf("postgresDB client init error :%s ", err))
-			return nil, err
-		}
-		return db, nil
-	})
+func newDBFromEnv() (*databases.RDBInstance, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+	defer cancel()
+	rdb, err := databases.NewRDBWithMySQLByEnv(ctx)
+	return rdb, err
 }

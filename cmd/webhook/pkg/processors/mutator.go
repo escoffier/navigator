@@ -4,10 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"gitlab.com/piccolo_su/vegeta/pkg/logging"
-	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
-	corev1 "k8s.io/api/core/v1"
 	"time"
+
+	"gitlab.com/piccolo_su/vegeta/pkg/logging"
+	"gitlab.com/security-rd/go-pkg/databases"
+	corev1 "k8s.io/api/core/v1"
 )
 
 var MutatorChain *mutatorChain
@@ -45,7 +46,7 @@ type MutatorParameters struct {
 	Namespace  string
 	Kind       string
 	ClusterKey string
-	rdb        *rdbtools.GormWrapper
+	rdb        *databases.RDBInstance
 }
 
 type MutatingConfig struct {

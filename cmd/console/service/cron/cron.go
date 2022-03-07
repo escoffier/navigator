@@ -10,7 +10,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/scapper"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
-	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
+	"gitlab.com/security-rd/go-pkg/databases"
 )
 
 var (
@@ -18,12 +18,12 @@ var (
 	once     sync.Once
 )
 
-func Init(cron *cr.Cron, postgresDB *rdbtools.GormWrapper) error {
-	if cron == nil || postgresDB == nil {
+func Init(cron *cr.Cron, rdb *databases.RDBInstance) error {
+	if cron == nil || rdb == nil {
 		return errors.Errorf("illegal argument")
 	}
 	once.Do(func() {
-		instance = newCronService(cron, postgresDB)
+		instance = newCronService(cron, rdb)
 	})
 	return nil
 }
@@ -33,17 +33,17 @@ func Get(ctx context.Context) (*CronService, bool) {
 }
 
 type CronService struct {
-	cron       *cr.Cron
-	PostgresDB *rdbtools.GormWrapper
+	cron *cr.Cron
+	rdb  *databases.RDBInstance
 }
 
 func newCronService(
 	cron *cr.Cron,
-	postgresDB *rdbtools.GormWrapper,
+	rdb *databases.RDBInstance,
 ) *CronService {
 	return &CronService{
-		cron:       cron,
-		PostgresDB: postgresDB,
+		cron: cron,
+		rdb:  rdb,
 	}
 }
 
@@ -54,16 +54,16 @@ func (s *CronService) startCron(ctx context.Context, cronData *model.CronScanTas
 	}
 
 	newCronID, err := s.cron.AddFunc(cronData.CronTime, func() {
-		logging.GetLogger().Info().Msgf("Starting cron job now, clusterId : %v, checkType : %v.", cronData.ClusterId, cronData.CheckType)
+		logging.GetLogger().Info().Msgf("Starting cron job now, clusterId : %v, checkType : %v.", cronData.ClusterID, cronData.CheckType)
 
 		// don't cancel() when exiting this function as we are starting an async task
 		scap, _ := scapper.GetScapper(ctx)
-		_, err := scap.RunComplianceCheck(cronData.ClusterId, model.ComplianceCheckType(cronData.CheckType), "system")
+		_, err := scap.RunComplianceCheck(cronData.ClusterID, model.ComplianceCheckType(cronData.CheckType), "system")
 		if err != nil {
-			logging.GetLogger().Error().Msgf("failed to run compliance check, clusterId : %v, checkType : %v.", cronData.ClusterId, cronData.CheckType)
+			logging.GetLogger().Error().Msgf("failed to run compliance check, clusterId : %v, checkType : %v.", cronData.ClusterID, cronData.CheckType)
 		}
 		//print debug log
-		logging.GetLogger().Info().Msgf("Compliance cron job scheduled successfully, clusterId : %v, checkType : %v.", cronData.ClusterId, cronData.CheckType)
+		logging.GetLogger().Info().Msgf("Compliance cron job scheduled successfully, clusterId : %v, checkType : %v.", cronData.ClusterID, cronData.CheckType)
 
 	})
 
@@ -73,7 +73,7 @@ func (s *CronService) startCron(ctx context.Context, cronData *model.CronScanTas
 
 	if cronData.CronId == 0 {
 		cronData.CronId = int(newCronID)
-		err = s.PostgresDB.Get().WithContext(ctx).Create(cronData).Error
+		err = s.rdb.Get().WithContext(ctx).Create(cronData).Error
 		if err != nil {
 			s.cron.Remove(cr.EntryID(newCronID))
 			return errors.Errorf("create cron task to db failed, %v", err)
@@ -83,7 +83,7 @@ func (s *CronService) startCron(ctx context.Context, cronData *model.CronScanTas
 	//update cron task
 	cronData.CronId = int(newCronID)
 	query := "cluster_id = ? and check_type = ?"
-	err = s.PostgresDB.Get().WithContext(ctx).Where(query, cronData.ClusterId, cronData.CheckType).Select("*").Updates(cronData).Error
+	err = s.rdb.Get().WithContext(ctx).Where(query, cronData.ClusterID, cronData.CheckType).Select("*").Updates(cronData).Error
 	if err != nil {
 		s.cron.Remove(cr.EntryID(newCronID))
 		return errors.Errorf("update cron task failed, %v", err)
@@ -94,7 +94,7 @@ func (s *CronService) startCron(ctx context.Context, cronData *model.CronScanTas
 
 func (s *CronService) StartCrons(ctx context.Context) error {
 	var cronTasks []model.CronScanTask
-	err := s.PostgresDB.Get().WithContext(ctx).Find(&cronTasks).Error
+	err := s.rdb.GetReadDB().WithContext(ctx).Find(&cronTasks).Error
 	if err != nil {
 		return errors.Errorf("get cron task config failed, %v", err)
 	}
@@ -131,13 +131,13 @@ func (s *CronService) UpdateCron(ctx context.Context, clusterId string, checkTyp
 		CreatedAt: time.Now().Unix(),
 		CheckType: string(checkType),
 		CronTime:  cronString,
-		ClusterId: clusterId,
+		ClusterID: clusterId,
 		CronId:    0,
 	}
 
 	var cronConfig model.CronScanTask
 	query := "cluster_id = ? and check_type = ?"
-	_ = s.PostgresDB.Get().WithContext(pgCtx).First(&cronConfig, query, clusterId, string(checkType)).Error
+	_ = s.rdb.GetReadDB().WithContext(pgCtx).First(&cronConfig, query, clusterId, string(checkType)).Error
 	//get cron id
 	cronData.CronId = cronConfig.CronId
 	//start cron
@@ -151,7 +151,7 @@ func (s *CronService) GetCron(ctx context.Context, clusterId string, checkType m
 
 	var cronInfo model.CronScanTask
 	query := "check_type = ? and cluster_id = ?"
-	err := s.PostgresDB.Get().WithContext(pgCtx).First(&cronInfo, query, string(checkType), clusterId).Error
+	err := s.rdb.GetReadDB().WithContext(pgCtx).First(&cronInfo, query, string(checkType), clusterId).Error
 	if err != nil {
 		return nil, errors.Errorf("find %v cron task config failed, %v", checkType, err)
 	}

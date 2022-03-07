@@ -4,21 +4,20 @@ import (
 	"context"
 	"time"
 
-	"gorm.io/gorm"
-	"gorm.io/gorm/clause"
-
 	"gitlab.com/piccolo_su/vegeta/cmd/data/def"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
-	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
+	"gitlab.com/security-rd/go-pkg/databases"
+	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 type Manager struct {
-	db           *rdbtools.GormWrapper
+	db           *databases.RDBInstance
 	maxCleanTime time.Duration
 }
 
-func NewManager(db *rdbtools.GormWrapper, maxCleanTime time.Duration) *Manager {
+func NewManager(db *databases.RDBInstance, maxCleanTime time.Duration) *Manager {
 	return &Manager{
 		db:           db,
 		maxCleanTime: maxCleanTime,
@@ -32,10 +31,10 @@ func (m *Manager) CreateGCTask(ctx context.Context, taskType def.GCTaskType) (*m
 
 	nowTime := time.Now()
 	newGCTask := &model.GCTask{
-		Hash:      util.GenerateUUIDHex(),
-		Category:  taskType.String(),
-		Status:    model.GCInProgress,
-		CreatedAt: nowTime,
+		Hash:       util.GenerateUUIDHex(),
+		Category:   taskType.String(),
+		Status:     model.GCInProgress,
+		CreatedAt:  nowTime,
 		FinishedAt: nowTime,
 	}
 
@@ -57,7 +56,7 @@ func (m *Manager) CreateGCTask(ctx context.Context, taskType def.GCTaskType) (*m
 
 func (m *Manager) GetGCTask(ctx context.Context, taskID string) (*model.GCTask, error) {
 	var task model.GCTask
-	var err = m.db.Get().WithContext(ctx).Where("hash = ?", taskID).First(&task).Error
+	var err = m.db.GetReadDB().WithContext(ctx).Where("hash = ?", taskID).First(&task).Error
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
 			return nil, def.ErrTaskNotFound

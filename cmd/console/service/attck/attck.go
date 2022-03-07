@@ -22,8 +22,8 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/echelper"
 	"gitlab.com/piccolo_su/vegeta/pkg/lang"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
-	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
+	"gitlab.com/security-rd/go-pkg/databases"
 	"gitlab.com/security-rd/go-pkg/logging"
 	"gopkg.in/yaml.v2"
 )
@@ -33,7 +33,7 @@ const (
 )
 
 type ATTCKHandler struct {
-	db    *rdbtools.GormWrapper
+	db    *databases.RDBInstance
 	ecCli *echelper.EventCenterClient
 
 	currentVersion *model.ATTCKConfVersion
@@ -130,7 +130,7 @@ func parseItems(header cryption.FileHeader, rulesContext []byte) (version string
 	return version, rules, nil
 }
 
-func NewATTCKHandler(db *rdbtools.GormWrapper, redisCli *redis.Client, ecCli *echelper.EventCenterClient) (*ATTCKHandler, error) {
+func NewATTCKHandler(db *databases.RDBInstance, redisCli *redis.Client, ecCli *echelper.EventCenterClient) (*ATTCKHandler, error) {
 	handler := &ATTCKHandler{
 		db:    db,
 		ecCli: ecCli,
@@ -567,7 +567,7 @@ func (h *ATTCKHandler) GetATTCKConfData(ctx context.Context, reqBaseOffset, reqO
 		LatestSettingVersion: latestOnlineOffset,
 	}
 	if latestBaseOffset > reqBaseOffset {
-		data, err := dal.LoadATTCKConfData(ctx, h.db.Get())
+		data, err := dal.LoadATTCKConfData(ctx, h.db.GetReadDB())
 		if err != nil {
 			return nil, err
 		}
@@ -628,13 +628,13 @@ func (h *ATTCKHandler) flushCache() {
 func (h *ATTCKHandler) getLatestVersion(ctx context.Context) (uint32, uint32, error) {
 	h.cacheLock.RLock()
 	defer h.cacheLock.RUnlock()
-	latestOffset, err := dal.LoadATTCKConfVersion(ctx, h.db.Get())
+	latestOffset, err := dal.LoadATTCKConfVersion(ctx, h.db.GetReadDB())
 	if err != nil {
 		logging.Get().Err(err).Msg("LoadATTCKConfVersion fail")
 		return 0, 0, err
 	}
 
-	latestOnlineOffset, err := dal.LoadATTCKRuleMaskVersion(ctx, h.db.Get())
+	latestOnlineOffset, err := dal.LoadATTCKRuleMaskVersion(ctx, h.db.GetReadDB())
 	if err != nil {
 		logging.Get().Err(err).Msg("LoadATTCKRuleMaskVersion fail")
 		return 0, 0, err

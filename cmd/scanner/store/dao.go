@@ -13,17 +13,16 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
-	"go.mongodb.org/mongo-driver/bson/primitive"
-	"gorm.io/datatypes"
-	"gorm.io/gorm/clause"
-
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/pkg/harbor"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
-	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
+	"gitlab.com/security-rd/go-pkg/databases"
+	"go.mongodb.org/mongo-driver/bson/primitive"
+	"gorm.io/datatypes"
+	"gorm.io/gorm/clause"
 )
 
 type ScannerDalInterface interface {
@@ -118,7 +117,7 @@ type ScanTaskInterface interface {
 }
 
 type ScannerOrm struct {
-	psql *rdbtools.GormWrapper
+	rdb *databases.RDBInstance
 }
 
 func (s *ScannerOrm) SearchSubTasksWithScanStatus(ctx context.Context, imageIds []int64, status []int) ([]model.SubTask, error) {
@@ -152,7 +151,7 @@ func (s *ScannerOrm) SearchSubTasksWithScanStatus(ctx context.Context, imageIds 
 		sql = sql + fmt.Sprintf("AND a.image_id IN ( %s )", idin)
 	}
 	sql = sql + ";"
-	db := s.psql.Get().WithContext(ctx)
+	db := s.rdb.Get().WithContext(ctx)
 	res := make([]model.SubTask, 0)
 	if err := db.Raw(sql).Find(&res).Error; err != nil {
 		return nil, err
@@ -165,18 +164,18 @@ func (s *ScannerOrm) CreateImage(ctx context.Context, im *model.ImageList) (*mod
 	defer cancelFunc()
 
 	tmp := make([]model.ImageList, 0)
-	err := s.psql.Get().WithContext(ctx).Where("full_repo_name = ? AND tags = ? AND from_type = ? AND registry_id = ?", im.FullRepoName, im.Tags, im.FromType, im.RegistryID).Find(&tmp).Error
+	err := s.rdb.Get().WithContext(ctx).Where("full_repo_name = ? AND tags = ? AND from_type = ? AND registry_id = ?", im.FullRepoName, im.Tags, im.FromType, im.RegistryID).Find(&tmp).Error
 	if err != nil {
 		return nil, err
 	}
 	if len(tmp) == 0 {
-		err := s.psql.Get().WithContext(ctx).Create(im).Error
+		err := s.rdb.Get().WithContext(ctx).Create(im).Error
 		if err != nil {
 			return nil, err
 		}
 		return im, nil
 	}
-	if err := s.psql.Get().WithContext(ctx).Model(new(model.ImageList)).Where("id = ?", tmp[0].ID).Updates(im).Error; err != nil {
+	if err := s.rdb.Get().WithContext(ctx).Model(new(model.ImageList)).Where("id = ?", tmp[0].ID).Updates(im).Error; err != nil {
 		return nil, err
 	}
 	im.ID = tmp[0].ID
@@ -209,7 +208,7 @@ func (s *ScannerOrm) SearchImageWithScan(ctx context.Context, param SearchImageW
 	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*10)
 	defer cancelFunc()
 	res := make([]ImageListWithScan, 0)
-	db := s.psql.Get().WithContext(ctx).Model(new(model.ImageList)).Joins("left join ivan_scanner_scan_images on ivan_scanner_image_list.id=ivan_scanner_scan_images.image_id")
+	db := s.rdb.Get().WithContext(ctx).Model(new(model.ImageList)).Joins("left join ivan_scanner_scan_images on ivan_scanner_image_list.id=ivan_scanner_scan_images.image_id")
 
 	if param.SearchWord != "" {
 		db = db.Where("ivan_scanner_image_list.full_repo_name LIKE ? OR ivan_scanner_image_list.tags LIKE ? OR ivan_scanner_image_list.node_hostname LIKE ? ", fmt.Sprintf("%%%s%%", param.SearchWord), fmt.Sprintf("%%%s%%", param.SearchWord), fmt.Sprintf("%%%s%%", param.SearchWord))
@@ -409,7 +408,7 @@ func (s *ScannerOrm) CreateRejectPolicy(ctx context.Context, data model.RejectPo
 	}
 	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*3)
 	defer cancelFunc()
-	if err := s.psql.Get().WithContext(ctx).Model(new(model.RejectPolicy)).Create(&data).Error; err != nil {
+	if err := s.rdb.Get().WithContext(ctx).Model(new(model.RejectPolicy)).Create(&data).Error; err != nil {
 		return 0, err
 	}
 	// 自定义漏洞
@@ -418,23 +417,23 @@ func (s *ScannerOrm) CreateRejectPolicy(ctx context.Context, data model.RejectPo
 		for k := range tmpVuln {
 			tmpVuln[k].RejectPolicyID = data.ID
 		}
-		if err := s.psql.Get().WithContext(ctx).Model(model.RejectVuln{}).Create(&tmpVuln).Error; err != nil {
+		if err := s.rdb.Get().WithContext(ctx).Model(model.RejectVuln{}).Create(&tmpVuln).Error; err != nil {
 			return 0, err
 		}
 	}
 	return data.ID, nil
 }
 
-func NewScannerOrm(psql *rdbtools.GormWrapper) *ScannerOrm {
+func NewScannerOrm(sql *databases.RDBInstance) *ScannerOrm {
 	return &ScannerOrm{
-		psql: psql,
+		rdb: sql,
 	}
 }
 
 func (s *ScannerOrm) GetImage(ctx context.Context, param GetImageParam) (*model.ImageList, error) {
 	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*3)
 	defer cancelFunc()
-	db := s.psql.Get().Model(new(model.ImageList)).WithContext(ctx)
+	db := s.rdb.Get().Model(new(model.ImageList)).WithContext(ctx)
 	// 默认查询没有删除的,如果不传就是0
 	db = db.Where("status = ? ", param.Status)
 	if param.Digest != "" {
@@ -511,7 +510,7 @@ func (s *ScannerOrm) UpdateImageWhitelist(ctx context.Context, where string, upd
 	}
 	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*1)
 	defer cancelFunc()
-	db := s.psql.Get().Model(new(model.ImageWhitelist)).WithContext(ctx).Where(where).Updates(updater)
+	db := s.rdb.Get().Model(new(model.ImageWhitelist)).WithContext(ctx).Where(where).Updates(updater)
 	return db.Error
 
 }
@@ -519,7 +518,7 @@ func (s *ScannerOrm) UpdateImageWhitelist(ctx context.Context, where string, upd
 func (s *ScannerOrm) DeleteImage(ctx context.Context, param DeleteImageParam) error {
 	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*1)
 	defer cancelFunc()
-	db := s.psql.Get().Model(new(model.ImageList)).WithContext(ctx)
+	db := s.rdb.Get().Model(new(model.ImageList)).WithContext(ctx)
 	if param.ImageID <= 0 && (param.Library == "" && param.Tags == "" && param.FullRepoName == "" && param.FromType <= 0) {
 		return errors.New("no condition for delete image")
 	}
@@ -545,7 +544,7 @@ func (s *ScannerOrm) DeleteImage(ctx context.Context, param DeleteImageParam) er
 func (s *ScannerOrm) DeleteScanImage(ctx context.Context, param DeleteScanImageParam) error {
 	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*1)
 	defer cancelFunc()
-	db := s.psql.Get().Model(new(model.ScanImage)).WithContext(ctx)
+	db := s.rdb.Get().Model(new(model.ScanImage)).WithContext(ctx)
 	db = db.Where("image_id = ? ", param.ImageID)
 	err := db.Delete(&model.ScanImage{}).Error
 	return err
@@ -554,7 +553,7 @@ func (s *ScannerOrm) DeleteScanImage(ctx context.Context, param DeleteScanImageP
 func (s *ScannerOrm) IsInRegistry(ctx context.Context, library string) bool {
 	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*1)
 	defer cancelFunc()
-	res := s.psql.Get().WithContext(ctx).Model(model.Registry{}).Where("url = ? AND use_type!=0", library).First(&model.Registry{})
+	res := s.rdb.Get().WithContext(ctx).Model(model.Registry{}).Where("url = ? AND use_type!=0", library).First(&model.Registry{})
 	return res.Error == nil
 }
 
@@ -562,9 +561,9 @@ func (s *ScannerOrm) GetScanimageFromImageList(ctx context.Context, imgID int64)
 	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*2)
 	defer cancelFunc()
 	resScanImage := model.ScanImage{}
-	s.psql.Get().WithContext(ctx).Model(model.ScanImage{}).Where("image_id = ?", imgID).First(&resScanImage)
+	s.rdb.Get().WithContext(ctx).Model(model.ScanImage{}).Where("image_id = ?", imgID).First(&resScanImage)
 	resImageList := model.ImageList{}
-	s.psql.Get().Model(model.ImageList{}).Where("id = ?", imgID).First(&resImageList)
+	s.rdb.Get().Model(model.ImageList{}).Where("id = ?", imgID).First(&resImageList)
 	return resScanImage, resImageList
 }
 
@@ -572,7 +571,7 @@ func (s *ScannerOrm) GetGlobalPolicyConfig(ctx context.Context) ([]model.RejectP
 	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*1)
 	defer cancelFunc()
 	res := []model.RejectPolicy{}
-	err := s.psql.Get().WithContext(ctx).Model(model.RejectPolicy{}).Where("is_global = ?", true).Find(&res).Error
+	err := s.rdb.Get().WithContext(ctx).Model(model.RejectPolicy{}).Where("is_global = ?", true).Find(&res).Error
 	if err != nil {
 		return nil, err
 	}
@@ -583,19 +582,19 @@ func (s *ScannerOrm) AddGlobalPolicyConfig(ctx context.Context, policy model.Rej
 	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*5)
 	defer cancelFunc()
 
-	res := s.psql.Get().WithContext(ctx).Model(&model.RejectPolicy{}).Where("is_global = ?", true).First(&model.RejectPolicy{})
+	res := s.rdb.Get().WithContext(ctx).Model(&model.RejectPolicy{}).Where("is_global = ?", true).First(&model.RejectPolicy{})
 	if res.Error != nil {
-		s.psql.Get().WithContext(ctx).Model(model.RejectPolicy{}).Create(&policy)
+		s.rdb.Get().WithContext(ctx).Model(model.RejectPolicy{}).Create(&policy)
 	} else {
-		s.psql.Get().WithContext(ctx).Model(&model.RejectPolicy{}).Where("is_global = ?", true).Select("cicd_enable", "k8s_enable", "mode", "online_monitor").Updates(&policy)
+		s.rdb.Get().WithContext(ctx).Model(&model.RejectPolicy{}).Where("is_global = ?", true).Select("cicd_enable", "k8s_enable", "mode", "online_monitor").Updates(&policy)
 	}
-	s.psql.Get().WithContext(ctx).Model(&model.RejectPolicy{}).Where("is_global = ?", false).Omit("is_global").Select("cicd_enable", "k8s_enable", "mode", "online_monitor").Updates(&policy)
+	s.rdb.Get().WithContext(ctx).Model(&model.RejectPolicy{}).Where("is_global = ?", false).Omit("is_global").Select("cicd_enable", "k8s_enable", "mode", "online_monitor").Updates(&policy)
 }
 
 func (s *ScannerOrm) SearchRejectPolicy(ctx context.Context, param SearchRejectPolicyParam) ([]model.RejectPolicy, error) {
 	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*5)
 	defer cancelFunc()
-	db := s.psql.Get().Model(new(model.RejectPolicy)).WithContext(ctx)
+	db := s.rdb.Get().Model(new(model.RejectPolicy)).WithContext(ctx)
 	res := make([]model.RejectPolicy, 0)
 	if param.Global == consts.TrueString {
 		db = db.Where("is_global = ? ", true)
@@ -663,7 +662,7 @@ func (s *ScannerOrm) SearchRejectPolicy(ctx context.Context, param SearchRejectP
 func (s *ScannerOrm) SearchRejectVuln(ctx context.Context, param SearchRejectRejectVulnParam) ([]model.RejectVuln, error) {
 	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*1)
 	defer cancelFunc()
-	db := s.psql.Get().Model(new(model.RejectVuln)).WithContext(ctx)
+	db := s.rdb.Get().Model(new(model.RejectVuln)).WithContext(ctx)
 	if param.RejectID > 0 {
 		db = db.Where("reject_policy_id = ?", param.RejectID)
 	}
@@ -678,7 +677,7 @@ func (s ScannerOrm) GetK8sRejectImageList(ctx context.Context, image model.Image
 	var id int64
 	// 如果传了digest就先查digest
 	if image.Digest != "" {
-		s.psql.Get().WithContext(ctx).Model(model.ImageList{}).Select("id").
+		s.rdb.Get().WithContext(ctx).Model(model.ImageList{}).Select("id").
 			Where("digest = ? AND library = ?", image.Digest, image.Library).First(&id)
 		if id != 0 {
 			image.ID = id
@@ -686,12 +685,12 @@ func (s ScannerOrm) GetK8sRejectImageList(ctx context.Context, image model.Image
 		}
 	}
 	var ids []int64
-	res := s.psql.Get().WithContext(ctx).Model(model.ImageList{}).Select("id").
+	res := s.rdb.Get().WithContext(ctx).Model(model.ImageList{}).Select("id").
 		Where("full_repo_name = ? AND tags = ? AND library = ?", image.FullRepoName, image.Tags, image.Library).Order("updated_at desc").Find(&ids)
 	if res.Error == nil && len(ids) > 0 {
 		for k := range ids {
 			tmp := []model.ScanImage{}
-			resScan := s.psql.Get().Model(model.ScanImage{}).Where("image_id = ? AND status != ?", ids[k], model.ScanStatusInProgress).Find(&tmp)
+			resScan := s.rdb.Get().Model(model.ScanImage{}).Where("image_id = ? AND status != ?", ids[k], model.ScanStatusInProgress).Find(&tmp)
 			if resScan.Error == nil {
 				image.ID = ids[k]
 				return &image
@@ -707,10 +706,10 @@ func (s ScannerOrm) GetK8sRejectImageList(ctx context.Context, image model.Image
 func (s ScannerOrm) DeletePolicy(ctx context.Context, policyID int64) error {
 	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*3)
 	defer cancelFunc()
-	if err := s.psql.Get().WithContext(ctx).Model(model.RejectVuln{}).Where("reject_policy_id = ? ", policyID).Delete(model.RejectVuln{}).Error; err != nil {
+	if err := s.rdb.Get().WithContext(ctx).Model(model.RejectVuln{}).Where("reject_policy_id = ? ", policyID).Delete(model.RejectVuln{}).Error; err != nil {
 		return err
 	}
-	if err := s.psql.Get().WithContext(ctx).Model(model.RejectPolicy{}).Where("id = ? ", policyID).Delete(model.RejectPolicy{}).Error; err != nil {
+	if err := s.rdb.Get().WithContext(ctx).Model(model.RejectPolicy{}).Where("id = ? ", policyID).Delete(model.RejectPolicy{}).Error; err != nil {
 		return err
 	}
 	return nil
@@ -721,7 +720,7 @@ func (s ScannerOrm) UpdatePolicy(ctx context.Context, param SearchRejectPolicyPa
 	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*5)
 	defer cancelFunc()
 
-	db := s.psql.Get().Model(new(model.RejectPolicy)).Omit("is_global")
+	db := s.rdb.Get().Model(new(model.RejectPolicy)).Omit("is_global")
 	if param.ID > 0 {
 		db = db.Where("id = ?", param.ID)
 	}
@@ -739,7 +738,7 @@ func (s ScannerOrm) UpdatePolicy(ctx context.Context, param SearchRejectPolicyPa
 
 	// 更新自定义漏洞
 	if param.UpdateRejectVulns && param.ID > 0 {
-		if err := s.psql.Get().WithContext(ctx).Model(model.RejectVuln{}).Where("reject_policy_id = ? ", param.ID).Delete(model.RejectVuln{}).Error; err != nil {
+		if err := s.rdb.Get().WithContext(ctx).Model(model.RejectVuln{}).Where("reject_policy_id = ? ", param.ID).Delete(model.RejectVuln{}).Error; err != nil {
 			return err
 		}
 		tmpVuln := param.RejectVulns
@@ -747,7 +746,7 @@ func (s ScannerOrm) UpdatePolicy(ctx context.Context, param SearchRejectPolicyPa
 			tmpVuln[k].RejectPolicyID = param.ID
 		}
 		if len(tmpVuln) > 0 { // 不判断会报错： empty slice found
-			if err := s.psql.Get().Model(model.RejectVuln{}).Create(&tmpVuln).Error; err != nil {
+			if err := s.rdb.Get().Model(model.RejectVuln{}).Create(&tmpVuln).Error; err != nil {
 				return err
 			}
 		}
@@ -759,7 +758,7 @@ func (s ScannerOrm) UpdatePolicy(ctx context.Context, param SearchRejectPolicyPa
 func (s ScannerOrm) UpdateGlobalPolicy(ctx context.Context, updater map[string]interface{}) error {
 	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*5)
 	defer cancelFunc()
-	db := s.psql.Get().Model(new(model.RejectPolicy)).Omit("is_global").WithContext(ctx)
+	db := s.rdb.Get().Model(new(model.RejectPolicy)).Omit("is_global").WithContext(ctx)
 	// begin a transaction
 	tx := db.Begin()
 
@@ -778,14 +777,14 @@ func (s ScannerOrm) UpdateGlobalPolicy(ctx context.Context, updater map[string]i
 func (s ScannerOrm) AddSinglePolicy(ctx context.Context, policy model.RejectPolicy) (int64, error) {
 	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*2)
 	defer cancelFunc()
-	if err := s.psql.Get().WithContext(ctx).Model(model.RejectPolicy{}).Create(&policy).Error; err != nil {
+	if err := s.rdb.Get().WithContext(ctx).Model(model.RejectPolicy{}).Create(&policy).Error; err != nil {
 		return 0, err
 	}
 	tmpVuln := policy.RejectVulns
 	for k := range tmpVuln {
 		tmpVuln[k].RejectPolicyID = policy.ID
 	}
-	if err := s.psql.Get().WithContext(ctx).Model(model.RejectVuln{}).Create(&tmpVuln).Error; err != nil {
+	if err := s.rdb.Get().WithContext(ctx).Model(model.RejectVuln{}).Create(&tmpVuln).Error; err != nil {
 		return 0, err
 	}
 	return policy.ID, nil
@@ -796,13 +795,13 @@ func (s ScannerOrm) GetPolicyConfig(ctx context.Context, getVuln bool) ([]model.
 	defer cancelFunc()
 
 	tmpPolicies := []model.RejectPolicy{}
-	err := s.psql.Get().WithContext(ctx).Model(model.RejectPolicy{}).Where("deleted_at = 0 And is_global != true").Find(&tmpPolicies).Error
+	err := s.rdb.Get().WithContext(ctx).Model(model.RejectPolicy{}).Where("deleted_at = 0 And is_global != true").Find(&tmpPolicies).Error
 	if err != nil {
 		return []model.RejectPolicy{}, nil
 	}
 	if getVuln {
 		for k := range tmpPolicies {
-			s.psql.Get().Model(model.RejectVuln{}).Where("reject_policy_id = ?", tmpPolicies[k].ID).Find(&tmpPolicies[k].RejectVulns)
+			s.rdb.Get().Model(model.RejectVuln{}).Where("reject_policy_id = ?", tmpPolicies[k].ID).Find(&tmpPolicies[k].RejectVulns)
 		}
 	}
 	return tmpPolicies, nil
@@ -814,13 +813,13 @@ func (s ScannerOrm) GetSimpleImageDetail(ctx context.Context, tag string, digest
 	var imageID int
 	librarys := []string{library, "http://" + library, "https://" + library}
 
-	res := s.psql.Get().WithContext(ctx).Model(model.ImageList{}).Select("id").Where("tags = ? AND library In ? AND full_repo_name = ?", tag, librarys, fullRepoName).First(&imageID)
+	res := s.rdb.Get().WithContext(ctx).Model(model.ImageList{}).Select("id").Where("tags = ? AND library In ? AND full_repo_name = ?", tag, librarys, fullRepoName).First(&imageID)
 	if res.Error != nil {
 		return model.SimpleImageDetail{}
 	}
 	resDetail := model.SimpleImageDetail{}
 	tmpScanImage := model.ScanImage{}
-	res = s.psql.Get().WithContext(ctx).Model(model.ScanImage{}).Select("vuln_info_json,sensitive_file_json").Where("image_id = ?", imageID).First(&tmpScanImage)
+	res = s.rdb.Get().WithContext(ctx).Model(model.ScanImage{}).Select("vuln_info_json,sensitive_file_json").Where("image_id = ?", imageID).First(&tmpScanImage)
 	if res.Error != nil {
 		return model.SimpleImageDetail{}
 	}
@@ -840,7 +839,7 @@ func (s ScannerOrm) GetSimpleImageDetail(ctx context.Context, tag string, digest
 func (s *ScannerOrm) SetImageStatus(ctx context.Context, ids []int64, status string) error {
 	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*3)
 	defer cancelFunc()
-	db := s.psql.Get().WithContext(ctx).Model(model.ScanImage{}).Where("status != ?", model.ScanStatusInProgress)
+	db := s.rdb.Get().WithContext(ctx).Model(model.ScanImage{}).Where("status != ?", model.ScanStatusInProgress)
 	if len(ids) > 0 {
 		db = db.Where("image_id IN ?", ids)
 	}
@@ -858,12 +857,12 @@ func (s *ScannerOrm) GetImagesFromVuln(ctx context.Context, name string) ([]mode
 	tmpImageID := []int{}
 	resImageLists := []model.VulnImageList{}
 	// 查询这个vuln关联的imageid
-	err := s.psql.Get().WithContext(ctx).Model(model.VulnImage{}).Select("image_id").Where("vuln_name = ? ", name).Find(&tmpImageID).Error
+	err := s.rdb.Get().WithContext(ctx).Model(model.VulnImage{}).Select("image_id").Where("vuln_name = ? ", name).Find(&tmpImageID).Error
 	if err != nil {
 		return resImageLists, err
 	}
 	// 查询image具体信息
-	err = s.psql.Get().WithContext(ctx).Model(model.ImageList{}).Select("full_repo_name,digest,library,id,tags").Where("id IN ? ", tmpImageID).Find(&resImageLists).Error
+	err = s.rdb.Get().WithContext(ctx).Model(model.ImageList{}).Select("full_repo_name,digest,library,id,tags").Where("id IN ? ", tmpImageID).Find(&resImageLists).Error
 	return resImageLists, err
 }
 
@@ -872,7 +871,7 @@ func (s *ScannerOrm) GetVulnDetails(ctx context.Context, name string) (model.Vul
 	defer cancelFunc()
 	tmp := model.Vuln{}
 	// 取出对应vuln信息
-	err := s.psql.Get().WithContext(ctx).Model(model.Vuln{}).Where("name = ?", name).Find(&tmp).Error
+	err := s.rdb.Get().WithContext(ctx).Model(model.Vuln{}).Where("name = ?", name).Find(&tmp).Error
 	if err != nil {
 		return model.VulnDetail{}, err
 	}
@@ -900,16 +899,16 @@ func (s *ScannerOrm) GetVulnDetails(ctx context.Context, name string) (model.Vul
 	tmpImageID := make([]int, 0)
 	tmpImageLists := make([]model.VulnImageList, 0)
 	// 查询这个vuln关联的imageid
-	s.psql.Get().WithContext(ctx).Model(model.VulnImage{}).Select("image_id").Where("vuln_name = ? ", name).Find(&tmpImageID)
+	s.rdb.Get().WithContext(ctx).Model(model.VulnImage{}).Select("image_id").Where("vuln_name = ? ", name).Find(&tmpImageID)
 	// 查询image具体信息
-	s.psql.Get().WithContext(ctx).Model(model.ImageList{}).Select("full_repo_name,digest,library,id").Where("id IN ? ", tmpImageID).Find(&tmpImageLists)
+	s.rdb.Get().WithContext(ctx).Model(model.ImageList{}).Select("full_repo_name,digest,library,id").Where("id IN ? ", tmpImageID).Find(&tmpImageLists)
 	return res, nil
 }
 
 func (s *ScannerOrm) SearchVulns(ctx context.Context, searchWord string, filter *model.Filter) ([]model.VulnList, int, error) {
 	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*3)
 	defer cancelFunc()
-	db := s.psql.Get().WithContext(ctx).Model(model.Vuln{}).Select("name,severity,pkg_name,pkg_version").Order("severity_int desc")
+	db := s.rdb.Get().WithContext(ctx).Model(model.Vuln{}).Select("name,severity,pkg_name,pkg_version").Order("severity_int desc")
 	if searchWord != "" {
 		db = db.Where("name LIKE ?", fmt.Sprintf("%%%s%%", searchWord))
 	}
@@ -931,7 +930,7 @@ func (s *ScannerOrm) GetOnlineImage(ctx context.Context, param GetOnlineImagePar
 	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*1)
 	defer cancelFunc()
 	res := make([]OnlineImage, 0)
-	db := s.psql.Get().WithContext(ctx)
+	db := s.rdb.Get().WithContext(ctx)
 	if err := db.Raw(param.SQL).Scan(&res).Error; err != nil {
 		return nil, err
 	}
@@ -943,7 +942,7 @@ func (s *ScannerOrm) SearchScanLayer(ctx context.Context, param SearchScanLayerP
 	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*10)
 	defer cancelFunc()
 
-	db := s.psql.Get().WithContext(ctx).Model(new(model.ScanLayer)).WithContext(ctx)
+	db := s.rdb.Get().WithContext(ctx).Model(new(model.ScanLayer)).WithContext(ctx)
 	// 默认查询没有删除的,如果不传就是0
 	db = db.Where("deleted_at = ? ", param.DeletedAt)
 	if len(param.LayerDigests) > 0 {
@@ -1023,7 +1022,7 @@ func (s *ScannerOrm) GetVulnTop5(ctx context.Context) ([]model.ImageRiskScore, e
 	// ivan_scanner_image_list.image_type,ivan_scanner_image_list.from_type,ivan_scanner_image_list.node_ip,ivan_scanner_image_list.node_hostname,ivan_scanner_image_list.os").
 
 	tmp := []tmpRes{}
-	err := s.psql.Get().WithContext(ctx).Model(model.ScanImage{}).Select("ivan_scanner_scan_images.image_id,ivan_scanner_scan_images.vuln_score,ivan_scanner_scan_images.severity_histogram_json").
+	err := s.rdb.Get().WithContext(ctx).Model(model.ScanImage{}).Select("ivan_scanner_scan_images.image_id,ivan_scanner_scan_images.vuln_score,ivan_scanner_scan_images.severity_histogram_json").
 		Joins("join ivan_scanner_image_list on ivan_scanner_image_list.id=ivan_scanner_scan_images.image_id").
 		Where("ivan_scanner_scan_images.status = ?", model.ScanStatusSucceeded).Limit(5).Order("ivan_scanner_scan_images.vuln_score desc").Find(&tmp).Error
 	if err != nil {
@@ -1033,7 +1032,7 @@ func (s *ScannerOrm) GetVulnTop5(ctx context.Context) ([]model.ImageRiskScore, e
 	for _, v := range tmp {
 		tmpRiskScore := model.ImageRiskScore{}
 		tmpInfo := new(model.ImageList)
-		err = s.psql.Get().WithContext(ctx).Model(model.ImageList{}).Where("id = ?", v.ImageID).Find(&tmpInfo).Error
+		err = s.rdb.Get().WithContext(ctx).Model(model.ImageList{}).Where("id = ?", v.ImageID).Find(&tmpInfo).Error
 		if err != nil {
 			continue
 		}
@@ -1067,7 +1066,7 @@ func (s *ScannerOrm) GetVulnSeverityCount(ctx context.Context) (model.SeverityCo
 	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*10)
 	defer cancelFunc()
 	tmp := []string{}
-	err := s.psql.Get().WithContext(ctx).Model(model.Vuln{}).Select("severity").Scan(&tmp).Error
+	err := s.rdb.Get().WithContext(ctx).Model(model.Vuln{}).Select("severity").Scan(&tmp).Error
 	if err != nil {
 		return model.SeverityCount{}, err
 	}
@@ -1094,7 +1093,7 @@ func (s *ScannerOrm) GetVulnTotal(ctx context.Context) (int, error) {
 	defer cancelFunc()
 
 	var total int
-	err := s.psql.Get().WithContext(ctx).Model(model.Vuln{}).Select("Count(*)").Scan(&total).Error
+	err := s.rdb.Get().WithContext(ctx).Model(model.Vuln{}).Select("Count(*)").Scan(&total).Error
 	if err != nil {
 		return 0, err
 	}
@@ -1107,7 +1106,7 @@ func (s *ScannerOrm) InsertScanImage(ctx context.Context, sis []model.ScanImage)
 	if len(sis) == 0 {
 		return 0, nil
 	}
-	db := s.psql.Get().WithContext(ctx).Create(&sis)
+	db := s.rdb.Get().WithContext(ctx).Create(&sis)
 	return db.RowsAffected, db.Error
 }
 
@@ -1117,7 +1116,7 @@ func (s *ScannerOrm) UpdateImage(ctx context.Context, where string, updater map[
 	}
 	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*1)
 	defer cancelFunc()
-	db := s.psql.Get().Model(new(model.ImageList)).WithContext(ctx).Where(where).Updates(updater)
+	db := s.rdb.Get().Model(new(model.ImageList)).WithContext(ctx).Where(where).Updates(updater)
 	return db.Error
 }
 
@@ -1129,7 +1128,7 @@ func (s *ScannerOrm) SearchScanAllStatus(ctx context.Context, fromType int64) ha
 	var tmpScanImage []model.ScanImage
 	var total int
 	var doingNum, errorNum, successNum, pendingNum int
-	s.psql.Get().WithContext(ctx).Model(&model.ScanImage{}).Select("ivan_scanner_scan_images.image_id,ivan_scanner_scan_images.status").Joins("join ivan_scanner_image_list on ivan_scanner_image_list.id=ivan_scanner_scan_images.image_id").
+	s.rdb.Get().WithContext(ctx).Model(&model.ScanImage{}).Select("ivan_scanner_scan_images.image_id,ivan_scanner_scan_images.status").Joins("join ivan_scanner_image_list on ivan_scanner_image_list.id=ivan_scanner_scan_images.image_id").
 		Where(fmt.Sprintf("ivan_scanner_image_list.from_type = %d and ivan_scanner_scan_images.id >0", fromType)).Find(&tmpScanImage) // 可能分段查询更好,todo
 	total = len(tmpScanImage)
 	for _, v := range tmpScanImage {
@@ -1162,7 +1161,7 @@ func (s *ScannerOrm) GetAuthFromRegistry(ctx context.Context, registryID int64) 
 	defer cancelFunc()
 
 	tmp := model.Registry{}
-	res := s.psql.Get().WithContext(ctx).Where("id = ?", registryID).First(&tmp)
+	res := s.rdb.Get().WithContext(ctx).Where("id = ?", registryID).First(&tmp)
 	if res.Error != nil {
 		return ""
 	}
@@ -1183,7 +1182,7 @@ func (s *ScannerOrm) GetImageID(ctx context.Context, digest string, fullRepoName
 	defer cancelFunc()
 
 	var tmp model.ImageList
-	res := s.psql.Get().WithContext(ctx).Where("digest = ? and full_repo_name= ?", digest, fullRepoName).First(&tmp)
+	res := s.rdb.Get().WithContext(ctx).Where("digest = ? and full_repo_name= ?", digest, fullRepoName).First(&tmp)
 	if res.Error != nil {
 		return -1, nil
 	}
@@ -1194,9 +1193,9 @@ func (s *ScannerOrm) InsertToScanImage(ctx context.Context, ScanImage *model.Sca
 	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*10)
 	defer cancelFunc()
 	tmp := model.ScanImage{}
-	res := s.psql.Get().WithContext(ctx).Where(&model.ScanImage{ImageID: ScanImage.ImageID}).First(&tmp)
+	res := s.rdb.Get().WithContext(ctx).Where(&model.ScanImage{ImageID: ScanImage.ImageID}).First(&tmp)
 	if res.Error != nil {
-		err := s.psql.Get().Create(ScanImage).Error
+		err := s.rdb.Get().Create(ScanImage).Error
 		if err != nil {
 			return err
 		}
@@ -1214,7 +1213,7 @@ func (s *ScannerOrm) UpdateToScanImage(ctx context.Context, ScanImage *model.Sca
 	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*1)
 	defer cancelFunc()
 	tmpImage := model.ScanImage{ID: tableID}
-	err := s.psql.Get().WithContext(ctx).Model(tmpImage).Updates(ScanImage).Error
+	err := s.rdb.Get().WithContext(ctx).Model(tmpImage).Updates(ScanImage).Error
 	if err != nil {
 		return err
 	}
@@ -1225,7 +1224,7 @@ func (s *ScannerOrm) GetTaskFromImageList(ctx context.Context, imgID int64, from
 	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*10)
 	defer cancelFunc()
 	tmp := model.ImageList{}
-	if err := s.psql.Get().WithContext(ctx).Where("id = ? ", imgID).First(&tmp).Error; err != nil {
+	if err := s.rdb.Get().WithContext(ctx).Where("id = ? ", imgID).First(&tmp).Error; err != nil {
 		return model.ScanTask{}, model.VirusScanTask{}, fmt.Errorf("未找到对应镜像记录: %+v", err)
 	}
 	// 支持多仓库，而且有节点镜像，所以这里的URL最好通过regestryID去查
@@ -1288,12 +1287,12 @@ func (s *ScannerOrm) SearchScanOneStatus(ctx context.Context, param SearchScanOn
 	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*3)
 	defer cancelFunc()
 	tmp := model.ImageList{}
-	res := s.psql.Get().WithContext(ctx).Where(&model.ImageList{FullRepoName: param.RepositoryName, Tags: param.Tag, Digest: param.Digest}).First(&tmp)
+	res := s.rdb.Get().WithContext(ctx).Where(&model.ImageList{FullRepoName: param.RepositoryName, Tags: param.Tag, Digest: param.Digest}).First(&tmp)
 	if res.Error != nil {
 		return "not_scan"
 	}
 	tmpScanImage := model.ScanImage{}
-	res = s.psql.Get().WithContext(ctx).Where(&model.ScanImage{ImageID: tmp.ID}).First(&tmpScanImage)
+	res = s.rdb.Get().WithContext(ctx).Where(&model.ScanImage{ImageID: tmp.ID}).First(&tmpScanImage)
 	if res.Error != nil {
 		return "not_scan"
 	}
@@ -1303,7 +1302,7 @@ func (s *ScannerOrm) SearchScanOneStatus(ctx context.Context, param SearchScanOn
 func (s *ScannerOrm) GetImageOverView(ctx context.Context, param GetImageOverViewParm, res interface{}) error {
 	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*5)
 	defer cancelFunc()
-	db := s.psql.Get().WithContext(ctx)
+	db := s.rdb.Get().WithContext(ctx)
 	if err := db.Raw(param.SQL).Scan(res).Error; err != nil {
 		return err
 	}
@@ -1313,7 +1312,7 @@ func (s *ScannerOrm) GetImageOverView(ctx context.Context, param GetImageOverVie
 func (s *ScannerOrm) SearchScanImage(ctx context.Context, param SearchScanImageParam, filter *model.Filter) ([]model.ScanImage, int64, error) {
 	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*3)
 	defer cancelFunc()
-	db := s.psql.Get().Model(new(model.ScanImage)).WithContext(ctx)
+	db := s.rdb.Get().Model(new(model.ScanImage)).WithContext(ctx)
 	// 默认查询没有删除的,如果不传就是0
 	// 确认是是且的关系
 	if param.Kind != "" {
@@ -1456,7 +1455,7 @@ func (s *ScannerOrm) SearchScanImage(ctx context.Context, param SearchScanImageP
 func (s *ScannerOrm) SearchRegistry(ctx context.Context, param SearchRegistryParam, filter *model.Filter) ([]model.Registry, int64, error) {
 	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*3)
 	defer cancelFunc()
-	db := s.psql.Get().Model(new(model.Registry)).WithContext(ctx)
+	db := s.rdb.Get().Model(new(model.Registry)).WithContext(ctx)
 	// 默认查询没有删除的,如果不传就是0
 	if len(param.RegistryIds) > 0 {
 		if len(param.RegistryIds) == 1 {
@@ -1509,7 +1508,7 @@ func (s *ScannerOrm) SearchRegistry(ctx context.Context, param SearchRegistryPar
 func (s *ScannerOrm) SearchImage(ctx context.Context, param SearchImageParam, filter *model.Filter) ([]model.ImageList, int64, error) {
 	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*10)
 	defer cancelFunc()
-	db := s.psql.Get().Model(new(model.ImageList)).WithContext(ctx)
+	db := s.rdb.Get().Model(new(model.ImageList)).WithContext(ctx)
 	// 默认查询没有删除的,如果不传就是0
 	db = db.Where("status = ? ", param.Status)
 	if len(param.Digests) > 0 {
@@ -1644,9 +1643,9 @@ func (s *ScannerOrm) InsertAdapterImageList(ctx context.Context, im model.ImageL
 	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*5)
 	defer cancelFunc()
 	tmp := model.ImageList{}
-	res := s.psql.Get().WithContext(ctx).Where("full_repo_name=? AND digest = ? AND registry_id = ?", im.FullRepoName, im.Digest, im.RegistryID).First(&tmp)
+	res := s.rdb.Get().WithContext(ctx).Where("full_repo_name=? AND digest = ? AND registry_id = ?", im.FullRepoName, im.Digest, im.RegistryID).First(&tmp)
 	if res.Error != nil {
-		err := s.psql.Get().Create(&im).Error
+		err := s.rdb.Get().Create(&im).Error
 		return im.ID, err
 	}
 	if tmp.Status < 0 {
@@ -1655,7 +1654,7 @@ func (s *ScannerOrm) InsertAdapterImageList(ctx context.Context, im model.ImageL
 		im.Status = tmp.Status
 	}
 	im.OnLineCount = tmp.OnLineCount
-	err := s.psql.Get().Model(tmp).Updates(&im).Error
+	err := s.rdb.Get().Model(tmp).Updates(&im).Error
 	return tmp.ID, err
 }
 
@@ -1697,7 +1696,7 @@ func (s *ScannerOrm) CreateRejectRecord(ctx context.Context, data model.RejectRe
 		}
 	}
 
-	err := s.psql.Get().WithContext(ctx).Create(&data).Error
+	err := s.rdb.Get().WithContext(ctx).Create(&data).Error
 	return &data, err
 }
 
@@ -1729,7 +1728,7 @@ func (s *ScannerOrm) OverviewForInterval(ctx context.Context, interval int, inte
 		timeParse = consts.TimeFormatWithDay
 	}
 
-	db := s.psql.Get().WithContext(ctx)
+	db := s.rdb.Get().WithContext(ctx)
 	if err := db.Where("reject_at >= ?", startAt).Find(&records).Error; err != nil {
 		return nil, err
 	}
@@ -1800,7 +1799,7 @@ func (s *ScannerOrm) OverviewReasonTopN(ctx context.Context, param OverviewReaso
 func (s *ScannerOrm) SearchRejectRecord(ctx context.Context, param SearchRejectRecordParam, filter *model.Filter) ([]model.RejectRecord, int64, error) {
 	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*3)
 	defer cancelFunc()
-	db := s.psql.Get().Model(new(model.RejectRecord)).WithContext(ctx)
+	db := s.rdb.Get().Model(new(model.RejectRecord)).WithContext(ctx)
 	if !param.StartAt.IsZero() {
 		db = db.Where("reject_at >= ?", param.StartAt)
 	}
@@ -1901,7 +1900,7 @@ func (s *ScannerOrm) CreateImageWhitelist(ctx context.Context, data model.ImageW
 	if data.Library == "" {
 		return nil, errors.New("no library")
 	}
-	err := s.psql.Get().WithContext(ctx).Create(&data).Error
+	err := s.rdb.Get().WithContext(ctx).Create(&data).Error
 	return &data, err
 }
 
@@ -1909,7 +1908,7 @@ func (s *ScannerOrm) SearchImageWhitelist(ctx context.Context, param SearchImage
 	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*1)
 	defer cancelFunc()
 
-	db := s.psql.Get().WithContext(ctx).Model(new(model.ImageWhitelist))
+	db := s.rdb.Get().WithContext(ctx).Model(new(model.ImageWhitelist))
 	if param.SearchWord != "" {
 		db = db.Where("full_repo_name LIKE ? OR tag LIKE ?  ", fmt.Sprintf("%%%s%%", param.SearchWord), fmt.Sprintf("%%%s%%", param.SearchWord))
 	}
@@ -1943,7 +1942,7 @@ func (s *ScannerOrm) DeleteImageWhitelist(ctx context.Context, param DeleteImage
 	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*1)
 	defer cancelFunc()
 
-	err := s.psql.Get().WithContext(ctx).Where("id = ?", param.WhiteID).Delete(&model.ImageWhitelist{}).Error
+	err := s.rdb.Get().WithContext(ctx).Where("id = ?", param.WhiteID).Delete(&model.ImageWhitelist{}).Error
 	return err
 }
 
@@ -1951,7 +1950,7 @@ func (s *ScannerOrm) UpdateTasksInfo(ctx context.Context, param SearchTaskParam,
 	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*5)
 	defer cancelFunc()
 
-	db := s.psql.Get().WithContext(ctx).Model(model.Task{})
+	db := s.rdb.Get().WithContext(ctx).Model(model.Task{})
 	if len(param.Ids) > 0 {
 		db = db.Where("id IN ? ", param.Ids)
 	}
@@ -1967,7 +1966,7 @@ func (s *ScannerOrm) UpdateTask(ctx context.Context, task model.Task, param Sear
 	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*5)
 	defer cancelFunc()
 
-	db := s.psql.Get().WithContext(ctx).Model(model.Task{}).Where("id = ?", task.ID)
+	db := s.rdb.Get().WithContext(ctx).Model(model.Task{}).Where("id = ?", task.ID)
 	if len(param.ExcludeStatus) != 0 {
 		db = db.Where("status NOT IN ? ", param.ExcludeStatus)
 	}
@@ -1979,7 +1978,7 @@ func (s *ScannerOrm) UpdateTasksStatus(ctx context.Context, updateIds []int64, s
 	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*5)
 	defer cancelFunc()
 	res := map[string]interface{}{"status": status}
-	db := s.psql.Get().WithContext(ctx).Model(model.Task{}).Where("id IN ?", updateIds).Updates(res)
+	db := s.rdb.Get().WithContext(ctx).Model(model.Task{}).Where("id IN ?", updateIds).Updates(res)
 	return db.Error
 }
 
@@ -1987,7 +1986,7 @@ func (s *ScannerOrm) UpdateSubTasksInfo(ctx context.Context, param SearchSubTask
 	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*5)
 	defer cancelFunc()
 
-	db := s.psql.Get().WithContext(ctx).Model(model.SubTask{})
+	db := s.rdb.Get().WithContext(ctx).Model(model.SubTask{})
 	if len(param.Ids) > 0 {
 		db = db.Where("id IN ? ", param.Ids)
 	}
@@ -2006,7 +2005,7 @@ func (s *ScannerOrm) UpdateSubTask(ctx context.Context, subtask model.SubTask) e
 	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*5)
 	defer cancelFunc()
 
-	db := s.psql.Get().WithContext(ctx).Model(model.SubTask{}).Where("id = ?", subtask.ID).Updates(&subtask)
+	db := s.rdb.Get().WithContext(ctx).Model(model.SubTask{}).Where("id = ?", subtask.ID).Updates(&subtask)
 	return db.Error
 }
 
@@ -2014,7 +2013,7 @@ func (s *ScannerOrm) GetTasks(ctx context.Context, param SearchTaskParam, filter
 	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*5)
 	defer cancelFunc()
 
-	db := s.psql.Get().WithContext(ctx).Model(new(model.Task))
+	db := s.rdb.Get().WithContext(ctx).Model(new(model.Task))
 	if param.StrategyID > 0 {
 		db = db.Where("policy_id = ? ", param.StrategyID)
 	}
@@ -2039,7 +2038,7 @@ func (s *ScannerOrm) GetTasks(ctx context.Context, param SearchTaskParam, filter
 }
 
 func (s *ScannerOrm) GetTotalTaskNum(ctx context.Context) (int64, error) {
-	db := s.psql.Get().WithContext(ctx).Model(new(model.Task))
+	db := s.rdb.Get().WithContext(ctx).Model(new(model.Task))
 	var cnt int64
 	if err := db.Count(&cnt).Error; err != nil {
 		return 0, err
@@ -2051,7 +2050,7 @@ func (s *ScannerOrm) GetImageInfo(ctx context.Context, imgID int64) (*model.Imag
 	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*5)
 	defer cancelFunc()
 	tmp := model.ImageList{}
-	if err := s.psql.Get().WithContext(ctx).Where("id = ? ", imgID).First(&tmp).Error; err != nil {
+	if err := s.rdb.Get().WithContext(ctx).Where("id = ? ", imgID).First(&tmp).Error; err != nil {
 		return nil, fmt.Errorf("not find image id :%d,%v", imgID, err)
 	}
 
@@ -2062,7 +2061,7 @@ func (s *ScannerOrm) GetRegistryInfo(ctx context.Context, ID int64) (*model.Regi
 	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*5)
 	defer cancelFunc()
 	tmp := model.Registry{}
-	if err := s.psql.Get().WithContext(ctx).Where("id = ? ", ID).First(&tmp).Error; err != nil {
+	if err := s.rdb.Get().WithContext(ctx).Where("id = ? ", ID).First(&tmp).Error; err != nil {
 		return nil, fmt.Errorf("not find registry:%v", err)
 	}
 
@@ -2073,7 +2072,7 @@ func (s *ScannerOrm) AddTaskAndSubTask(ctx context.Context, task model.Task, sub
 	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*10)
 	defer cancelFunc()
 
-	db := s.psql.Get().WithContext(ctx)
+	db := s.rdb.Get().WithContext(ctx)
 	tx := db.Begin()
 
 	if err := tx.Model(model.Task{}).Create(&task).Error; err != nil {
@@ -2101,7 +2100,7 @@ func (s *ScannerOrm) AddTaskAndSubTask(ctx context.Context, task model.Task, sub
 func (s *ScannerOrm) AddTask(ctx context.Context, task model.Task) (int64, error) {
 	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*10)
 	defer cancelFunc()
-	if err := s.psql.Get().WithContext(ctx).Model(model.Task{}).Create(&task).Error; err != nil {
+	if err := s.rdb.Get().WithContext(ctx).Model(model.Task{}).Create(&task).Error; err != nil {
 		return 0, err
 	}
 
@@ -2110,7 +2109,7 @@ func (s *ScannerOrm) AddTask(ctx context.Context, task model.Task) (int64, error
 func (s *ScannerOrm) AddSubTask(ctx context.Context, subtask []model.SubTask) error {
 	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*30)
 	defer cancelFunc()
-	if err := s.psql.Get().WithContext(ctx).Model(model.SubTask{}).CreateInBatches(&subtask, consts.SubTaskBatchInsertCount).Error; err != nil {
+	if err := s.rdb.Get().WithContext(ctx).Model(model.SubTask{}).CreateInBatches(&subtask, consts.SubTaskBatchInsertCount).Error; err != nil {
 		return err
 	}
 
@@ -2120,7 +2119,7 @@ func (s *ScannerOrm) GetSubTasks(ctx context.Context, param SearchSubTaskParam, 
 	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*5)
 	defer cancelFunc()
 
-	db := s.psql.Get().WithContext(ctx).Model(new(model.SubTask))
+	db := s.rdb.Get().WithContext(ctx).Model(new(model.SubTask))
 	if len(param.Statuses) > 0 {
 		db = db.Where("status in  ?  ", param.Statuses)
 	}
@@ -2146,12 +2145,12 @@ func (s *ScannerOrm) GetSubTasks(ctx context.Context, param SearchSubTaskParam, 
 }
 
 func (s *ScannerOrm) CreateTasks(ctx context.Context, tasks ...model.Task) error {
-	return s.psql.Get().Model(model.Task{}).CreateInBatches(tasks, 100).Error
+	return s.rdb.Get().Model(model.Task{}).CreateInBatches(tasks, 100).Error
 }
 
 func (s *ScannerOrm) UpdateTaskStatus(ctx context.Context, id int64, status uint8) (err error) {
 	var data model.Task
-	begin := s.psql.Get().WithContext(ctx).Begin()
+	begin := s.rdb.Get().WithContext(ctx).Begin()
 
 	defer func() {
 		if err != nil {
@@ -2188,7 +2187,7 @@ func (s *ScannerOrm) GetTaskList(ctx context.Context, limit, offset int) ([]*mod
 		err   error
 	)
 
-	db := s.psql.Get().WithContext(ctx)
+	db := s.rdb.Get().WithContext(ctx)
 
 	err = db.Model(model.Task{}).Where("status != ?", consts.Unknown).Count(&count).Error
 	if err != nil {
@@ -2264,7 +2263,7 @@ func (s *ScannerOrm) GetSubTaskListWithImage(ctx context.Context, taskID int64, 
 		err   error
 	)
 
-	db := s.psql.Get().WithContext(ctx)
+	db := s.rdb.Get().WithContext(ctx)
 
 	err = db.Model(model.SubTask{}).
 		Where("task_id = ?", taskID).
@@ -2329,7 +2328,7 @@ func (s *ScannerOrm) SetSingleStrategy(ctx context.Context, envName string, poli
 	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*10)
 	defer cancelFunc()
 	res := make([]model.ScanStrategy, 0)
-	err := s.psql.Get().WithContext(ctx).Where("is_default != ? and id in ?", true, policyID).Find(&res).Error
+	err := s.rdb.Get().WithContext(ctx).Where("is_default != ? and id in ?", true, policyID).Find(&res).Error
 	if err != nil {
 		return err
 	}
@@ -2349,7 +2348,7 @@ func (s *ScannerOrm) SetSingleStrategy(ctx context.Context, envName string, poli
 			continue
 		}
 		envStr := string(envByte)
-		err = s.psql.Get().Model(&model.ScanStrategy{}).Where("id = ?", res[k].ID).Update("envs", envStr).Error
+		err = s.rdb.Get().Model(&model.ScanStrategy{}).Where("id = ?", res[k].ID).Update("envs", envStr).Error
 		if err != nil {
 			logging.GetLogger().Error().Err(err).Msgf("updata env form db error")
 			continue
@@ -2362,7 +2361,7 @@ func (s *ScannerOrm) GetAllScanStrategyEnv(ctx context.Context) ([]model.ScanStr
 	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*10)
 	defer cancelFunc()
 	res := []model.ScanStrategy{}
-	err := s.psql.Get().WithContext(ctx).Select("id", "envs", "name").Where("is_default != ?", true).Find(&res).Error
+	err := s.rdb.Get().WithContext(ctx).Select("id", "envs", "name").Where("is_default != ?", true).Find(&res).Error
 	if err != nil {
 		return nil, err
 	}

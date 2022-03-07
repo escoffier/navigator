@@ -4,15 +4,13 @@ import (
 	"context"
 	"time"
 
+	"gitlab.com/piccolo_su/vegeta/pkg/model"
+	"gitlab.com/piccolo_su/vegeta/pkg/util"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
-
-	"gitlab.com/piccolo_su/vegeta/pkg/model"
-	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
-	"gitlab.com/piccolo_su/vegeta/pkg/util"
 )
 
-func GetConfig(ctx context.Context, rdb *rdbtools.GormWrapper, key string) (*model.TensorConfig, error) {
+func GetConfig(ctx context.Context, rdb *gorm.DB, key string) (*model.TensorConfig, error) {
 	pgCtx, cancel := context.WithTimeout(ctx, 1*time.Second)
 	defer cancel()
 
@@ -22,7 +20,7 @@ func GetConfig(ctx context.Context, rdb *rdbtools.GormWrapper, key string) (*mod
 		oneCtx, cancel := context.WithTimeout(pgCtx, 300*time.Millisecond)
 		defer cancel()
 
-		innerErr = rdb.Get().WithContext(oneCtx).Model(&config).Where("k = ? AND status = ?", key, 0).First(&config).Error
+		innerErr = rdb.WithContext(oneCtx).Model(&config).Where("k = ? AND status = ?", key, 0).First(&config).Error
 		if innerErr == gorm.ErrRecordNotFound {
 			return nil
 		}
@@ -57,7 +55,7 @@ func NewConfig(ctx context.Context, key string, val []byte, utime time.Time) *mo
 	}
 	return &c
 }
-func SetConfig(ctx context.Context, rdb *rdbtools.GormWrapper, key string, val []byte) error {
+func SetConfig(ctx context.Context, rdb *gorm.DB, key string, val []byte) error {
 	pgCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
 	defer cancel()
 
@@ -66,7 +64,7 @@ func SetConfig(ctx context.Context, rdb *rdbtools.GormWrapper, key string, val [
 		oneCtx, cancel := context.WithTimeout(pgCtx, 500*time.Millisecond)
 		defer cancel()
 
-		return rdb.Get().WithContext(oneCtx).Model(config).Clauses(clause.OnConflict{
+		return rdb.WithContext(oneCtx).Model(config).Clauses(clause.OnConflict{
 			Columns: []clause.Column{{Name: "k"}},
 			DoUpdates: clause.AssignmentColumns([]string{
 				"updated_at",
@@ -78,7 +76,7 @@ func SetConfig(ctx context.Context, rdb *rdbtools.GormWrapper, key string, val [
 	})
 }
 
-func BatchSetConfig(ctx context.Context, rdb *rdbtools.GormWrapper, configs []*model.TensorConfig) error {
+func BatchSetConfig(ctx context.Context, rdb *gorm.DB, configs []*model.TensorConfig) error {
 	if len(configs) == 0 {
 		return nil
 	}
@@ -89,7 +87,7 @@ func BatchSetConfig(ctx context.Context, rdb *rdbtools.GormWrapper, configs []*m
 		oneCtx, cancel := context.WithTimeout(pgCtx, 500*time.Millisecond)
 		defer cancel()
 
-		return rdb.Get().WithContext(oneCtx).Model(&model.TensorConfig{}).Clauses(clause.OnConflict{
+		return rdb.WithContext(oneCtx).Model(&model.TensorConfig{}).Clauses(clause.OnConflict{
 			Columns: []clause.Column{{Name: "k"}},
 			DoUpdates: clause.AssignmentColumns([]string{
 				"updated_at",
@@ -101,7 +99,7 @@ func BatchSetConfig(ctx context.Context, rdb *rdbtools.GormWrapper, configs []*m
 	})
 }
 
-func BatchGetConfig(ctx context.Context, rdb *rdbtools.GormWrapper, keys []string) ([]*model.TensorConfig, error) {
+func BatchGetConfig(ctx context.Context, rdb *gorm.DB, keys []string) ([]*model.TensorConfig, error) {
 	if len(keys) == 0 {
 		return nil, nil
 	}
@@ -113,7 +111,7 @@ func BatchGetConfig(ctx context.Context, rdb *rdbtools.GormWrapper, keys []strin
 		oneCtx, cancel := context.WithTimeout(pgCtx, 300*time.Millisecond)
 		defer cancel()
 
-		return rdb.Get().WithContext(oneCtx).Model(&model.TensorConfig{}).Where("k in (?) AND status = ?", keys, 0).Find(&configs).Error
+		return rdb.WithContext(oneCtx).Model(&model.TensorConfig{}).Where("k in (?) AND status = ?", keys, 0).Find(&configs).Error
 	})
 
 	if err != nil {

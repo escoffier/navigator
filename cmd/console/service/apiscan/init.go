@@ -3,15 +3,16 @@ package apiscan
 import (
 	"context"
 	"errors"
-	"github.com/sirupsen/logrus"
-	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
-	"gorm.io/gorm"
 	"sync"
 	"time"
+
+	"github.com/sirupsen/logrus"
+	"gitlab.com/security-rd/go-pkg/databases"
+	"gorm.io/gorm"
 )
 
 type Service struct {
-	db *rdbtools.GormWrapper
+	db *databases.RDBInstance
 }
 
 var (
@@ -23,7 +24,7 @@ func GetService(_ context.Context) (*Service, bool) {
 	return instance, instance != nil
 }
 
-func Init(db *rdbtools.GormWrapper) error {
+func Init(db *databases.RDBInstance) error {
 	if db == nil {
 		return errors.New("illegal argument")
 	}
@@ -53,7 +54,7 @@ func cleanUnfinishedJob(db *gorm.DB) {
 	}
 }
 
-func newService(db *rdbtools.GormWrapper) (*Service, error) {
+func newService(db *databases.RDBInstance) (*Service, error) {
 	service := &Service{
 		db: db,
 	}

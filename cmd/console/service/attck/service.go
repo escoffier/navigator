@@ -7,7 +7,7 @@ import (
 
 	"github.com/go-redis/redis/v8"
 	"gitlab.com/piccolo_su/vegeta/pkg/echelper"
-	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
+	"gitlab.com/security-rd/go-pkg/databases"
 )
 
 var (
@@ -15,7 +15,7 @@ var (
 	once     sync.Once
 )
 
-func Init(rdb *rdbtools.GormWrapper, redisCli *redis.Client, ecCli *echelper.EventCenterClient) error {
+func Init(rdb *databases.RDBInstance, redisCli *redis.Client, ecCli *echelper.EventCenterClient) error {
 	if rdb == nil || redisCli == nil {
 		return errors.New("empty db client")
 	}
@@ -44,7 +44,7 @@ type Service struct {
 	*ATTCKHandler
 }
 
-func newService(db *rdbtools.GormWrapper, redisCli *redis.Client, ecCli *echelper.EventCenterClient) (*Service, error) {
+func newService(db *databases.RDBInstance, redisCli *redis.Client, ecCli *echelper.EventCenterClient) (*Service, error) {
 	attckHandler, err := NewATTCKHandler(db, redisCli, ecCli)
 	if err != nil {
 		return nil, err

@@ -13,7 +13,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/assets"
 	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
-	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
+	"gitlab.com/security-rd/go-pkg/databases"
 	"gorm.io/gorm"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -284,7 +284,7 @@ func (s *Service) GetSingleApi(ctx context.Context, apiID int64) (*SingleApiResp
 	return tensorResp, nil
 }
 
-func watchAndCleanJob(restCli kubernetes.Interface, sdb *rdbtools.GormWrapper, watchedJobName, wnamespace string, apiID int64) {
+func watchAndCleanJob(restCli kubernetes.Interface, sdb *databases.RDBInstance, watchedJobName, wnamespace string, apiID int64) {
 	wctx := context.Background()
 
 	defer func() {

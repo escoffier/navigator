@@ -310,7 +310,8 @@
                         "in": "path",
                         "required": true
                     }
-                ]
+                ],
+                "responses": {}
             }
         },
         "/api/v1/policy/{policyID}/mode": {
@@ -478,7 +479,8 @@
                         "in": "path",
                         "required": true
                     }
-                ]
+                ],
+                "responses": {}
             },
             "put": {
                 "description": "Update policy resource profile",
@@ -571,7 +573,8 @@
                             }
                         }
                     }
-                ]
+                ],
+                "responses": {}
             }
         },
         "/api/v1/policy/{policyID}/{profileKind}/train/abort": {

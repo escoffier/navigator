@@ -8,15 +8,12 @@ import (
 	"time"
 
 	"github.com/go-redis/redis/v8"
-	"gitlab.com/security-rd/go-pkg/databases"
-	"gorm.io/gorm"
-
-	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
 	"gitlab.com/piccolo_su/vegeta/pkg/redistools"
+	"gitlab.com/security-rd/go-pkg/databases"
 )
 
 var dbInitOnce sync.Once
-var scannerGormWrapDb *rdbtools.GormWrapper
+var scannerDB *databases.RDBInstance
 var scannerOrm *ScannerOrm
 var scannerDb *ScannerDB // todo: should be deprecated
 var scanConfigDao *ScanConfigDao
@@ -24,29 +21,27 @@ var redisClients []*redis.Client = make([]*redis.Client, 2)
 
 func InitDb() (err error) {
 	dbInitOnce.Do(func() {
-		scannerGormWrapDb, err = rdbtools.GormWrapperOpen(1*time.Minute, func() (*gorm.DB, error) {
-			db, err := databases.GetMysqlWithEnv(context.Background(),
-				databases.OptionWithmaxOpenConnections(60),
-				databases.OptionWithMaxIdleConns(30),
-				databases.OptionWithConnMaxLifeTime(time.Hour),
-			)
-			return db, err
-		})
+		var err error
+		scannerDB, err = databases.NewRDBWithMySQLByEnv(context.Background(), databases.OptionWithmaxOpenConnections(60),
+			databases.OptionWithMaxIdleConns(30),
+			databases.OptionWithConnMaxLifeTime(time.Hour),
+		)
+
 		if err != nil {
 			err = fmt.Errorf("connect db err:%v", err)
 			return
 		}
-		scannerOrm = NewScannerOrm(scannerGormWrapDb)
-		scanConfigDao = NewScanConfigDao(scannerGormWrapDb)
+		scannerOrm = NewScannerOrm(scannerDB)
+		scanConfigDao = NewScanConfigDao(scannerDB)
 		// todo: should be deprecated
-		scannerDb = NewScannerDB(scannerGormWrapDb)
+		scannerDb = NewScannerDB(scannerDB)
 	})
 
 	return
 }
 
-func GetScannerWrapperDb() *rdbtools.GormWrapper {
-	return scannerGormWrapDb
+func GetScannerWrapperDb() *databases.RDBInstance {
+	return scannerDB
 }
 
 func GetScanConfigDao() *ScanConfigDao {

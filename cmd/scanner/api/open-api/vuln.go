@@ -4,20 +4,19 @@ import (
 	"errors"
 
 	"github.com/gin-gonic/gin"
-
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/api/model/vuln"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/openapi"
-	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
+	"gitlab.com/security-rd/go-pkg/databases"
 )
 
 type VulnServer struct {
 	service *openapi.VulnService
 }
 
-func NewVulnServer(psql *rdbtools.GormWrapper) *VulnServer {
+func NewVulnServer(rdb *databases.RDBInstance) *VulnServer {
 	return &VulnServer{
-		service: openapi.NewVulnService(psql),
+		service: openapi.NewVulnService(rdb),
 	}
 }
 

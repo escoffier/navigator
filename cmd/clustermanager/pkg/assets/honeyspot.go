@@ -11,18 +11,17 @@ import (
 
 	"gitlab.com/piccolo_su/vegeta/pkg/assets"
 	"gitlab.com/piccolo_su/vegeta/pkg/dal"
-	"gitlab.com/piccolo_su/vegeta/pkg/logging"
+	"gitlab.com/security-rd/go-pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
-	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
+	"gitlab.com/security-rd/go-pkg/databases"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/client-go/util/workqueue"
-
 	defensev1 "scm.tensorsecurity.cn/tensorsecurity-rd/api/pkg/apis/defense/v1"
 )
 
 type HoneyspotService struct {
-	rdb   *rdbtools.GormWrapper
+	rdb   *databases.RDBInstance
 	Queue workqueue.RateLimitingInterface
 }
 
@@ -47,7 +46,7 @@ func (cb *HoneyspotService) WatchedTypes() map[assets.WatchedType]struct{} {
 }
 
 func (cb *HoneyspotService) BeforWatchNewCluster(ctx context.Context, clusterKey string, resyncInterval time.Duration) assets.ClusterCallback {
-	logging.GetLogger().Info().Msgf("honeyspot assets before watch new cluster %s called.", clusterKey)
+	logging.Get().Info().Msgf("honeyspot assets before watch new cluster %s called.", clusterKey)
 
 	ccb := &HoneyspotCallback{
 		clusterKey:       clusterKey,
@@ -59,10 +58,10 @@ func (cb *HoneyspotService) BeforWatchNewCluster(ctx context.Context, clusterKey
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
-				logging.GetLogger().Error().Msgf("Panic: %v. stack: %s", r, debug.Stack())
+				logging.Get().Error().Msgf("Panic: %v. stack: %s", r, debug.Stack())
 			}
 		}()
-		logging.GetLogger().Info().Msg("start to consume honeyspot")
+		logging.Get().Info().Msg("start to consume honeyspot")
 		for {
 			object, shutdown := cb.Queue.Get()
 			if shutdown {
@@ -92,7 +91,7 @@ func (cb *HoneyspotService) BeforWatchNewCluster(ctx context.Context, clusterKey
 func (cb *HoneyspotService) Name() string {
 	return "honeyspot"
 }
-func newHoneyspotService(rdb *rdbtools.GormWrapper) *HoneyspotService {
+func newHoneyspotService(rdb *databases.RDBInstance) *HoneyspotService {
 	return &HoneyspotService{
 		rdb:   rdb,
 		Queue: workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "honeyspot"),
@@ -130,26 +129,26 @@ func (cb *HoneyspotCallback) OnHoneyspot(newHoneyspot, oldHoneyspot *defensev1.H
 func (cb *HoneyspotCallback) processHoneyspot(event HoneyspotEvent) error {
 	id, err := getBaitServiceID(event.object.Name)
 	if err != nil {
-		logging.GetLogger().Err(err).Msg("cann't get baitservice id")
+		logging.Get().Err(err).Msg("cann't get baitservice id")
 		return err
 	}
 
 	switch event.action {
 	case assets.ActionDelete:
 
-		logging.GetLogger().Info().Msgf("delete honeyspot %d", id)
+		logging.Get().Info().Msgf("delete honeyspot %d", id)
 		err = dal.DeleteBaitServiceById(context.TODO(), cb.parent.rdb.Get(), id)
 		if err != nil {
-			logging.GetLogger().Err(err).Msg("delete pod resource rel in rdb error")
+			logging.Get().Err(err).Msg("delete pod resource rel in rdb error")
 			return err
 		}
 	case assets.ActionUpdate, assets.ActionAdd:
-		logging.GetLogger().Info().Msgf("update honeyspot %d, WorkLoadStatus: %s", id, event.object.Status.WorkLoadStatus)
+		logging.Get().Info().Msgf("update honeyspot %d, WorkLoadStatus: %s", id, event.object.Status.WorkLoadStatus)
 
 		if event.object.Status.WorkLoadStatus == "" {
 			event.object.Status.WorkLoadStatus = "offline"
 		}
-		err = dal.UpdateBaitService(context.TODO(), cb.parent.rdb.Get(), &model.BaitService{
+		err = dal.UpdateBaitService(context.Background(), cb.parent.rdb.Get(), &model.BaitService{
 			TableBase: model.TableBase{
 				ID:     id,
 				Status: 0,
@@ -157,7 +156,7 @@ func (cb *HoneyspotCallback) processHoneyspot(event HoneyspotEvent) error {
 			WorkLoadStatus: event.object.Status.WorkLoadStatus,
 		})
 		if err != nil {
-			logging.GetLogger().Err(err).Msg("upsert honeyspot in rdb error")
+			logging.Get().Err(err).Msg("upsert honeyspot in rdb error")
 			return err
 		}
 	}

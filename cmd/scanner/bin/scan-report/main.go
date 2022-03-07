@@ -8,15 +8,10 @@ import (
 	"strconv"
 	"time"
 
-	"gorm.io/gorm"
-	"gorm.io/gorm/logger"
-
-	"gitlab.com/security-rd/go-pkg/databases"
-
 	scanreport "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scan-report"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
-	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
+	"gitlab.com/security-rd/go-pkg/databases"
 )
 
 var (
@@ -73,24 +68,17 @@ func main() {
 		logging.GetLogger().Warn().Msg("debug model!!! please close debug model when release.")
 	}
 
-	scannerGormWrapDb, err := rdbtools.GormWrapperOpen(1*time.Minute, func() (*gorm.DB, error) {
-		db, err := databases.GetMysqlWithEnv(context.Background())
-		if err != nil {
-			return nil, err
-		}
-		if debug {
-			db = db.Session(&gorm.Session{Logger: logger.Default.LogMode(logger.Info)})
-		}
-
-		return db, nil
-	})
+	rdb, err := databases.NewRDBWithMySQLByEnv(context.Background())
 
 	if err != nil {
 		log.Fatalf("init db error, err :%v", err)
 	}
+	if debug {
+		rdb.SetDebugMode()
+	}
 
 	server := scanreport.NewScanReportSrv(
-		scanreport.WithDB(store.NewScannerOrm(scannerGormWrapDb)),
+		scanreport.WithDB(store.NewScannerOrm(rdb)),
 		scanreport.WithInternal(internal),
 		scanreport.WithBatchSize(batchSize),
 		scanreport.WithEmailDialer(emailHost, int(emailPort), emailUser, emailPasswd),

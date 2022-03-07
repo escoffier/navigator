@@ -3,10 +3,8 @@ package cmd
 import (
 	"context"
 	"errors"
-	"fmt"
 	"os"
 	"strings"
-	"time"
 
 	"github.com/go-redis/redis/v8"
 	"github.com/spf13/cobra"
@@ -17,11 +15,9 @@ import (
 	conf "gitlab.com/piccolo_su/vegeta/cmd/clustermanager/pkg/config"
 	pkgassets "gitlab.com/piccolo_su/vegeta/pkg/assets"
 	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
-	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
 	"gitlab.com/piccolo_su/vegeta/pkg/redistools"
 	"gitlab.com/security-rd/go-pkg/databases"
 	"gitlab.com/security-rd/go-pkg/logging"
-	"gorm.io/gorm"
 )
 
 const (
@@ -84,16 +80,9 @@ func NewServer(cmd *cobra.Command, args []string) (*server, error) {
 			return nil, err
 		}
 
-		rdb, err := rdbtools.GormWrapperOpen(3*time.Second, func() (*gorm.DB, error) {
-			db, err := databases.GetMysqlWithEnv(context.Background())
-			if err != nil {
-				logging.Get().Err(err).Msg(fmt.Sprintf("rdb client init error :%s ", err))
-				return nil, err
-			}
-			return db, nil
-		})
+		rdb, err := databases.NewRDBWithMySQLByEnv(context.Background())
 		if err != nil {
-			logging.Get().Err(err).Msg("Init postgre error")
+			logging.Get().Err(err).Msg("Init db error")
 			return nil, err
 		}
 

@@ -11,8 +11,8 @@ import (
 	"github.com/ReneKroon/ttlcache/v2"
 	"gitlab.com/piccolo_su/vegeta/pkg/dal"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
-	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
+	"gitlab.com/security-rd/go-pkg/databases"
 	"gitlab.com/security-rd/go-pkg/logging"
 	"gorm.io/gorm"
 )
@@ -34,7 +34,7 @@ const (
 	UDP
 )
 
-func Init(rdb *rdbtools.GormWrapper) error {
+func Init(rdb *databases.RDBInstance) error {
 	if rdb == nil {
 		return errors.New("illegal argument")
 	}
@@ -49,7 +49,7 @@ func Get(ctx context.Context) (*Service, bool) {
 }
 
 type Service struct {
-	rdb       *rdbtools.GormWrapper
+	rdb       *databases.RDBInstance
 	topoCache *ttlcache.Cache
 }
 
@@ -62,7 +62,7 @@ func newTopoCache() *ttlcache.Cache {
 	}
 	return cache
 }
-func newNetworkTopoService(rdb *rdbtools.GormWrapper) *Service {
+func newNetworkTopoService(rdb *databases.RDBInstance) *Service {
 	return &Service{
 		rdb:       rdb,
 		topoCache: newTopoCache(),
@@ -71,7 +71,7 @@ func newNetworkTopoService(rdb *rdbtools.GormWrapper) *Service {
 
 func (n *Service) ListUpstreamInfo(ctx context.Context, scluster, sns, skind, sname string, qw int) ([]ResourceInfo, int64, error) {
 	var tfs []*model.TensorNetworkFlow
-	err := n.rdb.Get().WithContext(ctx).
+	err := n.rdb.GetReadDB().WithContext(ctx).
 		Where("updated_at > ?", time.Now().Add(-time.Duration(qw)*time.Hour)).
 		Where("src_cluster = ?", scluster).
 		Where("src_namespace = ?", sns).
@@ -103,7 +103,7 @@ func (n *Service) ListUpstreamInfo(ctx context.Context, scluster, sns, skind, sn
 
 func (n *Service) ListDownstreamInfo(ctx context.Context, dcluster, dns, dkind, dname string, qw int) ([]ResourceInfo, int64, error) {
 	var tfs []*model.TensorNetworkFlow
-	err := n.rdb.Get().WithContext(ctx).
+	err := n.rdb.GetReadDB().WithContext(ctx).
 		Where("updated_at > ?", time.Now().Add(-time.Duration(qw)*time.Hour)).
 		Where("dst_cluster = ?", dcluster).
 		Where("dst_namespace = ?", dns).
@@ -207,11 +207,11 @@ func (n *Service) ListNetTopologies(ctx context.Context, t time.Time) (nts []*mo
 		oneCtx, oneCancel := context.WithTimeout(ctx, 300*time.Millisecond)
 		defer oneCancel()
 
-		oneErr := n.rdb.Get().WithContext(oneCtx).Model(&model.TensorNetworkFlow{}).Where("updated_at < ?", t).Find(&nts).Error
+		oneErr := n.rdb.GetReadDB().WithContext(oneCtx).Model(&model.TensorNetworkFlow{}).Where("updated_at < ?", t).Find(&nts).Error
 		if oneErr != nil {
 			return oneErr
 		}
-		return n.rdb.Get().WithContext(ctx).Model(&model.TensorNetworkFlow{}).Where("updated_at < ?", t).Count(&totalCnt).Error
+		return n.rdb.GetReadDB().WithContext(ctx).Model(&model.TensorNetworkFlow{}).Where("updated_at < ?", t).Count(&totalCnt).Error
 	})
 	return
 }
@@ -224,20 +224,7 @@ func (n Service) CountNetTopology(ctx context.Context, uuid uint32) (totalCnt in
 		oneCtx, oneCancel := context.WithTimeout(ctx, 300*time.Millisecond)
 		defer oneCancel()
 
-		return n.rdb.Get().WithContext(oneCtx).Model(&model.TensorNetworkFlow{}).Where("uuid = ?", uuid).Count(&totalCnt).Error
-	})
-	return
-}
-
-func (n *Service) UpdateStatus(ctx context.Context, t time.Time, status int) (err error) {
-	ctx, cancel := context.WithTimeout(ctx, 1000*time.Millisecond)
-	defer cancel()
-
-	err = util.RetryWithBackoff(ctx, func() error {
-		oneCtx, oneCancel := context.WithTimeout(ctx, 300*time.Millisecond)
-		defer oneCancel()
-
-		return n.rdb.Get().WithContext(oneCtx).Model(&model.TensorNetworkFlow{}).Where("updated_at < ?", t).Update("status", status).Error
+		return n.rdb.GetReadDB().WithContext(oneCtx).Model(&model.TensorNetworkFlow{}).Where("uuid = ?", uuid).Count(&totalCnt).Error
 	})
 	return
 }

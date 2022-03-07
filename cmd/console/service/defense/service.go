@@ -11,15 +11,14 @@ import (
 	"time"
 
 	"gitlab.com/piccolo_su/vegeta/pkg/dal"
+	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
 	"gitlab.com/piccolo_su/vegeta/pkg/lang"
-	"gitlab.com/piccolo_su/vegeta/pkg/logging"
+	"gitlab.com/security-rd/go-pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
+	"gitlab.com/security-rd/go-pkg/databases"
 	"gitlab.com/security-rd/go-pkg/pb"
-
-	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
-	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -54,7 +53,7 @@ type RegistryInfo struct {
 	URL      string `json:"url"`
 }
 
-func InitDefenseService(rdb *rdbtools.GormWrapper, ecCli pb.EventsCenterBizServiceClient, scannerURL string) error {
+func InitDefenseService(rdb *databases.RDBInstance, ecCli pb.EventsCenterBizServiceClient, scannerURL string) error {
 	rlOnce.Do(func() {
 		instance = &TensorDefenseService{
 			rdb:        rdb,
@@ -67,7 +66,7 @@ func InitDefenseService(rdb *rdbtools.GormWrapper, ecCli pb.EventsCenterBizServi
 }
 
 type TensorDefenseService struct {
-	rdb        *rdbtools.GormWrapper
+	rdb        *databases.RDBInstance
 	EsCli      pb.EventsCenterBizServiceClient
 	scannerURL string
 }
@@ -79,7 +78,7 @@ func GetDefenseService(_ context.Context) (*TensorDefenseService, bool) {
 func (s *TensorDefenseService) AddBaitService(ctx context.Context, bait *model.BaitService) error {
 	image, err := dal.GetBaitImageById(ctx, s.rdb.Get(), bait.BaitId)
 	if err != nil {
-		logging.GetLogger().Err(err).Msg("get image failed")
+		logging.Get().Err(err).Msg("get image failed")
 		return err
 	}
 	if image == nil {
@@ -104,7 +103,7 @@ func (s *TensorDefenseService) AddBaitService(ctx context.Context, bait *model.B
 }
 
 func (s *TensorDefenseService) GetBaitService(ctx context.Context, option *dal.BaitsQueryOption) (*model.BaitService, error) {
-	baitServices, err := dal.GetBaitServices(ctx, s.rdb.Get(), option, 0, 1)
+	baitServices, err := dal.GetBaitServices(ctx, s.rdb.GetReadDB(), option, 0, 1)
 	if err != nil {
 		return nil, err
 	}
@@ -118,7 +117,7 @@ func (s *TensorDefenseService) GetBaitService(ctx context.Context, option *dal.B
 func (s *TensorDefenseService) GetBaitServices(ctx context.Context, option *dal.BaitsQueryOption, limit, offset int) ([]*model.BaitService, error) {
 	var baitServices []*model.BaitService
 	var err error
-	baitServices, err = dal.GetBaitServices(ctx, s.rdb.Get(), option, offset, limit)
+	baitServices, err = dal.GetBaitServices(ctx, s.rdb.GetReadDB(), option, offset, limit)
 	if err != nil {
 		return nil, err
 	}
@@ -168,7 +167,7 @@ func (s *TensorDefenseService) addBaitServiceToKube(ctx context.Context, bait *m
 		return err
 	}
 
-	logging.GetLogger().Info().Msgf("ports: %v", ports)
+	logging.Get().Info().Msgf("ports: %v", ports)
 
 	servicePorts := make([]v1.ServicePort, 0, len(ports))
 	for _, p := range ports {
@@ -201,7 +200,7 @@ func (s *TensorDefenseService) addBaitServiceToKube(ctx context.Context, bait *m
 			Secrets:    secrets,
 		},
 	}
-	logging.GetLogger().Info().Msgf("image: %s", bait.Image)
+	logging.Get().Info().Msgf("image: %s", bait.Image)
 	_, err = clientset.TensorClientset.DefenseV1().Honeypots(bait.Namespace).Create(ctx, honeypot, metav1.CreateOptions{})
 	if err != nil {
 		return err
@@ -229,7 +228,7 @@ func (s *TensorDefenseService) updateBaitServiceToKube(ctx context.Context, bait
 	if err != nil {
 		return err
 	}
-	logging.GetLogger().Info().Msgf("patch data : %+v", string(patchByte))
+	logging.Get().Info().Msgf("patch data : %+v", string(patchByte))
 
 	baitName, err := getHoneyspotName(bait)
 	if err != nil {
@@ -305,7 +304,7 @@ func getHoneyspotName(baitService *model.BaitService) (string, error) {
 }
 
 func (s *TensorDefenseService) CountBaitServices(ctx context.Context, option *dal.BaitsQueryOption) (int64, error) {
-	cnt, err := dal.CountBaitServices(ctx, s.rdb.Get(), option)
+	cnt, err := dal.CountBaitServices(ctx, s.rdb.GetReadDB(), option)
 	if err != nil {
 		return 0, err
 	}
@@ -313,7 +312,7 @@ func (s *TensorDefenseService) CountBaitServices(ctx context.Context, option *da
 }
 
 func (s *TensorDefenseService) GetBaitImages(ctx context.Context, offset, limit int) ([]*model.BaitImages, error) {
-	baitImages, err := dal.GetBaitImages(ctx, s.rdb.Get(), offset, limit)
+	baitImages, err := dal.GetBaitImages(ctx, s.rdb.GetReadDB(), offset, limit)
 	if err != nil {
 		return nil, err
 	}
@@ -321,7 +320,7 @@ func (s *TensorDefenseService) GetBaitImages(ctx context.Context, offset, limit 
 }
 
 func (s *TensorDefenseService) CountBaitImages(ctx context.Context) (int64, error) {
-	cnt, err := dal.CountBaitImages(ctx, s.rdb.Get())
+	cnt, err := dal.CountBaitImages(ctx, s.rdb.GetReadDB())
 	if err != nil {
 		return 0, err
 	}
@@ -329,7 +328,7 @@ func (s *TensorDefenseService) CountBaitImages(ctx context.Context) (int64, erro
 }
 
 func (s *TensorDefenseService) GetBaitImageByID(ctx context.Context, id uint32) (*model.BaitImages, error) {
-	baitImages, err := dal.GetBaitImageById(ctx, s.rdb.Get(), id)
+	baitImages, err := dal.GetBaitImageById(ctx, s.rdb.GetReadDB(), id)
 	if err != nil {
 		return nil, err
 	}
@@ -359,7 +358,7 @@ func (s *TensorDefenseService) GetAlertEvent(ctx context.Context, clusterKey, na
 	if err != nil {
 		return nil, err
 	}
-	logging.GetLogger().Debug().Msgf("got %d signals", len(resp.Signals))
+	logging.Get().Debug().Msgf("got %d signals", len(resp.Signals))
 	result := make([]*Signal, 0, len(resp.Signals))
 	for _, item := range resp.Signals {
 		result = append(result, &Signal{
@@ -395,10 +394,9 @@ func (s *TensorDefenseService) GetBaitImageRepoInfo(ctx context.Context, imageNa
 	}
 
 	url := fmt.Sprintf("%s%s%s%s", s.scannerURL, ImageListPath, "?search=", names[0])
-	logging.GetLogger().Info().Msgf("image list url %s", url)
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
-		logging.GetLogger().Err(err).Msg("create request failed")
+		logging.Get().Err(err).Msg("create request failed")
 		return nil, err
 	}
 	var images []*ImageDetail
@@ -437,7 +435,7 @@ func (s *TensorDefenseService) GetBaitImageRepoInfo(ctx context.Context, imageNa
 					return err
 				}
 
-				logging.GetLogger().Debug().Msgf("registryInfo %+v", *registryInfo)
+				logging.Get().Debug().Msgf("registryInfo %+v", *registryInfo)
 				library := removePrefix(item.Library)
 				images = append(images, &ImageDetail{
 					RegistryID: item.RegistryId,
@@ -456,11 +454,10 @@ func (s *TensorDefenseService) GetBaitImageRepoInfo(ctx context.Context, imageNa
 func (s *TensorDefenseService) GetImageRepoInfo(ctx context.Context, registryID int) (*RegistryInfo, error) {
 
 	url := fmt.Sprintf("%s%s%d", s.scannerURL, RegistryPath, registryID)
-	logging.GetLogger().Info().Msgf("registry url %s", url)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
-		logging.GetLogger().Err(err).Msg("create request failed")
+		logging.Get().Err(err).Msg("create request failed")
 		return nil, err
 	}
 
@@ -502,7 +499,7 @@ func (s *TensorDefenseService) GetImageRepoInfo(ctx context.Context, registryID 
 		return nil, err
 	}
 
-	logging.GetLogger().Debug().Msgf("registry: %+v", registry)
+	logging.Get().Debug().Msgf("registry: %+v", registry)
 	return &registry, nil
 }
 
@@ -516,7 +513,7 @@ func (s *TensorDefenseService) CheckAlertEvents() {
 			queryOpt := dal.BaitsQuery()
 			baitServices, err := s.GetBaitServices(ctx, queryOpt, -1, -1)
 			if err != nil {
-				logging.GetLogger().Err(err).Msg("failed to get bait services")
+				logging.Get().Err(err).Msg("failed to get bait services")
 				return
 			}
 			for _, bait := range baitServices {
@@ -524,7 +521,7 @@ func (s *TensorDefenseService) CheckAlertEvents() {
 
 				events, err := s.GetAlertEvent(ctx, bait.ClusterKey, bait.Namespace, prefixName, 1)
 				if err != nil {
-					logging.GetLogger().Err(err).Msg("failed to get bait events")
+					logging.Get().Err(err).Msg("failed to get bait events")
 					continue
 				}
 				haveAlerts := false
@@ -532,7 +529,7 @@ func (s *TensorDefenseService) CheckAlertEvents() {
 					haveAlerts = true
 				}
 
-				logging.GetLogger().Info().Msgf("update bait service alerts flag %t", haveAlerts)
+				logging.Get().Info().Msgf("update bait service alerts flag %t", haveAlerts)
 				err = dal.UpdateBaitService(ctx, s.rdb.Get(), &model.BaitService{
 					TableBase: model.TableBase{
 						ID: bait.ID,
@@ -540,7 +537,7 @@ func (s *TensorDefenseService) CheckAlertEvents() {
 					HaveAlerts: haveAlerts,
 				})
 				if err != nil {
-					logging.GetLogger().Err(err).Msg("failed to update bait services")
+					logging.Get().Err(err).Msg("failed to update bait services")
 					continue
 				}
 			}

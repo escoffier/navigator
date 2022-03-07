@@ -2,19 +2,19 @@ package k8saudit
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"runtime/debug"
 	"sync"
 	"time"
 
+	json "github.com/json-iterator/go"
 	"github.com/olivere/elastic/v7"
 	"gitlab.com/piccolo_su/vegeta/pkg/dal"
-	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
-	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
+	"gitlab.com/security-rd/go-pkg/databases"
+	"gitlab.com/security-rd/go-pkg/logging"
 	"gitlab.com/security-rd/go-pkg/pb"
 	"gitlab.com/security-rd/go-pkg/syslog"
 	"go.uber.org/atomic"
@@ -30,7 +30,7 @@ var (
 	ErrInvalidSyslogSetting = errors.New("invalid syslog setting")
 )
 
-func Init(rdb *rdbtools.GormWrapper, esCli *elastic.Client) error {
+func Init(rdb *databases.RDBInstance, esCli *elastic.Client) error {
 	if rdb == nil || esCli == nil {
 		return errors.New("unexpected empty pointer")
 	}
@@ -54,7 +54,7 @@ func GetServiceInstance() (*Service, bool) {
 	return service.(*Service), true
 }
 
-func newService(rdb *rdbtools.GormWrapper, esCli *elastic.Client) (*Service, error) {
+func newService(rdb *databases.RDBInstance, esCli *elastic.Client) (*Service, error) {
 	syslogHandler, err := syslog.NewHandler(&store{db: rdb})
 	if err != nil {
 		return nil, err
@@ -71,7 +71,7 @@ func newService(rdb *rdbtools.GormWrapper, esCli *elastic.Client) (*Service, err
 	defer cancel()
 	conf, err := s.getAuditConfig(ctx)
 	if err != nil {
-		logging.GetLogger().Err(err).Msg("get audit config fail")
+		logging.Get().Err(err).Msg("get audit config fail")
 		conf = model.DefaultAuditLogConf
 	}
 	s.logEnabled.Store(conf.LogEnabled)
@@ -83,7 +83,7 @@ func newService(rdb *rdbtools.GormWrapper, esCli *elastic.Client) (*Service, err
 
 type Service struct {
 	esCli         *elastic.Client
-	db            *rdbtools.GormWrapper
+	db            *databases.RDBInstance
 	ch            chan []*model.AuditRecord
 	indexPrefix   string
 	logEnabled    atomic.Bool
@@ -92,14 +92,14 @@ type Service struct {
 
 func (s *Service) RecordAuditLog(ctx context.Context, records []*model.AuditRecord) error {
 	if !s.logEnabled.Load() {
-		logging.GetLogger().Debug().Msg("ignore k8s audit log")
+		logging.Get().Debug().Msg("ignore k8s audit log")
 		return nil
 	}
 	select {
 	case s.ch <- records:
 		return nil
 	case <-ctx.Done():
-		logging.GetLogger().Error().Msgf("AuditWebhook timeout")
+		logging.Get().Error().Msgf("AuditWebhook timeout")
 		return ctx.Err()
 	}
 }
@@ -156,7 +156,7 @@ func (s *Service) GetAuditLog(ctx context.Context, arg *GetAuditLogArg) ([]*mode
 	for _, item := range searchResult.Hits.Hits {
 		record, err := parseRecord(item)
 		if err != nil {
-			logging.GetLogger().Err(err).Msg("parse k8s audit log fail")
+			logging.Get().Err(err).Msg("parse k8s audit log fail")
 			continue
 		}
 		result = append(result, record.ToDisplay(item.Id))
@@ -194,7 +194,7 @@ func (s *Service) GetAuditConfig(ctx context.Context) (*model.AuditLogConfig, er
 }
 
 func (s *Service) getAuditConfig(ctx context.Context) (*model.AuditLogConfig, error) {
-	conf, err := dal.GetConfig(ctx, s.db, auditConfigKey)
+	conf, err := dal.GetConfig(ctx, s.db.GetReadDB(), auditConfigKey)
 	if err != nil {
 		return nil, err
 	}
@@ -206,7 +206,7 @@ func (s *Service) getAuditConfig(ctx context.Context) (*model.AuditLogConfig, er
 	var logConf model.AuditLogConfig
 	err = json.Unmarshal(conf.Config, &logConf)
 	if err != nil {
-		logging.GetLogger().Err(err).Msgf("parse audit log fail, conf:%s", string(conf.Config))
+		logging.Get().Err(err).Msgf("parse audit log fail, conf:%s", string(conf.Config))
 		return model.DefaultAuditLogConf, nil
 	}
 
@@ -219,7 +219,7 @@ func (s *Service) SetAuditConfig(ctx context.Context, config *model.AuditLogConf
 		return err
 	}
 
-	err = dal.SetConfig(ctx, s.db, auditConfigKey, confJSON)
+	err = dal.SetConfig(ctx, s.db.Get(), auditConfigKey, confJSON)
 	if err == nil {
 		s.logEnabled.Store(config.LogEnabled)
 	}
@@ -233,7 +233,7 @@ const (
 func (s *Service) asyncRecordLog() {
 	defer func() {
 		if r := recover(); r != nil {
-			logging.GetLogger().Error().Msgf("Panic : %v. stack: %s", r, debug.Stack())
+			logging.Get().Error().Msgf("Panic : %v. stack: %s", r, debug.Stack())
 		}
 	}()
 
@@ -241,7 +241,7 @@ func (s *Service) asyncRecordLog() {
 		records := <-s.ch
 		err := s.recordAuditLog(records)
 		if err != nil {
-			logging.GetLogger().Err(err).Msg("recordAuditLog fail")
+			logging.Get().Err(err).Msg("recordAuditLog fail")
 			continue
 		}
 
@@ -278,7 +278,7 @@ func (s *Service) recordAuditLog(records []*model.AuditRecord) error {
 		failedItems := rsp.Failed()
 		for _, item := range failedItems {
 			if item != nil && item.Error != nil {
-				logging.GetLogger().Error().Msgf("record audit log fail, reason:%s, type:%s, causedBy:%s, resourceType:%s, resourceID:%s, rootCause:%+v",
+				logging.Get().Error().Msgf("record audit log fail, reason:%s, type:%s, causedBy:%s, resourceType:%s, resourceID:%s, rootCause:%+v",
 					item.Error.Reason, item.Error.Type, item.Error.CausedBy, item.Error.ResourceType, item.Error.ResourceId, item.Error.RootCause)
 			}
 		}
@@ -292,12 +292,12 @@ func (s *Service) exportToSyslog(records []*model.AuditRecord) {
 	for _, event := range records {
 		eventJSON, err := json.Marshal(event.Event)
 		if err != nil {
-			logging.GetLogger().Err(err).Msg("json marshal event fail")
+			logging.Get().Err(err).Msg("json marshal event fail")
 			continue
 		}
 
 		if err = s.syslogHandler.Log(eventJSON); err != nil {
-			logging.GetLogger().Err(err).Msg("write syslog fail")
+			logging.Get().Err(err).Msg("write syslog fail")
 		}
 	}
 }
@@ -309,7 +309,7 @@ const (
 func (s *Service) asyncWatchConfig() {
 	defer func() {
 		if r := recover(); r != nil {
-			logging.GetLogger().Error().Msgf("Panic : %v. stack: %s", r, debug.Stack())
+			logging.Get().Error().Msgf("Panic : %v. stack: %s", r, debug.Stack())
 		}
 	}()
 
@@ -321,7 +321,7 @@ func (s *Service) asyncWatchConfig() {
 		if err == nil {
 			s.logEnabled.Store(conf.LogEnabled)
 		} else {
-			logging.GetLogger().Err(err).Msg("get audit config fail")
+			logging.Get().Err(err).Msg("get audit config fail")
 		}
 	}
 }

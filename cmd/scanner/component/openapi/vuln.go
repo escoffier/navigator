@@ -6,21 +6,20 @@ import (
 	"errors"
 	"fmt"
 
-	"gitlab.com/security-rd/go-pkg/logging"
-	"gorm.io/gorm"
-
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
-	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
+	"gitlab.com/security-rd/go-pkg/databases"
+	"gitlab.com/security-rd/go-pkg/logging"
+	"gorm.io/gorm"
 )
 
 type VulnService struct {
 	dao *store.VulnDao
 }
 
-func NewVulnService(psql *rdbtools.GormWrapper) *VulnService {
+func NewVulnService(rdb *databases.RDBInstance) *VulnService {
 	return &VulnService{
-		dao: store.NewVulnDao(psql),
+		dao: store.NewVulnDao(rdb),
 	}
 }
 

@@ -399,8 +399,8 @@ apiscan-job: generate
 
 .PHONY: all
 all: drift-prevention-client faulty scanner scanner-cicd scarecrow console data holmes daemon  \
-webshell-server webhook cluster-manager security-profiles-manager security-profiles-loader \
-palace go-audit safe-node-image kube-scanner-report platform-report scan_report apiscan-job
+webshell-server webhook cluster-manager \
+palace safe-node-image kube-scanner-report platform-report scan_report apiscan-job
 
 .PHONY: base
 base: scanner-base faulty-base data-base drift-prevention-client-base holmes-base security-profiles-loader-base

@@ -10,7 +10,7 @@ import (
 
 	"gitlab.com/piccolo_su/vegeta/pkg/dal"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
-	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
+	"gitlab.com/security-rd/go-pkg/databases"
 )
 
 const (
@@ -25,7 +25,7 @@ func GetLimiter(_ context.Context) *LoginRateLimiter {
 	return instance
 }
 
-func Init(rdb *rdbtools.GormWrapper) error {
+func Init(rdb *databases.RDBInstance) error {
 	instance = newLoginRateLimiter(rdb)
 	return nil
 }
@@ -33,7 +33,7 @@ func Init(rdb *rdbtools.GormWrapper) error {
 type LoginRateLimiter struct {
 	counts *sync.Map
 	config LimiterConfig
-	rdb    *rdbtools.GormWrapper
+	rdb    *databases.RDBInstance
 }
 
 type LimiterConfig struct {
@@ -64,7 +64,7 @@ func (l *LimiterConfig) getThreshold() int32 {
 	return atomic.LoadInt32(&l.RateLimitThreshold)
 }
 
-func newLoginRateLimiter(rdb *rdbtools.GormWrapper) *LoginRateLimiter {
+func newLoginRateLimiter(rdb *databases.RDBInstance) *LoginRateLimiter {
 	l := new(LoginRateLimiter)
 	config, err := readConfigs(rdb)
 	if err != nil {
@@ -79,11 +79,11 @@ func newLoginRateLimiter(rdb *rdbtools.GormWrapper) *LoginRateLimiter {
 	return l
 }
 
-func readConfigs(rdb *rdbtools.GormWrapper) (LimiterConfig, error) {
+func readConfigs(rdb *databases.RDBInstance) (LimiterConfig, error) {
 	var config LimiterConfig
 	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
 	defer cancel()
-	conf, err := dal.GetConfig(ctx, rdb, ConfigKey)
+	conf, err := dal.GetConfig(ctx, rdb.GetReadDB(), ConfigKey)
 	if err != nil {
 		logging.GetLogger().Err(err).Msg("read configs from postgre error")
 		return config, err
@@ -144,7 +144,7 @@ func (l *LoginRateLimiter) LoginFailToReachLimit(ctx context.Context, userName s
 	status.Incr()
 
 	if status.Count() >= l.config.getThreshold() {
-		err := dal.SetAccountBanStatus(ctx, l.rdb, userName, true)
+		err := dal.SetAccountBanStatus(ctx, l.rdb.Get(), userName, true)
 		if err != nil {
 			logging.GetLogger().Err(err).Msgf("banning user %s error", userName)
 		}

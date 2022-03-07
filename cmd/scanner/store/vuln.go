@@ -5,19 +5,19 @@ import (
 	"fmt"
 
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
-	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
+	"gitlab.com/security-rd/go-pkg/databases"
 )
 
 type VulnDao struct {
-	psql *rdbtools.GormWrapper
+	rdb *databases.RDBInstance
 }
 
-func NewVulnDao(psql *rdbtools.GormWrapper) *VulnDao {
-	return &VulnDao{psql: psql}
+func NewVulnDao(rdb *databases.RDBInstance) *VulnDao {
+	return &VulnDao{rdb: rdb}
 }
 
 func (v *VulnDao) List(ctx context.Context, query model.SqlBuilder, opts ...model.Option) ([]*model.Vuln, int64, error) {
-	db := v.psql.Get().WithContext(ctx)
+	db := v.rdb.Get().WithContext(ctx)
 	for _, f := range opts {
 		db = f(db)
 	}
@@ -37,7 +37,7 @@ func (v *VulnDao) List(ctx context.Context, query model.SqlBuilder, opts ...mode
 }
 
 func (v *VulnDao) Detail(ctx context.Context, query model.SqlBuilder, opts ...model.Option) (*model.Vuln, error) {
-	db := v.psql.Get().WithContext(ctx)
+	db := v.rdb.Get().WithContext(ctx)
 	for _, f := range opts {
 		db = f(db)
 	}
@@ -53,7 +53,7 @@ func (v *VulnDao) Detail(ctx context.Context, query model.SqlBuilder, opts ...mo
 }
 
 func (v *VulnDao) Count(ctx context.Context, opts ...model.Option) (*model.SeverityCount, error) {
-	db := v.psql.Get().WithContext(ctx)
+	db := v.rdb.Get().WithContext(ctx)
 	for _, f := range opts {
 		db = f(db)
 	}
@@ -92,7 +92,7 @@ func (v *VulnDao) Count(ctx context.Context, opts ...model.Option) (*model.Sever
 }
 
 func (v *VulnDao) TopN(ctx context.Context, n int, opts ...model.Option) ([]*model.ImageListUnionScanImage, error) {
-	db := v.psql.Get().WithContext(ctx)
+	db := v.rdb.Get().WithContext(ctx)
 	for _, f := range opts {
 		db = f(db)
 	}

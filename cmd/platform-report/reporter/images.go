@@ -11,7 +11,6 @@ import (
 
 	"github.com/sirupsen/logrus"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
-	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
@@ -94,7 +93,7 @@ const (
 	riskScorePivot = 80
 )
 
-func LoadImagesReport(ctx context.Context, db *rdbtools.GormWrapper, endTimestamp int64) *model.ImagesReport {
+func LoadImagesReport(ctx context.Context, db *gorm.DB, endTimestamp int64) *model.ImagesReport {
 	var (
 		result = &model.ImagesReport{
 			ImageCount:         &model.ImageCount{},
@@ -143,7 +142,7 @@ func LoadImagesReport(ctx context.Context, db *rdbtools.GormWrapper, endTimestam
 	return result
 }
 
-func loadImages(ctx context.Context, db *rdbtools.GormWrapper, offsetID int64, offsetTime time.Time) []*Record {
+func loadImages(ctx context.Context, db *gorm.DB, offsetID int64, offsetTime time.Time) []*Record {
 	var records []*Record
 	var selectFiled = []string{
 		"t.library", "t.full_repo_name", "t.tags", "t.image_uuid", "t.id", "t.from_type",
@@ -155,7 +154,7 @@ func loadImages(ctx context.Context, db *rdbtools.GormWrapper, offsetID int64, o
 	load := func() error {
 		oneCtx, oneCancel := context.WithTimeout(ctx, time.Second*10)
 		defer oneCancel()
-		return db.Get().
+		return db.
 			Table("ivan_scanner_image_list t").
 			WithContext(oneCtx).
 			Select(selectFiled).
@@ -262,13 +261,13 @@ func doImageCountStatistics(imageCount *model.ImageCount, record *Record, online
 	}
 }
 
-func getOnlineImageUUIDList(ctx context.Context, db *rdbtools.GormWrapper) []int64 {
+func getOnlineImageUUIDList(ctx context.Context, db *gorm.DB) []int64 {
 	var imageUUIDList []int64
 	get := func() error {
 		oneCtx, oneCancel := context.WithTimeout(ctx, time.Second*5)
 		defer oneCancel()
 
-		return db.Get().WithContext(oneCtx).Model(&model.TensorContainer{}).
+		return db.WithContext(oneCtx).Model(&model.TensorContainer{}).
 			Select("distinct(image_uuid)").Scan(&imageUUIDList).Error
 	}
 

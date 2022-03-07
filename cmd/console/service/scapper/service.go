@@ -2,7 +2,6 @@ package scapper
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -10,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	json "github.com/json-iterator/go"
 	"github.com/go-redis/redis/v8"
 	"github.com/pkg/errors"
 	"github.com/tealeg/xlsx"
@@ -17,8 +17,8 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/flag"
 	"gitlab.com/piccolo_su/vegeta/pkg/lang"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
-	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
+	"gitlab.com/security-rd/go-pkg/databases"
 	"gitlab.com/security-rd/go-pkg/logging"
 	"gorm.io/gorm"
 )
@@ -39,7 +39,7 @@ const (
 func Init(mainCtx context.Context,
 	scapOpts *flag.ScapOpts,
 	redisClient *redis.Client,
-	rdb *rdbtools.GormWrapper,
+	rdb *databases.RDBInstance,
 ) error {
 	if redisClient == nil {
 		return errors.New("illegal argument")
@@ -65,12 +65,12 @@ func GetService(ctx context.Context) (*ScapService, bool) {
 }
 
 type ScapService struct {
-	postgresDB *rdbtools.GormWrapper
+	rdb *databases.RDBInstance
 }
 
-func newScapService(scapOpts *flag.ScapOpts, postgresDB *rdbtools.GormWrapper) (*ScapService, error) {
+func newScapService(scapOpts *flag.ScapOpts, rdb *databases.RDBInstance) (*ScapService, error) {
 	scapSvc := &ScapService{
-		postgresDB: postgresDB,
+		rdb: rdb,
 	}
 
 	go func() {
@@ -90,12 +90,10 @@ func (s *ScapService) PolicyInit(policyCounts int32) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
 
-	err := s.postgresDB.Get().WithContext(ctx).Table(tbname).Count(&policyNum).Error
+	err := s.rdb.Get().WithContext(ctx).Table(tbname).Count(&policyNum).Error
 	if err != nil {
 		return errors.Errorf("get policy count failed, %v", err)
 	}
-	//print debug log
-	logging.Get().Info().Msgf("default policy counts : %v, actual policy counts : %v.", policyCounts, policyNum)
 	if policyNum >= int64(policyCounts) {
 		return nil
 	}
@@ -113,18 +111,16 @@ func (s *ScapService) PolicyInit(policyCounts int32) error {
 			continue
 		}
 
-		var policys []model.PolicyDetailInfo
-		err = json.Unmarshal(data, &policys)
+		var policies []*model.PolicyDetailInfo
+		err = json.Unmarshal(data, &policies)
 		if err != nil {
 			logging.Get().Error().Msgf("json unmarshal policy failed, file : %s, %v", file, err)
 			continue
 		}
-		//print debug log
-		logging.Get().Info().Msgf("policy count : %v.", len(policys))
 		//write policy to pg
-		for _, rule := range policys {
+		for _, rule := range policies {
 			policyNum = 0
-			err = s.postgresDB.Get().Where(ctx).Table(tbname).Where("policy_id = ? and check_type = ?", rule.PolicyId, rule.CheckType).Count(&policyNum).Error
+			err = s.rdb.Get().Where(ctx).Table(tbname).Where("policy_id = ? and check_type = ?", rule.PolicyId, rule.CheckType).Count(&policyNum).Error
 			if err != nil {
 				logging.Get().Error().Msgf("get policy_id = %s failed, %v.", rule.PolicyId, err)
 				continue
@@ -133,8 +129,7 @@ func (s *ScapService) PolicyInit(policyCounts int32) error {
 			if policyNum > 0 {
 				continue
 			}
-
-			err = s.postgresDB.Get().WithContext(ctx).Table(tbname).Create(&rule).Error
+			err = s.rdb.Get().WithContext(ctx).Table(tbname).Create(rule).Error
 			if err != nil {
 				logging.Get().Error().Msgf("write policy to postgre db failed, %v.", err)
 			}
@@ -147,7 +142,7 @@ func (s *ScapService) PolicyInit(policyCounts int32) error {
 func (s *ScapService) CheckScanningTask(ctx context.Context, checkType, clusterId string, timeout int64) (bool, error) {
 	var task model.ScanHistory
 	query := "check_type = ? and cluster_key = ? and state = 1"
-	err := s.postgresDB.Get().WithContext(ctx).First(&task, query, checkType, clusterId).Error
+	err := s.rdb.GetReadDB().WithContext(ctx).First(&task, query, checkType, clusterId).Error
 	if err == gorm.ErrRecordNotFound {
 		return false, nil
 	} else if err != nil {
@@ -165,7 +160,7 @@ func (s *ScapService) SynScanState(checkHistory *model.CheckHistoryEntry) error 
 
 	var scanNodes []model.ScanNodeRecord
 	query := "task_id = ?"
-	err := s.postgresDB.Get().WithContext(ctx).Find(&scanNodes, query, checkHistory.CheckID).Error
+	err := s.rdb.Get().WithContext(ctx).Find(&scanNodes, query, checkHistory.CheckID).Error
 	if err != nil {
 		return errors.Errorf("get scan node record failed, %v", err)
 	}
@@ -208,7 +203,7 @@ func (s *ScapService) SynScanState(checkHistory *model.CheckHistoryEntry) error 
 		//table name
 		tb := nodeRecord.TableName()
 		//update state
-		err = s.postgresDB.Get().WithContext(ctx).Table(tb).Where(query, taskId, nodename).Update("state", state).Update("finished_at", finishAt).Error
+		err = s.rdb.Get().WithContext(ctx).Table(tb).Where(query, taskId, nodename).Update("state", state).Update("finished_at", finishAt).Error
 		if err != nil {
 			logging.Get().Error().Msgf("updates scan node record failed, %v.", err)
 		}
@@ -228,7 +223,7 @@ func (s *ScapService) SynScanState(checkHistory *model.CheckHistoryEntry) error 
 	}
 	//
 	query = "task_id = ? and check_type = ?"
-	err = s.postgresDB.Get().WithContext(ctx).Model(tb).Where(query, taskId, checkHistory.CheckType).Select("state", "suc_node", "finished_at").Updates(tb).Error
+	err = s.rdb.Get().WithContext(ctx).Model(tb).Where(query, taskId, checkHistory.CheckType).Select("state", "suc_node", "finished_at").Updates(tb).Error
 	if err != nil {
 		logging.Get().Error().Msgf("update scan history state=0 failed, task_id : %s, %v.", taskId, err)
 	}
@@ -245,7 +240,7 @@ func (s *ScapService) GetCheckHistory(ctx context.Context, offset, limit int64, 
 
 	var scanHistory []model.ScanHistory
 	query := fmt.Sprintf("cluster_key = ? and check_type = ? order by %s %s limit %v offset %v", sortBy, sortOrder, limit, offset)
-	err := s.postgresDB.Get().WithContext(pgCtx).Find(&scanHistory, query, clusterId, checkType).Error
+	err := s.rdb.Get().WithContext(pgCtx).Find(&scanHistory, query, clusterId, checkType).Error
 	if err != nil {
 		return nil, 0, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Could not find scan history, %w", err))
 	}
@@ -281,7 +276,7 @@ func (s *ScapService) GetLatestHistory(ctx context.Context, clusterId, checkType
 
 	var scanHistory []model.ScanHistory
 	condition := fmt.Sprintf("cluster_key = ? and check_type = ? order by %s %s", sortBy, sortOrder)
-	err := s.postgresDB.Get().WithContext(pgCtx).Find(&scanHistory, condition, clusterId, checkType).Error
+	err := s.rdb.GetReadDB().WithContext(pgCtx).Find(&scanHistory, condition, clusterId, checkType).Error
 	if err != nil {
 		return "", errors.Errorf("get scan history failed, %v", err)
 	}
@@ -366,7 +361,7 @@ func (s *ScapService) GetNodeChecKubeDetails(ctx context.Context, nodeName, chec
 
 	var scanRet []model.ScanResult
 	query := "node_name = ? and task_id = ?"
-	err = s.postgresDB.Get().Find(&scanRet, query, nodeName, checkID).Error
+	err = s.rdb.GetReadDB().Find(&scanRet, query, nodeName, checkID).Error
 	if err != nil {
 		return errors.Errorf("get node scan result failed, %v", err)
 	}
@@ -411,7 +406,7 @@ func (s *ScapService) GetNodeChecKubeDetails(ctx context.Context, nodeName, chec
 func (s *ScapService) GetNodeCheckDockerDetails(ctx context.Context, nodeName, checkID, checkType string, nodeCheckDetails *model.NodeCheckDetails) error {
 	var scanRet []model.ScanResult
 	query := "node_name = ? and task_id = ?"
-	err := s.postgresDB.Get().WithContext(ctx).Find(&scanRet, query, nodeName, checkID).Error
+	err := s.rdb.GetReadDB().WithContext(ctx).Find(&scanRet, query, nodeName, checkID).Error
 	if err != nil {
 		return errors.Errorf("get node scan result failed, %v", err)
 	}
@@ -455,7 +450,7 @@ func (s *ScapService) GetNodeCheckDockerDetails(ctx context.Context, nodeName, c
 func (s *ScapService) GetNodeCheckHostDetails(ctx context.Context, nodeName, checkID, checkType string, nodeCheckDetails *model.NodeCheckDetails) error {
 	var scanRet []model.ScanResult
 	query := "node_name = ? and task_id = ?"
-	err := s.postgresDB.Get().WithContext(ctx).Find(&scanRet, query, nodeName, checkID).Error
+	err := s.rdb.GetReadDB().WithContext(ctx).Find(&scanRet, query, nodeName, checkID).Error
 	if err != nil {
 		return errors.Errorf("get node scan result failed, %v", err)
 	}
@@ -495,7 +490,7 @@ func (s *ScapService) GetNodeCheckHostDetails(ctx context.Context, nodeName, che
 
 func (s *ScapService) GetNodeState(ctx context.Context, waitingOn, errorOn, successOn *[]string, checkId string) error {
 	var scanNode []model.ScanNodeRecord
-	err := s.postgresDB.Get().WithContext(ctx).Find(&scanNode, "task_id = ?", checkId).Error
+	err := s.rdb.GetReadDB().WithContext(ctx).Find(&scanNode, "task_id = ?", checkId).Error
 	if err != nil {
 		return errors.Errorf("can not find scan node record, %v", err)
 	}
@@ -519,7 +514,7 @@ func (s *ScapService) GetNodeState(ctx context.Context, waitingOn, errorOn, succ
 func (s *ScapService) GetPolicyInfo(ctx context.Context, policyId, checkType string) (*model.PolicyDetailInfo, error) {
 	var policy model.PolicyDetailInfo
 	condition := "policy_id = ? and check_type = ? and status = 0"
-	err := s.postgresDB.Get().WithContext(ctx).Take(&policy, condition, policyId, checkType).Error
+	err := s.rdb.GetReadDB().WithContext(ctx).Take(&policy, condition, policyId, checkType).Error
 	if err != nil || policy.PolicyId == "" {
 		return nil, errors.Errorf("get policy information failed, policy id : %s, checkType : %s", policyId, checkType)
 	}
@@ -535,7 +530,7 @@ func (s *ScapService) GetNodeRecordAutoVariate(ctx context.Context, checkId, che
 	}
 
 	var nodeRecord []model.ScanNodeRecord
-	err := s.postgresDB.Get().WithContext(ctx).Find(&nodeRecord, "task_id = ?", checkId).Error
+	err := s.rdb.GetReadDB().WithContext(ctx).Find(&nodeRecord, "task_id = ?", checkId).Error
 	if err != nil {
 		return nodeAutoVar, errors.Errorf("can not find node scan information, checkId : %s", checkId)
 	}
@@ -574,7 +569,7 @@ func (s *ScapService) ReplaceAutoVariate(src string, autoVar map[string]string) 
 
 func (s *ScapService) GetKubeBreakdownEntries(ctx context.Context, checkMap map[string]*model.CheckBreakdown, checkId, checkType string) error {
 	var scanRet []model.ScanResult
-	err := s.postgresDB.Get().WithContext(ctx).Find(&scanRet, "task_id = ?", checkId).Error
+	err := s.rdb.GetReadDB().WithContext(ctx).Find(&scanRet, "task_id = ?", checkId).Error
 	if err != nil {
 		return errors.Errorf("get scan result failed, %v", err)
 	}
@@ -634,7 +629,7 @@ func (s *ScapService) GetKubePolicyDetails(ctx context.Context, policyDetails *m
 
 	var scanRet []model.ScanResult
 	query := "task_id = ? and policy_id = ?"
-	err = s.postgresDB.Get().WithContext(ctx).Find(&scanRet, query, checkId, policyId).Error
+	err = s.rdb.GetReadDB().WithContext(ctx).Find(&scanRet, query, checkId, policyId).Error
 	if err != nil {
 		return errors.Errorf("get scan result failed by policy id : %s, %v", policyId, err)
 	}
@@ -674,7 +669,7 @@ func (s *ScapService) GetKubePolicyDetails(ctx context.Context, policyDetails *m
 
 func (s *ScapService) GetHostBreakdownEntries(ctx context.Context, checkMap map[string]*model.CheckBreakdown, checkId, checkType string) error {
 	var scanRet []model.ScanResult
-	err := s.postgresDB.Get().WithContext(ctx).Find(&scanRet, "task_id = ?", checkId).Error
+	err := s.rdb.GetReadDB().WithContext(ctx).Find(&scanRet, "task_id = ?", checkId).Error
 	if err != nil {
 		return errors.Errorf("get scan result failed, %v", err)
 	}
@@ -723,7 +718,7 @@ func (s *ScapService) GetHostPolicyDetails(ctx context.Context, policyDetails *m
 
 	var scanRet []model.ScanResult
 	query := "task_id = ? and policy_id = ?"
-	err = s.postgresDB.Get().WithContext(ctx).Find(&scanRet, query, checkId, policyId).Error
+	err = s.rdb.GetReadDB().WithContext(ctx).Find(&scanRet, query, checkId, policyId).Error
 	if err != nil {
 		return errors.Errorf("get scan result failed by policy id : %s, %v", policyId, err)
 	}
@@ -772,7 +767,7 @@ func (s *ScapService) GetScanResultToFile(task *model.ExportTask, language lang.
 
 	var scanRet []model.ScanResult
 	query := "task_id = ?"
-	err := s.postgresDB.Get().WithContext(ctx).Find(&scanRet, query, task.CheckId).Error
+	err := s.rdb.GetReadDB().WithContext(ctx).Find(&scanRet, query, task.CheckId).Error
 	if err != nil {
 		return errors.Errorf("get scan result to file failed, %v", err)
 	}
@@ -831,7 +826,7 @@ func (s *ScapService) GetScanResultToFile(task *model.ExportTask, language lang.
 
 func (s *ScapService) GetDockerBreakdownEntries(ctx context.Context, checkMap map[string]*model.CheckBreakdown, checkId, checkType string) error {
 	var scanRet []model.ScanResult
-	err := s.postgresDB.Get().WithContext(ctx).Find(&scanRet, "task_id = ?", checkId).Error
+	err := s.rdb.GetReadDB().WithContext(ctx).Find(&scanRet, "task_id = ?", checkId).Error
 	if err != nil {
 		return errors.Errorf("get scan result failed, %v", err)
 	}
@@ -882,7 +877,7 @@ func (s *ScapService) GetDockerBreakdownEntries(ctx context.Context, checkMap ma
 func (s *ScapService) GetDockerPolicyDetails(ctx context.Context, policyDetails *model.PolicyDetails, policyId, checkType, checkId string) error {
 	var scanRet []model.ScanResult
 	query := "task_id = ? and policy_id = ?"
-	err := s.postgresDB.Get().WithContext(ctx).Find(&scanRet, query, checkId, policyId).Error
+	err := s.rdb.Get().WithContext(ctx).Find(&scanRet, query, checkId, policyId).Error
 	if err != nil {
 		return errors.Errorf("get scan result failed by policy id : %s, %v", policyId, err)
 	}
@@ -926,7 +921,7 @@ func (s *ScapService) AddScapScanResult(ctx context.Context, r *model.ScanResult
 	return util.RetryWithBackoff(ctx, func() error {
 		oneCtx, oneCancel := context.WithTimeout(ctx, 300*time.Millisecond)
 		defer oneCancel()
-		return s.postgresDB.Get().WithContext(oneCtx).Model(&model.ScanResult{}).Create(r).Error
+		return s.rdb.Get().WithContext(oneCtx).Model(&model.ScanResult{}).Create(r).Error
 	})
 }
 
@@ -934,7 +929,7 @@ func (s *ScapService) AddScapScanResults(ctx context.Context, rs []*model.ScanRe
 	ctx, cancel := context.WithTimeout(ctx, 1000*time.Millisecond)
 	defer cancel()
 
-	err := s.postgresDB.Get().WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	err := s.rdb.Get().WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		for _, r := range rs {
 			err := s.AddScapScanResult(ctx, r)
 			if err != nil {
@@ -956,7 +951,7 @@ func (s *ScapService) UpdateSnrVariate(ctx context.Context, taskID, nodeName, ch
 	return util.RetryWithBackoff(ctx, func() error {
 		oneCtx, oneCancel := context.WithTimeout(ctx, 300*time.Millisecond)
 		defer oneCancel()
-		return s.postgresDB.Get().WithContext(oneCtx).Model(&model.ScanNodeRecord{}).
+		return s.rdb.Get().WithContext(oneCtx).Model(&model.ScanNodeRecord{}).
 			Where("task_id = ? and node_name = ? and check_type = ?", taskID, nodeName, checkType).
 			Update("auto_variate", autoVariate).Error
 	})

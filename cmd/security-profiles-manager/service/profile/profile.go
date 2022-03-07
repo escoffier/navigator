@@ -13,15 +13,15 @@ import (
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
-	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
+	"gitlab.com/security-rd/go-pkg/databases"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 	"k8s.io/client-go/kubernetes"
 )
 
 type SecProfileService struct {
-	db                            *rdbtools.GormWrapper
+	db                            *databases.RDBInstance
 	mutex                         sync.Mutex
 	k8sClient                     *kubernetes.Clientset
 	namespace                     string
@@ -34,7 +34,7 @@ var (
 )
 
 func Init(
-	db *rdbtools.GormWrapper,
+	db *databases.RDBInstance,
 	kubeClient *kubernetes.Clientset,
 ) error {
 	myNamespace := os.Getenv("MY_POD_NAMESPACE")
@@ -84,7 +84,7 @@ func (s *SecProfileService) ListProfileData(ctx context.Context, policyID int, p
 		result := intermediateQuery.Preload(clause.Associations).First(&p, policyID)
 		if result.Error != nil {
 			if !errors.Is(result.Error, gorm.ErrRecordNotFound) {
-				return PostgresError(http.StatusInternalServerError, fmt.Errorf("Error when getting policy in database: %w", result.Error))
+				return RDBError(http.StatusInternalServerError, fmt.Errorf("Error when getting policy in database: %w", result.Error))
 			}
 			return NewNotFoundError(http.StatusBadRequest, fmt.Errorf("Policy does not exist in database: %w", result.Error))
 		}
@@ -131,7 +131,7 @@ func (s *SecProfileService) UpdatePolicyProfile(ctx context.Context, policyID in
 			First(&p, policyID)
 		if result.Error != nil {
 			if !errors.Is(result.Error, gorm.ErrRecordNotFound) {
-				return PostgresError(http.StatusInternalServerError, fmt.Errorf("Error when getting policy in database: %w", result.Error))
+				return RDBError(http.StatusInternalServerError, fmt.Errorf("Error when getting policy in database: %w", result.Error))
 			}
 			return NewNotFoundError(http.StatusBadRequest, fmt.Errorf("Policy does not exist in database: %w", result.Error))
 		}
@@ -144,7 +144,7 @@ func (s *SecProfileService) UpdatePolicyProfile(ctx context.Context, policyID in
 		p.UpdatedBy = username
 		result = tx.WithContext(dbctx).Omit(clause.Associations).Save(&p)
 		if result.Error != nil {
-			return PostgresError(http.StatusInternalServerError, fmt.Errorf("Error when updating policy in database: %w", result.Error))
+			return RDBError(http.StatusInternalServerError, fmt.Errorf("Error when updating policy in database: %w", result.Error))
 		}
 
 		if profileKind == model.SecurityKindApparmor {
@@ -172,7 +172,7 @@ func (s *SecProfileService) UpdatePolicyProfile(ctx context.Context, policyID in
 				}
 				result = tx.WithContext(dbctx).Create(&profileData.ApparmorProfileDataAdd)
 				if result.Error != nil {
-					return PostgresError(http.StatusInternalServerError, fmt.Errorf("Error when adding profile entries to database: %w", result.Error))
+					return RDBError(http.StatusInternalServerError, fmt.Errorf("Error when adding profile entries to database: %w", result.Error))
 				}
 			}
 			if len(profileData.ApparmorProfileDataRemove) > 0 {
@@ -187,7 +187,7 @@ func (s *SecProfileService) UpdatePolicyProfile(ctx context.Context, policyID in
 				query = query + ")"
 				result = tx.WithContext(dbctx).Where(query).Delete(&profileData.ApparmorProfileDataRemove)
 				if result.Error != nil {
-					return PostgresError(http.StatusInternalServerError, fmt.Errorf("Error when removing profile entries from database: %w", result.Error))
+					return RDBError(http.StatusInternalServerError, fmt.Errorf("Error when removing profile entries from database: %w", result.Error))
 				}
 			}
 		} else if profileKind == model.SecurityKindCommandWhitelist {
@@ -215,7 +215,7 @@ func (s *SecProfileService) UpdatePolicyProfile(ctx context.Context, policyID in
 				}
 				result = tx.WithContext(dbctx).Create(&profileData.CommandWhitelistProfileDataAdd)
 				if result.Error != nil {
-					return PostgresError(http.StatusInternalServerError, fmt.Errorf("Error when adding profile entries to database: %w", result.Error))
+					return RDBError(http.StatusInternalServerError, fmt.Errorf("Error when adding profile entries to database: %w", result.Error))
 				}
 			}
 			if len(profileData.CommandWhitelistProfileDataRemove) > 0 {
@@ -230,7 +230,7 @@ func (s *SecProfileService) UpdatePolicyProfile(ctx context.Context, policyID in
 				query = query + ")"
 				result = tx.WithContext(dbctx).Where(query).Delete(&profileData.CommandWhitelistProfileDataRemove)
 				if result.Error != nil {
-					return PostgresError(http.StatusInternalServerError, fmt.Errorf("Error when removing profile entries from database: %w", result.Error))
+					return RDBError(http.StatusInternalServerError, fmt.Errorf("Error when removing profile entries from database: %w", result.Error))
 				}
 			}
 		} else if profileKind == model.SecurityKindSeccomp {
@@ -255,7 +255,7 @@ func (s *SecProfileService) UpdatePolicyProfile(ctx context.Context, policyID in
 				}
 				result = tx.WithContext(dbctx).Create(&profileData.SeccompProfileDataAdd)
 				if result.Error != nil {
-					return PostgresError(http.StatusInternalServerError, fmt.Errorf("Error when adding profile entries to database: %w", result.Error))
+					return RDBError(http.StatusInternalServerError, fmt.Errorf("Error when adding profile entries to database: %w", result.Error))
 				}
 			}
 			if len(profileData.SeccompProfileDataRemove) > 0 {
@@ -270,7 +270,7 @@ func (s *SecProfileService) UpdatePolicyProfile(ctx context.Context, policyID in
 				query = query + ")"
 				result = tx.WithContext(dbctx).Where(query).Delete(&profileData.SeccompProfileDataRemove)
 				if result.Error != nil {
-					return PostgresError(http.StatusInternalServerError, fmt.Errorf("Error when removing profile entries from database: %w", result.Error))
+					return RDBError(http.StatusInternalServerError, fmt.Errorf("Error when removing profile entries from database: %w", result.Error))
 				}
 			}
 		} else {
@@ -303,7 +303,7 @@ func (s *SecProfileService) ReplacePolicyProfile(ctx context.Context, policyID i
 			First(&p, policyID)
 		if result.Error != nil {
 			if !errors.Is(result.Error, gorm.ErrRecordNotFound) {
-				return PostgresError(http.StatusInternalServerError, fmt.Errorf("Error when getting policy in database: %w", result.Error))
+				return RDBError(http.StatusInternalServerError, fmt.Errorf("Error when getting policy in database: %w", result.Error))
 			}
 			return NewNotFoundError(http.StatusBadRequest, fmt.Errorf("Policy does not exist in database: %w", result.Error))
 		}
@@ -316,7 +316,7 @@ func (s *SecProfileService) ReplacePolicyProfile(ctx context.Context, policyID i
 		p.UpdatedBy = username
 		result = tx.WithContext(dbctx).Omit(clause.Associations).Save(&p)
 		if result.Error != nil {
-			return PostgresError(http.StatusInternalServerError, fmt.Errorf("Error when updating policy in database: %w", result.Error))
+			return RDBError(http.StatusInternalServerError, fmt.Errorf("Error when updating policy in database: %w", result.Error))
 		}
 
 		if profileKind == model.SecurityKindApparmor {
@@ -327,12 +327,12 @@ func (s *SecProfileService) ReplacePolicyProfile(ctx context.Context, policyID i
 				if len(p.ApparmorProfile.ApparmorProfileData) > 0 {
 					result = tx.WithContext(dbctx).Where("apparmor_profile_id = ?", p.ApparmorProfile.ID).Delete(&p.ApparmorProfile.ApparmorProfileData)
 					if result.Error != nil {
-						return PostgresError(http.StatusInternalServerError, fmt.Errorf("Error when removing profile entries from database: %w", result.Error))
+						return RDBError(http.StatusInternalServerError, fmt.Errorf("Error when removing profile entries from database: %w", result.Error))
 					}
 				}
 				result = tx.WithContext(dbctx).Create(&profileData.ApparmorProfileData)
 				if result.Error != nil {
-					return PostgresError(http.StatusInternalServerError, fmt.Errorf("Error when adding profile entries to database: %w", result.Error))
+					return RDBError(http.StatusInternalServerError, fmt.Errorf("Error when adding profile entries to database: %w", result.Error))
 				}
 			}
 		} else if profileKind == model.SecurityKindCommandWhitelist {
@@ -343,12 +343,12 @@ func (s *SecProfileService) ReplacePolicyProfile(ctx context.Context, policyID i
 				if len(p.CommandWhitelistProfile.CommandWhitelistProfileData) > 0 {
 					result = tx.WithContext(dbctx).Where("command_whitelist_profile_id = ?", p.CommandWhitelistProfile.ID).Delete(&p.CommandWhitelistProfile.CommandWhitelistProfileData)
 					if result.Error != nil {
-						return PostgresError(http.StatusInternalServerError, fmt.Errorf("Error when removing profile entries from database: %w", result.Error))
+						return RDBError(http.StatusInternalServerError, fmt.Errorf("Error when removing profile entries from database: %w", result.Error))
 					}
 				}
 				result = tx.WithContext(dbctx).Create(&profileData.CommandWhitelistProfileData)
 				if result.Error != nil {
-					return PostgresError(http.StatusInternalServerError, fmt.Errorf("Error when adding profile entries to database: %w", result.Error))
+					return RDBError(http.StatusInternalServerError, fmt.Errorf("Error when adding profile entries to database: %w", result.Error))
 				}
 			}
 		} else if profileKind == model.SecurityKindSeccomp {
@@ -359,12 +359,12 @@ func (s *SecProfileService) ReplacePolicyProfile(ctx context.Context, policyID i
 				if len(p.SeccompProfile.SeccompProfileData) > 0 {
 					result = tx.WithContext(dbctx).Where("seccomp_profile_id = ?", p.SeccompProfile.ID).Delete(&p.SeccompProfile.SeccompProfileData)
 					if result.Error != nil {
-						return PostgresError(http.StatusInternalServerError, fmt.Errorf("Error when removing profile entries from database: %w", result.Error))
+						return RDBError(http.StatusInternalServerError, fmt.Errorf("Error when removing profile entries from database: %w", result.Error))
 					}
 				}
 				result = tx.WithContext(dbctx).Create(&profileData.SeccompProfileData)
 				if result.Error != nil {
-					return PostgresError(http.StatusInternalServerError, fmt.Errorf("Error when adding profile entries to database: %w", result.Error))
+					return RDBError(http.StatusInternalServerError, fmt.Errorf("Error when adding profile entries to database: %w", result.Error))
 				}
 			}
 		} else {

@@ -18,7 +18,7 @@ import (
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
-	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
+	"gitlab.com/security-rd/go-pkg/databases"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 	"k8s.io/client-go/kubernetes"
@@ -28,7 +28,7 @@ type QueueService struct {
 	conn      *stan.Conn
 	mutex     sync.Mutex
 	k8sClient *kubernetes.Clientset
-	db        *rdbtools.GormWrapper
+	db        *databases.RDBInstance
 	tickerMap map[string]*time.Ticker
 }
 
@@ -47,7 +47,7 @@ func Init(
 	conn *stan.Conn,
 	k8sClient *kubernetes.Clientset,
 	redisClient *redis.Client,
-	db *rdbtools.GormWrapper,
+	db *databases.RDBInstance,
 
 ) error {
 	once.Do(func() {
@@ -733,7 +733,7 @@ func (s *QueueService) setTrainingStartedStatus(ctx context.Context, policyID in
 		result := tx.WithContext(dbctx).Preload(clause.Associations).First(&p, policyID)
 		if result.Error != nil {
 			if !errors.Is(result.Error, gorm.ErrRecordNotFound) {
-				return PostgresError(http.StatusInternalServerError, fmt.Errorf("Error when getting resource in database: %w", result.Error))
+				return RDBError(http.StatusInternalServerError, fmt.Errorf("Error when getting resource in database: %w", result.Error))
 			}
 			return NewNotFoundError(http.StatusBadRequest, fmt.Errorf("Resource does not exist in database: %w", result.Error))
 		}
@@ -754,7 +754,7 @@ func (s *QueueService) setTrainingStartedStatus(ctx context.Context, policyID in
 			p.ApparmorProfile.AbortTrainingTime = nil
 			result = tx.WithContext(dbctx).Save(&p.ApparmorProfile)
 			if result.Error != nil {
-				return PostgresError(http.StatusInternalServerError, fmt.Errorf("Error when updating policy in database: %w", result.Error))
+				return RDBError(http.StatusInternalServerError, fmt.Errorf("Error when updating policy in database: %w", result.Error))
 			}
 		} else if profileKind == model.SecurityKindCommandWhitelist {
 			p.CommandWhitelistProfile.ElapsedTime = 0
@@ -768,7 +768,7 @@ func (s *QueueService) setTrainingStartedStatus(ctx context.Context, policyID in
 			p.CommandWhitelistProfile.AbortTrainingTime = nil
 			result = tx.WithContext(dbctx).Save(&p.CommandWhitelistProfile)
 			if result.Error != nil {
-				return PostgresError(http.StatusInternalServerError, fmt.Errorf("Error when updating policy in database: %w", result.Error))
+				return RDBError(http.StatusInternalServerError, fmt.Errorf("Error when updating policy in database: %w", result.Error))
 			}
 		} else if profileKind == model.SecurityKindSeccomp {
 			p.SeccompProfile.ElapsedTime = 0
@@ -782,7 +782,7 @@ func (s *QueueService) setTrainingStartedStatus(ctx context.Context, policyID in
 			p.SeccompProfile.AbortTrainingTime = nil
 			result = tx.WithContext(dbctx).Save(&p.SeccompProfile)
 			if result.Error != nil {
-				return PostgresError(http.StatusInternalServerError, fmt.Errorf("Error when updating policy in database: %w", result.Error))
+				return RDBError(http.StatusInternalServerError, fmt.Errorf("Error when updating policy in database: %w", result.Error))
 			}
 		}
 
@@ -804,7 +804,7 @@ func (s *QueueService) setTrainingStoppedStatus(ctx context.Context, policyID in
 		result := tx.WithContext(dbctx).Preload(clause.Associations).First(&p, policyID)
 		if result.Error != nil {
 			if !errors.Is(result.Error, gorm.ErrRecordNotFound) {
-				return PostgresError(http.StatusInternalServerError, fmt.Errorf("Error when getting resource in database: %w", result.Error))
+				return RDBError(http.StatusInternalServerError, fmt.Errorf("Error when getting resource in database: %w", result.Error))
 			}
 			return NewNotFoundError(http.StatusBadRequest, fmt.Errorf("Resource does not exist in database: %w", result.Error))
 		}
@@ -826,7 +826,7 @@ func (s *QueueService) setTrainingStoppedStatus(ctx context.Context, policyID in
 			p.ApparmorProfile.TrainingStatus = model.TrainingStatusNotStarted
 			result = tx.WithContext(dbctx).Save(&p.ApparmorProfile)
 			if result.Error != nil {
-				return PostgresError(http.StatusInternalServerError, fmt.Errorf("Error when updating policy in database: %w", result.Error))
+				return RDBError(http.StatusInternalServerError, fmt.Errorf("Error when updating policy in database: %w", result.Error))
 			}
 		} else if profileKind == model.SecurityKindCommandWhitelist {
 			if p.CommandWhitelistProfile.ResumeTrainingTime != nil {
@@ -839,7 +839,7 @@ func (s *QueueService) setTrainingStoppedStatus(ctx context.Context, policyID in
 			p.CommandWhitelistProfile.TrainingStatus = model.TrainingStatusNotStarted
 			result = tx.WithContext(dbctx).Save(&p.CommandWhitelistProfile)
 			if result.Error != nil {
-				return PostgresError(http.StatusInternalServerError, fmt.Errorf("Error when updating policy in database: %w", result.Error))
+				return RDBError(http.StatusInternalServerError, fmt.Errorf("Error when updating policy in database: %w", result.Error))
 			}
 		} else if profileKind == model.SecurityKindSeccomp {
 			if p.SeccompProfile.ResumeTrainingTime != nil {
@@ -852,7 +852,7 @@ func (s *QueueService) setTrainingStoppedStatus(ctx context.Context, policyID in
 			p.SeccompProfile.TrainingStatus = model.TrainingStatusNotStarted
 			result = tx.WithContext(dbctx).Save(&p.SeccompProfile)
 			if result.Error != nil {
-				return PostgresError(http.StatusInternalServerError, fmt.Errorf("Error when updating policy in database: %w", result.Error))
+				return RDBError(http.StatusInternalServerError, fmt.Errorf("Error when updating policy in database: %w", result.Error))
 			}
 		}
 
@@ -874,7 +874,7 @@ func (s *QueueService) setTrainingAbortedStatus(ctx context.Context, policyID in
 		result := tx.WithContext(dbctx).Preload(clause.Associations).First(&p, policyID)
 		if result.Error != nil {
 			if !errors.Is(result.Error, gorm.ErrRecordNotFound) {
-				return PostgresError(http.StatusInternalServerError, fmt.Errorf("Error when getting resource in database: %w", result.Error))
+				return RDBError(http.StatusInternalServerError, fmt.Errorf("Error when getting resource in database: %w", result.Error))
 			}
 			return NewNotFoundError(http.StatusBadRequest, fmt.Errorf("Resource does not exist in database: %w", result.Error))
 		}
@@ -896,7 +896,7 @@ func (s *QueueService) setTrainingAbortedStatus(ctx context.Context, policyID in
 			p.ApparmorProfile.TrainingStatus = model.TrainingStatusNotStarted
 			result = tx.WithContext(dbctx).Save(&p.ApparmorProfile)
 			if result.Error != nil {
-				return PostgresError(http.StatusInternalServerError, fmt.Errorf("Error when updating policy in database: %w", result.Error))
+				return RDBError(http.StatusInternalServerError, fmt.Errorf("Error when updating policy in database: %w", result.Error))
 			}
 		} else if profileKind == model.SecurityKindCommandWhitelist {
 			if p.CommandWhitelistProfile.ResumeTrainingTime != nil {
@@ -909,7 +909,7 @@ func (s *QueueService) setTrainingAbortedStatus(ctx context.Context, policyID in
 			p.CommandWhitelistProfile.TrainingStatus = model.TrainingStatusNotStarted
 			result = tx.WithContext(dbctx).Save(&p.CommandWhitelistProfile)
 			if result.Error != nil {
-				return PostgresError(http.StatusInternalServerError, fmt.Errorf("Error when updating policy in database: %w", result.Error))
+				return RDBError(http.StatusInternalServerError, fmt.Errorf("Error when updating policy in database: %w", result.Error))
 			}
 		} else if profileKind == model.SecurityKindSeccomp {
 			if p.SeccompProfile.ResumeTrainingTime != nil {
@@ -922,7 +922,7 @@ func (s *QueueService) setTrainingAbortedStatus(ctx context.Context, policyID in
 			p.SeccompProfile.TrainingStatus = model.TrainingStatusNotStarted
 			result = tx.WithContext(dbctx).Save(&p.SeccompProfile)
 			if result.Error != nil {
-				return PostgresError(http.StatusInternalServerError, fmt.Errorf("Error when updating policy in database: %w", result.Error))
+				return RDBError(http.StatusInternalServerError, fmt.Errorf("Error when updating policy in database: %w", result.Error))
 			}
 		}
 
@@ -944,7 +944,7 @@ func (s *QueueService) setTrainingResumedStatus(ctx context.Context, policyID in
 		result := tx.WithContext(dbctx).Preload(clause.Associations).First(&p, policyID)
 		if result.Error != nil {
 			if !errors.Is(result.Error, gorm.ErrRecordNotFound) {
-				return PostgresError(http.StatusInternalServerError, fmt.Errorf("Error when getting resource in database: %w", result.Error))
+				return RDBError(http.StatusInternalServerError, fmt.Errorf("Error when getting resource in database: %w", result.Error))
 			}
 			return NewNotFoundError(http.StatusBadRequest, fmt.Errorf("Resource does not exist in database: %w", result.Error))
 		}
@@ -959,21 +959,21 @@ func (s *QueueService) setTrainingResumedStatus(ctx context.Context, policyID in
 			p.ApparmorProfile.TrainingStatus = model.TrainingStatusInProgress
 			result = tx.WithContext(dbctx).Save(&p.ApparmorProfile)
 			if result.Error != nil {
-				return PostgresError(http.StatusInternalServerError, fmt.Errorf("Error when updating policy in database: %w", result.Error))
+				return RDBError(http.StatusInternalServerError, fmt.Errorf("Error when updating policy in database: %w", result.Error))
 			}
 		} else if profileKind == model.SecurityKindCommandWhitelist {
 			p.CommandWhitelistProfile.ResumeTrainingTime = &resumeTime
 			p.CommandWhitelistProfile.TrainingStatus = model.TrainingStatusInProgress
 			result = tx.WithContext(dbctx).Save(&p.CommandWhitelistProfile)
 			if result.Error != nil {
-				return PostgresError(http.StatusInternalServerError, fmt.Errorf("Error when updating policy in database: %w", result.Error))
+				return RDBError(http.StatusInternalServerError, fmt.Errorf("Error when updating policy in database: %w", result.Error))
 			}
 		} else if profileKind == model.SecurityKindSeccomp {
 			p.SeccompProfile.ResumeTrainingTime = &resumeTime
 			p.SeccompProfile.TrainingStatus = model.TrainingStatusInProgress
 			result = tx.WithContext(dbctx).Save(&p.SeccompProfile)
 			if result.Error != nil {
-				return PostgresError(http.StatusInternalServerError, fmt.Errorf("Error when updating policy in database: %w", result.Error))
+				return RDBError(http.StatusInternalServerError, fmt.Errorf("Error when updating policy in database: %w", result.Error))
 			}
 		}
 
@@ -995,7 +995,7 @@ func (s *QueueService) setTrainingSuspendedStatus(ctx context.Context, policyID 
 		result := tx.WithContext(dbctx).Preload(clause.Associations).First(&p, policyID)
 		if result.Error != nil {
 			if !errors.Is(result.Error, gorm.ErrRecordNotFound) {
-				return PostgresError(http.StatusInternalServerError, fmt.Errorf("Error when getting resource in database: %w", result.Error))
+				return RDBError(http.StatusInternalServerError, fmt.Errorf("Error when getting resource in database: %w", result.Error))
 			}
 			return NewNotFoundError(http.StatusBadRequest, fmt.Errorf("Resource does not exist in database: %w", result.Error))
 		}
@@ -1016,7 +1016,7 @@ func (s *QueueService) setTrainingSuspendedStatus(ctx context.Context, policyID 
 			p.ApparmorProfile.TrainingStatus = model.TrainingStatusPaused
 			result = tx.WithContext(dbctx).Save(&p.ApparmorProfile)
 			if result.Error != nil {
-				return PostgresError(http.StatusInternalServerError, fmt.Errorf("Error when updating policy in database: %w", result.Error))
+				return RDBError(http.StatusInternalServerError, fmt.Errorf("Error when updating policy in database: %w", result.Error))
 			}
 		} else if profileKind == model.SecurityKindCommandWhitelist {
 			if p.CommandWhitelistProfile.ResumeTrainingTime != nil {
@@ -1028,7 +1028,7 @@ func (s *QueueService) setTrainingSuspendedStatus(ctx context.Context, policyID 
 			p.CommandWhitelistProfile.TrainingStatus = model.TrainingStatusPaused
 			result = tx.WithContext(dbctx).Save(&p.CommandWhitelistProfile)
 			if result.Error != nil {
-				return PostgresError(http.StatusInternalServerError, fmt.Errorf("Error when updating policy in database: %w", result.Error))
+				return RDBError(http.StatusInternalServerError, fmt.Errorf("Error when updating policy in database: %w", result.Error))
 			}
 		} else if profileKind == model.SecurityKindSeccomp {
 			if p.SeccompProfile.ResumeTrainingTime != nil {
@@ -1040,7 +1040,7 @@ func (s *QueueService) setTrainingSuspendedStatus(ctx context.Context, policyID 
 			p.SeccompProfile.TrainingStatus = model.TrainingStatusPaused
 			result = tx.WithContext(dbctx).Save(&p.SeccompProfile)
 			if result.Error != nil {
-				return PostgresError(http.StatusInternalServerError, fmt.Errorf("Error when updating policy in database: %w", result.Error))
+				return RDBError(http.StatusInternalServerError, fmt.Errorf("Error when updating policy in database: %w", result.Error))
 			}
 		}
 

@@ -21,13 +21,12 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
 	"gitlab.com/piccolo_su/vegeta/pkg/lang"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
-	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
+	"gitlab.com/security-rd/go-pkg/databases"
 	"gitlab.com/security-rd/go-pkg/logging"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
-
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
@@ -38,7 +37,7 @@ import (
 
 type Scapper struct {
 	ClusterAddr string
-	rdb         *rdbtools.GormWrapper
+	rdb         *databases.RDBInstance
 	ScapService *ScapService
 }
 
@@ -56,7 +55,7 @@ const (
 func newScapper(
 	scapOpts *flag.ScapOpts,
 	scapService *ScapService,
-	rdb *rdbtools.GormWrapper,
+	rdb *databases.RDBInstance,
 ) *Scapper {
 	s := &Scapper{
 		ScapService: scapService,
@@ -122,11 +121,11 @@ func (s *Scapper) checkCheckStatusWithDelay(check model.Check, delayedTime time.
 // it's used to prevent the case: ongoing jobs are watched by console to set timeout; if console crashed or redeployed, these jobs will lose watches and being unfinished.
 func (s *Scapper) InitCheckUnFinishedJobs(ctx context.Context) error {
 	nowStamp := time.Now().Unix()
-	pgCtx, cancel := context.WithTimeout(ctx, 1*time.Second)
+	tCtx, cancel := context.WithTimeout(ctx, 1*time.Second)
 	defer cancel()
 
 	var scanHistory []model.ScanHistory
-	err := s.rdb.Get().WithContext(pgCtx).Where("finished_at = 0").Find(&scanHistory).Error
+	err := s.rdb.Get().WithContext(tCtx).Where("finished_at = 0").Find(&scanHistory).Error
 	if err != nil {
 		return errors.Errorf("get scan history list failed, %v", err)
 	}
@@ -171,12 +170,10 @@ func (s *Scapper) checkTargetTypeTasksStillInProgress(ctx context.Context, check
 	defer cancel()
 
 	var scanTask model.ScanHistory
-	err := s.rdb.Get().WithContext(pgCtx).Order("finished_at DESC").First(&scanTask, "check_type = ? and cluster_key = ?", checkType, clusterID).Error
+	err := s.rdb.GetReadDB().WithContext(pgCtx).Order("finished_at DESC").First(&scanTask, "check_type = ? and cluster_key = ?", checkType, clusterID).Error
 	if err != nil {
 		return false
 	}
-	//print debug log
-	logging.Get().Info().Msgf("scan task info : %v.", scanTask)
 	//task id
 	if scanTask.TaskID == "" || scanTask.CheckType != checkType {
 		return false
@@ -262,7 +259,7 @@ func (s *Scapper) RunComplianceCheck(
 		// TODO: resilience. We should save a task to mongo so that in case of Console crash we can restart the check?
 		// or do we not care about this since this is a rare operation?
 
-		err := s.PgAddJobStatusInProgress(ctx, &check, targetNode.Name)
+		err := s.dbAddJobStatusInProgress(ctx, &check, targetNode.Name)
 		if err != nil {
 			logging.Get().Err(err).Msgf("set node %s for check task %+v error", targetNode.Name, check)
 			continue
@@ -507,7 +504,7 @@ func (s *Scapper) scheduleOneJob(ctx context.Context, kubeClient *pkgassets.Clie
 	jobObj.Spec.Template.Spec.NodeName = targetNodeName
 
 	if jobObj.Labels == nil {
-		jobObj.Labels = make(map[string]string)
+		jobObj.Labels = make(map[string]string, 2)
 	}
 	jobObj.Labels["CHECK_ID"] = check.CheckUUID
 	jobObj.Labels[jobLabel] = "true"
@@ -568,7 +565,7 @@ func (s *Scapper) scheduleOneJob(ctx context.Context, kubeClient *pkgassets.Clie
 	return nil
 }
 
-func (s *Scapper) PgAddJobStatusInProgress(ctx context.Context, check *model.Check, targetNodeName string) error {
+func (s *Scapper) dbAddJobStatusInProgress(ctx context.Context, check *model.Check, targetNodeName string) error {
 	jobName := s.CreateJobName(check.CheckUUID, check.CheckType, targetNodeName)
 
 	task := model.ScanNodeRecord{

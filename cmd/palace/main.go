@@ -20,12 +20,10 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/echelper"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/mqtools"
-	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
 	"gitlab.com/piccolo_su/vegeta/pkg/redistools"
 	"gitlab.com/security-rd/go-pkg/databases"
 	_ "go.uber.org/automaxprocs"
 	"google.golang.org/protobuf/proto"
-	"gorm.io/gorm"
 )
 
 const (
@@ -35,12 +33,12 @@ const (
 
 var (
 	stanConn              *mqtools.StanConn
-	rdb                   *rdbtools.GormWrapper
+	rdb                   *databases.RDBInstance
 	redisCli              *redis.Client
 	associationDispatcher *association.EventDispatcher
 )
 
-func initAssociationDispatchers(rdb *rdbtools.GormWrapper) error {
+func initAssociationDispatchers(rdb *databases.RDBInstance) error {
 	var err error
 	rulesManager := echelper.NewRulesManager(rdb, 5*time.Minute)
 	associationDispatcher, err = association.NewEventDispatcher(association.DispatchConfig{
@@ -81,19 +79,12 @@ func initRedis() (err error) {
 }
 
 func initDB() error {
-	postgresDB, err := rdbtools.GormWrapperOpen(5*time.Second, func() (*gorm.DB, error) {
-		db, err := databases.GetMysqlWithEnv(context.Background())
-		if err != nil {
-			logging.GetLogger().Err(err).Msgf("postgresDB client init error")
-			return nil, err
-		}
-		return db, nil
-	})
+	var err error
+	rdb, err = databases.NewRDBWithMySQLByEnv(context.Background())
 	if err != nil {
-		logging.GetLogger().Err(err).Msg("Init postgre error")
+		logging.GetLogger().Err(err).Msg("Init db error")
 		return err
 	}
-	rdb = postgresDB
 	return nil
 }
 

@@ -10,8 +10,8 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
-	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
+	"gitlab.com/security-rd/go-pkg/databases"
 )
 
 type RegistryDalInterface interface {
@@ -22,10 +22,10 @@ type RegistryDalInterface interface {
 }
 
 type RegistryDao struct {
-	db *rdbtools.GormWrapper
+	db *databases.RDBInstance
 }
 
-func NewRegistryDao(db *rdbtools.GormWrapper) *RegistryDao {
+func NewRegistryDao(db *databases.RDBInstance) *RegistryDao {
 	return &RegistryDao{db: db}
 }
 

@@ -1099,7 +1099,7 @@ func (rcSvc *RedClairService) logPostgres(ctx context.Context, scanImage *model.
 		f := func() error {
 			err := rcSvc.postgresSvc.UpdateToScanImage(context.Background(), scanImage, tableID)
 			if scanTask.Status == model.ScanStatusSucceeded || scanTask.Status == model.ScanStatusFailed {
-				err := dal.ScanFinish(ctx, rcSvc.postgresSvc.PostgresDB.Get(), scanTask.ImageDigest)
+				err := dal.ScanFinish(ctx, rcSvc.postgresSvc.RDB.Get(), scanTask.ImageDigest)
 				if err != nil {
 					logging.Get().Err(err).Msgf("update  image  scan finish time error")
 					return err
@@ -1112,7 +1112,7 @@ func (rcSvc *RedClairService) logPostgres(ctx context.Context, scanImage *model.
 		rcSvc.ScannerList.ReUpdataDBPush(dbfunc)
 	}
 	if scanTask.Status == model.ScanStatusSucceeded || scanTask.Status == model.ScanStatusFailed {
-		err := dal.ScanFinish(ctx, rcSvc.postgresSvc.PostgresDB.Get(), scanTask.ImageDigest)
+		err := dal.ScanFinish(ctx, rcSvc.postgresSvc.RDB.Get(), scanTask.ImageDigest)
 		if err != nil {
 			logging.Get().Err(err).Msgf("update  image  scan finish time error")
 		}

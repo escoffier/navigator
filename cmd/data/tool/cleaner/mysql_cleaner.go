@@ -11,16 +11,16 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/data/env"
 	"gitlab.com/piccolo_su/vegeta/cmd/data/tool/conf"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
-	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
+	"gitlab.com/security-rd/go-pkg/databases"
 )
 
 type MysqlCleaner struct {
-	db     *rdbtools.GormWrapper
+	db     *databases.RDBInstance
 	tables []*conf.RDBDumpItem
 }
 
-func NewMysqlCleaner(db *rdbtools.GormWrapper, tables []*conf.RDBDumpItem) *MysqlCleaner {
+func NewMysqlCleaner(db *databases.RDBInstance, tables []*conf.RDBDumpItem) *MysqlCleaner {
 	return &MysqlCleaner{
 		db:     db,
 		tables: tables,
@@ -54,7 +54,7 @@ const (
 	mysqlInterval = time.Millisecond * 200
 )
 
-func (c *MysqlCleaner) dumpTable(ctx context.Context, db *rdbtools.GormWrapper, table *conf.RDBDumpItem, timeFilter time.Time) error {
+func (c *MysqlCleaner) dumpTable(ctx context.Context, db *databases.RDBInstance, table *conf.RDBDumpItem, timeFilter time.Time) error {
 	targetPath, tmpPath, err := initDumpInfo(&table.DumpItem, timeFilter)
 	if err != nil {
 		return err
@@ -101,7 +101,7 @@ func (c *MysqlCleaner) dumpTable(ctx context.Context, db *rdbtools.GormWrapper, 
 	}
 }
 
-func mysqlDump(ctx context.Context, db *rdbtools.GormWrapper, table *conf.RDBDumpItem, timeFilter time.Time, tmpPath string) (hasData bool, err error) {
+func mysqlDump(ctx context.Context, db *databases.RDBInstance, table *conf.RDBDumpItem, timeFilter time.Time, tmpPath string) (hasData bool, err error) {
 	sort := getPrimaryKeySortColumns(table, "desc")
 	clearCondition := fmt.Sprintf("('%s' < '%s' %s)",
 		table.TimeField, timeFilter.Format("2006-01-02 15:04:05.000"), getClearCondition(table))

@@ -32,7 +32,7 @@ func (s *Service) GetStorageView(ctx context.Context, dataType string) (*model.S
 }
 
 func (s *Service) GetLogicHotStorageView(ctx context.Context) (*model.StorageView, error) {
-	postgreHotStorageView, err := s.getStorageView(ctx, s.postgrePod)
+	postgreHotStorageView, err := s.getStorageView(ctx, s.rdbPod)
 	if err != nil {
 		return nil, err
 	}

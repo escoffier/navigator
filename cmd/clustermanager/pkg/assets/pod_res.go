@@ -13,9 +13,9 @@ import (
 	"github.com/go-redis/redis/v8"
 	"gitlab.com/piccolo_su/vegeta/pkg/assets"
 	"gitlab.com/piccolo_su/vegeta/pkg/dal"
-	"gitlab.com/piccolo_su/vegeta/pkg/logging"
-	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
+	"gitlab.com/security-rd/go-pkg/databases"
+	"gitlab.com/security-rd/go-pkg/logging"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
@@ -26,7 +26,7 @@ import (
 type PodResourcesService struct {
 	sync.RWMutex
 
-	rdb              *rdbtools.GormWrapper
+	rdb              *databases.RDBInstance
 	redisCli         *redis.Client
 	clusterCallbacks map[string]*PodResourcesClusterCallback
 	syncedClusters   map[string]struct{}
@@ -49,7 +49,7 @@ type PodResourcesClusterCallback struct {
 	consumed            int32
 }
 
-func newPodResourcesService(redisCli *redis.Client, rdb *rdbtools.GormWrapper) *PodResourcesService {
+func newPodResourcesService(redisCli *redis.Client, rdb *databases.RDBInstance) *PodResourcesService {
 	return &PodResourcesService{
 		redisCli:         redisCli,
 		rdb:              rdb,
@@ -69,7 +69,7 @@ type syncSignal struct{}
 
 // BeforWatchNewCluster called before watch events
 func (cb *PodResourcesService) BeforWatchNewCluster(ctx context.Context, clusterName string, resyncInterval time.Duration) assets.ClusterCallback {
-	logging.GetLogger().Info().Msgf("service assets before watch new cluster %s called.", clusterName)
+	logging.Get().Info().Msgf("service assets before watch new cluster %s called.", clusterName)
 
 	ccb := &PodResourcesClusterCallback{
 		cluster:             clusterName,
@@ -83,7 +83,7 @@ func (cb *PodResourcesService) BeforWatchNewCluster(ctx context.Context, cluster
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
-				logging.GetLogger().Error().Msgf("Panic: %v. stack: %s", r, debug.Stack())
+				logging.Get().Error().Msgf("Panic: %v. stack: %s", r, debug.Stack())
 			}
 		}()
 
@@ -99,7 +99,7 @@ func (cb *PodResourcesService) BeforWatchNewCluster(ctx context.Context, cluster
 
 		consumed := ccb.tryToConsumePods()
 		if consumed {
-			logging.GetLogger().Info().Msg("start to consume pods")
+			logging.Get().Info().Msg("start to consume pods")
 		}
 	}()
 	cb.Lock()
@@ -138,7 +138,7 @@ func (cb *PodResourcesClusterCallback) getUpperOwnerOfPod(pod *corev1.Pod) (*met
 			}
 			ownerOwnerName := owner.Name[0:pos]
 
-			cnt, err := dal.CountResources(context.Background(), cb.parent.rdb.Get(), dal.ResourcesQuery().WithCluster(cb.cluster).WithNamespace(pod.Namespace).WithResourceKind(assets.KindDeployment).WithResourceName(ownerOwnerName))
+			cnt, err := dal.CountResources(context.Background(), cb.parent.rdb.GetReadDB(), dal.ResourcesQuery().WithCluster(cb.cluster).WithNamespace(pod.Namespace).WithResourceKind(assets.KindDeployment).WithResourceName(ownerOwnerName))
 			if err == nil && cnt > 0 {
 				return &metav1.OwnerReference{Name: ownerOwnerName, Kind: string(assets.KindDeployment)}, true
 			}
@@ -163,7 +163,7 @@ func (cb *PodResourcesClusterCallback) doOnPodEvent(ctx context.Context, e podEv
 			if e.pod != nil {
 				podName = fmt.Sprintf("%s/%s", e.pod.Namespace, e.pod.Name)
 			}
-			logging.GetLogger().Error().Msgf("Panic when do on pod (%s) event: %v. event: %+v", podName, r, e)
+			logging.Get().Error().Msgf("Panic when do on pod (%s) event: %v. event: %+v", podName, r, e)
 			err = errors.New("panic")
 		}
 	}()
@@ -173,13 +173,13 @@ func (cb *PodResourcesClusterCallback) doOnPodEvent(ctx context.Context, e podEv
 
 	switch e.action {
 	case assets.ActionDelete:
-		rerr := dal.DeletePodResourceRelationInRDB(tctx, cb.parent.rdb, e.pod, cb.cluster)
+		rerr := dal.DeletePodResourceRelationInRDB(tctx, cb.parent.rdb.Get(), e.pod, cb.cluster)
 		if rerr != nil {
-			logging.GetLogger().Err(rerr).Msg("delete pod resource rel in rdb error")
+			logging.Get().Err(rerr).Msg("delete pod resource rel in rdb error")
 		}
 		cerr := dal.DeletePodResourceRelation(tctx, cb.parent.redisCli, e.pod, cb.cluster)
 		if cerr != nil {
-			logging.GetLogger().Err(cerr).Msg("delete pod resource rel in cache error")
+			logging.Get().Err(cerr).Msg("delete pod resource rel in cache error")
 		}
 	case assets.ActionUpdate, assets.ActionAdd:
 		owner, _ := cb.getUpperOwnerOfPod(e.pod)
@@ -191,13 +191,13 @@ func (cb *PodResourcesClusterCallback) doOnPodEvent(ctx context.Context, e podEv
 			ownerName = owner.Name
 			ownerKind = owner.Kind
 		}
-		rerr := dal.UpsertPodResourceRelationInRDB(tctx, cb.parent.rdb, e.pod, ownerName, ownerKind, cb.cluster, e.updateTime)
+		rerr := dal.UpsertPodResourceRelationInRDB(tctx, cb.parent.rdb.Get(), e.pod, ownerName, ownerKind, cb.cluster, e.updateTime)
 		if rerr != nil {
-			logging.GetLogger().Err(rerr).Msg("upsert pod resource rel in rdb error")
+			logging.Get().Err(rerr).Msg("upsert pod resource rel in rdb error")
 		}
 		cerr := dal.UpsertPodResourceRelation(tctx, cb.parent.redisCli, e.pod, ownerName, ownerKind, cb.cluster, 2*cb.resyncInterval)
 		if cerr != nil {
-			logging.GetLogger().Err(rerr).Msg("upsert pod resource rel in cache error")
+			logging.Get().Err(rerr).Msg("upsert pod resource rel in cache error")
 		}
 
 	}
@@ -304,14 +304,14 @@ func (cb *PodResourcesClusterCallback) tryToConsumePods() bool {
 			case syncSignal:
 				err := cb.removeInactiveData(context.Background())
 				if err != nil {
-					logging.GetLogger().Err(err).Msg("do removeInactiveData error")
+					logging.Get().Err(err).Msg("do removeInactiveData error")
 				} else {
-					logging.GetLogger().Info().Msg("cluster information scyned")
+					logging.Get().Info().Msg("cluster information scyned")
 				}
 			case podEvent:
 				err := cb.doOnPodEvent(context.Background(), typed)
 				if err != nil {
-					logging.GetLogger().Err(err).Msgf("do on pod event %+v error", typed)
+					logging.Get().Err(err).Msgf("do on pod event %+v error", typed)
 				}
 			}
 		})
@@ -326,7 +326,7 @@ func (cb *PodResourcesClusterCallback) AfterDataSynced(ctx context.Context, data
 }
 
 func (cb *PodResourcesClusterCallback) removeInactiveData(ctx context.Context) error {
-	return dal.CleanUpPodResourceRelationsInRDB(ctx, cb.parent.rdb, cb.refreshTime(), cb.cluster)
+	return dal.CleanUpPodResourceRelationsInRDB(ctx, cb.parent.rdb.Get(), cb.refreshTime(), cb.cluster)
 }
 
 func (cb *PodResourcesClusterCallback) OnRoleEvent(newRole, oldRole *rbacv1.Role, action assets.AssetsAction) error {
