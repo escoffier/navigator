@@ -8,6 +8,7 @@ import (
 func (api *api) userCenter() func(chi.Router) {
 	return func(r chi.Router) {
 		r.Get("/config/loginOption", api.GetLoginOption())
+		r.Get("/login/secret", api.getLoginSecret())
 		r.Post("/login", api.login())
 		r.Post("/ldapLogin", api.LdapLogin())
 		r.Post("/radiusLogin", api.RadiusLogin())

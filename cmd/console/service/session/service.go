@@ -20,8 +20,10 @@ var (
 )
 
 const (
-	userSessionPrefix = "session@"
-	defaultOneTimeout = time.Millisecond * 500
+	userSessionPrefix        = "session@"
+	loginSecretSessionPrefix = "loginsecret@"
+	defaultOneTimeout        = time.Millisecond * 500
+	loginSecretExpireTime    = time.Minute
 )
 
 type Conf struct {
@@ -113,6 +115,40 @@ func (s *Service) SaveUserSession(ctx context.Context, user *model.UserSession) 
 	return nil
 }
 
+func (s *Service) SaveUserLoginSecret(ctx context.Context, seed, key string) error {
+	set := func() error {
+		oneCtx, oneCancel := context.WithTimeout(ctx, defaultOneTimeout)
+		defer oneCancel()
+		return s.redisCli.Set(oneCtx, getLoginSecretRedisKey(seed), key, loginSecretExpireTime).Err()
+	}
+
+	if err := util.RetryWithBackoff(ctx, set); err != nil {
+		logging.GetLogger().Err(err).Msg("save login secret fail")
+		return err
+	}
+	return nil
+}
+
+func (s *Service) GetUserLoginSecret(ctx context.Context, username string) (string, error) {
+	var key string
+	set := func() (err error) {
+		oneCtx, oneCancel := context.WithTimeout(ctx, defaultOneTimeout)
+		defer oneCancel()
+		key, err = s.redisCli.Get(oneCtx, getLoginSecretRedisKey(username)).Result()
+		if err == redis.Nil {
+			return nil
+		}
+		return err
+	}
+
+	if err := util.RetryWithBackoff(ctx, set); err != nil {
+		logging.GetLogger().Err(err).Msg("get login secret fail")
+		return "", err
+	}
+
+	return key, nil
+}
+
 func (s *Service) DeleteUserSession(ctx context.Context, username string) error {
 	del := func() error {
 		oneCtx, oneCancel := context.WithTimeout(ctx, defaultOneTimeout)
@@ -160,4 +196,8 @@ func decode(content string) (*model.UserSession, error) {
 
 func getRedisKey(username string) string {
 	return fmt.Sprintf("%s%s", userSessionPrefix, username)
+}
+
+func getLoginSecretRedisKey(username string) string {
+	return fmt.Sprintf("%s%s", loginSecretSessionPrefix, username)
 }

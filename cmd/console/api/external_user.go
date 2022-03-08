@@ -323,9 +323,16 @@ func (api *api) LdapLogin() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx, cancel := context.WithTimeout(r.Context(), defaultAccountTimeout)
 		defer cancel()
-		var cliReq req
-		err := util.DecodeJSONBody(w, r, &cliReq)
+
+		decrypted, err := loginBodyDecrypt(ctx, r.Body)
 		if err != nil {
+			apperror.RespAndLog(w, ctx, apperror.NewMalformedRequestError(http.StatusBadRequest,
+				fmt.Errorf("illeagal params: %w", err)))
+			return
+		}
+
+		cliReq := &req{}
+		if err = json.Unmarshal(decrypted, cliReq); err != nil {
 			apperror.RespAndLog(w, ctx,
 				apperror.NewMalformedRequestError(http.StatusBadRequest,
 					fmt.Errorf("failed to decode json: %w", err)))
@@ -446,9 +453,17 @@ func (api *api) RadiusLogin() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx, cancel := context.WithTimeout(r.Context(), defaultAccountTimeout)
 		defer cancel()
-		var cliReq req
-		err := util.DecodeJSONBody(w, r, &cliReq)
+
+		// decrypt
+		decrypted, err := loginBodyDecrypt(ctx, r.Body)
 		if err != nil {
+			apperror.RespAndLog(w, ctx, apperror.NewMalformedRequestError(http.StatusBadRequest,
+				fmt.Errorf("illeagal params: %w", err)))
+			return
+		}
+
+		cliReq := &req{}
+		if err = json.Unmarshal(decrypted, cliReq); err != nil {
 			apperror.RespAndLog(w, ctx,
 				apperror.NewMalformedRequestError(http.StatusBadRequest,
 					fmt.Errorf("failed to decode json: %w", err)))
@@ -488,9 +503,17 @@ func (api *api) RadiusResponseChallenge() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx, cancel := context.WithTimeout(r.Context(), defaultAccountTimeout)
 		defer cancel()
-		var cliReq req
-		err := util.DecodeJSONBody(w, r, &cliReq)
+
+		// decrypt
+		decrypted, err := loginBodyDecrypt(ctx, r.Body)
 		if err != nil {
+			apperror.RespAndLog(w, ctx, apperror.NewMalformedRequestError(http.StatusBadRequest,
+				fmt.Errorf("illeagal params: %w", err)))
+			return
+		}
+
+		cliReq := &req{}
+		if err = json.Unmarshal(decrypted, cliReq); err != nil {
 			apperror.RespAndLog(w, ctx,
 				apperror.NewMalformedRequestError(http.StatusBadRequest,
 					fmt.Errorf("failed to decode json: %w", err)))
