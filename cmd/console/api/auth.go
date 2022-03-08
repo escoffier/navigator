@@ -3,10 +3,15 @@ package api
 import (
 	"context"
 	"crypto/tls"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"gitlab.com/piccolo_su/vegeta/pkg/util"
+	"io"
+	"io/ioutil"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/dgrijalva/jwt-go"
@@ -29,6 +34,79 @@ const (
 	JWTExpiration  = 12 * time.Hour
 )
 
+type getLoginSecretResp struct {
+	Key string `json:"key"`
+	//Seed   string
+}
+
+func (api *api) getLoginSecret() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(r.Context(), defaultAccountTimeout)
+		defer cancel()
+
+		seed := r.URL.Query().Get("seed")
+		if seed == "" {
+			RespAndLog(w, ctx, NewMalformedRequestError(http.StatusBadRequest,
+				fmt.Errorf("missing field 'username'")))
+			return
+		}
+
+		// generate AES key and save to redis
+		aesKey := dal.RandStringBytesMaskImprSrcUnsafe(16)
+		sessionService, ok := session.GetService()
+		if !ok {
+			RespAndLog(w, ctx, ErrServiceNotReady)
+			return
+		}
+
+		if err := sessionService.SaveUserLoginSecret(ctx, seed, aesKey); err != nil {
+			RespAndLog(w, ctx, fmt.Errorf("save login secret fail:%w", err))
+			return
+		}
+
+		response.Ok(w, response.WithItem(getLoginSecretResp{Key: aesKey}))
+	}
+}
+
+func loginBodyDecrypt(ctx context.Context, r io.ReadCloser) ([]byte, error) {
+	body, err := ioutil.ReadAll(r)
+	defer r.Close()
+	if err != nil {
+		return nil, err
+	}
+
+	params := strings.Split(string(body), "##")
+	if len(params) != 2 {
+		return nil, fmt.Errorf("parameter numbers error")
+	}
+
+	sessionService, ok := session.GetService()
+	if !ok {
+		return nil, ErrServiceNotReady
+	}
+
+	key, err := sessionService.GetUserLoginSecret(ctx, params[0])
+	if err != nil {
+		return nil, fmt.Errorf("get redis data err %w", err)
+	}
+
+	if key == "" {
+		return nil, fmt.Errorf("login expire, Plase try again")
+	}
+
+	encrypted, err := base64.StdEncoding.DecodeString(params[1])
+	if err != nil {
+		return nil, err
+	}
+	decrypted, err := util.AesDecryptCBC(encrypted, []byte(key))
+	if err != nil {
+		logging.Get().Error().Msgf("decrypt ase data err: %v\n%s", params, key)
+		return nil, err
+	}
+
+	return decrypted, nil
+}
+
 // LoginResponse is the response of the login API
 type LoginResponse struct {
 	CurrentAuthority string `json:"currentAuthority"`
@@ -47,13 +125,18 @@ func (api *api) login() http.HandlerFunc {
 		CaptchaValue string `json:"captchavalue"`
 	}
 	return func(w http.ResponseWriter, r *http.Request) {
-		creds := &credentials{}
-		err := json.NewDecoder(r.Body).Decode(creds)
-
 		ctx, cancel := context.WithTimeout(r.Context(), defaultAccountTimeout)
 		defer cancel()
 
+		decrypted, err := loginBodyDecrypt(ctx, r.Body)
 		if err != nil {
+			RespAndLog(w, ctx, NewMalformedRequestError(http.StatusBadRequest,
+				fmt.Errorf("illeagal params: %w", err)))
+			return
+		}
+
+		creds := &credentials{}
+		if err = json.Unmarshal(decrypted, creds); err != nil {
 			RespAndLog(w, ctx,
 				NewMalformedRequestError(http.StatusBadRequest,
 					fmt.Errorf("Failed to decode json: %w", err)))

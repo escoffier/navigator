@@ -2,6 +2,7 @@ package util
 
 import (
 	"bytes"
+	"crypto/aes"
 	"crypto/cipher"
 	"crypto/des"
 	"encoding/json"
@@ -135,6 +136,33 @@ func PKCS5UnPadding(origData []byte) []byte {
 	// 去掉最后一个字节 unpadding 次
 	unpadding := int(origData[length-1])
 	return origData[:(length - unpadding)]
+}
+
+// =================== AES CBC ======================
+func AesEncryptCBC(origData []byte, key []byte) ([]byte, error) {
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		return nil, err
+	}
+	blockSize := block.BlockSize()                  // 获取秘钥块的长度
+	origData = PKCS5Padding(origData, blockSize)    // 补全码
+	blockMode := cipher.NewCBCEncrypter(block, key) // 加密模式
+	encrypted := make([]byte, len(origData))        // 创建数组
+	blockMode.CryptBlocks(encrypted, origData)      // 加密
+	return encrypted, nil
+}
+
+func AesDecryptCBC(encrypted []byte, key []byte) ([]byte, error) {
+	block, err := aes.NewCipher(key) // 分组秘钥
+	if err != nil {
+		return nil, err
+	}
+	blockSize := block.BlockSize()                              // 获取秘钥块的长度
+	blockMode := cipher.NewCBCDecrypter(block, key[:blockSize]) // 加密模式
+	decrypted := make([]byte, len(encrypted))                   // 创建数组
+	blockMode.CryptBlocks(decrypted, encrypted)                 // 解密
+	decrypted = PKCS5UnPadding(decrypted)                       // 去除补全码
+	return decrypted, nil
 }
 
 // GetMixedSetForString 取交集，但是但一个为空时，就返回另一个集合，而不是返回空
