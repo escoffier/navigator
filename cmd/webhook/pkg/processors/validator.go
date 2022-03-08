@@ -41,7 +41,6 @@ type ValidatingParameters struct {
 
 type ValidatingConfig struct {
 	IgnoredNameSpaces []string
-	//RDB *rdbtools.GormWrapper
 }
 
 var ValidationFilterChain *validatingChain

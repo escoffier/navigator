@@ -12,7 +12,6 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/webhook/pkg/processors"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
-	// "gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
 	"gitlab.com/piccolo_su/vegeta/pkg/driftprevention/v1alpha1"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
