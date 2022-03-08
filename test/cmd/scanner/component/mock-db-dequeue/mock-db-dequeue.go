@@ -2,11 +2,11 @@ package mock_db_dequeue
 
 import (
 	"context"
+
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/dequeue"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/task"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
-	"gitlab.com/piccolo_su/vegeta/test/cmd/scanner/store"
 	"gorm.io/gorm"
 )
 
@@ -96,15 +96,15 @@ func init() {
 func newMockDbDequeue(config dequeue.Config) (dequeue.Dequeue, error) {
 	d := &MockDbDequeue{}
 
-	db, gormDb, err := store.NewPostgresDb(store.Host, store.Port, store.Username, store.Password)
-	if err != nil {
-		logging.GetLogger().Error().Err(err).Msg("connect db err")
-		return nil, err
-	} else {
-		logging.GetLogger().Info().Msg("connect db ok")
-	}
-	d.Db = db
-	d.GormDb = gormDb
+	// db, gormDb, err := store.NewPostgresDb(store.Host, store.Port, store.Username, store.Password)
+	// if err != nil {
+	// 	logging.GetLogger().Error().Err(err).Msg("connect db err")
+	// 	return nil, err
+	// } else {
+	// 	logging.GetLogger().Info().Msg("connect db ok")
+	// }
+	// d.Db = db
+	// d.GormDb = gormDb
 
 	return d, nil
 }
