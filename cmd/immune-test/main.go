@@ -16,19 +16,15 @@ import (
 
 	"github.com/avast/retry-go"
 	log "github.com/sirupsen/logrus"
+	"gitlab.com/piccolo_su/vegeta/pkg/dal"
+	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
+	"gitlab.com/piccolo_su/vegeta/pkg/model"
+	"gitlab.com/piccolo_su/vegeta/pkg/util"
+	"gitlab.com/piccolo_su/vegeta/pkg/uuid"
 	"gitlab.com/security-rd/go-pkg/databases"
 	"gitlab.com/security-rd/go-pkg/pb"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
-	"gorm.io/gorm"
-
-	"gitlab.com/piccolo_su/vegeta/pkg/dal"
-	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
-	"gitlab.com/piccolo_su/vegeta/pkg/logging"
-	"gitlab.com/piccolo_su/vegeta/pkg/model"
-	"gitlab.com/piccolo_su/vegeta/pkg/rdbtools"
-	"gitlab.com/piccolo_su/vegeta/pkg/util"
-	"gitlab.com/piccolo_su/vegeta/pkg/uuid"
 )
 
 const (
@@ -51,7 +47,7 @@ var (
 	cli            pb.EventsCenterCollectionServiceClient
 	uuidGenerator  *uuid.Generator
 	clusterManager *k8s.ClusterInfoManager
-	psql           *rdbtools.GormWrapper
+	rdb            *databases.RDBInstance
 
 	pid       = os.Getpid()
 	namespace = "default"
@@ -72,16 +68,7 @@ func main() {
 
 	namespace = util.GetEnvWithDefault(namespaceEnv, defaultNamespace)
 	podName = util.GetEnvWithDefault(podNameEnv, defaultPodName)
-	psql, err = rdbtools.GormWrapperOpen(1*time.Second, func() (*gorm.DB, error) {
-		ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
-		defer cancel()
-		db, err := databases.GetMysqlWithEnv(ctx)
-		if err != nil {
-			logging.GetLogger().Error().Msg(fmt.Sprintf("postgresDB client init error :%s ", err))
-			return nil, err
-		}
-		return db, nil
-	})
+	rdb, err = databases.NewRDBWithMySQLByEnv(context.Background())
 	if err != nil {
 		log.Fatal(errors.New("missing rdb envs"))
 	}
@@ -112,7 +99,7 @@ func queryResourcePolicyStatus(ctx context.Context, clusterKey string, policyKin
 		if namespace != "default" {
 			q = q.WithNamespace(namespace)
 		}
-		resources, err := dal.GetResources(ctx, psql.Get(), q, 0, 10)
+		resources, err := dal.GetResources(ctx, rdb.Get(), q, 0, 10)
 		if err != nil {
 			return err
 		}
@@ -127,7 +114,7 @@ func queryResourcePolicyStatus(ctx context.Context, clusterKey string, policyKin
 	var policies []*model.ImmunePolicy
 	err := util.RetryWithBackoff(tctx, func() error {
 		var err error
-		policies, err = dal.ListImmunePolicies(ctx, psql.Get(),
+		policies, err = dal.ListImmunePolicies(ctx, rdb.Get(),
 			dal.NewImmunePoliciesQuery().WithClusterKey(clusterKey).WithKinds([]model.PolicyKind{policyKind}).WithResourceUUID(resourceUUID).WithStatuses([]model.PolicyStatus{model.StatusEnable}),
 			0,
 			10,
@@ -161,7 +148,7 @@ func checkSyscall(ctx context.Context, clusterKey string, syscall string) (bool,
 			var profiles []*model.ImmuneProfile
 			err := util.RetryWithBackoff(tctx, func() error {
 				var oneErr error
-				profiles, oneErr = dal.GetProfilesOfPolicy(ctx, psql.Get(), policy.ID, "immune-test")
+				profiles, oneErr = dal.GetProfilesOfPolicy(ctx, rdb.Get(), policy.ID, "immune-test")
 				return oneErr
 			}, retry.Attempts(3))
 
@@ -218,7 +205,7 @@ func checkCmdExec(ctx context.Context, clusterKey string, cmd string, env string
 			var profiles []*model.ImmuneProfile
 			err := util.RetryWithBackoff(tctx, func() error {
 				var oneErr error
-				profiles, oneErr = dal.GetProfilesOfPolicy(ctx, psql.Get(), policy.ID, "immune-test")
+				profiles, oneErr = dal.GetProfilesOfPolicy(ctx, rdb.Get(), policy.ID, "immune-test")
 				return oneErr
 			}, retry.Attempts(3))
 
@@ -266,7 +253,7 @@ func checkFileRW(ctx context.Context, clusterKey string, path string, rw string)
 			var profiles []*model.ImmuneProfile
 			err := util.RetryWithBackoff(tctx, func() error {
 				var oneErr error
-				profiles, oneErr = dal.GetProfilesOfPolicy(ctx, psql.Get(), policy.ID, "immune-test")
+				profiles, oneErr = dal.GetProfilesOfPolicy(ctx, rdb.Get(), policy.ID, "immune-test")
 				return oneErr
 			}, retry.Attempts(3))
 
