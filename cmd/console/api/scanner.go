@@ -10,9 +10,8 @@ import (
 	"strings"
 
 	"github.com/go-chi/chi"
-	"gitlab.com/security-rd/go-pkg/logging"
-
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
+	"gitlab.com/security-rd/go-pkg/logging"
 )
 
 // 转发scanner中的接口
@@ -199,7 +198,6 @@ func (api *api) RedirectToScanner(repaleceScannner ...bool) http.HandlerFunc {
 		// /api/v1/scan/reportsByImageOverview?offset=1
 
 		pre := r.URL.String()
-		logging.Get().WithContext(r.Context()).Infof("preUrl:%s", pre)
 		var newUrl string
 
 		if !strings.Contains(pre, "openapi") {
