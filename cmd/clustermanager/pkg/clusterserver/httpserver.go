@@ -7,17 +7,14 @@ import (
 	"io/ioutil"
 	"net/http"
 	"strings"
+	"time"
 
 	json "github.com/json-iterator/go"
 	"gitlab.com/piccolo_su/vegeta/cmd/clustermanager/pkg/config"
 	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
-	"gitlab.com/piccolo_su/vegeta/pkg/util"
-	"k8s.io/client-go/rest"
 )
-
-const defaultK8sClusterName = "default"
 
 type ClusterServer struct {
 	server    *http.Server
@@ -32,11 +29,11 @@ type ClusterServer struct {
 func (cs *ClusterServer) SetClusterManager(cm *k8s.ClusterManager) {
 	cs.clusterManager = cm
 }
-func (cs *ClusterServer) handleClusterQuery(w http.ResponseWriter, r *http.Request) {
+func (cs *ClusterServer) handleClusterQuery(w http.ResponseWriter, _ *http.Request) {
 	clusterInfo := &TensorCluster{
 		Key:           cs.ClusterID,
 		Name:          cs.config.Name,
-		ConsoleUrl:    getConsoleURLPrefix(cs.config.MasterAddr),
+		ConsoleURL:    getConsoleURLPrefix(cs.config.MasterAddr),
 		Description:   "",
 		Status:        0,
 		K8SRestConfig: cs.config.K8SInfoForRestConfig,
@@ -102,8 +99,9 @@ func (cs *ClusterServer) handleWatchCluster(w http.ResponseWriter, r *http.Reque
 		w.WriteHeader(500)
 		return
 	}
-
-	err = cs.clusterManager.WatchClusterLocally(context.Background(), &tensorCluster)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*3)
+	defer cancel()
+	err = cs.clusterManager.UpdateCluster(ctx, &tensorCluster)
 	if err != nil {
 		logging.GetLogger().Err(err).Msg("watch cluster err.")
 		resp.Status = 1
@@ -115,7 +113,7 @@ func (cs *ClusterServer) handleWatchCluster(w http.ResponseWriter, r *http.Reque
 	resp.Message = "OK"
 }
 
-func NewHTTPServer(config *config.Config) (*ClusterServer, error) {
+func NewHTTPServer(clusterKey string, config *config.Config) (*ClusterServer, error) {
 
 	tlsConfig := &tls.Config{}
 	if config.TLSServer {
@@ -132,9 +130,8 @@ func NewHTTPServer(config *config.Config) (*ClusterServer, error) {
 		TLSConfig: tlsConfig,
 	}
 
-	clusterID := getClusterID(config.Name, config.APIServerAddr)
 	s := &ClusterServer{
-		ClusterID: clusterID,
+		ClusterID: clusterKey,
 		Name:      config.Name,
 		config:    config,
 	}
@@ -161,19 +158,6 @@ func (cs *ClusterServer) Run() {
 	if err != nil {
 		logging.GetLogger().Err(err).Msg("listen tcp address failed")
 		return
-	}
-}
-
-func getClusterID(clusterName, apiServerAddr string) string {
-	if clusterName == defaultK8sClusterName {
-		clusterConfig, err := rest.InClusterConfig()
-		if err != nil {
-			logging.GetLogger().Err(err).Msg("get in ClusterConfig failed")
-			return ""
-		}
-		return fmt.Sprintf("%d", util.GenerateUUID(defaultK8sClusterName, clusterConfig.Host))
-	} else {
-		return fmt.Sprintf("%d", util.GenerateUUID(clusterName, apiServerAddr))
 	}
 }
 

@@ -1,4 +1,4 @@
-package clustermanager
+package clusteragent
 
 import (
 	"bytes"
@@ -6,7 +6,14 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
+	"gitlab.com/piccolo_su/vegeta/cmd/clustermanager/pkg/types"
+	"gitlab.com/piccolo_su/vegeta/pkg/assets"
 	"io/ioutil"
+	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
+	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/uuid"
+	"k8s.io/apimachinery/pkg/util/wait"
 	"net/http"
 	"strings"
 	"time"
@@ -19,15 +26,13 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 	"gitlab.com/security-rd/go-pkg/logging"
-	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/rest"
 	certutil "k8s.io/client-go/util/cert"
 )
 
-const APIKey = "dGVuc29yc2VjLWNpY2QtdXNlcg==.qBFMMAvbbm3afG3y42CqKaN7WQe4Q7hiqtg5Jzwen7tWHhZG16P62kvv"
-
 const (
-	defaultK8sClusterName = "default"
+	clusterInfo    = "cluster-info"
+	clusterInfoKey = "cluster-info"
 )
 
 type SAToken struct {
@@ -41,17 +46,18 @@ type CertsData struct {
 	caData   []byte
 }
 
-type ClusterManager struct {
+type ClusterAgent struct {
 	masterAddr      string
 	CusterID        string
 	Name            string
-	KubeRestConfig  *k8s.K8SInfoForRestConfig
+	KubeRestConfig  *k8s.InfoForRestConfig
 	apiServerAddr   string
-	description     string
+	Description     string
 	ClusterType     model.ClusterType
 	httpClient      *http.Client
 	tlsClient       bool
 	workerNamespace string
+	HostClient      *assets.Clientset
 }
 
 const (
@@ -67,16 +73,17 @@ const (
 	ApiServerKeyFile  = "/etc/secrets/cluster-admin/tls.key"
 )
 
-func NewClusterManager(config *config.Config) *ClusterManager {
-	return &ClusterManager{
+func NewClusterAgent(config *config.Config) *ClusterAgent {
+	return &ClusterAgent{
 		masterAddr:      config.MasterAddr,
 		Name:            config.Name,
 		apiServerAddr:   config.APIServerAddr,
 		workerNamespace: config.WorkerNamespace,
+		ClusterType:     config.ClusterType,
 	}
 }
 
-func (c *ClusterManager) getHTTPClient() (*http.Client, error) {
+func (c *ClusterAgent) getHTTPClient() (*http.Client, error) {
 	if c.tlsClient {
 		caCert, err := ioutil.ReadFile(tlsCAFile)
 		if err != nil {
@@ -112,7 +119,7 @@ func (c *ClusterManager) getHTTPClient() (*http.Client, error) {
 	}
 }
 
-func (c *ClusterManager) Init() error {
+func (c *ClusterAgent) Init() error {
 	client, err := c.getHTTPClient()
 	if err != nil {
 		return err
@@ -120,21 +127,15 @@ func (c *ClusterManager) Init() error {
 
 	c.httpClient = client
 
-	if c.Name == defaultK8sClusterName {
-		c.ClusterType = model.HostCluster
+	if c.ClusterType == model.HostCluster {
 		clusterConfig, err := rest.InClusterConfig()
 		if err != nil {
 			return err
 		}
-		c.CusterID = fmt.Sprintf("%d", util.GenerateUUID(defaultK8sClusterName, clusterConfig.Host))
 		c.apiServerAddr = clusterConfig.Host
-
-	} else {
-		c.CusterID = fmt.Sprintf("%d", util.GenerateUUID(c.Name, c.apiServerAddr))
-		c.ClusterType = model.MemberCluster
 	}
 
-	restConfig := &k8s.K8SInfoForRestConfig{
+	restConfig := &k8s.InfoForRestConfig{
 		APIServerAddr: c.apiServerAddr,
 	}
 
@@ -153,30 +154,50 @@ func (c *ClusterManager) Init() error {
 		}
 	}
 	c.KubeRestConfig = restConfig
+
+	kubeConfig, err := k8s.GenKubeConfig(c.KubeRestConfig)
+	if err != nil {
+		return err
+	}
+	c.HostClient, err = assets.NewForConfig(kubeConfig)
+	if err != nil {
+		return err
+	}
+
+	err = c.fetchClusterKey()
+	if err != nil {
+		return err
+	}
 	logging.Get().Info().Msgf("cluster id : %s", c.CusterID)
 	return nil
 }
 
-func (c *ClusterManager) Run() {
-
-	stopChan := make(chan struct{})
-	wait.Until(func() {
-		err := c.registerClusterInfo()
-		if err == nil {
-			close(stopChan)
+func (c *ClusterAgent) RegisterToHostCluster() {
+	if c.ClusterType == model.MemberCluster {
+		stopChan := make(chan struct{})
+		err := wait.PollImmediateUntil(time.Second*60, func() (bool, error) {
+			err := c.registerClusterInfo()
+			if err != nil { //nolint
+				return false, nil //nolint
+			}
+			return true, nil
+		}, stopChan)
+		if err != nil {
+			logging.Get().Err(err).Msg("failed to register host cluster")
+			return
 		}
-	}, time.Second*60, stopChan)
-	logging.Get().Info().Msg("successfully registered to master cluster")
+		logging.Get().Info().Msg("successfully registered to master cluster")
+	}
 }
 
 type TensorCluster struct {
 	Key         string `json:"key"`
 	Name        string `json:"name"`
-	Description string `json:"description"`
+	Description string `json:"Description"`
 	Status      int32  `json:"status"`
 }
 
-func (c *ClusterManager) registerClusterInfo() error {
+func (c *ClusterAgent) registerClusterInfo() error {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
 	defer cancel()
 
@@ -184,7 +205,7 @@ func (c *ClusterManager) registerClusterInfo() error {
 		Key:                 c.CusterID,
 		Name:                c.Name,
 		ClusterType:         c.ClusterType,
-		Description:         c.description,
+		Description:         c.Description,
 		APIServerAddr:       c.apiServerAddr,
 		CertificateAuthData: string(c.KubeRestConfig.CAData),
 		SecretToken:         string(c.KubeRestConfig.Token),
@@ -199,6 +220,8 @@ func (c *ClusterManager) registerClusterInfo() error {
 		logging.Get().Err(err).Msg("Failed to marshal cluster")
 		return err
 	}
+	logging.Get().Info().Msgf("###### cluster: %s", string(data))
+	logging.Get().Info().Msgf("register to %s", buildURL(c.masterAddr, masterAssetURL))
 	request, err := http.NewRequestWithContext(ctx, http.MethodPut, buildURL(c.masterAddr, masterAssetURL), bytes.NewReader(data))
 	if err != nil {
 		return err
@@ -229,11 +252,11 @@ func (c *ClusterManager) registerClusterInfo() error {
 	return nil
 }
 
-func (c ClusterManager) updateClusterInfo() {
+func (c *ClusterAgent) updateClusterInfo() {
 	type updateCluster struct {
 		ClusterKey  string `json:"cluster_key"`
 		Name        string `json:"name"`
-		Description string `json:"description"`
+		Description string `json:"Description"`
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
@@ -242,7 +265,7 @@ func (c ClusterManager) updateClusterInfo() {
 	req := updateCluster{
 		ClusterKey:  c.CusterID,
 		Name:        c.Name,
-		Description: c.description,
+		Description: c.Description,
 	}
 
 	data, err := json.Marshal(req)
@@ -281,44 +304,11 @@ func (c ClusterManager) updateClusterInfo() {
 	}
 }
 
-func fullHTTPSUrl(str string) string {
-	if strings.Contains(str, "https") {
-		return str
-	}
-	return "https://" + str
-}
-
 func buildURL(host, path string) string {
 	if strings.Contains(host, "http") {
 		return host + path
 	}
 	return "http://" + host + path
-}
-
-func buildInClusterInfo() *model.TensorCluster {
-	clusterConfig, err := rest.InClusterConfig()
-	if err != nil {
-		return nil
-	}
-
-	token := clusterConfig.BearerToken
-
-	ca, err := ioutil.ReadFile(clusterConfig.TLSClientConfig.CAFile)
-	if err != nil {
-		logging.Get().Err(err).Msgf("read cluster ca file error: %s", clusterConfig.TLSClientConfig.CAFile)
-		return nil
-	}
-
-	key := fmt.Sprintf("%d", util.GenerateUUID(defaultK8sClusterName, clusterConfig.Host))
-	newCluster := &model.TensorCluster{
-		Key:                 key,
-		Name:                defaultK8sClusterName,
-		ClusterType:         model.HostCluster,
-		APIServerAddr:       clusterConfig.Host,
-		SecretToken:         token,
-		CertificateAuthData: string(ca),
-	}
-	return newCluster
 }
 
 func loadSATokenData() (*SAToken, error) {
@@ -380,4 +370,60 @@ func loadCertsData() (*CertsData, error) {
 		certData: certData,
 		caData:   caData,
 	}, nil
+}
+
+func (c *ClusterAgent) fetchClusterKey() error {
+	var err error
+	cm, err := c.HostClient.CoreV1().ConfigMaps(c.workerNamespace).Get(context.TODO(), clusterInfo, v1.GetOptions{})
+	if err != nil {
+		if errors.IsNotFound(err) {
+			err = c.saveClusterInfo()
+			if err != nil {
+				return err
+			}
+			return nil
+		}
+		return err
+	}
+	data, ok := cm.BinaryData[clusterInfoKey]
+	if ok {
+		clusterInfo := &types.TensorCluster{}
+		err = json.Unmarshal(data, clusterInfo)
+		if err != nil {
+			return err
+		}
+		c.CusterID = clusterInfo.Key
+		return nil
+	}
+	return fmt.Errorf("no cluster key")
+}
+
+func (c *ClusterAgent) saveClusterInfo() error {
+	clusterKey := uuid.NewUUID()
+	cluster := &types.TensorCluster{
+		Key:         string(clusterKey),
+		Name:        c.Name,
+		Description: "",
+		Status:      0,
+		ConsoleURL:  c.masterAddr,
+	}
+
+	data, err := json.Marshal(cluster)
+	if err != nil {
+		return err
+	}
+	cm := &corev1.ConfigMap{
+		ObjectMeta: v1.ObjectMeta{Name: clusterInfo, Namespace: c.workerNamespace, Finalizers: []string{"security.cluster/cm-protection"}},
+		BinaryData: map[string][]byte{clusterInfoKey: data},
+	}
+	_, err = c.HostClient.CoreV1().ConfigMaps(c.workerNamespace).Create(context.TODO(), cm, v1.CreateOptions{})
+	if err != nil {
+		return err
+	}
+	c.CusterID = string(clusterKey)
+	return nil
+}
+
+func (c *ClusterAgent) GetHostClient() *assets.Clientset {
+	return c.HostClient
 }

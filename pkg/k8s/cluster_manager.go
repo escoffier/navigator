@@ -5,23 +5,24 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"net/http"
+	k8serr "k8s.io/apimachinery/pkg/api/errors"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/client-go/tools/cache"
+	"k8s.io/client-go/util/workqueue"
+	v1 "scm.tensorsecurity.cn/tensorsecurity-rd/api/pkg/generated/listers/cluster/v1"
 	"sync"
 	"time"
 
 	json "github.com/json-iterator/go"
 	"gitlab.com/piccolo_su/vegeta/pkg/assets"
-	"gitlab.com/piccolo_su/vegeta/pkg/dal"
+	//"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
-	"gitlab.com/security-rd/go-pkg/databases"
 	"gitlab.com/security-rd/go-pkg/logging"
-	"k8s.io/client-go/rest"
-	certutil "k8s.io/client-go/util/cert"
-)
-
-const (
-	maxClusterNum      = 1000
-	hostK8sClusterName = "default"
+	clusterV1 "scm.tensorsecurity.cn/tensorsecurity-rd/api/pkg/apis/cluster/v1"
+	"scm.tensorsecurity.cn/tensorsecurity-rd/api/pkg/generated/informers/externalversions"
 )
 
 var (
@@ -30,13 +31,24 @@ var (
 	rlOnce   sync.Once
 )
 
+type ClientConfig struct {
+	BearToken string `json:"bearToken,omitempty"`
+	// CertData holds PEM-encoded bytes.
+	CertData []byte `json:"certData,omitempty"`
+	// KeyData holds PEM-encoded bytes.
+	KeyData []byte `json:"keyData,omitempty"`
+	// CAData holds PEM-encoded bytes.
+	CAData []byte `json:"cAData,omitempty"`
+}
+
 type ClusterManager struct {
-	clientMap    map[string]*assets.Clientset
-	clientsetMap map[string]*assets.Clientset
-	HostClient   *assets.Clientset
-	watcher      *assets.Watcher
-	rdb          *databases.RDBInstance
-	creator      CreateWatcherFunc
+	clientMap  map[string]*assets.Clientset
+	HostClient *assets.Clientset
+	watcher    *assets.Watcher
+	creator    CreateWatcherFunc
+	stopChan   chan struct{}
+	queue      workqueue.RateLimitingInterface
+	Lister     v1.ManagedClusterLister
 
 	clusterManagerURL string
 	sync.RWMutex
@@ -44,11 +56,11 @@ type ClusterManager struct {
 
 type CreateWatcherFunc func(ctx context.Context) (*assets.Watcher, error)
 
-// InitClusterManager 通过 CreateWatcherFunc 解耦cluster manager与service
-func InitClusterManager(db *databases.RDBInstance, creator CreateWatcherFunc, clusterManagerURL string) (err error) {
+// InitClusterManager create cluster manager
+func InitClusterManager(hostClient *assets.Clientset, creator CreateWatcherFunc, clusterManagerURL string) (err error) {
 	rlOnce.Do(func() {
 		for i := 0; i < 3; i++ {
-			instance, initErr = newClusterManger(db, creator, clusterManagerURL)
+			instance, initErr = newClusterManger(hostClient, creator, clusterManagerURL)
 			if initErr == nil {
 				break
 			} else {
@@ -63,21 +75,18 @@ func GetClusterManager() (*ClusterManager, bool) {
 	return instance, instance != nil
 }
 
-func newClusterManger(rdb *databases.RDBInstance, creator CreateWatcherFunc, clusterManagerURL string) (*ClusterManager, error) {
+func newClusterManger(hostClient *assets.Clientset, creator CreateWatcherFunc, clusterManagerURL string) (*ClusterManager, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	clsm := &ClusterManager{
 		clientMap:         make(map[string]*assets.Clientset),
 		watcher:           nil,
-		rdb:               rdb,
+		HostClient:        hostClient,
 		clusterManagerURL: clusterManagerURL,
 		RWMutex:           sync.RWMutex{},
 		creator:           creator,
-	}
-
-	err := clsm.loadClientFromDB(ctx)
-	if err != nil {
-		return nil, err
+		stopChan:          make(chan struct{}),
+		queue:             workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "cluster"),
 	}
 
 	// create k8s resource watcher
@@ -101,65 +110,15 @@ func (m *ClusterManager) Start(ctx context.Context) error {
 			}
 			m.watcher = watcher
 		} else {
-			return nil
 		}
 	}
+	err := m.watchClusterFromKube()
 
-	copy := make(map[string]*assets.Clientset)
-	m.TraverseClient(func(key string, client *assets.Clientset) bool {
-		copy[key] = client
-		return true
-	})
-	err := m.watcher.StartsToWatch(ctx, copy)
-	if err != nil {
-		logging.Get().Error().Err(err).Msg("Watch kube clients error")
-		return err
-	}
-
-	return nil
+	return err
 }
 
-func (m *ClusterManager) WatchClusterForRemote(ctx context.Context, cluster *model.TensorCluster) error {
-	if m.clusterManagerURL == "" {
-		return errors.New("no cluster manager url given")
-	}
-
-	tctx, cancel := context.WithTimeout(ctx, 3*time.Second)
-	defer cancel()
-
-	clusterBytes, err := json.Marshal(cluster)
-	if err != nil {
-		return err
-	}
-	buff := bytes.NewReader(clusterBytes)
-	req, err := http.NewRequestWithContext(tctx, http.MethodPost,
-		fmt.Sprintf("%s/internal/watch_cluster", m.clusterManagerURL),
-		buff,
-	)
-	if err != nil {
-		return err
-	}
-	req.Header.Set("Content-Type", "application/json")
-
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		return errors.New("req error")
-	}
-	return nil
-}
-
-// WatchClusterLocally is to watch the target cluster locally
-func (m *ClusterManager) WatchClusterLocally(ctx context.Context, cluster *model.TensorCluster) error {
-	// watcher is created in console.Run, it may be not ready right now!!
-	//return err, cluster manager will try to register repeatedly until watcher is ready
-	if m.watcher == nil {
-		return errors.New("watcher is not ready")
-	}
-
+// WatchClusterResources is to watch the target cluster locally
+func (m *ClusterManager) WatchClusterResources(ctx context.Context, cluster *model.TensorCluster) error {
 	// stop watching the existed cluster
 	if _, ok := m.GetClient(cluster.Key); ok {
 		err := m.UnWatchCluster(ctx, cluster.Key)
@@ -173,65 +132,26 @@ func (m *ClusterManager) WatchClusterLocally(ctx context.Context, cluster *model
 		return err
 	}
 
-	if cluster.Name == hostK8sClusterName {
+	if cluster.ClusterType == model.HostCluster {
 		m.HostClient = clientset
 	}
 	clientMap := map[string]*assets.Clientset{cluster.Key: clientset}
 	m.addClient(clientMap)
-	err = m.watcher.StartsToWatch(ctx, clientMap)
-	if err != nil {
-		logging.Get().Error().Err(err).Msg("Watch kube clients error")
-		// if the watcher start failed, need to delete client from cluster manager
-		m.DeleteClient(cluster.Key)
-		return err
-	}
 
-	return nil
-}
-
-func (m *ClusterManager) loadClientFromDB(ctx context.Context) error {
-	clientMap := make(map[string]*assets.Clientset)
-	clusters, num, err := dal.GetClusters(ctx, m.rdb.GetReadDB(), 0, maxClusterNum)
-	if err != nil {
-		logging.Get().Error().Err(err).Msg("get cluster failed")
-		return err
-	}
-	logging.Get().Info().Msgf("cluster number: %d", num)
-
-	for _, c := range clusters {
-		tlsClientConfig := rest.TLSClientConfig{Insecure: false}
-		if _, err := certutil.NewPoolFromBytes([]byte(c.CertificateAuthData)); err != nil {
-			logging.Get().Warn().Msgf("load root CA config for cluster %s err: %v", c.Key, err)
-			tlsClientConfig.Insecure = true
-		} else {
-			tlsClientConfig.CAData = []byte(c.CertificateAuthData)
-		}
-
-		if c.SecretToken == "" {
-			tlsClientConfig.CertData = []byte(c.ClientCertData)
-			tlsClientConfig.KeyData = []byte(c.ClientKeyData)
-		}
-		clientSet, err := assets.NewForConfig(&rest.Config{
-			Host:            c.APIServerAddr,
-			TLSClientConfig: tlsClientConfig,
-			BearerToken:     c.SecretToken,
-		})
-
+	if m.watcher != nil {
+		err = m.watcher.StartsToWatch(ctx, clientMap)
 		if err != nil {
-			logging.Get().Error().Err(err).Msgf("create client for cluster %s err", c.Key)
-			continue
-		}
-		clientMap[c.Key] = clientSet
-		if c.Name == hostK8sClusterName {
-			m.HostClient = clientSet
+			logging.Get().Error().Err(err).Msg("Watch kube clients error")
+			// if the watcher start failed, need to delete client from cluster manager
+			m.DeleteClient(cluster.Key)
+			return err
 		}
 	}
-	logging.Get().Info().Msgf("get %d k8s client", len(clientMap))
-	m.addClient(clientMap)
 	return nil
 }
 
 func (m *ClusterManager) UnWatchCluster(ctx context.Context, clusterKey string) error {
+	logging.Get().Info().Msgf("unwatch cluster %s", clusterKey)
 	if m.watcher == nil {
 		return errors.New("watcher does not exist")
 	}
@@ -261,7 +181,7 @@ func (m *ClusterManager) TraverseClient(visitFunc func(key string, client *asset
 	}
 }
 
-func (m *ClusterManager) AddCluster(ctx context.Context, cluster *model.TensorCluster) error {
+func (m *ClusterManager) AddCluster(_ context.Context, cluster *model.TensorCluster) error {
 	clientset, err := CreateClientset(cluster)
 	if err != nil {
 		return err
@@ -269,7 +189,7 @@ func (m *ClusterManager) AddCluster(ctx context.Context, cluster *model.TensorCl
 
 	clientMap := map[string]*assets.Clientset{cluster.Key: clientset}
 
-	if cluster.Name == hostK8sClusterName {
+	if cluster.ClusterType == model.HostCluster {
 		m.HostClient = clientset
 	}
 	m.addClient(clientMap)
@@ -292,4 +212,263 @@ func (m *ClusterManager) DeleteClient(clusterKey string) {
 
 func (m *ClusterManager) GetHostClient() *assets.Clientset {
 	return m.HostClient
+}
+
+func (m *ClusterManager) SetHostClient(clientset *assets.Clientset) {
+	m.HostClient = clientset
+}
+
+func (m *ClusterManager) AddManagedClusterToKube(ctx context.Context, cluster *model.TensorCluster) error {
+	if m.HostClient == nil {
+		return errors.New("invalid host cluster client")
+	}
+
+	clientConfig := &ClientConfig{
+		BearToken: cluster.SecretToken,
+		CertData:  []byte(cluster.ClientCertData),
+		KeyData:   []byte(cluster.ClientKeyData),
+		CAData:    []byte(cluster.CertificateAuthData),
+	}
+	data, err := json.Marshal(clientConfig)
+	if err != nil {
+		return err
+	}
+	cls := &clusterV1.ManagedCluster{
+		ObjectMeta: metav1.ObjectMeta{Name: cluster.Key},
+		Spec: clusterV1.ManagedClusterSpec{
+			ClusterKey:      cluster.Key,
+			ClusterName:     cluster.Name,
+			ClientConfig:    data,
+			APIServerAddr:   cluster.APIServerAddr,
+			WorkerNamespace: cluster.WorkerNamespace,
+			ClusterType:     string(cluster.ClusterType),
+			Description:     cluster.Description,
+		},
+	}
+	_, err = m.HostClient.TensorClientset.ClusterV1().ManagedClusters().Create(ctx, cls, metav1.CreateOptions{})
+	return err
+}
+
+func (m *ClusterManager) watchClusterFromKube() error {
+	informerFactory := externalversions.NewSharedInformerFactory(m.HostClient.TensorClientset, time.Hour*6)
+	informer := informerFactory.Cluster().V1().ManagedClusters().Informer()
+	informer.AddEventHandler(cache.ResourceEventHandlerFuncs{
+		AddFunc: func(obj interface{}) {
+			cluster, ok := obj.(*clusterV1.ManagedCluster)
+			if !ok {
+				logging.Get().Err(fmt.Errorf(""))
+				return
+			}
+			m.queue.Add(cluster.Name)
+		},
+		UpdateFunc: func(oldObj, newObj interface{}) {
+			oldCluster, ok := oldObj.(*clusterV1.ManagedCluster)
+			if !ok {
+				logging.Get().Err(fmt.Errorf(""))
+				return
+			}
+			newCluster, ok := newObj.(*clusterV1.ManagedCluster)
+			if !ok {
+				logging.Get().Err(fmt.Errorf(""))
+				return
+			}
+			if !bytes.Equal(oldCluster.Spec.ClientConfig, newCluster.Spec.ClientConfig) {
+				m.queue.Add(newCluster.Name)
+			}
+		},
+		DeleteFunc: func(obj interface{}) {
+			cluster, ok := obj.(*clusterV1.ManagedCluster)
+			if !ok {
+				logging.Get().Err(fmt.Errorf(""))
+				return
+			}
+			m.queue.Add(cluster.Name)
+		},
+	})
+
+	m.Lister = informerFactory.Cluster().V1().ManagedClusters().Lister()
+	logging.Get().Info().Msg("starting watch cluster")
+	informerFactory.Start(m.stopChan)
+	if !cache.WaitForCacheSync(m.stopChan, informer.HasSynced) {
+		return errors.New("failed to sync managed-cluster")
+	}
+
+	go wait.Until(func() {
+		for m.processNextCluster() {
+		}
+	}, time.Second, m.stopChan)
+	return nil
+}
+
+func (m *ClusterManager) processNextCluster() bool {
+	key, quit := m.queue.Get()
+	if quit {
+		return false
+	}
+	defer m.queue.Done(key)
+
+	err := m.syncCluster(key.(string))
+
+	m.handleErr(err, key)
+
+	return true
+}
+
+func (m *ClusterManager) syncCluster(name string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	logging.Get().Info().Msgf("syncing cluster %s", name)
+	managedCluster, err := m.Lister.Get(name)
+	if err != nil {
+		if k8serr.IsNotFound(err) {
+			err = m.UnWatchCluster(ctx, name)
+			if err != nil {
+				return err
+			}
+		}
+		return err
+	}
+	tensorCluster, err := ClusterFromCrdToModel(managedCluster)
+	if err != nil {
+		return err
+	}
+	err = m.WatchClusterResources(ctx, tensorCluster)
+
+	return err
+}
+
+func (m *ClusterManager) handleErr(err error, key interface{}) {
+	if err == nil {
+		m.queue.Forget(key)
+		return
+	}
+	if m.queue.NumRequeues(key) < 5 {
+		logging.Get().Info().Msgf("Error syncing cluster %v: %v", key, err)
+
+		// Re-enqueue the key rate limited. Based on the rate limiter on the
+		// queue and the re-enqueue history, the key will be processed later again.
+		m.queue.AddRateLimited(key)
+		return
+	}
+	m.queue.Forget(key)
+	logging.Get().Warn().Msgf("Dropping service %q out of the queue: %v", key, err)
+}
+
+func ClusterFromCrdToModel(cluster *clusterV1.ManagedCluster) (*model.TensorCluster, error) {
+	var clientConfig ClientConfig
+	err := json.Unmarshal(cluster.Spec.ClientConfig, &clientConfig)
+	if err != nil {
+		logging.Get().Err(err).Msgf("parse cluster client config %s", cluster.Spec.ClusterName)
+		return nil, err
+	}
+	return &model.TensorCluster{
+		Key:                 cluster.Spec.ClusterKey,
+		Name:                cluster.Spec.ClusterName,
+		Description:         cluster.Spec.Description,
+		ClusterType:         model.ClusterType(cluster.Spec.ClusterType),
+		APIServerAddr:       cluster.Spec.APIServerAddr,
+		CertificateAuthData: string(clientConfig.CAData),
+		SecretToken:         clientConfig.BearToken,
+		ClientCertData:      string(clientConfig.CertData),
+		ClientKeyData:       string(clientConfig.KeyData),
+		WorkerNamespace:     cluster.Spec.WorkerNamespace,
+	}, nil
+}
+
+// UpdateCluster Update or Add managed cluster CRD
+func (m *ClusterManager) UpdateCluster(ctx context.Context, cluster *model.TensorCluster) error {
+	managedCluster, err := m.HostClient.TensorClientset.ClusterV1().ManagedClusters().Get(ctx, cluster.Key, metav1.GetOptions{})
+	if err != nil {
+		if k8serrors.IsNotFound(err) {
+			logging.Get().Info().Msgf("add managed cluster %s", cluster.Key)
+			err = m.AddManagedClusterToKube(ctx, cluster)
+		}
+		return err
+	}
+	oldCluster, err := ClusterFromCrdToModel(managedCluster)
+	if err != nil {
+		return err
+	}
+	if IsClusterChanged(oldCluster, cluster) {
+		clientConfig := &ClientConfig{
+			BearToken: cluster.SecretToken,
+			CertData:  []byte(cluster.ClientCertData),
+			KeyData:   []byte(cluster.ClientKeyData),
+			CAData:    []byte(cluster.CertificateAuthData),
+		}
+		var data []byte
+		data, err = json.Marshal(clientConfig)
+		if err != nil {
+			return err
+		}
+
+		var clusterName string
+		if cluster.Name != "" {
+			clusterName = cluster.Name
+		} else {
+			clusterName = oldCluster.Name
+		}
+		patchData := map[string]interface{}{
+			"spec": map[string]interface{}{
+				"clientConfig":    data,
+				"clusterName":     clusterName,
+				"clusterKey":      cluster.Key,
+				"apiServerAddr":   cluster.APIServerAddr,
+				"workerNamespace": cluster.WorkerNamespace,
+				"clusterType":     cluster.ClusterType,
+				"description":     cluster.Description,
+			},
+		}
+		var patchBytes []byte
+		patchBytes, err = json.Marshal(patchData)
+		if err != nil {
+			return err
+		}
+		logging.Get().Info().Msgf("patch managed cluster %s", cluster.Key)
+		_, err = m.HostClient.TensorClientset.ClusterV1().ManagedClusters().Patch(ctx, cluster.Key, types.MergePatchType, patchBytes, metav1.PatchOptions{})
+	}
+	return err
+}
+
+func (m *ClusterManager) UpdateClusterName(ctx context.Context, clusterKey, name, description string) error {
+	patchData := map[string]interface{}{
+		"spec": map[string]interface{}{
+			"clusterName": name,
+			"description": description,
+		},
+	}
+	var patchBytes []byte
+	var err error
+	patchBytes, err = json.Marshal(patchData)
+	if err != nil {
+		return err
+	}
+	logging.Get().Info().Msgf("patch managed cluster %s", clusterKey)
+	_, err = m.HostClient.TensorClientset.ClusterV1().ManagedClusters().Patch(ctx, clusterKey, types.MergePatchType, patchBytes, metav1.PatchOptions{})
+	return err
+}
+
+func (m *ClusterManager) DeleteCluster(ctx context.Context, clusterKey string) error {
+	err := m.HostClient.TensorClientset.ClusterV1().ManagedClusters().Delete(ctx, clusterKey, metav1.DeleteOptions{})
+	if err != nil {
+		if k8serr.IsNotFound(err) {
+			return nil
+		}
+	}
+	return err
+}
+
+func IsClusterChanged(oldCluster *model.TensorCluster, newCluster *model.TensorCluster) bool {
+	if oldCluster.SecretToken != newCluster.SecretToken ||
+		oldCluster.CertificateAuthData != newCluster.CertificateAuthData ||
+		oldCluster.ClientCertData != newCluster.ClientCertData ||
+		oldCluster.ClientKeyData != newCluster.ClientKeyData ||
+		oldCluster.APIServerAddr != newCluster.APIServerAddr ||
+		oldCluster.ClusterType != newCluster.ClusterType ||
+		oldCluster.WorkerNamespace != newCluster.WorkerNamespace ||
+		oldCluster.Name != newCluster.Name {
+		return true
+	}
+	return false
 }

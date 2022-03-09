@@ -3,17 +3,22 @@ package cmd
 import (
 	"context"
 	"errors"
+	"flag"
+	clusterAgent "gitlab.com/piccolo_su/vegeta/cmd/clustermanager/pkg"
+	"gitlab.com/piccolo_su/vegeta/pkg/dal"
+	"gitlab.com/piccolo_su/vegeta/pkg/model"
+	"k8s.io/klog/v2"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/go-redis/redis/v8"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
-	clusterManager "gitlab.com/piccolo_su/vegeta/cmd/clustermanager/pkg"
 	"gitlab.com/piccolo_su/vegeta/cmd/clustermanager/pkg/assets"
 	"gitlab.com/piccolo_su/vegeta/cmd/clustermanager/pkg/clusterserver"
 	conf "gitlab.com/piccolo_su/vegeta/cmd/clustermanager/pkg/config"
-	pkgassets "gitlab.com/piccolo_su/vegeta/pkg/assets"
+	pkgAssets "gitlab.com/piccolo_su/vegeta/pkg/assets"
 	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
 	"gitlab.com/piccolo_su/vegeta/pkg/redistools"
 	"gitlab.com/security-rd/go-pkg/databases"
@@ -26,7 +31,7 @@ const (
 
 type server struct {
 	config     *conf.Config
-	manager    *clusterManager.ClusterManager
+	agent      *clusterAgent.ClusterAgent
 	httpserver *clusterserver.ClusterServer
 }
 
@@ -41,25 +46,24 @@ func NewServer(cmd *cobra.Command, args []string) (*server, error) {
 
 	logging.Get().Info().Msgf("config: %+v", s.config)
 
-	clsm := clusterManager.NewClusterManager(s.config)
-	err := clsm.Init()
+	agent := clusterAgent.NewClusterAgent(s.config)
+	err := agent.Init()
 	if err != nil {
-		logging.Get().Err(err).Msg("faild to init cluster manager")
+		logging.Get().Err(err).Msg("failed to init cluster manager")
 		return nil, err
 	}
 
-	s.manager = clsm
-	s.config.K8SInfoForRestConfig = clsm.KubeRestConfig
+	s.agent = agent
+	s.config.K8SInfoForRestConfig = agent.KubeRestConfig
 
-	httpserver, err := clusterserver.NewHTTPServer(s.config)
+	httpserver, err := clusterserver.NewHTTPServer(agent.CusterID, s.config)
 	if err != nil {
 		logging.Get().Err(err).Msg("cluster server err")
 		return nil, err
 	}
 	s.httpserver = httpserver
 
-	if s.config.Name == clusterserver.HostClusterName {
-
+	if s.config.ClusterType == model.HostCluster {
 		// Redis DB client
 		redisEndpoints := os.Getenv("REDIS_CLUSTER_URL")
 		if redisEndpoints == "" {
@@ -91,37 +95,60 @@ func NewServer(cmd *cobra.Command, args []string) (*server, error) {
 			scannerURL = "http://tensorsec-scanner:8888"
 		}
 
-		err = k8s.InitClusterManager(rdb, func(ctx context.Context) (*pkgassets.Watcher, error) {
+		err = k8s.InitClusterManager(agent.GetHostClient(), func(ctx context.Context) (*pkgAssets.Watcher, error) {
 			return assets.Watcher(rdb, redisClient, scannerURL)
 		}, "")
 		if err != nil {
 			logging.Get().Err(err).Msg("cluster manager init error")
 			return nil, err
 		}
-		k8sManager, ok := k8s.GetClusterManager()
+		clusterManager, ok := k8s.GetClusterManager()
 		if !ok {
 			logging.Get().Error().Msg("cluster manager init error")
 			return nil, err
 		} else {
-			err := k8sManager.Start(context.Background())
+			ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+			defer cancel()
+			tensorCluster := &model.TensorCluster{
+				Key:                 agent.CusterID,
+				Name:                agent.Name,
+				Description:         agent.Description,
+				ClusterType:         agent.ClusterType,
+				APIServerAddr:       agent.KubeRestConfig.APIServerAddr,
+				CertificateAuthData: string(agent.KubeRestConfig.CAData),
+				SecretToken:         string(agent.KubeRestConfig.Token),
+				ClientCertData:      string(agent.KubeRestConfig.CertData),
+				ClientKeyData:       string(agent.KubeRestConfig.KeyData),
+				WorkerNamespace:     s.config.WorkerNamespace,
+			}
+
+			err = dal.AddCluster(ctx, rdb.Get(), tensorCluster)
+			if err != nil {
+				return nil, err
+			}
+			err = clusterManager.UpdateCluster(ctx, tensorCluster)
+			if err != nil {
+				return nil, err
+			}
+			err = clusterManager.Start(context.Background())
 			if err != nil {
 				logging.Get().Err(err).Msg("start k8s manager err")
 				return nil, err
 			} else {
-				httpserver.SetClusterManager(k8sManager)
-
+				httpserver.SetClusterManager(clusterManager)
 			}
 		}
-
 	}
-
 	return s, nil
 }
 
 func (s *server) Run() error {
 	errChn := make(chan error)
-	go s.manager.Run()
+
+	go s.agent.RegisterToHostCluster()
+
 	go s.httpserver.Run()
+
 	return <-errChn
 }
 
@@ -148,14 +175,13 @@ func (s *server) initConfig() {
 		s.config.Name = clusterName
 	}
 
-	var consoleUrl string
-	if clusterName == clusterserver.HostClusterName {
-		consoleUrl = os.Getenv("CONSOLE_INTERNAL_URL")
+	isHostCluster := os.Getenv("IS_MAIN_CLUSTER")
+	if isHostCluster == "true" {
+		s.config.ClusterType = model.HostCluster
+		s.config.MasterAddr = os.Getenv("CONSOLE_INTERNAL_URL")
 	} else {
-		consoleUrl = os.Getenv("CONSOLE_EXTERNAL_URL")
-	}
-	if consoleUrl != "" {
-		s.config.MasterAddr = consoleUrl
+		s.config.ClusterType = model.MemberCluster
+		s.config.MasterAddr = os.Getenv("CONSOLE_EXTERNAL_URL")
 	}
 }
 
@@ -168,4 +194,12 @@ func AddFlags(fs *pflag.FlagSet, rootCmd *cobra.Command) {
 	fs.StringVar(&ServerConfig.CertFile, "tlsCertPath", "/etc/cluster-manager/certs/tls.crt", "The path of tls cert")
 	fs.StringVar(&ServerConfig.KeyFile, "tlsKeyPath", "/etc/cluster-manager/certs/tls.key", "The path of tls key")
 	fs.BoolVar(&ServerConfig.TLSServer, "tlsServer", false, "use tls server")
+}
+
+func init() {
+	klog.InitFlags(flag.CommandLine)
+	err := flag.CommandLine.Lookup("v").Value.Set("3")
+	if err != nil {
+		return
+	}
 }

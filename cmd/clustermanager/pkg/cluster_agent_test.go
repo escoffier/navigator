@@ -1,4 +1,4 @@
-package clustermanager
+package clusteragent
 
 import (
 	"crypto/tls"
@@ -34,14 +34,14 @@ func Test_clusterManager_postClusterInfo(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			c := &ClusterManager{
+			c := &ClusterAgent{
 				masterAddr: tt.fields.masterAddr,
 				CusterID:   tt.fields.CusterID,
 				Name:       tt.fields.Name,
 				//Token:         tt.fields.Token,
 				//CaData:        tt.fields.CaData,
 				apiServerAddr: tt.fields.apiServerAddr,
-				description:   tt.fields.description,
+				Description:   tt.fields.description,
 				httpClient:    tt.fields.httpClient,
 			}
 			if err := c.registerClusterInfo(); (err != nil) != tt.wantErr {
@@ -115,14 +115,14 @@ func Test_clusterManager_postClusterInfo1(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			c := &ClusterManager{
+			c := &ClusterAgent{
 				masterAddr: tt.fields.masterAddr,
 				CusterID:   tt.fields.CusterID,
 				Name:       tt.fields.Name,
 				//Token:         tt.fields.Token,
 				//CaData:        tt.fields.CaData,
 				apiServerAddr: tt.fields.apiServerAddr,
-				description:   tt.fields.description,
+				Description:   tt.fields.description,
 				httpClient:    tt.fields.httpClient,
 				tlsClient:     tt.fields.tlsClient,
 			}

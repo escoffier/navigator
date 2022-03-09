@@ -6,7 +6,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"gitlab.com/piccolo_su/vegeta/cmd/webhook/pkg/utils"
+	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
 	"io/ioutil"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"net/http"
 	"strings"
 
@@ -67,18 +69,6 @@ func (m *Mutator) Init(webHookConfig *processors.WebHookConfig) error {
 	}
 
 	m.IgnoredNameSpaces = append(m.IgnoredNameSpaces, config.IgnoredNameSpaces...)
-
-	err = InitClusterManager(webHookConfig.RDB)
-	if err != nil {
-		return err
-	}
-	clusterManager, ok := GetClusterManager()
-	if !ok {
-		logging.GetLogger().Err(errors.New("cluster manager not ready"))
-		return nil
-	}
-	clusterManager.Start()
-
 	InitImageDigestMap()
 	return nil
 }
@@ -169,13 +159,13 @@ func logPatches(patches []*processors.Patch) {
 	logging.GetLogger().Info().Msg(string(patchData))
 }
 
-func getImageDigestFromHarbor(_ context.Context, image string, secret *ImageRepoSecret) string {
+func getImageDigestFromHarbor(_ context.Context, image string, secret *utils.ImageRepoSecret) string {
 	var digest string
 	var err error
 
 	if secret != nil {
 		logging.GetLogger().Info().Msgf("image [%s] pulling secret %v", image, *secret)
-		digest, err = utils.GetImageDigest(secret.user, secret.password, true, image)
+		digest, err = utils.GetImageDigest(secret.User, secret.Password, true, image)
 	} else {
 		logging.GetLogger().Info().Msgf("image [%s] pulling secret is empty", image)
 		digest, err = utils.GetImageDigest("", "", true, image)
@@ -203,29 +193,48 @@ func loadMutatorConfig(path string) (*MutatorConfig, error) {
 	return &config, nil
 }
 
-func (m *Mutator) getSecrets(clusterKey, namespace, image string, kubeSecrets []string) *ImageRepoSecret {
+func (m *Mutator) getSecrets(clusterKey, namespace, image string, kubeSecrets []string) *utils.ImageRepoSecret {
 	imageUrl, err := utils.GetImageUrl(image)
 	if err != nil {
 		logging.GetLogger().Err(err).Msgf("get %s url err", image)
 		return nil
 	}
 
-	clusterManager, ok := GetClusterManager()
+	clusterManager, ok := k8s.GetClusterManager()
 	if !ok {
 		logging.GetLogger().Err(errors.New("cluster manager not ready")).Msg(image)
 		return nil
 	}
 	for _, s := range kubeSecrets {
-		dockerConfig, err := clusterManager.GetSecret(clusterKey, namespace, s)
+		client, ok := clusterManager.GetClient(clusterKey)
+		if !ok {
+			logging.GetLogger().Err(err).Msgf("get cluster client of %s err", clusterKey)
+			return nil
+		}
+		secret, err := client.CoreV1().Secrets(namespace).Get(context.Background(), s, metav1.GetOptions{})
 		if err != nil {
 			logging.GetLogger().Err(err).Msgf("get secret of %s err", s)
 			return nil
 		}
+		data, ok := secret.Data[".dockerconfigjson"]
+		if !ok {
+			logging.GetLogger().Err(err).Msg("invalid secret")
+			return nil
+		}
+
+		var dockerConfig utils.DockerConfigJSON
+		err = json.Unmarshal(data, &dockerConfig)
+		if err != nil {
+			logging.GetLogger().Err(err).Msgf("parse docker config err")
+			return nil
+		}
+		logging.GetLogger().Info().Msgf("%+v", dockerConfig)
+
 		for url, config := range dockerConfig.Auths {
 			if url == imageUrl {
-				return &ImageRepoSecret{
-					user:     config.Username,
-					password: config.Password,
+				return &utils.ImageRepoSecret{
+					User:     config.Username,
+					Password: config.Password,
 				}
 			}
 		}

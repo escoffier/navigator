@@ -1,16 +1,20 @@
 package config
 
-import "gitlab.com/piccolo_su/vegeta/pkg/k8s"
+import (
+	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
+	"gitlab.com/piccolo_su/vegeta/pkg/model"
+)
 
 type Config struct {
 	MasterAddr           string
 	Name                 string
 	APIServerAddr        string
+	ClusterType          model.ClusterType
 	TLSClient            bool
 	CertFile             string
 	KeyFile              string
 	Port                 int
 	TLSServer            bool
 	WorkerNamespace      string
-	K8SInfoForRestConfig *k8s.K8SInfoForRestConfig
+	K8SInfoForRestConfig *k8s.InfoForRestConfig
 }

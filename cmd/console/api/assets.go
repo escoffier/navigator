@@ -328,13 +328,7 @@ func (api *api) addNewCluster() http.HandlerFunc {
 				NewAnError(http.StatusInternalServerError, errors.New("cluster manager not exist")))
 			return
 		}
-		err = clusterManager.AddCluster(ctx, &cluster)
-		if err != nil {
-			RespAndLog(w, ctx,
-				NewAnError(http.StatusInternalServerError, err))
-			return
-		}
-		err = clusterManager.WatchClusterForRemote(ctx, &cluster)
+		err = clusterManager.UpdateCluster(ctx, &cluster)
 		if err != nil {
 			RespAndLog(w, ctx,
 				NewAnError(http.StatusInternalServerError, err))
@@ -360,12 +354,12 @@ func (api *api) addNewCluster() http.HandlerFunc {
 func (api *api) updateClusterInfo() http.HandlerFunc {
 	type req struct {
 		ClusterKey  string `json:"cluster_key"`
-		Name        string `json:"name"`
+		ClusterName string `json:"cluster_name"`
 		Description string `json:"description"`
 	}
 
 	return func(w http.ResponseWriter, r *http.Request) {
-		ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
+		ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 		defer cancel()
 
 		var request req
@@ -383,10 +377,22 @@ func (api *api) updateClusterInfo() http.HandlerFunc {
 			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.New("service instance get error")))
 			return
 		}
-		err = resSvc.UpdateCluster(ctx, request.ClusterKey, request.Name, request.Description)
+		err = resSvc.UpdateCluster(ctx, request.ClusterKey, request.ClusterName, request.Description)
 		if err != nil {
 			logging.GetLogger().Err(err).Msgf("update cluster error. data: %v", request)
 			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.New("update cluster error")))
+			return
+		}
+		clusterManager, ok := k8s.GetClusterManager()
+		if !ok {
+			RespAndLog(w, ctx,
+				NewAnError(http.StatusInternalServerError, errors.New("cluster manager not exist")))
+			return
+		}
+		err = clusterManager.UpdateClusterName(ctx, request.ClusterKey, request.ClusterName, request.Description)
+		if err != nil {
+			RespAndLog(w, ctx,
+				NewAnError(http.StatusInternalServerError, errors.New("update cluster name failed")))
 			return
 		}
 		response.Ok(w)
@@ -400,7 +406,7 @@ func (api *api) updateClusterInfo() http.HandlerFunc {
 // @Router /api/v2/platform/assets/cluster
 func (api *api) deleteCluster() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
+		ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 		defer cancel()
 
 		clusterKey := chi.URLParam(r, "clusterKey")
@@ -416,10 +422,10 @@ func (api *api) deleteCluster() http.HandlerFunc {
 				NewAnError(http.StatusInternalServerError, errors.New("cluster manager not exist")))
 			return
 		}
-		err := clusterManager.UnWatchCluster(ctx, clusterKey)
+		err := clusterManager.DeleteCluster(ctx, clusterKey)
 		if err != nil {
 			RespAndLog(w, ctx,
-				NewAnError(http.StatusInternalServerError, errors.New("stop watcher err")))
+				NewAnError(http.StatusInternalServerError, err))
 			return
 		}
 

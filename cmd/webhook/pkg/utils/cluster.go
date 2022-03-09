@@ -14,11 +14,29 @@ import (
 )
 
 type TensorCluster struct {
-	Key           string                    `json:"key"`
-	Name          string                    `json:"name"`
-	Description   string                    `json:"description"`
-	Status        int32                     `json:"status"`
-	K8SRestConfig *k8s.K8SInfoForRestConfig `json:"k8s_rest_config"`
+	Key           string                 `json:"key"`
+	Name          string                 `json:"name"`
+	Description   string                 `json:"description"`
+	Status        int32                  `json:"status"`
+	K8SRestConfig *k8s.InfoForRestConfig `json:"k8s_rest_config"`
+}
+
+type ImageRepoSecret struct {
+	User     string
+	Password string
+}
+
+// DockerConfigJson represents ~/.docker/config.json file info
+type DockerConfigJSON struct {
+	Auths DockerConfig `json:"auths"`
+}
+
+type DockerConfig map[string]DockerConfigEntry
+
+type DockerConfigEntry struct {
+	Username string
+	Password string
+	Email    string
 }
 
 func GetClusterInfo(url string) *TensorCluster {
