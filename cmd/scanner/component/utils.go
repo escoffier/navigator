@@ -107,6 +107,15 @@ var (
 		"war":          "Java",
 		"ear":          "Java",
 		"gobinary":     "GO",
+		"gemspec":      "Ruby",
+		"node-pkg":     "Node.js",
+		"npm":          "Node.js",
+		"python-pkg":   "Python",
+		"cargo":        "Rust",
+		"pom":          "Java",
+		"nuget":        ".NET",
+		"pip":          "Python",
+		"gomod":        "GO",
 	}
 )
 
