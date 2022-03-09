@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"gitlab.com/piccolo_su/vegeta/pkg/assets"
+	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
 	"io/ioutil"
 	"net/http"
 	"os"
@@ -92,10 +94,32 @@ func newWebHookServer(config *Config) (*webHookServer, error) {
 		return nil, err
 	}
 
+	restConfig, err := k8s.KubeConfig()
+	if err != nil {
+		return nil, err
+	}
+	hostClient, err := assets.NewForConfig(restConfig)
+	if err != nil {
+		return nil, err
+	}
+	err = k8s.InitClusterManager(hostClient, nil, "")
+	if err != nil {
+		return nil, err
+	}
+	clsManager, ok := k8s.GetClusterManager()
+	if !ok {
+		return nil, fmt.Errorf("failed to get cluster manager")
+	}
+
+	err = clsManager.Start(context.Background())
+	if err != nil {
+		return nil, err
+	}
 	return ws, nil
 }
 
 func (s *webHookServer) Start() {
+
 	logging.GetLogger().Debug().Msg("starting server ")
 	err := s.Server.ListenAndServeTLS("", "")
 	if err != nil {
@@ -105,7 +129,10 @@ func (s *webHookServer) Start() {
 }
 
 func (s *webHookServer) Stop() {
-	s.Server.Shutdown(context.Background())
+	err := s.Server.Shutdown(context.Background())
+	if err != nil {
+		return
+	}
 }
 
 func getAdmissionReview(r *http.Request) (*v1.AdmissionReview, int) {

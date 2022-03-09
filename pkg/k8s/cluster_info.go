@@ -17,12 +17,12 @@ import (
 )
 
 type TensorCluster struct {
-	Key           string                `json:"key"`
-	Name          string                `json:"name"`
-	Description   string                `json:"description"`
-	Status        int32                 `json:"status"`
-	ConsoleUrl    string                `json:"console_url"`
-	K8SRestConfig *K8SInfoForRestConfig `json:"k8s_rest_config"`
+	Key           string             `json:"key"`
+	Name          string             `json:"name"`
+	Description   string             `json:"description"`
+	Status        int32              `json:"status"`
+	ConsoleUrl    string             `json:"console_url"`
+	K8SRestConfig *InfoForRestConfig `json:"k8s_rest_config"`
 }
 
 type ClusterInfoManager struct {

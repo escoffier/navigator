@@ -5,6 +5,7 @@ import (
 	"crypto/md5"
 	"errors"
 	"fmt"
+	"gitlab.com/piccolo_su/vegeta/pkg/assets"
 	"net/http"
 	"os"
 	"runtime/debug"
@@ -285,7 +286,17 @@ func NewConsole(
 	}
 
 	// init cluster manager
-	err = k8s.InitClusterManager(rdb, nil, clusterManagerURL)
+	kubeConfig, err := k8s.KubeConfig()
+	if err != nil {
+		mainCancel()
+		return nil, err
+	}
+	clientset, err := assets.NewForConfig(kubeConfig)
+	if err != nil {
+		mainCancel()
+		return nil, err
+	}
+	err = k8s.InitClusterManager(clientset, nil, clusterManagerURL)
 	if err != nil {
 		logging.Get().Err(err).Msg("cluster manager init error")
 		mainCancel()

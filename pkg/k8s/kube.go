@@ -20,7 +20,7 @@ import (
 	certutil "k8s.io/client-go/util/cert"
 )
 
-type K8SInfoForRestConfig struct {
+type InfoForRestConfig struct {
 	CertData      []byte `json:"cert_data"`
 	KeyData       []byte `json:"key_data"`
 	CAData        []byte `json:"ca_data"`
@@ -120,7 +120,7 @@ func CreateK8sClient(cluster *model.TensorCluster) (*kubernetes.Clientset, error
 	return clientSet, nil
 }
 
-func genKubeConfig(c *K8SInfoForRestConfig) (*rest.Config, error) {
+func GenKubeConfig(c *InfoForRestConfig) (*rest.Config, error) {
 	if c == nil {
 		return nil, errors.New("invalid config")
 	}
@@ -160,7 +160,7 @@ func KubeConfig() (*rest.Config, error) {
 	if err != nil {
 		return nil, err
 	}
-	return genKubeConfig(cluster.K8SRestConfig)
+	return GenKubeConfig(cluster.K8SRestConfig)
 }
 
 func CreateClientset(cluster *model.TensorCluster) (*assets.Clientset, error) {

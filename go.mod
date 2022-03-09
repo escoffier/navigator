@@ -111,8 +111,9 @@ require (
 	github.com/golang/protobuf v1.5.2
 	gomodules.xyz/jsonpatch/v3 v3.0.1
 	google.golang.org/protobuf v1.27.1
+	k8s.io/klog/v2 v2.20.0
 	layeh.com/radius v0.0.0-20210819152912-ad72663a72ab
-	scm.tensorsecurity.cn/tensorsecurity-rd/api v0.1.7
+	scm.tensorsecurity.cn/tensorsecurity-rd/api v0.1.9
 )
 
 require (
@@ -327,7 +328,6 @@ require (
 	gopkg.in/ini.v1 v1.66.4 // indirect
 	gopkg.in/warnings.v0 v0.1.2 // indirect
 	gopkg.in/yaml.v3 v3.0.0-20210107192922-496545a6307b // indirect
-	k8s.io/klog/v2 v2.20.0 // indirect
 	k8s.io/kube-openapi v0.0.0-20211110013926-83f114cd0513 // indirect
 	k8s.io/utils v0.0.0-20201110183641-67b214c5f920 // indirect
 	scm.tensorsecurity.cn/tensorsecurity-rd/fanal v0.0.0-20220303064730-1ddca8134cfd // indirect

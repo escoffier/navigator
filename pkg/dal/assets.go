@@ -1250,6 +1250,7 @@ func AddCluster(ctx context.Context, rdb *gorm.DB, cluster *model.TensorCluster)
 				"status",
 				"cluster_type",
 				"worker_namespace",
+				"name",
 			}),
 		}).Create(cluster).Error
 	})
@@ -1259,10 +1260,10 @@ func DeleteCluster(ctx context.Context, rdb *gorm.DB, clusterKey string) error {
 	if clusterKey == "" {
 		return errors.New("illegal argument")
 	}
-	ctx, cancel := context.WithTimeout(ctx, 1000*time.Millisecond)
+	ctx, cancel := context.WithTimeout(ctx, 2000*time.Millisecond)
 	defer cancel()
 	return util.RetryWithBackoff(ctx, func() error {
-		oneCtx, oneCancel := context.WithTimeout(ctx, 300*time.Millisecond)
+		oneCtx, oneCancel := context.WithTimeout(ctx, 600*time.Millisecond)
 		defer oneCancel()
 		return rdb.WithContext(oneCtx).Delete(&model.TensorCluster{}, clusterKey).Error
 	})
