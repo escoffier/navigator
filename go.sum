@@ -3271,8 +3271,8 @@ scm.tensorsecurity.cn/tensorsecurity-rd/cloudwalker v0.0.4 h1:AxbAg/CYDzUe0GZOI7
 scm.tensorsecurity.cn/tensorsecurity-rd/cloudwalker v0.0.4/go.mod h1:vDsqw0i9Urt3k5euCjY+ISnhaCHh8iaCK4Cd2+N1ItU=
 scm.tensorsecurity.cn/tensorsecurity-rd/fanal v0.0.0-20220303064730-1ddca8134cfd h1:oBZCO/hkKBUS/jFy0310w9CtVQk4hLGIZizAxAmYByw=
 scm.tensorsecurity.cn/tensorsecurity-rd/fanal v0.0.0-20220303064730-1ddca8134cfd/go.mod h1:soK0f05cz92yM1I5diMOTvJZKjGZXhMxv5KpMbkNUgE=
-scm.tensorsecurity.cn/tensorsecurity-rd/go-pkg v0.2.5 h1:jiklxD4QflvyeDGw+IXsxyze3GMvHPsCrkvl0G/IkZs=
-scm.tensorsecurity.cn/tensorsecurity-rd/go-pkg v0.2.5/go.mod h1:n06efYDgr7EoL0TaNROrlV7eK0KuXJIXFQyZbwSQy6s=
+scm.tensorsecurity.cn/tensorsecurity-rd/go-pkg v0.2.6 h1:odWao3H1DRRb+izfzWgha/jV4Fef7nLRrogbJHDXRX8=
+scm.tensorsecurity.cn/tensorsecurity-rd/go-pkg v0.2.6/go.mod h1:n06efYDgr7EoL0TaNROrlV7eK0KuXJIXFQyZbwSQy6s=
 scm.tensorsecurity.cn/tensorsecurity-rd/trivy v0.19.3-0.20220305065055-a84383074cfa h1:uocOi8AtoZZdoMvpmYM1wdE39Yq1gLLCl/+Uzb1sutY=
 scm.tensorsecurity.cn/tensorsecurity-rd/trivy v0.19.3-0.20220305065055-a84383074cfa/go.mod h1:HYcIGPlNV3oYyMaS/FHFVFYD1s15ula81AqZzLSuxjk=
 sigs.k8s.io/apiserver-network-proxy/konnectivity-client v0.0.14/go.mod h1:LEScyzhFmoF5pso/YSeBstl57mOzx9xlU9n85RGrDQg=
