@@ -6,6 +6,7 @@ import (
 	b64 "encoding/base64"
 	"errors"
 	"fmt"
+	"k8s.io/apimachinery/pkg/util/wait"
 	"os"
 	"time"
 
@@ -156,10 +157,21 @@ func KubeConfig() (*rest.Config, error) {
 		return nil, fmt.Errorf("no cluster manager url")
 	}
 
-	cluster, err := getK8sClusterInfo(ctx, host)
+	var cluster *TensorCluster
+	stopChan := make(chan struct{})
+	err := wait.PollImmediateUntil(5*time.Second, func() (bool, error) {
+		logging.GetLogger().Info().Msg("trying to get cluster info from cluster manager")
+		var err error
+		cluster, err = getK8sClusterInfo(ctx, host)
+		if err == nil {
+			return true, nil
+		}
+		return false, nil
+	}, stopChan)
 	if err != nil {
 		return nil, err
 	}
+
 	return GenKubeConfig(cluster.K8SRestConfig)
 }
 

@@ -62,7 +62,7 @@ func main() {
 		consoleAddr = os.Getenv("CONSOLE_EXTERNAL_URL")
 	}
 
-	myNamespace := os.Getenv("MY_NAMESPACE")
+	myNamespace := os.Getenv("MY_POD_NAMESPACE")
 	if len(myNamespace) == 0 {
 		myNamespace = "tensorsec"
 	}

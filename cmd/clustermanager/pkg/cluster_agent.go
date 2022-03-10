@@ -6,7 +6,6 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
-	"gitlab.com/piccolo_su/vegeta/cmd/clustermanager/pkg/types"
 	"gitlab.com/piccolo_su/vegeta/pkg/assets"
 	"io/ioutil"
 	corev1 "k8s.io/api/core/v1"
@@ -188,13 +187,6 @@ func (c *ClusterAgent) RegisterToHostCluster() {
 		}
 		logging.Get().Info().Msg("successfully registered to master cluster")
 	}
-}
-
-type TensorCluster struct {
-	Key         string `json:"key"`
-	Name        string `json:"name"`
-	Description string `json:"Description"`
-	Status      int32  `json:"status"`
 }
 
 func (c *ClusterAgent) registerClusterInfo() error {
@@ -387,7 +379,7 @@ func (c *ClusterAgent) fetchClusterKey() error {
 	}
 	data, ok := cm.BinaryData[clusterInfoKey]
 	if ok {
-		clusterInfo := &types.TensorCluster{}
+		clusterInfo := &k8s.TensorCluster{}
 		err = json.Unmarshal(data, clusterInfo)
 		if err != nil {
 			return err
@@ -400,7 +392,7 @@ func (c *ClusterAgent) fetchClusterKey() error {
 
 func (c *ClusterAgent) saveClusterInfo() error {
 	clusterKey := uuid.NewUUID()
-	cluster := &types.TensorCluster{
+	cluster := &k8s.TensorCluster{
 		Key:         string(clusterKey),
 		Name:        c.Name,
 		Description: "",
