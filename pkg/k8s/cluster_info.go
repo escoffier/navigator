@@ -4,89 +4,116 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"gitlab.com/piccolo_su/vegeta/pkg/assets"
+	"gitlab.com/security-rd/go-pkg/logging"
 	"io/ioutil"
+	"k8s.io/client-go/informers"
+	configmaplister "k8s.io/client-go/listers/core/v1"
+	"k8s.io/client-go/tools/cache"
 	"net/http"
-	"runtime/debug"
+	"os"
 	"sync/atomic"
 	"time"
 
 	"github.com/avast/retry-go"
 	"github.com/pkg/errors"
-	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 )
+
+const clusterInfoKey = "cluster-info"
+const clusterInfo = "cluster-info"
 
 type TensorCluster struct {
 	Key           string             `json:"key"`
 	Name          string             `json:"name"`
 	Description   string             `json:"description"`
 	Status        int32              `json:"status"`
-	ConsoleUrl    string             `json:"console_url"`
-	K8SRestConfig *InfoForRestConfig `json:"k8s_rest_config"`
+	ConsoleURL    string             `json:"console_url,omitempty"`
+	K8SRestConfig *InfoForRestConfig `json:"k8s_rest_config,omitempty"`
 }
 
 type ClusterInfoManager struct {
-	cinfoVal atomic.Value
-	host     string
+	cinfoVal      atomic.Value
+	host          string
+	lister        configmaplister.ConfigMapLister
+	hasSynced     func() bool
+	workNamespace string
 }
 
 func NewClusterInfoManager(cmHost string) *ClusterInfoManager {
-	m := ClusterInfoManager{
-		host: cmHost,
+	kubeConfig, err := KubeConfig()
+	if err != nil {
+		return nil
 	}
-	m.load()
-	m.asyncLoop()
+	clientset, err := assets.NewForConfig(kubeConfig)
+	if err != nil {
+		return nil
+	}
+	workNamespace := os.Getenv("MY_POD_NAMESPACE")
+	factory := informers.NewSharedInformerFactoryWithOptions(clientset, 10*time.Hour, informers.WithNamespace(workNamespace))
+
+	m := ClusterInfoManager{
+		host:          cmHost,
+		workNamespace: workNamespace,
+		lister:        factory.Core().V1().ConfigMaps().Lister(),
+		hasSynced:     factory.Core().V1().ConfigMaps().Informer().HasSynced,
+	}
+
+	factory.Core().V1().ConfigMaps().Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+		AddFunc: func(_ interface{}) {
+			m.updateCluster()
+		},
+		UpdateFunc: func(_, _ interface{}) {
+			m.updateCluster()
+		},
+		DeleteFunc: func(_ interface{}) {
+			m.updateCluster()
+		},
+	})
+
+	stopChan := make(chan struct{})
+	factory.Start(stopChan)
+
+	if !cache.WaitForNamedCacheSync("cluster-configmap", stopChan, m.hasSynced) {
+		logging.Get().Warn().Msg("failed to sync cluster-info from api server")
+		return nil
+	}
 	return &m
 }
 
-func (m *ClusterInfoManager) load() {
-	defer func() {
-		if r := recover(); r != nil {
-			logging.GetLogger().Error().Msgf("Panic: %v. Stack: %s", r, debug.Stack())
-		}
-	}()
-
-	var cinfo *TensorCluster
-
-	tctx, cancel := context.WithTimeout(context.Background(), 4*time.Second)
-	defer cancel()
-
-	err := util.RetryWithBackoff(tctx, func() error {
-		var err error
-		cinfo, err = getK8sClusterInfo(tctx, m.host)
-		return err
-	})
+func (m *ClusterInfoManager) updateCluster() {
+	configMap, err := m.lister.ConfigMaps(m.workNamespace).Get(clusterInfo)
 	if err != nil {
-		logging.GetLogger().Err(err).Msg("get cluster error")
-	} else {
-		m.cinfoVal.Store(*cinfo)
+		logging.Get().Err(err).Msg("failed to get cluster info configmap")
+		return
+	}
+
+	data, ok := configMap.BinaryData[clusterInfoKey]
+	if ok {
+		clusterInfo := &TensorCluster{}
+		err = json.Unmarshal(data, clusterInfo)
+		if err != nil {
+			logging.Get().Err(err).Msg("failed to unmarshal cluster info")
+			return
+		}
+		logging.Get().Debug().Msgf("cluster info: %+v", clusterInfo)
+		m.cinfoVal.Store(clusterInfo)
+		return
 	}
 }
-func (m *ClusterInfoManager) asyncLoop() {
-	go func() {
-		ticker := time.NewTicker(5 * time.Minute)
-		defer ticker.Stop()
 
-		for {
-			select {
-			case <-ticker.C:
-				m.load()
-			}
-		}
-	}()
-}
 func (m *ClusterInfoManager) ClusterKey() (string, bool) {
 	cobj := m.cinfoVal.Load()
 	if cobj == nil {
 		return "", false
 	}
-	cinfo := cobj.(TensorCluster)
+	cinfo := cobj.(*TensorCluster)
 
 	return cinfo.Key, true
 }
 
 func getK8sClusterInfo(ctx context.Context, host string) (*TensorCluster, error) {
-	ctx, cancel := context.WithTimeout(ctx, 2*time.Minute)
+	ctx, cancel := context.WithTimeout(ctx, 4*time.Minute)
 	defer cancel()
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, fmt.Sprintf("%s/internal/cluster", host), nil)
@@ -95,7 +122,7 @@ func getK8sClusterInfo(ctx context.Context, host string) (*TensorCluster, error)
 	}
 
 	clusterInfo := TensorCluster{}
-	util.HTTPRequest(ctx, http.DefaultClient, req, func(resp *http.Response, err error) error {
+	err = util.HTTPRequest(ctx, http.DefaultClient, req, func(resp *http.Response, err error) error {
 		if err != nil {
 			return err
 		}
@@ -117,7 +144,10 @@ func getK8sClusterInfo(ctx context.Context, host string) (*TensorCluster, error)
 			return errors.Errorf("get cluster failed, status : %v", clusterInfo.Status)
 		}
 		return nil
-	}, retry.Attempts(100))
+	}, retry.Attempts(2))
+	if err != nil {
+		return nil, err
+	}
 
 	return &clusterInfo, nil
 }
