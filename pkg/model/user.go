@@ -85,10 +85,10 @@ func (u User) TableName() string {
 }
 
 type Email struct {
-	ID       int64  `gorm:"primary_key;AUTO_INCREMENT" json:"id"`
-	HashCode string `gorm:"index:hash_code, unique;column:hash_code;size:64" json:"hash_code"`
+	ID        int64  `gorm:"primary_key;AUTO_INCREMENT" json:"id"`
+	HashCode  string `gorm:"index:hash_code, unique;column:hash_code;size:64" json:"hash_code"`
 	CreatedAt int64  `gorm:"column:created_at" json:"created_at"`
-	UserName string `gorm:"index:email_username, unique;column:username" json:"userName"` // index
+	UserName  string `gorm:"index:email_username, unique;column:username" json:"userName"` // index
 }
 
 func (e Email) TableName() string {
