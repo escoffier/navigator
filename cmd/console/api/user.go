@@ -258,7 +258,7 @@ func (api *api) resetPassword() http.HandlerFunc {
 		// 	return
 		// }
 
-		userSession, ok := util.GetSessionFromContext(ctx)
+		userSession, ok := model.GetSessionFromContext(ctx)
 		if !ok {
 			RespAndLog(w, ctx, errors.New("unexpected request: no user session"))
 			return
@@ -331,7 +331,7 @@ func (api *api) userModule() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx, cancel := context.WithTimeout(r.Context(), defaultAccountTimeout)
 		defer cancel()
-		user, ok := util.GetSessionFromContext(ctx)
+		user, ok := model.GetSessionFromContext(ctx)
 		if !ok {
 			RespAndLog(w, ctx, errors.New("unexpected request: no user info"))
 			return
@@ -396,7 +396,7 @@ func (api *api) addUser() http.HandlerFunc {
 		ctx, cancel := context.WithTimeout(r.Context(), 15*time.Second)
 		defer cancel()
 
-		userSession, ok := util.GetSessionFromContext(ctx)
+		userSession, ok := model.GetSessionFromContext(ctx)
 		if !ok {
 			RespAndLog(w, r.Context(), errors.New("get user session fail"))
 			return
@@ -490,7 +490,7 @@ func (api *api) editUser() http.HandlerFunc {
 			return
 		}
 
-		opUser, ok := util.GetSessionFromContext(ctx)
+		opUser, ok := model.GetSessionFromContext(ctx)
 		if !ok {
 			RespAndLog(w, ctx, errors.New("unexpected request: no user info"))
 			return

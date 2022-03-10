@@ -7,27 +7,35 @@ import (
 )
 
 type SearchImageParam struct {
-	Library       string
-	Libraries     []string
-	Ids           []int64
-	Search        string // full_repo_name和tag字段的模糊匹配
-	Tag           string // tag字段的精确匹配
-	OnlineCount   string // "true","false" //这样写是为了应对go的默认值
-	Digests       []string
-	Status        int64  // 是否删除等状态
-	FullRepoName  string // 这里是精确匹配
-	Where         string // 外面传一个附加的字符串的where条件
-	StartID       int64  // 取大于该ID的数据
-	LastID        int64  // 取大于该ID的数据
-	FromType      int64
-	NotFromType   int64
-	ImageType     string
-	Fields        []string // 只想要的字端
-	LayersPrefix  string
-	RegistryIds   []int64 // 仓库Id列表
-	NodeHostnames []string
-	JustCount     bool
-	UUIDs         []uint32
+	Library          string
+	Libraries        []string
+	InIds            []int64
+	NotInIds         []int64
+	Search           string // full_repo_name和tag字段的模糊匹配
+	Digests          []string
+	FullRepoName     string // 这里是精确匹配
+	Tag              string
+	StartID          int64 // 取大于该ID的数据
+	LastID           int64 // 取大于该ID的数据
+	FromType         int64
+	NotFromType      int64
+	Fields           []string // 只想要的字端
+	OmitFields       []string // 不想要的字端
+	LayersPrefix     string
+	RegistryIds      []int64 // 仓库Id列表
+	NodeHostnames    []string
+	JustCount        bool
+	UUIDs            []uint32
+	UniqueImage      uint32
+	ImageType        string
+	Flag             uint64
+	Where            string
+	NodeHostname     string `json:"node_hostname"`
+	SpecialImageType string `json:"special_image_type"`
+	JustReturnImage  bool   `json:"just_return_image"`
+}
+type GroupVulnSeverityParma struct {
+	ImageId int64
 }
 
 type SearchImageWithScanParam struct {
@@ -108,7 +116,10 @@ type SearchRegistryParam struct {
 }
 
 type GetImageOverViewParm struct {
-	SQL string
+	ImageUUIDs []uint32
+	FlagMore   int
+	FlagLess   int
+	FromType   int64
 }
 type SearchRejectPolicyParam struct {
 	ID                int64

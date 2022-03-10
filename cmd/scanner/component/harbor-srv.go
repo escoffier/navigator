@@ -11,6 +11,7 @@ import (
 
 	"github.com/avast/retry-go"
 	"github.com/go-redis/redis/v8"
+
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
@@ -96,7 +97,7 @@ func (hb *Harbor) GetTags(ctx context.Context, url string, authorization string,
 		projectName = fullRepoName[0:index]
 		fullRepoName = fullRepoName[index+1:]
 	}
-	fullRepoName = strings.Replace(fullRepoName, "/", "%252F", -1)
+	fullRepoName = strings.ReplaceAll(fullRepoName, "/", "%252F")
 	tagURL := fmt.Sprintf("%s/%s/projects/%s/repositories/%s/artifacts/%s/tags", url, "api/v2.0", projectName, fullRepoName, digest)
 	// fmt.Printf("username %s password %s :\n", username, password)
 	body, err := hb.reqHarbor(ctx, tagURL, username, password, authorization)

@@ -14,7 +14,7 @@ import (
 )
 
 type TrustedImageInterface interface {
-	SearchTrustedImages(ctx context.Context, param SearchTrustedImageParam) ([]model.TrustedImages, error)
+	SearchTrustedImageIDs(ctx context.Context, param SearchTrustedImageParam) ([]int64, error)
 	TrustedImageCreat(ctx context.Context, trustedImage *model.TrustedImages) error
 
 	ImageRsaCreate(ctx context.Context, data *model.ImageRsa) error
@@ -25,23 +25,27 @@ type TrustedImageInterface interface {
 	ImageRsaQueryByPrivateKey(ctx context.Context, privateKey string) (*model.ImageRsa, error)
 }
 
-// SearchTrustedImages 获取多个镜像的可信信息,可能需要查询全部
-func (s *ScannerOrm) SearchTrustedImages(ctx context.Context, param SearchTrustedImageParam) ([]model.TrustedImages, error) {
+// SearchTrustedImageIDs 获取多个镜像的可信信息,可能需要查询全部
+func (s *ScannerOrm) SearchTrustedImageIDs(ctx context.Context, param SearchTrustedImageParam) ([]int64, error) {
 	timeOutCtx, cancelFunc := context.WithTimeout(ctx, time.Second*10)
 	defer cancelFunc()
 
-	var result = make([]model.TrustedImages, 0)
+	var result = make([]int64, 0)
 
-	db := s.rdb.Get().WithContext(timeOutCtx).Model(model.TrustedImages{})
+	filed := []string{"s.id"}
+
+	db := s.rdb.Get().WithContext(timeOutCtx).Table(fmt.Sprintf("%s AS t", model.TrustedImages{}.TableName())).
+		Joins(fmt.Sprintf(" JOIN  %s AS s ON t.digest = s.digest", model.ImageList{}.TableName()))
+
 	if len(param.Digests) > 0 {
-		db = db.Where("digest IN ?", param.Digests)
+		db = db.Where("t.digest IN ?", param.Digests)
 	}
 	if param.IsTrusted == consts.IsTrustedImageString {
-		db = db.Where("is_trusted = ? ", consts.IsTrustedImage)
+		db = db.Where("t.is_trusted = ? ", consts.IsTrustedImage)
 	} else if param.IsTrusted == consts.NotTrustedImageString {
-		db = db.Where("is_trusted = ? ", consts.NotTrustedImage)
+		db = db.Where("t.is_trusted = ? ", consts.NotTrustedImage)
 	}
-
+	db = db.Select(filed)
 	if err := db.Find(&result).Error; err != nil {
 		return nil, err
 	}

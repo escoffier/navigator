@@ -35,7 +35,7 @@ type ScanConfigSinge struct {
 	ScanAll            bool     `gorm:"scan_all" json:"scan_all"`
 	ScanCycle          []int64  `gorm:"scan_cycle" json:"scan_cycle"`                 // 扫描周期表示星期几
 	ScanTime           string   `gorm:"type:varchar(255);scan_time" json:"scan_time"` // 扫描时间
-	StrategyId         int64    `gorm:"strategy_id" json:"strategy_id"`               // 扫描策略。这里对应的是策略ID
+	StrategyID         int64    `gorm:"strategy_id" json:"strategy_id"`               // 扫描策略。这里对应的是策略ID
 }
 
 type ScanStrategy struct {
@@ -123,10 +123,10 @@ func (s *ScanConfig) Check() error {
 	if s.NodeImageConfig == nil {
 		return fmt.Errorf("no scan config for node image")
 	}
-	if s.LibraryImageConfig.StrategyId <= 0 {
+	if s.LibraryImageConfig.StrategyID <= 0 {
 		return fmt.Errorf("no strategy for library image scan config")
 	}
-	if s.LibraryImageConfig.StrategyId <= 0 {
+	if s.LibraryImageConfig.StrategyID <= 0 {
 		return fmt.Errorf("no strategy for node image scan config")
 	}
 	for i := range s.NodeImageConfig.ScanCycle {
@@ -154,7 +154,7 @@ func (s *ScanConfig) Check() error {
 	return nil
 }
 
-func (s *ScanConfig) Serialize() *ScanConfig {
+func (s *ScanConfig) Serialize() {
 	if s.LibraryImageConfig != nil {
 		bys, err := json.Marshal(s.LibraryImageConfig)
 		if err != nil {
@@ -171,10 +171,9 @@ func (s *ScanConfig) Serialize() *ScanConfig {
 			s.NodeImageJson = string(bys)
 		}
 	}
-	return s
 }
 
-func (s *ScanConfig) Deserialize() *ScanConfig {
+func (s *ScanConfig) Deserialize() {
 	if s.LibraryImageJson != "" {
 		ll := new(ScanConfigSinge)
 		err := json.Unmarshal([]byte(s.LibraryImageJson), ll)
@@ -193,7 +192,6 @@ func (s *ScanConfig) Deserialize() *ScanConfig {
 			s.NodeImageConfig = ll
 		}
 	}
-	return s
 }
 
 func (s *Software) Check() error {
@@ -207,7 +205,7 @@ func (s *Software) Check() error {
 	return nil
 }
 
-func (s *ScanStrategy) Serialize() *ScanStrategy {
+func (s *ScanStrategy) Serialize() {
 	if len(s.SensitiveFile) > 0 {
 		ses := make([]SensitiveFileScan, 0)
 		for i := range s.SensitiveFile {
@@ -256,7 +254,6 @@ func (s *ScanStrategy) Serialize() *ScanStrategy {
 			logging.GetLogger().Error().Err(err)
 		}
 	}
-	return s
 }
 
 func (s *ScanStrategy) ToUpdater() map[string]interface{} {
@@ -286,7 +283,7 @@ func (s *ScanStrategy) ToUpdater() map[string]interface{} {
 	return updater
 }
 
-func (s *ScanStrategy) Deserialize() *ScanStrategy {
+func (s *ScanStrategy) Deserialize() {
 	st := make([]SensitiveFileScan, 0)
 	if len(s.SensitiveFileJson) > 0 {
 		if err := json.Unmarshal([]byte(s.SensitiveFileJson), &st); err != nil {
@@ -319,7 +316,6 @@ func (s *ScanStrategy) Deserialize() *ScanStrategy {
 	}
 	s.Software = sfs
 
-	return s
 }
 
 func (s *ScanStrategy) Check() error {

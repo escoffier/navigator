@@ -9,13 +9,14 @@ import (
 	"time"
 
 	"github.com/go-chi/chi"
+	"gitlab.com/security-rd/go-pkg/databases"
+
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/openapiauth"
 	"gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	"gitlab.com/piccolo_su/vegeta/pkg/dal"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
-	"gitlab.com/security-rd/go-pkg/databases"
 )
 
 func (api *api) openapiAuth() func(chi.Router) {
@@ -44,7 +45,7 @@ func (api *api) getOpenAPIToken() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx, cancel := context.WithTimeout(r.Context(), OpenAPIAuthTimeout)
 		defer cancel()
-		user, ok := util.GetSessionFromContext(ctx)
+		user, ok := model.GetSessionFromContext(ctx)
 		if !ok {
 			apperror.RespAndLog(w, ctx, errors.New("unexpected request: no user info"))
 			return
@@ -185,7 +186,7 @@ func openAPIAccessCheck(rdb *databases.RDBInstance) func(http.Handler) http.Hand
 				return
 			}
 
-			ctx := context.WithValue(r.Context(), util.CtxUserSessionKey, user.GenerateSession(false))
+			ctx := context.WithValue(r.Context(), model.CtxUserSessionKey, user.GenerateSession(false))
 			if r.Method == http.MethodGet {
 				next.ServeHTTP(w, r.WithContext(ctx))
 				return

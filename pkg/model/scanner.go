@@ -127,20 +127,26 @@ type VulnInfoEx struct {
 }
 
 type SeverityCount struct {
-	Critical   int
-	High       int
-	Medium     int
-	Low        int
-	Negligible int
-	Unknown    int
+	Critical   int64
+	High       int64
+	Medium     int64
+	Low        int64
+	Negligible int64
+	Unknown    int64
+}
+
+type SeverityGroup struct {
+	Severity int   `gorm:"column:severity_int" json:"severity"`
+	Count    int64 `gorm:"column:cnt"  json:"count"`
 }
 
 type ImageRiskScore struct {
-	Name                  string // servicename
-	Score                 float64
+	Name                  string  // servicename
+	Score                 float64 `gorm:"column:vuln_score" json:"Score"`
 	SeverityHistogramInfo SeverityHistogramInfo
 	Tag                   string `json:"tag"`
-	ImageId               int    `json:"id"`
+	ImageID               int64  `grom:"column:image_id" json:"image_id"`
+	ID                    int    `grom:"column:id" json:"id"`
 	ImageType             int64  `json:"image_type"`
 	FromType              int64  `json:"from_type"`
 }
@@ -151,7 +157,7 @@ type ConstMapScore struct {
 	SingleScore float64
 }
 type VulnOverview struct {
-	VulnTotal int              `json:"vuln_total"`
+	VulnTotal int64            `json:"vuln_total"`
 	Severity  SeverityCount    `json:"severity"`
 	Top5      []ImageRiskScore `json:"top5"`
 }

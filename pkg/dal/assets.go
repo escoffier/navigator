@@ -1204,7 +1204,7 @@ func UpdateCluster(ctx context.Context, rdb *gorm.DB, clusterKey string, name st
 	ctx, cancel := context.WithTimeout(ctx, 1000*time.Millisecond)
 	defer cancel()
 
-	userInfo, ok := util.GetSessionFromContext(ctx)
+	userInfo, ok := model.GetSessionFromContext(ctx)
 	updateMap := map[string]interface{}{
 		"name":        name,
 		"description": description,
@@ -1228,7 +1228,7 @@ func AddCluster(ctx context.Context, rdb *gorm.DB, cluster *model.TensorCluster)
 	ctx, cancel := context.WithTimeout(ctx, 1000*time.Millisecond)
 	defer cancel()
 
-	userInfo, ok := util.GetSessionFromContext(ctx)
+	userInfo, ok := model.GetSessionFromContext(ctx)
 	if ok {
 		cluster.Creator = userInfo.Username
 		cluster.Updater = userInfo.Username

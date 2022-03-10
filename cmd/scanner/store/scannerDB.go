@@ -8,12 +8,13 @@ import (
 	"math"
 	"time"
 
+	"gitlab.com/security-rd/go-pkg/databases"
+	"gorm.io/gorm"
+
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
-	"gitlab.com/security-rd/go-pkg/databases"
-	"gorm.io/gorm"
 )
 
 type ScannerDB struct {
@@ -26,16 +27,18 @@ func NewScannerDB(rdb *databases.RDBInstance) *ScannerDB {
 	}
 }
 
-func (scdb *ScannerDB) InsertToScanImage(ctx context.Context, ScanImage *model.ScanImage) {
+func (scdb *ScannerDB) InsertToScanImage(ctx context.Context, scanImage *model.ScanImage) error {
 	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*10)
 	defer cancelFunc()
 	tmp := model.ScanImage{}
-	res := scdb.RDB.Get().WithContext(ctx).Where(&model.ScanImage{ImageID: ScanImage.ImageID}).First(&tmp)
+	var err error
+	res := scdb.RDB.Get().WithContext(ctx).Select("id", "image_id").Where(&model.ScanImage{ImageID: scanImage.ImageID}).First(&tmp)
 	if res.Error != nil {
-		scdb.RDB.Get().WithContext(ctx).Create(ScanImage)
+		err = scdb.RDB.Get().WithContext(ctx).Create(scanImage).Error
 	} else {
-		_ = scdb.UpdateToScanImage(ctx, ScanImage, tmp.ID)
+		err = scdb.UpdateToScanImage(ctx, scanImage, tmp.ID)
 	}
+	return err
 }
 
 func (scdb *ScannerDB) UpdateToScanImage(ctx context.Context, ScanImage *model.ScanImage, tableID int64) error {
@@ -101,11 +104,14 @@ func (scdb *ScannerDB) InsertToVuln(ctx context.Context, Vuln *model.Vuln, Table
 	if flag == 1 {
 		tmpVulnImage.VulnName = Vuln.Name
 		tmpVulnImage.ImageId = TableID
+		// tmpVulnImage.SeverityInt = Vuln.SeverityInt
 		scdb.InsertToVulnImage(ctx, &tmpVulnImage)
 		return nil
 	}
 	tmpVulnImage.VulnName = Vuln.Name
 	tmpVulnImage.ImageId = TableID
+	// tmpVulnImage.SeverityInt = Vuln.SeverityInt
+
 	scdb.InsertToVulnImage(ctx, &tmpVulnImage)
 	scdb.RDB.Get().WithContext(ctx).Create(Vuln)
 	return nil

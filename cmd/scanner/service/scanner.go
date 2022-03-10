@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"runtime/debug"
 
+	"gitlab.com/security-rd/go-pkg/logging"
+
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/engine"
 	flag2 "gitlab.com/piccolo_su/vegeta/cmd/scanner/flag"
@@ -12,7 +14,6 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
 	"gitlab.com/piccolo_su/vegeta/pkg/lifecycle"
 	"gitlab.com/piccolo_su/vegeta/pkg/uuid"
-	"gitlab.com/security-rd/go-pkg/logging"
 )
 
 // Scanner represents the Vegeta Scanner server.
@@ -26,7 +27,7 @@ type Scanner struct {
 // NewScanner is to create a new Scanner struct.
 func NewScanner(opts *flag2.ScannerOpts) (*Scanner, error) {
 	// init db
-	if err := store.InitDb(); err != nil {
+	if err := store.InitDb(opts.LogLevel); err != nil {
 		logging.Get().Error().Err(err).Msg("connect db failed")
 		return nil, err
 	}

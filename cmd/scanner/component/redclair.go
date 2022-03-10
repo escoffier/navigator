@@ -16,13 +16,15 @@ import (
 	"strings"
 	"sync"
 	"time"
+
 	// 引入驱动
 
 	"github.com/go-redis/redis/v8"
 	"github.com/heroku/docker-registry-client/registry"
+	_ "github.com/lib/pq"
 	"gitlab.com/security-rd/go-pkg/logging"
 	"go.mongodb.org/mongo-driver/mongo"
-	_ "github.com/lib/pq"
+
 	layerManage "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/layer-manage"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
@@ -414,46 +416,46 @@ func (rcSvc *RedClairService) cacheLastVulnerabilityUpdateTime(ctx context.Conte
 
 func (rcSvc *RedClairService) appendRemovedVulnerabilities(ctx context.Context, db *sql.DB, timeStrOfLastVulnerabilityUpdate string, namespacesToRemoveFromCache *[]string) error {
 	removedVulnerabilitiesQuery := fmt.Sprintf(`
-		select 
-			a.name, c.name as namespace 
+		select
+			a.name, c.name as namespace
 		from (
-			select 
-				name, 
-				namespace_id, 
-				max(
-					CASE WHEN deleted_at IS NULL 
-					THEN timestamp '9999-01-01 00:00:00.000000+00' 
-					ELSE deleted_at END
-				) as deleted_at 
-			from 
-				vulnerability 
-			where 
-				created_at > timestamp '%s' 
-			group by 
-				namespace_id, name
-		) as a 
-		left join (
 			select
-				name, 
-				namespace_id, 
+				name,
+				namespace_id,
 				max(
 					CASE WHEN deleted_at IS NULL
-					THEN timestamp '9999-01-01 00:00:00.000000+00' 
+					THEN timestamp '9999-01-01 00:00:00.000000+00'
 					ELSE deleted_at END
-				) as deleted_at 
-			from 
+				) as deleted_at
+			from
 				vulnerability
-			where 
-				created_at <= timestamp '%s' 
-			group by 
+			where
+				created_at > timestamp '%s'
+			group by
 				namespace_id, name
-		) as b 
-		on a.name=b.name and a.namespace_id=b.namespace_id 
-		left join 
-			namespace c 
-		on a.namespace_id=c.id 
-		where 
-			b.deleted_at = timestamp '9999-01-01 00:00:00.000000+00' 
+		) as a
+		left join (
+			select
+				name,
+				namespace_id,
+				max(
+					CASE WHEN deleted_at IS NULL
+					THEN timestamp '9999-01-01 00:00:00.000000+00'
+					ELSE deleted_at END
+				) as deleted_at
+			from
+				vulnerability
+			where
+				created_at <= timestamp '%s'
+			group by
+				namespace_id, name
+		) as b
+		on a.name=b.name and a.namespace_id=b.namespace_id
+		left join
+			namespace c
+		on a.namespace_id=c.id
+		where
+			b.deleted_at = timestamp '9999-01-01 00:00:00.000000+00'
 			and a.deleted_at != timestamp '9999-01-01 00:00:00.000000+00';`, timeStrOfLastVulnerabilityUpdate, timeStrOfLastVulnerabilityUpdate)
 	vulnerabilityEntry := model.DBVulnerabilityEntry{}
 	rows, _ := db.Query(removedVulnerabilitiesQuery)
@@ -473,29 +475,29 @@ func (rcSvc *RedClairService) appendRemovedVulnerabilities(ctx context.Context, 
 
 func (rcSvc *RedClairService) appendNewVulnerabilities(ctx context.Context, db *sql.DB, timeStrOfLastVulnerabilityUpdate string, namespacesToRemoveFromCache *[]string) error {
 	newVulnerabilitiesQuery := fmt.Sprintf(`
-		select 
-			a.name, c.name as namespace 
+		select
+			a.name, c.name as namespace
 		from (
-			select 
-				distinct name, namespace_id 
-			from 
-				vulnerability 
-			where 
+			select
+				distinct name, namespace_id
+			from
+				vulnerability
+			where
 				created_at > timestamp '%s'
 		) as a
 		left join (
-			select 
-				distinct name, namespace_id 
-			from 
+			select
+				distinct name, namespace_id
+			from
 				vulnerability
-			where 
+			where
 				created_at <= timestamp '%s'
-		) as b 
-		on a.name = b.name and a.namespace_id = b.namespace_id 
-		left join 
-			namespace c 
-		on a.namespace_id = c.id 
-		where 
+		) as b
+		on a.name = b.name and a.namespace_id = b.namespace_id
+		left join
+			namespace c
+		on a.namespace_id = c.id
+		where
 			b.name is null;
 	`, timeStrOfLastVulnerabilityUpdate, timeStrOfLastVulnerabilityUpdate)
 	vulnerabilityEntry := model.DBVulnerabilityEntry{}
@@ -655,7 +657,7 @@ func (rcSvc *RedClairService) processScanTask(ctx context.Context, scanTask mode
 		currentVulns = append(currentVulns, cachedLayer.ScanReport.VulnsAdded...)
 		vulns = currentVulns
 	}
-	util.SortVulnsBySeverityAndStuff(vulns, false)
+	SortVulnsBySeverityAndStuff(vulns, false)
 
 	report.Vulns = model.VulnerabilityReport{
 		Repository:        scanTask.Repository,
@@ -779,7 +781,7 @@ func (rcSvc *RedClairService) generateScanWorkerResult(
 	vulnInfo, vulnInfoAdded, vulnInfoRemoved []model.VulnerabilityInfo, sensitive []model.Sensitive) *model.CachedScanWorkerReport {
 	overallSeverity := redclair.SeverityUnknown
 	if len(vulnInfo) > 0 {
-		util.SortVulnsBySeverityAndStuff(vulnInfo, false)
+		SortVulnsBySeverityAndStuff(vulnInfo, false)
 		overallSeverity = vulnInfo[0].Severity
 	}
 
@@ -832,8 +834,8 @@ func (rcSvc *RedClairService) getLayerVulnDiff(parentFullVulnsOrig []model.Vulne
 		parentIndex++
 	}
 
-	util.SortVulnsBySeverityAndStuff(vulnLayerAdded, false)
-	util.SortVulnsBySeverityAndStuff(vulnLayerRemoved, false)
+	SortVulnsBySeverityAndStuff(vulnLayerAdded, false)
+	SortVulnsBySeverityAndStuff(vulnLayerRemoved, false)
 
 	return vulnLayerAdded, vulnLayerRemoved, nil
 }
@@ -1245,4 +1247,13 @@ func (rcSvc *RedClairService) updateRiskCacheEntry(ctx context.Context, scantask
 	if err != nil {
 		logging.Get().Error().Err(err).Msgf("Updata risk cache error image:%v", image)
 	}
+}
+func SortVulnsBySeverityAndStuff(vulnerabilities []model.VulnerabilityInfo, asc bool) {
+	sort.Slice(vulnerabilities, func(i, j int) bool {
+		if !asc {
+			i, j = j, i
+		}
+
+		return redclair.CompareVulnerabilities(vulnerabilities[i], vulnerabilities[j])
+	})
 }

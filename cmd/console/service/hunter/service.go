@@ -124,7 +124,7 @@ func (s *Service) Scan(ctx context.Context, clusterID string) (err error) {
 	}
 
 	uuid := util.GenerateUUIDHex()
-	_, err = s.taskManager.CreateKubeHunterRecord(ctx, clusterID, uuid, util.GetUsernameFromContext(ctx))
+	_, err = s.taskManager.CreateKubeHunterRecord(ctx, clusterID, uuid, model.GetUsernameFromContext(ctx))
 	if err != nil {
 		return err
 	}

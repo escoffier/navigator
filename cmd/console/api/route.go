@@ -2,16 +2,18 @@ package api
 
 import (
 	"context"
+
 	"github.com/go-chi/chi"
 	"github.com/go-chi/jwtauth"
 	"github.com/go-redis/redis/v8"
 	"gitlab.com/security-rd/go-pkg/logging"
 	"gitlab.com/security-rd/go-pkg/pb"
 
+	"gitlab.com/security-rd/go-pkg/databases"
+
 	"gitlab.com/piccolo_su/vegeta/pkg/api/apikey"
 	"gitlab.com/piccolo_su/vegeta/pkg/harbor"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
-	"gitlab.com/security-rd/go-pkg/databases"
 )
 
 const (

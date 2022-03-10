@@ -1,6 +1,7 @@
 package model
 
 import (
+	"context"
 	"encoding/json"
 
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -136,4 +137,25 @@ func GetModuleIDByGroups(groups []*LdapGroup) []int {
 	}
 
 	return result
+}
+
+const (
+	CtxUserSessionKey = "ctx_user_session"
+)
+
+func GetSessionFromContext(ctx context.Context) (*UserSession, bool) {
+	val := ctx.Value(CtxUserSessionKey)
+	if val == nil {
+		return nil, false
+	}
+	userSession, ok := val.(*UserSession)
+	return userSession, ok
+}
+
+func GetUsernameFromContext(ctx context.Context) string {
+	userSession, ok := GetSessionFromContext(ctx)
+	if ok && userSession != nil {
+		return userSession.Username
+	}
+	return ""
 }

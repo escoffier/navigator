@@ -2,7 +2,6 @@ package component
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"strings"
@@ -126,7 +125,7 @@ func (s *SyncRepoImage) SyncImage(ctx context.Context) error {
 					ts := task.NewTaskSrv()
 					if err := ts.GenerateScanTask(ctx, imgIds, task.UpdateTaskInfo{Scope: consts.SingleScan,
 						TriggerType: consts.ImageSyncTrigger,
-						StrategyID:  configs[0].NodeImageConfig.StrategyId}); err != nil {
+						StrategyID:  configs[0].NodeImageConfig.StrategyID}); err != nil {
 						logging.GetLogger().Error().Err(err).Msg("SyncImage add scan task failed")
 					}
 				}
@@ -148,7 +147,7 @@ func (s *SyncRepoImage) SyncImage(ctx context.Context) error {
 					if err := ts.GenerateScanTask(ctx, imgIds, task.UpdateTaskInfo{
 						Scope:       consts.SingleScan,
 						TriggerType: consts.ImageSyncTrigger,
-						StrategyID:  configs[0].LibraryImageConfig.StrategyId,
+						StrategyID:  configs[0].LibraryImageConfig.StrategyID,
 					}); err != nil {
 						logging.GetLogger().Error().Err(err).Msg("SyncImage add scan task failed")
 					}
@@ -191,23 +190,52 @@ func (s *SyncRepoImage) SyncImage(ctx context.Context) error {
 					return nil, err
 				}
 				// 先查一下
-				where := fmt.Sprintf("full_repo_name ='%s'  AND tags = '%s' AND from_type = %d AND registry_id = %d", img.FullRepoName, img.Tags, img.FromType, img.RegistryID)
-				searchImage, _, err := s.ImageDal.SearchImage(ctx, store.SearchImageParam{Where: where}, nil)
+				searchImage, _, err := s.ImageDal.SearchImage(ctx, store.SearchImageParam{RegistryIds: []int64{img.RegistryID},
+					FullRepoName: img.FullRepoName, Tag: img.Tags, FromType: img.FromType,
+					OmitFields: []string{"config_json", "manifest_v1_json", "manifest_v2_json"}}, nil)
 				if err != nil {
 					logging.GetLogger().Error().Err(err).Msg("SyncImage.InsertImageList")
 					return nil, err
 				}
 
-				im, err := s.ImageDal.CreateImage(context.Background(), &img)
-				if err != nil {
-					logging.GetLogger().Error().Err(err).Msg("SyncImage.InsertImageList")
-					return nil, err
-				}
 				if len(searchImage) == 0 {
-					res.Added = append(res.Added, im)
-					logging.GetLogger().Info().Msgf("sync new image:%d %s/%s:%s", im.ID, img.Library, img.FullRepoName, img.Tags)
+					img.Flag = img.GenImageFlag(img.Flag)
+					if _, err := s.ImageDal.CreateImage(context.Background(), &img); err != nil {
+						logging.GetLogger().Error().Err(err).Msg("SyncImage.InsertImageList")
+						return nil, err
+					}
+					res.Added = append(res.Added, &img)
+					logging.GetLogger().Info().Int64("RegistryID", img.RegistryID).
+						Int64("FromType", img.FromType).
+						Str("Library", img.Library).
+						Str("FullRepoName", img.FullRepoName).
+						Str("Tag", img.Tags).Msg("sync new image Create")
 				}
-				res.All = append(res.All, im)
+				// 如果值有变动，就全量更新
+				if len(searchImage) > 0 {
+					img.Flag = img.GenImageFlag(searchImage[0].Flag)
+					img.CheckSum = img.GetImageCheckSum()
+					if img.CheckSum != searchImage[0].CheckSum {
+
+						// 全量更新
+						if err := s.ImageDal.UpdateImage(ctx, fmt.Sprintf("id = %d", searchImage[0].ID), nil, &img); err != nil {
+							logging.GetLogger().Error().Err(err).Msg("SyncImage.InsertImageList,UpdateImageType")
+							return nil, err
+						}
+						logging.GetLogger().Info().Int64("RegistryID", img.RegistryID).
+							Int64("FromType", img.FromType).
+							Str("Library", img.Library).
+							Str("FullRepoName", img.FullRepoName).
+							Str("Tag", img.Tags).Msg("sync new image Update")
+					} else {
+						logging.GetLogger().Info().Int64("RegistryID", img.RegistryID).
+							Int64("FromType", img.FromType).
+							Str("Library", img.Library).
+							Str("FullRepoName", img.FullRepoName).
+							Str("Tag", img.Tags).Msg("数据已存在，且未变动,无需同步")
+					}
+				}
+				res.All = append(res.All, &img)
 				return res, nil
 			})
 		}
@@ -221,7 +249,6 @@ func (s *SyncRepoImage) TransImageToImagelist(ctx context.Context, reg model.Reg
 	tmpLib = strings.TrimPrefix(tmpLib, "https://")
 	tmpLib = strings.TrimRight(tmpLib, "/")
 
-	imageID := fmt.Sprintf("%s/%s:%s", tmpLib, image.Repository, image.Tag)
 	img := model.ImageList{
 		FullRepoName:   image.Repository,
 		Tags:           image.Tag,
@@ -236,7 +263,7 @@ func (s *SyncRepoImage) TransImageToImagelist(ctx context.Context, reg model.Reg
 		ManifestV2JSON: []byte(image.ManifestV2),
 		ConfigJSON:     []byte(image.ConfigJSON),
 		FromType:       model.ImageFromTypeNormal,
-		ImageUUID:      util.GenerateUUID(imageID),
+		ImageUUID:      util.GenerateUUID(fmt.Sprintf("%s/%s:%s", tmpLib, image.Repository, image.Tag)),
 	}
 	if img.FirstPushTime.Unix() <= 0 {
 		img.FirstPushTime = time.Now().UTC()
@@ -248,7 +275,6 @@ func (s *SyncRepoImage) TransImageToImagelist(ctx context.Context, reg model.Reg
 		img.LastPullTime = time.Now().UTC()
 	}
 
-	img.Layers = getLayerString(img)
 	if reg.UseType == model.RegistryUseSafeNode {
 		// logging.GetLogger().Info().Msgf("TransImageToImagelist Url:%s,UseType:%d", reg.Url, reg.UseType)
 		newImage, err := s.parseImageFromNodeSafe(ctx, image.Repository)
@@ -272,20 +298,22 @@ func (s *SyncRepoImage) TransImageToImagelist(ctx context.Context, reg model.Reg
 			img.RepoName = strings.Join(split[1:], "/")
 		}
 	}
-	var config model.ConfigFile
-	err := json.Unmarshal(img.ConfigJSON, &config)
-	if err != nil {
-		logging.GetLogger().Error().Err(err).Msgf("unmarshal config json error")
-	} else {
-		if config.Config.User == "" || strings.Contains(config.Config.User, "root") {
+	img.Deserialize()
+	if img.ConfigFile != nil {
+		if img.ConfigFile.Config.User == "" || strings.Contains(img.ConfigFile.Config.User, "root") {
 			img.PrivilegedBoot = consts.PrivilegedBootImage
 		}
-		for _, v := range config.History {
+		for _, v := range img.ConfigFile.History {
 			if strings.Contains(v.CreatedBy, "/tmp/file-checker") {
 				img.IsReinforce = consts.IsReinforceImage
 			}
 		}
 	}
+
+	img.Layers = img.GetLayerString()
+	img.CheckSum = img.GetImageCheckSum()
+	img.UniqueImage = img.GetUniqueImageUUID()
+
 	return img, nil
 }
 

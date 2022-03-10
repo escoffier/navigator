@@ -15,6 +15,7 @@ import (
 	"github.com/golang/gddo/httputil/header"
 	jsoniter "github.com/json-iterator/go"
 	"github.com/rs/zerolog/log"
+
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 )
 
@@ -156,7 +157,7 @@ func DeepCopy(dst, src interface{}) error {
 }
 
 func FileExists(path string) bool {
-	_, err := os.Stat(path) //os.Stat获取文件信息
+	_, err := os.Stat(path) // os.Stat获取文件信息
 
 	if err != nil {
 		if os.IsExist(err) {
