@@ -9,9 +9,11 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/go-redis/redis/v8"
-	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
+
+	"github.com/go-redis/redis/v8"
+
+	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 )
 
@@ -22,8 +24,10 @@ var (
 const (
 	userSessionPrefix        = "session@"
 	loginSecretSessionPrefix = "loginsecret@"
+	userTokenPrefix          = "session@token@"
 	defaultOneTimeout        = time.Millisecond * 500
 	loginSecretExpireTime    = time.Minute
+	defaultTokenTTL          = time.Minute * 10 // 默认的token ttl
 )
 
 type Conf struct {
@@ -73,6 +77,88 @@ func newService(redisCli *redis.Client, conf *Conf) *Service {
 type Service struct {
 	redisCli *redis.Client
 	conf     *Conf
+}
+
+func (s *Service) SaveToken(ctx context.Context, username, tokenStr string) error {
+	set := func() error {
+		oneCtx, oneCancel := context.WithTimeout(ctx, defaultOneTimeout)
+		defer oneCancel()
+		return s.redisCli.Set(oneCtx, userTokenPrefix+username, tokenStr, defaultTokenTTL).Err()
+	}
+
+	if err := util.RetryWithBackoff(ctx, set); err != nil {
+		logging.GetLogger().Err(err).Msg("save user session fail")
+		return err
+	}
+	return nil
+}
+
+func (s *Service) RenewalToken(ctx context.Context, username string) error {
+	set := func() error {
+		oneCtx, oneCancel := context.WithTimeout(ctx, defaultOneTimeout)
+		defer oneCancel()
+		return s.redisCli.Expire(oneCtx, userTokenPrefix+username, defaultTokenTTL).Err()
+	}
+
+	if err := util.RetryWithBackoff(ctx, set); err != nil {
+		logging.GetLogger().Err(err).Msg("save user session fail")
+		return err
+	}
+	return nil
+}
+
+func (s *Service) DeleteToken(ctx context.Context, username string) error {
+	set := func() error {
+		oneCtx, oneCancel := context.WithTimeout(ctx, defaultOneTimeout)
+		defer oneCancel()
+		return s.redisCli.Del(oneCtx, userTokenPrefix+username).Err()
+	}
+
+	if err := util.RetryWithBackoff(ctx, set); err != nil {
+		logging.GetLogger().Err(err).Msg("save user session fail")
+		return err
+	}
+	return nil
+}
+
+func (s *Service) GetToken(ctx context.Context, username string) (string, error) {
+	var tokenStr string
+	set := func() error {
+		oneCtx, oneCancel := context.WithTimeout(ctx, defaultOneTimeout)
+		defer oneCancel()
+
+		var err error
+		tokenStr, err = s.redisCli.Get(oneCtx, userTokenPrefix+username).Result()
+		if err == redis.Nil {
+			return nil
+		}
+
+		return err
+	}
+
+	if err := util.RetryWithBackoff(ctx, set); err != nil {
+		logging.GetLogger().Err(err).Msg("save user session fail")
+		return tokenStr, err
+	}
+	return tokenStr, nil
+}
+
+func (s *Service) IsTokenExists(ctx context.Context, username string) (bool, error) {
+	var exists int64
+	set := func() error {
+		oneCtx, oneCancel := context.WithTimeout(ctx, defaultOneTimeout)
+		defer oneCancel()
+
+		var err error
+		exists, err = s.redisCli.Exists(oneCtx, userTokenPrefix+username).Result()
+		return err
+	}
+
+	if err := util.RetryWithBackoff(ctx, set); err != nil {
+		logging.GetLogger().Err(err).Msg("save user session fail")
+		return false, err
+	}
+	return exists == 1, nil
 }
 
 func (s *Service) GetUserSession(ctx context.Context, username string) (*model.UserSession, error) {

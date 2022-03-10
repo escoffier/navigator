@@ -17,9 +17,9 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/console/api"
 	"gitlab.com/piccolo_su/vegeta/pkg/harbor"
 	"gitlab.com/piccolo_su/vegeta/pkg/lang"
-	"gitlab.com/security-rd/go-pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/security-rd/go-pkg/databases"
+	"gitlab.com/security-rd/go-pkg/logging"
 	"gitlab.com/security-rd/go-pkg/pb"
 )
 
@@ -43,7 +43,6 @@ func setupChiRouter(
 	// ch := make(chan model.AccessLog, 1000)
 	tokenAuth := jwtauth.New("HS256", jwtSignKey, nil)
 	r := chi.NewRouter()
-	r.Use(jwtauth.Verifier(tokenAuth))
 	r.Use(middleware.RequestID)
 	r.Use(middleware.RealIP)
 	r.Use(middleware.Recoverer)

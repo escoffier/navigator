@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"gitlab.com/piccolo_su/vegeta/cmd/console/service/session"
 	"io/ioutil"
 	"net/http"
 	"strconv"
@@ -14,7 +15,6 @@ import (
 
 	param "github.com/oceanicdev/chi-param"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/captcha"
-	"gitlab.com/piccolo_su/vegeta/cmd/console/service/session"
 	"gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	"gitlab.com/piccolo_su/vegeta/pkg/dal"
 	"gitlab.com/piccolo_su/vegeta/pkg/ldap"
@@ -395,6 +395,7 @@ func (api *api) LdapLogin() http.HandlerFunc {
 			originUsername: cliReq.Username,
 			accountType:    AccountTypeLdap,
 			group:          group,
+			userAgent:      r.UserAgent(),
 		})
 	}
 }
@@ -490,7 +491,7 @@ func (api *api) RadiusLogin() http.HandlerFunc {
 			return
 		}
 
-		api.radiusLogin(ctx, w, cliReq.Username, cliReq.Password, "")
+		api.radiusLogin(ctx, w, cliReq.Username, cliReq.Password, "", r.UserAgent())
 	}
 }
 
@@ -527,11 +528,11 @@ func (api *api) RadiusResponseChallenge() http.HandlerFunc {
 			return
 		}
 
-		api.radiusLogin(ctx, w, cliReq.Username, cliReq.Password, cliReq.State)
+		api.radiusLogin(ctx, w, cliReq.Username, cliReq.Password, cliReq.State, r.UserAgent())
 	}
 }
 
-func (api *api) radiusLogin(ctx context.Context, w http.ResponseWriter, username, password, challengeState string) {
+func (api *api) radiusLogin(ctx context.Context, w http.ResponseWriter, username, password, challengeState, userAgent string) {
 	ldapConf, err := api.getLdapConf(ctx)
 	if err != nil {
 		apperror.RespAndLog(w, ctx, err)
@@ -594,6 +595,7 @@ func (api *api) radiusLogin(ctx context.Context, w http.ResponseWriter, username
 		originUsername: username,
 		group:          group,
 		accountType:    AccountTypeRadius,
+		userAgent:      userAgent,
 	})
 }
 
@@ -602,6 +604,7 @@ type externalUserArg struct {
 	originUsername string
 	accountType    string
 	group          string
+	userAgent      string
 }
 
 func (api *api) externalLogin(ctx context.Context, w http.ResponseWriter, arg *externalUserArg) {
@@ -611,7 +614,11 @@ func (api *api) externalLogin(ctx context.Context, w http.ResponseWriter, arg *e
 		return
 	}
 
-	tokenString := api.saveJWTToken(arg.username, userSession.Role)
+	tokenString, err := api.issueJWTToken(ctx, arg.username, userSession.Role, arg.userAgent)
+	if err != nil {
+		apperror.RespAndLog(w, ctx, ErrServiceNotReady)
+		return
+	}
 	sessionService, ok := session.GetService()
 	if !ok {
 		apperror.RespAndLog(w, ctx, ErrServiceNotReady)

@@ -2,24 +2,16 @@ package api
 
 import (
 	"context"
-	"fmt"
-	"net/http"
-	"strings"
-	"time"
-
 	"github.com/go-chi/chi"
 	"github.com/go-chi/jwtauth"
 	"github.com/go-redis/redis/v8"
-	"gitlab.com/piccolo_su/vegeta/cmd/console/service/session"
-	"gitlab.com/piccolo_su/vegeta/pkg/api/apikey"
-	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
-	"gitlab.com/piccolo_su/vegeta/pkg/dal"
-	"gitlab.com/piccolo_su/vegeta/pkg/harbor"
-	"gitlab.com/piccolo_su/vegeta/pkg/response"
-	"gitlab.com/piccolo_su/vegeta/pkg/util"
-	"gitlab.com/security-rd/go-pkg/databases"
 	"gitlab.com/security-rd/go-pkg/logging"
 	"gitlab.com/security-rd/go-pkg/pb"
+
+	"gitlab.com/piccolo_su/vegeta/pkg/api/apikey"
+	"gitlab.com/piccolo_su/vegeta/pkg/harbor"
+	"gitlab.com/piccolo_su/vegeta/pkg/response"
+	"gitlab.com/security-rd/go-pkg/databases"
 )
 
 const (
@@ -88,8 +80,7 @@ func SetupRoutes(
 		r.Route("/usercenter", api.userCenter())
 		r.Group(func(r chi.Router) {
 			// normal check
-			r.Use(jwtauth.Verifier(api.tokenAuth))
-			r.Use(jwtAccessCheck(api.rdb))
+			r.Use(jwtauth.Verifier(api.tokenAuth), authenticator, jwtAccessCheck(api.rdb))
 
 			r.Route("/platform", api.platform()) // platform
 			r.Route("/containerSec", api.containerSec())
@@ -107,93 +98,4 @@ func SetupRoutes(
 		r.Route("/scap", api.scapInternal())
 		r.Route("/defense", api.defense())
 	})
-}
-
-const (
-	accessCheckTimeout = time.Second * 3
-)
-
-func jwtAccessCheck(rdb *databases.RDBInstance) func(http.Handler) http.Handler {
-	return func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			ctx, cancel := context.WithTimeout(r.Context(), accessCheckTimeout)
-			defer cancel()
-
-			token, claims, err := jwtauth.FromContext(ctx)
-			if err != nil {
-				RespAndLog(w, ctx,
-					NewInvalidAuthToken(http.StatusUnauthorized,
-						fmt.Errorf("error when getting token & claims from context: %w", err)))
-				return
-			}
-			if token == nil || !token.Valid {
-				RespAndLog(w, ctx,
-					NewInvalidAuthToken(http.StatusUnauthorized,
-						fmt.Errorf("token empty or invalid")))
-				return
-			}
-
-			username, _ := claims[JWTKeyUsername].(string)
-			sessionService, ok := session.GetService()
-			if !ok {
-				RespAndLog(w, ctx, ErrServiceNotReady)
-				return
-			}
-
-			userSession, err := sessionService.GetUserSession(ctx, username)
-			if err != nil {
-				if err == session.ErrNotFound {
-					RespAndLog(w, r.Context(),
-						NewSessionExpired(http.StatusUnauthorized,
-							fmt.Errorf("user not in cache")))
-					return
-				}
-
-				RespAndLog(w, ctx, err)
-				return
-			}
-
-			if err = sessionService.RefreshUserSession(ctx, username); err != nil {
-				logging.Get().Err(err).Msgf("refresh session fail")
-			}
-
-			if !userSession.Checked {
-				RespAndLog(w, r.Context(),
-					AccountUnActive(http.StatusForbidden,
-						fmt.Errorf("account is not activated")))
-				return
-			}
-
-			ctx = context.WithValue(r.Context(), util.CtxUserSessionKey, userSession)
-			if r.Method == http.MethodGet {
-				next.ServeHTTP(w, r.WithContext(ctx))
-				return
-			}
-
-			accessListUrl, err := dal.GetAccessUrl(rdb.GetReadDB(), userSession.ModuleID)
-			if err != nil {
-				RespAndLog(w, r.Context(), fmt.Errorf("select access error: %w", err))
-				return
-			}
-			hasAccess := false
-
-			currentURL := strings.ToLower(r.URL.Path)
-			for i := range accessListUrl {
-				url := strings.ToLower(accessListUrl[i])
-				if strings.HasPrefix(currentURL, url) {
-					hasAccess = true
-					break
-				}
-			}
-
-			if !hasAccess {
-				RespAndLog(w, r.Context(),
-					NewNoAccess(http.StatusForbidden,
-						fmt.Errorf("access invalid")))
-				return
-			}
-
-			next.ServeHTTP(w, r.WithContext(ctx))
-		})
-	}
 }
