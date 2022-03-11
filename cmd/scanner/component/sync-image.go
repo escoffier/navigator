@@ -312,7 +312,6 @@ func (s *SyncRepoImage) TransImageToImagelist(ctx context.Context, reg model.Reg
 
 	img.Layers = img.GetLayerString()
 	img.CheckSum = img.GetImageCheckSum()
-	img.UniqueImage = img.GetUniqueImageUUID()
 
 	return img, nil
 }
