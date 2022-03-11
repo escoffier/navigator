@@ -146,7 +146,7 @@ func (s *ScanResultHandle) defaultEnvFill(scanDetails *model.ScanDetailScanImage
 	}
 }
 
-func (s *ScanResultHandle) AddRHSAAndCnnvd(VulnDetails *model.SingleScanDetail, vulnDetail model.NewVulnDetail, flag int) {
+func (s *ScanResultHandle) AddRHSAAndCnnvd(vulnDetails *model.SingleScanDetail, vulnDetail model.NewVulnDetail, flag int) {
 	tmpDetail := vulnDetail
 	rhsaFlag := 0
 	for _, v := range vulnDetail.Trivy[0].References {
@@ -159,11 +159,11 @@ func (s *ScanResultHandle) AddRHSAAndCnnvd(VulnDetails *model.SingleScanDetail, 
 	}
 	if flag == 0 {
 		if rhsaFlag == 1 {
-			VulnDetails.Vulns = append(VulnDetails.Vulns, tmpDetail)
+			vulnDetails.Vulns = append(vulnDetails.Vulns, tmpDetail)
 		}
 		if tmpDetail.Cnnvd.Number != "" {
 			tmpDetail.CVEID = tmpDetail.Cnnvd.Number
-			VulnDetails.Vulns = append(VulnDetails.Vulns, tmpDetail)
+			vulnDetails.Vulns = append(vulnDetails.Vulns, tmpDetail)
 		}
 	}
 }
@@ -393,86 +393,52 @@ func (s *ScanResultHandle) logPostgresLayer(ctx context.Context, scanDetails *mo
 
 func (s *ScanResultHandle) logPostgresImage(ctx context.Context, scanDetails *model.ScanDetailScanImage, layerMp map[string]*model.LayerScanDetail, imageID int64) {
 	scannerOrm := store.GetScannerDb()
-	tmpScanImage := model.ScanImage{ImageID: imageID}
-	if len(scanDetails.MaliciousDetails) > 0 {
-		maliciousJSON, err := json.Marshal(scanDetails.MaliciousDetails)
-		if err != nil {
-			logging.GetLogger().Error().Err(err)
-		}
-		tmpScanImage.MaliciousInfoJSON = maliciousJSON
+	tmpScanImage := model.ScanImage{
+		ID:                   0,
+		ImageID:              imageID,
+		RiskScore:            scanDetails.VulnScore + math.Min(40, scanDetails.MaliciousScore+scanDetails.WebShellScore) + scanDetails.SensitiveScore,
+		VulnScore:            scanDetails.VulnScore,
+		SensitiveScore:       scanDetails.SensitiveScore,
+		VirusScore:           scanDetails.MaliciousScore,
+		WebshellScore:        scanDetails.WebShellScore,
+		VulnInfo:             scanDetails.VulnDetails,
+		MaliciousInfo:        scanDetails.MaliciousDetails,
+		WebshellInfo:         scanDetails.WebshellInfos,
+		SensitiveFile:        scanDetails.Sentitives,
+		LicenseInfo:          scanDetails.LicenseDetail,
+		Software:             scanDetails.Software,
+		EnvKeyValue:          scanDetails.EnvDetails,
+		SeverityHistogram:    scanDetails.SeverityHistogram,
+		ScanEnableCollection: scanDetails.ScanEnableCollection,
+		HasFixedVuln:         scanDetails.HasFixedVuln,
+		Status:               model.ScanStatusSucceeded,
 	}
 
-	if len(scanDetails.Sentitives) > 0 {
-		sensitiveJSON, err := json.Marshal(scanDetails.Sentitives)
-		if err != nil {
-			logging.GetLogger().Error().Err(err)
-		}
-		tmpScanImage.SensitiveFileJSON = sensitiveJSON
+	tmpScanImage.Serialize()
+	if err := scannerOrm.InsertToScanImage(ctx, &tmpScanImage); err != nil {
+		logging.GetLogger().Err(err).Int64("imageID", tmpScanImage.ImageID).Msg("save scan result InsertToScanImage")
+		return
 	}
-
-	if len(scanDetails.VulnDetails) > 0 {
-		vulnJSON, err := json.Marshal(scanDetails.VulnDetails)
-		if err != nil {
-			logging.GetLogger().Error().Err(err)
-		}
-		tmpScanImage.VulnInfoJSON = vulnJSON
+	// 更改imagelist表
+	if err := s.UpdateImageFlag(ctx, tmpScanImage.ImageID, &tmpScanImage); err != nil {
+		logging.GetLogger().Err(err).Int64("imageID", tmpScanImage.ImageID).Msg("save scan result UpdateImageFlag")
+		return
 	}
+}
 
-	if len(scanDetails.WebshellInfos) > 0 {
-		webshellJSON, err := json.Marshal(scanDetails.WebshellInfos)
-		if err != nil {
-			logging.GetLogger().Error().Err(err)
-		}
-		tmpScanImage.WebshellInfoJSON = webshellJSON
-	}
+func (s *ScanResultHandle) UpdateImageFlag(ctx context.Context, imageID int64, scan *model.ScanImage) error {
+	imageDal := store.GetScannerOrmDb()
 
-	if len(scanDetails.EnvDetails) > 0 {
-		envJSON, err := json.Marshal(scanDetails.EnvDetails)
-		if err != nil {
-			logging.GetLogger().Error().Err(err)
-		}
-		tmpScanImage.EnvJSON = envJSON
-	}
-
-	if len(scanDetails.Software) > 0 {
-		softwareJSON, err := json.Marshal(scanDetails.Software)
-		if err != nil {
-			logging.GetLogger().Error().Err(err)
-		}
-		tmpScanImage.SoftwareJSON = softwareJSON
-	}
-
-	if len(scanDetails.LicenseDetail) > 0 {
-		licenseJSON, err := json.Marshal(scanDetails.LicenseDetail)
-		if err != nil {
-			logging.GetLogger().Error().Err(err)
-		}
-		tmpScanImage.LicenseInfoJSON = licenseJSON
-	}
-
-	severityCountJSON, err := json.Marshal(scanDetails.SeverityHistogram)
+	image, _, err := imageDal.SearchImage(ctx, store.SearchImageParam{InIds: []int64{imageID}, Fields: []string{"id", "flag"}}, nil)
 	if err != nil {
-		logging.GetLogger().Error().Err(err)
-	} else {
-		tmpScanImage.SeverityHistogramJSON = severityCountJSON
+		return err
 	}
-
-	// 计分
-	tmpScanImage.VirusScore = scanDetails.MaliciousScore
-	tmpScanImage.VulnScore = scanDetails.VulnScore
-	tmpScanImage.WebshellScore = scanDetails.WebShellScore
-	tmpScanImage.SensitiveScore = scanDetails.SensitiveScore
-	tmpScanImage.RiskScore = tmpScanImage.VulnScore + math.Min(40, scanDetails.MaliciousScore+scanDetails.WebShellScore) + tmpScanImage.SensitiveScore
-
-	collectionJSON, err := json.Marshal(scanDetails.ScanEnableCollection)
-	if err != nil {
-		logging.GetLogger().Error().Err(err)
-	} else {
-		tmpScanImage.ScanEnableCollectionJson = string(collectionJSON)
+	if len(image) == 0 {
+		return fmt.Errorf("not find image:%d", imageID)
 	}
-	tmpScanImage.Status = model.ScanStatusSucceeded
-	tmpScanImage.HasFixedVuln = scanDetails.HasFixedVuln
-	scannerOrm.InsertToScanImage(ctx, &tmpScanImage)
+	updater := map[string]interface{}{"flag": scan.GenImageFlag(image[0].Flag)}
+	err = imageDal.UpdateImage(ctx, fmt.Sprintf("id = %d", imageID), updater, nil)
+	return err
 }
 
 func (s *ScanResultHandle) logPostgresVuln(ctx context.Context, scanDetails *model.ScanDetailScanImage, layerMp map[string]*model.LayerScanDetail, imageID int64) {

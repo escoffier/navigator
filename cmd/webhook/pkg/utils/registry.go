@@ -8,6 +8,7 @@ import (
 
 	"github.com/google/go-containerregistry/pkg/name"
 	registry2 "github.com/heroku/docker-registry-client/registry"
+
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 )

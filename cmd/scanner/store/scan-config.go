@@ -4,9 +4,10 @@ import (
 	"context"
 	"time"
 
+	"gitlab.com/security-rd/go-pkg/databases"
+
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
-	"gitlab.com/security-rd/go-pkg/databases"
 )
 
 type ScanConfigDalInterface interface {
@@ -101,7 +102,7 @@ func (s *ScanConfigDao) SearchScanConfig(ctx context.Context, param SearchScanCo
 		return nil, 0, err
 	}
 	for i := range res {
-		res[i] = *res[i].Deserialize()
+		res[i].Deserialize()
 	}
 
 	return res, cnt, nil
@@ -135,7 +136,7 @@ func (s *ScanConfigDao) SearchStrategy(ctx context.Context, parm SearchStrategyP
 		return nil, 0, err
 	}
 	for i := range res {
-		res[i] = *res[i].Deserialize()
+		res[i].Deserialize()
 	}
 
 	return res, cnt, nil

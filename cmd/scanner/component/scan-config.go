@@ -171,7 +171,7 @@ func (s *ScanConfigSrv) CreateStrategy(ctx context.Context, data *model.ScanStra
 		logging.GetLogger().Error().Err(err).Msg("CreateStrategy")
 		return response.NewHttpError(http.StatusExpectationFailed, err)
 	}
-	data = data.Serialize()
+	data.Serialize()
 	err := s.ScanConfigDal.CreateStrategy(ctx, data)
 	if err != nil {
 		if strings.Contains(err.Error(), consts.DuplicateKey) {
@@ -189,7 +189,7 @@ func (s *ScanConfigSrv) UpdateStrategy(ctx context.Context, strategyID int64, da
 		return response.NewHttpError(http.StatusExpectationFailed, err)
 	}
 
-	data = data.Serialize()
+	data.Serialize()
 
 	updater := data.ToUpdater()
 
@@ -212,10 +212,10 @@ func (s *ScanConfigSrv) DeleteStrategy(ctx context.Context, strategyID int64) er
 		return response.NewHttpError(http.StatusInternalServerError, err)
 	}
 	for i := range config {
-		if config[i].LibraryImageConfig.StrategyId == strategyID {
+		if config[i].LibraryImageConfig.StrategyID == strategyID {
 			return fmt.Errorf("该策略已配置在扫描配置中，不能删除")
 		}
-		if config[i].NodeImageConfig.StrategyId == strategyID {
+		if config[i].NodeImageConfig.StrategyID == strategyID {
 			return fmt.Errorf("该策略已配置在扫描配置中，不能删除")
 		}
 	}
@@ -261,14 +261,14 @@ func (s *ScanConfigSrv) UpdateScanConfig(ctx context.Context, configID int64, da
 	if err := s.verifyLibrary(ctx, data.NodeImageConfig.Libraries); err != nil {
 		return err
 	}
-	if err := s.verifyStrategyID(ctx, []int64{data.LibraryImageConfig.StrategyId}); err != nil {
+	if err := s.verifyStrategyID(ctx, []int64{data.LibraryImageConfig.StrategyID}); err != nil {
 		return err
 	}
-	if err := s.verifyStrategyID(ctx, []int64{data.NodeImageConfig.StrategyId}); err != nil {
+	if err := s.verifyStrategyID(ctx, []int64{data.NodeImageConfig.StrategyID}); err != nil {
 		return err
 	}
 
-	data = data.Serialize()
+	data.Serialize()
 	updater := data.ToUpdater()
 
 	if err := s.ScanConfigDal.UpdateScanConfig(ctx, configID, updater); err != nil {
@@ -368,7 +368,7 @@ func (s *ScanConfigSrv) addLibraryScanTask(ctx context.Context, config model.Sca
 		if err := ts.GenerateScanTask(ctx, imgIds, task.UpdateTaskInfo{
 			Scope:       consts.FullScan,
 			TriggerType: consts.ScheduleTrigger,
-			StrategyID:  config.LibraryImageConfig.StrategyId,
+			StrategyID:  config.LibraryImageConfig.StrategyID,
 			Operator:    consts.SyncTriggerOperator,
 		}); err != nil {
 			logging.GetLogger().Error().Err(err).Msg("AddTaskByStrategy add scan task failed")
@@ -404,7 +404,7 @@ func (s *ScanConfigSrv) addNodeScanTask(ctx context.Context, config model.ScanCo
 		if err := ts.GenerateScanTask(ctx, imgIds, task.UpdateTaskInfo{
 			Scope:       consts.SingleScan,
 			TriggerType: consts.ScheduleTrigger,
-			StrategyID:  config.NodeImageConfig.StrategyId,
+			StrategyID:  config.NodeImageConfig.StrategyID,
 			Operator:    consts.SyncTriggerOperator,
 		}); err != nil {
 			logging.GetLogger().Error().Err(err).Msg("AddTaskByStrategy add  scan task failed")

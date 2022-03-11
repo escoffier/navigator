@@ -70,7 +70,7 @@ func (s *InitScanner) createGlobalScanConfig(ctx context.Context) error {
 		ScanCycle:          []int64{},
 		ScanTime:           "",
 		ScanAll:            false,
-		StrategyId:         strategies[0].ID,
+		StrategyID:         strategies[0].ID,
 	}
 
 	bys, err := json.Marshal(defaultConfig)

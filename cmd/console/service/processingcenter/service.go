@@ -163,7 +163,7 @@ func (s *Service) CreateProcessingRecord(ctx context.Context, arg *AddProcessing
 
 func (s *Service) saveProcessingRecord(ctx context.Context, arg *AddProcessingRecordArg, object []string, initialStatus string) (id string, err error) {
 	nowTime := time.Now()
-	username := util.GetUsernameFromContext(ctx)
+	username := model.GetUsernameFromContext(ctx)
 	processingRecord := makeProcessingRecord(arg, object, username, initialStatus, nowTime)
 	err = dal.SaveProcessingAction(ctx, s.db.Get(), makeProcessingAction(username, arg.Action, processingRecord.ID, object, nowTime))
 	if err != nil {
@@ -326,7 +326,7 @@ func (s *Service) UpdateProcessingRecordStatus(ctx context.Context, id, status s
 	return dal.UpdateProcessingRecord(ctx, s.esCli, s.getProcessingIndexPattern(), &model.ProcessingRecordChange{
 		ID:         id,
 		UpdatedAt:  util.GetMillisecondTimestampByTime(time.Now()),
-		LastOpUser: util.GetUsernameFromContext(ctx),
+		LastOpUser: model.GetUsernameFromContext(ctx),
 		Status:     status,
 	})
 }
@@ -388,7 +388,7 @@ func (s *Service) AddProcessingAction(ctx context.Context, arg *AddProcessingAct
 		partial = true
 	}
 
-	username := util.GetUsernameFromContext(ctx)
+	username := model.GetUsernameFromContext(ctx)
 	nowTime := time.Now()
 	successObj := encodePods(successPods)
 

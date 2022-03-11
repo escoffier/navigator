@@ -8,8 +8,9 @@ import (
 	"time"
 
 	"github.com/go-redis/redis/v8"
-	"gitlab.com/piccolo_su/vegeta/pkg/redistools"
 	"gitlab.com/security-rd/go-pkg/databases"
+
+	"gitlab.com/piccolo_su/vegeta/pkg/redistools"
 )
 
 var dbInitOnce sync.Once
@@ -19,17 +20,19 @@ var scannerDb *ScannerDB // todo: should be deprecated
 var scanConfigDao *ScanConfigDao
 var redisClients []*redis.Client = make([]*redis.Client, 2)
 
-func InitDb() (err error) {
+func InitDb(loglevel string) (err error) {
 	dbInitOnce.Do(func() {
 		var err error
 		scannerDB, err = databases.NewRDBWithMySQLByEnv(context.Background(), databases.OptionWithmaxOpenConnections(60),
 			databases.OptionWithMaxIdleConns(30),
 			databases.OptionWithConnMaxLifeTime(time.Hour),
 		)
-
 		if err != nil {
 			err = fmt.Errorf("connect db err:%v", err)
 			return
+		}
+		if loglevel == "debug" {
+			scannerDB.SetDebugMode()
 		}
 		scannerOrm = NewScannerOrm(scannerDB)
 		scanConfigDao = NewScanConfigDao(scannerDB)

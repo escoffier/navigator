@@ -66,7 +66,8 @@ type VulnImage struct {
 	UpdatedAt time.Time
 	DeletedAt int
 	VulnName  string `gorm:"type:varchar(255);uniqueIndex:uniq_idx_vnlu_image,priority:1"`
-	ImageId   int64  `gorm:"uniqueIndex:uniq_idx_vnlu_image,priority:2"` // 镜像id
+	// SeverityInt int    `gorm:"column:severity_int" json:"severity_int"`    // 保存一个冗余数据，用于统计
+	ImageId int64 `gorm:"uniqueIndex:uniq_idx_vnlu_image,priority:2"` // 镜像id
 }
 
 func (VulnImage) TableName() string {
@@ -100,117 +101,6 @@ type ScanLayer struct { // 层级扫描结果
 
 func (ScanLayer) TableName() string {
 	return "ivan_scanner_scan_layers"
-}
-
-type ScanImage struct { // 镜像结果// 加上镜像结果,对应原来的scantasks表
-	ID                       int64 `gorm:"primaryKey"`
-	CreatedAt                *time.Time
-	UpdatedAt                *time.Time
-	DeletedAt                int
-	ImageID                  int64                      `gorm:"column:image_id;uniqueIndex:idx_scan_image"`
-	RiskScore                float64                    `gorm:"column:risk_score" json:"risk_score"`
-	VulnScore                float64                    `gorm:"column:vuln_score" json:"vuln_score"`
-	SensitiveScore           float64                    `gorm:"column:sensitive_score" json:"sensitive_score"`
-	VirusScore               float64                    `gorm:"column:virus_score" json:"virus_score"`
-	WebshellScore            float64                    `gorm:"column:webshell_score" json:"webshell_score"`
-	VulnInfo                 []SingleScanDetail         `gorm:"-" json:"vuln_info"`
-	VulnInfoJSON             []byte                     `gorm:"type:MediumBlob" json:"-"` // 漏洞结果汇总
-	PkgInfoJSON              []byte                     `gorm:"type:MediumBlob" json:"-"` // 软件包信息
-	MaliciousInfoJSON        []byte                     `gorm:"type:MediumBlob" json:"-"` // 恶意文件
-	MaliciousInfo            []Malicious                `gorm:"-" json:"malicious_info"`  // 恶意文件
-	WebshellInfo             []Webshell                 `gorm:"-" json:"webshell_info"`   // webshell
-	WebshellInfoJSON         []byte                     `gorm:"type:MediumBlob" json:"-"` // webshell
-	SensitiveFile            []Sensitive                `gorm:"-" json:"sensitive_file"`
-	SensitiveFileJSON        []byte                     `gorm:"type:MediumBlob" json:"-"` // 敏感文件
-	PerLayerReport           []VulnerabilityLayerReport `gorm:"-" json:"per_layer_report"`
-	PerLayerReportJSON       []byte                     `gorm:"type:MediumBlob" json:"-"` // 层结果汇总
-	LicenseInfo              []LicenseInfo              `gorm:"-" json:"license_info"`
-	LicenseInfoJSON          []byte                     `gorm:"type:MediumBlob" json:"-"`
-	Software                 []Software                 `gorm:"-" json:"software"`
-	SoftwareJSON             []byte                     `gorm:"type:MediumBlob" json:"-"`
-	EnvKeyValue              []EnvKeyValue              `gorm:"-" json:"env_key_value"`
-	EnvJSON                  []byte                     `gorm:"type:MediumBlob" json:"-"`
-	OverallSeverity          string                     `gorm:"type:varchar(255)" json:"overallSeverity"` // 评级
-	OverallSeverityInt       int                        `json:"overallSeverityInt"`                       // 评级int
-	SeverityHistogram        SeverityHistogramInfo      `gorm:"-" json:"severityHistogram"`               // 评级集合
-	SeverityHistogramJSON    []byte                     `gorm:"type:MediumBlob"`
-	ScanEnableCollection     ScanEnableCollection       `gorm:"-" json:"scan_enable_collection"`
-	ScanEnableCollectionJson string                     `gorm:"type:varchar(255);column:scan_enable_collection_json"`
-	HasFixedVuln             int                        `gorm:"column:has_fixed_vuln" json:"has_fixed_vuln"`
-	ScanTaskID               string                     `gorm:"type:varchar(255)" json:"scan_task_id"`
-	Status                   string                     `gorm:"type:varchar(255)" json:"status"`  // 扫描状态
-	Message                  string                     `gorm:"type:varchar(255)" json:"message"` // 错误信息
-	StartedAt                int64                      // 扫描开始时间
-	FinishAt                 int64                      // 扫描结束时间
-}
-
-func (i ScanImage) TableName() string {
-	return "ivan_scanner_scan_images"
-}
-
-// ImageList 镜像信息表
-type ImageList struct {
-	ID        int64     `gorm:"primary_key;AUTO_INCREMENT" json:"id" `
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
-	// Url           string
-	FullRepoName      string                 `gorm:"type:varchar(255);uniqueIndex:uniq_idx_image_list,priority:1"  json:"full_repo_name"`
-	Tags              string                 `gorm:"type:varchar(255);uniqueIndex:uniq_idx_image_list,priority:2" json:"tags"`
-	Digest            string                 `gorm:"type:varchar(255);index:idx_image_digest" json:"digest"`
-	OS                string                 `gorm:"type:varchar(255);column:os" json:"os"`
-	Size              int                    `gorm:"column:size" json:"size"`
-	Library           string                 `gorm:"type:varchar(255);column:library" json:"library"`
-	ImageUUID         uint32                 `gorm:"column:image_uuid" json:"-"`
-	Questions         []QuestionInfo         `gorm:"-" json:"questions"`
-	CompleteTime      string                 `gorm:"type:varchar(255);column:complete_time" json:"complete_time"`
-	ImageScanVuln     ImageScanSummaryResult `gorm:"-" json:"image_scan_vuln"`
-	ScanStatus        int                    `gorm:"-" json:"scan_status"`
-	ImageScanVirus    []VirusFileInfo        `gorm:"-" json:"image_scan_virus"`
-	ImageScanWebshell []WebshellFileInfo     `gorm:"-" json:"image_scan_webshell"`
-	ImageScanEnv      []SummaryEnv           `gorm:"-"  json:"image_scan_env"`
-	OnLineCount       int                    `gorm:"column:on_line_count;default:0" json:"-"`
-	Status            int                    `gorm:"column:status;default:0" json:"status"`                                   //  status: -1 not ready images 0 normal status
-	RegistryID        int64                  `gorm:"uniqueIndex:uniq_idx_image_list,priority:3,default:0" json:"registry_id"` // 来源registry，id为registry表的id
-	FirstPushTime     time.Time
-	LastPushTime      time.Time  `gorm:"not null"` // 上次push时间
-	LastPullTime      time.Time  // 上次pull时间
-	ManifestV1        ManifestV1 `gorm:"-" json:"manifest_v1" `
-	ManifestV2        ManifestV2 `gorm:"-" json:"manifest_v2"`
-	ConfigFile        ConfigFile `gorm:"-" json:"config"`
-
-	ManifestV1JSON []byte `gorm:"type:Blob"` // manifest内容
-	ManifestV2JSON []byte `gorm:"type:Blob"`
-	ConfigJSON     []byte `gorm:"type:MediumBlob"`                                                       // config内容,包括layer diffid
-	FromType       int64  `gorm:"uniqueIndex:uniq_idx_image_list,priority:4,default:0" json:"from_type"` // 镜像来源
-	Layers         string `gorm:"type:text;index:idx_image_layers,length:200" json:"layers"`             // 把layer拼成字符串，为了找出基础镜像,用|分隔
-	NodeIP         string `gorm:"type:varchar(255);column:node_ip" json:"node_ip"`                       // 结点的Ip
-	NodeHostname   string `gorm:"type:varchar(255);column:node_hostname" json:"node_hostname"`           // 结点的HostName
-
-	ImageType int64 `gorm:"column:image_type;default:0" json:"image_type"`
-
-	ScanImage *ScanImage `gorm:"-" json:"scan_image"`
-	Registry  *Registry  `gorm:"-" json:"registry"`
-
-	Project        string `gorm:"type:varchar(255);project" json:"project"`     // 项目 用于报表统计
-	RepoName       string `gorm:"type:varchar(255);repo_name" json:"repo_name"` // 仓库名 用于报表统计
-	PrivilegedBoot int64  `gorm:"privileged_boot" json:"privileged_boot"`
-	IsReinforce    int    `gorm:"is_reinforce" json:"is_reinforce"`
-}
-
-func (i ImageList) TableName() string {
-	return "ivan_scanner_image_list"
-}
-
-// ImageRelate 镜像关联信息表
-type ImageRelate struct {
-	ID          int64  `gorm:"primary_key,AUTO_INCREMENT" json:"id" `
-	Digest      string `gorm:"type:varchar(255);uniqueIndex:uniq_idx_image_relate,priority:1" json:"digest"`
-	Library     string `gorm:"type:varchar(255);uniqueIndex:uniq_idx_image_relate,priority:2" json:"library"`
-	ContainerID string `gorm:"type:varchar(255);column:container_id;uniqueIndex:uniq_idx_image_relate,priority:3" json:"container_id"`
-}
-
-func (i ImageRelate) TableName() string {
-	return "ivan_scanner_image_relate"
 }
 
 // Package Package表

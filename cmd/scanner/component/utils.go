@@ -322,51 +322,6 @@ func mergeRejectRecord(img model.ImageList, record []ReasonAndDetail) model.Reje
 	return res
 }
 
-func getLayerString(img model.ImageList) string {
-	if img.Layers != "" {
-		return img.Layers
-	}
-
-	lays := make([]string, 0)
-	// 先看v2
-	for j := range img.ManifestV2.Layers {
-		lays = append(lays, img.ManifestV2.Layers[j].Digest)
-	}
-
-	// 再看v1
-	if len(lays) == 0 {
-		for j := range img.ManifestV1.HistoryV1 {
-			lays = append(lays, "sha256:"+img.ManifestV1.HistoryV1[j].LayerDegest)
-		}
-	}
-
-	// 如果还是没有，就序列化试试
-	if len(lays) == 0 && len(img.ManifestV2JSON) > 0 {
-		maniFestv2 := new(model.ManifestV2)
-		if err := json.Unmarshal(img.ManifestV2JSON, maniFestv2); err == nil {
-			for j := range maniFestv2.Layers {
-				lays = append(lays, maniFestv2.Layers[j].Digest)
-			}
-		}
-	}
-
-	// 再序列化v1
-	if len(lays) == 0 && len(img.ManifestV1JSON) > 0 {
-		maniFestV1 := new(model.ManifestV1)
-		if err := json.Unmarshal(img.ManifestV1JSON, maniFestV1); err == nil {
-			for _, his := range maniFestV1.History {
-				for _, v := range his {
-					hv1 := new(model.HistoryV1)
-					if err := json.Unmarshal([]byte(v), hv1); err == nil {
-						lays = append(lays, "sha256:"+hv1.LayerDegest)
-					}
-				}
-			}
-		}
-	}
-	return strings.Join(lays, "|")
-}
-
 func checkRejectPolicy(po model.RejectPolicy) error {
 	if len([]rune(po.Name)) > 15 || po.Name == "" {
 		return errors.New("策略的名不能为空且不超过15个字符")

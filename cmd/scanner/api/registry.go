@@ -226,7 +226,7 @@ func (s *RegistrySrv) SearchRegistry(ctx *gin.Context) {
 	}
 	param := component.SearchRegistryParam{Search: search, UseType: useType}
 	if regType != "" {
-		param.RegType = strings.Split(strings.Replace(regType, " ", "", -1), ",")
+		param.RegType = strings.Split(strings.ReplaceAll(regType, " ", ""), ",")
 	}
 
 	registries, cnt, err := s.RegistrySrv.SearchRegistry(ctx, param, filter)

@@ -13,11 +13,15 @@ import (
 	"strings"
 	"time"
 
-	"gitlab.com/piccolo_su/vegeta/pkg/util"
 	"gitlab.com/security-rd/go-pkg/databases"
+
+	"gitlab.com/piccolo_su/vegeta/pkg/util"
 
 	"github.com/dgrijalva/jwt-go"
 	"github.com/go-chi/jwtauth"
+	"gitlab.com/security-rd/go-pkg/logging"
+	"gopkg.in/gomail.v2"
+
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/captcha"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/session"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/usercenter"
@@ -26,8 +30,6 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/env"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
-	"gitlab.com/security-rd/go-pkg/logging"
-	"gopkg.in/gomail.v2"
 )
 
 type getLoginSecretResp struct {
@@ -572,7 +574,7 @@ func jwtAccessCheck(postgresDB *databases.RDBInstance) func(http.Handler) http.H
 				return
 			}
 
-			ctx = context.WithValue(r.Context(), util.CtxUserSessionKey, userSession)
+			ctx = context.WithValue(r.Context(), model.CtxUserSessionKey, userSession)
 			if r.Method == http.MethodGet {
 				next.ServeHTTP(w, r.WithContext(ctx))
 				return

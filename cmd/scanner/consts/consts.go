@@ -56,14 +56,14 @@ const (
 )
 
 const (
-	VulnType             = "vuln_info_json"
+	VulnType             = "vuln_score"
 	PkgType              = "pkg_info_json"
-	SensitiveFileType    = "sensitive_file_json"
-	MaliciousInfoType    = "malicious_info_json"
-	WebsellInfoType      = "webshell_info_json"
-	EnvEnableType        = "env_type"
-	SoftWoreType         = "soft_ware_type"
-	LicenseEnableType    = "licenceType"
+	SensitiveFileType    = "sensitive_score"
+	MaliciousInfoType    = "virus_score"
+	WebsellInfoType      = "webshell_score"
+	EnvEnableType        = "has_except_envs"
+	SoftWoreType         = "has_non_compliant_software"
+	LicenseEnableType    = "has_not_allowed_license"
 	PrivilegedEnableType = "privileged"
 
 	BaseImageType       = 1
@@ -121,3 +121,6 @@ const (
 	ImageFromNode     = "node"
 	ImageFromRegistry = "registry"
 )
+
+const DefaultVulnTopNImage = 5
+const DefaultBathSize = 500 // 批量取数据时，默认每次取的条数

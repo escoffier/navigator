@@ -13,22 +13,23 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
+	"go.mongodb.org/mongo-driver/bson/primitive"
+	"gorm.io/gorm/clause"
+
+	"gitlab.com/security-rd/go-pkg/databases"
+
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/pkg/harbor"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
-	"gitlab.com/security-rd/go-pkg/databases"
-	"go.mongodb.org/mongo-driver/bson/primitive"
-	"gorm.io/datatypes"
-	"gorm.io/gorm/clause"
 )
 
 type ScannerDalInterface interface {
 	SearchImage(ctx context.Context, param SearchImageParam, filter *model.Filter) ([]model.ImageList, int64, error)
 	DeleteImage(ctx context.Context, param DeleteImageParam) error
-	UpdateImage(ctx context.Context, where string, updater map[string]interface{}) error
+	UpdateImage(ctx context.Context, where string, updater map[string]interface{}, image *model.ImageList) error
 	CreateImage(ctx context.Context, data *model.ImageList) (*model.ImageList, error)
 	SearchImageWithScan(ctx context.Context, param SearchImageWithScanParam, filter *model.Filter) ([]*model.ImageResponse, int64, error)
 
@@ -39,7 +40,7 @@ type ScannerDalInterface interface {
 	InsertScanImage(ctx context.Context, sis []model.ScanImage) (int64, error)
 	InsertAdapterImageList(ctx context.Context, im model.ImageList) (int64, error)
 	SearchRegistry(ctx context.Context, param SearchRegistryParam, filter *model.Filter) ([]model.Registry, int64, error)
-	GetImageOverView(ctx context.Context, param GetImageOverViewParm, res interface{}) error
+	GroupImageFlags(ctx context.Context, param GetImageOverViewParm) ([]model.ImageFlagGroup, error)
 
 	SearchRejectVuln(ctx context.Context, param SearchRejectRejectVulnParam) ([]model.RejectVuln, error)
 	CreateRejectRecord(ctx context.Context, data model.RejectRecord) (*model.RejectRecord, error)
@@ -50,8 +51,10 @@ type ScannerDalInterface interface {
 	GetTaskFromImageList(ctx context.Context, imgID int64, fromURL string, auth string) (model.ScanTask, model.VirusScanTask, error)
 	SearchScanAllStatus(ctx context.Context, fromType int64) harbor.ScanAllStatus
 	GetVulnTotal(ctx context.Context) (int, error)
-	GetVulnSeverityCount(ctx context.Context) (model.SeverityCount, error)
-	GetVulnTop5(ctx context.Context) ([]model.ImageRiskScore, error)
+
+	GroupVulnSeverity(ctx context.Context) ([]model.SeverityGroup, error)
+	GroupVulnSeverityByImageID(ctx context.Context, imageID int64) ([]model.SeverityGroup, error)
+	GetVulnTopNImage(ctx context.Context, topN int) ([]model.ImageRiskScore, error)
 
 	SearchVulns(ctx context.Context, searchWord string, filter *model.Filter) ([]model.VulnList, int, error)
 	GetImagesFromVuln(ctx context.Context, name string) ([]model.VulnImageList, error)
@@ -122,63 +125,31 @@ type ScannerOrm struct {
 
 func (s *ScannerOrm) SearchSubTasksWithScanStatus(ctx context.Context, imageIds []int64, status []int) ([]model.SubTask, error) {
 
-	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*10)
+	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*15)
 	defer cancelFunc()
-	in := ""
-	for i := range status {
-		if i == len(status)-1 {
-			in = in + fmt.Sprintf("%d ", status[i])
-		} else {
-			in = in + fmt.Sprintf("%d, ", status[i])
-		}
-	}
 
-	idin := ""
-	for i := range imageIds {
-		if i == len(imageIds)-1 {
-			idin = idin + fmt.Sprintf("%d ", imageIds[i])
-		} else {
-			idin = idin + fmt.Sprintf("%d, ", imageIds[i])
-		}
-	}
-
-	sql := fmt.Sprintf("select * from %s as a where (a.image_id, a.created_at) in (select b.image_id, max(b.created_at) from %s b group by b.image_id) ", model.SubTask{}.TableName(), model.SubTask{}.TableName())
-
-	if len(status) > 0 {
-		sql = sql + fmt.Sprintf("AND a.status IN ( %s )", in)
-	}
-	if len(imageIds) > 0 {
-		sql = sql + fmt.Sprintf("AND a.image_id IN ( %s )", idin)
-	}
-	sql = sql + ";"
-	db := s.rdb.Get().WithContext(ctx)
 	res := make([]model.SubTask, 0)
-	if err := db.Raw(sql).Find(&res).Error; err != nil {
-		return nil, err
+	db := s.rdb.Get().WithContext(ctx)
+	subQuery := db.Table(model.SubTask{}.TableName()).Select("max(id)  as id ").Group("image_id")
+	if len(imageIds) > 0 {
+		subQuery = subQuery.Where("image_id IN ?", imageIds)
 	}
-	return res, nil
+	if len(status) > 0 {
+		subQuery = subQuery.Where("status IN ?", status)
+	}
+	err := db.Model(&model.SubTask{}).Joins(fmt.Sprintf("join ( ? ) as q on %s.id=q.id ", model.SubTask{}.TableName()), subQuery).Find(&res).Error
+
+	return res, err
 }
 
 func (s *ScannerOrm) CreateImage(ctx context.Context, im *model.ImageList) (*model.ImageList, error) {
 	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*5)
 	defer cancelFunc()
-
-	tmp := make([]model.ImageList, 0)
-	err := s.rdb.Get().WithContext(ctx).Where("full_repo_name = ? AND tags = ? AND from_type = ? AND registry_id = ?", im.FullRepoName, im.Tags, im.FromType, im.RegistryID).Find(&tmp).Error
+	err := s.rdb.Get().WithContext(ctx).Create(im).Error
 	if err != nil {
 		return nil, err
 	}
-	if len(tmp) == 0 {
-		err := s.rdb.Get().WithContext(ctx).Create(im).Error
-		if err != nil {
-			return nil, err
-		}
-		return im, nil
-	}
-	if err := s.rdb.Get().WithContext(ctx).Model(new(model.ImageList)).Where("id = ?", tmp[0].ID).Updates(im).Error; err != nil {
-		return nil, err
-	}
-	im.ID = tmp[0].ID
+
 	return im, nil
 }
 
@@ -224,7 +195,7 @@ func (s *ScannerOrm) SearchImageWithScan(ctx context.Context, param SearchImageW
 
 	if param.Kind != "" {
 		split := strings.Split(param.Kind, ",")
-		if InSlice(strconv.Itoa(model.QUESTION_SOFTWARE), split) || InSlice(strconv.Itoa(model.QUESTION_ENV), split) || InSlice(strconv.Itoa(model.QUESTION_LICENSE), split) {
+		if InSlice(strconv.Itoa(model.FlagHasSoftware), split) || InSlice(strconv.Itoa(model.FlagHasExceptEnv), split) || InSlice(strconv.Itoa(model.FlagHasExceptLicense), split) {
 			// 查漏洞，异常环境变量，不允许开源许可
 			images, _, err := s.SearchScanImage(ctx, SearchScanImageParam{Fields: []string{"id", "scan_enable_collection_json"}}, nil)
 			if err != nil {
@@ -232,19 +203,19 @@ func (s *ScannerOrm) SearchImageWithScan(ctx context.Context, param SearchImageW
 			}
 			softIds, envIds, licenseIds := make([]int64, 0), make([]int64, 0), make([]int64, 0)
 			for i := range images {
-				if InSlice(strconv.Itoa(model.QUESTION_SOFTWARE), split) && images[i].ScanEnableCollection.SoftwareEnable > 0 {
+				if InSlice(strconv.Itoa(model.FlagHasSoftware), split) && images[i].ScanEnableCollection.SoftwareEnable > 0 {
 					softIds = append(softIds, images[i].ID)
 				}
-				if InSlice(strconv.Itoa(model.QUESTION_ENV), split) && images[i].ScanEnableCollection.EnvEnable > 0 {
+				if InSlice(strconv.Itoa(model.FlagHasExceptEnv), split) && images[i].ScanEnableCollection.EnvEnable > 0 {
 					envIds = append(envIds, images[i].ID)
 				}
-				if InSlice(strconv.Itoa(model.QUESTION_LICENSE), split) && images[i].ScanEnableCollection.LicenseEnable > 0 {
+				if InSlice(strconv.Itoa(model.FlagHasExceptLicense), split) && images[i].ScanEnableCollection.LicenseEnable > 0 {
 					licenseIds = append(licenseIds, images[i].ID)
 				}
 			}
-			if (InSlice(strconv.Itoa(model.QUESTION_SOFTWARE), split) && len(softIds) == 0) ||
-				(InSlice(strconv.Itoa(model.QUESTION_ENV), split) && len(envIds) == 0) ||
-				(InSlice(strconv.Itoa(model.QUESTION_LICENSE), split) && len(licenseIds) == 0) {
+			if (InSlice(strconv.Itoa(model.FlagHasSoftware), split) && len(softIds) == 0) ||
+				(InSlice(strconv.Itoa(model.FlagHasExceptEnv), split) && len(envIds) == 0) ||
+				(InSlice(strconv.Itoa(model.FlagHasExceptLicense), split) && len(licenseIds) == 0) {
 				return make([]*model.ImageResponse, 0), 0, nil
 			}
 
@@ -258,19 +229,19 @@ func (s *ScannerOrm) SearchImageWithScan(ctx context.Context, param SearchImageW
 		}
 
 		for _, k := range split {
-			if k == strconv.Itoa(model.QUESTION_VULN) {
+			if k == strconv.Itoa(model.FlagHasVuln) {
 				db = db.Where("ivan_scanner_scan_images.vuln_score > 0 ")
 			}
-			if k == strconv.Itoa(model.QUESTION_SENSITIVE) {
+			if k == strconv.Itoa(model.FlagHasSensitive) {
 				db = db.Where("ivan_scanner_scan_images.sensitive_score > 0 ")
 			}
-			if k == strconv.Itoa(model.QUESTION_VIRUS) {
+			if k == strconv.Itoa(model.FlagHasMalicious) {
 				db = db.Where("ivan_scanner_scan_images.virus_score > 0 ")
 			}
-			if k == strconv.Itoa(model.QUESTION_WEB_SHELL) {
+			if k == strconv.Itoa(model.FlagHasWebshell) {
 				db = db.Where("ivan_scanner_scan_images.webshell_score > 0 ")
 			}
-			if k == strconv.Itoa(model.QUESTION_PRIORITY) {
+			if k == strconv.Itoa(model.FlagPrivilegedBoot) {
 				db = db.Where("ivan_scanner_image_list.privileged_boot = ?", consts.PrivilegedBootImage)
 			}
 		}
@@ -380,6 +351,7 @@ func (s *ScannerOrm) SearchImageWithScan(ctx context.Context, param SearchImageW
 
 	return ans, cnt, nil
 }
+
 func (s *ScannerOrm) CreateRejectPolicy(ctx context.Context, data model.RejectPolicy) (int64, error) {
 	if len(data.EnvsJson) == 0 && len(data.Envs) > 0 {
 		bys, err := json.Marshal(data.Envs)
@@ -463,44 +435,7 @@ func (s *ScannerOrm) GetImage(ctx context.Context, param GetImageParam) (*model.
 		return nil, err
 	}
 	// serialize
-	// 序列化v2
-	if len(res.ManifestV2JSON) > 0 {
-		maniFestv2 := new(model.ManifestV2)
-		if err := json.Unmarshal(res.ManifestV2JSON, maniFestv2); err == nil {
-			res.ManifestV2 = *maniFestv2
-		} else {
-			logging.GetLogger().Debug().Msg(fmt.Sprintf("serialize Manifest error:%s", err.Error()))
-		}
-	}
-
-	// 再序列化v1
-	if len(res.ManifestV1JSON) > 0 {
-		maniFestV1 := new(model.ManifestV1)
-		if err := json.Unmarshal(res.ManifestV1JSON, maniFestV1); err == nil {
-			res.ManifestV1 = *maniFestV1
-			for _, his := range maniFestV1.History {
-				for _, v := range his {
-					hv1 := new(model.HistoryV1)
-					if err := json.Unmarshal([]byte(v), hv1); err == nil {
-						res.ManifestV1.HistoryV1 = append(res.ManifestV1.HistoryV1, *hv1)
-					} else {
-						logging.GetLogger().Debug().Msg(fmt.Sprintf("Unmarshal ManifestV1.HistoryV1 error:%s", err.Error()))
-					}
-				}
-			}
-		} else {
-			logging.GetLogger().Debug().Msg(fmt.Sprintf("Unmarshal ManifestV1.ManifestJson error :%s", err.Error()))
-		}
-	}
-
-	if len(res.ConfigJSON) > 0 {
-		configFile := new(model.ConfigFile)
-		if err := json.Unmarshal(res.ConfigJSON, configFile); err == nil {
-			res.ConfigFile = *configFile
-		} else {
-			logging.GetLogger().Debug().Msg(fmt.Sprintf("serialize ConfigFile error:%s", err.Error()))
-		}
-	}
+	res.Deserialize()
 	return res, nil
 }
 
@@ -906,7 +841,7 @@ func (s *ScannerOrm) GetVulnDetails(ctx context.Context, name string) (model.Vul
 }
 
 func (s *ScannerOrm) SearchVulns(ctx context.Context, searchWord string, filter *model.Filter) ([]model.VulnList, int, error) {
-	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*3)
+	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*10)
 	defer cancelFunc()
 	db := s.rdb.Get().WithContext(ctx).Model(model.Vuln{}).Select("name,severity,pkg_name,pkg_version").Order("severity_int desc")
 	if searchWord != "" {
@@ -916,12 +851,12 @@ func (s *ScannerOrm) SearchVulns(ctx context.Context, searchWord string, filter 
 	var count int64
 	err := db.Count(&count).Error
 	if err != nil {
-		return []model.VulnList{}, 0, err
+		return nil, 0, err
 	}
 	db = model.AddFilter(db, filter)
 	err = db.Find(&resVulnList).Error
 	if err != nil {
-		return []model.VulnList{}, 0, err
+		return nil, 0, err
 	}
 	return resVulnList, int(count), nil
 }
@@ -1009,85 +944,50 @@ func (s *ScannerOrm) SearchScanLayer(ctx context.Context, param SearchScanLayerP
 	return res, cnt, nil
 }
 
-func (s *ScannerOrm) GetVulnTop5(ctx context.Context) ([]model.ImageRiskScore, error) {
+func (s *ScannerOrm) GetVulnTopNImage(ctx context.Context, topN int) ([]model.ImageRiskScore, error) {
 	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*10)
 	defer cancelFunc()
 
-	type tmpRes struct {
-		ImageID               int     `json:"image_id"`
-		ImageType             int64   `json:"image_type"`
-		VulnScore             float64 `json:"vuln_score"`
-		SeverityHistogramJSON datatypes.JSON
+	type Score struct {
+		VulnScore float64 `gorm:"column:vuln_score" json:"vuln_score"`
+		ImageID   int64   `grom:"column:image_id" json:"image_id"`
 	}
-	// ivan_scanner_image_list.image_type,ivan_scanner_image_list.from_type,ivan_scanner_image_list.node_ip,ivan_scanner_image_list.node_hostname,ivan_scanner_image_list.os").
 
-	tmp := []tmpRes{}
-	err := s.rdb.Get().WithContext(ctx).Model(model.ScanImage{}).Select("ivan_scanner_scan_images.image_id,ivan_scanner_scan_images.vuln_score,ivan_scanner_scan_images.severity_histogram_json").
-		Joins("join ivan_scanner_image_list on ivan_scanner_image_list.id=ivan_scanner_scan_images.image_id").
-		Where("ivan_scanner_scan_images.status = ?", model.ScanStatusSucceeded).Limit(5).Order("ivan_scanner_scan_images.vuln_score desc").Find(&tmp).Error
-	if err != nil {
-		return []model.ImageRiskScore{}, nil
+	images := make([]Score, 0)
+	db := s.rdb.Get().WithContext(ctx).Model(new(model.ScanImage))
+	err := db.Select("image_id", "vuln_score").Order(clause.OrderByColumn{
+		Column: clause.Column{Table: clause.CurrentTable, Name: "vuln_score"}, Desc: true,
+	}).Limit(topN).Find(&images).Error
+	ans := make([]model.ImageRiskScore, 0)
+	for i := range images {
+		ans = append(ans, model.ImageRiskScore{
+			Score:   images[i].VulnScore,
+			ImageID: images[i].ImageID,
+		})
 	}
-	res := make([]model.ImageRiskScore, 0)
-	for _, v := range tmp {
-		tmpRiskScore := model.ImageRiskScore{}
-		tmpInfo := new(model.ImageList)
-		err = s.rdb.Get().WithContext(ctx).Model(model.ImageList{}).Where("id = ?", v.ImageID).Find(&tmpInfo).Error
-		if err != nil {
-			continue
-		}
-		tmpRiskScore.ImageType = tmpInfo.ImageType
-		tmpRiskScore.FromType = tmpInfo.FromType
-		tmpRiskScore.Name = tmpInfo.FullRepoName
-		tmpRiskScore.Score = v.VulnScore
-		tmpRiskScore.Tag = tmpInfo.Tags
-		tmpRiskScore.ImageId = v.ImageID
-		tmpRiskScore.ImageType = v.ImageType
-		if len(v.SeverityHistogramJSON) > 0 {
-			if err := json.Unmarshal(v.SeverityHistogramJSON, &tmpRiskScore.SeverityHistogramInfo); err != nil {
-				logging.GetLogger().Err(err).Msg("json.Unmarshal SeverityHistogramInfo")
-			}
-		}
-		if tmpInfo.FromType == model.ImageFromSafeNode {
-			// hostname + ip + 镜像名就可以了
-			// tensorsecurity/clusterKey/namespace/podName/linux/registry.t-appagile.com/google_containers/coredns
-			split := strings.Split(tmpRiskScore.Name, "/")
-			if len(split) <= 6 {
-				continue
-			}
-			tmpRiskScore.Name = fmt.Sprintf("%s-%s-%s", tmpInfo.NodeHostname, tmpInfo.NodeIP, strings.Join(split[5:], "/"))
-		}
-		res = append(res, tmpRiskScore)
-	}
-	return res, nil
+	return ans, err
 }
 
-func (s *ScannerOrm) GetVulnSeverityCount(ctx context.Context) (model.SeverityCount, error) {
+func (s *ScannerOrm) GroupVulnSeverity(ctx context.Context) ([]model.SeverityGroup, error) {
 	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*10)
 	defer cancelFunc()
-	tmp := []string{}
-	err := s.rdb.Get().WithContext(ctx).Model(model.Vuln{}).Select("severity").Scan(&tmp).Error
-	if err != nil {
-		return model.SeverityCount{}, err
-	}
-	res := model.SeverityCount{}
-	for _, v := range tmp {
-		if v == model.SeverityCritical {
-			res.Critical++
-		} else if v == model.SeverityHigh {
-			res.High++
-		} else if v == model.SeverityMedium {
-			res.Medium++
-		} else if v == model.SeverityLow {
-			res.Low++
-		} else if v == model.SeverityNegligible {
-			res.Negligible++
-		} else if v == model.SeverityUnknown {
-			res.Unknown++
-		}
-	}
-	return res, nil
+	group := make([]model.SeverityGroup, 0)
+	db := s.rdb.Get().WithContext(ctx).Model(model.Vuln{})
+	err := db.Select("count(*) as cnt", "severity_int").Group("severity_int").Find(&group).Error
+	return group, err
 }
+
+func (s *ScannerOrm) GroupVulnSeverityByImageID(ctx context.Context, imageID int64) ([]model.SeverityGroup, error) {
+	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*10)
+	defer cancelFunc()
+
+	group := make([]model.SeverityGroup, 0)
+	db := s.rdb.Get().WithContext(ctx).Model(model.Vuln{})
+	sql := `select severity_int,count(b.id) as cnt from %s as a  join %s as b on a.name = b.vuln_name where b.image_id=%d group by a.severity_int;`
+	err := db.Raw(fmt.Sprintf(sql, model.Vuln{}.TableName(), model.VulnImage{}.TableName(), imageID)).Scan(&group).Error
+	return group, err
+}
+
 func (s *ScannerOrm) GetVulnTotal(ctx context.Context) (int, error) {
 	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*10)
 	defer cancelFunc()
@@ -1110,14 +1010,22 @@ func (s *ScannerOrm) InsertScanImage(ctx context.Context, sis []model.ScanImage)
 	return db.RowsAffected, db.Error
 }
 
-func (s *ScannerOrm) UpdateImage(ctx context.Context, where string, updater map[string]interface{}) error {
-	if where == "" {
-		return errors.New("no where")
+func (s *ScannerOrm) UpdateImage(ctx context.Context, where string, updater map[string]interface{}, image *model.ImageList) error {
+	if len(where) == 0 {
+		return fmt.Errorf("no where condition")
 	}
 	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*1)
 	defer cancelFunc()
-	db := s.rdb.Get().Model(new(model.ImageList)).WithContext(ctx).Where(where).Updates(updater)
-	return db.Error
+
+	var err error
+	db := s.rdb.Get().Model(new(model.ImageList)).WithContext(ctx).Where(where)
+
+	if len(updater) > 0 {
+		err = db.Updates(updater).Error
+	} else if image != nil {
+		err = db.Select("*").Omit("id", "created_at").Updates(image).Error
+	}
+	return err
 }
 
 func (s *ScannerOrm) SearchScanAllStatus(ctx context.Context, fromType int64) harbor.ScanAllStatus {
@@ -1299,14 +1207,29 @@ func (s *ScannerOrm) SearchScanOneStatus(ctx context.Context, param SearchScanOn
 	return tmpScanImage.Status
 }
 
-func (s *ScannerOrm) GetImageOverView(ctx context.Context, param GetImageOverViewParm, res interface{}) error {
-	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*5)
+func (s *ScannerOrm) GroupImageFlags(ctx context.Context, param GetImageOverViewParm) ([]model.ImageFlagGroup, error) {
+	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*10)
 	defer cancelFunc()
-	db := s.rdb.Get().WithContext(ctx)
-	if err := db.Raw(param.SQL).Scan(res).Error; err != nil {
-		return err
+	db := s.rdb.Get().WithContext(ctx).Model(new(model.ImageList))
+	res := make([]model.ImageFlagGroup, 0)
+	db = db.Select("count(*) as cnt", "flag").Group("flag")
+	if param.FlagMore > 0 {
+		db = db.Where("flag > ?", param.FlagMore)
 	}
-	return nil
+	if param.FlagLess > 0 {
+		db = db.Where("flag < ?", param.FlagLess)
+	}
+	if param.FromType > 0 {
+		db = db.Where("from_type = ?", param.FromType)
+	}
+	if len(param.ImageUUIDs) > 9 {
+		db = db.Where("image_uuid IN ?", param.ImageUUIDs)
+	}
+
+	if err := db.Find(&res).Error; err != nil {
+		return nil, err
+	}
+	return res, nil
 }
 
 func (s *ScannerOrm) SearchScanImage(ctx context.Context, param SearchScanImageParam, filter *model.Filter) ([]model.ScanImage, int64, error) {
@@ -1318,16 +1241,16 @@ func (s *ScannerOrm) SearchScanImage(ctx context.Context, param SearchScanImageP
 	if param.Kind != "" {
 		split := strings.Split(param.Kind, ",")
 		for _, k := range split {
-			if k == strconv.Itoa(model.QUESTION_VULN) {
+			if k == strconv.Itoa(model.FlagHasVuln) {
 				db = db.Where("vuln_score > 0 ")
 			}
-			if k == strconv.Itoa(model.QUESTION_SENSITIVE) {
+			if k == strconv.Itoa(model.FlagHasSensitive) {
 				db = db.Where("sensitive_file_json is not null ")
 			}
-			if k == strconv.Itoa(model.QUESTION_VIRUS) {
+			if k == strconv.Itoa(model.FlagHasMalicious) {
 				db = db.Where("malicious_info_json is not null ")
 			}
-			if k == strconv.Itoa(model.QUESTION_WEB_SHELL) {
+			if k == strconv.Itoa(model.FlagHasWebshell) {
 				db = db.Where("webshell_info_json is not null ")
 			}
 		}
@@ -1375,78 +1298,7 @@ func (s *ScannerOrm) SearchScanImage(ctx context.Context, param SearchScanImageP
 	}
 	// 序列化数据,
 	for i := range res {
-		vulnInfo := make([]model.SingleScanDetail, 0)
-		if len(res[i].VulnInfoJSON) > 0 {
-			if err := json.Unmarshal(res[i].VulnInfoJSON, &vulnInfo); err == nil {
-				res[i].VulnInfo = vulnInfo
-			}
-		}
-
-		perLayerReport := make([]model.VulnerabilityLayerReport, 0)
-		if len(res[i].PerLayerReportJSON) > 0 {
-			if err := json.Unmarshal(res[i].PerLayerReportJSON, &perLayerReport); err == nil {
-				res[i].PerLayerReport = perLayerReport
-			}
-		}
-
-		severityHistogram := new(model.SeverityHistogramInfo)
-		if len(res[i].SeverityHistogramJSON) > 0 {
-			if err := json.Unmarshal(res[i].SeverityHistogramJSON, severityHistogram); err == nil {
-				res[i].SeverityHistogram = *severityHistogram
-			}
-		}
-
-		sensitiveFile := make([]model.Sensitive, 0)
-		if len(res[i].SensitiveFileJSON) > 0 {
-			if err := json.Unmarshal(res[i].SensitiveFileJSON, &sensitiveFile); err == nil {
-				res[i].SensitiveFile = sensitiveFile
-			}
-		}
-		softs := make([]model.Software, 0)
-		if len(res[i].SoftwareJSON) > 0 {
-			if err := json.Unmarshal(res[i].SoftwareJSON, &softs); err != nil {
-				logging.GetLogger().Error().Err(err).Msgf("Unmarshal SoftWare")
-			}
-		}
-		res[i].Software = softs
-
-		maliciousInfo := make([]model.Malicious, 0)
-		if len(res[i].MaliciousInfoJSON) > 0 {
-			if err := json.Unmarshal(res[i].MaliciousInfoJSON, &maliciousInfo); err == nil {
-				res[i].MaliciousInfo = maliciousInfo
-			}
-		}
-
-		webShellInfo := make([]model.Webshell, 0)
-		if len(res[i].WebshellInfoJSON) > 0 {
-			if err := json.Unmarshal(res[i].WebshellInfoJSON, &webShellInfo); err == nil {
-				res[i].WebshellInfo = webShellInfo
-			}
-		}
-
-		envInfo := make([]model.EnvKeyValue, 0)
-		if len(res[i].EnvJSON) > 0 {
-			if err := json.Unmarshal(res[i].EnvJSON, &envInfo); err != nil {
-				logging.GetLogger().Err(err).Msg("SearchScanImage Unmarshal")
-			}
-			res[i].EnvKeyValue = envInfo
-		}
-
-		license := make([]model.LicenseInfo, 0)
-		if len(res[i].LicenseInfoJSON) > 0 {
-			if err := json.Unmarshal(res[i].LicenseInfoJSON, &license); err != nil {
-				logging.GetLogger().Error().Err(err).Msgf("Unmarshal LicenseInfo")
-			}
-		}
-		res[i].LicenseInfo = license
-
-		scanEnableCollection := new(model.ScanEnableCollection)
-		if len(res[i].ScanEnableCollectionJson) > 0 {
-			if err := json.Unmarshal([]byte(res[i].ScanEnableCollectionJson), &scanEnableCollection); err != nil {
-				logging.GetLogger().Err(err).Msg("SearchScanImage Unmarshal")
-			}
-		}
-		res[i].ScanEnableCollection = *scanEnableCollection
+		res[i].Deserialize()
 	}
 
 	return res, cnt, nil
@@ -1510,7 +1362,9 @@ func (s *ScannerOrm) SearchImage(ctx context.Context, param SearchImageParam, fi
 	defer cancelFunc()
 	db := s.rdb.Get().Model(new(model.ImageList)).WithContext(ctx)
 	// 默认查询没有删除的,如果不传就是0
-	db = db.Where("status = ? ", param.Status)
+	if param.UniqueImage > 0 {
+		db = db.Where("unique_image = ? ", param.UniqueImage)
+	}
 	if len(param.Digests) > 0 {
 		if len(param.Digests) == 1 {
 			db = db.Where("digest = ? ", param.Digests[0])
@@ -1522,11 +1376,11 @@ func (s *ScannerOrm) SearchImage(ctx context.Context, param SearchImageParam, fi
 		db = db.Where("image_uuid IN ? ", param.UUIDs)
 	}
 
-	if len(param.Ids) > 0 {
-		if len(param.Ids) == 1 {
-			db = db.Where("id = ? ", param.Ids[0])
+	if len(param.InIds) > 0 {
+		if len(param.InIds) == 1 {
+			db = db.Where("id = ? ", param.InIds[0])
 		} else {
-			db = db.Where("id IN ? ", param.Ids)
+			db = db.Where("id IN ? ", param.InIds)
 		}
 	}
 	if len(param.NodeHostnames) > 0 {
@@ -1540,6 +1394,9 @@ func (s *ScannerOrm) SearchImage(ctx context.Context, param SearchImageParam, fi
 			db = db.Where("registry_id IN ? ", param.RegistryIds)
 		}
 	}
+	if len(param.OmitFields) > 0 {
+		db = db.Omit(param.OmitFields...)
+	}
 	if param.Library != "" {
 		db = db.Where("library = ? ", param.Library)
 	}
@@ -1549,31 +1406,57 @@ func (s *ScannerOrm) SearchImage(ctx context.Context, param SearchImageParam, fi
 	if param.FullRepoName != "" {
 		db = db.Where("full_repo_name = ? ", param.FullRepoName)
 	}
+	if param.Tag != "" {
+		db = db.Where("tags = ? ", param.Tag)
+	}
 	if param.StartID > 0 {
 		db = db.Where("id > ?", param.StartID)
 	}
 	if param.LastID > 0 {
 		db = db.Where("id < ?", param.LastID)
 	}
-	if param.Where != "" {
-		db = db.Where(param.Where)
-	}
-	if param.Tag != "" {
-		db = db.Where("tags = ?", param.Tag)
-	}
 	if param.FromType > 0 {
 		db = db.Where("from_type = ? ", param.FromType)
 	}
+	if param.ImageType == consts.BaseImageTypeString {
+		db = db.Where(fmt.Sprintf("(flag >> %d ) & 1 = %d", model.FlagBaseImage, 1))
+	} else if param.ImageType == consts.AppImageTypeString {
+		db = db.Where(fmt.Sprintf("(flag >> %d ) & 1 = %d", model.FlagBaseImage, 0))
+	}
+	if len(param.Where) > 0 {
+		db = db.Where(param.Where)
+	}
+
 	if param.NotFromType > 0 {
 		db = db.Where("from_type != ?", param.NotFromType)
 	}
-	if param.ImageType == consts.AppImageTypeString {
-		db = db.Where("image_type = ? ", consts.AppImageType)
-	} else if param.ImageType == consts.BaseImageTypeString {
-		db = db.Where("image_type = ? ", consts.BaseImageType)
-	}
 	if param.LayersPrefix != "" {
 		db = db.Where("layers LIKE ?", fmt.Sprintf("%s%%", param.LayersPrefix))
+	}
+	if param.Flag > 0 {
+		db = db.Where("flag & ? = ?", param.Flag, param.Flag)
+	}
+	if param.FromType == model.ImageFromSafeNode && param.NodeHostname != "" {
+		db = db.Where("node_hostname =  ? ", param.NodeHostname)
+	}
+
+	// 多选，以逗号分隔
+	if param.SpecialImageType != "" {
+		param.SpecialImageType = strings.ToLower(param.SpecialImageType)
+		param.SpecialImageType = strings.Replace(param.SpecialImageType, " ", "", -1)
+		lists := strings.Split(param.SpecialImageType, ",")
+		for i := range lists {
+			if lists[i] == consts.SpecialImageTypeK8s {
+				lists = append(lists, "coredns", "etcd", "kube-apiserver", "kube-controller", "kube-proxy", "kube-scheduler", "ingress")
+			}
+		}
+		orand := make([]string, 0)
+		for i := range lists {
+			orand = append(orand, fmt.Sprintf("full_repo_name LIKE '%%%s%%'", lists[i]))
+		}
+		if len(orand) > 0 {
+			db = db.Where(strings.Join(orand, " OR "))
+		}
 	}
 
 	if len(param.Fields) > 0 {
@@ -1596,44 +1479,7 @@ func (s *ScannerOrm) SearchImage(ctx context.Context, param SearchImageParam, fi
 	}
 	// serialize
 	for i := range res {
-		// 序列化v2
-		if len(res[i].ManifestV2JSON) > 0 {
-			maniFestv2 := new(model.ManifestV2)
-			if err := json.Unmarshal(res[i].ManifestV2JSON, maniFestv2); err == nil {
-				res[i].ManifestV2 = *maniFestv2
-			} else {
-				logging.GetLogger().Debug().Msg(fmt.Sprintf("serialize Manifest error:%s", err.Error()))
-			}
-		}
-
-		// 再序列化v1
-		if len(res[i].ManifestV1JSON) > 0 {
-			maniFestV1 := new(model.ManifestV1)
-			if err := json.Unmarshal(res[i].ManifestV1JSON, maniFestV1); err == nil {
-				res[i].ManifestV1 = *maniFestV1
-				for _, his := range maniFestV1.History {
-					for _, v := range his {
-						hv1 := new(model.HistoryV1)
-						if err := json.Unmarshal([]byte(v), hv1); err == nil {
-							res[i].ManifestV1.HistoryV1 = append(res[i].ManifestV1.HistoryV1, *hv1)
-						} else {
-							logging.GetLogger().Debug().Msg(fmt.Sprintf("Unmarshal ManifestV1.HistoryV1 error:%s", err.Error()))
-						}
-					}
-				}
-			} else {
-				logging.GetLogger().Debug().Msg(fmt.Sprintf("Unmarshal ManifestV1.ManifestJson error :%s", err.Error()))
-			}
-		}
-
-		if len(res[i].ConfigJSON) > 0 {
-			configFile := new(model.ConfigFile)
-			if err := json.Unmarshal(res[i].ConfigJSON, configFile); err == nil {
-				res[i].ConfigFile = *configFile
-			} else {
-				logging.GetLogger().Debug().Msg(fmt.Sprintf("serialize ConfigFile error:%s", err.Error()))
-			}
-		}
+		res[i].Serialize()
 	}
 
 	return res, cnt, nil

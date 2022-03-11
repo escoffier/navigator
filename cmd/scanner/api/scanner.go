@@ -162,7 +162,11 @@ func (s *Scanner) ListScannedByVulnList(ctx *gin.Context) {
 // @Success 200 {object} ApiWithItem{data=ApiItem{item=model.VulnOverview{top5=[]model.ImageRiskScore{}}}}
 // @Router	/api/v1/vulns/statistic [get]
 func (s *Scanner) ListScannedByVulnOverview(ctx *gin.Context) {
-	res, _ := s.Srv.GetVulnOverView(ctx)
+	res, err := s.Srv.GetVulnOverView(ctx)
+	if err != nil {
+		response.JSONError(ctx, response.NewHttpError(http.StatusInternalServerError, err))
+		return
+	}
 	response.JSONOK(ctx, response.WithItem(res), response.WithExportFileStatus(0))
 }
 
@@ -1005,8 +1009,7 @@ func (s *Scanner) CreateBaseImage(ctx *gin.Context) {
 		return
 	}
 
-	updater := map[string]interface{}{"image_type": consts.BaseImageType}
-	if err := s.Srv.UpdateImage(ctx, component.SearchImageParam{ImageIds: body.ImageIds}, updater); err != nil {
+	if err := s.Srv.UpdateImageType(ctx, body.ImageIds, consts.BaseImageType); err != nil {
 		response.JSONError(ctx, err)
 		return
 	}
@@ -1028,8 +1031,7 @@ func (s *Scanner) DeleteBaseImage(ctx *gin.Context) {
 		response.JSONError(ctx, err)
 		return
 	}
-	body := map[string]interface{}{"image_type": consts.AppImageType}
-	if err := s.Srv.UpdateImage(ctx, component.SearchImageParam{ImageID: imageID}, body); err != nil {
+	if err := s.Srv.UpdateImageType(ctx, []int64{imageID}, consts.AppImageType); err != nil {
 		response.JSONError(ctx, err)
 		return
 	}

@@ -82,14 +82,14 @@ type OverView struct {
 }
 
 type SafeOver struct {
-	Vulns                int `json:"vulns"`
-	Viruses              int `json:"viruses"`
-	SensitiveFile        int `json:"sensitiveFile"`
-	Webshell             int `json:"webshell"`
-	ExceptEnvs           int `json:"exceptEnvs"`
-	NonCompliantSoftware int `json:"NonCompliantSoftware"`
-	NotAllowedLicense    int `json:"notAllowedLicense"`
-	PrivilegedBoot       int `json:"privilegedBoot"`
+	Vulns                int64 `json:"vulns"`
+	Viruses              int64 `json:"viruses"`
+	SensitiveFile        int64 `json:"sensitiveFile"`
+	Webshell             int64 `json:"webshell"`
+	ExceptEnvs           int64 `json:"exceptEnvs"`
+	NonCompliantSoftware int64 `json:"NonCompliantSoftware"`
+	NotAllowedLicense    int64 `json:"notAllowedLicense"`
+	PrivilegedBoot       int64 `json:"privilegedBoot"`
 }
 
 type ScanStrategy struct {

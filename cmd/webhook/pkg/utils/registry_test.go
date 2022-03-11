@@ -1,6 +1,8 @@
 package utils
 
-import "testing"
+import (
+	"testing"
+)
 
 func TestGetImageUrl(t *testing.T) {
 	type args struct {

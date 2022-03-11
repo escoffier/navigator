@@ -60,7 +60,7 @@ func (v *VulnDao) Count(ctx context.Context, opts ...model.Option) (*model.Sever
 
 	type severityCount struct {
 		Severity string `gorm:"column:severity"`
-		Count    int    `gorm:"column:count"`
+		Count    int64  `gorm:"column:count"`
 	}
 
 	db = db.Model(&model.Vuln{}).Select("severity, count(*) as count").Group("severity")
