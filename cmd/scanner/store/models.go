@@ -26,7 +26,6 @@ type SearchImageParam struct {
 	NodeHostnames    []string
 	JustCount        bool
 	UUIDs            []uint32
-	UniqueImage      uint32
 	ImageType        string
 	Flag             uint64
 	Where            string

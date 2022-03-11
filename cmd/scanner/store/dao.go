@@ -1362,9 +1362,6 @@ func (s *ScannerOrm) SearchImage(ctx context.Context, param SearchImageParam, fi
 	defer cancelFunc()
 	db := s.rdb.Get().Model(new(model.ImageList)).WithContext(ctx)
 	// 默认查询没有删除的,如果不传就是0
-	if param.UniqueImage > 0 {
-		db = db.Where("unique_image = ? ", param.UniqueImage)
-	}
 	if len(param.Digests) > 0 {
 		if len(param.Digests) == 1 {
 			db = db.Where("digest = ? ", param.Digests[0])
