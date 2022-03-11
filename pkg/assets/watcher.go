@@ -23,7 +23,7 @@ import (
 
 const (
 	defaultStartWatchTimeout = 10 * time.Second
-	resyncInterval           = 24 * time.Hour
+	resyncInterval           = 0 * time.Hour
 )
 
 type AssetsAction uint8

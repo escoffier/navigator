@@ -177,10 +177,6 @@ func (cb *PodResourcesClusterCallback) doOnPodEvent(ctx context.Context, e podEv
 		if rerr != nil {
 			logging.Get().Err(rerr).Msg("delete pod resource rel in rdb error")
 		}
-		cerr := dal.DeletePodResourceRelation(tctx, cb.parent.redisCli, e.pod, cb.cluster)
-		if cerr != nil {
-			logging.Get().Err(cerr).Msg("delete pod resource rel in cache error")
-		}
 	case assets.ActionUpdate, assets.ActionAdd:
 		owner, _ := cb.getUpperOwnerOfPod(e.pod)
 		var ownerName, ownerKind string
@@ -195,11 +191,6 @@ func (cb *PodResourcesClusterCallback) doOnPodEvent(ctx context.Context, e podEv
 		if rerr != nil {
 			logging.Get().Err(rerr).Msg("upsert pod resource rel in rdb error")
 		}
-		cerr := dal.UpsertPodResourceRelation(tctx, cb.parent.redisCli, e.pod, ownerName, ownerKind, cb.cluster, 2*cb.resyncInterval)
-		if cerr != nil {
-			logging.Get().Err(rerr).Msg("upsert pod resource rel in cache error")
-		}
-
 	}
 	return nil
 }
