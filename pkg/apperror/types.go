@@ -128,6 +128,23 @@ func NewCaptchaError(httpCode int, err error, suberrors ...Suberror) error {
 		},
 	}
 }
+
+func NewCaptchaLimitError(httpCode int, err error, suberrors ...Suberror) error {
+	_, file, line, _ := runtime.Caller(1)
+
+	return AnError{
+		detailedError{
+			err:       err,
+			English:   "The captcha request is too fast. Please try again later",
+			Chinese:   "验证码请求过快，请稍后再试",
+			HTTPCode:  httpCode,
+			Suberrors: suberrors,
+			File:      file,
+			Line:      line,
+		},
+	}
+}
+
 func NewLoginError(httpCode int, err error, suberrors ...Suberror) error {
 	_, file, line, _ := runtime.Caller(1)
 

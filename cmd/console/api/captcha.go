@@ -6,6 +6,11 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"time"
+
+	"gitlab.com/piccolo_su/vegeta/pkg/util"
+
+	"golang.org/x/time/rate"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/captcha"
 	"gitlab.com/piccolo_su/vegeta/pkg/apperror"
@@ -13,10 +18,20 @@ import (
 )
 
 func (api *api) createCaptcha() http.HandlerFunc {
+	// 1 token is generated per second, maximun 5
+	lmt := util.NewLimiter(rate.Every(time.Second), 5)
+
 	type CreateCaptchaResponse struct {
 		CaptchaID string `json:"captchaID"`
 	}
 	return func(w http.ResponseWriter, r *http.Request) {
+		if !lmt.AllowKey(util.MD5(r.UserAgent())) {
+			apperror.RespAndLog(w, r.Context(),
+				apperror.NewCaptchaLimitError(http.StatusBadRequest,
+					fmt.Errorf("the captcha request is too fast")))
+			return
+		}
+
 		service, ok := captcha.GetService()
 		if !ok {
 			apperror.RespAndLog(w, r.Context(), ErrServiceNotReady)
