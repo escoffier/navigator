@@ -484,13 +484,13 @@ func authenticator(next http.Handler) http.Handler {
 		exists, err := sessionService.IsTokenExists(ctx, username)
 		if err != nil {
 			RespAndLog(w, ctx, NewInvalidAuthToken(http.StatusUnauthorized,
-				fmt.Errorf("redis not found the token: %w", err)))
+				fmt.Errorf("redis not found the token: %s %w", username, err)))
 			return
 		}
 
 		if !exists {
 			RespAndLog(w, ctx, NewInvalidAuthToken(http.StatusUnauthorized,
-				fmt.Errorf("redis not found the token")))
+				fmt.Errorf("redis not found the token: %s", username)))
 			return
 		}
 
