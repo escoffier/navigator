@@ -145,8 +145,7 @@ type ImageRiskScore struct {
 	Score                 float64 `gorm:"column:vuln_score" json:"Score"`
 	SeverityHistogramInfo SeverityHistogramInfo
 	Tag                   string `json:"tag"`
-	ImageID               int64  `grom:"column:image_id" json:"image_id"`
-	ID                    int    `grom:"column:id" json:"id"`
+	ImageID               int64  `grom:"column:image_id" json:"id"`
 	ImageType             int64  `json:"image_type"`
 	FromType              int64  `json:"from_type"`
 }
