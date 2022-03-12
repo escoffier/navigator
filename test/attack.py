@@ -11,7 +11,7 @@ def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("--attck", help="run ATT&CK-Script")
     parser.add_argument("--goat", help="run K8S-Goat-Script")
-    parser.add_argument("--cve", help="run CVE-POC", action="store_true")
+    parser.add_argument("--cve", help="run CVE-POC")
     parser.add_argument("--rs", help="run Reverse-Shell-Script", action="store_true")
     parser.add_argument("--cm", help="run Crypto-Miner-Script", action="store_true")
     parser.add_argument("--dp", help="run Drift-Prevention-Script", action="store_true")
@@ -43,11 +43,17 @@ if args.goat:
 	run_cmd('goat', args.goat)
 
 if args.cve:
-	os.system('/test/cve/CVE-2019-14287/script.sh')
-	os.system('python3 /test/cve/CVE-2019-3874/server.py')
-	os.system('python3 /test/cve/CVE-2020-14386/server.py')
-	os.system('/usr/lib/go-1.10/bin/go run /test/cve/CVE-2019-5736/main.go')
-	show_results("\033[31m"+"Successfully exploit all cve attacks\033[0m")
+	if args.cve == 'cve-2019-14287':
+		os.system('/test/cve/CVE-2019-14287/script.sh')
+	if args.cve == 'cve-2020-14386':
+		os.system('python3 /test/cve/CVE-2020-14386/server.py')
+	if args.cve == 'cve-2019-5736':
+		os.system('go run /test/cve/CVE-2019-5736/main.go')
+	if args.cve == 'cve-2022-0185':
+		os.system('/test/cve/CVE-2022-0185/script.sh')
+	if args.cve == 'cve-2021-4034':
+		os.system('/test/cve/CVE-2021-4034/script.sh')
+	show_results("\033[31m"+"Successfully exploit %s attack\033[0m" % args.cve)
 
 if args.rs:
 	os.system('/test/rerverse_shell/RS-NC/script.sh')

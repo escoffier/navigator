@@ -335,7 +335,8 @@
   desc: Netcat Program runs inside container that allows remote code execution(Risk of Reverse Shell exploit)
   condition: >
     spawned_process and container and not ignore_proc_args and
-    (proc.name = "nc" or proc.name = "ncat")
+    (proc.name = "nc" or proc.name = "ncat") and
+    not proc.cmdline contains "-w 2 localhost 2181"
   output: >
     Netcat runs inside container that allows remote code execution (zh_msg=容器里运行netcat(反弹Shell攻击的风险),rule_type=Execution,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,
     original_info=user=%user.name user_loginuid=%user.loginuid
@@ -978,7 +979,7 @@
       value: "使用免疫防御训练应用，限制敏感文件和命令的用户权限。"
   desc: Detect file write activities on container entrypoint symlink (/proc/self/exe)
   condition: >
-    open_write and (fd.name=/proc/self/exe or fd.name startswith /proc/self/fd) and not docker_procs and container
+    open_read and (fd.name=/proc/self/exe or fd.name startswith /proc/self/fd) and not docker_procs and container
   output: >
     %fd.name is open to write by process (zh_msg=CVE-2019-5736(修改容器入口),rule_type=Privilege_Escalation,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=%proc.name %proc.exeline)
   priority: ALERT
@@ -1016,7 +1017,7 @@
       value: "使用免疫防御训练应用，限制敏感文件和命令的用户权限。"
   desc: in Linux Kernel Can Allow Container Escape in Kubernetes Linux
   condition: >
-    evt.type = unshare and proc.name=unshare and proc.args contains r and container
+    evt.type = unshare and proc.name=unshare and proc.args contains r and not proc.args contains "mount" and container
   output: >
     in Linux Kernel Can Allow Container Escape in Kubernetes Linux (zh_msg=CVE-2022-0185：Linux_kernel_bug可实现Kubernetes容器逃逸,rule_type=Privilege_Escalation,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name container=%container.info)
   priority: ALERT
@@ -1034,7 +1035,7 @@
       value: "使用免疫防御训练应用，限制敏感文件和命令的用户权限。"
   desc: This rule detects an attempt to exploit a privilege escalation vulnerability in Polkit's pkexec. By running specially crafted code, a local user can leverage this flaw to gain root privileges on a compromised system
   condition: >
-    spawned_process and user.uid != 0 and proc.name=pkexec and proc.args = '' and proc.env icontains 'GCONV_PATH='
+    spawned_process and proc.name=pkexec
   output: >
     Polkit Local Privilege Escalation Vulnerability (zh_msg=CVE-2021-4034：Polkit本地提权漏洞,rule_type=Privilege_Escalation,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type, container=%container.info)
   priority: ALERT
@@ -1383,6 +1384,7 @@
     and not user_known_change_thread_namespace_activities
     and not ignore_proc_args
     and not (tensorsec_namespace and k8s.pod.name contains "holmes")
+    and not proc.cmdline contains 'ns-mnt'
   output: >
     Namespace change (setns) by unexpected program (zh_msg=更改线程命名空间;通过调用setns尝试更改程序/线程的命名空间,rule_type=Lateral_Movement,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid
     parent=%proc.pname %container.info container_id=%container.id image=%container.image.repository:%container.image.tag)
@@ -1639,7 +1641,7 @@
       value: "使用免疫防御训练应用，使用微隔离阻拦流量，限制敏感文件和命令的用户权限。"
   desc: Detect network tools launched inside container
   condition: >
-    spawned_process and container and network_tool_procs and not ignore_proc_args and not user_known_network_tool_activities
+    spawned_process and container and network_tool_procs and not ignore_proc_args and not user_known_network_tool_activities and not proc.cmdline contains "-w 2 localhost 2181"
   output: >
     Network tool launched in container (zh_msg=在容器中启动可疑的网络工具,rule_type=Exfiltration,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid parent_process=%proc.pname
     container_id=%container.id container_name=%container.name image=%container.image.repository:%container.image.tag)
@@ -1698,26 +1700,8 @@
   priority: NOTICE
   tags: [ATT&CK, network, mitre_discovery]
 
-- rule: CVE-2019-3874(Memory cgroups escape via sctp)
-  hid: exf_15
-  hthreats: 1
-  suggestion:
-    en:
-      key: "Suggestions"
-      value: "Train applications with immune defence, block traffic using micro-segmentation and restrict user permissions for sensitive files and commands."
-    zh:
-      key: "处置建议"
-      value: "使用免疫防御训练应用，使用微隔离阻拦流量，限制敏感文件和命令的用户权限。"
-  desc: Potential exploit of CVE-2019-3874 - see https://bugzilla.redhat.com/show_bug.cgi?id=1686373
-  condition: >
-    sctp_bind and container
-  output: >
-    sctp bind attempt! (zh_msg=CVE-2019-3874(通过sctp内存溢出),rule_type=Exfiltration,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type, %container.name, %proc.exeline)
-  priority: ALERT
-  tags: [ATT&CK]
-
 - rule: Network scanning through interpreted language
-  hid: exf_16
+  hid: exf_15
   hthreats: 1
   suggestion:
     en:
@@ -1735,7 +1719,7 @@
   tags: [ATT&CK]
 
 - rule: Detected connection to container through ssh
-  hid: exf_17
+  hid: exf_16
   hthreats: 1
   suggestion:
     en:
@@ -1753,7 +1737,7 @@
   tags: [ATT&CK]
 
 - rule: Disallowed SSH Connection
-  hid: exf_18
+  hid: exf_17
   hthreats: 0
   suggestion:
     en:
@@ -4140,11 +4124,6 @@
 
 - macro: docker_procs
   condition: proc.name in (docker_binaries)
-
-# CVE-2019-3874
-# We're looking for a socket() bind using protocol number 132 (SCTP)
-- macro: sctp_bind
-  condition: (evt.type=socket and evt.arg.proto=132)
 
 - list: watson_id
   items: [51c1c6, 75fb1c, b0f328, 99a7ca, ddc305]
