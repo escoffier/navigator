@@ -4,12 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"gitlab.com/piccolo_su/vegeta/pkg/assets"
-	"gitlab.com/security-rd/go-pkg/logging"
 	"io/ioutil"
-	"k8s.io/client-go/informers"
-	configmaplister "k8s.io/client-go/listers/core/v1"
-	"k8s.io/client-go/tools/cache"
 	"net/http"
 	"os"
 	"sync/atomic"
@@ -17,7 +12,12 @@ import (
 
 	"github.com/avast/retry-go"
 	"github.com/pkg/errors"
+	"gitlab.com/piccolo_su/vegeta/pkg/assets"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
+	"gitlab.com/security-rd/go-pkg/logging"
+	"k8s.io/client-go/informers"
+	configmaplister "k8s.io/client-go/listers/core/v1"
+	"k8s.io/client-go/tools/cache"
 )
 
 const clusterInfoKey = "cluster-info"
@@ -113,9 +113,6 @@ func (m *ClusterInfoManager) ClusterKey() (string, bool) {
 }
 
 func getK8sClusterInfo(ctx context.Context, host string) (*TensorCluster, error) {
-	ctx, cancel := context.WithTimeout(ctx, 4*time.Minute)
-	defer cancel()
-
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, fmt.Sprintf("%s/internal/cluster", host), nil)
 	if err != nil {
 		return nil, errors.Errorf("Error reading request, %v", err)
@@ -123,6 +120,7 @@ func getK8sClusterInfo(ctx context.Context, host string) (*TensorCluster, error)
 
 	clusterInfo := TensorCluster{}
 	err = util.HTTPRequest(ctx, http.DefaultClient, req, func(resp *http.Response, err error) error {
+		logging.Get().Debug().Msgf("%s/internal/cluster", host)
 		if err != nil {
 			return err
 		}
@@ -144,8 +142,9 @@ func getK8sClusterInfo(ctx context.Context, host string) (*TensorCluster, error)
 			return errors.Errorf("get cluster failed, status : %v", clusterInfo.Status)
 		}
 		return nil
-	}, retry.Attempts(2))
+	}, retry.Attempts(1))
 	if err != nil {
+		logging.Get().Err(err).Msg("get cluster info err")
 		return nil, err
 	}
 

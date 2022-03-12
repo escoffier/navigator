@@ -149,9 +149,6 @@ func GenKubeConfig(c *InfoForRestConfig) (*rest.Config, error) {
 
 //KubeConfig get config from  cluster manager and generate rest.Config
 func KubeConfig() (*rest.Config, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-	defer cancel()
-
 	host := os.Getenv("CLUSTER_MANAGER_URL")
 	if host == "" {
 		return nil, fmt.Errorf("no cluster manager url")
@@ -159,7 +156,10 @@ func KubeConfig() (*rest.Config, error) {
 
 	var cluster *TensorCluster
 	stopChan := make(chan struct{})
-	err := wait.PollImmediateUntil(5*time.Second, func() (bool, error) {
+	err := wait.PollImmediateUntil(12*time.Second, func() (bool, error) {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+
 		logging.GetLogger().Info().Msg("trying to get cluster info from cluster manager")
 		var err error
 		cluster, err = getK8sClusterInfo(ctx, host)
