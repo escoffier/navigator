@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"math/rand"
 	"net/http"
 	"strings"
@@ -276,7 +277,10 @@ func (s *OnlineMonitorCB) batchDetectImages(buffer map[string]model.RejectOnline
 	}
 	defer response.Body.Close()
 	if response.StatusCode < http.StatusOK || response.StatusCode >= http.StatusMultipleChoices {
-		logging.GetLogger().Error().Msgf("detectImage 请求scanner服务出错:statusCode:%d", response.StatusCode)
+		bodyBytes, _ := io.ReadAll(response.Body)
+		scErr := fmt.Errorf("detectImage 请求scanner服务出错:statusCode:%d, msg: %s", response.StatusCode, string(bodyBytes))
+		logging.GetLogger().Err(scErr).Msgf("call scanner error")
+		return scErr
 	}
 	return nil
 }

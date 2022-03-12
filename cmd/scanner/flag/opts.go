@@ -44,7 +44,7 @@ func NewDefaultScannerOpts() *ScannerOpts {
 		RedisPassword:        "12345",
 		ParallelTaskNum:      2,
 		ParallelSubTaskNum:   2,
-		LogLevel:             "debug",
+		LogLevel:             "info",
 		WebShellServerAddr:   fmt.Sprintf("%s/v1/php/detector", "0.0.0.0:7777"),
 		ImageCacheServerIP:   "0.0.0.0",
 		ImageCacheServerPort: 9278,
