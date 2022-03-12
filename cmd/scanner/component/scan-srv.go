@@ -16,8 +16,6 @@ import (
 	"github.com/google/go-containerregistry/pkg/name"
 	"github.com/pkg/errors"
 	"github.com/rogpeppe/go-internal/cache"
-	"go.mongodb.org/mongo-driver/bson/primitive"
-
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/task"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
@@ -29,6 +27,7 @@ import (
 	scanreport "gitlab.com/piccolo_su/vegeta/pkg/model/scan-report"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
 type SearchImageWithScanParam struct {
@@ -2996,7 +2995,7 @@ func (s *ConScannerSrv) checkTrustedImage(ctx context.Context, img *model.ImageL
 
 // 检查是否为特权启动
 func (s *ConScannerSrv) checkPrivilegedBoot(ctx context.Context, img *model.ImageList, po model.RejectPolicy) (bool, []ReasonAndDetail, []model.KVHashs) {
-	logging.GetLogger().Debug().Msgf("checkPrivilegedBoot, image digest: %s, User: %s, PrivilegedBootPolicy: %s", img.Digest, img.ConfigFile.Config.User, po.PrivilegedBootPolicy)
+	logging.GetLogger().Debug().Msgf("checkPrivilegedBoot, image digest: %s, ConfigFile: %v, PrivilegedBootPolicy: %s", img.Digest, img.ConfigFile, po.PrivilegedBootPolicy)
 	// 当用户不包含root时，说明不是特权用户启动
 	// 这里把User为空时也当作root用户
 	if img.PrivilegedBoot == consts.NotPrivilegedBootImage {
