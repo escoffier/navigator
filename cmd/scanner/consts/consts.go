@@ -32,7 +32,7 @@ const TimeFormat = "2006-01-02 15:04:05.000000Z"
 const TimeFormatWithHour = "2006-01-02 15"
 const TimeFormatWithDay = "2006-01-02"
 
-const DuplicateKey = "duplicate key value"
+const DuplicateKey = "Duplicate"
 
 const (
 	EventcenterURI               = "/eventcenter/sendNotification"
@@ -83,7 +83,7 @@ const (
 
 const (
 	NodeSafeSalt     = "nodemirroringsalt"
-	NodeSafeTage     = "%s/" + NodeSafeSalt + "/%s/%s/%s/%s/%s" // 仓库地址/tensorsec/clusterKey/namespace/podName/podIp/os/镜像名
+	NodeSafeTage     = "%s/" + NodeSafeSalt + "/%s/%s/%s/%s/%s" // 仓库地址/tensorsec/clusterKey/namespace/podName/os/镜像名
 	ColonSalt        = "nodecolonsalt"
 	NodeSafeFullName = NodeSafeSalt + "/%s/&s/%s/%s/%s/%s" // tensorsec/hostname/ip/os/镜像名
 )

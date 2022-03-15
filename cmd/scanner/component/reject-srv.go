@@ -2,8 +2,10 @@ package component
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -45,6 +47,7 @@ type ImageRejectSrv interface {
 	// SignImageTrusted 将一个镜像标识为可信
 	SignImageTrusted(ctx context.Context, req *model.SignImageTrustedReq) error
 }
+
 type ImageReject struct {
 	dbdal store.ScannerDalInterface
 	// rejectDbDal store.BaseImageDalInterface
@@ -146,8 +149,9 @@ func (s *ImageReject) DeletePolicy(ctx context.Context, id int64) error {
 func (s *ImageReject) GetOverview(ctx context.Context, graph string) (*model.ImageRejectOverview, error) {
 	startAt := time.Date(time.Now().Year(), time.Now().Month(), time.Now().Day(), time.Now().Hour(), 0, 0, 0, time.UTC).Add(-23 * time.Hour)
 	_, oneDayCount, err := s.dbdal.SearchRejectRecord(ctx, store.SearchRejectRecordParam{
-		StartAt: startAt,
-		EndAt:   time.Now().UTC(),
+		StartAt:   startAt,
+		EndAt:     time.Now().UTC(),
+		JustCount: true,
 	}, model.EmptyFilterForTheTotalQuery())
 	if err != nil {
 		logging.GetLogger().Error().Err(err).Msg("ImageReject.GetOverview.SearchRejectRecord")
@@ -156,8 +160,9 @@ func (s *ImageReject) GetOverview(ctx context.Context, graph string) (*model.Ima
 
 	startAt = time.Date(time.Now().Year(), time.Now().Month(), time.Now().Day(), 0, 0, 0, 0, time.UTC).AddDate(0, 0, -6)
 	_, sevenDayCount, err := s.dbdal.SearchRejectRecord(ctx, store.SearchRejectRecordParam{
-		StartAt: startAt,
-		EndAt:   time.Now().UTC(),
+		StartAt:   startAt,
+		EndAt:     time.Now().UTC(),
+		JustCount: true,
 	}, model.EmptyFilterForTheTotalQuery())
 	if err != nil {
 		logging.GetLogger().Error().Err(err).Msg("ImageReject.GetOverview.SearchRejectRecord")
@@ -248,13 +253,15 @@ func (s *ImageReject) CreateImageWhitelist(ctx context.Context, name, library, t
 		return nil, response.NewHttpError(http.StatusBadRequest, fmt.Errorf("no tag"))
 	}
 
-	iw, err := s.dbdal.CreateImageWhitelist(ctx, model.ImageWhitelist{
+	pre := model.ImageWhitelist{
 		Library:      library,
 		FullRepoName: name,
 		Tag:          tag,
 		Digest:       digest,
-	})
+	}
+	iw, err := s.dbdal.CreateImageWhitelist(ctx, pre)
 	if err != nil {
+		logging.GetLogger().Err(err).Interface("ImageWhitelist", pre).Msg("CreateImageWhitelist")
 		if strings.Contains(err.Error(), consts.DuplicateKey) {
 			// 如果是从k8s的阻断记录添加的白名单，这时是没有digest的，这里如果再加的话就要更新操作
 			if digest != "" {
@@ -515,4 +522,50 @@ func GenerationInterval(interval int, intervalType string) []time.Time {
 		}
 	}
 	return res
+}
+
+func mergeRejectRecord(img model.ImageList, record []ReasonAndDetail) (*model.RejectRecord, error) {
+	res := model.RejectRecord{
+		Library:      img.Library,
+		FullRepoName: img.FullRepoName,
+		Tag:          img.Tags,
+		RejectAt:     time.Now().UTC(),
+		Digest:       img.Digest, // 这里把digest存起来，好排查问题
+	}
+
+	reasonMap := make(map[int64]int64)
+	reasonDetailMap := make(map[string]int64)
+	reasons := make([]int64, 0)
+	reasonDetails := make([]string, 0)
+
+	for i := range record {
+		if reasonMap[record[i].RejectReason] < 1 {
+			reasons = append(reasons, record[i].RejectReason)
+			reasonMap[record[i].RejectReason]++
+		}
+
+		if reasonDetailMap[record[i].RejectDetail] < 1 {
+			reasonDetails = append(reasonDetails, record[i].RejectDetail)
+			reasonDetailMap[record[i].RejectDetail]++
+		}
+		// 对同一个仓库来说，只会设置一个阻断评分和阻断级别,所以这里可以直接在循环中更新值
+		if record[i].VulnScore > 0 {
+			res.VulnScore = record[i].VulnScore
+		}
+		if record[i].VulnLevel != "" {
+			res.VulnLevel = record[i].VulnLevel
+		}
+	}
+	reasonsDuplication := make(map[string]string)
+	for _, r := range reasons {
+		reasonsDuplication[strconv.Itoa(int(r))] = strconv.Itoa(int(r))
+	}
+	bys, err := json.Marshal(reasonsDuplication)
+	if err != nil {
+		return nil, err
+	}
+	res.RejectReasonJson = bys
+
+	res.RejectDetail = strings.Join(reasonDetails, "|")
+	return &res, nil
 }

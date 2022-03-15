@@ -188,3 +188,15 @@ func MD5(str string) string {
 	h.Write([]byte(str))
 	return hex.EncodeToString(h.Sum(nil))
 }
+
+func DeDuplicationInt64Slice(va []int64) []int64 {
+	exit := make(map[int64]struct{})
+	ans := make([]int64, 0, len(va))
+	for i := range va {
+		if _, ok := exit[va[i]]; !ok {
+			ans = append(ans, va[i])
+			exit[va[i]] = struct{}{}
+		}
+	}
+	return ans
+}
