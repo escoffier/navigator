@@ -56,8 +56,8 @@ func (si ScanImage) TableName() string {
 	return "ivan_scanner_scan_images"
 }
 
-func ExistFlag(except uint64, exceptFlat int64) bool {
-	return (except>>exceptFlat)&1 == 1
+func ExistFlag(value uint64, flag int64) bool {
+	return (value>>flag)&1 == 1
 }
 
 func (si *ScanImage) GenImageFlag(preFlag uint64) uint64 {

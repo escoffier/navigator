@@ -169,6 +169,7 @@ type SearchRejectRecordParam struct {
 	FullRepoName  string // 镜像名
 	Tag           string // 版本号
 	Fields        []string
+	JustCount     bool
 }
 
 type SearchImageWhitelistParam struct {

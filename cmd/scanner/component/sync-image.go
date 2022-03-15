@@ -120,7 +120,7 @@ func (s *SyncRepoImage) SyncImage(ctx context.Context) error {
 				}
 
 				if len(imgIds) > 0 {
-					imgIds = DeDuplicationInt64Slice(imgIds)
+					imgIds = util.DeDuplicationInt64Slice(imgIds)
 					logging.GetLogger().Info().Int("ImageIds", len(imgIds)).Msg("SyncImage send library image scan tasks")
 					ts := task.NewTaskSrv()
 					if err := ts.GenerateScanTask(ctx, imgIds, task.UpdateTaskInfo{Scope: consts.SingleScan,
@@ -140,7 +140,7 @@ func (s *SyncRepoImage) SyncImage(ctx context.Context) error {
 					}
 				}
 				if len(imgIds) > 0 {
-					imgIds = DeDuplicationInt64Slice(imgIds)
+					imgIds = util.DeDuplicationInt64Slice(imgIds)
 
 					logging.GetLogger().Info().Int("ImageIds", len(imgIds)).Msg("SyncImage send node image scan tasks")
 					ts := task.NewTaskSrv()

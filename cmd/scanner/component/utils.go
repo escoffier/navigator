@@ -12,7 +12,6 @@ import (
 	"io/ioutil"
 	"net/http"
 	"os"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -279,49 +278,6 @@ func sendMsgToEventCenter(ctx context.Context, reqBody model.ReqBody) error {
 	return nil
 }
 
-func mergeRejectRecord(img model.ImageList, record []ReasonAndDetail) model.RejectRecord {
-	res := model.RejectRecord{
-		Library:      img.Library,
-		FullRepoName: img.FullRepoName,
-		Tag:          img.Tags,
-		RejectAt:     time.Now().UTC(),
-		Digest:       img.Digest, // 这里把digest存起来，好排查问题
-	}
-
-	reasonMap := make(map[int64]int64)
-	reasonDetailMap := make(map[string]int64)
-	reasons := make([]int64, 0)
-	reasonDetails := make([]string, 0)
-
-	for i := range record {
-		if reasonMap[record[i].RejectReason] < 1 {
-			reasons = append(reasons, record[i].RejectReason)
-			reasonMap[record[i].RejectReason]++
-		}
-
-		if reasonDetailMap[record[i].RejectDetail] < 1 {
-			reasonDetails = append(reasonDetails, record[i].RejectDetail)
-			reasonDetailMap[record[i].RejectDetail]++
-		}
-		// 对同一个仓库来说，只会设置一个阻断评分和阻断级别,所以这里可以直接在循环中更新值
-		if record[i].VulnScore > 0 {
-			res.VulnScore = record[i].VulnScore
-		}
-		if record[i].VulnLevel != "" {
-			res.VulnLevel = record[i].VulnLevel
-		}
-	}
-	reasonsDuplication := make(map[string]string)
-	for _, r := range reasons {
-		reasonsDuplication[strconv.Itoa(int(r))] = strconv.Itoa(int(r))
-	}
-	if bys, err := json.Marshal(reasonsDuplication); err == nil {
-		res.RejectReasonJson = bys
-	}
-	res.RejectDetail = strings.Join(reasonDetails, "|")
-	return res
-}
-
 func checkRejectPolicy(po model.RejectPolicy) error {
 	if len([]rune(po.Name)) > 15 || po.Name == "" {
 		return errors.New("策略的名不能为空且不超过15个字符")
@@ -567,18 +523,6 @@ func MatchSuffix(pre, rule string) bool {
 	split := strings.Split(pre, ".")
 	rule = strings.Replace(rule, ".", "", 1)
 	return split[len(split)-1] == rule
-}
-
-func DeDuplicationInt64Slice(va []int64) []int64 {
-	exit := make(map[int64]int64)
-	ans := make([]int64, 0)
-	for i := range va {
-		if exit[va[i]] == 0 {
-			ans = append(ans, va[i])
-			exit[va[i]]++
-		}
-	}
-	return ans
 }
 
 func ParseConfigEnv(env []string) []model.EnvKeyValue {

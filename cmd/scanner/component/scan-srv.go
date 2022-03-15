@@ -16,6 +16,8 @@ import (
 	"github.com/google/go-containerregistry/pkg/name"
 	"github.com/pkg/errors"
 	"github.com/rogpeppe/go-internal/cache"
+	"go.mongodb.org/mongo-driver/bson/primitive"
+
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/task"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
@@ -27,7 +29,6 @@ import (
 	scanreport "gitlab.com/piccolo_su/vegeta/pkg/model/scan-report"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
-	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
 type SearchImageWithScanParam struct {
@@ -246,7 +247,7 @@ func (s *ConScannerSrv) ListBaseImageOfApp(ctx context.Context, imageID int64, f
 		return nil, 0, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf("获取基础镜像出错"))
 	}
 	if len(images) == 0 {
-		return nil, 0, response.NewHttpError(http.StatusExpectationFailed, errors.New("not find the app image"))
+		return []model.ImageList{}, 0, nil
 	}
 
 	baseImages, _, err := s.dbdal.SearchImage(ctx, store.SearchImageParam{ImageType: consts.BaseImageTypeString}, nil)
@@ -456,8 +457,12 @@ func (s *ConScannerSrv) K8sDeployDetect(ctx context.Context, containerInfo []mod
 		}
 		// 存储阻断记录
 		if !safe && len(records) > 0 {
-			res := mergeRejectRecord(img, records)
-			if _, err := s.dbdal.CreateRejectRecord(ctx, res); err != nil {
+			res, err := mergeRejectRecord(img, records)
+			if err != nil {
+				logging.GetLogger().Error().Err(err).Msg("TickOnlineScan mergeRejectRecord")
+				return flag
+			}
+			if _, err := s.dbdal.CreateRejectRecord(ctx, *res); err != nil {
 				logging.GetLogger().Error().Err(err).Msgf("TickOnlineScan CreateRejectRecord create record error %s", err.Error())
 			}
 		}
@@ -611,9 +616,13 @@ func (s *ConScannerSrv) ScanOneForCICDResult(ctx context.Context, req *model.Sca
 	logging.GetLogger().Info().Msgf("CICD ScanOneForCICDResult detect complete, image: %s%s:%s safe: %t, length of records: %d, length of msg: %d", req.Library, img[0].FullRepoName, img[0].Tags, safe, len(records), len(msgs))
 	if !safe && len(records) > 0 {
 		logging.GetLogger().Info().Msgf("CICD ScanOneForCICDResult detect completed ,blocked, insert reject record")
-		res := mergeRejectRecord(img[0], records)
+		res, err := mergeRejectRecord(img[0], records)
+		if err != nil {
+			logging.GetLogger().Err(err).Msg("CICD mergeRejectRecord")
+			return nil, err
+		}
 		res.Library = req.Library
-		if _, err := s.dbdal.CreateRejectRecord(ctx, res); err != nil {
+		if _, err := s.dbdal.CreateRejectRecord(ctx, *res); err != nil {
 			logging.GetLogger().Err(err).Msgf("CICD ScanOneForCICDResult insert reject record error %s", err.Error())
 		}
 	}
@@ -706,8 +715,10 @@ func (s *ConScannerSrv) ScanOneForCICD(ctx context.Context, req *model.ScanOneFo
 		}
 	}
 	img.Layers = img.GetLayerString()
+	img.Flag = img.GenImageFlag(0)
+	img.CheckSum = img.GetImageCheckSum()
 	// 同步镜像到数据库
-	createdImage, err := s.dbdal.CreateImage(ctx, &img)
+	createdImage, err := s.dbdal.CreateImageAndUpdate(ctx, &img)
 	if err != nil {
 		logging.GetLogger().Err(err).Msgf("CICD insert image image_list error image %s/%s:%s", regs[0].Url, img.FullRepoName, tag)
 		return nil, err
@@ -1044,17 +1055,11 @@ func (s *ConScannerSrv) GetScanOneStatus(ctx context.Context, imgID int64, fromU
 		NodeHostname:   imgs[0].NodeHostname,
 		IsReinforce:    int64(imgs[0].IsReinforce),
 		PrivilegedBoot: imgs[0].PrivilegedBoot,
+		Flag:           imgs[0].Flag,
 	}
 
 	// 查状态
 	status, err := s.taskdal.SearchSubTasksWithScanStatus(ctx, []int64{imgID}, nil)
-	if err != nil {
-		logging.GetLogger().Err(err).Msgf(fmt.Sprintf("GetScanOneStatus.SearchScanImage error:%s", err.Error()))
-		return nil, response.NewHttpError(http.StatusInternalServerError, err)
-	}
-
-	// 查scan_image
-	scs, _, err := s.dbdal.SearchScanImage(ctx, store.SearchScanImageParam{ImageIds: []int64{imgs[0].ID}}, nil)
 	if err != nil {
 		logging.GetLogger().Err(err).Msgf(fmt.Sprintf("GetScanOneStatus.SearchScanImage error:%s", err.Error()))
 		return nil, response.NewHttpError(http.StatusInternalServerError, err)
@@ -1102,45 +1107,21 @@ func (s *ConScannerSrv) GetScanOneStatus(ctx context.Context, imgID int64, fromU
 		}
 	}
 
-	if len(scs) == 0 {
-		return &ans, nil
+	flagList := model.GetScanFlag()
+	for _, f := range flagList {
+		if model.ExistFlag(ans.Flag, f) {
+			ans.Questions = append(ans.Questions, model.QuestionInfo{ID: int(f)})
+		}
 	}
-
-	qus := make([]model.QuestionInfo, 0)
-
-	ans.HasFixedVulu = int64(scs[0].HasFixedVuln)
-	if scs[0].VulnScore > 0 {
-		qus = append(qus, model.QuestionInfo{ID: model.FlagHasVuln})
+	if model.ExistFlag(ans.Flag, model.FlagBaseImage) {
+		ans.ImageType = consts.BaseImageType
 	}
-
-	if scs[0].SensitiveScore > 0 {
-		qus = append(qus, model.QuestionInfo{ID: model.FlagHasSensitive})
+	if model.ExistFlag(ans.Flag, model.FlagHasFixedVuln) {
+		ans.HasFixedVulu = consts.HasFixedvuln
 	}
-	if scs[0].VirusScore > 0 {
-		qus = append(qus, model.QuestionInfo{ID: model.FlagHasMalicious})
+	if model.ExistFlag(ans.Flag, model.FlagReinforced) {
+		ans.IsReinforce = consts.IsReinforceImage
 	}
-	if scs[0].WebshellScore > 0 {
-		qus = append(qus, model.QuestionInfo{ID: model.FlagHasWebshell})
-	}
-
-	if scs[0].ScanEnableCollection.EnvEnable > 0 {
-		qus = append(qus, model.QuestionInfo{ID: model.FlagHasExceptEnv})
-	}
-
-	if scs[0].ScanEnableCollection.LicenseEnable > 0 {
-		qus = append(qus, model.QuestionInfo{ID: model.FlagHasExceptLicense, Info: ParseLicense(scs[0].LicenseInfo)})
-	}
-
-	if scs[0].ScanEnableCollection.SoftwareEnable > 0 {
-		qus = append(qus, model.QuestionInfo{ID: model.FlagHasSoftware, Info: ParseSoftWare(scs[0].Software)})
-	}
-	// 特权启动
-	if imgs[0].PrivilegedBoot == consts.PrivilegedBootImage {
-		qus = append(qus, model.QuestionInfo{ID: model.FlagPrivilegedBoot})
-	}
-
-	ans.Questions = append(ans.Questions, qus...)
-	ans.RiskScore = scs[0].VulnScore + scs[0].SensitiveScore + math.Min(scs[0].WebshellScore+scs[0].VirusScore, 40)
 
 	return &ans, nil
 }
@@ -1414,6 +1395,7 @@ func (s *ConScannerSrv) SearchImageWithScan(ctx context.Context, param SearchIma
 		NodeHostname:     param.NodeHostname,
 		SpecialImageType: param.SpecialImageType,
 		OmitFields:       []string{"config_json", "manifest_v1_json", "manifest_v2_json"},
+		UUIDs:            param.UUIDs,
 	}
 	// 查在线
 	onlineSQL := fmt.Sprintf("select distinct a.id  from  %s a  join %s b  on  a.image_uuid = b.image_uuid ;", model.ImageList{}.TableName(), model.TensorContainer{}.TableName())
@@ -1474,8 +1456,8 @@ func (s *ConScannerSrv) SearchImageWithScan(ctx context.Context, param SearchIma
 
 		inIds = append(inIds, statusInIds...)
 	}
-	daoParam.InIds = DeDuplicationInt64Slice(inIds)
-	daoParam.NotInIds = DeDuplicationInt64Slice(notInIds)
+	daoParam.InIds = util.DeDuplicationInt64Slice(inIds)
+	daoParam.NotInIds = util.DeDuplicationInt64Slice(notInIds)
 	daoParam.Flag = param.genFlag()
 
 	logging.GetLogger().Info().Interface("daoparam", daoParam).Msg("SearchImageWithScan.SearchImage")
@@ -1540,7 +1522,7 @@ func (s *ConScannerSrv) SearchImageWithScan(ctx context.Context, param SearchIma
 		// 加上扫描状态
 		if sc, ok := statusMap[res[i].ID]; ok {
 			res[i].ScanStatus = int(sc.Status)
-			if sc.FinishedAt != nil && sc.FinishedAt.IsZero() {
+			if sc.FinishedAt != nil && !sc.FinishedAt.IsZero() {
 				res[i].CompleteTime = sc.FinishedAt.UnixMilli()
 			}
 		} else {
@@ -1551,24 +1533,6 @@ func (s *ConScannerSrv) SearchImageWithScan(ctx context.Context, param SearchIma
 			res[i].Trusted = on
 		}
 	}
-
-	// 兼容前端把questionInfo信息加上
-	// scs, _, err := s.dbdal.SearchScanImage(ctx, store.SearchScanImageParam{ImageIds: imagesIds,
-	// 	Fields: []string{"image_id", "finish_at", "risk_score", "vuln_score", "sensitive_score", "webshell_score", "virus_score"}}, nil)
-	// if err != nil {
-	// 	logging.GetLogger().Error().Err(err).Msg("SearchImageWithScan.SearchScanImage")
-	// 	return nil, 0, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf(consts.StatusInternalServerErrorMsg))
-	// }
-	//
-	// for i := range scs {
-	// 	if _, ok := imageMap[scs[i].ImageID]; ok && scs[i].FinishAt > 0 {
-	// 		imageMap[scs[i].ImageID].CompleteTime = scs[i].FinishAt
-	// 	}
-	// 	// 镜像评分信息加上
-	// 	if _, ok := imageMap[scs[i].ImageID]; ok {
-	// 		imageMap[scs[i].ImageID].RiskScore = scs[i].VulnScore + scs[i].SensitiveScore + math.Min(scs[i].WebshellScore+scs[i].VirusScore, 40)
-	// 	}
-	// }
 
 	// 把仓库信息加上
 	registries, _, err := s.registryDal.SearchRegistry(ctx, store.SearchRegistryParam{}, nil)
@@ -1583,6 +1547,7 @@ func (s *ConScannerSrv) SearchImageWithScan(ctx context.Context, param SearchIma
 	}
 
 	for i := range res {
+		// 兼容前端把questionInfo信息加上
 		flagList := model.GetScanFlag()
 		for _, f := range flagList {
 			if model.ExistFlag(res[i].Flag, f) {
@@ -2575,8 +2540,12 @@ func (s *ConScannerSrv) CreateSafeReject(ctx context.Context, ImageList model.Im
 	tmpReasonAndDetails := []ReasonAndDetail{}
 	tmpReasonAndDetails = append(tmpReasonAndDetails, tmpReasonAndDetail)
 	if msgType == consts.AlertKindK8s {
-		res := mergeRejectRecord(img, tmpReasonAndDetails)
-		if _, err := s.dbdal.CreateRejectRecord(ctx, res); err != nil {
+		res, err := mergeRejectRecord(img, tmpReasonAndDetails)
+		if err != nil {
+			logging.GetLogger().Err(err).Msgf("CICD store reject_record mergeRejectRecord")
+			return
+		}
+		if _, err := s.dbdal.CreateRejectRecord(ctx, *res); err != nil {
 			logging.GetLogger().Err(err).Msgf("CICD store reject_record error %s", err.Error())
 		}
 	}

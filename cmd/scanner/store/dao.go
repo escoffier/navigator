@@ -31,6 +31,7 @@ type ScannerDalInterface interface {
 	DeleteImage(ctx context.Context, param DeleteImageParam) error
 	UpdateImage(ctx context.Context, where string, updater map[string]interface{}, image *model.ImageList) error
 	CreateImage(ctx context.Context, data *model.ImageList) (*model.ImageList, error)
+	CreateImageAndUpdate(ctx context.Context, im *model.ImageList) (*model.ImageList, error)
 	SearchImageWithScan(ctx context.Context, param SearchImageWithScanParam, filter *model.Filter) ([]*model.ImageResponse, int64, error)
 
 	SearchScanLayer(ctx context.Context, param SearchScanLayerParam, filter *model.Filter) ([]model.ScanLayer, int64, error)
@@ -140,6 +141,24 @@ func (s *ScannerOrm) SearchSubTasksWithScanStatus(ctx context.Context, imageIds 
 	err := db.Model(&model.SubTask{}).Joins(fmt.Sprintf("join ( ? ) as q on %s.id=q.id ", model.SubTask{}.TableName()), subQuery).Find(&res).Error
 
 	return res, err
+}
+
+func (s *ScannerOrm) CreateImageAndUpdate(ctx context.Context, im *model.ImageList) (*model.ImageList, error) {
+	// 先查一下
+	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*5)
+	defer cancelFunc()
+	imageLists, _, err := s.SearchImage(ctx, SearchImageParam{FromType: im.FromType, FullRepoName: im.FullRepoName, Tag: im.Tags, RegistryIds: []int64{im.RegistryID}}, nil)
+	if err != nil {
+		return nil, err
+	}
+	if len(imageLists) == 0 {
+		return s.CreateImage(ctx, im)
+	}
+	im.ID = imageLists[0].ID
+	if err := s.UpdateImage(ctx, fmt.Sprintf("id = %d", im.ID), nil, im); err != nil {
+		return nil, err
+	}
+	return im, nil
 }
 
 func (s *ScannerOrm) CreateImage(ctx context.Context, im *model.ImageList) (*model.ImageList, error) {
@@ -1374,11 +1393,10 @@ func (s *ScannerOrm) SearchImage(ctx context.Context, param SearchImageParam, fi
 	}
 
 	if len(param.InIds) > 0 {
-		if len(param.InIds) == 1 {
-			db = db.Where("id = ? ", param.InIds[0])
-		} else {
-			db = db.Where("id IN ? ", param.InIds)
-		}
+		db = db.Where("id IN ? ", param.InIds)
+	}
+	if len(param.NotInIds) > 0 {
+		db = db.Where("id NOT IN ? ", param.NotInIds)
 	}
 	if len(param.NodeHostnames) > 0 {
 		db = db.Where("node_hostname IN ? ", param.NodeHostnames)
@@ -1654,11 +1672,7 @@ func (s *ScannerOrm) SearchRejectRecord(ctx context.Context, param SearchRejectR
 	}
 
 	if len(param.Libraries) > 0 {
-		if len(param.Libraries) == 1 {
-			db = db.Where("library = ? ", param.Libraries[0])
-		} else {
-			db = db.Where("library IN ? ", param.Libraries)
-		}
+		db = db.Where("library IN ? ", param.Libraries)
 	}
 	if param.FullRepoName != "" {
 		db = db.Where("full_repo_name = ? ", param.FullRepoName)
@@ -1667,6 +1681,8 @@ func (s *ScannerOrm) SearchRejectRecord(ctx context.Context, param SearchRejectR
 		db = db.Where("tag = ? ", param.Tag)
 	}
 
+	// 计算count
+	var cnt int64
 	if len(param.RejectReasons) > 0 {
 		// 查出全部数据序列化之后再做筛选
 		res := make([]*model.RejectRecord, 0)
@@ -1691,19 +1707,23 @@ func (s *ScannerOrm) SearchRejectRecord(ctx context.Context, param SearchRejectR
 				ids = append(ids, res[i].ID)
 			}
 		}
-		if len(ids) == 0 {
-			return make([]model.RejectRecord, 0), 0, nil
+		cnt = int64(len(ids))
+		if len(ids) == 0 || (filter != nil && int64(len(ids)) <= filter.Offset) {
+			return make([]model.RejectRecord, 0), cnt, nil
 		}
-		db = db.Where("id IN ? ", ids)
+
+		db = db.Where("id IN ? ", ids[int(filter.Offset):int(filter.Offset+filter.Limit)])
 	}
 	if len(param.Fields) > 0 {
 		db = db.Select(param.Fields)
 	}
-
-	// 计算count
-	var cnt int64
-	if err := db.Count(&cnt).Error; err != nil {
-		return nil, 0, err
+	if cnt == 0 {
+		if err := db.Count(&cnt).Error; err != nil {
+			return nil, 0, err
+		}
+	}
+	if param.JustCount {
+		return nil, cnt, nil
 	}
 	db = model.AddFilter(db, filter)
 	res := make([]model.RejectRecord, 0)
@@ -1711,21 +1731,8 @@ func (s *ScannerOrm) SearchRejectRecord(ctx context.Context, param SearchRejectR
 		return nil, cnt, err
 	}
 	// 序列化数据
-	// 因为要对这个字段做查询，所以数据库只能存{"1":"1"}的方式
 	for i := range res {
-		re := make([]int64, 0)
-		reasonMap := make(map[string]string)
-		if len(res[i].RejectReasonJson) > 0 {
-			if err := json.Unmarshal(res[i].RejectReasonJson, &reasonMap); err != nil {
-				logging.GetLogger().WithContext(ctx).Errorf(err, "SearchRejectRecord json Unmarshal error")
-			}
-		}
-		for k := range reasonMap {
-			if i, err := strconv.ParseInt(k, 10, 64); err == nil {
-				re = append(re, i)
-			}
-		}
-		res[i].RejectReason = re
+		res[i].Deserialize()
 	}
 	return res, cnt, nil
 }

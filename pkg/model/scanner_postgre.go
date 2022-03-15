@@ -13,11 +13,10 @@ import (
 	"github.com/gobwas/glob"
 	"gorm.io/gorm"
 
-	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
-	"gitlab.com/piccolo_su/vegeta/pkg/logging"
-
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/vuln-updata/cnnvd"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/vuln-updata/cnvd"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
+	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 )
 
 type VulnMatedata struct {
@@ -356,19 +355,20 @@ type Webshell struct {
 
 // RejectRecord 拦截记录表
 type RejectRecord struct {
-	ID               int64     `json:"id"`
-	Library          string    `json:"library"`                                                                    // 仓库名
-	FullRepoName     string    `gorm:"type:varchar(255);index:idx_reject_record,priority:1" json:"full_repo_name"` // 镜像名
-	Tag              string    `gorm:"type:varchar(255);index:idx_reject_record,priority:2" json:"tag"`            // 版本号
-	RejectDetail     string    `gorm:"type:varchar(255);" json:"reject_detail"`                                    // 阻断原因(详细)用|分隔
-	RejectReasonJson []byte    `gorm:"type:MediumBlob;column:reject_reason_json" json:"-"`                         // 阻断原因(大类) {"1":"1"}
-	RejectReason     []int64   `gorm:"-" json:"reject_reason"`                                                     // 阻断原因(大类)
-	VulnScore        int64     `json:"vuln_score"`                                                                 // 被阻断时设置的策略漏洞评分
-	VulnLevel        string    `gorm:"type:varchar(255);" json:"vuln_level"`                                       // 被阻断时设置的策略漏洞评级
-	Digest           string    `gorm:"type:varchar(255);" json:"digest"`
-	RejectAt         time.Time `gorm:"index"  json:"reject_at"` // 阻断时间
-	CreatedAt        time.Time `json:"created_at"`              // 创建时间
-	DeletedAt        int       `json:"deleted_at,omitempty"`
+	ID               int64   `json:"id"`
+	Library          string  `json:"library"`                                                                    // 仓库名
+	FullRepoName     string  `gorm:"type:varchar(255);index:idx_reject_record,priority:1" json:"full_repo_name"` // 镜像名
+	Tag              string  `gorm:"type:varchar(255);index:idx_reject_record,priority:2" json:"tag"`            // 版本号
+	RejectDetail     string  `gorm:"type:varchar(255);" json:"reject_detail"`                                    // 阻断原因(详细)用|分隔
+	RejectReasonJson []byte  `gorm:"type:MediumBlob;column:reject_reason_json" json:"-"`                         // 阻断原因(大类) {"1":"1"}
+	RejectReason     []int64 `gorm:"-" json:"reject_reason"`                                                     // 阻断原因(大类)
+	// ReasonFlag       uint64    `gorm:"column:reason_flag" json:"reason_flag"`
+	VulnScore int64     `json:"vuln_score"`                           // 被阻断时设置的策略漏洞评分
+	VulnLevel string    `gorm:"type:varchar(255);" json:"vuln_level"` // 被阻断时设置的策略漏洞评级
+	Digest    string    `gorm:"type:varchar(255);" json:"digest"`
+	RejectAt  time.Time `gorm:"index"  json:"reject_at"` // 阻断时间
+	CreatedAt time.Time `json:"created_at"`              // 创建时间
+	DeletedAt int       `json:"deleted_at,omitempty"`
 }
 
 func (rr *RejectRecord) Deserialize() *RejectRecord {
