@@ -2,7 +2,6 @@ package k8s
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -11,10 +10,12 @@ import (
 	"time"
 
 	"github.com/avast/retry-go"
+	json "github.com/json-iterator/go"
 	"github.com/pkg/errors"
 	"gitlab.com/piccolo_su/vegeta/pkg/assets"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 	"gitlab.com/security-rd/go-pkg/logging"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/informers"
 	configmaplister "k8s.io/client-go/listers/core/v1"
 	"k8s.io/client-go/tools/cache"
@@ -52,7 +53,7 @@ func NewClusterInfoManager(cmHost string) *ClusterInfoManager {
 	workNamespace := os.Getenv("MY_POD_NAMESPACE")
 	factory := informers.NewSharedInformerFactoryWithOptions(clientset, 10*time.Hour, informers.WithNamespace(workNamespace))
 
-	m := ClusterInfoManager{
+	m := &ClusterInfoManager{
 		host:          cmHost,
 		workNamespace: workNamespace,
 		lister:        factory.Core().V1().ConfigMaps().Lister(),
@@ -60,14 +61,21 @@ func NewClusterInfoManager(cmHost string) *ClusterInfoManager {
 	}
 
 	factory.Core().V1().ConfigMaps().Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
-		AddFunc: func(_ interface{}) {
-			m.updateCluster()
+		AddFunc: func(newObj interface{}) {
+			if cm, ok := newObj.(*corev1.ConfigMap); ok {
+				if cm.Name == clusterInfo {
+					m.updateCluster(cm)
+				}
+			}
 		},
-		UpdateFunc: func(_, _ interface{}) {
-			m.updateCluster()
+		UpdateFunc: func(_, newObj interface{}) {
+			if cm, ok := newObj.(*corev1.ConfigMap); ok {
+				if cm.Name == clusterInfo {
+					m.updateCluster(cm)
+				}
+			}
 		},
-		DeleteFunc: func(_ interface{}) {
-			m.updateCluster()
+		DeleteFunc: func(obj interface{}) {
 		},
 	})
 
@@ -78,20 +86,14 @@ func NewClusterInfoManager(cmHost string) *ClusterInfoManager {
 		logging.Get().Warn().Msg("failed to sync cluster-info from api server")
 		return nil
 	}
-	return &m
+	return m
 }
 
-func (m *ClusterInfoManager) updateCluster() {
-	configMap, err := m.lister.ConfigMaps(m.workNamespace).Get(clusterInfo)
-	if err != nil {
-		logging.Get().Err(err).Msg("failed to get cluster info configmap")
-		return
-	}
-
+func (m *ClusterInfoManager) updateCluster(configMap *corev1.ConfigMap) {
 	data, ok := configMap.BinaryData[clusterInfoKey]
 	if ok {
 		clusterInfo := &TensorCluster{}
-		err = json.Unmarshal(data, clusterInfo)
+		err := json.Unmarshal(data, clusterInfo)
 		if err != nil {
 			logging.Get().Err(err).Msg("failed to unmarshal cluster info")
 			return
