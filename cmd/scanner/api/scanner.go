@@ -170,6 +170,43 @@ func (s *Scanner) ListScannedByVulnOverview(ctx *gin.Context) {
 	response.JSONOK(ctx, response.WithItem(res), response.WithExportFileStatus(0))
 }
 
+// GetVulnTopNImage
+// @Summary 获取漏洞评分Top5的镜像
+// @Title statistic
+// @Author guolingkai@tensorsecurity.cn
+// @Description 获取漏洞评分Top5的镜像
+// @Tags Vuln
+// @Success 200 {object} ApiWithItem{data=ApiItem{item=model.VulnOverview{top5=[]model.ImageRiskScore{}}}}
+// @Router	/api/v1/vulns/statistic [get]
+func (s *Scanner) GetVulnTopNImage(ctx *gin.Context) {
+
+	topN, err := strconv.ParseInt(ctx.Query("topn"), 10, 64)
+	if err != nil {
+		topN = consts.DefaultVulnTopNImage
+	}
+	res, err := s.Srv.GetVulnTopNImage(ctx, topN)
+	if err != nil {
+		response.JSONError(ctx, response.NewHttpError(http.StatusInternalServerError, err))
+		return
+	}
+	response.JSONOK(ctx, response.WithItems(res), response.WithTotalItems(int64(len(res))))
+}
+
+func (s *Scanner) GetImageHistogram(ctx *gin.Context) {
+
+	imageID, err := strconv.ParseInt(ctx.Param("imageID"), 10, 64)
+	if err != nil {
+		response.JSONError(ctx, response.NewHttpError(http.StatusBadRequest, fmt.Errorf("not fond imageID")))
+		return
+	}
+	res, err := s.Srv.GetImageSeverityCount(ctx, imageID)
+	if err != nil {
+		response.JSONError(ctx, response.NewHttpError(http.StatusInternalServerError, err))
+		return
+	}
+	response.JSONOK(ctx, response.WithItem(res), response.WithExportFileStatus(0))
+}
+
 // GetScanStatus
 // @Summary scanStatus
 // @Title scanStatus

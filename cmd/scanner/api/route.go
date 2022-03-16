@@ -49,7 +49,7 @@ func WebAPI(router *gin.Engine, scannerSvc component.ScannerSrv, rejectSvc compo
 		v1.POST("/scanone", apiScannerSrv.StartScanOne)
 
 		v1.POST("/harbor/scanAllNow", apiScannerSrv.ScanAllNow)
-		v1.GET("/harbor/scanStatus", apiScannerSrv.GetScanStatus)
+		// v1.GET("/harbor/scanStatus", apiScannerSrv.GetScanStatus)
 		v1.GET("/harbor/scanOneStatus", apiScannerSrv.GetScanOneStatus)
 		v1.GET("/reportsByVulnOverview", apiScannerSrv.ListScannedByVulnOverview)
 		v1.GET("/reportsBySimpleImageDetails", apiScannerSrv.GetSimpleImageDetail)
@@ -80,6 +80,8 @@ func WebAPI(router *gin.Engine, scannerSvc component.ScannerSrv, rejectSvc compo
 		v4.GET("/query/:name", apiScannerSrv.ListImageInfoFromVuln)
 		v4.GET("/detail/:name", apiScannerSrv.ScannedByVulnDetails)
 		v4.GET("/statistic", apiScannerSrv.ListScannedByVulnOverview)
+		v4.GET("/topNImage", apiScannerSrv.GetVulnTopNImage)
+		v4.GET("/imageHistogram/:imageID", apiScannerSrv.GetImageHistogram)
 		v4.GET("/all", apiScannerSrv.ListScannedByVulnList)
 		v4.PUT("/updata", vulnupdata.UploadOffline)
 	}

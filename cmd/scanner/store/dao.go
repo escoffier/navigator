@@ -55,7 +55,7 @@ type ScannerDalInterface interface {
 
 	GroupVulnSeverity(ctx context.Context) ([]model.SeverityGroup, error)
 	GroupVulnSeverityByImageID(ctx context.Context, imageID int64) ([]model.SeverityGroup, error)
-	GetVulnTopNImage(ctx context.Context, topN int) ([]model.ImageRiskScore, error)
+	GetVulnTopNImage(ctx context.Context, topN int64) ([]model.ImageRiskScore, error)
 
 	SearchVulns(ctx context.Context, searchWord string, filter *model.Filter) ([]model.VulnList, int, error)
 	GetImagesFromVuln(ctx context.Context, name string) ([]model.VulnImageList, error)
@@ -862,7 +862,7 @@ func (s *ScannerOrm) GetVulnDetails(ctx context.Context, name string) (model.Vul
 func (s *ScannerOrm) SearchVulns(ctx context.Context, searchWord string, filter *model.Filter) ([]model.VulnList, int, error) {
 	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*10)
 	defer cancelFunc()
-	db := s.rdb.Get().WithContext(ctx).Model(model.Vuln{}).Select("name,severity,pkg_name,pkg_version").Order("severity_int desc")
+	db := s.rdb.Get().WithContext(ctx).Model(model.Vuln{}).Select("name,severity,pkg_name,pkg_version,id,severity_int").Order("severity_int desc")
 	if searchWord != "" {
 		db = db.Where("name LIKE ?", fmt.Sprintf("%%%s%%", searchWord))
 	}
@@ -897,8 +897,6 @@ func (s *ScannerOrm) SearchScanLayer(ctx context.Context, param SearchScanLayerP
 	defer cancelFunc()
 
 	db := s.rdb.Get().WithContext(ctx).Model(new(model.ScanLayer)).WithContext(ctx)
-	// 默认查询没有删除的,如果不传就是0
-	db = db.Where("deleted_at = ? ", param.DeletedAt)
 	if len(param.LayerDigests) > 0 {
 		if len(param.LayerDigests) == 0 {
 			db = db.Where("layer_digest = ? ", param.LayerDigests[0])
@@ -963,7 +961,7 @@ func (s *ScannerOrm) SearchScanLayer(ctx context.Context, param SearchScanLayerP
 	return res, cnt, nil
 }
 
-func (s *ScannerOrm) GetVulnTopNImage(ctx context.Context, topN int) ([]model.ImageRiskScore, error) {
+func (s *ScannerOrm) GetVulnTopNImage(ctx context.Context, topN int64) ([]model.ImageRiskScore, error) {
 	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*10)
 	defer cancelFunc()
 
@@ -976,7 +974,7 @@ func (s *ScannerOrm) GetVulnTopNImage(ctx context.Context, topN int) ([]model.Im
 	db := s.rdb.Get().WithContext(ctx).Model(new(model.ScanImage))
 	err := db.Select("image_id", "vuln_score").Order(clause.OrderByColumn{
 		Column: clause.Column{Table: clause.CurrentTable, Name: "vuln_score"}, Desc: true,
-	}).Limit(topN).Find(&images).Error
+	}).Limit(int(topN)).Find(&images).Error
 	ans := make([]model.ImageRiskScore, 0)
 	for i := range images {
 		ans = append(ans, model.ImageRiskScore{
@@ -1002,7 +1000,7 @@ func (s *ScannerOrm) GroupVulnSeverityByImageID(ctx context.Context, imageID int
 
 	group := make([]model.SeverityGroup, 0)
 	db := s.rdb.Get().WithContext(ctx).Model(model.Vuln{})
-	sql := `select severity_int,count(b.id) as cnt from %s as a  join %s as b on a.name = b.vuln_name where b.image_id=%d group by a.severity_int;`
+	sql := `select severity_int,count(b.id) as cnt from %s as a  join %s as b  where b.image_id=%d AND a.name = b.vuln_name group by a.severity_int;`
 	err := db.Raw(fmt.Sprintf(sql, model.Vuln{}.TableName(), model.VulnImage{}.TableName(), imageID)).Scan(&group).Error
 	return group, err
 }
@@ -1495,6 +1493,7 @@ func (s *ScannerOrm) SearchImage(ctx context.Context, param SearchImageParam, fi
 	// serialize
 	for i := range res {
 		res[i].Serialize()
+		res[i].Deserialize()
 	}
 
 	return res, cnt, nil
@@ -1658,7 +1657,7 @@ func (s *ScannerOrm) OverviewReasonTopN(ctx context.Context, param OverviewReaso
 }
 
 func (s *ScannerOrm) SearchRejectRecord(ctx context.Context, param SearchRejectRecordParam, filter *model.Filter) ([]model.RejectRecord, int64, error) {
-	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*3)
+	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*15)
 	defer cancelFunc()
 	db := s.rdb.Get().Model(new(model.RejectRecord)).WithContext(ctx)
 	if !param.StartAt.IsZero() {
