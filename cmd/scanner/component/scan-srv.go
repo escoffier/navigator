@@ -109,6 +109,10 @@ type ScannerSrv interface {
 	ScanAllNow(ctx context.Context, info task.UpdateTaskInfo, search SearchImageWithScanParam) error
 	GetScanAllStatus(ctx context.Context, fromType int64) harbor.ScanAllStatus
 	GetVulnOverView(ctx context.Context) (*model.VulnOverview, error)
+
+	GetImageSeverityCount(ctx context.Context, imageID int64) (*model.ImageSeverityCount, error)
+	GetVulnTopNImage(ctx context.Context, topN int64) ([]model.ImageRiskScore, error)
+
 	ListImgLayers(ctx context.Context, imageID int64, filter *model.Filter) ([]model.ReportImgBackInfo, error)
 	ImgLayerInfo(ctx context.Context, imageID int64, layerDigest string, filter *model.Filter) (*model.ScanLayerResponse, error)
 	SearchVulns(ctx context.Context, searchWord string, filter *model.Filter) ([]model.VulnList, int, error)
@@ -792,6 +796,59 @@ func (s *ConScannerSrv) SearchVulns(ctx context.Context, searchWord string, filt
 	return vulns, cnt, err
 }
 
+func (s *ConScannerSrv) GetImageSeverityCount(ctx context.Context, imageID int64) (*model.ImageSeverityCount, error) {
+	groups, err := s.dbdal.GroupVulnSeverityByImageID(ctx, imageID)
+	if err != nil {
+		logging.GetLogger().Err(err).Int64("imageID", imageID).Msg("GetImageSeverityCount")
+		return nil, err
+	}
+	res := &model.ImageSeverityCount{
+		ImageID:  imageID,
+		Severity: getSeverityCount(groups),
+	}
+	return res, nil
+}
+
+func (s *ConScannerSrv) GetVulnTopNImage(ctx context.Context, topN int64) ([]model.ImageRiskScore, error) {
+	if topN <= 0 {
+		topN = consts.DefaultVulnTopNImage
+	}
+	topNImage, err := s.dbdal.GetVulnTopNImage(ctx, topN)
+	if err != nil {
+		logging.GetLogger().Err(err).Msg("GetVulnTopNImage")
+		return nil, err
+	}
+	imageIds := make([]int64, 0)
+	imageMap := make(map[int64]*model.ImageRiskScore)
+	for i := range topNImage {
+		imageIds = append(imageIds, topNImage[i].ImageID)
+		imageMap[topNImage[i].ImageID] = &(topNImage[i])
+	}
+	images, _, err := s.dbdal.SearchImage(ctx, store.SearchImageParam{InIds: imageIds,
+		Fields: []string{"full_repo_name", "tags", "id", "image_type", "from_type"}}, nil)
+	if err != nil {
+		logging.GetLogger().Err(err).Msg("GetVulnTopNImage")
+		return nil, err
+	}
+	for i := range images {
+		if im, ok := imageMap[images[i].ID]; ok {
+			im.Name = images[i].FullRepoName
+			im.Tag = images[i].Tags
+			im.ImageType = images[i].ImageType
+			im.FromType = images[i].FromType
+		}
+	}
+
+	// 按原排序整理数据
+	orderImage := make([]model.ImageRiskScore, 0)
+	for i := range topNImage {
+		if im, ok := imageMap[topNImage[i].ImageID]; ok {
+			orderImage = append(orderImage, *im)
+		}
+	}
+	return orderImage, nil
+}
+
 func (s *ConScannerSrv) GetVulnOverView(ctx context.Context) (*model.VulnOverview, error) {
 	res := model.VulnOverview{Severity: model.SeverityCount{}}
 	groups, err := s.dbdal.GroupVulnSeverity(ctx)
@@ -803,49 +860,6 @@ func (s *ConScannerSrv) GetVulnOverView(ctx context.Context) (*model.VulnOvervie
 	for i := range groups {
 		res.VulnTotal += groups[i].Count
 	}
-
-	topN, err := s.dbdal.GetVulnTopNImage(ctx, consts.DefaultVulnTopNImage)
-	if err != nil {
-		logging.GetLogger().Err(err).Msg("GetVulnOverView.GetVulnTopNImage")
-		return nil, err
-	}
-	imageIds := make([]int64, 0)
-	imageMap := make(map[int64]*model.ImageRiskScore)
-	for i := range topN {
-		imageIds = append(imageIds, topN[i].ImageID)
-		imageMap[topN[i].ImageID] = &(topN[i])
-	}
-	images, _, err := s.dbdal.SearchImage(ctx, store.SearchImageParam{InIds: imageIds,
-		Fields: []string{"full_repo_name", "tags", "id", "image_type", "from_type"}}, nil)
-	if err != nil {
-		logging.GetLogger().Err(err).Msg("GetVulnOverView.GetVulnTopNImage")
-		return nil, err
-	}
-	for i := range images {
-		if im, ok := imageMap[images[i].ID]; ok {
-			im.Name = images[i].FullRepoName
-			im.Tag = images[i].Tags
-			im.ImageType = images[i].ImageType
-			im.FromType = images[i].FromType
-
-			groups, err := s.dbdal.GroupVulnSeverityByImageID(ctx, images[i].ID)
-			if err != nil {
-				logging.GetLogger().Err(err).Msg("GetVulnOverView.GroupVulnSeverityByImageID")
-				return nil, err
-			}
-			im.SeverityHistogramInfo = getSeverityHistogramInfo(groups)
-		}
-	}
-
-	// 按原排序整理数据
-	orderImage := make([]model.ImageRiskScore, 0)
-
-	for i := range topN {
-		if im, ok := imageMap[topN[i].ImageID]; ok {
-			orderImage = append(orderImage, *im)
-		}
-	}
-	res.Top5 = orderImage
 
 	return &res, nil
 }
@@ -3069,27 +3083,6 @@ func (s *ConScannerSrv) checkEnv(ctx context.Context, scanImage model.ScanImage,
 	}
 
 	return safe, records, msgs
-}
-
-func getSeverityHistogramInfo(groups []model.SeverityGroup) model.SeverityHistogramInfo {
-	res := model.SeverityHistogramInfo{}
-	for i := range groups {
-		switch groups[i].Severity {
-		case consts.SeverityUnknown:
-			res.NumUnknown += groups[i].Count
-		case consts.SeverityNegligible:
-			res.NumNegligible += groups[i].Count
-		case consts.SeverityMedium:
-			res.NumMedium += groups[i].Count
-		case consts.SeverityLow:
-			res.NumLow += groups[i].Count
-		case consts.SeverityHigh:
-			res.NumHigh += groups[i].Count
-		case consts.SeverityCritical:
-			res.NumCritical += groups[i].Count
-		}
-	}
-	return res
 }
 
 func getSeverityCount(groups []model.SeverityGroup) model.SeverityCount {

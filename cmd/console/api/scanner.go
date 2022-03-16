@@ -10,8 +10,9 @@ import (
 	"strings"
 
 	"github.com/go-chi/chi"
-	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	"gitlab.com/security-rd/go-pkg/logging"
+
+	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
 )
 
 // 转发scanner中的接口
@@ -26,7 +27,7 @@ func (api *api) scanner() func(chi.Router) {
 
 		r.Post("/harbor/scanAllNow", api.RedirectToScanner(true))
 		r.Get("/harbor/scanConfig", api.harborScanConfig())
-		r.Get("/harbor/scanStatus", api.RedirectToScanner(true))
+		// r.Get("/harbor/scanStatus", api.RedirectToScanner(true))
 		r.Get("/harbor/scanOneStatus", api.RedirectToScanner(true))
 		r.Post("/harbor/abortScanAll", api.harborAbortScanAll())
 
@@ -46,6 +47,8 @@ func (api *api) scanner() func(chi.Router) {
 
 		r.Get("/vulns/detail/{name}", api.RedirectToScanner())
 		r.Get("/vulns/statistic", api.RedirectToScanner())
+		r.Get("/vulns/topNImage", api.RedirectToScanner())
+		r.Get("/vulns/imageHistogram/{imageID}", api.RedirectToScanner())
 		r.Get("/vulns/all", api.RedirectToScanner())
 		r.Get("/vulns/relation", api.RedirectToScanner())
 		r.Put("/vulns/updata", api.RedirectToScanner())
