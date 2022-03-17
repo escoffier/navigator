@@ -1682,29 +1682,44 @@ func (s *ScannerOrm) SearchRejectRecord(ctx context.Context, param SearchRejectR
 
 	// 计算count
 	var cnt int64
+
 	if len(param.RejectReasons) > 0 {
 		// 查出全部数据序列化之后再做筛选
-		res := make([]*model.RejectRecord, 0)
-		if err := db.Find(&res).Error; err != nil {
-			return nil, 0, err
-		}
-		for i := range res {
-			res[i] = res[i].Deserialize()
-		}
 		ids := make([]int64, 0)
-		for i := range res {
-			flag := false
-			for _, r := range param.RejectReasons {
-				for _, k := range res[i].RejectReason {
-					if r == k {
-						flag = true
+		var lastID int64
+		start := time.Now().Unix()
+		for time.Now().Unix()-start < 15 {
+			res := make([]*model.RejectRecord, 0)
+
+			if err := s.rdb.Get().Model(new(model.RejectRecord)).WithContext(ctx).Where("id > ?", lastID).Limit(consts.DefaultBathSize).
+				Order(clause.OrderByColumn{Column: clause.Column{Name: "id"}, Desc: false}).Select("id", "reject_reason_json").Find(&res).Error; err != nil {
+				return nil, 0, err
+			}
+			for i := range res {
+				res[i] = res[i].Deserialize()
+			}
+
+			for i := range res {
+				flag := false
+				for _, r := range param.RejectReasons {
+					if flag {
 						break
 					}
+					for _, k := range res[i].RejectReason {
+						if r == k {
+							flag = true
+							break
+						}
+					}
+				}
+				if flag {
+					ids = append(ids, res[i].ID)
 				}
 			}
-			if flag {
-				ids = append(ids, res[i].ID)
+			if len(res) < consts.DefaultBathSize {
+				break
 			}
+			lastID = res[len(res)-1].ID
 		}
 		cnt = int64(len(ids))
 		if len(ids) == 0 || (filter != nil && int64(len(ids)) <= filter.Offset) {
@@ -1712,11 +1727,12 @@ func (s *ScannerOrm) SearchRejectRecord(ctx context.Context, param SearchRejectR
 		}
 
 		db = db.Where("id IN ? ", ids[int(filter.Offset):int(filter.Offset+filter.Limit)])
+		filter.Offset = 0
 	}
 	if len(param.Fields) > 0 {
 		db = db.Select(param.Fields)
 	}
-	if cnt == 0 {
+	if cnt <= 0 {
 		if err := db.Count(&cnt).Error; err != nil {
 			return nil, 0, err
 		}
