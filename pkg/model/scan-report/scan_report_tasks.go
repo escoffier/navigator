@@ -2,19 +2,18 @@ package scan_report
 
 import (
 	"database/sql/driver"
-	"encoding/json"
 	"fmt"
 	"regexp"
 	"strings"
 	"time"
 	"unicode/utf8"
 
+	json "github.com/json-iterator/go"
 	"github.com/pkg/errors"
+	"gitlab.com/piccolo_su/vegeta/pkg/util"
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
 	softdelete "gorm.io/plugin/soft_delete"
-
-	"gitlab.com/piccolo_su/vegeta/pkg/util"
 )
 
 // TensorScanReportType 扫描报告的类型

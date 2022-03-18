@@ -2,13 +2,13 @@ package reporter
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"math"
 	"net/url"
 	"path"
 	"time"
 
+	json "github.com/json-iterator/go"
 	"github.com/sirupsen/logrus"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"

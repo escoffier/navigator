@@ -93,14 +93,14 @@ func (s *CronService) startCron(ctx context.Context, cronData *model.CronScanTas
 }
 
 func (s *CronService) StartCrons(ctx context.Context) error {
-	var cronTasks []model.CronScanTask
+	var cronTasks []*model.CronScanTask
 	err := s.rdb.GetReadDB().WithContext(ctx).Find(&cronTasks).Error
 	if err != nil {
 		return errors.Errorf("get cron task config failed, %v", err)
 	}
 
 	for _, cronData := range cronTasks {
-		err = s.startCron(ctx, &cronData)
+		err = s.startCron(ctx, cronData)
 		if err != nil {
 			logging.GetLogger().Error().Msgf("cron start failed, %v", err)
 		}

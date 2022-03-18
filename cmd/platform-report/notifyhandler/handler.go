@@ -3,16 +3,15 @@ package notifyhandler
 import (
 	"context"
 	"crypto/tls"
-	"encoding/json"
 	"fmt"
 
-	"gopkg.in/gomail.v2"
-
+	json "github.com/json-iterator/go"
 	"gitlab.com/piccolo_su/vegeta/cmd/platform-report/def"
 	env2 "gitlab.com/piccolo_su/vegeta/pkg/env"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
+	"gopkg.in/gomail.v2"
 )
 
 type Handler struct {

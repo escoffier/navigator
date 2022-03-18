@@ -3,7 +3,6 @@ package util
 import (
 	"crypto/md5"
 	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"io"
 	"math"
@@ -13,9 +12,8 @@ import (
 	"strings"
 
 	"github.com/golang/gddo/httputil/header"
-	jsoniter "github.com/json-iterator/go"
+	json "github.com/json-iterator/go"
 	"github.com/rs/zerolog/log"
-
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 )
 
@@ -149,11 +147,11 @@ func MinInt(res ...int) int {
 }
 
 func DeepCopy(dst, src interface{}) error {
-	eventData, err := jsoniter.Marshal(src)
+	eventData, err := json.Marshal(src)
 	if err != nil {
 		logging.GetLogger().Error().Msgf("deep marshal errror:%+v", err)
 	}
-	return jsoniter.Unmarshal(eventData, &dst)
+	return json.Unmarshal(eventData, &dst)
 }
 
 func FileExists(path string) bool {

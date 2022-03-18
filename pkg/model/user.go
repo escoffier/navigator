@@ -2,9 +2,8 @@ package model
 
 import (
 	"context"
-	"encoding/json"
 
-	"go.mongodb.org/mongo-driver/bson/primitive"
+	json "github.com/json-iterator/go"
 )
 
 type ModuleGroup struct {
@@ -35,17 +34,6 @@ const (
 	PasswordSuperAdmin = "e$Db8Cf6@3"
 	DefaultPassword    = "ksJ@12MczH"
 )
-
-type MongoUser struct {
-	ID       primitive.ObjectID `json:"id" bson:"_id"`
-	UserName string             `json:"userName" bson:"user_name"` // index
-	Pwd      string             `json:"pwd" bson:"pwd"`
-	Title    string             `json:"title" bson:"title"`
-	Name     string             `json:"name" bson:"name"`
-	Email    string             `json:"email" bson:"email"`
-	Group    string             `json:"group" bson:"group"`
-	Avatar   string             `json:"avatar" bson:"avatar"`
-}
 
 type User struct {
 	ID          int64         `gorm:"primary_key;AUTO_INCREMENT" json:"-"`

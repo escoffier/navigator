@@ -1,11 +1,9 @@
 package scan_report
 
 import (
-	"encoding/json"
-
-	"gorm.io/gorm"
-
+	json "github.com/json-iterator/go"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
+	"gorm.io/gorm"
 )
 
 type ImageInfo struct {

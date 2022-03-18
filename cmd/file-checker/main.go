@@ -22,7 +22,7 @@ var table [256]uint32
 func calculateChecksum(file *os.File) (uint32, error) {
 	stats, err := file.Stat()
 	if err != nil {
-		log.Errorf("Failed to stat file: %w\n", err)
+		log.Errorf("Failed to stat file: %v\n", err)
 		return uint32(0), err
 	}
 
@@ -32,7 +32,7 @@ func calculateChecksum(file *os.File) (uint32, error) {
 	bufr := bufio.NewReader(file)
 	_, err = bufr.Read(content)
 	if err != nil {
-		log.Errorf("Failed to read file: %w\n", err)
+		log.Errorf("Failed to read file: %v\n", err)
 		return uint32(0), err
 	}
 
@@ -67,7 +67,7 @@ func listDirContents(path string, whitelist *[]WhitelistFile) {
 		}
 		resolvedSymlink, err := filepath.EvalSymlinks(newPath)
 		if err != nil {
-			log.Errorf("Failed to resolve symlink: path %s resolvedPath %s err %w\n", newPath, resolvedSymlink, err)
+			log.Errorf("Failed to resolve symlink: path %s resolvedPath %s err %v\n", newPath, resolvedSymlink, err)
 			continue
 		}
 		if f.IsDir() {
