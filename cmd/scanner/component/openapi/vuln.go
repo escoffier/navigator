@@ -6,11 +6,12 @@ import (
 	"errors"
 	"fmt"
 
-	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
-	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/security-rd/go-pkg/databases"
 	"gitlab.com/security-rd/go-pkg/logging"
 	"gorm.io/gorm"
+
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
+	"gitlab.com/piccolo_su/vegeta/pkg/model"
 )
 
 type VulnService struct {
@@ -40,7 +41,7 @@ func (v *VulnService) List(ctx context.Context, req model.SqlBuilder) ([]*model.
 	}
 
 	for _, data := range datas {
-		_ = json.Unmarshal(data.MetadataJSON, &data.Metadata)
+		_ = json.Unmarshal(data.MetadataJSON, data.Metadata)
 		_ = json.Unmarshal(data.LinkJSON, &data.Link)
 	}
 

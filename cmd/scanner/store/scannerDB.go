@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/base64"
 	"errors"
-	"fmt"
 	"math"
 	"time"
 
@@ -30,15 +29,20 @@ func NewScannerDB(rdb *databases.RDBInstance) *ScannerDB {
 func (scdb *ScannerDB) InsertToScanImage(ctx context.Context, scanImage *model.ScanImage) error {
 	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*10)
 	defer cancelFunc()
-	tmp := model.ScanImage{}
-	var err error
-	res := scdb.RDB.Get().WithContext(ctx).Select("id", "image_id").Where(&model.ScanImage{ImageID: scanImage.ImageID}).First(&tmp)
-	if res.Error != nil {
-		err = scdb.RDB.Get().WithContext(ctx).Create(scanImage).Error
-	} else {
-		err = scdb.UpdateToScanImage(ctx, scanImage, tmp.ID)
+	tmp := make([]model.ScanImage, 0)
+	scanImage.CheckSum = scanImage.GetCheckSum()
+	if err := scdb.RDB.Get().WithContext(ctx).Select("id", "image_id", "check_sum").Where("image_id = ?", scanImage.ImageID).Find(&tmp).Error; err != nil {
+		return err
 	}
-	return err
+
+	if len(tmp) == 0 {
+		return scdb.RDB.Get().WithContext(ctx).Create(scanImage).Error
+	}
+	if tmp[0].CheckSum == scanImage.CheckSum {
+		logging.GetLogger().Debug().Int64("ImageID", scanImage.ImageID).Msg("扫描结果没有变动")
+		return nil
+	}
+	return scdb.UpdateToScanImage(ctx, scanImage, tmp[0].ID)
 }
 
 func (scdb *ScannerDB) UpdateToScanImage(ctx context.Context, ScanImage *model.ScanImage, tableID int64) error {
@@ -46,7 +50,7 @@ func (scdb *ScannerDB) UpdateToScanImage(ctx context.Context, ScanImage *model.S
 	defer cancelFunc()
 	err := scdb.RDB.Get().WithContext(ctx).Model(&model.ScanImage{}).Where("id = ?", tableID).Select("*").Omit("id", "created_at").Updates(ScanImage).Error
 	if err != nil {
-		logging.GetLogger().Err(err).Msg("UpdateToScanImage Updata Error:")
+		logging.GetLogger().Err(err).Int64("ImageId", tableID).Msg("UpdateToScanImage Update")
 		return err
 	}
 	return nil
@@ -86,48 +90,35 @@ func (scdb *ScannerDB) InsertToWebFrame(ctx context.Context, webFrameScan *model
 	return nil
 }
 
-func (scdb *ScannerDB) InsertToVuln(ctx context.Context, Vuln *model.Vuln, TableID int64) error {
+func (scdb *ScannerDB) InsertToVuln(ctx context.Context, vuln *model.Vuln, imageID int64) error {
 	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*10)
 	defer cancelFunc()
-	tmp := []model.Vuln{}
-	tmpVulnImage := model.VulnImage{}
-	scdb.RDB.Get().WithContext(ctx).Where("Name = ?", Vuln.Name).Find(&tmp)
-	flag := 0
-	key := fmt.Sprintf("%s/%s/%s", Vuln.Name, Vuln.PkgName, Vuln.PkgVersion)
-	for k := range tmp {
-		tmpKey := fmt.Sprintf("%s/%s/%s", tmp[k].Name, tmp[k].PkgName, tmp[k].PkgVersion)
-		if tmpKey == key {
-			flag = 1
-			break
-		}
+	vuln.CheckSum = vuln.GenCheckSum()
+	vuln.UniqueVuln = vuln.GenUniqueVuln()
+
+	db := scdb.RDB.Get().WithContext(ctx)
+	tmp := make([]model.Vuln, 0)
+	if err := db.Model(new(model.Vuln)).Where("unique_vuln = ?", vuln.UniqueVuln).Find(&tmp).Error; err != nil {
+		return err
 	}
-	if flag == 1 {
-		tmpVulnImage.VulnName = Vuln.Name
-		tmpVulnImage.ImageId = TableID
-		// tmpVulnImage.SeverityInt = Vuln.SeverityInt
-		scdb.InsertToVulnImage(ctx, &tmpVulnImage)
+	if len(tmp) == 0 {
+		if err := db.Model(new(model.Vuln)).Create(vuln).Error; err != nil {
+			return err
+		}
+		vulnImage := model.VulnImage{UniqueVuln: vuln.UniqueVuln, ImageId: imageID}
+		if err := db.Model(new(model.VulnImage)).Create(&vulnImage).Error; err != nil {
+			return err
+		}
 		return nil
 	}
-	tmpVulnImage.VulnName = Vuln.Name
-	tmpVulnImage.ImageId = TableID
-	// tmpVulnImage.SeverityInt = Vuln.SeverityInt
-
-	scdb.InsertToVulnImage(ctx, &tmpVulnImage)
-	scdb.RDB.Get().WithContext(ctx).Create(Vuln)
-	return nil
-}
-
-func (scdb *ScannerDB) InsertToVulnImage(ctx context.Context, VulnImage *model.VulnImage) {
-	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*3)
-	defer cancelFunc()
-
-	tmp := model.VulnImage{}
-	scdb.RDB.Get().WithContext(ctx).Where("vuln_name = ? AND image_id= ?", VulnImage.VulnName, VulnImage.ImageId).First(&tmp)
-	if tmp.VulnName != "" {
-		logging.GetLogger().Info().Str("VulnImage Name is exist : ", tmp.VulnName)
-		return
+	if tmp[0].CheckSum == vuln.CheckSum {
+		logging.GetLogger().Debug().Uint64("UniqueVuln", vuln.UniqueVuln).Msg("vuln未变动")
+		return nil
 	}
-	scdb.RDB.Get().WithContext(ctx).Create(VulnImage)
+	if err := db.Model(new(model.Vuln)).Where("id = ?", tmp[0].ID).Updates(vuln).Error; err != nil {
+		return err
+	}
+	return nil
 }
 
 func (scdb *ScannerDB) InsertToScanLayer(ctx context.Context, ScanLayer *model.ScanLayer) {

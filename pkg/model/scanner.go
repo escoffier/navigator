@@ -166,13 +166,6 @@ type VulnOverview struct {
 	// Top5      []ImageRiskScore `json:"top5"`
 }
 
-type VulnList struct {
-	Name       string `json:"name"`
-	Severity   string `json:"severity"`
-	PkgName    string `json:"pkg_name"`
-	PkgVersion string `json:"pkg_version"`
-}
-
 type VulnDetailInfo struct {
 	Name        string                  `json:"name"`
 	Severity    string                  `json:"severity"`

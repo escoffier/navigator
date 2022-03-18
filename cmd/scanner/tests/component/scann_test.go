@@ -329,7 +329,7 @@ func (m *mockdal) GetVulnTop5(ctx context.Context) ([]model.ImageRiskScore, erro
 	panic("implement me")
 }
 
-func (m *mockdal) SearchVulns(ctx context.Context, searchWord string, filter *model.Filter) ([]model.VulnList, int, error) {
+func (m *mockdal) SearchVulns(ctx context.Context, searchWord string, filter *model.Filter) ([]model.Vuln, int, error) {
 	panic("implement me")
 }
 

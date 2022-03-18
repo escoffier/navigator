@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
+	"gitlab.com/piccolo_su/vegeta/pkg/util"
 )
 
 type ScanImage struct { // 镜像结果// 加上镜像结果,对应原来的scantasks表
@@ -45,11 +46,14 @@ type ScanImage struct { // 镜像结果// 加上镜像结果,对应原来的scan
 	ScanEnableCollection     ScanEnableCollection       `gorm:"-" json:"scan_enable_collection"`
 	ScanEnableCollectionJson string                     `gorm:"type:varchar(255);column:scan_enable_collection_json"`
 	HasFixedVuln             int                        `gorm:"column:has_fixed_vuln" json:"has_fixed_vuln"`
-	ScanTaskID               string                     `gorm:"type:varchar(255)" json:"scan_task_id"`
-	Status                   string                     `gorm:"type:varchar(255)" json:"status"`  // 扫描状态
-	Message                  string                     `gorm:"type:varchar(255)" json:"message"` // 错误信息
-	StartedAt                int64                      // 扫描开始时间
-	FinishAt                 int64                      // 扫描结束时间
+
+	ScanTaskID string `gorm:"type:varchar(255)" json:"scan_task_id"`
+	Status     string `gorm:"type:varchar(255)" json:"status"`  // 扫描状态
+	Message    string `gorm:"type:varchar(255)" json:"message"` // 错误信息
+	StartedAt  int64  // 扫描开始时间
+	FinishAt   int64  // 扫描结束时间
+
+	CheckSum uint64 `gorm:"column:check_sum" json:"check_sum"` // 这一行数据的check值，且于判断这一行数据是否有变动，如果没有变动，就不再更新
 }
 
 func (si ScanImage) TableName() string {
@@ -249,6 +253,28 @@ func (si *ScanImage) Serialize() {
 	if bytes, err := json.Marshal(si.ScanEnableCollection); err == nil {
 		si.ScanEnableCollectionJson = string(bytes)
 	}
+}
+
+func (si *ScanImage) GetCheckSum() uint64 {
+	si.Serialize()
+	si.Deserialize()
+	createdAt, updatedAt, preCheck, finishAt, startAt, message, status := si.CreatedAt,
+		si.UpdatedAt, si.CheckSum, si.FinishAt, si.StartedAt, si.Message, si.Status
+	si.CreatedAt = nil
+	si.UpdatedAt = nil
+	si.CheckSum = 0
+	si.FinishAt = 0
+	si.StartedAt = 0
+	si.Status = ""
+	si.Message = ""
+
+	bys, err := json.Marshal(si)
+	si.CreatedAt, si.UpdatedAt, si.CheckSum, si.FinishAt, si.StartedAt,
+		si.Message, si.Status = createdAt, updatedAt, preCheck, finishAt, startAt, message, status
+	if err != nil {
+		return 0
+	}
+	return util.GenerateUUID64(string(bys))
 }
 
 type ImageFlagGroup struct {

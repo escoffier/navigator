@@ -29,10 +29,17 @@ type SearchImageParam struct {
 	ImageType        string
 	Flag             uint64
 	Where            string
+	UniqueImage      uint64
 	NodeHostname     string `json:"node_hostname"`
 	SpecialImageType string `json:"special_image_type"`
 	JustReturnImage  bool   `json:"just_return_image"`
 }
+
+func (sp *SearchImageParam) GetDefaultOmitFields() []string {
+	omit := []string{"config_json", "manifest_v1_json", "manifest_v2_json"}
+	return omit
+}
+
 type GroupVulnSeverityParma struct {
 	ImageId int64
 }
@@ -239,4 +246,11 @@ type DeleteSoftWareParam struct {
 type SearchTrustedImageParam struct {
 	Digests   []string
 	IsTrusted string
+}
+
+type SearchVulnParm struct {
+	Keyword    string
+	UniqueVuln uint32
+	Fields     []string
+	Where      string
 }

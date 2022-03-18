@@ -190,8 +190,9 @@ func (s *SyncRepoImage) SyncImage(ctx context.Context) error {
 					return nil, err
 				}
 				// 先查一下
-				searchImage, _, err := s.ImageDal.SearchImage(ctx, store.SearchImageParam{RegistryIds: []int64{img.RegistryID},
-					FullRepoName: img.FullRepoName, Tag: img.Tags, FromType: img.FromType,
+				uniqueImage := img.GenUniqueImage()
+				img.UniqueImage = uniqueImage
+				searchImage, _, err := s.ImageDal.SearchImage(ctx, store.SearchImageParam{UniqueImage: uniqueImage,
 					OmitFields: []string{"config_json", "manifest_v1_json", "manifest_v2_json"}}, nil)
 				if err != nil {
 					logging.GetLogger().Error().Err(err).Msg("SyncImage.InsertImageList")
@@ -228,7 +229,7 @@ func (s *SyncRepoImage) SyncImage(ctx context.Context) error {
 							Str("FullRepoName", img.FullRepoName).
 							Str("Tag", img.Tags).Msg("sync new image Update")
 					} else {
-						logging.GetLogger().Info().Int64("RegistryID", img.RegistryID).
+						logging.GetLogger().Debug().Int64("RegistryID", img.RegistryID).
 							Int64("FromType", img.FromType).
 							Str("Library", img.Library).
 							Str("FullRepoName", img.FullRepoName).

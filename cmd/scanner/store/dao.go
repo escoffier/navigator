@@ -57,7 +57,8 @@ type ScannerDalInterface interface {
 	GroupVulnSeverityByImageID(ctx context.Context, imageID int64) ([]model.SeverityGroup, error)
 	GetVulnTopNImage(ctx context.Context, topN int64) ([]model.ImageRiskScore, error)
 
-	SearchVulns(ctx context.Context, searchWord string, filter *model.Filter) ([]model.VulnList, int, error)
+	SearchVuln(ctx context.Context, param SearchVulnParm, filter *model.Filter) ([]model.Vuln, int64, error)
+	UpdateVuln(ctx context.Context, where string, updater map[string]interface{}, vuln *model.Vuln) error
 	GetImagesFromVuln(ctx context.Context, name string) ([]model.VulnImageList, error)
 	GetVulnDetails(ctx context.Context, name string) (model.VulnDetail, error)
 
@@ -859,25 +860,56 @@ func (s *ScannerOrm) GetVulnDetails(ctx context.Context, name string) (model.Vul
 	return res, nil
 }
 
-func (s *ScannerOrm) SearchVulns(ctx context.Context, searchWord string, filter *model.Filter) ([]model.VulnList, int, error) {
+func (s *ScannerOrm) SearchVuln(ctx context.Context, param SearchVulnParm, filter *model.Filter) ([]model.Vuln, int64, error) {
 	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*10)
 	defer cancelFunc()
-	db := s.rdb.Get().WithContext(ctx).Model(model.Vuln{}).Select("name,severity,pkg_name,pkg_version,id,severity_int").Order("severity_int desc")
-	if searchWord != "" {
-		db = db.Where("name LIKE ?", fmt.Sprintf("%%%s%%", searchWord))
+	db := s.rdb.Get().WithContext(ctx).Model(model.Vuln{})
+	if param.Keyword != "" {
+		db = db.Where("name LIKE ?", fmt.Sprintf("%%%s%%", param.Keyword))
 	}
-	resVulnList := []model.VulnList{}
+	if param.UniqueVuln > 0 {
+		db = db.Where("unique_vuln = ?", param.UniqueVuln)
+	}
+	if len(param.Fields) > 0 {
+		db = db.Select(param.Fields)
+	}
+	if param.Where != "" {
+		db = db.Where(param.Where)
+	}
+	res := make([]model.Vuln, 0)
 	var count int64
 	err := db.Count(&count).Error
 	if err != nil {
 		return nil, 0, err
 	}
 	db = model.AddFilter(db, filter)
-	err = db.Find(&resVulnList).Error
+	err = db.Find(&res).Error
 	if err != nil {
 		return nil, 0, err
 	}
-	return resVulnList, int(count), nil
+	for i := range res {
+		res[i].Deserialize()
+		res[i].Serialize()
+	}
+	return res, count, nil
+}
+
+func (s *ScannerOrm) UpdateVuln(ctx context.Context, where string, updater map[string]interface{}, vuln *model.Vuln) error {
+	if len(where) == 0 {
+		return fmt.Errorf("no where condition")
+	}
+	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*1)
+	defer cancelFunc()
+
+	var err error
+	db := s.rdb.Get().Model(new(model.Vuln)).WithContext(ctx).Where(where)
+
+	if len(updater) > 0 {
+		err = db.Updates(updater).Error
+	} else if vuln != nil {
+		err = db.Select("*").Omit("id", "created_at").Updates(vuln).Error
+	}
+	return err
 }
 
 func (s *ScannerOrm) GetOnlineImage(ctx context.Context, param GetOnlineImageParam) ([]OnlineImage, error) {
@@ -889,9 +921,7 @@ func (s *ScannerOrm) GetOnlineImage(ctx context.Context, param GetOnlineImagePar
 		return nil, err
 	}
 	return res, nil
-
 }
-
 func (s *ScannerOrm) SearchScanLayer(ctx context.Context, param SearchScanLayerParam, filter *model.Filter) ([]model.ScanLayer, int64, error) {
 	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*10)
 	defer cancelFunc()
@@ -1000,7 +1030,7 @@ func (s *ScannerOrm) GroupVulnSeverityByImageID(ctx context.Context, imageID int
 
 	group := make([]model.SeverityGroup, 0)
 	db := s.rdb.Get().WithContext(ctx).Model(model.Vuln{})
-	sql := `select severity_int,count(b.id) as cnt from %s as a  join %s as b  where b.image_id=%d AND a.name = b.vuln_name group by a.severity_int;`
+	sql := `select severity_int,count(b.id) as cnt from %s as a  join %s as b  where b.image_id=%d AND a.unique_vuln = b.unique_vuln group by a.severity_int;`
 	err := db.Raw(fmt.Sprintf(sql, model.Vuln{}.TableName(), model.VulnImage{}.TableName(), imageID)).Scan(&group).Error
 	return group, err
 }
@@ -1430,6 +1460,9 @@ func (s *ScannerOrm) SearchImage(ctx context.Context, param SearchImageParam, fi
 	}
 	if param.FromType > 0 {
 		db = db.Where("from_type = ? ", param.FromType)
+	}
+	if param.UniqueImage > 0 {
+		db = db.Where("unique_image = ?", param.UniqueImage)
 	}
 	if param.ImageType == consts.BaseImageTypeString {
 		db = db.Where(fmt.Sprintf("(flag >> %d ) & 1 = %d", model.FlagBaseImage, 1))

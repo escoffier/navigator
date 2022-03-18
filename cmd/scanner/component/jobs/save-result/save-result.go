@@ -473,6 +473,7 @@ func (s *ScanResultHandle) logPostgresVuln(ctx context.Context, scanDetails *mod
 				tmpVuln := model.Vuln{Name: vuln.CVEID, Namespace: v.Type, Target: v.Target, Description: trivyVuln.Description,
 					MetadataJSON: mateDateJSON, PkgName: trivyVuln.PkgName, PkgVersion: trivyVuln.InstalledVersion,
 					LinkJSON: linkjson, FixedBy: trivyVuln.FixedVersion, Severity: trivyVuln.Severity, SeverityInt: s.transSeverityInt(trivyVuln.Severity)}
+
 				err = scannerOrm.InsertToVuln(ctx, &tmpVuln, imageID)
 				if err != nil {
 					logging.GetLogger().Error().Err(err).Msg("InsertoVuln failed ")
