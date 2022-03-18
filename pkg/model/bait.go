@@ -2,7 +2,8 @@ package model
 
 import (
 	"database/sql/driver"
-	"encoding/json"
+
+	json "github.com/json-iterator/go"
 )
 
 type BaitService struct {

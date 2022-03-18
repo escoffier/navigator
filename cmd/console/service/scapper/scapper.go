@@ -395,7 +395,7 @@ func (s *Scapper) garbageCollectHistoricalJobs(ctx context.Context, kubeClient *
 				continue
 			}
 
-			err = s.deleteJobAndPods(ctx, kubeClient, namespace, &job)
+			err = s.deleteJobAndPods(ctx, kubeClient, namespace, job)
 			if err != nil {
 				return NewKubernetesError(http.StatusInternalServerError, fmt.Errorf("Failed to cleanup historical job: %v", err))
 			}
@@ -788,7 +788,7 @@ func (s Scapper) isJobFailed(job *batchv1.Job) (bool, *batchv1.JobCondition) {
 	return false, nil
 }
 
-func (s *Scapper) deleteJobAndPods(ctx context.Context, kubeClient *pkgassets.Clientset, namespace string, job *batchv1.Job) error {
+func (s *Scapper) deleteJobAndPods(ctx context.Context, kubeClient *pkgassets.Clientset, namespace string, job batchv1.Job) error {
 	err := kubeClient.BatchV1().Jobs(namespace).Delete(ctx, job.Name, metav1.DeleteOptions{})
 	if err != nil {
 		return fmt.Errorf("Failed to delete job: %v", err)

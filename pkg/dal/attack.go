@@ -3,12 +3,12 @@ package dal
 import (
 	"context"
 	"encoding/base64"
-	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"net/http"
 	"time"
 
+	json "github.com/json-iterator/go"
 	"gitlab.com/piccolo_su/vegeta/pkg/cryption"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"

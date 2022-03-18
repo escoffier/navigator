@@ -1,8 +1,9 @@
 package response
 
 import (
-	"encoding/json"
 	"fmt"
+
+	json "github.com/json-iterator/go"
 )
 
 // Implements modified Google JSON styleguide

@@ -2,13 +2,12 @@ package dal
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 
+	json "github.com/json-iterator/go"
 	"github.com/olivere/elastic/v7"
-	"gorm.io/gorm"
-
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
+	"gorm.io/gorm"
 )
 
 func SaveProcessingAction(ctx context.Context, db *gorm.DB, action *model.ProcessingAction) error {

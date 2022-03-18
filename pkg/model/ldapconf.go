@@ -1,9 +1,10 @@
 package model
 
 import (
-	"encoding/json"
 	"fmt"
 	"net/url"
+
+	json "github.com/json-iterator/go"
 )
 
 const (

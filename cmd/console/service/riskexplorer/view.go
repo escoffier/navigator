@@ -1,8 +1,7 @@
 package riskexplorer
 
 import (
-	"encoding/json"
-
+	json "github.com/json-iterator/go"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 )
 

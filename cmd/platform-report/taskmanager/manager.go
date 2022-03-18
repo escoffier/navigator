@@ -2,10 +2,10 @@ package taskmanager
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"time"
 
+	json "github.com/json-iterator/go"
 	"gitlab.com/piccolo_su/vegeta/cmd/platform-report/def"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"

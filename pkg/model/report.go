@@ -1,8 +1,9 @@
 package model
 
 import (
-	"encoding/json"
 	"time"
+
+	json "github.com/json-iterator/go"
 )
 
 const (
