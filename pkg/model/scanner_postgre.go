@@ -17,6 +17,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/vuln-updata/cnvd"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
+	"gitlab.com/piccolo_su/vegeta/pkg/util"
 )
 
 type VulnMatedata struct {
@@ -34,39 +35,96 @@ type PostModel struct {
 
 // 漏洞表
 type Vuln struct {
-	ID           uint `gorm:"primaryKey"`
-	CreatedAt    time.Time
-	UpdatedAt    time.Time
-	DeletedAt    int
+	ID           int64     `gorm:"primaryKey" json:"id"`
+	CreatedAt    time.Time `json:"created_at"`
+	UpdatedAt    time.Time `json:"updated_at"`
+	DeletedAt    int       `json:"deleted_at"`
 	Target       string
-	Name         string       `gorm:"type:varchar(255);uniqueIndex:uniq_idx_vuln,priority:1"` // 形如CVE-2021-28831
-	Namespace    string       `gorm:"type:varchar(255)"`                                      // 发行版名字：alpine，redhat等
-	Description  string       `gorm:"type:text"`                                              // 描述
-	Link         []string     `gorm:"-"`                                                      // 参考链接
-	LinkJSON     []byte       `gorm:"type:Blob"`
-	Severity     string       `gorm:"type:varchar(255)"` // 威胁等级
-	SeverityInt  int          `gorm:"column:severity_int"`
-	Metadata     VulnMatedata `gorm:"-"`
-	MetadataJSON []byte       `gorm:"type:Blob"`                                              // 元数据
-	PkgName      string       `gorm:"type:varchar(255);uniqueIndex:uniq_idx_vuln,priority:2"` // 软件包来源
-	PkgVersion   string       `gorm:"type:varchar(255);uniqueIndex:uniq_idx_vuln,priority:3"` // 软件包版本
-	FixedBy      string       `gorm:"type:varchar(255)" json:"fixedby" bson:"fixedby"`        // 修复建议
-	ExtraInfo    []byte       `gorm:"type:Blob"`                                              //  预留，漏洞属性。如我们自己的漏洞评级
+	Name         string        `gorm:"type:varchar(255);uniqueIndex:uniq_idx_vuln,priority:1" json:"name"` // 形如CVE-2021-28831
+	Namespace    string        `gorm:"type:varchar(255)" json:"namespace"`                                 // 发行版名字：alpine，redhat等
+	Description  string        `gorm:"type:text" json:"description"`                                       // 描述
+	Link         []string      `gorm:"-" json:"link"`                                                      // 参考链接
+	LinkJSON     []byte        `gorm:"type:Blob" json:"-"`
+	Severity     string        `gorm:"type:varchar(255)" json:"severity"` // 威胁等级
+	SeverityInt  int           `gorm:"column:severity_int" json:"severity_int"`
+	Metadata     *VulnMatedata `gorm:"-" json:"metadata"`
+	MetadataJSON []byte        `gorm:"type:Blob" json:"-"`                                                        // 元数据
+	PkgName      string        `gorm:"type:varchar(255);uniqueIndex:uniq_idx_vuln,priority:2" json:"pkg_name"`    // 软件包来源
+	PkgVersion   string        `gorm:"type:varchar(255);uniqueIndex:uniq_idx_vuln,priority:3" json:"pkg_version"` // 软件包版本
+	FixedBy      string        `gorm:"type:varchar(255)" json:"fixedby" bson:"fixedby" json:"fixed_by"`           // 修复建议
+	UniqueVuln   uint64        `gorm:"column:unique_vuln" json:"unique_vuln" json:"unique_vuln"`
+	ExtraInfo    []byte        `gorm:"type:Blob" json:"-"` //  预留，漏洞属性。如我们自己的漏洞评级
+	CheckSum     uint64        `gorm:"column:check_sum" json:"check_sum"`
 }
 
 func (Vuln) TableName() string {
 	return "ivan_scanner_vulns"
 }
+func (vn *Vuln) Serialize() {
+	if vn.Metadata != nil {
+		bys, err := json.Marshal(vn.Metadata)
+		if err != nil {
+			logging.GetLogger().Err(err).Msg("Vuln.Serialize")
+		} else {
+			vn.MetadataJSON = bys
+		}
+	}
+	if len(vn.Link) > 0 {
+		bys, err := json.Marshal(vn.Link)
+		if err != nil {
+			logging.GetLogger().Err(err).Msg("Vuln.Serialize")
+		} else {
+			vn.LinkJSON = bys
+		}
+	}
+}
+func (vn *Vuln) Deserialize() {
+	if len(vn.MetadataJSON) > 0 {
+		meta := new(VulnMatedata)
+		if err := json.Unmarshal(vn.MetadataJSON, meta); err != nil {
+			logging.GetLogger().Err(err).Msg("Vuln.Deserialize")
+		}
+		vn.Metadata = meta
+
+	}
+	if len(vn.LinkJSON) > 0 {
+		link := make([]string, 0)
+		if err := json.Unmarshal(vn.LinkJSON, &link); err != nil {
+			logging.GetLogger().Err(err).Msg("Vuln.Deserialize")
+		}
+		vn.Link = link
+	}
+}
+
+func (vn *Vuln) GenCheckSum() uint64 {
+	vn.Serialize()
+	vn.Deserialize()
+	createdAt, updatedAt, preCheck := vn.CreatedAt, vn.UpdatedAt, vn.CheckSum
+	vn.CreatedAt = time.Time{}
+	vn.UpdatedAt = time.Time{}
+	vn.CheckSum = 0
+
+	bys, err := json.Marshal(vn)
+	vn.CreatedAt, vn.UpdatedAt, vn.CheckSum = createdAt, updatedAt, preCheck
+	if err != nil {
+		return 0
+	}
+	return util.GenerateUUID64(string(bys))
+}
+
+func (vn *Vuln) GenUniqueVuln() uint64 {
+	key := fmt.Sprintf("%s-%s-%s", vn.Name, vn.PkgName, vn.PkgVersion)
+	uid := util.GenerateUUID64(key)
+	return uid
+}
 
 // 漏洞关联镜像表
 type VulnImage struct {
-	ID        uint `gorm:"primaryKey"`
-	CreatedAt time.Time
-	UpdatedAt time.Time
-	DeletedAt int
-	VulnName  string `gorm:"type:varchar(255);uniqueIndex:uniq_idx_vnlu_image,priority:1"`
-	// SeverityInt int    `gorm:"column:severity_int" json:"severity_int"`    // 保存一个冗余数据，用于统计
-	ImageId int64 `gorm:"uniqueIndex:uniq_idx_vnlu_image,priority:2"` // 镜像id
+	ID         uint      `gorm:"primaryKey" json:"id,omitempty"`
+	CreatedAt  time.Time `json:"created_at"`
+	UpdatedAt  time.Time `json:"updated_at"`
+	UniqueVuln uint64    `gorm:"column:unique_vuln" json:"unique_vuln"`                      // 漏洞的唯一标识
+	ImageId    int64     `gorm:"uniqueIndex:uniq_idx_vnlu_image,priority:2" json:"image_id"` // 镜像id
 }
 
 func (VulnImage) TableName() string {

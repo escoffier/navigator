@@ -124,3 +124,8 @@ const (
 
 const DefaultVulnTopNImage = 5
 const DefaultBathSize = 500 // 批量取数据时，默认每次取的条数
+
+const (
+	SortByDesc = "desc"
+	SortByAsc  = "asc"
+)

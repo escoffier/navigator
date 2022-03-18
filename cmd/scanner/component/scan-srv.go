@@ -16,7 +16,6 @@ import (
 	"github.com/google/go-containerregistry/pkg/name"
 	"github.com/pkg/errors"
 	"github.com/rogpeppe/go-internal/cache"
-	"go.mongodb.org/mongo-driver/bson/primitive"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/task"
@@ -115,7 +114,7 @@ type ScannerSrv interface {
 
 	ListImgLayers(ctx context.Context, imageID int64, filter *model.Filter) ([]model.ReportImgBackInfo, error)
 	ImgLayerInfo(ctx context.Context, imageID int64, layerDigest string, filter *model.Filter) (*model.ScanLayerResponse, error)
-	SearchVulns(ctx context.Context, searchWord string, filter *model.Filter) ([]model.VulnList, int, error)
+	SearchVuln(ctx context.Context, searchWord string, filter *model.Filter) ([]model.Vuln, int64, error)
 	GetImagesFromVuln(ctx context.Context, name string) ([]model.VulnImageList, error)
 	GetVulnDetails(ctx context.Context, name string) (model.VulnDetail, error)
 	GetSimpleImageDetail(ctx context.Context, tag string, digest string, library string, fullRepoName string) model.SimpleImageDetail
@@ -787,11 +786,11 @@ func (s *ConScannerSrv) GetVulnDetails(ctx context.Context, name string) (model.
 	return res, err
 }
 
-func (s *ConScannerSrv) SearchVulns(ctx context.Context, searchWord string, filter *model.Filter) ([]model.VulnList, int, error) {
-	filter = filter.SetDefault()
-	vulns, cnt, err := s.dbdal.SearchVulns(ctx, searchWord, filter)
+func (s *ConScannerSrv) SearchVuln(ctx context.Context, searchWord string, filter *model.Filter) ([]model.Vuln, int64, error) {
+	param := store.SearchVulnParm{Fields: []string{"name", "severity", "pkg_name", "pkg_version", "id", "severity_int", "unique_vuln"}, Keyword: searchWord}
+	vulns, cnt, err := s.dbdal.SearchVuln(ctx, param, filter)
 	if err != nil {
-		logging.GetLogger().Err(err).Msg("SearchVulns")
+		logging.GetLogger().Err(err).Msg("SearchVuln")
 	}
 	return vulns, cnt, err
 }
@@ -1183,15 +1182,15 @@ func (s *ConScannerSrv) GetImageDetail(ctx context.Context, imgID int64) (*model
 	sort.Sort(model.RespSingleVulnDetails(respVuln))
 
 	// 增加漏洞和敏感文件信息
-	scanTaskID, _ := primitive.ObjectIDFromHex(scs[0].ScanTaskID)
+	// scanTaskID, _ := primitive.ObjectIDFromHex(scs[0].ScanTaskID)
 	imageScanResult := model.ImageScanSummaryResult{
-		TopVulns:          respVuln,
-		SensitiveFiles:    scs[0].SensitiveFile,
-		Repository:        img.FullRepoName,
-		HarborURL:         img.Library,
-		Tag:               img.Tags,
-		Digest:            img.Digest,
-		TaskID:            scanTaskID,
+		TopVulns:       respVuln,
+		SensitiveFiles: scs[0].SensitiveFile,
+		Repository:     img.FullRepoName,
+		HarborURL:      img.Library,
+		Tag:            img.Tags,
+		Digest:         img.Digest,
+		// TaskID:            scanTaskID,
 		StartedAt:         scs[0].StartedAt,
 		FinishedAt:        scs[0].FinishAt,
 		OverallSeverity:   scs[0].OverallSeverity,

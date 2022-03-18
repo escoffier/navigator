@@ -255,8 +255,9 @@ type ImageList struct {
 	PrivilegedBoot int64  `gorm:"privileged_boot" json:"privileged_boot"`
 	IsReinforce    int    `gorm:"is_reinforce" json:"is_reinforce"`
 
-	CheckSum uint32 `gorm:"column:check_sum" json:"check_sum"` // 这一行数据的check值，且于判断这一行数据是否有变动，如果没有变动，就不再更新
-	Flag     uint64 `gorm:"column:flag" json:"flag"`
+	CheckSum    uint64 `gorm:"column:check_sum" json:"check_sum"`       // 这一行数据的check值，且于判断这一行数据是否有变动，如果没有变动，就不再更新
+	UniqueImage uint64 `gorm:"column:unique_image" json:"unique_image"` // 由fullreponame+tags+registryId+fromType生成uuid，唯一确定一定镜像，优化松查询
+	Flag        uint64 `gorm:"column:flag" json:"flag"`
 }
 
 func SetFlagBaseImage(pre uint64) uint64 {
@@ -387,12 +388,12 @@ func (ImageList) TableName() string {
 	return "ivan_scanner_image_list"
 }
 
-func (im *ImageList) GetUniqueImageUUID() uint32 {
-	return util.GenerateUUID(fmt.Sprintf("%d", im.RegistryID), fmt.Sprintf("%d", im.FromType),
-		im.FullRepoName, im.Tags)
+func (im *ImageList) GenUniqueImage() uint64 {
+	uid := util.GenerateUUID64(fmt.Sprintf("%s-%s-%d-%d", im.FullRepoName, im.Tags, im.FromType, im.RegistryID))
+	return uid
 }
 
-func (im *ImageList) GetImageCheckSum() uint32 {
+func (im *ImageList) GetImageCheckSum() uint64 {
 	im.Serialize()
 	im.Deserialize()
 	createdAt, updatedAt, preCheck := im.CreatedAt, im.UpdatedAt, im.CheckSum
@@ -407,7 +408,7 @@ func (im *ImageList) GetImageCheckSum() uint32 {
 	if err != nil {
 		return 0
 	}
-	return util.GenerateUUID(string(bys))
+	return util.GenerateUUID64(string(bys))
 }
 
 func (im *ImageList) GetLayerString() string {

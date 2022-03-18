@@ -128,7 +128,7 @@ func (s *Scanner) ScannedByVulnDetails(ctx *gin.Context) {
 // @Param search query string false "for vuln like "
 // @Param offset query int true "int"
 // @Param limit query int true "int"
-// @Success 200 {object} ApiWithItem{data=ApiItems{items=[]model.VulnList{}}}
+// @Success 200 {object} ApiWithItem{data=ApiItems{items=[]model.Vuln{}}}
 // @Router	/api/v1/vulns/all [get]
 func (s *Scanner) ListScannedByVulnList(ctx *gin.Context) {
 	search := ctx.Query("search")
@@ -136,20 +136,22 @@ func (s *Scanner) ListScannedByVulnList(ctx *gin.Context) {
 		response.JSONError(ctx, errors.New("the maximum value is exceeded"))
 		return
 	}
-	offset, _ := strconv.ParseInt(ctx.Query("offset"), 10, 64)
-	limit, _ := strconv.ParseInt(ctx.Query("limit"), 10, 64)
-	vulns, cnt, err := s.Srv.SearchVulns(ctx, search, &model.Filter{
-		Limit:  limit,
-		Offset: offset,
-	})
+	filter := model.GetFilter(ctx)
+	if filter.SortFiled == "" {
+		filter.SortFiled = "severity_int"
+	}
+	if filter.SortBy == "" {
+		filter.SortBy = consts.SortByDesc
+	}
+	vulns, cnt, err := s.Srv.SearchVuln(ctx, search, filter)
 	if err != nil {
 		response.JSONError(ctx, err)
 		return
 	}
 	response.JSONOK(ctx, response.WithItems(vulns),
 		response.WithTotalItems(int64(cnt)),
-		response.WithItemsPerPage(limit),
-		response.WithStartIndex(offset))
+		response.WithItemsPerPage(filter.Limit),
+		response.WithStartIndex(filter.Offset))
 }
 
 // ListScannedByVulnOverview
