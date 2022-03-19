@@ -68,6 +68,7 @@ func WebAPI(router *gin.Engine, scannerSvc component.ScannerSrv, rejectSvc compo
 		v2.GET("/sampleList", apiScannerSrv.SearchImages)
 		v2.GET("/verifyExistence", apiScannerSrv.VerifyExistence)
 		v2.GET("/existenceCount", apiScannerSrv.ExistenceCount)
+		// v2.GET("/:imageID/vulns", apiScannerSrv.GetImageVulns)
 	}
 
 	v3 := router.Group("/api/v1/layers")
@@ -77,8 +78,8 @@ func WebAPI(router *gin.Engine, scannerSvc component.ScannerSrv, rejectSvc compo
 
 	v4 := router.Group("/api/v1/vulns")
 	{
-		v4.GET("/query/:name", apiScannerSrv.ListImageInfoFromVuln)
-		v4.GET("/detail/:name", apiScannerSrv.ScannedByVulnDetails)
+		v4.GET("/query", apiScannerSrv.ListImageInfoFromVuln)
+		v4.GET("/detail", apiScannerSrv.ScannedByVulnDetails)
 		v4.GET("/statistic", apiScannerSrv.ListScannedByVulnOverview)
 		v4.GET("/topNImage", apiScannerSrv.GetVulnTopNImage)
 		v4.GET("/imageHistogram/:imageID", apiScannerSrv.GetImageHistogram)

@@ -20,8 +20,6 @@ type ScanImage struct { // 镜像结果// 加上镜像结果,对应原来的scan
 	VirusScore     float64 `gorm:"column:virus_score" json:"virus_score"`
 	WebshellScore  float64 `gorm:"column:webshell_score" json:"webshell_score"`
 
-	// 这个字段保存扫描存在异常的问题，每个问题占一位,主要用于快速统计
-
 	VulnInfo                 []SingleScanDetail         `gorm:"-" json:"vuln_info"`
 	VulnInfoJSON             []byte                     `gorm:"type:MediumBlob" json:"-"` // 漏洞结果汇总
 	PkgInfoJSON              []byte                     `gorm:"type:MediumBlob" json:"-"` // 软件包信息

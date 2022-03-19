@@ -166,6 +166,7 @@ type VulnOverview struct {
 	// Top5      []ImageRiskScore `json:"top5"`
 }
 
+// fixme(liuqiang) 和vuln表一致，只是做了展平处理，
 type VulnDetailInfo struct {
 	Name        string                  `json:"name"`
 	Severity    string                  `json:"severity"`
@@ -197,6 +198,8 @@ type VulnImageList struct {
 	Digest       string `json:"digest"`
 	ImageId      int    `json:"id" gorm:"column:id"`
 }
+
+//
 type VulnDetail struct {
 	VulninfoApi   VulnDetailInfo        `json:"vulninfo"`
 	VulnImageList []VulnImageList       `json:"vuln_image_list"`
