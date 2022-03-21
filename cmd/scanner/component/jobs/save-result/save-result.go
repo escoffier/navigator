@@ -393,7 +393,7 @@ func (s *ScanResultHandle) logPostgresLayer(ctx context.Context, scanDetails *mo
 
 func (s *ScanResultHandle) logPostgresImage(ctx context.Context, scanDetails *model.ScanDetailScanImage, layerMp map[string]*model.LayerScanDetail, imageID int64) {
 	scannerOrm := store.GetScannerDb()
-	tmpScanImage := model.ScanImage{
+	tmpScanImage := &model.ScanImage{
 		ID:                   0,
 		ImageID:              imageID,
 		RiskScore:            scanDetails.VulnScore + math.Min(40, scanDetails.MaliciousScore+scanDetails.WebShellScore) + scanDetails.SensitiveScore,
@@ -415,12 +415,12 @@ func (s *ScanResultHandle) logPostgresImage(ctx context.Context, scanDetails *mo
 	}
 
 	tmpScanImage.Serialize()
-	if err := scannerOrm.InsertToScanImage(ctx, &tmpScanImage); err != nil {
+	if err := scannerOrm.InsertToScanImage(ctx, tmpScanImage); err != nil {
 		logging.GetLogger().Err(err).Int64("imageID", tmpScanImage.ImageID).Msg("save scan result InsertToScanImage")
 		return
 	}
 	// 更改imagelist表
-	if err := s.UpdateImageFlag(ctx, tmpScanImage.ImageID, &tmpScanImage); err != nil {
+	if err := s.UpdateImageFlag(ctx, tmpScanImage.ImageID, tmpScanImage); err != nil {
 		logging.GetLogger().Err(err).Int64("imageID", tmpScanImage.ImageID).Msg("save scan result UpdateImageFlag")
 		return
 	}
