@@ -19,13 +19,13 @@ const (
 )
 
 type AssociatedEventsHandler struct {
-	stanConn    *mqtools.StanConn
+	stanConn   *mqtools.StanConn
 	dockerInfo *nodeinfo.DockerInfoManager
 }
 
 func NewAssociatedEventsHandler(stanConn *mqtools.StanConn, dockerInfo *nodeinfo.DockerInfoManager) *AssociatedEventsHandler {
 	return &AssociatedEventsHandler{
-		stanConn:    stanConn,
+		stanConn:   stanConn,
 		dockerInfo: dockerInfo,
 	}
 }
@@ -35,8 +35,8 @@ func (ih *AssociatedEventsHandler) Handle(ctx context.Context, events []eventIte
 	defer cancel()
 
 	for _, e := range events {
-		containerID := e.data.OutputFields[rtdetect.FieldContainerID]
-		if _, exist := ih.dockerInfo.FindContainerCacheData(containerID); exist {
+		if isEventItemWhitelisted(e.data, ih.dockerInfo) {
+			logging.Get().Info().Msgf("Filter out container creation post events. data: %v.", e.data)
 			continue
 		}
 

@@ -5,10 +5,10 @@ import (
 	"errors"
 	"time"
 
+	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/nodeinfo"
 	"gitlab.com/piccolo_su/vegeta/pkg/echelper"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/rtdetect"
-	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/nodeinfo"
 	"gitlab.com/piccolo_su/vegeta/pkg/uuid"
 	"gitlab.com/security-rd/go-pkg/logging"
 	pb "gitlab.com/security-rd/go-pkg/pb"
@@ -24,8 +24,8 @@ var (
 )
 
 type EcHandler struct {
-	ecCli       pb.EventsCenterCollectionServiceClient
-	uuidGen     *uuid.Generator
+	ecCli      pb.EventsCenterCollectionServiceClient
+	uuidGen    *uuid.Generator
 	dockerInfo *nodeinfo.DockerInfoManager
 	podResInfo *nodeinfo.PodResInfo
 }
@@ -44,8 +44,8 @@ func NewEcHandler(dockerInfo *nodeinfo.DockerInfoManager, podResInfo *nodeinfo.P
 		return nil, err
 	}
 	return &EcHandler{
-		ecCli:       ech,
-		uuidGen:     uuidGen,
+		ecCli:      ech,
+		uuidGen:    uuidGen,
 		dockerInfo: dockerInfo,
 		podResInfo: podResInfo,
 	}, nil
@@ -59,11 +59,11 @@ func isLegalTag(tag string) bool {
 		return false
 	}
 }
+
 func (ec *EcHandler) Handle(ctx context.Context, events []eventItem) error {
 	for _, item := range events {
-		containerID := item.data.OutputFields[rtdetect.FieldContainerID]
-		if _, exist := ec.dockerInfo.FindContainerCacheData(containerID); exist {
-			logging.Get().Info().Msgf("Filter out container creation post events. data: %v. ContainerID: %s", item.data, containerID)
+		if isEventItemWhitelisted(item.data, ec.dockerInfo) {
+			logging.Get().Info().Msgf("Filter out container creation post events. data: %v.", item.data)
 			continue
 		}
 
