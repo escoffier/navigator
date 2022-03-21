@@ -115,8 +115,8 @@ type ScannerSrv interface {
 	ListImgLayers(ctx context.Context, imageID int64, filter *model.Filter) ([]model.ReportImgBackInfo, error)
 	ImgLayerInfo(ctx context.Context, imageID int64, layerDigest string, filter *model.Filter) (*model.ScanLayerResponse, error)
 	SearchVuln(ctx context.Context, searchWord string, filter *model.Filter) ([]model.Vuln, int64, error)
-	GetImagesFromVuln(ctx context.Context, name string) ([]model.VulnImageList, error)
-	GetVulnDetails(ctx context.Context, name string) (model.VulnDetail, error)
+	GetImagesFromVuln(ctx context.Context, uniqueVuln uint64) ([]model.VulnImageList, error)
+	GetVulnDetails(ctx context.Context, uniqueVuln uint64) (model.VulnDetail, error)
 	GetSimpleImageDetail(ctx context.Context, tag string, digest string, library string, fullRepoName string) model.SimpleImageDetail
 
 	TickOnlineScan(ctx context.Context, containerInfo []model.RejectOnlineMonitorImage) bool
@@ -776,14 +776,22 @@ func (s *ConScannerSrv) GetSimpleImageDetail(ctx context.Context, tag string, di
 	return res
 }
 
-func (s *ConScannerSrv) GetImagesFromVuln(ctx context.Context, name string) ([]model.VulnImageList, error) {
-	res, err := s.dbdal.GetImagesFromVuln(ctx, name)
+func (s *ConScannerSrv) GetImagesFromVuln(ctx context.Context, uniqueVuln uint64) ([]model.VulnImageList, error) {
+	res, err := s.dbdal.GetImagesFromVuln(ctx, uniqueVuln)
+	if err != nil {
+		logging.GetLogger().Err(err).Uint64("uniqueVuln", uniqueVuln).Msg("GetImagesFromVuln")
+		return nil, err
+	}
 	return res, err
 }
 
-func (s *ConScannerSrv) GetVulnDetails(ctx context.Context, name string) (model.VulnDetail, error) {
-	res, err := s.dbdal.GetVulnDetails(ctx, name)
-	return res, err
+func (s *ConScannerSrv) GetVulnDetails(ctx context.Context, uniqueVuln uint64) (model.VulnDetail, error) {
+	res, err := s.dbdal.GetVulnDetails(ctx, uniqueVuln)
+	if err != nil {
+		logging.GetLogger().Err(err).Uint64("uniqueVuln", uniqueVuln).Msg("GetVulnDetails")
+		return res, err
+	}
+	return res, nil
 }
 
 func (s *ConScannerSrv) SearchVuln(ctx context.Context, searchWord string, filter *model.Filter) ([]model.Vuln, int64, error) {
@@ -791,6 +799,7 @@ func (s *ConScannerSrv) SearchVuln(ctx context.Context, searchWord string, filte
 	vulns, cnt, err := s.dbdal.SearchVuln(ctx, param, filter)
 	if err != nil {
 		logging.GetLogger().Err(err).Msg("SearchVuln")
+		return nil, 0, err
 	}
 	return vulns, cnt, err
 }

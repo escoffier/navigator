@@ -113,7 +113,7 @@ func (vn *Vuln) GenCheckSum() uint64 {
 }
 
 func (vn *Vuln) GenUniqueVuln() uint64 {
-	key := fmt.Sprintf("%s-%s-%s", vn.Name, vn.PkgName, vn.PkgVersion)
+	key := fmt.Sprintf(consts.UniqueVulnFamat, vn.Name, vn.PkgName, vn.PkgVersion)
 	uid := util.GenerateUUID64(key)
 	return uid
 }

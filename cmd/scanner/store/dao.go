@@ -59,8 +59,8 @@ type ScannerDalInterface interface {
 
 	SearchVuln(ctx context.Context, param SearchVulnParm, filter *model.Filter) ([]model.Vuln, int64, error)
 	UpdateVuln(ctx context.Context, where string, updater map[string]interface{}, vuln *model.Vuln) error
-	GetImagesFromVuln(ctx context.Context, name string) ([]model.VulnImageList, error)
-	GetVulnDetails(ctx context.Context, name string) (model.VulnDetail, error)
+	GetImagesFromVuln(ctx context.Context, uniqueVuln uint64) ([]model.VulnImageList, error)
+	GetVulnDetails(ctx context.Context, uniqueVuln uint64) (model.VulnDetail, error)
 
 	GetOnlineImage(ctx context.Context, parm GetOnlineImageParam) ([]OnlineImage, error)
 
@@ -806,13 +806,13 @@ func (s *ScannerOrm) SetImageStatus(ctx context.Context, ids []int64, status str
 	return nil
 }
 
-func (s *ScannerOrm) GetImagesFromVuln(ctx context.Context, name string) ([]model.VulnImageList, error) {
+func (s *ScannerOrm) GetImagesFromVuln(ctx context.Context, uniqueVuln uint64) ([]model.VulnImageList, error) {
 	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*2)
 	defer cancelFunc()
 	tmpImageID := []int{}
 	resImageLists := []model.VulnImageList{}
 	// 查询这个vuln关联的imageid
-	err := s.rdb.Get().WithContext(ctx).Model(model.VulnImage{}).Select("image_id").Where("vuln_name = ? ", name).Find(&tmpImageID).Error
+	err := s.rdb.Get().WithContext(ctx).Model(model.VulnImage{}).Select("image_id").Where("unique_vuln  = ? ", uniqueVuln).Find(&tmpImageID).Error
 	if err != nil {
 		return resImageLists, err
 	}
@@ -821,18 +821,16 @@ func (s *ScannerOrm) GetImagesFromVuln(ctx context.Context, name string) ([]mode
 	return resImageLists, err
 }
 
-func (s *ScannerOrm) GetVulnDetails(ctx context.Context, name string) (model.VulnDetail, error) {
+func (s *ScannerOrm) GetVulnDetails(ctx context.Context, uniqueVuln uint64) (model.VulnDetail, error) {
 	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*3)
 	defer cancelFunc()
 	tmp := model.Vuln{}
 	// 取出对应vuln信息
-	err := s.rdb.Get().WithContext(ctx).Model(model.Vuln{}).Where("name = ?", name).Find(&tmp).Error
-	if err != nil {
+	if err := s.rdb.Get().WithContext(ctx).Model(model.Vuln{}).Where("unique_vuln = ?", uniqueVuln).Find(&tmp).Error; err != nil {
 		return model.VulnDetail{}, err
 	}
 	tmpMate := model.VulnMatedata{}
-	err = json.Unmarshal(tmp.MetadataJSON, &tmpMate)
-	if err != nil {
+	if err := json.Unmarshal(tmp.MetadataJSON, &tmpMate); err != nil {
 		return model.VulnDetail{}, err
 	}
 	res := model.VulnDetail{}
@@ -854,9 +852,13 @@ func (s *ScannerOrm) GetVulnDetails(ctx context.Context, name string) (model.Vul
 	tmpImageID := make([]int, 0)
 	tmpImageLists := make([]model.VulnImageList, 0)
 	// 查询这个vuln关联的imageid
-	s.rdb.Get().WithContext(ctx).Model(model.VulnImage{}).Select("image_id").Where("vuln_name = ? ", name).Find(&tmpImageID)
+	if err := s.rdb.Get().WithContext(ctx).Model(model.VulnImage{}).Select("image_id").Where("unique_vuln = ? ", uniqueVuln).Find(&tmpImageID).Error; err != nil {
+		return model.VulnDetail{}, err
+	}
 	// 查询image具体信息
-	s.rdb.Get().WithContext(ctx).Model(model.ImageList{}).Select("full_repo_name,digest,library,id").Where("id IN ? ", tmpImageID).Find(&tmpImageLists)
+	if err := s.rdb.Get().WithContext(ctx).Model(model.ImageList{}).Select("full_repo_name,digest,library,id").Where("id IN ? ", tmpImageID).Find(&tmpImageLists).Error; err != nil {
+		return model.VulnDetail{}, err
+	}
 	return res, nil
 }
 

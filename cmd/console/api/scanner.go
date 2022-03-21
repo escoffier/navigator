@@ -45,7 +45,7 @@ func (api *api) scanner() func(chi.Router) {
 
 		r.Get("/layers/images/{imageId}/layers/{layerDigest}/info", api.RedirectToScanner())
 
-		r.Get("/vulns/detail/{name}", api.RedirectToScanner())
+		r.Get("/vulns/detail", api.RedirectToScanner())
 		r.Get("/vulns/statistic", api.RedirectToScanner())
 		r.Get("/vulns/topNImage", api.RedirectToScanner())
 		r.Get("/vulns/imageHistogram/{imageID}", api.RedirectToScanner())
