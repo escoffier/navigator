@@ -100,13 +100,13 @@ func (si *ScanImage) GenImageFlag(preFlag uint64) uint64 {
 
 	// 以下部分是image所特有的flag
 	if ExistFlag(preFlag, FlagBaseImage) {
-		flag = 1 << FlagBaseImage
+		flag = 1<<FlagBaseImage + flag
 	}
 	if ExistFlag(preFlag, FlagPrivilegedBoot) {
-		flag = 1 << FlagPrivilegedBoot
+		flag = 1<<FlagPrivilegedBoot + flag
 	}
 	if ExistFlag(preFlag, FlagReinforced) {
-		flag = 1 << FlagReinforced
+		flag = 1<<FlagReinforced + flag
 	}
 
 	return flag

@@ -6,6 +6,7 @@ import (
 	"time"
 
 	json "github.com/json-iterator/go"
+
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 )
@@ -462,26 +463,10 @@ func (im *ImageList) GenImageFlag(preFlag uint64) uint64 {
 		flag = 1<<FlagReinforced + flag
 	}
 
-	if ExistFlag(preFlag, FlagHasVuln) {
-		flag = 1<<FlagHasVuln + flag
-	}
-	if ExistFlag(preFlag, FlagHasSensitive) {
-		flag = 1<<FlagHasSensitive + flag
-	}
-	if ExistFlag(preFlag, FlagHasMalicious) {
-		flag = 1<<FlagHasMalicious + flag
-	}
-	if ExistFlag(preFlag, FlagHasWebshell) {
-		flag = 1<<FlagHasWebshell + flag
-	}
-	if ExistFlag(preFlag, FlagHasExceptEnv) {
-		flag = 1<<FlagHasExceptEnv + flag
-	}
-	if ExistFlag(preFlag, FlagHasSoftware) {
-		flag = 1<<FlagHasSoftware + flag
-	}
-	if ExistFlag(preFlag, FlagHasExceptLicense) {
-		flag = 1<<FlagHasExceptLicense + flag
+	for _, pre := range GetScanFlag() {
+		if ExistFlag(preFlag, pre) {
+			flag = 1<<pre + flag
+		}
 	}
 
 	if ExistFlag(preFlag, FlagBaseImage) {
