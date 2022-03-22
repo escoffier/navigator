@@ -928,10 +928,10 @@ func UpsertPodResourceRelationInRDB(ctx context.Context, rdb *gorm.DB, pod *core
 	rel.UpdatedAt = updateTime
 	rel.ID = util.GenerateUUID(clusterKey, rel.Namespace, rel.ResourceKind, rel.ResourceName, rel.PodUID)
 
-	rCtx, cancel := context.WithTimeout(ctx, 2000*time.Millisecond)
+	rCtx, cancel := context.WithTimeout(ctx, 5000*time.Millisecond)
 	defer cancel()
 	return util.RetryWithBackoff(rCtx, func() error {
-		oneCtx, oneCancel := context.WithTimeout(rCtx, 500*time.Millisecond)
+		oneCtx, oneCancel := context.WithTimeout(rCtx, 1000*time.Millisecond)
 		defer oneCancel()
 		return rdb.WithContext(oneCtx).Model(&rel).Clauses(clause.OnConflict{
 			Columns:   []clause.Column{{Name: "id"}},

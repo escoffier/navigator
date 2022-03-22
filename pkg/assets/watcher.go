@@ -1045,7 +1045,7 @@ func (w *Watcher) watchForCluster(ctx context.Context, clusterKey string, newCli
 
 			// callbacks after sync
 			for _, cb := range clusterCallbacks {
-				cb.AfterDataSynced(ctx, syncSucc)
+				cb.AfterDataSynced(context.Background(), syncSucc)
 			}
 		}()
 
