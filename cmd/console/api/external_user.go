@@ -7,11 +7,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"gitlab.com/piccolo_su/vegeta/cmd/console/service/session"
 	"io/ioutil"
 	"net/http"
 	"strconv"
 	"time"
+
+	"gitlab.com/piccolo_su/vegeta/cmd/console/service/session"
 
 	param "github.com/oceanicdev/chi-param"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/captcha"
@@ -324,7 +325,7 @@ func (api *api) LdapLogin() http.HandlerFunc {
 		ctx, cancel := context.WithTimeout(r.Context(), defaultAccountTimeout)
 		defer cancel()
 
-		decrypted, err := loginBodyDecrypt(ctx, r.Body)
+		decrypted, err := api.loginBodyDecrypt(ctx, r.Body)
 		if err != nil {
 			apperror.RespAndLog(w, ctx, apperror.NewMalformedRequestError(http.StatusBadRequest,
 				fmt.Errorf("illeagal params: %w", err)))
@@ -456,7 +457,7 @@ func (api *api) RadiusLogin() http.HandlerFunc {
 		defer cancel()
 
 		// decrypt
-		decrypted, err := loginBodyDecrypt(ctx, r.Body)
+		decrypted, err := api.loginBodyDecrypt(ctx, r.Body)
 		if err != nil {
 			apperror.RespAndLog(w, ctx, apperror.NewMalformedRequestError(http.StatusBadRequest,
 				fmt.Errorf("illeagal params: %w", err)))
@@ -506,7 +507,7 @@ func (api *api) RadiusResponseChallenge() http.HandlerFunc {
 		defer cancel()
 
 		// decrypt
-		decrypted, err := loginBodyDecrypt(ctx, r.Body)
+		decrypted, err := api.loginBodyDecrypt(ctx, r.Body)
 		if err != nil {
 			apperror.RespAndLog(w, ctx, apperror.NewMalformedRequestError(http.StatusBadRequest,
 				fmt.Errorf("illeagal params: %w", err)))

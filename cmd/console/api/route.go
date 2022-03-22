@@ -82,7 +82,7 @@ func SetupRoutes(
 		r.Route("/usercenter", api.userCenter())
 		r.Group(func(r chi.Router) {
 			// normal check
-			r.Use(jwtauth.Verifier(api.tokenAuth), authenticator, jwtAccessCheck(api.rdb))
+			r.Use(jwtauth.Verifier(api.tokenAuth), authenticator(api.rdb), jwtAccessCheck(api.rdb))
 
 			r.Route("/platform", api.platform()) // platform
 			r.Route("/containerSec", api.containerSec())
