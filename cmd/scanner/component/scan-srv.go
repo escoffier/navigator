@@ -1077,13 +1077,19 @@ func (s *ConScannerSrv) GetScanOneStatus(ctx context.Context, imgID int64, fromU
 		NodeHostname:   imgs[0].NodeHostname,
 		IsReinforce:    int64(imgs[0].IsReinforce),
 		PrivilegedBoot: imgs[0].PrivilegedBoot,
-		Flag:           imgs[0].Flag,
 	}
 
 	// 查状态
 	status, err := s.taskdal.SearchSubTasksWithScanStatus(ctx, []int64{imgID}, nil)
 	if err != nil {
-		logging.GetLogger().Err(err).Msgf(fmt.Sprintf("GetScanOneStatus.SearchScanImage error:%s", err.Error()))
+		logging.GetLogger().Err(err).Msg("GetScanOneStatus.SearchSubTasksWithScanStatus")
+		return nil, response.NewHttpError(http.StatusInternalServerError, err)
+	}
+
+	// 查scan_image
+	scs, _, err := s.dbdal.SearchScanImage(ctx, store.SearchScanImageParam{ImageIds: []int64{imgs[0].ID}}, nil)
+	if err != nil {
+		logging.GetLogger().Err(err).Msg("GetScanOneStatus.SearchScanImage")
 		return nil, response.NewHttpError(http.StatusInternalServerError, err)
 	}
 
@@ -1129,21 +1135,45 @@ func (s *ConScannerSrv) GetScanOneStatus(ctx context.Context, imgID int64, fromU
 		}
 	}
 
-	flagList := model.GetScanFlag()
-	for _, f := range flagList {
-		if model.ExistFlag(ans.Flag, f) {
-			ans.Questions = append(ans.Questions, model.QuestionInfo{ID: int(f)})
-		}
+	if len(scs) == 0 {
+		return &ans, nil
 	}
-	if model.ExistFlag(ans.Flag, model.FlagBaseImage) {
-		ans.ImageType = consts.BaseImageType
+
+	qus := make([]model.QuestionInfo, 0)
+
+	ans.HasFixedVulu = int64(scs[0].HasFixedVuln)
+	if scs[0].VulnScore > 0 {
+		qus = append(qus, model.QuestionInfo{ID: model.FlagHasVuln})
 	}
-	if model.ExistFlag(ans.Flag, model.FlagHasFixedVuln) {
-		ans.HasFixedVulu = consts.HasFixedvuln
+
+	if scs[0].SensitiveScore > 0 {
+		qus = append(qus, model.QuestionInfo{ID: model.FlagHasSensitive})
 	}
-	if model.ExistFlag(ans.Flag, model.FlagReinforced) {
-		ans.IsReinforce = consts.IsReinforceImage
+	if scs[0].VirusScore > 0 {
+		qus = append(qus, model.QuestionInfo{ID: model.FlagHasMalicious})
 	}
+	if scs[0].WebshellScore > 0 {
+		qus = append(qus, model.QuestionInfo{ID: model.FlagHasWebshell})
+	}
+
+	if scs[0].ScanEnableCollection.EnvEnable > 0 {
+		qus = append(qus, model.QuestionInfo{ID: model.FlagHasExceptEnv})
+	}
+
+	if scs[0].ScanEnableCollection.LicenseEnable > 0 {
+		qus = append(qus, model.QuestionInfo{ID: model.FlagHasExceptLicense, Info: ParseLicense(scs[0].LicenseInfo)})
+	}
+
+	if scs[0].ScanEnableCollection.SoftwareEnable > 0 {
+		qus = append(qus, model.QuestionInfo{ID: model.FlagHasSoftware, Info: ParseSoftWare(scs[0].Software)})
+	}
+	// 特权启动
+	if imgs[0].PrivilegedBoot == consts.PrivilegedBootImage {
+		qus = append(qus, model.QuestionInfo{ID: model.FlagPrivilegedBoot})
+	}
+
+	ans.Questions = append(ans.Questions, qus...)
+	ans.RiskScore = scs[0].VulnScore + scs[0].SensitiveScore + math.Min(scs[0].WebshellScore+scs[0].VirusScore, 40)
 
 	return &ans, nil
 }
