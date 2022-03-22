@@ -143,24 +143,6 @@ func (s *Service) GetToken(ctx context.Context, username string) (string, error)
 	return tokenStr, nil
 }
 
-func (s *Service) IsTokenExists(ctx context.Context, username string) (bool, error) {
-	var exists int64
-	set := func() error {
-		oneCtx, oneCancel := context.WithTimeout(ctx, defaultOneTimeout)
-		defer oneCancel()
-
-		var err error
-		exists, err = s.redisCli.Exists(oneCtx, userTokenPrefix+username).Result()
-		return err
-	}
-
-	if err := util.RetryWithBackoff(ctx, set); err != nil {
-		logging.GetLogger().Err(err).Msg("save user session fail")
-		return false, err
-	}
-	return exists == 1, nil
-}
-
 func (s *Service) GetUserSession(ctx context.Context, username string) (*model.UserSession, error) {
 	var cacheContent string
 	get := func() error {
@@ -201,11 +183,11 @@ func (s *Service) SaveUserSession(ctx context.Context, user *model.UserSession) 
 	return nil
 }
 
-func (s *Service) SaveUserLoginSecret(ctx context.Context, seed, key string) error {
+func (s *Service) SaveUserLoginSecret(ctx context.Context, username, key string) error {
 	set := func() error {
 		oneCtx, oneCancel := context.WithTimeout(ctx, defaultOneTimeout)
 		defer oneCancel()
-		return s.redisCli.Set(oneCtx, getLoginSecretRedisKey(seed), key, loginSecretExpireTime).Err()
+		return s.redisCli.Set(oneCtx, getLoginSecretRedisKey(username), key, loginSecretExpireTime).Err()
 	}
 
 	if err := util.RetryWithBackoff(ctx, set); err != nil {

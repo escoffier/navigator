@@ -42,10 +42,17 @@ func (api *api) getLoginSecret() http.HandlerFunc {
 		ctx, cancel := context.WithTimeout(r.Context(), defaultAccountTimeout)
 		defer cancel()
 
-		seed := r.URL.Query().Get("seed")
-		if seed == "" {
+		username := r.URL.Query().Get("seed")
+		if username == "" {
 			RespAndLog(w, ctx, NewMalformedRequestError(http.StatusBadRequest,
-				fmt.Errorf("missing field 'username'")))
+				fmt.Errorf("missing params 'seed'")))
+			return
+		}
+
+		exist, _, err := dal.SelectUser(ctx, api.rdb.Get(), username)
+		if !exist || err != nil {
+			RespAndLog(w, ctx, UserNotExistError(http.StatusBadRequest,
+				fmt.Errorf("user not found %w", err)))
 			return
 		}
 
@@ -57,16 +64,21 @@ func (api *api) getLoginSecret() http.HandlerFunc {
 			return
 		}
 
-		if err := sessionService.SaveUserLoginSecret(ctx, seed, aesKey); err != nil {
+		if err = sessionService.SaveUserLoginSecret(ctx, username, aesKey); err != nil {
 			RespAndLog(w, ctx, fmt.Errorf("save login secret fail:%w", err))
 			return
+		}
+
+		// save to mysql
+		if err = dal.UpdateUserLoginKey(ctx, api.rdb.Get(), username, aesKey, time.Now().Add(time.Minute).Unix()); err != nil {
+			logging.Get().Warn().Err(err)
 		}
 
 		response.Ok(w, response.WithItem(getLoginSecretResp{Key: aesKey}))
 	}
 }
 
-func loginBodyDecrypt(ctx context.Context, r io.ReadCloser) ([]byte, error) {
+func (api *api) loginBodyDecrypt(ctx context.Context, r io.ReadCloser) ([]byte, error) {
 	body, err := ioutil.ReadAll(r)
 	defer r.Close()
 	if err != nil {
@@ -89,7 +101,18 @@ func loginBodyDecrypt(ctx context.Context, r io.ReadCloser) ([]byte, error) {
 	}
 
 	if key == "" {
-		return nil, fmt.Errorf("login expire, Plase try again")
+		exist, user, err := dal.SelectUser(ctx, api.rdb.Get(), params[0])
+		if err != nil {
+			return nil, err
+		}
+
+		if exist {
+			if time.Now().Unix() > user.LoginSecretKeyExpireAt {
+				return nil, fmt.Errorf("login expire, Plase try again")
+			}
+
+			key = user.LoginSecretKey
+		}
 	}
 
 	encrypted, err := base64.StdEncoding.DecodeString(params[1])
@@ -126,7 +149,7 @@ func (api *api) login() http.HandlerFunc {
 		ctx, cancel := context.WithTimeout(r.Context(), defaultAccountTimeout)
 		defer cancel()
 
-		decrypted, err := loginBodyDecrypt(ctx, r.Body)
+		decrypted, err := api.loginBodyDecrypt(ctx, r.Body)
 		if err != nil {
 			RespAndLog(w, ctx, NewMalformedRequestError(http.StatusBadRequest,
 				fmt.Errorf("illeagal params: %w", err)))
@@ -442,85 +465,122 @@ func (api *api) issueJWTToken(ctx context.Context, username, role, userAgent str
 		return "", fmt.Errorf("save user token fail:%w", err)
 	}
 
+	// save to mysql
+	err = dal.UpdateUserToken(ctx, api.rdb.Get(), username, tokenString, time.Now().Add(time.Minute*10).Unix())
+	if err != nil {
+		logging.Get().Warn().Err(err)
+	}
+
 	return tokenString, nil
 }
 
-func authenticator(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		ctx, cancel := context.WithTimeout(r.Context(), accessCheckTimeout)
-		defer cancel()
+func authenticator(db *databases.RDBInstance) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			ctx, cancel := context.WithTimeout(r.Context(), accessCheckTimeout)
+			defer cancel()
 
-		token, claims, err := jwtauth.FromContext(ctx)
-		if err != nil {
-			RespAndLog(w, ctx, NewInvalidAuthToken(http.StatusUnauthorized,
-				fmt.Errorf("ctx not found the token: %w", err)))
-			return
-		}
-
-		if token == nil || !token.Valid {
-			RespAndLog(w, ctx, NewInvalidAuthToken(http.StatusUnauthorized,
-				fmt.Errorf("token invalid")))
-			return
-		}
-
-		var username string
-		if v, ok := claims[JWTKeyUsername]; ok {
-			username = v.(string)
-		}
-
-		if username == "" {
-			RespAndLog(w, ctx, NewInvalidAuthToken(http.StatusUnauthorized,
-				fmt.Errorf("username is empty. not found the token")))
-			return
-		}
-
-		sessionService, ok := session.GetService()
-		if !ok {
-			RespAndLog(w, ctx, ErrServiceNotReady)
-			return
-		}
-
-		// check whether the token exists
-		exists, err := sessionService.IsTokenExists(ctx, username)
-		if err != nil {
-			RespAndLog(w, ctx, NewInvalidAuthToken(http.StatusUnauthorized,
-				fmt.Errorf("redis not found the token: %s %w", username, err)))
-			return
-		}
-
-		if !exists {
-			RespAndLog(w, ctx, NewInvalidAuthToken(http.StatusUnauthorized,
-				fmt.Errorf("redis not found the token: %s", username)))
-			return
-		}
-
-		// check user-agent
-		var userAgent string
-		if v, ok := claims[JWTKeyUserAgent]; ok {
-			userAgent = v.(string)
-		}
-
-		if util.MD5(r.UserAgent()) != userAgent {
-			if err = sessionService.DeleteToken(ctx, username); err != nil {
-				logging.Get().Warn().Err(err).Msgf("user-agent not match: delete token failed")
+			token, claims, err := jwtauth.FromContext(ctx)
+			if err != nil {
+				RespAndLog(w, ctx, NewInvalidAuthToken(http.StatusUnauthorized,
+					fmt.Errorf("ctx not found the token: %w", err)))
+				return
 			}
 
-			RespAndLog(w, ctx, NewInvalidAuthToken(http.StatusUnauthorized,
-				fmt.Errorf("user-agent not match")))
-			return
-		}
-
-		// renewal the token
-		logging.Get().Debug().Msgf("X-Auto-Request=%s", r.Header.Get(headerAutoRequest))
-		if h := r.Header.Get(headerAutoRequest); h != autoRequestTypeDefault && h != autoRequestTypePolling {
-			if err = sessionService.RenewalToken(ctx, username); err != nil {
-				logging.Get().Warn().Err(err).Msgf("renewal the token failed")
+			if token == nil || !token.Valid {
+				RespAndLog(w, ctx, NewInvalidAuthToken(http.StatusUnauthorized,
+					fmt.Errorf("token invalid")))
+				return
 			}
-		}
 
-		// Token is authenticated, pass it through
-		next.ServeHTTP(w, r)
-	})
+			var username string
+			if v, ok := claims[JWTKeyUsername]; ok {
+				username = v.(string)
+			}
+
+			if username == "" {
+				RespAndLog(w, ctx, NewInvalidAuthToken(http.StatusUnauthorized,
+					fmt.Errorf("username is empty. not found the token")))
+				return
+			}
+
+			sessionService, ok := session.GetService()
+			if !ok {
+				RespAndLog(w, ctx, ErrServiceNotReady)
+				return
+			}
+
+			// check whether the token exists
+			tokenStr, err := sessionService.GetToken(ctx, username)
+			if err != nil {
+				RespAndLog(w, ctx, NewInvalidAuthToken(http.StatusUnauthorized,
+					fmt.Errorf("redis not found the token: %s %w", username, err)))
+				return
+			}
+
+			if tokenStr == "" {
+				exist, user, err := dal.SelectUser(ctx, db.Get(), username)
+				if err != nil {
+					RespAndLog(w, ctx, NewInvalidAuthToken(http.StatusUnauthorized,
+						fmt.Errorf("db not found the token: %s %w", username, err)))
+					return
+				}
+
+				if exist {
+					if time.Now().Unix() > user.TokenExpireAt {
+						RespAndLog(w, ctx, NewInvalidAuthToken(http.StatusUnauthorized,
+							fmt.Errorf("token is expired")))
+						return
+					}
+
+					tokenStr = user.Token
+
+					// attempt save to redis
+					if err = sessionService.SaveToken(ctx, username, tokenStr); err != nil {
+						logging.Get().Warn().Err(err)
+					}
+				}
+			}
+
+			if token.Raw != tokenStr {
+				RespAndLog(w, ctx, NewInvalidAuthToken(http.StatusUnauthorized,
+					fmt.Errorf("token not match")))
+				return
+			}
+
+			// check user-agent
+			var userAgent string
+			if v, ok := claims[JWTKeyUserAgent]; ok {
+				userAgent = v.(string)
+			}
+
+			if util.MD5(r.UserAgent()) != userAgent {
+				if err = sessionService.DeleteToken(ctx, username); err != nil {
+					logging.Get().Warn().Err(err).Msgf("user-agent not match: delete token failed")
+				}
+
+				RespAndLog(w, ctx, NewInvalidAuthToken(http.StatusUnauthorized,
+					fmt.Errorf("user-agent not match")))
+				return
+			}
+
+			// renewal the token
+			logging.Get().Debug().Msgf("X-Auto-Request=%s", r.Header.Get(headerAutoRequest))
+			if h := r.Header.Get(headerAutoRequest); h != autoRequestTypeDefault && h != autoRequestTypePolling {
+				if err = sessionService.RenewalToken(ctx, username); err != nil {
+					logging.Get().Warn().Err(err).Msgf("renewal the token failed")
+				}
+
+				err = dal.UpdateUserTokenExpireAt(ctx, db.Get(), username, time.Now().Add(time.Minute*10).Unix())
+				if err != nil {
+					RespAndLog(w, ctx, NewInvalidAuthToken(http.StatusUnauthorized, err))
+				}
+			}
+
+			// Token is authenticated, pass it through
+			next.ServeHTTP(w, r)
+		})
+	}
 }
 
 func jwtAccessCheck(postgresDB *databases.RDBInstance) func(http.Handler) http.Handler {

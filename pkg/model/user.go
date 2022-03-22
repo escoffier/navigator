@@ -36,17 +36,21 @@ const (
 )
 
 type User struct {
-	ID          int64         `gorm:"primary_key;AUTO_INCREMENT" json:"-"`
-	UserName    string        `gorm:"index:username,unique;column:username" json:"userName"` // index
-	Pwd         string        `json:"-" bson:"pwd"`
-	Salt        string        `gorm:"column:salt" json:"-"`
-	Rule        string        `gorm:"column:rule" json:"rule"` // typo; role
-	ModuleID    string        `gorm:"column:module_id" json:"-"`
-	ModuleGroup []ModuleGroup `gorm:"-" json:"module_group"`
-	External    bool          `gorm:"-" json:"-"`
-	Checked     bool          `json:"checked"`
-	CreatedAt   int64         `json:"create_at"`
-	BanStatus   int32         `json:"ban_status" gorm:"column:ban_status"`
+	ID                     int64         `gorm:"primary_key;AUTO_INCREMENT" json:"-"`
+	UserName               string        `gorm:"index:username,unique;column:username" json:"userName"` // index
+	Pwd                    string        `json:"-" bson:"pwd"`
+	Salt                   string        `gorm:"column:salt" json:"-"`
+	Rule                   string        `gorm:"column:rule" json:"rule"` // typo; role
+	ModuleID               string        `gorm:"column:module_id" json:"-"`
+	ModuleGroup            []ModuleGroup `gorm:"-" json:"module_group"`
+	External               bool          `gorm:"-" json:"-"`
+	Checked                bool          `json:"checked"`
+	CreatedAt              int64         `json:"create_at"`
+	BanStatus              int32         `json:"ban_status" gorm:"column:ban_status"`
+	LoginSecretKey         string        `gorm:"column:login_secret_key" json:"-"`
+	LoginSecretKeyExpireAt int64         `gorm:"column:login_secret_key_expire_at" json:"-"`
+	Token                  string        `gorm:"column:token; type:text" json:"-"`
+	TokenExpireAt          int64         `gorm:"column:token_expire_at" json:"-"`
 }
 
 func (u *User) GenerateSession(external bool) *UserSession {

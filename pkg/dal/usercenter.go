@@ -305,3 +305,26 @@ func GetModules(ctx context.Context, db *gorm.DB, moduleIDs []int) ([]*model.Mod
 	var err = db.WithContext(ctx).Where("id in (?)", moduleIDs).Find(&result).Error
 	return result, err
 }
+
+func UpdateUserToken(ctx context.Context, db *gorm.DB, username, tokenStr string, expireAt int64) error {
+	return db.WithContext(ctx).Model(&model.User{}).Where("username = ?", username).
+		UpdateColumns(map[string]interface{}{
+			"token":           tokenStr,
+			"token_expire_at": expireAt,
+		}).Error
+}
+
+func UpdateUserTokenExpireAt(ctx context.Context, db *gorm.DB, username string, expireAt int64) error {
+	return db.WithContext(ctx).Model(&model.User{}).
+		Where("username = ?", username).
+		UpdateColumn("token_expire_at", expireAt).Error
+}
+
+func UpdateUserLoginKey(ctx context.Context, db *gorm.DB, username, key string, expireAt int64) error {
+	return db.WithContext(ctx).Model(&model.User{}).Where("username = ?", username).
+		UpdateColumns(map[string]interface{}{
+			"login_secret_key":           key,
+			"login_secret_key_expire_at": expireAt,
+		}).Error
+
+}
