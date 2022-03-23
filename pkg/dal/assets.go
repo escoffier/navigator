@@ -517,7 +517,7 @@ func newModelFromTensorResource(resource *assets.TensorResource, updateTime time
 }
 
 func doUpsertResource(ctx context.Context, rdb *gorm.DB, resourceModel *model.TensorResource, updateTime time.Time) error {
-	oneCtx, oneCancel := context.WithTimeout(ctx, 750*time.Millisecond)
+	oneCtx, oneCancel := context.WithTimeout(ctx, 1000*time.Millisecond)
 	defer oneCancel()
 	resourceModel.UpdatedAt = updateTime
 	return rdb.WithContext(oneCtx).Model(&model.TensorResource{}).Clauses(clause.OnConflict{
@@ -637,7 +637,7 @@ func newModelContainersFromResource(ctx context.Context, rdb *gorm.DB, resource 
 	return containers
 }
 func upsertOneContainer(ctx context.Context, rdb *gorm.DB, containerModel *model.TensorContainer) error {
-	oneCtx, oneCancel := context.WithTimeout(ctx, 750*time.Millisecond)
+	oneCtx, oneCancel := context.WithTimeout(ctx, 1000*time.Millisecond)
 	defer oneCancel()
 	err := rdb.WithContext(oneCtx).Model(&model.TensorContainer{}).Clauses(clause.OnConflict{
 		Columns:   []clause.Column{{Name: "id"}},
