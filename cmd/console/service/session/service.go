@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -133,6 +134,11 @@ func (s *Service) GetToken(ctx context.Context, username string) (string, error)
 			return nil
 		}
 
+		if err != nil && checkRedisCrash(err) {
+			logging.GetLogger().Warn().Err(err).Msg("redis is crash")
+			return nil
+		}
+
 		return err
 	}
 
@@ -206,6 +212,12 @@ func (s *Service) GetUserLoginSecret(ctx context.Context, username string) (stri
 		if err == redis.Nil {
 			return nil
 		}
+
+		if err != nil && checkRedisCrash(err) {
+			logging.GetLogger().Warn().Err(err).Msg("redis is crash")
+			return nil
+		}
+
 		return err
 	}
 
@@ -268,4 +280,11 @@ func getRedisKey(username string) string {
 
 func getLoginSecretRedisKey(username string) string {
 	return fmt.Sprintf("%s%s", loginSecretSessionPrefix, username)
+}
+
+// checkRedisCrash confirm if Redis has crashed
+// All network operations fail as redis crashes
+func checkRedisCrash(err error) bool {
+	_, ok := err.(*net.OpError)
+	return ok
 }
