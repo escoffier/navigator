@@ -1479,7 +1479,11 @@ func (s *ConScannerSrv) SearchImageWithScan(ctx context.Context, param SearchIma
 	}
 	inIds, notInIds := make([]int64, 0), make([]int64, 0)
 	if param.Online == consts.TrueString {
-		inIds = append(inIds, onlineIds...)
+		if len(inIds) > 0 {
+			inIds = util.GetIntersectionSetForInt64(inIds, onlineIds)
+		} else {
+			inIds = append(inIds, onlineIds...)
+		}
 		if len(inIds) == 0 {
 			return make([]*model.ImageResponse, 0), 0, nil
 		}
@@ -1502,7 +1506,11 @@ func (s *ConScannerSrv) SearchImageWithScan(ctx context.Context, param SearchIma
 
 	if param.Trusted != "" {
 		if param.Trusted == consts.IsTrustedImageString {
-			inIds = append(inIds, trustedIds...)
+			if len(inIds) > 0 {
+				inIds = util.GetIntersectionSetForInt64(inIds, trustedIds)
+			} else {
+				inIds = append(inIds, trustedIds...)
+			}
 			if len(inIds) == 0 {
 				return make([]*model.ImageResponse, 0), 0, nil
 			}
@@ -1517,11 +1525,14 @@ func (s *ConScannerSrv) SearchImageWithScan(ctx context.Context, param SearchIma
 			logging.GetLogger().Error().Err(err).Msg("SearchImageWithScan.SearchSubTasksWithStatusFilter")
 			return nil, 0, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf(consts.StatusInternalServerErrorMsg))
 		}
-		if len(statusInIds) == 0 {
+		if len(inIds) > 0 {
+			inIds = util.GetIntersectionSetForInt64(inIds, statusInIds)
+		} else {
+			inIds = append(inIds, statusInIds...)
+		}
+		if len(inIds) == 0 {
 			return make([]*model.ImageResponse, 0), 0, nil
 		}
-
-		inIds = append(inIds, statusInIds...)
 	}
 	daoParam.InIds = util.DeDuplicationInt64Slice(inIds)
 	daoParam.NotInIds = util.DeDuplicationInt64Slice(notInIds)

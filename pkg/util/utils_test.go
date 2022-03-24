@@ -28,3 +28,17 @@ func TestGenerateUUID(t *testing.T) {
 	})
 
 }
+
+func TestGetMixedSetForInt64(t *testing.T) {
+	convey.Convey("GetIntersectionSetForInt64 ", t, func() {
+		convey.So(len(GetIntersectionSetForInt64([]int64{}, []int64{2, 3, 3})), convey.ShouldEqual, 0)
+	})
+	convey.Convey("GetIntersectionSetForInt64 ", t, func() {
+		convey.So(len(GetIntersectionSetForInt64([]int64{2, 3, 3}, []int64{})), convey.ShouldEqual, 0)
+	})
+
+	convey.Convey("GetIntersectionSetForInt64 ", t, func() {
+		convey.So(len(GetIntersectionSetForInt64([]int64{2, 3, 3}, []int64{1, 3, 4})), convey.ShouldEqual, 1)
+	})
+
+}

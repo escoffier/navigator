@@ -14,6 +14,7 @@ import (
 	"github.com/golang/gddo/httputil/header"
 	json "github.com/json-iterator/go"
 	"github.com/rs/zerolog/log"
+
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 )
 
@@ -96,41 +97,25 @@ func RemoveScoredNotScoredFrom(thing string) string {
 	return thing
 }
 
-// GetMixedSetForString 取交集，但是但一个为空时，就返回另一个集合，而不是返回空
-func GetMixedSetForString(pre, after []string) []string {
-	res := make([]string, 0)
-	if len(pre) == 0 {
-		return after
+// GetIntersectionSetForInt64 取交集
+func GetIntersectionSetForInt64(pre, after []int64) []int64 {
+
+	preMap := make(map[int64]struct{})
+	afterMap := make(map[int64]struct{})
+	for i := range pre {
+		preMap[pre[i]] = struct{}{}
 	}
-	if len(after) == 0 {
-		return pre
+	for i := range after {
+		afterMap[after[i]] = struct{}{}
 	}
-	preMap := make(map[string]int)
-	for _, p := range pre {
-		preMap[p] = 1
-	}
-	for _, p := range after {
-		if preMap[p] == 1 {
-			res = append(res, p)
-			preMap[p]++ // 去重
+	ans := make([]int64, 0)
+	for k := range preMap {
+		if _, ok := afterMap[k]; ok {
+			ans = append(ans, k)
 		}
 	}
-	return res
-}
 
-// GetMixedSetForInt64 取交集，但是但一个为空时，就返回另一个集合，而不是返回空
-func GetMixedSetForInt64(pre, after []int64) []int64 {
-	pre = append(pre, after...)
-
-	preMap := make(map[int64]int)
-	res := make([]int64, 0)
-	for _, p := range pre {
-		if preMap[p] < 1 {
-			res = append(res, p)
-			preMap[p]++ // 去重
-		}
-	}
-	return res
+	return ans
 }
 
 func MinInt(res ...int) int {
