@@ -88,14 +88,14 @@ func (s *Scanner) GetSimpleImageDetail(ctx *gin.Context) {
 // @Tags Internal API
 // @Param name query string true "vuln name like CVE-2020-XXXX"
 // @Success 200 {object} ApiWithItem{data=ApiItems{items=[]model.VulnImageList{}}}
-// @Router /api/v1/vulns/query/:uniqueVuln [get]
+// @Router /api/v1/vulns/query [get]
 func (s *Scanner) ListImageInfoFromVuln(ctx *gin.Context) {
 	vulnName := ctx.Query("vulnName")
 	pkgName := ctx.Query("pkgName")
 	pkgVersion := ctx.Query("pkgVersion")
 
 	if vulnName == "" || pkgName == "" || pkgVersion == "" {
-		response.JSONError(ctx, fmt.Errorf("vulnName,pkgName,pkgVersion not empty"))
+		response.JSONError(ctx, fmt.Errorf("vulnName,pkgName,pkgVersion must not empty"))
 		return
 	}
 	uniqueVuln := util.GenerateUUID64(fmt.Sprintf(consts.UniqueVulnFamat, vulnName, pkgName, pkgVersion))
@@ -125,7 +125,7 @@ func (s *Scanner) ScannedByVulnDetails(ctx *gin.Context) {
 	pkgVersion := ctx.Query("pkgVersion")
 
 	if vulnName == "" || pkgName == "" || pkgVersion == "" {
-		response.JSONError(ctx, fmt.Errorf("vulnName,pkgName,pkgVersion not empty"))
+		response.JSONError(ctx, fmt.Errorf("vulnName,pkgName,pkgVersion must not empty"))
 		return
 	}
 	uniqueVuln := util.GenerateUUID64(fmt.Sprintf(consts.UniqueVulnFamat, vulnName, pkgName, pkgVersion))

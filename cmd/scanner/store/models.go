@@ -169,7 +169,7 @@ type OverviewReasonParam struct {
 type SearchRejectRecordParam struct {
 	Search        string
 	Libraries     []string `json:"libraries"`
-	RejectReasons []int64  `json:"reject_reasons"`
+	RejectReasons uint64   `json:"reject_reasons"`
 	StartAt       time.Time
 	EndAt         time.Time
 	RejectAt      time.Time
@@ -177,6 +177,7 @@ type SearchRejectRecordParam struct {
 	Tag           string // 版本号
 	Fields        []string
 	JustCount     bool
+	Where         string
 }
 
 type SearchImageWhitelistParam struct {

@@ -215,7 +215,7 @@ func (s *SyncRepoImage) SyncImage(ctx context.Context) error {
 				// 如果值有变动，就全量更新
 				if len(searchImage) > 0 {
 					img.Flag = img.GenImageFlag(searchImage[0].Flag)
-					img.CheckSum = img.GetImageCheckSum()
+					img.CheckSum = img.GenImageCheckSum()
 					if img.CheckSum != searchImage[0].CheckSum {
 
 						// 全量更新
@@ -312,7 +312,7 @@ func (s *SyncRepoImage) TransImageToImagelist(ctx context.Context, reg model.Reg
 	}
 
 	img.Layers = img.GetLayerString()
-	img.CheckSum = img.GetImageCheckSum()
+	img.CheckSum = img.GenImageCheckSum()
 
 	return img, nil
 }

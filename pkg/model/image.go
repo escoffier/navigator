@@ -395,7 +395,7 @@ func (im *ImageList) GenUniqueImage() uint64 {
 	return uid
 }
 
-func (im *ImageList) GetImageCheckSum() uint64 {
+func (im *ImageList) GenImageCheckSum() uint64 {
 	im.Serialize()
 	im.Deserialize()
 	createdAt, updatedAt, preCheck := im.CreatedAt, im.UpdatedAt, im.CheckSum
@@ -456,11 +456,11 @@ func (im *ImageList) GenImageFlag(preFlag uint64) uint64 {
 		}
 	}
 
-	if boot {
+	if boot || im.PrivilegedBoot == consts.PrivilegedBootImage {
 		flag = 1<<FlagPrivilegedBoot + flag
 	}
 
-	if rein {
+	if rein || im.IsReinforce == consts.IsReinforceImage {
 		flag = 1<<FlagReinforced + flag
 	}
 
@@ -470,7 +470,7 @@ func (im *ImageList) GenImageFlag(preFlag uint64) uint64 {
 		}
 	}
 
-	if ExistFlag(preFlag, FlagBaseImage) {
+	if ExistFlag(preFlag, FlagBaseImage) || im.ImageType == consts.BaseImageType {
 		flag = 1<<FlagBaseImage + flag
 	}
 	return flag

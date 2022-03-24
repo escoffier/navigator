@@ -13,6 +13,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
+	"gitlab.com/piccolo_su/vegeta/pkg/util"
 )
 
 type RejectAPI struct {
@@ -64,13 +65,19 @@ func (r *RejectAPI) ListRejectRecord(ctx *gin.Context) {
 			rjr = append(rjr, i)
 		}
 	}
+	rjr = util.DeDuplicationInt64Slice(rjr)
+	var flag uint64
+	for _, rj := range rjr {
+		flag = 1<<rj + flag
+	}
+
 	// 默认只以阻断时间排序
 	if filter.SortFiled == "" {
 		filter.SortFiled = "reject_at"
 	}
 	filter = filter.SetDefault()
 
-	rgs, cnt, err := r.Srv.ListRejectRecord(ctx, search, libraries, rjr, filter)
+	rgs, cnt, err := r.Srv.ListRejectRecord(ctx, search, libraries, flag, filter)
 	if err != nil {
 		response.JSONError(ctx, err)
 		return
