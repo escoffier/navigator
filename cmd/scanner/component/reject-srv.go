@@ -2,7 +2,6 @@ package component
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -24,7 +23,7 @@ import (
 
 type ImageRejectSrv interface {
 	GetOverview(ctx context.Context, graph string) (*model.ImageRejectOverview, error)
-	ListRejectRecord(ctx context.Context, search string, libraries []string, rejectReasons []int64, filter *model.Filter) ([]model.RejectRecord, int64, error)
+	ListRejectRecord(ctx context.Context, search string, libraries []string, rejectReasons uint64, filter *model.Filter) ([]model.RejectRecord, int64, error)
 	CreateImageWhitelist(ctx context.Context, name, library, tag, digest string) (*model.ImageWhitelist, error)
 	ListImageWhitelist(ctx context.Context, search string, filter *model.Filter) ([]model.ImageWhitelist, int64, error)
 	DeleteImageWhitelist(ctx context.Context, imageWhiteID int64) error
@@ -222,7 +221,7 @@ func (s *ImageReject) GetOverview(ctx context.Context, graph string) (*model.Ima
 	return res, nil
 }
 
-func (s *ImageReject) ListRejectRecord(ctx context.Context, search string, libraries []string, rejectReasons []int64,
+func (s *ImageReject) ListRejectRecord(ctx context.Context, search string, libraries []string, rejectReasons uint64,
 	filter *model.Filter) ([]model.RejectRecord, int64, error) {
 	records, cnt, err := s.dbdal.SearchRejectRecord(ctx, store.SearchRejectRecordParam{Libraries: libraries, RejectReasons: rejectReasons, Search: search}, filter)
 	if err != nil {
@@ -560,12 +559,9 @@ func mergeRejectRecord(img model.ImageList, record []ReasonAndDetail) (*model.Re
 	for _, r := range reasons {
 		reasonsDuplication[strconv.Itoa(int(r))] = strconv.Itoa(int(r))
 	}
-	bys, err := json.Marshal(reasonsDuplication)
-	if err != nil {
-		return nil, err
-	}
-	res.RejectReasonJson = bys
 
 	res.RejectDetail = strings.Join(reasonDetails, "|")
+	res.RejectReason = reasons
+	res.ReasonFlag = res.GenReasonFlag()
 	return &res, nil
 }

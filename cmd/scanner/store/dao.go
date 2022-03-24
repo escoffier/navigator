@@ -5,7 +5,6 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"math"
 	"net/http"
 	"sort"
 	"strconv"
@@ -148,7 +147,12 @@ func (s *ScannerOrm) CreateImageAndUpdate(ctx context.Context, im *model.ImageLi
 	// 先查一下
 	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*5)
 	defer cancelFunc()
-	imageLists, _, err := s.SearchImage(ctx, SearchImageParam{FromType: im.FromType, FullRepoName: im.FullRepoName, Tag: im.Tags, RegistryIds: []int64{im.RegistryID}}, nil)
+	im.Layers = im.GetLayerString()
+	im.UniqueImage = im.GenUniqueImage()
+	im.CheckSum = im.GenImageCheckSum()
+	im.Flag = im.GenImageFlag(im.Flag)
+
+	imageLists, _, err := s.SearchImage(ctx, SearchImageParam{UniqueImage: im.UniqueImage}, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -165,6 +169,12 @@ func (s *ScannerOrm) CreateImageAndUpdate(ctx context.Context, im *model.ImageLi
 func (s *ScannerOrm) CreateImage(ctx context.Context, im *model.ImageList) (*model.ImageList, error) {
 	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*5)
 	defer cancelFunc()
+
+	im.Layers = im.GetLayerString()
+	im.UniqueImage = im.GenUniqueImage()
+	im.CheckSum = im.GenImageCheckSum()
+	im.Flag = im.GenImageFlag(im.Flag)
+
 	err := s.rdb.Get().WithContext(ctx).Create(im).Error
 	if err != nil {
 		return nil, err
@@ -1557,6 +1567,7 @@ func (s *ScannerOrm) InsertAdapterImageList(ctx context.Context, im model.ImageL
 func (s *ScannerOrm) CreateRejectRecord(ctx context.Context, data model.RejectRecord) (*model.RejectRecord, error) {
 	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*1)
 	defer cancelFunc()
+	data.ReasonFlag = data.GenReasonFlag()
 	// if data.Library == "" {
 	// 	return nil, errors.New("no library")
 	// }
@@ -1566,29 +1577,11 @@ func (s *ScannerOrm) CreateRejectRecord(ctx context.Context, data model.RejectRe
 	// if data.Tag == "" {
 	// 	return nil, errors.New("no tag")
 	// }
-	if len(data.RejectReason) <= 0 && len(data.RejectReasonJson) <= 0 {
+	if data.ReasonFlag <= 0 {
 		return nil, errors.New("no reject reason")
 	}
 	if data.RejectDetail == "" {
 		return nil, errors.New("no reject detail")
-	}
-	if len(data.RejectReasonJson) == 0 && len(data.RejectReason) > 0 {
-		reasonMap := make(map[int64]int64)
-		reasons := make([]int64, 0)
-
-		for i := range data.RejectReason {
-			if reasonMap[data.RejectReason[i]] < 1 {
-				reasons = append(reasons, data.RejectReason[i])
-				reasonMap[data.RejectReason[i]]++
-			}
-		}
-		reasonsDuplication := make(map[string]string)
-		for _, r := range reasons {
-			reasonsDuplication[strconv.Itoa(int(r))] = strconv.Itoa(int(r))
-		}
-		if bys, err := json.Marshal(reasonsDuplication); err == nil {
-			data.RejectReasonJson = bys
-		}
 	}
 
 	err := s.rdb.Get().WithContext(ctx).Create(&data).Error
@@ -1657,17 +1650,25 @@ func (s *ScannerOrm) OverviewReasonTopN(ctx context.Context, param OverviewReaso
 
 	res := make([]model.RejectReasonStatistic, 0)
 	// 取全表数据
-	records, _, err := s.SearchRejectRecord(ctx, SearchRejectRecordParam{
-		Fields: []string{"reject_reason_json"},
-	}, &model.Filter{Limit: math.MaxInt64})
-	if err != nil {
+	db := s.rdb.Get().WithContext(ctx)
+	type group struct {
+		Count      int64  `gorm:"column:cnt" json:"count"`
+		ReasonFlag uint64 `gorm:"column:reason_flag" json:"reason_flag"`
+	}
+	records := make([]group, 0)
+	if err := db.Model(new(model.RejectRecord)).Select("count(*) as cnt", "reason_flag").
+		Group("reason_flag").Find(&records).Error; err != nil {
 		return res, err
 	}
 	// 统计
 	statistics := make(map[int64]int64)
 	for _, rec := range records {
-		for _, re := range rec.RejectReason {
-			statistics[re]++
+		rrs := model.GetRejectReason(model.LangZh)
+
+		for re := range rrs {
+			if model.ExistFlag(rec.ReasonFlag, re) {
+				statistics[re] += rec.Count
+			}
 		}
 	}
 	// 生成结果
@@ -1688,7 +1689,7 @@ func (s *ScannerOrm) OverviewReasonTopN(ctx context.Context, param OverviewReaso
 	if len(res) > param.TopN {
 		return res[:param.TopN], nil
 	}
-	return res, err
+	return res, nil
 }
 
 func (s *ScannerOrm) SearchRejectRecord(ctx context.Context, param SearchRejectRecordParam, filter *model.Filter) ([]model.RejectRecord, int64, error) {
@@ -1714,63 +1715,20 @@ func (s *ScannerOrm) SearchRejectRecord(ctx context.Context, param SearchRejectR
 	if param.Tag != "" {
 		db = db.Where("tag = ? ", param.Tag)
 	}
-
+	if param.Where != "" {
+		db = db.Where(param.Where)
+	}
 	// 计算count
 	var cnt int64
 
-	if len(param.RejectReasons) > 0 {
-		// 查出全部数据序列化之后再做筛选
-		ids := make([]int64, 0)
-		var lastID int64
-		start := time.Now().Unix()
-		for time.Now().Unix()-start < 15 {
-			res := make([]*model.RejectRecord, 0)
-
-			if err := s.rdb.Get().Model(new(model.RejectRecord)).WithContext(ctx).Where("id > ?", lastID).Limit(consts.DefaultBathSize).
-				Order(clause.OrderByColumn{Column: clause.Column{Name: "id"}, Desc: false}).Select("id", "reject_reason_json").Find(&res).Error; err != nil {
-				return nil, 0, err
-			}
-			for i := range res {
-				res[i] = res[i].Deserialize()
-			}
-
-			for i := range res {
-				flag := false
-				for _, r := range param.RejectReasons {
-					if flag {
-						break
-					}
-					for _, k := range res[i].RejectReason {
-						if r == k {
-							flag = true
-							break
-						}
-					}
-				}
-				if flag {
-					ids = append(ids, res[i].ID)
-				}
-			}
-			if len(res) < consts.DefaultBathSize {
-				break
-			}
-			lastID = res[len(res)-1].ID
-		}
-		cnt = int64(len(ids))
-		if len(ids) == 0 || (filter != nil && int64(len(ids)) <= filter.Offset) {
-			return make([]model.RejectRecord, 0), cnt, nil
-		}
-
-		db = db.Where("id IN ? ", ids[int(filter.Offset):int(filter.Offset+filter.Limit)])
-		filter.Offset = 0
+	if param.RejectReasons > 0 {
+		db = db.Where("reason_flag & ? = ?", param.RejectReasons, param.RejectReasons)
 	}
 	if len(param.Fields) > 0 {
 		db = db.Select(param.Fields)
 	}
-	if cnt <= 0 {
-		if err := db.Count(&cnt).Error; err != nil {
-			return nil, 0, err
-		}
+	if err := db.Count(&cnt).Error; err != nil {
+		return nil, 0, err
 	}
 	if param.JustCount {
 		return nil, cnt, nil

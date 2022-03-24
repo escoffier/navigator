@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
-	"strconv"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -413,41 +412,49 @@ type Webshell struct {
 
 // RejectRecord 拦截记录表
 type RejectRecord struct {
-	ID               int64   `json:"id"`
-	Library          string  `json:"library"`                                                                    // 仓库名
-	FullRepoName     string  `gorm:"type:varchar(255);index:idx_reject_record,priority:1" json:"full_repo_name"` // 镜像名
-	Tag              string  `gorm:"type:varchar(255);index:idx_reject_record,priority:2" json:"tag"`            // 版本号
-	RejectDetail     string  `gorm:"type:varchar(255);" json:"reject_detail"`                                    // 阻断原因(详细)用|分隔
-	RejectReasonJson []byte  `gorm:"type:MediumBlob;column:reject_reason_json" json:"-"`                         // 阻断原因(大类) {"1":"1"}
-	RejectReason     []int64 `gorm:"-" json:"reject_reason"`                                                     // 阻断原因(大类)
-	// ReasonFlag       uint64    `gorm:"column:reason_flag" json:"reason_flag"`
-	VulnScore int64     `json:"vuln_score"`                           // 被阻断时设置的策略漏洞评分
-	VulnLevel string    `gorm:"type:varchar(255);" json:"vuln_level"` // 被阻断时设置的策略漏洞评级
-	Digest    string    `gorm:"type:varchar(255);" json:"digest"`
-	RejectAt  time.Time `gorm:"index"  json:"reject_at"` // 阻断时间
-	CreatedAt time.Time `json:"created_at"`              // 创建时间
-	DeletedAt int       `json:"deleted_at,omitempty"`
+	ID           int64  `json:"id"`
+	Library      string `json:"library"`                                                                    // 仓库名
+	FullRepoName string `gorm:"type:varchar(255);index:idx_reject_record,priority:1" json:"full_repo_name"` // 镜像名
+	Tag          string `gorm:"type:varchar(255);index:idx_reject_record,priority:2" json:"tag"`            // 版本号
+	RejectDetail string `gorm:"type:varchar(255);" json:"reject_detail"`                                    // 阻断原因(详细)用|分隔
+	// RejectReasonJson []byte    `gorm:"type:MediumBlob;column:reject_reason_json" json:"-"`                         // 阻断原因(大类) {"1":"1"}
+	RejectReason []int64   `gorm:"-" json:"reject_reason"` // 阻断原因(大类)
+	ReasonFlag   uint64    `gorm:"column:reason_flag" json:"reason_flag"`
+	VulnScore    int64     `json:"vuln_score"`                           // 被阻断时设置的策略漏洞评分
+	VulnLevel    string    `gorm:"type:varchar(255);" json:"vuln_level"` // 被阻断时设置的策略漏洞评级
+	Digest       string    `gorm:"type:varchar(255);" json:"digest"`
+	RejectAt     time.Time `gorm:"index"  json:"reject_at"` // 阻断时间
+	CreatedAt    time.Time `json:"created_at"`              // 创建时间
+	DeletedAt    int       `json:"deleted_at,omitempty"`
 }
 
 func (rr *RejectRecord) Deserialize() *RejectRecord {
 	re := make([]int64, 0)
-	reasonMap := make(map[string]string)
-	if len(rr.RejectReasonJson) > 0 {
-		if err := json.Unmarshal(rr.RejectReasonJson, &reasonMap); err != nil {
-			logging.GetLogger().Error().Err(err).Msg("SearchRejectRecord json Unmarshal error")
-		}
-	}
-	for k := range reasonMap {
-		if i, err := strconv.ParseInt(k, 10, 64); err == nil {
+	for i := range GetRejectReason(LangZh) {
+		if ExistFlag(rr.ReasonFlag, i) {
 			re = append(re, i)
 		}
 	}
+
 	rr.RejectReason = re
 	return rr
 }
 
 func (RejectRecord) TableName() string {
 	return "ivan_scanner_reject_record"
+}
+
+func (rr *RejectRecord) GenReasonFlag() uint64 {
+	res := GetRejectReason(LangZh)
+	var flag uint64
+	rr.RejectReason = util.DeDuplicationInt64Slice(rr.RejectReason)
+	for _, r := range rr.RejectReason {
+		if _, ok := res[r]; ok {
+			flag = 1<<r + flag
+		}
+	}
+	rr.ReasonFlag = flag
+	return flag
 }
 
 // ImageWhitelist 镜像白名单

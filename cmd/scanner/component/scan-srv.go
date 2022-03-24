@@ -367,8 +367,10 @@ func (s *ConScannerSrv) UpdateImageType(ctx context.Context, imageIds []int64, i
 		updater := map[string]interface{}{"image_type": imageType}
 		if imageType == consts.BaseImageType {
 			updater["flag"] = model.SetFlagBaseImage(ims[i].Flag)
+			updater["image_type"] = consts.BaseImageType
 		} else if imageType == consts.AppImageType {
 			updater["flag"] = model.SetFlagAppImage(ims[i].Flag)
+			updater["image_type"] = consts.AppImageType
 		}
 		if err := s.dbdal.UpdateImage(ctx, fmt.Sprintf("id = %d", ims[i].ID), updater, nil); err != nil {
 			logging.GetLogger().Error().Err(err).Msg("updating image error")
@@ -581,13 +583,27 @@ func (s *ConScannerSrv) ScanOneForCICDResult(ctx context.Context, req *model.Sca
 		return nil, err
 	}
 
-	scanImage, _, err := s.dbdal.SearchScanImage(ctx, store.SearchScanImageParam{ImageIds: []int64{req.ImageID}, NoStatus: model.ScanStatusInProgress}, nil)
+	ss, err := s.dbdal.SearchSubTasksWithScanStatus(ctx, []int64{req.ImageID}, nil)
+	if err != nil {
+		logging.GetLogger().Err(err).Int64("imageID", req.ImageID).Msg("CICD SearchSubTasksWithScanStatus")
+		return nil, err
+	}
+	if len(ss) == 0 || ss[0].Status == consts.ImageScanInProgress || ss[0].Status == consts.ImageScanPending {
+		logging.GetLogger().Info().Int64("ImageID", req.ImageID).Msg("CICD SearchSubTasksWithScanStatus scanning")
+		return nil, fmt.Errorf("CICD 镜像正在扫描中")
+	}
+	if ss[0].Status == consts.ImageScanFailed {
+		logging.GetLogger().Info().Int64("ImageID", req.ImageID).Msg("CICD SearchSubTasksWithScanStatus scanning")
+		return nil, fmt.Errorf("CICD 扫描失败")
+	}
+
+	scanImage, _, err := s.dbdal.SearchScanImage(ctx, store.SearchScanImageParam{ImageIds: []int64{req.ImageID}}, nil)
 	if err != nil {
 		logging.GetLogger().Err(err).Msgf("CICD ScanOneForCICDResult search scan_image error:%s", err.Error())
 		return nil, err
 	}
 	if len(scanImage) == 0 {
-		logging.GetLogger().Info().Msgf("CICD ScanOneForCICDResult scanning")
+		logging.GetLogger().Info().Int64("ImageID", req.ImageID).Msg("CICD ScanOneForCICDResult scanning")
 		return nil, fmt.Errorf("CICD 镜像正在扫描中")
 	}
 	imgDetail, _ := s.GetImageDetail(ctx, req.ImageID)
@@ -717,9 +733,6 @@ func (s *ConScannerSrv) ScanOneForCICD(ctx context.Context, req *model.ScanOneFo
 			}
 		}
 	}
-	img.Layers = img.GetLayerString()
-	img.Flag = img.GenImageFlag(0)
-	img.CheckSum = img.GetImageCheckSum()
 	// 同步镜像到数据库
 	createdImage, err := s.dbdal.CreateImageAndUpdate(ctx, &img)
 	if err != nil {
@@ -1199,6 +1212,29 @@ func (s *ConScannerSrv) GetImageDetail(ctx context.Context, imgID int64) (*model
 	if len(rr) > 0 {
 		img.Registry = &(rr[0])
 	}
+
+	if img.FromType == model.ImageFromSafeNode {
+		split := strings.Split(img.FullRepoName, "/")
+		if len(split) <= 6 {
+			return img, nil
+		}
+		img.FullRepoName = fmt.Sprintf("%s-%s-%s", img.NodeHostname, img.NodeIP, strings.Join(split[5:], "/"))
+		img.FullRepoName = strings.ReplaceAll(img.FullRepoName, consts.ColonSalt, ":")
+	}
+	// docker-registry(GET /v2/<name>/tags/list)入库是没有这三个时间，做一步兼容
+	if img.LastPullTime.IsZero() {
+		img.LastPullTime = img.UpdatedAt
+	}
+	if img.FirstPushTime.IsZero() {
+		img.FirstPushTime = img.CreatedAt
+	}
+	if img.LastPushTime.IsZero() {
+		img.LastPushTime = img.CreatedAt
+	}
+	if model.ExistFlag(img.Flag, model.FlagBaseImage) || img.ImageType == consts.BaseImageType {
+		img.ImageType = consts.BaseImageType
+	}
+
 	// 查扫描结果
 	scs, _, err := s.dbdal.SearchScanImage(ctx, store.SearchScanImageParam{ImageIds: []int64{img.ID}}, nil)
 	if err != nil {
@@ -1221,15 +1257,13 @@ func (s *ConScannerSrv) GetImageDetail(ctx context.Context, imgID int64) (*model
 	sort.Sort(model.RespSingleVulnDetails(respVuln))
 
 	// 增加漏洞和敏感文件信息
-	// scanTaskID, _ := primitive.ObjectIDFromHex(scs[0].ScanTaskID)
 	imageScanResult := model.ImageScanSummaryResult{
-		TopVulns:       respVuln,
-		SensitiveFiles: scs[0].SensitiveFile,
-		Repository:     img.FullRepoName,
-		HarborURL:      img.Library,
-		Tag:            img.Tags,
-		Digest:         img.Digest,
-		// TaskID:            scanTaskID,
+		TopVulns:          respVuln,
+		SensitiveFiles:    scs[0].SensitiveFile,
+		Repository:        img.FullRepoName,
+		HarborURL:         img.Library,
+		Tag:               img.Tags,
+		Digest:            img.Digest,
 		StartedAt:         scs[0].StartedAt,
 		FinishedAt:        scs[0].FinishAt,
 		OverallSeverity:   scs[0].OverallSeverity,
@@ -1240,6 +1274,7 @@ func (s *ConScannerSrv) GetImageDetail(ctx context.Context, imgID int64) (*model
 		SensitiveScore:    scs[0].SensitiveScore,
 		RiskScore:         scs[0].VulnScore + scs[0].SensitiveScore + math.Min(scs[0].WebshellScore+scs[0].VirusScore, 40),
 	}
+
 	img.ImageScanVuln = imageScanResult
 	// 增加病毒信息
 	for i := range scs[0].MaliciousInfo {
@@ -1311,26 +1346,6 @@ func (s *ConScannerSrv) GetImageDetail(ctx context.Context, imgID int64) (*model
 			}
 			img.ImageScanEnv = append(img.ImageScanEnv, tmpEnvSummary)
 		}
-
-	}
-
-	if img.FromType == model.ImageFromSafeNode {
-		split := strings.Split(img.FullRepoName, "/")
-		if len(split) <= 6 {
-			return img, nil
-		}
-		img.FullRepoName = fmt.Sprintf("%s-%s-%s", img.NodeHostname, img.NodeIP, strings.Join(split[5:], "/"))
-		img.FullRepoName = strings.Replace(img.FullRepoName, consts.ColonSalt, ":", -1)
-	}
-	// docker-registry(GET /v2/<name>/tags/list)入库是没有这三个时间，做一步兼容
-	if img.LastPullTime.IsZero() {
-		img.LastPullTime = img.UpdatedAt
-	}
-	if img.FirstPushTime.IsZero() {
-		img.FirstPushTime = img.CreatedAt
-	}
-	if img.LastPushTime.IsZero() {
-		img.LastPushTime = img.CreatedAt
 	}
 
 	return img, nil
@@ -1553,7 +1568,7 @@ func (s *ConScannerSrv) SearchImageWithScan(ctx context.Context, param SearchIma
 		imageMap[res[i].ID].Questions = make([]model.QuestionInfo, 0)
 	}
 
-	// 加上镜像的扫描的状态
+	// 获取镜像的扫描的状态
 	statusMap := make(map[int64]model.SubTask)
 	subtasks, err := s.taskdal.SearchSubTasksWithScanStatus(ctx, imagesIds, nil)
 	if err != nil {
@@ -1621,6 +1636,17 @@ func (s *ConScannerSrv) SearchImageWithScan(ctx context.Context, param SearchIma
 			res[i].Library = re.Url
 			res[i].RegistryDeletedAt = re.DeletedAt
 		}
+	}
+
+	scs, _, err := s.dbdal.SearchScanImage(ctx, store.SearchScanImageParam{ImageIds: imagesIds,
+		Fields: []string{"vuln_score", "sensitive_score", "virus_score", "webshell_score", "id", "image_id"}}, nil)
+	if err != nil {
+		logging.GetLogger().Error().Err(err).Msg("SearchImages.SearchScanImage")
+		return nil, 0, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf(consts.StatusInternalServerErrorMsg))
+	}
+
+	for _, sc := range scs {
+		imageMap[sc.ImageID].RiskScore = sc.VulnScore + sc.SensitiveScore + math.Min(sc.WebshellScore+sc.VirusScore, 40)
 	}
 
 	return res, cnt, nil
