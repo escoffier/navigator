@@ -65,13 +65,13 @@ func (api *api) getLoginSecret() http.HandlerFunc {
 		}
 
 		if err = sessionService.SaveUserLoginSecret(ctx, username, aesKey); err != nil {
-			RespAndLog(w, ctx, fmt.Errorf("save login secret fail:%w", err))
-			return
+			logging.Get().Warn().Err(err).Msg("save login secret fail")
 		}
 
 		// save to mysql
 		if err = dal.UpdateUserLoginKey(ctx, api.rdb.Get(), username, aesKey, time.Now().Add(time.Minute).Unix()); err != nil {
-			logging.Get().Warn().Err(err)
+			RespAndLog(w, ctx, fmt.Errorf("save login secret fail:%w", err))
+			return
 		}
 
 		response.Ok(w, response.WithItem(getLoginSecretResp{Key: aesKey}))
@@ -95,24 +95,9 @@ func (api *api) loginBodyDecrypt(ctx context.Context, r io.ReadCloser) ([]byte, 
 		return nil, ErrServiceNotReady
 	}
 
-	key, err := sessionService.GetUserLoginSecret(ctx, params[0])
+	key, err := sessionService.GetUserLoginSecret(ctx, api.rdb.Get(), params[0])
 	if err != nil {
 		return nil, fmt.Errorf("get redis data err %w", err)
-	}
-
-	if key == "" {
-		exist, user, err := dal.SelectUser(ctx, api.rdb.Get(), params[0])
-		if err != nil {
-			return nil, err
-		}
-
-		if exist {
-			if time.Now().Unix() > user.LoginSecretKeyExpireAt {
-				return nil, fmt.Errorf("login expire, Plase try again")
-			}
-
-			key = user.LoginSecretKey
-		}
 	}
 
 	encrypted, err := base64.StdEncoding.DecodeString(params[1])
@@ -181,15 +166,15 @@ func (api *api) login() http.HandlerFunc {
 			return
 		}
 
-		if !captchaService.Verify(creds.CaptchaID, creds.CaptchaValue) {
+		if captchaService.IsBreakerClosed() &&
+			!captchaService.Verify(creds.CaptchaID, creds.CaptchaValue) {
 			RespAndLog(w, ctx,
 				NewCaptchaError(http.StatusBadRequest,
 					fmt.Errorf("captcha value error")))
 			return
 		}
 
-		var findUser *model.User
-		ok, findUser, err = dal.GetUserByPassword(ctx, api.rdb.GetReadDB(), creds.Username, creds.Password)
+		ok, findUser, err := dal.GetUserByPassword(ctx, api.rdb.GetReadDB(), creds.Username, creds.Password)
 		if err != nil {
 			RespAndLog(w, r.Context(),
 				LoginError(http.StatusInternalServerError,
@@ -220,7 +205,7 @@ func (api *api) login() http.HandlerFunc {
 		}
 
 		// issue JWT Token
-		tokenString, err := api.issueJWTToken(ctx, findUser.UserName, findUser.Rule, r.UserAgent())
+		tokenString, err := api.issueJWTToken(ctx, findUser.UserName, findUser.Rule, r.UserAgent(), false)
 		if err != nil {
 			RespAndLog(w, r.Context(),
 				LoginError(http.StatusInternalServerError,
@@ -235,8 +220,7 @@ func (api *api) login() http.HandlerFunc {
 		}
 
 		if err = sessionService.SaveUserSession(ctx, findUser.GenerateSession(false)); err != nil {
-			RespAndLog(w, ctx, fmt.Errorf("save user session fail:%w", err))
-			return
+			logging.Get().Warn().Err(err).Msgf("login save user session fail")
 		}
 
 		response.Ok(w, response.WithItem(LoginResponse{
@@ -271,9 +255,12 @@ func (api *api) logout() http.HandlerFunc {
 			return
 		}
 
-		if err := sessionService.DeleteUserSession(ctx, username); err != nil {
-			RespAndLog(w, ctx, err)
-			return
+		if err = sessionService.DeleteUserSession(ctx, username); err != nil {
+			logging.Get().Warn().Err(err)
+		}
+
+		if err = sessionService.DeleteToken(ctx, username); err != nil {
+			logging.Get().Warn().Err(err)
 		}
 
 		response.Ok(w)
@@ -434,18 +421,20 @@ func SendEmail(username, host, emailHashCode string) bool {
 
 //  -----jwt-----
 const (
-	JWTKeyUsername  = "user_name"
-	JWTKeyUserRole  = "user_role"
-	JWTKeyUserAgent = "user_agent"
+	JWTKeyUsername   = "user_name"
+	JWTKeyUserRole   = "user_role"
+	JWTKeyExternal   = "external"
+	JWTKeyEigenvalue = "eigenvalue"
 
 	accessCheckTimeout = time.Second * 3
 )
 
-func (api *api) issueJWTToken(ctx context.Context, username, role, userAgent string) (string, error) {
+func (api *api) issueJWTToken(ctx context.Context, username, role, userAgent string, external bool) (string, error) {
 	jwtMC := jwt.MapClaims{
-		JWTKeyUsername:  username,
-		JWTKeyUserRole:  role,
-		JWTKeyUserAgent: util.MD5(userAgent),
+		JWTKeyUsername:   username,
+		JWTKeyUserRole:   role,
+		JWTKeyExternal:   external,
+		JWTKeyEigenvalue: util.MD5(userAgent),
 	}
 	jwtauth.SetIssuedNow(jwtMC)
 
@@ -462,13 +451,13 @@ func (api *api) issueJWTToken(ctx context.Context, username, role, userAgent str
 	}
 
 	if err = sessionService.SaveToken(ctx, username, tokenString); err != nil {
-		return "", fmt.Errorf("save user token fail:%w", err)
+		logging.Get().Warn().Err(err).Msgf("redis: save user token fail")
 	}
 
 	// save to mysql
 	err = dal.UpdateUserToken(ctx, api.rdb.Get(), username, tokenString, time.Now().Add(time.Minute*10).Unix())
 	if err != nil {
-		logging.Get().Warn().Err(err)
+		return "", fmt.Errorf("save user token fail:%w", err)
 	}
 
 	return tokenString, nil
@@ -511,35 +500,9 @@ func authenticator(db *databases.RDBInstance) func(http.Handler) http.Handler {
 			}
 
 			// check whether the token exists
-			tokenStr, err := sessionService.GetToken(ctx, username)
+			tokenStr, err := sessionService.GetToken(ctx, db.Get(), username)
 			if err != nil {
-				RespAndLog(w, ctx, NewInvalidAuthToken(http.StatusUnauthorized,
-					fmt.Errorf("redis not found the token: %s %w", username, err)))
-				return
-			}
-
-			if tokenStr == "" {
-				exist, user, err := dal.SelectUser(ctx, db.Get(), username)
-				if err != nil {
-					RespAndLog(w, ctx, NewInvalidAuthToken(http.StatusUnauthorized,
-						fmt.Errorf("db not found the token: %s %w", username, err)))
-					return
-				}
-
-				if exist {
-					if time.Now().Unix() > user.TokenExpireAt {
-						RespAndLog(w, ctx, NewInvalidAuthToken(http.StatusUnauthorized,
-							fmt.Errorf("token is expired")))
-						return
-					}
-
-					tokenStr = user.Token
-
-					// attempt save to redis
-					if err = sessionService.SaveToken(ctx, username, tokenStr); err != nil {
-						logging.Get().Warn().Err(err)
-					}
-				}
+				logging.Get().Err(err).Msgf("redis not found the token: %s", username)
 			}
 
 			if token.Raw != tokenStr {
@@ -549,12 +512,12 @@ func authenticator(db *databases.RDBInstance) func(http.Handler) http.Handler {
 			}
 
 			// check user-agent
-			var userAgent string
-			if v, ok := claims[JWTKeyUserAgent]; ok {
-				userAgent = v.(string)
+			var eigenvalue string
+			if v, ok := claims[JWTKeyEigenvalue]; ok {
+				eigenvalue = v.(string)
 			}
 
-			if util.MD5(r.UserAgent()) != userAgent {
+			if util.MD5(r.UserAgent()) != eigenvalue {
 				if err = sessionService.DeleteToken(ctx, username); err != nil {
 					logging.Get().Warn().Err(err).Msgf("user-agent not match: delete token failed")
 				}
@@ -565,7 +528,6 @@ func authenticator(db *databases.RDBInstance) func(http.Handler) http.Handler {
 			}
 
 			// renewal the token
-			logging.Get().Debug().Msgf("X-Auto-Request=%s", r.Header.Get(headerAutoRequest))
 			if h := r.Header.Get(headerAutoRequest); h != autoRequestTypeDefault && h != autoRequestTypePolling {
 				if err = sessionService.RenewalToken(ctx, username); err != nil {
 					logging.Get().Warn().Err(err).Msgf("redis renewal the token failed")
@@ -583,7 +545,7 @@ func authenticator(db *databases.RDBInstance) func(http.Handler) http.Handler {
 	}
 }
 
-func jwtAccessCheck(postgresDB *databases.RDBInstance) func(http.Handler) http.Handler {
+func jwtAccessCheck(db *databases.RDBInstance) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			ctx, cancel := context.WithTimeout(r.Context(), accessCheckTimeout)
@@ -604,13 +566,14 @@ func jwtAccessCheck(postgresDB *databases.RDBInstance) func(http.Handler) http.H
 			}
 
 			username, _ := claims[JWTKeyUsername].(string)
+			external, _ := claims[JWTKeyExternal].(bool)
 			sessionService, ok := session.GetService()
 			if !ok {
 				RespAndLog(w, ctx, ErrServiceNotReady)
 				return
 			}
 
-			userSession, err := sessionService.GetUserSession(ctx, username)
+			userSession, err := sessionService.GetUserSession(ctx, db.GetReadDB(), username, external)
 			if err != nil {
 				if err == session.ErrNotFound {
 					RespAndLog(w, r.Context(),
@@ -640,7 +603,7 @@ func jwtAccessCheck(postgresDB *databases.RDBInstance) func(http.Handler) http.H
 				return
 			}
 
-			accessListUrl, err := dal.GetAccessUrl(postgresDB.GetReadDB(), userSession.ModuleID)
+			accessListUrl, err := dal.GetAccessUrl(db.GetReadDB(), userSession.ModuleID)
 			if err != nil {
 				RespAndLog(w, r.Context(), fmt.Errorf("select access error: %w", err))
 				return

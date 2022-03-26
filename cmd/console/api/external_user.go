@@ -353,7 +353,8 @@ func (api *api) LdapLogin() http.HandlerFunc {
 			return
 		}
 
-		if !captchaService.Verify(cliReq.CaptchaID, cliReq.CaptchaValue) {
+		if captchaService.IsBreakerClosed() &&
+			!captchaService.Verify(cliReq.CaptchaID, cliReq.CaptchaValue) {
 			apperror.RespAndLog(w, ctx,
 				apperror.NewCaptchaError(http.StatusBadRequest,
 					fmt.Errorf("captcha value error")))
@@ -485,7 +486,8 @@ func (api *api) RadiusLogin() http.HandlerFunc {
 			return
 		}
 
-		if !captchaService.Verify(cliReq.CaptchaID, cliReq.CaptchaValue) {
+		if captchaService.IsBreakerClosed() &&
+			!captchaService.Verify(cliReq.CaptchaID, cliReq.CaptchaValue) {
 			apperror.RespAndLog(w, ctx,
 				apperror.NewCaptchaError(http.StatusBadRequest,
 					fmt.Errorf("captcha value error")))
@@ -615,7 +617,7 @@ func (api *api) externalLogin(ctx context.Context, w http.ResponseWriter, arg *e
 		return
 	}
 
-	tokenString, err := api.issueJWTToken(ctx, arg.username, userSession.Role, arg.userAgent)
+	tokenString, err := api.issueJWTToken(ctx, arg.username, userSession.Role, arg.userAgent, userSession.External)
 	if err != nil {
 		apperror.RespAndLog(w, ctx, ErrServiceNotReady)
 		return
@@ -627,8 +629,7 @@ func (api *api) externalLogin(ctx context.Context, w http.ResponseWriter, arg *e
 	}
 
 	if err = sessionService.SaveUserSession(ctx, userSession); err != nil {
-		apperror.RespAndLog(w, ctx, fmt.Errorf("save user session fail:%w", err))
-		return
+		logging.Get().Warn().Err(err).Msgf("external_login save user session fail")
 	}
 
 	response.Ok(w, response.WithItem(LoginResponse{

@@ -41,13 +41,14 @@ func (api *api) verifyAuthorization(ctx context.Context) error {
 
 	username, _ := claims[JWTKeyUsername].(string)
 	userRole, _ := claims[JWTKeyUserRole].(string)
+	external, _ := claims[JWTKeyExternal].(bool)
 
 	sessionService, ok := session.GetService()
 	if !ok {
 		return ErrServiceNotReady
 	}
 
-	userSession, err := sessionService.GetUserSession(ctx, username)
+	userSession, err := sessionService.GetUserSession(ctx, api.rdb.GetReadDB(), username, external)
 	if err != nil {
 		return err
 	}
@@ -543,8 +544,7 @@ func (api *api) editUser() http.HandlerFunc {
 		}
 
 		if err = sessionService.SaveUserSession(ctx, findUser.GenerateSession(false)); err != nil {
-			RespAndLog(w, ctx, err)
-			return
+			logging.Get().Warn().Err(err)
 		}
 
 		response.Ok(w, response.WithItem(resp{Status: "OK"}))
