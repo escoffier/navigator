@@ -15,11 +15,11 @@ func initService(t *testing.T) {
 		Addr: "127.0.0.1:6379",
 	})
 	if err := redisCli.Ping(context.TODO()).Err(); err != nil {
-		t.Fatal(err)
+		//t.Fatal(err)
 	}
 
 	if err := Init(redisCli, DefaultConf); err != nil {
-		t.Fatal(err)
+		//t.Fatal(err)
 	}
 }
 
@@ -30,9 +30,19 @@ func TestService_CreateCaptcha(t *testing.T) {
 		t.Fatal("get service fail")
 	}
 
-	id := service.CreateCaptcha()
-	t.Log(id)
-	t.Log(service.GetCaptchaString(id))
+	for i := 0; i < 5; i++ {
+		id := service.CreateCaptcha()
+		t.Log(service.IsBreakerClosed())
+		if service.IsBreakerClosed() {
+			digits := service.GetCaptchaString(id)
+			t.Log("verify: ", digits, service.Verify(id, digits))
+		}
+
+		time.Sleep(time.Second * 3)
+	}
+	//id := service.CreateCaptcha()
+	//t.Log(id)
+	//t.Log(service.GetCaptchaString(id), service.IsBreakerClosed())
 }
 
 func TestService_GetCaptchaString(t *testing.T) {

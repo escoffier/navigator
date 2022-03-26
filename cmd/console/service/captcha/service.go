@@ -10,12 +10,11 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/avast/retry-go"
 	"github.com/dchest/captcha"
 	"github.com/go-redis/redis/v8"
+	"github.com/sony/gobreaker"
 
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
-	"gitlab.com/piccolo_su/vegeta/pkg/util"
 )
 
 type Conf struct {
@@ -37,6 +36,7 @@ var (
 type Service struct {
 	redisCli *redis.Client
 	conf     *Conf
+	breaker  *gobreaker.CircuitBreaker
 }
 
 var (
@@ -68,62 +68,70 @@ func GetService() (*Service, bool) {
 }
 
 func newService(redisCli *redis.Client, conf *Conf) *Service {
+	breaker := gobreaker.NewCircuitBreaker(gobreaker.Settings{
+		Name:        "captcha",
+		MaxRequests: 3,
+		Interval:    0,
+		Timeout:     time.Second * 5,
+		ReadyToTrip: func(counts gobreaker.Counts) bool {
+			// As long as there is a failure to fuse
+			return counts.ConsecutiveFailures >= 1
+		},
+	})
+
 	return &Service{
 		redisCli: redisCli,
 		conf:     conf,
+		breaker:  breaker,
 	}
 }
 
 const (
-	defaultTimeout    = time.Second * 3
 	defaultOneTimeout = time.Millisecond * 500
 	captchaPrefix     = "captcha@"
 )
 
 func (s *Service) Set(id string, digits []byte) {
-	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
-	defer cancel()
-	set := func() error {
-		oneCtx, oneCancel := context.WithTimeout(ctx, defaultOneTimeout)
+	_, err := s.breaker.Execute(func() (interface{}, error) {
+		oneCtx, oneCancel := context.WithTimeout(context.Background(), defaultOneTimeout)
 		defer oneCancel()
-		return s.redisCli.Set(oneCtx, getRedisKey(id), base64.StdEncoding.EncodeToString(digits), s.conf.CaptchaExpiration).Err()
-	}
+		return nil, s.redisCli.Set(oneCtx, getRedisKey(id), base64.StdEncoding.EncodeToString(digits), s.conf.CaptchaExpiration).Err()
+	})
 
-	if err := util.RetryWithBackoff(ctx, set); err != nil {
-		logging.GetLogger().Err(err).Msg("save captcha fail")
+	// write captcha failed
+	if err != nil {
+		logging.GetLogger().Warn().Err(err)
 	}
 }
 
 // Get returns stored digits for the captcha id. Clear indicates
 // whether the captcha must be deleted from the store.
 func (s *Service) Get(id string, clear bool) (digits []byte) {
-	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
-	defer cancel()
-	var result string
-	get := func() error {
-		oneCtx, oneCancel := context.WithTimeout(ctx, defaultOneTimeout)
+	result, err := s.breaker.Execute(func() (interface{}, error) {
+		oneCtx, oneCancel := context.WithTimeout(context.Background(), defaultOneTimeout)
 		defer oneCancel()
-		var _err error
-		result, _err = s.redisCli.Get(oneCtx, getRedisKey(id)).Result()
-		if _err != nil {
-			return _err
+
+		result, err := s.redisCli.Get(oneCtx, getRedisKey(id)).Result()
+		if err != nil {
+			return nil, err
 		}
 
 		if clear {
-			return s.redisCli.Del(oneCtx, fmt.Sprintf("%s%s", captchaPrefix, id)).Err()
+			err = s.redisCli.Del(oneCtx, fmt.Sprintf("%s%s", captchaPrefix, id)).Err()
+			if err != nil {
+				return nil, err
+			}
 		}
 
+		return result, nil
+	})
+
+	if err != nil {
+		logging.GetLogger().Warn().Err(err)
 		return nil
 	}
 
-	if err := util.RetryWithBackoff(ctx, get, retry.RetryIf(func(err error) bool {
-		return err != redis.Nil
-	})); err != nil {
-		logging.GetLogger().Err(err).Msg("get captcha fail")
-		return nil
-	}
-
-	digits, err := base64.StdEncoding.DecodeString(result)
+	digits, err = base64.StdEncoding.DecodeString(result.(string))
 	if err != nil {
 		logging.GetLogger().Err(err).Msg("base64 decode fail")
 		return nil
@@ -134,6 +142,10 @@ func (s *Service) Get(id string, clear bool) (digits []byte) {
 
 func (s *Service) CreateCaptcha() string {
 	return captcha.NewLen(s.conf.CaptchaLen)
+}
+
+func (s *Service) IsBreakerClosed() bool {
+	return s.breaker.State() == gobreaker.StateClosed
 }
 
 func (s *Service) Reload(id string) bool {

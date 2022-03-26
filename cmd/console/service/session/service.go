@@ -5,10 +5,14 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"net"
+	"math/rand"
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"gorm.io/gorm"
+
+	"gitlab.com/piccolo_su/vegeta/pkg/dal"
 
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 
@@ -81,152 +85,134 @@ type Service struct {
 }
 
 func (s *Service) SaveToken(ctx context.Context, username, tokenStr string) error {
-	set := func() error {
-		oneCtx, oneCancel := context.WithTimeout(ctx, defaultOneTimeout)
-		defer oneCancel()
-		return s.redisCli.Set(oneCtx, userTokenPrefix+username, tokenStr, defaultTokenTTL).Err()
-	}
-
-	if err := util.RetryWithBackoff(ctx, set); err != nil {
-		logging.GetLogger().Err(err).Msg("save user session fail")
-		return err
-	}
-	return nil
+	oneCtx, oneCancel := context.WithTimeout(ctx, defaultOneTimeout)
+	defer oneCancel()
+	return s.redisCli.Set(oneCtx, userTokenPrefix+username, tokenStr, defaultTokenTTL).Err()
 }
 
 func (s *Service) RenewalToken(ctx context.Context, username string) error {
-	set := func() error {
-		oneCtx, oneCancel := context.WithTimeout(ctx, defaultOneTimeout)
-		defer oneCancel()
-		return s.redisCli.Expire(oneCtx, userTokenPrefix+username, defaultTokenTTL).Err()
-	}
-
-	if err := util.RetryWithBackoff(ctx, set); err != nil {
-		logging.GetLogger().Err(err).Msg("save user session fail")
-		return err
-	}
-	return nil
+	oneCtx, oneCancel := context.WithTimeout(ctx, defaultOneTimeout)
+	defer oneCancel()
+	return s.redisCli.Expire(oneCtx, userTokenPrefix+username, defaultTokenTTL).Err()
 }
 
 func (s *Service) DeleteToken(ctx context.Context, username string) error {
-	set := func() error {
-		oneCtx, oneCancel := context.WithTimeout(ctx, defaultOneTimeout)
-		defer oneCancel()
-		return s.redisCli.Del(oneCtx, userTokenPrefix+username).Err()
-	}
-
-	if err := util.RetryWithBackoff(ctx, set); err != nil {
-		logging.GetLogger().Err(err).Msg("save user session fail")
-		return err
-	}
-	return nil
+	oneCtx, oneCancel := context.WithTimeout(ctx, defaultOneTimeout)
+	defer oneCancel()
+	return s.redisCli.Del(oneCtx, userTokenPrefix+username).Err()
 }
 
-func (s *Service) GetToken(ctx context.Context, username string) (string, error) {
-	var tokenStr string
-	set := func() error {
-		oneCtx, oneCancel := context.WithTimeout(ctx, defaultOneTimeout)
-		defer oneCancel()
+func (s *Service) GetToken(ctx context.Context, db *gorm.DB, username string) (string, error) {
+	redisCtx, redisCancel := context.WithTimeout(ctx, defaultOneTimeout)
+	defer redisCancel()
 
-		var err error
-		tokenStr, err = s.redisCli.Get(oneCtx, userTokenPrefix+username).Result()
-		if err == redis.Nil {
-			return nil
+	tokenStr, err := s.redisCli.Get(redisCtx, userTokenPrefix+username).Result()
+	if err != nil {
+		logging.GetLogger().Warn().Err(err)
+
+		mysqlCtx, mysqlCancel := context.WithTimeout(ctx, defaultOneTimeout)
+		defer mysqlCancel()
+
+		exist, user, err := dal.SelectUser(mysqlCtx, db, username)
+		if err != nil {
+			return "", err
 		}
 
-		if err != nil && checkRedisCrash(err) {
-			logging.GetLogger().Warn().Err(err).Msg("redis is crash")
-			return nil
+		if exist {
+			if time.Now().Unix() > user.TokenExpireAt {
+				return "", fmt.Errorf("token is expired, plase try again")
+			}
+
+			tokenStr = user.Token
+
+			// attempt save to redis
+			// The odds are 1 in 10
+			go func(chance int) {
+				if chance != 1 {
+					return
+				}
+
+				if err = s.SaveToken(context.Background(), username, tokenStr); err != nil {
+					logging.GetLogger().Warn().Err(err)
+				}
+			}(rand.Intn(10))
 		}
-
-		return err
 	}
 
-	if err := util.RetryWithBackoff(ctx, set); err != nil {
-		logging.GetLogger().Err(err).Msg("save user session fail")
-		return tokenStr, err
-	}
 	return tokenStr, nil
 }
 
-func (s *Service) GetUserSession(ctx context.Context, username string) (*model.UserSession, error) {
-	var cacheContent string
-	get := func() error {
-		oneCtx, oneCancel := context.WithTimeout(ctx, defaultOneTimeout)
-		defer oneCancel()
-		var _err error
-		cacheContent, _err = s.redisCli.Get(oneCtx, getRedisKey(username)).Result()
-		if _err == redis.Nil {
-			return nil
-		}
-		return _err
-	}
-
-	if err := util.RetryWithBackoff(ctx, get); err != nil {
-		logging.GetLogger().Err(err).Msg("get user session fail")
-		return nil, err
-	}
-
-	if cacheContent == "" {
-		return nil, ErrNotFound
-	}
-
-	return decode(cacheContent)
-}
-
-func (s *Service) SaveUserSession(ctx context.Context, user *model.UserSession) error {
-	content := encode(user)
-	set := func() error {
-		oneCtx, oneCancel := context.WithTimeout(ctx, defaultOneTimeout)
-		defer oneCancel()
-		return s.redisCli.Set(oneCtx, getRedisKey(user.Username), content, s.conf.SessionExpiration).Err()
-	}
-
-	if err := util.RetryWithBackoff(ctx, set); err != nil {
-		logging.GetLogger().Err(err).Msg("save user session fail")
-		return err
-	}
-	return nil
-}
-
 func (s *Service) SaveUserLoginSecret(ctx context.Context, username, key string) error {
-	set := func() error {
-		oneCtx, oneCancel := context.WithTimeout(ctx, defaultOneTimeout)
-		defer oneCancel()
-		return s.redisCli.Set(oneCtx, getLoginSecretRedisKey(username), key, loginSecretExpireTime).Err()
-	}
-
-	if err := util.RetryWithBackoff(ctx, set); err != nil {
-		logging.GetLogger().Err(err).Msg("save login secret fail")
-		return err
-	}
-	return nil
+	oneCtx, oneCancel := context.WithTimeout(ctx, defaultOneTimeout)
+	defer oneCancel()
+	return s.redisCli.Set(oneCtx, getLoginSecretRedisKey(username), key, loginSecretExpireTime).Err()
 }
 
-func (s *Service) GetUserLoginSecret(ctx context.Context, username string) (string, error) {
-	var key string
-	set := func() (err error) {
-		oneCtx, oneCancel := context.WithTimeout(ctx, defaultOneTimeout)
-		defer oneCancel()
-		key, err = s.redisCli.Get(oneCtx, getLoginSecretRedisKey(username)).Result()
-		if err == redis.Nil {
-			return nil
+func (s *Service) GetUserLoginSecret(ctx context.Context, db *gorm.DB, username string) (string, error) {
+	redisCtx, redisCancel := context.WithTimeout(ctx, defaultOneTimeout)
+	defer redisCancel()
+
+	key, err := s.redisCli.Get(redisCtx, getLoginSecretRedisKey(username)).Result()
+	if err != nil {
+		logging.GetLogger().Warn().Err(err)
+
+		mysqlCtx, mysqlCancel := context.WithTimeout(ctx, defaultOneTimeout)
+		defer mysqlCancel()
+
+		exist, user, err := dal.SelectUser(mysqlCtx, db, username)
+		if err != nil {
+			return "", err
 		}
 
-		if err != nil && checkRedisCrash(err) {
-			logging.GetLogger().Warn().Err(err).Msg("redis is crash")
-			return nil
-		}
+		if exist {
+			if time.Now().Unix() > user.LoginSecretKeyExpireAt {
+				return "", fmt.Errorf("login expire, Plase try again")
+			}
 
-		return err
+			key = user.LoginSecretKey
+		}
 	}
 
-	if err := util.RetryWithBackoff(ctx, set); err != nil {
-		logging.GetLogger().Err(err).Msg("get login secret fail")
-		return "", err
+	if key == "" {
+		return "", fmt.Errorf("login secret key not found")
 	}
 
 	return key, nil
+}
+
+func (s *Service) GetUserSession(ctx context.Context, db *gorm.DB, username string, external bool) (*model.UserSession, error) {
+	redisCtx, redisCancel := context.WithTimeout(ctx, defaultOneTimeout)
+	defer redisCancel()
+
+	cacheContent, err := s.redisCli.Get(redisCtx, getRedisKey(username)).Result()
+	if err == nil && cacheContent != "" {
+		return decode(cacheContent)
+	}
+
+	logging.GetLogger().Warn().Err(err).Msgf("cacheContent: ", cacheContent)
+
+	mysqlCtx, mysqlCancel := context.WithTimeout(ctx, defaultOneTimeout)
+	defer mysqlCancel()
+
+	exist, user, err := dal.SelectUser(mysqlCtx, db, username)
+	if err != nil {
+		return nil, err
+	}
+
+	if !exist {
+		return nil, ErrNotFound
+	}
+
+	return user.GenerateSession(external), nil
+
+}
+
+func (s *Service) SaveUserSession(ctx context.Context, user *model.UserSession) error {
+	oneCtx, oneCancel := context.WithTimeout(ctx, defaultOneTimeout)
+	defer oneCancel()
+
+	content := encode(user)
+	return s.redisCli.Set(oneCtx, getRedisKey(user.Username), content, s.conf.SessionExpiration).Err()
 }
 
 func (s *Service) DeleteUserSession(ctx context.Context, username string) error {
@@ -244,18 +230,9 @@ func (s *Service) DeleteUserSession(ctx context.Context, username string) error 
 }
 
 func (s *Service) RefreshUserSession(ctx context.Context, username string) error {
-	expire := func() error {
-		oneCtx, oneCancel := context.WithTimeout(ctx, defaultOneTimeout)
-		defer oneCancel()
-		return s.redisCli.Expire(oneCtx, getRedisKey(username), s.conf.SessionExpiration).Err()
-	}
-
-	if err := util.RetryWithBackoff(ctx, expire); err != nil {
-		logging.GetLogger().Err(err).Msg("refresh user session fail")
-		return err
-	}
-
-	return nil
+	oneCtx, oneCancel := context.WithTimeout(ctx, defaultOneTimeout)
+	defer oneCancel()
+	return s.redisCli.Expire(oneCtx, getRedisKey(username), s.conf.SessionExpiration).Err()
 }
 
 func encode(userSession *model.UserSession) string {
@@ -280,11 +257,4 @@ func getRedisKey(username string) string {
 
 func getLoginSecretRedisKey(username string) string {
 	return fmt.Sprintf("%s%s", loginSecretSessionPrefix, username)
-}
-
-// checkRedisCrash confirm if Redis has crashed
-// All network operations fail as redis crashes
-func checkRedisCrash(err error) bool {
-	_, ok := err.(*net.OpError)
-	return ok
 }
