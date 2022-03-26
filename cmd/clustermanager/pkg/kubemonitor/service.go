@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"hash/fnv"
+	"os"
 	"runtime/debug"
 	"sync/atomic"
 	"time"
@@ -39,6 +40,7 @@ func init() {
 type Service struct {
 	eventsCenterCli pb.EventsCenterCollectionServiceClient
 	monitor         *pkg.KubeRiskyMonitor
+	myNamespace     string
 
 	registerOK int32
 	dupCache   *DupCache
@@ -52,14 +54,16 @@ func parseRules() error {
 	return parseErr
 }
 func NewService() (*Service, error) {
+	namespace := os.Getenv("MY_POD_NAMESPACE")
 	monitor, err := pkg.NewKubeRiskMonitor(rules, pkg.NewMemStorage)
 	if err != nil {
 		return nil, err
 	}
 
 	svc := &Service{
-		monitor:  monitor,
-		dupCache: newDupCache(24 * time.Hour),
+		monitor:     monitor,
+		myNamespace: namespace,
+		dupCache:    newDupCache(24 * time.Hour),
 	}
 	svc.asyncRiskMonitor()
 	return svc, nil
@@ -295,6 +299,9 @@ func (s *Service) handleMonitorEvent(ctx context.Context, evt pkg.KubeMonitorEve
 			continue
 		}
 		ecReq := s.newNotifReq(ctx, evt, riskRule)
+		if ecReq.GetNotifyContext() != nil && (ecReq.GetNotifyContext().Namespace == s.myNamespace || ecReq.GetNotifyContext().Namespace == "kube-system") {
+			continue
+		}
 		ecErr := s.sendNotifToEventsCenter(ctx, ecReq)
 		if ecErr == nil {
 			s.dupCache.addEvent(evt, riskRule.Metadata.Name)

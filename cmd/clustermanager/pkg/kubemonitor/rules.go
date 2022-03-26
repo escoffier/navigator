@@ -799,6 +799,26 @@ const rulesDatastring = `######################### REGION - Risky permissions co
 
 ######################### END REGION - HIGH Roles #########################
 
+# Risk: Privilege Escalation from Node/Proxy
+# Verb: get, create
+# Resources: nodes/proxy
+
+- kind: Role
+  metadata:
+    namespace: default
+    name: risky-execute-command-node-proxy
+    priority: HIGH
+    description:
+      risk: "Privilege Escalation from Node/Proxy"
+      riskCN: "从Node/Proxy权限提升"
+      verb: "get, create"
+      resources: "nodes/proxy"
+  rules:
+  - apiGroups: ["*"]
+    resources: ["nodes/proxy"]
+    verbs: ["get", "create"]
+
+
 ######################### REGION - LOW Roles #########################
 
 # Risk: Allowing users in a rolebinding to add other users to their rolebindings
