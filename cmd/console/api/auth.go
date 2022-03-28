@@ -502,7 +502,7 @@ func authenticator(db *databases.RDBInstance) func(http.Handler) http.Handler {
 			// check whether the token exists
 			tokenStr, err := sessionService.GetToken(ctx, db.Get(), username)
 			if err != nil {
-				logging.Get().Err(err).Msgf("redis not found the token: %s", username)
+				logging.Get().Warn().Err(err).Msgf("redis not found the token: %s", username)
 			}
 
 			if token.Raw != tokenStr {
