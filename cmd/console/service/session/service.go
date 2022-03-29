@@ -189,7 +189,7 @@ func (s *Service) GetUserSession(ctx context.Context, db *gorm.DB, username stri
 		return decode(cacheContent)
 	}
 
-	logging.GetLogger().Warn().Err(err).Msgf("cacheContent: ", cacheContent)
+	logging.GetLogger().Warn().Err(err)
 
 	mysqlCtx, mysqlCancel := context.WithTimeout(ctx, defaultOneTimeout)
 	defer mysqlCancel()
