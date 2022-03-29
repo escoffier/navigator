@@ -128,7 +128,7 @@ func (s *Service) GetToken(ctx context.Context, db *gorm.DB, username string) (s
 			// attempt save to redis
 			// The odds are 1 in 10
 			go func(chance int) {
-				if chance != 1 {
+				if chance != 1 && tokenStr != "" {
 					return
 				}
 
