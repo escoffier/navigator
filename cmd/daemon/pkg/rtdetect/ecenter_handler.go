@@ -78,11 +78,16 @@ func (ec *EcHandler) Handle(ctx context.Context, events []eventItem) error {
 		}
 
 		eventReq := rtdetect.GenerateAttackEvent(model.AlertModuleContainerSecurity, ruleCategory, ec.uuidGen, item.data, item.clusterKey, uint64(item.uuid), func(namespace, podName string) (kind, name string, ok bool) {
-			res, exist := ec.podResInfo.GetPod(namespace, podName)
-			if exist {
-				return res.Kind, res.Name, true
+			if podName == "" && namespace == "" {
+				return "Node", item.data.Hostname, true
+			} else {
+				res, exist := ec.podResInfo.GetPod(namespace, podName)
+				if exist {
+					return res.Kind, res.Name, true
+				}
+				return "", "", false
 			}
-			return "", "", false
+
 		})
 
 		func() {
