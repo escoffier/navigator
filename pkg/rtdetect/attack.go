@@ -311,6 +311,14 @@ func generateEventCustomKVs(data *outputs.Response) (kvs []*pb.MultiLanguageKV, 
 			},
 		})
 	}
+	if data.Hostname != "" {
+		kvs = append(kvs, &pb.MultiLanguageKV{
+			KVHash: map[string]*pb.KV{
+				"en": {Key: "nodeName", Value: data.Hostname},
+				"zh": {Key: "节点名称", Value: data.Hostname},
+			},
+		})
+	}
 	return kvs, podUID, podName, namespace
 }
 

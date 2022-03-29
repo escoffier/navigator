@@ -5,7 +5,6 @@ import (
 	"crypto/md5"
 	"errors"
 	"fmt"
-	"gitlab.com/piccolo_su/vegeta/pkg/assets"
 	"net/http"
 	"os"
 	"runtime/debug"
@@ -39,6 +38,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/usercenter"
 	"gitlab.com/piccolo_su/vegeta/cmd/data/notifyhandler"
 	"gitlab.com/piccolo_su/vegeta/cmd/platform-report/def"
+	"gitlab.com/piccolo_su/vegeta/pkg/assets"
 	"gitlab.com/piccolo_su/vegeta/pkg/dal"
 	"gitlab.com/piccolo_su/vegeta/pkg/echelper"
 	"gitlab.com/piccolo_su/vegeta/pkg/env"
@@ -237,8 +237,6 @@ func NewConsole(
 	err = k8saudit.Init(rdb, es)
 	if err != nil {
 		logging.Get().Err(err).Msg("ERROR: k8s-audit service init error")
-		mainCancel()
-		return nil, err
 	}
 
 	err = openapiauth.Init(rdb, redisClient)
@@ -251,8 +249,6 @@ func NewConsole(
 	err = hunter.Init(rdb)
 	if err != nil {
 		logging.Get().Err(err).Msg("ERROR: hunter service init error")
-		mainCancel()
-		return nil, err
 	}
 
 	err = captcha.Init(redisClient, captcha.DefaultConf)
@@ -281,8 +277,6 @@ func NewConsole(
 	})
 	if err != nil {
 		logging.Get().Err(ntErr).Msg("ERROR: platform report service init error")
-		mainCancel()
-		return nil, err
 	}
 
 	// init cluster manager
