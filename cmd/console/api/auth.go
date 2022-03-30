@@ -460,6 +460,7 @@ func (api *api) issueJWTToken(ctx context.Context, username, role, userAgent str
 		return "", fmt.Errorf("save user token fail:%w", err)
 	}
 
+	logging.Get().Debug().Msgf("login token issue: %s %s %t", username, tokenString, external)
 	return tokenString, nil
 }
 
@@ -506,6 +507,7 @@ func authenticator(db *databases.RDBInstance) func(http.Handler) http.Handler {
 			}
 
 			if token.Raw != tokenStr {
+				logging.Get().Debug().Msgf("%s\n%s\n%s", username, token.Raw, tokenStr)
 				RespAndLog(w, ctx, NewInvalidAuthToken(http.StatusUnauthorized,
 					fmt.Errorf("token not match")))
 				return
@@ -522,6 +524,7 @@ func authenticator(db *databases.RDBInstance) func(http.Handler) http.Handler {
 					logging.Get().Warn().Err(err).Msgf("user-agent not match: delete token failed")
 				}
 
+				logging.Get().Debug().Msgf("%s %s %s", username, util.MD5(r.UserAgent()), eigenvalue)
 				RespAndLog(w, ctx, NewInvalidAuthToken(http.StatusUnauthorized,
 					fmt.Errorf("user-agent not match")))
 				return
