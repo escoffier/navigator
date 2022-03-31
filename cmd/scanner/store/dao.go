@@ -173,7 +173,7 @@ func (s *ScannerOrm) CreateImage(ctx context.Context, im *model.ImageList) (*mod
 	im.Layers = im.GetLayerString()
 	im.UniqueImage = im.GenUniqueImage()
 	im.CheckSum = im.GenImageCheckSum()
-	im.Flag = im.GenImageFlag(im.Flag)
+	im.Flag = im.GenImageFlag(consts.ImageEmptyFlag)
 
 	err := s.rdb.Get().WithContext(ctx).Create(im).Error
 	if err != nil {

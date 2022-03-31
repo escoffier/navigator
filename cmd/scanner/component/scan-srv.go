@@ -63,16 +63,21 @@ func (sp *SearchImageWithScanParam) genFlag() uint64 {
 	if sp.IsReinforce == consts.IsReinforceImageString {
 		flag = 1<<model.FlagReinforced + flag
 	}
-	split := strings.Split(sp.Kind, ",")
+	split := util.DeDuplicationStringSlice(strings.Split(sp.Kind, ","))
+	kinds := make([]int64, 0)
+
 	for _, f := range split {
 		ff, err := strconv.ParseInt(f, 10, 64)
 		if err != nil {
 			continue
 		}
-		li := model.GetAllFlag()
-		for _, lll := range li {
-			if ff == lll {
-				flag = 1<<lll + flag
+		kinds = append(kinds, ff)
+	}
+	kinds = util.DeDuplicationInt64Slice(kinds)
+	for _, kind := range kinds {
+		for _, imageFlag := range model.GetAllFlag() {
+			if kind == imageFlag {
+				flag = 1<<imageFlag + flag
 			}
 		}
 	}
@@ -1090,6 +1095,7 @@ func (s *ConScannerSrv) GetScanOneStatus(ctx context.Context, imgID int64, fromU
 		NodeHostname:   imgs[0].NodeHostname,
 		IsReinforce:    int64(imgs[0].IsReinforce),
 		PrivilegedBoot: imgs[0].PrivilegedBoot,
+		Flag:           imgs[0].Flag,
 	}
 
 	// 查状态
@@ -1098,12 +1104,11 @@ func (s *ConScannerSrv) GetScanOneStatus(ctx context.Context, imgID int64, fromU
 		logging.GetLogger().Err(err).Msg("GetScanOneStatus.SearchSubTasksWithScanStatus")
 		return nil, response.NewHttpError(http.StatusInternalServerError, err)
 	}
-
-	// 查scan_image
-	scs, _, err := s.dbdal.SearchScanImage(ctx, store.SearchScanImageParam{ImageIds: []int64{imgs[0].ID}}, nil)
-	if err != nil {
-		logging.GetLogger().Err(err).Msg("GetScanOneStatus.SearchScanImage")
-		return nil, response.NewHttpError(http.StatusInternalServerError, err)
+	if len(status) > 0 {
+		ans.ScanStatus = int(status[0].Status)
+		if status[0].FinishedAt != nil && !status[0].FinishedAt.IsZero() {
+			ans.CompleteTime = status[0].FinishedAt.UnixMilli()
+		}
 	}
 
 	// 查在线
@@ -1114,11 +1119,18 @@ func (s *ConScannerSrv) GetScanOneStatus(ctx context.Context, imgID int64, fromU
 		return nil, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf(consts.StatusInternalServerErrorMsg))
 	}
 
+	if len(online) > 0 {
+		ans.Online = true
+	}
+
 	// 可信镜像的筛选
 	trustedImages, err := s.dbdal.SearchTrustedImageIDs(ctx, store.SearchTrustedImageParam{IsTrusted: consts.IsTrustedImageString, Digests: []string{imgs[0].Digest}})
 	if err != nil {
 		logging.GetLogger().Error().Err(err).Msg("SearchImageWithScan.SearchQuestionInfo")
 		return nil, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf(consts.StatusInternalServerErrorMsg))
+	}
+	if len(trustedImages) > 0 {
+		ans.Trusted = consts.TrustedImage
 	}
 
 	// 把仓库信息加上
@@ -1127,66 +1139,67 @@ func (s *ConScannerSrv) GetScanOneStatus(ctx context.Context, imgID int64, fromU
 		logging.GetLogger().Error().Err(err).Msg("SearchImageWithScan.SearchRegistry")
 		return nil, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf(consts.StatusInternalServerErrorMsg))
 	}
-
-	if len(online) > 0 {
-		ans.Online = true
-	}
-
 	if len(registries) > 0 {
 		ans.RegistryName = registries[0].Name
 		ans.Library = registries[0].Url
 		ans.RegistryDeletedAt = registries[0].DeletedAt
 	}
 
-	if len(trustedImages) > 0 {
-		ans.Trusted = consts.TrustedImage
+	// 特权启动
+	if model.ExistFlag(ans.Flag, model.FlagPrivilegedBoot) || ans.PrivilegedBoot == consts.PrivilegedBootImage {
+		ans.Questions = append(ans.Questions, model.QuestionInfo{ID: model.FlagPrivilegedBoot})
 	}
-	if len(status) > 0 {
-		ans.ScanStatus = int(status[0].Status)
-		if status[0].FinishedAt != nil && !status[0].FinishedAt.IsZero() {
-			ans.CompleteTime = status[0].FinishedAt.UnixMilli()
-		}
+	// 基础镜像
+	if model.ExistFlag(ans.Flag, model.FlagBaseImage) || ans.ImageType == consts.BaseImageType {
+		ans.ImageType = consts.BaseImageType
+	}
+	// 是否加固
+	if model.ExistFlag(ans.Flag, model.FlagReinforced) || ans.IsReinforce == consts.IsReinforceImage {
+		ans.IsReinforce = consts.IsReinforceImage
 	}
 
+	// 查scan_image
+	scs, _, err := s.dbdal.SearchScanImage(ctx, store.SearchScanImageParam{ImageIds: []int64{imgs[0].ID}}, nil)
+	if err != nil {
+		logging.GetLogger().Err(err).Msg("GetScanOneStatus.SearchScanImage")
+		return nil, response.NewHttpError(http.StatusInternalServerError, err)
+	}
 	if len(scs) == 0 {
 		return &ans, nil
 	}
 
-	qus := make([]model.QuestionInfo, 0)
-
-	ans.HasFixedVulu = int64(scs[0].HasFixedVuln)
-	if scs[0].VulnScore > 0 {
-		qus = append(qus, model.QuestionInfo{ID: model.FlagHasVuln})
+	// 以下所有的判断，只使用一种就行，这里使用两种方式，1是为了做兼容，2是当出现数据不一致时可以快速定位问题,3是可能在后续的优化中scan_image表可能不再保存扫描数据
+	if model.ExistFlag(ans.Flag, model.FlagHasFixedVuln) || scs[0].HasFixedVuln == consts.HasFixedvuln {
+		ans.HasFixedVulu = int64(scs[0].HasFixedVuln)
 	}
 
-	if scs[0].SensitiveScore > 0 {
-		qus = append(qus, model.QuestionInfo{ID: model.FlagHasSensitive})
-	}
-	if scs[0].VirusScore > 0 {
-		qus = append(qus, model.QuestionInfo{ID: model.FlagHasMalicious})
-	}
-	if scs[0].WebshellScore > 0 {
-		qus = append(qus, model.QuestionInfo{ID: model.FlagHasWebshell})
+	if model.ExistFlag(ans.Flag, model.FlagHasVuln) || scs[0].VirusScore > 0 {
+		ans.Questions = append(ans.Questions, model.QuestionInfo{ID: model.FlagHasVuln})
 	}
 
-	if scs[0].ScanEnableCollection.EnvEnable > 0 {
-		qus = append(qus, model.QuestionInfo{ID: model.FlagHasExceptEnv})
+	if model.ExistFlag(ans.Flag, model.FlagHasSensitive) || scs[0].SensitiveScore > 0 {
+		ans.Questions = append(ans.Questions, model.QuestionInfo{ID: model.FlagHasSensitive})
+	}
+	if model.ExistFlag(ans.Flag, model.FlagHasMalicious) || scs[0].VirusScore > 0 {
+		ans.Questions = append(ans.Questions, model.QuestionInfo{ID: model.FlagHasMalicious})
+	}
+	if model.ExistFlag(ans.Flag, model.FlagHasWebshell) || scs[0].WebshellScore > 0 {
+		ans.Questions = append(ans.Questions, model.QuestionInfo{ID: model.FlagHasWebshell})
 	}
 
-	if scs[0].ScanEnableCollection.LicenseEnable > 0 {
-		qus = append(qus, model.QuestionInfo{ID: model.FlagHasExceptLicense, Info: ParseLicense(scs[0].LicenseInfo)})
+	if model.ExistFlag(ans.Flag, model.FlagHasExceptEnv) || scs[0].ScanEnableCollection.EnvEnable > 0 {
+		ans.Questions = append(ans.Questions, model.QuestionInfo{ID: model.FlagHasExceptEnv})
 	}
 
-	if scs[0].ScanEnableCollection.SoftwareEnable > 0 {
-		qus = append(qus, model.QuestionInfo{ID: model.FlagHasSoftware, Info: ParseSoftWare(scs[0].Software)})
-	}
-	// 特权启动
-	if imgs[0].PrivilegedBoot == consts.PrivilegedBootImage {
-		qus = append(qus, model.QuestionInfo{ID: model.FlagPrivilegedBoot})
+	if model.ExistFlag(ans.Flag, model.FlagHasExceptLicense) || scs[0].ScanEnableCollection.LicenseEnable > 0 {
+		ans.Questions = append(ans.Questions, model.QuestionInfo{ID: model.FlagHasExceptLicense, Info: ParseLicense(scs[0].LicenseInfo)})
 	}
 
-	ans.Questions = append(ans.Questions, qus...)
-	ans.RiskScore = scs[0].VulnScore + scs[0].SensitiveScore + math.Min(scs[0].WebshellScore+scs[0].VirusScore, 40)
+	if model.ExistFlag(ans.Flag, model.FlagHasSoftware) || scs[0].ScanEnableCollection.SoftwareEnable > 0 {
+		ans.Questions = append(ans.Questions, model.QuestionInfo{ID: model.FlagHasSoftware, Info: ParseSoftWare(scs[0].Software)})
+	}
+
+	ans.RiskScore = scs[0].VulnScore + scs[0].SensitiveScore + math.Min(scs[0].WebshellScore+scs[0].VirusScore, consts.MaxWebshellAndVirusScore)
 
 	return &ans, nil
 }
@@ -1272,7 +1285,7 @@ func (s *ConScannerSrv) GetImageDetail(ctx context.Context, imgID int64) (*model
 		VirusScore:        scs[0].VirusScore,
 		WebshellScore:     scs[0].WebshellScore,
 		SensitiveScore:    scs[0].SensitiveScore,
-		RiskScore:         scs[0].VulnScore + scs[0].SensitiveScore + math.Min(scs[0].WebshellScore+scs[0].VirusScore, 40),
+		RiskScore:         scs[0].VulnScore + scs[0].SensitiveScore + math.Min(scs[0].WebshellScore+scs[0].VirusScore, consts.MaxWebshellAndVirusScore),
 	}
 
 	img.ImageScanVuln = imageScanResult
@@ -1628,6 +1641,10 @@ func (s *ConScannerSrv) SearchImageWithScan(ctx context.Context, param SearchIma
 		// 兼容前端把questionInfo信息加上
 		flagList := model.GetScanFlag()
 		for _, f := range flagList {
+			if f == model.FlagHasFixedVuln && model.ExistFlag(res[i].Flag, model.FlagHasFixedVuln) {
+				res[i].HasFixedVulu = consts.HasFixedvuln
+				continue // 属于镜像的属性，不属于安全问题
+			}
 			if model.ExistFlag(res[i].Flag, f) {
 				res[i].Questions = append(res[i].Questions, model.QuestionInfo{ID: int(f)})
 			}
@@ -1635,11 +1652,11 @@ func (s *ConScannerSrv) SearchImageWithScan(ctx context.Context, param SearchIma
 		if model.ExistFlag(res[i].Flag, model.FlagBaseImage) {
 			res[i].ImageType = consts.BaseImageType
 		}
-		if model.ExistFlag(res[i].Flag, model.FlagHasFixedVuln) {
-			res[i].HasFixedVulu = consts.HasFixedvuln
-		}
 		if model.ExistFlag(res[i].Flag, model.FlagReinforced) {
 			res[i].IsReinforce = consts.IsReinforceImage
+		}
+		if model.ExistFlag(res[i].Flag, model.FlagPrivilegedBoot) {
+			res[i].Questions = append(res[i].Questions, model.QuestionInfo{ID: model.FlagPrivilegedBoot})
 		}
 
 		if re, ok := regMap[res[i].RegistryID]; ok {
