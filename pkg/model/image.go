@@ -13,23 +13,23 @@ import (
 )
 
 func GetImageFlag() []int64 {
-	flgs := []int64{FlagHasFixedVuln, FlagBaseImage, FlagReinforced}
+	flgs := []int64{FlagBaseImage, FlagReinforced, FlagPrivilegedBoot}
 	return flgs
 }
 
 func GetScanFlag() []int64 {
 	flgs := []int64{FlagHasVuln, FlagHasMalicious, FlagHasSensitive,
-		FlagHasWebshell, FlagHasSoftware, FlagHasExceptEnv, FlagHasExceptLicense, FlagPrivilegedBoot,
+		FlagHasWebshell, FlagHasSoftware, FlagHasExceptEnv, FlagHasExceptLicense, FlagHasFixedVuln,
 	}
 	return flgs
 }
 
 func GetAllFlag() []int64 {
-	flgs := []int64{FlagHasVuln, FlagHasMalicious, FlagHasSensitive,
+	flags := []int64{FlagHasVuln, FlagHasMalicious, FlagHasSensitive,
 		FlagHasWebshell, FlagHasSoftware, FlagHasExceptEnv,
 		FlagPrivilegedBoot, FlagHasExceptLicense, FlagHasFixedVuln,
 		FlagReinforced, FlagBaseImage}
-	return flgs
+	return flags
 }
 
 const (
@@ -265,7 +265,7 @@ type ImageList struct {
 func SetFlagBaseImage(pre uint64) uint64 {
 	var flag uint64
 	var exit bool
-	for _, i := range GetAllFlag() {
+	for _, i := range GetImageFlag() {
 		if i == FlagBaseImage && ExistFlag(pre, i) {
 			exit = true
 		}
@@ -282,7 +282,7 @@ func SetFlagBaseImage(pre uint64) uint64 {
 
 func SetFlagAppImage(pre uint64) uint64 {
 	var flag uint64
-	for _, i := range GetAllFlag() {
+	for _, i := range GetImageFlag() {
 		if i == FlagBaseImage {
 			continue
 		}
@@ -383,7 +383,6 @@ func (im *ImageList) Deserialize() {
 			im.ConfigFile = ll
 		}
 	}
-
 }
 
 func (ImageList) TableName() string {
@@ -396,6 +395,9 @@ func (im *ImageList) GenUniqueImage() uint64 {
 }
 
 func (im *ImageList) GenImageCheckSum() uint64 {
+	if im.CheckSum > 0 {
+		return im.CheckSum
+	}
 	im.Serialize()
 	im.Deserialize()
 	createdAt, updatedAt, preCheck := im.CreatedAt, im.UpdatedAt, im.CheckSum
@@ -455,7 +457,6 @@ func (im *ImageList) GenImageFlag(preFlag uint64) uint64 {
 			}
 		}
 	}
-
 	if boot || im.PrivilegedBoot == consts.PrivilegedBootImage {
 		flag = 1<<FlagPrivilegedBoot + flag
 	}
@@ -463,15 +464,13 @@ func (im *ImageList) GenImageFlag(preFlag uint64) uint64 {
 	if rein || im.IsReinforce == consts.IsReinforceImage {
 		flag = 1<<FlagReinforced + flag
 	}
-
+	if ExistFlag(preFlag, FlagBaseImage) || im.ImageType == consts.BaseImageType {
+		flag = 1<<FlagBaseImage + flag
+	}
 	for _, pre := range GetScanFlag() {
 		if ExistFlag(preFlag, pre) {
 			flag = 1<<pre + flag
 		}
-	}
-
-	if ExistFlag(preFlag, FlagBaseImage) || im.ImageType == consts.BaseImageType {
-		flag = 1<<FlagBaseImage + flag
 	}
 	return flag
 }

@@ -29,7 +29,7 @@ func TestGenerateUUID(t *testing.T) {
 
 }
 
-func TestGetMixedSetForInt64(t *testing.T) {
+func TestIntersectionSetForInt64(t *testing.T) {
 	convey.Convey("GetIntersectionSetForInt64 ", t, func() {
 		convey.So(len(GetIntersectionSetForInt64([]int64{}, []int64{2, 3, 3})), convey.ShouldEqual, 0)
 	})
@@ -40,5 +40,20 @@ func TestGetMixedSetForInt64(t *testing.T) {
 	convey.Convey("GetIntersectionSetForInt64 ", t, func() {
 		convey.So(len(GetIntersectionSetForInt64([]int64{2, 3, 3}, []int64{1, 3, 4})), convey.ShouldEqual, 1)
 	})
+}
 
+func TestDeDuplicationStringSlice(t *testing.T) {
+	convey.Convey("DeDuplicationStringSlice ", t, func() {
+		convey.So(len(DeDuplicationStringSlice([]string{})), convey.ShouldEqual, 0)
+	})
+	convey.Convey("DeDuplicationStringSlice ", t, func() {
+		convey.So(len(DeDuplicationStringSlice([]string{""})), convey.ShouldEqual, 1)
+	})
+
+	convey.Convey("DeDuplicationStringSlice ", t, func() {
+		convey.So(len(DeDuplicationStringSlice([]string{"", "hello"})), convey.ShouldEqual, 2)
+	})
+	convey.Convey("DeDuplicationStringSlice ", t, func() {
+		convey.So(len(DeDuplicationStringSlice([]string{"", "hello", "hello"})), convey.ShouldEqual, 2)
+	})
 }

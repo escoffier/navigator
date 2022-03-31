@@ -183,3 +183,15 @@ func DeDuplicationInt64Slice(va []int64) []int64 {
 	}
 	return ans
 }
+
+func DeDuplicationStringSlice(va []string) []string {
+	exit := make(map[string]struct{})
+	ans := make([]string, 0, len(va))
+	for i := range va {
+		if _, ok := exit[va[i]]; !ok {
+			ans = append(ans, va[i])
+			exit[va[i]] = struct{}{}
+		}
+	}
+	return ans
+}

@@ -198,9 +198,8 @@ func (s *SyncRepoImage) SyncImage(ctx context.Context) error {
 					logging.GetLogger().Error().Err(err).Msg("SyncImage.InsertImageList")
 					return nil, err
 				}
-
 				if len(searchImage) == 0 {
-					img.Flag = img.GenImageFlag(img.Flag)
+					img.Flag = img.GenImageFlag(consts.ImageEmptyFlag)
 					if _, err := s.ImageDal.CreateImage(context.Background(), &img); err != nil {
 						logging.GetLogger().Error().Err(err).Msg("SyncImage.InsertImageList")
 						return nil, err
@@ -210,14 +209,17 @@ func (s *SyncRepoImage) SyncImage(ctx context.Context) error {
 						Int64("FromType", img.FromType).
 						Str("Library", img.Library).
 						Str("FullRepoName", img.FullRepoName).
-						Str("Tag", img.Tags).Msg("sync new image Create")
+						Str("Tag", img.Tags).
+						Uint64("flag", img.Flag).
+						Int64("imageID", img.ID).
+						Msg("sync new image Create")
 				}
 				// 如果值有变动，就全量更新
 				if len(searchImage) > 0 {
 					img.Flag = img.GenImageFlag(searchImage[0].Flag)
+
 					img.CheckSum = img.GenImageCheckSum()
 					if img.CheckSum != searchImage[0].CheckSum {
-
 						// 全量更新
 						if err := s.ImageDal.UpdateImage(ctx, fmt.Sprintf("id = %d", searchImage[0].ID), nil, &img); err != nil {
 							logging.GetLogger().Error().Err(err).Msg("SyncImage.InsertImageList,UpdateImageType")
@@ -227,12 +229,18 @@ func (s *SyncRepoImage) SyncImage(ctx context.Context) error {
 							Int64("FromType", img.FromType).
 							Str("Library", img.Library).
 							Str("FullRepoName", img.FullRepoName).
+							Uint64("flag", img.Flag).
+							Uint64("preFlag", searchImage[0].Flag).
+							Int64("imageID", searchImage[0].ID).
 							Str("Tag", img.Tags).Msg("sync new image Update")
 					} else {
 						logging.GetLogger().Debug().Int64("RegistryID", img.RegistryID).
 							Int64("FromType", img.FromType).
 							Str("Library", img.Library).
 							Str("FullRepoName", img.FullRepoName).
+							Uint64("flag", img.Flag).
+							Uint64("preFlag", searchImage[0].Flag).
+							Int64("imageID", searchImage[0].ID).
 							Str("Tag", img.Tags).Msg("数据已存在，且未变动,无需同步")
 					}
 				}
