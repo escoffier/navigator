@@ -185,7 +185,7 @@ func NewFlowSession(dockerInfo *nodeinfo.DockerInfoManager, k8sInfo *NodePodsInf
 		url:            url,
 		nsDataChan:     make(chan daemon.NetSessionLink, 300),
 		redisClient:    redisClient,
-		submitter:      NewSubmitter(1*time.Minute, GetSubmitFunc(url)),
+		submitter:      NewSubmitter(5*time.Minute, GetSubmitFunc(url)),
 	}
 	//
 	err = fs.DialUnixSocket(unixSockFile)
