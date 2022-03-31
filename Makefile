@@ -397,10 +397,17 @@ apiscan-job: generate
 	#upx dist/apiscan
 	docker build -t $(REPOPREFIX)/apiscan-job:latest -f ./build/apiscan-job/Dockerfile .
 
+.PHONY: mqinit
+mqinit:
+	go build -v \
+		-o dist/mqinit gitlab.com/piccolo_su/vegeta/cmd/mqinit
+	#upx dist/mqinit
+	docker build -t $(REPOPREFIX)/mqinit:latest -f ./build/mqinit/Dockerfile .
+
 .PHONY: all
 all: drift-prevention-client faulty scanner scanner-cicd scarecrow console data holmes daemon  \
 webshell-server webhook cluster-manager security-profiles-manager security-profiles-loader go-audit \
-palace safe-node-image kube-scanner-report platform-report scan_report apiscan-job
+palace safe-node-image kube-scanner-report platform-report scan_report apiscan-job mqinit
 
 .PHONY: base
 base: scanner-base faulty-base data-base drift-prevention-client-base holmes-base security-profiles-loader-base
@@ -462,6 +469,7 @@ ifeq ($(USERELEASE),true)
 	docker push $(REPOPREFIX)/platform-report:$(RELEASEVERSION)
 	docker push $(REPOPREFIX)/scan-report:$(RELEASEVERSION)
 	docker push $(REPOPREFIX)/apiscan-job:$(RELEASEVERSION)
+	docker push $(REPOPREFIX)/mqinit:$(RELEASEVERSION)
 else
 	@echo "push all images latest"
 	docker push $(REPOPREFIX)/console:latest
@@ -484,6 +492,7 @@ else
 	docker push $(REPOPREFIX)/platform-report:latest
 	docker push $(REPOPREFIX)/scan-report:latest
 	docker push $(REPOPREFIX)/apiscan-job:latest
+	docker push $(REPOPREFIX)/mqinit:latest
 endif
 
 .PHONY: rm-local-images
@@ -509,6 +518,7 @@ rm-local-images:
 	docker rmi $(REPOPREFIX)/scan-report:latest
 	docker rmi $(REPOPREFIX)/apiscan-job:latest
 	docker rmi $(REPOPREFIX)/platform-report:latest
+	docker rmi $(REPOPREFIX)/mqinit:latest
 
 .PHONY: retag
 retag:
@@ -533,6 +543,7 @@ ifeq ($(USERELEASE),true)
 	docker tag $(REPOPREFIX)/cluster-manager:latest $(REPOPREFIX)/cluster-manager:$(RELEASEVERSION)
 	docker tag $(REPOPREFIX)/kube-scanner-report:latest $(REPOPREFIX)/kube-scanner-report:$(RELEASEVERSION)
 	docker tag $(REPOPREFIX)/apiscan-job:latest $(REPOPREFIX)/apiscan-job:$(RELEASEVERSION)
+	docker tag $(REPOPREFIX)/mqinit:latest $(REPOPREFIX)/mqinit:$(RELEASEVERSION)
 else
 	@echo "tag all images latest"
 	docker tag $(REPOPREFIXOLD)/console:latest $(REPOPREFIX)/console:latest
@@ -554,6 +565,7 @@ else
 	docker tag $(REPOPREFIXOLD)/cluster-manager:latest $(REPOPREFIX)/cluster-manager:latest
 	docker tag $(REPOPREFIXOLD)/kube-scanner-report:latest $(REPOPREFIX)/kube-scanner-report:latest
 	docker tag $(REPOPREFIXOLD)/apiscan-job:latest $(REPOPREFIX)/apiscan-job:latest
+	docker tag $(REPOPREFIXOLD)/mqinit:latest $(REPOPREFIX)/mqinit:latest
 endif
 
 CI_CHECK_CACHE_REGISTRY?=harbor.local.cn

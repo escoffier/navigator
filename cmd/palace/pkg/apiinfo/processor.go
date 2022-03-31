@@ -6,10 +6,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/nats-io/stan.go"
-	"gitlab.com/piccolo_su/vegeta/pkg/logging"
+	"github.com/segmentio/kafka-go"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/security-rd/go-pkg/databases"
+	"gitlab.com/security-rd/go-pkg/logging"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -17,11 +17,11 @@ const APISubject = "security-api"
 
 var rdb *databases.RDBInstance
 
-func Process(msg *stan.Msg) {
+func Process(msg kafka.Message) {
 	info := ApiInfo{}
-	err := proto.Unmarshal(msg.Data, &info)
+	err := proto.Unmarshal(msg.Value, &info)
 	if err != nil {
-		logging.GetLogger().Err(err).Msgf("proto unmarshal err. data: %s", string(msg.Data))
+		logging.Get().Err(err).Str("data", string(msg.Value)).Msg("proto unmarshal err.")
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
@@ -53,7 +53,7 @@ func Process(msg *stan.Msg) {
 
 	err = UpsertAPIInfo(ctx, rdb, &tensorAPI)
 	if err != nil {
-		logging.GetLogger().Err(err).Msg("save api info err")
+		logging.Get().Err(err).Msg("save api info err")
 		return
 	}
 }

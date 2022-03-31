@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/go-redis/redis/v8"
-	"github.com/nats-io/stan.go"
+	"github.com/segmentio/kafka-go"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 )
@@ -18,13 +18,13 @@ var (
 	CommandResultSubject = "commandResult"
 )
 
-func CommandHandler(m *stan.Msg) {
+func CommandHandler(m kafka.Message) {
 	mainCtx := context.Background()
 
 	var c model.SecurityProfileCommand
 	var profileMarshalled []byte
 	var err error
-	err = json.Unmarshal(m.Data, &c)
+	err = json.Unmarshal(m.Value, &c)
 	if err != nil {
 		logging.GetLogger().Error().Err(err).Msg("Failed to unmarshal message")
 		return

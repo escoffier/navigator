@@ -1,6 +1,7 @@
 package rtdetect
 
 import (
+	"bytes"
 	"strings"
 
 	"github.com/falcosecurity/client-go/pkg/api/outputs"
@@ -37,4 +38,22 @@ func isEventItemWhitelisted(data *outputs.Response, dockerInfo *nodeinfo.DockerI
 		}
 	}
 	return false
+}
+
+func getKeyOfPodContainerEvent(clusterKey string, data *outputs.Response) ([]byte, bool) {
+	keyBui := bytes.Buffer{}
+	keyBui.WriteString(clusterKey)
+	keyBui.WriteRune('/')
+	if data.Hostname != "" {
+		keyBui.WriteString(data.Hostname)
+		keyBui.WriteRune('/')
+	}
+
+	podName, exist := data.OutputFields[rtdetect.FieldK8sPodName]
+	if exist && len(podName) > 0 {
+		keyBui.WriteString(podName)
+		keyBui.WriteRune('/')
+	}
+
+	return keyBui.Bytes(), keyBui.Len() > 0
 }

@@ -2,13 +2,13 @@ package rtdetect
 
 import (
 	"context"
-	"time"
+	"math/rand"
+	"strconv"
 
-	"github.com/avast/retry-go"
-	"gitlab.com/piccolo_su/vegeta/pkg/mqtools"
+	"github.com/segmentio/kafka-go"
 	"gitlab.com/piccolo_su/vegeta/pkg/rtdetect"
-	"gitlab.com/piccolo_su/vegeta/pkg/util"
 	"gitlab.com/security-rd/go-pkg/logging"
+	"gitlab.com/security-rd/go-pkg/mq"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -21,26 +21,18 @@ var (
 )
 
 type ImmuneHandler struct {
-	stanConn *mqtools.StanConn
+	mqWriter mq.MQWriter
 }
 
-func NewImmuneHandler(stanConn *mqtools.StanConn) *ImmuneHandler {
+func NewImmuneHandler(mqWriter mq.MQWriter) *ImmuneHandler {
 	return &ImmuneHandler{
-		stanConn: stanConn,
+		mqWriter: mqWriter,
 	}
 }
 func (ih *ImmuneHandler) Handle(ctx context.Context, events []eventItem) error {
-	tctx, cancel := context.WithTimeout(ctx, 1000*time.Millisecond)
-	defer cancel()
-
 	for _, e := range events {
 		subject, ok := immuneRules[e.data.Rule]
 		if ok {
-			stanconn, ok := ih.stanConn.Conn()
-			if !ok {
-				logging.Get().WithContext(ctx).Errorf(nil, "stan connection not avaiable. data: %+v", e)
-				continue
-			}
 			e.data.OutputFields[rtdetect.KeyClusterKey] = e.clusterKey
 			ebytes, err := proto.Marshal(e.data)
 			if err != nil {
@@ -48,9 +40,16 @@ func (ih *ImmuneHandler) Handle(ctx context.Context, events []eventItem) error {
 				continue
 			}
 
-			err = util.RetryWithBackoff(tctx, func() error {
-				return stanconn.Publish(subject, ebytes)
-			}, retry.Attempts(3))
+			keyBytes, ok := getKeyOfPodContainerEvent(e.clusterKey, e.data)
+			if !ok { // if the key is empty, generate random key to prevent consumer load unbalance
+				keyBytes = []byte(strconv.FormatInt(rand.Int63n(10000000000), 10))
+			}
+
+			err = ih.mqWriter.Write(ctx, subject, kafka.Message{
+				Topic: subjectOfAssocationEvents,
+				Key:   keyBytes,
+				Value: ebytes,
+			})
 			if err != nil {
 				logging.Get().WithContext(ctx).Errorf(err, "publish immune events error. data: %s", string(ebytes))
 			}

@@ -11,15 +11,13 @@ import (
 	"sync"
 	"time"
 
-	"github.com/nats-io/nats.go"
-	"github.com/nats-io/stan.go"
 	"github.com/pkg/errors"
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/netflow"
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/nodeinfo"
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/rtdetect"
 	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
-	"gitlab.com/piccolo_su/vegeta/pkg/mqtools"
 	"gitlab.com/security-rd/go-pkg/logging"
+	"gitlab.com/security-rd/go-pkg/mq"
 	_ "go.uber.org/automaxprocs"
 )
 
@@ -33,7 +31,7 @@ const (
 	defaultRTBuffSize     = 100
 )
 
-func initEventStreams(udsAddr, nodeName string, cm *k8s.ClusterInfoManager, stanConn *mqtools.StanConn, dockerInfo *nodeinfo.DockerInfoManager, podResInfo *nodeinfo.PodResInfo) (*rtdetect.RuntimeEventStream, error) {
+func initEventStreams(udsAddr, nodeName string, cm *k8s.ClusterInfoManager, mqWriter mq.MQWriter, dockerInfo *nodeinfo.DockerInfoManager, podResInfo *nodeinfo.PodResInfo) (*rtdetect.RuntimeEventStream, error) {
 	bui := rtdetect.StreamBuilder(udsAddr, nodeName, cm)
 
 	// add handlers here
@@ -41,10 +39,8 @@ func initEventStreams(udsAddr, nodeName string, cm *k8s.ClusterInfoManager, stan
 	if err != nil {
 		return nil, err
 	}
-	// imHandler := rtdetect.NewImmuneHandler(stanConn)
-	aeHandler := rtdetect.NewAssociatedEventsHandler(stanConn, dockerInfo)
+	aeHandler := rtdetect.NewAssociatedEventsHandler(mqWriter, dockerInfo)
 	bui.WithHandler(rtdetect.NewAsyncHandler(ecHandler, defaultRTBuffInterval, defaultRTBuffSize))
-	// bui.WithHandler(rtdetect.NewAsyncHandler(imHandler, defaultRTBuffInterval, defaultRTBuffSize))
 	bui.WithHandler(rtdetect.NewSyncHandler(aeHandler))
 
 	s, err := bui.Build(context.Background())
@@ -138,24 +134,11 @@ func NetInit(ctx context.Context) error {
 		return errors.Errorf("get console address failed.")
 	}
 
-	stanURL := os.Getenv("STAN_URL")
-	if stanURL == "" {
-		logging.Get().Warn().Msg("env STAN_URL not found")
-		return errors.Errorf("get STAN address failed.")
+	mqFactory := mq.GetMQFactory()
+	mqWriter, err := mqFactory.Writer(context.Background())
+	if err != nil {
+		logging.Get().Err(err).Msg("Init mq error")
 	}
-	stanClusterID := os.Getenv("STAN_CLUSTER_ID")
-	if stanClusterID == "" {
-		logging.Get().Warn().Msg("env STAN_CLUSTER_ID not found")
-		stanClusterID = "tensorsec"
-	}
-	stanConn := mqtools.NewStanConn(func() (stan.Conn, error) {
-		nc, err := nats.Connect(fmt.Sprintf("nats://%s", stanURL), nats.MaxReconnects(5), nats.ReconnectBufSize(64*1024), nats.ReconnectWait(500*time.Millisecond))
-		if err != nil {
-			return nil, err
-		}
-		stanConn, err := stan.Connect(stanClusterID, getClientID(hostName), stan.NatsConn(nc))
-		return stanConn, err
-	})
 
 	clusterManager := k8s.NewClusterInfoManager(clusterAddr)
 
@@ -185,7 +168,7 @@ func NetInit(ctx context.Context) error {
 
 	// start events streaming
 	if rtUdsAddr != "" {
-		rtStream, err := initEventStreams(rtUdsAddr, hostName, clusterManager, stanConn, dockerInfo, podResInfo)
+		rtStream, err := initEventStreams(rtUdsAddr, hostName, clusterManager, mqWriter, dockerInfo, podResInfo)
 		if err != nil {
 			return errors.Errorf("Failed to rt events streams, %v", err)
 		}
