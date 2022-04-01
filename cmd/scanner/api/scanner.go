@@ -10,6 +10,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/pkg/errors"
 	"gitlab.com/security-rd/go-pkg/logging"
+	"gorm.io/gorm/clause"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/task"
@@ -271,7 +272,7 @@ func (s *Scanner) ScanAllNow(ctx *gin.Context) {
 		ImageID          int64    `json:"image_id"`
 		ImageIds         []int64  `json:"image_ids"`
 		Library          string   `json:"library"`
-		ScanStatus       []int    `json:"scan_status"`
+		ScanStatus       []int64  `json:"scan_status"`
 		Trusted          string   `json:"trusted"`
 		HasFixedVulu     string   `json:"has_fixed_vulu"`
 		IsReinforce      string   `json:"is_reinforce"`
@@ -279,6 +280,7 @@ func (s *Scanner) ScanAllNow(ctx *gin.Context) {
 		SpecialImageType string   `json:"special_image_type"`
 		JustReturnImage  bool     `json:"just_return_image"`
 		Scope            int      `json:"scope"`
+		RegistryIds      []int64  `json:"registry_ids"`
 		TriggerType      int      `json:"trigger_type"`
 		StrategyID       int64    `json:"strategy_id"`
 		Operator         string   `json:"operator"`
@@ -302,6 +304,7 @@ func (s *Scanner) ScanAllNow(ctx *gin.Context) {
 		Library:          t.Library,
 		ScanStatus:       t.ScanStatus,
 		Trusted:          t.Trusted,
+		RegistryIds:      t.RegistryIds,
 		HasFixedVulu:     t.HasFixedVulu,
 		IsReinforce:      t.IsReinforce,
 		NodeHostname:     t.NodeHostname,
@@ -590,27 +593,28 @@ func (s *Scanner) ListScannedByImageList(ctx *gin.Context) {
 	hasFixedVulu := ctx.Query("has_fixed_vulu")
 	isReinforce := ctx.Query("is_reinforce")
 	nodeHostname := ctx.Query("node_hostname")
+
+	var projects []string
+	projectsStr := ctx.Query("project")
+	if projectsStr != "" {
+		projects = strings.Split(projectsStr, ",")
+	}
+
 	specialImageType := ctx.Query("special_image_type")
 
 	fromType, err := strconv.ParseInt(ctx.Query("from_type"), 10, 64)
 	if err != nil || fromType == 0 {
 		fromType = model.ImageFromTypeNormal
 	}
-	scanStatus := make([]int, 0)
-	if ctx.Query("scan_status") != "" {
-		ss := strings.Split(ctx.Query("scan_status"), ",")
-		for i := range ss {
-			if parseInt, err := strconv.ParseInt(ss[i], 10, 64); err == nil {
-				scanStatus = append(scanStatus, int(parseInt))
-			}
-		}
-	}
+	scanStatus := util.GetInt64SliceFromQuery(ctx, "scan_status")
+	registryIds := util.GetInt64SliceFromQuery(ctx, "registry_ids")
 
 	filter := model.GetFilter(ctx)
 	filter.SortFiled = "full_repo_name"
 	filter.SortBy = "asc"
 
 	param := component.SearchImageWithScanParam{
+		Projects:         projects,
 		SearchWord:       search,
 		Kind:             kind,
 		Online:           online,
@@ -618,6 +622,7 @@ func (s *Scanner) ListScannedByImageList(ctx *gin.Context) {
 		ImageType:        imageType,
 		FromType:         fromType,
 		ScanStatus:       scanStatus,
+		RegistryIds:      registryIds,
 		Trusted:          trusted,
 		HasFixedVulu:     hasFixedVulu,
 		IsReinforce:      isReinforce,
@@ -1158,25 +1163,19 @@ func (s *Scanner) GetScanTaskList(ctx *gin.Context) {
 // @Success 200 {object} ApiWithItem{data=ApiItem{}}
 // @Router	/api/v1/tasks/:id/subtasks [get]
 func (s *Scanner) GetScanSubTaskList(ctx *gin.Context) {
-	limit, err := strconv.ParseInt(ctx.Query("limit"), 0, 64)
-	if err != nil {
-		response.JSONError(ctx, fmt.Errorf("无效的limit: %s", ctx.Query("limit")))
-		return
-	}
-
-	offset, err := strconv.ParseInt(ctx.Query("offset"), 0, 64)
-	if err != nil {
-		response.JSONError(ctx, fmt.Errorf("无效的offset: %s", ctx.Query("offset")))
-		return
-	}
-
 	taskID, err := strconv.ParseInt(ctx.Param("id"), 10, 64)
 	if err != nil {
 		response.JSONError(ctx, fmt.Errorf("无效的taskId: %s", ctx.Param("id")))
 		return
 	}
 
-	data, count, err := s.Srv.GetScanSubTaskList(ctx, taskID, limit, offset)
+	status := util.GetInt64SliceFromQuery(ctx, "status")
+
+	filter := model.GetFilter(ctx)
+	// 默认按如下排序
+	filter.OrderByColumns = append(filter.OrderByColumns, clause.OrderByColumn{Column: clause.Column{Name: "status"}, Desc: true})
+	filter.OrderByColumns = append(filter.OrderByColumns, clause.OrderByColumn{Column: clause.Column{Name: "started_at"}, Desc: true})
+	data, count, err := s.Srv.GetScanSubTaskList(ctx, taskID, status, filter)
 	if err != nil {
 		response.JSONError(ctx, errors.New("获取扫描子任务记录失败"))
 		return

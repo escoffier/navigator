@@ -113,7 +113,7 @@ type ScanTaskInterface interface {
 
 	UpdateTaskStatus(ctx context.Context, id int64, status uint8) error
 	GetTaskList(ctx context.Context, limit, offset int) ([]*model.Task, int64, error)
-	GetSubTaskListWithImage(ctx context.Context, taskID int64, limit, offset int) ([]model.SubTask, int64, error)
+	GetSubTaskListWithImage(ctx context.Context, param GetSubTaskListWithImageParam, fileter *model.Filter) ([]model.SubTask, int64, error)
 
 	GetAllScanStrategyEnv(ctx context.Context) ([]model.ScanStrategy, error)
 	// GetStrategyForEnv(ctx context.Context, envName string) ([]model.ScanStrategy, error)
@@ -1431,6 +1431,9 @@ func (s *ScannerOrm) SearchImage(ctx context.Context, param SearchImageParam, fi
 	if len(param.UUIDs) > 0 {
 		db = db.Where("image_uuid IN ? ", param.UUIDs)
 	}
+	if len(param.Projects) > 0 {
+		db = db.Where("project IN   ? ", param.Projects)
+	}
 
 	if len(param.InIds) > 0 {
 		db = db.Where("id IN ? ", param.InIds)
@@ -1476,11 +1479,11 @@ func (s *ScannerOrm) SearchImage(ctx context.Context, param SearchImageParam, fi
 	if param.UniqueImage > 0 {
 		db = db.Where("unique_image = ?", param.UniqueImage)
 	}
-	if param.ImageType == consts.BaseImageTypeString {
-		db = db.Where(fmt.Sprintf("(flag >> %d ) & 1 = %d", model.FlagBaseImage, 1))
-	} else if param.ImageType == consts.AppImageTypeString {
-		db = db.Where(fmt.Sprintf("(flag >> %d ) & 1 = %d", model.FlagBaseImage, 0))
-	}
+	// if param.ImageType == consts.BaseImageTypeString {
+	// 	db = db.Where(fmt.Sprintf("(flag >> %d ) & 1 = %d", model.FlagBaseImage, 1))
+	// } else if param.ImageType == consts.AppImageTypeString {
+	// 	db = db.Where(fmt.Sprintf("(flag >> %d ) & 1 = %d", model.FlagBaseImage, 0))
+	// }
 	if len(param.Where) > 0 {
 		db = db.Where(param.Where)
 	}
@@ -2114,34 +2117,23 @@ func (s *ScannerOrm) GetTaskList(ctx context.Context, limit, offset int) ([]*mod
 	return datas, count, nil
 }
 
-func (s *ScannerOrm) GetSubTaskListWithImage(ctx context.Context, taskID int64, limit, offset int) ([]model.SubTask, int64, error) {
+func (s *ScannerOrm) GetSubTaskListWithImage(ctx context.Context, param GetSubTaskListWithImageParam, filter *model.Filter) ([]model.SubTask, int64, error) {
 	var (
-		data  = make([]model.SubTask, 0, limit)
+		data  = make([]model.SubTask, 0)
 		count int64
 		err   error
 	)
 
-	db := s.rdb.Get().WithContext(ctx)
-
-	err = db.Model(model.SubTask{}).
-		Where("task_id = ?", taskID).
-		Count(&count).
-		Error
-	if err != nil {
-		return nil, 0, errors.Wrap(err, "get subtask total count failed")
+	db := s.rdb.Get().WithContext(ctx).Model(model.SubTask{}).Where("task_id = ?", param.TaskID)
+	if len(param.Status) > 0 {
+		db = db.Where("status IN ?", param.Status)
 	}
 
-	err = db.
-		Model(model.SubTask{}).
-		Where("task_id = ?", taskID).
-		Limit(limit).
-		Offset(offset).
-		Order(clause.OrderByColumn{Column: clause.Column{Name: "status"}, Desc: true}).
-		Order(clause.OrderByColumn{Column: clause.Column{Name: "started_at"}, Desc: false}).
-		Find(&data).
-		Error
-
-	if err != nil {
+	if err := db.Count(&count).Error; err != nil {
+		return nil, 0, errors.Wrap(err, "get subtask total count failed")
+	}
+	db = model.AddFilter(db, filter)
+	if err := db.Find(&data).Error; err != nil {
 		return nil, 0, errors.Wrap(err, "get subtask data failed")
 	}
 
@@ -2155,8 +2147,8 @@ func (s *ScannerOrm) GetSubTaskListWithImage(ctx context.Context, taskID int64, 
 	}
 
 	// 不用join，直接查询吧
-	err = db.
-		Model(model.ImageList{}).
+	err = s.rdb.Get().WithContext(ctx).
+		Model(new(model.ImageList)).
 		Select("id, full_repo_name, tags, node_ip, library, os, node_hostname, from_type").
 		Where("id in ?", imagesID).
 		Find(&imagesInfo).

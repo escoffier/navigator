@@ -12,10 +12,15 @@ import (
 )
 
 type Filter struct {
+	// 如果只有一项排序可以写在SortBy和SortFiled这两个字段中，
 	SortBy    string `json:"sort_by"`
 	SortFiled string `json:"sort_filed"`
-	Offset    int64  `json:"offset"`
-	Limit     int64  `json:"limit"`
+
+	// 如果是多行或指义的排列，就写入OrderByColumns字段中
+	OrderByColumns []clause.OrderByColumn
+
+	Offset int64 `json:"offset"`
+	Limit  int64 `json:"limit"`
 }
 
 func GetFilter(ctx *gin.Context) *Filter {
@@ -31,6 +36,7 @@ func GetFilter(ctx *gin.Context) *Filter {
 	}
 
 	filter := &Filter{Offset: offset, Limit: limit, SortBy: sortBy, SortFiled: sortFiled}
+	filter.OrderByColumns = make([]clause.OrderByColumn, 0)
 	filter = filter.SetDefault()
 	return filter
 }
@@ -94,6 +100,12 @@ func AddFilter(db *gorm.DB, filter *Filter) *gorm.DB {
 		}
 		if filter.SortFiled != "" && filter.SortBy != "" {
 			db = db.Order(clause.OrderByColumn{Column: clause.Column{Name: filter.SortFiled}, Desc: strings.ToLower(filter.SortBy) == "desc"})
+		}
+
+		if filter.OrderByColumns != nil {
+			for i := range filter.OrderByColumns {
+				db = db.Order(filter.OrderByColumns[i])
+			}
 		}
 	}
 	// 这里如果是查全部，也给一个默认值，但是我们项目业务中有很多查全表数据的情况，所这里加这一项不合适

@@ -108,6 +108,7 @@ type ImageResponse struct {
 	PrivilegedBoot    int64          `json:"privileged_boot"`
 	ImageUUID         uint32         `json:"image_uuid"`
 	Flag              uint64         `json:"flag"`
+	Project           string         `json:"project"`
 }
 
 func ImageToImageResponse(img ImageList) ImageResponse {

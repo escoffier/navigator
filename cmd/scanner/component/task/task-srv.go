@@ -189,7 +189,7 @@ func (t *TaskSrv) GetPendingSubTasksByTaskID(ctx context.Context, taskID int64) 
 		i, err := scannerGormDb.GetImageInfo(ctx, imageID)
 		if err != nil {
 			// set subtask err
-			_ = t.SetSubTaskFailed(v.ID, fmt.Sprintf("get image info failed.%v", err))
+			_ = t.SetSubTaskFailed(v.ID, consts.ErrScanGetImage, fmt.Sprintf("get image info failed.%v", err))
 			logging.GetLogger().Err(err).
 				Int64("taskId", taskID).
 				Int64("subtaskId", v.ID).
@@ -201,7 +201,7 @@ func (t *TaskSrv) GetPendingSubTasksByTaskID(ctx context.Context, taskID int64) 
 		// get registry info
 		registries, _, err := t.registryDal.SearchRegistry(ctx, store.SearchRegistryParam{ID: i.RegistryID}, nil)
 		if err != nil {
-			_ = t.SetSubTaskFailed(v.ID, fmt.Sprintf("get registry info failed.registry id:%d,%v", i.RegistryID, err))
+			_ = t.SetSubTaskFailed(v.ID, consts.ErrScanGetRegistry, fmt.Sprintf("get registry info failed.registry id:%d,%v", i.RegistryID, err))
 			logging.GetLogger().Err(err).
 				Int64("taskId", taskID).
 				Int64("subtaskId", v.ID).
@@ -211,7 +211,7 @@ func (t *TaskSrv) GetPendingSubTasksByTaskID(ctx context.Context, taskID int64) 
 			continue
 		}
 		if len(registries) == 0 {
-			_ = t.SetSubTaskFailed(v.ID, fmt.Sprintf("not found registry info.registry id:%d,%v", i.RegistryID, err))
+			_ = t.SetSubTaskFailed(v.ID, consts.ErrScanGetRegistry, fmt.Sprintf("not found registry info.registry id:%d,%v", i.RegistryID, err))
 			logging.GetLogger().Error().
 				Int64("taskId", taskID).
 				Int64("subtaskId", v.ID).
@@ -303,13 +303,14 @@ func (t *TaskSrv) UpdateTaskStartTime(id int64, curTime time.Time) error {
 	return nil
 }
 
-func (t *TaskSrv) SetSubTaskFailed(id int64, msg string) error {
+func (t *TaskSrv) SetSubTaskFailed(id int64, msgNo int, errDetail string) error {
 	tmpTime := time.Now()
 	dbTask := model.SubTask{
 		ID:         id,
 		Status:     consts.ImageScanFailed,
 		FinishedAt: &tmpTime,
-		ErrMsg:     msg,
+		ErrMsg:     errDetail,
+		ErrNo:      msgNo,
 	}
 	err := store.GetScannerOrmDb().UpdateSubTask(context.Background(), dbTask)
 	if err != nil {

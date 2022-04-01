@@ -49,20 +49,21 @@ func (d *Detail) Build(vuln *model.Vuln) {
 	d.References = vuln.Link
 	d.FixedVersion = vuln.FixedBy
 
-	for i := range vuln.Metadata.CNVDs {
-		if vuln.Metadata.CNVDs[i].Title != "" {
-			d.Title = vuln.Metadata.CNVDs[i].Title
-			break
+	if vuln.Metadata != nil {
+		for i := range vuln.Metadata.CNVDs {
+			if vuln.Metadata.CNVDs[i].Title != "" {
+				d.Title = vuln.Metadata.CNVDs[i].Title
+				break
+			}
 		}
-	}
+		if vuln.Metadata.CNNVDs.FixSuggestion != "" {
+			d.FixSuggestion = vuln.Metadata.CNNVDs.FixSuggestion
+		} else {
+			d.FixSuggestion = vuln.FixedBy
+		}
 
-	if vuln.Metadata.CNNVDs.FixSuggestion != "" {
-		d.FixSuggestion = vuln.Metadata.CNNVDs.FixSuggestion
-	} else {
-		d.FixSuggestion = vuln.FixedBy
+		d.Score, _ = strconv.ParseFloat(vuln.Metadata.CVSS.CVSSv3Score, 64)
 	}
-
-	d.Score, _ = strconv.ParseFloat(vuln.Metadata.CVSS.CVSSv3Score, 64)
 	d.PkgName = vuln.PkgName
 	d.PkgVersion = vuln.PkgVersion
 	d.Cvss = &Cvss{
