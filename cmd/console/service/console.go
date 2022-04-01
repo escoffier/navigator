@@ -14,7 +14,6 @@ import (
 	"time"
 
 	"github.com/go-redis/redis/v8"
-	"github.com/olivere/elastic/v7"
 	cr "github.com/robfig/cron/v3"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/apiscan"
 	assetsSvc "gitlab.com/piccolo_su/vegeta/cmd/console/service/assets"
@@ -50,6 +49,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/redistools"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 	"gitlab.com/security-rd/go-pkg/databases"
+	"gitlab.com/security-rd/go-pkg/elastic"
 	"gitlab.com/security-rd/go-pkg/logging"
 	"gitlab.com/security-rd/go-pkg/pb"
 	"google.golang.org/grpc"
@@ -64,7 +64,7 @@ type Console struct {
 	server        *http.Server
 	webHookServer *http.Server
 	rdb           *databases.RDBInstance
-	es            *elastic.Client
+	es            *elastic.ESClient
 	harborClient  *harbor.HarborRESTClient
 	cancel        context.CancelFunc
 	scannerURL    string
@@ -147,13 +147,7 @@ func NewConsole(
 	//	logging.Get().Error().Msg(fmt.Sprintf("ERROR: harbor client init error :%s ", err))
 	//}
 
-	es, err := elastic.NewClient(
-		elastic.SetURL(env.GetElasticURL()),
-		elastic.SetBasicAuth(env.GetElasticUsername(), env.GetElasticPassword()),
-	)
-	if err != nil {
-		logging.Get().Error().Msg(fmt.Sprintf("ERROR: elastic client init error :%s ", err))
-	}
+	es := elastic.NewESClientWithEnv(context.Background())
 
 	if err = immune.Init(rdb); err != nil {
 		logging.Get().Err(err).Msg("Init immune error")

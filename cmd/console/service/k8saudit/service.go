@@ -16,6 +16,7 @@ import (
 	"gitlab.com/security-rd/go-pkg/databases"
 	"gitlab.com/security-rd/go-pkg/logging"
 	"gitlab.com/security-rd/go-pkg/pb"
+	pkgelastic "gitlab.com/security-rd/go-pkg/elastic"
 	"gitlab.com/security-rd/go-pkg/syslog"
 	"go.uber.org/atomic"
 )
@@ -30,7 +31,7 @@ var (
 	ErrInvalidSyslogSetting = errors.New("invalid syslog setting")
 )
 
-func Init(rdb *databases.RDBInstance, esCli *elastic.Client) error {
+func Init(rdb *databases.RDBInstance, esCli *pkgelastic.ESClient) error {
 	if rdb == nil || esCli == nil {
 		return errors.New("unexpected empty pointer")
 	}
@@ -54,7 +55,7 @@ func GetServiceInstance() (*Service, bool) {
 	return service.(*Service), true
 }
 
-func newService(rdb *databases.RDBInstance, esCli *elastic.Client) (*Service, error) {
+func newService(rdb *databases.RDBInstance, esCli *pkgelastic.ESClient) (*Service, error) {
 	syslogHandler, err := syslog.NewHandler(&store{db: rdb})
 	if err != nil {
 		return nil, err
@@ -82,7 +83,7 @@ func newService(rdb *databases.RDBInstance, esCli *elastic.Client) (*Service, er
 }
 
 type Service struct {
-	esCli         *elastic.Client
+	esCli         *pkgelastic.ESClient
 	db            *databases.RDBInstance
 	ch            chan []*model.AuditRecord
 	indexPrefix   string
@@ -118,7 +119,11 @@ const (
 )
 
 func (s *Service) GetAuditLog(ctx context.Context, arg *GetAuditLogArg) ([]*model.AuditDisplay, error) {
-	searchService := s.esCli.Search(fmt.Sprintf("%s*", s.indexPrefix)).
+	esCli, err := s.esCli.Get()
+	if err != nil {
+		return nil, err
+	}
+	searchService := esCli.Search(fmt.Sprintf("%s*", s.indexPrefix)).
 		Sort(stageTimestampKey, arg.Asc).Sort("_id", arg.Asc).Size(arg.Limit)
 
 	var queries []elastic.Query
@@ -166,7 +171,11 @@ func (s *Service) GetAuditLog(ctx context.Context, arg *GetAuditLogArg) ([]*mode
 }
 
 func (s *Service) GetRecordByID(ctx context.Context, id string) (*model.AuditRecord, error) {
-	rsp, err := s.esCli.Search().Index(fmt.Sprintf("%s*", s.indexPrefix)).
+	esCli, err := s.esCli.Get()
+	if err != nil {
+		return nil, err
+	}
+	rsp, err := esCli.Search().Index(fmt.Sprintf("%s*", s.indexPrefix)).
 		Query(elastic.NewTermQuery("_id", id)).Do(ctx)
 	if err != nil {
 		return nil, err
@@ -250,8 +259,12 @@ func (s *Service) asyncRecordLog() {
 }
 
 func (s *Service) recordAuditLog(records []*model.AuditRecord) error {
+	esCli, err := s.esCli.Get()
+	if err != nil {
+		return err
+	}
 	indexStr := s.indexPrefix + time.Now().Format("2006-01-02")
-	bulkRequest := s.esCli.Bulk()
+	bulkRequest := esCli.Bulk()
 	for _, event := range records {
 		if event.RequestObject != nil {
 			requestContent, _ := event.RequestObject.MarshalJSON()
