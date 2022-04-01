@@ -9,13 +9,13 @@ import (
 	"time"
 
 	"github.com/go-redis/redis/v8"
-	"github.com/olivere/elastic/v7"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/processingcenter/podservice"
 	"gitlab.com/piccolo_su/vegeta/pkg/dal"
-	"gitlab.com/security-rd/go-pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 	"gitlab.com/security-rd/go-pkg/databases"
+	"gitlab.com/security-rd/go-pkg/elastic"
+	"gitlab.com/security-rd/go-pkg/logging"
 )
 
 var (
@@ -63,7 +63,7 @@ type podService interface {
 type Service struct {
 	podService            podService
 	db                    *databases.RDBInstance
-	esCli                 *elastic.Client
+	esCli                 *elastic.ESClient
 	processingIndexPrefix string
 	recordSyncHash        map[string]struct{}
 	recordSyncLock        sync.Mutex
@@ -71,7 +71,7 @@ type Service struct {
 
 type ServiceComponent struct {
 	DB              *databases.RDBInstance
-	EsCli           *elastic.Client
+	EsCli           *elastic.ESClient
 	RedisCli        *redis.Client
 	MicroSegBaseURL string
 }
@@ -170,7 +170,9 @@ func (s *Service) saveProcessingRecord(ctx context.Context, arg *AddProcessingRe
 		return "", err
 	}
 
-	err = dal.SaveProcessingRecord(ctx, s.esCli, s.getProcessingIndexByTime(nowTime), processingRecord)
+	if esCli, gerr := s.esCli.Get(); gerr == nil {
+		err = dal.SaveProcessingRecord(ctx, esCli, s.getProcessingIndexByTime(nowTime), processingRecord)
+	}
 
 	return processingRecord.ID, err
 }
@@ -237,7 +239,11 @@ const (
 )
 
 func (s *Service) GetProcessingRecordByID(ctx context.Context, id string) (*model.ProcessingRecord, error) {
-	record, err := dal.QueryProcessingRecordByID(ctx, s.esCli, s.getProcessingIndexPattern(), id)
+	esCli, err := s.esCli.Get()
+	if err != nil {
+		return nil, err
+	}
+	record, err := dal.QueryProcessingRecordByID(ctx, esCli, s.getProcessingIndexPattern(), id)
 	if err == dal.ErrNotFound {
 		return nil, ErrRecordNotFound
 	}
@@ -248,7 +254,12 @@ func (s *Service) GetProcessingRecord(ctx context.Context, arg *model.QueryProce
 	if arg.Limit+arg.Offset > MaxPaginationNum {
 		return 0, nil, ErrPaginationExceedLimit
 	}
-	return dal.QueryProcessingRecord(ctx, s.esCli, s.getProcessingIndexPattern(), arg)
+
+	esCli, err := s.esCli.Get()
+	if err != nil {
+		return 0, nil, err
+	}
+	return dal.QueryProcessingRecord(ctx, esCli, s.getProcessingIndexPattern(), arg)
 }
 
 type AddProcessingActionArg struct {
@@ -280,13 +291,18 @@ func (s *Service) UpdateProcessingRecordStatus(ctx context.Context, id, status s
 		return ErrInvalidOp
 	}
 
-	err := s.lockRecord(id)
+	esCli, err := s.esCli.Get()
+	if err != nil {
+		return err
+	}
+
+	err = s.lockRecord(id)
 	if err != nil {
 		return err
 	}
 	defer s.releaseRecord(id)
 
-	record, err := dal.QueryProcessingRecordByID(ctx, s.esCli, s.getProcessingIndexPattern(), id)
+	record, err := dal.QueryProcessingRecordByID(ctx, esCli, s.getProcessingIndexPattern(), id)
 	if err != nil {
 		if err == dal.ErrNotFound {
 			return ErrRecordNotFound
@@ -323,7 +339,7 @@ func (s *Service) UpdateProcessingRecordStatus(ctx context.Context, id, status s
 		}
 	}
 
-	return dal.UpdateProcessingRecord(ctx, s.esCli, s.getProcessingIndexPattern(), &model.ProcessingRecordChange{
+	return dal.UpdateProcessingRecord(ctx, esCli, s.getProcessingIndexPattern(), &model.ProcessingRecordChange{
 		ID:         id,
 		UpdatedAt:  util.GetMillisecondTimestampByTime(time.Now()),
 		LastOpUser: model.GetUsernameFromContext(ctx),
@@ -337,13 +353,18 @@ func (s *Service) AddProcessingAction(ctx context.Context, arg *AddProcessingAct
 		return nil, false, ErrInvalidOp
 	}
 
-	err := s.lockRecord(arg.RecordID)
+	esCli, err := s.esCli.Get()
+	if err != nil {
+		return nil, false, err
+	}
+
+	err = s.lockRecord(arg.RecordID)
 	if err != nil {
 		return nil, false, err
 	}
 	defer s.releaseRecord(arg.RecordID)
 
-	record, err := dal.QueryProcessingRecordByID(ctx, s.esCli, s.getProcessingIndexPattern(), arg.RecordID)
+	record, err := dal.QueryProcessingRecordByID(ctx, esCli, s.getProcessingIndexPattern(), arg.RecordID)
 	if err != nil {
 		if err == dal.ErrNotFound {
 			return nil, false, ErrRecordNotFound
@@ -415,7 +436,7 @@ func (s *Service) AddProcessingAction(ctx context.Context, arg *AddProcessingAct
 		}
 	}
 
-	err = dal.UpdateProcessingRecord(ctx, s.esCli, s.getProcessingIndexPattern(), &model.ProcessingRecordChange{
+	err = dal.UpdateProcessingRecord(ctx, esCli, s.getProcessingIndexPattern(), &model.ProcessingRecordChange{
 		ID:         arg.RecordID,
 		UpdatedAt:  util.GetMillisecondTimestampByTime(nowTime),
 		LastOpUser: username,
@@ -441,7 +462,11 @@ func calcIsolatedObject(total []string, actions []*model.ProcessingAction) map[s
 }
 
 func (s *Service) GetRecordDetail(ctx context.Context, recordID string) (*model.ProcessingRecordDisplay, error) {
-	record, err := dal.QueryProcessingRecordByID(ctx, s.esCli, s.getProcessingIndexPattern(), recordID)
+	esCli, err := s.esCli.Get()
+	if err != nil {
+		return nil, err
+	}
+	record, err := dal.QueryProcessingRecordByID(ctx, esCli, s.getProcessingIndexPattern(), recordID)
 	if err != nil {
 		if err == dal.ErrNotFound {
 			return nil, ErrRecordNotFound

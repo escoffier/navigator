@@ -9,13 +9,13 @@ import (
 	"sync"
 	"time"
 
-	"github.com/olivere/elastic/v7"
 	"gitlab.com/piccolo_su/vegeta/pkg/dal"
 	"gitlab.com/piccolo_su/vegeta/pkg/echelper"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 	"gitlab.com/security-rd/go-pkg/databases"
+	"gitlab.com/security-rd/go-pkg/elastic"
 )
 
 const (
@@ -27,7 +27,7 @@ var (
 	once     sync.Once
 )
 
-func Init(rdb *databases.RDBInstance, esCli *elastic.Client) error {
+func Init(rdb *databases.RDBInstance, esCli *elastic.ESClient) error {
 	once.Do(func() {
 		instance = newService(rdb, esCli)
 	})
@@ -39,11 +39,11 @@ func Get() (*Service, bool) {
 
 type Service struct {
 	rdb          *databases.RDBInstance
-	elasticCli   *elastic.Client
+	elasticCli   *elastic.ESClient
 	rulesManager *echelper.RulesManager
 }
 
-func newService(rdb *databases.RDBInstance, esCli *elastic.Client) *Service {
+func newService(rdb *databases.RDBInstance, esCli *elastic.ESClient) *Service {
 	rm := echelper.NewRulesManager(rdb, loadRulesInterval)
 	return &Service{rdb: rdb, elasticCli: esCli, rulesManager: rm}
 }
@@ -116,7 +116,11 @@ func (s *Service) GetSignalsOfEvent(ctx context.Context, evtID int64, query *dal
 	for i, signal := range signals {
 		signalUUIDs[i] = signal.SignalID
 	}
-	signalsFinals, err := dal.GetSignals(tctx, s.elasticCli, signalUUIDs)
+	esCli, err := s.elasticCli.Get()
+	if err != nil {
+		return nil, 0, err
+	}
+	signalsFinals, err := dal.GetSignals(tctx, esCli, signalUUIDs)
 
 	signalElems := make([]*SignalElem, 0, len(signalsFinals))
 	for _, signal := range signalsFinals {

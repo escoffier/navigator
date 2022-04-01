@@ -13,12 +13,12 @@ import (
 	"github.com/go-chi/chi/middleware"
 	"github.com/go-chi/jwtauth"
 	redis "github.com/go-redis/redis/v8"
-	elastic "github.com/olivere/elastic/v7"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/api"
 	"gitlab.com/piccolo_su/vegeta/pkg/harbor"
 	"gitlab.com/piccolo_su/vegeta/pkg/lang"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/security-rd/go-pkg/databases"
+	"gitlab.com/security-rd/go-pkg/elastic"
 	"gitlab.com/security-rd/go-pkg/logging"
 	"gitlab.com/security-rd/go-pkg/pb"
 )
@@ -30,7 +30,7 @@ var (
 func setupChiRouter(
 	ctx context.Context,
 	rdb *databases.RDBInstance,
-	es *elastic.Client,
+	es *elastic.ESClient,
 	scannerURL string,
 	secProfilesCoreURL string,
 	microsegURL string,
@@ -71,7 +71,7 @@ func setupChiRouter(
 	return r
 }
 
-func logWorker(es *elastic.Client, ch chan model.AccessLog) {
+func logWorker(es *elastic.ESClient, ch chan model.AccessLog) {
 	defer func() {
 		if r := recover(); r != nil {
 			logging.Get().Error().Msgf("Panic : %v. stack: %s", r, debug.Stack())
@@ -83,7 +83,14 @@ func logWorker(es *elastic.Client, ch chan model.AccessLog) {
 		cstZone := time.FixedZone("CST", 8*3600)
 		indexStr := "access_" + time.Now().In(cstZone).Format("2006-01-02")
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		_, err := es.Index().Index(indexStr).BodyJson(al).Do(ctx)
+
+		esCli, err := es.Get()
+		if err != nil {
+			logging.Get().Err(err).Msg("init es error")
+			continue
+		}
+
+		_, err = esCli.Index().Index(indexStr).BodyJson(al).Do(ctx)
 		if err != nil {
 			logging.Get().Info().Msgf("ES  write es error：%s", err)
 		}
