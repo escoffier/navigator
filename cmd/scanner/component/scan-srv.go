@@ -3191,8 +3191,6 @@ func getSeverityCount(groups []model.SeverityGroup) model.SeverityCount {
 		switch groups[i].Severity {
 		case consts.SeverityUnknown:
 			res.Unknown += groups[i].Count
-		case consts.SeverityNegligible:
-			res.Negligible += groups[i].Count
 		case consts.SeverityMedium:
 			res.Medium += groups[i].Count
 		case consts.SeverityLow:

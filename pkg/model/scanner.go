@@ -127,12 +127,11 @@ type VulnInfoEx struct {
 }
 
 type SeverityCount struct {
-	Critical   int64 `json:"critical"`
-	High       int64 `json:"high"`
-	Medium     int64 `json:"medium"`
-	Low        int64 `json:"low"`
-	Negligible int64 `json:"negligible"`
-	Unknown    int64 `json:"unknown"`
+	Critical int64 `json:"critical"`
+	High     int64 `json:"high"`
+	Medium   int64 `json:"medium"`
+	Low      int64 `json:"low"`
+	Unknown  int64 `json:"unknown"`
 }
 
 type SeverityGroup struct {

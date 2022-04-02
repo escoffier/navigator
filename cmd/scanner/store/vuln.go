@@ -4,8 +4,9 @@ import (
 	"context"
 	"fmt"
 
-	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/security-rd/go-pkg/databases"
+
+	"gitlab.com/piccolo_su/vegeta/pkg/model"
 )
 
 type VulnDao struct {
@@ -81,8 +82,6 @@ func (v *VulnDao) Count(ctx context.Context, opts ...model.Option) (*model.Sever
 			result.Medium += data.Count
 		case model.SeverityLow:
 			result.Low += data.Count
-		case model.SeverityNegligible:
-			result.Negligible += data.Count
 		case model.SeverityUnknown:
 			result.Unknown += data.Count
 		}
