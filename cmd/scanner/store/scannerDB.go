@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"math"
+	"strings"
 	"time"
 
 	"gitlab.com/security-rd/go-pkg/databases"
@@ -101,21 +102,27 @@ func (scdb *ScannerDB) InsertToVuln(ctx context.Context, vuln *model.Vuln, image
 	if err := db.Model(new(model.Vuln)).Where("unique_vuln = ?", vuln.UniqueVuln).Find(&tmp).Error; err != nil {
 		return err
 	}
+	// 如果没有就新增加
 	if len(tmp) == 0 {
 		if err := db.Model(new(model.Vuln)).Create(vuln).Error; err != nil {
 			return err
 		}
-		vulnImage := model.VulnImage{UniqueVuln: vuln.UniqueVuln, ImageId: imageID}
-		if err := db.Model(new(model.VulnImage)).Create(&vulnImage).Error; err != nil {
-			return err
+	}
+	if len(tmp) > 0 {
+		if tmp[0].CheckSum != vuln.CheckSum {
+			if err := db.Model(new(model.Vuln)).Where("id = ?", tmp[0].ID).Updates(vuln).Error; err != nil {
+				return err
+			}
+		} else {
+			logging.GetLogger().Debug().Uint64("UniqueVuln", vuln.UniqueVuln).Msg("vuln未变动")
 		}
-		return nil
 	}
-	if tmp[0].CheckSum == vuln.CheckSum {
-		logging.GetLogger().Debug().Uint64("UniqueVuln", vuln.UniqueVuln).Msg("vuln未变动")
-		return nil
-	}
-	if err := db.Model(new(model.Vuln)).Where("id = ?", tmp[0].ID).Updates(vuln).Error; err != nil {
+	// 写入vuln_image表
+	vulnImage := model.VulnImage{UniqueVuln: vuln.UniqueVuln, ImageId: imageID}
+	if err := db.Model(new(model.VulnImage)).Create(&vulnImage).Error; err != nil {
+		if strings.Contains(err.Error(), consts.DuplicateKey) { // 说明已经扫描过
+			return nil
+		}
 		return err
 	}
 	return nil
