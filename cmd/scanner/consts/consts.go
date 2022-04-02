@@ -56,16 +56,6 @@ const (
 )
 
 const (
-	VulnType             = "vuln_score"
-	PkgType              = "pkg_info_json"
-	SensitiveFileType    = "sensitive_score"
-	MaliciousInfoType    = "virus_score"
-	WebsellInfoType      = "webshell_score"
-	EnvEnableType        = "has_except_envs"
-	SoftWoreType         = "has_non_compliant_software"
-	LicenseEnableType    = "has_not_allowed_license"
-	PrivilegedEnableType = "privileged"
-
 	BaseImageType       = 1
 	AppImageType        = 0
 	BaseImageTypeString = "1"

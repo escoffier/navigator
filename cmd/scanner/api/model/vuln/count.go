@@ -46,17 +46,15 @@ func (s *StatisticResp) BuildCountBySeverity(d *model.SeverityCount) *StatisticR
 	}
 
 	c := &CountBySeverity{
-		Critical:   int64(d.Critical),
-		High:       int64(d.High),
-		Low:        int64(d.Low),
-		Medium:     int64(d.Medium),
-		Negligibel: int64(d.Negligible),
-		Unknown:    int64(d.Unknown),
+		Critical: int64(d.Critical),
+		High:     int64(d.High),
+		Low:      int64(d.Low),
+		Medium:   int64(d.Medium),
+		Unknown:  int64(d.Unknown),
 	}
 	s.Severity = c
 
-	s.VulnTotal = int64(d.Critical + d.High +
-		d.Medium + d.Low + d.Negligible + d.Unknown)
+	s.VulnTotal = int64(d.Critical + d.High + d.Medium + d.Low + d.Unknown)
 
 	return s
 }
