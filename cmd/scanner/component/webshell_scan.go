@@ -16,6 +16,7 @@ import (
 	"time"
 
 	dockerarchive "github.com/docker/docker/pkg/archive"
+
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 )
@@ -173,7 +174,7 @@ func (w *WebshellScan) webShellCall(ctx context.Context, reader io.Reader) (*mod
 		Timeout: time.Duration(2) * time.Second,
 	}
 	res, err := tmpClient.Do(req)
-	//res, err := http.DefaultClient.Do(req)
+	// res, err := http.DefaultClient.Do(req)
 	if err != nil {
 		logging.GetLogger().Err(err).Msg("request webshell server err")
 		return nil, err

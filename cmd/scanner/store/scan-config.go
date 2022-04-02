@@ -18,16 +18,16 @@ type ScanConfigDalInterface interface {
 	UpdateStrategy(ctx context.Context, param SearchStrategyParam, updater map[string]interface{}) error
 	DeleteStrategy(ctx context.Context, strategyID int64) error
 	UpdateScanConfig(ctx context.Context, configID int64, updater map[string]interface{}) error
-	GetAllNodes(ctx context.Context) ([]string, error)
-	GetAllProject(ctx context.Context) ([]string, error)
-	GetAllRepoName(ctx context.Context) ([]string, error)
+	SearchNodes(ctx context.Context) ([]string, error)
+	SearchProjects(ctx context.Context, param GetProjectParam) ([]string, error)
+	SearchRepoNames(ctx context.Context) ([]string, error)
 }
 
 type ScanConfigDao struct {
 	db *databases.RDBInstance
 }
 
-func (s *ScanConfigDao) GetAllNodes(ctx context.Context) ([]string, error) {
+func (s *ScanConfigDao) SearchNodes(ctx context.Context) ([]string, error) {
 	timeoutCtx, cancelFunc := context.WithTimeout(ctx, 10*time.Second)
 	defer cancelFunc()
 	db := s.db.Get().WithContext(timeoutCtx).Model(new(model.ImageList))
@@ -45,12 +45,14 @@ func (s *ScanConfigDao) GetAllNodes(ctx context.Context) ([]string, error) {
 	}
 	return ans, nil
 }
-func (s *ScanConfigDao) GetAllProject(ctx context.Context) ([]string, error) {
+func (s *ScanConfigDao) SearchProjects(ctx context.Context, param GetProjectParam) ([]string, error) {
 	timeoutCtx, cancelFunc := context.WithTimeout(ctx, 10*time.Second)
 	defer cancelFunc()
 	db := s.db.Get().WithContext(timeoutCtx).Model(new(model.ImageList))
 	res := make([]model.ImageList, 0)
-
+	if param.RegistryID > 0 {
+		db = db.Where("registry_id = ? ", param.RegistryID)
+	}
 	err := db.Distinct("project").Find(&res).Error
 	if err != nil {
 		return nil, err
@@ -63,7 +65,7 @@ func (s *ScanConfigDao) GetAllProject(ctx context.Context) ([]string, error) {
 	}
 	return ans, nil
 }
-func (s *ScanConfigDao) GetAllRepoName(ctx context.Context) ([]string, error) {
+func (s *ScanConfigDao) SearchRepoNames(ctx context.Context) ([]string, error) {
 	timeoutCtx, cancelFunc := context.WithTimeout(ctx, 10*time.Second)
 	defer cancelFunc()
 	db := s.db.Get().WithContext(timeoutCtx).Model(new(model.ImageList))

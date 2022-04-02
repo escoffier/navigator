@@ -30,9 +30,15 @@ type SearchImageParam struct {
 	Flag             uint64
 	Where            string
 	UniqueImage      uint64
+	Projects         []string
 	NodeHostname     string `json:"node_hostname"`
 	SpecialImageType string `json:"special_image_type"`
 	JustReturnImage  bool   `json:"just_return_image"`
+}
+
+type GetSubTaskListWithImageParam struct {
+	TaskID int64
+	Status []int64
 }
 
 func (sp *SearchImageParam) GetDefaultOmitFields() []string {
@@ -235,6 +241,11 @@ type SearchStrategyParam struct {
 	StrategyID int64
 	Name       string
 }
+
+type GetProjectParam struct {
+	RegistryID int64
+}
+
 type SearchScanConfigParam struct {
 	ScanConfigID int64
 }

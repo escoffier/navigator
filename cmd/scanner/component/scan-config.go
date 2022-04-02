@@ -38,10 +38,10 @@ type ScanConfigSrvInterface interface {
 	UpdateScanConfig(ctx context.Context, configID int64, data *model.ScanConfig) error
 	SearchScanConfig(ctx context.Context, param SearchScanConfigParam, filter *model.Filter) ([]model.ScanConfig, int64, error)
 
-	GetAllNodes(ctx context.Context) ([]string, error)
+	SearchNodes(ctx context.Context) ([]string, error)
 	AddTaskByStrategy(ctx context.Context) error
-	GetAllProject(ctx context.Context) ([]string, error)
-	GetAllRepoName(ctx context.Context) ([]string, error)
+	SearchProjects(ctx context.Context, registryID int64) ([]string, error)
+	SearchRepoNames(ctx context.Context) ([]string, error)
 }
 
 type ScanConfigSrv struct {
@@ -55,26 +55,26 @@ func NewScanConfigSrv(scanConfigDAl store.ScanConfigDalInterface, registryDal st
 	return &ScanConfigSrv{ScanConfigDal: scanConfigDAl, RegistryDal: registryDal, ImageDal: imageDal, ScanTaskDal: scanTaskDal}
 }
 
-func (s *ScanConfigSrv) GetAllRepoName(ctx context.Context) ([]string, error) {
-	nodes, err := s.ScanConfigDal.GetAllRepoName(ctx)
+func (s *ScanConfigSrv) SearchRepoNames(ctx context.Context) ([]string, error) {
+	nodes, err := s.ScanConfigDal.SearchRepoNames(ctx)
 	if err != nil {
-		logging.GetLogger().Error().Err(err).Msg("GetAllRepoName")
+		logging.GetLogger().Error().Err(err).Msg("SearchRepoNames")
 		return nil, response.NewHttpError(http.StatusInternalServerError, err)
 	}
 	return nodes, nil
 }
-func (s *ScanConfigSrv) GetAllProject(ctx context.Context) ([]string, error) {
-	nodes, err := s.ScanConfigDal.GetAllProject(ctx)
+func (s *ScanConfigSrv) SearchProjects(ctx context.Context, registryID int64) ([]string, error) {
+	nodes, err := s.ScanConfigDal.SearchProjects(ctx, store.GetProjectParam{RegistryID: registryID})
 	if err != nil {
-		logging.GetLogger().Error().Err(err).Msg("GetAllProject")
+		logging.GetLogger().Error().Err(err).Msg("SearchProjects")
 		return nil, response.NewHttpError(http.StatusInternalServerError, err)
 	}
 	return nodes, nil
 }
-func (s *ScanConfigSrv) GetAllNodes(ctx context.Context) ([]string, error) {
-	nodes, err := s.ScanConfigDal.GetAllNodes(ctx)
+func (s *ScanConfigSrv) SearchNodes(ctx context.Context) ([]string, error) {
+	nodes, err := s.ScanConfigDal.SearchNodes(ctx)
 	if err != nil {
-		logging.GetLogger().Error().Err(err).Msg("GetAllNodes")
+		logging.GetLogger().Error().Err(err).Msg("SearchNodes")
 		return nil, response.NewHttpError(http.StatusInternalServerError, err)
 	}
 	return nodes, nil

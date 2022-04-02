@@ -567,6 +567,7 @@ type SubTask struct {
 	Status     uint8      `gorm:"status" json:"status"`     // 1:pending,2:inprogress,3:scan success,4:scan failed
 	Result     uint8      `gorm:"result" json:"result"`     // deprecated,1:failed, 2:success
 	ErrMsg     string     `gorm:"type:varchar(255);column:err_msg" json:"err_msg"`
+	ErrNo      int        `gorm:"column:err_no" json:"err_no"`
 	CreatedAt  time.Time  `gorm:"created_at" json:"created_at"` // subtask create time
 	StartedAt  *time.Time `gorm:"started_at" json:"started_at"`
 	UpdatedAt  time.Time  `gorm:"updated_at" json:"updated_at"`

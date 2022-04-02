@@ -7,14 +7,16 @@ import (
 	"sync"
 	"time"
 
+	"golang.org/x/sync/semaphore"
+
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/dequeue"
 	flowconf "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/flow-conf"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/jobs"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/task"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/global"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
-	"golang.org/x/sync/semaphore"
 )
 
 const (
@@ -175,7 +177,8 @@ func (s *SequenceEngine) Run(ctx context.Context) error {
 
 func (s *SequenceEngine) handleFlow(ctx context.Context, flowConf []string, st *task.SubTask, t *task.Task, flowFn FlowLoopFunc) error {
 	// sequence do job in flow conf
-	errMsg := ""
+	errMsg, errNo := "", 0
+
 	success := true
 	defer func() {
 		if success {
@@ -213,14 +216,16 @@ func (s *SequenceEngine) handleFlow(ctx context.Context, flowConf []string, st *
 		if err != nil {
 			logging.GetLogger().Error().Err(err).Msg("create job")
 			success = false
-			errMsg = "create job err:" + err.Error()
+			errNo = consts.ErrScanConfig
+			errMsg = fmt.Sprintf("create job,err:%s", err.Error())
 			break
 		}
 		curArtifact, err := job.Run(ctx, jobs.Param(artifacts))
 		if err != nil {
 			logging.GetLogger().Error().Err(err).Msg("job run failed")
 			success = false
-			errMsg = "job run err:" + err.Error()
+			errNo = getScanErr(j)
+			errMsg = fmt.Sprintf("job run failed,flowconf:%s,error is :%s", j, err.Error())
 			break
 		}
 
@@ -238,7 +243,7 @@ func (s *SequenceEngine) handleFlow(ctx context.Context, flowConf []string, st *
 	}
 
 	if !success {
-		_ = taskSrv.SetSubTaskFailed(st.ID, errMsg)
+		_ = taskSrv.SetSubTaskFailed(st.ID, errNo, errMsg)
 		return fmt.Errorf("subtask scan error: %v", errMsg)
 	}
 
@@ -248,4 +253,17 @@ func (s *SequenceEngine) handleFlow(ctx context.Context, flowConf []string, st *
 		return err
 	}
 	return nil
+}
+
+func getScanErr(flow string) int {
+	switch flow {
+	case "pull-image":
+		return consts.ErrScanPullImage
+	case "scan-image":
+		return consts.ErrScanTrivy
+	case "save-result":
+		return consts.ErrScanSaveResult
+	default:
+		return consts.ErrScanInternal
+	}
 }

@@ -152,8 +152,8 @@ func WebAPI(router *gin.Engine, scannerSvc component.ScannerSrv, rejectSvc compo
 		v8.GET("/strategy/:strategyId", scanConfigAPISrv.GetStrategy)
 		v8.GET("/strategy/open-sources", scanConfigAPISrv.ListOpenSource)
 		v8.GET("/strategy/node-hostnames", scanConfigAPISrv.GetAllNodes)
-		v8.GET("/strategy/projects", scanConfigAPISrv.GetAllProject)
-		v8.GET("/strategy/repos", scanConfigAPISrv.GetAllRepoName)
+		v8.GET("/strategy/projects", scanConfigAPISrv.SearchProjects)
+		v8.GET("/strategy/repos", scanConfigAPISrv.SearchRepoNames)
 	}
 
 	v9 := router.Group("/api/v1/tasks")

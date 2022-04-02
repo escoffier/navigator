@@ -2,6 +2,7 @@ package api
 
 import (
 	"fmt"
+	"net/http"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
@@ -10,6 +11,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
+	"gitlab.com/piccolo_su/vegeta/pkg/util"
 )
 
 type ScanConfigAPISrv struct {
@@ -223,7 +225,7 @@ func (sc *ScanConfigAPISrv) ListOpenSource(ctx *gin.Context) {
 // @Success 200 {object} ApiWithItem{data=ApiItems{items=[]string{}}}
 // @Router	/api/v1/scan-config/strategy/node-hostnames [get]
 func (sc *ScanConfigAPISrv) GetAllNodes(ctx *gin.Context) {
-	nodes, err := sc.ScanConfigSrv.GetAllNodes(ctx)
+	nodes, err := sc.ScanConfigSrv.SearchNodes(ctx)
 	if err != nil {
 		response.JSONError(ctx, err)
 		return
@@ -232,8 +234,16 @@ func (sc *ScanConfigAPISrv) GetAllNodes(ctx *gin.Context) {
 		response.WithTotalItems(int64(len(nodes))))
 }
 
-func (sc *ScanConfigAPISrv) GetAllProject(ctx *gin.Context) {
-	nodes, err := sc.ScanConfigSrv.GetAllProject(ctx)
+func (sc *ScanConfigAPISrv) SearchProjects(ctx *gin.Context) {
+	var regIdInt int64 = 0
+	regID := util.GetInt64FromQuery(ctx, "registryID")
+
+	if regID <= 0 {
+		response.JSONError(ctx, response.NewHttpError(http.StatusBadRequest, fmt.Errorf("not get registryID")))
+		return
+	}
+
+	nodes, err := sc.ScanConfigSrv.SearchProjects(ctx, regIdInt)
 	if err != nil {
 		response.JSONError(ctx, err)
 		return
@@ -241,8 +251,9 @@ func (sc *ScanConfigAPISrv) GetAllProject(ctx *gin.Context) {
 	response.JSONOK(ctx, response.WithItems(nodes),
 		response.WithTotalItems(int64(len(nodes))))
 }
-func (sc *ScanConfigAPISrv) GetAllRepoName(ctx *gin.Context) {
-	nodes, err := sc.ScanConfigSrv.GetAllRepoName(ctx)
+
+func (sc *ScanConfigAPISrv) SearchRepoNames(ctx *gin.Context) {
+	nodes, err := sc.ScanConfigSrv.SearchRepoNames(ctx)
 	if err != nil {
 		response.JSONError(ctx, err)
 		return

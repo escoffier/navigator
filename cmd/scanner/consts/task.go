@@ -63,3 +63,12 @@ const (
 	CicdOperator        = "CICD触发扫描"
 	SyncTriggerOperator = "周期触发扫描"
 )
+const (
+	ErrScanPullImage   = iota + 1 // "拉取镜像出错"
+	ErrScanTrivy                  // "扫描镜像出错"
+	ErrScanSaveResult             // "保存扫描数据出错"
+	ErrScanConfig                 // "解析扫描配置出错"
+	ErrScanGetImage               // "查询待扫描镜像出错"
+	ErrScanGetRegistry            // "查询镜像仓库出错"
+	ErrScanInternal               // "程序内部出错"
+)

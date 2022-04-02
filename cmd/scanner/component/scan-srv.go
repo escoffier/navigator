@@ -31,22 +31,23 @@ import (
 )
 
 type SearchImageWithScanParam struct {
-	SearchWord       string  `json:"search_word"`
-	FromType         int64   `json:"from_type"`
-	Kind             string  `json:"kind"`
-	Online           string  `json:"online"`
-	ImageType        string  `json:"image_type"`
-	ImageID          int64   `json:"image_id"`
-	ImageIds         []int64 `json:"image_ids"`
-	Library          string  `json:"library"`
-	ScanStatus       []int   `json:"scan_status"`
-	Trusted          string  `json:"trusted"`
-	HasFixedVulu     string  `json:"has_fixed_vulu"`
-	IsReinforce      string  `json:"is_reinforce"`
-	NodeHostname     string  `json:"node_hostname"`
-	SpecialImageType string  `json:"special_image_type"`
-
-	JustReturnImage bool `json:"just_return_image"`
+	SearchWord       string   `json:"search_word"`
+	FromType         int64    `json:"from_type"`
+	Kind             string   `json:"kind"`
+	Online           string   `json:"online"`
+	ImageType        string   `json:"image_type"`
+	ImageID          int64    `json:"image_id"`
+	ImageIds         []int64  `json:"image_ids"`
+	Library          string   `json:"library"`
+	ScanStatus       []int64  `json:"scan_status"`
+	Trusted          string   `json:"trusted"`
+	HasFixedVulu     string   `json:"has_fixed_vulu"`
+	IsReinforce      string   `json:"is_reinforce"`
+	NodeHostname     string   `json:"node_hostname"`
+	SpecialImageType string   `json:"special_image_type"`
+	RegistryIds      []int64  `json:"registry_ids"`
+	JustReturnImage  bool     `json:"just_return_image"`
+	Projects         []string `json:"projects"`
 
 	UUIDs             []uint32 `json:"uuids"`
 	NotDeleteRegistry string   // 不返回已经删除的仓库的镜像
@@ -140,7 +141,7 @@ type ScannerSrv interface {
 	ScanReportGenerate(ctx context.Context, taskID uint) (uint, error)
 
 	GetScanTaskList(ctx context.Context, limit, offset int64) ([]*model.Task, int64, error)
-	GetScanSubTaskList(ctx context.Context, taskID, limit, offset int64) ([]model.SubTask, int64, error)
+	GetScanSubTaskList(ctx context.Context, taskID int64, status []int64, filter *model.Filter) ([]model.SubTask, int64, error)
 	UpdateScanTaskStatus(ctx context.Context, taskID int64, status uint8) error
 
 	GetStrategyForEnv(ctx context.Context, envName string) ([]model.ScanStrategy, error)
@@ -1024,7 +1025,7 @@ func (s *ConScannerSrv) GetScanAllStatus(ctx context.Context, fromType int64) ha
 
 func (s *ConScannerSrv) ScanAllNow(ctx context.Context, info task.UpdateTaskInfo, search SearchImageWithScanParam) error {
 	logging.GetLogger().Info().Int64("fromType", search.FromType).Msg("start full scan")
-
+	search.JustReturnImage = true
 	images, _, err := s.SearchImageWithScan(ctx, search, model.EmptyFilterForTheTotalQuery())
 	if err != nil {
 		logging.GetLogger().Error().Err(err).Msg("ScanAllNow find image error")
@@ -1470,6 +1471,8 @@ func (s *ConScannerSrv) SearchImageWithScan(ctx context.Context, param SearchIma
 	}
 
 	daoParam := store.SearchImageParam{
+		Projects:         param.Projects,
+		RegistryIds:      param.RegistryIds,
 		FromType:         param.FromType,
 		Search:           param.SearchWord,
 		NodeHostname:     param.NodeHostname,
@@ -1581,7 +1584,12 @@ func (s *ConScannerSrv) SearchImageWithScan(ctx context.Context, param SearchIma
 			PrivilegedBoot: images[i].PrivilegedBoot,
 			ImageUUID:      images[i].ImageUUID,
 			Flag:           images[i].Flag,
+			Project:        images[i].Project,
 		}
+	}
+
+	if param.JustReturnImage {
+		return res, cnt, nil
 	}
 
 	imagesIds := make([]int64, 0)
@@ -1680,7 +1688,7 @@ func (s *ConScannerSrv) SearchImageWithScan(ctx context.Context, param SearchIma
 	return res, cnt, nil
 }
 
-func (s *ConScannerSrv) filterScanStatus(ctx context.Context, status []int) ([]int64, error) {
+func (s *ConScannerSrv) filterScanStatus(ctx context.Context, status []int64) ([]int64, error) {
 	// 先查全部镜像数据
 	inIds := make([]int64, 0)
 	image, _, err := s.dbdal.SearchImage(ctx, store.SearchImageParam{Fields: []string{"id"}}, nil)
@@ -1696,14 +1704,14 @@ func (s *ConScannerSrv) filterScanStatus(ctx context.Context, status []int) ([]i
 	for i := range scanStatus {
 		scanStatusMap[scanStatus[i].ImageID] = scanStatus[i]
 	}
-	hasNotScan := InIntSlice(consts.ImageNotScan, status)
+	hasNotScan := InInt64Slice(consts.ImageNotScan, status)
 
 	for i := range image {
 		tak, ok := scanStatusMap[image[i].ID]
 		if hasNotScan && !ok {
 			inIds = append(inIds, image[i].ID)
 		}
-		if InIntSlice(int(tak.Status), status) {
+		if InInt64Slice(int64(tak.Status), status) {
 			inIds = append(inIds, image[i].ID)
 		}
 	}
@@ -2827,11 +2835,11 @@ func (s *ConScannerSrv) GetScanTaskList(ctx context.Context, limit, offset int64
 	return data, count, nil
 }
 
-func (s *ConScannerSrv) GetScanSubTaskList(ctx context.Context, taskID, limit, offset int64) ([]model.SubTask, int64, error) {
+func (s *ConScannerSrv) GetScanSubTaskList(ctx context.Context, taskID int64, status []int64, filter *model.Filter) ([]model.SubTask, int64, error) {
 
-	data, count, err := s.dbdal.GetSubTaskListWithImage(ctx, taskID, int(limit), int(offset))
+	data, count, err := s.dbdal.GetSubTaskListWithImage(ctx, store.GetSubTaskListWithImageParam{TaskID: taskID, Status: status}, filter)
 	if err != nil {
-		logging.GetLogger().Err(err).Msgf("获取扫描子任务记录失败, taskId: %d, limit: %d, offset: %d", taskID, limit, offset)
+		logging.GetLogger().Err(err).Msgf("获取扫描子任务记录失败, taskId: %d", taskID)
 		return nil, 0, err
 	}
 

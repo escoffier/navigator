@@ -94,6 +94,7 @@ func (api *api) scanner() func(chi.Router) {
 		r.Get("/scan-config/strategy/{strategyID}", api.RedirectToScanner())
 		r.Get("/scan-config/strategy/open-sources", api.RedirectToScanner())
 		r.Get("/scan-config/strategy/node-hostnames", api.RedirectToScanner())
+		r.Get("/scan-config/strategy/projects", api.RedirectToScanner())
 
 		r.Get("/imagereject/trustedImages/rsa", api.RedirectToScanner())
 		r.Get("/imagereject/trustedImages/rsa/{id}", api.RedirectToScanner())

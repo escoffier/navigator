@@ -1,9 +1,14 @@
 package util
 
 import (
+	"encoding/json"
 	"fmt"
+	"io/ioutil"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 
+	"github.com/gin-gonic/gin"
 	"github.com/smartystreets/goconvey/convey"
 )
 
@@ -56,4 +61,84 @@ func TestDeDuplicationStringSlice(t *testing.T) {
 	convey.Convey("DeDuplicationStringSlice ", t, func() {
 		convey.So(len(DeDuplicationStringSlice([]string{"", "hello", "hello"})), convey.ShouldEqual, 2)
 	})
+}
+
+func TestGetInt64SliceFromQuery(t *testing.T) {
+	router := gin.New()
+	router.GET("/test", func(c *gin.Context) {
+		status := GetInt64SliceFromQuery(c, "status")
+		c.JSON(http.StatusOK, status)
+	})
+
+	convey.Convey("GetInt64SliceFromQuery ", t, func() {
+
+		w := performRequest(router, http.MethodGet, "/test?status=1,2,3,3,3")
+		status := make([]int, 0, 10)
+		bytes, err := ioutil.ReadAll(w.Body)
+		convey.So(err, convey.ShouldBeNil)
+
+		err = json.Unmarshal(bytes, &status)
+		convey.So(err, convey.ShouldBeNil)
+		convey.So(len(status), convey.ShouldEqual, 3)
+
+	})
+
+	convey.Convey("GetInt64SliceFromQuery empty ", t, func() {
+
+		w := performRequest(router, http.MethodGet, "/test?status")
+		status := make([]int, 0, 10)
+		bytes, err := ioutil.ReadAll(w.Body)
+		convey.So(err, convey.ShouldBeNil)
+
+		err = json.Unmarshal(bytes, &status)
+		convey.So(err, convey.ShouldBeNil)
+		convey.So(len(status), convey.ShouldEqual, 0)
+
+	})
+}
+
+func TestGetInt64FromQuery(t *testing.T) {
+	router := gin.New()
+	type res struct {
+		Status int64 `json:"status"`
+	}
+	router.GET("/test", func(c *gin.Context) {
+		status := GetInt64FromQuery(c, "status")
+
+		c.JSON(http.StatusOK, res{Status: status})
+	})
+
+	convey.Convey("GetInt64SliceFromQuery ", t, func() {
+
+		w := performRequest(router, http.MethodGet, "/test?status=1")
+		status := &res{}
+
+		bytes, err := ioutil.ReadAll(w.Body)
+		convey.So(err, convey.ShouldBeNil)
+
+		err = json.Unmarshal(bytes, &status)
+		convey.So(err, convey.ShouldBeNil)
+		convey.So(status.Status, convey.ShouldEqual, 1)
+
+	})
+
+	convey.Convey("GetInt64SliceFromQuery empty ", t, func() {
+
+		w := performRequest(router, http.MethodGet, "/test")
+		status := &res{}
+
+		bytes, err := ioutil.ReadAll(w.Body)
+		convey.So(err, convey.ShouldBeNil)
+
+		err = json.Unmarshal(bytes, &status)
+		convey.So(err, convey.ShouldBeNil)
+		convey.So(status.Status, convey.ShouldEqual, 0)
+	})
+}
+
+func performRequest(r http.Handler, method, path string) *httptest.ResponseRecorder {
+	req := httptest.NewRequest(method, path, nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	return w
 }
