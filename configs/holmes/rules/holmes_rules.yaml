@@ -606,7 +606,7 @@
   desc: creating any files below /dev other than known programs that manage devices. Some rootkits hide files in /dev.
   condition: >
     fd.directory = /dev and
-    (evt.type = creat or ((evt.type = open or evt.type = openat) and evt.arg.flags contains O_CREAT))
+    (evt.type = creat or (evt.type in (open,openat,openat2) and evt.arg.flags contains O_CREAT))
     and not proc.name in (dev_creation_binaries)
     and not fd.name in (allowed_dev_files)
     and not fd.name startswith /dev/tty
@@ -1035,7 +1035,7 @@
       value: "使用免疫防御训练应用，限制敏感文件和命令的用户权限。"
   desc: This rule detects an attempt to exploit a privilege escalation vulnerability in Polkit's pkexec. By running specially crafted code, a local user can leverage this flaw to gain root privileges on a compromised system
   condition: >
-    spawned_process and proc.name=pkexec
+    spawned_process and user.uid != 0 and proc.name=pkexec and proc.args = ''
   output: >
     Polkit Local Privilege Escalation Vulnerability (zh_msg=CVE-2021-4034：Polkit本地提权漏洞,rule_type=Privilege_Escalation,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type, container=%container.info)
   priority: ALERT
@@ -1098,7 +1098,7 @@
     create_symlink
     and (evt.arg.target in (sensitive_file_names) or evt.arg.target in (sensitive_directory_names) or link_sensitive_files)
   output: >
-    Symlinks created over senstivie files (zh_msg=通过敏感文件创建符号链接,rule_type=Defense_Evasion,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid target=%evt.arg.target linkpath=%evt.arg.linkpath parent_process=%proc.pname)
+    Symlinks created over sensitive files (zh_msg=通过敏感文件创建符号链接,rule_type=Defense_Evasion,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid target=%evt.arg.target linkpath=%evt.arg.linkpath parent_process=%proc.pname)
   priority: ERROR
   tags: [ATT&CK, file, mitre_exfiltration]
 
@@ -1677,7 +1677,7 @@
       key: "处置建议"
       value: "使用免疫防御训练应用，使用微隔离阻拦流量，限制敏感文件和命令的用户权限。"
   desc: Miners typically specify the mining pool to connect to with a URI that begins with 'stratum+tcp'
-  condition: spawned_process and proc.cmdline contains "stratum+tcp"
+  condition: spawned_process and (proc.cmdline contains "stratum+tcp" or proc.cmdline contains "stratum2+tcp" or proc.cmdline contains "stratum+ssl" or proc.cmdline contains "stratum2+ssl")
   output: >
     Possible miner running (zh_msg=可能正在挖矿,rule_type=Exfiltration,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=container=%container.info image=%container.image.repository)
   priority: ALERT
@@ -1909,13 +1909,13 @@
 
 #macro_list
 - macro: open_write
-  condition: (evt.type=open or evt.type=openat) and evt.is_open_write=true and fd.typechar='f' and fd.num>=0
+  condition: evt.type in (open,openat,openat2) and evt.is_open_write=true and fd.typechar='f' and fd.num>=0
 
 - macro: open_read
-  condition: (evt.type=open or evt.type=openat) and evt.is_open_read=true and fd.typechar='f' and fd.num>=0
+  condition: evt.type in (open,openat,openat2) and evt.is_open_read=true and fd.typechar='f' and fd.num>=0
 
 - macro: open_directory
-  condition: (evt.type=open or evt.type=openat) and evt.is_open_read=true and fd.typechar='d' and fd.num>=0
+  condition: evt.type in (open,openat,openat2) and evt.is_open_read=true and fd.typechar='d' and fd.num>=0
 
 - macro: never_true
   condition: (evt.num=0)
@@ -1939,7 +1939,7 @@
   condition: rename or remove
 
 - macro: spawned_process
-  condition: evt.type = execve and evt.dir=<
+  condition: evt.type in (execve, execveat) and evt.dir=<
 
 - macro: create_symlink
   condition: evt.type in (symlink, symlinkat) and evt.dir=<
@@ -2090,11 +2090,11 @@
 - list: deb_binaries
   items: [dpkg, dpkg-preconfigu, dpkg-reconfigur, dpkg-divert, apt, apt-get, aptitude,
     frontend, preinst, add-apt-reposit, apt-auto-remova, apt-key,
-    apt-listchanges, unattended-upgr, apt-add-reposit, apt-config, apt-cache
+    apt-listchanges, unattended-upgr, apt-add-reposit, apt-cache
     ]
 
 - list: package_mgmt_binaries
-  items: [rpm_binaries, deb_binaries, update-alternat, gem, pip, pip3, sane-utils.post, alternatives, chef-client, apk, snapd]
+  items: [rpm_binaries, deb_binaries, update-alternat, gem, npm, pip, pip3, sane-utils.post, alternatives, chef-client, apk, snapd]
 
 - macro: package_mgmt_procs
   condition: proc.name in (package_mgmt_binaries)
@@ -2637,6 +2637,9 @@
 - macro: centrify_writing_krb
   condition: (proc.name in (adjoin,addns) and fd.name startswith /etc/krb5)
 
+- macro: sssd_writing_krb
+  condition: (proc.name=adcli and proc.aname[2]=sssd and fd.name startswith /etc/krb5)
+
 - macro: cockpit_writing_conf
   condition: >
     ((proc.pname=cockpit-kube-la or proc.aname[2]=cockpit-kube-la)
@@ -2914,7 +2917,7 @@
   condition: (proc.name=oc and fd.name startswith /etc/origin/node)
 
 - macro: keepalived_writing_conf
-  condition: (proc.name=keepalived and fd.name=/etc/keepalived/keepalived.conf)
+  condition: (proc.name in (keepalived, kube-keepalived) and fd.name=/etc/keepalived/keepalived.conf)
 
 - macro: etcd_manager_updating_dns
   condition: (container and proc.name=etcd-manager and fd.name=/etc/hosts)
@@ -3029,6 +3032,7 @@
     and not nginx_writing_certs
     and not chef_client_writing_conf
     and not centrify_writing_krb
+    and not sssd_writing_krb
     and not cockpit_writing_conf
     and not ipsec_writing_conf
     and not httpd_writing_ssl_conf
@@ -3496,6 +3500,7 @@
   condition: (container.mount.dest[/proc*] != "N/A" or
               container.mount.dest[/var/run/docker.sock] != "N/A" or
               container.mount.dest[/var/run/crio/crio.sock] != "N/A" or
+              container.mount.dest[/run/containerd/containerd.sock] != "N/A" or
               container.mount.dest[/var/lib/kubelet] != "N/A" or
               container.mount.dest[/var/lib/kubelet/pki] != "N/A" or
               container.mount.dest[/] != "N/A" or
@@ -3857,15 +3862,15 @@
   condition: >
     (modify and (
       evt.arg.name contains "bash_history" or
-      evt.arg.name contains "zsh_history" or
+      evt.arg.name endswith "zsh_history" or
       evt.arg.name contains "fish_read_history" or
       evt.arg.name endswith "fish_history" or
       evt.arg.oldpath contains "bash_history" or
-      evt.arg.oldpath contains "zsh_history" or
+      evt.arg.oldpath endswith "zsh_history" or
       evt.arg.oldpath contains "fish_read_history" or
       evt.arg.oldpath endswith "fish_history" or
       evt.arg.path contains "bash_history" or
-      evt.arg.path contains "zsh_history" or
+      evt.arg.path endswith "zsh_history" or
       evt.arg.path contains "fish_read_history" or
       evt.arg.path endswith "fish_history"))
 
@@ -3873,7 +3878,7 @@
   condition: >
     (open_write and (
       fd.name contains "bash_history" or
-      fd.name contains "zsh_history" or
+      fd.name endswith "zsh_history" or
       fd.name contains "fish_read_history" or
       fd.name endswith "fish_history") and evt.arg.flags contains "O_TRUNC")
 
