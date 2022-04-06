@@ -2,7 +2,6 @@ package api
 
 import (
 	"fmt"
-	"net/http"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
@@ -235,15 +234,9 @@ func (sc *ScanConfigAPISrv) GetAllNodes(ctx *gin.Context) {
 }
 
 func (sc *ScanConfigAPISrv) SearchProjects(ctx *gin.Context) {
-	var regIdInt int64 = 0
 	regID := util.GetInt64FromQuery(ctx, "registryID")
 
-	if regID <= 0 {
-		response.JSONError(ctx, response.NewHttpError(http.StatusBadRequest, fmt.Errorf("not get registryID")))
-		return
-	}
-
-	nodes, err := sc.ScanConfigSrv.SearchProjects(ctx, regIdInt)
+	nodes, err := sc.ScanConfigSrv.SearchProjects(ctx, regID)
 	if err != nil {
 		response.JSONError(ctx, err)
 		return
