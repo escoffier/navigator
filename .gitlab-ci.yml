@@ -399,3 +399,4 @@ reviewdog:
   script:
     - reviewdog -reporter=gitlab-mr-discussion -debug -tee
   when: always
+  allow_failure: true
