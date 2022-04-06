@@ -397,6 +397,6 @@ reviewdog:
     - git config --global --add url."git@gitlab.com:".insteadOf "https://gitlab.com/"
     - git config --global --add url."ssh://git@10.99.201.85/".insteadOf "http://scm.tensorsecurity.cn/"
   script:
-    - reviewdog -reporter=gitlab-mr-discussion -debug -tee
+    - reviewdog -reporter=gitlab-mr-discussion -debug -tee || true
   when: always
   allow_failure: true
