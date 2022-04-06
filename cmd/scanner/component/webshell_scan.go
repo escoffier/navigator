@@ -171,7 +171,7 @@ func (w *WebshellScan) webShellCall(ctx context.Context, reader io.Reader) (*mod
 	req.Close = true
 
 	var tmpClient = &http.Client{
-		Timeout: time.Duration(2) * time.Second,
+		Timeout: time.Duration(4) * time.Second,
 	}
 	res, err := tmpClient.Do(req)
 	// res, err := http.DefaultClient.Do(req)
