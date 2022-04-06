@@ -10,18 +10,12 @@ import (
 	"reflect"
 	"runtime/debug"
 	"sort"
+	"strings"
+	"text/template"
 	"time"
 
 	"github.com/pkg/errors"
 	uuid "github.com/satori/go.uuid"
-	"gitlab.com/piccolo_su/vegeta/cmd/console/service/assets"
-	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
-	pkgassets "gitlab.com/piccolo_su/vegeta/pkg/assets"
-	"gitlab.com/piccolo_su/vegeta/pkg/flag"
-	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
-	"gitlab.com/piccolo_su/vegeta/pkg/lang"
-	"gitlab.com/piccolo_su/vegeta/pkg/model"
-	"gitlab.com/piccolo_su/vegeta/pkg/util"
 	"gitlab.com/security-rd/go-pkg/databases"
 	"gitlab.com/security-rd/go-pkg/logging"
 	batchv1 "k8s.io/api/batch/v1"
@@ -33,6 +27,15 @@ import (
 	k8Yaml "k8s.io/apimachinery/pkg/util/yaml"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/tools/cache"
+
+	"gitlab.com/piccolo_su/vegeta/cmd/console/service/assets"
+	"gitlab.com/piccolo_su/vegeta/pkg/apperror"
+	pkgassets "gitlab.com/piccolo_su/vegeta/pkg/assets"
+	"gitlab.com/piccolo_su/vegeta/pkg/flag"
+	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
+	"gitlab.com/piccolo_su/vegeta/pkg/lang"
+	"gitlab.com/piccolo_su/vegeta/pkg/model"
+	"gitlab.com/piccolo_su/vegeta/pkg/util"
 )
 
 type Scapper struct {
@@ -190,100 +193,133 @@ func (s *Scapper) RunComplianceCheck(
 	clusterID string,
 	checkType model.ComplianceCheckType,
 	username string,
+	clusterInfoID uint,
+	policyID uint,
 ) (uuid.UUID, error) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute*1)
 	defer cancel()
 
-	if s.checkTargetTypeTasksStillInProgress(ctx, string(checkType), clusterID) {
-		return uuid.Nil, NewCheckAlreadyInProgressError(http.StatusInternalServerError, errors.Errorf("currently there are tasks still running"))
-	}
-	//get namespaces
-	resSvc, ok := assets.GetResourcesService(ctx)
-	if !ok {
-		return uuid.Nil, NewCheckAlreadyInProgressError(http.StatusInternalServerError, errors.Errorf("get resource failed"))
-	}
-	cluster := resSvc.GetClusterByKey(ctx, clusterID)
-	if cluster == nil {
-		return uuid.Nil, NewCheckAlreadyInProgressError(http.StatusInternalServerError, errors.Errorf("get cluster failed clusterId : %v", clusterID))
-	}
-	namespace := cluster.WorkerNamespace
-	if namespace == "" {
-		return uuid.Nil, NewCheckAlreadyInProgressError(http.StatusInternalServerError, errors.Errorf("get namespaces failed with run compliance check"))
-	}
-	//get cluster manager
-	clusterManager, ok := k8s.GetClusterManager()
-	if !ok {
-		return uuid.Nil, NewKubernetesError(http.StatusInternalServerError, fmt.Errorf("get cluster manager failed"))
-	}
-	//get k8s client
-	kubeClient, ok := clusterManager.GetClient(clusterID)
-	if !ok {
-		return uuid.Nil, NewKubernetesError(http.StatusInternalServerError, fmt.Errorf("get k8s client failed"))
-	}
+	// 感觉这里有问题，不注释掉的话 @liuyang
+	//if s.checkTargetTypeTasksStillInProgress(ctx, string(checkType), clusterID) {
+	//	return uuid.Nil, NewCheckAlreadyInProgressError(http.StatusInternalServerError, errors.Errorf("currently there are tasks still running"))
+	//}
 
-	err := s.garbageCollectHistoricalJobs(ctx, kubeClient, checkType, namespace)
-	if err != nil {
-		return uuid.Nil, NewKubernetesError(http.StatusInternalServerError, fmt.Errorf("Failed to garbage collect historical jobs: %v", err))
-	}
+	var check model.Check
+	var cluster *model.TensorCluster
+	var nodes []string
+	var kubeClient *pkgassets.Clientset
+	var jobObj *batchv1.Job
 
-	// generate check uuid that will identify results of this run in database
-	checkUUID := uuid.NewV4()
+	// 用个闭包接收错误，用来记录 失败 状态
+	uuid, err := func() (uuid.UUID, error) {
 
-	check := model.Check{
-		CheckType: string(checkType),
-		CheckUUID: checkUUID.String(),
-		ClusterID: clusterID,
-		Namespace: namespace,
-		Operator:  username,
-	}
-
-	jobObj, err := s.prepareJobObject(&check)
-	if err != nil {
-		return uuid.Nil, err
-	}
-
-	// find nodes to schedule check jobs on
-	nodes, err := kubeClient.CoreV1().Nodes().List(ctx, metav1.ListOptions{})
-	if err != nil {
-		return uuid.Nil, NewKubernetesError(http.StatusInternalServerError, fmt.Errorf("Can't list nodes in this cluster: %v", err))
-	}
-
-	// schedule jobs
-	logging.Get().Info().
-		Str("check-type", string(check.CheckType)).Str("check-cluster", check.ClusterID).Str("check-uuid", check.CheckUUID).
-		Str("namespace", check.Namespace).Str("operator", check.Operator).Str("image", jobObj.Spec.Template.Spec.Containers[0].Image).
-		Int("node-items-num", len(nodes.Items)).Msg("Scheduling SCAP check jobs")
-
-	for _, targetNode := range nodes.Items {
-		// TODO: resilience. We should save a task to mongo so that in case of Console crash we can restart the check?
-		// or do we not care about this since this is a rare operation?
-
-		err := s.dbAddJobStatusInProgress(ctx, &check, targetNode.Name)
-		if err != nil {
-			logging.Get().Err(err).Msgf("set node %s for check task %+v error", targetNode.Name, check)
-			continue
+		//get namespaces
+		resSvc, ok := assets.GetResourcesService(ctx)
+		if !ok {
+			return uuid.Nil, apperror.NewCheckAlreadyInProgressError(http.StatusInternalServerError, errors.Errorf("get resource failed"))
 		}
+		cluster = resSvc.GetClusterByKey(ctx, clusterID)
+		if cluster == nil {
+			return uuid.Nil, apperror.NewCheckAlreadyInProgressError(http.StatusInternalServerError, errors.Errorf("get cluster failed clusterId : %v", clusterID))
+		}
+		namespace := cluster.WorkerNamespace
+		if namespace == "" {
+			return uuid.Nil, apperror.NewCheckAlreadyInProgressError(http.StatusInternalServerError, errors.Errorf("get namespaces failed with run compliance check"))
+		}
+		//get cluster manager
+		clusterManager, ok := k8s.GetClusterManager()
+		if !ok {
+			return uuid.Nil, apperror.NewKubernetesError(http.StatusInternalServerError, fmt.Errorf("get cluster manager failed"))
+		}
+		//get k8s client
+		kubeClient, ok = clusterManager.GetClient(clusterID)
+		if !ok {
+			return uuid.Nil, apperror.NewKubernetesError(http.StatusInternalServerError, fmt.Errorf("get k8s client failed"))
+		}
+
+		// 避免任务并行执行的时候被回收，所以这里我认为需要注释掉 @liuyang
+		//err := s.garbageCollectHistoricalJobs(ctx, kubeClient, checkType, namespace)
+		//if err != nil {
+		//	return uuid.Nil, NewKubernetesError(http.StatusInternalServerError, fmt.Errorf("Failed to garbage collect historical jobs: %v", err))
+		//}
+
+		clusterInfo, err := s.getCluster(ctx, clusterInfoID)
+		if err != nil {
+			return uuid.Nil, err
+		}
+
+		// generate check uuid that will identify results of this run in database
+		checkUUID := uuid.NewV4()
+
+		check = model.Check{
+			CheckType: string(checkType),
+			CheckUUID: checkUUID.String(),
+			ClusterID: clusterID,
+			Namespace: namespace,
+			Operator:  username,
+			PolicyID:  policyID,
+		}
+
+		jobObj, err = s.prepareJobObject(ctx, kubeClient, &check)
+		if err != nil {
+			return uuid.Nil, err
+		}
+
+		nodes, err = s.getNodes(ctx, kubeClient, clusterInfo)
+		if err != nil {
+			return uuid.Nil, apperror.NewKubernetesError(http.StatusInternalServerError, fmt.Errorf("Can't list nodes in this cluster: %v", err))
+		}
+
+		// schedule jobs
+		logging.Get().Info().
+			Str("check-type", string(check.CheckType)).Str("check-cluster", check.ClusterID).Str("check-uuid", check.CheckUUID).
+			Str("namespace", check.Namespace).Str("operator", check.Operator).Str("image", jobObj.Spec.Template.Spec.Containers[0].Image).
+			Int("node-items-num", len(nodes)).Msg("Scheduling SCAP check jobs")
+
+		for _, targetNode := range nodes {
+			// TODO: resilience. We should save a task to mongo so that in case of Console crash we can restart the check?
+			// or do we not care about this since this is a rare operation?
+
+			err := s.dbAddJobStatusInProgress(ctx, &check, targetNode)
+			if err != nil {
+				logging.Get().Err(err).Msgf("set node %s for check task %+v error", targetNode, check)
+				continue
+			}
+		}
+
+		return checkUUID, nil
+	}()
+
+	if err != nil {
+		logging.Get().Err(err).Msg("start job error")
 	}
+
 	//create scan history
 	scanHistory := model.ScanHistory{
 		TaskID:      check.CheckUUID,
 		Operator:    check.Operator,
-		CheckType:   string(check.CheckType),
+		CheckType:   check.CheckType,
 		CreatedAt:   time.Now().Unix(),
 		ClusterKey:  check.ClusterID,
-		ClusterName: "",
-		State:       model.ScanStateInProgress,
-		FinishedAt:  0,
+		ClusterName: cluster.Name,
+		PolicyID:    policyID,
 	}
+
+	if err != nil {
+		scanHistory.State = model.ScanStateFailed
+	} else {
+		scanHistory.State = model.ScanStateInProgress
+		// async context is rooted in application context
+		go s.asyncScheduleAndManageJobs(kubeClient, &check, jobObj, nodes, cluster.Name)
+	}
+
 	err = s.rdb.Get().WithContext(ctx).Create(scanHistory).Error
 	if err != nil {
-		logging.Get().Error().Msgf("create scan history failed, operator : %v, checkType : %v, task id : %v.", check.Operator, check.CheckType, scanHistory.TaskID)
+		logging.Get().Err(err).Msgf("create scan history failed, operator : %v, checkType : %v, task id : %v.", check.Operator, check.CheckType, scanHistory.TaskID)
 	}
-	// async context is rooted in application context
-	go s.asyncScheduleAndManageJobs(kubeClient, &check, jobObj, nodes, scanHistory.ClusterName)
 
-	return checkUUID, nil
+	return uuid, nil
 }
 
 func (s *Scapper) RunExportFileTask(task *model.ExportTask, language lang.LanguageType) {
@@ -330,7 +366,7 @@ func (s *Scapper) garbageCollectHistoricalJobs(ctx context.Context, kubeClient *
 
 	jobs, err := kubeClient.BatchV1().Jobs(namespace).List(ctx, listOpts)
 	if err != nil {
-		return NewKubernetesError(http.StatusInternalServerError, fmt.Errorf("Can't list jobs in this cluster: %v", err))
+		return apperror.NewKubernetesError(http.StatusInternalServerError, fmt.Errorf("Can't list jobs in this cluster: %v", err))
 	}
 
 	// Find the start time of the earliest job in each check
@@ -338,7 +374,7 @@ func (s *Scapper) garbageCollectHistoricalJobs(ctx context.Context, kubeClient *
 	for _, job := range jobs.Items {
 		checkID, ok := job.Labels["CHECK_ID"]
 		if !ok {
-			return NewKubernetesError(http.StatusInternalServerError, fmt.Errorf("Expected CHECK_ID label to be present"))
+			return apperror.NewKubernetesError(http.StatusInternalServerError, fmt.Errorf("Expected CHECK_ID label to be present"))
 		}
 
 		if job.Status.StartTime == nil {
@@ -397,7 +433,7 @@ func (s *Scapper) garbageCollectHistoricalJobs(ctx context.Context, kubeClient *
 
 			err = s.deleteJobAndPods(ctx, kubeClient, namespace, job)
 			if err != nil {
-				return NewKubernetesError(http.StatusInternalServerError, fmt.Errorf("Failed to cleanup historical job: %v", err))
+				return apperror.NewKubernetesError(http.StatusInternalServerError, fmt.Errorf("Failed to cleanup historical job: %v", err))
 			}
 			logging.Get().Info().Str("job-name", job.Name).Msg("Cleaned up historical job")
 			break
@@ -407,7 +443,7 @@ func (s *Scapper) garbageCollectHistoricalJobs(ctx context.Context, kubeClient *
 	return nil
 }
 
-func (s *Scapper) asyncScheduleAndManageJobs(kubeClient *pkgassets.Clientset, check *model.Check, jobObj *batchv1.Job, nodes *corev1.NodeList, clusterName string) {
+func (s *Scapper) asyncScheduleAndManageJobs(kubeClient *pkgassets.Clientset, check *model.Check, jobObj *batchv1.Job, nodes []string, clusterName string) {
 	defer func() {
 		if r := recover(); r != nil {
 			logging.Get().Error().Msgf("Panic : %v. stack: %s", r, debug.Stack())
@@ -417,8 +453,8 @@ func (s *Scapper) asyncScheduleAndManageJobs(kubeClient *pkgassets.Clientset, ch
 	ctx, cancel := context.WithTimeout(context.Background(), checkTimeout)
 	defer cancel()
 
-	scheduledNodesCh := make(chan string, len(nodes.Items))
-	finishedNodesCh, listenerStopCh, cacheSynced := s.startAsyncStatusListener(ctx, kubeClient, check, len(nodes.Items))
+	scheduledNodesCh := make(chan string, len(nodes))
+	finishedNodesCh, listenerStopCh, cacheSynced := s.startAsyncStatusListener(ctx, kubeClient, check, len(nodes))
 
 	if !cacheSynced {
 		logging.Get().Warn().Msg("Informer cache failed to sync, not sure how to handle this. Ignoring.")
@@ -426,7 +462,7 @@ func (s *Scapper) asyncScheduleAndManageJobs(kubeClient *pkgassets.Clientset, ch
 
 	go s.awaitAndUpdateJobsStatuses(check, scheduledNodesCh, finishedNodesCh, listenerStopCh)
 
-	for _, targetNode := range nodes.Items {
+	for _, targetNode := range nodes {
 		select {
 		case <-ctx.Done():
 			logging.Get().Error().Err(ctx.Err()).Msg("Ctx timeout while scheduling jobs")
@@ -440,22 +476,22 @@ func (s *Scapper) asyncScheduleAndManageJobs(kubeClient *pkgassets.Clientset, ch
 			// Note2: but we must close scheduledNodesCh after all jobs were scheduled.
 			// go func() {
 			//create job name
-			jobName := s.CreateJobName(check.CheckUUID, check.CheckType, targetNode.Name)
+			jobName := s.CreateJobName(check.CheckUUID, check.CheckType, targetNode)
 			//schedule job
-			err := s.scheduleOneJob(ctx, kubeClient, check, jobObj.DeepCopy(), clusterName, jobName, targetNode.Name)
+			err := s.scheduleOneJob(ctx, kubeClient, check, jobObj.DeepCopy(), clusterName, jobName, targetNode)
 			if err != nil {
 				logging.Get().Error().Msgf("Failed to schedule job, %v.", err)
 
 				msg := fmt.Sprintf("Failed to schedule job: %s", err)
-				check.NodeName = targetNode.Name
+				check.NodeName = targetNode
 				err = s.dbJobStatusUpdate(model.ScanStateFailed, check, msg, time.Now().Unix())
 				if err != nil {
-					logging.Get().Error().Msgf("update job status failed, %v", err)
+					logging.Get().Err(err).Msgf("update job status failed, msg: %s", msg)
 				}
 				//
-				finishedNodesCh <- targetNode.Name
+				finishedNodesCh <- targetNode
 			} else {
-				scheduledNodesCh <- targetNode.Name
+				scheduledNodesCh <- targetNode
 			}
 		}
 	}
@@ -463,11 +499,90 @@ func (s *Scapper) asyncScheduleAndManageJobs(kubeClient *pkgassets.Clientset, ch
 	close(scheduledNodesCh)
 }
 
-func (s Scapper) prepareJobObject(check *model.Check) (*batchv1.Job, error) {
+func (s Scapper) prepareJobObject(ctx context.Context, kubeClient *pkgassets.Clientset, check *model.Check) (*batchv1.Job, error) {
 	jobObj, err := s.readJobObjFromYamlFile(model.ComplianceCheckType(check.CheckType))
 	if err != nil {
 		logging.Get().Error().Err(err).Msg("Can't read job .yaml file")
 		return nil, err
+	}
+
+	if check.PolicyID == 0 {
+		return jobObj, nil
+	}
+
+	var policy model.ScapPolicy
+	if err := s.rdb.Get().Unscoped().First(&policy, check.PolicyID).Error; err != nil {
+		return nil, err
+	}
+
+	// 默认策略时直接不设置
+	if policy.IsDefault {
+		return jobObj, nil
+	}
+
+	var db = s.rdb.Get().Model(&model.PolicyDetailInfo{}).Where("check_type = ?", check.CheckType)
+	switch model.ComplianceCheckType(check.CheckType) {
+	case model.ComplianceCheckTargetTypeKube, model.ComplianceCheckTargetTypeDocker:
+		db = db.Where("id IN ?", policy.RuleIds)
+	case model.ComplianceCheckTargetTypeHost:
+		db = db.Where("id NOT IN ?", policy.RuleIds)
+	}
+
+	var rules []model.PolicyDetailInfo
+	if err := db.Find(&rules).Error; err != nil {
+		return nil, err
+	}
+
+	var r = make([]string, 0, len(rules))
+	for _, v := range rules {
+		r = append(r, v.Extra.Rule)
+	}
+
+	switch model.ComplianceCheckType(check.CheckType) {
+	case model.ComplianceCheckTargetTypeKube:
+		jobObj.Spec.Template.Spec.Containers[0].Args = append(jobObj.Spec.Template.Spec.Containers[0].Args, "--check="+strings.Join(r, ","))
+	case model.ComplianceCheckTargetTypeDocker:
+		// 这里加个check_1临时解决docker-bench执行的时候解析出结果数据不一致的问题
+		// https://scm.tensorsecurity.cn/tensorsecurity-rd/tensor-compliance-check/-/issues/1
+		jobObj.Spec.Template.Spec.Containers[0].Args = append(jobObj.Spec.Template.Spec.Containers[0].Args, "-c "+"check_1,"+strings.Join(r, ",")+",check_1_end")
+	case model.ComplianceCheckTargetTypeHost:
+		// 创建configmap
+		configmap, err := s.getHostConfigMap(ctx, kubeClient, r, check)
+		if err != nil {
+			logging.Get().Err(err).Msg("创建configmap error")
+			return nil, err
+		}
+
+		// configmap name为空且err 为空。则说明不需要挂载configmap
+		if len(configmap) == 0 {
+			return jobObj, nil
+		}
+
+		//设置volume
+		jobObj.Spec.Template.Spec.Volumes = append(jobObj.Spec.Template.Spec.Volumes, corev1.Volume{
+			Name: "tailoring-file",
+			VolumeSource: corev1.VolumeSource{
+				ConfigMap: &corev1.ConfigMapVolumeSource{
+					LocalObjectReference: corev1.LocalObjectReference{Name: configmap},
+					Items: []corev1.KeyToPath{
+						{
+							Key:  "tailoring-file-centos.xml",
+							Path: "tailoring-file-centos.xml",
+						},
+					},
+				},
+			},
+		})
+
+		// 挂载到container中
+		jobObj.Spec.Template.Spec.Containers[0].VolumeMounts = append(
+			jobObj.Spec.Template.Spec.Containers[0].VolumeMounts,
+			corev1.VolumeMount{
+				Name:      "tailoring-file",
+				MountPath: "./tailoring/tailoring-file-centos.xml",
+				SubPath:   "tailoring-file-centos.xml",
+			},
+		)
 	}
 
 	return jobObj, nil
@@ -482,19 +597,19 @@ func (s Scapper) readJobObjFromYamlFile(checkType model.ComplianceCheckType) (*b
 	} else if checkType == model.ComplianceCheckTargetTypeHost {
 		jobYamlPath = "/jobs/host-bench/job.yaml"
 	} else {
-		return nil, NewAnError(http.StatusInternalServerError, fmt.Errorf("Unreachable code reached"))
+		return nil, apperror.NewAnError(http.StatusInternalServerError, fmt.Errorf("Unreachable code reached"))
 	}
 
 	jobYaml, err := ioutil.ReadFile(jobYamlPath)
 	if err != nil {
-		return nil, NewConfigurationError(http.StatusInternalServerError, fmt.Errorf("Can't read job file: %v", err))
+		return nil, apperror.NewConfigurationError(http.StatusInternalServerError, fmt.Errorf("Can't read job file: %v", err))
 	}
 
 	jobObj := &batchv1.Job{}
 	decoder := k8Yaml.NewYAMLOrJSONDecoder(bytes.NewReader([]byte(jobYaml)), 1000)
 	err = decoder.Decode(&jobObj)
 	if err != nil {
-		return nil, NewConfigurationError(http.StatusInternalServerError, fmt.Errorf("Can't decode job file: %v", err))
+		return nil, apperror.NewConfigurationError(http.StatusInternalServerError, fmt.Errorf("Can't decode job file: %v", err))
 
 	}
 	return jobObj, nil
@@ -547,14 +662,14 @@ func (s *Scapper) scheduleOneJob(ctx context.Context, kubeClient *pkgassets.Clie
 	if k8serrors.IsAlreadyExists(err) {
 		err = jobsClient.Delete(ctx, jobObj.Name, metav1.DeleteOptions{})
 		if err != nil {
-			return NewKubernetesError(http.StatusInternalServerError, fmt.Errorf("Job already exists, so tried deleting, but: %v", err))
+			return apperror.NewKubernetesError(http.StatusInternalServerError, fmt.Errorf("Job already exists, so tried deleting, but: %v", err))
 		}
 
 		time.Sleep(time.Second * 10)
 		res, err = jobsClient.Create(ctx, jobObj, metav1.CreateOptions{})
 	}
 	if err != nil {
-		return NewKubernetesError(http.StatusInternalServerError, fmt.Errorf("Couldn't schedule job: %v", err))
+		return apperror.NewKubernetesError(http.StatusInternalServerError, fmt.Errorf("Couldn't schedule job: %v", err))
 	}
 
 	jobsName := res.ObjectMeta.Name
@@ -764,7 +879,7 @@ func (s *Scapper) awaitAndUpdateJobsStatuses(check *model.Check, scheduledNodesC
 				tx := s.rdb.Get().WithContext(ctxDb).Table(tbname).Select("suc_node", "state", "finished_at")
 				err = tx.Where("task_id = ? and check_type = ? and cluster_key = ?", taskId, check.CheckType, check.ClusterID).Updates(scanHistory).Error
 				if err != nil {
-					logging.Get().Error().Msgf("update scan history failed, task Id : %v, clusterID : %v, %v.", taskId, check.ClusterID, err)
+					logging.Get().Error().Msgf("update scan history failed, task ID : %v, clusterID : %v, %v.", taskId, check.ClusterID, err)
 				}
 				return
 			}
@@ -848,4 +963,131 @@ func removeElement(what string, from []string) []string {
 		}
 	}
 	return from
+}
+
+// 如果不是全部节点则从数据库拿，否则列出集群全部节点
+func (s *Scapper) getNodes(ctx context.Context, kubeClient *pkgassets.Clientset, cluster *model.ScapClusterInfo) ([]string, error) {
+	var nodes []string
+	if !cluster.IsAllNodes {
+		nodes = make([]string, 0, len(cluster.ClusterNodeIds))
+		if err := s.rdb.Get().WithContext(ctx).
+			Model(&model.TensorNode{}).
+			Select("host_name").
+			Where("id IN ?", cluster.ClusterNodeIds).
+			Find(&nodes).Error; err != nil {
+			return nil, apperror.NewKubernetesError(http.StatusInternalServerError, fmt.Errorf("can't list nodes name in this cluster from db: %v", err))
+		}
+	} else {
+		// find nodes to schedule check jobs on
+		nodeItems, err := kubeClient.CoreV1().Nodes().List(ctx, metav1.ListOptions{})
+		if err != nil {
+			return nil, apperror.NewKubernetesError(http.StatusInternalServerError, fmt.Errorf("can't list nodes in this cluster from k8s cluster: %v", err))
+		}
+
+		nodes = make([]string, 0, len(nodeItems.Items))
+
+		for i := range nodeItems.Items {
+			nodes = append(nodes, nodeItems.Items[i].Name)
+		}
+	}
+
+	return nodes, nil
+}
+
+// 获取集群的信息
+func (s *Scapper) getCluster(ctx context.Context, clusterID uint) (*model.ScapClusterInfo, error) {
+	var clusterInfo model.ScapClusterInfo
+	if err := s.rdb.Get().WithContext(ctx).First(&clusterInfo, clusterID).Error; err != nil {
+		return nil, apperror.NewKubernetesError(http.StatusInternalServerError, fmt.Errorf("can't list nodeids in this cluster from db: %v", err))
+	}
+
+	return &clusterInfo, nil
+}
+
+var hostRulesTmp = template.Must(template.New("host-config-map").Parse(`<?xml version="1.0" encoding="UTF-8"?>
+<Tailoring xmlns="http://checklists.nist.gov/xccdf/1.2" id="xccdf_org.open-scap_tailoring_example">
+  <status>incomplete</status>
+  <version time="2020-09-22T16:00:00.000+02:00">1.0</version>
+  <Profile id="xccdf_org.mysecurity.content_profile_unselect_memory_intensive_from_standard" extends="xccdf_org.ssgproject.content_profile_standard">
+    <title>Unselect memory intensive rules</title>
+    <!--
+    https://access.redhat.com/documentation/en-us/red_hat_enterprise_linux/8/html/8.2_release_notes/known-issues
+    See chapter 
+    "Scanning large numbers of files with OpenSCAP causes systems to run out of memory"
+
+    See also: https://bugzilla.redhat.com/show_bug.cgi?id=1558587#c12
+    See also: https://martin.preisler.me/2013/11/xccdf-tailoring/
+
+    So, deselect rules that involve recursion over the entire / filesystem:
+    -->
+    <select idref="xccdf_org.ssgproject.content_rule_file_permissions_unauthorized_world_writable" selected="false"/>
+    <select idref="xccdf_org.ssgproject.content_rule_no_files_unowned_by_user" selected="false"/>
+    <select idref="xccdf_org.ssgproject.content_rule_file_permissions_ungroupowned" selected="false"/>
+    <select idref="xccdf_org.ssgproject.content_rule_file_permissions_unauthorized_suid" selected="false"/>
+    <select idref="xccdf_org.ssgproject.content_rule_file_permissions_unauthorized_sgid" selected="false"/>
+    <select idref="xccdf_org.ssgproject.content_rule_rpm_verify_hashes" selected="false"/>
+    <select idref="xccdf_org.ssgproject.content_rule_rpm_verify_permissions" selected="false"/>
+    <select idref="xccdf_org.ssgproject.content_rule_rpm_verify_ownership" selected="false"/>
+    <select idref="xccdf_org.ssgproject.content_rule_dir_perms_world_writable_sticky_bits" selected="false"/>
+    <select idref="xccdf_org.ssgproject.content_rule_dir_perms_world_writable_system_owned" selected="false"/>
+	{{- range . }}
+    <select idref="{{ . }}" selected="false"/>
+	{{- end }}
+  </Profile>
+</Tailoring>`))
+
+// 上面已存在的策略条目，做个索引防止重复添加
+var hostRulesExist = map[string]struct{}{
+	"xccdf_org.ssgproject.content_rule_file_permissions_unauthorized_world_writable": {},
+	"xccdf_org.ssgproject.content_rule_no_files_unowned_by_user":                     {},
+	"xccdf_org.ssgproject.content_rule_file_permissions_ungroupowned":                {},
+	"xccdf_org.ssgproject.content_rule_file_permissions_unauthorized_suid":           {},
+	"xccdf_org.ssgproject.content_rule_file_permissions_unauthorized_sgid":           {},
+	"xccdf_org.ssgproject.content_rule_rpm_verify_hashes":                            {},
+	"xccdf_org.ssgproject.content_rule_rpm_verify_permissions":                       {},
+	"xccdf_org.ssgproject.content_rule_rpm_verify_ownership":                         {},
+	"xccdf_org.ssgproject.content_rule_dir_perms_world_writable_sticky_bits":         {},
+	"xccdf_org.ssgproject.content_rule_dir_perms_world_writable_system_owned":        {},
+}
+
+func (s *Scapper) getHostConfigMap(ctx context.Context, kubeClient *pkgassets.Clientset, checks []string, check *model.Check) (string, error) {
+	var rules []string
+
+	for _, v := range checks {
+		if _, ok := hostRulesExist[v]; !ok {
+			rules = append(rules, v)
+		}
+	}
+
+	// 当全选了规则，则主机扫描排除的规则不变，这时不需要挂载configmap, 返回一个空字符串的configmap名标识不需要挂载configmap
+	if len(rules) == 0 {
+		return "", nil
+	}
+
+	var stringBuilder strings.Builder
+	if err := hostRulesTmp.Execute(&stringBuilder, rules); err != nil {
+		return "", errors.Wrap(err, "render hostRulesTmp failed")
+	}
+
+	// 创建configMap
+	configMapName := fmt.Sprintf("host-scap-%d", check.PolicyID)
+
+	configMap := &corev1.ConfigMap{
+		TypeMeta: v1.TypeMeta{},
+		ObjectMeta: v1.ObjectMeta{
+			Name: configMapName,
+		},
+		Data: map[string]string{
+			"tailoring-file-centos.xml": stringBuilder.String(),
+		},
+	}
+
+	if _, err := kubeClient.
+		CoreV1().
+		ConfigMaps(check.Namespace).
+		Create(ctx, configMap, metav1.CreateOptions{}); err != nil && !k8serrors.IsAlreadyExists(err) {
+		return "", errors.Wrapf(err, "create config %s failed", configMapName)
+	}
+
+	return configMapName, nil
 }

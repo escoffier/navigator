@@ -1757,3 +1757,16 @@ func NewAddBaitServiceError(httpCode int, err error, suberrors ...Suberror) erro
 		},
 	}
 }
+
+func NewErrorWithCode(httpCode int, err error) error {
+	_, file, line, _ := runtime.Caller(1)
+
+	return detailedError{
+		err:      err,
+		English:  err.Error(),
+		Chinese:  err.Error(),
+		HTTPCode: httpCode,
+		File:     file,
+		Line:     line,
+	}
+}

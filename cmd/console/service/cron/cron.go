@@ -7,10 +7,11 @@ import (
 
 	"github.com/pkg/errors"
 	cr "github.com/robfig/cron/v3"
+	"gitlab.com/security-rd/go-pkg/databases"
+
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/scapper"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
-	"gitlab.com/security-rd/go-pkg/databases"
 )
 
 var (
@@ -58,7 +59,7 @@ func (s *CronService) startCron(ctx context.Context, cronData *model.CronScanTas
 
 		// don't cancel() when exiting this function as we are starting an async task
 		scap, _ := scapper.GetScapper(ctx)
-		_, err := scap.RunComplianceCheck(cronData.ClusterID, model.ComplianceCheckType(cronData.CheckType), "system")
+		_, err := scap.RunComplianceCheck(cronData.ClusterID, model.ComplianceCheckType(cronData.CheckType), "system", 0, 0)
 		if err != nil {
 			logging.GetLogger().Error().Msgf("failed to run compliance check, clusterId : %v, checkType : %v.", cronData.ClusterID, cronData.CheckType)
 		}
@@ -93,6 +94,7 @@ func (s *CronService) startCron(ctx context.Context, cronData *model.CronScanTas
 }
 
 func (s *CronService) StartCrons(ctx context.Context) error {
+	return nil // 这里逻辑去掉？是否只有合规使用这个功能？todo 检查是否只有合规在使用这个功能
 	var cronTasks []*model.CronScanTask
 	err := s.rdb.GetReadDB().WithContext(ctx).Find(&cronTasks).Error
 	if err != nil {

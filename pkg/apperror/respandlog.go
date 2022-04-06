@@ -23,7 +23,7 @@ func RespAndLog(w http.ResponseWriter, ctx context.Context, err error) {
 		}
 
 		// Respond
-		subfuncs := []response.ResponseErrorOptionFunc{}
+		subfuncs := make([]response.ResponseErrorOptionFunc, 0, len(det.Suberrors)+1)
 		subfuncs = append(subfuncs, response.WithMessage(det.LocalizedError(ctx)))
 		for _, v := range det.Suberrors {
 			subfuncs = append(subfuncs, response.WithSuberror(v.Location, v.Message))
