@@ -1,6 +1,8 @@
 package model
 
 import (
+	"database/sql/driver"
+	"fmt"
 	"time"
 
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -8,6 +10,24 @@ import (
 
 type ComplianceCheckType string
 type ScanState uint8
+
+func (s *ScanState) Scan(value interface{}) error {
+	if t, ok := value.(int64); ok && t >= 0 && t <= 3 {
+		*s = ScanState(t)
+		return nil
+	} else {
+		return fmt.Errorf("invaild ScanState: %v", value)
+	}
+}
+
+func (s ScanState) Value() (driver.Value, error) {
+	switch s {
+	case ScanStateCompleted, ScanStateInProgress, ScanStateFailed, ScanStateUnknown:
+		return int64(s), nil
+	default:
+		return nil, fmt.Errorf("invalid scan state value: %v", s)
+	}
+}
 
 const (
 	ComplianceCheckStatusInProgress = "inprogress"

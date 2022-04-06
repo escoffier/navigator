@@ -1,5 +1,12 @@
 package model
 
+import (
+	"encoding/json"
+
+	"gorm.io/datatypes"
+	"gorm.io/gorm"
+)
+
 type CheckHistoryEntry struct {
 	CheckID             string  `json:"checkId" bson:"checkId"`
 	CheckType           string  `json:"checkType" bson:"checkType"`
@@ -17,6 +24,9 @@ type CheckHistoryEntry struct {
 	MaxScore            float32 `json:"maxScore" bson:"maxScore"`
 	TotalPoliciesPassed int64   `json:"-" bson:"totalPoliciesPassed"`
 	TotalPoliciesTried  int64   `json:"-" bson:"totalPoliciesTried"`
+	PolicyId            uint    `json:"policyId" bson:"policyId"`
+	// 1.运行中 2.完成 3.失败
+	State uint8 `json:"state" bson:"state"`
 }
 
 type HarborConfigScan struct {
@@ -77,6 +87,7 @@ type ScanHistory struct {
 	FailNode    int32     `gorm:"column:fail_node"`
 	CreatedAt   int64     `gorm:"column:created_at"`
 	FinishedAt  int64     `gorm:"column:finished_at"`
+	PolicyID    uint      `gorm:"column:policy_id"`
 }
 
 func (ScanHistory) TableName() string {
@@ -118,6 +129,7 @@ func (FileExport) TableName() string {
 }
 
 type PolicyDetailInfo struct {
+	Id             uint   `gorm:"primaryKey" json:"id"`
 	PolicyId       string `json:"policy_id" gorm:"type:varchar(255);column:policy_id"`
 	CheckType      string `json:"check_type" gorm:"type:varchar(255);column:check_type"`
 	Status         int    `json:"status" gorm:"column:status"`
@@ -134,6 +146,32 @@ type PolicyDetailInfo struct {
 	ExpectedResult string `json:"expeced_result" gorm:"type:varchar(255);column:expeced_result"`
 	Audit          string `json:"audit" gorm:"type:varchar(255);column:audit"`
 	AuditConfig    string `json:"audit_config" gorm:"type:varchar(255);column:audit_config"`
+	ClassifiedZh   string `json:"classified_zh" gorm:"type:varchar(255);column:classified_zh"`
+	ClassifiedEn   string `json:"classified_en" gorm:"type:varchar(255);column:classified_en"`
+
+	// 保存策略信息
+	ExtraInfo datatypes.JSON `json:"-" gorm:"column:extra_info;type:json"`
+
+	Extra *struct {
+		Os   string `json:"os"`
+		Rule string `json:"rule"`
+	} `json:"extraInfo" gorm:"-"`
+}
+
+func (p *PolicyDetailInfo) BeforeSave(tx *gorm.DB) (err error) {
+	if p.Extra != nil {
+		p.ExtraInfo, err = json.Marshal(p.Extra)
+	}
+
+	return
+}
+
+func (p *PolicyDetailInfo) AfterFind(tx *gorm.DB) (err error) {
+	if p.ExtraInfo != nil {
+		err = json.Unmarshal(p.ExtraInfo, &p.Extra)
+	}
+
+	return
 }
 
 func (PolicyDetailInfo) TableName() string {
@@ -212,6 +250,7 @@ type Check struct {
 	NodeName  string
 	Namespace string
 	Operator  string
+	PolicyID  uint `gorm:"-" json:"-"`
 }
 
 type CronScanTask struct {

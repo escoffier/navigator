@@ -12,10 +12,13 @@ import (
 	"github.com/go-chi/chi"
 	"github.com/go-chi/jwtauth"
 	"github.com/pkg/errors"
+	"gitlab.com/security-rd/go-pkg/logging"
+
+	"gitlab.com/piccolo_su/vegeta/cmd/console/api/scap"
+	scapservice "gitlab.com/piccolo_su/vegeta/cmd/console/service/scap"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/scapper"
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	"gitlab.com/piccolo_su/vegeta/pkg/lang"
-	"gitlab.com/security-rd/go-pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
@@ -35,6 +38,9 @@ func (api *api) scap() func(chi.Router) {
 		r.Put("/{checkType}/{clusterKey}/cron", api.putCron())
 		r.Get("/{checkType}/{checkID}/exportfile", api.exportFile())
 		r.Get("/{checkID}/getfile", api.getFile())
+
+		scapApiV2 := scap.NewAipServer(scapservice.NewService(api.rdb))
+		r.Route("/v2", scapApiV2.InitRouter())
 	}
 }
 
@@ -165,7 +171,7 @@ func (api *api) getCheckHistory() http.HandlerFunc {
 
 		response.Ok(w,
 			response.WithItems(items),
-			response.WithTotalItems(int64(docNum)),
+			response.WithTotalItems(docNum),
 			response.WithItemsPerPage(limit),
 			response.WithStartIndex(offset))
 	}
@@ -670,7 +676,7 @@ func (api *api) scapCheckHandler(ctx context.Context, w http.ResponseWriter, che
 	}
 
 	scapper, _ := scapper.GetScapper(ctx)
-	checkUUID, err := scapper.RunComplianceCheck(clusterKey, checkType, username)
+	checkUUID, err := scapper.RunComplianceCheck(clusterKey, checkType, username, 0, 0)
 	if err != nil {
 		RespAndLog(w, ctx, fmt.Errorf("Failed to run compliance check: %w", err))
 		return

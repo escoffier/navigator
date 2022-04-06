@@ -6,10 +6,11 @@ import (
 	"sync"
 	"time"
 
+	"golang.org/x/sync/semaphore"
+
 	flowconf "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/flow-conf"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/global"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
-	"golang.org/x/sync/semaphore"
 )
 
 type WalkTaskFunc func(t *Task, limit *semaphore.Weighted, flow flowconf.FlowConf) error

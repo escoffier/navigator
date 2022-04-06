@@ -10,10 +10,11 @@ import (
 	"unsafe"
 
 	json "github.com/json-iterator/go"
+	"gorm.io/gorm"
+
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
-	"gorm.io/gorm"
 )
 
 const letterBytes = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"

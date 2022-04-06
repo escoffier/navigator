@@ -9,18 +9,20 @@ import (
 	"sync"
 	"time"
 
-	json "github.com/json-iterator/go"
 	"github.com/go-redis/redis/v8"
+	json "github.com/json-iterator/go"
 	"github.com/pkg/errors"
 	"github.com/tealeg/xlsx"
+	"gitlab.com/security-rd/go-pkg/databases"
+	"gitlab.com/security-rd/go-pkg/logging"
+	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
+
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	"gitlab.com/piccolo_su/vegeta/pkg/flag"
 	"gitlab.com/piccolo_su/vegeta/pkg/lang"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
-	"gitlab.com/security-rd/go-pkg/databases"
-	"gitlab.com/security-rd/go-pkg/logging"
-	"gorm.io/gorm"
 )
 
 var (
@@ -99,9 +101,9 @@ func (s *ScapService) PolicyInit(policyCounts int32) error {
 	}
 
 	files := []string{
-		"/policy/kube-policy.txt",
-		"/policy/docker-policy.txt",
-		"/policy/host-policy.txt",
+		"/policy/kube-policy.json",
+		"/policy/docker-policy.json",
+		"/policy/host-policy.json",
 	}
 
 	for _, file := range files {
@@ -118,22 +120,37 @@ func (s *ScapService) PolicyInit(policyCounts int32) error {
 			continue
 		}
 		//write policy to pg
-		for _, rule := range policies {
-			policyNum = 0
-			err = s.rdb.Get().Where(ctx).Table(tbname).Where("policy_id = ? and check_type = ?", rule.PolicyId, rule.CheckType).Count(&policyNum).Error
-			if err != nil {
-				logging.Get().Error().Msgf("get policy_id = %s failed, %v.", rule.PolicyId, err)
-				continue
-			}
+		//for _, rule := range policies {
+		//	policyNum = 0
+		//	err = s.rdb.Get().Where(ctx).Table(tbname).Where("policy_id = ? and check_type = ?", rule.PolicyId, rule.CheckType).Count(&policyNum).Error
+		//	if err != nil {
+		//		logging.Get().Error().Msgf("get policy_id = %s failed, %v.", rule.PolicyId, err)
+		//		continue
+		//	}
+		//
+		//	if policyNum > 0 {
+		//		continue
+		//	}
+		//	err = s.rdb.Get().WithContext(ctx).Table(tbname).Create(rule).Error
+		//	if err != nil {
+		//		logging.Get().Error().Msgf("write policy to postgre db failed, %v.", err)
+		//	}
+		//}
 
-			if policyNum > 0 {
-				continue
-			}
-			err = s.rdb.Get().WithContext(ctx).Table(tbname).Create(rule).Error
-			if err != nil {
-				logging.Get().Error().Msgf("write policy to postgre db failed, %v.", err)
-			}
+		// 批量插入，如果主键冲突，则ignore
+		err = s.rdb.Get().
+			WithContext(ctx).
+			Clauses(clause.OnConflict{
+				Columns:   []clause.Column{{Name: "id"}},
+				DoNothing: true,
+			}).
+			Table(tbname).
+			Create(policies).
+			Error
+		if err != nil {
+			logging.Get().Error().Msgf("write policy to db failed, %v.", err)
 		}
+
 	}
 
 	return nil
@@ -231,22 +248,42 @@ func (s *ScapService) SynScanState(checkHistory *model.CheckHistoryEntry) error 
 	return nil
 }
 
-func (s *ScapService) GetCheckHistory(ctx context.Context, offset, limit int64, clusterId, checkType, sortBy, sortOrder string) ([]model.CheckHistoryEntry, int, error) {
+func (s *ScapService) GetCheckHistory(ctx context.Context, offset, limit int64, clusterId, checkType, sortBy, sortOrder string) ([]model.CheckHistoryEntry, int64, error) {
 	//print debug log
 	//logging.Get().Debug().Msgf("offset : %v, limit : %v, sortBy : %v, sortOrder : %v.", offset, limit, sortBy, sortOrder)
 
 	pgCtx, mpgCancel := context.WithTimeout(ctx, time.Second*2)
 	defer mpgCancel()
 
-	var scanHistory []model.ScanHistory
-	query := fmt.Sprintf("cluster_key = ? and check_type = ? order by %s %s limit %v offset %v", sortBy, sortOrder, limit, offset)
-	err := s.rdb.Get().WithContext(pgCtx).Find(&scanHistory, query, clusterId, checkType).Error
+	db := s.rdb.Get().WithContext(pgCtx).Model(&model.ScanHistory{})
+	if clusterId != "" {
+		db = db.Where("cluster_key = ?", clusterId)
+	}
+
+	if checkType != "" {
+		db = db.Where("check_type = ?", checkType)
+	}
+
+	var docNum int64
+
+	if err := db.Count(&docNum).Error; err != nil {
+		return nil, 0, NewMongoError(http.StatusInternalServerError, fmt.Errorf("could not count, %w", err))
+	}
+
+	if sortBy != "" {
+		db = db.Order(clause.OrderByColumn{Column: clause.Column{Name: sortBy}, Desc: strings.ToLower(sortOrder) == "desc"})
+	}
+
+	var scanHistory = make([]model.ScanHistory, 0, limit)
+	//query := fmt.Sprintf("cluster_key = ? and check_type = ? order by %s %s limit %v offset %v", sortBy, sortOrder, limit, offset)
+	//err := s.rdb.Get().WithContext(pgCtx).Find(&scanHistory, query, clusterId, checkType).Error
+	err := db.Limit(int(limit)).Offset(int(offset)).Find(&scanHistory).Error
 	if err != nil {
 		return nil, 0, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Could not find scan history, %w", err))
 	}
 
 	items := make([]model.CheckHistoryEntry, 0)
-	docNum := len(scanHistory)
+
 	for _, value := range scanHistory {
 		var data model.CheckHistoryEntry
 		data.CheckType = checkType
@@ -256,12 +293,23 @@ func (s *ScapService) GetCheckHistory(ctx context.Context, offset, limit int64, 
 		data.CheckID = value.TaskID
 		data.CreatedAt = value.CreatedAt
 		data.FinishedAt = value.FinishedAt
+		data.PolicyId = value.PolicyID
 		//check finish state
 		if data.FinishedAt <= 0 || value.State == model.ScanStateInProgress {
 			err = s.SynScanState(&data)
 			if err != nil {
 				logging.Get().Error().Msgf("syn scan history failed, %v.", err)
 			}
+
+			if data.FinishedAt != 0 {
+				data.State = 2
+			} else {
+				data.State = 1
+			}
+		} else if value.State == model.ScanStateCompleted {
+			data.State = 2
+		} else {
+			data.State = 3
 		}
 
 		items = append(items, data)
@@ -516,6 +564,7 @@ func (s *ScapService) GetPolicyInfo(ctx context.Context, policyId, checkType str
 	condition := "policy_id = ? and check_type = ? and status = 0"
 	err := s.rdb.GetReadDB().WithContext(ctx).Take(&policy, condition, policyId, checkType).Error
 	if err != nil || policy.PolicyId == "" {
+		logging.Get().Err(err).Msgf("get policy information failed, policy id : %s, checkType : %s", policyId, checkType)
 		return nil, errors.Errorf("get policy information failed, policy id : %s, checkType : %s", policyId, checkType)
 	}
 
@@ -579,7 +628,7 @@ func (s *ScapService) GetKubeBreakdownEntries(ctx context.Context, checkMap map[
 		if !ok {
 			policy, err := s.GetPolicyInfo(ctx, value.PolicyID, checkType)
 			if err != nil {
-				logging.Get().Error().Msgf("get policy information failed, policy id : %s, checkType : %s.", value.PolicyID, checkType)
+				logging.Get().Err(err).Msgf("get policy information failed, policy id : %s, checkType : %s.", value.PolicyID, checkType)
 				continue
 			}
 
@@ -929,6 +978,9 @@ func (s *ScapService) AddScapScanResults(ctx context.Context, rs []*model.ScanRe
 	ctx, cancel := context.WithTimeout(ctx, 1000*time.Millisecond)
 	defer cancel()
 
+	logging.Get().Info().Msgf("add scap scan result, total: %d", len(rs))
+
+	// 这里开启个事物，又不用对应的tx对象，为毛？搞不懂
 	err := s.rdb.Get().WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		for _, r := range rs {
 			err := s.AddScapScanResult(ctx, r)
