@@ -211,10 +211,24 @@ func (api *api) getResourcesByImageVuln() http.HandlerFunc {
 			return
 		}
 
-		vulnID, err := param.QueryString(r, "vuln_id")
+		vulnName, err := param.QueryString(r, "vulnName")
 		if err != nil {
-			logging.GetLogger().Err(err).Msgf("get vuln_id query error")
-			RespAndLog(w, ctx, NewAnError(http.StatusBadRequest, errors.New("no vuln_id given in params")))
+			logging.GetLogger().Err(err).Msgf("get vulnName query error")
+			RespAndLog(w, ctx, NewAnError(http.StatusBadRequest, errors.New("no vulnName given in params")))
+			return
+		}
+
+		pkgName, err := param.QueryString(r, "pkgName")
+		if err != nil {
+			logging.GetLogger().Err(err).Msgf("get pkgName query error")
+			RespAndLog(w, ctx, NewAnError(http.StatusBadRequest, errors.New("no pkgName given in params")))
+			return
+		}
+
+		pkgVersion, err := param.QueryString(r, "pkgVersion")
+		if err != nil {
+			logging.GetLogger().Err(err).Msgf("get pkgVersion query error")
+			RespAndLog(w, ctx, NewAnError(http.StatusBadRequest, errors.New("no pkgVersion given in params")))
 			return
 		}
 
@@ -224,7 +238,7 @@ func (api *api) getResourcesByImageVuln() http.HandlerFunc {
 			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.New("service instance get error")))
 			return
 		}
-		containers, totalCnt, err := resSvc.GetResourceContainersWithGivenVuln(ctx, vulnID, offset, limit)
+		containers, totalCnt, err := resSvc.GetResourceContainersWithGivenVuln(ctx, vulnName, pkgName, pkgVersion, offset, limit)
 		if err != nil {
 			logging.GetLogger().Err(err).Msg("GetResourceContainers error")
 			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.New("get resources error")))

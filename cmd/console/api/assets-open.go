@@ -40,7 +40,7 @@ func (api *api) assetsForOpenapi() func(chi.Router) {
 			Get("/containers", api.getResourceContainersForOpenapi())
 
 		r.With(RateLimitMiddleware(api.redisClient, int64(rate))).
-			Get("/resources/vulns/{vulnId}", api.getResourcesByImageVulnForOpenapi())
+			Get("/resources/vulns/detail", api.getResourcesByImageVulnForOpenapi())
 
 		r.With(RateLimitMiddleware(api.redisClient, int64(rate))).
 			Get("/nodes", api.getNodesForOpenapi())
@@ -295,9 +295,11 @@ func (api *api) getResourcesByImageVulnForOpenapi() http.HandlerFunc {
 
 		limit, offset := getLimitAndOffsetWithDefault(r)
 
-		vulnID := chi.URLParam(r, "vulnId")
-		if vulnID == "" {
-			response.RespError(w, http.StatusExpectationFailed, response.WithMessage("not get vulnId"))
+		vulnName, _ := param.QueryString(r, "vulnName")
+		pkgName, _ := param.QueryString(r, "pkgName")
+		pkgVersion, _ := param.QueryString(r, "pkgVersion")
+		if vulnName == "" || pkgName == "" || pkgVersion == "" {
+			response.RespError(w, http.StatusExpectationFailed, response.WithMessage("not get vulnName or pkgName or pkgVersion"))
 			return
 		}
 
@@ -307,7 +309,7 @@ func (api *api) getResourcesByImageVulnForOpenapi() http.HandlerFunc {
 			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.New("service instance get error")))
 			return
 		}
-		containers, totalCnt, err := resSvc.GetResourceContainersWithGivenVuln(ctx, vulnID, offset, limit)
+		containers, totalCnt, err := resSvc.GetResourceContainersWithGivenVuln(ctx, vulnName, pkgName, pkgVersion, offset, limit)
 		if err != nil {
 			logging.GetLogger().Err(err).Msg("GetResourceContainers error")
 			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.New("get resources error")))

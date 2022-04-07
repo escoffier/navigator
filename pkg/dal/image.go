@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	url2 "net/url"
 	"time"
 
 	"github.com/avast/retry-go"
@@ -22,10 +23,15 @@ type imageListWithVulnResp struct {
 	} `json:"data"`
 }
 
-func GetImagesWithGivenVuln(ctx context.Context, scannerURL, imageVulnName string) ([]*model.ImageInfo, error) {
+func GetImagesWithGivenVuln(ctx context.Context, scannerURL, imageVulnName, pkgName, pkgVersion string) ([]*model.ImageInfo, error) {
 	ctx, cancel := context.WithTimeout(ctx, 1*time.Second)
 	defer cancel()
-	url := fmt.Sprintf("%s/api/v1/vulns/query/%s", scannerURL, imageVulnName)
+	params := url2.Values{}
+	params.Add("vulnName", imageVulnName)
+	params.Add("pkgName", pkgName)
+	params.Add("pkgVersion", pkgVersion)
+	url := fmt.Sprintf("%s/api/v1/vulns/query?%s",
+		scannerURL, params.Encode())
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
