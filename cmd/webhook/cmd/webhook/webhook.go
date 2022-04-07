@@ -174,7 +174,7 @@ func (s *webHookServer) Mutating(w http.ResponseWriter, r *http.Request) {
 		logging.GetLogger().Info().Msg("no request param")
 	}
 
-	//cluster param is empty mean thant  mutating request comes from api-server of host cluster
+	//if cluster param is empty, means that mutating request comes from api-server of host cluster
 	if clusterKey == "" {
 		clusterKey = s.HostClusterKey
 	}
@@ -315,7 +315,7 @@ func (s *webHookServer) loadHostCluster() error {
 	defer cancel()
 
 	cluster := model.TensorCluster{}
-	err := s.rdb.WithContext(ctx).Where("name = ?", "default").First(&cluster).Error
+	err := s.rdb.WithContext(ctx).Where("cluster_type = ?", model.HostCluster).First(&cluster).Error
 	s.HostClusterKey = cluster.Key
 	return err
 }
