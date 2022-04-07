@@ -184,8 +184,8 @@ func (rl *TensorResourcesService) CountNodes(ctx context.Context, queryOptions *
 	return dal.CountNodes(ctx, rl.rdb.GetReadDB(), queryOptions)
 }
 
-func (rl *TensorResourcesService) GetImagesWithGivenVuln(ctx context.Context, vulnName string) ([]*model.ImageInfo, error) {
-	return dal.GetImagesWithGivenVuln(ctx, rl.scannerURL, vulnName)
+func (rl *TensorResourcesService) GetImagesWithGivenVuln(ctx context.Context, vulnName, pkgName, pkgVersion string) ([]*model.ImageInfo, error) {
+	return dal.GetImagesWithGivenVuln(ctx, rl.scannerURL, vulnName, pkgName, pkgVersion)
 }
 
 func getImageIDFrom(m *model.ImageInfo) string {
@@ -197,8 +197,8 @@ func getImageIDFrom(m *model.ImageInfo) string {
 	}
 	return fmt.Sprintf("%s/%s:%s", lib, m.FullRepoName, m.Tags)
 }
-func (rl *TensorResourcesService) GetResourceContainersWithGivenVuln(ctx context.Context, vulnName string, offset, limit int) ([]*model.TensorContainer, int64, error) {
-	images, err := rl.GetImagesWithGivenVuln(ctx, vulnName)
+func (rl *TensorResourcesService) GetResourceContainersWithGivenVuln(ctx context.Context, vulnName, pkgName, pkgVersion string, offset, limit int) ([]*model.TensorContainer, int64, error) {
+	images, err := rl.GetImagesWithGivenVuln(ctx, vulnName, pkgName, pkgVersion)
 	if err != nil {
 		logging.GetLogger().WithContext(ctx).Errorf(err, "GetImagesWithGivenVuln %s error", vulnName)
 		return nil, 0, err
@@ -208,6 +208,7 @@ func (rl *TensorResourcesService) GetResourceContainersWithGivenVuln(ctx context
 	for _, image := range images {
 		imageIDs = append(imageIDs, getImageIDFrom(image))
 	}
+	logging.GetLogger().Debug().Msgf("imageIDs: %+v", imageIDs)
 
 	containers, totalCnt, err := rl.GetResourceContainers(ctx, dal.ResourceContainersQuery().WithInConditionCustom("image", imageIDs), offset, limit)
 	if err != nil {
