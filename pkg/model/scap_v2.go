@@ -74,7 +74,7 @@ type ScapCronRecord struct {
 	ClusterInfos   datatypes.JSON `gorm:"column:cluster_infos;type:json"`
 	ClusterInfoIds []uint         `gorm:"-"`
 	// 策略ID
-	PolicyId uint `gorm:"column:policy_id;type:bigint"`
+	PolicyID uint `gorm:"column:policy_id;type:bigint"`
 }
 
 func (s *ScapCronRecord) BeforeSave(tx *gorm.DB) (err error) {

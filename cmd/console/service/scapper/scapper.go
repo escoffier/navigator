@@ -535,7 +535,9 @@ func (s Scapper) prepareJobObject(ctx context.Context, kubeClient *pkgassets.Cli
 
 	var r = make([]string, 0, len(rules))
 	for _, v := range rules {
-		r = append(r, v.Extra.Rule)
+		if v.Extra != nil {
+			r = append(r, v.Extra.Rule)
+		}
 	}
 
 	switch model.ComplianceCheckType(check.CheckType) {

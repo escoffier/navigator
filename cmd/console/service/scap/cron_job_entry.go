@@ -60,7 +60,7 @@ func (c *CronJobEntry) Run() {
 	}
 
 	job := &Job{Type: record.Type, UserName: record.Operator}
-	job.PolicyID = record.PolicyId
+	job.PolicyID = record.PolicyID
 
 	logging.GetLogger().Info().Msgf("start scap cronjob check, cronjob id: %d, cron: %s, version: %d", c.cronJobId, c.cron, c.version)
 
