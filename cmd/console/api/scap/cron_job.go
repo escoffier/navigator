@@ -65,6 +65,7 @@ func (a *ApiServer) CronJobCreate(w http.ResponseWriter, r *http.Request) {
 			model.ScapClusterInfo{
 				ClusterKey:     req.ClusterInfos[i].ClusterKey,
 				ClusterNodeIds: req.ClusterInfos[i].Nodes,
+				IsAllNodes:     req.ClusterInfos[i].IsAllNodes,
 			},
 		)
 	}
