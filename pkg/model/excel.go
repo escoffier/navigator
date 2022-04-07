@@ -1,5 +1,7 @@
 package model
 
+import "strings"
+
 type ExportTask struct {
 	Status     uint8  `gorm:"column:status"`
 	CheckType  string `gorm:"type:varchar(255);column:check_type"`
@@ -30,7 +32,7 @@ type ScapRetData struct {
 
 func GetStatusZh(status string) string {
 	var ret string
-	switch status {
+	switch strings.ToUpper(status) {
 	case "FAIL":
 		ret = "不合规"
 	case "WARN":
