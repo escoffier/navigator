@@ -2,6 +2,7 @@ package scap
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/pkg/errors"
 	"golang.org/x/sync/errgroup"
@@ -17,10 +18,20 @@ import (
 func (s *Service) CronJobSave(ctx context.Context, cronJob *model.ScapCronRecord, clusters []model.ScapClusterInfo) error {
 	var scapType = cronJob.Type
 
+	// 校验policy是否存在
+	if err := s.rdb.Get().WithContext(ctx).Where("type = ?", cronJob.Type).First(&model.ScapPolicy{}, cronJob.PolicyID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return fmt.Errorf("policy <%d> not found", cronJob.PolicyID)
+		}
+
+		return fmt.Errorf("policy <%d> verify failed", cronJob.PolicyID)
+	}
+
 	err := s.rdb.Get().WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var err error
 		var old model.ScapCronRecord
-		// 通过贡献锁锁住 type = scapType 的数据
+
+		// 通过互斥锁锁锁住 type = scapType 的数据
 		err = tx.
 			Model(cronJob).
 			Select("id", "version").

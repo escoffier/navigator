@@ -56,7 +56,7 @@ func (a *ApiServer) CronJobCreate(w http.ResponseWriter, r *http.Request) {
 		Type:     scapType,
 		Operator: username,
 		Cron:     cron,
-		PolicyId: req.PolicyID,
+		PolicyID: req.PolicyID,
 	}
 
 	var cluster = make([]model.ScapClusterInfo, 0, len(req.ClusterInfos))
@@ -104,10 +104,10 @@ func (a *ApiServer) CronJobDetail(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	policy, _ := a.service.PolicyBrief(ctx, cronJob.PolicyId)
+	policy, _ := a.service.PolicyBrief(ctx, cronJob.PolicyID)
 
 	resp.Cron = internal.ParseCron(cronJob.Cron)
-	resp.PolicyID = cronJob.PolicyId
+	resp.PolicyID = cronJob.PolicyID
 	resp.PolicyName = policy.Name
 	resp.ClusterInfos = make([]scap.ClusterInfoDetail, 0, len(clusterInfo))
 
