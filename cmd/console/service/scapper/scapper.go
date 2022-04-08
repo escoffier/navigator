@@ -183,7 +183,7 @@ func (s *Scapper) checkTargetTypeTasksStillInProgress(ctx context.Context, check
 		return false
 	}
 	//task state
-	if scanTask.FinishedAt <= 0 || scanTask.State == model.ScanStateInProgress {
+	if scanTask.State == model.ScanStateInProgress {
 		return true
 	}
 
@@ -308,6 +308,7 @@ func (s *Scapper) RunComplianceCheck(
 
 	if err != nil {
 		scanHistory.State = model.ScanStateFailed
+		scanHistory.FinishedAt = scanHistory.CreatedAt
 	} else {
 		scanHistory.State = model.ScanStateInProgress
 		// async context is rooted in application context
