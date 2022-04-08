@@ -173,7 +173,7 @@ func (s *Scapper) checkTargetTypeTasksStillInProgress(ctx context.Context, check
 	defer cancel()
 
 	var scanTask model.ScanHistory
-	err := s.rdb.GetReadDB().WithContext(pgCtx).Order("finished_at DESC").First(&scanTask, "check_type = ? and cluster_key = ?", checkType, clusterID).Error
+	err := s.rdb.GetReadDB().WithContext(pgCtx).Order("finished_at").First(&scanTask, "check_type = ? and cluster_key = ?", checkType, clusterID).Error
 	if err != nil {
 		logging.Get().Err(err).Msgf("check target type tasks still in progress error: checkType:%s, clusterId: %s", checkType, clusterID)
 		return false
