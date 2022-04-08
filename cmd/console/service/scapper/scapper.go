@@ -212,7 +212,7 @@ func (s *Scapper) RunComplianceCheck(
 		PolicyID:  policyID,
 	}
 
-	var cluster *model.TensorCluster
+	var cluster = new(model.TensorCluster)
 	var nodes []string
 	var kubeClient *pkgassets.Clientset
 	var jobObj *batchv1.Job
