@@ -200,11 +200,6 @@ func (s *Scapper) RunComplianceCheck(
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute*1)
 	defer cancel()
 
-	// 感觉这里有问题，不注释掉的话 @liuyang
-	//if s.checkTargetTypeTasksStillInProgress(ctx, string(checkType), clusterID) {
-	//	return uuid.Nil, NewCheckAlreadyInProgressError(http.StatusInternalServerError, errors.Errorf("currently there are tasks still running"))
-	//}
-
 	var check model.Check
 	var cluster *model.TensorCluster
 	var nodes []string
@@ -213,6 +208,10 @@ func (s *Scapper) RunComplianceCheck(
 
 	// 用个闭包接收错误，用来记录 失败 状态
 	uuid, err := func() (uuid.UUID, error) {
+
+		if s.checkTargetTypeTasksStillInProgress(ctx, string(checkType), clusterID) {
+			return uuid.Nil, apperror.NewCheckAlreadyInProgressError(http.StatusInternalServerError, errors.Errorf("currently there are tasks still running"))
+		}
 
 		//get namespaces
 		resSvc, ok := assets.GetResourcesService(ctx)
@@ -238,11 +237,10 @@ func (s *Scapper) RunComplianceCheck(
 			return uuid.Nil, apperror.NewKubernetesError(http.StatusInternalServerError, fmt.Errorf("get k8s client failed"))
 		}
 
-		// 避免任务并行执行的时候被回收，所以这里我认为需要注释掉 @liuyang
-		//err := s.garbageCollectHistoricalJobs(ctx, kubeClient, checkType, namespace)
-		//if err != nil {
-		//	return uuid.Nil, NewKubernetesError(http.StatusInternalServerError, fmt.Errorf("Failed to garbage collect historical jobs: %v", err))
-		//}
+		err := s.garbageCollectHistoricalJobs(ctx, kubeClient, checkType, namespace)
+		if err != nil {
+			return uuid.Nil, apperror.NewKubernetesError(http.StatusInternalServerError, fmt.Errorf("Failed to garbage collect historical jobs: %v", err))
+		}
 
 		clusterInfo, err := s.getCluster(ctx, clusterInfoID)
 		if err != nil {
