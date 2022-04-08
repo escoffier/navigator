@@ -43,7 +43,7 @@ func VerifyJob(job *scap.Job) error {
 		}
 
 		if !job.ClusterInfos[i].IsAllNodes && len(job.ClusterInfos[i].Nodes) == 0 {
-			return errors.New("node ids is required")
+			return errors.New("node ids are required")
 		}
 	}
 
