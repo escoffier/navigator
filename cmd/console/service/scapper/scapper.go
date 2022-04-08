@@ -175,6 +175,7 @@ func (s *Scapper) checkTargetTypeTasksStillInProgress(ctx context.Context, check
 	var scanTask model.ScanHistory
 	err := s.rdb.GetReadDB().WithContext(pgCtx).Order("finished_at DESC").First(&scanTask, "check_type = ? and cluster_key = ?", checkType, clusterID).Error
 	if err != nil {
+		logging.Get().Err(err).Msgf("check target type tasks still in progress error: checkType:%s, clusterId: %s", checkType, clusterID)
 		return false
 	}
 	//task id
@@ -200,7 +201,17 @@ func (s *Scapper) RunComplianceCheck(
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute*1)
 	defer cancel()
 
-	var check model.Check
+	// generate check uuid that will identify results of this run in database
+	checkUUID := uuid.NewV4()
+
+	var check = model.Check{
+		CheckType: string(checkType),
+		CheckUUID: checkUUID.String(),
+		ClusterID: clusterID,
+		Operator:  username,
+		PolicyID:  policyID,
+	}
+
 	var cluster *model.TensorCluster
 	var nodes []string
 	var kubeClient *pkgassets.Clientset
@@ -208,10 +219,6 @@ func (s *Scapper) RunComplianceCheck(
 
 	// 用个闭包接收错误，用来记录 失败 状态
 	uuid, err := func() (uuid.UUID, error) {
-
-		if s.checkTargetTypeTasksStillInProgress(ctx, string(checkType), clusterID) {
-			return uuid.Nil, apperror.NewCheckAlreadyInProgressError(http.StatusInternalServerError, errors.Errorf("currently there are tasks still running"))
-		}
 
 		//get namespaces
 		resSvc, ok := assets.GetResourcesService(ctx)
@@ -226,6 +233,13 @@ func (s *Scapper) RunComplianceCheck(
 		if namespace == "" {
 			return uuid.Nil, apperror.NewCheckAlreadyInProgressError(http.StatusInternalServerError, errors.Errorf("get namespaces failed with run compliance check"))
 		}
+
+		check.Namespace = namespace
+
+		if s.checkTargetTypeTasksStillInProgress(ctx, string(checkType), clusterID) {
+			return uuid.Nil, apperror.NewCheckAlreadyInProgressError(http.StatusInternalServerError, errors.Errorf("currently there are tasks still running"))
+		}
+
 		//get cluster manager
 		clusterManager, ok := k8s.GetClusterManager()
 		if !ok {
@@ -245,18 +259,6 @@ func (s *Scapper) RunComplianceCheck(
 		clusterInfo, err := s.getCluster(ctx, clusterInfoID)
 		if err != nil {
 			return uuid.Nil, err
-		}
-
-		// generate check uuid that will identify results of this run in database
-		checkUUID := uuid.NewV4()
-
-		check = model.Check{
-			CheckType: string(checkType),
-			CheckUUID: checkUUID.String(),
-			ClusterID: clusterID,
-			Namespace: namespace,
-			Operator:  username,
-			PolicyID:  policyID,
 		}
 
 		jobObj, err = s.prepareJobObject(ctx, kubeClient, &check)
