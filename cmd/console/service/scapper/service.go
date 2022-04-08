@@ -295,7 +295,7 @@ func (s *ScapService) GetCheckHistory(ctx context.Context, offset, limit int64, 
 		data.FinishedAt = value.FinishedAt
 		data.PolicyId = value.PolicyID
 		//check finish state
-		if data.FinishedAt <= 0 || value.State == model.ScanStateInProgress {
+		if value.State == model.ScanStateInProgress {
 			err = s.SynScanState(&data)
 			if err != nil {
 				logging.Get().Error().Msgf("syn scan history failed, %v.", err)
