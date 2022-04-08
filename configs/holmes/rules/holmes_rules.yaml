@@ -980,7 +980,7 @@
       value: "使用免疫防御训练应用，限制敏感文件和命令的用户权限。"
   desc: Detect file write activities on container entrypoint symlink (/proc/self/exe)
   condition: >
-    open_read and (fd.name=/proc/self/exe or fd.name startswith /proc/self/fd) and not docker_procs and container and not (tensorsec_namespace and (k8s.pod.name contains "-host-" or k8s.pod.name contains "-docker-"))
+    open_read and (fd.name=/proc/self/exe or fd.name startswith /proc/self/fd) and not docker_procs and container and not (tensorsec_namespace and (k8s.pod.name contains "-host-" or k8s.pod.name contains "-docker-" or k8s.pod.name contains "-kube-"))
   output: >
     %fd.name is open to write by process (zh_msg=CVE-2019-5736(修改容器入口),rule_type=Privilege_Escalation,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=%proc.name %proc.exeline)
   priority: ALERT
