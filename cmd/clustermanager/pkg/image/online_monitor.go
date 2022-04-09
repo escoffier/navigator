@@ -19,7 +19,6 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
-	defensev1 "scm.tensorsecurity.cn/tensorsecurity-rd/api/pkg/apis/defense/v1"
 )
 
 func init() {
@@ -43,7 +42,7 @@ func NewOnlineMonitor(rdb *databases.RDBInstance, scannerURL string) *OnlineMoni
 		scannerURL: scannerURL,
 	}
 }
-func (s *OnlineMonitor) BeforWatchNewCluster(ctx context.Context, clusterKey string, resyncDur time.Duration) assets.ClusterCallback {
+func (s *OnlineMonitor) BeforeWatchNewCluster(ctx context.Context, clusterKey string, resyncDur time.Duration) assets.ClusterCallback {
 	res := &OnlineMonitorCB{
 		parent:     s,
 		exitMap:    make(map[string]int64, 100),
@@ -86,37 +85,37 @@ func (s *OnlineMonitorCB) addMap(uid string) {
 	s.exitMap[uid] = time.Now().Unix()
 }
 
-// OnPodEvent 对于新增的pod,我们查一下有那些镜像没有被扫描，或扫描失败
-func (s *OnlineMonitorCB) OnPodEvent(newPod, oldPod *corev1.Pod, action assets.AssetsAction) error {
-	if newPod == nil {
+// OnTensorPod 对于新增的pod,我们查一下有那些镜像没有被扫描，或扫描失败
+func (s *OnlineMonitorCB) OnTensorPod(pod *assets.TensorPod, action assets.AssetsAction) error {
+	if pod == nil {
 		return nil
 	}
 	ignoredNameSpaces := []string{"kube-system", "tensorsec"}
 	for _, ns := range ignoredNameSpaces {
-		if newPod.Namespace == ns {
-			logging.GetLogger().Debug().Msg("在ignoredNameSpaces中,PodName:" + newPod.Name)
+		if pod.Namespace == ns {
+			logging.GetLogger().Debug().Msg("在ignoredNameSpaces中,PodName:" + pod.Name)
 			return nil
 		}
 	}
 
-	if newPod.Status.Phase != corev1.PodRunning {
-		logging.GetLogger().Debug().Msgf("K8sOnlineMonitor newPod.Status.Phase:%s", newPod.Status.Phase)
+	if pod.Status.Phase != corev1.PodRunning {
+		logging.GetLogger().Debug().Msgf("K8sOnlineMonitor newPod.Status.Phase:%s", pod.Status.Phase)
 		return nil
 	}
 	// 使用一个全局的map做验证
-	if s.checkMap(string(newPod.UID)) {
-		logging.GetLogger().Info().Msgf("K8sOnlineMonitor updated ,podUUID %s", newPod.UID)
+	if s.checkMap(string(pod.UID)) {
+		logging.GetLogger().Info().Msgf("K8sOnlineMonitor updated ,podUUID %s", pod.UID)
 		return nil
 	}
 
 	if action != assets.ActionDelete {
 		notify := model.NotifyContext{
-			PodUID:    string(newPod.UID),
-			PodName:   newPod.Name,
-			Namespace: newPod.Namespace,
-			Cluster:   s.clusterKey,
+			PodUID:    string(pod.UID),
+			PodName:   pod.Name,
+			Namespace: pod.Namespace,
+			Cluster:   pod.Cluster,
 		}
-		s.sendInput(newPod, notify)
+		s.sendInput(pod.Pod, notify)
 	}
 	return nil
 }
@@ -214,10 +213,26 @@ func (s *OnlineMonitorCB) OnClusterRoleBindingEvent(newB, oldB *rbacv1.ClusterRo
 func (s *OnlineMonitorCB) OnNamespaceEvent(newNs, oldNs *corev1.Namespace, action assets.AssetsAction) error {
 	return nil
 }
-func (s *OnlineMonitorCB) OnHoneyspot(newHoneyspot, oldHoneyspot *defensev1.Honeypot, action assets.AssetsAction) error {
+func (s *OnlineMonitorCB) OnHoneyspot(honeyspot *assets.TensorHoneySpot, action assets.AssetsAction) error {
 	return nil
 }
-func (s *OnlineMonitorCB) AfterDataSynced(ctx context.Context, dataSynced bool) {
+func (s *OnlineMonitorCB) OnTensorRole(tensorRole *assets.TensorRole, action assets.AssetsAction) error {
+	return nil
+}
+
+func (s *OnlineMonitorCB) OnTensorClusterRole(tensorRole *assets.TensorClusterRole, action assets.AssetsAction) error {
+	return nil
+}
+
+func (s *OnlineMonitorCB) OnTensorNamespace(namespace *assets.TensorNamespace, action assets.AssetsAction) error {
+	return nil
+}
+
+func (s *OnlineMonitorCB) OnTensorNode(node *assets.TensorNode, action assets.AssetsAction) error {
+	return nil
+}
+
+func (s *OnlineMonitorCB) AfterDataSynced(ctx context.Context, dataSynced bool, _ string) {
 
 }
 

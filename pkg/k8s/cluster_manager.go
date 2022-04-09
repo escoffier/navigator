@@ -18,7 +18,6 @@ import (
 
 	json "github.com/json-iterator/go"
 	"gitlab.com/piccolo_su/vegeta/pkg/assets"
-	//"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/security-rd/go-pkg/logging"
 	clusterV1 "scm.tensorsecurity.cn/tensorsecurity-rd/api/pkg/apis/cluster/v1"
@@ -42,14 +41,13 @@ type ClientConfig struct {
 }
 
 type ClusterManager struct {
-	clientMap  map[string]*assets.Clientset
-	HostClient *assets.Clientset
-	watcher    *assets.Watcher
-	creator    CreateWatcherFunc
-	stopChan   chan struct{}
-	queue      workqueue.RateLimitingInterface
-	Lister     v1.ManagedClusterLister
-
+	clientMap         map[string]*assets.Clientset
+	HostClient        *assets.Clientset
+	watcher           *assets.Watcher
+	informerFactory   externalversions.SharedInformerFactory
+	stopChan          chan struct{}
+	queue             workqueue.RateLimitingInterface
+	Lister            v1.ManagedClusterLister
 	clusterManagerURL string
 	sync.RWMutex
 }
@@ -57,10 +55,10 @@ type ClusterManager struct {
 type CreateWatcherFunc func(ctx context.Context) (*assets.Watcher, error)
 
 // InitClusterManager create cluster manager
-func InitClusterManager(hostClient *assets.Clientset, creator CreateWatcherFunc, clusterManagerURL string) (err error) {
+func InitClusterManager(hostClient *assets.Clientset, factory externalversions.SharedInformerFactory, clusterManagerURL string) (err error) {
 	rlOnce.Do(func() {
 		for i := 0; i < 3; i++ {
-			instance, initErr = newClusterManger(hostClient, creator, clusterManagerURL)
+			instance, initErr = newClusterManger(hostClient, factory, clusterManagerURL)
 			if initErr == nil {
 				break
 			} else {
@@ -75,46 +73,26 @@ func GetClusterManager() (*ClusterManager, bool) {
 	return instance, instance != nil
 }
 
-func newClusterManger(hostClient *assets.Clientset, creator CreateWatcherFunc, clusterManagerURL string) (*ClusterManager, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
+func newClusterManger(hostClient *assets.Clientset, factory externalversions.SharedInformerFactory, clusterManagerURL string) (*ClusterManager, error) {
+	if factory == nil {
+		factory = externalversions.NewSharedInformerFactory(hostClient.TensorClientset, 8*time.Hour)
+	}
 	clsm := &ClusterManager{
 		clientMap:         make(map[string]*assets.Clientset),
 		watcher:           nil,
 		HostClient:        hostClient,
 		clusterManagerURL: clusterManagerURL,
 		RWMutex:           sync.RWMutex{},
-		creator:           creator,
+		informerFactory:   factory,
 		stopChan:          make(chan struct{}),
 		queue:             workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "cluster"),
 	}
 
-	// create k8s resource watcher
-	if creator != nil {
-		watcher, err := creator(ctx)
-		if err != nil {
-			return nil, err
-		}
-		clsm.watcher = watcher
-	}
 	return clsm, nil
 }
 
-func (m *ClusterManager) Start(ctx context.Context) error {
-	if m.watcher == nil {
-		if m.creator != nil {
-			watcher, err := m.creator(ctx)
-			if err != nil {
-				logging.Get().Error().Err(err).Msg("create cluster Watcher error")
-				return err
-			}
-			m.watcher = watcher
-		} else {
-		}
-	}
-	err := m.watchClusterFromKube()
-
-	return err
+func (m *ClusterManager) Start() {
+	m.watchClusterFromKube()
 }
 
 // WatchClusterResources is to watch the target cluster locally
@@ -138,15 +116,6 @@ func (m *ClusterManager) WatchClusterResources(ctx context.Context, cluster *mod
 	clientMap := map[string]*assets.Clientset{cluster.Key: clientset}
 	m.addClient(clientMap)
 
-	if m.watcher != nil {
-		err = m.watcher.StartsToWatch(ctx, clientMap)
-		if err != nil {
-			logging.Get().Error().Err(err).Msg("Watch kube clients error")
-			// if the watcher start failed, need to delete client from cluster manager
-			m.DeleteClient(cluster.Key)
-			return err
-		}
-	}
 	return nil
 }
 
@@ -154,11 +123,6 @@ func (m *ClusterManager) UnWatchCluster(ctx context.Context, clusterKey string) 
 	logging.Get().Info().Msgf("unwatch cluster %s", clusterKey)
 	if m.watcher == nil {
 		return errors.New("watcher does not exist")
-	}
-
-	err := m.watcher.StopWatch(ctx, []string{clusterKey})
-	if err != nil {
-		return err
 	}
 	m.DeleteClient(clusterKey)
 	return nil
@@ -249,9 +213,8 @@ func (m *ClusterManager) AddManagedClusterToKube(ctx context.Context, cluster *m
 	return err
 }
 
-func (m *ClusterManager) watchClusterFromKube() error {
-	informerFactory := externalversions.NewSharedInformerFactory(m.HostClient.TensorClientset, time.Hour*6)
-	informer := informerFactory.Cluster().V1().ManagedClusters().Informer()
+func (m *ClusterManager) watchClusterFromKube() {
+	informer := m.informerFactory.Cluster().V1().ManagedClusters().Informer()
 	informer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
 			cluster, ok := obj.(*clusterV1.ManagedCluster)
@@ -286,18 +249,18 @@ func (m *ClusterManager) watchClusterFromKube() error {
 		},
 	})
 
-	m.Lister = informerFactory.Cluster().V1().ManagedClusters().Lister()
+	m.Lister = m.informerFactory.Cluster().V1().ManagedClusters().Lister()
 	logging.Get().Info().Msg("starting watch cluster")
-	informerFactory.Start(m.stopChan)
 	if !cache.WaitForCacheSync(m.stopChan, informer.HasSynced) {
-		return errors.New("failed to sync managed-cluster")
+		logging.Get().Error().Msg("failed to sync managed-cluster")
+		return
 	}
 
 	go wait.Until(func() {
 		for m.processNextCluster() {
 		}
 	}, time.Second, m.stopChan)
-	return nil
+	return
 }
 
 func (m *ClusterManager) processNextCluster() bool {

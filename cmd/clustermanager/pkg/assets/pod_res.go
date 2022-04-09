@@ -18,14 +18,11 @@ import (
 	"gitlab.com/security-rd/go-pkg/logging"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
-	rbacv1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	defensev1 "scm.tensorsecurity.cn/tensorsecurity-rd/api/pkg/apis/defense/v1"
 )
 
 type PodResourcesService struct {
 	sync.RWMutex
-
 	rdb              *databases.RDBInstance
 	redisCli         *redis.Client
 	clusterCallbacks map[string]*PodResourcesClusterCallback
@@ -33,7 +30,7 @@ type PodResourcesService struct {
 }
 
 type podEvent struct {
-	pod        *corev1.Pod
+	pod        *assets.TensorPod
 	action     assets.AssetsAction
 	updateTime time.Time
 }
@@ -65,10 +62,12 @@ func (cb *PodResourcesService) WatchedTypes() map[assets.WatchedType]struct{} {
 	}
 }
 
-type syncSignal struct{}
+type syncSignal struct {
+	clusterKey string
+}
 
 // BeforWatchNewCluster called before watch events
-func (cb *PodResourcesService) BeforWatchNewCluster(ctx context.Context, clusterName string, resyncInterval time.Duration) assets.ClusterCallback {
+func (cb *PodResourcesService) BeforeWatchNewCluster(ctx context.Context, clusterName string, resyncInterval time.Duration) assets.ClusterCallback {
 	logging.Get().Info().Msgf("service assets before watch new cluster %s called.", clusterName)
 
 	ccb := &PodResourcesClusterCallback{
@@ -173,21 +172,12 @@ func (cb *PodResourcesClusterCallback) doOnPodEvent(ctx context.Context, e podEv
 
 	switch e.action {
 	case assets.ActionDelete:
-		rerr := dal.DeletePodResourceRelationInRDB(tctx, cb.parent.rdb.Get(), e.pod, cb.cluster)
+		rerr := dal.DeletePodResourceRelationInRDB(tctx, cb.parent.rdb.Get(), e.pod.Cluster, e.pod.Namespace, e.pod.Name)
 		if rerr != nil {
 			logging.Get().Err(rerr).Msg("delete pod resource rel in rdb error")
 		}
 	case assets.ActionUpdate, assets.ActionAdd:
-		owner, _ := cb.getUpperOwnerOfPod(e.pod)
-		var ownerName, ownerKind string
-		if owner == nil {
-			ownerName = "NO_OWNER"
-			ownerKind = "NO_OWNER"
-		} else {
-			ownerName = owner.Name
-			ownerKind = owner.Kind
-		}
-		rerr := dal.UpsertPodResourceRelationInRDB(tctx, cb.parent.rdb.Get(), e.pod, ownerName, ownerKind, cb.cluster, e.updateTime)
+		rerr := dal.UpsertPodResourceRelationInRDB(tctx, cb.parent.rdb.Get(), e.pod.Pod, e.pod.Owner.Name, e.pod.Owner.Kind, e.pod.Cluster, e.updateTime)
 		if rerr != nil {
 			logging.Get().Err(rerr).Msg("upsert pod resource rel in rdb error")
 		}
@@ -195,41 +185,18 @@ func (cb *PodResourcesClusterCallback) doOnPodEvent(ctx context.Context, e podEv
 	return nil
 }
 
-func (cb *PodResourcesClusterCallback) OnPodEvent(newPod, oldPod *corev1.Pod, action assets.AssetsAction) error {
+func (cb *PodResourcesClusterCallback) OnTensorPod(pod *assets.TensorPod, action assets.AssetsAction) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
-	if action == assets.ActionDelete {
-		if oldPod == nil {
-			return errors.New("not given old pod")
-		}
 
-		return cb.sendInput(ctx, podEvent{
-			pod:        oldPod,
-			action:     action,
-			updateTime: time.Now(),
-		})
-	} else if action == assets.ActionAdd || action == assets.ActionUpdate {
-		if newPod == nil {
-			return errors.New("not given new pod")
-		}
-
-		return cb.sendInput(ctx, podEvent{
-			pod:        newPod,
-			action:     action,
-			updateTime: time.Now(),
-		})
-
+	if pod == nil {
+		return errors.New("not given  pod")
 	}
-
-	return nil
-}
-
-func (cb *PodResourcesClusterCallback) OnEndPointEvent(newEpt, oldEpt *corev1.Endpoints, action assets.AssetsAction) error {
-	// ignore endpoint events
-	return nil
-}
-func (cb *PodResourcesClusterCallback) OnServiceEvent(newSvc, oldEvc *corev1.Service, action assets.AssetsAction) error {
-	return nil
+	return cb.sendInput(ctx, podEvent{
+		pod:        pod,
+		action:     action,
+		updateTime: time.Now(),
+	})
 }
 
 func (cb *PodResourcesClusterCallback) removeReplicaSet(name string, namespace string) {
@@ -293,7 +260,8 @@ func (cb *PodResourcesClusterCallback) tryToConsumePods() bool {
 		cb.inputQueue.Consume(func(item interface{}) {
 			switch typed := item.(type) {
 			case syncSignal:
-				err := cb.removeInactiveData(context.Background())
+				s := item.(syncSignal)
+				err := cb.removeInactiveData(context.Background(), s.clusterKey)
 				if err != nil {
 					logging.Get().Err(err).Msg("do removeInactiveData error")
 				} else {
@@ -310,35 +278,33 @@ func (cb *PodResourcesClusterCallback) tryToConsumePods() bool {
 	}
 	return false
 }
-func (cb *PodResourcesClusterCallback) AfterDataSynced(ctx context.Context, dataSynced bool) {
+func (cb *PodResourcesClusterCallback) AfterDataSynced(ctx context.Context, dataSynced bool, clusterKey string) {
 	if dataSynced {
-		cb.inputQueue.Add(syncSignal{})
+		cb.inputQueue.Add(syncSignal{clusterKey: clusterKey})
 	}
 }
 
-func (cb *PodResourcesClusterCallback) removeInactiveData(ctx context.Context) error {
-	return dal.CleanUpPodResourceRelationsInRDB(ctx, cb.parent.rdb.Get(), cb.refreshTime(), cb.cluster)
+func (cb *PodResourcesClusterCallback) removeInactiveData(ctx context.Context, clusterKey string) error {
+	return dal.CleanUpPodResourceRelationsInRDB(ctx, cb.parent.rdb.Get(), cb.refreshTime(), clusterKey)
 }
 
-func (cb *PodResourcesClusterCallback) OnRoleEvent(newRole, oldRole *rbacv1.Role, action assets.AssetsAction) error {
+func (cb *PodResourcesClusterCallback) OnHoneyspot(honeyspot *assets.TensorHoneySpot, action assets.AssetsAction) error {
 	return nil
 }
-func (cb *PodResourcesClusterCallback) OnClusterRoleEvent(newCRole, oldCRole *rbacv1.ClusterRole, action assets.AssetsAction) error {
+
+func (cb *PodResourcesClusterCallback) OnTensorRole(tensorRole *assets.TensorRole, action assets.AssetsAction) error {
 	return nil
 }
-func (cb *PodResourcesClusterCallback) OnRoleBindingEvent(newB, oldB *rbacv1.RoleBinding, action assets.AssetsAction) error {
+
+func (cb *PodResourcesClusterCallback) OnTensorClusterRole(tensorRole *assets.TensorClusterRole, action assets.AssetsAction) error {
 	return nil
 }
-func (cb *PodResourcesClusterCallback) OnClusterRoleBindingEvent(newB, oldB *rbacv1.ClusterRoleBinding, action assets.AssetsAction) error {
+
+func (cb *PodResourcesClusterCallback) OnTensorNamespace(namespace *assets.TensorNamespace, action assets.AssetsAction) error {
 	return nil
 }
-func (cb *PodResourcesClusterCallback) OnNamespaceEvent(newNs, oldNs *corev1.Namespace, action assets.AssetsAction) error {
-	return nil
-}
-func (cb *PodResourcesClusterCallback) OnServiceAccountEvent(newSa, oldSa *corev1.ServiceAccount, action assets.AssetsAction) error {
-	return nil
-}
-func (cb *PodResourcesClusterCallback) OnHoneyspot(newHoneyspot, oldHoneyspot *defensev1.Honeypot, action assets.AssetsAction) error {
+
+func (cb *PodResourcesClusterCallback) OnTensorNode(node *assets.TensorNode, action assets.AssetsAction) error {
 	return nil
 }
 

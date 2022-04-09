@@ -1,6 +1,9 @@
 package assets
 
 import (
+	"gitlab.com/security-rd/go-pkg/logging"
+	rbacv1 "k8s.io/api/rbac/v1"
+	defensev1 "scm.tensorsecurity.cn/tensorsecurity-rd/api/pkg/apis/defense/v1"
 	"time"
 
 	appsv1 "k8s.io/api/apps/v1"
@@ -23,179 +26,253 @@ const (
 	KindPodNoOwner            ResourceKind = "Pod"
 )
 
+type ConvertFunc func(cluster string, wl interface{}) *TensorResource
+
+var TensorResourceFuncs = map[ResourceKind]ConvertFunc{
+	KindDeployment:            NewResourceFromDeployment,
+	KindReplicaSet:            NewResourceFromReplicaSet,
+	KindDaemonSet:             ResourceFromDaemonSet,
+	KindStatefulSet:           NewResourceFromStatefulSet,
+	KindReplicationController: NewResourceFromReplicationController,
+	KindJob:                   NewResourceFromJob,
+	KindCronJob:               NewResourceFromCronJob,
+}
+
 /*
 TensorResource is an abstract concept: it's a general abstraction of the deployment unit in a kubernetes cluster. They are all pod controllers or the controller of the controller of pods.
 It could be a ReplicaSet, DaemonSet, StatefulSet, ReplicationController, Deployment, Job. The Kind field will identify the type of it.
 All fields are immutable.
 */
 type TensorResource struct {
-	Kind            ResourceKind
-	Cluster         string
-	Namespace       string
-	Name            string
-	UID             string
-	originRef       interface{} // the original object
-	LabelSelector   *metav1.LabelSelector
-	OwnerReferences []metav1.OwnerReference
-	Labels          map[string]string
-	PodTemplate     *corev1.PodTemplateSpec
-	CreateTime      time.Time
+	//metav1.TypeMeta   `json:"metadata,omitempty"`
+	metav1.ObjectMeta
+	Cluster string       `json:"cluster"`
+	Kind    ResourceKind `json:"kind"`
+	//Namespace       string                  `json:"namespace"`
+	//Name            string                  `json:"name"`
+	//UID           string                `json:"uid"`
+	originRef     interface{}           `json:"origin_ref"` // the original object
+	LabelSelector *metav1.LabelSelector `json:"label_selector"`
+	//OwnerReferences []metav1.OwnerReference `json:"owner_references"`
+	//Labels          map[string]string       `json:"labels"`
+	PodTemplate *corev1.PodTemplateSpec `json:"pod_template"`
+	CreateTime  time.Time               `json:"create_time"`
 }
 
-func newResourceFromPodNoOwnerOrStaticPod(cluster string, pod *corev1.Pod) *TensorResource {
+type TensorPod struct {
+	//metav1.ObjectMeta `json:"metadata,omitempty"`
+	Cluster string                 `json:"cluster"`
+	Owner   *metav1.OwnerReference `json:"owner"`
+	*corev1.Pod
+}
+
+type TensorRole struct {
+	Cluster string
+	*rbacv1.Role
+}
+
+type TensorClusterRole struct {
+	Cluster string
+	*rbacv1.ClusterRole
+}
+
+type TensorNamespace struct {
+	Cluster string
+	*corev1.Namespace
+}
+
+type TensorNode struct {
+	Cluster string
+	*corev1.Node
+}
+
+type TensorHoneySpot struct {
+	Cluster string
+	*defensev1.Honeypot
+}
+
+func NewResourceFromPodNoOwnerOrStaticPod(cluster string, pod *corev1.Pod) *TensorResource {
 	if pod == nil {
 		return nil
 	}
 	res := TensorResource{
-		Kind:            KindPodNoOwner,
-		Cluster:         cluster,
-		Namespace:       pod.Namespace,
-		Name:            pod.Name,
-		UID:             string(pod.UID),
-		originRef:       pod,
-		LabelSelector:   nil,
-		OwnerReferences: pod.OwnerReferences,
-		Labels:          pod.Labels,
-		PodTemplate:     &corev1.PodTemplateSpec{Spec: pod.Spec},
-		CreateTime:      pod.CreationTimestamp.Time,
+		ObjectMeta:    *pod.ObjectMeta.DeepCopy(),
+		Kind:          KindPodNoOwner,
+		Cluster:       cluster,
+		originRef:     pod,
+		LabelSelector: nil,
+		//OwnerReferences: pod.OwnerReferences,
+		//Labels:          pod.Labels,
+		PodTemplate: &corev1.PodTemplateSpec{Spec: pod.Spec},
+		CreateTime:  pod.CreationTimestamp.Time,
 	}
 	return &res
 }
-func newResourceFromReplicationController(cluster string, rs *corev1.ReplicationController) *TensorResource {
+func NewResourceFromReplicationController(cluster string, wl interface{}) *TensorResource {
+	rs := wl.(*corev1.ReplicationController)
 	if rs == nil {
 		return nil
 	}
 	res := TensorResource{
-		Kind:            KindReplicationController,
-		Cluster:         cluster,
-		Namespace:       rs.Namespace,
-		Name:            rs.Name,
-		UID:             string(rs.UID),
-		originRef:       rs,
-		LabelSelector:   &metav1.LabelSelector{MatchLabels: rs.Spec.Selector},
-		OwnerReferences: rs.OwnerReferences,
-		Labels:          rs.Labels,
-		PodTemplate:     rs.Spec.Template,
-		CreateTime:      rs.CreationTimestamp.Time,
+		ObjectMeta: *rs.ObjectMeta.DeepCopy(),
+		Kind:       KindReplicationController,
+		Cluster:    cluster,
+		//UID:           string(rs.UID),
+		originRef:     rs,
+		LabelSelector: &metav1.LabelSelector{MatchLabels: rs.Spec.Selector},
+		//OwnerReferences: rs.OwnerReferences,
+		//Labels:          rs.Labels,
+		PodTemplate: rs.Spec.Template,
+		CreateTime:  rs.CreationTimestamp.Time,
 	}
 	return &res
 }
 
-func newResourceFromReplicaSet(cluster string, rs *appsv1.ReplicaSet) *TensorResource {
+func NewResourceFromReplicaSet(cluster string, wl interface{}) *TensorResource {
+	rs, ok := wl.(*appsv1.ReplicaSet)
+	if !ok {
+		return nil
+	}
 	if rs == nil {
 		return nil
 	}
 	res := TensorResource{
-		Kind:            KindReplicaSet,
-		Cluster:         cluster,
-		Namespace:       rs.Namespace,
-		Name:            rs.Name,
-		UID:             string(rs.UID),
-		originRef:       rs,
-		LabelSelector:   rs.Spec.Selector,
-		OwnerReferences: rs.OwnerReferences,
-		Labels:          rs.Labels,
-		PodTemplate:     &rs.Spec.Template,
-		CreateTime:      rs.CreationTimestamp.Time,
+		ObjectMeta: *rs.ObjectMeta.DeepCopy(),
+		Kind:       KindReplicaSet,
+		Cluster:    cluster,
+		//Namespace:       rs.Namespace,
+		//Name:            rs.Name,
+		//UID:           string(rs.UID),
+		originRef:     rs,
+		LabelSelector: rs.Spec.Selector,
+		//OwnerReferences: rs.OwnerReferences,
+		//Labels:          rs.Labels,
+		PodTemplate: &rs.Spec.Template,
+		CreateTime:  rs.CreationTimestamp.Time,
 	}
 	return &res
 }
 
-func newResourceFromStatefulSet(cluster string, ss *appsv1.StatefulSet) *TensorResource {
+func NewResourceFromStatefulSet(cluster string, obj interface{}) *TensorResource {
+	ss, ok := obj.(*appsv1.StatefulSet)
+	if !ok {
+		return nil
+	}
 	if ss == nil {
 		return nil
 	}
 	res := TensorResource{
-		Kind:            KindStatefulSet,
-		Cluster:         cluster,
-		Namespace:       ss.Namespace,
-		Name:            ss.Name,
-		UID:             string(ss.UID),
-		originRef:       ss,
-		LabelSelector:   ss.Spec.Selector,
-		OwnerReferences: ss.OwnerReferences,
-		Labels:          ss.Labels,
-		PodTemplate:     &ss.Spec.Template,
-		CreateTime:      ss.CreationTimestamp.Time,
+		ObjectMeta: *ss.ObjectMeta.DeepCopy(),
+		Kind:       KindStatefulSet,
+		Cluster:    cluster,
+		//Namespace:       ss.Namespace,
+		//Name:            ss.Name,
+		//UID:           string(ss.UID),
+		originRef:     ss,
+		LabelSelector: ss.Spec.Selector,
+		//OwnerReferences: ss.OwnerReferences,
+		//Labels:          ss.Labels,
+		PodTemplate: &ss.Spec.Template,
+		CreateTime:  ss.CreationTimestamp.Time,
 	}
 	return &res
 }
 
-func newResourceFromDaemonSet(cluster string, ss *appsv1.DaemonSet) *TensorResource {
+func ResourceFromDaemonSet(cluster string, wl interface{}) *TensorResource {
+	ds := wl.(*appsv1.DaemonSet)
+	return NewResourceFromDaemonSet(cluster, ds)
+}
+
+func NewResourceFromDaemonSet(cluster string, ss *appsv1.DaemonSet) *TensorResource {
 	if ss == nil {
 		return nil
 	}
 	res := TensorResource{
-		Kind:            KindDaemonSet,
-		Cluster:         cluster,
-		Namespace:       ss.Namespace,
-		Name:            ss.Name,
-		UID:             string(ss.UID),
-		originRef:       ss,
-		LabelSelector:   ss.Spec.Selector,
-		OwnerReferences: ss.OwnerReferences,
-		Labels:          ss.Labels,
-		PodTemplate:     &ss.Spec.Template,
-		CreateTime:      ss.CreationTimestamp.Time,
+		ObjectMeta: *ss.ObjectMeta.DeepCopy(),
+		Kind:       KindDaemonSet,
+		Cluster:    cluster,
+		//Namespace:       ss.Namespace,
+		//Name:            ss.Name,
+		//UID:           string(ss.UID),
+		originRef:     ss,
+		LabelSelector: ss.Spec.Selector,
+		//OwnerReferences: ss.OwnerReferences,
+		//Labels:          ss.Labels,
+		PodTemplate: &ss.Spec.Template,
+		CreateTime:  ss.CreationTimestamp.Time,
 	}
 	return &res
 }
 
-func newResourceFromDeployment(cluster string, ss *appsv1.Deployment) *TensorResource {
+func NewResourceFromDeployment(cluster string, wl interface{}) *TensorResource {
+	ss, ok := wl.(*appsv1.Deployment)
+	if !ok {
+		logging.Get().Error().Msg("not deployment")
+		return nil
+	}
 	if ss == nil {
 		return nil
 	}
 	res := TensorResource{
-		Kind:            KindDeployment,
-		Cluster:         cluster,
-		Namespace:       ss.Namespace,
-		Name:            ss.Name,
-		UID:             string(ss.UID),
-		originRef:       ss,
-		LabelSelector:   ss.Spec.Selector,
-		OwnerReferences: ss.OwnerReferences,
-		Labels:          ss.Labels,
-		PodTemplate:     &ss.Spec.Template,
-		CreateTime:      ss.CreationTimestamp.Time,
+		ObjectMeta: *ss.ObjectMeta.DeepCopy(),
+		Kind:       KindDeployment,
+		Cluster:    cluster,
+		//UID:           string(ss.UID),
+		originRef:     ss,
+		LabelSelector: ss.Spec.Selector,
+		//OwnerReferences: ss.OwnerReferences,
+		//Labels:          ss.Labels,
+		PodTemplate: &ss.Spec.Template,
+		CreateTime:  ss.CreationTimestamp.Time,
 	}
 	return &res
 }
-func newResourceFromCronJob(cluster string, ss *batchv1beta.CronJob) *TensorResource {
+func NewResourceFromCronJob(cluster string, wl interface{}) *TensorResource {
+	ss, ok := wl.(*batchv1beta.CronJob)
+	if !ok {
+		return nil
+	}
 	if ss == nil {
 		return nil
 	}
 	res := TensorResource{
-		Kind:            KindCronJob,
-		Cluster:         cluster,
-		Namespace:       ss.Namespace,
-		Name:            ss.Name,
-		UID:             string(ss.UID),
-		originRef:       ss,
-		LabelSelector:   ss.Spec.JobTemplate.Spec.Selector,
-		OwnerReferences: ss.OwnerReferences,
-		Labels:          ss.Labels,
-		PodTemplate:     &ss.Spec.JobTemplate.Spec.Template,
-		CreateTime:      ss.CreationTimestamp.Time,
+		ObjectMeta: *ss.ObjectMeta.DeepCopy(),
+		Kind:       KindCronJob,
+		Cluster:    cluster,
+		//Namespace:       ss.Namespace,
+		//Name:            ss.Name,
+		//UID:           string(ss.UID),
+		originRef:     ss,
+		LabelSelector: ss.Spec.JobTemplate.Spec.Selector,
+		//OwnerReferences: ss.OwnerReferences,
+		//Labels:          ss.Labels,
+		PodTemplate: &ss.Spec.JobTemplate.Spec.Template,
+		CreateTime:  ss.CreationTimestamp.Time,
 	}
 	return &res
 }
 
-func newResourceFromJob(cluster string, ss *batchv1.Job) *TensorResource {
+func NewResourceFromJob(cluster string, wl interface{}) *TensorResource {
+	ss, ok := wl.(*batchv1.Job)
+	if !ok {
+		return nil
+	}
 	if ss == nil {
 		return nil
 	}
 	res := TensorResource{
-		Kind:            KindJob,
-		Cluster:         cluster,
-		Namespace:       ss.Namespace,
-		Name:            ss.Name,
-		UID:             string(ss.UID),
-		originRef:       ss,
-		LabelSelector:   ss.Spec.Selector,
-		OwnerReferences: ss.OwnerReferences,
-		Labels:          ss.Labels,
-		PodTemplate:     &ss.Spec.Template,
-		CreateTime:      ss.CreationTimestamp.Time,
+		ObjectMeta: *ss.ObjectMeta.DeepCopy(),
+		Kind:       KindJob,
+		Cluster:    cluster,
+		//Namespace:       ss.Namespace,
+		//Name:            ss.Name,
+		//UID:           string(ss.UID),
+		originRef:     ss,
+		LabelSelector: ss.Spec.Selector,
+		//OwnerReferences: ss.OwnerReferences,
+		//Labels:          ss.Labels,
+		PodTemplate: &ss.Spec.Template,
+		CreateTime:  ss.CreationTimestamp.Time,
 	}
 	return &res
 }

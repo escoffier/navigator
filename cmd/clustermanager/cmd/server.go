@@ -4,29 +4,35 @@ import (
 	"context"
 	"errors"
 	"flag"
-	clusterAgent "gitlab.com/piccolo_su/vegeta/cmd/clustermanager/pkg"
-	"gitlab.com/piccolo_su/vegeta/pkg/dal"
-	"gitlab.com/piccolo_su/vegeta/pkg/model"
-	"k8s.io/klog/v2"
-	"os"
-	"strings"
-	"time"
-
 	"github.com/go-redis/redis/v8"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
+	clusterAgent "gitlab.com/piccolo_su/vegeta/cmd/clustermanager/pkg"
 	"gitlab.com/piccolo_su/vegeta/cmd/clustermanager/pkg/assets"
 	"gitlab.com/piccolo_su/vegeta/cmd/clustermanager/pkg/clusterserver"
 	conf "gitlab.com/piccolo_su/vegeta/cmd/clustermanager/pkg/config"
-	pkgAssets "gitlab.com/piccolo_su/vegeta/pkg/assets"
+	"gitlab.com/piccolo_su/vegeta/pkg/dal"
 	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
+	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/redistools"
 	"gitlab.com/security-rd/go-pkg/databases"
 	"gitlab.com/security-rd/go-pkg/logging"
+	"gitlab.com/security-rd/go-pkg/mq"
+	"k8s.io/client-go/informers"
+	"k8s.io/klog/v2"
+	"os"
+	"scm.tensorsecurity.cn/tensorsecurity-rd/api/pkg/generated/informers/externalversions"
+	"strings"
+	"time"
 )
 
 const (
-	defaultPort = 9443
+	defaultPort    = 9443
+	EnvTopic       = "KAFKA_TOPIC"
+	EnvGroupID     = "KAFKA_GROUP_ID"
+	defaultTopic   = "kube-resources"
+	defaultGroupID = "group-assets"
+	resyncInterval = 8 * time.Hour
 )
 
 type server struct {
@@ -37,7 +43,7 @@ type server struct {
 
 var ServerConfig = &conf.Config{}
 
-func NewServer(cmd *cobra.Command, args []string) (*server, error) {
+func NewServer() (*server, error) {
 	s := &server{
 		config: ServerConfig,
 	}
@@ -63,7 +69,71 @@ func NewServer(cmd *cobra.Command, args []string) (*server, error) {
 	}
 	s.httpserver = httpserver
 
+	stopChan := make(chan struct{})
+
+	factory := informers.NewSharedInformerFactory(agent.GetHostClient(), resyncInterval)
+	tensorFactory := externalversions.NewSharedInformerFactory(agent.GetHostClient().TensorClientset, resyncInterval)
+
+	mqWriter, err := mq.GetMQFactory().Writer(context.Background())
+	if err != nil {
+		return nil, err
+	}
+	go assets.NewAssetsController(factory, tensorFactory, mqWriter, agent.CusterID, "kube-resources").Run(stopChan)
+
 	if s.config.ClusterType == model.HostCluster {
+		rdb, err := databases.NewRDBWithMySQLByEnv(context.Background())
+		if err != nil {
+			logging.Get().Err(err).Msg("Init db error")
+			return nil, err
+		}
+
+		rdb.SetDebugMode()
+
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+		defer cancel()
+
+		tensorCluster := &model.TensorCluster{
+			Key:                 agent.CusterID,
+			Name:                agent.Name,
+			Description:         agent.Description,
+			ClusterType:         agent.ClusterType,
+			APIServerAddr:       agent.KubeRestConfig.APIServerAddr,
+			CertificateAuthData: string(agent.KubeRestConfig.CAData),
+			SecretToken:         string(agent.KubeRestConfig.Token),
+			ClientCertData:      string(agent.KubeRestConfig.CertData),
+			ClientKeyData:       string(agent.KubeRestConfig.KeyData),
+			WorkerNamespace:     s.config.WorkerNamespace,
+		}
+
+		err = dal.AddCluster(ctx, rdb.Get(), tensorCluster)
+		if err != nil {
+			logging.Get().Err(err).Msg("failed to add cluster")
+			return nil, err
+		}
+
+		err = k8s.InitClusterManager(agent.GetHostClient(), tensorFactory, "")
+		if err != nil {
+			logging.Get().Err(err).Msg("cluster manager init error")
+			return nil, err
+		}
+		clusterManager, ok := k8s.GetClusterManager()
+		if !ok {
+			logging.Get().Error().Msg("cluster manager init error")
+			return nil, err
+		} else {
+			go clusterManager.Start()
+			httpserver.SetClusterManager(clusterManager)
+
+			err = clusterManager.UpdateCluster(ctx, tensorCluster)
+			if err != nil {
+				return nil, err
+			}
+		}
+
+		scannerURL := os.Getenv("SCANNER_URL")
+		if scannerURL == "" {
+			scannerURL = "http://tensorsec-scanner:8888"
+		}
 		// Redis DB client
 		redisEndpoints := os.Getenv("REDIS_CLUSTER_URL")
 		if redisEndpoints == "" {
@@ -84,61 +154,32 @@ func NewServer(cmd *cobra.Command, args []string) (*server, error) {
 			return nil, err
 		}
 
-		rdb, err := databases.NewRDBWithMySQLByEnv(context.Background())
+		mqReader, err := mq.GetMQFactory().Reader(context.Background())
 		if err != nil {
-			logging.Get().Err(err).Msg("Init db error")
 			return nil, err
 		}
 
-		scannerURL := os.Getenv("SCANNER_URL")
-		if scannerURL == "" {
-			scannerURL = "http://tensorsec-scanner:8888"
+		kafkaTopic := os.Getenv(EnvTopic)
+		if kafkaTopic == "" {
+			kafkaTopic = defaultTopic
 		}
-
-		err = k8s.InitClusterManager(agent.GetHostClient(), func(ctx context.Context) (*pkgAssets.Watcher, error) {
-			return assets.Watcher(rdb, redisClient, scannerURL)
-		}, "")
+		kafkaGroupID := os.Getenv(EnvGroupID)
+		if kafkaGroupID == "" {
+			kafkaTopic = defaultGroupID
+		}
+		w, err := assets.Watcher(rdb, redisClient, scannerURL, mqReader, kafkaTopic, kafkaGroupID)
 		if err != nil {
-			logging.Get().Err(err).Msg("cluster manager init error")
 			return nil, err
 		}
-		clusterManager, ok := k8s.GetClusterManager()
-		if !ok {
-			logging.Get().Error().Msg("cluster manager init error")
-			return nil, err
-		} else {
-			ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
-			defer cancel()
-			tensorCluster := &model.TensorCluster{
-				Key:                 agent.CusterID,
-				Name:                agent.Name,
-				Description:         agent.Description,
-				ClusterType:         agent.ClusterType,
-				APIServerAddr:       agent.KubeRestConfig.APIServerAddr,
-				CertificateAuthData: string(agent.KubeRestConfig.CAData),
-				SecretToken:         string(agent.KubeRestConfig.Token),
-				ClientCertData:      string(agent.KubeRestConfig.CertData),
-				ClientKeyData:       string(agent.KubeRestConfig.KeyData),
-				WorkerNamespace:     s.config.WorkerNamespace,
-			}
-
-			err = dal.AddCluster(ctx, rdb.Get(), tensorCluster)
-			if err != nil {
-				return nil, err
-			}
-			err = clusterManager.UpdateCluster(ctx, tensorCluster)
-			if err != nil {
-				return nil, err
-			}
-			err = clusterManager.Start(context.Background())
-			if err != nil {
-				logging.Get().Err(err).Msg("start k8s manager err")
-				return nil, err
-			} else {
-				httpserver.SetClusterManager(clusterManager)
-			}
-		}
+		go w.Run(stopChan)
 	}
+
+	factory.Start(stopChan)
+	tensorFactory.Start(stopChan)
+
+	factory.WaitForCacheSync(stopChan)
+	tensorFactory.WaitForCacheSync(stopChan)
+
 	return s, nil
 }
 

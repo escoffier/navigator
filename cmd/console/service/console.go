@@ -384,10 +384,7 @@ func (c *Console) Run() func() {
 
 	clusterManager, ok := k8s.GetClusterManager()
 	if ok {
-		err = clusterManager.Start(ctx)
-		if err != nil {
-			logging.Get().Error().Err(err).Msg("When starting cluster manager")
-		}
+		clusterManager.Start()
 	} else {
 		logging.Get().Error().Err(errors.New("cluster manager not exist")).Msg("get a nil cluster manager")
 	}

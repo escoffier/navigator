@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
+	"gitlab.com/security-rd/go-pkg/logging"
 	"io/ioutil"
 	"net/http"
 	"strings"
@@ -12,7 +13,6 @@ import (
 	json "github.com/json-iterator/go"
 	"gitlab.com/piccolo_su/vegeta/cmd/clustermanager/pkg/config"
 	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
-	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 )
 
@@ -84,7 +84,7 @@ func (cs *ClusterServer) handleWatchCluster(w http.ResponseWriter, r *http.Reque
 
 	dataBytes, err := ioutil.ReadAll(r.Body)
 	if err != nil {
-		logging.GetLogger().Err(err).Msg("handleWatchCluster read body err")
+		logging.Get().Err(err).Msg("handleWatchCluster read body err")
 		resp.Status = 1
 		resp.Message = err.Error()
 		w.WriteHeader(500)
@@ -93,7 +93,7 @@ func (cs *ClusterServer) handleWatchCluster(w http.ResponseWriter, r *http.Reque
 	var tensorCluster model.TensorCluster
 	err = json.Unmarshal(dataBytes, &tensorCluster)
 	if err != nil {
-		logging.GetLogger().Err(err).Msg("json decode err.")
+		logging.Get().Err(err).Msg("json decode err.")
 		resp.Status = 1
 		resp.Message = err.Error()
 		w.WriteHeader(500)
@@ -103,7 +103,7 @@ func (cs *ClusterServer) handleWatchCluster(w http.ResponseWriter, r *http.Reque
 	defer cancel()
 	err = cs.clusterManager.UpdateCluster(ctx, &tensorCluster)
 	if err != nil {
-		logging.GetLogger().Err(err).Msg("watch cluster err.")
+		logging.Get().Err(err).Msg("watch cluster err.")
 		resp.Status = 1
 		resp.Message = err.Error()
 		w.WriteHeader(500)
@@ -119,7 +119,7 @@ func NewHTTPServer(clusterKey string, config *config.Config) (*ClusterServer, er
 	if config.TLSServer {
 		tlsKeyPair, err := tls.LoadX509KeyPair(config.CertFile, config.KeyFile)
 		if err != nil {
-			logging.GetLogger().Err(err).Msg("failed to load tls key from file")
+			logging.Get().Err(err).Msg("failed to load tls key from file")
 			return nil, err
 		}
 		tlsConfig.Certificates = []tls.Certificate{tlsKeyPair}
@@ -156,7 +156,7 @@ func (cs *ClusterServer) Run() {
 	}
 
 	if err != nil {
-		logging.GetLogger().Err(err).Msg("listen tcp address failed")
+		logging.Get().Err(err).Msg("listen tcp address failed")
 		return
 	}
 }
