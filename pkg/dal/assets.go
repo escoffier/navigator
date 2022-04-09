@@ -445,6 +445,9 @@ func doSoftDeleteResource(ctx context.Context, db *gorm.DB, uuid uint32, updateT
 		"status":     1,
 		"updated_at": updateTime,
 	}).Error
+	if err == gorm.ErrRecordNotFound {
+		return nil
+	}
 	return err
 }
 
@@ -471,7 +474,7 @@ func newModelFromTensorResource(resource *assets.TensorResource, updateTime time
 	m.Name = resource.Name
 	m.Namespace = resource.Namespace
 	m.ClusterKey = resource.Cluster
-	m.UID = resource.UID
+	m.UID = string(resource.UID)
 	m.Kind = string(resource.Kind)
 	if resource.LabelSelector != nil {
 		m.LabelSelector = new(model.LabelSelector)
@@ -711,27 +714,41 @@ func CleanUpUnUpdatedResourceContainers(ctx context.Context, rdb *gorm.DB, ts ti
 }
 
 func doSoftDeleteResourceContainers(ctx context.Context, rdb *gorm.DB, resource *assets.TensorResource, updateTime time.Time) error {
-	if resource.PodTemplate == nil {
-		return nil
-	}
-
-	uuids := make([]uint32, 0, 3)
-	for _, c := range resource.PodTemplate.Spec.InitContainers {
-		uuid := util.GenerateUUID(resource.Cluster, resource.Namespace, string(resource.Kind), resource.Name, c.Name)
-		uuids = append(uuids, uuid)
-	}
-	for _, c := range resource.PodTemplate.Spec.Containers {
-		uuid := util.GenerateUUID(resource.Cluster, resource.Namespace, string(resource.Kind), resource.Name, c.Name)
-		uuids = append(uuids, uuid)
-	}
+	//if resource.PodTemplate == nil {
+	//	return nil
+	//}
+	//
+	//uuids := make([]uint32, 0, 3)
+	//for _, c := range resource.PodTemplate.Spec.InitContainers {
+	//	uuid := util.GenerateUUID(resource.Cluster, resource.Namespace, string(resource.Kind), resource.Name, c.Name)
+	//	uuids = append(uuids, uuid)
+	//}
+	//for _, c := range resource.PodTemplate.Spec.Containers {
+	//	uuid := util.GenerateUUID(resource.Cluster, resource.Namespace, string(resource.Kind), resource.Name, c.Name)
+	//	uuids = append(uuids, uuid)
+	//}
+	//
+	//oneCtx, oneCancel := context.WithTimeout(ctx, 1000*time.Millisecond)
+	//defer oneCancel()
+	//
+	//err := rdb.WithContext(oneCtx).Model(&model.TensorContainer{}).Where("id in ?", uuids).Updates(map[string]interface{}{
+	//	"status":     1,
+	//	"updated_at": updateTime,
+	//}).Error
 
 	oneCtx, oneCancel := context.WithTimeout(ctx, 1000*time.Millisecond)
 	defer oneCancel()
-
-	return rdb.WithContext(oneCtx).Model(&model.TensorContainer{}).Where("id in ?", uuids).Updates(map[string]interface{}{
-		"status":     1,
-		"updated_at": updateTime,
-	}).Error
+	err := rdb.WithContext(oneCtx).Model(&model.TensorContainer{}).
+		Where("cluster_key = ?  AND namespace = ? AND resource_kind = ? AND resource_name = ?",
+			resource.Cluster, resource.Namespace, resource.Kind, resource.Name).
+		Updates(map[string]interface{}{
+			"status":     1,
+			"updated_at": updateTime,
+		}).Error
+	if err == gorm.ErrRecordNotFound {
+		return nil
+	}
+	return err
 }
 
 func fromNamespaceToModel(ns *corev1.Namespace, clusterKey string, updateTime time.Time) *model.TensorNamespace {
@@ -777,11 +794,11 @@ func UpsertNamespace(ctx context.Context, rdb *gorm.DB, ns *corev1.Namespace, cl
 	return nsModel, err
 }
 
-func SoftDeleteNamespace(ctx context.Context, rdb *gorm.DB, ns *corev1.Namespace, clusterkey string, updateTime time.Time) error {
+func SoftDeleteNamespace(ctx context.Context, rdb *gorm.DB, ns *corev1.Namespace, clusterKey string, updateTime time.Time) error {
 	oneCtx, oneCancel := context.WithTimeout(ctx, 500*time.Millisecond)
 	defer oneCancel()
 
-	id := util.GenerateUUID(clusterkey, ns.Name)
+	id := util.GenerateUUID(clusterKey, ns.Name)
 	return rdb.WithContext(oneCtx).Model(&model.TensorNamespace{}).Where("id = ? AND status = ?", id, 0).Updates(map[string]interface{}{
 		"status":     1,
 		"updated_at": updateTime,
@@ -940,13 +957,21 @@ func UpsertPodResourceRelationInRDB(ctx context.Context, rdb *gorm.DB, pod *core
 	})
 }
 
-func DeletePodResourceRelationInRDB(ctx context.Context, rdb *gorm.DB, pod *corev1.Pod, clusterKey string) error {
+func DeletePodResourceRelationInRDB(ctx context.Context, rdb *gorm.DB, clusterKey, namespace, name string) error {
 	rCtx, cancel := context.WithTimeout(ctx, 2500*time.Millisecond)
 	defer cancel()
 	return util.RetryWithBackoff(rCtx, func() error {
 		oneCtx, oneCancel := context.WithTimeout(rCtx, 500*time.Millisecond)
 		defer oneCancel()
-		return rdb.WithContext(oneCtx).Where("cluster_key = ? AND pod_uid = ?", clusterKey, string(pod.GetUID())).Delete(&model.PodResourceRelation{}).Error
+		//return rdb.WithContext(oneCtx).Where("cluster_key = ? AND pod_uid = ?", clusterKey, string(pod.GetUID())).Delete(&model.PodResourceRelation{}).Error
+
+		err := rdb.WithContext(oneCtx).
+			Where("cluster_key = ? AND namespace = ? AND pod_name= ?", clusterKey, namespace, name).
+			Delete(&model.PodResourceRelation{}).Error
+		if err != gorm.ErrRecordNotFound {
+			return nil
+		}
+		return err
 	})
 }
 
@@ -1378,7 +1403,7 @@ func UpsertNode(ctx context.Context, rdb *gorm.DB, node *corev1.Node, clusterKey
 	return n.ID, err
 }
 
-func CleanUpUnUpdatedNodes(ctx context.Context, rdb *gorm.DB, clusterKey string, t time.Time) error {
+func CleanUpUnUpdatedNodes(ctx context.Context, rdb *gorm.DB, t time.Time, clusterKey string) error {
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 

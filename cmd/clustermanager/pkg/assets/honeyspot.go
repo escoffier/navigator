@@ -2,7 +2,6 @@ package assets
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"runtime/debug"
 	"strconv"
@@ -11,9 +10,9 @@ import (
 
 	"gitlab.com/piccolo_su/vegeta/pkg/assets"
 	"gitlab.com/piccolo_su/vegeta/pkg/dal"
-	"gitlab.com/security-rd/go-pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/security-rd/go-pkg/databases"
+	"gitlab.com/security-rd/go-pkg/logging"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/client-go/util/workqueue"
@@ -33,6 +32,7 @@ type HoneyspotCallback struct {
 }
 
 type HoneyspotEvent struct {
+	clusterKey string
 	object     *defensev1.Honeypot
 	action     assets.AssetsAction
 	updateTime time.Time
@@ -45,7 +45,7 @@ func (cb *HoneyspotService) WatchedTypes() map[assets.WatchedType]struct{} {
 	}
 }
 
-func (cb *HoneyspotService) BeforWatchNewCluster(ctx context.Context, clusterKey string, resyncInterval time.Duration) assets.ClusterCallback {
+func (cb *HoneyspotService) BeforeWatchNewCluster(ctx context.Context, clusterKey string, resyncInterval time.Duration) assets.ClusterCallback {
 	logging.Get().Info().Msgf("honeyspot assets before watch new cluster %s called.", clusterKey)
 
 	ccb := &HoneyspotCallback{
@@ -102,25 +102,13 @@ func (cb *HoneyspotCallback) Name() string {
 	return cb.parent.Name()
 }
 
-func (cb *HoneyspotCallback) OnHoneyspot(newHoneyspot, oldHoneyspot *defensev1.Honeypot, action assets.AssetsAction) error {
+func (cb *HoneyspotCallback) OnHoneyspot(honeySpot *assets.TensorHoneySpot, action assets.AssetsAction) error {
 	var event HoneyspotEvent
-	if action == assets.ActionDelete {
-		if oldHoneyspot == nil {
-			return errors.New("not given old honeyspot")
-		}
 
-		event.object = oldHoneyspot
-		event.action = action
-		event.updateTime = time.Now()
-	} else if action == assets.ActionAdd || action == assets.ActionUpdate {
-		if newHoneyspot == nil {
-			return errors.New("not given new honeyspot")
-		}
-		event.object = newHoneyspot
-		event.action = action
-		event.updateTime = time.Now()
-
-	}
+	event.clusterKey = honeySpot.Cluster
+	event.object = honeySpot.Honeypot
+	event.action = action
+	event.updateTime = time.Now()
 
 	cb.Queue.Add(event)
 	return nil
@@ -135,7 +123,6 @@ func (cb *HoneyspotCallback) processHoneyspot(event HoneyspotEvent) error {
 
 	switch event.action {
 	case assets.ActionDelete:
-
 		logging.Get().Info().Msgf("delete honeyspot %d", id)
 		err = dal.DeleteBaitServiceById(context.TODO(), cb.parent.rdb.Get(), id)
 		if err != nil {
@@ -200,10 +187,28 @@ func (cb *HoneyspotCallback) OnNodeEvent(newNode, oldNode *corev1.Node, action a
 func (cb *HoneyspotCallback) OnTensorResourceEvent(newResource, oldResource *assets.TensorResource, action assets.AssetsAction) error {
 	return nil
 }
-func (cb *HoneyspotCallback) AfterDataSynced(ctx context.Context, dataSynced bool) {
-	// if dataSynced {
-	// 	cb.inputQueue.Add(syncSignal{})
-	// }
+
+func (cb *HoneyspotCallback) OnTensorPod(pod *assets.TensorPod, action assets.AssetsAction) error {
+	return nil
+}
+
+func (cb *HoneyspotCallback) OnTensorRole(tensorRole *assets.TensorRole, action assets.AssetsAction) error {
+	return nil
+}
+
+func (cb *HoneyspotCallback) OnTensorClusterRole(tensorRole *assets.TensorClusterRole, action assets.AssetsAction) error {
+	return nil
+}
+
+func (cb *HoneyspotCallback) OnTensorNamespace(namespace *assets.TensorNamespace, action assets.AssetsAction) error {
+	return nil
+}
+
+func (cb *HoneyspotCallback) OnTensorNode(node *assets.TensorNode, action assets.AssetsAction) error {
+	return nil
+}
+
+func (cb *HoneyspotCallback) AfterDataSynced(ctx context.Context, dataSynced bool, _ string) {
 }
 
 func getBaitServiceID(name string) (uint32, error) {

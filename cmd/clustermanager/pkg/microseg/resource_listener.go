@@ -13,7 +13,6 @@ import (
 	"gorm.io/gorm/clause"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
-	defensev1 "scm.tensorsecurity.cn/tensorsecurity-rd/api/pkg/apis/defense/v1"
 )
 
 const (
@@ -29,7 +28,7 @@ func NewResourcesListener(rdb *databases.RDBInstance) *ResourcesListener {
 		rdb: rdb,
 	}
 }
-func (rl *ResourcesListener) BeforWatchNewCluster(ctx context.Context, clusterName string, resyncTTL time.Duration) assets.ClusterCallback {
+func (rl *ResourcesListener) BeforeWatchNewCluster(ctx context.Context, clusterName string, resyncTTL time.Duration) assets.ClusterCallback {
 	return &ResourcesClusterListener{
 		clusterKey: clusterName,
 		parent:     rl,
@@ -49,6 +48,10 @@ type ResourcesClusterListener struct {
 	clusterKey string
 	parent     *ResourcesListener
 	stTime     time.Time
+}
+
+func (cl *ResourcesClusterListener) OnTensorPod(pod *assets.TensorPod, action assets.AssetsAction) error {
+	return nil
 }
 
 func (cl *ResourcesClusterListener) OnPodEvent(newPod, oldPod *corev1.Pod, action assets.AssetsAction) error {
@@ -158,23 +161,23 @@ func (cl *ResourcesClusterListener) OnTensorResourceEvent(newResource, oldResour
 			return err
 		}
 	case assets.ActionDelete:
-		if oldResource == nil {
+		if newResource == nil {
 			return errors.New("nil resource")
 		}
 
 		// Because we have watched the changes of Deployments, the replicasets that are controlled by a Deployment will be ignored
-		if assets.ShouldResourceBeFiltered(oldResource) {
+		if assets.ShouldResourceBeFiltered(newResource) {
 			return nil
 		}
-		err := cl.removeMicrosegResource(context.Background(), oldResource)
+		err := cl.removeMicrosegResource(context.Background(), newResource)
 		if err != nil {
-			logging.GetLogger().Err(err).Msgf("ResourcesClusterListener remove resource error. res: %+v", oldResource)
+			logging.GetLogger().Err(err).Msgf("ResourcesClusterListener remove resource error. res: %+v", newResource)
 			return err
 		}
 	}
 	return nil
 }
-func (cl *ResourcesClusterListener) AfterDataSynced(ctx context.Context, dataSynced bool) {
+func (cl *ResourcesClusterListener) AfterDataSynced(ctx context.Context, dataSynced bool, clusterKey string) {
 	if !dataSynced {
 		return
 	}
@@ -187,7 +190,7 @@ func (cl *ResourcesClusterListener) AfterDataSynced(ctx context.Context, dataSyn
 		oneCtx, oneCancel := context.WithTimeout(tctx, 3000*time.Millisecond)
 		defer oneCancel()
 
-		return db.WithContext(oneCtx).Model(&model.TensorMicrosegResource{}).Where("updated_at < ? AND status = 0 AND cluster = ?", cl.stTime, cl.clusterKey).Updates(map[string]interface{}{
+		return db.WithContext(oneCtx).Model(&model.TensorMicrosegResource{}).Where("updated_at < ? AND status = 0 AND cluster = ?", cl.stTime, clusterKey).Updates(map[string]interface{}{
 			"status":     1,
 			"updated_at": time.Now(),
 		}).Error
@@ -197,9 +200,26 @@ func (cl *ResourcesClusterListener) AfterDataSynced(ctx context.Context, dataSyn
 	}
 
 }
-func (cl *ResourcesClusterListener) OnHoneyspot(newHoneyspot, oldHoneyspot *defensev1.Honeypot, action assets.AssetsAction) error {
+func (cl *ResourcesClusterListener) OnHoneyspot(honeyspot *assets.TensorHoneySpot, action assets.AssetsAction) error {
 	return nil
 }
+
+func (cl *ResourcesClusterListener) OnTensorRole(tensorRole *assets.TensorRole, action assets.AssetsAction) error {
+	return nil
+}
+
+func (cl *ResourcesClusterListener) OnTensorClusterRole(tensorRole *assets.TensorClusterRole, action assets.AssetsAction) error {
+	return nil
+}
+
+func (cl *ResourcesClusterListener) OnTensorNamespace(namespace *assets.TensorNamespace, action assets.AssetsAction) error {
+	return nil
+}
+
+func (cl *ResourcesClusterListener) OnTensorNode(node *assets.TensorNode, action assets.AssetsAction) error {
+	return nil
+}
+
 func (cl *ResourcesClusterListener) Name() string {
 	return name
 }

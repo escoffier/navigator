@@ -2,7 +2,7 @@ package cmd
 
 import (
 	"github.com/spf13/cobra"
-	"gitlab.com/piccolo_su/vegeta/pkg/logging"
+	"gitlab.com/security-rd/go-pkg/logging"
 )
 
 func NewClusterManagerCommand() *cobra.Command {
@@ -15,20 +15,21 @@ func NewClusterManagerCommand() *cobra.Command {
 			if verbose {
 				logging.SetVerbose()
 			}
-			server, err := NewServer(cmd, args)
+			server, err := NewServer()
 			if err != nil {
-				logging.GetLogger().Err(err).Msg("failed to create server")
+				logging.Get().Err(err).Msg("failed to create server")
 				return
 			}
 
 			err = server.Run()
 			if err != nil {
-				logging.GetLogger().Err(err).Msg("error occurred when server running")
+				logging.Get().Err(err).Msg("error occurred when server running")
 				return
 			}
 		},
 	}
 	cmd.AddCommand(versionCmd)
+	cmd.PersistentFlags().BoolP("verbose", "v", false, "verbose mode")
 	AddFlags(cmd.Flags(), cmd)
 	return cmd
 }

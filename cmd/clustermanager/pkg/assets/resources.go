@@ -3,6 +3,8 @@ package assets
 import (
 	"context"
 	"errors"
+	"fmt"
+	"gorm.io/gorm"
 	"runtime/debug"
 	"sync"
 	"time"
@@ -13,8 +15,6 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 	"gitlab.com/security-rd/go-pkg/databases"
 	corev1 "k8s.io/api/core/v1"
-	rbacv1 "k8s.io/api/rbac/v1"
-	defensev1 "scm.tensorsecurity.cn/tensorsecurity-rd/api/pkg/apis/defense/v1"
 )
 
 const (
@@ -40,7 +40,7 @@ func newResourcesWatcher(rdb *databases.RDBInstance, scannerURL string) *Resourc
 }
 
 // called before watch events
-func (rl *ResourcesWatcher) BeforWatchNewCluster(ctx context.Context, clusterName string, resyncTTL time.Duration) assets.ClusterCallback {
+func (rl *ResourcesWatcher) BeforeWatchNewCluster(ctx context.Context, clusterName string, resyncTTL time.Duration) assets.ClusterCallback {
 	cl := newResourcesClusterListener(rl, clusterName)
 	rl.addClusterListener(clusterName, cl)
 	return cl
@@ -69,25 +69,28 @@ type resourceEvent struct {
 	newResource  *assets.TensorResource
 	oldResource  *assets.TensorResource
 	newNamespace *corev1.Namespace
-	oldNamespace *corev1.Namespace
 	newNode      *corev1.Node
 	oldNode      *corev1.Node
+	clusterKey   string
 	action       assets.AssetsAction
 	updateTime   time.Time
 	retryCount   int
 }
 type ResourcesClusterListener struct {
-	parent     *ResourcesWatcher
-	clusterKey string
+	parent *ResourcesWatcher
+	//clusterKey string
 	retryQueue *util.Queue
 
 	refreshTime time.Time
 }
 
+type ProcFunc func(ctx context.Context, db *gorm.DB, obj interface{}) error
+
+var ResourceActionProcFuncs map[assets.WatchedType]map[assets.AssetsAction]ProcFunc
+
 func newResourcesClusterListener(parent *ResourcesWatcher, clusterKey string) *ResourcesClusterListener {
 	cl := ResourcesClusterListener{
 		parent:      parent,
-		clusterKey:  clusterKey,
 		retryQueue:  util.NewQueue(),
 		refreshTime: time.Now(),
 	}
@@ -202,7 +205,7 @@ func (cl *ResourcesClusterListener) doOnResource(ctx context.Context, resEvent r
 			if resEvent.newNamespace == nil {
 				return errors.New("newNamespace is nil")
 			}
-			_, err := dal.UpsertNamespace(ctx, cl.parent.rdb.Get(), resEvent.newNamespace, cl.clusterKey, resEvent.updateTime)
+			_, err := dal.UpsertNamespace(ctx, cl.parent.rdb.Get(), resEvent.newNamespace, resEvent.clusterKey, resEvent.updateTime)
 			if err != nil {
 				logging.GetLogger().Err(err).Msgf("upsert namespace error. namespace: %+v. action: %v", resEvent.newNamespace, resEvent.action)
 				// will periodically retry to write
@@ -213,7 +216,7 @@ func (cl *ResourcesClusterListener) doOnResource(ctx context.Context, resEvent r
 			if resEvent.newNode == nil {
 				return errors.New("newNode is nil")
 			}
-			_, err := dal.UpsertNode(ctx, cl.parent.rdb.Get(), resEvent.newNode, cl.clusterKey, resEvent.updateTime)
+			_, err := dal.UpsertNode(ctx, cl.parent.rdb.Get(), resEvent.newNode, resEvent.clusterKey, resEvent.updateTime)
 			if err != nil {
 				logging.GetLogger().Err(err).Msgf("upsert node error. node: %+v. action: %v", resEvent.newNode, resEvent.action)
 				// will periodically retry to write
@@ -226,35 +229,36 @@ func (cl *ResourcesClusterListener) doOnResource(ctx context.Context, resEvent r
 	} else if resEvent.action == assets.ActionDelete {
 		switch resEvent.wtype {
 		case assets.TensorResources2Watch:
-			if resEvent.oldResource == nil {
+			if resEvent.newResource == nil {
 				return errors.New("oldResource is nil")
 			}
-			if assets.ShouldResourceBeFiltered(resEvent.oldResource) {
+			if assets.ShouldResourceBeFiltered(resEvent.newResource) {
 				return nil
 			}
-			err := dal.SoftDeleteResource(ctx, cl.parent.rdb.Get(), resEvent.oldResource, resEvent.updateTime)
+			logging.GetLogger().Info().Msgf("delete resource %s/%s/%s", resEvent.newResource.Kind, resEvent.newResource.Namespace, resEvent.newResource.Name)
+			err := dal.SoftDeleteResource(ctx, cl.parent.rdb.Get(), resEvent.newResource, resEvent.updateTime)
 			if err != nil {
-				logging.GetLogger().Err(err).Msgf("delete resource error. resource: %+v. action: %v", resEvent.oldResource, resEvent.action)
+				logging.GetLogger().Err(err).Msgf("delete resource error. resource: %+v. action: %v", resEvent.newResource, resEvent.action)
 				// will periodically retry to write
 				cl.sendToRetry(resEvent)
 				return err
 			}
 		case assets.Namespaces2Watch:
-			if resEvent.oldNamespace == nil {
+			if resEvent.newNamespace == nil {
 				return errors.New("oldNamespace is nil")
 			}
-			err := dal.SoftDeleteNamespace(ctx, cl.parent.rdb.Get(), resEvent.oldNamespace, cl.clusterKey, resEvent.updateTime)
+			err := dal.SoftDeleteNamespace(ctx, cl.parent.rdb.Get(), resEvent.newNamespace, resEvent.clusterKey, resEvent.updateTime)
 			if err != nil {
-				logging.GetLogger().Err(err).Msgf("delete namespace error. namespace: %+v. action: %v", resEvent.oldNamespace, resEvent.action)
+				logging.GetLogger().Err(err).Msgf("delete namespace error. namespace: %+v. action: %v", resEvent.newNamespace, resEvent.action)
 				// will periodically retry to write
 				cl.sendToRetry(resEvent)
 				return err
 			}
 		case assets.Nodes2Watch:
-			if resEvent.oldNode == nil {
+			if resEvent.newNode == nil {
 				return errors.New("oldNode is nil")
 			}
-			err := dal.SoftDeleteNode(ctx, cl.parent.rdb.Get(), resEvent.oldNode, cl.clusterKey, resEvent.updateTime)
+			err := dal.SoftDeleteNode(ctx, cl.parent.rdb.Get(), resEvent.newNode, resEvent.clusterKey, resEvent.updateTime)
 			if err != nil {
 				logging.GetLogger().Err(err).Msgf("delete node error. node: %+v. action: %v", resEvent.oldNode, resEvent.action)
 				// will periodically retry to write
@@ -282,7 +286,7 @@ func (cl *ResourcesClusterListener) OnTensorResourceEvent(newResource, oldResour
 	err := cl.doOnResource(ctx, resourceEvent{
 		wtype:       assets.TensorResources2Watch,
 		newResource: newResource,
-		oldResource: oldResource,
+		oldResource: nil,
 		action:      action,
 		updateTime:  now,
 	})
@@ -307,7 +311,6 @@ func (cl *ResourcesClusterListener) OnNamespaceEvent(newNs, oldNs *corev1.Namesp
 	err := cl.doOnResource(ctx, resourceEvent{
 		wtype:        assets.Namespaces2Watch,
 		newNamespace: newNs,
-		oldNamespace: oldNs,
 		action:       action,
 		updateTime:   now,
 	})
@@ -318,27 +321,81 @@ func (cl *ResourcesClusterListener) OnNamespaceEvent(newNs, oldNs *corev1.Namesp
 	return nil
 }
 
-func (cl *ResourcesClusterListener) AfterDataSynced(ctx context.Context, dataSynced bool) {
+func (cl *ResourcesClusterListener) OnTensorNamespace(namespace *assets.TensorNamespace, action assets.AssetsAction) error {
+	defer func() {
+		if r := recover(); r != nil {
+			logging.GetLogger().Error().Msgf("Panic when OnNamespaceEvent: %v. stack: %s", r, debug.Stack())
+		}
+	}()
+
+	now := time.Now()
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	err := cl.doOnResource(ctx, resourceEvent{
+		clusterKey:   namespace.Cluster,
+		wtype:        assets.Namespaces2Watch,
+		newNamespace: namespace.Namespace,
+		action:       action,
+		updateTime:   now,
+	})
+	if err != nil {
+		logging.GetLogger().Err(err).Msgf("OnNamespaceEvent action: %d. new: %+v.", action, namespace)
+		return err
+	}
+	return nil
+}
+
+func (cl *ResourcesClusterListener) OnTensorNode(node *assets.TensorNode, action assets.AssetsAction) error {
+	defer func() {
+		if r := recover(); r != nil {
+			logging.GetLogger().Error().Msgf("Panic when OnNodeEvent: %v. stack: %s", r, debug.Stack())
+		}
+	}()
+
+	if node == nil {
+		return fmt.Errorf("invalid node")
+	}
+	now := time.Now()
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	err := cl.doOnResource(ctx, resourceEvent{
+		clusterKey: node.Cluster,
+		wtype:      assets.Nodes2Watch,
+		newNode:    node.Node,
+		oldNode:    nil,
+		action:     action,
+		updateTime: now,
+	})
+	if err != nil {
+		logging.GetLogger().Err(err).Msgf("OnNodeEvent action: %d. new: %+v.", action, node)
+		return err
+	}
+	return nil
+}
+
+func (cl *ResourcesClusterListener) AfterDataSynced(ctx context.Context, dataSynced bool, clusterKey string) {
 	if !dataSynced {
 		logging.GetLogger().Warn().Msg("AfterDataSynced dataSynced=false")
 		return
 	}
 
-	err := dal.CleanUpUnUpdatedResourceContainers(ctx, cl.parent.rdb.Get(), cl.refreshTime, cl.clusterKey)
+	err := dal.CleanUpUnUpdatedResourceContainers(ctx, cl.parent.rdb.Get(), cl.refreshTime, clusterKey)
 	if err != nil {
 		logging.GetLogger().Err(err).Msgf("CleanUpUnUpdatedResourceContainers error. refreshTime: %v", cl.refreshTime)
 	}
-	err = dal.CleanUpUnUpdatedResources(ctx, cl.parent.rdb.Get(), cl.refreshTime, cl.clusterKey)
+	err = dal.CleanUpUnUpdatedResources(ctx, cl.parent.rdb.Get(), cl.refreshTime, clusterKey)
 	if err != nil {
 		logging.GetLogger().Err(err).Msgf("CleanUpUnUpdatedResources error. refreshTime: %v", cl.refreshTime)
 	}
 
-	err = dal.CleanUpUnUpdatedNamespaces(ctx, cl.parent.rdb.Get(), cl.refreshTime, cl.clusterKey)
+	err = dal.CleanUpUnUpdatedNamespaces(ctx, cl.parent.rdb.Get(), cl.refreshTime, clusterKey)
 	if err != nil {
 		logging.GetLogger().Err(err).Msgf("CleanUpUnUpdatedNamespaces error. refreshTime: %v", cl.refreshTime)
 	}
 
-	err = dal.CleanUpUnUpdatedNodes(ctx, cl.parent.rdb.Get(), cl.clusterKey, cl.refreshTime)
+	err = dal.CleanUpUnUpdatedNodes(ctx, cl.parent.rdb.Get(), cl.refreshTime, clusterKey)
 	if err != nil {
 		logging.GetLogger().Err(err).Msgf("CleanUpUnUpdatedNodes error. refreshTime: %v", cl.refreshTime)
 	}
@@ -348,38 +405,18 @@ func (cl *ResourcesClusterListener) Name() string {
 	return cl.parent.Name()
 }
 
-func (cl *ResourcesClusterListener) OnPodEvent(newPod, oldPod *corev1.Pod, action assets.AssetsAction) error {
-	// do nothing
+func (cl *ResourcesClusterListener) OnTensorPod(pod *assets.TensorPod, action assets.AssetsAction) error {
 	return nil
 }
-func (cl *ResourcesClusterListener) OnEndPointEvent(newEpt, oldEpt *corev1.Endpoints, action assets.AssetsAction) error {
-	// do nothing
+
+func (cl *ResourcesClusterListener) OnHoneyspot(honeyspot *assets.TensorHoneySpot, action assets.AssetsAction) error {
 	return nil
 }
-func (cl *ResourcesClusterListener) OnServiceEvent(newSvc, oldEvc *corev1.Service, action assets.AssetsAction) error {
-	// do nothing
+
+func (cl *ResourcesClusterListener) OnTensorRole(tensorRole *assets.TensorRole, action assets.AssetsAction) error {
 	return nil
 }
-func (cl *ResourcesClusterListener) OnRoleEvent(newRole, oldRole *rbacv1.Role, action assets.AssetsAction) error {
-	// do nothing
-	return nil
-}
-func (cl *ResourcesClusterListener) OnClusterRoleEvent(newCRole, oldCRole *rbacv1.ClusterRole, action assets.AssetsAction) error {
-	// do nothing
-	return nil
-}
-func (cl *ResourcesClusterListener) OnRoleBindingEvent(newB, oldB *rbacv1.RoleBinding, action assets.AssetsAction) error {
-	// do nothing
-	return nil
-}
-func (cl *ResourcesClusterListener) OnClusterRoleBindingEvent(newB, oldB *rbacv1.ClusterRoleBinding, action assets.AssetsAction) error {
-	// do nothing
-	return nil
-}
-func (cl *ResourcesClusterListener) OnServiceAccountEvent(newSa, oldSa *corev1.ServiceAccount, action assets.AssetsAction) error {
-	// do nothing
-	return nil
-}
-func (cl *ResourcesClusterListener) OnHoneyspot(newHoneyspot, oldHoneyspot *defensev1.Honeypot, action assets.AssetsAction) error {
+
+func (cl *ResourcesClusterListener) OnTensorClusterRole(tensorRole *assets.TensorClusterRole, action assets.AssetsAction) error {
 	return nil
 }

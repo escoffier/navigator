@@ -11,7 +11,6 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
-	defensev1 "scm.tensorsecurity.cn/tensorsecurity-rd/api/pkg/apis/defense/v1"
 )
 
 const (
@@ -52,7 +51,7 @@ func (w *KubeRiskyMonitor) OutputChannel() <-chan KubeMonitorEvent {
 }
 
 // called before watch events
-func (w *KubeRiskyMonitor) BeforWatchNewCluster(ctx context.Context, clusterName string, resyncTTL time.Duration) assets.ClusterCallback {
+func (w *KubeRiskyMonitor) BeforeWatchNewCluster(ctx context.Context, clusterName string, resyncTTL time.Duration) assets.ClusterCallback {
 	cm := &KubeClusterMonitor{
 		clusterName:  clusterName,
 		parent:       w,
@@ -97,7 +96,7 @@ type KubeClusterMonitor struct {
 	eventCh      chan detectionEvent
 }
 
-func (api *KubeClusterMonitor) asyncDetection() {
+func (l *KubeClusterMonitor) asyncDetection() {
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
@@ -105,23 +104,23 @@ func (api *KubeClusterMonitor) asyncDetection() {
 			}
 		}()
 
-		for evt := range api.eventCh {
-			api.detectEvent(context.Background(), evt)
+		for evt := range l.eventCh {
+			l.detectEvent(context.Background(), evt)
 		}
 	}()
 }
 
-func (api *KubeClusterMonitor) sendToOutput(outputEvt KubeMonitorEvent) {
-	outputEvt.Cluster = api.clusterName
+func (l *KubeClusterMonitor) sendToOutput(outputEvt KubeMonitorEvent) {
+	outputEvt.Cluster = l.clusterName
 
 	timer := time.NewTimer(500 * time.Millisecond)
 	select {
-	case api.parent.outputChan <- outputEvt:
+	case l.parent.outputChan <- outputEvt:
 	case <-timer.C:
 		logging.GetLogger().Warn().Msgf("send output channel timeout for data: %+v", outputEvt)
 	}
 }
-func (api *KubeClusterMonitor) detectEvent(ctx context.Context, evt detectionEvent) {
+func (l *KubeClusterMonitor) detectEvent(ctx context.Context, evt detectionEvent) {
 	defer func() {
 		if r := recover(); r != nil {
 			logging.GetLogger().Error().Msgf("Panic when consuming events: %v. event: %+v Stack: %s", r, evt, debug.Stack())
@@ -133,10 +132,10 @@ func (api *KubeClusterMonitor) detectEvent(ctx context.Context, evt detectionEve
 		if evt.role == nil {
 			return
 		}
-		risky, items := api.engine.IsRiskyRole(evt.role)
+		risky, items := l.engine.IsRiskyRole(evt.role)
 		if risky {
-			api.storage.SetRoleRisky(evt.role.Name, evt.role.Namespace)
-			api.sendToOutput(KubeMonitorEvent{
+			l.storage.SetRoleRisky(evt.role.Name, evt.role.Namespace)
+			l.sendToOutput(KubeMonitorEvent{
 				RiskyItems:   items,
 				Kind:         KindRole,
 				TargetRole:   evt.role,
@@ -147,10 +146,10 @@ func (api *KubeClusterMonitor) detectEvent(ctx context.Context, evt detectionEve
 		if evt.clusterRole == nil {
 			return
 		}
-		risky, items := api.engine.IsRiskyClusterRole(evt.clusterRole)
+		risky, items := l.engine.IsRiskyClusterRole(evt.clusterRole)
 		if risky {
-			api.storage.SetClusterRoleRisky(evt.clusterRole.Name)
-			api.sendToOutput(KubeMonitorEvent{
+			l.storage.SetClusterRoleRisky(evt.clusterRole.Name)
+			l.sendToOutput(KubeMonitorEvent{
 				RiskyItems:        items,
 				Kind:              KindClusterRole,
 				TargetClusterRole: evt.clusterRole,
@@ -162,19 +161,23 @@ func (api *KubeClusterMonitor) detectEvent(ctx context.Context, evt detectionEve
 	}
 }
 
-func (api *KubeClusterMonitor) GetClusterRole(name string) (*rbacv1.ClusterRole, bool) {
-	api.RLock()
-	defer api.RUnlock()
+func (l *KubeClusterMonitor) GetClusterRole(name string) (*rbacv1.ClusterRole, bool) {
+	l.RLock()
+	defer l.RUnlock()
 
-	cr, ok := api.clusterRoles[name]
+	cr, ok := l.clusterRoles[name]
 	return cr, ok
 }
-func (api *KubeClusterMonitor) GetRole(name, namespace string) (*rbacv1.Role, bool) {
-	api.RLock()
-	defer api.RUnlock()
+func (l *KubeClusterMonitor) GetRole(name, namespace string) (*rbacv1.Role, bool) {
+	l.RLock()
+	defer l.RUnlock()
 
-	r, ok := api.roles[getKeyFromNameAndNS(namespace, name)]
+	r, ok := l.roles[getKeyFromNameAndNS(namespace, name)]
 	return r, ok
+}
+
+func (l *KubeClusterMonitor) OnTensorPod(pod *assets.TensorPod, action assets.AssetsAction) error {
+	return nil
 }
 
 func (l *KubeClusterMonitor) OnPodEvent(newPod, oldPod *corev1.Pod, action assets.AssetsAction) error {
@@ -228,10 +231,11 @@ func (l *KubeClusterMonitor) deleteRole(role RoleInterface) {
 	delete(l.roles, getKeyFromRole(role))
 }
 
-func (l *KubeClusterMonitor) OnRoleEvent(newRole, oldRole *rbacv1.Role, action assets.AssetsAction) error {
+func (l *KubeClusterMonitor) OnTensorRole(tensorRole *assets.TensorRole, action assets.AssetsAction) error {
+	role := tensorRole.Role
 	switch action {
 	case assets.ActionAdd, assets.ActionUpdate:
-		if newRole == nil {
+		if role == nil {
 			return nil
 		}
 
@@ -239,7 +243,7 @@ func (l *KubeClusterMonitor) OnRoleEvent(newRole, oldRole *rbacv1.Role, action a
 		timer := time.NewTimer(200 * time.Millisecond)
 		select {
 		case l.eventCh <- detectionEvent{
-			role: newRole,
+			role: role,
 			kind: KindRole,
 		}:
 		case <-timer.C:
@@ -247,25 +251,27 @@ func (l *KubeClusterMonitor) OnRoleEvent(newRole, oldRole *rbacv1.Role, action a
 		}
 		// send to the detection goroutine to detect in serialization
 		l.eventCh <- detectionEvent{
-			role: newRole,
+			role: role,
 			kind: KindRole,
 		}
 
-		l.upsertRole(newRole)
+		l.upsertRole(role)
 	case assets.ActionDelete:
-		if oldRole == nil {
+		if role == nil {
 			return nil
 		}
-		l.deleteRole(oldRole)
-		l.storage.RemoveRole(oldRole.GetName(), oldRole.GetNamespace())
+		l.deleteRole(role)
+		l.storage.RemoveRole(role.GetName(), role.GetNamespace())
 	}
 
 	return nil
 }
-func (l *KubeClusterMonitor) OnClusterRoleEvent(newCRole, oldCRole *rbacv1.ClusterRole, action assets.AssetsAction) error {
+
+func (l *KubeClusterMonitor) OnTensorClusterRole(tensorRole *assets.TensorClusterRole, action assets.AssetsAction) error {
+	clusterRole := tensorRole.ClusterRole
 	switch action {
 	case assets.ActionAdd, assets.ActionUpdate:
-		if newCRole == nil {
+		if clusterRole == nil {
 			return nil
 		}
 
@@ -273,42 +279,39 @@ func (l *KubeClusterMonitor) OnClusterRoleEvent(newCRole, oldCRole *rbacv1.Clust
 		timer := time.NewTimer(200 * time.Millisecond)
 		select {
 		case l.eventCh <- detectionEvent{
-			clusterRole: newCRole,
+			clusterRole: clusterRole,
 			kind:        KindClusterRole,
 		}:
 		case <-timer.C:
 			logging.GetLogger().Warn().Msg("send eventCh timeout")
 		}
 
-		l.upsertClusterRole(newCRole)
+		l.upsertClusterRole(clusterRole)
 	case assets.ActionDelete:
-		if oldCRole == nil {
+		if clusterRole == nil {
 			return nil
 		}
-		l.deleteRole(oldCRole)
-		l.storage.RemoveClusterRole(oldCRole.GetName())
+		l.deleteRole(clusterRole)
+		l.storage.RemoveClusterRole(clusterRole.GetName())
 	}
 	return nil
 }
-func (l *KubeClusterMonitor) OnRoleBindingEvent(newB, oldB *rbacv1.RoleBinding, action assets.AssetsAction) error {
-	return nil
-}
-func (l *KubeClusterMonitor) OnClusterRoleBindingEvent(newB, oldB *rbacv1.ClusterRoleBinding, action assets.AssetsAction) error {
-	return nil
-}
-func (l *KubeClusterMonitor) OnNamespaceEvent(newNs, oldNs *corev1.Namespace, action assets.AssetsAction) error {
-	return nil
-}
-func (l *KubeClusterMonitor) OnServiceAccountEvent(newSa, oldSa *corev1.ServiceAccount, action assets.AssetsAction) error {
-	return nil
-}
+
 func (l *KubeClusterMonitor) OnNodeEvent(newNode, oldNode *corev1.Node, action assets.AssetsAction) error {
 	return nil
 }
-func (cb *KubeClusterMonitor) OnHoneyspot(newHoneyspot, oldHoneyspot *defensev1.Honeypot, action assets.AssetsAction) error {
+func (l *KubeClusterMonitor) OnHoneyspot(honeyspot *assets.TensorHoneySpot, action assets.AssetsAction) error {
 	return nil
 }
-func (l *KubeClusterMonitor) AfterDataSynced(ctx context.Context, dataSynced bool) {
+func (l *KubeClusterMonitor) OnTensorNamespace(namespace *assets.TensorNamespace, action assets.AssetsAction) error {
+	return nil
+}
+
+func (l *KubeClusterMonitor) OnTensorNode(node *assets.TensorNode, action assets.AssetsAction) error {
+	return nil
+}
+
+func (l *KubeClusterMonitor) AfterDataSynced(ctx context.Context, dataSynced bool, clusterKey string) {
 
 }
 func (l *KubeClusterMonitor) Name() string {

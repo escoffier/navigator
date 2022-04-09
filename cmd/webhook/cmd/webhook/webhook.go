@@ -111,10 +111,8 @@ func newWebHookServer(config *Config) (*webHookServer, error) {
 		return nil, fmt.Errorf("failed to get cluster manager")
 	}
 
-	err = clsManager.Start(context.Background())
-	if err != nil {
-		return nil, err
-	}
+	clsManager.Start()
+
 	return ws, nil
 }
 
