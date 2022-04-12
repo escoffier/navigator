@@ -9,9 +9,11 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/assets"
 	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
 	"io/ioutil"
+	"k8s.io/apimachinery/pkg/util/wait"
 	"net/http"
 	"os"
 	"reflect"
+	"scm.tensorsecurity.cn/tensorsecurity-rd/api/pkg/generated/informers/externalversions"
 	"sync"
 	"time"
 
@@ -39,6 +41,8 @@ var (
 	ws    *webHookServer
 	wsErr error
 )
+
+const resyncInterval = 8 * time.Hour
 
 var (
 	runtimeScheme = runtime.NewScheme()
@@ -102,7 +106,8 @@ func newWebHookServer(config *Config) (*webHookServer, error) {
 	if err != nil {
 		return nil, err
 	}
-	err = k8s.InitClusterManager(hostClient, nil, "")
+	factory := externalversions.NewSharedInformerFactory(hostClient.TensorClientset, resyncInterval)
+	err = k8s.InitClusterManager(hostClient, factory, "")
 	if err != nil {
 		return nil, err
 	}
@@ -112,7 +117,8 @@ func newWebHookServer(config *Config) (*webHookServer, error) {
 	}
 
 	clsManager.Start()
-
+	factory.Start(wait.NeverStop)
+	factory.WaitForCacheSync(wait.NeverStop)
 	return ws, nil
 }
 
