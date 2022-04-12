@@ -16,5 +16,6 @@ type Config struct {
 	Port                 int
 	TLSServer            bool
 	WorkerNamespace      string
+	DBLogDebug           bool
 	K8SInfoForRestConfig *k8s.InfoForRestConfig
 }

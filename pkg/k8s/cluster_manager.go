@@ -52,6 +52,10 @@ type ClusterManager struct {
 	sync.RWMutex
 }
 
+func (m *ClusterManager) InformerFactory() externalversions.SharedInformerFactory {
+	return m.informerFactory
+}
+
 type CreateWatcherFunc func(ctx context.Context) (*assets.Watcher, error)
 
 // InitClusterManager create cluster manager
@@ -74,9 +78,6 @@ func GetClusterManager() (*ClusterManager, bool) {
 }
 
 func newClusterManger(hostClient *assets.Clientset, factory externalversions.SharedInformerFactory, clusterManagerURL string) (*ClusterManager, error) {
-	if factory == nil {
-		factory = externalversions.NewSharedInformerFactory(hostClient.TensorClientset, 8*time.Hour)
-	}
 	clsm := &ClusterManager{
 		clientMap:         make(map[string]*assets.Clientset),
 		watcher:           nil,
@@ -92,7 +93,7 @@ func newClusterManger(hostClient *assets.Clientset, factory externalversions.Sha
 }
 
 func (m *ClusterManager) Start() {
-	m.watchClusterFromKube()
+	go m.watchClusterFromKube(m.informerFactory.Cluster().V1().ManagedClusters().Informer())
 }
 
 // WatchClusterResources is to watch the target cluster locally
@@ -213,8 +214,8 @@ func (m *ClusterManager) AddManagedClusterToKube(ctx context.Context, cluster *m
 	return err
 }
 
-func (m *ClusterManager) watchClusterFromKube() {
-	informer := m.informerFactory.Cluster().V1().ManagedClusters().Informer()
+func (m *ClusterManager) watchClusterFromKube(informer cache.SharedIndexInformer) {
+	//informer := m.informerFactory.Cluster().V1().ManagedClusters().Informer()
 	informer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
 			cluster, ok := obj.(*clusterV1.ManagedCluster)

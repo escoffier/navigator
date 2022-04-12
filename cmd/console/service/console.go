@@ -5,9 +5,11 @@ import (
 	"crypto/md5"
 	"errors"
 	"fmt"
+	"k8s.io/apimachinery/pkg/util/wait"
 	"net/http"
 	"os"
 	"runtime/debug"
+	"scm.tensorsecurity.cn/tensorsecurity-rd/api/pkg/generated/informers/externalversions"
 	"strconv"
 	"strings"
 	"sync"
@@ -57,6 +59,8 @@ import (
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
+
+const resyncInterval = 8 * time.Hour
 
 // Console represents the Vegeta Console server.
 type Console struct {
@@ -284,7 +288,9 @@ func NewConsole(
 		mainCancel()
 		return nil, err
 	}
-	err = k8s.InitClusterManager(clientset, nil, clusterManagerURL)
+
+	factory := externalversions.NewSharedInformerFactory(clientset.TensorClientset, resyncInterval)
+	err = k8s.InitClusterManager(clientset, factory, clusterManagerURL)
 	if err != nil {
 		logging.Get().Err(err).Msg("cluster manager init error")
 		mainCancel()
@@ -369,24 +375,18 @@ func (c *Console) Run() func() {
 	ctx, mcancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer mcancel()
 
-	//testCtx, testCancel := context.WithTimeout(ctx, time.Second*10)
-	//defer testCancel()
-	//canDowngrade := true
-	//err := c.harborClient.TestConnectionAndAdminPrivileges(testCtx, canDowngrade)
-	//if err != nil {
-	//	logging.Get().Error().Err(err).Msg("Harbor connection and admin privilege check failed")
-	//}
+	clusterManager, ok := k8s.GetClusterManager()
+	if ok {
+		clusterManager.Start()
+		clusterManager.InformerFactory().Start(wait.NeverStop)
+		clusterManager.InformerFactory().WaitForCacheSync(wait.NeverStop)
+	} else {
+		logging.Get().Error().Err(errors.New("cluster manager not exist")).Msg("get a nil cluster manager")
+	}
 
 	err := rdbCheck(c.rdb.Get())
 	if err != nil {
 		logging.Get().Err(err).Msg("When check admin data in postgres")
-	}
-
-	clusterManager, ok := k8s.GetClusterManager()
-	if ok {
-		clusterManager.Start()
-	} else {
-		logging.Get().Error().Err(errors.New("cluster manager not exist")).Msg("get a nil cluster manager")
 	}
 
 	cronService, _ := cron.Get(ctx)

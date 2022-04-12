@@ -87,7 +87,9 @@ func NewServer() (*server, error) {
 			return nil, err
 		}
 
-		rdb.SetDebugMode()
+		if s.config.DBLogDebug {
+			rdb.SetDebugMode()
+		}
 
 		ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
 		defer cancel()
@@ -121,7 +123,7 @@ func NewServer() (*server, error) {
 			logging.Get().Error().Msg("cluster manager init error")
 			return nil, err
 		} else {
-			go clusterManager.Start()
+			clusterManager.Start()
 			httpserver.SetClusterManager(clusterManager)
 
 			err = clusterManager.UpdateCluster(ctx, tensorCluster)
@@ -186,7 +188,9 @@ func NewServer() (*server, error) {
 func (s *server) Run() error {
 	errChn := make(chan error)
 
-	go s.agent.RegisterToHostCluster()
+	if s.config.ClusterType == model.MemberCluster {
+		go s.agent.RegisterToHostCluster()
+	}
 
 	go s.httpserver.Run()
 
@@ -235,6 +239,7 @@ func AddFlags(fs *pflag.FlagSet, rootCmd *cobra.Command) {
 	fs.StringVar(&ServerConfig.CertFile, "tlsCertPath", "/etc/cluster-manager/certs/tls.crt", "The path of tls cert")
 	fs.StringVar(&ServerConfig.KeyFile, "tlsKeyPath", "/etc/cluster-manager/certs/tls.key", "The path of tls key")
 	fs.BoolVar(&ServerConfig.TLSServer, "tlsServer", false, "use tls server")
+	fs.BoolVar(&ServerConfig.DBLogDebug, "DBLogDebug", false, "debug db")
 }
 
 func init() {

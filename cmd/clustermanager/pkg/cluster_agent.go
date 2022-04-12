@@ -172,21 +172,19 @@ func (c *ClusterAgent) Init() error {
 }
 
 func (c *ClusterAgent) RegisterToHostCluster() {
-	if c.ClusterType == model.MemberCluster {
-		stopChan := make(chan struct{})
-		err := wait.PollImmediateUntil(time.Second*60, func() (bool, error) {
-			err := c.registerClusterInfo()
-			if err != nil { //nolint
-				return false, nil //nolint
-			}
-			return true, nil
-		}, stopChan)
-		if err != nil {
-			logging.Get().Err(err).Msg("failed to register host cluster")
-			return
+	stopChan := make(chan struct{})
+	err := wait.PollImmediateUntil(time.Second*60, func() (bool, error) {
+		err := c.registerClusterInfo()
+		if err != nil { //nolint
+			return false, nil //nolint
 		}
-		logging.Get().Info().Msg("successfully registered to master cluster")
+		return true, nil
+	}, stopChan)
+	if err != nil {
+		logging.Get().Err(err).Msg("failed to register host cluster")
+		return
 	}
+	logging.Get().Info().Msg("successfully registered to master cluster")
 }
 
 func (c *ClusterAgent) registerClusterInfo() error {
