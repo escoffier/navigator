@@ -18,6 +18,7 @@ import (
 	uuid "github.com/satori/go.uuid"
 	"gitlab.com/security-rd/go-pkg/databases"
 	"gitlab.com/security-rd/go-pkg/logging"
+	"gorm.io/gorm"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
@@ -178,6 +179,10 @@ func (s *Scapper) checkTargetTypeTasksStillInProgress(ctx context.Context, check
 		First(&scanTask).
 		Error
 	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			logging.Get().Info().Msgf("check target type no tasks still in progress: checkType:%s, clusterId: %s", checkType, clusterID)
+		}
+
 		logging.Get().Err(err).Msgf("check target type tasks still in progress error: checkType:%s, clusterId: %s", checkType, clusterID)
 		return false
 	}
@@ -251,7 +256,7 @@ func (s *Scapper) RunComplianceCheck(
 		//get k8s client
 		kubeClient, ok = clusterManager.GetClient(clusterID)
 		if !ok {
-			return uuid.Nil, apperror.NewKubernetesError(http.StatusInternalServerError, fmt.Errorf("get k8s client failed"))
+			return uuid.Nil, apperror.NewKubernetesError(http.StatusInternalServerError, fmt.Errorf("get k8s client failed, cluster id: %s", clusterID))
 		}
 
 		err := s.garbageCollectHistoricalJobs(ctx, kubeClient, checkType, namespace)
