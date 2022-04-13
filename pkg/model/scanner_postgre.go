@@ -554,6 +554,7 @@ type Task struct {
 	ScannerId           string     `gorm:"type:varchar(255);column:scanner_id" json:"scanner_id"` // scanner uuid
 	ScanStrategyName    string     `gorm:"-" json:"scan_strategy_name"`
 	SuccessSubTaskCount int        `gorm:"-" json:"success_sub_task_count"` // 成功的子任务数量
+
 }
 
 func (Task) TableName() string {
@@ -573,6 +574,7 @@ type SubTask struct {
 	UpdatedAt  time.Time  `gorm:"updated_at" json:"updated_at"`
 	FinishedAt *time.Time `gorm:"finished_at" json:"finished_at"`
 	HeartBeat  *time.Time `gorm:"heart_beat" json:"heart_beat"`
+	RetryCount int        `gorm:"column:retry_count" json:"retry_count"`
 
 	// 镜像的信息
 	ImageInfo struct {

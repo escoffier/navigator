@@ -56,6 +56,7 @@ const (
 )
 
 const CheckTaskInterval = 60 * 1 // 检查是否加扫描任务的时间间隔，单位：秒
+const SubTaskMaxRetryCount = 3   // 一次任务的最大重试次数
 
 const SubTaskBatchInsertCount = 2000
 
@@ -64,11 +65,12 @@ const (
 	SyncTriggerOperator = "周期触发扫描"
 )
 const (
-	ErrScanPullImage   = iota + 1 // "拉取镜像出错"
-	ErrScanTrivy                  // "扫描镜像出错"
-	ErrScanSaveResult             // "保存扫描数据出错"
-	ErrScanConfig                 // "解析扫描配置出错"
-	ErrScanGetImage               // "查询待扫描镜像出错"
-	ErrScanGetRegistry            // "查询镜像仓库出错"
-	ErrScanInternal               // "程序内部出错"
+	ErrScanPullImage      = iota + 1 // "拉取镜像出错"
+	ErrScanTrivy                     // "扫描镜像出错"
+	ErrScanSaveResult                // "保存扫描数据出错"
+	ErrScanConfig                    // "解析扫描配置出错"
+	ErrScanGetImage                  // "查询待扫描镜像出错"
+	ErrScanGetRegistry               // "查询镜像仓库出错"
+	ErrScanInternal                  // "程序内部出错"
+	ErrExceededRetryCount            // "超过重试次数"
 )

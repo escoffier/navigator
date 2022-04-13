@@ -13,6 +13,7 @@ import (
 
 	"github.com/pkg/errors"
 	"go.mongodb.org/mongo-driver/bson/primitive"
+	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 
 	"gitlab.com/security-rd/go-pkg/databases"
@@ -99,6 +100,7 @@ type ScanTaskInterface interface {
 	UpdateTasksStatus(ctx context.Context, updateIds []int64, status int) error
 	UpdateSubTask(ctx context.Context, subtask model.SubTask) error
 	UpdateSubTasksInfo(ctx context.Context, param SearchSubTaskParam, updateInfo map[string]interface{}) error
+	AddSubTasksRetryCount(ctx context.Context, ids []int64) error
 	GetTasks(ctx context.Context, param SearchTaskParam, filter *model.Filter) ([]model.Task, int64, error)
 	GetTotalTaskNum(ctx context.Context) (int64, error)
 	GetImageInfo(ctx context.Context, imgID int64) (*model.ImageList, error)
@@ -1857,8 +1859,21 @@ func (s *ScannerOrm) UpdateSubTasksInfo(ctx context.Context, param SearchSubTask
 	if len(param.TaskIds) > 0 {
 		db = db.Where("task_id In ? ", param.TaskIds)
 	}
+	if param.GreaterThanRetryCount > 0 {
+		db = db.Where("retry_count >= ? ", param.GreaterThanRetryCount)
+	}
 
 	db = db.Updates(updateInfo)
+	return db.Error
+}
+
+func (s *ScannerOrm) AddSubTasksRetryCount(ctx context.Context, ids []int64) error {
+	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*5)
+	defer cancelFunc()
+
+	db := s.rdb.Get().WithContext(ctx).Model(model.SubTask{}).Where("id IN ? ", ids).
+		UpdateColumn("retry_count", gorm.Expr("retry_count + ?", 1))
+
 	return db.Error
 }
 
@@ -1990,6 +2005,13 @@ func (s *ScannerOrm) GetSubTasks(ctx context.Context, param SearchSubTaskParam, 
 	if len(param.Ids) > 0 {
 		db = db.Where("id in ? ", param.Ids)
 	}
+	if param.LessThanRetryCount > 0 {
+		db = db.Where("retry_count < ? ", param.LessThanRetryCount)
+	}
+	if param.LessThanRetryCount > 0 {
+		db = db.Where("retry_count >= ? ", param.GreaterThanRetryCount)
+	}
+
 	db = db.Order("created_at DESC")
 
 	var cnt int64
