@@ -512,8 +512,9 @@ func (t *TaskSrv) UpdateSubTasksHeartBeat(ids []int64) error {
 
 func (t *TaskSrv) GetProgressingSubTasks(taskIds []int64) ([]SubTask, error) {
 	search := store.SearchSubTaskParam{
-		TaskIds:  taskIds,
-		Statuses: []int{consts.ImageScanInProgress},
+		TaskIds:            taskIds,
+		Statuses:           []int{consts.ImageScanInProgress},
+		LessThanRetryCount: consts.SubTaskMaxRetryCount,
 	}
 	sts, _, err := store.GetScannerOrmDb().GetSubTasks(context.Background(), search, nil)
 	if err != nil {
@@ -548,6 +549,39 @@ func (t *TaskSrv) GetPendingSubTasks(taskIds []int64) ([]SubTask, error) {
 	return res, nil
 }
 
+func (t *TaskSrv) AddSubTaskRetryCount(subTasks []SubTask) error {
+	ids := make([]int64, 0)
+	for _, v := range subTasks {
+		ids = append(ids, v.ID)
+	}
+	if err := store.GetScannerOrmDb().AddSubTasksRetryCount(context.Background(), ids); err != nil {
+		return err
+	}
+	tasks, _, err := store.GetScannerOrmDb().GetSubTasks(context.Background(), store.SearchSubTaskParam{Ids: ids}, nil)
+	if err != nil {
+		return err
+	}
+	moreThanIds := make([]int64, 0)
+	for i := range tasks {
+		if tasks[i].RetryCount >= consts.SubTaskMaxRetryCount {
+			moreThanIds = append(moreThanIds, tasks[i].ID)
+		}
+	}
+	if len(moreThanIds) > 0 {
+		// 超过重试次数的，不再重试，扫描状态设置成失败
+		updateInfo := make(map[string]interface{})
+		updateInfo["heart_beat"] = time.Now()
+		updateInfo["status"] = consts.ImageScanFailed
+		updateInfo["err_msg"] = "超过重试次数"
+		updateInfo["err_no"] = consts.ErrExceededRetryCount
+		if err := store.GetScannerOrmDb().UpdateSubTasksInfo(context.Background(), store.SearchSubTaskParam{Ids: moreThanIds}, updateInfo); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 func (t *TaskSrv) ReScheduleSubTask(subTasks []SubTask) error {
 	ids := make([]int64, 0)
 	for _, v := range subTasks {
@@ -556,6 +590,7 @@ func (t *TaskSrv) ReScheduleSubTask(subTasks []SubTask) error {
 	search := store.SearchSubTaskParam{
 		Ids: ids,
 	}
+
 	updateInfo := make(map[string]interface{})
 	updateInfo["heart_beat"] = time.Now()
 	updateInfo["status"] = consts.ImageScanPending

@@ -46,6 +46,13 @@ func (t *TaskCheck) checkTaskStatus() error {
 			// which means original scanner give up control of the task (eg: scanner reboot)
 			// so we take over,reset task status to pending
 
+			if err := t.taskSrv.AddSubTaskRetryCount(sts); err != nil {
+				logging.GetLogger().Err(err).
+					Int64("taskId", v.ID).
+					Msg("reschedule AddSubTaskRetryCount err")
+				return err
+			}
+
 			if err := t.taskSrv.ReScheduleSubTask(sts); err != nil {
 				logging.GetLogger().Err(err).
 					Int64("taskId", v.ID).

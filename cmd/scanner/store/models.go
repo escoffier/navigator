@@ -233,7 +233,9 @@ type SearchSubTaskParam struct {
 	TaskIds []int64
 	// TaskId   int64
 	// Status   int   // task status
-	Statuses []int // subtask status
+	Statuses              []int // subtask status
+	LessThanRetryCount    int64
+	GreaterThanRetryCount int64
 }
 
 type SearchStrategyParam struct {
