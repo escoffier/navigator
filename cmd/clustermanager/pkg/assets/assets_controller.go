@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"github.com/segmentio/kafka-go"
 	pkgassets "gitlab.com/piccolo_su/vegeta/pkg/assets"
-	"gitlab.com/piccolo_su/vegeta/pkg/util"
 	"gitlab.com/security-rd/go-pkg/logging"
 	"gitlab.com/security-rd/go-pkg/mq"
 	appsv1 "k8s.io/api/apps/v1"
@@ -853,13 +852,17 @@ func (ac *Controller) SendToMq(ctx context.Context, action pkgassets.AssetsActio
 }
 
 func (ac *Controller) notifySync() {
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-	defer cancel()
-
-	err := util.RetryWithBackoff(ctx, func() error {
-		return ac.SendToMq(context.Background(), pkgassets.ActionSync, pkgassets.AssetsSync, nil)
-	})
+	logging.Get().Info().Msg("notify for syncing")
+	err := wait.PollImmediateUntil(3*time.Second, func() (bool, error) {
+		err1 := ac.SendToMq(context.Background(), pkgassets.ActionSync, pkgassets.AssetsSync, nil)
+		if err1 != nil {
+			logging.Get().Err(err1).Msg("sending AssetsSync err, will try again")
+			return false, nil
+		}
+		return true, nil
+	}, wait.NeverStop)
 	if err != nil {
-		logging.Get().Err(err).Msg("sending AssetsSync err")
+		logging.Get().Error().Msg("poll sending msg to mq err")
+		return
 	}
 }
