@@ -112,10 +112,9 @@ func (s *SyncRepoImage) SyncImage(ctx context.Context) error {
 			if configs[0].NodeImageConfig.ImageAddTrigEnable {
 				imgIds := make([]int64, 0)
 				for i := range res.Added {
-					if configs[0].NodeImageConfig.ScanAll || InStringSlice(res.Added[i].NodeHostname, configs[0].NodeImageConfig.NodeHostnames) {
-						if res.Added[i].FromType == model.ImageFromSafeNode {
-							imgIds = append(imgIds, res.Added[i].ID)
-						}
+					// 更新需求，所有的节点的新增镜像都会创建扫描任务
+					if res.Added[i].FromType == model.ImageFromSafeNode {
+						imgIds = append(imgIds, res.Added[i].ID)
 					}
 				}
 
@@ -133,10 +132,9 @@ func (s *SyncRepoImage) SyncImage(ctx context.Context) error {
 			if configs[0].LibraryImageConfig.ImageAddTrigEnable {
 				imgIds := make([]int64, 0)
 				for i := range res.Added {
-					if configs[0].LibraryImageConfig.ScanAll || InInt64Slice(res.Added[i].RegistryID, configs[0].LibraryImageConfig.Libraries) {
-						if res.Added[i].FromType == model.ImageFromTypeNormal {
-							imgIds = append(imgIds, res.Added[i].ID)
-						}
+					// 更新需求，所有的仓库的新增镜像都会创建扫描任务
+					if res.Added[i].FromType == model.ImageFromTypeNormal {
+						imgIds = append(imgIds, res.Added[i].ID)
 					}
 				}
 				if len(imgIds) > 0 {
