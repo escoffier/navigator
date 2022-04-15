@@ -3,7 +3,6 @@ package podservice
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
 	"io/ioutil"
 	"net/http"
@@ -12,12 +11,13 @@ import (
 	"regexp"
 	"sync"
 
-	"github.com/go-redis/redis/v8"
+	json "github.com/json-iterator/go"
 	"gitlab.com/piccolo_su/vegeta/pkg/dal"
 	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
+	k8sErrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -33,22 +33,30 @@ const (
 )
 
 type Service struct {
-	redisCli        *redis.Client
+	clusterManager  *k8s.ClusterManager
 	microSegBaseURL string
 }
 
-func NewService(redisCli *redis.Client, microSegBaseURL string) *Service {
+func NewService(clusterManager *k8s.ClusterManager, microSegBaseURL string) *Service {
 	return &Service{
-		redisCli:        redisCli,
+		clusterManager:  clusterManager,
 		microSegBaseURL: microSegBaseURL,
 	}
 }
 
 func (s *Service) CheckPodExist(ctx context.Context, pod *model.PodInfo) (bool, error) {
-	var query dal.PodResRelationQuery
-	query.WithPodName(pod.PodName, pod.Namespace)
-	_, exist, err := dal.GetPodResourceRelation(ctx, s.redisCli, pod.Cluster, &query)
-	return exist, err
+	k8sCli, exist := s.clusterManager.GetClient(pod.Cluster)
+	if !exist {
+		return false, nil
+	}
+	_, err := dal.GetPodInfoFromK8sClient(ctx, k8sCli.Clientset, pod.Namespace, pod.PodName)
+	if err == nil {
+		return true, nil
+	} else if k8sErrors.IsNotFound(err) {
+		return false, nil
+	} else {
+		return false, err
+	}
 }
 
 type PodOpReq struct {
