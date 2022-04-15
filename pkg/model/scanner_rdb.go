@@ -1,7 +1,6 @@
 package model
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"regexp"
@@ -10,13 +9,13 @@ import (
 	"unicode/utf8"
 
 	"github.com/gobwas/glob"
-	"gorm.io/gorm"
-
+	json "github.com/json-iterator/go"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/vuln-updata/cnnvd"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/vuln-updata/cnvd"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
+	"gorm.io/gorm"
 )
 
 type VulnMatedata struct {
