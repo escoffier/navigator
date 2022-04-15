@@ -5,11 +5,9 @@ import (
 	"crypto/md5"
 	"errors"
 	"fmt"
-	"k8s.io/apimachinery/pkg/util/wait"
 	"net/http"
 	"os"
 	"runtime/debug"
-	"scm.tensorsecurity.cn/tensorsecurity-rd/api/pkg/generated/informers/externalversions"
 	"strconv"
 	"strings"
 	"sync"
@@ -58,6 +56,8 @@ import (
 	"google.golang.org/grpc/credentials"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
+	"k8s.io/apimachinery/pkg/util/wait"
+	"scm.tensorsecurity.cn/tensorsecurity-rd/api/pkg/generated/informers/externalversions"
 )
 
 const resyncInterval = 8 * time.Hour
@@ -297,10 +297,11 @@ func NewConsole(
 		return nil, err
 	}
 
+	clusterManager, _ := k8s.GetClusterManager()
 	err = processingcenter.Init(&processingcenter.ServiceComponent{
 		DB:              rdb,
 		EsCli:           es,
-		RedisCli:        redisClient,
+		ClusterManager:  clusterManager,
 		MicroSegBaseURL: microsegURL,
 	})
 	if err != nil {

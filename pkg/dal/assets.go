@@ -7,7 +7,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/go-redis/redis/v8"
 	json "github.com/json-iterator/go"
 	"gitlab.com/piccolo_su/vegeta/pkg/assets"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
@@ -16,6 +15,8 @@ import (
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes"
 )
 
 var (
@@ -842,72 +843,8 @@ const (
 	podName prqKind = "podName"
 )
 
-type PodResRelationQuery struct {
-	kind   prqKind
-	value  string
-	value2 string
-}
-
-func (q *PodResRelationQuery) WithPodIP(ip string) *PodResRelationQuery {
-	q.kind = podIP
-	q.value = ip
-	return q
-}
-func (q *PodResRelationQuery) WithPodUID(uid string) *PodResRelationQuery {
-	q.kind = podUID
-	q.value = uid
-	return q
-}
-func (q *PodResRelationQuery) WithPodName(name, namespace string) *PodResRelationQuery {
-	q.kind = podName
-	q.value = name
-	q.value2 = namespace
-	return q
-}
-
-func GetPodResourceRelation(ctx context.Context, redisCli *redis.Client, clusterKey string, query *PodResRelationQuery) (*model.PodResourceRelation, bool, error) {
-	var rkey string
-	switch query.kind {
-	case podIP:
-		rkey = getRedisKeyForPodResRelByPodIP(clusterKey, query.value)
-	case podUID:
-		rkey = getRedisKeyForPodResRelByUID(clusterKey, query.value)
-	case podName:
-		rkey = getRedisKeyForPodResRelByName(clusterKey, query.value2, query.value)
-	default:
-		return nil, false, errors.New("illegal queryKind")
-	}
-
-	rctx, cancel := context.WithTimeout(ctx, 1500*time.Millisecond)
-	defer cancel()
-	val := ""
-	rerr := util.RetryWithBackoff(rctx, func() error {
-		oneCtx, oneCancel := context.WithTimeout(rctx, 400*time.Millisecond)
-		defer oneCancel()
-
-		res, err := redisCli.Get(oneCtx, rkey).Result()
-		if err != nil {
-			if err == redis.Nil {
-				return nil
-			}
-			return err
-		}
-		val = res
-		return nil
-	})
-	if rerr != nil {
-		return nil, false, rerr
-	}
-
-	if val == "" {
-		return nil, false, nil
-	}
-	var r model.PodResourceRelation
-	jerr := json.Unmarshal([]byte(val), &r)
-	if jerr != nil {
-		return nil, false, jerr
-	}
-	return &r, true, nil
+func GetPodInfoFromK8sClient(ctx context.Context, k8sCli *kubernetes.Clientset, namespace, podName string) (*corev1.Pod, error) {
+	return k8sCli.CoreV1().Pods(namespace).Get(ctx, podName, metav1.GetOptions{})
 }
 
 func UpsertPodResourceRelationInRDB(ctx context.Context, rdb *gorm.DB, pod *corev1.Pod, resourceName, resKind, clusterKey string, updateTime time.Time) error {
@@ -982,59 +919,6 @@ func CleanUpPodResourceRelationsInRDB(ctx context.Context, rdb *gorm.DB, ts time
 		oneCtx, oneCancel := context.WithTimeout(rCtx, 5000*time.Millisecond)
 		defer oneCancel()
 		return rdb.WithContext(oneCtx).Where("updated_at < ? AND cluster_key = ?", ts, clusterKey).Delete(&model.PodResourceRelation{}).Error
-	})
-}
-
-func UpsertPodResourceRelation(ctx context.Context, redisCli *redis.Client, pod *corev1.Pod, resourceName, resKind, clusterKey string, ttl time.Duration) error {
-	rel := model.PodResourceRelation{
-		ClusterKey:      clusterKey,
-		Namespace:       pod.GetNamespace(),
-		PodName:         pod.GetName(),
-		ResourceName:    resourceName,
-		ResourceKind:    resKind,
-		PodUID:          string(pod.GetUID()),
-		PodIP:           pod.Status.PodIP,
-		HostIP:          pod.Status.HostIP,
-		CreateTimestamp: pod.GetCreationTimestamp().Unix(),
-	}
-
-	relBytes, err := json.Marshal(rel)
-	if err != nil {
-		return err
-	}
-	rctx, cancel := context.WithTimeout(ctx, 1200*time.Millisecond)
-	defer cancel()
-	return util.RetryWithBackoff(rctx, func() error {
-		oneCtx, oneCancel := context.WithTimeout(rctx, 300*time.Millisecond)
-		defer oneCancel()
-		pipe := redisCli.Pipeline()
-
-		relStr := string(relBytes)
-		pipe.Set(oneCtx, getRedisKeyForPodResRelByName(clusterKey, pod.GetNamespace(), pod.GetName()), relStr, ttl)
-		if rel.PodIP != "" {
-			pipe.Set(oneCtx, getRedisKeyForPodResRelByPodIP(clusterKey, rel.PodIP), relStr, ttl)
-		}
-		pipe.Set(oneCtx, getRedisKeyForPodResRelByUID(clusterKey, rel.PodUID), relStr, ttl)
-		_, err := pipe.Exec(oneCtx)
-		return err
-	})
-}
-
-func DeletePodResourceRelation(ctx context.Context, redisCli *redis.Client, pod *corev1.Pod, clusterKey string) error {
-	rctx, cancel := context.WithTimeout(ctx, 800*time.Millisecond)
-	defer cancel()
-	return util.RetryWithBackoff(rctx, func() error {
-		oneCtx, oneCancel := context.WithTimeout(rctx, 200*time.Millisecond)
-		defer oneCancel()
-		pipe := redisCli.Pipeline()
-		pipe.Del(oneCtx, getRedisKeyForPodResRelByName(clusterKey, pod.GetNamespace(), pod.GetName()))
-		if pod.Status.PodIP != "" {
-			pipe.Del(oneCtx, getRedisKeyForPodResRelByPodIP(clusterKey, pod.Status.PodIP))
-		}
-		pipe.Del(oneCtx, getRedisKeyForPodResRelByUID(clusterKey, string(pod.GetUID())))
-		// pipe.SRem(oneCtx, getRedisKeyForResourceControlled(clusterKey, pod.GetNamespace(), resKind, resourceName), string(pod.GetUID()))
-		_, err := pipe.Exec(oneCtx)
-		return err
 	})
 }
 

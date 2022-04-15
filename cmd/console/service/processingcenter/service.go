@@ -8,9 +8,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/go-redis/redis/v8"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/processingcenter/podservice"
 	"gitlab.com/piccolo_su/vegeta/pkg/dal"
+	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 	"gitlab.com/security-rd/go-pkg/databases"
@@ -72,7 +72,7 @@ type Service struct {
 type ServiceComponent struct {
 	DB              *databases.RDBInstance
 	EsCli           *elastic.ESClient
-	RedisCli        *redis.Client
+	ClusterManager  *k8s.ClusterManager
 	MicroSegBaseURL string
 }
 
@@ -83,7 +83,7 @@ const (
 
 func newService(component *ServiceComponent) *Service {
 	return &Service{
-		podService:            podservice.NewService(component.RedisCli, component.MicroSegBaseURL),
+		podService:            podservice.NewService(component.ClusterManager, component.MicroSegBaseURL),
 		db:                    component.DB,
 		esCli:                 component.EsCli,
 		processingIndexPrefix: util.GetEnvWithDefault(EnvProcessingIndexPrefix, DefaultProcessingIndexPrefix),
