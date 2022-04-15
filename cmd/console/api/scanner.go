@@ -52,6 +52,11 @@ func (api *api) scanner() func(chi.Router) {
 		r.Get("/vulns/all", api.RedirectToScanner())
 		r.Get("/vulns/relation", api.RedirectToScanner())
 		r.Put("/vulns/updata", api.RedirectToScanner())
+		r.Get("/vulns/imageVuln/vuln", api.RedirectToScanner())
+		r.Get("/vulns/imageVuln/pkg", api.RedirectToScanner())
+		r.Get("/vulns/imageVuln/language", api.RedirectToScanner())
+		r.Get("/vulns/imageVuln/gobinary", api.RedirectToScanner())
+		r.Get("/vulns/imageVuln/frame", api.RedirectToScanner())
 
 		// r.Get("/register/projects/{projectName}", api.RedirectToScanner())
 		r.Get("/register/registries", api.RedirectToScanner())
@@ -166,7 +171,10 @@ func (api *api) scannerOpenApi() func(router chi.Router) {
 			Get("/vulns", api.ForwardScannerOpenApi())
 
 		r.With(RateLimitMiddleware(api.redisClient, int64(rate))).
-			Get("/vulns/{vulnName}", api.ForwardScannerOpenApi())
+			Get("/vulns/detail", api.ForwardScannerOpenApi())
+
+		r.With(RateLimitMiddleware(api.redisClient, int64(rate))).
+			Get("/vulns/topNImage", api.ForwardScannerOpenApi())
 	}
 }
 

@@ -23,6 +23,7 @@ import (
 
 type Scanner struct {
 	Srv           component.ScannerSrv
+	VulnSrv       component.VulnServiceInterface
 	RegistrySrv   component.RegistrySrvInterface
 	ScanConfigSrv component.ScanConfigSrvInterface
 }
@@ -909,9 +910,10 @@ func (s *Scanner) ImgLayerInfo(ctx *gin.Context) {
 	response.JSONOK(ctx, response.WithItem(*info))
 }
 
-func NewScannerAPISrv(srv component.ScannerSrv) *Scanner {
+func NewScannerAPISrv(srv component.ScannerSrv, vulnSrv component.VulnServiceInterface) *Scanner {
 	return &Scanner{
-		Srv: srv,
+		Srv:     srv,
+		VulnSrv: vulnSrv,
 	}
 }
 

@@ -814,10 +814,10 @@ func (s *ConScannerSrv) GetVulnDetails(ctx context.Context, uniqueVuln uint64) (
 }
 
 func (s *ConScannerSrv) SearchVuln(ctx context.Context, searchWord string, filter *model.Filter) ([]model.Vuln, int64, error) {
-	param := store.SearchVulnParm{Fields: []string{"name", "severity", "pkg_name", "pkg_version", "id", "severity_int", "unique_vuln"}, Keyword: searchWord}
+	param := store.SearchVulnParm{Fields: []string{"name", "severity", "pkg_name", "pkg_version", "id", "severity_int", "unique_vuln"}, VulnKeyword: searchWord}
 	vulns, cnt, err := s.dbdal.SearchVuln(ctx, param, filter)
 	if err != nil {
-		logging.GetLogger().Err(err).Msg("SearchVuln")
+		logging.GetLogger().Err(err).Msg("SearchVulns")
 		return nil, 0, err
 	}
 	return vulns, cnt, err
@@ -852,7 +852,7 @@ func (s *ConScannerSrv) GetVulnTopNImage(ctx context.Context, topN int64) ([]mod
 		imageMap[topNImage[i].ImageID] = &(topNImage[i])
 	}
 	images, _, err := s.dbdal.SearchImage(ctx, store.SearchImageParam{InIds: imageIds,
-		Fields: []string{"full_repo_name", "tags", "id", "image_type", "from_type"}}, nil)
+		OmitFields: []string{"config_json", "manifest_v1_json", "manifest_v2_json"}}, nil)
 	if err != nil {
 		logging.GetLogger().Err(err).Msg("GetVulnTopNImage")
 		return nil, err
@@ -863,6 +863,8 @@ func (s *ConScannerSrv) GetVulnTopNImage(ctx context.Context, topN int64) ([]mod
 			im.Tag = images[i].Tags
 			im.ImageType = images[i].ImageType
 			im.FromType = images[i].FromType
+			im.Library = images[i].Library
+			im.ImageID = images[i].ID
 		}
 	}
 
@@ -2842,7 +2844,12 @@ func (s *ConScannerSrv) GetScanSubTaskList(ctx context.Context, taskID int64, st
 		logging.GetLogger().Err(err).Msgf("获取扫描子任务记录失败, taskId: %d", taskID)
 		return nil, 0, err
 	}
-
+	// 把错误的枚举信息加上
+	for i := range data {
+		if data[i].ErrNo > 0 {
+			data[i].ErrMsgEnu = consts.GetErrMsgEnu(data[i].ErrNo)
+		}
+	}
 	return data, count, nil
 }
 
@@ -3188,16 +3195,16 @@ func (s *ConScannerSrv) checkEnv(ctx context.Context, scanImage model.ScanImage,
 func getSeverityCount(groups []model.SeverityGroup) model.SeverityCount {
 	res := model.SeverityCount{}
 	for i := range groups {
-		switch groups[i].Severity {
-		case consts.SeverityUnknown:
+		switch groups[i].SeverityInt {
+		case model.SeverityUnknownInt:
 			res.Unknown += groups[i].Count
-		case consts.SeverityMedium:
+		case model.SeverityMediumInt:
 			res.Medium += groups[i].Count
-		case consts.SeverityLow:
+		case model.SeverityLowInt:
 			res.Low += groups[i].Count
-		case consts.SeverityHigh:
+		case model.SeverityHighInt:
 			res.High += groups[i].Count
-		case consts.SeverityCritical:
+		case model.SeverityCriticalInt:
 			res.Critical += groups[i].Count
 		}
 	}

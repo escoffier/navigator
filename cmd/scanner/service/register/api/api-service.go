@@ -78,6 +78,7 @@ func newService(config register.ScannerServiceConfig) (register.ScannerService, 
 				store.NewScannerOrm(store.GetScannerWrapperDb()),
 				store.NewScannerOrm(store.GetScannerWrapperDb()),
 			),
+			component.NewVulnService(store.NewVulnDao()),
 		),
 	}
 

@@ -31,7 +31,9 @@ func (scdb *ScannerDB) InsertToScanImage(ctx context.Context, scanImage *model.S
 	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*10)
 	defer cancelFunc()
 	tmp := make([]model.ScanImage, 0)
+	scanImage.Serialize()
 	scanImage.CheckSum = scanImage.GetCheckSum()
+
 	if err := scdb.RDB.Get().WithContext(ctx).Select("id", "image_id", "check_sum").Where("image_id = ?", scanImage.ImageID).Find(&tmp).Error; err != nil {
 		return err
 	}
@@ -92,6 +94,8 @@ func (scdb *ScannerDB) InsertToWebFrame(ctx context.Context, webFrameScan *model
 }
 
 func (scdb *ScannerDB) InsertToVuln(ctx context.Context, vuln *model.Vuln, imageID int64) error {
+	vuln.Serialize()
+	vuln.Deserialize()
 	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*10)
 	defer cancelFunc()
 	vuln.CheckSum = vuln.GenCheckSum()
@@ -125,6 +129,7 @@ func (scdb *ScannerDB) InsertToVuln(ctx context.Context, vuln *model.Vuln, image
 		}
 		return err
 	}
+
 	return nil
 }
 

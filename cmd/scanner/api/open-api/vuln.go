@@ -2,100 +2,125 @@ package openapi
 
 import (
 	"errors"
+	"fmt"
+	"net/http"
+	"strconv"
 
 	"github.com/gin-gonic/gin"
-	"gitlab.com/piccolo_su/vegeta/cmd/scanner/api/model/vuln"
-	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/openapi"
+
+	apimodel "gitlab.com/piccolo_su/vegeta/cmd/scanner/api/model"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
+	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
-	"gitlab.com/security-rd/go-pkg/databases"
+	"gitlab.com/piccolo_su/vegeta/pkg/util"
 )
 
 type VulnServer struct {
-	service *openapi.VulnService
+	vulnService component.ScannerSrv
 }
 
-func NewVulnServer(rdb *databases.RDBInstance) *VulnServer {
+func NewVulnServer(vulnService component.ScannerSrv) *VulnServer {
 	return &VulnServer{
-		service: openapi.NewVulnService(rdb),
+		vulnService: vulnService,
 	}
 }
 
 func (v *VulnServer) List(ctx *gin.Context) {
-	var req vuln.ListReq
-	if err := ctx.BindQuery(&req); err != nil {
-		response.JSONError(ctx, errors.New("parse request params error"))
+	search := ctx.Query("keyword")
+	if len(search) > 64 {
+		response.JSONError(ctx, errors.New("the maximum value is exceeded"))
 		return
 	}
-
-	// default value: 10
-	if req.Limit == 0 {
-		req.Limit = 10
+	filter := model.GetFilterWithDefaultValue(ctx)
+	if filter.SortFiled == "" {
+		filter.SortFiled = "severity_int"
 	}
-
-	if req.Limit > 100 {
-		response.JSONError(ctx, errors.New("param limit exceeds 100"))
-		return
+	if filter.SortBy == "" {
+		filter.SortBy = consts.SortByDesc
 	}
-
-	data, count, err := v.service.List(ctx, &req)
+	vulns, cnt, err := v.vulnService.SearchVuln(ctx, search, filter)
 	if err != nil {
 		response.JSONError(ctx, err)
 		return
 	}
 
-	vulns := vuln.ListResp{}
-	vulns.Build(data)
+	res := make([]apimodel.Detail, len(vulns))
+	for i := range vulns {
+		res[i] = apimodel.ModelToOpenapiDetail(vulns[i])
+	}
 
 	response.JSONOK(ctx, response.WithItems(vulns),
-		response.WithTotalItems(count),
-		response.WithItemsPerPage(int64(req.Limit)),
-		response.WithStartIndex(int64(req.Offset)))
+		response.WithTotalItems(cnt),
+		response.WithItemsPerPage(filter.Limit),
+		response.WithStartIndex(filter.Offset))
 }
 
 func (v *VulnServer) Detail(ctx *gin.Context) {
-	var req vuln.DetailReq
-	if err := ctx.BindUri(&req); err != nil {
-		response.JSONError(ctx, errors.New("parse request params error"))
+	vulnName := ctx.Query("vulnName")
+	pkgName := ctx.Query("pkgName")
+	pkgVersion := ctx.Query("pkgVersion")
+
+	if vulnName == "" || pkgName == "" || pkgVersion == "" {
+		response.JSONError(ctx, fmt.Errorf("vulnName,pkgName,pkgVersion must not empty"))
 		return
 	}
+	uniqueVuln := util.GenerateUUID64(fmt.Sprintf(consts.UniqueVulnFamat, vulnName, pkgName, pkgVersion))
 
-	if req.Name == "" {
-		response.JSONError(ctx, errors.New("the vuln name is empty"))
-		return
-	}
-
-	data, err := v.service.Detail(ctx, &req)
+	res, err := v.vulnService.GetVulnDetails(ctx, uniqueVuln)
 	if err != nil {
 		response.JSONError(ctx, err)
 		return
 	}
+	response.JSONOK(ctx, response.WithItem(apimodel.ModelToOpenapiDetail(res.Vuln)))
+}
 
-	detail := vuln.DetailResp{}
-	detail.Build(data)
+func (v *VulnServer) GetVulnTopNImage(ctx *gin.Context) {
 
-	response.JSONOK(ctx, response.WithItem(detail))
+	topN, err := strconv.ParseInt(ctx.Query("topn"), 10, 64)
+	if err != nil || topN <= 0 {
+		topN = consts.DefaultVulnTopNImage
+	}
+	if topN > consts.MaxVulnTopNImage {
+		topN = consts.MaxVulnTopNImage
+	}
+	type TopN struct {
+		Image   string  `json:"image"`
+		Score   float64 `json:"score"`
+		ImageID int64   `json:"imageID"`
+	}
+
+	res, err := v.vulnService.GetVulnTopNImage(ctx, topN)
+	if err != nil {
+		response.JSONError(ctx, response.NewHttpError(http.StatusInternalServerError, err))
+		return
+	}
+	ans := make([]TopN, len(res))
+	for i := range res {
+		ans[i] = TopN{
+			Image:   fmt.Sprintf("%s/%s:%s", res[i].Library, res[i].Name, res[i].Tag),
+			Score:   res[i].Score,
+			ImageID: res[i].ImageID,
+		}
+	}
+
+	response.JSONOK(ctx, response.WithItems(ans), response.WithTotalItems(int64(len(res))))
 }
 
 func (v *VulnServer) Statistic(ctx *gin.Context) {
-	countBySeverity, err := v.service.CountBySeverity(ctx)
+	type VulnOverview struct {
+		VulnTotal int64               `json:"vulnTotal"`
+		Severity  model.SeverityCount `json:"severity"`
+	}
+
+	res, err := v.vulnService.GetVulnOverView(ctx)
 	if err != nil {
-		response.JSONError(ctx, err)
+		response.JSONError(ctx, response.NewHttpError(http.StatusInternalServerError, err))
 		return
 	}
-
-	if countBySeverity == nil {
-		response.JSONError(ctx, errors.New("vulns' statistic is empty"))
-		return
+	ans := VulnOverview{
+		VulnTotal: res.VulnTotal,
+		Severity:  res.Severity,
 	}
-
-	top5, err := v.service.CountTopN(ctx, 5)
-	if err != nil {
-		response.JSONError(ctx, err)
-		return
-	}
-
-	var res vuln.StatisticResp
-	res.BuildCountBySeverity(countBySeverity).BuildCountByTops(top5)
-
-	response.JSONOK(ctx, response.WithItem(res))
+	response.JSONOK(ctx, response.WithItem(ans), response.WithExportFileStatus(0))
 }

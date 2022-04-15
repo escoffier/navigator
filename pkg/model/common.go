@@ -9,6 +9,8 @@ import (
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
+
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 )
 
 type Filter struct {
@@ -33,6 +35,24 @@ func GetFilter(ctx *gin.Context) *Filter {
 	}
 	if offset <= 0 {
 		offset = 0
+	}
+
+	filter := &Filter{Offset: offset, Limit: limit, SortBy: sortBy, SortFiled: sortFiled}
+	filter.OrderByColumns = make([]clause.OrderByColumn, 0)
+	filter = filter.SetDefault()
+	return filter
+}
+
+func GetFilterWithDefaultValue(ctx *gin.Context) *Filter {
+	offset, _ := strconv.ParseInt(ctx.Query("offset"), 10, 64)
+	limit, _ := strconv.ParseInt(ctx.Query("limit"), 10, 64)
+	sortBy := ctx.Query("sort_by")
+	sortFiled := ctx.Query("sort_filed")
+	if limit > consts.DefaultLimit || limit <= 0 {
+		limit = consts.DefaultLimit
+	}
+	if offset <= 0 {
+		offset = consts.DefaultOffset
 	}
 
 	filter := &Filter{Offset: offset, Limit: limit, SortBy: sortBy, SortFiled: sortFiled}

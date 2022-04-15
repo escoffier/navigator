@@ -66,16 +66,16 @@ func (si *ScanImage) GenImageFlag(preFlag uint64) uint64 {
 
 	var flag uint64
 
-	if len(si.VulnInfoJSON) > 0 {
+	if si.VulnScore > 0 {
 		flag = 1<<FlagHasVuln + flag
 	}
-	if len(si.SensitiveFileJSON) > 0 {
+	if si.SensitiveScore > 0 {
 		flag = 1<<FlagHasSensitive + flag
 	}
-	if len(si.MaliciousInfoJSON) > 0 {
+	if si.VirusScore > 0 {
 		flag = 1<<FlagHasMalicious + flag
 	}
-	if len(si.WebshellInfoJSON) > 0 {
+	if si.WebshellScore > 0 {
 		flag = 1<<FlagHasWebshell + flag
 	}
 	for i := range si.EnvKeyValue {

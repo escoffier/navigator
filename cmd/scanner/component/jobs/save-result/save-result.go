@@ -54,23 +54,6 @@ var (
 	}
 )
 
-func (s *ScanResultHandle) transSeverityInt(level string) int {
-	switch level {
-	case "CRITICAL":
-		return 5
-	case "HIGH":
-		return 4
-	case "MEDIUM":
-		return 3
-	case "LOW":
-		return 2
-	case "UNKNOWN":
-		return 1
-	default:
-		return 0
-	}
-}
-
 func (s *ScanResultHandle) caculateScore(severity string, num int64) float64 {
 	score := constMapScore[severity].SingleScore * float64(num)
 	if score >= constMapScore[severity].MaxScore {
@@ -394,14 +377,14 @@ func (s *ScanResultHandle) logPostgresLayer(ctx context.Context, scanDetails *mo
 func (s *ScanResultHandle) logPostgresImage(ctx context.Context, scanDetails *model.ScanDetailScanImage, layerMp map[string]*model.LayerScanDetail, imageID int64) {
 	scannerOrm := store.GetScannerDb()
 	tmpScanImage := &model.ScanImage{
-		ID:                   0,
-		ImageID:              imageID,
-		RiskScore:            scanDetails.VulnScore + math.Min(40, scanDetails.MaliciousScore+scanDetails.WebShellScore) + scanDetails.SensitiveScore,
-		VulnScore:            scanDetails.VulnScore,
-		SensitiveScore:       scanDetails.SensitiveScore,
-		VirusScore:           scanDetails.MaliciousScore,
-		WebshellScore:        scanDetails.WebShellScore,
-		VulnInfo:             scanDetails.VulnDetails,
+		ID:             0,
+		ImageID:        imageID,
+		RiskScore:      scanDetails.VulnScore + math.Min(40, scanDetails.MaliciousScore+scanDetails.WebShellScore) + scanDetails.SensitiveScore,
+		VulnScore:      scanDetails.VulnScore,
+		SensitiveScore: scanDetails.SensitiveScore,
+		VirusScore:     scanDetails.MaliciousScore,
+		WebshellScore:  scanDetails.WebShellScore,
+		// VulnInfo:             scanDetails.VulnDetails,
 		MaliciousInfo:        scanDetails.MaliciousDetails,
 		WebshellInfo:         scanDetails.WebshellInfos,
 		SensitiveFile:        scanDetails.Sentitives,
@@ -442,11 +425,13 @@ func (s *ScanResultHandle) UpdateImageFlag(ctx context.Context, imageID int64, s
 }
 
 func (s *ScanResultHandle) logPostgresVuln(ctx context.Context, scanDetails *model.ScanDetailScanImage, layerMp map[string]*model.LayerScanDetail, imageID int64) {
-	scannerOrm := store.GetScannerDb()
+	vulnDal := store.NewVulnDao()
+
+	vulns := make([]*model.Vuln, 0, 20)
+	vulnImages := make([]*model.VulnImage, 0, 20)
+
 	for _, v := range scanDetails.VulnDetails {
 		for _, vuln := range v.Vulns {
-
-			// var err error
 			tmpMatedate := model.VulnMatedata{}
 			if vuln.Cnvd != nil {
 				tmpMatedate.CNVDs = vuln.Cnvd
@@ -461,25 +446,36 @@ func (s *ScanResultHandle) logPostgresVuln(ctx context.Context, scanDetails *mod
 					tmpMate.CVSS.CVSSv3Vector = cvss.V3Vector
 					break
 				}
-				mateDateJSON, err := json.Marshal(tmpMate)
-				if err != nil {
-					logging.GetLogger().Error().Err(err)
-				}
-				linkjson, err := json.Marshal(trivyVuln.References)
-				if err != nil {
-					logging.GetLogger().Error().Err(err)
+
+				vuln := &model.Vuln{
+					Target:      v.Target,
+					Name:        vuln.CVEID,
+					Namespace:   strings.ToLower(v.Type),
+					Description: trivyVuln.Description,
+					Link:        trivyVuln.References,
+					Severity:    trivyVuln.Severity,
+					SeverityInt: model.GetSeverityInt(trivyVuln.Severity),
+					Metadata:    &tmpMate,
+					PkgName:     trivyVuln.PkgName,
+					PkgVersion:  trivyVuln.InstalledVersion,
+					FixedBy:     trivyVuln.FixedVersion,
+					Class:       v.Class,
 				}
 
-				tmpVuln := model.Vuln{Name: vuln.CVEID, Namespace: v.Type, Target: v.Target, Description: trivyVuln.Description,
-					MetadataJSON: mateDateJSON, PkgName: trivyVuln.PkgName, PkgVersion: trivyVuln.InstalledVersion,
-					LinkJSON: linkjson, FixedBy: trivyVuln.FixedVersion, Severity: trivyVuln.Severity, SeverityInt: s.transSeverityInt(trivyVuln.Severity)}
-
-				err = scannerOrm.InsertToVuln(ctx, &tmpVuln, imageID)
-				if err != nil {
-					logging.GetLogger().Error().Err(err).Msg("InsertoVuln failed ")
-				}
+				vulns = append(vulns, vuln)
+				vulnImages = append(vulnImages, &model.VulnImage{ImageId: imageID, UniqueVuln: vuln.GenUniqueVuln()})
 			}
 		}
+	}
+
+	if err := vulnDal.CreateVuln(ctx, vulns); err != nil {
+		logging.GetLogger().Err(err).Msg("save-result CreateVuln")
+		return
+	}
+
+	if err := vulnDal.CreateVulnImage(ctx, imageID, vulnImages); err != nil {
+		logging.GetLogger().Err(err).Msg("save-result CreateVulnImage")
+		return
 	}
 }
 

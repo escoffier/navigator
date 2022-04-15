@@ -106,15 +106,6 @@ const (
 	ScanTypeNetWorkBased    = 3
 )
 
-const (
-	SeverityCritical   = "CRITICAL"
-	SeverityHigh       = "HIGH"
-	SeverityMedium     = "MEDIUM"
-	SeverityLow        = "LOW"
-	SeverityNegligible = "NEGLIGIBLE"
-	SeverityUnknown    = "UNKNOWN"
-)
-
 type VulnInfoEx struct {
 	// Helper struct that creates one to one mapping between vulnerability and affected image.
 	VulnerabilityInfo
@@ -135,8 +126,9 @@ type SeverityCount struct {
 }
 
 type SeverityGroup struct {
-	Severity int   `gorm:"column:severity_int" json:"severity"`
-	Count    int64 `gorm:"column:cnt"  json:"count"`
+	SeverityInt int    `gorm:"column:severity_int" json:"severityInt"`
+	Severity    string `gorm:"column:severity" json:"severity"`
+	Count       int64  `gorm:"column:cnt"  json:"count"`
 }
 
 type ImageSeverityCount struct {
@@ -152,6 +144,7 @@ type ImageRiskScore struct {
 	ImageID   int64  `grom:"column:image_id" json:"id"`
 	ImageType int64  `json:"image_type"`
 	FromType  int64  `json:"from_type"`
+	Library   string `json:"registryUrl"`
 }
 
 type ConstMapScore struct {
@@ -201,6 +194,7 @@ type VulnImageList struct {
 //
 type VulnDetail struct {
 	VulninfoApi   VulnDetailInfo        `json:"vulninfo"`
+	Vuln          Vuln                  `json:"vuln"`
 	VulnImageList []VulnImageList       `json:"vuln_image_list"`
 	Containers    []VulnDetailContainer `json:"containers"`
 }
