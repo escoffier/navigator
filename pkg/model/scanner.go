@@ -3,11 +3,10 @@ package model
 import (
 	"time"
 
-	"go.mongodb.org/mongo-driver/bson/primitive"
-	"scm.tensorsecurity.cn/tensorsecurity-rd/trivy/pkg/types"
-
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/vuln-updata/cnnvd"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/vuln-updata/cnvd"
+	"go.mongodb.org/mongo-driver/bson/primitive"
+	"scm.tensorsecurity.cn/tensorsecurity-rd/trivy/pkg/types"
 )
 
 var VulnerabilityInImagesRiskFilters = map[string]int{
@@ -193,10 +192,9 @@ type VulnImageList struct {
 
 //
 type VulnDetail struct {
-	VulninfoApi   VulnDetailInfo        `json:"vulninfo"`
-	Vuln          Vuln                  `json:"vuln"`
-	VulnImageList []VulnImageList       `json:"vuln_image_list"`
-	Containers    []VulnDetailContainer `json:"containers"`
+	VulninfoApi VulnDetailInfo        `json:"vulninfo"`
+	Vuln        Vuln                  `json:"vuln"`
+	Containers  []VulnDetailContainer `json:"containers"`
 }
 
 // ReportImgBackInfo 镜像回溯时给前端返回的数据

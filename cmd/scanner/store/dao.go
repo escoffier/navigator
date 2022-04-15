@@ -12,18 +12,16 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
-	"go.mongodb.org/mongo-driver/bson/primitive"
-	"gorm.io/gorm"
-	"gorm.io/gorm/clause"
-
-	"gitlab.com/security-rd/go-pkg/databases"
-
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/pkg/harbor"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
+	"gitlab.com/security-rd/go-pkg/databases"
+	"go.mongodb.org/mongo-driver/bson/primitive"
+	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 type ScannerDalInterface interface {
@@ -820,14 +818,15 @@ func (s *ScannerOrm) SetImageStatus(ctx context.Context, ids []int64, status str
 func (s *ScannerOrm) GetImagesFromVuln(ctx context.Context, uniqueVuln uint64) ([]model.VulnImageList, error) {
 	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*2)
 	defer cancelFunc()
-	tmpImageID := []int{}
-	resImageLists := []model.VulnImageList{}
+	
+	tmpImageID := make([]int, 0, 10)
 	// 查询这个vuln关联的imageid
 	err := s.rdb.Get().WithContext(ctx).Model(model.VulnImage{}).Select("image_id").Where("unique_vuln  = ? ", uniqueVuln).Find(&tmpImageID).Error
 	if err != nil {
-		return resImageLists, err
+		return nil, err
 	}
 	// 查询image具体信息
+	resImageLists := make([]model.VulnImageList, 0, len(tmpImageID))
 	err = s.rdb.Get().WithContext(ctx).Model(model.ImageList{}).Select("full_repo_name,digest,library,id,tags").Where("id IN ? ", tmpImageID).Find(&resImageLists).Error
 	return resImageLists, err
 }
@@ -862,16 +861,7 @@ func (s *ScannerOrm) GetVulnDetails(ctx context.Context, uniqueVuln uint64) (mod
 
 	res.VulninfoApi.Fixedby = tmp.FixedBy
 	res.VulninfoApi.Description = tmp.Description
-	tmpImageID := make([]int, 0)
-	tmpImageLists := make([]model.VulnImageList, 0)
-	// 查询这个vuln关联的imageid
-	if err := s.rdb.Get().WithContext(ctx).Model(model.VulnImage{}).Select("image_id").Where("unique_vuln = ? ", uniqueVuln).Find(&tmpImageID).Error; err != nil {
-		return model.VulnDetail{}, err
-	}
-	// 查询image具体信息
-	if err := s.rdb.Get().WithContext(ctx).Model(model.ImageList{}).Select("full_repo_name,digest,library,id").Where("id IN ? ", tmpImageID).Find(&tmpImageLists).Error; err != nil {
-		return model.VulnDetail{}, err
-	}
+
 	return res, nil
 }
 
