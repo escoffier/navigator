@@ -3327,10 +3327,14 @@ scm.tensorsecurity.cn/tensorsecurity-rd/cloudwalker v0.0.4 h1:AxbAg/CYDzUe0GZOI7
 scm.tensorsecurity.cn/tensorsecurity-rd/cloudwalker v0.0.4/go.mod h1:vDsqw0i9Urt3k5euCjY+ISnhaCHh8iaCK4Cd2+N1ItU=
 scm.tensorsecurity.cn/tensorsecurity-rd/fanal v0.0.0-20220303064730-1ddca8134cfd h1:oBZCO/hkKBUS/jFy0310w9CtVQk4hLGIZizAxAmYByw=
 scm.tensorsecurity.cn/tensorsecurity-rd/fanal v0.0.0-20220303064730-1ddca8134cfd/go.mod h1:soK0f05cz92yM1I5diMOTvJZKjGZXhMxv5KpMbkNUgE=
+scm.tensorsecurity.cn/tensorsecurity-rd/fanal v0.0.0-20220415061508-baf9465b55a7 h1:Z6hI2OnqLsDm4J75P6klP4v95c5IF/Pt9rY3irghyP8=
+scm.tensorsecurity.cn/tensorsecurity-rd/fanal v0.0.0-20220415061508-baf9465b55a7/go.mod h1:soK0f05cz92yM1I5diMOTvJZKjGZXhMxv5KpMbkNUgE=
 scm.tensorsecurity.cn/tensorsecurity-rd/go-pkg v0.2.16 h1:MVvXdKJmnrfGPcZ3DTokVZsYOxr4OFtp123hRaaYE8A=
 scm.tensorsecurity.cn/tensorsecurity-rd/go-pkg v0.2.16/go.mod h1:kC5HMiAD31mAFUcEHgnTc0WRsTCe/FyaRA7jV18KPbc=
 scm.tensorsecurity.cn/tensorsecurity-rd/trivy v0.19.3-0.20220305065055-a84383074cfa h1:uocOi8AtoZZdoMvpmYM1wdE39Yq1gLLCl/+Uzb1sutY=
 scm.tensorsecurity.cn/tensorsecurity-rd/trivy v0.19.3-0.20220305065055-a84383074cfa/go.mod h1:HYcIGPlNV3oYyMaS/FHFVFYD1s15ula81AqZzLSuxjk=
+scm.tensorsecurity.cn/tensorsecurity-rd/trivy v0.19.3-0.20220415061753-3cc5416a372e h1:RugKplNZN1jOzCd8CXnY4FVukLrckRnd6WSDcS0c1HM=
+scm.tensorsecurity.cn/tensorsecurity-rd/trivy v0.19.3-0.20220415061753-3cc5416a372e/go.mod h1:jfH71uF2cFfCh5V7BXoglhBL1+MxG8d+KZrFxXnQy6I=
 sigs.k8s.io/apiserver-network-proxy/konnectivity-client v0.0.14/go.mod h1:LEScyzhFmoF5pso/YSeBstl57mOzx9xlU9n85RGrDQg=
 sigs.k8s.io/apiserver-network-proxy/konnectivity-client v0.0.15/go.mod h1:LEScyzhFmoF5pso/YSeBstl57mOzx9xlU9n85RGrDQg=
 sigs.k8s.io/apiserver-network-proxy/konnectivity-client v0.0.22/go.mod h1:LEScyzhFmoF5pso/YSeBstl57mOzx9xlU9n85RGrDQg=
