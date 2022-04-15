@@ -66,7 +66,7 @@ func (s *ImageOpenAPISvc) ListImages(ctx *gin.Context) {
 		param.FromType = model.ImageFromTypeNormal
 	}
 
-	filter := model.GetFilter(ctx)
+	filter := model.GetFilterWithDefaultValue(ctx)
 	filter.SortFiled = "full_repo_name"
 	filter.SortBy = "asc"
 

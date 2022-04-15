@@ -51,7 +51,6 @@ type ScannerDalInterface interface {
 
 	GetTaskFromImageList(ctx context.Context, imgID int64, fromURL string, auth string) (model.ScanTask, model.VirusScanTask, error)
 	SearchScanAllStatus(ctx context.Context, fromType int64) harbor.ScanAllStatus
-	GetVulnTotal(ctx context.Context) (int, error)
 
 	GroupVulnSeverity(ctx context.Context) ([]model.SeverityGroup, error)
 	GroupVulnSeverityByImageID(ctx context.Context, imageID int64) ([]model.SeverityGroup, error)
@@ -845,7 +844,9 @@ func (s *ScannerOrm) GetVulnDetails(ctx context.Context, uniqueVuln uint64) (mod
 	if err := json.Unmarshal(tmp.MetadataJSON, &tmpMate); err != nil {
 		return model.VulnDetail{}, err
 	}
-	res := model.VulnDetail{}
+	tmp.Serialize()
+	tmp.Deserialize()
+	res := model.VulnDetail{Vuln: tmp}
 	res.VulninfoApi.Name = tmp.Name
 	res.VulninfoApi.Pkgname = tmp.PkgName
 	res.VulninfoApi.Pkgversion = tmp.PkgVersion
@@ -878,8 +879,8 @@ func (s *ScannerOrm) SearchVuln(ctx context.Context, param SearchVulnParm, filte
 	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*10)
 	defer cancelFunc()
 	db := s.rdb.Get().WithContext(ctx).Model(model.Vuln{})
-	if param.Keyword != "" {
-		db = db.Where("name LIKE ?", fmt.Sprintf("%%%s%%", param.Keyword))
+	if param.VulnKeyword != "" {
+		db = db.Where("name LIKE ?", fmt.Sprintf("%%%s%%", param.VulnKeyword))
 	}
 	if param.UniqueVuln > 0 {
 		db = db.Where("unique_vuln = ?", param.UniqueVuln)
@@ -887,18 +888,42 @@ func (s *ScannerOrm) SearchVuln(ctx context.Context, param SearchVulnParm, filte
 	if len(param.Fields) > 0 {
 		db = db.Select(param.Fields)
 	}
+	if len(param.OmitFields) > 0 {
+		db = db.Omit(param.OmitFields...)
+	}
 	if param.Where != "" {
 		db = db.Where(param.Where)
 	}
+	if param.ImageID > 0 {
+		sub := s.rdb.Get().WithContext(ctx).Model(new(model.VulnImage)).Select("unique_vuln").Where("image_id = ?", param.ImageID)
+		db = db.Where("unique_vuln IN (?)", sub)
+	}
+	if param.PkgName != "" {
+		db = db.Where("pkg_name = ?", param.PkgName)
+	}
+	if param.PkgVersion != "" {
+		db = db.Where("pkg_version = ?", param.PkgVersion)
+	}
+	if len(param.Sources) > 0 {
+		db = db.Where("source IN ？", param.Sources)
+	}
+	if param.CanFixed == consts.TrueString {
+		db = db.Where("fixedby != ''")
+	}
+	if param.CanFixed == consts.FalseString {
+		db = db.Where("fixedby = ''")
+	}
+
 	res := make([]model.Vuln, 0)
 	var count int64
-	err := db.Count(&count).Error
-	if err != nil {
+	if err := db.Count(&count).Error; err != nil {
 		return nil, 0, err
 	}
+	if param.JustReturnCount {
+		return nil, count, nil
+	}
 	db = model.AddFilter(db, filter)
-	err = db.Find(&res).Error
-	if err != nil {
+	if err := db.Find(&res).Error; err != nil {
 		return nil, 0, err
 	}
 	for i := range res {
@@ -936,6 +961,7 @@ func (s *ScannerOrm) GetOnlineImage(ctx context.Context, param GetOnlineImagePar
 	}
 	return res, nil
 }
+
 func (s *ScannerOrm) SearchScanLayer(ctx context.Context, param SearchScanLayerParam, filter *model.Filter) ([]model.ScanLayer, int64, error) {
 	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*10)
 	defer cancelFunc()
@@ -1047,18 +1073,6 @@ func (s *ScannerOrm) GroupVulnSeverityByImageID(ctx context.Context, imageID int
 	sql := `select severity_int,count(b.id) as cnt from %s as a  join %s as b  where b.image_id=%d AND a.unique_vuln = b.unique_vuln group by a.severity_int;`
 	err := db.Raw(fmt.Sprintf(sql, model.Vuln{}.TableName(), model.VulnImage{}.TableName(), imageID)).Scan(&group).Error
 	return group, err
-}
-
-func (s *ScannerOrm) GetVulnTotal(ctx context.Context) (int, error) {
-	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*10)
-	defer cancelFunc()
-
-	var total int
-	err := s.rdb.Get().WithContext(ctx).Model(model.Vuln{}).Select("Count(*)").Scan(&total).Error
-	if err != nil {
-		return 0, err
-	}
-	return total, nil
 }
 
 func (s *ScannerOrm) InsertScanImage(ctx context.Context, sis []model.ScanImage) (int64, error) {

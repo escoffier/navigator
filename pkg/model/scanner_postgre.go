@@ -34,11 +34,11 @@ type PostModel struct {
 
 // 漏洞表
 type Vuln struct {
-	ID           int64     `gorm:"primaryKey" json:"id"`
-	CreatedAt    time.Time `json:"created_at"`
-	UpdatedAt    time.Time `json:"updated_at"`
-	DeletedAt    int       `json:"deleted_at"`
-	Target       string
+	ID           int64         `gorm:"primaryKey" json:"id"`
+	CreatedAt    time.Time     `json:"created_at" json:"created_at"`
+	UpdatedAt    time.Time     `json:"updated_at" json:"updated_at"`
+	DeletedAt    int           `json:"deleted_at" json:"deleted_at"`
+	Target       string        `gorm:"column:target" json:"target"`
 	Name         string        `gorm:"type:varchar(255);uniqueIndex:uniq_idx_vuln,priority:1" json:"name"` // 形如CVE-2021-28831
 	Namespace    string        `gorm:"type:varchar(255)" json:"namespace"`                                 // 发行版名字：alpine，redhat等
 	Description  string        `gorm:"type:text" json:"description"`                                       // 描述
@@ -50,10 +50,13 @@ type Vuln struct {
 	MetadataJSON []byte        `gorm:"type:Blob" json:"-"`                                                        // 元数据
 	PkgName      string        `gorm:"type:varchar(255);uniqueIndex:uniq_idx_vuln,priority:2" json:"pkg_name"`    // 软件包来源
 	PkgVersion   string        `gorm:"type:varchar(255);uniqueIndex:uniq_idx_vuln,priority:3" json:"pkg_version"` // 软件包版本
-	FixedBy      string        `gorm:"type:varchar(255)" json:"fixedby" bson:"fixedby" json:"fixed_by"`           // 修复建议
+	FixedBy      string        `gorm:"type:varchar(255)" json:"fixedby" bson:"fixedby" json:"fixedby"`            // 修复建议
 	UniqueVuln   uint64        `gorm:"column:unique_vuln" json:"unique_vuln" json:"unique_vuln"`
 	ExtraInfo    []byte        `gorm:"type:Blob" json:"-"` //  预留，漏洞属性。如我们自己的漏洞评级
 	CheckSum     uint64        `gorm:"column:check_sum" json:"check_sum"`
+	Class        string        `gorm:"column:target" json:"class"`      // 代表是系统包还是语言包 os-pkgs
+	Language     string        `gorm:"column:language" json:"language"` // 把编程语言入库用于搜索 统一存小写，便于搜索
+	Frame        string        `gorm:"column:frame" json:"frame"`       // 开发框架筛选
 }
 
 func (Vuln) TableName() string {
@@ -76,7 +79,20 @@ func (vn *Vuln) Serialize() {
 			vn.LinkJSON = bys
 		}
 	}
+	if vn.Language == "" {
+		vn.Language = GetVulnLanguageMap()[vn.Namespace] // 如果没有编程语言，就存空
+	}
+
+	if vn.Language == "java" {
+		if strings.Contains(vn.PkgName, "struts2") {
+			vn.Frame = "struts2"
+		}
+		if strings.Contains(vn.PkgName, "fastjson") {
+			vn.Frame = "fastjson"
+		}
+	}
 }
+
 func (vn *Vuln) Deserialize() {
 	if len(vn.MetadataJSON) > 0 {
 		meta := new(VulnMatedata)
@@ -119,7 +135,7 @@ func (vn *Vuln) GenUniqueVuln() uint64 {
 
 // 漏洞关联镜像表
 type VulnImage struct {
-	ID         uint      `gorm:"primaryKey" json:"id,omitempty"`
+	ID         int64     `gorm:"primaryKey" json:"id,omitempty"`
 	CreatedAt  time.Time `json:"created_at"`
 	UpdatedAt  time.Time `json:"updated_at"`
 	UniqueVuln uint64    `gorm:"column:unique_vuln" json:"unique_vuln"`                      // 漏洞的唯一标识
@@ -569,6 +585,7 @@ type SubTask struct {
 	Result     uint8      `gorm:"result" json:"result"`     // deprecated,1:failed, 2:success
 	ErrMsg     string     `gorm:"type:varchar(255);column:err_msg" json:"err_msg"`
 	ErrNo      int        `gorm:"column:err_no" json:"err_no"`
+	ErrMsgEnu  string     `gorm:"-" json:"err_msg_enu"`         // 错误信息的枚举值，用于前端展示
 	CreatedAt  time.Time  `gorm:"created_at" json:"created_at"` // subtask create time
 	StartedAt  *time.Time `gorm:"started_at" json:"started_at"`
 	UpdatedAt  time.Time  `gorm:"updated_at" json:"updated_at"`

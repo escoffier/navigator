@@ -74,3 +74,26 @@ const (
 	ErrScanInternal                  // "程序内部出错"
 	ErrExceededRetryCount            // "超过重试次数"
 )
+
+func GetErrMsgEnu(errNo int) string {
+	switch errNo {
+	case ErrScanPullImage:
+		return "拉取镜像出错"
+	case ErrScanTrivy:
+		return "扫描镜像出错"
+	case ErrScanSaveResult:
+		return "保存扫描数据出错"
+	case ErrScanConfig:
+		return "解析扫描配置出错"
+	case ErrScanGetImage:
+		return "查询待扫描镜像出错"
+	case ErrScanGetRegistry:
+		return "查询镜像仓库出错"
+	case ErrScanInternal:
+		return "程序内部出错"
+	case ErrExceededRetryCount:
+		return "超过重试次数"
+	default:
+		return "程序内部出错"
+	}
+}

@@ -263,8 +263,25 @@ type SearchTrustedImageParam struct {
 }
 
 type SearchVulnParm struct {
-	Keyword    string
-	UniqueVuln uint32
-	Fields     []string
-	Where      string
+	VulnKeyword     string
+	PkgKeyword      string
+	LanguageKeyword string
+	FrameKeyword    string
+	TargetKeyword   string
+	UniqueVuln      uint64
+	Fields          []string
+	OmitFields      []string
+	Where           string
+	ImageID         int64
+	PkgName         string
+	PkgVersion      string
+	Sources         []string // 漏洞来源筛选
+	CanFixed        string
+	SeverityInt     []int64
+	JustReturnCount bool
+}
+
+type VulnPkg struct {
+	PkgName    string
+	PkgVersion string
 }

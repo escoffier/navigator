@@ -12,7 +12,7 @@ type ImageLayerInfo struct {
 	CreatedBy     string   `json:"createdBy"`
 	Vulns         []string `json:"vulns"`
 	Viruses       []string `json:"viruses"`
-	SensitiveFile []string `json:"sensitiveile"`
+	SensitiveFile []string `json:"sensitiveFile"`
 	WebshellInfo  []string `json:"webshell_info"`
 	ImageID       int64    `json:"imageId"`
 }

@@ -23,7 +23,7 @@ func NewScanConfigOpenAPISrv(scanConfigSrv component.ScanConfigSrvInterface) *Sc
 // open-api扫描策略列表
 func (sc *ScanConfigOpenAPISrv) ListStrategy2(ctx *gin.Context) {
 
-	filter := model.GetFilter(ctx)
+	filter := model.GetFilterWithDefaultValue(ctx)
 	filter.SortBy = "desc"
 	filter.SortFiled = "updated_at"
 	strategies, cnt, err := sc.ScanConfigSrv.SearchStrategy(ctx, component.SearchStrategyParam{All: consts.TrueString}, filter)
