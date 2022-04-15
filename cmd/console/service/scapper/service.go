@@ -975,24 +975,13 @@ func (s *ScapService) AddScapScanResult(ctx context.Context, r *model.ScanResult
 }
 
 func (s *ScapService) AddScapScanResults(ctx context.Context, rs []*model.ScanResult) error {
-	ctx, cancel := context.WithTimeout(ctx, 1000*time.Millisecond)
-	defer cancel()
-
 	logging.Get().Info().Msgf("add scap scan result, total: %d", len(rs))
 
-	// 这里开启个事物，又不用对应的tx对象，为毛？搞不懂
-	err := s.rdb.Get().WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		for _, r := range rs {
-			err := s.AddScapScanResult(ctx, r)
-			if err != nil {
-				return err
-			}
-		}
-		return nil
-	})
+	err := s.rdb.Get().Model(&model.ScanResult{}).CreateInBatches(rs, 100).Error
 	if err != nil {
 		return err
 	}
+
 	return nil
 }
 
