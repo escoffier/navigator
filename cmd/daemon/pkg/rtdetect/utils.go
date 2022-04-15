@@ -2,12 +2,21 @@ package rtdetect
 
 import (
 	"bytes"
+	"os"
 	"strings"
 
 	"github.com/falcosecurity/client-go/pkg/api/outputs"
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/nodeinfo"
 	"gitlab.com/piccolo_su/vegeta/pkg/rtdetect"
 )
+
+var (
+	myNamespace = ""
+)
+
+func init() {
+	myNamespace = os.Getenv("MY_POD_NAMESPACE")
+}
 
 // FIXME tmp solutions.
 var watsonPodsNames = []string{
@@ -27,14 +36,21 @@ func isEventItemWhitelisted(data *outputs.Response, dockerInfo *nodeinfo.DockerI
 		return false
 	}
 
+	containerID := data.OutputFields[rtdetect.FieldContainerID]
+	if _, exist := dockerInfo.FindContainerCacheData(containerID); !exist {
+		return false
+	}
+
+	// filter out the events in the phase of container initialization in my pod namespace
+	namespace := data.OutputFields[rtdetect.FieldK8sNsName]
+	if namespace != "" && namespace == myNamespace {
+		return true
+	}
+
 	podName := data.OutputFields[rtdetect.FieldK8sPodName]
 	for _, prefix := range watsonPodsNames {
 		if strings.Index(podName, prefix) >= 0 {
-			containerID := data.OutputFields[rtdetect.FieldContainerID]
-			if _, exist := dockerInfo.FindContainerCacheData(containerID); exist {
-				return true
-			}
-
+			return true
 		}
 	}
 	return false
