@@ -319,7 +319,9 @@ func (s *VulnAPISrv) GetImageVulnFrame(ctx *gin.Context) {
 		if vulns[i].Frame == "" {
 			continue
 		}
-		vulnFrame := &VulnFrame{}
+		vulnFrame := &VulnFrame{
+			Frame: vulns[i].Frame,
+		}
 
 		if _, ok := frameMap[vulns[i].Frame]; !ok {
 			frameMap[vulns[i].Frame] = vulnFrame
