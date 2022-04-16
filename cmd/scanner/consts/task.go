@@ -61,8 +61,9 @@ const SubTaskMaxRetryCount = 3   // 一次任务的最大重试次数
 const SubTaskBatchInsertCount = 2000
 
 const (
-	CicdOperator        = "CICD触发扫描"
-	SyncTriggerOperator = "周期触发扫描"
+	CicdOperator         = "CICD触发扫描"
+	CycleTriggerOperator = "周期触发扫描"
+	SyncTriggerOperator  = "镜像同步触发扫描"
 )
 const (
 	ErrScanPullImage      = iota + 1 // "拉取镜像出错"

@@ -124,6 +124,7 @@ func (s *SyncRepoImage) SyncImage(ctx context.Context) error {
 					ts := task.NewTaskSrv()
 					if err := ts.GenerateScanTask(ctx, imgIds, task.UpdateTaskInfo{Scope: consts.SingleScan,
 						TriggerType: consts.ImageSyncTrigger,
+						Operator:    consts.SyncTriggerOperator,
 						StrategyID:  configs[0].NodeImageConfig.StrategyID}); err != nil {
 						logging.GetLogger().Error().Err(err).Msg("SyncImage add scan task failed")
 					}
@@ -144,6 +145,7 @@ func (s *SyncRepoImage) SyncImage(ctx context.Context) error {
 					ts := task.NewTaskSrv()
 					if err := ts.GenerateScanTask(ctx, imgIds, task.UpdateTaskInfo{
 						Scope:       consts.SingleScan,
+						Operator:    consts.SyncTriggerOperator,
 						TriggerType: consts.ImageSyncTrigger,
 						StrategyID:  configs[0].LibraryImageConfig.StrategyID,
 					}); err != nil {
