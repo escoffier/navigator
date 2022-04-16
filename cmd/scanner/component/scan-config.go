@@ -373,7 +373,7 @@ func (s *ScanConfigSrv) addLibraryScanTask(ctx context.Context, config model.Sca
 			Scope:       consts.FullScan,
 			TriggerType: consts.ScheduleTrigger,
 			StrategyID:  config.LibraryImageConfig.StrategyID,
-			Operator:    consts.SyncTriggerOperator,
+			Operator:    consts.CycleTriggerOperator,
 		}); err != nil {
 			logging.GetLogger().Error().Err(err).Msg("AddTaskByStrategy add scan task failed")
 			return err
@@ -409,7 +409,7 @@ func (s *ScanConfigSrv) addNodeScanTask(ctx context.Context, config model.ScanCo
 			Scope:       consts.SingleScan,
 			TriggerType: consts.ScheduleTrigger,
 			StrategyID:  config.NodeImageConfig.StrategyID,
-			Operator:    consts.SyncTriggerOperator,
+			Operator:    consts.CycleTriggerOperator,
 		}); err != nil {
 			logging.GetLogger().Error().Err(err).Msg("AddTaskByStrategy add  scan task failed")
 			return err
