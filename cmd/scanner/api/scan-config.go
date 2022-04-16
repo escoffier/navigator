@@ -172,11 +172,12 @@ func (sc *ScanConfigAPISrv) UpdateScanConfig(ctx *gin.Context) {
 		return
 	}
 
-	if err := sc.ScanConfigSrv.UpdateScanConfig(ctx, scanConfigID, data); err != nil {
+	res, err := sc.ScanConfigSrv.UpdateScanConfig(ctx, scanConfigID, data)
+	if err != nil {
 		response.JSONError(ctx, err)
 		return
 	}
-	response.JSONOK(ctx)
+	response.JSONOK(ctx, response.WithItem(*res))
 }
 
 // SearchGlobalScanConfig

@@ -35,7 +35,7 @@ type ScanConfigSrvInterface interface {
 	SearchStrategy(ctx context.Context, param SearchStrategyParam, filter *model.Filter) ([]model.ScanStrategy, int64, error)
 	UpdateStrategy(ctx context.Context, strategyID int64, data *model.ScanStrategy) error
 	DeleteStrategy(ctx context.Context, strategyID int64) error
-	UpdateScanConfig(ctx context.Context, configID int64, data *model.ScanConfig) error
+	UpdateScanConfig(ctx context.Context, configID int64, data *model.ScanConfig) (*model.ScanConfig, error)
 	SearchScanConfig(ctx context.Context, param SearchScanConfigParam, filter *model.Filter) ([]model.ScanConfig, int64, error)
 
 	SearchNodes(ctx context.Context) ([]string, error)
@@ -99,15 +99,19 @@ func (s *ScanConfigSrv) AddTaskByStrategy(ctx context.Context) error {
 		}
 		config := configs[0]
 		// 先加仓库镜像
-		if err := s.addLibraryScanTask(ctx, config); err != nil {
-			logging.GetLogger().Error().Err(err).Msg("AddTaskByStrategy,addLibraryScanTask failure")
-			continue
+		if config.LibraryImageConfig != nil && config.LibraryImageConfig.ScanCycleEnable {
+			if err := s.addLibraryScanTask(ctx, config); err != nil {
+				logging.GetLogger().Error().Err(err).Msg("AddTaskByStrategy,addLibraryScanTask failure")
+				continue
+			}
 		}
 
 		// 再加节点镜像
-		if err := s.addNodeScanTask(ctx, config); err != nil {
-			logging.GetLogger().Error().Err(err).Msg("AddTaskByStrategy,addNodeScanTask failure")
-			continue
+		if config.NodeImageConfig != nil && config.NodeImageConfig.ScanCycleEnable {
+			if err := s.addNodeScanTask(ctx, config); err != nil {
+				logging.GetLogger().Error().Err(err).Msg("AddTaskByStrategy,addNodeScanTask failure")
+				continue
+			}
 		}
 		ticker.Reset(time.Second * consts.CheckTaskInterval)
 	}
@@ -249,23 +253,23 @@ func (s *ScanConfigSrv) DeleteStrategy(ctx context.Context, strategyID int64) er
 	return nil
 }
 
-func (s *ScanConfigSrv) UpdateScanConfig(ctx context.Context, configID int64, data *model.ScanConfig) error {
+func (s *ScanConfigSrv) UpdateScanConfig(ctx context.Context, configID int64, data *model.ScanConfig) (*model.ScanConfig, error) {
 	if err := data.Check(); err != nil {
 		logging.GetLogger().Error().Err(err).Msg("UpdateScanConfig")
-		return response.NewHttpError(http.StatusExpectationFailed, err)
+		return nil, response.NewHttpError(http.StatusExpectationFailed, err)
 	}
 	// 验证所传仓库是不是公司支持的仓库,验证所传策略ID是不是存在于数据库中(低频接口，直接循环了)
 	if err := s.verifyLibrary(ctx, data.LibraryImageConfig.Libraries); err != nil {
-		return err
+		return nil, err
 	}
 	if err := s.verifyLibrary(ctx, data.NodeImageConfig.Libraries); err != nil {
-		return err
+		return nil, err
 	}
 	if err := s.verifyStrategyID(ctx, []int64{data.LibraryImageConfig.StrategyID}); err != nil {
-		return err
+		return nil, err
 	}
 	if err := s.verifyStrategyID(ctx, []int64{data.NodeImageConfig.StrategyID}); err != nil {
-		return err
+		return nil, err
 	}
 
 	data.Serialize()
@@ -273,9 +277,9 @@ func (s *ScanConfigSrv) UpdateScanConfig(ctx context.Context, configID int64, da
 
 	if err := s.ScanConfigDal.UpdateScanConfig(ctx, configID, updater); err != nil {
 		logging.GetLogger().Error().Err(err).Msg("UpdateScanConfig")
-		return response.NewHttpError(http.StatusInternalServerError, err)
+		return nil, response.NewHttpError(http.StatusInternalServerError, err)
 	}
-	return nil
+	return data, nil
 }
 
 func (s *ScanConfigSrv) verifyLibrary(ctx context.Context, libs []int64) error {

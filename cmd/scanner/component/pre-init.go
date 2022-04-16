@@ -73,12 +73,12 @@ func (s *InitScanner) createGlobalScanConfig(ctx context.Context) error {
 	}
 
 	defaultConfig := model.ScanConfigSinge{
-		ImageAddTrigEnable: false,
-		Libraries:          []int64{},
-		ScanCycle:          []int64{},
-		ScanTime:           "",
-		ScanAll:            false,
-		StrategyID:         strategies[0].ID,
+		ScanCycleEnable: false,
+		Libraries:       []int64{},
+		ScanCycle:       []int64{},
+		ScanTime:        "",
+		ScanAll:         false,
+		StrategyID:      strategies[0].ID,
 	}
 
 	bys, err := json.Marshal(defaultConfig)
@@ -87,10 +87,12 @@ func (s *InitScanner) createGlobalScanConfig(ctx context.Context) error {
 	}
 
 	data := model.ScanConfig{
-		VulnFlushTrigEnable:      false,
-		MaliciousFlushTrigEnable: false,
-		LibraryImageJson:         string(bys),
-		NodeImageJson:            string(bys),
+		LibraryImageAddTrigEnable: false,
+		NodeImageAddTrigEnable:    false,
+		VulnFlushTrigEnable:       false,
+		MaliciousFlushTrigEnable:  false,
+		LibraryImageJson:          string(bys),
+		NodeImageJson:             string(bys),
 	}
 	return s.ScanConfigDAl.CreateScanConfig(ctx, &data)
 }

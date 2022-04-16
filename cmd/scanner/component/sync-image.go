@@ -109,7 +109,7 @@ func (s *SyncRepoImage) SyncImage(ctx context.Context) error {
 		// 下发扫描任务
 		if len(configs) > 0 {
 			logging.GetLogger().Info().Interface("scan config", configs[0]).Msg("SyncImage")
-			if configs[0].NodeImageConfig.ImageAddTrigEnable {
+			if configs[0].NodeImageAddTrigEnable {
 				imgIds := make([]int64, 0)
 				for i := range res.Added {
 					// 更新需求，所有的节点的新增镜像都会创建扫描任务
@@ -129,7 +129,7 @@ func (s *SyncRepoImage) SyncImage(ctx context.Context) error {
 					}
 				}
 			}
-			if configs[0].LibraryImageConfig.ImageAddTrigEnable {
+			if configs[0].LibraryImageAddTrigEnable {
 				imgIds := make([]int64, 0)
 				for i := range res.Added {
 					// 更新需求，所有的仓库的新增镜像都会创建扫描任务

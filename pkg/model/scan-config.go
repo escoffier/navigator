@@ -11,13 +11,15 @@ import (
 )
 
 type ScanConfig struct {
-	ID                       int64            `gorm:"id" json:"id"`
-	VulnFlushTrigEnable      bool             `gorm:"vuln_flush_trig_enable" json:"vuln_flush_trig_enable"`           // 漏洞库更新时触发全量扫描
-	MaliciousFlushTrigEnable bool             `gorm:"malicious_flush_trig_enable" json:"malicious_flush_trig_enable"` // 漏洞库更新时触发全量扫描
-	LibraryImageConfig       *ScanConfigSinge `gorm:"-" json:"library_image_config"`                                  // 仓库镜像的策略
-	LibraryImageJson         string           `gorm:"type:varchar(255);column:library_image_config" json:"-"`
-	NodeImageConfig          *ScanConfigSinge `gorm:"-" json:"node_image_config"`                          // 节点镜像的策略
-	NodeImageJson            string           `gorm:"type:varchar(255);column:node_image_config" json:"-"` // 节点镜像的策略
+	ID                        int64            `gorm:"id" json:"id"`
+	VulnFlushTrigEnable       bool             `gorm:"vuln_flush_trig_enable" json:"vuln_flush_trig_enable"`               // 漏洞库更新时触发全量扫描
+	MaliciousFlushTrigEnable  bool             `gorm:"malicious_flush_trig_enable" json:"malicious_flush_trig_enable"`     // 漏洞库更新时触发全量扫描
+	LibraryImageAddTrigEnable bool             `gorm:"library_image_add_trig_enable" json:"library_image_add_trig_enable"` // 自动扫描仓库新增镜像
+	NodeImageAddTrigEnable    bool             `gorm:"node_image_add_trig_enable" json:"node_image_add_trig_enable"`       // 自动扫描节点新增镜像
+	LibraryImageConfig        *ScanConfigSinge `gorm:"-" json:"library_image_config"`                                      // 仓库镜像的策略
+	LibraryImageJson          string           `gorm:"type:varchar(255);column:library_image_config" json:"-"`
+	NodeImageConfig           *ScanConfigSinge `gorm:"-" json:"node_image_config"`                          // 节点镜像的策略
+	NodeImageJson             string           `gorm:"type:varchar(255);column:node_image_config" json:"-"` // 节点镜像的策略
 
 	CreatedAt time.Time `gorm:"created_at" json:"created_at"`
 	UpdatedAt time.Time `gorm:"updated_at" json:"updated_at"`
@@ -29,13 +31,13 @@ func (ScanConfig) TableName() string {
 }
 
 type ScanConfigSinge struct {
-	ImageAddTrigEnable bool     `gorm:"image_add_trig_enable" json:"image_add_trig_enable"` // 自动扫描新增镜像
-	Libraries          []int64  `gorm:"libraries" json:"libraries"`                         // 扫描仓库,列表序列化后的值
-	NodeHostnames      []string `gorm:"node_hostnames" json:"node_hostnames"`               // 扫描仓库,列表序列化后的值
-	ScanAll            bool     `gorm:"scan_all" json:"scan_all"`
-	ScanCycle          []int64  `gorm:"scan_cycle" json:"scan_cycle"`                 // 扫描周期表示星期几
-	ScanTime           string   `gorm:"type:varchar(255);scan_time" json:"scan_time"` // 扫描时间
-	StrategyID         int64    `gorm:"strategy_id" json:"strategy_id"`               // 扫描策略。这里对应的是策略ID
+	ScanCycleEnable bool     `gorm:"scan_cycle_enable" json:"scan_cycle_enable"` // 周期扫描开关
+	Libraries       []int64  `gorm:"libraries" json:"libraries"`                 // 扫描仓库,列表序列化后的值
+	NodeHostnames   []string `gorm:"node_hostnames" json:"node_hostnames"`       // 扫描仓库,列表序列化后的值
+	ScanAll         bool     `gorm:"scan_all" json:"scan_all"`
+	ScanCycle       []int64  `gorm:"scan_cycle" json:"scan_cycle"`                 // 扫描周期表示星期几
+	ScanTime        string   `gorm:"type:varchar(255);scan_time" json:"scan_time"` // 扫描时间
+	StrategyID      int64    `gorm:"strategy_id" json:"strategy_id"`               // 扫描策略。这里对应的是策略ID
 }
 
 type ScanStrategy struct {
@@ -86,10 +88,12 @@ type Software struct {
 func (s *ScanConfig) ToUpdater() map[string]interface{} {
 	s.Serialize()
 	updater := map[string]interface{}{
-		"vuln_flush_trig_enable":      s.VulnFlushTrigEnable,
-		"malicious_flush_trig_enable": s.MaliciousFlushTrigEnable,
-		"library_image_config":        s.LibraryImageJson,
-		"node_image_config":           s.NodeImageJson,
+		"vuln_flush_trig_enable":        s.VulnFlushTrigEnable,
+		"malicious_flush_trig_enable":   s.MaliciousFlushTrigEnable,
+		"library_image_config":          s.LibraryImageJson,
+		"node_image_config":             s.NodeImageJson,
+		"library_image_add_trig_enable": s.LibraryImageAddTrigEnable,
+		"node_image_add_trig_enable":    s.NodeImageAddTrigEnable,
 	}
 	return updater
 }
