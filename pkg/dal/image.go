@@ -24,7 +24,7 @@ type imageListWithVulnResp struct {
 }
 
 func GetImagesWithGivenVuln(ctx context.Context, scannerURL, imageVulnName, pkgName, pkgVersion string) ([]*model.ImageInfo, error) {
-	ctx, cancel := context.WithTimeout(ctx, 1*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, 4*time.Second)
 	defer cancel()
 	params := url2.Values{}
 	params.Add("vulnName", imageVulnName)

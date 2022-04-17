@@ -12,17 +12,16 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
-	"gitlab.com/security-rd/go-pkg/databases"
-	"go.mongodb.org/mongo-driver/bson/primitive"
-	"gorm.io/gorm"
-	"gorm.io/gorm/clause"
-
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/pkg/harbor"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
+	"gitlab.com/security-rd/go-pkg/databases"
+	"go.mongodb.org/mongo-driver/bson/primitive"
+	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 type ScannerDalInterface interface {
@@ -819,7 +818,6 @@ func (s *ScannerOrm) SetImageStatus(ctx context.Context, ids []int64, status str
 func (s *ScannerOrm) GetImagesFromVuln(ctx context.Context, uniqueVuln uint64) ([]model.VulnImageList, error) {
 	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*2)
 	defer cancelFunc()
-
 	tmpImageID := make([]int, 0, 10)
 	// 查询这个vuln关联的imageid
 	err := s.rdb.Get().WithContext(ctx).Model(model.VulnImage{}).Select("image_id").Where("unique_vuln  = ? ", uniqueVuln).Find(&tmpImageID).Error
