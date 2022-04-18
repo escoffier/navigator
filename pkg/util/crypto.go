@@ -5,6 +5,7 @@ import (
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/des"
+	"fmt"
 )
 
 func DesEncrypt(origData, key []byte) ([]byte, error) {
@@ -34,15 +35,16 @@ func DesDecrypt(crypted, key []byte) ([]byte, error) {
 	origData := make([]byte, len(crypted))
 	// origData := crypted
 	blockMode.CryptBlocks(origData, crypted)
-	origData = PKCS5UnPadding(origData)
-	// origData = ZeroUnPadding(origData)
-	return origData, nil
+	return PKCS5UnPadding(origData)
 }
 
-func PKCS5UnPadding(origData []byte) []byte {
+func PKCS5UnPadding(origData []byte) ([]byte, error) {
 	length := len(origData)
 	unpadding := int(origData[length-1])
-	return origData[:(length - unpadding)]
+	if length-unpadding < 0 {
+		return nil, fmt.Errorf("illeagl data")
+	}
+	return origData[:(length - unpadding)], nil
 }
 
 // =================== AES CBC ======================
@@ -68,6 +70,5 @@ func AesDecryptCBC(encrypted []byte, key []byte) ([]byte, error) {
 	blockMode := cipher.NewCBCDecrypter(block, key[:blockSize]) // 加密模式
 	decrypted := make([]byte, len(encrypted))                   // 创建数组
 	blockMode.CryptBlocks(decrypted, encrypted)                 // 解密
-	decrypted = PKCS5UnPadding(decrypted)                       // 去除补全码
-	return decrypted, nil
+	return PKCS5UnPadding(decrypted)                            // 去除补全码
 }
