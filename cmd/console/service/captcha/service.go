@@ -113,13 +113,16 @@ func (s *Service) Get(id string, clear bool) (digits []byte) {
 
 		result, err := s.redisCli.Get(oneCtx, getRedisKey(id)).Result()
 		if err != nil {
+			if err == redis.Nil {
+				return "", nil
+			}
 			return nil, err
 		}
 
 		if clear {
 			err = s.redisCli.Del(oneCtx, fmt.Sprintf("%s%s", captchaPrefix, id)).Err()
 			if err != nil {
-				return nil, err
+				logging.GetLogger().Error().Err(err).Msg("failed to delete the captcha after get")
 			}
 		}
 
