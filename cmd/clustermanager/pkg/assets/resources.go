@@ -406,6 +406,35 @@ func (cl *ResourcesClusterListener) Name() string {
 }
 
 func (cl *ResourcesClusterListener) OnTensorPod(pod *assets.TensorPod, action assets.AssetsAction) error {
+	defer func() {
+		if r := recover(); r != nil {
+			logging.GetLogger().Error().Msgf("Panic when OnTensorPod: %v. stack: %s", r, debug.Stack())
+		}
+	}()
+
+	if action == assets.ActionDelete {
+		now := time.Now()
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+
+		logging.GetLogger().Debug().Msgf("deleting pod %s/%s/%s", pod.Cluster, pod.Namespace, pod.Name)
+		err := cl.doOnResource(ctx, resourceEvent{
+			wtype: assets.TensorResources2Watch,
+			newResource: &assets.TensorResource{
+				ObjectMeta: *pod.ObjectMeta.DeepCopy(),
+				Cluster:    pod.Cluster,
+				Kind:       assets.KindPodNoOwner,
+				CreateTime: time.Time{},
+			},
+			oldResource: nil,
+			action:      action,
+			updateTime:  now,
+		})
+		if err != nil {
+			logging.GetLogger().Err(err).Msgf("on OnTensorPod action: %d. pod: %+v.", action, pod)
+			return err
+		}
+	}
 	return nil
 }
 
