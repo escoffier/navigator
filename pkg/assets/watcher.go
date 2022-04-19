@@ -109,7 +109,7 @@ func (w *Watcher) process(ctx context.Context, message kafka.Message) error {
 
 	switch event.Type {
 	case AssetsSync:
-		logging.Get().Debug().Msgf("cluster %s synced", string(message.Key))
+		logging.Get().Info().Msgf("cluster %s synced", string(message.Key))
 		for _, cb := range w.cbs {
 			cb.AfterDataSynced(context.Background(), true, string(message.Key))
 		}
