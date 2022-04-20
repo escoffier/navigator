@@ -7,6 +7,7 @@ import (
 	"hash/fnv"
 	"os"
 	"runtime/debug"
+	"strings"
 	"sync/atomic"
 	"time"
 
@@ -300,6 +301,9 @@ func (s *Service) handleMonitorEvent(ctx context.Context, evt pkg.KubeMonitorEve
 		}
 		ecReq := s.newNotifReq(ctx, evt, riskRule)
 		if ecReq.GetNotifyContext() != nil && (ecReq.GetNotifyContext().Namespace == s.myNamespace || ecReq.GetNotifyContext().Namespace == "kube-system") {
+			continue
+		}
+		if ecReq.GetNotifyContext() != nil && strings.Contains(ecReq.GetNotifyContext().ServiceID, "system:") {
 			continue
 		}
 		ecErr := s.sendNotifToEventsCenter(ctx, ecReq)
