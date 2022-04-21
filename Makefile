@@ -196,7 +196,6 @@ else
 	go build -v -o bin/daemon  cmd/daemon/main.go
 	go build -v -o bin/ns-mnt  cmd/daemon/setns/main.go
 	#upx bin/daemon
-	#upx bin/ns-mnt
 	docker build -f build/daemon/Dockerfile -t $(REPOPREFIX)/daemon:latest .
 endif
 
