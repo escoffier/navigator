@@ -30,7 +30,7 @@ func (s *Service) Start(ctx context.Context) error {
 	sdb := store.GetScannerDb()
 	registryDal := store.NewRegistryDao(store.GetScannerWrapperDb())
 	scanConfigDal := store.NewScanConfigDao(store.GetScannerWrapperDb())
-	scannerSrv := component.NewConScannerSrv(dal, registryDal, nil, nil, sdb, nil, nil, dal, dal, scanConfigDal)
+	scannerSrv := component.NewConScannerSrv(dal, registryDal, nil, nil, sdb, nil, nil, dal, dal, scanConfigDal, nil)
 	cleanJob := crontab.New() // create cron table
 
 	// AddJob ,每天0点过2分时运行一次

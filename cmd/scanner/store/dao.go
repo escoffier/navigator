@@ -12,16 +12,17 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
+	"gitlab.com/security-rd/go-pkg/databases"
+	"go.mongodb.org/mongo-driver/bson/primitive"
+	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
+
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/pkg/harbor"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
-	"gitlab.com/security-rd/go-pkg/databases"
-	"go.mongodb.org/mongo-driver/bson/primitive"
-	"gorm.io/gorm"
-	"gorm.io/gorm/clause"
 )
 
 type ScannerDalInterface interface {
@@ -32,7 +33,7 @@ type ScannerDalInterface interface {
 	CreateImageAndUpdate(ctx context.Context, im *model.ImageList) (*model.ImageList, error)
 	SearchImageWithScan(ctx context.Context, param SearchImageWithScanParam, filter *model.Filter) ([]*model.ImageResponse, int64, error)
 
-	SearchScanLayer(ctx context.Context, param SearchScanLayerParam, filter *model.Filter) ([]model.ScanLayer, int64, error)
+	SearchScanLayer(ctx context.Context, param SearchScanLayerParam, filter *model.Filter) ([]*model.ScanLayer, int64, error)
 	SearchScanImage(ctx context.Context, param SearchScanImageParam, filter *model.Filter) ([]model.ScanImage, int64, error)
 	DeleteScanImage(ctx context.Context, param DeleteScanImageParam) error
 
@@ -54,10 +55,7 @@ type ScannerDalInterface interface {
 	GroupVulnSeverityByImageID(ctx context.Context, imageID int64) ([]model.SeverityGroup, error)
 	GetVulnTopNImage(ctx context.Context, topN int64) ([]model.ImageRiskScore, error)
 
-	SearchVuln(ctx context.Context, param SearchVulnParm, filter *model.Filter) ([]model.Vuln, int64, error)
-	UpdateVuln(ctx context.Context, where string, updater map[string]interface{}, vuln *model.Vuln) error
 	GetImagesFromVuln(ctx context.Context, uniqueVuln uint64) ([]model.VulnImageList, error)
-	GetVulnDetails(ctx context.Context, uniqueVuln uint64) (model.VulnDetail, error)
 
 	GetOnlineImage(ctx context.Context, parm GetOnlineImageParam) ([]OnlineImage, error)
 
@@ -830,116 +828,6 @@ func (s *ScannerOrm) GetImagesFromVuln(ctx context.Context, uniqueVuln uint64) (
 	return resImageLists, err
 }
 
-func (s *ScannerOrm) GetVulnDetails(ctx context.Context, uniqueVuln uint64) (model.VulnDetail, error) {
-	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*3)
-	defer cancelFunc()
-	tmp := model.Vuln{}
-	// 取出对应vuln信息
-	if err := s.rdb.Get().WithContext(ctx).Model(model.Vuln{}).Where("unique_vuln = ?", uniqueVuln).Find(&tmp).Error; err != nil {
-		return model.VulnDetail{}, err
-	}
-	tmpMate := model.VulnMatedata{}
-	if err := json.Unmarshal(tmp.MetadataJSON, &tmpMate); err != nil {
-		return model.VulnDetail{}, err
-	}
-	tmp.Serialize()
-	tmp.Deserialize()
-	res := model.VulnDetail{Vuln: tmp}
-	res.VulninfoApi.Name = tmp.Name
-	res.VulninfoApi.Pkgname = tmp.PkgName
-	res.VulninfoApi.Pkgversion = tmp.PkgVersion
-	res.VulninfoApi.Severity = tmp.Severity
-	res.VulninfoApi.Cvss = tmpMate.CVSS
-	res.VulninfoApi.CNNVDs = tmpMate.CNNVDs
-	res.VulninfoApi.Cnvd = tmpMate.CNVDs
-	if len(tmp.LinkJSON) > 0 {
-		if err := json.Unmarshal(tmp.LinkJSON, &res.VulninfoApi.Links); err != nil {
-			logging.GetLogger().Err(err).Msg("json.Unmarshal LinkJSON")
-		}
-	}
-
-	res.VulninfoApi.Fixedby = tmp.FixedBy
-	res.VulninfoApi.Description = tmp.Description
-
-	return res, nil
-}
-
-func (s *ScannerOrm) SearchVuln(ctx context.Context, param SearchVulnParm, filter *model.Filter) ([]model.Vuln, int64, error) {
-	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*10)
-	defer cancelFunc()
-	db := s.rdb.Get().WithContext(ctx).Model(model.Vuln{})
-	if param.VulnKeyword != "" {
-		db = db.Where("name LIKE ?", fmt.Sprintf("%%%s%%", param.VulnKeyword))
-	}
-	if param.UniqueVuln > 0 {
-		db = db.Where("unique_vuln = ?", param.UniqueVuln)
-	}
-	if len(param.Fields) > 0 {
-		db = db.Select(param.Fields)
-	}
-	if len(param.OmitFields) > 0 {
-		db = db.Omit(param.OmitFields...)
-	}
-	if param.Where != "" {
-		db = db.Where(param.Where)
-	}
-	if param.ImageID > 0 {
-		sub := s.rdb.Get().WithContext(ctx).Model(new(model.VulnImage)).Select("unique_vuln").Where("image_id = ?", param.ImageID)
-		db = db.Where("unique_vuln IN (?)", sub)
-	}
-	if param.PkgName != "" {
-		db = db.Where("pkg_name = ?", param.PkgName)
-	}
-	if param.PkgVersion != "" {
-		db = db.Where("pkg_version = ?", param.PkgVersion)
-	}
-	if len(param.Sources) > 0 {
-		db = db.Where("source IN ？", param.Sources)
-	}
-	if param.CanFixed == consts.TrueString {
-		db = db.Where("fixedby != ''")
-	}
-	if param.CanFixed == consts.FalseString {
-		db = db.Where("fixedby = ''")
-	}
-
-	res := make([]model.Vuln, 0)
-	var count int64
-	if err := db.Count(&count).Error; err != nil {
-		return nil, 0, err
-	}
-	if param.JustReturnCount {
-		return nil, count, nil
-	}
-	db = model.AddFilter(db, filter)
-	if err := db.Find(&res).Error; err != nil {
-		return nil, 0, err
-	}
-	for i := range res {
-		res[i].Deserialize()
-		res[i].Serialize()
-	}
-	return res, count, nil
-}
-
-func (s *ScannerOrm) UpdateVuln(ctx context.Context, where string, updater map[string]interface{}, vuln *model.Vuln) error {
-	if len(where) == 0 {
-		return fmt.Errorf("no where condition")
-	}
-	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*1)
-	defer cancelFunc()
-
-	var err error
-	db := s.rdb.Get().Model(new(model.Vuln)).WithContext(ctx).Where(where)
-
-	if len(updater) > 0 {
-		err = db.Updates(updater).Error
-	} else if vuln != nil {
-		err = db.Select("*").Omit("id", "created_at").Updates(vuln).Error
-	}
-	return err
-}
-
 func (s *ScannerOrm) GetOnlineImage(ctx context.Context, param GetOnlineImageParam) ([]OnlineImage, error) {
 	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*1)
 	defer cancelFunc()
@@ -951,24 +839,16 @@ func (s *ScannerOrm) GetOnlineImage(ctx context.Context, param GetOnlineImagePar
 	return res, nil
 }
 
-func (s *ScannerOrm) SearchScanLayer(ctx context.Context, param SearchScanLayerParam, filter *model.Filter) ([]model.ScanLayer, int64, error) {
+func (s *ScannerOrm) SearchScanLayer(ctx context.Context, param SearchScanLayerParam, filter *model.Filter) ([]*model.ScanLayer, int64, error) {
 	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*10)
 	defer cancelFunc()
 
 	db := s.rdb.Get().WithContext(ctx).Model(new(model.ScanLayer)).WithContext(ctx)
 	if len(param.LayerDigests) > 0 {
-		if len(param.LayerDigests) == 0 {
-			db = db.Where("layer_digest = ? ", param.LayerDigests[0])
-		} else {
-			db = db.Where("layer_digest IN ? ", param.LayerDigests)
-		}
+		db = db.Where("layer_digest IN ? ", param.LayerDigests)
 	}
-	if len(param.ImageIds) > 0 {
-		if len(param.ImageIds) == 1 {
-			db = db.Where("image_id = ? ", param.ImageIds[0])
-		} else {
-			db = db.Where("image_id IN ? ", param.ImageIds)
-		}
+	if param.ImageId > 0 {
+		db = db.Where("image_id = ? ", param.ImageId)
 	}
 	// 先查总数
 	var cnt int64
@@ -977,44 +857,13 @@ func (s *ScannerOrm) SearchScanLayer(ctx context.Context, param SearchScanLayerP
 	}
 	db = model.AddFilter(db, filter)
 
-	res := make([]model.ScanLayer, 0)
+	res := make([]*model.ScanLayer, 0)
 	if err := db.Find(&res).Error; err != nil {
 		return nil, cnt, err
 	}
 	// serialize
 	for i := range res {
-		if res[i].VulnInfoJSON != nil {
-			vulns := make([]model.SingleScanDetail, 0)
-			if err := json.Unmarshal(res[i].VulnInfoJSON, &vulns); err == nil {
-				res[i].VulnInfo = vulns
-			} else {
-				logging.GetLogger().Error().Err(err).Msg("serialize VulnInfoJSON")
-			}
-		}
-		if len(res[i].SensitiveFileJSON) > 0 {
-			sensitives := make([]model.Sensitive, 0)
-			if err := json.Unmarshal(res[i].SensitiveFileJSON, &sensitives); err == nil {
-				res[i].SensitiveFile = sensitives
-			} else {
-				logging.GetLogger().Error().Err(err).Msg("serialize SensitiveFile")
-			}
-		}
-		if len(res[i].MaliciousInfoJSON) > 0 {
-			malicious := make([]model.Malicious, 0)
-			if err := json.Unmarshal(res[i].MaliciousInfoJSON, &malicious); err == nil {
-				res[i].MaliciousInfo = malicious
-			} else {
-				logging.GetLogger().Error().Err(err).Msg("serialize MaliciousInfo")
-			}
-		}
-		if len(res[i].WebshellInfoJSON) > 0 {
-			webshell := make([]model.Webshell, 0)
-			if err := json.Unmarshal(res[i].WebshellInfoJSON, &webshell); err == nil {
-				res[i].WebshellInfo = webshell
-			} else {
-				logging.GetLogger().Error().Err(err).Msg("serialize WebshellInfoJSON")
-			}
-		}
+		res[i].Deserialize()
 	}
 
 	return res, cnt, nil
@@ -1328,18 +1177,10 @@ func (s *ScannerOrm) SearchScanImage(ctx context.Context, param SearchScanImageP
 		}
 	}
 	if len(param.TaskIds) > 0 {
-		if len(param.TaskIds) == 1 {
-			db = db.Where("scan_task_id = ? ", param.TaskIds[0])
-		} else {
-			db = db.Where("scan_task_id IN ? ", param.TaskIds)
-		}
+		db = db.Where("scan_task_id IN ? ", param.TaskIds)
 	}
 	if len(param.ImageIds) > 0 {
-		if len(param.ImageIds) == 1 {
-			db = db.Where("image_id = ? ", param.ImageIds[0])
-		} else {
-			db = db.Where("image_id IN ? ", param.ImageIds)
-		}
+		db = db.Where("image_id IN ? ", param.ImageIds)
 	}
 	if param.NoStatus != "" {
 		db = db.Where("status != ? ", param.NoStatus)
@@ -1374,11 +1215,7 @@ func (s *ScannerOrm) SearchRegistry(ctx context.Context, param SearchRegistryPar
 	db := s.rdb.Get().Model(new(model.Registry)).WithContext(ctx)
 	// 默认查询没有删除的,如果不传就是0
 	if len(param.RegistryIds) > 0 {
-		if len(param.RegistryIds) == 1 {
-			db = db.Where("id = ? ", param.RegistryIds[0])
-		} else {
-			db = db.Where("id IN ? ", param.RegistryIds)
-		}
+		db = db.Where("id IN ? ", param.RegistryIds)
 	}
 	if param.ID > 0 {
 		db = db.Where("id = ? ", param.ID)
@@ -1427,11 +1264,7 @@ func (s *ScannerOrm) SearchImage(ctx context.Context, param SearchImageParam, fi
 	db := s.rdb.Get().Model(new(model.ImageList)).WithContext(ctx)
 	// 默认查询没有删除的,如果不传就是0
 	if len(param.Digests) > 0 {
-		if len(param.Digests) == 1 {
-			db = db.Where("digest = ? ", param.Digests[0])
-		} else {
-			db = db.Where("digest IN ? ", param.Digests)
-		}
+		db = db.Where("digest IN ? ", param.Digests)
 	}
 	if len(param.UUIDs) > 0 {
 		db = db.Where("image_uuid IN ? ", param.UUIDs)
@@ -1451,11 +1284,7 @@ func (s *ScannerOrm) SearchImage(ctx context.Context, param SearchImageParam, fi
 	}
 
 	if len(param.RegistryIds) > 0 {
-		if len(param.RegistryIds) == 1 {
-			db = db.Where("registry_id = ? ", param.RegistryIds[0])
-		} else {
-			db = db.Where("registry_id IN ? ", param.RegistryIds)
-		}
+		db = db.Where("registry_id IN ? ", param.RegistryIds)
 	}
 	if len(param.OmitFields) > 0 {
 		db = db.Omit(param.OmitFields...)

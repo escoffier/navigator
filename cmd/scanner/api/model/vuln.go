@@ -36,8 +36,11 @@ type Cvss struct {
 	Vector string  `json:"vector"`
 }
 
-func ModelToOpenapiDetail(vuln model.Vuln) Detail {
+func ModelToOpenapiDetail(vuln *model.Vuln) Detail {
 	d := Detail{References: make([]string, 0)} // 防止前端null
+	if vuln == nil {
+		return d
+	}
 
 	d.Name = vuln.Name
 	d.Severity = vuln.Severity

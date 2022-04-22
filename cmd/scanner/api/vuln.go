@@ -13,6 +13,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
+	"gitlab.com/piccolo_su/vegeta/pkg/util"
 )
 
 type VulnAPISrv struct {
@@ -63,6 +64,22 @@ func (s *VulnAPISrv) GetImageVulns(ctx *gin.Context) {
 		CanFixed:    canFixed,
 		SeverityInt: severityInts,
 	}
+	layerDigest := ctx.Query("layerDigest")
+	if layerDigest != "" {
+		layers, _, err := s.VulnSrv.SearchLayerVuln(ctx, component.SearchScanLayerParam{
+			ImageID:      imageID,
+			LayerDigests: []string{layerDigest},
+		}, nil)
+		if err != nil {
+			response.JSONError(ctx, err)
+			return
+		}
+		uniqueVulns := make([]uint64, 0)
+		for i := range layers {
+			uniqueVulns = append(uniqueVulns, layers[i].VulnInfo...)
+		}
+		param.UniqueVulns = util.DeDuplicationUint64Slice(uniqueVulns)
+	}
 
 	vulns, cnt, err := s.VulnSrv.SearchVulns(ctx, param, filter)
 	if err != nil {
@@ -110,6 +127,23 @@ func (s *VulnAPISrv) GetImageVulnPkg(ctx *gin.Context) {
 	param := component.SearchVulnParam{
 		PkgKeyword: pkgKeyword,
 		ImageID:    imageID,
+	}
+
+	layerDigest := ctx.Query("layerDigest")
+	if layerDigest != "" {
+		layers, _, err := s.VulnSrv.SearchLayerVuln(ctx, component.SearchScanLayerParam{
+			ImageID:      imageID,
+			LayerDigests: []string{layerDigest},
+		}, nil)
+		if err != nil {
+			response.JSONError(ctx, err)
+			return
+		}
+		uniqueVulns := make([]uint64, 0)
+		for i := range layers {
+			uniqueVulns = append(uniqueVulns, layers[i].VulnInfo...)
+		}
+		param.UniqueVulns = uniqueVulns
 	}
 
 	vulns, _, err := s.VulnSrv.SearchVulns(ctx, param, filter)
@@ -169,6 +203,23 @@ func (s *VulnAPISrv) GetImageVulnLanguage(ctx *gin.Context) {
 	param := component.SearchVulnParam{
 		LanguageKeyword: strings.ToLower(languageKeyword),
 		ImageID:         imageID,
+	}
+
+	layerDigest := ctx.Query("layerDigest")
+	if layerDigest != "" {
+		layers, _, err := s.VulnSrv.SearchLayerVuln(ctx, component.SearchScanLayerParam{
+			ImageID:      imageID,
+			LayerDigests: []string{layerDigest},
+		}, nil)
+		if err != nil {
+			response.JSONError(ctx, err)
+			return
+		}
+		uniqueVulns := make([]uint64, 0)
+		for i := range layers {
+			uniqueVulns = append(uniqueVulns, layers[i].VulnInfo...)
+		}
+		param.UniqueVulns = uniqueVulns
 	}
 
 	vulns, _, err := s.VulnSrv.SearchVulns(ctx, param, filter)
@@ -234,7 +285,22 @@ func (s *VulnAPISrv) GetImageVulnGoBinary(ctx *gin.Context) {
 		TargetKeyword: targetKeyword,
 		ImageID:       imageID,
 	}
-
+	layerDigest := ctx.Query("layerDigest")
+	if layerDigest != "" {
+		layers, _, err := s.VulnSrv.SearchLayerVuln(ctx, component.SearchScanLayerParam{
+			ImageID:      imageID,
+			LayerDigests: []string{layerDigest},
+		}, nil)
+		if err != nil {
+			response.JSONError(ctx, err)
+			return
+		}
+		uniqueVulns := make([]uint64, 0)
+		for i := range layers {
+			uniqueVulns = append(uniqueVulns, layers[i].VulnInfo...)
+		}
+		param.UniqueVulns = uniqueVulns
+	}
 	vulns, _, err := s.VulnSrv.SearchVulns(ctx, param, filter)
 	if err != nil {
 		response.JSONError(ctx, err)
@@ -303,9 +369,27 @@ func (s *VulnAPISrv) GetImageVulnFrame(ctx *gin.Context) {
 	if filter.SortBy == "" {
 		filter.SortBy = consts.SortByDesc
 	}
+
 	param := component.SearchVulnParam{
 		FrameKeyword: frameKeyword,
 		ImageID:      imageID,
+	}
+
+	layerDigest := ctx.Query("layerDigest")
+	if layerDigest != "" {
+		layers, _, err := s.VulnSrv.SearchLayerVuln(ctx, component.SearchScanLayerParam{
+			ImageID:      imageID,
+			LayerDigests: []string{layerDigest},
+		}, nil)
+		if err != nil {
+			response.JSONError(ctx, err)
+			return
+		}
+		uniqueVulns := make([]uint64, 0)
+		for i := range layers {
+			uniqueVulns = append(uniqueVulns, layers[i].VulnInfo...)
+		}
+		param.UniqueVulns = uniqueVulns
 	}
 
 	vulns, _, err := s.VulnSrv.SearchVulns(ctx, param, filter)
@@ -348,7 +432,10 @@ func (s *VulnAPISrv) GetImageVulnFrame(ctx *gin.Context) {
 		response.WithStartIndex(filter.Offset))
 }
 
-func convertVuln(vuln model.Vuln) VulnList {
+func convertVuln(vuln *model.Vuln) VulnList {
+	if vuln == nil {
+		return VulnList{}
+	}
 	res := VulnList{
 		ID:          vuln.ID,
 		Name:        vuln.Name,

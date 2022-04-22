@@ -53,7 +53,7 @@ func (s *RegistrySrv) GetRegistry(ctx context.Context, id int64) (*model.Registr
 }
 
 func (s *RegistrySrv) SearchRegistry(ctx context.Context, param SearchRegistryParam, filter *model.Filter) ([]model.Registry, int64, error) {
-	registries, cnt, err := s.RegistryDal.SearchRegistry(ctx, store.SearchRegistryParam{UseType: param.UseType, Search: param.Search, RegType: param.RegType, NoDelete: true}, filter)
+	registries, cnt, err := s.RegistryDal.SearchRegistry(ctx, store.SearchRegistryParam{Name: param.Name, UseType: param.UseType, Search: param.Search, RegType: param.RegType, NoDelete: true}, filter)
 	if err != nil {
 		logging.GetLogger().Error().Err(err).Msg("SearchRegistry")
 		return nil, 0, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf("获取仓库列表出错"))

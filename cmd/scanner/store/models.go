@@ -95,7 +95,7 @@ type DeleteScanImageParam struct {
 }
 
 type SearchScanLayerParam struct {
-	ImageIds     []int64
+	ImageId      int64
 	LayerDigests []string
 	DeletedAt    int64
 }
@@ -268,7 +268,7 @@ type SearchVulnParm struct {
 	LanguageKeyword string
 	FrameKeyword    string
 	TargetKeyword   string
-	UniqueVuln      uint64
+	UniqueVulns     []uint64
 	Fields          []string
 	OmitFields      []string
 	Where           string

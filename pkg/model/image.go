@@ -257,9 +257,9 @@ type ImageList struct {
 	PrivilegedBoot int64  `gorm:"privileged_boot" json:"privileged_boot"`
 	IsReinforce    int    `gorm:"is_reinforce" json:"is_reinforce"`
 
-	CheckSum    uint64 `gorm:"column:check_sum" json:"check_sum"`       // 这一行数据的check值，且于判断这一行数据是否有变动，如果没有变动，就不再更新
-	UniqueImage uint64 `gorm:"column:unique_image" json:"unique_image"` // 由fullreponame+tags+registryId+fromType生成uuid，唯一确定一定镜像，优化松查询
-	Flag        uint64 `gorm:"column:flag" json:"flag"`
+	CheckSum    uint64 `gorm:"column:check_sum" json:"check_sum,string"`       // 这一行数据的check值，且于判断这一行数据是否有变动，如果没有变动，就不再更新
+	UniqueImage uint64 `gorm:"column:unique_image" json:"unique_image,string"` // 由fullreponame+tags+registryId+fromType生成uuid，唯一确定一定镜像，优化松查询
+	Flag        uint64 `gorm:"column:flag" json:"flag:string"`
 }
 
 func SetFlagBaseImage(pre uint64) uint64 {

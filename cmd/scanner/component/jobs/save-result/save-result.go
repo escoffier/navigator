@@ -18,6 +18,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/jobs/scan"
 	scanVuln "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scanner-vuln"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/task"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	imageCache "gitlab.com/piccolo_su/vegeta/cmd/scanner/service/register/image-cache"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
@@ -325,56 +326,46 @@ func (s *ScanResultHandle) arrangeLicense(licenseResult []model.PerLayerLicenseR
 	}
 }
 
-func (s *ScanResultHandle) logPostgresLayer(ctx context.Context, scanDetails *model.ScanDetailScanImage, layerMp map[string]*model.LayerScanDetail, imageID int64) {
+func (s *ScanResultHandle) logPostgresLayer(ctx context.Context, scanDetails *model.ScanDetailScanImage, layerMp map[string]*model.LayerScanDetail, imageID int64) error {
 	scannerOrm := store.GetScannerDb()
-	for k, v := range layerMp {
-		tmpScanLayer := model.ScanLayer{ImageID: imageID}
-		tmpScanLayer.LayerDigest = k
-		if v.VulnDetails != nil {
-			var tmpSingleDetails []model.SingleScanDetail
-			for _, t := range v.VulnDetails {
-				var tmpVulnDetails []model.NewVulnDetail
+	var err error
+	for layerDigest, layer := range layerMp {
+
+		var uniqueVulns []uint64
+
+		if layer.VulnDetails != nil {
+			for _, t := range layer.VulnDetails {
 				for _, tt := range t.Vulns {
-					tmpVulnDetails = append(tmpVulnDetails, *tt)
+					for _, vu := range tt.Trivy {
+						vuln := util.GenerateUUID64(fmt.Sprintf(consts.UniqueVulnFamat, tt.CVEID, vu.PkgName, vu.InstalledVersion))
+						// 因为结构体里的嵌套结构都是值引用，可能会有空的情况
+						if vuln > 0 {
+							uniqueVulns = append(uniqueVulns, vuln)
+						}
+					}
 				}
-				tmpSingleDetails = append(tmpSingleDetails, model.SingleScanDetail{Class: t.Class, Type: t.Type, Target: t.Target, Vulns: tmpVulnDetails})
 			}
-			vulnJSON, err := json.Marshal(tmpSingleDetails)
-			if err != nil {
-				logging.GetLogger().Error().Err(err)
-			}
-			tmpScanLayer.VulnInfoJSON = vulnJSON
 		}
 
-		if len(v.MaliciousDetails) > 0 {
-			maliciousJSON, err := json.Marshal(v.MaliciousDetails)
-			if err != nil {
-				logging.GetLogger().Error().Err(err)
-			}
-			tmpScanLayer.MaliciousInfoJSON = maliciousJSON
+		scanLayer := model.ScanLayer{
+			ImageID:       imageID,
+			LayerDigest:   layerDigest,
+			VulnInfo:      uniqueVulns,
+			MaliciousInfo: layer.MaliciousDetails,
+			WebshellInfo:  layer.WebshellInfos,
+			SensitiveFile: layer.Sentitives,
 		}
 
-		if len(v.Sentitives) > 0 {
-			sensitiveJSON, err := json.Marshal(v.Sentitives)
-			if err != nil {
-				logging.GetLogger().Error().Err(err)
-			}
-			tmpScanLayer.SensitiveFileJSON = sensitiveJSON
+		err = scannerOrm.InsertToScanLayer(ctx, &scanLayer)
+		if err != nil {
+			// 一条出错，不影响其他的数据写入
+			logging.GetLogger().Err(err).Str("LayerDigest", scanLayer.LayerDigest).Int64("imageID", scanLayer.ImageID).Msg("save scan result InsertToScanLayer")
 		}
-
-		if len(v.WebshellInfos) > 0 {
-			webshellJSON, err := json.Marshal(v.WebshellInfos)
-			if err != nil {
-				logging.GetLogger().Error().Err(err)
-			}
-			tmpScanLayer.WebshellInfoJSON = webshellJSON
-		}
-
-		scannerOrm.InsertToScanLayer(ctx, &tmpScanLayer)
 	}
+	return err
 }
 
-func (s *ScanResultHandle) logPostgresImage(ctx context.Context, scanDetails *model.ScanDetailScanImage, layerMp map[string]*model.LayerScanDetail, imageID int64) {
+func (s *ScanResultHandle) logPostgresImage(ctx context.Context, scanDetails *model.ScanDetailScanImage, layerMp map[string]*model.LayerScanDetail, imageID int64) error {
 	scannerOrm := store.GetScannerDb()
 	tmpScanImage := &model.ScanImage{
 		ID:                   0,
@@ -400,13 +391,14 @@ func (s *ScanResultHandle) logPostgresImage(ctx context.Context, scanDetails *mo
 	tmpScanImage.Serialize()
 	if err := scannerOrm.InsertToScanImage(ctx, tmpScanImage); err != nil {
 		logging.GetLogger().Err(err).Int64("imageID", tmpScanImage.ImageID).Msg("save scan result InsertToScanImage")
-		return
+		return err
 	}
 	// 更改imagelist表
 	if err := s.UpdateImageFlag(ctx, tmpScanImage.ImageID, tmpScanImage); err != nil {
 		logging.GetLogger().Err(err).Int64("imageID", tmpScanImage.ImageID).Msg("save scan result UpdateImageFlag")
-		return
+		return err
 	}
+	return nil
 }
 
 func (s *ScanResultHandle) UpdateImageFlag(ctx context.Context, imageID int64, scan *model.ScanImage) error {
@@ -424,7 +416,7 @@ func (s *ScanResultHandle) UpdateImageFlag(ctx context.Context, imageID int64, s
 	return err
 }
 
-func (s *ScanResultHandle) logPostgresVuln(ctx context.Context, scanDetails *model.ScanDetailScanImage, layerMp map[string]*model.LayerScanDetail, imageID int64) {
+func (s *ScanResultHandle) logPostgresVuln(ctx context.Context, scanDetails *model.ScanDetailScanImage, layerMp map[string]*model.LayerScanDetail, imageID int64) error {
 	vulnDal := store.NewVulnDao()
 
 	vulns := make([]*model.Vuln, 0, 20)
@@ -469,14 +461,15 @@ func (s *ScanResultHandle) logPostgresVuln(ctx context.Context, scanDetails *mod
 	}
 
 	if err := vulnDal.CreateVuln(ctx, vulns); err != nil {
-		logging.GetLogger().Err(err).Msg("save-result CreateVuln")
-		return
+		// 部分写入失败后还是要写入ivan_scanner_vuln_images表数据，所以不能直接返回
+		logging.GetLogger().Err(err).Int64("imageID", imageID).Msg("save-result CreateVuln")
 	}
 
 	if err := vulnDal.CreateVulnImage(ctx, imageID, vulnImages); err != nil {
-		logging.GetLogger().Err(err).Msg("save-result CreateVulnImage")
-		return
+		logging.GetLogger().Err(err).Int64("imageID", imageID).Msg("save-result CreateVulnImage")
+		return err
 	}
+	return nil
 }
 
 func (s *ScanResultHandle) logPostgresWebFrame(ctx context.Context, param jobs.Param) {
@@ -741,10 +734,12 @@ func (s *ScanResultHandle) Run(ctx context.Context, param jobs.Param) (jobs.Arti
 			}
 		}
 	}
+	var err error
 
-	s.logPostgresLayer(ctx, &scanDetails, layerMp, s.config.subtask.Image.ID)
-	s.logPostgresImage(ctx, &scanDetails, layerMp, s.config.subtask.Image.ID)
-	s.logPostgresVuln(ctx, &scanDetails, layerMp, s.config.subtask.Image.ID)
+	err = s.logPostgresLayer(ctx, &scanDetails, layerMp, s.config.subtask.Image.ID)
+	// 先写漏洞表和漏洞关联表，再写入ivan_scanner_scan_images和ivan_scanner_images_list表，防止镜像已打上有漏洞的标记，确查不出漏洞的情况
+	err = s.logPostgresVuln(ctx, &scanDetails, layerMp, s.config.subtask.Image.ID)
+	err = s.logPostgresImage(ctx, &scanDetails, layerMp, s.config.subtask.Image.ID)
 	s.updateRiskVulnCacheEntry(ctx, param, &scanDetails)
 	s.updateRiskVirusCacheEntry(ctx, param, &scanDetails)
 	s.logPostgresWebFrame(ctx, param)
@@ -773,12 +768,8 @@ func (s *ScanResultHandle) Run(ctx context.Context, param jobs.Param) (jobs.Arti
 			}
 		}
 	}
-	// tmpScanImage.VulnInfoJSON,  = json.Marshal(scanDetails)
 
-	// tmpScanImage.ImageId = 222
-	// scannerOrm.InsertToScanImage(context.Background(), &tmpScanImage)
-
-	return nil, nil
+	return nil, err
 }
 
 func rmImage(imageName string) error {

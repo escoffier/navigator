@@ -6,16 +6,15 @@ import (
 	"time"
 
 	"gitlab.com/security-rd/go-pkg/databases"
-	"gorm.io/gorm"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 )
 
-type VulnDal interface {
-	SearchVuln(ctx context.Context, param SearchVulnParm, filter *model.Filter) ([]model.Vuln, int64, error)
-	SearchVulnPkg(ctx context.Context, param SearchVulnParm, filter *model.Filter) ([]model.Vuln, int64, error)
+type VulnDalInterface interface {
+	SearchVuln(ctx context.Context, param SearchVulnParm, filter *model.Filter) ([]*model.Vuln, int64, error)
+	SearchVulnPkg(ctx context.Context, param SearchVulnParm, filter *model.Filter) ([]*model.Vuln, int64, error)
 	CreateVuln(ctx context.Context, data []*model.Vuln) error
 	UpdateVuln(ctx context.Context, where string, updater map[string]interface{}, vuln *model.Vuln) error
 	CreateVulnImage(ctx context.Context, imageID int64, data []*model.VulnImage) error
@@ -35,13 +34,13 @@ func NewVulnDao() *VulnDao {
 	return singeVulnDao
 }
 
-func (v *VulnDao) SearchVuln(ctx context.Context, param SearchVulnParm, filter *model.Filter) ([]model.Vuln, int64, error) {
+func (v *VulnDao) SearchVuln(ctx context.Context, param SearchVulnParm, filter *model.Filter) ([]*model.Vuln, int64, error) {
 	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*10)
 	defer cancelFunc()
 	db := v.rdb.Get().WithContext(ctx).Model(model.Vuln{})
 
-	if param.UniqueVuln > 0 {
-		db = db.Where("unique_vuln = ?", param.UniqueVuln)
+	if len(param.UniqueVulns) > 0 {
+		db = db.Where("unique_vuln IN  ?", param.UniqueVulns)
 	}
 	if len(param.Fields) > 0 {
 		db = db.Select(param.Fields)
@@ -66,10 +65,10 @@ func (v *VulnDao) SearchVuln(ctx context.Context, param SearchVulnParm, filter *
 		db = db.Where("source IN ？", param.Sources)
 	}
 	if param.CanFixed == consts.TrueString {
-		db = db.Where("fixedby != ''")
+		db = db.Where("fixed_by != ''")
 	}
 	if param.CanFixed == consts.FalseString {
-		db = db.Where("fixedby = '' OR fixedby is null")
+		db = db.Where("fixed_by = '' OR fixed_by is null")
 	}
 	if param.PkgKeyword != "" {
 		db = db.Where("pkg_name LIKE ? ", fmt.Sprintf("%%%s%%", param.PkgKeyword))
@@ -89,7 +88,7 @@ func (v *VulnDao) SearchVuln(ctx context.Context, param SearchVulnParm, filter *
 	if len(param.SeverityInt) > 0 {
 		db = db.Where("severity_int IN  ? ", param.SeverityInt)
 	}
-	res := make([]model.Vuln, 0)
+	res := make([]*model.Vuln, 0)
 	var count int64
 	if err := db.Count(&count).Error; err != nil {
 		return nil, 0, err
@@ -108,15 +107,15 @@ func (v *VulnDao) SearchVuln(ctx context.Context, param SearchVulnParm, filter *
 	return res, count, nil
 }
 
-func (v *VulnDao) SearchVulnPkg(ctx context.Context, param SearchVulnParm, filter *model.Filter) ([]model.Vuln, int64, error) {
+func (v *VulnDao) SearchVulnPkg(ctx context.Context, param SearchVulnParm, filter *model.Filter) ([]*model.Vuln, int64, error) {
 	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*10)
 	defer cancelFunc()
 	db := v.rdb.Get().WithContext(ctx).Model(model.Vuln{})
 	if param.VulnKeyword != "" {
 		db = db.Where("name LIKE ?", fmt.Sprintf("%%%s%%", param.VulnKeyword))
 	}
-	if param.UniqueVuln > 0 {
-		db = db.Where("unique_vuln = ?", param.UniqueVuln)
+	if len(param.UniqueVulns) > 0 {
+		db = db.Where("unique_vuln IN ?", param.UniqueVulns)
 	}
 	if len(param.Fields) > 0 {
 		db = db.Select(param.Fields)
@@ -147,7 +146,7 @@ func (v *VulnDao) SearchVulnPkg(ctx context.Context, param SearchVulnParm, filte
 		db = db.Where("fixedby = ''")
 	}
 
-	res := make([]model.Vuln, 0)
+	res := make([]*model.Vuln, 0)
 	var count int64
 	if err := db.Count(&count).Error; err != nil {
 		return nil, 0, err
@@ -177,11 +176,11 @@ func (v *VulnDao) CreateVuln(ctx context.Context, data []*model.Vuln) error {
 	}
 
 	data = removeDuplicateVuln(data)
-	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*10)
+	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*1000) // 批量写入,因为有大json格式的数据，时间会久些，时间久些
 	defer cancelFunc()
 	for i := range data {
 		vuln := data[i]
-		vulns, _, err := v.SearchVuln(ctx, SearchVulnParm{UniqueVuln: vuln.UniqueVuln, Fields: []string{"id", "unique_vuln", "check_sum"}}, nil)
+		vulns, _, err := v.SearchVuln(ctx, SearchVulnParm{UniqueVulns: []uint64{vuln.UniqueVuln}, Fields: []string{"id", "unique_vuln", "check_sum"}}, nil)
 		if err != nil {
 			logging.GetLogger().Err(err).Uint64("UniqueVuln", vuln.UniqueVuln).Msg("CreateVuln")
 			return err
@@ -211,7 +210,7 @@ func (v *VulnDao) UpdateVuln(ctx context.Context, where string, updater map[stri
 	if len(where) == 0 {
 		return fmt.Errorf("no where condition")
 	}
-	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*1)
+	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*10)
 	defer cancelFunc()
 
 	var err error
@@ -236,47 +235,45 @@ func (v *VulnDao) CreateVulnImage(ctx context.Context, imageID int64, data []*mo
 		newExit[key] = data[i]
 	}
 
-	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*10)
+	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*100) // 大批量写入，时间会久些
 	defer cancelFunc()
 	// 不能简单的先删除再新建，因为主建可能被用完，也不能使用ON DUPLICATE KEY UPDATE方法，因为本质上mysql还是做的先删除再新建
-	err := v.rdb.Get().WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		vulnImages := make([]model.VulnImage, 0)
-		if err := tx.Model(new(model.VulnImage)).Select("id", "unique_vuln", "image_id").Where("image_id = ?", imageID).Find(&vulnImages).Error; err != nil {
+	// 不用事务，因为插入部分出错没有影响
+	vulnImages := make([]model.VulnImage, 0)
+	if err := v.rdb.Get().Model(new(model.VulnImage)).Select("id", "unique_vuln", "image_id").Where("image_id = ?", imageID).Find(&vulnImages).Error; err != nil {
+		return err
+	}
+	dbExit := make(map[string]int64)
+	createData := make([]*model.VulnImage, 0)
+	deleteData := make([]int64, 0)
+
+	for i := range vulnImages {
+		key := fmt.Sprintf("%d_%d", vulnImages[i].ImageId, vulnImages[i].UniqueVuln)
+		dbExit[key] = vulnImages[i].ID
+	}
+	for key := range newExit {
+		if _, ok := dbExit[key]; !ok {
+			createData = append(createData, newExit[key])
+		}
+	}
+
+	for key := range dbExit {
+		if _, ok := newExit[key]; !ok {
+			deleteData = append(deleteData, dbExit[key])
+		}
+	}
+
+	if len(createData) > 0 {
+		if err := v.rdb.Get().Model(new(model.VulnImage)).CreateInBatches(createData, 100).Error; err != nil {
 			return err
 		}
-		dbExit := make(map[string]int64)
-		createData := make([]*model.VulnImage, 0)
-		deleteData := make([]int64, 0)
-
-		for i := range vulnImages {
-			key := fmt.Sprintf("%d_%d", vulnImages[i].ImageId, vulnImages[i].UniqueVuln)
-			dbExit[key] = vulnImages[i].ID
+	}
+	if len(deleteData) > 0 {
+		if err := v.rdb.Get().Model(new(model.VulnImage)).Where("id IN  ? ", deleteData).Delete(&model.VulnImage{}).Error; err != nil {
+			return err
 		}
-		for key := range newExit {
-			if _, ok := dbExit[key]; !ok {
-				createData = append(createData, newExit[key])
-			}
-		}
-
-		for key := range dbExit {
-			if _, ok := newExit[key]; !ok {
-				deleteData = append(deleteData, dbExit[key])
-			}
-		}
-
-		if len(createData) > 0 {
-			if err := tx.Model(new(model.VulnImage)).Create(createData).Error; err != nil {
-				return err
-			}
-		}
-		if len(deleteData) > 0 {
-			if err := tx.Model(new(model.VulnImage)).Where("id IN  ? ", deleteData).Delete(&model.VulnImage{}).Error; err != nil {
-				return err
-			}
-		}
-		return nil
-	})
-	return err
+	}
+	return nil
 }
 
 func removeDuplicateVuln(data []*model.Vuln) []*model.Vuln {

@@ -51,7 +51,7 @@ type ScanImage struct { // 镜像结果// 加上镜像结果,对应原来的scan
 	StartedAt  int64  // 扫描开始时间
 	FinishAt   int64  // 扫描结束时间
 
-	CheckSum uint64 `gorm:"column:check_sum" json:"check_sum"` // 这一行数据的check值，且于判断这一行数据是否有变动，如果没有变动，就不再更新
+	CheckSum uint64 `gorm:"column:check_sum" json:"check_sum,string"` // 这一行数据的check值，且于判断这一行数据是否有变动，如果没有变动，就不再更新
 }
 
 func (si ScanImage) TableName() string {
@@ -115,6 +115,7 @@ func (si *ScanImage) Deserialize() {
 	if len(si.VulnInfoJSON) > 0 {
 		if err := json.Unmarshal(si.VulnInfoJSON, &vulnInfo); err != nil {
 			logging.GetLogger().Error().Err(err).Int64("imageID", si.ImageID).Int64("ID", si.ID).Msg("Unmarshal VulnInfo")
+			vulnInfo = make([]SingleScanDetail, 0)
 		}
 	}
 	si.VulnInfo = vulnInfo
@@ -123,6 +124,7 @@ func (si *ScanImage) Deserialize() {
 	if len(si.PerLayerReportJSON) > 0 {
 		if err := json.Unmarshal(si.PerLayerReportJSON, &perLayerReport); err != nil {
 			logging.GetLogger().Error().Err(err).Int64("imageID", si.ImageID).Int64("ID", si.ID).Msg("Unmarshal PerLayerReport")
+			perLayerReport = make([]VulnerabilityLayerReport, 0)
 		}
 	}
 	si.PerLayerReport = perLayerReport
@@ -140,6 +142,7 @@ func (si *ScanImage) Deserialize() {
 	if len(si.SensitiveFileJSON) > 0 {
 		if err := json.Unmarshal(si.SensitiveFileJSON, &sensitiveFile); err != nil {
 			logging.GetLogger().Error().Err(err).Int64("imageID", si.ImageID).Int64("ID", si.ID).Msg("Unmarshal SensitiveFile")
+			sensitiveFile = make([]Sensitive, 0)
 		}
 	}
 	si.SensitiveFile = sensitiveFile
@@ -148,6 +151,7 @@ func (si *ScanImage) Deserialize() {
 	if len(si.SoftwareJSON) > 0 {
 		if err := json.Unmarshal(si.SoftwareJSON, &softs); err != nil {
 			logging.GetLogger().Error().Err(err).Int64("imageID", si.ImageID).Int64("ID", si.ID).Msg("Unmarshal SoftWare")
+			softs = make([]Software, 0)
 		}
 	}
 	si.Software = softs
@@ -156,6 +160,7 @@ func (si *ScanImage) Deserialize() {
 	if len(si.MaliciousInfoJSON) > 0 {
 		if err := json.Unmarshal(si.MaliciousInfoJSON, &maliciousInfo); err != nil {
 			logging.GetLogger().Error().Err(err).Int64("imageID", si.ImageID).Int64("ID", si.ID).Msg("Unmarshal Malicious")
+			maliciousInfo = make([]Malicious, 0)
 		}
 	}
 	si.MaliciousInfo = maliciousInfo
@@ -164,6 +169,7 @@ func (si *ScanImage) Deserialize() {
 	if len(si.WebshellInfoJSON) > 0 {
 		if err := json.Unmarshal(si.WebshellInfoJSON, &webShellInfo); err != nil {
 			logging.GetLogger().Error().Err(err).Int64("imageID", si.ImageID).Int64("ID", si.ID).Msg("Unmarshal Webshell")
+			webShellInfo = make([]Webshell, 0)
 		}
 	}
 	si.WebshellInfo = webShellInfo
@@ -172,6 +178,7 @@ func (si *ScanImage) Deserialize() {
 	if len(si.EnvJSON) > 0 {
 		if err := json.Unmarshal(si.EnvJSON, &envInfo); err != nil {
 			logging.GetLogger().Error().Err(err).Int64("imageID", si.ImageID).Int64("ID", si.ID).Msg("Unmarshal Env")
+			envInfo = make([]EnvKeyValue, 0)
 		}
 	}
 
@@ -181,6 +188,7 @@ func (si *ScanImage) Deserialize() {
 	if len(si.LicenseInfoJSON) > 0 {
 		if err := json.Unmarshal(si.LicenseInfoJSON, &license); err != nil {
 			logging.GetLogger().Error().Err(err).Int64("imageID", si.ImageID).Int64("ID", si.ID).Msgf("Unmarshal LicenseInfo")
+			license = make([]LicenseInfo, 0)
 		}
 	}
 	si.LicenseInfo = license
@@ -189,10 +197,10 @@ func (si *ScanImage) Deserialize() {
 	if len(si.ScanEnableCollectionJson) > 0 {
 		if err := json.Unmarshal([]byte(si.ScanEnableCollectionJson), &scanEnableCollection); err != nil {
 			logging.GetLogger().Err(err).Msg("SearchScanImage Unmarshal")
+			scanEnableCollection = ScanEnableCollection{}
 		}
 	}
 	si.ScanEnableCollection = scanEnableCollection
-
 }
 
 func (si *ScanImage) Serialize() {
