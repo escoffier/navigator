@@ -41,9 +41,10 @@ func NewScanner(opts *flag2.ScannerOpts) (*Scanner, error) {
 	// init policy etc
 	regDal := store.NewRegistryDao(store.GetScannerWrapperDb())
 	imageDal := store.GetScannerOrmDb()
+	vulnDal := store.NewVulnDao()
 
 	scanConfigDAl := store.NewScanConfigDao(store.GetScannerWrapperDb())
-	dbInit := component.NewInitScanner(regDal, imageDal, scanConfigDAl)
+	dbInit := component.NewInitScanner(regDal, imageDal, scanConfigDAl, vulnDal)
 	if err := dbInit.Init(context.Background()); err != nil {
 		logging.Get().Err(err).Msg("db init policy err")
 		return nil, err

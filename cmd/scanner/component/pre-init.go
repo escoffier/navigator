@@ -23,7 +23,8 @@ type InitScannerInterface interface {
 type InitScanner struct {
 	regDal        store.RegistryDalInterface
 	imageDal      store.ScannerDalInterface
-	ScanConfigDAl store.ScanConfigDalInterface
+	vulnDal       store.VulnDalInterface
+	scanConfigDal store.ScanConfigDalInterface
 }
 
 func (s *InitScanner) Init(ctx context.Context) error {
@@ -55,7 +56,7 @@ func (s *InitScanner) Init(ctx context.Context) error {
 
 func (s *InitScanner) createGlobalScanConfig(ctx context.Context) error {
 	// 先查询默认策略
-	strategies, _, err := s.ScanConfigDAl.SearchStrategy(ctx, store.SearchStrategyParam{IsDefault: consts.TrueString}, nil)
+	strategies, _, err := s.scanConfigDal.SearchStrategy(ctx, store.SearchStrategyParam{IsDefault: consts.TrueString}, nil)
 	if err != nil {
 		return err
 	}
@@ -64,7 +65,7 @@ func (s *InitScanner) createGlobalScanConfig(ctx context.Context) error {
 	}
 
 	// 先查一下
-	config, _, err := s.ScanConfigDAl.SearchScanConfig(ctx, store.SearchScanConfigParam{}, nil)
+	config, _, err := s.scanConfigDal.SearchScanConfig(ctx, store.SearchScanConfigParam{}, nil)
 	if err != nil {
 		return err
 	}
@@ -94,12 +95,12 @@ func (s *InitScanner) createGlobalScanConfig(ctx context.Context) error {
 		LibraryImageJson:          string(bys),
 		NodeImageJson:             string(bys),
 	}
-	return s.ScanConfigDAl.CreateScanConfig(ctx, &data)
+	return s.scanConfigDal.CreateScanConfig(ctx, &data)
 }
 
 func (s *InitScanner) createDefaultScanStrategy(ctx context.Context) error {
 	// 先查一下
-	strategy, _, err := s.ScanConfigDAl.SearchStrategy(ctx, store.SearchStrategyParam{IsDefault: consts.TrueString}, nil)
+	strategy, _, err := s.scanConfigDal.SearchStrategy(ctx, store.SearchStrategyParam{IsDefault: consts.TrueString}, nil)
 	if err != nil {
 		return err
 	}
@@ -118,7 +119,7 @@ func (s *InitScanner) createDefaultScanStrategy(ctx context.Context) error {
 		WebshellEnable:  false, // default disable webshell scan
 		MaliciousEnable: true,
 	}
-	return s.ScanConfigDAl.CreateStrategy(ctx, &data)
+	return s.scanConfigDal.CreateStrategy(ctx, &data)
 }
 
 func (s *InitScanner) createCicdBufRegistry(ctx context.Context) error {
@@ -303,7 +304,7 @@ func (s *InitScanner) checkUniqueVuln(ctx context.Context) error {
 	var lastID int64
 	for {
 		param := store.SearchVulnParm{Where: fmt.Sprintf("(unique_vuln is null OR unique_vuln = 0 ) AND id > %d", lastID)}
-		vulus, _, err := s.imageDal.SearchVuln(ctx, param, &model.Filter{Limit: consts.DefaultBathSize, SortBy: consts.SortByAsc, SortFiled: "id"})
+		vulus, _, err := s.vulnDal.SearchVuln(ctx, param, &model.Filter{Limit: consts.DefaultBathSize, SortBy: consts.SortByAsc, SortFiled: "id"})
 		if err != nil {
 			logging.GetLogger().Error().Err(err).Msg("InitScanner.checkUniqueImage")
 			return err
@@ -318,7 +319,7 @@ func (s *InitScanner) checkUniqueVuln(ctx context.Context) error {
 			uniqueVuln := vu.GenUniqueVuln()
 			updater := map[string]interface{}{"unique_vuln": uniqueVuln}
 			where := fmt.Sprintf("id = %d", vu.ID)
-			if err := s.imageDal.UpdateVuln(ctx, where, updater, nil); err != nil {
+			if err := s.vulnDal.UpdateVuln(ctx, where, updater, nil); err != nil {
 				if strings.Contains(err.Error(), consts.DuplicateKey) {
 					logging.GetLogger().Error().Err(err).Int64("vulnID", vu.ID).Str("vuln", fmt.Sprintf("%s-%s-%s", vu.Name, vu.PkgName, vu.PkgVersion)).Uint64("UniqueVuln", uniqueVuln).Msg("InitScanner.checkUniqueVuln")
 					continue
@@ -331,6 +332,6 @@ func (s *InitScanner) checkUniqueVuln(ctx context.Context) error {
 	return nil
 }
 
-func NewInitScanner(regDal store.RegistryDalInterface, imageDal store.ScannerDalInterface, scanConfigDAl store.ScanConfigDalInterface) *InitScanner {
-	return &InitScanner{regDal: regDal, imageDal: imageDal, ScanConfigDAl: scanConfigDAl}
+func NewInitScanner(regDal store.RegistryDalInterface, imageDal store.ScannerDalInterface, scanConfigDAl store.ScanConfigDalInterface, vulnDal store.VulnDalInterface) *InitScanner {
+	return &InitScanner{regDal: regDal, imageDal: imageDal, scanConfigDal: scanConfigDAl, vulnDal: vulnDal}
 }

@@ -292,6 +292,7 @@ func (s *ScanStrategy) Deserialize() {
 	if len(s.SensitiveFileJson) > 0 {
 		if err := json.Unmarshal([]byte(s.SensitiveFileJson), &st); err != nil {
 			logging.GetLogger().Error().Err(err)
+			st = make([]SensitiveFileScan, 0)
 		}
 	}
 	s.SensitiveFile = st
@@ -300,6 +301,7 @@ func (s *ScanStrategy) Deserialize() {
 	if len(s.EnvsJson) > 0 {
 		if err := json.Unmarshal([]byte(s.EnvsJson), &envs); err != nil {
 			logging.GetLogger().Error().Err(err)
+			envs = make([]string, 0)
 		}
 	}
 	s.Envs = envs
@@ -308,6 +310,7 @@ func (s *ScanStrategy) Deserialize() {
 	if len(s.OpenLicenseJson) > 0 {
 		if err := json.Unmarshal([]byte(s.OpenLicenseJson), &ops); err != nil {
 			logging.GetLogger().Error().Err(err)
+			ops = make([]string, 0)
 		}
 	}
 	s.OpenLicense = ops
@@ -316,6 +319,7 @@ func (s *ScanStrategy) Deserialize() {
 	if len(s.SoftwareJson) > 0 {
 		if err := json.Unmarshal([]byte(s.SoftwareJson), &sfs); err != nil {
 			logging.GetLogger().Error().Err(err)
+			sfs = make([]Software, 0)
 		}
 	}
 	s.Software = sfs

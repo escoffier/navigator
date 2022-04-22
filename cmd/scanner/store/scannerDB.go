@@ -133,17 +133,18 @@ func (scdb *ScannerDB) InsertToVuln(ctx context.Context, vuln *model.Vuln, image
 	return nil
 }
 
-func (scdb *ScannerDB) InsertToScanLayer(ctx context.Context, ScanLayer *model.ScanLayer) {
+func (scdb *ScannerDB) InsertToScanLayer(ctx context.Context, data *model.ScanLayer) error {
 	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*1)
 	defer cancelFunc()
+	data.Serialize()
+	data.Deserialize()
 
 	tmp := model.ScanLayer{}
-	res := scdb.RDB.Get().WithContext(ctx).Where("layer_digest = ? AND image_id= ?", ScanLayer.LayerDigest, ScanLayer.ImageID).First(&tmp)
+	res := scdb.RDB.Get().WithContext(ctx).Where("layer_digest = ? AND image_id= ?", data.LayerDigest, data.ImageID).First(&tmp)
 	if res.Error == nil {
-		scdb.RDB.Get().WithContext(ctx).Where("layer_digest = ? AND image_id= ?", ScanLayer.LayerDigest, ScanLayer.ImageID).Select("*").Omit("id", "created_at").Updates(&ScanLayer)
-		return
+		return scdb.RDB.Get().WithContext(ctx).Where("layer_digest = ? AND image_id= ?", data.LayerDigest, data.ImageID).Select("*").Omit("id", "created_at").Updates(&data).Error
 	}
-	scdb.RDB.Get().WithContext(ctx).Create(&ScanLayer)
+	return scdb.RDB.Get().WithContext(ctx).Create(&data).Error
 }
 
 func (scdb *ScannerDB) FindRegistryFromURL(ctx context.Context, url string) model.Registry {

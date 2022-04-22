@@ -120,9 +120,7 @@ type ScannerSrv interface {
 
 	ListImgLayers(ctx context.Context, imageID int64, filter *model.Filter) ([]model.ReportImgBackInfo, error)
 	ImgLayerInfo(ctx context.Context, imageID int64, layerDigest string, filter *model.Filter) (*model.ScanLayerResponse, error)
-	SearchVuln(ctx context.Context, searchWord string, filter *model.Filter) ([]model.Vuln, int64, error)
 	GetImagesFromVuln(ctx context.Context, uniqueVuln uint64) ([]model.VulnImageList, error)
-	GetVulnDetails(ctx context.Context, uniqueVuln uint64) (model.VulnDetail, error)
 	GetSimpleImageDetail(ctx context.Context, tag string, digest string, library string, fullRepoName string) model.SimpleImageDetail
 
 	TickOnlineScan(ctx context.Context, containerInfo []model.RejectOnlineMonitorImage) bool
@@ -150,6 +148,7 @@ type ScannerSrv interface {
 
 type ConScannerSrv struct {
 	dbdal           store.ScannerDalInterface
+	vulnDal         store.VulnDalInterface
 	taskdal         store.ScanTaskInterface
 	trustedImageDal store.TrustedImageInterface
 	registryDal     store.RegistryDalInterface
@@ -201,7 +200,7 @@ func (s *ConScannerSrv) SearchImages(ctx context.Context, param SearchImageParam
 	return images, cnt, nil
 }
 
-func NewConScannerSrv(dbdal store.ScannerDalInterface, registryDal store.RegistryDalInterface, redclair *RedClairService, virusScan *VirusScan, scdb *store.ScannerDB, globalCache *cache.Cache, scannerList *ScannerList, taskdal store.ScanTaskInterface, trustedImageDal store.TrustedImageInterface, scanConfigDal store.ScanConfigDalInterface) *ConScannerSrv {
+func NewConScannerSrv(dbdal store.ScannerDalInterface, registryDal store.RegistryDalInterface, redclair *RedClairService, virusScan *VirusScan, scdb *store.ScannerDB, globalCache *cache.Cache, scannerList *ScannerList, taskdal store.ScanTaskInterface, trustedImageDal store.TrustedImageInterface, scanConfigDal store.ScanConfigDalInterface, vulnDal store.VulnDalInterface) *ConScannerSrv {
 	return &ConScannerSrv{
 		dbdal:           dbdal,
 		registryDal:     registryDal,
@@ -213,6 +212,7 @@ func NewConScannerSrv(dbdal store.ScannerDalInterface, registryDal store.Registr
 		taskdal:         taskdal,
 		trustedImageDal: trustedImageDal,
 		scanConfigDal:   scanConfigDal,
+		vulnDal:         vulnDal,
 	}
 }
 
@@ -804,25 +804,6 @@ func (s *ConScannerSrv) GetImagesFromVuln(ctx context.Context, uniqueVuln uint64
 	return res, err
 }
 
-func (s *ConScannerSrv) GetVulnDetails(ctx context.Context, uniqueVuln uint64) (model.VulnDetail, error) {
-	res, err := s.dbdal.GetVulnDetails(ctx, uniqueVuln)
-	if err != nil {
-		logging.GetLogger().Err(err).Uint64("uniqueVuln", uniqueVuln).Msg("GetVulnDetails")
-		return res, err
-	}
-	return res, nil
-}
-
-func (s *ConScannerSrv) SearchVuln(ctx context.Context, searchWord string, filter *model.Filter) ([]model.Vuln, int64, error) {
-	param := store.SearchVulnParm{Fields: []string{"name", "severity", "pkg_name", "pkg_version", "id", "severity_int", "unique_vuln"}, VulnKeyword: searchWord}
-	vulns, cnt, err := s.dbdal.SearchVuln(ctx, param, filter)
-	if err != nil {
-		logging.GetLogger().Err(err).Msg("SearchVulns")
-		return nil, 0, err
-	}
-	return vulns, cnt, err
-}
-
 func (s *ConScannerSrv) GetImageSeverityCount(ctx context.Context, imageID int64) (*model.ImageSeverityCount, error) {
 	groups, err := s.dbdal.GroupVulnSeverityByImageID(ctx, imageID)
 	if err != nil {
@@ -895,7 +876,7 @@ func (s *ConScannerSrv) GetVulnOverView(ctx context.Context) (*model.VulnOvervie
 
 // ImgLayerInfo Get detailed information about  the layer
 func (s *ConScannerSrv) ImgLayerInfo(ctx context.Context, imageID int64, layerDigest string, filter *model.Filter) (*model.ScanLayerResponse, error) {
-	layers, _, err := s.dbdal.SearchScanLayer(ctx, store.SearchScanLayerParam{LayerDigests: []string{layerDigest}, ImageIds: []int64{imageID}}, filter)
+	layers, _, err := s.dbdal.SearchScanLayer(ctx, store.SearchScanLayerParam{LayerDigests: []string{layerDigest}, ImageId: imageID}, filter)
 	if err != nil {
 		logging.GetLogger().Error().Err(err).Msg("ReportImgBackInfo.SearchScanLayer")
 		return nil, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf(consts.StatusInternalServerErrorMsg))
@@ -927,10 +908,6 @@ func (s *ConScannerSrv) ImgLayerInfo(ctx context.Context, imageID int64, layerDi
 		webshell = append(webshell, layers[0].WebshellInfo[i].WebShellInfo)
 	}
 	res.WebshellInfo = webshell
-
-	vulnInfo := FilterVulnsFromScanImage(layers[0].VulnInfo)
-	sort.Sort(model.RespSingleVulnDetails(vulnInfo))
-	res.VulnInfo = vulnInfo
 
 	return &res, nil
 }
@@ -990,7 +967,7 @@ func (s *ConScannerSrv) ListImgLayers(ctx context.Context, imaID int64, filter *
 
 	// 获取各层的信息
 	if len(layerDigests) > 0 {
-		layers, _, err := s.dbdal.SearchScanLayer(ctx, store.SearchScanLayerParam{LayerDigests: layerDigests, ImageIds: []int64{imgs[0].ID}}, filter)
+		layers, _, err := s.dbdal.SearchScanLayer(ctx, store.SearchScanLayerParam{LayerDigests: layerDigests, ImageId: imgs[0].ID}, filter)
 		if err != nil {
 			logging.GetLogger().Err(err).Msgf(fmt.Sprintf("ReportImgBackInfo.SearchScanLayer error:%s", err.Error()))
 			return nil, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf(consts.StatusInternalServerErrorMsg))
@@ -1000,9 +977,7 @@ func (s *ConScannerSrv) ListImgLayers(ctx context.Context, imaID int64, filter *
 			for j := range layers {
 				if res[i].ImageDigest == layers[j].LayerDigest {
 					for k := range layers[j].VulnInfo {
-						for r := range layers[j].VulnInfo[k].Vulns {
-							res[i].Vulus = append(res[i].Vulus, layers[j].VulnInfo[k].Vulns[r].CVEID)
-						}
+						res[i].Vulus = append(res[i].Vulus, fmt.Sprintf("%d", layers[j].VulnInfo[k]))
 					}
 					for k := range layers[j].SensitiveFile {
 						res[i].SensitiveFiles = append(res[i].SensitiveFiles, layers[j].SensitiveFile[k].Name)
@@ -1017,7 +992,6 @@ func (s *ConScannerSrv) ListImgLayers(ctx context.Context, imaID int64, filter *
 			}
 		}
 	}
-
 	return res, nil
 }
 

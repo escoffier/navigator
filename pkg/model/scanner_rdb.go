@@ -10,12 +10,13 @@ import (
 
 	"github.com/gobwas/glob"
 	json "github.com/json-iterator/go"
+	"gorm.io/gorm"
+
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/vuln-updata/cnnvd"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/vuln-updata/cnvd"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
-	"gorm.io/gorm"
 )
 
 type VulnMatedata struct {
@@ -49,10 +50,10 @@ type Vuln struct {
 	MetadataJSON []byte        `gorm:"type:Blob" json:"-"`                                                        // 元数据
 	PkgName      string        `gorm:"type:varchar(255);uniqueIndex:uniq_idx_vuln,priority:2" json:"pkg_name"`    // 软件包来源
 	PkgVersion   string        `gorm:"type:varchar(255);uniqueIndex:uniq_idx_vuln,priority:3" json:"pkg_version"` // 软件包版本
-	FixedBy      string        `gorm:"type:varchar(255)" json:"fixedby" bson:"fixedby" json:"fixedby"`            // 修复建议
-	UniqueVuln   uint64        `gorm:"column:unique_vuln" json:"unique_vuln" json:"unique_vuln"`
+	FixedBy      string        `gorm:"type:varchar(255)" json:"fixedby"`                                          // 修复建议
+	UniqueVuln   uint64        `gorm:"column:unique_vuln" json:"unique_vuln,string"`
 	ExtraInfo    []byte        `gorm:"type:Blob" json:"-"` //  预留，漏洞属性。如我们自己的漏洞评级
-	CheckSum     uint64        `gorm:"column:check_sum" json:"check_sum"`
+	CheckSum     uint64        `gorm:"column:check_sum" json:"check_sum,string"`
 	Class        string        `gorm:"column:target" json:"class"`      // 代表是系统包还是语言包 os-pkgs
 	Language     string        `gorm:"column:language" json:"language"` // 把编程语言入库用于搜索 统一存小写，便于搜索
 	Frame        string        `gorm:"column:frame" json:"frame"`       // 开发框架筛选
@@ -94,17 +95,19 @@ func (vn *Vuln) Serialize() {
 
 func (vn *Vuln) Deserialize() {
 	if len(vn.MetadataJSON) > 0 {
-		meta := new(VulnMatedata)
-		if err := json.Unmarshal(vn.MetadataJSON, meta); err != nil {
+		meta := VulnMatedata{}
+		if err := json.Unmarshal(vn.MetadataJSON, &meta); err != nil {
 			logging.GetLogger().Err(err).Msg("Vuln.Deserialize")
+			meta = VulnMatedata{} // 一定改成默认值
 		}
-		vn.Metadata = meta
-
+		vn.Metadata = &meta
 	}
+
 	if len(vn.LinkJSON) > 0 {
 		link := make([]string, 0)
 		if err := json.Unmarshal(vn.LinkJSON, &link); err != nil {
 			logging.GetLogger().Err(err).Msg("Vuln.Deserialize")
+			link = make([]string, 0)
 		}
 		vn.Link = link
 	}
@@ -146,14 +149,14 @@ func (VulnImage) TableName() string {
 }
 
 type ScanLayer struct { // 层级扫描结果
-	ID           uint               `gorm:"primaryKey" json:"id"`
-	CreatedAt    time.Time          `json:"created_at"`
-	UpdatedAt    time.Time          `json:"updated_at"`
-	DeletedAt    int                `json:"deleted_at"`
-	ImageID      int64              `gorm:"column:image_id;uniqueIndex:uniq_idx_scan_layer,priority:1" json:"image_id"`
-	LayerDigest  string             `gorm:"type:varchar(255);uniqueIndex:uniq_idx_scan_layer,priority:2" json:"layer_digest"`
-	VulnInfoJSON []byte             `gorm:"type:longblob" json:"-"` // 包含扫描结果的json
-	VulnInfo     []SingleScanDetail `gorm:"-" json:"vuln_info"`
+	ID           uint      `gorm:"primaryKey" json:"id"`
+	CreatedAt    time.Time `json:"created_at"`
+	UpdatedAt    time.Time `json:"updated_at"`
+	DeletedAt    int       `json:"deleted_at"`
+	ImageID      int64     `gorm:"column:image_id;uniqueIndex:uniq_idx_scan_layer,priority:1" json:"image_id"`
+	LayerDigest  string    `gorm:"type:varchar(255);uniqueIndex:uniq_idx_scan_layer,priority:2" json:"layer_digest"`
+	VulnInfoJSON []byte    `gorm:"type:longblob" json:"-"` // 包含扫描结果的json
+	VulnInfo     []uint64  `gorm:"-" json:"vuln_info"`     // 对应vulns表的unique_vuln字段
 
 	PkgInfoJSON []byte      `gorm:"type:longblob" json:"-"` // 软件包信息
 	PkgInfo     interface{} `gorm:"-" json:"pkg_info"`
@@ -172,6 +175,95 @@ type ScanLayer struct { // 层级扫描结果
 
 func (ScanLayer) TableName() string {
 	return "ivan_scanner_scan_layers"
+}
+
+func (sl *ScanLayer) Deserialize() {
+	vuln := make([]uint64, 0)
+	if len(sl.VulnInfoJSON) > 0 {
+		if err := json.Unmarshal(sl.VulnInfoJSON, &vuln); err != nil {
+			logging.GetLogger().Err(err).Msg("ScanLayer.Deserialize")
+			// 解析出错，说明是老数据，做一下兼容，数据会在下一次扫描时写成新的格式
+			vuln = make([]uint64, 0) // 重新初始化数据
+			preVulns := make([]SingleScanDetail, 0)
+			if err := json.Unmarshal(sl.VulnInfoJSON, &preVulns); err != nil {
+				logging.GetLogger().Err(err).Msg("ScanLayer.Deserialize pre data")
+			} else {
+				for i := range preVulns {
+					for j := range preVulns[i].Vulns {
+						for k := range preVulns[i].Vulns[j].Trivy {
+							vulnUnique := util.GenerateUUID64(fmt.Sprintf(consts.UniqueVulnFamat,
+								preVulns[i].Vulns[j].CVEID,
+								preVulns[i].Vulns[j].Trivy[k].PkgName,
+								preVulns[i].Vulns[j].Trivy[k].InstalledVersion))
+
+							vuln = append(vuln, vulnUnique)
+						}
+					}
+				}
+			}
+		}
+	}
+	sl.VulnInfo = util.DeDuplicationUint64Slice(vuln)
+
+	malic := make([]Malicious, 0)
+	if len(sl.MaliciousInfoJSON) > 0 {
+		if err := json.Unmarshal(sl.MaliciousInfoJSON, &malic); err != nil {
+			logging.GetLogger().Err(err).Msg("ScanLayer.Deserialize")
+			malic = make([]Malicious, 0)
+		}
+	}
+	sl.MaliciousInfo = malic
+
+	webshell := make([]Webshell, 0)
+	if len(sl.MaliciousInfoJSON) > 0 {
+		if err := json.Unmarshal(sl.WebshellInfoJSON, &webshell); err != nil {
+			logging.GetLogger().Err(err).Msg("ScanLayer.Deserialize")
+			webshell = make([]Webshell, 0)
+		}
+	}
+	sl.WebshellInfo = webshell
+
+	sensitiveFile := make([]Sensitive, 0)
+	if len(sl.SensitiveFileJSON) > 0 {
+		if err := json.Unmarshal(sl.SensitiveFileJSON, &sensitiveFile); err != nil {
+			logging.GetLogger().Err(err).Msg("ScanLayer.Deserialize")
+			sensitiveFile = make([]Sensitive, 0)
+		}
+	}
+	sl.SensitiveFile = sensitiveFile
+}
+
+func (sl *ScanLayer) Serialize() {
+	if len(sl.VulnInfo) > 0 {
+		sl.VulnInfo = util.DeDuplicationUint64Slice(sl.VulnInfo)
+		if bys, err := json.Marshal(sl.VulnInfo); err != nil {
+			logging.GetLogger().Err(err).Msg("ScanLayer.Serialize")
+		} else {
+			sl.VulnInfoJSON = bys
+		}
+	}
+
+	if len(sl.MaliciousInfo) > 0 {
+		if bys, err := json.Marshal(sl.MaliciousInfo); err != nil {
+			logging.GetLogger().Err(err).Msg("ScanLayer.Serialize")
+		} else {
+			sl.MaliciousInfoJSON = bys
+		}
+	}
+	if len(sl.WebshellInfo) > 0 {
+		if bys, err := json.Marshal(sl.WebshellInfo); err != nil {
+			logging.GetLogger().Err(err).Msg("ScanLayer.Serialize")
+		} else {
+			sl.WebshellInfoJSON = bys
+		}
+	}
+	if len(sl.SensitiveFile) > 0 {
+		if bys, err := json.Marshal(sl.SensitiveFile); err != nil {
+			logging.GetLogger().Err(err).Msg("ScanLayer.Serialize")
+		} else {
+			sl.SensitiveFileJSON = bys
+		}
+	}
 }
 
 // Package Package表

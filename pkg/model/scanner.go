@@ -3,10 +3,11 @@ package model
 import (
 	"time"
 
-	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/vuln-updata/cnnvd"
-	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/vuln-updata/cnvd"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"scm.tensorsecurity.cn/tensorsecurity-rd/trivy/pkg/types"
+
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/vuln-updata/cnnvd"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/vuln-updata/cnvd"
 )
 
 var VulnerabilityInImagesRiskFilters = map[string]int{
@@ -157,15 +158,16 @@ type VulnOverview struct {
 	// Top5      []ImageRiskScore `json:"top5"`
 }
 
-// fixme(liuqiang) 和vuln表一致，只是做了展平处理，
 type VulnDetailInfo struct {
+	ID          int64                   `json:"id"`
+	UniqueVuln  uint64                  `json:"uniqueVuln,string"` // uint64在前端传
 	Name        string                  `json:"name"`
 	Severity    string                  `json:"severity"`
 	Pkgname     string                  `json:"pkgname"`
 	Pkgversion  string                  `json:"pkgversion"`
-	Cvss        CVSSVulnerabilityInfo   `json:"cvss,omitempty"`
-	Cnvd        []cnvd.Metadata         `json:"cnvds,omitempty"`
-	CNNVDs      cnnvd.VulnerabilityInfo `json:"cnnvds,omitempty"`
+	Cvss        CVSSVulnerabilityInfo   `json:"cvss"`
+	Cnvd        []cnvd.Metadata         `json:"cnvds"`
+	CNNVDs      cnnvd.VulnerabilityInfo `json:"cnnvds"`
 	Links       []string                `json:"links"`
 	Fixedby     string                  `json:"fixedby"`
 	Description string                  `json:"description"`
@@ -193,7 +195,6 @@ type VulnImageList struct {
 //
 type VulnDetail struct {
 	VulninfoApi VulnDetailInfo        `json:"vulninfo"`
-	Vuln        Vuln                  `json:"vuln"`
 	Containers  []VulnDetailContainer `json:"containers"`
 }
 

@@ -69,7 +69,8 @@ func newService(config register.ScannerServiceConfig) (register.ScannerService, 
 		Addr: s.config.Options.HTTPListenAddr,
 		Handler: api.SetupGinRouter(
 			rc,
-			component.NewConScannerSrv(dal, registryDal, nil, nil, nil, nil, nil, dal, dal, scanConfigDal),
+			component.NewConScannerSrv(dal, registryDal, nil, nil,
+				nil, nil, nil, dal, dal, scanConfigDal, store.NewVulnDao()),
 			component.NewImageRejectSrc(dal),
 			component.NewHarborSrc(dal, rc, nil), // todo: use new task interface,not redclair
 			component.NewRegistrySrv(store.NewRegistryDao(scannerWrapperDb)),
@@ -78,7 +79,7 @@ func newService(config register.ScannerServiceConfig) (register.ScannerService, 
 				store.NewScannerOrm(store.GetScannerWrapperDb()),
 				store.NewScannerOrm(store.GetScannerWrapperDb()),
 			),
-			component.NewVulnService(store.NewVulnDao()),
+			component.NewVulnService(store.NewVulnDao(), store.GetScannerOrmDb()),
 		),
 	}
 

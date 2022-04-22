@@ -9,6 +9,9 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/pkg/errors"
+	"gitlab.com/security-rd/go-pkg/logging"
+	"gorm.io/gorm/clause"
+
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/task"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
@@ -16,8 +19,6 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
-	"gitlab.com/security-rd/go-pkg/logging"
-	"gorm.io/gorm/clause"
 )
 
 type Scanner struct {
@@ -131,11 +132,35 @@ func (s *Scanner) ScannedByVulnDetails(ctx *gin.Context) {
 	}
 	uniqueVuln := util.GenerateUUID64(fmt.Sprintf(consts.UniqueVulnFamat, vulnName, pkgName, pkgVersion))
 
-	res, err := s.Srv.GetVulnDetails(ctx, uniqueVuln)
+	vulns, _, err := s.VulnSrv.SearchVulns(ctx, component.SearchVulnParam{UniqueVulns: []uint64{uniqueVuln}}, nil)
 	if err != nil {
 		response.JSONError(ctx, err)
 		return
 	}
+	if len(vulns) == 0 {
+		response.JSONError(ctx, response.NewHttpError(http.StatusBadRequest, fmt.Errorf("not fond vuln")))
+		return
+	}
+	// 数据转换，兼容前端
+	vuln := vulns[0]
+	res := model.VulnDetail{
+		VulninfoApi: model.VulnDetailInfo{
+			ID:          vuln.ID,
+			UniqueVuln:  vuln.UniqueVuln,
+			Name:        vuln.Name,
+			Severity:    vuln.Severity,
+			Pkgname:     vuln.PkgName,
+			Pkgversion:  vuln.PkgVersion,
+			Links:       vuln.Link,
+			Fixedby:     vuln.FixedBy,
+			Description: vuln.Description,
+		}}
+	if vuln.Metadata != nil {
+		res.VulninfoApi.Cvss = vuln.Metadata.CVSS
+		res.VulninfoApi.Cnvd = vuln.Metadata.CNVDs
+		res.VulninfoApi.CNNVDs = vuln.Metadata.CNNVDs
+	}
+
 	response.JSONOK(ctx, response.WithItem(res))
 }
 
@@ -164,7 +189,7 @@ func (s *Scanner) ListScannedByVulnList(ctx *gin.Context) {
 	if filter.SortBy == "" {
 		filter.SortBy = consts.SortByDesc
 	}
-	vulns, cnt, err := s.Srv.SearchVuln(ctx, search, filter)
+	vulns, cnt, err := s.VulnSrv.SearchVulns(ctx, component.SearchVulnParam{VulnKeyword: search}, filter)
 	if err != nil {
 		response.JSONError(ctx, err)
 		return

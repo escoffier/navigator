@@ -34,7 +34,7 @@ func SetupGinRouter(redisClient *redis.Client,
 	})
 
 	router = WebAPI(router, scannerSvc, rejectSvc, harborSvc, registrySrv, scanConfigSrv, vuluSrv)
-	router = OpenAPI(router, scannerSvc, rejectSvc, harborSvc, registrySrv, scanConfigSrv, redisClient)
+	router = OpenAPI(router, scannerSvc, rejectSvc, harborSvc, registrySrv, scanConfigSrv, vuluSrv, redisClient)
 
 	return router
 }
@@ -207,12 +207,13 @@ func OpenAPI(router *gin.Engine, scannerSvc component.ScannerSrv,
 	harborSvc component.HarborSvc,
 	registrySrv component.RegistrySrvInterface,
 	scanConfigSrv component.ScanConfigSrvInterface,
+	vulnSrv component.VulnServiceInterface,
 	redisClient *redis.Client) *gin.Engine {
 
 	apiScannerSrv := openapi.NewScannerOpenAPISrv(scannerSvc, registrySrv, scanConfigSrv)
 
 	scanConfigAPISrv := openapi.NewScanConfigOpenAPISrv(scanConfigSrv)
-	apiVulnSrc := openapi.NewVulnServer(scannerSvc)
+	apiVulnSrc := openapi.NewVulnServer(vulnSrv, scannerSvc)
 
 	openAPIRouter := router.Group("/openapi")
 	// openApiRouter.Use(RateLimitMiddleware(redisClient, 20))

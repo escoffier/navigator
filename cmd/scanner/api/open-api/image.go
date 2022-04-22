@@ -15,6 +15,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
+	"gitlab.com/piccolo_su/vegeta/pkg/util"
 )
 
 type ImageOpenAPISvc struct {
@@ -336,7 +337,7 @@ func (s *ImageOpenAPISvc) ListImgLayersByImageName(ctx *gin.Context) {
 			Digest:        images[i].ImageDigest,
 			CreatedAt:     images[i].Created.Unix(),
 			CreatedBy:     images[i].CreatedBy,
-			Vulns:         images[i].Vulus,
+			Vulns:         util.DeDuplicationStringSlice(images[i].Vulus),
 			Viruses:       images[i].Malicious,
 			SensitiveFile: images[i].SensitiveFiles,
 			WebshellInfo:  images[i].WebshellInfo,

@@ -7,11 +7,12 @@ import (
 	"fmt"
 	"time"
 
+	"gitlab.com/security-rd/go-pkg/databases"
+
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
-	"gitlab.com/security-rd/go-pkg/databases"
 )
 
 type RegistryDalInterface interface {
@@ -42,11 +43,7 @@ func (dal *RegistryDao) SearchRegistry(ctx context.Context, param SearchRegistry
 	}
 	// 默认查询没有删除的,如果不传就是0
 	if len(param.RegistryIds) > 0 {
-		if len(param.RegistryIds) == 1 {
-			db = db.Where("id = ? ", param.RegistryIds[0])
-		} else {
-			db = db.Where("id IN ? ", param.RegistryIds)
-		}
+		db = db.Where("id IN ? ", param.RegistryIds)
 	}
 	if param.LibraryURL != "" {
 		db = db.Where("url = ? ", param.LibraryURL)

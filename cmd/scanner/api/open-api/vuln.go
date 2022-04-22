@@ -17,12 +17,14 @@ import (
 )
 
 type VulnServer struct {
-	vulnService component.ScannerSrv
+	vulnService component.VulnServiceInterface
+	imageSrv    component.ScannerSrv
 }
 
-func NewVulnServer(vulnService component.ScannerSrv) *VulnServer {
+func NewVulnServer(vulnService component.VulnServiceInterface, imageSrv component.ScannerSrv) *VulnServer {
 	return &VulnServer{
 		vulnService: vulnService,
+		imageSrv:    imageSrv,
 	}
 }
 
@@ -39,7 +41,7 @@ func (v *VulnServer) List(ctx *gin.Context) {
 	if filter.SortBy == "" {
 		filter.SortBy = consts.SortByDesc
 	}
-	vulns, cnt, err := v.vulnService.SearchVuln(ctx, search, filter)
+	vulns, cnt, err := v.vulnService.SearchVulns(ctx, component.SearchVulnParam{VulnKeyword: search}, filter)
 	if err != nil {
 		response.JSONError(ctx, err)
 		return
@@ -67,12 +69,17 @@ func (v *VulnServer) Detail(ctx *gin.Context) {
 	}
 	uniqueVuln := util.GenerateUUID64(fmt.Sprintf(consts.UniqueVulnFamat, vulnName, pkgName, pkgVersion))
 
-	res, err := v.vulnService.GetVulnDetails(ctx, uniqueVuln)
+	res, _, err := v.vulnService.SearchVulns(ctx, component.SearchVulnParam{UniqueVulns: []uint64{uniqueVuln}}, nil)
+
 	if err != nil {
 		response.JSONError(ctx, err)
 		return
 	}
-	response.JSONOK(ctx, response.WithItem(apimodel.ModelToOpenapiDetail(res.Vuln)))
+	if len(res) == 0 {
+		response.JSONError(ctx, response.NewHttpError(http.StatusBadRequest, fmt.Errorf("not fond the vuln")))
+		return
+	}
+	response.JSONOK(ctx, response.WithItem(apimodel.ModelToOpenapiDetail(res[0])))
 }
 
 func (v *VulnServer) GetVulnTopNImage(ctx *gin.Context) {
@@ -90,7 +97,7 @@ func (v *VulnServer) GetVulnTopNImage(ctx *gin.Context) {
 		ImageID int64   `json:"imageID"`
 	}
 
-	res, err := v.vulnService.GetVulnTopNImage(ctx, topN)
+	res, err := v.imageSrv.GetVulnTopNImage(ctx, topN)
 	if err != nil {
 		response.JSONError(ctx, response.NewHttpError(http.StatusInternalServerError, err))
 		return
@@ -113,7 +120,7 @@ func (v *VulnServer) Statistic(ctx *gin.Context) {
 		Severity  model.SeverityCount `json:"severity"`
 	}
 
-	res, err := v.vulnService.GetVulnOverView(ctx)
+	res, err := v.imageSrv.GetVulnOverView(ctx)
 	if err != nil {
 		response.JSONError(ctx, response.NewHttpError(http.StatusInternalServerError, err))
 		return

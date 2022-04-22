@@ -4,6 +4,7 @@ import (
 	"crypto/md5"
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"io"
 	"math"
 	"net/http"
@@ -184,6 +185,18 @@ func DeDuplicationInt64Slice(va []int64) []int64 {
 	return ans
 }
 
+func DeDuplicationUint64Slice(va []uint64) []uint64 {
+	exit := make(map[uint64]struct{})
+	ans := make([]uint64, 0, len(va))
+	for i := range va {
+		if _, ok := exit[va[i]]; !ok {
+			ans = append(ans, va[i])
+			exit[va[i]] = struct{}{}
+		}
+	}
+	return ans
+}
+
 func DeDuplicationStringSlice(va []string) []string {
 	exit := make(map[string]struct{})
 	ans := make([]string, 0, len(va))
@@ -194,4 +207,12 @@ func DeDuplicationStringSlice(va []string) []string {
 		}
 	}
 	return ans
+}
+
+func Uint64SliceToStringSlice(value []uint64) []string {
+	res := make([]string, len(value))
+	for i := range value {
+		res[i] = fmt.Sprintf("%d", value[i])
+	}
+	return res
 }
