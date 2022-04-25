@@ -15,6 +15,7 @@ import (
 
 	"github.com/avast/retry-go"
 	"github.com/boltdb/bolt"
+
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/vuln-updata/register"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
@@ -32,7 +33,7 @@ type TrivyConfig struct {
 func init() {
 	err := register.Register("trivy", openRegistry)
 	if err != nil {
-		logging.GetLogger().Err(err).Msg("init scannert db updater err")
+		logging.GetLogger().Err(err).Msg("init scanner db updater err")
 	}
 }
 
@@ -57,13 +58,13 @@ func (t *TrivyUpdata) Updata(wg *sync.WaitGroup) {
 			if err.Error() == "equal" {
 				return nil
 			}
-			logging.GetLogger().Error().Err(err).Msgf("scannert Updata will restart")
+			logging.GetLogger().Warn().Msgf("scanner update will restart:%s", err.Error())
 			return err
 		}
 		return nil
 	}, retryOptions...)
 	if err != nil {
-		logging.GetLogger().Error().Err(err).Msgf("scannert Updata error")
+		logging.GetLogger().Warn().Msgf("scanner update error:%s", err.Error())
 	}
 
 }
