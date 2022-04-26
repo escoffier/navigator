@@ -18,7 +18,7 @@ import (
 )
 
 const (
-	containerIDTimeoutSec = int64(60)
+	containerIDTimeoutSec = int64(90)
 )
 
 type DockerInfoManager struct {
