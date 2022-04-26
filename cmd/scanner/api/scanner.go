@@ -530,16 +530,6 @@ func (s *Scanner) GetScanOneStatus(ctx *gin.Context) {
 		return
 	}
 
-	// 数据规整
-	if res.FromType == model.ImageFromSafeNode {
-		split := strings.Split(res.FullRepoName, "/")
-		// 节点镜像上传的tag:	NodeSafeTage="%s/" + NodeSafeSalt + "/%s/%s/%s/%s" // 仓库地址/tensorsec/hostname/ip/os/library/镜像名
-		// tensorsecurity/tensorsec-safe-node-image-v2x54/10.65.72.54/linux/registry.t-appagile.com/google_containers/coredns
-		if len(split) >= 6 {
-			res.FullRepoName = strings.Join(split[5:], "/")
-		}
-	}
-
 	response.JSONOK(ctx, response.WithItem(*res))
 }
 
@@ -670,17 +660,7 @@ func (s *Scanner) ListScannedByImageList(ctx *gin.Context) {
 		response.JSONError(ctx, err)
 		return
 	}
-	// 数据规整
-	for i := range images {
-		if images[i].FromType == model.ImageFromSafeNode {
-			split := strings.Split(images[i].FullRepoName, "/")
-			// 节点镜像上传的tag:	NodeSafeTage="%s/" + NodeSafeSalt + "/%s/%s/%s/%s" // 仓库地址/tensorsec/hostname/ip/os/library/镜像名
-			// tensorsecurity/tensorsec-safe-node-image-v2x54/10.65.72.54/linux/registry.t-appagile.com/google_containers/coredns
-			if len(split) >= 6 {
-				images[i].FullRepoName = strings.Join(split[5:], "/")
-			}
-		}
-	}
+
 	response.JSONOK(ctx, response.WithItems(images),
 		response.WithTotalItems(cnt),
 		response.WithItemsPerPage(filter.Limit),
@@ -733,18 +713,6 @@ func (s *Scanner) SearchImages(ctx *gin.Context) {
 	if err != nil {
 		response.JSONError(ctx, err)
 		return
-	}
-
-	// 数据规整
-	for i := range images {
-		if images[i].FromType == model.ImageFromSafeNode {
-			split := strings.Split(images[i].FullRepoName, "/")
-			// 节点镜像上传的tag:	NodeSafeTage="%s/" + NodeSafeSalt + "/%s/%s/%s/%s" // 仓库地址/tensorsec/hostname/ip/os/library/镜像名
-			// tensorsecurity/tensorsec-safe-node-image-v2x54/10.65.72.54/linux/registry.t-appagile.com/google_containers/coredns
-			if len(split) >= 6 {
-				images[i].FullRepoName = strings.Join(split[5:], "/")
-			}
-		}
 	}
 
 	res := make([]model.ImageResponse, 0)

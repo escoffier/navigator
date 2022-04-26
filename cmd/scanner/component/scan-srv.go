@@ -325,7 +325,7 @@ func (s *ConScannerSrv) ListBaseImageOfApp(ctx context.Context, imageID int64, f
 
 func (s *ConScannerSrv) ListAppImageOfBase(ctx context.Context, baseImageID int64, filter *model.Filter) ([]model.ImageList, int64, error) {
 	baseImages, _, err := s.dbdal.SearchImage(ctx, store.SearchImageParam{InIds: []int64{baseImageID}, ImageType: consts.BaseImageTypeString,
-		Fields: []string{"id", "layers"}}, nil)
+		OmitFields: []string{"config_json", "manifest_v1_json", "manifest_v2_json"}}, nil)
 	if err != nil {
 		logging.GetLogger().Err(err).Msg("ListAppImageOfBase")
 		return nil, 0, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf("获取应用镜像出错"))
@@ -335,7 +335,7 @@ func (s *ConScannerSrv) ListAppImageOfBase(ctx context.Context, baseImageID int6
 	}
 	baseLayer := baseImages[0].GetLayerString()
 	images, cnt, err := s.dbdal.SearchImage(ctx, store.SearchImageParam{ImageType: consts.AppImageTypeString, LayersPrefix: baseLayer,
-		Fields: []string{"id", "layers", "full_repo_name", "image_type", "library", "tags", "digest"}}, filter)
+		OmitFields: []string{"config_json", "manifest_v1_json", "manifest_v2_json"}}, filter)
 	if err != nil {
 		logging.GetLogger().Err(err).Msg("SearchImage")
 		return nil, 0, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf(consts.StatusInternalServerErrorMsg))

@@ -124,6 +124,7 @@ func ImageToImageResponse(img ImageList) ImageResponse {
 		NodeIP:       img.NodeIP,
 		NodeHostname: img.NodeHostname,
 		Os:           img.OS,
+		FromType:     img.FromType,
 	}
 	if img.ScanImage != nil {
 		im.CompleteTime = img.ScanImage.FinishAt

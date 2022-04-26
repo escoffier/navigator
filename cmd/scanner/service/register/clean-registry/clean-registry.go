@@ -33,8 +33,8 @@ func (s *Service) Start(ctx context.Context) error {
 	scannerSrv := component.NewConScannerSrv(dal, registryDal, nil, nil, sdb, nil, nil, dal, dal, scanConfigDal, nil)
 	cleanJob := crontab.New() // create cron table
 
-	// AddJob ,每天0点过2分时运行一次
-	if err := cleanJob.AddJob("2 0 * * *", scannerSrv.DeleteCICDImage, context.Background()); err != nil {
+	// AddJob ,每月1日0点过2分时运行一次
+	if err := cleanJob.AddJob("2 0 1 * *", scannerSrv.DeleteCICDImage, context.Background()); err != nil {
 		logging.GetLogger().Error().Err(err).Msg("add buffer registry GC job")
 		return err
 	}
