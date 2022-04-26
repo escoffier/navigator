@@ -118,55 +118,6 @@ var (
 	}
 )
 
-func FilterVulnsFromScanImage(scanDetails []model.SingleScanDetail) []model.RespSingleVulnDetail {
-
-	var result []model.RespSingleVulnDetail
-	for _, v := range scanDetails {
-		if len(v.Vulns) == 0 {
-			continue
-		}
-		if lang, ok := LanguageMap[strings.ToLower(v.Type)]; ok {
-			if lang != "GO" {
-				for _, vuln := range v.Vulns {
-					tmpRespSingle := model.RespSingleVulnDetail{}
-					if strings.Contains(vuln.Trivy[0].PkgName, "struts2") && lang == "Java" {
-						tmpRespSingle.Frame = "struts2"
-					} else if strings.Contains(vuln.Trivy[0].PkgName, "fastjson") && lang == "Java" {
-						tmpRespSingle.Frame = "fastjson"
-					} else {
-						tmpRespSingle.Language = lang
-					}
-					tmpRespSingle.TargetFileNmae = v.Target
-					tmpRespSingle.NewVulnDetail = vuln
-					result = append(result, tmpRespSingle)
-				}
-			} else {
-				for _, vuln := range v.Vulns {
-					tmpRespSingle := model.RespSingleVulnDetail{}
-					index := strings.LastIndex(v.Target, "/")
-					if index == -1 {
-						tmpRespSingle.TargetFileNmae = "/"
-						tmpRespSingle.Gobinary = v.Target
-					} else {
-						tmpRespSingle.TargetFileNmae = v.Target[0:index] // 文件路径
-						tmpRespSingle.Gobinary = v.Target[index+1:]      // 文件名
-					}
-					tmpRespSingle.NewVulnDetail = vuln
-					result = append(result, tmpRespSingle)
-				}
-			}
-		} else {
-			for _, vuln := range v.Vulns {
-				tmpRespSingle := model.RespSingleVulnDetail{}
-				tmpRespSingle.NewVulnDetail = vuln
-				tmpRespSingle.TargetFileNmae = v.Target
-				result = append(result, tmpRespSingle)
-			}
-		}
-	}
-	return result
-}
-
 func CalculateVulnScore(imascan model.ScanImage, cus map[string]model.RejectVuln) int {
 	// 就先写魔法数字吧，恶心是恶心了点
 	subScore := map[string]int{
@@ -186,15 +137,14 @@ func CalculateVulnScore(imascan model.ScanImage, cus map[string]model.RejectVuln
 		model.SeverityNegligible: false,
 		model.SeverityUnknown:    false,
 	}
-	fileterScan := FilterVulnsFromScanImage(imascan.VulnInfo)
 	ans := 50
-	for _, vu := range fileterScan {
-		if cu, ok := cus[vu.CVEID]; ok && cu.RejectPolicy == model.RejectPolicyIgnore {
+	for _, vu := range imascan.VulnInfo {
+		if cu, ok := cus[vu.Name]; ok && cu.RejectPolicy == model.RejectPolicyIgnore {
 			continue
 		}
-		if !exitScore[vu.Trivy[0].Severity] {
-			ans = ans - subScore[vu.Trivy[0].Severity]
-			exitScore[vu.Trivy[0].Severity] = true
+		if !exitScore[vu.Severity] {
+			ans -= subScore[vu.Severity]
+			exitScore[vu.Severity] = true
 		}
 	}
 	return ans

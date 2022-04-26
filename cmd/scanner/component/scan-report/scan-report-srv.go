@@ -8,14 +8,15 @@ import (
 	"runtime/debug"
 	"time"
 
+	"github.com/pkg/errors"
+	"gopkg.in/gomail.v2"
+	"gorm.io/gorm"
+
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
 	"gitlab.com/piccolo_su/vegeta/pkg/compress"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	scanreport "gitlab.com/piccolo_su/vegeta/pkg/model/scan-report"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
-	"github.com/pkg/errors"
-	"gopkg.in/gomail.v2"
-	"gorm.io/gorm"
 )
 
 var host string
@@ -36,6 +37,7 @@ const contentFormat = `<div>已为您成功生成一份报告：</div>
 
 type ScanReportSrv struct { // nolint
 	dao       store.ScanReportInterface
+	vulnDal   store.VulnDalInterface
 	interval  time.Duration
 	batchSize int
 	email     *gomail.Dialer
@@ -281,6 +283,15 @@ func (s *ScanReportSrv) getImagesInfo(ctx context.Context, data *scanreport.Tens
 			}
 
 			return nil, err
+		}
+		// 查询漏洞数据
+		for i := range imageInfo {
+			vulns, _, err := s.vulnDal.SearchVuln(ctx, store.SearchVulnParm{ImageID: imageInfo[i].ImageID}, nil)
+			if err != nil {
+				logging.GetLogger().Err(err).Int64("ImageID", imageInfo[i].ImageID).Msg("getImagesInfo.SearchVuln")
+				return nil, err
+			}
+			imageInfo[i].VulnInfo = vulns
 		}
 
 		resultBuilder.BuildByImagesInfo(imageInfo)

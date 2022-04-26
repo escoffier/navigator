@@ -102,7 +102,6 @@ type SearchScanLayerParam struct {
 
 type SearchScanImageParam struct {
 	FromType        int64
-	Kind            string
 	TaskIds         []string
 	Ids             []int64
 	Digests         []string

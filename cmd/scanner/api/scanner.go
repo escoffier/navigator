@@ -414,7 +414,7 @@ func (s *Scanner) ScanOneForCICDRequest(ctx *gin.Context) {
 	}
 	if resp != nil {
 		// 整理数据
-		resp.Vulu = make([][]string, 0)
+		resp.Vuln = make([][]string, 0)
 		resp.RejectMsg = make([][]string, 0)
 		resp.Sensitive = make([][]string, 0)
 		resp.Virus = make([][]string, 0)
@@ -429,12 +429,10 @@ func (s *Scanner) ScanOneForCICDRequest(ctx *gin.Context) {
 
 		// 拼装镜像扫描数据数据
 		// 先看漏洞
-		if resp.ImageDetail != nil && len(resp.ImageDetail.ImageScanVuln.TopVulns) > 0 {
-			resp.Vulu = append(resp.Vulu, []string{"漏洞编号", "严重程度", "软件包", "软件版本"})
-			for _, vu := range resp.ImageDetail.ImageScanVuln.TopVulns {
-				for _, vuu := range vu.Trivy {
-					resp.Vulu = append(resp.Vulu, []string{vu.CVEID, vuu.Severity, vuu.PkgName, vuu.InstalledVersion})
-				}
+		if resp.ImageDetail != nil && len(resp.ImageDetail.ImageScanVuln.Vulns) > 0 {
+			resp.Vuln = append(resp.Vuln, []string{"漏洞编号", "严重程度", "软件包", "软件版本"})
+			for _, vu := range resp.ImageDetail.ImageScanVuln.Vulns {
+				resp.Vuln = append(resp.Vuln, []string{vu.Name, vu.Severity, vu.PkgName, vu.PkgVersion})
 			}
 		}
 		// 再看敏感文件

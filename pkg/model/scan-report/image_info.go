@@ -2,8 +2,10 @@ package scan_report
 
 import (
 	json "github.com/json-iterator/go"
-	"gitlab.com/piccolo_su/vegeta/pkg/model"
+	"gitlab.com/security-rd/go-pkg/logging"
 	"gorm.io/gorm"
+
+	"gitlab.com/piccolo_su/vegeta/pkg/model"
 )
 
 type ImageInfo struct {
@@ -14,14 +16,27 @@ type ImageInfo struct {
 }
 
 func (t *ImageInfo) AfterFind(_ *gorm.DB) error {
-	_ = json.Unmarshal(t.WebshellInfoJSON, &t.WebshellInfo)
-	_ = json.Unmarshal(t.MaliciousInfoJSON, &t.MaliciousInfo)
-	_ = json.Unmarshal(t.VulnInfoJSON, &t.VulnInfo)
-	_ = json.Unmarshal(t.MaliciousInfoJSON, &t.MaliciousInfo)
-	_ = json.Unmarshal(t.LicenseInfoJSON, &t.LicenseInfo)
-	_ = json.Unmarshal(t.SoftwareJSON, &t.Software)
-	_ = json.Unmarshal([]byte(t.ScanEnableCollectionJson), &t.ScanEnableCollection)
-	_ = json.Unmarshal(t.SensitiveFileJSON, &t.SensitiveFile)
+	if err := json.Unmarshal(t.WebshellInfoJSON, &t.WebshellInfo); err != nil {
+		logging.Get().Err(err).Msg("ImageInfo.AfterFind")
+	}
+	if err := json.Unmarshal(t.MaliciousInfoJSON, &t.MaliciousInfo); err != nil {
+		logging.Get().Err(err).Msg("ImageInfo.AfterFind")
+	}
+	if err := json.Unmarshal(t.MaliciousInfoJSON, &t.MaliciousInfo); err != nil {
+		logging.Get().Err(err).Msg("ImageInfo.AfterFind")
+	}
+	if err := json.Unmarshal(t.LicenseInfoJSON, &t.LicenseInfo); err != nil {
+		logging.Get().Err(err).Msg("ImageInfo.AfterFind")
+	}
+	if err := json.Unmarshal(t.SoftwareJSON, &t.Software); err != nil {
+		logging.Get().Err(err).Msg("ImageInfo.AfterFind")
+	}
+	if err := json.Unmarshal([]byte(t.ScanEnableCollectionJson), &t.ScanEnableCollection); err != nil {
+		logging.Get().Err(err).Msg("ImageInfo.AfterFind")
+	}
+	if err := json.Unmarshal(t.SensitiveFileJSON, &t.SensitiveFile); err != nil {
+		logging.Get().Err(err).Msg("ImageInfo.AfterFind")
+	}
 
 	return nil
 }

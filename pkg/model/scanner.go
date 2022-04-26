@@ -44,23 +44,21 @@ func GetScannedImagesSortableNames() []string {
 }
 
 type ImageScanSummaryResult struct {
-	TopVulns          []RespSingleVulnDetail `json:"topVulnerabilities"`
-	OverallSeverity   string                 `json:"overallSeverity"`
-	Repository        string                 `json:"repository"`
-	HarborURL         string                 `json:"harborURL"`
-	Tag               string                 `json:"tag"`
-	Digest            string                 `json:"digest"`
-	TaskID            primitive.ObjectID     `json:"taskID"`
-	SensitiveFiles    []Sensitive            `json:"sensitiveFiles"`
-	StartedAt         int64                  `json:"startedAt"`
-	FinishedAt        int64                  `json:"finishedAt"`
-	SeverityHistogram SeverityHistogramInfo  `json:"severityHistogram"`
-	RiskScore         float64                `json:"risk_score"`
-	VirusScore        float64                `json:"virus_score"`
-	VulnScore         float64                `json:"vuln_score"`
-	EnvInfos          []SummaryEnv           `json:"envinfos"`
-	SensitiveScore    float64                `json:"sensitive_score"`
-	WebshellScore     float64                `json:"webshell_score"`
+	Vulns             []*Vuln               `json:"vulns"`
+	OverallSeverity   string                `json:"overallSeverity"`
+	Repository        string                `json:"repository"`
+	HarborURL         string                `json:"harborURL"`
+	Tag               string                `json:"tag"`
+	Digest            string                `json:"digest"`
+	SensitiveFiles    []Sensitive           `json:"sensitiveFiles"`
+	StartedAt         int64                 `json:"startedAt"`
+	FinishedAt        int64                 `json:"finishedAt"`
+	SeverityHistogram SeverityHistogramInfo `json:"severityHistogram"`
+	RiskScore         float64               `json:"risk_score"`
+	VirusScore        float64               `json:"virus_score"`
+	VulnScore         float64               `json:"vuln_score"`
+	SensitiveScore    float64               `json:"sensitive_score"`
+	WebshellScore     float64               `json:"webshell_score"`
 }
 
 type ImageScanDetailedResult struct {

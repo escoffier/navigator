@@ -5,9 +5,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"net/http"
 	"sort"
-	"strconv"
 	"strings"
 	"time"
 
@@ -21,7 +19,6 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/harbor"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
-	"gitlab.com/piccolo_su/vegeta/pkg/response"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 )
 
@@ -31,7 +28,6 @@ type ScannerDalInterface interface {
 	UpdateImage(ctx context.Context, where string, updater map[string]interface{}, image *model.ImageList) error
 	CreateImage(ctx context.Context, data *model.ImageList) (*model.ImageList, error)
 	CreateImageAndUpdate(ctx context.Context, im *model.ImageList) (*model.ImageList, error)
-	SearchImageWithScan(ctx context.Context, param SearchImageWithScanParam, filter *model.Filter) ([]*model.ImageResponse, int64, error)
 
 	SearchScanLayer(ctx context.Context, param SearchScanLayerParam, filter *model.Filter) ([]*model.ScanLayer, int64, error)
 	SearchScanImage(ctx context.Context, param SearchScanImageParam, filter *model.Filter) ([]model.ScanImage, int64, error)
@@ -199,184 +195,6 @@ type ImageListWithScan struct {
 	IsReinforce    int64     `json:"is_reinforce"`
 	PrivilegedBoot int64     `json:"privileged_boot"`
 	HasFixedVuln   int64     `json:"has_fixed_vuln"`
-}
-
-// SearchImageWithScan scan_list和scan_image join搜索
-func (s *ScannerOrm) SearchImageWithScan(ctx context.Context, param SearchImageWithScanParam, filter *model.Filter) ([]*model.ImageResponse, int64, error) {
-	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*10)
-	defer cancelFunc()
-	res := make([]ImageListWithScan, 0)
-	db := s.rdb.Get().WithContext(ctx).Model(new(model.ImageList)).Joins("left join ivan_scanner_scan_images on ivan_scanner_image_list.id=ivan_scanner_scan_images.image_id")
-
-	if param.SearchWord != "" {
-		db = db.Where("ivan_scanner_image_list.full_repo_name LIKE ? OR ivan_scanner_image_list.tags LIKE ? OR ivan_scanner_image_list.node_hostname LIKE ? ", fmt.Sprintf("%%%s%%", param.SearchWord), fmt.Sprintf("%%%s%%", param.SearchWord), fmt.Sprintf("%%%s%%", param.SearchWord))
-	}
-
-	if param.ImageType != "" {
-		if param.ImageType == consts.BaseImageTypeString {
-			db = db.Where("ivan_scanner_image_list.image_type = 1 ")
-		} else if param.ImageType == consts.AppImageTypeString {
-			db = db.Where("ivan_scanner_image_list.image_type = 0 ")
-		}
-	}
-
-	if param.Kind != "" {
-		split := strings.Split(param.Kind, ",")
-		if InSlice(strconv.Itoa(model.FlagHasSoftware), split) || InSlice(strconv.Itoa(model.FlagHasExceptEnv), split) || InSlice(strconv.Itoa(model.FlagHasExceptLicense), split) {
-			// 查漏洞，异常环境变量，不允许开源许可
-			images, _, err := s.SearchScanImage(ctx, SearchScanImageParam{Fields: []string{"id", "scan_enable_collection_json"}}, nil)
-			if err != nil {
-				return nil, 0, response.NewHttpError(http.StatusInternalServerError, err)
-			}
-			softIds, envIds, licenseIds := make([]int64, 0), make([]int64, 0), make([]int64, 0)
-			for i := range images {
-				if InSlice(strconv.Itoa(model.FlagHasSoftware), split) && images[i].ScanEnableCollection.SoftwareEnable > 0 {
-					softIds = append(softIds, images[i].ID)
-				}
-				if InSlice(strconv.Itoa(model.FlagHasExceptEnv), split) && images[i].ScanEnableCollection.EnvEnable > 0 {
-					envIds = append(envIds, images[i].ID)
-				}
-				if InSlice(strconv.Itoa(model.FlagHasExceptLicense), split) && images[i].ScanEnableCollection.LicenseEnable > 0 {
-					licenseIds = append(licenseIds, images[i].ID)
-				}
-			}
-			if (InSlice(strconv.Itoa(model.FlagHasSoftware), split) && len(softIds) == 0) ||
-				(InSlice(strconv.Itoa(model.FlagHasExceptEnv), split) && len(envIds) == 0) ||
-				(InSlice(strconv.Itoa(model.FlagHasExceptLicense), split) && len(licenseIds) == 0) {
-				return make([]*model.ImageResponse, 0), 0, nil
-			}
-
-			ids := UnionSlice(softIds, envIds, licenseIds)
-			if len(ids) == 0 {
-				return make([]*model.ImageResponse, 0), 0, nil
-			}
-			if len(ids) > 0 {
-				db = db.Where("ivan_scanner_scan_images.id IN ?", ids)
-			}
-		}
-
-		for _, k := range split {
-			if k == strconv.Itoa(model.FlagHasVuln) {
-				db = db.Where("ivan_scanner_scan_images.vuln_score > 0 ")
-			}
-			if k == strconv.Itoa(model.FlagHasSensitive) {
-				db = db.Where("ivan_scanner_scan_images.sensitive_score > 0 ")
-			}
-			if k == strconv.Itoa(model.FlagHasMalicious) {
-				db = db.Where("ivan_scanner_scan_images.virus_score > 0 ")
-			}
-			if k == strconv.Itoa(model.FlagHasWebshell) {
-				db = db.Where("ivan_scanner_scan_images.webshell_score > 0 ")
-			}
-			if k == strconv.Itoa(model.FlagPrivilegedBoot) {
-				db = db.Where("ivan_scanner_image_list.privileged_boot = ?", consts.PrivilegedBootImage)
-			}
-		}
-	}
-
-	if len(param.UUIDs) > 0 {
-		db = db.Where("ivan_scanner_image_list.image_uuid IN ? ", param.UUIDs)
-	}
-
-	if param.FromType > 0 {
-		db = db.Where("ivan_scanner_image_list.from_type = ? ", param.FromType)
-	}
-	if len(param.RegistryIds) > 0 {
-		db = db.Where("tensor_image_list.registry_id IN ? ", param.RegistryIds)
-	}
-
-	if len(param.InIDs) > 0 {
-		db = db.Where("ivan_scanner_image_list.id  IN ? ", param.InIDs)
-	}
-
-	if len(param.NotInIDs) > 0 {
-		db = db.Where("ivan_scanner_image_list.id  NOT IN ? ", param.NotInIDs)
-	}
-	if len(param.InDigests) > 0 {
-		db = db.Where("ivan_scanner_image_list.digest  IN ? ", param.InDigests)
-	}
-
-	if len(param.NotInDigests) > 0 {
-		db = db.Where("ivan_scanner_image_list.digest  NOT IN ? ", param.NotInDigests)
-	}
-	if param.HasFixedVulu == consts.HasFixedvulnStringd {
-		db = db.Where("ivan_scanner_scan_images.has_fixed_vuln =  ? ", consts.HasFixedvuln)
-	} else if param.HasFixedVulu == consts.NotHasFixedvulnString {
-		db = db.Where("ivan_scanner_scan_images.has_fixed_vuln =  ? ", consts.NotHasFixedvuln)
-	}
-
-	if param.IsReinforce == consts.IsReinforceImageString {
-		db = db.Where("ivan_scanner_image_list.is_reinforce =  ? ", consts.IsReinforceImage)
-	} else if param.IsReinforce == consts.IsNotReinforceImageString {
-		db = db.Where("ivan_scanner_image_list.is_reinforce =  ? ", consts.IsNotReinforceImage)
-	}
-
-	if param.FromType == model.ImageFromSafeNode && param.NodeHostname != "" {
-		db = db.Where("ivan_scanner_image_list.node_hostname =  ? ", param.NodeHostname)
-	}
-
-	// 多选，以逗号分隔
-	if param.SpecialImageType != "" {
-		param.SpecialImageType = strings.ToLower(param.SpecialImageType)
-		param.SpecialImageType = strings.Replace(param.SpecialImageType, " ", "", -1)
-		lists := strings.Split(param.SpecialImageType, ",")
-		for i := range lists {
-			if lists[i] == consts.SpecialImageTypeK8s {
-				lists = append(lists, "coredns", "etcd", "kube-apiserver", "kube-controller", "kube-proxy", "kube-scheduler", "ingress")
-			}
-		}
-		orand := make([]string, 0)
-		for i := range lists {
-			orand = append(orand, fmt.Sprintf("ivan_scanner_image_list.full_repo_name LIKE '%%%s%%'", lists[i]))
-		}
-		if len(orand) > 0 {
-			db = db.Where(strings.Join(orand, " OR "))
-		}
-	}
-
-	fields := []string{"ivan_scanner_image_list.id", "ivan_scanner_image_list.privileged_boot", "ivan_scanner_image_list.created_at", "ivan_scanner_image_list.full_repo_name",
-		"ivan_scanner_image_list.tags", "ivan_scanner_image_list.digest", "ivan_scanner_image_list.os", "ivan_scanner_image_list.library",
-		"ivan_scanner_image_list.image_uuid", "ivan_scanner_image_list.complete_time", "ivan_scanner_scan_images.status", "ivan_scanner_scan_images.has_fixed_vuln", "ivan_scanner_image_list.is_reinforce",
-		"ivan_scanner_image_list.registry_id", "ivan_scanner_image_list.from_type", "ivan_scanner_scan_images.finish_at",
-		"ivan_scanner_image_list.node_ip", "ivan_scanner_image_list.node_hostname", "ivan_scanner_image_list.image_type"}
-
-	db = db.Select(fields)
-
-	var cnt int64
-	if err := db.Count(&cnt).Error; err != nil {
-		return nil, 0, err
-	}
-
-	db = model.AddFilter(db, filter)
-	if err := db.Find(&res).Error; err != nil {
-		return nil, 0, err
-	}
-
-	ans := make([]*model.ImageResponse, 0)
-	for i := range res {
-		ir := model.ImageResponse{
-			ID:             res[i].ID,
-			Digest:         res[i].Digest,
-			Library:        res[i].Library,
-			NodeIP:         res[i].NodeIP,
-			FullRepoName:   res[i].FullRepoName,
-			CompleteTime:   res[i].FinishAt,
-			Tags:           res[i].Tags,
-			ImageType:      res[i].ImageType,
-			RegistryID:     res[i].RegistryID,
-			FromType:       res[i].FromType,
-			HasFixedVulu:   res[i].HasFixedVuln,
-			Os:             res[i].OS,
-			NodeHostname:   res[i].NodeHostname,
-			IsReinforce:    res[i].IsReinforce,
-			PrivilegedBoot: res[i].PrivilegedBoot,
-			ImageUUID:      res[i].ImageUUID,
-		}
-
-		ans = append(ans, &ir)
-	}
-
-	return ans, cnt, nil
 }
 
 func (s *ScannerOrm) CreateRejectPolicy(ctx context.Context, data model.RejectPolicy) (int64, error) {
@@ -1149,25 +967,6 @@ func (s *ScannerOrm) SearchScanImage(ctx context.Context, param SearchScanImageP
 	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*3)
 	defer cancelFunc()
 	db := s.rdb.Get().Model(new(model.ScanImage)).WithContext(ctx)
-	// 默认查询没有删除的,如果不传就是0
-	// 确认是是且的关系
-	if param.Kind != "" {
-		split := strings.Split(param.Kind, ",")
-		for _, k := range split {
-			if k == strconv.Itoa(model.FlagHasVuln) {
-				db = db.Where("vuln_score > 0 ")
-			}
-			if k == strconv.Itoa(model.FlagHasSensitive) {
-				db = db.Where("sensitive_file_json is not null ")
-			}
-			if k == strconv.Itoa(model.FlagHasMalicious) {
-				db = db.Where("malicious_info_json is not null ")
-			}
-			if k == strconv.Itoa(model.FlagHasWebshell) {
-				db = db.Where("webshell_info_json is not null ")
-			}
-		}
-	}
 
 	if len(param.Ids) > 0 {
 		if len(param.Ids) == 1 {
