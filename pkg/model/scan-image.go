@@ -20,8 +20,8 @@ type ScanImage struct { // 镜像结果// 加上镜像结果,对应原来的scan
 	VirusScore     float64 `gorm:"column:virus_score" json:"virus_score"`
 	WebshellScore  float64 `gorm:"column:webshell_score" json:"webshell_score"`
 
-	VulnInfo                 []SingleScanDetail         `gorm:"-" json:"vuln_info"`
-	VulnInfoJSON             []byte                     `gorm:"type:MediumBlob" json:"-"` // 漏洞结果汇总
+	VulnInfo                 []*Vuln                    `gorm:"-" json:"vuln_info"`       //
+	VulnInfoJSON             []byte                     `gorm:"type:MediumBlob" json:"-"` // 漏洞结果汇总，优化之后，这个字段不存保存数据
 	PkgInfoJSON              []byte                     `gorm:"type:MediumBlob" json:"-"` // 软件包信息
 	MaliciousInfoJSON        []byte                     `gorm:"type:MediumBlob" json:"-"` // 恶意文件
 	MaliciousInfo            []Malicious                `gorm:"-" json:"malicious_info"`  // 恶意文件
@@ -111,14 +111,6 @@ func (si *ScanImage) GenImageFlag(preFlag uint64) uint64 {
 }
 
 func (si *ScanImage) Deserialize() {
-	vulnInfo := make([]SingleScanDetail, 0)
-	if len(si.VulnInfoJSON) > 0 {
-		if err := json.Unmarshal(si.VulnInfoJSON, &vulnInfo); err != nil {
-			logging.GetLogger().Error().Err(err).Int64("imageID", si.ImageID).Int64("ID", si.ID).Msg("Unmarshal VulnInfo")
-			vulnInfo = make([]SingleScanDetail, 0)
-		}
-	}
-	si.VulnInfo = vulnInfo
 
 	perLayerReport := make([]VulnerabilityLayerReport, 0)
 	if len(si.PerLayerReportJSON) > 0 {

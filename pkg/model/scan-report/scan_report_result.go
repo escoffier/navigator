@@ -3,6 +3,7 @@ package scan_report
 import (
 	"fmt"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
@@ -107,128 +108,123 @@ func (s *ScanReportResultBuilder) BuildByImagesInfo(info []*ImageInfo) {
 		var vulns []*Vuln
 
 		for i := range v.VulnInfo {
-			for j := range v.VulnInfo[i].Vulns {
-				// 漏洞类型
-				var vulnType string
+			// 漏洞类型
+			var vulnType string
 
-				for m := range v.VulnInfo[i].Vulns[j].Cnvd {
-					if v.VulnInfo[i].Vulns[j].Cnvd[m].Title != "" {
-						vulnType = v.VulnInfo[i].Vulns[j].Cnvd[m].Title
-						break
+			for m := range v.VulnInfo[i].Metadata.CNVDs {
+				if v.VulnInfo[i].Metadata.CNVDs[m].Title != "" {
+					vulnType = v.VulnInfo[i].Metadata.CNVDs[m].Title
+					break
+				}
+			}
+
+			logging.GetLogger().Debug().Msgf("image_id: %d, vuln id: %s", v.ImageList.ID, v.VulnInfo[i].Name)
+
+			if !strings.Contains(v.VulnInfo[i].Name, "CVE") {
+				continue
+			}
+
+			imageVuln, ok := s.vulns[fmt.Sprintf(
+				"%s%s",
+				v.VulnInfo[i].Name,
+				v.VulnInfo[i].PkgName,
+			)]
+
+			if ok {
+				// 当需要镜像展示漏洞列表时
+				if s.contentType&TensorScanReportContentTypeVulnerability == TensorScanReportContentTypeVulnerability && imageVuln != nil {
+					imageVuln.Images = append(imageVuln.Images, fmt.Sprintf("%s:%s", v.Library+"/"+v.FullRepoName, v.Tags))
+				}
+			} else {
+				data.VulnCount.TotalCount++ // 漏洞总数加1
+
+				level := VlunLevel(VlunLevel_value[v.VulnInfo[i].Severity])
+
+				// 漏洞类型计数
+				switch level {
+				case VlunLevel_CRITICAL:
+					data.VulnCount.CriticalCount++
+				case VlunLevel_HIGH:
+					data.VulnCount.HighCount++
+				case VlunLevel_MEDIUM:
+					data.VulnCount.MediumCount++
+				case VlunLevel_LOW:
+					data.VulnCount.LowCount++
+				case VlunLevel_NEGLIGIBLE:
+					data.VulnCount.NegligibleCount++
+				case VlunLevel_UNKNOWN:
+					data.VulnCount.UnknownCount++
+				default:
+					logging.GetLogger().Debug().Msgf(
+						"invalid vuln level, level num: %d, id: %s",
+						level,
+						v.VulnInfo[i].Name,
+					)
+				}
+
+				// 只记录高危或者高的漏洞
+				// 当漏洞编号没有CVE时，不展示漏洞编号
+				if level != VlunLevel_CRITICAL && level != VlunLevel_HIGH {
+					s.vulns[fmt.Sprintf(
+						"%s%s",
+						v.VulnInfo[i].Name,
+						v.VulnInfo[i].PkgName,
+					)] = nil
+					continue
+				}
+
+				var cvss3 float64
+				if v.VulnInfo[i].Metadata != nil {
+
+					score, err := strconv.ParseFloat(v.VulnInfo[i].Metadata.CVSS.CVSSv3Score, 64)
+					if err != nil {
+						cvss3 = score
 					}
 				}
 
-			LOOP:
-				for k := range v.VulnInfo[i].Vulns[j].Trivy {
-					logging.GetLogger().Debug().Msgf("image_id: %d, vuln id: %s", v.ImageList.ID, v.VulnInfo[i].Vulns[j].CVEID)
+				imageVuln = &ImageVuln{}
 
-					if !strings.Contains(v.VulnInfo[i].Vulns[j].CVEID, "CVE") {
-						continue
+				// 当需要展示漏洞镜像列表时
+				if s.contentType&TensorScanReportContentTypeVulnerability == TensorScanReportContentTypeVulnerability {
+					imageVuln.Images = []string{fmt.Sprintf("%s:%s", v.Library+"/"+v.FullRepoName, v.Tags)}
+				}
+
+				vuln := &Vuln{
+					Id:    v.VulnInfo[i].Name,
+					Level: level,
+					Cvss3: cvss3,
+				}
+				if v.VulnInfo[i].Metadata != nil {
+					vuln.Cnnvd = v.VulnInfo[i].Metadata.CNNVDs.Number
+				}
+
+				vuln.Type = vulnType
+
+				// 当需要展示修复建议时
+				if s.contentType&TensorScanReportContentTypeFix == TensorScanReportContentTypeFix {
+					vuln.FixVersoin = v.VulnInfo[i].FixedBy
+					if v.VulnInfo[i].Metadata != nil {
+						vuln.FixSuggestion = v.VulnInfo[i].Metadata.CNNVDs.FixSuggestion
 					}
+				}
 
-					imageVuln, ok := s.vulns[fmt.Sprintf(
-						"%s%s",
-						v.VulnInfo[i].Vulns[j].Trivy[k].VulnerabilityID,
-						v.VulnInfo[i].Vulns[j].Trivy[k].PkgName,
-					)]
+				imageVuln.Vuln = vuln
 
-					if ok {
-						// 当需要镜像展示漏洞列表时
-						if s.contentType&TensorScanReportContentTypeVulnerability == TensorScanReportContentTypeVulnerability && imageVuln != nil {
-							imageVuln.Images = append(imageVuln.Images, fmt.Sprintf("%s:%s", v.Library+"/"+v.FullRepoName, v.Tags))
-						}
-					} else {
-						data.VulnCount.TotalCount++ // 病毒总数加1
+				s.vulns[fmt.Sprintf(
+					"%s%s",
+					v.VulnInfo[i].Name,
+					v.VulnInfo[i].PkgName,
+				)] = imageVuln
 
-						level := VlunLevel(VlunLevel_value[v.VulnInfo[i].Vulns[j].Trivy[k].Severity])
+				if s.contentType&TensorScanReportContentTypeVulnerability == TensorScanReportContentTypeVulnerability {
+					data.ImageVulns = append(data.ImageVulns, imageVuln)
+				}
 
-						// 漏洞类型计数
-						switch level {
-						case VlunLevel_CRITICAL:
-							data.VulnCount.CriticalCount++
-						case VlunLevel_HIGH:
-							data.VulnCount.HighCount++
-						case VlunLevel_MEDIUM:
-							data.VulnCount.MediumCount++
-						case VlunLevel_LOW:
-							data.VulnCount.LowCount++
-						case VlunLevel_NEGLIGIBLE:
-							data.VulnCount.NegligibleCount++
-						case VlunLevel_UNKNOWN:
-							data.VulnCount.UnknownCount++
-						default:
-							logging.GetLogger().Debug().Msgf(
-								"invalid vuln level, level num: %d, id: %s",
-								level,
-								v.VulnInfo[i].Vulns[j].CVEID,
-							)
-						}
-
-						// 只记录高危或者高的漏洞
-						// 当漏洞编号没有CVE时，不展示漏洞编号
-						if level != VlunLevel_CRITICAL && level != VlunLevel_HIGH {
-							s.vulns[fmt.Sprintf(
-								"%s%s",
-								v.VulnInfo[i].Vulns[j].Trivy[k].VulnerabilityID,
-								v.VulnInfo[i].Vulns[j].Trivy[k].PkgName,
-							)] = nil
-							continue LOOP
-						}
-
-						var cvss3 float64
-						for _, v := range v.VulnInfo[i].Vulns[j].Trivy[k].CVSS {
-							if v.V3Score != 0 {
-								cvss3 = v.V3Score
-								break
-							}
-						}
-
-						imageVuln = &ImageVuln{}
-
-						// 当需要展示漏洞镜像列表时
-						if s.contentType&TensorScanReportContentTypeVulnerability == TensorScanReportContentTypeVulnerability {
-							imageVuln.Images = []string{fmt.Sprintf("%s:%s", v.Library+"/"+v.FullRepoName, v.Tags)}
-						}
-
-						vuln := &Vuln{
-							Id:    v.VulnInfo[i].Vulns[j].CVEID,
-							Level: level,
-							Cnnvd: v.VulnInfo[i].Vulns[j].Cnnvd.Number,
-							Cvss3: cvss3,
-						}
-
-						// 如果cnvd的title为空，则取trivy的title字段(英文版的)
-						if vulnType != "" {
-							vuln.Type = vulnType
-						} else {
-							vuln.Type = v.VulnInfo[i].Vulns[j].Trivy[k].Title
-						}
-
-						// 当需要展示修复建议时
-						if s.contentType&TensorScanReportContentTypeFix == TensorScanReportContentTypeFix {
-							vuln.FixSuggestion = v.VulnInfo[i].Vulns[j].Cnnvd.FixSuggestion
-							vuln.FixVersoin = v.VulnInfo[i].Vulns[j].Trivy[k].FixedVersion
-						}
-
-						imageVuln.Vuln = vuln
-
-						s.vulns[fmt.Sprintf(
-							"%s%s",
-							v.VulnInfo[i].Vulns[j].Trivy[k].VulnerabilityID,
-							v.VulnInfo[i].Vulns[j].Trivy[k].PkgName,
-						)] = imageVuln
-
-						if s.contentType&TensorScanReportContentTypeVulnerability == TensorScanReportContentTypeVulnerability {
-							data.ImageVulns = append(data.ImageVulns, imageVuln)
-						}
-					}
-
-					// 当只有修复建议且漏洞可修复时才保存镜像的漏洞信息
-					if s.contentType&TensorScanReportContentTypeFix == TensorScanReportContentTypeFix {
-						// 只保存可修复并且有修复建议的漏洞
-						if v.HasFixedVuln == 1 && imageVuln.GetVuln().GetFixVersoin() != "" {
-							vulns = append(vulns, imageVuln.Vuln)
-						}
+				// 当只有修复建议且漏洞可修复时才保存镜像的漏洞信息
+				if s.contentType&TensorScanReportContentTypeFix == TensorScanReportContentTypeFix {
+					// 只保存可修复并且有修复建议的漏洞
+					if v.HasFixedVuln == 1 && imageVuln.GetVuln().GetFixVersoin() != "" {
+						vulns = append(vulns, imageVuln.Vuln)
 					}
 				}
 			}

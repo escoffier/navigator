@@ -368,14 +368,14 @@ func (s *ScanResultHandle) logPostgresLayer(ctx context.Context, scanDetails *mo
 func (s *ScanResultHandle) logPostgresImage(ctx context.Context, scanDetails *model.ScanDetailScanImage, layerMp map[string]*model.LayerScanDetail, imageID int64) error {
 	scannerOrm := store.GetScannerDb()
 	tmpScanImage := &model.ScanImage{
-		ID:                   0,
-		ImageID:              imageID,
-		RiskScore:            scanDetails.VulnScore + math.Min(40, scanDetails.MaliciousScore+scanDetails.WebShellScore) + scanDetails.SensitiveScore,
-		VulnScore:            scanDetails.VulnScore,
-		SensitiveScore:       scanDetails.SensitiveScore,
-		VirusScore:           scanDetails.MaliciousScore,
-		WebshellScore:        scanDetails.WebShellScore,
-		VulnInfo:             scanDetails.VulnDetails,
+		ID:             0,
+		ImageID:        imageID,
+		RiskScore:      scanDetails.VulnScore + math.Min(40, scanDetails.MaliciousScore+scanDetails.WebShellScore) + scanDetails.SensitiveScore,
+		VulnScore:      scanDetails.VulnScore,
+		SensitiveScore: scanDetails.SensitiveScore,
+		VirusScore:     scanDetails.MaliciousScore,
+		WebshellScore:  scanDetails.WebShellScore,
+		// VulnInfo:             scanDetails.VulnDetails,
 		MaliciousInfo:        scanDetails.MaliciousDetails,
 		WebshellInfo:         scanDetails.WebshellInfos,
 		SensitiveFile:        scanDetails.Sentitives,
@@ -388,7 +388,6 @@ func (s *ScanResultHandle) logPostgresImage(ctx context.Context, scanDetails *mo
 		Status:               model.ScanStatusSucceeded,
 	}
 
-	tmpScanImage.Serialize()
 	if err := scannerOrm.InsertToScanImage(ctx, tmpScanImage); err != nil {
 		logging.GetLogger().Err(err).Int64("imageID", tmpScanImage.ImageID).Msg("save scan result InsertToScanImage")
 		return err

@@ -1,8 +1,6 @@
 package apimodel
 
 import (
-	"github.com/aquasecurity/trivy-db/pkg/types"
-
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 )
 
@@ -24,16 +22,16 @@ type SummaryEnv struct {
 }
 
 type Vuln struct {
-	Name          string           `json:"name"`
-	Severity      string           `json:"severity"`
-	FixedVersion  string           `json:"fixedVersion"`
-	Description   string           `json:"description"`
-	FixSuggestion string           `json:"fixSuggestion"`
-	References    []string         `json:"references"`
-	Title         string           `json:"title"`
-	PkgName       string           `json:"pkgName"`
-	PkgVersion    string           `json:"pkgVersion"`
-	CVSS          types.VendorCVSS `json:"cvss"`
+	Name          string   `json:"name"`
+	Severity      string   `json:"severity"`
+	FixedVersion  string   `json:"fixedVersion"`
+	Description   string   `json:"description"`
+	FixSuggestion string   `json:"fixSuggestion"`
+	References    []string `json:"references"`
+	Title         string   `json:"title"`
+	PkgName       string   `json:"pkgName"`
+	PkgVersion    string   `json:"pkgVersion"`
+	CVSS          Cvss     `json:"cvss"`
 }
 
 type ImageDetail struct {

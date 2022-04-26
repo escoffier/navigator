@@ -299,7 +299,7 @@ func (s *ScannerOrm) UpdateSubTaskStatus(ctx context.Context, id uint, status sc
 
 func (s *ScannerOrm) GetImagesByTask(ctx context.Context, limit, offset int, task *scanreport.TensorScanReportSubTasks) ([]*scanreport.ImageInfo, error) {
 	var selectFiled = []string{
-		"t.id",
+		"t.id", "t.flag",
 		"t.library", "t.full_repo_name", "t.tags", "t.privileged_boot", "t.is_reinforce",
 
 		"s.risk_score", "s.vuln_score", "s.has_fixed_vuln", "s.sensitive_score", "s.virus_score",

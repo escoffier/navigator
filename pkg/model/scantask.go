@@ -316,7 +316,7 @@ type ScanOneForCICDResponse struct {
 
 	RejectMsg [][]string `json:"reject_msg"`
 
-	Vulu      [][]string `json:"vulu"`
+	Vuln      [][]string `json:"vuln"`
 	Sensitive [][]string `json:"sensitive"`
 	Virus     [][]string `json:"virus"`
 	Webshell  [][]string `json:"webshell"`

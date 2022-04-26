@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -259,22 +260,30 @@ func (s *ImageOpenAPISvc) GetImageDetails(ctx *gin.Context) {
 		res.SensitiveFile = append(res.SensitiveFile, img.ImageScanVuln.SensitiveFiles[i].Name)
 	}
 
-	for i := range img.ImageScanVuln.TopVulns {
-		if len(img.ImageScanVuln.TopVulns[i].NewVulnDetail.Trivy) > 0 {
-			res.Vulns = append(res.Vulns, apimodel.Vuln{
-				Name:          img.ImageScanVuln.TopVulns[i].NewVulnDetail.CVEID,
-				Severity:      img.ImageScanVuln.TopVulns[i].NewVulnDetail.Trivy[0].Severity,
-				FixedVersion:  img.ImageScanVuln.TopVulns[i].NewVulnDetail.Trivy[0].FixedVersion,
-				Description:   img.ImageScanVuln.TopVulns[i].NewVulnDetail.Trivy[0].Description,
-				FixSuggestion: img.ImageScanVuln.TopVulns[i].NewVulnDetail.Cnnvd.FixSuggestion,
-				References:    img.ImageScanVuln.TopVulns[i].NewVulnDetail.Trivy[0].References,
-				Title:         img.ImageScanVuln.TopVulns[i].NewVulnDetail.Trivy[0].Title,
-				PkgName:       img.ImageScanVuln.TopVulns[i].NewVulnDetail.Trivy[0].PkgName,
-				PkgVersion:    img.ImageScanVuln.TopVulns[i].NewVulnDetail.Trivy[0].InstalledVersion,
-				CVSS:          img.ImageScanVuln.TopVulns[i].NewVulnDetail.Trivy[0].CVSS,
-			})
+	for i := range img.ImageScanVuln.Vulns {
+		vuln := apimodel.Vuln{
+			Name:          img.ImageScanVuln.Vulns[i].Name,
+			Severity:      img.ImageScanVuln.Vulns[i].Severity,
+			Description:   img.ImageScanVuln.Vulns[i].Description,
+			FixSuggestion: img.ImageScanVuln.Vulns[i].FixedBy,
+			References:    img.ImageScanVuln.Vulns[i].Link,
+			PkgName:       img.ImageScanVuln.Vulns[i].PkgName,
+			PkgVersion:    img.ImageScanVuln.Vulns[i].PkgVersion,
 		}
 
+		if img.ImageScanVuln.Vulns[i].Metadata != nil {
+			vuln.FixedVersion = img.ImageScanVuln.Vulns[i].Metadata.CNNVDs.FixSuggestion
+			vuln.FixedVersion = img.ImageScanVuln.Vulns[i].Metadata.CNNVDs.FixSuggestion
+			vuln.CVSS.Vector = img.ImageScanVuln.Vulns[i].Metadata.CVSS.CVSSv3Vector
+		}
+		if len(img.ImageScanVuln.Vulns[i].Metadata.CNVDs) > 0 {
+			vuln.Title = img.ImageScanVuln.Vulns[i].Metadata.CNVDs[0].Title
+		}
+		score, _ := strconv.ParseFloat(img.ImageScanVuln.Vulns[i].Metadata.CVSS.CVSSv3Score, 64)
+
+		vuln.CVSS.Score = score
+
+		res.Vulns = append(res.Vulns, vuln)
 	}
 
 	response.JSONOK(ctx, response.WithItem(res))
