@@ -10,7 +10,7 @@
 ##    - typecheck
 run:
   # timeout for analysis, e.g. 30s, 5m, default is 1m
-  timeout: 10m
+  timeout: 25m
   skip-dirs: 
     - cmd/go-audit
     - cmd/immune-test
@@ -32,9 +32,14 @@ linters:
     - staticcheck
     - bodyclose
     - goconst
+    - cyclop
+    - dupl
     - gocritic
     - nilerr
     - gosec
+    - gofmt
+    - lll
+    - noctx
 
   disable:
     - deadcode
@@ -42,6 +47,12 @@ linters:
     - gomnd
 
 linters-settings:
+  cyclop:
+    max-complexity: 20
+    package-average: 8
+    skip-tests: true
+  lll: 
+    line-length: 150
   gosec:
     # To select a subset of rules to run.
     # Available rules: https://github.com/securego/gosec#available-rules
@@ -52,9 +63,9 @@ linters-settings:
       - G503
       - G504
       - G505
-      - G307
       - G401
       - G204
+      - G404
     exclude-generated: true
     severity: medium
     confidence: medium
