@@ -221,6 +221,126 @@
   priority: ALERT
   tags: [Watson]
 
+- rule: Other containers establish new connections to the mysql
+  hid: hp_12
+  category: Watson
+  categoryZh: 主动防御
+  hthreats: 1
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands."
+    zh:
+      key: "处置建议"
+      value: "使用免疫防御训练应用，限制敏感文件和命令的用户权限。"
+  desc: Other containers establish new connections to the mysql
+  condition: >
+   (inbound_outbound) and fd.sport = 3306 and k8s.pod.name contains "588ee1"
+  output: >
+    Other containers establish new connections to the mysql (zh_msg=Watson：通过主动防御检测到与mysql通信,rule_type=Privilege_Escalation,fd.name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name)
+  priority: ALERT
+  tags: [Watson]
+
+- rule: Connection with mysql successfully established detected
+  hid: hp_13
+  category: Watson
+  categoryZh: 主动防御
+  hthreats: 1
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands."
+    zh:
+      key: "处置建议"
+      value: "使用免疫防御训练应用，限制敏感文件和命令的用户权限。"
+  desc: Connection with mysql successfully established detected
+  condition: >
+   evt.type=recvfrom and evt.arg.data contains "select" and fd.sport = 3306 and k8s.pod.name contains "588ee1"
+  output: >
+    Connection with mysql successfully established detected (zh_msg=Watson：通过主动防御检测到与mysql成功建立连接,rule_type=Privilege_Escalation,fd.name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name)
+  priority: ALERT
+  tags: [Watson]
+
+- rule: Other containers establish new connections to the ssh
+  hid: hp_14
+  category: Watson
+  categoryZh: 主动防御
+  hthreats: 1
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands."
+    zh:
+      key: "处置建议"
+      value: "使用免疫防御训练应用，限制敏感文件和命令的用户权限。"
+  desc: Other containers establish new connections to the ssh
+  condition: >
+   (inbound_outbound) and fd.sport = 22 and k8s.pod.name contains "98166d"
+  output: >
+    Other containers establish new connections to the ssh (zh_msg=Watson：通过主动防御检测到与ssh通信,rule_type=Privilege_Escalation,fd.name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name)
+  priority: ALERT
+  tags: [Watson]
+
+- rule: Connection establishment using ssh is detected
+  hid: hp_15
+  category: Watson
+  categoryZh: 主动防御
+  hthreats: 1
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands."
+    zh:
+      key: "处置建议"
+      value: "使用免疫防御训练应用，限制敏感文件和命令的用户权限。"
+  desc: Connection establishment using ssh is detected
+  condition: >
+   evt.type=write and evt.arg.data contains "Welcome" and k8s.pod.name contains "98166d"
+  output: >
+    Connection with mysql successfully established detected (zh_msg=Watson：通过主动防御检测到使用ssh建立连接,rule_type=Privilege_Escalation,fd.name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,evt.args=%evt.args,fd.sport=%fd.sport)
+  priority: ALERT
+  tags: [Watson]
+
+- rule: Other containers establish new connections to the vsftpd
+  hid: hp_16
+  category: Watson
+  categoryZh: 主动防御
+  hthreats: 1
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands."
+    zh:
+      key: "处置建议"
+      value: "使用免疫防御训练应用，限制敏感文件和命令的用户权限。"
+  desc: Other containers establish new connections to the vsftpd
+  condition: >
+   (inbound_outbound) and fd.sport = 21 and k8s.pod.name contains "42cca6"
+  output: >
+    Other containers establish new connections to the vsftpd (zh_msg=Watson：通过主动防御检测到与ftp通信,rule_type=Privilege_Escalation,fd.name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name)
+  priority: ALERT
+  tags: [Watson]
+
+- rule: Connection establishment using ftp is detected
+  hid: hp_17
+  category: Watson
+  categoryZh: 主动防御
+  hthreats: 1
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands."
+    zh:
+      key: "处置建议"
+      value: "使用免疫防御训练应用，限制敏感文件和命令的用户权限。"
+  desc: Connection establishment using ftp is detected
+  condition: >
+   evt.type=write and evt.arg.data contains "OK LOGIN" and k8s.pod.name contains "42cca6"
+  output: >
+    Connection establishment using ftp is detected (zh_msg=Watson：通过主动防御检测到使用ftp建立连接,rule_type=Privilege_Escalation,fd.name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,evt.args=%evt.args,fd.sport=%fd.sport)
+  priority: ALERT
+  tags: [Watson]
+
 #attck_rules
 ##attck_rule_type=Execution
 - rule: DB program spawned process
@@ -417,7 +537,7 @@
       key: "处置建议"
       value: "使用免疫防御训练应用，阻拦新的或被修改的可执行文件，限制执行命令的用户和接收对象。"
   desc: Detected attacks through socket and dup
-  condition: evt.type=dup and container and fd.num in (0, 1, 2) and fd.type in ("ipv4", "ipv6")
+  condition: evt.type=dup and container and fd.num in (0, 1, 2) and fd.type in ("ipv4", "ipv6") and not k8s.pod.name contains "98166d" and not k8s.pod.name contains "42cca6"
   output: >
     Reverse shell connection (zh_msg=检测到通过socket和dup进行攻击，例如反弹shell、暴力破解等,rule_type=Execution,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name %container.info process=%proc.name parent=%proc.pname terminal=%proc.tty container_id=%container.id image=%container.image.repository fd.name=%fd.name fd.num=%fd.num fd.type=%fd.type fd.sip=%fd.sip)
   priority: ALERT
@@ -889,7 +1009,7 @@
       value: "使用免疫防御训练应用，限制敏感文件和命令的用户权限。"
   desc: Container escape to access host system
   condition: >
-    (evt.type=chroot and container)
+    (evt.type=chroot and container and proc.name !=sshd and proc.name !=vsftpd)
     and not (tensorsec_namespace and (k8s.pod.name contains "-host-" or k8s.pod.name contains "-docker-" or k8s.pod.name contains "-kube-"))
   output: >
     container escape to access host system (zh_msg=容器内挂载主机目录逃逸,rule_type=Privilege_Escalation,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name)

