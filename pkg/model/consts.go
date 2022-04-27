@@ -55,6 +55,7 @@ const (
 	ImageFromTypeCICD   = 2
 	ImageFromTypeNormal = 1
 	ImageFromSafeNode   = 3
+	NodeImageSplitCount = 6
 )
 
 var reasonZHMap = map[int64]string{

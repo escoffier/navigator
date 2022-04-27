@@ -383,6 +383,15 @@ func (im *ImageList) Deserialize() {
 			im.ConfigFile = ll
 		}
 	}
+	// 对于节点镜像的数据规整
+	if im.FromType == ImageFromSafeNode {
+		split := strings.Split(im.FullRepoName, "/")
+		// 节点镜像上传的tag:	NodeSafeTage="%s/" + NodeSafeSalt + "/%s/%s/%s/%s" // 仓库地址/tensorsec/hostname/ip/os/library/镜像名
+		// tensorsecurity/tensorsec-safe-node-image-v2x54/10.65.72.54/linux/registry.t-appagile.com/google_containers/coredns
+		if len(split) >= NodeImageSplitCount {
+			im.FullRepoName = strings.Join(split[5:], "/")
+		}
+	}
 }
 
 func (ImageList) TableName() string {

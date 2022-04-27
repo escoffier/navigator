@@ -77,17 +77,7 @@ func (s *ImageOpenAPISvc) ListImages(ctx *gin.Context) {
 		response.JSONError(ctx, err)
 		return
 	}
-	// 数据规整
-	for i := range images {
-		if images[i].FromType == model.ImageFromSafeNode {
-			split := strings.Split(images[i].FullRepoName, "/")
-			// 节点镜像上传的tag:	NodeSafeTage="%s/" + NodeSafeSalt + "/%s/%s/%s/%s" // 仓库地址/tensorsec/hostname/ip/os/library/镜像名
-			// tensorsecurity/tensorsec-safe-node-image-v2x54/10.65.72.54/linux/registry.t-appagile.com/google_containers/coredns
-			if len(split) >= 6 {
-				images[i].FullRepoName = strings.Join(split[5:], "/")
-			}
-		}
-	}
+
 	res := make([]apimodel.ImageListResponse, 0)
 	for i := range images {
 		im := apimodel.ImageListResponse{

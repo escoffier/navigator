@@ -1112,11 +1112,6 @@ func (s *ScannerOrm) SearchImage(ctx context.Context, param SearchImageParam, fi
 	if param.UniqueImage > 0 {
 		db = db.Where("unique_image = ?", param.UniqueImage)
 	}
-	// if param.ImageType == consts.BaseImageTypeString {
-	// 	db = db.Where(fmt.Sprintf("(flag >> %d ) & 1 = %d", model.FlagBaseImage, 1))
-	// } else if param.ImageType == consts.AppImageTypeString {
-	// 	db = db.Where(fmt.Sprintf("(flag >> %d ) & 1 = %d", model.FlagBaseImage, 0))
-	// }
 	if len(param.Where) > 0 {
 		db = db.Where(param.Where)
 	}
@@ -1813,7 +1808,7 @@ func (s *ScannerOrm) GetSubTaskListWithImage(ctx context.Context, param GetSubTa
 	for i := range imagesInfo {
 		imagesIDMap[imagesInfo[i].ID].ImageInfo.Tag = imagesInfo[i].Tags
 		if imagesInfo[i].FromType == model.ImageFromSafeNode {
-			split := strings.SplitN(imagesInfo[i].FullRepoName, "/", 6)
+			split := strings.SplitN(imagesInfo[i].FullRepoName, "/", model.NodeImageSplitCount)
 			imagesIDMap[imagesInfo[i].ID].ImageInfo.FullRepoName = split[len(split)-1]
 			imagesIDMap[imagesInfo[i].ID].ImageInfo.Library = fmt.Sprintf("%s(%s)%s",
 				imagesInfo[i].NodeHostname, imagesInfo[i].NodeIP, imagesInfo[i].OS)
@@ -1821,7 +1816,6 @@ func (s *ScannerOrm) GetSubTaskListWithImage(ctx context.Context, param GetSubTa
 			imagesIDMap[imagesInfo[i].ID].ImageInfo.FullRepoName = imagesInfo[i].FullRepoName
 			imagesIDMap[imagesInfo[i].ID].ImageInfo.Library = imagesInfo[i].Library
 		}
-
 	}
 
 	return data, count, nil
