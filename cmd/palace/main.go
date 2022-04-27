@@ -117,7 +117,7 @@ func main() {
 		panic(err)
 	}
 
-	mqFactory := mq.GetMQFactory()
+	mqFactory := mq.GetClientFactory()
 	mqReader, err := mqFactory.Reader(context.Background())
 	if err != nil {
 		logging.Get().Err(err).Msg("init mq reader error")

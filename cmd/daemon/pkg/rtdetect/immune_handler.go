@@ -21,10 +21,10 @@ var (
 )
 
 type ImmuneHandler struct {
-	mqWriter mq.MQWriter
+	mqWriter mq.Writer
 }
 
-func NewImmuneHandler(mqWriter mq.MQWriter) *ImmuneHandler {
+func NewImmuneHandler(mqWriter mq.Writer) *ImmuneHandler {
 	return &ImmuneHandler{
 		mqWriter: mqWriter,
 	}

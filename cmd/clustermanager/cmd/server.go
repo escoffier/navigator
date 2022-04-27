@@ -4,6 +4,10 @@ import (
 	"context"
 	"errors"
 	"flag"
+	"os"
+	"strings"
+	"time"
+
 	"github.com/go-redis/redis/v8"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
@@ -20,10 +24,7 @@ import (
 	"gitlab.com/security-rd/go-pkg/mq"
 	"k8s.io/client-go/informers"
 	"k8s.io/klog/v2"
-	"os"
 	"scm.tensorsecurity.cn/tensorsecurity-rd/api/pkg/generated/informers/externalversions"
-	"strings"
-	"time"
 )
 
 const (
@@ -74,7 +75,7 @@ func NewServer() (*server, error) {
 	factory := informers.NewSharedInformerFactory(agent.GetHostClient(), resyncInterval)
 	tensorFactory := externalversions.NewSharedInformerFactory(agent.GetHostClient().TensorClientset, resyncInterval)
 
-	mqWriter, err := mq.GetMQFactory().Writer(context.Background())
+	mqWriter, err := mq.GetClientFactory().Writer(context.Background())
 	if err != nil {
 		return nil, err
 	}
@@ -156,7 +157,7 @@ func NewServer() (*server, error) {
 			return nil, err
 		}
 
-		mqReader, err := mq.GetMQFactory().Reader(context.Background())
+		mqReader, err := mq.GetClientFactory().Reader(context.Background())
 		if err != nil {
 			return nil, err
 		}

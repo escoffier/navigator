@@ -3,10 +3,11 @@ package assets
 import (
 	"context"
 	"encoding/json"
+	"time"
+
 	"github.com/segmentio/kafka-go"
 	"gitlab.com/security-rd/go-pkg/logging"
 	"gitlab.com/security-rd/go-pkg/mq"
-	"time"
 
 	corev1 "k8s.io/api/core/v1"
 )
@@ -65,14 +66,14 @@ type ResourceEvent struct {
 }
 
 type Watcher struct {
-	consumer  mq.MQReader
+	consumer  mq.Reader
 	callbacks []AssetsCallback
 	cbs       []ClusterCallback
 	topic     string
 	groupID   string
 }
 
-func NewWatcher(reader mq.MQReader, topic, groupID string) *Watcher {
+func NewWatcher(reader mq.Reader, topic, groupID string) *Watcher {
 	w := &Watcher{
 		consumer:  reader,
 		callbacks: nil,
