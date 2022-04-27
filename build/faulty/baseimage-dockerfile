@@ -12,6 +12,7 @@ ENV PATH=".:/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/u
 RUN sed -i "s!archive.ubuntu.com/!${MIRROR}/!g" /etc/apt/sources.list \
     && DEBIAN_FRONTEND=noninteractive apt-get update \
     && DEBIAN_FRONTEND=noninteractive apt-get install -y --fix-missing \
+    libpolkit-gobject-1-dev \
     automake \
     gcc \
     make \
