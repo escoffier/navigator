@@ -8,8 +8,10 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service"
 	"gitlab.com/piccolo_su/vegeta/pkg/flag"
 	"gitlab.com/piccolo_su/vegeta/pkg/lifecycle"
-	"gitlab.com/piccolo_su/vegeta/pkg/logging"
+	"gitlab.com/security-rd/go-pkg/logging"
 )
+
+var loggingOptions *logging.Options
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
@@ -17,48 +19,45 @@ var rootCmd = &cobra.Command{
 	Short: "The centralized server",
 	Long:  `The centralized server`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		verbose, _ := cmd.Flags().GetBool("verbose")
-		if verbose {
-			logging.SetVerbose()
-		}
+		logging.ReplaceLogger(loggingOptions, logging.LogFileNoColorOutput())
 
-		logging.GetLogger().Info().
+		logging.Get().Info().
 			Str("version", Version).
 			Msg("starting Console")
 
 		httpOpts := flag.GetHTTPOpts(cmd)
-		logging.GetLogger().Info().
+		logging.Get().Info().
 			Str("listen", httpOpts.HTTPListen).
 			Str("webhooklisten", httpOpts.HTTPWebHookListen).
 			Msg("HTTP options")
 
 		rdbOpts := flag.GetRDBOpts(cmd)
-		logging.GetLogger().Info().
+		logging.Get().Info().
 			Str("pvc", rdbOpts.PVC).
 			Str("pod", rdbOpts.Pod).
 			Str("dataPath", rdbOpts.DataPath).
 			Msg("Postgres options")
 
 		scannerOpts := flag.GetVegetaScannerOpts(cmd)
-		logging.GetLogger().Info().
+		logging.Get().Info().
 			Str("host", scannerOpts.Host).
 			Int("port", scannerOpts.Port).
 			Msg("Scanner options")
 
 		scapOpts := flag.GetScapOpts(cmd)
-		logging.GetLogger().Info().
+		logging.Get().Info().
 			Int32("policy-counts", scapOpts.PolicyCounts).
 			Msg("Scap options")
 
 		harborOpts := flag.GetHarborOpts(cmd)
-		logging.GetLogger().Info().
+		logging.Get().Info().
 			Str("harbor-url", harborOpts.URL).
 			Str("harbor-username", harborOpts.Username).
 			Bool("harbor-skiptlsverify", harborOpts.SkipTLSVerify).
 			Msg("Harbor REST client options")
 
 		elasticOpts := flag.GetElasticOpts(cmd)
-		logging.GetLogger().Info().
+		logging.Get().Info().
 			Str("host", elasticOpts.Host).
 			Str("port", elasticOpts.Port).
 			Str("index", elasticOpts.Index).
@@ -66,7 +65,7 @@ var rootCmd = &cobra.Command{
 			Msg("Elastic options")
 
 		secProfilesOpts := flag.GetSecProfilesOpts(cmd)
-		logging.GetLogger().Info().
+		logging.Get().Info().
 			Str("host", secProfilesOpts.Host).
 			Int("port", secProfilesOpts.Port).
 			Msg("Security Profiles options")
@@ -89,13 +88,14 @@ var rootCmd = &cobra.Command{
 // This is called by main.main(). It only needs to happen once to the rootCmd.
 func Execute() {
 	if err := rootCmd.Execute(); err != nil {
-		logging.GetLogger().Error().Err(err).Msg("Failed to startup")
+		logging.Get().Error().Err(err).Msg("Failed to startup")
 		os.Exit(1)
 	}
 }
 
 func init() {
-	rootCmd.PersistentFlags().BoolP("verbose", "v", false, "verbose mode")
+	loggingOptions = logging.NewLoggingOptions()
+	loggingOptions.AddFlags(rootCmd.Flags())
 
 	flag.AddHTTPFlags(rootCmd)
 	flag.AddRDBFlags(rootCmd)

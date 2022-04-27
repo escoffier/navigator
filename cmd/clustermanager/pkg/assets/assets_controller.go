@@ -4,6 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"reflect"
+	"time"
+
 	"github.com/segmentio/kafka-go"
 	pkgassets "gitlab.com/piccolo_su/vegeta/pkg/assets"
 	"gitlab.com/security-rd/go-pkg/logging"
@@ -25,11 +28,9 @@ import (
 	rbaclisters "k8s.io/client-go/listers/rbac/v1"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
-	"reflect"
 	defensev1 "scm.tensorsecurity.cn/tensorsecurity-rd/api/pkg/apis/defense/v1"
 	"scm.tensorsecurity.cn/tensorsecurity-rd/api/pkg/generated/informers/externalversions"
 	defenselisters "scm.tensorsecurity.cn/tensorsecurity-rd/api/pkg/generated/listers/defense/v1"
-	"time"
 )
 
 var (
@@ -77,7 +78,7 @@ type Controller struct {
 	hpSynced   cache.InformerSynced
 	queue      workqueue.RateLimitingInterface
 	clusterKey string
-	mqWriter   mq.MQWriter
+	mqWriter   mq.Writer
 	topic      string
 }
 
@@ -86,7 +87,7 @@ type Assets struct {
 	key  string
 }
 
-func NewAssetsController(factory informers.SharedInformerFactory, tensorFactory externalversions.SharedInformerFactory, writer mq.MQWriter, clusterKey, topic string) *Controller {
+func NewAssetsController(factory informers.SharedInformerFactory, tensorFactory externalversions.SharedInformerFactory, writer mq.Writer, clusterKey, topic string) *Controller {
 	ac := &Controller{
 		podLister:  factory.Core().V1().Pods().Lister(),
 		dpLister:   factory.Apps().V1().Deployments().Lister(),

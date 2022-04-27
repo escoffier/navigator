@@ -2,9 +2,10 @@ package assets
 
 import (
 	"errors"
-	"gitlab.com/security-rd/go-pkg/mq"
 	"runtime/debug"
 	"sync"
+
+	"gitlab.com/security-rd/go-pkg/mq"
 
 	"github.com/go-redis/redis/v8"
 	"gitlab.com/piccolo_su/vegeta/cmd/clustermanager/pkg/image"
@@ -25,7 +26,7 @@ var (
 func Watcher(rdb *databases.RDBInstance,
 	redisCli *redis.Client,
 	scannerURL string,
-	reader mq.MQReader,
+	reader mq.Reader,
 	topic, groupID string,
 ) (*pkgassets.Watcher, error) {
 	if rdb == nil || redisCli == nil || scannerURL == "" {

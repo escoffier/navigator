@@ -31,7 +31,7 @@ const (
 	defaultRTBuffSize     = 100
 )
 
-func initEventStreams(udsAddr, nodeName string, cm *k8s.ClusterInfoManager, mqWriter mq.MQWriter, dockerInfo *nodeinfo.DockerInfoManager, podResInfo *nodeinfo.PodResInfo) (*rtdetect.RuntimeEventStream, error) {
+func initEventStreams(udsAddr, nodeName string, cm *k8s.ClusterInfoManager, mqWriter mq.Writer, dockerInfo *nodeinfo.DockerInfoManager, podResInfo *nodeinfo.PodResInfo) (*rtdetect.RuntimeEventStream, error) {
 	bui := rtdetect.StreamBuilder(udsAddr, nodeName, cm)
 
 	// add handlers here
@@ -134,7 +134,7 @@ func NetInit(ctx context.Context) error {
 		return errors.Errorf("get console address failed.")
 	}
 
-	mqFactory := mq.GetMQFactory()
+	mqFactory := mq.GetClientFactory()
 	mqWriter, err := mqFactory.Writer(context.Background())
 	if err != nil {
 		logging.Get().Err(err).Msg("Init mq error")

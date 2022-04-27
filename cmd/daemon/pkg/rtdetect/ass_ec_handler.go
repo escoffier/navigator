@@ -18,11 +18,11 @@ const (
 )
 
 type AssociatedEventsHandler struct {
-	mqWriter   mq.MQWriter
+	mqWriter   mq.Writer
 	dockerInfo *nodeinfo.DockerInfoManager
 }
 
-func NewAssociatedEventsHandler(mqWriter mq.MQWriter, dockerInfo *nodeinfo.DockerInfoManager) *AssociatedEventsHandler {
+func NewAssociatedEventsHandler(mqWriter mq.Writer, dockerInfo *nodeinfo.DockerInfoManager) *AssociatedEventsHandler {
 	return &AssociatedEventsHandler{
 		mqWriter:   mqWriter,
 		dockerInfo: dockerInfo,
