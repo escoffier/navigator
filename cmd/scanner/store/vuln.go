@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"gitlab.com/security-rd/go-pkg/databases"
+	"gorm.io/gorm"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
@@ -97,13 +98,19 @@ func (v *VulnDao) SearchVuln(ctx context.Context, param SearchVulnParm, filter *
 		db = db.Where("severity_int IN  ? ", param.SeverityInt)
 	}
 	res := make([]*model.Vuln, 0)
-	var count int64
-	if err := db.Count(&count).Error; err != nil {
+
+	db2 := db.Session(&gorm.Session{})
+	var cnt int64
+	// https://cloud.tencent.com/developer/article/1658068
+	// 一般来说，mysql优化了count(*),count(*)也是性能更好的方式，但是我们环境中count(*)会耗时5s以上，用count(unique_vuln)到是很快，
+	// 没有找到具体原因，后面需要持续关注
+	if err := db2.Select("count(unique_vuln) as cnt").Find(&cnt).Error; err != nil {
 		return nil, 0, err
 	}
 	if param.JustReturnCount {
-		return nil, count, nil
+		return nil, cnt, nil
 	}
+
 	db = model.AddFilter(db, filter)
 	if err := db.Find(&res).Error; err != nil {
 		return nil, 0, err
@@ -112,7 +119,7 @@ func (v *VulnDao) SearchVuln(ctx context.Context, param SearchVulnParm, filter *
 		res[i].Deserialize()
 		res[i].Serialize()
 	}
-	return res, count, nil
+	return res, cnt, nil
 }
 
 func (v *VulnDao) SearchVulnPkg(ctx context.Context, param SearchVulnParm, filter *model.Filter) ([]*model.Vuln, int64, error) {
@@ -155,12 +162,15 @@ func (v *VulnDao) SearchVulnPkg(ctx context.Context, param SearchVulnParm, filte
 	}
 
 	res := make([]*model.Vuln, 0)
-	var count int64
-	if err := db.Count(&count).Error; err != nil {
+
+	db2 := db.Session(&gorm.Session{})
+	var cnt int64
+	if err := db2.Select("count(unique_vuln) as cnt").Find(&cnt).Error; err != nil {
 		return nil, 0, err
 	}
+
 	if param.JustReturnCount {
-		return nil, count, nil
+		return nil, cnt, nil
 	}
 	db = model.AddFilter(db, filter)
 	if err := db.Find(&res).Error; err != nil {
@@ -170,7 +180,7 @@ func (v *VulnDao) SearchVulnPkg(ctx context.Context, param SearchVulnParm, filte
 		res[i].Deserialize()
 		res[i].Serialize()
 	}
-	return res, count, nil
+	return res, cnt, nil
 }
 
 func (v *VulnDao) CreateVuln(ctx context.Context, data []*model.Vuln) error {
