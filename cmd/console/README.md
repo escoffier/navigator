@@ -2,7 +2,8 @@
 ```
 --log-output-file bool    是否输出日志到文件
 --log-close-console bool  需要log-output-file选项启用. 是否输出到控制台，如果没有启用输出到文件，这个设置无效 
---log-filename string     需要log-output-file选项启用. 日志文件输出路径 (default "/var/log/console.log")
+--log-filename string     需要log-output-file选项启用. 日志文件名称 (default "console.log")
+--log-dir string          需要log-output-file选项启用. 日志文件输出目录 (default "/var/log/")
 --log-max-age int         需要log-output-file选项启用. 日志文件最大存在时间 (default 30)
 --log-max-backups int     需要log-output-file选项启用. 日志文件最大数量 (default 30)
 --log-max-size int        需要log-output-file选项启用. 日志文件允许最大是多少. 单位MB (default 100)
