@@ -1,10 +1,11 @@
 package detector
 
 import (
+	"context"
 	"io"
 )
 
 type Detector interface {
-	Detect(b []byte) (int, error)
-	DetectFromReader(reader io.Reader) (int, error)
+	Detect(ctx context.Context, b []byte) (int, error)
+	DetectFromReader(ctx context.Context, reader io.Reader) (int, error)
 }

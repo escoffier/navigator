@@ -1,6 +1,7 @@
 package detector
 
 import (
+	"context"
 	"io"
 	"io/ioutil"
 
@@ -16,7 +17,7 @@ func NewSimpleScanDetector() Detector {
 	return &simpleScanDetector{}
 }
 
-func (s *simpleScanDetector) Detect(b []byte) (int, error) {
+func (s *simpleScanDetector) Detect(_ context.Context, b []byte) (int, error) {
 	logging.GetLogger().Debug().Msg("regex detection start")
 
 	r, err := twsscan.Scan(b)
@@ -31,13 +32,13 @@ func (s *simpleScanDetector) Detect(b []byte) (int, error) {
 	return score, nil
 }
 
-func (s *simpleScanDetector) DetectFromReader(reader io.Reader) (int, error) {
+func (s *simpleScanDetector) DetectFromReader(ctx context.Context, reader io.Reader) (int, error) {
 	b, err := ioutil.ReadAll(reader)
 	if err != nil {
 		return 0, errors.Wrap(err, "read data failed from a reader")
 	}
 
-	return s.Detect(b)
+	return s.Detect(ctx, b)
 }
 
 // rules: https://tensorsecurity.feishu.cn/docs/doccn20nmfoa4z9oKLpkRbnId6c
