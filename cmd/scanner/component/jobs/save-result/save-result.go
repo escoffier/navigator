@@ -416,7 +416,7 @@ func (s *ScanResultHandle) UpdateImageFlag(ctx context.Context, imageID int64, s
 }
 
 func (s *ScanResultHandle) logPostgresVuln(ctx context.Context, scanDetails *model.ScanDetailScanImage, layerMp map[string]*model.LayerScanDetail, imageID int64) error {
-	vulnDal := store.NewVulnDao()
+	vulnDal := store.GetSingeVulnDao()
 
 	vulns := make([]*model.Vuln, 0, 20)
 	vulnImages := make([]*model.VulnImage, 0, 20)
