@@ -8,10 +8,11 @@ import (
 	"strconv"
 	"time"
 
+	"gitlab.com/security-rd/go-pkg/databases"
+
 	scanreport "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scan-report"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
-	"gitlab.com/security-rd/go-pkg/databases"
 )
 
 var (
@@ -79,6 +80,7 @@ func main() {
 
 	server := scanreport.NewScanReportSrv(
 		scanreport.WithDB(store.NewScannerOrm(rdb)),
+		scanreport.WithVulnDal(store.NewVulnDao()),
 		scanreport.WithInternal(internal),
 		scanreport.WithBatchSize(batchSize),
 		scanreport.WithEmailDialer(emailHost, int(emailPort), emailUser, emailPasswd),

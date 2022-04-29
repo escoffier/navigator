@@ -302,7 +302,7 @@ func (s *ScannerOrm) GetImagesByTask(ctx context.Context, limit, offset int, tas
 		"t.id", "t.flag",
 		"t.library", "t.full_repo_name", "t.tags", "t.privileged_boot", "t.is_reinforce",
 
-		"s.risk_score", "s.vuln_score", "s.has_fixed_vuln", "s.sensitive_score", "s.virus_score",
+		"s.risk_score", "s.vuln_score", "s.has_fixed_vuln", "s.sensitive_score", "s.virus_score", "s.image_id",
 		"s.webshell_info_json", "s.vuln_info_json", "s.scan_enable_collection_json",
 		"s.malicious_info_json", "s.license_info_json", "s.software_json",
 		"s.sensitive_file_json",

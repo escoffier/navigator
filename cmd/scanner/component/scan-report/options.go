@@ -17,6 +17,12 @@ func WithDB(dao store.ScanReportInterface) Option {
 	}
 }
 
+func WithVulnDal(dao store.VulnDalInterface) Option {
+	return func(srv *ScanReportSrv) {
+		srv.vulnDal = dao
+	}
+}
+
 func WithInternal(interval time.Duration) Option {
 	return func(srv *ScanReportSrv) {
 		srv.interval = interval
