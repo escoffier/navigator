@@ -26,7 +26,15 @@ type VulnDao struct {
 
 var singeVulnDao *VulnDao
 
-func NewVulnDao() *VulnDao {
+func NewVulnDao(rdb *databases.RDBInstance) *VulnDao {
+	if singeVulnDao != nil {
+		return singeVulnDao
+	}
+	singeVulnDao = &VulnDao{rdb: rdb}
+	return singeVulnDao
+}
+
+func GetSingeVulnDao() *VulnDao {
 	if singeVulnDao != nil {
 		return singeVulnDao
 	}

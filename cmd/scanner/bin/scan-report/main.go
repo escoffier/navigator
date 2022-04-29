@@ -80,7 +80,7 @@ func main() {
 
 	server := scanreport.NewScanReportSrv(
 		scanreport.WithDB(store.NewScannerOrm(rdb)),
-		scanreport.WithVulnDal(store.NewVulnDao()),
+		scanreport.WithVulnDal(store.NewVulnDao(rdb)),
 		scanreport.WithInternal(internal),
 		scanreport.WithBatchSize(batchSize),
 		scanreport.WithEmailDialer(emailHost, int(emailPort), emailUser, emailPasswd),

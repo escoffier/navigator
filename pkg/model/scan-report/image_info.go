@@ -16,23 +16,40 @@ type ImageInfo struct {
 }
 
 func (t *ImageInfo) AfterFind(_ *gorm.DB) error {
-	if err := json.Unmarshal(t.WebshellInfoJSON, &t.WebshellInfo); err != nil {
-		logging.Get().Err(err).Int64("imageID", t.ImageID).Msg("ImageInfo.AfterFind")
+	if len(t.WebshellInfoJSON) > 0 {
+		if err := json.Unmarshal(t.WebshellInfoJSON, &t.WebshellInfo); err != nil {
+			logging.Get().Err(err).Int64("imageID", t.ImageID).Msg("ImageInfo.AfterFind")
+		}
 	}
-	if err := json.Unmarshal(t.MaliciousInfoJSON, &t.MaliciousInfo); err != nil {
-		logging.Get().Err(err).Int64("imageID", t.ImageID).Msg("ImageInfo.AfterFind")
+
+	if len(t.MaliciousInfoJSON) > 0 {
+		if err := json.Unmarshal(t.MaliciousInfoJSON, &t.MaliciousInfo); err != nil {
+			logging.Get().Err(err).Int64("imageID", t.ImageID).Msg("ImageInfo.AfterFind")
+		}
 	}
-	if err := json.Unmarshal(t.LicenseInfoJSON, &t.LicenseInfo); err != nil {
-		logging.Get().Err(err).Int64("imageID", t.ImageID).Msg("ImageInfo.AfterFind")
+
+	if len(t.LicenseInfoJSON) > 0 {
+		if err := json.Unmarshal(t.LicenseInfoJSON, &t.LicenseInfo); err != nil {
+			logging.Get().Err(err).Int64("imageID", t.ImageID).Msg("ImageInfo.AfterFind")
+		}
 	}
-	if err := json.Unmarshal(t.SoftwareJSON, &t.Software); err != nil {
-		logging.Get().Err(err).Int64("imageID", t.ImageID).Msg("ImageInfo.AfterFind")
+
+	if len(t.SoftwareJSON) > 0 {
+		if err := json.Unmarshal(t.SoftwareJSON, &t.Software); err != nil {
+			logging.Get().Err(err).Int64("imageID", t.ImageID).Msg("ImageInfo.AfterFind")
+		}
 	}
-	if err := json.Unmarshal([]byte(t.ScanEnableCollectionJson), &t.ScanEnableCollection); err != nil {
-		logging.Get().Err(err).Int64("imageID", t.ImageID).Msg("ImageInfo.AfterFind")
+
+	if len(t.ScanEnableCollectionJson) > 0 {
+		if err := json.Unmarshal([]byte(t.ScanEnableCollectionJson), &t.ScanEnableCollection); err != nil {
+			logging.Get().Err(err).Int64("imageID", t.ImageID).Msg("ImageInfo.AfterFind")
+		}
 	}
-	if err := json.Unmarshal(t.SensitiveFileJSON, &t.SensitiveFile); err != nil {
-		logging.Get().Err(err).Int64("imageID", t.ImageID).Msg("ImageInfo.AfterFind")
+
+	if len(t.SensitiveFileJSON) > 0 {
+		if err := json.Unmarshal(t.SensitiveFileJSON, &t.SensitiveFile); err != nil {
+			logging.Get().Err(err).Int64("imageID", t.ImageID).Msg("ImageInfo.AfterFind")
+		}
 	}
 
 	return nil
