@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+	"sort"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -23,6 +24,24 @@ type VulnMatedata struct {
 	CVSS   CVSSVulnerabilityInfo   `json:"cvss,omitempty" bson:"cvss,omitempty"`
 	CNNVDs cnnvd.VulnerabilityInfo `json:"cnnvds,omitempty" bson:"cnnvds,omitempty"`
 	CNVDs  []cnvd.Metadata         `json:"cnvds,omitempty" bson:"cnvds,omitempty"`
+}
+
+type CnvdMetadatas []cnvd.Metadata
+
+func (cm CnvdMetadatas) Len() int {
+	return len(cm)
+}
+
+func weights(cm cnvd.Metadata) int {
+	return len(cm.Severity)*10 + len(cm.RefLink)*100 + len(cm.Title)*1000 + len(cm.Number)*10000 + len(cm.Description)*100000
+}
+
+func (cm CnvdMetadatas) Less(i, j int) bool {
+	return weights(cm[i]) >= weights(cm[j])
+}
+
+func (cm CnvdMetadatas) Swap(i, j int) {
+	cm[i], cm[j] = cm[j], cm[i]
 }
 
 type PostModel struct {
@@ -64,6 +83,7 @@ func (Vuln) TableName() string {
 }
 func (vn *Vuln) Serialize() {
 	if vn.Metadata != nil {
+		sort.Sort(CnvdMetadatas(vn.Metadata.CNVDs))
 		bys, err := json.Marshal(vn.Metadata)
 		if err != nil {
 			logging.GetLogger().Err(err).Msg("Vuln.Serialize")
@@ -72,6 +92,7 @@ func (vn *Vuln) Serialize() {
 		}
 	}
 	if len(vn.Link) > 0 {
+		sort.Strings(vn.Link)
 		bys, err := json.Marshal(vn.Link)
 		if err != nil {
 			logging.GetLogger().Err(err).Msg("Vuln.Serialize")
