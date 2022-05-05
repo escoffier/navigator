@@ -97,6 +97,7 @@ if args.watson:
 	sql = "select pod_ip from ivan_assets_pod_res_relations where pod_name like " + watson_id
 	cursor.execute(sql)
 	data = cursor.fetchall()
+	print(data)
 	if args.watson == 'redis':
 		for ip in data:
 			print (ip[0])
@@ -133,7 +134,11 @@ if args.watson:
 		ftp = ftplib.FTP()
 		for ip in data:
 			print (ip[0])
-			ftp.connect(ip[0], 21, 3)
+			try:
+				ftp.connect(ip[0], 21, 5)
+			except Exception as es:
+				print(es)
+				continue
 			try:
 				ftp.login("ftpuser", "ftpuser1234")
 			except Exception as es:
