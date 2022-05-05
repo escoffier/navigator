@@ -111,7 +111,7 @@ require (
 	google.golang.org/protobuf v1.28.0
 	k8s.io/klog/v2 v2.60.1
 	layeh.com/radius v0.0.0-20210819152912-ad72663a72ab
-	scm.tensorsecurity.cn/tensorsecurity-rd/api v0.1.9
+	scm.tensorsecurity.cn/tensorsecurity-rd/api v0.2.0
 )
 
 require (

@@ -19,8 +19,8 @@ type BaitService struct {
 	RegistryId     int    `json:"registryId" gorm:"column:registry_id"`
 	WorkLoadStatus string `json:"workLoadStatus" gorm:"column:workload_status"`
 	HaveAlerts     bool   `json:"haveAlerts" gorm:"column:have_alerts"`
-	// RepositoryUser string `json:"repositoryUser" gorm:"repository_user"`
-	// RepositoryPwd  string `json:"repositoryPwd" gorm:"repository_pwd"`
+	Replica        int32  `json:"replica,omitempty" gorm:"column:replica"`
+	OutboundOff    bool   `json:"outboundOff,omitempty" gorm:"column:outbound_off"`
 }
 
 func (BaitService) TableName() string {

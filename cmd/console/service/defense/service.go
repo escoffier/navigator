@@ -13,11 +13,11 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/dal"
 	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
 	"gitlab.com/piccolo_su/vegeta/pkg/lang"
-	"gitlab.com/security-rd/go-pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 	"gitlab.com/security-rd/go-pkg/databases"
+	"gitlab.com/security-rd/go-pkg/logging"
 	"gitlab.com/security-rd/go-pkg/pb"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -192,12 +192,14 @@ func (s *TensorDefenseService) addBaitServiceToKube(ctx context.Context, bait *m
 			Name:      honeyspotName,
 		},
 		Spec: v1.HoneypotSpec{
-			ClusterKey: bait.ClusterKey,
-			WorkLoad:   resourceName,
-			Ports:      servicePorts,
-			Service:    bait.ResourceName,
-			Image:      bait.Image,
-			Secrets:    secrets,
+			ClusterKey:  bait.ClusterKey,
+			WorkLoad:    resourceName,
+			Ports:       servicePorts,
+			Service:     bait.ResourceName,
+			Image:       bait.Image,
+			Secrets:     secrets,
+			Replica:     bait.Replica,
+			OutboundOff: bait.OutboundOff,
 		},
 	}
 	logging.Get().Info().Msgf("image: %s", bait.Image)
@@ -335,11 +337,12 @@ func (s *TensorDefenseService) GetBaitImageByID(ctx context.Context, id uint32) 
 	return baitImages, nil
 }
 
-func (s *TensorDefenseService) GetAlertEvent(ctx context.Context, clusterKey, namespace, resource string, limit uint32) ([]*Signal, error) {
+func (s *TensorDefenseService) GetAlertEvent(ctx context.Context, clusterKey, namespace, resource string, limit uint32, startTime int64) ([]*Signal, error) {
 
 	if limit <= 0 {
 		limit = 200
 	}
+	logging.Get().Info().Msgf("start time: %d, end time: %d", startTime, time.Now().Unix())
 	req := &pb.GetSignalsReq{
 		OffsetSignalID: "",
 		SortOrder:      pb.SortOrder_Desc,
@@ -352,7 +355,8 @@ func (s *TensorDefenseService) GetAlertEvent(ctx context.Context, clusterKey, na
 			"ruleModule":   "ContainerSecurity",
 			"ruleCategory": "Watson",
 		},
-		Lang: string(lang.Language(ctx)),
+		TimeFilter: &pb.TimeFilter{StartTimestamp: startTime, EndTimestamp: time.Now().UnixMilli()},
+		Lang:       string(lang.Language(ctx)),
 	}
 	resp, err := s.EsCli.GetSignals(ctx, req)
 	if err != nil {
@@ -519,7 +523,7 @@ func (s *TensorDefenseService) CheckAlertEvents() {
 			for _, bait := range baitServices {
 				prefixName := fmt.Sprintf("%s-%s", bait.Prefix, bait.ResourceName)
 
-				events, err := s.GetAlertEvent(ctx, bait.ClusterKey, bait.Namespace, prefixName, 1)
+				events, err := s.GetAlertEvent(ctx, bait.ClusterKey, bait.Namespace, prefixName, 1, bait.CreatedAt.UnixMilli())
 				if err != nil {
 					logging.Get().Err(err).Msg("failed to get bait events")
 					continue

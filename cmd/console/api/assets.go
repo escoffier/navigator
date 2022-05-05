@@ -1186,12 +1186,10 @@ func (api *api) getNodes() http.HandlerFunc {
 		}
 		clusterKey, err := param.QueryString(r, "cluster_key")
 		if err != nil {
-			logging.GetLogger().Err(err).Msg("get cluster_key param error.")
 			clusterKey = ""
 		}
 		query, err := param.QueryString(r, "query")
 		if err != nil {
-			logging.GetLogger().Err(err).Msg("get cluster_key param error.")
 			query = ""
 		}
 		resSvc, ok := assets.GetResourcesService(ctx)
@@ -1385,7 +1383,6 @@ func (api *api) getFrameworks() http.HandlerFunc {
 		}
 		clusterKey, err := param.QueryString(r, "cluster_key")
 		if err != nil {
-			logging.GetLogger().Err(err).Msg("get cluster_key param error.")
 			clusterKey = ""
 		}
 		resSvc, ok := assets.GetResourcesService(ctx)
@@ -1443,8 +1440,9 @@ func (api *api) countImages() http.HandlerFunc {
 
 		clusterKey, err := param.QueryString(r, "cluster_key")
 		if err != nil {
-			logging.GetLogger().Err(err).Msg("get cluster_key param error.")
+			clusterKey = ""
 		}
+
 		if clusterKey != "" {
 			queryOpt.WithCluster(clusterKey)
 		}
@@ -1557,7 +1555,7 @@ func (api *api) getImageProblems() http.HandlerFunc {
 
 		clusterKey, err := param.QueryString(r, "cluster_key")
 		if err != nil {
-			logging.GetLogger().Err(err).Msg("get cluster_key param error.")
+			clusterKey = ""
 		}
 		if clusterKey != "" {
 			queryOpt.WithCluster(clusterKey)
@@ -1565,7 +1563,7 @@ func (api *api) getImageProblems() http.HandlerFunc {
 
 		namespace, err := param.QueryString(r, "namespace")
 		if err != nil {
-			logging.GetLogger().Err(err).Msg("get namespace param error.")
+			namespace = ""
 		}
 		if namespace != "" {
 			queryOpt.WithNamespace(namespace)

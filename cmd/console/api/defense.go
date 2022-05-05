@@ -49,6 +49,7 @@ func (api *api) getBaitService() http.HandlerFunc {
 		PrefixName   string            `json:"prefixName"`
 		Image        string            `json:"image"`
 		RegistryId   int               `json:"registryId"`
+		OutboundOff  bool              `json:"outboundOff"`
 		Events       []*defense.Signal `json:"events"`
 		Status       string            `json:"status"`
 		CreateAt     time.Time         `json:"crateAt"`
@@ -95,7 +96,7 @@ func (api *api) getBaitService() http.HandlerFunc {
 			return
 		}
 		prefixName := fmt.Sprintf("%s-%s", baitService.Prefix, baitService.ResourceName)
-		alertEvents, err := defenseSvc.GetAlertEvent(ctx, clusterKey, namespace, prefixName, 0)
+		alertEvents, err := defenseSvc.GetAlertEvent(ctx, clusterKey, namespace, prefixName, 0, baitService.CreatedAt.UnixMilli())
 		if err != nil {
 			return
 		}
@@ -110,6 +111,7 @@ func (api *api) getBaitService() http.HandlerFunc {
 			ResourceName: baitService.ResourceName,
 			PrefixName:   fmt.Sprintf("%s-%s", baitService.Prefix, baitService.ResourceName),
 			Image:        baitService.Image,
+			OutboundOff:  baitService.OutboundOff,
 			RegistryId:   baitService.RegistryId,
 			CreateAt:     baitService.CreatedAt,
 			Events:       alertEvents,
@@ -130,6 +132,7 @@ func (api *api) getBaitServices() http.HandlerFunc {
 		ResourceName string            `json:"resourceName"`
 		PrefixName   string            `json:"prefixName"`
 		Image        string            `json:"image"`
+		OutboundOff  bool              `json:"outboundOff"`
 		RegistryId   int               `json:"registryId"`
 		Events       []*defense.Signal `json:"events"`
 		CreateAt     time.Time         `json:"crateAt"`
@@ -234,7 +237,7 @@ func (api *api) getBaitServices() http.HandlerFunc {
 		var resp []*BaitService
 		for _, bait := range baitServices {
 			prefixName := fmt.Sprintf("%s-%s", bait.Prefix, bait.ResourceName)
-			alertEvents, err := defenseSvc.GetAlertEvent(ctx, bait.ClusterKey, bait.Namespace, prefixName, 0)
+			alertEvents, err := defenseSvc.GetAlertEvent(ctx, bait.ClusterKey, bait.Namespace, prefixName, 0, bait.CreatedAt.UnixMilli())
 			if err != nil {
 				logging.GetLogger().Warn().Msgf("get alert events for %s failed", prefixName)
 			}
@@ -250,6 +253,7 @@ func (api *api) getBaitServices() http.HandlerFunc {
 				ResourceName: bait.ResourceName,
 				PrefixName:   fmt.Sprintf("%s-%s", bait.Prefix, bait.ResourceName),
 				Image:        bait.Image,
+				OutboundOff:  bait.OutboundOff,
 				RegistryId:   bait.RegistryId,
 				CreateAt:     bait.CreatedAt,
 				Events:       alertEvents,
@@ -292,6 +296,10 @@ func (api *api) addBaitService() http.HandlerFunc {
 		}
 
 		baitService.ID = util.GenerateUUID(baitService.ClusterKey, baitService.Namespace, baitService.Name)
+		//TODO: maybe deleted later
+		if baitService.Replica == 0 {
+			baitService.Replica = 1
+		}
 		err = defenseService.AddBaitService(ctx, &baitService)
 
 		if err != nil {
