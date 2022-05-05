@@ -7,7 +7,9 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/docker/distribution/manifest/schema1"
 	"github.com/docker/distribution/manifest/schema2"
+	"github.com/pkg/errors"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/jobs"
 	image_cache "gitlab.com/piccolo_su/vegeta/cmd/scanner/service/register/image-cache"
@@ -55,10 +57,14 @@ func (p *Job) Run(ctx context.Context, param jobs.Param) (jobs.Artifact, error) 
 	}
 
 	manifestTmp, err := client.GetManifest(p.config.Username, p.config.Password, p.config.URL, p.config.RepoName, p.config.Tag, true)
-	manifesttt := schema2.DeserializedManifest{}
-	tterr := manifesttt.UnmarshalJSON([]byte(manifestTmp))
-
-	if err != nil || tterr != nil {
+	manifesv2 := schema2.DeserializedManifest{}
+	manifesv1 := schema1.SignedManifest{}
+	errV2 := manifesv2.UnmarshalJSON([]byte(manifestTmp))
+	errV1 := manifesv1.UnmarshalJSON([]byte(manifestTmp))
+	if errV2 != nil && errV1 != nil {
+		return nil, fmt.Errorf("get manifest v1 and v2 error :%v", err)
+	}
+	if err != nil || errV2 != nil {
 		// 说明是用的v1版本的manifest
 		logging.GetLogger().Err(err).Msg("docker client GetManifest")
 		logging.GetLogger().Info().Msg("try docker pull to GetManifest")
@@ -68,7 +74,7 @@ func (p *Job) Run(ctx context.Context, param jobs.Param) (jobs.Artifact, error) 
 		inspectInfo, err := getInspectInfo(p.config.URL, p.config.Username, p.config.Password, imageName)
 		if err != nil {
 			logging.GetLogger().Err(err).Msg("docker client not get manifest,and docker pull not get manifest")
-			return nil, err
+			return nil, errors.WithMessage(err, "docker client not get manifest,and docker pull not get manifest")
 		}
 		bts, err := json.Marshal(inspectInfo.Config)
 		if err != nil {
@@ -123,19 +129,23 @@ func (p *Job) Run(ctx context.Context, param jobs.Param) (jobs.Artifact, error) 
 			}
 		}
 
+		var layerPulled []string
 		fixedPath := filepath.Join(image_cache.FileServerCache, image_cache.FileServerRootDir, image_cache.DataDir)
 		for layer := range layers {
 			layersFilePath = append(layersFilePath, filepath.Join(fixedPath, layers[layer]))
 			_, _, err := client1.GetLayer(p.config.Username, p.config.Password, p.config.URL, p.config.RepoName, layers[layer], true)
+			layerPulled = append(layerPulled, layers[layer])
 			if err != nil {
-				logging.GetLogger().Error().Err(err).Msg("get layer failed")
-				return nil, err
+				r["pullFailed"] = true
+				r["layerPulled"] = layerPulled
+				logging.GetLogger().Err(err).Msg("get layer failed")
+				return r, fmt.Errorf("get layer failed %v", err)
 			}
 		}
 
 		configJSON, err := os.ReadFile(filepath.Join(layersFilePath[0], "layer.tar"))
 		if err != nil {
-			logging.GetLogger().Error().Err(err).Msgf("Get config json err in pull image")
+			logging.GetLogger().Err(err).Msgf("Get config json err in pull image")
 			return nil, err
 		}
 		r["layers"] = layers
@@ -163,7 +173,7 @@ func (p *Job) Run(ctx context.Context, param jobs.Param) (jobs.Artifact, error) 
 func init() {
 	err := jobs.Register(JobName, newJob)
 	if err != nil {
-		logging.GetLogger().Error().Err(err).Str("jobName", JobName).Msg("int job err")
+		logging.GetLogger().Err(err).Str("jobName", JobName).Msg("int job err")
 	}
 }
 

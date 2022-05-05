@@ -608,16 +608,19 @@ func (s *ScanResultHandle) updateRiskVirusCacheEntry(ctx context.Context, param 
 
 func (s *ScanResultHandle) Run(ctx context.Context, param jobs.Param) (jobs.Artifact, error) {
 	// get scan result from param
+	r := make(map[string]interface{})
 	scanResult, ok := param["scanResult"].(map[task.ScanType]interface{})
 	if !ok {
 		logging.GetLogger().Error().Msg("miss 'scanResult' in parameter")
-		return nil, errors.New("miss 'scanResult' in parameter")
+		r["pullFailed"] = true
+		return r, errors.New("miss 'scanResult' in parameter")
 	}
 
 	layers, ok := param["layers"].([]string)
 	if !ok {
 		logging.GetLogger().Error().Msg("miss 'layersFilePath' in parameter")
-		return nil, errors.New("miss 'layersFilePath' in parameter")
+		r["pullFailed"] = true
+		return r, errors.New("miss 'layersFilePath' in parameter")
 	}
 
 	// 结果集合
