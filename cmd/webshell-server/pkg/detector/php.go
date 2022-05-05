@@ -1,6 +1,7 @@
 package detector
 
 import (
+	"context"
 	"io"
 	"io/ioutil"
 	"sync"
@@ -19,7 +20,7 @@ var (
 
 type phpDetector struct {
 	*phpdetector.Detector
-	mu sync.Mutex //
+	mu sync.Mutex
 }
 
 // NewPHPDetector is the singleton constructor of phpDetector.
@@ -34,7 +35,6 @@ func NewPHPDetector() Detector {
 		if err != nil {
 			logging.GetLogger().Fatal().Err(err).Msg("get php phpDetector failed")
 		}
-
 		defaultPHPDetector = &phpDetector{Detector: d}
 	})
 
@@ -42,21 +42,26 @@ func NewPHPDetector() Detector {
 }
 
 // DetectFromReader detects the content from a reader.
-func (d *phpDetector) DetectFromReader(reader io.Reader) (int, error) {
+func (d *phpDetector) DetectFromReader(ctx context.Context, reader io.Reader) (int, error) {
 	b, err := ioutil.ReadAll(reader)
 	if err != nil {
 		return 0, errors.Wrap(err, "read data failed from a reader")
 	}
 
-	return d.Detect(b)
+	return d.Detect(ctx, b)
 }
 
 // Detect detects the content.
-func (d *phpDetector) Detect(b []byte) (int, error) {
+func (d *phpDetector) Detect(ctx context.Context, b []byte) (int, error) {
 	logging.GetLogger().Debug().Msg("php detection start")
-
 	d.mu.Lock()
 	defer d.mu.Unlock()
+
+	select {
+	case <-ctx.Done():
+		return 0, errors.New("webshell detection request cancel")
+	default:
+	}
 
 	score, err := d.Predict(b)
 	if err != nil {

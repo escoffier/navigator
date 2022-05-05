@@ -52,13 +52,14 @@ func (s *Server) File(ctx *gin.Context) {
 		return
 	}
 
-	score, err := s.simpleScanDetector.Detect(body)
+	score, err := s.simpleScanDetector.Detect(ctx.Request.Context(), body)
 	if err == nil && score < 9 {
 		var phpScore int
 
 		if !closeCloudWalker {
-			phpScore, err = s.phpDetector.Detect(body)
+			phpScore, err = s.phpDetector.Detect(ctx.Request.Context(), body)
 			if err != nil {
+				logging.GetLogger().Info().Msgf("webshell detection failed, err: %v", err)
 				_ = ctx.AbortWithError(http.StatusInternalServerError, err)
 				return
 			}
