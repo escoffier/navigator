@@ -16,6 +16,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/task"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/global"
+	image_cache "gitlab.com/piccolo_su/vegeta/cmd/scanner/service/register/image-cache"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 )
 
@@ -107,7 +108,7 @@ func (s *SequenceEngine) Run(ctx context.Context) error {
 	// new dequeuer
 	dequeue, err := dequeue.Open(dequeue.Config{Type: s.config.DeqType})
 	if err != nil {
-		logging.GetLogger().Error().Err(err).Msg("new dequeue err")
+		logging.GetLogger().Err(err).Msg("new dequeue err")
 		return err
 	}
 
@@ -214,7 +215,7 @@ func (s *SequenceEngine) handleFlow(ctx context.Context, flowConf []string, st *
 		}
 		job, err := jobs.Open(config)
 		if err != nil {
-			logging.GetLogger().Error().Err(err).Msg("create job")
+			logging.GetLogger().Err(err).Msg("create job")
 			success = false
 			errNo = consts.ErrScanConfig
 			errMsg = fmt.Sprintf("create job,err:%s", err.Error())
@@ -222,7 +223,11 @@ func (s *SequenceEngine) handleFlow(ctx context.Context, flowConf []string, st *
 		}
 		curArtifact, err := job.Run(ctx, jobs.Param(artifacts))
 		if err != nil {
-			logging.GetLogger().Error().Err(err).Msg("job run failed")
+			logging.GetLogger().Err(err).Msg("job run failed")
+			perr := pullImageFailed(curArtifact, artifacts)
+			if perr != nil {
+				logging.GetLogger().Err(perr).Msg("pullImageFailed error:") //只记录，不break，依照原流程下面会记录别的信息同时break
+			}
 			success = false
 			errNo = getScanErr(j)
 			errMsg = fmt.Sprintf("job run failed,flowconf:%s,error is :%s", j, err.Error())
@@ -251,6 +256,44 @@ func (s *SequenceEngine) handleFlow(ctx context.Context, flowConf []string, st *
 		success = false
 		errMsg = fmt.Sprintf("scan success,but update db err:%v", err)
 		return err
+	}
+	return nil
+}
+
+func pullImageFailed(curArtifact jobs.Artifact, artifacts jobs.Artifact) error {
+	// 先跳过docker client直接拉取的情况
+	dockerFlag, ok := curArtifact["docker"].(int)
+	if ok && dockerFlag == 1 {
+		return nil
+	}
+	dockerFlag, ok = artifacts["docker"].(int)
+	if ok && dockerFlag == 1 {
+		return nil
+	}
+
+	pullFailed, ok := curArtifact["pullFailed"].(bool)
+	if ok {
+		if pullFailed {
+			layerPulled, ok := curArtifact["layerPulled"].([]string)
+			if !ok {
+				layerPulled, ok = artifacts["layerPulled"].([]string) // 对于pull-image后的阶段来说，要检查的是artifacts
+				if !ok {
+					logging.GetLogger().Error().Msg("pull image failed but not get layer")
+					return fmt.Errorf("pull image failed but not get layer")
+				}
+			}
+			client1, err := image_cache.NewLocalLayerManageClientT("/layer")
+			if err != nil {
+				logging.GetLogger().Err(err).Msg("get local image client failed")
+				return fmt.Errorf("get local image client failed")
+			}
+			for k := range layerPulled {
+				err := client1.DeleteLayer(layerPulled[k])
+				if err != nil {
+					logging.GetLogger().Err(err).Msg("delete layer failed in Jobs delete :")
+				}
+			}
+		}
 	}
 	return nil
 }
