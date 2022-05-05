@@ -4,6 +4,7 @@ import (
 	"context"
 	"runtime"
 
+	"github.com/go-redis/redis/v8"
 	"github.com/pkg/errors"
 	"github.com/robfig/cron/v3"
 	"gitlab.com/security-rd/go-pkg/databases"
@@ -21,18 +22,19 @@ const (
 )
 
 type Service struct {
-	rdb        *databases.RDBInstance
-	cronServer *cron.Cron
-	scap       *scapper.Scapper
+	rdb         *databases.RDBInstance
+	cronServer  *cron.Cron
+	scap        *scapper.Scapper
+	redisClient *redis.Client
 }
 
-func NewService(rdb *databases.RDBInstance) *Service {
+func NewService(rdb *databases.RDBInstance, redisClient *redis.Client) *Service {
 	cronServer := cron.New(cron.WithParser(cron.NewParser(
 		cron.Second | cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow,
 	)))
 
 	scap, _ := scapper.GetScapper(context.Background())
-	s := &Service{rdb: rdb, cronServer: cronServer, scap: scap}
+	s := &Service{rdb: rdb, cronServer: cronServer, scap: scap, redisClient: redisClient}
 	s.initCron()
 	cronServer.Start()
 	return s
@@ -47,10 +49,11 @@ func (s *Service) initCron() {
 
 	for _, v := range cronJob {
 		err := s.AddCronJob(context.Background(), v.Cron, &CronJobEntry{
-			cronJobId: v.ID,
-			version:   v.Version,
-			server:    s,
-			cron:      v.Cron,
+			cronJobId:   v.ID,
+			version:     v.Version,
+			server:      s,
+			cron:        v.Cron,
+			redisClient: s.redisClient,
 		})
 		if err != nil {
 			logging.Get().Err(err).Msgf("init scap cronjob error, id: %d, cron: %s", v.ID, v.Cron)
