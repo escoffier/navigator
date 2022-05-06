@@ -32,7 +32,8 @@ const (
 	userTokenPrefix          = "session@token@"
 	defaultOneTimeout        = time.Millisecond * 500
 	loginSecretExpireTime    = time.Minute
-	defaultTokenTTL          = time.Minute * 10 // 默认的token ttl
+
+	DefaultTokenTTL = time.Minute * 30 // 默认的token ttl
 )
 
 type Conf struct {
@@ -87,13 +88,13 @@ type Service struct {
 func (s *Service) SaveToken(ctx context.Context, username, tokenStr string) error {
 	oneCtx, oneCancel := context.WithTimeout(ctx, defaultOneTimeout)
 	defer oneCancel()
-	return s.redisCli.Set(oneCtx, userTokenPrefix+username, tokenStr, defaultTokenTTL).Err()
+	return s.redisCli.Set(oneCtx, userTokenPrefix+username, tokenStr, DefaultTokenTTL).Err()
 }
 
 func (s *Service) RenewalToken(ctx context.Context, username string) error {
 	oneCtx, oneCancel := context.WithTimeout(ctx, defaultOneTimeout)
 	defer oneCancel()
-	return s.redisCli.Expire(oneCtx, userTokenPrefix+username, defaultTokenTTL).Err()
+	return s.redisCli.Expire(oneCtx, userTokenPrefix+username, DefaultTokenTTL).Err()
 }
 
 func (s *Service) DeleteToken(ctx context.Context, username string) error {
