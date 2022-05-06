@@ -455,7 +455,7 @@ func (api *api) issueJWTToken(ctx context.Context, username, role, userAgent str
 	}
 
 	// save to mysql
-	err = dal.UpdateUserToken(ctx, api.rdb.Get(), username, tokenString, time.Now().Add(time.Minute*10).Unix())
+	err = dal.UpdateUserToken(ctx, api.rdb.Get(), username, tokenString, time.Now().Add(session.DefaultTokenTTL).Unix())
 	if err != nil {
 		return "", fmt.Errorf("save user token fail:%w", err)
 	}
@@ -536,7 +536,7 @@ func authenticator(db *databases.RDBInstance) func(http.Handler) http.Handler {
 					logging.Get().Warn().Err(err).Msgf("redis renewal the token failed")
 				}
 
-				err = dal.UpdateUserTokenExpireAt(ctx, db.Get(), username, time.Now().Add(time.Minute*10).Unix())
+				err = dal.UpdateUserTokenExpireAt(ctx, db.Get(), username, time.Now().Add(session.DefaultTokenTTL).Unix())
 				if err != nil {
 					logging.Get().Warn().Err(err).Msgf("mysql renewal the token failed")
 				}
