@@ -257,7 +257,7 @@
   condition: >
    evt.type=recvfrom and evt.arg.data contains "select" and fd.sport = 3306 and k8s.pod.name contains "588ee1"
   output: >
-    Connection with mysql successfully established detected (zh_msg=Watson：通过主动防御检测到与mysql成功建立连接,rule_type=Privilege_Escalation,fd.name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name)
+    Connection with mysql successfully established detected (zh_msg=通过主动防御检测到与mysql成功建立连接,rule_type=Privilege_Escalation,fd.name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name)
   priority: ALERT
   tags: [Watson]
 
@@ -277,7 +277,7 @@
   condition: >
    (inbound_outbound) and fd.sport = 22 and k8s.pod.name contains "98166d"
   output: >
-    Other containers establish new connections to the ssh (zh_msg=Watson：通过主动防御检测到与ssh通信,rule_type=Privilege_Escalation,fd.name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name)
+    Other containers establish new connections to the ssh (zh_msg=通过主动防御检测到与ssh通信,rule_type=Privilege_Escalation,fd.name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name)
   priority: ALERT
   tags: [Watson]
 
@@ -297,7 +297,7 @@
   condition: >
    evt.type=write and evt.arg.data contains "Welcome" and k8s.pod.name contains "98166d"
   output: >
-    Connection with mysql successfully established detected (zh_msg=Watson：通过主动防御检测到使用ssh建立连接,rule_type=Privilege_Escalation,fd.name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,evt.args=%evt.args,fd.sport=%fd.sport)
+    Connection with mysql successfully established detected (zh_msg=通过主动防御检测到使用ssh建立连接,rule_type=Privilege_Escalation,fd.name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,evt.args=%evt.args,fd.sport=%fd.sport)
   priority: ALERT
   tags: [Watson]
 
@@ -317,7 +317,7 @@
   condition: >
    (inbound_outbound) and fd.sport = 21 and k8s.pod.name contains "42cca6"
   output: >
-    Other containers establish new connections to the vsftpd (zh_msg=Watson：通过主动防御检测到与ftp通信,rule_type=Privilege_Escalation,fd.name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name)
+    Other containers establish new connections to the vsftpd (zh_msg=通过主动防御检测到与ftp通信,rule_type=Privilege_Escalation,fd.name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name)
   priority: ALERT
   tags: [Watson]
 
@@ -337,7 +337,7 @@
   condition: >
    evt.type=write and evt.arg.data contains "OK LOGIN" and k8s.pod.name contains "42cca6"
   output: >
-    Connection establishment using ftp is detected (zh_msg=Watson：通过主动防御检测到使用ftp建立连接,rule_type=Privilege_Escalation,fd.name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,evt.args=%evt.args,fd.sport=%fd.sport)
+    Connection establishment using ftp is detected (zh_msg=通过主动防御检测到使用ftp建立连接,rule_type=Privilege_Escalation,fd.name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,evt.args=%evt.args,fd.sport=%fd.sport)
   priority: ALERT
   tags: [Watson]
 
