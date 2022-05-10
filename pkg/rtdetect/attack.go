@@ -15,6 +15,8 @@ const (
 	emptyVal      = "<NA>"
 	KeyClusterKey = "_cluster_key"
 	KeyUuid       = "_uuid"
+	KeyOwnerResName = "_owner_resource_name"
+	KeyOwnerResKind = "_owner_resource_kind"
 
 	FieldProcessPid        = "proc.pid"
 	FieldProcessName       = "proc.name"

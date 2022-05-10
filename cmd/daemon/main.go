@@ -35,13 +35,8 @@ func initEventStreams(udsAddr, nodeName string, cm *k8s.ClusterInfoManager, mqWr
 	bui := rtdetect.StreamBuilder(udsAddr, nodeName, cm)
 
 	// add handlers here
-	ecHandler, err := rtdetect.NewEcHandler(dockerInfo, podResInfo)
-	if err != nil {
-		return nil, err
-	}
-	aeHandler := rtdetect.NewAssociatedEventsHandler(mqWriter, dockerInfo)
-	bui.WithHandler(rtdetect.NewAsyncHandler(ecHandler, defaultRTBuffInterval, defaultRTBuffSize))
-	bui.WithHandler(rtdetect.NewSyncHandler(aeHandler))
+	ecHandler := rtdetect.NewEventsOutputHandler(mqWriter, dockerInfo, podResInfo)
+	bui.WithHandler(rtdetect.NewSyncHandler(ecHandler))
 
 	s, err := bui.Build(context.Background())
 	return s, err

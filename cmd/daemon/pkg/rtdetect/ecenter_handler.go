@@ -2,16 +2,16 @@ package rtdetect
 
 import (
 	"context"
-	"errors"
-	"time"
+	"math/rand"
+	"strconv"
 
+	"github.com/falcosecurity/client-go/pkg/api/outputs"
+	"github.com/segmentio/kafka-go"
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/nodeinfo"
-	"gitlab.com/piccolo_su/vegeta/pkg/echelper"
-	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/rtdetect"
-	"gitlab.com/piccolo_su/vegeta/pkg/uuid"
 	"gitlab.com/security-rd/go-pkg/logging"
-	pb "gitlab.com/security-rd/go-pkg/pb"
+	"gitlab.com/security-rd/go-pkg/mq"
+	"google.golang.org/protobuf/proto"
 )
 
 var (
@@ -23,87 +23,78 @@ var (
 	}
 )
 
-type EcHandler struct {
-	ecCli      pb.EventsCenterCollectionServiceClient
-	uuidGen    *uuid.Generator
+const (
+	subjectOfPodContainerEvents = "ivan_podcontainer_events"
+)
+
+type EventsOutputHandler struct {
+	mqWriter   mq.Writer
 	dockerInfo *nodeinfo.DockerInfoManager
 	podResInfo *nodeinfo.PodResInfo
 }
 
-func NewEcHandler(dockerInfo *nodeinfo.DockerInfoManager, podResInfo *nodeinfo.PodResInfo) (*EcHandler, error) {
-	if dockerInfo == nil {
-		return nil, errors.New("argument is nil")
-	}
-	ech, err := echelper.NewGRPCClientFromEnv()
-	if err != nil {
-		return nil, err
-	}
-
-	uuidGen, err := uuid.NewGenerator()
-	if err != nil {
-		return nil, err
-	}
-	return &EcHandler{
-		ecCli:      ech,
-		uuidGen:    uuidGen,
+func NewEventsOutputHandler(mqWriter mq.Writer, dockerInfo *nodeinfo.DockerInfoManager, podResInfo *nodeinfo.PodResInfo) *EventsOutputHandler {
+	return &EventsOutputHandler{
+		mqWriter:   mqWriter,
 		dockerInfo: dockerInfo,
 		podResInfo: podResInfo,
-	}, nil
-}
-
-func isLegalTag(tag string) bool {
-	switch tag {
-	case "Watson", "ATT&CK":
-		return true
-	default:
-		return false
 	}
 }
 
-func (ec *EcHandler) Handle(ctx context.Context, events []eventItem) error {
-	for _, item := range events {
-		if isEventItemWhitelisted(item.data, ec.dockerInfo) {
-			logging.Get().Info().Msgf("Filter out container creation post events. data: %v.", item.data)
+func (ec *EventsOutputHandler) getOwnerInfo(data *outputs.Response) (*nodeinfo.Resource, string, bool) {
+	podName, exist := data.OutputFields[rtdetect.FieldK8sPodName]
+	if !exist {
+		return nil, "", false
+	}
+	namespace, exist := data.OutputFields[rtdetect.FieldK8sNsName]
+	if !exist {
+		return nil, "", false
+	}
+
+	res, exist := ec.podResInfo.GetPod(namespace, podName)
+	if exist && res != nil {
+		return res, namespace, true
+	}
+	return nil, "", false
+}
+func (ec *EventsOutputHandler) Handle(ctx context.Context, events []eventItem) error {
+	for _, e := range events {
+		if isEventItemWhitelisted(e.data, ec.dockerInfo) {
+			logging.Get().Info().Msgf("Filter out container creation post events. data: %v.", e.data)
 			continue
 		}
 
-		ruleCategory := "ATT&CK"
-		if len(item.data.Tags) > 0 {
-			for _, tag := range item.data.Tags {
-				if isLegalTag(tag) {
-					ruleCategory = tag
-					break
-				}
-			}
+		e.data.OutputFields[rtdetect.KeyUuid] = strconv.FormatInt(e.uuid, 10)
+		e.data.OutputFields[rtdetect.KeyClusterKey] = e.clusterKey
+		ownerRes, _, exist := ec.getOwnerInfo(e.data)
+		if exist {
+			e.data.OutputFields[rtdetect.KeyOwnerResName] = ownerRes.Name
+			e.data.OutputFields[rtdetect.KeyOwnerResKind] = ownerRes.Kind
+		}
+		ebytes, err := proto.Marshal(e.data)
+		if err != nil {
+			logging.Get().WithContext(ctx).Errorf(err, "failed to marshal data: %v", e)
+			continue
 		}
 
-		eventReq := rtdetect.GenerateAttackEvent(model.AlertModuleContainerSecurity, ruleCategory, ec.uuidGen, item.data, item.clusterKey, uint64(item.uuid), func(namespace, podName string) (kind, name string, ok bool) {
-			if podName == "" && namespace == "" {
-				return "Node", item.data.Hostname, true
-			} else {
-				res, exist := ec.podResInfo.GetPod(namespace, podName)
-				if exist {
-					return res.Kind, res.Name, true
-				}
-				return "", "", false
-			}
+		keyBytes, ok := getKeyOfPodContainerEvent(e.clusterKey, e.data)
+		if !ok { // if the key is empty, generate random key to prevent consumer load unbalance
+			keyBytes = []byte(strconv.FormatInt(rand.Int63n(10000000000), 10))
+		}
 
+		err = ec.mqWriter.Write(ctx, subjectOfPodContainerEvents, kafka.Message{
+			Topic: subjectOfPodContainerEvents,
+			Key:   keyBytes,
+			Value: ebytes,
 		})
-
-		func() {
-			oneCtx, cancel := context.WithTimeout(ctx, 500*time.Millisecond)
-			defer cancel()
-			_, err := ec.ecCli.SendNotification(oneCtx, eventReq)
-			if err != nil {
-				logging.Get().WithContext(oneCtx).Errorf(err, "send events center error. data: %+v", eventReq)
-			}
-		}()
-
+		if err != nil {
+			logging.Get().WithContext(ctx).Errorf(err, "publish pod container events error. data: %s", string(ebytes))
+		}
 	}
+
 	return nil
 }
-
-func (ec *EcHandler) CheckTarget(ctx context.Context, event eventItem) bool {
+func (ec *EventsOutputHandler) CheckTarget(ctx context.Context, event eventItem) bool {
 	_, exist := filteredOutRulesSet[event.data.Rule]
 	return !exist
 }
