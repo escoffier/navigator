@@ -46,7 +46,7 @@ func (ih *ImmuneHandler) Handle(ctx context.Context, events []eventItem) error {
 			}
 
 			err = ih.mqWriter.Write(ctx, subject, kafka.Message{
-				Topic: subjectOfAssocationEvents,
+				Topic: subjectOfPodContainerEvents,
 				Key:   keyBytes,
 				Value: ebytes,
 			})

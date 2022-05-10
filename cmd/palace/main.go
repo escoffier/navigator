@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"os/signal"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -13,6 +14,7 @@ import (
 	"github.com/segmentio/kafka-go"
 	"gitlab.com/piccolo_su/vegeta/cmd/palace/pkg/apiinfo"
 	"gitlab.com/piccolo_su/vegeta/cmd/palace/pkg/association"
+	"gitlab.com/piccolo_su/vegeta/cmd/palace/pkg/ecenter"
 	"gitlab.com/piccolo_su/vegeta/pkg/echelper"
 	"gitlab.com/piccolo_su/vegeta/pkg/redistools"
 	"gitlab.com/security-rd/go-pkg/databases"
@@ -23,14 +25,16 @@ import (
 )
 
 const (
-	associatedSubject = "ivan_podcontainer_events"
-	groupID           = "ivan_holmes_palace"
+	associatedSubject     = "ivan_podcontainer_events"
+	groupID               = "ivan_holmes_palace"
+	EnvECenterConcurrency = "ECENTER_CONCURRENCY"
 )
 
 var (
 	rdb                   *databases.RDBInstance
 	redisCli              *redis.Client
 	associationDispatcher *association.EventDispatcher
+	ecenterHandler        *ecenter.EcHandler
 )
 
 func initAssociationDispatchers(rdb *databases.RDBInstance) error {
@@ -83,7 +87,7 @@ func initDB() error {
 	return nil
 }
 
-func handleAssocatedEvents(ctx context.Context, m kafka.Message) error {
+func handlePodContainerEvents(ctx context.Context, m kafka.Message) error {
 	var data outputs.Response
 	err := proto.Unmarshal(m.Value, &data)
 	if err != nil {
@@ -95,6 +99,12 @@ func handleAssocatedEvents(ctx context.Context, m kafka.Message) error {
 	err = associationDispatcher.ProcessEvent(context.Background(), originEvent)
 	if err != nil {
 		logging.Get().Err(err).Msgf("process event error. originEvent: %+v", originEvent)
+		return err
+	}
+
+	err = ecenterHandler.Input(context.Background(), &data)
+	if err != nil {
+		logging.Get().Err(err).Msgf("process event in echandler error. originEvent: %+v", originEvent)
 		return err
 	}
 	return nil
@@ -117,6 +127,27 @@ func main() {
 		panic(err)
 	}
 
+	ecli, err := echelper.NewGRPCClientFromEnv()
+	if err != nil {
+		logging.Get().Err(err).Msg("init ecenter err")
+		panic(err)
+	}
+
+	concurency := int64(2)
+	cstr := os.Getenv(EnvECenterConcurrency)
+	if len(cstr) > 0 {
+		c, err := strconv.ParseInt(cstr, 10, 64)
+		if err == nil && c > 0 {
+			concurency = c
+		}
+	}
+
+	ecenterHandler, err = ecenter.NewEcHandler(100, int(concurency), ecli)
+	if err != nil {
+		logging.Get().Err(err).Msg("init ecenter handler err")
+		panic(err)
+	}
+
 	mqFactory := mq.GetClientFactory()
 	mqReader, err := mqFactory.Reader(context.Background())
 	if err != nil {
@@ -128,7 +159,7 @@ func main() {
 		panic(err)
 	}
 
-	err = mqReader.Subscribe(associatedSubject, groupID, handleAssocatedEvents)
+	err = mqReader.Subscribe(associatedSubject, groupID, handlePodContainerEvents)
 
 	if err != nil {
 		logging.Get().Err(err).Msg("subscribe association error.")
