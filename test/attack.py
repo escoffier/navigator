@@ -140,10 +140,6 @@ if args.watson:
 				print(es)
 				continue
 			try:
-				ftp.login("ftpuser", "ftpuser1234")
-			except Exception as es:
-				print(es)		
-			try:
 				ftp.login("ftpuser", "ftpuser123")
 			except Exception as es:
 				print(es)
@@ -153,19 +149,22 @@ if args.watson:
 			ssh = paramiko.SSHClient()
 			ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
 			try:
-				ssh.connect(ip[0], 22, 'root', 'test12345', timeout=5)
+				ssh.connect(ip[0], 22, 'root', 'test123456', timeout=5)
 			except Exception as es:
 				print(es)
-				ssh.connect(ip[0], 22, 'root', 'test123456', timeout=5)
-				stdin,stdout,stderr = ssh.exec_command("pwd")
-				res = stdout.read()
-				print(res)
-			finally:
-				ssh.close()
+				continue
+			stdin,stdout,stderr = ssh.exec_command("pwd")
+			res = stdout.read()
+			print(res)
+			ssh.close()
 	if args.watson == 'mysql':
 		for ip in data:
 			print (ip[0])
-			db_temp = pymysql.connect(host=ip[0], port=3306, user="root", password="123456")
+			try:
+				db_temp = pymysql.connect(host=ip[0], port=3306, user="root", password="123456")
+			except Exception as es:
+				print(es)
+				continue
 			cursor_temp = db_temp.cursor()
 			cursor_temp.execute("select version()")
 			data_temp = cursor_temp.fetchone()
