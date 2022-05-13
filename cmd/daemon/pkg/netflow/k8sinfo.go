@@ -2,7 +2,6 @@ package netflow
 
 import (
 	"context"
-	"strings"
 	"sync"
 
 	"github.com/pkg/errors"
@@ -17,15 +16,16 @@ const (
 )
 
 type NodePodsInfo struct {
-	resInfos   *sync.Map // map[string]*daemon.K8sResData
-	dockerInfo *nodeinfo.DockerInfoManager
+	resInfos      *sync.Map // map[string]*daemon.K8sResData
+	containerInfo nodeinfo.ContainerInfoManager
 }
 
-func NewNodePodInfo(dockerInfo *nodeinfo.DockerInfoManager) *NodePodsInfo {
+func NewNodePodInfo(containerInfo nodeinfo.ContainerInfoManager) *NodePodsInfo {
 	info := &NodePodsInfo{
-		resInfos:   new(sync.Map),
-		dockerInfo: dockerInfo,
+		resInfos:      new(sync.Map),
+		containerInfo: containerInfo,
 	}
+
 	return info
 }
 
@@ -40,12 +40,12 @@ func (n *NodePodsInfo) getContainerData(pod *corev1.Pod) map[string]*daemon.Cont
 			}
 		}
 
-		id := strings.TrimPrefix(container.ContainerID, "docker://")
-		cPid, err := n.dockerInfo.GetContainerPid(id)
+		cPid, id, err := n.containerInfo.GetContainerPid(container.ContainerID)
 		if len(container.Name) == 0 || err != nil {
 			logging.Get().Warn().Msgf("get container info failed, namespace : %v, pod name : %v. err: %v", pod.GetNamespace(), pod.GetName(), err)
 			continue
 		}
+
 		//save container information
 		containerData[id] = &daemon.ContainerData{
 			ContainerName: container.Name,

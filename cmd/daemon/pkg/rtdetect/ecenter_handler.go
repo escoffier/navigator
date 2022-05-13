@@ -28,16 +28,16 @@ const (
 )
 
 type EventsOutputHandler struct {
-	mqWriter   mq.Writer
-	dockerInfo *nodeinfo.DockerInfoManager
-	podResInfo *nodeinfo.PodResInfo
+	mqWriter      mq.Writer
+	containerInfo nodeinfo.ContainerInfoManager
+	podResInfo    *nodeinfo.PodResInfo
 }
 
-func NewEventsOutputHandler(mqWriter mq.Writer, dockerInfo *nodeinfo.DockerInfoManager, podResInfo *nodeinfo.PodResInfo) *EventsOutputHandler {
+func NewEventsOutputHandler(mqWriter mq.Writer, containerInfo nodeinfo.ContainerInfoManager, podResInfo *nodeinfo.PodResInfo) *EventsOutputHandler {
 	return &EventsOutputHandler{
-		mqWriter:   mqWriter,
-		dockerInfo: dockerInfo,
-		podResInfo: podResInfo,
+		mqWriter:      mqWriter,
+		containerInfo: containerInfo,
+		podResInfo:    podResInfo,
 	}
 }
 
@@ -59,7 +59,7 @@ func (ec *EventsOutputHandler) getOwnerInfo(data *outputs.Response) (*nodeinfo.R
 }
 func (ec *EventsOutputHandler) Handle(ctx context.Context, events []eventItem) error {
 	for _, e := range events {
-		if isEventItemWhitelisted(e.data, ec.dockerInfo) {
+		if isEventItemWhitelisted(e.data, ec.containerInfo) {
 			logging.Get().Info().Msgf("Filter out container creation post events. data: %v.", e.data)
 			continue
 		}

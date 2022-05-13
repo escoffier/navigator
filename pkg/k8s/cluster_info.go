@@ -86,6 +86,7 @@ func NewClusterInfoManager(cmHost string) *ClusterInfoManager {
 		logging.Get().Warn().Msg("failed to sync cluster-info from api server")
 		return nil
 	}
+
 	return m
 }
 

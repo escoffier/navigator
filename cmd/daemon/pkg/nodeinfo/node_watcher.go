@@ -2,13 +2,14 @@ package nodeinfo
 
 import (
 	"context"
-	"errors"
 	"fmt"
+	"github.com/pkg/errors"
+	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
 	"runtime/debug"
+	"strings"
 	"sync"
 	"time"
 
-	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
 	"gitlab.com/security-rd/go-pkg/logging"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -16,8 +17,10 @@ import (
 	"k8s.io/client-go/tools/cache"
 )
 
-var (
-	ErrNilArg = errors.New("nil argument")
+const (
+	DockerType = "docker"
+	CrioType   = "cri-o"
+	PodmanType = "podman"
 )
 
 type Resource struct {
@@ -69,14 +72,13 @@ type Builder struct {
 }
 
 func NewNodePodsWatcher(nodeName string) *Builder {
-	b := Builder{
+	return &Builder{
 		instance: &NodePodsWatcher{
 			watchers:    make([]PodWatcher, 0, 3),
 			nodeName:    nodeName,
 			ownRefCache: newOwnerRefCache(50, 30*time.Minute),
 		},
 	}
-	return &b
 }
 
 func (b *Builder) AddWatcher(pw PodWatcher) *Builder {
@@ -86,6 +88,48 @@ func (b *Builder) AddWatcher(pw PodWatcher) *Builder {
 
 func (b *Builder) Build() *NodePodsWatcher {
 	return b.instance
+}
+
+func (n *NodePodsWatcher) InitK8sClient() error {
+	config, err := k8s.KubeConfig()
+	if err != nil {
+		return errors.Errorf("Couldn't initialize k8s config: %w", err)
+	}
+	//k8s client
+	n.k8sClient, err = kubernetes.NewForConfig(config)
+	if err != nil {
+		return errors.Errorf("Couldn't initialize k8s clientset: %w", err)
+	}
+
+	return nil
+}
+
+func (n *NodePodsWatcher) GetContainerType() (string, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	node, err := n.k8sClient.CoreV1().Nodes().Get(ctx, n.nodeName, metav1.GetOptions{})
+	if err != nil {
+		return "", errors.Errorf("get node info failed, %v", err)
+	}
+
+	containerType := node.Status.NodeInfo.ContainerRuntimeVersion
+	ok := strings.Contains(containerType, "docker")
+	if ok {
+		return DockerType, nil
+	}
+
+	ok = strings.Contains(containerType, "cri-o")
+	if ok {
+		return CrioType, nil
+	}
+
+	ok = strings.Contains(containerType, "podman")
+	if ok {
+		return PodmanType, nil
+	}
+
+	return "", errors.Errorf("can not support this container type")
 }
 
 func (n *NodePodsWatcher) getFinalResourceOfPod(ctx context.Context, pod *corev1.Pod) (name string, kind string) {
@@ -157,15 +201,6 @@ func (n *NodePodsWatcher) getFinalResourceOfPod(ctx context.Context, pod *corev1
 }
 
 func (n *NodePodsWatcher) Start(ctx context.Context) (err error) {
-	config, err := k8s.KubeConfig()
-	if err != nil {
-		return fmt.Errorf("Couldn't initialize k8s config: %w", err)
-	}
-	//k8s client
-	n.k8sClient, err = kubernetes.NewForConfig(config)
-	if err != nil {
-		return fmt.Errorf("Couldn't initialize k8s clientset: %w", err)
-	}
 
 	watchlist := cache.NewFilteredListWatchFromClient(
 		n.k8sClient.CoreV1().RESTClient(),

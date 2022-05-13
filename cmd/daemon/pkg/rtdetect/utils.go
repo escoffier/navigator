@@ -31,9 +31,9 @@ var watsonPodsNames = []string{
 }
 
 // FIXME to solve the init alerts of watson pods, filter out the corresponding events. Remove when solving watson alerts querying problems.
-func isEventItemWhitelisted(data *outputs.Response, dockerInfo *nodeinfo.DockerInfoManager) bool {
+func isEventItemWhitelisted(data *outputs.Response, containerInfo nodeinfo.ContainerInfoManager) bool {
 	containerID := data.OutputFields[rtdetect.FieldContainerID]
-	if _, exist := dockerInfo.FindContainerCacheData(containerID); !exist {
+	if _, exist := containerInfo.FindContainerCacheData(containerID); !exist {
 		return false
 	}
 
@@ -49,6 +49,7 @@ func isEventItemWhitelisted(data *outputs.Response, dockerInfo *nodeinfo.DockerI
 			return true
 		}
 	}
+
 	return false
 }
 

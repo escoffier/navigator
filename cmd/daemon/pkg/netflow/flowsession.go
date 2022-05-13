@@ -30,7 +30,7 @@ type FlowSession struct {
 	sockClient     *net.UnixConn
 	hostIP         string
 	nodePodsInfo   *NodePodsInfo
-	dockerInfo     *nodeinfo.DockerInfoManager
+	containerInfo  nodeinfo.ContainerInfoManager
 	url            string
 	clusterManager ClusterManager
 	submitter      *Submitter
@@ -146,7 +146,7 @@ func NetProtoConvert(proto uint8) uint8 {
 	return 0
 }
 
-func NewFlowSession(dockerInfo *nodeinfo.DockerInfoManager, k8sInfo *NodePodsInfo, clusterManager ClusterManager, consoleURL string) (*FlowSession, error) {
+func NewFlowSession(containerInfo nodeinfo.ContainerInfoManager, k8sInfo *NodePodsInfo, clusterManager ClusterManager, consoleURL string) (*FlowSession, error) {
 
 	redisClient, err := RedisInit()
 	if err != nil {
@@ -180,7 +180,7 @@ func NewFlowSession(dockerInfo *nodeinfo.DockerInfoManager, k8sInfo *NodePodsInf
 		CtFlow:         ctFlow,
 		hostIP:         myHostIP,
 		nodePodsInfo:   k8sInfo,
-		dockerInfo:     dockerInfo,
+		containerInfo:  containerInfo,
 		clusterManager: clusterManager,
 		url:            url,
 		nsDataChan:     make(chan daemon.NetSessionLink, 300),
