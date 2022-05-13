@@ -31,36 +31,65 @@ const (
 	defaultRTBuffSize     = 100
 )
 
-func initEventStreams(udsAddr, nodeName string, cm *k8s.ClusterInfoManager, mqWriter mq.Writer, dockerInfo *nodeinfo.DockerInfoManager, podResInfo *nodeinfo.PodResInfo) (*rtdetect.RuntimeEventStream, error) {
+func initEventStreams(udsAddr, nodeName string, cm *k8s.ClusterInfoManager, mqWriter mq.Writer, containerInfo nodeinfo.ContainerInfoManager, podResInfo *nodeinfo.PodResInfo) (*rtdetect.RuntimeEventStream, error) {
 	bui := rtdetect.StreamBuilder(udsAddr, nodeName, cm)
 
 	// add handlers here
-	ecHandler := rtdetect.NewEventsOutputHandler(mqWriter, dockerInfo, podResInfo)
+	ecHandler := rtdetect.NewEventsOutputHandler(mqWriter, containerInfo, podResInfo)
 	bui.WithHandler(rtdetect.NewSyncHandler(ecHandler))
 
 	s, err := bui.Build(context.Background())
 	return s, err
 }
 
-func initNodeInfos(hostName, hostIP string) (*nodeinfo.DockerInfoManager, *netflow.NodePodsInfo, *nodeinfo.PodResInfo, error) {
-	dockerInfo, err := nodeinfo.NewDockerInfoManager(hostName, hostIP)
+func initNodeInfos(hostName, hostIP string) (nodeinfo.ContainerInfoManager, *netflow.NodePodsInfo, *nodeinfo.PodResInfo, error) {
+	nodePods := nodeinfo.NewNodePodsWatcher(hostName)
+	err := nodePods.Build().InitK8sClient()
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("Failed to initialize docker info manager : %w", err)
+		return nil, nil, nil, errors.Errorf("k8s client init failed, %v", err)
 	}
-	err = dockerInfo.Start()
+
+	containerType, err := nodePods.Build().GetContainerType()
+	if err != nil {
+		return nil, nil, nil, errors.Errorf("get k8s node containerRuntimeVersion failed, %v", err)
+	}
+
+	var containerInfo nodeinfo.ContainerInfoManager
+	switch containerType {
+	case nodeinfo.DockerType:
+		containerInfo, err = nodeinfo.NewDockerInfoManager(hostName, hostIP)
+		if err != nil {
+			return nil, nil, nil, errors.Errorf("Failed to initialize docker info manager, %v", err)
+		}
+		logging.Get().Info().Msgf("new docker client success!")
+	case nodeinfo.CrioType:
+		containerInfo, err = nodeinfo.NewCrioInfoManager()
+		if err != nil {
+			return nil, nil, nil, errors.Errorf("Failed to initialize cri-o info manager, %v", err)
+		}
+		logging.Get().Info().Msgf("new cri-o client success!")
+	case nodeinfo.PodmanType:
+		containerInfo, err = nodeinfo.NewPodmanInfoManager()
+		if err != nil {
+			return nil, nil, nil, errors.Errorf("Failed to initialize podman info manager, %v", err)
+		}
+		logging.Get().Info().Msgf("new podman client success!")
+	}
+
+	err = containerInfo.Start()
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("start dockerInfo listen failed, %v.", err)
 	}
 
-	k8sInfo := netflow.NewNodePodInfo(dockerInfo)
+	k8sInfo := netflow.NewNodePodInfo(containerInfo)
 	podResInfo := nodeinfo.NewPodResInfo()
-	podsWatcher := nodeinfo.NewNodePodsWatcher(hostName).AddWatcher(k8sInfo).AddWatcher(podResInfo).Build()
+	podsWatcher := nodePods.AddWatcher(k8sInfo).AddWatcher(podResInfo).Build()
 	err = podsWatcher.Start(context.Background())
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("start pods watcher error: %v", err)
 	}
 
-	return dockerInfo, k8sInfo, podResInfo, nil
+	return containerInfo, k8sInfo, podResInfo, nil
 }
 
 var runes = []rune{
@@ -137,12 +166,12 @@ func NetInit(ctx context.Context) error {
 
 	clusterManager := k8s.NewClusterInfoManager(clusterAddr)
 
-	dockerInfo, k8sInfo, podResInfo, err := initNodeInfos(hostName, hostIP)
+	containerInfo, k8sInfo, podResInfo, err := initNodeInfos(hostName, hostIP)
 	if err != nil {
 		return err
 	}
 	//new flow session
-	flow, err := netflow.NewFlowSession(dockerInfo, k8sInfo, clusterManager, consoleAddr)
+	flow, err := netflow.NewFlowSession(containerInfo, k8sInfo, clusterManager, consoleAddr)
 	if err != nil {
 		return fmt.Errorf("Failed to initialize flow session, %w", err)
 	}
@@ -163,7 +192,7 @@ func NetInit(ctx context.Context) error {
 
 	// start events streaming
 	if rtUdsAddr != "" {
-		rtStream, err := initEventStreams(rtUdsAddr, hostName, clusterManager, mqWriter, dockerInfo, podResInfo)
+		rtStream, err := initEventStreams(rtUdsAddr, hostName, clusterManager, mqWriter, containerInfo, podResInfo)
 		if err != nil {
 			return errors.Errorf("Failed to rt events streams, %v", err)
 		}
