@@ -24,7 +24,7 @@ import (
 	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/vuln-updata/cnvd"
 	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/vuln-updata/trivy"
 	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/service/register/api"
-	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/service/register/clean-registry"
+	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/service/register/cronjob"
 
 	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/service/register/image-cache"
 	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/service/register/image-sync"

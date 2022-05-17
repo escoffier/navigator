@@ -28,7 +28,7 @@ type ScannerAPIService struct {
 func (s *ScannerAPIService) Start(ctx context.Context) error {
 	if err := s.ginServer.ListenAndServe(); err != nil {
 		if err != http.ErrServerClosed {
-			logging.GetLogger().Error().Err(err).Msg("scanner api http server listen failed")
+			logging.GetLogger().Err(err).Msg("scanner api http server listen failed")
 		}
 	}
 	logging.GetLogger().Error().Msg("scanner api http server exited")
@@ -37,7 +37,7 @@ func (s *ScannerAPIService) Start(ctx context.Context) error {
 
 func (s *ScannerAPIService) Stop(ctx context.Context) error {
 	if err := s.ginServer.Shutdown(ctx); err != nil {
-		logging.GetLogger().Error().Err(err).Msg("scanner api server stop err")
+		logging.GetLogger().Err(err).Msg("scanner api server stop err")
 		return err
 	}
 	logging.GetLogger().Info().Msg("scanner api server stop")
@@ -47,7 +47,7 @@ func (s *ScannerAPIService) Stop(ctx context.Context) error {
 func init() {
 	err := register.Register(serviceName, newService)
 	if err != nil {
-		logging.GetLogger().Error().Err(err).Str("serviceName", serviceName).Msg("int service err")
+		logging.GetLogger().Err(err).Str("serviceName", serviceName).Msg("int service err")
 	}
 }
 
@@ -57,12 +57,17 @@ func newService(config register.ScannerServiceConfig) (register.ScannerService, 
 	// sdb := store.GetScannerDb()
 	rc, err := store.GetRedisClient(0)
 	if err != nil {
-		logging.GetLogger().Error().Err(err).Msg("get redis client failed")
+		logging.GetLogger().Err(err).Msg("get redis client failed")
 		return nil, err
 	}
+	scanTaskDal := store.NewScannerOrm(store.GetScannerWrapperDb())
 
 	registryDal := store.NewRegistryDao(scannerWrapperDb)
 	scanConfigDal := store.NewScanConfigDao(scannerWrapperDb)
+	vulnDal := store.NewVulnDao(scannerWrapperDb)
+	podResourceRelationDal := store.NewPodResourceRelationDao(scannerWrapperDb)
+	syncRetryImageDal := store.NewSyncRetryImageDao(scannerWrapperDb)
+
 	s := &ScannerAPIService{}
 	s.config.Options = config.Options
 	s.ginServer = &http.Server{
@@ -73,13 +78,10 @@ func newService(config register.ScannerServiceConfig) (register.ScannerService, 
 				nil, nil, nil, dal, dal, scanConfigDal, store.GetSingeVulnDao()),
 			component.NewImageRejectSrc(dal),
 			component.NewHarborSrc(dal, rc, nil), // todo: use new task interface,not redclair
-			component.NewRegistrySrv(store.NewRegistryDao(scannerWrapperDb)),
-			component.NewScanConfigSrv(store.NewScanConfigDao(store.GetScannerWrapperDb()),
-				store.NewRegistryDao(store.GetScannerWrapperDb()),
-				store.NewScannerOrm(store.GetScannerWrapperDb()),
-				store.NewScannerOrm(store.GetScannerWrapperDb()),
-			),
-			component.NewVulnService(store.GetSingeVulnDao(), store.GetScannerOrmDb()),
+			component.NewRegistrySrv(registryDal),
+			component.NewScanConfigSrv(scanConfigDal, registryDal, dal, scanTaskDal),
+			component.NewVulnService(vulnDal, scanTaskDal),
+			component.NewSyncRepoImage(registryDal, dal, podResourceRelationDal, scanConfigDal, syncRetryImageDal),
 		),
 	}
 

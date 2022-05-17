@@ -211,19 +211,18 @@ type SafeOver struct {
 
 // ImageList 镜像信息表
 type ImageList struct {
-	ID        int64     `gorm:"primary_key;AUTO_INCREMENT" json:"id" `
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
-	// Url           string
-	FullRepoName      string                 `gorm:"type:varchar(255)"  json:"full_repo_name"`
-	Tags              string                 `gorm:"type:varchar(255)" json:"tags"`
-	Digest            string                 `gorm:"type:varchar(255);index:idx_image_digest" json:"digest"`
-	OS                string                 `gorm:"type:varchar(255);column:os" json:"os"`
-	Size              int                    `gorm:"column:size" json:"size"`
-	Library           string                 `gorm:"type:varchar(255);column:library" json:"library"`
-	ImageUUID         uint32                 `gorm:"column:image_uuid" json:"-"`
-	Questions         []QuestionInfo         `gorm:"-" json:"questions"`
-	CompleteTime      string                 `gorm:"type:varchar(255);column:complete_time" json:"complete_time"`
+	ID           int64          `gorm:"primary_key;AUTO_INCREMENT" json:"id" `
+	CreatedAt    time.Time      `json:"created_at"`
+	UpdatedAt    time.Time      `json:"updated_at"`
+	FullRepoName string         `gorm:"type:varchar(255)"  json:"full_repo_name"`
+	Tags         string         `gorm:"type:varchar(255)" json:"tags"`
+	Digest       string         `gorm:"type:varchar(255);index:idx_image_digest" json:"digest"`
+	OS           string         `gorm:"type:varchar(255);column:os" json:"os"`
+	Size         int            `gorm:"column:size" json:"size"`
+	Library      string         `gorm:"type:varchar(255);column:library" json:"library"`
+	ImageUUID    uint32         `gorm:"column:image_uuid" json:"-"`
+	Questions    []QuestionInfo `gorm:"-" json:"questions"`
+	// CompleteTime      string                 `gorm:"type:varchar(255);column:complete_time" json:"complete_time"` // 无用字段
 	ImageScanVuln     ImageScanSummaryResult `gorm:"-" json:"image_scan_vuln"`
 	ScanStatus        int                    `gorm:"-" json:"scan_status"`
 	ImageScanVirus    []VirusFileInfo        `gorm:"-" json:"image_scan_virus"`
@@ -258,7 +257,7 @@ type ImageList struct {
 	IsReinforce    int    `gorm:"is_reinforce" json:"is_reinforce"`
 
 	CheckSum    uint64 `gorm:"column:check_sum" json:"check_sum,string"`       // 这一行数据的check值，且于判断这一行数据是否有变动，如果没有变动，就不再更新
-	UniqueImage uint64 `gorm:"column:unique_image" json:"unique_image,string"` // 由fullreponame+tags+registryId+fromType生成uuid，唯一确定一定镜像，优化松查询
+	UniqueImage uint64 `gorm:"column:unique_image" json:"unique_image,string"` // 由fullreponame+tags+registryId+fromType生成uuid，唯一确定一定镜像，优化查询
 	Flag        uint64 `gorm:"column:flag" json:"flag:string"`
 }
 
@@ -384,7 +383,7 @@ func (im *ImageList) Deserialize() {
 		}
 	}
 	// 对于节点镜像的数据规整
-	if im.FromType == ImageFromSafeNode {
+	if im.FromType == NodeBuffRegistry {
 		split := strings.Split(im.FullRepoName, "/")
 		// 节点镜像上传的tag:	NodeSafeTage="%s/" + NodeSafeSalt + "/%s/%s/%s/%s" // 仓库地址/tensorsec/hostname/ip/os/library/镜像名
 		// tensorsecurity/tensorsec-safe-node-image-v2x54/10.65.72.54/linux/registry.t-appagile.com/google_containers/coredns

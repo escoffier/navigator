@@ -26,7 +26,7 @@ type ExecutorScanMalicious struct {
 func (e *ExecutorScanMalicious) scanMalicious(layer string, layerFilePath string, tmpvirus *model.PerLayerMaliciousResult, virus *[]model.PerLayerMaliciousResult) {
 	virusInfos, err := e.MaliciousScan.ScanLayer(context.Background(), layer, filepath.Join(layerFilePath, "layer.tar"))
 	if err != nil {
-		logging.GetLogger().Error().Err(err).Msgf("scan Virus %v failed", layer)
+		logging.GetLogger().Err(err).Msgf("scan Virus %v failed", layer)
 		return
 	}
 	if len(virusInfos) != 0 {
@@ -113,7 +113,7 @@ func (e *ExecutorScanMalicious) Scan(ctx context.Context, param Param) (Artifact
 func init() {
 	err := Register(executorScanMaliciousName, newScanMalicious)
 	if err != nil {
-		logging.GetLogger().Error().Err(err).Str("executorName", executorScanMaliciousName).Msg("int executor err")
+		logging.GetLogger().Err(err).Str("executorName", executorScanMaliciousName).Msg("int executor err")
 	}
 }
 func newScanMalicious(config ExecutorConfig) (Executor, error) { // Open时调用

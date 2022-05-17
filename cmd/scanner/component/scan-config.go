@@ -45,20 +45,20 @@ type ScanConfigSrvInterface interface {
 }
 
 type ScanConfigSrv struct {
-	ScanConfigDal store.ScanConfigDalInterface
-	RegistryDal   store.RegistryDalInterface
+	ScanConfigDal store.ScanConfigDal
+	RegistryDal   store.RegistryDal
 	ImageDal      store.ScannerDalInterface
 	ScanTaskDal   store.ScanTaskInterface
 }
 
-func NewScanConfigSrv(scanConfigDAl store.ScanConfigDalInterface, registryDal store.RegistryDalInterface, imageDal store.ScannerDalInterface, scanTaskDal store.ScanTaskInterface) *ScanConfigSrv {
+func NewScanConfigSrv(scanConfigDAl store.ScanConfigDal, registryDal store.RegistryDal, imageDal store.ScannerDalInterface, scanTaskDal store.ScanTaskInterface) *ScanConfigSrv {
 	return &ScanConfigSrv{ScanConfigDal: scanConfigDAl, RegistryDal: registryDal, ImageDal: imageDal, ScanTaskDal: scanTaskDal}
 }
 
 func (s *ScanConfigSrv) SearchRepoNames(ctx context.Context) ([]string, error) {
 	nodes, err := s.ScanConfigDal.SearchRepoNames(ctx)
 	if err != nil {
-		logging.GetLogger().Error().Err(err).Msg("SearchRepoNames")
+		logging.GetLogger().Err(err).Msg("SearchRepoNames")
 		return nil, response.NewHttpError(http.StatusInternalServerError, err)
 	}
 	return nodes, nil
@@ -66,7 +66,7 @@ func (s *ScanConfigSrv) SearchRepoNames(ctx context.Context) ([]string, error) {
 func (s *ScanConfigSrv) SearchProjects(ctx context.Context, registryID int64) ([]string, error) {
 	nodes, err := s.ScanConfigDal.SearchProjects(ctx, store.GetProjectParam{RegistryID: registryID})
 	if err != nil {
-		logging.GetLogger().Error().Err(err).Msg("SearchProjects")
+		logging.GetLogger().Err(err).Msg("SearchProjects")
 		return nil, response.NewHttpError(http.StatusInternalServerError, err)
 	}
 	return nodes, nil
@@ -74,7 +74,7 @@ func (s *ScanConfigSrv) SearchProjects(ctx context.Context, registryID int64) ([
 func (s *ScanConfigSrv) SearchNodes(ctx context.Context) ([]string, error) {
 	nodes, err := s.ScanConfigDal.SearchNodes(ctx)
 	if err != nil {
-		logging.GetLogger().Error().Err(err).Msg("SearchNodes")
+		logging.GetLogger().Err(err).Msg("SearchNodes")
 		return nil, response.NewHttpError(http.StatusInternalServerError, err)
 	}
 	return nodes, nil
@@ -90,7 +90,7 @@ func (s *ScanConfigSrv) AddTaskByStrategy(ctx context.Context) error {
 
 		configs, _, err := s.SearchScanConfig(ctx, SearchScanConfigParam{}, nil)
 		if err != nil {
-			logging.GetLogger().Error().Err(err).Msg("AddTaskByStrategy")
+			logging.GetLogger().Err(err).Msg("AddTaskByStrategy")
 			continue
 		}
 		if len(configs) == 0 {
@@ -101,7 +101,7 @@ func (s *ScanConfigSrv) AddTaskByStrategy(ctx context.Context) error {
 		// 先加仓库镜像
 		if config.LibraryImageConfig != nil && config.LibraryImageConfig.ScanCycleEnable {
 			if err := s.addLibraryScanTask(ctx, config); err != nil {
-				logging.GetLogger().Error().Err(err).Msg("AddTaskByStrategy,addLibraryScanTask failure")
+				logging.GetLogger().Err(err).Msg("AddTaskByStrategy,addLibraryScanTask failure")
 				continue
 			}
 		}
@@ -109,7 +109,7 @@ func (s *ScanConfigSrv) AddTaskByStrategy(ctx context.Context) error {
 		// 再加节点镜像
 		if config.NodeImageConfig != nil && config.NodeImageConfig.ScanCycleEnable {
 			if err := s.addNodeScanTask(ctx, config); err != nil {
-				logging.GetLogger().Error().Err(err).Msg("AddTaskByStrategy,addNodeScanTask failure")
+				logging.GetLogger().Err(err).Msg("AddTaskByStrategy,addNodeScanTask failure")
 				continue
 			}
 		}
@@ -120,7 +120,7 @@ func (s *ScanConfigSrv) AddTaskByStrategy(ctx context.Context) error {
 func (s *ScanConfigSrv) SearchScanConfig(ctx context.Context, param SearchScanConfigParam, filter *model.Filter) ([]model.ScanConfig, int64, error) {
 	config, cnt, err := s.ScanConfigDal.SearchScanConfig(ctx, store.SearchScanConfigParam{ScanConfigID: param.ScanConfigID}, filter)
 	if err != nil {
-		logging.GetLogger().Error().Err(err).Msg("SearchScanConfig")
+		logging.GetLogger().Err(err).Msg("SearchScanConfig")
 		return nil, 0, err
 	}
 	return config, cnt, nil
@@ -138,12 +138,12 @@ func (s *ScanConfigSrv) SearchStrategy(ctx context.Context, param SearchStrategy
 		allFilter.Limit = math.MaxInt64
 		strategies, cnt, err := s.ScanConfigDal.SearchStrategy(ctx, store.SearchStrategyParam{IsDefault: consts.FalseString}, allFilter)
 		if err != nil {
-			logging.GetLogger().Error().Err(err).Msg("SearchStrategy")
+			logging.GetLogger().Err(err).Msg("SearchStrategy")
 			return nil, 0, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf(consts.StatusInternalServerErrorMsg))
 		}
 		defaults, _, err := s.ScanConfigDal.SearchStrategy(ctx, store.SearchStrategyParam{IsDefault: consts.TrueString}, allFilter)
 		if err != nil {
-			logging.GetLogger().Error().Err(err).Msg("SearchStrategy")
+			logging.GetLogger().Err(err).Msg("SearchStrategy")
 			return nil, 0, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf(consts.StatusInternalServerErrorMsg))
 		}
 		all := append(defaults, strategies...)
@@ -164,7 +164,7 @@ func (s *ScanConfigSrv) SearchStrategy(ctx context.Context, param SearchStrategy
 	}
 	strategies, cnt, err := s.ScanConfigDal.SearchStrategy(ctx, store.SearchStrategyParam{StrategyID: param.StrategyID, Name: param.Name, IsDefault: param.IsDefault}, filter)
 	if err != nil {
-		logging.GetLogger().Error().Err(err).Msg("SearchStrategy")
+		logging.GetLogger().Err(err).Msg("SearchStrategy")
 		return nil, 0, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf(consts.StatusInternalServerErrorMsg))
 	}
 	return strategies, cnt, nil
@@ -172,7 +172,7 @@ func (s *ScanConfigSrv) SearchStrategy(ctx context.Context, param SearchStrategy
 
 func (s *ScanConfigSrv) CreateStrategy(ctx context.Context, data *model.ScanStrategy) error {
 	if err := data.Check(); err != nil {
-		logging.GetLogger().Error().Err(err).Msg("CreateStrategy")
+		logging.GetLogger().Err(err).Msg("CreateStrategy")
 		return response.NewHttpError(http.StatusExpectationFailed, err)
 	}
 	data.Serialize()
@@ -181,7 +181,7 @@ func (s *ScanConfigSrv) CreateStrategy(ctx context.Context, data *model.ScanStra
 		if strings.Contains(err.Error(), consts.DuplicateKey) {
 			return response.NewHttpError(http.StatusInternalServerError, fmt.Errorf("该策略已存在，请重新设置策略名"))
 		}
-		logging.GetLogger().Error().Err(err).Msg("CreateStrategy")
+		logging.GetLogger().Err(err).Msg("CreateStrategy")
 		return response.NewHttpError(http.StatusInternalServerError, err)
 	}
 	return nil
@@ -189,7 +189,7 @@ func (s *ScanConfigSrv) CreateStrategy(ctx context.Context, data *model.ScanStra
 
 func (s *ScanConfigSrv) UpdateStrategy(ctx context.Context, strategyID int64, data *model.ScanStrategy) error {
 	if err := data.Check(); err != nil {
-		logging.GetLogger().Error().Err(err).Msg("CreateStrategy")
+		logging.GetLogger().Err(err).Msg("CreateStrategy")
 		return response.NewHttpError(http.StatusExpectationFailed, err)
 	}
 
@@ -202,7 +202,7 @@ func (s *ScanConfigSrv) UpdateStrategy(ctx context.Context, strategyID int64, da
 		if strings.Contains(err.Error(), consts.DuplicateKey) {
 			return response.NewHttpError(http.StatusInternalServerError, fmt.Errorf("该策略已存在，请重新设置策略名"))
 		}
-		logging.GetLogger().Error().Err(err).Msg("CreateStrategy")
+		logging.GetLogger().Err(err).Msg("CreateStrategy")
 		return response.NewHttpError(http.StatusInternalServerError, err)
 	}
 	return nil
@@ -247,7 +247,7 @@ func (s *ScanConfigSrv) DeleteStrategy(ctx context.Context, strategyID int64) er
 		return fmt.Errorf("该策略下还有未完成的扫描任务，不能删除")
 	}
 	if err := s.ScanConfigDal.DeleteStrategy(ctx, strategyID); err != nil {
-		logging.GetLogger().Error().Err(err).Msgf("DeleteStrategy:%d", strategyID)
+		logging.GetLogger().Err(err).Msgf("DeleteStrategy:%d", strategyID)
 		return response.NewHttpError(http.StatusInternalServerError, err)
 	}
 	return nil
@@ -255,7 +255,7 @@ func (s *ScanConfigSrv) DeleteStrategy(ctx context.Context, strategyID int64) er
 
 func (s *ScanConfigSrv) UpdateScanConfig(ctx context.Context, configID int64, data *model.ScanConfig) (*model.ScanConfig, error) {
 	if err := data.Check(); err != nil {
-		logging.GetLogger().Error().Err(err).Msg("UpdateScanConfig")
+		logging.GetLogger().Err(err).Msg("UpdateScanConfig")
 		return nil, response.NewHttpError(http.StatusExpectationFailed, err)
 	}
 	// 验证所传仓库是不是公司支持的仓库,验证所传策略ID是不是存在于数据库中(低频接口，直接循环了)
@@ -276,7 +276,7 @@ func (s *ScanConfigSrv) UpdateScanConfig(ctx context.Context, configID int64, da
 	updater := data.ToUpdater()
 
 	if err := s.ScanConfigDal.UpdateScanConfig(ctx, configID, updater); err != nil {
-		logging.GetLogger().Error().Err(err).Msg("UpdateScanConfig")
+		logging.GetLogger().Err(err).Msg("UpdateScanConfig")
 		return nil, response.NewHttpError(http.StatusInternalServerError, err)
 	}
 	return data, nil
@@ -289,7 +289,7 @@ func (s *ScanConfigSrv) verifyLibrary(ctx context.Context, libs []int64) error {
 			NoDelete: true,
 		}, nil)
 		if err != nil {
-			logging.GetLogger().Error().Err(err).Msg("verifyLibrary")
+			logging.GetLogger().Err(err).Msg("verifyLibrary")
 			return response.NewHttpError(http.StatusInternalServerError, err)
 		}
 		if len(registry) == 0 {
@@ -305,7 +305,7 @@ func (s *ScanConfigSrv) verifyStrategyID(ctx context.Context, ids []int64) error
 			StrategyID: ids[i],
 		}, nil)
 		if err != nil {
-			logging.GetLogger().Error().Err(err).Msg("verifyStrategyID")
+			logging.GetLogger().Err(err).Msg("verifyStrategyID")
 			return response.NewHttpError(http.StatusInternalServerError, err)
 		}
 		if len(registry) == 0 {
@@ -333,7 +333,7 @@ func (s *ScanConfigSrv) getAllImageIds(ctx context.Context, daoParm store.Search
 
 func (s *ScanConfigSrv) addLibraryScanTask(ctx context.Context, config model.ScanConfig) error {
 
-	add, err := config.IsTimeToAddTask(model.ImageFromTypeNormal, consts.CheckTaskInterval)
+	add, err := config.IsTimeToAddTask(model.UserRegistry, consts.CheckTaskInterval)
 	if err != nil {
 		logging.GetLogger().Info().Msg("AddTaskByStrategy,not fond scan config")
 		return err
@@ -345,7 +345,7 @@ func (s *ScanConfigSrv) addLibraryScanTask(ctx context.Context, config model.Sca
 		libs := config.LibraryImageConfig.Libraries
 		if config.LibraryImageConfig.ScanAll {
 			registry, _, err := s.RegistryDal.SearchRegistry(ctx, store.SearchRegistryParam{
-				UseType:  model.RegistryUseTypeNormal,
+				UseType:  model.UserRegistry,
 				NoDelete: true,
 			}, nil)
 
@@ -362,7 +362,7 @@ func (s *ScanConfigSrv) addLibraryScanTask(ctx context.Context, config model.Sca
 			logging.GetLogger().Info().Msg("not configured scan library")
 		}
 		// 查找所有的镜像增加任务
-		daoParm := store.SearchImageParam{FromType: model.ImageFromTypeNormal, RegistryIds: libs}
+		daoParm := store.SearchImageParam{FromType: model.UserRegistry, RegistryIds: libs}
 		imgIds, err := s.getAllImageIds(ctx, daoParm)
 		if err != nil {
 			return err
@@ -375,7 +375,7 @@ func (s *ScanConfigSrv) addLibraryScanTask(ctx context.Context, config model.Sca
 			StrategyID:  config.LibraryImageConfig.StrategyID,
 			Operator:    consts.CycleTriggerOperator,
 		}); err != nil {
-			logging.GetLogger().Error().Err(err).Msg("AddTaskByStrategy add scan task failed")
+			logging.GetLogger().Err(err).Msg("AddTaskByStrategy add scan task failed")
 			return err
 		}
 		logging.GetLogger().Info().Msgf("AddTaskByStrategy addLibraryScanTask add scan task success:%d", len(imgIds))
@@ -384,13 +384,13 @@ func (s *ScanConfigSrv) addLibraryScanTask(ctx context.Context, config model.Sca
 }
 
 func (s *ScanConfigSrv) addNodeScanTask(ctx context.Context, config model.ScanConfig) error {
-	add, err := config.IsTimeToAddTask(model.ImageFromSafeNode, consts.CheckTaskInterval)
+	add, err := config.IsTimeToAddTask(model.NodeBuffRegistry, consts.CheckTaskInterval)
 	if err != nil {
 		logging.GetLogger().Info().Msg("AddTaskByStrategy,not fond scan config")
 		return err
 	}
 	if add {
-		daoParm := store.SearchImageParam{FromType: model.ImageFromSafeNode}
+		daoParm := store.SearchImageParam{FromType: model.NodeBuffRegistry}
 		if !config.NodeImageConfig.ScanAll {
 			daoParm.NodeHostnames = config.NodeImageConfig.NodeHostnames
 		}
@@ -411,7 +411,7 @@ func (s *ScanConfigSrv) addNodeScanTask(ctx context.Context, config model.ScanCo
 			StrategyID:  config.NodeImageConfig.StrategyID,
 			Operator:    consts.CycleTriggerOperator,
 		}); err != nil {
-			logging.GetLogger().Error().Err(err).Msg("AddTaskByStrategy add  scan task failed")
+			logging.GetLogger().Err(err).Msg("AddTaskByStrategy add  scan task failed")
 			return err
 		}
 		logging.GetLogger().Info().Msgf("AddTaskByStrategy addNodeScanTask add scan task success:%d", len(imgIds))

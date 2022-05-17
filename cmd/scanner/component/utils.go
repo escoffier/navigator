@@ -328,14 +328,14 @@ func rejectPolicyToUpdater(po model.RejectPolicy) map[string]interface{} {
 	if err == nil {
 		updater["envs"] = string(bys)
 	} else {
-		logging.GetLogger().Error().Err(err).Msg("rejectPolicyToUpdater")
+		logging.GetLogger().Err(err).Msg("rejectPolicyToUpdater")
 	}
 
 	bys, err = json.Marshal(po.SensitiveFile)
 	if err == nil {
 		updater["sensitive_file"] = string(bys)
 	} else {
-		logging.GetLogger().Error().Err(err).Msg("rejectPolicyToUpdater")
+		logging.GetLogger().Err(err).Msg("rejectPolicyToUpdater")
 	}
 
 	return updater

@@ -63,9 +63,9 @@ func (s *ImageOpenAPISvc) ListImages(ctx *gin.Context) {
 	}
 	fromTypeString := ctx.Query("fromType")
 	if fromTypeString == consts.ImageFromNode {
-		param.FromType = model.ImageFromSafeNode
+		param.FromType = model.NodeBuffRegistry
 	} else if fromTypeString == consts.ImageFromRegistry {
-		param.FromType = model.ImageFromTypeNormal
+		param.FromType = model.UserRegistry
 	}
 
 	filter := model.GetFilterWithDefaultValue(ctx)
@@ -101,9 +101,9 @@ func (s *ImageOpenAPISvc) ListImages(ctx *gin.Context) {
 		for j := range images[i].Questions {
 			im.SecurityIssue = append(im.SecurityIssue, images[i].Questions[j].ID)
 		}
-		if images[i].FromType == model.ImageFromSafeNode {
+		if images[i].FromType == model.NodeBuffRegistry {
 			im.FromType = consts.ImageFromNode
-		} else if images[i].FromType == model.ImageFromTypeNormal {
+		} else if images[i].FromType == model.UserRegistry {
 			im.FromType = consts.ImageFromRegistry
 		}
 
@@ -123,12 +123,12 @@ func (s *ImageOpenAPISvc) ImageStatistic(ctx *gin.Context) {
 		response.JSONError(ctx, response.NewHttpError(http.StatusBadRequest, fmt.Errorf("no fromType")))
 		return
 	}
-	fromType := model.ImageFromTypeNormal
+	fromType := model.UserRegistry
 
 	if fromTypeString == consts.ImageFromNode {
-		fromType = model.ImageFromSafeNode
+		fromType = model.NodeBuffRegistry
 	} else if fromTypeString == consts.ImageFromRegistry {
-		fromType = model.ImageFromTypeNormal
+		fromType = model.UserRegistry
 	}
 
 	view, err := s.ImageSrv.GetImageOverView(ctx, int64(fromType))
@@ -185,7 +185,7 @@ func (s *ImageOpenAPISvc) GetImageDetails(ctx *gin.Context) {
 
 	registries, _, err := s.RegistrySrv.SearchRegistry(ctx, component.SearchRegistryParam{
 		Name:    registryName,
-		UseType: model.RegistryUseTypeNormal,
+		UseType: model.UserRegistry,
 	}, nil)
 	if err != nil {
 		response.JSONError(ctx, err)
@@ -233,9 +233,9 @@ func (s *ImageOpenAPISvc) GetImageDetails(ctx *gin.Context) {
 	if img.Registry != nil {
 		res.RegistryURL = img.Registry.Url
 	}
-	if img.FromType == model.ImageFromTypeNormal {
+	if img.FromType == model.UserRegistry {
 		res.FromType = consts.ImageFromRegistry
-	} else if img.FromType == model.ImageFromSafeNode {
+	} else if img.FromType == model.NodeBuffRegistry {
 		res.FromType = consts.ImageFromRegistry
 	}
 
@@ -300,7 +300,7 @@ func (s *ImageOpenAPISvc) ListImgLayersByImageName(ctx *gin.Context) {
 
 	registries, _, err := s.RegistrySrv.SearchRegistry(ctx, component.SearchRegistryParam{
 		Name:    registryName,
-		UseType: model.RegistryUseTypeNormal,
+		UseType: model.UserRegistry,
 	}, nil)
 	if err != nil {
 		response.JSONError(ctx, err)
@@ -386,9 +386,9 @@ func (s *ImageOpenAPISvc) CreateScanTask(ctx *gin.Context) {
 		search.HasFixedVulu = consts.HasFixedvulnStringd
 	}
 	if t.FromType == consts.ImageFromRegistry {
-		search.FromType = model.ImageFromTypeNormal
+		search.FromType = model.UserRegistry
 	} else if t.FromType == consts.ImageFromNode {
-		search.FromType = model.ImageFromSafeNode
+		search.FromType = model.NodeBuffRegistry
 	}
 
 	scanInfo := task.UpdateTaskInfo{

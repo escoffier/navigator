@@ -40,7 +40,7 @@ func (l *LocalDequeue) DequeueTasks(ctx context.Context) ([]task.Task, error) {
 func init() {
 	err := Register(localDequeueName, newLocalDequeue)
 	if err != nil {
-		logging.GetLogger().Error().Err(err).Str("Name", localDequeueName).Msg("int dequeue err")
+		logging.GetLogger().Err(err).Str("Name", localDequeueName).Msg("int dequeue err")
 	}
 }
 

@@ -68,7 +68,7 @@ func (e *ExecutorScanVuln) Scan(ctx context.Context, param Param) (Artifact, err
 	nameOpts = append(nameOpts, name.Insecure)
 	ref, err := name.ParseReference(e.imageCacheURL, nameOpts...)
 	if err != nil {
-		logging.GetLogger().Error().Err(err).Msg("parse image failed")
+		logging.GetLogger().Err(err).Msg("parse image failed")
 		return nil, errors.New("parse image failed")
 	}
 	// repo := ref.Context()
@@ -107,7 +107,7 @@ func (e *ExecutorScanVuln) Scan(ctx context.Context, param Param) (Artifact, err
 	if len(policyRule.Pkgs) > 0 {
 		err = json.Unmarshal([]byte(policyRule.Pkgs), &customPkg)
 		if err != nil {
-			logging.GetLogger().Error().Err(err).Msg("Unmarshal VulnPolicyRule failed")
+			logging.GetLogger().Err(err).Msg("Unmarshal VulnPolicyRule failed")
 			return nil, errors.New("Unmarshal VulnPolicyRule failed")
 		}
 	}
@@ -123,7 +123,7 @@ func (e *ExecutorScanVuln) Scan(ctx context.Context, param Param) (Artifact, err
 func init() {
 	err := Register(executorScanVulnName, newScanVuln)
 	if err != nil {
-		logging.GetLogger().Error().Err(err).Str("executorName", executorScanVulnName).Msg("int executor err")
+		logging.GetLogger().Err(err).Str("executorName", executorScanVulnName).Msg("int executor err")
 	}
 }
 

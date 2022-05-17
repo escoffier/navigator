@@ -36,7 +36,7 @@ type ScannerDalInterface interface {
 	InsertScanImage(ctx context.Context, sis []model.ScanImage) (int64, error)
 	InsertAdapterImageList(ctx context.Context, im model.ImageList) (int64, error)
 	SearchRegistry(ctx context.Context, param SearchRegistryParam, filter *model.Filter) ([]model.Registry, int64, error)
-	GroupImageFlags(ctx context.Context, param GetImageOverViewParm) ([]model.ImageFlagGroup, error)
+	GroupImageFlags(ctx context.Context, param GetImageOverViewParam) ([]model.ImageFlagGroup, error)
 
 	SearchRejectVuln(ctx context.Context, param SearchRejectRejectVulnParam) ([]model.RejectVuln, error)
 	CreateRejectRecord(ctx context.Context, data model.RejectRecord) (*model.RejectRecord, error)
@@ -203,7 +203,7 @@ func (s *ScannerOrm) CreateRejectPolicy(ctx context.Context, data model.RejectPo
 		if err == nil {
 			data.EnvsJson = string(bys)
 		} else {
-			logging.GetLogger().Error().Err(err).Msg("CreateRejectPolicy")
+			logging.GetLogger().Err(err).Msg("CreateRejectPolicy")
 		}
 	}
 
@@ -212,7 +212,7 @@ func (s *ScannerOrm) CreateRejectPolicy(ctx context.Context, data model.RejectPo
 		if err == nil {
 			data.SensitiveFileJson = string(bys)
 		} else {
-			logging.GetLogger().Error().Err(err).Msg("CreateRejectPolicy")
+			logging.GetLogger().Err(err).Msg("CreateRejectPolicy")
 		}
 	}
 
@@ -422,7 +422,7 @@ func (s *ScannerOrm) SearchRejectPolicy(ctx context.Context, param SearchRejectP
 			if err := json.Unmarshal([]byte(res[i].SensitiveFileJson), &ses); err == nil {
 				res[i].SensitiveFile = ses
 			} else {
-				logging.GetLogger().Error().Err(err).Msg("SearchRejectPolicy")
+				logging.GetLogger().Err(err).Msg("SearchRejectPolicy")
 			}
 		}
 
@@ -431,7 +431,7 @@ func (s *ScannerOrm) SearchRejectPolicy(ctx context.Context, param SearchRejectP
 			if err := json.Unmarshal([]byte(res[i].EnvsJson), &ses); err == nil {
 				res[i].Envs = ses
 			} else {
-				logging.GetLogger().Error().Err(err).Msg("SearchRejectPolicy")
+				logging.GetLogger().Err(err).Msg("SearchRejectPolicy")
 			}
 		}
 	}
@@ -806,7 +806,7 @@ func (s *ScannerOrm) GetAuthFromRegistry(ctx context.Context, registryID int64) 
 	}
 	decryPass, err := util.DesDecrypt(tmp.Password, []byte(consts.EncryptPasswordKey))
 	if err != nil {
-		logging.GetLogger().Error().Err(err).Msg("NewCipher Error")
+		logging.GetLogger().Err(err).Msg("NewCipher Error")
 		return ""
 	}
 	tmpStr := tmp.Username + ":" + string(decryPass)
@@ -870,7 +870,7 @@ func (s *ScannerOrm) GetTaskFromImageList(ctx context.Context, imgID int64, from
 	logging.GetLogger().Info().Msgf("GetTaskFromImageList:Tem:%+v", tmp)
 	regs, _, err := s.SearchRegistry(ctx, SearchRegistryParam{ID: tmp.RegistryID}, nil)
 	if err != nil {
-		logging.GetLogger().Error().Err(err).Msgf("GetTaskFromImageList imageID:%d,regestryId:%d", imgID, tmp.RegistryID)
+		logging.GetLogger().Err(err).Msgf("GetTaskFromImageList imageID:%d,regestryId:%d", imgID, tmp.RegistryID)
 		return model.ScanTask{}, model.VirusScanTask{}, err
 	}
 	if len(regs) == 0 {
@@ -938,7 +938,7 @@ func (s *ScannerOrm) SearchScanOneStatus(ctx context.Context, param SearchScanOn
 	return tmpScanImage.Status
 }
 
-func (s *ScannerOrm) GroupImageFlags(ctx context.Context, param GetImageOverViewParm) ([]model.ImageFlagGroup, error) {
+func (s *ScannerOrm) GroupImageFlags(ctx context.Context, param GetImageOverViewParam) ([]model.ImageFlagGroup, error) {
 	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*10)
 	defer cancelFunc()
 	db := s.rdb.Get().WithContext(ctx).Model(new(model.ImageList))
@@ -1125,7 +1125,7 @@ func (s *ScannerOrm) SearchImage(ctx context.Context, param SearchImageParam, fi
 	if param.Flag > 0 {
 		db = db.Where("flag & ? = ?", param.Flag, param.Flag)
 	}
-	if param.FromType == model.ImageFromSafeNode && param.NodeHostname != "" {
+	if param.FromType == model.NodeBuffRegistry && param.NodeHostname != "" {
 		db = db.Where("node_hostname =  ? ", param.NodeHostname)
 	}
 
@@ -1807,7 +1807,7 @@ func (s *ScannerOrm) GetSubTaskListWithImage(ctx context.Context, param GetSubTa
 
 	for i := range imagesInfo {
 		imagesIDMap[imagesInfo[i].ID].ImageInfo.Tag = imagesInfo[i].Tags
-		if imagesInfo[i].FromType == model.ImageFromSafeNode {
+		if imagesInfo[i].FromType == model.NodeBuffRegistry {
 			split := strings.SplitN(imagesInfo[i].FullRepoName, "/", model.NodeImageSplitCount)
 			imagesIDMap[imagesInfo[i].ID].ImageInfo.FullRepoName = split[len(split)-1]
 			imagesIDMap[imagesInfo[i].ID].ImageInfo.Library = fmt.Sprintf("%s(%s)%s",
@@ -1841,13 +1841,13 @@ func (s *ScannerOrm) SetSingleStrategy(ctx context.Context, envName string, poli
 		resEnv = append(resEnv, envName)
 		envByte, err := json.Marshal(resEnv)
 		if err != nil {
-			logging.GetLogger().Error().Err(err).Msgf("marshal env form db error")
+			logging.GetLogger().Err(err).Msgf("marshal env form db error")
 			continue
 		}
 		envStr := string(envByte)
 		err = s.rdb.Get().Model(&model.ScanStrategy{}).Where("id = ?", res[k].ID).Update("envs", envStr).Error
 		if err != nil {
-			logging.GetLogger().Error().Err(err).Msgf("updata env form db error")
+			logging.GetLogger().Err(err).Msgf("updata env form db error")
 			continue
 		}
 	}

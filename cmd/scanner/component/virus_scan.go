@@ -569,7 +569,7 @@ func (virusScan *VirusScan) logAndUpdateMongoStatus(ctx context.Context, scanTas
 	defer mongoCtxCancel()
 
 	if originalErr != nil {
-		logging.Get().Error().Err(originalErr).Msg(message)
+		logging.Get().Err(originalErr).Msg(message)
 		scanTask.Message = fmt.Sprintf("%s: %s", message, originalErr)
 	}
 
@@ -607,7 +607,7 @@ func (virusScan *VirusScan) virusProcessLayer(ctx context.Context, hub *registry
 	virusInfos, webshellInfo, err := virusScan.ScanLayer(ctx, hub, digest, scanTask.Repository, client, scanTask)
 	virusScan.generateVirusScanResult(virusInfos, webshellInfo, currLayer)
 	if err != nil {
-		logging.Get().Error().Err(err).Msg("error in Virus ScanLayer")
+		logging.Get().Err(err).Msg("error in Virus ScanLayer")
 		//return err
 	}
 	err = virusScan.updateCacheEntry(ctx, currentlyCachedLayers, digest)
@@ -638,7 +638,7 @@ func (virusScan *VirusScan) updateCacheEntry(ctx context.Context, currentLayerCa
 		defer redisCtxCancel()
 		_, err = virusScan.redisClient.Set(redisCtx, "virusScan"+"_"+layer, cacheEntry, redisTTL).Result()
 		if err != nil {
-			logging.Get().Error().Err(err).Str("layerDigest", layer).Msg("Layer could not be cached. Not persisting")
+			logging.Get().Err(err).Str("layerDigest", layer).Msg("Layer could not be cached. Not persisting")
 			return nil
 		}
 		logging.Get().Info().Str("layerDigest", layer).Msg("Layer successfully cached")
@@ -978,12 +978,12 @@ func (virusScan *VirusScan) updateRiskVirusCacheEntry(ctx context.Context, scant
 	sumData.CriticalNum = int64(len(scantask.ScanReport.Virus.Virus))
 	bytes, err := json.Marshal(sumData)
 	if err != nil {
-		logging.Get().Error().Err(err).Msgf("Risk Virus json Marshal error")
+		logging.Get().Err(err).Msgf("Risk Virus json Marshal error")
 		return
 	}
 	err = virusScan.redisClientShare.Set(ctx, image, bytes, riskTTL).Err()
 	if err != nil {
-		logging.Get().Error().Err(err).Msgf("Updata risk cache error image:%v", image)
+		logging.Get().Err(err).Msgf("Updata risk cache error image:%v", image)
 	}
 }
 

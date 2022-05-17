@@ -50,4 +50,14 @@ type Config struct {
 	SkipTLSVerify bool   `json:"skip_tls_verify"`
 	Region        string `json:"region"`
 	Insecure      bool   `json:"insecure"`
+	UseType       int64  `json:"use_type"`
+}
+
+type AuditLog struct {
+	ID           int64  `json:"id"`
+	OpTime       string `json:"op_time"`
+	Operation    string `json:"operation"`
+	Resource     string `json:"resource"`
+	ResourceType string `json:"resource_type"`
+	Username     string `json:"username"`
 }

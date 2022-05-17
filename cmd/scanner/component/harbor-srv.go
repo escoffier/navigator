@@ -134,11 +134,11 @@ func (hb *Harbor) AddHarborScanTask(ctx context.Context, scanReq model.ScannerRe
 	}
 	imgID, err := hb.dbdal.InsertAdapterImageList(ctx, img)
 	if err != nil {
-		logging.GetLogger().Error().Err(err).Msg("InserImage Error")
+		logging.GetLogger().Err(err).Msg("InserImage Error")
 	}
 	resTask, _, err := hb.dbdal.GetTaskFromImageList(ctx, imgID, "", scanReq.Authorization)
 	if err != nil {
-		logging.GetLogger().Error().Err(err).Msg("GetTaskFromImageList Error")
+		logging.GetLogger().Err(err).Msg("GetTaskFromImageList Error")
 	}
 	imageIds = append(imageIds, imgID)
 	hb.redclair.AddScanTask(resTask, consts.ScanTaskComeFromWeb)

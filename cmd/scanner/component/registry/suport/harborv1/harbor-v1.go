@@ -11,10 +11,11 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
-	"github.com/avast/retry-go"
 	registry2 "github.com/heroku/docker-registry-client/registry"
 	"github.com/opencontainers/go-digest"
+
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
@@ -22,10 +23,8 @@ import (
 )
 
 const (
-	HarborVersion        = "harbor-v1.0"
-	APIVersion           = "api"
-	RetryCount      uint = 3
-	DefaultPageSize int  = 100
+	APIVersion          = "api"
+	DefaultPageSize int = 100
 )
 
 type HarborV1 struct {
@@ -43,23 +42,20 @@ func (h *HarborV1) reqHarbor(url string) ([]byte, error) {
 	req.SetBasicAuth(h.config.Username, h.config.Password)
 	var bytes []byte
 
-	err = util.RetryWithBackoff(h.ctx, func() error {
-		resp, err := h.client.Do(req.WithContext(h.ctx))
-		if err != nil {
-			return err
-		}
-		defer util.CloseBodyWithLog(resp.Body)
-		if resp.StatusCode != http.StatusOK && resp.StatusCode >= 500 {
-			return fmt.Errorf("status code is %d", resp.StatusCode)
-		}
-		bytes, err = io.ReadAll(resp.Body)
-		return err
-	}, retry.Attempts(RetryCount))
-
+	resp, err := h.client.Do(req.WithContext(h.ctx))
 	if err != nil {
 		return nil, fmt.Errorf(fmt.Sprintf("get harbor projects err.%v", err))
 	}
 
+	defer util.CloseBodyWithLog(resp.Body)
+
+	if resp.StatusCode < http.StatusOK || resp.StatusCode > http.StatusMultipleChoices {
+		return nil, fmt.Errorf("status code is %d", resp.StatusCode)
+	}
+	bytes, err = io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("read bytes is failed %v", err)
+	}
 	return bytes, nil
 }
 
@@ -109,7 +105,7 @@ func (h *HarborV1) ListProjectsWithPage(page, pageSize int) ([]Project, error) {
 		ans = append(ans, projects[i])
 	}
 
-	logging.GetLogger().Info().Msgf("ListProjectsWithPagerepos %+v", ans)
+	logging.GetLogger().Debug().Msgf("ListProjectsWithPagerepos %+v", ans)
 	return ans, nil
 }
 
@@ -130,13 +126,13 @@ func (h *HarborV1) ListProjectRepos(project int) ([]Repository, error) {
 		page++
 	}
 
-	logging.GetLogger().Info().Msgf("repos %+v", repos)
+	logging.GetLogger().Info().Interface("repos", repos).Msg("ListProjectRepos")
 	return repos, nil
 }
 
 func (h *HarborV1) ListProjectReposWithPage(project, page, pageSize int) ([]Repository, error) {
 	url := fmt.Sprintf("%s/%s/repositories?project_id=%d&page=%d&page_size=%d", h.config.URL, APIVersion, project, page, pageSize)
-	logging.GetLogger().Info().Msgf("req harbor repo url %s", url)
+	logging.GetLogger().Debug().Msgf("req harbor repo url %s", url)
 
 	data, err := h.reqHarbor(url)
 	if err != nil {
@@ -159,13 +155,13 @@ func (h *HarborV1) ListProjectReposWithPage(project, page, pageSize int) ([]Repo
 		ans = append(ans, repos[i])
 	}
 
-	logging.GetLogger().Info().Msgf("ListProjectReposWithPage repos %+v", repos)
+	logging.GetLogger().Debug().Msgf("ListProjectReposWithPage repos %+v", repos)
 	return ans, nil
 }
 
 func (h *HarborV1) ListRepoTags(repo string) ([]Tag, error) {
 	url := fmt.Sprintf("%s/%s/repositories/%s/tags?detail=true", h.config.URL, APIVersion, repo)
-	logging.GetLogger().Info().Msgf("req harbor repo artifacts url %s", url)
+	logging.GetLogger().Debug().Msgf("req harbor repo artifacts url %s", url)
 
 	data, err := h.reqHarbor(url)
 	if err != nil {
@@ -179,13 +175,240 @@ func (h *HarborV1) ListRepoTags(repo string) ([]Tag, error) {
 		return nil, fmt.Errorf(fmt.Sprintf("decode harbor artifacts body err.%v", err))
 	}
 
-	logging.GetLogger().Info().Msgf("ListRepoTags get RepoTags %v", tags)
+	logging.GetLogger().Debug().Msgf("ListRepoTags get RepoTags %v", tags)
 	return tags, nil
 }
 
-func (h *HarborV1) ListImages(extender registry.ImageListExtender, req registry.ListImagesRequest) (*registry.ListImagesRes, error) {
-	res := new(registry.ListImagesRes)
+func (h *HarborV1) ListAuditLogWithPage(op string, time string, projectID int, page int, pageSize int) ([]AuditLog, error) {
+	url := fmt.Sprintf("%s/%s/projects/%d/logs?begin_timestamp=%s&operation=%s&page=%d&page_size=%d", h.config.URL, APIVersion, projectID, time, op, page, pageSize)
+	logging.GetLogger().Info().Str("url", url).Msg("ListAuditLogWithPage")
+	data, err := h.reqHarbor(url)
+	if err != nil {
+		logging.GetLogger().Err(err).Msgf("req harbor project %d AuditLog err", projectID)
+		return nil, err
+	}
+	logging.GetLogger().Debug().Msgf("data:%v", string(data))
+	var auditLog []AuditLog
+	if err := json.Unmarshal(data, &auditLog); err != nil {
+		logging.GetLogger().Err(err).Msg("ListAuditLogWithPage.Unmarshal")
+		return nil, fmt.Errorf(fmt.Sprintf("decode harbor artifacts body err"))
+	}
+	logging.GetLogger().Debug().Msgf("ListAuditLogWithPage get AuditLogs %v", auditLog)
+	return auditLog, nil
+}
 
+func (h *HarborV1) GetManifest(repo string, repoTag Tag) (string, string, string, error) {
+	var (
+		manifestV2   string
+		manifestV1   string
+		configBlob   string
+		configDigest digest.Digest
+	)
+	manifestV2, configDigest, err := h.pullImageManifestV2(repo, repoTag.Digest)
+	if err == nil {
+		// pull config json
+		configBlob, err = h.pullConfigBlob(repo, configDigest)
+		if err != nil {
+			logging.GetLogger().Err(err).Msgf("get config blob err, repo %s ,digest %s", repo, repoTag.Digest)
+			return "", "", "", fmt.Errorf("get config blob err:%v, repo %s ,digest %s", err, repo, repoTag.Digest)
+		}
+	} else {
+		// pull manifest v2 err,try v1
+		logging.GetLogger().Info().Msgf("get manifest v2 err %v,try v1, repo %s ,digest %s", err, repo, repoTag.Digest)
+		manifestV1, err = h.pullImageManifestV1(repo, repoTag.Digest)
+		if err != nil {
+			logging.GetLogger().Err(err).Msgf("get manifest (both v1,v2) err %v, repo %s ,digest %s", err, repo, repoTag.Digest)
+			return "", "", "", fmt.Errorf("get manifest (both v1,v2) err %v, repo %s ,digest %s", err, repo, repoTag.Digest)
+		}
+	}
+	return manifestV1, manifestV2, configBlob, nil
+}
+
+func (h *HarborV1) ImageRetry(ctx context.Context, extender registry.Extender, req registry.ImageRetryRequest) (*registry.ListImagesRes, error) {
+
+	if extender.CreateOrAddRetryCountExtender == nil || extender.CreateImageExtender == nil || extender.DeleteImageRetryExtender == nil {
+		return nil, fmt.Errorf("not get CreateOrAddRetryCountExtender or CreateImageExtender or DeleteImageRetryExtender")
+	}
+
+	images := req.RetryImages
+
+	res := new(registry.ListImagesRes)
+	for k := range images {
+		image := images[k]
+		regImage := registry.Image{Repository: image.FullRepoName, Tag: image.Tag, RegistryID: h.config.RegistryID}
+
+		repoTag, err := h.GetImageTag(image.FullRepoName, image.Tag)
+		if err != nil {
+			logging.GetLogger().Err(err).Msgf("Harbor V1 image retry get Tag error FullRepoName:%v ,Tag:%v", image.FullRepoName, image.Tag)
+			rErr := extender.CreateOrAddRetryCountExtender(ctx, regImage)
+			if rErr != nil {
+				logging.GetLogger().Err(err).Msg("retryExtender error")
+			}
+			continue
+		}
+		manifestV1, manifestV2, configBlob, err := h.GetManifest(image.FullRepoName, *repoTag)
+		if err != nil {
+			logging.GetLogger().Err(err).Msgf("Harbor V1 image retry get Manifest error FullRepoName:%v ,Tag:%v", image.FullRepoName, image.Tag)
+			rErr := extender.CreateOrAddRetryCountExtender(ctx, regImage)
+			if rErr != nil {
+				logging.GetLogger().Err(err).Msg("retryExtender error")
+			}
+			continue
+		}
+		i := h.makeImage(image.FullRepoName, *repoTag, manifestV1, manifestV2, configBlob)
+		im, err := extender.CreateImageExtender(ctx, i)
+		if err != nil {
+			logging.GetLogger().Err(err).Msgf("Harbor V1 image add to imageList error FullRepoName:%v ,Tag:%v", image.FullRepoName, image.Tag)
+			rErr := extender.CreateOrAddRetryCountExtender(ctx, regImage)
+			if rErr != nil {
+				logging.GetLogger().Err(err).Msg("retryExtender error")
+			}
+			continue
+		}
+		rErr := extender.DeleteImageRetryExtender(ctx, regImage)
+		if rErr != nil {
+			logging.GetLogger().Err(err).Msg("DeleteImageRetryExtender")
+		}
+		res.Added = append(res.Added, im.Added...)
+	}
+	return res, nil
+}
+
+// 如果第一次同步就是增量同步，那这里会OOM
+func (h *HarborV1) ListAuditLog(op string, startAt int64, projectID int) ([]AuditLog, error) {
+	var auditlogs []AuditLog
+	page := 1
+	for {
+		auditlog, err := h.ListAuditLogWithPage(op, fmt.Sprintf("%v", startAt), projectID, page, DefaultPageSize)
+		if err != nil {
+			logging.GetLogger().Err(err).Msgf("ListAuditLog.ListAuditLogWithPage break projectID %v", projectID)
+			return nil, err
+		}
+		auditlogs = append(auditlogs, auditlog...)
+		if len(auditlog) < DefaultPageSize {
+			break
+		}
+		page++
+	}
+	return auditlogs, nil
+}
+
+func (h *HarborV1) GetImageTag(repo string, tag string) (*Tag, error) {
+	url := fmt.Sprintf("%s/%s/repositories/%s/tags/%s", h.config.URL, APIVersion, repo, tag)
+	data, err := h.reqHarbor(url)
+	if err != nil {
+		logging.GetLogger().Err(err).Msgf("req harbor repo :%s tag :%s err", repo, tag)
+		return nil, err
+	}
+	var tmpTag Tag
+	if err := json.Unmarshal(data, &tmpTag); err != nil {
+		logging.GetLogger().Err(err).Msgf("GetImageTag Unmarshal error repo:%v tag:%v", repo, tag)
+		return nil, err
+	}
+	if len(tmpTag.Labels) > 0 && tmpTag.Labels[0].Deleted {
+		return nil, err
+	}
+	return &tmpTag, nil
+}
+
+func (h *HarborV1) ListImagesWithAuditLog(ctx context.Context, extender registry.Extender, req registry.ListImagesAuditLog) (*registry.ListImagesRes, error) {
+	if extender.CreateOrAddRetryCountExtender == nil || extender.CreateImageExtender == nil || extender.DeleteImageRetryExtender == nil {
+		return nil, fmt.Errorf("not get CreateOrAddRetryCountExtender or CreateImageExtender or DeleteImageRetryExtender")
+	}
+
+	res := new(registry.ListImagesRes)
+	projects, err := h.ListProjects()
+	if err != nil {
+		logging.GetLogger().Err(err).Msg("ListImagesWithAuditLog failed because ListProjects")
+		return nil, err
+	}
+	cz := time.FixedZone("CST", 8*3600)
+	for _, v := range projects {
+		mp := make(map[string]int64)
+		pushAuditLog, err := h.ListAuditLog("push", req.StartAt, v.ProjectID)
+		if err != nil {
+			res.GetAuditLogError = true
+			continue
+		}
+		// 查push日志
+		for i := range pushAuditLog { // 先过滤出指定时间内push的镜像，标记时间
+			tt, err := time.ParseInLocation(time.RFC3339, pushAuditLog[i].OpTime, time.UTC)
+			if err != nil {
+				logging.GetLogger().Warn().Msgf("Parse time Error time :%v", pushAuditLog[i].OpTime)
+				continue
+			}
+			createKey := fmt.Sprintf("%s-%s", pushAuditLog[i].RepoName, pushAuditLog[i].RepoTag)
+
+			createTime := tt.In(cz).Unix()
+			if mp[createKey] < createTime {
+				mp[createKey] = createTime
+			}
+		}
+		// 查删除日志
+		deleteAuditLog, err := h.ListAuditLog("delete", req.StartAt, v.ProjectID)
+		if err != nil {
+			res.GetAuditLogError = true
+			continue
+		}
+		for i := range deleteAuditLog { //  删除时间大于push时间的镜像
+			tt, err := time.ParseInLocation(time.RFC3339, deleteAuditLog[i].OpTime, time.UTC)
+			if err != nil {
+				logging.GetLogger().Warn().Msgf("Parse time Error time :%v", deleteAuditLog[i].OpTime)
+				continue
+			}
+			deleteTime := tt.In(cz).Unix()
+			deleteKey := fmt.Sprintf("%s-%s", deleteAuditLog[i].RepoName, deleteAuditLog[i].RepoTag)
+
+			if pushTime, ok := mp[deleteKey]; ok && pushTime < deleteTime {
+				mp[deleteKey] = 0
+			}
+		}
+		for _, k := range pushAuditLog {
+			createKey := fmt.Sprintf("%s-%s", k.RepoName, k.RepoTag)
+			if mp[createKey] <= 0 {
+				continue
+			}
+			tag, err := h.GetImageTag(k.RepoName, k.RepoTag)
+
+			regImage := registry.Image{Repository: k.RepoName, Tag: k.RepoTag, RegistryID: h.config.RegistryID}
+
+			if err != nil {
+				logging.GetLogger().Err(err).Str("RepoName", k.RepoName).Str("Tag", k.RepoTag).Msg("GetImageTag")
+				if err := extender.CreateOrAddRetryCountExtender(ctx, regImage); err != nil {
+					logging.GetLogger().Err(err).Str("RepoName", k.RepoName).Str("Tag", k.RepoTag).Msg("createRetryExtender")
+				}
+				continue
+			}
+			manifestV1, manifestV2, configBlob, err := h.GetManifest(k.RepoName, *tag)
+			if err != nil {
+				logging.GetLogger().Err(err).Str("RepoName", k.RepoName).Str("Tag", k.RepoTag).Msg("GetManifest")
+
+				if err := extender.CreateOrAddRetryCountExtender(ctx, regImage); err != nil {
+					logging.GetLogger().Err(err).Str("RepoName", k.RepoName).Str("Tag", k.RepoTag).Msg("createRetryExtender")
+				}
+				continue
+			}
+			i := h.makeImage(k.RepoName, *tag, manifestV1, manifestV2, configBlob)
+			im, err := extender.CreateImageExtender(ctx, i)
+			if err != nil {
+				logging.GetLogger().Err(err).Str("RepoName", k.RepoName).Str("Tag", k.RepoTag).Msg("createImageExtender")
+
+				if err := extender.CreateOrAddRetryCountExtender(ctx, regImage); err != nil {
+					logging.GetLogger().Err(err).Str("RepoName", k.RepoName).Str("Tag", k.RepoTag).Msg("createImageExtender")
+				}
+				continue
+			}
+			res.Added = append(res.Added, im.Added...)
+		}
+	}
+	return res, nil
+}
+
+func (h *HarborV1) ListImages(ctx context.Context, extender registry.Extender, req registry.ListImagesRequest) (*registry.ListImagesRes, error) {
+	if extender.CreateImageExtender == nil {
+		return nil, fmt.Errorf("not get CreateImageExtender")
+	}
+	res := new(registry.ListImagesRes)
 	cnt := 0
 	// get all projects
 	projects, err := h.ListProjects()
@@ -213,41 +436,30 @@ func (h *HarborV1) ListImages(extender registry.ImageListExtender, req registry.
 
 			for _, t := range tags {
 				// pull manifest v2
-				var (
-					manifestV2   string
-					manifestV1   string
-					configBlob   string
-					configDigest digest.Digest
-				)
+				manifestV1, manifestV2, configBlob, err := h.GetManifest(r.Name, t)
+				if err != nil {
 
-				manifestV2, configDigest, err := h.pullImageManifestV2(r.Name, t.Digest)
-				if err == nil {
-					// pull config json
-					configBlob, err = h.pullConfigBlob(r.Name, configDigest)
-					if err != nil {
-						logging.GetLogger().Err(err).Msgf("get config blob err, repo %s ,digest %s", r.Name, t.Digest)
-						continue
+					retryImage := registry.Image{RegistryID: h.config.RegistryID, Repository: v.Name, Tag: t.Name, Message: err.Error()}
+					if err := extender.CreateOrAddRetryCountExtender(ctx, retryImage); err != nil {
+						logging.GetLogger().Err(err).Str("FullRepoName", r.Name).Str("Digest", t.Digest).Msg("CreateOrAddRetryCountExtender")
 					}
-				} else {
-					// pull manifest v2 err,try v1
-					logging.GetLogger().Info().Msgf("get manifest v2 err %v,try v1, repo %s ,digest %s", err, r.Name, t.Digest)
-					manifestV1, err = h.pullImageManifestV1(r.Name, t.Digest)
-					if err != nil {
-						logging.GetLogger().Err(err).Msgf("get manifest (both v1,v2) err %v, repo %s ,digest %s", err, r.Name, t.Digest)
-						continue
-					}
+
+					logging.GetLogger().Err(err).Msgf("ListImages GetManifest", v.Name)
+
+					continue
 				}
-
-				i := h.makeImage(r, t)
-				i.Created = t.Created
-				i.ManifestV2 = string(manifestV2)
-				i.ManifestV1 = string(manifestV1)
-				i.ConfigJSON = configBlob
+				i := h.makeImage(r.Name, t, manifestV1, manifestV2, configBlob)
 
 				cnt++
-				im, err := extender(*i)
+				im, err := extender.CreateImageExtender(ctx, i)
 				if err != nil {
 					logging.GetLogger().Err(err).Msgf("HarborV1 Insert imagelist error")
+
+					retryImage := registry.Image{RegistryID: h.config.RegistryID, Repository: v.Name, Tag: t.Name, Message: err.Error()}
+					if err := extender.CreateOrAddRetryCountExtender(ctx, retryImage); err != nil {
+						logging.GetLogger().Err(err).Str("FullRepoName", r.Name).Str("Digest", t.Digest).Msg("CreateOrAddRetryCountExtender")
+					}
+
 					continue
 				}
 				if req.NeedToReturnAll {
@@ -390,15 +602,26 @@ func (h *HarborV1) CheckProject(projectName string) error {
 	return nil
 }
 
-func (h *HarborV1) makeImage(r Repository, t Tag) *registry.Image {
+func (h *HarborV1) SupportIncrementalSync(ctx context.Context) bool {
+	return true
+}
 
-	i := &registry.Image{
+func (h *HarborV1) makeImage(repositoryName string, t Tag, manifestV1, manifestV2, configBlob string) registry.Image {
+
+	i := registry.Image{
+		RegistryUrl:  h.config.URL,
+		RegistryID:   h.config.RegistryID,
 		ImageDigest:  t.Digest,
-		Repository:   r.Name,
+		Repository:   repositoryName,
 		Tag:          t.Name,
 		Size:         t.Size,
 		LastPullTime: t.PullTime,
 		LastPushTime: t.PushTime,
+		Created:      t.Created,
+		FromType:     h.config.UseType,
+		ManifestV2:   manifestV2,
+		ManifestV1:   manifestV1,
+		ConfigJSON:   configBlob,
 	}
 	return i
 }
@@ -444,7 +667,7 @@ func (h *HarborV1) pullConfigBlob(repo string, configDigest digest.Digest) (stri
 }
 
 func init() {
-	err := registry.Register(HarborVersion, openRegistry)
+	err := registry.Register(consts.HarborV1Version, openRegistry)
 	if err != nil {
 		logging.GetLogger().Err(err).Msgf("init harborV1 error:%v", err)
 	}

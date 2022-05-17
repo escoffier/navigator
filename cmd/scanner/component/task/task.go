@@ -84,7 +84,7 @@ func WalkSubTasks(ctx context.Context,
 
 		logging.GetLogger().Debug().Int64("subTaskId", subTask.ID).Int64("taskId", t.ID).Msg("subtask wait semaphore")
 		if err := subLimit.Acquire(ctx, 1); err != nil {
-			logging.GetLogger().Error().Err(err).Msg("semaphore acquire err")
+			logging.GetLogger().Err(err).Msg("semaphore acquire err")
 			continue
 		}
 

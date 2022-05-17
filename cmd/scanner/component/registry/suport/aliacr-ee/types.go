@@ -21,6 +21,7 @@ type Config struct {
 	AccessSecret string `json:"access_secret"`
 	Insecure     bool   `json:"insecure"`
 	InstanceID   string `json:"instance_id"`
+	UseType      int64  `json:"use_type"`
 }
 
 type HTTPResponse struct {

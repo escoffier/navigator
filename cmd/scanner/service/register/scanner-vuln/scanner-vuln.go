@@ -32,7 +32,7 @@ func (s *ScannerVulnService) Stop(ctx context.Context) error {
 func init() {
 	err := register.Register(serviceName, newService)
 	if err != nil {
-		logging.GetLogger().Error().Err(err).Str("serviceName", serviceName).Msg("int service err")
+		logging.GetLogger().Err(err).Str("serviceName", serviceName).Msg("int service err")
 	}
 }
 

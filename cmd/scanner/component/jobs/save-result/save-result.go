@@ -516,13 +516,13 @@ func (s *ScanResultHandle) logPostgresWebFrame(ctx context.Context, param jobs.P
 	tmpWebFrame.ImageUUID = imageUUID
 	tmpWebFrame.WebFrameInfoJSON, err = json.Marshal(scanWebFrame)
 	if err != nil {
-		logging.GetLogger().Error().Err(err).Msgf("marshal scanWebFram error")
+		logging.GetLogger().Err(err).Msg("marshal scanWebFram error")
 		return
 	}
 	scannerOrm := store.GetScannerDb()
 	err = scannerOrm.InsertToWebFrame(ctx, &tmpWebFrame)
 	if err != nil {
-		logging.GetLogger().Error().Err(err).Msgf("log postgres Web_Frame failed")
+		logging.GetLogger().Err(err).Msg("log postgres Web_Frame failed")
 	}
 }
 
@@ -554,17 +554,17 @@ func (s *ScanResultHandle) updateRiskVulnCacheEntry(ctx context.Context, param j
 	sumData.UnknownNum = scanDetails.SeverityHistogram.NumUnknown
 	bytes, err := json.Marshal(sumData)
 	if err != nil {
-		logging.GetLogger().Error().Err(err).Msgf("Risk Vuln json Marshal error")
+		logging.GetLogger().Err(err).Msg("Risk Vuln json Marshal")
 		return
 	}
 	redis, err := store.GetRedisClient(0)
 	if err != nil {
-		logging.GetLogger().Error().Err(err).Msgf("Redis 0 can't get ")
+		logging.GetLogger().Err(err).Msg("Redis 0 can't get ")
 		return
 	}
 	err = redis.Set(ctx, image, bytes, time.Hour*144).Err()
 	if err != nil {
-		logging.GetLogger().Error().Err(err).Msgf("Updata risk cache error image:%v", image)
+		logging.GetLogger().Err(err).Msgf("Updata risk cache error image:%v", image)
 	}
 }
 
@@ -592,17 +592,17 @@ func (s *ScanResultHandle) updateRiskVirusCacheEntry(ctx context.Context, param 
 	sumData.CriticalNum = int64(len(scanDetails.MaliciousDetails))
 	bytes, err := json.Marshal(sumData)
 	if err != nil {
-		logging.GetLogger().Error().Err(err).Msgf("Risk Virus json Marshal error")
+		logging.GetLogger().Err(err).Msg("Risk Virus json Marshal")
 		return
 	}
 	redis, err := store.GetRedisClient(0)
 	if err != nil {
-		logging.GetLogger().Error().Err(err).Msgf("Redis 0 can't get ")
+		logging.GetLogger().Err(err).Msg("Redis 0 can't get")
 		return
 	}
 	err = redis.Set(ctx, image, bytes, time.Hour*144).Err()
 	if err != nil {
-		logging.GetLogger().Error().Err(err).Msgf("Updata risk cache error image:%v", image)
+		logging.GetLogger().Err(err).Msgf("Updata risk cache error image:%v", image)
 	}
 }
 
@@ -760,12 +760,12 @@ func (s *ScanResultHandle) Run(ctx context.Context, param jobs.Param) (jobs.Arti
 	if ok {
 		client1, err := imageCache.NewLocalLayerManageClientT("/layer")
 		if err != nil {
-			logging.GetLogger().Error().Err(err).Msg("delete layers Failed!")
+			logging.GetLogger().Err(err).Msg("delete layers Failed!")
 		} else {
 			for k := range layers {
 				err := client1.DeleteLayer(layers[k])
 				if err != nil {
-					logging.GetLogger().Error().Err(err).Msgf("delete layer %v Failed", layers[k])
+					logging.GetLogger().Err(err).Msgf("delete layer %v Failed", layers[k])
 				}
 			}
 		}
@@ -779,7 +779,7 @@ func rmImage(imageName string) error {
 
 	err := osCmd.Run()
 	if err != nil {
-		logging.GetLogger().Error().Err(err).Msgf("scan-image docker delete image：%s:%v", imageName, osCmd.Args)
+		logging.GetLogger().Err(err).Msgf("scan-image docker delete image：%s:%v", imageName, osCmd.Args)
 		return err
 	}
 	logging.GetLogger().Info().Msgf("scan-image docker delete image：%s", imageName)

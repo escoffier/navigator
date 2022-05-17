@@ -26,7 +26,7 @@ type RegistrySrvInterface interface {
 	GetRegistryType(ctx context.Context) ([]string, error)
 }
 type RegistrySrv struct {
-	RegistryDal store.RegistryDalInterface
+	RegistryDal store.RegistryDal
 }
 
 type SearchRegistryParam struct {
@@ -43,7 +43,7 @@ func (s *RegistrySrv) GetRegistryType(ctx context.Context) ([]string, error) {
 func (s *RegistrySrv) GetRegistry(ctx context.Context, id int64) (*model.Registry, error) {
 	registries, _, err := s.RegistryDal.SearchRegistry(ctx, store.SearchRegistryParam{ID: id, NoDelete: true}, nil)
 	if err != nil {
-		logging.GetLogger().Error().Err(err).Msgf("ListRegistry SearchRegistry error %s", err.Error())
+		logging.GetLogger().Err(err).Msgf("ListRegistry SearchRegistry error %s", err.Error())
 		return nil, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf("获取仓库信息出错"))
 	}
 	if len(registries) == 0 {
@@ -55,7 +55,7 @@ func (s *RegistrySrv) GetRegistry(ctx context.Context, id int64) (*model.Registr
 func (s *RegistrySrv) SearchRegistry(ctx context.Context, param SearchRegistryParam, filter *model.Filter) ([]model.Registry, int64, error) {
 	registries, cnt, err := s.RegistryDal.SearchRegistry(ctx, store.SearchRegistryParam{Name: param.Name, UseType: param.UseType, Search: param.Search, RegType: param.RegType, NoDelete: true}, filter)
 	if err != nil {
-		logging.GetLogger().Error().Err(err).Msg("SearchRegistry")
+		logging.GetLogger().Err(err).Msg("SearchRegistry")
 		return nil, 0, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf("获取仓库列表出错"))
 	}
 	return registries, cnt, nil
@@ -69,7 +69,7 @@ func (s *RegistrySrv) DeleteRegistry(ctx context.Context, id int64) error {
 	update["deleted_at"] = time.Now().Unix()
 	err := s.RegistryDal.UpdateRegistry(ctx, store.SearchRegistryParam{ID: id}, update)
 	if err != nil {
-		logging.GetLogger().Error().Err(err).Msg("DeleteRegistry")
+		logging.GetLogger().Err(err).Msg("DeleteRegistry")
 		return response.NewHttpError(http.StatusInternalServerError, fmt.Errorf("删除仓库出错"))
 	}
 	return nil
@@ -86,7 +86,7 @@ func (s *RegistrySrv) CreateRegistry(ctx context.Context, reg model.Registry) (i
 
 	drive, err := registry.Open(RegToRegistryConf(reg))
 	if err != nil {
-		logging.GetLogger().Error().Err(err).Msg("尝试连接到仓库出错")
+		logging.GetLogger().Err(err).Msg("尝试连接到仓库出错")
 		switch err {
 		case consts.ErrAccessKeyOrAccessSecret, consts.ErrNotConnectOrWrongUsernameOrPasswd:
 			return 0, response.NewHttpError(http.StatusBadRequest, err)
@@ -95,7 +95,7 @@ func (s *RegistrySrv) CreateRegistry(ctx context.Context, reg model.Registry) (i
 		}
 	}
 	if err := drive.Ping(); err != nil {
-		logging.GetLogger().Error().Err(err).Msg("尝试连接到仓库出错")
+		logging.GetLogger().Err(err).Msg("尝试连接到仓库出错")
 		switch err {
 		case consts.ErrAccessKeyOrAccessSecret, consts.ErrNotConnectOrWrongUsernameOrPasswd:
 			return 0, response.NewHttpError(http.StatusBadRequest, err)
@@ -106,7 +106,7 @@ func (s *RegistrySrv) CreateRegistry(ctx context.Context, reg model.Registry) (i
 
 	id, err := s.RegistryDal.CreateRegistry(ctx, reg)
 	if err != nil {
-		logging.GetLogger().Error().Err(err).Msg("CreateRegistry")
+		logging.GetLogger().Err(err).Msg("CreateRegistry")
 		if strings.Contains(err.Error(), consts.DuplicateKey) {
 			return 0, response.NewHttpError(http.StatusFailedDependency, fmt.Errorf("仓库名已存在"))
 		}
@@ -121,7 +121,7 @@ func (s *RegistrySrv) UpdateRegistry(ctx context.Context, id int64, reg model.Re
 	}
 	registries, _, err := s.RegistryDal.SearchRegistry(ctx, store.SearchRegistryParam{ID: id, NoDelete: true}, nil)
 	if err != nil {
-		logging.GetLogger().Error().Err(err).Msg("UpdateRegistry.SearchRegistry")
+		logging.GetLogger().Err(err).Msg("UpdateRegistry.SearchRegistry")
 		return response.NewHttpError(http.StatusInternalServerError, fmt.Errorf(consts.StatusInternalServerErrorMsg))
 	}
 	if len(registries) == 0 {
@@ -138,7 +138,7 @@ func (s *RegistrySrv) UpdateRegistry(ctx context.Context, id int64, reg model.Re
 	drive, err := registry.Open(RegToRegistryConf(reg))
 
 	if err != nil {
-		logging.GetLogger().Error().Err(err).Msg("尝试连接到仓库出错")
+		logging.GetLogger().Err(err).Msg("尝试连接到仓库出错")
 		switch err {
 		case consts.ErrAccessKeyOrAccessSecret, consts.ErrNotConnectOrWrongUsernameOrPasswd:
 			return response.NewHttpError(http.StatusBadRequest, err)
@@ -147,7 +147,7 @@ func (s *RegistrySrv) UpdateRegistry(ctx context.Context, id int64, reg model.Re
 		}
 	}
 	if err := drive.Ping(); err != nil {
-		logging.GetLogger().Error().Err(err).Msg("尝试连接到仓库出错")
+		logging.GetLogger().Err(err).Msg("尝试连接到仓库出错")
 		switch err {
 		case consts.ErrAccessKeyOrAccessSecret, consts.ErrNotConnectOrWrongUsernameOrPasswd:
 			return response.NewHttpError(http.StatusBadRequest, err)
@@ -167,7 +167,7 @@ func (s *RegistrySrv) UpdateRegistry(ctx context.Context, id int64, reg model.Re
 
 	err = s.RegistryDal.UpdateRegistry(ctx, store.SearchRegistryParam{ID: id}, updater)
 	if err != nil {
-		logging.GetLogger().Error().Err(err).Msg("CreateRegistry")
+		logging.GetLogger().Err(err).Msg("CreateRegistry")
 		if strings.Contains(err.Error(), consts.DuplicateKey) {
 			return response.NewHttpError(http.StatusFailedDependency, fmt.Errorf("仓库名已存在"))
 		}
@@ -176,7 +176,7 @@ func (s *RegistrySrv) UpdateRegistry(ctx context.Context, id int64, reg model.Re
 	return nil
 }
 
-func NewRegistrySrv(dal store.RegistryDalInterface) *RegistrySrv {
+func NewRegistrySrv(dal store.RegistryDal) *RegistrySrv {
 	return &RegistrySrv{RegistryDal: dal}
 }
 

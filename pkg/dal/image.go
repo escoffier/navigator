@@ -9,11 +9,12 @@ import (
 
 	"github.com/avast/retry-go"
 	json "github.com/json-iterator/go"
+	"gorm.io/gorm"
+
 	"gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
-	"gorm.io/gorm"
 )
 
 type imageListWithVulnResp struct {
@@ -88,20 +89,7 @@ func ImageQuestion(ctx context.Context, postgresDB *gorm.DB, linkObjectId string
 }
 
 func ScanFinish(ctx context.Context, postgresDB *gorm.DB, digest string) error {
-
-	cstZone := time.FixedZone("CST", 8*3600)
-	timeStr := time.Now().In(cstZone).Format("2006-01-02 15:04:05")
-	pgCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
-	defer cancel()
-
-	err := postgresDB.WithContext(pgCtx).Model(model.ImageList{}).Where("digest = ? ", digest).Where("status = ?", 0).Updates(model.ImageList{CompleteTime: timeStr}).Error
-
-	if err != nil {
-		return err
-	}
-
 	return nil
-
 }
 
 func GetAllVirusScanStatus(ctx context.Context, scannerURL string) (int, int) {

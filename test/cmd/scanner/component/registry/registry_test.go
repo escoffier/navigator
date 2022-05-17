@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry"
-	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry/suport/hwswr"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 )
 
@@ -39,7 +39,7 @@ func dumpImages(images []registry.Image) {
 func TestListImages(t *testing.T) {
 	t.Log("start test list images")
 	driver, err := registry.Open(registry.RegistrableComponentConfig{
-		Type: hwswr.Version,
+		Type: consts.HaiWeiSwrVersion,
 		Options: map[string]interface{}{
 			"url": swrUrl,
 			// "password":      swrPassword,

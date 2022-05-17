@@ -10,7 +10,7 @@ import (
 	"strings"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry"
-	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry/suport/harborv2"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 )
 
@@ -172,14 +172,14 @@ func getLib(url string) string {
 
 func getHarbor(url, username, password string) registry.Registry {
 	opt := make(map[string]interface{})
-	opt["type"] = harborv2.HarborVersion
+	opt["type"] = consts.HarborV2Version
 	opt["url"] = url
 	opt["username"] = username
 	opt["password"] = password
 	opt["skip_tls_verify"] = true
 	opt["insecure"] = true
 	conf := registry.RegistrableComponentConfig{
-		Type:    harborv2.HarborVersion,
+		Type:    consts.HarborV2Version,
 		Options: opt,
 	}
 	drive, err := registry.Open(conf)

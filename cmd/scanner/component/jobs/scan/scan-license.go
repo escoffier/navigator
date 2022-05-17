@@ -94,7 +94,7 @@ func (e *executorScanLicense) Scan(ctx context.Context, param Param) (Artifact, 
 func init() {
 	err := Register(executorScanLicenselName, newScanLicense)
 	if err != nil {
-		logging.GetLogger().Error().Err(err).Str("executorName", executorScanLicenselName).Msg("int executor err")
+		logging.GetLogger().Err(err).Str("executorName", executorScanLicenselName).Msg("int executor err")
 	}
 }
 func newScanLicense(config ExecutorConfig) (Executor, error) { // Open时调用

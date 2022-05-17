@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"regexp"
 	"strings"
@@ -18,10 +19,6 @@ import (
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
-)
-
-const (
-	Version = "ali-acr"
 )
 
 type AliAcr struct {
@@ -50,13 +47,22 @@ func (aa *AliAcr) Ping() error {
 	return nil
 }
 
+func (aa *AliAcr) ImageRetry(ctx context.Context, extender registry.Extender, req registry.ImageRetryRequest) (*registry.ListImagesRes, error) {
+	return nil, nil
+}
+func (aa *AliAcr) SupportIncrementalSync(ctx context.Context) bool {
+	return false
+}
 func (aa *AliAcr) DeleteImages(projectName, repoName, digest string) error {
 	panic("implement me")
 }
 
-func (aa *AliAcr) ListImages(extender registry.ImageListExtender, req registry.ListImagesRequest) (*registry.ListImagesRes, error) {
-	res := new(registry.ListImagesRes)
+func (aa *AliAcr) ListImages(ctx context.Context, extender registry.Extender, req registry.ListImagesRequest) (*registry.ListImagesRes, error) {
+	if extender.CreateImageExtender == nil {
+		return nil, fmt.Errorf("not get CreateImageExtender")
+	}
 
+	res := new(registry.ListImagesRes)
 	cnt := 0
 	// get namespaces
 	nss, err := aa.listNamespaces(aa.AliAcrClient)
@@ -107,15 +113,18 @@ func (aa *AliAcr) ListImages(extender registry.ImageListExtender, req registry.L
 					continue
 				}
 				var preImage = registry.Image{
+					FromType:    aa.Config.UseType,
 					ImageDigest: imageDigest,
 					Repository:  fullRepoName,
 					Tag:         tag,
 					ManifestV2:  string(manifestV2Str),
 					ConfigJSON:  configBlob,
+					RegistryID:  aa.Config.RegistryID,
+					RegistryUrl: aa.Config.URL,
 				}
 				cnt++
 
-				im, err := extender(preImage)
+				im, err := extender.CreateImageExtender(ctx, preImage)
 				if err != nil {
 					if err != consts.ErrNotNodeImage {
 						logging.Get().Err(err).Msgf("ali acr Insert imagelist error")
@@ -136,6 +145,10 @@ func (aa *AliAcr) ListImages(extender registry.ImageListExtender, req registry.L
 	return res, nil
 }
 
+func (aa *AliAcr) ListImagesWithAuditLog(ctx context.Context, extender registry.Extender, req registry.ListImagesAuditLog) (*registry.ListImagesRes, error) {
+	return nil, nil
+}
+
 func (aa *AliAcr) listNamespaces(c *cr.Client) (namespaces []string, err error) {
 	// list namespaces
 	nsReq := cr.CreateGetNamespaceListRequest()
@@ -153,7 +166,7 @@ func (aa *AliAcr) listNamespaces(c *cr.Client) (namespaces []string, err error) 
 	for _, ns := range resp.Data.Namespaces {
 		namespaces = append(namespaces, ns.Namespace)
 	}
-	logging.Get().Info().Str("driver", Version).Strs("namespaces", namespaces).Msg("FetchArtifacts.listNamespace")
+	logging.Get().Info().Str("driver", consts.AliAcrVersion).Strs("namespaces", namespaces).Msg("FetchArtifacts.listNamespace")
 	return namespaces, nil
 }
 
@@ -265,7 +278,7 @@ func openRegistry(config registry.RegistrableComponentConfig) (registry.Registry
 }
 
 func init() {
-	err := registry.Register(Version, openRegistry)
+	err := registry.Register(consts.AliAcrVersion, openRegistry)
 	if err != nil {
 		logging.Get().Err(err).Msgf("init ali acr error")
 		return

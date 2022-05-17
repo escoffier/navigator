@@ -62,13 +62,13 @@ func (i *ImageScan) Run(ctx context.Context, param jobs.Param) (jobs.Artifact, e
 
 			scanExecutor, err := Open(ExecutorConfig{Type: string(scanType), Policy: policy})
 			if err != nil {
-				logging.GetLogger().Error().Err(err).Str("scanType", string(scanType)).Msg("create scan executor failed")
+				logging.GetLogger().Err(err).Str("scanType", string(scanType)).Msg("create scan executor failed")
 				return
 			}
 
 			curArtifact, err := scanExecutor.Scan(context.Background(), Param(artifacts))
 			if err != nil {
-				logging.GetLogger().Error().Err(err).Str("scanType", string(scanType)).Msg("scan executor failed")
+				logging.GetLogger().Err(err).Str("scanType", string(scanType)).Msg("scan executor failed")
 				return
 			}
 			logging.GetLogger().Info().Interface("executorName", scanType).Msg("executor scan end")
@@ -84,7 +84,7 @@ func (i *ImageScan) Run(ctx context.Context, param jobs.Param) (jobs.Artifact, e
 func init() {
 	err := jobs.Register(JobName, newJob)
 	if err != nil {
-		logging.GetLogger().Error().Err(err).Str("jobName", JobName).Msg("init job err")
+		logging.GetLogger().Err(err).Str("jobName", JobName).Msg("init job err")
 	}
 }
 

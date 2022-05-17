@@ -181,7 +181,7 @@ func (scdb *ScannerDB) InsertToRegistry(ctx context.Context, Registry *model.Reg
 	// fmt.Println("初始化时加密前的密码:", string(Registry.Password))
 	encryPass, err := util.DesEncrypt(Registry.Password, []byte(consts.EncryptPasswordKey))
 	if err != nil {
-		logging.GetLogger().Error().Err(err).Msg("NewCipher Error")
+		logging.GetLogger().Err(err).Msg("NewCipher Error")
 	}
 	Registry.Password = encryPass
 	/*decryPass := make([]byte, 1024)
@@ -214,7 +214,7 @@ func (scdb *ScannerDB) GetAuthFromRegistry(ctx context.Context, url string) stri
 	key := []byte("talkerss")
 	decryPass, err := util.DesDecrypt(tmp.Password, key)
 	if err != nil {
-		logging.GetLogger().Error().Err(err).Msg("NewChiper Error")
+		logging.GetLogger().Err(err).Msg("NewChiper Error")
 		return ""
 	}
 	tmpStr := tmp.Username + ":" + string(decryPass)

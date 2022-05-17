@@ -24,7 +24,6 @@ import (
 )
 
 const (
-	Version          = "ali-acr-ee"
 	RepoStatusNormal = "NORMAL"
 	DefaultPageSize  = "30"
 	DefaultVersion   = "2018-12-01"
@@ -51,6 +50,10 @@ func (aa *AliAcrEE) GetImage(projectName, fullRepoName, tag string) (*registry.I
 	panic("implement me")
 }
 
+func (aa *AliAcrEE) SupportIncrementalSync(ctx context.Context) bool {
+	return false
+}
+
 func (aa *AliAcrEE) Ping() error {
 	if _, err := aa.listNamespaces(); err != nil {
 		return err
@@ -62,18 +65,25 @@ func (aa *AliAcrEE) Ping() error {
 	return nil
 }
 
+func (aa *AliAcrEE) ImageRetry(ctx context.Context, extender registry.Extender, req registry.ImageRetryRequest) (*registry.ListImagesRes, error) {
+	return nil, nil
+}
+
 func (aa *AliAcrEE) DeleteImages(projectName, repoName, digest string) error {
 	panic("implement me")
 }
 
-func (aa *AliAcrEE) ListImages(extender registry.ImageListExtender, req registry.ListImagesRequest) (*registry.ListImagesRes, error) {
-	res := new(registry.ListImagesRes)
+func (aa *AliAcrEE) ListImages(ctx context.Context, extender registry.Extender, req registry.ListImagesRequest) (*registry.ListImagesRes, error) {
 
+	if extender.CreateImageExtender == nil {
+		return nil, fmt.Errorf("not get CreateImageExtender")
+	}
+	res := new(registry.ListImagesRes)
 	cnt := 0
 	// get namespaces
 	nss, err := aa.listNamespaces()
 	if err != nil {
-		logging.Get().Err(err).Str("driver", Version).Str("instance", aa.Config.InstanceID).Msg("listNamespaces")
+		logging.Get().Err(err).Str("driver", consts.AliAcrEEVersion).Str("instance", aa.Config.InstanceID).Msg("listNamespaces")
 		return nil, err
 	}
 
@@ -81,7 +91,7 @@ func (aa *AliAcrEE) ListImages(extender registry.ImageListExtender, req registry
 		// get repo details
 		repos, err := aa.listReposByNamespace(ns)
 		if err != nil {
-			logging.Get().Err(err).Str("driver", Version).
+			logging.Get().Err(err).Str("driver", consts.AliAcrEEVersion).
 				Str("instance", aa.Config.InstanceID).
 				Str("namespace", ns.NamespaceName).
 				Msg("listReposByNamespace")
@@ -91,7 +101,7 @@ func (aa *AliAcrEE) ListImages(extender registry.ImageListExtender, req registry
 			// get tag info
 			tags, err := aa.getTags(repo)
 			if err != nil {
-				logging.Get().Err(err).Str("driver", Version).
+				logging.Get().Err(err).Str("driver", consts.AliAcrEEVersion).
 					Str("instance", aa.Config.InstanceID).
 					Str("namespace", ns.NamespaceName).
 					Str("repo", repo.RepoName).
@@ -104,7 +114,7 @@ func (aa *AliAcrEE) ListImages(extender registry.ImageListExtender, req registry
 
 				manifestV2, err := aa.PullImageManifestV2(fullRepoName, tag.Tag)
 				if err != nil {
-					logging.Get().Err(err).Str("driver", Version).
+					logging.Get().Err(err).Str("driver", consts.AliAcrEEVersion).
 						Str("instance", aa.Config.InstanceID).
 						Str("namespace", ns.NamespaceName).
 						Str("repo", repo.RepoName).
@@ -114,7 +124,7 @@ func (aa *AliAcrEE) ListImages(extender registry.ImageListExtender, req registry
 				}
 				manifestV2Str, err := manifestV2.MarshalJSON()
 				if err != nil {
-					logging.Get().Err(err).Str("driver", Version).
+					logging.Get().Err(err).Str("driver", consts.AliAcrEEVersion).
 						Str("instance", aa.Config.InstanceID).
 						Str("namespace", ns.NamespaceName).
 						Str("repo", repo.RepoName).
@@ -127,7 +137,7 @@ func (aa *AliAcrEE) ListImages(extender registry.ImageListExtender, req registry
 				configDigest := manifestV2.Config.Digest
 				configBlob, err := aa.PullConfigBlob(fullRepoName, configDigest)
 				if err != nil {
-					logging.Get().Err(err).Str("driver", Version).
+					logging.Get().Err(err).Str("driver", consts.AliAcrEEVersion).
 						Str("instance", aa.Config.InstanceID).
 						Str("namespace", ns.NamespaceName).
 						Str("repo", repo.RepoName).
@@ -142,10 +152,13 @@ func (aa *AliAcrEE) ListImages(extender registry.ImageListExtender, req registry
 					ManifestV2:  string(manifestV2Str),
 					ConfigJSON:  configBlob,
 					Created:     time.UnixMilli(tag.ImageCreate),
+					RegistryUrl: aa.Config.URL,
+					RegistryID:  aa.Config.RegistryID,
+					FromType:    aa.Config.UseType,
 				}
 				cnt++
 
-				im, err := extender(preImage)
+				im, err := extender.CreateImageExtender(ctx, preImage)
 				if err != nil {
 					if err != consts.ErrNotNodeImage {
 						logging.Get().Err(err).Msg("Insert imagelist error")
@@ -162,7 +175,7 @@ func (aa *AliAcrEE) ListImages(extender registry.ImageListExtender, req registry
 		}
 	}
 
-	logging.Get().Info().Str("driver", Version).Msgf("List images count:%d", cnt)
+	logging.Get().Info().Str("driver", consts.AliAcrEEVersion).Msgf("List images count:%d", cnt)
 	return res, nil
 }
 
@@ -276,6 +289,10 @@ func (aa *AliAcrEE) getTags(repo Repository) (tags []Image, err error) {
 	return ans, nil
 }
 
+func (aa *AliAcrEE) ListImagesWithAuditLog(ctx context.Context, extender registry.Extender, req registry.ListImagesAuditLog) (*registry.ListImagesRes, error) {
+	return nil, nil
+}
+
 func openRegistry(config registry.RegistrableComponentConfig) (registry.Registry, error) {
 	var aa AliAcrEE
 
@@ -283,13 +300,13 @@ func openRegistry(config registry.RegistrableComponentConfig) (registry.Registry
 
 	byt, err := json.Marshal(config.Options)
 	if err != nil {
-		logging.Get().Err(err).Str("driver", Version).Msg("marshal config")
+		logging.Get().Err(err).Str("driver", consts.AliAcrEEVersion).Msg("marshal config")
 		return nil, err
 	}
 	conf := new(Config)
 
 	if err := json.Unmarshal(byt, conf); err != nil {
-		logging.Get().Err(err).Str("driver", Version).Msg("Unmarshal config")
+		logging.Get().Err(err).Str("driver", consts.AliAcrEEVersion).Msg("Unmarshal config")
 		return nil, err
 	}
 
@@ -306,7 +323,7 @@ func openRegistry(config registry.RegistrableComponentConfig) (registry.Registry
 
 	aa.Config.Domain = getDomain(aa.Config.URL, aa.Config.RegionID)
 
-	logging.Get().Debug().Str("driver", Version).Msgf("config:%+v", aa.Config)
+	logging.Get().Debug().Str("driver", consts.AliAcrEEVersion).Msgf("config:%+v", aa.Config)
 
 	// create client to pull image manifest and config
 	rc, err := registry.NewDockerRegistryClient(aa.Config.URL, aa.Config.Username, aa.Config.Password, aa.Config.SkipTLSVerify)
@@ -328,12 +345,12 @@ func openRegistry(config registry.RegistrableComponentConfig) (registry.Registry
 }
 
 func init() {
-	err := registry.Register(Version, openRegistry)
+	err := registry.Register(consts.AliAcrEEVersion, openRegistry)
 	if err != nil {
 		logging.Get().Err(err).Msg("init ali acr error")
 		return
 	}
-	logging.Get().Info().Str("driver", Version).Msg("register success")
+	logging.Get().Info().Str("driver", consts.AliAcrEEVersion).Msg("register success")
 }
 
 func (aa *AliAcrEE) PullImageManifestV2(repo, digest string) (*schema2.DeserializedManifest, error) {

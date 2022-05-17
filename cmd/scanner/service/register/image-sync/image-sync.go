@@ -2,8 +2,12 @@ package imagesync
 
 import (
 	"context"
+	"os"
+	"strconv"
+	"time"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/service/register"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
@@ -17,18 +21,116 @@ type Config struct {
 }
 
 type ImageSync struct {
-	// config    Config
-	syncImage *component.SyncRepoImage
+	syncImage component.SyncImageInterface
 }
 
 func (i *ImageSync) Start(ctx context.Context) error {
+	// 开启全量同步
+	go func() {
+		defer func() {
+			if err := recover(); err != nil {
+				logging.GetLogger().Error().Msg("SyncAllImage recover")
+			}
+		}()
+		ticker := time.NewTicker(time.Minute)
+		defer ticker.Stop()
 
-	err := i.syncImage.SyncImage(context.Background()) // nolint errcheck
-	if err != nil {
-		logging.GetLogger().Error().Err(err).Msg("sync image service end")
-		return nil
-	}
-	logging.GetLogger().Info().Msg("image-sync start success")
+		for {
+			<-ticker.C
+			logging.GetLogger().Info().Msg("start SyncAllImage")
+			err := i.syncImage.SyncAllImage(ctx, consts.CycleFullSync)
+			if err != nil {
+				logging.GetLogger().Err(err).Msg("SyncAllImage service end")
+				continue
+			}
+			logging.GetLogger().Info().Msg("SyncAllImage start success")
+		}
+	}()
+	// 开启增量同步
+	go func() {
+
+		defer func() {
+			if err := recover(); err != nil {
+				logging.GetLogger().Error().Msg("SyncAddImage recover")
+			}
+		}()
+
+		ticker := time.NewTicker(time.Minute)
+		defer ticker.Stop()
+		for {
+			<-ticker.C
+			logging.GetLogger().Info().Msg("start SyncAddImage")
+			err := i.syncImage.SyncAddImage(ctx, consts.CycleIncSync)
+			if err != nil {
+				logging.GetLogger().Err(err).Msg("SyncAddImage service end")
+				continue
+			}
+			logging.GetLogger().Info().Msg("SyncAddImage start success")
+		}
+	}()
+
+	// 定期重试
+	go func() {
+
+		defer func() {
+			if err := recover(); err != nil {
+				logging.GetLogger().Error().Msg("RetryFailedSyncImage recover")
+			}
+		}()
+
+		maxRetryCountStr := os.Getenv("SYNC_IMAGE_RETRY_MAX_COUNT")
+		maxRetryCount, err := strconv.ParseInt(maxRetryCountStr, 10, 64)
+		if err != nil || maxRetryCount <= 0 {
+			maxRetryCount = consts.SyncImageMaxCountDefault // 默认50次
+		}
+
+		ticker := time.NewTicker(time.Minute * 5)
+		defer ticker.Stop()
+		for {
+			<-ticker.C
+			logging.GetLogger().Info().Msg("start RetryFailedSyncImage")
+
+			err := i.syncImage.RetryFailedSyncImage(context.Background(), maxRetryCount)
+			if err != nil {
+				logging.GetLogger().Err(err).Msg("RetryFailedSyncImage service end")
+			} else {
+				logging.GetLogger().Info().Msg("RetryFailedSyncImage start success")
+			}
+		}
+
+	}()
+
+	// 定期删除重试超限
+	go func() {
+
+		defer func() {
+			if err := recover(); err != nil {
+				logging.GetLogger().Error().Msg("DeleteMoreRetryCount recover")
+			}
+		}()
+
+		maxRetryCountStr := os.Getenv("SYNC_IMAGE_RETRY_MAX_COUNT")
+		maxRetryCount, err := strconv.ParseInt(maxRetryCountStr, 10, 64)
+		if err != nil || maxRetryCount <= 0 {
+			maxRetryCount = consts.SyncImageMaxCountDefault
+		}
+
+		ticker := time.NewTicker(time.Minute * 5)
+		defer ticker.Stop()
+		// 放到外面
+		for {
+			<-ticker.C
+			logging.GetLogger().Info().Msg("start DeleteMoreRetryCount")
+
+			err := i.syncImage.DeleteMoreRetryCount(context.Background(), maxRetryCount)
+			if err != nil {
+				logging.GetLogger().Err(err).Msg("DeleteMoreRetryCount service end")
+			} else {
+				logging.GetLogger().Info().Msg("DeleteMoreRetryCount start success")
+			}
+		}
+	}()
+
 	return nil
 }
 
@@ -39,7 +141,7 @@ func (i *ImageSync) Stop(ctx context.Context) error {
 func init() {
 	err := register.Register(serviceName, newService)
 	if err != nil {
-		logging.GetLogger().Error().Err(err).Str("serviceName", serviceName).Msg("int service err")
+		logging.GetLogger().Err(err).Str("serviceName", serviceName).Msg("int service err")
 	}
 	logging.GetLogger().Info().Msg("image-sync register success")
 }
@@ -51,6 +153,7 @@ func newService(config register.ScannerServiceConfig) (register.ScannerService, 
 		store.NewScannerOrm(scannerWrapperDb),
 		store.NewPodResourceRelationDao(scannerWrapperDb),
 		store.NewScanConfigDao(scannerWrapperDb),
+		store.NewSyncRetryImageDao(scannerWrapperDb),
 	)
 
 	p.syncImage = s

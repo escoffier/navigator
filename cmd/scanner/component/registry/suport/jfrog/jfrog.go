@@ -22,8 +22,6 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 )
 
-const Version = "jfrog"
-
 // Jfrog is a Jfrog to interact with Jfrog
 type Jfrog struct {
 	// RegistryClient is a RegistryClient to access jfrog
@@ -55,6 +53,10 @@ func (c *Jfrog) Ping() error {
 	return nil
 }
 
+func (c *Jfrog) SupportIncrementalSync(ctx context.Context) bool {
+	return false
+}
+
 func (c *Jfrog) ListRepos(packageType string) ([]Repository, error) {
 	url := fmt.Sprintf("%s/artifactory/api/repositories?packageType=%s", c.Config.URL, packageType) // 查全部 repo
 	req, err := http.NewRequest("GET", url, nil)
@@ -67,7 +69,7 @@ func (c *Jfrog) ListRepos(packageType string) ([]Repository, error) {
 	defer cancelFunc()
 	resp, err := c.JfrogClient.Do(req.WithContext(ctx))
 	if err != nil {
-		logging.GetLogger().Error().Err(err).Msgf("req Jfrog:%s", err.Error())
+		logging.GetLogger().Err(err).Msgf("req Jfrog:%s", err.Error())
 		return nil, err
 	}
 	defer util.CloseBodyWithLog(resp.Body)
@@ -83,6 +85,10 @@ func (c *Jfrog) ListRepos(packageType string) ([]Repository, error) {
 		return nil, err
 	}
 	return reps, nil
+}
+
+func (c *Jfrog) ListImagesWithAuditLog(ctx context.Context, extender registry.Extender, req registry.ListImagesAuditLog) (*registry.ListImagesRes, error) {
+	return nil, nil
 }
 
 func (c *Jfrog) ListRepoImags(repo string) ([]string, error) {
@@ -130,7 +136,7 @@ func (c *Jfrog) ListImagTags(repo, imaName string) ([]string, error) {
 	defer cancelFunc()
 	resp, err := c.JfrogClient.Do(req.WithContext(ctx))
 	if err != nil {
-		logging.GetLogger().Error().Err(err).Msgf("reqHarbor:%s", err.Error())
+		logging.GetLogger().Err(err).Msgf("reqHarbor:%s", err.Error())
 		return nil, err
 	}
 	defer util.CloseBodyWithLog(resp.Body)
@@ -179,13 +185,20 @@ func (c *Jfrog) PullConfigBlob(repo string, configDigest digest.Digest) (string,
 	return configBlob.String(), nil
 }
 
-func (c *Jfrog) ListImages(extender registry.ImageListExtender, req registry.ListImagesRequest) (*registry.ListImagesRes, error) {
+func (c *Jfrog) ImageRetry(ctx context.Context, extender registry.Extender, req registry.ImageRetryRequest) (*registry.ListImagesRes, error) {
+	return nil, nil
+}
+
+func (c *Jfrog) ListImages(ctx context.Context, extender registry.Extender, req registry.ListImagesRequest) (*registry.ListImagesRes, error) {
+	if extender.CreateImageExtender == nil {
+		return nil, fmt.Errorf("not get CreateImageExtender")
+	}
 	res := new(registry.ListImagesRes)
 	cnt := 0
 	// get all repos
 	repos, err := c.ListRepos("docker") // 暂时只查docker的repo
 	if err != nil {
-		logging.GetLogger().Error().Err(err).Msg("jfrog listRepos")
+		logging.GetLogger().Err(err).Msg("jfrog listRepos")
 		return nil, err
 	}
 	logging.GetLogger().Info().Msgf("jfrog ListRepos:%v", repos)
@@ -193,13 +206,13 @@ func (c *Jfrog) ListImages(extender registry.ImageListExtender, req registry.Lis
 	for _, repo := range repos {
 		imgNames, err := c.ListRepoImags(repo.Key)
 		if err != nil {
-			logging.GetLogger().Error().Err(err).Msgf("jfrog ListRepoImags:%s", repo.Key)
+			logging.GetLogger().Err(err).Msgf("jfrog ListRepoImags:%s", repo.Key)
 			continue
 		}
 		for i := range imgNames {
 			tags, err := c.ListImagTags(repo.Key, imgNames[i])
 			if err != nil {
-				logging.GetLogger().Error().Err(err).Msgf("jfrog listImagTags:%s/%s", repo.Key, imgNames[i])
+				logging.GetLogger().Err(err).Msgf("jfrog listImagTags:%s/%s", repo.Key, imgNames[i])
 				continue
 			}
 
@@ -207,27 +220,27 @@ func (c *Jfrog) ListImages(extender registry.ImageListExtender, req registry.Lis
 				// 拉manifest
 				manifest, err := c.PullImageManifest(repo.Key, imgNames[i], tags[j])
 				if err != nil {
-					logging.GetLogger().Error().Err(err).Msgf("jfrog PullImageManifest:%s/%s:%s", repo.Key, imgNames[i], tags[j])
+					logging.GetLogger().Err(err).Msgf("jfrog PullImageManifest:%s/%s:%s", repo.Key, imgNames[i], tags[j])
 					continue
 				}
 
 				manifestByte, err := manifest.MarshalJSON()
 				if err != nil {
-					logging.GetLogger().Error().Err(err).Msgf("jfrog MarshalJSON:%s/%s:%s", repo.Key, imgNames[i], tags[j])
+					logging.GetLogger().Err(err).Msgf("jfrog MarshalJSON:%s/%s:%s", repo.Key, imgNames[i], tags[j])
 					continue
 				}
 
 				// 解析imageDigest
 				imageDigest, err := ManifestV2Digest(manifest)
 				if err != nil {
-					logging.GetLogger().Error().Err(err).Msgf("jfrog ManifestV2Digest:%s/%s:%s", repo.Key, imgNames[i], tags[j])
+					logging.GetLogger().Err(err).Msgf("jfrog ManifestV2Digest:%s/%s:%s", repo.Key, imgNames[i], tags[j])
 					continue
 				}
 				// pull config json
 				configDigest := manifest.Config.Digest
 				configBlob, err := c.PullConfigBlob(repo.Key+"/"+imgNames[i], configDigest)
 				if err != nil {
-					logging.GetLogger().Error().Err(err).Msgf("jfrog PullConfigBlob:%s/%s:%s", repo.Key, imgNames[i], tags[j])
+					logging.GetLogger().Err(err).Msgf("jfrog PullConfigBlob:%s/%s:%s", repo.Key, imgNames[i], tags[j])
 					continue
 				}
 				img := registry.Image{
@@ -236,11 +249,14 @@ func (c *Jfrog) ListImages(extender registry.ImageListExtender, req registry.Lis
 					Tag:         tags[j],
 					ManifestV2:  string(manifestByte),
 					ConfigJSON:  configBlob,
+					RegistryUrl: c.Config.URL,
+					RegistryID:  c.Config.RegistryID,
+					FromType:    c.Config.UseType,
 				}
 
-				im, err := extender(img)
+				im, err := extender.CreateImageExtender(ctx, img)
 				if err != nil {
-					logging.GetLogger().Error().Err(err).Msg("jfrog Insert imagelist")
+					logging.GetLogger().Err(err).Msg("jfrog Insert imagelist")
 					continue
 				}
 				cnt++
@@ -258,7 +274,7 @@ func (c *Jfrog) ListImages(extender registry.ImageListExtender, req registry.Lis
 }
 
 func init() {
-	err := registry.Register(Version, openRegistry)
+	err := registry.Register(consts.JfrogVersion, openRegistry)
 	if err != nil {
 		logging.GetLogger().Err(err).Msgf("init harborV2 error")
 	}
@@ -277,7 +293,7 @@ func openRegistry(config registry.RegistrableComponentConfig) (registry.Registry
 	conf := new(Config)
 
 	if err := json.Unmarshal(byt, conf); err != nil {
-		logging.GetLogger().Error().Err(err).Msg("jfrog Unmarshal config")
+		logging.GetLogger().Err(err).Msg("jfrog Unmarshal config")
 		return nil, err
 	}
 

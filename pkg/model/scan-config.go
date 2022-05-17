@@ -399,11 +399,11 @@ func (s *ScanConfig) IsTimeToAddTask(libType int, checkInter int64) (bool, error
 		return false, err
 	}
 
-	if libType == ImageFromSafeNode {
+	if libType == NodeBuffRegistry {
 		return check(s.NodeImageConfig, checkInter), nil
 	}
 
-	if libType == ImageFromTypeNormal {
+	if libType == UserRegistry {
 		return check(s.LibraryImageConfig, checkInter), nil
 	}
 	return false, nil

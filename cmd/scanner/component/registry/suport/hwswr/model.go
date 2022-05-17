@@ -11,4 +11,5 @@ type Config struct {
 	AccessKey     string `json:"access_key"`
 	SecretKey     string `json:"secret_key"`
 	Insecure      bool   `json:"insecure"`
+	UseType       int64  `json:"use_type"`
 }

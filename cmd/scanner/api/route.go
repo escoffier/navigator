@@ -19,6 +19,7 @@ func SetupGinRouter(redisClient *redis.Client,
 	registrySrv component.RegistrySrvInterface,
 	scanConfigSrv component.ScanConfigSrvInterface,
 	vuluSrv component.VulnServiceInterface,
+	syncImageSrv component.SyncImageInterface,
 ) *gin.Engine {
 
 	router := gin.Default()
@@ -33,7 +34,7 @@ func SetupGinRouter(redisClient *redis.Client,
 		})
 	})
 
-	router = WebAPI(router, scannerSvc, rejectSvc, harborSvc, registrySrv, scanConfigSrv, vuluSrv)
+	router = WebAPI(router, scannerSvc, rejectSvc, harborSvc, registrySrv, scanConfigSrv, vuluSrv, syncImageSrv)
 	router = OpenAPI(router, scannerSvc, rejectSvc, harborSvc, registrySrv, scanConfigSrv, vuluSrv, redisClient)
 
 	return router
@@ -46,6 +47,8 @@ func WebAPI(router *gin.Engine,
 	registrySrv component.RegistrySrvInterface,
 	scanConfigSrv component.ScanConfigSrvInterface,
 	vuluSrv component.VulnServiceInterface,
+	syncImageSrv component.SyncImageInterface,
+
 ) *gin.Engine {
 
 	apiScannerSrv := NewScannerAPISrv(scannerSvc, vuluSrv)
@@ -53,6 +56,7 @@ func WebAPI(router *gin.Engine,
 	apiHarborSrv := NewHarborAPISrv(harborSvc, harborSvc.GetRedisClient())
 	apiRegistrySrv := NewRegistrySrv(registrySrv, rejectSvc)
 	apiVulnSrv := NewVulnAPISrv(vuluSrv)
+	apiSyncImageSrv := NewSyncImageAPISrv(syncImageSrv)
 
 	v1 := router.Group("/api/v1/scan")
 	{
@@ -197,6 +201,14 @@ func WebAPI(router *gin.Engine,
 	v11 := router.Group("/api/v1/managementCenter")
 	{
 		v11.GET("/docs", apiScannerSrv.GetOpenapiDoc)
+	}
+
+	// 和同步镜像相关
+	v12 := router.Group("/api/v1/syncImage")
+	{
+		v12.POST("/startSync", apiSyncImageSrv.StartSync)
+		v12.GET("/syncProgress", apiSyncImageSrv.GetSyncProgress)
+		v12.GET("/syncStatus", apiSyncImageSrv.GetSyncStatus)
 	}
 
 	return router

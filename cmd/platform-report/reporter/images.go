@@ -209,7 +209,7 @@ func doImageCountStatistics(imageCount *model.ImageCount, record *Record, online
 	imageCount.TotalImageCount++
 
 	// 在线镜像数量
-	if record.FromType != model.ImageFromTypeCICD {
+	if record.FromType != model.CICDImageRegistry {
 		if _, ok := onlineImageHash[record.ImageUUID]; ok {
 			imageCount.OnlineImageCount++
 		}

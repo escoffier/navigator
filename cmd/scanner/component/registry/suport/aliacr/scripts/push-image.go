@@ -39,7 +39,7 @@ func worker(preImage string, url, username, password, ns string) error {
 	}
 
 	if err := login(url, username, password); err != nil {
-		logging.GetLogger().Error().Err(err).Msg("login")
+		logging.GetLogger().Err(err).Msg("login")
 		return err
 	}
 	for i := 0; i < 100; i++ {
@@ -74,7 +74,7 @@ func reTage(pre, after string) error {
 	if err != nil {
 		logging.GetLogger().Info().Msgf("docker args:%v", osCmd.Args)
 		logging.GetLogger().Info().Msgf("docker err:%s", stderr.String())
-		logging.GetLogger().Error().Err(err).Msgf("docker retag pre:%s,after:%s", pre, after)
+		logging.GetLogger().Err(err).Msgf("docker retag pre:%s,after:%s", pre, after)
 		return err
 	}
 	logging.GetLogger().Debug().Msgf("docker retag:%s", stdout.String())
@@ -87,7 +87,7 @@ func login(url, username, password string) error {
 
 	err := osCmd.Run()
 	if err != nil {
-		logging.GetLogger().Error().Err(err).Msgf("login failed:%v", osCmd.Args)
+		logging.GetLogger().Err(err).Msgf("login failed:%v", osCmd.Args)
 		return err
 	}
 	logging.GetLogger().Debug().Msg("login successful")
@@ -99,7 +99,7 @@ func pushImage(image string) error {
 	osCmd := exec.Command("docker", "push", image)
 	err := osCmd.Run()
 	if err != nil {
-		logging.GetLogger().Error().Err(err).Msgf("docker push :%s", image)
+		logging.GetLogger().Err(err).Msgf("docker push :%s", image)
 		return err
 	}
 	logging.GetLogger().Info().Msgf("docker push successful :%s", image)
@@ -111,7 +111,7 @@ func rmImage(imageName string) error {
 
 	err := osCmd.Run()
 	if err != nil {
-		logging.GetLogger().Error().Err(err).Msgf("docker delete image：%s:%v", imageName, osCmd.Args)
+		logging.GetLogger().Err(err).Msgf("docker delete image：%s:%v", imageName, osCmd.Args)
 		return err
 	}
 	logging.GetLogger().Info().Msgf("docker delete image：%s", imageName)

@@ -32,6 +32,7 @@ type Tag struct {
 	Created  time.Time `json:"created"`
 	PushTime time.Time `json:"push_time"`
 	PullTime time.Time `json:"pull_time"`
+	Labels   []Label   `json:"labels"`
 }
 type Label struct {
 	Deleted bool `json:"deleted"`
@@ -46,4 +47,16 @@ type Config struct {
 	SkipTLSVerify bool   `json:"skip_tls_verify"`
 	Region        string `json:"region"`
 	Insecure      bool   `json:"insecure"`
+	UseType       int64  `json:"use_type"`
+}
+
+type AuditLog struct {
+	ID        int    `json:"log_id"`
+	Username  string `json:"admin"`
+	ProjectID int    `json:"project_id"`
+	RepoName  string `json:"repo_name"`
+	RepoTag   string `json:"repo_tag"`
+	GUID      string `json:"guid"`
+	Operation string `json:"operation"`
+	OpTime    string `json:"op_time"`
 }

@@ -94,10 +94,10 @@ func (s *ScannerVuln) TickerRun() error {
 			var terr error
 			s.customDB, terr = bolt.Open(dbFp, 0600, &options)
 			if terr != nil {
-				logging.GetLogger().Error().Err(terr).Msg("TickerRun error And Init Db error:")
+				logging.GetLogger().Err(terr).Msg("TickerRun error And Init Db error:")
 			}
 		}
-		logging.GetLogger().Error().Err(err).Msg("TickerRun error")
+		logging.GetLogger().Err(err).Msg("TickerRun error")
 	}
 	return nil
 }
@@ -134,7 +134,7 @@ func (s *ScannerVuln) ReadVersion(name string) string {
 		if util.FileExists(filepath.Join(s.PvcPath, "custom_version")) {
 			CustomVersionBytes, err := os.ReadFile(filepath.Join(s.PvcPath, "custom_version"))
 			if err != nil {
-				logging.GetLogger().Error().Err(err).Msgf("Open now Custom version Error")
+				logging.GetLogger().Err(err).Msgf("Open now Custom version Error")
 				CustomVersion = "2006-01-02 15:04:05"
 			} else {
 				CustomVersion = string(CustomVersionBytes)
@@ -144,7 +144,7 @@ func (s *ScannerVuln) ReadVersion(name string) string {
 		if util.FileExists(filepath.Join(s.PvcPath, "offline", "custom_init_version")) {
 			CustomVersionBytes, err := os.ReadFile(filepath.Join(s.PvcPath, "offline", "custom_init_version"))
 			if err != nil {
-				logging.GetLogger().Error().Err(err).Msgf("Open Offline Custom version Error")
+				logging.GetLogger().Err(err).Msgf("Open Offline Custom version Error")
 			} else {
 				offlineVersion = string(CustomVersionBytes)
 			}
@@ -195,7 +195,7 @@ func (s *ScannerVuln) InitDB() error {
 			var terr error
 			s.customDB, terr = bolt.Open(filepath.Join(s.dbPath, "custom.db"), 0600, &options)
 			if terr != nil {
-				logging.GetLogger().Error().Err(terr).Msgf("update CustomDb failed and open old Db failed too")
+				logging.GetLogger().Err(terr).Msgf("update CustomDb failed and open old Db failed too")
 			}
 		}
 		return fmt.Errorf("Init Bolt err %v", err)
@@ -227,7 +227,7 @@ func (s *ScannerVuln) Run() {
 	}, retryOptions...)
 
 	if err != nil {
-		logging.GetLogger().Error().Err(err).Msg("scan vuln run err ")
+		logging.GetLogger().Err(err).Msg("scan vuln run err ")
 		return
 	}
 

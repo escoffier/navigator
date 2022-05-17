@@ -266,7 +266,7 @@ func (s *Scanner) GetImageHistogram(ctx *gin.Context) {
 func (s *Scanner) GetScanStatus(ctx *gin.Context) {
 	fromType, err := strconv.ParseInt(ctx.Query("from_type"), 10, 64)
 	if err != nil {
-		fromType = model.ImageFromTypeNormal
+		fromType = model.UserRegistry
 	}
 	type respT struct {
 		ScanAllStatus harbor.ScanAllStatus `json:"harborStatus"`
@@ -545,7 +545,7 @@ func (s *Scanner) GetScanOneStatus(ctx *gin.Context) {
 func (s *Scanner) ListScannedByImageOverview(ctx *gin.Context) {
 	fromType, err := strconv.ParseInt(ctx.Query("from_type"), 10, 64)
 	if err != nil {
-		fromType = model.ImageFromTypeNormal
+		fromType = model.UserRegistry
 	}
 
 	view, err := s.Srv.GetImageOverView(ctx, fromType)
@@ -617,7 +617,7 @@ func (s *Scanner) ListScannedByImageList(ctx *gin.Context) {
 
 	fromType, err := strconv.ParseInt(ctx.Query("from_type"), 10, 64)
 	if err != nil || fromType == 0 {
-		fromType = model.ImageFromTypeNormal
+		fromType = model.UserRegistry
 	}
 	scanStatus := util.GetInt64SliceFromQuery(ctx, "scan_status")
 	registryIds := util.GetInt64SliceFromQuery(ctx, "registry_ids")
@@ -687,7 +687,7 @@ func (s *Scanner) SearchImages(ctx *gin.Context) {
 
 	fromType, err := strconv.ParseInt(ctx.Query("from_type"), 10, 64)
 	if err != nil || fromType == 0 {
-		fromType = model.ImageFromTypeNormal
+		fromType = model.UserRegistry
 	}
 
 	filter := model.GetFilter(ctx)
@@ -921,7 +921,7 @@ func (s *Scanner) ListBaseImage(ctx *gin.Context) {
 	filter.SortFiled = "full_repo_name"
 	filter.SortBy = "asc"
 	search := ctx.Query("search")
-	images, cnt, err := s.Srv.SearchImageWithScan(ctx, component.SearchImageWithScanParam{ImageType: consts.BaseImageTypeString, SearchWord: search, FromType: model.ImageFromTypeNormal}, filter)
+	images, cnt, err := s.Srv.SearchImageWithScan(ctx, component.SearchImageWithScanParam{ImageType: consts.BaseImageTypeString, SearchWord: search, FromType: model.UserRegistry}, filter)
 	if err != nil {
 		response.JSONError(ctx, err)
 		return
@@ -1010,7 +1010,7 @@ func (s *Scanner) SetEnvToStrategy(ctx *gin.Context) {
 	for k := range policyStrs {
 		tmpID, err := strconv.ParseInt(policyStrs[k], 10, 64)
 		if err != nil {
-			logging.Get().Error().Err(err).Msg("ParseInt error SetEnvToStrategy")
+			logging.Get().Err(err).Msg("ParseInt error SetEnvToStrategy")
 		}
 		policyIds = append(policyIds, tmpID)
 	}
