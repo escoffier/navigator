@@ -26,7 +26,6 @@ type SearchImageParam struct {
 	NodeHostnames    []string
 	JustCount        bool
 	UUIDs            []uint32
-	ImageType        string
 	Flag             uint64
 	Where            string
 	UniqueImage      uint64
@@ -126,7 +125,12 @@ type SearchRegistryParam struct {
 	NoDelete bool
 }
 
-type GetImageOverViewParm struct {
+type SearchImageRetryParam struct {
+	LessRetryCount int64
+	MoreRetryCount int64
+	UniqueImage    uint64
+}
+type GetImageOverViewParam struct {
 	ImageUUIDs []uint32
 	FlagMore   int
 	FlagLess   int

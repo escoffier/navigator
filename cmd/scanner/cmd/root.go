@@ -49,7 +49,7 @@ var rootCmd = &cobra.Command{
 // This is called by main.main(). It only needs to happen once to the rootCmd.
 func Execute() {
 	if err := rootCmd.Execute(); err != nil {
-		logging.GetLogger().Error().Err(err).Msg("Failed to startup")
+		logging.GetLogger().Err(err).Msg("Failed to startup")
 		os.Exit(1)
 	}
 }

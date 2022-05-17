@@ -47,7 +47,7 @@ func (e *ExecutorScanWebshell) Scan(ctx context.Context, param Param) (Artifact,
 		tmpWebshellInfo.LayerDigest = layers[i]
 		webshellInfos, err := e.WebshellScan.ScanLayer(context.Background(), layers[i], filepath.Join(layersFilePath[i], "layer.tar"))
 		if err != nil {
-			logging.GetLogger().Error().Err(err).Msgf("ScanWebshell %v failed", layers[i])
+			logging.GetLogger().Err(err).Msgf("ScanWebshell %v failed", layers[i])
 			continue
 		}
 		tmpWebshellInfo.WebShellInfos = append(tmpWebshellInfo.WebShellInfos, webshellInfos...)
@@ -63,7 +63,7 @@ func (e *ExecutorScanWebshell) Scan(ctx context.Context, param Param) (Artifact,
 func init() {
 	err := Register(executorScanWebshellName, newScanWebshell)
 	if err != nil {
-		logging.GetLogger().Error().Err(err).Str("executorName", executorScanWebshellName).Msg("int executor err")
+		logging.GetLogger().Err(err).Str("executorName", executorScanWebshellName).Msg("int executor err")
 	}
 }
 func newScanWebshell(config ExecutorConfig) (Executor, error) { // Open时调用

@@ -118,6 +118,10 @@ func (api *api) scanner() func(chi.Router) {
 		r.Get("/scan-report/{id}/file/{sub_task_id}", api.RedirectToScanner())
 
 		r.Get("/managementCenter/docs", api.RedirectToScanner())
+
+		r.Post("/syncImage/startSync", api.RedirectToScanner())
+		r.Get("/syncImage/syncProgress", api.RedirectToScanner())
+		r.Get("/syncImage/syncStatus", api.RedirectToScanner())
 	}
 }
 

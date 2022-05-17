@@ -24,7 +24,6 @@ import (
 )
 
 const (
-	Version      = "hw-swr"
 	RegionRegExp = `.*swr\.(.*)\.myhuaweicloud.com`
 )
 
@@ -84,9 +83,22 @@ func (h *HwSwr) PullConfigBlob(repo string, configDigest digest.Digest) (string,
 	return configBlob.String(), nil
 }
 
-func (h *HwSwr) ListImages(extender registry.ImageListExtender, req registry.ListImagesRequest) (*registry.ListImagesRes, error) {
-	res := new(registry.ListImagesRes)
+func (h *HwSwr) ImageRetry(ctx context.Context, extender registry.Extender, req registry.ImageRetryRequest) (*registry.ListImagesRes, error) {
+	return nil, nil
+}
+func (h *HwSwr) SupportIncrementalSync(ctx context.Context) bool {
+	return false
+}
 
+func (h *HwSwr) ListImagesWithAuditLog(ctx context.Context, extender registry.Extender, req registry.ListImagesAuditLog) (*registry.ListImagesRes, error) {
+	return nil, nil
+}
+
+func (h *HwSwr) ListImages(ctx context.Context, extender registry.Extender, req registry.ListImagesRequest) (*registry.ListImagesRes, error) {
+	if extender.CreateImageExtender == nil {
+		return nil, fmt.Errorf("not get CreateImageExtender")
+	}
+	res := new(registry.ListImagesRes)
 	cnt := 0
 	// get namespaces
 	ns, err := h.ListNameSpaces()
@@ -99,7 +111,7 @@ func (h *HwSwr) ListImages(extender registry.ImageListExtender, req registry.Lis
 		namespace := v.Name
 		repos, err := h.ListReposDetails(namespace)
 		if err != nil {
-			logging.GetLogger().Error().Err(err).Msg("list repo details err")
+			logging.GetLogger().Err(err).Msg("list repo details err")
 			continue
 		}
 		// get tag info
@@ -107,7 +119,7 @@ func (h *HwSwr) ListImages(extender registry.ImageListExtender, req registry.Lis
 			repoName := r.Name
 			tags, err := h.ListRepositoryTags(namespace, repoName)
 			if err != nil {
-				logging.GetLogger().Error().Err(err).Msg("list repo tag err")
+				logging.GetLogger().Err(err).Msg("list repo tag err")
 				continue
 			}
 
@@ -115,7 +127,7 @@ func (h *HwSwr) ListImages(extender registry.ImageListExtender, req registry.Lis
 				// hw swr will return manifest
 				manifestV2 := &schema2.DeserializedManifest{}
 				if err := manifestV2.UnmarshalJSON([]byte(tag.Manifest)); err != nil {
-					logging.GetLogger().Error().Err(err).Msgf("unmarshal manifest err: %s", tag.Manifest)
+					logging.GetLogger().Err(err).Msgf("unmarshal manifest err: %s", tag.Manifest)
 					continue
 				}
 
@@ -123,18 +135,22 @@ func (h *HwSwr) ListImages(extender registry.ImageListExtender, req registry.Lis
 				imageName := fmt.Sprintf("%s/%s", namespace, repoName)
 				configBlob, err := h.PullConfigBlob(imageName, manifestV2.Config.Digest)
 				if err != nil {
-					logging.GetLogger().Error().Err(err).Msgf("pull image %s config json err", imageName)
+					logging.GetLogger().Err(err).Msgf("pull image %s config json err", imageName)
 					continue
 				}
 
 				// append image info
-				i := &registry.Image{}
-				i.Tag = tag.Tag
-				i.Repository = imageName
-				i.Size = uint(tag.Size)
-				i.ImageDigest = tag.Digest
-				i.ManifestV2 = tag.Manifest
-				i.ConfigJSON = configBlob
+				i := &registry.Image{
+					RegistryID:  h.Config.RegistryID,
+					RegistryUrl: h.Config.URL,
+					ImageDigest: tag.Digest,
+					FromType:    h.Config.UseType,
+					Repository:  imageName,
+					Tag:         tag.Tag,
+					Size:        uint(tag.Size),
+					ManifestV2:  tag.Manifest,
+					ConfigJSON:  configBlob,
+				}
 				tm1, err := time.Parse(time.RFC3339, tag.Created)
 				if err != nil {
 					logging.GetLogger().Warn().Msgf("time parse warning:%v", err)
@@ -148,9 +164,9 @@ func (h *HwSwr) ListImages(extender registry.ImageListExtender, req registry.Lis
 					i.LastPushTime = tm2
 				}
 
-				im, err := extender(*i)
+				im, err := extender.CreateImageExtender(ctx, *i)
 				if err != nil {
-					logging.GetLogger().Error().Err(err).Msg("ListImages.extender")
+					logging.GetLogger().Err(err).Msg("ListImages.extender")
 					continue
 				}
 				cnt++
@@ -192,7 +208,7 @@ func (h *HwSwr) DeleteImages(projectName, repoName, digest string) error {
 }
 
 func init() {
-	err := registry.Register(Version, openRegistry)
+	err := registry.Register(consts.HaiWeiSwrVersion, openRegistry)
 	if err != nil {
 		logging.GetLogger().Err(err).Msgf("init huawei-swr error")
 		return
@@ -207,13 +223,13 @@ func openRegistry(config registry.RegistrableComponentConfig) (registry.Registry
 
 	byt, err := json.Marshal(config.Options)
 	if err != nil {
-		logging.GetLogger().Error().Err(err).Msg("hw-swr marshal config")
+		logging.GetLogger().Err(err).Msg("hw-swr marshal config")
 		return nil, err
 	}
 	conf := new(Config)
 
 	if err := json.Unmarshal(byt, conf); err != nil {
-		logging.GetLogger().Error().Err(err).Msg("hw-swr Unmarshal config")
+		logging.GetLogger().Err(err).Msg("hw-swr Unmarshal config")
 		return nil, err
 	}
 

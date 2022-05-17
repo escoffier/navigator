@@ -46,15 +46,9 @@ const (
 	UsePatternForOnline = "for_online"
 )
 const (
-	RegistryUseTypeCICDBuff = 2 // 表示CICD的中转仓库
-	RegistryUseSafeNode     = 3 // 表示节点镜像所使用的仓库
-	RegistryUseTypeNormal   = 1 // 表示同步仓库
-)
-
-const (
-	ImageFromTypeCICD   = 2
-	ImageFromTypeNormal = 1
-	ImageFromSafeNode   = 3
+	CICDImageRegistry   = 2 // 表示CICD的中转仓库
+	NodeBuffRegistry    = 3 // 表示节点镜像所使用的仓库
+	UserRegistry        = 1 // 表示同步仓库
 	NodeImageSplitCount = 6
 )
 

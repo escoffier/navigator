@@ -46,7 +46,7 @@ func (c *UpdateSrv) Updata(wg *sync.WaitGroup) {
 	// fmt.Println("进入函数")
 	trivydb, err := bolt.Open(c.config.TrivyPath, 0600, nil)
 	if err != nil {
-		logging.GetLogger().Error().Err(err)
+		logging.GetLogger().Err(err)
 		return
 	}
 	defer trivydb.Close()
@@ -144,7 +144,7 @@ func WriteToBolt(db *bolt.DB, trivyDb *bolt.DB) {
 		return nil
 	})
 	if err != nil {
-		logging.GetLogger().Error().Err(err)
+		logging.GetLogger().Err(err)
 		return
 	}
 	err = trivyDb.View(func(tx *bolt.Tx) error {
@@ -161,7 +161,7 @@ func WriteToBolt(db *bolt.DB, trivyDb *bolt.DB) {
 		return nil
 	})
 	if err != nil {
-		logging.GetLogger().Error().Err(err)
+		logging.GetLogger().Err(err)
 		// return
 	}
 	sum = len(CVEs)

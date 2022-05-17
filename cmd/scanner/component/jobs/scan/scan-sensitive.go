@@ -48,13 +48,13 @@ func (e *ExecutorScanSensitive) Scan(ctx context.Context, param Param) (Artifact
 	if len(policyRule.CustomFileName) == 0 {
 		err := e.sensitiveScan.InitConfigFiles(filepath.Join("/configs", "scanner", "patterns.json")) // 改成从数据库中获取
 		if err != nil {
-			logging.GetLogger().Error().Err(err).Msgf("init Sensitive regex failed")
+			logging.GetLogger().Err(err).Msgf("init Sensitive regex failed")
 			return nil, nil
 		}
 	} else {
 		err := e.sensitiveScan.InitCustomConfig(policyRule.CustomFileName)
 		if err != nil {
-			logging.GetLogger().Error().Err(err).Msgf("init Sensitive regex failed")
+			logging.GetLogger().Err(err).Msgf("init Sensitive regex failed")
 			return nil, nil
 		}
 		r["customFlag"] = 1
@@ -65,7 +65,7 @@ func (e *ExecutorScanSensitive) Scan(ctx context.Context, param Param) (Artifact
 		tmpLayerResult.LayerDigest = layers[i]
 		sensitives, err := e.sensitiveScan.FindSensitiveFileNamesInImage(filepath.Join(layersFilePath[i], "layer.tar"), e.sensitiveScan.SensitiveFilenameRegExp)
 		if err != nil {
-			logging.GetLogger().Error().Err(err).Msgf("scan %v err :", filepath.Join(layersFilePath[i], "layer.tar"))
+			logging.GetLogger().Err(err).Msgf("scan %v err :", filepath.Join(layersFilePath[i], "layer.tar"))
 			continue
 		}
 		tmpLayerResult.Sensitives = append(tmpLayerResult.Sensitives, sensitives...)
@@ -79,7 +79,7 @@ func (e *ExecutorScanSensitive) Scan(ctx context.Context, param Param) (Artifact
 func init() {
 	err := Register(executorScanSensitiveName, newScanSensitive)
 	if err != nil {
-		logging.GetLogger().Error().Err(err).Str("executorName", executorScanSensitiveName).Msg("init executor err")
+		logging.GetLogger().Err(err).Str("executorName", executorScanSensitiveName).Msg("init executor err")
 	}
 }
 

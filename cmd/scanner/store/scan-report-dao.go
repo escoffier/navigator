@@ -360,7 +360,7 @@ func (s *ScannerOrm) GetImagesByTask(ctx context.Context, limit, offset int, tas
 					)
 			}
 
-			db1 = db1.Where("t.from_type = ?", model.ImageFromTypeNormal)
+			db1 = db1.Where("t.from_type = ?", model.UserRegistry)
 		}
 
 		if task.TensorScanReportTasks.ImageTypeEnum&scanreport.TensorScanReportImageTypeNode == scanreport.TensorScanReportImageTypeNode {
@@ -371,7 +371,7 @@ func (s *ScannerOrm) GetImagesByTask(ctx context.Context, limit, offset int, tas
 						Distinct("node_name").
 						Where("cluster_key IN ?", task.TensorScanReportTasks.NodeImageObjects),
 				).
-				Where("t.from_type = ?", model.ImageFromSafeNode)
+				Where("t.from_type = ?", model.NodeBuffRegistry)
 		}
 
 		if db1 != nil && db2 != nil {

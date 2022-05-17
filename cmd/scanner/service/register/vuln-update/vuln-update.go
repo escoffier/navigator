@@ -22,7 +22,7 @@ type VulnUpdateService struct { // nolint
 
 func (s *VulnUpdateService) VulnUpdateFn() {
 	err := vulnUpdata.GetUpdataService().AutoScanAll(context.Background(), 1, "漏洞库每日1点定时触发")
-	logging.GetLogger().Error().Err(err).Msg("VulnDb auto Updata error")
+	logging.GetLogger().Err(err).Msg("VulnDb auto Updata error")
 }
 
 func (s *VulnUpdateService) Start(ctx context.Context) error {
@@ -30,7 +30,7 @@ func (s *VulnUpdateService) Start(ctx context.Context) error {
 	cleanJob := crontab.New() // create cron table
 	// AddJob ,每天1点过2分时运行一次
 	if err := cleanJob.AddJob("2 1 * * *", s.VulnUpdateFn); err != nil {
-		logging.GetLogger().Error().Err(err).Msg("VulnDb auto Updata error")
+		logging.GetLogger().Err(err).Msg("VulnDb auto Updata error")
 		return err
 	}
 
@@ -45,7 +45,7 @@ func (s *VulnUpdateService) Stop(ctx context.Context) error {
 func init() {
 	err := register.Register(serviceName, newService)
 	if err != nil {
-		logging.GetLogger().Error().Err(err).Str("serviceName", serviceName).Msg("int service err")
+		logging.GetLogger().Err(err).Str("serviceName", serviceName).Msg("int service err")
 	}
 }
 

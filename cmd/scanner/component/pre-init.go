@@ -21,10 +21,10 @@ type InitScannerInterface interface {
 }
 
 type InitScanner struct {
-	regDal        store.RegistryDalInterface
+	regDal        store.RegistryDal
 	imageDal      store.ScannerDalInterface
 	vulnDal       store.VulnDalInterface
-	scanConfigDal store.ScanConfigDalInterface
+	scanConfigDal store.ScanConfigDal
 }
 
 func (s *InitScanner) Init(ctx context.Context) error {
@@ -136,27 +136,27 @@ func (s *InitScanner) createCicdBufRegistry(ctx context.Context) error {
 		Username:       username,
 		PasswordString: passwd,
 		Description:    "cicd中转仓库",
-		UseType:        model.RegistryUseTypeCICDBuff,
+		UseType:        model.CICDImageRegistry,
 		SyncInterval:   consts.RegistryDefaultSyncInterval,
 	}
 	// 先查一下,可能已经存在
 	registries, _, err := s.regDal.SearchRegistry(ctx, store.SearchRegistryParam{
-		UseType:  model.RegistryUseTypeCICDBuff,
+		UseType:  model.CICDImageRegistry,
 		NoDelete: true,
 	}, nil)
 	if err != nil {
-		logging.GetLogger().Error().Err(err).Msg("when initializing the buff registry, query error occurred")
+		logging.GetLogger().Err(err).Msg("when initializing the buff registry, query error occurred")
 		return err
 	}
 	if len(registries) == 0 {
 		if _, err = s.regDal.CreateRegistry(ctx, data); err != nil {
-			logging.GetLogger().Error().Err(err).Msg("when initializing the buff registry,create data error")
+			logging.GetLogger().Err(err).Msg("when initializing the buff registry,create data error")
 			return err
 		}
 	} else {
 		encryPass, err := util.DesEncrypt([]byte(passwd), []byte(consts.EncryptPasswordKey))
 		if err != nil {
-			logging.GetLogger().Error().Err(err).Msg("when initializing the buff registry, the encryption password error occurred")
+			logging.GetLogger().Err(err).Msg("when initializing the buff registry, the encryption password error occurred")
 			return err
 		}
 
@@ -165,10 +165,10 @@ func (s *InitScanner) createCicdBufRegistry(ctx context.Context) error {
 			"url":      url,
 			"username": username,
 			"password": encryPass,
-			"use_type": model.RegistryUseTypeCICDBuff,
+			"use_type": model.CICDImageRegistry,
 		}
 		if err := s.regDal.UpdateRegistry(ctx, store.SearchRegistryParam{ID: registries[0].ID}, updater); err != nil {
-			logging.GetLogger().Error().Err(err).Msg("when initializing the buff registry, the encryption password error occurred")
+			logging.GetLogger().Err(err).Msg("when initializing the buff registry, the encryption password error occurred")
 			return err
 		}
 	}
@@ -195,27 +195,27 @@ func (s *InitScanner) createSafeNodeBufRegistry(ctx context.Context) error {
 		Username:       username,
 		PasswordString: passwd,
 		Description:    "节点镜像中转仓库",
-		UseType:        model.RegistryUseSafeNode,
+		UseType:        model.NodeBuffRegistry,
 		SyncInterval:   inter1,
 	}
 	// 先查一下,可能已经存在
 	registries, _, err := s.regDal.SearchRegistry(ctx, store.SearchRegistryParam{
-		UseType:  model.RegistryUseSafeNode,
+		UseType:  model.NodeBuffRegistry,
 		NoDelete: true,
 	}, nil)
 	if err != nil {
-		logging.GetLogger().Error().Err(err).Msg("when initializing the buff registry, query error occurred")
+		logging.GetLogger().Err(err).Msg("when initializing the buff registry, query error occurred")
 		return err
 	}
 	if len(registries) == 0 {
 		if _, err = s.regDal.CreateRegistry(ctx, data); err != nil {
-			logging.GetLogger().Error().Err(err).Msg("when initializing the buff registry,create data error")
+			logging.GetLogger().Err(err).Msg("when initializing the buff registry,create data error")
 			return err
 		}
 	} else {
 		encryPass, err := util.DesEncrypt([]byte(passwd), []byte(consts.EncryptPasswordKey))
 		if err != nil {
-			logging.GetLogger().Error().Err(err).Msg("when initializing the buff registry, the encryption password error occurred")
+			logging.GetLogger().Err(err).Msg("when initializing the buff registry, the encryption password error occurred")
 			return err
 		}
 
@@ -224,10 +224,10 @@ func (s *InitScanner) createSafeNodeBufRegistry(ctx context.Context) error {
 			"url":      url,
 			"username": username,
 			"password": encryPass,
-			"use_type": model.RegistryUseSafeNode,
+			"use_type": model.NodeBuffRegistry,
 		}
 		if err := s.regDal.UpdateRegistry(ctx, store.SearchRegistryParam{ID: registries[0].ID}, updater); err != nil {
-			logging.GetLogger().Error().Err(err).Msg("when initializing the buff registry, the encryption password error occurred")
+			logging.GetLogger().Err(err).Msg("when initializing the buff registry, the encryption password error occurred")
 			return err
 		}
 	}
@@ -237,7 +237,7 @@ func (s *InitScanner) createSafeNodeBufRegistry(ctx context.Context) error {
 func (s *InitScanner) createGlobalPolicy(ctx context.Context) error {
 	policies, err := s.imageDal.SearchRejectPolicy(ctx, store.SearchRejectPolicyParam{Global: consts.TrueString})
 	if err != nil {
-		logging.GetLogger().Error().Err(err).Msg("InitScanner.createGlobalPolicy")
+		logging.GetLogger().Err(err).Msg("InitScanner.createGlobalPolicy")
 		return err
 	}
 
@@ -258,14 +258,14 @@ func (s *InitScanner) createGlobalPolicy(ctx context.Context) error {
 		}
 
 		if _, err := s.imageDal.CreateRejectPolicy(ctx, policy); err != nil {
-			logging.GetLogger().Error().Err(err).Msg("InitScanner.CreateGlobalPolicy")
+			logging.GetLogger().Err(err).Msg("InitScanner.CreateGlobalPolicy")
 			return err
 		}
 
 		updater := GlobalRejectPolicyToUpdater(global)
 
 		if err := s.imageDal.UpdateGlobalPolicy(ctx, updater); err != nil {
-			logging.GetLogger().Error().Err(err).Msg("InitScanner.CreateGlobalPolicy")
+			logging.GetLogger().Err(err).Msg("InitScanner.CreateGlobalPolicy")
 			return err
 		}
 	}
@@ -279,7 +279,7 @@ func (s *InitScanner) checkUniqueImage(ctx context.Context) error {
 		param.OmitFields = param.GetDefaultOmitFields()
 		images, _, err := s.imageDal.SearchImage(ctx, param, &model.Filter{Limit: consts.DefaultBathSize, SortBy: consts.SortByAsc, SortFiled: "id"})
 		if err != nil {
-			logging.GetLogger().Error().Err(err).Msg("InitScanner.checkUniqueImage")
+			logging.GetLogger().Err(err).Msg("InitScanner.checkUniqueImage")
 			return err
 		}
 		logging.GetLogger().Info().Int("vuln", len(images)).Msg("初始化时写入uniqueImage")
@@ -292,7 +292,7 @@ func (s *InitScanner) checkUniqueImage(ctx context.Context) error {
 			updater := map[string]interface{}{"unique_image": uniqueImage}
 			where := fmt.Sprintf("id = %d", image.ID)
 			if err := s.imageDal.UpdateImage(ctx, where, updater, nil); err != nil {
-				logging.GetLogger().Error().Err(err).Int64("ImageID", image.ID).Msg("InitScanner.checkUniqueImage")
+				logging.GetLogger().Err(err).Int64("ImageID", image.ID).Msg("InitScanner.checkUniqueImage")
 				return err
 			}
 		}
@@ -306,7 +306,7 @@ func (s *InitScanner) checkUniqueVuln(ctx context.Context) error {
 		param := store.SearchVulnParm{Where: fmt.Sprintf("(unique_vuln is null OR unique_vuln = 0 ) AND id > %d", lastID)}
 		vulus, _, err := s.vulnDal.SearchVuln(ctx, param, &model.Filter{Limit: consts.DefaultBathSize, SortBy: consts.SortByAsc, SortFiled: "id"})
 		if err != nil {
-			logging.GetLogger().Error().Err(err).Msg("InitScanner.checkUniqueImage")
+			logging.GetLogger().Err(err).Msg("InitScanner.checkUniqueImage")
 			return err
 		}
 
@@ -321,10 +321,10 @@ func (s *InitScanner) checkUniqueVuln(ctx context.Context) error {
 			where := fmt.Sprintf("id = %d", vu.ID)
 			if err := s.vulnDal.UpdateVuln(ctx, where, updater, nil); err != nil {
 				if strings.Contains(err.Error(), consts.DuplicateKey) {
-					logging.GetLogger().Error().Err(err).Int64("vulnID", vu.ID).Str("vuln", fmt.Sprintf("%s-%s-%s", vu.Name, vu.PkgName, vu.PkgVersion)).Uint64("UniqueVuln", uniqueVuln).Msg("InitScanner.checkUniqueVuln")
+					logging.GetLogger().Err(err).Int64("vulnID", vu.ID).Str("vuln", fmt.Sprintf("%s-%s-%s", vu.Name, vu.PkgName, vu.PkgVersion)).Uint64("UniqueVuln", uniqueVuln).Msg("InitScanner.checkUniqueVuln")
 					continue
 				}
-				logging.GetLogger().Error().Err(err).Int64("vulnID", vu.ID).Msg("InitScanner.checkUniqueVuln")
+				logging.GetLogger().Err(err).Int64("vulnID", vu.ID).Msg("InitScanner.checkUniqueVuln")
 				return err
 			}
 		}
@@ -332,6 +332,6 @@ func (s *InitScanner) checkUniqueVuln(ctx context.Context) error {
 	return nil
 }
 
-func NewInitScanner(regDal store.RegistryDalInterface, imageDal store.ScannerDalInterface, scanConfigDAl store.ScanConfigDalInterface, vulnDal store.VulnDalInterface) *InitScanner {
+func NewInitScanner(regDal store.RegistryDal, imageDal store.ScannerDalInterface, scanConfigDAl store.ScanConfigDal, vulnDal store.VulnDalInterface) *InitScanner {
 	return &InitScanner{regDal: regDal, imageDal: imageDal, scanConfigDal: scanConfigDAl, vulnDal: vulnDal}
 }

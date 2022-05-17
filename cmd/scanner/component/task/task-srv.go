@@ -24,7 +24,7 @@ type UpdateTaskInfo struct {
 type TaskSrv struct { // nolint
 	scannerGormDb *store.ScannerOrm
 	registryDal   *store.RegistryDao
-	scanConfigDal store.ScanConfigDalInterface
+	scanConfigDal store.ScanConfigDal
 }
 
 func NewTaskSrv() *TaskSrv {
@@ -49,7 +49,7 @@ func (t *TaskSrv) GenerateScanTask(ctx context.Context, imageIds []int64, info U
 		// get default policy
 		strategies, _, err := t.scanConfigDal.SearchStrategy(ctx, store.SearchStrategyParam{IsDefault: consts.TrueString}, nil)
 		if err != nil {
-			logging.GetLogger().Error().Err(err).Msg("generate scan task err")
+			logging.GetLogger().Err(err).Msg("generate scan task err")
 			return err
 		}
 		if len(strategies) == 0 {
@@ -314,7 +314,7 @@ func (t *TaskSrv) SetSubTaskFailed(id int64, msgNo int, errDetail string) error 
 	}
 	err := store.GetScannerOrmDb().UpdateSubTask(context.Background(), dbTask)
 	if err != nil {
-		logging.GetLogger().Error().Err(err).Msg("update subtask db status to 'scan-failed' err")
+		logging.GetLogger().Err(err).Msg("update subtask db status to 'scan-failed' err")
 		return err
 	}
 	return nil
@@ -329,7 +329,7 @@ func (t *TaskSrv) SetSubTaskSuccess(id int64) error {
 	}
 	err := store.GetScannerOrmDb().UpdateSubTask(context.Background(), dbTask)
 	if err != nil {
-		logging.GetLogger().Error().Err(err).Msg("update subtask db status to 'scan-success' err")
+		logging.GetLogger().Err(err).Msg("update subtask db status to 'scan-success' err")
 		return err
 	}
 	return nil
@@ -345,7 +345,7 @@ func (t *TaskSrv) SetSubTaskInProgress(id int64) error {
 	}
 	err := store.GetScannerOrmDb().UpdateSubTask(context.Background(), dbTask)
 	if err != nil {
-		logging.GetLogger().Error().Err(err).Msg("update subtask db status to 'inprogress' err")
+		logging.GetLogger().Err(err).Msg("update subtask db status to 'inprogress' err")
 		return err
 	}
 	return nil
@@ -358,7 +358,7 @@ func (t *TaskSrv) GetProgressingTasks() ([]Task, error) {
 	}
 	checkTasks, _, err := store.GetScannerOrmDb().GetTasks(context.Background(), search, nil)
 	if err != nil {
-		logging.GetLogger().Error().Err(err).Msg("get progressing tasks err")
+		logging.GetLogger().Err(err).Msg("get progressing tasks err")
 		return nil, err
 	}
 
@@ -373,7 +373,7 @@ func (t *TaskSrv) GetProgressingTasks() ([]Task, error) {
 func (t *TaskSrv) GetDefaultPolicyID(ctx context.Context) (int64, error) {
 	p, _, err := t.scanConfigDal.SearchStrategy(ctx, store.SearchStrategyParam{IsDefault: consts.TrueString}, nil)
 	if err != nil {
-		logging.GetLogger().Error().Err(err).Msg("get default scan policy err")
+		logging.GetLogger().Err(err).Msg("get default scan policy err")
 		return 0, err
 	}
 
@@ -388,7 +388,7 @@ func (t *TaskSrv) GetDefaultPolicyID(ctx context.Context) (int64, error) {
 func (t *TaskSrv) GenerateScanTypeByPolicy(ctx context.Context, policyID int64) (map[ScanType]ScanPolicy, error) {
 	p, _, err := t.scanConfigDal.SearchStrategy(ctx, store.SearchStrategyParam{StrategyID: policyID}, nil)
 	if err != nil {
-		logging.GetLogger().Error().Err(err).Int64("policyId", policyID).Msg("get scan policy err")
+		logging.GetLogger().Err(err).Int64("policyId", policyID).Msg("get scan policy err")
 		return nil, err
 	}
 
@@ -518,7 +518,7 @@ func (t *TaskSrv) GetProgressingSubTasks(taskIds []int64) ([]SubTask, error) {
 	}
 	sts, _, err := store.GetScannerOrmDb().GetSubTasks(context.Background(), search, nil)
 	if err != nil {
-		logging.GetLogger().Error().Err(err).Msg("get progressing tasks err")
+		logging.GetLogger().Err(err).Msg("get progressing tasks err")
 		return nil, err
 	}
 
@@ -537,7 +537,7 @@ func (t *TaskSrv) GetPendingSubTasks(taskIds []int64) ([]SubTask, error) {
 	}
 	sts, _, err := store.GetScannerOrmDb().GetSubTasks(context.Background(), search, nil)
 	if err != nil {
-		logging.GetLogger().Error().Err(err).Msg("get pending tasks err")
+		logging.GetLogger().Err(err).Msg("get pending tasks err")
 		return nil, err
 	}
 

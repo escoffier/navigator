@@ -98,3 +98,8 @@ func GetErrMsgEnu(errNo int) string {
 		return "程序内部出错"
 	}
 }
+
+const (
+	IsSyncingImage  = true  // 正在同步
+	NotSyncingImage = false // 没在同步
+)

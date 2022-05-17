@@ -28,13 +28,13 @@ type Scanner struct {
 func NewScanner(opts *flag2.ScannerOpts) (*Scanner, error) {
 	// init db
 	if err := store.InitDb(opts.LogLevel); err != nil {
-		logging.Get().Error().Err(err).Msg("connect db failed")
+		logging.Get().Err(err).Msg("connect db failed")
 		return nil, err
 	}
 
 	// init redis client
 	if err := store.InitRedisClient(opts.RedisEndpoint, opts.RedisPassword); err != nil {
-		logging.Get().Error().Err(err).Msgf("connect redis failed,%v,%v", opts.RedisPassword, opts.RedisEndpoint)
+		logging.Get().Err(err).Msgf("connect redis failed,%v,%v", opts.RedisPassword, opts.RedisEndpoint)
 		return nil, err
 	}
 
@@ -77,7 +77,7 @@ func (s *Scanner) Run() func() {
 		flowEngine := engine.NewSequenceEngine(config, nil)
 		err := flowEngine.Run(context.Background())
 		if err != nil {
-			logging.Get().Error().Err(err).Msg("engine run err")
+			logging.Get().Err(err).Msg("engine run err")
 		}
 	}()
 
@@ -98,7 +98,7 @@ func (s *Scanner) CreateService() {
 		}
 		srv, err := register.Open(config)
 		if err != nil {
-			logging.Get().Error().Err(err).Str("type", k).Msg("create service err")
+			logging.Get().Err(err).Str("type", k).Msg("create service err")
 			continue
 		}
 		logging.Get().Info().Str("type", k).Msg("create service ok")
@@ -121,7 +121,7 @@ func (s *Scanner) StartServices() {
 			logging.Get().Info().Str("serviceName", serviceName).Msg("scanner service ready to start")
 			err := s.servicesList[serviceName].Start(context.Background())
 			if err != nil {
-				logging.Get().Error().Err(err).Str("serviceName", serviceName).Msg("scanner service run err")
+				logging.Get().Err(err).Str("serviceName", serviceName).Msg("scanner service run err")
 			}
 		}(name)
 	}
@@ -133,7 +133,7 @@ func (s *Scanner) StopServices(ctx context.Context) {
 	for name, srv := range s.servicesList {
 		err := srv.Stop(ctx)
 		if err != nil {
-			logging.Get().Error().Err(err).Str("serviceName", name).Msg("scanner service stop err")
+			logging.Get().Err(err).Str("serviceName", name).Msg("scanner service stop err")
 		} else {
 			logging.Get().Info().Str("serviceName", name).Msg("scanner service stop ok")
 		}

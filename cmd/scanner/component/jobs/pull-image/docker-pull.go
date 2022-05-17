@@ -45,7 +45,7 @@ func pullImage(image string) error {
 	osCmd := exec.Command("docker", "pull", image)
 	err := osCmd.Run()
 	if err != nil {
-		logging.GetLogger().Error().Err(err).Msgf("scan-image docker pull :%s", image)
+		logging.GetLogger().Err(err).Msgf("scan-image docker pull :%s", image)
 		return err
 	}
 	logging.GetLogger().Info().Msgf("scan-image docker pull successful :%s", image)
@@ -86,7 +86,7 @@ func login(url, username, password string) error {
 
 	err := osCmd.Run()
 	if err != nil {
-		logging.GetLogger().Error().Err(err).Msgf("scan-image login failed:%v", osCmd.Args)
+		logging.GetLogger().Err(err).Msgf("scan-image login failed:%v", osCmd.Args)
 		return err
 	}
 	logging.GetLogger().Info().Msg("scan-image login successful")
@@ -98,7 +98,7 @@ func rmImage(imageName string) error {
 
 	err := osCmd.Run()
 	if err != nil {
-		logging.GetLogger().Error().Err(err).Msgf("scan-image docker delete image：%s:%v", imageName, osCmd.Args)
+		logging.GetLogger().Err(err).Msgf("scan-image docker delete image：%s:%v", imageName, osCmd.Args)
 		return err
 	}
 	logging.GetLogger().Info().Msgf("scan-image docker delete image：%s", imageName)

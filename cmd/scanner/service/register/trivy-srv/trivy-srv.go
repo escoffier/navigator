@@ -33,7 +33,7 @@ func (t *TrivyService) Stop(ctx context.Context) error {
 func init() {
 	err := register.Register(serviceName, newService)
 	if err != nil {
-		logging.GetLogger().Error().Err(err).Str("serviceName", serviceName).Msg("init service err")
+		logging.GetLogger().Err(err).Str("serviceName", serviceName).Msg("init service err")
 	}
 }
 
@@ -42,12 +42,12 @@ func newService(config register.ScannerServiceConfig) (register.ScannerService, 
 	t := &TrivyService{}
 	rc, err := store.GetRedisClient(1)
 	if err != nil {
-		logging.GetLogger().Error().Err(err).Msg("New trivyServer failed")
+		logging.GetLogger().Err(err).Msg("New trivyServer failed")
 		return nil, err
 	}
 	TrivyServer, err := component.NewTrivyServer(*rc, config.Options.PvcPath)
 	if err != nil {
-		logging.GetLogger().Error().Err(err).Msg("New trivyServer failed")
+		logging.GetLogger().Err(err).Msg("New trivyServer failed")
 		return nil, err
 	}
 	t.trivyService = TrivyServer

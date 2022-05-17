@@ -233,17 +233,17 @@ func (w *Worker) saveManifest(task RequestLayerInfo) {
 		err := w.createRegistryClient(task.Username, task.Password, task.Repository, task.URL, task.SkipTLS)
 		// rc,err := w.wg.LoadOrSaveRegistryClient(task.username,task.password,task.repository,task.url,task.skipTls)
 		if err != nil {
-			logging.Get().Error().Err(err).Msg("create registry client err")
+			logging.Get().Err(err).Msg("create registry client err")
 			task.Response <- fmt.Sprintf("GetManifestError %v", err)
 			return
 		}
 	}
 	manifest, err := w.rc.readManifest(context.Background(), "v2", task.Repository, task.Tag)
 	if err != nil {
-		logging.Get().Error().Err(err).Msg("read V2 manifest err will test V1 manifest")
+		logging.Get().Err(err).Msg("read V2 manifest err will test V1 manifest")
 		manifest, err = w.rc.readManifest(context.Background(), "v1", task.Repository, task.Tag)
 		if err != nil {
-			logging.Get().Error().Err(err).Msg("read V1 manifest err will return error")
+			logging.Get().Err(err).Msg("read V1 manifest err will return error")
 			task.Response <- fmt.Sprintf("GetManifestError %v", err)
 			return
 		}
@@ -253,14 +253,14 @@ func (w *Worker) saveManifest(task RequestLayerInfo) {
 	fp = "FileServerCache/" + fp
 	err = os.MkdirAll(fp, 0777)
 	if err != nil {
-		logging.Get().Error().Err(err).Str("manifestPath", fp).Msg("make manifest dir err")
+		logging.Get().Err(err).Str("manifestPath", fp).Msg("make manifest dir err")
 		task.Response <- fmt.Sprintf("make manifest dir err %v", err)
 		return
 	}
 	fp = filepath.Join(fp, "manifest.json")
 	err = os.WriteFile(fp, manifest, 0600)
 	if err != nil {
-		logging.Get().Error().Err(err).Msg("write manifest.json err")
+		logging.Get().Err(err).Msg("write manifest.json err")
 		task.Response <- fmt.Sprintf("write manifest json err %v", err)
 		return
 	}

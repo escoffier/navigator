@@ -226,7 +226,7 @@ func (s *SequenceEngine) handleFlow(ctx context.Context, flowConf []string, st *
 			logging.GetLogger().Err(err).Msg("job run failed")
 			perr := pullImageFailed(curArtifact, artifacts)
 			if perr != nil {
-				logging.GetLogger().Err(perr).Msg("pullImageFailed error:") //只记录，不break，依照原流程下面会记录别的信息同时break
+				logging.GetLogger().Err(perr).Msg("pullImageFailed error:") // 只记录，不break，依照原流程下面会记录别的信息同时break
 			}
 			success = false
 			errNo = getScanErr(j)

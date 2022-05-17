@@ -32,4 +32,5 @@ type RegisterConfig struct {
 	SkipTLSVerify bool   `json:"skip_tls_verify"`
 	Region        string `json:"region"`
 	Insecure      bool   `json:"insecure"`
+	UseType       int64  `json:"use_type"`
 }

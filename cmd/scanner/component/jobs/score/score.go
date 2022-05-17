@@ -29,7 +29,7 @@ func (i *ImageScore) Run(ctx context.Context, param jobs.Param) (jobs.Artifact, 
 func init() {
 	err := jobs.Register(JobName, newJob)
 	if err != nil {
-		logging.GetLogger().Error().Err(err).Str("jobName", JobName).Msg("int job err")
+		logging.GetLogger().Err(err).Str("jobName", JobName).Msg("int job err")
 	}
 }
 

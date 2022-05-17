@@ -27,7 +27,7 @@ type Service struct {
 func (s *Service) Start(ctx context.Context) error {
 	err := s.ScanConfigSrv.AddTaskByStrategy(ctx)
 	if err != nil {
-		logging.GetLogger().Error().Err(err).Msg("AddTaskByStrategy start failure")
+		logging.GetLogger().Err(err).Msg("AddTaskByStrategy start failure")
 		return err
 	}
 	logging.GetLogger().Info().Msg("AddTaskByStrategy start success")
@@ -41,7 +41,7 @@ func (s *Service) Stop(ctx context.Context) error {
 func init() {
 	err := register.Register(serviceName, newService)
 	if err != nil {
-		logging.GetLogger().Error().Err(err).Str("serviceName", serviceName).Msg("int service err")
+		logging.GetLogger().Err(err).Str("serviceName", serviceName).Msg("int service err")
 	}
 }
 

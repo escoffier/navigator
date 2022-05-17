@@ -209,7 +209,7 @@ loop:
 				// updateCtx, _ := context.WithTimeout(ctx, 8*time.Minute)
 				err := rcSvc.updateLayerCache(ctx)
 				if err != nil {
-					logging.Get().Error().Err(err).Msg("Cache invalidator - updateLayerCache failed")
+					logging.Get().Err(err).Msg("Cache invalidator - updateLayerCache failed")
 				}
 
 				rcSvc.wantsToUpdate = false
@@ -1240,12 +1240,12 @@ func (rcSvc *RedClairService) updateRiskCacheEntry(ctx context.Context, scantask
 	sumData.UnknownNum = scantask.ScanReport.Vulns.SeverityHistogram.NumUnknown
 	bytes, err := json.Marshal(sumData)
 	if err != nil {
-		logging.Get().Error().Err(err).Msgf("Risk Vuln json Marshal error")
+		logging.Get().Err(err).Msgf("Risk Vuln json Marshal error")
 		return
 	}
 	err = rcSvc.redisClientShare.Set(ctx, image, bytes, riskTTL).Err()
 	if err != nil {
-		logging.Get().Error().Err(err).Msgf("Updata risk cache error image:%v", image)
+		logging.Get().Err(err).Msgf("Updata risk cache error image:%v", image)
 	}
 }
 func SortVulnsBySeverityAndStuff(vulnerabilities []model.VulnerabilityInfo, asc bool) {

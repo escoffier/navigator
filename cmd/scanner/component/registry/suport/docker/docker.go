@@ -23,10 +23,6 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 )
 
-const (
-	Version = "registry-v2"
-)
-
 type repositoriesResponse struct {
 	Repositories []string `json:"repositories"`
 }
@@ -121,10 +117,20 @@ func (r *RegistryV2) ListRepoTags(repo string) ([]string, error) {
 	return tags, nil
 }
 
-func (r *RegistryV2) ListImages(extender registry.ImageListExtender, req registry.ListImagesRequest) (*registry.ListImagesRes, error) {
+func (r *RegistryV2) SupportIncrementalSync(ctx context.Context) bool {
+	return false
+}
+
+func (r *RegistryV2) ImageRetry(ctx context.Context, extender registry.Extender, req registry.ImageRetryRequest) (*registry.ListImagesRes, error) {
+	return nil, nil
+}
+
+func (r *RegistryV2) ListImages(ctx context.Context, extender registry.Extender, req registry.ListImagesRequest) (*registry.ListImagesRes, error) {
+	if extender.CreateImageExtender == nil {
+		return nil, fmt.Errorf("not get CreateImageExtender")
+	}
 	cnt := 0
 	res := new(registry.ListImagesRes)
-
 	// get all repos
 	repos, err := r.ListRepos()
 	if err != nil {
@@ -192,15 +198,21 @@ func (r *RegistryV2) ListImages(extender registry.ImageListExtender, req registr
 				imageDigest = tmp.String()
 			}
 
-			i := r.MakeImage(repo, tag)
-			i.ImageDigest = imageDigest
-			i.ManifestV2 = string(manifestV2Str)
-			i.ManifestV1 = string(manifestV1Str)
-			i.ConfigJSON = configBlob
+			image := registry.Image{
+				RegistryUrl: r.Config.URL,
+				RegistryID:  r.Config.RegistryID,
+				ImageDigest: imageDigest,
+				Repository:  repo,
+				Tag:         tag,
+				FromType:    r.Config.UseType,
+				ManifestV2:  string(manifestV2Str),
+				ManifestV1:  string(manifestV1Str),
+				ConfigJSON:  configBlob,
+			}
 
 			cnt++
 
-			im, err := extender(*i)
+			im, err := extender.CreateImageExtender(ctx, image)
 			if err != nil {
 				if err != consts.ErrNotNodeImage {
 					logging.GetLogger().Err(err).Msg("HarborV2 Insert imagelist error")
@@ -302,14 +314,18 @@ func (r *RegistryV2) GetImage(projectName, repoName, tag string) (*registry.Imag
 		imageDigest = tmp.String()
 	}
 
-	image := r.MakeImage(repoName, tag)
+	image := registry.Image{
+		RegistryUrl: r.Config.URL,
+		RegistryID:  r.Config.RegistryID,
+		ImageDigest: imageDigest,
+		Repository:  repoName,
+		Tag:         tag,
+		ManifestV2:  string(manifestV2Str),
+		ManifestV1:  string(manifestV1Str),
+		ConfigJSON:  configBlob,
+	}
 
-	image.ImageDigest = imageDigest
-	image.ManifestV2 = string(manifestV2Str)
-	image.ManifestV1 = string(manifestV1Str)
-	image.ConfigJSON = configBlob
-
-	return image, nil
+	return &image, nil
 }
 
 func (r *RegistryV2) DeleteImages(projectName, repoName, dig string) error {
@@ -333,15 +349,6 @@ func (r *RegistryV2) CheckProject(projectName string) error {
 
 func (r *RegistryV2) CreateProject(projectName string, public bool) error {
 	return errors.New("not implement")
-}
-
-func (r *RegistryV2) MakeImage(repo, tag string) *registry.Image {
-	i := registry.Image{
-		ImageDigest: "",
-		Repository:  repo,
-		Tag:         tag,
-	}
-	return &i
 }
 
 func ManifestV2Digest(m *schema2.DeserializedManifest) (string, error) {
@@ -375,6 +382,9 @@ func (r *RegistryV2) PullImageManifestV1(repo, digest string) (*schema1.SignedMa
 	return manifest, nil
 }
 
+func (r *RegistryV2) ListImagesWithAuditLog(ctx context.Context, extender registry.Extender, req registry.ListImagesAuditLog) (*registry.ListImagesRes, error) {
+	return nil, nil
+}
 func (r *RegistryV2) PullConfigBlob(repo string, configDigest digest.Digest) (string, error) {
 	reader, err := r.RegistryClient.DownloadBlob(repo, configDigest)
 	if err != nil {
@@ -390,7 +400,7 @@ func (r *RegistryV2) PullConfigBlob(repo string, configDigest digest.Digest) (st
 }
 
 func init() {
-	err := registry.Register(Version, openRegistry)
+	err := registry.Register(consts.DockerRegistryV2Version, openRegistry)
 	if err != nil {
 		logging.GetLogger().Error().Msgf("init harborV2 error:%v", err)
 	} else {
@@ -405,13 +415,13 @@ func openRegistry(config registry.RegistrableComponentConfig) (registry.Registry
 
 	byt, err := json.Marshal(config.Options)
 	if err != nil {
-		logging.GetLogger().Error().Err(err).Msg("docker marshal config")
+		logging.GetLogger().Err(err).Msg("docker marshal config")
 		return nil, err
 	}
 	conf := new(RegisterConfig)
 
 	if err := json.Unmarshal(byt, conf); err != nil {
-		logging.GetLogger().Error().Err(err).Msg("docker Unmarshal config")
+		logging.GetLogger().Err(err).Msg("docker Unmarshal config")
 		return nil, err
 	}
 

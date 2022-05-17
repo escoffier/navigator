@@ -109,6 +109,7 @@ type ImageResponse struct {
 	ImageUUID         uint32         `json:"image_uuid"`
 	Flag              uint64         `json:"flag"`
 	Project           string         `json:"project"`
+	LastSyncAt        int64          `json:"last_sync_at"`
 }
 
 func ImageToImageResponse(img ImageList) ImageResponse {
@@ -125,6 +126,7 @@ func ImageToImageResponse(img ImageList) ImageResponse {
 		NodeHostname: img.NodeHostname,
 		Os:           img.OS,
 		FromType:     img.FromType,
+		Flag:         img.Flag,
 	}
 	if img.ScanImage != nil {
 		im.CompleteTime = img.ScanImage.FinishAt
@@ -135,6 +137,7 @@ func ImageToImageResponse(img ImageList) ImageResponse {
 		im.RegistryName = img.Registry.Name
 		im.Library = img.Registry.Url
 		im.RegistryDeletedAt = img.Registry.DeletedAt
+		im.LastSyncAt = img.Registry.LastSyncAt
 	}
 	return im
 }

@@ -221,7 +221,7 @@ func (a *cnvdAppender) WriteToBolt(db *bolt.DB) {
 		logging.GetLogger().Info().Msgf("Have %d in Map,And %d Insert To bbolt", sum, cnt)
 		return err
 	}); err != nil {
-		logging.GetLogger().Error().Err(err)
+		logging.GetLogger().Err(err)
 	}
 }
 

@@ -96,7 +96,7 @@ func (e *ExecutorScanEnv) Scan(ctx context.Context, param Param) (Artifact, erro
 func init() {
 	err := Register(executorScanEnvName, newScanEnv)
 	if err != nil {
-		logging.GetLogger().Error().Err(err).Str("executorName", executorScanEnvName).Msg("int executor err")
+		logging.GetLogger().Err(err).Str("executorName", executorScanEnvName).Msg("int executor err")
 	}
 }
 

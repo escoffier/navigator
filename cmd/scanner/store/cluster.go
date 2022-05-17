@@ -4,11 +4,12 @@ import (
 	"context"
 	"time"
 
-	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/security-rd/go-pkg/databases"
+
+	"gitlab.com/piccolo_su/vegeta/pkg/model"
 )
 
-type PodResourceRelationInterface interface {
+type PodResourceRelationDal interface {
 	Search(ctx context.Context, nameSpace, clusterKey, podName string) ([]model.PodResourceRelation, error)
 }
 
@@ -20,7 +21,8 @@ func (s *PodResourceRelationDao) Search(ctx context.Context, nameSpace, clusterK
 	timeoutCtx, cancelFunc := context.WithTimeout(ctx, 10*time.Second)
 	defer cancelFunc()
 	res := make([]model.PodResourceRelation, 0)
-	err := s.db.Get().WithContext(timeoutCtx).Model(new(model.PodResourceRelation)).Where("namespace = ? AND cluster_key = ? AND pod_name = ? ", nameSpace, clusterKey, podName).Find(&res).Error
+	err := s.db.Get().WithContext(timeoutCtx).Model(new(model.PodResourceRelation)).
+		Where("namespace = ? AND cluster_key = ? AND pod_name = ? ", nameSpace, clusterKey, podName).Find(&res).Error
 	return res, err
 }
 

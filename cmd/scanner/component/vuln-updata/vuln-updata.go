@@ -90,7 +90,7 @@ func (srv *UpdataService) AutoScanAll(ctx context.Context, fromType int64, opera
 
 	imgs, _, err := dal.SearchImage(ctx, store.SearchImageParam{FromType: fromType, RegistryIds: registryIds, Fields: []string{"id"}}, nil)
 	if err != nil {
-		logging.GetLogger().Error().Err(err).Msg("query images error")
+		logging.GetLogger().Err(err).Msg("query images error")
 		return err
 	}
 
@@ -105,7 +105,7 @@ func (srv *UpdataService) AutoScanAll(ctx context.Context, fromType int64, opera
 
 	ts := task.NewTaskSrv()
 	if err := ts.GenerateScanTask(ctx, imgIds, task.UpdateTaskInfo{TriggerType: consts.VulDataUpdateTrigger, Scope: consts.FullScan, Operator: operator}); err != nil {
-		logging.GetLogger().Error().Err(err).Msg("add full scan task failed")
+		logging.GetLogger().Err(err).Msg("add full scan task failed")
 		return err
 	}
 	logging.GetLogger().Info().Msg("add full scan task end")
@@ -235,7 +235,7 @@ func (srv *UpdataService) Run(offline bool, volumePath string, ch chan<- string)
 			logging.GetLogger().Info().Msg("open init DB")
 			db, err = bolt.Open(filepath.Join(volumePath, "init_custom.db"), 0600, &options)
 			if err != nil {
-				logging.GetLogger().Error().Err(err).Msgf("Bolt Open Error %v", err)
+				logging.GetLogger().Err(err).Msgf("Bolt Open Error %v", err)
 				time.Sleep(time.Duration(100) * time.Second)
 				continue
 			}
@@ -261,14 +261,14 @@ func (srv *UpdataService) Run(offline bool, volumePath string, ch chan<- string)
 
 			filePath, err := srv.GenerateDir(volumePath)
 			if err != nil {
-				logging.GetLogger().Error().Err(err).Msgf("GenerateDir err:%v", err)
+				logging.GetLogger().Err(err).Msgf("GenerateDir err:%v", err)
 				ch <- "err"
 			} else {
 				ch <- filePath
 			}
 			// err = srv.AutoScanAll(context.Background(), 1, "漏洞库更新触发")
 			// if err != nil {
-			// 	logging.GetLogger().Error().Err(err).Msgf("vuln-updata ticker scanALL failed")
+			// 	logging.GetLogger().Err(err).Msgf("vuln-updata ticker scanALL failed")
 			// }
 			<-ticker.C
 		}
@@ -285,7 +285,7 @@ func (srv *UpdataService) ReadVersion(name string) string {
 		if FileExists(filepath.Join(srv.VolumePath, "trivy_version")) {
 			trivyVersionBytes, err := os.ReadFile(filepath.Join(srv.VolumePath, "trivy_version"))
 			if err != nil {
-				logging.GetLogger().Error().Err(err).Msgf("Open now Trivy version Error")
+				logging.GetLogger().Err(err).Msgf("Open now Trivy version Error")
 			} else {
 				trivyVersion = string(trivyVersionBytes)
 				res = "last"
@@ -294,7 +294,7 @@ func (srv *UpdataService) ReadVersion(name string) string {
 		if FileExists(filepath.Join(srv.VolumePath, "offline", "trivy_init_version")) {
 			offlineVersionBytes, err := os.ReadFile(filepath.Join(srv.VolumePath, "offline", "trivy_init_version"))
 			if err != nil {
-				logging.GetLogger().Error().Err(err).Msgf("Open Offline Trivy version Error")
+				logging.GetLogger().Err(err).Msgf("Open Offline Trivy version Error")
 			} else {
 				offlineVersion = string(offlineVersionBytes)
 			}
@@ -308,7 +308,7 @@ func (srv *UpdataService) ReadVersion(name string) string {
 		if util.FileExists(filepath.Join(srv.VolumePath, "custom_version")) {
 			CustomVersionBytes, err := os.ReadFile(filepath.Join(srv.VolumePath, "custom_version"))
 			if err != nil {
-				logging.GetLogger().Error().Err(err).Msgf("Open now Custom version Error")
+				logging.GetLogger().Err(err).Msgf("Open now Custom version Error")
 				CustomVersion = "2006-01-02 15:04:05"
 			} else {
 				CustomVersion = string(CustomVersionBytes)
@@ -318,7 +318,7 @@ func (srv *UpdataService) ReadVersion(name string) string {
 		if util.FileExists(filepath.Join(srv.VolumePath, "offline", "custom_init_version")) {
 			CustomVersionBytes, err := os.ReadFile(filepath.Join(srv.VolumePath, "offline", "custom_init_version"))
 			if err != nil {
-				logging.GetLogger().Error().Err(err).Msgf("Open Offline Custom version Error")
+				logging.GetLogger().Err(err).Msgf("Open Offline Custom version Error")
 			} else {
 				offlineVersion = string(CustomVersionBytes)
 			}
@@ -393,13 +393,13 @@ func UploadOffline(c *gin.Context) {
 	err = Unzip(filepath.Join(scannerVulnUpdata.VolumePath, "down.zip"), filepath.Join(scannerVulnUpdata.VolumePath, "offline/"))
 	if err != nil {
 		// os.Remove(filepath.Join(srv.VolumePath, "down.zip"))
-		logging.GetLogger().Error().Err(err).Msgf("unzip error :%v", err)
+		logging.GetLogger().Err(err).Msgf("unzip error :%v", err)
 		response.JSONError(c, fmt.Errorf("存储离线包失败"))
 		return
 	}
 	filePath, err := scannerVulnUpdata.GenerateDir(scannerVulnUpdata.VolumePath)
 	if err != nil {
-		logging.GetLogger().Error().Err(err).Msgf("gennerate Dir err:%v", err)
+		logging.GetLogger().Err(err).Msgf("gennerate Dir err:%v", err)
 		response.JSONError(c, fmt.Errorf("更新流程失败"))
 		return
 	}
@@ -407,13 +407,13 @@ func UploadOffline(c *gin.Context) {
 	vuln := scanvuln.GetScannerVuln()
 	err = vuln.InitDB()
 	if err != nil {
-		logging.GetLogger().Error().Err(err).Msgf("init db err :%v", err)
+		logging.GetLogger().Err(err).Msgf("init db err :%v", err)
 		response.JSONError(c, fmt.Errorf("更新漏洞库成功，中文库失败"))
 		return
 	}
 	err = scannerVulnUpdata.AutoScanAll(c, 1, "离线更新成功后自动触发")
 	if err != nil {
-		logging.GetLogger().Error().Err(err).Msgf("scanall error :%v", err)
+		logging.GetLogger().Err(err).Msgf("scanall error :%v", err)
 		response.JSONError(c, fmt.Errorf("更新漏洞库成功，触发全量扫描失败"))
 		return
 	}
@@ -618,11 +618,11 @@ func CompareVersion(vtype string, old string, new string) bool {
 		logging.GetLogger().Info().Msgf("CompareVersion old :%v new:%v", old, new)
 		oldNum, err := strconv.Atoi(old)
 		if err != nil {
-			logging.GetLogger().Error().Err(err).Msgf("old version Atoi failed when CompareVersion")
+			logging.GetLogger().Err(err).Msgf("old version Atoi failed when CompareVersion")
 		}
 		newNum, err := strconv.Atoi(new)
 		if err != nil {
-			logging.GetLogger().Error().Err(err).Msgf("new version Atoi failed when CompareVersion")
+			logging.GetLogger().Err(err).Msgf("new version Atoi failed when CompareVersion")
 		}
 		return oldNum > newNum
 	} else if strings.Contains(vtype, "custom") {

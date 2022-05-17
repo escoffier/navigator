@@ -528,7 +528,7 @@ func (s *ScannerImageCacheService) Start(ctx context.Context) error {
 	// start file server
 	err := s.fs.Run(s.ctx)
 	if err != nil {
-		logging.Get().Error().Err(err).Msg("start file server failed")
+		logging.Get().Err(err).Msg("start file server failed")
 		return err
 	}
 
@@ -541,7 +541,7 @@ func (s *ScannerImageCacheService) Start(ctx context.Context) error {
 
 func (s *ScannerImageCacheService) Stop(ctx context.Context) error {
 	// if err := s.server.Run(ctx); err != nil {
-	//	logging.GetLogger().Error().Err(err).Msg("image cache server stop err")
+	//	logging.GetLogger().Err(err).Msg("image cache server stop err")
 	//	return err
 	// }
 	logging.Get().Info().Msg("image cache server stop")
@@ -551,7 +551,7 @@ func (s *ScannerImageCacheService) Stop(ctx context.Context) error {
 func init() {
 	err := register.Register(serviceName, newService)
 	if err != nil {
-		logging.Get().Error().Err(err).Str("serviceName", serviceName).Msg("int service err")
+		logging.Get().Err(err).Str("serviceName", serviceName).Msg("int service err")
 	}
 }
 

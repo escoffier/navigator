@@ -2,6 +2,8 @@ package registry
 
 import (
 	"time"
+
+	"gitlab.com/piccolo_su/vegeta/pkg/model"
 )
 
 // Namespace dev/nginx:1.20, "dev" is the namespace
@@ -32,8 +34,10 @@ type Tag struct {
 
 // Image dev/nginx:1.20, this is the image
 type Image struct {
-	RegistryID   uint
+	RegistryID   int64
+	RegistryUrl  string
 	ImageDigest  string
+	FromType     int64
 	Repository   string
 	Tag          string
 	Size         uint
@@ -45,4 +49,8 @@ type Image struct {
 	ConfigJSON   string
 	Status       uint
 	Message      string
+}
+type RegistryWithConf struct {
+	Registry Registry
+	Config   model.Registry
 }

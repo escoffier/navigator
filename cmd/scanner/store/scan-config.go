@@ -10,7 +10,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 )
 
-type ScanConfigDalInterface interface {
+type ScanConfigDal interface {
 	CreateStrategy(ctx context.Context, data *model.ScanStrategy) error
 	SearchStrategy(ctx context.Context, parm SearchStrategyParam, filter *model.Filter) ([]model.ScanStrategy, int64, error)
 	CreateScanConfig(ctx context.Context, data *model.ScanConfig) error

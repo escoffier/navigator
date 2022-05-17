@@ -309,18 +309,28 @@ type Registry struct {
 	PasswordString string `gorm:"-" json:"password"`
 	Token          string `gorm:"-" json:"token"`
 	Description    string `gorm:"type:varchar(255);column:description"  json:"description"`
-	AuthStr        string `gorm:"-" json:"auth_str"`                         // 用户名和密码加密后的数据，不存入数据库中
-	UseType        int    `gorm:"column:use_type" json:"-"`                  // 1-用户仓库,2-buf仓库
-	SyncInterval   int64  `gorm:"column:sync_interval" json:"sync_interval"` // 单位：分钟
-	LastSyncAt     int64  `gorm:"column:last_sync_at; default:0" json:"-"`   // 最后一次同步时间
-	AccessKey      string `gorm:"access_key" json:"access_key"`              // 阿里云仓库的AccessKey
-	AccessSecret   string `gorm:"access_secret" json:"access_secret"`        // 阿里云仓库的AccessSecret
-	InstanceID     string `gorm:"instance_id" json:"instance_id"`            // 阿里云仓库企业版实例ID
-	RegionID       string `gorm:"region_id" json:"region_id"`                // 阿里云仓库企业版地域ID
+	AuthStr        string `gorm:"-" json:"auth_str"`                                  // 用户名和密码加密后的数据，不存入数据库中
+	UseType        int    `gorm:"column:use_type" json:"-"`                           // 1-用户仓库,2-buf仓库
+	SyncInterval   int64  `gorm:"column:sync_interval" json:"sync_interval"`          // 单位：分钟
+	LastSyncAt     int64  `gorm:"column:last_sync_at; default:0" json:"last_sync_at"` // 最后一次同步时间
+	AccessKey      string `gorm:"access_key" json:"access_key"`                       // 阿里云仓库的AccessKey
+	AccessSecret   string `gorm:"access_secret" json:"access_secret"`                 // 阿里云仓库的AccessSecret
+	InstanceID     string `gorm:"instance_id" json:"instance_id"`                     // 阿里云仓库企业版实例ID
+	RegionID       string `gorm:"region_id" json:"region_id"`                         // 阿里云仓库企业版地域ID
 
 	CreatedAt time.Time `gorm:"column:created_at" json:"created_at"`
 	UpdatedAt time.Time `gorm:"column:updated_at" json:"updated_at"`
 	DeletedAt int64     `gorm:"column:deleted_at; default:0;uniqueIndex:uniq_idx_registry_name;priority:2" json:"deleted_at"`
+}
+
+func (r *Registry) WhetherToStartSync() bool {
+
+	now := time.Now().Unix()
+
+	if r.LastSyncAt+r.SyncInterval*60 < now {
+		return false
+	}
+	return true
 }
 
 func (Registry) TableName() string {
@@ -777,3 +787,22 @@ type WebFrameScan struct {
 }
 
 func (WebFrameScan) TableName() string { return "ivan_scanner_web_frame_scan" }
+
+type SyncRetryImage struct {
+	ID           int64     `gorm:"primaryKey" json:"id"`
+	UniqueImage  uint64    `gorm:"column:unique_image" json:"unique_image,string"` // 由fullreponame+tags+registryId+fromType生成uuid，唯一确定一定镜像，优化查询
+	CreatedAt    time.Time `json:"createdAt"`
+	UpdatedAt    time.Time `json:"updatedAt"`
+	FullRepoName string    `gorm:"column:full_repo_name" json:"fullRepoName"`
+	Tag          string    `gorm:"column:tag" json:"tag"`
+	Message      string    `gorm:"column:message" json:"message"`
+	RegistryID   int64     `gorm:"registry_id" json:"registryId"`
+	RetryCount   int64     `gorm:"column:retry_count" json:"retryCount"`
+}
+
+func (sri *SyncRetryImage) GenUniqueImage() uint64 {
+	uid := util.GenerateUUID64(fmt.Sprintf(consts.UniqueImageFamat, sri.FullRepoName, sri.Tag, 0, sri.RegistryID))
+	return uid
+}
+
+func (SyncRetryImage) TableName() string { return "ivan_scanner_sync_retry_image" }

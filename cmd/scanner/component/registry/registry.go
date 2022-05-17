@@ -3,6 +3,7 @@
 package registry
 
 import (
+	"context"
 	"errors"
 	"fmt"
 
@@ -25,7 +26,9 @@ var DriverTypes = make([]string, 0)
 type Driver func(RegistrableComponentConfig) (Registry, error)
 
 // ImageListExtender is a function that can do some stuff when sync one image
-type ImageListExtender func(image Image) (*ListImagesRes, error)
+type ImageListExtender func(ctx context.Context, image Image) (*ListImagesRes, error)
+type CreateOrAddRetryCountExtender func(ctx context.Context, image Image) error
+type DeleteImageRetryExtender func(ctx context.Context, image Image) error
 
 // Register makes a Constructor available by the provided name.
 //
@@ -53,13 +56,30 @@ func Open(cfg RegistrableComponentConfig) (Registry, error) {
 }
 
 type ListImagesRes struct {
-	All   []*model.ImageList // 本次同步的全部镜像
-	Added []*model.ImageList // 本次同步的新增镜像
+	All              []*model.ImageList // 本次同步的全部镜像
+	Added            []*model.ImageList // 本次同步的新增镜像
+	GetAuditLogError bool               // 拉取审计日志时是否出错
 }
 
 type ListImagesRequest struct {
 	NeedToReturnAll   bool
 	NeedToReturnAdded bool
+	GetAuditLogError  bool // 拉取审计日志时是否出错
+}
+
+type ListImagesAuditLog struct {
+	StartAt int64 // 开始同步时间
+	EndAt   int64 // 结束同步时间
+}
+
+type Extender struct {
+	CreateImageExtender           ImageListExtender
+	CreateOrAddRetryCountExtender CreateOrAddRetryCountExtender
+	DeleteImageRetryExtender      DeleteImageRetryExtender
+}
+
+type ImageRetryRequest struct {
+	RetryImages []model.SyncRetryImage
 }
 
 // Registry represents the required operations on a registry
@@ -82,7 +102,10 @@ type Registry interface {
 
 	// DeleteImages delete special image
 	DeleteImages(projectName, repoName, digest string) error
-
+	// 是否支持增量同步
+	SupportIncrementalSync(ctx context.Context) bool
 	// ListImages return all images
-	ListImages(extender ImageListExtender, req ListImagesRequest) (*ListImagesRes, error)
+	ListImages(ctx context.Context, extender Extender, req ListImagesRequest) (*ListImagesRes, error)
+	ListImagesWithAuditLog(ctx context.Context, extender Extender, req ListImagesAuditLog) (*ListImagesRes, error)
+	ImageRetry(ctx context.Context, extender Extender, req ImageRetryRequest) (*ListImagesRes, error)
 }

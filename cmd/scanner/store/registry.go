@@ -9,25 +9,100 @@ import (
 
 	"gitlab.com/security-rd/go-pkg/databases"
 
+	"gorm.io/gorm"
+
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 )
 
-type RegistryDalInterface interface {
+type RegistryDal interface {
 	CreateRegistry(ctx context.Context, reg model.Registry) (int64, error)
 	UpdateRegistry(ctx context.Context, param SearchRegistryParam, updater map[string]interface{}) error
 	SearchRegistry(ctx context.Context, param SearchRegistryParam, filter *model.Filter) ([]model.Registry, int64, error)
+}
+
+type SyncRetryImageDal interface {
+	// GetImageRetry(ctx context.Context, registryID uint, maxCount int) ([]model.SyncRetryImage, error)
+	SearchImageRetry(ctx context.Context, param SearchImageRetryParam) ([]model.SyncRetryImage, error)
+	// CountImageRetry(ctx context.Context, image model.SyncRetryImage, set int) error
+	CreateImageRetry(ctx context.Context, image model.SyncRetryImage) error
+	// UpdateImageRetry(ctx context.Context, uniqueImage string, updater map[string]interface{}) error
+	AddRetryCount(ctx context.Context, uniqueImage uint64) error
+	// DoneImageRetry(ctx context.Context, image model.SyncRetryImage) error
+	DeleteImageRetry(ctx context.Context, param SearchImageRetryParam) error
 	// SearchRegistry(ctx context.Context, param SearchRegistryParam, filter *model.Filter) ([]model.Registry, int64, error)
 }
+
+const (
+	UnSet = -1
+)
 
 type RegistryDao struct {
 	db *databases.RDBInstance
 }
 
+type SyncRetryImageDao struct {
+	db *databases.RDBInstance
+}
+
+func (dal *SyncRetryImageDao) AddRetryCount(ctx context.Context, uniqueImage uint64) error {
+	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*10)
+	defer cancelFunc()
+	db := dal.db.Get().WithContext(ctx).Model(new(model.SyncRetryImage))
+	return db.Where("unique_image = ? ", uniqueImage).Update("retry_count", gorm.Expr("retry_count + ?", 1)).Error
+}
+
+func (dal *SyncRetryImageDao) DeleteImageRetry(ctx context.Context, param SearchImageRetryParam) error {
+	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*10)
+
+	defer cancelFunc()
+
+	db := dal.db.Get().WithContext(ctx).Model(new(model.SyncRetryImage))
+	db.Where("retry_count > ?", param.MoreRetryCount)
+	if param.UniqueImage > 0 {
+		db.Where("unique_image = ?", param.UniqueImage)
+	}
+	return db.Delete(model.SyncRetryImage{}).Error
+}
+
+func NewSyncRetryImageDao(db *databases.RDBInstance) *SyncRetryImageDao {
+	return &SyncRetryImageDao{db: db}
+}
+
 func NewRegistryDao(db *databases.RDBInstance) *RegistryDao {
 	return &RegistryDao{db: db}
+}
+
+func (dal *SyncRetryImageDao) CreateImageRetry(ctx context.Context, image model.SyncRetryImage) error {
+	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*10)
+	defer cancelFunc()
+	db := dal.db.Get().WithContext(ctx).Model(new(model.SyncRetryImage))
+	return db.Create(&image).Error
+}
+
+func (dal *SyncRetryImageDao) SearchImageRetry(ctx context.Context, param SearchImageRetryParam) ([]model.SyncRetryImage, error) {
+	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*10)
+
+	defer cancelFunc()
+
+	res := make([]model.SyncRetryImage, 0)
+	db := dal.db.Get().WithContext(ctx).Model(new(model.SyncRetryImage))
+	if param.MoreRetryCount > 0 {
+		db.Where("retry_count > ?", param.MoreRetryCount)
+	}
+	if param.LessRetryCount > 0 {
+		db.Where("retry_count <= ?", param.LessRetryCount)
+	}
+	if param.UniqueImage > 0 {
+		db.Where("unique_image = ?", param.UniqueImage)
+	}
+
+	if err := db.Find(&res).Error; err != nil {
+		return nil, err
+	}
+	return res, nil
 }
 
 func (dal *RegistryDao) SearchRegistry(ctx context.Context, param SearchRegistryParam, filter *model.Filter) ([]model.Registry, int64, error) {
@@ -87,7 +162,7 @@ func (dal *RegistryDao) SearchRegistry(ctx context.Context, param SearchRegistry
 			encodeStr := base64.StdEncoding.EncodeToString(authByte)
 			res[i].AuthStr = "Basic " + encodeStr
 		} else {
-			logging.GetLogger().Error().Err(err).Msg("SearchRegistry NewChiper Error")
+			logging.GetLogger().Err(err).Msg("SearchRegistry NewChiper Error")
 		}
 	}
 	return res, cnt, nil

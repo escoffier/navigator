@@ -8,7 +8,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component"
-	aliacree "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry/suport/aliacr-ee"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
@@ -41,7 +41,7 @@ func (s *RegistrySrv) UpdateRegistry(ctx *gin.Context) {
 
 	reg := new(model.Registry)
 	if err := ctx.BindJSON(reg); err != nil {
-		logging.GetLogger().Error().Err(err).Msg("UpdateRegistry序列化数据出错")
+		logging.GetLogger().Err(err).Msg("UpdateRegistry序列化数据出错")
 		response.JSONError(ctx, err)
 		return
 	}
@@ -64,11 +64,11 @@ func (s *RegistrySrv) UpdateRegistry(ctx *gin.Context) {
 func (s *RegistrySrv) CreateRegistry(ctx *gin.Context) {
 	reg := new(model.Registry)
 	if err := ctx.BindJSON(reg); err != nil {
-		logging.GetLogger().Error().Err(err).Msg("CreateRegistry序列化数据出错")
+		logging.GetLogger().Err(err).Msg("CreateRegistry序列化数据出错")
 		response.JSONError(ctx, err)
 		return
 	}
-	reg.UseType = model.RegistryUseTypeNormal
+	reg.UseType = model.UserRegistry
 	_, err := s.RegistrySrv.CreateRegistry(ctx, *reg)
 	if err != nil {
 		response.JSONError(ctx, err)
@@ -129,7 +129,7 @@ func (s *RegistrySrv) GetRegistryType(ctx *gin.Context) {
 // @Router	/api/v1/register/regions [get]
 func (s *RegistrySrv) GetRegions(ctx *gin.Context) {
 	regType := ctx.Query("reg_type")
-	if regType == aliacree.Version {
+	if regType == consts.AliAcrEEVersion {
 		data := []map[string]string{
 			{
 				"region_id":  "cn-hangzhou",
@@ -222,7 +222,7 @@ func (s *RegistrySrv) SearchRegistry(ctx *gin.Context) {
 	regType := ctx.Query("reg_type")
 	filter := model.GetFilter(ctx)
 	if useType <= 0 {
-		useType = model.RegistryUseTypeNormal
+		useType = model.UserRegistry
 	}
 	param := component.SearchRegistryParam{Search: search, UseType: useType}
 	if regType != "" {

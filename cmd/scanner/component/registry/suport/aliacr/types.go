@@ -14,6 +14,7 @@ type Config struct {
 	// 阿里云平台AccessKey管理中心所生成的AccessSecret
 	AccessSecret string `json:"access_secret"`
 	Insecure     bool   `json:"insecure"`
+	UseType      int64  `json:"use_type"`
 }
 
 type aliACRNamespaceResp struct {

@@ -126,7 +126,7 @@ type ScannerSrv interface {
 
 	DeleteCICDImage(ctx context.Context)
 	ListBaseImageOfApp(ctx context.Context, imageID int64, filter *model.Filter) ([]model.ImageList, int64, error)
-	ListAppImageOfBase(ctx context.Context, baseImageID int64, filter *model.Filter) ([]model.ImageList, int64, error)
+	ListAppImageOfBase(ctx context.Context, imageID int64, filter *model.Filter) ([]model.ImageList, int64, error)
 
 	ScanReportCreate(ctx context.Context, data *scanreport.TensorScanReportTasks) (uint, error)
 	ScanReportUpdate(ctx context.Context, data *scanreport.TensorScanReportTasks) error
@@ -150,8 +150,8 @@ type ConScannerSrv struct {
 	vulnDal         store.VulnDalInterface
 	taskdal         store.ScanTaskInterface
 	trustedImageDal store.TrustedImageInterface
-	registryDal     store.RegistryDalInterface
-	scanConfigDal   store.ScanConfigDalInterface
+	registryDal     store.RegistryDal
+	scanConfigDal   store.ScanConfigDal
 	redclair        *RedClairService
 	virusScan       *VirusScan
 	scannerDB       *store.ScannerDB
@@ -200,16 +200,16 @@ func (s *ConScannerSrv) SearchImages(ctx context.Context, param SearchImageParam
 }
 
 func NewConScannerSrv(dbdal store.ScannerDalInterface,
-	registryDal store.RegistryDalInterface,
-	redclair *RedClairService,
-	virusScan *VirusScan,
-	scdb *store.ScannerDB,
-	globalCache *cache.Cache,
-	scannerList *ScannerList,
-	taskdal store.ScanTaskInterface,
-	trustedImageDal store.TrustedImageInterface,
-	scanConfigDal store.ScanConfigDalInterface,
-	vulnDal store.VulnDalInterface) *ConScannerSrv {
+		registryDal store.RegistryDal,
+		redclair *RedClairService,
+		virusScan *VirusScan,
+		scdb *store.ScannerDB,
+		globalCache *cache.Cache,
+		scannerList *ScannerList,
+		taskdal store.ScanTaskInterface,
+		trustedImageDal store.TrustedImageInterface,
+		scanConfigDal store.ScanConfigDal,
+		vulnDal store.VulnDalInterface) *ConScannerSrv {
 	return &ConScannerSrv{
 		dbdal:           dbdal,
 		registryDal:     registryDal,
@@ -258,17 +258,18 @@ func (s *ConScannerSrv) GetStrategyForEnv(ctx context.Context, envName string) (
 	return res, nil
 }
 
+// 获取应用镜像的基础镜像列表
 func (s *ConScannerSrv) ListBaseImageOfApp(ctx context.Context, imageID int64, filter *model.Filter) ([]model.ImageList, int64, error) {
-	images, _, err := s.dbdal.SearchImage(ctx, store.SearchImageParam{InIds: []int64{imageID}, ImageType: consts.AppImageTypeString}, nil)
+	images, _, err := s.dbdal.SearchImage(ctx, store.SearchImageParam{InIds: []int64{imageID}}, nil)
 	if err != nil {
 		logging.GetLogger().Err(err).Msg("ListBaseImageOfApp")
 		return nil, 0, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf("获取基础镜像出错"))
 	}
-	if len(images) == 0 {
+	if len(images) == 0 || model.ExistFlag(images[0].Flag, model.FlagBaseImage) {
 		return []model.ImageList{}, 0, nil
 	}
 
-	baseImages, _, err := s.dbdal.SearchImage(ctx, store.SearchImageParam{ImageType: consts.BaseImageTypeString}, nil)
+	baseImages, _, err := s.dbdal.SearchImage(ctx, store.SearchImageParam{Flag: 1 << model.FlagBaseImage}, nil)
 	if err != nil {
 		logging.GetLogger().Err(err).Msg("ListBaseImageOfApp")
 		return nil, 0, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf("获取基础镜像出错"))
@@ -323,23 +324,33 @@ func (s *ConScannerSrv) ListBaseImageOfApp(ctx context.Context, imageID int64, f
 	return ans, int64(len(ans)), nil
 }
 
-func (s *ConScannerSrv) ListAppImageOfBase(ctx context.Context, baseImageID int64, filter *model.Filter) ([]model.ImageList, int64, error) {
-	baseImages, _, err := s.dbdal.SearchImage(ctx, store.SearchImageParam{InIds: []int64{baseImageID}, ImageType: consts.BaseImageTypeString,
+// 获取基础镜像的应用镜像列表
+func (s *ConScannerSrv) ListAppImageOfBase(ctx context.Context, imageID int64, filter *model.Filter) ([]model.ImageList, int64, error) {
+	baseImages, _, err := s.dbdal.SearchImage(ctx, store.SearchImageParam{InIds: []int64{imageID},
 		OmitFields: []string{"config_json", "manifest_v1_json", "manifest_v2_json"}}, nil)
 	if err != nil {
 		logging.GetLogger().Err(err).Msg("ListAppImageOfBase")
 		return nil, 0, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf("获取应用镜像出错"))
 	}
-	if len(baseImages) == 0 {
+	if len(baseImages) == 0 || !model.ExistFlag(baseImages[0].Flag, model.FlagBaseImage) {
 		return make([]model.ImageList, 0), 0, nil
 	}
 	baseLayer := baseImages[0].GetLayerString()
-	images, cnt, err := s.dbdal.SearchImage(ctx, store.SearchImageParam{ImageType: consts.AppImageTypeString, LayersPrefix: baseLayer,
+	// 因为应用镜像占绝大多数，所以这里查全部数据，在程序中过滤
+	images, cnt, err := s.dbdal.SearchImage(ctx, store.SearchImageParam{LayersPrefix: baseLayer,
 		OmitFields: []string{"config_json", "manifest_v1_json", "manifest_v2_json"}}, filter)
 	if err != nil {
-		logging.GetLogger().Err(err).Msg("SearchImage")
+		logging.GetLogger().Err(err).Msg("ListAppImageOfBase.SearchImage")
 		return nil, 0, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf(consts.StatusInternalServerErrorMsg))
 	}
+	appImages := make([]model.ImageList, 0)
+
+	for i := range images {
+		if !model.ExistFlag(images[i].Flag, model.FlagBaseImage) {
+			appImages = append(appImages, images[i])
+		}
+	}
+
 	// 把仓库信息加上
 	registries, _, err := s.registryDal.SearchRegistry(ctx, store.SearchRegistryParam{}, nil)
 	if err != nil {
@@ -350,13 +361,13 @@ func (s *ConScannerSrv) ListAppImageOfBase(ctx context.Context, baseImageID int6
 	for i := range registries {
 		regMap[registries[i].ID] = registries[i]
 	}
-	for i := range images {
-		if re, ok := regMap[images[i].RegistryID]; ok {
-			images[i].Registry = &re
+	for i := range appImages {
+		if re, ok := regMap[appImages[i].RegistryID]; ok {
+			appImages[i].Registry = &re
 		}
 	}
 
-	return images, cnt, nil
+	return appImages, cnt, nil
 }
 
 func (s *ConScannerSrv) UpdateImageType(ctx context.Context, imageIds []int64, imageType int64) error {
@@ -370,12 +381,12 @@ func (s *ConScannerSrv) UpdateImageType(ctx context.Context, imageIds []int64, i
 	}
 	safeNodeImage := make([]string, 0)
 	for i := range ims {
-		if ims[i].FromType == model.ImageFromSafeNode {
+		if ims[i].FromType == model.NodeBuffRegistry {
 			safeNodeImage = append(safeNodeImage, fmt.Sprintf("%s/%s:%s", ims[i].Library, ims[i].FullRepoName, ims[i].Tags))
 		}
 	}
 	if len(safeNodeImage) > 0 {
-		logging.GetLogger().Error().Err(fmt.Errorf("k8s node image not editable")).Msg(strings.Join(safeNodeImage, ","))
+		logging.GetLogger().Err(fmt.Errorf("k8s node image not editable")).Msg(strings.Join(safeNodeImage, ","))
 		return response.NewHttpError(http.StatusInternalServerError, errors.New("被更新镜像包括节点镜像，节点镜像不可以编辑"))
 	}
 
@@ -574,7 +585,7 @@ func (s *ConScannerSrv) K8sOnlineMonitor(ctx context.Context, containerInfo []mo
 }
 
 func (s *ConScannerSrv) CheckProjectAndCreateIfNotExist(ctx context.Context, library, projectName string) error {
-	regi, err := s.getRegistry(ctx, "", model.RegistryUseTypeCICDBuff)
+	regi, err := s.getRegistry(ctx, "", model.CICDImageRegistry)
 	if err != nil {
 		logging.GetLogger().Err(err).Msgf("can not connect harborV2")
 		return response.NewHttpError(http.StatusBadGateway, fmt.Errorf("can not connect harborV2 error is %s", err.Error()))
@@ -687,7 +698,7 @@ func (s *ConScannerSrv) ScanOneForCICD(ctx context.Context, req *model.ScanOneFo
 		lib = "https://" + lib
 	}
 	logging.GetLogger().Info().Msgf("CICD parsed the image: %s%s:%s", lib, repo, tag)
-	regs, _, err := s.dbdal.SearchRegistry(ctx, store.SearchRegistryParam{UseType: model.RegistryUseTypeCICDBuff}, nil)
+	regs, _, err := s.dbdal.SearchRegistry(ctx, store.SearchRegistryParam{UseType: model.CICDImageRegistry}, nil)
 
 	if err != nil {
 		logging.GetLogger().Err(err).Msg("CICD find the BuffRegistry library error")
@@ -698,7 +709,7 @@ func (s *ConScannerSrv) ScanOneForCICD(ctx context.Context, req *model.ScanOneFo
 		return nil, response.NewHttpError(http.StatusPreconditionFailed, fmt.Errorf("can not find the RegistryUseTypeBuff library"))
 	}
 	logging.GetLogger().Info().Msgf("CICD BuffRegistry registry is :%s", regs[0].Url)
-	regi, err := s.getRegistry(ctx, "", model.RegistryUseTypeCICDBuff)
+	regi, err := s.getRegistry(ctx, "", model.CICDImageRegistry)
 	if err != nil {
 		logging.GetLogger().Err(err).Msgf("CICD  connection BuffRegistry error :%s", regs[0].Url)
 		return nil, response.NewHttpError(http.StatusBadGateway, fmt.Errorf("CICD can not connect docker-registry error is %s", err.Error()))
@@ -729,8 +740,7 @@ func (s *ConScannerSrv) ScanOneForCICD(ctx context.Context, req *model.ScanOneFo
 		ManifestV1JSON: []byte(image.ManifestV1),
 		ManifestV2JSON: []byte(image.ManifestV2),
 		ConfigJSON:     []byte(image.ConfigJSON),
-		CompleteTime:   image.Created.UTC().String(),
-		FromType:       model.ImageFromTypeCICD,
+		FromType:       model.CICDImageRegistry,
 		ImageType:      consts.AppImageType,
 	}
 
@@ -1130,6 +1140,7 @@ func (s *ConScannerSrv) GetScanOneStatus(ctx context.Context, imgID int64, fromU
 		ans.RegistryName = registries[0].Name
 		ans.Library = registries[0].Url
 		ans.RegistryDeletedAt = registries[0].DeletedAt
+		ans.LastSyncAt = registries[0].LastSyncAt
 	}
 
 	// 特权启动
@@ -1213,7 +1224,7 @@ func (s *ConScannerSrv) GetImageDetail(ctx context.Context, imgID int64) (*model
 		img.Registry = &(rr[0])
 	}
 
-	if img.FromType == model.ImageFromSafeNode {
+	if img.FromType == model.NodeBuffRegistry {
 		split := strings.Split(img.FullRepoName, "/")
 		if len(split) <= 6 {
 			return img, nil
@@ -1371,7 +1382,7 @@ func (s *ConScannerSrv) GetImageOverView(ctx context.Context, fromType int64) (*
 		onlineUuids[i] = onlineRes[i].ImageUUID
 	}
 	// 查总数
-	groups, err := s.dbdal.GroupImageFlags(ctx, store.GetImageOverViewParm{FromType: fromType})
+	groups, err := s.dbdal.GroupImageFlags(ctx, store.GetImageOverViewParam{FromType: fromType})
 	if err != nil {
 		logging.GetLogger().Err(err).Msg("GetImageOverView.GroupImageFlags")
 		return nil, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf(consts.StatusInternalServerErrorMsg))
@@ -1409,7 +1420,7 @@ func (s *ConScannerSrv) GetImageOverView(ctx context.Context, fromType int64) (*
 	if len(onlineUuids) == 0 {
 		return overView, nil
 	}
-	onlinGroups, err := s.dbdal.GroupImageFlags(ctx, store.GetImageOverViewParm{FromType: fromType, ImageUUIDs: onlineUuids})
+	onlinGroups, err := s.dbdal.GroupImageFlags(ctx, store.GetImageOverViewParam{FromType: fromType, ImageUUIDs: onlineUuids})
 	if err != nil {
 		logging.GetLogger().Err(err).Msg("GetImageOverView.GroupImageFlags")
 		return nil, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf(consts.StatusInternalServerErrorMsg))
@@ -1661,6 +1672,7 @@ func (s *ConScannerSrv) SearchImageWithScan(ctx context.Context, param SearchIma
 			res[i].RegistryName = re.Name
 			res[i].Library = re.Url
 			res[i].RegistryDeletedAt = re.DeletedAt
+			res[i].LastSyncAt = re.LastSyncAt
 		}
 	}
 
@@ -2508,7 +2520,7 @@ func (s *ConScannerSrv) checkVulnScore(ctx context.Context, scanImage model.Scan
 // DeleteCICDImage 定期删除cicd仓库的镜像
 func (s *ConScannerSrv) DeleteCICDImage(ctx context.Context) {
 	logging.GetLogger().Info().Msgf("CICD DeleteCICDImage start ")
-	regs, _, err := s.dbdal.SearchRegistry(ctx, store.SearchRegistryParam{UseType: model.RegistryUseTypeCICDBuff}, nil)
+	regs, _, err := s.dbdal.SearchRegistry(ctx, store.SearchRegistryParam{UseType: model.CICDImageRegistry}, nil)
 	if err != nil {
 		logging.GetLogger().Err(err).Msg("CICD find BuffRegistry")
 		return
@@ -2518,14 +2530,13 @@ func (s *ConScannerSrv) DeleteCICDImage(ctx context.Context) {
 		return
 	}
 	logging.GetLogger().Info().Msgf("CICD find BuffRegistry registry: %s", regs[0].Url)
-	drive, err := s.getRegistry(ctx, "", model.RegistryUseTypeCICDBuff)
+	drive, err := s.getRegistry(ctx, "", model.CICDImageRegistry)
 
 	if err != nil {
 		logging.GetLogger().Err(err).Msgf("CICD connect BuffRegistry :%s", regs[0].Url)
 		return
 	}
-
-	extender := func(image registry.Image) (*registry.ListImagesRes, error) {
+	createExtender := func(ctx context.Context, image registry.Image) (*registry.ListImagesRes, error) {
 		res := new(registry.ListImagesRes)
 		res.All = append(res.All, &model.ImageList{
 			FullRepoName: image.Repository,
@@ -2535,9 +2546,12 @@ func (s *ConScannerSrv) DeleteCICDImage(ctx context.Context) {
 		})
 		return res, nil
 	}
+	createOrAddRetryCountExtender := func(ctx context.Context, image registry.Image) error {
+		return nil
+	}
 
 	// 先查询镜像，然后一个一个的删除
-	images, err := drive.ListImages(extender, registry.ListImagesRequest{NeedToReturnAll: true})
+	images, err := drive.ListImages(ctx, registry.Extender{CreateImageExtender: createExtender, CreateOrAddRetryCountExtender: createOrAddRetryCountExtender}, registry.ListImagesRequest{NeedToReturnAll: true})
 	if err != nil {
 		logging.GetLogger().Info().Msgf("CICD asynchronously delete BuffRegistry image error: %s", err.Error())
 		return

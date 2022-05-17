@@ -289,7 +289,7 @@ func (m *mockdal) SearchRegistry(ctx context.Context, param store.SearchRegistry
 	panic("implement me")
 }
 
-func (m *mockdal) GetImageOverView(ctx context.Context, param store.GetImageOverViewParm) ([]store.ImageGroup, error) {
+func (m *mockdal) GetImageOverView(ctx context.Context, param store.GetImageOverViewParam) ([]store.ImageGroup, error) {
 	panic("implement me")
 }
 
