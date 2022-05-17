@@ -200,16 +200,16 @@ func (s *ConScannerSrv) SearchImages(ctx context.Context, param SearchImageParam
 }
 
 func NewConScannerSrv(dbdal store.ScannerDalInterface,
-		registryDal store.RegistryDal,
-		redclair *RedClairService,
-		virusScan *VirusScan,
-		scdb *store.ScannerDB,
-		globalCache *cache.Cache,
-		scannerList *ScannerList,
-		taskdal store.ScanTaskInterface,
-		trustedImageDal store.TrustedImageInterface,
-		scanConfigDal store.ScanConfigDal,
-		vulnDal store.VulnDalInterface) *ConScannerSrv {
+	registryDal store.RegistryDal,
+	redclair *RedClairService,
+	virusScan *VirusScan,
+	scdb *store.ScannerDB,
+	globalCache *cache.Cache,
+	scannerList *ScannerList,
+	taskdal store.ScanTaskInterface,
+	trustedImageDal store.TrustedImageInterface,
+	scanConfigDal store.ScanConfigDal,
+	vulnDal store.VulnDalInterface) *ConScannerSrv {
 	return &ConScannerSrv{
 		dbdal:           dbdal,
 		registryDal:     registryDal,
@@ -2163,7 +2163,7 @@ func (s *ConScannerSrv) checkScanImageExist(ctx context.Context, usePattern stri
 		Msg:     make([]model.KVHashs, 0),
 	}
 
-	scanImage, _, err := s.dbdal.SearchScanImage(ctx, store.SearchScanImageParam{ImageIds: []int64{img.ID}, Status: model.ScanStatusSucceeded}, nil)
+	scanImage, _, err := s.dbdal.SearchScanImage(ctx, store.SearchScanImageParam{ImageIds: []int64{img.ID}}, nil)
 	if err != nil {
 		res.Safe = false
 		logging.GetLogger().Info().Msgf("checkScanImageExist search scan_image: %d, error: %s", img.ID, err.Error())
@@ -2171,18 +2171,17 @@ func (s *ConScannerSrv) checkScanImageExist(ctx context.Context, usePattern stri
 	}
 
 	if len(scanImage) > 0 {
-		res.ScanImag = &scanImage[0]
+		res.ScanImag = &(scanImage[0])
+		// 查漏洞数据
+		vulns, _, err := s.vulnDal.SearchVuln(ctx, store.SearchVulnParm{ImageID: img.ID}, nil)
+		if err != nil {
+			res.Safe = false
+			logging.GetLogger().Err(err).Msgf("checkScanImageExist search vulns: %d", img.ID)
+			return res, err
+		}
+		res.ScanImag.VulnInfo = vulns
 		return res, nil
 	}
-	// 查漏洞数据
-	vulns, _, err := s.vulnDal.SearchVuln(ctx, store.SearchVulnParm{ImageID: img.ID}, nil)
-	if err != nil {
-		res.Safe = false
-		logging.GetLogger().Err(err).Msgf("checkScanImageExist search vulns: %d", img.ID)
-		return res, err
-	}
-
-	res.ScanImag.VulnInfo = vulns
 
 	logging.GetLogger().Info().Msgf("checkScanImageExist not fond scan-image:%s/%s:%s", img.Library, img.FullRepoName, img.Tags)
 	if usePattern == model.UsePatternForCICD {
