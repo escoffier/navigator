@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/google/go-containerregistry/pkg/name"
 	"io"
 	"net/http"
 	"strings"
@@ -261,15 +260,15 @@ func (h *HarborV2) ReqSpecialArtifact(project string, repo string, tag string) (
 
 func (h *HarborV2) ParseImage(image string) (string, string, string) {
 
-	ref, err := name.ParseReference(image)
-	if err != nil {
+	tagIndex := strings.LastIndex(image, ":")
+	if tagIndex == -1 {
 		return "", "", ""
 	}
-	url := ref.Context().RegistryStr()
-
-	tag := ref.Identifier()
-	repoName := ref.Context().RepositoryStr()
-	return url, repoName, tag
+	repoIndex := strings.Index(image, "/")
+	if repoIndex == -1 {
+		return "", "", ""
+	}
+	return image[0:repoIndex], image[repoIndex+1 : tagIndex], image[tagIndex+1:]
 }
 
 func (h *HarborV2) ImageRetry(ctx context.Context, extender registry.Extender, req registry.ImageRetryRequest) (*registry.ListImagesRes, error) {
@@ -298,7 +297,7 @@ func (h *HarborV2) ImageRetry(ctx context.Context, extender registry.Extender, r
 			}
 			continue
 		}
-		manifestV1, manifestV2, configBlob, err := h.GetManifest(project, repo, a)
+		manifestV1, manifestV2, configBlob, err := h.GetManifest(image.FullRepoName, a)
 		if err != nil {
 			logging.GetLogger().Err(err).Msgf("harbor V2 ImageRetry GetManifest error project:%v repo:%v tag:%v", project, repo, image.Tag)
 			preImage.Message = err.Error()
@@ -337,7 +336,7 @@ func (h *HarborV2) ImageRetry(ctx context.Context, extender registry.Extender, r
 	return res, nil
 }
 
-func (h *HarborV2) GetManifest(project, repo string, a Artifact) (string, string, string, error) {
+func (h *HarborV2) GetManifest(fullRepoName string, a Artifact) (string, string, string, error) {
 	var (
 		manifestV2   string
 		manifestV1   string
@@ -345,20 +344,20 @@ func (h *HarborV2) GetManifest(project, repo string, a Artifact) (string, string
 		configDigest digest.Digest
 	)
 
-	manifestV2, configDigest, err := h.pullImageManifestV2(project+"/"+repo, a.Digest)
+	manifestV2, configDigest, err := h.pullImageManifestV2(fullRepoName, a.Digest)
 	if err == nil {
 		// pull config json
-		configBlob, err = h.pullConfigBlob(project+"/"+repo, configDigest)
+		configBlob, err = h.pullConfigBlob(fullRepoName, configDigest)
 		if err != nil {
-			logging.GetLogger().Err(err).Msgf("ListImages get config blob err, repo %s ,digest %s", repo, a.Digest)
+			logging.GetLogger().Err(err).Msgf("ListImages get config blob err, repo %s ,digest %s", fullRepoName, a.Digest)
 			return "", "", "", err
 		}
 	} else {
 		// pull manifest v2 err,try v1
 		//	logging.GetLogger().Info().Msgf("get manifest v2 err %v,try v1, repo %s ,digest %s", err, r.Name, a.Digest)
-		manifestV1, err = h.pullImageManifestV1(project+"/"+repo, a.Digest)
+		manifestV1, err = h.pullImageManifestV1(fullRepoName, a.Digest)
 		if err != nil {
-			logging.GetLogger().Err(err).Msgf("ListImages get manifest (both v1,v2) err %v, repo %s ,digest %s", err, repo, a.Digest)
+			logging.GetLogger().Err(err).Msgf("ListImages get manifest (both v1,v2) err %v, repo %s ,digest %s", err, fullRepoName, a.Digest)
 			return "", "", "", err
 		}
 	}
@@ -400,7 +399,7 @@ func (h *HarborV2) ListImagesWithAuditLog(ctx context.Context, extender registry
 			continue
 		}
 
-		manifestV1, manifestV2, configBlob, err := h.GetManifest(project, repo, a)
+		manifestV1, manifestV2, configBlob, err := h.GetManifest(project+"/"+repo, a)
 		if err != nil {
 			rErr := extender.CreateOrAddRetryCountExtender(ctx, regImage)
 			if rErr != nil {
@@ -478,7 +477,7 @@ func (h *HarborV2) ListImages(ctx context.Context, extender registry.Extender, r
 					Repository: r.Name,
 				}
 
-				manifestV1, manifestV2, configBlob, err := h.GetManifest(project, repoName, a)
+				manifestV1, manifestV2, configBlob, err := h.GetManifest(project+"/"+repoName, a)
 				if err != nil {
 					for _, tag := range a.Tags {
 						retryImage.Tag = tag.Name
