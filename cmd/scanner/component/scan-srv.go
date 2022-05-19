@@ -48,8 +48,7 @@ type SearchImageWithScanParam struct {
 	JustReturnImage  bool     `json:"just_return_image"`
 	Projects         []string `json:"projects"`
 
-	UUIDs             []uint32 `json:"uuids"`
-	NotDeleteRegistry string   // 不返回已经删除的仓库的镜像
+	UUIDs []uint32 `json:"uuids"`
 }
 
 func (sp *SearchImageWithScanParam) genFlag() uint64 {
@@ -200,16 +199,16 @@ func (s *ConScannerSrv) SearchImages(ctx context.Context, param SearchImageParam
 }
 
 func NewConScannerSrv(dbdal store.ScannerDalInterface,
-	registryDal store.RegistryDal,
-	redclair *RedClairService,
-	virusScan *VirusScan,
-	scdb *store.ScannerDB,
-	globalCache *cache.Cache,
-	scannerList *ScannerList,
-	taskdal store.ScanTaskInterface,
-	trustedImageDal store.TrustedImageInterface,
-	scanConfigDal store.ScanConfigDal,
-	vulnDal store.VulnDalInterface) *ConScannerSrv {
+		registryDal store.RegistryDal,
+		redclair *RedClairService,
+		virusScan *VirusScan,
+		scdb *store.ScannerDB,
+		globalCache *cache.Cache,
+		scannerList *ScannerList,
+		taskdal store.ScanTaskInterface,
+		trustedImageDal store.TrustedImageInterface,
+		scanConfigDal store.ScanConfigDal,
+		vulnDal store.VulnDalInterface) *ConScannerSrv {
 	return &ConScannerSrv{
 		dbdal:           dbdal,
 		registryDal:     registryDal,
@@ -1458,22 +1457,25 @@ func (s *ConScannerSrv) GetImageOverView(ctx context.Context, fromType int64) (*
 
 func (s *ConScannerSrv) SearchImageWithScan(ctx context.Context, param SearchImageWithScanParam, filter *model.Filter) ([]*model.ImageResponse, int64, error) {
 	registryIds := make([]int64, 0)
-	if param.NotDeleteRegistry == consts.TrueString {
-		registries, _, err := s.registryDal.SearchRegistry(ctx, store.SearchRegistryParam{NoDelete: true}, nil)
-		if err != nil {
-			return nil, 0, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf(consts.StatusInternalServerErrorMsg))
-		}
-		if len(registries) == 0 {
-			return make([]*model.ImageResponse, 0), 0, err
-		}
-		for i := range registries {
-			registryIds = append(registryIds, registries[i].ID)
-		}
+	// 查询未删除的仓库
+	noDeleteRegistries, _, err := s.registryDal.SearchRegistry(ctx, store.SearchRegistryParam{NoDelete: true}, nil)
+	if err != nil {
+		return nil, 0, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf(consts.StatusInternalServerErrorMsg))
+	}
+	if len(noDeleteRegistries) == 0 {
+		return make([]*model.ImageResponse, 0), 0, err
+	}
+	for i := range noDeleteRegistries {
+		registryIds = append(registryIds, noDeleteRegistries[i].ID)
+	}
+
+	if len(param.RegistryIds) > 0 {
+		registryIds = util.GetIntersectionSetForInt64(registryIds, param.RegistryIds)
 	}
 
 	daoParam := store.SearchImageParam{
 		Projects:         param.Projects,
-		RegistryIds:      param.RegistryIds,
+		RegistryIds:      registryIds,
 		FromType:         param.FromType,
 		Search:           param.SearchWord,
 		NodeHostname:     param.NodeHostname,
