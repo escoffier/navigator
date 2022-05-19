@@ -17,6 +17,7 @@ import (
 
 	dockerarchive "github.com/docker/docker/pkg/archive"
 
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/global"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 )
@@ -171,7 +172,7 @@ func (w *WebshellScan) webShellCall(ctx context.Context, reader io.Reader) (*mod
 	req.Close = true
 
 	var tmpClient = &http.Client{
-		Timeout: time.Duration(4) * time.Second,
+		Timeout: time.Duration(global.ScannerOpts.ScanWebshellTimeout) * time.Second,
 	}
 	res, err := tmpClient.Do(req)
 	// res, err := http.DefaultClient.Do(req)
