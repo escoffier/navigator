@@ -26,8 +26,8 @@ type ImageOpenAPISvc struct {
 }
 
 func NewScannerOpenAPISrv(srv component.ScannerSrv,
-	registrySrv component.RegistrySrvInterface, // nolint
-	scanConfigSrv component.ScanConfigSrvInterface,
+		registrySrv component.RegistrySrvInterface,
+		scanConfigSrv component.ScanConfigSrvInterface,
 ) *ImageOpenAPISvc {
 	return &ImageOpenAPISvc{
 		ImageSrv:      srv,
