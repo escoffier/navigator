@@ -29,7 +29,7 @@ func (api *api) createCaptcha() http.HandlerFunc {
 		Image     string `json:"image"`
 	}
 	return func(w http.ResponseWriter, r *http.Request) {
-		if !lmt.AllowKey(util.MD5(r.UserAgent())) {
+		if !lmt.AllowKey(util.MD5Hex(r.UserAgent())) {
 			apperror.RespAndLog(w, r.Context(),
 				apperror.NewCaptchaLimitError(http.StatusBadRequest,
 					fmt.Errorf("the captcha request is too fast")))

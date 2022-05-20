@@ -2,16 +2,22 @@
 package cmd
 
 import (
+	"fmt"
 	"os"
 
 	"github.com/spf13/cobra"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service"
 	"gitlab.com/piccolo_su/vegeta/pkg/flag"
 	"gitlab.com/piccolo_su/vegeta/pkg/lifecycle"
+	"gitlab.com/security-rd/go-pkg/databases"
 	"gitlab.com/security-rd/go-pkg/logging"
+	"gorm.io/gorm/logger"
 )
 
-var loggingOptions *logging.Options
+var (
+	loggingOptions *logging.Options
+	rdbOptions     *databases.Options
+)
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
@@ -19,6 +25,13 @@ var rootCmd = &cobra.Command{
 	Short: "The centralized server",
 	Long:  `The centralized server`,
 	RunE: func(cmd *cobra.Command, args []string) error {
+		if errs := loggingOptions.Validate(); len(errs) > 0 {
+			return fmt.Errorf("%v", errs)
+		}
+		if errs := rdbOptions.Validate(); len(errs) > 0 {
+			return fmt.Errorf("%v", errs)
+		}
+
 		logging.ReplaceLogger(loggingOptions, logging.LogFileNoColorOutput())
 
 		logging.Get().Info().
@@ -70,7 +83,7 @@ var rootCmd = &cobra.Command{
 			Int("port", secProfilesOpts.Port).
 			Msg("Security Profiles options")
 
-		console, err := service.NewConsole(httpOpts, rdbOpts, scannerOpts, scapOpts, elasticOpts, secProfilesOpts)
+		console, err := service.NewConsole(httpOpts, rdbOpts, scannerOpts, scapOpts, elasticOpts, secProfilesOpts, rdbOptions)
 
 		if err != nil {
 			return err
@@ -96,6 +109,9 @@ func Execute() {
 func init() {
 	loggingOptions = logging.NewLoggingOptions()
 	loggingOptions.AddFlags(rootCmd.Flags())
+
+	rdbOptions = databases.NewRDBOptions(databases.SetDefaultRdbLogLevel(logger.Info))
+	rdbOptions.AddFlags(rootCmd.Flags())
 
 	flag.AddHTTPFlags(rootCmd)
 	flag.AddRDBFlags(rootCmd)

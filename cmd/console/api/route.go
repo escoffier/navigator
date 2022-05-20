@@ -67,7 +67,10 @@ func SetupRoutes(
 
 	// Open API v1
 	r.Route(OpenAPIURLPrefix, func(r chi.Router) {
-		r.Route("/auth", api.openapiAuth())
+		r.Group(func(r chi.Router) {
+			r.Use(licenseVerify)
+			r.Route("/auth", api.openapiAuth())
+		})
 		r.Group(func(r chi.Router) {
 			r.Use(openAPIAccessCheck(api.rdb))
 			r.Route("/platform", api.platformOpenapi()) // platform
@@ -80,6 +83,7 @@ func SetupRoutes(
 	// api v2
 	r.Route(NormalAPIURLPrefix, func(r chi.Router) {
 		r.Route("/usercenter", api.userCenter())
+		r.Route("/license", api.licenseRouter())
 		r.Group(func(r chi.Router) {
 			// normal check
 			r.Use(jwtauth.Verifier(api.tokenAuth), authenticator(api.rdb), jwtAccessCheck(api.rdb))

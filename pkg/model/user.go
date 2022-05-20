@@ -27,12 +27,11 @@ func (u Url) TableName() string {
 }
 
 const (
-	RoleSuperAdmin     = "super-admin"
-	RoleAdmin          = "admin"
-	RoleNormal         = "normal"
-	UserSuperAdmin     = "SeedAdmin"
-	PasswordSuperAdmin = "e$Db8Cf6@3"
-	DefaultPassword    = "ksJ@12MczH"
+	RoleSuperAdmin  = "super-admin"
+	RoleAdmin       = "admin"
+	RoleNormal      = "normal"
+	UserSuperAdmin  = "SeedAdmin"
+	DefaultPassword = "ksJ@12MczH"
 )
 
 type User struct {

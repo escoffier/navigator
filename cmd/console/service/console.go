@@ -2,7 +2,6 @@ package service
 
 import (
 	"context"
-	"crypto/md5"
 	"errors"
 	"fmt"
 	"net/http"
@@ -12,6 +11,10 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"gitlab.com/piccolo_su/vegeta/cmd/console/service/license"
+	"k8s.io/apimachinery/pkg/util/wait"
+	"scm.tensorsecurity.cn/tensorsecurity-rd/api/pkg/generated/informers/externalversions"
 
 	"github.com/go-redis/redis/v8"
 	cr "github.com/robfig/cron/v3"
@@ -38,7 +41,6 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/data/notifyhandler"
 	"gitlab.com/piccolo_su/vegeta/cmd/platform-report/def"
 	"gitlab.com/piccolo_su/vegeta/pkg/assets"
-	"gitlab.com/piccolo_su/vegeta/pkg/dal"
 	"gitlab.com/piccolo_su/vegeta/pkg/echelper"
 	"gitlab.com/piccolo_su/vegeta/pkg/env"
 	"gitlab.com/piccolo_su/vegeta/pkg/flag"
@@ -47,7 +49,6 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/lifecycle"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/redistools"
-	"gitlab.com/piccolo_su/vegeta/pkg/util"
 	"gitlab.com/security-rd/go-pkg/databases"
 	"gitlab.com/security-rd/go-pkg/elastic"
 	"gitlab.com/security-rd/go-pkg/logging"
@@ -56,8 +57,6 @@ import (
 	"google.golang.org/grpc/credentials"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
-	"k8s.io/apimachinery/pkg/util/wait"
-	"scm.tensorsecurity.cn/tensorsecurity-rd/api/pkg/generated/informers/externalversions"
 )
 
 const resyncInterval = 8 * time.Hour
@@ -82,6 +81,7 @@ func NewConsole(
 	scapOpts *flag.ScapOpts,
 	elasticOpts *flag.ElasticOpts,
 	secProfilesOpts *flag.SecProfilesOpts,
+	rdbOptions *databases.Options,
 ) (*Console, error) {
 	eventGrpcUrl := os.Getenv(echelper.EventGrpcURLEnv)
 	if eventGrpcUrl == "" {
@@ -131,7 +131,7 @@ func NewConsole(
 		return nil, err
 	}
 
-	rdb, err := databases.NewRDBWithMySQLByEnv(context.Background())
+	rdb, err := databases.NewRDBClient(rdbOptions)
 	if err != nil {
 		logging.Get().Err(err).Msg("Init DB error")
 		return nil, err
@@ -146,10 +146,10 @@ func NewConsole(
 
 	// harbor client for tensor harbor adapter
 	// temperately comment,need refactor
-	//harborClient, err := harbor.NewHarborRESTClient(mainCtx, harborOpts)
-	//if err != nil {
+	// harborClient, err := harbor.NewHarborRESTClient(mainCtx, harborOpts)
+	// if err != nil {
 	//	logging.Get().Error().Msg(fmt.Sprintf("ERROR: harbor client init error :%s ", err))
-	//}
+	// }
 
 	es := elastic.NewESClientWithEnv(context.Background())
 
@@ -313,6 +313,13 @@ func NewConsole(
 		logging.Get().Err(err).Msg("ERROR: bait service init error")
 	}
 
+	err = license.Init(rdb)
+	if err != nil {
+		logging.Get().Error().Err(err).Msg("ERROR: license init error")
+		mainCancel()
+		return nil, err
+	}
+
 	return &Console{
 		server: &http.Server{
 			Addr: httpOpts.HTTPListen,
@@ -326,7 +333,7 @@ func NewConsole(
 				env.GetWebHookUrl(),
 				httpOpts.HTTPLoggerDisabled,
 				redisClient,
-				nil, //harborClient,
+				nil, // harborClient,
 				ecBuzCli,
 			),
 		},
@@ -334,7 +341,7 @@ func NewConsole(
 		rdb:           rdb,
 		es:            es,
 		cancel:        mainCancel,
-		harborClient:  nil, //harborClient,
+		harborClient:  nil, // harborClient,
 		scannerURL:    scannerURL,
 	}, nil
 }
@@ -425,27 +432,6 @@ const (
 func rdbCheck(db *gorm.DB) error {
 	ctx, cancel := context.WithTimeout(context.Background(), postgreCheckTimeout)
 	defer cancel()
-	queryUser := model.User{}
-	err := db.WithContext(ctx).Where("username = ?", model.UserSuperAdmin).First(&queryUser).Error
-	if err == gorm.ErrRecordNotFound {
-		salt := dal.RandStringBytesMaskImprSrcUnsafe(8)
-		hashPwd := fmt.Sprintf("%x", md5.Sum([]byte(model.PasswordSuperAdmin+salt)))
-		user := model.User{UserName: model.UserSuperAdmin, Checked: true, CreatedAt: time.Now().Unix(), Rule: model.RoleSuperAdmin, Salt: salt, Pwd: hashPwd}
-		authToken := util.GenerateUUIDHex()
-		err = db.Transaction(func(tx *gorm.DB) error {
-			if _err := tx.WithContext(ctx).Create(&user).Error; _err != nil {
-				return _err
-			}
-
-			return dal.SaveAuthToken(ctx, tx, user.UserName, authToken)
-		})
-		if err != nil {
-			return err
-		}
-	}
-
-	//db.Get().WithContext(ctx).Migrator().DropTable(&model.ModuleGroup{}, &model.Url{})
-	//db.Get().WithContext(ctx).AutoMigrate(&model.ModuleGroup{}, &model.Url{})
 
 	mg1 := model.ModuleGroup{
 		Id:           1,
@@ -473,7 +459,7 @@ func rdbCheck(db *gorm.DB) error {
 
 	var modules = []*model.ModuleGroup{&mg1, &mg2, &mg3, &mg4}
 	for _, module := range modules {
-		if err = db.WithContext(ctx).Clauses(clause.OnConflict{
+		if err := db.WithContext(ctx).Clauses(clause.OnConflict{
 			Columns:   []clause.Column{{Name: "id"}},
 			UpdateAll: true,
 		}).Create(module).Error; err != nil {
@@ -489,7 +475,7 @@ func rdbCheck(db *gorm.DB) error {
 
 	urls := []*model.Url{&url1, &url2, &url3, &url4}
 	for _, url := range urls {
-		if err = db.WithContext(ctx).Clauses(clause.OnConflict{
+		if err := db.WithContext(ctx).Clauses(clause.OnConflict{
 			Columns:   []clause.Column{{Name: "id"}},
 			UpdateAll: true,
 		}).Create(url).Error; err != nil {

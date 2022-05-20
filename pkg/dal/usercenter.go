@@ -329,3 +329,34 @@ func UpdateUserLoginKey(ctx context.Context, db *gorm.DB, username, key string, 
 		}).Error
 
 }
+
+func HasUser(ctx context.Context, db *gorm.DB) (bool, error) {
+	err := db.WithContext(ctx).First(&model.User{}).Error
+	if err != nil && err != gorm.ErrRecordNotFound {
+		return false, err
+	}
+
+	return err == nil, nil
+}
+
+func CreateSuperAdmin(ctx context.Context, db *gorm.DB, pwd string) error {
+	err := db.WithContext(ctx).Where("username = ?", model.UserSuperAdmin).First(&model.User{}).Error
+	if err == gorm.ErrRecordNotFound {
+		salt := RandStringBytesMaskImprSrcUnsafe(8)
+		hashPwd := fmt.Sprintf("%x", md5.Sum([]byte(pwd+salt)))
+		user := model.User{UserName: model.UserSuperAdmin, Checked: true, CreatedAt: time.Now().Unix(), Rule: model.RoleSuperAdmin, Salt: salt, Pwd: hashPwd}
+		authToken := util.GenerateUUIDHex()
+		err = db.Transaction(func(tx *gorm.DB) error {
+			if _err := tx.WithContext(ctx).Create(&user).Error; _err != nil {
+				return _err
+			}
+
+			return SaveAuthToken(ctx, tx, user.UserName, authToken)
+		})
+		if err != nil {
+			return err
+		}
+	}
+
+	return err
+}

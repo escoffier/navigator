@@ -5,6 +5,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync"
+	"time"
+
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -13,8 +16,6 @@ import (
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
 	v1 "scm.tensorsecurity.cn/tensorsecurity-rd/api/pkg/generated/listers/cluster/v1"
-	"sync"
-	"time"
 
 	json "github.com/json-iterator/go"
 	"gitlab.com/piccolo_su/vegeta/pkg/assets"
@@ -215,7 +216,7 @@ func (m *ClusterManager) AddManagedClusterToKube(ctx context.Context, cluster *m
 }
 
 func (m *ClusterManager) watchClusterFromKube(informer cache.SharedIndexInformer) {
-	//informer := m.informerFactory.Cluster().V1().ManagedClusters().Informer()
+	// informer := m.informerFactory.Cluster().V1().ManagedClusters().Informer()
 	informer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
 			cluster, ok := obj.(*clusterV1.ManagedCluster)
