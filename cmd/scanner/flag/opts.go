@@ -3,6 +3,7 @@ package flag
 import (
 	"fmt"
 	"os"
+	"strconv"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -34,6 +35,7 @@ type ScannerOpts struct {
 	ImageCacheServerIP   string
 	ImageCacheServerPort int
 	PvcPath              string
+	ScanWebshellTimeout  int
 }
 
 // NewDefaultScannerOpts the new default clair options.
@@ -49,11 +51,19 @@ func NewDefaultScannerOpts() *ScannerOpts {
 		ImageCacheServerIP:   "0.0.0.0",
 		ImageCacheServerPort: 9278,
 		PvcPath:              "/root/testdb",
+		ScanWebshellTimeout:  2 * 60, // 2分钟
 	}
 }
 
 // GetScannerOpts parses the cobra.Command and returns the scanner opts.
 func GetScannerOpts(cmd *cobra.Command) *ScannerOpts {
+
+	ti := os.Getenv("SCAN_WEBSHELL_TIMEOUT")
+	timeSecond, err := strconv.Atoi(ti)
+	if err != nil || timeSecond <= 0 {
+		timeSecond = 2 * 60
+	}
+
 	return &ScannerOpts{
 		HTTPListenAddr:       viper.GetString(httpListenAddr),
 		RedisEndpoint:        os.Getenv("REDIS_CLUSTER_URL"),
@@ -65,6 +75,7 @@ func GetScannerOpts(cmd *cobra.Command) *ScannerOpts {
 		ImageCacheServerIP:   viper.GetString(imageCacheServerIP),
 		ImageCacheServerPort: viper.GetInt(imageCacheServerPort),
 		PvcPath:              viper.GetString(pvcPath),
+		ScanWebshellTimeout:  timeSecond,
 	}
 }
 
