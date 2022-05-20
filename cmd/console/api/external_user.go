@@ -12,6 +12,7 @@ import (
 	"strconv"
 	"time"
 
+	"gitlab.com/piccolo_su/vegeta/cmd/console/service/license"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/session"
 
 	param "github.com/oceanicdev/chi-param"
@@ -577,6 +578,7 @@ func (api *api) radiusLogin(ctx context.Context, w http.ResponseWriter, username
 	if nextChallengeState != "" {
 		response.Ok(w, response.WithApiVersion(accountAPIVersion), response.WithItem(LoginResponse{
 			ChallengeState: nextChallengeState,
+			LicenseStatus:  license.ValidateLicense(false),
 		}))
 		return
 	}
@@ -638,6 +640,7 @@ func (api *api) externalLogin(ctx context.Context, w http.ResponseWriter, arg *e
 		Type:             arg.accountType,
 		Token:            tokenString,
 		Role:             userSession.Role,
+		LicenseStatus:    license.ValidateLicense(false),
 	}))
 }
 

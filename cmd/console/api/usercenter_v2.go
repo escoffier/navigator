@@ -9,15 +9,19 @@ func (api *api) userCenter() func(chi.Router) {
 	return func(r chi.Router) {
 		r.Get("/config/loginOption", api.GetLoginOption())
 		r.Get("/login/secret", api.getLoginSecret())
-		r.Post("/login", api.login())
-		r.Post("/ldapLogin", api.LdapLogin())
-		r.Post("/radiusLogin", api.RadiusLogin())
+		r.Group(func(r chi.Router) {
+			r.Use(licenseVerify)
+			r.Post("/login", api.login())
+			r.Post("/ldapLogin", api.LdapLogin())
+			r.Post("/radiusLogin", api.RadiusLogin())
+		})
 		r.Post("/radiusResponseChallenge", api.RadiusResponseChallenge())
 		r.Post("/createCaptcha", api.createCaptcha())
 		r.Post("/getCaptchaImage", api.getCaptchaImage())
 		r.Get("/getCaptchaValue", api.getCaptchaValue())
 		r.Post("/forgetpwd", api.forgetPwd())
 		r.Post("/activeuser", api.activeUser())
+		r.Post("/superAdminInit", api.superAdminInit())
 		r.Group(func(r chi.Router) {
 			r.Use(jwtauth.Verifier(api.tokenAuth), authenticator(api.rdb), jwtAccessCheck(api.rdb))
 			r.Post("/logout", api.logout())

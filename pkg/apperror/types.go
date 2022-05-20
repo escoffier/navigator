@@ -1770,3 +1770,35 @@ func NewErrorWithCode(httpCode int, err error) error {
 		Line:     line,
 	}
 }
+
+func NewPwdStrengthError(httpCode int, err error, suberrors ...Suberror) error {
+	_, file, line, _ := runtime.Caller(1)
+
+	return AddBaitServiceError{
+		detailedError{
+			err:       err,
+			English:   "password strength the lower",
+			Chinese:   "密码强度较低",
+			HTTPCode:  httpCode,
+			Suberrors: suberrors,
+			File:      file,
+			Line:      line,
+		},
+	}
+}
+
+func NewInvalidLicenseError(httpCode int, err error, suberrors ...Suberror) error {
+	_, file, line, _ := runtime.Caller(1)
+
+	return AddBaitServiceError{
+		detailedError{
+			err:       err,
+			English:   "invalid license",
+			Chinese:   "无效的License",
+			HTTPCode:  httpCode,
+			Suberrors: suberrors,
+			File:      file,
+			Line:      line,
+		},
+	}
+}

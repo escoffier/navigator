@@ -1,8 +1,6 @@
 package util
 
 import (
-	"crypto/md5"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
@@ -165,12 +163,6 @@ func ImageUUID(image string) uint32 {
 	im := strings.TrimPrefix(image, "http://") // trimPrefix http or https
 	im = strings.TrimPrefix(image, "https://")
 	return GenerateUUID(im)
-}
-
-func MD5(str string) string {
-	h := md5.New()
-	h.Write([]byte(str))
-	return hex.EncodeToString(h.Sum(nil))
 }
 
 func DeDuplicationInt64Slice(va []int64) []int64 {

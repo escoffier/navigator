@@ -13,6 +13,7 @@ import (
 	"github.com/go-chi/jwtauth"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/session"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/usercenter"
+	"gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	"gitlab.com/piccolo_su/vegeta/pkg/dal"
 	"gitlab.com/piccolo_su/vegeta/pkg/env"
@@ -204,23 +205,42 @@ func (api *api) userUnban() http.HandlerFunc {
 	}
 }
 
-func checkPwdFormat(pwd string) (matched bool, err error) {
-	if len(pwd) < 8 {
-		return false, fmt.Errorf("password len < 8")
+func checkPwdFormat(pwd string) error {
+	if l := len(pwd); l < 8 || l > 16 {
+		return fmt.Errorf("the password must contain more than 8 or less than 16 characters")
 	}
-	if m, err := regexp.MatchString("0-9]+", pwd); !m || err != nil {
-		return m, fmt.Errorf("0-9")
+
+	var (
+		matchCount int
+		patterns   = []string{
+			"[0-9]+",
+			"[a-z]+",
+			"[A-Z]+",
+			"[~!@#$%^&*\\.]+",
+		}
+	)
+
+	fn := func(pattern string) {
+		m, err := regexp.MatchString(pattern, pwd)
+		if err != nil {
+			logging.Get().Error().Err(err).Msg(pattern)
+			return
+		}
+
+		if m {
+			matchCount++
+		}
 	}
-	if m, err := regexp.MatchString("[a-z]+", pwd); !m || err != nil {
-		return m, fmt.Errorf("a-z")
+
+	for _, pattern := range patterns {
+		fn(pattern)
 	}
-	if m, err := regexp.MatchString("[A-Z]+", pwd); !m || err != nil {
-		return m, fmt.Errorf("A-Z")
+
+	if matchCount < 2 {
+		return fmt.Errorf("contains at least letters, digits, and special characters(~!@$%%^&*.). two kinds of combination")
 	}
-	if m, err := regexp.MatchString("[~!@#$%^&*\\.]+", pwd); !m || err != nil {
-		return m, fmt.Errorf("A-Z")
-	}
-	return true, nil
+
+	return nil
 }
 
 func (api *api) resetPassword() http.HandlerFunc {
@@ -411,7 +431,7 @@ func (api *api) addUser() http.HandlerFunc {
 		}
 
 		if env.GetEmailCheck() && !VerifyEmailFormat(req.UserName) {
-			//check mail
+			// check mail
 			RespAndLog(w, r.Context(),
 				EmailForMatError(http.StatusForbidden,
 					fmt.Errorf("email format error")))
@@ -559,4 +579,58 @@ func VerifyEmailFormat(email string) bool {
 		return false
 	}
 	return reg.MatchString(email)
+}
+
+// superAdminInit init super admin account
+func (a *api) superAdminInit() http.HandlerFunc {
+	type superAdminInitReq struct {
+		Pwd string `json:"pwd"`
+	}
+
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(r.Context(), defaultAccountTimeout)
+		defer cancel()
+
+		req := superAdminInitReq{}
+		err := json.NewDecoder(r.Body).Decode(&req)
+		if err != nil {
+			RespAndLog(w, ctx,
+				NewMalformedRequestError(http.StatusBadRequest,
+					fmt.Errorf("failed to decode json: %w", err)))
+			return
+		}
+
+		// password strength check
+		if err = checkPwdFormat(req.Pwd); err != nil {
+			RespAndLog(w, r.Context(),
+				NewPwdStrengthError(http.StatusBadRequest, err))
+			return
+		}
+
+		has, err := dal.HasUser(ctx, a.rdb.GetReadDB())
+		if err != nil {
+			apperror.RespAndLog(w, r.Context(),
+				apperror.NewAnError(http.StatusInternalServerError, err))
+			return
+		}
+
+		// not found user, it's first login
+		// found user, this interface cannot be called
+		if has {
+			apperror.RespAndLog(w, r.Context(),
+				apperror.NewNoAccess(http.StatusBadRequest,
+					fmt.Errorf("this interface cannot be called")))
+			return
+		}
+
+		err = dal.CreateSuperAdmin(ctx, a.rdb.Get(), req.Pwd)
+		if err != nil {
+			apperror.RespAndLog(w, r.Context(),
+				apperror.NewAnError(http.StatusInternalServerError,
+					fmt.Errorf("create super admin failed: %w", err)))
+			return
+		}
+
+		response.Ok(w)
+	}
 }

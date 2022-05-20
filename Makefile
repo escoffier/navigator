@@ -14,6 +14,8 @@ RELEASEVERSION?=v0.0.1
 
 FETCHTAG?=latest
 
+LICENSE_SECRET?=sit
+
 .PHONY: help
 help:
 	@fgrep -h "##" $(MAKEFILE_LIST) | fgrep -v fgrep | sed -e 's/\\$$//' | sed -e 's/##//'
@@ -65,7 +67,7 @@ console: generate 		## Build console binary
 	@echo "+ $@"
 	go build -v \
 		--ldflags "$(LDFLAGS) -X gitlab.com/piccolo_su/vegeta/cmd/console/cmd.Version=$(VERSION)" \
-		-o dist/console gitlab.com/piccolo_su/vegeta/cmd/console
+		-tags $(LICENSE_SECRET) -o dist/console gitlab.com/piccolo_su/vegeta/cmd/console
 	#upx dist/console
 
 	# add default rules to console

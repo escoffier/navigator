@@ -13,9 +13,9 @@ import (
 	"strings"
 	"time"
 
-	"gitlab.com/security-rd/go-pkg/databases"
-
+	"gitlab.com/piccolo_su/vegeta/cmd/console/service/license"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
+	"gitlab.com/security-rd/go-pkg/databases"
 
 	"github.com/dgrijalva/jwt-go"
 	"github.com/go-chi/jwtauth"
@@ -34,7 +34,7 @@ import (
 
 type getLoginSecretResp struct {
 	Key string `json:"key"`
-	//Seed   string
+	// Seed   string
 }
 
 func (api *api) getLoginSecret() http.HandlerFunc {
@@ -115,12 +115,13 @@ func (api *api) loginBodyDecrypt(ctx context.Context, r io.ReadCloser) ([]byte, 
 
 // LoginResponse is the response of the login API
 type LoginResponse struct {
-	CurrentAuthority string `json:"currentAuthority"`
-	Status           string `json:"status"`
-	Type             string `json:"type"`
-	Token            string `json:"token"`
-	Role             string `json:"role"`
-	ChallengeState   string `json:"challengeState"`
+	CurrentAuthority string         `json:"currentAuthority"`
+	Status           string         `json:"status"`
+	Type             string         `json:"type"`
+	Token            string         `json:"token"`
+	Role             string         `json:"role"`
+	ChallengeState   string         `json:"challengeState"`
+	LicenseStatus    license.Status `json:"licenseStatus"`
 }
 
 func (api *api) login() http.HandlerFunc {
@@ -229,6 +230,7 @@ func (api *api) login() http.HandlerFunc {
 			Type:             AccountTypeNormal,
 			Token:            tokenString,
 			Role:             findUser.Rule,
+			LicenseStatus:    license.ValidateLicense(false),
 		}))
 	}
 }
@@ -434,9 +436,10 @@ func (api *api) issueJWTToken(ctx context.Context, username, role, userAgent str
 		JWTKeyUsername:   username,
 		JWTKeyUserRole:   role,
 		JWTKeyExternal:   external,
-		JWTKeyEigenvalue: util.MD5(userAgent),
+		JWTKeyEigenvalue: util.MD5Hex(userAgent),
 	}
 	jwtauth.SetIssuedNow(jwtMC)
+	jwtauth.SetExpiryIn(jwtMC, time.Hour*24)
 
 	_, tokenString, err := api.tokenAuth.Encode(jwtMC)
 	if err != nil {
@@ -519,7 +522,7 @@ func authenticator(db *databases.RDBInstance) func(http.Handler) http.Handler {
 				eigenvalue = v.(string)
 			}
 
-			if util.MD5(r.UserAgent()) != eigenvalue {
+			if util.MD5Hex(r.UserAgent()) != eigenvalue {
 				if err = sessionService.DeleteToken(ctx, username); err != nil {
 					logging.Get().Warn().Err(err).Msgf("user-agent not match: delete token failed")
 				}

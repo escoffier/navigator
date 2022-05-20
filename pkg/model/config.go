@@ -4,6 +4,10 @@ import (
 	"time"
 )
 
+const (
+	ConfLicense = "conf-license"
+)
+
 type TensorConfig struct {
 	Key       string    `gorm:"column:k;primaryKey"`
 	Config    []byte    `gorm:"column:config;type:bytea"`
