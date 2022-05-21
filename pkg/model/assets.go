@@ -416,6 +416,7 @@ type TensorNode struct {
 	ContainerImages         ContainerImages `gorm:"column:container_images;type:text"`
 	CreatedAt               time.Time
 	UpdatedAt               time.Time
+	Ready                   uint8
 	Status                  int8
 }
 
