@@ -19,6 +19,11 @@ import (
 	"k8s.io/client-go/kubernetes"
 )
 
+const (
+	ContainerTypeInit    = "InitContainer"
+	ContainerTypeDefault = "Container"
+)
+
 var (
 	onDupUpdatedColsForContainer = []string{
 		"updated_at",
@@ -590,34 +595,37 @@ func fromContainerToModel(ctx context.Context, rdb *gorm.DB, container corev1.Co
 	contModel.UpdatedAt = updateTime
 	contModel.Status = 0
 
-	isWebFrame, webType, version, err := model.GetWebType(contModel.Image)
-	if err == nil && isWebFrame {
-		contModel.AppType = &model.AppTypeWeb
-		contModel.AppTargetName = &webType
-		contModel.AppTargetVersion = &version
-
-	} else {
-		isDB, dbType, version, err := model.GetDatabaseType(contModel.Image)
-		if err == nil && isDB {
-			contModel.AppType = &model.AppTypeDB
-			contModel.AppTargetName = &dbType
-			contModel.AppTargetVersion = &version
-		}
-	}
-
-	//TODO: may be removed later
-	webFrameScan, err := GetFramework(ctx, rdb, contModel.ImageUUID)
-	if err == nil && webFrameScan != nil {
-		var infos []model.WebFrameInfo
-		err = json.Unmarshal(webFrameScan.WebFrameInfoJSON, &infos)
-		if err == nil {
+	if conType == ContainerTypeDefault {
+		isWebFrame, webType, version, err := model.GetWebType(contModel.Image)
+		if err == nil && isWebFrame {
 			contModel.AppType = &model.AppTypeWeb
-			if len(infos) > 0 {
-				contModel.AppTargetName = &infos[0].FrameName
-				contModel.AppTargetVersion = &infos[0].Version
+			contModel.AppTargetName = &webType
+			contModel.AppTargetVersion = &version
+
+		} else {
+			isDB, dbType, version, err := model.GetDatabaseType(contModel.Image)
+			if err == nil && isDB {
+				contModel.AppType = &model.AppTypeDB
+				contModel.AppTargetName = &dbType
+				contModel.AppTargetVersion = &version
+			}
+		}
+
+		//TODO: may be removed later
+		webFrameScan, err := GetFramework(ctx, rdb, contModel.ImageUUID)
+		if err == nil && webFrameScan != nil {
+			var infos []model.WebFrameInfo
+			err = json.Unmarshal(webFrameScan.WebFrameInfoJSON, &infos)
+			if err == nil {
+				contModel.AppType = &model.AppTypeWeb
+				if len(infos) > 0 {
+					contModel.AppTargetName = &infos[0].FrameName
+					contModel.AppTargetVersion = &infos[0].Version
+				}
 			}
 		}
 	}
+
 	return contModel
 }
 
@@ -630,12 +638,12 @@ func newModelContainersFromResource(ctx context.Context, rdb *gorm.DB, resource 
 
 	for _, initCon := range resource.PodTemplate.Spec.InitContainers {
 		containers = append(containers,
-			fromContainerToModel(ctx, rdb, initCon, resource, updateTime, "InitContainer"),
+			fromContainerToModel(ctx, rdb, initCon, resource, updateTime, ContainerTypeInit),
 		)
 	}
 	for _, con := range resource.PodTemplate.Spec.Containers {
 		containers = append(containers,
-			fromContainerToModel(ctx, rdb, con, resource, updateTime, "Container"),
+			fromContainerToModel(ctx, rdb, con, resource, updateTime, ContainerTypeDefault),
 		)
 	}
 	return containers
@@ -1240,6 +1248,9 @@ func newModelFromNode(node *corev1.Node, clusterKey string, updateTime time.Time
 		n.Status = 2
 	}
 
+	if assets.NodeIsReady(node) {
+		n.Ready = 1
+	}
 	return n, nil
 }
 
