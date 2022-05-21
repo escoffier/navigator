@@ -75,6 +75,7 @@ var (
 		"container_images",
 		"updated_at",
 		"status",
+		"ready",
 	}
 )
 
