@@ -108,6 +108,10 @@ func main() {
 	}
 	data, md5, blockNum := cryption.EncryptionRules(fileBytes)
 	versionList := strings.Split(*version, ".")
+	if len(versionList) != 2 {
+		fmt.Printf("version number parse error. input: %s", *version)
+		os.Exit(1)
+	}
 	versionNum := [2]uint16{0, 0}
 	tmpInt, err := strconv.ParseUint(versionList[0], 10, 16)
 	if err != nil {
