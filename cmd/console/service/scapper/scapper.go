@@ -487,7 +487,7 @@ FOR:
 			// go func() {
 			//create job name
 
-			if !s.nodeIsReady(&targetNode) {
+			if !pkgassets.NodeIsReady(&targetNode) {
 				continue FOR
 			}
 
@@ -705,7 +705,7 @@ func (s *Scapper) dbAddJobStatusInProgress(ctx context.Context, check *model.Che
 	status := model.ScanStateFailed
 	createAt := time.Now().Unix()
 	finishedAt := createAt
-	if s.nodeIsReady(targetNode) {
+	if pkgassets.NodeIsReady(targetNode) {
 		status = model.ScanStateInProgress
 		finishedAt = 0 // 当可以创建pods时(node 时ready状态)
 	}
