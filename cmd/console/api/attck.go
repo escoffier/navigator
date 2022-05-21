@@ -112,6 +112,11 @@ func (api *api) updateATTCKConf() http.HandlerFunc {
 					apperror.NewFieldError(http.StatusBadRequest, err))
 				return
 			}
+			if err == attck.ErrVersionNotUpper {
+				apperror.RespAndLog(w, ctx,
+					apperror.NewAttackVersionNotUpperErr(http.StatusBadRequest, err))
+				return
+			}
 
 			apperror.RespAndLog(w, ctx, err)
 			return

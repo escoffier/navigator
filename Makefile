@@ -70,11 +70,12 @@ console: generate 		## Build console binary
 		-tags $(LICENSE_SECRET) -o dist/console gitlab.com/piccolo_su/vegeta/cmd/console
 	#upx dist/console
 
-	# add default rules to console
 	go build -v \
 		--ldflags "$(LDFLAGS) -X gitlab.com/piccolo_su/vegeta/cmd/holmes/encodefile/cmd.Version=$(VERSION)" \
 		-o dist/holmes-rules-pack gitlab.com/piccolo_su/vegeta/cmd/holmes/encodefile
-	./dist/holmes-rules-pack --input configs/holmes/rules/holmes_rules.yaml --output ./dist/holmes-rules.thr
+	#upx dist/holmes-rules-pack
+	# generate the holmes rules thr file with version	
+	./build_holmes_rules_thr.sh
 
 	docker build -t $(REPOPREFIX)/console:latest -f ./build/console/Dockerfile .
 	
@@ -326,11 +327,13 @@ holmes:     ## Build holmes docker
 	# #upx dist/holmes-engine-sider
 	rm -rf ./dist/*.thr > /dev/null 2>&1
 	sync
+	
 	go build -v \
 		--ldflags "$(LDFLAGS) -X gitlab.com/piccolo_su/vegeta/cmd/holmes/encodefile/cmd.Version=$(VERSION)" \
 		-o dist/holmes-rules-pack gitlab.com/piccolo_su/vegeta/cmd/holmes/encodefile
 	#upx dist/holmes-rules-pack
-	./dist/holmes-rules-pack --input configs/holmes/rules/holmes_rules.yaml --output ./dist/holmes-rules.thr
+	# generate the holmes rules thr file with version	
+	./build_holmes_rules_thr.sh
 ifeq ($(USEMIRROR),true)
 	@echo "holmes will use mirror"
 	docker build -t $(REPOPREFIX)/holmes:latest -f ./build/holmes/Dockerfile \

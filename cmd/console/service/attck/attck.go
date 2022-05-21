@@ -9,6 +9,7 @@ import (
 	"os"
 	"runtime/debug"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -30,6 +31,10 @@ import (
 
 const (
 	localFilePath = "/rules/holmes-rules.thr"
+)
+
+var (
+	ErrVersionNotUpper = errors.New("the given version is not upper than the latest")
 )
 
 type ATTCKHandler struct {
@@ -216,53 +221,85 @@ func (h *ATTCKHandler) asyncUploadRulesToEventsCenter(ruleBytes []byte, version 
 			}
 		}
 	}()
-
 }
+
+// compareVersion returns true if the new version is upper than the latestConf
+func compareVersion(latestConf *model.ATTCKRuleData, toCompareHeader cryption.FileHeader) bool {
+	if latestConf == nil {
+		return true
+	}
+	if latestConf.Version == "" {
+		return true
+	}
+
+	latestVersion := latestConf.Version
+	if strings.IndexByte(latestConf.Version, 'v') == 0 {
+		latestVersion = latestVersion[1:]
+	}
+	splits := strings.Split(latestVersion, ".")
+	if len(splits) != 2 {
+		return true
+	}
+	primVersion, err := strconv.ParseUint(splits[0], 10, 16)
+
+	if err != nil {
+		return true
+	}
+	secondaryVersion, err := strconv.ParseUint(splits[1], 10, 16)
+	if err != nil {
+		return true
+	}
+	if primVersion == uint64(toCompareHeader.Version[0]) {
+		return secondaryVersion < uint64(toCompareHeader.Version[1])
+	} else {
+		return primVersion < uint64(toCompareHeader.Version[0])
+	}
+}
+
 func (h *ATTCKHandler) updateConfigs(ctx context.Context) error {
 	var rules map[string]*ruleItem
 	storeConf, err := h.loadFromStore(ctx)
-	if err == dal.ErrATTCKConfDataNotFound {
-		logging.Get().Info().Msg("Initialize with no stored data found. try to load from local")
-		ruleBytes, err := h.loadFromLocal(ctx)
-		if err != nil {
-			logging.Get().Err(err).Msg("loadFromLocal error.")
-			return err
-		} else {
-			header, rulesContext, _, err := cryption.ReadRulesData(ruleBytes)
-			if err != nil {
-				logging.Get().Err(err).Str("data", string(ruleBytes)).Msg("decode rule data fail")
-				return err
-			}
-			var version string
-			version, rules, err = parseItems(header, rulesContext)
-			if err != nil {
-				logging.Get().Err(err).Msgf("parse items error. data: %s", string(ruleBytes))
-				return err
-			}
-			confData := model.ATTCKRuleData{
-				Content: ruleBytes,
-			}
-			confData.ATTCKConfVersion = model.ATTCKConfVersion{
-				Version:   version,
-				Username:  "system",
-				CreatedAt: time.Now(),
-			}
-			err = util.RetryWithBackoff(ctx, func() error {
-				var err error
-				storeConf, err = dal.SaveATTCKConfData(ctx, h.db.Get(), &confData, nil)
-				return err
-			}, retry.Attempts(3))
-			if err != nil {
-				logging.Get().Err(err).Msg("store attck conf data error. ")
-			} else {
-				logging.Get().Info().Str("conf version", version).Msg("Successfully store attack conf data from local.")
-			}
-
-			h.asyncUploadRulesToEventsCenter(rulesContext, version)
-		}
-	} else if err != nil {
+	if err != nil && err != dal.ErrATTCKConfDataNotFound {
+		logging.Get().Err(err).Msg("loadFromStore error.")
 		return err
-	} else {
+	}
+	ruleBytes, err := h.loadFromLocal(ctx)
+	if err != nil {
+		logging.Get().Err(err).Msg("loadFromLocal error.")
+		return err
+	}
+	header, rulesContext, _, err := cryption.ReadRulesData(ruleBytes)
+
+	if err == dal.ErrATTCKConfDataNotFound || compareVersion(storeConf, header) { // use local
+		logging.Get().Info().Uints16("local version", header.Version[:]).Msg("Initialize with local rules.")
+		var version string
+		version, rules, err = parseItems(header, rulesContext)
+		if err != nil {
+			logging.Get().Err(err).Msgf("parse items error. data: %s", string(ruleBytes))
+			return err
+		}
+		confData := model.ATTCKRuleData{
+			Content: ruleBytes,
+		}
+		confData.ATTCKConfVersion = model.ATTCKConfVersion{
+			Version:   version,
+			Username:  "system",
+			CreatedAt: time.Now(),
+		}
+		err = util.RetryWithBackoff(ctx, func() error {
+			var err error
+			storeConf, err = dal.SaveATTCKConfData(ctx, h.db.Get(), &confData, nil)
+			return err
+		}, retry.Attempts(3))
+		if err != nil {
+			logging.Get().Err(err).Msg("store attck conf data error. ")
+		} else {
+			logging.Get().Info().Str("conf version", version).Msg("Successfully store attack conf data from local.")
+		}
+
+		h.asyncUploadRulesToEventsCenter(rulesContext, version)
+	} else { // use storage
+		logging.Get().Info().Uints16("storage version", header.Version[:]).Msg("Initialize with stored rules.")
 		header, rulesContext, _, err := cryption.ReadRulesData(storeConf.Content)
 		if err != nil {
 			logging.Get().Err(err).Str("data", string(storeConf.Content)).Msg("decode rule data fail")
@@ -373,6 +410,15 @@ func (h *ATTCKHandler) UpdateConfig(ctx context.Context, username string, data [
 	attckRuleData := &model.ATTCKRuleData{
 		ATTCKConfVersion: confVersion,
 		Content:          data,
+	}
+
+	storeConf, err := h.loadFromStore(ctx)
+	if err != nil && err != dal.ErrATTCKConfDataNotFound {
+		return nil, err
+	}
+	if storeConf != nil && !compareVersion(storeConf, header) {
+		logging.Get().Warn().Uints16("given version", header.Version[:]).Str("latest version", storeConf.Version).Msg("The given version is not upper than the latest version. skip updating.")
+		return nil, ErrVersionNotUpper
 	}
 
 	storedRuleData, err := dal.SaveATTCKConfData(ctx, h.db.Get(), attckRuleData, deprecatedRuleMasks)

@@ -1,9 +1,5 @@
 package apperror
 
-import (
-	"runtime"
-)
-
 type AnError struct{ detailedError }
 type MongoError struct{ detailedError }
 type KubernetesError struct{ detailedError }
@@ -98,8 +94,6 @@ type AddBaitServiceError struct{ detailedError }
 // return NewMongoError(fmt.Errorf("Some error occurred: %w", err), http.StatusInternalServerError)
 // return NewMongoError(fmt.Errorf("Some error occurred: %w", err), http.StatusInternalServerError, Suberror{"loc", "msg"}, Suberror{"loc2", "msg2"})
 func NewAnError(httpCode int, err error, suberrors ...Suberror) error {
-	_, file, line, _ := runtime.Caller(1)
-
 	return AnError{
 		detailedError{
 			err:       err,
@@ -107,14 +101,11 @@ func NewAnError(httpCode int, err error, suberrors ...Suberror) error {
 			Chinese:   "发生了错误",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
-			File:      file,
-			Line:      line,
 		},
 	}
 }
 
 func NewCaptchaError(httpCode int, err error, suberrors ...Suberror) error {
-	_, file, line, _ := runtime.Caller(1)
 
 	return AnError{
 		detailedError{
@@ -123,15 +114,11 @@ func NewCaptchaError(httpCode int, err error, suberrors ...Suberror) error {
 			Chinese:   "验证码错误",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
-			File:      file,
-			Line:      line,
 		},
 	}
 }
 
 func NewCaptchaLimitError(httpCode int, err error, suberrors ...Suberror) error {
-	_, file, line, _ := runtime.Caller(1)
-
 	return AnError{
 		detailedError{
 			err:       err,
@@ -139,15 +126,11 @@ func NewCaptchaLimitError(httpCode int, err error, suberrors ...Suberror) error 
 			Chinese:   "验证码请求过快，请稍后再试",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
-			File:      file,
-			Line:      line,
 		},
 	}
 }
 
 func NewLoginError(httpCode int, err error, suberrors ...Suberror) error {
-	_, file, line, _ := runtime.Caller(1)
-
 	return AnError{
 		detailedError{
 			err:       err,
@@ -155,15 +138,11 @@ func NewLoginError(httpCode int, err error, suberrors ...Suberror) error {
 			Chinese:   "用户名/密码错误",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
-			File:      file,
-			Line:      line,
 		},
 	}
 }
 
 func NewAccountBanError(httpCode int, err error, suberrors ...Suberror) error {
-	_, file, line, _ := runtime.Caller(1)
-
 	return AnError{
 		detailedError{
 			err:       err,
@@ -171,15 +150,11 @@ func NewAccountBanError(httpCode int, err error, suberrors ...Suberror) error {
 			Chinese:   "账户已被锁定，请联系管理员",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
-			File:      file,
-			Line:      line,
 		},
 	}
 }
 
 func NewMongoError(httpCode int, err error, suberrors ...Suberror) error {
-	_, file, line, _ := runtime.Caller(1)
-
 	return MongoError{
 		detailedError{
 			err:       err,
@@ -187,15 +162,11 @@ func NewMongoError(httpCode int, err error, suberrors ...Suberror) error {
 			Chinese:   "服务器开小差了",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
-			File:      file,
-			Line:      line,
 		},
 	}
 }
 
 func NewKubernetesError(httpCode int, err error, suberrors ...Suberror) error {
-	_, file, line, _ := runtime.Caller(1)
-
 	return KubernetesError{
 		detailedError{
 			err:       err,
@@ -203,15 +174,11 @@ func NewKubernetesError(httpCode int, err error, suberrors ...Suberror) error {
 			Chinese:   "发生Kubernetes错误",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
-			File:      file,
-			Line:      line,
 		},
 	}
 }
 
 func NewRulesError(httpCode int, err error, suberrors ...Suberror) error {
-	_, file, line, _ := runtime.Caller(1)
-
 	return RulesError{
 		detailedError{
 			err:       err,
@@ -219,14 +186,11 @@ func NewRulesError(httpCode int, err error, suberrors ...Suberror) error {
 			Chinese:   "Runtime detection rules error has occured, but in Chinese",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
-			File:      file,
-			Line:      line,
 		},
 	}
 }
 
 func NewRuleNotAppliedError(httpCode int, err error, suberrors ...Suberror) error {
-	_, file, line, _ := runtime.Caller(1)
 
 	return RuleNotAppliedError{
 		detailedError{
@@ -235,15 +199,11 @@ func NewRuleNotAppliedError(httpCode int, err error, suberrors ...Suberror) erro
 			Chinese:   "Runtime detection rule is not applied, but in Chinese",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
-			File:      file,
-			Line:      line,
 		},
 	}
 }
 
 func NewRuleAlreadyAppliedError(httpCode int, err error, suberrors ...Suberror) error {
-	_, file, line, _ := runtime.Caller(1)
-
 	return RuleAlreadyAppliedError{
 		detailedError{
 			err:       err,
@@ -251,15 +211,11 @@ func NewRuleAlreadyAppliedError(httpCode int, err error, suberrors ...Suberror) 
 			Chinese:   "Runtime detection rule already applied, but in Chinese",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
-			File:      file,
-			Line:      line,
 		},
 	}
 }
 
 func NewRuleDoesntExistError(httpCode int, err error, suberrors ...Suberror) error {
-	_, file, line, _ := runtime.Caller(1)
-
 	return RuleDoesntExistError{
 		detailedError{
 			err:       err,
@@ -267,15 +223,11 @@ func NewRuleDoesntExistError(httpCode int, err error, suberrors ...Suberror) err
 			Chinese:   "Runtime detection rule doesn't exist, but in Chinese",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
-			File:      file,
-			Line:      line,
 		},
 	}
 }
 
 func NewCheckAlreadyInProgressError(httpCode int, err error, suberrors ...Suberror) error {
-	_, file, line, _ := runtime.Caller(1)
-
 	return CheckAlreadyInProgressError{
 		detailedError{
 			err:       err,
@@ -283,15 +235,11 @@ func NewCheckAlreadyInProgressError(httpCode int, err error, suberrors ...Suberr
 			Chinese:   "此类合规性检查已在进行中",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
-			File:      file,
-			Line:      line,
 		},
 	}
 }
 
 func NewHTTPResponseError(httpCode int, err error, suberrors ...Suberror) error {
-	_, file, line, _ := runtime.Caller(1)
-
 	return HTTPResponseError{
 		detailedError{
 			err:       err,
@@ -299,15 +247,11 @@ func NewHTTPResponseError(httpCode int, err error, suberrors ...Suberror) error 
 			Chinese:   "写入回应时发生错误",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
-			File:      file,
-			Line:      line,
 		},
 	}
 }
 
 func NewConfigurationError(httpCode int, err error, suberrors ...Suberror) error {
-	_, file, line, _ := runtime.Caller(1)
-
 	return ConfigurationError{
 		detailedError{
 			err:       err,
@@ -315,15 +259,11 @@ func NewConfigurationError(httpCode int, err error, suberrors ...Suberror) error
 			Chinese:   "发生后端配置错误",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
-			File:      file,
-			Line:      line,
 		},
 	}
 }
 
 func NewConnectionError(httpCode int, err error, suberrors ...Suberror) error {
-	_, file, line, _ := runtime.Caller(1)
-
 	return ConnectionError{
 		detailedError{
 			err:       err,
@@ -331,15 +271,11 @@ func NewConnectionError(httpCode int, err error, suberrors ...Suberror) error {
 			Chinese:   "发生连接错误",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
-			File:      file,
-			Line:      line,
 		},
 	}
 }
 
 func NewElasticError(httpCode int, err error, suberrors ...Suberror) error {
-	_, file, line, _ := runtime.Caller(1)
-
 	return ElasticError{
 		detailedError{
 			err:       err,
@@ -347,15 +283,11 @@ func NewElasticError(httpCode int, err error, suberrors ...Suberror) error {
 			Chinese:   "Elasticsearch error, but in Chinese",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
-			File:      file,
-			Line:      line,
 		},
 	}
 }
 
 func NewMalformedRequestError(httpCode int, err error, suberrors ...Suberror) error {
-	_, file, line, _ := runtime.Caller(1)
-
 	return MalformedRequestError{
 		detailedError{
 			err:       err,
@@ -363,15 +295,11 @@ func NewMalformedRequestError(httpCode int, err error, suberrors ...Suberror) er
 			Chinese:   "请求格式错误",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
-			File:      file,
-			Line:      line,
 		},
 	}
 }
 
 func NewPasswordNotMatchError(httpCode int, err error, suberrors ...Suberror) error {
-	_, file, line, _ := runtime.Caller(1)
-
 	return MalformedRequestError{
 		detailedError{
 			err:       err,
@@ -379,15 +307,11 @@ func NewPasswordNotMatchError(httpCode int, err error, suberrors ...Suberror) er
 			Chinese:   "密码不匹配",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
-			File:      file,
-			Line:      line,
 		},
 	}
 }
 
 func NewGCTaskInProgressError(httpCode int, err error, suberrors ...Suberror) error {
-	_, file, line, _ := runtime.Caller(1)
-
 	return GCTaskError{
 		detailedError{
 			err:       err,
@@ -395,15 +319,11 @@ func NewGCTaskInProgressError(httpCode int, err error, suberrors ...Suberror) er
 			Chinese:   "清理任务正在进行中",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
-			File:      file,
-			Line:      line,
 		},
 	}
 }
 
 func NewInvalidArgError(httpCode int, err error, suberrors ...Suberror) error {
-	_, file, line, _ := runtime.Caller(1)
-
 	return ArgError{
 		detailedError{
 			err:       err,
@@ -411,15 +331,11 @@ func NewInvalidArgError(httpCode int, err error, suberrors ...Suberror) error {
 			Chinese:   "参数非法",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
-			File:      file,
-			Line:      line,
 		},
 	}
 }
 
 func BusyRequestError(httpCode int, err error, suberrors ...Suberror) error {
-	_, file, line, _ := runtime.Caller(1)
-
 	return MalformedRequestError{
 		detailedError{
 			err:       err,
@@ -427,15 +343,11 @@ func BusyRequestError(httpCode int, err error, suberrors ...Suberror) error {
 			Chinese:   "频繁请求，已经被服务器拦截",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
-			File:      file,
-			Line:      line,
 		},
 	}
 }
 
 func NewInvalidUsernameOrPasswordError(httpCode int, err error, suberrors ...Suberror) error {
-	_, file, line, _ := runtime.Caller(1)
-
 	return InvalidUsernameOrPasswordError{
 		detailedError{
 			err:       err,
@@ -443,15 +355,11 @@ func NewInvalidUsernameOrPasswordError(httpCode int, err error, suberrors ...Sub
 			Chinese:   "用户名或密码无效",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
-			File:      file,
-			Line:      line,
 		},
 	}
 }
 
 func NewFieldError(httpCode int, err error, suberrors ...Suberror) error {
-	_, file, line, _ := runtime.Caller(1)
-
 	return FieldError{
 		detailedError{
 			err:       err,
@@ -459,15 +367,23 @@ func NewFieldError(httpCode int, err error, suberrors ...Suberror) error {
 			Chinese:   "字段缺失或无效",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
-			File:      file,
-			Line:      line,
+		},
+	}
+}
+
+func NewAttackVersionNotUpperErr(httpCode int, err error, suberrors ...Suberror) error {
+	return FieldError{
+		detailedError{
+			err:       err,
+			English:   "The version of given rules file is not upper than the latest rules, so cancel the upgrade",
+			Chinese:   "给定规则文件版本不高于最新规则文件版本，升级取消",
+			HTTPCode:  httpCode,
+			Suberrors: suberrors,
 		},
 	}
 }
 
 func ScanImageGoingErr(httpCode int, err error, suberrors ...Suberror) error {
-	_, file, line, _ := runtime.Caller(1)
-
 	return FieldError{
 		detailedError{
 			err:       err,
@@ -475,15 +391,11 @@ func ScanImageGoingErr(httpCode int, err error, suberrors ...Suberror) error {
 			Chinese:   "正在扫描在线镜像",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
-			File:      file,
-			Line:      line,
 		},
 	}
 }
 
 func NewClusterAlreadyExists(httpCode int, err error, suberrors ...Suberror) error {
-	_, file, line, _ := runtime.Caller(1)
-
 	return ClusterAlreadyExists{
 		detailedError{
 			err:       err,
@@ -491,15 +403,11 @@ func NewClusterAlreadyExists(httpCode int, err error, suberrors ...Suberror) err
 			Chinese:   "具有该名称的集群已存在",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
-			File:      file,
-			Line:      line,
 		},
 	}
 }
 
 func NewMaxNumberOfClustersReached(httpCode int, err error, suberrors ...Suberror) error {
-	_, file, line, _ := runtime.Caller(1)
-
 	return MaxNumberOfClustersReached{
 		detailedError{
 			err:       err,
@@ -507,15 +415,11 @@ func NewMaxNumberOfClustersReached(httpCode int, err error, suberrors ...Suberro
 			Chinese:   "达到最大群集数",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
-			File:      file,
-			Line:      line,
 		},
 	}
 }
 
 func NewInvalidAuthToken(httpCode int, err error, suberrors ...Suberror) error {
-	_, file, line, _ := runtime.Caller(1)
-
 	return InvalidAuthToken{
 		detailedError{
 			err:       err,
@@ -523,15 +427,11 @@ func NewInvalidAuthToken(httpCode int, err error, suberrors ...Suberror) error {
 			Chinese:   "无效的身份验证令牌",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
-			File:      file,
-			Line:      line,
 		},
 	}
 }
 
 func NewNoAccess(httpCode int, err error, suberrors ...Suberror) error {
-	_, file, line, _ := runtime.Caller(1)
-
 	return NoAccess{
 		detailedError{
 			err:       err,
@@ -539,15 +439,11 @@ func NewNoAccess(httpCode int, err error, suberrors ...Suberror) error {
 			Chinese:   "没有此权限",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
-			File:      file,
-			Line:      line,
 		},
 	}
 }
 
 func NewSessionExpired(httpCode int, err error, suberrors ...Suberror) error {
-	_, file, line, _ := runtime.Caller(1)
-
 	return SessionExpired{
 		detailedError{
 			err:       err,
@@ -555,15 +451,11 @@ func NewSessionExpired(httpCode int, err error, suberrors ...Suberror) error {
 			Chinese:   "会话已过期",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
-			File:      file,
-			Line:      line,
 		},
 	}
 }
 
 func NewClairError(httpCode int, err error, suberrors ...Suberror) error {
-	_, file, line, _ := runtime.Caller(1)
-
 	return ClairError{
 		detailedError{
 			err:       err,
@@ -571,15 +463,11 @@ func NewClairError(httpCode int, err error, suberrors ...Suberror) error {
 			Chinese:   "发生了Clair错误",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
-			File:      file,
-			Line:      line,
 		},
 	}
 }
 
 func NewDockerError(httpCode int, err error, suberrors ...Suberror) error {
-	_, file, line, _ := runtime.Caller(1)
-
 	return DockerError{
 		detailedError{
 			err:       err,
@@ -587,15 +475,11 @@ func NewDockerError(httpCode int, err error, suberrors ...Suberror) error {
 			Chinese:   "发生Docker错误",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
-			File:      file,
-			Line:      line,
 		},
 	}
 }
 
 func NewClairUnprocessableLayerError(httpCode int, err error, suberrors ...Suberror) error {
-	_, file, line, _ := runtime.Caller(1)
-
 	return ClairUnprocessableLayerError{
 		detailedError{
 			err:       err,
@@ -603,15 +487,11 @@ func NewClairUnprocessableLayerError(httpCode int, err error, suberrors ...Suber
 			Chinese:   "Clair扫描错误：不可处理的图层",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
-			File:      file,
-			Line:      line,
 		},
 	}
 }
 
 func NewClairMissingParentLayerError(httpCode int, err error, suberrors ...Suberror) error {
-	_, file, line, _ := runtime.Caller(1)
-
 	return ClairMissingParentLayerError{
 		detailedError{
 			err:       err,
@@ -619,15 +499,11 @@ func NewClairMissingParentLayerError(httpCode int, err error, suberrors ...Suber
 			Chinese:   "Clair扫描错误：缺少父层",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
-			File:      file,
-			Line:      line,
 		},
 	}
 }
 
 func NewHarborError(httpCode int, err error, suberrors ...Suberror) error {
-	_, file, line, _ := runtime.Caller(1)
-
 	return HarborError{
 		detailedError{
 			err:       err,
@@ -635,15 +511,11 @@ func NewHarborError(httpCode int, err error, suberrors ...Suberror) error {
 			Chinese:   "发生Harbor错误",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
-			File:      file,
-			Line:      line,
 		},
 	}
 }
 
 func NewHarborUnauthorizedError(httpCode int, err error, suberrors ...Suberror) error {
-	_, file, line, _ := runtime.Caller(1)
-
 	return HarborUnauthorizedError{
 		detailedError{
 			err:       err,
@@ -651,15 +523,11 @@ func NewHarborUnauthorizedError(httpCode int, err error, suberrors ...Suberror) 
 			Chinese:   "Harbor返回错误“未经授权”, 请检查用户名/密码",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
-			File:      file,
-			Line:      line,
 		},
 	}
 }
 
 func NewHarborForbiddenError(httpCode int, err error, suberrors ...Suberror) error {
-	_, file, line, _ := runtime.Caller(1)
-
 	return HarborForbiddenError{
 		detailedError{
 			err:       err,
@@ -667,15 +535,11 @@ func NewHarborForbiddenError(httpCode int, err error, suberrors ...Suberror) err
 			Chinese:   "Harbor返回错误“禁止”, 请检查用户是否具有管理员权限",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
-			File:      file,
-			Line:      line,
 		},
 	}
 }
 
 func NewHarborScanAllInProgressError(httpCode int, err error, suberrors ...Suberror) error {
-	_, file, line, _ := runtime.Caller(1)
-
 	return HarborScanAllInProgressError{
 		detailedError{
 			err:       err,
@@ -683,15 +547,11 @@ func NewHarborScanAllInProgressError(httpCode int, err error, suberrors ...Suber
 			Chinese:   "Harbor全面扫描已在进行中, 请稍候",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
-			File:      file,
-			Line:      line,
 		},
 	}
 }
 
 func HarborGetProgressError(httpCode int, err error, suberrors ...Suberror) error {
-	_, file, line, _ := runtime.Caller(1)
-
 	return HarborScanAllInProgressError{
 		detailedError{
 			err:       err,
@@ -699,15 +559,11 @@ func HarborGetProgressError(httpCode int, err error, suberrors ...Suberror) erro
 			Chinese:   "Harbor 获取project 错误",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
-			File:      file,
-			Line:      line,
 		},
 	}
 }
 
 func NewRedisError(httpCode int, err error, suberrors ...Suberror) error {
-	_, file, line, _ := runtime.Caller(1)
-
 	return RedisError{
 		detailedError{
 			err:       err,
@@ -715,15 +571,11 @@ func NewRedisError(httpCode int, err error, suberrors ...Suberror) error {
 			Chinese:   "Redis error has occured but in 中文",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
-			File:      file,
-			Line:      line,
 		},
 	}
 }
 
 func NewAlertAlreadyAcknowledgedError(httpCode int, err error, suberrors ...Suberror) error {
-	_, file, line, _ := runtime.Caller(1)
-
 	return AlertAlreadyAcknowledged{
 		detailedError{
 			err:       err,
@@ -731,15 +583,11 @@ func NewAlertAlreadyAcknowledgedError(httpCode int, err error, suberrors ...Sube
 			Chinese:   "Alert already acknowledged but in 中文",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
-			File:      file,
-			Line:      line,
 		},
 	}
 }
 
 func NewClusterError(httpCode int, err error, suberrors ...Suberror) error {
-	_, file, line, _ := runtime.Caller(1)
-
 	return ClusterError{
 		detailedError{
 			err:       err,
@@ -747,15 +595,11 @@ func NewClusterError(httpCode int, err error, suberrors ...Suberror) error {
 			Chinese:   "Cluster error has occured but in 中文",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
-			File:      file,
-			Line:      line,
 		},
 	}
 }
 
 func NewClusterDoesntExistError(httpCode int, err error, suberrors ...Suberror) error {
-	_, file, line, _ := runtime.Caller(1)
-
 	return ClusterDoesntExistError{
 		detailedError{
 			err:       err,
@@ -763,15 +607,11 @@ func NewClusterDoesntExistError(httpCode int, err error, suberrors ...Suberror) 
 			Chinese:   "Cluster does not exist but in 中文",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
-			File:      file,
-			Line:      line,
 		},
 	}
 }
 
 func NewAuditConfigError(httpCode int, err error, suberrors ...Suberror) error {
-	_, file, line, _ := runtime.Caller(1)
-
 	return AuditConfigError{
 		detailedError{
 			err:       err,
@@ -779,15 +619,11 @@ func NewAuditConfigError(httpCode int, err error, suberrors ...Suberror) error {
 			Chinese:   "审计配置发生错误",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
-			File:      file,
-			Line:      line,
 		},
 	}
 }
 
 func NewCannotGetDiskUsageError(httpCode int, err error, suberrors ...Suberror) error {
-	_, file, line, _ := runtime.Caller(1)
-
 	return CannotGetDiskUsageError{
 		detailedError{
 			err:       err,
@@ -795,15 +631,11 @@ func NewCannotGetDiskUsageError(httpCode int, err error, suberrors ...Suberror) 
 			Chinese:   "无法获取磁盘用量信息",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
-			File:      file,
-			Line:      line,
 		},
 	}
 }
 
 func NewAuditConfigDoesntExistError(httpCode int, err error, suberrors ...Suberror) error {
-	_, file, line, _ := runtime.Caller(1)
-
 	return AuditConfigDoesntExistError{
 		detailedError{
 			err:       err,
@@ -811,15 +643,11 @@ func NewAuditConfigDoesntExistError(httpCode int, err error, suberrors ...Suberr
 			Chinese:   "审计配置不存在",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
-			File:      file,
-			Line:      line,
 		},
 	}
 }
 
 func NewGarbageCollectionError(httpCode int, err error, suberrors ...Suberror) error {
-	_, file, line, _ := runtime.Caller(1)
-
 	return GarbageCollectionError{
 		detailedError{
 			err:       err,
@@ -827,15 +655,11 @@ func NewGarbageCollectionError(httpCode int, err error, suberrors ...Suberror) e
 			Chinese:   "垃圾回收錯誤",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
-			File:      file,
-			Line:      line,
 		},
 	}
 }
 
 func NewGarbageCollectionInProgressError(httpCode int, err error, suberrors ...Suberror) error {
-	_, file, line, _ := runtime.Caller(1)
-
 	return GarbageCollectionInProgressError{
 		detailedError{
 			err:       err,
@@ -843,15 +667,11 @@ func NewGarbageCollectionInProgressError(httpCode int, err error, suberrors ...S
 			Chinese:   "垃圾回收正在進行中",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
-			File:      file,
-			Line:      line,
 		},
 	}
 }
 
 func NewAssetDoesntExistError(httpCode int, err error, suberrors ...Suberror) error {
-	_, file, line, _ := runtime.Caller(1)
-
 	return AssetDoesntExistError{
 		detailedError{
 			err:       err,
@@ -859,15 +679,11 @@ func NewAssetDoesntExistError(httpCode int, err error, suberrors ...Suberror) er
 			Chinese:   "資產不存在",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
-			File:      file,
-			Line:      line,
 		},
 	}
 }
 
 func NewRedisCacheError(httpCode int, err error, suberrors ...Suberror) error {
-	_, file, line, _ := runtime.Caller(1)
-
 	return RedisCacheError{
 		detailedError{
 			err:       err,
@@ -875,15 +691,11 @@ func NewRedisCacheError(httpCode int, err error, suberrors ...Suberror) error {
 			Chinese:   "Redis緩存錯誤",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
-			File:      file,
-			Line:      line,
 		},
 	}
 }
 
 func LoginError(httpCode int, err error, suberrors ...Suberror) error {
-	_, file, line, _ := runtime.Caller(1)
-
 	return AnError{
 		detailedError{
 			err:       err,
@@ -891,15 +703,11 @@ func LoginError(httpCode int, err error, suberrors ...Suberror) error {
 			Chinese:   "用户名或密码错误",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
-			File:      file,
-			Line:      line,
 		},
 	}
 }
 
 func RDBError(httpCode int, err error, suberrors ...Suberror) error {
-	_, file, line, _ := runtime.Caller(1)
-
 	return MongoError{
 		detailedError{
 			err:       err,
@@ -907,15 +715,11 @@ func RDBError(httpCode int, err error, suberrors ...Suberror) error {
 			Chinese:   "服务器开小差了",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
-			File:      file,
-			Line:      line,
 		},
 	}
 }
 
 func UserExistError(httpCode int, err error, suberrors ...Suberror) error {
-	_, file, line, _ := runtime.Caller(1)
-
 	return AnError{
 		detailedError{
 			err:       err,
@@ -923,14 +727,10 @@ func UserExistError(httpCode int, err error, suberrors ...Suberror) error {
 			Chinese:   "用户已经存在",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
-			File:      file,
-			Line:      line,
 		},
 	}
 }
 func UserNotExistError(httpCode int, err error, suberrors ...Suberror) error {
-	_, file, line, _ := runtime.Caller(1)
-
 	return AnError{
 		detailedError{
 			err:       err,
@@ -938,15 +738,11 @@ func UserNotExistError(httpCode int, err error, suberrors ...Suberror) error {
 			Chinese:   "用户不存在",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
-			File:      file,
-			Line:      line,
 		},
 	}
 }
 
 func SendmailError(httpCode int, err error, suberrors ...Suberror) error {
-	_, file, line, _ := runtime.Caller(1)
-
 	return AnError{
 		detailedError{
 			err:       err,
@@ -954,15 +750,11 @@ func SendmailError(httpCode int, err error, suberrors ...Suberror) error {
 			Chinese:   "发送邮件错误",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
-			File:      file,
-			Line:      line,
 		},
 	}
 }
 
 func EmailForMatError(httpCode int, err error, suberrors ...Suberror) error {
-	_, file, line, _ := runtime.Caller(1)
-
 	return AnError{
 		detailedError{
 			err:       err,
@@ -970,15 +762,11 @@ func EmailForMatError(httpCode int, err error, suberrors ...Suberror) error {
 			Chinese:   "邮件格式错误",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
-			File:      file,
-			Line:      line,
 		},
 	}
 }
 
 func AccountUnActive(httpCode int, err error, suberrors ...Suberror) error {
-	_, file, line, _ := runtime.Caller(1)
-
 	return AnError{
 		detailedError{
 			err:       err,
@@ -986,15 +774,11 @@ func AccountUnActive(httpCode int, err error, suberrors ...Suberror) error {
 			Chinese:   "账户未激活",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
-			File:      file,
-			Line:      line,
 		},
 	}
 }
 
 func NewProfileDoestExistError(httpCode int, err error, suberrors ...Suberror) error {
-	_, file, line, _ := runtime.Caller(1)
-
 	return MongoError{
 		detailedError{
 			err:       err,
@@ -1002,15 +786,11 @@ func NewProfileDoestExistError(httpCode int, err error, suberrors ...Suberror) e
 			Chinese:   "安全配置文件不存在",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
-			File:      file,
-			Line:      line,
 		},
 	}
 }
 
 func NewNotFoundError(httpCode int, err error, suberrors ...Suberror) error {
-	_, file, line, _ := runtime.Caller(1)
-
 	return NotFoundError{
 		detailedError{
 			err:       err,
@@ -1018,15 +798,11 @@ func NewNotFoundError(httpCode int, err error, suberrors ...Suberror) error {
 			Chinese:   "未找到",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
-			File:      file,
-			Line:      line,
 		},
 	}
 }
 
 func NewPolicyError(httpCode int, err error, suberrors ...Suberror) error {
-	_, file, line, _ := runtime.Caller(1)
-
 	return PolicyError{
 		detailedError{
 			err:       err,
@@ -1034,15 +810,11 @@ func NewPolicyError(httpCode int, err error, suberrors ...Suberror) error {
 			Chinese:   "安全策略失敗",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
-			File:      file,
-			Line:      line,
 		},
 	}
 }
 
 func NewPolicyTrainingError(httpCode int, err error, suberrors ...Suberror) error {
-	_, file, line, _ := runtime.Caller(1)
-
 	return PolicyTrainingError{
 		detailedError{
 			err:       err,
@@ -1050,15 +822,11 @@ func NewPolicyTrainingError(httpCode int, err error, suberrors ...Suberror) erro
 			Chinese:   "安全策略訓練失敗",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
-			File:      file,
-			Line:      line,
 		},
 	}
 }
 
 func NewCannotAddResourceToActivePolicyError(httpCode int, err error, suberrors ...Suberror) error {
-	_, file, line, _ := runtime.Caller(1)
-
 	return CannotAddResourceToActivePolicyError{
 		detailedError{
 			err:       err,
@@ -1066,15 +834,11 @@ func NewCannotAddResourceToActivePolicyError(httpCode int, err error, suberrors 
 			Chinese:   "无法将资源添加到已启用的策略",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
-			File:      file,
-			Line:      line,
 		},
 	}
 }
 
 func NewCannotAddResourceToPolicyInTrainingError(httpCode int, err error, suberrors ...Suberror) error {
-	_, file, line, _ := runtime.Caller(1)
-
 	return CannotAddResourceToPolicyInTrainingError{
 		detailedError{
 			err:       err,
@@ -1082,15 +846,11 @@ func NewCannotAddResourceToPolicyInTrainingError(httpCode int, err error, suberr
 			Chinese:   "无法将资源添加到正在训练中的策略",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
-			File:      file,
-			Line:      line,
 		},
 	}
 }
 
 func NewPolicyNotFoundError(httpCode int, err error, suberrors ...Suberror) error {
-	_, file, line, _ := runtime.Caller(1)
-
 	return PolicyNotFoundError{
 		detailedError{
 			err:       err,
@@ -1098,15 +858,11 @@ func NewPolicyNotFoundError(httpCode int, err error, suberrors ...Suberror) erro
 			Chinese:   "未找到策略",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
-			File:      file,
-			Line:      line,
 		},
 	}
 }
 
 func NewResourceNotFoundError(httpCode int, err error, suberrors ...Suberror) error {
-	_, file, line, _ := runtime.Caller(1)
-
 	return ResourceNotFoundError{
 		detailedError{
 			err:       err,
@@ -1114,15 +870,11 @@ func NewResourceNotFoundError(httpCode int, err error, suberrors ...Suberror) er
 			Chinese:   "找不到资源",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
-			File:      file,
-			Line:      line,
 		},
 	}
 }
 
 func NewResourceAlreadyAttachedToPolicyError(httpCode int, err error, suberrors ...Suberror) error {
-	_, file, line, _ := runtime.Caller(1)
-
 	return ResourceAlreadyAttachedToPolicyError{
 		detailedError{
 			err:       err,
@@ -1130,15 +882,11 @@ func NewResourceAlreadyAttachedToPolicyError(httpCode int, err error, suberrors 
 			Chinese:   "资源已经添加到策略",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
-			File:      file,
-			Line:      line,
 		},
 	}
 }
 
 func NewResourceAttachedToDifferentPolicyError(httpCode int, err error, suberrors ...Suberror) error {
-	_, file, line, _ := runtime.Caller(1)
-
 	return ResourceAttachedToDifferentPolicyError{
 		detailedError{
 			err:       err,
@@ -1146,15 +894,11 @@ func NewResourceAttachedToDifferentPolicyError(httpCode int, err error, suberror
 			Chinese:   "资源已经添加到其他策略",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
-			File:      file,
-			Line:      line,
 		},
 	}
 }
 
 func NewCannotRemoveResourceFromActivePolicyError(httpCode int, err error, suberrors ...Suberror) error {
-	_, file, line, _ := runtime.Caller(1)
-
 	return CannotRemoveResourceFromActivePolicyError{
 		detailedError{
 			err:       err,
@@ -1162,15 +906,11 @@ func NewCannotRemoveResourceFromActivePolicyError(httpCode int, err error, suber
 			Chinese:   "无法删除启用中策略的资源",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
-			File:      file,
-			Line:      line,
 		},
 	}
 }
 
 func NewCannotRemoveResourceFromPolicyInTrainingError(httpCode int, err error, suberrors ...Suberror) error {
-	_, file, line, _ := runtime.Caller(1)
-
 	return CannotRemoveResourceFromPolicyInTrainingError{
 		detailedError{
 			err:       err,
@@ -1178,15 +918,11 @@ func NewCannotRemoveResourceFromPolicyInTrainingError(httpCode int, err error, s
 			Chinese:   "无法从训练中的策略里删除资源",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
-			File:      file,
-			Line:      line,
 		},
 	}
 }
 
 func NewResourceNotAttachedToPolicyError(httpCode int, err error, suberrors ...Suberror) error {
-	_, file, line, _ := runtime.Caller(1)
-
 	return ResourceNotAttachedToPolicyError{
 		detailedError{
 			err:       err,
@@ -1194,15 +930,11 @@ func NewResourceNotAttachedToPolicyError(httpCode int, err error, suberrors ...S
 			Chinese:   "资源未添加到策略",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
-			File:      file,
-			Line:      line,
 		},
 	}
 }
 
 func NewUnknownSecurityModeError(httpCode int, err error, suberrors ...Suberror) error {
-	_, file, line, _ := runtime.Caller(1)
-
 	return UnknownSecurityModeError{
 		detailedError{
 			err:       err,
@@ -1210,15 +942,11 @@ func NewUnknownSecurityModeError(httpCode int, err error, suberrors ...Suberror)
 			Chinese:   "未知的安全模式",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
-			File:      file,
-			Line:      line,
 		},
 	}
 }
 
 func NewProfileUpdateError(httpCode int, err error, suberrors ...Suberror) error {
-	_, file, line, _ := runtime.Caller(1)
-
 	return ProfileUpdateError{
 		detailedError{
 			err:       err,
@@ -1226,15 +954,11 @@ func NewProfileUpdateError(httpCode int, err error, suberrors ...Suberror) error
 			Chinese:   "配置文件更新错误",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
-			File:      file,
-			Line:      line,
 		},
 	}
 }
 
 func NewCannotDeactivatePolicyProfilesAreInTrainingError(httpCode int, err error, suberrors ...Suberror) error {
-	_, file, line, _ := runtime.Caller(1)
-
 	return CannotDeactivatePolicyProfilesAreInTrainingError{
 		detailedError{
 			err:       err,
@@ -1242,15 +966,11 @@ func NewCannotDeactivatePolicyProfilesAreInTrainingError(httpCode int, err error
 			Chinese:   "无法停用策略，因为某些配置文件正在训练中",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
-			File:      file,
-			Line:      line,
 		},
 	}
 }
 
 func NewCannotDeleteActivePolicyError(httpCode int, err error, suberrors ...Suberror) error {
-	_, file, line, _ := runtime.Caller(1)
-
 	return CannotDeleteActivePolicyError{
 		detailedError{
 			err:       err,
@@ -1258,15 +978,11 @@ func NewCannotDeleteActivePolicyError(httpCode int, err error, suberrors ...Sube
 			Chinese:   "无法刪除已启用的策略",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
-			File:      file,
-			Line:      line,
 		},
 	}
 }
 
 func NewCannotUpdateConfigOfCurrentlyTrainedProfileError(httpCode int, err error, suberrors ...Suberror) error {
-	_, file, line, _ := runtime.Caller(1)
-
 	return CannotUpdateConfigOfCurrentlyTrainedProfileError{
 		detailedError{
 			err:       err,
@@ -1274,15 +990,11 @@ func NewCannotUpdateConfigOfCurrentlyTrainedProfileError(httpCode int, err error
 			Chinese:   "无法更新当前训练的配置文件",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
-			File:      file,
-			Line:      line,
 		},
 	}
 }
 
 func NewCannotChangeProfileStatusWhenPolicyIsActiveError(httpCode int, err error, suberrors ...Suberror) error {
-	_, file, line, _ := runtime.Caller(1)
-
 	return CannotChangeProfileStatusWhenPolicyIsActiveError{
 		detailedError{
 			err:       err,
@@ -1290,15 +1002,11 @@ func NewCannotChangeProfileStatusWhenPolicyIsActiveError(httpCode int, err error
 			Chinese:   "策略开启时无法修改默认动作",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
-			File:      file,
-			Line:      line,
 		},
 	}
 }
 
 func NewUnknownSecurityProfileKindError(httpCode int, err error, suberrors ...Suberror) error {
-	_, file, line, _ := runtime.Caller(1)
-
 	return UnknownSecurityProfileKindError{
 		detailedError{
 			err:       err,
@@ -1306,15 +1014,11 @@ func NewUnknownSecurityProfileKindError(httpCode int, err error, suberrors ...Su
 			Chinese:   "未知的安全配置文件类型",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
-			File:      file,
-			Line:      line,
 		},
 	}
 }
 
 func NewCannotStartTrainingThatIsEmptyResourcesError(httpCode int, err error, suberrors ...Suberror) error {
-	_, file, line, _ := runtime.Caller(1)
-
 	return CannotStartTrainingThatIsEmptyResourcesError{
 		detailedError{
 			err:       err,
@@ -1322,15 +1026,11 @@ func NewCannotStartTrainingThatIsEmptyResourcesError(httpCode int, err error, su
 			Chinese:   "无法开始训练资源为空的策略",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
-			File:      file,
-			Line:      line,
 		},
 	}
 }
 
 func NewCannotStartTrainingThatIsInProgressError(httpCode int, err error, suberrors ...Suberror) error {
-	_, file, line, _ := runtime.Caller(1)
-
 	return CannotStartTrainingThatIsInProgressError{
 		detailedError{
 			err:       err,
@@ -1338,15 +1038,11 @@ func NewCannotStartTrainingThatIsInProgressError(httpCode int, err error, suberr
 			Chinese:   "无法开始正在进行的训练",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
-			File:      file,
-			Line:      line,
 		},
 	}
 }
 
 func NewCannotStartAPausedTrainingError(httpCode int, err error, suberrors ...Suberror) error {
-	_, file, line, _ := runtime.Caller(1)
-
 	return CannotStartAPausedTrainingError{
 		detailedError{
 			err:       err,
@@ -1354,15 +1050,11 @@ func NewCannotStartAPausedTrainingError(httpCode int, err error, suberrors ...Su
 			Chinese:   "无法开始暂停的训练",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
-			File:      file,
-			Line:      line,
 		},
 	}
 }
 
 func NewCannotAbortNonStartedTrainingError(httpCode int, err error, suberrors ...Suberror) error {
-	_, file, line, _ := runtime.Caller(1)
-
 	return CannotAbortNonStartedTrainingError{
 		detailedError{
 			err:       err,
@@ -1370,15 +1062,11 @@ func NewCannotAbortNonStartedTrainingError(httpCode int, err error, suberrors ..
 			Chinese:   "无法终止未开始的训练",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
-			File:      file,
-			Line:      line,
 		},
 	}
 }
 
 func NewCannotSuspendAPausedTrainingError(httpCode int, err error, suberrors ...Suberror) error {
-	_, file, line, _ := runtime.Caller(1)
-
 	return CannotSuspendAPausedTrainingError{
 		detailedError{
 			err:       err,
@@ -1386,15 +1074,11 @@ func NewCannotSuspendAPausedTrainingError(httpCode int, err error, suberrors ...
 			Chinese:   "无法暂停已经暂停的训练",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
-			File:      file,
-			Line:      line,
 		},
 	}
 }
 
 func NewCannotSuspendANonStartedTrainingError(httpCode int, err error, suberrors ...Suberror) error {
-	_, file, line, _ := runtime.Caller(1)
-
 	return CannotSuspendANonStartedTrainingError{
 		detailedError{
 			err:       err,
@@ -1402,15 +1086,11 @@ func NewCannotSuspendANonStartedTrainingError(httpCode int, err error, suberrors
 			Chinese:   "无法暂停未开始的训练",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
-			File:      file,
-			Line:      line,
 		},
 	}
 }
 
 func NewCannotResumeAnInProgressTrainingError(httpCode int, err error, suberrors ...Suberror) error {
-	_, file, line, _ := runtime.Caller(1)
-
 	return CannotResumeAnInProgressTrainingError{
 		detailedError{
 			err:       err,
@@ -1418,15 +1098,11 @@ func NewCannotResumeAnInProgressTrainingError(httpCode int, err error, suberrors
 			Chinese:   "无法继续正在进行的训练",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
-			File:      file,
-			Line:      line,
 		},
 	}
 }
 
 func NewCannotResumeANonStartedTrainingError(httpCode int, err error, suberrors ...Suberror) error {
-	_, file, line, _ := runtime.Caller(1)
-
 	return CannotResumeANonStartedTrainingError{
 		detailedError{
 			err:       err,
@@ -1434,15 +1110,11 @@ func NewCannotResumeANonStartedTrainingError(httpCode int, err error, suberrors 
 			Chinese:   "无法继续未开始的训练",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
-			File:      file,
-			Line:      line,
 		},
 	}
 }
 
 func NewCannotStopANonStartedTrainingError(httpCode int, err error, suberrors ...Suberror) error {
-	_, file, line, _ := runtime.Caller(1)
-
 	return CannotStopANonStartedTrainingError{
 		detailedError{
 			err:       err,
@@ -1450,29 +1122,22 @@ func NewCannotStopANonStartedTrainingError(httpCode int, err error, suberrors ..
 			Chinese:   "无法停止未开始的训练",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
-			File:      file,
-			Line:      line,
 		},
 	}
 }
 
 func NewCommonError(httpCode int, err error, zhMsg, enMsg string) error {
-	_, file, line, _ := runtime.Caller(1)
 	return CommonError{
 		detailedError{
 			err:      err,
 			English:  enMsg,
 			Chinese:  zhMsg,
 			HTTPCode: httpCode,
-			File:     file,
-			Line:     line,
 		},
 	}
 }
 
 func NewMissingStartTrainingTimeInTrainedProfileError(httpCode int, err error, suberrors ...Suberror) error {
-	_, file, line, _ := runtime.Caller(1)
-
 	return MissingStartTrainingTimeInTrainedProfileError{
 		detailedError{
 			err:       err,
@@ -1480,15 +1145,11 @@ func NewMissingStartTrainingTimeInTrainedProfileError(httpCode int, err error, s
 			Chinese:   "训练配置中缺少'开始时间'",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
-			File:      file,
-			Line:      line,
 		},
 	}
 }
 
 func NewPolicyAlreadySetToRequestedStatus(httpCode int, err error, suberrors ...Suberror) error {
-	_, file, line, _ := runtime.Caller(1)
-
 	return PolicyAlreadySetToRequestedStatus{
 		detailedError{
 			err:       err,
@@ -1496,15 +1157,11 @@ func NewPolicyAlreadySetToRequestedStatus(httpCode int, err error, suberrors ...
 			Chinese:   "策略已经设置为请求状态",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
-			File:      file,
-			Line:      line,
 		},
 	}
 }
 
 func NewPolicyAlreadySetToRequestedMode(httpCode int, err error, suberrors ...Suberror) error {
-	_, file, line, _ := runtime.Caller(1)
-
 	return PolicyAlreadySetToRequestedMode{
 		detailedError{
 			err:       err,
@@ -1512,15 +1169,11 @@ func NewPolicyAlreadySetToRequestedMode(httpCode int, err error, suberrors ...Su
 			Chinese:   "策略已经设置为请求模式",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
-			File:      file,
-			Line:      line,
 		},
 	}
 }
 
 func NewProfileAlreadySetToRequestedStatus(httpCode int, err error, suberrors ...Suberror) error {
-	_, file, line, _ := runtime.Caller(1)
-
 	return ProfileAlreadySetToRequestedStatus{
 		detailedError{
 			err:       err,
@@ -1528,15 +1181,11 @@ func NewProfileAlreadySetToRequestedStatus(httpCode int, err error, suberrors ..
 			Chinese:   "配置已经设置为请求状态",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
-			File:      file,
-			Line:      line,
 		},
 	}
 }
 
 func NewCannotChangePolicyStatusAreInTrainingError(httpCode int, err error, suberrors ...Suberror) error {
-	_, file, line, _ := runtime.Caller(1)
-
 	return CannotChangePolicyStatusAreInTrainingError{
 		detailedError{
 			err:       err,
@@ -1544,15 +1193,11 @@ func NewCannotChangePolicyStatusAreInTrainingError(httpCode int, err error, sube
 			Chinese:   "无法修改配置，配置文件正在训练中",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
-			File:      file,
-			Line:      line,
 		},
 	}
 }
 
 func NewCannotUpdateProfileThatIsTrained(httpCode int, err error, suberrors ...Suberror) error {
-	_, file, line, _ := runtime.Caller(1)
-
 	return CannotUpdateProfileThatIsTrained{
 		detailedError{
 			err:       err,
@@ -1560,15 +1205,11 @@ func NewCannotUpdateProfileThatIsTrained(httpCode int, err error, suberrors ...S
 			Chinese:   "无法更新正在训练中的策略",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
-			File:      file,
-			Line:      line,
 		},
 	}
 }
 
 func NewInvalidAccessSentError(httpCode int, err error, suberrors ...Suberror) error {
-	_, file, line, _ := runtime.Caller(1)
-
 	return InvalidAccessSentError{
 		detailedError{
 			err:       err,
@@ -1576,15 +1217,11 @@ func NewInvalidAccessSentError(httpCode int, err error, suberrors ...Suberror) e
 			Chinese:   "输入的的文件访问无效",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
-			File:      file,
-			Line:      line,
 		},
 	}
 }
 
 func NewInvalidSyscallSentError(httpCode int, err error, suberrors ...Suberror) error {
-	_, file, line, _ := runtime.Caller(1)
-
 	return InvalidSyscallSentError{
 		detailedError{
 			err:       err,
@@ -1592,15 +1229,11 @@ func NewInvalidSyscallSentError(httpCode int, err error, suberrors ...Suberror) 
 			Chinese:   "输入的系统调用无效",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
-			File:      file,
-			Line:      line,
 		},
 	}
 }
 
 func NewFileSentNotAbsoluteError(httpCode int, err error, suberrors ...Suberror) error {
-	_, file, line, _ := runtime.Caller(1)
-
 	return FileSentNotAbsoluteError{
 		detailedError{
 			err:       err,
@@ -1608,15 +1241,11 @@ func NewFileSentNotAbsoluteError(httpCode int, err error, suberrors ...Suberror)
 			Chinese:   "输入的文件不是绝对路径",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
-			File:      file,
-			Line:      line,
 		},
 	}
 }
 
 func NewMissingFileSentError(httpCode int, err error, suberrors ...Suberror) error {
-	_, file, line, _ := runtime.Caller(1)
-
 	return MissingFileSentError{
 		detailedError{
 			err:       err,
@@ -1624,15 +1253,11 @@ func NewMissingFileSentError(httpCode int, err error, suberrors ...Suberror) err
 			Chinese:   "输入空的文件路径",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
-			File:      file,
-			Line:      line,
 		},
 	}
 }
 
 func NewMissingWorkingDirSentError(httpCode int, err error, suberrors ...Suberror) error {
-	_, file, line, _ := runtime.Caller(1)
-
 	return MissingWorkingDirSentError{
 		detailedError{
 			err:       err,
@@ -1640,15 +1265,11 @@ func NewMissingWorkingDirSentError(httpCode int, err error, suberrors ...Suberro
 			Chinese:   "输入空的文件目录",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
-			File:      file,
-			Line:      line,
 		},
 	}
 }
 
 func NewMissingSyscallSentError(httpCode int, err error, suberrors ...Suberror) error {
-	_, file, line, _ := runtime.Caller(1)
-
 	return MissingSyscallSentError{
 		detailedError{
 			err:       err,
@@ -1656,15 +1277,11 @@ func NewMissingSyscallSentError(httpCode int, err error, suberrors ...Suberror) 
 			Chinese:   "输入空的系统调用",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
-			File:      file,
-			Line:      line,
 		},
 	}
 }
 
 func NewWorkingDirSentNotAbsoluteError(httpCode int, err error, suberrors ...Suberror) error {
-	_, file, line, _ := runtime.Caller(1)
-
 	return WorkingDirSentNotAbsoluteError{
 		detailedError{
 			err:       err,
@@ -1672,15 +1289,11 @@ func NewWorkingDirSentNotAbsoluteError(httpCode int, err error, suberrors ...Sub
 			Chinese:   "输入的工作路径不是绝对路径",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
-			File:      file,
-			Line:      line,
 		},
 	}
 }
 
 func NewMissingCommandSentError(httpCode int, err error, suberrors ...Suberror) error {
-	_, file, line, _ := runtime.Caller(1)
-
 	return MissingCommandSentError{
 		detailedError{
 			err:       err,
@@ -1688,15 +1301,11 @@ func NewMissingCommandSentError(httpCode int, err error, suberrors ...Suberror) 
 			Chinese:   "输入空命令",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
-			File:      file,
-			Line:      line,
 		},
 	}
 }
 
 func NewDuplicateEntrySentError(httpCode int, err error, suberrors ...Suberror) error {
-	_, file, line, _ := runtime.Caller(1)
-
 	return DuplicateEntrySentError{
 		detailedError{
 			err:       err,
@@ -1704,15 +1313,11 @@ func NewDuplicateEntrySentError(httpCode int, err error, suberrors ...Suberror) 
 			Chinese:   "输入的条目已经存在",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
-			File:      file,
-			Line:      line,
 		},
 	}
 }
 
 func NewBaitNameDuplicateError(httpCode int, err error, suberrors ...Suberror) error {
-	_, file, line, _ := runtime.Caller(1)
-
 	return BaitNameDuplicateError{
 		detailedError{
 			err:       err,
@@ -1720,15 +1325,11 @@ func NewBaitNameDuplicateError(httpCode int, err error, suberrors ...Suberror) e
 			Chinese:   "服务名称重复",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
-			File:      file,
-			Line:      line,
 		},
 	}
 }
 
 func NewResourceNameDuplicateError(httpCode int, err error, suberrors ...Suberror) error {
-	_, file, line, _ := runtime.Caller(1)
-
 	return ResourceNameDuplicateError{
 		detailedError{
 			err:       err,
@@ -1736,15 +1337,11 @@ func NewResourceNameDuplicateError(httpCode int, err error, suberrors ...Suberro
 			Chinese:   "资源名称重复",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
-			File:      file,
-			Line:      line,
 		},
 	}
 }
 
 func NewAddBaitServiceError(httpCode int, err error, suberrors ...Suberror) error {
-	_, file, line, _ := runtime.Caller(1)
-
 	return AddBaitServiceError{
 		detailedError{
 			err:       err,
@@ -1752,28 +1349,20 @@ func NewAddBaitServiceError(httpCode int, err error, suberrors ...Suberror) erro
 			Chinese:   "新增失败，请重试",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
-			File:      file,
-			Line:      line,
 		},
 	}
 }
 
 func NewErrorWithCode(httpCode int, err error) error {
-	_, file, line, _ := runtime.Caller(1)
-
 	return detailedError{
 		err:      err,
 		English:  err.Error(),
 		Chinese:  err.Error(),
 		HTTPCode: httpCode,
-		File:     file,
-		Line:     line,
 	}
 }
 
 func NewPwdStrengthError(httpCode int, err error, suberrors ...Suberror) error {
-	_, file, line, _ := runtime.Caller(1)
-
 	return AddBaitServiceError{
 		detailedError{
 			err:       err,
@@ -1781,15 +1370,11 @@ func NewPwdStrengthError(httpCode int, err error, suberrors ...Suberror) error {
 			Chinese:   "密码强度较低",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
-			File:      file,
-			Line:      line,
 		},
 	}
 }
 
 func NewInvalidLicenseError(httpCode int, err error, suberrors ...Suberror) error {
-	_, file, line, _ := runtime.Caller(1)
-
 	return AddBaitServiceError{
 		detailedError{
 			err:       err,
@@ -1797,8 +1382,6 @@ func NewInvalidLicenseError(httpCode int, err error, suberrors ...Suberror) erro
 			Chinese:   "无效的License",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
-			File:      file,
-			Line:      line,
 		},
 	}
 }
