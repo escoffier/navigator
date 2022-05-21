@@ -221,7 +221,7 @@ func (s *Scapper) RunComplianceCheck(
 	}
 
 	var cluster = new(model.TensorCluster)
-	var nodes []string
+	var nodes []corev1.Node
 	var kubeClient *pkgassets.Clientset
 	var jobObj *batchv1.Job
 
@@ -285,13 +285,13 @@ func (s *Scapper) RunComplianceCheck(
 			Str("namespace", check.Namespace).Str("operator", check.Operator).Str("image", jobObj.Spec.Template.Spec.Containers[0].Image).
 			Int("node-items-num", len(nodes)).Msg("Scheduling SCAP check jobs")
 
-		for _, targetNode := range nodes {
+		for i := range nodes {
 			// TODO: resilience. We should save a task to mongo so that in case of Console crash we can restart the check?
 			// or do we not care about this since this is a rare operation?
 
-			err := s.dbAddJobStatusInProgress(ctx, &check, targetNode)
+			err := s.dbAddJobStatusInProgress(ctx, &check, &nodes[i])
 			if err != nil {
-				logging.Get().Err(err).Msgf("set node %s for check task %+v error", targetNode, check)
+				logging.Get().Err(err).Msgf("set node %s for check task %+v error", nodes[i].Name, check)
 				continue
 			}
 		}
@@ -452,7 +452,7 @@ func (s *Scapper) garbageCollectHistoricalJobs(ctx context.Context, kubeClient *
 	return nil
 }
 
-func (s *Scapper) asyncScheduleAndManageJobs(kubeClient *pkgassets.Clientset, check *model.Check, jobObj *batchv1.Job, nodes []string, clusterName string) {
+func (s *Scapper) asyncScheduleAndManageJobs(kubeClient *pkgassets.Clientset, check *model.Check, jobObj *batchv1.Job, nodes []corev1.Node, clusterName string) {
 	defer func() {
 		if r := recover(); r != nil {
 			logging.Get().Error().Msgf("Panic : %v. stack: %s", r, debug.Stack())
@@ -471,6 +471,7 @@ func (s *Scapper) asyncScheduleAndManageJobs(kubeClient *pkgassets.Clientset, ch
 
 	go s.awaitAndUpdateJobsStatuses(check, scheduledNodesCh, finishedNodesCh, listenerStopCh)
 
+FOR:
 	for _, targetNode := range nodes {
 		select {
 		case <-ctx.Done():
@@ -485,22 +486,29 @@ func (s *Scapper) asyncScheduleAndManageJobs(kubeClient *pkgassets.Clientset, ch
 			// Note2: but we must close scheduledNodesCh after all jobs were scheduled.
 			// go func() {
 			//create job name
-			jobName := s.CreateJobName(check.CheckUUID, check.CheckType, targetNode)
+
+			if !s.nodeIsReady(&targetNode) {
+				continue FOR
+			}
+
+			nodeName := targetNode.Name
+
+			jobName := s.CreateJobName(check.CheckUUID, check.CheckType, nodeName)
 			//schedule job
-			err := s.scheduleOneJob(ctx, kubeClient, check, jobObj.DeepCopy(), clusterName, jobName, targetNode)
+			err := s.scheduleOneJob(ctx, kubeClient, check, jobObj.DeepCopy(), clusterName, jobName, nodeName)
 			if err != nil {
 				logging.Get().Error().Msgf("Failed to schedule job, %v.", err)
 
 				msg := fmt.Sprintf("Failed to schedule job: %s", err)
-				check.NodeName = targetNode
+				check.NodeName = nodeName
 				err = s.dbJobStatusUpdate(model.ScanStateFailed, check, msg, time.Now().Unix())
 				if err != nil {
 					logging.Get().Err(err).Msgf("update job status failed, msg: %s", msg)
 				}
 				//
-				finishedNodesCh <- targetNode
+				finishedNodesCh <- nodeName
 			} else {
-				scheduledNodesCh <- targetNode
+				scheduledNodesCh <- nodeName
 			}
 		}
 	}
@@ -691,20 +699,28 @@ func (s *Scapper) scheduleOneJob(ctx context.Context, kubeClient *pkgassets.Clie
 	return nil
 }
 
-func (s *Scapper) dbAddJobStatusInProgress(ctx context.Context, check *model.Check, targetNodeName string) error {
-	jobName := s.CreateJobName(check.CheckUUID, check.CheckType, targetNodeName)
+func (s *Scapper) dbAddJobStatusInProgress(ctx context.Context, check *model.Check, targetNode *corev1.Node) error {
+	jobName := s.CreateJobName(check.CheckUUID, check.CheckType, targetNode.Name)
+
+	status := model.ScanStateFailed
+	createAt := time.Now().Unix()
+	finishedAt := createAt
+	if s.nodeIsReady(targetNode) {
+		status = model.ScanStateInProgress
+		finishedAt = 0 // 当可以创建pods时(node 时ready状态)
+	}
 
 	task := model.ScanNodeRecord{
 		TaskID:     check.CheckUUID,
 		CheckType:  check.CheckType,
 		ClusterKey: check.ClusterID,
 		Operator:   check.Operator,
-		NodeName:   targetNodeName,
+		NodeName:   targetNode.Name,
 		Namespace:  check.Namespace,
 		JobName:    jobName,
-		State:      model.ScanStateInProgress,
-		CreatedAt:  time.Now().Unix(),
-		FinishedAt: 0,
+		State:      status,
+		CreatedAt:  createAt,
+		FinishedAt: finishedAt,
 	}
 
 	err := s.rdb.Get().WithContext(ctx).Create(task).Error
@@ -977,7 +993,7 @@ func removeElement(what string, from []string) []string {
 }
 
 // 如果不是全部节点则从数据库拿，否则列出集群全部节点
-func (s *Scapper) getNodes(ctx context.Context, kubeClient *pkgassets.Clientset, cluster *model.ScapClusterInfo) ([]string, error) {
+func (s *Scapper) getNodes(ctx context.Context, kubeClient *pkgassets.Clientset, cluster *model.ScapClusterInfo) ([]corev1.Node, error) {
 	var nodes []string
 	if !cluster.IsAllNodes {
 		nodes = make([]string, 0, len(cluster.ClusterNodeIds))
@@ -988,21 +1004,32 @@ func (s *Scapper) getNodes(ctx context.Context, kubeClient *pkgassets.Clientset,
 			Find(&nodes).Error; err != nil {
 			return nil, apperror.NewKubernetesError(http.StatusInternalServerError, fmt.Errorf("can't list nodes name in this cluster from db: %v", err))
 		}
-	} else {
-		// find nodes to schedule check jobs on
-		nodeItems, err := kubeClient.CoreV1().Nodes().List(ctx, metav1.ListOptions{})
-		if err != nil {
-			return nil, apperror.NewKubernetesError(http.StatusInternalServerError, fmt.Errorf("can't list nodes in this cluster from k8s cluster: %v", err))
-		}
-
-		nodes = make([]string, 0, len(nodeItems.Items))
-
-		for i := range nodeItems.Items {
-			nodes = append(nodes, nodeItems.Items[i].Name)
-		}
 	}
 
-	return nodes, nil
+	var nodesIndex = make(map[string]struct{}, len(nodes))
+	for _, v := range nodes {
+		nodesIndex[v] = struct{}{}
+	}
+
+	// 先查询全部节点，如果自定义了节点，把对应的节点筛选出来。
+	// find nodes to schedule check jobs on
+	nodeItems, err := kubeClient.CoreV1().Nodes().List(ctx, metav1.ListOptions{})
+	if err != nil {
+		return nil, apperror.NewKubernetesError(http.StatusInternalServerError, fmt.Errorf("can't list nodes in this cluster from k8s cluster: %v", err))
+	}
+
+	if cluster.IsAllNodes {
+		return nodeItems.Items, nil
+	} else {
+		var nodes = make([]corev1.Node, 0, len(nodes))
+
+		for i := range nodeItems.Items {
+			if _, ok := nodesIndex[nodeItems.Items[i].Name]; ok {
+				nodes = append(nodes, nodeItems.Items[i])
+			}
+		}
+		return nodes, nil
+	}
 }
 
 // 获取集群的信息
@@ -1101,4 +1128,24 @@ func (s *Scapper) getHostConfigMap(ctx context.Context, kubeClient *pkgassets.Cl
 	}
 
 	return configMapName, nil
+}
+
+// 检查nodes是否处于ready状态
+// 只有当node的Ready状态为true，且磁盘空间压力、内存压力、进程压力、网络配置都为false时 nodes才算可用。
+// https://kubernetes.io/zh/docs/concepts/architecture/nodes/#condition
+func (s *Scapper) nodeIsReady(node *corev1.Node) bool {
+	for _, v := range node.Status.Conditions {
+		switch v.Type {
+		case corev1.NodeReady:
+			if v.Status != corev1.ConditionTrue {
+				return false
+			}
+		default:
+			if v.Status != corev1.ConditionFalse {
+				return false
+			}
+		}
+	}
+
+	return true
 }
