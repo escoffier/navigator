@@ -1,7 +1,6 @@
 package license
 
 import (
-	"context"
 	"crypto"
 	"crypto/rand"
 	"crypto/rsa"
@@ -99,7 +98,7 @@ func (l *licenseVerifier) validate(info *Info, allowGracePeriod bool) Status {
 
 	// nodeLimit check
 	if info.NodeLimit > 0 {
-		nodeNum, err := GetUsedNodeNum(context.Background())
+		nodeNum, err := GetUsedNodeNum()
 		if err != nil {
 			logging.Get().Error().Err(err).Msg("count nodes failed")
 		} else if info.NodeLimit < nodeNum {

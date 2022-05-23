@@ -39,9 +39,14 @@ func mockGorm() (*databases.RDBInstance, sqlmock.Sqlmock, error) {
 
 	rdb := &databases.RDBInstance{}
 	v1 := reflect.ValueOf(rdb).Elem().FieldByName("followerDB")
-	newV := reflect.NewAt(v1.Type(), unsafe.Pointer(v1.UnsafeAddr())).Elem()
-	rv := reflect.ValueOf(gormDB)
-	newV.Set(rv)
+	newV1 := reflect.NewAt(v1.Type(), unsafe.Pointer(v1.UnsafeAddr())).Elem()
+	rv1 := reflect.ValueOf(gormDB)
+	newV1.Set(rv1)
+
+	v2 := reflect.ValueOf(rdb).Elem().FieldByName("primaryDB")
+	newV2 := reflect.NewAt(v2.Type(), unsafe.Pointer(v2.UnsafeAddr())).Elem()
+	rv2 := reflect.ValueOf(gormDB)
+	newV2.Set(rv2)
 
 	return rdb, mock, nil
 }
@@ -113,8 +118,6 @@ func TestGenerateEnvKey(t *testing.T) {
 	err = Init(rdb)
 	assert.NoError(t, err)
 
-	rows := sqlmock.NewRows([]string{"count(*)"}).AddRow(1)
-	mock.ExpectQuery("^SELECT count\\(\\*\\) FROM `ivan_assets_nodes`").WillReturnRows(rows)
 	envKey, err := GenerateEnvKey()
 	assert.NoError(t, err)
 	encrypted, err := base64.StdEncoding.DecodeString(envKey)
@@ -129,7 +132,7 @@ func TestGenerateEnvKey(t *testing.T) {
 	ek := envKeyInfo{}
 	err = json.Unmarshal(decrypted, &ek)
 	assert.NoError(t, err)
-	assert.Equal(t, int64(1), ek.NodeNum)
+	assert.Equal(t, int64(0), ek.NodeNum)
 }
 
 func TestRefreshLicenseInfo(t *testing.T) {
@@ -181,6 +184,9 @@ func TestRefreshLicenseInfo(t *testing.T) {
 		test.info.Sign = base64.StdEncoding.EncodeToString(sign)
 
 		licenseCode, err := json.Marshal(test.info)
+		assert.NoError(t, err)
+
+		licenseCode, err = util.AesEncryptCBC(licenseCode, publicKey[31:47])
 		assert.NoError(t, err)
 
 		err = RefreshLicenseInfo(base64.StdEncoding.EncodeToString(licenseCode), "fake")
