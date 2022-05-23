@@ -14,7 +14,6 @@ import (
 	"time"
 
 	"gitlab.com/piccolo_su/vegeta/pkg/assets"
-	"gitlab.com/piccolo_su/vegeta/pkg/dal"
 	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
@@ -117,7 +116,7 @@ func GenerateEnvKey() (string, error) {
 		return "", err
 	}
 
-	nodeNum, err := dal.CountNodes(context.Background(), manager.db, dal.NodeQuery())
+	nodeNum, err := GetUsedNodeNum()
 	if err != nil {
 		logging.Get().Error().Err(err).Msg("count nodes failed")
 	}
@@ -167,7 +166,10 @@ func GetLicenseInfo() *Info {
 }
 
 // GetUsedNodeNum get used node number
-func GetUsedNodeNum(ctx context.Context) (int64, error) {
+func GetUsedNodeNum() (int64, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+	defer cancel()
+
 	clusterManager, ok := k8s.GetClusterManager()
 	if !ok {
 		return 0, fmt.Errorf("cluster manager not exist")

@@ -155,9 +155,6 @@ func (a *api) getLicenseInfo() http.HandlerFunc {
 	}
 
 	return func(w http.ResponseWriter, r *http.Request) {
-		ctx, cancel := context.WithTimeout(r.Context(), defaultLicenseTimeout)
-		defer cancel()
-
 		result := licenseInfoResp{}
 		if info := license.GetLicenseInfo(); info != nil {
 			result.SerialNo = info.SerialNo
@@ -168,7 +165,7 @@ func (a *api) getLicenseInfo() http.HandlerFunc {
 			result.RemainDays = int64(time.Until(time.Unix(info.ExpireAt, 0)).Hours() / 24)
 			result.Status = license.ValidateLicense(false)
 
-			userNode, err := license.GetUsedNodeNum(ctx)
+			userNode, err := license.GetUsedNodeNum()
 			if err != nil {
 				logging.GetLogger().Warn().Err(err).Msg("license.GetUsedNodeNum err")
 			}
