@@ -46,6 +46,7 @@ all:
   - make rm-local-images
   - kubectl get pod --no-headers -n tensorsec|grep -v "mysql\|redis\|elasticsearch\|stan\|frontend\|eventcenter\|microseg"|awk
     '{print $1}'|xargs -i kubectl delete pod {} -n tensorsec --force --grace-period=0
+  - kubectl -n test delete pod -l app=faulty --force --grace-period=0
   rules:
   - changes:
     - pkg/**/*
