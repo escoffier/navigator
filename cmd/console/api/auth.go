@@ -86,7 +86,7 @@ func (api *api) loginBodyDecrypt(ctx context.Context, r io.ReadCloser) ([]byte, 
 	}
 
 	params := strings.Split(string(body), "##")
-	if len(params) != 2 {
+	if len(params) != 2 || params[0] == "" || params[1] == "" {
 		return nil, fmt.Errorf("parameter numbers error")
 	}
 
@@ -104,6 +104,7 @@ func (api *api) loginBodyDecrypt(ctx context.Context, r io.ReadCloser) ([]byte, 
 	if err != nil {
 		return nil, err
 	}
+
 	decrypted, err := util.AesDecryptCBC(encrypted, []byte(key))
 	if err != nil {
 		logging.Get().Error().Msgf("decrypt ase data err: %v\n%s", params, key)

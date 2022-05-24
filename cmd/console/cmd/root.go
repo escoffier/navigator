@@ -32,7 +32,8 @@ var rootCmd = &cobra.Command{
 			return fmt.Errorf("%v", errs)
 		}
 
-		logging.ReplaceLogger(loggingOptions, logging.LogFileNoColorOutput())
+		loggingOptions.SetConsoleWriterWrapper(logging.ConsoleCallerWriter)
+		logging.ReplaceLogger(loggingOptions)
 
 		logging.Get().Info().
 			Str("version", Version).

@@ -3587,6 +3587,8 @@ scm.tensorsecurity.cn/tensorsecurity-rd/fanal v0.0.0-20220415061508-baf9465b55a7
 scm.tensorsecurity.cn/tensorsecurity-rd/fanal v0.0.0-20220415061508-baf9465b55a7/go.mod h1:soK0f05cz92yM1I5diMOTvJZKjGZXhMxv5KpMbkNUgE=
 scm.tensorsecurity.cn/tensorsecurity-rd/go-pkg v0.2.29 h1:PdyyzbbInFj4WQyDtOOcJy1hXivcNhWQNnOcwpIr11k=
 scm.tensorsecurity.cn/tensorsecurity-rd/go-pkg v0.2.29/go.mod h1:EWOMOvP9D344ekKDEynUbwkKbZdpq7K20JiCLDRWPvQ=
+scm.tensorsecurity.cn/tensorsecurity-rd/go-pkg v0.2.31 h1:N8o69rZzUGeZVrw8poBU/QWgw6VFFUgaaq9hu6yDzwQ=
+scm.tensorsecurity.cn/tensorsecurity-rd/go-pkg v0.2.31/go.mod h1:EWOMOvP9D344ekKDEynUbwkKbZdpq7K20JiCLDRWPvQ=
 scm.tensorsecurity.cn/tensorsecurity-rd/podman/v3 v3.4.6-20220425170000 h1:rDGiAo7tgLYDTzUOVlK31AfAcRHqr1DCtI24mi+LzyE=
 scm.tensorsecurity.cn/tensorsecurity-rd/podman/v3 v3.4.6-20220425170000/go.mod h1:ITId80W6JXHyW8fOwmaPCQtzMYkbL/F7EGE0A2nJmDI=
 scm.tensorsecurity.cn/tensorsecurity-rd/trivy v0.19.3-0.20220415061753-3cc5416a372e h1:RugKplNZN1jOzCd8CXnY4FVukLrckRnd6WSDcS0c1HM=
