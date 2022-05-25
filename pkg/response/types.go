@@ -17,6 +17,7 @@ import (
 type HTTPEnvelope struct {
 	ApiVersion string     `json:"apiVersion"`
 	Data       *HTTPData  `json:"data,omitempty"`
+	Target     *TargetRef `json:"target,omitempty"`
 	Error      *HTTPError `json:"error,omitempty"`
 	// EnevlopeError is a special field to communicate any errors when using Functional Options pattern in response.go
 	// It's not sent to the client.
@@ -40,6 +41,12 @@ type HTTPData struct {
 	Items            json.RawMessage        `json:"items,omitempty"`
 	Item             json.RawMessage        `json:"item,omitempty"`
 	CustomFields     map[string]interface{} `json:"-"` // custom marshalling and unmarshalling
+}
+
+type TargetRef struct {
+	Name string
+	ID   string
+	Link string
 }
 
 type HTTPSubError struct {

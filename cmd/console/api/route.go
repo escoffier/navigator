@@ -2,6 +2,8 @@ package api
 
 import (
 	"context"
+	"gitlab.com/piccolo_su/vegeta/pkg/audit"
+	"gitlab.com/security-rd/go-pkg/elastic"
 
 	"github.com/go-chi/chi"
 	"github.com/go-chi/jwtauth"
@@ -36,6 +38,7 @@ func SetupRoutes(
 	harborClient *harbor.HarborRESTClient,
 	// imageService *image.ImageService,
 	ecCli pb.EventsCenterBizServiceClient,
+	es *elastic.ESClient,
 ) {
 	logging.Get().Debug().Msg("setting up routes...")
 
@@ -49,6 +52,7 @@ func SetupRoutes(
 		redisClient,
 		harborClient,
 		ecCli,
+		es,
 	)
 	r.Get("/ping", response.Pong)
 	// disable swagger APIs
@@ -87,6 +91,10 @@ func SetupRoutes(
 		r.Group(func(r chi.Router) {
 			// normal check
 			r.Use(jwtauth.Verifier(api.tokenAuth), authenticator(api.rdb), jwtAccessCheck(api.rdb))
+			cli, err := es.Get()
+			if err == nil {
+				r.Use(audit.ESAudit(cli))
+			}
 
 			r.Route("/platform", api.platform()) // platform
 			r.Route("/containerSec", api.containerSec())

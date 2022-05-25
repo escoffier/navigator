@@ -529,7 +529,14 @@ func (api *api) updateNamespace() http.HandlerFunc {
 			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, err))
 			return
 		}
-		response.Ok(w)
+
+		link := fmt.Sprintf("/api/v2/platform/assets/namespaces?cluster_key=%s&name=%s",
+			tensorNs.ClusterKey, tensorNs.Name)
+		response.Ok(w, response.WithTarget(&response.TargetRef{
+			Name: fmt.Sprintf("%s/%s", tensorNs.ClusterKey, tensorNs.Name),
+			ID:   "",
+			Link: link,
+		}))
 	}
 }
 
@@ -787,7 +794,14 @@ func (api *api) updateResourceUserData() http.HandlerFunc {
 			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, err))
 			return
 		}
-		response.Ok(w)
+
+		link := fmt.Sprintf("/api/v2/platform/assets/resources?cluster_key=%s&namespace=%s&kind=%s&query=%s",
+			res.ClusterKey, res.Namespace, res.Kind, res.Name)
+		response.Ok(w, response.WithTarget(&response.TargetRef{
+			Name: fmt.Sprintf("%s/%s/%s%s", res.ClusterKey, res.Kind, res.Namespace, res.Name),
+			ID:   "",
+			Link: link,
+		}))
 	}
 }
 

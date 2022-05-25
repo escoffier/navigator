@@ -3,10 +3,15 @@ package api
 import (
 	"github.com/go-chi/chi"
 	"github.com/go-chi/jwtauth"
+	"gitlab.com/piccolo_su/vegeta/pkg/audit"
 )
 
 func (api *api) userCenter() func(chi.Router) {
 	return func(r chi.Router) {
+		ecCli, err := api.esCli.Get()
+		if err == nil {
+			r.Use(audit.ESAudit(ecCli))
+		}
 		r.Get("/config/loginOption", api.GetLoginOption())
 		r.Get("/login/secret", api.getLoginSecret())
 		r.Group(func(r chi.Router) {

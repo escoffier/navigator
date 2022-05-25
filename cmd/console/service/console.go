@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"gitlab.com/piccolo_su/vegeta/cmd/console/service/naviaudit"
 	"net/http"
 	"os"
 	"runtime/debug"
@@ -318,6 +319,11 @@ func NewConsole(
 		logging.Get().Error().Err(err).Msg("ERROR: license init error")
 		mainCancel()
 		return nil, err
+	}
+
+	err = naviaudit.InitService(es)
+	if err != nil {
+		logging.Get().Err(err).Msg("ERROR: navi-audit service init error")
 	}
 
 	return &Console{
