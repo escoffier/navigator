@@ -719,12 +719,16 @@ func (s *Scapper) scheduleOneJob(ctx context.Context, kubeClient *pkgassets.Clie
 func (s *Scapper) dbAddJobStatusInProgress(ctx context.Context, check *model.Check, targetNode *corev1.Node) error {
 	jobName := s.CreateJobName(check.CheckUUID, check.CheckType, targetNode.Name)
 
-	status := model.ScanStateFailed
+	status := model.ScanStateInProgress
 	createAt := time.Now().Unix()
-	finishedAt := createAt
-	if pkgassets.NodeIsReady(targetNode) {
-		status = model.ScanStateInProgress
-		finishedAt = 0 // 当可以创建pods时(node 时ready状态)
+	finishedAt := int64(0)
+	if !pkgassets.NodeIsReady(targetNode) {
+		status = model.ScanStateFailed
+		finishedAt = createAt // 当不可以创建pods时(node 时not ready状态)
+		logging.Get().Info().
+			Str("task", check.CheckUUID).
+			Str("nodeName", targetNode.Name).
+			Msg("node is not ready, check this node failed")
 	}
 
 	task := model.ScanNodeRecord{
