@@ -368,7 +368,6 @@ image-validate: generate
 	#upx dist/image-validator
 	docker build -t $(REPOPREFIX)/image-validator:latest -f ./build/image-validate/Dockerfile .
 
-
 .PHONY: webhook
 webhook: generate
 	@echo "build webhook"
@@ -401,17 +400,10 @@ apiscan-job: generate
 	#upx dist/apiscan
 	docker build -t $(REPOPREFIX)/apiscan-job:latest -f ./build/apiscan-job/Dockerfile .
 
-.PHONY: mqinit
-mqinit:
-	go build -v \
-		-o dist/mqinit gitlab.com/piccolo_su/vegeta/cmd/mqinit
-	#upx dist/mqinit
-	docker build -t $(REPOPREFIX)/mqinit:latest -f ./build/mqinit/Dockerfile .
-
 .PHONY: all
 all: drift-prevention-client faulty scanner scanner-cicd scarecrow console data holmes daemon  \
-webshell-server webhook cluster-manager security-profiles-manager security-profiles-loader go-audit \
-palace safe-node-image kube-scanner-report platform-report scan_report apiscan-job mqinit
+webshell-server webhook cluster-manager palace safe-node-image kube-scanner-report platform-report \
+scan_report apiscan-job
 
 .PHONY: base
 base: scanner-base faulty-base data-base drift-prevention-client-base holmes-base security-profiles-loader-base
@@ -458,10 +450,7 @@ ifeq ($(USERELEASE),true)
 	docker push $(REPOPREFIX)/cleaner:$(RELEASEVERSION)
 	docker push $(REPOPREFIX)/drift-prevention-client:$(RELEASEVERSION)
 	docker push $(REPOPREFIX)/faulty:$(RELEASEVERSION)
-	docker push $(REPOPREFIX)/security-profiles-manager:$(RELEASEVERSION)
-	docker push $(REPOPREFIX)/security-profiles-loader:$(RELEASEVERSION)
 	docker push $(REPOPREFIX)/palace:$(RELEASEVERSION)
-	docker push $(REPOPREFIX)/go-audit:$(RELEASEVERSION)
 	docker push $(REPOPREFIX)/holmes:$(RELEASEVERSION)
 	docker push $(REPOPREFIX)/daemon:$(RELEASEVERSION)
 	docker push $(REPOPREFIX)/waston-redis:$(RELEASEVERSION)
@@ -473,7 +462,6 @@ ifeq ($(USERELEASE),true)
 	docker push $(REPOPREFIX)/platform-report:$(RELEASEVERSION)
 	docker push $(REPOPREFIX)/scan-report:$(RELEASEVERSION)
 	docker push $(REPOPREFIX)/apiscan-job:$(RELEASEVERSION)
-	docker push $(REPOPREFIX)/mqinit:$(RELEASEVERSION)
 else
 	@echo "push all images latest"
 	docker push $(REPOPREFIX)/console:latest
@@ -481,10 +469,7 @@ else
 	docker push $(REPOPREFIX)/cleaner:latest
 	docker push $(REPOPREFIX)/drift-prevention-client:latest
 	docker push $(REPOPREFIX)/faulty:latest
-	docker push $(REPOPREFIX)/security-profiles-manager:latest
-	docker push $(REPOPREFIX)/security-profiles-loader:latest
 	docker push $(REPOPREFIX)/palace:latest
-	docker push $(REPOPREFIX)/go-audit:latest
 	docker push $(REPOPREFIX)/holmes:latest
 	docker push $(REPOPREFIX)/daemon:latest
 	docker push $(REPOPREFIX)/waston-redis:latest
@@ -496,7 +481,6 @@ else
 	docker push $(REPOPREFIX)/platform-report:latest
 	docker push $(REPOPREFIX)/scan-report:latest
 	docker push $(REPOPREFIX)/apiscan-job:latest
-	docker push $(REPOPREFIX)/mqinit:latest
 endif
 
 .PHONY: rm-local-images
@@ -507,10 +491,7 @@ rm-local-images:
 	docker rmi $(REPOPREFIX)/cleaner:latest
 	docker rmi $(REPOPREFIX)/drift-prevention-client:latest
 	docker rmi $(REPOPREFIX)/faulty:latest
-	docker rmi $(REPOPREFIX)/security-profiles-manager:latest
-	docker rmi $(REPOPREFIX)/security-profiles-loader:latest
 	docker rmi $(REPOPREFIX)/palace:latest
-	docker rmi $(REPOPREFIX)/go-audit:latest
 	docker rmi $(REPOPREFIX)/holmes:latest
 	docker rmi $(REPOPREFIX)/daemon:latest
 	docker rmi $(REPOPREFIX)/waston-redis:latest
@@ -522,7 +503,6 @@ rm-local-images:
 	docker rmi $(REPOPREFIX)/scan-report:latest
 	docker rmi $(REPOPREFIX)/apiscan-job:latest
 	docker rmi $(REPOPREFIX)/platform-report:latest
-	docker rmi $(REPOPREFIX)/mqinit:latest
 
 .PHONY: retag
 retag:
@@ -533,10 +513,7 @@ ifeq ($(USERELEASE),true)
 	docker tag $(REPOPREFIX)/cleaner:latest $(REPOPREFIX)/cleaner:$(RELEASEVERSION)
 	docker tag $(REPOPREFIX)/drift-prevention-client:latest $(REPOPREFIX)/drift-prevention-client:$(RELEASEVERSION)
 	docker tag $(REPOPREFIX)/faulty:latest $(REPOPREFIX)/faulty:$(RELEASEVERSION)
-	docker tag $(REPOPREFIX)/security-profiles-manager:latest $(REPOPREFIX)/security-profiles-manager:$(RELEASEVERSION)
-	docker tag $(REPOPREFIX)/security-profiles-loader:latest $(REPOPREFIX)/security-profiles-loader:$(RELEASEVERSION)
 	docker tag $(REPOPREFIX)/palace:latest $(REPOPREFIX)/palace:$(RELEASEVERSION)
-	docker tag $(REPOPREFIX)/go-audit:latest $(REPOPREFIX)/go-audit:$(RELEASEVERSION)
 	docker tag $(REPOPREFIX)/holmes:latest $(REPOPREFIX)/holmes:$(RELEASEVERSION)
 	docker tag $(REPOPREFIX)/daemon:latest $(REPOPREFIX)/daemon:$(RELEASEVERSION)
 	docker tag $(REPOPREFIX)/image-validator:latest $(REPOPREFIX)/image-validator:$(RELEASEVERSION)
@@ -547,7 +524,6 @@ ifeq ($(USERELEASE),true)
 	docker tag $(REPOPREFIX)/cluster-manager:latest $(REPOPREFIX)/cluster-manager:$(RELEASEVERSION)
 	docker tag $(REPOPREFIX)/kube-scanner-report:latest $(REPOPREFIX)/kube-scanner-report:$(RELEASEVERSION)
 	docker tag $(REPOPREFIX)/apiscan-job:latest $(REPOPREFIX)/apiscan-job:$(RELEASEVERSION)
-	docker tag $(REPOPREFIX)/mqinit:latest $(REPOPREFIX)/mqinit:$(RELEASEVERSION)
 else
 	@echo "tag all images latest"
 	docker tag $(REPOPREFIXOLD)/console:latest $(REPOPREFIX)/console:latest
@@ -555,10 +531,7 @@ else
 	docker tag $(REPOPREFIXOLD)/cleaner:latest $(REPOPREFIX)/cleaner:latest
 	docker tag $(REPOPREFIXOLD)/drift-prevention-client:latest $(REPOPREFIX)/drift-prevention-client:latest
 	docker tag $(REPOPREFIXOLD)/faulty:latest $(REPOPREFIX)/faulty:latest
-	docker tag $(REPOPREFIXOLD)/security-profiles-manager:latest $(REPOPREFIX)/security-profiles-manager:latest
-	docker tag $(REPOPREFIXOLD)/security-profiles-loader:latest $(REPOPREFIX)/security-profiles-loader:latest
 	docker tag $(REPOPREFIXOLD)/palace:latest $(REPOPREFIX)/palace:latest
-	docker tag $(REPOPREFIXOLD)/go-audit:latest $(REPOPREFIX)/go-audit:latest
 	docker tag $(REPOPREFIXOLD)/holmes:latest $(REPOPREFIX)/holmes:latest
 	docker tag $(REPOPREFIXOLD)/daemon:latest $(REPOPREFIX)/daemon:latest
 	docker tag $(REPOPREFIXOLD)/image-validator:latest $(REPOPREFIX)/image-validator:latest
@@ -569,7 +542,6 @@ else
 	docker tag $(REPOPREFIXOLD)/cluster-manager:latest $(REPOPREFIX)/cluster-manager:latest
 	docker tag $(REPOPREFIXOLD)/kube-scanner-report:latest $(REPOPREFIX)/kube-scanner-report:latest
 	docker tag $(REPOPREFIXOLD)/apiscan-job:latest $(REPOPREFIX)/apiscan-job:latest
-	docker tag $(REPOPREFIXOLD)/mqinit:latest $(REPOPREFIX)/mqinit:latest
 endif
 
 CI_CHECK_CACHE_REGISTRY?=harbor.local.cn
@@ -584,10 +556,7 @@ ifeq ($(USERELEASE),true)
 	scanner-cicd -k=dGVuc29yc2VjLWNpY2QtdXNlcg==.qBFMMAvbbm3afG3y42CqKaN7WQe4Q7hiqtg5Jzwen7tWHhZG16P62kvv -c=$(CI_CHECK_CONSOLE) -r=$(CI_CHECK_CACHE_REGISTRY) -t=1000 --insecure=false -i=$(REPOPREFIX)/cleaner:$(RELEASEVERSION)
 	scanner-cicd -k=dGVuc29yc2VjLWNpY2QtdXNlcg==.qBFMMAvbbm3afG3y42CqKaN7WQe4Q7hiqtg5Jzwen7tWHhZG16P62kvv -c=$(CI_CHECK_CONSOLE) -r=$(CI_CHECK_CACHE_REGISTRY) -t=1000 --insecure=false -i=$(REPOPREFIX)/drift-prevention-client:$(RELEASEVERSION)
 	scanner-cicd -k=dGVuc29yc2VjLWNpY2QtdXNlcg==.qBFMMAvbbm3afG3y42CqKaN7WQe4Q7hiqtg5Jzwen7tWHhZG16P62kvv -c=$(CI_CHECK_CONSOLE) -r=$(CI_CHECK_CACHE_REGISTRY) -t=1000 --insecure=false -i=$(REPOPREFIX)/faulty:$(RELEASEVERSION)
-	scanner-cicd -k=dGVuc29yc2VjLWNpY2QtdXNlcg==.qBFMMAvbbm3afG3y42CqKaN7WQe4Q7hiqtg5Jzwen7tWHhZG16P62kvv -c=$(CI_CHECK_CONSOLE) -r=$(CI_CHECK_CACHE_REGISTRY) -t=1000 --insecure=false -i=$(REPOPREFIX)/security-profiles-manager:$(RELEASEVERSION)
-	scanner-cicd -k=dGVuc29yc2VjLWNpY2QtdXNlcg==.qBFMMAvbbm3afG3y42CqKaN7WQe4Q7hiqtg5Jzwen7tWHhZG16P62kvv -c=$(CI_CHECK_CONSOLE) -r=$(CI_CHECK_CACHE_REGISTRY) -t=1000 --insecure=false -i=$(REPOPREFIX)/security-profiles-loader:$(RELEASEVERSION)
 	scanner-cicd -k=dGVuc29yc2VjLWNpY2QtdXNlcg==.qBFMMAvbbm3afG3y42CqKaN7WQe4Q7hiqtg5Jzwen7tWHhZG16P62kvv -c=$(CI_CHECK_CONSOLE) -r=$(CI_CHECK_CACHE_REGISTRY) -t=1000 --insecure=false -i=$(REPOPREFIX)/palace:$(RELEASEVERSION)
-	scanner-cicd -k=dGVuc29yc2VjLWNpY2QtdXNlcg==.qBFMMAvbbm3afG3y42CqKaN7WQe4Q7hiqtg5Jzwen7tWHhZG16P62kvv -c=$(CI_CHECK_CONSOLE) -r=$(CI_CHECK_CACHE_REGISTRY) -t=1000 --insecure=false -i=$(REPOPREFIX)/go-audit:$(RELEASEVERSION)
 	scanner-cicd -k=dGVuc29yc2VjLWNpY2QtdXNlcg==.qBFMMAvbbm3afG3y42CqKaN7WQe4Q7hiqtg5Jzwen7tWHhZG16P62kvv -c=$(CI_CHECK_CONSOLE) -r=$(CI_CHECK_CACHE_REGISTRY) -t=1000 --insecure=false -i=$(REPOPREFIX)/holmes:$(RELEASEVERSION)
 	scanner-cicd -k=dGVuc29yc2VjLWNpY2QtdXNlcg==.qBFMMAvbbm3afG3y42CqKaN7WQe4Q7hiqtg5Jzwen7tWHhZG16P62kvv -c=$(CI_CHECK_CONSOLE) -r=$(CI_CHECK_CACHE_REGISTRY) -t=1000 --insecure=false -i=$(REPOPREFIX)/daemon:$(RELEASEVERSION)
 	#scanner-cicd -k=dGVuc29yc2VjLWNpY2QtdXNlcg==.qBFMMAvbbm3afG3y42CqKaN7WQe4Q7hiqtg5Jzwen7tWHhZG16P62kvv -c=$(CI_CHECK_CONSOLE) -r=$(CI_CHECK_CACHE_REGISTRY) -t=1000 --insecure=false -i=$(REPOPREFIX)/scarecrow:$(RELEASEVERSION)
@@ -606,10 +575,7 @@ else
 	scanner-cicd -k=dGVuc29yc2VjLWNpY2QtdXNlcg==.qBFMMAvbbm3afG3y42CqKaN7WQe4Q7hiqtg5Jzwen7tWHhZG16P62kvv -c=$(CI_CHECK_CONSOLE) -r=$(CI_CHECK_CACHE_REGISTRY) -t=1000 --insecure=false -i=$(REPOPREFIX)/cleaner:latest
 	scanner-cicd -k=dGVuc29yc2VjLWNpY2QtdXNlcg==.qBFMMAvbbm3afG3y42CqKaN7WQe4Q7hiqtg5Jzwen7tWHhZG16P62kvv -c=$(CI_CHECK_CONSOLE) -r=$(CI_CHECK_CACHE_REGISTRY) -t=1000 --insecure=false -i=$(REPOPREFIX)/drift-prevention-client:latest
 	scanner-cicd -k=dGVuc29yc2VjLWNpY2QtdXNlcg==.qBFMMAvbbm3afG3y42CqKaN7WQe4Q7hiqtg5Jzwen7tWHhZG16P62kvv -c=$(CI_CHECK_CONSOLE) -r=$(CI_CHECK_CACHE_REGISTRY) -t=1000 --insecure=false -i=$(REPOPREFIX)/faulty:latest
-	scanner-cicd -k=dGVuc29yc2VjLWNpY2QtdXNlcg==.qBFMMAvbbm3afG3y42CqKaN7WQe4Q7hiqtg5Jzwen7tWHhZG16P62kvv -c=$(CI_CHECK_CONSOLE) -r=$(CI_CHECK_CACHE_REGISTRY) -t=1000 --insecure=false -i=$(REPOPREFIX)/security-profiles-manager:latest
-	scanner-cicd -k=dGVuc29yc2VjLWNpY2QtdXNlcg==.qBFMMAvbbm3afG3y42CqKaN7WQe4Q7hiqtg5Jzwen7tWHhZG16P62kvv -c=$(CI_CHECK_CONSOLE) -r=$(CI_CHECK_CACHE_REGISTRY) -t=1000 --insecure=false -i=$(REPOPREFIX)/security-profiles-loader:latest
 	scanner-cicd -k=dGVuc29yc2VjLWNpY2QtdXNlcg==.qBFMMAvbbm3afG3y42CqKaN7WQe4Q7hiqtg5Jzwen7tWHhZG16P62kvv -c=$(CI_CHECK_CONSOLE) -r=$(CI_CHECK_CACHE_REGISTRY) -t=1000 --insecure=false -i=$(REPOPREFIX)/palace:latest
-	scanner-cicd -k=dGVuc29yc2VjLWNpY2QtdXNlcg==.qBFMMAvbbm3afG3y42CqKaN7WQe4Q7hiqtg5Jzwen7tWHhZG16P62kvv -c=$(CI_CHECK_CONSOLE) -r=$(CI_CHECK_CACHE_REGISTRY) -t=1000 --insecure=false -i=$(REPOPREFIX)/go-audit:latest
 	scanner-cicd -k=dGVuc29yc2VjLWNpY2QtdXNlcg==.qBFMMAvbbm3afG3y42CqKaN7WQe4Q7hiqtg5Jzwen7tWHhZG16P62kvv -c=$(CI_CHECK_CONSOLE) -r=$(CI_CHECK_CACHE_REGISTRY) -t=1000 --insecure=false -i=$(REPOPREFIX)/holmes:latest
 	scanner-cicd -k=dGVuc29yc2VjLWNpY2QtdXNlcg==.qBFMMAvbbm3afG3y42CqKaN7WQe4Q7hiqtg5Jzwen7tWHhZG16P62kvv -c=$(CI_CHECK_CONSOLE) -r=$(CI_CHECK_CACHE_REGISTRY) -t=1000 --insecure=false -i=$(REPOPREFIX)/daemon:latest
 	#scanner-cicd -k=dGVuc29yc2VjLWNpY2QtdXNlcg==.qBFMMAvbbm3afG3y42CqKaN7WQe4Q7hiqtg5Jzwen7tWHhZG16P62kvv -c=$(CI_CHECK_CONSOLE) -r=$(CI_CHECK_CACHE_REGISTRY) -t=1000 --insecure=false -i=$(REPOPREFIX)/scarecrow:latest
