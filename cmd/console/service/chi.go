@@ -47,6 +47,7 @@ func setupChiRouter(
 	if !httpLoggerDisabled {
 		r.Use(middleware.Logger)
 	}
+	//r.Use(audit.Audit)
 
 	api.SetupRoutes(ctx, r,
 		tokenAuth,
@@ -58,6 +59,7 @@ func setupChiRouter(
 		redisClient,
 		harborClient,
 		ecCli,
+		es,
 	)
 
 	return r

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -75,7 +76,11 @@ func (api *api) addReportTemplate() http.HandlerFunc {
 			return
 		}
 
-		response.Ok(w, response.WithApiVersion(platformReportAPIVersion), response.WithItem(template))
+		response.Ok(w, response.WithApiVersion(platformReportAPIVersion), response.WithItem(template), response.WithTarget(&response.TargetRef{
+			Name: template.Name,
+			ID:   strconv.Itoa(int(template.ID)),
+			Link: "/api/v2/platform/report/template",
+		}))
 	}
 }
 
@@ -155,7 +160,11 @@ func (api *api) updateReportTemplate() http.HandlerFunc {
 			return
 		}
 
-		response.Ok(w, response.WithApiVersion(platformReportAPIVersion), response.WithItem(*latestTemplate))
+		response.Ok(w, response.WithApiVersion(platformReportAPIVersion), response.WithItem(*latestTemplate), response.WithTarget(&response.TargetRef{
+			Name: template.Name,
+			ID:   strconv.Itoa(int(template.ID)),
+			Link: "/api/v2/platform/report/template",
+		}))
 	}
 }
 

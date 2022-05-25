@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strconv"
 	"time"
 
 	param "github.com/oceanicdev/chi-param"
@@ -307,14 +308,18 @@ func (api *api) addBaitService() http.HandlerFunc {
 			RespAndLog(w, ctx, err)
 			return
 		}
-		response.Ok(w)
+		response.Ok(w, response.WithTarget(&response.TargetRef{
+			Name: baitService.Name,
+			ID:   strconv.Itoa(int(baitService.BaitId)),
+			Link: "/api/v2/containerSec/watson/baitService",
+		}))
 	}
 }
 
 func (api *api) updateBaitServices() http.HandlerFunc {
-
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+
 		defer cancel()
 
 		var baitService model.BaitService
@@ -350,7 +355,11 @@ func (api *api) updateBaitServices() http.HandlerFunc {
 					fmt.Errorf("failed to update bait service : %w", err)))
 			return
 		}
-		response.Ok(w)
+		response.Ok(w, response.WithTarget(&response.TargetRef{
+			Name: baitService.Name,
+			ID:   strconv.Itoa(int(baitService.BaitId)),
+			Link: "/api/v2/containerSec/watson/baitService",
+		}))
 	}
 }
 

@@ -3,6 +3,7 @@ package api
 import (
 	"errors"
 	"fmt"
+	"gitlab.com/security-rd/go-pkg/elastic"
 	"net/http"
 	"net/url"
 	"reflect"
@@ -33,6 +34,7 @@ type api struct {
 	redisClient       *redis.Client
 	harborClient      *harbor.HarborRESTClient
 	ecCli             pb.EventsCenterBizServiceClient
+	esCli             *elastic.ESClient
 
 	// For managing state in Harbor plugin API
 	abortAnyNewScansBool int32
@@ -48,6 +50,7 @@ func newAPI(
 	redisClient *redis.Client,
 	harborClient *harbor.HarborRESTClient,
 	ecCli pb.EventsCenterBizServiceClient,
+	esCli *elastic.ESClient,
 ) *api {
 	whUrl, err := url.Parse(webhookURL)
 	if err != nil {
@@ -65,6 +68,7 @@ func newAPI(
 		redisClient:       redisClient,
 		harborClient:      harborClient,
 		ecCli:             ecCli,
+		esCli:             esCli,
 	}
 }
 

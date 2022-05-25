@@ -129,6 +129,12 @@ func WithApiVersion(version string) ResponseDataOptionFunc {
 	}
 }
 
+func WithTarget(ref *TargetRef) ResponseDataOptionFunc {
+	return func(ev *HTTPEnvelope) {
+		ev.Target = ref
+	}
+}
+
 func Ok(w http.ResponseWriter, opts ...ResponseDataOptionFunc) {
 	RespData(w, http.StatusOK, opts...)
 }
@@ -159,6 +165,7 @@ func RespData(w http.ResponseWriter, code int, opts ...ResponseDataOptionFunc) {
 	resp := HTTPEnvelope{
 		ApiVersion: "1.0",
 		Data:       &HTTPData{},
+		Target:     &TargetRef{},
 	}
 
 	for _, opt := range opts {

@@ -18,14 +18,6 @@ func (api *api) microSegmentation() http.HandlerFunc {
 		}
 
 		reverseProxy := httputil.NewSingleHostReverseProxy(remote)
-		// reverseProxy.Transport = &http.Transport{
-		// 	Dial: (&net.Dialer{
-		// 		Timeout:   15 * time.Second,
-		// 		KeepAlive: 15 * time.Second,
-		// 	}).Dial,
-		// 	ResponseHeaderTimeout: 10 * time.Second,
-		// 	ExpectContinueTimeout: 1 * time.Second,
-		// }
 		reverseProxy.ServeHTTP(w, r)
 	}
 }
