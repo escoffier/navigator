@@ -3,14 +3,13 @@ package store
 import (
 	"context"
 	"fmt"
-	"strings"
 	"sync"
 	"time"
 
 	"github.com/go-redis/redis/v8"
-	"gitlab.com/security-rd/go-pkg/databases"
 
-	"gitlab.com/piccolo_su/vegeta/pkg/redistools"
+	"gitlab.com/security-rd/go-pkg/cache"
+	"gitlab.com/security-rd/go-pkg/databases"
 )
 
 var dbInitOnce sync.Once
@@ -59,25 +58,16 @@ func GetScannerDb() *ScannerDB {
 	return scannerDb
 }
 
-func InitRedisClient(endpoint, password string) error {
-	sa := strings.Split(endpoint, ",")
-	rc, err := redistools.NewTensorRedisClient(&redis.FailoverOptions{ // share data use db 0
-		MasterName:    "mymaster", // default name
-		SentinelAddrs: sa,
-		Password:      password,
-		DB:            0,
-	})
+func InitRedisClient() error {
+	// share data use db 0
+	rc0, err := cache.NewRedis(cache.SetDB(0))
 	if err != nil {
 		return err
 	}
-	redisClients[0] = rc
+	redisClients[0] = rc0
 
-	rc1, err := redistools.NewTensorRedisClient(&redis.FailoverOptions{ // image secure use db 1
-		MasterName:    "mymaster",
-		SentinelAddrs: sa,
-		Password:      password,
-		DB:            1,
-	})
+	// image secure use db 1
+	rc1, err := cache.NewRedis(cache.SetDB(1))
 	if err != nil {
 		return err
 	}

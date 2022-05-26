@@ -33,7 +33,7 @@ func NewScanner(opts *flag2.ScannerOpts) (*Scanner, error) {
 	}
 
 	// init redis client
-	if err := store.InitRedisClient(opts.RedisEndpoint, opts.RedisPassword); err != nil {
+	if err := store.InitRedisClient(); err != nil {
 		logging.Get().Err(err).Msgf("connect redis failed,%v,%v", opts.RedisPassword, opts.RedisEndpoint)
 		return nil, err
 	}

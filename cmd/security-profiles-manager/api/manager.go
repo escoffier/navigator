@@ -11,9 +11,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/go-redis/redis/v8"
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/stan.go"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
+
 	"gitlab.com/piccolo_su/vegeta/cmd/security-profiles-manager/service/builder"
 	"gitlab.com/piccolo_su/vegeta/cmd/security-profiles-manager/service/falco"
 	"gitlab.com/piccolo_su/vegeta/cmd/security-profiles-manager/service/policy"
@@ -23,10 +25,8 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/flag"
 	"gitlab.com/piccolo_su/vegeta/pkg/lifecycle"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
-	"gitlab.com/piccolo_su/vegeta/pkg/redistools"
+	"gitlab.com/security-rd/go-pkg/cache"
 	"gitlab.com/security-rd/go-pkg/databases"
-	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/rest"
 )
 
 var (
@@ -73,14 +73,8 @@ func getClientID(name string) string {
 }
 
 // NewSecProfileManager is to create a new SecProfileManager struct.
-func NewSecProfileManager(
-	httpOpts *flag.HTTPOpts,
-	redisOpts *flag.RedisOpts,
-	stanOpts *flag.StanOpts,
-	// postgresOpts *flag.RDBOpts,
-) (*SecProfileManager, error) {
+func NewSecProfileManager(httpOpts *flag.HTTPOpts, stanOpts *flag.StanOpts) (*SecProfileManager, error) {
 	podName := os.Getenv("MY_POD_NAME")
-
 	rdbUser := os.Getenv("RDB_USER")
 	rdbPassword := os.Getenv("RDB_PASSWORD")
 	rdbHost := os.Getenv("RDB_HOST")
@@ -98,13 +92,7 @@ func NewSecProfileManager(
 	}
 
 	// Redis DB client
-	sa := strings.Split(redisOpts.Endpoint, ",")
-	redisClient, err := redistools.NewTensorRedisClient(&redis.FailoverOptions{
-		MasterName:    "mymaster",
-		SentinelAddrs: sa,
-		Password:      redisOpts.Password,
-		DB:            0,
-	})
+	redisClient, err := cache.NewRedis()
 	if err != nil {
 		return nil, err
 	}

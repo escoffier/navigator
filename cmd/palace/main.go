@@ -5,23 +5,23 @@ import (
 	"os"
 	"os/signal"
 	"strconv"
-	"strings"
 	"syscall"
 	"time"
 
 	"github.com/falcosecurity/client-go/pkg/api/outputs"
 	"github.com/go-redis/redis/v8"
 	"github.com/segmentio/kafka-go"
+	_ "go.uber.org/automaxprocs"
+	"google.golang.org/protobuf/proto"
+
 	"gitlab.com/piccolo_su/vegeta/cmd/palace/pkg/apiinfo"
 	"gitlab.com/piccolo_su/vegeta/cmd/palace/pkg/association"
 	"gitlab.com/piccolo_su/vegeta/cmd/palace/pkg/ecenter"
 	"gitlab.com/piccolo_su/vegeta/pkg/echelper"
-	"gitlab.com/piccolo_su/vegeta/pkg/redistools"
+	"gitlab.com/security-rd/go-pkg/cache"
 	"gitlab.com/security-rd/go-pkg/databases"
 	"gitlab.com/security-rd/go-pkg/logging"
 	"gitlab.com/security-rd/go-pkg/mq"
-	_ "go.uber.org/automaxprocs"
-	"google.golang.org/protobuf/proto"
 )
 
 const (
@@ -54,22 +54,7 @@ func initAssociationDispatchers(rdb *databases.RDBInstance) error {
 }
 
 func initRedis() (err error) {
-	redisEndpoint := os.Getenv("REDIS_CLUSTER_URL")
-	if redisEndpoint == "" {
-		panic("REDIS_ENDPOINT env variable not set")
-	}
-	redisPassword := os.Getenv("REDIS_PASSWORD")
-	if redisPassword == "" {
-		panic("REDIS_PASSWORD env variable not set")
-	}
-
-	sa := strings.Split(redisEndpoint, ",")
-	redisCli, err = redistools.NewTensorRedisClient(&redis.FailoverOptions{
-		MasterName:    "mymaster",
-		SentinelAddrs: sa,
-		Password:      redisPassword,
-		DB:            0,
-	})
+	redisCli, err = cache.NewRedis()
 	if err != nil {
 		logging.Get().Err(err).Msg("Failed to get redis client")
 		return
