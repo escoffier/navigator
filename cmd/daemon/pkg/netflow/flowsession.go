@@ -13,9 +13,11 @@ import (
 	"github.com/go-redis/redis/v8"
 	json "github.com/json-iterator/go"
 	"github.com/pkg/errors"
+
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/nodeinfo"
 	"gitlab.com/piccolo_su/vegeta/pkg/daemon"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
+	"gitlab.com/security-rd/go-pkg/cache"
 	"gitlab.com/security-rd/go-pkg/logging"
 )
 
@@ -148,7 +150,7 @@ func NetProtoConvert(proto uint8) uint8 {
 
 func NewFlowSession(containerInfo nodeinfo.ContainerInfoManager, k8sInfo *NodePodsInfo, clusterManager ClusterManager, consoleURL string) (*FlowSession, error) {
 
-	redisClient, err := RedisInit()
+	redisClient, err := cache.NewRedis()
 	if err != nil {
 		return nil, errors.Errorf("redis init failed, %v", err)
 	}

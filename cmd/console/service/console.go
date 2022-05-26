@@ -9,16 +9,16 @@ import (
 	"os"
 	"runtime/debug"
 	"strconv"
-	"strings"
 	"sync"
 	"time"
 
-	"gitlab.com/piccolo_su/vegeta/cmd/console/service/license"
-	"k8s.io/apimachinery/pkg/util/wait"
-	"scm.tensorsecurity.cn/tensorsecurity-rd/api/pkg/generated/informers/externalversions"
-
-	"github.com/go-redis/redis/v8"
 	cr "github.com/robfig/cron/v3"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
+	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
+	"k8s.io/apimachinery/pkg/util/wait"
+
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/apiscan"
 	assetsSvc "gitlab.com/piccolo_su/vegeta/cmd/console/service/assets"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/attck"
@@ -29,6 +29,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/hunter"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/immune"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/k8saudit"
+	"gitlab.com/piccolo_su/vegeta/cmd/console/service/license"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/networktopo"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/openapiauth"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/palace"
@@ -49,15 +50,12 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
 	"gitlab.com/piccolo_su/vegeta/pkg/lifecycle"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
-	"gitlab.com/piccolo_su/vegeta/pkg/redistools"
+	"gitlab.com/security-rd/go-pkg/cache"
 	"gitlab.com/security-rd/go-pkg/databases"
 	"gitlab.com/security-rd/go-pkg/elastic"
 	"gitlab.com/security-rd/go-pkg/logging"
 	"gitlab.com/security-rd/go-pkg/pb"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
-	"gorm.io/gorm"
-	"gorm.io/gorm/clause"
+	"scm.tensorsecurity.cn/tensorsecurity-rd/api/pkg/generated/informers/externalversions"
 )
 
 const resyncInterval = 8 * time.Hour
@@ -119,15 +117,9 @@ func NewConsole(
 	if err != nil {
 		return nil, err
 	}
+
 	// Redis DB client
-	redisEndpoint := env.GetRedisEndpoint()
-	sa := strings.Split(redisEndpoint, ",")
-	redisClient, err := redistools.NewTensorRedisClient(&redis.FailoverOptions{
-		MasterName:    "mymaster",
-		SentinelAddrs: sa,
-		Password:      env.GetRedisPassword(),
-		DB:            0,
-	})
+	redisClient, err := cache.NewRedis()
 	if err != nil {
 		return nil, err
 	}

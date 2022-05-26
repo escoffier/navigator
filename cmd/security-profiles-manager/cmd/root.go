@@ -32,22 +32,12 @@ var rootCmd = &cobra.Command{
 			Str("listen", httpOpts.HTTPListen).
 			Msg("HTTP options")
 
-		redisOpts := flag.GetRedisOptsFromEnv()
-		logging.GetLogger().Info().
-			Str("endpoint", redisOpts.Endpoint).
-			Msg("Redis options")
-
 		stanOpts := flag.GetStanOptsFromEnv()
 		logging.GetLogger().Info().
 			Str("cluster-id", stanOpts.ClusterID).
 			Msg("STAN options")
 
-		// postgresOpts := flag.GetRDBOpts(cmd)
-		// logging.GetLogger().Info().
-		// 	Str("connectionString", postgresOpts.PostgresConnectionString).
-		// 	Msg("Postgres options")
-
-		app, err := api.NewSecProfileManager(httpOpts, redisOpts, stanOpts)
+		app, err := api.NewSecProfileManager(httpOpts, stanOpts)
 		if err != nil {
 			return err
 		}

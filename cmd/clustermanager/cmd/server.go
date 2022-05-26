@@ -2,15 +2,16 @@ package cmd
 
 import (
 	"context"
-	"errors"
 	"flag"
 	"os"
 	"strings"
 	"time"
 
-	"github.com/go-redis/redis/v8"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
+	"k8s.io/client-go/informers"
+	"k8s.io/klog/v2"
+
 	clusterAgent "gitlab.com/piccolo_su/vegeta/cmd/clustermanager/pkg"
 	"gitlab.com/piccolo_su/vegeta/cmd/clustermanager/pkg/assets"
 	"gitlab.com/piccolo_su/vegeta/cmd/clustermanager/pkg/clusterserver"
@@ -18,12 +19,10 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/dal"
 	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
-	"gitlab.com/piccolo_su/vegeta/pkg/redistools"
+	"gitlab.com/security-rd/go-pkg/cache"
 	"gitlab.com/security-rd/go-pkg/databases"
 	"gitlab.com/security-rd/go-pkg/logging"
 	"gitlab.com/security-rd/go-pkg/mq"
-	"k8s.io/client-go/informers"
-	"k8s.io/klog/v2"
 	"scm.tensorsecurity.cn/tensorsecurity-rd/api/pkg/generated/informers/externalversions"
 )
 
@@ -137,22 +136,9 @@ func NewServer() (*server, error) {
 		if scannerURL == "" {
 			scannerURL = "http://tensorsec-scanner:8888"
 		}
+
 		// Redis DB client
-		redisEndpoints := os.Getenv("REDIS_CLUSTER_URL")
-		if redisEndpoints == "" {
-			return nil, errors.New("missing REDIS_CLUSTER_URL")
-		}
-		redisPassword := os.Getenv("REDIS_PASSWORD")
-		if redisPassword == "" {
-			return nil, errors.New("missing REDIS_PASSWORD")
-		}
-		sa := strings.Split(redisEndpoints, ",")
-		redisClient, err := redistools.NewTensorRedisClient(&redis.FailoverOptions{
-			MasterName:    "mymaster",
-			SentinelAddrs: sa,
-			Password:      redisPassword,
-			DB:            0,
-		})
+		redisClient, err := cache.NewRedis()
 		if err != nil {
 			return nil, err
 		}
