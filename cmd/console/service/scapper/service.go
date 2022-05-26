@@ -198,12 +198,14 @@ func (s *ScapService) SynScanState(checkHistory *model.CheckHistoryEntry) error 
 			continue
 		}
 
+		// 获取对应job的状态
 		status, err := scap.GetJobStatus(nodeRecord.ClusterKey, nodeRecord.Namespace, nodeRecord.JobName)
 		if err != nil {
 			logging.Get().Error().Msgf("get jobs status failed, %v.", err)
 			continue
 		}
 
+		// 如果还有job在运行中
 		if status == model.ScanStateInProgress {
 			return nil
 		}

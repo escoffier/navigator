@@ -500,8 +500,8 @@ FOR:
 				logging.Get().Error().Msgf("Failed to schedule job, %v.", err)
 
 				msg := fmt.Sprintf("Failed to schedule job: %s", err)
-				check.NodeName = nodeName
-				err = s.dbJobStatusUpdate(model.ScanStateFailed, check, msg, time.Now().Unix())
+
+				err = s.dbJobStatusUpdate(model.ScanStateFailed, check, nodeName, msg, time.Now().Unix())
 				if err != nil {
 					logging.Get().Err(err).Msgf("update job status failed, msg: %s", msg)
 				}
@@ -755,7 +755,7 @@ func (s *Scapper) CreateJobName(checkId, checkType, targetNodeName string) strin
 	return fmt.Sprintf("%s-%s-%s", checkId[:8], checkType, targetNodeName)
 }
 
-func (s *Scapper) dbJobStatusUpdate(state model.ScanState, check *model.Check, msg string, timeEpochSecs int64) error {
+func (s *Scapper) dbJobStatusUpdate(state model.ScanState, check *model.Check, nodeName, msg string, timeEpochSecs int64) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 
@@ -767,7 +767,7 @@ func (s *Scapper) dbJobStatusUpdate(state model.ScanState, check *model.Check, m
 
 	tbname := scanRecord.TableName()
 	taskId := check.CheckUUID
-	nodeName := check.NodeName
+
 	tx := s.rdb.Get().WithContext(ctx).Table(tbname).Select("state", "finished_at", "message")
 	err := tx.Where("node_name = ? and task_id = ?", nodeName, taskId).Updates(scanRecord).Error
 	if err != nil {
@@ -821,8 +821,8 @@ func (s *Scapper) startAsyncStatusListener(ctx context.Context, kubeClient *pkga
 				logging.Get().Info().Msgf("Managed job succeeded, job-name : %v.", job.Name)
 
 				alreadyFinishedNodes[thisNodeName] = true
-				check.NodeName = thisNodeName
-				err := s.dbJobStatusUpdate(model.ScanStateCompleted, check, "success", time.Now().Unix())
+
+				err := s.dbJobStatusUpdate(model.ScanStateCompleted, check, thisNodeName, "success", time.Now().Unix())
 				if err != nil {
 					logging.Get().Error().Msgf("update job status(success) failed, %v.", err)
 				}
@@ -841,8 +841,7 @@ func (s *Scapper) startAsyncStatusListener(ctx context.Context, kubeClient *pkga
 				transTime := failedCondition.LastTransitionTime
 				msg := fmt.Sprintf("Message: %s; Reason: %s", failedCondition.Message, failedCondition.Reason)
 
-				check.NodeName = thisNodeName
-				err := s.dbJobStatusUpdate(model.ScanStateFailed, check, msg, transTime.Unix())
+				err := s.dbJobStatusUpdate(model.ScanStateFailed, check, thisNodeName, msg, transTime.Unix())
 				if err != nil {
 					logging.Get().Error().Msgf("update job status(failed) failed, %v.", err)
 				}
@@ -982,6 +981,7 @@ func (s *Scapper) GetJobStatus(clusterID, namespaces, jobName string) (model.Sca
 		return model.ScanStateUnknown, errors.Errorf("get k8s client failed")
 	}
 
+	// BUG：这里job执行完毕就删除了，然后去查找这个job肯定找不到，就返回 ScanStateFailed
 	job, err := kubeClient.BatchV1().Jobs(namespaces).Get(ctx, jobName, metav1.GetOptions{})
 	if err != nil {
 		logging.Get().Error().Msgf("get scap jobs info failed, %v.", err)
