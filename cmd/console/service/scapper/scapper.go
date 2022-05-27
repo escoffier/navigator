@@ -84,7 +84,10 @@ func (s *Scapper) setCheckHistoryFinishedAndJobStatusesFailed(ctx context.Contex
 	err := util.RetryWithBackoff(cleanCtx, func() error {
 		tbname := scanRecord.TableName()
 		checkId := check.CheckUUID
-		ret := s.rdb.Get().WithContext(cleanCtx).Table(tbname).Where("task_id = ?", checkId).Updates(scanRecord).Error
+		ret := s.rdb.Get().WithContext(cleanCtx).Table(tbname).
+			Select("state", "finished_at", "message").
+			Where("state = ?", model.ComplianceCheckStatusInProgress).
+			Where("task_id = ?", checkId).Updates(scanRecord).Error
 		if ret != nil {
 			logging.Get().WithContext(cleanCtx).Errorf(ret, "update scan record failed, checkID : %s", check.CheckUUID)
 		}
@@ -231,15 +234,15 @@ func (s *Scapper) RunComplianceCheck(
 		//get namespaces
 		resSvc, ok := assets.GetResourcesService(ctx)
 		if !ok {
-			return uuid.Nil, apperror.NewCheckAlreadyInProgressError(http.StatusInternalServerError, errors.Errorf("get resource failed"))
+			return uuid.Nil, apperror.NewResourceNotFoundError(http.StatusInternalServerError, errors.Errorf("get resource failed"))
 		}
 		cluster = resSvc.GetClusterByKey(ctx, clusterID)
 		if cluster == nil {
-			return uuid.Nil, apperror.NewCheckAlreadyInProgressError(http.StatusInternalServerError, errors.Errorf("get cluster failed clusterId : %v", clusterID))
+			return uuid.Nil, apperror.NewClusterDoesntExistError(http.StatusInternalServerError, errors.Errorf("get cluster failed clusterId : %v", clusterID))
 		}
 		namespace := cluster.WorkerNamespace
 		if namespace == "" {
-			return uuid.Nil, apperror.NewCheckAlreadyInProgressError(http.StatusInternalServerError, errors.Errorf("get namespaces failed with run compliance check"))
+			return uuid.Nil, apperror.NewClusterError(http.StatusInternalServerError, errors.Errorf("get namespaces failed with run compliance check"))
 		}
 
 		check.Namespace = namespace
@@ -722,7 +725,9 @@ func (s *Scapper) dbAddJobStatusInProgress(ctx context.Context, check *model.Che
 	status := model.ScanStateInProgress
 	createAt := time.Now().Unix()
 	finishedAt := int64(0)
+	message := ""
 	if !pkgassets.NodeIsReady(targetNode) {
+		message = "node is not ready"
 		status = model.ScanStateFailed
 		finishedAt = createAt // 当不可以创建pods时(node 时not ready状态)
 		logging.Get().Info().
@@ -742,6 +747,7 @@ func (s *Scapper) dbAddJobStatusInProgress(ctx context.Context, check *model.Che
 		State:      status,
 		CreatedAt:  createAt,
 		FinishedAt: finishedAt,
+		Message:    message,
 	}
 
 	err := s.rdb.Get().WithContext(ctx).Create(task).Error
@@ -875,6 +881,7 @@ func (s *Scapper) awaitAndUpdateJobsStatuses(check *model.Check, scheduledNodesC
 	//
 	runningNodeNames := []string{}
 
+	// TODO: 这里大问题，这个for循环无法退出，只能等到ctx超时的分支退出。服了。
 	for {
 		select {
 		case <-ctx.Done():
