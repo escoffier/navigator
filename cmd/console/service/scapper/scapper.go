@@ -769,7 +769,7 @@ func (s *Scapper) dbJobStatusUpdate(state model.ScanState, check *model.Check, n
 	taskId := check.CheckUUID
 
 	tx := s.rdb.Get().WithContext(ctx).Table(tbname).Select("state", "finished_at", "message")
-	err := tx.Where("node_name = ? and task_id = ?", nodeName, taskId).Updates(scanRecord).Error
+	err := tx.Where("node_name = ? and task_id = ? and state = ?", nodeName, taskId, model.ScanStateInProgress).Updates(scanRecord).Error
 	if err != nil {
 		logging.Get().Err(err).Msgf("Failed the scap update job status setting failed, task id : %s, node name : %s.", check.CheckUUID, nodeName)
 	}
