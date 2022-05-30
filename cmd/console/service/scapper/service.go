@@ -241,7 +241,7 @@ func (s *ScapService) SynScanState(checkHistory *model.CheckHistoryEntry) error 
 		SucNode:    int32(sucNode),
 	}
 	//
-	query = "task_id = ? and check_type = ?"
+	query = "task_id = ? and check_type = ? and state = 1"
 	err = s.rdb.Get().WithContext(ctx).Model(tb).Where(query, taskId, checkHistory.CheckType).Select("state", "suc_node", "finished_at").Updates(tb).Error
 	if err != nil {
 		logging.Get().Error().Msgf("update scan history state=0 failed, task_id : %s, %v.", taskId, err)
