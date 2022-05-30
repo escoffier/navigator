@@ -247,6 +247,10 @@ func (s *Scapper) RunComplianceCheck(
 
 		check.Namespace = namespace
 
+		if err := s.syncJobState(ctx, string(checkType), clusterID); err != nil {
+			return uuid.Nil, err
+		}
+
 		if s.checkTargetTypeTasksStillInProgress(ctx, string(checkType), clusterID) {
 			return uuid.Nil, apperror.NewCheckAlreadyInProgressError(http.StatusInternalServerError, errors.Errorf("currently there are tasks still running"))
 		}
@@ -1176,4 +1180,52 @@ func (s *Scapper) nodeIsReady(node *corev1.Node) bool {
 	}
 
 	return true
+}
+
+// syncJobState 同步进行中任务的状态。
+// TODO: 一个临时方案
+func (s *Scapper) syncJobState(ctx context.Context, checkType, clusterKey string) error {
+	pgCtx, mpgCancel := context.WithTimeout(ctx, time.Second*2)
+	defer mpgCancel()
+
+	logger := logging.Get().Log().
+		Str("check_type", checkType).
+		Str("clusterKey", clusterKey)
+
+	var inProcessItem []*model.ScanHistory
+
+	err := s.rdb.Get().WithContext(pgCtx).Model(&model.ScanHistory{}).
+		Where("cluster_key = ?", clusterKey).
+		Where("check_type = ?", checkType).
+		Where("state = ?", model.ScanStateInProgress).
+		Find(&inProcessItem).
+		Error
+
+	if err != nil {
+		logger.Err(err).Msg("获取正在运行的扫描历史失败")
+		return err
+	}
+
+	service, ok := GetService(ctx)
+	if !ok {
+		err := errors.New("can't get ScapService")
+		logger.Err(err).Msg("获取ScapService失败")
+		return err
+	}
+
+	// 对正处于进行中的任务做一次数据同步
+	for i := range inProcessItem {
+		var data = &model.CheckHistoryEntry{
+			CheckID:   inProcessItem[i].TaskID,
+			CreatedAt: inProcessItem[i].CreatedAt,
+			CheckType: checkType,
+		}
+		// 复用以前的逻辑
+		if err := service.SynScanState(data); err != nil {
+			logger.Err(err).Str("checkId", data.CheckID).Msg("同步状态失败")
+			return err
+		}
+	}
+
+	return nil
 }
