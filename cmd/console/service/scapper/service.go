@@ -992,7 +992,7 @@ func (s *ScapService) AddScapScanResults(ctx context.Context, rs []*model.ScanRe
 
 	err := s.rdb.Get().WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 
-		for i := 0; i < len(rs)-100; i += 100 {
+		for i := 0; i < len(rs); i += 100 {
 			end := i + 100
 			if end > len(rs) {
 				end = len(rs)
