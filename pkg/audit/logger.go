@@ -10,7 +10,12 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 	"net/http"
 	"strings"
+	"sync"
 )
+
+var fsOnce sync.Once
+var fsStore1 Store
+var fsQueue *util.Queue
 
 type fsStore struct {
 	Logger zerolog.Logger
@@ -31,9 +36,12 @@ func (s *fsStore) store(ctx context.Context, auditEvt *model.NaviAuditEvent) err
 }
 
 func FsAudit() func(next http.Handler) http.Handler {
-	logger := log.With().Str("service", strings.ToLower("console"))
-	store := newFsStore(logger.Logger())
-	queue := util.NewQueue()
-	go sendLog(store, queue)
-	return RequestLogger(store, queue)
+	fsOnce.Do(func() {
+		logger := log.With().Str("service", strings.ToLower("console"))
+		fsStore1 = newFsStore(logger.Logger())
+		fsQueue = util.NewQueue()
+		go sendLog(fsStore1, fsQueue)
+	})
+
+	return RequestLogger(fsStore1, fsQueue)
 }

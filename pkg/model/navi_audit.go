@@ -1,7 +1,5 @@
 package model
 
-import "time"
-
 type HttpRequest struct {
 	RequestID  string
 	RequestURL string
@@ -32,6 +30,6 @@ type NaviAuditEvent struct {
 	User         *UserInfo
 	HttpRequest  *HttpRequest
 	HttpResponse *HttpResponse
-	Timestamp    time.Time
+	Timestamp    int64
 	MetaData     map[string]interface{}
 }

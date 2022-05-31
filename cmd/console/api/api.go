@@ -38,6 +38,8 @@ type api struct {
 
 	// For managing state in Harbor plugin API
 	abortAnyNewScansBool int32
+
+	httpAuditDisabled bool
 }
 
 func newAPI(
@@ -51,6 +53,7 @@ func newAPI(
 	harborClient *harbor.HarborRESTClient,
 	ecCli pb.EventsCenterBizServiceClient,
 	esCli *elastic.ESClient,
+	httpAuditDisabled bool,
 ) *api {
 	whUrl, err := url.Parse(webhookURL)
 	if err != nil {
@@ -69,6 +72,7 @@ func newAPI(
 		harborClient:      harborClient,
 		ecCli:             ecCli,
 		esCli:             esCli,
+		httpAuditDisabled: httpAuditDisabled,
 	}
 }
 

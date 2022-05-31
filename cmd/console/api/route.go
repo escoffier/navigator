@@ -39,6 +39,7 @@ func SetupRoutes(
 	// imageService *image.ImageService,
 	ecCli pb.EventsCenterBizServiceClient,
 	es *elastic.ESClient,
+	httpAuditDisabled bool,
 ) {
 	logging.Get().Debug().Msg("setting up routes...")
 
@@ -53,6 +54,7 @@ func SetupRoutes(
 		harborClient,
 		ecCli,
 		es,
+		httpAuditDisabled,
 	)
 	r.Get("/ping", response.Pong)
 	// disable swagger APIs
@@ -91,9 +93,11 @@ func SetupRoutes(
 		r.Group(func(r chi.Router) {
 			// normal check
 			r.Use(jwtauth.Verifier(api.tokenAuth), authenticator(api.rdb), jwtAccessCheck(api.rdb))
-			cli, err := es.Get()
-			if err == nil {
-				r.Use(audit.ESAudit(cli))
+			if !httpAuditDisabled {
+				cli, err := es.Get()
+				if err == nil {
+					r.Use(audit.ESAudit(cli))
+				}
 			}
 
 			r.Route("/platform", api.platform()) // platform

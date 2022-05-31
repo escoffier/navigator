@@ -379,12 +379,21 @@ func (api *api) deleteBaitService() http.HandlerFunc {
 			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.New("defense service instance get error")))
 			return
 		}
+		var baitName string
+		bait, err := defenseService.GetBaitService(ctx, dal.BaitsQuery().WithId(id))
+		if err == nil {
+			baitName = bait.Name
+		}
 		err = defenseService.DeleteBaitService(ctx, id)
 		if err != nil {
 			RespAndLog(w, ctx, NewAnError(http.StatusBadRequest, err))
 			return
 		}
-		response.Ok(w)
+		response.Ok(w, response.WithTarget(&response.TargetRef{
+			Name: baitName,
+			ID:   strconv.Itoa(int(id)),
+			Link: "",
+		}))
 	}
 }
 

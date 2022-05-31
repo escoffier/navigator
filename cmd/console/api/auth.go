@@ -232,6 +232,10 @@ func (api *api) login() http.HandlerFunc {
 			Token:            tokenString,
 			Role:             findUser.Rule,
 			LicenseStatus:    license.ValidateLicense(false),
+		}), response.WithTarget(&response.TargetRef{
+			Name: creds.Username,
+			ID:   "",
+			Link: "",
 		}))
 	}
 }

@@ -330,6 +330,7 @@ func NewConsole(
 				microsegURL,
 				env.GetWebHookUrl(),
 				httpOpts.HTTPLoggerDisabled,
+				httpOpts.HTTPAuditDisabled,
 				redisClient,
 				nil, // harborClient,
 				ecBuzCli,

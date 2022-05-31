@@ -16,6 +16,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 	"net/http"
 	"strings"
+	"text/template"
 	"time"
 )
 
@@ -26,6 +27,7 @@ const (
 	deleteAction  = "删除"
 	enableAction  = "启用"
 	disableAction = "停用"
+	eAnddAction   = "启用/停用"
 	importAction  = "导出"
 	uploadAction  = "上传"
 )
@@ -52,7 +54,7 @@ func RequestLogger(store Store, queue *util.Queue) func(next http.Handler) http.
 			entry := NewLogEntry(r, store, queue)
 			ww := middleware.NewWrapResponseWriter(w, r.ProtoMajor)
 
-			buf := newLimitBuffer(2049)
+			buf := newLimitBuffer(4096)
 			ww.Tee(buf)
 
 			t1 := time.Now()
@@ -75,6 +77,8 @@ func RequestLogger(store Store, queue *util.Queue) func(next http.Handler) http.
 						data["body"] = respBody
 						objName := getObjectName(respBody)
 						data["objName"] = objName
+						detail, _ = generateDetail(detail, objName)
+						data["detail"] = detail
 					}
 				}
 				entry.Write(ww.Status(), ww.BytesWritten(), ww.Header(), time.Since(t1), data)
@@ -84,6 +88,16 @@ func RequestLogger(store Store, queue *util.Queue) func(next http.Handler) http.
 		}
 		return http.HandlerFunc(fn)
 	}
+}
+
+func generateDetail(detail, objName string) (string, error) {
+	tpl := template.Must(template.New("detail").Parse(detail))
+	var buf bytes.Buffer
+	err := tpl.Execute(&buf, objName)
+	if err != nil {
+		return "", err
+	}
+	return buf.String(), nil
 }
 
 func sendLog(store Store, queue *util.Queue) {
@@ -144,14 +158,10 @@ func (e *LogEntry) Write(status, bytes int, header http.Header, elapsed time.Dur
 	detail, _ := extraData["detail"]
 	objName, ok := extraData["objName"]
 	if ok && objName != nil {
-		name := objName.(string)
-		if name != "" {
-			detail = fmt.Sprintf("%s %s", detail, name)
-		}
 		if e.auditEvt.MetaData == nil {
 			e.auditEvt.MetaData = make(map[string]interface{})
 		}
-		e.auditEvt.MetaData["objName"] = name
+		e.auditEvt.MetaData["objName"] = objName
 	}
 	if len(header) > 0 {
 		resp.Header = headerLogField(header)
@@ -160,6 +170,17 @@ func (e *LogEntry) Write(status, bytes int, header http.Header, elapsed time.Dur
 	e.auditEvt.HttpResponse = resp
 	e.auditEvt.Verb = verb.(string)
 	e.auditEvt.Detail = detail.(string)
+
+	if e.auditEvt.HttpRequest.Path == "/api/v2/usercenter/login" {
+		name := objName.(string)
+		if e.auditEvt.User == nil {
+			e.auditEvt.User = &model.UserInfo{
+				Name: name,
+			}
+		} else {
+			e.auditEvt.User.Name = name
+		}
+	}
 
 	if e.logQueue.Len() < maxQueueLen {
 		e.logQueue.Add(e.auditEvt)
@@ -227,7 +248,7 @@ func requestLogFields(r *http.Request) *model.NaviAuditEvent {
 		RequestID:   requestID,
 		User:        user,
 		HttpRequest: request,
-		Timestamp:   time.Now(),
+		Timestamp:   time.Now().UnixMilli(),
 		MetaData:    nil,
 	}
 }
@@ -302,24 +323,24 @@ func init() {
 	routeAction = newRouter()
 	//平台报告
 	routeAction.POST("/api/v2/platform/report/template", func(params Params) (string, string) {
-		return createAction, "新增平台报告"
+		return createAction, "新增平台报告{{.}}"
 	})
 	routeAction.PUT("/api/v2/platform/report/template", func(params Params) (string, string) {
-		return editAction, "编辑平台报告"
+		return editAction, "编辑平台报告{{.}}"
 	})
 	routeAction.DELETE("/api/v2/platform/report/template", func(params Params) (string, string) {
-		return deleteAction, "删除平台报告"
+		return deleteAction, "删除平台报告{{.}}"
 	})
 
 	//主动防御
 	routeAction.POST("/api/v2/containerSec/watson/baitService", func(params Params) (string, string) {
-		return editAction, "编辑诱捕服务"
+		return editAction, "编辑诱捕服务{{.}}"
 	})
 	routeAction.PUT("/api/v2/containerSec/watson/baitService", func(params Params) (string, string) {
-		return createAction, "新增诱捕服务"
+		return createAction, "新增诱捕服务{{.}}"
 	})
 	routeAction.DELETE("/api/v2/containerSec/watson/baitService", func(params Params) (string, string) {
-		return deleteAction, "删除诱捕服务"
+		return deleteAction, "删除诱捕服务{{.}}"
 	})
 
 	//用户登录
@@ -329,15 +350,15 @@ func init() {
 
 	//资产发现
 	routeAction.POST("/api/v2/platform/assets/namespace", func(params Params) (string, string) {
-		return editAction, "编辑命名空间"
+		return editAction, "编辑命名空间{{.}}"
 	})
 	routeAction.POST("/api/v2/platform/assets/resource/userData", func(params Params) (string, string) {
-		return editAction, "编辑资源"
+		return editAction, "编辑资源{{.}}"
 	})
 
 	//事件中心
 	routeAction.POST("/api/v2/platform/processingCenter/record", func(params Params) (string, string) {
-		return editAction, "编辑Pod的隔离策略"
+		return editAction, "编辑Pod: {{.}}的隔离策略"
 	})
 	routeAction.POST("/api/v2/platform/eventsCenter/config", func(params Params) (string, string) {
 		return editAction, "编辑通知配置"
@@ -352,70 +373,76 @@ func init() {
 	})
 
 	//微隔离
-	routeAction.POST("/api/v2/microseg/clusters/:clusterKey/resourceTag/infras", func(params Params) (string, string) {
+	routeAction.PUT("/api/v2/microseg/clusters/:clusterKey/resourceTag/infras", func(params Params) (string, string) {
 		return editAction, "编辑资源配置"
 	})
-	routeAction.POST("/api/v2/microseg/clusters/:clusterKey/resourceTag/gateways", func(params Params) (string, string) {
+	routeAction.PUT("/api/v2/microseg/clusters/:clusterKey/resourceTag/gateways", func(params Params) (string, string) {
 		return editAction, "编辑资源配置"
 	})
 	routeAction.POST("/api/v2/microseg/clusters/:clusterKey/namespaces/:namespace/kinds/:kind/resources/:resource/policy", func(params Params) (string, string) {
-		return editAction, "编辑资源的隔离策略"
+		return editAction, "编辑资源{{.}}的隔离策略"
 	})
-	routeAction.POST("/api/v2/microseg/clusters/:clusterKey/namespaces/:namespace/segments/:segment", func(params Params) (string, string) {
-		return editAction, "编辑资源组的隔离策略"
+	routeAction.PUT("/api/v2/microseg/clusters/:clusterKey/namespaces/:namespace/kinds/:kind/resources/:resource/policy/enabling", func(params Params) (string, string) {
+		return "启用/停用", "启/停用资源{{.}}策略"
+	})
+	routeAction.POST("/api/v2/microseg/clusters/:clusterKey/namespaces/:namespace/segments/:segment/policy", func(params Params) (string, string) {
+		return editAction, "编辑资源组{{.}}的隔离策略"
 	})
 	routeAction.POST("/api/v2/microseg/clusters/:clusterKey/namespaces/:namespace/segments", func(params Params) (string, string) {
-		return createAction, "新增资源组"
+		return createAction, "新增资源组{{.}}"
 	})
 	routeAction.PUT("/api/v2/microseg/clusters/:clusterKey/namespaces/:namespace/segments/:segment", func(params Params) (string, string) {
-		return editAction, "编辑资源组"
+		return editAction, "编辑资源组{{.}}"
 	})
 	routeAction.DELETE("/api/v2/microseg/clusters/:clusterKey/namespaces/:namespace/segments/:segment", func(params Params) (string, string) {
-		return deleteAction, "删除资源组"
+		return deleteAction, "删除资源组{{.}}"
+	})
+	routeAction.PUT("/api/v2/microseg/clusters/:clusterKey/namespaces/:namespace/segments/:segment/policy/enabling", func(params Params) (string, string) {
+		return "启用/停用", "启/停用资源组{{.}}策略"
 	})
 	routeAction.POST("/api/v2/microseg/clusters/:clusterKey/nsgrps", func(params Params) (string, string) {
-		return createAction, "新增命名空间组"
+		return createAction, "新增命名空间组{{.}}"
 	})
 	routeAction.PUT("/api/v2/microseg/clusters/:clusterKey/nsgrps/:nsgrp", func(params Params) (string, string) {
-		return editAction, "编辑命名空间组"
+		return editAction, "编辑命名空间组{{.}}"
 	})
 	routeAction.DELETE("/api/v2/microseg/clusters/:clusterKey/nsgrps/:nsgrp", func(params Params) (string, string) {
-		return deleteAction, "删除命名空间组"
+		return deleteAction, "删除命名空间组{{.}}"
 	})
 	routeAction.PUT("/api/v2/microseg/clusters/:clusterKey/nsgrps/:nsgrp/policy/enabling", func(params Params) (string, string) {
-		return "启用/停用", "启/停用命名空间组策略"
+		return "启用/停用", "启/停用命名空间组{{.}}策略"
 	})
 	routeAction.POST("/api/v2/microseg/clusters/:clusterKey/tenants", func(params Params) (string, string) {
-		return createAction, "新增租户"
+		return createAction, "新增租户{{.}}"
 	})
 	routeAction.PUT("/api/v2/microseg/clusters/:clusterKey/tenants/:tenant", func(params Params) (string, string) {
-		return editAction, "编辑租户"
+		return editAction, "编辑租户{{.}}"
 	})
 	routeAction.DELETE("/api/v2/microseg/clusters/:clusterKey/tenants/:tenant", func(params Params) (string, string) {
-		return deleteAction, "删除租户"
+		return deleteAction, "删除租户{{.}}"
 	})
 	routeAction.PUT("/api/v2/microseg/clusters/:clusterKey/tenants/:tenant/policy/enabling", func(params Params) (string, string) {
-		return "启用/停用", "启停租户隔离策略"
+		return "启用/停用", "启停租户{{.}}策略"
 	})
 	routeAction.POST("/api/v2/microseg/clusters/:clusterKey/logicclusters", func(params Params) (string, string) {
-		return createAction, "新增逻辑集群"
+		return createAction, "新增逻辑集群{{.}}"
 	})
 	routeAction.PUT("/api/v2/microseg/clusters/:clusterKey/logicclusters/:logiccluster", func(params Params) (string, string) {
-		return editAction, "编辑逻辑集群"
+		return editAction, "编辑逻辑集群{{.}}"
 	})
 	routeAction.DELETE("/api/v2/microseg/clusters/:clusterKey/logicclusters/:logiccluster", func(params Params) (string, string) {
-		return deleteAction, "删除逻辑集群"
+		return deleteAction, "删除逻辑集群{{.}}"
 	})
 
 	//镜像安全
 	routeAction.POST("/api/v2/containerSec/scanner/scan-config/strategy", func(params Params) (string, string) {
-		return createAction, "新增扫描策略"
+		return createAction, "新增扫描策略{{.}}"
 	})
 	routeAction.PUT("/api/v2/containerSec/scanner/scan-config/strategy/:strategyID", func(params Params) (string, string) {
-		return editAction, "编辑扫描策略"
+		return editAction, "编辑扫描策略{{.}}"
 	})
 	routeAction.DELETE("/api/v2/containerSec/scanner/scan-config/strategy/:strategyID", func(params Params) (string, string) {
-		return deleteAction, "删除扫描策略"
+		return deleteAction, "删除扫描策略{{.}}"
 	})
 
 	routeAction.POST("/api/v2/containerSec/scanner/imagereject/trustedImages/rsa", func(params Params) (string, string) {
@@ -433,30 +460,30 @@ func init() {
 	})
 
 	routeAction.POST("/api/v2/containerSec/scanner/scan-report", func(params Params) (string, string) {
-		return createAction, "新增镜像扫描报告"
+		return createAction, "新增镜像扫描报告{{.}}"
 	})
 	routeAction.PUT("/api/v2/containerSec/scanner/scan-report/:id", func(params Params) (string, string) {
-		return editAction, "编辑镜像扫描报告"
+		return editAction, "编辑镜像扫描报告{{.}}"
 	})
 	routeAction.DELETE("/api/v2/containerSec/scanner/scan-report/:id", func(params Params) (string, string) {
-		return deleteAction, "删除镜像扫描报告"
+		return deleteAction, "删除镜像扫描报告{{.}}"
 	})
 
 	routeAction.POST("/api/v2/containerSec/scanner/register/registry", func(params Params) (string, string) {
-		return createAction, "新增镜像仓库"
+		return createAction, "新增镜像仓库{{.}}"
 	})
 	routeAction.PUT("/api/v2/containerSec/scanner/register/registry/:id", func(params Params) (string, string) {
-		return editAction, "编辑镜像仓库"
+		return editAction, "编辑镜像仓库{{.}}"
 	})
 	routeAction.DELETE("/api/v2/containerSec/scanner/register/registry/:id", func(params Params) (string, string) {
-		return deleteAction, "删除镜像仓库"
+		return deleteAction, "删除镜像仓库{{.}}"
 	})
 
 	routeAction.POST("/api/v2/containerSec/scanner/images/bases", func(params Params) (string, string) {
-		return createAction, "新增基础镜像+镜像名称至基础镜像列表"
+		return createAction, "新增基础镜像{{.}}至基础镜像列表"
 	})
 	routeAction.DELETE("/api/v2/containerSec/scanner/images/bases", func(params Params) (string, string) {
-		return deleteAction, "删除基础镜像+镜像名称出基础镜像列表"
+		return deleteAction, "删除基础镜像{{.}}出基础镜像列表"
 	})
 
 	routeAction.POST("/api/v2/containerSec/scanner/scanone", func(params Params) (string, string) {
@@ -464,10 +491,10 @@ func init() {
 	})
 
 	routeAction.POST("/api/v2/containerSec/scanner/imagereject/whitelist", func(params Params) (string, string) {
-		return createAction, "新增镜像 + 镜像名至阻断白名单"
+		return createAction, "新增镜像{{.}}至阻断白名单"
 	})
 	routeAction.DELETE("/api/v2/containerSec/scanner/imagereject/whitelist/:id", func(params Params) (string, string) {
-		return deleteAction, "删除镜像 + 镜像名出阻断白名单"
+		return deleteAction, "删除镜像{{.}}出阻断白名单"
 	})
 
 	routeAction.PUT("/api/v2/containerSec/scanner/imagereject/policy/global", func(params Params) (string, string) {
@@ -475,13 +502,16 @@ func init() {
 	})
 
 	routeAction.POST("/api/v2/containerSec/scanner/imagereject/policy/single", func(params Params) (string, string) {
-		return createAction, "新增阻断策略"
+		return createAction, "新增阻断策略{{.}}"
 	})
 	routeAction.PUT("/api/v2/containerSec/scanner/imagereject/policy/single/:id", func(params Params) (string, string) {
-		return editAction, "编辑阻断策略"
+		return editAction, "编辑阻断策略{{.}}"
 	})
 	routeAction.DELETE("/api/v2/containerSec/scanner/imagereject/policy/single/:id", func(params Params) (string, string) {
-		return deleteAction, "删除阻断策略"
+		return deleteAction, "删除阻断策略{{.}}"
+	})
+	routeAction.PUT("/api/v2/containerSec/scanner/tasks/:id/status", func(params Params) (string, string) {
+		return editAction, "编辑扫描记录"
 	})
 
 	//合规检测
@@ -528,10 +558,10 @@ func init() {
 		case model.ComplianceCheckTargetTypeHost:
 			scapTypeName = "主机"
 		}
-		return createAction, "新增 " + scapTypeName + " 扫描策略"
+		return createAction, "新增 " + scapTypeName + " 扫描策略{{.}}"
 	})
 
-	routeAction.DELETE("/api/v2/containerSec/scap/v2/:scapType/policy", func(params Params) (string, string) {
+	routeAction.DELETE("/api/v2/containerSec/scap/v2/:scapType/policy/:id", func(params Params) (string, string) {
 		scapType := model.ComplianceCheckType(params.ByName("scapType"))
 		scapTypeName := ""
 		switch scapType {
@@ -542,7 +572,7 @@ func init() {
 		case model.ComplianceCheckTargetTypeHost:
 			scapTypeName = "主机"
 		}
-		return deleteAction, "删除 " + scapTypeName + " 扫描策略"
+		return deleteAction, "删除 " + scapTypeName + " 扫描策略{{.}}"
 	})
 
 	//集群安全
@@ -576,6 +606,9 @@ func init() {
 		return uploadAction, "上传离线规则包"
 	})
 	routeAction.PUT("/api/v1/vulns/updata", func(params Params) (string, string) {
+		return uploadAction, "上传漏洞库更新包"
+	})
+	routeAction.PUT("/api/v2/containerSec/scanner/vulns/updata", func(params Params) (string, string) {
 		return uploadAction, "上传漏洞库更新包"
 	})
 }

@@ -12,6 +12,7 @@ const (
 	httpWebHookListen  = "http-web-hook-listen"
 	httpListen         = "http-listen"
 	httpLoggerDisabled = "http-logger-disabled"
+	httpAuditDisabled  = "http-audit-disabled"
 )
 
 // HTTPOpts the http options.
@@ -19,6 +20,7 @@ type HTTPOpts struct {
 	HTTPWebHookListen  string
 	HTTPListen         string
 	HTTPLoggerDisabled bool
+	HTTPAuditDisabled  bool
 }
 
 // NewDefaultHTTPOpts returns a new default http options.
@@ -27,6 +29,7 @@ func NewDefaultHTTPOpts() *HTTPOpts {
 		HTTPWebHookListen:  ":8081",
 		HTTPListen:         ":8080",
 		HTTPLoggerDisabled: false,
+		HTTPAuditDisabled:  false,
 	}
 }
 
@@ -35,6 +38,7 @@ func GetHTTPOpts(cmd *cobra.Command) *HTTPOpts {
 	return &HTTPOpts{
 		HTTPWebHookListen: viper.GetString(httpWebHookListen),
 		HTTPListen:        viper.GetString(httpListen),
+		HTTPAuditDisabled: viper.GetBool(httpAuditDisabled),
 	}
 }
 
@@ -45,7 +49,9 @@ func AddHTTPFlags(cmd *cobra.Command) {
 	cmd.Flags().String(httpListen, defaultOpts.HTTPListen, "HTTP listen address")
 	cmd.Flags().Bool(httpLoggerDisabled, defaultOpts.HTTPLoggerDisabled,
 		"True if HTTP Logger should be disabled")
-	for _, flag := range []string{httpListen, httpLoggerDisabled, httpWebHookListen} {
+	cmd.Flags().Bool(httpAuditDisabled, defaultOpts.HTTPAuditDisabled,
+		"True if HTTP audit should be disabled")
+	for _, flag := range []string{httpListen, httpLoggerDisabled, httpWebHookListen, httpAuditDisabled} {
 		err := viper.BindPFlag(flag, cmd.Flags().Lookup(flag))
 		if err != nil {
 			panic(err)
