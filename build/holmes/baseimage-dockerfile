@@ -23,6 +23,7 @@ RUN cp /etc/skel/.bashrc /root && cp /etc/skel/.profile /root \
 
     && sed -i "s!archive.ubuntu.com/!${MIRROR}/!g" /etc/apt/sources.list \
     &&apt-get update \
+	&& apt-get full-upgrade -y \
 	&& apt-get install -y --no-install-recommends --fix-missing \
 	bash-completion \
 	bc \
