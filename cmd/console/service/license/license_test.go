@@ -10,12 +10,16 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
+	"net/http"
+	"os"
 	"reflect"
+	"regexp"
 	"testing"
 	"time"
 	"unsafe"
 
 	"github.com/DATA-DOG/go-sqlmock"
+	"github.com/jarcoal/httpmock"
 	"github.com/stretchr/testify/assert"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 	"gitlab.com/security-rd/go-pkg/databases"
@@ -114,6 +118,13 @@ func TestGenerateEnvKey(t *testing.T) {
 	}
 	mockRSA()
 
+	// mock http
+	httpmock.Activate()
+	defer httpmock.DeactivateAndReset()
+	_ = os.Setenv("CLUSTER_MANAGER_URL", "fake")
+	httpmock.RegisterRegexpResponder(http.MethodGet, regexp.MustCompile(".*/internal/cluster$"),
+		httpmock.NewStringResponder(200, `{"key":"fake"}`))
+
 	mock.ExpectQuery("^SELECT").WillReturnRows(sqlmock.NewRows([]string{}))
 	err = Init(rdb)
 	assert.NoError(t, err)
@@ -141,6 +152,12 @@ func TestRefreshLicenseInfo(t *testing.T) {
 		t.Fatal(err)
 	}
 	mockRSA()
+	// mock http
+	httpmock.Activate()
+	defer httpmock.DeactivateAndReset()
+	_ = os.Setenv("CLUSTER_MANAGER_URL", "fake")
+	httpmock.RegisterRegexpResponder(http.MethodGet, regexp.MustCompile(".*/internal/cluster$"),
+		httpmock.NewStringResponder(200, `{"key":"fake"}`))
 
 	mock.ExpectQuery("^SELECT").WillReturnRows(sqlmock.NewRows([]string{}))
 	err = Init(rdb)
@@ -149,9 +166,13 @@ func TestRefreshLicenseInfo(t *testing.T) {
 	key, err := loadPrivateKey(privateKey)
 	assert.NoError(t, err)
 
+	eigenvalue, err := manager.getEnvEigenvalue()
+	assert.NoError(t, err)
+
 	tests := []struct {
-		info      Info
-		expectErr bool
+		info         Info
+		expectErr    bool
+		expectStatus Status
 	}{
 		{
 			info: Info{
@@ -160,7 +181,7 @@ func TestRefreshLicenseInfo(t *testing.T) {
 				ExpireAt:    time.Now().Add(-time.Minute).Unix(),
 				NodeLimit:   0,
 				Module:      "fake",
-				Eigenvalue:  "fake",
+				Eigenvalue:  eigenvalue,
 			},
 			expectErr: true,
 		},
@@ -171,9 +192,33 @@ func TestRefreshLicenseInfo(t *testing.T) {
 				ExpireAt:    time.Now().Add(time.Minute).Unix(),
 				NodeLimit:   0,
 				Module:      "fake",
+				Eigenvalue:  eigenvalue,
+			},
+			expectErr:    false,
+			expectStatus: Status{Valid: true, DeadlineState: DeadlineStatusWillExpire},
+		},
+		{
+			info: Info{
+				SerialNo:    "fake",
+				LicenseType: "fake",
+				ExpireAt:    time.Now().Add(time.Minute).Unix(),
+				NodeLimit:   0,
+				Module:      "fake",
 				Eigenvalue:  "fake",
 			},
-			expectErr: false,
+			expectErr: true,
+		},
+		{
+			info: Info{
+				SerialNo:    "fake",
+				LicenseType: "fake",
+				ExpireAt:    time.Now().Add(time.Hour * 24 * 15).Unix(),
+				NodeLimit:   0,
+				Module:      "fake",
+				Eigenvalue:  eigenvalue,
+			},
+			expectErr:    false,
+			expectStatus: Status{Valid: true},
 		},
 	}
 
@@ -189,13 +234,12 @@ func TestRefreshLicenseInfo(t *testing.T) {
 		licenseCode, err = util.AesEncryptCBC(licenseCode, publicKey[31:47])
 		assert.NoError(t, err)
 
-		err = RefreshLicenseInfo(base64.StdEncoding.EncodeToString(licenseCode), "fake")
+		err = RefreshLicenseInfo(base64.StdEncoding.EncodeToString(licenseCode))
 		if test.expectErr {
 			assert.Error(t, err)
 		} else {
 			assert.NoError(t, err)
+			assert.Equal(t, test.expectStatus, ValidateLicense(false))
 		}
-
-		t.Log(ValidateLicense(false))
 	}
 }

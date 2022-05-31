@@ -20,6 +20,7 @@ import (
 	"gitlab.com/security-rd/go-pkg/databases"
 	"gitlab.com/security-rd/go-pkg/logging"
 	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -61,7 +62,7 @@ func Init(rdb *databases.RDBInstance) error {
 			publicKey:    pubk,
 			remindPeriod: time.Hour * 24 * 15,
 		}),
-		db: rdb.GetReadDB(),
+		db: rdb.GetReadDB().Session(&gorm.Session{Logger: logger.Discard}),
 	}
 
 	licenseConf := model.TensorConfig{}
@@ -80,17 +81,24 @@ func Init(rdb *databases.RDBInstance) error {
 }
 
 func (licenseManager) getEnvEigenvalue() (string, error) {
-	macAddrs, err := util.GetMacAddrs()
+	tensorCluster, err := k8s.GetTensorCluster()
 	if err != nil {
 		return "", err
+	}
+
+	fixedEigenvalue := strings.Join([]string{tensorCluster.Key}, "&")
+
+	macAddrs, err := util.GetMacAddrs()
+	if err != nil {
+		return "", fmt.Errorf("10082")
 	}
 
 	ipAddrs, err := util.GetIPs()
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("10082")
 	}
 
-	rawEigenvalue := strings.Join([]string{
+	dynamicEigenvalue := strings.Join([]string{
 		runtime.GOOS,
 		runtime.GOARCH,
 		runtime.Version(),
@@ -99,14 +107,8 @@ func (licenseManager) getEnvEigenvalue() (string, error) {
 		strings.Join(ipAddrs, "+"),
 	}, "&")
 
-	logging.Get().Debug().Msg(rawEigenvalue)
-	return util.MD5Hex(rawEigenvalue), nil
-}
-
-// GetEnvEigenvalue get environment eigenvalue
-func GetEnvEigenvalue() (string, error) {
-	eigenvalue, err := manager.getEnvEigenvalue()
-	return eigenvalue, err
+	eigenvalue := util.MD5Hex(fixedEigenvalue) + "." + util.MD5Hex(dynamicEigenvalue)
+	return eigenvalue, nil
 }
 
 // GenerateEnvKey generate environment key
@@ -129,35 +131,51 @@ func GenerateEnvKey() (string, error) {
 		return "", err
 	}
 
-	logging.Get().Debug().Msgf("raw encrypt data: %s", string(b))
-
 	return manager.verifier.encrypt(b)
 }
 
-func RefreshLicenseInfo(licenseCode string, eigenvalue string) (err error) {
+func RefreshLicenseInfo(licenseCode string) (err error) {
 	logging.Get().Debug().Msgf("licenseCode %s", licenseCode)
+
+	eigenvalue, err := manager.getEnvEigenvalue()
+	if err != nil {
+		return err
+	}
 
 	newInfo, err := manager.verifier.decode(licenseCode)
 	if err != nil {
 		return err
 	}
 
-	logging.Get().Debug().Msgf("info: %v", newInfo)
+	if newInfo.Eigenvalue != eigenvalue {
+		return fmt.Errorf("10081")
+	}
 
 	status := manager.verifier.validate(newInfo, false)
 	if !status.StrictValid() {
 		return fmt.Errorf("license invalid %v", status)
 	}
 
-	if newInfo.Eigenvalue != eigenvalue {
-		return fmt.Errorf("eigenvalue not match")
-	}
-
 	manager.currentInfo = newInfo
 	return nil
 }
 
-func ValidateLicense(allowGracePeriod bool) Status {
+func ValidateLicense(allowGracePeriod bool) (status Status) {
+	if manager.currentInfo == nil {
+		return
+	}
+
+	eigenvalue, err := manager.getEnvEigenvalue()
+	if err != nil {
+		logging.Get().Error().Err(err).Msg("")
+		return
+	}
+
+	if strings.Split(manager.currentInfo.Eigenvalue, ".")[0] != strings.Split(eigenvalue, ".")[0] {
+		logging.Get().Warn().Msg("10080")
+		return
+	}
+
 	return manager.verifier.validate(manager.currentInfo, allowGracePeriod)
 }
 
@@ -172,7 +190,7 @@ func GetUsedNodeNum() (int64, error) {
 
 	clusterManager, ok := k8s.GetClusterManager()
 	if !ok {
-		return 0, fmt.Errorf("cluster manager not exist")
+		return 0, fmt.Errorf("10083")
 	}
 
 	var (
@@ -183,7 +201,7 @@ func GetUsedNodeNum() (int64, error) {
 	clusterManager.TraverseClient(func(key string, cli *assets.Clientset) bool {
 		daemonSetHolmesList, err := cli.AppsV1().DaemonSets(namespace).List(ctx, metav1.ListOptions{LabelSelector: "app.kubernetes.io/name=holmes"})
 		if err != nil {
-			logging.Get().Warn().Err(err).Msg("get holmes daemonSet failed")
+			logging.Get().Warn().Err(err).Msg("get hd failed")
 			return true
 		}
 
