@@ -145,6 +145,7 @@ require (
 	github.com/gorilla/mux v1.8.0 // indirect
 	github.com/gorilla/schema v1.2.0 // indirect
 	github.com/hpcloud/tail v1.0.0 // indirect
+	github.com/jarcoal/httpmock v1.2.0 // indirect
 	github.com/jinzhu/copier v0.3.2 // indirect
 	github.com/klauspost/pgzip v1.2.5 // indirect
 	github.com/manifoldco/promptui v0.9.0 // indirect

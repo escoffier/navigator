@@ -20,3 +20,11 @@ NoLevel = 6
 Disabled = 7
 --log-level int           日志输出等级。 默认0 
 ```
+
+license错误码
+```
+10080=fixed eigenvalue not match
+10081=eigenvalue not match
+10082=获取mac地址或ip地址错误
+10083=cluster manager not exist
+```

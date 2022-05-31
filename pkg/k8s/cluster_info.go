@@ -123,7 +123,7 @@ func getK8sClusterInfo(ctx context.Context, host string) (*TensorCluster, error)
 
 	clusterInfo := TensorCluster{}
 	err = util.HTTPRequest(ctx, http.DefaultClient, req, func(resp *http.Response, err error) error {
-		logging.Get().Debug().Msgf("%s/internal/cluster", host)
+		// logging.Get().Debug().Msgf("%s/internal/cluster", host)
 		if err != nil {
 			return err
 		}

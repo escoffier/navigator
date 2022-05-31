@@ -6,9 +6,10 @@ import (
 	b64 "encoding/base64"
 	"errors"
 	"fmt"
-	"k8s.io/apimachinery/pkg/util/wait"
 	"os"
 	"time"
+
+	"k8s.io/apimachinery/pkg/util/wait"
 
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 
@@ -173,6 +174,18 @@ func KubeConfig() (*rest.Config, error) {
 	}
 
 	return GenKubeConfig(cluster.K8SRestConfig)
+}
+
+func GetTensorCluster() (*TensorCluster, error) {
+	host := os.Getenv("CLUSTER_MANAGER_URL")
+	if host == "" {
+		return nil, fmt.Errorf("no cluster manager url")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	cluster, err := getK8sClusterInfo(ctx, host)
+	return cluster, err
 }
 
 func CreateClientset(cluster *model.TensorCluster) (*assets.Clientset, error) {

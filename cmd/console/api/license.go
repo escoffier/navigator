@@ -17,6 +17,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
+	"gorm.io/gorm/logger"
 )
 
 const defaultLicenseTimeout = time.Second * 5
@@ -101,16 +102,9 @@ func (a *api) licenseRegister() http.HandlerFunc {
 			return
 		}
 
-		eigenvalue, err := license.GetEnvEigenvalue()
-		if err != nil {
-			apperror.RespAndLog(w, r.Context(),
-				apperror.NewAnError(http.StatusInternalServerError,
-					fmt.Errorf("generate enviornment eigenvalue error: %w", err)))
-			return
-		}
-
 		// 保存license到mysql
 		err = a.rdb.Get().Transaction(func(tx *gorm.DB) error {
+			tx.Logger = tx.Logger.LogMode(logger.Silent)
 			err = tx.WithContext(ctx).Clauses(clause.OnConflict{
 				Columns:   []clause.Column{{Name: "k"}},
 				DoUpdates: clause.AssignmentColumns([]string{"config", "updater", "updated_at"}),
@@ -128,7 +122,7 @@ func (a *api) licenseRegister() http.HandlerFunc {
 			}
 
 			// 刷新现在保存的licenseInfo
-			return license.RefreshLicenseInfo(req.LicenseCode, eigenvalue)
+			return license.RefreshLicenseInfo(req.LicenseCode)
 		})
 
 		if err != nil {
