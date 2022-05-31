@@ -177,7 +177,7 @@ func (s *Scapper) checkTargetTypeTasksStillInProgress(ctx context.Context, check
 	defer cancel()
 
 	var scanTask model.ScanHistory
-	err := s.rdb.GetReadDB().WithContext(pgCtx).
+	err := s.rdb.Get().WithContext(pgCtx).
 		Where("check_type = ? and cluster_key = ? and state = ?", checkType, clusterID, model.ScanStateInProgress).
 		First(&scanTask).
 		Error
@@ -198,7 +198,7 @@ func (s *Scapper) checkTargetTypeTasksStillInProgress(ctx context.Context, check
 		logging.Get().Info().
 			Str("checkType", checkType).
 			Str("clusterKey", clusterID).
-			Msgf("%s in progress", scanTask.TaskID)
+			Msgf("taskId: %s, state: %d,  in progress", scanTask.TaskID, scanTask.State)
 
 		return true
 	}
