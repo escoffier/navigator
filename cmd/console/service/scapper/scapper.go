@@ -195,6 +195,11 @@ func (s *Scapper) checkTargetTypeTasksStillInProgress(ctx context.Context, check
 	}
 	//task state
 	if scanTask.State == model.ScanStateInProgress {
+		logging.Get().Info().
+			Str("checkType", checkType).
+			Str("clusterKey", clusterID).
+			Msgf("%s in progress", scanTask.TaskID)
+
 		return true
 	}
 
@@ -1189,7 +1194,7 @@ func (s *Scapper) syncJobState(ctx context.Context, checkType, clusterKey string
 	defer mpgCancel()
 
 	logger := logging.Get().Log().
-		Str("check_type", checkType).
+		Str("checkType", checkType).
 		Str("clusterKey", clusterKey)
 
 	var inProcessItem []*model.ScanHistory
