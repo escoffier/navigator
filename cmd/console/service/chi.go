@@ -30,6 +30,7 @@ func setupChiRouter(
 	microsegURL string,
 	webhookURL string,
 	httpLoggerDisabled bool,
+	httpAuditDisabled bool,
 	redisClient *redis.Client,
 	harborClient *harbor.HarborRESTClient,
 	ecCli pb.EventsCenterBizServiceClient,
@@ -47,7 +48,6 @@ func setupChiRouter(
 	if !httpLoggerDisabled {
 		r.Use(middleware.Logger)
 	}
-	//r.Use(audit.Audit)
 
 	api.SetupRoutes(ctx, r,
 		tokenAuth,
@@ -60,6 +60,7 @@ func setupChiRouter(
 		harborClient,
 		ecCli,
 		es,
+		httpAuditDisabled,
 	)
 
 	return r

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strconv"
 	"time"
 
 	param "github.com/oceanicdev/chi-param"
@@ -66,7 +67,12 @@ func (a *ApiServer) PolicyCreate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	response.Ok(w, response.WithItem(scap.CreatePolicyResp{ID: models.ID{ID: id}}))
+	response.Ok(w, response.WithItem(scap.CreatePolicyResp{ID: models.ID{ID: id}}),
+		response.WithTarget(&response.TargetRef{
+			Name: req.Name,
+			ID:   "",
+			Link: "",
+		}))
 }
 
 func (a *ApiServer) PolicyBatch(w http.ResponseWriter, r *http.Request) {
@@ -193,6 +199,11 @@ func (a *ApiServer) PolicyDelete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	var policyName string
+	policyBrief, err := a.service.PolicyBrief(ctx, policyId)
+	if err == nil {
+		policyName = policyBrief.Name
+	}
 	err = a.service.PolicyDelete(ctx, policyId, scapType)
 	if err != nil {
 		apperror.RespAndLog(w, ctx, apperror.NewErrorWithCode(
@@ -202,7 +213,11 @@ func (a *ApiServer) PolicyDelete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	response.Ok(w)
+	response.Ok(w, response.WithTarget(&response.TargetRef{
+		Name: policyName,
+		ID:   strconv.Itoa(int(policyId)),
+		Link: "",
+	}))
 }
 
 func (a *ApiServer) PolicyDetail(w http.ResponseWriter, r *http.Request) {

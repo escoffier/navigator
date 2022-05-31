@@ -190,6 +190,11 @@ func (api *api) deleteReportTemplate() http.HandlerFunc {
 			apperror.RespAndLog(w, ctx, ErrServiceNotReady)
 			return
 		}
+		var tplName string
+		templateTask, err := service.GetTemplateTask(ctx, cliReq.ID)
+		if err == nil {
+			tplName = templateTask.Name
+		}
 
 		err = service.DeleteReportTaskTemplate(ctx, cliReq.ID)
 		if err != nil {
@@ -197,7 +202,11 @@ func (api *api) deleteReportTemplate() http.HandlerFunc {
 			return
 		}
 
-		response.Ok(w, response.WithApiVersion(platformReportAPIVersion))
+		response.Ok(w, response.WithApiVersion(platformReportAPIVersion), response.WithTarget(&response.TargetRef{
+			Name: tplName,
+			ID:   strconv.Itoa(int(cliReq.ID)),
+			Link: "",
+		}))
 	}
 }
 

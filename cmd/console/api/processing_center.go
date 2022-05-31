@@ -106,7 +106,12 @@ func (api *api) addProcessingRecord() http.HandlerFunc {
 		if partial {
 			status = 1
 		}
-		response.Ok(w, response.WithApiVersion(processingCenterAPIVersion), response.WithItem(rsp{ID: id}), response.WithExportFileStatus(status))
+		response.Ok(w, response.WithApiVersion(processingCenterAPIVersion), response.WithItem(rsp{ID: id}),
+			response.WithExportFileStatus(status), response.WithTarget(&response.TargetRef{
+				Name: fmt.Sprintf("%v", cliReq.Object),
+				ID:   "",
+				Link: "",
+			}))
 	}
 }
 

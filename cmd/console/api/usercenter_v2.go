@@ -8,10 +8,13 @@ import (
 
 func (api *api) userCenter() func(chi.Router) {
 	return func(r chi.Router) {
-		ecCli, err := api.esCli.Get()
-		if err == nil {
-			r.Use(audit.ESAudit(ecCli))
+		if !api.httpAuditDisabled {
+			ecCli, err := api.esCli.Get()
+			if err == nil {
+				r.Use(audit.ESAudit(ecCli))
+			}
 		}
+
 		r.Get("/config/loginOption", api.GetLoginOption())
 		r.Get("/login/secret", api.getLoginSecret())
 		r.Group(func(r chi.Router) {

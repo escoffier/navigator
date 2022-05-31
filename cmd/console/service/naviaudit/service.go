@@ -7,11 +7,9 @@ import (
 	"fmt"
 	"github.com/olivere/elastic/v7"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
-	"gitlab.com/piccolo_su/vegeta/pkg/util"
 	pkgelastic "gitlab.com/security-rd/go-pkg/elastic"
 	"gitlab.com/security-rd/go-pkg/logging"
 	"sync"
-	"time"
 )
 
 const timeStampKey = "Timestamp"
@@ -38,7 +36,7 @@ type QueryNaviAuditLogOpt struct {
 
 type Resp struct {
 	ID        string
-	Time      time.Time
+	Time      int64
 	UserName  string
 	Ip        string
 	Operation string
@@ -71,15 +69,17 @@ func (s *Service) GetAuditLog(ctx context.Context, opt *QueryNaviAuditLogOpt) ([
 	var queries []elastic.Query
 	if opt.StartTimestamp > 0 && opt.EndTimestamp >= opt.StartTimestamp {
 		queries = append(queries, elastic.NewRangeQuery(timeStampKey).
-			Gte(util.GetTimeByMillisecondTimestamp(opt.StartTimestamp)).
-			Lte(util.GetTimeByMillisecondTimestamp(opt.EndTimestamp)))
+			Gte(opt.StartTimestamp).
+			Lte(opt.EndTimestamp))
 	}
 
 	for k, v := range opt.Filter {
 		if k != "" && v != "" {
-			//queries = append(queries, elastic.NewWildcardQuery(k, fmt.Sprintf("*%s*", v)))
-			queries = append(queries, elastic.NewMatchQuery(k, v))
-
+			if k == "Verb" {
+				queries = append(queries, elastic.NewMatchQuery(k, v))
+				continue
+			}
+			queries = append(queries, elastic.NewWildcardQuery(k, fmt.Sprintf("*%s*", v)))
 		}
 	}
 
