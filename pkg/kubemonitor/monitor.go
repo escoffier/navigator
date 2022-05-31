@@ -2,8 +2,8 @@ package kubemonitor
 
 import (
 	"context"
-	"fmt"
 	"runtime/debug"
+	"strings"
 	"sync"
 	"time"
 
@@ -28,8 +28,8 @@ type KubeStorage interface {
 	IsClusterRoleRisky(name string) bool
 }
 
-func NewMemStorage(clusterName string) KubeStorage {
-	return newMemStorage(clusterName)
+func NewMemStorage(clusterKey string) KubeStorage {
+	return newMemStorage(clusterKey)
 }
 
 type KubeRiskyMonitor struct {
@@ -51,11 +51,11 @@ func (w *KubeRiskyMonitor) OutputChannel() <-chan KubeMonitorEvent {
 }
 
 // called before watch events
-func (w *KubeRiskyMonitor) BeforeWatchNewCluster(ctx context.Context, clusterName string, resyncTTL time.Duration) assets.ClusterCallback {
+func (w *KubeRiskyMonitor) BeforeWatchNewCluster(ctx context.Context, clusterKey string, resyncTTL time.Duration) assets.ClusterCallback {
 	cm := &KubeClusterMonitor{
-		clusterName:  clusterName,
+		clusterKey:   clusterKey,
 		parent:       w,
-		storage:      w.storageFactory(clusterName),
+		storage:      w.storageFactory(clusterKey),
 		clusterRoles: make(map[string]*rbacv1.ClusterRole, 10),
 		roles:        make(map[string]*rbacv1.Role, 20),
 		eventCh:      make(chan detectionEvent, 200),
@@ -90,7 +90,7 @@ type KubeClusterMonitor struct {
 	parent       *KubeRiskyMonitor
 	engine       *Engine
 	storage      KubeStorage
-	clusterName  string
+	clusterKey   string
 	clusterRoles map[string]*rbacv1.ClusterRole // name -> Role
 	roles        map[string]*rbacv1.Role        // namespace/name -> Role
 	eventCh      chan detectionEvent
@@ -111,8 +111,6 @@ func (l *KubeClusterMonitor) asyncDetection() {
 }
 
 func (l *KubeClusterMonitor) sendToOutput(outputEvt KubeMonitorEvent) {
-	outputEvt.Cluster = l.clusterName
-
 	timer := time.NewTimer(500 * time.Millisecond)
 	select {
 	case l.parent.outputChan <- outputEvt:
@@ -136,6 +134,7 @@ func (l *KubeClusterMonitor) detectEvent(ctx context.Context, evt detectionEvent
 		if risky {
 			l.storage.SetRoleRisky(evt.role.Name, evt.role.Namespace)
 			l.sendToOutput(KubeMonitorEvent{
+				ClusterKey:   l.clusterKey,
 				RiskyItems:   items,
 				Kind:         KindRole,
 				TargetRole:   evt.role,
@@ -150,6 +149,7 @@ func (l *KubeClusterMonitor) detectEvent(ctx context.Context, evt detectionEvent
 		if risky {
 			l.storage.SetClusterRoleRisky(evt.clusterRole.Name)
 			l.sendToOutput(KubeMonitorEvent{
+				ClusterKey:        l.clusterKey,
 				RiskyItems:        items,
 				Kind:              KindClusterRole,
 				TargetClusterRole: evt.clusterRole,
@@ -172,7 +172,7 @@ func (l *KubeClusterMonitor) GetRole(name, namespace string) (*rbacv1.Role, bool
 	l.RLock()
 	defer l.RUnlock()
 
-	r, ok := l.roles[getKeyFromNameAndNS(namespace, name)]
+	r, ok := l.roles[getKeyFrom(namespace, name)]
 	return r, ok
 }
 
@@ -218,11 +218,11 @@ type RoleInterface interface {
 }
 
 func getKeyFromRole(r RoleInterface) string {
-	return getKeyFromNameAndNS(r.GetName(), r.GetNamespace())
+	return getKeyFrom(r.GetName(), r.GetNamespace())
 }
 
-func getKeyFromNameAndNS(name, namespace string) string {
-	return fmt.Sprintf("%s/%s", namespace, name)
+func getKeyFrom(elems ...string) string {
+	return strings.Join(elems, "/")
 }
 func (l *KubeClusterMonitor) deleteRole(role RoleInterface) {
 	l.Lock()
@@ -240,7 +240,7 @@ func (l *KubeClusterMonitor) OnTensorRole(tensorRole *assets.TensorRole, action 
 		}
 
 		// send to the detection goroutine to detect in serialization
-		timer := time.NewTimer(200 * time.Millisecond)
+		timer := time.NewTimer(500 * time.Millisecond)
 		select {
 		case l.eventCh <- detectionEvent{
 			role: role,
@@ -248,11 +248,6 @@ func (l *KubeClusterMonitor) OnTensorRole(tensorRole *assets.TensorRole, action 
 		}:
 		case <-timer.C:
 			logging.GetLogger().Warn().Msg("send eventCh timeout")
-		}
-		// send to the detection goroutine to detect in serialization
-		l.eventCh <- detectionEvent{
-			role: role,
-			kind: KindRole,
 		}
 
 		l.upsertRole(role)

@@ -29,7 +29,7 @@ func getEvtID(evt pkg.KubeMonitorEvent, ruleName string) []byte {
 	var b bytes.Buffer
 	b.WriteString(ruleName)
 	b.WriteByte(',')
-	b.WriteString(evt.Cluster)
+	b.WriteString(evt.ClusterKey)
 	b.WriteByte('/')
 	b.WriteString(evt.GetTargetNamespace())
 	b.WriteByte('/')

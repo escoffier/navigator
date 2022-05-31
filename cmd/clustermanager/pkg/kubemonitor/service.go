@@ -205,7 +205,7 @@ func (s *Service) newNotifReq(ctx context.Context, evt pkg.KubeMonitorEvent, rul
 	req.Timestamp = now.Unix()
 	req.UUID = uuid(req.RuleKey.Name, evt, now)
 	req.NotifyContext = new(pb.Context)
-	req.NotifyContext.Cluster = evt.Cluster
+	req.NotifyContext.Cluster = evt.ClusterKey
 
 	switch evt.Kind {
 	case pkg.KindRole:
