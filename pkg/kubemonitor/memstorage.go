@@ -7,21 +7,21 @@ import (
 
 // shared mem storage for each cluster
 type MemStorage struct {
-	clusterName       string
+	clusterKey       string
 	riskyRoles        *sync.Map // string(namespace/name) -> createdTimestamp(time.Time)
 	riskyClusterRoles *sync.Map // string(name) -> struct{}
 }
 
-func newMemStorage(clusterName string) *MemStorage {
+func newMemStorage(clusterKey string) *MemStorage {
 	return &MemStorage{
-		clusterName:       clusterName,
+		clusterKey:       clusterKey,
 		riskyRoles:        new(sync.Map),
 		riskyClusterRoles: new(sync.Map),
 	}
 }
 func (s *MemStorage) SetRoleRisky(name, namespace string) error {
 	now := time.Now()
-	s.riskyRoles.Store(getKeyFromNameAndNS(name, namespace), now)
+	s.riskyRoles.Store(getKeyFrom(name, namespace), now)
 	return nil
 }
 func (s *MemStorage) SetClusterRoleRisky(name string) error {
@@ -30,7 +30,7 @@ func (s *MemStorage) SetClusterRoleRisky(name string) error {
 	return nil
 }
 func (s *MemStorage) RemoveRole(name, namespace string) (existed bool, err error) {
-	_, existed = s.riskyRoles.LoadAndDelete(getKeyFromNameAndNS(name, namespace))
+	_, existed = s.riskyRoles.LoadAndDelete(getKeyFrom(name, namespace))
 	return
 }
 func (s *MemStorage) RemoveClusterRole(name string) (existed bool, err error) {
@@ -38,7 +38,7 @@ func (s *MemStorage) RemoveClusterRole(name string) (existed bool, err error) {
 	return
 }
 func (s *MemStorage) IsRoleRisky(name, namespace string) bool {
-	_, existed := s.riskyRoles.Load(getKeyFromNameAndNS(name, namespace))
+	_, existed := s.riskyRoles.Load(getKeyFrom(name, namespace))
 	return existed
 }
 func (s *MemStorage) IsClusterRoleRisky(name string) bool {

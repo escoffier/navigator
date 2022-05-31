@@ -54,7 +54,7 @@ type MetaData struct {
 }
 
 type KubeMonitorEvent struct {
-	Cluster                  string
+	ClusterKey               string
 	RiskyItems               []*RiskyRoleItem
 	Kind                     Kind
 	TargetRole               *rbacv1.Role
