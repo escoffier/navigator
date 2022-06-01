@@ -205,24 +205,29 @@ func (s *ScapService) SynScanState(checkHistory *model.CheckHistoryEntry) error 
 			continue
 		}
 
-		// 如果还有job在运行中
-		if status == model.ScanStateInProgress {
-			return nil
+		updates := map[string]interface{}{
+			"state":       status,
+			"finished_at": finishAt,
 		}
 
 		nodeRecord.State = status
-		if status == model.ScanStateCompleted {
+
+		switch status {
+		case model.ScanStateInProgress: // 如果还有job在运行中
+			return nil
+		case model.ScanStateCompleted:
 			sucNode++
+			updates["message"] = "success"
+		case model.ScanStateFailed:
+			updates["message"] = "sync state"
 		}
 
-		query = "task_id = ? and node_name = ?"
+		query = "task_id = ? and node_name = ? and state=1"
 		taskId := nodeRecord.TaskID
 		nodename := nodeRecord.NodeName
-		state := nodeRecord.State
-		//table name
-		tb := nodeRecord.TableName()
+
 		//update state
-		err = s.rdb.Get().WithContext(ctx).Table(tb).Where(query, taskId, nodename).Update("state", state).Update("finished_at", finishAt).Error
+		err = s.rdb.Get().WithContext(ctx).Model(nodeRecord).Where(query, taskId, nodename).Updates(updates).Error
 		if err != nil {
 			logging.Get().Error().Msgf("updates scan node record failed, %v.", err)
 		}
@@ -977,12 +982,18 @@ func (s *ScapService) AddScapScanResult(ctx context.Context, r *model.ScanResult
 }
 
 func (s *ScapService) AddScapScanResults(ctx context.Context, rs []*model.ScanResult) error {
-	logging.Get().Info().Msgf("add scap scan result, total: %d", len(rs))
 	if len(rs) == 0 {
+		logging.Get().Warn().
+			Msg("add scap scan result, result is empty")
 		return nil
 	}
 
 	var taskId, nodeName = rs[0].TaskID, rs[0].NodeName
+	logging.Get().Info().
+		Str("taskId", taskId).
+		Str("nodeName", nodeName).
+		Str("checkType", rs[0].CheckType).
+		Msgf("add scap scan result, total: %d", len(rs))
 
 	scanRecord := &model.ScanNodeRecord{
 		State:      model.ScanStateCompleted,
@@ -1014,7 +1025,7 @@ func (s *ScapService) AddScapScanResults(ctx context.Context, rs []*model.ScanRe
 		err := tx.
 			Model(scanRecord).
 			Select("state", "finished_at", "message").
-			Where("node_name = ? and task_id = ? and state = ?", nodeName, taskId, model.ScanStateInProgress).
+			Where("node_name = ? and task_id = ?", nodeName, taskId).
 			Updates(scanRecord).
 			Error
 
