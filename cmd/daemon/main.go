@@ -35,7 +35,7 @@ func initEventStreams(udsAddr, nodeName string, cm *k8s.ClusterInfoManager, mqWr
 	bui := rtdetect.StreamBuilder(udsAddr, nodeName, cm)
 
 	// add handlers here
-	ecHandler := rtdetect.NewEventsOutputHandler(mqWriter, containerInfo, podResInfo)
+	ecHandler := rtdetect.NewEventsOutputHandler(nodeName, mqWriter, containerInfo, podResInfo)
 	bui.WithHandler(rtdetect.NewSyncHandler(ecHandler))
 
 	s, err := bui.Build(context.Background())
