@@ -405,7 +405,7 @@ func (s *TensorDefenseService) GetBaitImageRepoInfo(ctx context.Context, imageNa
 		return nil, err
 	}
 	var images []*ImageDetail
-	var base []*ImageBase
+	var matchedImages []*ImageBase
 	err = util.HTTPRequest(ctx, http.DefaultClient, req, func(resp *http.Response, err error) error {
 		if err != nil {
 			return errors.Errorf("request scanner imageList error: %v", err)
@@ -430,20 +430,18 @@ func (s *TensorDefenseService) GetBaitImageRepoInfo(ctx context.Context, imageNa
 			return err
 		}
 		if len(rawResp.Data.Items) > 0 {
-			err = json.Unmarshal(rawResp.Data.Items, &base)
+			err = json.Unmarshal(rawResp.Data.Items, &matchedImages)
 			if err != nil {
 				return err
 			}
-			for _, item := range base {
+			for _, item := range matchedImages {
 				if tag != item.Tag || item.RegistryDeletedAt > 0 {
 					continue
 				}
-				registryInfo, err := s.GetImageRepoInfo(ctx, item.RegistryId)
-				if err != nil {
-					return err
+				if item.RegistryDeletedAt > 0 {
+					continue
 				}
 
-				logging.Get().Debug().Msgf("registryInfo %+v", *registryInfo)
 				library := removePrefix(item.Library)
 				images = append(images, &ImageDetail{
 					RegistryID: item.RegistryId,
