@@ -383,7 +383,7 @@ func (s *TensorDefenseService) GetBaitImageRepoInfo(ctx context.Context, imageNa
 		FullRepoName      string `json:"full_repo_name"`
 		Library           string `json:"library"`
 		Tag               string `json:"tags"`
-		RegistryId        int    `json:"registry_id"`
+		RegistryID        int    `json:"registry_id"`
 		RegistryDeletedAt int64  `json:"registry_deleted_at"`
 	}
 
@@ -441,10 +441,15 @@ func (s *TensorDefenseService) GetBaitImageRepoInfo(ctx context.Context, imageNa
 				if item.RegistryDeletedAt > 0 {
 					continue
 				}
+				// FIXME currently keep it
+				_, err := s.GetImageRepoInfo(ctx, item.RegistryID)
+				if err != nil && strings.Index(err.Error(), "not fond the registry id") >= 0 {
+					continue
+				}
 
 				library := removePrefix(item.Library)
 				images = append(images, &ImageDetail{
-					RegistryID: item.RegistryId,
+					RegistryID: item.RegistryID,
 					Image:      fmt.Sprintf("%s/%s:%s", library, item.FullRepoName, item.Tag),
 				})
 			}
