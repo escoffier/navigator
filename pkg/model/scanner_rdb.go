@@ -11,13 +11,12 @@ import (
 
 	"github.com/gobwas/glob"
 	json "github.com/json-iterator/go"
-	"gorm.io/gorm"
-
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/vuln-updata/cnnvd"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/vuln-updata/cnvd"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
+	"gorm.io/gorm"
 )
 
 type VulnMatedata struct {
@@ -351,8 +350,9 @@ func (r *Registry) Validate(valTY string) error {
 	if strings.Trim(r.PasswordString, " ") == "" {
 		return errors.New("no password")
 	}
-	if r.SyncInterval <= 0 {
-		return errors.New("SyncInterval must than 0")
+	// FIXME: 这里的增量支持适配代码散落在各处，日后支持的越来越多后是一个隐患。需要重构
+	if r.RegType != consts.HarborV1Version && r.RegType != consts.HarborV2Version && r.SyncInterval <= 0 {
+		return errors.New("SyncInterval must be larger than 0")
 	}
 	if valTY == consts.ValidateCreate {
 		if r.Url == "" && len([]rune(r.Url)) > 255 {
