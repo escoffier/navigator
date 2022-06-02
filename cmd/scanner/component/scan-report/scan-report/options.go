@@ -25,7 +25,7 @@ func WithVulnDal(dao store.VulnDalInterface) Option {
 
 func WithInternal(interval time.Duration) Option {
 	return func(srv *ScanReportSrv) {
-		srv.interval = interval
+		srv.Interval = interval
 	}
 }
 

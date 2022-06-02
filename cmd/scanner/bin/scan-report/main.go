@@ -3,27 +3,34 @@ package main
 import (
 	"context"
 	"flag"
-	"log"
+	"net/http"
 	"os"
 	"strconv"
 	"time"
 
 	"gitlab.com/security-rd/go-pkg/databases"
 
-	scanreport "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scan-report"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scan-report/api"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scan-report/service"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scan-report/starter"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 )
 
 var (
-	internal  time.Duration
-	debug     bool
-	batchSize int
+	internal   time.Duration
+	logLevel   string
+	batchSize  int
+	batchImage int64
 
-	emailHost   string
-	emailPort   int64
-	emailUser   string
-	emailPasswd string
+	parallelTaskNum int
+	emailHost       string
+	emailPort       int64
+	emailUser       string
+	emailPasswd     string
+	fileDir         string
+	HTTPListenAddr  string
+	expiration      int64
 )
 
 var (
@@ -31,9 +38,14 @@ var (
 )
 
 func init() {
-	flag.DurationVar(&internal, "interval", 5*time.Minute, "job interval")
-	flag.BoolVar(&debug, "debug", false, "debug model")
+	flag.DurationVar(&internal, "interval", 1*time.Minute, "job interval")
+	flag.StringVar(&logLevel, "log-level", "info", "debug model")
 	flag.IntVar(&batchSize, "batch-size", 50, "the batch size of data")
+	flag.Int64Var(&batchImage, "bath-image", 300, "number of image in one excel file")
+	flag.IntVar(&parallelTaskNum, "parallel-task-num", 1, "the batch size of data")
+	flag.Int64Var(&expiration, "expiration", 7, "file expiration day") // 默认七天
+	flag.StringVar(&fileDir, "file-dir", "/tmp", "export file storage directory")
+	flag.StringVar(&HTTPListenAddr, "http-listen-addr", ":8080", "api addr")
 }
 
 func main() {
@@ -64,28 +76,40 @@ func main() {
 		logging.GetLogger().Warn().Msgf("unset `EMAIL_PASSWORD` environment variable, use empty string")
 	}
 
-	if debug {
+	rdb, err := databases.NewRDBWithMySQLByEnv(context.Background())
+
+	if err != nil {
+		logging.GetLogger().Fatal().Msgf("init db error, err :%v", err)
+		os.Exit(1)
+	}
+	if logLevel == "debug" {
+		rdb.SetDebugMode()
 		logging.SetVerbose()
 		logging.GetLogger().Warn().Msg("debug model!!! please close debug model when release.")
 	}
 
-	rdb, err := databases.NewRDBWithMySQLByEnv(context.Background())
+	// 起后台协程服务
+	backgroundSrv := starter.NewBackgroundTasks(context.Background(), starter.Config{
+		Internal:        internal,
+		BatchSize:       batchSize,
+		EmailHost:       emailHost,
+		EmailPort:       emailPort,
+		EmailUser:       emailUser,
+		EmailPasswd:     emailPasswd,
+		FileDir:         fileDir,
+		Rdb:             rdb,
+		BatchImage:      batchImage,
+		ParallelTaskNum: parallelTaskNum,
+		Expiration:      expiration,
+	})
+	backgroundSrv.Start(context.Background())
 
-	if err != nil {
-		log.Fatalf("init db error, err :%v", err)
-	}
-	if debug {
-		rdb.SetDebugMode()
-	}
-
-	server := scanreport.NewScanReportSrv(
-		scanreport.WithDB(store.NewScannerOrm(rdb)),
-		scanreport.WithVulnDal(store.NewVulnDao(rdb)),
-		scanreport.WithInternal(internal),
-		scanreport.WithBatchSize(batchSize),
-		scanreport.WithEmailDialer(emailHost, int(emailPort), emailUser, emailPasswd),
-	)
-	if err := server.Run(); err != nil {
-		log.Fatalf("run server failed, err: %v", err)
+	// 起api服务
+	ginServer := &http.Server{
+		Addr:    HTTPListenAddr,
+		Handler: api.SetupGinRouter(service.NewExportSrv(store.NewExportTaskDao(rdb)))}
+	if err := ginServer.ListenAndServe(); err != nil {
+		logging.GetLogger().Err(err).Msg("ginServer.ListenAndServe")
+		os.Exit(1)
 	}
 }

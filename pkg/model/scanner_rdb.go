@@ -324,6 +324,9 @@ type Registry struct {
 }
 
 func (r *Registry) WhetherToStartSync() bool {
+	if r.LastSyncAt == 0 {
+		return true
+	}
 
 	now := time.Now().Unix()
 

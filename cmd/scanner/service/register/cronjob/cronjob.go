@@ -28,10 +28,9 @@ type Service struct {
 
 func (s *Service) Start(ctx context.Context) error {
 	dal := store.GetScannerOrmDb()
-	sdb := store.GetScannerDb()
 	registryDal := store.NewRegistryDao(store.GetScannerWrapperDb())
 	scanConfigDal := store.NewScanConfigDao(store.GetScannerWrapperDb())
-	scannerSrv := component.NewConScannerSrv(dal, registryDal, nil, nil, sdb, nil, nil, dal, dal, scanConfigDal, nil)
+	scannerSrv := component.NewConScannerSrv(dal, registryDal, dal, scanConfigDal, nil)
 	cronjob := crontab.New() // create cron table
 
 	// AddJob ,每月1日0点过2分时运行一次

@@ -173,7 +173,7 @@ func (t *TaskSrv) GetPendingSubTasksByTaskID(ctx context.Context, taskID int64) 
 		TaskIds:  []int64{taskID},
 		Statuses: []int{consts.ImageScanPending},
 	}
-	subtasks, _, err := scannerGormDb.GetSubTasks(ctx, stSearch, nil)
+	subtasks, _, err := scannerGormDb.GetSubTasks(ctx, stSearch, &model.Filter{SortFiled: "created_at", SortBy: consts.SortByDesc})
 	if err != nil {
 		logging.GetLogger().Err(err).
 			Int64("taskId", taskID).
@@ -516,7 +516,7 @@ func (t *TaskSrv) GetProgressingSubTasks(taskIds []int64) ([]SubTask, error) {
 		Statuses:           []int{consts.ImageScanInProgress},
 		LessThanRetryCount: consts.SubTaskMaxRetryCount,
 	}
-	sts, _, err := store.GetScannerOrmDb().GetSubTasks(context.Background(), search, nil)
+	sts, _, err := store.GetScannerOrmDb().GetSubTasks(context.Background(), search, &model.Filter{SortFiled: "created_at", SortBy: consts.SortByDesc})
 	if err != nil {
 		logging.GetLogger().Err(err).Msg("get progressing tasks err")
 		return nil, err
@@ -535,7 +535,7 @@ func (t *TaskSrv) GetPendingSubTasks(taskIds []int64) ([]SubTask, error) {
 		TaskIds:  taskIds,
 		Statuses: []int{consts.ImageScanPending},
 	}
-	sts, _, err := store.GetScannerOrmDb().GetSubTasks(context.Background(), search, nil)
+	sts, _, err := store.GetScannerOrmDb().GetSubTasks(context.Background(), search, &model.Filter{SortFiled: "created_at", SortBy: consts.SortByDesc})
 	if err != nil {
 		logging.GetLogger().Err(err).Msg("get pending tasks err")
 		return nil, err
@@ -557,7 +557,7 @@ func (t *TaskSrv) AddSubTaskRetryCount(subTasks []SubTask) error {
 	if err := store.GetScannerOrmDb().AddSubTasksRetryCount(context.Background(), ids); err != nil {
 		return err
 	}
-	tasks, _, err := store.GetScannerOrmDb().GetSubTasks(context.Background(), store.SearchSubTaskParam{Ids: ids}, nil)
+	tasks, _, err := store.GetScannerOrmDb().GetSubTasks(context.Background(), store.SearchSubTaskParam{Ids: ids}, &model.Filter{SortFiled: "created_at", SortBy: consts.SortByDesc})
 	if err != nil {
 		return err
 	}

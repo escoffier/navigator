@@ -38,7 +38,7 @@ const contentFormat = `<div>已为您成功生成一份报告：</div>
 type ScanReportSrv struct { // nolint
 	dao       store.ScanReportInterface
 	vulnDal   store.VulnDalInterface
-	interval  time.Duration
+	Interval  time.Duration
 	batchSize int
 	email     *gomail.Dialer
 }
@@ -57,17 +57,7 @@ func NewScanReportSrv(options ...Option) *ScanReportSrv {
 	return srv
 }
 
-func (s *ScanReportSrv) Run() error {
-	tick := time.NewTicker(s.interval)
-	defer tick.Stop()
-	for {
-		logging.GetLogger().Info().Msg("start scan job")
-		go s.run()
-		<-tick.C
-	}
-}
-
-func (s *ScanReportSrv) run() {
+func (s *ScanReportSrv) Run(ctx context.Context) {
 
 	now := time.Now().In(util.CSTSh)
 	ctx, cancelFunc := context.WithCancel(context.Background())

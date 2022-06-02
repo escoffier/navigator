@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"gitlab.com/piccolo_su/vegeta/cmd/console/service/naviaudit"
 	"net/http"
 	"os"
 	"runtime/debug"
@@ -13,11 +12,17 @@ import (
 	"time"
 
 	cr "github.com/robfig/cron/v3"
+	"gitlab.com/security-rd/go-pkg/cache"
+	"gitlab.com/security-rd/go-pkg/databases"
+	"gitlab.com/security-rd/go-pkg/elastic"
+	"gitlab.com/security-rd/go-pkg/logging"
+	"gitlab.com/security-rd/go-pkg/pb"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 	"k8s.io/apimachinery/pkg/util/wait"
+	"scm.tensorsecurity.cn/tensorsecurity-rd/api/pkg/generated/informers/externalversions"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/apiscan"
 	assetsSvc "gitlab.com/piccolo_su/vegeta/cmd/console/service/assets"
@@ -30,6 +35,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/immune"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/k8saudit"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/license"
+	"gitlab.com/piccolo_su/vegeta/cmd/console/service/naviaudit"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/networktopo"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/openapiauth"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/palace"
@@ -50,12 +56,6 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
 	"gitlab.com/piccolo_su/vegeta/pkg/lifecycle"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
-	"gitlab.com/security-rd/go-pkg/cache"
-	"gitlab.com/security-rd/go-pkg/databases"
-	"gitlab.com/security-rd/go-pkg/elastic"
-	"gitlab.com/security-rd/go-pkg/logging"
-	"gitlab.com/security-rd/go-pkg/pb"
-	"scm.tensorsecurity.cn/tensorsecurity-rd/api/pkg/generated/informers/externalversions"
 )
 
 const resyncInterval = 8 * time.Hour
@@ -74,13 +74,14 @@ type Console struct {
 
 // NewConsole is to create a new Console struct.
 func NewConsole(
-	httpOpts *flag.HTTPOpts,
-	rdbOpts *flag.RDBOpts,
-	scannerOpts *flag.VegetaScannerOpts,
-	scapOpts *flag.ScapOpts,
-	elasticOpts *flag.ElasticOpts,
-	secProfilesOpts *flag.SecProfilesOpts,
-	rdbOptions *databases.Options,
+		httpOpts *flag.HTTPOpts,
+		rdbOpts *flag.RDBOpts,
+		scannerOpts *flag.VegetaScannerOpts,
+		exporterOpts *flag.ExporterOpts,
+		scapOpts *flag.ScapOpts,
+		elasticOpts *flag.ElasticOpts,
+		secProfilesOpts *flag.SecProfilesOpts,
+		rdbOptions *databases.Options,
 ) (*Console, error) {
 	eventGrpcUrl := os.Getenv(echelper.EventGrpcURLEnv)
 	if eventGrpcUrl == "" {
@@ -131,6 +132,7 @@ func NewConsole(
 	}
 
 	scannerURL := fmt.Sprintf("http://%s:%d", scannerOpts.Host, scannerOpts.Port)
+	exportURL := fmt.Sprintf("http://%s:%d", exporterOpts.Host, exporterOpts.Port)
 	microsegURL := os.Getenv("MICROSEG_URL")
 	clusterManagerURL := env.GetClusterManagerUrl()
 
@@ -326,6 +328,7 @@ func NewConsole(
 				rdb,
 				es,
 				scannerURL,
+				exportURL,
 				fmt.Sprintf("http://%s:%d", secProfilesOpts.Host, secProfilesOpts.Port),
 				microsegURL,
 				env.GetWebHookUrl(),

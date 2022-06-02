@@ -1,4 +1,4 @@
-FROM busybox:1.31.0-glibc
+FROM ubuntu:18.04
 
 WORKDIR /app
 
