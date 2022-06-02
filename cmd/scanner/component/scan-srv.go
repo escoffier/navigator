@@ -152,21 +152,22 @@ type ConScannerSrv struct {
 }
 
 func (s *ConScannerSrv) SearchImages(ctx context.Context, param SearchImageParam, filter *model.Filter) ([]model.ImageList, int64, error) {
-	// 先查仓库
+	// 只获取没有删除的仓库的镜像
 	registryIds := make([]int64, 0)
-	if param.RegistryID > 0 {
-		registryIds = append(registryIds, param.RegistryID)
-	}
 
 	regMap := make(map[int64]*model.Registry)
-	registries, _, err := s.registryDal.SearchRegistry(ctx, store.SearchRegistryParam{}, nil)
+	registries, _, err := s.registryDal.SearchRegistry(ctx, store.SearchRegistryParam{NoDelete: true, ID: param.RegistryID}, nil)
 	if err != nil {
 		logging.GetLogger().Err(err).Msg("SearchImages.SearchRegistry")
 		return nil, 0, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf(consts.StatusInternalServerErrorMsg))
 	}
+	if len(registries) == 0 {
+		return make([]model.ImageList, 0), 0, nil
+	}
 
 	for i := range registries {
 		regMap[registries[i].ID] = &registries[i]
+		registryIds = append(registryIds, registries[i].ID)
 	}
 
 	images, cnt, err := s.dbdal.SearchImage(ctx, store.SearchImageParam{
@@ -192,11 +193,11 @@ func (s *ConScannerSrv) SearchImages(ctx context.Context, param SearchImageParam
 }
 
 func NewConScannerSrv(
-	dbdal store.ScannerDalInterface,
-	registryDal store.RegistryDal,
-	scanTaskDal store.ScanTaskInterface,
-	scanConfigDal store.ScanConfigDal,
-	vulnDal store.VulnDalInterface) *ConScannerSrv {
+		dbdal store.ScannerDalInterface,
+		registryDal store.RegistryDal,
+		scanTaskDal store.ScanTaskInterface,
+		scanConfigDal store.ScanConfigDal,
+		vulnDal store.VulnDalInterface) *ConScannerSrv {
 	return &ConScannerSrv{
 		dbdal:         dbdal,
 		registryDal:   registryDal,
