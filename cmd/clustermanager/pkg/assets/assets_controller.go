@@ -821,7 +821,6 @@ func (ac *Controller) getUpperOwnerOfPod(pod *corev1.Pod) (*metav1.OwnerReferenc
 }
 
 func (ac *Controller) SendToMq(ctx context.Context, action pkgassets.AssetsAction, watchedType pkgassets.WatchedType, obj interface{}) error {
-
 	event := &pkgassets.ResourceEvent{
 		ClusterKey: ac.clusterKey,
 		Action:     action,
