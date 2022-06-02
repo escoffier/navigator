@@ -3,24 +3,26 @@ package api
 import (
 	"errors"
 	"fmt"
-	"gitlab.com/security-rd/go-pkg/elastic"
 	"net/http"
 	"net/url"
 	"reflect"
 	"regexp"
 	"strings"
 
+	"gitlab.com/security-rd/go-pkg/elastic"
+
 	"github.com/go-chi/chi"
 	"github.com/go-chi/jwtauth"
 	"github.com/go-redis/redis/v8"
 	"github.com/mcuadros/go-version"
 	param "github.com/oceanicdev/chi-param"
-	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
-	"gitlab.com/piccolo_su/vegeta/pkg/harbor"
 	"gitlab.com/security-rd/go-pkg/databases"
 	"gitlab.com/security-rd/go-pkg/logging"
 	"gitlab.com/security-rd/go-pkg/pb"
 	"go.mongodb.org/mongo-driver/bson/primitive"
+
+	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
+	"gitlab.com/piccolo_su/vegeta/pkg/harbor"
 )
 
 type api struct {
@@ -30,6 +32,7 @@ type api struct {
 	webhookURL  *url.URL
 
 	scannerURL        string
+	exportURL         string
 	secProfileCoreURL string
 	redisClient       *redis.Client
 	harborClient      *harbor.HarborRESTClient
@@ -43,17 +46,19 @@ type api struct {
 }
 
 func newAPI(
-	tokenAuth *jwtauth.JWTAuth,
-	rdb *databases.RDBInstance,
-	scannerURL string,
-	secProfileCoreURL string,
-	microsegURL string,
-	webhookURL string,
-	redisClient *redis.Client,
-	harborClient *harbor.HarborRESTClient,
-	ecCli pb.EventsCenterBizServiceClient,
-	esCli *elastic.ESClient,
-	httpAuditDisabled bool,
+		tokenAuth *jwtauth.JWTAuth,
+		rdb *databases.RDBInstance,
+		scannerURL string,
+		exportURL string,
+		secProfileCoreURL string,
+		microsegURL string,
+		webhookURL string,
+		redisClient *redis.Client,
+		harborClient *harbor.HarborRESTClient,
+		ecCli pb.EventsCenterBizServiceClient,
+		esCli *elastic.ESClient,
+		httpAuditDisabled bool,
+
 ) *api {
 	whUrl, err := url.Parse(webhookURL)
 	if err != nil {
@@ -65,6 +70,7 @@ func newAPI(
 		tokenAuth:         tokenAuth,
 		rdb:               rdb,
 		scannerURL:        scannerURL,
+		exportURL:         exportURL,
 		secProfileCoreURL: secProfileCoreURL,
 		microsegURL:       microsegURL,
 		webhookURL:        whUrl,

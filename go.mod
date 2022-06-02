@@ -54,7 +54,6 @@ require (
 	github.com/pkg/errors v0.9.1
 	github.com/quay/clair/v2 v2.1.7
 	github.com/robfig/cron/v3 v3.0.1
-	github.com/rogpeppe/go-internal v1.8.1
 	github.com/rs/zerolog v1.26.1
 	github.com/satori/go.uuid v1.2.0
 	github.com/sirupsen/logrus v1.8.1
@@ -107,7 +106,9 @@ require (
 	github.com/golang/protobuf v1.5.2
 	github.com/jarcoal/httpmock v1.2.0
 	github.com/segmentio/kafka-go v0.4.31
+	github.com/shopspring/decimal v1.2.0
 	github.com/sony/gobreaker v0.5.0
+	github.com/xuri/excelize/v2 v2.6.0
 	gomodules.xyz/jsonpatch/v3 v3.0.1
 	google.golang.org/protobuf v1.28.0
 	k8s.io/cri-api v0.24.0
@@ -155,6 +156,7 @@ require (
 	github.com/mistifyio/go-zfs v2.1.2-0.20190413222219-f784269be439+incompatible // indirect
 	github.com/moby/spdystream v0.2.0 // indirect
 	github.com/moby/term v0.0.0-20210619224110-3f7ff695adc6 // indirect
+	github.com/mohae/deepcopy v0.0.0-20170929034955-c48cc78d4826 // indirect
 	github.com/mtrmac/gpgme v0.1.2 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
 	github.com/opencontainers/runtime-spec v1.0.3-0.20210326190908-1c3f411f0417 // indirect
@@ -165,6 +167,8 @@ require (
 	github.com/prometheus/client_golang v1.12.1 // indirect
 	github.com/prometheus/client_model v0.2.0 // indirect
 	github.com/prometheus/common v0.32.1 // indirect
+	github.com/richardlehane/mscfb v1.0.4 // indirect
+	github.com/richardlehane/msoleps v1.0.1 // indirect
 	github.com/stefanberger/go-pkcs11uri v0.0.0-20201008174630-78d3cae3a980 // indirect
 	github.com/syndtr/gocapability v0.0.0-20200815063812-42c35b437635 // indirect
 	github.com/tchap/go-patricia v2.3.0+incompatible // indirect
@@ -172,6 +176,8 @@ require (
 	github.com/vishvananda/netlink v1.1.1-0.20201029203352-d40f9887b852 // indirect
 	github.com/vishvananda/netns v0.0.0-20200728191858-db3c7e526aae // indirect
 	github.com/xeipuuv/gojsonschema v1.2.0 // indirect
+	github.com/xuri/efp v0.0.0-20220407160117-ad0f7a785be8 // indirect
+	github.com/xuri/nfp v0.0.0-20220409054826-5e722a1d9e22 // indirect
 	go.mozilla.org/pkcs7 v0.0.0-20200128120323-432b2356ecb1 // indirect
 	gopkg.in/fsnotify.v1 v1.4.7 // indirect
 	gopkg.in/square/go-jose.v2 v2.5.1 // indirect

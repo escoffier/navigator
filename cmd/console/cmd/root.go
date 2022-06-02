@@ -6,12 +6,14 @@ import (
 	"os"
 
 	"github.com/spf13/cobra"
+	"gitlab.com/security-rd/go-pkg/logging"
+
+	"gitlab.com/security-rd/go-pkg/databases"
+	"gorm.io/gorm/logger"
+
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service"
 	"gitlab.com/piccolo_su/vegeta/pkg/flag"
 	"gitlab.com/piccolo_su/vegeta/pkg/lifecycle"
-	"gitlab.com/security-rd/go-pkg/databases"
-	"gitlab.com/security-rd/go-pkg/logging"
-	"gorm.io/gorm/logger"
 )
 
 var (
@@ -58,6 +60,13 @@ var rootCmd = &cobra.Command{
 			Int("port", scannerOpts.Port).
 			Msg("Scanner options")
 
+		exporterOpts := flag.GetExporterOpts(cmd)
+
+		logging.Get().Info().
+			Str("host", exporterOpts.Host).
+			Int("port", exporterOpts.Port).
+			Msg("exporter options")
+
 		scapOpts := flag.GetScapOpts(cmd)
 		logging.Get().Info().
 			Int32("policy-counts", scapOpts.PolicyCounts).
@@ -84,7 +93,7 @@ var rootCmd = &cobra.Command{
 			Int("port", secProfilesOpts.Port).
 			Msg("Security Profiles options")
 
-		console, err := service.NewConsole(httpOpts, rdbOpts, scannerOpts, scapOpts, elasticOpts, secProfilesOpts, rdbOptions)
+		console, err := service.NewConsole(httpOpts, rdbOpts, scannerOpts, exporterOpts, scapOpts, elasticOpts, secProfilesOpts, rdbOptions)
 
 		if err != nil {
 			return err
@@ -117,6 +126,7 @@ func init() {
 	flag.AddHTTPFlags(rootCmd)
 	flag.AddRDBFlags(rootCmd)
 	flag.AddVegetaScannerFlags(rootCmd)
+	flag.AddExporterPort(rootCmd)
 	flag.AddScapFlags(rootCmd)
 	flag.AddRedisFlags(rootCmd)
 	flag.AddElasticFlags(rootCmd)

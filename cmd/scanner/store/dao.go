@@ -956,6 +956,9 @@ func (s *ScannerOrm) GroupImageFlags(ctx context.Context, param GetImageOverView
 	if len(param.ImageUUIDs) > 9 {
 		db = db.Where("image_uuid IN ?", param.ImageUUIDs)
 	}
+	if len(param.RegistryIds) > 0 {
+		db = db.Where("registry_id IN ?", param.RegistryIds)
+	}
 
 	if err := db.Find(&res).Error; err != nil {
 		return nil, err
@@ -1634,11 +1637,12 @@ func (s *ScannerOrm) GetSubTasks(ctx context.Context, param SearchSubTaskParam, 
 	if param.LessThanRetryCount > 0 {
 		db = db.Where("retry_count < ? ", param.LessThanRetryCount)
 	}
+	if param.LastID > 0 {
+		db = db.Where("id > ? ", param.LastID)
+	}
 	if param.LessThanRetryCount > 0 {
 		db = db.Where("retry_count >= ? ", param.GreaterThanRetryCount)
 	}
-
-	db = db.Order("created_at DESC")
 
 	var cnt int64
 	if err := db.Count(&cnt).Error; err != nil {

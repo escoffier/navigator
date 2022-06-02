@@ -131,10 +131,11 @@ type SearchImageRetryParam struct {
 	UniqueImage    uint64
 }
 type GetImageOverViewParam struct {
-	ImageUUIDs []uint32
-	FlagMore   int
-	FlagLess   int
-	FromType   int64
+	ImageUUIDs  []uint32
+	FlagMore    int
+	FlagLess    int
+	FromType    int64
+	RegistryIds []int64
 }
 type SearchRejectPolicyParam struct {
 	ID                int64
@@ -232,13 +233,12 @@ type SearchTaskParam struct {
 }
 
 type SearchSubTaskParam struct {
-	Ids     []int64 // subtask id
-	TaskIds []int64
-	// TaskId   int64
-	// Status   int   // task status
+	Ids                   []int64 // subtask id
+	TaskIds               []int64
 	Statuses              []int // subtask status
 	LessThanRetryCount    int64
 	GreaterThanRetryCount int64
+	LastID                int64
 }
 
 type SearchStrategyParam struct {
@@ -287,4 +287,14 @@ type SearchVulnParm struct {
 type VulnPkg struct {
 	PkgName    string
 	PkgVersion string
+}
+
+type SearchExportTensorTask struct {
+	ExecuteType    string
+	Parameter      string
+	Finished       string
+	Failure        string
+	ID             int64
+	NotIds         []int64
+	ExpirationDate time.Time
 }

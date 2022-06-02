@@ -2,8 +2,10 @@ package api
 
 import (
 	"context"
-	"gitlab.com/piccolo_su/vegeta/pkg/audit"
+
 	"gitlab.com/security-rd/go-pkg/elastic"
+
+	"gitlab.com/piccolo_su/vegeta/pkg/audit"
 
 	"github.com/go-chi/chi"
 	"github.com/go-chi/jwtauth"
@@ -26,20 +28,21 @@ const (
 
 // SetupRoutes is to set up the chi router
 func SetupRoutes(
-	ctx context.Context,
-	r *chi.Mux,
-	tokenAuth *jwtauth.JWTAuth,
-	rdb *databases.RDBInstance,
-	scannerURL string,
-	secProfileCoreURL string,
-	microsegURL string,
-	webhookURL string,
-	redisClient *redis.Client,
-	harborClient *harbor.HarborRESTClient,
-	// imageService *image.ImageService,
-	ecCli pb.EventsCenterBizServiceClient,
-	es *elastic.ESClient,
-	httpAuditDisabled bool,
+		ctx context.Context,
+		r *chi.Mux,
+		tokenAuth *jwtauth.JWTAuth,
+		rdb *databases.RDBInstance,
+		scannerURL string,
+		exportURL string,
+		secProfileCoreURL string,
+		microsegURL string,
+		webhookURL string,
+		redisClient *redis.Client,
+		harborClient *harbor.HarborRESTClient,
+		ecCli pb.EventsCenterBizServiceClient,
+		es *elastic.ESClient,
+		httpAuditDisabled bool,
+
 ) {
 	logging.Get().Debug().Msg("setting up routes...")
 
@@ -47,6 +50,7 @@ func SetupRoutes(
 		tokenAuth,
 		rdb,
 		scannerURL,
+		exportURL,
 		secProfileCoreURL,
 		microsegURL,
 		webhookURL,
@@ -66,6 +70,7 @@ func SetupRoutes(
 			r.Use(apikey.ScannerValid())
 			r.Route("/ATTCK", api.ATTCKOpen())
 			r.Route("/scanner", api.scanner())
+			r.Route("/export", api.export())
 			r.Route("/assets", api.assets())
 			r.Post("/hunter-report/{uuid}", api.reportKubeHunterResult())
 		})

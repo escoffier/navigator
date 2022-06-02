@@ -2,12 +2,14 @@ package api
 
 import (
 	"fmt"
+	"net"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
 	"os"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/go-chi/chi"
 	"gitlab.com/security-rd/go-pkg/logging"
@@ -125,6 +127,17 @@ func (api *api) scanner() func(chi.Router) {
 	}
 }
 
+// 转发scanner中的接口
+func (api *api) export() func(chi.Router) {
+
+	return func(r chi.Router) {
+		r.Post("/task/image", api.RedirectToExport())
+		r.Post("/task/scanTask", api.RedirectToExport())
+		r.Get("/task/detail", api.RedirectToExport())
+		r.Get("/task/list", api.RedirectToExport())
+		r.Get("/task/download", api.RedirectToExport())
+	}
+}
 func (api *api) scannerOpenApi() func(router chi.Router) {
 
 	rate, err := strconv.Atoi(os.Getenv("OPENAPI_RATE_LIMIT_PER_MIN"))
@@ -243,6 +256,45 @@ func (api *api) RedirectToScanner(repaleceScannner ...bool) http.HandlerFunc {
 		// ctx, cannel := context.WithTimeout(r.Context(), 600*time.Second)
 		// defer cannel()
 		// r = r.WithContext(ctx)
+		proxy.ServeHTTP(w, r)
+	}
+}
+
+func (api *api) RedirectToExport() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		// /api/v2/containerSec/export/task/list
+		// /api/v1/scan/export/task/list
+
+		pre := r.URL.String()
+		newUrl := fmt.Sprintf("%s%s", api.exportURL,
+			strings.Replace(pre, "/api/v2/containerSec", "/api/v1", 1))
+
+		u, err := url.Parse(newUrl)
+		if nil != err {
+			RespAndLog(w, r.Context(), NewFieldError(http.StatusBadRequest, fmt.Errorf("count not parse the url:%s,error  %w", pre, err)))
+			return
+		}
+
+		roundTripper := &http.Transport{
+			Proxy: http.ProxyFromEnvironment,
+			DialContext: (&net.Dialer{
+				Timeout:   30 * time.Minute,
+				KeepAlive: 10 * time.Second,
+			}).DialContext,
+			ForceAttemptHTTP2:     true,
+			MaxIdleConns:          100,
+			IdleConnTimeout:       9 * time.Minute,
+			TLSHandshakeTimeout:   10 * time.Second,
+			ExpectContinueTimeout: 1 * time.Second,
+		}
+
+		proxy := httputil.ReverseProxy{
+			Director: func(request *http.Request) {
+				request.URL = u
+			},
+			Transport: roundTripper,
+		}
+
 		proxy.ServeHTTP(w, r)
 	}
 }

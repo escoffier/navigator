@@ -60,6 +60,13 @@ const (
 	SeverityLow           = "LOW"
 	SeverityNegligible    = "NEGLIGIBLE"
 	SeverityUnknown       = "UNKNOWN"
+
+	SeverityCriticalView   = "高危"
+	SeverityHighView       = "高"
+	SeverityMediumView     = "中"
+	SeverityLowView        = "低"
+	SeverityNegligibleView = "可忽略"
+	SeverityUnknownView    = "未知"
 )
 
 func GetSeverity(level int) string {
@@ -76,5 +83,21 @@ func GetSeverity(level int) string {
 		return SeverityUnknown
 	default:
 		return SeverityNegligible
+	}
+}
+func GetSeverityView(level int) string {
+	switch level {
+	case SeverityCriticalInt:
+		return SeverityCriticalView
+	case SeverityHighInt:
+		return SeverityHighView
+	case SeverityMediumInt:
+		return SeverityMediumView
+	case SeverityLowInt:
+		return SeverityLowView
+	case SeverityUnknownInt:
+		return SeverityUnknownView
+	default:
+		return SeverityNegligibleView
 	}
 }

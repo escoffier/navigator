@@ -14,7 +14,6 @@ import (
 
 	"github.com/google/go-containerregistry/pkg/name"
 	"github.com/pkg/errors"
-	"github.com/rogpeppe/go-internal/cache"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/task"
@@ -145,17 +144,11 @@ type ScannerSrv interface {
 }
 
 type ConScannerSrv struct {
-	dbdal           store.ScannerDalInterface
-	vulnDal         store.VulnDalInterface
-	taskdal         store.ScanTaskInterface
-	trustedImageDal store.TrustedImageInterface
-	registryDal     store.RegistryDal
-	scanConfigDal   store.ScanConfigDal
-	redclair        *RedClairService
-	virusScan       *VirusScan
-	scannerDB       *store.ScannerDB
-	globalCache     *cache.Cache
-	scannerList     *ScannerList
+	dbdal         store.ScannerDalInterface
+	vulnDal       store.VulnDalInterface
+	scanTaskDal   store.ScanTaskInterface
+	registryDal   store.RegistryDal
+	scanConfigDal store.ScanConfigDal
 }
 
 func (s *ConScannerSrv) SearchImages(ctx context.Context, param SearchImageParam, filter *model.Filter) ([]model.ImageList, int64, error) {
@@ -198,29 +191,18 @@ func (s *ConScannerSrv) SearchImages(ctx context.Context, param SearchImageParam
 	return images, cnt, nil
 }
 
-func NewConScannerSrv(dbdal store.ScannerDalInterface,
-		registryDal store.RegistryDal,
-		redclair *RedClairService,
-		virusScan *VirusScan,
-		scdb *store.ScannerDB,
-		globalCache *cache.Cache,
-		scannerList *ScannerList,
-		taskdal store.ScanTaskInterface,
-		trustedImageDal store.TrustedImageInterface,
-		scanConfigDal store.ScanConfigDal,
-		vulnDal store.VulnDalInterface) *ConScannerSrv {
+func NewConScannerSrv(
+	dbdal store.ScannerDalInterface,
+	registryDal store.RegistryDal,
+	scanTaskDal store.ScanTaskInterface,
+	scanConfigDal store.ScanConfigDal,
+	vulnDal store.VulnDalInterface) *ConScannerSrv {
 	return &ConScannerSrv{
-		dbdal:           dbdal,
-		registryDal:     registryDal,
-		redclair:        redclair,
-		virusScan:       virusScan,
-		scannerDB:       scdb,
-		globalCache:     globalCache,
-		scannerList:     scannerList,
-		taskdal:         taskdal,
-		trustedImageDal: trustedImageDal,
-		scanConfigDal:   scanConfigDal,
-		vulnDal:         vulnDal,
+		dbdal:         dbdal,
+		registryDal:   registryDal,
+		scanTaskDal:   scanTaskDal,
+		scanConfigDal: scanConfigDal,
+		vulnDal:       vulnDal,
 	}
 }
 
@@ -1095,7 +1077,7 @@ func (s *ConScannerSrv) GetScanOneStatus(ctx context.Context, imgID int64, fromU
 	}
 
 	// 查状态
-	status, err := s.taskdal.SearchSubTasksWithScanStatus(ctx, []int64{imgID}, nil)
+	status, err := s.scanTaskDal.SearchSubTasksWithScanStatus(ctx, []int64{imgID}, nil)
 	if err != nil {
 		logging.GetLogger().Err(err).Msg("GetScanOneStatus.SearchSubTasksWithScanStatus")
 		return nil, response.NewHttpError(http.StatusInternalServerError, err)
@@ -1299,7 +1281,6 @@ func (s *ConScannerSrv) GetImageDetail(ctx context.Context, imgID int64) (*model
 	}
 
 	img.ImageScanWebshell = make([]model.WebshellFileInfo, 0, len(scs[0].WebshellInfo))
-	logging.GetLogger().Info().Msgf("%v", scs[0].WebshellInfo)
 	// 增加webshell信息
 	for i := range scs[0].WebshellInfo {
 		img.ImageScanWebshell = append(img.ImageScanWebshell,
@@ -1366,7 +1347,21 @@ func (s *ConScannerSrv) GetImageDetail(ctx context.Context, imgID int64) (*model
 }
 
 func (s *ConScannerSrv) GetImageOverView(ctx context.Context, fromType int64) (*model.OverView, error) {
+
 	overView := new(model.OverView)
+	registryIds := make([]int64, 0)
+	// 查询未删除的仓库
+	noDeleteRegistries, _, err := s.registryDal.SearchRegistry(ctx, store.SearchRegistryParam{NoDelete: true}, nil)
+	if err != nil {
+		return nil, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf(consts.StatusInternalServerErrorMsg))
+	}
+	if len(noDeleteRegistries) == 0 {
+		return overView, nil
+	}
+	for i := range noDeleteRegistries {
+		registryIds = append(registryIds, noDeleteRegistries[i].ID)
+	}
+
 	// 查在线
 	onlineSQL := fmt.Sprintf("select distinct a.id,a.image_uuid from  %s a  join %s b  on  a.image_uuid = b.image_uuid where a.from_type = %d ;", model.ImageList{}.TableName(), model.TensorContainer{}.TableName(), fromType)
 	onlineRes, err := s.dbdal.GetOnlineImage(ctx, store.GetOnlineImageParam{SQL: onlineSQL})
@@ -1381,7 +1376,7 @@ func (s *ConScannerSrv) GetImageOverView(ctx context.Context, fromType int64) (*
 		onlineUuids[i] = onlineRes[i].ImageUUID
 	}
 	// 查总数
-	groups, err := s.dbdal.GroupImageFlags(ctx, store.GetImageOverViewParam{FromType: fromType})
+	groups, err := s.dbdal.GroupImageFlags(ctx, store.GetImageOverViewParam{FromType: fromType, RegistryIds: registryIds})
 	if err != nil {
 		logging.GetLogger().Err(err).Msg("GetImageOverView.GroupImageFlags")
 		return nil, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf(consts.StatusInternalServerErrorMsg))
@@ -1419,7 +1414,7 @@ func (s *ConScannerSrv) GetImageOverView(ctx context.Context, fromType int64) (*
 	if len(onlineUuids) == 0 {
 		return overView, nil
 	}
-	onlinGroups, err := s.dbdal.GroupImageFlags(ctx, store.GetImageOverViewParam{FromType: fromType, ImageUUIDs: onlineUuids})
+	onlinGroups, err := s.dbdal.GroupImageFlags(ctx, store.GetImageOverViewParam{FromType: fromType, ImageUUIDs: onlineUuids, RegistryIds: registryIds})
 	if err != nil {
 		logging.GetLogger().Err(err).Msg("GetImageOverView.GroupImageFlags")
 		return nil, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf(consts.StatusInternalServerErrorMsg))
@@ -1605,7 +1600,7 @@ func (s *ConScannerSrv) SearchImageWithScan(ctx context.Context, param SearchIma
 
 	// 获取镜像的扫描的状态
 	statusMap := make(map[int64]model.SubTask)
-	subtasks, err := s.taskdal.SearchSubTasksWithScanStatus(ctx, imagesIds, nil)
+	subtasks, err := s.scanTaskDal.SearchSubTasksWithScanStatus(ctx, imagesIds, nil)
 	if err != nil {
 		logging.GetLogger().Err(err).Msg("SearchImageWithScan.SearchSubTasksWithStatusFilter")
 		return nil, 0, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf(consts.StatusInternalServerErrorMsg))
