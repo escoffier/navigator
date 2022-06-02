@@ -4,12 +4,14 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"net/http"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/pkg/errors"
 	"gitlab.com/piccolo_su/vegeta/pkg/dal"
 	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
 	"gitlab.com/piccolo_su/vegeta/pkg/lang"
@@ -407,19 +409,22 @@ func (s *TensorDefenseService) GetBaitImageRepoInfo(ctx context.Context, imageNa
 	var base []*ImageBase
 	err = util.HTTPRequest(ctx, http.DefaultClient, req, func(resp *http.Response, err error) error {
 		if err != nil {
-			return err
+			return errors.Errorf("request scanner imageList error: %v", err)
 		}
-		if resp.StatusCode >= http.StatusBadRequest {
-			return fmt.Errorf("request err")
+		var body []byte
+		if resp.Body == nil {
+			return errors.Errorf("request scanner imageList resp body is nil")
+		}
+		body, err = io.ReadAll(resp.Body)
+		if err != nil {
+			return errors.Errorf("read resp.body error: %v", err)
 		}
 
-		if resp.Body == nil {
+		if resp.StatusCode >= http.StatusBadRequest {
+			err = errors.Errorf("request scanner err. resp data: %s", string(body))
 			return err
 		}
-		body, err := ioutil.ReadAll(resp.Body)
-		if err != nil {
-			return err
-		}
+
 		var rawResp response.HTTPEnvelope
 		err = json.Unmarshal(body, &rawResp)
 		if err != nil {
