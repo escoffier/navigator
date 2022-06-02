@@ -4,32 +4,31 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
+	"github.com/gin-gonic/gin"
 	"gitlab.com/security-rd/go-pkg/logging"
-	"io/ioutil"
 	"net/http"
 	"strings"
 	"time"
 
-	json "github.com/json-iterator/go"
 	"gitlab.com/piccolo_su/vegeta/cmd/clustermanager/pkg/config"
 	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 )
 
 type ClusterServer struct {
-	server    *http.Server
-	ClusterID string
-	Name      string
-	TLSServer bool
-	config    *config.Config
-
+	server         *http.Server
+	engine         *gin.Engine
+	ClusterID      string
+	Name           string
+	TLSServer      bool
+	config         *config.Config
 	clusterManager *k8s.ClusterManager
 }
 
 func (cs *ClusterServer) SetClusterManager(cm *k8s.ClusterManager) {
 	cs.clusterManager = cm
 }
-func (cs *ClusterServer) handleClusterQuery(w http.ResponseWriter, _ *http.Request) {
+func (cs *ClusterServer) handleClusterQuery(c *gin.Context) {
 	clusterInfo := &TensorCluster{
 		Key:           cs.ClusterID,
 		Name:          cs.config.Name,
@@ -38,79 +37,34 @@ func (cs *ClusterServer) handleClusterQuery(w http.ResponseWriter, _ *http.Reque
 		Status:        0,
 		K8SRestConfig: cs.config.K8SInfoForRestConfig,
 	}
-	data, err := json.Marshal(clusterInfo)
-	if err != nil {
-		http.Error(w, "failed to process cluster info", http.StatusInternalServerError)
-		return
-	}
 
-	_, err = w.Write(data)
-	if err != nil {
-		http.Error(w, "failed to process cluster info", http.StatusInternalServerError)
-		return
-	}
-	w.Header().Add("Content-Type", "application/json")
+	c.JSON(http.StatusOK, clusterInfo)
 }
 
-type watchResp struct {
-	Status  int    `json:"status"`
-	Message string `json:"message"`
-}
-
-func (cs *ClusterServer) handleWatchCluster(w http.ResponseWriter, r *http.Request) {
-	resp := watchResp{}
-
-	defer func() {
-		data, err := json.Marshal(resp)
-		if err != nil {
-			http.Error(w, "failed to process cluster info", http.StatusInternalServerError)
-			return
-		}
-		_, err = w.Write(data)
-		if err != nil {
-			http.Error(w, "failed to process cluster info", http.StatusInternalServerError)
-			return
-		}
-
-		w.Header().Add("Content-Type", "application/json")
-	}()
-
-	if cs.clusterManager == nil || cs.Name != "default" {
-		resp.Status = 1
-		resp.Message = "fail to watch: this not the host cluster"
-		w.WriteHeader(400)
+func (cs *ClusterServer) handleWatchCluster(c *gin.Context) {
+	if cs.clusterManager == nil {
+		c.String(http.StatusInternalServerError, "fail to watch: this not the host cluster")
 		return
 	}
 
-	dataBytes, err := ioutil.ReadAll(r.Body)
-	if err != nil {
-		logging.Get().Err(err).Msg("handleWatchCluster read body err")
-		resp.Status = 1
-		resp.Message = err.Error()
-		w.WriteHeader(500)
-		return
-	}
 	var tensorCluster model.TensorCluster
-	err = json.Unmarshal(dataBytes, &tensorCluster)
+
+	err := c.ShouldBindJSON(&tensorCluster)
 	if err != nil {
-		logging.Get().Err(err).Msg("json decode err.")
-		resp.Status = 1
-		resp.Message = err.Error()
-		w.WriteHeader(500)
+		c.String(http.StatusInternalServerError, err.Error())
 		return
 	}
+
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*3)
 	defer cancel()
 	err = cs.clusterManager.UpdateCluster(ctx, &tensorCluster)
 	if err != nil {
 		logging.Get().Err(err).Msg("watch cluster err.")
-		resp.Status = 1
-		resp.Message = err.Error()
-		w.WriteHeader(500)
+
+		c.String(http.StatusInternalServerError, err.Error())
 		return
 	}
-	resp.Status = 0
-	resp.Message = "OK"
+	c.String(http.StatusOK, "OK")
 }
 
 func NewHTTPServer(clusterKey string, config *config.Config) (*ClusterServer, error) {
@@ -125,34 +79,27 @@ func NewHTTPServer(clusterKey string, config *config.Config) (*ClusterServer, er
 		tlsConfig.Certificates = []tls.Certificate{tlsKeyPair}
 	}
 
-	cs := &http.Server{
-		Addr:      fmt.Sprintf("0.0.0.0:%d", config.Port),
-		TLSConfig: tlsConfig,
-	}
-
 	s := &ClusterServer{
 		ClusterID: clusterKey,
 		Name:      config.Name,
 		config:    config,
 	}
 
-	mutex := http.NewServeMux()
-	mutex.HandleFunc("/internal/cluster", s.handleClusterQuery)
-	mutex.HandleFunc("/internal/watch_cluster", s.handleWatchCluster)
+	r := gin.Default()
+	r.GET("/internal/cluster", s.handleClusterQuery)
+	r.GET("/internal/watch_cluster", s.handleWatchCluster)
 
-	cs.Handler = mutex
+	s.engine = r
 
-	s.server = cs
-	s.TLSServer = config.TLSServer
 	return s, nil
 }
 
 func (cs *ClusterServer) Run() {
 	var err error
 	if cs.TLSServer {
-		err = cs.server.ListenAndServeTLS("", "")
+		err = cs.engine.RunTLS(fmt.Sprintf(":%d", cs.config.Port), cs.config.CertFile, cs.config.KeyFile)
 	} else {
-		err = cs.server.ListenAndServe()
+		err = cs.engine.Run(fmt.Sprintf(":%d", cs.config.Port))
 	}
 
 	if err != nil {

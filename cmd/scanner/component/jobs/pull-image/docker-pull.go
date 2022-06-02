@@ -32,7 +32,7 @@ func getInspectInfo(url, username, password, image string) (*InspectInfo, error)
 		Str("Digest", info.Digest).
 		Int("Env", len(info.Config.Env)).
 		Int("Entrypoint", len(info.Config.Entrypoint)).
-		Str("ImageName", image).
+		Str("ImageDigest", image).
 		Msg("scan-image docker pull get inspect")
 
 	// defer func() { _ = rmImage(image) }()

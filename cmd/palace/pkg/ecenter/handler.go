@@ -25,7 +25,7 @@ type EcHandler struct {
 	ecCli   pb.EventsCenterCollectionServiceClient
 	uuidGen *uuid.Generator
 
-	inputChan chan *outputs.Response
+	inputChan chan *pb.SendNotificationReq
 }
 
 func NewEcHandler(bufferSize, concurrency int, ecCli pb.EventsCenterCollectionServiceClient) (*EcHandler, error) {
@@ -37,7 +37,7 @@ func NewEcHandler(bufferSize, concurrency int, ecCli pb.EventsCenterCollectionSe
 		concurrency: concurrency,
 		uuidGen:     uuidGen,
 		ecCli:       ecCli,
-		inputChan:   make(chan *outputs.Response, bufferSize),
+		inputChan:   make(chan *pb.SendNotificationReq, bufferSize),
 	}
 	e.asyncLoop()
 	return e, nil
@@ -52,22 +52,7 @@ func isLegalTag(tag string) bool {
 	}
 }
 
-func (e *EcHandler) Input(ctx context.Context, data *outputs.Response) error {
-	select {
-	case <-ctx.Done():
-		return ErrSendTimeout
-	case e.inputChan <- data:
-		return nil
-	}
-}
-
-func (e *EcHandler) handle(data *outputs.Response) error {
-	defer func() {
-		if r := recover(); r != nil {
-			logging.Get().Error().Str("stack", string(debug.Stack())).Msgf("Panic %v", r)
-		}
-	}()
-
+func (e *EcHandler) resp2Req(data *outputs.Response) *pb.SendNotificationReq {
 	ruleCategory := "ATT&CK"
 	if len(data.Tags) > 0 {
 		for _, tag := range data.Tags {
@@ -105,11 +90,32 @@ func (e *EcHandler) handle(data *outputs.Response) error {
 		}
 		return "", "", false
 	})
+	return eventReq
+}
+
+func (e *EcHandler) Input(ctx context.Context, data *outputs.Response) error {
+	eventReq := e.resp2Req(data)
+	select {
+	case <-ctx.Done():
+		return ErrSendTimeout
+	case e.inputChan <- eventReq:
+		return nil
+	}
+}
+
+func (e *EcHandler) handle(eventReq *pb.SendNotificationReq) error {
+	defer func() {
+		if r := recover(); r != nil {
+			logging.Get().Error().Str("stack", string(debug.Stack())).Msgf("Panic %v", r)
+		}
+	}()
+
 	oneCtx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
 	defer cancel()
 	_, err := e.ecCli.SendNotification(oneCtx, eventReq)
 	return err
 }
+
 func (e *EcHandler) asyncLoop() {
 	for i := 0; i < e.concurrency; i++ {
 		go func() {
@@ -125,5 +131,14 @@ func (e *EcHandler) asyncLoop() {
 				}
 			}
 		}()
+	}
+}
+
+func (e *EcHandler) InputReq(ctx context.Context, req *pb.SendNotificationReq) error {
+	select {
+	case <-ctx.Done():
+		return ErrSendTimeout
+	case e.inputChan <- req:
+		return nil
 	}
 }

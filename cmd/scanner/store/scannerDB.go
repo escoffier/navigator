@@ -27,6 +27,40 @@ func NewScannerDB(rdb *databases.RDBInstance) *ScannerDB {
 	}
 }
 
+func (scdb *ScannerDB) InsertToScanWhitelist(ctx context.Context, whitelist *model.ScanWhitelist) error {
+	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*10)
+	defer cancelFunc()
+	res, err := scdb.SearchScanWhitelist(ctx, whitelist)
+	if err != nil {
+		logging.GetLogger().Error().Err(err).Msgf("SearchScanWhitelist error:")
+		return err
+	}
+	if res.Digest != "" {
+		if err := scdb.RDB.Get().WithContext(ctx).Where("digest = ?", whitelist.Digest).UpdateColumns(whitelist).Error; err != nil {
+			logging.GetLogger().Error().Err(err).Msgf("update whitelist error:")
+			return err
+		}
+	} else {
+		if err := scdb.RDB.Get().WithContext(ctx).Create(whitelist).Error; err != nil {
+			logging.GetLogger().Error().Err(err).Msgf("update whitelist error:")
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (scdb *ScannerDB) SearchScanWhitelist(ctx context.Context, whitelist *model.ScanWhitelist) (*model.ScanWhitelist, error) {
+	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*10)
+	defer cancelFunc()
+	res := model.ScanWhitelist{}
+	if err := scdb.RDB.Get().WithContext(ctx).Select("digest").Where("digest = ?", whitelist.Digest).Find(&res).Error; err != nil {
+		logging.GetLogger().Error().Err(err).Msgf("SearchScanWhitelist error:")
+		return nil, err
+	}
+	return &res, nil
+}
+
 func (scdb *ScannerDB) InsertToScanImage(ctx context.Context, scanImage *model.ScanImage) error {
 	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*10)
 	defer cancelFunc()

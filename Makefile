@@ -8,7 +8,7 @@ endif
 REPOPREFIX?=localhost:32000
 REPOPREFIXOLD?=localhost:32000
 
-USEMIRROR?=true
+USEMIRROR?=false
 
 RELEASEVERSION?=v0.0.1
 
@@ -74,11 +74,11 @@ console: generate 		## Build console binary
 		--ldflags "$(LDFLAGS) -X gitlab.com/piccolo_su/vegeta/cmd/holmes/encodefile/cmd.Version=$(VERSION)" \
 		-o dist/holmes-rules-pack gitlab.com/piccolo_su/vegeta/cmd/holmes/encodefile
 	#upx dist/holmes-rules-pack
-	# generate the holmes rules thr file with version	
+	# generate the holmes rules thr file with version
 	./build_holmes_rules_thr.sh
 
 	docker build -t $(REPOPREFIX)/console:latest -f ./build/console/Dockerfile .
-	
+
 
 .PHONY: data-base
 data-base: ## Build data base image
@@ -184,7 +184,7 @@ else
 endif
 
 .PHONY: daemon
-daemon: ## Build daemon binary
+daemon: drift-prevention-client ## Build daemon binary
 	@echo "+ $@"
 ifeq ($(USEMIRROR),true)
 	@echo "daemon will use mirror"
@@ -195,9 +195,9 @@ ifeq ($(USEMIRROR),true)
 	docker build -f build/daemon/Dockerfile -t $(REPOPREFIX)/daemon:latest \
         --build-arg GOPROXY=https://goproxy.cn --build-arg MIRROR=mirrors.aliyun.com .
 else
-	@echo "daemon will use mirror"
+	@echo "daemon will not use mirror"
 	go build -v -o bin/daemon  cmd/daemon/main.go
-	go build -v -o bin/ns-mnt  cmd/daemon/setns/main.go
+	gcc -o bin/ns-mnt  cmd/daemon/setns/*.c
 	#upx bin/daemon
 	docker build -f build/daemon/Dockerfile -t $(REPOPREFIX)/daemon:latest .
 endif
@@ -230,37 +230,14 @@ else
 		--build-arg REPO=$(REPOPREFIX) .
 endif
 
-.PHONY: drift-prevention-client-base
-drift-prevention-client-base: ## Build drift-prevention-client base image
-	@echo "+ $@"
-ifeq ($(USEMIRROR),true)
-	docker build -t $(REPOPREFIX)/baseimage-drift-prevention-client:latest \
-    --build-arg MIRROR=mirrors.aliyun.com -f ./build/drift-prevention-client/baseimage-dockerfile .
-else
-	docker build -t $(REPOPREFIX)/baseimage-drift-prevention-client:latest \
-    -f ./build/drift-prevention-client/baseimage-dockerfile .
-endif
-
 .PHONY: drift-prevention-client
 drift-prevention-client:	## Build drift prevention client binary
 	@echo "+ $@"
 ifeq ($(USEMIRROR),true)
 	(cd configs/drift-prevention && ./run.sh mirrors.aliyun.com)
-	go build -v -a -o dist/file-checker cmd/file-checker/main.go
-	#upx dist/file-checker
-	@echo "drift-prevention-client will use mirror"
-	docker build -t $(REPOPREFIX)/drift-prevention-client:latest -f ./build/drift-prevention-client/Dockerfile \
-		--build-arg GOPROXY=https://goproxy.cn --build-arg MIRROR=mirrors.aliyun.com --build-arg REPO=$(REPOPREFIX) .
-	#docker tag $(REPOPREFIX)/drift-prevention-client:latest $(REPOPREFIX)/drift-prevention-client:$(RELEASEVERSION)
-	docker push $(REPOPREFIX)/drift-prevention-client:latest
 else
 	@echo "drift-prevention-client will not use mirror"
 	(cd configs/drift-prevention && ./run.sh)
-	go build -v -a -o dist/file-checker cmd/file-checker/main.go
-	#upx dist/file-checker
-	docker build -t $(REPOPREFIX)/drift-prevention-client:latest -f ./build/drift-prevention-client/Dockerfile --build-arg REPO=$(REPOPREFIX) .
-	#docker tag $(REPOPREFIX)/drift-prevention-client:latest $(REPOPREFIX)/drift-prevention-client:$(RELEASEVERSION)
-	docker push $(REPOPREFIX)/drift-prevention-client:latest
 endif
 
 .PHONY: go-audit
@@ -327,12 +304,12 @@ holmes:     ## Build holmes docker
 	# #upx dist/holmes-engine-sider
 	rm -rf ./dist/*.thr > /dev/null 2>&1
 	sync
-	
+
 	go build -v \
 		--ldflags "$(LDFLAGS) -X gitlab.com/piccolo_su/vegeta/cmd/holmes/encodefile/cmd.Version=$(VERSION)" \
 		-o dist/holmes-rules-pack gitlab.com/piccolo_su/vegeta/cmd/holmes/encodefile
 	#upx dist/holmes-rules-pack
-	# generate the holmes rules thr file with version	
+	# generate the holmes rules thr file with version
 	./build_holmes_rules_thr.sh
 ifeq ($(USEMIRROR),true)
 	@echo "holmes will use mirror"
@@ -428,7 +405,6 @@ ifeq ($(USERELEASE),true)
 	docker push $(REPOPREFIX)/baseimage-faulty:$(RELEASEVERSION)
 	docker push $(REPOPREFIX)/baseimage-holmes:$(RELEASEVERSION)
 	docker push $(REPOPREFIX)/baseimage-scanner:$(RELEASEVERSION)
-	docker push $(REPOPREFIX)/baseimage-drift-prevention-client:$(RELEASEVERSION)
 	docker push $(REPOPREFIX)/baseimage-data:$(RELEASEVERSION)
 	docker push $(REPOPREFIX)/baseimage-security-profiles-loader:$(RELEASEVERSION)
 else
@@ -436,7 +412,6 @@ else
 	docker push $(REPOPREFIX)/baseimage-faulty:latest
 	docker push $(REPOPREFIX)/baseimage-holmes:latest
 	docker push $(REPOPREFIX)/baseimage-scanner:latest
-	docker push $(REPOPREFIX)/baseimage-drift-prevention-client:latest
 	docker push $(REPOPREFIX)/baseimage-data:latest
 	docker push $(REPOPREFIX)/baseimage-security-profiles-loader:latest
 endif
@@ -448,7 +423,6 @@ ifeq ($(USERELEASE),true)
 	docker push $(REPOPREFIX)/console:$(RELEASEVERSION)
 	docker push $(REPOPREFIX)/scanner:$(RELEASEVERSION)
 	docker push $(REPOPREFIX)/cleaner:$(RELEASEVERSION)
-	docker push $(REPOPREFIX)/drift-prevention-client:$(RELEASEVERSION)
 	docker push $(REPOPREFIX)/faulty:$(RELEASEVERSION)
 	docker push $(REPOPREFIX)/palace:$(RELEASEVERSION)
 	docker push $(REPOPREFIX)/holmes:$(RELEASEVERSION)
@@ -467,7 +441,6 @@ else
 	docker push $(REPOPREFIX)/console:latest
 	docker push $(REPOPREFIX)/scanner:latest
 	docker push $(REPOPREFIX)/cleaner:latest
-	docker push $(REPOPREFIX)/drift-prevention-client:latest
 	docker push $(REPOPREFIX)/faulty:latest
 	docker push $(REPOPREFIX)/palace:latest
 	docker push $(REPOPREFIX)/holmes:latest
@@ -489,7 +462,6 @@ rm-local-images:
 	docker rmi $(REPOPREFIX)/console:latest
 	docker rmi $(REPOPREFIX)/scanner:latest
 	docker rmi $(REPOPREFIX)/cleaner:latest
-	docker rmi $(REPOPREFIX)/drift-prevention-client:latest
 	docker rmi $(REPOPREFIX)/faulty:latest
 	docker rmi $(REPOPREFIX)/palace:latest
 	docker rmi $(REPOPREFIX)/holmes:latest
@@ -511,7 +483,6 @@ ifeq ($(USERELEASE),true)
 	docker tag $(REPOPREFIX)/console:latest $(REPOPREFIX)/console:$(RELEASEVERSION)
 	docker tag $(REPOPREFIX)/scanner:latest $(REPOPREFIX)/scanner:$(RELEASEVERSION)
 	docker tag $(REPOPREFIX)/cleaner:latest $(REPOPREFIX)/cleaner:$(RELEASEVERSION)
-	docker tag $(REPOPREFIX)/drift-prevention-client:latest $(REPOPREFIX)/drift-prevention-client:$(RELEASEVERSION)
 	docker tag $(REPOPREFIX)/faulty:latest $(REPOPREFIX)/faulty:$(RELEASEVERSION)
 	docker tag $(REPOPREFIX)/palace:latest $(REPOPREFIX)/palace:$(RELEASEVERSION)
 	docker tag $(REPOPREFIX)/holmes:latest $(REPOPREFIX)/holmes:$(RELEASEVERSION)
@@ -529,7 +500,6 @@ else
 	docker tag $(REPOPREFIXOLD)/console:latest $(REPOPREFIX)/console:latest
 	docker tag $(REPOPREFIXOLD)/scanner:latest $(REPOPREFIX)/scanner:latest
 	docker tag $(REPOPREFIXOLD)/cleaner:latest $(REPOPREFIX)/cleaner:latest
-	docker tag $(REPOPREFIXOLD)/drift-prevention-client:latest $(REPOPREFIX)/drift-prevention-client:latest
 	docker tag $(REPOPREFIXOLD)/faulty:latest $(REPOPREFIX)/faulty:latest
 	docker tag $(REPOPREFIXOLD)/palace:latest $(REPOPREFIX)/palace:latest
 	docker tag $(REPOPREFIXOLD)/holmes:latest $(REPOPREFIX)/holmes:latest
@@ -554,7 +524,6 @@ ifeq ($(USERELEASE),true)
 	scanner-cicd -k=dGVuc29yc2VjLWNpY2QtdXNlcg==.qBFMMAvbbm3afG3y42CqKaN7WQe4Q7hiqtg5Jzwen7tWHhZG16P62kvv -c=$(CI_CHECK_CONSOLE) -r=$(CI_CHECK_CACHE_REGISTRY) -t=1000 --insecure=false -i=$(REPOPREFIX)/console:$(RELEASEVERSION)
 	scanner-cicd -k=dGVuc29yc2VjLWNpY2QtdXNlcg==.qBFMMAvbbm3afG3y42CqKaN7WQe4Q7hiqtg5Jzwen7tWHhZG16P62kvv -c=$(CI_CHECK_CONSOLE) -r=$(CI_CHECK_CACHE_REGISTRY) -t=1000 --insecure=false -i=$(REPOPREFIX)/scanner:$(RELEASEVERSION)
 	scanner-cicd -k=dGVuc29yc2VjLWNpY2QtdXNlcg==.qBFMMAvbbm3afG3y42CqKaN7WQe4Q7hiqtg5Jzwen7tWHhZG16P62kvv -c=$(CI_CHECK_CONSOLE) -r=$(CI_CHECK_CACHE_REGISTRY) -t=1000 --insecure=false -i=$(REPOPREFIX)/cleaner:$(RELEASEVERSION)
-	scanner-cicd -k=dGVuc29yc2VjLWNpY2QtdXNlcg==.qBFMMAvbbm3afG3y42CqKaN7WQe4Q7hiqtg5Jzwen7tWHhZG16P62kvv -c=$(CI_CHECK_CONSOLE) -r=$(CI_CHECK_CACHE_REGISTRY) -t=1000 --insecure=false -i=$(REPOPREFIX)/drift-prevention-client:$(RELEASEVERSION)
 	scanner-cicd -k=dGVuc29yc2VjLWNpY2QtdXNlcg==.qBFMMAvbbm3afG3y42CqKaN7WQe4Q7hiqtg5Jzwen7tWHhZG16P62kvv -c=$(CI_CHECK_CONSOLE) -r=$(CI_CHECK_CACHE_REGISTRY) -t=1000 --insecure=false -i=$(REPOPREFIX)/faulty:$(RELEASEVERSION)
 	scanner-cicd -k=dGVuc29yc2VjLWNpY2QtdXNlcg==.qBFMMAvbbm3afG3y42CqKaN7WQe4Q7hiqtg5Jzwen7tWHhZG16P62kvv -c=$(CI_CHECK_CONSOLE) -r=$(CI_CHECK_CACHE_REGISTRY) -t=1000 --insecure=false -i=$(REPOPREFIX)/palace:$(RELEASEVERSION)
 	scanner-cicd -k=dGVuc29yc2VjLWNpY2QtdXNlcg==.qBFMMAvbbm3afG3y42CqKaN7WQe4Q7hiqtg5Jzwen7tWHhZG16P62kvv -c=$(CI_CHECK_CONSOLE) -r=$(CI_CHECK_CACHE_REGISTRY) -t=1000 --insecure=false -i=$(REPOPREFIX)/holmes:$(RELEASEVERSION)
@@ -573,7 +542,6 @@ else
 	scanner-cicd -k=dGVuc29yc2VjLWNpY2QtdXNlcg==.qBFMMAvbbm3afG3y42CqKaN7WQe4Q7hiqtg5Jzwen7tWHhZG16P62kvv -c=$(CI_CHECK_CONSOLE) -r=$(CI_CHECK_CACHE_REGISTRY) -t=1000 --insecure=false -i=$(REPOPREFIX)/console:latest
 	scanner-cicd -k=dGVuc29yc2VjLWNpY2QtdXNlcg==.qBFMMAvbbm3afG3y42CqKaN7WQe4Q7hiqtg5Jzwen7tWHhZG16P62kvv -c=$(CI_CHECK_CONSOLE) -r=$(CI_CHECK_CACHE_REGISTRY) -t=1000 --insecure=false -i=$(REPOPREFIX)/scanner:latest
 	scanner-cicd -k=dGVuc29yc2VjLWNpY2QtdXNlcg==.qBFMMAvbbm3afG3y42CqKaN7WQe4Q7hiqtg5Jzwen7tWHhZG16P62kvv -c=$(CI_CHECK_CONSOLE) -r=$(CI_CHECK_CACHE_REGISTRY) -t=1000 --insecure=false -i=$(REPOPREFIX)/cleaner:latest
-	scanner-cicd -k=dGVuc29yc2VjLWNpY2QtdXNlcg==.qBFMMAvbbm3afG3y42CqKaN7WQe4Q7hiqtg5Jzwen7tWHhZG16P62kvv -c=$(CI_CHECK_CONSOLE) -r=$(CI_CHECK_CACHE_REGISTRY) -t=1000 --insecure=false -i=$(REPOPREFIX)/drift-prevention-client:latest
 	scanner-cicd -k=dGVuc29yc2VjLWNpY2QtdXNlcg==.qBFMMAvbbm3afG3y42CqKaN7WQe4Q7hiqtg5Jzwen7tWHhZG16P62kvv -c=$(CI_CHECK_CONSOLE) -r=$(CI_CHECK_CACHE_REGISTRY) -t=1000 --insecure=false -i=$(REPOPREFIX)/faulty:latest
 	scanner-cicd -k=dGVuc29yc2VjLWNpY2QtdXNlcg==.qBFMMAvbbm3afG3y42CqKaN7WQe4Q7hiqtg5Jzwen7tWHhZG16P62kvv -c=$(CI_CHECK_CONSOLE) -r=$(CI_CHECK_CACHE_REGISTRY) -t=1000 --insecure=false -i=$(REPOPREFIX)/palace:latest
 	scanner-cicd -k=dGVuc29yc2VjLWNpY2QtdXNlcg==.qBFMMAvbbm3afG3y42CqKaN7WQe4Q7hiqtg5Jzwen7tWHhZG16P62kvv -c=$(CI_CHECK_CONSOLE) -r=$(CI_CHECK_CACHE_REGISTRY) -t=1000 --insecure=false -i=$(REPOPREFIX)/holmes:latest

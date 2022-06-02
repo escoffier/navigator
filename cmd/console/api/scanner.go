@@ -44,7 +44,8 @@ func (api *api) scanner() func(chi.Router) {
 		r.Get("/images/sampleList", api.RedirectToScanner())
 		r.Get("/images/verifyExistence", api.RedirectToScanner())
 		r.Get("/images/existenceCount", api.RedirectToScanner())
-
+		r.Get("/images/bin/whitelist", api.RedirectToScanner())
+		r.Post("/images/bin/whitelist", api.RedirectToScanner())
 		r.Get("/layers/images/{imageId}/layers/{layerDigest}/info", api.RedirectToScanner())
 
 		r.Get("/vulns/detail", api.RedirectToScanner())

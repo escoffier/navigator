@@ -215,12 +215,12 @@ func WebAPI(router *gin.Engine,
 }
 
 func OpenAPI(router *gin.Engine, scannerSvc component.ScannerSrv,
-		rejectSvc component.ImageRejectSrv,
-		harborSvc component.HarborSvc,
-		registrySrv component.RegistrySrvInterface,
-		scanConfigSrv component.ScanConfigSrvInterface,
-		vulnSrv component.VulnServiceInterface,
-		redisClient *redis.Client) *gin.Engine {
+	rejectSvc component.ImageRejectSrv,
+	harborSvc component.HarborSvc,
+	registrySrv component.RegistrySrvInterface,
+	scanConfigSrv component.ScanConfigSrvInterface,
+	vulnSrv component.VulnServiceInterface,
+	redisClient *redis.Client) *gin.Engine {
 
 	apiScannerSrv := openapi.NewScannerOpenAPISrv(scannerSvc, registrySrv, scanConfigSrv)
 
