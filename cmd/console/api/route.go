@@ -72,6 +72,7 @@ func SetupRoutes(
 			r.Route("/scanner", api.scanner())
 			r.Route("/export", api.export())
 			r.Route("/assets", api.assets())
+			r.Route("/drift", api.drift())
 			r.Post("/hunter-report/{uuid}", api.reportKubeHunterResult())
 		})
 	})

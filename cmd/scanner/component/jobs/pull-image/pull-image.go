@@ -12,6 +12,7 @@ import (
 	"github.com/pkg/errors"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/jobs"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry/suport/docker"
 	image_cache "gitlab.com/piccolo_su/vegeta/cmd/scanner/service/register/image-cache"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
@@ -83,6 +84,7 @@ func (p *Job) Run(ctx context.Context, param jobs.Param) (jobs.Artifact, error) 
 		}
 		r["imageName"] = imageName
 		r["docker"] = 1
+		r["digest"] = inspectInfo.Digest
 		r["layers"] = inspectInfo.RootFS.Layers
 		r["configJson"] = string(bts)
 	} else {
@@ -101,6 +103,10 @@ func (p *Job) Run(ctx context.Context, param jobs.Param) (jobs.Artifact, error) 
 				}
 				uniqueLayers[layerDigest] = true
 				layers = append(layers, layerDigest)
+			}
+			imageDigest, err := docker.ManifestV2Digest(&manifest)
+			if err == nil {
+				r["digest"] = imageDigest
 			}
 		} else {
 			// 说明是V1版本

@@ -18,10 +18,12 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/palace/pkg/association"
 	"gitlab.com/piccolo_su/vegeta/cmd/palace/pkg/ecenter"
 	"gitlab.com/piccolo_su/vegeta/pkg/echelper"
+	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/security-rd/go-pkg/cache"
 	"gitlab.com/security-rd/go-pkg/databases"
 	"gitlab.com/security-rd/go-pkg/logging"
 	"gitlab.com/security-rd/go-pkg/mq"
+	"gitlab.com/security-rd/go-pkg/pb"
 )
 
 const (
@@ -95,6 +97,25 @@ func handlePodContainerEvents(ctx context.Context, m kafka.Message) error {
 	return nil
 }
 
+func handleDriftEvents(ctx context.Context, m kafka.Message) error {
+	var data pb.SendNotificationReq
+	err := proto.Unmarshal(m.Value, &data)
+	if err != nil {
+		logging.Get().Err(err).Str("data", string(m.Value)).Msg("unmarshal drift events error")
+		return err
+	}
+	logging.Get().Debug().Msgf("drift event: %+v", data)
+
+	err = ecenterHandler.InputReq(ctx, &data)
+	if err != nil {
+		logging.Get().Err(err).Msgf("process event in echandler error. originEvent: %+v", data)
+		return err
+	}
+
+	return nil
+
+}
+
 func main() {
 	err := initDB()
 	if err != nil {
@@ -159,6 +180,9 @@ func main() {
 	if err != nil {
 		logging.Get().Err(err).Msg("subscribe apiInfo error.")
 	}
+
+	// drift event
+	err = mqReader.Subscribe(model.SubjectOfDriftEvent, groupID, handleDriftEvents)
 
 	// imErr := immune.Init(redisCli, stanconn)
 	// if imErr != nil {

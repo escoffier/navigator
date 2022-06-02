@@ -31,6 +31,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/cron"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/data"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/defense"
+	drvSvc "gitlab.com/piccolo_su/vegeta/cmd/console/service/drift"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/hunter"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/immune"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/k8saudit"
@@ -185,6 +186,11 @@ func NewConsole(
 	})
 	if err != nil {
 		logging.Get().Err(err).Msgf("ERROR: DataService init error")
+	}
+
+	drErr := drvSvc.InitResourcesService(rdb, es)
+	if drErr != nil {
+		logging.Get().Err(drErr).Msg("ERROR: InitDriftService init error")
 	}
 
 	rlErr := assetsSvc.InitResourcesService(rdb, scannerURL)

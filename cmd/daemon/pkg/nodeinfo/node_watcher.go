@@ -23,6 +23,8 @@ const (
 	PodmanType = "podman"
 )
 
+const PodUIDIndex = "podUID"
+
 type Resource struct {
 	Name string
 	Kind string
@@ -32,6 +34,12 @@ type PodEvent struct {
 	finalOwnerResource *Resource
 	fetchFunc          func(ctx context.Context, pod *corev1.Pod) *Resource
 	sync.Mutex
+}
+type TensorPod struct {
+	ClusterKey string   `json:"clusterKey"`
+	Namespace  string   `json:"namespace"`
+	Name       string   `json:"name"`
+	Containers []string `json:"containers"`
 }
 
 func newPodEvent(pod *corev1.Pod, ffunc func(ctx context.Context, pod *corev1.Pod) *Resource) *PodEvent {
@@ -59,24 +67,26 @@ type PodWatcher interface {
 }
 type NodePodsWatcher struct {
 	watchers    []PodWatcher
-	store       cache.Store
+	store       cache.Indexer
 	controller  cache.Controller
 	k8sClient   *kubernetes.Clientset
 	ownRefCache *ownerRefCache
 
-	nodeName string
+	nodeName   string
+	clusterKey string
 }
 
 type Builder struct {
 	instance *NodePodsWatcher
 }
 
-func NewNodePodsWatcher(nodeName string) *Builder {
+func NewNodePodsWatcher(nodeName, clusterKey string) *Builder {
 	return &Builder{
 		instance: &NodePodsWatcher{
 			watchers:    make([]PodWatcher, 0, 3),
 			nodeName:    nodeName,
 			ownRefCache: newOwnerRefCache(50, 30*time.Minute),
+			clusterKey:  clusterKey,
 		},
 	}
 }
@@ -210,7 +220,7 @@ func (n *NodePodsWatcher) Start(ctx context.Context) (err error) {
 			options.FieldSelector = fmt.Sprintf("spec.nodeName=%v", n.nodeName)
 		},
 	)
-	n.store, n.controller = cache.NewInformer(
+	n.store, n.controller = cache.NewIndexerInformer(
 		watchlist,
 		&corev1.Pod{},
 		0,
@@ -295,7 +305,16 @@ func (n *NodePodsWatcher) Start(ctx context.Context) (err error) {
 				}
 			},
 		},
+		cache.Indexers{},
 	)
+	n.store.AddIndexers(cache.Indexers{PodUIDIndex: func(obj interface{}) ([]string, error) {
+		pod, ok := obj.(*corev1.Pod)
+		if ok {
+			return []string{string(pod.UID)}, nil
+		}
+		return nil, fmt.Errorf("object is not pod")
+	}})
+
 	stopChan := make(chan struct{}, 1)
 	go func() {
 		defer func() {
@@ -316,4 +335,32 @@ func (n *NodePodsWatcher) Start(ctx context.Context) (err error) {
 	}
 
 	return nil
+}
+
+func (n *NodePodsWatcher) GetPodByUID(uid string) (*TensorPod, error) {
+	objs, err := n.store.ByIndex(PodUIDIndex, uid)
+	if err != nil {
+		return nil, err
+	}
+	if len(objs) == 0 {
+		return nil, fmt.Errorf("pod not found")
+	}
+	var tensorPod *TensorPod
+	for _, p := range objs {
+		pod := p.(*corev1.Pod)
+
+		containers := []string{}
+		for _, c := range pod.Spec.Containers {
+			containers = append(containers, c.Name)
+		}
+		tensorPod = &TensorPod{
+			ClusterKey: n.clusterKey,
+			Namespace:  pod.Namespace,
+			Name:       pod.Name,
+			Containers: containers,
+		}
+		break
+	}
+
+	return tensorPod, nil
 }

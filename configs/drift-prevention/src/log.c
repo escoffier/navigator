@@ -12,7 +12,7 @@
 static FILE* g_log_dest = NULL;
 
 int drift_prevent_init_log() {
-    g_log_dest = fopen("/var/log/drift-prevention.log", "a+");
+    g_log_dest = fopen("/tmp/drift-prevention.log", "a+");
     if (g_log_dest == NULL) {
         g_log_dest = stderr;
         return 1;
@@ -25,6 +25,7 @@ int drift_prevent_teardown_log() {
         if (!fclose(g_log_dest)) {
             return 1;
         }
+        g_log_dest = NULL;
     }
     return 0;
 }

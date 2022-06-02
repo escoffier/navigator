@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
+	"gitlab.com/piccolo_su/vegeta/cmd/daemon/dp"
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/netflow"
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/nodeinfo"
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/rtdetect"
@@ -42,16 +43,16 @@ func initEventStreams(udsAddr, nodeName string, cm *k8s.ClusterInfoManager, mqWr
 	return s, err
 }
 
-func initNodeInfos(hostName, hostIP string) (nodeinfo.ContainerInfoManager, *netflow.NodePodsInfo, *nodeinfo.PodResInfo, error) {
-	nodePods := nodeinfo.NewNodePodsWatcher(hostName)
+func initNodeInfos(hostName, hostIP, clusterKey string) (nodeinfo.ContainerInfoManager, *netflow.NodePodsInfo, *nodeinfo.PodResInfo, *nodeinfo.NodePodsWatcher, error) {
+	nodePods := nodeinfo.NewNodePodsWatcher(hostName, clusterKey)
 	err := nodePods.Build().InitK8sClient()
 	if err != nil {
-		return nil, nil, nil, errors.Errorf("k8s client init failed, %v", err)
+		return nil, nil, nil, nil, errors.Errorf("k8s client init failed, %v", err)
 	}
 
 	containerType, err := nodePods.Build().GetContainerType()
 	if err != nil {
-		return nil, nil, nil, errors.Errorf("get k8s node containerRuntimeVersion failed, %v", err)
+		return nil, nil, nil, nil, errors.Errorf("get k8s node containerRuntimeVersion failed, %v", err)
 	}
 
 	var containerInfo nodeinfo.ContainerInfoManager
@@ -59,26 +60,26 @@ func initNodeInfos(hostName, hostIP string) (nodeinfo.ContainerInfoManager, *net
 	case nodeinfo.DockerType:
 		containerInfo, err = nodeinfo.NewDockerInfoManager(hostName, hostIP)
 		if err != nil {
-			return nil, nil, nil, errors.Errorf("Failed to initialize docker info manager, %v", err)
+			return nil, nil, nil, nil, errors.Errorf("Failed to initialize docker info manager, %v", err)
 		}
 		logging.Get().Info().Msgf("new docker client success!")
 	case nodeinfo.CrioType:
 		containerInfo, err = nodeinfo.NewCrioInfoManager()
 		if err != nil {
-			return nil, nil, nil, errors.Errorf("Failed to initialize cri-o info manager, %v", err)
+			return nil, nil, nil, nil, errors.Errorf("Failed to initialize cri-o info manager, %v", err)
 		}
 		logging.Get().Info().Msgf("new cri-o client success!")
 	case nodeinfo.PodmanType:
 		containerInfo, err = nodeinfo.NewPodmanInfoManager()
 		if err != nil {
-			return nil, nil, nil, errors.Errorf("Failed to initialize podman info manager, %v", err)
+			return nil, nil, nil, nil, errors.Errorf("Failed to initialize podman info manager, %v", err)
 		}
 		logging.Get().Info().Msgf("new podman client success!")
 	}
 
 	err = containerInfo.Start()
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("start dockerInfo listen failed, %v.", err)
+		return nil, nil, nil, nil, fmt.Errorf("start dockerInfo listen failed, %v.", err)
 	}
 
 	k8sInfo := netflow.NewNodePodInfo(containerInfo)
@@ -86,10 +87,10 @@ func initNodeInfos(hostName, hostIP string) (nodeinfo.ContainerInfoManager, *net
 	podsWatcher := nodePods.AddWatcher(k8sInfo).AddWatcher(podResInfo).Build()
 	err = podsWatcher.Start(context.Background())
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("start pods watcher error: %v", err)
+		return nil, nil, nil, nil, fmt.Errorf("start pods watcher error: %v", err)
 	}
 
-	return containerInfo, k8sInfo, podResInfo, nil
+	return containerInfo, k8sInfo, podResInfo, podsWatcher, nil
 }
 
 var runes = []rune{
@@ -129,7 +130,7 @@ func GetEnvInfo() (string, string) {
 	return hostName, hostIP
 }
 
-func NetInit(ctx context.Context) error {
+func Run(ctx context.Context) error {
 	wg := sync.WaitGroup{}
 	//get local env
 	hostName, hostIP := GetEnvInfo()
@@ -165,8 +166,13 @@ func NetInit(ctx context.Context) error {
 	}
 
 	clusterManager := k8s.NewClusterInfoManager(clusterAddr)
+	clusterKey, ok := clusterManager.ClusterKey()
+	if !ok {
+		logging.Get().Warn().Msg("get cluster key failed")
+		return errors.Errorf("get cluster key failed.")
+	}
 
-	containerInfo, k8sInfo, podResInfo, err := initNodeInfos(hostName, hostIP)
+	containerInfo, k8sInfo, podResInfo, podWatcher, err := initNodeInfos(hostName, hostIP, clusterKey)
 	if err != nil {
 		return err
 	}
@@ -210,6 +216,30 @@ func NetInit(ctx context.Context) error {
 		}()
 	}
 
+	// start dp service
+	ciaEnabled := os.Getenv("CIA_ENABLED")
+	if ciaEnabled == "1" {
+		dpService, err := dp.NewDriftAssurance(podWatcher, podResInfo, mqWriter)
+		if err != nil {
+			logging.Get().Err(err).Msg("new drift assurance service failed")
+			return err
+		}
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			defer func() {
+				if r := recover(); r != nil {
+					logging.Get().Error().Msgf("drift service panic: %v.stack:%s", r, debug.Stack())
+				}
+			}()
+			if err = dpService.Start(ctx, consoleAddr); err != nil {
+				logging.Get().Err(err).Msg("drift service start failed")
+			}
+		}()
+	} else {
+		logging.Get().Warn().Msg("not enable auto inject")
+	}
+
 	wg.Wait()
 
 	return err
@@ -222,7 +252,7 @@ func main() {
 	mainCtx, mainCancel := context.WithCancel(context.Background())
 	defer mainCancel()
 
-	err := NetInit(mainCtx)
+	err := Run(mainCtx)
 	if err != nil {
 		logging.Get().Error().Msgf("net init failed, %v.", err)
 		mainCancel()
