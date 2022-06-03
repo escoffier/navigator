@@ -18,6 +18,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/console/api"
 	"gitlab.com/piccolo_su/vegeta/pkg/harbor"
 	"gitlab.com/piccolo_su/vegeta/pkg/lang"
+	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 )
 
 var (
@@ -25,19 +26,19 @@ var (
 )
 
 func setupChiRouter(
-		ctx context.Context,
-		rdb *databases.RDBInstance,
-		es *elastic.ESClient,
-		scannerURL string,
-		exportURL string,
-		secProfilesCoreURL string,
-		microsegURL string,
-		webhookURL string,
-		httpLoggerDisabled bool,
-		httpAuditDisabled bool,
-		redisClient *redis.Client,
-		harborClient *harbor.HarborRESTClient,
-		ecCli pb.EventsCenterBizServiceClient,
+	ctx context.Context,
+	rdb *databases.RDBInstance,
+	es *elastic.ESClient,
+	scannerURL string,
+	exportURL string,
+	secProfilesCoreURL string,
+	microsegURL string,
+	webhookURL string,
+	httpLoggerDisabled bool,
+	httpAuditDisabled bool,
+	redisClient *redis.Client,
+	harborClient *harbor.HarborRESTClient,
+	ecCli pb.EventsCenterBizServiceClient,
 ) http.Handler {
 	// ch := make(chan model.AccessLog, 1000)
 	tokenAuth := jwtauth.New("HS256", jwtSignKey, nil)
@@ -75,7 +76,8 @@ func Timeout(timeout time.Duration) func(next http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		fn := func(w http.ResponseWriter, r *http.Request) {
 			if strings.Contains(r.RequestURI, "/export/task/download") {
-				timeout = 30 * time.Minute
+				logging.GetLogger().Info().Str("RequestURI", r.RequestURI).Msg("Get download URI")
+				timeout = 120 * time.Minute
 			}
 
 			ctx, cancel := context.WithTimeout(r.Context(), timeout)

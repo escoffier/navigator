@@ -3,10 +3,8 @@ package api
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"net/http"
 	"os"
-	"strconv"
 	"strings"
 	"time"
 
@@ -167,13 +165,15 @@ func (s *ExportApiSrv) DownLoad(ctx *gin.Context) {
 			logging.GetLogger().Err(err).Str("FilePath", task.FilePath).Msg("Close")
 		}
 	}()
-	bys, err := ioutil.ReadAll(fp)
+
+	stat, err := fp.Stat()
 	if err != nil {
-		logging.GetLogger().Err(err).Str("FilePath", task.FilePath).Msg("ReadAll")
 		response.JSONError(ctx, err)
 		return
 	}
-	logging.GetLogger().Info().Int("data length", len(bys)).Msg("DownLoad")
+
+	all := stat.Size()
+	logging.GetLogger().Info().Str("Filename", task.FilePath).Int64("size", all).Msg("export download")
 
 	splits := strings.Split(task.FilePath, "/")
 	filename := task.FilePath
@@ -181,13 +181,14 @@ func (s *ExportApiSrv) DownLoad(ctx *gin.Context) {
 		filename = splits[len(splits)-1]
 	}
 
+	contentType := "application/octet-stream;application/zip"
 	ctx.Header("Content-Disposition", "attachment; filename="+filename) // 指定下载文件名
 	ctx.Header("Content-Transfer-Encoding", "binary")
-	// ctx.Header("Cache-Control", "no-cache")
-	ctx.Header("Content-Type", "application/octet-stream;application/octet-stream;application/zip")
-	ctx.Header("Content-Length", strconv.Itoa(len(bys)))
+	ctx.Header("Content-Type", contentType)
 
-	ctx.Data(http.StatusOK, "application/octet-stream;application/octet-stream;application/zip", bys)
+	extraHeaders := map[string]string{"Content-Disposition": "attachment; filename=" + filename, "Content-Transfer-Encoding": "binary"}
+
+	ctx.DataFromReader(http.StatusOK, all, contentType, fp, extraHeaders)
 
 	return
 }
