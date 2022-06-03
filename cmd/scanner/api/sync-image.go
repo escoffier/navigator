@@ -2,9 +2,9 @@ package api
 
 import (
 	"fmt"
+	"strconv"
 
 	"github.com/gin-gonic/gin"
-
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
@@ -40,7 +40,14 @@ func (s *SyncImageAPISrv) StartSync(ctx *gin.Context) {
 			logging.GetLogger().Err(err).Msg("StartSyncAllImage")
 		}
 	}(param.RegistryID)
-	response.JSONOK(ctx, response.WithItem(ResponseMsg{RegistryID: param.RegistryID, Msg: fmt.Sprintf("开启同步任务:registryID:%d", param.RegistryID)}))
+	response.JSONOK(ctx,
+		response.WithItem(ResponseMsg{RegistryID: param.RegistryID, Msg: fmt.Sprintf("开启同步任务:registryID:%d", param.RegistryID)}),
+		response.WithTarget(&response.TargetRef{
+			Name: fmt.Sprintf("registry %d", param.RegistryID),
+			ID:   strconv.Itoa(int(param.RegistryID)),
+			Link: "api/v2/containerSec/scanner/syncImage/startSync",
+		}),
+	)
 }
 
 func (s *SyncImageAPISrv) GetSyncProgress(ctx *gin.Context) {

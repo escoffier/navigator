@@ -9,9 +9,6 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/pkg/errors"
-	"gitlab.com/security-rd/go-pkg/logging"
-	"gorm.io/gorm/clause"
-
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/task"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
@@ -19,6 +16,8 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
+	"gitlab.com/security-rd/go-pkg/logging"
+	"gorm.io/gorm/clause"
 )
 
 type Scanner struct {
@@ -351,7 +350,11 @@ func (s *Scanner) ScanAllNow(ctx *gin.Context) {
 		}
 	}()
 
-	response.JSONOK(ctx)
+	response.JSONOK(ctx, response.WithTarget(&response.TargetRef{
+		Name: "ScanAllImage",
+		ID:   "",
+		Link: "api/v2/containerSec/scanner/harbor/scanAllNow",
+	}))
 }
 
 // StartScanOne
@@ -785,23 +788,6 @@ func (s *Scanner) VerifyExistence(ctx *gin.Context) {
 	response.JSONOK(ctx, response.WithItem(exit{VerifyExistence: res}))
 }
 
-// // GetImageVulns 获取一个镜像的漏洞信息
-// func (s *Scanner) GetImageVulns(ctx *gin.Context) {
-// 	imageId, err := strconv.ParseInt(ctx.Param("imageID"), 10, 64)
-// 	if err != nil {
-// 		response.JSONError(ctx, fmt.Errorf("not get imageId"))
-// 		return
-// 	}
-// 	vulnSeverity := ctx.Query("vulnSeverity")
-//
-// 	if err != nil || (vulnSeverity > consts.SeverityCritical || vulnSeverity < consts.SeverityNegligible) {
-// 		response.JSONError(ctx, fmt.Errorf("get  vuln severity"))
-// 		return
-//
-// 	}
-//
-// }
-
 func (s *Scanner) ExistenceCount(ctx *gin.Context) {
 	filter := model.GetFilter(ctx)
 	param := component.SearchImageParam{Fields: []string{"id", "image_uuid"}}
@@ -1024,7 +1010,11 @@ func (s *Scanner) SetEnvToStrategy(ctx *gin.Context) {
 		response.JSONError(ctx, err)
 		return
 	}
-	response.JSONOK(ctx)
+	response.JSONOK(ctx, response.WithTarget(&response.TargetRef{
+		Name: envName,
+		ID:   envName,
+		Link: "api/v2/containerSec/scanner/images/env/" + envName,
+	}))
 }
 
 // ListBaseToAppImage 获取基础镜像的应用镜像列表
@@ -1086,7 +1076,16 @@ func (s *Scanner) CreateBaseImage(ctx *gin.Context) {
 		response.JSONError(ctx, err)
 		return
 	}
-	response.JSONOK(ctx)
+	idsString := make([]string, 0)
+	for i := range body.ImageIds {
+		idsString = append(idsString, strconv.Itoa(int(body.ImageIds[i])))
+	}
+
+	response.JSONOK(ctx, response.WithTarget(&response.TargetRef{
+		Name: strings.Join(idsString, ","),
+		ID:   "",
+		Link: "api/v2/containerSec/scanner/images/bases",
+	}))
 }
 
 // DeleteBaseImage 删除基础镜像
@@ -1108,7 +1107,11 @@ func (s *Scanner) DeleteBaseImage(ctx *gin.Context) {
 		response.JSONError(ctx, err)
 		return
 	}
-	response.JSONOK(ctx)
+	response.JSONOK(ctx, response.WithTarget(&response.TargetRef{
+		Name: fmt.Sprintf("image %d", imageID),
+		ID:   strconv.Itoa(int(imageID)),
+		Link: "api/v2/containerSec/scanner/images/base/" + strconv.Itoa(int(imageID)),
+	}))
 }
 
 // GetScanTaskList 获取扫描任务记录列表
@@ -1209,7 +1212,11 @@ func (s *Scanner) UpdateTaskStatus(ctx *gin.Context) {
 		response.JSONError(ctx, response.NewHttpError(http.StatusInternalServerError, err))
 		return
 	}
-	response.JSONOK(ctx)
+	response.JSONOK(ctx, response.WithTarget(&response.TargetRef{
+		Name: fmt.Sprintf("task %d", taskID),
+		ID:   strconv.Itoa(int(taskID)),
+		Link: "api/v2/containerSec/scanner/tasks/" + strconv.Itoa(int(taskID)) + "/status",
+	}))
 }
 
 func (s *Scanner) GetOpenapiDoc(ctx *gin.Context) {
