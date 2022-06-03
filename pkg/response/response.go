@@ -4,11 +4,11 @@ import (
 	"fmt"
 	"net/http"
 	"reflect"
+	"runtime/debug"
 
 	"github.com/gin-gonic/gin"
 	json "github.com/json-iterator/go"
-
-	"gitlab.com/piccolo_su/vegeta/pkg/logging"
+	"gitlab.com/security-rd/go-pkg/logging"
 )
 
 type ResponseErrorOptionFunc func(ev *HTTPEnvelope)
@@ -153,7 +153,7 @@ func RespError(w http.ResponseWriter, code int, opts ...ResponseErrorOptionFunc)
 	}
 
 	if resp.EnvelopeError != "" {
-		logging.GetLogger().Error().Str("enveloperror", resp.EnvelopeError).Msg("When constructing response, error in With* helper")
+		logging.Get().Error().Str("enveloperror", resp.EnvelopeError).Msg("When constructing response, error in With* helper")
 		http.Error(w, "Error when constructing HTTP response", http.StatusInternalServerError)
 		return
 	}
@@ -173,7 +173,7 @@ func RespData(w http.ResponseWriter, code int, opts ...ResponseDataOptionFunc) {
 	}
 
 	if resp.EnvelopeError != "" {
-		logging.GetLogger().Error().Str("enveloperror", resp.EnvelopeError).Msg("When constructing response, error in With* helper")
+		logging.Get().Error().Str("enveloperror", resp.EnvelopeError).Msg("When constructing response, error in With* helper")
 		http.Error(w, "Error when constructing HTTP response", http.StatusInternalServerError)
 		return
 	}
@@ -184,7 +184,7 @@ func RespData(w http.ResponseWriter, code int, opts ...ResponseDataOptionFunc) {
 func Respond(w http.ResponseWriter, code int, contentType string, payload interface{}) {
 	response, err := json.Marshal(payload)
 	if err != nil {
-		logging.GetLogger().Error().Err(err).Msg("Failed to marshall response")
+		logging.Get().Error().Err(err).Msg("Failed to marshall response")
 		http.Error(w, "Error when constructing HTTP response", http.StatusInternalServerError)
 		return
 	}
@@ -192,7 +192,7 @@ func Respond(w http.ResponseWriter, code int, contentType string, payload interf
 	w.WriteHeader(code)
 	_, err = w.Write(response)
 	if err != nil {
-		logging.GetLogger().Error().Err(err).Msg("Failed to write response")
+		logging.Get().Error().Err(err).Msg("Failed to write response")
 		http.Error(w, "Error when constructing HTTP response", http.StatusInternalServerError)
 	}
 
@@ -220,6 +220,7 @@ func JSONError(ctx *gin.Context, err error, opts ...ResponseErrorOptionFunc) {
 		op(data)
 	}
 
+	logging.Get().Err(err).Str("stack", string(debug.Stack())).Msg("JSON error")
 	data.Error.Message = err.Error()
 	httpCode := http.StatusBadRequest
 	if err2, ok := err.(*HTTPError); ok {
