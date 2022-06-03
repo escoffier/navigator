@@ -9,6 +9,9 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/pkg/errors"
+	"gitlab.com/security-rd/go-pkg/logging"
+	"gorm.io/gorm/clause"
+
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/task"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
@@ -16,8 +19,6 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
-	"gitlab.com/security-rd/go-pkg/logging"
-	"gorm.io/gorm/clause"
 )
 
 type Scanner struct {
@@ -433,9 +434,11 @@ func (s *Scanner) ScanOneForCICDRequest(ctx *gin.Context) {
 		// 拼装镜像扫描数据数据
 		// 先看漏洞
 		if resp.ImageDetail != nil && len(resp.ImageDetail.ImageScanVuln.Vulns) > 0 {
+			vulns := resp.ImageDetail.ImageScanVuln.Vulns
+			logging.Get().Info().Int("vulns", len(vulns)).Msg("api get vulns")
 			resp.Vuln = append(resp.Vuln, []string{"漏洞编号", "严重程度", "软件包", "软件版本"})
-			for _, vu := range resp.ImageDetail.ImageScanVuln.Vulns {
-				resp.Vuln = append(resp.Vuln, []string{vu.Name, vu.Severity, vu.PkgName, vu.PkgVersion})
+			for i := range vulns {
+				resp.Vuln = append(resp.Vuln, []string{vulns[i].Name, vulns[i].Severity, vulns[i].PkgName, vulns[i].PkgVersion})
 			}
 		}
 		// 再看敏感文件
