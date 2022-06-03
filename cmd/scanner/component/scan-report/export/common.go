@@ -167,6 +167,9 @@ func SaveFile(reader io.Reader, filenamePrefix string) error {
 	}
 
 	f, err := os.Create(filename) // 创建文件
+	if err != nil {
+		return err
+	}
 	defer func() {
 		if err := f.Close(); err != nil {
 			logging.GetLogger().Err(err).Msg("SaveFile.Close")

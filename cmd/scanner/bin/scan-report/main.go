@@ -41,7 +41,7 @@ func init() {
 	flag.DurationVar(&internal, "interval", 1*time.Minute, "job interval")
 	flag.StringVar(&logLevel, "log-level", "info", "debug model")
 	flag.IntVar(&batchSize, "batch-size", 50, "the batch size of data")
-	flag.Int64Var(&batchImage, "bath-image", 300, "number of image in one excel file")
+	flag.Int64Var(&batchImage, "batch-image", 300, "number of image in one excel file")
 	flag.IntVar(&parallelTaskNum, "parallel-task-num", 1, "the batch size of data")
 	flag.Int64Var(&expiration, "expiration", 7, "file expiration day") // 默认七天
 	flag.StringVar(&fileDir, "file-dir", "/tmp", "export file storage directory")
