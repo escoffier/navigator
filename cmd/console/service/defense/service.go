@@ -257,7 +257,7 @@ func (s *TensorDefenseService) deleteBaitServiceFromKube(ctx context.Context, cl
 	return err
 }
 
-func (s *TensorDefenseService) GetBaitServiceFromKube(ctx context.Context, clusterKey string, Namespace, name string) (*v1.Honeypot, error) {
+func (s *TensorDefenseService) GetBaitServiceFromKube(ctx context.Context, clusterKey string, namespace, name string) (*v1.Honeypot, error) {
 	clusterManager, ok := k8s.GetClusterManager()
 	if !ok {
 		return nil, fmt.Errorf("cluster manager not available")
@@ -266,7 +266,7 @@ func (s *TensorDefenseService) GetBaitServiceFromKube(ctx context.Context, clust
 	if !ok {
 		return nil, fmt.Errorf("clientset not available")
 	}
-	honeypot, err := clientset.TensorClientset.DefenseV1().Honeypots(Namespace).Get(ctx, name, metav1.GetOptions{})
+	honeypot, err := clientset.TensorClientset.DefenseV1().Honeypots(namespace).Get(ctx, name, metav1.GetOptions{})
 	if err != nil {
 		return nil, err
 	}

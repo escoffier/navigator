@@ -2,13 +2,12 @@ package netflow
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"time"
 
 	"github.com/go-redis/redis/v8"
+	json "github.com/json-iterator/go"
 	"github.com/pkg/errors"
-
 	"gitlab.com/piccolo_su/vegeta/pkg/daemon"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 )

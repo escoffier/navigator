@@ -2,17 +2,18 @@ package docker
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
+	"os"
+	"strings"
+	"time"
+
+	json "github.com/json-iterator/go"
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/events"
 	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/client"
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/container"
 	"gitlab.com/security-rd/go-pkg/logging"
-	"os"
-	"strings"
-	"time"
 )
 
 const (
@@ -21,7 +22,7 @@ const (
 )
 
 type dockerDriverConfig struct {
-	endpoint string
+	Endpoint string `json: "endpoint"`
 }
 
 type dockerDriver struct {
@@ -206,9 +207,9 @@ func NewDockerDriver(config container.RuntimeConfig) (container.Runtime, error) 
 	}
 
 	d.config = conf
-	d.config.endpoint = strings.TrimSpace(d.config.endpoint)
-	if d.config.endpoint != "" {
-		os.Setenv("DOCKER_HOST", d.config.endpoint)
+	d.config.Endpoint = strings.TrimSpace(d.config.Endpoint)
+	if d.config.Endpoint != "" {
+		os.Setenv("DOCKER_HOST", d.config.Endpoint)
 	}
 	uri := os.Getenv("DOCKER_SOCKET_ADDR")
 	if len(uri) == 0 {

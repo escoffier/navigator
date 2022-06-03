@@ -3,12 +3,6 @@ package nodeinfo
 import (
 	"bufio"
 	"context"
-	"encoding/json"
-	"github.com/containers/podman/v3/pkg/bindings"
-	"github.com/containers/podman/v3/pkg/bindings/containers"
-	"github.com/containers/podman/v3/pkg/domain/entities"
-	"github.com/pkg/errors"
-	"gitlab.com/security-rd/go-pkg/logging"
 	"net/http"
 	"net/url"
 	"os"
@@ -16,6 +10,14 @@ import (
 	"strings"
 	"sync"
 	"time"
+q
+
+	"github.com/containers/podman/v3/pkg/bindings"
+	"github.com/containers/podman/v3/pkg/bindings/containers"
+	"github.com/containers/podman/v3/pkg/domain/entities"
+	json "github.com/json-iterator/go"
+	"github.com/pkg/errors"
+	"gitlab.com/security-rd/go-pkg/logging"
 )
 
 var _ ContainerInfoManager = (*PodmanInfoManager)(nil)

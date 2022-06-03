@@ -24,8 +24,7 @@ func (api *api) immune() func(chi.Router) {
 		r.Get("/policy/{policyID}", api.getPolicy())
 		r.Put("/policy", api.createPolicy())
 		r.Post("/policy/{policyID}/edit", api.editPolicy())
-		r.Post("/policy/{policyID}/enable", api.enablePolicy())
-		r.Post("/policy/{policyID}/disable", api.disablePolicy())
+		r.Post("/policy/{policyID}/{action}", api.policySwitch())
 
 		// resources
 		r.Get("/resources", api.getImmuneResources())
@@ -321,7 +320,7 @@ func (api *api) editPolicy() http.HandlerFunc {
 	}
 }
 
-func (api *api) enablePolicy() http.HandlerFunc {
+func (api *api) policySwitch() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
 		defer cancel()
@@ -331,6 +330,7 @@ func (api *api) enablePolicy() http.HandlerFunc {
 			RespAndLog(w, ctx, NewAnError(400, errors.New("error policyID")))
 			return
 		}
+
 		policyID, err := strconv.ParseInt(policyIDStr, 10, 64)
 		if err != nil {
 			RespAndLog(w, ctx, NewAnError(400, errors.New("error policyID")))
@@ -341,41 +341,19 @@ func (api *api) enablePolicy() http.HandlerFunc {
 			RespAndLog(w, ctx, NewAnError(400, errors.New("error read_update_timestamp")))
 			return
 		}
-
-		svc, ok := immune.Get()
-		if !ok {
-			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.New("error get service")))
+		action := chi.URLParam(r, "action")
+		if action == "" {
+			RespAndLog(w, ctx, NewAnError(400, errors.New("error action")))
 			return
 		}
-
-		err = svc.PolicyStatusAction(ctx, model.StatusEnable, policyID, readUpdateStamp)
-		if err != nil {
-			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, err))
-			return
-		}
-		response.Ok(w)
-
-	}
-}
-
-func (api *api) disablePolicy() http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
-		defer cancel()
-
-		policyIDStr := chi.URLParam(r, "policyID")
-		if policyIDStr == "" {
-			RespAndLog(w, ctx, NewAnError(400, errors.New("error policyID")))
-			return
-		}
-		policyID, err := strconv.ParseInt(policyIDStr, 10, 64)
-		if err != nil {
-			RespAndLog(w, ctx, NewAnError(400, errors.New("error policyID")))
-			return
-		}
-		readUpdateStamp, err := param.QueryInt64(r, "read_update_timestamp")
-		if err != nil {
-			RespAndLog(w, ctx, NewAnError(400, errors.New("error read_update_timestamp")))
+		status := model.StatusEnable
+		switch action {
+		case "enable":
+			status = model.StatusEnable
+		case "disable":
+			status = model.StatusDisable
+		default:
+			RespAndLog(w, ctx, NewAnError(400, errors.New("error action")))
 			return
 		}
 
@@ -385,11 +363,12 @@ func (api *api) disablePolicy() http.HandlerFunc {
 			return
 		}
 
-		err = svc.PolicyStatusAction(ctx, model.StatusDisable, policyID, readUpdateStamp)
+		err = svc.PolicyStatusAction(ctx, status, policyID, readUpdateStamp)
 		if err != nil {
 			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, err))
 			return
 		}
 		response.Ok(w)
+
 	}
 }

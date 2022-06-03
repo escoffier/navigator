@@ -2,11 +2,11 @@ package assets
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"reflect"
 	"time"
 
+	json "github.com/json-iterator/go"
 	"github.com/segmentio/kafka-go"
 	pkgassets "gitlab.com/piccolo_su/vegeta/pkg/assets"
 	"gitlab.com/security-rd/go-pkg/logging"

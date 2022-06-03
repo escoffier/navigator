@@ -1,16 +1,17 @@
 package nodeinfo
 
 import (
-	"encoding/json"
-	"github.com/pkg/errors"
-	"gitlab.com/security-rd/go-pkg/logging"
-	internalapi "k8s.io/cri-api/pkg/apis"
-	"k8s.io/kubernetes/pkg/kubelet/cri/remote"
 	"os"
 	"runtime/debug"
 	"strings"
 	"sync"
 	"time"
+
+	json "github.com/json-iterator/go"
+	"github.com/pkg/errors"
+	"gitlab.com/security-rd/go-pkg/logging"
+	internalapi "k8s.io/cri-api/pkg/apis"
+	"k8s.io/kubernetes/pkg/kubelet/cri/remote"
 )
 
 var _ ContainerInfoManager = (*CrioInfoManager)(nil)
