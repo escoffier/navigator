@@ -74,15 +74,15 @@ func newTensorResourcesService(rdb *databases.RDBInstance, es *elastic.ESClient)
 }
 
 func (rl *TensorDriftService) CreatePolicy(ctx context.Context, policy model.DriftPolicy) (int64, error) {
-	return dal.CreateDriftPolicy(ctx, rl.rdb.GetReadDB(), policy)
+	return dal.CreateDriftPolicy(ctx, rl.rdb.Get(), policy)
 }
 
 func (rl *TensorDriftService) DeletePolicy(ctx context.Context, policyID int64) error {
-	return dal.DeleteDriftPolicy(ctx, rl.rdb.GetReadDB(), policyID)
+	return dal.DeleteDriftPolicy(ctx, rl.rdb.Get(), policyID)
 }
 
 func (rl *TensorDriftService) UpdatePolicy(ctx context.Context, policy model.DriftPolicyUpdate) error {
-	return dal.UpdateDriftPolicy(ctx, rl.rdb.GetReadDB(), policy)
+	return dal.UpdateDriftPolicy(ctx, rl.rdb.Get(), policy)
 }
 
 func (rl *TensorDriftService) ListPolicy(ctx context.Context, limit int, offset int, clusterKey string, resourceType []string, enable []string, mode []string, search string) ([]model.DriftPolicy, error) {
