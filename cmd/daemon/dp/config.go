@@ -107,7 +107,7 @@ func (cm *ConfigManager) Start() error {
 		if err != nil {
 			logging.Get().Error().Err(err).Msgf("queryAndFillMap error")
 			time.Sleep(time.Second * 20)
-			return err
+			continue
 		}
 		time.Sleep(time.Minute * 1)
 	}
