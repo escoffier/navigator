@@ -17,7 +17,7 @@ import (
 	"gitlab.com/security-rd/go-pkg/mq"
 )
 
-const defaultDockerSocket string = "unix:///var/run/docker.sock"
+var defaultDockerSocket string = "unix:///host/var/run/docker.sock"
 
 type DriftAssurance struct {
 	config     *ConfigManager
@@ -252,7 +252,11 @@ func unixSockFileFromAddr(addr string) string {
 func createRuntimeCli() (container.Runtime, error) {
 	var rt container.Runtime
 	var err error
-	if isUnixSockFile(defaultDockerSocket) {
+	dockerHost := os.Getenv("DOCKER_SOCKET_ADDR")
+	if dockerHost == "" {
+		dockerHost = defaultDockerSocket
+	}
+	if isUnixSockFile(dockerHost) {
 		rt, err = container.Open(container.RuntimeConfig{Type: "docker"})
 		if err != nil {
 			return nil, err
