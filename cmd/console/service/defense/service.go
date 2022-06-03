@@ -383,7 +383,7 @@ func (s *TensorDefenseService) GetBaitImageRepoInfo(ctx context.Context, imageNa
 		FullRepoName      string `json:"full_repo_name"`
 		Library           string `json:"library"`
 		Tag               string `json:"tags"`
-		RegistryId        int    `json:"registry_id"`
+		RegistryID        int    `json:"registry_id"`
 		RegistryDeletedAt int64  `json:"registry_deleted_at"`
 	}
 
@@ -444,7 +444,7 @@ func (s *TensorDefenseService) GetBaitImageRepoInfo(ctx context.Context, imageNa
 
 				library := removePrefix(item.Library)
 				images = append(images, &ImageDetail{
-					RegistryID: item.RegistryId,
+					RegistryID: item.RegistryID,
 					Image:      fmt.Sprintf("%s/%s:%s", library, item.FullRepoName, item.Tag),
 				})
 			}

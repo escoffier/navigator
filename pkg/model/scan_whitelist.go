@@ -16,5 +16,5 @@ type ScanWhitelist struct {
 }
 
 func (w *ScanWhitelist) TableName() string {
-	return "ivan_scanner_bin_whitelist"
+	return "ivan_drift_bin_whitelist"
 }
