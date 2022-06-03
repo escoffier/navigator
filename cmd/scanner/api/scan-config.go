@@ -5,7 +5,6 @@ import (
 	"strconv"
 
 	"github.com/gin-gonic/gin"
-
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
@@ -40,7 +39,11 @@ func (sc *ScanConfigAPISrv) CreateStrategy(ctx *gin.Context) {
 		response.JSONError(ctx, err)
 		return
 	}
-	response.JSONOK(ctx)
+	response.JSONOK(ctx, response.WithTarget(&response.TargetRef{
+		Name: data.Name,
+		ID:   data.Name,
+		Link: "api/v2/containerSec/scanner/scan-config/strategy",
+	}))
 }
 
 // UpdateStrategy
@@ -68,7 +71,11 @@ func (sc *ScanConfigAPISrv) UpdateStrategy(ctx *gin.Context) {
 		response.JSONError(ctx, err)
 		return
 	}
-	response.JSONOK(ctx)
+	response.JSONOK(ctx, response.WithTarget(&response.TargetRef{
+		Name: data.Name,
+		ID:   strconv.Itoa(int(strategyID)),
+		Link: "api/v2/containerSec/scanner/scan-config/strategy/" + strconv.Itoa(int(strategyID)),
+	}))
 }
 
 // DeleteStrategy
@@ -90,7 +97,11 @@ func (sc *ScanConfigAPISrv) DeleteStrategy(ctx *gin.Context) {
 		response.JSONError(ctx, err)
 		return
 	}
-	response.JSONOK(ctx)
+	response.JSONOK(ctx, response.WithTarget(&response.TargetRef{
+		Name: fmt.Sprintf("Strategy: %d", strategyID),
+		ID:   strconv.Itoa(int(strategyID)),
+		Link: "api/v2/containerSec/scanner/scan-config/strategy/" + strconv.Itoa(int(strategyID)),
+	}))
 }
 
 // ListStrategy
@@ -177,7 +188,11 @@ func (sc *ScanConfigAPISrv) UpdateScanConfig(ctx *gin.Context) {
 		response.JSONError(ctx, err)
 		return
 	}
-	response.JSONOK(ctx, response.WithItem(*res))
+	response.JSONOK(ctx, response.WithItem(*res), response.WithTarget(&response.TargetRef{
+		Name: fmt.Sprintf("ScanConfig: %d", scanConfigID),
+		ID:   strconv.Itoa(int(scanConfigID)),
+		Link: "api/v2/containerSec/scanner/scan-config/config" + strconv.Itoa(int(scanConfigID)),
+	}))
 }
 
 // SearchGlobalScanConfig

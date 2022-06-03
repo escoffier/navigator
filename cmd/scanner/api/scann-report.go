@@ -1,8 +1,10 @@
 package api
 
 import (
-	"github.com/gin-gonic/gin"
+	"fmt"
+	"strconv"
 
+	"github.com/gin-gonic/gin"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	scanreport "gitlab.com/piccolo_su/vegeta/pkg/model/scan-report"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
@@ -29,7 +31,13 @@ func (s *Scanner) ScanReportCrate(ctx *gin.Context) {
 		response.JSONError(ctx, err)
 		return
 	}
-	response.JSONOK(ctx, response.WithItem(model.ID{ID: id}))
+	response.JSONOK(ctx,
+		response.WithItem(model.ID{ID: id}),
+		response.WithTarget(&response.TargetRef{
+			Name: data.Name,
+			ID:   strconv.Itoa(int(id)),
+			Link: "api/v2/containerSec/scanner/scan-report",
+		}))
 }
 
 // ScanReportList 扫描报告列表
@@ -113,7 +121,11 @@ func (s *Scanner) ScanReportDelete(ctx *gin.Context) {
 		return
 	}
 
-	response.JSONOK(ctx)
+	response.JSONOK(ctx, response.WithTarget(&response.TargetRef{
+		Name: fmt.Sprintf("Report: %d", data.ID),
+		ID:   strconv.Itoa(int(data.ID)),
+		Link: "api/v2/containerSec/scanner/scan-report" + strconv.Itoa(int(data.ID)),
+	}))
 }
 
 // ScanReportFiles 扫描报告文件下载
@@ -209,7 +221,11 @@ func (s *Scanner) ScanReportUpdate(ctx *gin.Context) {
 		return
 	}
 
-	response.JSONOK(ctx)
+	response.JSONOK(ctx, response.WithTarget(&response.TargetRef{
+		Name: data.Name,
+		ID:   strconv.Itoa(int(id.ID)),
+		Link: "api/v2/containerSec/scanner/scan-report" + strconv.Itoa(int(id.ID)),
+	}))
 }
 
 // ScanReportGenerate 扫描报告立即生成
@@ -234,5 +250,11 @@ func (s *Scanner) ScanReportGenerate(ctx *gin.Context) {
 		return
 	}
 
-	response.JSONOK(ctx, response.WithItem(model.ID{ID: id}))
+	response.JSONOK(ctx,
+		response.WithItem(model.ID{ID: id}),
+		response.WithTarget(&response.TargetRef{
+			Name: fmt.Sprintf("report: %d", id),
+			ID:   strconv.Itoa(int(id)),
+			Link: fmt.Sprintf("api/v2/containerSec/scanner/scan-report/%d/subtask", id),
+		}))
 }

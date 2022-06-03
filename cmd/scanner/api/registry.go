@@ -2,11 +2,11 @@ package api
 
 import (
 	"errors"
+	"fmt"
 	"strconv"
 	"strings"
 
 	"github.com/gin-gonic/gin"
-
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
@@ -74,7 +74,11 @@ func (s *RegistrySrv) CreateRegistry(ctx *gin.Context) {
 		response.JSONError(ctx, err)
 		return
 	}
-	response.JSONOK(ctx)
+	response.JSONOK(ctx, response.WithTarget(&response.TargetRef{
+		Name: reg.Name,
+		ID:   strconv.FormatInt(reg.ID, 10),
+		Link: "api/v2/containerSec/scanner/register/registry",
+	}))
 }
 
 // DeleteRegistry
@@ -97,7 +101,11 @@ func (s *RegistrySrv) DeleteRegistry(ctx *gin.Context) {
 		response.JSONError(ctx, err)
 		return
 	}
-	response.JSONOK(ctx)
+	response.JSONOK(ctx, response.WithTarget(&response.TargetRef{
+		Name: fmt.Sprintf("Registry %d", id),
+		ID:   strconv.Itoa(int(id)),
+		Link: "api/v2/containerSec/scanner/register/registry/" + strconv.Itoa(int(id)),
+	}))
 }
 
 // GetRegistryType

@@ -7,7 +7,6 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
-
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
@@ -126,7 +125,11 @@ func (r *RejectAPI) DeleteWhitelist(ctx *gin.Context) {
 		response.JSONError(ctx, err)
 		return
 	}
-	response.JSONOK(ctx)
+	response.JSONOK(ctx, response.WithTarget(&response.TargetRef{
+		Name: fmt.Sprintf("Whitelist %d", id),
+		ID:   strconv.Itoa(int(id)),
+		Link: "api/v2/containerSec/scanner/imagereject/whitelist" + strconv.Itoa(int(id)),
+	}))
 }
 
 // CreateWhitelist
@@ -149,7 +152,11 @@ func (r *RejectAPI) CreateWhitelist(ctx *gin.Context) {
 		response.JSONError(ctx, err)
 		return
 	}
-	response.JSONOK(ctx, response.WithItem(*res))
+	response.JSONOK(ctx, response.WithItem(*res), response.WithTarget(&response.TargetRef{
+		Name: fmt.Sprintf("whitelist %d for repo: %s%s:%s", wi.ID, wi.Library, wi.FullRepoName, wi.Tag),
+		ID:   strconv.Itoa(int(wi.ID)),
+		Link: "api/v2/containerSec/scanner/imagereject/whitelist",
+	}))
 }
 
 // RejectReasons
@@ -183,7 +190,11 @@ func (r *RejectAPI) DeletePolicy(ctx *gin.Context) {
 		response.JSONError(ctx, err)
 		return
 	}
-	response.JSONOK(ctx)
+	response.JSONOK(ctx, response.WithTarget(&response.TargetRef{
+		Name: fmt.Sprintf("policy %d", id),
+		ID:   strconv.Itoa(int(id)),
+		Link: "api/v2/containerSec/scanner/imagereject/policy/single/" + strconv.Itoa(int(id)),
+	}))
 }
 
 // ListPolicy
@@ -251,7 +262,10 @@ func (r *RejectAPI) UpdateGlobalPolicy(ctx *gin.Context) {
 		response.JSONError(ctx, err)
 		return
 	}
-	response.JSONOK(ctx)
+	response.JSONOK(ctx, response.WithTarget(&response.TargetRef{
+		Name: "global policy",
+		Link: "api/v2/containerSec/scanner/imagereject/policy/global",
+	}))
 }
 
 // GetGlobalPolicy
@@ -305,18 +319,22 @@ func (r *RejectAPI) UpdatePolicy(ctx *gin.Context) {
 		return
 	}
 
-	police := new(model.RejectPolicy)
-	if err := ctx.BindJSON(&police); err != nil {
+	policy := new(model.RejectPolicy)
+	if err := ctx.BindJSON(&policy); err != nil {
 		response.JSONError(ctx, err)
 		return
 	}
 
-	logging.GetLogger().Info().Msgf("收到的内容为 %v\n", police)
-	if err := r.Srv.UpdateSinglePolicy(ctx, id, *police); err != nil {
+	logging.GetLogger().Debug().Msgf("收到的内容为 %v\n", policy)
+	if err := r.Srv.UpdateSinglePolicy(ctx, id, *policy); err != nil {
 		response.JSONError(ctx, err)
 		return
 	}
-	response.JSONOK(ctx)
+	response.JSONOK(ctx, response.WithTarget(&response.TargetRef{
+		Name: fmt.Sprintf("Policy %d: %s", id, policy.Name),
+		ID:   strconv.Itoa(int(id)),
+		Link: "api/v2/containerSec/scanner/imagereject/policy/single" + strconv.Itoa(int(id)),
+	}))
 }
 
 // RSAGenerate 生成RSA密钥对
@@ -476,7 +494,11 @@ func (r *RejectAPI) SignImageTrusted(ctx *gin.Context) {
 		return
 	}
 
-	response.JSONOK(ctx)
+	response.JSONOK(ctx, response.WithTarget(&response.TargetRef{
+		Name: s.Image,
+		ID:   s.Digest,
+		Link: "api/v2/containerSec/scanner/imagereject/trustedImages/sign",
+	}))
 }
 
 func NewRejectAPISrv(srv component.ImageRejectSrv) *RejectAPI {
