@@ -2,18 +2,16 @@ package api
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
 	"time"
 
+	json "github.com/json-iterator/go"
 	"github.com/go-chi/chi"
 	param "github.com/oceanicdev/chi-param"
 	"github.com/pkg/errors"
-	v1 "k8s.io/api/core/v1"
-
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/assets"
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	assetsPkg "gitlab.com/piccolo_su/vegeta/pkg/assets"
@@ -23,6 +21,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
+	v1 "k8s.io/api/core/v1"
 )
 
 func (api *api) assets() func(chi.Router) {
@@ -833,49 +832,51 @@ func parseImage(image string) (string, string, string) {
 	return repo, name, tag
 }
 
+type container struct {
+	Cluster       string               `json:"cluster"`
+	Namespace     string               `json:"namespace"`
+	ResourceKind  string               `json:"resource_kind"`
+	ResourceName  string               `json:"resource_name"`
+	Name          string               `json:"name"`
+	WorkingDir    string               `json:"working_dir"`
+	Command       []string             `json:"command"`
+	Type          string               `json:"type"`
+	ImageRepo     string               `json:"image_repo"`
+	ImageName     string               `json:"image_name"`
+	ImageTag      string               `json:"image_tag"`
+	Ports         []v1.ContainerPort   `json:"ports"`
+	Envs          []v1.EnvVar          `json:"envs"`
+	FrameWorkInfo []model.WebFrameInfo `json:"frame_work_info"`
+	VolumeMounts  []v1.VolumeMount     `json:"volume_mounts"`
+}
+
+func fromModelToContainer(cm *model.TensorContainer) *container {
+	c := new(container)
+	c.Cluster = cm.ClusterKey
+	c.Namespace = cm.Namespace
+	c.ResourceKind = cm.ResourceKind
+	c.ResourceName = cm.ResourceName
+	c.Name = cm.Name
+	c.Type = cm.Type
+	c.WorkingDir = cm.Spec.WorkingDir
+	c.Command = cm.Spec.Command
+	c.Ports = make([]v1.ContainerPort, len(cm.Ports))
+	copy(c.Ports, cm.Ports)
+
+	c.Envs = make([]v1.EnvVar, len(cm.Spec.Env))
+	copy(c.Envs, cm.Spec.Env)
+
+	c.VolumeMounts = make([]v1.VolumeMount, len(cm.Spec.VolumeMounts))
+	copy(c.VolumeMounts, cm.Spec.VolumeMounts)
+
+	repo, name, tag := parseImage(cm.Image)
+	c.ImageRepo = repo
+	c.ImageName = name
+	c.ImageTag = tag
+	return c
+}
 func (api *api) getResourceContainers() http.HandlerFunc {
-	type container struct {
-		Cluster       string               `json:"cluster"`
-		Namespace     string               `json:"namespace"`
-		ResourceKind  string               `json:"resource_kind"`
-		ResourceName  string               `json:"resource_name"`
-		Name          string               `json:"name"`
-		WorkingDir    string               `json:"working_dir"`
-		Command       []string             `json:"command"`
-		Type          string               `json:"type"`
-		ImageRepo     string               `json:"image_repo"`
-		ImageName     string               `json:"image_name"`
-		ImageTag      string               `json:"image_tag"`
-		Ports         []v1.ContainerPort   `json:"ports"`
-		Envs          []v1.EnvVar          `json:"envs"`
-		FrameWorkInfo []model.WebFrameInfo `json:"frame_work_info"`
-		VolumeMounts  []v1.VolumeMount     `json:"volume_mounts"`
-	}
-	fromModelToContainer := func(cm *model.TensorContainer) *container {
-		c := new(container)
-		c.Cluster = cm.ClusterKey
-		c.Namespace = cm.Namespace
-		c.ResourceKind = cm.ResourceKind
-		c.ResourceName = cm.ResourceName
-		c.Name = cm.Name
-		c.Type = cm.Type
-		c.WorkingDir = cm.Spec.WorkingDir
-		c.Command = cm.Spec.Command
-		c.Ports = make([]v1.ContainerPort, len(cm.Ports))
-		copy(c.Ports, cm.Ports)
 
-		c.Envs = make([]v1.EnvVar, len(cm.Spec.Env))
-		copy(c.Envs, cm.Spec.Env)
-
-		c.VolumeMounts = make([]v1.VolumeMount, len(cm.Spec.VolumeMounts))
-		copy(c.VolumeMounts, cm.Spec.VolumeMounts)
-
-		repo, name, tag := parseImage(cm.Image)
-		c.ImageRepo = repo
-		c.ImageName = name
-		c.ImageTag = tag
-		return c
-	}
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
 		defer cancel()

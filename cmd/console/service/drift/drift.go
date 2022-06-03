@@ -2,13 +2,13 @@ package drift
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"sync"
 	"time"
 
-	Es "github.com/olivere/elastic/v7"
+	json "github.com/json-iterator/go"
+	es "github.com/olivere/elastic/v7"
 	"gitlab.com/piccolo_su/vegeta/pkg/dal"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
@@ -32,7 +32,7 @@ func InitResourcesService(rdb *databases.RDBInstance, es *elastic.ESClient) erro
 	return nil
 }
 
-func GetDriftES(ctx context.Context) (*Es.Client, error) {
+func GetDriftES(ctx context.Context) (*es.Client, error) {
 	return EScli.Get()
 }
 
@@ -109,9 +109,9 @@ func (rl *TensorDriftService) GetContainerByID(ctx context.Context, id uint32) (
 	return dal.GetContainerByID(ctx, rl.rdb.GetReadDB(), id)
 }
 
-func (rl *TensorDriftService) GetSignalByID(ctx context.Context, esCli *Es.Client, id string) (*model.Signal, error) {
+func (rl *TensorDriftService) GetSignalByID(ctx context.Context, esCli *es.Client, id string) (*model.Signal, error) {
 	rsp, err := esCli.Search().Index(fmt.Sprintf("%s*", "signal")).
-		Query(Es.NewTermQuery("_id", id)).Do(ctx)
+		Query(es.NewTermQuery("_id", id)).Do(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -130,7 +130,7 @@ func (rl *TensorDriftService) GetAbnormal(ctx context.Context, policy model.Drif
 	}
 	searchService := esCli.Search(fmt.Sprintf("%s*", "signal")).
 		Sort("timestamp", true).Sort("_id", true).Size(limit)
-	var queries []Es.Query
+	var queries []es.Query
 	filter := make(map[string]string)
 	filter["ruleModule"] = "ContainerSecurity"
 	filter["ruleCategory"] = "DriftPrevention"
@@ -139,26 +139,26 @@ func (rl *TensorDriftService) GetAbnormal(ctx context.Context, policy model.Drif
 	filter["nodeKey"] = policy.Resource
 	filter["nodeType"] = policy.ResourceKind
 	if containerName != "" {
-		termKeyQuery := Es.NewMatchQuery("customKV.KVHash.en.Key.keyword", "containerName")
-		termValueQuery := Es.NewMatchQuery("customKV.KVHash.en.Value.keyword", containerName)
+		termKeyQuery := es.NewMatchQuery("customKV.KVHash.en.Key.keyword", "containerName")
+		termValueQuery := es.NewMatchQuery("customKV.KVHash.en.Value.keyword", containerName)
 		queries = append(queries, termKeyQuery)
 		queries = append(queries, termValueQuery)
 	}
 
 	if filePath != "" {
-		termKeyQuery := Es.NewMatchQuery("customKV.KVHash.en.Key.keyword", "filePath")
-		termValueQuery := Es.NewWildcardQuery("customKV.KVHash.en.Value.keyword", "*"+filePath+"*")
+		termKeyQuery := es.NewMatchQuery("customKV.KVHash.en.Key.keyword", "filePath")
+		termValueQuery := es.NewWildcardQuery("customKV.KVHash.en.Value.keyword", "*"+filePath+"*")
 		queries = append(queries, termKeyQuery)
 		queries = append(queries, termValueQuery)
 	}
 
 	for k, v := range filter {
 		if k != "" && v != "" {
-			queries = append(queries, Es.NewMatchQuery(k, v))
+			queries = append(queries, es.NewMatchQuery(k, v))
 		}
 	}
 	if len(queries) > 0 {
-		searchService = searchService.Query(Es.NewBoolQuery().Must(queries...))
+		searchService = searchService.Query(es.NewBoolQuery().Must(queries...))
 	}
 
 	if offset != "" {
@@ -186,7 +186,7 @@ func (rl *TensorDriftService) GetAbnormal(ctx context.Context, policy model.Drif
 	return result, nil
 }
 
-func parseSignal(item *Es.SearchHit) (*model.Signal, error) {
+func parseSignal(item *es.SearchHit) (*model.Signal, error) {
 	var signal model.Signal
 	var err = json.Unmarshal(item.Source, &signal)
 	if err != nil {

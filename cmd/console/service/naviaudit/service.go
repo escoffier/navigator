@@ -5,11 +5,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"sync"
+
 	"github.com/olivere/elastic/v7"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	pkgelastic "gitlab.com/security-rd/go-pkg/elastic"
 	"gitlab.com/security-rd/go-pkg/logging"
-	"sync"
 )
 
 const timeStampKey = "Timestamp"
@@ -38,7 +39,7 @@ type Resp struct {
 	ID        string
 	Time      int64
 	UserName  string
-	Ip        string
+	IP        string
 	Operation string
 	Detail    string
 }
@@ -112,7 +113,7 @@ func (s *Service) GetAuditLog(ctx context.Context, opt *QueryNaviAuditLogOpt) ([
 			ID:        item.Id,
 			Time:      record.Timestamp,
 			UserName:  record.User.Name,
-			Ip:        record.HttpRequest.RemoteIP,
+			IP:        record.HttpRequest.RemoteIP,
 			Operation: record.Verb,
 			Detail:    record.Detail,
 		})
