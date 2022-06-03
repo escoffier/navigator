@@ -320,7 +320,7 @@ type ScanOneForCICDResponse struct {
 
 	RejectMsg [][]string `json:"reject_msg"`
 
-	Vuln      [][]string `json:"vuln"`
+	Vuln      [][]string `json:"vulu"` // 这里不能改,cicd工具在用，不然就展示不出漏洞，cicd重构时再修改
 	Sensitive [][]string `json:"sensitive"`
 	Virus     [][]string `json:"virus"`
 	Webshell  [][]string `json:"webshell"`

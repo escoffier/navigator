@@ -9,7 +9,6 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/cmd"
 
 	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/dequeue"
-	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/jobs/gen-whitelist"
 	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/jobs/pull-image"
 	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/jobs/save-result"
 	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/jobs/scan"

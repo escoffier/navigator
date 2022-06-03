@@ -193,11 +193,11 @@ func (s *ConScannerSrv) SearchImages(ctx context.Context, param SearchImageParam
 }
 
 func NewConScannerSrv(
-		dbdal store.ScannerDalInterface,
-		registryDal store.RegistryDal,
-		scanTaskDal store.ScanTaskInterface,
-		scanConfigDal store.ScanConfigDal,
-		vulnDal store.VulnDalInterface) *ConScannerSrv {
+	dbdal store.ScannerDalInterface,
+	registryDal store.RegistryDal,
+	scanTaskDal store.ScanTaskInterface,
+	scanConfigDal store.ScanConfigDal,
+	vulnDal store.VulnDalInterface) *ConScannerSrv {
 	return &ConScannerSrv{
 		dbdal:         dbdal,
 		registryDal:   registryDal,
@@ -271,7 +271,7 @@ func (s *ConScannerSrv) ListBaseImageOfApp(ctx context.Context, imageID int64, f
 	appLayer := images[0].GetLayerString()
 	ans := make([]model.ImageList, 0)
 	for i, l := range baseLayerMap {
-		if strings.HasPrefix(appLayer, l) {
+		if strings.HasPrefix(appLayer, l) && appLayer != l {
 			ans = append(ans, baseImageMap[i])
 		}
 	}
@@ -606,17 +606,10 @@ func (s *ConScannerSrv) ScanOneForCICDResult(ctx context.Context, req *model.Sca
 		return nil, fmt.Errorf("CICD 扫描失败")
 	}
 
-	scanImage, _, err := s.dbdal.SearchScanImage(ctx, store.SearchScanImageParam{ImageIds: []int64{req.ImageID}}, nil)
+	imgDetail, err := s.GetImageDetail(ctx, req.ImageID)
 	if err != nil {
-		logging.GetLogger().Err(err).Msgf("CICD ScanOneForCICDResult search scan_image error:%s", err.Error())
-		return nil, err
+		return nil, fmt.Errorf("CICD 获取镜像详情失败")
 	}
-	if len(scanImage) == 0 {
-		logging.GetLogger().Info().Int64("ImageID", req.ImageID).Msg("CICD ScanOneForCICDResult scanning")
-		return nil, fmt.Errorf("CICD 镜像正在扫描中")
-	}
-	imgDetail, _ := s.GetImageDetail(ctx, req.ImageID)
-	imgDetail.ScanImage = &scanImage[0]
 
 	safe, records, msgs, err := s.DetectImageForCICD(ctx, &img[0])
 	// 向事件中心发送消息
@@ -708,7 +701,7 @@ func (s *ConScannerSrv) ScanOneForCICD(ctx context.Context, req *model.ScanOneFo
 		logging.GetLogger().Err(err).Msgf("CICD pull the image from BuffRegistry erorr，library:%s,projectName:%s,repoName:%s,tag:%s", regs[0].Url, projectName, repoName, tag)
 		return nil, err
 	}
-	logging.GetLogger().Info().Msgf("CICD pull image from BuffRegistry: %s%s:%s", regs[0].Url, image.Repository, image.Tag)
+	logging.GetLogger().Info().Msgf("CICD pull image from BuffRegistry: %s/%s:%s", regs[0].Url, image.Repository, image.Tag)
 	img := model.ImageList{
 		FullRepoName:   image.Repository,
 		Tags:           image.Tag,
@@ -1812,7 +1805,7 @@ func (s *ConScannerSrv) DetectImageForCICD(ctx context.Context, img *model.Image
 	}
 
 	if scanImageRes.ScanImag != nil {
-		scanImage := *scanImageRes.ScanImag
+		scanImage := scanImageRes.ScanImag
 		for _, po := range policies {
 			if !po.Enable || po.IsGlobal {
 				logging.GetLogger().Info().Msgf("CICD reject policy not enable :name:%s,ID:%d", po.Name, po.ID)
@@ -1821,19 +1814,19 @@ func (s *ConScannerSrv) DetectImageForCICD(ctx context.Context, img *model.Image
 
 			logging.GetLogger().Info().Msgf("CICD reject policy is enable :name:%s,ID:%d,police is %+v", po.Name, po.ID, po)
 			// 恶意文件
-			sa1, red1, ms1 := s.checkMaliciousInfo(ctx, scanImage, img, po)
+			sa1, red1, ms1 := s.checkMaliciousInfo(ctx, *scanImage, img, po)
 			// 敏感文件
-			sa2, red2, ms2 := s.checkSensitiveFile(ctx, scanImage, img, po)
+			sa2, red2, ms2 := s.checkSensitiveFile(ctx, *scanImage, img, po)
 			// 漏洞评分
-			sa3, red3, ms3 := s.checkVulnScore(ctx, scanImage, img, po)
+			sa3, red3, ms3 := s.checkVulnScore(ctx, *scanImage, img, po)
 			// 自定义漏洞规则
-			sa4, red4, ms4 := s.checkCustomizeVulu(ctx, scanImage, img, po)
+			sa4, red4, ms4 := s.checkCustomizeVulu(ctx, *scanImage, img, po)
 			// 漏洞评级
-			sa5, red5, ms5 := s.checkVulnSeverity(ctx, scanImage, img, po)
+			sa5, red5, ms5 := s.checkVulnSeverity(ctx, *scanImage, img, po)
 			// webshell
-			sa6, red6, ms6 := s.checkWebshell(ctx, scanImage, img, po)
+			sa6, red6, ms6 := s.checkWebshell(ctx, *scanImage, img, po)
 
-			sa9, red9, ms9 := s.checkEnv(ctx, scanImage, img, po)
+			sa9, red9, ms9 := s.checkEnv(ctx, *scanImage, img, po)
 			if !sa1 || !sa2 || !sa3 || !sa4 || !sa5 || !sa6 || !sa9 {
 				safe = false
 			}
@@ -2419,7 +2412,7 @@ func (s *ConScannerSrv) checkCustomizeVulu(ctx context.Context, scanImage model.
 }
 
 func (s *ConScannerSrv) checkVulnSeverity(ctx context.Context, scanImage model.ScanImage, img *model.ImageList, po model.RejectPolicy) (bool, []ReasonAndDetail, []model.KVHashs) {
-	logging.GetLogger().Info().Msgf("CICD checkVulnSeverity, imageid:%d,vulu policy is:%s ,vulnSeverity is :%d ,vulu has :%d", img.ID, po.VulnPolicy, po.VulnScore, len(scanImage.VulnInfo))
+	logging.GetLogger().Info().Msgf("CICD checkVulnSeverity, imageid:%d, vulnPolicy is %s, policy Severity is:%s,,vulu has :%d", img.ID, po.VulnPolicy, po.VulnLevel, len(scanImage.VulnInfo))
 
 	records := make([]ReasonAndDetail, 0)
 	msgs := make([]model.KVHashs, 0)
@@ -2430,7 +2423,7 @@ func (s *ConScannerSrv) checkVulnSeverity(ctx context.Context, scanImage model.S
 	}
 	vumMap := make(map[string][]string)
 
-	for _, vu := range img.ImageScanVuln.Vulns {
+	for _, vu := range scanImage.VulnInfo {
 		if _, ok := customizeVuluMap[vu.Name]; ok {
 			continue
 		}
@@ -2748,7 +2741,7 @@ func (s *ConScannerSrv) DetectImageForK8s(ctx context.Context, img *model.ImageL
 	}
 
 	if scanImageRes.ScanImag != nil {
-		scanImage := *scanImageRes.ScanImag
+		scanImage := scanImageRes.ScanImag
 		for _, po := range policies {
 			if !po.Enable || po.IsGlobal {
 				logging.GetLogger().Info().Msgf("K8sDeployDetect reject policy not enable :name:%s,ID:%d", po.Name, po.ID)
@@ -2757,19 +2750,19 @@ func (s *ConScannerSrv) DetectImageForK8s(ctx context.Context, img *model.ImageL
 			logging.GetLogger().Info().Msgf("K8sDeployDetect reject policy is enable :name:%s,ID:%d,police is %+v", po.Name, po.ID, po)
 
 			// 恶意文件
-			sa1, red1, ms1 := s.checkMaliciousInfo(ctx, scanImage, img, po)
+			sa1, red1, ms1 := s.checkMaliciousInfo(ctx, *scanImage, img, po)
 			// 敏感文件
-			sa2, red2, ms2 := s.checkSensitiveFile(ctx, scanImage, img, po)
+			sa2, red2, ms2 := s.checkSensitiveFile(ctx, *scanImage, img, po)
 			// 漏洞评分
-			sa3, red3, ms3 := s.checkVulnScore(ctx, scanImage, img, po)
+			sa3, red3, ms3 := s.checkVulnScore(ctx, *scanImage, img, po)
 			// 自定义漏洞规则
-			sa4, red4, ms4 := s.checkCustomizeVulu(ctx, scanImage, img, po)
+			sa4, red4, ms4 := s.checkCustomizeVulu(ctx, *scanImage, img, po)
 			// 漏洞评级
-			sa5, red5, ms5 := s.checkVulnSeverity(ctx, scanImage, img, po)
+			sa5, red5, ms5 := s.checkVulnSeverity(ctx, *scanImage, img, po)
 			// webshell
-			sa6, red6, ms6 := s.checkWebshell(ctx, scanImage, img, po)
+			sa6, red6, ms6 := s.checkWebshell(ctx, *scanImage, img, po)
 
-			sa9, red9, ms9 := s.checkEnv(ctx, scanImage, img, po)
+			sa9, red9, ms9 := s.checkEnv(ctx, *scanImage, img, po)
 			if !sa1 || !sa2 || !sa3 || !sa4 || !sa5 || !sa6 || !sa9 {
 				safe = false
 			}
@@ -3085,7 +3078,7 @@ func (s *ConScannerSrv) checkPrivilegedBoot(ctx context.Context, img *model.Imag
 	logging.GetLogger().Debug().Msgf("checkPrivilegedBoot, image digest: %s, ConfigFile: %v, PrivilegedBootPolicy: %s", img.Digest, img.ConfigFile, po.PrivilegedBootPolicy)
 	// 当用户不包含root时，说明不是特权用户启动
 	// 这里把User为空时也当作root用户
-	if img.PrivilegedBoot == consts.NotPrivilegedBootImage {
+	if img.PrivilegedBoot == consts.NotPrivilegedBootImage || !model.ExistFlag(img.Flag, model.FlagPrivilegedBoot) {
 		return true, nil, nil
 	}
 
