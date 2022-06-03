@@ -210,7 +210,13 @@ func NewDockerDriver(config container.RuntimeConfig) (container.Runtime, error) 
 	if d.config.endpoint != "" {
 		os.Setenv("DOCKER_HOST", d.config.endpoint)
 	}
-	dockerCli, err := client.NewClientWithOpts(client.FromEnv)
+	uri := os.Getenv("DOCKER_SOCKET_ADDR")
+	if len(uri) == 0 {
+		uri = "unix:///var/run/docker.sock"
+	}
+
+	//docker client
+	dockerCli, err := client.NewClientWithOpts(client.FromEnv, client.WithHost(uri))
 	if err != nil {
 		logging.Get().
 			Err(err).
