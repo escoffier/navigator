@@ -58,7 +58,7 @@ type DriftPolicy struct {
 	Resource     string    `gorm:"type:varchar(255)" json:"resource"`
 	ClusterKey   string    `gorm:"type:varchar(255)" json:"cluster_key"`
 	Creator      string    `gorm:"type:varchar(255)" json:"creator"`
-	Updator      string    `gorm:"type:varchar(255)" json:"updator"`
+	Updater      string    `gorm:"type:varchar(255)" json:"updator"`
 	Enable       int       `json:"enable"`
 	Mode         int       `json:"mode"`
 }
@@ -79,7 +79,7 @@ type DaemonDriftRespData struct {
 }
 
 func (DriftPolicy) TableName() string {
-	return "ivan_drift_policy"
+	return "ivan_drift_policies"
 }
 
 const (
