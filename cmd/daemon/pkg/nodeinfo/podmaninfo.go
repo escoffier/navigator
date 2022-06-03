@@ -10,7 +10,6 @@ import (
 	"strings"
 	"sync"
 	"time"
-q
 
 	"github.com/containers/podman/v3/pkg/bindings"
 	"github.com/containers/podman/v3/pkg/bindings/containers"
