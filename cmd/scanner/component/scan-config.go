@@ -171,11 +171,12 @@ func (s *ScanConfigSrv) SearchStrategy(ctx context.Context, param SearchStrategy
 }
 
 func (s *ScanConfigSrv) CreateStrategy(ctx context.Context, data *model.ScanStrategy) error {
+	data.Serialize()
+	data.SetDefault()
 	if err := data.Check(); err != nil {
 		logging.GetLogger().Err(err).Msg("CreateStrategy")
 		return response.NewHttpError(http.StatusExpectationFailed, err)
 	}
-	data.Serialize()
 	err := s.ScanConfigDal.CreateStrategy(ctx, data)
 	if err != nil {
 		if strings.Contains(err.Error(), consts.DuplicateKey) {
@@ -188,12 +189,13 @@ func (s *ScanConfigSrv) CreateStrategy(ctx context.Context, data *model.ScanStra
 }
 
 func (s *ScanConfigSrv) UpdateStrategy(ctx context.Context, strategyID int64, data *model.ScanStrategy) error {
+	data.Serialize()
+	data.SetDefault()
+
 	if err := data.Check(); err != nil {
 		logging.GetLogger().Err(err).Msg("CreateStrategy")
 		return response.NewHttpError(http.StatusExpectationFailed, err)
 	}
-
-	data.Serialize()
 
 	updater := data.ToUpdater()
 
