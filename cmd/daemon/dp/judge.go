@@ -230,7 +230,7 @@ func (ej *ExecJudge) doRequest(conn *net.UnixConn, uuid uint64) error {
 			tmpBinaryNameList := strings.Split(filePath, "/")
 			binaryName := tmpBinaryNameList[len(tmpBinaryNameList)-1]
 			for _, b := range enforceBinaryList {
-				if strings.Contains(binaryName, b) {
+				if strings.HasPrefix(binaryName, b) {
 					stopCheck = true
 					break
 				}
