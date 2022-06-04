@@ -155,6 +155,10 @@ func getContainerPolicyInfo(pid int, npw *nodeinfo.NodePodsWatcher, podResInfo *
 	return containerPolicyInfo, nil
 }
 
+var (
+	enforceBinaryList = []string{"sh", "bash", "python", "java", "php", "dash"}
+)
+
 func (ej *ExecJudge) doRequest(conn *net.UnixConn, uuid uint64) error {
 	logging.Get().Debug().Uint64("uuid", uuid).Msg("start do request")
 
@@ -187,6 +191,7 @@ func (ej *ExecJudge) doRequest(conn *net.UnixConn, uuid uint64) error {
 		fileHash := strings.TrimSuffix(arr[4], "\n")
 		crc32Expected := ""
 
+		logging.Get().Info().Uint64("uuid", uuid).Str("containerID", containerID).Str("syscall", syscall).Str("filePath", filePath).Str("fileHash", fileHash).Msg("receive msg content")
 		// get image info by containerID
 		containMeta, err := ej.rt.GetContainerMeta(containerID)
 		if err != nil {
@@ -219,6 +224,49 @@ func (ej *ExecJudge) doRequest(conn *net.UnixConn, uuid uint64) error {
 			continue
 		}
 		needBlock := plic.Mode == 2
+
+		stopCheck := false
+		if enforceBlock := os.Getenv("ENFORCE_BLOCK"); enforceBlock == "true" {
+			tmpBinaryNameList := strings.Split(filePath, "/")
+			binaryName := tmpBinaryNameList[len(tmpBinaryNameList)-1]
+			for _, b := range enforceBinaryList {
+				if strings.Contains(binaryName, b) {
+					stopCheck = true
+					break
+				}
+			}
+
+		}
+		if stopCheck {
+			action := ""
+			if needBlock {
+				_ = ej.Response(conn, resultBlock, containerID, fileHash)
+				action = "block"
+			} else {
+				_ = ej.Response(conn, resultPass, containerID, fileHash)
+				action = "pass"
+			}
+			if err != nil {
+				logging.Get().Err(err).Uint64("uuid", uuid).Str("containerID", containerID).Msg("response err")
+			}
+
+			eventArgs := &EventArg{
+				PodUID:        cPodInfo.podUID,
+				ContainerID:   containerID,
+				ContainerName: containMeta.Name,
+				FilePath:      filePath,
+				Syscall:       syscall,
+				crc32Expected: crc32Expected,
+				crc32Actual:   fileHash,
+				Action:        action,
+				ImageRepoTags: strings.Join(containMeta.ImageRepoTags, "\n"),
+				reason:        "file not in white list",
+				reasonCN:      "文件不在白名单中",
+			}
+
+			go sendEventByKafka(ej.mq, generateEvent(uuid, eventArgs, "DriftPrevention", "Drift Prevention", ej.npw, ej.podResInfo))
+			continue
+		}
 
 		existDigest, ok := ej.cm.IsImageDigestsExist(containMeta.ImageDigest)
 		if !ok {
