@@ -8,7 +8,7 @@ import (
 
 type FlowConf []string
 
-var defaultImageScanFlow = []string{"pull-image", "scan-image"}
+var defaultImageScanFlow = []string{"pull-image", "scan-image", "save-result"}
 var nilFlow = []string{""}
 var onlyPull = []string{"pull-image"}
 
