@@ -360,6 +360,25 @@ func (s *ScanStrategy) Check() error {
 	return nil
 }
 
+func (s *ScanStrategy) SetDefault() {
+	if len(s.Envs) > 0 {
+		s.EnvsEnable = true
+	}
+	if len(s.Software) > 0 {
+		s.SoftwareEnable = true
+	}
+	if len(s.OpenLicense) > 0 {
+		s.OpenLicenseEnable = true
+	}
+	if len(s.SensitiveFile) > 0 {
+		s.SensitiveEnable = true
+	}
+	// 漏洞，恶义文件,webshell现阶段默认都扫描，前端还没有选项目
+	s.VulEnable = true
+	s.WebshellEnable = true
+	s.MaliciousEnable = true
+}
+
 // IsTimeToAddTask 是否到增加任务的时间
 func (s *ScanConfig) IsTimeToAddTask(libType int, checkInter int64) (bool, error) {
 	check := func(config *ScanConfigSinge, checkInter int64) bool {
