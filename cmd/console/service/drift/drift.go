@@ -134,24 +134,26 @@ func (rl *TensorDriftService) GetAbnormal(ctx context.Context, policy model.Drif
 	filter := make(map[string]string)
 	filter["ruleModule"] = "ContainerSecurity"
 	filter["ruleCategory"] = "DriftPrevention"
-	filter["namespace"] = policy.Namespace
-	filter["cluster"] = policy.ClusterKey
-	filter["nodeKey"] = policy.Resource
-	filter["nodeType"] = policy.ResourceKind
+	filter["namespace.keyword"] = policy.Namespace
+	filter["cluster.keyword"] = policy.ClusterKey
+	filter["nodeKey.keyword"] = policy.Resource
+	filter["nodeType.keyword"] = policy.ResourceKind
 	if containerName != "" {
 		termKeyQuery := es.NewMatchQuery("customKV.KVHash.en.Key.keyword", "containerName")
 		termValueQuery := es.NewMatchQuery("customKV.KVHash.en.Value.keyword", containerName)
 		queries = append(queries, termKeyQuery)
 		queries = append(queries, termValueQuery)
+	} else {
+		logging.GetLogger().Error().Msg("containerName is empty")
 	}
-
 	if filePath != "" {
 		termKeyQuery := es.NewMatchQuery("customKV.KVHash.en.Key.keyword", "filePath")
 		termValueQuery := es.NewWildcardQuery("customKV.KVHash.en.Value.keyword", "*"+filePath+"*")
 		queries = append(queries, termKeyQuery)
 		queries = append(queries, termValueQuery)
+	} else {
+		logging.GetLogger().Error().Msg("filePath is empty")
 	}
-
 	for k, v := range filter {
 		if k != "" && v != "" {
 			queries = append(queries, es.NewMatchQuery(k, v))
@@ -160,7 +162,6 @@ func (rl *TensorDriftService) GetAbnormal(ctx context.Context, policy model.Drif
 	if len(queries) > 0 {
 		searchService = searchService.Query(es.NewBoolQuery().Must(queries...))
 	}
-
 	if offset != "" {
 		signal, err := rl.GetSignalByID(ctx, esCli, offset)
 		if err == nil {
@@ -169,7 +170,6 @@ func (rl *TensorDriftService) GetAbnormal(ctx context.Context, policy model.Drif
 			return nil, err
 		}
 	}
-
 	searchResult, err := searchService.Do(ctx)
 	if err != nil {
 		return nil, err
