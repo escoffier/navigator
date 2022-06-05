@@ -112,10 +112,8 @@ func (c *EventCenterClient) SendNotification(ctx context.Context, ruleKey *pb.Ru
 		UUID:          c.uuidGenerator.GenerateUUID(),
 		Timestamp:     time.Now().Unix(),
 	}
-	return util.RetryWithBackoff(ctx, func() error {
-		_, err := c.cli.SendNotification(ctx, req)
-		return err
-	}, retry.RetryIf(c.isRetryErr))
+	_, err := c.cli.SendNotification(ctx, req)
+	return err
 }
 
 func (c *EventCenterClient) AddDetectionRule(ctx context.Context, rule *pb.DetectionRule) error {

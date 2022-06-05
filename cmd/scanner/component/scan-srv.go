@@ -14,7 +14,6 @@ import (
 
 	"github.com/google/go-containerregistry/pkg/name"
 	"github.com/pkg/errors"
-
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/task"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
@@ -475,6 +474,7 @@ func (s *ConScannerSrv) K8sDeployDetect(ctx context.Context, containerInfo []mod
 			notify.PodUID = containerInfo[k].NotifyContext.PodUID
 			notify.Cluster = containerInfo[k].NotifyContext.Cluster
 			notify.Namespace = containerInfo[k].NotifyContext.Namespace
+			notify.ServiceID = fmt.Sprintf("image/%s/%s:%s", img.Library, img.FullRepoName, img.Tags)
 			notify.CustomKV = append(notify.CustomKV, containerInfo[k].NotifyContext.CustomKV...)
 			notify.CustomKV = append(notify.CustomKV, model.KVHashs{KVHash: model.KVHash{
 				EN: model.KeyValue{Key: "image", Value: fmt.Sprintf("%s/%s:%s", img.Library, img.FullRepoName, img.Tags)},
@@ -567,6 +567,7 @@ func (s *ConScannerSrv) K8sOnlineMonitor(ctx context.Context, containerInfo []mo
 			notify.PodUID = containerInfo[k].NotifyContext.PodUID
 			notify.Cluster = containerInfo[k].NotifyContext.Cluster
 			notify.Namespace = containerInfo[k].NotifyContext.Namespace
+			notify.ServiceID = fmt.Sprintf("image/%s/%s:%s", tmpImageList.Library, tmpImageList.FullRepoName, tmpImageList.Tags)
 			notify.CustomKV = append(notify.CustomKV, containerInfo[k].NotifyContext.CustomKV...)
 			notify.CustomKV = append(notify.CustomKV, model.KVHashs{KVHash: model.KVHash{
 				EN: model.KeyValue{Key: "image", Value: fmt.Sprintf("%s/%s:%s", tmpImageList.Library, tmpImageList.FullRepoName, tmpImageList.Tags)},
@@ -641,7 +642,7 @@ func (s *ConScannerSrv) ScanOneForCICDResult(ctx context.Context, req *model.Sca
 		msg := model.NewReqBody(
 			model.NewEventCenterRule(consts.AlertKindCICD, consts.AlertModuleContainerSecurity, consts.ImageSecurity),
 			model.NotifyContext{
-				ServiceID: fmt.Sprintf("%s/%s:%s(image)", img[0].Library, img[0].FullRepoName, img[0].Tags),
+				ServiceID: fmt.Sprintf("image/%s/%s:%s", img[0].Library, img[0].FullRepoName, img[0].Tags),
 				CustomKV:  msgs},
 			generateUUID(img[0], consts.AlertKindCICD, consts.EventIntervalUUID),
 		)
@@ -2700,6 +2701,7 @@ func (s *ConScannerSrv) CreateSafeReject(ctx context.Context, ImageList model.Im
 		notify.PodUID = coninfo.NotifyContext.PodUID
 		notify.Cluster = coninfo.NotifyContext.Cluster
 		notify.Namespace = coninfo.NotifyContext.Namespace
+		notify.ServiceID = fmt.Sprintf("image/%s/%s:%s", img.Library, img.FullRepoName, img.Tags)
 		notify.CustomKV = append(notify.CustomKV, coninfo.NotifyContext.CustomKV...)
 		notify.CustomKV = append(notify.CustomKV, model.KVHashs{KVHash: model.KVHash{
 			EN: model.KeyValue{Key: "image", Value: fmt.Sprintf("%s/%s:%s", img.Library, img.FullRepoName, img.Tags)},

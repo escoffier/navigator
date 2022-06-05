@@ -37,7 +37,7 @@ type EventsOutputHandler struct {
 
 func NewEventsOutputHandler(myNodeName string, mqWriter mq.Writer, containerInfo nodeinfo.ContainerInfoManager, podResInfo *nodeinfo.PodResInfo) *EventsOutputHandler {
 	return &EventsOutputHandler{
-		myNodeName: myNodeName,
+		myNodeName:    myNodeName,
 		mqWriter:      mqWriter,
 		containerInfo: containerInfo,
 		podResInfo:    podResInfo,
@@ -68,7 +68,7 @@ func (ec *EventsOutputHandler) Handle(ctx context.Context, events []eventItem) e
 		}
 
 		e.data.Hostname = ec.myNodeName
-		e.data.OutputFields[rtdetect.KeyUuid] = strconv.FormatInt(e.uuid, 10)
+		e.data.OutputFields[rtdetect.KeyUuid] = "0"
 		e.data.OutputFields[rtdetect.KeyClusterKey] = e.clusterKey
 		ownerRes, _, exist := ec.getOwnerInfo(e.data)
 		if exist {
