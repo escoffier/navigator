@@ -406,6 +406,22 @@ func (s *ConScannerSrv) K8sDeployDetect(ctx context.Context, containerInfo []mod
 
 	var flag bool = true
 	msgType := consts.AlertKindK8s
+
+	registryIds := make([]int64, 0)
+	// 查询未删除的仓库
+	noDeleteRegistries, _, err := s.registryDal.SearchRegistry(ctx, store.SearchRegistryParam{NoDelete: true}, nil)
+	if err != nil {
+		logging.GetLogger().Err(err).Msg("K8sDeployDetect")
+		return true
+	}
+	if len(noDeleteRegistries) == 0 {
+		logging.GetLogger().Info().Msg("K8sDeployDetect not find registry")
+		return true
+	}
+	for i := range noDeleteRegistries {
+		registryIds = append(registryIds, noDeleteRegistries[i].ID)
+	}
+
 	for k := range containerInfo {
 		tmpImage, err := s.GetImageLibraryNameTag(containerInfo[k].Image)
 		if err != nil {
@@ -426,6 +442,7 @@ func (s *ConScannerSrv) K8sDeployDetect(ctx context.Context, containerInfo []mod
 			Libraries:    []string{tmpImage.Library, "https://" + tmpImage.Library, "http://" + tmpImage.Library},
 			Tag:          tmpImage.Tags,
 			FullRepoName: tmpImage.FullRepoName,
+			RegistryIds:  registryIds,
 		}, nil)
 
 		if err != nil {
@@ -2221,8 +2238,26 @@ func (s *ConScannerSrv) checkImageExist(ctx context.Context, usePattern string, 
 		Records: make([]ReasonAndDetail, 0),
 		Msg:     make([]model.KVHashs, 0),
 	}
+	registryIds := make([]int64, 0)
+	// 查询未删除的仓库
+	noDeleteRegistries, _, err := s.registryDal.SearchRegistry(ctx, store.SearchRegistryParam{NoDelete: true}, nil)
+	if err != nil {
+		logging.GetLogger().Err(err).Int64("ImageID", img.ID).Msg("checkImageExist")
+		return res
+	}
+	if len(noDeleteRegistries) == 0 {
+		logging.GetLogger().Info().Msg("checkImageExist not find registry")
+		return res
+	}
+	for i := range noDeleteRegistries {
+		registryIds = append(registryIds, noDeleteRegistries[i].ID)
+	}
 	// 通过library+fullreponame+tag的方式去查询
-	img1, _, err := s.dbdal.SearchImage(ctx, store.SearchImageParam{Libraries: []string{img.Library, "https://" + img.Library, "http://" + img.Library}, FullRepoName: img.FullRepoName, Tag: img.Tags}, nil)
+	img1, _, err := s.dbdal.SearchImage(ctx, store.SearchImageParam{
+		Libraries:    []string{img.Library, "https://" + img.Library, "http://" + img.Library},
+		FullRepoName: img.FullRepoName,
+		Tag:          img.Tags,
+		RegistryIds:  registryIds}, nil)
 	if err != nil || len(img1) == 0 {
 		res.Safe = false
 		if err != nil {
