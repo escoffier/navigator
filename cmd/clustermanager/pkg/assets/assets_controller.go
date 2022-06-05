@@ -228,248 +228,248 @@ func (ac *Controller) Run(stopChan <-chan struct{}) {
 
 func (ac *Controller) addDeployment(obj interface{}) {
 	d := obj.(*appsv1.Deployment)
-	logging.Get().Info().Msgf("add deployment %s/%s", d.Namespace, d.Name)
+	logging.Get().Debug().Msgf("add deployment %s/%s", d.Namespace, d.Name)
 	ac.enqueue(d)
 }
 
 func (ac *Controller) updateDeployment(oldObj, newObject interface{}) {
 	oldD := oldObj.(*appsv1.Deployment)
 	newD := newObject.(*appsv1.Deployment)
-	logging.Get().Info().Msgf("update deployment %s", oldD.Name)
+	logging.Get().Debug().Msgf("update deployment %s", oldD.Name)
 	ac.enqueue(newD)
 }
 
 func (ac *Controller) deleteDeployment(obj interface{}) {
 	d := obj.(*appsv1.Deployment)
-	logging.Get().Info().Msgf("delete deployment %s/%s", d.Namespace, d.Name)
+	logging.Get().Debug().Msgf("delete deployment %s/%s", d.Namespace, d.Name)
 	ac.enqueue(d)
 }
 
 func (ac *Controller) addDaemonSet(obj interface{}) {
 	d := obj.(*appsv1.DaemonSet)
-	logging.Get().Info().Msgf("add daemonset %s/%s", d.Namespace, d.Name)
+	logging.Get().Debug().Msgf("add daemonset %s/%s", d.Namespace, d.Name)
 	ac.enqueue(d)
 }
 
 func (ac *Controller) updateDaemonSet(oldObj, newObject interface{}) {
 	oldD := oldObj.(*appsv1.DaemonSet)
 	newD := newObject.(*appsv1.DaemonSet)
-	logging.Get().Info().Msgf("update daemonset %s", oldD.Name)
+	logging.Get().Debug().Msgf("update daemonset %s", oldD.Name)
 	ac.enqueue(newD)
 }
 
 func (ac *Controller) deleteDaemonSet(obj interface{}) {
 	d := obj.(*appsv1.DaemonSet)
-	logging.Get().Info().Msgf("delete daemonset %s/%s", d.Namespace, d.Name)
+	logging.Get().Debug().Msgf("delete daemonset %s/%s", d.Namespace, d.Name)
 	ac.enqueue(d)
 }
 
 func (ac *Controller) addReplicaSet(obj interface{}) {
 	d := obj.(*appsv1.ReplicaSet)
-	logging.Get().Info().Msgf("add replica set %s/%s", d.Namespace, d.Name)
+	logging.Get().Debug().Msgf("add replica set %s/%s", d.Namespace, d.Name)
 	ac.enqueue(d)
 }
 
 func (ac *Controller) updateReplicaSet(oldObj, newObject interface{}) {
 	oldD := oldObj.(*appsv1.ReplicaSet)
 	newD := newObject.(*appsv1.ReplicaSet)
-	logging.Get().Info().Msgf("update replica set %s", oldD.Name)
+	logging.Get().Debug().Msgf("update replica set %s", oldD.Name)
 	ac.enqueue(newD)
 }
 
 func (ac *Controller) deleteReplicaSet(obj interface{}) {
 	d := obj.(*appsv1.ReplicaSet)
-	logging.Get().Info().Msgf("delete replica set %s/%s", d.Namespace, d.Name)
+	logging.Get().Debug().Msgf("delete replica set %s/%s", d.Namespace, d.Name)
 	ac.enqueue(d)
 }
 
 func (ac *Controller) addPod(obj interface{}) {
 	d := obj.(*corev1.Pod)
-	logging.Get().Info().Msgf("add pod %s/%s", d.Namespace, d.Name)
+	logging.Get().Debug().Msgf("add pod %s/%s", d.Namespace, d.Name)
 	ac.enqueue(d)
 }
 
 func (ac *Controller) updatePod(oldObj, newObject interface{}) {
 	oldD := oldObj.(*corev1.Pod)
 	newD := newObject.(*corev1.Pod)
-	logging.Get().Info().Msgf("update pod %s", oldD.Name)
+	logging.Get().Debug().Msgf("update pod %s", oldD.Name)
 	ac.enqueue(newD)
 }
 
 func (ac *Controller) deletePod(obj interface{}) {
 	d := obj.(*corev1.Pod)
-	logging.Get().Info().Msgf("delete pod %s/%s", d.Namespace, d.Name)
+	logging.Get().Debug().Msgf("delete pod %s/%s", d.Namespace, d.Name)
 	ac.enqueue(d)
 }
 
 func (ac *Controller) addRole(obj interface{}) {
 	d := obj.(*rbacv1.Role)
-	logging.Get().Info().Msgf("add role %s/%s", d.Namespace, d.Name)
+	logging.Get().Debug().Msgf("add role %s/%s", d.Namespace, d.Name)
 	ac.enqueue(d)
 }
 
 func (ac *Controller) updateRole(oldObj, newObject interface{}) {
 	oldR := oldObj.(*rbacv1.Role)
 	newR := newObject.(*rbacv1.Role)
-	logging.Get().Info().Msgf("update role %s", oldR.Name)
+	logging.Get().Debug().Msgf("update role %s", oldR.Name)
 	ac.enqueue(newR)
 }
 
 func (ac *Controller) deleteRole(obj interface{}) {
 	d := obj.(*rbacv1.Role)
-	logging.Get().Info().Msgf("delete role %s/%s", d.Namespace, d.Name)
+	logging.Get().Debug().Msgf("delete role %s/%s", d.Namespace, d.Name)
 	ac.enqueue(d)
 }
 
 func (ac *Controller) addClusterRole(obj interface{}) {
 	d := obj.(*rbacv1.ClusterRole)
-	logging.Get().Info().Msgf("add cluster role %s", d.Name)
+	logging.Get().Debug().Msgf("add cluster role %s", d.Name)
 	ac.enqueue(d)
 }
 
 func (ac *Controller) updateClusterRole(oldObj, newObject interface{}) {
 	oldR := oldObj.(*rbacv1.ClusterRole)
 	newR := newObject.(*rbacv1.ClusterRole)
-	logging.Get().Info().Msgf("update cluster role %s", oldR.Name)
+	logging.Get().Debug().Msgf("update cluster role %s", oldR.Name)
 	ac.enqueue(newR)
 }
 
 func (ac *Controller) deleteClusterRole(obj interface{}) {
 	d := obj.(*rbacv1.ClusterRole)
-	logging.Get().Info().Msgf("delete cluster role %s", d.Name)
+	logging.Get().Debug().Msgf("delete cluster role %s", d.Name)
 	ac.enqueue(d)
 }
 
 func (ac *Controller) addNamespace(obj interface{}) {
 	d := obj.(*corev1.Namespace)
-	logging.Get().Info().Msgf("add namespace %s", d.Name)
+	logging.Get().Debug().Msgf("add namespace %s", d.Name)
 	ac.enqueue(d)
 }
 
 func (ac *Controller) updateNamespace(oldObj, newObject interface{}) {
 	oldR := oldObj.(*corev1.Namespace)
 	newR := newObject.(*corev1.Namespace)
-	logging.Get().Info().Msgf("update namespace %s", oldR.Name)
+	logging.Get().Debug().Msgf("update namespace %s", oldR.Name)
 	ac.enqueue(newR)
 }
 
 func (ac *Controller) deleteNamespace(obj interface{}) {
 	d := obj.(*corev1.Namespace)
-	logging.Get().Info().Msgf("delete namespace %s", d.Name)
+	logging.Get().Debug().Msgf("delete namespace %s", d.Name)
 	ac.enqueue(d)
 }
 
 func (ac *Controller) addNode(obj interface{}) {
 	d := obj.(*corev1.Node)
-	logging.Get().Info().Msgf("add node %s", d.Name)
+	logging.Get().Debug().Msgf("add node %s", d.Name)
 	ac.enqueue(d)
 }
 
 func (ac *Controller) updateNode(oldObj, newObject interface{}) {
 	oldR := oldObj.(*corev1.Node)
 	newR := newObject.(*corev1.Node)
-	logging.Get().Info().Msgf("update node %s", oldR.Name)
+	logging.Get().Debug().Msgf("update node %s", oldR.Name)
 	ac.enqueue(newR)
 }
 
 func (ac *Controller) deleteNode(obj interface{}) {
 	d := obj.(*corev1.Node)
-	logging.Get().Info().Msgf("delete node %s", d.Name)
+	logging.Get().Debug().Msgf("delete node %s", d.Name)
 	ac.enqueue(d)
 }
 
 func (ac *Controller) addStatefulSet(obj interface{}) {
 	d := obj.(*appsv1.StatefulSet)
-	logging.Get().Info().Msgf("add StatefulSet %s/%s", d.Namespace, d.Name)
+	logging.Get().Debug().Msgf("add StatefulSet %s/%s", d.Namespace, d.Name)
 	ac.enqueue(d)
 }
 
 func (ac *Controller) updateStatefulSet(oldObj, newObject interface{}) {
 	oldR := oldObj.(*appsv1.StatefulSet)
 	newR := newObject.(*appsv1.StatefulSet)
-	logging.Get().Info().Msgf("update StatefulSet %s", oldR.Name)
+	logging.Get().Debug().Msgf("update StatefulSet %s", oldR.Name)
 	ac.enqueue(newR)
 }
 
 func (ac *Controller) deleteStatefulSet(obj interface{}) {
 	d := obj.(*appsv1.StatefulSet)
-	logging.Get().Info().Msgf("delete StatefulSet %s/%s", d.Namespace, d.Name)
+	logging.Get().Debug().Msgf("delete StatefulSet %s/%s", d.Namespace, d.Name)
 	ac.enqueue(d)
 }
 
 func (ac *Controller) addJob(obj interface{}) {
 	d := obj.(*batchv1.Job)
-	logging.Get().Info().Msgf("add Job %s/%s", d.Namespace, d.Name)
+	logging.Get().Debug().Msgf("add Job %s/%s", d.Namespace, d.Name)
 	ac.enqueue(d)
 }
 
 func (ac *Controller) updateJob(oldObj, newObject interface{}) {
 	oldR := oldObj.(*batchv1.Job)
 	newR := newObject.(*batchv1.Job)
-	logging.Get().Info().Msgf("update Job %s", oldR.Name)
+	logging.Get().Debug().Msgf("update Job %s", oldR.Name)
 	ac.enqueue(newR)
 }
 
 func (ac *Controller) deleteJob(obj interface{}) {
 	d := obj.(*batchv1.Job)
-	logging.Get().Info().Msgf("delete Job %s/%s", d.Namespace, d.Name)
+	logging.Get().Debug().Msgf("delete Job %s/%s", d.Namespace, d.Name)
 	ac.enqueue(d)
 }
 
 func (ac *Controller) addCronJob(obj interface{}) {
 	d := obj.(*v1beta1.CronJob)
-	logging.Get().Info().Msgf("add CronJob %s/%s", d.Namespace, d.Name)
+	logging.Get().Debug().Msgf("add CronJob %s/%s", d.Namespace, d.Name)
 	ac.enqueue(d)
 }
 
 func (ac *Controller) updateCronJob(oldObj, newObject interface{}) {
 	oldR := oldObj.(*v1beta1.CronJob)
 	newR := newObject.(*v1beta1.CronJob)
-	logging.Get().Info().Msgf("update CronJob %s", oldR.Name)
+	logging.Get().Debug().Msgf("update CronJob %s", oldR.Name)
 	ac.enqueue(newR)
 }
 
 func (ac *Controller) deleteCronJob(obj interface{}) {
 	d := obj.(*v1beta1.CronJob)
-	logging.Get().Info().Msgf("delete CronJob %s/%s", d.Namespace, d.Name)
+	logging.Get().Debug().Msgf("delete CronJob %s/%s", d.Namespace, d.Name)
 	ac.enqueue(d)
 }
 
 func (ac *Controller) addReplicationController(obj interface{}) {
 	d := obj.(*corev1.ReplicationController)
-	logging.Get().Info().Msgf("add ReplicationController %s/%s", d.Namespace, d.Name)
+	logging.Get().Debug().Msgf("add ReplicationController %s/%s", d.Namespace, d.Name)
 	ac.enqueue(d)
 }
 
 func (ac *Controller) updateReplicationController(oldObj, newObject interface{}) {
 	oldR := oldObj.(*corev1.ReplicationController)
 	newR := newObject.(*corev1.ReplicationController)
-	logging.Get().Info().Msgf("update ReplicationController %s", oldR.Name)
+	logging.Get().Debug().Msgf("update ReplicationController %s", oldR.Name)
 	ac.enqueue(newR)
 }
 
 func (ac *Controller) deleteReplicationController(obj interface{}) {
 	d := obj.(*corev1.ReplicationController)
-	logging.Get().Info().Msgf("delete ReplicationController %s/%s", d.Namespace, d.Name)
+	logging.Get().Debug().Msgf("delete ReplicationController %s/%s", d.Namespace, d.Name)
 	ac.enqueue(d)
 }
 
 func (ac *Controller) addHoneySpot(obj interface{}) {
 	d := obj.(*defensev1.Honeypot)
-	logging.Get().Info().Msgf("add HoneySpot %s/%s", d.Namespace, d.Name)
+	logging.Get().Debug().Msgf("add HoneySpot %s/%s", d.Namespace, d.Name)
 	ac.enqueue(d)
 }
 
 func (ac *Controller) updateHoneySpot(oldObj, newObject interface{}) {
 	oldD := oldObj.(*defensev1.Honeypot)
 	newD := newObject.(*defensev1.Honeypot)
-	logging.Get().Info().Msgf("update HoneySpot %s", oldD.Name)
+	logging.Get().Debug().Msgf("update HoneySpot %s", oldD.Name)
 	ac.enqueue(newD)
 }
 
 func (ac *Controller) deleteHoneySpot(obj interface{}) {
 	d := obj.(*defensev1.Honeypot)
-	logging.Get().Info().Msgf("delete HoneySpot %s/%s", d.Namespace, d.Name)
+	logging.Get().Debug().Msgf("delete HoneySpot %s/%s", d.Namespace, d.Name)
 	ac.enqueue(d)
 }
 
@@ -553,7 +553,7 @@ func (ac *Controller) syncPod(key string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	logging.Get().Info().Msgf("syncing pod %s", key)
+	logging.Get().Debug().Msgf("syncing pod %s", key)
 	namespace, name, err := cache.SplitMetaNamespaceKey(key)
 	if err != nil {
 		return err
@@ -667,7 +667,7 @@ func (ac *Controller) syncNamespace(key string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	logging.Get().Info().Msgf("syncing namespace %s", key)
+	logging.Get().Debug().Msgf("syncing namespace %s", key)
 	_, name, err := cache.SplitMetaNamespaceKey(key)
 	if err != nil {
 		return err
@@ -794,7 +794,7 @@ func (ac *Controller) handleErr(err error, key interface{}) {
 		return
 	}
 	if ac.queue.NumRequeues(key) < 10 {
-		logging.Get().Info().Msgf("Error syncing deployment %v", err)
+		logging.Get().Err(err).Msg("Error syncing deployment")
 		ac.queue.AddRateLimited(key)
 		return
 	}

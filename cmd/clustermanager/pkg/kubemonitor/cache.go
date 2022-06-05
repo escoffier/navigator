@@ -1,7 +1,6 @@
 package kubemonitor
 
 import (
-	"bytes"
 	"runtime/debug"
 	"sync"
 	"time"
@@ -18,33 +17,22 @@ type DupCache struct {
 func newDupCache(ttl time.Duration) *DupCache {
 	c := &DupCache{
 		data:   new(sync.Map),
-		ttlSec: int64(ttl.Seconds()),
+		ttlSec: int64(ttl / time.Second),
 	}
 	c.asyncUpdate()
 
 	return c
 }
 
-func getEvtID(evt pkg.KubeMonitorEvent, ruleName string) []byte {
-	var b bytes.Buffer
-	b.WriteString(ruleName)
-	b.WriteByte(',')
-	b.WriteString(evt.ClusterKey)
-	b.WriteByte('/')
-	b.WriteString(evt.GetTargetNamespace())
-	b.WriteByte('/')
-	b.WriteString(evt.GetTargetName())
-	return b.Bytes()
-}
-func (c *DupCache) addEvent(evt pkg.KubeMonitorEvent, ruleName string) {
-	id := string(getEvtID(evt, ruleName))
+func (c *DupCache) addEvent(evt *pkg.KubeMonitorEvent) {
+	id := evt.Identity()
 
 	now := time.Now()
 	c.data.Store(id, now.Unix())
 }
 
-func (c *DupCache) checkDuplicate(evt pkg.KubeMonitorEvent, ruleName string) bool {
-	id := string(getEvtID(evt, ruleName))
+func (c *DupCache) checkDuplicate(evt *pkg.KubeMonitorEvent) bool {
+	id := evt.Identity()
 
 	o, ok := c.data.Load(id)
 	if ok {

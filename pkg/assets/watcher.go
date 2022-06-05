@@ -151,7 +151,6 @@ func (w *Watcher) process(ctx context.Context, message kafka.Message) error {
 			logging.Get().Err(err).Msg("unmarshal TensorResource err")
 			return err
 		}
-		logging.Get().Info().Msgf("process resource: %s-%s", res.Namespace, res.Name)
 		for _, cb := range cbs.callbacks {
 			cb.OnTensorResourceEvent(res, nil, event.Action)
 		}

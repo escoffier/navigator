@@ -412,14 +412,15 @@ func (h *ATTCKHandler) UpdateConfig(ctx context.Context, username string, data [
 		Content:          data,
 	}
 
-	storeConf, err := h.loadFromStore(ctx)
+	// storeConf, err := h.loadFromStore(ctx)
 	if err != nil && err != dal.ErrATTCKConfDataNotFound {
 		return nil, err
 	}
-	if storeConf != nil && !compareVersion(storeConf, header) {
-		logging.Get().Warn().Uints16("given version", header.Version[:]).Str("latest version", storeConf.Version).Msg("The given version is not upper than the latest version. skip updating.")
-		return nil, ErrVersionNotUpper
-	}
+	// temporarily remove the restriction of versions(must larger than the previous) for manual updates.
+	// if storeConf != nil && !compareVersion(storeConf, header) {
+	// 	logging.Get().Warn().Uints16("given version", header.Version[:]).Str("latest version", storeConf.Version).Msg("The given version is not upper than the latest version. skip updating.")
+	// 	return nil, ErrVersionNotUpper
+	// }
 
 	storedRuleData, err := dal.SaveATTCKConfData(ctx, h.db.Get(), attckRuleData, deprecatedRuleMasks)
 	if err != nil {
