@@ -3,14 +3,12 @@ package rtdetect
 import (
 	"context"
 	"io"
-	"strconv"
 	"strings"
 	"time"
 
 	"github.com/falcosecurity/client-go/pkg/api/outputs"
 	"github.com/falcosecurity/client-go/pkg/client"
 	"gitlab.com/piccolo_su/vegeta/pkg/rtdetect"
-	"gitlab.com/piccolo_su/vegeta/pkg/util"
 	"gitlab.com/security-rd/go-pkg/logging"
 	"google.golang.org/grpc"
 )
@@ -82,15 +80,6 @@ func (s *RuntimeEventStream) Close() error {
 	return s.rtClient.Close()
 }
 
-func (s *RuntimeEventStream) generateUUID(resp *outputs.Response) int64 {
-	var timestamp int64
-	if resp.Time == nil {
-		timestamp = time.Now().UnixNano()
-	} else {
-		timestamp = resp.Time.AsTime().UnixNano()
-	}
-	return util.GenerateUUID64Signed(s.nodeName, resp.Rule, resp.Output, strconv.FormatInt(timestamp, 10))
-}
 func (s *RuntimeEventStream) callback(res *outputs.Response) error {
 	ckey, ok := s.clusterManager.ClusterKey()
 	if !ok {
@@ -99,7 +88,6 @@ func (s *RuntimeEventStream) callback(res *outputs.Response) error {
 	ctx := context.Background()
 	item := eventItem{
 		data:       res,
-		uuid:       s.generateUUID(res),
 		clusterKey: ckey,
 	}
 	// filter out safenode image detections

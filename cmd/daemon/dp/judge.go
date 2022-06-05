@@ -83,8 +83,7 @@ func (ej *ExecJudge) Start() error {
 					logging.Get().Error().Msgf("judge do request panic: %v.stack:%s", r, debug.Stack())
 				}
 			}()
-			uuid := util.GenerateUUID64()
-			_ = ej.doRequest(conn, uuid)
+			_ = ej.doRequest(conn, 0)
 		}(unixConn)
 	}
 

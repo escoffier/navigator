@@ -25,7 +25,6 @@ type RuntimeRulesManager interface {
 }
 type eventItem struct {
 	data       *outputs.Response
-	uuid       int64
 	clusterKey string
 }
 type eventsHandler interface {
@@ -111,15 +110,11 @@ func (h *AsyncHandler) consumePeriodically(ctx context.Context) {
 	}()
 
 	buffer := make([]eventItem, 0, h.bufferSize)
-	dupCheckMap := make(map[int64]struct{}, h.bufferSize)
 	toStop := false
 	for i := 0; i < h.bufferSize && !toStop; i++ {
 		select {
 		case e := <-h.input:
-			if _, exist := dupCheckMap[e.uuid]; !exist {
-				buffer = append(buffer, e)
-				dupCheckMap[e.uuid] = struct{}{}
-			}
+			buffer = append(buffer, e)
 		default:
 			toStop = true
 			break
