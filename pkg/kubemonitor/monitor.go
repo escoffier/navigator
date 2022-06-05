@@ -7,46 +7,35 @@ import (
 	"sync"
 	"time"
 
+	json "github.com/json-iterator/go"
 	"gitlab.com/piccolo_su/vegeta/pkg/assets"
-	"gitlab.com/piccolo_su/vegeta/pkg/logging"
+	"gitlab.com/security-rd/go-pkg/logging"
+	"gopkg.in/yaml.v2"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 )
-
-const (
-	name = "kubiscanMonitor"
-)
-
-type KubeStorageFactory func(clusterName string) KubeStorage
-
-type KubeStorage interface {
-	SetRoleRisky(name, namespace string) error
-	SetClusterRoleRisky(name string) error
-	RemoveRole(name, namespace string) (existed bool, err error)
-	RemoveClusterRole(name string) (existed bool, err error)
-	IsRoleRisky(name, namespace string) bool
-	IsClusterRoleRisky(name string) bool
-}
 
 func NewMemStorage(clusterKey string) KubeStorage {
 	return newMemStorage(clusterKey)
 }
 
 type KubeRiskyMonitor struct {
-	outputChan     chan KubeMonitorEvent
+	outputChan     chan *KubeMonitorEvent
 	storageFactory KubeStorageFactory
-	rules          []*RiskyRoleItem
+	rbRules        []*RiskyRoleItem
+	resRules       []ResourceMonitorRule
 }
 
-func NewKubeRiskMonitor(rules []*RiskyRoleItem, fac KubeStorageFactory) (*KubeRiskyMonitor, error) {
+func NewKubeRiskMonitor(conf Configuration, fac KubeStorageFactory) (*KubeRiskyMonitor, error) {
 	m := KubeRiskyMonitor{
-		outputChan:     make(chan KubeMonitorEvent, 100),
+		outputChan:     make(chan *KubeMonitorEvent, 100),
 		storageFactory: fac,
-		rules:          rules,
+		rbRules:        conf.RBRules,
+		resRules:       conf.ResourceRules,
 	}
 	return &m, nil
 }
-func (w *KubeRiskyMonitor) OutputChannel() <-chan KubeMonitorEvent {
+func (w *KubeRiskyMonitor) OutputChannel() <-chan *KubeMonitorEvent {
 	return w.outputChan
 }
 
@@ -60,7 +49,7 @@ func (w *KubeRiskyMonitor) BeforeWatchNewCluster(ctx context.Context, clusterKey
 		roles:        make(map[string]*rbacv1.Role, 20),
 		eventCh:      make(chan detectionEvent, 200),
 	}
-	cm.engine = NewEngine(w.rules, cm, cm.storage)
+	cm.engine = NewEngine(w.rbRules, cm, cm.storage)
 	cm.asyncDetection()
 	return cm
 }
@@ -71,6 +60,7 @@ func (w *KubeRiskyMonitor) WatchedTypes() map[assets.WatchedType]struct{} {
 		assets.ClusterRoles2Watch:        {},
 		assets.RoleBindings2Watch:        {},
 		assets.ClusterRoleBindings2Watch: {},
+		assets.TensorResources2Watch:     {},
 	}
 }
 
@@ -100,7 +90,7 @@ func (l *KubeClusterMonitor) asyncDetection() {
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
-				logging.GetLogger().Error().Msgf("Panic: %v. Stack: %s", r, debug.Stack())
+				logging.Get().Error().Msgf("Panic: %v. Stack: %s", r, debug.Stack())
 			}
 		}()
 
@@ -110,18 +100,130 @@ func (l *KubeClusterMonitor) asyncDetection() {
 	}()
 }
 
-func (l *KubeClusterMonitor) sendToOutput(outputEvt KubeMonitorEvent) {
+func (l *KubeClusterMonitor) sendToOutput(outputEvt *KubeMonitorEvent) {
 	timer := time.NewTimer(500 * time.Millisecond)
 	select {
 	case l.parent.outputChan <- outputEvt:
 	case <-timer.C:
-		logging.GetLogger().Warn().Msgf("send output channel timeout for data: %+v", outputEvt)
+		logging.Get().Warn().Msgf("send output channel timeout for data: %+v", outputEvt)
 	}
 }
+
+func GetRuleNameFromRBRule(item *RiskyRoleItem, kind string) string {
+	sb := strings.Builder{}
+	sb.WriteString(kind)
+	sb.WriteByte(':')
+	sb.WriteString(item.Metadata.Name)
+	return sb.String()
+}
+
+func (l *KubeClusterMonitor) generateEventsFromClusterRole(role *rbacv1.ClusterRole, rules []*RiskyRoleItem) {
+	if role == nil {
+		return
+	}
+
+	for _, rule := range rules {
+		evt := KubeMonitorEvent{
+			ClusterKey: l.clusterKey,
+			TargetObject: ResourceIdentifier{
+				Name:       role.Name,
+				Kind:       "clusterRole",
+				Namespace:  "-",
+				ClusterKey: l.clusterKey,
+			},
+			RuleName:   GetRuleNameFromRBRule(rule, "clusterRole"),
+			ContextKVs: make([]ContextKV, 0, 3),
+		}
+		evt.ContextKVs = append(evt.ContextKVs, ContextKV{
+			Key: "roleCreateTime",
+			KeyMulti: map[string]string{
+				"en": "Role Created Time",
+				"zh": "Role创建时间",
+			},
+			DefaultValue: role.CreationTimestamp.Local().Format(time.RFC3339),
+		})
+		rulesBytes, err := json.Marshal(role.Rules)
+		if err == nil {
+			evt.ContextKVs = append(evt.ContextKVs, ContextKV{
+				Key: "roleRules",
+				KeyMulti: map[string]string{
+					"en": "Role Rules",
+					"zh": "Role规则",
+				},
+				DefaultValue: string(rulesBytes),
+			})
+		}
+		labelBytes, err := yaml.Marshal(role.Labels)
+		if err == nil {
+			evt.ContextKVs = append(evt.ContextKVs, ContextKV{
+				Key: "roleLabels",
+				KeyMulti: map[string]string{
+					"en": "Role Labels",
+					"zh": "Role标签",
+				},
+				DefaultValue: string(labelBytes),
+			})
+		}
+		l.sendToOutput(&evt)
+	}
+}
+
+func (l *KubeClusterMonitor) generateEventsFromRole(role *rbacv1.Role, rules []*RiskyRoleItem) {
+	if role == nil {
+		return
+	}
+
+	for _, rule := range rules {
+		evt := KubeMonitorEvent{
+			ClusterKey: l.clusterKey,
+			TargetObject: ResourceIdentifier{
+				Name:       role.Name,
+				Kind:       "role",
+				Namespace:  role.Namespace,
+				ClusterKey: l.clusterKey,
+			},
+			RuleName:   GetRuleNameFromRBRule(rule, "role"),
+			ContextKVs: make([]ContextKV, 0, 3),
+		}
+		evt.ContextKVs = append(evt.ContextKVs, ContextKV{
+			Key: "roleCreateTime",
+			KeyMulti: map[string]string{
+				"en": "Role Created Time",
+				"zh": "Role创建时间",
+			},
+			DefaultValue: role.CreationTimestamp.Local().Format(time.RFC3339),
+		})
+		rulesBytes, err := json.Marshal(role.Rules)
+		if err == nil {
+			evt.ContextKVs = append(evt.ContextKVs, ContextKV{
+				Key: "roleRules",
+				KeyMulti: map[string]string{
+					"en": "Role Rules",
+					"zh": "Role规则",
+				},
+				DefaultValue: string(rulesBytes),
+			})
+		}
+		labelBytes, err := yaml.Marshal(role.Labels)
+		if err == nil {
+			evt.ContextKVs = append(evt.ContextKVs, ContextKV{
+				Key: "roleLabels",
+				KeyMulti: map[string]string{
+					"en": "Role Labels",
+					"zh": "Role标签",
+				},
+				DefaultValue: string(labelBytes),
+			})
+		}
+
+		l.sendToOutput(&evt)
+	}
+}
+
 func (l *KubeClusterMonitor) detectEvent(ctx context.Context, evt detectionEvent) {
 	defer func() {
 		if r := recover(); r != nil {
-			logging.GetLogger().Error().Msgf("Panic when consuming events: %v. event: %+v Stack: %s", r, evt, debug.Stack())
+			logging.Get().Error().Msgf("Panic when consuming events: %v. event: %+v Stack: %s", r, evt, debug.Stack())
 		}
 	}()
 
@@ -133,13 +235,7 @@ func (l *KubeClusterMonitor) detectEvent(ctx context.Context, evt detectionEvent
 		risky, items := l.engine.IsRiskyRole(evt.role)
 		if risky {
 			l.storage.SetRoleRisky(evt.role.Name, evt.role.Namespace)
-			l.sendToOutput(KubeMonitorEvent{
-				ClusterKey:   l.clusterKey,
-				RiskyItems:   items,
-				Kind:         KindRole,
-				TargetRole:   evt.role,
-				targetObject: evt.role,
-			})
+			l.generateEventsFromRole(evt.role, items)
 		}
 	case KindClusterRole:
 		if evt.clusterRole == nil {
@@ -148,13 +244,7 @@ func (l *KubeClusterMonitor) detectEvent(ctx context.Context, evt detectionEvent
 		risky, items := l.engine.IsRiskyClusterRole(evt.clusterRole)
 		if risky {
 			l.storage.SetClusterRoleRisky(evt.clusterRole.Name)
-			l.sendToOutput(KubeMonitorEvent{
-				ClusterKey:        l.clusterKey,
-				RiskyItems:        items,
-				Kind:              KindClusterRole,
-				TargetClusterRole: evt.clusterRole,
-				targetObject:      evt.clusterRole,
-			})
+			l.generateEventsFromClusterRole(evt.clusterRole, items)
 		}
 	case KindClusterRoleBinding:
 	case KindRoleBinding:
@@ -194,7 +284,55 @@ func (l *KubeClusterMonitor) OnServiceEvent(newSvc, oldEvc *corev1.Service, acti
 	return nil
 }
 func (l *KubeClusterMonitor) OnTensorResourceEvent(newResource, oldResource *assets.TensorResource, action assets.AssetsAction) error {
-	// do nothing
+	if action == assets.ActionDelete { // ignore delation
+		return nil
+	}
+	if newResource == nil {
+		return nil
+	}
+
+	switch newResource.Kind {
+	case "ReplicaSet":
+		for _, or := range newResource.OwnerReferences {
+			if or.Controller != nil && *or.Controller {
+				if or.Kind == "Deployment" {
+					logging.Get().Info().Str("name", newResource.Name).Str("kind", string(newResource.Kind)).Str("ns", newResource.Namespace).Msg("replicaset has deployment owner. ignored")
+					return nil
+				}
+			}
+		}
+	case "Job":
+		for _, or := range newResource.OwnerReferences {
+			if or.Controller != nil && *or.Controller {
+				if or.Kind == "CronJob" {
+					logging.Get().Info().Str("name", newResource.Name).Str("kind", string(newResource.Kind)).Str("ns", newResource.Namespace).Msg("job has cronjob owner. ignored")
+					return nil
+				}
+			}
+		}
+	}
+
+	for _, rule := range l.parent.resRules {
+		signals, err := rule.Match(context.Background(), newResource)
+		if err == nil && len(signals) > 0 {
+			for _, signal := range signals {
+				evt := KubeMonitorEvent{
+					ClusterKey: l.clusterKey,
+					TargetObject: ResourceIdentifier{
+						Name:       newResource.Name,
+						Kind:       string(newResource.Kind),
+						Namespace:  newResource.Namespace,
+						ClusterKey: l.clusterKey,
+					},
+					RuleName:      rule.RuleName(),
+					ContextKVs:    signal.Ctxs,
+					ctxIdentifier: signal.CtxIdentifier,
+				}
+				l.sendToOutput(&evt)
+			}
+
+		}
+	}
 	return nil
 }
 
@@ -241,13 +379,15 @@ func (l *KubeClusterMonitor) OnTensorRole(tensorRole *assets.TensorRole, action 
 
 		// send to the detection goroutine to detect in serialization
 		timer := time.NewTimer(500 * time.Millisecond)
+		defer timer.Stop()
+
 		select {
 		case l.eventCh <- detectionEvent{
 			role: role,
 			kind: KindRole,
 		}:
 		case <-timer.C:
-			logging.GetLogger().Warn().Msg("send eventCh timeout")
+			logging.Get().Warn().Msg("send eventCh timeout")
 		}
 
 		l.upsertRole(role)
@@ -270,15 +410,16 @@ func (l *KubeClusterMonitor) OnTensorClusterRole(tensorRole *assets.TensorCluste
 			return nil
 		}
 
-		// send to the detection goroutine to detect in serialization
-		timer := time.NewTimer(200 * time.Millisecond)
+		timer := time.NewTimer(500 * time.Millisecond)
+		defer timer.Stop()
+
 		select {
 		case l.eventCh <- detectionEvent{
 			clusterRole: clusterRole,
 			kind:        KindClusterRole,
 		}:
 		case <-timer.C:
-			logging.GetLogger().Warn().Msg("send eventCh timeout")
+			logging.Get().Warn().Msg("send eventCh timeout")
 		}
 
 		l.upsertClusterRole(clusterRole)
