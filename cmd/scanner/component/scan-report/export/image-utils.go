@@ -407,6 +407,9 @@ func GenImageBaseInfo(image model.ImageList, status model.ImageResponse) []strin
 }
 
 func FormatTime(ti int64, format string) string {
+	if ti <= 0 {
+		return ""
+	}
 	if format == "" {
 		format = consts.ExportTimeFormat
 	}
