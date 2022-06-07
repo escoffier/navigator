@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"math/rand"
 	"os"
 	"os/signal"
 	"strconv"
@@ -16,6 +17,8 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/palace/pkg/ecenter"
 	"gitlab.com/piccolo_su/vegeta/pkg/echelper"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
+	"gitlab.com/piccolo_su/vegeta/pkg/rtdetect"
+	"gitlab.com/piccolo_su/vegeta/pkg/uuid"
 	"gitlab.com/security-rd/go-pkg/cache"
 	"gitlab.com/security-rd/go-pkg/databases"
 	"gitlab.com/security-rd/go-pkg/logging"
@@ -30,7 +33,18 @@ var (
 	redisCli              *redis.Client
 	associationDispatcher *association.EventDispatcher
 	ecenterHandler        *ecenter.EcHandler
+	uuidGen               *uuid.Generator
 )
+
+func init() {
+	rand.Seed(time.Now().UnixNano())
+
+	var err error
+	uuidGen, err = uuid.NewGenerator()
+	if err != nil {
+		logging.Get().Err(err).Msg("init uuid gen error")
+	}
+}
 
 func initAssociationDispatchers(rdb *databases.RDBInstance) error {
 	var err error
@@ -74,6 +88,13 @@ func handlePodContainerEvents(ctx context.Context, m kafka.Message) error {
 		logging.Get().Err(err).Str("data", string(m.Value)).Msg("unmarshal association events error")
 		return err
 	}
+	var uuid uint64
+	if uuidGen == nil {
+		uuid = rand.Uint64()
+	} else {
+		uuid = uuidGen.GenerateUUID()
+	}
+	data.OutputFields[rtdetect.KeyUuid] = strconv.FormatUint(uuid, 10)
 	originEvent := association.NewOriginEventFrom("ATT&CK", &data)
 
 	err = associationDispatcher.ProcessEvent(context.Background(), originEvent)
@@ -106,7 +127,6 @@ func handleDriftEvents(ctx context.Context, m kafka.Message) error {
 	}
 
 	return nil
-
 }
 
 func main() {
