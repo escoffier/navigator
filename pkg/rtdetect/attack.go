@@ -7,7 +7,6 @@ import (
 
 	"github.com/falcosecurity/client-go/pkg/api/outputs"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
-	"gitlab.com/piccolo_su/vegeta/pkg/uuid"
 	"gitlab.com/security-rd/go-pkg/pb"
 )
 
@@ -326,7 +325,7 @@ func generateEventCustomKVs(data *outputs.Response) (kvs []*pb.MultiLanguageKV, 
 
 type GetOwnerResourceFunc func(namespace, podName string) (kind, name string, ok bool)
 
-func GenerateAttackEvent(module, category string, uuidGenerator *uuid.Generator, data *outputs.Response, clusterKey string, uuid uint64, ownerFunc GetOwnerResourceFunc) *pb.SendNotificationReq {
+func GenerateAttackEvent(module, category string, data *outputs.Response, clusterKey string, uuid uint64, ownerFunc GetOwnerResourceFunc) *pb.SendNotificationReq {
 	if module == "" {
 		module = model.AlertModuleContainerSecurity
 	}
@@ -361,9 +360,6 @@ func GenerateAttackEvent(module, category string, uuidGenerator *uuid.Generator,
 		if ok && len(name) > 0 && len(kind) > 0 {
 			req.NotifyContext.ServiceID = strings.Join([]string{kind, name}, "/")
 		}
-	}
-	if uuid == 0 {
-		req.UUID = uuidGenerator.GenerateUUID()
 	}
 
 	return req
