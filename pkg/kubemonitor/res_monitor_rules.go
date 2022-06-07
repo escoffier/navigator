@@ -194,17 +194,17 @@ func (ResourceRiskyCapsRule) KVs() []ContextKV {
 
 var (
 	capabilitiesBlacklist = map[string]struct{}{
-		"CAP_SETUID":     {},
-		"CAP_SYS_ADMIN":  {},
-		"CAP_SYS_MODULE": {},
-		"CAP_SYS_PTRACE": {},
-		"CAP_NET_ADMIN":  {},
-		"CAP_CHOWN":      {},
-		"CAP_SYS_CHROOT": {},
-		"CAP_SETGID":     {},
-		"CAP_MAC_ADMIN":  {},
-		"CAP_BPF":        {},
-		"CAP_MKNOD":      {},
+		"SETUID":     {},
+		"SYS_ADMIN":  {},
+		"SYS_MODULE": {},
+		"SYS_PTRACE": {},
+		"NET_ADMIN":  {},
+		"CHOWN":      {},
+		"SYS_CHROOT": {},
+		"SETGID":     {},
+		"MAC_ADMIN":  {},
+		"BPF":        {},
+		"MKNOD":      {},
 	}
 )
 

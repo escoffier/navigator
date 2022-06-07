@@ -82,7 +82,7 @@ func (e *EcHandler) resp2Req(data *outputs.Response) *pb.SendNotificationReq {
 		delete(data.OutputFields, rtdetect.KeyUuid)
 		uuid, _ = strconv.ParseUint(uuidStr, 10, 64)
 	}
-	eventReq := rtdetect.GenerateAttackEvent(model.AlertModuleContainerSecurity, ruleCategory, e.uuidGen, data, clusterKey, uuid, func(namespace, podName string) (kind, name string, ok bool) {
+	eventReq := rtdetect.GenerateAttackEvent(model.AlertModuleContainerSecurity, ruleCategory, data, clusterKey, uuid, func(namespace, podName string) (kind, name string, ok bool) {
 		if podName == "" && namespace == "" {
 			return "Node", data.Hostname, true
 		} else if len(ownerResName) > 0 && len(ownerResKind) > 0 {
