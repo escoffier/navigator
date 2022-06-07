@@ -12,10 +12,12 @@ import (
 
 var (
 	myNamespace = ""
+	myNodeName  = ""
 )
 
 func init() {
 	myNamespace = os.Getenv("MY_POD_NAMESPACE")
+	myNodeName = os.Getenv("MY_NODE_NAME")
 }
 
 // FIXME tmp solutions.
@@ -53,20 +55,11 @@ func isEventItemWhitelisted(data *outputs.Response, containerInfo nodeinfo.Conta
 	return false
 }
 
-func getKeyOfPodContainerEvent(clusterKey string, data *outputs.Response) ([]byte, bool) {
+func GetKeyOfSignal(clusterKey string) ([]byte, bool) {
 	keyBui := bytes.Buffer{}
-	keyBui.WriteString(clusterKey)
+	keyBui.WriteString(myNodeName)
 	keyBui.WriteRune('/')
-	if data.Hostname != "" {
-		keyBui.WriteString(data.Hostname)
-		keyBui.WriteRune('/')
-	}
-
-	podName, exist := data.OutputFields[rtdetect.FieldK8sPodName]
-	if exist && len(podName) > 0 {
-		keyBui.WriteString(podName)
-		keyBui.WriteRune('/')
-	}
+	keyBui.WriteString(clusterKey)
 
 	return keyBui.Bytes(), keyBui.Len() > 0
 }

@@ -263,7 +263,7 @@ func (ej *ExecJudge) doRequest(conn *net.UnixConn, uuid uint64) error {
 				reasonCN:      "文件不在白名单中",
 			}
 
-			go sendEventByKafka(ej.mq, generateEvent(uuid, eventArgs, "DriftPrevention", "Drift Prevention", ej.npw, ej.podResInfo))
+			go sendEventByKafka(context.Background(), ej.mq, eventArgs, generateEvent(uuid, eventArgs, "DriftPrevention", "Drift Prevention", ej.npw, ej.podResInfo))
 			continue
 		}
 
@@ -316,7 +316,7 @@ func (ej *ExecJudge) doRequest(conn *net.UnixConn, uuid uint64) error {
 			}
 
 			// go notifyEventWithRetry(generateEvent(uuid, eventArgs, "driftPrevention", npw, podResInfo))
-			go sendEventByKafka(ej.mq, generateEvent(uuid, eventArgs, "DriftPrevention", "Drift Prevention", ej.npw, ej.podResInfo))
+			go sendEventByKafka(context.Background(), ej.mq, eventArgs, generateEvent(uuid, eventArgs, "DriftPrevention", "Drift Prevention", ej.npw, ej.podResInfo))
 			continue
 		} else {
 			_ = ej.Response(conn, resultPass, containerID, fileHash)
