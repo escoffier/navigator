@@ -11,9 +11,6 @@ import (
 	"github.com/falcosecurity/client-go/pkg/api/outputs"
 	"github.com/go-redis/redis/v8"
 	"github.com/segmentio/kafka-go"
-	_ "go.uber.org/automaxprocs"
-	"google.golang.org/protobuf/proto"
-
 	"gitlab.com/piccolo_su/vegeta/cmd/palace/pkg/apiinfo"
 	"gitlab.com/piccolo_su/vegeta/cmd/palace/pkg/association"
 	"gitlab.com/piccolo_su/vegeta/cmd/palace/pkg/ecenter"
@@ -24,12 +21,8 @@ import (
 	"gitlab.com/security-rd/go-pkg/logging"
 	"gitlab.com/security-rd/go-pkg/mq"
 	"gitlab.com/security-rd/go-pkg/pb"
-)
-
-const (
-	associatedSubject     = "ivan_podcontainer_events"
-	groupID               = "ivan_holmes_palace"
-	EnvECenterConcurrency = "ECENTER_CONCURRENCY"
+	_ "go.uber.org/automaxprocs"
+	"google.golang.org/protobuf/proto"
 )
 
 var (
@@ -165,7 +158,7 @@ func main() {
 		panic(err)
 	}
 
-	err = mqReader.Subscribe(associatedSubject, groupID, handlePodContainerEvents)
+	err = mqReader.Subscribe(associatedSubject, getGroupIDOfTopic(associatedSubject), handlePodContainerEvents)
 
 	if err != nil {
 		logging.Get().Err(err).Msg("subscribe association error.")
@@ -173,7 +166,7 @@ func main() {
 	}
 
 	// api discovery
-	err = mqReader.Subscribe(apiinfo.APISubject, groupID, func(ctx context.Context, m kafka.Message) error {
+	err = mqReader.Subscribe(apiinfo.APISubject, getGroupIDOfTopic(apiinfo.APISubject), func(ctx context.Context, m kafka.Message) error {
 		apiinfo.Process(m)
 		return nil
 	})
@@ -182,7 +175,10 @@ func main() {
 	}
 
 	// drift event
-	err = mqReader.Subscribe(model.SubjectOfDriftEvent, groupID, handleDriftEvents)
+	err = mqReader.Subscribe(model.SubjectOfDriftEvent, getGroupIDOfTopic(model.SubjectOfDriftEvent), handleDriftEvents)
+	if err != nil {
+		logging.Get().Err(err).Msg("subscribe SubjectOfDriftEvent error.")
+	}
 
 	// imErr := immune.Init(redisCli, stanconn)
 	// if imErr != nil {

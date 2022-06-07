@@ -2,6 +2,9 @@ package dp
 
 import (
 	"context"
+	"math/rand"
+	"strconv"
+
 	// "encoding/json"
 	"fmt"
 	"os"
@@ -9,17 +12,16 @@ import (
 	"time"
 
 	"github.com/segmentio/kafka-go"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
-	"google.golang.org/protobuf/proto"
-
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/nodeinfo"
+	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/rtdetect"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
-
 	"gitlab.com/piccolo_su/vegeta/pkg/uuid"
 	"gitlab.com/security-rd/go-pkg/logging"
 	"gitlab.com/security-rd/go-pkg/mq"
 	"gitlab.com/security-rd/go-pkg/pb"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
+	"google.golang.org/protobuf/proto"
 )
 
 type Reporter struct {
@@ -45,7 +47,7 @@ type EventArg struct {
 	reasonCN      string
 }
 
-func sendEventByKafka(mq mq.Writer, req *pb.SendNotificationReq) {
+func sendEventByKafka(ctx context.Context, mq mq.Writer, eventArgs *EventArg, req *pb.SendNotificationReq) {
 	if req == nil {
 		logging.Get().Error().Msg("sendEventByKafka: req is nil")
 		return
@@ -53,17 +55,19 @@ func sendEventByKafka(mq mq.Writer, req *pb.SendNotificationReq) {
 
 	logging.Get().Info().Msgf("sendEventByKafka: %v", req)
 
-	ctx := context.Background()
-
 	ebyptes, err := proto.Marshal(req)
 	if err != nil {
 		logging.Get().Error().Err(err).Msg("eventArg marshal fail")
 		return
 	}
 
+	msgKey, ok := rtdetect.GetKeyOfSignal(eventArgs.Cluster)
+	if !ok {
+		msgKey = []byte(strconv.FormatInt(rand.Int63(), 10))
+	}
 	err = mq.Write(ctx, model.SubjectOfDriftEvent, kafka.Message{
 		Topic: model.SubjectOfDriftEvent,
-		Key:   []byte(model.SubjectOfDriftEvent),
+		Key:   msgKey,
 		Value: ebyptes,
 	})
 	if err != nil {
@@ -72,8 +76,7 @@ func sendEventByKafka(mq mq.Writer, req *pb.SendNotificationReq) {
 
 }
 
-func generateEvent(uuid uint64, arg *EventArg, category,name model.AlertKind, npw *nodeinfo.NodePodsWatcher, podResInfo *nodeinfo.PodResInfo) *pb.SendNotificationReq {
-
+func generateEvent(uuid uint64, arg *EventArg, category, name model.AlertKind, npw *nodeinfo.NodePodsWatcher, podResInfo *nodeinfo.PodResInfo) *pb.SendNotificationReq {
 	podInfo, err := npw.GetPodByUID(arg.PodUID)
 	if err != nil {
 		logging.Get().Error().Err(err).Msg("get pod info fail")

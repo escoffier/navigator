@@ -40,7 +40,7 @@ func (ih *ImmuneHandler) Handle(ctx context.Context, events []eventItem) error {
 				continue
 			}
 
-			keyBytes, ok := getKeyOfPodContainerEvent(e.clusterKey, e.data)
+			keyBytes, ok := GetKeyOfSignal(e.clusterKey)
 			if !ok { // if the key is empty, generate random key to prevent consumer load unbalance
 				keyBytes = []byte(strconv.FormatInt(rand.Int63n(10000000000), 10))
 			}
