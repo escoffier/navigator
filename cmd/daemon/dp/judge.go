@@ -17,6 +17,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/nodeinfo"
 	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
+	"gitlab.com/piccolo_su/vegeta/pkg/uuid"
 	"gitlab.com/security-rd/go-pkg/logging"
 	"gitlab.com/security-rd/go-pkg/mq"
 )
@@ -28,6 +29,7 @@ type ExecJudge struct {
 	mq         mq.Writer
 	npw        *nodeinfo.NodePodsWatcher
 	podResInfo *nodeinfo.PodResInfo
+	uuidGen    *uuid.Generator
 }
 
 const (
@@ -83,7 +85,8 @@ func (ej *ExecJudge) Start() error {
 					logging.Get().Error().Msgf("judge do request panic: %v.stack:%s", r, debug.Stack())
 				}
 			}()
-			_ = ej.doRequest(conn, 0)
+			uuid := ej.uuidGen.GenerateUUID()
+			_ = ej.doRequest(conn, uuid)
 		}(unixConn)
 	}
 
@@ -361,6 +364,11 @@ func NewExecJudge(socketPath string, cm *ConfigManager, rt container.Runtime, po
 		path = defaultJudgeSocket
 	}
 
+	uuidGen, err := uuid.NewGenerator()
+	if err != nil {
+		return nil, err
+	}
+
 	ej := &ExecJudge{
 		SocketPath: path,
 		cm:         cm,
@@ -368,6 +376,7 @@ func NewExecJudge(socketPath string, cm *ConfigManager, rt container.Runtime, po
 		npw:        podWatcher,
 		podResInfo: podResInfo,
 		mq:         mq,
+		uuidGen:    uuidGen,
 	}
 	return ej, nil
 }
