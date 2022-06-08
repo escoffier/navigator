@@ -8,6 +8,9 @@ import (
 	"gitlab.com/security-rd/go-pkg/pb"
 )
 
+const (
+	MQTopicPalacePodContainerEvents = "ivan_podcontainer_events"
+)
 type Location struct {
 	ClusterKey    string   `json:"cluster_key"`
 	Type          string   `json:"type"`

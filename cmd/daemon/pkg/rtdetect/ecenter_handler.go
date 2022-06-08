@@ -8,6 +8,7 @@ import (
 	"github.com/falcosecurity/client-go/pkg/api/outputs"
 	"github.com/segmentio/kafka-go"
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/nodeinfo"
+	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/rtdetect"
 	"gitlab.com/security-rd/go-pkg/logging"
 	"gitlab.com/security-rd/go-pkg/mq"
@@ -21,10 +22,6 @@ var (
 		"Seccomp":                            {},
 		"Falco internal: syscall event drop": {},
 	}
-)
-
-const (
-	subjectOfPodContainerEvents = "ivan_podcontainer_events"
 )
 
 type EventsOutputHandler struct {
@@ -86,10 +83,14 @@ func (ec *EventsOutputHandler) Handle(ctx context.Context, events []eventItem) e
 			keyBytes = []byte(strconv.FormatInt(rand.Int63(), 10))
 		}
 
-		err = ec.mqWriter.Write(ctx, subjectOfPodContainerEvents, kafka.Message{
-			Topic: subjectOfPodContainerEvents,
+		err = ec.mqWriter.Write(ctx, model.MQTopicPalacePodContainerEvents, kafka.Message{
+			Topic: model.MQTopicPalacePodContainerEvents,
 			Key:   keyBytes,
 			Value: ebytes,
+			Headers: []kafka.Header{{
+				Key:   model.MHeaderKeyEventType,
+				Value: []byte(model.MEventTypeHolmes),
+			}},
 		})
 		if err != nil {
 			logging.Get().WithContext(ctx).Errorf(err, "publish pod container events error. data: %s", string(ebytes))

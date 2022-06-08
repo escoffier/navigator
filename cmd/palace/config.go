@@ -8,7 +8,6 @@ import (
 )
 
 const (
-	associatedSubject     = "ivan_podcontainer_events"
 	defaultGroupID        = "ivan_holmes_palace"
 	EnvECenterConcurrency = "ECENTER_CONCURRENCY"
 	EnvKafkaGroupConfig   = "KAFKA_CONSUMER_GROUP_IDS"

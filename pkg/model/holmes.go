@@ -6,6 +6,14 @@ import (
 	"time"
 )
 
+type MessageEventType string
+
+const (
+	MHeaderKeyEventType                  = "etype"
+	MEventTypeHolmes    MessageEventType = "hd" // holmes runtime detection
+	MEventTypeDrift     MessageEventType = "dp" // drift prevention
+)
+
 type ATTCKRuleData struct {
 	ID      uint32 `gorm:"primaryKey;autoIncrement;column:id"`
 	Content []byte `gorm:"column:content"`
