@@ -14,7 +14,3 @@ func main() {
 		os.Exit(1)
 	}
 }
-
-//func init() {
-//	logging.SetVerbose()
-//}

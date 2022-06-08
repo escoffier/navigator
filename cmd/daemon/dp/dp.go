@@ -33,8 +33,6 @@ func (d *DriftAssurance) GetConfigManager() *ConfigManager {
 }
 
 func (d *DriftAssurance) Start(ctx context.Context, consoleAddr string) error {
-	// set log level
-	logging.SetVerbose()
 
 	wg := sync.WaitGroup{}
 
@@ -78,7 +76,7 @@ func (d *DriftAssurance) Start(ctx context.Context, consoleAddr string) error {
 		logging.Get().Err(err).Msg("monitor event exit")
 	}()
 
-	//get running image result
+	// get running image result
 	wg.Add(1)
 	go func() {
 		imageScanStart := time.Now()

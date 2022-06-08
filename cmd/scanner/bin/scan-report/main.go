@@ -8,13 +8,14 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/rs/zerolog"
 	"gitlab.com/security-rd/go-pkg/databases"
+	"gitlab.com/security-rd/go-pkg/logging"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scan-report/api"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scan-report/service"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scan-report/starter"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
-	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 )
 
 var (
@@ -58,12 +59,12 @@ func main() {
 	if port, ok := os.LookupEnv("EMAIL_PORT"); ok {
 		emailPort, err = strconv.ParseInt(port, 10, 64)
 		if err != nil {
-			logging.GetLogger().
+			logging.Get().
 				Fatal().
 				Msgf("`EMAIL_PORT` environment variable is <%s>,  and is invalid, can't be parse to integer", port)
 		}
 	} else {
-		logging.GetLogger().Warn().Msgf("can't find `EMAIL_PORT` environment variable, use default 465")
+		logging.Get().Warn().Msgf("can't find `EMAIL_PORT` environment variable, use default 465")
 		emailPort = 465
 	}
 
@@ -73,19 +74,22 @@ func main() {
 	}
 
 	if emailPasswd = os.Getenv("EMAIL_PASSWORD"); emailPasswd == "" {
-		logging.GetLogger().Warn().Msgf("unset `EMAIL_PASSWORD` environment variable, use empty string")
+		logging.Get().Warn().Msgf("unset `EMAIL_PASSWORD` environment variable, use empty string")
 	}
 
 	rdb, err := databases.NewRDBWithMySQLByEnv(context.Background())
 
 	if err != nil {
-		logging.GetLogger().Fatal().Msgf("init db error, err :%v", err)
+		logging.Get().Fatal().Msgf("init db error, err :%v", err)
 		os.Exit(1)
 	}
+
+	// 建议改为loggingOptions用法
+	// 目前由于log-level参数名称冲突
 	if logLevel == "debug" {
+		logging.Get().Logger = logging.Get().Logger.Level(zerolog.DebugLevel)
 		rdb.SetDebugMode()
-		logging.SetVerbose()
-		logging.GetLogger().Warn().Msg("debug model!!! please close debug model when release.")
+		logging.Get().Warn().Msg("debug model!!! please close debug model when release.")
 	}
 
 	// 起后台协程服务
@@ -109,7 +113,7 @@ func main() {
 		Addr:    HTTPListenAddr,
 		Handler: api.SetupGinRouter(service.NewExportSrv(store.NewExportTaskDao(rdb)))}
 	if err := ginServer.ListenAndServe(); err != nil {
-		logging.GetLogger().Err(err).Msg("ginServer.ListenAndServe")
+		logging.Get().Err(err).Msg("ginServer.ListenAndServe")
 		os.Exit(1)
 	}
 }

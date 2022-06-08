@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"flag"
 	"fmt"
 	"math/rand"
 	"os"
@@ -12,6 +11,7 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
+	flag "github.com/spf13/pflag"
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/dp"
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/netflow"
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/nodeinfo"
@@ -22,8 +22,13 @@ import (
 	_ "go.uber.org/automaxprocs"
 )
 
+var loggingOptions *logging.Options
+
 func init() {
 	rand.Seed(time.Now().UnixNano())
+
+	loggingOptions = logging.NewLoggingOptions()
+	loggingOptions.AddFlags(flag.CommandLine)
 }
 
 const (
@@ -246,8 +251,13 @@ func Run(ctx context.Context) error {
 }
 
 func main() {
-
 	flag.Parse()
+
+	if errs := loggingOptions.Validate(); len(errs) > 0 {
+		logging.Get().Panic().Err(fmt.Errorf("%v", errs)).Msg("")
+	}
+	loggingOptions.SetConsoleWriterWrapper(logging.ConsoleCallerWriter)
+	logging.ReplaceLogger(loggingOptions)
 
 	mainCtx, mainCancel := context.WithCancel(context.Background())
 	defer mainCancel()

@@ -4,15 +4,16 @@ package cmd
 import (
 	"os"
 
+	"github.com/rs/zerolog"
 	flag2 "gitlab.com/piccolo_su/vegeta/cmd/scanner/flag"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/global"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/service"
+	"gitlab.com/security-rd/go-pkg/logging"
 
 	"github.com/spf13/cobra"
 
 	"gitlab.com/piccolo_su/vegeta/pkg/flag"
 	"gitlab.com/piccolo_su/vegeta/pkg/lifecycle"
-	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 )
 
 // rootCmd represents the base command when called without any subcommands
@@ -24,15 +25,18 @@ var rootCmd = &cobra.Command{
 		ScannerRunOpts := flag2.GetScannerOpts(cmd)
 		global.ScannerOpts = ScannerRunOpts
 
+		// 建议改为loggingOptions用法
+		// 目前由于log-level参数名称冲突
 		if ScannerRunOpts.LogLevel == "debug" {
-			logging.SetVerbose()
+			logging.Get().Logger = logging.Get().Logger.Level(zerolog.DebugLevel)
 		}
+
 		scanner, err := service.NewScanner(ScannerRunOpts)
 		if err != nil {
 			return err
 		}
 		global.ScannerID = scanner.ID
-		logging.GetLogger().Info().
+		logging.Get().Info().
 			Str("version", Version).
 			Str("scannerId", global.ScannerID).
 			Interface("opts", ScannerRunOpts).
@@ -49,7 +53,7 @@ var rootCmd = &cobra.Command{
 // This is called by main.main(). It only needs to happen once to the rootCmd.
 func Execute() {
 	if err := rootCmd.Execute(); err != nil {
-		logging.GetLogger().Err(err).Msg("Failed to startup")
+		logging.Get().Error().Err(err).Msg("Failed to startup")
 		os.Exit(1)
 	}
 }
