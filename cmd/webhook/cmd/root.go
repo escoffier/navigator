@@ -1,34 +1,49 @@
 package cmd
 
 import (
-	"github.com/spf13/cobra"
-	"gitlab.com/piccolo_su/vegeta/cmd/webhook/cmd/webhook"
-	"gitlab.com/piccolo_su/vegeta/pkg/logging"
+	"fmt"
 	"os"
 	"strings"
+
+	"github.com/rs/zerolog"
+	"github.com/spf13/cobra"
+	"gitlab.com/piccolo_su/vegeta/cmd/webhook/cmd/webhook"
+	"gitlab.com/security-rd/go-pkg/logging"
 )
 
-var webHookConfig = &webhook.Config{}
+var (
+	webHookConfig  = &webhook.Config{}
+	loggingOptions *logging.Options
+)
 
 func NewWebhookCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use: "webhook server",
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if errs := loggingOptions.Validate(); len(errs) > 0 {
+				return fmt.Errorf("%v", errs)
+			}
+
+			// 建议移除verbose
+			// 使用log-level调节日志输出等级
 			verbose, _ := cmd.Flags().GetBool("verbose")
 			if verbose {
-				logging.SetVerbose()
+				loggingOptions.Level = int(zerolog.DebugLevel)
 			}
+
+			loggingOptions.SetConsoleWriterWrapper(logging.ConsoleCallerWriter)
+			logging.ReplaceLogger(loggingOptions)
 
 			loadConfigFromEnv()
 			server, err := webhook.NewWebHookServer(webHookConfig)
 			if err != nil {
-				logging.GetLogger().Err(err).Msg("failed to create webhook server")
+				logging.Get().Err(err).Msg("failed to create webhook server")
 				return err
 			}
 
 			// start inject server in new routine
 			server.Start()
-			logging.GetLogger().Info().Msg("Server started")
+			logging.Get().Info().Msg("Server started")
 			return nil
 		},
 	}
@@ -39,6 +54,9 @@ func NewWebhookCommand() *cobra.Command {
 	cmd.Flags().StringSliceVar(&webHookConfig.IgnoredNameSpaces, "IgnoredNameSpaces", []string{"kube-system", "tensorsec"}, "The ignored namespaces for image checking")
 	cmd.Flags().StringSliceVar(&webHookConfig.Validators, "validators", nil, "The enabled validators")
 	cmd.Flags().StringSliceVar(&webHookConfig.Mutators, "mutators", nil, "The enabled mutators")
+
+	loggingOptions = logging.NewLoggingOptions()
+	loggingOptions.AddFlags(cmd.Flags())
 
 	cmd.AddCommand(NewProxyCmd())
 	return cmd

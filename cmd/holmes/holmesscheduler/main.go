@@ -1,10 +1,12 @@
 package main
 
 import (
-	"flag"
+	"fmt"
 	"os"
 
+	"github.com/rs/zerolog"
 	log "github.com/sirupsen/logrus"
+	flag "github.com/spf13/pflag"
 	"gitlab.com/piccolo_su/vegeta/cmd/holmes/holmesscheduler/decode"
 	"gitlab.com/piccolo_su/vegeta/cmd/holmes/holmesscheduler/holmesengine"
 	"gitlab.com/piccolo_su/vegeta/cmd/holmes/holmesscheduler/watch"
@@ -17,7 +19,13 @@ const (
 
 var (
 	namespaceMutator holmesengine.MutationFunc
+	loggingOptions   *logging.Options
 )
+
+func init() {
+	loggingOptions = logging.NewLoggingOptions()
+	loggingOptions.AddFlags(flag.CommandLine)
+}
 
 func saveRulesFile(writeBytes []byte, path string) error {
 	fp, err := os.Create(path)
@@ -83,12 +91,21 @@ func main() {
 
 	flag.Parse()
 
+	if errs := loggingOptions.Validate(); len(errs) > 0 {
+		logging.Get().Panic().Err(fmt.Errorf("%v", errs)).Msg("")
+	}
+
+	// 建议移除debug
+	// 使用log-level调节日志输出等级
 	if *debug || os.Getenv("DEBUG_MODE") == "1" {
 		log.SetLevel(log.DebugLevel)
-		logging.SetVerbose()
+		loggingOptions.Level = int(zerolog.DebugLevel)
 	} else {
 		log.SetLevel(log.InfoLevel)
 	}
+
+	loggingOptions.SetConsoleWriterWrapper(logging.ConsoleCallerWriter)
+	logging.ReplaceLogger(loggingOptions)
 
 	consoleUpdateC := make(chan struct{})
 	configmapUpdateC := make(chan struct{})

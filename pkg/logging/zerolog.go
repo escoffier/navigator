@@ -7,11 +7,6 @@ import (
 
 type Logger = logging.Logger
 
-// SetVerbose is to enable the zerolog to debug level.
-func SetVerbose() {
-	logging.SetVerbose()
-}
-
 // GetLogger to return the global logger.
 func GetLogger() *logging.Logger {
 	return logging.Get()

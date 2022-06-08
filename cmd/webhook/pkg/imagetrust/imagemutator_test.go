@@ -9,7 +9,6 @@ import (
 	"testing"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/webhook/pkg/processors"
-	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 )
 
 func Test_patchImageDigest(t *testing.T) {
@@ -137,7 +136,7 @@ func Test_replaceTagWithDigest(t *testing.T) {
 }
 
 func Test_getImageDigestFromHarbor(t *testing.T) {
-	logging.SetVerbose()
+
 	type args struct {
 		in0    context.Context
 		image  string
