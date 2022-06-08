@@ -81,7 +81,35 @@ func initDB() error {
 	return nil
 }
 
+// default to treat it as Holmes type
+func getEventTypeOfMessage(m kafka.Message) model.MessageEventType {
+	for _, header := range m.Headers {
+		if header.Key == model.MHeaderKeyEventType {
+			valStr := model.MessageEventType(string(header.Value))
+			switch valStr {
+			case model.MEventTypeHolmes, model.MEventTypeDrift:
+				return valStr
+			default:
+				return model.MEventTypeHolmes
+			}
+		}
+	}
+	return model.MEventTypeHolmes
+}
+
 func handlePodContainerEvents(ctx context.Context, m kafka.Message) error {
+	etype := getEventTypeOfMessage(m)
+	switch etype {
+	case model.MEventTypeHolmes:
+		return handleAssociatedEvents(ctx, m)
+	case model.MEventTypeDrift:
+		return handleDriftEvents(ctx, m)
+	default:
+		return handleAssociatedEvents(ctx, m)
+	}
+}
+
+func handleAssociatedEvents(ctx context.Context, m kafka.Message) error {
 	var data outputs.Response
 	err := proto.Unmarshal(m.Value, &data)
 	if err != nil {
@@ -178,7 +206,7 @@ func main() {
 		panic(err)
 	}
 
-	err = mqReader.Subscribe(associatedSubject, getGroupIDOfTopic(associatedSubject), handlePodContainerEvents)
+	err = mqReader.Subscribe(model.MQTopicPalacePodContainerEvents, getGroupIDOfTopic(model.MQTopicPalacePodContainerEvents), handlePodContainerEvents)
 
 	if err != nil {
 		logging.Get().Err(err).Msg("subscribe association error.")

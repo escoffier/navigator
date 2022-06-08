@@ -6,6 +6,7 @@ import (
 	"strconv"
 
 	"github.com/segmentio/kafka-go"
+	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/rtdetect"
 	"gitlab.com/security-rd/go-pkg/logging"
 	"gitlab.com/security-rd/go-pkg/mq"
@@ -20,6 +21,7 @@ var (
 	}
 )
 
+// Deprecated
 type ImmuneHandler struct {
 	mqWriter mq.Writer
 }
@@ -46,7 +48,7 @@ func (ih *ImmuneHandler) Handle(ctx context.Context, events []eventItem) error {
 			}
 
 			err = ih.mqWriter.Write(ctx, subject, kafka.Message{
-				Topic: subjectOfPodContainerEvents,
+				Topic: model.MQTopicPalacePodContainerEvents,
 				Key:   keyBytes,
 				Value: ebytes,
 			})

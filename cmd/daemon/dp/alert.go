@@ -2,12 +2,10 @@ package dp
 
 import (
 	"context"
-	"math/rand"
-	"strconv"
-
-	// "encoding/json"
 	"fmt"
+	"math/rand"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -65,10 +63,14 @@ func sendEventByKafka(ctx context.Context, mq mq.Writer, eventArgs *EventArg, re
 	if !ok {
 		msgKey = []byte(strconv.FormatInt(rand.Int63(), 10))
 	}
-	err = mq.Write(ctx, model.SubjectOfDriftEvent, kafka.Message{
-		Topic: model.SubjectOfDriftEvent,
+	err = mq.Write(ctx, model.MQTopicPalacePodContainerEvents, kafka.Message{
+		Topic: model.MQTopicPalacePodContainerEvents,
 		Key:   msgKey,
 		Value: ebyptes,
+		Headers: []kafka.Header{{
+			Key:   model.MHeaderKeyEventType,
+			Value: []byte(model.MEventTypeHolmes),
+		}},
 	})
 	if err != nil {
 		logging.Get().Error().Err(err).Msg("sendEventByKafka fail")
