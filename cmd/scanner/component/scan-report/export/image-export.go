@@ -161,7 +161,7 @@ func (s *ImageExport) GetExcelData(ctx context.Context, imageID int64) (map[stri
 	// 获取关联容器
 	resources, err := s.resourceDal.SearchResources(ctx, imageDetail.ImageUUID)
 	if err != nil {
-		// logging.GetLogger().Err(err).Int64("imageID", imageID).Uint32("ImageUUID", imageDetail.ImageUUID).Msg("GetDataAndCreateExcelFile.SearchResources")
+		logging.GetLogger().Err(err).Int64("imageID", imageID).Uint32("ImageUUID", imageDetail.ImageUUID).Msg("GetDataAndCreateExcelFile.SearchResources")
 		return nil, err
 	}
 	logging.GetLogger().Debug().Int64("imageID", imageID).Msg("GetExcelData SearchResources")

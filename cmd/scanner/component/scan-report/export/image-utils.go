@@ -8,6 +8,7 @@ import (
 	"github.com/shopspring/decimal"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 )
 
@@ -93,9 +94,9 @@ func GenEnvChan(imageDetail model.ImageList) chan []string {
 	return out
 }
 
-func GenImageResourceChan(image model.ImageList, resources []model.TensorContainer) chan []string {
+func GenImageResourceChan(image model.ImageList, resources []store.TensorResources) chan []string {
 	out := make(chan []string)
-	go func(image model.ImageList, resources []model.TensorContainer) {
+	go func(image model.ImageList, resources []store.TensorResources) {
 		defer close(out)
 		for i := range resources {
 			info := GenResponseInfo(image, resources[i])
@@ -230,8 +231,8 @@ func getImageName(image model.ImageList) string {
 	return fmt.Sprintf("%s:%s", image.FullRepoName, image.Tags)
 }
 
-func GenResponseInfo(image model.ImageList, file model.TensorContainer) []string {
-	info := []string{getImageName(image), image.Library, file.Name, file.ResourceName, file.Namespace, file.ClusterKey}
+func GenResponseInfo(image model.ImageList, file store.TensorResources) []string {
+	info := []string{getImageName(image), image.Library, file.Name, file.ResourceName, file.Namespace, file.ClusterName}
 	return info
 }
 
