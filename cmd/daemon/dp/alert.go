@@ -69,7 +69,7 @@ func sendEventByKafka(ctx context.Context, mq mq.Writer, eventArgs *EventArg, re
 		Value: ebyptes,
 		Headers: []kafka.Header{{
 			Key:   model.MHeaderKeyEventType,
-			Value: []byte(model.MEventTypeHolmes),
+			Value: []byte(model.MEventTypeDrift),
 		}},
 	})
 	if err != nil {
