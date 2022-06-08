@@ -39,7 +39,7 @@ type Resp struct {
 	ID        string
 	Time      int64
 	UserName  string
-	IP        string
+	Ip        string
 	Operation string
 	Detail    string
 }
@@ -113,7 +113,7 @@ func (s *Service) GetAuditLog(ctx context.Context, opt *QueryNaviAuditLogOpt) ([
 			ID:        item.Id,
 			Time:      record.Timestamp,
 			UserName:  record.User.Name,
-			IP:        record.HttpRequest.RemoteIP,
+			Ip:        record.HttpRequest.RemoteIP,
 			Operation: record.Verb,
 			Detail:    record.Detail,
 		})

@@ -26,6 +26,12 @@ func GetLdapGroupByName(ctx context.Context, db *gorm.DB, name string) (*model.L
 	return &group, err
 }
 
+func GetLdapGroupByID(ctx context.Context, db *gorm.DB, id int32) (*model.LdapGroup, error) {
+	var group model.LdapGroup
+	var err = db.WithContext(ctx).Where("id = ?", id).First(&group).Error
+	return &group, err
+}
+
 func CheckLdapGroupExists(ctx context.Context, db *gorm.DB, id int32) (bool, error) {
 	var count int64
 	var err = db.WithContext(ctx).Model(&model.LdapGroup{}).Where("id = ?", id).Count(&count).Error

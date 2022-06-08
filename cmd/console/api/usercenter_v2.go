@@ -8,17 +8,16 @@ import (
 
 func (api *api) userCenter() func(chi.Router) {
 	return func(r chi.Router) {
-		if !api.httpAuditDisabled {
-			ecCli, err := api.esCli.Get()
-			if err == nil {
-				r.Use(audit.ESAudit(ecCli))
-			}
-		}
-
 		r.Get("/config/loginOption", api.GetLoginOption())
 		r.Get("/login/secret", api.getLoginSecret())
 		r.Group(func(r chi.Router) {
 			r.Use(licenseVerify)
+			if !api.httpAuditDisabled {
+				ecCli, err := api.esCli.Get()
+				if err == nil {
+					r.Use(audit.ESAudit(ecCli))
+				}
+			}
 			r.Post("/login", api.login())
 			r.Post("/ldapLogin", api.LdapLogin())
 			r.Post("/radiusLogin", api.RadiusLogin())
@@ -36,6 +35,12 @@ func (api *api) userCenter() func(chi.Router) {
 		})
 		r.Group(func(r chi.Router) {
 			r.Use(jwtauth.Verifier(api.tokenAuth), authenticator(api.rdb), jwtAccessCheck(api.rdb))
+			if !api.httpAuditDisabled {
+				ecCli, err := api.esCli.Get()
+				if err == nil {
+					r.Use(audit.ESAudit(ecCli))
+				}
+			}
 			r.Post("/config/ldap", api.UpdateLdapConf())
 			r.Get("/config/ldap", api.GetLdapConf())
 			r.Post("/config/ldap/cert", api.UpdateLdapCert())

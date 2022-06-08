@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/go-chi/chi/middleware"
-	"github.com/go-chi/jwtauth"
 	v7 "github.com/olivere/elastic/v7"
 	"github.com/rs/zerolog"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
@@ -233,15 +232,7 @@ func requestLogFields(r *http.Request) *model.NaviAuditEvent {
 		requestID = reqID
 	}
 
-	userName := "unknown"
-	_, claims, err := jwtauth.FromContext(r.Context())
-	if err == nil && len(claims) > 0 {
-		raw, ok := claims[JWTKeyUsername]
-		if ok {
-			userName = raw.(string)
-		}
-	}
-
+	userName := model.GetUsernameFromContext(r.Context())
 	user := &model.UserInfo{Name: userName}
 
 	return &model.NaviAuditEvent{
@@ -446,13 +437,13 @@ func init() {
 	})
 
 	routeAction.POST("/api/v2/containerSec/scanner/imagereject/trustedImages/rsa", func(params Params) (string, string) {
-		return createAction, "新增密钥"
+		return createAction, "新增密钥{{.}}"
 	})
 	routeAction.PUT("/api/v2/containerSec/scanner/imagereject/trustedImages/rsa/:id", func(params Params) (string, string) {
-		return editAction, "编辑密钥"
+		return editAction, "编辑密钥{{.}}"
 	})
 	routeAction.POST("/api/v2/containerSec/scanner/imagereject/trustedImages/rsa/:id", func(params Params) (string, string) {
-		return deleteAction, "删除密钥"
+		return deleteAction, "删除密钥{{.}}"
 	})
 
 	routeAction.PUT("/api/v2/containerSec/scanner/scan-config/config/:scanConfigID", func(params Params) (string, string) {
@@ -511,7 +502,7 @@ func init() {
 		return deleteAction, "删除阻断策略{{.}}"
 	})
 	routeAction.PUT("/api/v2/containerSec/scanner/tasks/:id/status", func(params Params) (string, string) {
-		return editAction, "编辑扫描记录"
+		return editAction, "编辑镜像扫描任务"
 	})
 
 	//合规检测
@@ -584,7 +575,7 @@ func init() {
 	routeAction.POST("/api/v2/platform/data/ttl", func(params Params) (string, string) {
 		return editAction, "编辑数据管理"
 	})
-	routeAction.PUT("/api/v2/platform/data/gc", func(params Params) (string, string) {
+	routeAction.POST("/api/v2/platform/data/gc", func(params Params) (string, string) {
 		return deleteAction, "删除数据"
 	})
 	routeAction.POST("/api/v2/usercenter/addUser", func(params Params) (string, string) {
@@ -596,8 +587,20 @@ func init() {
 	routeAction.POST("/api/v2/usercenter/resetPassword", func(params Params) (string, string) {
 		return editAction, "编辑密码"
 	})
-	routeAction.POST("/api/v2/usercenter/config", func(params Params) (string, string) {
-		return editAction, "编辑登录配置"
+	routeAction.POST("/api/v2/usercenter/config/ldap", func(params Params) (string, string) {
+		return editAction, "编辑Ldap配置"
+	})
+	routeAction.POST("/api/v2/usercenter/config/radius", func(params Params) (string, string) {
+		return editAction, "编辑radius配置"
+	})
+	routeAction.POST("/api/v2/usercenter/ldapGroup", func(params Params) (string, string) {
+		return editAction, "新增Ldap组{{.}}"
+	})
+	routeAction.PUT("/api/v2/usercenter/ldapGroup", func(params Params) (string, string) {
+		return editAction, "编辑Ldap组{{.}}"
+	})
+	routeAction.DELETE("/api/v2/usercenter/ldapGroup", func(params Params) (string, string) {
+		return editAction, "删除Ldap组{{.}}"
 	})
 	routeAction.PUT("/api/v2/platform/assets/clusters", func(params Params) (string, string) {
 		return editAction, "编辑集群"
