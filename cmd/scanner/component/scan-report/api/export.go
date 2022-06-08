@@ -1,17 +1,16 @@
 package api
 
 import (
+	"encoding/hex"
 	"fmt"
-	"net/http"
-	"os"
 	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	json "github.com/json-iterator/go"
+
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scan-report/service"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
-	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
@@ -69,6 +68,18 @@ func (s *ExportApiSrv) CreateImageExportTask(ctx *gin.Context) {
 		return
 	}
 	response.JSONOK(ctx, response.WithItem(ResponseMsg{Msg: "创建导出任务成功"}))
+}
+
+func (s *ExportApiSrv) CheckScanTask(ctx *gin.Context) {
+
+	scanTaskId := util.GetInt64FromQuery(ctx, "scanTaskId")
+
+	exportLimit, err := s.exportSrv.CheckScanTask(ctx, scanTaskId)
+	if err != nil {
+		response.JSONError(ctx, err)
+		return
+	}
+	response.JSONOK(ctx, response.WithItem(exportLimit))
 }
 
 func (s *ExportApiSrv) CreateScanResultExportTask(ctx *gin.Context) {
@@ -147,6 +158,7 @@ func (s *ExportApiSrv) GetReportTaskList(ctx *gin.Context) {
 }
 
 func (s *ExportApiSrv) DownLoad(ctx *gin.Context) {
+
 	id := util.GetInt64FromQuery(ctx, "id")
 
 	task, err := s.exportSrv.GetExportTask(ctx, id)
@@ -154,44 +166,33 @@ func (s *ExportApiSrv) DownLoad(ctx *gin.Context) {
 		response.JSONError(ctx, err)
 		return
 	}
-	fp, err := os.OpenFile(task.FilePath, os.O_RDONLY, os.ModePerm)
+
+	task.FilePath = GetFilename(task.FilePath)
+
+	urlPath := fmt.Sprintf("/api/v2/files/export/file/%s", GetFilename(task.FilePath))
+
+	encrypted, err := util.AesEncryptCBC([]byte(urlPath), []byte(util.DownloadFileKey))
 	if err != nil {
 		response.JSONError(ctx, err)
 		return
 	}
-	defer func() {
-		if err := fp.Close(); err != nil {
-			logging.GetLogger().Err(err).Str("FilePath", task.FilePath).Msg("Close")
-		}
-	}()
+	token, err := util.NewJWT(urlPath).GenJWTToken(hex.EncodeToString(encrypted), time.Minute*60)
 
-	stat, err := fp.Stat()
 	if err != nil {
 		response.JSONError(ctx, err)
 		return
 	}
 
-	all := stat.Size()
-	logging.GetLogger().Info().Str("Filename", task.FilePath).Int64("size", all).Msg("export download")
-
-	splits := strings.Split(task.FilePath, "/")
-	filename := task.FilePath
-	if len(splits) > 0 {
-		filename = splits[len(splits)-1]
-	}
-
-	contentType := "application/octet-stream;application/zip"
-	ctx.Header("Content-Disposition", "attachment; filename="+filename) // 指定下载文件名
-	ctx.Header("Content-Transfer-Encoding", "binary")
-	ctx.Header("Content-Type", contentType)
-
-	extraHeaders := map[string]string{"Content-Disposition": "attachment; filename=" + filename, "Content-Transfer-Encoding": "binary"}
-
-	ctx.DataFromReader(http.StatusOK, all, contentType, fp, extraHeaders)
+	url := fmt.Sprintf("%s?jwt=%s", urlPath, token)
+	response.JSONOK(ctx, response.WithItem(DownloadResponse{URL: url}))
 
 	return
 }
 
 type ResponseMsg struct {
 	Msg string `json:"msg"`
+}
+
+type DownloadResponse struct {
+	URL string `json:"url"`
 }

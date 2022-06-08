@@ -105,6 +105,32 @@ func NewAnError(httpCode int, err error, suberrors ...Suberror) error {
 	}
 }
 
+func NoTokenError(httpCode int, err error, suberrors ...Suberror) error {
+
+	return AnError{
+		detailedError{
+			err:       err,
+			English:   "no token",
+			Chinese:   "未获取到token",
+			HTTPCode:  httpCode,
+			Suberrors: suberrors,
+		},
+	}
+}
+
+func InvalidTokenError(httpCode int, err error, suberrors ...Suberror) error {
+
+	return AnError{
+		detailedError{
+			err:       err,
+			English:   "invalid token or token  expired ",
+			Chinese:   "无效的token,token已失效",
+			HTTPCode:  httpCode,
+			Suberrors: suberrors,
+		},
+	}
+}
+
 func NewCaptchaError(httpCode int, err error, suberrors ...Suberror) error {
 
 	return AnError{

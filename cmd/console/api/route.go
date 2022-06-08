@@ -28,20 +28,20 @@ const (
 
 // SetupRoutes is to set up the chi router
 func SetupRoutes(
-		ctx context.Context,
-		r *chi.Mux,
-		tokenAuth *jwtauth.JWTAuth,
-		rdb *databases.RDBInstance,
-		scannerURL string,
-		exportURL string,
-		secProfileCoreURL string,
-		microsegURL string,
-		webhookURL string,
-		redisClient *redis.Client,
-		harborClient *harbor.HarborRESTClient,
-		ecCli pb.EventsCenterBizServiceClient,
-		es *elastic.ESClient,
-		httpAuditDisabled bool,
+	ctx context.Context,
+	r *chi.Mux,
+	tokenAuth *jwtauth.JWTAuth,
+	rdb *databases.RDBInstance,
+	scannerURL string,
+	exportURL string,
+	secProfileCoreURL string,
+	microsegURL string,
+	webhookURL string,
+	redisClient *redis.Client,
+	harborClient *harbor.HarborRESTClient,
+	ecCli pb.EventsCenterBizServiceClient,
+	es *elastic.ESClient,
+	httpAuditDisabled bool,
 
 ) {
 	logging.Get().Debug().Msg("setting up routes...")
@@ -96,6 +96,12 @@ func SetupRoutes(
 	r.Route(NormalAPIURLPrefix, func(r chi.Router) {
 		r.Route("/usercenter", api.userCenter())
 		r.Route("/license", api.licenseRouter())
+
+		r.Group(func(r chi.Router) {
+			r.Use(downloadAuth())
+			r.Route("/files", api.exportDownload())
+		})
+
 		r.Group(func(r chi.Router) {
 			// normal check
 			r.Use(jwtauth.Verifier(api.tokenAuth), authenticator(api.rdb), jwtAccessCheck(api.rdb))
@@ -112,8 +118,8 @@ func SetupRoutes(
 			// proxy to tensor-microseg
 			r.Handle("/microseg/*", api.microSegmentation())
 		})
-
 	})
+
 	r.Route("/internal", func(r chi.Router) {
 		r.Route("/platform/assets", api.assets())
 		r.Route("/platform/networkTopo", api.networkTopo())

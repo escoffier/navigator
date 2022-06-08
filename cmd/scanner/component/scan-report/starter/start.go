@@ -21,17 +21,18 @@ type BackgroundTasks struct {
 }
 
 type Config struct {
-	BatchImage      int64
-	Internal        time.Duration
-	BatchSize       int
-	EmailHost       string
-	EmailPort       int64
-	EmailUser       string
-	EmailPasswd     string
-	FileDir         string
-	ParallelTaskNum int
-	Expiration      int64
-	Rdb             *databases.RDBInstance
+	BatchImage              int64
+	Internal                time.Duration
+	BatchSize               int
+	EmailHost               string
+	EmailPort               int64
+	EmailUser               string
+	EmailPasswd             string
+	FileDir                 string
+	ParallelTaskNum         int
+	Expiration              int64
+	MaxImageByOneExportTask int64
+	Rdb                     *databases.RDBInstance
 }
 
 func NewDefaultConfig() *Config {
@@ -66,7 +67,7 @@ func NewBackgroundTasks(ctx context.Context, config Config) *BackgroundTasks {
 	imageSrv := component.NewConScannerSrv(dal, registryDal, dal, scanConfigDal, vulnDal)
 
 	imageExportSrv := export.NewImageExport(resourceDal, exportTaskDal, imageSrv, config.FileDir, config.Internal)
-	scanTaskExportSrv := export.NewScanTaskExport(imageExportSrv, exportTaskDal, dal, config.FileDir, config.Internal, imageExportSrv, config.BatchImage)
+	scanTaskExportSrv := export.NewScanTaskExport(imageExportSrv, exportTaskDal, dal, config.FileDir, config.Internal, imageExportSrv, config.BatchImage, config.MaxImageByOneExportTask)
 	clearFile := export.NewClearFile(config.FileDir, config.Expiration, exportTaskDal)
 	srv := &BackgroundTasks{
 		ScanReport:     scanReportServer,
@@ -80,7 +81,7 @@ func NewBackgroundTasks(ctx context.Context, config Config) *BackgroundTasks {
 func (s *BackgroundTasks) Start(ctx context.Context) {
 	// 导出镜像报告
 	go func() {
-		tick := time.NewTicker(s.ScanReport.Interval)
+		tick := time.NewTicker(time.Second * 10)
 		defer tick.Stop()
 		for {
 			s.ScanReport.Run(ctx)
@@ -91,7 +92,7 @@ func (s *BackgroundTasks) Start(ctx context.Context) {
 
 	// 镜像扫描数据导出excel
 	go func() {
-		tick := time.NewTicker(s.ImageExport.Interval)
+		tick := time.NewTicker(time.Second * 10)
 		defer tick.Stop()
 		for {
 			s.ImageExport.Run(ctx)
@@ -101,7 +102,7 @@ func (s *BackgroundTasks) Start(ctx context.Context) {
 	}()
 	// 扫描任务中镜像扫描数据导出excel
 	go func() {
-		tick := time.NewTicker(s.ScanTaskExport.Interval)
+		tick := time.NewTicker(time.Second * 10)
 		defer tick.Stop()
 		for {
 			s.ScanTaskExport.Run(ctx)
@@ -112,7 +113,7 @@ func (s *BackgroundTasks) Start(ctx context.Context) {
 
 	// 删除过期文件
 	go func() {
-		tick := time.NewTicker(s.ScanTaskExport.Interval)
+		tick := time.NewTicker(time.Minute * 30)
 		defer tick.Stop()
 		for {
 			s.ClearFile.Run(ctx)

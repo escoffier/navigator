@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -13,9 +14,11 @@ import (
 	"strings"
 	"time"
 
+	param "github.com/oceanicdev/chi-param"
+	"gitlab.com/security-rd/go-pkg/databases"
+
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/license"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
-	"gitlab.com/security-rd/go-pkg/databases"
 
 	"github.com/dgrijalva/jwt-go"
 	"github.com/go-chi/jwtauth"
@@ -634,6 +637,47 @@ func jwtAccessCheck(db *databases.RDBInstance) func(http.Handler) http.Handler {
 				RespAndLog(w, r.Context(),
 					NewNoAccess(http.StatusForbidden,
 						fmt.Errorf("access invalid")))
+				return
+			}
+
+			next.ServeHTTP(w, r.WithContext(ctx))
+		})
+	}
+}
+
+func downloadAuth() func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			ctx, cancel := context.WithTimeout(r.Context(), accessCheckTimeout)
+			defer cancel()
+			token, _ := param.QueryString(r, "jwt")
+			if token == "" {
+				RespAndLog(w, ctx,
+					NoTokenError(http.StatusBadRequest,
+						fmt.Errorf("no token")))
+				return
+			}
+			// 验证token是否已失效
+			jt := util.NewJWT(r.URL.Path)
+			if !jt.ValidateToken(token) {
+				RespAndLog(w, ctx, InvalidTokenError(http.StatusBadRequest, fmt.Errorf("token invalid or expired")))
+				return
+			}
+
+			// 解密
+			jwtToken, err := jt.DecodeJwtToken(token)
+			if err != nil {
+				RespAndLog(w, ctx, InvalidTokenError(http.StatusBadRequest, fmt.Errorf("token invalid or expired")))
+				return
+			}
+			decodeString, err := hex.DecodeString(jwtToken.Subject)
+			if err != nil {
+				RespAndLog(w, ctx, InvalidTokenError(http.StatusBadRequest, fmt.Errorf("token invalid or expired")))
+				return
+			}
+			decrypted, err := util.AesDecryptCBC(decodeString, []byte(util.DownloadFileKey))
+			if err != nil || string(decrypted) != r.URL.Path {
+				RespAndLog(w, ctx, InvalidTokenError(http.StatusBadRequest, fmt.Errorf("token invalid or expired")))
 				return
 			}
 
