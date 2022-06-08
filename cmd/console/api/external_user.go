@@ -800,6 +800,10 @@ func (api *api) CreateLdapGroup() http.HandlerFunc {
 			Name:    group.Name,
 			Role:    group.Role,
 			Modules: modules,
+		}), response.WithTarget(&response.TargetRef{
+			Name: group.Name,
+			ID:   strconv.Itoa(int(group.ID)),
+			Link: "",
 		}))
 	}
 }
@@ -876,6 +880,10 @@ func (api *api) UpdateLdapGroup() http.HandlerFunc {
 			Name:    group.Name,
 			Role:    group.Role,
 			Modules: modules,
+		}), response.WithTarget(&response.TargetRef{
+			Name: group.Name,
+			ID:   strconv.Itoa(int(group.ID)),
+			Link: "",
 		}))
 	}
 }
@@ -932,12 +940,23 @@ func (api *api) DeleteLdapGroup() http.HandlerFunc {
 			return
 		}
 
+		var groupName string
+		var groupID int32
+		ldapGroup, err := dal.GetLdapGroupByID(ctx, api.rdb.Get(), cliReq.ID)
+		if err == nil {
+			groupName = ldapGroup.Name
+			groupID = ldapGroup.ID
+		}
 		err = dal.DeleteLdapGroup(ctx, api.rdb.Get(), cliReq.ID)
 		if err != nil {
 			apperror.RespAndLog(w, ctx, err)
 			return
 		}
 
-		response.Ok(w, response.WithApiVersion(accountAPIVersion))
+		response.Ok(w, response.WithApiVersion(accountAPIVersion), response.WithTarget(&response.TargetRef{
+			Name: groupName,
+			ID:   strconv.Itoa(int(groupID)),
+			Link: "",
+		}))
 	}
 }
