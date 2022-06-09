@@ -276,12 +276,15 @@ func (s *ScanReportSrv) getImagesInfo(ctx context.Context, data *scanreport.Tens
 		}
 		// 查询漏洞数据
 		for i := range imageInfo {
-			vulns, _, err := s.vulnDal.SearchVuln(ctx, store.SearchVulnParm{ImageID: imageInfo[i].ImageID}, nil)
-			if err != nil {
-				logging.GetLogger().Err(err).Int64("ImageID", imageInfo[i].ImageID).Msg("getImagesInfo.SearchVuln")
-				return nil, err
+
+			if imageInfo[i].ImageID > 0 {
+				vulns, _, err := s.vulnDal.SearchVuln(ctx, store.SearchVulnParm{ImageID: imageInfo[i].ImageID}, nil)
+				if err != nil {
+					logging.GetLogger().Err(err).Int64("ImageID", imageInfo[i].ImageID).Msg("getImagesInfo.SearchVuln")
+					return nil, err
+				}
+				imageInfo[i].VulnInfo = vulns
 			}
-			imageInfo[i].VulnInfo = vulns
 		}
 
 		resultBuilder.BuildByImagesInfo(imageInfo)
