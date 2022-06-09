@@ -18,12 +18,6 @@ func (api *api) containerSec() func(chi.Router) {
 	}
 }
 
-func (api *api) containerSecNoAuth() func(chi.Router) {
-	return func(r chi.Router) {
-		r.Route("/export", api.exportDownload())
-	}
-}
-
 func (api *api) OpenApiContainerSec() func(chi.Router) {
 	return func(r chi.Router) {
 		r.Route("/scap", api.scapOpenApi())

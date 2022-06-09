@@ -648,7 +648,7 @@ func jwtAccessCheck(db *databases.RDBInstance) func(http.Handler) http.Handler {
 func downloadAuth() func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			ctx, cancel := context.WithTimeout(r.Context(), accessCheckTimeout)
+			ctx, cancel := context.WithTimeout(r.Context(), defaultAccountTimeout)
 			defer cancel()
 			token, _ := param.QueryString(r, "jwt")
 			if token == "" {
@@ -681,7 +681,7 @@ func downloadAuth() func(http.Handler) http.Handler {
 				return
 			}
 
-			next.ServeHTTP(w, r.WithContext(ctx))
+			next.ServeHTTP(w, r)
 		})
 	}
 }

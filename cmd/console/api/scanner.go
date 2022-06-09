@@ -324,7 +324,7 @@ func (api *api) RedirectToExportDownload() http.HandlerFunc {
 		roundTripper := &http.Transport{
 			Proxy: http.ProxyFromEnvironment,
 			DialContext: (&net.Dialer{
-				Timeout:   30 * time.Minute,
+				Timeout:   300 * time.Minute,
 				KeepAlive: 10 * time.Second,
 			}).DialContext,
 			ForceAttemptHTTP2:     true,
