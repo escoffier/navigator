@@ -75,7 +75,7 @@ func setupChiRouter(
 func Timeout(timeout time.Duration) func(next http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		fn := func(w http.ResponseWriter, r *http.Request) {
-			if strings.Contains(r.RequestURI, "/export/task/download") {
+			if strings.Contains(r.RequestURI, "/files") {
 				logging.GetLogger().Info().Str("RequestURI", r.RequestURI).Msg("Get download URI")
 				timeout = 120 * time.Minute
 			}
