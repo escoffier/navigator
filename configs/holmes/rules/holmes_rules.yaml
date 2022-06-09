@@ -1,5 +1,60 @@
 - required_engine_version: 7
 
+##test
+# - rule: Connecting to a remote server through redis client in container
+#   hid: exec_1001
+#   hthreats: 0
+#   suggestion:
+#     en:
+#       key: "Suggestions"
+#       value: "Use the Immune Defence training application to block new or modified executables and restrict the users and recipients of the commands."
+#     zh:
+#       key: "处置建议"
+#       value: "使用免疫防御训练应用，阻拦新的或被修改的可执行文件，限制执行命令的用户和接收对象。"
+#   desc: Connecting to a remote server through redis client in container
+#   condition: >
+#    evt.type = write and container and (proc.cmdline contains "redis-cli -h" or evt.arg.data contains "6379") and not proc.cmdline contains "localhost" and not proc.cmdline contains "127.0.0.1" and not k8s.pod.name contains "51c1c6"
+#   output: >
+#     Connecting to a remote server through redis client in container (zh_msg=容器内通过redis客户端连接远程服务器,rule_type=Execution,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,
+#     original_info=user=%user.name user_loginuid=%user.loginuid %container.info
+#     shell=%proc.name parent=%proc.pname terminal=%proc.tty container_id=%container.id image=%container.image.repository)
+#   priority: WARNING
+#   tags: [ATT&CK, container, shell, mitre_execution]
+
+# - rule: View login information in the container
+#   hid: disc_1001
+#   hthreats: 1
+#   suggestion:
+#     en:
+#       key: "Suggestions"
+#       value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands and disable mounting of sensitive directories and files."
+#     zh:
+#       key: "处置建议"
+#       value: "使用免疫防御训练应用，限制敏感文件和命令的用户权限，禁止挂载敏感目录和文件。"
+#   desc: View login information in the container
+#   condition: >
+#     open_read and container and not k8s.pod.name contains "console" and fd.name="var/log/lastlog" or fd.name="/etc/localtime" and not proc.cmdline contains "bash" and not k8s.pod.name contains "calico"
+#   output: View login information inside the container (zh_msg=容器内查看登录信息,rule_type=Discovery,fd.name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type)
+#   priority: WARNING
+#   tags: [ATT&CK]
+
+# - rule: View history commands in the container
+#   hid: disc_1002
+#   hthreats: 1
+#   suggestion:
+#     en:
+#       key: "Suggestions"
+#       value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands and disable mounting of sensitive directories and files."
+#     zh:
+#       key: "处置建议"
+#       value: "使用免疫防御训练应用，限制敏感文件和命令的用户权限，禁止挂载敏感目录和文件。"
+#   desc: View history commands in the container
+#   condition: >
+#     container and proc.cmdline contains "history"
+#   output: View login information inside the container (zh_msg=容器内查看历史命令,rule_type=Discovery,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type)
+#   priority: WARNING
+#   tags: [ATT&CK]
+
 ##Watson
 - rule: Gaining sensitive information in Watson
   hid: hp_01
@@ -478,9 +533,9 @@
       value: "使用免疫防御训练应用，阻拦新的或被修改的可执行文件，限制执行命令的用户和接收对象。"
   desc: Telnet Program runs inside container that allows remote code execution(Risk of Reverse Shell exploit)
   condition: >
-    evt.type=recvfrom and proc.name = "telnet" and container and not ignore_proc_args
+    evt.type=recvfrom and proc.name contains "telnet" and container and not ignore_proc_args
   output: >
-    Telnet runs inside container that allows remote code execution (zh_msg=容器内通过telnet反弹shell),rule_type=Execution,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,
+    Telnet runs inside container that allows remote code execution (zh_msg=容器内通过telnet反弹shell),rule_type=Execution,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_name=%proc.name,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,
     original_info=user=%user.name user_loginuid=%user.loginuid
     container_id=%container.id container_name=%container.name image=%container.image.repository:%container.image.tag)
   priority: ALERT
@@ -526,7 +581,7 @@
   priority: ALERT
   tags: [ATT&CK, network, process, mitre_execution]
 
-- rule: Run attacks through socket and dup
+- rule: Reverse shell through socket and dup
   hid: exec_08
   hthreats: 1
   suggestion:
@@ -536,10 +591,63 @@
     zh:
       key: "处置建议"
       value: "使用免疫防御训练应用，阻拦新的或被修改的可执行文件，限制执行命令的用户和接收对象。"
-  desc: Detected attacks through socket and dup
+  desc: Reverse shell through socket and dup
   condition: evt.type=dup and container and fd.num in (0, 1, 2) and fd.type in ("ipv4", "ipv6") and not k8s.pod.name contains "98166d" and not k8s.pod.name contains "42cca6"
   output: >
-    Reverse shell connection (zh_msg=检测到通过socket和dup进行攻击，例如反弹shell、暴力破解等,rule_type=Execution,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name %container.info process=%proc.name parent=%proc.pname terminal=%proc.tty container_id=%container.id image=%container.image.repository fd.name=%fd.name fd.num=%fd.num fd.type=%fd.type fd.sip=%fd.sip)
+    Reverse shell through socket and dup (zh_msg=容器内通过socket和dup反弹shell,rule_type=Execution,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name %container.info process=%proc.name parent=%proc.pname terminal=%proc.tty container_id=%container.id image=%container.image.repository fd.name=%fd.name fd.num=%fd.num fd.type=%fd.type fd.sip=%fd.sip)
+  priority: ALERT
+  tags: [ATT&CK, container, shell, mitre_execution]
+
+- rule: Reverse shell through zsh
+  hid: exec_09
+  hthreats: 1
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "Use the Immune Defence training application to block new or modified executables and restrict the users and recipients of the commands."
+    zh:
+      key: "处置建议"
+      value: "使用免疫防御训练应用，阻拦新的或被修改的可执行文件，限制执行命令的用户和接收对象。"
+  desc: zsh Program runs inside container that allows remote code execution(Risk of Reverse Shell exploit)
+  condition: >
+    evt.type=recvfrom and proc.name contains "zsh" and container and not ignore_proc_args
+  output: >
+    zsh runs inside container that allows remote code execution (zh_msg=容器内通过zsh反弹shell),rule_type=Execution,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_name=%proc.name,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,
+    original_info=user=%user.name user_loginuid=%user.loginuid
+    container_id=%container.id container_name=%container.name image=%container.image.repository:%container.image.tag)
+  priority: ALERT
+  tags: [ATT&CK, network, process, mitre_execution]
+
+- rule: Running k8s malicious tools in the container
+  hid: exec_10
+  hthreats: 0
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "Use the Immune Defence training application to block new or modified executables and restrict the users and recipients of the commands."
+    zh:
+      key: "处置建议"
+      value: "使用免疫防御训练应用，阻拦新的或被修改的可执行文件，限制执行命令的用户和接收对象。"
+  desc: Running malicious tools in the container
+  condition: >
+   evt.type = execve and container and
+   (proc.cmdline contains "cdk" or
+    proc.cmdline contains "k0otkit" or
+    proc.cmdline contains "kubesploit" or
+    proc.cmdline contains "red-kube" or
+    proc.cmdline contains "ccat" or
+    proc.cmdline contains "kubestriker" or
+    proc.cmdline contains "kube-hunter" or
+    proc.cmdline contains "evaluate" or
+    proc.cmdline contains "run" or
+    proc.cmdline contains "exploit" or
+    proc.cmdline contains "exp" or
+    proc.cmdline contains "poc" or
+    proc.cmdline contains "payload" )
+  output: >
+    Running malicious tools in the container (zh_msg=容器内运行恶意工具,rule_type=Execution,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,
+    original_info=user=%user.name user_loginuid=%user.loginuid %container.info
+    shell=%proc.name parent=%proc.pname terminal=%proc.tty container_id=%container.id image=%container.image.repository)
   priority: ALERT
   tags: [ATT&CK, container, shell, mitre_execution]
 
@@ -567,7 +675,7 @@
   priority: WARNING
   tags: [ATT&CK, file, mitre_persistence]
 
-- rule: User mgmt binaries
+- rule: run user mgmt binaries
   hid: pers_02
   hthreats: 0
   suggestion:
@@ -584,7 +692,7 @@
     Some innocuous commandlines that don't actually change anything are excluded.
   condition: >
     spawned_process and proc.name in (user_mgmt_binaries) and
-    not proc.name in (su, sudo, lastlog, nologin, unix_chkpwd) and not container and
+    not proc.name in (su, sudo, lastlog, nologin, unix_chkpwd) and
     not proc.pname in (cron_binaries, systemd, systemd.postins, udev.postinst, run-parts) and
     not proc.cmdline startswith "passwd -S" and
     not proc.cmdline startswith "useradd -D" and
@@ -597,8 +705,7 @@
     not chage_list and
     not user_known_user_management_activities
   output: >
-    User management binary command run outside of container
-    (zh_msg=容器外运行管理用户、密码或权限的命令,rule_type=Persistence,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid parent=%proc.pname gparent=%proc.aname[2] ggparent=%proc.aname[3] gggparent=%proc.aname[4])
+    run user mgmt binaries (zh_msg=运行管理用户、密码或权限的命令,rule_type=Persistence,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid parent=%proc.pname gparent=%proc.aname[2] ggparent=%proc.aname[3] gggparent=%proc.aname[4])
   priority: WARNING
   tags: [ATT&CK, host, users, mitre_persistence]
 
@@ -1307,7 +1414,7 @@
     an attempt to read any sensitive file (e.g. files containing user/password/authentication
     information). Exceptions are made for known trusted programs.
   condition: >
-    sensitive_files and open_read
+    sensitive_files and open_read and container
     and proc_name_exists
     and not proc.name in (user_mgmt_binaries, userexec_binaries, package_mgmt_binaries,
      cron_binaries, read_sensitive_file_binaries, shell_binaries, hids_binaries,
@@ -1337,7 +1444,7 @@
   priority: WARNING
   tags: [ATT&CK, filesystem, mitre_credential_access, mitre_discovery]
 
-- rule: Namespaces bypass
+- rule: View network information in the container
   hid: disc_02
   hthreats: 1
   suggestion:
@@ -1351,7 +1458,7 @@
   condition: >
     (open_read and container and
     proc.name in (namespace_bypass_cmds))
-  output: Suspected Namespaces bypass (zh_msg=疑似命名空间绕过,rule_type=Discovery,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type)
+  output: View network information in the container (zh_msg=容器内查看网络信息,rule_type=Discovery,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type)
   priority: ALERT
   tags: [ATT&CK]
 
@@ -1368,11 +1475,9 @@
   desc: Detect attempts to read shell configuration files by non-shell programs
   condition: >
     open_read and
-    consider_shell_config_reads and
     (fd.filename in (shell_config_filenames) or
      fd.name in (shell_config_files) or
-     fd.directory in (shell_config_directories)) and
-    (not proc.name in (shell_binaries))
+     fd.directory in (shell_config_directories))
   output: >
     a shell configuration file was read by a non-shell program (zh_msg=非shell程序读取shell配置文件,rule_type=Discovery,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid file=%fd.name container_id=%container.id image=%container.image.repository)
   priority: WARNING
@@ -1448,7 +1553,59 @@
   priority: ERROR
   tags: [ATT&CK, network, process, mitre_discovery, mitre_exfiltration]
 
+- rule: View process information in the container
+  hid: disc_07
+  hthreats: 0
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "Use the Immune Defence training application to block new or modified executables and restrict the users and recipients of the commands."
+    zh:
+      key: "处置建议"
+      value: "使用免疫防御训练应用，阻拦新的或被修改的可执行文件，限制执行命令的用户和接收对象。"
+  desc: View process information in the container
+  condition: >
+   open_read and container and fd.name startswith "/proc/" and fd.name contains "pid_max" and evt.arg.flags = O_RDONLY and not k8s.pod.name contains "holmes" and not k8s.pod.name contains "calico" and not k8s.pod.name contains "node-exporter" and not k8s.pod.name contains "console" and not k8s.pod.name contains "51c1c6" and not k8s.pod.name contains "reviews" and not k8s.pod.name contains "prometheus" and not k8s.pod.name contains "console" and not k8s.pod.name contains "missing-contain"
+  output: >
+    View process information in the container (zh_msg=容器内查看进程信息,rule_type=Execution,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,
+    original_info=user=%user.name user_loginuid=%user.loginuid %container.info
+    shell=%proc.name parent=%proc.pname terminal=%proc.tty container_id=%container.id image=%container.image.repository)
+  priority: WARNING
+  tags: [ATT&CK, container, shell, mitre_execution]
 
+- rule: View disk information in the container
+  hid: disc_08
+  hthreats: 1
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands and disable mounting of sensitive directories and files."
+    zh:
+      key: "处置建议"
+      value: "使用免疫防御训练应用，限制敏感文件和命令的用户权限，禁止挂载敏感目录和文件。"
+  desc: View disk information in the container
+  condition: >
+    open_read and container and (proc.cmdline contains "fdisk -l" or (fd.name startswith "/sys/dev/block/" and evt.arg.flags contains O_RDONLY))
+  output: View disk information inside the container (zh_msg=容器内查看磁盘信息,rule_type=Discovery,fd.name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type)
+  priority: WARNING
+  tags: [ATT&CK]
+
+- rule: Scanning web directories in the container
+  hid: disc_09
+  hthreats: 1
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands and disable mounting of sensitive directories and files."
+    zh:
+      key: "处置建议"
+      value: "使用免疫防御训练应用，限制敏感文件和命令的用户权限，禁止挂载敏感目录和文件。"
+  desc: Scanning web directories in the container
+  condition: >
+    open_read and container and (fd.directory contains "www" or fd.directory contains "apache" or fd.directory contains "tomcat" or fd.directory contains "web" or fd.directory contains "http") and (fd.name contains ".jsp" or fd.name contains ".php" or fd.name contains ".config" or fd.name contains ".bak" or fd.name contains ".old" or fd.name contains ".log") and not k8s.pod.name contains "holmes"
+  output: Scanning web directories in the container (zh_msg=容器内扫描web目录,fd.name=%fd.name,rule_type=Discovery,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type)
+  priority: WARNING
+  tags: [ATT&CK]
 
 ##attck_rule_type=Lateral_Movement
 - rule: Launch Sensitive Mount Container
@@ -2283,7 +2440,7 @@
     ]
 
 - list: sensitive_file_names
-  items: [/etc/shadow, /etc/sudoers, /etc/pam.conf, /etc/security/pwquality.conf]
+  items: [/etc/shadow, /etc/passwd, /etc/sudoers, /etc/pam.conf, /etc/security/pwquality.conf]
 
 - list: sensitive_directory_names
   items: [/, /etc, /etc/, /root, /root/]
@@ -2292,7 +2449,7 @@
   condition: >
     fd.name startswith /etc and
     (fd.name in (sensitive_file_names)
-     or fd.directory in (/etc/sudoers.d, /etc/pam.d))
+     or fd.directory in (/etc/sudoers.d, /etc/pam.d, /etc/ssh, /root/.ssh))
 
 - macro: proc_is_new
   condition: proc.duration <= 5000000000
@@ -4236,7 +4393,7 @@
   items: [chroot]
 
 - list: namespace_bypass_cmds
-  items: [ifconfig, zmap]
+  items: [ifconfig, zmap, netstat, arp, lsof]
 
 - list: show_env_binaries
   items: [printenv, env, capsh]
