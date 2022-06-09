@@ -3,11 +3,12 @@ package main
 import (
 	"context"
 	"flag"
-	"net/http"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
+	"github.com/gin-gonic/gin"
 	"github.com/rs/zerolog"
 	"gitlab.com/security-rd/go-pkg/databases"
 	"gitlab.com/security-rd/go-pkg/logging"
@@ -16,6 +17,9 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scan-report/service"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scan-report/starter"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
+
+	rkentry "github.com/rookie-ninja/rk-entry/entry"
+	rkgin "github.com/rookie-ninja/rk-gin/boot"
 )
 
 var (
@@ -24,14 +28,15 @@ var (
 	batchSize  int
 	batchImage int64
 
-	parallelTaskNum int
-	emailHost       string
-	emailPort       int64
-	emailUser       string
-	emailPasswd     string
-	fileDir         string
-	HTTPListenAddr  string
-	expiration      int64
+	parallelTaskNum         int
+	emailHost               string
+	emailPort               int64
+	emailUser               string
+	emailPasswd             string
+	fileDir                 string
+	HTTPListenAddr          string
+	expiration              int64
+	maxImageByOneExportTask int64
 )
 
 var (
@@ -45,6 +50,7 @@ func init() {
 	flag.Int64Var(&batchImage, "batch-image", 300, "number of image in one excel file")
 	flag.IntVar(&parallelTaskNum, "parallel-task-num", 1, "the batch size of data")
 	flag.Int64Var(&expiration, "expiration", 7, "file expiration day") // 默认七天
+	flag.Int64Var(&maxImageByOneExportTask, "export-max-image", 800, "The maximum number of images exported by one export task")
 	flag.StringVar(&fileDir, "file-dir", "/tmp", "export file storage directory")
 	flag.StringVar(&HTTPListenAddr, "http-listen-addr", ":8080", "api addr")
 }
@@ -94,26 +100,57 @@ func main() {
 
 	// 起后台协程服务
 	backgroundSrv := starter.NewBackgroundTasks(context.Background(), starter.Config{
-		Internal:        internal,
-		BatchSize:       batchSize,
-		EmailHost:       emailHost,
-		EmailPort:       emailPort,
-		EmailUser:       emailUser,
-		EmailPasswd:     emailPasswd,
-		FileDir:         fileDir,
-		Rdb:             rdb,
-		BatchImage:      batchImage,
-		ParallelTaskNum: parallelTaskNum,
-		Expiration:      expiration,
+		Internal:                internal,
+		BatchSize:               batchSize,
+		EmailHost:               emailHost,
+		EmailPort:               emailPort,
+		EmailUser:               emailUser,
+		EmailPasswd:             emailPasswd,
+		FileDir:                 fileDir,
+		Rdb:                     rdb,
+		BatchImage:              batchImage,
+		ParallelTaskNum:         parallelTaskNum,
+		Expiration:              expiration,
+		MaxImageByOneExportTask: maxImageByOneExportTask,
 	})
 	backgroundSrv.Start(context.Background())
 
-	// 起api服务
-	ginServer := &http.Server{
-		Addr:    HTTPListenAddr,
-		Handler: api.SetupGinRouter(service.NewExportSrv(store.NewExportTaskDao(rdb)))}
-	if err := ginServer.ListenAndServe(); err != nil {
-		logging.Get().Err(err).Msg("ginServer.ListenAndServe")
-		os.Exit(1)
+	router := api.SetupGinRouter(service.NewExportSrv(store.NewExportTaskDao(rdb), maxImageByOneExportTask, store.NewScannerOrm(rdb)))
+
+	staticEntry := api.GenStaticFileHandlerEntry(fileDir)
+
+	ginEntry := rkgin.RegisterGinEntry(
+		rkgin.WithPort(GetPort(HTTPListenAddr)),
+		WithRouter(router),
+		rkgin.WithStaticFileHandlerEntry(staticEntry))
+
+	// Bootstrap gin entry
+	ginEntry.Bootstrap(context.Background())
+
+	// Wait for shutdown signal
+	rkentry.GlobalAppCtx.WaitForShutdownSig()
+
+	// Interrupt gin entry
+	ginEntry.Interrupt(context.Background())
+}
+
+func WithRouter(router *gin.Engine) rkgin.GinEntryOption {
+	return func(entry *rkgin.GinEntry) {
+		if router != nil {
+			entry.Router = router
+		}
 	}
+}
+
+func GetPort(addr string) uint64 {
+	split := strings.Split(addr, ":")
+	if len(split) < 2 {
+		return 8080
+	}
+	port, err := strconv.ParseUint(split[1], 10, 64)
+	if err != nil {
+		logging.Get().Err(err).Str("addr", addr).Msg("GetPort")
+		return 8080
+	}
+	return port
 }

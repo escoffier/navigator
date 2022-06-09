@@ -6,8 +6,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/xuri/excelize/v2"
 	json "github.com/json-iterator/go"
+	"github.com/xuri/excelize/v2"
+
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
@@ -15,14 +16,15 @@ import (
 )
 
 type ScanTaskExport struct {
-	BatchImage    int64
-	imageExport   ImageExportInterface
-	exportTaskDal store.ExportTaskDal
-	scanTaskDal   store.ScanTaskDal
-	exportingMap  *sync.Map // 正在执行的任务
-	fileDir       string    // 文件存储的决对路径
-	Interval      time.Duration
-	updateTask    UpdateTask
+	BatchImage              int64
+	imageExport             ImageExportInterface
+	exportTaskDal           store.ExportTaskDal
+	scanTaskDal             store.ScanTaskDal
+	exportingMap            *sync.Map // 正在执行的任务
+	fileDir                 string    // 文件存储的决对路径
+	Interval                time.Duration
+	updateTask              UpdateTask
+	maxImageByOneExportTask int64
 }
 
 func NewScanTaskExport(
@@ -33,16 +35,18 @@ func NewScanTaskExport(
 	interval time.Duration,
 	updateTask UpdateTask,
 	batchImage int64,
+	maxImageByOneExportTask int64,
 ) *ScanTaskExport {
 	return &ScanTaskExport{
-		imageExport:   imageExport,
-		exportTaskDal: exportTaskDal,
-		scanTaskDal:   scanTaskDal,
-		exportingMap:  &sync.Map{},
-		fileDir:       fileDir,
-		Interval:      interval,
-		updateTask:    updateTask,
-		BatchImage:    batchImage,
+		imageExport:             imageExport,
+		exportTaskDal:           exportTaskDal,
+		scanTaskDal:             scanTaskDal,
+		exportingMap:            &sync.Map{},
+		fileDir:                 fileDir,
+		Interval:                interval,
+		updateTask:              updateTask,
+		BatchImage:              batchImage,
+		maxImageByOneExportTask: maxImageByOneExportTask,
 	}
 }
 
@@ -74,7 +78,7 @@ func (s *ScanTaskExport) Export(ctx context.Context, task model.ExportTensorTask
 			return
 		}
 		var lastID int64
-		completed := 0
+		var completed int64
 		for {
 			filename, err := s.genFilename(ctx, task, index)
 			if err != nil {
@@ -82,15 +86,22 @@ func (s *ScanTaskExport) Export(ctx context.Context, task model.ExportTensorTask
 				return
 			}
 			logging.GetLogger().Info().Int64("taskID", task.ID).Str("filename", filename).Msg("Export.genFilename")
+
+			if completed >= s.maxImageByOneExportTask {
+				logging.GetLogger().Info().Int64("taskID", task.ID).Int64("lastScanSubtaskID", lastID).Int64("completed", completed).Msg("Export.partially completed")
+				break
+			}
+
 			scanTask, _, err := s.scanTaskDal.GetSubTasks(ctx, store.SearchSubTaskParam{
 				TaskIds: []int64{param.ScanTaskID}, Statuses: []int{consts.ImageScanSuccess}, LastID: lastID},
-				&model.Filter{Limit: s.BatchImage, SortFiled: "id", SortBy: consts.SortByAsc})
+				&model.Filter{Limit: Min(s.BatchImage, s.maxImageByOneExportTask-completed), SortFiled: "id", SortBy: consts.SortByAsc})
 			if err != nil {
 				logging.GetLogger().Err(err).Int64("taskID", task.ID).Msg("Export.GetSubTasks")
 				return
 			}
 			logging.GetLogger().Info().Int64("taskID", task.ID).Int64("scanTaskID", param.ScanTaskID).Int("scan subtask length", len(scanTask)).Msg("Export.GetSubTasks")
-			if len(scanTask) == 0 {
+			if len(scanTask) == 0 || completed >= s.maxImageByOneExportTask {
+				logging.GetLogger().Info().Int64("taskID", task.ID).Int64("lastScanSubtaskID", lastID).Int64("completed", completed).Msg("Export.partially completed")
 				break
 			}
 			lastID = scanTask[len(scanTask)-1].ID
@@ -124,8 +135,8 @@ func (s *ScanTaskExport) Export(ctx context.Context, task model.ExportTensorTask
 			out <- excelFile
 
 			index++
-			completed += len(scanTask)
-			logging.GetLogger().Info().Int64("taskID", task.ID).Int64("lastScanSubtaskID", lastID).Int("completed", completed).Msg("Export.partially completed")
+			completed += int64(len(scanTask))
+			logging.GetLogger().Info().Int64("taskID", task.ID).Int64("lastScanSubtaskID", lastID).Int64("completed", completed).Msg("Export.partially completed")
 		}
 	}(task)
 

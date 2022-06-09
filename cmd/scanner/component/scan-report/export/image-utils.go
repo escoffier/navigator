@@ -2,6 +2,7 @@ package export
 
 import (
 	"fmt"
+	"math"
 	"strings"
 	"time"
 
@@ -625,4 +626,14 @@ func GenImageTypeInfoMeta() ExcelMetaData {
 		},
 	}
 	return data
+}
+
+func Min(values ...int64) int64 {
+	var res int64 = math.MaxInt64
+	for i := range values {
+		if values[i] < res {
+			res = values[i]
+		}
+	}
+	return res
 }

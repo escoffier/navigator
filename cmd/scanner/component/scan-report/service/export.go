@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
@@ -13,10 +14,12 @@ type ExportInterface interface {
 	CreateExportTask(ctx context.Context, data model.ExportTensorTask) error
 	SearchExportTask(ctx context.Context, executeType string, filter *model.Filter) ([]model.ExportTensorTask, int64, error)
 	GetExportTask(ctx context.Context, id int64) (*model.ExportTensorTask, error)
+	CheckScanTask(ctx context.Context, scanTaskId int64) (*ExportLimit, error)
 }
-
 type ExportSrv struct {
-	exportDal store.ExportTaskDal
+	exportDal               store.ExportTaskDal
+	scanTaskDal             store.ScanTaskDal
+	maxImageByOneExportTask int64
 }
 
 func (s *ExportSrv) CreateExportTask(ctx context.Context, data model.ExportTensorTask) error {
@@ -58,6 +61,25 @@ func (s *ExportSrv) GetExportTask(ctx context.Context, id int64) (*model.ExportT
 	return &(tasks[0]), nil
 }
 
-func NewExportSrv(exportDal store.ExportTaskDal) *ExportSrv {
-	return &ExportSrv{exportDal: exportDal}
+type ExportLimit struct {
+	ImageCount int64 `json:"imageCount"`
+	ImageLimit int64 `json:"imageLimit"`
+}
+
+func (s *ExportSrv) CheckScanTask(ctx context.Context, scanTaskId int64) (*ExportLimit, error) {
+	if scanTaskId <= 0 {
+		return nil, fmt.Errorf("no scanTaskId")
+	}
+	_, all, err := s.scanTaskDal.GetSubTasks(ctx, store.SearchSubTaskParam{
+		Statuses: []int{consts.ImageScanSuccess}, TaskIds: []int64{scanTaskId}},
+		&model.Filter{Limit: 1, Offset: 0})
+	if err != nil {
+		logging.GetLogger().Err(err).Int64("scanTaskId", scanTaskId).Msg("CheckScanTask")
+		return nil, err
+	}
+	return &ExportLimit{ImageCount: all, ImageLimit: s.maxImageByOneExportTask}, nil
+}
+
+func NewExportSrv(exportDal store.ExportTaskDal, maxImageByOneExportTask int64, scanTaskDal store.ScanTaskDal) *ExportSrv {
+	return &ExportSrv{exportDal: exportDal, maxImageByOneExportTask: maxImageByOneExportTask, scanTaskDal: scanTaskDal}
 }
