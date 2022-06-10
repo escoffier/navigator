@@ -15,7 +15,6 @@ import (
 
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/container"
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/nodeinfo"
-	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 	"gitlab.com/security-rd/go-pkg/logging"
 	"gitlab.com/security-rd/go-pkg/mq"
@@ -116,22 +115,15 @@ func (ej *ExecJudge) readStringWithTimeout(ctx context.Context, r *bufio.Reader)
 
 type containerPolicy struct {
 	uuid         uint32
-	podUID       string
 	namespace    string
 	cluster      string
 	resourceKind string
 	resourceName string
 }
 
-func getContainerPolicyInfo(pid int, npw *nodeinfo.NodePodsWatcher, podResInfo *nodeinfo.PodResInfo) (containerPolicy, error) {
+func getContainerPolicyInfo(podUID string, npw *nodeinfo.NodePodsWatcher, podResInfo *nodeinfo.PodResInfo) (containerPolicy, error) {
 	containerPolicyInfo := containerPolicy{}
 	// get pod info by containerID
-	podUID, err := k8s.GetPodIDFromProc(k8s.HostInfo{ProcPath: "/host/proc"}, pid)
-	if err != nil {
-		logging.Get().Error().Msgf("get pod info by containerID err:%v", err)
-		return containerPolicyInfo, err
-	}
-	containerPolicyInfo.podUID = podUID
 	podInfo, err := npw.GetPodByUID(podUID)
 	if err != nil {
 		logging.Get().Error().Err(err).Msg("get pod info fail")
@@ -201,7 +193,7 @@ func (ej *ExecJudge) doRequest(conn *net.UnixConn, uuid uint64) error {
 		logging.Get().Debug().Interface("Meta", containMeta).Msg("container meta info")
 		//err = ej.cm.QueryDigest(containMeta.ImageDigest)
 		// check file hash is in white list
-		cPodInfo, err := getContainerPolicyInfo(containMeta.ProcessID, ej.npw, ej.podResInfo)
+		cPodInfo, err := getContainerPolicyInfo(containMeta.PodUID, ej.npw, ej.podResInfo)
 		if err != nil {
 			logging.Get().Err(err).Uint64("uuid", uuid).Str("containerID", containerID).Msg("get container info err")
 			_ = ej.Response(conn, resultPass, containerID, fileHash)
@@ -210,19 +202,19 @@ func (ej *ExecJudge) doRequest(conn *net.UnixConn, uuid uint64) error {
 
 		logging.Get().Debug().Msgf("containerPolicyInfo: %+v", cPodInfo)
 
-		plic, ok := ej.cm.GetPloicyByResourceUUID(cPodInfo.uuid)
+		polic, ok := ej.cm.GetPolicyByResourceUUID(cPodInfo.uuid)
 
-		logging.Get().Info().Msgf("plic: %+v ok? %v", plic, ok)
-		if !ok || plic.Enable == 0 {
+		logging.Get().Info().Msgf("plic: %+v ok? %v", polic, ok)
+		if !ok || polic.Enable == 0 {
 			logging.Get().Error().Uint64("uuid", uuid).Str("containerID", containerID).Msg("skip check file hash")
 			_ = ej.Response(conn, resultPass, containerID, fileHash)
 			continue
 		}
-		if plic.Mode != 1 && plic.Mode != 2 {
+		if polic.Mode != 1 && polic.Mode != 2 {
 			_ = ej.Response(conn, resultPass, containerID, fileHash)
 			continue
 		}
-		needBlock := plic.Mode == 2
+		needBlock := polic.Mode == 2
 
 		stopCheck := false
 		if enforceBlock := os.Getenv("ENFORCE_BLOCK"); enforceBlock == "true" {
@@ -250,7 +242,7 @@ func (ej *ExecJudge) doRequest(conn *net.UnixConn, uuid uint64) error {
 			}
 
 			eventArgs := &EventArg{
-				PodUID:        cPodInfo.podUID,
+				PodUID:        containMeta.PodUID,
 				ContainerID:   containerID,
 				ContainerName: containMeta.Name,
 				FilePath:      filePath,
@@ -295,7 +287,7 @@ func (ej *ExecJudge) doRequest(conn *net.UnixConn, uuid uint64) error {
 			}
 
 			eventArgs := &EventArg{
-				PodUID:        cPodInfo.podUID,
+				PodUID:        containMeta.PodUID,
 				ContainerID:   containerID,
 				ContainerName: containMeta.Name,
 				FilePath:      filePath,

@@ -30,6 +30,8 @@ type ContainerMeta struct {
 	// one image may have different repo tags
 	// eg:[library/nginx:1.20,dev/nginx:1.20]
 	ImageRepoTags []string
+
+	PodUID string
 }
 
 type EventCallback func(*EventMessage)

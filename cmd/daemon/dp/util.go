@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/nodeinfo"
-	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 	"gitlab.com/security-rd/go-pkg/logging"
 	"os"
@@ -39,12 +38,7 @@ func IsInjected(processID int) (bool, error) {
 	return true, nil
 }
 
-func GetContainerPodInfo(pid int, npw *nodeinfo.NodePodsWatcher) (string, string, error) {
-	podUID, err := k8s.GetPodIDFromProc(k8s.HostInfo{ProcPath: "/host/proc"}, pid)
-	if err != nil {
-		logging.Get().Error().Msgf("get pod info by containerID err:%v", err)
-		return "", "", err
-	}
+func GetContainerPodInfo(podUID string, npw *nodeinfo.NodePodsWatcher) (string, string, error) {
 
 	podInfo, err := npw.GetPodByUID(podUID)
 	if err != nil {

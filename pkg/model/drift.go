@@ -18,9 +18,10 @@ type DriftPolicyCache struct {
 }
 
 type DriftPolicyUpdate struct {
-	PolicyID int64 `json:"policy_id"`
-	Enable   int   `json:"enable"`
-	Mode     int   `json:"mode"`
+	PolicyID int64  `json:"policy_id"`
+	Enable   int    `json:"enable"`
+	Mode     int    `json:"mode"`
+	Updater  string `json:"updater"`
 }
 
 type DriftListPolicyResp struct {

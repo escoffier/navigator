@@ -36,7 +36,8 @@ func UpdateDriftPolicy(ctx context.Context, rdb *gorm.DB, policy model.DriftPoli
 	tmpPolicy.ID = policy.PolicyID
 	tmpPolicy.Enable = policy.Enable
 	tmpPolicy.Mode = policy.Mode
-	err := rdb.Model(&model.DriftPolicy{}).WithContext(ctx).Where("id = ?", policy.PolicyID).Select("enable", "mode").Updates(&tmpPolicy).Error
+	tmpPolicy.Updater = policy.Updater
+	err := rdb.Model(&model.DriftPolicy{}).WithContext(ctx).Where("id = ?", policy.PolicyID).Select("enable", "mode", "updater").Updates(&tmpPolicy).Error
 	if err != nil {
 		return err
 	}

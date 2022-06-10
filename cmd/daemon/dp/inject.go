@@ -179,7 +179,7 @@ func (ij *Injector) DoInject(cm container.ContainerMeta) (bool, error) {
 	logging.Get().Info().Msgf("Injecting %d", cm.ProcessID)
 
 	// excludeNamespaces
-	namespace, _, err := GetContainerPodInfo(cm.ProcessID, ij.npw)
+	namespace, _, err := GetContainerPodInfo(cm.PodUID, ij.npw)
 	if err != nil || namespace == "" {
 		logging.Get().Error().Msgf("Failed to get container pod info %v", err)
 		return false, err

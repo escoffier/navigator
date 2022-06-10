@@ -7,11 +7,11 @@ import (
 	"strings"
 	"time"
 
-	json "github.com/json-iterator/go"
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/events"
 	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/client"
+	json "github.com/json-iterator/go"
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/container"
 	"gitlab.com/security-rd/go-pkg/logging"
 )
@@ -50,6 +50,17 @@ func (d *dockerDriver) GetContainerMeta(containerID string) (container.Container
 	cm.Name = c.Name
 	cm.State = c.State.Status
 
+	labels := c.Config.Labels
+	for k, v := range labels {
+		if k == "io.kubernetes.pod.uid" {
+			cm.PodUID = v
+			break
+		}
+	}
+	if cm.PodUID == "" {
+		return container.ContainerMeta{}, fmt.Errorf("get container's pod uid failed, pod uid : %v", cm.PodUID)
+	}
+
 	// inspect image info
 	image, _, err := d.dockerCli.ImageInspectWithRaw(ctx, c.Image)
 	if err != nil {
@@ -86,12 +97,7 @@ func (d *dockerDriver) MonitorEvent(cb container.EventCallback) error {
 
 	filter := filters.NewArgs(
 		filters.Arg("event", "start"), // not "create"
-		filters.Arg("event", "die"),
 		filters.Arg("event", "kill"),
-		filters.Arg("event", "stop"),
-		filters.Arg("event", "restart"),
-		filters.Arg("event", "oom"),
-		filters.Arg("event", "destroy"),
 		filters.Arg("type", "container"),
 	)
 
