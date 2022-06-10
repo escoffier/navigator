@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
+
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
@@ -190,8 +191,22 @@ func (r *RejectAPI) DeletePolicy(ctx *gin.Context) {
 		response.JSONError(ctx, err)
 		return
 	}
+	name := ""
+	policy, err := r.Srv.SearchRejectPolicy(ctx, "", "")
+	if err != nil {
+		response.JSONError(ctx, err)
+		return
+	}
+
+	for i := range policy {
+		if policy[i].ID == id {
+			name = policy[i].Name
+			break
+		}
+	}
+
 	response.JSONOK(ctx, response.WithTarget(&response.TargetRef{
-		Name: fmt.Sprintf("policy %d", id),
+		Name: name,
 		ID:   strconv.Itoa(int(id)),
 		Link: "api/v2/containerSec/scanner/imagereject/policy/single/" + strconv.Itoa(int(id)),
 	}))
@@ -237,7 +252,10 @@ func (r *RejectAPI) CreatePolicy(ctx *gin.Context) {
 		response.JSONError(ctx, err)
 		return
 	}
-	response.JSONOK(ctx)
+	response.JSONOK(ctx, response.WithTarget(&response.TargetRef{
+		Name: policy.Name,
+		Link: "api/v2/containerSec/scanner/imagereject/policy/single",
+	}))
 }
 
 // UpdateGlobalPolicy
@@ -396,7 +414,11 @@ func (r *RejectAPI) RSAUpdate(ctx *gin.Context) {
 		return
 	}
 
-	response.JSONOK(ctx)
+	response.JSONOK(ctx, response.WithTarget(&response.TargetRef{
+		Name: req.Name,
+		ID:   strconv.Itoa(int(id)),
+		Link: "api/v2/containerSec/scanner/imagereject/trustedImages/rsa" + strconv.Itoa(int(id)),
+	}))
 }
 
 // RSAList 获取RSA列表
@@ -476,7 +498,17 @@ func (r *RejectAPI) RSADelete(ctx *gin.Context) {
 		return
 	}
 
-	response.JSONOK(ctx)
+	detail, err := r.Srv.RSADetail(ctx, id)
+	if err != nil {
+		response.JSONError(ctx, err)
+		return
+	}
+
+	response.JSONOK(ctx, response.WithTarget(&response.TargetRef{
+		Name: detail.Name,
+		ID:   strconv.Itoa(int(id)),
+		Link: "api/v2/containerSec/scanner/imagereject/trustedImages/rsa/" + strconv.Itoa(int(id)),
+	}))
 }
 
 // SignImageTrusted 签名镜像是否可信
