@@ -703,5 +703,10 @@
     "description": "Secret finder",
     "secret_type": "FileContent",
     "value": "secret\\s*[\\=]+"
+  },
+  {
+    "description": "authorized_key",
+    "secret_type": "Filename",
+    "value": "authorized_key"
   }
 ]
