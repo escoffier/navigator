@@ -84,7 +84,7 @@ func (cm *ConfigManager) queryAndFillMap(ctx context.Context) error {
 	return nil
 }
 
-func (cm *ConfigManager) GetPloicyByResourceUUID(uuid uint32) (model.DriftPolicy, bool) {
+func (cm *ConfigManager) GetPolicyByResourceUUID(uuid uint32) (model.DriftPolicy, bool) {
 	cm.policylock.Lock()
 	defer cm.policylock.Unlock()
 	policy, ok := cm.policys.Policys[uuid]
