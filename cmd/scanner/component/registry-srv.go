@@ -26,7 +26,8 @@ type RegistrySrvInterface interface {
 	GetRegistryType(ctx context.Context) ([]string, error)
 }
 type RegistrySrv struct {
-	RegistryDal store.RegistryDal
+	registryDal   store.RegistryDal
+	scanConfigDal store.ScanConfigDal
 }
 
 type SearchRegistryParam struct {
@@ -41,7 +42,7 @@ func (s *RegistrySrv) GetRegistryType(ctx context.Context) ([]string, error) {
 }
 
 func (s *RegistrySrv) GetRegistry(ctx context.Context, id int64) (*model.Registry, error) {
-	registries, _, err := s.RegistryDal.SearchRegistry(ctx, store.SearchRegistryParam{ID: id, NoDelete: true}, nil)
+	registries, _, err := s.registryDal.SearchRegistry(ctx, store.SearchRegistryParam{ID: id, NoDelete: true}, nil)
 	if err != nil {
 		logging.GetLogger().Err(err).Msgf("ListRegistry SearchRegistry error %s", err.Error())
 		return nil, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf("获取仓库信息出错"))
@@ -53,7 +54,7 @@ func (s *RegistrySrv) GetRegistry(ctx context.Context, id int64) (*model.Registr
 }
 
 func (s *RegistrySrv) SearchRegistry(ctx context.Context, param SearchRegistryParam, filter *model.Filter) ([]model.Registry, int64, error) {
-	registries, cnt, err := s.RegistryDal.SearchRegistry(ctx, store.SearchRegistryParam{Name: param.Name, UseType: param.UseType, Search: param.Search, RegType: param.RegType, NoDelete: true}, filter)
+	registries, cnt, err := s.registryDal.SearchRegistry(ctx, store.SearchRegistryParam{Name: param.Name, UseType: param.UseType, Search: param.Search, RegType: param.RegType, NoDelete: true}, filter)
 	if err != nil {
 		logging.GetLogger().Err(err).Msg("SearchRegistry")
 		return nil, 0, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf("获取仓库列表出错"))
@@ -67,11 +68,38 @@ func (s *RegistrySrv) DeleteRegistry(ctx context.Context, id int64) error {
 	}
 	update := make(map[string]interface{})
 	update["deleted_at"] = time.Now().Unix()
-	err := s.RegistryDal.UpdateRegistry(ctx, store.SearchRegistryParam{ID: id}, update)
+	err := s.registryDal.UpdateRegistry(ctx, store.SearchRegistryParam{ID: id}, update)
 	if err != nil {
 		logging.GetLogger().Err(err).Msg("DeleteRegistry")
 		return response.NewHttpError(http.StatusInternalServerError, fmt.Errorf("删除仓库出错"))
 	}
+	// 删除了仓库，仓库所对应的扫描配置也要删除
+	configs, _, err := s.scanConfigDal.SearchScanConfig(ctx, store.SearchScanConfigParam{}, nil)
+	if err != nil {
+		logging.GetLogger().Err(err).Msg("SearchScanConfig")
+		return response.NewHttpError(http.StatusInternalServerError, fmt.Errorf("删除仓库出错后，同步更新扫描配置出错"))
+	}
+	for i := range configs {
+		config := configs[i]
+		libConfig := config.LibraryImageConfig
+		if libConfig != nil {
+			libs := make([]int64, 0)
+			for j := range libConfig.Libraries {
+				if libConfig.Libraries[j] != id {
+					libs = append(libs, libConfig.Libraries[j])
+				}
+			}
+
+			config.LibraryImageConfig.Libraries = libs
+			config.Serialize()
+			updater := config.ToUpdater()
+
+			if err := s.scanConfigDal.UpdateScanConfig(ctx, config.ID, updater); err != nil {
+				logging.GetLogger().Err(err).Int64("configId", config.ID).Msg("UpdateScanConfig")
+			}
+		}
+	}
+
 	return nil
 }
 
@@ -104,7 +132,7 @@ func (s *RegistrySrv) CreateRegistry(ctx context.Context, reg model.Registry) (i
 		}
 	}
 
-	id, err := s.RegistryDal.CreateRegistry(ctx, reg)
+	id, err := s.registryDal.CreateRegistry(ctx, reg)
 	if err != nil {
 		logging.GetLogger().Err(err).Msg("CreateRegistry")
 		if strings.Contains(err.Error(), consts.DuplicateKey) {
@@ -119,7 +147,7 @@ func (s *RegistrySrv) UpdateRegistry(ctx context.Context, id int64, reg model.Re
 	if id <= 0 {
 		return response.NewHttpError(http.StatusExpectationFailed, fmt.Errorf("请传入要更新仓库的ID"))
 	}
-	registries, _, err := s.RegistryDal.SearchRegistry(ctx, store.SearchRegistryParam{ID: id, NoDelete: true}, nil)
+	registries, _, err := s.registryDal.SearchRegistry(ctx, store.SearchRegistryParam{ID: id, NoDelete: true}, nil)
 	if err != nil {
 		logging.GetLogger().Err(err).Msg("UpdateRegistry.SearchRegistry")
 		return response.NewHttpError(http.StatusInternalServerError, fmt.Errorf(consts.StatusInternalServerErrorMsg))
@@ -165,7 +193,7 @@ func (s *RegistrySrv) UpdateRegistry(ctx context.Context, id int64, reg model.Re
 		updater["password"] = encryPass
 	}
 
-	err = s.RegistryDal.UpdateRegistry(ctx, store.SearchRegistryParam{ID: id}, updater)
+	err = s.registryDal.UpdateRegistry(ctx, store.SearchRegistryParam{ID: id}, updater)
 	if err != nil {
 		logging.GetLogger().Err(err).Msg("CreateRegistry")
 		if strings.Contains(err.Error(), consts.DuplicateKey) {
@@ -176,8 +204,8 @@ func (s *RegistrySrv) UpdateRegistry(ctx context.Context, id int64, reg model.Re
 	return nil
 }
 
-func NewRegistrySrv(dal store.RegistryDal) *RegistrySrv {
-	return &RegistrySrv{RegistryDal: dal}
+func NewRegistrySrv(registryDal store.RegistryDal, scanConfigDal store.ScanConfigDal) *RegistrySrv {
+	return &RegistrySrv{registryDal: registryDal, scanConfigDal: scanConfigDal}
 }
 
 func validateRegistryType(regType string) error {

@@ -118,12 +118,37 @@ func (s *ScanConfigSrv) AddTaskByStrategy(ctx context.Context) error {
 }
 
 func (s *ScanConfigSrv) SearchScanConfig(ctx context.Context, param SearchScanConfigParam, filter *model.Filter) ([]model.ScanConfig, int64, error) {
-	config, cnt, err := s.ScanConfigDal.SearchScanConfig(ctx, store.SearchScanConfigParam{ScanConfigID: param.ScanConfigID}, filter)
+	configs, cnt, err := s.ScanConfigDal.SearchScanConfig(ctx, store.SearchScanConfigParam{ScanConfigID: param.ScanConfigID}, filter)
 	if err != nil {
 		logging.GetLogger().Err(err).Msg("SearchScanConfig")
 		return nil, 0, err
 	}
-	return config, cnt, nil
+	// 去除掉已删除的仓库，兼容直接清理数据的情况
+	registry, _, err := s.RegistryDal.SearchRegistry(ctx, store.SearchRegistryParam{NoDelete: true}, nil)
+	if err != nil {
+		logging.GetLogger().Err(err).Msg("SearchRegistry")
+		return nil, 0, err
+	}
+	registryMap := make(map[int64]bool)
+	for i := range registry {
+		registryMap[registry[i].ID] = true
+	}
+
+	for i := range configs {
+		// 数据不大，使用双层循环
+		if configs[i].LibraryImageConfig != nil {
+			lib := make([]int64, 0)
+			for j := range configs[i].LibraryImageConfig.Libraries {
+				regId := configs[i].LibraryImageConfig.Libraries[j]
+				if registryMap[regId] {
+					lib = append(lib, regId)
+				}
+			}
+			configs[i].LibraryImageConfig.Libraries = lib
+		}
+	}
+
+	return configs, cnt, nil
 }
 
 func (s *ScanConfigSrv) SearchStrategy(ctx context.Context, param SearchStrategyParam, filter *model.Filter) ([]model.ScanStrategy, int64, error) {

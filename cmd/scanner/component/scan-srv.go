@@ -14,6 +14,7 @@ import (
 
 	"github.com/google/go-containerregistry/pkg/name"
 	"github.com/pkg/errors"
+
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/task"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
@@ -356,7 +357,7 @@ func (s *ConScannerSrv) UpdateImageType(ctx context.Context, imageIds []int64, i
 		return fmt.Errorf("请指定更新的ID")
 	}
 
-	ims, _, err := s.dbdal.SearchImage(ctx, store.SearchImageParam{InIds: imageIds, Fields: []string{"id", "image_type", "from_type", "flag"}}, nil)
+	ims, _, err := s.dbdal.SearchImage(ctx, store.SearchImageParam{InIds: imageIds, OmitFields: []string{"config_json", "manifest_v1_json", "manifest_v2_json"}}, nil)
 	if err != nil {
 		return response.NewHttpError(http.StatusInternalServerError, errors.New("查询要更新镜像出错"))
 	}
@@ -367,7 +368,7 @@ func (s *ConScannerSrv) UpdateImageType(ctx context.Context, imageIds []int64, i
 		}
 	}
 	if len(safeNodeImage) > 0 {
-		logging.GetLogger().Err(fmt.Errorf("k8s node image not editable")).Msg(strings.Join(safeNodeImage, ","))
+		logging.GetLogger().Info().Strs("safeNodeImage", safeNodeImage).Ints64("imageIds", imageIds).Msg("k8s node image not editable")
 		return response.NewHttpError(http.StatusInternalServerError, errors.New("被更新镜像包括节点镜像，节点镜像不可以编辑"))
 	}
 
@@ -2935,7 +2936,7 @@ func (s *ConScannerSrv) ScanReportCreate(ctx context.Context, data *scanreport.T
 	if err != nil {
 		logging.GetLogger().Err(err).Msgf("创建扫描报告时, 插入数据失败，name:%s", data.Name)
 
-		if strings.Contains(err.Error(), "duplicate") {
+		if strings.Contains(err.Error(), consts.DuplicateKey) {
 			return 0, fmt.Errorf("名字:<%s>已存在", data.Name)
 		}
 

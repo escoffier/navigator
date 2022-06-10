@@ -9,6 +9,9 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/pkg/errors"
+	"gitlab.com/security-rd/go-pkg/logging"
+	"gorm.io/gorm/clause"
+
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/task"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
@@ -16,8 +19,6 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
-	"gitlab.com/security-rd/go-pkg/logging"
-	"gorm.io/gorm/clause"
 )
 
 type Scanner struct {
@@ -1107,8 +1108,19 @@ func (s *Scanner) DeleteBaseImage(ctx *gin.Context) {
 		response.JSONError(ctx, err)
 		return
 	}
+	detail, err := s.Srv.GetImageDetail(ctx, imageID)
+	if err != nil {
+		response.JSONError(ctx, err)
+		return
+	}
+	imageName := fmt.Sprintf("image:%s/%s:%s", detail.Library, detail.FullRepoName, detail.Tags)
+	if detail.Registry != nil {
+		imageName = fmt.Sprintf("image:%s/%s:%s", detail.Registry.Url, detail.FullRepoName, detail.Tags)
+
+	}
+
 	response.JSONOK(ctx, response.WithTarget(&response.TargetRef{
-		Name: fmt.Sprintf("image %d", imageID),
+		Name: imageName,
 		ID:   strconv.Itoa(int(imageID)),
 		Link: "api/v2/containerSec/scanner/images/base/" + strconv.Itoa(int(imageID)),
 	}))

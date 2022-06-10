@@ -77,7 +77,7 @@ func newService(config register.ScannerServiceConfig) (register.ScannerService, 
 			component.NewConScannerSrv(dal, registryDal, dal, scanConfigDal, store.GetSingeVulnDao()),
 			component.NewImageRejectSrc(dal),
 			component.NewHarborSrc(dal, rc, nil), // todo: use new task interface,not redclair
-			component.NewRegistrySrv(registryDal),
+			component.NewRegistrySrv(registryDal, scanConfigDal),
 			component.NewScanConfigSrv(scanConfigDal, registryDal, dal, scanTaskDal),
 			component.NewVulnService(vulnDal, scanTaskDal),
 			component.NewSyncRepoImage(registryDal, dal, podResourceRelationDal, scanConfigDal, syncRetryImageDal),
