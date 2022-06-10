@@ -1485,6 +1485,7 @@ func (s *ConScannerSrv) SearchImageWithScan(ctx context.Context, param SearchIma
 		Projects:         param.Projects,
 		RegistryIds:      registryIds,
 		FromType:         param.FromType,
+		ImageType:        param.ImageType,
 		Search:           param.SearchWord,
 		NodeHostname:     param.NodeHostname,
 		SpecialImageType: param.SpecialImageType,
