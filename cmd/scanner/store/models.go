@@ -7,17 +7,19 @@ import (
 )
 
 type SearchImageParam struct {
-	Library          string
-	Libraries        []string
-	InIds            []int64
-	NotInIds         []int64
-	Search           string // full_repo_name和tag字段的模糊匹配
-	Digests          []string
-	FullRepoName     string // 这里是精确匹配
-	Tag              string
-	StartID          int64 // 取大于该ID的数据
-	LastID           int64 // 取大于该ID的数据
-	FromType         int64
+	Library      string
+	Libraries    []string
+	InIds        []int64
+	NotInIds     []int64
+	Search       string // full_repo_name和tag字段的模糊匹配
+	Digests      []string
+	FullRepoName string // 这里是精确匹配
+	Tag          string
+	StartID      int64 // 取大于该ID的数据
+	LastID       int64 // 取大于该ID的数据
+	FromType     int64
+	ImageType    string
+
 	NotFromType      int64
 	Fields           []string // 只想要的字端
 	OmitFields       []string // 不想要的字端

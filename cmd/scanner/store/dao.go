@@ -1128,6 +1128,10 @@ func (s *ScannerOrm) SearchImage(ctx context.Context, param SearchImageParam, fi
 	if param.Flag > 0 {
 		db = db.Where("flag & ? = ?", param.Flag, param.Flag)
 	}
+	if param.ImageType == consts.AppImageTypeString {
+		db = db.Where("(flag >> ?) & 1 = ?", model.FlagBaseImage, 0)
+	}
+
 	if param.FromType == model.NodeBuffRegistry && param.NodeHostname != "" {
 		db = db.Where("node_hostname =  ? ", param.NodeHostname)
 	}
