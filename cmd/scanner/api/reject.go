@@ -1,6 +1,7 @@
 package api
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -378,10 +379,21 @@ func (r *RejectAPI) RSAGenerate(ctx *gin.Context) {
 		return
 	}
 
+	targetRef := response.TargetRef{
+		Name: req.Name,
+		Link: "api/v2/containerSec/scanner/imagereject/trustedImages/rsa",
+	}
+	bys, err := json.Marshal(targetRef)
+	if err != nil {
+		response.JSONError(ctx, err)
+		return
+	}
+
 	ctx.Writer.WriteHeader(http.StatusOK)
 	ctx.Header("Content-Disposition", fmt.Sprintf("attachment; filename=%s_private.pem", req.Name))
 	ctx.Header("Content-Type", "application/octet-stream")
 	ctx.Header("Accept-Length", strconv.Itoa(len(result)))
+	ctx.Header("targetref", string(bys))
 	_, _ = ctx.Writer.Write(result)
 }
 
@@ -492,14 +504,12 @@ func (r *RejectAPI) RSADelete(ctx *gin.Context) {
 	if err != nil {
 		response.JSONError(ctx, fmt.Errorf("%s 不是一个有效的ID", ctx.Param("id")))
 	}
-
-	if err := r.Srv.RSADelete(ctx, id); err != nil {
+	detail, err := r.Srv.RSADetail(ctx, id)
+	if err != nil {
 		response.JSONError(ctx, err)
 		return
 	}
-
-	detail, err := r.Srv.RSADetail(ctx, id)
-	if err != nil {
+	if err := r.Srv.RSADelete(ctx, id); err != nil {
 		response.JSONError(ctx, err)
 		return
 	}

@@ -5,6 +5,7 @@ import (
 	"strconv"
 
 	"github.com/gin-gonic/gin"
+
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
@@ -93,12 +94,23 @@ func (sc *ScanConfigAPISrv) DeleteStrategy(ctx *gin.Context) {
 		response.JSONError(ctx, fmt.Errorf("no strategyID for delete"))
 		return
 	}
+	strategy, _, err := sc.ScanConfigSrv.SearchStrategy(ctx, component.SearchStrategyParam{StrategyID: strategyID}, nil)
+	if err != nil {
+		response.JSONError(ctx, err)
+		return
+	}
+	if len(strategy) == 0 {
+		response.JSONError(ctx, fmt.Errorf("not fond strategy :%d", strategyID))
+		return
+	}
+
 	if err := sc.ScanConfigSrv.DeleteStrategy(ctx, strategyID); err != nil {
 		response.JSONError(ctx, err)
 		return
 	}
+
 	response.JSONOK(ctx, response.WithTarget(&response.TargetRef{
-		Name: fmt.Sprintf("Strategy: %d", strategyID),
+		Name: fmt.Sprintf("Strategy: %s", strategy[0].Name),
 		ID:   strconv.Itoa(int(strategyID)),
 		Link: "api/v2/containerSec/scanner/scan-config/strategy/" + strconv.Itoa(int(strategyID)),
 	}))

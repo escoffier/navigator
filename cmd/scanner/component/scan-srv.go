@@ -2938,7 +2938,7 @@ func (s *ConScannerSrv) ScanReportCreate(ctx context.Context, data *scanreport.T
 		logging.GetLogger().Err(err).Msgf("创建扫描报告时, 插入数据失败，name:%s", data.Name)
 
 		if strings.Contains(err.Error(), consts.DuplicateKey) {
-			return 0, fmt.Errorf("名字:<%s>已存在", data.Name)
+			return 0, fmt.Errorf("报告名称:<%s>重复，请重试", data.Name)
 		}
 
 		return 0, errors.New("新增失败")
