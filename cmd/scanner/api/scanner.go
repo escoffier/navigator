@@ -1072,19 +1072,24 @@ func (s *Scanner) CreateBaseImage(ctx *gin.Context) {
 		response.JSONError(ctx, err)
 		return
 	}
+	scan, _, err := s.Srv.SearchImages(ctx, component.SearchImageParam{ImageIds: body.ImageIds}, nil)
+	if err != nil {
+		response.JSONError(ctx, err)
+		return
+	}
 
 	if err := s.Srv.UpdateImageType(ctx, body.ImageIds, consts.BaseImageType); err != nil {
 		response.JSONError(ctx, err)
 		return
 	}
-	idsString := make([]string, 0)
-	for i := range body.ImageIds {
-		idsString = append(idsString, strconv.Itoa(int(body.ImageIds[i])))
+
+	names := make([]string, len(scan))
+	for i := range scan {
+		names[i] = fmt.Sprintf("%s:%s", scan[i].FullRepoName, scan[i].Tags)
 	}
 
 	response.JSONOK(ctx, response.WithTarget(&response.TargetRef{
-		Name: strings.Join(idsString, ","),
-		ID:   "",
+		Name: strings.Join(names, ","),
 		Link: "api/v2/containerSec/scanner/images/bases",
 	}))
 }
@@ -1114,10 +1119,6 @@ func (s *Scanner) DeleteBaseImage(ctx *gin.Context) {
 		return
 	}
 	imageName := fmt.Sprintf("image:%s/%s:%s", detail.Library, detail.FullRepoName, detail.Tags)
-	if detail.Registry != nil {
-		imageName = fmt.Sprintf("image:%s/%s:%s", detail.Registry.Url, detail.FullRepoName, detail.Tags)
-
-	}
 
 	response.JSONOK(ctx, response.WithTarget(&response.TargetRef{
 		Name: imageName,
