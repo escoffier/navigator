@@ -1,4 +1,4 @@
-package checksum
+package whitelist
 
 import (
 	"os"

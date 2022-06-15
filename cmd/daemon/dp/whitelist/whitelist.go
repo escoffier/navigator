@@ -1,19 +1,27 @@
-package checksum
+package whitelist
 
 import (
 	"bufio"
 	"fmt"
 	"os"
 	"sort"
+	"strings"
 	"sync"
 
+	"github.com/docker/docker/api/types"
 	"gitlab.com/security-rd/go-pkg/logging"
 )
 
-var (
-	GlobalImageWhiteListMap = map[string][]WhitelistFile{}
-	Mapmutex                sync.Mutex
-)
+type imageInfo struct {
+	WhiteList []WhitelistFile
+}
+
+type WhitelistCount struct {
+	ImageWhiteListMap map[string]map[string]string
+	Mapmutex          sync.Mutex
+	ImageDirCount     int
+	HitCount          int
+}
 
 func dumpWhitelist(whiteList []WhitelistFile, outputfile string) error {
 	whiteList = Unique(whiteList)
@@ -54,7 +62,7 @@ func dumpWhitelist(whiteList []WhitelistFile, outputfile string) error {
 	return nil
 }
 
-func WalkDir(imageDir []string) []WhitelistFile {
+func (wc *WhitelistCount) walkDir(imageDir []string) []WhitelistFile {
 
 	logging.Get().Debug().Msgf("image dir:%v", imageDir)
 
@@ -76,6 +84,20 @@ func WalkDir(imageDir []string) []WhitelistFile {
 		if err == nil {
 			targetPath = fmt.Sprintf("/host%s", v)
 		}
+
+		wc.Mapmutex.Lock()
+		wc.ImageDirCount++
+		if _, ok := wc.ImageWhiteListMap[targetPath]; ok {
+			logging.Get().Debug().Msgf("image dir:%v already in white list", targetPath)
+			wc.HitCount++
+			for k, v := range wc.ImageWhiteListMap[targetPath] {
+				whiteList[k] = v
+			}
+			wc.Mapmutex.Unlock()
+			continue
+		}
+		wc.Mapmutex.Unlock()
+
 		ListDirContentsNew(targetPath, targetPath, whiteList, linkTarget)
 
 		// rebuild link target
@@ -86,6 +108,12 @@ func WalkDir(imageDir []string) []WhitelistFile {
 
 		// check link hash and add to whitelist
 		mergeLinkToWhitelist(reLinkTarget, whiteList)
+		wc.Mapmutex.Lock()
+		if wc.ImageWhiteListMap[targetPath] == nil {
+			wc.ImageWhiteListMap[targetPath] = make(map[string]string)
+		}
+		wc.ImageWhiteListMap[targetPath] = whiteList
+		wc.Mapmutex.Unlock()
 	}
 
 	retWhiteList := make([]WhitelistFile, 0)
@@ -95,4 +123,43 @@ func WalkDir(imageDir []string) []WhitelistFile {
 	return retWhiteList
 
 	// _ = dumpWhitelist(whiteList)
+}
+
+func (wc *WhitelistCount) MakeWhiteListByOverLay(image types.ImageInspect) (imageInfo, error) {
+
+	// "Merged Dir" should be last element
+	imageDirKeys := []string{"MergedDir", "WorkDir", "UpperDir", "LowerDir"}
+	imageDir := make([]string, 0)
+	for _, key := range imageDirKeys {
+		tmpDirs := strings.Split(image.GraphDriver.Data[key], ":")
+		for _, v := range tmpDirs {
+			if v == "" {
+				continue
+			}
+			imageDir = append(imageDir, v)
+		}
+	}
+
+	whiteList := wc.walkDir(imageDir)
+	logging.Get().Debug().Msgf("white list len: %d\n", len(whiteList))
+	// dumpWhitelist(whiteList, whiteListName)
+	imageInfo := imageInfo{WhiteList: whiteList}
+	return imageInfo, nil
+}
+
+func (wc *WhitelistCount) CleanWhiteListCount() {
+	wc.Mapmutex.Lock()
+	wc.ImageWhiteListMap = make(map[string]map[string]string)
+	wc.ImageDirCount = 0
+	wc.HitCount = 0
+	wc.Mapmutex.Unlock()
+}
+
+func NewWhitelistHandler() *WhitelistCount {
+	wc := &WhitelistCount{
+		ImageWhiteListMap: make(map[string]map[string]string),
+		Mapmutex:          sync.Mutex{},
+		ImageDirCount:     0,
+		HitCount:          0}
+	return wc
 }
