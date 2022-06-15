@@ -1,0 +1,33 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: drift1
+  labels:
+    app: drift1
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: drift1
+  template:
+    metadata:
+      labels:
+        app: drift1
+    spec:
+      nodeName: ecs-sit-0003
+      #nodeName: ecs-prod-node-0001
+      containers:
+      - name: drift1
+        image: harbor.tensorsecurity.com/test/drift:1
+        imagePullPolicy: Always
+        command: ["/bin/bash", "-c", "sleep 99999"]
+        env:
+        - name: DRIFT_PREVENT
+          value: "true"
+        - name: EVENTCENTER_NEW_ADDR
+          value: "eventcenter.tensorsec.svc.cluster.local"
+        - name: EVENTCENTER_NEW_PORT
+          value: "8080"
+      imagePullSecrets:
+      - name: harbor-admin-secret
+
