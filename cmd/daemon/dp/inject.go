@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"os"
 	"strconv"
 	"strings"
@@ -19,7 +20,8 @@ import (
 )
 
 const (
-	excludeImage = "daemon"
+	// excludeImage = "daemon"
+	containerIDFilePathTemplate = "/host/proc/%d/root/.container_id"
 )
 
 type Injector struct {
@@ -91,7 +93,7 @@ func (ij *Injector) initCommandSeq() error {
 		{"touch", containerEtcPreloadPath},
 		{"mount", "-o", "bind,ro", containerTmpMnt + ij.subRoot + "/ld.so.preload", containerEtcPreloadPath},
 		{"umount", containerTmpMnt},
-		// {"rm", "-rf", containerTmpMnt},
+		{"rmdir", containerTmpMnt},
 	}
 	ij.containerCommandSeq = tmpCommandSeq
 	return nil
@@ -175,6 +177,12 @@ func (ij *Injector) mknodInProc(pid int) error {
 	return syscall.Mknod(path, syscall.S_IFBLK|uint32(os.FileMode(0660)), dev)
 }
 
+func (ij *Injector) putContainerID2File(pid int, cid string) error {
+	path := fmt.Sprintf(containerIDFilePathTemplate, pid)
+	logging.Get().Debug().Msgf("put container id %s to %s", cid, path)
+	return ioutil.WriteFile(path, []byte(cid), 0644)
+}
+
 func (ij *Injector) DoInject(cm container.ContainerMeta) (bool, error) {
 	logging.Get().Info().Msgf("Injecting %d", cm.ProcessID)
 
@@ -192,6 +200,12 @@ func (ij *Injector) DoInject(cm container.ContainerMeta) (bool, error) {
 				Msg("skip inject,namespace contains exclude namespace")
 			return false, nil
 		}
+	}
+
+	err = ij.putContainerID2File(cm.ProcessID, cm.ID)
+	if err != nil {
+		logging.Get().Err(err).Int("ProcessID", cm.ProcessID).Str("containerdID", cm.ID).Msg("put container id failed")
+		return false, err
 	}
 
 	// check if injected
