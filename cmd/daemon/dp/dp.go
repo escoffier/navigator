@@ -5,11 +5,12 @@ import (
 	"fmt"
 	"os"
 	"runtime/debug"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
 
-	"gitlab.com/piccolo_su/vegeta/cmd/daemon/dp/image"
+	"gitlab.com/piccolo_su/vegeta/cmd/daemon/dp/whitelist"
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/container"
 	_ "gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/container/docker"
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/nodeinfo"
@@ -26,6 +27,7 @@ type DriftAssurance struct {
 	subscriber *Subscriber
 	podResInfo *nodeinfo.PodResInfo
 	rt         container.Runtime
+	wc         *whitelist.WhitelistCount
 }
 
 func (d *DriftAssurance) GetConfigManager() *ConfigManager {
@@ -92,48 +94,72 @@ func (d *DriftAssurance) Start(ctx context.Context, consoleAddr string) error {
 			logging.Get().Err(err).Msg("get running container image result failed")
 			return
 		}
-
-		for _, i := range containers {
-			imageInspect, err := d.rt.GetImageInspect(i.ImageID)
+		concurrentNum := os.Getenv("CONCURRENT_NUM")
+		concurrentNumInt := 3
+		if concurrentNum != "" {
+			concurrentNumInt, err = strconv.Atoi(concurrentNum)
 			if err != nil {
-				logging.Get().Err(err).Msg("get image inspect failed")
-				continue
+				logging.Get().Err(err).Msg("get concurrent num failed")
+				concurrentNumInt = 3
 			}
-			skip := false
-			for _, v := range imageInspect.RepoDigests {
-				arr := strings.Split(v, "@")
-				if len(arr) != 2 {
-					logging.Get().Warn().Str("repoDigest", v).Msg("wrong format,ignore")
-					continue
-				}
-				tmpDigest := arr[1]
-				if d.config.execWhiteList[tmpDigest] != nil {
-					skip = true
-				}
-				d.config.AddImageUsed(tmpDigest)
-			}
-			if skip {
-				continue
-			}
-			imageInfo, err := image.MakeWhiteListByOverLay(imageInspect)
-			scannedCount++
-			if err != nil {
-				logging.Get().Err(err).Msg("make whitelist failed")
-				continue
-			}
-			for _, v := range imageInspect.RepoDigests {
-				arr := strings.Split(v, "@")
-				if len(arr) != 2 {
-					logging.Get().Warn().Str("repoDigest", v).Msg("wrong format,ignore")
-					continue
-				}
-				tmpDigest := arr[1]
-				d.config.SetContainerWhiteList(tmpDigest, imageInfo.WhiteList)
-			}
-
 		}
-		logging.Get().Info().Msgf("image scan time: %v, num: %v, hashtablesize: %v",
-			time.Since(imageScanStart), scannedCount, len(d.config.execWhiteList))
+		logging.Get().Debug().Msgf("concurrent num: %d", concurrentNumInt)
+		var wg1 sync.WaitGroup
+		ch := make(chan struct{}, concurrentNumInt)
+		for _, i := range containers {
+			wg1.Add(1)
+			ch <- struct{}{}
+			go func() {
+				defer wg1.Done()
+				defer func() {
+					<-ch
+					if r := recover(); r != nil {
+						logging.Get().Error().Msgf("get running container image result panic: %v.stack:%s", r, debug.Stack())
+					}
+				}()
+				imageInspect, err := d.rt.GetImageInspect(i.ImageID)
+				if err != nil {
+					logging.Get().Err(err).Msg("get image inspect failed")
+					return
+				}
+				skip := false
+				for _, v := range imageInspect.RepoDigests {
+					arr := strings.Split(v, "@")
+					if len(arr) != 2 {
+						logging.Get().Warn().Str("repoDigest", v).Msg("wrong format,ignore")
+						continue
+					}
+					tmpDigest := arr[1]
+					if d.config.execWhiteList[tmpDigest] != nil {
+						skip = true
+						break
+					}
+					d.config.AddImageUsed(tmpDigest)
+				}
+				if skip {
+					return
+				}
+				imageInfo, err := d.wc.MakeWhiteListByOverLay(imageInspect)
+				scannedCount++
+				if err != nil {
+					logging.Get().Err(err).Msg("make whitelist failed")
+					return
+				}
+				for _, v := range imageInspect.RepoDigests {
+					arr := strings.Split(v, "@")
+					if len(arr) != 2 {
+						logging.Get().Warn().Str("repoDigest", v).Msg("wrong format,ignore")
+						continue
+					}
+					tmpDigest := arr[1]
+					d.config.SetContainerWhiteList(tmpDigest, imageInfo.WhiteList)
+				}
+			}()
+		}
+		wg1.Wait()
+		logging.Get().Info().Msgf("image scan time: %v, num: %v, hashtablesize: %v whitelist dirs num: %v, dir hitcount: %v",
+			time.Since(imageScanStart), scannedCount, len(d.config.execWhiteList), d.wc.ImageDirCount, d.wc.HitCount)
+		d.wc.CleanWhiteListCount()
 	}()
 
 	// first inject all containers
@@ -223,6 +249,8 @@ func NewDriftAssurance(podWatcher *nodeinfo.NodePodsWatcher, podResInfo *nodeinf
 		logging.Get().Err(err).Msg("create injector failed")
 		return nil, err
 	}
+
+	d.wc = whitelist.NewWhitelistHandler()
 
 	return d, nil
 }

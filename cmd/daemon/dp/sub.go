@@ -4,7 +4,6 @@ import (
 	"os"
 	"runtime/debug"
 
-	"gitlab.com/piccolo_su/vegeta/cmd/daemon/dp/image"
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/dp/scope"
 	_ "gitlab.com/piccolo_su/vegeta/cmd/daemon/dp/scope/image"
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/container"
@@ -112,7 +111,8 @@ func (s *Subscriber) RuntimeEventCallBack(d *DriftAssurance) container.EventCall
 							Str("imageID", m.ContainerInfo.ImageID).
 							Msg("get image inspect failed")
 					} else {
-						imageInfo, err := image.MakeWhiteListByOverLay(imageInspect)
+						imageInfo, err := d.wc.MakeWhiteListByOverLay(imageInspect)
+						d.wc.CleanWhiteListCount()
 						if err != nil {
 							logging.Get().
 								Err(err).

@@ -14,7 +14,7 @@ import (
 	"sync"
 	"time"
 
-	"gitlab.com/piccolo_su/vegeta/cmd/daemon/dp/checksum"
+	"gitlab.com/piccolo_su/vegeta/cmd/daemon/dp/whitelist"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/security-rd/go-pkg/logging"
 )
@@ -226,7 +226,7 @@ func (cm *ConfigManager) MockWhiteListFromFile(imageDigestFile, hashFile string)
 	return nil
 }
 
-func (cm *ConfigManager) SetContainerWhiteList(imageDigest string, whiteList []checksum.WhitelistFile) {
+func (cm *ConfigManager) SetContainerWhiteList(imageDigest string, whiteList []whitelist.WhitelistFile) {
 	cm.lock.Lock()
 	defer cm.lock.Unlock()
 
