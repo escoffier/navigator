@@ -12,6 +12,9 @@
     },
     {
       "indexPrefix": "processing_"
+    },
+    {
+      "indexPrefix": "navi-audit-"
     }
   ]
 }
