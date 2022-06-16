@@ -1,0 +1,10 @@
+FROM spartan65/rhel65:build
+
+ADD src /src
+
+WORKDIR /src
+
+RUN make all
+
+CMD ["tail", "-f", "/dev/null"]
+

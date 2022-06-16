@@ -1,5 +1,5 @@
 CC = gcc
-CFLAGS = -shared -fPIC
+CFLAGS = -shared -fPIC -std=c99 -D_XOPEN_SOURCE=700
 LIBS= -ldl
 DEBUGFLAGS = -g -O0 -D_DEBUG
 
