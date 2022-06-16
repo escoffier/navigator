@@ -21,8 +21,12 @@ import (
 	"k8s.io/client-go/tools/cache"
 )
 
-const clusterInfoKey = "cluster-info"
-const clusterInfo = "cluster-info"
+const (
+	clusterInfoKey = "cluster-info"
+	clusterInfo    = "cluster-info"
+	Kubernetes     = "kubernetes"
+	Openshift      = "openshift"
+)
 
 type TensorCluster struct {
 	Key           string             `json:"key"`
@@ -31,6 +35,7 @@ type TensorCluster struct {
 	Status        int32              `json:"status"`
 	ConsoleURL    string             `json:"console_url,omitempty"`
 	K8SRestConfig *InfoForRestConfig `json:"k8s_rest_config,omitempty"`
+	Platform      string             `json:"platform,omitempty"`
 }
 
 type ClusterInfoManager struct {
@@ -113,6 +118,15 @@ func (m *ClusterInfoManager) ClusterKey() (string, bool) {
 	cinfo := cobj.(*TensorCluster)
 
 	return cinfo.Key, true
+}
+
+func (m *ClusterInfoManager) Platform() (string, bool) {
+	cObj := m.cinfoVal.Load()
+	if cObj == nil {
+		return "", false
+	}
+	cInfo := cObj.(*TensorCluster)
+	return cInfo.Platform, true
 }
 
 func getK8sClusterInfo(ctx context.Context, host string) (*TensorCluster, error) {
