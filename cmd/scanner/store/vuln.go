@@ -19,10 +19,29 @@ type VulnDalInterface interface {
 	CreateVuln(ctx context.Context, data []*model.Vuln) error
 	UpdateVuln(ctx context.Context, where string, updater map[string]interface{}, vuln *model.Vuln) error
 	CreateVulnImage(ctx context.Context, imageID int64, data []*model.VulnImage) error
+	GroupImageVuln(ctx context.Context, images []int64) ([]GroupImageVuln, error)
 }
 
 type VulnDao struct {
 	rdb *databases.RDBInstance
+}
+
+func (v *VulnDao) GroupImageVuln(ctx context.Context, images []int64) ([]GroupImageVuln, error) {
+	if len(images) == 0 {
+		return nil, fmt.Errorf("no imageIds")
+	}
+	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*10)
+	defer cancelFunc()
+
+	res := make([]GroupImageVuln, 0)
+	err := v.rdb.Get().WithContext(ctx).Model(&model.VulnImage{}).
+		Select("ivan_scanner_vuln_images.image_id", "ivan_scanner_vulns.severity_int", "count(ivan_scanner_vulns.id) as cnt").
+		Joins("left  join ivan_scanner_vulns on ivan_scanner_vuln_images.unique_vuln=ivan_scanner_vulns.unique_vuln").
+		Where("ivan_scanner_vuln_images.image_id IN ? ", images).
+		Group("ivan_scanner_vuln_images.image_id,ivan_scanner_vulns.severity_int").
+		Scan(&res).Error
+
+	return res, err
 }
 
 var singeVulnDao *VulnDao

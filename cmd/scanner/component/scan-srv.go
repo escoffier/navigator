@@ -141,6 +141,7 @@ type ScannerSrv interface {
 
 	GetStrategyForEnv(ctx context.Context, envName string) ([]model.ScanStrategy, error)
 	SetEnvToStrategy(ctx context.Context, envName string, policyID []int64) error
+	ImageOverview(ctx context.Context, uuids []uint32) ([]ImageOverviewRes, error)
 }
 
 type ConScannerSrv struct {
@@ -149,6 +150,96 @@ type ConScannerSrv struct {
 	scanTaskDal   store.ScanTaskInterface
 	registryDal   store.RegistryDal
 	scanConfigDal store.ScanConfigDal
+}
+
+type ImageOverviewRes struct {
+	UUID               uint32 `json:"uuid"`
+	VulnerabilityNum   int64  `json:"vulnerabilityNum"`
+	VulnerabilityLevel string `json:"vulnerabilityLevel"`
+	MalwareNum         int64  `json:"malwareNum"`
+	SensitiveFilesNum  int64  `json:"sensitiveFilesNum"`
+	WebshellNum        int64  `json:"webshellNum"`
+	IsTrusted          bool   `json:"isTrusted"`
+	IsSecure           bool   `json:"isSecure"`
+}
+
+func (s *ConScannerSrv) ImageOverview(ctx context.Context, uuids []uint32) ([]ImageOverviewRes, error) {
+	res := make([]ImageOverviewRes, 0)
+	if len(uuids) == 0 {
+		return res, nil
+	}
+	// 查出有扫描结果的镜像
+
+	images, _, err := s.dbdal.SearchImage(ctx, store.SearchImageParam{UUIDs: uuids}, nil)
+	if err != nil {
+		logging.GetLogger().Err(err).Msg("SearchImages.SearchImage")
+		return nil, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf(consts.StatusInternalServerErrorMsg))
+	}
+	if len(images) == 0 {
+		return res, nil
+	}
+	// 更好的方案是找出最近扫描成功的镜像，这样做的话会消耗性能，所以，现在只找第一个
+	imageIds, uniqueImages, imageMap, digests := make([]int64, 0), make([]uint64, 0), make(map[uint32]model.ImageList), make([]string, 0)
+	for i := range images {
+		if _, ok := imageMap[images[i].ImageUUID]; !ok {
+			imageMap[images[i].ImageUUID] = images[i]
+			imageIds = append(imageIds, images[i].ID)
+			uniqueImages = append(uniqueImages, images[i].UniqueImage)
+			digests = append(digests, images[i].Digest)
+		}
+	}
+	// 统计镜像
+	// 查扫描结果
+	scan, _, err := s.dbdal.SearchScanImage(ctx, store.SearchScanImageParam{ImageIds: imageIds}, nil)
+	if err != nil {
+		logging.GetLogger().Err(err).Msg("SearchImages.SearchScanImage")
+		return nil, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf(consts.StatusInternalServerErrorMsg))
+	}
+	scanMap := make(map[int64]model.ScanImage)
+	for i := range scan {
+		scanMap[scan[i].ImageID] = scan[i]
+	}
+
+	// 查漏洞
+	vulnGroup, err := s.vulnDal.GroupImageVuln(ctx, imageIds)
+	if err != nil {
+		logging.GetLogger().Err(err).Msg("SearchImages.SearchScanImage")
+		return nil, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf(consts.StatusInternalServerErrorMsg))
+	}
+	vulnMap := make(map[int64]GroupImageVulns)
+	for i := range vulnGroup {
+		if vulnMap[vulnGroup[i].ImageID] == nil {
+			vulnMap[vulnGroup[i].ImageID] = make([]store.GroupImageVuln, 0)
+		}
+		vulnMap[vulnGroup[i].ImageID] = append(vulnMap[vulnGroup[i].ImageID], vulnGroup[i])
+	}
+
+	// 可信镜像查询
+	ds, err := s.dbdal.SearchTrustedImageIDs(ctx, store.SearchTrustedImageParam{Digests: digests, IsTrusted: consts.IsTrustedImageString})
+	if err != nil {
+		logging.GetLogger().Err(err).Msg("SearchImages.SearchTrustedImageIDs")
+		return nil, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf(consts.StatusInternalServerErrorMsg))
+	}
+
+	trustedMap := make(map[int64]bool)
+	for i := range ds {
+		trustedMap[ds[i]] = true
+	}
+
+	for _, image := range imageMap {
+		res = append(res, ImageOverviewRes{
+			UUID:               image.ImageUUID,
+			VulnerabilityNum:   vulnMap[image.ID].Count(),
+			VulnerabilityLevel: vulnMap[image.ID].GetMaxSeverityInt(),
+			MalwareNum:         int64(len(scanMap[image.ID].MaliciousInfo)),
+			SensitiveFilesNum:  int64(len(scanMap[image.ID].SensitiveFile)),
+			WebshellNum:        int64(len(scanMap[image.ID].WebshellInfo)),
+			IsTrusted:          trustedMap[image.ID], // 可信镜像查询
+			IsSecure:           scanMap[image.ID].RiskScore <= consts.SecureImageRiskScore,
+		})
+	}
+
+	return res, nil
 }
 
 func (s *ConScannerSrv) SearchImages(ctx context.Context, param SearchImageParam, filter *model.Filter) ([]model.ImageList, int64, error) {

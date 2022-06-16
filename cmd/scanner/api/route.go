@@ -211,6 +211,13 @@ func WebAPI(router *gin.Engine,
 		v12.GET("/syncStatus", apiSyncImageSrv.GetSyncStatus)
 	}
 
+	// 内部调用
+	v13 := router.Group("/api/v1/internal")
+	{
+		v13.POST("/overview/image", apiScannerSrv.ImageOverview)
+		v13.POST("/overview/registry", apiRegistrySrv.RegistryOverview)
+	}
+
 	return router
 }
 

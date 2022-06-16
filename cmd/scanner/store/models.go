@@ -300,3 +300,9 @@ type SearchExportTensorTask struct {
 	NotIds         []int64
 	ExpirationDate time.Time
 }
+
+type GroupImageVuln struct {
+	ImageID     int64 `gorm:"column:image_id"  json:"imageID"`
+	SeverityInt int64 `gorm:"column:severity_int" json:"severityInt"`
+	Count       int64 `gorm:"column:cnt" json:"count"`
+}

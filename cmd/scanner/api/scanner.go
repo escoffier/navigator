@@ -1126,6 +1126,23 @@ func (s *Scanner) DeleteBaseImage(ctx *gin.Context) {
 	}))
 }
 
+func (s *Scanner) ImageOverview(ctx *gin.Context) {
+	type Body struct {
+		UUIDS []uint32 `json:"uuids"`
+	}
+	body := new(Body)
+	if err := ctx.BindJSON(body); err != nil {
+		response.JSONError(ctx, fmt.Errorf("未解析到image uuid"))
+		return
+	}
+	overview, err := s.Srv.ImageOverview(ctx, body.UUIDS)
+	if err != nil {
+		response.JSONError(ctx, err)
+		return
+	}
+	response.JSONOK(ctx, response.WithTotalItems(int64(len(overview))), response.WithItems(overview))
+}
+
 // GetScanTaskList 获取扫描任务记录列表
 // @Summary 扫描任务
 // @Title 获取扫描任务记录列表

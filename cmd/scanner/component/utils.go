@@ -18,6 +18,7 @@ import (
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/jobs"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/uuid"
@@ -515,4 +516,24 @@ func ParseLicense(softs []model.LicenseInfo) string {
 	}
 
 	return strings.Join(lit, ",")
+}
+
+type GroupImageVulns []store.GroupImageVuln
+
+func (s GroupImageVulns) Count() int64 {
+	var all int64
+	for i := range s {
+		all += s[i].Count
+	}
+	return all
+}
+
+func (s GroupImageVulns) GetMaxSeverityInt() string {
+	var maxSeverity int64 = -1
+	for i := range s {
+		if s[i].SeverityInt > maxSeverity {
+			maxSeverity = s[i].SeverityInt
+		}
+	}
+	return model.GetSeverity(int(maxSeverity))
 }

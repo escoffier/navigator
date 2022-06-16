@@ -81,8 +81,10 @@ func GetSeverity(level int) string {
 		return SeverityLow
 	case SeverityUnknownInt:
 		return SeverityUnknown
-	default:
+	case SeverityNegligibleInt:
 		return SeverityNegligible
+	default:
+		return ""
 	}
 }
 func GetSeverityView(level int) string {
