@@ -92,15 +92,10 @@ func (s *Subscriber) RuntimeEventCallBack(d *DriftAssurance) container.EventCall
 
 				// get image whitelist
 				skipScanner := false
-				for _, v := range m.ContainerInfo.ImageDigest {
-					if d.config.execWhiteList[v] != nil {
-						skipScanner = true
-						logging.Get().
-							Info().
-							Str("imageDigest", v).
-							Msg("imageDigest in exec white list,ignore whitelist scanner")
-						break
-					}
+				if _, skipScanner := d.config.IsImageDigestsExist(m.ContainerInfo.ImageDigest); skipScanner {
+					logging.Get().
+						Info().
+						Msg("imageDigest in exec white list,ignore whitelist scanner")
 				}
 
 				if !skipScanner {
