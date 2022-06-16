@@ -20,11 +20,11 @@ func (s *Service) PolicyCreate(ctx context.Context, policy *model.ScapPolicy) (u
 		logging.Get().Err(err).Msgf("创建合规策略失败, policy=%v", policy)
 
 		// 策略名冲突
-		if strings.Contains(err.Error(), "duplicate") {
-			return 0, fmt.Errorf("create failed, duplicate policyName <%s>", policy.Name)
+		if strings.Contains(strings.ToLower(err.Error()), "duplicate") {
+			return 0, fmt.Errorf("创建失败, 名称重复 <%s>", policy.Name)
 		}
 
-		return 0, errors.New("create failed")
+		return 0, errors.New("创建失败")
 	}
 	return policy.ID, nil
 }
@@ -55,7 +55,7 @@ func (s *Service) PolicyDelete(ctx context.Context, policyId uint, scapType uint
 
 	if err := db.Error; err != nil {
 		logging.Get().Err(err).Msgf("删除合规策略失败, id=%d", policyId)
-		return fmt.Errorf("delete <%d> failed", policyId)
+		return fmt.Errorf("删除策略 <%d> 失败", policyId)
 	}
 	return nil
 }
@@ -71,7 +71,7 @@ func (s *Service) PolicyBatch(ctx context.Context, scapType uint8, limit, offset
 
 	if err := db.Count(&count).Error; err != nil {
 		logging.Get().Err(err).Msgf("获取策略列表失败, type=%d", scapType)
-		return nil, 0, errors.New("get total count failed")
+		return nil, 0, errors.New("获取策略总数失败")
 	}
 
 	if count == 0 {
@@ -87,7 +87,7 @@ func (s *Service) PolicyBatch(ctx context.Context, scapType uint8, limit, offset
 		Order(clause.OrderByColumn{Column: clause.Column{Name: "id"}, Desc: true}).
 		Error; err != nil {
 		logging.Get().Err(err).Msgf("获取策略列表失败, type=%d, limit=%d, offset = %d", scapType, limit, offset)
-		return nil, 0, errors.New("get policy list failed")
+		return nil, 0, errors.New("获取策略列表失败")
 	}
 
 	return result, count, nil

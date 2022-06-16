@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
-	json "github.com/json-iterator/go"
 	"github.com/go-chi/chi"
+	json "github.com/json-iterator/go"
 	param "github.com/oceanicdev/chi-param"
 	"github.com/pkg/errors"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/assets"
@@ -266,6 +266,7 @@ func (api *api) getClusters() http.HandlerFunc {
 	type cluster struct {
 		Key         string `json:"key"`
 		Name        string `json:"name"`
+		PlatForm    string `json:"platForm"`
 		Description string `json:"description"`
 		Creator     string `json:"creator"`
 		CreatedAt   int64  `json:"createdAt"`
@@ -300,6 +301,7 @@ func (api *api) getClusters() http.HandlerFunc {
 			ret[i].Key = cluster.Key
 			ret[i].Description = cluster.Description
 			ret[i].Name = cluster.Name
+			ret[i].PlatForm = cluster.Platform
 			ret[i].Creator = cluster.Creator
 			ret[i].CreatedAt = cluster.CreatedAt.Unix()
 			ret[i].UpdatedAt = cluster.UpdatedAt.Unix()

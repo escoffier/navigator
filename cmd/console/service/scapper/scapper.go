@@ -286,6 +286,8 @@ func (s *Scapper) RunComplianceCheck(
 			return uuid.Nil, err
 		}
 
+		s.modifyJob(checkType, jobObj, cluster)
+
 		nodes, err = s.getNodes(ctx, kubeClient, clusterInfo)
 		if err != nil {
 			return uuid.Nil, apperror.NewKubernetesError(http.StatusInternalServerError, fmt.Errorf("Can't list nodes in this cluster: %v", err))
@@ -293,7 +295,7 @@ func (s *Scapper) RunComplianceCheck(
 
 		// schedule jobs
 		logging.Get().Info().
-			Str("check-type", string(check.CheckType)).Str("check-cluster", check.ClusterID).Str("check-uuid", check.CheckUUID).
+			Str("check-type", check.CheckType).Str("check-cluster", check.ClusterID).Str("check-uuid", check.CheckUUID).
 			Str("namespace", check.Namespace).Str("operator", check.Operator).Str("image", jobObj.Spec.Template.Spec.Containers[0].Image).
 			Int("node-items-num", len(nodes)).Msg("Scheduling SCAP check jobs")
 
@@ -1165,6 +1167,28 @@ func (s *Scapper) getHostConfigMap(ctx context.Context, kubeClient *pkgassets.Cl
 	}
 
 	return configMapName, nil
+}
+
+func (s *Scapper) modifyJob(scapType model.ComplianceCheckType, job *batchv1.Job, cluster *model.TensorCluster) {
+	switch scapType {
+	case model.ComplianceCheckTargetTypeKube:
+		// 如果是openshift，修改执行的文件，执行 rh-1.0 文件
+		if cluster.Platform == k8s.Openshift {
+			logging.Get().Info().Msg("openshift platform")
+
+			container := job.Spec.Template.Spec.Containers
+			if length := len(container); length > 0 {
+				for i := range container[length-1].Args {
+					if strings.HasPrefix(container[length-1].Args[i], "--benchmark") {
+						container[length-1].Args[i] = "--benchmark=rh-1.0"
+						break
+					}
+				}
+			}
+		}
+	case model.ComplianceCheckTargetTypeDocker:
+	case model.ComplianceCheckTargetTypeHost:
+	}
 }
 
 // 检查nodes是否处于ready状态

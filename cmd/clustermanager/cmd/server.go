@@ -105,6 +105,7 @@ func NewServer() (*server, error) {
 			ClientCertData:      string(agent.KubeRestConfig.CertData),
 			ClientKeyData:       string(agent.KubeRestConfig.KeyData),
 			WorkerNamespace:     s.config.WorkerNamespace,
+			Platform:            agent.Platform(),
 		}
 
 		err = dal.AddCluster(ctx, rdb.Get(), tensorCluster)

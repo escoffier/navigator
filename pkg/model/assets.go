@@ -363,6 +363,7 @@ type TensorCluster struct {
 	Updater             string      `gorm:"column:updater" json:"updater"`
 	UpdatedAt           time.Time   `gorm:"column:updated_at" json:"updatedAt"`
 	Status              int32       `gorm:"column:status"`
+	Platform            string      `gorm:"column:platform" json:"platform"`
 }
 
 func (TensorCluster) TableName() string {

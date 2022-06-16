@@ -7,6 +7,7 @@ import (
 	"crypto/x509"
 	"fmt"
 	"gitlab.com/piccolo_su/vegeta/pkg/assets"
+	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
 	"io/ioutil"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -16,8 +17,6 @@ import (
 	"net/http"
 	"strings"
 	"time"
-
-	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
 
 	"github.com/avast/retry-go"
 	json "github.com/json-iterator/go"
@@ -32,6 +31,8 @@ import (
 const (
 	clusterInfo    = "cluster-info"
 	clusterInfoKey = "cluster-info"
+	//kubernetes     = "kubernetes"
+	//openshift      = "openshift"
 )
 
 type SAToken struct {
@@ -57,6 +58,7 @@ type ClusterAgent struct {
 	tlsClient       bool
 	workerNamespace string
 	HostClient      *assets.Clientset
+	platform        string
 }
 
 const (
@@ -162,7 +164,7 @@ func (c *ClusterAgent) Init() error {
 	if err != nil {
 		return err
 	}
-
+	c.getPlatform()
 	err = c.fetchClusterKey()
 	if err != nil {
 		return err
@@ -203,6 +205,7 @@ func (c *ClusterAgent) registerClusterInfo() error {
 		ClientKeyData:       string(c.KubeRestConfig.KeyData),
 		WorkerNamespace:     c.workerNamespace,
 		Status:              0,
+		Platform:            c.platform,
 	}
 
 	data, err := json.Marshal(cluster)
@@ -210,7 +213,7 @@ func (c *ClusterAgent) registerClusterInfo() error {
 		logging.Get().Err(err).Msg("Failed to marshal cluster")
 		return err
 	}
-	logging.Get().Info().Msgf("###### cluster: %s", string(data))
+	logging.Get().Debug().Msgf("cluster info: %s", string(data))
 	logging.Get().Info().Msgf("register to %s", buildURL(c.masterAddr, masterAssetURL))
 	request, err := http.NewRequestWithContext(ctx, http.MethodPut, buildURL(c.masterAddr, masterAssetURL), bytes.NewReader(data))
 	if err != nil {
@@ -294,6 +297,19 @@ func (c *ClusterAgent) updateClusterInfo() {
 	}
 }
 
+func (c *ClusterAgent) Platform() string {
+	return c.platform
+}
+
+func (c *ClusterAgent) getPlatform() {
+	_, err := c.HostClient.ServerResourcesForGroupVersion("config.openshift.io/v1")
+	if err != nil {
+		c.platform = k8s.Kubernetes
+		return
+	}
+	c.platform = k8s.Openshift
+}
+
 func buildURL(host, path string) string {
 	if strings.Contains(host, "http") {
 		return host + path
@@ -364,6 +380,7 @@ func loadCertsData() (*CertsData, error) {
 
 func (c *ClusterAgent) fetchClusterKey() error {
 	var err error
+	c.getPlatform()
 	cm, err := c.HostClient.CoreV1().ConfigMaps(c.workerNamespace).Get(context.TODO(), clusterInfo, v1.GetOptions{})
 	if err != nil {
 		if errors.IsNotFound(err) {
@@ -383,6 +400,14 @@ func (c *ClusterAgent) fetchClusterKey() error {
 			return err
 		}
 		c.CusterID = clusterInfo.Key
+
+		if clusterInfo.Platform == "" {
+			clusterInfo.Platform = c.platform
+			err = c.updateClusterConfig(clusterInfo)
+			if err != nil {
+				return err
+			}
+		}
 		return nil
 	}
 	return fmt.Errorf("no cluster key")
@@ -396,6 +421,7 @@ func (c *ClusterAgent) saveClusterInfo() error {
 		Description: "",
 		Status:      0,
 		ConsoleURL:  c.masterAddr,
+		Platform:    c.platform,
 	}
 
 	data, err := json.Marshal(cluster)
@@ -411,6 +437,22 @@ func (c *ClusterAgent) saveClusterInfo() error {
 		return err
 	}
 	c.CusterID = string(clusterKey)
+	return nil
+}
+
+func (c *ClusterAgent) updateClusterConfig(clusterConfig *k8s.TensorCluster) error {
+	data, err := json.Marshal(clusterConfig)
+	if err != nil {
+		return err
+	}
+	cm := &corev1.ConfigMap{
+		ObjectMeta: v1.ObjectMeta{Name: clusterInfo, Namespace: c.workerNamespace, Finalizers: []string{"security.cluster/cm-protection"}},
+		BinaryData: map[string][]byte{clusterInfoKey: data},
+	}
+	_, err = c.HostClient.CoreV1().ConfigMaps(c.workerNamespace).Update(context.TODO(), cm, v1.UpdateOptions{})
+	if err != nil {
+		return err
+	}
 	return nil
 }
 

@@ -1169,6 +1169,7 @@ func AddCluster(ctx context.Context, rdb *gorm.DB, cluster *model.TensorCluster)
 				"cluster_type",
 				"worker_namespace",
 				"name",
+				"platform",
 			}),
 		}).Create(cluster).Error
 	})
