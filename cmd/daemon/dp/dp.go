@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/docker/docker/api/types"
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/dp/whitelist"
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/container"
 	_ "gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/container/docker"
@@ -109,7 +110,7 @@ func (d *DriftAssurance) Start(ctx context.Context, consoleAddr string) error {
 		for _, i := range containers {
 			wg1.Add(1)
 			ch <- struct{}{}
-			go func() {
+			go func(c types.Container) {
 				defer wg1.Done()
 				defer func() {
 					<-ch
@@ -117,12 +118,12 @@ func (d *DriftAssurance) Start(ctx context.Context, consoleAddr string) error {
 						logging.Get().Error().Msgf("get running container image result panic: %v.stack:%s", r, debug.Stack())
 					}
 				}()
-				imageInspect, err := d.rt.GetImageInspect(i.ImageID)
+				imageInspect, err := d.rt.GetImageInspect(c.ImageID)
 				if err != nil {
 					logging.Get().Err(err).Msg("get image inspect failed")
 					return
 				}
-				skip := false
+				digests := make([]string, 0)
 				for _, v := range imageInspect.RepoDigests {
 					arr := strings.Split(v, "@")
 					if len(arr) != 2 {
@@ -130,15 +131,13 @@ func (d *DriftAssurance) Start(ctx context.Context, consoleAddr string) error {
 						continue
 					}
 					tmpDigest := arr[1]
-					if d.config.execWhiteList[tmpDigest] != nil {
-						skip = true
-						break
-					}
+					digests = append(digests, tmpDigest)
 					d.config.AddImageUsed(tmpDigest)
 				}
-				if skip {
+				if _, skip := d.config.IsImageDigestsExist(digests); skip{
 					return
 				}
+
 				imageInfo, err := d.wc.MakeWhiteListByOverLay(imageInspect)
 				scannedCount++
 				if err != nil {
@@ -154,7 +153,7 @@ func (d *DriftAssurance) Start(ctx context.Context, consoleAddr string) error {
 					tmpDigest := arr[1]
 					d.config.SetContainerWhiteList(tmpDigest, imageInfo.WhiteList)
 				}
-			}()
+			}(i)
 		}
 		wg1.Wait()
 		logging.Get().Info().Msgf("image scan time: %v, num: %v, hashtablesize: %v whitelist dirs num: %v, dir hitcount: %v",
