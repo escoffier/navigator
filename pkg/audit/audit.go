@@ -79,6 +79,17 @@ func RequestLogger(store Store, queue *util.Queue) func(next http.Handler) http.
 						detail, _ = generateDetail(detail, objName)
 						data["detail"] = detail
 					}
+				} else {
+					target := ww.Header().Get("targetref")
+					if target != "" {
+						targetRef := response.TargetRef{}
+						err := json.Unmarshal([]byte(target), &targetRef)
+						if err == nil {
+							data["objName"] = targetRef.Name
+							detail, _ = generateDetail(detail, targetRef.Name)
+							data["detail"] = detail
+						}
+					}
 				}
 				entry.Write(ww.Status(), ww.BytesWritten(), ww.Header(), time.Since(t1), data)
 			}()
