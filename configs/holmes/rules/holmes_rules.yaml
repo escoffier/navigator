@@ -1993,7 +1993,7 @@
       value: "使用免疫防御训练应用，使用微隔离阻拦流量，限制敏感文件和命令的用户权限。"
   desc: Interpretative language detected scanning network
   condition: >
-   interpreted_procs and evt.type=connect
+   interpreted_procs and evt.type=connect and not tensorsec_namespace
   output: >
     Interpretative language detected scanning network (zh_msg=通过解释型语言探测网络,rule_type=Exfiltration,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid connection=%fd.name container_id=%container.id image=%container.image.repository)
   priority: WARNING
