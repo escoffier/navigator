@@ -86,19 +86,10 @@ func newScapService(scapOpts *flag.ScapOpts, rdb *databases.RDBInstance) (*ScapS
 }
 
 func (s *ScapService) PolicyInit(policyCounts int32) error {
-	var policyNum int64
 	var policy model.PolicyDetailInfo
 	tbname := policy.TableName()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
-
-	err := s.rdb.Get().WithContext(ctx).Table(tbname).Count(&policyNum).Error
-	if err != nil {
-		return errors.Errorf("get policy count failed, %v", err)
-	}
-	if policyNum >= int64(policyCounts) {
-		return nil
-	}
 
 	files := []string{
 		"/policy/kube-policy.json",
@@ -109,48 +100,30 @@ func (s *ScapService) PolicyInit(policyCounts int32) error {
 	for _, file := range files {
 		data, err := ioutil.ReadFile(file)
 		if err != nil {
-			logging.Get().Error().Msgf("read data failed from %s, %v.", file, err)
+			logging.Get().Err(err).Msgf("read data failed from %s", file)
 			continue
 		}
 
 		var policies []*model.PolicyDetailInfo
 		err = json.Unmarshal(data, &policies)
 		if err != nil {
-			logging.Get().Error().Msgf("json unmarshal policy failed, file : %s, %v", file, err)
+			logging.Get().Err(err).Msgf("json unmarshal policy failed, file : %s", file)
 			continue
 		}
-		//write policy to pg
-		//for _, rule := range policies {
-		//	policyNum = 0
-		//	err = s.rdb.Get().Where(ctx).Table(tbname).Where("policy_id = ? and check_type = ?", rule.PolicyId, rule.CheckType).Count(&policyNum).Error
-		//	if err != nil {
-		//		logging.Get().Error().Msgf("get policy_id = %s failed, %v.", rule.PolicyId, err)
-		//		continue
-		//	}
-		//
-		//	if policyNum > 0 {
-		//		continue
-		//	}
-		//	err = s.rdb.Get().WithContext(ctx).Table(tbname).Create(rule).Error
-		//	if err != nil {
-		//		logging.Get().Error().Msgf("write policy to postgre db failed, %v.", err)
-		//	}
-		//}
 
 		// 批量插入，如果主键冲突，则ignore
 		err = s.rdb.Get().
 			WithContext(ctx).
 			Clauses(clause.OnConflict{
 				Columns:   []clause.Column{{Name: "id"}},
-				DoNothing: true,
+				UpdateAll: true,
 			}).
 			Table(tbname).
-			Create(policies).
+			CreateInBatches(policies, 30).
 			Error
 		if err != nil {
-			logging.Get().Error().Msgf("write policy to db failed, %v.", err)
+			logging.Get().Err(err).Msg("write policy to db failed")
 		}
-
 	}
 
 	return nil
@@ -437,7 +410,7 @@ func (s *ScapService) GetNodeChecKubeDetails(ctx context.Context, nodeName, chec
 			logging.Get().Warn().Msgf("get policy info failed, policy id : %s.", value.PolicyID)
 			continue
 		}
-
+		cpMap.PolicyId = policy.Id
 		cpMap.Remediation = s.ReplaceAutoVariate(policy.RemediationZh, autoVar)
 		cpMap.Description = policy.DetailZh
 		cpMap.Section = policy.TitleZh
@@ -482,6 +455,7 @@ func (s *ScapService) GetNodeCheckDockerDetails(ctx context.Context, nodeName, c
 			continue
 		}
 
+		cpMap.PolicyId = policy.Id
 		cpMap.Remediation = value.RemediationZh
 		cpMap.Description = policy.DetailZh
 		cpMap.Section = policy.TitleZh
@@ -526,6 +500,7 @@ func (s *ScapService) GetNodeCheckHostDetails(ctx context.Context, nodeName, che
 			continue
 		}
 
+		cpMap.PolicyId = policy.Id
 		cpMap.Remediation = policy.DetailZh
 		cpMap.Description = policy.TitleZh
 		if lang.Language(ctx) == lang.LanguageEN {
@@ -652,6 +627,7 @@ func (s *ScapService) GetKubeBreakdownEntries(ctx context.Context, checkMap map[
 				Description:  detail,
 			}
 			checkMap[value.PolicyID].Classified = s.GetClassified(ctx, value.PolicyID, checkType)
+			checkMap[value.PolicyID].PolicyId = policy.Id
 		}
 
 		testStatus := value.State
@@ -749,6 +725,7 @@ func (s *ScapService) GetHostBreakdownEntries(ctx context.Context, checkMap map[
 			}
 
 			checkMap[value.PolicyID].Classified = s.GetClassified(ctx, value.PolicyID, checkType)
+			checkMap[value.PolicyID].PolicyId = policy.Id
 		}
 
 		switch value.State {
@@ -910,6 +887,7 @@ func (s *ScapService) GetDockerBreakdownEntries(ctx context.Context, checkMap ma
 			}
 
 			checkMap[value.PolicyID].Classified = s.GetClassified(ctx, value.PolicyID, checkType)
+			checkMap[value.PolicyID].PolicyId = policy.Id
 		}
 
 		testStatus := value.State

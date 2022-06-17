@@ -67,3 +67,49 @@ func (a *ApiServer) RuleBatch(w http.ResponseWriter, r *http.Request) {
 
 	response.Ok(w, response.WithItems(rules), response.WithTotalItems(count))
 }
+
+func (a *ApiServer) RuleDetail(w http.ResponseWriter, r *http.Request) {
+	ctx, cancel := context.WithTimeout(r.Context(), time.Second*10)
+	defer cancel()
+
+	scapType := r.Context().Value(sType).(uint8)
+
+	id, err := param.Int(r, "id")
+	if err != nil {
+		apperror.RespAndLog(w, ctx, apperror.NewInvalidArgError(
+			http.StatusBadRequest,
+			errors.New("invalid id parameter"),
+		))
+		return
+	}
+
+	rule, err := a.service.RuleDetail(ctx, scapType, id)
+	if err != nil {
+		apperror.RespAndLog(w, ctx, apperror.NewErrorWithCode(
+			http.StatusInternalServerError,
+			err,
+		))
+		return
+	}
+
+	resp := scap.Rule{
+		ID:             rule.Id,
+		RawID:          rule.PolicyId,
+		TitleEn:        rule.TitleEn,
+		TitleZh:        rule.TitleZh,
+		DetailEn:       rule.DetailEn,
+		DetailZh:       rule.DetailZh,
+		RemediationEn:  rule.RemediationEn,
+		RemediationZh:  rule.RemediationZh,
+		ExpectedResult: rule.ExpectedResult,
+		Audit:          rule.Audit,
+		ClassifiedZh:   rule.ClassifiedZh,
+		ClassifiedEn:   rule.ClassifiedEn,
+	}
+
+	if rule.PolicyDetailInfoExtraDetail != nil {
+		resp.ExtraDetail = rule.PolicyDetailInfoExtraDetail
+	}
+
+	response.Ok(w, response.WithItem(resp))
+}

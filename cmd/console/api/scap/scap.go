@@ -45,6 +45,7 @@ func (a *ApiServer) InitRouter() func(chi.Router) {
 
 			scapRouter.Route("/rule", func(ruleRouter chi.Router) {
 				ruleRouter.Get("/", a.RuleBatch)
+				ruleRouter.Get("/{id}", a.RuleDetail)
 			})
 
 			scapRouter.Route("/record", func(recordRouter chi.Router) {

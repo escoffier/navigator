@@ -128,6 +128,16 @@ func (FileExport) TableName() string {
 	return "file_export_task"
 }
 
+type PolicyDetailInfoExtraDetail struct {
+	Description  string   `json:"description"`
+	Rationale    string   `json:"rationale"`
+	Audit        string   `json:"audit"`
+	Remediation  string   `json:"remediation"`
+	Impact       string   `json:"impact"`
+	DefaultValue string   `json:"defaultValue"`
+	References   []string `json:"references"`
+}
+
 type PolicyDetailInfo struct {
 	Id             uint   `gorm:"primaryKey" json:"id"`
 	PolicyId       string `json:"policy_id" gorm:"type:varchar(255);column:policy_id"`
@@ -156,11 +166,18 @@ type PolicyDetailInfo struct {
 		Os   string `json:"os"`
 		Rule string `json:"rule"`
 	} `json:"extraInfo" gorm:"-"`
+
+	PolicyDetailInfoExtraDetail     *PolicyDetailInfoExtraDetail `json:"extraDetail" gorm:"-"`
+	PolicyDetailInfoExtraDetailJson datatypes.JSON               `json:"-" gorm:"column:extra_detail;type:json"`
 }
 
 func (p *PolicyDetailInfo) BeforeSave(tx *gorm.DB) (err error) {
 	if p.Extra != nil {
 		p.ExtraInfo, err = json.Marshal(p.Extra)
+	}
+
+	if p.PolicyDetailInfoExtraDetail != nil {
+		p.PolicyDetailInfoExtraDetailJson, err = json.Marshal(p.PolicyDetailInfoExtraDetail)
 	}
 
 	return
@@ -171,6 +188,10 @@ func (p *PolicyDetailInfo) AfterFind(tx *gorm.DB) (err error) {
 		err = json.Unmarshal(p.ExtraInfo, &p.Extra)
 	}
 
+	if p.PolicyDetailInfoExtraDetailJson != nil {
+		err = json.Unmarshal(p.PolicyDetailInfoExtraDetailJson, &p.PolicyDetailInfoExtraDetail)
+	}
+
 	return
 }
 
@@ -179,6 +200,7 @@ func (PolicyDetailInfo) TableName() string {
 }
 
 type CheckBreakdown struct {
+	PolicyId      uint   `json:"policyId"`
 	PolicyNumber  string `json:"policyNumber"`
 	Section       string `json:"section"`
 	Description   string `json:"description"`
@@ -200,6 +222,7 @@ type NodeCheckDetails struct {
 
 type ComplianceMapEntry struct {
 	PolicyNumber string `json:"policyNumber"`
+	PolicyId     uint   `json:"policyId"`
 	Section      string `json:"section"`
 	Description  string `json:"description"`
 	Remediation  string `json:"remediation"`
