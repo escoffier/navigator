@@ -631,6 +631,7 @@
   desc: Running malicious tools in the container
   condition: >
    evt.type = execve and container and
+   (not tensorsec_namespace) and 
    (proc.cmdline contains "cdk" or
     proc.cmdline contains "k0otkit" or
     proc.cmdline contains "kubesploit" or
