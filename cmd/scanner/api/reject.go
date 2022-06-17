@@ -350,7 +350,7 @@ func (r *RejectAPI) UpdatePolicy(ctx *gin.Context) {
 		return
 	}
 	response.JSONOK(ctx, response.WithTarget(&response.TargetRef{
-		Name: fmt.Sprintf("Policy %d: %s", id, policy.Name),
+		Name: policy.Name,
 		ID:   strconv.Itoa(int(id)),
 		Link: "api/v2/containerSec/scanner/imagereject/policy/single" + strconv.Itoa(int(id)),
 	}))
