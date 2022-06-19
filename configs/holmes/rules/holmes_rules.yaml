@@ -859,7 +859,7 @@
       key: "处置建议"
       value: "使用免疫防御训练应用，阻拦新的或被修改的可执行文件，限制敏感文件和命令的用户权限。"
   desc: an attempt to write to any file below /etc
-  condition: write_etc_common
+  condition: write_etc_common and not (tensorsec_namespace and k8s.pod.name contains "holmes")
   output: >
     File below /etc opened for writing (zh_msg=尝试修改/etc路径下的文件,rule_type=Persistence,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,
     original_info=user=%user.name user_loginuid=%user.loginuid parent=%proc.pname file=%fd.name program=%proc.name gparent=%proc.aname[2] ggparent=%proc.aname[3] gggparent=%proc.aname[4] container_id=%container.id image=%container.image.repository)
