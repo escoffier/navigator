@@ -58,13 +58,15 @@
             "rule": "3.2.1"
         },
         "extraDetail": {
-            "description": "",
-            "rationale": "",
-            "audit": "",
-            "remediation": "",
-            "impact": "",
-            "defaultValue": "",
-            "references": []
+            "description": "Kubernetes 可以审计向 API Server 发出的请求的详细信息。必须设置 --audit-policy-file 标志才能启用此日志记录。",
+            "rationale": "日志记录是所有系统的重要检测控制，用于检测潜在的未经授权的访问。",
+            "audit": "在集群 master 节点之一上运行以下命令：\nps -ef | grep kube-apiserver\n\n验证是否设置了 --audit-policy-file。查看指定文件的内容并确保它包含有效的审计策略。",
+            "remediation": "为您的集群创建一个审计策略文件。",
+            "impact": "审计日志将在 master 节点上创建，这将消耗磁盘空间。应注意避免生成过多的日志信息，因为这可能会影响集群节点的可用性。",
+            "defaultValue": "除非指定 --audit-policy-file 标志，否则不会执行审计。",
+            "references": [
+                "https://kubernetes.io/docs/tasks/debug-application-cluster/audit/"
+            ]
         }
     },
     {
@@ -458,13 +460,15 @@
             "rule": "1.1.3"
         },
         "extraDetail": {
-            "description": "",
-            "rationale": "",
-            "audit": "",
-            "remediation": "",
-            "impact": "",
-            "defaultValue": "",
-            "references": []
+            "description": "确保控制器管理器 pod 规范文件具有 644 或更严格的权限。",
+            "rationale": "控制器管理器 pod 规范文件控制各种参数，这些参数设置控制器管理器在主节点上的行为。您应该限制其文件权限以保持文件的完整性。该文件应该只能由系统上的管理员写入。",
+            "audit": "在 master 节点上运行以下命令（基于系统上的文件位置）：\nstat -c %a /etc/kubernetes/manifests/kube-controller-manager.yaml\n\n验证权限是否为 644 或更严格。",
+            "remediation": "在主节点上运行以下命令（基于系统上的文件位置）。\n例如，chmod 644 /etc/kubernetes/manifests/kube-controller-manager.yaml",
+            "impact": "无。",
+            "defaultValue": "默认情况下，kube-controller-manager.yaml 文件的权限为 640。",
+            "references": [
+                "https://kubernetes.io/docs/admin/kube-apiserver/"
+            ]
         }
     },
     {
@@ -492,13 +496,15 @@
             "rule": "1.1.4"
         },
         "extraDetail": {
-            "description": "",
-            "rationale": "",
-            "audit": "",
-            "remediation": "",
-            "impact": "",
-            "defaultValue": "",
-            "references": []
+            "description": "确保控制器管理器 pod 规范文件所有权设置为 root:root。",
+            "rationale": "控制器管理器 pod 规范文件控制各种参数，这些参数设置主节点的各种组件的行为。您应该设置其文件所有权以维护文件的完整性。该文件应归 root:root 所有。",
+            "audit": "在 master 节点上运行以下命令（基于系统上的文件位置）：\nstat -c %U:%G /etc/kubernetes/manifests/kube-controller-manager.yaml\n\n验证所有权是否设置为 root:root。",
+            "remediation": "在主节点上运行以下命令（基于系统上的文件位置）。\n例如 chown root:root /etc/kubernetes/manifests/kube-controller-manager.yaml",
+            "impact": "无。",
+            "defaultValue": "默认情况下，kube-controller-manager.yaml 文件所有权设置为 root:root。",
+            "references": [
+                "https://kubernetes.io/docs/admin/kube-controller-manager"
+            ]
         }
     },
     {
@@ -526,13 +532,15 @@
             "rule": "1.1.5"
         },
         "extraDetail": {
-            "description": "",
-            "rationale": "",
-            "audit": "",
-            "remediation": "",
-            "impact": "",
-            "defaultValue": "",
-            "references": []
+            "description": "确保Scheduler 的 pod 规范文件具有 644 或更严格的权限。",
+            "rationale": "Scheduler 的 pod 规范文件控制各种参数，这些参数设置主节点中调度程序服务的行为。您应该限制其文件权限以保持文件的完整性。该文件应该只能由系统上的管理员写入。",
+            "audit": "在 master 节点上运行以下命令（基于系统上的文件位置）。\nstat -c %a /etc/kubernetes/manifests/kube-scheduler.yaml\n\n验证权限是否为 644 或更严格。",
+            "remediation": "在 master 节点上运行以下命令（基于系统上的文件位置）。\n例如，\nchmod 644 /etc/kubernetes/manifests/kube-scheduler.yaml\n\n",
+            "impact": "无。",
+            "defaultValue": "默认情况下，kube-scheduler.yaml 文件的权限为 640。",
+            "references": [
+                "https://kubernetes.io/docs/admin/kube-scheduler/"
+            ]
         }
     },
     {
@@ -560,13 +568,15 @@
             "rule": "1.1.6"
         },
         "extraDetail": {
-            "description": "",
-            "rationale": "",
-            "audit": "",
-            "remediation": "",
-            "impact": "",
-            "defaultValue": "",
-            "references": []
+            "description": "确保 Scheduler 的 pod 规范文件所有权设置为 root:root。",
+            "rationale": "Scheduler 的 pod 规范文件控制各种参数，这些参数设置主节点中 kube-scheduler 服务的行为。您应该设置其文件所有权以维护文件的完整性。该文件应归 root:root 所有。",
+            "audit": "在 master 节点上运行以下命令（基于系统上的文件位置）。\nstat -c %U:%G /etc/kubernetes/manifests/kube-scheduler.yaml\n\n验证所有权是否设置为 root:root。",
+            "remediation": "在 master 节点上运行以下命令（基于系统上的文件位置）。\n例如 \nchown root:root /etc/kubernetes/manifests/kube-scheduler.yaml\n\n",
+            "impact": "无。",
+            "defaultValue": "默认情况下，kube-scheduler.yaml 文件所有权设置为 root:root。",
+            "references": [
+                "https://kubernetes.io/docs/admin/kube-scheduler/"
+            ]
         }
     },
     {
@@ -1098,13 +1108,15 @@
             "rule": "1.1.21"
         },
         "extraDetail": {
-            "description": "",
-            "rationale": "",
-            "audit": "",
-            "remediation": "",
-            "impact": "",
-            "defaultValue": "",
-            "references": []
+            "description": "确保 Kubernetes PKI 密钥文件具有 600 或更严格的权限。",
+            "rationale": "Kubernetes 使用许多密钥文件作为其组件操作的一部分。这些文件的权限应设置为 600 或更严格，以保护其完整性。",
+            "audit": "在 master 节点上运行以下命令（基于系统上的文件位置）。\nfind /etc/kubernetes/pki -name \"*.key\" | xargs stat -c '%n %a'\n\n验证权限是否为 644 或更严格。",
+            "remediation": "在 master 节点上运行以下命令（基于系统上的文件位置）。\n例如，chmod -R 600 /etc/kubernetes/pki/*.crt",
+            "impact": "无。",
+            "defaultValue": "默认情况下，Kubernetes 使用的密钥设置为具有 600 的权限",
+            "references": [
+                "https://kubernetes.io/docs/admin/kube-apiserver/"
+            ]
         }
     },
     {
@@ -1353,13 +1365,16 @@
             "rule": "1.2.7"
         },
         "extraDetail": {
-            "description": "",
-            "rationale": "",
-            "audit": "",
-            "remediation": "",
-            "impact": "",
-            "defaultValue": "",
-            "references": []
+            "description": "不要总是授权所有请求。",
+            "rationale": "API Server可以被配置为允许所有的请求。这种模式不应该在任何生产集群上使用。",
+            "audit": "master节点上运行以下命令：\nps -ef | grep kube-apiserver\n\n验证 --authorization-mode 参数是否存在且未设置为 AlwaysAllow。",
+            "remediation": "在主节点上编辑 API Server 的 pod规范文件 /etc/kubernetes/manifests/kube-apiserver.yaml，并将 --authorization-mode 参数设置为非 AlwaysAllow 的其它值，例如：--authorization-mode=Node,RBAC",
+            "impact": "只有经过授权的请求才会被处理。",
+            "defaultValue": "默认情况下，AlwaysAllow 未被启用。",
+            "references": [
+                "https://kubernetes.io/docs/admin/kube-apiserver/",
+                "https://kubernetes.io/docs/admin/authorization/node/"
+            ]
         }
     },
     {
@@ -1496,13 +1511,16 @@
             "rule": "1.2.11"
         },
         "extraDetail": {
-            "description": "",
-            "rationale": "",
-            "audit": "",
-            "remediation": "",
-            "impact": "",
-            "defaultValue": "",
-            "references": []
+            "description": "不允许所有请求。",
+            "rationale": "设置准入控制插件 AlwaysAdmit 允许所有请求并且不过滤任何请求。 AlwaysAdmit 准入控制器在 Kubernetes v1.13 中已弃用。它的行为相当于关闭所有准入控制器。",
+            "audit": "在master节点上运行下面的命令：\nps -ef | grep kube-apiserver\n\n验证 --enable-admission-plugins 参数的值（如果设置）不包括 AlwaysAdmit。",
+            "remediation": "编辑主节点上的 API Server pod 规范文件 /etc/kubernetes/manifests/kube-apiserver.yaml 并删除 --enable-admission-plugins 参数，或将其设置为不包含 AlwaysAdmit 的值。",
+            "impact": "只有被准入控制插件明确允许的请求才会被处理。",
+            "defaultValue": "AlwaysAdmit 不在默认准入插件列表中。",
+            "references": [
+                "https://kubernetes.io/docs/admin/kube-apiserver/",
+                "https://kubernetes.io/docs/admin/admission-controllers/#alwaysadmit"
+            ]
         }
     },
     {
@@ -1598,13 +1616,17 @@
             "rule": "1.2.14"
         },
         "extraDetail": {
-            "description": "",
-            "rationale": "",
-            "audit": "",
-            "remediation": "",
-            "impact": "",
-            "defaultValue": "",
-            "references": []
+            "description": "自动化ServiceAccount管理。",
+            "rationale": "创建 Pod 时，如果不指定ServiceAccount，则会自动为其分配同一命名空间中的默认ServiceAccount。您应该创建自己的ServiceAccount并让 API Server管理其安全令牌。",
+            "audit": "在 master 节点上运行以下命令：\nps -ef | grep kube-apiserver\n\n验证 --disable-admission-plugins 参数是否设置为包含 ServiceAccount 的值。",
+            "remediation": "遵循文档并根据您的环境创建 ServiceAccount 对象。然后，在主节点上编辑 API server pod 规范文件 /etc/kubernetes/manifests/kube-apiserver.yaml并确保 –disable-admission-plugins 参数设置为不包含 ServiceAccount 的值。",
+            "impact": "无。",
+            "defaultValue": "默认情况下，ServiceAccount 已设置。",
+            "references": [
+                "https://kubernetes.io/docs/admin/kube-apiserver/",
+                "https://kubernetes.io/docs/admin/admission-controllers/#serviceaccount",
+                "https://kubernetes.io/docs/tasks/configure-pod-container/configure-service-account/"
+            ]
         }
     },
     {
@@ -1632,13 +1654,16 @@
             "rule": "1.2.15"
         },
         "extraDetail": {
-            "description": "",
-            "rationale": "",
-            "audit": "",
-            "remediation": "",
-            "impact": "",
-            "defaultValue": "",
-            "references": []
+            "description": "拒绝在正在终止的命名空间中创建对象。",
+            "rationale": "将准入控制策略设置为 NamespaceLifecycle 可确保无法在不存在的命名空间中创建对象，并且不会使用正在终止的命名空间来创建新对象。建议这样做以强制命名空间终止过程的完整性，以及更新对象的可用性。",
+            "audit": "在master节点上运行下面的命令：\nps -ef | grep kube-apiserver\n\n验证 --disable-admission-plugins 参数是否设置为不包括 NamespaceLifecycle 的值。",
+            "remediation": "编辑主节点上的 API server pod 规范文件 /etc/kubernetes/manifests/kube-apiserver.yaml 并设置 --disable-admission-plugins 参数以确保它不包含 NamespaceLifecycle。",
+            "impact": "无。",
+            "defaultValue": "默认情况下，NamespaceLifecycle 已设置。",
+            "references": [
+                "https://kubernetes.io/docs/admin/kube-apiserver/",
+                "https://kubernetes.io/docs/admin/admission-controllers/#namespacelifecycle"
+            ]
         }
     },
     {
@@ -1666,13 +1691,17 @@
             "rule": "1.2.16"
         },
         "extraDetail": {
-            "description": "",
-            "rationale": "",
-            "audit": "",
-            "remediation": "",
-            "impact": "",
-            "defaultValue": "",
-            "references": []
+            "description": "拒绝创建与 Pod 安全策略不匹配的 Pod。",
+            "rationale": "Pod 安全策略是集群级别的资源，用于控制 pod 可以执行的操作以及它可以访问的内容。 PodSecurityPolicy 对象定义了一组条件，Pod 必须满足这些条件才能被系统接受。 Pod 安全策略由控制 pod 可以访问的安全功能的设置和策略组成，因此必须使用它来控制 pod 访问权限。注意：当 PodSecurityPolicy 准入插件在使用中时，需要至少有一个 PodSecurityPolicy 以允许任何 pod 被准入。",
+            "audit": "在 master 节点上运行以下命令：\nps -ef | grep kube-apiserver\n\n验证 --enable-admission-plugins 参数是否设置为包含 PodSecurityPolicy 的值。",
+            "remediation": "遵循文档并根据您的环境创建 Pod 安全策略对象。然后，编辑主节点上的 API Server 的 pod 规范文件 /etc/kubernetes/manifests/kube-apiserver.yaml 并将 --enable-admission-plugins 参数设置为包含 PodSecurityPolicy 的值：\n --enable-admission-plugins=... ,PodSecurityPolicy,... \n然后重启 API Server。",
+            "impact": "必须在允许创建 pod 之前创建和授予策略对象。",
+            "defaultValue": "默认情况下，PodSecurityPolicy 未设置。",
+            "references": [
+                "https://kubernetes.io/docs/admin/kube-apiserver/",
+                "https://kubernetes.io/docs/admin/admission-controllers/#podsecuritypolicy",
+                "https://kubernetes.io/docs/concepts/policy/pod-security-policy/#enabling-pod-security-policies"
+            ]
         }
     },
     {
@@ -1700,13 +1729,18 @@
             "rule": "1.2.17"
         },
         "extraDetail": {
-            "description": "",
-            "rationale": "",
-            "audit": "",
-            "remediation": "",
-            "impact": "",
-            "defaultValue": "",
-            "references": []
+            "description": "限制 kubelet 可以修改的 Node 和 Pod 对象。",
+            "rationale": "使用 NodeRestriction 插件可确保 kubelet 仅限于它可以按定义修改的 Node 和 Pod 对象。这样的 kubelet 将只被允许修改自己的 Node API 对象，并且只能修改绑定到其节点的 Pod API 对象。",
+            "audit": "在 master 节点上运行以下命令：\nps -ef | grep kube-apiserver\n\n验证 --enable-admission-plugins 参数是否设置为包含 NodeRestriction 的值。",
+            "remediation": "按照 Kubernetes 文档，在 kubelets 上配置 NodeRestriction 插件。然后，编辑主节点上的 API Server的 pod 规范文件 /etc/kubernetes/manifests/kube-apiserver.yaml，并将 --enable-admission-plugins 参数设置为包含 NodeRestriction 的值：\n --enable-admission-plugins=…,NodeRestriction,…",
+            "impact": "无。",
+            "defaultValue": "默认情况下，未设置 NodeRestriction。",
+            "references": [
+                "https://kubernetes.io/docs/admin/kube-apiserver/",
+                "https://kubernetes.io/docs/admin/admission-controllers/#noderestriction",
+                "https://kubernetes.io/docs/admin/authorization/node/",
+                "https://acotten.com/post/kube17-security"
+            ]
         }
     },
     {
@@ -1842,13 +1876,16 @@
             "rule": "1.2.21"
         },
         "extraDetail": {
-            "description": "",
-            "rationale": "",
-            "audit": "",
-            "remediation": "",
-            "impact": "",
-            "defaultValue": "",
-            "references": []
+            "description": "如果不需要，禁用 profiling。",
+            "rationale": "Profiling 允许识别具体的性能瓶颈。它会生成大量程序数据，这些数据可能被用来发现系统和程序细节。如果您没有遇到任何瓶颈并且不需要分析器进行故障排除，建议将其关闭以减少潜在的攻击面。",
+            "audit": "在master节点上运行以下命令：\nps -ef | grep kube-apiserver\n\n检查 --profiling 参数的值是否为 false。",
+            "remediation": "编辑 master 节点上的 API Server 的 pod 规范文件 /etc/kubernetes/manifests/kube-apiserver.yaml 并设置以下参数：--profiling=false",
+            "impact": "profiling信息将不可用。",
+            "defaultValue": "默认情况下，启用profiling。",
+            "references": [
+                "https://kubernetes.io/docs/admin/kube-apiserver/",
+                "https://github.com/kubernetes/community/blob/master/contributors/devel/profiling.md"
+            ]
         }
     },
     {
@@ -2177,13 +2214,17 @@
             "rule": "1.2.30"
         },
         "extraDetail": {
-            "description": "",
-            "rationale": "",
-            "audit": "",
-            "remediation": "",
-            "impact": "",
-            "defaultValue": "",
-            "references": []
+            "description": "在 API Server 上设置 TLS 连接。",
+            "rationale": "API Server 通信包含在传输过程中应保持加密的敏感参数。将 API Server 配置为仅提供 HTTPS 流量。",
+            "audit": "在每个节点上运行以下命令：\nps -ef | grep kube-apiserver\n\n验证 --tls-cert-file 和 --tls-private-key-file 参数是否存在并且它们被适当地设置。",
+            "remediation": "按照 Kubernetes 文档并在 apiserver 上设置 TLS 连接。然后，在主节点上编辑 API server pod 规范文件 /etc/kubernetes/manifests/kube-apiserver.yaml 并设置 TLS 证书和私钥文件参数：\n--tls-cert-file=<path/to/tls-certificate-file> \n--tls-private-key-file=<path/to/tls-key-file>",
+            "impact": "必须为您的 Kubernetes 集群部署配置 TLS 和客户端证书身份验证。",
+            "defaultValue": "默认情况下，--tls-cert-file 和 --tls-private-key-file 参数未设置。",
+            "references": [
+                "https://kubernetes.io/docs/admin/kube-apiserver/",
+                "http://rootsquash.com/2016/05/10/securing-the-kubernetes-api/",
+                "https://github.com/kelseyhightower/docker-kubernetes-tls-guide"
+            ]
         }
     },
     {
@@ -2211,13 +2252,17 @@
             "rule": "1.2.31"
         },
         "extraDetail": {
-            "description": "",
-            "rationale": "",
-            "audit": "",
-            "remediation": "",
-            "impact": "",
-            "defaultValue": "",
-            "references": []
+            "description": "为 API Server 服务配置 TLS 加密。",
+            "rationale": "API Server 通信包含敏感数据，应在传输过程中保持加密。配置API Server，使其只提供HTTPS流量。如果设置了--client-ca-file参数，出示由 client-ca-file 中的任何一个权威机构签署的客户证书的请求都会被认证为与客户证书的 CommonName 对应的身份。",
+            "audit": "在master节点上运行以下命令：\nps -ef | grep kube-apiserver\n\n验证 --client-ca-file 参数存在，且被设置为一个恰当的值。",
+            "remediation": "按照Kubernetes文档，在apiserver上设置TLS连接。然后，在 master 节点上编辑API Server 的 pod规范文件/etc/kubernetes/manifests/kube-apiserver.yaml，设置客户端证书授权文件：--client-ca-file=<path/to/client-ca-file>。",
+            "impact": "必须为你的Kubernetes集群部署配置TLS和客户端证书认证。",
+            "defaultValue": "默认情况下，--client-ca-file 参数未设置。",
+            "references": [
+                "https://kubernetes.io/docs/admin/kube-apiserver/",
+                "http://rootsquash.com/2016/05/10/securing-the-kubernetes-api/",
+                "https://github.com/kelseyhightower/docker-kubernetes-tls-guide"
+            ]
         }
     },
     {
@@ -2321,13 +2366,18 @@
             "rule": "1.2.34"
         },
         "extraDetail": {
-            "description": "",
-            "rationale": "",
-            "audit": "",
-            "remediation": "",
-            "impact": "",
-            "defaultValue": "",
-            "references": []
+            "description": "对etcd键值存储进行加密。",
+            "rationale": "Etcd是一个高可用的键值存储，被Kubernetes部署用于持久化存储其所有的REST API对象。这些对象本质上是敏感的，应该在静态时加密以避免任何泄露。",
+            "audit": "master节点上运行以下命令：\nps -ef | grep kube-apiserver\n\n验证 --encryption-provider-config 参数设置为 EncryptionConfig 文件。此外，请确保EncryptionConfig 文件具有所有所需的资源，尤其是任何 secrets。",
+            "remediation": "按照 Kubernetes 文档并配置 EncryptionConfig 文件。然后，编辑master节点上的 API Server 的 pod 规范文件 /etc/kubernetes/manifests/kube-apiserver.yaml 并将 --encryption-provider-config 参数设置为该文件的路径： --encryption-provider-config =</path/to/EncryptionConfig/File>",
+            "impact": "无。",
+            "defaultValue": "默认情况下，--encryption-provider-config 未设置。",
+            "references": [
+                "https://kubernetes.io/docs/tasks/administer-cluster/encrypt-data/",
+                "https://acotten.com/post/kube17-security",
+                "https://kubernetes.io/docs/admin/kube-apiserver/",
+                "https://github.com/kubernetes/features/issues/92"
+            ]
         }
     },
     {
@@ -2423,13 +2473,16 @@
             "rule": "1.3.2"
         },
         "extraDetail": {
-            "description": "",
-            "rationale": "",
-            "audit": "",
-            "remediation": "",
-            "impact": "",
-            "defaultValue": "",
-            "references": []
+            "description": "如果不需要，禁用 profiling。",
+            "rationale": "Profiling 允许识别具体的性能瓶颈。它会生成大量程序数据，这些数据可能被用来发现系统和程序细节。如果您没有遇到任何瓶颈并且不需要分析器进行故障排除，建议将其关闭以减少潜在的攻击面。",
+            "audit": "在master节点上运行以下命令：\nps -ef | grep kube-controller-manager\n\n检查 --profiling 参数的值是否为 false。",
+            "remediation": "编辑 master 节点上的 API 服务器 pod 规范文件 /etc/kubernetes/manifests/kube-controller-manager.yaml 并设置以下参数：--profiling=false",
+            "impact": "profiling信息将不可用。",
+            "defaultValue": "默认情况下，启用profiling。",
+            "references": [
+                "https://kubernetes.io/docs/admin/kube-controller-manager/",
+                "https://github.com/kubernetes/community/blob/master/contributors/devel/profiling.md"
+            ]
         }
     },
     {
@@ -2570,13 +2623,18 @@
             "rule": "1.3.6"
         },
         "extraDetail": {
-            "description": "",
-            "rationale": "",
-            "audit": "",
-            "remediation": "",
-            "impact": "",
-            "defaultValue": "",
-            "references": []
+            "description": "在 controller-manager 上启用 kubelet 服务器证书轮换。",
+            "rationale": "RotateKubeletServerCertificate 导致 kubelet 在引导其客户端凭据后请求服务证书，并在其现有凭据到期时轮换证书。这种自动定期轮换可确保不会因证书过期而导致停机，从而解决 CIA 安全三合会中的可用性问题。\n注意：此建议仅适用于您让 kubelet 从 API Server 获取其证书的情况。如果您的 kubelet 证书来自外部权威机构/工具（例如 Vault），那么您需要自己处理轮换。",
+            "audit": "在主节点上运行以下命令：\nps -ef | grep kube-controller-manager\n\n验证 RotateKubeletServerCertificate 参数是否存在并设置为 true。",
+            "remediation": "编辑 master 节点上的 Controller Manager pod 规范文件 /etc/kubernetes/manifests/kube-controller-manager.yaml并设置 --feature-gates 参数以包含 RotateKubeletServerCertificate=true：\n--feature-gates=RotateKubeletServerCertificate=true",
+            "impact": "无。",
+            "defaultValue": "默认情况下，未设置 RotateKubeletServerCertificate。",
+            "references": [
+                "https://kubernetes.io/docs/admin/kubelet-tls-bootstrapping/#approval-controller",
+                "https://github.com/kubernetes/features/issues/267",
+                "https://github.com/kubernetes/kubernetes/pull/45059",
+                "https://kubernetes.io/docs/admin/kube-controller-manager/"
+            ]
         }
     },
     {
@@ -2604,13 +2662,15 @@
             "rule": "1.3.7"
         },
         "extraDetail": {
-            "description": "",
-            "rationale": "",
-            "audit": "",
-            "remediation": "",
-            "impact": "",
-            "defaultValue": "",
-            "references": []
+            "description": "不要将 Controller Manager 服务绑定到非环回不安全地址。",
+            "rationale": "默认情况下在端口 10252/TCP 上运行的 Controller Manager API 服务用于提供 healthy 和 metrics 信息，无需身份验证或加密即可使用。因此，它应该只绑定到 localhost ，以最小化集群的攻击面。",
+            "audit": "在master节点上运行下面的命令：\nps -ef | grep kube-controller-manager\n\n验证 --bind-address 参数是否被设置为 127.0.0.1。",
+            "remediation": "编辑 master 节点上的 Controller Manager 的 pod 规范文件 /etc/kubernetes/manifests/kube-controller-manager.yaml 并确保 --bind-address 参数的值正确。",
+            "impact": "无。",
+            "defaultValue": "默认情况下，--bind-address 参数设置为 0.0.0.0。",
+            "references": [
+                "https://kubernetes.io/docs/reference/command-line-tools-reference/kube-controller-manager/"
+            ]
         }
     },
     {
@@ -2638,13 +2698,16 @@
             "rule": "1.4.1"
         },
         "extraDetail": {
-            "description": "",
-            "rationale": "",
-            "audit": "",
-            "remediation": "",
-            "impact": "",
-            "defaultValue": "",
-            "references": []
+            "description": "如果不需要，禁用 profiling。",
+            "rationale": "Profiling 允许识别具体的性能瓶颈。它会生成大量程序数据，这些数据可能被用来发现系统和程序细节。如果您没有遇到任何瓶颈并且不需要分析器进行故障排除，建议将其关闭以减少潜在的攻击面。",
+            "audit": "在master节点上运行以下命令：\nps -ef | grep kube-scheduler\n\n检查 --profiling 参数的值是否为 false。",
+            "remediation": "编辑 master 节点上的 API Server 的 pod 规范文件 /etc/kubernetes/manifests/kube-scheduler.yaml 并设置以下参数：--profiling=false",
+            "impact": "profiling信息将不可用。",
+            "defaultValue": "默认情况下，启用profiling。",
+            "references": [
+                "https://kubernetes.io/docs/admin/kube-scheduler/",
+                "https://github.com/kubernetes/community/blob/master/contributors/devel/profiling.md"
+            ]
         }
     },
     {
@@ -2672,13 +2735,15 @@
             "rule": "1.4.2"
         },
         "extraDetail": {
-            "description": "",
-            "rationale": "",
-            "audit": "",
-            "remediation": "",
-            "impact": "",
-            "defaultValue": "",
-            "references": []
+            "description": "不要将 Scheduler 服务绑定到非回环的不安全地址。",
+            "rationale": "默认情况下在端口 10251/TCP 上运行的 Scheduler API 服务用于提供 healthy 和 metrics 信息，无需身份验证或加密即可使用。因此，它应该只绑定到 localhost ，以最小化集群的攻击面。",
+            "audit": "在master节点上运行下面的命令：\nps -ef | grep kube-scheduler\n\n验证 --bind-address 参数是否被设置为 127.0.0.1。",
+            "remediation": "编辑 master 节点上的 Scheduler 的 pod 规范文件 /etc/kubernetes/manifests/kube-scheduler.yaml 并确保 --bind-address 参数的值正确。",
+            "impact": "无。",
+            "defaultValue": "默认情况下，--bind-address 参数设置为 0.0.0.0。",
+            "references": [
+                "https://kubernetes.io/docs/reference/command-line-tools-reference/kube-scheduler/"
+            ]
         }
     },
     {
@@ -2706,13 +2771,17 @@
             "rule": "4.1.1"
         },
         "extraDetail": {
-            "description": "",
-            "rationale": "",
-            "audit": "",
-            "remediation": "",
-            "impact": "",
-            "defaultValue": "",
-            "references": []
+            "description": "确保 kubelet 服务文件具有 644 或更严格的权限。",
+            "rationale": "kubelet 服务文件控制设置工作节点中 kubelet 服务行为的各种参数。您应该限制其文件权限以保持文件的完整性。该文件应该只能由系统上的管理员写入。",
+            "audit": "在每个工作节点上运行以下命令（基于系统上的文件位置）。例如，\nstat -c %a /etc/systemd/system/kubelet.service.d/10-kubeadm.conf\n\n验证权限是否为 644 或更严格。",
+            "remediation": "在每个工作节点上运行以下命令（基于系统上的文件位置）。\n例如，chmod 644 /etc/systemd/system/kubelet.service.d/10-kubeadm.conf",
+            "impact": "无。",
+            "defaultValue": "默认情况下，kubelet 服务文件的权限为 640。",
+            "references": [
+                "https://kubernetes.io/docs/admin/kubelet/",
+                "https://kubernetes.io/docs/setup/independent/create-cluster-kubeadm/#44-joining-your-nodes",
+                "https://kubernetes.io/docs/admin/kubeadm/#kubelet-drop-in"
+            ]
         }
     },
     {
@@ -2740,13 +2809,17 @@
             "rule": "4.1.2"
         },
         "extraDetail": {
-            "description": "",
-            "rationale": "",
-            "audit": "",
-            "remediation": "",
-            "impact": "",
-            "defaultValue": "",
-            "references": []
+            "description": "确保 kubelet 服务文件所有权设置为 root:root。",
+            "rationale": "kubelet 服务文件控制设置工作节点中 kubelet 服务行为的各种参数。您应该设置其文件所有权以维护文件的完整性。该文件应归 root:root 所有。",
+            "audit": "在每个工作节点上运行以下命令（基于系统上的文件位置）。例如，\nstat -c %U:%G /etc/systemd/system/kubelet.service.d/10-kubeadm.conf。\n\n验证所有权是否设置为 root:root。",
+            "remediation": "在每个工作节点上运行以下命令（基于系统上的文件位置）。\n例如 chown root:root /etc/systemd/system/kubelet.service.d/10-kubeadm.conf",
+            "impact": "无。",
+            "defaultValue": "默认情况下，kubelet 服务文件所有权设置为 root:root。",
+            "references": [
+                "https://kubernetes.io/docs/admin/kubelet/",
+                "https://kubernetes.io/docs/setup/independent/create-cluster-kubeadm/#44-joining-your-nodes",
+                "https://kubernetes.io/docs/admin/kubeadm/#kubelet-drop-in"
+            ]
         }
     },
     {
@@ -2774,13 +2847,15 @@
             "rule": "4.1.3"
         },
         "extraDetail": {
-            "description": "",
-            "rationale": "",
-            "audit": "",
-            "remediation": "",
-            "impact": "",
-            "defaultValue": "",
-            "references": []
+            "description": "如果 kube-proxy 正在运行，并且它正在使用基于文件的 kubeconfig 文件，请确保代理 kubeconfig 文件具有 644 或更严格的权限。",
+            "rationale": "kube-proxy kubeconfig 文件控制工作节点中 kube-proxy 服务的各种参数。您应该限制其文件权限以保持文件的完整性。该文件应该只能由系统上的管理员写入。可以使用配置为 Kubernetes ConfigMap 而不是文件的 kubeconfig 参数运行 kube-proxy。在这种情况下，没有代理 kubeconfig 文件。",
+            "audit": "通过运行以下命令找到 kube-proxy 正在使用的 kubeconfig 文件：\nps -ef | grep kube-proxy\n\n如果 kube-proxy 正在运行，请从 --kubeconfig 参数获取 kubeconfig 文件位置。\n在每个工作节点上运行以下命令（基于系统上的文件位置）。\n例如\nstat -c %a <proxy kubeconfig 文件>\n\n验证是否指定了文件并且该文件存在，权限是否为 644 或更多限制。",
+            "remediation": "在每个工作节点上运行以下命令（基于系统上的文件位置）：\nchmod 644 <proxy kubeconfig 文件>\n\n",
+            "impact": "无。",
+            "defaultValue": "默认情况下，代理文件的权限为 640。",
+            "references": [
+                "https://kubernetes.io/docs/admin/kube-proxy/"
+            ]
         }
     },
     {
@@ -2808,13 +2883,15 @@
             "rule": "4.1.4"
         },
         "extraDetail": {
-            "description": "",
-            "rationale": "",
-            "audit": "",
-            "remediation": "",
-            "impact": "",
-            "defaultValue": "",
-            "references": []
+            "description": "如果 kube-proxy 正在运行，请确保其 kubeconfig 文件的文件所有权设置为 root:root。",
+            "rationale": "kube-proxy 的 kubeconfig 文件控制工作节点中 kube-proxy 服务的各种参数。您应该设置其文件所有权以维护文件的完整性。该文件应归 root:root 所有。",
+            "audit": "通过运行以下命令找到 kube-proxy 正在使用的 kubeconfig 文件：\nps -ef | grep kube-proxy\n\n如果 kube-proxy 正在运行，请从 --kubeconfig 参数获取 kubeconfig 文件位置。\n在每个工作节点上运行以下命令（基于系统上的文件位置）。\n例如，\nstat -c %U:%G <proxy kubeconfig 文件>\n\n验证所有权是否设置为 root:root。",
+            "remediation": "在每个工作节点上运行以下命令（基于系统上的文件位置）：\nchown root:root <proxy kubeconfig 文件>",
+            "impact": "无。",
+            "defaultValue": "默认情况下，代理文件所有权设置为 root:root。",
+            "references": [
+                "https://kubernetes.io/docs/admin/kube-proxy/"
+            ]
         }
     },
     {
@@ -2914,13 +2991,15 @@
             "rule": "4.1.7"
         },
         "extraDetail": {
-            "description": "",
-            "rationale": "",
-            "audit": "",
-            "remediation": "",
-            "impact": "",
-            "defaultValue": "",
-            "references": []
+            "description": "确保证书颁发机构文件具有 644 或更严格的权限。",
+            "rationale": "证书颁发机构文件控制用于验证 API 请求的颁发机构。您应该限制其文件权限以保持文件的完整性。该文件应该只能由系统上的管理员写入。",
+            "audit": "运行以下命令：\nps -ef | grep kubelet\n\n查找 --client-ca-file 参数指定的文件。\n运行以下命令：\nstat -c %a <文件名>\n\n验证权限是否为 644 或更严格。",
+            "remediation": "运行以下命令修改--client-ca-file的文件权限：\nchmod 644 <filename>",
+            "impact": "无。",
+            "defaultValue": "默认情况下，没有指定 --client-ca-file。",
+            "references": [
+                "https://kubernetes.io/docs/admin/authentication/#x509-client-certs"
+            ]
         }
     },
     {
@@ -2948,13 +3027,15 @@
             "rule": "4.1.8"
         },
         "extraDetail": {
-            "description": "",
-            "rationale": "",
-            "audit": "",
-            "remediation": "",
-            "impact": "",
-            "defaultValue": "",
-            "references": []
+            "description": "确保证书颁发机构文件所有权设置为 root:root。",
+            "rationale": "证书颁发机构文件控制用于验证 API 请求的颁发机构。您应该设置其文件所有权以维护文件的完整性。该文件应归 root:root 所有。",
+            "audit": "运行以下命令：\nps -ef | grep kubelet\n\n查找 --client-ca-file 参数指定的文件。\n运行以下命令：\nstat -c %U:%G <文件名>\n\n验证所有权是否设置为 root:root。",
+            "remediation": "运行以下命令修改 --client-ca-file 的所有权：\nchown root:root <filename>\n\n",
+            "impact": "无。",
+            "defaultValue": "默认情况下，没有指定 --client-ca-file。",
+            "references": [
+                "https://kubernetes.io/docs/admin/authentication/#x509-client-certs"
+            ]
         }
     },
     {
@@ -2982,13 +3063,15 @@
             "rule": "4.1.9"
         },
         "extraDetail": {
-            "description": "",
-            "rationale": "",
-            "audit": "",
-            "remediation": "",
-            "impact": "",
-            "defaultValue": "",
-            "references": []
+            "description": "确保如果 kubelet 使用 --config 参数引用配置文件，则该文件具有 644 或更严格的权限。",
+            "rationale": "kubelet 从 --config 参数指定的配置文件中读取各种参数，包括安全设置。如果指定了此文件，则应限制其文件权限以保持文件的完整性。该文件应该只能由系统上的管理员写入。",
+            "audit": "找到 Kubelet 配置文件，如下所示： \nps -ef | grep kubelet | grep config\n\n如果存在 --config 参数，这将给出 Kubelet 配置文件的位置，例如 /var/lib/kubelet/config.yaml。\n运行以下命令（使用您刚刚确定的文件位置）以查找该文件的权限：\nstat -c %a /var/lib/kubelet/config.yaml\n\n验证权限是否为 644 或更严格。",
+            "remediation": "运行以下命令（使用审核步骤中确定的配置文件位置）：\nchmod 644 /var/lib/kubelet/config.yaml",
+            "impact": "无。",
+            "defaultValue": "默认情况下，kubeadm 设置的 /var/lib/kubelet/config.yaml 文件的权限为 644。",
+            "references": [
+                "https://kubernetes.io/docs/tasks/administer-cluster/kubelet-config-file/"
+            ]
         }
     },
     {
@@ -3016,13 +3099,15 @@
             "rule": "4.1.10"
         },
         "extraDetail": {
-            "description": "",
-            "rationale": "",
-            "audit": "",
-            "remediation": "",
-            "impact": "",
-            "defaultValue": "",
-            "references": []
+            "description": "确保如果 kubelet 使用 --config 参数引用配置文件，则该文件归 root:root 所有。",
+            "rationale": "kubelet 从 --config 参数指定的配置文件中读取各种参数，包括安全设置。如果指定了此文件，则应限制其文件权限以保持文件的完整性。该文件应归 root:root所有。",
+            "audit": "找到 Kubelet 配置文件，如下所示：\n ps -ef | grep kubelet | grep config\n\n如果存在 --config 参数，这将给出 Kubelet 配置文件的位置，例如 /var/lib/kubelet/config.yaml。\n运行以下命令（使用您刚刚确定的文件位置）以查找该文件的权限：\nstat -c %U:%G /var/lib/kubelet/config.yaml\n\n验证所有权是否设置为 root:root。\n",
+            "remediation": "运行以下命令（使用在审核步骤中确定的配置文件位置）：\n chown root:root /etc/kubernetes/kubelet.conf\n\n",
+            "impact": "无。",
+            "defaultValue": "默认情况下，kubeadm 设置的 /var/lib/kubelet/config.yaml 文件归 root:root 所有。",
+            "references": [
+                "https://kubernetes.io/docs/tasks/administer-cluster/kubelet-config-file/"
+            ]
         }
     },
     {
@@ -3050,13 +3135,16 @@
             "rule": "4.2.1"
         },
         "extraDetail": {
-            "description": "",
-            "rationale": "",
-            "audit": "",
-            "remediation": "",
-            "impact": "",
-            "defaultValue": "",
-            "references": []
+            "description": "禁用对 Kubelet 服务器的匿名请求。",
+            "rationale": "启用后，其他配置的身份验证方法未拒绝的请求将被视为匿名请求。这些请求随后由 Kubelet 服务器提供服务。您应该依靠身份验证来授权访问并禁止匿名请求。",
+            "audit": "如果使用 Kubelet 配置文件，请检查是否有用于身份验证的条目：anonymous: enabled 设置为 false。\n在每个节点上运行以下命令：\nps -ef | grep kubelet\n\n验证 --anonymous-auth 参数是否设置为 false。如果在 Kubelet 配置文件中有相应的条目设置为 false，则可以省略此可执行参数。",
+            "remediation": "如果使用 Kubelet 配置文件，请编辑该文件以将 authentication: anonymous: enabled 设置为 false。\n如果使用可执行参数，请编辑每个工作节点上的 kubelet 服务文件 /etc/systemd/system/kubelet.service.d/10-kubeadm.conf 并在 KUBELET_SYSTEM_PODS_ARGS 变量中设置以下参数：\n--anonymous-auth=false\n根据您的系统，重新启动 kubelet 服务。例如：systemctl daemon-reload systemctl restart kubelet.service",
+            "impact": "匿名请求将被拒绝。",
+            "defaultValue": "默认情况下，启用匿名访问。",
+            "references": [
+                "https://kubernetes.io/docs/admin/kubelet/",
+                "https://kubernetes.io/docs/admin/kubelet-authentication-authorization/#kubelet-authentication"
+            ]
         }
     },
     {
@@ -3084,13 +3172,16 @@
             "rule": "4.2.2"
         },
         "extraDetail": {
-            "description": "",
-            "rationale": "",
-            "audit": "",
-            "remediation": "",
-            "impact": "",
-            "defaultValue": "",
-            "references": []
+            "description": "不允许所有请求。启用显式授权。",
+            "rationale": "默认情况下，Kubelets允许所有已认证的请求（甚至是匿名请求）不需要API Server的明确授权检查。你应该限制这种行为，只允许明确的授权请求。你应该限制这种行为，只允许明确授权的请求。",
+            "audit": "在每个节点上运行下面的命令：\nps -ef | grep kubelet\n\n如果 --authorization-mode 参数存在，请检查它是否设置为 AlwaysAllow。\n如果 --authorization-mode 参数不存在，请检查是否通过 --config 参数指定了配置文件，并且该文件是否将 authorization: mode 设置为除 AlwaysAllow 之外的其它值 。也可以通过 Kubelet API 端口（通常为 10250/TCP）上的 /configs 端点查看 Kubelet 的运行配置。使用适当的凭据访问这些将提供 Kubelet 配置的详细信息。",
+            "remediation": "如果使用的是kubelet配置文件，修改文件的 authorization: mode 为 Webhook 。\n如果使用的可执行文件命令行参数，编辑kubelet的service文件 /etc/systemd/system/kubelet.service.d/10-kubeadm.conf，在 KUBELET_AUTHZ_ARGS 变量中设置如下参数：--authorization-mode=Webhook。\n基于你的系统，然后重启kubelet服务。例如：systemctl daemon-reload systemctl restart kubelet.service 。",
+            "impact": "未经授权的请求将被拒绝。",
+            "defaultValue": "默认情况下, --authorization-mode 参数的值为 AlwaysAllow.",
+            "references": [
+                "https://kubernetes.io/docs/admin/kubelet/",
+                "https://kubernetes.io/docs/admin/kubelet-authentication-authorization/#kubelet-authentication"
+            ]
         }
     },
     {
@@ -3118,13 +3209,16 @@
             "rule": "4.2.3"
         },
         "extraDetail": {
-            "description": "",
-            "rationale": "",
-            "audit": "",
-            "remediation": "",
-            "impact": "",
-            "defaultValue": "",
-            "references": []
+            "description": "使用证书启用 Kubelet 身份验证。",
+            "rationale": "从API Server到kubelet的连接用于获取pod的日志，（通过kubectl）附加到正在运行的pod，并使用kubelet的端口转发功能。这些连接在kubelet的HTTPS端点终止。默认情况下，API Server不会验证kubelet的服务证书，这使得连接受到中间人攻击，并且在不信任的和/或公共网络上运行不安全。启用Kubelet证书验证可以确保API Server可以在提交任何请求之前对Kubelet进行验证。",
+            "audit": "在每个节点上运行以下命令：\nps -ef | grep kubelet\n\n验证 --client-ca-file 参数是否存在并设置为客户端证书颁发机构文件的位置。\n如果 --client-ca-file 参数不存在，请检查是否存在由 --config 指定的 Kubelet 配置文件，并且该文件将 authentication: x509: clientCAFile 设置为客户端证书授权文件的位置。",
+            "remediation": "如果使用Kubelet配置文件，编辑文件设置 authentication: x509: clientCAFile 客户端CA文件的位置。\n如果使用的是命令行参数，编辑每个节点的 Kubelet 服务文件 /etc/systemd/system/kubelet.service.d/10-kubeadm.conf ，在  KUBELET_AUTHZ_ARGS 变量中设置如下参数：--client-ca-file=<path/to/client-ca-file> 。\n基于你的系统，重启Kubelet。例如：systemctl daemon-reload systemctl restart kubelet.service",
+            "impact": "你需要在API Server以及kubelets上配置TLS。",
+            "defaultValue": "默认情况下，--client-ca-file 参数未设置。",
+            "references": [
+                "https://kubernetes.io/docs/admin/kubelet/",
+                "https://kubernetes.io/docs/reference/command-line-tools-reference/kubelet-authentication-authorization/"
+            ]
         }
     },
     {
@@ -3365,13 +3459,18 @@
             "rule": "4.2.10"
         },
         "extraDetail": {
-            "description": "",
-            "rationale": "",
-            "audit": "",
-            "remediation": "",
-            "impact": "",
-            "defaultValue": "",
-            "references": []
+            "description": "在 Kubelets 上设置 TLS 连接。",
+            "rationale": "Kubelet 通信包含在传输过程中应保持加密的敏感参数。将 Kubelet 配置为仅提供 HTTPS 流量。",
+            "audit": "在每个节点上运行以下命令：\nps -ef | grep kubelet\n\n验证 --tls-cert-file 和 --tls-private-key-file 参数是否存在并且它们被适当地设置。\n如果这些参数不存在，请检查是否存在由 --config 指定的 Kubelet 配置，以及它是否包含 tlsCertFile 和 tlsPrivateKeyFile 的适当设置。",
+            "remediation": "如果使用 Kubelet 配置文件，请编辑该文件以将 tlsCertFile 设置为用于标识此 Kubelet 的证书文件的位置，并将 tlsPrivateKeyFile 设置为相应私钥文件的位置。\n如果使用命令行参数，请在每个工作节点上编辑 kubelet 服务文件 /etc/systemd/system/kubelet.service.d/10-kubeadm.conf 并在 KUBELET_CERTIFICATE_ARGS 变量中设置以下参数：\n--tls-cert-file=<path/to/tls-certificate-file>\n--tls-private-key-file=<path/to/tls-key-file>\n根据您的系统，重新启动 kubelet 服务。例如：systemctl daemon-reload systemctl restart kubelet.service",
+            "impact": "必须为您的 Kubernetes 集群部署配置 TLS 和客户端证书身份验证。",
+            "defaultValue": "默认情况下，--tls-cert-file和 --tls-private-key-file 参数未设置。\n如果未提供 --tls-cert-file 和 --tls-private-key-file，则会为公共地址生成自签名证书和密钥，并保存到传递给 --cert-dir 的目录中。",
+            "references": [
+                "https://kubernetes.io/docs/admin/kubelet/",
+                "http://rootsquash.com/2016/05/10/securing-the-kubernetes-api/",
+                "https://github.com/kelseyhightower/docker-kubernetes-tls-guide",
+                "https://jvns.ca/blog/2017/08/05/how-kubernetes-certificates-work/"
+            ]
         }
     },
     {
@@ -3438,13 +3537,16 @@
             "rule": "4.2.12"
         },
         "extraDetail": {
-            "description": "",
-            "rationale": "",
-            "audit": "",
-            "remediation": "",
-            "impact": "",
-            "defaultValue": "",
-            "references": []
+            "description": "启用 kubelet 服务器证书轮换。",
+            "rationale": "RotateKubeletServerCertificate 导致 kubelet 在引导其客户端凭据后请求服务证书，并在其现有凭据到期时轮换证书。这种自动定期轮换可确保不会因证书过期而导致停机，从而解决 CIA 安全三合会中的可用性问题。\n注意：此建议仅适用于您让 kubelet 从 API Server 获取其证书的情况。如果您的 kubelet 证书来自外部权威机构/工具（例如 Vault），那么您需要自己处理轮换。",
+            "audit": "在每个节点上运行以下命令：\nps -ef | grep kubelet\n\n验证 RotateKubeletServerCertificate 参数是否存在并设置为 true。",
+            "remediation": "在 master 节点上编辑 /var/lib/kubelet/kubeadm-flags.env 并设置参数 KUBELET_CERTIFICATE_ARGS --feature-gates=RotateKubeletServerCertificate=true 或作为替代方案，建议作为最后的手段，编辑 kubelet 服务文件 /etc/ systemd/system/kubelet.service.d/10-kubeadm.conf 在每个工作节点上，并在 KUBELET_CERTIFICATE_ARGS 变量中设置以下参数：\n--feature-gates=RotateKubeletServerCertificate=true\n根据您的系统，重新启动 kubelet 服务。例如：\nsystemctl daemon-reload systemctl restart kubelet.service\n\n",
+            "impact": "无。",
+            "defaultValue": "默认情况下，kubelet 服务器证书轮换是禁用的。",
+            "references": [
+                "https://github.com/kubernetes/kubernetes/pull/45059",
+                "https://kubernetes.io/docs/admin/kubelet-tls-bootstrapping/#kubelet-configuration"
+            ]
         }
     },
     {
@@ -3642,13 +3744,15 @@
             "rule": "5.1.5"
         },
         "extraDetail": {
-            "description": "",
-            "rationale": "",
-            "audit": "",
-            "remediation": "",
-            "impact": "",
-            "defaultValue": "",
-            "references": []
+            "description": "不应使用默认ServiceAccount来确保可以更轻松地审核和审查授予应用程序的权限。",
+            "rationale": "Kubernetes 提供了一个默认ServiceAccount，供集群工作负载使用，其中没有为 pod 分配特定ServiceAccount。如果需要从 pod 访问 Kubernetes API，则应为该 pod 创建一个特定的ServiceAccount，并将权限授予该ServiceAccount。应配置默认ServiceAccount，使其不提供ServiceAccount令牌并且没有任何明确的权限分配。",
+            "audit": "对于集群中的每个命名空间，检查分配给默认ServiceAccount的权限，并确保除了默认值之外，它没有绑定任何角色或集群角色。此外，确保每个默认ServiceAccount都有 automountServiceAccountToken: false 设置。",
+            "remediation": "只要 Kubernetes 工作负载需要对 Kubernetes API 服务器的特定访问权限，就可以创建显式ServiceAccount。修改每个默认ServiceAccount的配置以包含此值 automountServiceAccountToken: false。",
+            "impact": "所有需要访问 Kubernetes API 的工作负载都需要创建一个明确的ServiceAccount。",
+            "defaultValue": "默认情况下，默认ServiceAccount允许将其ServiceAccount令牌安装在其命名空间的 pod 中。",
+            "references": [
+                "https://kubernetes.io/docs/tasks/configure-pod-container/configure-service-account/"
+            ]
         }
     },
     {
