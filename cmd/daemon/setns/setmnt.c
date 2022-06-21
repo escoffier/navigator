@@ -13,44 +13,12 @@
 #include <sys/epoll.h>
 #include <netinet/in.h>
 #include <unistd.h>
+
 #include "cjson.h"
+#include "netebpf_user.h"
 
-#define LOG_ERROR(fmt, ...) {\
-    printf("[ERROR] [line:%d] [%s] " fmt "\n", __LINE__, __FUNCTION__, ##__VA_ARGS__);\
-}
 
-#define LOG_PRINT(fmt, ...) {\
-    printf("[INFO] [line:%d] [%s] " fmt "\n", __LINE__, __FUNCTION__, ##__VA_ARGS__);\
-}
-
-#define LOG_WARN(fmt, ...) {\
-    printf("[WARN] [line:%d] [%s] " fmt "\n", __LINE__, __FUNCTION__, ##__VA_ARGS__);\
-}
-
-#define BREAK_ERROR(fmt, ...) {\
-    printf("[WARN] [line:%d] [%s] " fmt "\n", __LINE__, __FUNCTION__, ##__VA_ARGS__);\
-    break;\
-}
-
-#define LINK_ST_ESTABLISHED (1)
-#define LINK_ST_LISTEN      (10)
-#define RCV_ADDR            (1)
-#define SND_ADDR            (2)
-#define BasePath            ("/host")
-#define DAEMON_UNIX         ("/tmp/setns.sock")
-#define MATCH_SUCC          (1)
 static int szLocalMntNsFd = 0;
-
-typedef struct
-{
-    int pid;
-    int addrType;
-    char srcIp[16];
-    char dstIp[16];
-    int srcPort;
-    int dstPort;
-    int proto;
-} PidAssMnt;
 
 typedef struct
 {
@@ -92,9 +60,19 @@ int ParseRcvJson(char *buf, PidAssMnt *mnt)
     root = cJSON_Parse(buf);
     if(root == NULL)
     {
-        LOG_ERROR("parse json failed!");
+        LOG_ERROR("parse json failed! original data : %s.", buf);
         goto err;
     }
+    //get data type
+    item = cJSON_GetObjectItem(root, "data_type");
+    if(item == NULL)
+    {
+        LOG_ERROR("get data type item failed!");
+        goto err;
+    }
+    mnt->dataType = item->valueint;
+    //judge data type
+    if((mnt->dataType == DATA_FILTER) || (mnt->dataType == DATA_EBPF_STATE) || (mnt->dataType == DATA_EBPF)) goto end;
     //get pid
     item = cJSON_GetObjectItem(root, "pid");
     if(item == NULL)
@@ -158,9 +136,12 @@ int ParseRcvJson(char *buf, PidAssMnt *mnt)
         goto err;
     }
     mnt->proto = tuple->valueint;
+
+end:
     //free resource
     cJSON_Delete(root);
     return 0;
+
 err:
     if(root != NULL) cJSON_Delete(root);
     return -1;
@@ -694,8 +675,8 @@ int GetProcessData(PidAssMnt *mnt, ProcessData *pstProcData)
 
 int ParseRcvData(int fd, char *buf)
 {
-    int ret;
-    char result[256];
+    int ret, length;
+    char result[256], *retdata = NULL, *str = NULL;
     PidAssMnt mnt;
     ProcessData stProcData;
     if((fd <= 0) || (!buf))
@@ -713,13 +694,42 @@ int ParseRcvData(int fd, char *buf)
         LOG_ERROR("parse receive json failed!");
         goto out;
     }
-    //set ns
-    ret = SetNs(mnt.pid);
-    if(ret < 0) goto out;
-    //get process data
-    ret = GetProcessData(&mnt, &stProcData);
-    //if(ret != 0) LOG_ERROR("get process failed! ret : %d, %s.", ret,  PrintAddress(&mnt));
-    
+    //init buf
+    memset(result, 0, sizeof(result));
+    //condition
+    switch (mnt.dataType)
+    {
+        case DATA_EBPF_STATE:
+            //parse json
+            ret = parse_get_ebpf_state(buf, result, sizeof(result));
+            if(ret != 0) LOG_ERROR("parse get ebpf state failed.");
+            //move point
+            retdata = result;
+            goto rsp;
+
+        case DATA_FILTER:
+            return parse_filter_condition(buf);
+
+        case DATA_EBPF:
+            //set default response data
+            memcpy(result, "[]", sizeof(result));
+            //init response data
+            retdata = result;
+            //get ebpf map data
+            str = lookup_ebpf_map();
+            if(str) retdata = str;
+            goto rsp;
+
+        default:
+            //set ns
+            ret = SetNs(mnt.pid);
+            if(ret < 0) goto out;
+            //get process data
+            ret = GetProcessData(&mnt, &stProcData);
+            //if(ret != 0) LOG_ERROR("get process failed! ret : %d, %s.", ret,  PrintAddress(&mnt));
+            break;
+    }
+   
 out:
     //unshare mnt
     unshare(CLONE_NEWNS);
@@ -728,9 +738,16 @@ out:
     //pack data
     ret = ResultPack(&mnt, &stProcData, result);
     if(ret < 0) return 0;
+    retdata = result;
+rsp:
+    //data len
+    length = strlen(retdata);
     //send response data
-    ret = write(fd, result, strlen(result));
-    if(ret != strlen(result))
+    ret = write(fd, retdata, length);
+    //free
+    if(str) free(str);
+    //judge response result
+    if(ret != length)
     {
         LOG_ERROR("send result failed! %s.", strerror(errno));
         if(ret <= 0) close(fd);
@@ -792,7 +809,7 @@ int main(int argc, char *argv[])
     //accept client request
     while (1)
     {
-        nfds = epoll_wait(epfd, events, 20, 500);
+        nfds = epoll_wait(epfd, events, 20, -1);
         for(i = 0; i < nfds; i++)
         {
             zLinkFd = events[i].data.fd;

@@ -31,6 +31,10 @@ func redisGet(redisClient *redis.Client, key string) (*model.TensorNetworkFlow, 
 }
 
 func redisSetIfNotExists(redisClient *redis.Client, key string, netflow *model.TensorNetworkFlow) (bool, error) {
+	if redisClient == nil || netflow == nil {
+		return false, errors.Errorf("argument point is nil")
+	}
+
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*3)
 	defer cancel()
 
@@ -43,18 +47,22 @@ func redisSetIfNotExists(redisClient *redis.Client, key string, netflow *model.T
 }
 
 func redisSaveOrUpdate(redisClient *redis.Client, addrType int, netflow *model.TensorNetworkFlow) (bool, error) {
+	if redisClient == nil || netflow == nil {
+		return false, errors.Errorf("argument point is nil")
+	}
+
 	if len(netflow.SrcPodName) > 0 && len(netflow.DstPodName) > 0 {
 		return true, nil
 	}
 
 	key := fmt.Sprintf("%v", netflow.AssocKey)
 
-	newValueSetted, err := redisSetIfNotExists(redisClient, key, netflow)
+	exist, err := redisSetIfNotExists(redisClient, key, netflow)
 	if err != nil {
 		return false, errors.Errorf("setnx redis failed for key %s. value: %+v", key, *netflow)
 	}
 
-	if newValueSetted {
+	if exist {
 		return false, nil
 	}
 
