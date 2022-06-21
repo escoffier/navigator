@@ -53,7 +53,7 @@ func RequestLogger(store Store, queue *util.Queue) func(next http.Handler) http.
 			entry := NewLogEntry(r, store, queue)
 			ww := middleware.NewWrapResponseWriter(w, r.ProtoMajor)
 
-			buf := newLimitBuffer(4096)
+			buf := newLimitBuffer(80000)
 			ww.Tee(buf)
 
 			t1 := time.Now()
@@ -333,6 +333,9 @@ func init() {
 	routeAction.DELETE("/api/v2/platform/report/template", func(params Params) (string, string) {
 		return deleteAction, "删除平台报告{{.}}"
 	})
+	routeAction.GET("/api/v2/platform/report/recordDetail", func(params Params) (string, string) {
+		return importAction, "导出平台报告{{.}}"
+	})
 
 	//主动防御
 	routeAction.POST("/api/v2/containerSec/watson/baitService", func(params Params) (string, string) {
@@ -453,7 +456,7 @@ func init() {
 	routeAction.PUT("/api/v2/containerSec/scanner/imagereject/trustedImages/rsa/:id", func(params Params) (string, string) {
 		return editAction, "编辑密钥{{.}}"
 	})
-	routeAction.POST("/api/v2/containerSec/scanner/imagereject/trustedImages/rsa/:id", func(params Params) (string, string) {
+	routeAction.DELETE("/api/v2/containerSec/scanner/imagereject/trustedImages/rsa/:id", func(params Params) (string, string) {
 		return deleteAction, "删除密钥{{.}}"
 	})
 
@@ -484,11 +487,15 @@ func init() {
 	routeAction.POST("/api/v2/containerSec/scanner/images/bases", func(params Params) (string, string) {
 		return createAction, "新增基础镜像{{.}}至基础镜像列表"
 	})
-	routeAction.DELETE("/api/v2/containerSec/scanner/images/bases", func(params Params) (string, string) {
+	routeAction.DELETE("/api/v2/containerSec/scanner/images/bases/:id", func(params Params) (string, string) {
 		return deleteAction, "删除基础镜像{{.}}出基础镜像列表"
 	})
 
 	routeAction.POST("/api/v2/containerSec/scanner/scanone", func(params Params) (string, string) {
+		return createAction, "新增镜像扫描任务"
+	})
+
+	routeAction.POST("/api/v2/containerSec/scanner/harbor/scanAllNow", func(params Params) (string, string) {
 		return createAction, "新增镜像扫描任务"
 	})
 

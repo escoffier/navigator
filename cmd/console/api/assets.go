@@ -533,8 +533,14 @@ func (api *api) updateNamespace() http.HandlerFunc {
 
 		link := fmt.Sprintf("/api/v2/platform/assets/namespaces?cluster_key=%s&name=%s",
 			tensorNs.ClusterKey, tensorNs.Name)
+
+		var clusterName string
+		clusterManger, ok := k8s.GetClusterManager()
+		if ok {
+			clusterName, _ = clusterManger.GetClusterName(tensorNs.ClusterKey)
+		}
 		response.Ok(w, response.WithTarget(&response.TargetRef{
-			Name: fmt.Sprintf("%s/%s", tensorNs.ClusterKey, tensorNs.Name),
+			Name: fmt.Sprintf("%s/%s", clusterName, tensorNs.Name),
 			ID:   "",
 			Link: link,
 		}))
@@ -796,10 +802,15 @@ func (api *api) updateResourceUserData() http.HandlerFunc {
 			return
 		}
 
+		var clusterName string
+		clusterManger, ok := k8s.GetClusterManager()
+		if ok {
+			clusterName, _ = clusterManger.GetClusterName(res.ClusterKey)
+		}
 		link := fmt.Sprintf("/api/v2/platform/assets/resources?cluster_key=%s&namespace=%s&kind=%s&query=%s",
 			res.ClusterKey, res.Namespace, res.Kind, res.Name)
 		response.Ok(w, response.WithTarget(&response.TargetRef{
-			Name: fmt.Sprintf("%s/%s/%s%s", res.ClusterKey, res.Kind, res.Namespace, res.Name),
+			Name: fmt.Sprintf("%s/%s/%s%s", clusterName, res.Kind, res.Namespace, res.Name),
 			ID:   "",
 			Link: link,
 		}))

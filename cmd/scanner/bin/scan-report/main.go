@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"flag"
+	"gitlab.com/security-rd/go-pkg/elastic"
 	"os"
 	"strconv"
 	"strings"
@@ -98,6 +99,8 @@ func main() {
 		logging.Get().Warn().Msg("debug model!!! please close debug model when release.")
 	}
 
+	es := elastic.NewESClientWithEnv(context.Background())
+
 	// 起后台协程服务
 	backgroundSrv := starter.NewBackgroundTasks(context.Background(), starter.Config{
 		Internal:                internal,
@@ -111,6 +114,7 @@ func main() {
 		BatchImage:              batchImage,
 		ParallelTaskNum:         parallelTaskNum,
 		Expiration:              expiration,
+		Es:                      es,
 		MaxImageByOneExportTask: maxImageByOneExportTask,
 	})
 	backgroundSrv.Start(context.Background())
