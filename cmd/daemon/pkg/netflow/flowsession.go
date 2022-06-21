@@ -2,6 +2,7 @@ package netflow
 
 import (
 	"context"
+	"encoding/binary"
 	"fmt"
 	"net"
 	"os"
@@ -21,25 +22,36 @@ import (
 	"gitlab.com/security-rd/go-pkg/logging"
 )
 
-const unixSockFile = "/tmp/setns.sock"
+const (
+	unixSockFile = "/tmp/setns.sock"
+	ebpfKeyStr   = "%v-%v:%v"
+)
 
 type ClusterManager interface {
 	ClusterKey() (string, bool)
 }
 
 type FlowSession struct {
+	url            string
+	hostIP         string
+	EbpfStat       int
 	CtFlow         ConntrackTools
 	sockClient     *net.UnixConn
-	hostIP         string
 	nodePodsInfo   *NodePodsInfo
 	containerInfo  nodeinfo.ContainerInfoManager
-	url            string
 	clusterManager ClusterManager
 	submitter      *Submitter
 	nsDataChan     chan daemon.NetSessionLink
 	redisClient    *redis.Client
 	netLinkData    map[uint32]*daemon.NetSessionLink
-	lock           sync.Mutex
+	EbpfNetInfo    map[string]*daemon.NetProcData
+	ebpfLock       sync.Mutex
+	netLock        sync.Mutex
+}
+
+func IpStringToUint32(value string) uint32 {
+	ip := net.ParseIP(value)
+	return binary.LittleEndian.Uint32(ip.To4())
 }
 
 func SessionToFiveTuple(data ct.Con, proto uint8) (*daemon.FiveTuple, *daemon.FiveTuple) {
@@ -93,8 +105,8 @@ func (fs *FlowSession) SaveNetLinkData(netSession *daemon.NetSessionLink) {
 		logging.Get().Error().Msgf("the argument is nil.")
 		return
 	}
-	fs.lock.Lock()
-	defer fs.lock.Unlock()
+	fs.netLock.Lock()
+	defer fs.netLock.Unlock()
 
 	netSession.CreatedAt = time.Now().Unix()
 	key := netSession.CreateUuid()
@@ -107,11 +119,30 @@ func (fs *FlowSession) DeleteNetLinkData(netSession *daemon.NetSessionLink) {
 		return
 	}
 
-	fs.lock.Lock()
-	defer fs.lock.Unlock()
+	fs.netLock.Lock()
+	defer fs.netLock.Unlock()
 
 	key := netSession.CreateUuid()
 	delete(fs.netLinkData, key)
+}
+
+func (fs *FlowSession) GetEbpfNetData(proto uint8, ip string, port uint16) *daemon.NetProcData {
+	addr := IpStringToUint32(ip)
+	key := fmt.Sprintf(ebpfKeyStr, proto, addr, port)
+	//lock
+	fs.ebpfLock.Lock()
+	defer fs.ebpfLock.Unlock()
+	//find
+	ret, ok := fs.EbpfNetInfo[key]
+	if !ok {
+		//print debug log
+		//logging.Get().Info().Msgf("[find] find failed, key : %+v.", key)
+		return nil
+	}
+	//delete
+	delete(fs.EbpfNetInfo, key)
+
+	return ret
 }
 
 func AllowProto(proto uint8) bool {
@@ -161,6 +192,11 @@ func NewFlowSession(containerInfo nodeinfo.ContainerInfoManager, k8sInfo *NodePo
 	if err != nil {
 		return nil, errors.Errorf("Failed to get conntrack handle")
 	}
+	//get ebpf env
+	ebpfEnable := false
+	if ok := os.Getenv("EBPF_ENABLE"); ok == "true" {
+		ebpfEnable = true
+	}
 
 	myPodIP := os.Getenv("MY_POD_IP")
 	if myPodIP == "" {
@@ -181,11 +217,13 @@ func NewFlowSession(containerInfo nodeinfo.ContainerInfoManager, k8sInfo *NodePo
 	fs := FlowSession{
 		CtFlow:         ctFlow,
 		hostIP:         myHostIP,
+		EbpfStat:       daemon.EBPF_FAILE,
 		nodePodsInfo:   k8sInfo,
 		containerInfo:  containerInfo,
 		clusterManager: clusterManager,
 		url:            url,
-		nsDataChan:     make(chan daemon.NetSessionLink, 300),
+		nsDataChan:     make(chan daemon.NetSessionLink, 1000),
+		EbpfNetInfo:    make(map[string]*daemon.NetProcData),
 		redisClient:    redisClient,
 		submitter:      NewSubmitter(5*time.Minute, GetSubmitFunc(url)),
 	}
@@ -194,6 +232,8 @@ func NewFlowSession(containerInfo nodeinfo.ContainerInfoManager, k8sInfo *NodePo
 	if err != nil {
 		logging.Get().Error().Msgf("dial unix socket failed, %v", err)
 	}
+	//ebpf init
+	fs.InitEbpf(ebpfEnable)
 
 	return &fs, nil
 }
@@ -222,6 +262,8 @@ func (fs *FlowSession) Start(ctx context.Context) {
 				logging.Get().Error().Msgf("Panic: %v. Stack: %s", r, debug.Stack())
 			}
 		}()
+		//print log
+		logging.Get().Info().Msgf("process net session start...")
 		//process session
 		fs.ProcSessionQueData()
 	}()
@@ -241,7 +283,6 @@ func (fs *FlowSession) Start(ctx context.Context) {
 			logging.Get().Error().Msgf("init session failed, %v.", err)
 		}
 	}()
-
 	//handling timeout session
 	go func() {
 		defer func() {
@@ -250,6 +291,15 @@ func (fs *FlowSession) Start(ctx context.Context) {
 			}
 		}()
 		fs.HandleTimeoutSession()
+	}()
+	//handling timeout ebpf net data
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				logging.Get().Error().Msgf("Panic: %v. Stack: %s", r, debug.Stack())
+			}
+		}()
+		fs.HandleEbpfNetDataTimeout()
 	}()
 	//listen conntrack event
 	err := fs.CtFlow.RunConntrackEvent(fs.onFlowCallback)
@@ -260,7 +310,7 @@ func (fs *FlowSession) Start(ctx context.Context) {
 
 func (fs *FlowSession) Close() {
 	if fs.sockClient != nil {
-		fs.sockClient.Close()
+		_ = fs.sockClient.Close()
 	}
 	//close conntrack resource
 	fs.CtFlow.Close()
@@ -271,13 +321,14 @@ func (fs *FlowSession) HandleTimeoutSession() {
 	for {
 		nowTime := time.Now().Unix()
 		time.Sleep(30 * time.Second)
+		//
+		fs.netLock.Lock()
 		for key, value := range fs.netLinkData {
 			if nowTime-value.CreatedAt < timeout {
 				continue
 			}
-			fs.lock.Lock()
+			//delete
 			delete(fs.netLinkData, key)
-			fs.lock.Unlock()
 			//handle timeout data
 			value.NlType = NFCT_T_TIMEOUT
 			err := fs.ProcSessionData(value)
@@ -285,14 +336,43 @@ func (fs *FlowSession) HandleTimeoutSession() {
 				logging.Get().Error().Msgf("handle timeout session error! %+v", *value)
 			}
 		}
+		fs.netLock.Unlock()
 	}
 }
 
-func (fs *FlowSession) RetrySendData(netinfo *daemon.PidAssociateMnt) error {
-	data, err := json.Marshal(netinfo)
-	if err != nil {
-		return errors.Errorf("json marshal failed, %v", err)
+func (fs *FlowSession) HandleEbpfNetDataTimeout() {
+	if fs.EbpfStat != daemon.EBPF_SUCC {
+		return
 	}
+
+	var timeout int64 = 30 //30 second
+	for {
+		nowTime := time.Now().Unix()
+		time.Sleep(30 * time.Second)
+		//delete
+		fs.ebpfLock.Lock()
+		for key, value := range fs.EbpfNetInfo {
+			if nowTime-value.CreatedAt < timeout {
+				continue
+			}
+
+			if value.SrcAddr == 0 || value.DstAddr == 0 {
+				continue
+			}
+
+			delete(fs.EbpfNetInfo, key)
+		}
+		fs.ebpfLock.Unlock()
+		//debug map length
+		num := len(fs.EbpfNetInfo)
+		if num > 2000 {
+			logging.Get().Info().Msgf("[ebpf] map data len : %+v.")
+		}
+	}
+}
+
+func (fs *FlowSession) RetrySendData(data []byte) error {
+	var err error
 
 	for i := 0; i < 3; i++ {
 		_, err = fs.sockClient.Write(data)
@@ -317,33 +397,259 @@ func (fs *FlowSession) RetrySendData(netinfo *daemon.PidAssociateMnt) error {
 	return nil
 }
 
-func (fs *FlowSession) GetProcessName(netinfo *daemon.PidAssociateMnt) (*daemon.ProcessInfo, error) {
-	if fs.sockClient == nil {
-		return nil, errors.Errorf("udp client is nil")
+func (fs *FlowSession) InitEbpf(enable bool) {
+	//get ebpf state
+	fs.SetEbpfState(enable)
+	//print debug log
+	logging.Get().Info().Msgf("ebpf state : %v", fs.EbpfStat)
+	//ebpf filter invalid address
+	err := fs.SetEbpfFilterAddrs("127.0.0.1", fs.hostIP)
+	if err != nil {
+		logging.Get().Error().Msgf("set ebpf filter address failed, %v.", err)
+	}
+}
+
+func (fs *FlowSession) SetEbpfFilterAddrs(addrs ...string) error {
+	//set ebpf state success
+	if fs.EbpfStat != daemon.EBPF_SUCC {
+		return nil
 	}
 
-	err := fs.RetrySendData(netinfo)
+	netAddrs := make([]uint32, 0)
+	for _, value := range addrs {
+		addr := IpStringToUint32(value)
+		netAddrs = append(netAddrs, addr)
+	}
+
+	config := daemon.EbpfFilterAddr{
+		DataType: daemon.DATA_FILTER,
+		Addrs:    netAddrs,
+	}
+
+	data, err := json.Marshal(config)
 	if err != nil {
-		return nil, errors.Errorf("retry send data failed, %v", err)
+		logging.Get().Error().Msgf("json marshal ebpf filter addrs failed, %v.", err)
+		return err
+	}
+
+	err = fs.RetrySendData(data)
+	if err != nil {
+		logging.Get().Error().Msgf("send ebpf filter addrs failed, %v.", err)
+		return err
+	}
+	return nil
+}
+
+func (fs *FlowSession) GetNetDataFromEbpf() bool {
+	if fs.sockClient == nil {
+		return false
+	}
+	//get ebpf state
+	data := fmt.Sprintf("{\"data_type\":%v}", daemon.DATA_EBPF)
+	//send
+	err := fs.RetrySendData([]byte(data))
+	if err != nil {
+		logging.Get().Error().Msgf("send get ebpf net data request failed, %+v.", err)
+		return false
 	}
 
 	var length int
-	rcvBuf := make([]byte, 128)
-	timeout := make(chan struct{})
+	rcvBuf := make([]byte, 102400)
+	readsign := make(chan struct{})
 	go func() {
 		length, err = fs.sockClient.Read(rcvBuf)
 		if err != nil {
 			logging.Get().Error().Msgf("read unix socket response data failed, %v", err)
 			return
 		}
-		timeout <- struct{}{}
+		readsign <- struct{}{}
+	}()
+	//ebpf net data
+	var netData []daemon.EbpfNetData
+	//parse json
+	select {
+	case <-time.After(time.Second * 3):
+		logging.Get().Warn().Msgf("get ebpf net data timeout!")
+
+	case <-readsign:
+		//print debug log
+		//logging.Get().Info().Msgf("receive data len : %+v.", length)
+		err = json.Unmarshal(rcvBuf[:length], &netData)
+		if err != nil || len(netData) == 0 {
+			return false
+		}
+		//print debug log
+		//logging.Get().Info().Msgf("receive data num : %+v.", len(netData))
+		//lock
+		fs.ebpfLock.Lock()
+		for i := 0; i < len(netData); i++ {
+			key := fmt.Sprintf(ebpfKeyStr, netData[i].Proto, netData[i].Saddr, netData[i].Sport)
+			value := &daemon.NetProcData{
+				CreatedAt: time.Now().Unix(),
+				Pid:       netData[i].Pid,
+				SrcAddr:   netData[i].Saddr,
+				DstAddr:   netData[i].Daddr,
+				ProcName:  netData[i].ProcName,
+			}
+			//save data
+			fs.EbpfNetInfo[key] = value
+			//print debug log
+			//logging.Get().Info().Msgf("[save] key : %+v, value : %+v", key, *value)
+		}
+		fs.ebpfLock.Unlock()
+	}
+
+	return true
+}
+
+func (fs *FlowSession) GetNetProcInfo(netRes *model.TensorNetworkFlow, src, dst *daemon.K8sResData, addr *daemon.FiveTuple) (bool, error) {
+	if netRes == nil || addr == nil {
+		return false, fmt.Errorf("argument point is nil")
+	}
+
+	if src != nil {
+		data := fs.GetEbpfNetData(addr.Proto, addr.SrcIp, addr.SrcPort)
+		if data == nil {
+			//get net data
+			ok := fs.GetNetDataFromEbpf()
+			if !ok {
+				return false, nil //fmt.Errorf("get src net data is nil from ebpf.")
+			}
+
+			data = fs.GetEbpfNetData(addr.Proto, addr.SrcIp, addr.SrcPort)
+			if data == nil {
+				return false, fmt.Errorf("find src ebpf net data failed")
+			}
+		}
+		//
+		cname := ""
+		for _, containerData := range src.ContainerInfo {
+			cname = containerData.ContainerName
+			if containerData.ContainerPid == data.Pid {
+				break
+			}
+		}
+		//
+		netRes.SrcProcess = data.ProcName
+		netRes.SrcContainerName = cname
+		netRes.SrcPid = data.Pid
+		//return
+		if dst == nil {
+			return redisSaveOrUpdate(fs.redisClient, daemon.SND_ADDR, netRes)
+		}
+	}
+
+	if dst != nil {
+		data := fs.GetEbpfNetData(addr.Proto, addr.DstIp, addr.DstPort)
+		if data == nil {
+			//get net data
+			ok := fs.GetNetDataFromEbpf()
+			if !ok {
+				return false, fmt.Errorf("get src net data is nil from ebpf")
+			}
+			//find
+			data = fs.GetEbpfNetData(addr.Proto, addr.DstIp, addr.DstPort)
+			if data == nil {
+				return false, fmt.Errorf("find dst ebpf net data failed")
+			}
+		}
+		//
+		cname := ""
+		for _, containerData := range dst.ContainerInfo {
+			cname = containerData.ContainerName
+			if containerData.ContainerPid == data.Pid {
+				break
+			}
+		}
+		//
+		netRes.SrcProcess = data.ProcName
+		netRes.SrcContainerName = cname
+		netRes.SrcPid = data.Pid
+		//return
+		return redisSaveOrUpdate(fs.redisClient, daemon.RCV_ADDR, netRes)
+	}
+
+	return false, fmt.Errorf("src and dst info is nil")
+}
+
+func (fs *FlowSession) SetEbpfState(enable bool) {
+	if fs.sockClient == nil {
+		return
+	}
+	//get ebpf state
+	data := fmt.Sprintf("{\"data_type\":%v,\"enable\":%v}", daemon.DATA_EBPF_STATE, enable)
+	//send
+	err := fs.RetrySendData([]byte(data))
+	if err != nil {
+		return
+	}
+
+	var length int
+	rcvBuf := make([]byte, 128)
+	readsign := make(chan struct{})
+	go func() {
+		length, err = fs.sockClient.Read(rcvBuf)
+		if err != nil {
+			logging.Get().Error().Msgf("read unix socket response data failed, %v", err)
+			return
+		}
+		readsign <- struct{}{}
+	}()
+
+	type EbpfState struct {
+		State int `json:"ebpf_state"`
+	}
+
+	select {
+	case <-time.After(time.Second * 2):
+		length = 0
+
+	case <-readsign:
+		//logging.Get().Info().Msgf("receive data : %v", string(rcvBuf[:length]))
+		var state EbpfState
+		err = json.Unmarshal(rcvBuf[:length], &state)
+		if err != nil {
+			return
+		}
+		//
+		fs.EbpfStat = state.State
+	}
+
+	return
+}
+
+func (fs *FlowSession) GetProcessName(netinfo *daemon.PidAssociateMnt) (*daemon.ProcessInfo, error) {
+	if fs.sockClient == nil {
+		return nil, errors.Errorf("udp client is nil")
+	}
+
+	data, err := json.Marshal(netinfo)
+	if err != nil {
+		return nil, errors.Errorf("json marshal failed, %v", err)
+	}
+
+	err = fs.RetrySendData(data)
+	if err != nil {
+		return nil, errors.Errorf("retry send data failed, %v", err)
+	}
+
+	var length int
+	rcvBuf := make([]byte, 512)
+	readsign := make(chan struct{})
+	go func() {
+		length, err = fs.sockClient.Read(rcvBuf)
+		if err != nil {
+			logging.Get().Error().Msgf("read unix socket response data failed, %v", err)
+			return
+		}
+		readsign <- struct{}{}
 	}()
 
 	select {
 	case <-time.After(time.Second * 2):
 		length = 0
 
-	case <-timeout:
+	case <-readsign:
 		//logging.Get().Info().Msgf("receive data : %v", string(rcvBuf[:length]))
 		var pInfo daemon.ProcessInfo
 		err = json.Unmarshal(rcvBuf[:length], &pInfo)
@@ -361,6 +667,7 @@ func (fs *FlowSession) GetContainerProcessName(addrType uint8, res *daemon.K8sRe
 	for _, containerData := range res.ContainerInfo {
 		//logging.Get().Info().Msgf("get pid : %v, ns : %v, pod name : %v, %+v", pid, namespace, podname, *tuple)
 		netInfo := &daemon.PidAssociateMnt{
+			DataType:  daemon.DATA_SETNS,
 			Pid:       containerData.ContainerPid,
 			AddrType:  addrType,
 			TupleInfo: *tuple,
@@ -393,10 +700,6 @@ func (fs *FlowSession) GetContainerProcessName(addrType uint8, res *daemon.K8sRe
 }
 
 func (fs *FlowSession) GetContainerInfo(netRes *model.TensorNetworkFlow, src, dst *daemon.K8sResData, addr *daemon.FiveTuple) (bool, error) {
-	//filter dns
-	if addr.SrcPort == 53 || addr.DstPort == 53 {
-		return false, nil
-	}
 
 	if src != nil {
 		pinfo, err := fs.GetContainerProcessName(daemon.SND_ADDR, src, addr)
@@ -452,14 +755,20 @@ func (fs *FlowSession) ProcSessionQueData() {
 	}
 }
 
-func (fs *FlowSession) PutNetSession(nlType uint8, origin, reply *daemon.FiveTuple) {
-	nsData := daemon.NetSessionLink{
-		NlType: nlType,
-		Origin: *origin,
-		Reply:  *reply,
+func (fs *FlowSession) PutNetSession(nlType, netType uint8, origin, reply *daemon.FiveTuple) {
+	ok := fs.filterUnusedSession(origin)
+	if !ok {
+		return
 	}
 
-	timer := time.NewTimer(100 * time.Millisecond)
+	nsData := daemon.NetSessionLink{
+		NlType:   nlType,
+		DataType: netType,
+		Origin:   *origin,
+		Reply:    *reply,
+	}
+
+	timer := time.NewTimer(200 * time.Millisecond)
 	defer timer.Stop()
 
 	select {
@@ -497,6 +806,11 @@ func (fs *FlowSession) filterUnusedSession(addr *daemon.FiveTuple) bool {
 		return false
 	}
 
+	//filter dns
+	if (addr.Proto == IPPROTO_UDP) && (addr.SrcPort == 53 || addr.DstPort == 53) {
+		return false
+	}
+
 	return true
 }
 
@@ -506,11 +820,6 @@ func (fs *FlowSession) ProcSessionData(netSession *daemon.NetSessionLink) error 
 			logging.Get().Error().Msgf("Panic: %v. Stack: %s", r, debug.Stack())
 		}
 	}()
-	//filter local lo address
-	ok := fs.filterUnusedSession(&netSession.Origin)
-	if !ok {
-		return nil
-	}
 	//
 	switch netSession.NlType {
 	case NFCT_T_NEW:
@@ -573,11 +882,20 @@ func (fs *FlowSession) ProcSessionData(netSession *daemon.NetSessionLink) error 
 	//
 	switch netSession.NlType {
 	case NFCT_T_UPDATE: //update event
-		//get container info
-		state, err = fs.GetContainerInfo(netData, src, dst, netAddr)
-		if err != nil {
-			logging.Get().Error().Msgf("get container info failed, %v.", err)
+		if (fs.EbpfStat == daemon.EBPF_SUCC) && (netSession.DataType == daemon.NET_UPDATE) {
+			state, err = fs.GetNetProcInfo(netData, src, dst, netAddr)
+			//debug log
+			//if err != nil {
+			//	logging.Get().Info().Msgf("[ebpf] get proc failed, %+v, %+v.", err, *netAddr)
+			//}
+		} else {
+			//get container info
+			state, err = fs.GetContainerInfo(netData, src, dst, netAddr)
+			if err != nil {
+				logging.Get().Error().Msgf("get container info failed, %v.", err)
+			}
 		}
+
 	case NFCT_T_TIMEOUT: //session timeout
 		addrType := daemon.RCV_ADDR
 		if src != nil {
@@ -587,6 +905,7 @@ func (fs *FlowSession) ProcSessionData(netSession *daemon.NetSessionLink) error 
 		if err != nil {
 			logging.Get().Error().Msgf("get resource info failed, %v.", err)
 		}
+
 	default:
 		return nil
 	}
@@ -598,9 +917,7 @@ func (fs *FlowSession) ProcSessionData(netSession *daemon.NetSessionLink) error 
 	//create uuid
 	netData.CreateUuid()
 	//print debug log
-	//if netSession.Origin.DstPort != 53 && netSession.Origin.DstPort != 8801 {
-	//	logging.Get().Info().Msgf("%+v, %+v", *netSession, *netData)
-	//}
+	//logging.Get().Info().Msgf("[post] %+v, %+v", *netSession, *netData)
 	//post net flow
 	return fs.submitter.Submit(context.Background(), netData)
 }
@@ -635,7 +952,7 @@ func (fs *FlowSession) conntrackInitList(ctx context.Context) error {
 		}
 
 		origin, reply := SessionToFiveTuple(session, proto)
-		fs.PutNetSession(NFCT_T_UPDATE, origin, reply)
+		fs.PutNetSession(NFCT_T_UPDATE, daemon.NET_INIT, origin, reply)
 	}
 
 	return nil
@@ -669,7 +986,7 @@ func (fs *FlowSession) onFlowCallback(header *NlMsgHdr, flow *ConntrackFlow) err
 		}
 
 		origin, reply := NetlinkToFiveTuple(flow, iptuple.Protocol)
-		fs.PutNetSession(nfType, origin, reply)
+		fs.PutNetSession(nfType, daemon.NET_UPDATE, origin, reply)
 
 	case IPCTNL_MSG_CT_DELETE:
 		nfType = NFCT_T_DESTROY

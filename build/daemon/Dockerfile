@@ -11,6 +11,7 @@ RUN export DEBIAN_FRONTEND=noninteractive && apt-get install libglib2.0-dev -y
 COPY bin/daemon /
 COPY bin/ns-mnt /
 COPY ./configs/daemon/supervisord.conf /etc/
+COPY ./configs/daemon/*.o /
 COPY ./configs/drift-prevention/inject /
 
 CMD ["supervisord"]

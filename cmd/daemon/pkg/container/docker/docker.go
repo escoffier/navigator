@@ -156,7 +156,7 @@ func (d *dockerDriver) ListRunningContainers() ([]types.Container, error) {
 	if err != nil {
 		return nil, fmt.Errorf("list containers failed, %v", err)
 	}
-	logging.Get().Debug().Interface("containers", containers).Msg("list containers")
+	//logging.Get().Debug().Interface("containers", containers).Msg("list containers")
 	return containers, nil
 }
 
