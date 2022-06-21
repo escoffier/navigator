@@ -3,7 +3,11 @@ package api
 import (
 	"context"
 	"fmt"
+	"net"
 	"net/http"
+	"net/http/httputil"
+	"net/url"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi"
@@ -18,6 +22,7 @@ import (
 func (api *api) naviAudit() func(chi.Router) {
 	return func(r chi.Router) {
 		r.Get("/", api.getNaviAuditLog())
+		r.Post("/exportTask", api.RedirectToAuditExport())
 	}
 }
 
@@ -95,5 +100,43 @@ func (api *api) getNaviAuditLog() http.HandlerFunc {
 		response.Ok(w,
 			response.WithApiVersion(auditAPIVersion),
 			response.WithItems(items))
+	}
+}
+
+func (api *api) RedirectToAuditExport() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		// /api/v2/platform/naviAudit/exportTask
+		// /api/v1/task/naviAudit
+
+		pre := r.URL.String()
+		newUrl := fmt.Sprintf("%s%s", api.exportURL,
+			strings.Replace(pre, "/api/v2/platform/naviAudit/exportTask", "/api/v1/export/task/naviAudit", 1))
+
+		u, err := url.Parse(newUrl)
+		if nil != err {
+			apperror.RespAndLog(w, r.Context(), apperror.NewFieldError(http.StatusBadRequest, fmt.Errorf("count not parse the url:%s,error  %w", pre, err)))
+			return
+		}
+
+		roundTripper := &http.Transport{
+			Proxy: http.ProxyFromEnvironment,
+			DialContext: (&net.Dialer{
+				Timeout:   30 * time.Minute,
+				KeepAlive: 10 * time.Second,
+			}).DialContext,
+			ForceAttemptHTTP2:     true,
+			MaxIdleConns:          100,
+			IdleConnTimeout:       9 * time.Minute,
+			TLSHandshakeTimeout:   10 * time.Second,
+			ExpectContinueTimeout: 1 * time.Second,
+		}
+
+		proxy := httputil.ReverseProxy{
+			Director: func(request *http.Request) {
+				request.URL = u
+			},
+			Transport: roundTripper,
+		}
+		proxy.ServeHTTP(w, r)
 	}
 }

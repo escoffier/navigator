@@ -437,3 +437,19 @@ func IsClusterChanged(oldCluster *model.TensorCluster, newCluster *model.TensorC
 	}
 	return false
 }
+
+func (m *ClusterManager) GetClusterByKey(key string) (*clusterV1.ManagedCluster, error) {
+	cluster, err := m.Lister.Get(key)
+	if err != nil {
+		return nil, err
+	}
+	return cluster, nil
+}
+
+func (m *ClusterManager) GetClusterName(key string) (string, error) {
+	cluster, err := m.Lister.Get(key)
+	if err != nil {
+		return "", err
+	}
+	return cluster.Spec.ClusterName, nil
+}

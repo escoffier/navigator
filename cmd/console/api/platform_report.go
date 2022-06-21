@@ -426,6 +426,10 @@ func (api *api) getReportRecordDetail() http.HandlerFunc {
 			return
 		}
 
-		response.Ok(w, response.WithApiVersion(platformReportAPIVersion), response.WithItem(report))
+		response.Ok(w, response.WithApiVersion(platformReportAPIVersion), response.WithItem(report), response.WithTarget(&response.TargetRef{
+			Name: report.TemplateName,
+			ID:   "",
+			Link: "",
+		}))
 	}
 }

@@ -44,9 +44,6 @@ func (s *ExportTensorTask) Check() error {
 	if s.Creator == "" {
 		return fmt.Errorf("no creator")
 	}
-	if s.Parameter == "" {
-		return fmt.Errorf("no parameter")
-	}
 	return nil
 }
 

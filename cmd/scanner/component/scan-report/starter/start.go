@@ -2,6 +2,7 @@ package starter
 
 import (
 	"context"
+	"gitlab.com/security-rd/go-pkg/elastic"
 	"time"
 
 	"gitlab.com/security-rd/go-pkg/databases"
@@ -17,6 +18,7 @@ type BackgroundTasks struct {
 	ScanReport     *scanreport.ScanReportSrv
 	ImageExport    *export.ImageExport
 	ScanTaskExport *export.ScanTaskExport
+	AuditExport    *export.AuditExport
 	ClearFile      *export.ClearFile
 }
 
@@ -31,8 +33,9 @@ type Config struct {
 	FileDir                 string
 	ParallelTaskNum         int
 	Expiration              int64
-	MaxImageByOneExportTask int64
 	Rdb                     *databases.RDBInstance
+	Es                      *elastic.ESClient
+	MaxImageByOneExportTask int64
 }
 
 func NewDefaultConfig() *Config {
@@ -69,10 +72,12 @@ func NewBackgroundTasks(ctx context.Context, config Config) *BackgroundTasks {
 	imageExportSrv := export.NewImageExport(resourceDal, exportTaskDal, imageSrv, config.FileDir, config.Internal)
 	scanTaskExportSrv := export.NewScanTaskExport(imageExportSrv, exportTaskDal, dal, config.FileDir, config.Internal, imageExportSrv, config.BatchImage, config.MaxImageByOneExportTask)
 	clearFile := export.NewClearFile(config.FileDir, config.Expiration, exportTaskDal)
+	naviAuditReport := export.NewAuditExport(exportTaskDal, config.Internal, config.FileDir, config.Es, "navi-audit-")
 	srv := &BackgroundTasks{
 		ScanReport:     scanReportServer,
 		ImageExport:    imageExportSrv,
 		ScanTaskExport: scanTaskExportSrv,
+		AuditExport:    naviAuditReport,
 		ClearFile:      clearFile,
 	}
 	return srv
@@ -107,6 +112,16 @@ func (s *BackgroundTasks) Start(ctx context.Context) {
 		for {
 			s.ScanTaskExport.Run(ctx)
 			logging.GetLogger().Info().Msg("start ScanTaskExport job")
+			<-tick.C
+		}
+	}()
+	// 审计日志数据导出excel
+	go func() {
+		tick := time.NewTicker(time.Second * 10)
+		defer tick.Stop()
+		for {
+			s.AuditExport.Run(ctx)
+			logging.GetLogger().Info().Msg("start AuditExport job")
 			<-tick.C
 		}
 	}()
