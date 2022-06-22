@@ -5,6 +5,7 @@ import (
 	"strconv"
 
 	"github.com/gin-gonic/gin"
+
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	scanreport "gitlab.com/piccolo_su/vegeta/pkg/model/scan-report"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
@@ -115,6 +116,13 @@ func (s *Scanner) ScanReportDelete(ctx *gin.Context) {
 		response.JSONError(ctx, err)
 		return
 	}
+	// 查询
+	detail, err := s.Srv.ScanReportDetail(ctx, data.ID)
+
+	if err != nil {
+		response.JSONError(ctx, err)
+		return
+	}
 
 	if err := s.Srv.ScanReportDelete(ctx, data.ID); err != nil {
 		response.JSONError(ctx, err)
@@ -122,7 +130,7 @@ func (s *Scanner) ScanReportDelete(ctx *gin.Context) {
 	}
 
 	response.JSONOK(ctx, response.WithTarget(&response.TargetRef{
-		Name: fmt.Sprintf("Report: %d", data.ID),
+		Name: detail.Name,
 		ID:   strconv.Itoa(int(data.ID)),
 		Link: "api/v2/containerSec/scanner/scan-report" + strconv.Itoa(int(data.ID)),
 	}))

@@ -1118,10 +1118,9 @@ func (s *Scanner) DeleteBaseImage(ctx *gin.Context) {
 		response.JSONError(ctx, err)
 		return
 	}
-	imageName := fmt.Sprintf("image:%s/%s:%s", detail.Library, detail.FullRepoName, detail.Tags)
 
 	response.JSONOK(ctx, response.WithTarget(&response.TargetRef{
-		Name: imageName,
+		Name: fmt.Sprintf("%s:%s", detail.FullRepoName, detail.Tags),
 		ID:   strconv.Itoa(int(imageID)),
 		Link: "api/v2/containerSec/scanner/images/base/" + strconv.Itoa(int(imageID)),
 	}))

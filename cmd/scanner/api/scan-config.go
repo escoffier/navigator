@@ -110,7 +110,7 @@ func (sc *ScanConfigAPISrv) DeleteStrategy(ctx *gin.Context) {
 	}
 
 	response.JSONOK(ctx, response.WithTarget(&response.TargetRef{
-		Name: fmt.Sprintf("Strategy: %s", strategy[0].Name),
+		Name: strategy[0].Name,
 		ID:   strconv.Itoa(int(strategyID)),
 		Link: "api/v2/containerSec/scanner/scan-config/strategy/" + strconv.Itoa(int(strategyID)),
 	}))
