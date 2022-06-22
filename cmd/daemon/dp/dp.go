@@ -21,6 +21,10 @@ import (
 
 var defaultDockerSocket string = "unix:///host/var/run/docker.sock"
 
+const (
+	defaultConcurrentNum = 5
+)
+
 type DriftAssurance struct {
 	config     *ConfigManager
 	injector   *Injector
@@ -35,7 +39,7 @@ func (d *DriftAssurance) GetConfigManager() *ConfigManager {
 	return d.config
 }
 
-func (d *DriftAssurance) Start(ctx context.Context, consoleAddr string) error {
+func (d *DriftAssurance) Start(ctx context.Context) error {
 
 	wg := sync.WaitGroup{}
 
@@ -48,7 +52,6 @@ func (d *DriftAssurance) Start(ctx context.Context, consoleAddr string) error {
 				logging.Get().Error().Msgf("config manager panic: %v.stack:%s", r, debug.Stack())
 			}
 		}()
-		d.config.consoleAddr = consoleAddr
 		_ = d.config.Start()
 		logging.Get().Error().Msg("config manager exit")
 	}()
@@ -75,133 +78,32 @@ func (d *DriftAssurance) Start(ctx context.Context, consoleAddr string) error {
 				logging.Get().Error().Msgf("subscriber panic: %v.stack:%s", r, debug.Stack())
 			}
 		}()
-		err := d.rt.MonitorEvent(d.subscriber.RuntimeEventCallBack(d))
+		err := d.rt.MonitorEvent(d.subscriber.RuntimeEventCallBack(d.config, d.rt, d.wc, d.injector))
 		logging.Get().Err(err).Msg("monitor event exit")
 	}()
 
-	// get running image result
+	// get running images whitelist
 	wg.Add(1)
 	go func() {
-		imageScanStart := time.Now()
 		defer wg.Done()
-		scannedCount := 0
 		defer func() {
 			if r := recover(); r != nil {
 				logging.Get().Error().Msgf("get running container image result panic: %v.stack:%s", r, debug.Stack())
 			}
 		}()
-		containers, err := d.rt.ListRunningContainers()
-		if err != nil {
-			logging.Get().Err(err).Msg("get running container image result failed")
-			return
-		}
-		concurrentNum := os.Getenv("CONCURRENT_NUM")
-		concurrentNumInt := 3
-		if concurrentNum != "" {
-			concurrentNumInt, err = strconv.Atoi(concurrentNum)
-			if err != nil {
-				logging.Get().Err(err).Msg("get concurrent num failed")
-				concurrentNumInt = 3
-			}
-		}
-		logging.Get().Debug().Msgf("concurrent num: %d", concurrentNumInt)
-		var wg1 sync.WaitGroup
-		ch := make(chan struct{}, concurrentNumInt)
-		for _, i := range containers {
-			wg1.Add(1)
-			ch <- struct{}{}
-			go func(c types.Container) {
-				defer wg1.Done()
-				defer func() {
-					<-ch
-					if r := recover(); r != nil {
-						logging.Get().Error().Msgf("get running container image result panic: %v.stack:%s", r, debug.Stack())
-					}
-				}()
-				imageInspect, err := d.rt.GetImageInspect(c.ImageID)
-				if err != nil {
-					logging.Get().Err(err).Msg("get image inspect failed")
-					return
-				}
-				digests := make([]string, 0)
-				for _, v := range imageInspect.RepoDigests {
-					arr := strings.Split(v, "@")
-					if len(arr) != 2 {
-						logging.Get().Warn().Str("repoDigest", v).Msg("wrong format,ignore")
-						continue
-					}
-					tmpDigest := arr[1]
-					digests = append(digests, tmpDigest)
-					d.config.AddImageUsed(tmpDigest)
-				}
-				if _, skip := d.config.IsImageDigestsExist(digests); skip{
-					return
-				}
-
-				imageInfo, err := d.wc.MakeWhiteListByOverLay(imageInspect)
-				scannedCount++
-				if err != nil {
-					logging.Get().Err(err).Msg("make whitelist failed")
-					return
-				}
-				for _, v := range imageInspect.RepoDigests {
-					arr := strings.Split(v, "@")
-					if len(arr) != 2 {
-						logging.Get().Warn().Str("repoDigest", v).Msg("wrong format,ignore")
-						continue
-					}
-					tmpDigest := arr[1]
-					d.config.SetContainerWhiteList(tmpDigest, imageInfo.WhiteList)
-				}
-			}(i)
-		}
-		wg1.Wait()
-		logging.Get().Info().Msgf("image scan time: %v, num: %v, hashtablesize: %v whitelist dirs num: %v, dir hitcount: %v",
-			time.Since(imageScanStart), scannedCount, len(d.config.execWhiteList), d.wc.ImageDirCount, d.wc.HitCount)
-		d.wc.CleanWhiteListCount()
+		initRunningContainerImagesWhiteList(d.rt, d.config, d.wc)
 	}()
 
 	// first inject all containers
 	wg.Add(1)
 	go func() {
-		injectStartTime := time.Now()
 		defer wg.Done()
-		injectCount := 0
-		wantInjectCount := 0
 		defer func() {
 			if r := recover(); r != nil {
 				logging.Get().Error().Msgf("inject exist containers panic: %v.stack:%s", r, debug.Stack())
 			}
 		}()
-
-		containers, err := d.rt.ListRunningContainers()
-		if err != nil {
-			logging.Get().Err(err).Msg("list running containers failed")
-			return
-		}
-		// logging.Get().Debug().Msgf("list running containers: %v\n", containers)
-
-		for _, c := range containers {
-			cm, err := d.rt.GetContainerMeta(c.ID)
-			if err != nil {
-				logging.Get().Err(err).Str("containerID", c.ID).Msg("get container meta failed,bypass inject")
-				continue
-			}
-			logging.Get().Debug().Msgf("get container meta: %+v\n", cm)
-
-			injected, err := d.injector.DoInject(cm)
-			if err != nil {
-				// just log,continue inject other container
-				logging.Get().Err(err).Str("containerID", c.ID).Msg("inject container failed")
-			}
-			if injected {
-				injectCount++
-			}
-			wantInjectCount++
-		}
-		logging.Get().Info().Msgf("inject time: %v, want: %v, actual num: %v", time.Since(injectStartTime), wantInjectCount, injectCount)
-
-		logging.Get().Info().Msg("inject containers finished")
+		firstInjectContainer(d.rt, d.injector)
 	}()
 
 	logging.Get().Debug().Msg("dp service running")
@@ -209,7 +111,7 @@ func (d *DriftAssurance) Start(ctx context.Context, consoleAddr string) error {
 	return nil
 }
 
-func NewDriftAssurance(podWatcher *nodeinfo.NodePodsWatcher, podResInfo *nodeinfo.PodResInfo, mqWriter mq.Writer) (*DriftAssurance, error) {
+func NewDriftAssurance(podWatcher *nodeinfo.NodePodsWatcher, podResInfo *nodeinfo.PodResInfo, mqWriter mq.Writer, consoleAddr string) (*DriftAssurance, error) {
 	d := &DriftAssurance{}
 
 	rt, err := createRuntimeCli()
@@ -219,7 +121,7 @@ func NewDriftAssurance(podWatcher *nodeinfo.NodePodsWatcher, podResInfo *nodeinf
 	}
 	d.rt = rt
 
-	cm, err := NewConfigManger()
+	cm, err := NewConfigManger(consoleAddr)
 	if err != nil {
 		logging.Get().Err(err).Msg("create config manager failed")
 		return nil, fmt.Errorf("create config manager failed:%v", err)
@@ -291,4 +193,108 @@ func createRuntimeCli() (container.Runtime, error) {
 		return nil, fmt.Errorf("not valid runtime socket")
 	}
 	return rt, nil
+}
+
+func initRunningContainerImagesWhiteList(rt container.Runtime, config *ConfigManager, wc *whitelist.WhitelistCount) error {
+	imageScanStart := time.Now()
+	scannedCount := 0
+
+	containers, err := rt.ListRunningContainers()
+	if err != nil {
+		return err
+	}
+	concurrentNum := os.Getenv("CONCURRENT_NUM")
+	concurrentNumInt := defaultConcurrentNum
+	if concurrentNum != "" {
+		concurrentNumInt, err = strconv.Atoi(concurrentNum)
+		if err != nil {
+			logging.Get().Err(err).Msg("get concurrent num failed")
+			concurrentNumInt = defaultConcurrentNum
+		}
+	}
+	logging.Get().Debug().Msgf("concurrent num: %d", concurrentNumInt)
+
+	var wg sync.WaitGroup
+	ch := make(chan struct{}, concurrentNumInt)
+
+	for _, c := range containers {
+		wg.Add(1)
+		ch <- struct{}{}
+		go func(c types.Container) {
+			defer wg.Done()
+			defer func() {
+				if r := recover(); r != nil {
+					logging.Get().Error().Msgf("init running container images white list panic: %v.stack:%s", r, debug.Stack())
+				}
+			}()
+			defer func() {
+				<-ch
+			}()
+			cm, err := rt.GetContainerMeta(c.ID)
+			if err != nil {
+				logging.Get().Err(err).Str("containerID", c.ID).Msg("get container meta failed")
+				return
+			}
+			digests := cm.ImageDigest
+			for _, v := range digests {
+				config.AddImageUsed(v)
+			}
+			if _, skip := config.IsImageDigestsExist(digests); skip {
+				return
+			}
+			imageInspect, err := rt.GetImageInspect(c.ImageID)
+			if err != nil {
+				logging.Get().Err(err).Str("imageID", c.ImageID).Msg("get image inspect failed")
+				return
+			}
+			imageInfo, err := wc.MakeWhiteListByOverLay(imageInspect)
+			scannedCount++
+			if err != nil {
+				logging.Get().Err(err).Msg("make whitelist failed")
+				return
+			}
+			for _, v := range digests {
+				config.SetContainerWhiteList(v, imageInfo.WhiteList)
+			}
+			logging.Get().Debug().Msgf("get container meta: %+v\n", cm)
+		}(c)
+	}
+	logging.Get().Info().Msgf("image scan time: %v, num: %v, hashtablesize: %v whitelist dirs num: %v, dir hitcount: %v",
+		time.Since(imageScanStart), scannedCount, len(config.execWhiteList), wc.ImageDirCount, wc.HitCount)
+	wc.CleanWhiteListCount()
+	wg.Wait()
+	return nil
+}
+
+func firstInjectContainer(rt container.Runtime, injector *Injector) error {
+	injectStartTime := time.Now()
+	injectCount := 0
+	wantInjectCount := 0
+
+	containers, err := rt.ListRunningContainers()
+	if err != nil {
+		return err
+	}
+	if len(containers) == 0 {
+		return fmt.Errorf("no running container")
+	}
+
+	for _, c := range containers {
+		cm, err := rt.GetContainerMeta(c.ID)
+		if err != nil {
+			logging.Get().Err(err).Str("containerID", c.ID).Msg("get container meta failed")
+			continue
+		}
+		injected, err := injector.DoInject(cm)
+		if err != nil {
+			logging.Get().Err(err).Str("containerID", c.ID).Msg("inject container failed")
+		}
+		if injected {
+			injectCount++
+		}
+		wantInjectCount++
+
+	}
+	logging.Get().Info().Msgf("inject time: %v, want: %v, actual num: %v", time.Since(injectStartTime), wantInjectCount, injectCount)
+	return nil
 }

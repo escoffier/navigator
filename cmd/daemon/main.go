@@ -224,7 +224,7 @@ func Run(ctx context.Context) error {
 	// start dp service
 	ciaEnabled := os.Getenv("CIA_ENABLED")
 	if ciaEnabled == "1" {
-		dpService, err := dp.NewDriftAssurance(podWatcher, podResInfo, mqWriter)
+		dpService, err := dp.NewDriftAssurance(podWatcher, podResInfo, mqWriter, consoleAddr)
 		if err != nil {
 			logging.Get().Err(err).Msg("new drift assurance service failed")
 			return err
@@ -237,7 +237,7 @@ func Run(ctx context.Context) error {
 					logging.Get().Error().Msgf("drift service panic: %v.stack:%s", r, debug.Stack())
 				}
 			}()
-			if err = dpService.Start(ctx, consoleAddr); err != nil {
+			if err = dpService.Start(ctx); err != nil {
 				logging.Get().Err(err).Msg("drift service start failed")
 			}
 		}()
