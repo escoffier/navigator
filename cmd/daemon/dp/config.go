@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"math/rand"
 	"net/http"
 	"os"
 	"strings"
@@ -21,73 +22,75 @@ import (
 
 type ConfigManager struct {
 	consoleAddr    string
-	lock           sync.Mutex
-	policylock     sync.Mutex
-	policys        model.DaemonDriftPolicys
+	lock           *sync.Mutex
+	policyLock     *sync.Mutex
+	policies       model.DaemonDriftPolicies
 	execWhiteList  map[string]map[string]string // image digest => { hash1 => exec_path,hash2 => exec_path}
 	imageCountLock sync.Mutex
 	imageUsedCount map[string]int64
 }
 
-func (cm *ConfigManager) queryAndFillMap(ctx context.Context) error {
-	url := fmt.Sprintf("%s/api/openapi/drift/policy?last_time=%d", cm.consoleAddr, cm.policys.LastTime)
+const (
+	internalApiKey = "dGVuc29yc2VjLWNpY2QtdXNlcg==.qBFMMAvbbm3afG3y42CqKaN7WQe4Q7hiqtg5Jzwen7tWHhZG16P62kvv"
+)
+
+func (cm *ConfigManager) SyncPolicy(ctx context.Context) error {
+	url := fmt.Sprintf("%s/api/openapi/drift/policy?last_time=%d", cm.consoleAddr, cm.policies.LastTime)
 	logging.Get().Debug().Msgf("url is %v ", url)
+
 	tr := &http.Transport{
 		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
 	}
 	cli := http.Client{Transport: tr, Timeout: 60 * time.Second}
 	req, err := http.NewRequest("GET", url, nil)
-	req.Header.Add("X-Tensorsec-cicd-key", "dGVuc29yc2VjLWNpY2QtdXNlcg==.qBFMMAvbbm3afG3y42CqKaN7WQe4Q7hiqtg5Jzwen7tWHhZG16P62kvv")
+	req.Header.Add("X-Tensorsec-cicd-key", internalApiKey)
 	req.Header.Add("Content-Type", "application/json")
 	if err != nil {
-		logging.Get().Error().Err(err).Msgf("init requset error", url)
+		logging.Get().Err(err).Msgf("init requset error", url)
 		return err
 	}
 	resp, err := cli.Do(req)
 	if err != nil {
-		logging.Get().Error().Err(err).Msgf("requset url:%v error", url)
+		logging.Get().Error().Err(err).Msgf("request url:%v error", url)
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
+
 	if resp.StatusCode != 200 {
-		logging.Get().Error().Err(err).Msgf("request statuscode error:%v", resp.StatusCode)
+		logging.Get().Err(err).Msgf("request status code error:%v", resp.StatusCode)
+		return fmt.Errorf("rsp code err:%d", resp.StatusCode)
 	}
 	data, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		logging.Get().Error().Err(err).Msgf("read scanner req body error")
+		logging.Get().Err(err).Msgf("read scanner req body error")
 		return err
 	}
-	logging.Get().Info().Msgf("resp body is ", string(data))
-	var policys model.DaemonDriftResp
-	err = json.Unmarshal(data, &policys)
+
+	var policies model.DaemonDriftResp
+	err = json.Unmarshal(data, &policies)
 	if err != nil {
-		logging.Get().Error().Err(err).Msgf("unmarshal policys error")
+		logging.Get().Err(err).Msgf("unmarshal policy error")
 		return err
 	}
 
-	if policys.Data.TotalItems == -1 {
-		return nil
-	}
+	logging.Get().Trace().Interface("policyItems", policies.Data.Items).Msg("sync policy success")
 
-	logging.Get().Info().Msgf("policys is %v", policys.Data.Items)
-	cm.policylock.Lock()
-	cm.policys.Policys = make(map[uint32]model.DriftPolicy)
-	var maxTime int64
-	for _, v := range policys.Data.Items {
-		if maxTime < v.UpdatedAt.Unix() {
-			maxTime = v.UpdatedAt.Unix()
-		}
-		cm.policys.Policys[v.ResourceUUID] = v
+	cm.policyLock.Lock()
+	cm.policies.Policies = make(map[uint32]model.DriftPolicy)
+	for _, v := range policies.Data.Items {
+		cm.policies.Policies[v.ResourceUUID] = v
 	}
+	cm.policyLock.Unlock()
 
-	cm.policylock.Unlock()
 	return nil
 }
 
 func (cm *ConfigManager) GetPolicyByResourceUUID(uuid uint32) (model.DriftPolicy, bool) {
-	cm.policylock.Lock()
-	defer cm.policylock.Unlock()
-	policy, ok := cm.policys.Policys[uuid]
+	cm.policyLock.Lock()
+	defer cm.policyLock.Unlock()
+	policy, ok := cm.policies.Policies[uuid]
 	logging.Get().Info().Msgf("uuid:%v, policy:%+v", uuid, policy)
 
 	return policy, ok
@@ -96,20 +99,17 @@ func (cm *ConfigManager) GetPolicyByResourceUUID(uuid uint32) (model.DriftPolicy
 func (cm *ConfigManager) Start() error {
 	logging.Get().Info().Msg("config manager start")
 	for {
-		// get white list by api
-		// if cm.execWhiteList == nil {
-		// 	cm.execWhiteList = make(map[string]map[string]string)
-		// }
-		// // write to Exec white list,
 		ctx, cancel := context.WithTimeout(context.Background(), time.Second*60)
-		err := cm.queryAndFillMap(ctx)
+		err := cm.SyncPolicy(ctx)
 		cancel()
 		if err != nil {
-			logging.Get().Error().Err(err).Msgf("queryAndFillMap error")
+			logging.Get().Error().Err(err).Msgf("SyncPolicy error")
 			time.Sleep(time.Second * 20)
 			continue
 		}
-		time.Sleep(time.Minute * 1)
+		defaultTime := 10
+		intervalTime := int64(defaultTime) + rand.New(rand.NewSource(time.Now().Unix())).Int63n(6)
+		time.Sleep(time.Second * time.Duration(intervalTime))
 	}
 }
 
@@ -176,7 +176,9 @@ func (cm *ConfigManager) MockWhiteListFromFile(imageDigestFile, hashFile string)
 	if err != nil {
 		return fmt.Errorf("open file err:%v", err)
 	}
-	defer hf.Close()
+	defer func() {
+		_ = hf.Close()
+	}()
 
 	hashList := make(map[string]string)
 	buf := bufio.NewReader(hf)
@@ -238,7 +240,7 @@ func (cm *ConfigManager) SetContainerWhiteList(imageDigest string, whiteList []w
 	if cm.execWhiteList[imageDigest] == nil {
 		cm.execWhiteList[imageDigest] = make(map[string]string)
 	} else {
-		logging.Get().Error().Msgf("image whitelist exist imageDigest:%v, whiteList:%v\n", imageDigest, whiteList)
+		logging.Get().Trace().Msgf("image whitelist exist imageDigest:%v, whiteList:%v\n", imageDigest, whiteList)
 		return
 	}
 
@@ -247,12 +249,20 @@ func (cm *ConfigManager) SetContainerWhiteList(imageDigest string, whiteList []w
 	}
 }
 
+func (cm *ConfigManager) deleteWhiteListByImageDigest(imageDigest string) {
+	cm.lock.Lock()
+	defer cm.lock.Unlock()
+	delete(cm.execWhiteList, imageDigest)
+}
+
 func (cm *ConfigManager) AddImageUsed(imageDigest string) {
 	cm.imageCountLock.Lock()
 	defer cm.imageCountLock.Unlock()
+
 	if cm.imageUsedCount == nil {
 		cm.imageUsedCount = make(map[string]int64)
 	}
+	logging.Get().Debug().Msgf("imageDigest:%v, count:%v", imageDigest, cm.imageUsedCount[imageDigest])
 	cm.imageUsedCount[imageDigest]++
 }
 
@@ -261,10 +271,9 @@ func (cm *ConfigManager) DelImageUsedAndTestWhiteList(imageDigest string) {
 	defer cm.imageCountLock.Unlock()
 	cm.imageUsedCount[imageDigest]--
 	if cm.imageUsedCount[imageDigest] == 0 {
-		logging.Get().Info().Msgf("delete %v from map", imageDigest)
-		cm.lock.Lock()
-		delete(cm.execWhiteList, imageDigest)
-		cm.lock.Unlock()
+		logging.Get().Trace().Msgf("delete %v from map", imageDigest)
+
+		cm.deleteWhiteListByImageDigest(imageDigest)
 	} else if cm.imageUsedCount[imageDigest] < 0 {
 		logging.Get().Error().Msgf("imageDigest:%v, imageUsedCount:%v", imageDigest, cm.imageUsedCount[imageDigest])
 		cm.imageUsedCount[imageDigest] = 0
@@ -272,12 +281,16 @@ func (cm *ConfigManager) DelImageUsedAndTestWhiteList(imageDigest string) {
 	}
 }
 
-func NewConfigManger() (*ConfigManager, error) {
-	cm := &ConfigManager{}
+func NewConfigManger(consoleAddr string) (*ConfigManager, error) {
+	cm := &ConfigManager{
+		lock:        &sync.Mutex{},
+		policyLock:  &sync.Mutex{},
+		consoleAddr: consoleAddr,
+	}
 	cm.execWhiteList = make(map[string]map[string]string)
 	cm.imageUsedCount = make(map[string]int64)
-	cm.policys = model.DaemonDriftPolicys{
-		Policys:  make(map[uint32]model.DriftPolicy),
+	cm.policies = model.DaemonDriftPolicies{
+		Policies: make(map[uint32]model.DriftPolicy),
 		LastTime: 0,
 	}
 	return cm, nil

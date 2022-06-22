@@ -64,8 +64,8 @@ type DriftPolicy struct {
 	Mode         int       `json:"mode"`
 }
 
-type DaemonDriftPolicys struct {
-	Policys  map[uint32]DriftPolicy
+type DaemonDriftPolicies struct {
+	Policies map[uint32]DriftPolicy
 	LastTime int64
 }
 

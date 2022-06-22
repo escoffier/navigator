@@ -261,7 +261,7 @@ func (ej *ExecJudge) doRequest(conn *net.UnixConn, uuid uint64) error {
 
 		existDigest, ok := ej.cm.IsImageDigestsExist(containMeta.ImageDigest)
 		if !ok {
-			logging.Get().Error().Uint64("uuid", uuid).Str("containerID", containerID).Str("image digest", containMeta.ImageID).Msg("not found container image digest white list")
+			logging.Get().Error().Uint64("uuid", uuid).Str("containerID", containerID).Str("image digest", strings.Join(containMeta.ImageDigest, " ")).Msg("not found container image digest white list")
 			if needBlock {
 				_ = ej.Response(conn, resultBlock, containerID, fileHash)
 			} else {

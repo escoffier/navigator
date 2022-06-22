@@ -6,6 +6,7 @@ import (
 
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/dp/scope"
 	_ "gitlab.com/piccolo_su/vegeta/cmd/daemon/dp/scope/image"
+	"gitlab.com/piccolo_su/vegeta/cmd/daemon/dp/whitelist"
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/container"
 	"gitlab.com/security-rd/go-pkg/logging"
 )
@@ -59,7 +60,7 @@ func (s *Subscriber) shouldInject(m *container.EventMessage) bool {
 	return false
 }
 
-func (s *Subscriber) RuntimeEventCallBack(d *DriftAssurance) container.EventCallback {
+func (s *Subscriber) RuntimeEventCallBack(config *ConfigManager, rt container.Runtime, wc *whitelist.WhitelistCount, injector *Injector) container.EventCallback {
 	return func(message *container.EventMessage) {
 		go func(m *container.EventMessage) {
 			defer func() {
@@ -75,7 +76,7 @@ func (s *Subscriber) RuntimeEventCallBack(d *DriftAssurance) container.EventCall
 				// 	d.config.DelImageUsedAndTestWhiteList(v)
 				// }
 				for _, v := range m.ContainerInfo.ImageDigest {
-					d.config.DelImageUsedAndTestWhiteList(v)
+					config.DelImageUsedAndTestWhiteList(v)
 				}
 				return
 			}
@@ -92,22 +93,22 @@ func (s *Subscriber) RuntimeEventCallBack(d *DriftAssurance) container.EventCall
 
 				// get image whitelist
 				skipScanner := false
-				if _, skipScanner := d.config.IsImageDigestsExist(m.ContainerInfo.ImageDigest); skipScanner {
+				if _, skipScanner := config.IsImageDigestsExist(m.ContainerInfo.ImageDigest); skipScanner {
 					logging.Get().
 						Info().
 						Msg("imageDigest in exec white list,ignore whitelist scanner")
 				}
 
 				if !skipScanner {
-					imageInspect, err := d.rt.GetImageInspect(m.ContainerInfo.ImageID)
+					imageInspect, err := rt.GetImageInspect(m.ContainerInfo.ImageID)
 					if err != nil {
 						logging.Get().
 							Err(err).
 							Str("imageID", m.ContainerInfo.ImageID).
 							Msg("get image inspect failed")
 					} else {
-						imageInfo, err := d.wc.MakeWhiteListByOverLay(imageInspect)
-						d.wc.CleanWhiteListCount()
+						imageInfo, err := wc.MakeWhiteListByOverLay(imageInspect)
+						wc.CleanWhiteListCount()
 						if err != nil {
 							logging.Get().
 								Err(err).
@@ -115,7 +116,7 @@ func (s *Subscriber) RuntimeEventCallBack(d *DriftAssurance) container.EventCall
 								Msg("make whitelist by overlay failed")
 						} else {
 							for _, v := range m.ContainerInfo.ImageDigest {
-								d.config.SetContainerWhiteList(v, imageInfo.WhiteList)
+								config.SetContainerWhiteList(v, imageInfo.WhiteList)
 							}
 						}
 					}
@@ -123,7 +124,7 @@ func (s *Subscriber) RuntimeEventCallBack(d *DriftAssurance) container.EventCall
 				}
 
 				// inject container by its process id
-				injected, err := d.injector.DoInject(m.ContainerInfo)
+				injected, err := injector.DoInject(m.ContainerInfo)
 				if err != nil {
 					logging.Get().Err(err).Str("containedID", m.ContainerInfo.ID).Msg("inject err")
 				} else {
@@ -131,7 +132,7 @@ func (s *Subscriber) RuntimeEventCallBack(d *DriftAssurance) container.EventCall
 				}
 				if injected {
 					for _, v := range m.ContainerInfo.ImageRepoTags {
-						d.config.AddImageUsed(v)
+						config.AddImageUsed(v)
 					}
 				}
 			}

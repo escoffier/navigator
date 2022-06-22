@@ -19,11 +19,6 @@ import (
 
 const (
 	hashByteRange int64 = 1024
-	MaxBufferSize int64 = 1024 * 1024 * 20
-)
-
-var (
-	contentbuf = make([]byte, MaxBufferSize)
 )
 
 type WhitelistFile struct {
@@ -35,7 +30,9 @@ func FileHashCrc32(path string, size int64) uint32 {
 	var crc uint32
 
 	if f, err := os.Open(path); err == nil {
-		defer f.Close()
+		defer func() {
+			_ = f.Close()
+		}()
 		buf := make([]byte, hashByteRange)
 
 		// explore leading section
@@ -72,63 +69,7 @@ func Unique(slice []WhitelistFile) []WhitelistFile {
 	return list
 }
 
-func ListDirContents(path string, whitelist *[]WhitelistFile) {
-	files, err := ioutil.ReadDir(path)
-	if err != nil {
-		logging.Get().Warn().Err(err).Msgf("read dir %v error", path)
-		return
-	}
-
-	for _, f := range files {
-		var newPath string
-		if path != "/" {
-			newPath = fmt.Sprintf("%s/%s", path, f.Name())
-		} else {
-			newPath = fmt.Sprintf("%s%s", path, f.Name())
-		}
-		resolvedSymlink, err := filepath.EvalSymlinks(newPath)
-
-		// log.Debug("resolvedSymlink: ", resolvedSymlink, "newPath: ", newPath)
-
-		if err != nil {
-			logging.Get().Warn().Msgf("Failed to resolve symlink: path %s resolvedPath %s err %v\n", newPath, resolvedSymlink, err)
-			continue
-		}
-		if f.IsDir() {
-			ListDirContents(newPath, whitelist)
-		} else if f.Mode().IsRegular() && isExec(f.Mode()) {
-			// if we use /proc/pid/root,then do not use resolveSymlink
-			// file, err := os.Open(resolvedSymlink)
-			file, err := os.Open(newPath)
-			stats, err := file.Stat()
-			if err != nil {
-				logging.Get().Warn().Msgf("Failed to stat file: %v\n", err)
-				continue
-			}
-			checksum := FileHashCrc32(newPath, stats.Size())
-
-			*whitelist = append(*whitelist, WhitelistFile{
-				Name:     newPath,
-				Checksum: fmt.Sprintf("%X", checksum),
-			})
-
-			if err = file.Close(); err != nil {
-				logging.Get().Error().Msgf("Failed to close file: path %s err %v\n", newPath, err)
-			}
-		}
-	}
-}
-
-func execFileName(path string) (string, error) {
-	pos := strings.LastIndex(path, "/")
-	if pos == -1 {
-		return "", fmt.Errorf("path with wrong format,not find exec file")
-	}
-	return path[pos+1:], nil
-}
-
 var imagePathReg = regexp.MustCompile(`(.*)(diff|merged|work)`)
-var relativePathReg = regexp.MustCompile(`../`)
 
 func travelUpperDir(path string) (string, bool) {
 	pos := strings.LastIndex(path, "/")
@@ -246,7 +187,7 @@ func mergeLinkToWhitelist(linkTarget map[string]string, whitelist map[string]str
 	for link, target := range linkTarget {
 		_, ok := whitelist[target]
 		if !ok {
-			logging.Get().Warn().Msgf("not found link taget hash,maybe target is not exist: %s, %s,", link, target)
+			logging.Get().Trace().Msgf("not found link target hash,maybe target is not exist: %s, %s,", link, target)
 			continue
 		}
 		whitelist[link] = whitelist[target]
@@ -299,7 +240,7 @@ func ListDirContentsNew(overlayDir, path string, whitelist, linkTarget map[strin
 				// Dockerfile example:
 				// COPY test.sh /
 				// RUN ln -s link1 /test.sh
-				logging.Get().Debug().Msgf("link target not exist,still record:%s", realPath)
+				logging.Get().Trace().Msgf("link target not exist,still record:%s", realPath)
 				tmpPath := strings.TrimPrefix(newPath, overlayDir)
 				tmpRealPath := strings.TrimPrefix(realPath, overlayDir)
 				linkTarget[tmpPath] = tmpRealPath

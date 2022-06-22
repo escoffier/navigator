@@ -18,7 +18,7 @@ type imageInfo struct {
 
 type WhitelistCount struct {
 	ImageWhiteListMap map[string]map[string]string
-	Mapmutex          sync.Mutex
+	Mapmutex          *sync.Mutex
 	ImageDirCount     int
 	HitCount          int
 }
@@ -79,18 +79,12 @@ func (wc *WhitelistCount) walkDir(imageDir []string) []WhitelistFile {
 			continue
 		}
 
-		targetPath := v
-		_, err := os.Stat("/host")
-		if err == nil {
-			targetPath = fmt.Sprintf("/host%s", v)
-		}
-
 		wc.Mapmutex.Lock()
 		wc.ImageDirCount++
-		if _, ok := wc.ImageWhiteListMap[targetPath]; ok {
-			logging.Get().Debug().Msgf("image dir:%v already in white list", targetPath)
+		if _, ok := wc.ImageWhiteListMap[v]; ok {
+			logging.Get().Debug().Msgf("image dir:%v already in white list", v)
 			wc.HitCount++
-			for k, v := range wc.ImageWhiteListMap[targetPath] {
+			for k, v := range wc.ImageWhiteListMap[v] {
 				whiteList[k] = v
 			}
 			wc.Mapmutex.Unlock()
@@ -98,7 +92,7 @@ func (wc *WhitelistCount) walkDir(imageDir []string) []WhitelistFile {
 		}
 		wc.Mapmutex.Unlock()
 
-		ListDirContentsNew(targetPath, targetPath, whiteList, linkTarget)
+		ListDirContentsNew(v, v, whiteList, linkTarget)
 
 		// rebuild link target
 		reLinkTarget := rebuildLinkTarget(linkTarget)
@@ -108,11 +102,12 @@ func (wc *WhitelistCount) walkDir(imageDir []string) []WhitelistFile {
 
 		// check link hash and add to whitelist
 		mergeLinkToWhitelist(reLinkTarget, whiteList)
+
 		wc.Mapmutex.Lock()
-		if wc.ImageWhiteListMap[targetPath] == nil {
-			wc.ImageWhiteListMap[targetPath] = make(map[string]string)
+		if wc.ImageWhiteListMap[v] == nil {
+			wc.ImageWhiteListMap[v] = make(map[string]string)
 		}
-		wc.ImageWhiteListMap[targetPath] = whiteList
+		wc.ImageWhiteListMap[v] = whiteList
 		wc.Mapmutex.Unlock()
 	}
 
@@ -127,7 +122,6 @@ func (wc *WhitelistCount) walkDir(imageDir []string) []WhitelistFile {
 
 func (wc *WhitelistCount) MakeWhiteListByOverLay(image types.ImageInspect) (imageInfo, error) {
 
-	// "Merged Dir" should be last element
 	imageDirKeys := []string{"MergedDir", "WorkDir", "UpperDir", "LowerDir"}
 	imageDir := make([]string, 0)
 	for _, key := range imageDirKeys {
@@ -136,7 +130,12 @@ func (wc *WhitelistCount) MakeWhiteListByOverLay(image types.ImageInspect) (imag
 			if v == "" {
 				continue
 			}
-			imageDir = append(imageDir, v)
+			targetPath := v
+			_, err := os.Stat("/host")
+			if err == nil {
+				targetPath = fmt.Sprintf("/host%s", v)
+			}
+			imageDir = append(imageDir, targetPath)
 		}
 	}
 
@@ -158,7 +157,7 @@ func (wc *WhitelistCount) CleanWhiteListCount() {
 func NewWhitelistHandler() *WhitelistCount {
 	wc := &WhitelistCount{
 		ImageWhiteListMap: make(map[string]map[string]string),
-		Mapmutex:          sync.Mutex{},
+		Mapmutex:          &sync.Mutex{},
 		ImageDirCount:     0,
 		HitCount:          0}
 	return wc
