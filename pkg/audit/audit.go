@@ -5,18 +5,19 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
+	"net/http"
+	"strings"
+	"text/template"
+	"time"
+
 	"github.com/go-chi/chi/middleware"
 	v7 "github.com/olivere/elastic/v7"
 	"github.com/rs/zerolog"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
-	"io/ioutil"
 	"k8s.io/apimachinery/pkg/util/wait"
-	"net/http"
-	"strings"
-	"text/template"
-	"time"
 )
 
 const JWTKeyUsername = "user_name"
@@ -631,5 +632,16 @@ func init() {
 	})
 	routeAction.PUT("/api/v2/containerSec/scanner/vulns/updata", func(params Params) (string, string) {
 		return uploadAction, "上传漏洞库更新包"
+	})
+
+	//偏移防御
+	routeAction.POST("/api/v2/platform/drift/policy/create", func(params Params) (string, string) {
+		return createAction, "新增偏移防御策略{{.}}"
+	})
+	routeAction.POST("/api/v2/platform/drift/policy/update", func(params Params) (string, string) {
+		return editAction, "编辑偏移防御策略{{.}}"
+	})
+	routeAction.POST("/api/v2/platform/drift/policy/delete", func(params Params) (string, string) {
+		return deleteAction, "删除偏移防御策略{{.}}"
 	})
 }
