@@ -42,7 +42,7 @@ func (sc *ScanConfigAPISrv) CreateStrategy(ctx *gin.Context) {
 	}
 	response.JSONOK(ctx, response.WithTarget(&response.TargetRef{
 		Name: data.Name,
-		ID:   data.Name,
+		ID:   strconv.Itoa(int(data.ID)),
 		Link: "api/v2/containerSec/scanner/scan-config/strategy",
 	}))
 }
