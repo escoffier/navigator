@@ -161,7 +161,7 @@ func (api *api) driftCreatePolicy() http.HandlerFunc {
 		if err != nil {
 			if strings.Contains(err.Error(), "same uuid") {
 				logging.GetLogger().Err(err).Msg("Create Same policy")
-				apperror.RespAndLog(w, ctx, apperror.NewAnError(http.StatusInternalServerError, errors.New("Create Same policy")))
+				apperror.RespAndLog(w, ctx, apperror.NewDriftPolicyError(http.StatusInternalServerError, errors.New("Create Same policy")))
 			} else {
 				logging.GetLogger().Err(err).Msg("CreatePolicy error")
 				apperror.RespAndLog(w, ctx, apperror.NewAnError(http.StatusInternalServerError, errors.New("CreatePolicy error")))

@@ -1411,3 +1411,15 @@ func NewInvalidLicenseError(httpCode int, err error, suberrors ...Suberror) erro
 		},
 	}
 }
+
+func NewDriftPolicyError(httpCode int, err error, suberrors ...Suberror) error {
+	return AddBaitServiceError{
+		detailedError{
+			err:       err,
+			English:   "same policy",
+			Chinese:   "该资源已创建",
+			HTTPCode:  httpCode,
+			Suberrors: suberrors,
+		},
+	}
+}
