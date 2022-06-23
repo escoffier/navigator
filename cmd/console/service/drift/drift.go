@@ -77,11 +77,11 @@ func (rl *TensorDriftService) CreatePolicy(ctx context.Context, policy model.Dri
 	return dal.CreateDriftPolicy(ctx, rl.rdb.Get(), policy)
 }
 
-func (rl *TensorDriftService) DeletePolicy(ctx context.Context, policyID int64) error {
+func (rl *TensorDriftService) DeletePolicy(ctx context.Context, policyID int64) (model.DriftPolicy, error) {
 	return dal.DeleteDriftPolicy(ctx, rl.rdb.Get(), policyID)
 }
 
-func (rl *TensorDriftService) UpdatePolicy(ctx context.Context, policy model.DriftPolicyUpdate) error {
+func (rl *TensorDriftService) UpdatePolicy(ctx context.Context, policy model.DriftPolicyUpdate) (model.DriftPolicy, error) {
 	return dal.UpdateDriftPolicy(ctx, rl.rdb.Get(), policy)
 }
 

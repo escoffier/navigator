@@ -16,6 +16,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/assets"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/drift"
 	"gitlab.com/piccolo_su/vegeta/pkg/apperror"
+	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
@@ -158,12 +159,26 @@ func (api *api) driftCreatePolicy() http.HandlerFunc {
 		tmpPolicy.ResourceUUID = util.GenerateUUID(policy.ClusterKey, policy.Namespace, policy.ResourceKind, policy.Resource)
 		id, err := driSvc.CreatePolicy(ctx, tmpPolicy)
 		if err != nil {
-			logging.GetLogger().Err(err).Msg("CreatePolicy error")
-			apperror.RespAndLog(w, ctx, apperror.NewAnError(http.StatusInternalServerError, errors.New("CreatePolicy error")))
+			if strings.Contains(err.Error(), "same uuid") {
+				logging.GetLogger().Err(err).Msg("Create Same policy")
+				apperror.RespAndLog(w, ctx, apperror.NewAnError(http.StatusInternalServerError, errors.New("Create Same policy")))
+			} else {
+				logging.GetLogger().Err(err).Msg("CreatePolicy error")
+				apperror.RespAndLog(w, ctx, apperror.NewAnError(http.StatusInternalServerError, errors.New("CreatePolicy error")))
+			}
 			return
 		}
 		respTmp := tmp{PolicyID: id}
-		response.Ok(w, response.WithItem(respTmp))
+		clusterManager, ok := k8s.GetClusterManager()
+		policyName := policy.ClusterKey
+		if ok {
+			policyName, err = clusterManager.GetClusterName(policy.ClusterKey)
+			if err != nil {
+				logging.GetLogger().Err(err).Msgf("GetClusterName error")
+				policyName = policy.ClusterKey
+			}
+		}
+		response.Ok(w, response.WithItem(respTmp), response.WithTarget(&response.TargetRef{ID: strconv.Itoa(int(id)), Name: fmt.Sprintf("%s/%s/%s(%s)", policyName, policy.Namespace, policy.Resource, policy.ResourceKind)}))
 	}
 }
 
@@ -189,13 +204,22 @@ func (api *api) driftDeletePolicy() http.HandlerFunc {
 			apperror.RespAndLog(w, ctx, apperror.NewAnError(http.StatusBadRequest, errors.New("policy ID not int")))
 			return
 		}
-		err = driSvc.DeletePolicy(ctx, policyID)
+		policy, err := driSvc.DeletePolicy(ctx, policyID)
 		if err != nil {
 			logging.GetLogger().Err(err).Msg("DeletePolicy error")
 			apperror.RespAndLog(w, ctx, apperror.NewAnError(http.StatusBadRequest, errors.New("DeletePolicy error")))
 			return
 		}
-		response.Ok(w)
+		clusterManager, ok := k8s.GetClusterManager()
+		policyName := policy.ClusterKey
+		if ok {
+			policyName, err = clusterManager.GetClusterName(policy.ClusterKey)
+			if err != nil {
+				logging.GetLogger().Err(err).Msgf("GetClusterName error")
+				policyName = policy.ClusterKey
+			}
+		}
+		response.Ok(w, response.WithTarget(&response.TargetRef{ID: strconv.Itoa(int(policyID)), Name: fmt.Sprintf("%s/%s/%s(%s)", policyName, policy.Namespace, policy.Resource, policy.ResourceKind)}))
 	}
 }
 
@@ -203,8 +227,8 @@ func (api *api) driftUpdatePolicy() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx, cancel := context.WithTimeout(r.Context(), time.Second*60)
 		defer cancel()
-		policy := model.DriftPolicyUpdate{}
-		err := util.DecodeJSONBody(w, r, &policy)
+		policyUpdate := model.DriftPolicyUpdate{}
+		err := util.DecodeJSONBody(w, r, &policyUpdate)
 		if err != nil {
 			apperror.RespAndLog(w, ctx,
 				apperror.NewMalformedRequestError(http.StatusBadRequest,
@@ -217,13 +241,22 @@ func (api *api) driftUpdatePolicy() http.HandlerFunc {
 			apperror.RespAndLog(w, ctx, apperror.NewAnError(http.StatusInternalServerError, errors.New("service instance get error")))
 			return
 		}
-		err = driSvc.UpdatePolicy(ctx, policy)
+		policy, err := driSvc.UpdatePolicy(ctx, policyUpdate)
 		if err != nil {
 			logging.GetLogger().Err(err).Msg("UpdatePolicy error")
 			apperror.RespAndLog(w, ctx, apperror.NewAnError(http.StatusBadRequest, errors.New("UpdatePolicy error")))
 			return
 		}
-		response.Ok(w)
+		clusterManager, ok := k8s.GetClusterManager()
+		policyName := policy.ClusterKey
+		if ok {
+			policyName, err = clusterManager.GetClusterName(policy.ClusterKey)
+			if err != nil {
+				logging.GetLogger().Err(err).Msgf("GetClusterName error")
+				policyName = policy.ClusterKey
+			}
+		}
+		response.Ok(w, response.WithTarget(&response.TargetRef{ID: strconv.Itoa(int(policyUpdate.PolicyID)), Name: fmt.Sprintf("%s/%s/%s(%s)", policyName, policy.Namespace, policy.Resource, policy.ResourceKind)}))
 	}
 }
 

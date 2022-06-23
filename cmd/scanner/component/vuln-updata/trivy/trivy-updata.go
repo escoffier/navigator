@@ -1,7 +1,6 @@
 package trivyupdata
 
 import (
-	"context"
 	"crypto/tls"
 	"fmt"
 	"io"
@@ -13,12 +12,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/avast/retry-go"
 	"github.com/boltdb/bolt"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/vuln-updata/register"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
-	"gitlab.com/piccolo_su/vegeta/pkg/util"
 )
 
 type TrivyUpdata struct {
@@ -45,27 +42,27 @@ func openRegistry(registrableComponentConfig register.RegistrableComponentConfig
 }
 
 func (t *TrivyUpdata) Updata(wg *sync.WaitGroup) {
-	retryOptions := []retry.Option{
-		retry.DelayType(retry.FixedDelay),
-		retry.Attempts(10),
-		retry.Delay(time.Duration(10) * time.Second),
-	}
-	defer wg.Done()
-	ctx := context.Background()
-	err := util.RetryWithBackoff(ctx, func() error {
-		err := t.GetTrivyDb()
-		if err != nil {
-			if err.Error() == "equal" {
-				return nil
-			}
-			logging.GetLogger().Warn().Msgf("scanner update will restart:%s", err.Error())
-			return err
-		}
-		return nil
-	}, retryOptions...)
-	if err != nil {
-		logging.GetLogger().Warn().Msgf("scanner update error:%s", err.Error())
-	}
+	// retryOptions := []retry.Option{
+	// 	retry.DelayType(retry.FixedDelay),
+	// 	retry.Attempts(10),
+	// 	retry.Delay(time.Duration(10) * time.Second),
+	// }
+	// defer wg.Done()
+	// ctx := context.Background()
+	// err := util.RetryWithBackoff(ctx, func() error {
+	// 	err := t.GetTrivyDb()
+	// 	if err != nil {
+	// 		if err.Error() == "equal" {
+	// 			return nil
+	// 		}
+	// 		logging.GetLogger().Warn().Msgf("scanner update will restart:%s", err.Error())
+	// 		return err
+	// 	}
+	// 	return nil
+	// }, retryOptions...)
+	// if err != nil {
+	// 	logging.GetLogger().Warn().Msgf("scanner update error:%s", err.Error())
+	// }
 
 }
 

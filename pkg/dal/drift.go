@@ -12,24 +12,37 @@ import (
 func CreateDriftPolicy(ctx context.Context, rdb *gorm.DB, policy model.DriftPolicy) (int64, error) {
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
-	err := rdb.Model(&model.DriftPolicy{}).WithContext(ctx).Create(&policy).Error
+	tmpPolicies := []model.DriftPolicy{}
+	err := rdb.Model(&model.DriftPolicy{}).WithContext(ctx).Where("resource_uuid=?", policy.ResourceUUID).Find(&tmpPolicies).Error
+	if err != nil {
+		return -1, err
+	}
+	if len(tmpPolicies) > 0 {
+		return tmpPolicies[0].ID, fmt.Errorf("same uuid")
+	}
+	err = rdb.Model(&model.DriftPolicy{}).WithContext(ctx).Create(&policy).Error
 	if err != nil {
 		return -1, err
 	}
 	return policy.ID, nil
 }
 
-func DeleteDriftPolicy(ctx context.Context, rdb *gorm.DB, policyID int64) error {
+func DeleteDriftPolicy(ctx context.Context, rdb *gorm.DB, policyID int64) (model.DriftPolicy, error) {
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
-	err := rdb.Model(&model.DriftPolicy{}).WithContext(ctx).Where("id = ?", policyID).Delete(&model.DriftPolicy{}).Error
+	query := model.DriftPolicy{}
+	err := rdb.Model(&model.DriftPolicy{}).WithContext(ctx).Where("id = ?", policyID).Find(&query).Error
 	if err != nil {
-		return err
+		return model.DriftPolicy{}, err
 	}
-	return nil
+	err = rdb.Model(&model.DriftPolicy{}).WithContext(ctx).Where("id = ?", policyID).Delete(&model.DriftPolicy{}).Error
+	if err != nil {
+		return model.DriftPolicy{}, err
+	}
+	return query, nil
 }
 
-func UpdateDriftPolicy(ctx context.Context, rdb *gorm.DB, policy model.DriftPolicyUpdate) error {
+func UpdateDriftPolicy(ctx context.Context, rdb *gorm.DB, policy model.DriftPolicyUpdate) (model.DriftPolicy, error) {
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 	tmpPolicy := model.DriftPolicy{}
@@ -37,11 +50,16 @@ func UpdateDriftPolicy(ctx context.Context, rdb *gorm.DB, policy model.DriftPoli
 	tmpPolicy.Enable = policy.Enable
 	tmpPolicy.Mode = policy.Mode
 	tmpPolicy.Updater = policy.Updater
-	err := rdb.Model(&model.DriftPolicy{}).WithContext(ctx).Where("id = ?", policy.PolicyID).Select("enable", "mode", "updater").Updates(&tmpPolicy).Error
+	query := model.DriftPolicy{}
+	err := rdb.Model(&model.DriftPolicy{}).WithContext(ctx).Where("id = ?", policy.PolicyID).Find(&query).Error
 	if err != nil {
-		return err
+		return model.DriftPolicy{}, err
 	}
-	return nil
+	err = rdb.Model(&model.DriftPolicy{}).WithContext(ctx).Where("id = ?", policy.PolicyID).Select("enable", "mode", "updater").Updates(&tmpPolicy).Error
+	if err != nil {
+		return model.DriftPolicy{}, err
+	}
+	return query, nil
 }
 
 func ListDriftPolicy(ctx context.Context, rdb *gorm.DB, limit, offset int, clusterKey string, resourceType, enable, mode []string, search string) ([]model.DriftPolicy, error) {
