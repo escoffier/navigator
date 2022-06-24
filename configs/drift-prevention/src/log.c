@@ -17,6 +17,7 @@ int drift_prevent_init_log() {
         g_log_dest = stderr;
         return 1;
     }
+    drift_prevent_write_log(INFO, "init log , fd num: %d\n", fileno(g_log_dest));
     return 0;
 }
 

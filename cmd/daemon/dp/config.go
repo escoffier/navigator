@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/tls"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -20,6 +21,19 @@ import (
 	"gitlab.com/security-rd/go-pkg/logging"
 )
 
+type WhiteListScannerState uint32
+
+const (
+	WhiteListNotReady = WhiteListScannerState(iota)
+	WhiteListScanning
+	WhiteListReady
+)
+
+type imageUsedItem struct {
+	count          int64
+	whiteListState WhiteListScannerState
+}
+
 type ConfigManager struct {
 	consoleAddr    string
 	lock           *sync.Mutex
@@ -27,7 +41,7 @@ type ConfigManager struct {
 	policies       model.DaemonDriftPolicies
 	execWhiteList  map[string]map[string]string // image digest => { hash1 => exec_path,hash2 => exec_path}
 	imageCountLock sync.Mutex
-	imageUsedCount map[string]int64
+	imageUsedCount map[string]*imageUsedItem
 }
 
 const (
@@ -260,25 +274,75 @@ func (cm *ConfigManager) AddImageUsed(imageDigest string) {
 	defer cm.imageCountLock.Unlock()
 
 	if cm.imageUsedCount == nil {
-		cm.imageUsedCount = make(map[string]int64)
+		cm.imageUsedCount = make(map[string]*imageUsedItem)
 	}
-	logging.Get().Debug().Msgf("imageDigest:%v, count:%v", imageDigest, cm.imageUsedCount[imageDigest])
-	cm.imageUsedCount[imageDigest]++
+	logging.Get().Debug().Msgf("imageDigest:%v, item:%v", imageDigest, cm.imageUsedCount[imageDigest])
+	// cm.imageUsedCount[imageDigest]++
+	if _, ok := cm.imageUsedCount[imageDigest]; !ok {
+		cm.imageUsedCount[imageDigest] = &imageUsedItem{
+			count:          0,
+			whiteListState: WhiteListNotReady,
+		}
+	}
+	cm.imageUsedCount[imageDigest].count++
 }
 
 func (cm *ConfigManager) DelImageUsedAndTestWhiteList(imageDigest string) {
 	cm.imageCountLock.Lock()
 	defer cm.imageCountLock.Unlock()
-	cm.imageUsedCount[imageDigest]--
-	if cm.imageUsedCount[imageDigest] == 0 {
+	cm.imageUsedCount[imageDigest].count--
+	if cm.imageUsedCount[imageDigest].count == 0 {
 		logging.Get().Trace().Msgf("delete %v from map", imageDigest)
 
 		cm.deleteWhiteListByImageDigest(imageDigest)
-	} else if cm.imageUsedCount[imageDigest] < 0 {
+	} else if cm.imageUsedCount[imageDigest].count < 0 {
 		logging.Get().Error().Msgf("imageDigest:%v, imageUsedCount:%v", imageDigest, cm.imageUsedCount[imageDigest])
-		cm.imageUsedCount[imageDigest] = 0
+		cm.imageUsedCount[imageDigest].count = 0
 
 	}
+}
+
+func (cm *ConfigManager) SetWhiteListNotReady(imageDigest string) error {
+	cm.imageCountLock.Lock()
+	defer cm.imageCountLock.Unlock()
+
+	if _, ok := cm.imageUsedCount[imageDigest]; !ok {
+		return errors.New("imageDigest not exist ")
+	}
+
+	cm.imageUsedCount[imageDigest].whiteListState = WhiteListNotReady
+	return nil
+}
+
+func (cm *ConfigManager) SetWhiteListScanning(imageDigest string) error {
+	cm.imageCountLock.Lock()
+	defer cm.imageCountLock.Unlock()
+
+	if _, ok := cm.imageUsedCount[imageDigest]; !ok {
+		return errors.New("imageDigest not exist ")
+	}
+	cm.imageUsedCount[imageDigest].whiteListState = WhiteListScanning
+	return nil
+}
+
+func (cm *ConfigManager) SetWhiteListReady(imageDigest string) error {
+	cm.imageCountLock.Lock()
+	defer cm.imageCountLock.Unlock()
+	if _, ok := cm.imageUsedCount[imageDigest]; !ok {
+		return errors.New("imageDigest not exist ")
+	}
+	cm.imageUsedCount[imageDigest].whiteListState = WhiteListReady
+	return nil
+
+}
+
+func (cm *ConfigManager) GetWhiteListState(imageDigest string) (WhiteListScannerState, bool) {
+	cm.imageCountLock.Lock()
+	cm.imageCountLock.Unlock()
+	if _, ok := cm.imageUsedCount[imageDigest]; !ok {
+		return WhiteListNotReady, ok
+	}
+	return cm.imageUsedCount[imageDigest].whiteListState, true
 }
 
 func NewConfigManger(consoleAddr string) (*ConfigManager, error) {
@@ -288,7 +352,7 @@ func NewConfigManger(consoleAddr string) (*ConfigManager, error) {
 		consoleAddr: consoleAddr,
 	}
 	cm.execWhiteList = make(map[string]map[string]string)
-	cm.imageUsedCount = make(map[string]int64)
+	cm.imageUsedCount = make(map[string]*imageUsedItem)
 	cm.policies = model.DaemonDriftPolicies{
 		Policies: make(map[uint32]model.DriftPolicy),
 		LastTime: 0,

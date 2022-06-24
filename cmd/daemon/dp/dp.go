@@ -82,6 +82,19 @@ func (d *DriftAssurance) Start(ctx context.Context) error {
 		logging.Get().Err(err).Msg("monitor event exit")
 	}()
 
+	containers, err := d.rt.ListRunningContainers()
+	if err != nil {
+		logging.Get().Error().Msg("get running containers fail")
+	}
+	for _, c := range containers {
+		cm, err := d.rt.GetContainerMeta(c.ID)
+		if err != nil {
+			logging.Get().Error().Msgf("get container meta fail, containerId: %s\n", c.ID)
+		}
+		for _, imageDigest := range cm.ImageDigest {
+			d.config.AddImageUsed(imageDigest)
+		}
+	}
 	// get running images whitelist
 	wg.Add(1)
 	go func() {
@@ -236,12 +249,16 @@ func initRunningContainerImagesWhiteList(rt container.Runtime, config *ConfigMan
 				return
 			}
 			digests := cm.ImageDigest
-			for _, v := range digests {
-				config.AddImageUsed(v)
-			}
 			if _, skip := config.IsImageDigestsExist(digests); skip {
 				return
 			}
+			for _, d := range digests {
+				err = config.SetWhiteListScanning(d)
+				if err != nil {
+					logging.Get().Err(err).Msgf("imageDigest: %v", d)
+				}
+			}
+
 			imageInspect, err := rt.GetImageInspect(c.ImageID)
 			if err != nil {
 				logging.Get().Err(err).Str("imageID", c.ImageID).Msg("get image inspect failed")
@@ -255,6 +272,7 @@ func initRunningContainerImagesWhiteList(rt container.Runtime, config *ConfigMan
 			}
 			for _, v := range digests {
 				config.SetContainerWhiteList(v, imageInfo.WhiteList)
+				_ = config.SetWhiteListReady(v)
 			}
 			logging.Get().Debug().Msgf("get container meta: %+v\n", cm)
 		}(c)

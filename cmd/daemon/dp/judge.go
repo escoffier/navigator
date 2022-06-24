@@ -191,7 +191,24 @@ func (ej *ExecJudge) doRequest(conn *net.UnixConn, uuid uint64) error {
 			continue
 		}
 		logging.Get().Debug().Interface("Meta", containMeta).Msg("container meta info")
-		//err = ej.cm.QueryDigest(containMeta.ImageDigest)
+
+		skip := false
+		// check whitelist state
+		for _, digest := range containMeta.ImageDigest {
+			state, exist := ej.cm.GetWhiteListState(digest)
+			if state != WhiteListReady && exist {
+				logging.Get().Error().Msgf("whitelist not ready imageDigest: %s\n", digest)
+				skip = true
+				break
+			}
+		}
+
+		if skip {
+			logging.Get().Debug().Msg("white list not ready skip check")
+			_ = ej.Response(conn, resultPass, containerID, fileHash)
+			continue
+		}
+
 		// check file hash is in white list
 		cPodInfo, err := getContainerPolicyInfo(containMeta.PodUID, ej.npw, ej.podResInfo)
 		if err != nil {
