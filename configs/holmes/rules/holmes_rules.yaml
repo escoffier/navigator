@@ -1284,7 +1284,7 @@
       value: "使用免疫防御训练应用，限制敏感文件和命令的用户权限。"
   desc: Linux Privilege Escalation using nmap suid binaries
   condition: >
-    evt.type = stat and evt.arg.path contains "nmap.xsl" and user.uid != 0 and ((proc.cmdline contains "interactive") or (proc.cmdline contains "script") or (proc.cmdline contains "-oG"))
+    (evt.type = stat and evt.arg.path contains "nmap.xsl" and user.uid != 0 and ((proc.cmdline contains "interactive") or (proc.cmdline contains "script") or (proc.cmdline contains "-oG"))) and not tensorsec_namespace
   output: >
     Linux Privilege Escalation using nmap suid binaries (zh_msg=尝试利用nmap_suid进行linux提权,rule_type=Privilege_Escalation,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type, container=%container.info)
   priority: ALERT
@@ -1305,7 +1305,7 @@
     spawned_process and user.uid != 0 and (
     proc.name = find or 
     ((proc.cmdline contains "-exec" or proc.cmdline contains "-ok") and proc.cmdline contains ";")
-    )
+    ) and not tensorsec_namespace
   output: >
     Linux Privilege Escalation using find suid binaries (zh_msg=尝试利用find_suid进行linux提权,rule_type=Privilege_Escalation,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type, container=%container.info)
   priority: ALERT
@@ -1328,7 +1328,7 @@
     (not proc.cmdline contains "-c" and (evt.arg.data contains ":py" or evt.arg.data contains ":!"))) and
     not falco_privileged_containers and
     not user_privileged_containers and
-    not k8s.pod.name contains "scanner" and
+    not tensorsec_namespace and
     not k8s.pod.name contains "gatekeeper" and
     not k8s.pod.name contains "kube-state-metrics" and
     not k8s.pod.name contains "istiod"
