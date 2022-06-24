@@ -9,20 +9,18 @@ import (
 	"regexp"
 	"strings"
 
-	"gitlab.com/security-rd/go-pkg/elastic"
-
 	"github.com/go-chi/chi"
 	"github.com/go-chi/jwtauth"
 	"github.com/go-redis/redis/v8"
 	"github.com/mcuadros/go-version"
 	param "github.com/oceanicdev/chi-param"
+	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
+	"gitlab.com/piccolo_su/vegeta/pkg/harbor"
 	"gitlab.com/security-rd/go-pkg/databases"
+	"gitlab.com/security-rd/go-pkg/elastic"
 	"gitlab.com/security-rd/go-pkg/logging"
 	"gitlab.com/security-rd/go-pkg/pb"
 	"go.mongodb.org/mongo-driver/bson/primitive"
-
-	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
-	"gitlab.com/piccolo_su/vegeta/pkg/harbor"
 )
 
 type api struct {
@@ -46,18 +44,18 @@ type api struct {
 }
 
 func newAPI(
-		tokenAuth *jwtauth.JWTAuth,
-		rdb *databases.RDBInstance,
-		scannerURL string,
-		exportURL string,
-		secProfileCoreURL string,
-		microsegURL string,
-		webhookURL string,
-		redisClient *redis.Client,
-		harborClient *harbor.HarborRESTClient,
-		ecCli pb.EventsCenterBizServiceClient,
-		esCli *elastic.ESClient,
-		httpAuditDisabled bool,
+	tokenAuth *jwtauth.JWTAuth,
+	rdb *databases.RDBInstance,
+	scannerURL string,
+	exportURL string,
+	secProfileCoreURL string,
+	microsegURL string,
+	webhookURL string,
+	redisClient *redis.Client,
+	harborClient *harbor.HarborRESTClient,
+	ecCli pb.EventsCenterBizServiceClient,
+	esCli *elastic.ESClient,
+	httpAuditDisabled bool,
 
 ) *api {
 	whUrl, err := url.Parse(webhookURL)
@@ -82,6 +80,11 @@ func newAPI(
 	}
 }
 
+func (api *api) NotFound(rw http.ResponseWriter, req *http.Request) {
+	rw.WriteHeader(http.StatusNotFound)
+	rw.Header().Add("Content-Type", "text/plain; charset=UTF-8")
+	rw.Write([]byte("404 Not Found"))
+}
 func (api *api) getOffsetAndLimit(r *http.Request) (int64, int64) {
 	offset, err := param.QueryUint(r, "offset")
 	if err != nil {
