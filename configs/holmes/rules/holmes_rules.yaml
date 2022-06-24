@@ -1272,6 +1272,107 @@
   priority: ALERT
   tags: [ATT&CK, filesystem, mitre_privilege_escalation]
 
+- rule: Linux Privilege Escalation using nmap suid binaries
+  hid: priv_15
+  hthreats: 1
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands."
+    zh:
+      key: "处置建议"
+      value: "使用免疫防御训练应用，限制敏感文件和命令的用户权限。"
+  desc: Linux Privilege Escalation using nmap suid binaries
+  condition: >
+    evt.type = stat and evt.arg.path contains "nmap.xsl" and user.uid != 0 and ((proc.cmdline contains "interactive") or (proc.cmdline contains "script") or (proc.cmdline contains "-oG"))
+  output: >
+    Linux Privilege Escalation using nmap suid binaries (zh_msg=尝试利用nmap_suid进行linux提权,rule_type=Privilege_Escalation,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type, container=%container.info)
+  priority: ALERT
+  tags: [ATT&CK, filesystem, mitre_privilege_escalation]
+
+- rule: Linux Privilege Escalation using find suid binaries
+  hid: priv_16
+  hthreats: 1
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands."
+    zh:
+      key: "处置建议"
+      value: "使用免疫防御训练应用，限制敏感文件和命令的用户权限。"
+  desc: Linux Privilege Escalation using find suid binaries
+  condition: >
+    spawned_process and user.uid != 0 and (
+    proc.name = find or 
+    ((proc.cmdline contains "-exec" or proc.cmdline contains "-ok") and proc.cmdline contains ";")
+    )
+  output: >
+    Linux Privilege Escalation using find suid binaries (zh_msg=尝试利用find_suid进行linux提权,rule_type=Privilege_Escalation,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type, container=%container.info)
+  priority: ALERT
+  tags: [ATT&CK, filesystem, mitre_privilege_escalation]
+
+- rule: Linux Privilege Escalation using vim suid binaries
+  hid: priv_17
+  hthreats: 1
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands."
+    zh:
+      key: "处置建议"
+      value: "使用免疫防御训练应用，限制敏感文件和命令的用户权限。"
+  desc: Linux Privilege Escalation using vim suid binaries
+  condition: >
+    evt.type = write and user.uid != 0 and 
+    ((proc.cmdline contains "-c" and (proc.cmdline contains ":py" or proc.cmdline contains ":!")) or
+    (not proc.cmdline contains "-c" and (evt.arg.data contains ":py" or evt.arg.data contains ":!"))) and
+    not falco_privileged_containers and
+    not user_privileged_containers and
+    not k8s.pod.name contains "scanner" and
+    not k8s.pod.name contains "gatekeeper" and
+    not k8s.pod.name contains "kube-state-metrics" and
+    not k8s.pod.name contains "istiod"
+  output: >
+    Linux Privilege Escalation using vim suid binaries (zh_msg=尝试利用vim_suid进行linux提权,rule_type=Privilege_Escalation,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type, container=%container.info,evt.args=%evt.args)
+  priority: ALERT
+  tags: [ATT&CK, filesystem, mitre_privilege_escalation]
+
+- rule: Linux Privilege Escalation using bash suid binaries
+  hid: priv_18
+  hthreats: 1
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands."
+    zh:
+      key: "处置建议"
+      value: "使用免疫防御训练应用，限制敏感文件和命令的用户权限。"
+  desc: Linux Privilege Escalation using bash suid binaries
+  condition: >
+    evt.type = read and evt.arg.data contains "/etc/inputrc - global inputrc for libreadline" and user.uid != 0 and (proc.cmdline contains "-p" or proc.cmdline contains "-cp")
+  output: >
+    Linux Privilege Escalation using bash suid binaries (zh_msg=尝试利用bash_suid进行linux提权,rule_type=Privilege_Escalation,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type, container=%container.info,evt.args=%evt.args)
+  priority: ALERT
+  tags: [ATT&CK, filesystem, mitre_privilege_escalation]
+
+- rule: Linux Privilege Escalation by modifying sensitive files with suid binaries
+  hid: priv_19
+  hthreats: 1
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands."
+    zh:
+      key: "处置建议"
+      value: "使用免疫防御训练应用，限制敏感文件和命令的用户权限。"
+  desc: Linux Privilege Escalation by modifying sensitive files with suid binaries
+  condition: >
+    evt.type = write and sensitive_files and user.uid != 0
+  output: >
+    Linux Privilege Escalation by modifying sensitive files with suid binaries (zh_msg=尝试使用suid二进制修改敏感文件进行linux提权,rule_type=Privilege_Escalation,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type, container=%container.info,evt.args=%evt.args)
+  priority: ALERT
+  tags: [ATT&CK, filesystem, mitre_privilege_escalation]
+
 ##attck_rule_type=Defense_Evasion
 - rule: Clear Log Activities
   hid: def_01
@@ -1605,6 +1706,34 @@
   condition: >
     open_read and container and (fd.directory contains "www" or fd.directory contains "apache" or fd.directory contains "tomcat" or fd.directory contains "web" or fd.directory contains "http") and (fd.name contains ".jsp" or fd.name contains ".php" or fd.name contains ".config" or fd.name contains ".bak" or fd.name contains ".old" or fd.name contains ".log") and not k8s.pod.name contains "holmes"
   output: Scanning web directories in the container (zh_msg=容器内扫描web目录,fd.name=%fd.name,rule_type=Discovery,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type)
+  priority: WARNING
+  tags: [ATT&CK]
+
+- rule: Find files with suid privilege by non-root users
+  hid: disc_10
+  hthreats: 1
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands and disable mounting of sensitive directories and files."
+    zh:
+      key: "处置建议"
+      value: "使用免疫防御训练应用，限制敏感文件和命令的用户权限，禁止挂载敏感目录和文件。"
+  desc: Find files with suid privilege by non-root users
+  condition: >
+    evt.type = write and user.uid != 0 and
+    (proc.name = find or proc.cmdline contains "-perm") and (
+    evt.arg.data = "/usr/bin/find." or
+    evt.arg.data contains "nmap" or
+    evt.arg.data contains "vim" or
+    evt.arg.data contains "bash" or
+    evt.arg.data contains "less" or
+    evt.arg.data contains "more" or
+    evt.arg.data contains "nano" or
+    evt.arg.data contains "cp" or
+    evt.arg.data contains "awk"
+    )
+  output: Find files with suid privilege by non-root users (zh_msg=非root用户查找含有suid权限的文件,fd.name=%fd.name,rule_type=Discovery,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,evt.args=%evt.args)
   priority: WARNING
   tags: [ATT&CK]
 
@@ -2448,9 +2577,7 @@
 
 - macro: sensitive_files
   condition: >
-    fd.name startswith /etc and
-    (fd.name in (sensitive_file_names)
-     or fd.directory in (/etc/sudoers.d, /etc/pam.d, /etc/ssh, /root/.ssh))
+    fd.name in (sensitive_file_names) or fd.directory in (/etc/sudoers.d, /etc/pam.d, /etc/ssh, /root/.ssh)
 
 - macro: proc_is_new
   condition: proc.duration <= 5000000000
