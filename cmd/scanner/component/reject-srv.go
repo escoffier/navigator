@@ -42,9 +42,13 @@ type ImageRejectSrv interface {
 	// RSADelete 删除rsa规则
 	RSADelete(ctx context.Context, id int64) error
 	// RSAList 暂时rsa规则简要信息
-	RSAList(ctx context.Context, limit, offset int64) ([]model.ImageRsa, int64, error)
+	RSAList(ctx context.Context, param RSAListParam, filter *model.Filter) ([]model.ImageRsa, int64, error)
 	// SignImageTrusted 将一个镜像标识为可信
 	SignImageTrusted(ctx context.Context, req *model.SignImageTrustedReq) error
+}
+
+type RSAListParam struct {
+	Name string `json:"name"`
 }
 
 type ImageReject struct {
@@ -409,8 +413,8 @@ func (s *ImageReject) RSADelete(ctx context.Context, id int64) error {
 	return nil
 }
 
-func (s *ImageReject) RSAList(ctx context.Context, limit, offset int64) ([]model.ImageRsa, int64, error) {
-	r, c, err := s.dbdal.ImageRsaList(ctx, limit, offset)
+func (s *ImageReject) RSAList(ctx context.Context, param RSAListParam, filter *model.Filter) ([]model.ImageRsa, int64, error) {
+	r, c, err := s.dbdal.ImageRsaList(ctx, store.RSAListParam{Name: param.Name}, filter)
 	if err != nil {
 		logging.GetLogger().Err(err).Msgf("分页查询失败")
 		return nil, 0, err

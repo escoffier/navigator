@@ -306,3 +306,7 @@ type GroupImageVuln struct {
 	SeverityInt int64 `gorm:"column:severity_int" json:"severityInt"`
 	Count       int64 `gorm:"column:cnt" json:"count"`
 }
+
+type RSAListParam struct {
+	Name string
+}

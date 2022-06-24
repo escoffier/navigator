@@ -25,6 +25,18 @@ type Filter struct {
 	Limit  int64 `json:"limit"`
 }
 
+func (f *Filter) AddSortCreatedAt() {
+	f.SortFiled = "created_at"
+}
+
+func (f *Filter) AddSortDesc() {
+	f.SortBy = consts.SortByDesc
+}
+
+func (f *Filter) AddSortAsc() {
+	f.SortBy = consts.SortByAsc
+}
+
 func GetFilter(ctx *gin.Context) *Filter {
 	offset, _ := strconv.ParseInt(ctx.Query("offset"), 10, 64)
 	limit, _ := strconv.ParseInt(ctx.Query("limit"), 10, 64)
