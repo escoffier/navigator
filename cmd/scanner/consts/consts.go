@@ -122,3 +122,5 @@ const (
 	SortByDesc = "desc"
 	SortByAsc  = "asc"
 )
+
+const SecureImageRiskScore = 60

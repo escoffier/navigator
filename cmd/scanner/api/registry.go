@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
+
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
@@ -280,4 +281,50 @@ func (s *RegistrySrv) GetRegistry(ctx *gin.Context) {
 		return
 	}
 	response.JSONOK(ctx, response.WithItem(*reg))
+}
+
+func (s *RegistrySrv) RegistryOverview(ctx *gin.Context) {
+
+	type Body struct {
+		Libraries []string `json:"libraries"`
+	}
+	body := new(Body)
+	if err := ctx.BindJSON(body); err != nil {
+		response.JSONError(ctx, fmt.Errorf("未解析到libraries"))
+		return
+	}
+	reges, _, err := s.RegistrySrv.SearchRegistry(ctx, component.SearchRegistryParam{UseType: model.UserRegistry}, nil)
+	if err != nil {
+		response.JSONError(ctx, err)
+		return
+	}
+	regMap := make(map[string]model.Registry)
+	for i := range reges {
+		regMap[reges[i].Url] = reges[i]
+	}
+
+	type RegistryRiskInfo struct {
+		RegistryUrl           string `json:"registryUrl"`
+		HasContentTrustEnable bool   `json:"hasContentTrustEnable"`
+		AuthEnable            bool   `json:"authEnable"`
+	}
+	res := make([]RegistryRiskInfo, 0)
+	for i := range body.Libraries {
+		url := body.Libraries[i]
+		ans := RegistryRiskInfo{
+			RegistryUrl:           url,
+			HasContentTrustEnable: false,
+			AuthEnable:            false,
+		}
+		if _, ok := regMap[url]; ok {
+			ans.AuthEnable = true
+			if strings.HasPrefix(url, "https") {
+				ans.HasContentTrustEnable = true
+			}
+		}
+		res = append(res, ans)
+	}
+
+	response.JSONOK(ctx, response.WithTotalItems(int64(len(res))), response.WithItems(res))
+
 }
