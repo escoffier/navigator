@@ -269,7 +269,7 @@ func (api *api) logout() http.HandlerFunc {
 			logging.Get().Warn().Err(err)
 		}
 
-		if err = sessionService.DeleteToken(ctx, username); err != nil {
+		if err = sessionService.DeleteToken(ctx, api.rdb.Get(), username); err != nil {
 			logging.Get().Warn().Err(err)
 		}
 
@@ -531,7 +531,7 @@ func authenticator(db *databases.RDBInstance) func(http.Handler) http.Handler {
 			}
 
 			if util.MD5Hex(r.UserAgent()) != eigenvalue {
-				if err = sessionService.DeleteToken(ctx, username); err != nil {
+				if err = sessionService.DeleteToken(ctx, db.Get(), username); err != nil {
 					logging.Get().Warn().Err(err).Msgf("user-agent not match: delete token failed")
 				}
 
