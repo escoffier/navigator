@@ -97,9 +97,15 @@ func (s *Service) RenewalToken(ctx context.Context, username string) error {
 	return s.redisCli.Expire(oneCtx, userTokenPrefix+username, DefaultTokenTTL).Err()
 }
 
-func (s *Service) DeleteToken(ctx context.Context, username string) error {
+func (s *Service) DeleteToken(ctx context.Context, db *gorm.DB, username string) error {
 	oneCtx, oneCancel := context.WithTimeout(ctx, defaultOneTimeout)
 	defer oneCancel()
+
+	err := dal.UpdateUserToken(ctx, db, username, "", time.Now().Unix())
+	if err != nil {
+		return fmt.Errorf("delete user token fail:%w", err)
+	}
+
 	return s.redisCli.Del(oneCtx, userTokenPrefix+username).Err()
 }
 
