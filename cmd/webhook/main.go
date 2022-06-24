@@ -1,9 +1,11 @@
 package main
 
 import (
+	"os"
+
 	log "github.com/sirupsen/logrus"
 	"gitlab.com/piccolo_su/vegeta/cmd/webhook/cmd"
-	"os"
+	_ "go.uber.org/automaxprocs"
 )
 
 func main() {

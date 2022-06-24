@@ -24,6 +24,7 @@ import (
 	trustimage "gitlab.com/piccolo_su/vegeta/cmd/scanner-cicd/pkg/trust-image"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 	"gitlab.com/security-rd/go-pkg/logging"
+	_ "go.uber.org/automaxprocs"
 )
 
 var (

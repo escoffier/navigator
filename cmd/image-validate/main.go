@@ -1,9 +1,11 @@
 package main
 
 import (
+	"os"
+
 	log "github.com/sirupsen/logrus"
 	"gitlab.com/piccolo_su/vegeta/cmd/image-validate/cmd"
-	"os"
+	_ "go.uber.org/automaxprocs"
 )
 
 func main() {
