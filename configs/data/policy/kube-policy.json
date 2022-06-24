@@ -24,12 +24,12 @@
             "rule": "3.1.1"
         },
         "extraDetail": {
-            "description": "",
-            "rationale": "",
-            "audit": "",
-            "remediation": "",
-            "impact": "",
-            "defaultValue": "",
+            "description": "Kubernetes 提供了使用客户端证书进行用户身份验证的选项。但是，由于当用户离开组织或丢失其凭据时无法撤销这些证书，因此它们不适合此目的。无法完全禁用集群内的客户端证书使用，因为它用于组件到组件验证。",
+            "rationale": "对于任何身份验证机制，如果凭证被泄露或不再需要，撤销凭证的能力是关键控制。由于缺乏对证书吊销的支持，Kubernetes 客户端证书身份验证不允许这样做。",
+            "audit": "查看用户对集群的访问权限，并确保用户没有使用 Kubernetes 客户端证书身份验证。",
+            "remediation": "Kubernetes 提供的替代机制（例如使用 OIDC）应代替客户端证书实施。",
+            "impact": "用于身份验证的外部机制通常需要部署额外的软件。",
+            "defaultValue": "默认情况下启用客户端证书身份验证。",
             "references": []
         }
     },
@@ -94,13 +94,16 @@
             "rule": "3.2.2"
         },
         "extraDetail": {
-            "description": "",
-            "rationale": "",
-            "audit": "",
-            "remediation": "",
-            "impact": "",
-            "defaultValue": "",
-            "references": []
+            "description": "确保为集群创建的审计策略涵盖关键安全问题。",
+            "rationale": "安全审计日志应涵盖集群中关键资源的访问和修改，使它们成为安全环境的有效组成部分。",
+            "audit": "查看为集群提供的审计策略并确保它至少涵盖以下领域：\n1. 对集群管理的机密的访问。应注意仅记录对 Secrets、ConfigMaps 和 TokenReviews 的请求的元数据，以避免记录敏感数据的风险。\n2. 修改 pod 和部署对象。\n3. 使用 pods/exec、pods/portforward、pods/proxy 和服务/proxy。\n对于大多数请求，建议在元数据级别进行最低限度的日志记录（最基本的日志记录级别）。",
+            "remediation": "考虑修改集群上使用的审计策略以至少包括这些项目。",
+            "impact": "增加审计日志将消耗节点或其他日志目标上的资源。",
+            "defaultValue": "默认情况下，Kubernetes 集群不记录审计信息。",
+            "references": [
+                "https://github.com/k8scop/k8s-security-dashboard/blob/master/configs/kubernetes/adv-audit.yaml",
+                "https://kubernetes.io/docs/tasks/debug-application-cluster/audit/#audit-policy"
+            ]
         }
     },
     {
@@ -354,13 +357,15 @@
             "rule": "2.7"
         },
         "extraDetail": {
-            "description": "",
-            "rationale": "",
-            "audit": "",
-            "remediation": "",
-            "impact": "",
-            "defaultValue": "",
-            "references": []
+            "description": "对 etcd 使用与 Kubernetes 不同的证书颁发机构。",
+            "rationale": "etcd 是 Kubernetes 部署使用的高可用键值存储，用于持久存储其所有 REST API 对象。它的访问权限应仅限于特定指定的客户端和对等方。对 etcd 的身份验证基于所提供的证书是否由受信任的证书颁发机构颁发。不检查证书属性，例如公用名或主题备用名称。因此，如果任何攻击者能够访问受信任的证书颁发机构颁发的任何证书，他们将能够获得对 etcd 数据库的完全访问权限。",
+            "audit": "查看 etcd 环境使用的 CA，确保它与用于管理整个 Kubernetes 集群的 CA 证书文件不匹配。在主节点上运行以下命令：\nps -ef | grep etcd\n\n注意 --trusted-ca-fileargument 引用的文件。在主节点上运行以下命令：\nps -ef | grep apiserver\n\n验证 --client-ca-filefor apiserver 引用的文件是否与 etcd 使用的 --trusted-ca-file 不同。",
+            "remediation": "按照 etcd 文档为 etcd 服务创建一个专用的证书颁发机构设置。然后，编辑 etcd pod 规范文件 /etc/kubernetes/manifests/etcd.yaml。在主节点上并设置以下参数。\n--trusted-ca-file=</path/to/ca-file>",
+            "impact": "需要对专用证书颁发机构的证书和密钥进行额外管理。",
+            "defaultValue": "默认情况下，不会创建和使用 etcd 证书。",
+            "references": [
+                "https://coreos.com/etcd/docs/latest/op-guide/security.html"
+            ]
         }
     },
     {
@@ -664,10 +669,10 @@
         "updated_at": 0,
         "title_en": "Master Node Configuration Files",
         "title_zh": "主节点配置文件",
-        "detail_en": "Ensure that the Container Network Interface file permissions are set to 644 or more restrictive (Manual)",
-        "detail_zh": "确保容器网络接口文件权限设置为644或更严格（手动）",
-        "remediation_en": "Run the below command (based on the file location on your system) on the master node.\nFor example,\nchmod 644 <path/to/cni/files>\n",
-        "remediation_zh": "在主节点上运行以下命令（基于系统上的文件位置），\n例如:chmod 644 <path/to/cni/files>\n",
+        "detail_en": "Ensure that the Container Network Interface file permissions are set to 600 or more restrictive (Manual)",
+        "detail_zh": "确保容器网络接口文件权限设置为600或更严格（手动）",
+        "remediation_en": "Run the below command (based on the file location on your system) on the master node.\nFor example,\nchmod 600 <path/to/cni/files>\n",
+        "remediation_zh": "在主节点上运行以下命令（基于系统上的文件位置），\n例如:chmod 600 <path/to/cni/files>\n",
         "expeced_result": "",
         "audit": "ps -ef | grep $kubeletbin | grep -- --cni-conf-dir | sed 's%.*cni-conf-dir[= ]\\([^ ]*\\).*%\\1%' | xargs -I{} find {} -mindepth 1 | xargs stat -c permissions=%a\nfind /var/lib/cni/networks -type f | xargs --no-run-if-empty stat -c permissions=%a\n",
         "audit_config": "",
@@ -678,13 +683,15 @@
             "rule": "1.1.9"
         },
         "extraDetail": {
-            "description": "",
-            "rationale": "",
-            "audit": "",
-            "remediation": "",
-            "impact": "",
-            "defaultValue": "",
-            "references": []
+            "description": "确保 Container Network Interface 文件具有 600 或更多限制性权限。",
+            "rationale": "Container Network Interface 为覆盖网络提供了各种网络选项。您应该查阅他们的文档并限制他们各自的文件权限，以维护这些文件的完整性。这些文件应该只能由系统上的管理员写入。",
+            "audit": "在控制平面节点上运行以下命令（基于系统上的文件位置）。例如，\nstat -c %a <path/to/cni/files>\n\n验证权限是否为 600 或更多限制。",
+            "remediation": "在控制平面节点上运行以下命令（基于系统上的文件位置）。例如，\nchmod 600 <path/to/cni/files>\n\n",
+            "impact": "无。",
+            "defaultValue": "无。",
+            "references": [
+                "https://kubernetes.io/docs/concepts/cluster-administration/networking/"
+            ]
         }
     },
     {
@@ -712,13 +719,15 @@
             "rule": "1.1.10"
         },
         "extraDetail": {
-            "description": "",
-            "rationale": "",
-            "audit": "",
-            "remediation": "",
-            "impact": "",
-            "defaultValue": "",
-            "references": []
+            "description": "确保 Container Network Interface 文件的所有权设置为 root:root。",
+            "rationale": "Container Network Interface 为覆盖网络提供了各种网络选项。您应该查阅他们的文档并限制他们各自的文件权限，以维护这些文件的完整性。这些文件应该归 root:root 所有。",
+            "audit": "在控制平面节点上运行以下命令（基于系统上的文件位置）。例如，\nstat -c %U:%G <path/to/cni/files>\n\n验证所有权是否设置为 root:root。",
+            "remediation": "在控制平面节点上运行以下命令（基于系统上的文件位置）。例如，\nchown root:root <path/to/cni/files>\n\n",
+            "impact": "无。",
+            "defaultValue": "无。",
+            "references": [
+                "https://kubernetes.io/docs/concepts/cluster-administration/networking/"
+            ]
         }
     },
     {
@@ -1144,13 +1153,16 @@
             "rule": "1.2.1"
         },
         "extraDetail": {
-            "description": "",
-            "rationale": "",
-            "audit": "",
-            "remediation": "",
-            "impact": "",
-            "defaultValue": "",
-            "references": []
+            "description": "禁用对 API 服务器的匿名请求。",
+            "rationale": "启用后，其他配置的身份验证方法未拒绝的请求将被视为匿名请求。然后由 API 服务器处理这些请求。您应该依靠身份验证来授权访问并禁止匿名请求。如果您使用 RBAC 授权，通常认为允许匿名访问 API Server 以进行健康检查和发现是合理的，因此此建议不计分。但是，您应该考虑匿名发现是否是您可以接受的风险。",
+            "audit": "在控制平面节点上运行以下命令：\nps -ef | grep kube-apiserver\n\n验证 --anonymous-authargument 是否设置为 false。",
+            "remediation": "编辑控制平面节点上的 API 服务器 pod 规范文件 /etc/kubernetes/manifests/kube-apiserver.yaml 并设置以下参数。\n--anonymous-auth=false",
+            "impact": "匿名请求将被拒绝。",
+            "defaultValue": "默认情况下，启用匿名访问。",
+            "references": [
+                "https://kubernetes.io/docs/admin/kube-apiserver/",
+                "https://kubernetes.io/docs/admin/authentication/#anonymous-requests"
+            ]
         }
     },
     {
@@ -1477,13 +1489,17 @@
             "rule": "1.2.10"
         },
         "extraDetail": {
-            "description": "",
-            "rationale": "",
-            "audit": "",
-            "remediation": "",
-            "impact": "",
-            "defaultValue": "",
-            "references": []
+            "description": "限制 API 服务器接受请求的速率。",
+            "rationale": "使用 EventRateLimitadmission 控件强制限制 API 服务器在给定时间片中将接受的事件数量。行为不端的工作负载可能会使 API Server 不堪重负并执行 DoS，使其不可用。这尤其适用于多租户集群，其中可能存在一小部分行为不端的租户，这可能会对集群的整体性能产生重大影响。因此，建议限制 API 服务器将接受的事件速率。注意：这是 Kubernetes 1.15 版本中的 Alpha 功能。",
+            "audit": "在控制平面节点上运行以下命令：\nps -ef | grep kube-apiserver\n\n验证 --enable-admission-pluginsargument 是否设置为包含 EventRateLimit 的值。",
+            "remediation": "按照 Kubernetes 文档并在配置文件中设置所需的限制。然后，编辑 API 服务器 pod 规范文件 /etc/kubernetes/manifests/kube-apiserver.yaml 并设置以下参数。\n--enable-admission-plugins=...,EventRateLimit,...\n--admission-control-config-file=<path/to/configuration/file>",
+            "impact": "您需要根据您的环境仔细调整限制。",
+            "defaultValue": "默认情况下，未设置 EventRateLimitis",
+            "references": [
+                "https://kubernetes.io/docs/admin/kube-apiserver/",
+                "https://kubernetes.io/docs/admin/admission-controllers/#eventratelimit",
+                "https://github.com/staebler/community/blob/9873b632f4d99b5d99c38c9b15fe2f8b93d0a746/contributors/design-proposals/admission_control_event_rate_limit.md"
+            ]
         }
     },
     {
@@ -1548,13 +1564,16 @@
             "rule": "1.2.12"
         },
         "extraDetail": {
-            "description": "",
-            "rationale": "",
-            "audit": "",
-            "remediation": "",
-            "impact": "",
-            "defaultValue": "",
-            "references": []
+            "description": "总是拉取镜像。",
+            "rationale": "将准入控制策略设置为 AlwaysPullImages 会强制每个新 pod 每次都拉取所需的图像。在多租户集群中，用户可以放心，他们的私有镜像只能由那些拥有提取它们的凭据的人使用。如果没有这个准入控制策略，一旦图像被拉到节点上，任何用户的任何 pod 都可以通过知道图像的名称来使用它，而无需对图像所有权进行任何授权检查。启用此插件后，始终会在启动容器之前拉取映像，这意味着需要有效的凭据。",
+            "audit": "在控制平面节点上运行以下命令：\nps -ef | grep kube-apiserver\n\n验证 --enable-admission-plugins 参数是否设置为包含 AlwaysPullImages 的值。",
+            "remediation": "编辑控制平面节点上的 API 服务器 pod 规范文件 /etc/kubernetes/manifests/kube-apiserver.yaml 并将 --enable-admission-plugins 参数设置为包含 AlwaysPullImages。\n--enable-admission-plugins=...,AlwaysPullImages,...",
+            "impact": "每次都需要凭证来提取私有图像。此外，在受信任的环境中，这可能会增加网络、注册表的负载并降低速度。此设置可能会影响离线或隔离的集群，这些集群已预先加载了映像并且无权访问注册表以提取正在使用的映像。此设置不适用于使用此配置的集群。",
+            "defaultValue": "默认情况下，未设置 AlwaysPullImage。",
+            "references": [
+                "https://kubernetes.io/docs/admin/kube-apiserver/",
+                "https://kubernetes.io/docs/admin/admission-controllers/#alwayspullimages"
+            ]
         }
     },
     {
@@ -1582,13 +1601,17 @@
             "rule": "1.2.13"
         },
         "extraDetail": {
-            "description": "",
-            "rationale": "",
-            "audit": "",
-            "remediation": "",
-            "impact": "",
-            "defaultValue": "",
-            "references": []
+            "description": "SecurityContextDeny 准入控制器可用于拒绝使用某些 SecurityContext 字段的 Pod，这些字段可能允许在集群中进行权限升级。这应该在集群中没有 PodSecurityPolicy 的地方使用。",
+            "rationale": "SecurityContextDeny 可用于为未启用 PodSecurityPolicies 的集群提供一层安全性。",
+            "audit": "在控制平面节点上运行以下命令：\nps -ef | grep kube-apiserver\n\n如果不包含 PodSecurityPolicy，请验证 --enable-admission-plugins 参数是否设置为包含 SecurityContextDeny 的值。",
+            "remediation": "编辑 API 服务器 pod 规范文件 /etc/kubernetes/manifests/kube-apiserver.yamlon 控制平面节点并设置 --enable-admission-plugins 参数以包括 SecurityContextDeny，除非 PodSecurityPolicy 已经到位。\n--enable-admission-plugins=...,SecurityContextDeny,...",
+            "impact": "此准入控制器应仅在无法在集群上使用 Pod 安全策略的情况下使用，因为它可能与某些 Pod 安全策略交互不良。",
+            "defaultValue": "默认情况下，SecurityContextDeny 未设置。",
+            "references": [
+                "https://kubernetes.io/docs/admin/kube-apiserver/",
+                "https://kubernetes.io/docs/admin/admission-controllers/#securitycontextdeny",
+                "https://kubernetes.io/docs/user-guide/pod-security-policy/#working-with-rbac"
+            ]
         }
     },
     {
@@ -2405,13 +2428,15 @@
             "rule": "1.2.35"
         },
         "extraDetail": {
-            "description": "",
-            "rationale": "",
-            "audit": "",
-            "remediation": "",
-            "impact": "",
-            "defaultValue": "",
-            "references": []
+            "description": "确保 API 服务器配置为仅使用强加密密码。",
+            "rationale": "TLS 密码有许多已知的漏洞和弱点，这会降低它们提供的保护。默认情况下，Kubernetes 支持许多 TLS 密码套件，包括一些存在安全问题的密码套件，从而削弱了所提供的保护。",
+            "audit": "在控制平面节点上运行以下命令：\nps -ef | grep kube-apiserver\n\n验证 --tls-cipher-suites 参数是否按照以下补救过程中的概述进行设置。",
+            "remediation": "编辑控制平面节点上的 API 服务器 pod 规范文件 /etc/kubernetes/manifests/kube-apiserver.yaml 并设置以下参数。\n--tls-cipher-suites=TLS_AES_128_GCM_SHA256, TLS_AES_256_GCM_SHA384, TLS_CHACHA20_POLY1305_SHA256, TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA, TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256, TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA, TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384, TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305, TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256, TLS_ECDHE_RSA_WITH_3DES_EDE_CBC_SHA, TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA, TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256, TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA, TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384, TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305, TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256, TLS_RSA_WITH_3DES_EDE_CBC_SHA, TLS_RSA_WITH_AES_128_CBC_SHA, TLS_RSA_WITH_AES_128_GCM_SHA256, TLS_RSA_WITH_AES_256_CBC_SHA, TLS_RSA_WITH_AES_256_GCM_SHA384.",
+            "impact": "不支持现代加密密码的 API 服务器客户端将无法连接到 API 服务器。",
+            "defaultValue": "默认情况下，Kubernetes API 服务器支持广泛的 TLS 密码",
+            "references": [
+                "https://github.com/ssllabs/research/wiki/SSL-and-TLS-Deployment-Best-Practices#23-use-secure-cipher-suites"
+            ]
         }
     },
     {
@@ -2439,13 +2464,16 @@
             "rule": "1.3.1"
         },
         "extraDetail": {
-            "description": "",
-            "rationale": "",
-            "audit": "",
-            "remediation": "",
-            "impact": "",
-            "defaultValue": "",
-            "references": []
+            "description": "酌情在 pod 终止时激活垃圾收集器。",
+            "rationale": "垃圾收集对于确保足够的资源可用性和避免性能和可用性下降非常重要。在最坏的情况下，系统可能会崩溃或长时间无法使用。垃圾收集的当前设置是 12,500 个终止的 pod，这可能对您的系统而言太高而无法维持。根据您的系统资源和测试，选择适当的阈值来激活垃圾收集。",
+            "audit": "在控制平面节点上运行以下命令：\nps -ef | grep kube-controller-manager\n\n验证 --terminated-pod-gc-threshold 参数设置是否合适。",
+            "remediation": "编辑控制平面节点上的 Controller Manager pod 规范文件 /etc/kubernetes/manifests/kube-controller-manager.yaml 并将 --terminated-pod-gc-thresholdt 设置为适当的阈值，例如：\n--terminated-pod-gc-threshold=10",
+            "impact": "无。",
+            "defaultValue": "默认情况下，--terminated-pod-gc-threshold 设置为 12500。",
+            "references": [
+                "https://kubernetes.io/docs/admin/kube-controller-manager/",
+                "https://github.com/kubernetes/kubernetes/issues/28484"
+            ]
         }
     },
     {
@@ -3391,13 +3419,16 @@
             "rule": "4.2.8"
         },
         "extraDetail": {
-            "description": "",
-            "rationale": "",
-            "audit": "",
-            "remediation": "",
-            "impact": "",
-            "defaultValue": "",
-            "references": []
+            "description": "不要覆盖节点主机名。",
+            "rationale": "覆盖主机名可能会破坏 kubelet 和 apiserver 之间的 TLS 设置。此外，由于主机名被覆盖，将日志与特定节点关联并处理它们以进行安全分析变得越来越困难。因此，您应该使用可解析的 FQDN 设置 kubelet 节点，并避免使用 IP 覆盖主机名。",
+            "audit": "在每个节点上运行以下命令：\nps -ef | grep kubelet\n\n验证 --hostname-override 参数是否存在。注意此设置不能通过 Kubelet 配置文件进行配置。",
+            "remediation": "编辑每个工作节点上的 kubelet 服务文件 /etc/systemd/system/kubelet.service.d/10-kubeadm.conf 并从 KUBELET_SYSTEM_PODS_ARGS 变量中删除 --hostname-override 参数。根据您的系统，重新启动 kubelet 服务.例如：\nsystemctl daemon-reload\nsystemctl restart kubelet.service\n\n",
+            "impact": "一些云提供商可能需要此标志以确保主机名与云提供商发布的名称匹配。在这些环境中，此建议不应适用。",
+            "defaultValue": "默认情况下，--hostname-override 参数未设置。",
+            "references": [
+                "https://kubernetes.io/docs/admin/kubelet/",
+                "https://github.com/kubernetes/kubernetes/issues/22063"
+            ]
         }
     },
     {
@@ -3425,13 +3456,16 @@
             "rule": "4.2.9"
         },
         "extraDetail": {
-            "description": "",
-            "rationale": "",
-            "audit": "",
-            "remediation": "",
-            "impact": "",
-            "defaultValue": "",
-            "references": []
+            "description": "应捕获安全相关信息。 kubelet 上的 --event-qps 标志可用于限制收集事件的速率。将此值设置得太低可能会导致相关事件不被记录，但是无限制设置 0 可能会导致 kubelet 上的拒绝服务。",
+            "rationale": "重要的是要捕获所有事件而不是限制事件创建。事件是安全信息和分析的重要来源，可确保使用事件数据持续监控您的环境。",
+            "audit": "在每个节点上运行以下命令：\nps -ef | grep kubelet\n\n查看为 --event-qps 参数设置的值，并确定这是否已设置为适合集群的级别。值 0 可用于确保捕获所有事件。如果 --event-qps 参数不存在，请检查是否存在由 --config 指定的 Kubelet 配置文件并查看此位置中的值。",
+            "remediation": "如果使用 Kubelet 配置文件，请编辑该文件以将 eventRecordQPS: 设置为适当的级别。如果使用命令行参数，请编辑每个 kubelet 服务文件 /etc/systemd/system/kubelet.service.d/10-kubeadm.conf工作节点并在 KUBELET_SYSTEM_PODS_ARGS 变量中设置以下参数。根据您的系统，重新启动 kubelet 服务。例如：\nsystemctl daemon-reload\nsystemctl restart kubelet.service\n\n",
+            "impact": "将此参数设置为 0 可能会由于创建过多事件而导致拒绝服务情况。应该扩展集群的事件处理和存储系统以处理预期的事件负载。",
+            "defaultValue": "默认情况下，--event-qps 参数设置为 5。",
+            "references": [
+                "https://kubernetes.io/docs/admin/kubelet/",
+                "https://github.com/kubernetes/kubernetes/blob/master/pkg/kubelet/apis/kubeletconfig/v1beta1/types.go"
+            ]
         }
     },
     {
@@ -3574,12 +3608,12 @@
             "rule": "4.2.13"
         },
         "extraDetail": {
-            "description": "",
-            "rationale": "",
-            "audit": "",
-            "remediation": "",
-            "impact": "",
-            "defaultValue": "",
+            "description": "确保将 Kubelet 配置为仅使用强加密密码。",
+            "rationale": "TLS 密码有许多已知的漏洞和弱点，这会降低它们提供的保护。默认情况下，Kubernetes 支持许多 TLS 密码套件，包括一些存在安全问题的密码套件，从而削弱了所提供的保护。",
+            "audit": "目前被认为是安全的密码密码集如下：\n1. TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256\n2. TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256\n3. TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305\n4. TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384\n5. TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305\n6. TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384\n7. TLS_RSA_WITH_AES_256_GCM_SHA384\n8. TLS_RSA_WITH_AES_128_GCM_SHA256\n在每个节点上运行以下命令：\nps -ef | grep kubelet\n\n如果存在 --tls-cipher-suites 参数，请确保它仅包含此集中包含的值。如果不存在，请检查是否存在由 --config 指定的 Kubelet 配置文件，并且该文件将 TLSCipherSuites: 设置为仅包含此集合中的值。",
+            "remediation": "如果使用 Kubelet 配置文件，请编辑该文件以将 TLSCipherSuites: 设置为 TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305,TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305,TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,TLS_RSA_WITH_AES_256_GCM_SHA384,TLS_RSA_WITH_AES_128_GCM_SHA256或者这些值的子集。如果使用可执行参数，请编辑每个工作节点上的 kubelet 服务文件 /etc/kubernetes/kubelet.conf 并设置 -- tls-cipher-suites 参数如下，或为这些值的子集。\n--tls-cipher-suites=TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305,TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305,TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,TLS_RSA_WITH_AES_256_GCM_SHA384,TLS_RSA_WITH_AES_128_GCM_SHA256\n根据您的系统，重新启动 kubelet 服务。例如：\nsystemctl daemon-reload\nsystemctl restart kubelet.service\n\n",
+            "impact": "不支持现代加密密码的 Kubelet 客户端将无法连接到 Kubelet API。",
+            "defaultValue": "默认情况下，Kubernetes API 服务器支持广泛的 TLS 密码",
             "references": []
         }
     },
@@ -3608,13 +3642,15 @@
             "rule": "5.1.1"
         },
         "extraDetail": {
-            "description": "",
-            "rationale": "",
-            "audit": "",
-            "remediation": "",
-            "impact": "",
-            "defaultValue": "",
-            "references": []
+            "description": "RBAC 角色 cluster-admin 提供了对环境的广泛权力，只应在需要的地方和需要时使用。",
+            "rationale": "Kubernetes 提供了一组使用 RBAC 的默认角色。其中一些角色（例如 cluster-admin）提供了广泛的权限，仅应在绝对必要的情况下应用。诸如 cluster-admin 之类的角色允许超级用户访问对任何资源执行任何操作。在 ClusterRoleBinding 中使用时，它可以完全控制集群和所有命名空间中的每个资源。在 RoleBinding 中使用时，它可以完全控制角色绑定命名空间中的每个资源，包括命名空间本身。",
+            "audit": "通过查看有权访问 cluster-admin 角色的每个角色绑定的 clusterrolebinding 输出，获取有权访问 cluster-admin 角色的委托人列表。\nkubectl get clusterrolebindings -o=custom-columns=NAME:.metadata.name,ROLE:.roleRef.name,SUBJECT:.subjects[*].name\n\n查看列出的每个主体，并确保其需要 cluster-admin 权限。",
+            "remediation": "识别与 cluster-admin 角色的所有 clusterrolebindings。检查他们是否被使用以及他们是否需要这个角色，或者他们是否可以使用具有较少权限的角色。如果可能，首先将用户绑定到较低权限的角色，然后将 clusterrolebinding 删除到 cluster-admin 角色：\nkubectl delete clusterrolebinding [name]\n\n",
+            "impact": "在从环境中删除任何 clusterrolebinding 之前应小心，以确保它们不是集群操作所必需的。具体来说，不应该对带有system:前缀的clusterrolebinding进行修改，因为它们是系统组件运行所必需的。",
+            "defaultValue": "默认情况下，一个名为 cluster-admin 的集群角色绑定以 system:masters 组作为其主体。",
+            "references": [
+                "https://kubernetes.io/docs/admin/authorization/rbac/#user-facing-roles"
+            ]
         }
     },
     {
@@ -3642,12 +3678,12 @@
             "rule": "5.1.2"
         },
         "extraDetail": {
-            "description": "",
-            "rationale": "",
-            "audit": "",
-            "remediation": "",
-            "impact": "",
-            "defaultValue": "",
+            "description": "Kubernetes API 存储 Secret，这些 Secret 可能是 Kubernetes API 的service account token 或集群中工作负载使用的凭据。对这些 Secret 的访问应仅限于尽可能小的用户组，以降低特权升级的风险。",
+            "rationale": "对存储在 Kubernetes 集群中的 Secret 的不当访问可以让攻击者获得对 Kubernetes 集群或其凭据作为Secret 存储的外部资源的额外访问权限。",
+            "audit": "查看对 Kubernetes API 中的Secret 对象具有 get、list 或 watch 访问权限的用户。",
+            "remediation": "在可能的情况下，删除对集群中 Secret 对象的 get、list 和 watch 访问。",
+            "impact": "应注意不要删除对其操作需要的系统组件的 Secret 访问。",
+            "defaultValue": "默认情况下，在 kubeadm 集群中，存在对 Secret 有get权限的主体。",
             "references": []
         }
     },
@@ -3676,10 +3712,10 @@
             "rule": "5.1.3"
         },
         "extraDetail": {
-            "description": "",
-            "rationale": "",
-            "audit": "",
-            "remediation": "",
+            "description": "Kubernetes Roles 和 ClusterRoles 基于对象集和可以对这些对象执行的操作提供对资源的访问。可以将其中任何一个设置为匹配所有项目的通配符“*”。从安全角度来看，通配符的使用并不是最佳选择，因为它可能允许在将新资源添加到 Kubernetes API 时授予无意的访问权限作为 CRD 或在产品的更高版本中。",
+            "rationale": "最小权限原则建议仅向用户提供其角色所需的访问权限，仅此而已。使用通配符权限授予可能会为 Kubernetes API 提供过多的权限。",
+            "audit": "检索跨集群中每个命名空间定义的角色并查看通配符\nkubectl get roles --all-namespaces -o yaml\n\n检索集群中定义的集群角色并查看通配符\nkubectl get clusterroles -o yaml\n\n",
+            "remediation": "在可能的情况下，将集群角色和角色中通配符的任何使用替换为特定对象或操作。",
             "impact": "",
             "defaultValue": "",
             "references": []
@@ -3710,12 +3746,12 @@
             "rule": "5.1.4"
         },
         "extraDetail": {
-            "description": "",
-            "rationale": "",
-            "audit": "",
-            "remediation": "",
-            "impact": "",
-            "defaultValue": "",
+            "description": "在命名空间中创建 pod 的能力可以为特权升级提供许多机会，例如为这些 pod 分配特权服务帐户或挂载具有敏感数据访问权限的 hostPath（除非实施 Pod 安全策略来限制这种访问）。\n因此，创建新 pod 的访问权限应仅限于尽可能少的用户组。",
+            "rationale": "在集群中创建 Pod 的能力为特权升级开辟了可能性，应尽可能加以限制。",
+            "audit": "查看对 Kubernetes API 中的 pod 对象具有 create 权限的用户。",
+            "remediation": "在可能的情况下，删除对集群中 pod 对象 create 权限。",
+            "impact": "应注意不要删除对 pod 对系统组件的访问，这些组件需要这样做才能运行。",
+            "defaultValue": "默认情况下，kubeadm 集群中存在对pod对象具有create权限的对象。",
             "references": []
         }
     },
@@ -3780,13 +3816,15 @@
             "rule": "5.1.6"
         },
         "extraDetail": {
-            "description": "",
-            "rationale": "",
-            "audit": "",
-            "remediation": "",
-            "impact": "",
-            "defaultValue": "",
-            "references": []
+            "description": "Service accounts token 不应安装在 pod 中，除非在 pod 中运行的工作负载明确需要与 API 服务器通信。",
+            "rationale": "在 pod 中安装service account token 可以为特权升级攻击提供途径，攻击者可以在集群中破坏单个 pod。避免安装这些令牌可以消除这种攻击途径。",
+            "audit": "查看集群中的 pod 和 service account 对象，并确保设置了以下选项，除非资源明确需要此访问权限。\nautomountServiceAccountToken: false",
+            "remediation": "修改不需要挂载service account token 的pod和 service account 的定义以禁用它。",
+            "impact": "没有service account token 挂载的 Pod 将无法与 API 服务器通信，除非资源可供未经身份验证的主体使用。",
+            "defaultValue": "默认情况下，所有 pod 都会在其中安装一个 service account token 。",
+            "references": [
+                "https://kubernetes.io/docs/tasks/configure-pod-container/configure-service-account/"
+            ]
         }
     },
     {
@@ -3814,13 +3852,15 @@
             "rule": "5.2.1"
         },
         "extraDetail": {
-            "description": "",
-            "rationale": "",
-            "audit": "",
-            "remediation": "",
-            "impact": "",
-            "defaultValue": "",
-            "references": []
+            "description": "通常不允许容器在 securityContext.privileged 标志设置为 true 的情况下运行。",
+            "rationale": "特权容器可以访问所有 Linux 内核功能和设备。以完全权限运行的容器几乎可以做主机可以做的所有事情。此标志的存在是为了允许特殊用例，例如操作网络堆栈和访问设备。\n应该至少定义一个不允许特权容器的准入控制策略。\n如果您需要运行特权容器，这应该定义在单独的策略，您应该仔细检查以确保只有有限的 service account 和用户被授予使用该策略的权限。",
+            "audit": "列出集群中每个命名空间使用的策略，确保每个策略都不允许特权容器进入。",
+            "remediation": "向集群中具有用户工作负载的每个命名空间添加策略，以限制特权容器的准入。",
+            "impact": "不允许使用 spec.containers[].securityContext.privileged: true、spec.initContainers[].securityContext.privileged: true 和 spec.ephemeralContainers[].securityContext.privileged: true 定义的 Pod。",
+            "defaultValue": "默认情况下，对特权容器的创建没有限制。",
+            "references": [
+                "1https://kubernetes.io/docs/concepts/security/pod-security-standards/"
+            ]
         }
     },
     {
@@ -3992,13 +4032,15 @@
             "rule": "5.2.6"
         },
         "extraDetail": {
-            "description": "",
-            "rationale": "",
-            "audit": "",
-            "remediation": "",
-            "impact": "",
-            "defaultValue": "",
-            "references": []
+            "description": "通常不允许容器以 root 用户身份运行。",
+            "rationale": "容器可以作为任何 Linux 用户运行。以 root 用户身份运行的容器，虽然受到容器运行时安全功能的限制，但容器崩溃的可能性仍然增大。理想情况下，所有容器都应作为已定义的非 UID 0 用户运行。应至少定义一个准入控制策略不允许根容器。如果您需要运行根容器，这应该在单独的策略中定义，并且您应该仔细检查以确保只有有限的服务帐户和用户被授予使用该策略的权限。",
+            "audit": "列出集群中每个命名空间使用的策略，确保每个策略通过设置 MustRunAsNonRoot 或 MustRunAs 来限制根容器的使用，UID 的范围不包括 0。",
+            "remediation": "为集群中的每个命名空间创建一个策略，确保设置了 UID 范围不包括 0 的 MustRunAsNonRoot 或 MustRunAs。",
+            "impact": "不允许带有以 root 用户身份运行的容器的 Pod。",
+            "defaultValue": "默认情况下，对 root 容器的使用没有限制，如果镜像中没有指定用户，容器将以 root 身份运行。",
+            "references": [
+                "https://kubernetes.io/docs/concepts/security/pod-security-standards/"
+            ]
         }
     },
     {
@@ -4026,13 +4068,16 @@
             "rule": "5.2.7"
         },
         "extraDetail": {
-            "description": "",
-            "rationale": "",
-            "audit": "",
-            "remediation": "",
-            "impact": "",
-            "defaultValue": "",
-            "references": []
+            "description": "通常不允许容器具有潜在危险的 NET_RAW 功能。",
+            "rationale": "容器使用容器运行时分配的一组默认功能运行。默认情况下，这可能包括潜在的危险功能。使用 Docker 作为容器运行时，启用了 NET_RAW 功能，这可能会被恶意容器滥用。\n理想情况下，所有容器都应该放弃此功能。\n应该至少定义一个不允许具有 NET_RAW 功能的容器的准入控制策略。\n如果你需要运行具有此功能的容器，这应该在单独的策略中定义，并且您应该仔细检查以确保只有有限的服务帐户和用户被授予使用该策略的权限。",
+            "audit": "列出集群中每个命名空间使用的策略，确保至少有一个策略不允许具有 NET_RAW 能力的容器进入。",
+            "remediation": "向集群中具有用户工作负载的每个命名空间添加策略，以限制具有 NET_RAW 能力的容器的准入。",
+            "impact": "不允许使用带有 NET_RAW 功能的容器的 Pod。",
+            "defaultValue": "默认情况下，使用 NET_RAW 功能创建容器没有任何限制。",
+            "references": [
+                "https://kubernetes.io/docs/concepts/security/pod-security-standards/",
+                "https://www.nccgroup.trust/uk/our-research/abusing-privileged-and-unprivileged-linux-containers/"
+            ]
         }
     },
     {
@@ -4060,13 +4105,16 @@
             "rule": "5.2.8"
         },
         "extraDetail": {
-            "description": "",
-            "rationale": "",
-            "audit": "",
-            "remediation": "",
-            "impact": "",
-            "defaultValue": "",
-            "references": []
+            "description": "通常不允许容器分配的功能超出默认设置。",
+            "rationale": "容器使用容器运行时分配的一组默认功能运行。可以将此集合之外的功能添加到容器中，这可能会使它们面临容器突破攻击的风险。应该至少定义一个策略来防止具有超出默认设置的功能的容器启动。如果您需要运行具有其他功能的容器，这应该在单独的策略中定义，并且您应该仔细检查以确保只有有限的服务帐户和用户被授予使用该策略的权限。",
+            "audit": "列出集群中每个命名空间正在使用的策略，确保存在阻止 allowedCapabilities 设置为空数组以外的任何内容的策略。",
+            "remediation": "确保 allowedCapabilities 不存在于集群的策略中，除非它设置为空数组。",
+            "impact": "不允许使用需要具有默认设置的功能的容器的 Pod。",
+            "defaultValue": "默认情况下，向容器添加功能没有任何限制。",
+            "references": [
+                "https://kubernetes.io/docs/concepts/security/pod-security-standards/",
+                "https://www.nccgroup.trust/uk/our-research/abusing-privileged-and-unprivileged-linux-containers/"
+            ]
         }
     },
     {
@@ -4094,13 +4142,16 @@
             "rule": "5.2.9"
         },
         "extraDetail": {
-            "description": "",
-            "rationale": "",
-            "audit": "",
-            "remediation": "",
-            "impact": "",
-            "defaultValue": "",
-            "references": []
+            "description": "通常不允许容器具有某些能力。",
+            "rationale": "容器使用容器运行时分配的一组默认功能运行。权限是 Linux 系统上通常授予 root 用户的权限的一部分。\n在许多情况下，在容器中运行的应用程序不需要任何权限即可运行，因此从最小权限原则的角度来看，应尽量减少使用权限。",
+            "audit": "列出集群中每个命名空间使用的策略，确保至少有一个策略要求所有容器都删除功能。",
+            "remediation": "查看集群上运行的应用程序中功能的使用情况。如果命名空间包含不需要任何 Linux 功能来运行的应用程序，请考虑添加一个策略，该策略禁止不丢弃所有功能的容器进入。",
+            "impact": "Pod的容器需要操作的能力是不被允许的。",
+            "defaultValue": "默认情况下，对创建具有附加功能的容器没有任何限制。",
+            "references": [
+                "https://kubernetes.io/docs/concepts/security/pod-security-standards/",
+                "https://www.nccgroup.trust/uk/our-research/abusing-privileged-and-unprivileged-linux-containers/"
+            ]
         }
     },
     {
@@ -4128,13 +4179,15 @@
             "rule": "5.3.1"
         },
         "extraDetail": {
-            "description": "",
-            "rationale": "",
-            "audit": "",
-            "remediation": "",
-            "impact": "",
-            "defaultValue": "",
-            "references": []
+            "description": "有多种可用于 Kubernetes 的 CNI 插件。如果使用的 CNI 不支持网络策略，则可能无法有效限制集群中的流量。",
+            "rationale": "Kubernetes 网络策略由使用中的 CNI 插件强制执行。因此，确保 CNI 插件同时支持 Ingress 和 Egress 网络策略非常重要。",
+            "audit": "查看集群使用的 CNI 插件的文档，并确认它支持 Ingress 和 Egress 网络策略。",
+            "remediation": "如果使用的 CNI 插件不支持网络策略，则应考虑使用不同的插件，或寻找替代机制来限制 Kubernetes 集群中的流量。",
+            "impact": "无。",
+            "defaultValue": "这将取决于使用的 CNI 插件。",
+            "references": [
+                "https://kubernetes.io/docs/concepts/extend-kubernetes/compute-storage-net/network-plugins/"
+            ]
         }
     },
     {
@@ -4162,13 +4215,17 @@
             "rule": "5.3.2"
         },
         "extraDetail": {
-            "description": "",
-            "rationale": "",
-            "audit": "",
-            "remediation": "",
-            "impact": "",
-            "defaultValue": "",
-            "references": []
+            "description": "使用网络策略隔离集群网络中的流量。",
+            "rationale": "在同一个 Kubernetes 集群上运行不同的应用程序会产生一个受感染的应用程序攻击相邻应用程序的风险。网络分段对于确保容器只能与它们应该进行的通信非常重要。\n网络策略是关于如何允许选择的 pod 相互通信以及与其他网络端点通信的规范。网络策略是命名空间范围的。将网络策略引入给定命名空间时，该策略不允许的所有流量都会被拒绝。但是，如果命名空间中没有网络策略，则所有流量都将被允许进出该命名空间中的 Pod。",
+            "audit": "运行以下命令并查看在集群中创建的 NetworkPolicy 对象。\nkubectl --all-namespaces get networkpolicy\n\n确保集群中定义的每个命名空间至少有一个网络策略。",
+            "remediation": "遵循文档并根据需要创建 NetworkPolicy 对象。",
+            "impact": "一旦网络策略在给定的命名空间中使用，网络策略未明确允许的流量将被拒绝。因此，重要的是要确保在引入网络策略时不会阻止合法流量。",
+            "defaultValue": "默认情况下，不创建网络策略。",
+            "references": [
+                "https://kubernetes.io/docs/concepts/services-networking/networkpolicies/",
+                "https://octetz.com/posts/k8s-network-policy-apis",
+                "https://kubernetes.io/docs/tasks/configure-pod-container/declare-network-policy/"
+            ]
         }
     },
     {
@@ -4196,13 +4253,15 @@
             "rule": "5.4.1"
         },
         "extraDetail": {
-            "description": "",
-            "rationale": "",
-            "audit": "",
-            "remediation": "",
-            "impact": "",
-            "defaultValue": "",
-            "references": []
+            "description": "Kubernetes 支持将 Secrets 挂载为数据卷或环境变量。尽量减少环境变量 Secrets 的使用。",
+            "rationale": "应用程序代码记录其环境到日志中是相当常见的（尤其是在发生错误时）。这将包括作为环境变量传入的任何 Secret 值，因此 Secret 可以很容易地暴露给任何有权访问日志的用户或实体。",
+            "audit": "运行以下命令以查找对使用从 Secret 定义的环境变量的对象的引用。\nkubectl get all -o jsonpath='{range .items[?(@..secretKeyRef)]} {.kind} {.metadata.name} {\"\\n\"}{end}' -A\n\n",
+            "remediation": "如果可能，重写应用程序代码以从已挂载的 Secret 文件中读取 Secret ，而不是从环境变量中读取Secret。",
+            "impact": "期望以环境变量形式读取 Secret 的应用程序代码需要修改。",
+            "defaultValue": "默认情况下，未定义 Secret。",
+            "references": [
+                "https://kubernetes.io/docs/concepts/configuration/secret/#using-secrets"
+            ]
         }
     },
     {
@@ -4230,12 +4289,12 @@
             "rule": "5.4.2"
         },
         "extraDetail": {
-            "description": "",
-            "rationale": "",
-            "audit": "",
-            "remediation": "",
-            "impact": "",
-            "defaultValue": "",
+            "description": "如果您有更复杂的 Secret 管理需求，请考虑使用外部 Secret 存储和管理系统，而不是直接使用 Kubernetes Secret。确保解决方案需要身份验证才能访问 Secret，对 Secret 的访问和使用进行审计，并对 Secret 进行加密。一些解决方案还可以更轻松地轮换 Secret。",
+            "rationale": "Kubernetes 支持 Secret 作为一等对象，但需要注意确保对 Secret 的访问受到严格限制。使用外部Secret 提供程序可以简化对 Secret 访问的管理，尤其是在 Kubernetes 和非 Kubernetes 环境中使用Secret 的情况下。",
+            "audit": "查看您的 Secret 管理实现。",
+            "remediation": "请参阅您的云提供商或第三方 Secret 管理解决方案提供的 Secret 管理选项。",
+            "impact": "无。",
+            "defaultValue": "默认情况下，未配置外部 Secret 管理。",
             "references": []
         }
     },
@@ -4264,13 +4323,18 @@
             "rule": "5.5.1"
         },
         "extraDetail": {
-            "description": "",
-            "rationale": "",
-            "audit": "",
-            "remediation": "",
-            "impact": "",
-            "defaultValue": "",
-            "references": []
+            "description": "为您的 deployment 配置镜像源。",
+            "rationale": "Kubernetes 支持插入出处规则以接受或拒绝 deployment 中的镜像。您可以配置此类规则以确保仅在集群中部署被允许的镜像。",
+            "audit": "查看集群中的 pod 定义并验证是否已适当配置镜像源。",
+            "remediation": "遵循 Kubernetes 文档并设置镜像源。",
+            "impact": "您需要根据容器镜像的更新定期维护您的源配置。",
+            "defaultValue": "默认情况下，未设置镜像源。",
+            "references": [
+                "https://kubernetes.io/docs/admin/admission-controllers/#imagepolicywebhook",
+                "https://github.com/kubernetes/community/blob/master/contributors/design-proposals/image-provenance.md",
+                "https://hub.docker.com/r/dnurmi/anchore-toolbox/",
+                "https://github.com/kubernetes/kubernetes/issues/22888"
+            ]
         }
     },
     {
@@ -4298,13 +4362,17 @@
             "rule": "5.7.1"
         },
         "extraDetail": {
-            "description": "",
-            "rationale": "",
-            "audit": "",
-            "remediation": "",
-            "impact": "",
-            "defaultValue": "",
-            "references": []
+            "description": "使用命名空间来隔离您的 Kubernetes 对象。",
+            "rationale": "限制用户权限的范围可以减少错误或恶意活动的影响。 Kubernetes 命名空间允许您将创建的资源划分为逻辑命名的组。在一个命名空间中创建的资源可以对其他命名空间隐藏。默认情况下，用户在 Kubernetes 集群中创建的每个资源都运行在默认命名空间中，称为 default。您可以创建其他命名空间并将资源和用户附加到它们。您可以使用 Kubernetes 授权插件来创建策略，在不同用户之间隔离对命名空间资源的访问。",
+            "audit": "运行以下命令并查看集群中创建的命名空间。\nkubectl get namespaces\n\n确保这些命名空间是您需要的，并且根据您的要求得到充分管理。",
+            "remediation": "遵循文档并根据需要为部署中的对象创建命名空间。",
+            "impact": "您需要在命名空间之间切换以进行管理。",
+            "defaultValue": "默认情况下，Kubernetes 以四个初始命名空间开始：\n1. default：没有其他命名空间的对象的默认命名空间\n2. kube-system：Kubernetes系统创建的对象的命名空间\n3. kube-node-lease：用于节点心跳的命名空间\n4. kube-public：用于集群中公共信息的命名空间",
+            "references": [
+                "https://kubernetes.io/docs/concepts/overview/working-with-objects/namespaces/#viewing-namespaces",
+                "http://blog.kubernetes.io/2016/08/security-best-practices-kubernetes-deployment.html",
+                "https://github.com/kubernetes/enhancements/tree/master/keps/sig-node/589-efficient-node-heartbeats"
+            ]
         }
     },
     {
@@ -4332,13 +4400,16 @@
             "rule": "5.7.2"
         },
         "extraDetail": {
-            "description": "",
-            "rationale": "",
-            "audit": "",
-            "remediation": "",
-            "impact": "",
-            "defaultValue": "",
-            "references": []
+            "description": "在 pod 定义中启用 docker/default seccomp 配置文件。",
+            "rationale": "Seccomp（安全计算模式）用于限制应用程序可以进行的系统调用集，允许集群管理员更好地控制集群中运行的工作负载的安全性。由于历史原因，Kubernetes 默认禁用 seccomp 配置文件。您应该启用它以确保工作负载在容器中具有可用的受限操作。",
+            "audit": "查看集群中的 pod 定义。它应该创建如下一行：\nsecurityContext:\n  seccompProfile:\n    type: RuntimeDefault\n\n",
+            "remediation": "使用安全上下文在您的 pod 定义中启用 docker/default seccomp 配置文件。例如：\nsecurityContext:\n  seccompProfile:\n    type: RuntimeDefault\n\n",
+            "impact": "如果 docker/default seccomp 配置文件对您来说过于严格，您将不得不创建/管理您自己的 seccomp 配置文件。",
+            "defaultValue": "默认情况下，seccomp 配置文件设置为 unconfined，这意味着没有启用任何 seccomp 配置文件。",
+            "references": [
+                "https://kubernetes.io/docs/tutorials/clusters/seccomp/",
+                "https://docs.docker.com/engine/security/seccomp/"
+            ]
         }
     },
     {
@@ -4366,13 +4437,16 @@
             "rule": "5.7.3"
         },
         "extraDetail": {
-            "description": "",
-            "rationale": "",
-            "audit": "",
-            "remediation": "",
-            "impact": "",
-            "defaultValue": "",
-            "references": []
+            "description": "将安全上下文应用于您的 Pod 和容器",
+            "rationale": "安全上下文定义了应用于容器的操作系统安全设置（uid、gid、功能、SELinux 角色等）。在设计容器和 Pod 时，请确保为 Pod、容器和卷配置安全上下文。安全上下文是部署 yaml 中定义的属性。它控制将分配给 pod/container/volume 的安全参数。有两个级别的安全上下文：pod 级别的安全上下文和容器级别的安全上下文。",
+            "audit": "查看集群中的 pod 定义并验证您是否定义了适当的安全上下文。",
+            "remediation": "遵循 Kubernetes 文档并将安全上下文应用到您的 pod。有关安全上下文的建议列表，您可以参考 Docker 容器的 CIS 安全基准。",
+            "impact": "如果您错误地应用了安全上下文，您可能无法运行 pod。",
+            "defaultValue": "默认情况下，不会自动将安全上下文应用于 pod。",
+            "references": [
+                "https://kubernetes.io/docs/concepts/policy/security-context/",
+                "https://learn.cisecurity.org/benchmarks"
+            ]
         }
     },
     {
