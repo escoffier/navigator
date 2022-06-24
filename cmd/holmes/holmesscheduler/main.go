@@ -11,6 +11,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/holmes/holmesscheduler/holmesengine"
 	"gitlab.com/piccolo_su/vegeta/cmd/holmes/holmesscheduler/watch"
 	"gitlab.com/security-rd/go-pkg/logging"
+	_ "go.uber.org/automaxprocs"
 )
 
 const (

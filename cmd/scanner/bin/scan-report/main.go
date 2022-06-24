@@ -3,24 +3,23 @@ package main
 import (
 	"context"
 	"flag"
-	"gitlab.com/security-rd/go-pkg/elastic"
 	"os"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
+	rkentry "github.com/rookie-ninja/rk-entry/entry"
+	rkgin "github.com/rookie-ninja/rk-gin/boot"
 	"github.com/rs/zerolog"
-	"gitlab.com/security-rd/go-pkg/databases"
-	"gitlab.com/security-rd/go-pkg/logging"
-
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scan-report/api"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scan-report/service"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scan-report/starter"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
-
-	rkentry "github.com/rookie-ninja/rk-entry/entry"
-	rkgin "github.com/rookie-ninja/rk-gin/boot"
+	"gitlab.com/security-rd/go-pkg/databases"
+	"gitlab.com/security-rd/go-pkg/elastic"
+	"gitlab.com/security-rd/go-pkg/logging"
+	_ "go.uber.org/automaxprocs"
 )
 
 var (

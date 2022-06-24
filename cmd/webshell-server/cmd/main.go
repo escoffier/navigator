@@ -12,9 +12,9 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/rs/zerolog"
 	"github.com/spf13/pflag"
-	"gitlab.com/security-rd/go-pkg/logging"
-
 	"gitlab.com/piccolo_su/vegeta/cmd/webshell-server/api"
+	"gitlab.com/security-rd/go-pkg/logging"
+	_ "go.uber.org/automaxprocs"
 )
 
 var (
