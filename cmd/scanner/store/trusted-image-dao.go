@@ -7,7 +7,6 @@ import (
 
 	"github.com/pkg/errors"
 	"gorm.io/gorm"
-	"gorm.io/gorm/clause"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
@@ -21,7 +20,7 @@ type TrustedImageInterface interface {
 	ImageRsaUpdate(ctx context.Context, id int64, data *model.ImageRsa) error
 	ImageRsaDetail(ctx context.Context, id int64) (*model.ImageRsa, error)
 	ImageRsaDelete(ctx context.Context, id int64) error
-	ImageRsaList(ctx context.Context, limit, offset int64) ([]model.ImageRsa, int64, error)
+	ImageRsaList(ctx context.Context, param RSAListParam, filter *model.Filter) ([]model.ImageRsa, int64, error)
 	ImageRsaQueryByPrivateKey(ctx context.Context, privateKey string) (*model.ImageRsa, error)
 }
 
@@ -81,25 +80,24 @@ func (s *ScannerOrm) ImageRsaDelete(ctx context.Context, id int64) error {
 	return nil
 }
 
-func (s *ScannerOrm) ImageRsaList(ctx context.Context, limit, offset int64) ([]model.ImageRsa, int64, error) {
+func (s *ScannerOrm) ImageRsaList(ctx context.Context, param RSAListParam, filter *model.Filter) ([]model.ImageRsa, int64, error) {
 	var (
 		err   error
 		count int64
 	)
+	db := s.rdb.Get().WithContext(ctx).Model(model.ImageRsa{})
+	if param.Name != "" {
+		db = db.Where("name = ?", param.Name)
+	}
 
-	if err := s.rdb.Get().WithContext(ctx).Model(model.ImageRsa{}).Count(&count).Error; err != nil {
+	if err := db.Count(&count).Error; err != nil {
 		return nil, 0, err
 	}
 
-	var r = make([]model.ImageRsa, 0, limit)
+	var r = make([]model.ImageRsa, 0)
+	db = model.AddFilter(db, filter)
 
-	err = s.rdb.Get().
-		Model(model.ImageRsa{}).
-		Limit(int(limit)).
-		Offset(int(offset)).
-		Order(clause.OrderByColumn{Column: clause.Column{Name: "created_at"}, Desc: true}).
-		Find(&r).
-		Error
+	err = db.Find(&r).Error
 	if err != nil {
 		return nil, 0, err
 	}

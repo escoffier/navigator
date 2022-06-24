@@ -373,6 +373,16 @@ func (r *RejectAPI) RSAGenerate(ctx *gin.Context) {
 		return
 	}
 
+	list, _, err := r.Srv.RSAList(ctx, component.RSAListParam{Name: req.Name}, nil)
+	if err != nil {
+		response.JSONError(ctx, err)
+		return
+	}
+	if len(list) > 0 {
+		response.JSONError(ctx, response.NewHttpError(http.StatusNotAcceptable, fmt.Errorf("rsa:%s is exist", req.Name)))
+		return
+	}
+
 	result, err := r.Srv.RSAGenerate(ctx, req)
 	if err != nil {
 		response.JSONError(ctx, err)
@@ -445,18 +455,11 @@ func (r *RejectAPI) RSAUpdate(ctx *gin.Context) {
 // @Failure 400 {object} response.HTTPEnvelope{}
 // @Router	/api/v1/imagereject/trustedImages/rsa [get]
 func (r *RejectAPI) RSAList(ctx *gin.Context) {
-	offset, err := strconv.ParseInt(ctx.Query("offset"), 10, 64)
-	if err != nil {
-		response.JSONError(ctx, fmt.Errorf("%s 不是一个有效的偏移量", ctx.Query("offset")))
-		return
-	}
-	limit, err := strconv.ParseInt(ctx.Query("limit"), 10, 64)
-	if err != nil {
-		response.JSONError(ctx, fmt.Errorf("%s 不是一个有效的条数", ctx.Query("limit")))
-		return
-	}
+	filter := model.GetFilterWithDefaultValue(ctx)
+	filter.AddSortCreatedAt()
+	filter.AddSortDesc()
 
-	result, count, err := r.Srv.RSAList(ctx, limit, offset)
+	result, count, err := r.Srv.RSAList(ctx, component.RSAListParam{}, filter)
 	if err != nil {
 		response.JSONError(ctx, err)
 		return
