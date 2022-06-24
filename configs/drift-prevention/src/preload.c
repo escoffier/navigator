@@ -20,6 +20,7 @@
 #include "log.h"
 
 #define PASSKEY "pass\n"
+#define TIME_OUT_TIME 3
 
 const char *server_path = "/.tensor/judge.sock";
 const int64_t hash_byte_size = 1024;
@@ -43,11 +44,20 @@ static int send_info_via_socket(const char *msg, ...) {
     struct sockaddr_un server_un;
     char buffer[256];
 
+    struct timeval timeout;
+    timeout.tv_sec = TIME_OUT_TIME;
+    timeout.tv_usec = 0;
+
+
     connfd = socket(AF_UNIX, SOCK_STREAM, 0);
     bzero((char *)&server_un, sizeof(server_un));
     server_un.sun_family = AF_UNIX;
     strcpy(server_un.sun_path, server_path);
     int size = strlen(server_un.sun_path) + offsetof(struct sockaddr_un, sun_path);
+
+    if(setsockopt(connfd, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout)) < 0){
+        drift_prevent_write_log(ERROR, "[%s-%d]setsockopt failed\n", __func__, __LINE__);
+    }
 
     if(connect(connfd, (struct sockaddr *) &server_un, size) < 0) {
         drift_prevent_write_log(ERROR, "%s-%d errno: %s\n", __func__, __LINE__, strerror(errno));
@@ -336,7 +346,7 @@ CHECKPROCESS("exectest", exectest, path, VA_STR(const char *path, char *const ar
 int main()
 {
     printf("start test\n");
-    exectest("dpkg-split", NULL);
+    exectest("ls", NULL);
     printf("end test\n");
     return 0;
 }

@@ -34,11 +34,11 @@ static int get_container_id(char *buf, int size)
 }
 
 #ifdef _DEBUG
-int main() {
-    int CONTAINID_LEN = 64;
-    char buf[1024];
-    printf("start\n");
-    int ret = get_container_id(buf, CONTAINID_LEN);
-    printf("ret :%d ,%s\n", ret, buf);
-}
+// int main() {
+//     int CONTAINID_LEN = 64;
+//     char buf[1024];
+//     printf("start\n");
+//     int ret = get_container_id(buf, CONTAINID_LEN);
+//     printf("ret :%d ,%s\n", ret, buf);
+// }
 #endif
