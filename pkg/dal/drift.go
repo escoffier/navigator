@@ -62,7 +62,7 @@ func UpdateDriftPolicy(ctx context.Context, rdb *gorm.DB, policy model.DriftPoli
 	return query, nil
 }
 
-func ListDriftPolicy(ctx context.Context, rdb *gorm.DB, limit, offset int, clusterKey string, resourceType, enable, mode []string, search string) ([]model.DriftPolicy, error) {
+func ListDriftPolicy(ctx context.Context, rdb *gorm.DB, limit, offset int, clusterKey string, resourceType, enable, mode []string, search string) ([]model.DriftPolicy, int64, error) {
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 	db := rdb.Model(&model.DriftPolicy{}).WithContext(ctx)
@@ -79,12 +79,14 @@ func ListDriftPolicy(ctx context.Context, rdb *gorm.DB, limit, offset int, clust
 		db = db.Where("resource LIKE ? OR namespace LIKE ?", fmt.Sprintf("%%%s%%", search), fmt.Sprintf("%%%s%%", search))
 	}
 	db = db.Where("cluster_key = ?", clusterKey)
+	var len int64
+	db.Count(&len)
 	res := []model.DriftPolicy{}
-	err := db.Find(&res).Offset(offset).Limit(limit).Error
+	err := db.Offset(offset).Limit(limit).Find(&res).Error
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
-	return res, nil
+	return res, len, nil
 }
 
 func GetAllPolicies(ctx context.Context, rdb *gorm.DB) ([]model.DriftPolicy, error) {

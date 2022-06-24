@@ -319,7 +319,7 @@ func (api *api) driftListPolicy() http.HandlerFunc {
 			return
 		}
 
-		policys, err := driSvc.ListPolicy(ctx, limit, offset, clusterKey, resources, enables, modes, search)
+		policys, count, err := driSvc.ListPolicy(ctx, limit, offset, clusterKey, resources, enables, modes, search)
 		if err != nil {
 			logging.GetLogger().Error().Msg("ListPolicy error")
 			apperror.RespAndLog(w, ctx, apperror.NewAnError(http.StatusInternalServerError, errors.New("ListPolicy error")))
@@ -336,7 +336,7 @@ func (api *api) driftListPolicy() http.HandlerFunc {
 			tmpResp.AbnormalNum = len(signals)
 			res = append(res, tmpResp)
 		}
-		response.Ok(w, response.WithItems(res))
+		response.Ok(w, response.WithItems(res), response.WithTotalItems(count))
 	}
 }
 

@@ -85,7 +85,7 @@ func (rl *TensorDriftService) UpdatePolicy(ctx context.Context, policy model.Dri
 	return dal.UpdateDriftPolicy(ctx, rl.rdb.Get(), policy)
 }
 
-func (rl *TensorDriftService) ListPolicy(ctx context.Context, limit int, offset int, clusterKey string, resourceType []string, enable []string, mode []string, search string) ([]model.DriftPolicy, error) {
+func (rl *TensorDriftService) ListPolicy(ctx context.Context, limit int, offset int, clusterKey string, resourceType []string, enable []string, mode []string, search string) ([]model.DriftPolicy, int64, error) {
 	return dal.ListDriftPolicy(ctx, rl.rdb.GetReadDB(), limit, offset, clusterKey, resourceType, enable, mode, search)
 }
 
