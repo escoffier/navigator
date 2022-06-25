@@ -35,6 +35,10 @@ var (
 		pkg.ResourceRiskyCapsRule{},
 		pkg.ResourceRiskyVolumeRule{},
 		pkg.ResourceWithPrivContainerRule{},
+		pkg.ResourcesWithHostNamespaceRule{},
+		pkg.ResourcesWithInsecureSecretsEnvRule{},
+		pkg.ResourcesWithDefaultSARule{},
+		pkg.ResourcesWithRequestLimitSetRule{},
 	}
 )
 
