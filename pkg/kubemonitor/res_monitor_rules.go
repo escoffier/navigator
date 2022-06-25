@@ -275,7 +275,7 @@ func (ResourceWithPrivContainerRule) RuleName() string {
 func (ResourceWithPrivContainerRule) Description() map[string]string {
 	return map[string]string{
 		"zh": "资源下的pod包含了特权容器",
-		"en": "The containers controlled by the resource have privileged containers",
+		"en": "The pods controlled by the resource have privileged containers",
 	}
 }
 func (ResourceWithPrivContainerRule) KVs() []ContextKV {
@@ -328,5 +328,346 @@ func (ResourceWithPrivContainerRule) Match(ctx context.Context, resource *assets
 		signals = append(signals, generatePriviledgedEventsFromContainer(c, "Container")...)
 	}
 
+	return signals, nil
+}
+
+type ResourcesWithHostNamespaceRule struct{}
+
+func (ResourcesWithHostNamespaceRule) RuleName() string {
+	return "resourcesWithHostNamespaace"
+}
+func (ResourcesWithHostNamespaceRule) Description() map[string]string {
+	return map[string]string{
+		"zh": "资源下的pod与主机共享命名空间",
+		"en": "The pods controlled by the resource have namespaces shared with the host",
+	}
+}
+func (ResourcesWithHostNamespaceRule) KVs() []ContextKV {
+	return nil
+}
+func (ResourcesWithHostNamespaceRule) Severity() uint32 {
+	return 4
+}
+
+// Match could generate multiple events by multiple []ContextKV
+func (ResourcesWithHostNamespaceRule) Match(ctx context.Context, resource *assets.TensorResource) ([]RiskSignal, error) {
+	if resource == nil || resource.PodTemplate == nil {
+		return nil, nil
+	}
+	signals := make([]RiskSignal, 0, 2)
+	if resource.PodTemplate.Spec.HostIPC {
+		signals = append(signals, RiskSignal{
+			Ctxs: []ContextKV{
+				{
+					Key: "HostIPC",
+					KeyMulti: map[string]string{
+						"zh": "共享主机IPC命名空间",
+						"en": "Use the host's ipc namespace",
+					},
+					DefaultValue: "true",
+				},
+			},
+			CtxIdentifier: "HostIPC",
+		})
+	}
+	if resource.PodTemplate.Spec.HostNetwork {
+		signals = append(signals, RiskSignal{
+			Ctxs: []ContextKV{
+				{
+					Key: "HostNetwork",
+					KeyMulti: map[string]string{
+						"zh": "共享主机网络命名空间",
+						"en": "Use the host's network namespace",
+					},
+					DefaultValue: "true",
+				},
+			},
+			CtxIdentifier: "HostNetwork",
+		})
+	}
+	if resource.PodTemplate.Spec.HostPID {
+		signals = append(signals, RiskSignal{
+			Ctxs: []ContextKV{
+				{
+					Key: "HostPID",
+					KeyMulti: map[string]string{
+						"zh": "共享主机进程命名空间",
+						"en": "Use the host's pid namespace",
+					},
+					DefaultValue: "true",
+				},
+			},
+			CtxIdentifier: "HostPID",
+		})
+	}
+	return signals, nil
+}
+
+type ResourcesWithInsecureSecretsEnvRule struct{}
+
+func (ResourcesWithInsecureSecretsEnvRule) RuleName() string {
+	return "resourcesWithInsecureSecrets"
+}
+func (ResourcesWithInsecureSecretsEnvRule) Description() map[string]string {
+	return map[string]string{
+		"zh": "资源下容器的环境变量中包含直接暴露的secret",
+		"en": "The containers use the env to exposure secrets/keys directly",
+	}
+}
+func (ResourcesWithInsecureSecretsEnvRule) KVs() []ContextKV {
+	return nil
+}
+func (ResourcesWithInsecureSecretsEnvRule) Severity() uint32 {
+	return 6
+}
+
+func getCtxsWithHostNamespaceFromContainer(c corev1.Container, containerType string) []RiskSignal {
+	signals := make([]RiskSignal, 0, 2)
+	for _, env := range c.Env {
+		if strings.Index(env.Name, "PASSWORD") >= 0 || strings.Index(env.Name, "PWD") >= 0 {
+			if env.Value != "" && (env.ValueFrom == nil || env.ValueFrom.SecretKeyRef == nil) {
+				signals = append(signals, RiskSignal{
+					Ctxs: []ContextKV{
+						{
+							Key: "ContainerName",
+							KeyMulti: map[string]string{
+								"zh": "容器名称",
+								"en": "Container Name",
+							},
+							DefaultValue: c.Name,
+						},
+						{
+							Key: "ContainerType",
+							KeyMulti: map[string]string{
+								"zh": "容器类型",
+								"en": "Container Type",
+							},
+							DefaultValue: containerType,
+						},
+						{
+							Key: "EnvKey",
+							KeyMulti: map[string]string{
+								"zh": "环境变量名称",
+								"en": "Env Key",
+							},
+							DefaultValue: env.Name,
+						},
+					},
+					CtxIdentifier: strings.Join([]string{c.Name, containerType, env.Name}, "-"),
+				})
+			}
+		}
+	}
+	return signals
+}
+
+// Match could generate multiple events by multiple []ContextKV
+func (ResourcesWithInsecureSecretsEnvRule) Match(ctx context.Context, resource *assets.TensorResource) ([]RiskSignal, error) {
+	if resource == nil || resource.PodTemplate == nil {
+		return nil, nil
+	}
+	signals := make([]RiskSignal, 0, 2)
+	for _, ic := range resource.PodTemplate.Spec.InitContainers {
+		signals = append(signals, getCtxsWithHostNamespaceFromContainer(ic, "InitContainer")...)
+	}
+	for _, c := range resource.PodTemplate.Spec.Containers {
+		signals = append(signals, getCtxsWithHostNamespaceFromContainer(c, "Container")...)
+	}
+	return signals, nil
+}
+
+type ResourcesWithDefaultSARule struct{}
+
+func (ResourcesWithDefaultSARule) RuleName() string {
+	return "ResourcesWithDefaultSA"
+}
+func (ResourcesWithDefaultSARule) Description() map[string]string {
+	return map[string]string{
+		"zh": "资源下的pod使用了默认的ServiceAccount",
+		"en": "The pods controlled by the resource use the default ServiceAccount",
+	}
+}
+func (ResourcesWithDefaultSARule) KVs() []ContextKV {
+	return nil
+}
+func (ResourcesWithDefaultSARule) Severity() uint32 {
+	return 2
+}
+
+// Match could generate multiple events by multiple []ContextKV
+func (ResourcesWithDefaultSARule) Match(ctx context.Context, resource *assets.TensorResource) ([]RiskSignal, error) {
+	if resource == nil || resource.PodTemplate == nil {
+		return nil, nil
+	}
+	signals := make([]RiskSignal, 0, 1)
+	if resource.PodTemplate.Spec.ServiceAccountName == "default" {
+		signals = append(signals, RiskSignal{
+			Ctxs:          []ContextKV{},
+			CtxIdentifier: "defaultSA",
+		})
+	}
+	return signals, nil
+}
+
+type ResourcesWithRequestLimitSetRule struct{}
+
+func (ResourcesWithRequestLimitSetRule) RuleName() string {
+	return "ResourcesWithRequestLimitSet"
+}
+func (ResourcesWithRequestLimitSetRule) Description() map[string]string {
+	return map[string]string{
+		"zh": "资源下的pod的容器是否没有设置request/limit",
+		"en": "The containers controlled by the resource haven't been set the request/limit",
+	}
+}
+func (ResourcesWithRequestLimitSetRule) KVs() []ContextKV {
+	return nil
+}
+func (ResourcesWithRequestLimitSetRule) Severity() uint32 {
+	return 2
+}
+
+func getCtxsWithoutRequestLimitFromContainer(c corev1.Container, containerType string) []RiskSignal {
+	signals := make([]RiskSignal, 0, 2)
+	if _, exist := c.Resources.Requests[corev1.ResourceCPU]; !exist {
+		signals = append(signals, RiskSignal{
+			Ctxs: []ContextKV{
+				{
+					Key: "ContainerName",
+					KeyMulti: map[string]string{
+						"zh": "容器名称",
+						"en": "Container Name",
+					},
+					DefaultValue: c.Name,
+				},
+				{
+					Key: "ContainerType",
+					KeyMulti: map[string]string{
+						"zh": "容器类型",
+						"en": "Container Type",
+					},
+					DefaultValue: containerType,
+				},
+				{
+					Key: "RequestsCPUSet",
+					KeyMulti: map[string]string{
+						"zh": "是否设置了requests CPU",
+						"en": "requests CPU is Set",
+					},
+					DefaultValue: "false",
+				},
+			},
+			CtxIdentifier: strings.Join([]string{c.Name, containerType, "requests.cpu"}, "-"),
+		})
+	}
+	if _, exist := c.Resources.Requests[corev1.ResourceMemory]; !exist {
+		signals = append(signals, RiskSignal{
+			Ctxs: []ContextKV{
+				{
+					Key: "ContainerName",
+					KeyMulti: map[string]string{
+						"zh": "容器名称",
+						"en": "Container Name",
+					},
+					DefaultValue: c.Name,
+				},
+				{
+					Key: "ContainerType",
+					KeyMulti: map[string]string{
+						"zh": "容器类型",
+						"en": "Container Type",
+					},
+					DefaultValue: containerType,
+				},
+				{
+					Key: "RequestsMemorySet",
+					KeyMulti: map[string]string{
+						"zh": "是否设置了requests Memory",
+						"en": "requests Memory is Set",
+					},
+					DefaultValue: "false",
+				},
+			},
+			CtxIdentifier: strings.Join([]string{c.Name, containerType, "requests.mem"}, "-"),
+		})
+	}
+	if _, exist := c.Resources.Limits[corev1.ResourceCPU]; !exist {
+		signals = append(signals, RiskSignal{
+			Ctxs: []ContextKV{
+				{
+					Key: "ContainerName",
+					KeyMulti: map[string]string{
+						"zh": "容器名称",
+						"en": "Container Name",
+					},
+					DefaultValue: c.Name,
+				},
+				{
+					Key: "ContainerType",
+					KeyMulti: map[string]string{
+						"zh": "容器类型",
+						"en": "Container Type",
+					},
+					DefaultValue: containerType,
+				},
+				{
+					Key: "LimitsCPUSet",
+					KeyMulti: map[string]string{
+						"zh": "是否设置了Limits CPU",
+						"en": "Limits CPU is Set",
+					},
+					DefaultValue: "false",
+				},
+			},
+			CtxIdentifier: strings.Join([]string{c.Name, containerType, "limits.cpu"}, "-"),
+		})
+	}
+	if _, exist := c.Resources.Limits[corev1.ResourceMemory]; !exist {
+		signals = append(signals, RiskSignal{
+			Ctxs: []ContextKV{
+				{
+					Key: "ContainerName",
+					KeyMulti: map[string]string{
+						"zh": "容器名称",
+						"en": "Container Name",
+					},
+					DefaultValue: c.Name,
+				},
+				{
+					Key: "ContainerType",
+					KeyMulti: map[string]string{
+						"zh": "容器类型",
+						"en": "Container Type",
+					},
+					DefaultValue: containerType,
+				},
+				{
+					Key: "LimitsMemorySet",
+					KeyMulti: map[string]string{
+						"zh": "是否设置了Limits Memory",
+						"en": "Limits Memory is Set",
+					},
+					DefaultValue: "false",
+				},
+			},
+			CtxIdentifier: strings.Join([]string{c.Name, containerType, "limits.mem"}, "-"),
+		})
+	}
+
+	return signals
+}
+
+// Match could generate multiple events by multiple []ContextKV
+func (ResourcesWithRequestLimitSetRule) Match(ctx context.Context, resource *assets.TensorResource) ([]RiskSignal, error) {
+	if resource == nil || resource.PodTemplate == nil {
+		return nil, nil
+	}
+	signals := make([]RiskSignal, 0, 2)
+	for _, ic := range resource.PodTemplate.Spec.InitContainers {
+		signals = append(signals, getCtxsWithoutRequestLimitFromContainer(ic, "InitContainer")...)
+	}
+	for _, c := range resource.PodTemplate.Spec.Containers {
+		signals = append(signals, getCtxsWithoutRequestLimitFromContainer(c, "Container")...)
+	}
 	return signals, nil
 }
