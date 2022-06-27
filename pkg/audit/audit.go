@@ -389,7 +389,7 @@ func init() {
 		return editAction, "编辑资源{{.}}的隔离策略"
 	})
 	routeAction.PUT("/api/v2/microseg/clusters/:clusterKey/namespaces/:namespace/kinds/:kind/resources/:resource/policy/enabling", func(params Params) (string, string) {
-		return "启用/停用", "启/停用资源{{.}}策略"
+		return "启用/停用", "启/停用资源{{.}}的隔离策略"
 	})
 	routeAction.POST("/api/v2/microseg/clusters/:clusterKey/namespaces/:namespace/segments/:segment/policy", func(params Params) (string, string) {
 		return editAction, "编辑资源组{{.}}的隔离策略"
@@ -530,7 +530,7 @@ func init() {
 		checkTypeName := ""
 		switch scapType {
 		case model.ComplianceCheckTargetTypeKube:
-			checkTypeName = "kubernetes"
+			checkTypeName = "编排软件"
 		case model.ComplianceCheckTargetTypeDocker:
 			checkTypeName = "Docker"
 		case model.ComplianceCheckTargetTypeHost:
@@ -544,7 +544,7 @@ func init() {
 		var checkTypeName string
 		switch checkType {
 		case model.ComplianceCheckTargetTypeKube:
-			checkTypeName = "kubernetes"
+			checkTypeName = "编排软件"
 		case model.ComplianceCheckTargetTypeDocker:
 			checkTypeName = "Docker"
 		case model.ComplianceCheckTargetTypeHost:
