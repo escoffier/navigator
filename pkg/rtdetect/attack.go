@@ -17,144 +17,136 @@ const (
 	KeyOwnerResName = "_owner_resource_name"
 	KeyOwnerResKind = "_owner_resource_kind"
 
-	FieldProcessPid        = "proc.pid"
-	FieldProcessName       = "proc.name"
-	FieldParentProcessPid  = "proc.ppid"
-	FieldCmdline           = "proc.cmdline"
-	FieldParentProcessName = "proc.pname"
-	FieldK8sNsName         = "k8s.ns.name"
-	FieldK8sPodName        = "k8s.pod.name"
-	FieldContainerID       = "container.id"
 )
 
 var filteredOutFields = map[string]struct{}{
-	"k8s.ns.name":  {},
-	"k8s.pod.name": {},
-	"k8s.pod.id":   {},
-	"evt.time":     {},
+	model.FieldK8sNsName:  {},
+	model.FieldK8sPodName: {},
+	model.FieldPodUID:   {},
+	model.FieldEvtTime:     {},
 }
 var eventKVsMap = map[string]map[string]pb.KV{
 	// event
-	"evt.type": {
+	model.FieldEvtType: {
 		"zh": {Key: "事件类型"},
 		"en": {Key: "Event Type"},
 	},
-	"evt.time": {
+	model.FieldEvtTime: {
 		"en": {Key: "Event Time"},
 		"zh": {Key: "事件时间"},
 	},
-	"evt.category": {
+	model.FieldEvtCategory: {
 		"en": {Key: "Event Category"},
 		"zh": {Key: "事件分类"},
 	},
-	"syscall.type": {
+	model.FieldSyscallType: {
 		"en": {Key: "syscall"},
 		"zh": {Key: "系统调用"},
 	},
-	"evt.arg.name": {
+	model.FieldEvtArgName: {
 		"en": {Key: "Event Arguments Name"},
 		"zh": {Key: "事件参数名称"},
 	},
-	"evt.arg.oldpath": {
+	model.FieldEvtArgOldPath: {
 		"en": {Key: "Event Argument OldPath"},
 		"zh": {Key: "事件旧参数路径"},
 	},
-	"evt.arg.path": {
+	model.FieldEvtArgPath: {
 		"en": {Key: "Event Argument Path"},
 		"zh": {Key: "事件参数路径"},
 	},
 
 	// Process
-	FieldProcessPid: {
+	model.FieldProcessPid: {
 		"zh": {Key: "进程号"},
 		"en": {Key: "pid"},
 	},
-	FieldProcessName: {
+	model.FieldProcessName: {
 		"zh": {Key: "进程名"},
 		"en": {Key: "procName"},
 	},
-	FieldParentProcessPid: {
+	model.FieldParentProcessPid: {
 		"en": {Key: "ppid"},
 		"zh": {Key: "父进程号"},
 	},
-	FieldParentProcessName: {
+	model.FieldParentProcessName: {
 		"zh": {Key: "父进程名称"},
 		"en": {Key: "procPname"},
 	},
-	"proc.cmdline": {
+	model.FieldPorcCmd: {
 		"en": {Key: "command"},
 		"zh": {Key: "进程命令行"},
 	},
-	"proc.loginshellid": {
+	model.FieldPorcLoginShellID: {
 		"en": {Key: "Process LoginShell Pid"},
 		"zh": {Key: "进程祖先shell进程ID"},
 	},
-	"proc.fdopencount": {
+	model.FieldProcFDC: {
 		"en": {Key: "Process FD Count"},
 		"zh": {Key: "进程文件描述符数量"},
 	},
-	"proc.tty": {
+	model.FieldProcTerm: {
 		"en": {Key: "Process Controlling Terminal"},
 		"zh": {Key: "进程控制台"},
 	},
 	// user
-	"user.name": {
+	model.FieldUserName: {
 		"en": {Key: "user"},
 		"zh": {Key: "用户名"},
 	},
-	"user.loginuid": {
+	model.FieldUserLoginUID: {
 		"en": {Key: "aduit user id(auid)"},
 		"zh": {Key: "auid"},
 	},
 
 	// container
-	"container.image.repository": {
+	model.FieldImageRepo: {
 		"en": {Key: "Container Image"},
 		"zh": {Key: "容器镜像"},
 	},
-	"container.image.tag": {
+	model.FieldImageTag: {
 		"en": {Key: "Container Image Tag"},
 		"zh": {Key: "容器镜像Tag"},
 	},
-	"container.name": {
+	model.FieldContainerName: {
 		"en": {Key: "Container Name"},
 		"zh": {Key: "容器名称"},
 	},
-	FieldContainerID: {
+	model.FieldContainerID: {
 		"en": {Key: "containerId"},
 		"zh": {Key: "容器ID"},
 	},
-	"container.type": {
+	model.FieldContainerType: {
 		"en": {Key: "Container Type"},
 		"zh": {Key: "容器类型"},
 	},
-	"container.privileged": {
+	model.FieldContainerPriv: {
 		"en": {Key: "Container Privileged"},
 		"zh": {Key: "是否是特权容器"},
 	},
-	"container.image.digest": {
+	model.FieldImageDigest: {
 		"en": {Key: "Container Image Digest"},
 		"zh": {Key: "容器镜像Digest"},
 	},
 	// fd
-	"fd.name": {
+	model.FieldFDName: {
 		"en": {Key: "FD Name"},
 		"zh": {Key: "文件描述符名称"},
 	},
-	"fd.type": {
+	model.FieldFDType: {
 		"en": {Key: "FD Type"},
 		"zh": {Key: "文件描述符类型"},
 	},
 	// k8s
-	FieldK8sNsName: {
+	model.FieldK8sNsName: {
 		"en": {Key: "Namespace"},
 		"zh": {Key: "命名空间"},
 	},
-	FieldK8sPodName: {
+	model.FieldK8sPodName: {
 		"en": {Key: "Pod Name"},
 		"zh": {Key: "Pod名称"},
 	},
-	"k8s.pod.id": {
+	model.FieldPodUID: {
 		"en": {Key: "PodUid"},
 		"zh": {Key: "PodUid"},
 	},
@@ -217,26 +209,26 @@ func generateEventCustomKVs(data *outputs.Response) (kvs []*pb.MultiLanguageKV, 
 			value = ""
 		}
 		switch key {
-		case "proc.pid":
+		case model.FieldProcessPid:
 			pidFromFields = value
-		case "proc.ppid":
+		case model.FieldParentProcessPid:
 			ppidFromFields = value
-		case "proc.cmdline":
+		case model.FieldCmdline:
 			commandFromFields = value
 		case "user":
 			userFromFields = value
-		case "syscall.type":
+		case model.FieldSyscallType:
 			syscallFromFields = value
-		case "k8s.pod.name":
+		case model.FieldK8sPodName:
 			podName = value
-		case "k8s.ns.name":
+		case model.FieldK8sNsName:
 			namespace = value
-		case "k8s.pod.id":
+		case model.FieldPodUID:
 			podUID = value
 		}
-		if key == "proc.pname" && procPname != "" {
+		if key == model.FieldParentProcessName && procPname != "" {
 			continue
-		} else if key == "proc.name" && procName != "" {
+		} else if key == model.FieldProcessName && procName != "" {
 			continue
 		} else if _, toFilterOut := filteredOutFields[key]; toFilterOut {
 			continue

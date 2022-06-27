@@ -42,11 +42,11 @@ func NewEventsOutputHandler(myNodeName string, mqWriter mq.Writer, containerInfo
 }
 
 func (ec *EventsOutputHandler) getOwnerInfo(data *outputs.Response) (*nodeinfo.Resource, string, bool) {
-	podName, exist := data.OutputFields[rtdetect.FieldK8sPodName]
+	podName, exist := data.OutputFields[model.FieldK8sPodName]
 	if !exist {
 		return nil, "", false
 	}
-	namespace, exist := data.OutputFields[rtdetect.FieldK8sNsName]
+	namespace, exist := data.OutputFields[model.FieldK8sNsName]
 	if !exist {
 		return nil, "", false
 	}

@@ -120,11 +120,11 @@ func (pce *PodContainerEvent) Location() (TargetLocation, bool) {
 }
 func getLocation(resp *outputs.Response) (*PodContainerLoc, bool) {
 
-	namespace, ok := resp.OutputFields[rtdetect.FieldK8sNsName]
+	namespace, ok := resp.OutputFields[model.FieldK8sNsName]
 	if !ok {
 		return nil, false
 	}
-	podName, ok := resp.OutputFields[rtdetect.FieldK8sPodName]
+	podName, ok := resp.OutputFields[model.FieldK8sPodName]
 	if !ok {
 		return nil, false
 	}
@@ -132,7 +132,7 @@ func getLocation(resp *outputs.Response) (*PodContainerLoc, bool) {
 	if !ok {
 		return nil, false
 	}
-	containerID, ok := resp.OutputFields[rtdetect.FieldContainerID]
+	containerID, ok := resp.OutputFields[model.FieldContainerID]
 	if !ok {
 		return nil, false
 	}
@@ -176,7 +176,7 @@ func (pce *PodContainerEvent) ParentProcessName() (string, bool) {
 	return pce.ppname, len(pce.ppname) > 0
 }
 func getParentPid(resp *outputs.Response) (string, bool) {
-	ppid, exist := resp.OutputFields[rtdetect.FieldParentProcessPid]
+	ppid, exist := resp.OutputFields[model.FieldParentProcessPid]
 	if !exist || len(ppid) == 0 {
 		var err error
 		ppid, err = model.GetInfoFromOutput("proc_ppid=", resp.Output)
@@ -189,7 +189,7 @@ func getParentPid(resp *outputs.Response) (string, bool) {
 }
 
 func getParentPName(resp *outputs.Response) (string, bool) {
-	ppname, exist := resp.OutputFields[rtdetect.FieldParentProcessName]
+	ppname, exist := resp.OutputFields[model.FieldParentProcessName]
 	if !exist || len(ppname) == 0 {
 		procPname, err := model.GetInfoFromOutput("proc_pname=", resp.Output)
 		if err != nil {
@@ -200,7 +200,7 @@ func getParentPName(resp *outputs.Response) (string, bool) {
 	return ppname, exist
 }
 func getPid(resp *outputs.Response) (string, bool) {
-	pid, ok := resp.OutputFields[rtdetect.FieldProcessPid]
+	pid, ok := resp.OutputFields[model.FieldProcessPid]
 	if !ok || len(pid) == 0 {
 		var err error
 		pid, err = model.GetInfoFromOutput("proc_pid=", resp.Output)
@@ -213,9 +213,9 @@ func getPid(resp *outputs.Response) (string, bool) {
 
 }
 func getPName(resp *outputs.Response) (string, bool) {
-	pname, exist := resp.OutputFields[rtdetect.FieldProcessName]
+	pname, exist := resp.OutputFields[model.FieldProcessName]
 	if !exist || len(pname) == 0 {
-		command, exist := resp.OutputFields[rtdetect.FieldCmdline]
+		command, exist := resp.OutputFields[model.FieldCmdline]
 		if !exist || len(command) == 0 {
 			pname, err := model.GetInfoFromOutput("proc_cmdline=", resp.Output)
 			if err != nil || pname == "" {

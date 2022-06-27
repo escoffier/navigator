@@ -12,8 +12,6 @@ import (
 
 	"github.com/golang/gddo/httputil/header"
 	json "github.com/json-iterator/go"
-	"github.com/rs/zerolog/log"
-
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 )
 
@@ -66,7 +64,7 @@ func CloseBodyWithLog(body io.ReadCloser) {
 	if body != nil {
 		err := body.Close()
 		if err != nil {
-			log.Warn().Err(err).Msg("Failed to close body, but ignoring")
+			logging.GetLogger().Warn().Err(err).Msg("Failed to close body, but ignoring")
 		}
 	}
 }

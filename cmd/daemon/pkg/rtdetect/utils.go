@@ -7,7 +7,7 @@ import (
 
 	"github.com/falcosecurity/client-go/pkg/api/outputs"
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/nodeinfo"
-	"gitlab.com/piccolo_su/vegeta/pkg/rtdetect"
+	"gitlab.com/piccolo_su/vegeta/pkg/model"
 )
 
 var (
@@ -34,18 +34,18 @@ var watsonPodsNames = []string{
 
 // FIXME to solve the init alerts of watson pods, filter out the corresponding events. Remove when solving watson alerts querying problems.
 func isEventItemWhitelisted(data *outputs.Response, containerInfo nodeinfo.ContainerInfoManager) bool {
-	containerID := data.OutputFields[rtdetect.FieldContainerID]
+	containerID := data.OutputFields[model.FieldContainerID]
 	if _, exist := containerInfo.FindContainerCacheData(containerID); !exist {
 		return false
 	}
 
 	// filter out the events in the phase of container initialization in my pod namespace
-	namespace := data.OutputFields[rtdetect.FieldK8sNsName]
+	namespace := data.OutputFields[model.FieldK8sNsName]
 	if namespace != "" && namespace == myNamespace {
 		return true
 	}
 
-	podName := data.OutputFields[rtdetect.FieldK8sPodName]
+	podName := data.OutputFields[model.FieldK8sPodName]
 	for _, prefix := range watsonPodsNames {
 		if strings.Index(podName, prefix) >= 0 {
 			return true
