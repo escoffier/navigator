@@ -98,6 +98,8 @@ func (s *TensorDefenseService) AddBaitService(ctx context.Context, bait *model.B
 	}
 	err = dal.InsertBaitService(ctx, s.rdb.Get(), bait)
 	if err != nil {
+		baitName, _ := getHoneyspotName(bait)
+		s.deleteBaitServiceFromKube(ctx, bait.ClusterKey, bait.Namespace, baitName)
 		return err
 	}
 	return nil
