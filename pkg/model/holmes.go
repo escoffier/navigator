@@ -9,6 +9,37 @@ import (
 type MessageEventType string
 
 const (
+	FieldProcessPid        = "proc.pid"
+	FieldProcessName       = "proc.name"
+	FieldParentProcessPid  = "proc.ppid"
+	FieldCmdline           = "proc.cmdline"
+	FieldParentProcessName = "proc.pname"
+	FieldK8sNsName         = "k8s.ns.name"
+	FieldPodUID            = "k8s.pod.id"
+	FieldK8sPodName        = "k8s.pod.name"
+	FieldContainerID       = "container.id"
+	FieldEvtTime           = "evt.time"
+	FieldEvtType           = "evt.type"
+	FieldEvtCategory       = "evt.category"
+	FieldSyscallType       = "syscall.type"
+	FieldEvtArgName        = "evt.arg.name"
+	FieldEvtArgOldPath     = "evt.arg.oldpath"
+	FieldEvtArgPath        = "evt.arg.path"
+	FieldPorcCmd           = "proc.cmdline"
+	FieldPorcLoginShellID  = "proc.loginshellid"
+	FieldProcFDC           = "proc.fdopencount"
+	FieldProcTerm          = "proc.tty"
+	FieldUserName          = "user.name"
+	FieldUserLoginUID      = "user.loginuid"
+	FieldImageRepo         = "container.image.repository"
+	FieldImageTag          = "container.image.tag"
+	FieldContainerName     = "container.name"
+	FieldContainerType     = "container.type"
+	FieldContainerPriv     = "container.privileged"
+	FieldImageDigest       = "container.image.digest"
+	FieldFDName            = "fd.name"
+	FieldFDType            = "fd.type"
+
 	MHeaderKeyEventType                  = "etype"
 	MEventTypeHolmes    MessageEventType = "hd" // holmes runtime detection
 	MEventTypeDrift     MessageEventType = "dp" // drift prevention
@@ -89,6 +120,7 @@ type RuleFromYaml struct {
 	List                  string         `yaml:"list,omitempty"`
 	Items                 []string       `yaml:"items,omitempty"`
 	RequiredEngineVersion int            `yaml:"required_engine_version,omitempty"`
+	Source                string         `yaml:"source,omitempty"`
 }
 
 func (r *RuleFromYaml) Enabled() bool {

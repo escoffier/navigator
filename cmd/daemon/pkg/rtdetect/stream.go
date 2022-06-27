@@ -8,7 +8,7 @@ import (
 
 	"github.com/falcosecurity/client-go/pkg/api/outputs"
 	"github.com/falcosecurity/client-go/pkg/client"
-	"gitlab.com/piccolo_su/vegeta/pkg/rtdetect"
+	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/security-rd/go-pkg/logging"
 	"google.golang.org/grpc"
 )
@@ -91,7 +91,7 @@ func (s *RuntimeEventStream) callback(res *outputs.Response) error {
 		clusterKey: ckey,
 	}
 	// filter out safenode image detections
-	if podName, exist := res.OutputFields[rtdetect.FieldK8sPodName]; exist && strings.Contains(podName, "safenode-image") {
+	if podName, exist := res.OutputFields[model.FieldK8sPodName]; exist && strings.Contains(podName, "safenode-image") {
 		return nil
 	}
 
