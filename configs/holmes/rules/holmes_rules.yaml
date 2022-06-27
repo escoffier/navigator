@@ -3995,7 +3995,8 @@
     '"sh -c  -t -i"',
     '"sh -c openssl version"',
     '"bash -c id -Gn kafadmin"',
-    '"sh -c /bin/sh -c ''date +%%s''"'
+    '"sh -c /bin/sh -c ''date +%%s''"',
+    '"sh -c /usr/share/lighttpd/create-mime.conf.pl"'
     ]
 
 # This list allows for easy additions to the set of commands allowed
@@ -4269,15 +4270,15 @@
 - macro: modify_shell_history
   condition: >
     (modify and (
-      evt.arg.name contains "bash_history" or
+      evt.arg.name endswith "ash_history" or
       evt.arg.name endswith "zsh_history" or
       evt.arg.name contains "fish_read_history" or
       evt.arg.name endswith "fish_history" or
-      evt.arg.oldpath contains "bash_history" or
+      evt.arg.oldpath endswith "ash_history" or
       evt.arg.oldpath endswith "zsh_history" or
       evt.arg.oldpath contains "fish_read_history" or
       evt.arg.oldpath endswith "fish_history" or
-      evt.arg.path contains "bash_history" or
+      evt.arg.path endswith "ash_history" or
       evt.arg.path endswith "zsh_history" or
       evt.arg.path contains "fish_read_history" or
       evt.arg.path endswith "fish_history"))
@@ -4285,7 +4286,7 @@
 - macro: truncate_shell_history
   condition: >
     (open_write and (
-      fd.name contains "bash_history" or
+      fd.name endswith "ash_history" or
       fd.name endswith "zsh_history" or
       fd.name contains "fish_read_history" or
       fd.name endswith "fish_history") and evt.arg.flags contains "O_TRUNC")
@@ -4417,7 +4418,7 @@
   condition: (fd.sport in (miner_ports) and fd.sip.name in (miner_domains))
 
 - macro: net_miner_pool
-  condition: (evt.type in (sendto, sendmsg) and evt.dir=< and (fd.net != "127.0.0.0/8" and not fd.snet in (rfc_1918_addresses)) and ((minerpool_http) or (minerpool_https) or (minerpool_other)))
+  condition: (evt.type in (sendto, sendmsg, connect) and evt.dir=< and (fd.net != "127.0.0.0/8" and not fd.snet in (rfc_1918_addresses)) and ((minerpool_http) or (minerpool_https) or (minerpool_other)))
 
 - macro: trusted_images_query_miner_domain_dns
   condition: (container.image.repository in (docker.io/falcosecurity/falco, falcosecurity/falco))
