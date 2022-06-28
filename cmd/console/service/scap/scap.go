@@ -2,16 +2,25 @@ package scap
 
 import (
 	"context"
+	"fmt"
+	"os"
 	"runtime"
+	"runtime/debug"
+	"time"
 
 	"github.com/go-redis/redis/v8"
 	"github.com/pkg/errors"
 	"github.com/robfig/cron/v3"
 	"gitlab.com/security-rd/go-pkg/databases"
 	"gitlab.com/security-rd/go-pkg/logging"
+	"golang.org/x/sync/errgroup"
 	"gorm.io/gorm"
+	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 
+	"gitlab.com/piccolo_su/vegeta/cmd/console/service/assets"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/scapper"
+	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 )
 
@@ -37,6 +46,9 @@ func NewService(rdb *databases.RDBInstance, redisClient *redis.Client) *Service 
 	s := &Service{rdb: rdb, cronServer: cronServer, scap: scap, redisClient: redisClient}
 	s.initCron()
 	cronServer.Start()
+
+	go s.StateSyncDaemon() // 这里启动一个goroutine用作合规的job状态同步
+
 	return s
 }
 
@@ -98,4 +110,272 @@ func (s *Service) Do(ctx context.Context, job *Job, clusters []model.ScapCluster
 	}
 
 	return nil
+}
+
+// StateSyncDaemon 用于同步扫描任务的的状态
+// 通过一个循环，获取到所有 运行中 的任务，查看它们的启动时间和与当前时间的间隔是否大于过期时间
+// 大于过期时间的话，说明次任务已经过期，则把任务修改为完成，并且把未完成的子任务改为失败，然后通过标签删除所有的job
+func (s *Service) StateSyncDaemon() {
+
+	logging.
+		Get().
+		Info().
+		Msg("scap StateSyncDaemon, scap StateSyncDaemon start")
+
+	var timeout = time.Hour
+
+	if t := os.Getenv("SCAP_JOB_TIMEOUT"); t != "" {
+		var err error
+		timeout, err = time.ParseDuration(t)
+		if err != nil {
+			logging.
+				Get().
+				Warn().
+				Str("func", "scap StateSyncDaemon").
+				Msgf("environment variable `SCAP_JOB_TIMEOUT` is %q, it not a valid Duration value. Use default value: 1h.", t)
+		}
+	} else {
+		logging.
+			Get().
+			Info().
+			Str("func", "scap StateSyncDaemon").
+			Msgf("environment variable `SCAP_JOB_TIMEOUT` not be set. Use default value: 1h.", t)
+	}
+
+	interval := 30 * time.Second
+	if t := os.Getenv("SCAP_JOB_INTERVAL"); t != "" {
+		var err error
+		interval, err = time.ParseDuration(t)
+		if err != nil {
+			logging.
+				Get().
+				Warn().
+				Str("func", "scap StateSyncDaemon").
+				Msgf("environment variable `SCAP_JOB_INTERVAL` is %q, it not a valid Duration value. Use default value: 30s.", t)
+		}
+	} else {
+		logging.
+			Get().
+			Info().
+			Str("func", "scap StateSyncDaemon").
+			Msgf("environment variable `SCAP_JOB_INTERVAL` not be set. Use default value: 30s.", t)
+	}
+
+	logging.
+		Get().
+		Info().
+		Str("func", "scap StateSyncDaemon").
+		Msgf("scap job timeout: %v. interval: %v", timeout, interval)
+
+	if timeout < 0 || interval < 0 {
+		panic("timeout or interval must be positive duration")
+	}
+
+	ticker := time.NewTicker(interval)
+	for range ticker.C {
+		go func() {
+			defer func() {
+				if e := recover(); e != nil {
+					logging.Get().Error().Msgf("scap StateSyncDaemon, run err: %v, panic: \n%s", e, debug.Stack())
+				}
+			}()
+
+			// 执行同步逻辑
+			ctx, cancel := context.WithTimeout(context.Background(), interval)
+			defer cancel()
+
+			histories, err := s.getInProgressJobs(ctx)
+			if err != nil {
+				logging.Get().
+					Err(err).
+					Str("func", "scap StateSyncDaemon").
+					Msg("get in progress jobs error")
+			}
+
+			eg, newCtx := errgroup.WithContext(ctx)
+			for _, v := range histories {
+				his := v
+
+				eg.Go(func() (err error) {
+
+					defer func() {
+						if e := recover(); e != nil {
+							err = fmt.Errorf("handle scap inprogress job panic: \n%s", debug.Stack())
+						}
+					}()
+
+					// 检查是否过期
+					if time.Now().Truncate(timeout).Unix() <= his.CreatedAt {
+						return nil
+					}
+
+					// 删除对应k8s子任务
+					err = s.deleteK8sJobsByLabels(newCtx, his)
+					if err != nil {
+						logging.Get().
+							Err(err).
+							Str("func", "scap StateSyncDaemon").
+							Str("check task id", his.TaskID).
+							Msg("delete k8s jobs failed")
+						return err
+					}
+
+					// 将子任务设置为失败，并设置失败原因为超时
+					err = s.updateSubJobToFailed(ctx, his.TaskID)
+					if err != nil {
+						logging.Get().
+							Err(err).
+							Str("func", "scap StateSyncDaemon").
+							Str("check task id", his.TaskID).
+							Msg("update sub job to fail failed")
+						return err
+					}
+
+					// 将主任务设置为 完成
+					err = s.updateJobToSuccess(ctx, his.TaskID)
+					if err != nil {
+						logging.Get().
+							Err(err).
+							Str("func", "scap StateSyncDaemon").
+							Str("check task id", his.TaskID).
+							Msg("update job to success failed")
+						return err
+					}
+
+					return nil
+				})
+			}
+
+			err = eg.Wait()
+
+			if err != nil {
+				logging.Get().
+					Err(err).
+					Str("func", "scap StateSyncDaemon").
+					Msg("handle scap histories error")
+			}
+		}()
+	}
+
+}
+
+// 获取正在执行的jobs
+func (s *Service) getInProgressJobs(ctx context.Context) ([]*model.ScanHistory, error) {
+	var histories []*model.ScanHistory
+	err := s.rdb.
+		Get().
+		Model(&model.ScanHistory{}).
+		WithContext(ctx).
+		Where("state = ?", model.ScanStateInProgress).
+		Find(&histories).
+		Error
+
+	return histories, err
+}
+
+// 通过label删除对应的k8s jobs
+func (s *Service) deleteK8sJobsByLabels(ctx context.Context, his *model.ScanHistory) error {
+	//get namespaces
+	resSvc, ok := assets.GetResourcesService(ctx)
+	if !ok {
+		return errors.New("get resources service error")
+	}
+
+	cluster := resSvc.GetClusterByKey(ctx, his.ClusterKey)
+	if len(cluster.WorkerNamespace) == 0 {
+		return errors.New("error namespace, it's empty")
+	}
+
+	clusterManager, ok := k8s.GetClusterManager()
+	if !ok {
+		return errors.New("get cluster falied")
+	}
+
+	// get client
+	k8sClient, ok := clusterManager.GetClient(his.ClusterKey)
+	if !ok {
+		return errors.New("get k8s client error")
+	}
+
+	// labels
+	labelSet := labels.SelectorFromSet(labels.Set{"CHECK_ID": his.TaskID})
+	// delete these jobs which with label
+	err := k8sClient.BatchV1().
+		Jobs(cluster.WorkerNamespace).
+		DeleteCollection(
+			ctx,
+			v1.DeleteOptions{},
+			v1.ListOptions{LabelSelector: labelSet.String()},
+		)
+
+	return err
+}
+
+// 将job更新为完成
+func (s *Service) updateJobToSuccess(ctx context.Context, taskId string) error {
+	// 获取到成功与失败的个数
+
+	type count struct {
+		State model.ScanState `gorm:"column:state"`
+		Count int32           `gorm:"column:count"`
+	}
+
+	var counts []count
+	err := s.rdb.Get().
+		WithContext(ctx).
+		Select([]string{"state", "COUNT(*) count"}).
+		Model(&model.ScanNodeRecord{}).
+		Where("task_id = ?", taskId).
+		Group("state").
+		Find(&counts).
+		Error
+
+	if err != nil {
+		return errors.WithMessage(err, "get count error")
+	}
+
+	updates := map[string]interface{}{"state": model.ScanStateCompleted, "finished_at": time.Now().Unix()}
+	for _, v := range counts {
+		switch v.State {
+		case model.ScanStateCompleted:
+			updates["suc_node"] = v.Count
+		case model.ScanStateFailed:
+			updates["fail_node"] = v.Count
+		}
+	}
+
+	err = s.rdb.
+		Get().
+		WithContext(ctx).
+		Model(&model.ScanHistory{}).
+		Where("task_id = ?", taskId).
+		Where("state = ?", model.ScanStateInProgress).
+		Updates(updates).
+		Error
+
+	if err != nil {
+		return errors.WithMessage(err, "update history state failed")
+	}
+
+	return nil
+}
+
+// 将子任务更新为失败
+func (s *Service) updateSubJobToFailed(ctx context.Context, taskId string) error {
+	err := s.rdb.
+		Get().
+		Model(&model.ScanNodeRecord{}).
+		WithContext(ctx).
+		Where("task_id = ?", taskId).
+		Where("state = ?", model.ScanStateInProgress).
+		Updates(
+			map[string]interface{}{
+				"state":       model.ScanStateFailed,
+				"finished_at": time.Now().Unix(),
+				"message":     "timeout",
+			},
+		).
+		Error
+
+	return err
 }

@@ -274,18 +274,23 @@ func (s *ScapService) GetCheckHistory(ctx context.Context, offset, limit int64, 
 		data.CreatedAt = value.CreatedAt
 		data.FinishedAt = value.FinishedAt
 		data.PolicyId = value.PolicyID
+		data.NumSuccessful = int64(value.SucNode)
+		//data.NumFailed = value.FailNode
 		//check finish state
 		if value.State == model.ScanStateInProgress {
-			err = s.SynScanState(&data)
-			if err != nil {
-				logging.Get().Error().Msgf("syn scan history failed, %v.", err)
-			}
+			// ！！！！这里把通过k8s同步的逻辑删除调 @liuyang @lingximo
 
-			if data.FinishedAt != 0 {
-				data.State = 2
-			} else {
-				data.State = 1
-			}
+			//err = s.SynScanState(&data)
+			//if err != nil {
+			//	logging.Get().Error().Msgf("syn scan history failed, %v.", err)
+			//}
+			//
+			//if data.FinishedAt != 0 {
+			//	data.State = 2
+			//} else {
+			//	data.State = 1
+			//}
+			data.State = 1
 		} else if value.State == model.ScanStateCompleted {
 			data.State = 2
 		} else {
@@ -981,16 +986,9 @@ func (s *ScapService) AddScapScanResults(ctx context.Context, rs []*model.ScanRe
 
 	err := s.rdb.Get().WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 
-		for i := 0; i < len(rs); i += 100 {
-			end := i + 100
-			if end > len(rs) {
-				end = len(rs)
-			}
-
-			err := tx.Model(&model.ScanResult{}).CreateInBatches(rs[i:end], 100).Error
-			if err != nil {
-				return err
-			}
+		err := tx.Model(&model.ScanResult{}).CreateInBatches(rs, 100).Error
+		if err != nil {
+			return err
 		}
 
 		// 因为kube的还要接受 auto_variate 数据，所以在 auto_variate 那里设置状态为成功。
@@ -1000,9 +998,10 @@ func (s *ScapService) AddScapScanResults(ctx context.Context, rs []*model.ScanRe
 		}
 
 		// 收到扫描结果将对应任务设置为完成
-		err := tx.
+		err = tx.
 			Model(scanRecord).
 			Select("state", "finished_at", "message").
+			Where("state = ?", model.ScanStateInProgress).
 			Where("node_name = ? and task_id = ?", nodeName, taskId).
 			Updates(scanRecord).
 			Error
