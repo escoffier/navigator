@@ -1373,6 +1373,24 @@
   priority: ALERT
   tags: [ATT&CK, filesystem, mitre_privilege_escalation]
 
+- rule: Linux Cgroup Container Escape Vulnerability (CVE-2022-0492)
+  hid: priv_20
+  hthreats: 1
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands."
+    zh:
+      key: "处置建议"
+      value: "使用免疫防御训练应用，限制敏感文件和命令的用户权限。"
+  desc: "Detect an attempt to exploit a container escape vulnerability in the Linux Kernel (CVE-2022-0492). By running a container with certains capabilities, a privileged user can modify release_agent file and escape from the container"
+  condition: >
+    open_write and fd.name endswith release_agent and (user.uid=0 or thread.cap_permitted contains CAP_DAC_OVERRIDE) and excessively_capable_container
+  output: >
+    Linux Cgroup Container Escape Vulnerability(zh_msg=CVE-2022-0492:Linux_Cgroup容器逃逸漏洞,rule_type=Privilege_Escalation,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type, container=%container.info,evt.args=%evt.args)  
+  priority: ALERT
+  tags: [ATT&CK, filesystem, mitre_privilege_escalation]
+
 ##attck_rule_type=Defense_Evasion
 - rule: Clear Log Activities
   hid: def_01
