@@ -117,6 +117,7 @@ const MaxVulnTopNImage = 20
 const DefaultBathSize = 500 // 批量取数据时，默认每次取的条数
 const DefaultLimit = 200
 const DefaultOffset = 0
+const DefaultCreateInBatches = 50
 
 const (
 	SortByDesc = "desc"

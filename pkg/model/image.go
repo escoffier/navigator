@@ -256,9 +256,10 @@ type ImageList struct {
 	PrivilegedBoot int64  `gorm:"privileged_boot" json:"privileged_boot"`
 	IsReinforce    int    `gorm:"is_reinforce" json:"is_reinforce"`
 
-	CheckSum    uint64 `gorm:"column:check_sum" json:"check_sum,string"`       // 这一行数据的check值，且于判断这一行数据是否有变动，如果没有变动，就不再更新
-	UniqueImage uint64 `gorm:"column:unique_image" json:"unique_image,string"` // 由fullreponame+tags+registryId+fromType生成uuid，唯一确定一定镜像，优化查询
-	Flag        uint64 `gorm:"column:flag" json:"flag:string"`
+	CheckSum       uint64 `gorm:"column:check_sum" json:"check_sum,string"`       // 这一行数据的check值，且于判断这一行数据是否有变动，如果没有变动，就不再更新
+	UniqueImage    uint64 `gorm:"column:unique_image" json:"unique_image,string"` // 由fullreponame+tags+registryId+fromType生成uuid，唯一确定一定镜像，优化查询
+	Flag           uint64 `gorm:"column:flag" json:"flag:string"`
+	LastFullSyncAt int64  `gorm:"column:last_full_sync_at" json:"last_full_sync_at"`
 }
 
 func SetFlagBaseImage(pre uint64) uint64 {
@@ -352,7 +353,7 @@ func (im *ImageList) Serialize() {
 	}
 }
 
-func (im *ImageList) Deserialize() {
+func (im *ImageList) Deserialize(parseNodeImage bool) {
 	if len(im.ManifestV1JSON) > 0 {
 		ll := new(ManifestV1)
 		err := json.Unmarshal(im.ManifestV1JSON, ll)
@@ -383,13 +384,14 @@ func (im *ImageList) Deserialize() {
 		}
 	}
 	// 对于节点镜像的数据规整
-	if im.FromType == NodeBuffRegistry {
-		split := strings.Split(im.FullRepoName, "/")
-		// 节点镜像上传的tag:	NodeSafeTage="%s/" + NodeSafeSalt + "/%s/%s/%s/%s" // 仓库地址/tensorsec/hostname/ip/os/library/镜像名
-		// tensorsecurity/tensorsec-safe-node-image-v2x54/10.65.72.54/linux/registry.t-appagile.com/google_containers/coredns
-		if len(split) >= NodeImageSplitCount {
-			im.FullRepoName = strings.Join(split[5:], "/")
-		}
+	if !parseNodeImage {
+		return
+	}
+	split := strings.Split(im.FullRepoName, "/")
+	// NodeSafeTage     = "%s/" + NodeSafeSalt + "/%s/%s/%s/%s/%s" // 仓库地址/nodemirroringsalt/clusterKey/namespace/podName/os/镜像名
+	// consts.NodeSafeSalt/tensorsec-safe-node-image-v2x54/10.65.72.54/linux/registry.t-appagile.com/google_containers/coredns
+	if len(split) > NodeImageSplitCount && split[0] == consts.NodeSafeSalt {
+		im.FullRepoName = strings.Join(split[NodeImageSplitCount:], "/")
 	}
 }
 
@@ -407,16 +409,17 @@ func (im *ImageList) GenImageCheckSum() uint64 {
 		return im.CheckSum
 	}
 	im.Serialize()
-	im.Deserialize()
-	createdAt, updatedAt, preCheck := im.CreatedAt, im.UpdatedAt, im.CheckSum
+	im.Deserialize(false)
+	createdAt, updatedAt, preCheck, last := im.CreatedAt, im.UpdatedAt, im.CheckSum, im.LastFullSyncAt
 	im.CreatedAt = time.Time{}
 	im.UpdatedAt = time.Time{}
 	im.CheckSum = 0
 	im.OnLineCount = 0
 	im.Status = 0
+	im.LastFullSyncAt = 0
 
 	bys, err := json.Marshal(im)
-	im.CreatedAt, im.UpdatedAt, im.CheckSum = createdAt, updatedAt, preCheck
+	im.CreatedAt, im.UpdatedAt, im.CheckSum, im.LastFullSyncAt = createdAt, updatedAt, preCheck, last
 	if err != nil {
 		return 0
 	}
@@ -429,7 +432,7 @@ func (im *ImageList) GetLayerString() string {
 	}
 
 	lays := make([]string, 0)
-	im.Deserialize()
+	im.Deserialize(false)
 
 	// 先看v2
 	if im.ManifestV2 != nil {

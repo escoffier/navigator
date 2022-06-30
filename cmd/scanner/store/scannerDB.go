@@ -181,6 +181,19 @@ func (scdb *ScannerDB) InsertToScanLayer(ctx context.Context, data *model.ScanLa
 	return scdb.RDB.Get().WithContext(ctx).Create(&data).Error
 }
 
+func (scdb *ScannerDB) DeleteScanLayer(ctx context.Context, imageIds []int64) error {
+	if len(imageIds) == 0 {
+		return nil
+	}
+
+	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*1)
+	defer cancelFunc()
+
+	db := scdb.RDB.Get().WithContext(ctx).Model(&model.ScanLayer{}).Where("image_id IN ?", imageIds)
+
+	return db.Delete(&model.ScanLayer{}).Error
+}
+
 func (scdb *ScannerDB) FindRegistryFromURL(ctx context.Context, url string) model.Registry {
 	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*1)
 	defer cancelFunc()

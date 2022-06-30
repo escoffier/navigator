@@ -16,6 +16,7 @@ const (
 	TimingFullSync SyncType = "TimingFullSync"
 	CycleFullSync  SyncType = "CycleFullSync"
 	CycleIncSync   SyncType = "CycleIncSync"
+	RetryIncSync   SyncType = "RetryIncSync"
 	ManualSync     SyncType = "ManualSync"
 )
 const (

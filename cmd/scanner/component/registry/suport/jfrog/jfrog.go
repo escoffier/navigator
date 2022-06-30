@@ -198,6 +198,7 @@ func (c *Jfrog) ListImages(ctx context.Context, extender registry.Extender, req 
 	// get all repos
 	repos, err := c.ListRepos("docker") // 暂时只查docker的repo
 	if err != nil {
+		res.HasErr = true
 		logging.GetLogger().Err(err).Msg("jfrog listRepos")
 		return nil, err
 	}
@@ -206,12 +207,14 @@ func (c *Jfrog) ListImages(ctx context.Context, extender registry.Extender, req 
 	for _, repo := range repos {
 		imgNames, err := c.ListRepoImags(repo.Key)
 		if err != nil {
+			res.HasErr = true
 			logging.GetLogger().Err(err).Msgf("jfrog ListRepoImags:%s", repo.Key)
 			continue
 		}
 		for i := range imgNames {
 			tags, err := c.ListImagTags(repo.Key, imgNames[i])
 			if err != nil {
+				res.HasErr = true
 				logging.GetLogger().Err(err).Msgf("jfrog listImagTags:%s/%s", repo.Key, imgNames[i])
 				continue
 			}
@@ -220,12 +223,14 @@ func (c *Jfrog) ListImages(ctx context.Context, extender registry.Extender, req 
 				// 拉manifest
 				manifest, err := c.PullImageManifest(repo.Key, imgNames[i], tags[j])
 				if err != nil {
+					res.HasErr = true
 					logging.GetLogger().Err(err).Msgf("jfrog PullImageManifest:%s/%s:%s", repo.Key, imgNames[i], tags[j])
 					continue
 				}
 
 				manifestByte, err := manifest.MarshalJSON()
 				if err != nil {
+					res.HasErr = true
 					logging.GetLogger().Err(err).Msgf("jfrog MarshalJSON:%s/%s:%s", repo.Key, imgNames[i], tags[j])
 					continue
 				}
@@ -233,6 +238,7 @@ func (c *Jfrog) ListImages(ctx context.Context, extender registry.Extender, req 
 				// 解析imageDigest
 				imageDigest, err := ManifestV2Digest(manifest)
 				if err != nil {
+					res.HasErr = true
 					logging.GetLogger().Err(err).Msgf("jfrog ManifestV2Digest:%s/%s:%s", repo.Key, imgNames[i], tags[j])
 					continue
 				}
@@ -240,6 +246,7 @@ func (c *Jfrog) ListImages(ctx context.Context, extender registry.Extender, req 
 				configDigest := manifest.Config.Digest
 				configBlob, err := c.PullConfigBlob(repo.Key+"/"+imgNames[i], configDigest)
 				if err != nil {
+					res.HasErr = true
 					logging.GetLogger().Err(err).Msgf("jfrog PullConfigBlob:%s/%s:%s", repo.Key, imgNames[i], tags[j])
 					continue
 				}
@@ -256,6 +263,7 @@ func (c *Jfrog) ListImages(ctx context.Context, extender registry.Extender, req 
 
 				im, err := extender.CreateImageExtender(ctx, img)
 				if err != nil {
+					res.HasErr = true
 					logging.GetLogger().Err(err).Msg("jfrog Insert imagelist")
 					continue
 				}

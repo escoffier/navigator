@@ -1197,7 +1197,7 @@ func (s *ConScannerSrv) GetScanOneStatus(ctx context.Context, imgID int64, fromU
 	onlineSQL := fmt.Sprintf("select distinct a.id  from  %s a  join %s b  on  a.image_uuid = b.image_uuid where a.id = %d ;", model.ImageList{}.TableName(), model.TensorContainer{}.TableName(), imgID)
 	online, err := s.dbdal.GetOnlineImage(ctx, store.GetOnlineImageParam{SQL: onlineSQL})
 	if err != nil {
-		logging.GetLogger().Err(err).Msg("SearchImageWithScan.SearchQuestionInfo")
+		logging.GetLogger().Err(err).Msg("SearchImageWithScan.GetOnlineImage")
 		return nil, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf(consts.StatusInternalServerErrorMsg))
 	}
 
@@ -1208,7 +1208,7 @@ func (s *ConScannerSrv) GetScanOneStatus(ctx context.Context, imgID int64, fromU
 	// 可信镜像的筛选
 	trustedImages, err := s.dbdal.SearchTrustedImageIDs(ctx, store.SearchTrustedImageParam{IsTrusted: consts.IsTrustedImageString, Digests: []string{imgs[0].Digest}})
 	if err != nil {
-		logging.GetLogger().Err(err).Msg("SearchImageWithScan.SearchQuestionInfo")
+		logging.GetLogger().Err(err).Msg("SearchImageWithScan.SearchTrustedImageIDs")
 		return nil, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf(consts.StatusInternalServerErrorMsg))
 	}
 	if len(trustedImages) > 0 {
@@ -1295,7 +1295,7 @@ func (s *ConScannerSrv) GetImageDetail(ctx context.Context, imgID int64) (*model
 	}
 	if len(imgs) == 0 {
 		logging.GetLogger().Err(err).Msg("GetImageDetail.not find the image")
-		return nil, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf("not find the image"))
+		return nil, response.NewHttpError(http.StatusGone, fmt.Errorf("镜像已删除"))
 	}
 
 	rr, _, err := s.registryDal.SearchRegistry(ctx, store.SearchRegistryParam{RegistryIds: []int64{imgs[0].RegistryID}}, nil)
@@ -1573,21 +1573,20 @@ func (s *ConScannerSrv) SearchImageWithScan(ctx context.Context, param SearchIma
 	}
 
 	daoParam := store.SearchImageParam{
-		Projects:         param.Projects,
-		RegistryIds:      registryIds,
-		FromType:         param.FromType,
-		ImageType:        param.ImageType,
-		Search:           param.SearchWord,
-		NodeHostname:     param.NodeHostname,
-		SpecialImageType: param.SpecialImageType,
-		OmitFields:       []string{"config_json", "manifest_v1_json", "manifest_v2_json"},
-		UUIDs:            param.UUIDs,
+		Projects:     param.Projects,
+		RegistryIds:  registryIds,
+		FromType:     param.FromType,
+		ImageType:    param.ImageType,
+		Search:       param.SearchWord,
+		NodeHostname: param.NodeHostname,
+		OmitFields:   []string{"config_json", "manifest_v1_json", "manifest_v2_json"},
+		UUIDs:        param.UUIDs,
 	}
 	// 查在线
 	onlineSQL := fmt.Sprintf("select distinct a.id  from  %s a  join %s b  on  a.image_uuid = b.image_uuid ;", model.ImageList{}.TableName(), model.TensorContainer{}.TableName())
 	online, err := s.dbdal.GetOnlineImage(ctx, store.GetOnlineImageParam{SQL: onlineSQL})
 	if err != nil {
-		logging.GetLogger().Err(err).Msg("SearchImageWithScan.SearchQuestionInfo")
+		logging.GetLogger().Err(err).Msg("SearchImageWithScan.GetOnlineImage")
 		return nil, 0, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf(consts.StatusInternalServerErrorMsg))
 	}
 	onlineIds := make([]int64, 0)
@@ -2966,6 +2965,7 @@ func (s *ConScannerSrv) GetScanSubTaskList(ctx context.Context, taskID int64, st
 	}
 	// 把错误的枚举信息加上
 	for i := range data {
+		data[i].Deserialize()
 		if data[i].ErrNo > 0 {
 			data[i].ErrMsgEnu = consts.GetErrMsgEnu(data[i].ErrNo)
 		}

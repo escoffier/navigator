@@ -74,6 +74,7 @@ func (aa *AliAcr) ListImages(ctx context.Context, extender registry.Extender, re
 		// get repo details
 		repos, err := aa.listReposByNamespace(aa.Config.Region, ns, aa.AliAcrClient)
 		if err != nil {
+			res.HasErr = true
 			logging.Get().Err(err).Msg("list repo details err")
 			continue
 		}
@@ -81,6 +82,7 @@ func (aa *AliAcr) ListImages(ctx context.Context, extender registry.Extender, re
 		for _, repo := range repos {
 			tags, err := aa.getTags(repo, aa.AliAcrClient)
 			if err != nil {
+				res.HasErr = true
 				logging.Get().Err(err).Msg("list repo tag err")
 				continue
 			}
@@ -90,17 +92,20 @@ func (aa *AliAcr) ListImages(ctx context.Context, extender registry.Extender, re
 
 				manifestV2, err := aa.PullImageManifestV2(fullRepoName, tag)
 				if err != nil {
+					res.HasErr = true
 					logging.Get().Err(err).Msgf("get manifest digest err, repo %s ,digest %s", fullRepoName, tag)
 					continue
 				}
 				// pull config json
 				imageDigest, err := ManifestV2Digest(manifestV2)
 				if err != nil {
+					res.HasErr = true
 					logging.Get().Err(err).Msgf("get manifest digest err, repo %s ,digest %s", fullRepoName, tag)
 					continue
 				}
 				manifestV2Str, err := manifestV2.MarshalJSON()
 				if err != nil {
+					res.HasErr = true
 					logging.Get().Err(err).Msgf("get manifest string err, repo %s ,tag %s", fullRepoName, tag)
 					continue
 				}
@@ -109,6 +114,7 @@ func (aa *AliAcr) ListImages(ctx context.Context, extender registry.Extender, re
 				configDigest := manifestV2.Config.Digest
 				configBlob, err := aa.PullConfigBlob(fullRepoName, configDigest)
 				if err != nil {
+					res.HasErr = true
 					logging.Get().Err(err).Msgf("get config blob err, repo %s ,tag %s", fullRepoName, tag)
 					continue
 				}
@@ -126,6 +132,7 @@ func (aa *AliAcr) ListImages(ctx context.Context, extender registry.Extender, re
 
 				im, err := extender.CreateImageExtender(ctx, preImage)
 				if err != nil {
+					res.HasErr = true
 					if err != consts.ErrNotNodeImage {
 						logging.Get().Err(err).Msgf("ali acr Insert imagelist error")
 					}

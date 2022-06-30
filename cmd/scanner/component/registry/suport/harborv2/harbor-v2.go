@@ -315,7 +315,7 @@ func (h *HarborV2) ImageRetry(ctx context.Context, extender registry.Extender, r
 			}
 		}
 
-		i := h.makeImage(repo, a, nowTag, manifestV1, manifestV2, configBlob)
+		i := h.makeImage(image.FullRepoName, a, nowTag, manifestV1, manifestV2, configBlob)
 
 		// do some extend stuff
 		im, err := extender.CreateImageExtender(ctx, i)
@@ -448,6 +448,7 @@ func (h *HarborV2) ListImages(ctx context.Context, extender registry.Extender, r
 	for _, v := range projects {
 		repos, err := h.ListProjectRepos(v.Name)
 		if err != nil {
+			res.HasErr = true
 			// just log and try next project
 			logging.GetLogger().Err(err).Msgf("ListImages project %s get repo err,try next project.", v.Name)
 			continue
@@ -466,6 +467,7 @@ func (h *HarborV2) ListImages(ctx context.Context, extender registry.Extender, r
 			project := r.Name[:index]
 			artifacts, err := h.ListRepoArtifacts(v.Name, repoName)
 			if err != nil {
+				res.HasErr = true
 				logging.GetLogger().Err(err).Msgf("ListImages repo %s get artifacts err,try next repo.", r.Name)
 				continue
 			}
@@ -479,6 +481,7 @@ func (h *HarborV2) ListImages(ctx context.Context, extender registry.Extender, r
 
 				manifestV1, manifestV2, configBlob, err := h.GetManifest(project+"/"+repoName, a)
 				if err != nil {
+					res.HasErr = true
 					for _, tag := range a.Tags {
 						retryImage.Tag = tag.Name
 						retryImage.Message = err.Error()
@@ -498,6 +501,7 @@ func (h *HarborV2) ListImages(ctx context.Context, extender registry.Extender, r
 					// do some extend stuff
 					im, err := extender.CreateImageExtender(ctx, i)
 					if err != nil {
+						res.HasErr = true
 						logging.GetLogger().Err(err).Msgf("ListImages HarborV2 Insert imagelist")
 						retryImage.Tag = t.Name
 						retryImage.Message = err.Error()

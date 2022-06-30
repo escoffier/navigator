@@ -111,6 +111,7 @@ func (h *HwSwr) ListImages(ctx context.Context, extender registry.Extender, req 
 		namespace := v.Name
 		repos, err := h.ListReposDetails(namespace)
 		if err != nil {
+			res.HasErr = true
 			logging.GetLogger().Err(err).Msg("list repo details err")
 			continue
 		}
@@ -119,6 +120,7 @@ func (h *HwSwr) ListImages(ctx context.Context, extender registry.Extender, req 
 			repoName := r.Name
 			tags, err := h.ListRepositoryTags(namespace, repoName)
 			if err != nil {
+				res.HasErr = true
 				logging.GetLogger().Err(err).Msg("list repo tag err")
 				continue
 			}
@@ -127,6 +129,7 @@ func (h *HwSwr) ListImages(ctx context.Context, extender registry.Extender, req 
 				// hw swr will return manifest
 				manifestV2 := &schema2.DeserializedManifest{}
 				if err := manifestV2.UnmarshalJSON([]byte(tag.Manifest)); err != nil {
+					res.HasErr = true
 					logging.GetLogger().Err(err).Msgf("unmarshal manifest err: %s", tag.Manifest)
 					continue
 				}
@@ -135,6 +138,7 @@ func (h *HwSwr) ListImages(ctx context.Context, extender registry.Extender, req 
 				imageName := fmt.Sprintf("%s/%s", namespace, repoName)
 				configBlob, err := h.PullConfigBlob(imageName, manifestV2.Config.Digest)
 				if err != nil {
+					res.HasErr = true
 					logging.GetLogger().Err(err).Msgf("pull image %s config json err", imageName)
 					continue
 				}
@@ -153,12 +157,14 @@ func (h *HwSwr) ListImages(ctx context.Context, extender registry.Extender, req 
 				}
 				tm1, err := time.Parse(time.RFC3339, tag.Created)
 				if err != nil {
+					res.HasErr = true
 					logging.GetLogger().Warn().Msgf("time parse warning:%v", err)
 				} else {
 					i.Created = tm1
 				}
 				tm2, err := time.Parse(time.RFC3339, tag.Updated)
 				if err != nil {
+					res.HasErr = true
 					logging.GetLogger().Warn().Msgf("time parse warning:%v", err)
 				} else {
 					i.LastPushTime = tm2
@@ -166,6 +172,7 @@ func (h *HwSwr) ListImages(ctx context.Context, extender registry.Extender, req 
 
 				im, err := extender.CreateImageExtender(ctx, *i)
 				if err != nil {
+					res.HasErr = true
 					logging.GetLogger().Err(err).Msg("ListImages.extender")
 					continue
 				}

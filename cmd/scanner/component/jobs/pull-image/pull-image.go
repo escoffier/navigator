@@ -27,6 +27,7 @@ type Config struct {
 	RepoName       string // image name,eg: library/nginx
 	Tag            string // tag,eg: latest
 	URL            string // registry url
+	ImageID        int64
 	Username       string
 	Password       string
 	Secure         bool
@@ -190,6 +191,7 @@ func newJob(config jobs.JobConfig) (jobs.Job, error) {
 	p.config.RepoName = config.Info.SubTask.Image.RepoName
 	p.config.Tag = config.Info.SubTask.Image.Tag
 	p.config.URL = config.Info.SubTask.Registry.Host
+	p.config.ImageID = config.Info.SubTask.Image.ID
 	p.config.Username = config.Info.SubTask.Registry.Username
 	p.config.Password = config.Info.SubTask.Registry.Password
 	p.config.Secure = config.Info.SubTask.Registry.Secure

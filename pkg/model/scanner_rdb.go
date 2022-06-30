@@ -11,12 +11,13 @@ import (
 
 	"github.com/gobwas/glob"
 	json "github.com/json-iterator/go"
+	"gorm.io/gorm"
+
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/vuln-updata/cnnvd"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/vuln-updata/cnvd"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
-	"gorm.io/gorm"
 )
 
 type VulnMatedata struct {
@@ -718,12 +719,18 @@ type SubTask struct {
 	HeartBeat  *time.Time `gorm:"heart_beat" json:"heart_beat"`
 	RetryCount int        `gorm:"column:retry_count" json:"retry_count"`
 
-	// 镜像的信息
-	ImageInfo struct {
-		FullRepoName string `gorm:"-" json:"full_repo_name"` // eg:library/redis,may not use,could fetch by image list table
-		Tag          string `gorm:"-" json:"tag"`            // eg:1.10, may not use
-		Library      string `gorm:"-" json:"library"`        // registry name
-	} `gorm:"-" json:"image_info"`
+	FullRepoName string `gorm:"column:full_repo_name" json:"full_repo_name"` // eg:library/redis,may not use,could fetch by image list table
+	Tag          string `gorm:"column:tag" json:"tag"`                       // eg:1.10, may not use
+	Library      string `gorm:"column:library" json:"library"`               // registry name
+}
+
+func (st *SubTask) Deserialize() {
+	split := strings.Split(st.FullRepoName, "/")
+	// 节点镜像上传的tag:	NodeSafeTage="%s/" + NodeSafeSalt + "/%s/%s/%s/%s" // 仓库地址/tensorsec/hostname/ip/os/library/镜像名
+	// tensorsecurity/tensorsec-safe-node-image-v2x54/10.65.72.54/linux/registry.t-appagile.com/google_containers/coredns
+	if len(split) >= NodeImageSplitCount && split[0] == consts.NodeSafeSalt {
+		st.FullRepoName = strings.Join(split[5:], "/")
+	}
 }
 
 func (SubTask) TableName() string {

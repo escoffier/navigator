@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"sort"
-	"strings"
 	"time"
 
 	"github.com/pkg/errors"
@@ -24,14 +23,14 @@ import (
 
 type ScannerDalInterface interface {
 	SearchImage(ctx context.Context, param SearchImageParam, filter *model.Filter) ([]model.ImageList, int64, error)
-	DeleteImage(ctx context.Context, param DeleteImageParam) error
+	DeleteImage(ctx context.Context, imageIds []int64) error
 	UpdateImage(ctx context.Context, where string, updater map[string]interface{}, image *model.ImageList) error
 	CreateImage(ctx context.Context, data *model.ImageList) (*model.ImageList, error)
 	CreateImageAndUpdate(ctx context.Context, im *model.ImageList) (*model.ImageList, error)
 
 	SearchScanLayer(ctx context.Context, param SearchScanLayerParam, filter *model.Filter) ([]*model.ScanLayer, int64, error)
 	SearchScanImage(ctx context.Context, param SearchScanImageParam, filter *model.Filter) ([]model.ScanImage, int64, error)
-	DeleteScanImage(ctx context.Context, param DeleteScanImageParam) error
+	DeleteScanImage(ctx context.Context, imageIds []int64) error
 
 	InsertScanImage(ctx context.Context, sis []model.ScanImage) (int64, error)
 	InsertAdapterImageList(ctx context.Context, im model.ImageList) (int64, error)
@@ -94,7 +93,7 @@ type ScanTaskInterface interface {
 	AddSubTasksRetryCount(ctx context.Context, ids []int64) error
 	GetTasks(ctx context.Context, param SearchTaskParam, filter *model.Filter) ([]model.Task, int64, error)
 	GetTotalTaskNum(ctx context.Context) (int64, error)
-	GetImageInfo(ctx context.Context, imgID int64) (*model.ImageList, error)
+	// GetImageInfo(ctx context.Context, imgID int64) (*model.ImageList, error)
 	GetRegistryInfo(ctx context.Context, ID int64) (*model.Registry, error)
 
 	AddTaskAndSubTask(ctx context.Context, task model.Task, subtask []model.SubTask) (int64, error)
@@ -247,43 +246,6 @@ func NewScannerOrm(sql *databases.RDBInstance) *ScannerOrm {
 	}
 }
 
-func (s *ScannerOrm) GetImage(ctx context.Context, param GetImageParam) (*model.ImageList, error) {
-	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*3)
-	defer cancelFunc()
-	db := s.rdb.Get().Model(new(model.ImageList)).WithContext(ctx)
-	// 默认查询没有删除的,如果不传就是0
-	db = db.Where("status = ? ", param.Status)
-	if param.Digest != "" {
-		db = db.Where("digest = ? ", param.Digest)
-	}
-	if param.ID > 0 {
-		db = db.Where("id = ?", param.ID)
-	}
-	if param.Library != "" {
-		db = db.Where("library = ? ", param.Library)
-	}
-	if param.FullRepoName != "" {
-		db = db.Where("full_repo_name = ? ", param.FullRepoName)
-	}
-	if param.Tag != "" {
-		db = db.Where("tags = ?", param.Tag)
-	}
-	if param.FromType > 0 {
-		db = db.Where("from_type = ? ", param.FromType)
-	}
-	if param.NotFromType > 0 {
-		db = db.Where("from_type != ?", param.NotFromType)
-	}
-
-	res := new(model.ImageList)
-	if err := db.First(&res).Error; err != nil {
-		return nil, err
-	}
-	// serialize
-	res.Deserialize()
-	return res, nil
-}
-
 func (s *ScannerOrm) UpdateImageWhitelist(ctx context.Context, where string, updater map[string]interface{}) error {
 	if where == "" {
 		return errors.New("no where for update condition")
@@ -295,39 +257,29 @@ func (s *ScannerOrm) UpdateImageWhitelist(ctx context.Context, where string, upd
 
 }
 
-func (s *ScannerOrm) DeleteImage(ctx context.Context, param DeleteImageParam) error {
+func (s *ScannerOrm) DeleteImage(ctx context.Context, imageIds []int64) error {
+	if len(imageIds) == 0 {
+		return nil
+	}
+
 	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*1)
 	defer cancelFunc()
 	db := s.rdb.Get().Model(new(model.ImageList)).WithContext(ctx)
-	if param.ImageID <= 0 && (param.Library == "" && param.Tags == "" && param.FullRepoName == "" && param.FromType <= 0) {
-		return errors.New("no condition for delete image")
-	}
-	if param.ImageID > 0 {
-		db = db.Where("id = ? ", param.ImageID)
-	}
-	if param.Library != "" {
-		db = db.Where("library = ? ", param.Library)
-	}
-	if param.FullRepoName != "" {
-		db = db.Where("full_repo_name = ? ", param.FullRepoName)
-	}
-	if param.Tags != "" {
-		db = db.Where("tags = ? ", param.Tags)
-	}
-	if param.FromType > 0 {
-		db = db.Where("from_type = ? ", param.FromType)
-	}
+	db = db.Where("id IN ?", imageIds)
 	err := db.Delete(&model.ImageList{}).Error
 	return err
 }
 
-func (s *ScannerOrm) DeleteScanImage(ctx context.Context, param DeleteScanImageParam) error {
+func (s *ScannerOrm) DeleteScanImage(ctx context.Context, imageIds []int64) error {
+	if len(imageIds) == 0 {
+		return nil
+	}
+
 	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*1)
 	defer cancelFunc()
 	db := s.rdb.Get().Model(new(model.ScanImage)).WithContext(ctx)
-	db = db.Where("image_id = ? ", param.ImageID)
-	err := db.Delete(&model.ScanImage{}).Error
-	return err
+	db = db.Where("image_id IN ? ", imageIds)
+	return db.Delete(&model.ScanImage{}).Error
 }
 
 func (s *ScannerOrm) IsInRegistry(ctx context.Context, library string) bool {
@@ -1136,25 +1088,6 @@ func (s *ScannerOrm) SearchImage(ctx context.Context, param SearchImageParam, fi
 		db = db.Where("node_hostname =  ? ", param.NodeHostname)
 	}
 
-	// 多选，以逗号分隔
-	if param.SpecialImageType != "" {
-		param.SpecialImageType = strings.ToLower(param.SpecialImageType)
-		param.SpecialImageType = strings.Replace(param.SpecialImageType, " ", "", -1)
-		lists := strings.Split(param.SpecialImageType, ",")
-		for i := range lists {
-			if lists[i] == consts.SpecialImageTypeK8s {
-				lists = append(lists, "coredns", "etcd", "kube-apiserver", "kube-controller", "kube-proxy", "kube-scheduler", "ingress")
-			}
-		}
-		orand := make([]string, 0)
-		for i := range lists {
-			orand = append(orand, fmt.Sprintf("full_repo_name LIKE '%%%s%%'", lists[i]))
-		}
-		if len(orand) > 0 {
-			db = db.Where(strings.Join(orand, " OR "))
-		}
-	}
-
 	if len(param.Fields) > 0 {
 		db = db.Select(param.Fields)
 	}
@@ -1176,7 +1109,7 @@ func (s *ScannerOrm) SearchImage(ctx context.Context, param SearchImageParam, fi
 	// serialize
 	for i := range res {
 		res[i].Serialize()
-		res[i].Deserialize()
+		res[i].Deserialize(!param.NotParseNodeImage)
 	}
 
 	return res, cnt, nil
@@ -1495,6 +1428,9 @@ func (s *ScannerOrm) UpdateSubTasksInfo(ctx context.Context, param SearchSubTask
 	if param.GreaterThanRetryCount > 0 {
 		db = db.Where("retry_count >= ? ", param.GreaterThanRetryCount)
 	}
+	if param.ImageID > 0 {
+		db = db.Where("image_id =  ?", param.ImageID)
+	}
 
 	db = db.Updates(updateInfo)
 	return db.Error
@@ -1553,17 +1489,6 @@ func (s *ScannerOrm) GetTotalTaskNum(ctx context.Context) (int64, error) {
 		return 0, err
 	}
 	return cnt, nil
-}
-
-func (s *ScannerOrm) GetImageInfo(ctx context.Context, imgID int64) (*model.ImageList, error) {
-	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*5)
-	defer cancelFunc()
-	tmp := model.ImageList{}
-	if err := s.rdb.Get().WithContext(ctx).Where("id = ? ", imgID).First(&tmp).Error; err != nil {
-		return nil, fmt.Errorf("not find image id :%d,%v", imgID, err)
-	}
-
-	return &tmp, nil
 }
 
 func (s *ScannerOrm) GetRegistryInfo(ctx context.Context, ID int64) (*model.Registry, error) {
@@ -1774,11 +1699,9 @@ func (s *ScannerOrm) GetTaskList(ctx context.Context, limit, offset int) ([]*mod
 }
 
 func (s *ScannerOrm) GetSubTaskListWithImage(ctx context.Context, param GetSubTaskListWithImageParam, filter *model.Filter) ([]model.SubTask, int64, error) {
-	var (
-		data  = make([]model.SubTask, 0)
-		count int64
-		err   error
-	)
+
+	data := make([]model.SubTask, 0)
+	var count int64
 
 	db := s.rdb.Get().WithContext(ctx).Model(model.SubTask{}).Where("task_id = ?", param.TaskID)
 	if len(param.Status) > 0 {
@@ -1791,39 +1714,6 @@ func (s *ScannerOrm) GetSubTaskListWithImage(ctx context.Context, param GetSubTa
 	db = model.AddFilter(db, filter)
 	if err := db.Find(&data).Error; err != nil {
 		return nil, 0, errors.Wrap(err, "get subtask data failed")
-	}
-
-	imagesID := make([]int64, 0, len(data))
-	imagesInfo := make([]model.ImageList, 0, len(data))
-	imagesIDMap := make(map[int64]*model.SubTask, len(data))
-
-	for i := range data {
-		imagesID = append(imagesID, data[i].ImageID)
-		imagesIDMap[data[i].ImageID] = &data[i]
-	}
-
-	// 不用join，直接查询吧
-	err = s.rdb.Get().WithContext(ctx).
-		Model(new(model.ImageList)).
-		Select("id, full_repo_name, tags, node_ip, library, os, node_hostname, from_type").
-		Where("id in ?", imagesID).
-		Find(&imagesInfo).
-		Error
-	if err != nil {
-		return nil, 0, errors.Wrap(err, "get images info failed")
-	}
-
-	for i := range imagesInfo {
-		imagesIDMap[imagesInfo[i].ID].ImageInfo.Tag = imagesInfo[i].Tags
-		if imagesInfo[i].FromType == model.NodeBuffRegistry {
-			split := strings.SplitN(imagesInfo[i].FullRepoName, "/", model.NodeImageSplitCount)
-			imagesIDMap[imagesInfo[i].ID].ImageInfo.FullRepoName = split[len(split)-1]
-			imagesIDMap[imagesInfo[i].ID].ImageInfo.Library = fmt.Sprintf("%s(%s)%s",
-				imagesInfo[i].NodeHostname, imagesInfo[i].NodeIP, imagesInfo[i].OS)
-		} else {
-			imagesIDMap[imagesInfo[i].ID].ImageInfo.FullRepoName = imagesInfo[i].FullRepoName
-			imagesIDMap[imagesInfo[i].ID].ImageInfo.Library = imagesInfo[i].Library
-		}
 	}
 
 	return data, count, nil

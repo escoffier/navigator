@@ -37,8 +37,9 @@ func (i *ImageSync) Start(ctx context.Context) error {
 
 		for {
 			<-ticker.C
-			logging.GetLogger().Info().Msg("start SyncAllImage")
-			err := i.syncImage.SyncAllImage(ctx, consts.CycleFullSync)
+			err := i.syncImage.SyncAllImage(ctx, component.SyncAllImageParam{
+				SyncType: consts.CycleFullSync,
+			})
 			if err != nil {
 				logging.GetLogger().Err(err).Msg("SyncAllImage service end")
 				continue
@@ -59,7 +60,6 @@ func (i *ImageSync) Start(ctx context.Context) error {
 		defer ticker.Stop()
 		for {
 			<-ticker.C
-			logging.GetLogger().Info().Msg("start SyncAddImage")
 			err := i.syncImage.SyncAddImage(ctx, consts.CycleIncSync)
 			if err != nil {
 				logging.GetLogger().Err(err).Msg("SyncAddImage service end")
@@ -88,7 +88,6 @@ func (i *ImageSync) Start(ctx context.Context) error {
 		defer ticker.Stop()
 		for {
 			<-ticker.C
-			logging.GetLogger().Info().Msg("start RetryFailedSyncImage")
 
 			err := i.syncImage.RetryFailedSyncImage(context.Background(), maxRetryCount)
 			if err != nil {
@@ -102,7 +101,6 @@ func (i *ImageSync) Start(ctx context.Context) error {
 
 	// 定期删除重试超限
 	go func() {
-
 		defer func() {
 			if err := recover(); err != nil {
 				logging.GetLogger().Error().Msg("DeleteMoreRetryCount recover")
@@ -117,7 +115,6 @@ func (i *ImageSync) Start(ctx context.Context) error {
 
 		ticker := time.NewTicker(time.Minute * 5)
 		defer ticker.Stop()
-		// 放到外面
 		for {
 			<-ticker.C
 			logging.GetLogger().Info().Msg("start DeleteMoreRetryCount")
@@ -149,11 +146,14 @@ func init() {
 func newService(config register.ScannerServiceConfig) (register.ScannerService, error) {
 	scannerWrapperDb := store.GetScannerWrapperDb()
 	p := &ImageSync{}
-	s := component.NewSyncRepoImage(store.NewRegistryDao(scannerWrapperDb),
+	s := component.NewSyncRepoImage(
+		store.NewRegistryDao(scannerWrapperDb),
 		store.NewScannerOrm(scannerWrapperDb),
 		store.NewPodResourceRelationDao(scannerWrapperDb),
 		store.NewScanConfigDao(scannerWrapperDb),
 		store.NewSyncRetryImageDao(scannerWrapperDb),
+		store.NewVulnDao(scannerWrapperDb),
+		store.NewScannerDB(scannerWrapperDb),
 	)
 
 	p.syncImage = s

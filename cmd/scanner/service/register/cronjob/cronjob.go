@@ -2,6 +2,7 @@ package cronjob
 
 import (
 	"context"
+	"os"
 
 	"github.com/mileusna/crontab"
 
@@ -27,6 +28,7 @@ type Service struct {
 }
 
 func (s *Service) Start(ctx context.Context) error {
+	scannerWrapperDb := store.GetScannerWrapperDb()
 	dal := store.GetScannerOrmDb()
 	registryDal := store.NewRegistryDao(store.GetScannerWrapperDb())
 	scanConfigDal := store.NewScanConfigDao(store.GetScannerWrapperDb())
@@ -40,12 +42,20 @@ func (s *Service) Start(ctx context.Context) error {
 	}
 	podDal := store.NewPodResourceRelationDao(store.GetScannerWrapperDb())
 	syncRetryDal := store.NewSyncRetryImageDao(store.GetScannerWrapperDb())
+	vulnDal := store.NewVulnDao(scannerWrapperDb)
+	scannerDB := store.NewScannerDB(scannerWrapperDb)
 
-	syncSrv := component.NewSyncRepoImage(registryDal, dal, podDal, scanConfigDal, syncRetryDal)
+	syncSrv := component.NewSyncRepoImage(registryDal, dal, podDal, scanConfigDal, syncRetryDal, vulnDal, scannerDB)
 
-	// AddJob ,每天凌晨3点4分运行一次,注意使用的是UTC时间
-	if err := cronjob.AddJob("4 19 * * *", syncSrv.SyncAllImage, ctx, consts.TimingFullSync); err != nil {
-		logging.GetLogger().Err(err).Msg("add SyncAllImage job")
+	syncAllImage := os.Getenv("SyncAllImage") // 使用一个环境变量，方便测试
+	if syncAllImage == "" {
+		// AddJob ,每天凌晨3点4分运行一次,注意使用的是UTC时间
+		syncAllImage = "4 19 * * *"
+	}
+
+	if err := cronjob.AddJob(syncAllImage, syncSrv.SyncAllImage, ctx,
+		component.SyncAllImageParam{SyncType: consts.TimingFullSync}); err != nil {
+		logging.GetLogger().Err(err).Msg("add SyncAllImage cronjob")
 		return err
 	}
 

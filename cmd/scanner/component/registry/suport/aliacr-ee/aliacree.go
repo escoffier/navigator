@@ -83,6 +83,7 @@ func (aa *AliAcrEE) ListImages(ctx context.Context, extender registry.Extender, 
 	// get namespaces
 	nss, err := aa.listNamespaces()
 	if err != nil {
+		res.HasErr = true
 		logging.Get().Err(err).Str("driver", consts.AliAcrEEVersion).Str("instance", aa.Config.InstanceID).Msg("listNamespaces")
 		return nil, err
 	}
@@ -91,6 +92,7 @@ func (aa *AliAcrEE) ListImages(ctx context.Context, extender registry.Extender, 
 		// get repo details
 		repos, err := aa.listReposByNamespace(ns)
 		if err != nil {
+			res.HasErr = true
 			logging.Get().Err(err).Str("driver", consts.AliAcrEEVersion).
 				Str("instance", aa.Config.InstanceID).
 				Str("namespace", ns.NamespaceName).
@@ -101,6 +103,7 @@ func (aa *AliAcrEE) ListImages(ctx context.Context, extender registry.Extender, 
 			// get tag info
 			tags, err := aa.getTags(repo)
 			if err != nil {
+				res.HasErr = true
 				logging.Get().Err(err).Str("driver", consts.AliAcrEEVersion).
 					Str("instance", aa.Config.InstanceID).
 					Str("namespace", ns.NamespaceName).
@@ -114,6 +117,7 @@ func (aa *AliAcrEE) ListImages(ctx context.Context, extender registry.Extender, 
 
 				manifestV2, err := aa.PullImageManifestV2(fullRepoName, tag.Tag)
 				if err != nil {
+					res.HasErr = true
 					logging.Get().Err(err).Str("driver", consts.AliAcrEEVersion).
 						Str("instance", aa.Config.InstanceID).
 						Str("namespace", ns.NamespaceName).
@@ -124,6 +128,7 @@ func (aa *AliAcrEE) ListImages(ctx context.Context, extender registry.Extender, 
 				}
 				manifestV2Str, err := manifestV2.MarshalJSON()
 				if err != nil {
+					res.HasErr = true
 					logging.Get().Err(err).Str("driver", consts.AliAcrEEVersion).
 						Str("instance", aa.Config.InstanceID).
 						Str("namespace", ns.NamespaceName).
@@ -137,6 +142,7 @@ func (aa *AliAcrEE) ListImages(ctx context.Context, extender registry.Extender, 
 				configDigest := manifestV2.Config.Digest
 				configBlob, err := aa.PullConfigBlob(fullRepoName, configDigest)
 				if err != nil {
+					res.HasErr = true
 					logging.Get().Err(err).Str("driver", consts.AliAcrEEVersion).
 						Str("instance", aa.Config.InstanceID).
 						Str("namespace", ns.NamespaceName).
@@ -160,6 +166,7 @@ func (aa *AliAcrEE) ListImages(ctx context.Context, extender registry.Extender, 
 
 				im, err := extender.CreateImageExtender(ctx, preImage)
 				if err != nil {
+					res.HasErr = true
 					if err != consts.ErrNotNodeImage {
 						logging.Get().Err(err).Msg("Insert imagelist error")
 					}
