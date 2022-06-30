@@ -567,3 +567,27 @@ func (s *Service) getProcessingIndexPattern() string {
 func (s *Service) getProcessingIndexByTime(t time.Time) string {
 	return fmt.Sprintf("%s%s", s.processingIndexPrefix, t.Format("2006-01-02"))
 }
+
+func GenFullPodName(object []string) (string, error) {
+	podInfo, err := parsePods(object)
+	if err != nil {
+		return "", err
+	}
+
+	var podNames string
+	for i := range podInfo {
+		cluster := strings.TrimPrefix(podInfo[i].Cluster, "/")
+		clsManager, ok := k8s.GetClusterManager()
+		if ok {
+			cluster, _ = clsManager.GetClusterName(cluster)
+		}
+		name := fmt.Sprintf("%s/%s/%s", cluster, podInfo[i].Namespace, podInfo[i].PodName)
+		if i == 0 {
+			podNames = name
+		} else {
+			podNames = podNames + ", " + name
+		}
+	}
+
+	return podNames, nil
+}

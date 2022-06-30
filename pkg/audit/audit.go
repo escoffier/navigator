@@ -30,6 +30,7 @@ const (
 	eAnddAction   = "启用/停用"
 	importAction  = "导出"
 	uploadAction  = "上传"
+	processAction = "发起处置"
 )
 
 var routeAction *Router
@@ -364,7 +365,10 @@ func init() {
 
 	//事件中心
 	routeAction.POST("/api/v2/platform/processingCenter/record", func(params Params) (string, string) {
-		return editAction, "编辑Pod: {{.}}的隔离策略"
+		return processAction, "对Pod: {{.}}发起处置"
+	})
+	routeAction.POST("/api/v2/platform/processingCenter/record/action", func(params Params) (string, string) {
+		return processAction, "对Pod: {{.}}发起处置"
 	})
 	routeAction.POST("/api/v2/platform/eventsCenter/config", func(params Params) (string, string) {
 		return editAction, "编辑通知配置"

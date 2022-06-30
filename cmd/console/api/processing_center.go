@@ -106,9 +106,11 @@ func (api *api) addProcessingRecord() http.HandlerFunc {
 		if partial {
 			status = 1
 		}
+
+		names, _ := processingcenter.GenFullPodName(cliReq.Object)
 		response.Ok(w, response.WithApiVersion(processingCenterAPIVersion), response.WithItem(rsp{ID: id}),
 			response.WithExportFileStatus(status), response.WithTarget(&response.TargetRef{
-				Name: fmt.Sprintf("%v", cliReq.Object),
+				Name: names,
 				ID:   "",
 				Link: "",
 			}))
@@ -353,7 +355,15 @@ func (api *api) addProcessingAction() http.HandlerFunc {
 		if partial {
 			status = 1
 		}
-		response.Ok(w, response.WithApiVersion(processingCenterAPIVersion), response.WithItem(*action), response.WithExportFileStatus(status))
+
+		names, _ := processingcenter.GenFullPodName(cliReq.Object)
+		response.Ok(w, response.WithApiVersion(processingCenterAPIVersion),
+			response.WithTarget(&response.TargetRef{
+				Name: names,
+				ID:   "",
+				Link: "",
+			}),
+			response.WithItem(*action), response.WithExportFileStatus(status))
 	}
 }
 
