@@ -607,6 +607,7 @@ func (s *ScanResultHandle) updateRiskVirusCacheEntry(ctx context.Context, param 
 }
 
 func (s *ScanResultHandle) Run(ctx context.Context, param jobs.Param) (jobs.Artifact, error) {
+
 	// get scan result from param
 	r := make(map[string]interface{})
 	scanResult, ok := param["scanResult"].(map[task.ScanType]interface{})

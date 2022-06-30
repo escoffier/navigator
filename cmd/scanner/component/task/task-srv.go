@@ -25,6 +25,7 @@ type TaskSrv struct { // nolint
 	scannerGormDb *store.ScannerOrm
 	registryDal   *store.RegistryDao
 	scanConfigDal store.ScanConfigDal
+	imageDal      store.ScannerDalInterface
 }
 
 func NewTaskSrv() *TaskSrv {
@@ -32,10 +33,12 @@ func NewTaskSrv() *TaskSrv {
 	sw := store.GetScannerWrapperDb()
 	r := store.NewRegistryDao(sw)
 	s := store.NewScanConfigDao(store.GetScannerWrapperDb())
+	imageDal := store.NewScannerOrm(store.GetScannerWrapperDb())
 	return &TaskSrv{
 		scannerGormDb: sg,
 		registryDal:   r,
 		scanConfigDal: s,
+		imageDal:      imageDal,
 	}
 }
 
@@ -70,21 +73,36 @@ func (t *TaskSrv) GenerateScanTask(ctx context.Context, imageIds []int64, info U
 		PolicyId:     strategyID,
 	}
 
+	image, _, err := t.imageDal.SearchImage(ctx, store.SearchImageParam{
+		InIds:             imageIds,
+		OmitFields:        []string{"config_json", "manifest_v1_json", "manifest_v2_json"},
+		NotParseNodeImage: true}, nil)
+	if err != nil {
+		logging.GetLogger().Err(err).Msg("SearchImage")
+		return err
+	}
+	imageMap := make(map[int64]model.ImageList)
+	for i := range image {
+		imageMap[image[i].ID] = image[i]
+	}
+
 	subtasks := make([]model.SubTask, 0)
 	for i := range imageIds {
 		tmpTime := time.Now()
 		// generate subtasks
 		subtask := model.SubTask{
-			TaskID:    0, // fill in gorm function
-			ImageID:   imageIds[i],
-			Status:    consts.ImageScanPending,
-			HeartBeat: &tmpTime,
+			TaskID:       0, // fill in gorm function
+			ImageID:      imageIds[i],
+			Status:       consts.ImageScanPending,
+			HeartBeat:    &tmpTime,
+			FullRepoName: imageMap[imageIds[i]].FullRepoName,
+			Tag:          imageMap[imageIds[i]].Tags,
+			Library:      imageMap[imageIds[i]].Library,
 		}
 		subtasks = append(subtasks, subtask)
 	}
 
-	_, err := scannerGormDb.AddTaskAndSubTask(ctx, tmpTask, subtasks)
-	if err != nil {
+	if _, err := scannerGormDb.AddTaskAndSubTask(ctx, tmpTask, subtasks); err != nil {
 		return err
 	}
 
@@ -186,7 +204,7 @@ func (t *TaskSrv) GetPendingSubTasksByTaskID(ctx context.Context, taskID int64) 
 		imageID := v.ImageID
 
 		// get image info
-		i, err := scannerGormDb.GetImageInfo(ctx, imageID)
+		images, _, err := scannerGormDb.SearchImage(ctx, store.SearchImageParam{InIds: []int64{imageID}, NotParseNodeImage: true}, nil)
 		if err != nil {
 			// set subtask err
 			_ = t.SetSubTaskFailed(v.ID, consts.ErrScanGetImage, fmt.Sprintf("get image info failed.%v", err))
@@ -197,32 +215,42 @@ func (t *TaskSrv) GetPendingSubTasksByTaskID(ctx context.Context, taskID int64) 
 				Msg("get image info failed")
 			continue
 		}
-
-		// get registry info
-		registries, _, err := t.registryDal.SearchRegistry(ctx, store.SearchRegistryParam{ID: i.RegistryID}, nil)
-		if err != nil {
-			_ = t.SetSubTaskFailed(v.ID, consts.ErrScanGetRegistry, fmt.Sprintf("get registry info failed.registry id:%d,%v", i.RegistryID, err))
-			logging.GetLogger().Err(err).
-				Int64("taskId", taskID).
-				Int64("subtaskId", v.ID).
-				Int64("imageId", imageID).
-				Int64("registryId", i.RegistryID).
-				Msg("get registry info failed")
-			continue
-		}
-		if len(registries) == 0 {
-			_ = t.SetSubTaskFailed(v.ID, consts.ErrScanGetRegistry, fmt.Sprintf("not found registry info.registry id:%d,%v", i.RegistryID, err))
+		if len(images) == 0 {
+			// set subtask err
+			_ = t.SetSubTaskFailed(v.ID, consts.ErrScanImageRemoved, "image has been removed")
 			logging.GetLogger().Error().
 				Int64("taskId", taskID).
 				Int64("subtaskId", v.ID).
 				Int64("imageId", imageID).
-				Int64("registryId", i.RegistryID).
+				Msg("image has been removed")
+			continue
+		}
+
+		// get registry info
+		registries, _, err := t.registryDal.SearchRegistry(ctx, store.SearchRegistryParam{ID: images[0].RegistryID}, nil)
+		if err != nil {
+			_ = t.SetSubTaskFailed(v.ID, consts.ErrScanGetRegistry, fmt.Sprintf("get registry info failed.registry id:%d,%v", images[0].RegistryID, err))
+			logging.GetLogger().Err(err).
+				Int64("taskId", taskID).
+				Int64("subtaskId", v.ID).
+				Int64("imageId", imageID).
+				Int64("registryId", images[0].RegistryID).
+				Msg("get registry info failed")
+			continue
+		}
+		if len(registries) == 0 {
+			_ = t.SetSubTaskFailed(v.ID, consts.ErrScanGetRegistry, fmt.Sprintf("not found registry info.registry id:%d,%v", images[0].RegistryID, err))
+			logging.GetLogger().Error().
+				Int64("taskId", taskID).
+				Int64("subtaskId", v.ID).
+				Int64("imageId", imageID).
+				Int64("registryId", images[0].RegistryID).
 				Msg("not found registry info")
 			continue
 		}
 		r := &(registries[0])
 
-		subtaskImage := transImage(i)
+		subtaskImage := transImage(images[0])
 		subtaskRegistry := transRegistry(r)
 		ps := SubTask{
 			ID:       v.ID,
@@ -625,7 +653,7 @@ func transSubTask(dbSubTask model.SubTask) SubTask {
 	return t
 }
 
-func transImage(i *model.ImageList) ImageInfo {
+func transImage(i model.ImageList) ImageInfo {
 	return ImageInfo{
 		ID:       i.ID,
 		RepoName: i.FullRepoName,

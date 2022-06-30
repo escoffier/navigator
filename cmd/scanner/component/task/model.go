@@ -70,13 +70,14 @@ type Trigger struct {
 }
 
 type SubTask struct {
-	ID         int64
-	TaskID     int64
-	Image      ImageInfo
-	Registry   RegistryInfo
-	Status     uint8 // ImageScanPending,ImageScanInprogress...
-	Result     int   // success,error
-	ErrMsg     string
+	ID       int64
+	TaskID   int64
+	Image    ImageInfo
+	Registry RegistryInfo
+	Status   uint8 // ImageScanPending,ImageScanInprogress...
+	Result   int   // success,error
+	ErrMsg   string
+
 	CreateAt   time.Time
 	StartedAt  *time.Time
 	FinishedAt *time.Time

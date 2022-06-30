@@ -59,6 +59,7 @@ type ListImagesRes struct {
 	All              []*model.ImageList // 本次同步的全部镜像
 	Added            []*model.ImageList // 本次同步的新增镜像
 	GetAuditLogError bool               // 拉取审计日志时是否出错
+	HasErr           bool               // 同步数据时是否有错
 }
 
 type ListImagesRequest struct {

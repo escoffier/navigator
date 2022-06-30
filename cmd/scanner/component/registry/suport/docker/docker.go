@@ -140,6 +140,7 @@ func (r *RegistryV2) ListImages(ctx context.Context, extender registry.Extender,
 	for _, repo := range repos {
 		tags, err := r.ListRepoTags(repo)
 		if err != nil {
+			res.HasErr = true
 			logging.GetLogger().Err(err).Msgf("get repo %s tags err", repo)
 			continue
 		}
@@ -158,11 +159,13 @@ func (r *RegistryV2) ListImages(ctx context.Context, extender registry.Extender,
 				// pull config json
 				imageDigest, err = ManifestV2Digest(manifestV2)
 				if err != nil {
+					res.HasErr = true
 					logging.GetLogger().Err(err).Msgf("get manifest digest err, repo %s ,digest %s", repo, tag)
 					continue
 				}
 				manifestV2Str, err = manifestV2.MarshalJSON()
 				if err != nil {
+					res.HasErr = true
 					logging.GetLogger().Err(err).Msgf("get manifest string err, repo %s ,tag %s", repo, tag)
 					continue
 				}
@@ -179,11 +182,13 @@ func (r *RegistryV2) ListImages(ctx context.Context, extender registry.Extender,
 				logging.GetLogger().Info().Msgf("get manifest v2 err,try v1, repo %s ,tag %s", repo, tag)
 				manifestV1, err = r.PullImageManifestV1(repo, tag)
 				if err != nil {
+					res.HasErr = true
 					logging.GetLogger().Err(err).Msgf("get manifest (both v1,v2) err, repo %s ,tag %s", repo, tag)
 					continue
 				}
 				manifestV1Str, err = manifestV1.MarshalJSON()
 				if err != nil {
+					res.HasErr = true
 					logging.GetLogger().Err(err).Msgf("get manifest v1 str err, repo %s ,tag %s", repo, tag)
 					continue
 				}
@@ -192,6 +197,7 @@ func (r *RegistryV2) ListImages(ctx context.Context, extender registry.Extender,
 				// use http-header "Docker-Content-digest" as manifest-v1 image digest
 				tmp, err := r.RegistryClient.ManifestDigest(repo, tag)
 				if err != nil {
+					res.HasErr = true
 					logging.GetLogger().Err(err).Msgf("get manifest v1 image list err, repo %s ,digest %s", repo, tag)
 					continue
 				}
@@ -214,6 +220,7 @@ func (r *RegistryV2) ListImages(ctx context.Context, extender registry.Extender,
 
 			im, err := extender.CreateImageExtender(ctx, image)
 			if err != nil {
+				res.HasErr = true
 				if err != consts.ErrNotNodeImage {
 					logging.GetLogger().Err(err).Msg("HarborV2 Insert imagelist error")
 				}

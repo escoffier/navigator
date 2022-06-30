@@ -20,21 +20,21 @@ type SearchImageParam struct {
 	FromType     int64
 	ImageType    string
 
-	NotFromType      int64
-	Fields           []string // 只想要的字端
-	OmitFields       []string // 不想要的字端
-	LayersPrefix     string
-	RegistryIds      []int64 // 仓库Id列表
-	NodeHostnames    []string
-	JustCount        bool
-	UUIDs            []uint32
-	Flag             uint64
-	Where            string
-	UniqueImage      uint64
-	Projects         []string
-	NodeHostname     string `json:"node_hostname"`
-	SpecialImageType string `json:"special_image_type"`
-	JustReturnImage  bool   `json:"just_return_image"`
+	NotFromType       int64
+	Fields            []string // 只想要的字端
+	OmitFields        []string // 不想要的字端
+	LayersPrefix      string
+	RegistryIds       []int64 // 仓库Id列表
+	NodeHostnames     []string
+	JustCount         bool
+	UUIDs             []uint32
+	Flag              uint64
+	Where             string
+	UniqueImage       uint64
+	Projects          []string
+	NodeHostname      string `json:"node_hostname"`
+	JustReturnImage   bool   `json:"just_return_image"`
+	NotParseNodeImage bool   // 解析节点镜像的imageName
 }
 
 type GetSubTaskListWithImageParam struct {
@@ -241,6 +241,7 @@ type SearchSubTaskParam struct {
 	LessThanRetryCount    int64
 	GreaterThanRetryCount int64
 	LastID                int64
+	ImageID               int64
 }
 
 type SearchStrategyParam struct {
@@ -309,4 +310,8 @@ type GroupImageVuln struct {
 
 type RSAListParam struct {
 	Name string
+}
+type SearchDeleteImageParam struct {
+	ImageIds []int64
+	LastID   int64
 }

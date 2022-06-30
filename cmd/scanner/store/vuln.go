@@ -20,6 +20,7 @@ type VulnDalInterface interface {
 	UpdateVuln(ctx context.Context, where string, updater map[string]interface{}, vuln *model.Vuln) error
 	CreateVulnImage(ctx context.Context, imageID int64, data []*model.VulnImage) error
 	GroupImageVuln(ctx context.Context, images []int64) ([]GroupImageVuln, error)
+	DeleteVulnImage(ctx context.Context, imageIds []int64) error
 }
 
 type VulnDao struct {
@@ -42,6 +43,16 @@ func (v *VulnDao) GroupImageVuln(ctx context.Context, images []int64) ([]GroupIm
 		Scan(&res).Error
 
 	return res, err
+}
+
+func (v *VulnDao) DeleteVulnImage(ctx context.Context, imageIds []int64) error {
+	if len(imageIds) == 0 {
+		return nil
+	}
+	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*10)
+	defer cancelFunc()
+	db := v.rdb.Get().WithContext(ctx).Model(model.VulnImage{}).Where("image_id IN ?", imageIds)
+	return db.Delete(&model.VulnImage{}).Error
 }
 
 var singeVulnDao *VulnDao

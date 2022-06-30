@@ -5,6 +5,7 @@ import (
 	"strconv"
 
 	"github.com/gin-gonic/gin"
+
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
@@ -36,7 +37,10 @@ func (s *SyncImageAPISrv) StartSync(ctx *gin.Context) {
 			}
 		}()
 
-		if err := s.syncImageSrv.StartSyncAllImage(ctx, param.RegistryID); err != nil {
+		if err := s.syncImageSrv.SyncAllImage(ctx, component.SyncAllImageParam{
+			RegistryIds: []int64{regID},
+			SyncType:    consts.ManualSync,
+		}); err != nil {
 			logging.GetLogger().Err(err).Msg("StartSyncAllImage")
 		}
 	}(param.RegistryID)

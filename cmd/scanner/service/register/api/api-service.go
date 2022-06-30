@@ -67,6 +67,7 @@ func newService(config register.ScannerServiceConfig) (register.ScannerService, 
 	vulnDal := store.NewVulnDao(scannerWrapperDb)
 	podResourceRelationDal := store.NewPodResourceRelationDao(scannerWrapperDb)
 	syncRetryImageDal := store.NewSyncRetryImageDao(scannerWrapperDb)
+	scannerDB := store.NewScannerDB(scannerWrapperDb)
 
 	s := &ScannerAPIService{}
 	s.config.Options = config.Options
@@ -80,7 +81,7 @@ func newService(config register.ScannerServiceConfig) (register.ScannerService, 
 			component.NewRegistrySrv(registryDal, scanConfigDal),
 			component.NewScanConfigSrv(scanConfigDal, registryDal, dal, scanTaskDal),
 			component.NewVulnService(vulnDal, scanTaskDal),
-			component.NewSyncRepoImage(registryDal, dal, podResourceRelationDal, scanConfigDal, syncRetryImageDal),
+			component.NewSyncRepoImage(registryDal, dal, podResourceRelationDal, scanConfigDal, syncRetryImageDal, vulnDal, scannerDB),
 		),
 	}
 
