@@ -83,8 +83,8 @@ func (s *Service) PolicyBatch(ctx context.Context, scapType uint8, limit, offset
 		Omit("rule_ids").
 		Limit(limit).
 		Offset(offset).
-		Find(&result).
 		Order(clause.OrderByColumn{Column: clause.Column{Name: "id"}, Desc: true}).
+		Find(&result).
 		Error; err != nil {
 		logging.Get().Err(err).Msgf("获取策略列表失败, type=%d, limit=%d, offset = %d", scapType, limit, offset)
 		return nil, 0, errors.New("获取策略列表失败")
