@@ -3,12 +3,12 @@ package scap
 import (
 	"context"
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/pkg/errors"
 	"gitlab.com/security-rd/go-pkg/logging"
 	"gorm.io/gorm"
-	"gorm.io/gorm/clause"
 
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 )
@@ -60,7 +60,7 @@ func (s *Service) PolicyDelete(ctx context.Context, policyId uint, scapType uint
 	return nil
 }
 
-func (s *Service) PolicyBatch(ctx context.Context, scapType uint8, limit, offset int, name string) ([]model.ScapPolicy, int64, error) {
+func (s *Service) PolicyBatch(ctx context.Context, scapType uint8, limit, offset int, name string) ([]*model.ScapPolicy, int64, error) {
 	var count int64
 
 	db := s.rdb.Get().WithContext(ctx).Model(&model.ScapPolicy{}).Where("type = ?", scapType)
@@ -78,17 +78,22 @@ func (s *Service) PolicyBatch(ctx context.Context, scapType uint8, limit, offset
 		return nil, 0, nil
 	}
 
-	var result = make([]model.ScapPolicy, 0, limit)
+	var result = make([]*model.ScapPolicy, 0, limit)
 	if err := db.
 		Omit("rule_ids").
 		Limit(limit).
 		Offset(offset).
-		Order(clause.OrderByColumn{Column: clause.Column{Name: "id"}, Desc: true}).
 		Find(&result).
 		Error; err != nil {
 		logging.Get().Err(err).Msgf("获取策略列表失败, type=%d, limit=%d, offset = %d", scapType, limit, offset)
 		return nil, 0, errors.New("获取策略列表失败")
 	}
+
+	// 手动排序，因为默认策略在第一位，只需要排后面的策略
+	sort.Slice(result, func(i, j int) bool {
+		// 默认策略排到第一个
+		return result[i].IsDefault || !result[i].CreatedAt.Before(result[j].CreatedAt)
+	})
 
 	return result, count, nil
 }
