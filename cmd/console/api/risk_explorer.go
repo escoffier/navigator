@@ -27,7 +27,7 @@ func (api *api) riskExplorer() func(chi.Router) {
 // @Param cluster query string true "k8s cluster"
 func (api *api) wholeGraphOverrall() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		ctx, cancel := context.WithTimeout(r.Context(), time.Second*10)
+		ctx, cancel := context.WithTimeout(r.Context(), time.Second*15)
 		defer cancel()
 
 		cluster, err := param.QueryString(r, "cluster")
@@ -51,7 +51,7 @@ func (api *api) wholeGraphOverrall() http.HandlerFunc {
 
 		summary, err := reSvc.WholeSummary(ctx, query)
 		if err != nil {
-			RespAndLog(w, ctx, NewFieldError(http.StatusInternalServerError, err))
+			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, err))
 			return
 		}
 

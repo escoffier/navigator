@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"time"
 
-	json "github.com/json-iterator/go"
 	"github.com/go-redis/redis/v8"
+	json "github.com/json-iterator/go"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
@@ -33,7 +33,7 @@ type cmdInfo struct {
 
 func (ir *ImageVulnsReporter) LoadImageRiskLevels(ctx context.Context, images []string) (map[string]map[string]ResSumm, error) {
 	imageSums := make(map[string]map[string]ResSumm, len(images))
-	ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
 	cmds := make([]cmdInfo, 0, len(riskTypes)*len(images))

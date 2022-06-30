@@ -98,24 +98,6 @@ func (rl *TensorResourcesService) UpdateResourceUserData(ctx context.Context, re
 	return dal.UpdateResourceUserData(ctx, rl.rdb.Get(), res)
 }
 
-func (rl *TensorResourcesService) GetResourceMap(ctx context.Context, queryOptions *dal.ResourcesQueryOption) (map[dal.ResourceKey]*model.TensorResource, error) {
-	res, err := dal.GetResources(ctx, rl.rdb.Get(), queryOptions, -1, -1)
-	if err != nil {
-		return nil, err
-	}
-
-	resMap := make(map[dal.ResourceKey]*model.TensorResource)
-	for _, r := range res {
-		resMap[dal.ResourceKey{
-			ClusterKey:   r.ClusterKey,
-			Namespace:    r.Namespace,
-			ResourceKind: r.Kind,
-			ResourceName: r.Name,
-		}] = r
-	}
-	return resMap, nil
-}
-
 func (rl *TensorResourcesService) GetNamespaces(ctx context.Context, clusterKey, nameQuery string, offset, limit int) ([]*model.TensorNamespace, int64, error) {
 	ns, err := dal.GetNamespacesByCluster(ctx, rl.rdb.GetReadDB(), clusterKey, nameQuery, offset, limit)
 	if err != nil {

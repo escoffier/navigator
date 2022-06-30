@@ -138,16 +138,6 @@ func (s *Service) WholeSummary(ctx context.Context, queryOpt *dal.ResContainersQ
 	totalCount := maxCount
 	offset := 0
 	failCnt := 0
-	clusterKey, ok := queryOpt.GetClusterOption()
-	if !ok {
-		return nil, fmt.Errorf("invalid cluster key")
-	}
-
-	resQueryOpt := dal.ResourcesQuery()
-	resMap, err := resSvc.GetResourceMap(ctx, resQueryOpt)
-	if err != nil {
-		return nil, err
-	}
 
 	frameInfos, err := resSvc.GetFrameworks(ctx)
 	if err != nil {
@@ -229,18 +219,6 @@ func (s *Service) WholeSummary(ctx context.Context, queryOpt *dal.ResContainersQ
 				svcItem.ResourceKind = container.ResourceKind
 				svcItem.ContainersList = make([]*ContainerSummary, 0, 2)
 				svcItem.RiskTypes = make(map[string]RiskTypeDesc, 1)
-
-				res, ok := resMap[dal.ResourceKey{
-					ClusterKey:   clusterKey,
-					Namespace:    container.Namespace,
-					ResourceKind: container.ResourceKind,
-					ResourceName: container.ResourceName,
-				}]
-				if ok {
-					svcItem.Alias = res.Alias
-					svcItem.Managers = res.Managers
-					svcItem.Authority = res.Authority
-				}
 				nsItem.ResourcesList = append(nsItem.ResourcesList, svcItem)
 			}
 

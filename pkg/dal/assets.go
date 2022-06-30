@@ -276,11 +276,11 @@ func CountResources(ctx context.Context, rdb *gorm.DB, query *ResourcesQueryOpti
 }
 
 func GetResources(ctx context.Context, rdb *gorm.DB, query *ResourcesQueryOption, offset, limit int) (resources []*model.TensorResource, err error) {
-	pgCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	pgCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
 	err = util.RetryWithBackoff(pgCtx, func() error {
-		oneCtx, cancel := context.WithTimeout(ctx, 800*time.Millisecond)
+		oneCtx, cancel := context.WithTimeout(ctx, 1500*time.Millisecond)
 		defer cancel()
 
 		db := rdb.WithContext(oneCtx).Model(&model.TensorResource{}).Where("status = ?", 0)
@@ -373,12 +373,12 @@ func (q *ResContainersQueryOption) WithColumnQuery(column, query string) *ResCon
 }
 
 func CountResourceContainers(ctx context.Context, rdb *gorm.DB, query *ResContainersQueryOption) (int64, error) {
-	pgCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	pgCtx, cancel := context.WithTimeout(ctx, 4*time.Second)
 	defer cancel()
 
 	var cntNum int64
 	err := util.RetryWithBackoff(pgCtx, func() error {
-		oneCtx, cancel := context.WithTimeout(ctx, 500*time.Millisecond)
+		oneCtx, cancel := context.WithTimeout(ctx, 1000*time.Millisecond)
 		defer cancel()
 
 		db := rdb.WithContext(oneCtx).Model(&model.TensorContainer{}).Where("status = ?", 0)
@@ -406,11 +406,11 @@ func CountResourceContainers(ctx context.Context, rdb *gorm.DB, query *ResContai
 	return cntNum, nil
 }
 func GetResourceContainers(ctx context.Context, rdb *gorm.DB, query *ResContainersQueryOption, offset, limit int) (containers []*model.TensorContainer, err error) {
-	pgCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	pgCtx, cancel := context.WithTimeout(ctx, 6*time.Second)
 	defer cancel()
 
 	err = util.RetryWithBackoff(pgCtx, func() error {
-		oneCtx, cancel := context.WithTimeout(ctx, 800*time.Millisecond)
+		oneCtx, cancel := context.WithTimeout(ctx, 2000*time.Millisecond)
 		defer cancel()
 
 		db := rdb.WithContext(oneCtx).Model(&model.TensorContainer{}).Where("status = ?", 0)
@@ -1468,12 +1468,12 @@ func GetFramework(ctx context.Context, rdb *gorm.DB, imageid uint32) (*model.Web
 }
 
 func GetFrameworks(ctx context.Context, rdb *gorm.DB) ([]*model.WebFrameScan, error) {
-	rctx, cancel := context.WithTimeout(ctx, 2000*time.Millisecond)
+	rctx, cancel := context.WithTimeout(ctx, 5000*time.Millisecond)
 	defer cancel()
 
 	var frms []*model.WebFrameScan
 	err := util.RetryWithBackoff(rctx, func() error {
-		oneCtx, oneCancel := context.WithTimeout(rctx, 500*time.Millisecond)
+		oneCtx, oneCancel := context.WithTimeout(rctx, 1000*time.Millisecond)
 		defer oneCancel()
 
 		db := rdb.WithContext(oneCtx).Model(&model.WebFrameScan{})
