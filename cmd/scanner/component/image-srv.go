@@ -29,9 +29,9 @@ type ImageSrv struct {
 }
 
 func NewImageService(
-	dbdal store.ScannerDalInterface,
-	registryDal store.RegistryDal,
-	scanTaskDal store.ScanTaskInterface,
+		dbdal store.ScannerDalInterface,
+		registryDal store.RegistryDal,
+		scanTaskDal store.ScanTaskInterface,
 ) *ImageSrv {
 	return &ImageSrv{
 		dbdal:       dbdal,
@@ -41,7 +41,7 @@ func NewImageService(
 }
 
 func (s *ImageSrv) GetScanOneStatus(ctx context.Context, imgID int64) (*model.ImageListResponse, error) {
-	info, _, err := s.ListImageWithScanInfo(ctx, model.ImageListParam{ImageIds: []int64{imgID}}, model.EmptyFilterForTheTotalQuery())
+	info, _, err := s.ListImageWithScanInfo(ctx, model.ImageListParam{ImageIds: []int64{imgID}}, model.EmptyFilterForTotalQuery())
 	if err != nil {
 		logging.Get().Err(err).Int64("ImageID", imgID).Msg("GetScanOneStatus")
 		return nil, err
@@ -92,6 +92,7 @@ func (s *ImageSrv) ListImageWithScanInfo(ctx context.Context, param model.ImageL
 		OmitFields:   []string{"config_json", "manifest_v1_json", "manifest_v2_json"},
 		UUIDs:        param.UUIDs,
 		Fields:       param.Fields,
+		StartID:      param.StartID,
 	}
 	// 查在线
 	onlineSQL := fmt.Sprintf("select distinct a.id  from  %s a  join %s b  on  a.image_uuid = b.image_uuid where a.registry_id IN (%s) and b.status = 0 ", model.ImageList{}.TableName(), model.TensorContainer{}.TableName(), util.JoinInt64Slice(registryIds, ","))
@@ -195,6 +196,7 @@ func (s *ImageSrv) ListImageWithScanInfo(ctx context.Context, param model.ImageL
 			Project:       images[i].Project,
 			LastSyncAt:    images[i].LastFullSyncAt * 1000, // 前端要求毫秒时间戳
 			Registry:      regMap[images[i].RegistryID],
+			UniqueImage:   images[i].UniqueImage,
 		}
 		res = append(res, &ans)
 	}
@@ -222,8 +224,11 @@ func (s *ImageSrv) ListImageWithScanInfo(ctx context.Context, param model.ImageL
 	}
 
 	// 镜像评分
-	scs, _, err := s.dbdal.SearchScanImage(ctx, store.SearchScanImageParam{ImageIds: imageIds,
-		Fields: []string{"vuln_score", "sensitive_score", "virus_score", "webshell_score", "id", "image_id"}}, &model.Filter{Limit: filter.Limit})
+	fields := []string{"vuln_score", "sensitive_score", "virus_score", "webshell_score", "id", "image_id"}
+	if param.ReturnMalicious {
+		fields = append(fields, "malicious_info_json")
+	}
+	scs, _, err := s.dbdal.SearchScanImage(ctx, store.SearchScanImageParam{ImageIds: imageIds, Fields: fields}, nil)
 	if err != nil {
 		logging.Get().Err(err).Msg("SearchImages.SearchScanImage")
 		return nil, 0, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf(consts.StatusInternalServerErrorMsg))
@@ -251,7 +256,7 @@ func (s *ImageSrv) ListImageWithScanInfo(ctx context.Context, param model.ImageL
 func (s *ImageSrv) CreateScanImageTask(ctx context.Context, param model.ImageListParam, taskInfo task.UpdateTaskInfo) error {
 	param.JustReturnImage = true
 	param.Fields = []string{"id"}
-	images, _, err := s.ListImageWithScanInfo(ctx, param, model.EmptyFilterForTheTotalQuery())
+	images, _, err := s.ListImageWithScanInfo(ctx, param, model.EmptyFilterForTotalQuery())
 	if err != nil {
 		logging.Get().Err(err).Msg("CreateScanImageTask find image error")
 		return err

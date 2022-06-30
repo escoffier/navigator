@@ -13,14 +13,14 @@ import (
 )
 
 func SetupGinRouter(redisClient *redis.Client,
-	scannerSvc component.ScannerSrv,
-	imageSvc component.ImageSrvInterface,
-	rejectSvc component.ImageRejectSrv,
-	harborSvc component.HarborSvc,
-	registrySrv component.RegistrySrvInterface,
-	scanConfigSrv component.ScanConfigSrvInterface,
-	vuluSrv component.VulnServiceInterface,
-	syncImageSrv component.SyncImageInterface,
+		scannerSvc component.ScannerSrv,
+		imageSvc component.ImageSrvInterface,
+		rejectSvc component.ImageRejectSrv,
+		harborSvc component.HarborSvc,
+		registrySrv component.RegistrySrvInterface,
+		scanConfigSrv component.ScanConfigSrvInterface,
+		vuluSrv component.VulnServiceInterface,
+		syncImageSrv component.SyncImageInterface,
 ) *gin.Engine {
 
 	router := gin.Default()
@@ -42,14 +42,14 @@ func SetupGinRouter(redisClient *redis.Client,
 }
 
 func WebAPI(router *gin.Engine,
-	scannerSvc component.ScannerSrv,
-	imageService component.ImageSrvInterface,
-	rejectSvc component.ImageRejectSrv,
-	harborSvc component.HarborSvc,
-	registrySrv component.RegistrySrvInterface,
-	scanConfigSrv component.ScanConfigSrvInterface,
-	vuluSrv component.VulnServiceInterface,
-	syncImageSrv component.SyncImageInterface,
+		scannerSvc component.ScannerSrv,
+		imageService component.ImageSrvInterface,
+		rejectSvc component.ImageRejectSrv,
+		harborSvc component.HarborSvc,
+		registrySrv component.RegistrySrvInterface,
+		scanConfigSrv component.ScanConfigSrvInterface,
+		vuluSrv component.VulnServiceInterface,
+		syncImageSrv component.SyncImageInterface,
 
 ) *gin.Engine {
 
@@ -90,7 +90,6 @@ func WebAPI(router *gin.Engine,
 		v2.GET("/existenceCount", apiScannerSrv.ExistenceCount)
 		v2.POST("/list", apiScannerSrv.SearchImageWithScan)
 		v2.GET("/registryProject", apiScannerSrv.GetRegistryProject)
-		// v2.GET("/:imageID/vulns", apiScannerSrv.GetImageVulns)
 	}
 
 	v3 := router.Group("/api/v1/layers")
@@ -227,12 +226,12 @@ func WebAPI(router *gin.Engine,
 }
 
 func OpenAPI(router *gin.Engine, scannerSvc component.ScannerSrv,
-	rejectSvc component.ImageRejectSrv,
-	harborSvc component.HarborSvc,
-	registrySrv component.RegistrySrvInterface,
-	scanConfigSrv component.ScanConfigSrvInterface,
-	vulnSrv component.VulnServiceInterface,
-	redisClient *redis.Client) *gin.Engine {
+		rejectSvc component.ImageRejectSrv,
+		harborSvc component.HarborSvc,
+		registrySrv component.RegistrySrvInterface,
+		scanConfigSrv component.ScanConfigSrvInterface,
+		vulnSrv component.VulnServiceInterface,
+		redisClient *redis.Client) *gin.Engine {
 
 	apiScannerSrv := openapi.NewScannerOpenAPISrv(scannerSvc, registrySrv, scanConfigSrv)
 

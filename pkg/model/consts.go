@@ -144,3 +144,8 @@ func GetVulnRuleKey(vulnLevel string, lag string) string {
 }
 
 var OpenLicense = []string{"GPL", "MIT", "Apache License", "BSD", "MPL"}
+
+const (
+	ExportExcel = "excel"
+	ExportHtml  = "html"
+)

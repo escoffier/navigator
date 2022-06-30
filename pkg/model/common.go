@@ -73,8 +73,8 @@ func GetFilterWithDefaultValue(ctx *gin.Context) *Filter {
 	return filter
 }
 
-// EmptyFilterForTheTotalQuery 查总数所用的Filter
-func EmptyFilterForTheTotalQuery() *Filter {
+// EmptyFilterForTotalQuery 查总数所用的Filter
+func EmptyFilterForTotalQuery() *Filter {
 	return &Filter{
 		Offset:    0,
 		Limit:     math.MaxInt64,

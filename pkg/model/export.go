@@ -1,15 +1,18 @@
 package model
 
 import (
+	"encoding/json"
 	"fmt"
 	"time"
+
+	"gitlab.com/security-rd/go-pkg/logging"
 )
 
 // 数据导出任务
 type ExportTensorTask struct {
 	ID          int64  `json:"id"`          // 任务ID
-	TaskType    string `json:"taskType"`    // 任务类型，周期任务，一次性任务等，暂时不用
-	ExecuteType string `json:"executeType"` // 导出类型,根据该名字取确实具体的执行函数
+	TaskType    string `json:"taskType"`    // 任务类型，Html或excel
+	ExecuteType string `json:"executeType"` // 导出类型,根据该名字取确定具体执行函数
 	Parameter   string `json:"parameter"`   // 执行的参数
 	FilePath    string `json:"filePath"`    // 文件的绝对路径
 
@@ -23,17 +26,71 @@ type ExportTensorTask struct {
 	UpdatedAt time.Time `json:"updatedAt"`
 }
 
-// Header数据
-type ExportTensorHeader struct {
-	ID          int64    `json:"id"`          // 任务ID
-	ExecuteType string   `json:"executeType"` // 任务名
-	SheetName   string   `json:"sheetName"`
-	HeaderJSON  string   `json:"-"` // 导出文件头 []string 序列化后的结果
-	Header      []string `json:"header"`
+// 导出html时一些中间数据
+type ExportHtmlPrepare struct {
+	ID       int64  `gorm:"id" json:"ID"`
+	TaskID   int64  `gorm:"column:task_id" json:"taskID"`
+	DataType int8   `gorm:"column:data_type" json:"dataType"` // 数据类型
+	Data     string `gorm:"column:data" json:"data"`
+}
 
-	CreatedAt time.Time `json:"createdAt"`
-	UpdatedAt time.Time `json:"updatedAt"`
-	DeletedAt int64     `json:"deletedAt"`
+func (ExportHtmlPrepare) TableName() string {
+	return "ivan_export_html_prepare"
+}
+
+const (
+	ExportHtmlPrepareRiskOver      = 1
+	ExportHtmlPrepareVulnLastImage = 2
+)
+
+type ExportTaskImage struct {
+	ID        int64  `gorm:"id"  json:"id"`
+	TaskID    int64  `gorm:"task_id" json:"taskID"`
+	ImageID   int64  `gorm:"column:image_id" json:"imageID"`
+	ImageName string `gorm:"column:image_name" json:"imageName"`
+}
+
+func (ExportTaskImage) TableName() string {
+	return "ivan_export_task_image"
+}
+
+type ExportVulnImage struct {
+	ID         int64    `gorm:"column:id" json:"id"`
+	TaskID     int64    `gorm:"column:task_id" json:"taskID"`
+	UniqueVuln uint64   `gorm:"column:unique_vuln" json:"uniqueVuln,string"`
+	Severity   int      `gorm:"column:severity" json:"severity"`
+	CanFixed   bool     `gorm:"column:can_fixed" json:"canFixed"`
+	ImagesJson string   `gorm:"column:images" json:"-"`
+	Images     []string `gorm:"-" json:"images"`
+}
+
+func (ExportVulnImage) TableName() string {
+	return "ivan_export_vuln_image"
+}
+
+func (evi *ExportVulnImage) Serialize() {
+	if len(evi.Images) > 0 {
+		bys, err := json.Marshal(evi.Images)
+		if err != nil {
+			logging.Get().Err(err).Msg("ExportVulnImage Serialize")
+		} else {
+			evi.ImagesJson = string(bys)
+		}
+	}
+}
+func (evi *ExportVulnImage) Deserialize() {
+	if len(evi.ImagesJson) > 0 {
+		images := make([]string, 0)
+		err := json.Unmarshal([]byte(evi.ImagesJson), &images)
+		if err != nil {
+			logging.Get().Err(err).Msg("ExportVulnImage Deserialize")
+		} else {
+			evi.Images = images
+		}
+	}
+	if evi.Images == nil {
+		evi.Images = make([]string, 0)
+	}
 }
 
 func (ExportTensorTask) TableName() string {
@@ -43,6 +100,9 @@ func (ExportTensorTask) TableName() string {
 func (s *ExportTensorTask) Check() error {
 	if s.Creator == "" {
 		return fmt.Errorf("no creator")
+	}
+	if s.TaskType != ExportExcel && s.TaskType != ExportHtml {
+		return fmt.Errorf("incorrect task type")
 	}
 	return nil
 }

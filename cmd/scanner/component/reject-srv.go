@@ -155,7 +155,7 @@ func (s *ImageReject) GetOverview(ctx context.Context, graph string) (*model.Ima
 		StartAt:   startAt,
 		EndAt:     time.Now().UTC(),
 		JustCount: true,
-	}, model.EmptyFilterForTheTotalQuery())
+	}, model.EmptyFilterForTotalQuery())
 	if err != nil {
 		logging.GetLogger().Err(err).Msg("ImageReject.GetOverview.SearchRejectRecord")
 		return nil, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf(consts.StatusInternalServerErrorMsg))
@@ -166,7 +166,7 @@ func (s *ImageReject) GetOverview(ctx context.Context, graph string) (*model.Ima
 		StartAt:   startAt,
 		EndAt:     time.Now().UTC(),
 		JustCount: true,
-	}, model.EmptyFilterForTheTotalQuery())
+	}, model.EmptyFilterForTotalQuery())
 	if err != nil {
 		logging.GetLogger().Err(err).Msg("ImageReject.GetOverview.SearchRejectRecord")
 		return nil, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf(consts.StatusInternalServerErrorMsg))

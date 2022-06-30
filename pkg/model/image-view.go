@@ -79,25 +79,26 @@ type ImageAttrResponse struct {
 }
 
 type ImageListParam struct {
-	Online          string         `json:"online"`          // 在线 "true",离线："false"
-	Keyword         string         `json:"keyword"`         // 关键字搜索
-	FromType        string         `json:"fromType"`        // 节点镜像："node" 仓库镜像:"registry"
-	SecurityIssue   []uint64       `json:"securityIssue"`   // 安全问题: 前端传字符串
-	ImageAttr       ImageAttrParam `json:"-"`               // 镜像属性
-	ImageAttrView   []string       `json:"imageAttr"`       // 镜像属性,前端以列表的方式传递
-	ImageIds        []int64        `json:"imageIds"`        // 镜像ID列表
-	ScanStatus      []string       `json:"scanStatus"`      // 扫描状态
-	ScanStatusFlag  uint64         `json:"-"`               // 扫描状态(对应数据库中的数据)
-	JustReturnImage bool           `json:"justReturnImage"` // 只返回镜像信息
-	UUIDs           []uint32       `json:"uuids"`           // 镜像uuid
-	Projects        []string       `json:"projects"`        // 仓库和repo的筛选
-	NodeHostname    string         `json:"nodeHostname"`    // 节点名精确匹配
-
-	AttrIntersection  string `json:"attrIntersection"`  // 属性交集还是并集 and or
-	IssueIntersection string `json:"issueIntersection"` // 安全问题交集还是并集 and or
+	Online            string         `json:"online"`            // 在线 "true",离线："false"
+	Keyword           string         `json:"keyword"`           // 关键字搜索
+	FromType          string         `json:"fromType"`          // 节点镜像："node" 仓库镜像:"registry"
+	SecurityIssue     []uint64       `json:"securityIssue"`     // 安全问题: 前端传字符串
+	ImageAttr         ImageAttrParam `json:"-"`                 // 镜像属性
+	ImageAttrView     []string       `json:"imageAttr"`         // 镜像属性,前端以列表的方式传递
+	ImageIds          []int64        `json:"imageIds"`          // 镜像ID列表
+	ScanStatus        []string       `json:"scanStatus"`        // 扫描状态
+	ScanStatusFlag    uint64         `json:"-"`                 // 扫描状态(对应数据库中的数据)
+	JustReturnImage   bool           `json:"justReturnImage"`   // 只返回镜像信息
+	ReturnMalicious   bool           `json:"returnMalicious"`   // 是否返回恶义文件
+	UUIDs             []uint32       `json:"uuids"`             // 镜像uuid
+	Projects          []string       `json:"projects"`          // 仓库和repo的筛选
+	NodeHostname      string         `json:"nodeHostname"`      // 节点名精确匹配
+	AttrIntersection  string         `json:"attrIntersection"`  // 属性交集还是并集 and or
+	IssueIntersection string         `json:"issueIntersection"` // 安全问题交集还是并集 and or
 
 	//  以下是镜像扫描时的参数
 	ImageScanTaskInfo ImageScanTaskInfo `json:"imageScanTaskInfo"`
+	StartID           int64             `json:"startID"`
 
 	// 后端处理数据的中间结构
 	RegistryIds []int64  `json:"-"`
@@ -310,10 +311,23 @@ type ImageListResponse struct {
 	Flag              uint64            `json:"flag"`
 	Project           string            `json:"project"`
 	LastSyncAt        int64             `json:"lastSyncAt"` // 上次同步时间(单位：毫秒)
+	Malicious         []VirusInfo       `json:"malicious"`  // 恶义文件
 
-	Registry *Registry  `json:"-"`
-	Subtasks *SubTask   `json:"-"`
-	ScanInfo *ScanImage `json:"-"`
+	Registry    *Registry  `json:"-"`
+	Subtasks    *SubTask   `json:"-"`
+	ScanInfo    *ScanImage `json:"-"`
+	UniqueImage uint64     `json:"uniqueImage;string"`
+}
+
+func (ir *ImageListResponse) GetImageName() string {
+	// 把仓库信息加上
+	if ir.Registry != nil {
+		ir.RegistryName = ir.Registry.Name
+		ir.RegistryUrl = ir.Registry.Url
+		ir.RegistryDeletedAt = ir.Registry.DeletedAt
+		ir.LastSyncAt = ir.Registry.LastSyncAt
+	}
+	return fmt.Sprintf("(%s)%s/%s:%s", ir.RegistryName, ir.RegistryUrl, ir.FullRepoName, ir.Tag)
 }
 
 func (ir *ImageListResponse) Deserialize() {
@@ -376,6 +390,12 @@ func (ir *ImageListResponse) Deserialize() {
 		}
 
 		ir.RiskScore = ir.ScanInfo.VulnScore + ir.ScanInfo.SensitiveScore + math.Min(ir.ScanInfo.WebshellScore+ir.ScanInfo.VirusScore, MaxWebshellAndVirusScore)
+
+		// 把恶义文件加上
+		ir.Malicious = make([]VirusInfo, 0)
+		for i := range ir.ScanInfo.MaliciousInfo {
+			ir.Malicious = append(ir.Malicious, ir.ScanInfo.MaliciousInfo[i].VirusInfo)
+		}
 	}
 
 	if ExistFlag(ir.Flag, FlagBaseImage) {
@@ -407,6 +427,7 @@ func (ir *ImageListResponse) Deserialize() {
 			logging.Get().Err(err).Str("os", ir.Os).Msg("ImageListResponse.Deserialize")
 		}
 	}
+	ir.LastSyncAt = ir.Registry.LastSyncAt
 }
 
 func ParseConfigEnv(env []EnvKeyValue) string {

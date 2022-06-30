@@ -283,12 +283,12 @@ func (s *ConScannerSrv) SearchImages(ctx context.Context, param SearchImageParam
 }
 
 func NewConScannerSrv(
-	dbdal store.ScannerDalInterface,
-	registryDal store.RegistryDal,
-	scanTaskDal store.ScanTaskInterface,
-	scanConfigDal store.ScanConfigDal,
-	vulnDal store.VulnDalInterface,
-	palaceHandler *palace.Palace) *ConScannerSrv {
+		dbdal store.ScannerDalInterface,
+		registryDal store.RegistryDal,
+		scanTaskDal store.ScanTaskInterface,
+		scanConfigDal store.ScanConfigDal,
+		vulnDal store.VulnDalInterface,
+		palaceHandler *palace.Palace) *ConScannerSrv {
 	return &ConScannerSrv{
 		dbdal:         dbdal,
 		registryDal:   registryDal,
@@ -1116,7 +1116,7 @@ func (s *ConScannerSrv) ListImgLayers(ctx context.Context, imaID int64, filter *
 func (s *ConScannerSrv) ScanAllNow(ctx context.Context, info task.UpdateTaskInfo, search SearchImageWithScanParam) error {
 	logging.GetLogger().Info().Int64("fromType", search.FromType).Msg("start full scan")
 	search.JustReturnImage = true
-	images, _, err := s.SearchImageWithScan(ctx, search, model.EmptyFilterForTheTotalQuery())
+	images, _, err := s.SearchImageWithScan(ctx, search, model.EmptyFilterForTotalQuery())
 	if err != nil {
 		logging.GetLogger().Err(err).Msg("ScanAllNow find image error")
 		return err

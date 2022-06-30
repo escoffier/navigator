@@ -1,16 +1,16 @@
-package export
+package excel
 
 import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"strings"
 	"sync"
 	"time"
 
 	"github.com/xuri/excelize/v2"
 	"go.uber.org/atomic"
 
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scan-report/export"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
@@ -18,13 +18,14 @@ import (
 )
 
 type ImageExport struct {
-	resourceDal   store.ResourceDal
-	exportTaskDal store.ExportTaskDal
-	imageSrv      ImageInterface
+	ResourceDal   store.ResourceDal
+	ExportTaskDal store.ExportTaskDal
+	ImageSrv      ImageInterface
 	Interval      time.Duration
 
-	exportingMap *sync.Map // 正在执行的任务
-	fileDir      string    // 文件存储的决对路径
+	ExportingMap *sync.Map // 正在执行的任务
+	FileDir      string    // 文件存储的决对路径
+	UpdateTask   export.UpdateTask
 }
 
 type ImageExportInterface interface {
@@ -33,26 +34,22 @@ type ImageExportInterface interface {
 	GetExcelData(ctx context.Context, imageID int64, vulnCol *atomic.Int32) (map[string]chan []string, error)
 }
 
-type UpdateTask interface {
-	Start(ctx context.Context, id int64) error
-	Success(ctx context.Context, id int64, filePath string) error
-	Failure(ctx context.Context, id int64, msg string) error
-}
-
 func NewImageExport(
 	resourceDal store.ResourceDal,
 	exportTaskDal store.ExportTaskDal,
 	imageSrv ImageInterface,
 	fileDir string,
 	interval time.Duration,
+	UpdateTask export.UpdateTask,
 ) *ImageExport {
 	return &ImageExport{
-		resourceDal:   resourceDal,
-		exportTaskDal: exportTaskDal,
-		imageSrv:      imageSrv,
-		exportingMap:  &sync.Map{},
-		fileDir:       fileDir,
+		ResourceDal:   resourceDal,
+		ExportTaskDal: exportTaskDal,
+		ImageSrv:      imageSrv,
+		ExportingMap:  &sync.Map{},
+		FileDir:       fileDir,
 		Interval:      interval,
+		UpdateTask:    UpdateTask,
 	}
 }
 
@@ -71,8 +68,9 @@ type ImageExportData struct {
 }
 
 func (s *ImageExport) GetTensorTask(ctx context.Context, executeType string, n int64) ([]model.ExportTensorTask, error) {
-	task, _, err := s.exportTaskDal.SearchExportTensorTask(ctx, store.SearchExportTensorTask{
-		ExecuteType: executeType,
+	task, _, err := s.ExportTaskDal.SearchExportTensorTask(ctx, store.SearchExportTensorTask{
+		TaskType:    model.ExportExcel,
+		ExecuteType: []string{executeType},
 		Finished:    consts.FalseString,
 		Failure:     consts.FalseString,
 	}, &model.Filter{Limit: n})
@@ -99,11 +97,7 @@ func (s *ImageExport) Export(ctx context.Context, task model.ExportTensorTask, e
 		}
 		logging.GetLogger().Info().Int64("taskID", task.ID).Int64("imageID", param.ImageID).Msg("Export Parse parameters")
 
-		filename, err := s.genFilename(ctx, task)
-		if err != nil {
-			logging.GetLogger().Err(err).Int64("taskID", task.ID).Msg("Export.genFilename")
-			return
-		}
+		filename := task.FilePath
 		logging.GetLogger().Info().Int64("taskID", task.ID).Int64("imageID", param.ImageID).Str("filename", filename).Msg("Export createExcelFile")
 
 		excelData := make(map[string][]chan []string)
@@ -140,7 +134,7 @@ func (s *ImageExport) Export(ctx context.Context, task model.ExportTensorTask, e
 
 func (s *ImageExport) GetExcelData(ctx context.Context, imageID int64, vulnCol *atomic.Int32) (map[string]chan []string, error) {
 	// 获取镜像详情
-	imageDetail, err := s.imageSrv.GetImageDetail(ctx, imageID)
+	imageDetail, err := s.ImageSrv.GetImageDetail(ctx, imageID)
 	if err != nil {
 		logging.GetLogger().Err(err).Int64("ImageID", imageID).Msg("GetDataAndCreateExcelFile.GetImageDetail")
 		return nil, err
@@ -154,7 +148,7 @@ func (s *ImageExport) GetExcelData(ctx context.Context, imageID int64, vulnCol *
 	logging.GetLogger().Debug().Int64("imageID", imageID).Msg("GetExcelData GetScanOneStatus")
 
 	// 获取关联容器
-	resources, err := s.resourceDal.SearchResources(ctx, []uint32{imageDetail.ImageUUID})
+	resources, err := s.ResourceDal.SearchResources(ctx, []uint32{imageDetail.ImageUUID})
 	if err != nil {
 		logging.GetLogger().Err(err).Int64("imageID", imageID).Uint32("ImageUUID", imageDetail.ImageUUID).Msg("GetDataAndCreateExcelFile.SearchResources")
 		return nil, err
@@ -172,7 +166,7 @@ func (s *ImageExport) GetExcelData(ctx context.Context, imageID int64, vulnCol *
 	res[GenImageResourcesInfoMeta().SheetName] = GenImageResourceChan(*imageDetail, resources)
 
 	if model.ExistFlag(imageDetail.Flag, model.FlagBaseImage) {
-		images, _, err := s.imageSrv.ListAppImageOfBase(ctx, imageID, nil)
+		images, _, err := s.ImageSrv.ListAppImageOfBase(ctx, imageID, nil)
 		if err != nil {
 			logging.GetLogger().Err(err).Int64("imageID", imageID).Msg("GetDataAndCreateExcelFile.WriteToExcel")
 			return res, nil
@@ -180,7 +174,7 @@ func (s *ImageExport) GetExcelData(ctx context.Context, imageID int64, vulnCol *
 		res[GenImageTypeInfoMeta().SheetName] = GenAppOrBaseImageChan(images)
 	}
 	if !model.ExistFlag(imageDetail.Flag, model.FlagBaseImage) {
-		images, _, err := s.imageSrv.ListAppImageOfBase(ctx, imageID, nil)
+		images, _, err := s.ImageSrv.ListAppImageOfBase(ctx, imageID, nil)
 		if err != nil {
 			logging.GetLogger().Err(err).Int64("imageID", imageID).Msg("GetDataAndCreateExcelFile.WriteToExcel")
 			return res, nil
@@ -213,22 +207,6 @@ func (s *ImageExport) ConvertData(res map[string]chan []string) map[string]chan 
 	return ans
 }
 
-func (s *ImageExport) genFilename(ctx context.Context, task model.ExportTensorTask) (string, error) {
-	searchParam := ImageExportParma{}
-	if err := json.Unmarshal([]byte(task.Parameter), &searchParam); err != nil {
-		return "", err
-	}
-
-	imageDetail, err := s.imageSrv.GetImageDetail(ctx, searchParam.ImageID)
-	if err != nil {
-		return "", err
-	}
-
-	fileName := fmt.Sprintf("%s_%s_%d", strings.ReplaceAll(imageDetail.FullRepoName, "/", "_"),
-		imageDetail.Tags, task.CreatedAt.Unix())
-	return fileName, nil
-}
-
 func (s *ImageExport) ZipAndSave(ctx context.Context, filename string, files chan *excelize.File) error {
 
 	file, err := ZipExcelFile(files)
@@ -236,7 +214,7 @@ func (s *ImageExport) ZipAndSave(ctx context.Context, filename string, files cha
 		logging.GetLogger().Err(err).Str("filename", filename).Msg("ZipAndSave.WriteToExcel")
 		return err
 	}
-	if err := SaveFile(file, s.fileDir+"/"+filename); err != nil {
+	if err := SaveFile(file, s.FileDir+"/"+filename); err != nil {
 		logging.GetLogger().Err(err).Str("filename", filename).Msg("ZipAndSave.SaveFile")
 		return err
 	}
@@ -244,91 +222,43 @@ func (s *ImageExport) ZipAndSave(ctx context.Context, filename string, files cha
 	return nil
 }
 
-func (s *ImageExport) Success(ctx context.Context, id int64, filePath string) error {
-
-	updater := map[string]interface{}{"finish_at": time.Now().Unix(), "file_path": filePath}
-	where := fmt.Sprintf("id = %d", id)
-	if err := s.exportTaskDal.UpdateExportTensorTask(ctx, where, updater, nil); err != nil {
-		logging.GetLogger().Err(err).Int64("taskID", id).Msg("Success")
-		return err
-	}
-	return nil
-
-}
-
-func (s *ImageExport) Failure(ctx context.Context, id int64, msg string) error {
-	updater := map[string]interface{}{"err_msg": msg, "finish_at": time.Now().Unix()}
-	where := fmt.Sprintf("id = %d", id)
-	if err := s.exportTaskDal.UpdateExportTensorTask(ctx, where, updater, nil); err != nil {
-		logging.GetLogger().Err(err).Int64("taskID", id).Msg("Failure")
-		return err
-	}
-	return nil
-}
-
-func (s *ImageExport) Start(ctx context.Context, id int64) error {
-	updater := map[string]interface{}{"start_at": time.Now().Unix()}
-	where := fmt.Sprintf("id = %d", id)
-	if err := s.exportTaskDal.UpdateExportTensorTask(ctx, where, updater, nil); err != nil {
-		logging.GetLogger().Err(err).Int64("taskID", id).Msg("Start")
-		return err
-	}
-	return nil
-}
-
 func (s *ImageExport) Run(ctx context.Context) {
-	// // 检测当查正在执行的任务数
-	// runningTaskCount := CountRunningTask(s.exportingMap)
-	//
-	// if runningTaskCount >= s.ParallelTaskNum {
-	// 	logging.GetLogger().Info().Int64("runningTaskCount", runningTaskCount).Int64("ParallelTaskNum", s.ParallelTaskNum).Msg("ImageExport export task in progress")
-	// 	return
-	// }
-
-	tasks, err := s.GetTensorTask(ctx, consts.ExportImage, consts.DefaultExportBathSize)
+	tasks, err := s.GetTensorTask(ctx, consts.ExportSingleImage, consts.DefaultExportBathSize)
 	if err != nil {
 		return
 	}
 	for i := range tasks {
 		task := tasks[i]
-		if ex, ok := s.exportingMap.Load(task.ID); ok {
+		if ex, ok := s.ExportingMap.Load(task.ID); ok {
 			if ex1, ok := ex.(bool); ok && ex1 == consts.TaskExporting {
 				logging.GetLogger().Info().Int64("taskID", task.ID).Msg("task is running")
 				continue
 			}
 		}
-		s.exportingMap.Store(task.ID, consts.TaskExporting)
-		if err := s.Start(ctx, task.ID); err != nil {
+		s.ExportingMap.Store(task.ID, consts.TaskExporting)
+		if err := s.UpdateTask.Start(ctx, task.ID); err != nil {
 			logging.GetLogger().Err(err).Int64("taskID", task.ID).Msg("Run.Start")
 			continue
 		}
 
-		filename, err := s.genFilename(ctx, task)
-		if err != nil {
-			logging.GetLogger().Err(err).Int64("taskID", task.ID).Msg("genFilename")
-			s.exportingMap.Delete(task.ID)
-			if err := s.Failure(ctx, task.ID, err.Error()); err != nil {
-				logging.GetLogger().Err(err).Int64("taskID", task.ID).Msg("Failure genFilename")
-			}
-			continue
-		}
+		filename := task.FilePath
 
-		excelChan := s.Export(ctx, tasks[i], consts.ExportImage)
+		excelChan := s.Export(ctx, tasks[i], consts.ExportSingleImage)
 
 		if err := s.ZipAndSave(ctx, filename, excelChan); err != nil {
 			logging.GetLogger().Err(err).Int64("taskID", task.ID).Msg("ZipAndSave")
-			s.exportingMap.Delete(task.ID)
+			s.ExportingMap.Delete(task.ID)
 
-			if err := s.Failure(ctx, task.ID, err.Error()); err != nil {
+			if err := s.UpdateTask.Failure(ctx, task.ID, err.Error()); err != nil {
 				logging.GetLogger().Err(err).Int64("taskID", task.ID).Msg("Failure export task failure update task")
 			}
 
 			continue
 		}
 		logging.GetLogger().Info().Int64("taskID", task.ID).Str("filename", filename).Msg("export task success")
-		s.exportingMap.Delete(task.ID)
+		s.ExportingMap.Delete(task.ID)
 		// 成功之后更新任务
-		if err := s.Success(ctx, task.ID, fmt.Sprintf("%s/%s.zip", s.fileDir, filename)); err != nil {
+		if err := s.UpdateTask.Success(ctx, task.ID, fmt.Sprintf("%s/%s.zip", s.FileDir, filename)); err != nil {
 			logging.GetLogger().Err(err).Int64("taskID", task.ID).Msg("Success export task success update task")
 		}
 	}
