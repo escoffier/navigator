@@ -231,12 +231,19 @@ func requestLogFields(r *http.Request) *model.NaviAuditEvent {
 		}
 	}
 
+	remoteIP := r.Header.Get("X-Forwarded-For")
+	if remoteIP == "" {
+		remoteIP = r.Header.Get("X-Real-IP")
+		if remoteIP == "" {
+			remoteIP = r.RemoteAddr
+		}
+	}
 	request := &model.HttpRequest{
 		RequestURL: requestURL,
 		Method:     r.Method,
 		Path:       r.URL.Path,
 		Proto:      r.Proto,
-		RemoteIP:   r.RemoteAddr,
+		RemoteIP:   remoteIP,
 		Body:       bodyStr,
 	}
 
