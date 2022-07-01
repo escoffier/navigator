@@ -1152,7 +1152,7 @@ func (s *ConScannerSrv) TickScanOne(ctx context.Context, imgID int64, info task.
 }
 
 func (s *ConScannerSrv) GetScanOneStatus(ctx context.Context, imgID int64, fromURL string) (*model.ImageResponse, error) {
-	imgs, _, err := s.dbdal.SearchImage(ctx, store.SearchImageParam{InIds: []int64{imgID}, Library: fromURL, OmitFields: []string{"config_json", "manifest_v1_json", "manifest_v2_json"}}, nil)
+	imgs, _, err := s.dbdal.SearchImage(ctx, store.SearchImageParam{InIds: []int64{imgID}, Libraries: []string{fromURL}, OmitFields: []string{"config_json", "manifest_v1_json", "manifest_v2_json"}}, nil)
 	if err != nil {
 		logging.GetLogger().Err(err).Msg("GetScanOneStatus.SearchImage")
 		return nil, response.NewHttpError(http.StatusInternalServerError, err)

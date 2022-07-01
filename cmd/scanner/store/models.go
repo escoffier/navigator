@@ -7,7 +7,6 @@ import (
 )
 
 type SearchImageParam struct {
-	Library      string
 	Libraries    []string
 	InIds        []int64
 	NotInIds     []int64
