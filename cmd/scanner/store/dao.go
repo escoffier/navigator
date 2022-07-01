@@ -1043,8 +1043,8 @@ func (s *ScannerOrm) SearchImage(ctx context.Context, param SearchImageParam, fi
 	if len(param.OmitFields) > 0 {
 		db = db.Omit(param.OmitFields...)
 	}
-	if param.Library != "" {
-		db = db.Where("library = ? ", param.Library)
+	if len(param.Libraries) > 0 {
+		db = db.Where("library IN  ? ", param.Libraries)
 	}
 	if param.Search != "" {
 		db = db.Where("full_repo_name LIKE ?  OR tags LIKE ? ", fmt.Sprintf("%%%s%%", param.Search), fmt.Sprintf("%%%s%%", param.Search))
