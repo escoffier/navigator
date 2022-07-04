@@ -135,7 +135,7 @@ type ScannerSrv interface {
 	ScanReportDownload(ctx context.Context, taskID, subTaskID uint) (*scanreport.ScanReportResult, error)
 	ScanReportGenerate(ctx context.Context, taskID uint) (uint, error)
 
-	GetScanTaskList(ctx context.Context, limit, offset int64) ([]*model.Task, int64, error)
+	GetScanTaskList(ctx context.Context, filter *model.Filter) ([]*model.Task, int64, error)
 	GetScanSubTaskList(ctx context.Context, taskID int64, status []int64, filter *model.Filter) ([]model.SubTask, int64, error)
 	UpdateScanTaskStatus(ctx context.Context, taskID int64, status uint8) error
 
@@ -2946,11 +2946,25 @@ func (s *ConScannerSrv) DetectImageForK8s(ctx context.Context, img *model.ImageL
 	return safe, records, msgs, nil
 }
 
-func (s *ConScannerSrv) GetScanTaskList(ctx context.Context, limit, offset int64) ([]*model.Task, int64, error) {
-	data, count, err := s.dbdal.GetTaskList(ctx, int(limit), int(offset))
+func (s *ConScannerSrv) GetScanTaskList(ctx context.Context, filter *model.Filter) ([]*model.Task, int64, error) {
+	data, count, err := s.dbdal.GetTaskList(ctx, filter)
 	if err != nil {
-		logging.GetLogger().Err(err).Msgf("获取扫描任务记录失败, limit: %d, offset: %d", limit, offset)
+		logging.GetLogger().Err(err).Msg("获取扫描任务记录失败")
 		return nil, 0, err
+	}
+
+	// 获取策略名字
+	strategy, _, err := s.scanConfigDal.SearchStrategy(ctx, store.SearchStrategyParam{GetDeleted: true}, nil)
+	if err != nil {
+		logging.GetLogger().Err(err).Msgf("SearchStrategy")
+		return nil, 0, err
+	}
+	strategyMap := make(map[int64]string)
+	for i := range strategy {
+		strategyMap[strategy[i].ID] = strategy[i].Name
+	}
+	for i := range data {
+		data[i].ScanStrategyName = strategyMap[data[i].PolicyId]
 	}
 
 	return data, count, nil

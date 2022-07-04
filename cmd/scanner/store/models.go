@@ -247,6 +247,7 @@ type SearchStrategyParam struct {
 	IsDefault  string
 	StrategyID int64
 	Name       string
+	GetDeleted bool // 是否获取已删除的
 }
 
 type GetProjectParam struct {

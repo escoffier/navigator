@@ -104,7 +104,7 @@ type ScanTaskInterface interface {
 	SearchSubTasksWithScanStatus(ctx context.Context, imageIds []int64, status []int) ([]model.SubTask, error)
 
 	UpdateTaskStatus(ctx context.Context, id int64, status uint8) error
-	GetTaskList(ctx context.Context, limit, offset int) ([]*model.Task, int64, error)
+	GetTaskList(ctx context.Context, filter *model.Filter) ([]*model.Task, int64, error)
 	GetSubTaskListWithImage(ctx context.Context, param GetSubTaskListWithImageParam, fileter *model.Filter) ([]model.SubTask, int64, error)
 
 	GetAllScanStrategyEnv(ctx context.Context) ([]model.ScanStrategy, error)
@@ -1623,11 +1623,14 @@ func (s *ScannerOrm) UpdateTaskStatus(ctx context.Context, id int64, status uint
 	return
 }
 
-func (s *ScannerOrm) GetTaskList(ctx context.Context, limit, offset int) ([]*model.Task, int64, error) {
+func (s *ScannerOrm) GetTaskList(ctx context.Context, filter *model.Filter) ([]*model.Task, int64, error) {
 	var (
 		count int64
 		err   error
 	)
+
+	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*10)
+	defer cancelFunc()
 
 	db := s.rdb.Get().WithContext(ctx)
 
@@ -1636,40 +1639,18 @@ func (s *ScannerOrm) GetTaskList(ctx context.Context, limit, offset int) ([]*mod
 		return nil, 0, errors.Wrap(err, "get task total count failed")
 	}
 
-	data := make(
-		[]struct {
-			model.Task
-			ScanStrategyName string `gorm:"column:name"`
-		},
-		0,
-		limit,
-	)
-
-	err = db.
-		Model(model.Task{}).
-		Select("ivan_scanner_scan_task.*, t.name").
-		Joins("INNER JOIN ivan_scanner_scan_strategies as t ON t.id=ivan_scanner_scan_task.policy_id").
-		Where("status != ?", consts.Unknown).
-		Limit(limit).
-		Offset(offset).
-		Order(clause.OrderByColumn{Column: clause.Column{Name: "created_at"}, Desc: true}).
-		Find(&data).
-		Error
-
-	if err != nil {
+	data := make([]*model.Task, 0)
+	db = db.Model(model.Task{}).Where("status != ?", consts.Unknown)
+	if err := db.Count(&count).Error; err != nil {
+		return nil, 0, errors.Wrap(err, "get task total count failed")
+	}
+	db = model.AddFilter(db, filter)
+	if err := db.Find(&data).Error; err != nil {
 		return nil, 0, errors.Wrap(err, "get task data failed")
 	}
 
 	taskIds := make([]int64, 0, len(data))
 	taskIdsMap := make(map[int64]*model.Task, len(data))
-
-	var datas = make([]*model.Task, 0, len(data))
-	for i := range data {
-		taskIds = append(taskIds, data[i].ID)
-		taskIdsMap[data[i].ID] = &data[i].Task
-		data[i].Task.ScanStrategyName = data[i].ScanStrategyName
-		datas = append(datas, &data[i].Task)
-	}
 
 	type SubTaskCount struct {
 		SuccessCount int   `gorm:"column:sc"`
@@ -1678,7 +1659,7 @@ func (s *ScannerOrm) GetTaskList(ctx context.Context, limit, offset int) ([]*mod
 
 	c := make([]SubTaskCount, 0, len(data))
 
-	err = db.
+	err = s.rdb.Get().WithContext(ctx).
 		Model(model.SubTask{}).
 		Select("task_id, count(*) as sc").
 		Where("task_id in ?", taskIds).
@@ -1695,7 +1676,7 @@ func (s *ScannerOrm) GetTaskList(ctx context.Context, limit, offset int) ([]*mod
 		taskIdsMap[c[i].TaskID].SuccessSubTaskCount = c[i].SuccessCount
 	}
 
-	return datas, count, nil
+	return data, count, nil
 }
 
 func (s *ScannerOrm) GetSubTaskListWithImage(ctx context.Context, param GetSubTaskListWithImageParam, filter *model.Filter) ([]model.SubTask, int64, error) {

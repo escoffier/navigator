@@ -273,8 +273,10 @@ func (s *ScanConfigSrv) DeleteStrategy(ctx context.Context, strategyID int64) er
 	if len(tasks) > 0 {
 		return fmt.Errorf("该策略下还有未完成的扫描任务，不能删除")
 	}
-	if err := s.ScanConfigDal.DeleteStrategy(ctx, strategyID); err != nil {
-		logging.GetLogger().Err(err).Msgf("DeleteStrategy:%d", strategyID)
+	updater := map[string]interface{}{"deleted_at": time.Now().Unix()}
+
+	if err := s.ScanConfigDal.UpdateStrategy(ctx, store.SearchStrategyParam{StrategyID: strategyID}, updater); err != nil {
+		logging.GetLogger().Err(err).Msgf("UpdateStrategy:%d", strategyID)
 		return response.NewHttpError(http.StatusInternalServerError, err)
 	}
 	return nil
