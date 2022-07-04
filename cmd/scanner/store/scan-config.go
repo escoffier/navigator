@@ -110,21 +110,25 @@ func (s *ScanConfigDao) SearchScanConfig(ctx context.Context, param SearchScanCo
 	return res, cnt, nil
 }
 
-func (s *ScanConfigDao) SearchStrategy(ctx context.Context, parm SearchStrategyParam, filter *model.Filter) ([]model.ScanStrategy, int64, error) {
+func (s *ScanConfigDao) SearchStrategy(ctx context.Context, param SearchStrategyParam, filter *model.Filter) ([]model.ScanStrategy, int64, error) {
 	timeoutCtx, cancelFunc := context.WithTimeout(ctx, 10*time.Second)
 	defer cancelFunc()
 	db := s.db.Get().WithContext(timeoutCtx).Model(new(model.ScanStrategy))
-	if parm.IsDefault == consts.TrueString {
+	if !param.GetDeleted {
+		db = db.Where("deleted_at = ? ", 0)
+	}
+
+	if param.IsDefault == consts.TrueString {
 		db.Where("is_default = ?", true)
 	}
-	if parm.IsDefault == consts.FalseString {
+	if param.IsDefault == consts.FalseString {
 		db.Where("is_default = ?", false)
 	}
-	if parm.StrategyID > 0 {
-		db.Where("id = ? ", parm.StrategyID)
+	if param.StrategyID > 0 {
+		db.Where("id = ? ", param.StrategyID)
 	}
-	if parm.Name != "" {
-		db.Where("name = ? ", parm.Name)
+	if param.Name != "" {
+		db.Where("name = ? ", param.Name)
 	}
 
 	res := make([]model.ScanStrategy, 0)
@@ -160,16 +164,16 @@ func (s *ScanConfigDao) CreateStrategy(ctx context.Context, data *model.ScanStra
 	return nil
 }
 
-func (s *ScanConfigDao) UpdateStrategy(ctx context.Context, parm SearchStrategyParam, updater map[string]interface{}) error {
+func (s *ScanConfigDao) UpdateStrategy(ctx context.Context, param SearchStrategyParam, updater map[string]interface{}) error {
 	timeoutCtx, cancelFunc := context.WithTimeout(ctx, 10*time.Second)
 	defer cancelFunc()
 	db := s.db.Get().WithContext(timeoutCtx).Model(new(model.ScanStrategy))
-	if parm.IsDefault == consts.TrueString {
+	if param.IsDefault == consts.TrueString {
 		db = db.Where("is_default = ? ", true)
-	} else if parm.IsDefault == consts.FalseString {
+	} else if param.IsDefault == consts.FalseString {
 		db = db.Where("is_default = ? ", false)
 	}
-	err := db.Where("id = ?", parm.StrategyID).Updates(updater).Error
+	err := db.Where("id = ?", param.StrategyID).Updates(updater).Error
 	return err
 }
 

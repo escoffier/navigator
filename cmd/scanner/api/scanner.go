@@ -1154,25 +1154,21 @@ func (s *Scanner) ImageOverview(ctx *gin.Context) {
 // @Success 200 {object} ApiWithItem{data=ApiItem{}}
 // @Router	/api/v1/tasks [get]
 func (s *Scanner) GetScanTaskList(ctx *gin.Context) {
-	limit, err := strconv.ParseInt(ctx.Query("limit"), 0, 64)
-	if err != nil {
-		response.JSONError(ctx, fmt.Errorf("无效的limit: %s", ctx.Query("limit")))
-		return
-	}
+	filter := model.GetFilterWithDefaultValue(ctx)
+	filter.SortFiled = "created_at"
+	filter.SortBy = consts.SortByDesc
 
-	offset, err := strconv.ParseInt(ctx.Query("offset"), 0, 64)
-	if err != nil {
-		response.JSONError(ctx, fmt.Errorf("无效的offset: %s", ctx.Query("offset")))
-		return
-	}
-
-	data, count, err := s.Srv.GetScanTaskList(ctx, limit, offset)
+	data, count, err := s.Srv.GetScanTaskList(ctx, filter)
 	if err != nil {
 		response.JSONError(ctx, errors.New("获取扫描任务记录失败"))
 		return
 	}
 
-	response.JSONOK(ctx, response.WithTotalItems(count), response.WithItems(data))
+	response.JSONOK(ctx,
+		response.WithTotalItems(count),
+		response.WithItems(data),
+		response.WithItemsPerPage(filter.Limit),
+		response.WithStartIndex(filter.Offset))
 }
 
 // GetScanSubTaskList 获取某个任务的子任务列表
