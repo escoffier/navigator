@@ -528,7 +528,7 @@ func (s *Scanner) GetScanOneStatus(ctx *gin.Context) {
 		response.JSONError(ctx, errors.New("no image id"))
 		return
 	}
-	res, err := s.Srv.GetScanOneStatus(ctx, imgID, "")
+	res, err := s.Srv.GetScanOneStatus(ctx, imgID)
 	if err != nil {
 		response.JSONError(ctx, err)
 		return
