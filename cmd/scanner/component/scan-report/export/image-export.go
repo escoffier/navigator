@@ -59,7 +59,7 @@ type ImageInterface interface {
 	ListBaseImageOfApp(ctx context.Context, imageID int64, filter *model.Filter) ([]model.ImageList, int64, error)
 	ListAppImageOfBase(ctx context.Context, imageID int64, filter *model.Filter) ([]model.ImageList, int64, error)
 	GetImageDetail(ctx context.Context, imgID int64) (*model.ImageList, error)
-	GetScanOneStatus(ctx context.Context, imgID int64, fromURL string) (*model.ImageResponse, error)
+	GetScanOneStatus(ctx context.Context, imgID int64) (*model.ImageResponse, error)
 }
 
 type ImageExportParma struct {
@@ -151,7 +151,7 @@ func (s *ImageExport) GetExcelData(ctx context.Context, imageID int64) (map[stri
 		imageDetail.Library = imageDetail.Registry.Url
 	}
 
-	imageStatus, err := s.imageSrv.GetScanOneStatus(ctx, imageID, "")
+	imageStatus, err := s.imageSrv.GetScanOneStatus(ctx, imageID)
 	if err != nil {
 		logging.GetLogger().Err(err).Int64("ImageID", imageID).Msg("GetDataAndCreateExcelFile.GetImageDetail")
 		return nil, err

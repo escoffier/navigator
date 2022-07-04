@@ -104,7 +104,7 @@ type ScannerSrv interface {
 	UpdateImageType(ctx context.Context, imageIds []int64, imageType int64) error
 	GetImageDetail(ctx context.Context, imgID int64) (*model.ImageList, error)
 	GetImageOverView(ctx context.Context, fromType int64) (*model.OverView, error)
-	GetScanOneStatus(ctx context.Context, imgID int64, fromURL string) (*model.ImageResponse, error)
+	GetScanOneStatus(ctx context.Context, imgID int64) (*model.ImageResponse, error)
 	TickScanOne(ctx context.Context, imgID int64, info task.UpdateTaskInfo) error
 	ScanOneForCICD(ctx context.Context, req *model.ScanOneForCICDRequest) (*model.ScanOneCICDResultRequest, error)
 	ScanOneForCICDResult(ctx context.Context, req *model.ScanOneCICDResultRequest) (*model.ScanOneForCICDResponse, error)
@@ -1151,8 +1151,8 @@ func (s *ConScannerSrv) TickScanOne(ctx context.Context, imgID int64, info task.
 	return nil
 }
 
-func (s *ConScannerSrv) GetScanOneStatus(ctx context.Context, imgID int64, fromURL string) (*model.ImageResponse, error) {
-	imgs, _, err := s.dbdal.SearchImage(ctx, store.SearchImageParam{InIds: []int64{imgID}, Libraries: []string{fromURL}, OmitFields: []string{"config_json", "manifest_v1_json", "manifest_v2_json"}}, nil)
+func (s *ConScannerSrv) GetScanOneStatus(ctx context.Context, imgID int64) (*model.ImageResponse, error) {
+	imgs, _, err := s.dbdal.SearchImage(ctx, store.SearchImageParam{InIds: []int64{imgID}, OmitFields: []string{"config_json", "manifest_v1_json", "manifest_v2_json"}}, nil)
 	if err != nil {
 		logging.GetLogger().Err(err).Msg("GetScanOneStatus.SearchImage")
 		return nil, response.NewHttpError(http.StatusInternalServerError, err)
