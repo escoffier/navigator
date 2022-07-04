@@ -90,9 +90,18 @@ func (s *Service) PolicyBatch(ctx context.Context, scapType uint8, limit, offset
 	}
 
 	// 手动排序，因为默认策略在第一位，只需要排后面的策略
+	// 这里将默认策略排在列表的前面，然后非默认策略按照策略的创建时间，按时间的倒叙排列
 	sort.Slice(result, func(i, j int) bool {
 		// 默认策略排到第一个
-		return result[i].IsDefault || !result[i].CreatedAt.Before(result[j].CreatedAt)
+		if result[i].IsDefault {
+			return true
+		}
+
+		if result[j].IsDefault {
+			return false
+		}
+
+		return result[i].CreatedAt.After(result[j].CreatedAt)
 	})
 
 	return result, count, nil
