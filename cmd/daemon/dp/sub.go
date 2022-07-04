@@ -93,7 +93,7 @@ func (s *Subscriber) RuntimeEventCallBack(config *ConfigManager, rt container.Ru
 
 				// get image whitelist
 				skipScanner := false
-				if _, skipScanner := config.IsImageDigestsExist(m.ContainerInfo.ImageDigest); skipScanner {
+				if _, skipScanner = config.IsImageDigestsExist(m.ContainerInfo.ImageDigest); skipScanner {
 					logging.Get().
 						Info().
 						Msg("imageDigest in exec white list,ignore whitelist scanner")
