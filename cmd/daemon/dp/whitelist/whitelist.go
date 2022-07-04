@@ -3,10 +3,14 @@ package whitelist
 import (
 	"bufio"
 	"fmt"
+	"io"
+	"io/fs"
+	"math/rand"
 	"os"
 	"sort"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/docker/docker/api/types"
 	"gitlab.com/security-rd/go-pkg/logging"
@@ -16,6 +20,12 @@ type imageInfo struct {
 	WhiteList []WhitelistFile
 }
 
+const (
+	whiteListBackFileTemplate = "/host/tmp/.whitelistcache/%s.txt"
+	backFilePath              = "/host/tmp/.whitelistcache"
+	letterBytes               = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+)
+
 type WhitelistCount struct {
 	ImageWhiteListMap map[string]map[string]string
 	Mapmutex          *sync.Mutex
@@ -23,21 +33,78 @@ type WhitelistCount struct {
 	HitCount          int
 }
 
-func dumpWhitelist(whiteList []WhitelistFile, outputfile string) error {
+func loadWhiteListFromFile(path string) ([]WhitelistFile, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		logging.Get().Error().Msg(err.Error())
+		return []WhitelistFile{}, err
+	}
+	defer f.Close()
+	whiteList := make([]WhitelistFile, 0)
+	br := bufio.NewReader(f)
+	for {
+		line, _, c := br.ReadLine()
+		if c == io.EOF {
+			break
+		}
+		lineStr := string(line)
+		arr := strings.Split(lineStr, " ")
+		if len(arr) < 2 {
+			logging.Get().Error().Msgf("format err, line: %v \n", lineStr)
+			continue
+		}
+		fileName := arr[0]
+		checksum := arr[1]
+		item := WhitelistFile{
+			Name:     fileName,
+			Checksum: checksum,
+		}
+		whiteList = append(whiteList, item)
+	}
+	return whiteList, nil
+}
+
+func init() {
+	rand.Seed(time.Now().UnixNano())
+}
+func randString(n int) string {
+	b := make([]byte, n)
+	for i := range b {
+		b[i] = letterBytes[rand.Intn(len(letterBytes))]
+	}
+	return string(b)
+}
+
+func dumpWhitelist(whiteList []WhitelistFile, outputFile string) error {
 	whiteList = Unique(whiteList)
 	sort.Slice(whiteList, func(i, j int) bool {
 		return whiteList[i].Name < whiteList[j].Name
 	})
-	logging.Get().Fatal().Msgf("white list len:%v", len(whiteList))
+	logging.Get().Debug().Msgf("white list len:%v", len(whiteList))
 
+	if _, err := os.Stat(backFilePath); err != nil {
+		err = os.Mkdir(backFilePath, fs.FileMode(0x0700))
+		if err != nil {
+			logging.Get().Error().Msg("mkdir fail")
+			return err
+		}
+	}
+	tmpFilePath := outputFile + ".tmp." + randString(16)
 	// write to file
 	file, err := os.OpenFile(
-		outputfile,
-		os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+		tmpFilePath,
+		os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
 		logging.Get().Fatal().Msgf("Failed to open whitelist file: %v\n", err)
 		return err
 	}
+
+	defer func() {
+		// reference: https://www.reddit.com/r/golang/comments/d3sg0j/how_to_atomically_write_to_files_in_go/
+		if err = os.Rename(tmpFilePath, outputFile); err != nil {
+			logging.Get().Fatal().Msgf("Failed rename whitelist file: %v\n", err)
+		}
+	}()
 
 	defer func() {
 		if err = file.Close(); err != nil {
@@ -120,7 +187,36 @@ func (wc *WhitelistCount) walkDir(imageDir []string) []WhitelistFile {
 	// _ = dumpWhitelist(whiteList)
 }
 
+func isFile(path string) bool {
+	s, err := os.Stat(path)
+	if err != nil {
+		if os.IsExist(err) {
+			return !s.IsDir()
+		}
+		return false
+	}
+	return !s.IsDir()
+}
+
 func (wc *WhitelistCount) MakeWhiteListByOverLay(image types.ImageInspect) (imageInfo, error) {
+	arr := strings.Split(image.RepoDigests[0], "@")
+	if len(arr) != 2 {
+		logging.Get().Error().Str("digests: ", strings.Join(image.RepoDigests, ",")).Msg("get image digest fail")
+		return imageInfo{}, nil
+	}
+	whiteListFileName := fmt.Sprintf(whiteListBackFileTemplate, arr[1])
+	logging.Get().Info().Msgf("file path: %v", whiteListFileName)
+	var whiteList []WhitelistFile
+	if isFile(whiteListFileName) {
+		logging.Get().Debug().Msg("get from file")
+		whiteList, err := loadWhiteListFromFile(whiteListFileName)
+		if err != nil {
+			logging.Get().Warn().Err(err).Msg("get white list from file fail")
+		} else {
+			imageInfo := imageInfo{WhiteList: whiteList}
+			return imageInfo, nil
+		}
+	}
 
 	imageDirKeys := []string{"MergedDir", "WorkDir", "UpperDir", "LowerDir"}
 	imageDir := make([]string, 0)
@@ -138,10 +234,8 @@ func (wc *WhitelistCount) MakeWhiteListByOverLay(image types.ImageInspect) (imag
 			imageDir = append(imageDir, targetPath)
 		}
 	}
-
-	whiteList := wc.walkDir(imageDir)
-	logging.Get().Debug().Msgf("white list len: %d\n", len(whiteList))
-	// dumpWhitelist(whiteList, whiteListName)
+	whiteList = wc.walkDir(imageDir)
+	dumpWhitelist(whiteList, whiteListFileName)
 	imageInfo := imageInfo{WhiteList: whiteList}
 	return imageInfo, nil
 }
