@@ -331,6 +331,216 @@ func (ResourceWithPrivContainerRule) Match(ctx context.Context, resource *assets
 	return signals, nil
 }
 
+type ResourceWithSecContextRule struct{}
+
+func (ResourceWithSecContextRule) Severity() uint32 {
+	return 4
+}
+func (ResourceWithSecContextRule) RuleName() string {
+	return "ResourceWithCapabilitiesInSecurityContext"
+}
+func (ResourceWithSecContextRule) Description() map[string]string {
+	return map[string]string{
+		"zh": "资源下的pod开启了特殊SecurityContext下的特殊配置",
+		"en": "The pods controlled by the resource have enabled special capabilities in SecurityContext",
+	}
+}
+func (ResourceWithSecContextRule) KVs() []ContextKV {
+	return nil
+}
+
+func generateSecCtxEventsFromPodSpec(spec corev1.PodSpec) []RiskSignal {
+	if spec.SecurityContext == nil {
+		return nil
+	}
+	multiCtxs := make([]RiskSignal, 0, 2)
+	if spec.SecurityContext.SeccompProfile != nil && spec.SecurityContext.SeccompProfile.Type != "" && spec.SecurityContext.SeccompProfile.LocalhostProfile != nil {
+		ctx := make([]ContextKV, 2)
+		ctx[0].Key = "SeccompEnabled"
+		ctx[0].KeyMulti = map[string]string{
+			"en": "Seccomp Enabled",
+			"zh": "开启了Seccomp",
+		}
+		ctx[0].DefaultValue = "true"
+
+		ctx[1].Key = "SeccompType"
+		ctx[1].KeyMulti = map[string]string{
+			"en": "SeccompType",
+			"zh": "Seccomp类型",
+		}
+		ctx[1].DefaultValue = string(spec.SecurityContext.SeccompProfile.Type)
+		multiCtxs = append(multiCtxs, RiskSignal{
+			Ctxs:          ctx,
+			CtxIdentifier: strings.Join([]string{"pod", "seccomp"}, "-"),
+		})
+	}
+	if spec.SecurityContext.SELinuxOptions != nil && (spec.SecurityContext.SELinuxOptions.Level != "" ||
+		spec.SecurityContext.SELinuxOptions.Role != "" ||
+		spec.SecurityContext.SELinuxOptions.Type != "" ||
+		spec.SecurityContext.SELinuxOptions.User != "") {
+
+		ctx := make([]ContextKV, 1)
+		ctx[0].Key = "SELinuxEnabled"
+		ctx[0].KeyMulti = map[string]string{
+			"en": "SELinux Enabled",
+			"zh": "开启了SELinux",
+		}
+		ctx[0].DefaultValue = "true"
+
+		if spec.SecurityContext.SELinuxOptions.Level != "" {
+			c := ContextKV{
+				Key:          "SELinuxLevel",
+				DefaultValue: spec.SecurityContext.SELinuxOptions.Level,
+			}
+			ctx = append(ctx, c)
+		}
+		if spec.SecurityContext.SELinuxOptions.User != "" {
+			c := ContextKV{
+				Key:          "SELinuxUser",
+				DefaultValue: spec.SecurityContext.SELinuxOptions.User,
+			}
+			ctx = append(ctx, c)
+		}
+		if spec.SecurityContext.SELinuxOptions.Role != "" {
+			c := ContextKV{
+				Key:          "SELinuxRole",
+				DefaultValue: spec.SecurityContext.SELinuxOptions.Role,
+			}
+			ctx = append(ctx, c)
+		}
+		if spec.SecurityContext.SELinuxOptions.Type != "" {
+			c := ContextKV{
+				Key:          "SELinuxType",
+				DefaultValue: spec.SecurityContext.SELinuxOptions.Type,
+			}
+			ctx = append(ctx, c)
+		}
+		multiCtxs = append(multiCtxs, RiskSignal{
+			Ctxs:          ctx,
+			CtxIdentifier: strings.Join([]string{"pod", "selinux"}, "-"),
+		})
+	}
+	return multiCtxs
+}
+func generateSecCtxEventsFromContainer(c corev1.Container, containerType string) []RiskSignal {
+	if c.SecurityContext != nil {
+		multiCtxs := make([]RiskSignal, 0, 2)
+		if c.SecurityContext.SeccompProfile != nil && c.SecurityContext.SeccompProfile.Type != "" && c.SecurityContext.SeccompProfile.LocalhostProfile != nil {
+			ctx := make([]ContextKV, 4)
+			ctx[0].Key = "ContainerName"
+			ctx[0].KeyMulti = map[string]string{
+				"en": "Container Name",
+				"zh": "容器名称",
+			}
+			ctx[0].DefaultValue = c.Name
+
+			ctx[1].Key = "ContainerType"
+			ctx[1].KeyMulti = map[string]string{
+				"en": "Container Type",
+				"zh": "容器类型",
+			}
+			ctx[1].DefaultValue = containerType
+
+			ctx[2].Key = "SeccompEnabled"
+			ctx[2].KeyMulti = map[string]string{
+				"en": "Seccomp Enabled",
+				"zh": "开启了Seccomp",
+			}
+			ctx[2].DefaultValue = "true"
+
+			ctx[3].Key = "SeccompType"
+			ctx[3].KeyMulti = map[string]string{
+				"en": "SeccompType",
+				"zh": "Seccomp类型",
+			}
+			ctx[3].DefaultValue = string(c.SecurityContext.SeccompProfile.Type)
+			multiCtxs = append(multiCtxs, RiskSignal{
+				Ctxs:          ctx,
+				CtxIdentifier: strings.Join([]string{c.Name, "seccomp"}, "-"),
+			})
+		}
+		if c.SecurityContext.SELinuxOptions != nil && (c.SecurityContext.SELinuxOptions.Level != "" ||
+			c.SecurityContext.SELinuxOptions.Role != "" ||
+			c.SecurityContext.SELinuxOptions.Type != "" ||
+			c.SecurityContext.SELinuxOptions.User != "") {
+			ctx := make([]ContextKV, 3)
+			ctx[0].Key = "ContainerName"
+			ctx[0].KeyMulti = map[string]string{
+				"en": "Container Name",
+				"zh": "容器名称",
+			}
+			ctx[0].DefaultValue = c.Name
+
+			ctx[1].Key = "ContainerType"
+			ctx[1].KeyMulti = map[string]string{
+				"en": "Container Type",
+				"zh": "容器类型",
+			}
+			ctx[1].DefaultValue = containerType
+
+			ctx[2].Key = "SELinuxEnabled"
+			ctx[2].KeyMulti = map[string]string{
+				"en": "SELinux Enabled",
+				"zh": "开启了SELinux",
+			}
+			ctx[2].DefaultValue = "true"
+
+			if c.SecurityContext.SELinuxOptions.Level != "" {
+				ct := ContextKV{
+					Key:          "SELinuxLevel",
+					DefaultValue: c.SecurityContext.SELinuxOptions.Level,
+				}
+				ctx = append(ctx, ct)
+			}
+			if c.SecurityContext.SELinuxOptions.User != "" {
+				ct := ContextKV{
+					Key:          "SELinuxUser",
+					DefaultValue: c.SecurityContext.SELinuxOptions.User,
+				}
+				ctx = append(ctx, ct)
+			}
+			if c.SecurityContext.SELinuxOptions.Role != "" {
+				ct := ContextKV{
+					Key:          "SELinuxRole",
+					DefaultValue: c.SecurityContext.SELinuxOptions.Role,
+				}
+				ctx = append(ctx, ct)
+			}
+			if c.SecurityContext.SELinuxOptions.Type != "" {
+				ct := ContextKV{
+					Key:          "SELinuxType",
+					DefaultValue: c.SecurityContext.SELinuxOptions.Type,
+				}
+				ctx = append(ctx, ct)
+			}
+			multiCtxs = append(multiCtxs, RiskSignal{
+				Ctxs:          ctx,
+				CtxIdentifier: strings.Join([]string{c.Name, "selinux"}, "-"),
+			})
+		}
+
+		return multiCtxs
+	}
+	return nil
+}
+
+func (ResourceWithSecContextRule) Match(ctx context.Context, resource *assets.TensorResource) ([]RiskSignal, error) {
+	if resource == nil || resource.PodTemplate == nil {
+		return nil, nil
+	}
+
+	signals := make([]RiskSignal, 0, 2)
+	for _, ic := range resource.PodTemplate.Spec.InitContainers {
+		signals = append(signals, generateSecCtxEventsFromContainer(ic, "InitContainer")...)
+	}
+	for _, c := range resource.PodTemplate.Spec.Containers {
+		signals = append(signals, generateSecCtxEventsFromContainer(c, "Container")...)
+	}
+	signals = append(signals, generateSecCtxEventsFromPodSpec(resource.PodTemplate.Spec)...)
+
+	return signals, nil
+}
+
 type ResourcesWithHostNamespaceRule struct{}
 
 func (ResourcesWithHostNamespaceRule) RuleName() string {
