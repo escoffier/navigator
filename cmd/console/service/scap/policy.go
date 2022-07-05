@@ -61,32 +61,79 @@ func (s *Service) PolicyDelete(ctx context.Context, policyId uint, scapType uint
 }
 
 func (s *Service) PolicyBatch(ctx context.Context, scapType uint8, limit, offset int, name string) ([]*model.ScapPolicy, int64, error) {
-	var count int64
 
-	db := s.rdb.Get().WithContext(ctx).Model(&model.ScapPolicy{}).Where("type = ?", scapType)
+	// 根据 is_default 获取数量
+	type c struct {
+		IsDefault bool `gorm:"column:is_default;type:bool"`
+		Count     int  `gorm:"column:count"`
+	}
+	var count = make([]c, 0, 2)
+
+	db := s.rdb.Get().
+		WithContext(ctx).
+		Model(&model.ScapPolicy{}).
+		Where("type = ?", scapType)
+
 	// 当存在名字时候，使用模糊搜索查询
 	if len(name) != 0 {
 		db = db.Where("name LIKE ?", "%"+name+"%")
 	}
 
-	if err := db.Count(&count).Error; err != nil {
+	if err := db.
+		Session(&gorm.Session{}).
+		Select("is_default, count(*) count").
+		Group("is_default").
+		Find(&count).
+		Error; err != nil {
 		logging.Get().Err(err).Msgf("获取策略列表失败, type=%d", scapType)
 		return nil, 0, errors.New("获取策略总数失败")
 	}
 
-	if count == 0 {
+	var total = 0          // 总数
+	var isDefaultCount = 0 // 默认策略数
+	for _, v := range count {
+		total += v.Count
+
+		if v.IsDefault {
+			isDefaultCount += v.Count
+		}
+	}
+
+	if total == 0 {
 		return nil, 0, nil
 	}
 
-	var result = make([]*model.ScapPolicy, 0, limit)
+	db = db.Omit("rule_ids")
+	var result []*model.ScapPolicy
+
+	// 如果是第一页，则把默认策略搜索出来
+	if offset == 0 {
+		if err := db.
+			Session(&gorm.Session{}).
+			Where("is_default = true").
+			First(&result).Error; err != nil {
+			logging.Get().Err(err).Msgf("获取默认策略失败, type=%d, limit=%d, offset=%d", scapType, limit, offset)
+			return nil, 0, errors.New("获取默认策略失败")
+		}
+	}
+
+	var r []*model.ScapPolicy
+
 	if err := db.
-		Omit("rule_ids").
-		Limit(limit).
-		Offset(offset).
-		Find(&result).
+		Session(&gorm.Session{}).
+		Limit(limit - len(result)).
+		Offset(offset - isDefaultCount).
+		Order("id DESC").
+		Find(&r).
 		Error; err != nil {
-		logging.Get().Err(err).Msgf("获取策略列表失败, type=%d, limit=%d, offset = %d", scapType, limit, offset)
+		logging.Get().Err(err).Msgf("获取策略列表失败, type=%d, limit=%d, offset=%d", scapType, limit, offset)
 		return nil, 0, errors.New("获取策略列表失败")
+	}
+
+	result = append(result, r...)
+
+	if len(result) == 0 {
+		return nil, 0, nil
 	}
 
 	// 手动排序，因为默认策略在第一位，只需要排后面的策略
@@ -104,7 +151,7 @@ func (s *Service) PolicyBatch(ctx context.Context, scapType uint8, limit, offset
 		return result[i].CreatedAt.After(result[j].CreatedAt)
 	})
 
-	return result, count, nil
+	return result, int64(total), nil
 }
 
 func (s *Service) PolicyUpdate(ctx context.Context, policyId uint, policy *model.ScapPolicy) (uint, error) {
