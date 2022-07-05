@@ -1652,6 +1652,11 @@ func (s *ScannerOrm) GetTaskList(ctx context.Context, filter *model.Filter) ([]*
 	taskIds := make([]int64, 0, len(data))
 	taskIdsMap := make(map[int64]*model.Task, len(data))
 
+	for i := range data {
+		taskIds = append(taskIds, data[i].ID)
+		taskIdsMap[data[i].ID] = data[i]
+	}
+
 	type SubTaskCount struct {
 		SuccessCount int   `gorm:"column:sc"`
 		TaskID       int64 `gorm:"column:task_id"`
