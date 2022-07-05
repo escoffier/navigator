@@ -2,6 +2,7 @@ package api
 
 import (
 	"fmt"
+	"net/http"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
@@ -162,11 +163,11 @@ func (sc *ScanConfigAPISrv) GetStrategy(ctx *gin.Context) {
 	strategies, _, err := sc.ScanConfigSrv.SearchStrategy(ctx, component.SearchStrategyParam{StrategyID: strategyID}, filter)
 
 	if err != nil {
-		response.JSONError(ctx, fmt.Errorf("no strategyID for create software"))
+		response.JSONError(ctx, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf("查询出错")))
 		return
 	}
 	if len(strategies) == 0 {
-		response.JSONError(ctx, fmt.Errorf("not fond stategy,strategyId:%d", strategyID))
+		response.JSONError(ctx, response.NewHttpError(http.StatusGone, fmt.Errorf("策略已删除")))
 		return
 	}
 
