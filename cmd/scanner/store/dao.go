@@ -1503,7 +1503,7 @@ func (s *ScannerOrm) GetRegistryInfo(ctx context.Context, ID int64) (*model.Regi
 }
 
 func (s *ScannerOrm) AddTaskAndSubTask(ctx context.Context, task model.Task, subtask []model.SubTask) (int64, error) {
-	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*10)
+	ctx, cancelFunc := context.WithTimeout(ctx, time.Minute*10) // 对于定时任务，要扫描的镜像很多
 	defer cancelFunc()
 
 	db := s.rdb.Get().WithContext(ctx)
