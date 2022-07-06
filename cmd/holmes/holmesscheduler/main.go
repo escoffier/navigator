@@ -49,7 +49,7 @@ func prepareRulesFile(thrPath string, outputPath string, closedRules map[string]
 	}
 
 	// DEBUG
-	logging.Get().Debug().Msgf("closedFiles: %v", closedRules)
+	logging.Get().Trace().Msgf("closedFiles: %v", closedRules)
 	// rules swith mutation
 	rulesSwitchMutate := holmesengine.GetRuleSwitchMutationFunc(closedRules)
 	writeBytes, err := holmesengine.RulesMutate(rulesContext, rulesSwitchMutate, namespaceMutator)
@@ -57,7 +57,7 @@ func prepareRulesFile(thrPath string, outputPath string, closedRules map[string]
 		return nil, err
 	}
 	// DEBUG
-	logging.Get().Debug().Msgf("after mutation: %s", writeBytes)
+	logging.Get().Trace().Msgf("after mutation: %s", writeBytes)
 
 	return writeBytes, saveRulesFile(writeBytes, outputPath)
 }
