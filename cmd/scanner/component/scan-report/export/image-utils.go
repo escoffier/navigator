@@ -1,16 +1,21 @@
 package export
 
 import (
+	"encoding/json"
 	"fmt"
 	"math"
 	"strings"
 	"time"
 
 	"github.com/shopspring/decimal"
+	"scm.tensorsecurity.cn/tensorsecurity-rd/trivy/pkg/report"
+
+	ftypes "scm.tensorsecurity.cn/tensorsecurity-rd/fanal/types"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
+	"gitlab.com/piccolo_su/vegeta/pkg/util"
 )
 
 var VulnAttr map[string]map[string]string
@@ -405,7 +410,45 @@ func GenImageBaseInfo(image model.ImageList, status model.ImageResponse) []strin
 	if image.Registry != nil {
 		info[1] = image.Registry.Url
 	}
+	info = append(info, genSuggest(image.OS, image.ImageScanVuln.Vulns))
+
 	return info
+}
+
+// 生成修复建议
+func genSuggest(osstring string, vulns []*model.Vuln) string {
+	os := new(ftypes.OS)
+	if err := json.Unmarshal([]byte(osstring), os); err != nil {
+		return ""
+	}
+
+	ans := make([]string, 0)
+
+	for i := range vulns {
+		if vulns[i].FixedBy != "" && vulns[i].Class == report.ClassOSPkg {
+			ans = append(ans, vulns[i].PkgName)
+		}
+	}
+	// 去重
+	ans = util.DeDuplicationStringSlice(ans)
+	pre := installType(os)
+
+	if len(ans) > 0 && pre != "" {
+		return fmt.Sprintf("%s %s", pre, strings.Join(ans, " "))
+	}
+	return ""
+}
+
+func installType(os *ftypes.OS) string {
+	switch strings.ToLower(os.Family) {
+	case "ubuntu", "debian":
+		return "apt-get update  &&  apt upgrade -y "
+	case "centos", "fedora":
+		return "yum upgrade -y "
+	case "alpine":
+		return "apk update && apk add --upgrade -y "
+	}
+	return ""
 }
 
 func FormatTime(ti int64, format string) string {
@@ -501,6 +544,7 @@ func GenImageBaseInfoMeta() ExcelMetaData {
 			"OS 版本",
 			"入库时间",
 			"是否为基础镜像",
+			"修复建议",
 		},
 	}
 

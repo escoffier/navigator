@@ -12,6 +12,8 @@ import (
 
 	"scm.tensorsecurity.cn/tensorsecurity-rd/trivy/pkg/report"
 
+	ftypes "scm.tensorsecurity.cn/tensorsecurity-rd/fanal/types"
+
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/jobs"
 	pullImage "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/jobs/pull-image"
@@ -606,6 +608,25 @@ func (s *ScanResultHandle) updateRiskVirusCacheEntry(ctx context.Context, param 
 	}
 }
 
+func (s *ScanResultHandle) updateImageOs(ctx context.Context, os *ftypes.OS, imageId int64) error {
+	orm := store.GetScannerOrmDb()
+
+	if os == nil {
+		return fmt.Errorf("not get os info for image:%d", imageId)
+	}
+
+	bys, err := json.Marshal(os)
+	if err != nil {
+		return err
+	}
+	update := map[string]interface{}{"os": string(bys)}
+
+	if err := orm.UpdateImage(ctx, fmt.Sprintf("id = %d", imageId), update, nil); err != nil {
+		return err
+	}
+	return nil
+}
+
 func (s *ScanResultHandle) Run(ctx context.Context, param jobs.Param) (jobs.Artifact, error) {
 
 	// get scan result from param
@@ -650,6 +671,10 @@ func (s *ScanResultHandle) Run(ctx context.Context, param jobs.Param) (jobs.Arti
 					}
 				}
 			}
+		}
+		// 更新os信息
+		if err := s.updateImageOs(ctx, trivyReport.Metadata.OS, s.config.subtask.Image.ID); err != nil {
+			logging.GetLogger().Err(err).Msg("updateImageOs")
 		}
 	}
 
