@@ -43,6 +43,7 @@ func NewTaskSrv() *TaskSrv {
 }
 
 func (t *TaskSrv) GenerateScanTask(ctx context.Context, imageIds []int64, info UpdateTaskInfo) error {
+	logging.GetLogger().Info().Int("imageLength", len(imageIds)).Msg("GenerateScanTask")
 	if len(imageIds) == 0 {
 		return fmt.Errorf("not find image")
 	}
@@ -56,7 +57,8 @@ func (t *TaskSrv) GenerateScanTask(ctx context.Context, imageIds []int64, info U
 			return err
 		}
 		if len(strategies) == 0 {
-			return fmt.Errorf("not fond default stratege")
+			logging.GetLogger().Error().Msg("GenerateScanTask.not fond default strategy")
+			return fmt.Errorf("not fond default strategy")
 		}
 		strategyID = strategies[0].ID
 	}
@@ -72,34 +74,46 @@ func (t *TaskSrv) GenerateScanTask(ctx context.Context, imageIds []int64, info U
 		FlowConf:     flowconf.DefaultImageScanFlowName,
 		PolicyId:     strategyID,
 	}
-
-	image, _, err := t.imageDal.SearchImage(ctx, store.SearchImageParam{
-		InIds:             imageIds,
-		OmitFields:        []string{"config_json", "manifest_v1_json", "manifest_v2_json"},
-		NotParseNodeImage: true}, nil)
-	if err != nil {
-		logging.GetLogger().Err(err).Msg("SearchImage")
-		return err
-	}
-	imageMap := make(map[int64]model.ImageList)
-	for i := range image {
-		imageMap[image[i].ID] = image[i]
-	}
-
+	// 批量查询
 	subtasks := make([]model.SubTask, 0)
-	for i := range imageIds {
-		tmpTime := time.Now()
-		// generate subtasks
-		subtask := model.SubTask{
-			TaskID:       0, // fill in gorm function
-			ImageID:      imageIds[i],
-			Status:       consts.ImageScanPending,
-			HeartBeat:    &tmpTime,
-			FullRepoName: imageMap[imageIds[i]].FullRepoName,
-			Tag:          imageMap[imageIds[i]].Tags,
-			Library:      imageMap[imageIds[i]].Library,
+	start := 0
+	for start < len(imageIds) {
+		end := start + consts.SubTaskBatchInsertCount
+		if end > len(imageIds) {
+			end = len(imageIds)
 		}
-		subtasks = append(subtasks, subtask)
+
+		batch := imageIds[start:end]
+
+		image, _, err := t.imageDal.SearchImage(ctx, store.SearchImageParam{
+			InIds:             batch,
+			OmitFields:        []string{"config_json", "manifest_v1_json", "manifest_v2_json"},
+			NotParseNodeImage: true}, nil)
+		if err != nil {
+			logging.GetLogger().Err(err).Msg("GenerateScanTask.SearchImage")
+			return err
+		}
+		imageMap := make(map[int64]model.ImageList)
+		for i := range image {
+			imageMap[image[i].ID] = image[i]
+		}
+
+		for i := range batch {
+			tmpTime := time.Now()
+			// generate subtasks
+			subtask := model.SubTask{
+				TaskID:       0, // fill in gorm function
+				ImageID:      imageIds[i],
+				Status:       consts.ImageScanPending,
+				HeartBeat:    &tmpTime,
+				FullRepoName: imageMap[batch[i]].FullRepoName,
+				Tag:          imageMap[batch[i]].Tags,
+				Library:      imageMap[batch[i]].Library,
+			}
+			subtasks = append(subtasks, subtask)
+		}
+
+		start += consts.SubTaskBatchInsertCount
 	}
 
 	if _, err := scannerGormDb.AddTaskAndSubTask(ctx, tmpTask, subtasks); err != nil {
