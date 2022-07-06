@@ -111,7 +111,9 @@ func (s *Service) PolicyBatch(ctx context.Context, scapType uint8, limit, offset
 		if err := db.
 			Session(&gorm.Session{}).
 			Where("is_default = true").
-			First(&result).Error; err != nil && errors.Is(err, gorm.ErrRecordNotFound) {
+			First(&result).
+			Error;
+			err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
 			logging.Get().Err(err).Msgf("获取默认策略失败, type=%d, limit=%d, offset=%d", scapType, limit, offset)
 			return nil, 0, errors.New("获取默认策略失败")
 		}
