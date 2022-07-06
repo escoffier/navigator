@@ -39,6 +39,7 @@ var (
 		pkg.ResourcesWithInsecureSecretsEnvRule{},
 		pkg.ResourcesWithDefaultSARule{},
 		pkg.ResourcesWithRequestLimitSetRule{},
+		pkg.ResourceWithSecContextRule{},
 	}
 )
 
