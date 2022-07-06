@@ -11,7 +11,6 @@ import (
 
 var (
 	hostPathBlacklist = map[string]struct{}{
-		"/":                                   {},
 		"/user/bin/docker":                    {},
 		"/var/run/docker.sock":                {},
 		"/var/run/docker.service":             {},
@@ -61,7 +60,9 @@ func (ResourceRiskyVolumeRule) Match(ctx context.Context, resource *assets.Tenso
 	for _, vol := range resource.PodTemplate.Spec.Volumes {
 		if vol.HostPath != nil {
 			hitted := false
-			if _, exist := hostPathBlacklist[vol.HostPath.Path]; exist {
+			if vol.HostPath.Path == "/" {
+				hitted = true
+			} else if _, exist := hostPathBlacklist[vol.HostPath.Path]; exist {
 				hitted = true
 			} else {
 				for key := range hostPathBlacklist {
