@@ -19,6 +19,10 @@ var (
 		"/var/run/containerd/containerd.sock": {},
 		"/proc/":                              {},
 		"/proc":                               {},
+		"/mnt":                                {},
+		"/mnt/":                               {},
+		"/boot":                               {},
+		"/boot/":                              {},
 	}
 )
 
@@ -59,11 +63,15 @@ func (ResourceRiskyVolumeRule) Match(ctx context.Context, resource *assets.Tenso
 			hitted := false
 			if _, exist := hostPathBlacklist[vol.HostPath.Path]; exist {
 				hitted = true
-			} else if strings.Index(vol.HostPath.Path, "/proc") == 0 {
-				hitted = true
-			} else if strings.Index(vol.HostPath.Path, "/var/run") == 0 {
-				hitted = true
+			} else {
+				for key := range hostPathBlacklist {
+					if strings.Index(vol.HostPath.Path, key) == 0 {
+						hitted = true
+						break
+					}
+				}
 			}
+
 			if hitted {
 				hittedVolumes = append(hittedVolumes, vol)
 			}
