@@ -5,7 +5,6 @@ import (
 	"strings"
 
 	"gitlab.com/piccolo_su/vegeta/pkg/assets"
-	"gitlab.com/security-rd/go-pkg/logging"
 )
 
 const (
@@ -129,7 +128,6 @@ func (e *KubeMonitorEvent) Identity() string {
 			sb.WriteString(e.ctxIdentifier)
 		}
 		e.identity = sb.String()
-		logging.Get().Info().Msgf("kb event id: %s", e.identity)
 	}
 	return e.identity
 }

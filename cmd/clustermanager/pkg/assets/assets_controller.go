@@ -553,7 +553,6 @@ func (ac *Controller) syncPod(key string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	logging.Get().Debug().Msgf("syncing pod %s", key)
 	namespace, name, err := cache.SplitMetaNamespaceKey(key)
 	if err != nil {
 		return err
@@ -604,7 +603,6 @@ func (ac *Controller) syncRole(key string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	logging.Get().Debug().Msgf("syncing role %s", key)
 	namespace, name, err := cache.SplitMetaNamespaceKey(key)
 	if err != nil {
 		return err
@@ -636,7 +634,6 @@ func (ac *Controller) syncClusterRole(key string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	logging.Get().Debug().Msgf("syncing ClusterRole %s", key)
 	_, name, err := cache.SplitMetaNamespaceKey(key)
 	if err != nil {
 		return err
@@ -667,7 +664,6 @@ func (ac *Controller) syncNamespace(key string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	logging.Get().Debug().Msgf("syncing namespace %s", key)
 	_, name, err := cache.SplitMetaNamespaceKey(key)
 	if err != nil {
 		return err
@@ -697,7 +693,6 @@ func (ac *Controller) syncNode(key string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	logging.Get().Debug().Msgf("syncing node %s", key)
 	_, name, err := cache.SplitMetaNamespaceKey(key)
 	if err != nil {
 		return err
@@ -727,7 +722,6 @@ func (ac *Controller) syncHoneySpot(key string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	logging.Get().Debug().Msgf("syncing honeyspot %s", key)
 	namespace, name, err := cache.SplitMetaNamespaceKey(key)
 	if err != nil {
 		return err
@@ -845,7 +839,6 @@ func (ac *Controller) SendToMq(ctx context.Context, action pkgassets.AssetsActio
 		Key:   []byte(key),
 		Value: msg,
 	})
-	logging.Get().Debug().Msgf("sent resource %s to mq successfully", key)
 	if err != nil {
 		logging.Get().Err(err).Msgf("sent resource to mq error. resource: %+v.", obj)
 	}
