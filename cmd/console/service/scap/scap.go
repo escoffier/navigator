@@ -15,11 +15,13 @@ import (
 	"gitlab.com/security-rd/go-pkg/logging"
 	"golang.org/x/sync/errgroup"
 	"gorm.io/gorm"
+	batchv1 "k8s.io/api/batch/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/assets"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/scapper"
+	pkgasserts "gitlab.com/piccolo_su/vegeta/pkg/assets"
 	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 )
@@ -204,24 +206,48 @@ func (s *Service) StateSyncDaemon() {
 						}
 					}()
 
+					var reason string
 					// 检查是否过期
-					if time.Now().Truncate(timeout).Unix() <= his.CreatedAt {
-						return nil
+					// 如果已经过期了，则把所有对应的job都删除了，然后把 inprogress 的任务都设置为失败，原因：timeout
+					// 如果还没有过期，则获取所有的job，判断状态，如果都是成功，则把任务设置为成功, 并且把数据库还处于 inprogress 状态的置为失败
+					if time.Now().Add(-1*timeout).Unix() <= his.CreatedAt {
+						jobList, err := s.getK8sJobsList(ctx, his)
+						if err != nil {
+							logging.Get().
+								Err(err).
+								Str("func", "scap StateSyncDaemon").
+								Str("check task id", his.TaskID).
+								Msg("get k8s jobs list failed")
+							return err
+						}
+
+						for _, v := range jobList.Items {
+							// 当有一个job还未完成，则说明扫描任务还未完成，等待下一个循环更新状态
+							// 因为合规的job只有一个pod在执行，因此直接判断是否有成功的pod即可
+							if v.Status.Succeeded == 0 {
+								return nil
+							}
+						}
+
+						// 如果所有job的成功了，则需要把数据库中还在运行的任务都改为失败
+						reason = "executing failed"
+					} else {
+						// 如果超时，则删除对应k8s的job
+						err = s.deleteK8sJobs(newCtx, his)
+						if err != nil {
+							logging.Get().
+								Err(err).
+								Str("func", "scap StateSyncDaemon").
+								Str("check task id", his.TaskID).
+								Msg("delete k8s jobs failed")
+							return err
+						}
+
+						reason = "timeout"
 					}
 
-					// 删除对应k8s子任务
-					err = s.deleteK8sJobsByLabels(newCtx, his)
-					if err != nil {
-						logging.Get().
-							Err(err).
-							Str("func", "scap StateSyncDaemon").
-							Str("check task id", his.TaskID).
-							Msg("delete k8s jobs failed")
-						return err
-					}
-
-					// 将子任务设置为失败，并设置失败原因为超时
-					err = s.updateSubJobToFailed(ctx, his.TaskID)
+					// 将子任务设置为失败，并设置失败原因
+					err = s.updateSubJobToFailed(ctx, his.TaskID, reason)
 					if err != nil {
 						logging.Get().
 							Err(err).
@@ -273,34 +299,52 @@ func (s *Service) getInProgressJobs(ctx context.Context) ([]*model.ScanHistory, 
 	return histories, err
 }
 
-// 通过label删除对应的k8s jobs
-func (s *Service) deleteK8sJobsByLabels(ctx context.Context, his *model.ScanHistory) error {
+func (s *Service) getClusterInfo(ctx context.Context, clusterKey string) (*model.TensorCluster, error) {
 	//get namespaces
 	resSvc, ok := assets.GetResourcesService(ctx)
 	if !ok {
-		return errors.New("get resources service error")
+		return nil, errors.New("get resources service error")
 	}
 
-	cluster := resSvc.GetClusterByKey(ctx, his.ClusterKey)
+	cluster := resSvc.GetClusterByKey(ctx, clusterKey)
 	if len(cluster.WorkerNamespace) == 0 {
-		return errors.New("error namespace, it's empty")
+		return nil, errors.New("error namespace, it's empty")
 	}
 
+	return cluster, nil
+}
+
+func (s *Service) getK8sClient(_ context.Context, clusterKey string) (*pkgasserts.Clientset, error) {
 	clusterManager, ok := k8s.GetClusterManager()
 	if !ok {
-		return errors.New("get cluster falied")
+		return nil, errors.New("get cluster falied")
 	}
 
 	// get client
-	k8sClient, ok := clusterManager.GetClient(his.ClusterKey)
+	k8sClient, ok := clusterManager.GetClient(clusterKey)
 	if !ok {
-		return errors.New("get k8s client error")
+		return nil, errors.New("get k8s client error")
+	}
+
+	return k8sClient, nil
+}
+
+// 通过label删除对应的k8s jobs
+func (s *Service) deleteK8sJobs(ctx context.Context, his *model.ScanHistory) error {
+	cluster, err := s.getClusterInfo(ctx, his.ClusterKey)
+	if err != nil {
+		return err
+	}
+
+	k8sClient, err := s.getK8sClient(ctx, his.ClusterKey)
+	if err != nil {
+		return err
 	}
 
 	// labels
 	labelSet := labels.SelectorFromSet(labels.Set{"CHECK_ID": his.TaskID})
 	// delete these jobs which with label
-	err := k8sClient.BatchV1().
+	err = k8sClient.BatchV1().
 		Jobs(cluster.WorkerNamespace).
 		DeleteCollection(
 			ctx,
@@ -361,7 +405,7 @@ func (s *Service) updateJobToSuccess(ctx context.Context, taskId string) error {
 }
 
 // 将子任务更新为失败
-func (s *Service) updateSubJobToFailed(ctx context.Context, taskId string) error {
+func (s *Service) updateSubJobToFailed(ctx context.Context, taskId, reason string) error {
 	err := s.rdb.
 		Get().
 		Model(&model.ScanNodeRecord{}).
@@ -372,10 +416,34 @@ func (s *Service) updateSubJobToFailed(ctx context.Context, taskId string) error
 			map[string]interface{}{
 				"state":       model.ScanStateFailed,
 				"finished_at": time.Now().Unix(),
-				"message":     "timeout",
+				"message":     reason,
 			},
 		).
 		Error
 
 	return err
+}
+
+func (s *Service) getK8sJobsList(ctx context.Context, his *model.ScanHistory) (*batchv1.JobList, error) {
+	cluster, err := s.getClusterInfo(ctx, his.ClusterKey)
+	if err != nil {
+		return nil, err
+	}
+
+	k8sClient, err := s.getK8sClient(ctx, his.ClusterKey)
+	if err != nil {
+		return nil, err
+	}
+	labelSet := labels.SelectorFromSet(labels.Set{"CHECK_ID": his.TaskID})
+
+	list, err := k8sClient.
+		BatchV1().
+		Jobs(cluster.WorkerNamespace).
+		List(ctx, v1.ListOptions{LabelSelector: labelSet.String()})
+
+	if err != nil {
+		return nil, err
+	}
+
+	return list, nil
 }
