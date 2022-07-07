@@ -235,6 +235,7 @@ func (s *ImageExport) genFilename(ctx context.Context, task model.ExportTensorTa
 }
 
 func (s *ImageExport) ZipAndSave(ctx context.Context, filename string, files chan *excelize.File) error {
+
 	file, err := ZipExcelFile(files)
 	if err != nil {
 		logging.GetLogger().Err(err).Str("filename", filename).Msg("ZipAndSave.WriteToExcel")

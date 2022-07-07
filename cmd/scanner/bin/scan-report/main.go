@@ -12,14 +12,15 @@ import (
 	rkentry "github.com/rookie-ninja/rk-entry/entry"
 	rkgin "github.com/rookie-ninja/rk-gin/boot"
 	"github.com/rs/zerolog"
-	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scan-report/api"
-	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scan-report/service"
-	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scan-report/starter"
-	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
 	"gitlab.com/security-rd/go-pkg/databases"
 	"gitlab.com/security-rd/go-pkg/elastic"
 	"gitlab.com/security-rd/go-pkg/logging"
 	_ "go.uber.org/automaxprocs"
+
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scan-report/api"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scan-report/service"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scan-report/starter"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
 )
 
 var (
@@ -50,7 +51,7 @@ func init() {
 	flag.Int64Var(&batchImage, "batch-image", 300, "number of image in one excel file")
 	flag.IntVar(&parallelTaskNum, "parallel-task-num", 1, "the batch size of data")
 	flag.Int64Var(&expiration, "expiration", 7, "file expiration day") // 默认七天
-	flag.Int64Var(&maxImageByOneExportTask, "export-max-image", 800, "The maximum number of images exported by one export task")
+	flag.Int64Var(&maxImageByOneExportTask, "export-max-image", 100000, "The maximum number of images exported by one export task")
 	flag.StringVar(&fileDir, "file-dir", "/tmp", "export file storage directory")
 	flag.StringVar(&HTTPListenAddr, "http-listen-addr", ":8080", "api addr")
 }

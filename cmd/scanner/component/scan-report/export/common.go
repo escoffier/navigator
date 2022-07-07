@@ -39,6 +39,7 @@ func WriteToExcel(filenamePrefix string, sheets []ExcelMetaData, data map[string
 	start := time.Now().UnixMilli()
 	file := excelize.NewFile()
 	file.Path = filenamePrefix + ".xlsx"
+	logging.GetLogger().Info().Str("excelPath", file.Path).Msg("WriteToExcel")
 	for i := range sheets {
 		// 写入数据，用流式方式
 		idx := file.NewSheet(sheets[i].SheetName)
@@ -241,4 +242,24 @@ func (s *DataExportTask) Failure(ctx context.Context, id int64, msg string) erro
 	}
 	return nil
 
+}
+
+func MkdirIfNotExist(path string) error {
+	stat, err := os.Stat(path)
+	if err == nil {
+		if stat.IsDir() {
+			return nil
+		} else {
+			// 先删除这个文件再创建
+			logging.GetLogger().Info().Str("filename", path).Msg("file exist remove it")
+			if err := os.Remove(path); err != nil {
+				return err
+			}
+			return os.Mkdir(path, os.ModePerm)
+		}
+	}
+	if os.IsNotExist(err) {
+		return os.Mkdir(path, os.ModePerm)
+	}
+	return err
 }
