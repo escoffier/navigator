@@ -640,7 +640,7 @@ func (ResourcesWithInsecureSecretsEnvRule) Severity() uint32 {
 	return 6
 }
 
-func getCtxsWithHostNamespaceFromContainer(c corev1.Container, containerType string) []RiskSignal {
+func getCtxsWithInsecureSecretsEnvFromContainer(c corev1.Container, containerType string) []RiskSignal {
 	signals := make([]RiskSignal, 0, 2)
 	for _, env := range c.Env {
 		if strings.Index(env.Name, "PASSWORD") >= 0 || strings.Index(env.Name, "PWD") >= 0 {
@@ -687,10 +687,10 @@ func (ResourcesWithInsecureSecretsEnvRule) Match(ctx context.Context, resource *
 	}
 	signals := make([]RiskSignal, 0, 2)
 	for _, ic := range resource.PodTemplate.Spec.InitContainers {
-		signals = append(signals, getCtxsWithHostNamespaceFromContainer(ic, "InitContainer")...)
+		signals = append(signals, getCtxsWithInsecureSecretsEnvFromContainer(ic, "InitContainer")...)
 	}
 	for _, c := range resource.PodTemplate.Spec.Containers {
-		signals = append(signals, getCtxsWithHostNamespaceFromContainer(c, "Container")...)
+		signals = append(signals, getCtxsWithInsecureSecretsEnvFromContainer(c, "Container")...)
 	}
 	return signals, nil
 }
