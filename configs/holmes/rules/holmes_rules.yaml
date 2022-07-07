@@ -632,25 +632,20 @@
   condition: >
    evt.type = execve and container and
    (not tensorsec_namespace) and 
-   (proc.cmdline contains "cdk" or
+   (proc.cmdline contains "cdk evaluate" or
     proc.cmdline contains "k0otkit" or
     proc.cmdline contains "kubesploit" or
     proc.cmdline contains "red-kube" or
-    proc.cmdline contains "ccat" or
     proc.cmdline contains "kubestriker" or
     proc.cmdline contains "kube-hunter" or
-    proc.cmdline contains "evaluate" or
-    proc.cmdline contains "run" or
-    proc.cmdline contains "exploit" or
-    proc.cmdline contains "exp" or
-    proc.cmdline contains "poc" or
-    proc.cmdline contains "payload" )
+    proc.cmdline contains "kubiscan"
+     )
   output: >
     Running malicious tools in the container (zh_msg=容器内运行恶意工具,rule_type=Execution,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,
     original_info=user=%user.name user_loginuid=%user.loginuid %container.info
     shell=%proc.name parent=%proc.pname terminal=%proc.tty container_id=%container.id image=%container.image.repository)
   priority: ALERT
-  tags: [ATT&CK, container, shell, mitre_execution]
+  tags: [ATT&CK, container, shell, mitre_execution, strict]
 
 ##attck_rule_type=Persistence
 - rule: Schedule Cron Jobs
@@ -1377,7 +1372,7 @@
       value: "使用免疫防御训练应用，限制敏感文件和命令的用户权限。"
   desc: "Detect an attempt to exploit a container escape vulnerability in the Linux Kernel (CVE-2022-0492). By running a container with certains capabilities, a privileged user can modify release_agent file and escape from the container"
   condition: >
-    open_write and container and fd.name endswith release_agent and user.uid=0
+    open_write and container and fd.name endswith release_agent and (user.uid=0 or thread.cap_effective contains CAP_DAC_OVERRIDE) and thread.cap_effective contains CAP_SYS_ADMIN
   output: >
     Detect release_agent File Container Escapes(zh_msg=尝试修改release_agent进行Linux_Cgroup容器逃逸,rule_type=Privilege_Escalation,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type, container=%container.info)
   priority: CRITICAL
@@ -1683,7 +1678,7 @@
     original_info=user=%user.name user_loginuid=%user.loginuid %container.info
     shell=%proc.name parent=%proc.pname terminal=%proc.tty container_id=%container.id image=%container.image.repository)
   priority: WARNING
-  tags: [ATT&CK, container, shell, mitre_execution]
+  tags: [ATT&CK, container, shell, mitre_execution, strict]
 
 - rule: View disk information in the container
   hid: disc_08
