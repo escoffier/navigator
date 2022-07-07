@@ -1,6 +1,7 @@
 package dp
 
 import (
+	"bufio"
 	"errors"
 	"fmt"
 	"io"
@@ -22,6 +23,8 @@ import (
 const (
 	// excludeImage = "daemon"
 	containerIDFilePathTemplate = "/host/proc/%d/root/.container_id"
+
+	supportOSConfigFilePath = "/etc/support-os/support-os.conf"
 )
 
 type Injector struct {
@@ -34,14 +37,39 @@ type Injector struct {
 }
 
 var (
-	HostTensorPath          = "/host/tmp/tensor"
-	HostEtcPreloadPath      = "/host/tmp/ld.so.preload"
-	procPrefix              = "/host/proc/"
-	ContainerPath           = "/.tensor"
-	injectSoName            = "dp.so"
-	containerTmpMnt         = "/tmpmnt"
-	containerEtcPreloadPath = "/etc/ld.so.preload"
-	blockDevPath            = "/dev/tensor"
+	HostTensorPath              = "/host/tmp/tensor"
+	HostEtcPreloadPath          = "/host/tmp/ld.so.preload"
+	procPrefix                  = "/host/proc/"
+	ContainerPath               = "/.tensor"
+	injectSoName                = "dp.so"
+	containerTmpMnt             = "/tmpmnt"
+	containerEtcPreloadPath     = "/etc/ld.so.preload"
+	blockDevPath                = "/dev/tensor"
+	containerOSFilePathTemplate = []string{
+		"/host/proc/%d/root/etc/os-release",
+		"/host/proc/%d/root/etc/debian_release",
+		"/host/proc/%d/root/etc/centos-release",
+		"/host/proc/%d/root/etc/VERSION"}
+
+	supportOSTargets = []string{
+		"ubuntu-22.04",
+		"ubuntu-20.04",
+		"ubuntu-18.04",
+		"ubuntu-16.04",
+		"debian-11",
+		"debian-10",
+		"debian-9",
+		"centos-8",
+		"centos-7",
+		"rhel-8.5",
+		"rhel-8.4",
+		"rhel-6.5",
+		"photon-4.0",
+		"photon-3.0",
+		"photon-2.0",
+		"photon-1.0",
+		"opensuse-42.3",
+	}
 )
 
 func copyFile(src, dst string) error {
@@ -166,6 +194,8 @@ func (ij *Injector) getDev(path string) error {
 
 	ij.subRoot = ij.mountInfo.Root
 	ij.subPath = strings.TrimPrefix(path, ij.mountInfo.Mountpoint)
+	initOSTargetsList(supportOSConfigFilePath)
+	logging.Get().Info().Msgf("support os targets: %v", supportOSTargets)
 
 	return nil
 }
@@ -185,6 +215,11 @@ func (ij *Injector) putContainerID2File(pid int, cid string) error {
 
 func (ij *Injector) DoInject(cm container.ContainerMeta) (bool, error) {
 	logging.Get().Info().Msgf("Injecting %d", cm.ProcessID)
+
+	if needSkipInject(cm.ProcessID) {
+		logging.Get().Warn().Msgf("Skip inject %d %v", cm.ProcessID, cm.Name)
+		return false, nil
+	}
 
 	// excludeNamespaces
 	namespace, _, err := GetContainerPodInfo(cm.PodUID, ij.npw)
@@ -228,7 +263,7 @@ func (ij *Injector) DoInject(cm container.ContainerMeta) (bool, error) {
 
 	err = ij.mknodInProc(cm.ProcessID)
 	if err != nil {
-		logging.Get().Err(err).Int("ProcessID", cm.ProcessID).Str("containerdID", cm.ID).Msg("mknod failed")
+		logging.Get().Err(err).Int("ProcessID", cm.ProcessID).Str("containerID", cm.ID).Msg("mknod failed")
 	}
 
 	for index, cmd := range ij.containerCommandSeq {
@@ -261,4 +296,86 @@ func (ij *Injector) DoInject(cm container.ContainerMeta) (bool, error) {
 		Msg("inject ok")
 
 	return IsInjected(cm.ProcessID)
+}
+
+func getOSTargetFromFile(path string) (string, error) {
+	targetStr := ""
+	osName := ""
+	osVersion := ""
+	f, err := os.Open(path)
+	if err != nil {
+		logging.Get().Error().Msgf("Failed to read file %s", path)
+		return "", err
+	}
+	defer f.Close()
+	br := bufio.NewReader(f)
+	for {
+		line, _, c := br.ReadLine()
+		if c == io.EOF {
+			break
+		}
+		lineStr := string(line)
+		kv := strings.Split(lineStr, "=")
+		if len(kv) != 2 {
+			continue
+		}
+		if kv[0] == "ID" {
+			osName = strings.Trim(strings.Trim(strings.Trim(kv[1], "\n"), " "), "\"")
+		}
+		if kv[0] == "VERSION_ID" {
+			osVersion = strings.Trim(strings.Trim(strings.Trim(kv[1], "\n"), " "), "\"")
+		}
+	}
+	targetStr = osName + "-" + osVersion
+	return strings.ToLower(targetStr), nil
+
+}
+
+func needSkipInject(pid int) bool {
+
+	for _, v := range containerOSFilePathTemplate {
+		path := fmt.Sprintf(v, pid)
+		if _, err := os.Stat(path); err != nil {
+			continue
+		}
+		osTarget, err := getOSTargetFromFile(path)
+		if err != nil {
+			logging.Get().Error().Msgf("Failed to get os target from file %s", path)
+			return true
+		}
+
+		for _, v := range supportOSTargets {
+			if v == osTarget {
+				return false
+			}
+		}
+		logging.Get().Info().Msgf("unknown os target %s, try to support\n", osTarget)
+		break
+
+	}
+
+	return true
+}
+
+func initOSTargetsList(configFile string) error {
+	f, err := os.Open(configFile)
+	if err != nil {
+		logging.Get().Warn().Msgf("Failed to read file %s", configFile)
+		return err
+	}
+	defer f.Close()
+	br := bufio.NewReader(f)
+	for {
+		line, _, c := br.ReadLine()
+		if c == io.EOF {
+			break
+		}
+		lineStr := strings.Trim(strings.Trim(strings.Trim(string(line), "\n"), " "), "\"")
+		if lineStr == "" {
+			continue
+		}
+		supportOSTargets = append(supportOSTargets, strings.ToLower(lineStr))
+	}
+
+	return nil
 }
