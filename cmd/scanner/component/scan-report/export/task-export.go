@@ -3,6 +3,8 @@ package export
 import (
 	"context"
 	"fmt"
+	"os"
+	"os/exec"
 	"sync"
 	"time"
 
@@ -157,27 +159,52 @@ func (s *ScanTaskExport) genFilename(ctx context.Context, task model.ExportTenso
 		return "", fmt.Errorf("not fond the scan task:%d", searchParam.ScanTaskID)
 	}
 	if suffix > 0 {
-		fileName := fmt.Sprintf("%s_scan_result_export_%d_%d", FormatTime(scanTasks[0].CreatedAt.UnixMilli(), consts.ExportTimeFormatForFilename), time.Now().Unix(), suffix)
+		fileName := fmt.Sprintf("%s_scan_result_export_%d", FormatTime(scanTasks[0].CreatedAt.UnixMilli(), consts.ExportTimeFormatForFilename), suffix)
 		return fileName, nil
 	}
-	fileName := fmt.Sprintf("%s_scan_result_export_%d", FormatTime(scanTasks[0].CreatedAt.UnixMilli(), consts.ExportTimeFormatForFilename), time.Now().Unix())
+	fileName := fmt.Sprintf("%s_scan_result_export", FormatTime(scanTasks[0].CreatedAt.UnixMilli(), consts.ExportTimeFormatForFilename))
 	return fileName, nil
 }
 
 // 压缩并写入文件，filename 路径名
 func (s *ScanTaskExport) ZipAndSave(ctx context.Context, filename string, files chan *excelize.File) error {
-	file, err := ZipExcelFile(files)
-	if err != nil {
-		logging.GetLogger().Err(err).Str("filename", filename).Msg("ZipAndSave.ZipExcelFile")
-		return err
-	}
-	logging.GetLogger().Info().Str("filename", filename).Msg("ZipAndSave.ZipExcelFile")
 
-	if err := SaveFile(file, s.fileDir+"/"+filename); err != nil {
-		logging.GetLogger().Err(err).Str("filename", filename).Msg("ZipAndSave.SaveFile")
-		return err
+	// 先保存所有的excel文件
+	var filePath string
+	for file := range files {
+		filePath = s.fileDir + "/" + filename
+		// 检测目录是否存在
+		if err := MkdirIfNotExist(filePath); err != nil {
+			logging.GetLogger().Err(err).Str("filePath", filePath).Msg("ZipAndSave MkdirIfNotExist")
+			return err
+		}
+		if err := file.SaveAs(filePath + "/" + file.Path); err != nil {
+			logging.GetLogger().Err(err).Str("filename", filename).Msg("ZipAndSave")
+			continue
+		}
+		logging.GetLogger().Info().Str("filePath", filePath).Str("excelFile", file.Path).Msg("ZipAndSave save excel file")
 	}
-	logging.GetLogger().Info().Str("filename", filename).Msg("ZipAndSave.SaveFile")
+	logging.GetLogger().Info().Str("filePath", filePath).Msg("ZipAndSave save all  excel file start zip files")
+	defer func() {
+		if filePath != "" {
+			if err := os.RemoveAll(filePath); err != nil {
+				logging.GetLogger().Err(err).Str("filePath", filePath).Msg("ZipAndSave defer RemoveAll")
+			}
+			logging.GetLogger().Info().Str("filePath", filePath).Msg("ZipAndSave defer RemoveAll")
+		}
+	}()
+
+	if filePath != "" {
+		// 调用用命令进行压缩
+		zipFilename := filePath + ".zip"
+		logging.GetLogger().Info().Str("zipFilename", zipFilename).Str("filePath", filePath).Msg("ZipAndSave use zip start zip")
+
+		cmd := exec.Command("zip", "-j", "-r", zipFilename, filePath)
+		if err := cmd.Run(); err != nil {
+			logging.GetLogger().Err(err).Str("zipFilename", zipFilename).Str("filePath", filePath).Msg("ZipAndSave use zip")
+			return err
+		}
+	}
 	return nil
 }
 
