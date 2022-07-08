@@ -4385,7 +4385,12 @@
       "xmr-eu1.nanopool.org","xmr-eu2.nanopool.org",
       "xmr-jp1.nanopool.org","xmr-us-east1.nanopool.org",
       "xmr-us-west1.nanopool.org","xmr.crypto-pool.fr",
-      "xmr.pool.minergate.com"
+      "xmr.pool.minergate.com", "rx.unmineable.com",
+      "ss.antpool.com","dash.antpool.com",
+      "eth.antpool.com","zec.antpool.com",
+      "xmc.antpool.com","btm.antpool.com",
+      "stratum-dash.antpool.com","stratum-xmc.antpool.com",
+      "stratum-btm.antpool.com","donate.v2.xmrig.com"
       ]
 
 - list: https_miner_domains
@@ -4402,7 +4407,13 @@
     "stratum-ltc.antpool.com",
     "stratum-zec.antpool.com",
     "stratum.antpool.com",
-    "xmr.crypto-pool.fr"
+    "xmr.crypto-pool.fr",
+    "ss.antpool.com",
+    "stratum-dash.antpool.com",
+    "stratum-xmc.antpool.com",
+    "stratum-btm.antpool.com",
+    "btm.antpool.com",
+    "donate.v2.xmrig.com"
   ]
 
 - list: http_miner_domains
@@ -4414,7 +4425,8 @@
     "mine.xmrpool.net",
     "pool.minexmr.com",
     "sg.minexmr.com",
-    "xmr.crypto-pool.fr"
+    "xmr.crypto-pool.fr",
+    "donate.v2.xmrig.com"
   ]
 
 # Add rule based on crypto mining IOCs
