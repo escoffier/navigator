@@ -10,14 +10,14 @@ import (
 
 func (api *api) microSegmentation() http.HandlerFunc {
 	// dumb http proxy to microsegmentation service
+	remote, err := url.Parse(api.microsegURL)
+	if err != nil {
+		panic(err)
+	}
+
+	reverseProxy := httputil.NewSingleHostReverseProxy(remote)
+
 	return func(w http.ResponseWriter, r *http.Request) {
-
-		remote, err := url.Parse(api.microsegURL)
-		if err != nil {
-			panic(err)
-		}
-
-		reverseProxy := httputil.NewSingleHostReverseProxy(remote)
 		reverseProxy.ServeHTTP(w, r)
 	}
 }
