@@ -20,9 +20,9 @@ import (
 	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry/suport/hwswr"
 	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry/suport/jfrog"
 
-	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/vuln-updata/cnnvd"
-	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/vuln-updata/cnvd"
-	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/vuln-updata/trivy"
+	// _ "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/vuln-updata/cnnvd"
+	// _ "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/vuln-updata/cnvd"
+	// _ "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/vuln-updata/trivy"
 	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/service/register/api"
 	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/service/register/cronjob"
 

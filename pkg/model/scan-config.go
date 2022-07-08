@@ -217,6 +217,12 @@ func (s *ScanStrategy) Serialize() {
 				ses = append(ses, s.SensitiveFile[i])
 			}
 		}
+		// 设置默认值
+		for i := range ses {
+			if ses[i].SecretType == "" {
+				ses[i].SecretType = "Filename"
+			}
+		}
 		if len(ses) > 0 {
 			if bys, err := json.Marshal(s.SensitiveFile); err == nil {
 				s.SensitiveFileJson = string(bys)
