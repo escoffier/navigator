@@ -72,10 +72,10 @@ func (s *Subscriber) RuntimeEventCallBack(config *ConfigManager, rt container.Ru
 			logging.Get().Info().Msgf("runtime event callback event: %+v\n", m)
 			if m.Event == "kill" {
 				logging.Get().Info().Interface("message", m).Msg("runtime event callback stop")
-				// for _, v := range m.ContainerInfo.ImageRepoTags {
-				// 	d.config.DelImageUsedAndTestWhiteList(v)
-				// }
 				for _, v := range m.ContainerInfo.ImageDigest {
+					if v != "" {
+						continue
+					}
 					config.DelImageUsedAndTestWhiteList(v)
 				}
 				return
