@@ -3,50 +3,54 @@ package api
 import (
 	"context"
 	"crypto/tls"
-	"github.com/sirupsen/logrus"
-	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"net"
 	"net/http"
 	"net/http/httputil"
 	"strings"
+
+	"github.com/sirupsen/logrus"
+	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 )
 
 func (api *api) webhook() http.HandlerFunc {
+	if api.webhookURL == nil {
+		logging.GetLogger().Warn().Msg("no webhook url!")
+		return func(w http.ResponseWriter, request *http.Request) {
+			http.Error(w, "no webhook url!", http.StatusInternalServerError)
+		}
+	}
+
+	reverseProxy := httputil.NewSingleHostReverseProxy(api.webhookURL)
+	reverseProxy.Transport = &http.Transport{
+		DialTLSContext: dialTLSContext,
+	}
+	director := reverseProxy.Director
+	reverseProxy.Director = func(req *http.Request) {
+		director(req)
+		req.Host = req.URL.Host
+		var path string
+		if strings.Contains(req.URL.Path, "mutating") {
+			path = "/mutating"
+		} else if strings.Contains(req.URL.Path, "validating") {
+			path = "/validating"
+		}
+		req.URL.Path = path
+		logging.GetLogger().Debug().Msgf("target url: %s %+v  %d", req.Method, req.URL, req.ContentLength)
+	}
+	reverseProxy.ErrorHandler = func(w http.ResponseWriter, r *http.Request, err error) {
+		logging.GetLogger().Error().Msgf("proxy handler err %v", err)
+		w.WriteHeader(http.StatusBadGateway)
+	}
+
+	reverseProxy.ModifyResponse = func(response *http.Response) error {
+		logging.GetLogger().Debug().Msgf("response %s", response.Status)
+		return nil
+	}
+
 	return func(w http.ResponseWriter, r *http.Request) {
 		logging.GetLogger().Info().Msgf("webhook api: %s", r.Host)
-
 		logging.GetLogger().Debug().Msgf("origin url %+v", r.URL)
-		if api.webhookURL == nil {
-			logging.GetLogger().Warn().Msg("no webhook url!")
-			return
-		}
 
-		reverseProxy := httputil.NewSingleHostReverseProxy(api.webhookURL)
-		reverseProxy.Transport = &http.Transport{
-			DialTLSContext: dialTLSContext,
-		}
-		director := reverseProxy.Director
-		reverseProxy.Director = func(req *http.Request) {
-			director(req)
-			req.Host = req.URL.Host
-			var path string
-			if strings.Contains(req.URL.Path, "mutating") {
-				path = "/mutating"
-			} else if strings.Contains(req.URL.Path, "validating") {
-				path = "/validating"
-			}
-			req.URL.Path = path
-			logging.GetLogger().Debug().Msgf("target url: %s %+v  %d", req.Method, req.URL, r.ContentLength)
-		}
-		reverseProxy.ErrorHandler = func(w http.ResponseWriter, r *http.Request, err error) {
-			logging.GetLogger().Error().Msgf("proxy handler err %v", err)
-			w.WriteHeader(http.StatusBadGateway)
-		}
-
-		reverseProxy.ModifyResponse = func(response *http.Response) error {
-			logging.GetLogger().Debug().Msgf("response %s", response.Status)
-			return nil
-		}
 		reverseProxy.ServeHTTP(w, r)
 	}
 }
