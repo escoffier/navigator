@@ -39,9 +39,10 @@ require (
 	github.com/mattn/go-colorable v0.1.12 // indirect
 	github.com/mcuadros/go-version v0.0.0-20190830083331-035f6764e8d2
 	github.com/mileusna/crontab v1.2.0
+	github.com/minio/highwayhash v1.0.2 // indirect
 	github.com/mitchellh/go-homedir v1.1.0
 	github.com/mozilla/tls-observatory v0.0.0-20210609171429-7bc42856d2e5
-	github.com/nats-io/nats.go v1.15.0
+	github.com/nats-io/nats.go v1.13.1-0.20220308171302-2f2f6968e98d
 	github.com/nats-io/stan.go v0.10.2
 	github.com/novln/docker-parser v1.0.0
 	github.com/oceanicdev/chi-param v1.1.0
@@ -75,7 +76,7 @@ require (
 	go.uber.org/atomic v1.9.0
 	go.uber.org/automaxprocs v1.5.1
 	go.uber.org/zap v1.20.0 // indirect
-	golang.org/x/net v0.0.0-20220706163947-c90051bbdb60
+	golang.org/x/net v0.0.0-20220630215102-69896b714898
 	golang.org/x/sync v0.0.0-20220601150217-0de741cfad7f
 	golang.org/x/sys v0.0.0-20220704084225-05e143d24a9e
 	golang.org/x/time v0.0.0-20220210224613-90d013bbcef8
@@ -85,7 +86,7 @@ require (
 	gopkg.in/yaml.v2 v2.4.0
 	gorm.io/datatypes v1.0.3
 	gorm.io/driver/postgres v1.3.4
-	gorm.io/gorm v1.23.8
+	gorm.io/gorm v1.23.7
 	k8s.io/api v0.20.15
 	k8s.io/apimachinery v0.20.15
 	k8s.io/apiserver v0.20.15
@@ -106,7 +107,7 @@ require (
 	github.com/jarcoal/httpmock v1.2.0
 	github.com/rookie-ninja/rk-entry v1.0.11
 	github.com/rookie-ninja/rk-gin v1.2.22
-	github.com/segmentio/kafka-go v0.4.32
+	github.com/segmentio/kafka-go v0.4.31
 	github.com/shopspring/decimal v1.2.0
 	github.com/sony/gobreaker v0.5.0
 	github.com/xuri/excelize/v2 v2.6.0
@@ -178,8 +179,6 @@ require (
 	github.com/mohae/deepcopy v0.0.0-20170929034955-c48cc78d4826 // indirect
 	github.com/mtrmac/gpgme v0.1.2 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
-	github.com/nats-io/nats-server/v2 v2.8.2 // indirect
-	github.com/nats-io/nats-streaming-server v0.24.6 // indirect
 	github.com/opencontainers/runtime-spec v1.0.3-0.20210326190908-1c3f411f0417 // indirect
 	github.com/opencontainers/runtime-tools v0.9.0 // indirect
 	github.com/opencontainers/selinux v1.10.0 // indirect
@@ -229,6 +228,7 @@ require (
 	github.com/aliyun/alibaba-cloud-sdk-go v1.61.1452
 	github.com/go-redsync/redsync/v4 v4.3.0
 	github.com/gogo/protobuf v1.3.2
+	github.com/hashicorp/raft v1.3.9 // indirect
 	github.com/smartystreets/goconvey v1.6.4
 	go.uber.org/multierr v1.8.0 // indirect
 	gorm.io/driver/mysql v1.3.4
@@ -329,6 +329,7 @@ require (
 	github.com/hashicorp/errwrap v1.1.0 // indirect
 	github.com/hashicorp/go-cleanhttp v0.5.2 // indirect
 	github.com/hashicorp/go-getter v1.5.11 // indirect
+	github.com/hashicorp/go-msgpack v1.1.5 // indirect
 	github.com/hashicorp/go-multierror v1.1.1 // indirect
 	github.com/hashicorp/go-retryablehttp v0.7.0 // indirect
 	github.com/hashicorp/go-safetemp v1.0.0 // indirect
@@ -356,7 +357,7 @@ require (
 	github.com/jpillora/backoff v1.0.0 // indirect
 	github.com/jtolds/gls v4.20.0+incompatible // indirect
 	github.com/kevinburke/ssh_config v0.0.0-20201106050909-4977a11b4351 // indirect
-	github.com/klauspost/compress v1.15.7 // indirect
+	github.com/klauspost/compress v1.15.4 // indirect
 	github.com/knqyf263/go-apk-version v0.0.0-20200609155635-041fdbb8563f // indirect
 	github.com/knqyf263/go-deb-version v0.0.0-20190517075300-09fca494f03d // indirect
 	github.com/knqyf263/go-rpm-version v0.0.0-20170716094938-74609b86c936 // indirect
@@ -382,6 +383,7 @@ require (
 	github.com/moby/sys/mountinfo v0.6.0
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.2 // indirect
+	github.com/nats-io/jwt/v2 v2.2.1-0.20220113022732-58e87895b296 // indirect
 	github.com/nats-io/nkeys v0.3.0 // indirect
 	github.com/nats-io/nuid v1.0.1 // indirect
 	github.com/open-policy-agent/opa v0.36.1 // indirect
@@ -390,7 +392,7 @@ require (
 	github.com/owenrumney/go-sarif/v2 v2.1.1 // indirect
 	github.com/owenrumney/squealer v0.2.28 // indirect
 	github.com/pelletier/go-toml v1.9.4 // indirect
-	github.com/pierrec/lz4/v4 v4.1.15 // indirect
+	github.com/pierrec/lz4/v4 v4.1.14 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/prometheus/procfs v0.7.3 // indirect
 	github.com/rcrowley/go-metrics v0.0.0-20200313005456-10cdbea86bc0 // indirect
@@ -433,7 +435,7 @@ require (
 	gomodules.xyz/orderedmap v0.1.0 // indirect
 	google.golang.org/api v0.74.0 // indirect
 	google.golang.org/appengine v1.6.7 // indirect
-	google.golang.org/genproto v0.0.0-20220706185917-7780775163c4 // indirect
+	google.golang.org/genproto v0.0.0-20220623142657-077d458a5694 // indirect
 	gopkg.in/cheggaaa/pb.v1 v1.0.28 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/ini.v1 v1.66.4 // indirect
