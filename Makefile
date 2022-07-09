@@ -354,11 +354,19 @@ webhook: generate
 
 .PHONY: cluster-manager
 cluster-manager: generate
-	@echo "build webhook"
+	@echo "build cluster-manager"
 	go build -v \
 		-o dist/cluster-manager gitlab.com/piccolo_su/vegeta/cmd/clustermanager
 	#upx --lzma --best dist/cluster-manager
 	docker build -t $(REPOPREFIX)/cluster-manager:latest -f ./build/cluster-manager/Dockerfile .
+
+.PHONY: cluster-proxy
+cluster-proxy: generate
+	@echo "build cluster-proxy"
+	go build -v \
+		-o dist/cluster-proxy gitlab.com/piccolo_su/vegeta/cmd/clusterproxy
+	#upx --lzma --best dist/cluster-proxy
+	docker build -t $(REPOPREFIX)/cluster-proxy:latest -f ./build/cluster-proxy/Dockerfile .
 
 .PHONY: scan_report
 scan_report: 		## Build cleaner binary
@@ -378,7 +386,7 @@ apiscan-job: generate
 
 .PHONY: all
 all: drift-prevention-client faulty scanner scanner-cicd scarecrow console data holmes daemon  \
-webshell-server webhook cluster-manager palace safe-node-image kube-scanner-report platform-report \
+webshell-server webhook cluster-manager cluster-proxy palace safe-node-image kube-scanner-report platform-report \
 scan_report apiscan-job
 
 .PHONY: base
@@ -431,6 +439,7 @@ ifeq ($(USERELEASE),true)
 	docker push $(REPOPREFIX)/safe-node-image:$(RELEASEVERSION)
 	docker push $(REPOPREFIX)/webhook:$(RELEASEVERSION)
 	docker push $(REPOPREFIX)/cluster-manager:$(RELEASEVERSION)
+	docker push $(REPOPREFIX)/cluster-proxy:$(RELEASEVERSION)
 	docker push $(REPOPREFIX)/kube-scanner-report:$(RELEASEVERSION)
 	docker push $(REPOPREFIX)/platform-report:$(RELEASEVERSION)
 	docker push $(REPOPREFIX)/scan-report:$(RELEASEVERSION)
@@ -449,6 +458,7 @@ else
 	docker push $(REPOPREFIX)/safe-node-image:latest
 	docker push $(REPOPREFIX)/webhook:latest
 	docker push $(REPOPREFIX)/cluster-manager:latest
+	docker push $(REPOPREFIX)/cluster-proxy:latest
 	docker push $(REPOPREFIX)/kube-scanner-report:latest
 	docker push $(REPOPREFIX)/platform-report:latest
 	docker push $(REPOPREFIX)/scan-report:latest
@@ -470,6 +480,7 @@ rm-local-images:
 	docker rmi $(REPOPREFIX)/safe-node-image:latest
 	docker rmi $(REPOPREFIX)/webhook:latest
 	docker rmi $(REPOPREFIX)/cluster-manager:latest
+	docker rmi $(REPOPREFIX)/cluster-proxy:latest
 	docker rmi $(REPOPREFIX)/kube-scanner-report:latest
 	docker rmi $(REPOPREFIX)/scan-report:latest
 	docker rmi $(REPOPREFIX)/apiscan-job:latest
@@ -492,6 +503,7 @@ ifeq ($(USERELEASE),true)
 	docker tag $(REPOPREFIX)/safe-node-image:latest $(REPOPREFIX)/safe-node-image:$(RELEASEVERSION)
 	docker tag $(REPOPREFIX)/webhook:latest $(REPOPREFIX)/webhook:$(RELEASEVERSION)
 	docker tag $(REPOPREFIX)/cluster-manager:latest $(REPOPREFIX)/cluster-manager:$(RELEASEVERSION)
+	docker tag $(REPOPREFIX)/cluster-proxy:latest $(REPOPREFIX)/cluster-proxy:$(RELEASEVERSION)
 	docker tag $(REPOPREFIX)/kube-scanner-report:latest $(REPOPREFIX)/kube-scanner-report:$(RELEASEVERSION)
 	docker tag $(REPOPREFIX)/apiscan-job:latest $(REPOPREFIX)/apiscan-job:$(RELEASEVERSION)
 else
@@ -509,6 +521,7 @@ else
 	docker tag $(REPOPREFIXOLD)/safe-node-image:latest $(REPOPREFIX)/safe-node-image:latest
 	docker tag $(REPOPREFIXOLD)/webhook:latest $(REPOPREFIX)/webhook:latest
 	docker tag $(REPOPREFIXOLD)/cluster-manager:latest $(REPOPREFIX)/cluster-manager:latest
+	docker tag $(REPOPREFIXOLD)/cluster-proxy:latest $(REPOPREFIX)/cluster-proxy:latest
 	docker tag $(REPOPREFIXOLD)/kube-scanner-report:latest $(REPOPREFIX)/kube-scanner-report:latest
 	docker tag $(REPOPREFIXOLD)/apiscan-job:latest $(REPOPREFIX)/apiscan-job:latest
 endif

@@ -17,9 +17,6 @@ import (
 
 var (
 	filteredOutRulesSet = map[string]struct{}{
-		"File Integrity Management":          {},
-		"Command whitelist":                  {},
-		"Seccomp":                            {},
 		"Falco internal: syscall event drop": {},
 	}
 )
