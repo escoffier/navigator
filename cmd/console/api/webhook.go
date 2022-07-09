@@ -8,7 +8,6 @@ import (
 	"net/http/httputil"
 	"strings"
 
-	"github.com/sirupsen/logrus"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 )
 
@@ -86,8 +85,7 @@ func dialTLSContext(ctx context.Context, network, addr string) (net.Conn, error)
 		logging.GetLogger().Error().Msgf("VerifyHostname err %v", err)
 		return nil, err
 	}
-	logrus.Info(cert.Subject)
-	logging.GetLogger().Debug().Msgf("Subject: %+v", cert.Subject)
+	logging.GetLogger().Info().Msgf("cert subject: %+v", cert.Subject)
 
 	return tlsConn, nil
 }
