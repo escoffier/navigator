@@ -223,6 +223,8 @@ func (s *ScanStrategy) Serialize() {
 				ses[i].SecretType = "Filename"
 			}
 		}
+
+		s.SensitiveFile = ses
 		if len(ses) > 0 {
 			if bys, err := json.Marshal(s.SensitiveFile); err == nil {
 				s.SensitiveFileJson = string(bys)
