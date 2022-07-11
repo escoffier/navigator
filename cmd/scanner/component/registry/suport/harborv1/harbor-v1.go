@@ -446,7 +446,7 @@ func (h *HarborV1) ListImages(ctx context.Context, extender registry.Extender, r
 						logging.GetLogger().Err(err).Str("FullRepoName", r.Name).Str("Digest", t.Digest).Msg("CreateOrAddRetryCountExtender")
 					}
 
-					logging.GetLogger().Err(err).Msgf("ListImages GetManifest", v.Name)
+					logging.GetLogger().Err(err).Msgf("ListImages GetManifest:%s", v.Name)
 
 					continue
 				}

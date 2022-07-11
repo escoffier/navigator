@@ -410,13 +410,38 @@ func GenImageBaseInfo(image model.ImageList, status model.ImageResponse) []strin
 	if image.Registry != nil {
 		info[1] = image.Registry.Url
 	}
-	info = append(info, genSuggest(image.OS, image.ImageScanVuln.Vulns))
+
+	vulnSuggest := genVulnSuggest(image.OS, image.ImageScanVuln.Vulns)
+	sensitiveFileSuggest := genSensitiveFileSuggest(image.ImageScanVuln.SensitiveFiles)
+	suggest := make([]string, 0)
+	if vulnSuggest != "" {
+		suggest = append(suggest, vulnSuggest)
+	}
+	if sensitiveFileSuggest != "" {
+		suggest = append(suggest, sensitiveFileSuggest)
+	}
+
+	info = append(info, strings.Join(suggest, "\n"))
 
 	return info
 }
 
-// 生成修复建议
-func genSuggest(osstring string, vulns []*model.Vuln) string {
+// 生成敏感文件的修复建议
+func genSensitiveFileSuggest(files []model.Sensitive) string {
+	pre := "请确认相关文件是否存在风险，确认后在Dockerfile中删除异常文件："
+	res := make([]string, 0)
+	for i := range files {
+		res = append(res, files[i].Name)
+	}
+	res = util.DeDuplicationStringSlice(res)
+	if len(res) > 0 {
+		return fmt.Sprintf("%s%s", pre, strings.Join(res, ";"))
+	}
+	return ""
+}
+
+// 生成漏洞的修复建议
+func genVulnSuggest(osstring string, vulns []*model.Vuln) string {
 	os := new(ftypes.OS)
 	if err := json.Unmarshal([]byte(osstring), os); err != nil {
 		return ""
@@ -431,10 +456,12 @@ func genSuggest(osstring string, vulns []*model.Vuln) string {
 	}
 	// 去重
 	ans = util.DeDuplicationStringSlice(ans)
-	pre := installType(os)
+	install := installType(os)
 
-	if len(ans) > 0 && pre != "" {
-		return fmt.Sprintf("%s %s", pre, strings.Join(ans, " "))
+	pre := "请在该镜像的Dockerfile中增加如下代码，以修复存在安全问题的软件：RUN "
+
+	if len(ans) > 0 && install != "" {
+		return fmt.Sprintf("%s %s %s", pre, install, strings.Join(ans, " "))
 	}
 	return ""
 }
