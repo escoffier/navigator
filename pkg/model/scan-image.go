@@ -63,21 +63,24 @@ func ExistFlag(value uint64, flag int64) bool {
 }
 
 func (si *ScanImage) GenImageFlag(preFlag uint64) uint64 {
+	si.Deserialize()
+	si.Serialize()
 
 	var flag uint64
 
 	if si.VulnScore > 0 {
 		flag = 1<<FlagHasVuln + flag
 	}
-	if si.SensitiveScore > 0 {
+	if len(si.SensitiveFile) > 0 {
 		flag = 1<<FlagHasSensitive + flag
 	}
-	if si.VirusScore > 0 {
+	if len(si.MaliciousInfo) > 0 {
 		flag = 1<<FlagHasMalicious + flag
 	}
-	if si.WebshellScore > 0 {
+	if len(si.WebshellInfo) > 0 {
 		flag = 1<<FlagHasWebshell + flag
 	}
+
 	for i := range si.EnvKeyValue {
 		if si.EnvKeyValue[i].IsAbnormal > 0 {
 			flag = 1<<FlagHasExceptEnv + flag
@@ -85,11 +88,11 @@ func (si *ScanImage) GenImageFlag(preFlag uint64) uint64 {
 		}
 	}
 
-	if si.ScanEnableCollection.SoftwareEnable > 0 {
+	if len(si.Software) > 0 {
 		flag = 1<<FlagHasSoftware + flag
 	}
 
-	if si.ScanEnableCollection.LicenseEnable > 0 {
+	if len(si.LicenseInfo) > 0 {
 		flag = 1<<FlagHasExceptLicense + flag
 	}
 	if si.HasFixedVuln > 0 {
