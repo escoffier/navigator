@@ -38,9 +38,9 @@ type ScanType string // vuln-scan,virus-scan,...
 
 type ScanPolicy interface{} // scan policy correlated to scan type,eg: VulnPolicy,SensitiveFilePolicy
 
-type SingleVulnPolicy struct {
-	CustomPackageName    string `json:"name"`
-	CustomPackageVersion string `json:"version"`
+type CustomPkgPolicy struct {
+	CustomPkgName    string `json:"name"`
+	CustomPkgVersion string `json:"version"`
 }
 
 type VulnPolicy struct {

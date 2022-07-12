@@ -24,32 +24,21 @@ type ExecutorScanVuln struct {
 	policy        interface{}
 }
 
-func (e *ExecutorScanVuln) fileterCustomPkg(r *report.Report, customPkg []task.SingleVulnPolicy) []model.Software {
-	mp := make(map[string]int)
+func (e *ExecutorScanVuln) filterCustomPkg(r *report.Report, customPkg []task.CustomPkgPolicy) []model.Software {
+	logging.GetLogger().Info().Interface("customPkg", customPkg).Msg("filterCustomPkg")
+	mp := make(map[string]bool) // 是否已增加
 	for _, v := range customPkg {
-		unikey := fmt.Sprintf("%v/%v", v.CustomPackageName, v.CustomPackageVersion)
-		mp[unikey] = 1
+		pkg := fmt.Sprintf("%s/%s", v.CustomPkgName, v.CustomPkgVersion)
+		mp[pkg] = false
 	}
 	var res []model.Software
-	// res := &report.Report{}
-	// res.ArtifactName = r.ArtifactName
-	// res.SchemaVersion = r.SchemaVersion
-	// res.ArtifactType = r.ArtifactType
-	// res.Metadata = r.Metadata
 	for _, v := range r.Results {
-		singleResult := report.Result{}
-		singleResult.Target = v.Target
-		singleResult.Type = v.Type
-		singleResult.Class = v.Class
-		singleResult.MisconfSummary = v.MisconfSummary
-		singleResult.Misconfigurations = v.Misconfigurations
-		singleResult.Packages = v.Packages
 		for _, vv := range v.Vulnerabilities {
-			unikey := fmt.Sprintf("%v/%v", vv.PkgName, vv.InstalledVersion)
-			flag, ok := mp[unikey]
-			if ok && flag == 1 {
+			pkg := fmt.Sprintf("%s/%s", vv.PkgName, vv.InstalledVersion)
+			if added, ok := mp[pkg]; ok && !added {
+				// 不重复增加
 				res = append(res, model.Software{Name: vv.PkgName, Version: vv.InstalledVersion})
-				mp[unikey] = 0
+				mp[pkg] = true
 			}
 		}
 	}
@@ -77,12 +66,12 @@ func (e *ExecutorScanVuln) Scan(ctx context.Context, param Param) (Artifact, err
 
 	tag := ref.Identifier()
 	repositoryName := ref.Context().RepositoryStr()
-	Newimage := "0.0.0.0:5566/" + repositoryName + ":" + tag
+	newImage := "0.0.0.0:5566/" + repositoryName + ":" + tag
 	dockerFlag, ok := param["docker"].(int)
 	if ok && dockerFlag == 1 {
 		Image, ok := param["dockerImage"].(string)
 		if ok {
-			Newimage = Image
+			newImage = Image
 		}
 	}
 	// scan
@@ -91,7 +80,7 @@ func (e *ExecutorScanVuln) Scan(ctx context.Context, param Param) (Artifact, err
 		return nil, errors.New("TrivyService didn't start")
 	}
 
-	result, err := component.TrivyService.Scan(ctx, Newimage)
+	result, err := component.TrivyService.Scan(ctx, newImage)
 	if err != nil {
 		logging.GetLogger().Err(err).Msg("Scan image failed")
 		return nil, errors.New("scan image failed")
@@ -103,10 +92,9 @@ func (e *ExecutorScanVuln) Scan(ctx context.Context, param Param) (Artifact, err
 		logging.GetLogger().Error().Msg("miss 'VulnPolicyRule' in parameter")
 		return nil, errors.New("miss 'VulnPolicyRule' in parameter")
 	}
-	var customPkg []task.SingleVulnPolicy
-	if len(policyRule.Pkgs) > 0 {
-		err = json.Unmarshal([]byte(policyRule.Pkgs), &customPkg)
-		if err != nil {
+	var customPkg []task.CustomPkgPolicy
+	if policyRule.Pkgs != "" {
+		if err := json.Unmarshal([]byte(policyRule.Pkgs), &customPkg); err != nil {
 			logging.GetLogger().Err(err).Msg("Unmarshal VulnPolicyRule failed")
 			return nil, errors.New("Unmarshal VulnPolicyRule failed")
 		}
@@ -114,7 +102,7 @@ func (e *ExecutorScanVuln) Scan(ctx context.Context, param Param) (Artifact, err
 
 	r["result"] = result
 	r["customFlag"] = 1
-	r["software"] = e.fileterCustomPkg(result, customPkg)
+	r["software"] = e.filterCustomPkg(result, customPkg)
 
 	// logging.GetLogger().Info().Msgf("result is : %v", result.Results)
 	return r, nil
