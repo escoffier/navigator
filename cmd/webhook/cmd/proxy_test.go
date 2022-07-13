@@ -20,6 +20,10 @@ func Test_getTargetUrl(t *testing.T) {
 			args: args{host: "http://console-test-cn.tensorsecurity.cn"},
 			want: &url.URL{Scheme: "https", RawQuery: "", Path: "", Host: ""},
 		},
+		{
+			name: "test2",
+			args: args{host: "http://navi-proxy:10000"},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -29,4 +33,13 @@ func Test_getTargetUrl(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestParseHost(t *testing.T) {
+	url, err := url.Parse("https://navi-proxy:10000")
+	if err != nil {
+		t.Fatal(err)
+		return
+	}
+	t.Log(url.Scheme)
 }
