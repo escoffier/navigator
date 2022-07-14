@@ -387,7 +387,6 @@ apiscan-job: generate
 .PHONY: cluster-proxy
 cluster-proxy: generate
 	@echo "build cluster proxy"
-	#upx --lzma --best dist/apiscan
 	docker build -t $(REPOPREFIX)/cluster-proxy:latest -f ./build/cluster-proxy/Dockerfile .
 
 .PHONY: all
