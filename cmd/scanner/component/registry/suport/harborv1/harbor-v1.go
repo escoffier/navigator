@@ -484,6 +484,10 @@ func (h *HarborV1) Ping() error {
 	if err := h.registryClient.Ping(); err != nil {
 		return consts.ErrNotConnectOrWrongUsernameOrPasswd
 	}
+	if _, err := h.ListProjectsWithPage(1, DefaultPageSize); err != nil {
+		return consts.ErrNotConnectOrWrongUsernameOrPasswd
+	}
+
 	return nil
 }
 
