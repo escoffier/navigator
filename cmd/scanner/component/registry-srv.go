@@ -38,7 +38,16 @@ type SearchRegistryParam struct {
 }
 
 func (s *RegistrySrv) GetRegistryType(ctx context.Context) ([]string, error) {
-	return registry.DriverTypes, nil
+	regList := registry.DriverTypes
+	regList = append(regList, consts.HarborVersion)
+	ans := make([]string, 0)
+	for i := range regList {
+		if regList[i] != consts.HarborV1Version && regList[i] != consts.HarborV2Version {
+			ans = append(ans, regList[i])
+		}
+	}
+
+	return ans, nil
 }
 
 func (s *RegistrySrv) GetRegistry(ctx context.Context, id int64) (*model.Registry, error) {
@@ -103,7 +112,7 @@ func (s *RegistrySrv) DeleteRegistry(ctx context.Context, id int64) error {
 	return nil
 }
 
-func (s *RegistrySrv) CreateRegistry(ctx context.Context, reg model.Registry) (int64, error) {
+func (s *RegistrySrv) createRegistry(ctx context.Context, reg model.Registry) (int64, error) {
 	if err := reg.Validate(consts.ValidateCreate); err != nil {
 		return 0, response.NewHttpError(http.StatusExpectationFailed, err)
 	}
@@ -139,6 +148,23 @@ func (s *RegistrySrv) CreateRegistry(ctx context.Context, reg model.Registry) (i
 			return 0, response.NewHttpError(http.StatusFailedDependency, fmt.Errorf("仓库名已存在"))
 		}
 		return 0, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf(consts.StatusInternalServerErrorMsg))
+	}
+	return id, nil
+
+}
+
+func (s *RegistrySrv) CreateRegistry(ctx context.Context, reg model.Registry) (int64, error) {
+	if !InStringSlice(reg.RegType, []string{consts.HarborVersion, consts.HarborV1Version, consts.HarborV2Version}) {
+		return s.createRegistry(ctx, reg)
+	}
+	// 对于harbor做一下兼容
+	// 先试v2
+	reg.RegType = consts.HarborV2Version
+	id, err := s.createRegistry(ctx, reg)
+	if err != nil {
+		// 再试v1
+		reg.RegType = consts.HarborV1Version
+		return s.createRegistry(ctx, reg)
 	}
 	return id, nil
 }

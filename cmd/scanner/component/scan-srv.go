@@ -97,7 +97,6 @@ type SearchImageParam struct {
 }
 
 type ScannerSrv interface {
-	CheckProjectAndCreateIfNotExist(ctx context.Context, library, projectName string) error
 	SearchImageWithScan(ctx context.Context, param SearchImageWithScanParam, filter *model.Filter) ([]*model.ImageResponse, int64, error)
 	SearchImages(ctx context.Context, param SearchImageParam, filter *model.Filter) ([]model.ImageList, int64, error)
 
@@ -674,20 +673,6 @@ func (s *ConScannerSrv) K8sOnlineMonitor(ctx context.Context, containerInfo []mo
 		}
 	}
 	// return
-}
-
-func (s *ConScannerSrv) CheckProjectAndCreateIfNotExist(ctx context.Context, library, projectName string) error {
-	regi, err := s.getRegistry(ctx, "", model.CICDImageRegistry)
-	if err != nil {
-		logging.GetLogger().Err(err).Msgf("can not connect harborV2")
-		return response.NewHttpError(http.StatusBadGateway, fmt.Errorf("can not connect harborV2 error is %s", err.Error()))
-	}
-	if err := regi.CheckProject(projectName); err != nil {
-		if err := regi.CreateProject(projectName, true); err != nil {
-			return response.NewHttpError(http.StatusInternalServerError, fmt.Errorf("can not create project error is %s", err.Error()))
-		}
-	}
-	return nil
 }
 
 func (s *ConScannerSrv) ScanOneForCICDResult(ctx context.Context, req *model.ScanOneCICDResultRequest) (*model.ScanOneForCICDResponse, error) {

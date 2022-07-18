@@ -6,6 +6,7 @@ const (
 	DockerRegistryV2Version = "registry-v2"
 	HarborV1Version         = "harbor-v1.0"
 	HarborV2Version         = "harbor-v2.0"
+	HarborVersion           = "harbor" // 前端不再区分v1,v2
 	HaiWeiSwrVersion        = "hw-swr"
 	JfrogVersion            = "jfrog"
 )
