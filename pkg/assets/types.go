@@ -44,26 +44,27 @@ It could be a ReplicaSet, DaemonSet, StatefulSet, ReplicationController, Deploym
 All fields are immutable.
 */
 type TensorResource struct {
-	//metav1.TypeMeta   `json:"metadata,omitempty"`
 	metav1.ObjectMeta
-	Cluster string       `json:"cluster"`
-	Kind    ResourceKind `json:"kind"`
-	//Namespace       string                  `json:"namespace"`
-	//Name            string                  `json:"name"`
-	//UID           string                `json:"uid"`
-	originRef     interface{}           `json:"origin_ref"` // the original object
-	LabelSelector *metav1.LabelSelector `json:"label_selector"`
-	//OwnerReferences []metav1.OwnerReference `json:"owner_references"`
-	//Labels          map[string]string       `json:"labels"`
-	PodTemplate *corev1.PodTemplateSpec `json:"pod_template"`
-	CreateTime  time.Time               `json:"create_time"`
+	Cluster       string                  `json:"cluster"`
+	Kind          ResourceKind            `json:"kind"`
+	originRef     interface{}             `json:"origin_ref"` // the original object
+	LabelSelector *metav1.LabelSelector   `json:"label_selector"`
+	PodTemplate   *corev1.PodTemplateSpec `json:"pod_template"`
+	CreateTime    time.Time               `json:"create_time"`
+}
+
+type PoolInfo struct {
+	PoolName    string `json:"poolName"`
+	PoolUID     string `json:"poolUID"`
+	PoolPodName string `json:"poolPodName"`
+	PoolPodUID  string `json:"poolPodUID"`
 }
 
 type TensorPod struct {
-	//metav1.ObjectMeta `json:"metadata,omitempty"`
-	Cluster string                 `json:"cluster"`
-	Owner   *metav1.OwnerReference `json:"owner"`
 	*corev1.Pod
+	Cluster  string                 `json:"cluster"`
+	Owner    *metav1.OwnerReference `json:"owner"`
+	PoolInfo *PoolInfo              `json:"poolInfo"`
 }
 
 type TensorRole struct {

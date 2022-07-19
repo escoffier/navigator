@@ -22,11 +22,11 @@ import (
 )
 
 type PodResourcesService struct {
-	sync.RWMutex
-	rdb              *databases.RDBInstance
-	redisCli         *redis.Client
-	clusterCallbacks map[string]*PodResourcesClusterCallback
-	syncedClusters   map[string]struct{}
+	//sync.RWMutex
+	rdb      *databases.RDBInstance
+	redisCli *redis.Client
+	//clusterCallbacks map[string]*PodResourcesClusterCallback
+	syncedClusters map[string]struct{}
 }
 
 type podEvent struct {
@@ -35,11 +35,9 @@ type podEvent struct {
 	updateTime time.Time
 }
 type PodResourcesClusterCallback struct {
-	cluster          string
-	parent           *PodResourcesService
-	refreshTimestamp int64
-	resyncInterval   time.Duration
-
+	cluster             string
+	parent              *PodResourcesService
+	refreshTimestamp    int64
 	rsToDeploymentCache *sync.Map // string(namespace/name) -> *metav1.OwnerReference
 	rsUpdateUnixTime    int64
 	inputQueue          *util.Queue
@@ -48,10 +46,10 @@ type PodResourcesClusterCallback struct {
 
 func newPodResourcesService(redisCli *redis.Client, rdb *databases.RDBInstance) *PodResourcesService {
 	return &PodResourcesService{
-		redisCli:         redisCli,
-		rdb:              rdb,
-		clusterCallbacks: make(map[string]*PodResourcesClusterCallback, 2),
-		syncedClusters:   make(map[string]struct{}),
+		redisCli: redisCli,
+		rdb:      rdb,
+		//clusterCallbacks: make(map[string]*PodResourcesClusterCallback, 2),
+		syncedClusters: make(map[string]struct{}),
 	}
 }
 
@@ -66,7 +64,7 @@ type syncSignal struct {
 	clusterKey string
 }
 
-// BeforWatchNewCluster called before watch events
+// BeforeWatchNewCluster called before watch events
 func (cb *PodResourcesService) BeforeWatchNewCluster(ctx context.Context, clusterName string, resyncInterval time.Duration) assets.ClusterCallback {
 	logging.Get().Info().Msgf("service assets before watch new cluster %s called.", clusterName)
 
@@ -75,7 +73,6 @@ func (cb *PodResourcesService) BeforeWatchNewCluster(ctx context.Context, cluste
 		parent:              cb,
 		refreshTimestamp:    time.Now().Unix(),
 		rsToDeploymentCache: new(sync.Map),
-		resyncInterval:      resyncInterval,
 		inputQueue:          util.NewQueue(),
 	}
 
@@ -101,9 +98,9 @@ func (cb *PodResourcesService) BeforeWatchNewCluster(ctx context.Context, cluste
 			logging.Get().Info().Msg("start to consume pods")
 		}
 	}()
-	cb.Lock()
-	defer cb.Unlock()
-	cb.clusterCallbacks[clusterName] = ccb
+	//cb.Lock()
+	//defer cb.Unlock()
+	//cb.clusterCallbacks[clusterName] = ccb
 
 	return ccb
 }

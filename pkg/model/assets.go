@@ -422,3 +422,94 @@ type TensorNode struct {
 }
 
 func (TensorNode) TableName() string { return "ivan_assets_nodes" }
+
+type ContainerDetail map[string]string
+
+func (cd *ContainerDetail) Scan(value interface{}) error {
+	b, ok := value.([]byte)
+	if !ok {
+		return TypeAssertErr
+	}
+	return json.Unmarshal(b, &cd)
+}
+func (cd *ContainerDetail) Value() (driver.Value, error) {
+	return json.Marshal(cd)
+}
+
+type EnvVars []corev1.EnvVar
+
+func (ev *EnvVars) Scan(value interface{}) error {
+	b, ok := value.([]byte)
+	if !ok {
+		return TypeAssertErr
+	}
+	return json.Unmarshal(b, &ev)
+}
+func (ev EnvVars) Value() (driver.Value, error) {
+	return json.Marshal(ev)
+}
+
+type StringSlice []string
+
+func (sl *StringSlice) Scan(value interface{}) error {
+	b, ok := value.([]byte)
+	if !ok {
+		return TypeAssertErr
+	}
+	return json.Unmarshal(b, &sl)
+}
+func (sl StringSlice) Value() (driver.Value, error) {
+	data, err := json.Marshal(sl)
+	return data, err
+}
+
+type ContainerInfos struct {
+	PodSecurityPolicy *corev1.PodSecurityContext `json:"podSecurityPolicy"`
+}
+
+func (ci *ContainerInfos) Scan(value interface{}) error {
+	b, ok := value.([]byte)
+	if !ok {
+		return TypeAssertErr
+	}
+	return json.Unmarshal(b, &ci)
+}
+func (ci ContainerInfos) Value() (driver.Value, error) {
+	data, err := json.Marshal(ci)
+	return data, err
+}
+
+type TensorContainerRelation struct {
+	ID            uint32          `gorm:"column:id;type:bigint;primaryKey" json:"id,omitempty"`
+	CreatedAt     time.Time       `gorm:"column:created_at" json:"createdAt"`
+	UpdatedAt     time.Time       `gorm:"column:updated_at" json:"updatedAt"`
+	Status        int32           `gorm:"column:status"`
+	ContainerID   string          `gorm:"column:container_id" json:"containerID"`
+	Name          string          `gorm:"column:name"`
+	PodName       string          `gorm:"column:pod_name"`
+	ResourceName  string          `gorm:"column:resource_name"`
+	Namespace     string          `gorm:"column:namespace"`
+	ClusterKey    string          `gorm:"column:cluster_key"`
+	ResourceKind  string          `gorm:"column:resource_kind"`
+	PodIP         string          `json:"PodIP,omitempty" gorm:"column:pod_ip"`
+	PodUID        string          `json:"PodUID" gorm:"column:pod_uid"`
+	HostIP        string          `json:"HostIP,omitempty" gorm:"column:host_ip"`
+	NodeName      string          `json:"NodeName" gorm:"column:node_name"`
+	Image         string          `json:"image" gorm:"column:image"`
+	Library       string          `json:"library" gorm:"column:library"`
+	ContainerInfo *ContainerInfos `json:"containerInfo" gorm:"column:container_info;type:blob"`
+	Environment   EnvVars         `json:"environment" gorm:"column:environment"`
+	Cmd           StringSlice     `json:"cmd" gorm:"column:cmd"`
+	Arguments     StringSlice     `json:"arguments" gorm:"column:arguments;type:varchar(128)"`
+	HostNetwork   bool            `json:"hostNetwork" gorm:"column:host_network"`
+	Privileged    bool            `json:"privileged" gorm:"column:privileged"`
+	PoolName      string          `json:"poolName" gorm:"column:pool_name"`
+	PoolUID       string          `json:"poolUID" gorm:"column:pool_uid"`
+	PoolPodName   string          `json:"poolPodName" gorm:"column:pool_pod_name"`
+	PoolPodUID    string          `json:"poolPodUID" gorm:"column:pool_pod_uid"`
+	TimeStamp     int64           `gorm:"column:time_stamp"`
+}
+
+func (r TensorContainerRelation) TableName() string {
+	return "ivan_assets_container_relations"
+}

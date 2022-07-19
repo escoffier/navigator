@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"gitlab.com/piccolo_su/vegeta/cmd/console/service/containers"
 	"net/http"
 	"os"
 	"runtime/debug"
@@ -75,14 +76,14 @@ type Console struct {
 
 // NewConsole is to create a new Console struct.
 func NewConsole(
-		httpOpts *flag.HTTPOpts,
-		rdbOpts *flag.RDBOpts,
-		scannerOpts *flag.VegetaScannerOpts,
-		exporterOpts *flag.ExporterOpts,
-		scapOpts *flag.ScapOpts,
-		elasticOpts *flag.ElasticOpts,
-		secProfilesOpts *flag.SecProfilesOpts,
-		rdbOptions *databases.Options,
+	httpOpts *flag.HTTPOpts,
+	rdbOpts *flag.RDBOpts,
+	scannerOpts *flag.VegetaScannerOpts,
+	exporterOpts *flag.ExporterOpts,
+	scapOpts *flag.ScapOpts,
+	elasticOpts *flag.ElasticOpts,
+	secProfilesOpts *flag.SecProfilesOpts,
+	rdbOptions *databases.Options,
 ) (*Console, error) {
 	eventGrpcUrl := os.Getenv(echelper.EventGrpcURLEnv)
 	if eventGrpcUrl == "" {
@@ -324,6 +325,14 @@ func NewConsole(
 	err = naviaudit.InitService(es)
 	if err != nil {
 		logging.Get().Err(err).Msg("ERROR: navi-audit service init error")
+	}
+
+	exportContainers := os.Getenv("EXPORT_CONTAINERS")
+	if exportContainers == "true" {
+		cntErr := containers.InitContainersService(rdb, scannerURL)
+		if cntErr != nil {
+			logging.Get().Err(cntErr).Msg("ERROR: InitContainersService init error")
+		}
 	}
 
 	return &Console{

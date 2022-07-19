@@ -37,7 +37,7 @@ func (api *api) assetsForOpenapi() func(chi.Router) {
 			Get("/namespaces", api.getNamespacesForOpenapi())
 
 		r.With(RateLimitMiddleware(api.redisClient, int64(rate))).
-			Get("/containers", api.getResourceContainersForOpenapi())
+			Get("/resContainers", api.getResourceContainersForOpenapi())
 
 		r.With(RateLimitMiddleware(api.redisClient, int64(rate))).
 			Get("/resources/vulns/detail", api.getResourcesByImageVulnForOpenapi())
@@ -57,6 +57,11 @@ func (api *api) assetsForOpenapi() func(chi.Router) {
 		r.With(RateLimitMiddleware(api.redisClient, int64(rate))).
 			Get("/summary", api.getSummaryForOpenapi())
 
+		exportContainers := os.Getenv("EXPORT_CONTAINERS")
+		if exportContainers == "true" {
+			r.With(RateLimitMiddleware(api.redisClient, int64(rate))).
+				Get("/containers", api.getContainers())
+		}
 	}
 }
 

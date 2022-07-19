@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"gitlab.com/security-rd/go-pkg/logging"
 	"io/ioutil"
 	"net/http"
 	"strings"
@@ -13,7 +14,6 @@ import (
 	"github.com/go-chi/chi"
 	"github.com/pkg/errors"
 	"gitlab.com/piccolo_su/vegeta/pkg/dal"
-	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
@@ -21,7 +21,9 @@ import (
 )
 
 const (
-	ImageListPath = "/api/v1/scan/reportsByImageList"
+	ImageListPath    = "/api/v1/scan/reportsByImageList"
+	ImageRiskPath    = "/api/v1/internal/overview/image"
+	RegistryRiskPath = "/api/v1/internal/overview/registry"
 )
 
 var (
@@ -182,7 +184,7 @@ func getImageIDFrom(m *model.ImageInfo) string {
 func (rl *TensorResourcesService) GetResourceContainersWithGivenVuln(ctx context.Context, vulnName, pkgName, pkgVersion string, offset, limit int) ([]*model.TensorContainer, int64, error) {
 	images, err := rl.GetImagesWithGivenVuln(ctx, vulnName, pkgName, pkgVersion)
 	if err != nil {
-		logging.GetLogger().WithContext(ctx).Errorf(err, "GetImagesWithGivenVuln %s error", vulnName)
+		logging.Get().WithContext(ctx).Errorf(err, "GetImagesWithGivenVuln %s error", vulnName)
 		return nil, 0, err
 	}
 
@@ -190,11 +192,11 @@ func (rl *TensorResourcesService) GetResourceContainersWithGivenVuln(ctx context
 	for _, image := range images {
 		imageIDs = append(imageIDs, getImageIDFrom(image))
 	}
-	logging.GetLogger().Debug().Msgf("imageIDs: %+v", imageIDs)
+	logging.Get().Debug().Msgf("imageIDs: %+v", imageIDs)
 
 	containers, totalCnt, err := rl.GetResourceContainers(ctx, dal.ResourceContainersQuery().WithInConditionCustom("image", imageIDs), offset, limit)
 	if err != nil {
-		logging.GetLogger().WithContext(ctx).Errorf(err, "GetResourceContainers %s error. imageList: %v", vulnName, imageIDs)
+		logging.Get().WithContext(ctx).Errorf(err, "GetResourceContainers %s error. imageList: %v", vulnName, imageIDs)
 		return nil, 0, err
 	}
 
@@ -524,10 +526,10 @@ func (rl *TensorResourcesService) getImageFromScanner(ctx context.Context, tcs [
 		uuids += imageID
 	}
 	url := fmt.Sprintf("%s%s%s%s", rl.scannerURL, ImageListPath, "?uuids=", uuids)
-	logging.GetLogger().Debug().Msgf("url: %s", url)
+	logging.Get().Debug().Msgf("url: %s", url)
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
-		logging.GetLogger().Err(err).Msg("create request failed")
+		logging.Get().Err(err).Msg("create request failed")
 		return nil, err
 	}
 	var images []*ImageResponse
@@ -558,7 +560,7 @@ func (rl *TensorResourcesService) getImageFromScanner(ctx context.Context, tcs [
 			}
 
 			for _, item := range images {
-				logging.GetLogger().Debug().Msgf("%+v", *item)
+				logging.Get().Debug().Msgf("%+v", *item)
 			}
 		}
 

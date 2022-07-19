@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"fmt"
 	"hash/fnv"
+	corev1 "k8s.io/api/core/v1"
+	"time"
 
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -126,4 +128,54 @@ type ImageResponse struct {
 type ImageInfo struct {
 	Name string `json:"name"`
 	UUID uint32 `json:"uuid"`
+}
+
+type ContainerInfo struct {
+	Name                string                `json:"name"`
+	ID                  uint32                `gorm:"column:id;type:bigint;primaryKey" json:"id,omitempty"`
+	CreatedAt           time.Time             `gorm:"column:created_at" json:"createdAt"`
+	UpdatedAt           time.Time             `gorm:"column:updated_at" json:"updatedAt"`
+	Status              int32                 `gorm:"column:status"`
+	ContainerID         string                `gorm:"column:container_id" json:"containerID"`
+	ClusterKey          string                `json:"clusterKey" gorm:"column:cluster_key;index:idx_prr_res,priority:1"`
+	PodIP               string                `json:"podIP,omitempty"`
+	PodUID              string                `json:"podUID" gorm:"column:pod_uid"`
+	NodeIP              string                `json:"nodeIP,omitempty"`
+	NodeOS              string                `json:"nodeOS"`
+	Namespace           string                `json:"namespace" gorm:"column:namespace;index:idx_prr_res,priority:2"`
+	PodName             string                `json:"podName"`
+	Image               string                `json:"image"`
+	Library             string                `json:"library"`
+	ContainerInfo       *model.ContainerInfos `json:"containerInfo"`
+	Environment         []corev1.EnvVar       `json:"environment"`
+	Cmd                 []string              `json:"cmd"`
+	Arguments           []string              `json:"arguments"`
+	HostNetwork         bool                  `json:"hostNetwork"`
+	Privileged          bool                  `json:"privileged"`
+	ImageRiskInfo       *ImageRiskOverview    `json:"imageRiskInfo"`
+	RegistryRiskInfo    *RegistryRisks        `json:"registryRiskInfo"`
+	HostRiskInfo        map[string]string     `json:"hostRiskInfo"`
+	IsInternetVisitable bool                  `json:"isInternetVisitable"`
+	PoolName            string                `json:"poolName"`
+	PoolUID             string                `json:"poolUID"`
+	PoolPodUID          string                `json:"poolPodUID"`
+	PoolPodName         string                `json:"poolPodName"`
+	OffsetID            int64                 `json:"offsetID"`
+}
+
+type ImageRiskOverview struct {
+	Uuid               uint32 `json:"uuid"`
+	IsTrusted          bool   `json:"isTrusted"`
+	IsSecure           bool   `json:"isSecure"`
+	VulnerabilityNum   int32  `json:"vulnerabilityNum"`
+	VulnerabilityLevel string `json:"vulnerabilityLevel"`
+	MalwareNum         int32  `json:"malwareNum"`
+	SensitiveFilesNum  int32  `json:"sensitiveFilesNum"`
+	WebshellNum        int32  `json:"webshellNum"`
+}
+
+type RegistryRisks struct {
+	RegistryUrl           string
+	HasContentTrustEnable bool
+	AuthEnable            bool
 }
