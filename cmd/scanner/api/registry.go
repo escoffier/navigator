@@ -3,6 +3,7 @@ package api
 import (
 	"errors"
 	"fmt"
+	"net/http"
 	"strconv"
 	"strings"
 
@@ -243,21 +244,11 @@ func (s *RegistrySrv) SearchRegistry(ctx *gin.Context) {
 		response.JSONError(ctx, err)
 		return
 	}
-
-	regMap := make(map[string]bool)
 	for i := range registries {
-		regMap[registries[i].Url] = true
+		registries[i].Deserialize()
 	}
 
-	ans := make([]model.Registry, 0)
-
-	for i := range registries {
-		if regMap[registries[i].Url] {
-			ans = append(ans, registries[i])
-		}
-	}
-
-	response.JSONOK(ctx, response.WithItems(ans),
+	response.JSONOK(ctx, response.WithItems(registries),
 		response.WithTotalItems(cnt),
 		response.WithItemsPerPage(filter.Limit),
 		response.WithStartIndex(filter.Offset))
@@ -275,12 +266,18 @@ func (s *RegistrySrv) SearchRegistry(ctx *gin.Context) {
 func (s *RegistrySrv) GetRegistry(ctx *gin.Context) {
 	id, _ := strconv.ParseInt(ctx.Param("id"), 10, 64)
 
-	reg, err := s.RegistrySrv.GetRegistry(ctx, id)
+	regs, _, err := s.RegistrySrv.SearchRegistry(ctx, component.SearchRegistryParam{Ids: []int64{id}}, nil)
 	if err != nil {
 		response.JSONError(ctx, err)
 		return
 	}
-	response.JSONOK(ctx, response.WithItem(*reg))
+	if len(regs) == 0 {
+		response.JSONError(ctx, response.NewHttpError(http.StatusFailedDependency, fmt.Errorf("not find registry")))
+		return
+	}
+	reg := regs[0]
+	reg.Deserialize()
+	response.JSONOK(ctx, response.WithItem(reg))
 }
 
 func (s *RegistrySrv) RegistryOverview(ctx *gin.Context) {
