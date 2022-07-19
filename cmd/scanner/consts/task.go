@@ -75,6 +75,7 @@ const (
 	ErrScanGetRegistry               // "查询镜像仓库出错"
 	ErrScanInternal                  // "程序内部出错"
 	ErrExceededRetryCount            // "超过重试次数"
+	ErrRegRemoved                    // "仓库已删除"
 )
 
 func GetErrMsgEnu(errNo int) string {
@@ -97,6 +98,8 @@ func GetErrMsgEnu(errNo int) string {
 		return "超过重试次数"
 	case ErrScanImageRemoved:
 		return "镜像已被清除"
+	case ErrRegRemoved:
+		return "仓库已删除"
 	default:
 		return "程序内部出错"
 	}

@@ -241,7 +241,7 @@ func (t *TaskSrv) GetPendingSubTasksByTaskID(ctx context.Context, taskID int64) 
 		}
 
 		// get registry info
-		registries, _, err := t.registryDal.SearchRegistry(ctx, store.SearchRegistryParam{ID: images[0].RegistryID}, nil)
+		registries, _, err := t.registryDal.SearchRegistry(ctx, store.SearchRegistryParam{ID: images[0].RegistryID, NoDelete: true}, nil)
 		if err != nil {
 			_ = t.SetSubTaskFailed(v.ID, consts.ErrScanGetRegistry, fmt.Sprintf("get registry info failed.registry id:%d,%v", images[0].RegistryID, err))
 			logging.GetLogger().Err(err).
@@ -253,13 +253,13 @@ func (t *TaskSrv) GetPendingSubTasksByTaskID(ctx context.Context, taskID int64) 
 			continue
 		}
 		if len(registries) == 0 {
-			_ = t.SetSubTaskFailed(v.ID, consts.ErrScanGetRegistry, fmt.Sprintf("not found registry info.registry id:%d,%v", images[0].RegistryID, err))
+			_ = t.SetSubTaskFailed(v.ID, consts.ErrRegRemoved, fmt.Sprintf("registry has been removed id:%d,%v", images[0].RegistryID, err))
 			logging.GetLogger().Error().
 				Int64("taskId", taskID).
 				Int64("subtaskId", v.ID).
 				Int64("imageId", imageID).
 				Int64("registryId", images[0].RegistryID).
-				Msg("not found registry info")
+				Msg("registry has been removed")
 			continue
 		}
 		r := &(registries[0])
