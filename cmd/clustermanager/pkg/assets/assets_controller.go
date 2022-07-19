@@ -80,6 +80,7 @@ type Controller struct {
 	clusterKey string
 	mqWriter   mq.Writer
 	topic      string
+	poolInfo   *pkgassets.PoolInfo
 }
 
 type Assets struct {
@@ -87,7 +88,7 @@ type Assets struct {
 	key  string
 }
 
-func NewAssetsController(factory informers.SharedInformerFactory, tensorFactory externalversions.SharedInformerFactory, writer mq.Writer, clusterKey, topic string) *Controller {
+func NewAssetsController(factory informers.SharedInformerFactory, tensorFactory externalversions.SharedInformerFactory, writer mq.Writer, clusterKey, topic string, poolInfo *pkgassets.PoolInfo) *Controller {
 	ac := &Controller{
 		podLister:  factory.Core().V1().Pods().Lister(),
 		dpLister:   factory.Apps().V1().Deployments().Lister(),
@@ -106,6 +107,7 @@ func NewAssetsController(factory informers.SharedInformerFactory, tensorFactory 
 		clusterKey: clusterKey,
 		mqWriter:   writer,
 		topic:      topic,
+		poolInfo:   poolInfo,
 	}
 	tensorFactory.Defense().V1().Honeypots().Lister()
 	// Pods
@@ -591,9 +593,10 @@ func (ac *Controller) syncPod(key string) error {
 		}
 
 		res = &pkgassets.TensorPod{
-			Cluster: ac.clusterKey,
-			Pod:     pod,
-			Owner:   owner,
+			Cluster:  ac.clusterKey,
+			Pod:      pod,
+			Owner:    owner,
+			PoolInfo: ac.poolInfo,
 		}
 	}
 	return ac.SendToMq(ctx, action, pkgassets.Pods2Watch, res)

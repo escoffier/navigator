@@ -2,6 +2,7 @@ package assets
 
 import (
 	"errors"
+	"os"
 	"runtime/debug"
 	"sync"
 
@@ -46,6 +47,11 @@ func Watcher(rdb *databases.RDBInstance,
 		wInstance.AddCallback(newResourcesWatcher(rdb, scannerURL))
 		wInstance.AddCallback(image.NewOnlineMonitor(rdb, scannerURL))
 		wInstance.AddCallback(newHoneyspotService(rdb))
+
+		exportContainers := os.Getenv("EXPORT_CONTAINERS")
+		if exportContainers == "true" {
+			wInstance.AddCallback(newPodContainerWatcher(rdb))
+		}
 	})
 	return wInstance, nil
 }

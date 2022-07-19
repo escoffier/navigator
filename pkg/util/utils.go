@@ -3,6 +3,7 @@ package util
 import (
 	"errors"
 	"fmt"
+	"github.com/google/go-containerregistry/pkg/name"
 	"io"
 	"math"
 	"net/http"
@@ -205,4 +206,16 @@ func Uint64SliceToStringSlice(value []uint64) []string {
 		res[i] = fmt.Sprintf("%d", value[i])
 	}
 	return res
+}
+
+func GetImageUrl(image string) (string, error) {
+	var nameOpts []name.Option
+	nameOpts = append(nameOpts, name.Insecure)
+
+	ref, err := name.ParseReference(image, nameOpts...)
+	if err != nil {
+		return "", err
+	}
+	url := ref.Context().RegistryStr()
+	return url, nil
 }

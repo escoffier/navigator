@@ -22,6 +22,9 @@ import (
 const (
 	ContainerTypeInit    = "InitContainer"
 	ContainerTypeDefault = "Container"
+	running              = 0
+	terminated           = 1
+	waiting              = 2
 )
 
 var (
@@ -909,7 +912,6 @@ func DeletePodResourceRelationInRDB(ctx context.Context, rdb *gorm.DB, clusterKe
 	return util.RetryWithBackoff(rCtx, func() error {
 		oneCtx, oneCancel := context.WithTimeout(rCtx, 500*time.Millisecond)
 		defer oneCancel()
-		//return rdb.WithContext(oneCtx).Where("cluster_key = ? AND pod_uid = ?", clusterKey, string(pod.GetUID())).Delete(&model.PodResourceRelation{}).Error
 
 		err := rdb.WithContext(oneCtx).
 			Where("cluster_key = ? AND namespace = ? AND pod_name= ?", clusterKey, namespace, name).
@@ -1561,4 +1563,203 @@ func GetResourceContainersUnique(ctx context.Context, rdb *gorm.DB, query *ResCo
 		return nil, err
 	}
 	return containers, nil
+}
+
+func GetContainerRelation(ctx context.Context, rdb *gorm.DB, query *ResContainersQueryOption, offsetID int64, offset int, limit int) (clusters []*model.TensorContainerRelation, err error) {
+	ctx, cancel := context.WithTimeout(ctx, 1000*time.Millisecond)
+	defer cancel()
+
+	err = util.RetryWithBackoff(ctx, func() error {
+		oneCtx, oneCancel := context.WithTimeout(ctx, 300*time.Millisecond)
+		defer oneCancel()
+		if len(query.WhereEqCondition) > 0 {
+			rdb = rdb.Where(query.WhereEqCondition)
+		}
+		if len(query.whereInCondition) > 0 {
+			for column, val := range query.whereInCondition {
+				rdb = rdb.Where(fmt.Sprintf("%s in ?", column), val)
+			}
+		}
+		if len(query.whereNotNullCondition) > 0 {
+			for column := range query.whereNotNullCondition {
+				rdb = rdb.Where(fmt.Sprintf("%s IS NOT NULL", column))
+			}
+		}
+		if len(query.columnQuery.column) > 0 && len(query.columnQuery.query) > 0 {
+			rdb = rdb.Where(fmt.Sprintf("%s LIKE ?", query.columnQuery.column), getLikeExpr(query.columnQuery.query))
+		}
+		if offsetID >= 0 {
+			rdb = rdb.Where("time_stamp >= ?", offsetID)
+		}
+		if offset >= 0 {
+			rdb = rdb.Offset(offset)
+		}
+
+		return rdb.WithContext(oneCtx).Model(&model.TensorContainerRelation{}).Order("time_stamp").Limit(limit).Find(&clusters).Error
+	})
+	return
+}
+
+func CountContainerRelation(ctx context.Context, rdb *gorm.DB, query *ResContainersQueryOption) (totalCnt int64, err error) {
+	ctx, cancel := context.WithTimeout(ctx, 1000*time.Millisecond)
+	defer cancel()
+
+	err = util.RetryWithBackoff(ctx, func() error {
+		if len(query.WhereEqCondition) > 0 {
+			rdb = rdb.Where(query.WhereEqCondition)
+		}
+		if len(query.whereInCondition) > 0 {
+			for column, val := range query.whereInCondition {
+				rdb = rdb.Where(fmt.Sprintf("%s in ?", column), val)
+			}
+		}
+		if len(query.whereNotNullCondition) > 0 {
+			for column := range query.whereNotNullCondition {
+				rdb = rdb.Where(fmt.Sprintf("%s IS NOT NULL", column))
+			}
+		}
+		if len(query.columnQuery.column) > 0 && len(query.columnQuery.query) > 0 {
+			rdb = rdb.Where(fmt.Sprintf("%s LIKE ?", query.columnQuery.column), getLikeExpr(query.columnQuery.query))
+		}
+		return rdb.WithContext(ctx).Model(&model.TensorContainerRelation{}).Count(&totalCnt).Error
+	})
+	return
+}
+func genContainer(pod *corev1.Pod, ContainerStatus *corev1.ContainerStatus, resourceName, resKind, clusterKey string, updateTime time.Time) *model.TensorContainerRelation {
+	container := &model.TensorContainerRelation{
+		ID:            util.GenerateUUID(ContainerStatus.ContainerID),
+		Name:          ContainerStatus.Name,
+		PodName:       pod.Name,
+		ContainerID:   ContainerStatus.ContainerID,
+		ClusterKey:    clusterKey,
+		Namespace:     pod.Namespace,
+		ResourceName:  resourceName,
+		ResourceKind:  resKind,
+		CreatedAt:     pod.CreationTimestamp.Time,
+		UpdatedAt:     updateTime,
+		Status:        getContainerStatus(&ContainerStatus.State),
+		PodUID:        string(pod.UID),
+		PodIP:         pod.Status.PodIP,
+		HostIP:        pod.Status.HostIP,
+		NodeName:      pod.Spec.NodeName,
+		HostNetwork:   pod.Spec.HostNetwork,
+		ContainerInfo: &model.ContainerInfos{PodSecurityPolicy: pod.Spec.SecurityContext},
+		TimeStamp:     updateTime.UnixMicro(),
+	}
+	spec, err := getContainerSpec(ContainerStatus.Name, pod)
+	if err != nil {
+		return container
+	}
+	library, err := util.GetImageUrl(spec.Image)
+	if err == nil {
+		container.Library = library
+	}
+	container.Image = strings.TrimPrefix(spec.Image, library)
+	container.Image = strings.TrimPrefix(container.Image, "/")
+	container.Environment = spec.Env
+	container.Cmd = spec.Command
+	container.Arguments = spec.Args
+	if spec.SecurityContext != nil && spec.SecurityContext.Privileged != nil {
+		container.Privileged = *(spec.SecurityContext.Privileged)
+	}
+	return container
+}
+
+func getContainerSpec(name string, pod *corev1.Pod) (*corev1.Container, error) {
+	for i := range pod.Spec.InitContainers {
+		if pod.Spec.InitContainers[i].Name == name {
+			return pod.Spec.InitContainers[i].DeepCopy(), nil
+		}
+	}
+
+	for i := range pod.Spec.Containers {
+		if pod.Spec.Containers[i].Name == name {
+			return pod.Spec.Containers[i].DeepCopy(), nil
+		}
+	}
+	return nil, fmt.Errorf("not found container: %s", name)
+}
+
+func UpsertPodContainerRelation(ctx context.Context, rdb *gorm.DB, pod *corev1.Pod, resourceName, resKind, clusterKey string, updateTime time.Time, poolInfo *assets.PoolInfo) error {
+	var cnt_rels []*model.TensorContainerRelation
+	for i := range pod.Status.InitContainerStatuses {
+		cnt := genContainer(pod, &pod.Status.InitContainerStatuses[i], resourceName, resKind, clusterKey, updateTime)
+		if poolInfo != nil {
+			cnt.PoolName = poolInfo.PoolName
+			cnt.PoolUID = poolInfo.PoolUID
+			cnt.PoolPodName = poolInfo.PoolPodName
+			cnt.PoolPodUID = poolInfo.PoolPodUID
+		}
+		cnt_rels = append(cnt_rels, cnt)
+	}
+
+	for i := range pod.Status.ContainerStatuses {
+		cnt := genContainer(pod, &pod.Status.ContainerStatuses[i], resourceName, resKind, clusterKey, updateTime)
+		if poolInfo != nil {
+			cnt.PoolName = poolInfo.PoolName
+			cnt.PoolUID = poolInfo.PoolUID
+			cnt.PoolPodName = poolInfo.PoolPodName
+			cnt.PoolPodUID = poolInfo.PoolPodUID
+		}
+		cnt_rels = append(cnt_rels, cnt)
+	}
+
+	oneCtx, cancel := context.WithTimeout(ctx, 5000*time.Millisecond)
+	defer cancel()
+
+	if len(cnt_rels) != 0 {
+		return rdb.WithContext(oneCtx).Transaction(func(tx *gorm.DB) error {
+			tx.WithContext(oneCtx).Model(&model.TensorContainerRelation{}).
+				Where("cluster_key = ? AND namespace = ? AND pod_name = ?", clusterKey, pod.Namespace, pod.Name).Updates(map[string]interface{}{"status": terminated})
+
+			return tx.WithContext(oneCtx).Model(&model.TensorContainerRelation{}).Clauses(clause.OnConflict{
+				Columns: []clause.Column{{Name: "id"}},
+				DoUpdates: clause.AssignmentColumns([]string{"updated_at", "container_id", "name", "status", "pod_name",
+					"time_stamp", "pool_name", "pool_uid", "pool_pod_name", "pool_pod_uid"}),
+			}).Create(&cnt_rels).Error
+		})
+	}
+	return nil
+}
+
+func DeletePodContainerRelation(ctx context.Context, rdb *gorm.DB, clusterKey, namespace, name string) error {
+	rCtx, cancel := context.WithTimeout(ctx, 2500*time.Millisecond)
+	defer cancel()
+	return util.RetryWithBackoff(rCtx, func() error {
+		oneCtx, oneCancel := context.WithTimeout(rCtx, 500*time.Millisecond)
+		defer oneCancel()
+
+		err := rdb.WithContext(oneCtx).Model(&model.TensorContainerRelation{}).
+			Where("cluster_key = ? AND namespace = ? AND pod_name", clusterKey, namespace, name).Updates(map[string]interface{}{
+			"status":     terminated,
+			"updated_at": time.Now(),
+		}).Error
+
+		return err
+	})
+}
+
+func CleanUpPodContainerRelations(ctx context.Context, rdb *gorm.DB, ts time.Time, clusterKey string) error {
+	rCtx, cancel := context.WithTimeout(ctx, 15000*time.Millisecond)
+	defer cancel()
+	return util.RetryWithBackoff(rCtx, func() error {
+		oneCtx, oneCancel := context.WithTimeout(rCtx, 5000*time.Millisecond)
+		defer oneCancel()
+		return rdb.WithContext(oneCtx).Model(&model.TensorContainerRelation{}).
+			Where("cluster_key = ?", clusterKey).Updates(map[string]interface{}{
+			"status":     terminated,
+			"updated_at": time.Now(),
+		}).Error
+	})
+}
+
+func getContainerStatus(status *corev1.ContainerState) int32 {
+	if status.Waiting != nil && (status.Waiting.Reason != "" || status.Waiting.Message != "") {
+		return waiting
+	} else if status.Running != nil && !status.Running.StartedAt.IsZero() {
+		return running
+	} else if status.Terminated != nil {
+		return terminated
+	}
+	return running
 }

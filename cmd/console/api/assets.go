@@ -3,7 +3,9 @@ package api
 import (
 	"context"
 	"fmt"
+	containers2 "gitlab.com/piccolo_su/vegeta/cmd/console/service/containers"
 	"net/http"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -17,10 +19,10 @@ import (
 	assetsPkg "gitlab.com/piccolo_su/vegeta/pkg/assets"
 	"gitlab.com/piccolo_su/vegeta/pkg/dal"
 	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
-	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
+	"gitlab.com/security-rd/go-pkg/logging"
 	v1 "k8s.io/api/core/v1"
 )
 
@@ -55,6 +57,11 @@ func (api *api) assets() func(chi.Router) {
 		r.Get("/{clusterKey}/{namespace}/{resourceName}/{resourceKind}/{route}/resource", api.GetResourceAssociate())
 		r.Get("/{clusterKey}/{namespace}/{resourceName}/{resourceKind}/{containerName}/{route}/container", api.GetContainerAssociate())
 		r.Get("/{clusterKey}/{namespace}/{resourceName}/{resourceKind}/{containerName}/{processName}/{route}/process", api.GetProcessAssociate())
+
+		exportContainers := os.Getenv("EXPORT_CONTAINERS")
+		if exportContainers == "true" {
+			r.Get("/containers", api.getContainers())
+		}
 	}
 }
 
@@ -131,14 +138,14 @@ func (api *api) getResourcesByImage() http.HandlerFunc {
 
 		limit, offset, err := getLimitAndOffset(r)
 		if err != nil {
-			logging.GetLogger().Err(err).Msgf("get limit or offset query error")
+			logging.Get().Err(err).Msgf("get limit or offset query error")
 			RespAndLog(w, ctx, NewAnError(http.StatusBadRequest, errors.New("no limit or offset given in params")))
 			return
 		}
 
 		lib, err := param.QueryString(r, "library")
 		if err != nil {
-			logging.GetLogger().Err(err).Msgf("get library query error")
+			logging.Get().Err(err).Msgf("get library query error")
 			RespAndLog(w, ctx, NewAnError(http.StatusBadRequest, errors.New("no library given in params")))
 			return
 		} else {
@@ -148,13 +155,13 @@ func (api *api) getResourcesByImage() http.HandlerFunc {
 		}
 		repo, err := param.QueryString(r, "repo")
 		if err != nil {
-			logging.GetLogger().Err(err).Msgf("get repo query error")
+			logging.Get().Err(err).Msgf("get repo query error")
 			RespAndLog(w, ctx, NewAnError(http.StatusBadRequest, errors.New("no repo given in params")))
 			return
 		}
 		tag, err := param.QueryString(r, "tag")
 		if err != nil {
-			logging.GetLogger().Err(err).Msgf("get tag query error")
+			logging.Get().Err(err).Msgf("get tag query error")
 			RespAndLog(w, ctx, NewAnError(http.StatusBadRequest, errors.New("no tag given in params")))
 			return
 		}
@@ -163,13 +170,13 @@ func (api *api) getResourcesByImage() http.HandlerFunc {
 		imageUUID := util.GenerateUUID(imageID)
 		resSvc, ok := assets.GetResourcesService(ctx)
 		if !ok {
-			logging.GetLogger().Error().Msg("service instance get error")
+			logging.Get().Error().Msg("service instance get error")
 			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.New("service instance get error")))
 			return
 		}
 		containers, totalCnt, err := resSvc.GetResourceContainers(ctx, dal.ResourceContainersQuery().WithCustom("image_uuid", imageUUID), offset, limit)
 		if err != nil {
-			logging.GetLogger().Err(err).Msg("GetResourceContainers error")
+			logging.Get().Err(err).Msg("GetResourceContainers error")
 			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.New("get resources error")))
 			return
 		}
@@ -205,41 +212,41 @@ func (api *api) getResourcesByImageVuln() http.HandlerFunc {
 
 		limit, offset, err := getLimitAndOffset(r)
 		if err != nil {
-			logging.GetLogger().Err(err).Msgf("get limit or offset query error")
+			logging.Get().Err(err).Msgf("get limit or offset query error")
 			RespAndLog(w, ctx, NewAnError(http.StatusBadRequest, errors.New("no limit or offset given in params")))
 			return
 		}
 
 		vulnName, err := param.QueryString(r, "vulnName")
 		if err != nil {
-			logging.GetLogger().Err(err).Msgf("get vulnName query error")
+			logging.Get().Err(err).Msgf("get vulnName query error")
 			RespAndLog(w, ctx, NewAnError(http.StatusBadRequest, errors.New("no vulnName given in params")))
 			return
 		}
 
 		pkgName, err := param.QueryString(r, "pkgName")
 		if err != nil {
-			logging.GetLogger().Err(err).Msgf("get pkgName query error")
+			logging.Get().Err(err).Msgf("get pkgName query error")
 			RespAndLog(w, ctx, NewAnError(http.StatusBadRequest, errors.New("no pkgName given in params")))
 			return
 		}
 
 		pkgVersion, err := param.QueryString(r, "pkgVersion")
 		if err != nil {
-			logging.GetLogger().Err(err).Msgf("get pkgVersion query error")
+			logging.Get().Err(err).Msgf("get pkgVersion query error")
 			RespAndLog(w, ctx, NewAnError(http.StatusBadRequest, errors.New("no pkgVersion given in params")))
 			return
 		}
 
 		resSvc, ok := assets.GetResourcesService(ctx)
 		if !ok {
-			logging.GetLogger().Error().Msg("service instance get error")
+			logging.Get().Error().Msg("service instance get error")
 			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.New("service instance get error")))
 			return
 		}
 		containers, totalCnt, err := resSvc.GetResourceContainersWithGivenVuln(ctx, vulnName, pkgName, pkgVersion, offset, limit)
 		if err != nil {
-			logging.GetLogger().Err(err).Msg("GetResourceContainers error")
+			logging.Get().Err(err).Msg("GetResourceContainers error")
 			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.New("get resources error")))
 			return
 		}
@@ -279,20 +286,20 @@ func (api *api) getClusters() http.HandlerFunc {
 
 		limit, offset, err := getLimitAndOffset(r)
 		if err != nil {
-			logging.GetLogger().Err(err).Msgf("get limit or offset query error")
+			logging.Get().Err(err).Msgf("get limit or offset query error")
 			RespAndLog(w, ctx, NewAnError(http.StatusBadRequest, errors.New("no limit or offset given in params")))
 			return
 		}
 
 		resSvc, ok := assets.GetResourcesService(ctx)
 		if !ok {
-			logging.GetLogger().Error().Msg("service instance get error")
+			logging.Get().Error().Msg("service instance get error")
 			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.New("service instance get error")))
 			return
 		}
 		clusters, totalCnt, err := resSvc.GetClusters(ctx, offset, limit)
 		if err != nil {
-			logging.GetLogger().Err(err).Msg("get cluster error")
+			logging.Get().Err(err).Msg("get cluster error")
 			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.New("get cluster error")))
 			return
 		}
@@ -352,7 +359,7 @@ func (api *api) addNewCluster() http.HandlerFunc {
 
 		err = resSvc.AddCluster(ctx, &cluster)
 		if err != nil {
-			logging.GetLogger().Err(err).Msgf("add cluster error. clusterKey: %s", cluster.Key)
+			logging.Get().Err(err).Msgf("add cluster error. clusterKey: %s", cluster.Key)
 			RespAndLog(w, ctx,
 				NewAnError(http.StatusInternalServerError, fmt.Errorf("add cluster error. clusterKey: %s", cluster.Key)))
 			return
@@ -388,13 +395,13 @@ func (api *api) updateClusterInfo() http.HandlerFunc {
 
 		resSvc, ok := assets.GetResourcesService(ctx)
 		if !ok {
-			logging.GetLogger().Error().Msg("service instance get error")
+			logging.Get().Error().Msg("service instance get error")
 			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.New("service instance get error")))
 			return
 		}
 		err = resSvc.UpdateCluster(ctx, request.ClusterKey, request.ClusterName, request.Description)
 		if err != nil {
-			logging.GetLogger().Err(err).Msgf("update cluster error. data: %v", request)
+			logging.Get().Err(err).Msgf("update cluster error. data: %v", request)
 			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.New("update cluster error")))
 			return
 		}
@@ -465,13 +472,13 @@ func (api *api) getNamespaces() http.HandlerFunc {
 
 		limit, offset, err := getLimitAndOffset(r)
 		if err != nil {
-			logging.GetLogger().Err(err).Msgf("get limit or offset query error")
+			logging.Get().Err(err).Msgf("get limit or offset query error")
 			RespAndLog(w, ctx, NewAnError(http.StatusBadRequest, errors.New("no limit or offset given in params")))
 			return
 		}
 		clusterKey, err := param.QueryString(r, "cluster_key")
 		if err != nil {
-			logging.GetLogger().Err(err).Msg("get cluster_key param error.")
+			logging.Get().Err(err).Msg("get cluster_key param error.")
 			clusterKey = ""
 		}
 		query, err := param.QueryString(r, "query")
@@ -480,13 +487,13 @@ func (api *api) getNamespaces() http.HandlerFunc {
 		}
 		resSvc, ok := assets.GetResourcesService(ctx)
 		if !ok {
-			logging.GetLogger().Error().Msg("service instance get error")
+			logging.Get().Error().Msg("service instance get error")
 			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.New("service instance get error")))
 			return
 		}
 		namespaces, totalCnt, err := resSvc.GetNamespaces(ctx, clusterKey, query, offset, limit)
 		if err != nil {
-			logging.GetLogger().Err(err).Msg("getNamespaces error")
+			logging.Get().Err(err).Msg("getNamespaces error")
 			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, err))
 			return
 		}
@@ -520,13 +527,13 @@ func (api *api) updateNamespace() http.HandlerFunc {
 		}
 		resSvc, ok := assets.GetResourcesService(ctx)
 		if !ok {
-			logging.GetLogger().Error().Msg("service instance get error")
+			logging.Get().Error().Msg("service instance get error")
 			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.New("service instance get error")))
 			return
 		}
 		err = resSvc.UpdateNamespaces(ctx, tensorNs.ClusterKey, tensorNs.Name, tensorNs.Alias, tensorNs.Managers, tensorNs.Authority)
 		if err != nil {
-			logging.GetLogger().Err(err).Msg("update Namespaces error")
+			logging.Get().Err(err).Msg("update Namespaces error")
 			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, err))
 			return
 		}
@@ -554,23 +561,23 @@ func (api *api) countNamespaces() http.HandlerFunc {
 
 		clusterKey, err := param.QueryString(r, "cluster_key")
 		if err != nil {
-			logging.GetLogger().Err(err).Msg("get cluster_key param error.")
+			logging.Get().Err(err).Msg("get cluster_key param error.")
 			clusterKey = ""
 		}
 		query, err := param.QueryString(r, "query")
 		if err != nil {
-			logging.GetLogger().Err(err).Msg("get query param error.")
+			logging.Get().Err(err).Msg("get query param error.")
 			query = ""
 		}
 		resSvc, ok := assets.GetResourcesService(ctx)
 		if !ok {
-			logging.GetLogger().Error().Msg("service instance get error")
+			logging.Get().Error().Msg("service instance get error")
 			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.New("service instance get error")))
 			return
 		}
 		cnt, err := resSvc.CountNamespaces(ctx, clusterKey, query)
 		if err != nil {
-			logging.GetLogger().Err(err).Msg("count Namespaces error")
+			logging.Get().Err(err).Msg("count Namespaces error")
 			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, err))
 			return
 		}
@@ -612,13 +619,13 @@ func (api *api) getResourcesInNamespace() http.HandlerFunc {
 
 		limit, offset, err := getLimitAndOffset(r)
 		if err != nil {
-			logging.GetLogger().Err(err).Msgf("get limit or offset query error")
+			logging.Get().Err(err).Msgf("get limit or offset query error")
 			RespAndLog(w, ctx, NewAnError(http.StatusBadRequest, errors.New("no limit or offset given in params")))
 			return
 		}
 		clusterKey, err := param.QueryString(r, "cluster_key")
 		if err != nil {
-			logging.GetLogger().Info().Msg("cluster_key param is empty.")
+			logging.Get().Info().Msg("cluster_key param is empty.")
 			clusterKey = ""
 		}
 		query, err := param.QueryString(r, "query")
@@ -631,7 +638,7 @@ func (api *api) getResourcesInNamespace() http.HandlerFunc {
 
 		resSvc, ok := assets.GetResourcesService(ctx)
 		if !ok {
-			logging.GetLogger().Error().Msg("service instance get error")
+			logging.Get().Error().Msg("service instance get error")
 			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.New("service instance get error")))
 			return
 		}
@@ -650,7 +657,7 @@ func (api *api) getResourcesInNamespace() http.HandlerFunc {
 		}
 		resources, totalCnt, err := resSvc.GetResources(ctx, rquery, offset, limit)
 		if err != nil {
-			logging.GetLogger().Err(err).Msgf("query: %+v. offset: %d, limit: %d. get resources error", rquery, offset, limit)
+			logging.Get().Err(err).Msgf("query: %+v. offset: %d, limit: %d. get resources error", rquery, offset, limit)
 			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.New("get resources error")))
 			return
 		}
@@ -694,25 +701,25 @@ func (api *api) getResources() http.HandlerFunc {
 
 		limit, offset, err := getLimitAndOffset(r)
 		if err != nil {
-			logging.GetLogger().Err(err).Msgf("get limit or offset query error")
+			logging.Get().Err(err).Msgf("get limit or offset query error")
 			RespAndLog(w, ctx, NewAnError(http.StatusBadRequest, errors.New("no limit or offset given in params")))
 			return
 		}
 		clusterKey, err := param.QueryString(r, "cluster_key")
 		if err != nil {
-			logging.GetLogger().Info().Msg("cluster_key param is empty.")
+			logging.Get().Info().Msg("cluster_key param is empty.")
 			clusterKey = ""
 		}
 
 		namespace, err := param.QueryString(r, "namespace")
 		if err != nil {
-			logging.GetLogger().Info().Msg("namespace param is empty.")
+			logging.Get().Info().Msg("namespace param is empty.")
 			namespace = ""
 		}
 
 		kind, err := param.QueryString(r, "kind")
 		if err != nil {
-			logging.GetLogger().Info().Msg("kind param is empty.")
+			logging.Get().Info().Msg("kind param is empty.")
 			kind = ""
 		}
 
@@ -723,7 +730,7 @@ func (api *api) getResources() http.HandlerFunc {
 
 		resSvc, ok := assets.GetResourcesService(ctx)
 		if !ok {
-			logging.GetLogger().Error().Msg("service instance get error")
+			logging.Get().Error().Msg("service instance get error")
 			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.New("service instance get error")))
 			return
 		}
@@ -742,7 +749,7 @@ func (api *api) getResources() http.HandlerFunc {
 		}
 		resources, totalCnt, err := resSvc.GetResources(ctx, rQuery, offset, limit)
 		if err != nil {
-			logging.GetLogger().Err(err).Msgf("query: %+v. offset: %d, limit: %d. get resources error", rQuery, offset, limit)
+			logging.Get().Err(err).Msgf("query: %+v. offset: %d, limit: %d. get resources error", rQuery, offset, limit)
 			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.New("get resources error")))
 			return
 		}
@@ -781,7 +788,7 @@ func (api *api) updateResourceUserData() http.HandlerFunc {
 		}
 		resSvc, ok := assets.GetResourcesService(ctx)
 		if !ok {
-			logging.GetLogger().Error().Msg("service instance get error")
+			logging.Get().Error().Msg("service instance get error")
 			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.New("service instance get error")))
 			return
 		}
@@ -797,7 +804,7 @@ func (api *api) updateResourceUserData() http.HandlerFunc {
 		}
 		err = resSvc.UpdateResourceUserData(ctx, res)
 		if err != nil {
-			logging.GetLogger().Err(err).Msg("update resource user data error")
+			logging.Get().Err(err).Msg("update resource user data error")
 			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, err))
 			return
 		}
@@ -896,13 +903,13 @@ func (api *api) getResourceContainers() http.HandlerFunc {
 
 		limit, offset, err := getLimitAndOffset(r)
 		if err != nil {
-			logging.GetLogger().Err(err).Msgf("get limit or offset query error")
+			logging.Get().Err(err).Msgf("get limit or offset query error")
 			RespAndLog(w, ctx, NewAnError(http.StatusBadRequest, errors.New("no limit or offset given in params")))
 			return
 		}
 		clusterKey, err := param.QueryString(r, "cluster_key")
 		if err != nil {
-			logging.GetLogger().Err(err).Msg("get cluster_key param error.")
+			logging.Get().Err(err).Msg("get cluster_key param error.")
 			clusterKey = ""
 		}
 		query, err := param.QueryString(r, "query")
@@ -916,7 +923,7 @@ func (api *api) getResourceContainers() http.HandlerFunc {
 
 		resSvc, ok := assets.GetResourcesService(ctx)
 		if !ok {
-			logging.GetLogger().Error().Msg("service instance get error")
+			logging.Get().Error().Msg("service instance get error")
 			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.New("service instance get error")))
 			return
 		}
@@ -939,7 +946,7 @@ func (api *api) getResourceContainers() http.HandlerFunc {
 		}
 		containers, totalCnt, err := resSvc.GetResourceContainers(ctx, rquery, offset, limit)
 		if err != nil {
-			logging.GetLogger().Err(err).Msgf("query: %+v. offset: %d, limit: %d. get containers error", rquery, offset, limit)
+			logging.Get().Err(err).Msgf("query: %+v. offset: %d, limit: %d. get containers error", rquery, offset, limit)
 			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.New("get containers error")))
 			return
 		}
@@ -955,7 +962,7 @@ func (api *api) getResourceContainers() http.HandlerFunc {
 			var infos []model.WebFrameInfo
 			err = json.Unmarshal(webFrameScan.WebFrameInfoJSON, &infos)
 			if err != nil {
-				logging.GetLogger().Err(err).Msg("get web frame")
+				logging.Get().Err(err).Msg("get web frame")
 				continue
 			}
 			items[i].FrameWorkInfo = infos
@@ -977,7 +984,7 @@ func (api *api) getPods() http.HandlerFunc {
 
 		limit, offset, err := getLimitAndOffset(r)
 		if err != nil {
-			logging.GetLogger().Err(err).Msgf("get limit or offset query error")
+			logging.Get().Err(err).Msgf("get limit or offset query error")
 			RespAndLog(w, ctx, NewAnError(http.StatusBadRequest, errors.New("no limit or offset given in params")))
 			return
 		}
@@ -1057,7 +1064,7 @@ func (api *api) countResource() http.HandlerFunc {
 
 		clusterKey, err := param.QueryString(r, "cluster_key")
 		if err != nil {
-			logging.GetLogger().Err(err).Msg("get cluster_key param error.")
+			logging.Get().Err(err).Msg("get cluster_key param error.")
 			clusterKey = ""
 		}
 		if clusterKey != "" {
@@ -1066,7 +1073,7 @@ func (api *api) countResource() http.HandlerFunc {
 
 		namespace, err := param.QueryString(r, "namespace")
 		if err != nil {
-			logging.GetLogger().Err(err).Msg("get namespace param error.")
+			logging.Get().Err(err).Msg("get namespace param error.")
 			namespace = ""
 		}
 		if namespace != "" {
@@ -1075,14 +1082,14 @@ func (api *api) countResource() http.HandlerFunc {
 
 		resSvc, ok := assets.GetResourcesService(ctx)
 		if !ok {
-			logging.GetLogger().Error().Msg("service instance get error")
+			logging.Get().Error().Msg("service instance get error")
 			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.New("service instance get error")))
 			return
 		}
 
 		c, err := resSvc.CountResource(ctx, queryOpt)
 		if err != nil {
-			logging.GetLogger().Error().Msg("count resource error")
+			logging.Get().Error().Msg("count resource error")
 			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.New("count resource error")))
 			return
 		}
@@ -1099,7 +1106,7 @@ func (api *api) countContainers() http.HandlerFunc {
 
 		clusterKey, err := param.QueryString(r, "cluster_key")
 		if err != nil {
-			logging.GetLogger().Err(err).Msg("get cluster_key param error.")
+			logging.Get().Err(err).Msg("get cluster_key param error.")
 		}
 		if clusterKey != "" {
 			queryOpt.WithCluster(clusterKey)
@@ -1107,7 +1114,7 @@ func (api *api) countContainers() http.HandlerFunc {
 
 		namespace, err := param.QueryString(r, "namespace")
 		if err != nil {
-			logging.GetLogger().Err(err).Msg("get namespace param error.")
+			logging.Get().Err(err).Msg("get namespace param error.")
 		}
 		if namespace != "" {
 			queryOpt.WithNamespace(namespace)
@@ -1131,14 +1138,14 @@ func (api *api) countContainers() http.HandlerFunc {
 
 		resSvc, ok := assets.GetResourcesService(ctx)
 		if !ok {
-			logging.GetLogger().Error().Msg("service instance get error")
+			logging.Get().Error().Msg("service instance get error")
 			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.New("service instance get error")))
 			return
 		}
 
 		c, err := resSvc.CountContainer(ctx, queryOpt)
 		if err != nil {
-			logging.GetLogger().Error().Msg("count container error")
+			logging.Get().Error().Msg("count container error")
 			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.New("count container error")))
 			return
 		}
@@ -1153,7 +1160,7 @@ func (api *api) countPods() http.HandlerFunc {
 
 		resSvc, ok := assets.GetResourcesService(ctx)
 		if !ok {
-			logging.GetLogger().Error().Msg("service instance get error")
+			logging.Get().Error().Msg("service instance get error")
 			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.New("service instance get error")))
 			return
 		}
@@ -1161,7 +1168,7 @@ func (api *api) countPods() http.HandlerFunc {
 
 		clusterKey, err := param.QueryString(r, "cluster_key")
 		if err != nil {
-			logging.GetLogger().Err(err).Msg("get cluster_key param error.")
+			logging.Get().Err(err).Msg("get cluster_key param error.")
 		}
 		if clusterKey != "" {
 			queryOpt.WithCluster(clusterKey)
@@ -1169,7 +1176,7 @@ func (api *api) countPods() http.HandlerFunc {
 
 		namespace, err := param.QueryString(r, "namespace")
 		if err != nil {
-			logging.GetLogger().Err(err).Msg("get namespace param error.")
+			logging.Get().Err(err).Msg("get namespace param error.")
 		}
 		if namespace != "" {
 			queryOpt.WithNamespace(namespace)
@@ -1193,7 +1200,7 @@ func (api *api) countPods() http.HandlerFunc {
 
 		cnt, err := resSvc.CountPods(ctx, queryOpt)
 		if err != nil {
-			logging.GetLogger().Error().Msg("count pods error")
+			logging.Get().Error().Msg("count pods error")
 			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.New("count pods error")))
 			return
 		}
@@ -1208,7 +1215,7 @@ func (api *api) getNodes() http.HandlerFunc {
 
 		limit, offset, err := getLimitAndOffset(r)
 		if err != nil {
-			logging.GetLogger().Err(err).Msgf("get limit or offset query error")
+			logging.Get().Err(err).Msgf("get limit or offset query error")
 			RespAndLog(w, ctx, NewAnError(http.StatusBadRequest, errors.New("no limit or offset given in params")))
 			return
 		}
@@ -1222,7 +1229,7 @@ func (api *api) getNodes() http.HandlerFunc {
 		}
 		resSvc, ok := assets.GetResourcesService(ctx)
 		if !ok {
-			logging.GetLogger().Error().Msg("service instance get error")
+			logging.Get().Error().Msg("service instance get error")
 			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.New("service instance get error")))
 			return
 		}
@@ -1233,13 +1240,13 @@ func (api *api) getNodes() http.HandlerFunc {
 		}
 		nodes, err := resSvc.GetNodes(ctx, queryOpt, offset, limit)
 		if err != nil {
-			logging.GetLogger().Err(err).Msg("getNodes error")
+			logging.Get().Err(err).Msg("getNodes error")
 			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, err))
 			return
 		}
 		totalCnt, err := resSvc.CountNodes(ctx, queryOpt)
 		if err != nil {
-			logging.GetLogger().Err(err).Msg("countNodes error")
+			logging.Get().Err(err).Msg("countNodes error")
 			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, err))
 			return
 		}
@@ -1261,7 +1268,7 @@ func (api *api) countNodes() http.HandlerFunc {
 		}
 		resSvc, ok := assets.GetResourcesService(ctx)
 		if !ok {
-			logging.GetLogger().Error().Msg("service instance get error")
+			logging.Get().Error().Msg("service instance get error")
 			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.New("service instance get error")))
 			return
 		}
@@ -1271,7 +1278,7 @@ func (api *api) countNodes() http.HandlerFunc {
 		}
 		totalCnt, err := resSvc.CountNodes(ctx, query)
 		if err != nil {
-			logging.GetLogger().Err(err).Msg("countNodes error")
+			logging.Get().Err(err).Msg("countNodes error")
 			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, err))
 			return
 		}
@@ -1295,7 +1302,7 @@ func (api *api) GetResourceAssociate() http.HandlerFunc {
 			return
 		}
 		//print debug log
-		//logging.GetLogger().Info().Msgf("resource argument : %+v", *arguments)
+		//logging.Get().Info().Msgf("resource argument : %+v", *arguments)
 		//get resource relation
 		res, err := resSvc.GetResourceRelation(arguments)
 		if err != nil {
@@ -1323,7 +1330,7 @@ func (api *api) GetContainerAssociate() http.HandlerFunc {
 			return
 		}
 		//print debug log
-		//logging.GetLogger().Info().Msgf("container argument : %+v", *arguments)
+		//logging.Get().Info().Msgf("container argument : %+v", *arguments)
 		//get container relation
 		container, err := resSvc.GetContainerRelation(arguments)
 		if err != nil {
@@ -1352,7 +1359,7 @@ func (api *api) GetProcessAssociate() http.HandlerFunc {
 			return
 		}
 		//print debug log
-		//logging.GetLogger().Info().Msgf("process argument : %+v", *arguments)
+		//logging.Get().Info().Msgf("process argument : %+v", *arguments)
 		//get resource relation
 		process, err := resSvc.GetProcessRelation(arguments)
 		if err != nil {
@@ -1381,7 +1388,7 @@ func (api *api) GetProcessList() http.HandlerFunc {
 			return
 		}
 		//print debug log
-		//logging.GetLogger().Info().Msgf("process argument : %+v", *arguments)
+		//logging.Get().Info().Msgf("process argument : %+v", *arguments)
 		//get resource relation
 		process, err := resSvc.GetAllProcessList(arguments)
 		if err != nil {
@@ -1405,7 +1412,7 @@ func (api *api) getFrameworks() http.HandlerFunc {
 		defer cancel()
 		_, offset, err := getLimitAndOffset(r)
 		if err != nil {
-			logging.GetLogger().Err(err).Msgf("get limit or offset query error")
+			logging.Get().Err(err).Msgf("get limit or offset query error")
 			RespAndLog(w, ctx, NewAnError(http.StatusBadRequest, errors.New("no limit or offset given in params")))
 			return
 		}
@@ -1415,7 +1422,7 @@ func (api *api) getFrameworks() http.HandlerFunc {
 		}
 		resSvc, ok := assets.GetResourcesService(ctx)
 		if !ok {
-			logging.GetLogger().Error().Msg("service instance get error")
+			logging.Get().Error().Msg("service instance get error")
 			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.New("service instance get error")))
 			return
 		}
@@ -1434,7 +1441,7 @@ func (api *api) getFrameworks() http.HandlerFunc {
 			return
 		}
 
-		logging.GetLogger().Debug().Msgf("frames : %d,  containers : %d", len(frameInfos), len(containers))
+		logging.Get().Debug().Msgf("frames : %d,  containers : %d", len(frameInfos), len(containers))
 		for _, frm := range frameInfos {
 			for _, c := range containers {
 				uuid := util.GenerateUUID(c.Image)
@@ -1442,13 +1449,13 @@ func (api *api) getFrameworks() http.HandlerFunc {
 					var infos []model.WebFrameInfo
 					err = json.Unmarshal(frm.WebFrameInfoJSON, &infos)
 					if err != nil {
-						logging.GetLogger().Err(err).Msg("get web frame")
+						logging.Get().Err(err).Msg("get web frame")
 						continue
 					}
 					if len(infos) > 0 {
 						for i := range infos {
 							items = append(items, &Item{WebFrameInfo: infos[i]})
-							logging.GetLogger().Debug().Msgf("frame infos %+v", infos[i])
+							logging.Get().Debug().Msgf("frame infos %+v", infos[i])
 						}
 					}
 					break
@@ -1477,7 +1484,7 @@ func (api *api) countImages() http.HandlerFunc {
 
 		namespace, err := param.QueryString(r, "namespace")
 		if err != nil {
-			logging.GetLogger().Err(err).Msg("get namespace param error.")
+			logging.Get().Err(err).Msg("get namespace param error.")
 		}
 		if namespace != "" {
 			queryOpt.WithNamespace(namespace)
@@ -1522,7 +1529,7 @@ func (api *api) getImageInfos() http.HandlerFunc {
 
 		clusterKey, err := param.QueryString(r, "cluster_key")
 		if err != nil {
-			logging.GetLogger().Err(err).Msg("get cluster_key param error.")
+			logging.Get().Err(err).Msg("get cluster_key param error.")
 		}
 		if clusterKey != "" {
 			queryOpt.WithCluster(clusterKey)
@@ -1530,7 +1537,7 @@ func (api *api) getImageInfos() http.HandlerFunc {
 
 		namespace, err := param.QueryString(r, "namespace")
 		if err != nil {
-			logging.GetLogger().Err(err).Msg("get namespace param error.")
+			logging.Get().Err(err).Msg("get namespace param error.")
 		}
 		if namespace != "" {
 			queryOpt.WithNamespace(namespace)
@@ -1574,7 +1581,7 @@ func (api *api) getImageProblems() http.HandlerFunc {
 
 		limit, offset, err := getLimitAndOffset(r)
 		if err != nil {
-			logging.GetLogger().Err(err).Msgf("get limit or offset query error")
+			logging.Get().Err(err).Msgf("get limit or offset query error")
 			RespAndLog(w, ctx, NewAnError(http.StatusBadRequest, errors.New("no limit or offset given in params")))
 			return
 		}
@@ -1634,5 +1641,73 @@ func (api *api) getImageProblems() http.HandlerFunc {
 			resp = append(resp, k)
 		}
 		response.Ok(w, response.WithItems(resp), response.WithTotalItems(int64(len(resp))))
+	}
+}
+
+func (api *api) getContainers() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+
+		offsetID, err := param.QueryInt64(r, "offsetID")
+		if err != nil {
+			offsetID = -1
+		}
+
+		offset, err := param.QueryInt(r, "offset")
+		if err != nil {
+			offset = -1
+		}
+
+		limit, err := param.QueryInt(r, "limit")
+		if err != nil {
+			limit = maxAuditLogBatchSize
+		}
+
+		queryOpt := dal.ResourceContainersQuery()
+
+		clusterKey, err := param.QueryString(r, "cluster_key")
+		if err != nil {
+			clusterKey = ""
+		}
+		if clusterKey != "" {
+			queryOpt.WithCluster(clusterKey)
+		}
+
+		namespace, err := param.QueryString(r, "namespace")
+		if err != nil {
+			namespace = ""
+		}
+		if namespace != "" {
+			queryOpt.WithNamespace(namespace)
+		}
+
+		resKind, err := param.QueryString(r, "resourceKind")
+		if err != nil {
+			resKind = ""
+		}
+		if resKind != "" {
+			queryOpt.WithResourceKind(assetsPkg.ResourceKind(resKind))
+		}
+
+		resName, err := param.QueryString(r, "resourceName")
+		if err != nil {
+			resName = ""
+		}
+		if resName != "" {
+			queryOpt.WithResourceName(resName)
+		}
+		cntSvc, ok := containers2.GetContainersService(ctx)
+		if !ok {
+			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.New("get resource service failed")))
+			return
+		}
+		containers, totalCnt, err := cntSvc.GetContainerInfo(ctx, queryOpt, offsetID, offset, limit)
+		if err != nil {
+			logging.Get().Err(err).Msg("get container info failed")
+			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.New("get container info failed")))
+			return
+		}
+		response.Ok(w, response.WithItems(containers), response.WithTotalItems(totalCnt))
 	}
 }

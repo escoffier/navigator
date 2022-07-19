@@ -2,7 +2,9 @@ package cmd
 
 import (
 	"context"
+	"encoding/json"
 	"flag"
+	assets2 "gitlab.com/piccolo_su/vegeta/pkg/assets"
 	"os"
 	"strings"
 	"time"
@@ -78,7 +80,7 @@ func NewServer() (*server, error) {
 	if err != nil {
 		return nil, err
 	}
-	go assets.NewAssetsController(factory, tensorFactory, mqWriter, agent.CusterID, "kube-resources").Run(stopChan)
+	go assets.NewAssetsController(factory, tensorFactory, mqWriter, agent.CusterID, "kube-resources", s.config.PoolInfo).Run(stopChan)
 
 	if s.config.ClusterType == model.HostCluster {
 		rdb, err := databases.NewRDBWithMySQLByEnv(context.Background())
@@ -215,6 +217,15 @@ func (s *server) initConfig() {
 	} else {
 		s.config.ClusterType = model.MemberCluster
 		s.config.MasterAddr = os.Getenv("CONSOLE_EXTERNAL_URL")
+	}
+	poolData := os.Getenv("POOL_INFO")
+	poolInfo := &assets2.PoolInfo{}
+	if poolData != "" {
+		err := json.Unmarshal([]byte(poolData), poolInfo)
+		if err != nil {
+			return
+		}
+		s.config.PoolInfo = poolInfo
 	}
 }
 
