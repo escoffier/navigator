@@ -83,19 +83,26 @@ var (
 	ErrInvalidRuleData = errors.New("invalid rule data")
 )
 
-func parseItems(header cryption.FileHeader, rulesContext []byte) (version string, rules map[string]*ruleItem, err error) {
+func parseItems(header cryption.FileHeader, rulesContext []byte) (version string, rules map[string]*ruleItem, strictRules map[string]struct{}, err error) {
 	version = fmt.Sprintf("v%d.%d", header.Version[0], header.Version[1])
 
 	var fDataRules []model.RuleFromYaml
 	err = yaml.Unmarshal(rulesContext, &fDataRules)
 	if err != nil {
 		logging.Get().Warn().Msgf("unmarshal rule fail, err:%s", err.Error())
-		return "", nil, ErrInvalidRuleData
+		return "", nil, nil, ErrInvalidRuleData
 	}
 	rules = make(map[string]*ruleItem, len(fDataRules))
+	strictRules = make(map[string]struct{}, len(fDataRules))
 	for _, item := range fDataRules {
 		if len(item.Rule) == 0 || len(item.Priority) == 0 {
 			continue
+		}
+		for _, tag := range item.Tags {
+			if tag == "strict" {
+				strictRules[item.Rule] = struct{}{}
+				break
+			}
 		}
 
 		ruleType, err := model.GetInfoFromOutput("rule_type=", item.Output)
@@ -132,7 +139,7 @@ func parseItems(header cryption.FileHeader, rulesContext []byte) (version string
 			category:    item.Category,
 		}
 	}
-	return version, rules, nil
+	return version, rules, strictRules, nil
 }
 
 func NewATTCKHandler(db *databases.RDBInstance, redisCli *redis.Client, ecCli *echelper.EventCenterClient) (*ATTCKHandler, error) {
@@ -256,6 +263,23 @@ func compareVersion(latestConf *model.ATTCKRuleData, toCompareHeader cryption.Fi
 	}
 }
 
+func (h *ATTCKHandler) updateDefaultMasksForStricts(ctx context.Context, strictRules map[string]struct{}) error {
+	// version, err := dal.LoadATTCKRuleMaskVersion(ctx, h.db.Get())
+	// if err == nil && version > 0 {
+	// 	return nil
+	// }
+	// if err != gorm.ErrRecordNotFound {
+	// 	return err
+	// }
+	addMusks := make([]*model.ATTCKRuleMask, 0, len(strictRules))
+	for ruleName := range strictRules {
+		addMusks = append(addMusks, &model.ATTCKRuleMask{
+			Name: ruleName,
+		})
+	}
+	return dal.UpdateRuleMask(ctx, h.db.Get(), addMusks, nil)
+}
+
 func (h *ATTCKHandler) updateConfigs(ctx context.Context) error {
 	var rules map[string]*ruleItem
 	storeConf, err := h.loadFromStore(ctx)
@@ -273,10 +297,17 @@ func (h *ATTCKHandler) updateConfigs(ctx context.Context) error {
 	if err == dal.ErrATTCKConfDataNotFound || compareVersion(storeConf, header) { // use local
 		logging.Get().Info().Uints16("local version", header.Version[:]).Msg("Initialize with local rules.")
 		var version string
-		version, rules, err = parseItems(header, rulesContext)
+		var strictRules map[string]struct{}
+		version, rules, strictRules, err = parseItems(header, rulesContext)
 		if err != nil {
 			logging.Get().Err(err).Msgf("parse items error. data: %s", string(ruleBytes))
 			return err
+		}
+
+		if len(strictRules) > 0 {
+			if err := h.updateDefaultMasksForStricts(ctx, strictRules); err != nil {
+				logging.Get().Err(err).Msg("updateDefaultMasksForStricts error")
+			}
 		}
 		confData := model.ATTCKRuleData{
 			Content: ruleBytes,
@@ -305,7 +336,7 @@ func (h *ATTCKHandler) updateConfigs(ctx context.Context) error {
 			logging.Get().Err(err).Str("data", string(storeConf.Content)).Msg("decode rule data fail")
 			return err
 		}
-		_, rules, err = parseItems(header, rulesContext)
+		_, rules, _, err = parseItems(header, rulesContext)
 		if err != nil {
 			logging.Get().Err(err).Msgf("parse items error. data: %s", string(storeConf.Content))
 			return err
@@ -381,9 +412,15 @@ func (h *ATTCKHandler) UpdateConfig(ctx context.Context, username string, data [
 		logging.Get().Err(err).Str("data", string(data)).Msg("decode rule data fail")
 		return nil, err
 	}
-	version, rules, err := parseItems(header, rulesContext)
+	version, rules, strictRules, err := parseItems(header, rulesContext)
 	if err != nil {
 		return nil, err
+	}
+
+	if len(strictRules) > 0 {
+		if err := h.updateDefaultMasksForStricts(ctx, strictRules); err != nil {
+			logging.Get().Err(err).Msg("updateDefaultMasksForStricts error")
+		}
 	}
 
 	h.cacheLock.Lock()
