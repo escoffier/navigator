@@ -199,6 +199,11 @@ func isFile(path string) bool {
 }
 
 func (wc *WhitelistCount) MakeWhiteListByOverLay(image types.ImageInspect) (imageInfo, error) {
+	// FIXME: create a linear issue: try to update data structure to support local built image scanning at lingximo
+	if len(image.RepoDigests) == 0 {
+		logging.Get().Error().Msg("get image digest fail: local built image & no repo digest")
+		return imageInfo{}, nil
+	}
 	arr := strings.Split(image.RepoDigests[0], "@")
 	if len(arr) != 2 {
 		logging.Get().Error().Str("digests: ", strings.Join(image.RepoDigests, ",")).Msg("get image digest fail")

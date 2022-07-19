@@ -3,13 +3,13 @@ package nodeinfo
 import (
 	"context"
 	"fmt"
-	"github.com/pkg/errors"
-	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
 	"runtime/debug"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/pkg/errors"
+	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
 	"gitlab.com/security-rd/go-pkg/logging"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -100,18 +100,18 @@ func (b *Builder) Build() *NodePodsWatcher {
 	return b.instance
 }
 
-func (n *NodePodsWatcher) InitK8sClient() error {
+func (n *NodePodsWatcher) InitK8sClient() (*kubernetes.Clientset, error) {
 	config, err := k8s.KubeConfig()
 	if err != nil {
-		return errors.Errorf("Couldn't initialize k8s config: %w", err)
+		return nil, errors.Errorf("Couldn't initialize k8s config: %w", err)
 	}
 	//k8s client
 	n.k8sClient, err = kubernetes.NewForConfig(config)
 	if err != nil {
-		return errors.Errorf("Couldn't initialize k8s clientset: %w", err)
+		return nil, errors.Errorf("Couldn't initialize k8s clientset: %w", err)
 	}
 
-	return nil
+	return n.k8sClient, nil
 }
 
 func (n *NodePodsWatcher) GetContainerType() (string, error) {
