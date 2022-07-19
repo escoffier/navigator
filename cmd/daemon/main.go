@@ -13,10 +13,12 @@ import (
 	"github.com/pkg/errors"
 	flag "github.com/spf13/pflag"
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/dp"
+	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/degrade"
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/netflow"
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/nodeinfo"
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/rtdetect"
 	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
+	"gitlab.com/security-rd/go-pkg/cmap"
 	"gitlab.com/security-rd/go-pkg/logging"
 	"gitlab.com/security-rd/go-pkg/mq"
 	_ "go.uber.org/automaxprocs"
@@ -48,12 +50,15 @@ func initEventStreams(udsAddr, nodeName string, cm *k8s.ClusterInfoManager, mqWr
 	return s, err
 }
 
-func initNodeInfos(hostName, hostIP, clusterKey string) (nodeinfo.ContainerInfoManager, *netflow.NodePodsInfo, *nodeinfo.PodResInfo, *nodeinfo.NodePodsWatcher, error) {
+func initNodeInfos(hostName, hostIP, clusterKey, myNamespace string) (nodeinfo.ContainerInfoManager, *netflow.NodePodsInfo, *nodeinfo.PodResInfo, *nodeinfo.NodePodsWatcher, error) {
 	nodePods := nodeinfo.NewNodePodsWatcher(hostName, clusterKey)
-	err := nodePods.Build().InitK8sClient()
+	k8sCli, err := nodePods.Build().InitK8sClient()
 	if err != nil {
 		return nil, nil, nil, nil, errors.Errorf("k8s client init failed, %v", err)
 	}
+
+	cmWatcher := cmap.NewWatcher(k8sCli, myNamespace, "ivan-degradation-controller").AddFunc(degrade.DegradationCmapWatcher).Build()
+	cmWatcher.Start()
 
 	containerType, err := nodePods.Build().GetContainerType()
 	if err != nil {
@@ -177,7 +182,11 @@ func Run(ctx context.Context) error {
 		return errors.Errorf("get cluster key failed.")
 	}
 
-	containerInfo, k8sInfo, podResInfo, podWatcher, err := initNodeInfos(hostName, hostIP, clusterKey)
+	myNamespace := os.Getenv("MY_POD_NAMESPACE")
+	if myNamespace == "" {
+		myNamespace = "tensorsec"
+	}
+	containerInfo, k8sInfo, podResInfo, podWatcher, err := initNodeInfos(hostName, hostIP, clusterKey, myNamespace)
 	if err != nil {
 		return err
 	}

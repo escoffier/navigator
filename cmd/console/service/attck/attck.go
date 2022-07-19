@@ -264,6 +264,7 @@ func compareVersion(latestConf *model.ATTCKRuleData, toCompareHeader cryption.Fi
 }
 
 func (h *ATTCKHandler) updateDefaultMasksForStricts(ctx context.Context, strictRules map[string]struct{}) error {
+	// don't check musk version must not be set. update them anyway.
 	// version, err := dal.LoadATTCKRuleMaskVersion(ctx, h.db.Get())
 	// if err == nil && version > 0 {
 	// 	return nil
