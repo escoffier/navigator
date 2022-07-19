@@ -2079,7 +2079,7 @@
   output: >
     Outbound connection to IP/Port flagged by cryptoioc.ch (zh_msg=与cryptoioc.ch公开的IP/端口的连接,rule_type=Exfiltration,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=port=%fd.rport ip=%fd.rip container=%container.info image=%container.image.repository)
   priority: ALERT
-  tags: [ATT&CK, network, mitre_execution]
+  tags: [ATT&CK, network, mitre_execution, strict]
 
 - rule: Detect crypto miners using the Stratum protocol
   hid: exf_13
