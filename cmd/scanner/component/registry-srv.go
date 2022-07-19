@@ -22,8 +22,7 @@ type RegistrySrvInterface interface {
 	UpdateRegistry(ctx context.Context, id int64, reg model.Registry) error
 	DeleteRegistry(ctx context.Context, id int64) error
 	SearchRegistry(ctx context.Context, param SearchRegistryParam, filter *model.Filter) ([]model.Registry, int64, error)
-	GetRegistry(ctx context.Context, id int64) (*model.Registry, error)
-	GetRegistryType(ctx context.Context) ([]string, error)
+	GetRegistryType(ctx context.Context) ([]model.LabelValue, error)
 }
 type RegistrySrv struct {
 	registryDal   store.RegistryDal
@@ -35,35 +34,23 @@ type SearchRegistryParam struct {
 	Search  string
 	RegType []string
 	Name    string
+	Ids     []int64
 }
 
-func (s *RegistrySrv) GetRegistryType(ctx context.Context) ([]string, error) {
-	regList := registry.DriverTypes
-	regList = append(regList, consts.HarborVersion)
-	ans := make([]string, 0)
-	for i := range regList {
-		if regList[i] != consts.HarborV1Version && regList[i] != consts.HarborV2Version {
-			ans = append(ans, regList[i])
-		}
+func (s *RegistrySrv) GetRegistryType(ctx context.Context) ([]model.LabelValue, error) {
+	ans := make([]model.LabelValue, 0)
+	reg := model.GetRegType()
+	for k := range reg {
+		ans = append(ans, reg[k])
 	}
-
 	return ans, nil
 }
 
-func (s *RegistrySrv) GetRegistry(ctx context.Context, id int64) (*model.Registry, error) {
-	registries, _, err := s.registryDal.SearchRegistry(ctx, store.SearchRegistryParam{ID: id, NoDelete: true}, nil)
-	if err != nil {
-		logging.GetLogger().Err(err).Msgf("ListRegistry SearchRegistry error %s", err.Error())
-		return nil, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf("获取仓库信息出错"))
-	}
-	if len(registries) == 0 {
-		return nil, response.NewHttpError(http.StatusBadRequest, fmt.Errorf("not fond the registry id :%d", id))
-	}
-	return &registries[0], nil
-}
-
 func (s *RegistrySrv) SearchRegistry(ctx context.Context, param SearchRegistryParam, filter *model.Filter) ([]model.Registry, int64, error) {
-	registries, cnt, err := s.registryDal.SearchRegistry(ctx, store.SearchRegistryParam{Name: param.Name, UseType: param.UseType, Search: param.Search, RegType: param.RegType, NoDelete: true}, filter)
+
+	daoParam := store.SearchRegistryParam{RegistryIds: param.Ids, Name: param.Name, UseType: param.UseType, Search: param.Search, RegType: param.RegType, NoDelete: true}
+	daoParam.Compatible()
+	registries, cnt, err := s.registryDal.SearchRegistry(ctx, daoParam, filter)
 	if err != nil {
 		logging.GetLogger().Err(err).Msg("SearchRegistry")
 		return nil, 0, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf("获取仓库列表出错"))

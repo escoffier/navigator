@@ -3,7 +3,9 @@ package store
 import (
 	"time"
 
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
+	"gitlab.com/piccolo_su/vegeta/pkg/util"
 )
 
 type SearchImageParam struct {
@@ -124,6 +126,15 @@ type SearchRegistryParam struct {
 
 	Name     string
 	NoDelete bool
+}
+
+func (s *SearchRegistryParam) Compatible() {
+	s.RegType = util.DeDuplicationStringSlice(s.RegType)
+	for i := range s.RegType {
+		if s.RegType[i] == consts.HarborVersion {
+			s.RegType = append(s.RegType, consts.HarborV2Version, consts.HarborV1Version)
+		}
+	}
 }
 
 type SearchImageRetryParam struct {

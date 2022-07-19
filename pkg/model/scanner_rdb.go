@@ -310,7 +310,7 @@ type Registry struct {
 	Token          string `gorm:"-" json:"token"`
 	Description    string `gorm:"type:varchar(255);column:description"  json:"description"`
 	AuthStr        string `gorm:"-" json:"auth_str"`                                  // 用户名和密码加密后的数据，不存入数据库中
-	UseType        int    `gorm:"column:use_type" json:"-"`                           // 1-用户仓库,2-buf仓库
+	UseType        int    `gorm:"column:use_type" json:"use_type"`                    // 1-用户仓库,2-buf仓库
 	SyncInterval   int64  `gorm:"column:sync_interval" json:"sync_interval"`          // 单位：分钟
 	LastSyncAt     int64  `gorm:"column:last_sync_at; default:0" json:"last_sync_at"` // 最后一次同步时间
 	AccessKey      string `gorm:"access_key" json:"access_key"`                       // 阿里云仓库的AccessKey
@@ -321,6 +321,11 @@ type Registry struct {
 	CreatedAt time.Time `gorm:"column:created_at" json:"created_at"`
 	UpdatedAt time.Time `gorm:"column:updated_at" json:"updated_at"`
 	DeletedAt int64     `gorm:"column:deleted_at; default:0;uniqueIndex:uniq_idx_registry_name;priority:2" json:"deleted_at"`
+}
+
+type LabelValue struct {
+	Label string `json:"label"` // 用于前端展示
+	Value string `json:"value"` // 后端逻辑
 }
 
 func (r *Registry) WhetherToStartSync() bool {
@@ -338,6 +343,28 @@ func (r *Registry) WhetherToStartSync() bool {
 
 func (Registry) TableName() string {
 	return "ivan_scanner_registries"
+}
+
+var regTypeNameKey map[string]LabelValue
+
+func GetRegType() map[string]LabelValue {
+	if regTypeNameKey == nil {
+		regTypeNameKey = make(map[string]LabelValue)
+		regTypeNameKey[consts.AliAcrVersion] = LabelValue{Value: consts.AliAcrVersion, Label: "阿里云 ACR 个人版"}
+		regTypeNameKey[consts.AliAcrEEVersion] = LabelValue{Value: consts.AliAcrEEVersion, Label: "阿里云 ACR 企业版"}
+		regTypeNameKey[consts.DockerRegistryV2Version] = LabelValue{Value: consts.DockerRegistryV2Version, Label: "Docker Registry (v2)"}
+		regTypeNameKey[consts.HarborVersion] = LabelValue{Value: consts.HarborVersion, Label: "Harbor"}
+		regTypeNameKey[consts.HaiWeiSwrVersion] = LabelValue{Value: consts.HaiWeiSwrVersion, Label: "华为云 SWR 个人版"}
+		regTypeNameKey[consts.JfrogVersion] = LabelValue{Value: consts.JfrogVersion, Label: "JFrog Artifactory"}
+
+	}
+	return regTypeNameKey
+}
+
+func (r *Registry) Deserialize() {
+	if r.RegType == consts.HarborV1Version || r.RegType == consts.HarborV2Version {
+		r.RegType = consts.HarborVersion
+	}
 }
 
 func (r *Registry) Validate(valTY string) error {
