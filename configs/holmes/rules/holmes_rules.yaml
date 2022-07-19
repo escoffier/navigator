@@ -130,7 +130,7 @@
       value: "使用免疫防御训练应用，限制敏感文件和命令的用户权限。"
   desc: Execute sensitive commands via ElasticSearch
   condition: >
-   evt.type=execve and evt.res!=ENOENT and k8s.pod.name contains "75fb1c"
+   evt.type=execve and evt.res!=ENOENT and proc.pname = java and k8s.pod.name contains "75fb1c"
   output: >
     Execute sensitive commands via ElasticSearch (zh_msg=通过主动防御检测到elasticsearch执行命令（CVE-2015-1427）,rule_type=Privilege_Escalation,fd.name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,)
   priority: ALERT
