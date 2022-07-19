@@ -1273,7 +1273,20 @@ func (s *ConScannerSrv) GetScanOneStatus(ctx context.Context, imgID int64) (*mod
 }
 
 func (s *ConScannerSrv) GetImageDetail(ctx context.Context, imgID int64) (*model.ImageList, error) {
-	imgs, _, err := s.dbdal.SearchImage(ctx, store.SearchImageParam{InIds: []int64{imgID}}, nil)
+	// 查询未删除的仓库
+	noDeleteRegistries, _, err := s.registryDal.SearchRegistry(ctx, store.SearchRegistryParam{NoDelete: true}, nil)
+	if err != nil {
+		return nil, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf(consts.StatusInternalServerErrorMsg))
+	}
+	if len(noDeleteRegistries) == 0 {
+		return nil, response.NewHttpError(http.StatusGone, fmt.Errorf("镜像已删除"))
+	}
+	registryIds := make([]int64, 0)
+	for i := range noDeleteRegistries {
+		registryIds = append(registryIds, noDeleteRegistries[i].ID)
+	}
+
+	imgs, _, err := s.dbdal.SearchImage(ctx, store.SearchImageParam{InIds: []int64{imgID}, RegistryIds: registryIds}, nil)
 	if err != nil {
 		logging.GetLogger().Err(err).Msg("GetImageDetail.SearchImage ")
 		return nil, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf(consts.StatusInternalServerErrorMsg))

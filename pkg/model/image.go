@@ -384,7 +384,7 @@ func (im *ImageList) Deserialize(parseNodeImage bool) {
 		}
 	}
 	// 对于节点镜像的数据规整
-	if !parseNodeImage {
+	if !parseNodeImage || im.FromType != NodeBuffRegistry {
 		return
 	}
 	split := strings.Split(im.FullRepoName, "/")

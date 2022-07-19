@@ -183,6 +183,11 @@ func (s *SyncRepoImage) SyncAllImage(ctx context.Context, param SyncAllImagePara
 		regID := registries[i].ID
 
 		if (registries[i].WhetherToStartSync() && !driver.SupportIncrementalSync(ctx)) || param.SyncType == consts.TimingFullSync || param.SyncType == consts.ManualSync {
+			// 兜底的同步，不需要同步缓存仓库
+			if param.SyncType == consts.TimingFullSync && registries[i].UseType != model.UserRegistry {
+				continue
+			}
+
 			logging.GetLogger().Info().Str("syncType", string(param.SyncType)).Int64("regID", regID).Msg("SyncAllImage start")
 			if err := s.startSyncAllImage(ctx, regID, param.SyncType); err != nil {
 				logging.GetLogger().Err(err).Str("regName", registries[i].Name).Str("syncType", string(param.SyncType)).Msg("SyncAllImage failure")
