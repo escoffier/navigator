@@ -1730,7 +1730,7 @@ func DeletePodContainerRelation(ctx context.Context, rdb *gorm.DB, clusterKey, n
 		defer oneCancel()
 
 		err := rdb.WithContext(oneCtx).Model(&model.TensorContainerRelation{}).
-			Where("cluster_key = ? AND namespace = ? AND pod_name", clusterKey, namespace, name).Updates(map[string]interface{}{
+			Where("cluster_key = ? AND namespace = ? AND pod_name= ?", clusterKey, namespace, name).Updates(map[string]interface{}{
 			"status":     terminated,
 			"updated_at": time.Now(),
 		}).Error

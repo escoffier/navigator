@@ -223,9 +223,11 @@ func (s *server) initConfig() {
 	if poolData != "" {
 		err := json.Unmarshal([]byte(poolData), poolInfo)
 		if err != nil {
+			logging.Get().Err(err).Msg("Unmarshal pool info err")
 			return
 		}
 		s.config.PoolInfo = poolInfo
+		logging.Get().Info().Msgf("poolInfo: %v", poolInfo)
 	}
 }
 
