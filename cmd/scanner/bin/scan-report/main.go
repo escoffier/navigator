@@ -27,7 +27,7 @@ var (
 	internal   time.Duration
 	logLevel   string
 	batchSize  int
-	batchImage int64
+	maxVulnCol int64
 
 	parallelTaskNum         int
 	emailHost               string
@@ -46,9 +46,9 @@ var (
 
 func init() {
 	flag.DurationVar(&internal, "interval", 1*time.Minute, "job interval")
-	flag.StringVar(&logLevel, "log-level", "info", "debug model")
+	flag.StringVar(&logLevel, "log-level", "info", "log level model")
 	flag.IntVar(&batchSize, "batch-size", 50, "the batch size of data")
-	flag.Int64Var(&batchImage, "batch-image", 300, "number of image in one excel file")
+	flag.Int64Var(&maxVulnCol, "max-col", 10000, "max column in one excel file")
 	flag.IntVar(&parallelTaskNum, "parallel-task-num", 1, "the batch size of data")
 	flag.Int64Var(&expiration, "expiration", 7, "file expiration day") // 默认七天
 	flag.Int64Var(&maxImageByOneExportTask, "export-max-image", 100000, "The maximum number of images exported by one export task")
@@ -100,9 +100,7 @@ func main() {
 	}
 
 	es := elastic.NewESClientWithEnv(context.Background())
-
-	// 起后台协程服务
-	backgroundSrv := starter.NewBackgroundTasks(context.Background(), starter.Config{
+	config := starter.Config{
 		Internal:                internal,
 		BatchSize:               batchSize,
 		EmailHost:               emailHost,
@@ -111,12 +109,16 @@ func main() {
 		EmailPasswd:             emailPasswd,
 		FileDir:                 fileDir,
 		Rdb:                     rdb,
-		BatchImage:              batchImage,
+		MaxVulnCol:              maxVulnCol,
 		ParallelTaskNum:         parallelTaskNum,
 		Expiration:              expiration,
 		Es:                      es,
 		MaxImageByOneExportTask: maxImageByOneExportTask,
-	})
+	}
+
+	logging.Get().Info().Int64("MaxVulnCol", config.MaxVulnCol).Int64("MaxImageByOneExportTask", config.MaxImageByOneExportTask).Msg("config")
+	// 起后台协程服务
+	backgroundSrv := starter.NewBackgroundTasks(context.Background(), config)
 	backgroundSrv.Start(context.Background())
 
 	router := api.SetupGinRouter(service.NewExportSrv(store.NewExportTaskDao(rdb), maxImageByOneExportTask, store.NewScannerOrm(rdb)))

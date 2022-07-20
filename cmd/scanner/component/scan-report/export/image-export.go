@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/xuri/excelize/v2"
+	"go.uber.org/atomic"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
@@ -29,7 +30,7 @@ type ImageExport struct {
 type ImageExportInterface interface {
 	GetTensorTask(ctx context.Context, executeType string, n int64) ([]model.ExportTensorTask, error)
 	ZipAndSave(ctx context.Context, filename string, files chan *excelize.File) error
-	GetExcelData(ctx context.Context, imageID int64) (map[string]chan []string, error)
+	GetExcelData(ctx context.Context, imageID int64, vulnCol *atomic.Int32) (map[string]chan []string, error)
 }
 
 type UpdateTask interface {
@@ -108,7 +109,7 @@ func (s *ImageExport) Export(ctx context.Context, task model.ExportTensorTask, e
 
 		excelData := make(map[string][]chan []string)
 
-		data, err := s.GetExcelData(ctx, param.ImageID)
+		data, err := s.GetExcelData(ctx, param.ImageID, nil)
 		if err != nil {
 			logging.GetLogger().Err(err).Int64("taskID", task.ID).Msg("Export.GetExcelData")
 			return
@@ -120,7 +121,7 @@ func (s *ImageExport) Export(ctx context.Context, task model.ExportTensorTask, e
 			}
 			excelData[sheetName] = append(excelData[sheetName], dataChan)
 		}
-		logging.GetLogger().Info().Int64("taskID", task.ID).Int64("imageID", param.ImageID).Msg("Export.GetExcelData")
+		logging.GetLogger().Debug().Int64("taskID", task.ID).Int64("imageID", param.ImageID).Msg("Export.GetExcelData")
 
 		sheets := GetImageSheetInfo(executeType)
 
@@ -138,7 +139,7 @@ func (s *ImageExport) Export(ctx context.Context, task model.ExportTensorTask, e
 	return out
 }
 
-func (s *ImageExport) GetExcelData(ctx context.Context, imageID int64) (map[string]chan []string, error) {
+func (s *ImageExport) GetExcelData(ctx context.Context, imageID int64, vulnCol *atomic.Int32) (map[string]chan []string, error) {
 	// 获取镜像详情
 	imageDetail, err := s.imageSrv.GetImageDetail(ctx, imageID)
 	if err != nil {
@@ -169,7 +170,7 @@ func (s *ImageExport) GetExcelData(ctx context.Context, imageID int64) (map[stri
 	res := make(map[string]chan []string)
 	// 写入数据
 	res[GenImageBaseInfoMeta().SheetName] = GenBaseInfoChan(*imageDetail, *imageStatus)
-	res[GenImageVulnInfoMeta().SheetName] = GenVulnInfoChan(*imageDetail)
+	res[GenImageVulnInfoMeta().SheetName] = GenVulnInfoChan(*imageDetail, vulnCol)
 	res[GenImageSensitiveFileInfoMeta().SheetName] = GenSensitiveFileChan(*imageDetail)
 	res[GenImageVirusInfoMeta().SheetName] = GenVirusChan(*imageDetail)
 	res[GenImageWebshellInfoMeta().SheetName] = GenWebShellChan(*imageDetail)

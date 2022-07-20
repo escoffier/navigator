@@ -2,8 +2,9 @@ package starter
 
 import (
 	"context"
-	"gitlab.com/security-rd/go-pkg/elastic"
 	"time"
+
+	"gitlab.com/security-rd/go-pkg/elastic"
 
 	"gitlab.com/security-rd/go-pkg/databases"
 
@@ -23,7 +24,7 @@ type BackgroundTasks struct {
 }
 
 type Config struct {
-	BatchImage              int64
+	MaxVulnCol              int64
 	Internal                time.Duration
 	BatchSize               int
 	EmailHost               string
@@ -36,19 +37,6 @@ type Config struct {
 	Rdb                     *databases.RDBInstance
 	Es                      *elastic.ESClient
 	MaxImageByOneExportTask int64
-}
-
-func NewDefaultConfig() *Config {
-	return &Config{
-		Internal:    time.Minute,
-		BatchSize:   1,
-		EmailHost:   "",
-		EmailPort:   0,
-		EmailUser:   "",
-		EmailPasswd: "",
-		FileDir:     "",
-		Rdb:         nil,
-	}
 }
 
 func NewBackgroundTasks(ctx context.Context, config Config) *BackgroundTasks {
@@ -70,7 +58,7 @@ func NewBackgroundTasks(ctx context.Context, config Config) *BackgroundTasks {
 	imageSrv := component.NewConScannerSrv(dal, registryDal, dal, scanConfigDal, vulnDal)
 
 	imageExportSrv := export.NewImageExport(resourceDal, exportTaskDal, imageSrv, config.FileDir, config.Internal)
-	scanTaskExportSrv := export.NewScanTaskExport(imageExportSrv, exportTaskDal, dal, config.FileDir, config.Internal, imageExportSrv, config.BatchImage, config.MaxImageByOneExportTask)
+	scanTaskExportSrv := export.NewScanTaskExport(imageExportSrv, exportTaskDal, dal, config.FileDir, config.Internal, imageExportSrv, config.MaxVulnCol, config.MaxImageByOneExportTask)
 	clearFile := export.NewClearFile(config.FileDir, config.Expiration, exportTaskDal)
 	naviAuditReport := export.NewAuditExport(exportTaskDal, config.Internal, config.FileDir, config.Es, "navi-audit-")
 	srv := &BackgroundTasks{
@@ -90,7 +78,7 @@ func (s *BackgroundTasks) Start(ctx context.Context) {
 		defer tick.Stop()
 		for {
 			s.ScanReport.Run(ctx)
-			logging.GetLogger().Info().Msg("start ScanReport job")
+			logging.GetLogger().Debug().Msg("finish ScanReport job")
 			<-tick.C
 		}
 	}()
@@ -101,7 +89,7 @@ func (s *BackgroundTasks) Start(ctx context.Context) {
 		defer tick.Stop()
 		for {
 			s.ImageExport.Run(ctx)
-			logging.GetLogger().Info().Msg("start ImageExport job")
+			logging.GetLogger().Debug().Msg("finish ImageExport job")
 			<-tick.C
 		}
 	}()
@@ -111,7 +99,7 @@ func (s *BackgroundTasks) Start(ctx context.Context) {
 		defer tick.Stop()
 		for {
 			s.ScanTaskExport.Run(ctx)
-			logging.GetLogger().Info().Msg("start ScanTaskExport job")
+			logging.GetLogger().Debug().Msg("finish ScanTaskExport job")
 			<-tick.C
 		}
 	}()
@@ -121,7 +109,7 @@ func (s *BackgroundTasks) Start(ctx context.Context) {
 		defer tick.Stop()
 		for {
 			s.AuditExport.Run(ctx)
-			logging.GetLogger().Info().Msg("start AuditExport job")
+			logging.GetLogger().Debug().Msg("finish AuditExport job")
 			<-tick.C
 		}
 	}()
@@ -132,7 +120,7 @@ func (s *BackgroundTasks) Start(ctx context.Context) {
 		defer tick.Stop()
 		for {
 			s.ClearFile.Run(ctx)
-			logging.GetLogger().Info().Msg("start ClearFile job")
+			logging.GetLogger().Debug().Msg("finish ClearFile job")
 			<-tick.C
 		}
 	}()

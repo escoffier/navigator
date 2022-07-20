@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/shopspring/decimal"
+	"go.uber.org/atomic"
 	"scm.tensorsecurity.cn/tensorsecurity-rd/trivy/pkg/report"
 
 	ftypes "scm.tensorsecurity.cn/tensorsecurity-rd/fanal/types"
@@ -30,16 +31,20 @@ func GenBaseInfoChan(image model.ImageList, status model.ImageResponse) chan []s
 	return out
 }
 
-func GenVulnInfoChan(imageDetail model.ImageList) chan []string {
+func GenVulnInfoChan(imageDetail model.ImageList, vulnCol *atomic.Int32) chan []string {
 	out := make(chan []string)
 	go func(imageDetail model.ImageList) {
 		defer close(out)
 		vulns := imageDetail.ImageScanVuln.Vulns
+		if vulnCol != nil {
+			vulnCol.Add(int32(len(vulns)))
+		}
 		for i := range vulns {
 			vuln := vulns[i]
 			info := GenVulnInfo(imageDetail, *vuln)
 			out <- info
 		}
+
 	}(imageDetail)
 	return out
 }
