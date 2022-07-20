@@ -17,7 +17,7 @@
 #   output: >
 #     Connecting to a remote server through redis client in container (zh_msg=容器内通过redis客户端连接远程服务器,rule_type=Execution,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,
 #     original_info=user=%user.name user_loginuid=%user.loginuid %container.info
-#     shell=%proc.name parent=%proc.pname terminal=%proc.tty container_id=%container.id image=%container.image.repository)
+#     shell=%proc.name parent=%proc.pname terminal=%proc.tty container_id=%container.id container_name=%container.name image=%container.image.repository)
 #   priority: WARNING
 #   tags: [ATT&CK, container, shell, mitre_execution]
 
@@ -72,7 +72,7 @@
   condition: >
     (inbound_outbound) and fd.sport=8080 and k8s.pod.name contains "51c1c6"
   output: >
-    Gaining sensitive information in Watson (zh_msg=通过主动防御检测到web目录文件访问,rule_type=Privilege_Escalation,fd.name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name)
+    Gaining sensitive information in Watson (zh_msg=通过主动防御检测到web目录文件访问,rule_type=Privilege_Escalation,fd.name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,container_id=%container.id,container_name=%container.name)
   priority: ALERT
   tags: [Watson]
 
@@ -92,7 +92,7 @@
   condition: >
    (inbound_outbound) and fd.sport=6379 and k8s.pod.name contains "51c1c6"
   output: >
-    Other containers establish new connections to the redis-server in Watson (zh_msg=通过主动防御检测到redis-server未授权访问,rule_type=Privilege_Escalation,fd.name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name)
+    Other containers establish new connections to the redis-server in Watson (zh_msg=通过主动防御检测到redis-server未授权访问,rule_type=Privilege_Escalation,fd.name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,container_id=%container.id,container_name=%container.name)
   priority: ALERT
   tags: [Watson]
 
@@ -112,7 +112,7 @@
   condition: >
    (inbound_outbound) and fd.sport=9200 and k8s.pod.name contains "75fb1c"
   output: >
-    Other containers establish new connections to the ElasticSearch (zh_msg=通过主动防御检测到与elasticsearch通信,rule_type=Privilege_Escalation,fd.name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name)
+    Other containers establish new connections to the ElasticSearch (zh_msg=通过主动防御检测到与elasticsearch通信,rule_type=Privilege_Escalation,fd.name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,container_id=%container.id,container_name=%container.name)
   priority: ALERT
   tags: [Watson]
 
@@ -132,7 +132,7 @@
   condition: >
    evt.type=execve and evt.res!=ENOENT and proc.pname = java and k8s.pod.name contains "75fb1c"
   output: >
-    Execute sensitive commands via ElasticSearch (zh_msg=通过主动防御检测到elasticsearch执行命令（CVE-2015-1427）,rule_type=Privilege_Escalation,fd.name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,)
+    Execute sensitive commands via ElasticSearch (zh_msg=通过主动防御检测到elasticsearch执行命令（CVE-2015-1427）,rule_type=Privilege_Escalation,fd.name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,container_id=%container.id,container_name=%container.name)
   priority: ALERT
   tags: [Watson]
 
@@ -152,7 +152,7 @@
   condition: >
    (inbound_outbound) and fd.sport = 8080 and k8s.pod.name contains "b0f328"
   output: >
-    Other containers establish new connections to the tomcat (zh_msg=通过主动防御检测到与tomcat通信,rule_type=Privilege_Escalation,fd.name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name)
+    Other containers establish new connections to the tomcat (zh_msg=通过主动防御检测到与tomcat通信,rule_type=Privilege_Escalation,fd.name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,container_id=%container.id,container_name=%container.name)
   priority: ALERT
   tags: [Watson]
 
@@ -172,7 +172,7 @@
   condition: >
    (inbound_outbound) and fd.sport = 8009 and k8s.pod.name contains "b0f328"
   output: >
-    Other containers establish new connections to the tomcat (zh_msg=通过主动防御检测到tomcat读取本地webapp目录文件（CVE-2015-1427）,rule_type=Privilege_Escalation,fd.name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name)
+    Other containers establish new connections to the tomcat (zh_msg=通过主动防御检测到tomcat读取本地webapp目录文件（CVE-2015-1427）,rule_type=Privilege_Escalation,fd.name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,container_id=%container.id,container_name=%container.name)
   priority: ALERT
   tags: [Watson]
 
@@ -192,7 +192,7 @@
   condition: >
    (inbound_outbound) and fd.sport = 8080 and k8s.pod.name contains "99a7ca"
   output: >
-    Other containers establish new connections to the jenkins (zh_msg=通过主动防御检测到与jenkins通信,rule_type=Privilege_Escalation,fd.name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name)
+    Other containers establish new connections to the jenkins (zh_msg=通过主动防御检测到与jenkins通信,rule_type=Privilege_Escalation,fd.name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,container_id=%container.id,container_name=%container.name)
   priority: ALERT
   tags: [Watson]
 
@@ -212,7 +212,7 @@
   condition: >
    evt.type=execve and evt.res!=ENOENT and k8s.pod.name contains "99a7ca"
   output: >
-    Execute sensitive commands via Jenkins (zh_msg=通过主动防御检测到Jenkins执行命令（CVE-2018-1000861）,rule_type=Privilege_Escalation,fd.name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,)
+    Execute sensitive commands via Jenkins (zh_msg=通过主动防御检测到Jenkins执行命令（CVE-2018-1000861）,rule_type=Privilege_Escalation,fd.name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,container_id=%container.id,container_name=%container.name)
   priority: ALERT
   tags: [Watson]
 
@@ -232,7 +232,7 @@
   condition: >
    (inbound_outbound) and fd.sport = 8888 and k8s.pod.name contains "ddc305"
   output: >
-    Other containers establish new connections to the jenkins (zh_msg=通过主动防御检测到与jupyter通信,rule_type=Privilege_Escalation,fd.name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name)
+    Other containers establish new connections to the jenkins (zh_msg=通过主动防御检测到与jupyter通信,rule_type=Privilege_Escalation,fd.name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,container_id=%container.id,container_name=%container.name)
   priority: ALERT
   tags: [Watson]
 
@@ -252,7 +252,7 @@
   condition: >
     evt.type=execve and evt.res!=ENOENT and k8s.pod.name contains "ddc305"
   output: >
-    Execute sensitive commands via Jenkins (zh_msg=通过主动防御检测到Jupyter执行命令,rule_type=Privilege_Escalation,fd.name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name)
+    Execute sensitive commands via Jenkins (zh_msg=通过主动防御检测到Jupyter执行命令,rule_type=Privilege_Escalation,fd.name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,container_id=%container.id,container_name=%container.name)
   priority: ALERT
   tags: [Watson]
 
@@ -272,7 +272,7 @@
   condition: >
    spawned_process and container and not user_known_k8s_client_container_parens and proc.name in (k8s_client_binaries) and k8s.pod.name in (watson_id)
   output: >
-    Docker or kubernetes client executed in container (zh_msg=通过主动防御检测到运行k8s相关二进制程序,rule_type=Lateral_Movement,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid %container.info parent=%proc.pname image=%container.image.repository:%container.image.tag)
+    Docker or kubernetes client executed in container (zh_msg=通过主动防御检测到运行k8s相关二进制程序,rule_type=Lateral_Movement,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid %container.info parent=%proc.pname image=%container.image.repository:%container.image.tag,container_id=%container.id,container_name=%container.name)
   priority: ALERT
   tags: [Watson]
 
@@ -292,7 +292,7 @@
   condition: >
    (inbound_outbound) and fd.sport = 3306 and k8s.pod.name contains "588ee1"
   output: >
-    Other containers establish new connections to the mysql (zh_msg=Watson：通过主动防御检测到与mysql通信,rule_type=Privilege_Escalation,fd.name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name)
+    Other containers establish new connections to the mysql (zh_msg=Watson：通过主动防御检测到与mysql通信,rule_type=Privilege_Escalation,fd.name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,container_id=%container.id,container_name=%container.name)
   priority: ALERT
   tags: [Watson]
 
@@ -312,7 +312,7 @@
   condition: >
    evt.type=recvfrom and evt.arg.data contains "select" and fd.sport = 3306 and k8s.pod.name contains "588ee1"
   output: >
-    Connection with mysql successfully established detected (zh_msg=通过主动防御检测到与mysql成功建立连接,rule_type=Privilege_Escalation,fd.name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name)
+    Connection with mysql successfully established detected (zh_msg=通过主动防御检测到与mysql成功建立连接,rule_type=Privilege_Escalation,fd.name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,container_id=%container.id,container_name=%container.name)
   priority: ALERT
   tags: [Watson]
 
@@ -332,7 +332,7 @@
   condition: >
    (inbound_outbound) and fd.sport = 22 and k8s.pod.name contains "98166d"
   output: >
-    Other containers establish new connections to the ssh (zh_msg=通过主动防御检测到与ssh通信,rule_type=Privilege_Escalation,fd.name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name)
+    Other containers establish new connections to the ssh (zh_msg=通过主动防御检测到与ssh通信,rule_type=Privilege_Escalation,fd.name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,container_id=%container.id,container_name=%container.name)
   priority: ALERT
   tags: [Watson]
 
@@ -352,7 +352,7 @@
   condition: >
    evt.type=write and evt.arg.data contains "Welcome" and k8s.pod.name contains "98166d"
   output: >
-    Connection with mysql successfully established detected (zh_msg=通过主动防御检测到使用ssh建立连接,rule_type=Privilege_Escalation,fd.name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,fd.sport=%fd.sport)
+    Connection with mysql successfully established detected (zh_msg=通过主动防御检测到使用ssh建立连接,rule_type=Privilege_Escalation,fd.name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,fd.sport=%fd.sport,container_id=%container.id,container_name=%container.name)
   priority: ALERT
   tags: [Watson]
 
@@ -372,7 +372,7 @@
   condition: >
    (inbound_outbound) and fd.sport = 21 and k8s.pod.name contains "42cca6"
   output: >
-    Other containers establish new connections to the vsftpd (zh_msg=通过主动防御检测到与ftp通信,rule_type=Privilege_Escalation,fd.name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name)
+    Other containers establish new connections to the vsftpd (zh_msg=通过主动防御检测到与ftp通信,rule_type=Privilege_Escalation,fd.name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,container_id=%container.id,container_name=%container.name)
   priority: ALERT
   tags: [Watson]
 
@@ -392,7 +392,7 @@
   condition: >
    evt.type=write and evt.arg.data contains "OK LOGIN" and k8s.pod.name contains "42cca6"
   output: >
-    Connection establishment using ftp is detected (zh_msg=通过主动防御检测到使用ftp建立连接,rule_type=Privilege_Escalation,fd.name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,fd.sport=%fd.sport)
+    Connection establishment using ftp is detected (zh_msg=通过主动防御检测到使用ftp建立连接,rule_type=Privilege_Escalation,fd.name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,fd.sport=%fd.sport,container_id=%container.id,container_name=%container.name)
   priority: ALERT
   tags: [Watson]
 
@@ -421,7 +421,7 @@
   output: >
     Database-related program spawned process other than itself (zh_msg=SQL注入攻击后续：数据库服务生成非自身进程,rule_type=Execution,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,
     original_info=user=%user.name user_loginuid=%user.loginuid parent=%proc.pname
-    container_id=%container.id image=%container.image.repository)
+    container_id=%container.id container_name=%container.name image=%container.image.repository)
   priority: ERROR
   tags: [ATT&CK, process, database, mitre_execution]
 
@@ -470,7 +470,7 @@
     Shell spawned by untrusted binary (zh_msg=未受信任的二进制文件产生shell,rule_type=Execution,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type, webshell_name=%fd.name
     original_info=user=%user.name user_loginuid=%user.loginuid shell=%proc.name parent=%proc.pname
     gparent=%proc.aname[2] ggparent=%proc.aname[3]
-    aname[4]=%proc.aname[4] aname[5]=%proc.aname[5] aname[6]=%proc.aname[6] aname[7]=%proc.aname[7] container_id=%container.id image=%container.image.repository)
+    aname[4]=%proc.aname[4] aname[5]=%proc.aname[5] aname[6]=%proc.aname[6] aname[7]=%proc.aname[7] container_id=%container.id container_name=%container.name image=%container.image.repository)
   priority: WARNING
   tags: [ATT&CK, shell, mitre_execution]
 
@@ -494,7 +494,7 @@
   output: >
     A shell was spawned in a container with an attached terminal (zh_msg=容器里产生shell,rule_type=Execution,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,
     original_info=user=%user.name user_loginuid=%user.loginuid %container.info
-    shell=%proc.name parent=%proc.pname terminal=%proc.tty container_id=%container.id image=%container.image.repository)
+    shell=%proc.name parent=%proc.pname terminal=%proc.tty container_id=%container.id container_name=%container.name image=%container.image.repository)
   priority: WARNING
   tags: [ATT&CK, container, shell, mitre_execution]
 
@@ -594,7 +594,7 @@
   desc: Reverse shell through socket and dup
   condition: evt.type=dup and container and fd.num in (0, 1, 2) and fd.type in ("ipv4", "ipv6") and not k8s.pod.name contains "98166d" and not k8s.pod.name contains "42cca6"
   output: >
-    Reverse shell through socket and dup (zh_msg=容器内通过socket和dup反弹shell,rule_type=Execution,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name %container.info process=%proc.name parent=%proc.pname terminal=%proc.tty container_id=%container.id image=%container.image.repository fd.name=%fd.name fd.num=%fd.num fd.type=%fd.type fd.sip=%fd.sip)
+    Reverse shell through socket and dup (zh_msg=容器内通过socket和dup反弹shell,rule_type=Execution,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name %container.info process=%proc.name parent=%proc.pname terminal=%proc.tty container_id=%container.id container_name=%container.name image=%container.image.repository fd.name=%fd.name fd.num=%fd.num fd.type=%fd.type fd.sip=%fd.sip)
   priority: ALERT
   tags: [ATT&CK, container, shell, mitre_execution]
 
@@ -643,7 +643,7 @@
   output: >
     Running malicious tools in the container (zh_msg=容器内运行恶意工具,rule_type=Execution,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,
     original_info=user=%user.name user_loginuid=%user.loginuid %container.info
-    shell=%proc.name parent=%proc.pname terminal=%proc.tty container_id=%container.id image=%container.image.repository)
+    shell=%proc.name parent=%proc.pname terminal=%proc.tty container_id=%container.id container_name=%container.name image=%container.image.repository)
   priority: ALERT
   tags: [ATT&CK, container, shell, mitre_execution, strict]
 
@@ -701,7 +701,7 @@
     not chage_list and
     not user_known_user_management_activities
   output: >
-    run user mgmt binaries (zh_msg=运行管理用户、密码或权限的命令,rule_type=Persistence,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid parent=%proc.pname gparent=%proc.aname[2] ggparent=%proc.aname[3] gggparent=%proc.aname[4])
+    run user mgmt binaries (zh_msg=运行管理用户、密码或权限的命令,rule_type=Persistence,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid parent=%proc.pname gparent=%proc.aname[2] ggparent=%proc.aname[3] gggparent=%proc.aname[4] container_id=%container.id,container_name=%container.name)
   priority: WARNING
   tags: [ATT&CK, host, users, mitre_persistence]
 
@@ -749,7 +749,7 @@
     and not user_known_update_package_registry
   output: >
     Repository files get updated (zh_msg=更新软件源,rule_type=Persistence,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,
-    original_info=user=%user.name user_loginuid=%user.loginuid file=%fd.name newpath=%evt.arg.newpath container_id=%container.id image=%container.image.repository)
+    original_info=user=%user.name user_loginuid=%user.loginuid file=%fd.name newpath=%evt.arg.newpath container_id=%container.id container_name=%container.name image=%container.image.repository)
   priority: WARNING
   tags: [ATT&CK, filesystem, mitre_persistence]
 
@@ -774,7 +774,7 @@
     and not user_known_write_rpm_database_activities
   output: >
     Rpm database opened for writing by a non-rpm program (zh_msg=写入rpm数据库,rule_type=Persistence,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,
-    original_info=file=%fd.name parent=%proc.pname container_id=%container.id image=%container.image.repository)
+    original_info=file=%fd.name parent=%proc.pname container_id=%container.id container_name=%container.name image=%container.image.repository)
   priority: WARNING
   tags: [ATT&CK, filesystem, software_mgmt, mitre_persistence]
 
@@ -791,7 +791,7 @@
   desc: Detect process running to clear bulk data from disk
   condition: spawned_process and clear_data_procs and not user_known_remove_data_activities
   output: >
-    Bulk data has been removed from disk (zh_msg=大量数据从硬盘删除,rule_type=Persistence,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid file=%fd.name container_id=%container.id image=%container.image.repository)
+    Bulk data has been removed from disk (zh_msg=大量数据从硬盘删除,rule_type=Persistence,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid file=%fd.name container_id=%container.id container_name=%container.name image=%container.image.repository)
   priority: WARNING
   tags: [ATT&CK, process, mitre_persistence]
 
@@ -815,7 +815,7 @@
     and not exe_running_docker_save
   output: >
     a shell configuration file has been modified (zh_msg=修改shell配置文件,rule_type=Persistence,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,
-    original_info=user=%user.name user_loginuid=%user.loginuid file=%fd.name container_id=%container.id image=%container.image.repository)
+    original_info=user=%user.name user_loginuid=%user.loginuid file=%fd.name container_id=%container.id container_name=%container.name image=%container.image.repository)
   priority: WARNING
   tags: [ATT&CK, file, mitre_persistence]
 
@@ -839,7 +839,7 @@
     and not user_known_create_files_below_dev_activities
   output: >
     File created below /dev by untrusted program (zh_msg=在/dev目录下创建文件,rule_type=Persistence,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,
-    original_info=user=%user.name user_loginuid=%user.loginuid file=%fd.name container_id=%container.id image=%container.image.repository)
+    original_info=user=%user.name user_loginuid=%user.loginuid file=%fd.name container_id=%container.id container_name=%container.name image=%container.image.repository)
   priority: WARNING
   tags: [ATT&CK, filesystem, mitre_persistence]
 
@@ -857,7 +857,7 @@
   condition: write_etc_common and not (tensorsec_namespace and k8s.pod.name contains "holmes")
   output: >
     File below /etc opened for writing (zh_msg=尝试修改/etc路径下的文件,rule_type=Persistence,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,
-    original_info=user=%user.name user_loginuid=%user.loginuid parent=%proc.pname file=%fd.name program=%proc.name gparent=%proc.aname[2] ggparent=%proc.aname[3] gggparent=%proc.aname[4] container_id=%container.id image=%container.image.repository)
+    original_info=user=%user.name user_loginuid=%user.loginuid parent=%proc.pname file=%fd.name program=%proc.name gparent=%proc.aname[2] ggparent=%proc.aname[3] gggparent=%proc.aname[4] container_id=%container.id container_name=%container.name image=%container.image.repository)
   priority: WARNING
   tags: [ATT&CK, filesystem, mitre_persistence]
 
@@ -910,7 +910,7 @@
   output: >
     File below a monitored directory opened for writing (zh_msg=尝试修改受监控的目录下的文件,rule_type=Persistence,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,
     original_info=user=%user.name user_loginuid=%user.loginuid
-    file=%fd.name parent=%proc.pname gparent=%proc.aname[2] container_id=%container.id image=%container.image.repository)
+    file=%fd.name parent=%proc.pname gparent=%proc.aname[2] container_id=%container.id container_name=%container.name image=%container.image.repository)
   priority: ERROR
   tags: [ATT&CK, filesystem, mitre_persistence]
 
@@ -935,7 +935,7 @@
   output: >
     File below a known binary directory opened for writing (zh_msg=尝试修改二进制目录下面的文件,rule_type=Persistence,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,
     original_info=user=%user.name user_loginuid=%user.loginuid
-    file=%fd.name parent=%proc.pname gparent=%proc.aname[2] container_id=%container.id image=%container.image.repository)
+    file=%fd.name parent=%proc.pname gparent=%proc.aname[2] container_id=%container.id container_name=%container.name image=%container.image.repository)
   priority: ERROR
   tags: [ATT&CK, filesystem, mitre_persistence]
 
@@ -954,7 +954,7 @@
   output: >
     File below known binary directory renamed/removed (zh_msg=二进制文件目录下文件被重命名,rule_type=Persistence,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,
     original_info=user=%user.name user_loginuid=%user.loginuid
-    operation=%evt.type file=%fd.name %evt.args container_id=%container.id image=%container.image.repository)
+    operation=%evt.type file=%fd.name %evt.args container_id=%container.id container_name=%container.name image=%container.image.repository)
   priority: ERROR
   tags: [ATT&CK, filesystem, mitre_persistence]
 
@@ -978,12 +978,9 @@
   output: >
     Directory below known binary directory created (zh_msg=尝试在二进制文件路径下创建目录,rule_type=Persistence,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,
     original_info=user=%user.name user_loginuid=%user.loginuid
-    directory=%evt.arg.path container_id=%container.id image=%container.image.repository)
+    directory=%evt.arg.path container_id=%container.id container_name=%container.name image=%container.image.repository)
   priority: ERROR
   tags: [ATT&CK, filesystem, mitre_persistence]
-
-- macro: tensorsec_namespace
-  condition: k8s.ns.name = tensorsec
 
 ##attck_rule_type=Privilege_Escalation
 - rule: Launch Privileged Container
@@ -1004,7 +1001,7 @@
     and not user_privileged_containers
     and not tensorsec_namespace
   output: >
-    Privileged container started (zh_msg=特权容器启动,rule_type=Privilege_Escalation,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid %container.info image=%container.image.repository:%container.image.tag)
+    Privileged container started (zh_msg=特权容器启动,rule_type=Privilege_Escalation,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid %container.info image=%container.image.repository:%container.image.tag,container_id=%container.id,container_name=%container.name)
   priority: INFO
   tags: [ATT&CK, container, cis, mitre_privilege_escalation, mitre_lateral_movement]
 
@@ -1034,7 +1031,7 @@
     and not user_known_non_sudo_setuid_conditions
   output: >
     Unexpected setuid call by non-sudo, non-root program (zh_msg=非sudo、非root程序意外调用setuid,rule_type=Privilege_Escalation,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid cur_uid=%user.uid parent=%proc.pname
-    uid=%evt.arg.uid container_id=%container.id image=%container.image.repository)
+    uid=%evt.arg.uid container_id=%container.id container_name=%container.name image=%container.image.repository)
   priority: NOTICE
   tags: [ATT&CK, users, mitre_privilege_escalation]
 
@@ -1051,7 +1048,7 @@
   desc: an attempt to run interactive commands by a system (i.e. non-login) user
   condition: spawned_process and system_users and interactive and not user_known_system_user_login
   output: >
-    System user ran an interactive command (zh_msg=未登录用户试图运行交互式命令,rule_type=Privilege_Escalation,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid container_id=%container.id image=%container.image.repository)
+    System user ran an interactive command (zh_msg=未登录用户试图运行交互式命令,rule_type=Privilege_Escalation,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid container_id=%container.id container_name=%container.name image=%container.image.repository)
   priority: WARNING
   tags: [ATT&CK, users, mitre_remote_access_tools]
 
@@ -1096,7 +1093,7 @@
        not var_lib_docker_filepath and
        not proc.name in (docker_binaries)
   output: >
-    Shell history had been deleted or renamed (zh_msg=删除或重命名shell历史记录,rule_type=Privilege_Escalation,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid type=%evt.type fd.name=%fd.name name=%evt.arg.name path=%evt.arg.path oldpath=%evt.arg.oldpath %container.info)
+    Shell history had been deleted or renamed (zh_msg=删除或重命名shell历史记录,rule_type=Privilege_Escalation,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid type=%evt.type fd.name=%fd.name name=%evt.arg.name path=%evt.arg.path oldpath=%evt.arg.oldpath %container.info container_id=%container.id,container_name=%container.name)
   priority: ERROR
   tags: [ATT&CK, process, mitre_defense_evasion]
 
@@ -1115,7 +1112,7 @@
     (evt.type=chroot and container and proc.name !=sshd and proc.name !=vsftpd)
     and not (tensorsec_namespace and (k8s.pod.name contains "-host-" or k8s.pod.name contains "-docker-" or k8s.pod.name contains "-kube-"))
   output: >
-    container escape to access host system (zh_msg=容器内挂载主机目录逃逸,rule_type=Privilege_Escalation,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name)
+    container escape to access host system (zh_msg=容器内挂载主机目录逃逸,rule_type=Privilege_Escalation,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,container_id=%container.id,container_name=%container.name)
   priority: ALERT
   tags: [ATT&CK]
 
@@ -1133,7 +1130,7 @@
   condition: >
     open_write and container and fd.name contains /sys/kernel/core_pattern
   output: >
-    container escape to access host system (zh_msg=容器内通过procfs逃逸,rule_type=Privilege_Escalation,fd.name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type)
+    container escape to access host system (zh_msg=容器内通过procfs逃逸,rule_type=Privilege_Escalation,fd.name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,container_id=%container.id,container_name=%container.name)
   priority: ALERT
   tags: [ATT&CK]
 
@@ -1151,7 +1148,7 @@
   condition: >
    open_write and container and proc.name=debugfs
   output: >
-    container escape to access host system (zh_msg=容器内通过debugfs逃逸,rule_type=Privilege_Escalation,fd.name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type)
+    container escape to access host system (zh_msg=容器内通过debugfs逃逸,rule_type=Privilege_Escalation,fd.name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,container_id=%container.id,container_name=%container.name)
   priority: ALERT
   tags: [ATT&CK]
 
@@ -1169,7 +1166,7 @@
   condition: >
    evt.type=mount and evt.arg.type = "cgroup" and container and user.uid=0
   output: >
-    container escape to access host system (zh_msg=容器内挂载cgroup,rule_type=Privilege_Escalation,fd.name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type)
+    container escape to access host system (zh_msg=容器内挂载cgroup,rule_type=Privilege_Escalation,fd.name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,container_id=%container.id,container_name=%container.name)
   priority: ALERT
   tags: [ATT&CK]
 
@@ -1189,7 +1186,7 @@
   desc: Linux sudo Privilege_Escalation
   condition: (evt.type=execve and container and proc.name in (sensitive_cmd))
   output: >
-    Linux sudo Privilege_Escalation (zh_msg=CVE-2021-3156(Linux sudo 权限提升),rule_type=Privilege_Escalation,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type)
+    Linux sudo Privilege_Escalation (zh_msg=CVE-2021-3156(Linux sudo 权限提升),rule_type=Privilege_Escalation,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,container_id=%container.id,container_name=%container.name)
   priority: ALERT
   tags: [ATT&CK]
 
@@ -1207,7 +1204,7 @@
   condition: >
     open_read and (fd.name=/proc/self/exe or fd.name startswith /proc/self/fd) and not docker_procs and container and not (tensorsec_namespace and (k8s.pod.name contains "-host-" or k8s.pod.name contains "-docker-" or k8s.pod.name contains "-kube-" or k8s.pod.name contains "-holmes-" or k8s.pod.name contains "-webhook-"))
   output: >
-    %fd.name is open to write by process (zh_msg=CVE-2019-5736(修改容器入口),rule_type=Privilege_Escalation,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=%proc.name %proc.exeline)
+    %fd.name is open to write by process (zh_msg=CVE-2019-5736(修改容器入口),rule_type=Privilege_Escalation,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=%proc.name %proc.exeline,container_id=%container.id,container_name=%container.name)
   priority: ALERT
   tags: [ATT&CK]
 
@@ -1227,7 +1224,7 @@
     proc.name="sudo" and
     (proc.cmdline contains "-u#-1" or proc.cmdline contains "-u#4294967295")
   output: >
-    (zh_msg=CVE-2019-14287(sudo有可能绕过以用户身份运行的限制),rule_type=Privilege_Escalation,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name container=%container.info)
+    (zh_msg=CVE-2019-14287(sudo有可能绕过以用户身份运行的限制),rule_type=Privilege_Escalation,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name container=%container.info,container_id=%container.id,container_name=%container.name)
   priority: ALERT
   tags: [ATT&CK, filesystem, mitre_privilege_escalation]
 
@@ -1245,7 +1242,7 @@
   condition: >
     evt.type = unshare and proc.name=unshare and proc.args contains r and not proc.args contains "mount" and container
   output: >
-    in Linux Kernel Can Allow Container Escape in Kubernetes Linux (zh_msg=CVE-2022-0185：Linux_kernel_bug可实现Kubernetes容器逃逸,rule_type=Privilege_Escalation,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name container=%container.info)
+    in Linux Kernel Can Allow Container Escape in Kubernetes Linux (zh_msg=CVE-2022-0185：Linux_kernel_bug可实现Kubernetes容器逃逸,rule_type=Privilege_Escalation,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name container=%container.info container_id=%container.id,container_name=%container.name)
   priority: ALERT
   tags: [ATT&CK, filesystem, mitre_privilege_escalation]
 
@@ -1263,7 +1260,7 @@
   condition: >
     spawned_process and user.uid != 0 and proc.name=pkexec and proc.args = ''
   output: >
-    Polkit Local Privilege Escalation Vulnerability (zh_msg=CVE-2021-4034：Polkit本地提权漏洞,rule_type=Privilege_Escalation,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type, container=%container.info)
+    Polkit Local Privilege Escalation Vulnerability (zh_msg=CVE-2021-4034：Polkit本地提权漏洞,rule_type=Privilege_Escalation,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,container=%container.info,container_id=%container.id,container_name=%container.name)
   priority: ALERT
   tags: [ATT&CK, filesystem, mitre_privilege_escalation]
 
@@ -1281,7 +1278,7 @@
   condition: >
     (evt.type = stat and evt.arg.path contains "nmap.xsl" and user.uid != 0 and ((proc.cmdline contains "interactive") or (proc.cmdline contains "script") or (proc.cmdline contains "-oG"))) and not tensorsec_namespace
   output: >
-    Linux Privilege Escalation using nmap suid binaries (zh_msg=尝试利用nmap_suid进行linux提权,rule_type=Privilege_Escalation,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type, container=%container.info)
+    Linux Privilege Escalation using nmap suid binaries (zh_msg=尝试利用nmap_suid进行linux提权,rule_type=Privilege_Escalation,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,container=%container.info,container_id=%container.id,container_name=%container.name)
   priority: ALERT
   tags: [ATT&CK, filesystem, mitre_privilege_escalation]
 
@@ -1302,7 +1299,7 @@
     ((proc.cmdline contains "-exec" or proc.cmdline contains "-ok") and proc.cmdline contains ";")
     ) and not tensorsec_namespace
   output: >
-    Linux Privilege Escalation using find suid binaries (zh_msg=尝试利用find_suid进行linux提权,rule_type=Privilege_Escalation,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type, container=%container.info)
+    Linux Privilege Escalation using find suid binaries (zh_msg=尝试利用find_suid进行linux提权,rule_type=Privilege_Escalation,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,container=%container.info,container_id=%container.id,container_name=%container.name)
   priority: ALERT
   tags: [ATT&CK, filesystem, mitre_privilege_escalation]
 
@@ -1320,7 +1317,7 @@
   condition: >
     spawned_process and evt.arg.exe = "/bin/sh" and user.uid != 0 and proc.pname contains vim
   output: >
-    Linux Privilege Escalation using vim suid binaries (zh_msg=尝试利用vim_suid进行linux提权,rule_type=Privilege_Escalation,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type, container=%container.info)
+    Linux Privilege Escalation using vim suid binaries (zh_msg=尝试利用vim_suid进行linux提权,rule_type=Privilege_Escalation,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type, container=%container.info,container_id=%container.id,container_name=%container.name)
   priority: ALERT
   tags: [ATT&CK, filesystem, mitre_privilege_escalation]
 
@@ -1338,7 +1335,7 @@
   condition: >
     evt.type = read and evt.arg.data contains "/etc/inputrc - global inputrc for libreadline" and user.uid != 0 and (proc.cmdline contains "-p" or proc.cmdline contains "-cp")
   output: >
-    Linux Privilege Escalation using bash suid binaries (zh_msg=尝试利用bash_suid进行linux提权,rule_type=Privilege_Escalation,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type, container=%container.info)
+    Linux Privilege Escalation using bash suid binaries (zh_msg=尝试利用bash_suid进行linux提权,rule_type=Privilege_Escalation,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,container=%container.info,container_id=%container.id,container_name=%container.name)
   priority: ALERT
   tags: [ATT&CK, filesystem, mitre_privilege_escalation]
 
@@ -1356,7 +1353,7 @@
   condition: >
     evt.type = write and sensitive_files and user.uid != 0
   output: >
-    Linux Privilege Escalation by modifying sensitive files with suid binaries (zh_msg=尝试使用suid二进制修改敏感文件进行linux提权,rule_type=Privilege_Escalation,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type, container=%container.info)
+    Linux Privilege Escalation by modifying sensitive files with suid binaries (zh_msg=尝试使用suid二进制修改敏感文件进行linux提权,rule_type=Privilege_Escalation,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,container=%container.info,container_id=%container.id,container_name=%container.name)
   priority: ALERT
   tags: [ATT&CK, filesystem, mitre_privilege_escalation]
 
@@ -1374,7 +1371,7 @@
   condition: >
     open_write and container and fd.name endswith release_agent and user.uid=0 
   output: >
-    Detect release_agent File Container Escapes(zh_msg=尝试修改release_agent进行Linux_Cgroup容器逃逸,rule_type=Privilege_Escalation,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type, container=%container.info)
+    Detect release_agent File Container Escapes(zh_msg=尝试修改release_agent进行Linux_Cgroup容器逃逸,rule_type=Privilege_Escalation,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type, container=%container.info,container_id=%container.id,container_name=%container.name)
   priority: CRITICAL
   tags: [ATT&CK, filesystem, mitre_privilege_escalation]
 
@@ -1397,7 +1394,7 @@
     not trusted_logging_images and
     not allowed_clear_log_files
   output: >
-    Log files were tampered (zh_msg=日志文件被篡改,rule_type=Defense_Evasion,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid file=%fd.name container_id=%container.id image=%container.image.repository)
+    Log files were tampered (zh_msg=日志文件被篡改,rule_type=Defense_Evasion,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid file=%fd.name container_id=%container.id container_name=%container.name image=%container.image.repository)
   priority: WARNING
   tags: [ATT&CK, file, mitre_defense_evasion]
 
@@ -1416,7 +1413,7 @@
     ((spawned_process and proc.name in (shred, rm, mv) and proc.args contains "bash_history") or
      (open_write and fd.name contains "bash_history" and evt.arg.flags contains "O_TRUNC"))
   output: >
-    Shell history had been deleted or renamed (zh_msg=bash历史文件被删除,rule_type=Defense_Evasion,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid type=%evt.type fd.name=%fd.name name=%evt.arg.name path=%evt.arg.path oldpath=%evt.arg.oldpath %container.info)
+    Shell history had been deleted or renamed (zh_msg=bash历史文件被删除,rule_type=Defense_Evasion,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid type=%evt.type fd.name=%fd.name name=%evt.arg.name path=%evt.arg.path oldpath=%evt.arg.oldpath %container.info,container_id=%container.id,container_name=%container.name)
   priority: WARNING
   tags: [ATT&CK, process, mitre_defense_evasion]
 
@@ -1435,7 +1432,7 @@
     create_symlink
     and (evt.arg.target in (sensitive_file_names) or evt.arg.target in (sensitive_directory_names) or link_sensitive_files)
   output: >
-    Symlinks created over sensitive files (zh_msg=通过敏感文件创建符号链接,rule_type=Defense_Evasion,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid target=%evt.arg.target linkpath=%evt.arg.linkpath parent_process=%proc.pname)
+    Symlinks created over sensitive files (zh_msg=通过敏感文件创建符号链接,rule_type=Defense_Evasion,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid target=%evt.arg.target linkpath=%evt.arg.linkpath parent_process=%proc.pname,container_id=%container.id,container_name=%container.name)
   priority: ERROR
   tags: [ATT&CK, file, mitre_exfiltration]
 
@@ -1455,7 +1452,7 @@
   condition: >
     open_read and container and ((proc.name in (show_information_binaries)) and
     (fd.filename in (sensitive_paths) or fd.name in (sensitive_paths) or fd.directory in (sensitive_paths)) or (proc.name in (show_env_binaries)))  and not tensorsec_namespace
-  output: container shell gaining environment info (zh_msg=容器内获取敏感信息,rule_type=Credential_Access,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,fd.name=%fd.name)
+  output: container shell gaining environment info (zh_msg=容器内获取敏感信息,rule_type=Credential_Access,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,fd.name=%fd.name,container_id=%container.id,container_name=%container.name)
   priority: WARNING
   tags: [ATT&CK]
 
@@ -1476,7 +1473,7 @@
   condition: sensitive_files and open_read and server_procs and not proc_is_new and proc.name!="sshd" and not user_known_read_sensitive_files_activities and not tensorsec_namespace
   output: >
     Sensitive file opened for reading by trusted program after startup (zh_msg=敏感文件在启动后被受信任的程序读取,rule_type=Credential_Access,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid
-    parent=%proc.pname file=%fd.name parent=%proc.pname gparent=%proc.aname[2] container_id=%container.id image=%container.image.repository)
+    parent=%proc.pname file=%fd.name parent=%proc.pname gparent=%proc.aname[2] container_id=%container.id container_name=%container.name image=%container.image.repository)
   priority: WARNING
   tags: [ATT&CK, filesystem, mitre_credential_access]
 
@@ -1499,7 +1496,7 @@
     )
   output: >
     Grep private keys or passwords activities found
-    (zh_msg=查找私钥或密码,rule_type=Credential_Access,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid container_id=%container.id container_name=%container.name
+    (zh_msg=查找私钥或密码,rule_type=Credential_Access,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid container_id=%container.id container_name=%container.name 
     image=%container.image.repository:%container.image.tag)
   priority: ERROR
   tags: [ATT&CK, process, mitre_credential_access]
@@ -1547,7 +1544,7 @@
     and not tensorsec_namespace
   output: >
     Sensitive file opened for reading by non-trusted program (zh_msg=未受信任的程序试图读取敏感文件,rule_type=Discovery,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid program=%proc.name
-    file=%fd.name parent=%proc.pname gparent=%proc.aname[2] ggparent=%proc.aname[3] gggparent=%proc.aname[4] container_id=%container.id image=%container.image.repository)
+    file=%fd.name parent=%proc.pname gparent=%proc.aname[2] ggparent=%proc.aname[3] gggparent=%proc.aname[4] container_id=%container.id container_name=%container.name image=%container.image.repository)
   priority: WARNING
   tags: [ATT&CK, filesystem, mitre_credential_access, mitre_discovery]
 
@@ -1586,7 +1583,7 @@
      fd.name in (shell_config_files) or
      fd.directory in (shell_config_directories))
   output: >
-    a shell configuration file was read by a non-shell program (zh_msg=非shell程序读取shell配置文件,rule_type=Discovery,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid file=%fd.name container_id=%container.id image=%container.image.repository)
+    a shell configuration file was read by a non-shell program (zh_msg=非shell程序读取shell配置文件,rule_type=Discovery,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid file=%fd.name container_id=%container.id container_name=%container.name image=%container.image.repository)
   priority: WARNING
   tags: [ATT&CK, file, mitre_discovery]
 
@@ -1609,7 +1606,7 @@
      not proc.name in (ssh_binaries))
   output: >
     ssh-related file/directory read by non-ssh program (zh_msg=非ssh用户查看ssh信息,rule_type=Discovery,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid
-    file=%fd.name parent=%proc.pname container_id=%container.id image=%container.image.repository)
+    file=%fd.name parent=%proc.pname container_id=%container.id container_name=%container.name image=%container.image.repository)
   priority: ERROR
   tags: [ATT&CK, filesystem, mitre_discovery]
 
@@ -1634,7 +1631,7 @@
     not user_known_contact_k8s_api_server_activities and 
     not tensorsec_namespace
   output: >
-    Unexpected connection to K8s API Server from container (zh_msg=尝试从容器内连接到K8s API服务器,rule_type=Discovery,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=%container.info image=%container.image.repository:%container.image.tag connection=%fd.name)
+    Unexpected connection to K8s API Server from container (zh_msg=尝试从容器内连接到K8s API服务器,rule_type=Discovery,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=%container.info image=%container.image.repository:%container.image.tag connection=%fd.name,container_id=%container.id,container_name=%container.name)
   priority: NOTICE
   tags: [ATT&CK, network, k8s, container, mitre_discovery]
 
@@ -1656,7 +1653,7 @@
     network_tool_procs and
     not user_known_network_tool_activities
   output: >
-    Network tool launched on host (zh_msg=在主机中启动可疑的网络工具,rule_type=Discovery,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid parent_process=%proc.pname)
+    Network tool launched on host (zh_msg=在主机中启动可疑的网络工具,rule_type=Discovery,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid parent_process=%proc.pname,container_id=%container.id,container_name=%container.name)
   priority: ERROR
   tags: [ATT&CK, network, process, mitre_discovery, mitre_exfiltration]
 
@@ -1676,7 +1673,7 @@
   output: >
     View process information in the container (zh_msg=容器内查看进程信息,rule_type=Execution,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,
     original_info=user=%user.name user_loginuid=%user.loginuid %container.info
-    shell=%proc.name parent=%proc.pname terminal=%proc.tty container_id=%container.id image=%container.image.repository)
+    shell=%proc.name parent=%proc.pname terminal=%proc.tty container_id=%container.id container_name=%container.name image=%container.image.repository)
   priority: WARNING
   tags: [ATT&CK, container, shell, mitre_execution, strict]
 
@@ -1693,7 +1690,7 @@
   desc: View disk information in the container
   condition: >
     open_read and container and (proc.cmdline contains "fdisk -l" or (fd.name startswith "/sys/dev/block/" and evt.arg.flags contains O_RDONLY))
-  output: View disk information inside the container (zh_msg=容器内查看磁盘信息,rule_type=Discovery,fd.name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type)
+  output: View disk information inside the container (zh_msg=容器内查看磁盘信息,rule_type=Discovery,fd.name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,container_id=%container.id,container_name=%container.name)
   priority: WARNING
   tags: [ATT&CK]
 
@@ -1710,7 +1707,7 @@
   desc: Scanning web directories in the container
   condition: >
     open_read and container and (fd.directory contains "www" or fd.directory contains "apache" or fd.directory contains "tomcat" or fd.directory contains "web" or fd.directory contains "http") and (fd.name contains ".jsp" or fd.name contains ".php" or fd.name contains ".config" or fd.name contains ".bak" or fd.name contains ".old" or fd.name contains ".log") and not k8s.pod.name contains "holmes"
-  output: Scanning web directories in the container (zh_msg=容器内扫描web目录,fd.name=%fd.name,rule_type=Discovery,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type)
+  output: Scanning web directories in the container (zh_msg=容器内扫描web目录,fd.name=%fd.name,rule_type=Discovery,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,container_id=%container.id,container_name=%container.name)
   priority: WARNING
   tags: [ATT&CK]
 
@@ -1738,7 +1735,7 @@
     evt.arg.data contains "cp" or
     evt.arg.data contains "awk"
     )
-  output: Find files with suid privilege by non-root users (zh_msg=非root用户查找含有suid权限的文件,fd.name=%fd.name,rule_type=Discovery,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type)
+  output: Find files with suid privilege by non-root users (zh_msg=非root用户查找含有suid权限的文件,fd.name=%fd.name,rule_type=Discovery,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,container_id=%container.id,container_name=%container.name)
   priority: WARNING
   tags: [ATT&CK]
 
@@ -1763,7 +1760,7 @@
     and not user_sensitive_mount_containers
     and not tensorsec_namespace
   output: >
-    Container with sensitive mount started (zh_msg=挂载敏感路径容器启动,rule_type=Lateral_Movement,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid %container.info image=%container.image.repository:%container.image.tag mounts=%container.mounts)
+    Container with sensitive mount started (zh_msg=挂载敏感路径容器启动,rule_type=Lateral_Movement,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid %container.info image=%container.image.repository:%container.image.tag mounts=%container.mounts,container_id=%container.id,container_name=%container.name)
   priority: INFO
   tags: [ATT&CK, container, cis, mitre_lateral_movement]
 
@@ -1802,7 +1799,7 @@
     and not proc.cmdline contains 'ns-mnt'
   output: >
     Namespace change (setns) by unexpected program (zh_msg=更改线程命名空间;通过调用setns尝试更改程序/线程的命名空间,rule_type=Lateral_Movement,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid
-    parent=%proc.pname %container.info container_id=%container.id image=%container.image.repository:%container.image.tag)
+    parent=%proc.pname %container.info container_id=%container.id container_name=%container.name image=%container.image.repository:%container.image.tag)
   priority: NOTICE
   tags: [ATT&CK, process, mitre_privilege_escalation, mitre_lateral_movement]
 
@@ -1819,7 +1816,7 @@
   desc: Detect a k8s client tool executed inside a container
   condition: spawned_process and container and not user_known_k8s_client_container_parens and proc.name in (k8s_client_binaries) and not tensorsec_namespace
   output: >
-    Docker or kubernetes client executed in container (zh_msg=容器中使用k8s相关二进制程序,rule_type=Lateral_Movement,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid %container.info parent=%proc.pname image=%container.image.repository:%container.image.tag)
+    Docker or kubernetes client executed in container (zh_msg=容器中使用k8s相关二进制程序,rule_type=Lateral_Movement,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid %container.info parent=%proc.pname image=%container.image.repository:%container.image.tag,container_id=%container.id,container_name=%container.name)
   priority: WARNING
   tags: [ATT&CK, container, mitre_execution]
 
@@ -1839,7 +1836,7 @@
   output: >
     Container started and not in allowed list (zh_msg=不允许列表中的容器已启动,rule_type=Lateral_Movement,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid %container.info image=%container.image.repository:%container.image.tag)
   priority: WARNING
-  tags: [ATT&CK, container, mitre_lateral_movement]
+  tags: [ATT&CK, container, mitre_lateral_movement,container_id=%container.id,container_name=%container.name]
 
 
 
@@ -1863,7 +1860,7 @@
     and not user_expected_system_procs_network_activity_conditions
   output: >
     Known system binary sent/received network traffic
-    (zh_msg=网络流量中包含系统二进制,rule_type=Exfiltration,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid connection=%fd.name container_id=%container.id image=%container.image.repository)
+    (zh_msg=网络流量中包含系统二进制,rule_type=Exfiltration,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid connection=%fd.name container_id=%container.id container_name=%container.name image=%container.image.repository)
   priority: NOTICE
   tags: [ATT&CK, network, mitre_exfiltration]
 
@@ -1883,7 +1880,7 @@
      and interpreted_procs)
   output: >
     Interpreted program received/listened for network traffic
-    (zh_msg=有入站流量,rule_type=Exfiltration,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid connection=%fd.name container_id=%container.id image=%container.image.repository)
+    (zh_msg=有入站流量,rule_type=Exfiltration,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid connection=%fd.name container_id=%container.id container_name=%container.name image=%container.image.repository)
   priority: NOTICE
   tags: [ATT&CK, network, mitre_exfiltration]
 
@@ -1903,7 +1900,7 @@
      and interpreted_procs)
   output: >
     Interpreted program performed outgoing network connection
-    (zh_msg=有出站流量,rule_type=Exfiltration,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid connection=%fd.name container_id=%container.id image=%container.image.repository)
+    (zh_msg=有出站流量,rule_type=Exfiltration,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid connection=%fd.name container_id=%container.id container_name=%container.name image=%container.image.repository)
   priority: NOTICE
   tags: [ATT&CK, network, mitre_exfiltration]
 
@@ -1923,7 +1920,7 @@
     ((fd.sip in (allowed_outbound_destination_ipaddrs)) or
      (fd.snet in (allowed_outbound_destination_networks)) or
      (fd.sip.name in (allowed_outbound_destination_domains)))
-  output: Disallowed outbound connection destination (zh_msg=检测到在允许的ips、网络或域名之外的对外流量,rule_type=Exfiltration,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=connection=%fd.name user=%user.name user_loginuid=%user.loginuid container_id=%container.id image=%container.image.repository)
+  output: Disallowed outbound connection destination (zh_msg=检测到在允许的ips、网络或域名之外的对外流量,rule_type=Exfiltration,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=connection=%fd.name user=%user.name user_loginuid=%user.loginuid container_id=%container.id container_name=%container.name image=%container.image.repository)
   priority: NOTICE
   tags: [ATT&CK, network]
 
@@ -1943,7 +1940,7 @@
   desc: Detect attempts to contact the EC2 Instance Metadata Service from a container
   condition: outbound and fd.sip="169.254.169.254" and container and not ec2_metadata_containers
   output: >
-    Outbound connection to EC2 instance metadata service (zh_msg=从容器获取EC2实例元数据,rule_type=Exfiltration,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=connection=%fd.name %container.info image=%container.image.repository:%container.image.tag)
+    Outbound connection to EC2 instance metadata service (zh_msg=从容器获取EC2实例元数据,rule_type=Exfiltration,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=connection=%fd.name %container.info image=%container.image.repository:%container.image.tag,container_id=%container.id,container_name=%container.name)
   priority: NOTICE
   tags: [ATT&CK, network, aws, container, mitre_discovery]
 
@@ -1962,7 +1959,7 @@
   desc: Detect attempts to contact the Cloud Instance Metadata Service from a container
   condition: outbound and fd.sip="169.254.169.254" and container and consider_metadata_access and not user_known_metadata_access
   output: >
-    Outbound connection to cloud instance metadata service (zh_msg=容器内与云元数据服务通信,rule_type=Exfiltration,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=connection=%fd.name %container.info image=%container.image.repository:%container.image.tag)
+    Outbound connection to cloud instance metadata service (zh_msg=容器内与云元数据服务通信,rule_type=Exfiltration,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=connection=%fd.name %container.info image=%container.image.repository:%container.image.tag,container_id=%container.id,container_name=%container.name)
   priority: NOTICE
   tags: [ATT&CK, network, container, mitre_discovery]
 
@@ -1984,7 +1981,7 @@
     proc.env icontains HTTP_PROXY
   output: >
     Program run with disallowed HTTP_PROXY environment variable
-    (zh_msg=尝试运行带有不允许的HTTP_PROXY环境变量的程序,rule_type=Exfiltration,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid env=%proc.env parent=%proc.pname container_id=%container.id image=%container.image.repository)
+    (zh_msg=尝试运行带有不允许的HTTP_PROXY环境变量的程序,rule_type=Exfiltration,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid env=%proc.env parent=%proc.pname container_id=%container.id container_name=%container.name image=%container.image.repository)
   priority: NOTICE
   tags: [ATT&CK, host, users]
 
@@ -2000,7 +1997,7 @@
       value: "使用免疫防御训练应用，使用微隔离阻拦流量，限制敏感文件和命令的用户权限。"
   desc: Detect attempts to use K8s NodePorts from a container
   condition: (inbound_outbound) and fd.sport >= 30000 and fd.sport <= 32767 and container and not nodeport_containers
-  output: Unexpected K8s NodePort Connection (zh_msg=容器内与NodePort建立连接,rule_type=Exfiltration,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=connection=%fd.name container_id=%container.id image=%container.image.repository)
+  output: Unexpected K8s NodePort Connection (zh_msg=容器内与NodePort建立连接,rule_type=Exfiltration,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=connection=%fd.name container_id=%container.id container_name=%container.name image=%container.image.repository)
   priority: NOTICE
   tags: [ATT&CK, network, k8s, container, mitre_port_knocking]
 
@@ -2040,7 +2037,7 @@
   condition: (inbound_outbound) and do_unexpected_udp_check and fd.l4proto=udp and not expected_udp_traffic
   output: >
     Unexpected UDP Traffic Seen
-    (zh_msg=意外的udp连接,rule_type=Exfiltration,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid connection=%fd.name proto=%fd.l4proto evt=%evt.type %evt.args container_id=%container.id image=%container.image.repository)
+    (zh_msg=意外的udp连接,rule_type=Exfiltration,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid connection=%fd.name proto=%fd.l4proto evt=%evt.type %evt.args container_id=%container.id container_name=%container.name image=%container.image.repository)
   priority: NOTICE
   tags: [ATT&CK, network, mitre_exfiltration]
 
@@ -2077,7 +2074,7 @@
   condition: net_miner_pool and not trusted_images_query_miner_domain_dns
 #  enabled: false
   output: >
-    Outbound connection to IP/Port flagged by cryptoioc.ch (zh_msg=与cryptoioc.ch公开的IP/端口的连接,rule_type=Exfiltration,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=port=%fd.rport ip=%fd.rip container=%container.info image=%container.image.repository)
+    Outbound connection to IP/Port flagged by cryptoioc.ch (zh_msg=与cryptoioc.ch公开的IP/端口的连接,rule_type=Exfiltration,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=port=%fd.rport ip=%fd.rip container=%container.info image=%container.image.repository,container_id=%container.id,container_name=%container.name)
   priority: ALERT
   tags: [ATT&CK, network, mitre_execution, strict]
 
@@ -2094,7 +2091,7 @@
   desc: Miners typically specify the mining pool to connect to with a URI that begins with 'stratum+tcp'
   condition: spawned_process and (proc.cmdline contains "stratum+tcp" or proc.cmdline contains "stratum2+tcp" or proc.cmdline contains "stratum+ssl" or proc.cmdline contains "stratum2+ssl")
   output: >
-    Possible miner running (zh_msg=可能正在挖矿,rule_type=Exfiltration,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=container=%container.info image=%container.image.repository)
+    Possible miner running (zh_msg=可能正在挖矿,rule_type=Exfiltration,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=container=%container.info image=%container.image.repository,container_id=%container.id,container_name=%container.name)
   priority: ALERT
   tags: [ATT&CK, process, mitre_execution]
 
@@ -2129,7 +2126,7 @@
   condition: >
    interpreted_procs and evt.type=connect and not tensorsec_namespace
   output: >
-    Interpretative language detected scanning network (zh_msg=通过解释型语言探测网络,rule_type=Exfiltration,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid connection=%fd.name container_id=%container.id image=%container.image.repository)
+    Interpretative language detected scanning network (zh_msg=通过解释型语言探测网络,rule_type=Exfiltration,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid connection=%fd.name container_id=%container.id container_name=%container.name image=%container.image.repository)
   priority: WARNING
   tags: [ATT&CK]
 
@@ -2147,7 +2144,7 @@
   condition: >
    (inbound_outbound) and allowed_ssh_hosts and container
   output: >
-    Detected connection to container through ssh (zh_msg=检测到尝试通过ssh连接到容器,rule_type=Exfiltration,fd.name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name)
+    Detected connection to container through ssh (zh_msg=检测到尝试通过ssh连接到容器,rule_type=Exfiltration,fd.name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,container_id=%container.id,container_name=%container.name)
   priority: WARNING
   tags: [ATT&CK]
 
@@ -2164,7 +2161,7 @@
   desc: Detect any new ssh connection to a host other than those in an allowed group of hosts
   condition: (inbound_outbound) and ssh_port and not allowed_ssh_hosts
   output: >
-    Disallowed SSH Connection (zh_msg=检测到尝试通过ssh连接到主机,rule_type=Exfiltration,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=connection=%fd.name user=%user.name user_loginuid=%user.loginuid container_id=%container.id image=%container.image.repository)
+    Disallowed SSH Connection (zh_msg=检测到尝试通过ssh连接到主机,rule_type=Exfiltration,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=connection=%fd.name user=%user.name user_loginuid=%user.loginuid container_id=%container.id container_name=%container.name image=%container.image.repository)
   priority: NOTICE
   tags: [ATT&CK, network, mitre_remote_service]
 
@@ -2194,7 +2191,7 @@
 #    and not known_root_conditions
 #    and not user_known_write_root_conditions
 #    and not user_known_write_below_root_activities
-#  output: "File below / or /root opened for writing (zh_msg=在根目录下写;尝试直接在below/or/root写入任何文件,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid parent=%proc.pname file=%fd.name program=%proc.name container_id=%container.id image=%container.image.repository)"
+#  output: "File below / or /root opened for writing (zh_msg=在根目录下写;尝试直接在below/or/root写入任何文件,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid parent=%proc.pname file=%fd.name program=%proc.name container_id=%container.id container_name=%container.name image=%container.image.repository)"
 #  priority: ERROR
 #  tags: [filesystem, mitre_persistence]
 
@@ -2261,7 +2258,7 @@
 #   desc: Detect redirecting stdout/stdin to network connection in container (potential reverse shell).
 #   condition: evt.type=dup and evt.dir=> and container and fd.num in (0, 1, 2) and fd.type in ("ipv4", "ipv6") and not user_known_stand_streams_redirect_activities
 #   output: >
-#     Redirect stdout/stdin to network connection (zh_msg=将标准输出/标准输入重定向到容器中的网络连接;检测标准输出/标准输入重定向容器中的网络连接,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid %container.info process=%proc.name parent=%proc.pname terminal=%proc.tty container_id=%container.id image=%container.image.repository fd.name=%fd.name fd.num=%fd.num fd.type=%fd.type fd.sip=%fd.sip)
+#     Redirect stdout/stdin to network connection (zh_msg=将标准输出/标准输入重定向到容器中的网络连接;检测标准输出/标准输入重定向容器中的网络连接,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid %container.info process=%proc.name parent=%proc.pname terminal=%proc.tty container_id=%container.id container_name=%container.name image=%container.image.repository fd.name=%fd.name fd.num=%fd.num fd.type=%fd.type fd.sip=%fd.sip)
 #   priority: WARNING
 
 # - rule: Container Drift Detected (chmod)
@@ -2299,7 +2296,7 @@
 # - rule: Outbound Connection to C2 Servers
 #   desc: Detect outbound connection to command & control servers
 #   condition: outbound and fd.sip in (c2_server_ip_list)
-#   output: Outbound connection to C2 server (zh_msg=与C2服务器的出站连接;检测命令与控制服务器的出站连接,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=connection=%fd.name user=%user.name user_loginuid=%user.loginuid container_id=%container.id image=%container.image.repository)
+#   output: Outbound connection to C2 server (zh_msg=与C2服务器的出站连接;检测命令与控制服务器的出站连接,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=connection=%fd.name user=%user.name user_loginuid=%user.loginuid container_id=%container.id container_name=%container.name image=%container.image.repository)
 #   priority: WARNING
 #   tags: [network]
 
@@ -4558,3 +4555,6 @@
 
 - list: watson_id
   items: [51c1c6, 75fb1c, b0f328, 99a7ca, ddc305]
+
+- macro: tensorsec_namespace
+  condition: k8s.ns.name = tensorsec
