@@ -244,7 +244,12 @@ func (s *DataExportTask) Failure(ctx context.Context, id int64, msg string) erro
 
 }
 
-func MkdirIfNotExist(path string) error {
+func MkdirIfNotExist(path string, remove bool) error {
+	if remove {
+		// 先删除
+		_ = os.RemoveAll(path)
+	}
+
 	stat, err := os.Stat(path)
 	if err == nil {
 		if stat.IsDir() {
