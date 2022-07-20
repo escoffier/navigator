@@ -697,7 +697,7 @@ func (s *ScannerOrm) UpdateImage(ctx context.Context, where string, updater map[
 	if len(where) == 0 {
 		return fmt.Errorf("no where condition")
 	}
-	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*1)
+	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*3)
 	defer cancelFunc()
 
 	var err error
