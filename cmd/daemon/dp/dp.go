@@ -267,7 +267,7 @@ func initRunningContainerImagesWhiteList(rt container.Runtime, config *ConfigMan
 			imageInfo, err := wc.MakeWhiteListByOverLay(imageInspect)
 			scannedCount++
 			if err != nil {
-				logging.Get().Err(err).Msg("make whitelist failed")
+				logging.Get().Err(err).Str("imageID", c.ImageID).Msg("make whitelist failed")
 				return
 			}
 			for _, v := range digests {
