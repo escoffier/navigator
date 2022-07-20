@@ -168,7 +168,7 @@ func (scdb *ScannerDB) InsertToVuln(ctx context.Context, vuln *model.Vuln, image
 }
 
 func (scdb *ScannerDB) InsertToScanLayer(ctx context.Context, data *model.ScanLayer) error {
-	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*1)
+	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*3)
 	defer cancelFunc()
 	data.Serialize()
 	data.Deserialize()
