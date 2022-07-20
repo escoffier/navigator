@@ -2,6 +2,7 @@ package whitelist
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"io"
 	"io/fs"
@@ -202,15 +203,14 @@ func (wc *WhitelistCount) MakeWhiteListByOverLay(image types.ImageInspect) (imag
 	// FIXME: create a linear issue: try to update data structure to support local built image scanning at lingximo
 	if len(image.RepoDigests) == 0 {
 		logging.Get().Error().Msg("get image digest fail: local built image & no repo digest")
-		return imageInfo{}, nil
+		return imageInfo{}, errors.New("no image digest given")
 	}
 	arr := strings.Split(image.RepoDigests[0], "@")
 	if len(arr) != 2 {
 		logging.Get().Error().Str("digests: ", strings.Join(image.RepoDigests, ",")).Msg("get image digest fail")
-		return imageInfo{}, nil
+		return imageInfo{}, fmt.Errorf("image digest format error: %v", image.RepoDigests)
 	}
 	whiteListFileName := fmt.Sprintf(whiteListBackFileTemplate, arr[1])
-	logging.Get().Info().Msgf("file path: %v", whiteListFileName)
 	var whiteList []WhitelistFile
 	if isFile(whiteListFileName) {
 		logging.Get().Debug().Msg("get from file")
