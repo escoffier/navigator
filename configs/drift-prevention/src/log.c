@@ -11,8 +11,10 @@
 
 static FILE* g_log_dest = NULL;
 
+#define LOG_PATH "/tmp/drift-prevention.log"
+
 int drift_prevent_init_log() {
-    g_log_dest = fopen("/tmp/drift-prevention.log", "a+");
+    g_log_dest = fopen(LOG_PATH, "a+");
     if (g_log_dest == NULL) {
         g_log_dest = stderr;
         return 1;

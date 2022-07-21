@@ -45,6 +45,7 @@ var (
 	containerTmpMnt             = "/tmpmnt"
 	containerEtcPreloadPath     = "/etc/ld.so.preload"
 	blockDevPath                = "/dev/tensor"
+	logOutputPath               = "/tmp/drift-prevention.log"
 	containerOSFilePathTemplate = []string{
 		"/host/proc/%d/root/etc/os-release",
 		"/host/proc/%d/root/etc/debian_release",
@@ -114,6 +115,8 @@ func (ij *Injector) prepareFiles() error {
 func (ij *Injector) initCommandSeq() error {
 	tensorDir := containerTmpMnt + ij.subRoot + ij.subPath
 	tmpCommandSeq := [][]string{
+		{"touch", logOutputPath},
+		{"chmod", "777", logOutputPath},
 		{"mkdir", containerTmpMnt},
 		{"mount", blockDevPath, containerTmpMnt},
 		{"mkdir", ContainerPath},

@@ -44,7 +44,7 @@ func (ej *ExecJudge) Start() error {
 	// remove original socket file to avoid rebind err
 	unixSockFile := unixSockFileFromAddr(ej.SocketPath)
 	if err := os.RemoveAll(unixSockFile); err != nil {
-		return fmt.Errorf("remove orignal socket err:%v,%s", err, unixSockFile)
+		return fmt.Errorf("remove original socket err:%v,%s", err, unixSockFile)
 	}
 
 	// create a unix socket server and listen
@@ -58,6 +58,10 @@ func (ej *ExecJudge) Start() error {
 		return fmt.Errorf("judge listen unix socket err:%v", err)
 	}
 	defer unixListener.Close()
+
+	if err = os.Chmod(ej.SocketPath, os.FileMode(0x0777)); err != nil {
+		return fmt.Errorf("socket file chmod fail err:%v", err)
+	}
 
 	for {
 		logging.Get().Debug().Msg("wait unix socket request")
