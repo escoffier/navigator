@@ -63,12 +63,9 @@ func prepareRulesFile(thrPath string, outputPath string, closedRules map[string]
 }
 
 func main() {
-
-	var consoleAddr string
-	if len(os.Getenv("IS_MAIN_CLUSTER")) > 0 && os.Getenv("IS_MAIN_CLUSTER") == "true" {
-		consoleAddr = os.Getenv("CONSOLE_INTERNAL_URL")
-	} else {
-		consoleAddr = os.Getenv("CONSOLE_EXTERNAL_URL")
+	clusterAddr := os.Getenv("CLUSTER_MANAGER_URL")
+	if clusterAddr == "" {
+		logging.Get().Panic().Msg("env CLUSTER_MANAGER_URL not found")
 	}
 
 	myNamespace := os.Getenv("MY_POD_NAMESPACE")
@@ -76,9 +73,6 @@ func main() {
 		myNamespace = "tensorsec"
 	}
 	namespaceMutator = holmesengine.GetTensorsecNamespaceChange(myNamespace)
-
-	url := consoleAddr
-	suffix := "/api/openapi/ATTCK/latestData"
 
 	outputRulesFilename := flag.String("output",
 		"/tmp/holmes_rules.yaml",
@@ -114,7 +108,7 @@ func main() {
 	quit := make(chan int)
 
 	hp := holmesengine.NewProcessInfo()
-	r := watch.NewHTTPRequest(url + suffix)
+	r := watch.NewHTTPRequest(clusterAddr)
 
 	go watch.ConfigmapWatchInit(configmapUpdateC, errorC)
 	go r.RulesUpdateLoop(consoleUpdateC, errorC)
