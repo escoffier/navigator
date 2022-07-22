@@ -2,17 +2,14 @@ package dal
 
 import (
 	"context"
-	"encoding/base64"
 	"fmt"
 	"io/ioutil"
 	"net/http"
 	"time"
 
 	json "github.com/json-iterator/go"
-	"gitlab.com/piccolo_su/vegeta/pkg/cryption"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
-	"gopkg.in/yaml.v2"
 )
 
 const (
@@ -22,11 +19,11 @@ const (
 	queyrKeyCurSettingVersion = "curSettingVersion"
 )
 
-func LoadAttackRules(ctx context.Context, consoleAddr string, curDataVersion, curSettingVersion uint64) (*model.LatestATTCKRuleInfo, error) {
+func LoadAttackRules(ctx context.Context, consoleAddr string, curDataVersion, curSettingVersion int64) (*model.LatestATTCKRuleInfo, error) {
 	tctx, cancel := context.WithTimeout(ctx, 2*time.Second)
 	defer cancel()
 
-	url := fmt.Sprintf("http://%s/api/openapi/ATTCK/latestData", consoleAddr)
+	url := fmt.Sprintf("%s/api/openapi/ATTCK/latestData", consoleAddr)
 	firstQuery := true
 	if curDataVersion > 0 {
 		connector := "&"
@@ -77,28 +74,6 @@ func LoadAttackRules(ctx context.Context, consoleAddr string, curDataVersion, cu
 		return nil, err
 	}
 	data := respData.Data.Item
-
-	if !data.DataChanged {
-		return data, nil
-	}
-
-	encRuleBytes, err := base64.StdEncoding.DecodeString(data.Data)
-	if err != nil {
-		logging.GetLogger().Error().Err(err).Msgf("base64 decode error. data: %s", data.Data)
-		return nil, err
-	}
-	_, rulesBytes, _, err := cryption.ReadRulesData(encRuleBytes)
-	if err != nil {
-		logging.GetLogger().Error().Err(err).Msgf("decrypt error. data: %s", encRuleBytes)
-		return nil, err
-	}
-	var rules []*model.RuleFromYaml
-	err = yaml.Unmarshal(rulesBytes, &rules)
-	if err != nil {
-		logging.GetLogger().Error().Err(err).Msgf("decrypt error. data: %s", encRuleBytes)
-		return nil, err
-	}
-	data.AttackRules = rules
 
 	return data, nil
 }

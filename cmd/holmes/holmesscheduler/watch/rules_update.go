@@ -4,13 +4,13 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
-	"io"
-	"net/http"
+	"math/rand"
 	"os"
 	"sync/atomic"
 	"time"
 
-	json "github.com/json-iterator/go"
+	"gitlab.com/piccolo_su/vegeta/pkg/dal"
+	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/security-rd/go-pkg/logging"
 )
 
@@ -45,19 +45,6 @@ func (i *HTTPRequestInfo) CloseRules() map[string]struct{} {
 }
 func (i *HTTPRequestInfo) setCloseRules(r map[string]struct{}) {
 	i.closeRulesVal.Store(r)
-}
-
-type latestVersionResp struct {
-	Data struct {
-		Item struct {
-			Data                 string   `json:"data"`
-			Closerules           []string `json:"closedRules"`
-			LatestDataVersion    int64    `json:"latestDataVersion"`
-			LatestSettingVersion int64    `json:"latestSettingVersion"`
-			DataChanged          bool     `json:"dataChanged"`
-			SettingChanged       bool     `json:"settingChanged"`
-		} `json:"item"`
-	} `json:"data"`
 }
 
 func NewHTTPRequest(url string) *HTTPRequestInfo {
@@ -98,23 +85,26 @@ func toClosedRules(arr []string) map[string]struct{} {
 	return m
 }
 func (i *HTTPRequestInfo) rulesUpdate() ([]byte, bool, bool, error) {
-	httpStreamData, err := i.getData()
+	data, err := i.getData()
 	if err != nil {
 		logging.Get().Err(err).Msg("get data err")
 		return nil, false, false, err
 	}
 	var tmpBytes []byte
 	var rulesUpdated, settingsUpdated bool
-	if httpStreamData.Data.Item.DataChanged || httpStreamData.Data.Item.SettingChanged {
-		if i.getCurrentRulesVersion() != httpStreamData.Data.Item.LatestDataVersion {
-			i.setCurrentRulesVersion(httpStreamData.Data.Item.LatestDataVersion)
-			tmpBytes, _ = base64.StdEncoding.DecodeString(httpStreamData.Data.Item.Data)
+	if data.DataChanged || data.SettingChanged {
+		if i.getCurrentRulesVersion() != data.LatestDataVersion {
+			i.setCurrentRulesVersion(data.LatestDataVersion)
+			tmpBytes, err = base64.StdEncoding.DecodeString(data.Data)
+			if err != nil {
+				return nil, false, false, fmt.Errorf("data decode error: %v", err)
+			}
 			saveRulesFile(tmpBytes, UploadThrPath)
 			rulesUpdated = true
 		}
-		if i.getCurrentSettingVersion() != httpStreamData.Data.Item.LatestSettingVersion {
-			i.setCurrentSettingVersion(httpStreamData.Data.Item.LatestSettingVersion)
-			i.setCloseRules(toClosedRules(httpStreamData.Data.Item.Closerules))
+		if i.getCurrentSettingVersion() != data.LatestSettingVersion {
+			i.setCurrentSettingVersion(data.LatestSettingVersion)
+			i.setCloseRules(toClosedRules(data.ClosedRules))
 			settingsUpdated = true
 		}
 
@@ -122,39 +112,22 @@ func (i *HTTPRequestInfo) rulesUpdate() ([]byte, bool, bool, error) {
 	return tmpBytes, rulesUpdated, settingsUpdated, nil
 }
 func (i *HTTPRequestInfo) RulesUpdateLoop(udpateC chan<- struct{}, errorC chan error) {
-	t := time.NewTicker(30 * time.Second)
-	defer t.Stop()
-	for range t.C {
+	for {
 		_, rulesUpdated, settingsUpdated, err := i.rulesUpdate()
 		if err != nil {
 			errorC <- err
 		} else if rulesUpdated || settingsUpdated {
 			udpateC <- struct{}{}
 		}
+
+		randSec := rand.Int63n(20)
+		time.Sleep(time.Second * time.Duration(20+randSec))
 	}
 }
 
-func (i *HTTPRequestInfo) getData() (latestVersionResp, error) {
+func (i *HTTPRequestInfo) getData() (*model.LatestATTCKRuleInfo, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	url := fmt.Sprintf("%s?curDataVersion=%d&curSettingVersion=%d", i.url, i.getCurrentRulesVersion(), i.getCurrentSettingVersion())
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
-	if err != nil {
-		return latestVersionResp{}, err
-	}
-	req.Header.Set(tokenHeader, token)
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return latestVersionResp{}, err
-	}
-	defer resp.Body.Close()
-
-	body, _ := io.ReadAll(resp.Body)
-	respStru := latestVersionResp{}
-	err = json.Unmarshal(body, &respStru)
-	if err != nil {
-		return latestVersionResp{}, err
-	}
-	return respStru, nil
+	return dal.LoadAttackRules(ctx, i.url, i.getCurrentRulesVersion(), i.getCurrentSettingVersion())
 }

@@ -4,25 +4,30 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
-	"github.com/gin-gonic/gin"
-	"gitlab.com/security-rd/go-pkg/logging"
 	"net/http"
 	"strings"
 	"time"
 
+	"github.com/gin-gonic/gin"
+	json "github.com/json-iterator/go"
+	param "github.com/oceanicdev/chi-param"
+	"gitlab.com/piccolo_su/vegeta/cmd/clustermanager/pkg/attack"
 	"gitlab.com/piccolo_su/vegeta/cmd/clustermanager/pkg/config"
 	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
+	"gitlab.com/piccolo_su/vegeta/pkg/response"
+	"gitlab.com/security-rd/go-pkg/logging"
 )
 
 type ClusterServer struct {
-	server         *http.Server
-	engine         *gin.Engine
-	ClusterID      string
-	Name           string
-	TLSServer      bool
-	config         *config.Config
-	clusterManager *k8s.ClusterManager
+	server             *http.Server
+	engine             *gin.Engine
+	ClusterID          string
+	Name               string
+	TLSServer          bool
+	config             *config.Config
+	clusterManager     *k8s.ClusterManager
+	attackCacheService *attack.CacheService
 }
 
 func (cs *ClusterServer) SetClusterManager(cm *k8s.ClusterManager) {
@@ -67,8 +72,49 @@ func (cs *ClusterServer) handleWatchCluster(c *gin.Context) {
 	c.String(http.StatusOK, "OK")
 }
 
-func NewHTTPServer(clusterKey string, config *config.Config) (*ClusterServer, error) {
+func (cs *ClusterServer) handleATTACKLatestData(c *gin.Context) {
+	ctx, cancel := context.WithTimeout(c, time.Second*2)
+	defer cancel()
 
+	reqDataVersion, err := param.QueryInt64(c.Request, "curDataVersion")
+	if err != nil {
+		reqDataVersion = 0
+	}
+	reqSettingVersion, err := param.QueryInt64(c.Request, "curSettingVersion")
+	if err != nil {
+		reqSettingVersion = 0
+	}
+
+	data, err := cs.attackCacheService.GetLatestData(ctx, reqDataVersion, reqSettingVersion)
+	if err != nil {
+		logging.Get().Err(err).Int64("reqDataVersion", reqDataVersion).Int64("reqSettingVersion", reqSettingVersion).Msg("get latest data err")
+		c.JSON(http.StatusInternalServerError, response.HTTPEnvelope{
+			Data: &response.HTTPData{
+				Status: 1,
+				Item:   []byte(err.Error()),
+			},
+		})
+		return
+	}
+	dataBytes, err := json.Marshal(data)
+	if err != nil {
+		logging.Get().Err(err).Int64("reqDataVersion", reqDataVersion).Int64("reqSettingVersion", reqSettingVersion).Msg("marshal err")
+		c.JSON(http.StatusInternalServerError, response.HTTPEnvelope{
+			Data: &response.HTTPData{
+				Status: 1,
+				Item:   []byte(err.Error()),
+			},
+		})
+		return
+	}
+	c.JSON(http.StatusOK, response.HTTPEnvelope{
+		Data: &response.HTTPData{
+			Item: dataBytes,
+		},
+	})
+}
+
+func NewHTTPServer(clusterKey string, config *config.Config) (*ClusterServer, error) {
 	tlsConfig := &tls.Config{}
 	if config.TLSServer {
 		tlsKeyPair, err := tls.LoadX509KeyPair(config.CertFile, config.KeyFile)
@@ -80,14 +126,16 @@ func NewHTTPServer(clusterKey string, config *config.Config) (*ClusterServer, er
 	}
 
 	s := &ClusterServer{
-		ClusterID: clusterKey,
-		Name:      config.Name,
-		config:    config,
+		ClusterID:          clusterKey,
+		Name:               config.Name,
+		config:             config,
+		attackCacheService: attack.NewCacheService(config.MasterAddr),
 	}
 
 	r := gin.Default()
 	r.GET("/internal/cluster", s.handleClusterQuery)
 	r.GET("/internal/watch_cluster", s.handleWatchCluster)
+	r.GET("/api/openapi/ATTCK/latestData", s.handleATTACKLatestData)
 
 	s.engine = r
 

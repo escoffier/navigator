@@ -95,12 +95,11 @@ type ATTCKRuleDisplay struct {
 
 type LatestATTCKRuleInfo struct {
 	DataChanged          bool            `json:"dataChanged"`
-	LatestDataVersion    uint32          `json:"latestDataVersion"`
+	LatestDataVersion    int64          `json:"latestDataVersion"`
 	SettingChanged       bool            `json:"settingChanged"`
-	LatestSettingVersion uint32          `json:"latestSettingVersion"`
+	LatestSettingVersion int64          `json:"latestSettingVersion"`
 	Data                 string          `json:"data"`
 	ClosedRules          []string        `json:"closedRules"`
-	AttackRules          []*RuleFromYaml `json:"-"`
 }
 
 type RuleFromYaml struct {

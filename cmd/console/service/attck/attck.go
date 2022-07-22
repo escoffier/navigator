@@ -648,8 +648,8 @@ func (h *ATTCKHandler) GetATTCKConfData(ctx context.Context, reqBaseOffset, reqO
 	latestBaseOffset := h.baseOffset
 	latestOnlineOffset := h.onlineOffset
 	var info = &model.LatestATTCKRuleInfo{
-		LatestDataVersion:    latestBaseOffset,
-		LatestSettingVersion: latestOnlineOffset,
+		LatestDataVersion:    int64(latestBaseOffset),
+		LatestSettingVersion: int64(latestOnlineOffset),
 	}
 	if latestBaseOffset > reqBaseOffset {
 		data, err := dal.LoadATTCKConfData(ctx, h.db.GetReadDB())
