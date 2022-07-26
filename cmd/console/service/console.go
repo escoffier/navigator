@@ -80,41 +80,6 @@ func NewConsole(
 	elasticOpts *flag.ElasticOpts,
 	rdbOptions *databases.Options,
 ) (*Console, error) {
-	// eventGrpcUrl := os.Getenv(echelper.EventGrpcURLEnv)
-	// if eventGrpcUrl == "" {
-	// 	eventGrpcUrl = echelper.DefaultEventGrpcURL
-	// }
-	//
-	// eventGrpcCertPath := os.Getenv(echelper.GrpcCertPathEnv)
-	// if eventGrpcCertPath == "" {
-	// 	eventGrpcCertPath = echelper.DefaultGrpcCertPath
-	// }
-	//
-	// eventGrpcCertServerName := os.Getenv(echelper.GrpcCertServerNameEnv)
-	// if eventGrpcCertServerName == "" {
-	// 	eventGrpcCertServerName = echelper.DefaultGrpcCertServerName
-	// }
-	//
-	// cred, err := credentials.NewClientTLSFromFile(eventGrpcCertPath, eventGrpcCertServerName)
-	// if err != nil {
-	// 	panic(err)
-	// }
-	//
-	// const (
-	// 	maxGrpcReceiveMsgSize = 1024 * 1024 * 1024
-	// )
-	//
-	// conn, err := grpc.Dial(eventGrpcUrl, grpc.WithTransportCredentials(cred),
-	// 	grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(maxGrpcReceiveMsgSize)))
-	// if err != nil {
-	// 	return nil, err
-	// }
-	// ecBuzCli := pb.NewEventsCenterBizServiceClient(conn)
-	//
-	// ecenterCli, err := echelper.NewEventCenterClient()
-	// if err != nil {
-	// 	return nil, err
-	// }
 	sherlockClient := echelper.NewSherlockClient()
 
 	// Redis DB client
@@ -348,7 +313,6 @@ func NewConsole(
 				httpOpts.HTTPAuditDisabled,
 				redisClient,
 				nil, // harborClient,
-				// ecBuzCli,
 			),
 		},
 		webHookServer: &http.Server{Addr: httpOpts.HTTPWebHookListen, Handler: setupWebHookRouter()},

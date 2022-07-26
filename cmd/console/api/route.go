@@ -34,7 +34,6 @@ func SetupRoutes(
 	webhookURL string,
 	redisClient *redis.Client,
 	harborClient *harbor.HarborRESTClient,
-	// ecCli pb.EventsCenterBizServiceClient,
 	es *elastic.ESClient,
 	httpAuditDisabled bool,
 
@@ -51,7 +50,6 @@ func SetupRoutes(
 		webhookURL,
 		redisClient,
 		harborClient,
-		// ecCli,
 		es,
 		httpAuditDisabled,
 	)

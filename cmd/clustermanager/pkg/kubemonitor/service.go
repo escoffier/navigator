@@ -51,9 +51,8 @@ func init() {
 }
 
 type Service struct {
-	eventsCenterCli pb.EventsCenterCollectionServiceClient
-	monitor         *pkg.KubeRiskyMonitor
-	myNamespace     string
+	monitor     *pkg.KubeRiskyMonitor
+	myNamespace string
 
 	registerOK int32
 	dupCache   *DupCache
@@ -324,65 +323,6 @@ func genPalaceSignalParams(evt *pkg.KubeMonitorEvent) (palace.RuleKey, []palace.
 	return ruleKey, scopes, signalContext
 }
 
-// func (s *Service) newEvtCenterReq(ctx context.Context, evt *pkg.KubeMonitorEvent) *pb.SendNotificationReq {
-// 	defer func() {
-// 		if r := recover(); r != nil {
-// 			logging.Get().Error().Msgf("Panic: %v. Stack: %s", r, debug.Stack())
-// 		}
-// 	}()
-//
-// 	req := new(pb.SendNotificationReq)
-// 	req.RuleKey = new(pb.RuleKey)
-// 	req.RuleKey.Module = eventsModule
-// 	req.RuleKey.Category = eventsCategory
-// 	req.RuleKey.Name = evt.RuleName
-//
-// 	now := time.Now()
-// 	req.Timestamp = now.Unix()
-// 	req.UUID = uuid(evt, now)
-// 	req.NotifyContext = new(pb.Context)
-// 	req.NotifyContext.Cluster = evt.ClusterKey
-// 	req.NotifyContext.Namespace = evt.TargetObject.Namespace
-// 	req.NotifyContext.ServiceID = strings.Join([]string{evt.TargetObject.Kind, evt.TargetObject.Name}, "/")
-// 	req.NotifyContext.CustomKV = make([]*pb.MultiLanguageKV, len(evt.ContextKVs))
-//
-// 	for i, kv := range evt.ContextKVs {
-// 		mkv := new(pb.MultiLanguageKV)
-// 		req.NotifyContext.CustomKV[i] = mkv
-// 		mkv.KVHash = make(map[string]*pb.KV, 2)
-// 		if len(kv.KeyMulti) > 0 {
-// 			for lang, key := range kv.KeyMulti {
-// 				v, exist := kv.ValueMulti[lang]
-// 				if !exist {
-// 					v = kv.DefaultValue
-// 				}
-// 				mkv.KVHash[lang] = &pb.KV{Key: key, Value: v}
-// 			}
-// 		} else {
-// 			mkv.KVHash["en"] = &pb.KV{Key: kv.Key, Value: kv.DefaultValue}
-// 			mkv.KVHash["zh"] = &pb.KV{Key: kv.Key, Value: kv.DefaultValue}
-// 		}
-// 	}
-//
-// 	return req
-// }
-//
-// func (s *Service) sendNotifToEventsCenter(ctx context.Context, req *pb.SendNotificationReq) error {
-// 	defer func() {
-// 		if r := recover(); r != nil {
-// 			logging.Get().Error().Msgf("Panic: %v. Stack: %s", r, debug.Stack())
-// 		}
-// 	}()
-//
-// 	oneCtx, cancel := context.WithTimeout(ctx, 1000*time.Millisecond)
-// 	defer cancel()
-// 	_, err := s.eventsCenterCli.SendNotification(oneCtx, req)
-// 	if err != nil {
-// 		logging.Get().Err(err).Msgf("send notification error. req: %+v", req)
-// 		return err
-// 	}
-// 	return nil
-// }
 func (s *Service) handleMonitorEvent(ctx context.Context, evt *pkg.KubeMonitorEvent) error {
 	defer func() {
 		if r := recover(); r != nil {
@@ -409,12 +349,6 @@ func (s *Service) handleMonitorEvent(ctx context.Context, evt *pkg.KubeMonitorEv
 		s.dupCache.addEvent(evt)
 	}
 
-	// ecReq := s.newEvtCenterReq(ctx, evt)
-	//
-	// ecErr := s.sendNotifToEventsCenter(ctx, ecReq)
-	// if ecErr == nil {
-	// 	s.dupCache.addEvent(evt)
-	// }
 	return nil
 }
 
@@ -425,18 +359,6 @@ func (s *Service) asyncRiskMonitor() {
 				logging.Get().Error().Msgf("Panic: %v. Stack: %s", r, debug.Stack())
 			}
 		}()
-
-		ecenterColCli, eclientErr := echelper.NewGRPCClientFromEnv()
-		for eclientErr != nil {
-			ecenterColCli, eclientErr = echelper.NewGRPCClientFromEnv()
-			if eclientErr != nil {
-				logging.Get().Err(eclientErr).Msg("init events center error")
-				time.Sleep(1 * time.Second)
-			} else {
-				break
-			}
-		}
-		s.eventsCenterCli = ecenterColCli
 
 		err := s.doRegisterEventsCenterRules(context.Background())
 		if err != nil {
