@@ -47,7 +47,7 @@ func (e *errorResponder) Error(w http.ResponseWriter, req *http.Request, err err
 
 func (api *api) sherlock() func(chi.Router) {
 	return func(r chi.Router) {
-		// proxy
+		// proxy palace
 		r.HandleFunc("/palace/*", func(w http.ResponseWriter, r *http.Request) {
 			su, err := url.Parse(api.sherlockURL)
 			if err != nil {
@@ -308,29 +308,29 @@ func (api *api) sherlock() func(chi.Router) {
 // 	}
 // }
 //
-type rule struct {
-	Name           string            `json:"name"`
-	Module         string            `json:"module"`
-	Category       string            `json:"category"`
-	Description    string            `json:"description"`
-	Severity       uint32            `json:"severity"`
-	CustomKV       map[string]string `json:"customKV"`
-	DisplayAdapter map[string]string `json:"displayAdapter"`
-}
-
-type signal struct {
-	ID        string            `json:"id"`
-	Cluster   string            `json:"cluster"`
-	Namespace string            `json:"namespace"`
-	NodeType  string            `json:"nodeType"`
-	NodeKey   string            `json:"nodeKey"`
-	Rule      *rule             `json:"rule"`
-	PodUID    string            `json:"podUid"`
-	PodName   string            `json:"podName"`
-	CustomKV  map[string]string `json:"customKV"`
-	Timestamp int64             `json:"timestamp"`
-}
-
+// type rule struct {
+// 	Name           string            `json:"name"`
+// 	Module         string            `json:"module"`
+// 	Category       string            `json:"category"`
+// 	Description    string            `json:"description"`
+// 	Severity       uint32            `json:"severity"`
+// 	CustomKV       map[string]string `json:"customKV"`
+// 	DisplayAdapter map[string]string `json:"displayAdapter"`
+// }
+//
+// type signal struct {
+// 	ID        string            `json:"id"`
+// 	Cluster   string            `json:"cluster"`
+// 	Namespace string            `json:"namespace"`
+// 	NodeType  string            `json:"nodeType"`
+// 	NodeKey   string            `json:"nodeKey"`
+// 	Rule      *rule             `json:"rule"`
+// 	PodUID    string            `json:"podUid"`
+// 	PodName   string            `json:"podName"`
+// 	CustomKV  map[string]string `json:"customKV"`
+// 	Timestamp int64             `json:"timestamp"`
+// }
+//
 // func (api *api) getSignals() http.HandlerFunc {
 // 	return func(w http.ResponseWriter, r *http.Request) {
 // 		ctx, cancel := context.WithTimeout(r.Context(), eventCenterDefaultTimeout)

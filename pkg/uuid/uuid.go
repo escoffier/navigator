@@ -10,6 +10,10 @@ import (
 	"go.uber.org/atomic"
 )
 
+type UUIDGenerator interface {
+	GenerateUUID() uint64
+}
+
 type Generator struct {
 	processRand uint16
 	counter     *atomic.Uint32

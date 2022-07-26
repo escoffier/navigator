@@ -35,7 +35,6 @@ func setupChiRouter(
 	httpAuditDisabled bool,
 	redisClient *redis.Client,
 	harborClient *harbor.HarborRESTClient,
-	// ecCli pb.EventsCenterBizServiceClient,
 ) http.Handler {
 	// ch := make(chan model.AccessLog, 1000)
 	tokenAuth := jwtauth.New("HS256", jwtSignKey, nil)
@@ -61,7 +60,6 @@ func setupChiRouter(
 		webhookURL,
 		redisClient,
 		harborClient,
-		// ecCli,
 		es,
 		httpAuditDisabled,
 	)
