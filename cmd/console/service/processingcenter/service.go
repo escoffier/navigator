@@ -92,7 +92,7 @@ func newService(component *ServiceComponent) *Service {
 }
 
 type AddProcessingRecordArg struct {
-	EventID int32    `json:"eventID"`
+	EventID int64    `json:"eventID"`
 	OpType  string   `json:"opType"`
 	Action  string   `json:"action"`
 	Object  []string `json:"object"`

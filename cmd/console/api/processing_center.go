@@ -40,7 +40,7 @@ func (api *api) processingCenter() func(chi.Router) {
 
 func (api *api) addProcessingRecord() http.HandlerFunc {
 	type req struct {
-		EventID int32    `json:"eventID"`
+		EventID int64    `json:"eventID,string"`
 		OpType  string   `json:"opType"`
 		Action  string   `json:"action"`
 		Object  []string `json:"object"`
@@ -125,7 +125,7 @@ const (
 func (api *api) getProcessingRecords() http.HandlerFunc {
 	type item struct {
 		ID         string   `json:"id"`
-		EventID    int32    `json:"eventID"`
+		EventID    int64    `json:"eventID,string"`
 		OpType     string   `json:"opType"`
 		Status     string   `json:"status"`
 		LastOpUser string   `json:"lastOpUser"`

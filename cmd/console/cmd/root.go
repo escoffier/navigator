@@ -120,7 +120,12 @@ func init() {
 	loggingOptions = logging.NewLoggingOptions()
 	loggingOptions.AddFlags(rootCmd.Flags())
 
-	rdbOptions = databases.NewRDBOptions(databases.SetDefaultRdbLogLevel(logger.Info))
+	rdbOptions = databases.NewRDBOptions(
+		databases.SetDefaultRdbLogLevel(logger.Info),
+		databases.SetDefaultRdbHost("192.168.3.10"),
+		databases.SetDefaultRdbReadonlyHost("192.168.3.10"),
+		databases.SetDefaultRdbPort(30036),
+		databases.SetDefaultRdbDbname("ivan"))
 	rdbOptions.AddFlags(rootCmd.Flags())
 
 	flag.AddHTTPFlags(rootCmd)

@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"gitlab.com/piccolo_su/vegeta/cmd/console/service/containers"
 	"net/http"
 	"os"
 	"runtime/debug"
@@ -12,14 +11,14 @@ import (
 	"sync"
 	"time"
 
+	"gitlab.com/piccolo_su/vegeta/cmd/console/service/containers"
+	"gitlab.com/piccolo_su/vegeta/pkg/echelper"
+
 	cr "github.com/robfig/cron/v3"
 	"gitlab.com/security-rd/go-pkg/cache"
 	"gitlab.com/security-rd/go-pkg/databases"
 	"gitlab.com/security-rd/go-pkg/elastic"
 	"gitlab.com/security-rd/go-pkg/logging"
-	"gitlab.com/security-rd/go-pkg/pb"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -51,7 +50,6 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/data/notifyhandler"
 	"gitlab.com/piccolo_su/vegeta/cmd/platform-report/def"
 	"gitlab.com/piccolo_su/vegeta/pkg/assets"
-	"gitlab.com/piccolo_su/vegeta/pkg/echelper"
 	"gitlab.com/piccolo_su/vegeta/pkg/env"
 	"gitlab.com/piccolo_su/vegeta/pkg/flag"
 	"gitlab.com/piccolo_su/vegeta/pkg/harbor"
@@ -85,41 +83,42 @@ func NewConsole(
 	secProfilesOpts *flag.SecProfilesOpts,
 	rdbOptions *databases.Options,
 ) (*Console, error) {
-	eventGrpcUrl := os.Getenv(echelper.EventGrpcURLEnv)
-	if eventGrpcUrl == "" {
-		eventGrpcUrl = echelper.DefaultEventGrpcURL
-	}
-
-	eventGrpcCertPath := os.Getenv(echelper.GrpcCertPathEnv)
-	if eventGrpcCertPath == "" {
-		eventGrpcCertPath = echelper.DefaultGrpcCertPath
-	}
-
-	eventGrpcCertServerName := os.Getenv(echelper.GrpcCertServerNameEnv)
-	if eventGrpcCertServerName == "" {
-		eventGrpcCertServerName = echelper.DefaultGrpcCertServerName
-	}
-
-	cred, err := credentials.NewClientTLSFromFile(eventGrpcCertPath, eventGrpcCertServerName)
-	if err != nil {
-		panic(err)
-	}
-
-	const (
-		maxGrpcReceiveMsgSize = 1024 * 1024 * 1024
-	)
-
-	conn, err := grpc.Dial(eventGrpcUrl, grpc.WithTransportCredentials(cred),
-		grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(maxGrpcReceiveMsgSize)))
-	if err != nil {
-		return nil, err
-	}
-	ecBuzCli := pb.NewEventsCenterBizServiceClient(conn)
-
-	ecenterCli, err := echelper.NewEventCenterClient()
-	if err != nil {
-		return nil, err
-	}
+	// eventGrpcUrl := os.Getenv(echelper.EventGrpcURLEnv)
+	// if eventGrpcUrl == "" {
+	// 	eventGrpcUrl = echelper.DefaultEventGrpcURL
+	// }
+	//
+	// eventGrpcCertPath := os.Getenv(echelper.GrpcCertPathEnv)
+	// if eventGrpcCertPath == "" {
+	// 	eventGrpcCertPath = echelper.DefaultGrpcCertPath
+	// }
+	//
+	// eventGrpcCertServerName := os.Getenv(echelper.GrpcCertServerNameEnv)
+	// if eventGrpcCertServerName == "" {
+	// 	eventGrpcCertServerName = echelper.DefaultGrpcCertServerName
+	// }
+	//
+	// cred, err := credentials.NewClientTLSFromFile(eventGrpcCertPath, eventGrpcCertServerName)
+	// if err != nil {
+	// 	panic(err)
+	// }
+	//
+	// const (
+	// 	maxGrpcReceiveMsgSize = 1024 * 1024 * 1024
+	// )
+	//
+	// conn, err := grpc.Dial(eventGrpcUrl, grpc.WithTransportCredentials(cred),
+	// 	grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(maxGrpcReceiveMsgSize)))
+	// if err != nil {
+	// 	return nil, err
+	// }
+	// ecBuzCli := pb.NewEventsCenterBizServiceClient(conn)
+	//
+	// ecenterCli, err := echelper.NewEventCenterClient()
+	// if err != nil {
+	// 	return nil, err
+	// }
+	sherlockClient := echelper.NewSherlockClient()
 
 	// Redis DB client
 	redisClient, err := cache.NewRedis()
@@ -136,6 +135,7 @@ func NewConsole(
 	scannerURL := fmt.Sprintf("http://%s:%d", scannerOpts.Host, scannerOpts.Port)
 	exportURL := fmt.Sprintf("http://%s:%d", exporterOpts.Host, exporterOpts.Port)
 	microsegURL := os.Getenv("MICROSEG_URL")
+	sherlockURL := os.Getenv("SHERLOCK_URL")
 	clusterManagerURL := env.GetClusterManagerUrl()
 
 	// main function context
@@ -229,7 +229,7 @@ func NewConsole(
 		logging.Get().Err(ntErr).Msg("ERROR: networkFlowService init error")
 	}
 
-	err = attck.Init(rdb, redisClient, ecenterCli)
+	err = attck.Init(rdb, redisClient, &sherlockClient)
 	if err != nil {
 		logging.Get().Err(err).Msg("ERROR: config service init error")
 	}
@@ -310,7 +310,7 @@ func NewConsole(
 		logging.Get().Err(err).Msg("init process center error")
 	}
 
-	err = defense.InitDefenseService(rdb, ecBuzCli, scannerURL)
+	err = defense.InitDefenseService(rdb, es, scannerURL)
 	if err != nil {
 		logging.Get().Err(err).Msg("ERROR: bait service init error")
 	}
@@ -344,6 +344,7 @@ func NewConsole(
 				es,
 				scannerURL,
 				exportURL,
+				sherlockURL,
 				fmt.Sprintf("http://%s:%d", secProfilesOpts.Host, secProfilesOpts.Port),
 				microsegURL,
 				env.GetWebHookUrl(),
@@ -351,7 +352,7 @@ func NewConsole(
 				httpOpts.HTTPAuditDisabled,
 				redisClient,
 				nil, // harborClient,
-				ecBuzCli,
+				// ecBuzCli,
 			),
 		},
 		webHookServer: &http.Server{Addr: httpOpts.HTTPWebHookListen, Handler: setupWebHookRouter()},

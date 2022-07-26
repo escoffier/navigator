@@ -19,7 +19,6 @@ import (
 	"gitlab.com/security-rd/go-pkg/databases"
 	"gitlab.com/security-rd/go-pkg/elastic"
 	"gitlab.com/security-rd/go-pkg/logging"
-	"gitlab.com/security-rd/go-pkg/pb"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
@@ -32,10 +31,11 @@ type api struct {
 	scannerURL        string
 	exportURL         string
 	secProfileCoreURL string
+	sherlockURL       string
 	redisClient       *redis.Client
 	harborClient      *harbor.HarborRESTClient
-	ecCli             pb.EventsCenterBizServiceClient
-	esCli             *elastic.ESClient
+	// ecCli             pb.EventsCenterBizServiceClient
+	esCli *elastic.ESClient
 
 	// For managing state in Harbor plugin API
 	abortAnyNewScansBool int32
@@ -48,12 +48,13 @@ func newAPI(
 	rdb *databases.RDBInstance,
 	scannerURL string,
 	exportURL string,
+	sherlockURL string,
 	secProfileCoreURL string,
 	microsegURL string,
 	webhookURL string,
 	redisClient *redis.Client,
 	harborClient *harbor.HarborRESTClient,
-	ecCli pb.EventsCenterBizServiceClient,
+	// ecCli pb.EventsCenterBizServiceClient,
 	esCli *elastic.ESClient,
 	httpAuditDisabled bool,
 
@@ -69,12 +70,13 @@ func newAPI(
 		rdb:               rdb,
 		scannerURL:        scannerURL,
 		exportURL:         exportURL,
+		sherlockURL:       sherlockURL,
 		secProfileCoreURL: secProfileCoreURL,
 		microsegURL:       microsegURL,
 		webhookURL:        whUrl,
 		redisClient:       redisClient,
 		harborClient:      harborClient,
-		ecCli:             ecCli,
+		// ecCli:             ecCli,
 		esCli:             esCli,
 		httpAuditDisabled: httpAuditDisabled,
 	}

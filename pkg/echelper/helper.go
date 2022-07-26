@@ -1,16 +1,21 @@
 package echelper
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
+	"io/ioutil"
+	"net/http"
+	"os"
 	"time"
 
-	"github.com/avast/retry-go"
+	"gitlab.com/piccolo_su/vegeta/pkg/logging"
+	"google.golang.org/grpc/status"
+
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
-	"gitlab.com/piccolo_su/vegeta/pkg/uuid"
 	"gitlab.com/security-rd/go-pkg/pb"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
-	"google.golang.org/grpc/status"
 )
 
 const (
@@ -36,51 +41,51 @@ type GrpcConf struct {
 	URL            string
 }
 
-type EventCenterConfig struct {
-	uuidGenerator UUIDGenerator
-	grpcConf      *GrpcConf
-}
-
-type EventCenterClientOption func(conf *EventCenterConfig)
+// type EventCenterConfig struct {
+// 	uuidGenerator UUIDGenerator
+// 	grpcConf      *GrpcConf
+// }
+//
+// type EventCenterClientOption func(conf *EventCenterConfig)
 
 type EventCenterClient struct {
 	cli           pb.EventsCenterCollectionServiceClient
 	uuidGenerator UUIDGenerator
 }
 
-func NewEventCenterClient(options ...EventCenterClientOption) (*EventCenterClient, error) {
-	var conf EventCenterConfig
-	for _, option := range options {
-		option(&conf)
-	}
-
-	var grpcClient pb.EventsCenterCollectionServiceClient
-	var uuidGenerator UUIDGenerator
-	var err error
-	if conf.grpcConf != nil {
-		grpcClient, err = NewGRPCClient(conf.grpcConf)
-	} else {
-		grpcClient, err = NewGRPCClientFromEnv()
-	}
-
-	if err != nil {
-		return nil, err
-	}
-
-	if conf.uuidGenerator != nil {
-		uuidGenerator = conf.uuidGenerator
-	} else {
-		uuidGenerator, err = uuid.NewGenerator()
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	return &EventCenterClient{
-		cli:           grpcClient,
-		uuidGenerator: uuidGenerator,
-	}, nil
-}
+// func NewEventCenterClient(options ...EventCenterClientOption) (*EventCenterClient, error) {
+// 	var conf EventCenterConfig
+// 	for _, option := range options {
+// 		option(&conf)
+// 	}
+//
+// 	var grpcClient pb.EventsCenterCollectionServiceClient
+// 	var uuidGenerator UUIDGenerator
+// 	var err error
+// 	if conf.grpcConf != nil {
+// 		grpcClient, err = NewGRPCClient(conf.grpcConf)
+// 	} else {
+// 		grpcClient, err = NewGRPCClientFromEnv()
+// 	}
+//
+// 	if err != nil {
+// 		return nil, err
+// 	}
+//
+// 	if conf.uuidGenerator != nil {
+// 		uuidGenerator = conf.uuidGenerator
+// 	} else {
+// 		uuidGenerator, err = uuid.NewGenerator()
+// 		if err != nil {
+// 			return nil, err
+// 		}
+// 	}
+//
+// 	return &EventCenterClient{
+// 		cli:           grpcClient,
+// 		uuidGenerator: uuidGenerator,
+// 	}, nil
+// }
 
 func NewGRPCClientFromEnv() (pb.EventsCenterCollectionServiceClient, error) {
 	conf := &GrpcConf{
@@ -116,26 +121,90 @@ func (c *EventCenterClient) SendNotification(ctx context.Context, ruleKey *pb.Ru
 	return err
 }
 
-func (c *EventCenterClient) AddDetectionRule(ctx context.Context, rule *pb.DetectionRule) error {
-	req := &pb.AddDetectionRuleReq{
-		Rule: rule,
+func (c *SherlockClient) getURL(path string) string {
+	base := os.Getenv("SHERLOCK_URL")
+	switch path {
+	case "ResetCategoryRules":
+		return base + "/api/v1/palace/internal/rules/reset"
+	case "AddDetectionRule":
+		return base + "/api/v1/palace/internal/rules"
 	}
-	return util.RetryWithBackoff(ctx, func() error {
-		_, err := c.cli.AddDetectionRule(ctx, req)
-		return err
-	}, retry.RetryIf(c.isRetryErr))
+	return base
 }
 
-func (c *EventCenterClient) ResetCategoryRules(ctx context.Context, module, category string, rules []*pb.DetectionRule) error {
-	req := &pb.ResetCategoryRulesReq{
-		Module:   module,
+type SherlockClient struct{}
+
+func NewSherlockClient() SherlockClient {
+	return SherlockClient{}
+}
+
+func (c *SherlockClient) AddDetectionRule(ctx context.Context, rule *pb.DetectionRule) error {
+	logging.GetLogger().Debug().Msgf("AddDetectionRule start, url:%s, rule:%v", c.getURL("AddDetectionRule"), rule)
+
+	type Request struct {
+		Rule *pb.DetectionRule `json:"Rule"`
+	}
+
+	jsonBytes, err := json.Marshal(Request{
+		Rule: rule,
+	})
+	if err != nil {
+		return err
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPut, c.getURL("AddDetectionRule"), bytes.NewBuffer(jsonBytes))
+	if err != nil {
+		return err
+	}
+
+	rsp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer util.CloseBodyWithLog(rsp.Body)
+	body, err := ioutil.ReadAll(rsp.Body)
+	if err != nil {
+		return err
+	}
+	logging.GetLogger().Debug().Msgf("AddDetectionRule end, url:%s, req:%s, rsp:%s", c.getURL("AddDetectionRule"), string(jsonBytes), string(body))
+
+	return nil
+}
+
+func (c *SherlockClient) ResetCategoryRules(ctx context.Context, category string, rules []*pb.DetectionRule) error {
+
+	logging.GetLogger().Debug().Msgf("ResetCategoryRules start, url:%s, category:%s, rules:%v", c.getURL("ResetCategoryRules"), category, rules)
+
+	type Request struct {
+		Category string              `json:"Category"`
+		Rules    []*pb.DetectionRule `json:"Rules"`
+	}
+
+	jsonBytes, err := json.Marshal(Request{
 		Category: category,
 		Rules:    rules,
+	})
+	if err != nil {
+		return err
 	}
-	tctx, cancel := context.WithTimeout(ctx, 500*time.Millisecond)
-	defer cancel()
-	_, err := c.cli.ResetCategoryRules(tctx, req)
-	return err
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.getURL("ResetCategoryRules"), bytes.NewBuffer(jsonBytes))
+	if err != nil {
+		return err
+	}
+
+	rsp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer util.CloseBodyWithLog(rsp.Body)
+	body, err := ioutil.ReadAll(rsp.Body)
+	if err != nil {
+		return err
+	}
+	logging.GetLogger().Debug().Msgf("ResetCategoryRules end, url:%s, req:%s, rsp:%s", c.getURL("ResetCategoryRules"), string(jsonBytes), string(body))
+
+	return nil
 }
 
 func (c *EventCenterClient) isRetryErr(err error) bool {

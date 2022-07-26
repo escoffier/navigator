@@ -18,7 +18,6 @@ import (
 	"gitlab.com/security-rd/go-pkg/logging"
 	"gitlab.com/security-rd/go-pkg/pb"
 	"gitlab.com/security-rd/go-pkg/sdk/palace"
-	"google.golang.org/grpc/status"
 	"gopkg.in/yaml.v2"
 )
 
@@ -507,24 +506,11 @@ func (s *Service) doRegisterEventsCenterRules(ctx context.Context) error {
 			oneCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
 			defer cancel()
 
-			var clientErr error
 			err := util.RetryWithBackoff(oneCtx, func() error {
-				_, err := s.eventsCenterCli.AddDetectionRule(ctx, &pb.AddDetectionRuleReq{
-					Rule: detectionRule,
-				})
-				status, ok := status.FromError(err)
-				if ok && status != nil {
-					if status.Code() >= 400 && status.Code() < 500 {
-						// 4xx stop retry
-						clientErr = err
-						return nil
-					}
-				}
-				return err
+				sherlockClient := echelper.NewSherlockClient()
+				return sherlockClient.AddDetectionRule(oneCtx, detectionRule)
 			})
-			if clientErr != nil {
-				err = clientErr
-			}
+
 			if err != nil {
 				logging.Get().Err(err).Msgf("add rule for eventsCenter error. data: %+v", detectionRule)
 				allSuccess = false

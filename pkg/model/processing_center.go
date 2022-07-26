@@ -14,7 +14,7 @@ type PodInfo struct {
 
 type ProcessingRecord struct {
 	ID         string   `json:"-"`
-	EventID    int32    `json:"eventID"`
+	EventID    int64    `json:"eventID"`
 	OpType     string   `json:"opType"`
 	UpdatedAt  int64    `json:"updatedAt"`
 	Status     string   `json:"status"`
@@ -68,7 +68,7 @@ type ActionDisplay struct {
 
 type ProcessingRecordDisplay struct {
 	ID         string           `json:"id"`
-	EventID    int32            `json:"eventID"`
+	EventID    int64            `json:"eventID,string"`
 	OpType     string           `json:"opType"`
 	Status     string           `json:"status"`
 	LastOpUser string           `json:"lastOpUser"`
