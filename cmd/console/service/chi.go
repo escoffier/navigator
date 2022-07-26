@@ -9,15 +9,13 @@ import (
 	"github.com/go-chi/chi"
 	"github.com/go-chi/chi/middleware"
 	"github.com/go-chi/jwtauth"
-
 	"github.com/go-redis/redis/v8"
-	"gitlab.com/security-rd/go-pkg/databases"
-	"gitlab.com/security-rd/go-pkg/elastic"
-
 	"gitlab.com/piccolo_su/vegeta/cmd/console/api"
 	"gitlab.com/piccolo_su/vegeta/pkg/harbor"
 	"gitlab.com/piccolo_su/vegeta/pkg/lang"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
+	"gitlab.com/security-rd/go-pkg/databases"
+	"gitlab.com/security-rd/go-pkg/elastic"
 )
 
 var (
@@ -31,7 +29,6 @@ func setupChiRouter(
 	scannerURL string,
 	exportURL string,
 	sherlockURL string,
-	secProfilesCoreURL string,
 	microsegURL string,
 	webhookURL string,
 	httpLoggerDisabled bool,
@@ -60,7 +57,6 @@ func setupChiRouter(
 		scannerURL,
 		exportURL,
 		sherlockURL,
-		secProfilesCoreURL,
 		microsegURL,
 		webhookURL,
 		redisClient,

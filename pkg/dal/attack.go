@@ -58,7 +58,7 @@ func LoadAttackRules(ctx context.Context, consoleAddr string, curDataVersion, cu
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
 		logging.GetLogger().Error().Msgf("Status code is %d. url: %s.", resp.StatusCode, url)
-		return nil, err
+		return nil, fmt.Errorf("status code is: %d", resp.StatusCode)
 	}
 
 	bodyBytes, err := ioutil.ReadAll(resp.Body)

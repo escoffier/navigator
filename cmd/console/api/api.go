@@ -28,12 +28,11 @@ type api struct {
 	microsegURL string
 	webhookURL  *url.URL
 
-	scannerURL        string
-	exportURL         string
-	secProfileCoreURL string
-	sherlockURL       string
-	redisClient       *redis.Client
-	harborClient      *harbor.HarborRESTClient
+	scannerURL   string
+	exportURL    string
+	sherlockURL  string
+	redisClient  *redis.Client
+	harborClient *harbor.HarborRESTClient
 	// ecCli             pb.EventsCenterBizServiceClient
 	esCli *elastic.ESClient
 
@@ -49,7 +48,6 @@ func newAPI(
 	scannerURL string,
 	exportURL string,
 	sherlockURL string,
-	secProfileCoreURL string,
 	microsegURL string,
 	webhookURL string,
 	redisClient *redis.Client,
@@ -66,16 +64,15 @@ func newAPI(
 	}
 
 	return &api{
-		tokenAuth:         tokenAuth,
-		rdb:               rdb,
-		scannerURL:        scannerURL,
-		exportURL:         exportURL,
-		sherlockURL:       sherlockURL,
-		secProfileCoreURL: secProfileCoreURL,
-		microsegURL:       microsegURL,
-		webhookURL:        whUrl,
-		redisClient:       redisClient,
-		harborClient:      harborClient,
+		tokenAuth:    tokenAuth,
+		rdb:          rdb,
+		scannerURL:   scannerURL,
+		exportURL:    exportURL,
+		sherlockURL:  sherlockURL,
+		microsegURL:  microsegURL,
+		webhookURL:   whUrl,
+		redisClient:  redisClient,
+		harborClient: harborClient,
 		// ecCli:             ecCli,
 		esCli:             esCli,
 		httpAuditDisabled: httpAuditDisabled,
