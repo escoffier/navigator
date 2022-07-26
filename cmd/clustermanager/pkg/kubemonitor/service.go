@@ -12,12 +12,14 @@ import (
 	"time"
 
 	"gitlab.com/piccolo_su/vegeta/pkg/echelper"
+	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
 	pkg "gitlab.com/piccolo_su/vegeta/pkg/kubemonitor"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 	"gitlab.com/security-rd/go-pkg/logging"
 	"gitlab.com/security-rd/go-pkg/pb"
+	"gitlab.com/security-rd/go-pkg/sdk/palace"
 	"google.golang.org/grpc/status"
-	yaml "gopkg.in/yaml.v2"
+	"gopkg.in/yaml.v2"
 )
 
 const (
@@ -272,65 +274,116 @@ func getEventTargetID(name string, kind string) string {
 	return fmt.Sprintf("%s (%s)", name, kind)
 }
 
-func (s *Service) newEvtCenterReq(ctx context.Context, evt *pkg.KubeMonitorEvent) *pb.SendNotificationReq {
-	defer func() {
-		if r := recover(); r != nil {
-			logging.Get().Error().Msgf("Panic: %v. Stack: %s", r, debug.Stack())
+func genPalaceSignalParams(evt *pkg.KubeMonitorEvent) (palace.RuleKey, []palace.Scope, map[string]interface{}) {
+	ruleKey := palace.RuleKey{
+		Category: eventsCategory,
+		Name:     evt.RuleName,
+	}
+
+	// 告警信号的工作负载、影响范围
+	// scopes为列表格式，存在递进关系： container -> cluster
+	// kind、name 为必填，id若有则需填写
+	var clusterName = evt.ClusterKey
+	clusterManager, ok := k8s.GetClusterManager()
+	if ok {
+		var err error
+		clusterName, err = clusterManager.GetClusterName(evt.ClusterKey)
+		if err != nil {
+			logging.Get().Warn().Err(err).Msg("GetClusterName err")
 		}
-	}()
+	}
 
-	req := new(pb.SendNotificationReq)
-	req.RuleKey = new(pb.RuleKey)
-	req.RuleKey.Module = eventsModule
-	req.RuleKey.Category = eventsCategory
-	req.RuleKey.Name = evt.RuleName
+	scopes := []palace.Scope{
+		{
+			Kind: palace.ScopeKindCluster,
+			ID:   evt.ClusterKey,
+			Name: clusterName, // cluster name
+		},
+		{
+			Kind: palace.ScopeKindNamespace,
+			Name: evt.TargetObject.Namespace, // namespace name
+		},
+		{
+			Kind: palace.ScopeKindResource,
+			Name: fmt.Sprintf("%s(%s)", evt.TargetObject.Name, evt.TargetObject.Kind),
+		},
+	}
 
-	now := time.Now()
-	req.Timestamp = now.Unix()
-	req.UUID = uuid(evt, now)
-	req.NotifyContext = new(pb.Context)
-	req.NotifyContext.Cluster = evt.ClusterKey
-	req.NotifyContext.Namespace = evt.TargetObject.Namespace
-	req.NotifyContext.ServiceID = strings.Join([]string{evt.TargetObject.Kind, evt.TargetObject.Name}, "/")
-	req.NotifyContext.CustomKV = make([]*pb.MultiLanguageKV, len(evt.ContextKVs))
-
-	for i, kv := range evt.ContextKVs {
-		mkv := new(pb.MultiLanguageKV)
-		req.NotifyContext.CustomKV[i] = mkv
-		mkv.KVHash = make(map[string]*pb.KV, 2)
-		if len(kv.KeyMulti) > 0 {
-			for lang, key := range kv.KeyMulti {
-				v, exist := kv.ValueMulti[lang]
-				if !exist {
-					v = kv.DefaultValue
-				}
-				mkv.KVHash[lang] = &pb.KV{Key: key, Value: v}
+	signalContext := map[string]interface{}{}
+	for _, kv := range evt.ContextKVs {
+		if key, ok := kv.KeyMulti["en"]; ok {
+			v, exist := kv.ValueMulti["en"]
+			if !exist {
+				v = kv.DefaultValue
 			}
+			signalContext[key] = v
 		} else {
-			mkv.KVHash["en"] = &pb.KV{Key: kv.Key, Value: kv.DefaultValue}
-			mkv.KVHash["zh"] = &pb.KV{Key: kv.Key, Value: kv.DefaultValue}
+			signalContext[kv.Key] = kv.DefaultValue
 		}
 	}
 
-	return req
+	return ruleKey, scopes, signalContext
 }
 
-func (s *Service) sendNotifToEventsCenter(ctx context.Context, req *pb.SendNotificationReq) error {
-	defer func() {
-		if r := recover(); r != nil {
-			logging.Get().Error().Msgf("Panic: %v. Stack: %s", r, debug.Stack())
-		}
-	}()
-
-	oneCtx, cancel := context.WithTimeout(ctx, 1000*time.Millisecond)
-	defer cancel()
-	_, err := s.eventsCenterCli.SendNotification(oneCtx, req)
-	if err != nil {
-		logging.Get().Err(err).Msgf("send notification error. req: %+v", req)
-		return err
-	}
-	return nil
-}
+// func (s *Service) newEvtCenterReq(ctx context.Context, evt *pkg.KubeMonitorEvent) *pb.SendNotificationReq {
+// 	defer func() {
+// 		if r := recover(); r != nil {
+// 			logging.Get().Error().Msgf("Panic: %v. Stack: %s", r, debug.Stack())
+// 		}
+// 	}()
+//
+// 	req := new(pb.SendNotificationReq)
+// 	req.RuleKey = new(pb.RuleKey)
+// 	req.RuleKey.Module = eventsModule
+// 	req.RuleKey.Category = eventsCategory
+// 	req.RuleKey.Name = evt.RuleName
+//
+// 	now := time.Now()
+// 	req.Timestamp = now.Unix()
+// 	req.UUID = uuid(evt, now)
+// 	req.NotifyContext = new(pb.Context)
+// 	req.NotifyContext.Cluster = evt.ClusterKey
+// 	req.NotifyContext.Namespace = evt.TargetObject.Namespace
+// 	req.NotifyContext.ServiceID = strings.Join([]string{evt.TargetObject.Kind, evt.TargetObject.Name}, "/")
+// 	req.NotifyContext.CustomKV = make([]*pb.MultiLanguageKV, len(evt.ContextKVs))
+//
+// 	for i, kv := range evt.ContextKVs {
+// 		mkv := new(pb.MultiLanguageKV)
+// 		req.NotifyContext.CustomKV[i] = mkv
+// 		mkv.KVHash = make(map[string]*pb.KV, 2)
+// 		if len(kv.KeyMulti) > 0 {
+// 			for lang, key := range kv.KeyMulti {
+// 				v, exist := kv.ValueMulti[lang]
+// 				if !exist {
+// 					v = kv.DefaultValue
+// 				}
+// 				mkv.KVHash[lang] = &pb.KV{Key: key, Value: v}
+// 			}
+// 		} else {
+// 			mkv.KVHash["en"] = &pb.KV{Key: kv.Key, Value: kv.DefaultValue}
+// 			mkv.KVHash["zh"] = &pb.KV{Key: kv.Key, Value: kv.DefaultValue}
+// 		}
+// 	}
+//
+// 	return req
+// }
+//
+// func (s *Service) sendNotifToEventsCenter(ctx context.Context, req *pb.SendNotificationReq) error {
+// 	defer func() {
+// 		if r := recover(); r != nil {
+// 			logging.Get().Error().Msgf("Panic: %v. Stack: %s", r, debug.Stack())
+// 		}
+// 	}()
+//
+// 	oneCtx, cancel := context.WithTimeout(ctx, 1000*time.Millisecond)
+// 	defer cancel()
+// 	_, err := s.eventsCenterCli.SendNotification(oneCtx, req)
+// 	if err != nil {
+// 		logging.Get().Err(err).Msgf("send notification error. req: %+v", req)
+// 		return err
+// 	}
+// 	return nil
+// }
 func (s *Service) handleMonitorEvent(ctx context.Context, evt *pkg.KubeMonitorEvent) error {
 	defer func() {
 		if r := recover(); r != nil {
@@ -349,12 +402,20 @@ func (s *Service) handleMonitorEvent(ctx context.Context, evt *pkg.KubeMonitorEv
 		return nil
 	}
 
-	ecReq := s.newEvtCenterReq(ctx, evt)
-
-	ecErr := s.sendNotifToEventsCenter(ctx, ecReq)
-	if ecErr == nil {
+	ruleKey, scopes, signalContext := genPalaceSignalParams(evt)
+	err := palace.SendSignal(ruleKey, scopes, signalContext)
+	if err != nil {
+		logging.Get().Err(err).Str("args", fmt.Sprintf("%+v", evt)).Msg("kubeMonitor send signal to palace fails!")
+	} else {
 		s.dupCache.addEvent(evt)
 	}
+
+	// ecReq := s.newEvtCenterReq(ctx, evt)
+	//
+	// ecErr := s.sendNotifToEventsCenter(ctx, ecReq)
+	// if ecErr == nil {
+	// 	s.dupCache.addEvent(evt)
+	// }
 	return nil
 }
 

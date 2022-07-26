@@ -543,9 +543,12 @@ func authenticator(db *databases.RDBInstance) func(http.Handler) http.Handler {
 
 			// renewal the token
 			if h := r.Header.Get(headerAutoRequest); h != autoRequestTypeDefault && h != autoRequestTypePolling {
-				if err = sessionService.RenewalToken(ctx, username); err != nil {
-					logging.Get().Warn().Err(err).Msgf("redis renewal the token failed")
-				}
+				go func() {
+					// if redis timeout mysql cannot update, via goroutine update redis
+					if err = sessionService.RenewalToken(ctx, username); err != nil {
+						logging.Get().Warn().Err(err).Msgf("redis renewal the token failed")
+					}
+				}()
 
 				err = dal.UpdateUserTokenExpireAt(ctx, db.Get(), username, time.Now().Add(session.DefaultTokenTTL).Unix())
 				if err != nil {
