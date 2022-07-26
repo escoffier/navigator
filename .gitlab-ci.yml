@@ -141,35 +141,6 @@ holmes:
     - cmd/holmes/**/*
     - build/holmes/**/*
     - configs/holmes/**/*
-palace:
-  stage: build
-  resource_group: palace
-  retry: 1
-  tags:
-  - k8s
-  before_script:
-  - git merge origin/master
-  - git config --global --add url."git@gitlab.com:".insteadOf "https://gitlab.com/"
-  - git config --global --add url."ssh://git@10.99.201.85/".insteadOf "http://scm.tensorsecurity.cn/"
-  - sed -i 's#RELEASEVERSION?=v0.0.1#RELEASEVERSION?=ci#g' Makefile
-  - sed -i "s#latest#ci#g" Makefile
-  - sed -i "s#DOCKER_REGISTRY=$(REPOPREFIX)#DOCKER_REGISTRY=harbor.tensorsecurity.com/tensorsecurity#g"
-    Makefile
-  - sed -i "s#REPOPREFIX?=localhost:32000#REPOPREFIX?=harbor.tensorsecurity.com/tensorsecurity#g"
-    Makefile
-  - mkdir ~/.kube/
-  - cp ~/.docker/config-ci ~/.kube/config
-  - cp ~/.docker/kubectl /bin/
-  - chmod +755 /bin/kubectl
-  script:
-  - USEMIRROR=true make palace
-  - docker push harbor.tensorsecurity.com/tensorsecurity/palace:ci
-  - kubectl delete pod -n tensorsec -l app.kubernetes.io/name=palace
-  rules:
-  - changes:
-    - cmd/palace/**/*
-    - build/palace/**/*
-    - configs/palace/**/*
 safe-node-image:
   stage: build
   resource_group: safe-node-image
