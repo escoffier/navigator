@@ -18,6 +18,7 @@ func (api *api) microSegmentation() http.HandlerFunc {
 	reverseProxy := httputil.NewSingleHostReverseProxy(remote)
 
 	return func(w http.ResponseWriter, r *http.Request) {
+		r.Host = remote.Host
 		reverseProxy.ServeHTTP(w, r)
 	}
 }
