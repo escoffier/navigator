@@ -1,20 +1,16 @@
 package component
 
 import (
-	"bytes"
 	"container/list"
 	"context"
-	"crypto/tls"
-	"crypto/x509"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
-	"net/http"
-	"os"
 	"strings"
 	"sync"
 	"time"
+
+	"gitlab.com/security-rd/go-pkg/sdk/palace"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/jobs"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
@@ -164,69 +160,41 @@ func compareSeverity(s1, s2 string) bool {
 }
 
 // 发送消息到事件中心
-func sendMsgToEventCenter(ctx context.Context, reqBody model.ReqBody) error {
+func sendMsgToEventCenter(ctx context.Context, reqBody model.ReqBody, image model.ImageList) error {
 
-	caCert, err := ioutil.ReadFile(consts.GrpcCAPath)
-	if err != nil {
-		logging.GetLogger().WithContext(ctx).Errorf(err, "CICD open /auth/ca/tls.crr error ")
-		return err
+	ruleKey := palace.RuleKey{
+		Name:     reqBody.RuleKey.Name,
+		Category: reqBody.RuleKey.Category,
+	}
+	fullRepoName := palace.Scope{
+		Kind: palace.ScopeKindRepo,
+		Name: image.FullRepoName,
+	}
+	tag := palace.Scope{
+		Kind: palace.ScopeKindTag,
+		Name: image.Tags,
+	}
+	library := palace.Scope{
+		Kind: palace.ScopeKindRegistry,
+		Name: image.Library,
+	}
+	msg := map[string]interface{}{}
+
+	for i := range reqBody.NotifyContext.CustomKV {
+		kv := reqBody.NotifyContext.CustomKV[i].KVHash.EN
+		msg[kv.Key] = kv.Value
 	}
 
-	clientCertPool := x509.NewCertPool()
-	if !clientCertPool.AppendCertsFromPEM(caCert) {
-		return err
+	if err := palace.SendSignal(ruleKey, []palace.Scope{fullRepoName, tag, library}, msg); err != nil {
+		logging.GetLogger().Err(err).Msg("sendMsgToEventCenter.SendSignal")
 	}
+	logging.GetLogger().Info().Str("Image", fmt.Sprintf("%s/%s:%s", image.Library, image.FullRepoName, image.Tags)).Msg("sendMsgToEventCenter.SendSignal")
 
-	cert, err := tls.LoadX509KeyPair(consts.HTTPSClientCertPath, consts.HTTPSClientPrivateKey)
-	if err != nil {
-		logging.GetLogger().WithContext(ctx).Errorf(err, "CICD LoadX509KeyPair/eventcenter-config/tls.crt error")
-		return err
-	}
-
-	cli := http.Client{
-		Transport: &http.Transport{
-			TLSClientConfig: &tls.Config{
-				RootCAs:      clientCertPool,
-				Certificates: []tls.Certificate{cert},
-			},
-		},
-	}
-	JSONBytes, err := json.Marshal(reqBody)
-	if err != nil {
-		return err
-	}
-
-	logging.GetLogger().Debug().Msg(fmt.Sprintf("send msg to event center：%s", string(JSONBytes)))
-
-	host := consts.EventCenterServiceHost
-	port := os.Getenv("EVENTCENTER_SERVICE_PORT_EVENTCENTER_HTTP")
-	if port == "" {
-		logging.GetLogger().Debug().Msgf("CICD event center port:%s", port)
-		port = consts.EventCenterServicePort
-	}
-
-	uri := fmt.Sprintf("%s:%s%s", host, port, consts.EventcenterURI)
-
-	logging.GetLogger().Debug().Msgf("CICD event center URI:%s", uri)
-
-	req, err := http.NewRequest("POST", uri, bytes.NewBuffer(JSONBytes))
-	if err != nil {
-		logging.GetLogger().WithContext(ctx).Infof("CICD send msg to event center http.NewRequest error :%s", err.Error())
-		return err
-	}
-
-	rsp, err := cli.Do(req)
-	if err != nil {
-		logging.GetLogger().WithContext(ctx).Infof("CICD get event center cli.Do(req) error :%s", err.Error())
-		return err
-	}
-	defer rsp.Body.Close()
-	body, _ := ioutil.ReadAll(rsp.Body)
-	if rsp.StatusCode >= http.StatusMultipleChoices || rsp.StatusCode < http.StatusOK {
-		logging.GetLogger().WithContext(ctx).Infof("CICD send msg to event centor, error message: %s", string(body))
-		return errors.New(string(body))
-	}
 	return nil
+}
+
+func needTranslation(word string) string {
+	return fmt.Sprintf("{%s}", word)
 }
 
 func checkRejectPolicy(po model.RejectPolicy) error {

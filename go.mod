@@ -195,6 +195,7 @@ require (
 	github.com/rookie-ninja/rk-query v1.2.10 // indirect
 	github.com/rs/xid v1.3.0 // indirect
 	github.com/shirou/gopsutil/v3 v3.21.4 // indirect
+	github.com/sony/sonyflake v1.0.0 // indirect
 	github.com/stefanberger/go-pkcs11uri v0.0.0-20201008174630-78d3cae3a980 // indirect
 	github.com/syndtr/gocapability v0.0.0-20200815063812-42c35b437635 // indirect
 	github.com/tchap/go-patricia v2.3.0+incompatible // indirect
@@ -449,7 +450,7 @@ require (
 replace (
 	github.com/containers/podman/v3 => scm.tensorsecurity.cn/tensorsecurity-rd/podman/v3 v3.4.6-20220425170000
 	github.com/opencontainers/image-spec => github.com/opencontainers/image-spec v1.0.2-0.20210819154149-5ad6f50d6283
-	gitlab.com/security-rd/go-pkg => scm.tensorsecurity.cn/tensorsecurity-rd/go-pkg v0.2.39
+	gitlab.com/security-rd/go-pkg => scm.tensorsecurity.cn/tensorsecurity-rd/go-pkg v0.2.40
 	k8s.io/api => k8s.io/kubernetes/staging/src/k8s.io/api v0.0.0-20220503133649-4ce5a8954017
 	k8s.io/apiextensions-apiserver => k8s.io/kubernetes/staging/src/k8s.io/apiextensions-apiserver v0.0.0-20220503133649-4ce5a8954017
 	k8s.io/apimachinery => k8s.io/kubernetes/staging/src/k8s.io/apimachinery v0.0.0-20220503133649-4ce5a8954017

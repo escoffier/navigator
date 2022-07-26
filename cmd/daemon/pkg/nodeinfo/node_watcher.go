@@ -10,6 +10,7 @@ import (
 
 	"github.com/pkg/errors"
 	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
+
 	"gitlab.com/security-rd/go-pkg/logging"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -105,7 +106,7 @@ func (n *NodePodsWatcher) InitK8sClient() (*kubernetes.Clientset, error) {
 	if err != nil {
 		return nil, errors.Errorf("Couldn't initialize k8s config: %w", err)
 	}
-	//k8s client
+	// k8s client
 	n.k8sClient, err = kubernetes.NewForConfig(config)
 	if err != nil {
 		return nil, errors.Errorf("Couldn't initialize k8s clientset: %w", err)
