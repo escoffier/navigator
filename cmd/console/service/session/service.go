@@ -117,10 +117,7 @@ func (s *Service) GetToken(ctx context.Context, db *gorm.DB, username string) (s
 	if err != nil {
 		logging.GetLogger().Warn().Err(err)
 
-		mysqlCtx, mysqlCancel := context.WithTimeout(ctx, defaultOneTimeout)
-		defer mysqlCancel()
-
-		exist, user, err := dal.SelectUser(mysqlCtx, db, username)
+		exist, user, err := dal.SelectUser(context.Background(), db, username)
 		if err != nil {
 			return "", err
 		}
@@ -163,10 +160,7 @@ func (s *Service) GetUserLoginSecret(ctx context.Context, db *gorm.DB, username 
 	if err != nil {
 		logging.GetLogger().Warn().Err(err)
 
-		mysqlCtx, mysqlCancel := context.WithTimeout(ctx, defaultOneTimeout)
-		defer mysqlCancel()
-
-		exist, user, err := dal.SelectUser(mysqlCtx, db, username)
+		exist, user, err := dal.SelectUser(context.Background(), db, username)
 		if err != nil {
 			return "", err
 		}
