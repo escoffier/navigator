@@ -18,8 +18,9 @@ import (
 func (api *api) palace() func(chi.Router) {
 	return func(r chi.Router) {
 		r.Get("/assoc_graph_events", api.getAssocGraphEvents())
-		r.Get("/event/{evtID}/process_tree", api.getProcessTree())
-		r.Get("/event/{evtID}/signals", api.getAGEventSignals())
+		// deprecated
+		// r.Get("/event/{evtID}/process_tree", api.getProcessTree())
+		// r.Get("/event/{evtID}/signals", api.getAGEventSignals())
 	}
 }
 

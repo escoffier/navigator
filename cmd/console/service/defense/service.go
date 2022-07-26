@@ -10,16 +10,16 @@ import (
 	"time"
 
 	json "github.com/json-iterator/go"
+	"github.com/olivere/elastic/v7"
 	"github.com/pkg/errors"
 	"gitlab.com/piccolo_su/vegeta/pkg/dal"
 	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
-	"gitlab.com/piccolo_su/vegeta/pkg/lang"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 	"gitlab.com/security-rd/go-pkg/databases"
+	pkgelastic "gitlab.com/security-rd/go-pkg/elastic"
 	"gitlab.com/security-rd/go-pkg/logging"
-	"gitlab.com/security-rd/go-pkg/pb"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -54,11 +54,11 @@ type RegistryInfo struct {
 	URL      string `json:"url"`
 }
 
-func InitDefenseService(rdb *databases.RDBInstance, ecCli pb.EventsCenterBizServiceClient, scannerURL string) error {
+func InitDefenseService(rdb *databases.RDBInstance, esCli *pkgelastic.ESClient, scannerURL string) error {
 	rlOnce.Do(func() {
 		instance = &TensorDefenseService{
 			rdb:        rdb,
-			EsCli:      ecCli,
+			EsCli:      esCli,
 			scannerURL: scannerURL,
 		}
 		instance.CheckAlertEvents()
@@ -68,7 +68,7 @@ func InitDefenseService(rdb *databases.RDBInstance, ecCli pb.EventsCenterBizServ
 
 type TensorDefenseService struct {
 	rdb        *databases.RDBInstance
-	EsCli      pb.EventsCenterBizServiceClient
+	EsCli      *pkgelastic.ESClient
 	scannerURL string
 }
 
@@ -340,39 +340,81 @@ func (s *TensorDefenseService) GetBaitImageByID(ctx context.Context, id uint32) 
 	return baitImages, nil
 }
 
-func (s *TensorDefenseService) GetAlertEvent(ctx context.Context, clusterKey, namespace, resource string, limit uint32, startTime int64) ([]*Signal, error) {
+func (s *TensorDefenseService) GetAlertEvent(ctx context.Context, clusterKey, namespace, resource string, limit int, startTime int64) ([]*Signal, error) {
+	es, err := s.EsCli.Get()
+	if err != nil {
+		return nil, err
+	}
 
 	if limit <= 0 {
 		limit = 200
 	}
-	logging.Get().Info().Msgf("start time: %d, end time: %d", startTime, time.Now().Unix())
-	req := &pb.GetSignalsReq{
-		OffsetSignalID: "",
-		SortOrder:      pb.SortOrder_Desc,
-		Limit:          limit,
-		Filter: map[string]string{
-			"cluster":      clusterKey,
-			"namespace":    namespace,
-			"nodeType":     "Deployment",
-			"nodeKey":      resource,
-			"ruleModule":   "ContainerSecurity",
-			"ruleCategory": "Watson",
-		},
-		TimeFilter: &pb.TimeFilter{StartTimestamp: startTime, EndTimestamp: time.Now().UnixMilli()},
-		Lang:       string(lang.Language(ctx)),
-	}
-	resp, err := s.EsCli.GetSignals(ctx, req)
+
+	logging.Get().Info().Msgf("start time: %d, end time: %d", startTime, time.Now().UnixMilli())
+
+	boolQuery := elastic.NewBoolQuery().Filter(
+		elastic.NewTermQuery("ruleKey.category.keyword", "Watson"),
+		elastic.NewTermQuery("scope.cluster.id", clusterKey),
+		elastic.NewTermQuery("scope.namespace.name.keyword", namespace),
+		elastic.NewTermQuery("scope.resource.name.keyword", fmt.Sprintf("%s(Deployment)", resource)),
+		elastic.NewRangeQuery("createdAt").Gte(startTime).Lte(time.Now().UnixMilli()),
+	)
+
+	// debug
+	src, _ := boolQuery.Source()
+	logging.Get().Debug().Interface("source", src).Msg("QSL")
+
+	signalsResp, err := es.Search("signals_*").Query(boolQuery).
+		FetchSourceContext(elastic.NewFetchSourceContext(true).Include("severity")).
+		Sort("createdAt", false).Size(limit).Do(ctx)
 	if err != nil {
 		return nil, err
 	}
-	logging.Get().Debug().Msgf("got %d signals", len(resp.Signals))
-	result := make([]*Signal, 0, len(resp.Signals))
-	for _, item := range resp.Signals {
+
+	// TODO: aggs count
+	result := make([]*Signal, 0, len(signalsResp.Hits.Hits))
+	for _, hit := range signalsResp.Hits.Hits {
+		s := map[string]uint32{}
+		if err := json.Unmarshal(hit.Source, &s); err != nil {
+			logging.Get().Warn().Err(err).Msg("json.Unmarshal")
+			continue
+		}
+
 		result = append(result, &Signal{
-			Severity: item.Rule.Severity,
+			Severity: s["severity"],
 		})
 	}
+
 	return result, nil
+
+	// logging.Get().Info().Msgf("start time: %d, end time: %d", startTime, time.Now().Unix())
+	// req := &pb.GetSignalsReq{
+	// 	OffsetSignalID: "",
+	// 	SortOrder:      pb.SortOrder_Desc,
+	// 	Limit:          limit,
+	// 	Filter: map[string]string{
+	// 		"cluster":      clusterKey,
+	// 		"namespace":    namespace,
+	// 		"nodeType":     "Deployment",
+	// 		"nodeKey":      resource,
+	// 		"ruleModule":   "ContainerSecurity",
+	// 		"ruleCategory": "Watson",
+	// 	},
+	// 	TimeFilter: &pb.TimeFilter{StartTimestamp: startTime, EndTimestamp: time.Now().UnixMilli()},
+	// 	Lang:       string(lang.Language(ctx)),
+	// }
+	// resp, err := s.EsCli.GetSignals(ctx, req)
+	// if err != nil {
+	// 	return nil, err
+	// }
+	// logging.Get().Debug().Msgf("got %d signals", len(resp.Signals))
+	// result := make([]*Signal, 0, len(resp.Signals))
+	// for _, item := range resp.Signals {
+	// 	result = append(result, &Signal{
+	// 		Severity: item.Rule.Severity,
+	// 	})
+	// }
+	// return result, nil
 }
 
 type ImageDetail struct {

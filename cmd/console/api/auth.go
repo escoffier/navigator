@@ -535,7 +535,7 @@ func authenticator(db *databases.RDBInstance) func(http.Handler) http.Handler {
 					logging.Get().Warn().Err(err).Msgf("user-agent not match: delete token failed")
 				}
 
-				logging.Get().Debug().Msgf("%s %s %s", username, util.MD5(r.UserAgent()), eigenvalue)
+				logging.Get().Debug().Msgf("%s %s %s", username, util.MD5Hex(r.UserAgent()), eigenvalue)
 				RespAndLog(w, ctx, NewInvalidAuthToken(http.StatusUnauthorized,
 					fmt.Errorf("user-agent not match")))
 				return
@@ -615,7 +615,9 @@ func jwtAccessCheck(db *databases.RDBInstance) func(http.Handler) http.Handler {
 			}
 
 			ctx = context.WithValue(r.Context(), model.CtxUserSessionKey, userSession)
-			if r.Method == http.MethodGet {
+			if r.Method == http.MethodGet ||
+				r.URL.Path == "/api/v2/platform/sherlock/palace/events" ||
+				r.URL.Path == "/api/v2/platform/sherlock/palace/signals" {
 				next.ServeHTTP(w, r.WithContext(ctx))
 				return
 			}

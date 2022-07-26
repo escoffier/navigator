@@ -15,14 +15,14 @@ var (
 	once     sync.Once
 )
 
-func Init(rdb *databases.RDBInstance, redisCli *redis.Client, ecCli *echelper.EventCenterClient) error {
+func Init(rdb *databases.RDBInstance, redisCli *redis.Client, sherlockClient *echelper.SherlockClient) error {
 	if rdb == nil || redisCli == nil {
 		return errors.New("empty db client")
 	}
 	var err error
 	once.Do(func() {
 		var service *Service
-		service, err = newService(rdb, redisCli, ecCli)
+		service, err = newService(rdb, redisCli, sherlockClient)
 		if err == nil {
 			instance.Store(service)
 		}
@@ -44,8 +44,8 @@ type Service struct {
 	*ATTCKHandler
 }
 
-func newService(db *databases.RDBInstance, redisCli *redis.Client, ecCli *echelper.EventCenterClient) (*Service, error) {
-	attckHandler, err := NewATTCKHandler(db, redisCli, ecCli)
+func newService(db *databases.RDBInstance, redisCli *redis.Client, sherlockClient *echelper.SherlockClient) (*Service, error) {
+	attckHandler, err := NewATTCKHandler(db, redisCli, sherlockClient)
 	if err != nil {
 		return nil, err
 	}

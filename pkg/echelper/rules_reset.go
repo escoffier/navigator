@@ -16,7 +16,7 @@ const (
 	internalAttributePrefix = "__internal__"
 )
 
-func SendRulesToEventCenter(ctx context.Context, cli *EventCenterClient, rulesData []byte) error {
+func SendRulesToEventCenter(ctx context.Context, cli *SherlockClient, rulesData []byte) error {
 	const (
 		timeout  = time.Second * 5
 		module   = "ContainerSecurity"
@@ -121,7 +121,7 @@ func SendRulesToEventCenter(ctx context.Context, cli *EventCenterClient, rulesDa
 	}
 
 	for category, crules := range rules {
-		err := cli.ResetCategoryRules(ctx, module, category, crules)
+		err := cli.ResetCategoryRules(ctx, category, crules)
 		if err != nil {
 			logging.GetLogger().Err(err).Msgf("reset category %s rules error", category)
 			return err

@@ -13,7 +13,6 @@ import (
 	"gitlab.com/security-rd/go-pkg/databases"
 	"gitlab.com/security-rd/go-pkg/elastic"
 	"gitlab.com/security-rd/go-pkg/logging"
-	"gitlab.com/security-rd/go-pkg/pb"
 )
 
 const (
@@ -30,12 +29,13 @@ func SetupRoutes(
 	rdb *databases.RDBInstance,
 	scannerURL string,
 	exportURL string,
+	sherlockURL string,
 	secProfileCoreURL string,
 	microsegURL string,
 	webhookURL string,
 	redisClient *redis.Client,
 	harborClient *harbor.HarborRESTClient,
-	ecCli pb.EventsCenterBizServiceClient,
+	// ecCli pb.EventsCenterBizServiceClient,
 	es *elastic.ESClient,
 	httpAuditDisabled bool,
 
@@ -47,12 +47,13 @@ func SetupRoutes(
 		rdb,
 		scannerURL,
 		exportURL,
+		sherlockURL,
 		secProfileCoreURL,
 		microsegURL,
 		webhookURL,
 		redisClient,
 		harborClient,
-		ecCli,
+		// ecCli,
 		es,
 		httpAuditDisabled,
 	)

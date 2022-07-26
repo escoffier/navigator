@@ -13,7 +13,6 @@ import (
 	"github.com/go-redis/redis/v8"
 	"gitlab.com/security-rd/go-pkg/databases"
 	"gitlab.com/security-rd/go-pkg/elastic"
-	"gitlab.com/security-rd/go-pkg/pb"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/console/api"
 	"gitlab.com/piccolo_su/vegeta/pkg/harbor"
@@ -31,6 +30,7 @@ func setupChiRouter(
 	es *elastic.ESClient,
 	scannerURL string,
 	exportURL string,
+	sherlockURL string,
 	secProfilesCoreURL string,
 	microsegURL string,
 	webhookURL string,
@@ -38,7 +38,7 @@ func setupChiRouter(
 	httpAuditDisabled bool,
 	redisClient *redis.Client,
 	harborClient *harbor.HarborRESTClient,
-	ecCli pb.EventsCenterBizServiceClient,
+	// ecCli pb.EventsCenterBizServiceClient,
 ) http.Handler {
 	// ch := make(chan model.AccessLog, 1000)
 	tokenAuth := jwtauth.New("HS256", jwtSignKey, nil)
@@ -59,12 +59,13 @@ func setupChiRouter(
 		rdb,
 		scannerURL,
 		exportURL,
+		sherlockURL,
 		secProfilesCoreURL,
 		microsegURL,
 		webhookURL,
 		redisClient,
 		harborClient,
-		ecCli,
+		// ecCli,
 		es,
 		httpAuditDisabled,
 	)

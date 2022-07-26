@@ -38,8 +38,8 @@ var (
 )
 
 type ATTCKHandler struct {
-	db    *databases.RDBInstance
-	ecCli *echelper.EventCenterClient
+	db             *databases.RDBInstance
+	sherlockClient *echelper.SherlockClient
 
 	currentVersion *model.ATTCKConfVersion
 	items          map[string]*ruleItem
@@ -142,12 +142,12 @@ func parseItems(header cryption.FileHeader, rulesContext []byte) (version string
 	return version, rules, strictRules, nil
 }
 
-func NewATTCKHandler(db *databases.RDBInstance, redisCli *redis.Client, ecCli *echelper.EventCenterClient) (*ATTCKHandler, error) {
+func NewATTCKHandler(db *databases.RDBInstance, redisCli *redis.Client, sherlockClient *echelper.SherlockClient) (*ATTCKHandler, error) {
 	handler := &ATTCKHandler{
-		db:    db,
-		ecCli: ecCli,
-		items: make(map[string]*ruleItem),
-		rs:    redsync.New(goredis.NewPool(redisCli)),
+		db:             db,
+		sherlockClient: sherlockClient,
+		items:          make(map[string]*ruleItem),
+		rs:             redsync.New(goredis.NewPool(redisCli)),
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
@@ -211,7 +211,7 @@ func (h *ATTCKHandler) asyncUploadRulesToEventsCenter(ruleBytes []byte, version 
 					oneCtx, cancel := context.WithTimeout(tctx, 5*time.Second)
 					defer cancel()
 
-					return echelper.SendRulesToEventCenter(oneCtx, h.ecCli, ruleBytes)
+					return echelper.SendRulesToEventCenter(oneCtx, h.sherlockClient, ruleBytes)
 				})
 				if err != nil {
 					logging.Get().Err(err).Str("conf version", version).Msg("send to events center error.")
