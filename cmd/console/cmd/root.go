@@ -7,10 +7,8 @@ import (
 
 	"github.com/spf13/cobra"
 	"gitlab.com/security-rd/go-pkg/logging"
-
 	"gitlab.com/security-rd/go-pkg/databases"
 	"gorm.io/gorm/logger"
-
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service"
 	"gitlab.com/piccolo_su/vegeta/pkg/flag"
 	"gitlab.com/piccolo_su/vegeta/pkg/lifecycle"
@@ -87,13 +85,7 @@ var rootCmd = &cobra.Command{
 			Str("username", elasticOpts.Username).
 			Msg("Elastic options")
 
-		secProfilesOpts := flag.GetSecProfilesOpts(cmd)
-		logging.Get().Info().
-			Str("host", secProfilesOpts.Host).
-			Int("port", secProfilesOpts.Port).
-			Msg("Security Profiles options")
-
-		console, err := service.NewConsole(httpOpts, rdbOpts, scannerOpts, exporterOpts, scapOpts, elasticOpts, secProfilesOpts, rdbOptions)
+		console, err := service.NewConsole(httpOpts, rdbOpts, scannerOpts, exporterOpts, scapOpts, elasticOpts, rdbOptions)
 
 		if err != nil {
 			return err

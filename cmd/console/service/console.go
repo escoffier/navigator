@@ -11,23 +11,12 @@ import (
 	"sync"
 	"time"
 
-	"gitlab.com/piccolo_su/vegeta/cmd/console/service/containers"
-	"gitlab.com/piccolo_su/vegeta/pkg/echelper"
-
 	cr "github.com/robfig/cron/v3"
-	"gitlab.com/security-rd/go-pkg/cache"
-	"gitlab.com/security-rd/go-pkg/databases"
-	"gitlab.com/security-rd/go-pkg/elastic"
-	"gitlab.com/security-rd/go-pkg/logging"
-	"gorm.io/gorm"
-	"gorm.io/gorm/clause"
-	"k8s.io/apimachinery/pkg/util/wait"
-	"scm.tensorsecurity.cn/tensorsecurity-rd/api/pkg/generated/informers/externalversions"
-
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/apiscan"
 	assetsSvc "gitlab.com/piccolo_su/vegeta/cmd/console/service/assets"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/attck"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/captcha"
+	"gitlab.com/piccolo_su/vegeta/cmd/console/service/containers"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/cron"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/data"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/defense"
@@ -50,12 +39,21 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/data/notifyhandler"
 	"gitlab.com/piccolo_su/vegeta/cmd/platform-report/def"
 	"gitlab.com/piccolo_su/vegeta/pkg/assets"
+	"gitlab.com/piccolo_su/vegeta/pkg/echelper"
 	"gitlab.com/piccolo_su/vegeta/pkg/env"
 	"gitlab.com/piccolo_su/vegeta/pkg/flag"
 	"gitlab.com/piccolo_su/vegeta/pkg/harbor"
 	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
 	"gitlab.com/piccolo_su/vegeta/pkg/lifecycle"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
+	"gitlab.com/security-rd/go-pkg/cache"
+	"gitlab.com/security-rd/go-pkg/databases"
+	"gitlab.com/security-rd/go-pkg/elastic"
+	"gitlab.com/security-rd/go-pkg/logging"
+	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
+	"k8s.io/apimachinery/pkg/util/wait"
+	"scm.tensorsecurity.cn/tensorsecurity-rd/api/pkg/generated/informers/externalversions"
 )
 
 const resyncInterval = 8 * time.Hour
@@ -80,7 +78,6 @@ func NewConsole(
 	exporterOpts *flag.ExporterOpts,
 	scapOpts *flag.ScapOpts,
 	elasticOpts *flag.ElasticOpts,
-	secProfilesOpts *flag.SecProfilesOpts,
 	rdbOptions *databases.Options,
 ) (*Console, error) {
 	// eventGrpcUrl := os.Getenv(echelper.EventGrpcURLEnv)
@@ -345,7 +342,6 @@ func NewConsole(
 				scannerURL,
 				exportURL,
 				sherlockURL,
-				fmt.Sprintf("http://%s:%d", secProfilesOpts.Host, secProfilesOpts.Port),
 				microsegURL,
 				env.GetWebHookUrl(),
 				httpOpts.HTTPLoggerDisabled,
