@@ -94,12 +94,12 @@ type ATTCKRuleDisplay struct {
 }
 
 type LatestATTCKRuleInfo struct {
-	DataChanged          bool            `json:"dataChanged"`
-	LatestDataVersion    int64          `json:"latestDataVersion"`
-	SettingChanged       bool            `json:"settingChanged"`
-	LatestSettingVersion int64          `json:"latestSettingVersion"`
-	Data                 string          `json:"data"`
-	ClosedRules          []string        `json:"closedRules"`
+	DataChanged          bool     `json:"dataChanged"`
+	LatestDataVersion    int64    `json:"latestDataVersion"`
+	SettingChanged       bool     `json:"settingChanged"`
+	LatestSettingVersion int64    `json:"latestSettingVersion"`
+	Data                 string   `json:"data"`
+	ClosedRules          []string `json:"closedRules"`
 }
 
 type RuleFromYaml struct {
@@ -145,21 +145,21 @@ func Str2SeverityNum(s string) uint8 {
 	retNum := uint8(0)
 	switch s {
 	case "EMERGENCY":
-		return 10
+		return 0
 	case "ALERT":
-		return 9
+		return 1
 	case "CRITICAL":
-		return 8
+		return 2
 	case "ERROR":
-		return 7
+		return 3
 	case "WARNING":
-		return 6
+		return 4
 	case "NOTICE":
 		return 5
 	case "INFO":
-		return 2
+		return 6
 	case "DEBUG":
-		return 1
+		return 7
 	}
 	return retNum
 }
