@@ -319,14 +319,6 @@ else
 	docker build -t $(REPOPREFIX)/holmes:latest -f ./build/holmes/Dockerfile --build-arg REPO=$(REPOPREFIX) TAG=$(FETCHTAG) .
 endif
 
-.PHONY: palace
-palace:		## Build palace binary
-	@echo "+ $@"
-	go build -v \
-		--ldflags "$(LDFLAGS) -X gitlab.com/piccolo_su/vegeta/cmd/palace/cmd.Version=$(VERSION)" \
-		-o dist/palace gitlab.com/piccolo_su/vegeta/cmd/palace
-	#upx --lzma --best dist/palace
-	docker build -t $(REPOPREFIX)/palace:latest -f ./build/palace/Dockerfile .
 
 .PHONY: migrate
 migrate: generate		## Build migrage binary
@@ -391,7 +383,7 @@ cluster-proxy: generate
 
 .PHONY: all
 all: drift-prevention-client faulty scanner scanner-cicd scarecrow console data holmes daemon  \
-webshell-server webhook cluster-manager kafka-proxy palace safe-node-image kube-scanner-report platform-report \
+webshell-server webhook cluster-manager kafka-proxy safe-node-image kube-scanner-report platform-report \
 scan_report apiscan-job cluster-proxy
 
 .PHONY: base
@@ -436,7 +428,6 @@ ifeq ($(USERELEASE),true)
 	docker push $(REPOPREFIX)/scanner:$(RELEASEVERSION)
 	docker push $(REPOPREFIX)/cleaner:$(RELEASEVERSION)
 	docker push $(REPOPREFIX)/faulty:$(RELEASEVERSION)
-	docker push $(REPOPREFIX)/palace:$(RELEASEVERSION)
 	docker push $(REPOPREFIX)/holmes:$(RELEASEVERSION)
 	docker push $(REPOPREFIX)/daemon:$(RELEASEVERSION)
 	docker push $(REPOPREFIX)/waston-redis:$(RELEASEVERSION)
@@ -456,7 +447,6 @@ else
 	docker push $(REPOPREFIX)/scanner:latest
 	docker push $(REPOPREFIX)/cleaner:latest
 	docker push $(REPOPREFIX)/faulty:latest
-	docker push $(REPOPREFIX)/palace:latest
 	docker push $(REPOPREFIX)/holmes:latest
 	docker push $(REPOPREFIX)/daemon:latest
 	docker push $(REPOPREFIX)/waston-redis:latest
@@ -479,7 +469,6 @@ rm-local-images:
 	docker rmi $(REPOPREFIX)/scanner:latest
 	docker rmi $(REPOPREFIX)/cleaner:latest
 	docker rmi $(REPOPREFIX)/faulty:latest
-	docker rmi $(REPOPREFIX)/palace:latest
 	docker rmi $(REPOPREFIX)/holmes:latest
 	docker rmi $(REPOPREFIX)/daemon:latest
 	docker rmi $(REPOPREFIX)/waston-redis:latest
@@ -502,7 +491,6 @@ ifeq ($(USERELEASE),true)
 	docker tag $(REPOPREFIX)/scanner:latest $(REPOPREFIX)/scanner:$(RELEASEVERSION)
 	docker tag $(REPOPREFIX)/cleaner:latest $(REPOPREFIX)/cleaner:$(RELEASEVERSION)
 	docker tag $(REPOPREFIX)/faulty:latest $(REPOPREFIX)/faulty:$(RELEASEVERSION)
-	docker tag $(REPOPREFIX)/palace:latest $(REPOPREFIX)/palace:$(RELEASEVERSION)
 	docker tag $(REPOPREFIX)/holmes:latest $(REPOPREFIX)/holmes:$(RELEASEVERSION)
 	docker tag $(REPOPREFIX)/daemon:latest $(REPOPREFIX)/daemon:$(RELEASEVERSION)
 	docker tag $(REPOPREFIX)/image-validator:latest $(REPOPREFIX)/image-validator:$(RELEASEVERSION)
@@ -521,7 +509,6 @@ else
 	docker tag $(REPOPREFIXOLD)/scanner:latest $(REPOPREFIX)/scanner:latest
 	docker tag $(REPOPREFIXOLD)/cleaner:latest $(REPOPREFIX)/cleaner:latest
 	docker tag $(REPOPREFIXOLD)/faulty:latest $(REPOPREFIX)/faulty:latest
-	docker tag $(REPOPREFIXOLD)/palace:latest $(REPOPREFIX)/palace:latest
 	docker tag $(REPOPREFIXOLD)/holmes:latest $(REPOPREFIX)/holmes:latest
 	docker tag $(REPOPREFIXOLD)/daemon:latest $(REPOPREFIX)/daemon:latest
 	docker tag $(REPOPREFIXOLD)/image-validator:latest $(REPOPREFIX)/image-validator:latest
@@ -547,7 +534,6 @@ ifeq ($(USERELEASE),true)
 	scanner-cicd -k=dGVuc29yc2VjLWNpY2QtdXNlcg==.qBFMMAvbbm3afG3y42CqKaN7WQe4Q7hiqtg5Jzwen7tWHhZG16P62kvv -c=$(CI_CHECK_CONSOLE) -r=$(CI_CHECK_CACHE_REGISTRY) -t=1000 --insecure=false -i=$(REPOPREFIX)/scanner:$(RELEASEVERSION)
 	scanner-cicd -k=dGVuc29yc2VjLWNpY2QtdXNlcg==.qBFMMAvbbm3afG3y42CqKaN7WQe4Q7hiqtg5Jzwen7tWHhZG16P62kvv -c=$(CI_CHECK_CONSOLE) -r=$(CI_CHECK_CACHE_REGISTRY) -t=1000 --insecure=false -i=$(REPOPREFIX)/cleaner:$(RELEASEVERSION)
 	scanner-cicd -k=dGVuc29yc2VjLWNpY2QtdXNlcg==.qBFMMAvbbm3afG3y42CqKaN7WQe4Q7hiqtg5Jzwen7tWHhZG16P62kvv -c=$(CI_CHECK_CONSOLE) -r=$(CI_CHECK_CACHE_REGISTRY) -t=1000 --insecure=false -i=$(REPOPREFIX)/faulty:$(RELEASEVERSION)
-	scanner-cicd -k=dGVuc29yc2VjLWNpY2QtdXNlcg==.qBFMMAvbbm3afG3y42CqKaN7WQe4Q7hiqtg5Jzwen7tWHhZG16P62kvv -c=$(CI_CHECK_CONSOLE) -r=$(CI_CHECK_CACHE_REGISTRY) -t=1000 --insecure=false -i=$(REPOPREFIX)/palace:$(RELEASEVERSION)
 	scanner-cicd -k=dGVuc29yc2VjLWNpY2QtdXNlcg==.qBFMMAvbbm3afG3y42CqKaN7WQe4Q7hiqtg5Jzwen7tWHhZG16P62kvv -c=$(CI_CHECK_CONSOLE) -r=$(CI_CHECK_CACHE_REGISTRY) -t=1000 --insecure=false -i=$(REPOPREFIX)/holmes:$(RELEASEVERSION)
 	scanner-cicd -k=dGVuc29yc2VjLWNpY2QtdXNlcg==.qBFMMAvbbm3afG3y42CqKaN7WQe4Q7hiqtg5Jzwen7tWHhZG16P62kvv -c=$(CI_CHECK_CONSOLE) -r=$(CI_CHECK_CACHE_REGISTRY) -t=1000 --insecure=false -i=$(REPOPREFIX)/daemon:$(RELEASEVERSION)
 	#scanner-cicd -k=dGVuc29yc2VjLWNpY2QtdXNlcg==.qBFMMAvbbm3afG3y42CqKaN7WQe4Q7hiqtg5Jzwen7tWHhZG16P62kvv -c=$(CI_CHECK_CONSOLE) -r=$(CI_CHECK_CACHE_REGISTRY) -t=1000 --insecure=false -i=$(REPOPREFIX)/scarecrow:$(RELEASEVERSION)
@@ -566,7 +552,6 @@ else
 	scanner-cicd -k=dGVuc29yc2VjLWNpY2QtdXNlcg==.qBFMMAvbbm3afG3y42CqKaN7WQe4Q7hiqtg5Jzwen7tWHhZG16P62kvv -c=$(CI_CHECK_CONSOLE) -r=$(CI_CHECK_CACHE_REGISTRY) -t=1000 --insecure=false -i=$(REPOPREFIX)/scanner:latest
 	scanner-cicd -k=dGVuc29yc2VjLWNpY2QtdXNlcg==.qBFMMAvbbm3afG3y42CqKaN7WQe4Q7hiqtg5Jzwen7tWHhZG16P62kvv -c=$(CI_CHECK_CONSOLE) -r=$(CI_CHECK_CACHE_REGISTRY) -t=1000 --insecure=false -i=$(REPOPREFIX)/cleaner:latest
 	scanner-cicd -k=dGVuc29yc2VjLWNpY2QtdXNlcg==.qBFMMAvbbm3afG3y42CqKaN7WQe4Q7hiqtg5Jzwen7tWHhZG16P62kvv -c=$(CI_CHECK_CONSOLE) -r=$(CI_CHECK_CACHE_REGISTRY) -t=1000 --insecure=false -i=$(REPOPREFIX)/faulty:latest
-	scanner-cicd -k=dGVuc29yc2VjLWNpY2QtdXNlcg==.qBFMMAvbbm3afG3y42CqKaN7WQe4Q7hiqtg5Jzwen7tWHhZG16P62kvv -c=$(CI_CHECK_CONSOLE) -r=$(CI_CHECK_CACHE_REGISTRY) -t=1000 --insecure=false -i=$(REPOPREFIX)/palace:latest
 	scanner-cicd -k=dGVuc29yc2VjLWNpY2QtdXNlcg==.qBFMMAvbbm3afG3y42CqKaN7WQe4Q7hiqtg5Jzwen7tWHhZG16P62kvv -c=$(CI_CHECK_CONSOLE) -r=$(CI_CHECK_CACHE_REGISTRY) -t=1000 --insecure=false -i=$(REPOPREFIX)/holmes:latest
 	scanner-cicd -k=dGVuc29yc2VjLWNpY2QtdXNlcg==.qBFMMAvbbm3afG3y42CqKaN7WQe4Q7hiqtg5Jzwen7tWHhZG16P62kvv -c=$(CI_CHECK_CONSOLE) -r=$(CI_CHECK_CACHE_REGISTRY) -t=1000 --insecure=false -i=$(REPOPREFIX)/daemon:latest
 	#scanner-cicd -k=dGVuc29yc2VjLWNpY2QtdXNlcg==.qBFMMAvbbm3afG3y42CqKaN7WQe4Q7hiqtg5Jzwen7tWHhZG16P62kvv -c=$(CI_CHECK_CONSOLE) -r=$(CI_CHECK_CACHE_REGISTRY) -t=1000 --insecure=false -i=$(REPOPREFIX)/scarecrow:latest
