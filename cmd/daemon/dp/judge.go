@@ -18,15 +18,17 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 	"gitlab.com/security-rd/go-pkg/logging"
 	"gitlab.com/security-rd/go-pkg/mq"
+	"gitlab.com/security-rd/go-pkg/sdk/palace"
 )
 
 type ExecJudge struct {
-	cm         *ConfigManager
-	rt         container.Runtime
-	SocketPath string
-	mq         mq.Writer
-	npw        *nodeinfo.NodePodsWatcher
-	podResInfo *nodeinfo.PodResInfo
+	cm          *ConfigManager
+	rt          container.Runtime
+	SocketPath  string
+	mq          mq.Writer
+	npw         *nodeinfo.NodePodsWatcher
+	podResInfo  *nodeinfo.PodResInfo
+	clusterName string
 }
 
 const (
@@ -123,6 +125,7 @@ type containerPolicy struct {
 	cluster      string
 	resourceKind string
 	resourceName string
+	podFullName  string
 }
 
 func getContainerPolicyInfo(podUID string, npw *nodeinfo.NodePodsWatcher, podResInfo *nodeinfo.PodResInfo) (containerPolicy, error) {
@@ -136,6 +139,7 @@ func getContainerPolicyInfo(podUID string, npw *nodeinfo.NodePodsWatcher, podRes
 	logging.Get().Debug().Msgf("generateEvent: %v", podInfo)
 	containerPolicyInfo.namespace = podInfo.Namespace
 	containerPolicyInfo.cluster = podInfo.ClusterKey
+	containerPolicyInfo.podFullName = podInfo.Name
 
 	resKeyType, ok := podResInfo.GetPod(podInfo.Namespace, podInfo.Name)
 	if !ok {
@@ -263,6 +267,10 @@ func (ej *ExecJudge) doRequest(conn *net.UnixConn, uuid uint64) error {
 			}
 
 			eventArgs := &EventArg{
+				ClusterID:     cPodInfo.cluster,
+				Cluster:       ej.clusterName,
+				Namespace:     cPodInfo.namespace,
+				PodName:       cPodInfo.podFullName,
 				PodUID:        containMeta.PodUID,
 				ContainerID:   containerID,
 				ContainerName: containMeta.Name,
@@ -273,10 +281,13 @@ func (ej *ExecJudge) doRequest(conn *net.UnixConn, uuid uint64) error {
 				Action:        action,
 				ImageRepoTags: strings.Join(containMeta.ImageRepoTags, "\n"),
 				reason:        "file not in white list",
-				reasonCN:      "文件不在白名单中",
 			}
 
-			go sendEventByKafka(context.Background(), ej.mq, eventArgs, generateEvent(uuid, eventArgs, "DriftPrevention", "Drift Prevention", ej.npw, ej.podResInfo))
+			ruleKey, scopes, signalContext := genPalaceSignalParams(eventArgs, "DriftPrevention", "Drift Prevention")
+			err := palace.SendSignal(ruleKey, scopes, signalContext)
+			if err != nil {
+				logging.Get().Err(err).Str("args", fmt.Sprintf("%+v", eventArgs)).Msg("DriftPrevention send signal to palace fails!")
+			}
 			continue
 		}
 
@@ -308,6 +319,10 @@ func (ej *ExecJudge) doRequest(conn *net.UnixConn, uuid uint64) error {
 			}
 
 			eventArgs := &EventArg{
+				ClusterID:     cPodInfo.cluster,
+				Cluster:       ej.clusterName,
+				Namespace:     cPodInfo.namespace,
+				PodName:       cPodInfo.podFullName,
 				PodUID:        containMeta.PodUID,
 				ContainerID:   containerID,
 				ContainerName: containMeta.Name,
@@ -318,18 +333,18 @@ func (ej *ExecJudge) doRequest(conn *net.UnixConn, uuid uint64) error {
 				Action:        action,
 				ImageRepoTags: strings.Join(containMeta.ImageRepoTags, "\n"),
 				reason:        "",
-				reasonCN:      "",
 			}
 			if notInWhitelistFlag {
 				eventArgs.reason = "file not in white list"
-				eventArgs.reasonCN = "文件不在白名单中"
 			} else if fileHashMismatchFlag {
 				eventArgs.reason = "file hash mismatch"
-				eventArgs.reasonCN = "文件hash不匹配"
 			}
 
-			// go notifyEventWithRetry(generateEvent(uuid, eventArgs, "driftPrevention", npw, podResInfo))
-			go sendEventByKafka(context.Background(), ej.mq, eventArgs, generateEvent(uuid, eventArgs, "DriftPrevention", "Drift Prevention", ej.npw, ej.podResInfo))
+			ruleKey, scopes, signalContext := genPalaceSignalParams(eventArgs, "DriftPrevention", "Drift Prevention")
+			err := palace.SendSignal(ruleKey, scopes, signalContext)
+			if err != nil {
+				logging.Get().Err(err).Str("args", fmt.Sprintf("%+v", eventArgs)).Msg("DriftPrevention send signal to palace fails!")
+			}
 			continue
 		} else {
 			_ = ej.Response(conn, resultPass, containerID, fileHash)
@@ -368,19 +383,20 @@ func (ej *ExecJudge) Response(conn *net.UnixConn, result, containerID, fileHash 
 	return nil
 }
 
-func NewExecJudge(socketPath string, cm *ConfigManager, rt container.Runtime, podWatcher *nodeinfo.NodePodsWatcher, podResInfo *nodeinfo.PodResInfo, mq mq.Writer) (*ExecJudge, error) {
+func NewExecJudge(socketPath string, cm *ConfigManager, rt container.Runtime, podWatcher *nodeinfo.NodePodsWatcher, podResInfo *nodeinfo.PodResInfo, mq mq.Writer, clusterName string) (*ExecJudge, error) {
 	var path string
 	if len(strings.TrimSpace(socketPath)) == 0 {
 		path = defaultJudgeSocket
 	}
 
 	ej := &ExecJudge{
-		SocketPath: path,
-		cm:         cm,
-		rt:         rt,
-		npw:        podWatcher,
-		podResInfo: podResInfo,
-		mq:         mq,
+		SocketPath:  path,
+		cm:          cm,
+		rt:          rt,
+		npw:         podWatcher,
+		podResInfo:  podResInfo,
+		mq:          mq,
+		clusterName: clusterName,
 	}
 	return ej, nil
 }

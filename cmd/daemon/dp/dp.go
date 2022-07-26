@@ -124,7 +124,7 @@ func (d *DriftAssurance) Start(ctx context.Context) error {
 	return nil
 }
 
-func NewDriftAssurance(podWatcher *nodeinfo.NodePodsWatcher, podResInfo *nodeinfo.PodResInfo, mqWriter mq.Writer, consoleAddr string) (*DriftAssurance, error) {
+func NewDriftAssurance(podWatcher *nodeinfo.NodePodsWatcher, podResInfo *nodeinfo.PodResInfo, mqWriter mq.Writer, consoleAddr, clusterName string) (*DriftAssurance, error) {
 	d := &DriftAssurance{}
 
 	rt, err := createRuntimeCli()
@@ -141,7 +141,7 @@ func NewDriftAssurance(podWatcher *nodeinfo.NodePodsWatcher, podResInfo *nodeinf
 	}
 	d.config = cm
 
-	j, err := NewExecJudge("", cm, rt, podWatcher, podResInfo, mqWriter)
+	j, err := NewExecJudge("", cm, rt, podWatcher, podResInfo, mqWriter, clusterName)
 	if err != nil {
 		logging.Get().Err(err).Msg("create exec judge failed")
 		return nil, fmt.Errorf("create exec judge failed:%v", err)

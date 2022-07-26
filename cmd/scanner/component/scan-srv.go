@@ -573,7 +573,7 @@ func (s *ConScannerSrv) K8sDeployDetect(ctx context.Context, containerInfo []mod
 			}})
 
 			msg := model.NewReqBody(model.NewEventCenterRule(msgType, consts.AlertModuleContainerSecurity, consts.ImageSecurity), notify, generateUUID(img, msgType, consts.EventIntervalUUID))
-			if err := sendMsgToEventCenter(ctx, msg); err != nil {
+			if err := sendMsgToEventCenter(ctx, msg, img); err != nil {
 				logging.GetLogger().Err(err).Msgf("TickOnlineScan sendMsgToEventCenter sending message to event center, msg Type: %s", msgType)
 			}
 		}
@@ -667,7 +667,7 @@ func (s *ConScannerSrv) K8sOnlineMonitor(ctx context.Context, containerInfo []mo
 
 			msg := model.NewReqBody(model.NewEventCenterRule(consts.AlertKindOnline, consts.AlertModuleContainerSecurity, consts.ImageSecurity),
 				notify, generateUUID(*tmpImageList, consts.AlertKindOnline, consts.EventIntervalUUID))
-			if err := sendMsgToEventCenter(ctx, msg); err != nil {
+			if err := sendMsgToEventCenter(ctx, msg, *tmpImageList); err != nil {
 				logging.GetLogger().Err(err).Msgf("K8sOnlineMonitor sendMsgToEventCenter sending message to event center, msg Type: %s", consts.AlertKindOnline)
 			}
 		}
@@ -724,7 +724,7 @@ func (s *ConScannerSrv) ScanOneForCICDResult(ctx context.Context, req *model.Sca
 			generateUUID(img[0], consts.AlertKindCICD, consts.EventIntervalUUID),
 		)
 
-		if err := sendMsgToEventCenter(ctx, msg); err != nil {
+		if err := sendMsgToEventCenter(ctx, msg, img[0]); err != nil {
 			logging.GetLogger().Err(err).Msgf("CICD ScanOneForCICDResult sending message to event center")
 		}
 	}
@@ -1928,7 +1928,7 @@ func (s *ConScannerSrv) DetectImageForCICD(ctx context.Context, img *model.Image
 			// 漏洞评分
 			sa3, red3, ms3 := s.checkVulnScore(ctx, *scanImage, img, po)
 			// 自定义漏洞规则
-			sa4, red4, ms4 := s.checkCustomizeVulu(ctx, *scanImage, img, po)
+			sa4, red4, ms4 := s.checkCustomizeVuln(ctx, *scanImage, img, po)
 			// 漏洞评级
 			sa5, red5, ms5 := s.checkVulnSeverity(ctx, *scanImage, img, po)
 			// webshell
@@ -2022,8 +2022,8 @@ func (s *ConScannerSrv) DetectImageForK8sOnlineMonitor(ctx context.Context, imag
 	// 对于delete Pod所发的update事件，这时是没有digest
 	if checkImageRes.Image != nil && image.Digest != "" && checkImageRes.Image.Digest != image.Digest {
 		safe = false
-		msgZh := fmt.Sprintf("镜像：%s/%s:%s是非可信镜像", checkImageRes.Image.Library, image.FullRepoName, image.Tags)
-		msgEN := fmt.Sprintf("image:%s%s:%s is untrusted image", checkImageRes.Image.Library, image.FullRepoName, image.Tags)
+		msgZh := fmt.Sprintf("{镜像：}%s/%s:%s{是非可信镜像}", checkImageRes.Image.Library, image.FullRepoName, image.Tags)
+		msgEN := fmt.Sprintf("{image:}%s%s:%s {is untrusted image}", checkImageRes.Image.Library, image.FullRepoName, image.Tags)
 		logging.GetLogger().Info().Msgf("untrusted image,k8s digest:%s,database:%s", image.Digest, checkImageRes.Image.Digest)
 
 		msgs = append(msgs, model.KVHashs{
@@ -2072,7 +2072,7 @@ func (s *ConScannerSrv) DetectImageForK8sOnlineMonitor(ctx context.Context, imag
 			// 漏洞评分
 			sa3, red3, ms3 := s.checkVulnScore(ctx, scanImage, img, po)
 			// 自定义漏洞规则
-			sa4, red4, ms4 := s.checkCustomizeVulu(ctx, scanImage, img, po)
+			sa4, red4, ms4 := s.checkCustomizeVuln(ctx, scanImage, img, po)
 			// 漏洞评级
 			sa5, red5, ms5 := s.checkVulnSeverity(ctx, scanImage, img, po)
 			// webshell
@@ -2157,8 +2157,8 @@ func (s *ConScannerSrv) checkBaseImage(ctx context.Context, img *model.ImageList
 
 		logging.GetLogger().Info().Msgf("checkBaseImage can not find base image imag Id:" + strconv.Itoa(int(img.ID)))
 
-		msgZh := "非基础镜像构建的应用镜像"
-		msgEN := "The application image is not built with a verified base image"
+		msgZh := model.GetRejectReason(model.LangZh)[model.RejectReasonUntrustedBaseImage]
+		msgEN := model.GetRejectReason(model.LangEn)[model.RejectReasonUntrustedBaseImage]
 		msgLog := fmt.Sprintf("image:%s/%s:%s untrusted base image", img.Library, img.FullRepoName, img.Tags)
 
 		switch po.BaseImagePolicy {
@@ -2171,15 +2171,15 @@ func (s *ConScannerSrv) checkBaseImage(ctx context.Context, img *model.ImageList
 
 			msgs = append(msgs, model.KVHashs{
 				KVHash: model.KVHash{
-					ZH: model.NewKeyValue(model.GetRejectReason(model.LangZh)[model.RejectReasonUntrustedBaseImage], msgZh+"，被阻断"),
-					EN: model.NewKeyValue(model.GetRejectReason(model.LangEn)[model.RejectReasonUntrustedBaseImage], msgEN+",blocked")}})
+					ZH: model.NewKeyValue(model.GetRejectReason(model.LangZh)[model.RejectReasonUntrustedBaseImage], needTranslation(msgZh+"，被阻断")),
+					EN: model.NewKeyValue(model.GetRejectReason(model.LangEn)[model.RejectReasonUntrustedBaseImage], needTranslation(msgEN+",blocked"))}})
 			logging.GetLogger().Info().Msgf(" %s,has blocked", msgLog)
 
 		case model.RejectPolicyAlarm:
 			msgs = append(msgs, model.KVHashs{
 				KVHash: model.KVHash{
-					ZH: model.NewKeyValue(model.GetRejectReason(model.LangZh)[model.RejectReasonUntrustedBaseImage], msgZh+"，未阻断，只告警"),
-					EN: model.NewKeyValue(model.GetRejectReason(model.LangEn)[model.RejectReasonUntrustedBaseImage], msgEN+",unblocked,just alert")}})
+					ZH: model.NewKeyValue(model.GetRejectReason(model.LangZh)[model.RejectReasonUntrustedBaseImage], needTranslation(msgZh+"，未阻断，只告警")),
+					EN: model.NewKeyValue(model.GetRejectReason(model.LangEn)[model.RejectReasonUntrustedBaseImage], needTranslation(msgEN+",unblocked,just alert"))}})
 			logging.GetLogger().Info().Msgf("%s,not blocked,only send messages to the event center", msgLog)
 		}
 	}
@@ -2284,10 +2284,9 @@ func (s *ConScannerSrv) checkScanImageExist(ctx context.Context, usePattern stri
 
 	logging.GetLogger().Info().Msgf("checkScanImageExist not fond scan-image:%s/%s:%s", img.Library, img.FullRepoName, img.Tags)
 	if usePattern == model.UsePatternForCICD {
-		// msgZh := fmt.Sprintf("镜像：%s/%s:%s 扫描失败", img.Library, img.FullRepoName, img.Tags)
-		msgZh := "扫描失败"
+		msgZh := model.GetRejectReason(model.LangZh)[model.RejectScanFailure]
 		msgLog := fmt.Sprintf("image:%s/%s:%s scan failure", img.Library, img.FullRepoName, img.Tags)
-		msgEN := "scan failure"
+		msgEN := model.GetRejectReason(model.LangEn)[model.RejectScanFailure]
 		logging.GetLogger().Info().Msgf(msgLog)
 
 		res.Safe = false
@@ -2298,13 +2297,13 @@ func (s *ConScannerSrv) checkScanImageExist(ctx context.Context, usePattern stri
 
 		res.Msg = append(res.Msg, model.KVHashs{
 			KVHash: model.KVHash{
-				ZH: model.NewKeyValue(model.GetRejectReason(model.LangZh)[model.RejectScanFailure], msgZh),
-				EN: model.NewKeyValue(model.GetRejectReason(model.LangEn)[model.RejectScanFailure], msgEN)}})
+				ZH: model.NewKeyValue(model.GetRejectReason(model.LangZh)[model.RejectScanFailure], needTranslation(msgZh+"，被阻断")),
+				EN: model.NewKeyValue(model.GetRejectReason(model.LangEn)[model.RejectScanFailure], needTranslation(msgEN+",blocked"))}})
 	} else if usePattern == model.UsePatternForK8s {
 		// 其他都认为安全
 		if po.Mode == model.RejectPolicySafeModel {
-			msgZh := "镜像未扫描，被阻断"
-			msgEN := "image not scanned blocked"
+			msgZh := model.GetRejectReason(model.LangZh)[model.RejectScanNotScanned]
+			msgEN := model.GetRejectReason(model.LangEn)[model.RejectScanNotScanned]
 			msgLog := fmt.Sprintf("image:%s/%s:%s not scanned,blocked", img.Library, img.FullRepoName, img.Tags)
 			res.Safe = false
 			logging.GetLogger().Info().Msgf(msgLog)
@@ -2315,8 +2314,8 @@ func (s *ConScannerSrv) checkScanImageExist(ctx context.Context, usePattern stri
 
 			res.Msg = append(res.Msg, model.KVHashs{
 				KVHash: model.KVHash{
-					ZH: model.NewKeyValue(model.GetRejectReason(model.LangZh)[model.RejectScanFailure], msgZh),
-					EN: model.NewKeyValue(model.GetRejectReason(model.LangEn)[model.RejectScanFailure], msgEN)}})
+					ZH: model.NewKeyValue(model.GetRejectReason(model.LangZh)[model.RejectScanNotScanned], needTranslation(msgZh+"，被阻断")),
+					EN: model.NewKeyValue(model.GetRejectReason(model.LangEn)[model.RejectScanNotScanned], needTranslation(msgEN+",blocked"))}})
 		}
 	}
 	return res, nil
@@ -2354,15 +2353,15 @@ func (s *ConScannerSrv) checkImageExist(ctx context.Context, usePattern string, 
 		if err != nil {
 			logging.GetLogger().Err(err).Msgf("%s search image：%s/%s:%s", usePattern, img.Library, img.FullRepoName, img.Tags)
 		}
-		msgZh := "未查到对应镜像"
+		msgZh := model.GetRejectReason(model.LangZh)[model.RejectScanNotScanned]
 		msgLog := fmt.Sprintf("checkImageExist image:%s%s:%s no image found", img.Library, img.FullRepoName, img.Tags)
-		msgEN := "not found image"
+		msgEN := model.GetRejectReason(model.LangEn)[model.RejectScanNotScanned]
 
 		logging.GetLogger().Info().Msgf(msgLog)
 		res.Msg = append(res.Msg, model.KVHashs{
 			KVHash: model.KVHash{
-				ZH: model.NewKeyValue(model.GetRejectReason(model.LangZh)[model.RejectScanFailure], msgZh),
-				EN: model.NewKeyValue(model.GetRejectReason(model.LangEn)[model.RejectScanFailure], msgEN)}})
+				ZH: model.NewKeyValue(model.GetRejectReason(model.LangZh)[model.RejectScanFailure], needTranslation(msgZh+"，被阻断")),
+				EN: model.NewKeyValue(model.GetRejectReason(model.LangEn)[model.RejectScanFailure], needTranslation(msgEN+",blocked"))}})
 		return res
 		// 如果需要，加阻断记录
 	}
@@ -2379,8 +2378,8 @@ func (s *ConScannerSrv) checkMaliciousInfo(ctx context.Context, scanImage model.
 	if len(scanImage.MaliciousInfo) > 0 {
 		logging.GetLogger().Info().Msgf("contains malicious files, imag Id:" + strconv.Itoa(int(img.ID)))
 
-		msgZh := "存在恶意文件"
-		msgEN := "contains malicious file"
+		msgZh := model.GetRejectReason(model.LangZh)[model.RejectReasonHasMalicious]
+		msgEN := model.GetRejectReason(model.LangEn)[model.RejectReasonHasMalicious]
 		msgLog := fmt.Sprintf("image:%s%s:%s contains malicious file", img.Library, img.FullRepoName, img.Tags)
 
 		switch po.MaliciousPolicy {
@@ -2393,15 +2392,15 @@ func (s *ConScannerSrv) checkMaliciousInfo(ctx context.Context, scanImage model.
 
 			msgs = append(msgs, model.KVHashs{
 				KVHash: model.KVHash{
-					ZH: model.NewKeyValue(model.GetRejectReason(model.LangZh)[model.RejectReasonHasMalicious], msgZh+"，被阻断"),
-					EN: model.NewKeyValue(model.GetRejectReason(model.LangEn)[model.RejectReasonHasMalicious], msgEN+",blocked")}})
+					ZH: model.NewKeyValue(model.GetRejectReason(model.LangZh)[model.RejectReasonHasMalicious], needTranslation(msgZh+"，被阻断")),
+					EN: model.NewKeyValue(model.GetRejectReason(model.LangEn)[model.RejectReasonHasMalicious], needTranslation(msgEN+",blocked"))}})
 			logging.GetLogger().Info().Msgf(" %s,has blocked", msgLog)
 
 		case model.RejectPolicyAlarm:
 			msgs = append(msgs, model.KVHashs{
 				KVHash: model.KVHash{
-					ZH: model.NewKeyValue(model.GetRejectReason(model.LangZh)[model.RejectReasonHasMalicious], msgZh+"，未阻断，只告警"),
-					EN: model.NewKeyValue(model.GetRejectReason(model.LangEn)[model.RejectReasonHasMalicious], msgEN+",unblocked,just alert")}})
+					ZH: model.NewKeyValue(model.GetRejectReason(model.LangZh)[model.RejectReasonHasMalicious], needTranslation(msgZh+"，未阻断，只告警")),
+					EN: model.NewKeyValue(model.GetRejectReason(model.LangEn)[model.RejectReasonHasMalicious], needTranslation(msgEN+",unblocked,just alert"))}})
 			logging.GetLogger().Info().Msgf("%s,not blocked,only send messages to the event center", msgLog)
 		}
 	}
@@ -2445,13 +2444,13 @@ func (s *ConScannerSrv) checkSensitiveFile(ctx context.Context, scanImage model.
 	}
 
 	logging.GetLogger().Info().Msgf("Contains sensitive files, imag Id:" + strconv.Itoa(int(img.ID)))
-	msgZh := "存在敏感文件"
-	msgEN := "contain sensitive file"
+	msgZh := model.GetRejectReason(model.LangZh)[model.RejectReasonHasSensitiveFile]
+	msgEN := model.GetRejectReason(model.LangEn)[model.RejectReasonHasSensitiveFile]
 	msgLog := fmt.Sprintf("Image:%s/%s:%s Contains sensitive file", img.Library, img.FullRepoName, img.Tags)
 
 	if len(rejectSensFile) > 0 {
-		msgZh = fmt.Sprintf("%s:%s", msgZh, strings.Join(rejectSensFile, ","))
-		msgEN = fmt.Sprintf("%s:%s", msgEN, strings.Join(rejectSensFile, ","))
+		msgZh = fmt.Sprintf("{%s}:%s", msgZh, strings.Join(rejectSensFile, "，"))
+		msgEN = fmt.Sprintf("{%s}:%s", msgEN, strings.Join(rejectSensFile, ","))
 
 		records = append(records, ReasonAndDetail{
 			RejectReason: model.RejectReasonHasSensitiveFile,
@@ -2460,79 +2459,79 @@ func (s *ConScannerSrv) checkSensitiveFile(ctx context.Context, scanImage model.
 
 		msgs = append(msgs, model.KVHashs{
 			KVHash: model.KVHash{
-				ZH: model.NewKeyValue(model.GetRejectReason(model.LangZh)[model.RejectReasonHasSensitiveFile], msgZh+"，被阻断"),
-				EN: model.NewKeyValue(model.GetRejectReason(model.LangEn)[model.RejectReasonHasSensitiveFile], msgEN+",unblocked,just alert")}})
+				ZH: model.NewKeyValue(model.GetRejectReason(model.LangZh)[model.RejectReasonHasSensitiveFile], msgZh+needTranslation("，被阻断")),
+				EN: model.NewKeyValue(model.GetRejectReason(model.LangEn)[model.RejectReasonHasSensitiveFile], msgEN+needTranslation(",blocked"))}})
 
 		logging.GetLogger().Info().Msgf("%s,has blocked", msgLog)
 	}
 
 	if len(alterFile) > 0 {
-		msgZh := fmt.Sprintf("%s:%s", msgZh, strings.Join(alterFile, ","))
-		msgEN := fmt.Sprintf("%s:%s", msgEN, strings.Join(alterFile, ","))
+		msgZh := fmt.Sprintf("{%s}:%s", msgZh, strings.Join(alterFile, "，"))
+		msgEN := fmt.Sprintf("{%s}:%s", msgEN, strings.Join(alterFile, ","))
 		msgs = append(msgs, model.KVHashs{
 			KVHash: model.KVHash{
-				ZH: model.NewKeyValue(model.GetRejectReason(model.LangZh)[model.RejectReasonHasSensitiveFile], msgZh+",未阻断，只告警"),
-				EN: model.NewKeyValue(model.GetRejectReason(model.LangEn)[model.RejectReasonHasSensitiveFile], msgEN+",unblocked,just alert")}})
+				ZH: model.NewKeyValue(model.GetRejectReason(model.LangZh)[model.RejectReasonHasSensitiveFile], msgZh+needTranslation("，未阻断，只告警")),
+				EN: model.NewKeyValue(model.GetRejectReason(model.LangEn)[model.RejectReasonHasSensitiveFile], msgEN+needTranslation(",unblocked,just alert"))}})
 		logging.GetLogger().Info().Msgf("%s,not blocked, only send messages to the event center", msgLog)
 	}
 
 	return safe, records, msgs
 }
 
-func (s *ConScannerSrv) checkCustomizeVulu(ctx context.Context, scanImage model.ScanImage, img *model.ImageList, po model.RejectPolicy) (bool, []ReasonAndDetail, []model.KVHashs) {
-	logging.GetLogger().Info().Msgf("CICD checkCustomizeVulu, imageid:%d,customizeVulu policy  is:%+v,vulu has :%d", img.ID, po.RejectVulns, len(scanImage.VulnInfo))
+func (s *ConScannerSrv) checkCustomizeVuln(ctx context.Context, scanImage model.ScanImage, img *model.ImageList, po model.RejectPolicy) (bool, []ReasonAndDetail, []model.KVHashs) {
+	logging.GetLogger().Info().Msgf("CICD checkCustomizeVuln, imageid:%d,customizeVulu policy  is:%+v,vulu has :%d", img.ID, po.RejectVulns, len(scanImage.VulnInfo))
 
 	records := make([]ReasonAndDetail, 0)
 	msgs := make([]model.KVHashs, 0)
 	safe := true
-	customizeVuluMap := make(map[string]model.RejectVuln)
+	customizeVulnMap := make(map[string]model.RejectVuln)
 	for i := range po.RejectVulns {
-		customizeVuluMap[po.RejectVulns[i].Name] = po.RejectVulns[i]
+		customizeVulnMap[po.RejectVulns[i].Name] = po.RejectVulns[i]
 	}
-	cusBlockVluns := make([]string, 0)
-	cusAlertVluns := make([]string, 0)
+	cusBlockVuln := make([]string, 0)
+	cusAlertVuln := make([]string, 0)
 	for _, vu := range scanImage.VulnInfo {
 		// 自定义漏洞规则
-		if svn, ok := customizeVuluMap[vu.Name]; ok {
+		if svn, ok := customizeVulnMap[vu.Name]; ok {
 			logging.GetLogger().Info().Msgf("Contains custom vulnerabilities, imag Id:" + strconv.Itoa(int(img.ID)))
 
 			switch svn.RejectPolicy {
 			case model.RejectPolicyReject:
-				cusBlockVluns = append(cusBlockVluns, vu.Name)
+				cusBlockVuln = append(cusBlockVuln, vu.Name)
 				safe = false
 			case model.RejectPolicyAlarm:
-				cusAlertVluns = append(cusAlertVluns, vu.Name)
+				cusAlertVuln = append(cusAlertVuln, vu.Name)
 			}
 		}
 	}
 	// 组装消息
-	cusVuluZH, cusVuluEN := "", ""
-	if len(cusBlockVluns) > 0 {
-		cusVuluZH = fmt.Sprintf("包含自定义漏洞：%s，被阻断", strings.Join(cusBlockVluns, "，"))
-		cusVuluEN = fmt.Sprintf("contain custom vulnerability:%s,blocked", strings.Join(cusBlockVluns, ","))
+	cusVulnZH, cusVulnEN := "", ""
+	if len(cusBlockVuln) > 0 {
+		cusVulnZH = fmt.Sprintf("{%s：}%s{，被阻断}", model.GetRejectReason(model.LangZh)[model.RejectReasonHasCustomizeVulu], strings.Join(cusBlockVuln, "，"))
+		cusVulnEN = fmt.Sprintf("{%s}%s{,blocked}", model.GetRejectReason(model.LangEn)[model.RejectReasonHasCustomizeVulu], strings.Join(cusBlockVuln, ","))
 	}
-	if cusVuluEN != "" && cusVuluZH != "" && len(cusAlertVluns) > 0 {
-		cusVuluEN = cusVuluEN + ","
-		cusVuluZH = cusVuluZH + "，"
-	}
-
-	if len(cusAlertVluns) > 0 {
-		cusVuluZH = fmt.Sprintf("%s包含自定义漏洞：%s，未阻断，只告警", cusVuluZH, strings.Join(cusAlertVluns, "，"))
-		cusVuluEN = fmt.Sprintf("%scontain custom vulnerability:%s,unblocked,just alert", cusVuluEN, strings.Join(cusAlertVluns, ","))
+	if cusVulnEN != "" && cusVulnZH != "" && len(cusAlertVuln) > 0 {
+		cusVulnEN = cusVulnEN + ","
+		cusVulnZH = cusVulnZH + "，"
 	}
 
-	if cusVuluEN != "" && cusVuluZH != "" {
+	if len(cusAlertVuln) > 0 {
+		cusVulnZH = fmt.Sprintf("%s{%s：}%s{，未阻断，只告警}", cusVulnZH, model.GetRejectReason(model.LangZh)[model.RejectReasonHasCustomizeVulu], strings.Join(cusAlertVuln, "，"))
+		cusVulnEN = fmt.Sprintf("%s{%s:}%s{,unblocked,just alert}", cusVulnEN, model.GetRejectReason(model.LangEn)[model.RejectReasonHasCustomizeVulu], strings.Join(cusAlertVuln, ","))
+	}
+
+	if cusVulnEN != "" && cusVulnZH != "" {
 		msgs = append(msgs, model.KVHashs{
 			KVHash: model.KVHash{
-				ZH: model.NewKeyValue(model.GetRejectReason(model.LangZh)[model.RejectReasonHasCustomizeVulu], cusVuluZH),
-				EN: model.NewKeyValue(model.GetRejectReason(model.LangEn)[model.RejectReasonHasCustomizeVulu], cusVuluEN)}})
+				ZH: model.NewKeyValue(model.GetRejectReason(model.LangZh)[model.RejectReasonHasCustomizeVulu], cusVulnZH),
+				EN: model.NewKeyValue(model.GetRejectReason(model.LangEn)[model.RejectReasonHasCustomizeVulu], cusVulnEN)}})
 
 		records = append(records, ReasonAndDetail{
 			RejectReason: model.RejectReasonHasCustomizeVulu,
-			RejectDetail: cusVuluZH,
+			RejectDetail: cusVulnZH,
 		})
 
-		logging.GetLogger().Info().Msgf(fmt.Sprintf("has custom vulnerability, %s", cusVuluEN))
+		logging.GetLogger().Info().Msgf(fmt.Sprintf("has custom vulnerability, %s", cusVulnEN))
 	}
 	return safe, records, msgs
 }
@@ -2543,14 +2542,14 @@ func (s *ConScannerSrv) checkVulnSeverity(ctx context.Context, scanImage model.S
 	records := make([]ReasonAndDetail, 0)
 	msgs := make([]model.KVHashs, 0)
 	safe := true
-	customizeVuluMap := make(map[string]model.RejectVuln)
+	customizeVulnMap := make(map[string]model.RejectVuln)
 	for i := range po.RejectVulns {
-		customizeVuluMap[po.RejectVulns[i].Name] = po.RejectVulns[i]
+		customizeVulnMap[po.RejectVulns[i].Name] = po.RejectVulns[i]
 	}
 	vumMap := make(map[string][]string)
 
 	for _, vu := range scanImage.VulnInfo {
-		if _, ok := customizeVuluMap[vu.Name]; ok {
+		if _, ok := customizeVulnMap[vu.Name]; ok {
 			continue
 		}
 		// 如果配置了漏洞评级
@@ -2563,8 +2562,8 @@ func (s *ConScannerSrv) checkVulnSeverity(ctx context.Context, scanImage model.S
 	}
 	for level, vu := range vumMap {
 		if len(vu) > 0 {
-			zh := fmt.Sprintf("包含漏洞：%s，评级：%s，高于漏洞阻断评级：%s", strings.Join(vu, "，"), level, po.VulnLevel)
-			en := fmt.Sprintf("include Vulnerability:%s Rate:%s, more than:%s", strings.Join(vu, ","), level, po.VulnLevel)
+			zh := fmt.Sprintf("{%s：}%s{，评级：}%s{，高于漏洞阻断评级：}%s", model.GetVuluRuleKey(level, model.LangZh), strings.Join(vu, "，"), level, po.VulnLevel)
+			en := fmt.Sprintf("{%s:}%s {Rate:}%s{, more than:}%s", model.GetVuluRuleKey(level, model.LangEn), strings.Join(vu, ","), level, po.VulnLevel)
 
 			logging.GetLogger().Info().Msgf("vulnerability severity than the config, %s, blocked", en)
 
@@ -2572,14 +2571,14 @@ func (s *ConScannerSrv) checkVulnSeverity(ctx context.Context, scanImage model.S
 			case model.RejectPolicyAlarm:
 				msgs = append(msgs, model.KVHashs{
 					KVHash: model.KVHash{
-						ZH: model.NewKeyValue(model.GetVuluRuleKey(level, model.LangZh), zh+"，未阻断，只告警"),
-						EN: model.NewKeyValue(model.GetVuluRuleKey(level, model.LangEn), en+",unblocked,just alert")}})
+						ZH: model.NewKeyValue(model.GetVuluRuleKey(level, model.LangZh), zh+needTranslation("，未阻断，只告警")),
+						EN: model.NewKeyValue(model.GetVuluRuleKey(level, model.LangEn), en+needTranslation(",unblocked,just alert"))}})
 			case model.RejectPolicyReject:
 				safe = false
 				msgs = append(msgs, model.KVHashs{
 					KVHash: model.KVHash{
-						ZH: model.NewKeyValue(model.GetVuluRuleKey(level, model.LangZh), zh+"，被阻断"),
-						EN: model.NewKeyValue(model.GetVuluRuleKey(level, model.LangEn), en+",blocked")}})
+						ZH: model.NewKeyValue(model.GetVuluRuleKey(level, model.LangZh), zh+needTranslation("，被阻断")),
+						EN: model.NewKeyValue(model.GetVuluRuleKey(level, model.LangEn), en+needTranslation(",blocked"))}})
 
 				records = append(records, ReasonAndDetail{
 					RejectReason: model.GetSeverityRejectReason(level),
@@ -2606,8 +2605,8 @@ func (s *ConScannerSrv) checkVulnScore(ctx context.Context, scanImage model.Scan
 	//  如果配置了漏洞分数,
 	ans := CalculateVulnScore(scanImage, customizeVuluMap)
 	if po.VulnScore > 0 && int64(ans) < po.VulnScore {
-		msgZh := fmt.Sprintf("漏洞综合评分：%d，低于阻断分数：%d", ans, po.VulnScore)
-		msgEN := fmt.Sprintf("vulnerability rate %d,Lower than:%d", ans, po.VulnScore)
+		msgZh := fmt.Sprintf("{漏洞综合评分：}%d{，低于阻断分数：}%d", ans, po.VulnScore)
+		msgEN := fmt.Sprintf("{vulnerability rate:} %d{,Lower than:}%d", ans, po.VulnScore)
 		msgLog := fmt.Sprintf("Image:%s/%s:%s rate %d Lower than:%d", img.Library, img.FullRepoName, img.Tags, ans, po.VulnScore)
 		logging.GetLogger().Info().Msgf("vulnerability score than the config，%s，被阻断", msgLog)
 
@@ -2615,8 +2614,8 @@ func (s *ConScannerSrv) checkVulnScore(ctx context.Context, scanImage model.Scan
 		case model.RejectPolicyAlarm:
 			msgs = append(msgs, model.KVHashs{
 				KVHash: model.KVHash{
-					ZH: model.NewKeyValue(model.GetRejectReason(model.LangZh)[model.RejectReasonVuluScore], msgZh+"，未阻断，只告警"),
-					EN: model.NewKeyValue(model.GetRejectReason(model.LangEn)[model.RejectReasonVuluScore], msgEN+",unblocked,just alert")}})
+					ZH: model.NewKeyValue(model.GetRejectReason(model.LangZh)[model.RejectReasonVuluScore], msgZh+needTranslation("，未阻断，只告警")),
+					EN: model.NewKeyValue(model.GetRejectReason(model.LangEn)[model.RejectReasonVuluScore], msgEN+needTranslation(",unblocked,just alert"))}})
 		case model.RejectPolicyReject:
 			safe = false
 			records = append(records, ReasonAndDetail{
@@ -2626,8 +2625,8 @@ func (s *ConScannerSrv) checkVulnScore(ctx context.Context, scanImage model.Scan
 			})
 			msgs = append(msgs, model.KVHashs{
 				KVHash: model.KVHash{
-					ZH: model.NewKeyValue(model.GetRejectReason(model.LangZh)[model.RejectReasonVuluScore], msgZh+",被阻断"),
-					EN: model.NewKeyValue(model.GetRejectReason(model.LangEn)[model.RejectReasonVuluScore], msgEN+",blocked")}})
+					ZH: model.NewKeyValue(model.GetRejectReason(model.LangZh)[model.RejectReasonVuluScore], msgZh+needTranslation(",被阻断")),
+					EN: model.NewKeyValue(model.GetRejectReason(model.LangEn)[model.RejectReasonVuluScore], msgEN+needTranslation(",blocked"))}})
 		}
 	}
 	return safe, records, msgs
@@ -2757,22 +2756,23 @@ func (s *ConScannerSrv) GetImageLibraryNameTag(imageName string) (*model.ImageLi
 	return img, nil
 }
 
-func (s *ConScannerSrv) CreateSafeReject(ctx context.Context, ImageList model.ImageList, msgType string, reason int64, detail string, coninfo model.RejectOnlineMonitorImage) {
-	defaultKvHash := model.KVHash{}
-	defaultKvHash.ZH.Key = "镜像来源仓库非法"
-	defaultKvHash.ZH.Value = "模式:安全模式 镜像：" + ImageList.Library + "/" + ImageList.FullRepoName + ":" + ImageList.Tags
-	tmpHashs := []model.KVHashs{}
-	tmpHash := model.KVHashs{}
-	tmpHash.KVHash = defaultKvHash
-	tmpHashs = append(tmpHashs, tmpHash)
-	img := ImageList
-	tmpReasonAndDetail := ReasonAndDetail{}
-	tmpReasonAndDetail.RejectReason = reason
-	tmpReasonAndDetail.RejectDetail = detail + " 原始信息为:" + ImageList.Library + "/" + ImageList.FullRepoName + ":" + ImageList.Tags
-	tmpReasonAndDetails := []ReasonAndDetail{}
-	tmpReasonAndDetails = append(tmpReasonAndDetails, tmpReasonAndDetail)
+func (s *ConScannerSrv) CreateSafeReject(ctx context.Context, img model.ImageList, msgType string, reason int64, detail string, coninfo model.RejectOnlineMonitorImage) {
+	kv := model.KVHash{
+		ZH: model.KeyValue{
+			Key:   model.GetRejectReason(model.LangZh)[model.RejectNoLibrary],
+			Value: fmt.Sprintf("模式:安全模式 镜像：%s/%s:%s", img.Library, img.FullRepoName, img.Tags),
+		},
+		EN: model.KeyValue{
+			Key:   model.GetRejectReason(model.LangEn)[model.RejectNoLibrary],
+			Value: fmt.Sprintf("{mode:safe mode} {image}：%s/%s:%s", img.Library, img.FullRepoName, img.Tags),
+		},
+	}
+	record := ReasonAndDetail{
+		RejectReason: reason,
+		RejectDetail: detail + " 原始信息为:" + img.Library + "/" + img.FullRepoName + ":" + img.Tags,
+	}
 	if msgType == consts.AlertKindK8s {
-		res, err := mergeRejectRecord(img, tmpReasonAndDetails)
+		res, err := mergeRejectRecord(img, []ReasonAndDetail{record})
 		if err != nil {
 			logging.GetLogger().Err(err).Msgf("CICD store reject_record mergeRejectRecord")
 			return
@@ -2781,31 +2781,29 @@ func (s *ConScannerSrv) CreateSafeReject(ctx context.Context, ImageList model.Im
 			logging.GetLogger().Err(err).Msgf("CICD store reject_record error %s", err.Error())
 		}
 	}
-	if len(tmpHashs) > 0 {
-		notify := model.NotifyContext{
-			ServiceID: fmt.Sprintf("%s/%s:%s(image)", ImageList.Library, ImageList.FullRepoName, ImageList.Tags),
-			CustomKV:  tmpHashs,
-		}
 
-		notify.PodName = coninfo.NotifyContext.PodName
-		notify.PodUID = coninfo.NotifyContext.PodUID
-		notify.Cluster = coninfo.NotifyContext.Cluster
-		notify.Namespace = coninfo.NotifyContext.Namespace
-		notify.ServiceID = fmt.Sprintf("image/%s/%s:%s", img.Library, img.FullRepoName, img.Tags)
-		notify.CustomKV = append(notify.CustomKV, coninfo.NotifyContext.CustomKV...)
-		notify.CustomKV = append(notify.CustomKV, model.KVHashs{KVHash: model.KVHash{
-			EN: model.KeyValue{Key: "image", Value: fmt.Sprintf("%s/%s:%s", img.Library, img.FullRepoName, img.Tags)},
-			ZH: model.KeyValue{Key: "镜像", Value: fmt.Sprintf("%s/%s:%s", img.Library, img.FullRepoName, img.Tags)},
-		}})
+	notify := model.NotifyContext{
+		ServiceID: fmt.Sprintf("%s/%s:%s(image)", img.Library, img.FullRepoName, img.Tags),
+		CustomKV:  []model.KVHashs{model.KVHashs{KVHash: kv}},
+		PodName:   coninfo.NotifyContext.PodName,
+		PodUID:    coninfo.NotifyContext.PodUID,
+		Cluster:   coninfo.NotifyContext.Cluster,
+		Namespace: coninfo.NotifyContext.Namespace,
+	}
 
-		msg := model.NewReqBody(
-			model.NewEventCenterRule(msgType, consts.AlertModuleContainerSecurity, consts.ImageSecurity),
-			notify,
-			generateUUID(img, msgType, consts.EventIntervalUUID),
-		)
-		if err := sendMsgToEventCenter(ctx, msg); err != nil {
-			logging.GetLogger().Err(err).Msgf("send msg to event center error:%s", err.Error())
-		}
+	notify.CustomKV = append(notify.CustomKV, coninfo.NotifyContext.CustomKV...)
+	notify.CustomKV = append(notify.CustomKV, model.KVHashs{KVHash: model.KVHash{
+		EN: model.KeyValue{Key: "image", Value: fmt.Sprintf("%s/%s:%s", img.Library, img.FullRepoName, img.Tags)},
+		ZH: model.KeyValue{Key: "镜像", Value: fmt.Sprintf("%s/%s:%s", img.Library, img.FullRepoName, img.Tags)},
+	}})
+
+	msg := model.NewReqBody(
+		model.NewEventCenterRule(msgType, consts.AlertModuleContainerSecurity, consts.ImageSecurity),
+		notify,
+		generateUUID(img, msgType, consts.EventIntervalUUID),
+	)
+	if err := sendMsgToEventCenter(ctx, msg, img); err != nil {
+		logging.GetLogger().Err(err).Msgf("send msg to event center error:%s", err.Error())
 	}
 }
 
@@ -2815,7 +2813,6 @@ func (s *ConScannerSrv) DetectImageForK8s(ctx context.Context, img *model.ImageL
 	msgs := make([]model.KVHashs, 0)
 	safe := true
 
-	// todo @liuqiang 这块查询逻辑是否可以去除
 	imgs, _, err := s.dbdal.SearchImage(ctx, store.SearchImageParam{InIds: []int64{img.ID}}, nil)
 	if err != nil {
 		logging.GetLogger().Err(err).Msgf("K8sDeployDetect,find the img :%d,error", img.ID)
@@ -2883,7 +2880,7 @@ func (s *ConScannerSrv) DetectImageForK8s(ctx context.Context, img *model.ImageL
 			// 漏洞评分
 			sa3, red3, ms3 := s.checkVulnScore(ctx, *scanImage, img, po)
 			// 自定义漏洞规则
-			sa4, red4, ms4 := s.checkCustomizeVulu(ctx, *scanImage, img, po)
+			sa4, red4, ms4 := s.checkCustomizeVuln(ctx, *scanImage, img, po)
 			// 漏洞评级
 			sa5, red5, ms5 := s.checkVulnSeverity(ctx, *scanImage, img, po)
 			// webshell
@@ -3193,8 +3190,8 @@ func (s *ConScannerSrv) checkTrustedImage(ctx context.Context, img *model.ImageL
 		kv = []model.KVHashs{
 			{
 				KVHash: model.KVHash{
-					ZH: model.NewKeyValue(zhMsg, zhMsg+"，被阻断"),
-					EN: model.NewKeyValue(enMsg, enMsg+",blocked"),
+					ZH: model.NewKeyValue(zhMsg, needTranslation(zhMsg+"，被阻断")),
+					EN: model.NewKeyValue(enMsg, needTranslation(enMsg+",blocked")),
 				},
 			},
 		}
@@ -3204,8 +3201,8 @@ func (s *ConScannerSrv) checkTrustedImage(ctx context.Context, img *model.ImageL
 		kv = []model.KVHashs{
 			{
 				KVHash: model.KVHash{
-					ZH: model.NewKeyValue(zhMsg, zhMsg+"，未阻断，只告警"),
-					EN: model.NewKeyValue(enMsg, enMsg+",unblocked,just alert"),
+					ZH: model.NewKeyValue(zhMsg, needTranslation(zhMsg+"，未阻断，只告警")),
+					EN: model.NewKeyValue(enMsg, needTranslation(enMsg+",unblocked,just alert")),
 				},
 			},
 		}
@@ -3244,8 +3241,8 @@ func (s *ConScannerSrv) checkPrivilegedBoot(ctx context.Context, img *model.Imag
 		kv = []model.KVHashs{
 			{
 				KVHash: model.KVHash{
-					ZH: model.NewKeyValue(zhMsg, zhMsg+"，被阻断"),
-					EN: model.NewKeyValue(enMsg, enMsg+",blocked"),
+					ZH: model.NewKeyValue(zhMsg, needTranslation(zhMsg+"，被阻断")),
+					EN: model.NewKeyValue(enMsg, needTranslation(enMsg+",blocked")),
 				},
 			},
 		}
@@ -3255,8 +3252,8 @@ func (s *ConScannerSrv) checkPrivilegedBoot(ctx context.Context, img *model.Imag
 		kv = []model.KVHashs{
 			{
 				KVHash: model.KVHash{
-					ZH: model.NewKeyValue(model.GetRejectReason(model.LangZh)[model.RejectReasonPrivilegedBoot], zhMsg+"，未阻断，只告警"),
-					EN: model.NewKeyValue(model.GetRejectReason(model.LangEn)[model.RejectReasonPrivilegedBoot], enMsg+",unblocked,just alert"),
+					ZH: model.NewKeyValue(model.GetRejectReason(model.LangZh)[model.RejectReasonPrivilegedBoot], needTranslation(zhMsg+"，未阻断，只告警")),
+					EN: model.NewKeyValue(model.GetRejectReason(model.LangEn)[model.RejectReasonPrivilegedBoot], needTranslation(enMsg+",unblocked,just alert")),
 				},
 			},
 		}
@@ -3290,8 +3287,8 @@ func (s *ConScannerSrv) checkEnv(ctx context.Context, scanImage model.ScanImage,
 	if len(rejectEnvs) > 0 {
 		logging.GetLogger().Info().Msgf("contains env files, imag Id:" + strconv.Itoa(int(img.ID)))
 
-		msgZh := fmt.Sprintf("%s:%s", model.GetRejectReason(model.LangZh)[model.RejectReasonHasUntrustedEnv], strings.Join(rejectEnvs, "，"))
-		msgEN := fmt.Sprintf("%s:%s", model.GetRejectReason(model.LangEn)[model.RejectReasonHasUntrustedEnv], strings.Join(rejectEnvs, "，"))
+		msgZh := fmt.Sprintf("{%s}:%s", model.GetRejectReason(model.LangZh)[model.RejectReasonHasUntrustedEnv], strings.Join(rejectEnvs, "，"))
+		msgEN := fmt.Sprintf("{%s}:%s", model.GetRejectReason(model.LangEn)[model.RejectReasonHasUntrustedEnv], strings.Join(rejectEnvs, "，"))
 		msgLog := fmt.Sprintf("image:%s%s:%s contains env ", img.Library, img.FullRepoName, img.Tags)
 
 		safe = false
@@ -3302,22 +3299,22 @@ func (s *ConScannerSrv) checkEnv(ctx context.Context, scanImage model.ScanImage,
 
 		msgs = append(msgs, model.KVHashs{
 			KVHash: model.KVHash{
-				ZH: model.NewKeyValue(model.GetRejectReason(model.LangZh)[model.RejectReasonHasUntrustedEnv], msgZh+"，被阻断"),
-				EN: model.NewKeyValue(model.GetRejectReason(model.LangEn)[model.RejectReasonHasUntrustedEnv], msgEN+",blocked")}})
+				ZH: model.NewKeyValue(model.GetRejectReason(model.LangZh)[model.RejectReasonHasUntrustedEnv], msgZh+"{，被阻断}"),
+				EN: model.NewKeyValue(model.GetRejectReason(model.LangEn)[model.RejectReasonHasUntrustedEnv], msgEN+"{,blocked}")}})
 		logging.GetLogger().Info().Msgf(" %s,has blocked", msgLog)
 	}
 
 	if len(alterEnvs) > 0 {
 		logging.GetLogger().Info().Msgf("contains env files, imag Id:" + strconv.Itoa(int(img.ID)))
 
-		msgZh := fmt.Sprintf("%s:%s", model.GetRejectReason(model.LangZh)[model.RejectReasonHasUntrustedEnv], strings.Join(alterEnvs, "，"))
-		msgEN := fmt.Sprintf("%s:%s", model.GetRejectReason(model.LangEn)[model.RejectReasonHasUntrustedEnv], strings.Join(alterEnvs, "，"))
+		msgZh := fmt.Sprintf("{%s}:%s", model.GetRejectReason(model.LangZh)[model.RejectReasonHasUntrustedEnv], strings.Join(alterEnvs, "，"))
+		msgEN := fmt.Sprintf("{%s}:%s", model.GetRejectReason(model.LangEn)[model.RejectReasonHasUntrustedEnv], strings.Join(alterEnvs, "，"))
 		msgLog := fmt.Sprintf("image:%s%s:%s contains env ", img.Library, img.FullRepoName, img.Tags)
 
 		msgs = append(msgs, model.KVHashs{
 			KVHash: model.KVHash{
-				ZH: model.NewKeyValue(model.GetRejectReason(model.LangZh)[model.RejectReasonHasUntrustedEnv], msgZh+"，未阻断，只告警"),
-				EN: model.NewKeyValue(model.GetRejectReason(model.LangEn)[model.RejectReasonHasUntrustedEnv], msgEN+",unblocked,just alert")}})
+				ZH: model.NewKeyValue(model.GetRejectReason(model.LangZh)[model.RejectReasonHasUntrustedEnv], msgZh+"{，未阻断，只告警}"),
+				EN: model.NewKeyValue(model.GetRejectReason(model.LangEn)[model.RejectReasonHasUntrustedEnv], msgEN+"{,unblocked,just alert}")}})
 		logging.GetLogger().Info().Msgf(" %s,has blocked", msgLog)
 	}
 

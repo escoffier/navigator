@@ -10,12 +10,10 @@ const (
 )
 const (
 	// TOP5 统计类别
-	RejectReasonVuluScore        = 1 // 漏洞评分低于设置值
-	RejectReasonHasSensitiveFile = 2 // 存在敏感文件
-	RejectReasonHasMalicious     = 3 // 存在恶意文件
-
-	RejectReasonHasCustomizeVulu = 4 // 存在自定义漏洞
-
+	RejectReasonVuluScore            = 1  // 漏洞评分低于设置值
+	RejectReasonHasSensitiveFile     = 2  // 存在敏感文件
+	RejectReasonHasMalicious         = 3  // 存在恶意文件
+	RejectReasonHasCustomizeVulu     = 4  // 存在自定义漏洞
 	RejectReasonHasNegligible        = 5  // 存在可忽略漏洞
 	RejectReasonHasUnknown           = 6  // 存在末知漏洞
 	RejectReasonHasLow               = 7  // 存在低危漏洞
@@ -26,13 +24,11 @@ const (
 	RejectScanFailure                = 12 // 镜像扫描失败
 	RejectScanNotScanned             = 13 // 镜像未扫描
 	RejectReasonDifferentImageDigest = 14 // 在线镜像digest和仓库digest不一致
-
-	RejectReasonUntrustedBaseImage = 15 // 基础镜像不可信
-	RejectReasonWebshellScore      = 16 // webshell 评分低于设置值
-
-	RejectReasonUntrustedImage  = 17 // 不信任的镜像
-	RejectReasonPrivilegedBoot  = 18 // 特权账户启动的镜像
-	RejectReasonHasUntrustedEnv = 19 // 不信任的环境变量
+	RejectReasonUntrustedBaseImage   = 15 // 基础镜像不可信
+	RejectReasonWebshellScore        = 16 // webshell 评分低于设置值
+	RejectReasonUntrustedImage       = 17 // 不信任的镜像
+	RejectReasonPrivilegedBoot       = 18 // 特权账户启动的镜像
+	RejectReasonHasUntrustedEnv      = 19 // 不信任的环境变量
 )
 
 const (

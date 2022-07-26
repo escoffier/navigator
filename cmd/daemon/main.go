@@ -43,7 +43,7 @@ func initEventStreams(udsAddr, nodeName string, cm *k8s.ClusterInfoManager, mqWr
 	bui := rtdetect.StreamBuilder(udsAddr, nodeName, cm)
 
 	// add handlers here
-	ecHandler := rtdetect.NewEventsOutputHandler(nodeName, mqWriter, containerInfo, podResInfo)
+	ecHandler := rtdetect.NewEventsOutputHandler(nodeName, cm, containerInfo, podResInfo)
 	bui.WithHandler(rtdetect.NewSyncHandler(ecHandler))
 
 	s, err := bui.Build(context.Background())
@@ -233,7 +233,9 @@ func Run(ctx context.Context) error {
 	// start dp service
 	ciaEnabled := os.Getenv("CIA_ENABLED")
 	if ciaEnabled == "1" {
-		dpService, err := dp.NewDriftAssurance(podWatcher, podResInfo, mqWriter, consoleAddr)
+		clusterName, _ := clusterManager.ClusterName()
+
+		dpService, err := dp.NewDriftAssurance(podWatcher, podResInfo, mqWriter, consoleAddr, clusterName)
 		if err != nil {
 			logging.Get().Err(err).Msg("new drift assurance service failed")
 			return err
