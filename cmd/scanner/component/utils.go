@@ -187,6 +187,7 @@ func sendMsgToEventCenter(ctx context.Context, reqBody model.ReqBody, image mode
 
 	if err := palace.SendSignal(ruleKey, []palace.Scope{fullRepoName, tag, library}, msg); err != nil {
 		logging.GetLogger().Err(err).Msg("sendMsgToEventCenter.SendSignal")
+		return err
 	}
 	logging.GetLogger().Info().Str("Image", fmt.Sprintf("%s/%s:%s", image.Library, image.FullRepoName, image.Tags)).Msg("sendMsgToEventCenter.SendSignal")
 
