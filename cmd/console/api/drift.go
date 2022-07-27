@@ -480,26 +480,24 @@ func (api *api) driftPolicyAbnormal() http.HandlerFunc {
 
 		res := []model.DriftPolicyAbnormal{}
 		for _, v := range signals {
-			flag := true
-			tmpres := model.DriftPolicyAbnormal{}
-			for _, vv := range v.CustomKV {
-				if kv, ok := vv.KVHash["en"]; ok {
-					if kv.Key == "containerId" {
-						tmpres.ContainerID = kv.Value
-					}
-					if kv.Key == "filePath" {
-						if filePath != "" && !strings.Contains(kv.Value, filePath) {
-							flag = false
-						}
-						tmpres.FilePath = kv.Value
-					}
-				}
+			tmpres := model.DriftPolicyAbnormal{HappendTime: v.CreatedAt}
+			if ct, ok := (*v.Scope)["container"]; ok {
+				tmpres.ContainerID = ct.ID
+			} else {
+				continue
 			}
-			if flag {
-				tmpres.PodName = v.PodName
-				tmpres.HappendTime = v.Timestamp
-				res = append(res, tmpres)
+
+			if pod, ok := (*v.Scope)["pod"]; ok {
+				tmpres.PodName = pod.Name
+			} else {
+				continue
 			}
+
+			if tmpres.FilePath, ok = v.Context["filePath"].(string); !ok {
+				continue
+			}
+
+			res = append(res, tmpres)
 		}
 		sort.Slice(res, func(i, j int) bool { return res[i].HappendTime > res[j].HappendTime })
 		response.Ok(w, response.WithItems(res))

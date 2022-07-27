@@ -1,6 +1,8 @@
 package dp
 
 import (
+	"fmt"
+
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/uuid"
 	"gitlab.com/security-rd/go-pkg/pb"
@@ -30,7 +32,7 @@ type EventArg struct {
 	reason        string
 }
 
-func genPalaceSignalParams(arg *EventArg, category, name model.AlertKind) (palace.RuleKey, []palace.Scope, map[string]interface{}) {
+func genPalaceSignalParams(arg *EventArg, cPodInfo containerPolicy, category, name model.AlertKind) (palace.RuleKey, []palace.Scope, map[string]interface{}) {
 	ruleKey := palace.RuleKey{
 		Category: string(category),
 		Name:     string(name),
@@ -43,21 +45,25 @@ func genPalaceSignalParams(arg *EventArg, category, name model.AlertKind) (palac
 		{
 			Kind: palace.ScopeKindContainer,
 			ID:   arg.ContainerID,   // container id
-			Name: arg.ContainerName, //container name
+			Name: arg.ContainerName, // container name
 		},
 		{
 			Kind: palace.ScopeKindPod,
 			ID:   arg.PodUID,  // pod id
-			Name: arg.PodName, //pod name
+			Name: arg.PodName, // pod name
 		},
 		{
 			Kind: palace.ScopeKindNamespace,
-			Name: arg.Namespace, //namespace name
+			Name: arg.Namespace, // namespace name
 		},
 		{
 			Kind: palace.ScopeKindCluster,
 			ID:   arg.ClusterID,
-			Name: arg.Cluster, //cluster name
+			Name: arg.Cluster, // cluster name
+		},
+		{
+			Kind: palace.ScopeKindResource,
+			Name: fmt.Sprintf("%s(%s)", cPodInfo.resourceName, cPodInfo.resourceKind),
 		},
 	}
 

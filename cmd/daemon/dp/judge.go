@@ -283,7 +283,7 @@ func (ej *ExecJudge) doRequest(conn *net.UnixConn, uuid uint64) error {
 				reason:        "file not in white list",
 			}
 
-			ruleKey, scopes, signalContext := genPalaceSignalParams(eventArgs, "DriftPrevention", "Drift Prevention")
+			ruleKey, scopes, signalContext := genPalaceSignalParams(eventArgs, cPodInfo, "DriftPrevention", "Drift Prevention")
 			err := palace.SendSignal(ruleKey, scopes, signalContext)
 			if err != nil {
 				logging.Get().Err(err).Str("args", fmt.Sprintf("%+v", eventArgs)).Msg("DriftPrevention send signal to palace fails!")
@@ -340,7 +340,7 @@ func (ej *ExecJudge) doRequest(conn *net.UnixConn, uuid uint64) error {
 				eventArgs.reason = "file hash mismatch"
 			}
 
-			ruleKey, scopes, signalContext := genPalaceSignalParams(eventArgs, "DriftPrevention", "Drift Prevention")
+			ruleKey, scopes, signalContext := genPalaceSignalParams(eventArgs, cPodInfo, "DriftPrevention", "Drift Prevention")
 			err := palace.SendSignal(ruleKey, scopes, signalContext)
 			if err != nil {
 				logging.Get().Err(err).Str("args", fmt.Sprintf("%+v", eventArgs)).Msg("DriftPrevention send signal to palace fails!")
