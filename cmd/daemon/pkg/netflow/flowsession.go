@@ -34,6 +34,7 @@ type ClusterManager interface {
 type FlowSession struct {
 	url            string
 	hostIP         string
+	NetLog         bool
 	EbpfStat       int
 	CtFlow         ConntrackTools
 	sockClient     *net.UnixConn
@@ -198,6 +199,11 @@ func NewFlowSession(containerInfo nodeinfo.ContainerInfoManager, k8sInfo *NodePo
 		ebpfEnable = true
 	}
 
+	NetLog := false
+	if ok := os.Getenv("NETLOG_ENABLE"); ok == "true" {
+		NetLog = true
+	}
+
 	myPodIP := os.Getenv("MY_POD_IP")
 	if myPodIP == "" {
 		return nil, errors.Errorf("Pod IP (found=%s) is missing, set MY_POD_IP env using k8s Downward API", myPodIP)
@@ -217,6 +223,7 @@ func NewFlowSession(containerInfo nodeinfo.ContainerInfoManager, k8sInfo *NodePo
 	fs := FlowSession{
 		CtFlow:         ctFlow,
 		hostIP:         myHostIP,
+		NetLog:         NetLog,
 		EbpfStat:       daemon.EBPF_FAILE,
 		nodePodsInfo:   k8sInfo,
 		containerInfo:  containerInfo,
@@ -917,7 +924,9 @@ func (fs *FlowSession) ProcSessionData(netSession *daemon.NetSessionLink) error 
 	//create uuid
 	netData.CreateUuid()
 	//print debug log
-	//logging.Get().Info().Msgf("[post] %+v, %+v", *netSession, *netData)
+	if fs.NetLog {
+		logging.Get().Info().Msgf("[post] %+v, %+v", *netSession, *netData)
+	}
 	//post net flow
 	return fs.submitter.Submit(context.Background(), netData)
 }
