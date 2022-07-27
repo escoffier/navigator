@@ -14,6 +14,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/security-rd/go-pkg/databases"
 	"gitlab.com/security-rd/go-pkg/elastic"
+	"gitlab.com/security-rd/go-pkg/sdk/palace"
 )
 
 var (
@@ -109,72 +110,44 @@ func (rl *TensorDriftService) GetContainerByID(ctx context.Context, id uint32) (
 	return dal.GetContainerByID(ctx, rl.rdb.GetReadDB(), id)
 }
 
-func (rl *TensorDriftService) GetSignalByID(ctx context.Context, esCli *es.Client, id string) (*model.Signal, error) {
-	rsp, err := esCli.Search().Index(fmt.Sprintf("%s*", "signal")).
-		Query(es.NewTermQuery("_id", id)).Do(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	if len(rsp.Hits.Hits) != 1 {
-		return nil, ErrESDocumentNotFound
-	}
-
-	return parseSignal(rsp.Hits.Hits[0])
-}
-
-func (rl *TensorDriftService) GetAbnormal(ctx context.Context, policy model.DriftPolicy, limit int, offset string, containerName string, filePath string) ([]*model.Signal, error) {
+func (rl *TensorDriftService) GetAbnormal(ctx context.Context, policy model.DriftPolicy, limit int, offset string, containerName string, filePath string) ([]*palace.Signal, error) {
 	esCli, err := GetDriftES(ctx)
 	if err != nil {
 		return nil, err
 	}
-	searchService := esCli.Search(fmt.Sprintf("%s*", "signal")).
-		Sort("timestamp", true).Sort("_id", true).Size(limit)
-	var queries []es.Query
-	filter := make(map[string]string)
-	filter["ruleModule"] = "ContainerSecurity"
-	filter["ruleCategory"] = "DriftPrevention"
-	filter["namespace.keyword"] = policy.Namespace
-	filter["cluster.keyword"] = policy.ClusterKey
-	filter["nodeKey.keyword"] = policy.Resource
-	filter["nodeType.keyword"] = policy.ResourceKind
+
+	boolQuery := es.NewBoolQuery()
+	boolQuery.Filter(
+		es.NewTermQuery("ruleKey.category.keyword", "DriftPrevention"),
+		es.NewTermQuery("scope.cluster.id", policy.ClusterKey),
+		es.NewTermQuery("scope.namespace.name.keyword", policy.Namespace),
+		es.NewTermQuery("scope.resource.name.keyword", fmt.Sprintf("%s(%s)", policy.Resource, policy.ResourceKind)),
+	)
+
 	if containerName != "" {
-		termKeyQuery := es.NewMatchQuery("customKV.KVHash.en.Key.keyword", "containerName")
-		termValueQuery := es.NewMatchQuery("customKV.KVHash.en.Value.keyword", containerName)
-		queries = append(queries, termKeyQuery)
-		queries = append(queries, termValueQuery)
+		boolQuery.Filter(es.NewMatchPhraseQuery("scope.container.name", containerName).Slop(0))
 	} else {
 		logging.GetLogger().Error().Msg("containerName is empty")
 	}
 	if filePath != "" {
-		termKeyQuery := es.NewMatchQuery("customKV.KVHash.en.Key.keyword", "filePath")
-		termValueQuery := es.NewWildcardQuery("customKV.KVHash.en.Value.keyword", "*"+filePath+"*")
-		queries = append(queries, termKeyQuery)
-		queries = append(queries, termValueQuery)
+		boolQuery.Filter(es.NewMatchPhraseQuery("context.filePath", filePath).Slop(0))
 	} else {
 		logging.GetLogger().Error().Msg("filePath is empty")
 	}
-	for k, v := range filter {
-		if k != "" && v != "" {
-			queries = append(queries, es.NewMatchQuery(k, v))
-		}
-	}
-	if len(queries) > 0 {
-		searchService = searchService.Query(es.NewBoolQuery().Must(queries...))
-	}
-	if offset != "" {
-		signal, err := rl.GetSignalByID(ctx, esCli, offset)
-		if err == nil {
-			searchService = searchService.SearchAfter(signal.Timestamp, signal.ID)
-		} else if err != ErrESDocumentNotFound {
-			return nil, err
-		}
-	}
-	searchResult, err := searchService.Do(ctx)
+
+	// debug
+	src, _ := boolQuery.Source()
+	logging.GetLogger().Debug().Interface("source", src).Msg("filter condition")
+
+	var result = make([]*palace.Signal, 0)
+	searchResult, err := esCli.Search("signals_*").Query(boolQuery).
+		Sort("createdAt", true).Sort("_id", true).
+		Size(limit).Do(ctx)
 	if err != nil {
-		return nil, err
+		logging.GetLogger().Warn().Err(err).Msg("search es error")
+		return result, nil
 	}
-	var result = make([]*model.Signal, 0, len(searchResult.Hits.Hits))
+
 	for _, item := range searchResult.Hits.Hits {
 		signal, err := parseSignal(item)
 		if err != nil {
@@ -186,13 +159,12 @@ func (rl *TensorDriftService) GetAbnormal(ctx context.Context, policy model.Drif
 	return result, nil
 }
 
-func parseSignal(item *es.SearchHit) (*model.Signal, error) {
-	var signal model.Signal
+func parseSignal(item *es.SearchHit) (*palace.Signal, error) {
+	var signal palace.Signal
 	var err = json.Unmarshal(item.Source, &signal)
 	if err != nil {
 		return nil, err
 	}
 
-	signal.ID = item.Id
 	return &signal, nil
 }
