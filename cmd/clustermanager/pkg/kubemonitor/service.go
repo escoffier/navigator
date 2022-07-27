@@ -106,19 +106,22 @@ func getEventsRuleName(kind, ruleName string) string {
 }
 
 func getSeverity(rawRule *pkg.RiskyRoleItem) uint32 {
+	// 0-3: 高危
+	// 4-5: 中危
+	// 6-7: 低危
 	switch rawRule.Metadata.Priority {
 	case pkg.PriorityCritical:
-		return 10
+		return 0
 	case pkg.PriorityHigh:
-		return 6
+		return 2
 	case pkg.PriorityMedium:
 		return 4
 	case pkg.PriorityLow:
-		return 2
+		return 6
 	case pkg.PriorityNone:
-		return 0
+		return 7
 	default:
-		return 1
+		return 5
 	}
 
 }
