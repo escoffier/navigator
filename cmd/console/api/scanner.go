@@ -225,6 +225,7 @@ func (api *api) ForwardScannerOpenApi() http.HandlerFunc {
 				request.URL = u
 			},
 		}
+		r.Host = u.Host
 		proxy.ServeHTTP(w, r)
 	}
 }
@@ -263,6 +264,7 @@ func (api *api) RedirectToScanner(repaleceScannner ...bool) http.HandlerFunc {
 				request.URL = u
 			},
 		}
+		r.Host = u.Host
 		proxy.ServeHTTP(w, r)
 	}
 }
@@ -301,7 +303,7 @@ func (api *api) RedirectToExport() http.HandlerFunc {
 			},
 			Transport: roundTripper,
 		}
-
+		r.Host = u.Host
 		proxy.ServeHTTP(w, r)
 	}
 }
@@ -340,7 +342,7 @@ func (api *api) RedirectToExportDownload() http.HandlerFunc {
 			},
 			Transport: roundTripper,
 		}
-
+		r.Host = u.Host
 		proxy.ServeHTTP(w, r)
 	}
 }
