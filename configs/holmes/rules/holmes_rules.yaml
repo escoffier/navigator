@@ -644,7 +644,7 @@
     Running malicious tools in the container (zh_msg=容器内运行恶意工具,rule_type=Execution,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,
     original_info=user=%user.name user_loginuid=%user.loginuid %container.info
     shell=%proc.name parent=%proc.pname terminal=%proc.tty container_id=%container.id container_name=%container.name image=%container.image.repository)
-  priority: ALERT
+  priority: WARNING
   tags: [ATT&CK, container, shell, mitre_execution, strict]
 
 ##attck_rule_type=Persistence
@@ -727,7 +727,7 @@
   output: >
     Package management process launched in container (zh_msg=容器内启动包安装管理流程,rule_type=Persistence,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid
     container_id=%container.id container_name=%container.name image=%container.image.repository:%container.image.tag)
-  priority: ERROR
+  priority: NOTICE
   tags: [ATT&CK, process, mitre_persistence]
 
 - rule: Update Package Repository
@@ -840,7 +840,7 @@
   output: >
     File created below /dev by untrusted program (zh_msg=在/dev目录下创建文件,rule_type=Persistence,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,
     original_info=user=%user.name user_loginuid=%user.loginuid file=%fd.name container_id=%container.id container_name=%container.name image=%container.image.repository)
-  priority: WARNING
+  priority: INFO
   tags: [ATT&CK, filesystem, mitre_persistence]
 
 - rule: Write below etc
@@ -936,7 +936,7 @@
     File below a known binary directory opened for writing (zh_msg=尝试修改二进制目录下面的文件,rule_type=Persistence,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,
     original_info=user=%user.name user_loginuid=%user.loginuid
     file=%fd.name parent=%proc.pname gparent=%proc.aname[2] container_id=%container.id container_name=%container.name image=%container.image.repository)
-  priority: ERROR
+  priority: WARNING
   tags: [ATT&CK, filesystem, mitre_persistence]
 
 - rule: Modify binary dirs
@@ -1049,7 +1049,7 @@
   condition: spawned_process and system_users and interactive and not user_known_system_user_login
   output: >
     System user ran an interactive command (zh_msg=未登录用户试图运行交互式命令,rule_type=Privilege_Escalation,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid container_id=%container.id container_name=%container.name image=%container.image.repository)
-  priority: WARNING
+  priority: ALERT
   tags: [ATT&CK, users, mitre_remote_access_tools]
 
 - rule: Set Setuid or Setgid bit
@@ -1094,7 +1094,7 @@
        not proc.name in (docker_binaries)
   output: >
     Shell history had been deleted or renamed (zh_msg=删除或重命名shell历史记录,rule_type=Privilege_Escalation,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid type=%evt.type fd.name=%fd.name name=%evt.arg.name path=%evt.arg.path oldpath=%evt.arg.oldpath %container.info container_id=%container.id,container_name=%container.name)
-  priority: ERROR
+  priority: WARNING
   tags: [ATT&CK, process, mitre_defense_evasion]
 
 - rule: Escape to access by chroot
@@ -1498,7 +1498,7 @@
     Grep private keys or passwords activities found
     (zh_msg=查找私钥或密码,rule_type=Credential_Access,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid container_id=%container.id container_name=%container.name 
     image=%container.image.repository:%container.image.tag)
-  priority: ERROR
+  priority: WARNING
   tags: [ATT&CK, process, mitre_credential_access]
 
 
@@ -1563,7 +1563,7 @@
     (open_read and container and
     proc.name in (namespace_bypass_cmds))
   output: View network information in the container (zh_msg=容器内查看网络信息,rule_type=Discovery,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type)
-  priority: ALERT
+  priority: WARNING
   tags: [ATT&CK]
 
 - rule: Read Shell Configuration File
@@ -1674,7 +1674,7 @@
     View process information in the container (zh_msg=容器内查看进程信息,rule_type=Execution,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,
     original_info=user=%user.name user_loginuid=%user.loginuid %container.info
     shell=%proc.name parent=%proc.pname terminal=%proc.tty container_id=%container.id container_name=%container.name image=%container.image.repository)
-  priority: WARNING
+  priority: INFO
   tags: [ATT&CK, container, shell, mitre_execution, strict]
 
 - rule: View disk information in the container
@@ -1921,7 +1921,7 @@
      (fd.snet in (allowed_outbound_destination_networks)) or
      (fd.sip.name in (allowed_outbound_destination_domains)))
   output: Disallowed outbound connection destination (zh_msg=检测到在允许的ips、网络或域名之外的对外流量,rule_type=Exfiltration,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=connection=%fd.name user=%user.name user_loginuid=%user.loginuid container_id=%container.id container_name=%container.name image=%container.image.repository)
-  priority: NOTICE
+  priority: INFO
   tags: [ATT&CK, network]
 
 # On EC2 instances, 169.254.169.254 is a special IP used to fetch
@@ -1982,7 +1982,7 @@
   output: >
     Program run with disallowed HTTP_PROXY environment variable
     (zh_msg=尝试运行带有不允许的HTTP_PROXY环境变量的程序,rule_type=Exfiltration,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid env=%proc.env parent=%proc.pname container_id=%container.id container_name=%container.name image=%container.image.repository)
-  priority: NOTICE
+  priority: INFO
   tags: [ATT&CK, host, users]
 
 - rule: Unexpected K8s NodePort Connection
@@ -2020,7 +2020,7 @@
   output: >
     Remote file copy tool launched in container (zh_msg=在容器中启动远程文件复制工具,rule_type=Exfiltration,,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid parent_process=%proc.pname
     container_id=%container.id container_name=%container.name image=%container.image.repository:%container.image.tag)
-  priority: NOTICE
+  priority: ALERT
   tags: [ATT&CK, network, process, mitre_lateral_movement, mitre_exfiltration]
 
 - rule: Unexpected UDP Traffic
@@ -2162,7 +2162,7 @@
   condition: (inbound_outbound) and ssh_port and not allowed_ssh_hosts
   output: >
     Disallowed SSH Connection (zh_msg=检测到尝试通过ssh连接到主机,rule_type=Exfiltration,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=connection=%fd.name user=%user.name user_loginuid=%user.loginuid container_id=%container.id container_name=%container.name image=%container.image.repository)
-  priority: NOTICE
+  priority: WARNING
   tags: [ATT&CK, network, mitre_remote_service]
 
 ##Rules that might be used
