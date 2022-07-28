@@ -194,7 +194,7 @@ func sendMsgToEventCenter(ctx context.Context, reqBody model.ReqBody, image mode
 	return nil
 }
 
-func needTranslation(word string) string {
+func holaPartialTag(word string) string {
 	return fmt.Sprintf("{%s}", word)
 }
 
