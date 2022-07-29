@@ -79,12 +79,13 @@ func (ResourceRiskyVolumeRule) Match(ctx context.Context, resource *assets.Tenso
 		}
 	}
 	if len(hittedVolumes) > 0 {
-		ctxs := make([]ContextKV, 1)
-		ctxs[0].Key = "riskyHostPathes"
-		ctxs[0].KeyMulti = map[string]string{
-			"en": "Risky Mounted HostPathes",
-			"zh": "风险挂载路径",
-		}
+		// 这一块代码之前未使用到。暂时先注释掉
+		// ctxs := make([]ContextKV, 1)
+		// ctxs[0].Key = "riskyHostPathes"
+		// ctxs[0].KeyMulti = map[string]string{
+		// 	"en": "Risky Mounted HostPathes",
+		// 	"zh": "风险挂载路径",
+		// }
 
 		riskyMounts := make([]ContainerMountInfo, 0, 2)
 
@@ -128,51 +129,16 @@ func (ResourceRiskyVolumeRule) Match(ctx context.Context, resource *assets.Tenso
 		}
 		signals := make([]RiskSignal, 0, 2)
 		for _, riskyMount := range riskyMounts {
-			ctx := make([]ContextKV, 6)
-			ctx[0].Key = "ContainerName"
-			ctx[0].KeyMulti = map[string]string{
-				"en": "Container Name",
-				"zh": "容器名称",
-			}
-			ctx[0].DefaultValue = riskyMount.ContainerName
-
-			ctx[1].Key = "ContainerType"
-			ctx[1].KeyMulti = map[string]string{
-				"en": "Container Type",
-				"zh": "容器类型",
-			}
-			ctx[1].DefaultValue = riskyMount.ContainerType
-
-			ctx[2].Key = "VolumeName"
-			ctx[2].KeyMulti = map[string]string{
-				"en": "Volume Name",
-				"zh": "卷名称",
-			}
-			ctx[2].DefaultValue = riskyMount.VolumeName
-
-			ctx[3].Key = "HostPath"
-			ctx[3].KeyMulti = map[string]string{
-				"en": "Host Path",
-				"zh": "节点路径",
-			}
-			ctx[3].DefaultValue = riskyMount.HostPath
-
-			ctx[4].Key = "MountPath"
-			ctx[4].KeyMulti = map[string]string{
-				"en": "Mount Path",
-				"zh": "容器挂载目录",
-			}
-			ctx[4].DefaultValue = riskyMount.MountPath
-
-			ctx[5].Key = "ReadOnly"
-			ctx[5].KeyMulti = map[string]string{
-				"en": "Read Only",
-				"zh": "是否只读",
-			}
-			ctx[5].DefaultValue = strconv.FormatBool(riskyMount.ReadOnly)
-
 			signals = append(signals, RiskSignal{
-				Ctxs:          ctx,
+				// Ctxs: ctx,
+				Context: map[string]string{
+					"Container Name": riskyMount.ContainerName,
+					"Container Type": riskyMount.ContainerType,
+					"Volume Name":    riskyMount.VolumeName,
+					"Host Path":      riskyMount.HostPath,
+					"Mount Path":     riskyMount.MountPath,
+					"Read Only":      strconv.FormatBool(riskyMount.ReadOnly),
+				},
 				CtxIdentifier: strings.Join([]string{riskyMount.ContainerName, riskyMount.VolumeName}, "/"),
 			})
 		}
@@ -228,29 +194,12 @@ func findRiskyCapsInContainer(c corev1.Container, containerType string) []RiskSi
 
 	for _, cap := range c.SecurityContext.Capabilities.Add {
 		if _, exist := capabilitiesBlacklist[string(cap)]; exist {
-			ctx := make([]ContextKV, 3)
-			ctx[0].Key = "ContainerName"
-			ctx[0].KeyMulti = map[string]string{
-				"en": "Container Name",
-				"zh": "容器名称",
-			}
-			ctx[0].DefaultValue = c.Name
-
-			ctx[1].Key = "ContainerType"
-			ctx[1].KeyMulti = map[string]string{
-				"en": "Container Type",
-				"zh": "容器类型",
-			}
-			ctx[1].DefaultValue = containerType
-
-			ctx[2].Key = "RiskyCapability"
-			ctx[2].KeyMulti = map[string]string{
-				"en": "Risky POSIX Capability",
-				"zh": "存在风险的POSIX权限",
-			}
-			ctx[2].DefaultValue = string(cap)
 			signals = append(signals, RiskSignal{
-				Ctxs:          ctx,
+				Context: map[string]string{
+					"Container Name":         c.Name,
+					"Container Type":         containerType,
+					"Risky POSIX Capability": string(cap),
+				},
 				CtxIdentifier: strings.Join([]string{c.Name, string(cap)}, "/"),
 			})
 		}
@@ -294,29 +243,13 @@ func (ResourceWithPrivContainerRule) KVs() []ContextKV {
 func generatePriviledgedEventsFromContainer(c corev1.Container, containerType string) []RiskSignal {
 	if c.SecurityContext != nil && c.SecurityContext.Privileged != nil && *c.SecurityContext.Privileged {
 		multiCtxs := make([]RiskSignal, 0, 2)
-		ctx := make([]ContextKV, 3)
-		ctx[0].Key = "ContainerName"
-		ctx[0].KeyMulti = map[string]string{
-			"en": "Container Name",
-			"zh": "容器名称",
-		}
-		ctx[0].DefaultValue = c.Name
-
-		ctx[1].Key = "ContainerType"
-		ctx[1].KeyMulti = map[string]string{
-			"en": "Container Type",
-			"zh": "容器类型",
-		}
-		ctx[1].DefaultValue = containerType
-
-		ctx[2].Key = "RiskyPriviledged"
-		ctx[2].KeyMulti = map[string]string{
-			"en": "Is Privileged",
-			"zh": "是否是特权容器",
-		}
-		ctx[2].DefaultValue = "true"
 		multiCtxs = append(multiCtxs, RiskSignal{
-			Ctxs:          ctx,
+			// Ctxs:          ctx,
+			Context: map[string]string{
+				"Container Name": c.Name,
+				"Container Type": containerType,
+				"Is Privileged":  "true",
+			},
 			CtxIdentifier: c.Name,
 		})
 		return multiCtxs
@@ -364,22 +297,11 @@ func generateSecCtxEventsFromPodSpec(spec corev1.PodSpec) []RiskSignal {
 	}
 	multiCtxs := make([]RiskSignal, 0, 2)
 	if spec.SecurityContext.SeccompProfile != nil && spec.SecurityContext.SeccompProfile.Type != "" && spec.SecurityContext.SeccompProfile.LocalhostProfile != nil {
-		ctx := make([]ContextKV, 2)
-		ctx[0].Key = "SeccompEnabled"
-		ctx[0].KeyMulti = map[string]string{
-			"en": "Seccomp Enabled",
-			"zh": "开启了Seccomp",
-		}
-		ctx[0].DefaultValue = "true"
-
-		ctx[1].Key = "SeccompType"
-		ctx[1].KeyMulti = map[string]string{
-			"en": "SeccompType",
-			"zh": "Seccomp类型",
-		}
-		ctx[1].DefaultValue = string(spec.SecurityContext.SeccompProfile.Type)
 		multiCtxs = append(multiCtxs, RiskSignal{
-			Ctxs:          ctx,
+			Context: map[string]string{
+				"Seccomp Enabled": "true",
+				"SeccompType":     string(spec.SecurityContext.SeccompProfile.Type),
+			},
 			CtxIdentifier: strings.Join([]string{"pod", "seccomp"}, "-"),
 		})
 	}
@@ -388,44 +310,24 @@ func generateSecCtxEventsFromPodSpec(spec corev1.PodSpec) []RiskSignal {
 		spec.SecurityContext.SELinuxOptions.Type != "" ||
 		spec.SecurityContext.SELinuxOptions.User != "") {
 
-		ctx := make([]ContextKV, 1)
-		ctx[0].Key = "SELinuxEnabled"
-		ctx[0].KeyMulti = map[string]string{
-			"en": "SELinux Enabled",
-			"zh": "开启了SELinux",
+		ctx := map[string]string{
+			"SELinux Enabled": "true",
 		}
-		ctx[0].DefaultValue = "true"
 
 		if spec.SecurityContext.SELinuxOptions.Level != "" {
-			c := ContextKV{
-				Key:          "SELinuxLevel",
-				DefaultValue: spec.SecurityContext.SELinuxOptions.Level,
-			}
-			ctx = append(ctx, c)
+			ctx["SELinuxLevel"] = spec.SecurityContext.SELinuxOptions.Level
 		}
 		if spec.SecurityContext.SELinuxOptions.User != "" {
-			c := ContextKV{
-				Key:          "SELinuxUser",
-				DefaultValue: spec.SecurityContext.SELinuxOptions.User,
-			}
-			ctx = append(ctx, c)
+			ctx["SELinuxUser"] = spec.SecurityContext.SELinuxOptions.User
 		}
 		if spec.SecurityContext.SELinuxOptions.Role != "" {
-			c := ContextKV{
-				Key:          "SELinuxRole",
-				DefaultValue: spec.SecurityContext.SELinuxOptions.Role,
-			}
-			ctx = append(ctx, c)
+			ctx["SELinuxRole"] = spec.SecurityContext.SELinuxOptions.Role
 		}
 		if spec.SecurityContext.SELinuxOptions.Type != "" {
-			c := ContextKV{
-				Key:          "SELinuxType",
-				DefaultValue: spec.SecurityContext.SELinuxOptions.Type,
-			}
-			ctx = append(ctx, c)
+			ctx["SELinuxType"] = spec.SecurityContext.SELinuxOptions.Type
 		}
 		multiCtxs = append(multiCtxs, RiskSignal{
-			Ctxs:          ctx,
+			Context:       ctx,
 			CtxIdentifier: strings.Join([]string{"pod", "selinux"}, "-"),
 		})
 	}
@@ -435,36 +337,13 @@ func generateSecCtxEventsFromContainer(c corev1.Container, containerType string)
 	if c.SecurityContext != nil {
 		multiCtxs := make([]RiskSignal, 0, 2)
 		if c.SecurityContext.SeccompProfile != nil && c.SecurityContext.SeccompProfile.Type != "" && c.SecurityContext.SeccompProfile.LocalhostProfile != nil {
-			ctx := make([]ContextKV, 4)
-			ctx[0].Key = "ContainerName"
-			ctx[0].KeyMulti = map[string]string{
-				"en": "Container Name",
-				"zh": "容器名称",
-			}
-			ctx[0].DefaultValue = c.Name
-
-			ctx[1].Key = "ContainerType"
-			ctx[1].KeyMulti = map[string]string{
-				"en": "Container Type",
-				"zh": "容器类型",
-			}
-			ctx[1].DefaultValue = containerType
-
-			ctx[2].Key = "SeccompEnabled"
-			ctx[2].KeyMulti = map[string]string{
-				"en": "Seccomp Enabled",
-				"zh": "开启了Seccomp",
-			}
-			ctx[2].DefaultValue = "true"
-
-			ctx[3].Key = "SeccompType"
-			ctx[3].KeyMulti = map[string]string{
-				"en": "SeccompType",
-				"zh": "Seccomp类型",
-			}
-			ctx[3].DefaultValue = string(c.SecurityContext.SeccompProfile.Type)
 			multiCtxs = append(multiCtxs, RiskSignal{
-				Ctxs:          ctx,
+				Context: map[string]string{
+					"Container Name":  c.Name,
+					"Container Type":  containerType,
+					"Seccomp Enabled": "true",
+					"SeccompType":     string(c.SecurityContext.SeccompProfile.Type),
+				},
 				CtxIdentifier: strings.Join([]string{c.Name, "seccomp"}, "-"),
 			})
 		}
@@ -472,58 +351,26 @@ func generateSecCtxEventsFromContainer(c corev1.Container, containerType string)
 			c.SecurityContext.SELinuxOptions.Role != "" ||
 			c.SecurityContext.SELinuxOptions.Type != "" ||
 			c.SecurityContext.SELinuxOptions.User != "") {
-			ctx := make([]ContextKV, 3)
-			ctx[0].Key = "ContainerName"
-			ctx[0].KeyMulti = map[string]string{
-				"en": "Container Name",
-				"zh": "容器名称",
+			ctx := map[string]string{
+				"Container Name":  c.Name,
+				"Container Type":  containerType,
+				"SELinux Enabled": "true",
 			}
-			ctx[0].DefaultValue = c.Name
-
-			ctx[1].Key = "ContainerType"
-			ctx[1].KeyMulti = map[string]string{
-				"en": "Container Type",
-				"zh": "容器类型",
-			}
-			ctx[1].DefaultValue = containerType
-
-			ctx[2].Key = "SELinuxEnabled"
-			ctx[2].KeyMulti = map[string]string{
-				"en": "SELinux Enabled",
-				"zh": "开启了SELinux",
-			}
-			ctx[2].DefaultValue = "true"
 
 			if c.SecurityContext.SELinuxOptions.Level != "" {
-				ct := ContextKV{
-					Key:          "SELinuxLevel",
-					DefaultValue: c.SecurityContext.SELinuxOptions.Level,
-				}
-				ctx = append(ctx, ct)
+				ctx["SELinuxLevel"] = c.SecurityContext.SELinuxOptions.Level
 			}
 			if c.SecurityContext.SELinuxOptions.User != "" {
-				ct := ContextKV{
-					Key:          "SELinuxUser",
-					DefaultValue: c.SecurityContext.SELinuxOptions.User,
-				}
-				ctx = append(ctx, ct)
+				ctx["SELinuxUser"] = c.SecurityContext.SELinuxOptions.User
 			}
 			if c.SecurityContext.SELinuxOptions.Role != "" {
-				ct := ContextKV{
-					Key:          "SELinuxRole",
-					DefaultValue: c.SecurityContext.SELinuxOptions.Role,
-				}
-				ctx = append(ctx, ct)
+				ctx["SELinuxRole"] = c.SecurityContext.SELinuxOptions.Role
 			}
 			if c.SecurityContext.SELinuxOptions.Type != "" {
-				ct := ContextKV{
-					Key:          "SELinuxType",
-					DefaultValue: c.SecurityContext.SELinuxOptions.Type,
-				}
-				ctx = append(ctx, ct)
+				ctx["SELinuxType"] = c.SecurityContext.SELinuxOptions.Type
 			}
 			multiCtxs = append(multiCtxs, RiskSignal{
-				Ctxs:          ctx,
+				Context:       ctx,
 				CtxIdentifier: strings.Join([]string{c.Name, "selinux"}, "-"),
 			})
 		}
@@ -576,45 +423,24 @@ func (ResourcesWithHostNamespaceRule) Match(ctx context.Context, resource *asset
 	signals := make([]RiskSignal, 0, 2)
 	if resource.PodTemplate.Spec.HostIPC {
 		signals = append(signals, RiskSignal{
-			Ctxs: []ContextKV{
-				{
-					Key: "HostIPC",
-					KeyMulti: map[string]string{
-						"zh": "共享主机IPC命名空间",
-						"en": "Use the host's ipc namespace",
-					},
-					DefaultValue: "true",
-				},
+			Context: map[string]string{
+				"Use the host's ipc namespace": "true",
 			},
 			CtxIdentifier: "HostIPC",
 		})
 	}
 	if resource.PodTemplate.Spec.HostNetwork {
 		signals = append(signals, RiskSignal{
-			Ctxs: []ContextKV{
-				{
-					Key: "HostNetwork",
-					KeyMulti: map[string]string{
-						"zh": "共享主机网络命名空间",
-						"en": "Use the host's network namespace",
-					},
-					DefaultValue: "true",
-				},
+			Context: map[string]string{
+				"Use the host's network namespace": "true",
 			},
 			CtxIdentifier: "HostNetwork",
 		})
 	}
 	if resource.PodTemplate.Spec.HostPID {
 		signals = append(signals, RiskSignal{
-			Ctxs: []ContextKV{
-				{
-					Key: "HostPID",
-					KeyMulti: map[string]string{
-						"zh": "共享主机进程命名空间",
-						"en": "Use the host's pid namespace",
-					},
-					DefaultValue: "true",
-				},
+			Context: map[string]string{
+				"Use the host's pid namespace": "true",
 			},
 			CtxIdentifier: "HostPID",
 		})
@@ -646,31 +472,10 @@ func getCtxsWithInsecureSecretsEnvFromContainer(c corev1.Container, containerTyp
 		if strings.Index(env.Name, "PASSWORD") >= 0 || strings.Index(env.Name, "PWD") >= 0 {
 			if env.Value != "" && (env.ValueFrom == nil || env.ValueFrom.SecretKeyRef == nil) {
 				signals = append(signals, RiskSignal{
-					Ctxs: []ContextKV{
-						{
-							Key: "ContainerName",
-							KeyMulti: map[string]string{
-								"zh": "容器名称",
-								"en": "Container Name",
-							},
-							DefaultValue: c.Name,
-						},
-						{
-							Key: "ContainerType",
-							KeyMulti: map[string]string{
-								"zh": "容器类型",
-								"en": "Container Type",
-							},
-							DefaultValue: containerType,
-						},
-						{
-							Key: "EnvKey",
-							KeyMulti: map[string]string{
-								"zh": "环境变量名称",
-								"en": "Env Key",
-							},
-							DefaultValue: env.Name,
-						},
+					Context: map[string]string{
+						"Container Name": c.Name,
+						"Container Type": containerType,
+						"Env Key":        env.Name,
 					},
 					CtxIdentifier: strings.Join([]string{c.Name, containerType, env.Name}, "-"),
 				})
@@ -721,7 +526,8 @@ func (ResourcesWithDefaultSARule) Match(ctx context.Context, resource *assets.Te
 	signals := make([]RiskSignal, 0, 1)
 	if resource.PodTemplate.Spec.ServiceAccountName == "default" {
 		signals = append(signals, RiskSignal{
-			Ctxs:          []ContextKV{},
+			// Ctxs:          []ContextKV{},
+			Context:       map[string]string{},
 			CtxIdentifier: "defaultSA",
 		})
 	}
@@ -750,124 +556,40 @@ func getCtxsWithoutRequestLimitFromContainer(c corev1.Container, containerType s
 	signals := make([]RiskSignal, 0, 2)
 	if _, exist := c.Resources.Requests[corev1.ResourceCPU]; !exist {
 		signals = append(signals, RiskSignal{
-			Ctxs: []ContextKV{
-				{
-					Key: "ContainerName",
-					KeyMulti: map[string]string{
-						"zh": "容器名称",
-						"en": "Container Name",
-					},
-					DefaultValue: c.Name,
-				},
-				{
-					Key: "ContainerType",
-					KeyMulti: map[string]string{
-						"zh": "容器类型",
-						"en": "Container Type",
-					},
-					DefaultValue: containerType,
-				},
-				{
-					Key: "RequestsCPUSet",
-					KeyMulti: map[string]string{
-						"zh": "是否设置了requests CPU",
-						"en": "requests CPU is Set",
-					},
-					DefaultValue: "false",
-				},
+			Context: map[string]string{
+				"Container Name":      c.Name,
+				"Container Type":      containerType,
+				"requests CPU is Set": "false",
 			},
 			CtxIdentifier: strings.Join([]string{c.Name, containerType, "requests.cpu"}, "-"),
 		})
 	}
 	if _, exist := c.Resources.Requests[corev1.ResourceMemory]; !exist {
 		signals = append(signals, RiskSignal{
-			Ctxs: []ContextKV{
-				{
-					Key: "ContainerName",
-					KeyMulti: map[string]string{
-						"zh": "容器名称",
-						"en": "Container Name",
-					},
-					DefaultValue: c.Name,
-				},
-				{
-					Key: "ContainerType",
-					KeyMulti: map[string]string{
-						"zh": "容器类型",
-						"en": "Container Type",
-					},
-					DefaultValue: containerType,
-				},
-				{
-					Key: "RequestsMemorySet",
-					KeyMulti: map[string]string{
-						"zh": "是否设置了requests Memory",
-						"en": "requests Memory is Set",
-					},
-					DefaultValue: "false",
-				},
+			Context: map[string]string{
+				"Container Name":         c.Name,
+				"Container Type":         containerType,
+				"requests Memory is Set": "false",
 			},
 			CtxIdentifier: strings.Join([]string{c.Name, containerType, "requests.mem"}, "-"),
 		})
 	}
 	if _, exist := c.Resources.Limits[corev1.ResourceCPU]; !exist {
 		signals = append(signals, RiskSignal{
-			Ctxs: []ContextKV{
-				{
-					Key: "ContainerName",
-					KeyMulti: map[string]string{
-						"zh": "容器名称",
-						"en": "Container Name",
-					},
-					DefaultValue: c.Name,
-				},
-				{
-					Key: "ContainerType",
-					KeyMulti: map[string]string{
-						"zh": "容器类型",
-						"en": "Container Type",
-					},
-					DefaultValue: containerType,
-				},
-				{
-					Key: "LimitsCPUSet",
-					KeyMulti: map[string]string{
-						"zh": "是否设置了Limits CPU",
-						"en": "Limits CPU is Set",
-					},
-					DefaultValue: "false",
-				},
+			Context: map[string]string{
+				"Container Name":    c.Name,
+				"Container Type":    containerType,
+				"Limits CPU is Set": "false",
 			},
 			CtxIdentifier: strings.Join([]string{c.Name, containerType, "limits.cpu"}, "-"),
 		})
 	}
 	if _, exist := c.Resources.Limits[corev1.ResourceMemory]; !exist {
 		signals = append(signals, RiskSignal{
-			Ctxs: []ContextKV{
-				{
-					Key: "ContainerName",
-					KeyMulti: map[string]string{
-						"zh": "容器名称",
-						"en": "Container Name",
-					},
-					DefaultValue: c.Name,
-				},
-				{
-					Key: "ContainerType",
-					KeyMulti: map[string]string{
-						"zh": "容器类型",
-						"en": "Container Type",
-					},
-					DefaultValue: containerType,
-				},
-				{
-					Key: "LimitsMemorySet",
-					KeyMulti: map[string]string{
-						"zh": "是否设置了Limits Memory",
-						"en": "Limits Memory is Set",
-					},
-					DefaultValue: "false",
-				},
+			Context: map[string]string{
+				"Container Name":       c.Name,
+				"Container Type":       containerType,
+				"Limits Memory is Set": "false",
 			},
 			CtxIdentifier: strings.Join([]string{c.Name, containerType, "limits.mem"}, "-"),
 		})
