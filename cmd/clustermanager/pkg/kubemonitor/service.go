@@ -311,16 +311,8 @@ func genPalaceSignalParams(evt *pkg.KubeMonitorEvent) (palace.RuleKey, []palace.
 	}
 
 	signalContext := map[string]interface{}{}
-	for _, kv := range evt.ContextKVs {
-		if key, ok := kv.KeyMulti["en"]; ok {
-			v, exist := kv.ValueMulti["en"]
-			if !exist {
-				v = kv.DefaultValue
-			}
-			signalContext[key] = v
-		} else {
-			signalContext[kv.Key] = kv.DefaultValue
-		}
+	for k, v := range evt.Context {
+		signalContext[k] = v
 	}
 
 	return ruleKey, scopes, signalContext

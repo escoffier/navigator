@@ -131,38 +131,19 @@ func (l *KubeClusterMonitor) generateEventsFromClusterRole(role *rbacv1.ClusterR
 				Namespace:  "-",
 				ClusterKey: l.clusterKey,
 			},
-			RuleName:   GetRuleNameFromRBRule(rule, "clusterRole"),
-			ContextKVs: make([]ContextKV, 0, 3),
-		}
-		evt.ContextKVs = append(evt.ContextKVs, ContextKV{
-			Key: "roleCreateTime",
-			KeyMulti: map[string]string{
-				"en": "Role Created Time",
-				"zh": "Role创建时间",
+			RuleName: GetRuleNameFromRBRule(rule, "clusterRole"),
+			Context: map[string]string{
+				"Role Created Time": role.CreationTimestamp.Local().Format(time.RFC3339),
 			},
-			DefaultValue: role.CreationTimestamp.Local().Format(time.RFC3339),
-		})
+		}
+
 		rulesBytes, err := json.Marshal(role.Rules)
 		if err == nil {
-			evt.ContextKVs = append(evt.ContextKVs, ContextKV{
-				Key: "roleRules",
-				KeyMulti: map[string]string{
-					"en": "Role Rules",
-					"zh": "Role规则",
-				},
-				DefaultValue: string(rulesBytes),
-			})
+			evt.Context["Role Rules"] = string(rulesBytes)
 		}
 		labelBytes, err := yaml.Marshal(role.Labels)
 		if err == nil {
-			evt.ContextKVs = append(evt.ContextKVs, ContextKV{
-				Key: "roleLabels",
-				KeyMulti: map[string]string{
-					"en": "Role Labels",
-					"zh": "Role标签",
-				},
-				DefaultValue: string(labelBytes),
-			})
+			evt.Context["Role Labels"] = string(labelBytes)
 		}
 		l.sendToOutput(&evt)
 	}
@@ -182,38 +163,20 @@ func (l *KubeClusterMonitor) generateEventsFromRole(role *rbacv1.Role, rules []*
 				Namespace:  role.Namespace,
 				ClusterKey: l.clusterKey,
 			},
-			RuleName:   GetRuleNameFromRBRule(rule, "role"),
-			ContextKVs: make([]ContextKV, 0, 3),
-		}
-		evt.ContextKVs = append(evt.ContextKVs, ContextKV{
-			Key: "roleCreateTime",
-			KeyMulti: map[string]string{
-				"en": "Role Created Time",
-				"zh": "Role创建时间",
+			RuleName: GetRuleNameFromRBRule(rule, "role"),
+			// ContextKVs: make([]ContextKV, 0, 3),
+			Context: map[string]string{
+				"Role Created Time": role.CreationTimestamp.Local().Format(time.RFC3339),
 			},
-			DefaultValue: role.CreationTimestamp.Local().Format(time.RFC3339),
-		})
+		}
+
 		rulesBytes, err := json.Marshal(role.Rules)
 		if err == nil {
-			evt.ContextKVs = append(evt.ContextKVs, ContextKV{
-				Key: "roleRules",
-				KeyMulti: map[string]string{
-					"en": "Role Rules",
-					"zh": "Role规则",
-				},
-				DefaultValue: string(rulesBytes),
-			})
+			evt.Context["Role Rules"] = string(rulesBytes)
 		}
 		labelBytes, err := yaml.Marshal(role.Labels)
 		if err == nil {
-			evt.ContextKVs = append(evt.ContextKVs, ContextKV{
-				Key: "roleLabels",
-				KeyMulti: map[string]string{
-					"en": "Role Labels",
-					"zh": "Role标签",
-				},
-				DefaultValue: string(labelBytes),
-			})
+			evt.Context["Role Labels"] = string(labelBytes)
 		}
 
 		l.sendToOutput(&evt)
@@ -324,8 +287,9 @@ func (l *KubeClusterMonitor) OnTensorResourceEvent(newResource, oldResource *ass
 						Namespace:  newResource.Namespace,
 						ClusterKey: l.clusterKey,
 					},
-					RuleName:      rule.RuleName(),
-					ContextKVs:    signal.Ctxs,
+					RuleName: rule.RuleName(),
+					// ContextKVs:    signal.Ctxs,
+					Context:       signal.Context,
 					ctxIdentifier: signal.CtxIdentifier,
 				}
 				l.sendToOutput(&evt)
