@@ -17,7 +17,7 @@ func NodeIsReady(node *corev1.Node) bool {
 				return false
 			}
 
-		default:
+		case corev1.NodeDiskPressure, corev1.NodeMemoryPressure, corev1.NodePIDPressure, corev1.NodeNetworkUnavailable:
 			// 当资源压力不为false时，即为true或者unknown时，表示节点不可用
 			if v.Status != corev1.ConditionFalse {
 				return false
