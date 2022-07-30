@@ -1633,7 +1633,7 @@
   output: >
     Unexpected connection to K8s API Server from container (zh_msg=尝试从容器内连接到K8s API服务器,rule_type=Discovery,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=%container.info image=%container.image.repository:%container.image.tag connection=%fd.name,container_id=%container.id,container_name=%container.name)
   priority: NOTICE
-  tags: [ATT&CK, network, k8s, container, mitre_discovery]
+  tags: [ATT&CK, network, k8s, container, mitre_discovery, strict]
 
 - rule: Launch Suspicious Network Tool on Host
   hid: disc_06
