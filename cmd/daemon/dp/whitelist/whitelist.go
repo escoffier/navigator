@@ -77,6 +77,9 @@ func randString(n int) string {
 }
 
 func dumpWhitelist(whiteList []WhitelistFile, outputFile string) error {
+	if len(whiteList) <= 0 {
+		return fmt.Errorf("whitelist is null, skip dump")
+	}
 	whiteList = Unique(whiteList)
 	sort.Slice(whiteList, func(i, j int) bool {
 		return whiteList[i].Name < whiteList[j].Name
@@ -217,6 +220,8 @@ func (wc *WhitelistCount) MakeWhiteListByOverLay(image types.ImageInspect) (imag
 		whiteList, err := loadWhiteListFromFile(whiteListFileName)
 		if err != nil {
 			logging.Get().Warn().Err(err).Msg("get white list from file fail")
+		} else if len(whiteList) == 0 {
+			logging.Get().Error().Msg("load from file null, scan from dir")
 		} else {
 			imageInfo := imageInfo{WhiteList: whiteList}
 			return imageInfo, nil
