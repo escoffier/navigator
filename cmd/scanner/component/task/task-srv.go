@@ -103,7 +103,7 @@ func (t *TaskSrv) GenerateScanTask(ctx context.Context, imageIds []int64, info U
 			// generate subtasks
 			subtask := model.SubTask{
 				TaskID:       0, // fill in gorm function
-				ImageID:      imageIds[i],
+				ImageID:      batch[i],
 				Status:       consts.ImageScanPending,
 				HeartBeat:    &tmpTime,
 				FullRepoName: imageMap[batch[i]].FullRepoName,
