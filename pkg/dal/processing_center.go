@@ -21,7 +21,7 @@ func GetProcessingActions(ctx context.Context, db *gorm.DB, recordID string) ([]
 }
 
 func SaveProcessingRecord(ctx context.Context, esCli *elastic.Client, index string, record *model.ProcessingRecord) error {
-	_, err := esCli.Index().Index(index).Id(record.ID).BodyJson(record).Do(ctx)
+	_, err := esCli.Index().Index(index).Id(record.ID).BodyJson(record).Refresh("true").Do(ctx)
 	return err
 }
 

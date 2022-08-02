@@ -27,5 +27,6 @@ func (api *api) platform() func(chi.Router) {
 func (api *api) platformOpenapi() func(chi.Router) {
 	return func(r chi.Router) {
 		r.Route("/assets", api.assetsForOpenapi())
+		r.Route("/degrade", api.degradeOpenAPI())
 	}
 }
