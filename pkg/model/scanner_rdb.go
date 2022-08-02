@@ -355,8 +355,8 @@ func GetRegType() map[string]LabelValue {
 		regTypeNameKey[consts.DockerRegistryV2Version] = LabelValue{Value: consts.DockerRegistryV2Version, Label: "Docker Registry (v2)"}
 		regTypeNameKey[consts.HarborVersion] = LabelValue{Value: consts.HarborVersion, Label: "Harbor"}
 		regTypeNameKey[consts.HaiWeiSwrVersion] = LabelValue{Value: consts.HaiWeiSwrVersion, Label: "华为云 SWR 个人版"}
+		regTypeNameKey[consts.HaiWeiSwrENVersion] = LabelValue{Value: consts.HaiWeiSwrENVersion, Label: "华为云 SWR 企业版"}
 		regTypeNameKey[consts.JfrogVersion] = LabelValue{Value: consts.JfrogVersion, Label: "JFrog Artifactory"}
-
 	}
 	return regTypeNameKey
 }

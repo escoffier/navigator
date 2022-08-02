@@ -8,6 +8,7 @@ const (
 	HarborV2Version         = "harbor-v2.0"
 	HarborVersion           = "harbor" // 前端不再区分v1,v2
 	HaiWeiSwrVersion        = "hw-swr"
+	HaiWeiSwrENVersion      = "hw-swr-en"
 	JfrogVersion            = "jfrog"
 )
 
