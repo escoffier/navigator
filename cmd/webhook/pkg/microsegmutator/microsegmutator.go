@@ -4,7 +4,6 @@ import (
 	"context"
 
 	log "github.com/sirupsen/logrus"
-	"gitlab.com/piccolo_su/vegeta/cmd/webhook/pkg/microsegmutator/config"
 	"gitlab.com/piccolo_su/vegeta/cmd/webhook/pkg/microsegmutator/service"
 	"gitlab.com/piccolo_su/vegeta/cmd/webhook/pkg/processors"
 	v1 "k8s.io/api/core/v1"
@@ -41,12 +40,7 @@ func (m *MicroSegMutator) Name() string {
 
 func (m *MicroSegMutator) Init(webHookConfig *processors.WebHookConfig) error {
 	log.Info("init MicroSegMutator")
-	err := config.InitMutationConfig()
-	if err != nil {
-		log.Errorf("load config failed: %v", err)
-		return err
-	}
-	m.svc = service.NewMutationService(webHookConfig.RDB, config.MutationK8sCli)
+	m.svc = service.NewMutationService(webHookConfig.RDB)
 	return nil
 }
 
