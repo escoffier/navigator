@@ -1541,6 +1541,7 @@
     and not linux_bench_reading_etc_shadow
     and not user_known_read_sensitive_files_activities
     and not user_read_sensitive_file_containers
+    and not runc_writing_passwd
     and not tensorsec_namespace
   output: >
     Sensitive file opened for reading by non-trusted program (zh_msg=未受信任的程序试图读取敏感文件,rule_type=Discovery,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid program=%proc.name
@@ -3536,6 +3537,9 @@
 
 - macro: runc_writing_var_lib_docker
   condition: (proc.cmdline="runc:[1:CHILD] init" and evt.arg.filename startswith /var/lib/docker)
+
+- macro: runc_writing_passwd
+  condition: (proc.cmdline="runc:[1:CHILD] init" and (fd.name=/etc/shadow or fd.name=/etc/passwd))
 
 - macro: mysqlsh_writing_state
   condition: (proc.name=mysqlsh and fd.directory=/root/.mysqlsh)
