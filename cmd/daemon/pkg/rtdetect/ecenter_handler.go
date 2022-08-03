@@ -89,54 +89,59 @@ func (ec *EventsOutputHandler) Handle(ctx context.Context, events []eventItem) e
 		}
 
 		signalContext, podUID, podName, namespace := generateSignalContext(e.data)
+		containerID, _ := signalContext[model.FieldContainerID].(string)
+		containerName, _ := signalContext[model.FieldContainerName].(string)
+		if containerName == "" {
+			var err error
+			containerName, err = model.GetInfoFromOutput("container_name=", e.data.Output)
+			if err != nil || containerName == "<NA>" {
+				containerName = containerID
+			}
+		}
+
+		// 所有告警均存在 cluster + hostname
 		scopes := []palace.Scope{
 			{
 				Kind: palace.ScopeKindCluster,
 				ID:   e.clusterKey,
 				Name: clusterName, // cluster name
 			},
-		}
-
-		containerID, _ := signalContext[model.FieldContainerID].(string)
-		if containerID == "host" || (podName == "" && namespace == "") {
-			scopes = append(scopes, palace.Scope{
+			{
 				Kind: palace.ScopeKindHostname,
 				Name: myNodeName,
+			},
+		}
+
+		if namespace != "" {
+			scopes = append(scopes, palace.Scope{
+				Kind: palace.ScopeKindNamespace,
+				Name: namespace,
 			})
-		} else {
-			containerName, _ := signalContext[model.FieldContainerName].(string)
-			if containerName == "" {
-				var err error
-				containerName, err = model.GetInfoFromOutput("container_name=", e.data.Output)
-				if err != nil {
-					containerName = containerID
-				}
-			}
+		}
 
-			scopes = append(scopes, []palace.Scope{
-				{
-					Kind: palace.ScopeKindContainer,
-					ID:   containerID,   // container id
-					Name: containerName, // container name
-				},
-				{
-					Kind: palace.ScopeKindPod,
-					ID:   podUID,
-					Name: podName,
-				},
-				{
-					Kind: palace.ScopeKindNamespace,
-					Name: namespace,
-				},
-			}...)
+		ownerRes, _, exist := ec.getOwnerInfo(podName, namespace)
+		if exist {
+			scopes = append(scopes, palace.Scope{
+				Kind: palace.ScopeKindResource,
+				Name: fmt.Sprintf("%s(%s)", ownerRes.Name, ownerRes.Kind),
+			})
+		}
 
-			ownerRes, _, exist := ec.getOwnerInfo(podName, namespace)
-			if exist {
-				scopes = append(scopes, palace.Scope{
-					Kind: palace.ScopeKindResource,
-					Name: fmt.Sprintf("%s(%s)", ownerRes.Name, ownerRes.Kind),
-				})
-			}
+		if podName != "" {
+			scopes = append(scopes, palace.Scope{
+				Kind: palace.ScopeKindPod,
+				ID:   podUID,
+				Name: podName,
+			})
+		}
+
+		// 明确不是主机告警，追加 container
+		if containerID != "host" {
+			scopes = append(scopes, palace.Scope{
+				Kind: palace.ScopeKindContainer,
+				ID:   containerID,   // container id
+				Name: containerName, // container name
+			})
 		}
 
 		err := palace.SendSignal(ruleKey, scopes, signalContext)
@@ -144,37 +149,6 @@ func (ec *EventsOutputHandler) Handle(ctx context.Context, events []eventItem) e
 			logging.Get().Err(err).Str("args", fmt.Sprintf("%+v", e.data)).Msg("ATT&CK send signal to palace fails!")
 		}
 
-		// e.data.Hostname = ec.myNodeName
-		// e.data.OutputFields[rtdetect.KeyUuid] = "0"
-		// e.data.OutputFields[rtdetect.KeyClusterKey] = e.clusterKey
-		// ownerRes, _, exist := ec.getOwnerInfo(e.data)
-		// if exist {
-		// 	e.data.OutputFields[rtdetect.KeyOwnerResName] = ownerRes.Name
-		// 	e.data.OutputFields[rtdetect.KeyOwnerResKind] = ownerRes.Kind
-		// }
-		// ebytes, err := proto.Marshal(e.data)
-		// if err != nil {
-		// 	logging.Get().WithContext(ctx).Errorf(err, "failed to marshal data: %v", e)
-		// 	continue
-		// }
-		//
-		// keyBytes, ok := GetKeyOfSignal(e.clusterKey)
-		// if !ok { // if the key is empty, generate random key to prevent consumer load unbalance
-		// 	keyBytes = []byte(strconv.FormatInt(rand.Int63(), 10))
-		// }
-		//
-		// err = ec.mqWriter.Write(ctx, model.MQTopicPalacePodContainerEvents, kafka.Message{
-		// 	Topic: model.MQTopicPalacePodContainerEvents,
-		// 	Key:   keyBytes,
-		// 	Value: ebytes,
-		// 	Headers: []kafka.Header{{
-		// 		Key:   model.MHeaderKeyEventType,
-		// 		Value: []byte(model.MEventTypeHolmes),
-		// 	}},
-		// })
-		// if err != nil {
-		// 	logging.Get().WithContext(ctx).Errorf(err, "publish pod container events error. data: %s", string(ebytes))
-		// }
 	}
 
 	return nil

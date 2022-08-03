@@ -34,7 +34,8 @@ func UpdateProcessingRecord(ctx context.Context, esCli *elastic.Client, index st
 		Script(elastic.NewScript(script).
 			Param("updatedAt", change.UpdatedAt).
 			Param("status", change.Status).
-			Param("lastOpUser", change.LastOpUser)).Do(ctx)
+			Param("lastOpUser", change.LastOpUser)).
+		Refresh("true").Do(ctx)
 	return err
 }
 
