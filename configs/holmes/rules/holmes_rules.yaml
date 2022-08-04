@@ -1707,7 +1707,7 @@
       value: "使用免疫防御训练应用，限制敏感文件和命令的用户权限，禁止挂载敏感目录和文件。"
   desc: Scanning web directories in the container
   condition: >
-    open_read and container and (fd.directory contains "www" or fd.directory contains "apache" or fd.directory contains "tomcat" or fd.directory contains "web" or fd.directory contains "http") and (fd.name contains ".jsp" or fd.name contains ".php" or fd.name contains ".config" or fd.name contains ".bak" or fd.name contains ".old" or fd.name contains ".log") and not k8s.pod.name contains "holmes"
+    open_read and container and (fd.directory contains "www" or fd.directory contains "apache" or fd.directory contains "tomcat" or fd.directory contains "web" or fd.directory contains "http") and (fd.name contains ".jsp" or fd.name contains ".php" or fd.name contains ".config" or fd.name contains ".bak" or fd.name contains ".old" or fd.name contains ".log") and not tensorsec_namespace
   output: Scanning web directories in the container (zh_msg=容器内扫描web目录,fd.name=%fd.name,rule_type=Discovery,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,container_id=%container.id,container_name=%container.name)
   priority: WARNING
   tags: [ATT&CK]
