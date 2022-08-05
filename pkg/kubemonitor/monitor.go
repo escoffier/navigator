@@ -128,7 +128,7 @@ func (l *KubeClusterMonitor) generateEventsFromClusterRole(role *rbacv1.ClusterR
 			TargetObject: ResourceIdentifier{
 				Name:       role.Name,
 				Kind:       "clusterRole",
-				Namespace:  "-",
+				Namespace:  "",
 				ClusterKey: l.clusterKey,
 			},
 			RuleName: GetRuleNameFromRBRule(rule, "clusterRole"),

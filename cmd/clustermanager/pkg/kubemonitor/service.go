@@ -301,13 +301,15 @@ func genPalaceSignalParams(evt *pkg.KubeMonitorEvent) (palace.RuleKey, []palace.
 			Name: clusterName, // cluster name
 		},
 		{
-			Kind: palace.ScopeKindNamespace,
-			Name: evt.TargetObject.Namespace, // namespace name
-		},
-		{
 			Kind: palace.ScopeKindResource,
 			Name: fmt.Sprintf("%s(%s)", evt.TargetObject.Name, evt.TargetObject.Kind),
 		},
+	}
+	if evt.TargetObject.Namespace != "" {
+		scopes = append(scopes, palace.Scope{
+			Kind: palace.ScopeKindNamespace,
+			Name: evt.TargetObject.Namespace, // namespace name
+		})
 	}
 
 	signalContext := map[string]interface{}{}
