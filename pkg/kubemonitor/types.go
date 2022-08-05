@@ -46,7 +46,6 @@ const (
 )
 
 type RiskSignal struct {
-	// Ctxs          []ContextKV
 	Context       map[string]string
 	CtxIdentifier string
 }
@@ -103,9 +102,8 @@ type ResourceIdentifier struct {
 	ClusterKey string
 }
 type KubeMonitorEvent struct {
-	ClusterKey   string
-	TargetObject ResourceIdentifier
-	// ContextKVs    []ContextKV
+	ClusterKey    string
+	TargetObject  ResourceIdentifier
 	Context       map[string]string
 	RuleName      string
 	identity      string
