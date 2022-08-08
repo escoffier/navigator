@@ -2,6 +2,7 @@ package cronjob
 
 import (
 	"context"
+	"fmt"
 	"os"
 
 	"github.com/mileusna/crontab"
@@ -12,6 +13,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/service/register"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
+	"gitlab.com/security-rd/go-pkg/sdk/palace"
 )
 
 const (
@@ -32,7 +34,12 @@ func (s *Service) Start(ctx context.Context) error {
 	dal := store.GetScannerOrmDb()
 	registryDal := store.NewRegistryDao(store.GetScannerWrapperDb())
 	scanConfigDal := store.NewScanConfigDao(store.GetScannerWrapperDb())
-	scannerSrv := component.NewConScannerSrv(dal, registryDal, dal, scanConfigDal, nil)
+	palaceHandler, err := palace.Init()
+	if err != nil {
+		logging.GetLogger().Error().Err(err).Msgf("Failed to init palaceHandler, %v", err)
+		return fmt.Errorf("failed to init palaceHandler, %v", err)
+	}
+	scannerSrv := component.NewConScannerSrv(dal, registryDal, dal, scanConfigDal, nil, &palaceHandler)
 	cronjob := crontab.New() // create cron table
 
 	// AddJob ,每月1日0点过2分时运行一次

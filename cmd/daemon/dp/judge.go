@@ -22,13 +22,14 @@ import (
 )
 
 type ExecJudge struct {
-	cm          *ConfigManager
-	rt          container.Runtime
-	SocketPath  string
-	mq          mq.Writer
-	npw         *nodeinfo.NodePodsWatcher
-	podResInfo  *nodeinfo.PodResInfo
-	clusterName string
+	cm            *ConfigManager
+	rt            container.Runtime
+	SocketPath    string
+	mq            mq.Writer
+	npw           *nodeinfo.NodePodsWatcher
+	podResInfo    *nodeinfo.PodResInfo
+	clusterName   string
+	palaceHandler *palace.Palace
 }
 
 const (
@@ -284,7 +285,7 @@ func (ej *ExecJudge) doRequest(conn *net.UnixConn, uuid uint64) error {
 			}
 
 			ruleKey, scopes, signalContext := genPalaceSignalParams(eventArgs, cPodInfo, "DriftPrevention", "Drift Prevention")
-			err := palace.SendSignal(ruleKey, scopes, signalContext)
+			err := ej.palaceHandler.SendSignal(ruleKey, scopes, signalContext)
 			if err != nil {
 				logging.Get().Err(err).Str("args", fmt.Sprintf("%+v", eventArgs)).Msg("DriftPrevention send signal to palace fails!")
 			}
@@ -341,7 +342,7 @@ func (ej *ExecJudge) doRequest(conn *net.UnixConn, uuid uint64) error {
 			}
 
 			ruleKey, scopes, signalContext := genPalaceSignalParams(eventArgs, cPodInfo, "DriftPrevention", "Drift Prevention")
-			err := palace.SendSignal(ruleKey, scopes, signalContext)
+			err := ej.palaceHandler.SendSignal(ruleKey, scopes, signalContext)
 			if err != nil {
 				logging.Get().Err(err).Str("args", fmt.Sprintf("%+v", eventArgs)).Msg("DriftPrevention send signal to palace fails!")
 			}
@@ -383,20 +384,21 @@ func (ej *ExecJudge) Response(conn *net.UnixConn, result, containerID, fileHash 
 	return nil
 }
 
-func NewExecJudge(socketPath string, cm *ConfigManager, rt container.Runtime, podWatcher *nodeinfo.NodePodsWatcher, podResInfo *nodeinfo.PodResInfo, mq mq.Writer, clusterName string) (*ExecJudge, error) {
+func NewExecJudge(socketPath string, cm *ConfigManager, rt container.Runtime, podWatcher *nodeinfo.NodePodsWatcher, podResInfo *nodeinfo.PodResInfo, mq mq.Writer, clusterName string, palaceHandler *palace.Palace) (*ExecJudge, error) {
 	var path string
 	if len(strings.TrimSpace(socketPath)) == 0 {
 		path = defaultJudgeSocket
 	}
 
 	ej := &ExecJudge{
-		SocketPath:  path,
-		cm:          cm,
-		rt:          rt,
-		npw:         podWatcher,
-		podResInfo:  podResInfo,
-		mq:          mq,
-		clusterName: clusterName,
+		SocketPath:    path,
+		cm:            cm,
+		rt:            rt,
+		npw:           podWatcher,
+		podResInfo:    podResInfo,
+		mq:            mq,
+		clusterName:   clusterName,
+		palaceHandler: palaceHandler,
 	}
 	return ej, nil
 }

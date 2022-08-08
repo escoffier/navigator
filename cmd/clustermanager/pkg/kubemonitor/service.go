@@ -54,8 +54,9 @@ type Service struct {
 	monitor     *pkg.KubeRiskyMonitor
 	myNamespace string
 
-	registerOK int32
-	dupCache   *DupCache
+	registerOK    int32
+	dupCache      *DupCache
+	palaceHandler *palace.Palace
 }
 
 func parseRules() error {
@@ -75,10 +76,17 @@ func NewService() (*Service, error) {
 		return nil, err
 	}
 
+	palaceHandler, err := palace.Init()
+	if err != nil {
+		logging.Get().Err(err).Msgf("failed to init palaceHandler, %v", err)
+		return nil, fmt.Errorf("failed to init palaceHandler, %v", err)
+	}
+
 	svc := &Service{
-		monitor:     monitor,
-		myNamespace: namespace,
-		dupCache:    newDupCache(24 * time.Hour),
+		monitor:       monitor,
+		myNamespace:   namespace,
+		dupCache:      newDupCache(24 * time.Hour),
+		palaceHandler: &palaceHandler,
 	}
 	svc.asyncRiskMonitor()
 	return svc, nil
@@ -339,7 +347,7 @@ func (s *Service) handleMonitorEvent(ctx context.Context, evt *pkg.KubeMonitorEv
 	}
 
 	ruleKey, scopes, signalContext := genPalaceSignalParams(evt)
-	err := palace.SendSignal(ruleKey, scopes, signalContext)
+	err := s.palaceHandler.SendSignal(ruleKey, scopes, signalContext)
 	if err != nil {
 		logging.Get().Err(err).Str("args", fmt.Sprintf("%+v", evt)).Msg("kubeMonitor send signal to palace fails!")
 	} else {

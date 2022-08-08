@@ -26,6 +26,7 @@ import (
 	scanreport "gitlab.com/piccolo_su/vegeta/pkg/model/scan-report"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
+	"gitlab.com/security-rd/go-pkg/sdk/palace"
 )
 
 type SearchImageWithScanParam struct {
@@ -149,6 +150,8 @@ type ConScannerSrv struct {
 	scanTaskDal   store.ScanTaskInterface
 	registryDal   store.RegistryDal
 	scanConfigDal store.ScanConfigDal
+
+	palaceHandler *palace.Palace
 }
 
 type ImageOverviewRes struct {
@@ -287,13 +290,15 @@ func NewConScannerSrv(
 	registryDal store.RegistryDal,
 	scanTaskDal store.ScanTaskInterface,
 	scanConfigDal store.ScanConfigDal,
-	vulnDal store.VulnDalInterface) *ConScannerSrv {
+	vulnDal store.VulnDalInterface,
+	palaceHandler *palace.Palace) *ConScannerSrv {
 	return &ConScannerSrv{
 		dbdal:         dbdal,
 		registryDal:   registryDal,
 		scanTaskDal:   scanTaskDal,
 		scanConfigDal: scanConfigDal,
 		vulnDal:       vulnDal,
+		palaceHandler: palaceHandler,
 	}
 }
 
@@ -573,7 +578,7 @@ func (s *ConScannerSrv) K8sDeployDetect(ctx context.Context, containerInfo []mod
 			}})
 
 			msg := model.NewReqBody(model.NewEventCenterRule(msgType, consts.AlertModuleContainerSecurity, consts.ImageSecurity), notify, generateUUID(img, msgType, consts.EventIntervalUUID))
-			if err := sendMsgToEventCenter(ctx, msg, img); err != nil {
+			if err := sendMsgToEventCenter(ctx, msg, img, s.palaceHandler); err != nil {
 				logging.GetLogger().Err(err).Msgf("TickOnlineScan sendMsgToEventCenter sending message to event center, msg Type: %s", msgType)
 			}
 		}
@@ -667,7 +672,7 @@ func (s *ConScannerSrv) K8sOnlineMonitor(ctx context.Context, containerInfo []mo
 
 			msg := model.NewReqBody(model.NewEventCenterRule(consts.AlertKindOnline, consts.AlertModuleContainerSecurity, consts.ImageSecurity),
 				notify, generateUUID(*tmpImageList, consts.AlertKindOnline, consts.EventIntervalUUID))
-			if err := sendMsgToEventCenter(ctx, msg, *tmpImageList); err != nil {
+			if err := sendMsgToEventCenter(ctx, msg, *tmpImageList, s.palaceHandler); err != nil {
 				logging.GetLogger().Err(err).Msgf("K8sOnlineMonitor sendMsgToEventCenter sending message to event center, msg Type: %s", consts.AlertKindOnline)
 			}
 		}
@@ -724,7 +729,7 @@ func (s *ConScannerSrv) ScanOneForCICDResult(ctx context.Context, req *model.Sca
 			generateUUID(img[0], consts.AlertKindCICD, consts.EventIntervalUUID),
 		)
 
-		if err := sendMsgToEventCenter(ctx, msg, img[0]); err != nil {
+		if err := sendMsgToEventCenter(ctx, msg, img[0], s.palaceHandler); err != nil {
 			logging.GetLogger().Err(err).Msgf("CICD ScanOneForCICDResult sending message to event center")
 		}
 	}
@@ -2802,7 +2807,7 @@ func (s *ConScannerSrv) CreateSafeReject(ctx context.Context, img model.ImageLis
 		notify,
 		generateUUID(img, msgType, consts.EventIntervalUUID),
 	)
-	if err := sendMsgToEventCenter(ctx, msg, img); err != nil {
+	if err := sendMsgToEventCenter(ctx, msg, img, s.palaceHandler); err != nil {
 		logging.GetLogger().Err(err).Msgf("send msg to event center error:%s", err.Error())
 	}
 }

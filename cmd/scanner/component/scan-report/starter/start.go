@@ -55,7 +55,7 @@ func NewBackgroundTasks(ctx context.Context, config Config) *BackgroundTasks {
 	registryDal := store.NewRegistryDao(config.Rdb)
 	scanConfigDal := store.NewScanConfigDao(config.Rdb)
 	vulnDal := store.NewVulnDao(config.Rdb)
-	imageSrv := component.NewConScannerSrv(dal, registryDal, dal, scanConfigDal, vulnDal)
+	imageSrv := component.NewConScannerSrv(dal, registryDal, dal, scanConfigDal, vulnDal, nil) // scan-report 无需上报事件中心，此处传空
 
 	imageExportSrv := export.NewImageExport(resourceDal, exportTaskDal, imageSrv, config.FileDir, config.Internal)
 	scanTaskExportSrv := export.NewScanTaskExport(imageExportSrv, exportTaskDal, dal, config.FileDir, config.Internal, imageExportSrv, config.MaxVulnCol, config.MaxImageByOneExportTask)

@@ -17,6 +17,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/nodeinfo"
 	"gitlab.com/security-rd/go-pkg/logging"
 	"gitlab.com/security-rd/go-pkg/mq"
+	"gitlab.com/security-rd/go-pkg/sdk/palace"
 )
 
 var defaultDockerSocket string = "unix:///host/var/run/docker.sock"
@@ -124,7 +125,7 @@ func (d *DriftAssurance) Start(ctx context.Context) error {
 	return nil
 }
 
-func NewDriftAssurance(podWatcher *nodeinfo.NodePodsWatcher, podResInfo *nodeinfo.PodResInfo, mqWriter mq.Writer, consoleAddr, clusterName string) (*DriftAssurance, error) {
+func NewDriftAssurance(podWatcher *nodeinfo.NodePodsWatcher, podResInfo *nodeinfo.PodResInfo, mqWriter mq.Writer, consoleAddr, clusterName string, palaceHandler *palace.Palace) (*DriftAssurance, error) {
 	d := &DriftAssurance{}
 
 	rt, err := createRuntimeCli()
@@ -141,7 +142,7 @@ func NewDriftAssurance(podWatcher *nodeinfo.NodePodsWatcher, podResInfo *nodeinf
 	}
 	d.config = cm
 
-	j, err := NewExecJudge("", cm, rt, podWatcher, podResInfo, mqWriter, clusterName)
+	j, err := NewExecJudge("", cm, rt, podWatcher, podResInfo, mqWriter, clusterName, palaceHandler)
 	if err != nil {
 		logging.Get().Err(err).Msg("create exec judge failed")
 		return nil, fmt.Errorf("create exec judge failed:%v", err)
