@@ -50,6 +50,11 @@ func (c *Jfrog) Ping() error {
 	if err := c.RegistryClient.Ping(); err != nil {
 		return consts.ErrNotConnectOrWrongUsernameOrPasswd
 	}
+
+	if _, err := c.ListRepos("docker"); err != nil {
+		return consts.ErrNotConnectOrWrongUsernameOrPasswd
+	}
+
 	return nil
 }
 
@@ -91,7 +96,7 @@ func (c *Jfrog) ListImagesWithAuditLog(ctx context.Context, extender registry.Ex
 	return nil, nil
 }
 
-func (c *Jfrog) ListRepoImags(repo string) ([]string, error) {
+func (c *Jfrog) ListRepoImages(repo string) ([]string, error) {
 	url := fmt.Sprintf("%s/artifactory/api/docker/%s/v2/_catalog", c.Config.URL, repo) // 单个repo下的镜像名
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
@@ -205,10 +210,10 @@ func (c *Jfrog) ListImages(ctx context.Context, extender registry.Extender, req 
 	logging.GetLogger().Info().Msgf("jfrog ListRepos:%v", repos)
 
 	for _, repo := range repos {
-		imgNames, err := c.ListRepoImags(repo.Key)
+		imgNames, err := c.ListRepoImages(repo.Key)
 		if err != nil {
 			res.HasErr = true
-			logging.GetLogger().Err(err).Msgf("jfrog ListRepoImags:%s", repo.Key)
+			logging.GetLogger().Err(err).Msgf("jfrog ListRepoImages:%s", repo.Key)
 			continue
 		}
 		for i := range imgNames {

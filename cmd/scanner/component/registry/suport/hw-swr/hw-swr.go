@@ -86,6 +86,7 @@ func (h *HwSwr) PullConfigBlob(repo string, configDigest digest.Digest) (string,
 func (h *HwSwr) ImageRetry(ctx context.Context, extender registry.Extender, req registry.ImageRetryRequest) (*registry.ListImagesRes, error) {
 	return nil, nil
 }
+
 func (h *HwSwr) SupportIncrementalSync(ctx context.Context) bool {
 	return false
 }
@@ -205,6 +206,10 @@ func (h *HwSwr) GetImage(projectName, fullRepoName, tag string) (*registry.Image
 
 func (h *HwSwr) Ping() error {
 	if err := h.RegistryClient.Ping(); err != nil {
+		return consts.ErrNotConnectOrWrongUsernameOrPasswd
+	}
+
+	if _, err := h.ListNameSpaces(); err != nil {
 		return consts.ErrNotConnectOrWrongUsernameOrPasswd
 	}
 	return nil

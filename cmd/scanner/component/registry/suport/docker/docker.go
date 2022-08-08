@@ -347,6 +347,9 @@ func (r *RegistryV2) Ping() error {
 	if err := r.RegistryClient.Ping(); err != nil {
 		return consts.ErrNotConnectOrWrongUsernameOrPasswd
 	}
+	if _, err := r.ListRepos(); err != nil {
+		return consts.ErrNotConnectOrWrongUsernameOrPasswd
+	}
 	return nil
 }
 
