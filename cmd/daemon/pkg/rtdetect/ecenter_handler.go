@@ -30,19 +30,19 @@ var (
 type EventsOutputHandler struct {
 	myNodeName string
 
-	// mqWriter      mq.Writer
 	cm            *k8s.ClusterInfoManager
 	containerInfo nodeinfo.ContainerInfoManager
 	podResInfo    *nodeinfo.PodResInfo
+	palaceHandler *palace.Palace
 }
 
-func NewEventsOutputHandler(myNodeName string, cm *k8s.ClusterInfoManager, containerInfo nodeinfo.ContainerInfoManager, podResInfo *nodeinfo.PodResInfo) *EventsOutputHandler {
+func NewEventsOutputHandler(myNodeName string, cm *k8s.ClusterInfoManager, containerInfo nodeinfo.ContainerInfoManager, podResInfo *nodeinfo.PodResInfo, palaceHandler *palace.Palace) *EventsOutputHandler {
 	return &EventsOutputHandler{
-		myNodeName: myNodeName,
-		// mqWriter:      mqWriter,
+		myNodeName:    myNodeName,
 		cm:            cm,
 		containerInfo: containerInfo,
 		podResInfo:    podResInfo,
+		palaceHandler: palaceHandler,
 	}
 }
 
@@ -144,7 +144,7 @@ func (ec *EventsOutputHandler) Handle(ctx context.Context, events []eventItem) e
 			})
 		}
 
-		err := palace.SendSignal(ruleKey, scopes, signalContext)
+		err := ec.palaceHandler.SendSignal(ruleKey, scopes, signalContext)
 		if err != nil {
 			logging.Get().Err(err).Str("args", fmt.Sprintf("%+v", e.data)).Msg("ATT&CK send signal to palace fails!")
 		}

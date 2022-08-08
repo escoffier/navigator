@@ -12,6 +12,8 @@ import (
 
 	"github.com/pkg/errors"
 	flag "github.com/spf13/pflag"
+	_ "go.uber.org/automaxprocs"
+
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/dp"
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/degrade"
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/netflow"
@@ -21,7 +23,7 @@ import (
 	"gitlab.com/security-rd/go-pkg/cmap"
 	"gitlab.com/security-rd/go-pkg/logging"
 	"gitlab.com/security-rd/go-pkg/mq"
-	_ "go.uber.org/automaxprocs"
+	"gitlab.com/security-rd/go-pkg/sdk/palace"
 )
 
 var loggingOptions *logging.Options
@@ -39,11 +41,11 @@ const (
 	defaultRTBuffSize     = 100
 )
 
-func initEventStreams(udsAddr, nodeName string, cm *k8s.ClusterInfoManager, mqWriter mq.Writer, containerInfo nodeinfo.ContainerInfoManager, podResInfo *nodeinfo.PodResInfo) (*rtdetect.RuntimeEventStream, error) {
+func initEventStreams(udsAddr, nodeName string, cm *k8s.ClusterInfoManager, mqWriter mq.Writer, containerInfo nodeinfo.ContainerInfoManager, podResInfo *nodeinfo.PodResInfo, palaceHandler *palace.Palace) (*rtdetect.RuntimeEventStream, error) {
 	bui := rtdetect.StreamBuilder(udsAddr, nodeName, cm)
 
 	// add handlers here
-	ecHandler := rtdetect.NewEventsOutputHandler(nodeName, cm, containerInfo, podResInfo)
+	ecHandler := rtdetect.NewEventsOutputHandler(nodeName, cm, containerInfo, podResInfo, palaceHandler)
 	bui.WithHandler(rtdetect.NewSyncHandler(ecHandler))
 
 	s, err := bui.Build(context.Background())
@@ -212,7 +214,12 @@ func Run(ctx context.Context) error {
 
 	// start events streaming
 	if rtUdsAddr != "" {
-		rtStream, err := initEventStreams(rtUdsAddr, hostName, clusterManager, mqWriter, containerInfo, podResInfo)
+		palaceHandler, err := palace.Init()
+		if err != nil {
+			logging.Get().Err(err).Msgf("Failed to init palaceHandler, %v", err)
+			return errors.Errorf("Failed to init palaceHandler, %v", err)
+		}
+		rtStream, err := initEventStreams(rtUdsAddr, hostName, clusterManager, mqWriter, containerInfo, podResInfo, &palaceHandler)
 		if err != nil {
 			return errors.Errorf("Failed to rt events streams, %v", err)
 		}
@@ -235,7 +242,12 @@ func Run(ctx context.Context) error {
 	if ciaEnabled == "1" {
 		clusterName, _ := clusterManager.ClusterName()
 
-		dpService, err := dp.NewDriftAssurance(podWatcher, podResInfo, mqWriter, consoleAddr, clusterName)
+		palaceHandler, err := palace.Init()
+		if err != nil {
+			logging.Get().Err(err).Msgf("Failed to init palaceHandler, %v", err)
+			return errors.Errorf("Failed to init palaceHandler, %v", err)
+		}
+		dpService, err := dp.NewDriftAssurance(podWatcher, podResInfo, mqWriter, consoleAddr, clusterName, &palaceHandler)
 		if err != nil {
 			logging.Get().Err(err).Msg("new drift assurance service failed")
 			return err

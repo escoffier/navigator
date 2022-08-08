@@ -160,7 +160,7 @@ func compareSeverity(s1, s2 string) bool {
 }
 
 // 发送消息到事件中心
-func sendMsgToEventCenter(ctx context.Context, reqBody model.ReqBody, image model.ImageList) error {
+func sendMsgToEventCenter(ctx context.Context, reqBody model.ReqBody, image model.ImageList, palaceHandler *palace.Palace) error {
 
 	ruleKey := palace.RuleKey{
 		Name:     reqBody.RuleKey.Name,
@@ -185,7 +185,7 @@ func sendMsgToEventCenter(ctx context.Context, reqBody model.ReqBody, image mode
 		msg[kv.Key] = kv.Value
 	}
 
-	if err := palace.SendSignal(ruleKey, []palace.Scope{fullRepoName, tag, library}, msg); err != nil {
+	if err := palaceHandler.SendSignal(ruleKey, []palace.Scope{fullRepoName, tag, library}, msg); err != nil {
 		logging.GetLogger().Err(err).Msg("sendMsgToEventCenter.SendSignal")
 		return err
 	}
