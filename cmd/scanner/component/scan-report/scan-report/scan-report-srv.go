@@ -278,7 +278,7 @@ func (s *ScanReportSrv) getImagesInfo(ctx context.Context, data *scanreport.Tens
 		for i := range imageInfo {
 
 			if imageInfo[i].ImageID > 0 {
-				vulns, _, err := s.vulnDal.SearchVuln(ctx, store.SearchVulnParm{ImageID: imageInfo[i].ImageID}, nil)
+				vulns, _, err := s.vulnDal.SearchVuln(ctx, store.SearchVulnParam{ImageIds: []int64{imageInfo[i].ImageID}}, nil)
 				if err != nil {
 					logging.GetLogger().Err(err).Int64("ImageID", imageInfo[i].ImageID).Msg("getImagesInfo.SearchVuln")
 					return nil, err

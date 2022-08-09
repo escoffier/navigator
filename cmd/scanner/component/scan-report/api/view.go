@@ -36,10 +36,15 @@ func ModelToView(data model.ExportTensorTask) ExportTensorTaskView {
 		CreatedAt: data.CreatedAt,
 	}
 	task.FilePath = GetFilename(data.FilePath)
-	if data.ExecuteType == "ExportNaviAudit" {
-		task.ExecuteType = "审计日志"
-	} else {
-		task.ExecuteType = "镜像报告"
+
+	switch task.ExecuteType {
+	case consts.ExportImage, consts.ExportScanResult:
+		task.ExecuteType = consts.ExportImageView
+	case consts.ExportVuln:
+		task.ExecuteType = consts.ExportVulnView
+	case consts.AuditExeType:
+		task.ExecuteType = consts.AuditExeTypeView
+
 	}
 
 	if data.StartAt == 0 {

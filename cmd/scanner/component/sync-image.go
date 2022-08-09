@@ -486,7 +486,7 @@ func (s *SyncRepoImage) transImageToImageList(ctx context.Context, image registr
 		ConfigJSON:     []byte(image.ConfigJSON),
 		FromType:       image.FromType,
 		ImageUUID:      util.GenerateUUID(fmt.Sprintf("%s/%s:%s", tmpLib, image.Repository, image.Tag)),
-		LastFullSyncAt: time.Now().Unix(),
+		LastFullSyncAt: time.Now().UnixMilli(),
 	}
 	if img.FirstPushTime.Unix() <= 0 {
 		img.FirstPushTime = time.Now().UTC()
@@ -628,16 +628,16 @@ func (s *SyncRepoImage) createImageExtender(ctx context.Context, image registry.
 		return nil, err
 	}
 	// 先查一下
-	uniqueImage := img.GenUniqueImage()
-	img.UniqueImage = uniqueImage
-	searchImage, _, err := s.imageDal.SearchImage(ctx, store.SearchImageParam{UniqueImage: uniqueImage,
+	img.UniqueImage = img.GenUniqueImage()
+	searchImage, _, err := s.imageDal.SearchImage(ctx, store.SearchImageParam{UniqueImage: img.UniqueImage,
 		OmitFields: []string{"config_json", "manifest_v1_json", "manifest_v2_json"}}, nil)
 	if err != nil {
 		logging.GetLogger().Err(err).Msg("SyncAllImage.InsertImageList")
 		return nil, err
 	}
 	if len(searchImage) == 0 {
-		img.Flag = img.GenImageFlag(consts.ImageEmptyFlag)
+		img.GenImageFlag()
+		img.SetScanStatusFlag(model.FlagImageNotScan)
 		if _, err := s.imageDal.CreateImage(context.Background(), &img); err != nil {
 			logging.GetLogger().Err(err).Msg("SyncAllImage.InsertImageList")
 			return nil, err
@@ -654,7 +654,8 @@ func (s *SyncRepoImage) createImageExtender(ctx context.Context, image registry.
 	}
 	// 如果值有变动，就全量更新
 	if len(searchImage) > 0 {
-		img.Flag = img.GenImageFlag(searchImage[0].Flag)
+		img.Flag = searchImage[0].Flag
+		img.GenImageFlag()
 
 		img.CheckSum = img.GenImageCheckSum()
 		if img.CheckSum != searchImage[0].CheckSum {

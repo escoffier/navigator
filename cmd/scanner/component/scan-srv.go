@@ -14,49 +14,49 @@ import (
 
 	"github.com/google/go-containerregistry/pkg/name"
 	"github.com/pkg/errors"
+	ftypes "scm.tensorsecurity.cn/tensorsecurity-rd/fanal/types"
+
+	"gitlab.com/security-rd/go-pkg/sdk/palace"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/task"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
 	"gitlab.com/piccolo_su/vegeta/pkg/compress"
-	"gitlab.com/piccolo_su/vegeta/pkg/harbor"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	scanreport "gitlab.com/piccolo_su/vegeta/pkg/model/scan-report"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
-	"gitlab.com/security-rd/go-pkg/sdk/palace"
 )
 
 type SearchImageWithScanParam struct {
-	SearchWord       string   `json:"search_word"`
-	FromType         int64    `json:"from_type"`
-	Kind             string   `json:"kind"`
-	Online           string   `json:"online"`
-	ImageType        string   `json:"image_type"`
-	ImageID          int64    `json:"image_id"`
-	ImageIds         []int64  `json:"image_ids"`
-	Library          string   `json:"library"`
-	ScanStatus       []int64  `json:"scan_status"`
-	Trusted          string   `json:"trusted"`
-	HasFixedVulu     string   `json:"has_fixed_vulu"`
-	IsReinforce      string   `json:"is_reinforce"`
-	NodeHostname     string   `json:"node_hostname"`
-	SpecialImageType string   `json:"special_image_type"`
-	RegistryIds      []int64  `json:"registry_ids"`
-	JustReturnImage  bool     `json:"just_return_image"`
-	Projects         []string `json:"projects"`
+	SearchWord       string  `json:"search_word"`
+	FromType         int64   `json:"from_type"`
+	Kind             string  `json:"kind"`
+	Online           string  `json:"online"`
+	ImageType        string  `json:"image_type"`
+	ImageID          int64   `json:"image_id"`
+	ImageIds         []int64 `json:"image_ids"`
+	Library          string  `json:"library"`
+	ScanStatus       []int64 `json:"scan_status"`
+	Trusted          string  `json:"trusted"`
+	HasFixedVulu     string  `json:"has_fixed_vulu"`
+	IsReinforce      string  `json:"is_reinforce"`
+	NodeHostname     string  `json:"node_hostname"`
+	SpecialImageType string  `json:"special_image_type"`
+	RegistryIds      []int64 `json:"registry_ids"`
+	JustReturnImage  bool    `json:"just_return_image"`
 
 	UUIDs []uint32 `json:"uuids"`
 }
 
 func (sp *SearchImageWithScanParam) genFlag() uint64 {
 	var flag uint64
-	if sp.ImageType == consts.BaseImageTypeString {
+	if sp.ImageType == model.BaseImageTypeString {
 		flag = 1<<model.FlagBaseImage + flag
 	}
-	if sp.HasFixedVulu == consts.HasFixedvulnStringd {
+	if sp.HasFixedVulu == consts.HasFixedvulnString {
 		flag = 1<<model.FlagHasFixedVuln + flag
 	}
 	if sp.IsReinforce == consts.IsReinforceImageString {
@@ -75,7 +75,7 @@ func (sp *SearchImageWithScanParam) genFlag() uint64 {
 	kinds = util.DeDuplicationInt64Slice(kinds)
 	for _, kind := range kinds {
 		for _, imageFlag := range model.GetAllFlag() {
-			if kind == imageFlag {
+			if uint64(kind) == imageFlag {
 				flag = 1<<imageFlag + flag
 			}
 		}
@@ -100,20 +100,18 @@ type SearchImageParam struct {
 type ScannerSrv interface {
 	SearchImageWithScan(ctx context.Context, param SearchImageWithScanParam, filter *model.Filter) ([]*model.ImageResponse, int64, error)
 	SearchImages(ctx context.Context, param SearchImageParam, filter *model.Filter) ([]model.ImageList, int64, error)
-
+	GetOnlineImageId(ctx context.Context) ([]int64, error)
 	UpdateImageType(ctx context.Context, imageIds []int64, imageType int64) error
 	GetImageDetail(ctx context.Context, imgID int64) (*model.ImageList, error)
 	GetImageOverView(ctx context.Context, fromType int64) (*model.OverView, error)
-	GetScanOneStatus(ctx context.Context, imgID int64) (*model.ImageResponse, error)
 	TickScanOne(ctx context.Context, imgID int64, info task.UpdateTaskInfo) error
 	ScanOneForCICD(ctx context.Context, req *model.ScanOneForCICDRequest) (*model.ScanOneCICDResultRequest, error)
 	ScanOneForCICDResult(ctx context.Context, req *model.ScanOneCICDResultRequest) (*model.ScanOneForCICDResponse, error)
 	ScanAllNow(ctx context.Context, info task.UpdateTaskInfo, search SearchImageWithScanParam) error
-	GetScanAllStatus(ctx context.Context, fromType int64) harbor.ScanAllStatus
-	GetVulnOverView(ctx context.Context) (*model.VulnOverview, error)
+	GetOnlineVulnOverView(ctx context.Context) (*model.VulnOverview, error)
 
 	GetImageSeverityCount(ctx context.Context, imageID int64) (*model.ImageSeverityCount, error)
-	GetVulnTopNImage(ctx context.Context, topN int64) ([]model.ImageRiskScore, error)
+	GetOnlineVulnTopN(ctx context.Context, topN int64) ([]model.ImageRiskScore, error)
 
 	ListImgLayers(ctx context.Context, imageID int64, filter *model.Filter) ([]model.ReportImgBackInfo, error)
 	ImgLayerInfo(ctx context.Context, imageID int64, layerDigest string, filter *model.Filter) (*model.ScanLayerResponse, error)
@@ -217,7 +215,7 @@ func (s *ConScannerSrv) ImageOverview(ctx context.Context, uuids []uint32) ([]Im
 	}
 
 	// 可信镜像查询
-	ds, err := s.dbdal.SearchTrustedImageIDs(ctx, store.SearchTrustedImageParam{Digests: digests, IsTrusted: consts.IsTrustedImageString})
+	ds, err := s.dbdal.SearchTrustedImageIDs(ctx, store.SearchTrustedImageParam{Digests: digests, IsTrusted: consts.TrueString})
 	if err != nil {
 		logging.GetLogger().Err(err).Msg("SearchImages.SearchTrustedImageIDs")
 		return nil, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf(consts.StatusInternalServerErrorMsg))
@@ -240,7 +238,6 @@ func (s *ConScannerSrv) ImageOverview(ctx context.Context, uuids []uint32) ([]Im
 			IsSecure:           scanMap[image.ID].RiskScore <= consts.SecureImageRiskScore,
 		})
 	}
-
 	return res, nil
 }
 
@@ -267,7 +264,7 @@ func (s *ConScannerSrv) SearchImages(ctx context.Context, param SearchImageParam
 		InIds:        param.ImageIds,
 		Tag:          param.Tags,
 		FullRepoName: param.FullRepoName,
-		Search:       param.Search,
+		Keyword:      param.Search,
 		FromType:     param.FromType,
 		RegistryIds:  registryIds,
 		UUIDs:        param.UUIDs,
@@ -346,7 +343,7 @@ func (s *ConScannerSrv) ListBaseImageOfApp(ctx context.Context, imageID int64, f
 		return []model.ImageList{}, 0, nil
 	}
 
-	baseImages, _, err := s.dbdal.SearchImage(ctx, store.SearchImageParam{Flag: 1 << model.FlagBaseImage}, nil)
+	baseImages, _, err := s.dbdal.SearchImage(ctx, store.SearchImageParam{AttrFlag: 1 << model.FlagBaseImage}, nil)
 	if err != nil {
 		logging.GetLogger().Err(err).Msg("ListBaseImageOfApp")
 		return nil, 0, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf("获取基础镜像出错"))
@@ -468,15 +465,18 @@ func (s *ConScannerSrv) UpdateImageType(ctx context.Context, imageIds []int64, i
 	}
 
 	for i := range ims {
+		im := ims[i]
 		updater := map[string]interface{}{"image_type": imageType}
-		if imageType == consts.BaseImageType {
-			updater["flag"] = model.SetFlagBaseImage(ims[i].Flag)
-			updater["image_type"] = consts.BaseImageType
-		} else if imageType == consts.AppImageType {
-			updater["flag"] = model.SetFlagAppImage(ims[i].Flag)
-			updater["image_type"] = consts.AppImageType
+		if imageType == model.BaseImageType {
+			im.SetFlagBaseImage()
+			updater["flag"] = im.Flag
+			updater["image_type"] = model.BaseImageType
+		} else if imageType == model.AppImageType {
+			im.SetFlagBaseImage()
+			updater["flag"] = im.Flag
+			updater["image_type"] = model.AppImageType
 		}
-		if err := s.dbdal.UpdateImage(ctx, fmt.Sprintf("id = %d", ims[i].ID), updater, nil); err != nil {
+		if err := s.dbdal.UpdateImage(ctx, fmt.Sprintf("id = %d", im.ID), updater, nil); err != nil {
 			logging.GetLogger().Err(err).Msg("updating image error")
 			return response.NewHttpError(http.StatusInternalServerError, errors.New("更新镜像出错"))
 		}
@@ -816,7 +816,7 @@ func (s *ConScannerSrv) ScanOneForCICD(ctx context.Context, req *model.ScanOneFo
 		ManifestV2JSON: []byte(image.ManifestV2),
 		ConfigJSON:     []byte(image.ConfigJSON),
 		FromType:       model.CICDImageRegistry,
-		ImageType:      consts.AppImageType,
+		ImageType:      model.AppImageType,
 	}
 
 	var config model.ConfigFile
@@ -900,7 +900,7 @@ func (s *ConScannerSrv) GetImagesFromVuln(ctx context.Context, uniqueVuln uint64
 }
 
 func (s *ConScannerSrv) GetImageSeverityCount(ctx context.Context, imageID int64) (*model.ImageSeverityCount, error) {
-	groups, err := s.dbdal.GroupVulnSeverityByImageID(ctx, imageID)
+	groups, err := s.dbdal.GroupVulnSeverity(ctx, store.GroupVulnSeverityParam{ImageIds: []int64{imageID}})
 	if err != nil {
 		logging.GetLogger().Err(err).Int64("imageID", imageID).Msg("GetImageSeverityCount")
 		return nil, err
@@ -912,25 +912,38 @@ func (s *ConScannerSrv) GetImageSeverityCount(ctx context.Context, imageID int64
 	return res, nil
 }
 
-func (s *ConScannerSrv) GetVulnTopNImage(ctx context.Context, topN int64) ([]model.ImageRiskScore, error) {
+func (s *ConScannerSrv) GetOnlineVulnTopN(ctx context.Context, topN int64) ([]model.ImageRiskScore, error) {
 	if topN <= 0 {
 		topN = consts.DefaultVulnTopNImage
 	}
-	topNImage, err := s.dbdal.GetVulnTopNImage(ctx, topN)
+	onlineIds, err := s.GetOnlineImageId(ctx)
 	if err != nil {
-		logging.GetLogger().Err(err).Msg("GetVulnTopNImage")
+		logging.GetLogger().Err(err).Msg("SearchImageWithScan.SearchQuestionInfo")
+		return nil, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf(consts.StatusInternalServerErrorMsg))
+	}
+	if len(onlineIds) == 0 {
+		return []model.ImageRiskScore{}, nil
+	}
+
+	topNImage, _, err := s.dbdal.SearchScanImage(ctx, store.SearchScanImageParam{ImageIds: onlineIds, Fields: []string{"id", "image_id", "risk_score"}},
+		&model.Filter{Limit: topN, SortBy: consts.SortByDesc, SortFiled: "risk_score"})
+	if err != nil {
+		logging.GetLogger().Err(err).Msg("GetOnlineVulnTopN")
 		return nil, err
 	}
 	imageIds := make([]int64, 0)
 	imageMap := make(map[int64]*model.ImageRiskScore)
 	for i := range topNImage {
 		imageIds = append(imageIds, topNImage[i].ImageID)
-		imageMap[topNImage[i].ImageID] = &(topNImage[i])
+		imageMap[topNImage[i].ImageID] = &model.ImageRiskScore{
+			Score:   topNImage[i].RiskScore,
+			ImageID: topNImage[i].ImageID,
+		}
 	}
 	images, _, err := s.dbdal.SearchImage(ctx, store.SearchImageParam{InIds: imageIds,
 		OmitFields: []string{"config_json", "manifest_v1_json", "manifest_v2_json"}}, nil)
 	if err != nil {
-		logging.GetLogger().Err(err).Msg("GetVulnTopNImage")
+		logging.GetLogger().Err(err).Msg("GetOnlineVulnTopN")
 		return nil, err
 	}
 	for i := range images {
@@ -954,11 +967,21 @@ func (s *ConScannerSrv) GetVulnTopNImage(ctx context.Context, topN int64) ([]mod
 	return orderImage, nil
 }
 
-func (s *ConScannerSrv) GetVulnOverView(ctx context.Context) (*model.VulnOverview, error) {
+func (s *ConScannerSrv) GetOnlineVulnOverView(ctx context.Context) (*model.VulnOverview, error) {
 	res := model.VulnOverview{Severity: model.SeverityCount{}}
-	groups, err := s.dbdal.GroupVulnSeverity(ctx)
+	// 查在线镜像
+	onlineIds, err := s.GetOnlineImageId(ctx)
 	if err != nil {
-		logging.GetLogger().Err(err).Msg("GetVulnOverView.GroupVulnSeverity")
+		logging.GetLogger().Err(err).Msg("GetOnlineVulnOverView.GetOnlineImageId")
+		return nil, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf(consts.StatusInternalServerErrorMsg))
+	}
+	if len(onlineIds) == 0 {
+		return &res, nil
+	}
+
+	groups, err := s.dbdal.GroupVulnSeverity(ctx, store.GroupVulnSeverityParam{ImageIds: onlineIds})
+	if err != nil {
+		logging.GetLogger().Err(err).Msg("GetOnlineVulnOverView.GroupVulnSeverity")
 		return nil, err
 	}
 	res.Severity = getSeverityCount(groups)
@@ -1090,10 +1113,6 @@ func (s *ConScannerSrv) ListImgLayers(ctx context.Context, imaID int64, filter *
 	return res, nil
 }
 
-func (s *ConScannerSrv) GetScanAllStatus(ctx context.Context, fromType int64) harbor.ScanAllStatus {
-	return s.dbdal.SearchScanAllStatus(ctx, fromType)
-}
-
 func (s *ConScannerSrv) ScanAllNow(ctx context.Context, info task.UpdateTaskInfo, search SearchImageWithScanParam) error {
 	logging.GetLogger().Info().Int64("fromType", search.FromType).Msg("start full scan")
 	search.JustReturnImage = true
@@ -1139,142 +1158,6 @@ func (s *ConScannerSrv) TickScanOne(ctx context.Context, imgID int64, info task.
 		return err
 	}
 	return nil
-}
-
-func (s *ConScannerSrv) GetScanOneStatus(ctx context.Context, imgID int64) (*model.ImageResponse, error) {
-	imgs, _, err := s.dbdal.SearchImage(ctx, store.SearchImageParam{InIds: []int64{imgID}, OmitFields: []string{"config_json", "manifest_v1_json", "manifest_v2_json"}}, nil)
-	if err != nil {
-		logging.GetLogger().Err(err).Msg("GetScanOneStatus.SearchImage")
-		return nil, response.NewHttpError(http.StatusInternalServerError, err)
-	}
-	if len(imgs) == 0 {
-		return nil, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf("not fond the iamge"))
-	}
-	// 拼装信息
-	ans := model.ImageResponse{
-		ID:             imgs[0].ID,
-		Digest:         imgs[0].Digest,
-		Library:        imgs[0].Library,
-		NodeIP:         imgs[0].NodeIP,
-		ScanStatus:     consts.ImageNotScan,
-		Questions:      make([]model.QuestionInfo, 0),
-		FullRepoName:   imgs[0].FullRepoName,
-		Tags:           imgs[0].Tags,
-		ImageType:      imgs[0].ImageType,
-		RegistryID:     imgs[0].RegistryID,
-		FromType:       imgs[0].FromType,
-		Os:             imgs[0].OS,
-		NodeHostname:   imgs[0].NodeHostname,
-		IsReinforce:    int64(imgs[0].IsReinforce),
-		PrivilegedBoot: imgs[0].PrivilegedBoot,
-		Flag:           imgs[0].Flag,
-	}
-
-	// 查状态
-	status, err := s.scanTaskDal.SearchSubTasksWithScanStatus(ctx, []int64{imgID}, nil)
-	if err != nil {
-		logging.GetLogger().Err(err).Msg("GetScanOneStatus.SearchSubTasksWithScanStatus")
-		return nil, response.NewHttpError(http.StatusInternalServerError, err)
-	}
-	if len(status) > 0 {
-		ans.ScanStatus = int(status[0].Status)
-		if status[0].FinishedAt != nil && !status[0].FinishedAt.IsZero() {
-			ans.CompleteTime = status[0].FinishedAt.UnixMilli()
-		}
-	}
-
-	// 查在线
-	onlineSQL := fmt.Sprintf("select distinct a.id  from  %s a  join %s b  on  a.image_uuid = b.image_uuid where a.id = %d ;", model.ImageList{}.TableName(), model.TensorContainer{}.TableName(), imgID)
-	online, err := s.dbdal.GetOnlineImage(ctx, store.GetOnlineImageParam{SQL: onlineSQL})
-	if err != nil {
-		logging.GetLogger().Err(err).Msg("SearchImageWithScan.GetOnlineImage")
-		return nil, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf(consts.StatusInternalServerErrorMsg))
-	}
-
-	if len(online) > 0 {
-		ans.Online = true
-	}
-
-	// 可信镜像的筛选
-	trustedImages, err := s.dbdal.SearchTrustedImageIDs(ctx, store.SearchTrustedImageParam{IsTrusted: consts.IsTrustedImageString, Digests: []string{imgs[0].Digest}})
-	if err != nil {
-		logging.GetLogger().Err(err).Msg("SearchImageWithScan.SearchTrustedImageIDs")
-		return nil, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf(consts.StatusInternalServerErrorMsg))
-	}
-	if len(trustedImages) > 0 {
-		ans.Trusted = consts.TrustedImage
-	}
-
-	// 把仓库信息加上
-	registries, _, err := s.registryDal.SearchRegistry(ctx, store.SearchRegistryParam{ID: imgs[0].RegistryID}, nil)
-	if err != nil {
-		logging.GetLogger().Err(err).Msg("SearchImageWithScan.SearchRegistry")
-		return nil, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf(consts.StatusInternalServerErrorMsg))
-	}
-	if len(registries) > 0 {
-		ans.RegistryName = registries[0].Name
-		ans.Library = registries[0].Url
-		ans.RegistryDeletedAt = registries[0].DeletedAt
-		ans.LastSyncAt = registries[0].LastSyncAt
-	}
-
-	// 特权启动
-	if model.ExistFlag(ans.Flag, model.FlagPrivilegedBoot) || ans.PrivilegedBoot == consts.PrivilegedBootImage {
-		ans.Questions = append(ans.Questions, model.QuestionInfo{ID: model.FlagPrivilegedBoot})
-	}
-	// 基础镜像
-	if model.ExistFlag(ans.Flag, model.FlagBaseImage) || ans.ImageType == consts.BaseImageType {
-		ans.ImageType = consts.BaseImageType
-	}
-	// 是否加固
-	if model.ExistFlag(ans.Flag, model.FlagReinforced) || ans.IsReinforce == consts.IsReinforceImage {
-		ans.IsReinforce = consts.IsReinforceImage
-	}
-
-	// 查scan_image
-	scs, _, err := s.dbdal.SearchScanImage(ctx, store.SearchScanImageParam{ImageIds: []int64{imgs[0].ID}}, nil)
-	if err != nil {
-		logging.GetLogger().Err(err).Msg("GetScanOneStatus.SearchScanImage")
-		return nil, response.NewHttpError(http.StatusInternalServerError, err)
-	}
-	if len(scs) == 0 {
-		return &ans, nil
-	}
-
-	// 以下所有的判断，只使用一种就行，这里使用两种方式，1是为了做兼容，2是当出现数据不一致时可以快速定位问题,3是可能在后续的优化中scan_image表可能不再保存扫描数据
-	if model.ExistFlag(ans.Flag, model.FlagHasFixedVuln) || scs[0].HasFixedVuln == consts.HasFixedvuln {
-		ans.HasFixedVulu = int64(scs[0].HasFixedVuln)
-	}
-
-	if model.ExistFlag(ans.Flag, model.FlagHasVuln) || scs[0].VirusScore > 0 {
-		ans.Questions = append(ans.Questions, model.QuestionInfo{ID: model.FlagHasVuln})
-	}
-
-	if model.ExistFlag(ans.Flag, model.FlagHasSensitive) || scs[0].SensitiveScore > 0 {
-		ans.Questions = append(ans.Questions, model.QuestionInfo{ID: model.FlagHasSensitive})
-	}
-	if model.ExistFlag(ans.Flag, model.FlagHasMalicious) || scs[0].VirusScore > 0 {
-		ans.Questions = append(ans.Questions, model.QuestionInfo{ID: model.FlagHasMalicious})
-	}
-	if model.ExistFlag(ans.Flag, model.FlagHasWebshell) || scs[0].WebshellScore > 0 {
-		ans.Questions = append(ans.Questions, model.QuestionInfo{ID: model.FlagHasWebshell})
-	}
-
-	if model.ExistFlag(ans.Flag, model.FlagHasExceptEnv) || scs[0].ScanEnableCollection.EnvEnable > 0 {
-		ans.Questions = append(ans.Questions, model.QuestionInfo{ID: model.FlagHasExceptEnv})
-	}
-
-	if model.ExistFlag(ans.Flag, model.FlagHasExceptLicense) || scs[0].ScanEnableCollection.LicenseEnable > 0 {
-		ans.Questions = append(ans.Questions, model.QuestionInfo{ID: model.FlagHasExceptLicense, Info: ParseLicense(scs[0].LicenseInfo)})
-	}
-
-	if model.ExistFlag(ans.Flag, model.FlagHasSoftware) || scs[0].ScanEnableCollection.SoftwareEnable > 0 {
-		ans.Questions = append(ans.Questions, model.QuestionInfo{ID: model.FlagHasSoftware, Info: ParseSoftWare(scs[0].Software)})
-	}
-
-	ans.RiskScore = scs[0].VulnScore + scs[0].SensitiveScore + math.Min(scs[0].WebshellScore+scs[0].VirusScore, consts.MaxWebshellAndVirusScore)
-
-	return &ans, nil
 }
 
 func (s *ConScannerSrv) GetImageDetail(ctx context.Context, imgID int64) (*model.ImageList, error) {
@@ -1330,8 +1213,8 @@ func (s *ConScannerSrv) GetImageDetail(ctx context.Context, imgID int64) (*model
 	if img.LastPushTime.IsZero() {
 		img.LastPushTime = img.CreatedAt
 	}
-	if model.ExistFlag(img.Flag, model.FlagBaseImage) || img.ImageType == consts.BaseImageType {
-		img.ImageType = consts.BaseImageType
+	if model.ExistFlag(img.Flag, model.FlagBaseImage) || img.ImageType == model.BaseImageType {
+		img.ImageType = model.BaseImageType
 	}
 
 	// 查扫描结果
@@ -1353,7 +1236,7 @@ func (s *ConScannerSrv) GetImageDetail(ctx context.Context, imgID int64) (*model
 		return img, nil
 	}
 
-	vulns, _, err := s.vulnDal.SearchVuln(ctx, store.SearchVulnParm{ImageID: imgID}, nil)
+	vulns, _, err := s.vulnDal.SearchVuln(ctx, store.SearchVulnParam{ImageIds: []int64{imgID}}, nil)
 	if err != nil {
 		logging.GetLogger().Err(err).Int64("ImageID", imgID).Msg("GetImageDetail.SearchVuln")
 		return nil, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf(consts.StatusInternalServerErrorMsg))
@@ -1375,7 +1258,7 @@ func (s *ConScannerSrv) GetImageDetail(ctx context.Context, imgID int64) (*model
 		VirusScore:        scs[0].VirusScore,
 		WebshellScore:     scs[0].WebshellScore,
 		SensitiveScore:    scs[0].SensitiveScore,
-		RiskScore:         scs[0].VulnScore + scs[0].SensitiveScore + math.Min(scs[0].WebshellScore+scs[0].VirusScore, consts.MaxWebshellAndVirusScore),
+		RiskScore:         scs[0].VulnScore + scs[0].SensitiveScore + math.Min(scs[0].WebshellScore+scs[0].VirusScore, model.MaxWebshellAndVirusScore),
 	}
 
 	img.ImageScanVuln = imageScanResult
@@ -1447,6 +1330,32 @@ func (s *ConScannerSrv) GetImageDetail(ctx context.Context, imgID int64) (*model
 				tmpEnvSummary.IsInPolicy = 1
 			}
 			img.ImageScanEnv = append(img.ImageScanEnv, tmpEnvSummary)
+		}
+	}
+
+	// 可信镜像的筛选
+	trustedImages, err := s.dbdal.SearchTrustedImageIDs(ctx, store.SearchTrustedImageParam{IsTrusted: consts.TrueString, Digests: []string{img.Digest}})
+	if err == nil && len(trustedImages) > 0 {
+		img.Trusted = true
+	}
+	// 最近扫描时间
+	subtasks, err := s.scanTaskDal.SearchSubTasksWithScanStatus(ctx, []int64{img.ID}, nil)
+	if err == nil && len(subtasks) > 0 {
+		img.LastScanAt = *subtasks[0].FinishedAt
+	}
+
+	// 查在线
+	onlineSQL := fmt.Sprintf("select distinct a.id  from  %s a  join %s b  on  a.image_uuid = b.image_uuid where b.image_uuid = %d ;", model.ImageList{}.TableName(), model.TensorContainer{}.TableName(), img.ImageUUID)
+	online, err := s.dbdal.GetOnlineImage(ctx, store.GetOnlineImageParam{SQL: onlineSQL})
+	if err == nil && len(online) > 0 {
+		img.Online = true
+	}
+
+	// 处理os版本
+	imageOs := ftypes.OS{}
+	if img.OS != "" {
+		if err := json.Unmarshal([]byte(img.OS), &imageOs); err == nil {
+			img.OS = fmt.Sprintf("%s:%s", imageOs.Family, imageOs.Name)
 		}
 	}
 
@@ -1576,11 +1485,10 @@ func (s *ConScannerSrv) SearchImageWithScan(ctx context.Context, param SearchIma
 	}
 
 	daoParam := store.SearchImageParam{
-		Projects:     param.Projects,
 		RegistryIds:  registryIds,
 		FromType:     param.FromType,
 		ImageType:    param.ImageType,
-		Search:       param.SearchWord,
+		Keyword:      param.SearchWord,
 		NodeHostname: param.NodeHostname,
 		OmitFields:   []string{"config_json", "manifest_v1_json", "manifest_v2_json"},
 		UUIDs:        param.UUIDs,
@@ -1763,7 +1671,7 @@ func (s *ConScannerSrv) SearchImageWithScan(ctx context.Context, param SearchIma
 			}
 		}
 		if model.ExistFlag(res[i].Flag, model.FlagBaseImage) {
-			res[i].ImageType = consts.BaseImageType
+			res[i].ImageType = model.BaseImageType
 		}
 		if model.ExistFlag(res[i].Flag, model.FlagReinforced) {
 			res[i].IsReinforce = consts.IsReinforceImage
@@ -2277,7 +2185,7 @@ func (s *ConScannerSrv) checkScanImageExist(ctx context.Context, usePattern stri
 	if len(scanImage) > 0 {
 		res.ScanImag = &(scanImage[0])
 		// 查漏洞数据
-		vulns, _, err := s.vulnDal.SearchVuln(ctx, store.SearchVulnParm{ImageID: img.ID}, nil)
+		vulns, _, err := s.vulnDal.SearchVuln(ctx, store.SearchVulnParam{ImageIds: []int64{img.ID}}, nil)
 		if err != nil {
 			res.Safe = false
 			logging.GetLogger().Err(err).Msgf("checkScanImageExist search vulns: %d", img.ID)
@@ -2512,8 +2420,8 @@ func (s *ConScannerSrv) checkCustomizeVuln(ctx context.Context, scanImage model.
 	// 组装消息
 	cusVulnZH, cusVulnEN := "", ""
 	if len(cusBlockVuln) > 0 {
-		cusVulnZH = fmt.Sprintf("{%s：}%s{，被阻断}", model.GetRejectReason(model.LangZh)[model.RejectReasonHasCustomizeVulu], strings.Join(cusBlockVuln, "，"))
-		cusVulnEN = fmt.Sprintf("{%s:}%s{,blocked}", model.GetRejectReason(model.LangEn)[model.RejectReasonHasCustomizeVulu], strings.Join(cusBlockVuln, ","))
+		cusVulnZH = fmt.Sprintf("{%s：}%s{，被阻断}", model.GetRejectReason(model.LangZh)[model.RejectReasonHasCustomizeVuln], strings.Join(cusBlockVuln, "，"))
+		cusVulnEN = fmt.Sprintf("{%s:}%s{,blocked}", model.GetRejectReason(model.LangEn)[model.RejectReasonHasCustomizeVuln], strings.Join(cusBlockVuln, ","))
 	}
 	if cusVulnEN != "" && cusVulnZH != "" && len(cusAlertVuln) > 0 {
 		cusVulnEN = cusVulnEN + ","
@@ -2521,18 +2429,17 @@ func (s *ConScannerSrv) checkCustomizeVuln(ctx context.Context, scanImage model.
 	}
 
 	if len(cusAlertVuln) > 0 {
-		cusVulnZH = fmt.Sprintf("%s{%s：}%s{，未阻断，只告警}", cusVulnZH, model.GetRejectReason(model.LangZh)[model.RejectReasonHasCustomizeVulu], strings.Join(cusAlertVuln, "，"))
-		cusVulnEN = fmt.Sprintf("%s{%s:}%s{,unblocked,just alert}", cusVulnEN, model.GetRejectReason(model.LangEn)[model.RejectReasonHasCustomizeVulu], strings.Join(cusAlertVuln, ","))
+		cusVulnZH = fmt.Sprintf("%s{%s：}%s{，未阻断，只告警}", cusVulnZH, model.GetRejectReason(model.LangZh)[model.RejectReasonHasCustomizeVuln], strings.Join(cusAlertVuln, "，"))
+		cusVulnEN = fmt.Sprintf("%s{%s:}%s{,unblocked,just alert}", cusVulnEN, model.GetRejectReason(model.LangEn)[model.RejectReasonHasCustomizeVuln], strings.Join(cusAlertVuln, ","))
 	}
 
 	if cusVulnEN != "" && cusVulnZH != "" {
 		msgs = append(msgs, model.KVHashs{
 			KVHash: model.KVHash{
-				ZH: model.NewKeyValue(model.GetRejectReason(model.LangZh)[model.RejectReasonHasCustomizeVulu], cusVulnZH),
-				EN: model.NewKeyValue(model.GetRejectReason(model.LangEn)[model.RejectReasonHasCustomizeVulu], cusVulnEN)}})
-
+				ZH: model.NewKeyValue(model.GetRejectReason(model.LangZh)[model.RejectReasonHasCustomizeVuln], cusVulnZH),
+				EN: model.NewKeyValue(model.GetRejectReason(model.LangEn)[model.RejectReasonHasCustomizeVuln], cusVulnEN)}})
 		records = append(records, ReasonAndDetail{
-			RejectReason: model.RejectReasonHasCustomizeVulu,
+			RejectReason: model.RejectReasonHasCustomizeVuln,
 			RejectDetail: cusVulnZH,
 		})
 
@@ -2567,8 +2474,8 @@ func (s *ConScannerSrv) checkVulnSeverity(ctx context.Context, scanImage model.S
 	}
 	for level, vu := range vumMap {
 		if len(vu) > 0 {
-			zh := fmt.Sprintf("{%s：}%s{，评级：}%s{，高于漏洞阻断评级：}%s", model.GetVuluRuleKey(level, model.LangZh), strings.Join(vu, "，"), level, po.VulnLevel)
-			en := fmt.Sprintf("{%s:}%s {Rate:}%s{, more than:}%s", model.GetVuluRuleKey(level, model.LangEn), strings.Join(vu, ","), level, po.VulnLevel)
+			zh := fmt.Sprintf("{%s：}%s{，评级：}%s{，高于漏洞阻断评级：}%s", model.GetVulnRuleKey(level, model.LangZh), strings.Join(vu, "，"), level, po.VulnLevel)
+			en := fmt.Sprintf("{%s:}%s {Rate:}%s{, more than:}%s", model.GetVulnRuleKey(level, model.LangEn), strings.Join(vu, ","), level, po.VulnLevel)
 
 			logging.GetLogger().Info().Msgf("vulnerability severity than the config, %s, blocked", en)
 
@@ -2576,14 +2483,14 @@ func (s *ConScannerSrv) checkVulnSeverity(ctx context.Context, scanImage model.S
 			case model.RejectPolicyAlarm:
 				msgs = append(msgs, model.KVHashs{
 					KVHash: model.KVHash{
-						ZH: model.NewKeyValue(model.GetVuluRuleKey(level, model.LangZh), zh+holaPartialTag("，未阻断，只告警")),
-						EN: model.NewKeyValue(model.GetVuluRuleKey(level, model.LangEn), en+holaPartialTag(",unblocked,just alert"))}})
+						ZH: model.NewKeyValue(model.GetVulnRuleKey(level, model.LangZh), zh+holaPartialTag("，未阻断，只告警")),
+						EN: model.NewKeyValue(model.GetVulnRuleKey(level, model.LangEn), en+holaPartialTag(",unblocked,just alert"))}})
 			case model.RejectPolicyReject:
 				safe = false
 				msgs = append(msgs, model.KVHashs{
 					KVHash: model.KVHash{
-						ZH: model.NewKeyValue(model.GetVuluRuleKey(level, model.LangZh), zh+holaPartialTag("，被阻断")),
-						EN: model.NewKeyValue(model.GetVuluRuleKey(level, model.LangEn), en+holaPartialTag(",blocked"))}})
+						ZH: model.NewKeyValue(model.GetVulnRuleKey(level, model.LangZh), zh+holaPartialTag("，被阻断")),
+						EN: model.NewKeyValue(model.GetVulnRuleKey(level, model.LangEn), en+holaPartialTag(",blocked"))}})
 
 				records = append(records, ReasonAndDetail{
 					RejectReason: model.GetSeverityRejectReason(level),
@@ -2619,19 +2526,19 @@ func (s *ConScannerSrv) checkVulnScore(ctx context.Context, scanImage model.Scan
 		case model.RejectPolicyAlarm:
 			msgs = append(msgs, model.KVHashs{
 				KVHash: model.KVHash{
-					ZH: model.NewKeyValue(model.GetRejectReason(model.LangZh)[model.RejectReasonVuluScore], msgZh+holaPartialTag("，未阻断，只告警")),
-					EN: model.NewKeyValue(model.GetRejectReason(model.LangEn)[model.RejectReasonVuluScore], msgEN+holaPartialTag(",unblocked,just alert"))}})
+					ZH: model.NewKeyValue(model.GetRejectReason(model.LangZh)[model.RejectReasonVulnScore], msgZh+holaPartialTag("，未阻断，只告警")),
+					EN: model.NewKeyValue(model.GetRejectReason(model.LangEn)[model.RejectReasonVulnScore], msgEN+holaPartialTag(",unblocked,just alert"))}})
 		case model.RejectPolicyReject:
 			safe = false
 			records = append(records, ReasonAndDetail{
-				RejectReason: model.RejectReasonVuluScore,
+				RejectReason: model.RejectReasonVulnScore,
 				RejectDetail: msgZh,
 				VulnScore:    po.VulnScore,
 			})
 			msgs = append(msgs, model.KVHashs{
 				KVHash: model.KVHash{
-					ZH: model.NewKeyValue(model.GetRejectReason(model.LangZh)[model.RejectReasonVuluScore], msgZh+holaPartialTag(",被阻断")),
-					EN: model.NewKeyValue(model.GetRejectReason(model.LangEn)[model.RejectReasonVuluScore], msgEN+holaPartialTag(",blocked"))}})
+					ZH: model.NewKeyValue(model.GetRejectReason(model.LangZh)[model.RejectReasonVulnScore], msgZh+holaPartialTag(",被阻断")),
+					EN: model.NewKeyValue(model.GetRejectReason(model.LangEn)[model.RejectReasonVulnScore], msgEN+holaPartialTag(",blocked"))}})
 		}
 	}
 	return safe, records, msgs
@@ -2981,7 +2888,7 @@ func (s *ConScannerSrv) GetScanSubTaskList(ctx context.Context, taskID int64, st
 	for i := range data {
 		data[i].Deserialize()
 		if data[i].ErrNo > 0 {
-			data[i].ErrMsgEnu = consts.GetErrMsgEnu(data[i].ErrNo)
+			data[i].ErrMsgEnu = GetErrMsgEnu(data[i].ErrNo)
 		}
 	}
 	return data, count, nil
@@ -3343,4 +3250,63 @@ func getSeverityCount(groups []model.SeverityGroup) model.SeverityCount {
 		}
 	}
 	return res
+}
+
+func (s *ConScannerSrv) GetOnlineImageId(ctx context.Context) ([]int64, error) {
+	// 查在线镜像
+	// 查询未删除仓库
+	res := make([]int64, 0)
+	registryIds := make([]int64, 0)
+	// 查询未删除的仓库
+	noDeleteRegistries, _, err := s.registryDal.SearchRegistry(ctx, store.SearchRegistryParam{NoDelete: true}, nil)
+	if err != nil {
+		return nil, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf(consts.StatusInternalServerErrorMsg))
+	}
+	if len(noDeleteRegistries) == 0 {
+		return res, nil
+	}
+
+	for i := range noDeleteRegistries {
+		registryIds = append(registryIds, noDeleteRegistries[i].ID)
+	}
+
+	onlineSQL := fmt.Sprintf("select distinct a.id  from  %s a  join %s b  on  a.image_uuid = b.image_uuid where a.registry_id IN (%s) ", model.ImageList{}.TableName(), model.TensorContainer{}.TableName(), util.JoinInt64Slice(registryIds, ","))
+	online, err := s.dbdal.GetOnlineImage(ctx, store.GetOnlineImageParam{SQL: onlineSQL})
+	if err != nil {
+		logging.GetLogger().Err(err).Msg("GetOnlineImageId.GetOnlineImage")
+		return nil, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf(consts.StatusInternalServerErrorMsg))
+	}
+	onlineIds := make([]int64, 0)
+	for i := range online {
+		onlineIds = append(onlineIds, online[i].ID)
+	}
+
+	return onlineIds, nil
+}
+
+func GetErrMsgEnu(errNo int) string {
+	switch errNo {
+	case consts.ErrScanPullImage:
+		return "拉取镜像出错"
+	case consts.ErrScanTrivy:
+		return "扫描镜像出错"
+	case consts.ErrScanSaveResult:
+		return "保存扫描数据出错"
+	case consts.ErrScanConfig:
+		return "解析扫描配置出错"
+	case consts.ErrScanGetImage:
+		return "查询待扫描镜像出错"
+	case consts.ErrScanGetRegistry:
+		return "查询镜像仓库出错"
+	case consts.ErrScanInternal:
+		return "程序内部出错"
+	case consts.ErrExceededRetryCount:
+		return "超过重试次数"
+	case consts.ErrScanImageRemoved:
+		return "镜像已被清除"
+	case consts.ErrRegRemoved:
+		return "仓库已删除"
+	default:
+		return "程序内部出错"
+	}
 }

@@ -29,13 +29,14 @@ func (api *api) scanner() func(chi.Router) {
 
 		r.Post("/harbor/scanAllNow", api.RedirectToScanner(true))
 		r.Get("/harbor/scanConfig", api.harborScanConfig())
-		// r.Get("/harbor/scanStatus", api.RedirectToScanner(true))
 		r.Get("/harbor/scanOneStatus", api.RedirectToScanner(true))
 		r.Post("/harbor/abortScanAll", api.harborAbortScanAll())
 
 		r.Get("/images/{imgDigest}/layers", api.RedirectToScanner())
 		r.Get("/images/bases", api.RedirectToScanner())
 		r.Post("/images/bases", api.RedirectToScanner())
+		r.Post("/images/list", api.RedirectToScanner())
+		r.Get("/images/registryProject", api.RedirectToScanner())
 		r.Delete("/images/bases/{imageID}", api.RedirectToScanner())
 		r.Get("/images/app/{imageID}/bases", api.RedirectToScanner())
 		r.Get("/images/base/{imageID}/apps", api.RedirectToScanner())
@@ -92,6 +93,7 @@ func (api *api) scanner() func(chi.Router) {
 		r.Put("/tasks/{id}/status", api.RedirectToScanner())
 		r.Get("/tasks/{id}/subtasks", api.RedirectToScanner())
 		r.Get("/tasks", api.RedirectToScanner())
+		r.Post("/tasks/image", api.RedirectToScanner())
 
 		r.Put("/scan-config/config/{scanConfigID}", api.RedirectToScanner())
 		r.Get("/scan-config/config/global", api.RedirectToScanner())
@@ -134,6 +136,7 @@ func (api *api) export() func(chi.Router) {
 	return func(r chi.Router) {
 		r.Post("/task/image", api.RedirectToExport())
 		r.Post("/task/scanTask", api.RedirectToExport())
+		r.Post("/task/vuln", api.RedirectToExport())
 		r.Get("/task/detail", api.RedirectToExport())
 		r.Get("/task/list", api.RedirectToExport())
 		r.Get("/task/download", api.RedirectToExport())

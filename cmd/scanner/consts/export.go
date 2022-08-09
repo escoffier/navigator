@@ -1,10 +1,14 @@
 package consts
 
-type ExportType string
-
 const (
-	ExportImage      ExportType = "ExportImage"
-	ExportScanResult ExportType = "ExportScanTask"
+	ExportImage      string = "ExportImage"
+	ExportScanResult string = "ExportScanTask"
+	ExportVuln       string = "ExportVuln"
+	AuditExeType     string = "ExportNaviAudit"
+
+	ExportImageView  string = "镜像报告"
+	AuditExeTypeView string = "审计日志"
+	ExportVulnView   string = "漏洞报告"
 )
 
 const (

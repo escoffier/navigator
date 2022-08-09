@@ -19,13 +19,11 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 )
 
-var VulnAttr map[string]map[string]string
-
-func GenBaseInfoChan(image model.ImageList, status model.ImageResponse) chan []string {
+func GenBaseInfoChan(image model.ImageList) chan []string {
 	out := make(chan []string)
 	go func() {
 		defer close(out)
-		info := GenImageBaseInfo(image, status)
+		info := GenImageBaseInfo(image)
 		out <- info
 	}()
 	return out
@@ -131,63 +129,6 @@ func GenAppOrBaseImageChan(images []model.ImageList) chan []string {
 
 func GenVulnInfo(image model.ImageList, vuln model.Vuln) []string {
 
-	if VulnAttr == nil {
-		VulnAttr = make(map[string]map[string]string)
-		// 攻击位置难易
-		VulnAttr["AV"] = map[string]string{
-			"N": "网络访问",
-			"L": "本地访问",
-			"P": "物理访问",
-			"":  "相邻网络访问",
-		}
-		// 是否自动化触发
-		VulnAttr["UI"] = map[string]string{
-			"N": "自动",
-			"R": "非自动",
-		}
-		// 所需权限级别 and 攻击复杂度
-		VulnAttr["AC"] = map[string]string{
-			"N": "无",
-			"L": "低",
-			"H": "高",
-		}
-		// 信息泄露风险
-		VulnAttr["C"] = map[string]string{
-			"N": "无",
-			"L": "低",
-			"H": "高",
-		}
-		// 信息/系统篡改风险
-		VulnAttr["A"] = map[string]string{
-			"N": "无",
-			"L": "低",
-			"H": "高",
-		}
-		//  权限范围扩大
-		VulnAttr["S"] = map[string]string{
-			"C": "扩大",
-			"U": "不变",
-		}
-		// 造成 DoS 风险
-		VulnAttr["PR"] = map[string]string{
-			"N": "无",
-			"L": "低",
-			"H": "高",
-		}
-	}
-
-	m := make(map[string]string)
-
-	if vuln.Metadata != nil {
-		split := strings.Split(vuln.Metadata.CVSS.CVSSv3Vector, "/")
-		for i := range split {
-			attr := strings.Split(split[i], ":")
-			if len(attr) >= 2 {
-				m[attr[0]] = attr[1]
-			}
-		}
-	}
-
 	info := []string{
 		getImageName(image),
 		image.Library,
@@ -201,14 +142,14 @@ func GenVulnInfo(image model.ImageList, vuln model.Vuln) []string {
 		getVulnCvssScore(vuln),
 		vuln.Description,
 		vuln.Target, // 攻击路径
-		getVulnDifficultyAttackingLocation(m),
-		getVulnWhetherAutoTrigger(m),
-		getVulnRequiredPermissionLevel(m),
-		getVulnAttackComplexity(m),
-		getVulnLeakageRisk(m),
-		getVulnTamperingRisk(m),
-		getVulnDosRisk(m),
-		getVulnExpandedScope(m),
+		getVulnDifficultyAttackingLocation(vuln.Attr),
+		getVulnWhetherAutoTrigger(vuln.Attr),
+		getVulnRequiredPermissionLevel(vuln.Attr),
+		getVulnAttackComplexity(vuln.Attr),
+		getVulnLeakageRisk(vuln.Attr),
+		getVulnTamperingRisk(vuln.Attr),
+		getVulnDosRisk(vuln.Attr),
+		getVulnExpandedScope(vuln.Attr),
 		getVulnFixSuggestion(vuln),
 		vuln.FixedBy,
 		getVulnReference(vuln),
@@ -273,84 +214,44 @@ func GenBaseOrAppImageInfo(image model.ImageList) []string {
 	return info
 }
 
-// 攻击位置难易
+// 攻击路径
 func getVulnDifficultyAttackingLocation(attr map[string]string) string {
-	if VulnAttr["AV"] != nil {
-		if res := VulnAttr["AV"][attr["AV"]]; res != "" {
-			return res
-		}
-	}
-	return "相邻网络访问"
+	return attr["AV"]
 }
 
 // 是否自动化触发
 func getVulnWhetherAutoTrigger(attr map[string]string) string {
-	if VulnAttr["UI"] != nil {
-		if res := VulnAttr["UI"][attr["UI"]]; res != "" {
-			return res
-		}
-	}
-	return "非自动"
+	return attr["UI"]
 }
 
 // 所需权限级别
 func getVulnRequiredPermissionLevel(attr map[string]string) string {
-	if VulnAttr["AC"] != nil {
-		if res := VulnAttr["UI"][attr["AC"]]; res != "" {
-			return res
-		}
-	}
-	return "无"
+	return attr["AC"]
 }
 
 // 攻击复杂度
 func getVulnAttackComplexity(attr map[string]string) string {
-	if VulnAttr["AC"] != nil {
-		if res := VulnAttr["UI"][attr["AC"]]; res != "" {
-			return res
-		}
-	}
-	return "相邻网络访问"
+	return attr["AC"]
 }
 
 // 信息泄露风险
 func getVulnLeakageRisk(attr map[string]string) string {
-	if VulnAttr["C"] != nil {
-		if res := VulnAttr["C"][attr["C"]]; res != "" {
-			return res
-		}
-	}
-	return "无"
+	return attr["C"]
 }
 
 // 信息/系统篡改风险
 func getVulnTamperingRisk(attr map[string]string) string {
-	if VulnAttr["A"] != nil {
-		if res := VulnAttr["A"][attr["A"]]; res != "" {
-			return res
-		}
-	}
-	return "无"
+	return attr["A"]
 }
 
 // 造成 DoS 风险
 func getVulnDosRisk(attr map[string]string) string {
-	if VulnAttr["PR"] != nil {
-		if res := VulnAttr["PR"][attr["PR"]]; res != "" {
-			return res
-		}
-	}
-	return "无"
+	return attr["PR"]
 }
 
 // 权限范围扩大
 func getVulnExpandedScope(attr map[string]string) string {
-	if VulnAttr["PR"] != nil {
-		if res := VulnAttr["PR"][attr["PR"]]; res != "" {
-			return res
-		}
-	}
-	return "不变"
+	return attr["S"]
 }
 
 // 修复建议
@@ -396,15 +297,15 @@ func ByteToMB(b int) string {
 	return ToString(f) + "MB"
 }
 
-func GenImageBaseInfo(image model.ImageList, status model.ImageResponse) []string {
+func GenImageBaseInfo(image model.ImageList) []string {
 	info := []string{
 		getImageName(image),
 		image.Library,
 		ToString(100 - image.ImageScanVuln.RiskScore),
-		getImageAttr(image.Flag, status.Trusted), // 属性
-		getImageOnline(status.Online),
+		getImageAttr(image.Flag, image.Trusted), // 属性
+		getImageOnline(image.Online),
 		getImageSecurityQuestion(image.Flag),
-		FormatTime(status.CompleteTime, consts.ExportTimeFormat),
+		FormatTime(image.LastScanAt.UnixMilli(), consts.ExportTimeFormat),
 		image.Digest,
 		image.Tags,
 		ByteToMB(image.Size),
@@ -538,7 +439,7 @@ func getImageOnline(online bool) string {
 	return "离线"
 }
 
-func getImageAttr(flag uint64, trusted int64) string {
+func getImageAttr(flag uint64, trusted bool) string {
 	qus := make([]string, 0)
 	if model.ExistFlag(flag, model.FlagBaseImage) {
 		qus = append(qus, "基础镜像")
@@ -549,7 +450,7 @@ func getImageAttr(flag uint64, trusted int64) string {
 	if model.ExistFlag(flag, model.FlagHasFixedVuln) {
 		qus = append(qus, "存在可修复漏洞")
 	}
-	if trusted == consts.TrustedImage {
+	if trusted {
 		qus = append(qus, "可信镜像")
 	} else {
 		qus = append(qus, "非可信镜像")
@@ -583,7 +484,7 @@ func GenImageBaseInfoMeta() ExcelMetaData {
 	return data
 }
 
-func GetImageSheetInfo(executeType consts.ExportType) []ExcelMetaData {
+func GetImageSheetInfo(executeType string) []ExcelMetaData {
 
 	sheets := make([]ExcelMetaData, 8)
 	sheets[0] = GenImageBaseInfoMeta()
@@ -602,7 +503,22 @@ func GetImageSheetInfo(executeType consts.ExportType) []ExcelMetaData {
 			}
 		}
 	}
+	return sheets
+}
 
+func GetVulnSheetInfo() []ExcelMetaData {
+	sheets := make([]ExcelMetaData, 2)
+	vulnHeader := GenImageVulnInfoMeta().Header[2:]
+	vulnMete := GenImageVulnInfoMeta()
+	vulnMete.Header = vulnHeader
+
+	sheets[0] = vulnMete
+	resourcesHeader := GenImageResourcesInfoMeta().Header
+
+	resourcesHeader = append(resourcesHeader[:1], resourcesHeader[2:]...)
+	resourcesMeta := GenImageResourcesInfoMeta()
+	resourcesMeta.Header = resourcesHeader
+	sheets[1] = resourcesMeta
 	return sheets
 }
 

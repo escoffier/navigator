@@ -17,6 +17,9 @@ const (
 	TrueString     = "true"
 	FalseString    = "false"
 	AllString      = "all"
+
+	YesString = "y"
+	NoString  = "n"
 )
 
 const EncryptPasswordKey = "talkerss"
@@ -56,13 +59,6 @@ const (
 )
 
 const (
-	BaseImageType       = 1
-	AppImageType        = 0
-	BaseImageTypeString = "1"
-	AppImageTypeString  = "0"
-)
-
-const (
 	ValidateCreate = "create"
 	ValidateUpdate = "update"
 )
@@ -88,7 +84,7 @@ const (
 	HasFixedvuln    = 1
 
 	NotHasFixedvulnString = "0"
-	HasFixedvulnStringd   = "1"
+	HasFixedvulnString    = "1"
 
 	PrivilegedBootImage    = 1
 	NotPrivilegedBootImage = 0
@@ -106,11 +102,6 @@ const (
 var ErrNotNodeImage = fmt.Errorf("not find node info")
 
 const SpecialImageTypeK8s = "k8s"
-
-const (
-	ImageFromNode     = "node"
-	ImageFromRegistry = "registry"
-)
 
 const DefaultVulnTopNImage = 5
 const MaxVulnTopNImage = 20

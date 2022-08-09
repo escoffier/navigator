@@ -333,7 +333,7 @@ func (scdb *ScannerDB) InsertVirusInfo(ctx context.Context, si model.ScanImage, 
 		logging.GetLogger().Err(err).Msg("InsertVirusInfo Get Scan_image Error:")
 		return
 	}
-	si.RiskScore = tmpImage.SensitiveScore + tmpImage.VulnScore + math.Min(si.WebshellScore+si.VirusScore, consts.MaxWebshellAndVirusScore)
+	si.RiskScore = tmpImage.SensitiveScore + tmpImage.VulnScore + math.Min(si.WebshellScore+si.VirusScore, model.MaxWebshellAndVirusScore)
 	err = scdb.RDB.Get().WithContext(ctx).Model(model.ScanImage{}).Where("id = ?", tableID).Omit("created_at").
 		Select("malicious_info_json", "risk_score", "virus_score", "webshell_score", "webshell_info_json").Updates(si).Error
 	if err != nil {

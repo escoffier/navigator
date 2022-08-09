@@ -440,7 +440,7 @@ func (s *ScanResultHandle) logPostgresVuln(ctx context.Context, scanDetails *mod
 					break
 				}
 
-				vuln := &model.Vuln{
+				vu := &model.Vuln{
 					Target:      v.Target,
 					Name:        vuln.CVEID,
 					Namespace:   strings.ToLower(v.Type),
@@ -455,8 +455,8 @@ func (s *ScanResultHandle) logPostgresVuln(ctx context.Context, scanDetails *mod
 					Class:       v.Class,
 				}
 
-				vulns = append(vulns, vuln)
-				vulnImages = append(vulnImages, &model.VulnImage{ImageId: imageID, UniqueVuln: vuln.GenUniqueVuln()})
+				vulns = append(vulns, vu)
+				vulnImages = append(vulnImages, &model.VulnImage{ImageId: imageID, UniqueVuln: vu.GenUniqueVuln()})
 			}
 		}
 	}

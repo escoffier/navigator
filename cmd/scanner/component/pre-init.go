@@ -306,7 +306,7 @@ func (s *InitScanner) checkUniqueImage(ctx context.Context) error {
 func (s *InitScanner) checkUniqueVuln(ctx context.Context) error {
 	var lastID int64
 	for {
-		param := store.SearchVulnParm{Where: fmt.Sprintf("(unique_vuln is null OR unique_vuln = 0 ) AND id > %d", lastID)}
+		param := store.SearchVulnParam{Where: fmt.Sprintf("(unique_vuln is null OR unique_vuln = 0 ) AND id > %d", lastID)}
 		vulus, _, err := s.vulnDal.SearchVuln(ctx, param, &model.Filter{Limit: consts.DefaultBathSize, SortBy: consts.SortByAsc, SortFiled: "id"})
 		if err != nil {
 			logging.GetLogger().Err(err).Msg("InitScanner.checkUniqueImage")

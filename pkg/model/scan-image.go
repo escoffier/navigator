@@ -58,7 +58,7 @@ func (si ScanImage) TableName() string {
 	return "ivan_scanner_scan_images"
 }
 
-func ExistFlag(value uint64, flag int64) bool {
+func ExistFlag(value uint64, flag uint64) bool {
 	return (value>>flag)&1 == 1
 }
 
@@ -66,51 +66,59 @@ func (si *ScanImage) GenImageFlag(preFlag uint64) uint64 {
 	si.Deserialize()
 	si.Serialize()
 
-	var flag uint64
-
 	if si.VulnScore > 0 {
-		flag = 1<<FlagHasVuln + flag
-	}
-	if len(si.SensitiveFile) > 0 {
-		flag = 1<<FlagHasSensitive + flag
-	}
-	if len(si.MaliciousInfo) > 0 {
-		flag = 1<<FlagHasMalicious + flag
-	}
-	if len(si.WebshellInfo) > 0 {
-		flag = 1<<FlagHasWebshell + flag
+		preFlag = util.SetBit1(preFlag, FlagHasVuln)
+	} else {
+		preFlag = util.SetBit0(preFlag, FlagHasVuln)
 	}
 
+	if len(si.SensitiveFile) > 0 {
+		preFlag = util.SetBit1(preFlag, FlagHasSensitive)
+	} else {
+		preFlag = util.SetBit0(preFlag, FlagHasSensitive)
+	}
+
+	if len(si.MaliciousInfo) > 0 {
+		preFlag = util.SetBit1(preFlag, FlagHasMalicious)
+	} else {
+		preFlag = util.SetBit0(preFlag, FlagHasMalicious)
+	}
+
+	if len(si.WebshellInfo) > 0 {
+		preFlag = util.SetBit1(preFlag, FlagHasWebshell)
+	} else {
+		preFlag = util.SetBit0(preFlag, FlagHasWebshell)
+	}
+	env := false
 	for i := range si.EnvKeyValue {
 		if si.EnvKeyValue[i].IsAbnormal > 0 {
-			flag = 1<<FlagHasExceptEnv + flag
+			preFlag = util.SetBit1(preFlag, FlagHasExceptEnv)
+			env = true
 			break
 		}
 	}
+	if !env {
+		preFlag = util.SetBit0(preFlag, FlagHasExceptEnv)
+	}
 
 	if len(si.Software) > 0 {
-		flag = 1<<FlagHasSoftware + flag
+		preFlag = util.SetBit1(preFlag, FlagHasSoftware)
+	} else {
+		preFlag = util.SetBit0(preFlag, FlagHasSoftware)
 	}
 
 	if len(si.LicenseInfo) > 0 {
-		flag = 1<<FlagHasExceptLicense + flag
+		preFlag = util.SetBit1(preFlag, FlagHasExceptLicense)
+	} else {
+		preFlag = util.SetBit0(preFlag, FlagHasExceptLicense)
 	}
 	if si.HasFixedVuln > 0 {
-		flag = 1<<FlagHasFixedVuln + flag
+		preFlag = util.SetBit1(preFlag, FlagHasFixedVuln)
+	} else {
+		preFlag = util.SetBit0(preFlag, FlagHasFixedVuln)
 	}
 
-	// 以下部分是image所特有的flag
-	if ExistFlag(preFlag, FlagBaseImage) {
-		flag = 1<<FlagBaseImage + flag
-	}
-	if ExistFlag(preFlag, FlagPrivilegedBoot) {
-		flag = 1<<FlagPrivilegedBoot + flag
-	}
-	if ExistFlag(preFlag, FlagReinforced) {
-		flag = 1<<FlagReinforced + flag
-	}
-
-	return flag
+	return preFlag
 }
 
 func (si *ScanImage) Deserialize() {

@@ -21,6 +21,7 @@ type BackgroundTasks struct {
 	ScanTaskExport *export.ScanTaskExport
 	AuditExport    *export.AuditExport
 	ClearFile      *export.ClearFile
+	VulnExport     *export.VulnExport
 }
 
 type Config struct {
@@ -56,9 +57,9 @@ func NewBackgroundTasks(ctx context.Context, config Config) *BackgroundTasks {
 	scanConfigDal := store.NewScanConfigDao(config.Rdb)
 	vulnDal := store.NewVulnDao(config.Rdb)
 	imageSrv := component.NewConScannerSrv(dal, registryDal, dal, scanConfigDal, vulnDal, nil) // scan-report 无需上报事件中心，此处传空
-
 	imageExportSrv := export.NewImageExport(resourceDal, exportTaskDal, imageSrv, config.FileDir, config.Internal)
 	scanTaskExportSrv := export.NewScanTaskExport(imageExportSrv, exportTaskDal, dal, config.FileDir, config.Internal, imageExportSrv, config.MaxVulnCol, config.MaxImageByOneExportTask)
+	vulnExportSrv := export.NewVulnExport(exportTaskDal, config.FileDir, vulnDal, dal, resourceDal, imageExportSrv)
 	clearFile := export.NewClearFile(config.FileDir, config.Expiration, exportTaskDal)
 	naviAuditReport := export.NewAuditExport(exportTaskDal, config.Internal, config.FileDir, config.Es, "navi-audit-")
 	srv := &BackgroundTasks{
@@ -67,6 +68,7 @@ func NewBackgroundTasks(ctx context.Context, config Config) *BackgroundTasks {
 		ScanTaskExport: scanTaskExportSrv,
 		AuditExport:    naviAuditReport,
 		ClearFile:      clearFile,
+		VulnExport:     vulnExportSrv,
 	}
 	return srv
 }
@@ -78,7 +80,7 @@ func (s *BackgroundTasks) Start(ctx context.Context) {
 		defer tick.Stop()
 		for {
 			s.ScanReport.Run(ctx)
-			logging.GetLogger().Debug().Msg("finish ScanReport job")
+			logging.GetLogger().Info().Msg("finish ScanReport job")
 			<-tick.C
 		}
 	}()
@@ -89,7 +91,7 @@ func (s *BackgroundTasks) Start(ctx context.Context) {
 		defer tick.Stop()
 		for {
 			s.ImageExport.Run(ctx)
-			logging.GetLogger().Debug().Msg("finish ImageExport job")
+			logging.GetLogger().Info().Msg("finish ImageExport job")
 			<-tick.C
 		}
 	}()
@@ -99,7 +101,18 @@ func (s *BackgroundTasks) Start(ctx context.Context) {
 		defer tick.Stop()
 		for {
 			s.ScanTaskExport.Run(ctx)
-			logging.GetLogger().Debug().Msg("finish ScanTaskExport job")
+			logging.GetLogger().Info().Msg("finish ScanTaskExport job")
+			<-tick.C
+		}
+	}()
+
+	// 导出漏洞数据
+	go func() {
+		tick := time.NewTicker(time.Second * 10)
+		defer tick.Stop()
+		for {
+			s.VulnExport.Run(ctx)
+			logging.GetLogger().Debug().Msg("finish VulnExport job")
 			<-tick.C
 		}
 	}()

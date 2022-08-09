@@ -5,13 +5,14 @@ import (
 	"fmt"
 	"net/http"
 
+	"gitlab.com/security-rd/go-pkg/sdk/palace"
+
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/api"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component"
 	flag2 "gitlab.com/piccolo_su/vegeta/cmd/scanner/flag"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/service/register"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
-	"gitlab.com/security-rd/go-pkg/sdk/palace"
 )
 
 const (
@@ -83,6 +84,7 @@ func newService(config register.ScannerServiceConfig) (register.ScannerService, 
 		Handler: api.SetupGinRouter(
 			rc,
 			component.NewConScannerSrv(dal, registryDal, dal, scanConfigDal, store.GetSingeVulnDao(), &palaceHandler),
+			component.NewImageService(dal, registryDal, scanTaskDal),
 			component.NewImageRejectSrc(dal),
 			component.NewHarborSrc(dal, rc, nil), // todo: use new task interface,not redclair
 			component.NewRegistrySrv(registryDal, scanConfigDal),

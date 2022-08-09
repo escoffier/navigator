@@ -12,10 +12,10 @@ import (
 	"gitlab.com/security-rd/go-pkg/logging"
 	"gorm.io/gorm/clause"
 
+	apimodel "gitlab.com/piccolo_su/vegeta/cmd/scanner/api/model"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/task"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
-	"gitlab.com/piccolo_su/vegeta/pkg/harbor"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
@@ -26,6 +26,7 @@ type Scanner struct {
 	VulnSrv       component.VulnServiceInterface
 	RegistrySrv   component.RegistrySrvInterface
 	ScanConfigSrv component.ScanConfigSrvInterface
+	ImageSrv      component.ImageSrvInterface
 }
 
 // TickOnlineScan
@@ -164,19 +165,19 @@ func (s *Scanner) ScannedByVulnDetails(ctx *gin.Context) {
 	response.JSONOK(ctx, response.WithItem(res))
 }
 
-// ListScannedByVulnList
+// SearchVulns
 // all
 // @Summary all
 // @Title all
 // @Author guolingkai@tensorsecurity.cn
-// @Description 获取漏洞列表
+// @Description 获取在线镜像漏洞列表
 // @Tags Vuln
 // @Param search query string false "for vuln like "
 // @Param offset query int true "int"
 // @Param limit query int true "int"
 // @Success 200 {object} ApiWithItem{data=ApiItems{items=[]model.Vuln{}}}
 // @Router	/api/v1/vulns/all [get]
-func (s *Scanner) ListScannedByVulnList(ctx *gin.Context) {
+func (s *Scanner) SearchVulns(ctx *gin.Context) {
 	search := ctx.Query("search")
 	if len(search) > 64 {
 		response.JSONError(ctx, errors.New("the maximum value is exceeded"))
@@ -189,13 +190,29 @@ func (s *Scanner) ListScannedByVulnList(ctx *gin.Context) {
 	if filter.SortBy == "" {
 		filter.SortBy = consts.SortByDesc
 	}
-	vulns, cnt, err := s.VulnSrv.SearchVulns(ctx, component.SearchVulnParam{VulnKeyword: search}, filter)
+	// 默认查在线的
+	onlineIds, err := s.Srv.GetOnlineImageId(ctx)
 	if err != nil {
 		response.JSONError(ctx, err)
 		return
 	}
-	response.JSONOK(ctx, response.WithItems(vulns),
-		response.WithTotalItems(int64(cnt)),
+	if len(onlineIds) == 0 {
+		response.JSONOK(ctx, response.WithItems([]model.Vuln{}))
+		return
+	}
+
+	vulns, cnt, err := s.VulnSrv.SearchVulns(ctx, component.SearchVulnParam{ImageIds: onlineIds, VulnKeyword: search}, filter)
+	if err != nil {
+		response.JSONError(ctx, err)
+		return
+	}
+
+	res := make([]VulnResponse, len(vulns))
+	for i := range vulns {
+		res[i] = convertVuln(vulns[i])
+	}
+	response.JSONOK(ctx, response.WithItems(res),
+		response.WithTotalItems(cnt),
 		response.WithItemsPerPage(filter.Limit),
 		response.WithStartIndex(filter.Offset))
 }
@@ -210,7 +227,7 @@ func (s *Scanner) ListScannedByVulnList(ctx *gin.Context) {
 // @Success 200 {object} ApiWithItem{data=ApiItem{item=model.VulnOverview{top5=[]model.ImageRiskScore{}}}}
 // @Router	/api/v1/vulns/statistic [get]
 func (s *Scanner) ListScannedByVulnOverview(ctx *gin.Context) {
-	res, err := s.Srv.GetVulnOverView(ctx)
+	res, err := s.Srv.GetOnlineVulnOverView(ctx)
 	if err != nil {
 		response.JSONError(ctx, response.NewHttpError(http.StatusInternalServerError, err))
 		return
@@ -232,7 +249,8 @@ func (s *Scanner) GetVulnTopNImage(ctx *gin.Context) {
 	if err != nil {
 		topN = consts.DefaultVulnTopNImage
 	}
-	res, err := s.Srv.GetVulnTopNImage(ctx, topN)
+
+	res, err := s.Srv.GetOnlineVulnTopN(ctx, topN)
 	if err != nil {
 		response.JSONError(ctx, response.NewHttpError(http.StatusInternalServerError, err))
 		return
@@ -255,106 +273,39 @@ func (s *Scanner) GetImageHistogram(ctx *gin.Context) {
 	response.JSONOK(ctx, response.WithItem(res), response.WithExportFileStatus(0))
 }
 
-// GetScanStatus
-// @Summary scanStatus
-// @Title scanStatus
-// @Author guolingkai@tensorsecurity.cn
-// @Description 获取镜像列表的扫描状态
-// @Tags scan image
-// @Success 200 {object} ApiWithItem{data=ApiItem{item=ScanStatusRes{harborStatus=harbor.ScanAllStatus{metrics=harbor.ScanAllStatusMetrics}}}}
-// @Router	/api/v1/scan/harbor/GetScanStatus [get]
-func (s *Scanner) GetScanStatus(ctx *gin.Context) {
-	fromType, err := strconv.ParseInt(ctx.Query("from_type"), 10, 64)
-	if err != nil {
-		fromType = model.UserRegistry
-	}
-	type respT struct {
-		ScanAllStatus harbor.ScanAllStatus `json:"harborStatus"`
-		IsAborted     bool                 `json:"isAborted"` // if true, we are currently in the process of aborting harbor scan all job. Abort button should be disabled.
-	}
-	time.Sleep(1 * time.Second)
-	status := s.Srv.GetScanAllStatus(ctx, fromType)
-	resp := respT{ScanAllStatus: status, IsAborted: false}
-	response.JSONOK(ctx, response.WithItem(resp))
-}
-
-// ScanAllNow
-// @Summary ScanAllNow
-// @Title ScanAllNow
+// CreateScanImageTask
+// @Summary CreateScanImageTask
+// @Title CreateScanImageTask
 // @Author guolingkai@tensorsecurity.cn
 // @Description 扫描全部列表中的镜像
 // @Tags scan image
 // @Success 200 {object} ApiWithItem{data{}}
-// @Router	/api/v1/scan/harbor/scanAllNow [post]
-func (s *Scanner) ScanAllNow(ctx *gin.Context) {
-	// nolint
-	type tem struct {
-		SearchWord       string   `json:"search"`
-		FromType         int64    `json:"from_type"`
-		Kind             string   `json:"kind"`
-		Online           string   `json:"online"`
-		ImageType        string   `json:"image_type"`
-		ImageID          int64    `json:"image_id"`
-		ImageIds         []int64  `json:"image_ids"`
-		Library          string   `json:"library"`
-		ScanStatus       []int64  `json:"scan_status"`
-		Trusted          string   `json:"trusted"`
-		HasFixedVulu     string   `json:"has_fixed_vulu"`
-		IsReinforce      string   `json:"is_reinforce"`
-		NodeHostname     string   `json:"node_hostname"`
-		SpecialImageType string   `json:"special_image_type"`
-		JustReturnImage  bool     `json:"just_return_image"`
-		Scope            int      `json:"scope"`
-		RegistryIds      []int64  `json:"registry_ids"`
-		TriggerType      int      `json:"trigger_type"`
-		StrategyID       int64    `json:"strategy_id"`
-		Operator         string   `json:"operator"`
-		UUIDs            []uint32 `json:"uuids"`
-	}
+// @Router	/api/v1/tasks/task [post]
+func (s *Scanner) CreateScanImageTask(ctx *gin.Context) {
+	body := model.ImageListParam{}
 
-	t := new(tem)
-	if err := ctx.BindJSON(t); err != nil {
-		response.JSONError(ctx, err)
+	if err := ctx.BindJSON(&body); err != nil {
+		response.JSONError(ctx, response.NewHttpError(http.StatusBadRequest, err))
 		return
 	}
 
-	search := component.SearchImageWithScanParam{
-		SearchWord:       t.SearchWord,
-		FromType:         t.FromType,
-		Kind:             t.Kind,
-		Online:           t.Online,
-		ImageType:        t.ImageType,
-		ImageID:          t.ImageID,
-		ImageIds:         t.ImageIds,
-		Library:          t.Library,
-		ScanStatus:       t.ScanStatus,
-		Trusted:          t.Trusted,
-		RegistryIds:      t.RegistryIds,
-		HasFixedVulu:     t.HasFixedVulu,
-		IsReinforce:      t.IsReinforce,
-		NodeHostname:     t.NodeHostname,
-		SpecialImageType: t.SpecialImageType,
-		JustReturnImage:  true,
-		UUIDs:            t.UUIDs,
-	}
-
-	scanInfo := task.UpdateTaskInfo{
-		Scope:       t.Scope,
-		TriggerType: t.TriggerType,
-		StrategyID:  t.StrategyID,
-		Operator:    t.Operator,
+	taskInfo := task.UpdateTaskInfo{
+		Scope:        consts.FullScan,
+		TriggerType:  consts.ManualTrigger,
+		StrategyID:   body.ImageScanTaskInfo.StrategyID,
+		StrategyName: body.ImageScanTaskInfo.StrategyName,
+		Operator:     body.ImageScanTaskInfo.Operator,
 	}
 
 	go func() {
-		if err := s.Srv.ScanAllNow(ctx, scanInfo, search); err != nil {
+		if err := s.ImageSrv.CreateScanImageTask(ctx, body, taskInfo); err != nil {
 			logging.Get().Err(err).Msg("scan all error")
 		}
 	}()
 
 	response.JSONOK(ctx, response.WithTarget(&response.TargetRef{
-		Name: "Scan All Images",
-		ID:   "",
-		Link: "api/v2/containerSec/scanner/harbor/scanAllNow",
+		Name: "CreateScanImageTask",
+		Link: "api/v2/containerSec/scanner/tasks/CreateScanImageTask",
 	}))
 }
 
@@ -393,6 +344,43 @@ func (s *Scanner) StartScanOne(ctx *gin.Context) {
 		return
 	}
 	response.JSONOK(ctx, response.WithItem(resp{Status: "OK"}))
+}
+
+func (s *Scanner) SearchImageWithScan(ctx *gin.Context) {
+	body := model.ImageListParam{}
+	if err := ctx.BindJSON(&body); err != nil {
+		response.JSONError(ctx, response.NewHttpError(http.StatusBadRequest, err))
+		return
+	}
+	filter := model.GetFilterWithDefaultValue(ctx)
+
+	images, cnt, err := s.ImageSrv.ListImageWithScanInfo(ctx, body, filter)
+	if err != nil {
+		response.JSONError(ctx, err)
+		return
+	}
+
+	response.JSONOK(ctx, response.WithItems(images),
+		response.WithTotalItems(cnt),
+		response.WithItemsPerPage(filter.Limit),
+		response.WithStartIndex(filter.Offset))
+}
+
+func (s *Scanner) GetRegistryProject(ctx *gin.Context) {
+	regID, _ := strconv.ParseInt(ctx.Query("regID"), 10, 64)
+	projectKeyword := ctx.Query("projectKeyword")
+
+	repos, err := s.ImageSrv.GetRegistryProject(ctx, component.GetRegistryProjectParam{
+		RegID:          regID,
+		ProjectKeyword: projectKeyword,
+	})
+	if err != nil {
+		response.JSONError(ctx, err)
+		return
+	}
+
+	response.JSONOK(ctx, response.WithItems(repos),
+		response.WithTotalItems(int64(len(repos))))
 }
 
 // ScanOneForCICDRequest
@@ -528,7 +516,7 @@ func (s *Scanner) GetScanOneStatus(ctx *gin.Context) {
 		response.JSONError(ctx, errors.New("no image id"))
 		return
 	}
-	res, err := s.Srv.GetScanOneStatus(ctx, imgID)
+	res, err := s.ImageSrv.GetScanOneStatus(ctx, imgID)
 	if err != nil {
 		response.JSONError(ctx, err)
 		return
@@ -611,14 +599,6 @@ func (s *Scanner) ListScannedByImageList(ctx *gin.Context) {
 	isReinforce := ctx.Query("is_reinforce")
 	nodeHostname := ctx.Query("node_hostname")
 
-	var projects []string
-	projectsStr := ctx.Query("project")
-	if projectsStr != "" {
-		projects = strings.Split(projectsStr, ",")
-	}
-
-	specialImageType := ctx.Query("special_image_type")
-
 	fromType, err := strconv.ParseInt(ctx.Query("from_type"), 10, 64)
 	if err != nil || fromType == 0 {
 		fromType = model.UserRegistry
@@ -631,20 +611,18 @@ func (s *Scanner) ListScannedByImageList(ctx *gin.Context) {
 	filter.SortBy = "asc"
 
 	param := component.SearchImageWithScanParam{
-		Projects:         projects,
-		SearchWord:       search,
-		Kind:             kind,
-		Online:           online,
-		Library:          library,
-		ImageType:        imageType,
-		FromType:         fromType,
-		ScanStatus:       scanStatus,
-		RegistryIds:      registryIds,
-		Trusted:          trusted,
-		HasFixedVulu:     hasFixedVulu,
-		IsReinforce:      isReinforce,
-		NodeHostname:     nodeHostname,
-		SpecialImageType: specialImageType,
+		SearchWord:   search,
+		Kind:         kind,
+		Online:       online,
+		Library:      library,
+		ImageType:    imageType,
+		FromType:     fromType,
+		ScanStatus:   scanStatus,
+		RegistryIds:  registryIds,
+		Trusted:      trusted,
+		HasFixedVulu: hasFixedVulu,
+		IsReinforce:  isReinforce,
+		NodeHostname: nodeHostname,
 	}
 	uuids := ctx.Query("uuids")
 	if uuids != "" {
@@ -887,10 +865,14 @@ func (s *Scanner) ImgLayerInfo(ctx *gin.Context) {
 	response.JSONOK(ctx, response.WithItem(*info))
 }
 
-func NewScannerAPISrv(srv component.ScannerSrv, vulnSrv component.VulnServiceInterface) *Scanner {
+func NewScannerAPISrv(
+	srv component.ScannerSrv,
+	vulnSrv component.VulnServiceInterface,
+	imageSrv component.ImageSrvInterface) *Scanner {
 	return &Scanner{
-		Srv:     srv,
-		VulnSrv: vulnSrv,
+		Srv:      srv,
+		VulnSrv:  vulnSrv,
+		ImageSrv: imageSrv,
 	}
 }
 
@@ -908,7 +890,7 @@ func (s *Scanner) ListBaseImage(ctx *gin.Context) {
 	filter.SortFiled = "full_repo_name"
 	filter.SortBy = "asc"
 	search := ctx.Query("search")
-	images, cnt, err := s.Srv.SearchImageWithScan(ctx, component.SearchImageWithScanParam{ImageType: consts.BaseImageTypeString, SearchWord: search, FromType: model.UserRegistry}, filter)
+	images, cnt, err := s.Srv.SearchImageWithScan(ctx, component.SearchImageWithScanParam{ImageType: model.BaseImageTypeString, SearchWord: search, FromType: model.UserRegistry}, filter)
 	if err != nil {
 		response.JSONError(ctx, err)
 		return
@@ -1078,7 +1060,7 @@ func (s *Scanner) CreateBaseImage(ctx *gin.Context) {
 		return
 	}
 
-	if err := s.Srv.UpdateImageType(ctx, body.ImageIds, consts.BaseImageType); err != nil {
+	if err := s.Srv.UpdateImageType(ctx, body.ImageIds, model.BaseImageType); err != nil {
 		response.JSONError(ctx, err)
 		return
 	}
@@ -1109,7 +1091,7 @@ func (s *Scanner) DeleteBaseImage(ctx *gin.Context) {
 		response.JSONError(ctx, err)
 		return
 	}
-	if err := s.Srv.UpdateImageType(ctx, []int64{imageID}, consts.AppImageType); err != nil {
+	if err := s.Srv.UpdateImageType(ctx, []int64{imageID}, model.AppImageType); err != nil {
 		response.JSONError(ctx, err)
 		return
 	}
@@ -1200,8 +1182,36 @@ func (s *Scanner) GetScanSubTaskList(ctx *gin.Context) {
 		response.JSONError(ctx, errors.New("获取扫描子任务记录失败"))
 		return
 	}
+	res := make([]apimodel.SubTask, 0)
+	for i := range data {
+		sub := apimodel.SubTask{
+			ID:         data[i].ID,
+			TaskID:     data[i].TaskID,
+			ImageID:    data[i].ImageID,
+			Result:     data[i].Result,
+			ErrMsg:     data[i].ErrMsg,
+			ErrNo:      data[i].ErrNo,
+			ErrMsgEnu:  data[i].ErrMsgEnu,
+			CreatedAt:  data[i].CreatedAt,
+			StartedAt:  data[i].StartedAt,
+			UpdatedAt:  data[i].UpdatedAt,
+			FinishedAt: data[i].FinishedAt,
+			HeartBeat:  data[i].HeartBeat,
+			RetryCount: data[i].RetryCount,
+			// 这里为了兼容 subtask表的status是从0开始，ivan_scanner_image_list表中的flag是从11位开始
+			Status:       model.GetSubTaskScanStatusString(data[i].Status + 11),
+			FullRepoName: data[i].FullRepoName,
+			Tag:          data[i].Tag,
+			Library:      data[i].Library,
+		}
+		res = append(res, sub)
+	}
 
-	response.JSONOK(ctx, response.WithTotalItems(count), response.WithItems(data))
+	response.JSONOK(ctx,
+		response.WithTotalItems(count),
+		response.WithItems(res),
+		response.WithStartIndex(filter.Offset),
+		response.WithItemsPerPage(filter.Limit))
 }
 
 // UpdateTaskStatus 修改某个任务的状态

@@ -97,7 +97,7 @@ func (v *VulnServer) GetVulnTopNImage(ctx *gin.Context) {
 		ImageID int64   `json:"imageID"`
 	}
 
-	res, err := v.imageSrv.GetVulnTopNImage(ctx, topN)
+	res, err := v.imageSrv.GetOnlineVulnTopN(ctx, topN)
 	if err != nil {
 		response.JSONError(ctx, response.NewHttpError(http.StatusInternalServerError, err))
 		return
@@ -120,7 +120,7 @@ func (v *VulnServer) Statistic(ctx *gin.Context) {
 		Severity  model.SeverityCount `json:"severity"`
 	}
 
-	res, err := v.imageSrv.GetVulnOverView(ctx)
+	res, err := v.imageSrv.GetOnlineVulnOverView(ctx)
 	if err != nil {
 		response.JSONError(ctx, response.NewHttpError(http.StatusInternalServerError, err))
 		return
