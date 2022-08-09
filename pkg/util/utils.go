@@ -3,16 +3,19 @@ package util
 import (
 	"errors"
 	"fmt"
-	"github.com/google/go-containerregistry/pkg/name"
 	"io"
 	"math"
 	"net/http"
 	"os"
 	"reflect"
+	"strconv"
 	"strings"
+
+	"github.com/google/go-containerregistry/pkg/name"
 
 	"github.com/golang/gddo/httputil/header"
 	json "github.com/json-iterator/go"
+
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 )
 
@@ -218,4 +221,16 @@ func GetImageUrl(image string) (string, error) {
 	}
 	url := ref.Context().RegistryStr()
 	return url, nil
+}
+
+func JoinInt64Slice(data []int64, join string) string {
+	if len(data) == 0 {
+		return ""
+	}
+
+	res := make([]string, len(data))
+	for i := range data {
+		res[i] = strconv.Itoa(int(data[i]))
+	}
+	return strings.Join(res, join)
 }

@@ -102,7 +102,7 @@ func (dal *ExportTaskDao) SearchExportTensorTask(ctx context.Context, parma Sear
 }
 
 type ResourceDal interface {
-	SearchResources(ctx context.Context, imageUUID uint32) ([]TensorResources, error)
+	SearchResources(ctx context.Context, imageUUID []uint32) ([]TensorResources, error)
 }
 
 type ResourceDao struct {
@@ -114,6 +114,7 @@ func NewResourceDao(db *databases.RDBInstance) *ResourceDao {
 }
 
 type TensorResources struct {
+	ImageUUID    uint32
 	Name         string
 	ResourceName string
 	Namespace    string
@@ -121,11 +122,11 @@ type TensorResources struct {
 	ClusterName  string
 }
 
-func (dal *ResourceDao) SearchResources(ctx context.Context, imageUUID uint32) ([]TensorResources, error) {
+func (dal *ResourceDao) SearchResources(ctx context.Context, imageUUID []uint32) ([]TensorResources, error) {
 	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*10)
 	defer cancelFunc()
 	db := dal.db.Get().WithContext(ctx)
-	db = db.Model(new(model.TensorContainer)).Where("image_uuid = ?", imageUUID)
+	db = db.Model(new(model.TensorContainer)).Where("image_uuid IN ?", imageUUID)
 	res := make([]model.TensorContainer, 0)
 	if err := db.Find(&res).Error; err != nil {
 		return nil, err
@@ -141,6 +142,7 @@ func (dal *ResourceDao) SearchResources(ctx context.Context, imageUUID uint32) (
 	ans := make([]TensorResources, len(res))
 	for i := range ans {
 		ans[i] = TensorResources{
+			ImageUUID:    res[i].ImageUUID,
 			Name:         res[i].Name,
 			ResourceName: res[i].ResourceName,
 			Namespace:    res[i].Namespace,

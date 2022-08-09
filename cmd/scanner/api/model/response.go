@@ -1,6 +1,8 @@
 package apimodel
 
 import (
+	"time"
+
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 )
 
@@ -101,4 +103,24 @@ type ScanStrategy struct {
 
 	NonComplianceSoftware []model.Software `json:"nonComplianceSoftware"`
 	NotAllowedLicense     []string         `json:"notAllowedLicense"`
+}
+
+type SubTask struct {
+	ID           int64      `json:"id"`
+	TaskID       int64      `json:"task_id"`
+	ImageID      int64      `json:"image_id"` // image id in db
+	Result       uint8      `json:"result"`   // deprecated,1:failed, 2:success
+	ErrMsg       string     `json:"err_msg"`
+	ErrNo        int        `json:"err_no"`
+	ErrMsgEnu    string     `json:"err_msg_enu"` // 错误信息的枚举值，用于前端展示
+	CreatedAt    time.Time  `json:"created_at"`  // subtask create time
+	StartedAt    *time.Time `json:"started_at"`
+	UpdatedAt    time.Time  `json:"updated_at"`
+	FinishedAt   *time.Time `json:"finished_at"`
+	HeartBeat    *time.Time `json:"heart_beat"`
+	RetryCount   int        `json:"retry_count"`
+	Status       string     `json:"status"`         // 1:pending,2:inprogress,3:scan success,4:scan failed
+	FullRepoName string     `json:"full_repo_name"` // eg:library/redis,may not use,could fetch by image list table
+	Tag          string     `json:"tag"`            // eg:1.10, may not use
+	Library      string     `json:"library"`        // registry name
 }

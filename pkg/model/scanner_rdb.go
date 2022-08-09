@@ -6,6 +6,7 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 	"unicode/utf8"
 
@@ -76,11 +77,84 @@ type Vuln struct {
 	Class        string        `gorm:"column:class" json:"class"`       // 代表是系统包还是语言包 os-pkgs
 	Language     string        `gorm:"column:language" json:"language"` // 把编程语言入库用于搜索 统一存小写，便于搜索
 	Frame        string        `gorm:"column:frame" json:"frame"`       // 开发框架筛选
+
+	Attr map[string]string `gorm:"-" json:"attr"` // 漏洞详情中雷达图的数据
+}
+
+var vulnAttr map[string]map[string]string
+
+var defaultAttr map[string]string
+
+func init() {
+	var once sync.Once
+	once.Do(func() {
+		vulnAttr = make(map[string]map[string]string)
+		// 攻击位置难易
+		vulnAttr["AV"] = map[string]string{
+			"N": "网络访问",
+			"L": "本地访问",
+			"P": "物理访问",
+			"":  "相邻网络访问",
+		}
+		// 是否自动化触发
+		vulnAttr["UI"] = map[string]string{
+			"N": "自动",
+			"R": "非自动",
+		}
+		// 所需权限级别 and 攻击复杂度
+		vulnAttr["AC"] = map[string]string{
+			"N": "无",
+			"L": "低",
+			"H": "高",
+		}
+		// 信息泄露风险
+		vulnAttr["C"] = map[string]string{
+			"N": "无",
+			"L": "低",
+			"H": "高",
+		}
+		// 信息/系统篡改风险
+		vulnAttr["A"] = map[string]string{
+			"N": "无",
+			"L": "低",
+			"H": "高",
+		}
+		//  权限范围扩大
+		vulnAttr["S"] = map[string]string{
+			"C": "扩大",
+			"U": "不变",
+		}
+		// 造成 DoS 风险
+		vulnAttr["PR"] = map[string]string{
+			"N": "无",
+			"L": "低",
+			"H": "高",
+		}
+		defaultAttr = map[string]string{
+			"AV": "相邻网络访问", // 攻击位置难易
+			"UI": "非自动",    // 是否自动化触发
+			"AC": "无",      // 所需权限级别, 攻击复杂度 都是这个字段
+			"C":  "无",      // 信息泄露风险
+			"A":  "无",      // 信息/系统篡改风险
+			"PR": "无",      // 造成 DoS 风险
+			"S":  "不变",     // 权限范围扩大
+		}
+	})
 }
 
 func (Vuln) TableName() string {
 	return "ivan_scanner_vulns"
 }
+
+func (vn *Vuln) SetDefaultAttr() {
+	if vn.Attr == nil {
+		vn.Attr = make(map[string]string)
+	}
+	for k, v := range defaultAttr {
+		vn.Attr[k] = v
+	}
+}
+
 func (vn *Vuln) Serialize() {
 	if vn.Metadata != nil {
 		sort.Sort(CnvdMetadatas(vn.Metadata.CNVDs))
@@ -132,11 +206,21 @@ func (vn *Vuln) Deserialize() {
 		}
 		vn.Link = link
 	}
+
+	vn.SetDefaultAttr() // 先设置成默认值，接下来更新
+
+	if vn.Metadata != nil {
+		split := strings.Split(vn.Metadata.CVSS.CVSSv3Vector, "/")
+		for i := range split {
+			attr := strings.Split(split[i], ":")
+			if len(attr) >= 2 && vulnAttr[attr[0]] != nil {
+				vn.Attr[attr[0]] = vulnAttr[attr[0]][attr[1]]
+			}
+		}
+	}
 }
 
 func (vn *Vuln) GenCheckSum() uint64 {
-	vn.Serialize()
-	vn.Deserialize()
 	createdAt, updatedAt, preCheck := vn.CreatedAt, vn.UpdatedAt, vn.CheckSum
 	vn.CreatedAt = time.Time{}
 	vn.UpdatedAt = time.Time{}
@@ -312,7 +396,7 @@ type Registry struct {
 	AuthStr        string `gorm:"-" json:"auth_str"`                                  // 用户名和密码加密后的数据，不存入数据库中
 	UseType        int    `gorm:"column:use_type" json:"use_type"`                    // 1-用户仓库,2-buf仓库
 	SyncInterval   int64  `gorm:"column:sync_interval" json:"sync_interval"`          // 单位：分钟
-	LastSyncAt     int64  `gorm:"column:last_sync_at; default:0" json:"last_sync_at"` // 最后一次同步时间
+	LastSyncAt     int64  `gorm:"column:last_sync_at; default:0" json:"last_sync_at"` // 最后一次同步时间(单位：秒)
 	AccessKey      string `gorm:"access_key" json:"access_key"`                       // 阿里云仓库的AccessKey
 	AccessSecret   string `gorm:"access_secret" json:"access_secret"`                 // 阿里云仓库的AccessSecret
 	InstanceID     string `gorm:"instance_id" json:"instance_id"`                     // 阿里云仓库企业版实例ID
@@ -600,7 +684,7 @@ type RejectRecord struct {
 func (rr *RejectRecord) Deserialize() *RejectRecord {
 	re := make([]int64, 0)
 	for i := range GetRejectReason(LangZh) {
-		if ExistFlag(rr.ReasonFlag, i) {
+		if ExistFlag(rr.ReasonFlag, uint64(i)) {
 			re = append(re, i)
 		}
 	}
@@ -723,7 +807,6 @@ type Task struct {
 	ScannerId           string     `gorm:"type:varchar(255);column:scanner_id" json:"scanner_id"` // scanner uuid
 	ScanStrategyName    string     `gorm:"-" json:"scan_strategy_name"`
 	SuccessSubTaskCount int        `gorm:"-" json:"success_sub_task_count"` // 成功的子任务数量
-
 }
 
 func (Task) TableName() string {

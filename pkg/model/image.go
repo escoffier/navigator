@@ -17,15 +17,27 @@ func GetImageFlag() []int64 {
 	return flgs
 }
 
-func GetScanFlag() []int64 {
-	flgs := []int64{FlagHasVuln, FlagHasMalicious, FlagHasSensitive,
+func GetScanFlag() []uint64 {
+	flgs := []uint64{FlagHasVuln, FlagHasMalicious, FlagHasSensitive,
 		FlagHasWebshell, FlagHasSoftware, FlagHasExceptEnv, FlagHasExceptLicense, FlagHasFixedVuln,
 	}
 	return flgs
 }
 
-func GetAllFlag() []int64 {
-	flags := []int64{FlagHasVuln, FlagHasMalicious, FlagHasSensitive,
+func GetScanStatusFlag() []uint64 {
+	flags := []uint64{
+		FlagImageScanUnknown,
+		FlagImageScanPending,
+		FlagImageScanInProgress,
+		FlagImageScanSuccess,
+		FlagImageScanFailed,
+		FlagImageNotScan,
+	}
+	return flags
+}
+
+func GetAllFlag() []uint64 {
+	flags := []uint64{FlagHasVuln, FlagHasMalicious, FlagHasSensitive,
 		FlagHasWebshell, FlagHasSoftware, FlagHasExceptEnv,
 		FlagPrivilegedBoot, FlagHasExceptLicense, FlagHasFixedVuln,
 		FlagReinforced, FlagBaseImage}
@@ -45,31 +57,58 @@ const (
 	FlagReinforced       = 9 // 已加固
 	FlagBaseImage        = 10
 
+	// 扫描状态的flag
+	FlagImageScanUnknown    = 11
+	FlagImageScanPending    = 12
+	FlagImageScanInProgress = 13
+	FlagImageScanSuccess    = 14
+	FlagImageScanFailed     = 15
+	FlagImageNotScan        = 16
+
 	JobNotScan string = "not_scan"
-	// JobPending ...
-	JobPending string = "pending"
-	// JobRunning ...
-	JobRunning string = "running"
-	// JobError ...
-	JobError string = "error"
-	// JobStopped ...
-	JobStopped string = "stopped"
-	// JobFinished ...
-	JobFinished string = "finished"
-	// JobCanceled ...
-	JobCanceled string = "canceled"
-	// JobRetrying indicate the job needs to be retried, it will be scheduled to the end of job queue by statemachine after an interval.
-	JobRetrying string = "retrying"
-	// JobContinue is the status returned by statehandler to tell statemachine to move to next possible state based on trasition table.
-	JobContinue string = "_continue"
-	// JobScheduled ...
-	JobScheduled string = "scheduled"
-
-	SCANSTAUTS = "scan_status"
-
-	VirusStatusDoing string = "doing"
-	VirusStatusWait  string = "wait"
 )
+
+const (
+	ImageFromRegistry = "registry"
+	ImageFromNode     = "node"
+
+	BaseImageType            = 1
+	AppImageType             = 0
+	BaseImageTypeString      = "base"
+	AppImageTypeString       = "app"
+	AndString                = "and"
+	OrString                 = "or"
+	TrueString               = "true"
+	FalseString              = "false"
+	TrustedString            = "trusted"
+	UnTrustedString          = "untrusted"
+	HasFixedVulnString       = "hasFixedVuln"
+	ReinforcedString         = "reinforced"
+	MaxWebshellAndVirusScore = 40 // 评分细则规定webshell和病毒都算恶意文件加起来满分40
+)
+
+func GetSecurityIssueLabel(flag int64) string {
+	switch flag {
+	case FlagHasVuln:
+		return "漏洞"
+	case FlagHasSensitive:
+		return "敏感文件"
+	case FlagHasWebshell:
+		return "WebShell"
+	case FlagHasSoftware:
+		return "不合规软件"
+	case FlagHasExceptEnv:
+		return "异常环境变量"
+	case FlagPrivilegedBoot:
+		return "特权启动"
+	case FlagHasExceptLicense:
+		return "不允许的开源许可"
+	case FlagHasMalicious:
+		return "恶意文件"
+	default:
+		return ""
+	}
+}
 
 type ImageInfo struct {
 	ID           int64  `json:"id"`
@@ -211,18 +250,17 @@ type SafeOver struct {
 
 // ImageList 镜像信息表
 type ImageList struct {
-	ID           int64          `gorm:"primary_key;AUTO_INCREMENT" json:"id" `
-	CreatedAt    time.Time      `json:"created_at"`
-	UpdatedAt    time.Time      `json:"updated_at"`
-	FullRepoName string         `gorm:"type:varchar(255)"  json:"full_repo_name"`
-	Tags         string         `gorm:"type:varchar(255)" json:"tags"`
-	Digest       string         `gorm:"type:varchar(255);index:idx_image_digest" json:"digest"`
-	OS           string         `gorm:"type:varchar(255);column:os" json:"os"`
-	Size         int            `gorm:"column:size" json:"size"`
-	Library      string         `gorm:"type:varchar(255);column:library" json:"library"`
-	ImageUUID    uint32         `gorm:"column:image_uuid" json:"-"`
-	Questions    []QuestionInfo `gorm:"-" json:"questions"`
-	// CompleteTime      string                 `gorm:"type:varchar(255);column:complete_time" json:"complete_time"` // 无用字段
+	ID                int64                  `gorm:"primary_key;AUTO_INCREMENT" json:"id" `
+	CreatedAt         time.Time              `json:"created_at"`
+	UpdatedAt         time.Time              `json:"updated_at"`
+	FullRepoName      string                 `gorm:"type:varchar(255)"  json:"full_repo_name"`
+	Tags              string                 `gorm:"type:varchar(255)" json:"tags"`
+	Digest            string                 `gorm:"type:varchar(255);index:idx_image_digest" json:"digest"`
+	OS                string                 `gorm:"type:varchar(255);column:os" json:"os"`
+	Size              int                    `gorm:"column:size" json:"size"`
+	Library           string                 `gorm:"type:varchar(255);column:library" json:"library"`
+	ImageUUID         uint32                 `gorm:"column:image_uuid" json:"-"`
+	Questions         []QuestionInfo         `gorm:"-" json:"questions"`
 	ImageScanVuln     ImageScanSummaryResult `gorm:"-" json:"image_scan_vuln"`
 	ScanStatus        int                    `gorm:"-" json:"scan_status"`
 	ImageScanVirus    []VirusFileInfo        `gorm:"-" json:"image_scan_virus"`
@@ -260,71 +298,63 @@ type ImageList struct {
 	UniqueImage    uint64 `gorm:"column:unique_image" json:"unique_image,string"` // 由fullreponame+tags+registryId+fromType生成uuid，唯一确定一定镜像，优化查询
 	Flag           uint64 `gorm:"column:flag" json:"flag:string"`
 	LastFullSyncAt int64  `gorm:"column:last_full_sync_at" json:"last_full_sync_at"`
+
+	Online     bool      `gorm:"-" json:"online"`
+	LastScanAt time.Time `gorm:"-" json:"last_scan_at"`
+	Trusted    bool      `gorm:"-"  json:"trusted"`
 }
 
-func SetFlagBaseImage(pre uint64) uint64 {
-	var flag uint64
-	var exit bool
-	for _, i := range GetImageFlag() {
-		if i == FlagBaseImage && ExistFlag(pre, i) {
-			exit = true
-		}
-		if ExistFlag(pre, i) {
-			flag = 1<<i + flag
-		}
+func (im *ImageList) FromTypeToString() string {
+	switch im.FromType {
+	case UserRegistry:
+		return UserRegistryString
+	case NodeBuffRegistry:
+		return NodeBuffRegistryString
+	case CICDImageRegistry:
+		return CICDImageRegistryString
 	}
-	if !exit {
-		flag = 1<<FlagBaseImage + flag
-	}
-
-	return flag
+	return ""
 }
 
-func SetFlagAppImage(pre uint64) uint64 {
-	var flag uint64
-	for _, i := range GetImageFlag() {
-		if i == FlagBaseImage {
-			continue
-		}
-		if ExistFlag(pre, i) {
-			flag = 1<<i + flag
-		}
+func (im *ImageList) SetScanStatusFlag(status uint64) {
+	if status < FlagImageScanUnknown || status > FlagImageNotScan {
+		return
 	}
-	return flag
+	scanStatusFlag := GetScanStatusFlag()
+
+	flag := im.Flag
+	for i := range scanStatusFlag {
+		flag = util.SetBit0(flag, scanStatusFlag[i])
+	}
+
+	// 然后设置成1
+	flag = util.SetBit1(flag, status)
+	im.Flag = flag
 }
 
-// func (im *ImageList) ToUpdater() map[string]interface{} {
-// 	im.Serialize()
-// 	updater := map[string]interface{}{
-// 		"full_repo_name":   im.FullRepoName,
-// 		"tags":             im.Tags,
-// 		"digest":           im.Digest,
-// 		"os":               im.OS,
-// 		"size":             im.Size,
-// 		"library":          im.Library,
-// 		"image_uuid":       im.ImageUUID,
-// 		"complete_time":    im.CompleteTime,
-// 		"status":           im.Status,
-// 		"registry_id":      im.RegistryID,
-// 		"first_push_time":  im.FirstPushTime,
-// 		"last_push_time":   im.LastPushTime,
-// 		"last_pull_time":   im.LastPullTime,
-// 		"manifest_v1_json": im.ManifestV1JSON,
-// 		"manifest_v2_json": im.ManifestV2JSON,
-// 		"config_json":      im.ConfigJSON,
-// 		"from_type":        im.FromType,
-// 		"layers":           im.Layers,
-// 		"node_ip":          im.NodeIP,
-// 		"node_hostname":    im.NodeHostname,
-// 		"image_type":       im.ImageType,
-// 		"project":          im.Project,
-// 		"repo_name":        im.RepoName,
-// 		"privileged_boot":  im.PrivilegedBoot,
-// 		"is_reinforce":     im.IsReinforce,
-// 		"check_sum":        im.CheckSum,
-// 	}
-// 	return updater
-// }
+func (im *ImageList) IsItNotScanned() bool {
+	scanStatusFlag := GetScanStatusFlag()
+	flag := im.Flag
+
+	for i := range scanStatusFlag {
+		if flag&(1<<scanStatusFlag[i]) == 1 {
+			return true
+		}
+	}
+	return false
+}
+
+func (im *ImageList) SetFlagBaseImage() {
+	flag := im.Flag
+	flag = util.SetBit1(flag, FlagBaseImage)
+	im.Flag = flag
+}
+
+func (im *ImageList) SetFlagAppImage() {
+	flag := im.Flag
+	flag = util.SetBit0(flag, FlagBaseImage)
+	im.Flag = flag
+}
 
 func (im *ImageList) Serialize() {
 	if im.ManifestV1 != nil {
@@ -455,33 +485,28 @@ func (im *ImageList) GetLayerString() string {
 	return strings.Join(lays, "|")
 }
 
-func (im *ImageList) GenImageFlag(preFlag uint64) uint64 {
-	boot, rein := false, false
-	var flag uint64
+func (im *ImageList) GenImageFlag() {
+	flag := im.Flag
+	rein, boot := false, false
+
 	if im.ConfigFile != nil {
 		if im.ConfigFile.Config.User == "" || strings.Contains(im.ConfigFile.Config.User, "root") {
+			flag = util.SetBit1(flag, FlagPrivilegedBoot)
 			boot = true
 		}
 		for _, v := range im.ConfigFile.History {
 			if strings.Contains(v.CreatedBy, "/tmp/file-checker") {
+				flag = util.SetBit1(flag, FlagReinforced)
 				rein = true
+				break
 			}
 		}
 	}
-	if boot || im.PrivilegedBoot == consts.PrivilegedBootImage {
-		flag = 1<<FlagPrivilegedBoot + flag
+	if !rein {
+		flag = util.SetBit0(flag, FlagReinforced)
 	}
-
-	if rein || im.IsReinforce == consts.IsReinforceImage {
-		flag = 1<<FlagReinforced + flag
+	if !boot {
+		flag = util.SetBit0(flag, FlagPrivilegedBoot)
 	}
-	if ExistFlag(preFlag, FlagBaseImage) || im.ImageType == consts.BaseImageType {
-		flag = 1<<FlagBaseImage + flag
-	}
-	for _, pre := range GetScanFlag() {
-		if ExistFlag(preFlag, pre) {
-			flag = 1<<pre + flag
-		}
-	}
-	return flag
+	im.Flag = flag
 }

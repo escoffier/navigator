@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/pkg/errors"
@@ -23,6 +24,7 @@ import (
 
 type ScannerDalInterface interface {
 	SearchImage(ctx context.Context, param SearchImageParam, filter *model.Filter) ([]model.ImageList, int64, error)
+	UpdateImageScanStatus(ctx context.Context, imageID int64, status uint64) error
 	DeleteImage(ctx context.Context, imageIds []int64) error
 	UpdateImage(ctx context.Context, where string, updater map[string]interface{}, image *model.ImageList) error
 	CreateImage(ctx context.Context, data *model.ImageList) (*model.ImageList, error)
@@ -36,6 +38,7 @@ type ScannerDalInterface interface {
 	InsertAdapterImageList(ctx context.Context, im model.ImageList) (int64, error)
 	SearchRegistry(ctx context.Context, param SearchRegistryParam, filter *model.Filter) ([]model.Registry, int64, error)
 	GroupImageFlags(ctx context.Context, param GetImageOverViewParam) ([]model.ImageFlagGroup, error)
+	GroupRegistryProject(ctx context.Context, param GroupRegistryRepoParam) ([]RegProject, error)
 
 	SearchRejectVuln(ctx context.Context, param SearchRejectRejectVulnParam) ([]model.RejectVuln, error)
 	CreateRejectRecord(ctx context.Context, data model.RejectRecord) (*model.RejectRecord, error)
@@ -46,9 +49,7 @@ type ScannerDalInterface interface {
 	GetTaskFromImageList(ctx context.Context, imgID int64, fromURL string, auth string) (model.ScanTask, model.VirusScanTask, error)
 	SearchScanAllStatus(ctx context.Context, fromType int64) harbor.ScanAllStatus
 
-	GroupVulnSeverity(ctx context.Context) ([]model.SeverityGroup, error)
-	GroupVulnSeverityByImageID(ctx context.Context, imageID int64) ([]model.SeverityGroup, error)
-	GetVulnTopNImage(ctx context.Context, topN int64) ([]model.ImageRiskScore, error)
+	GroupVulnSeverity(ctx context.Context, param GroupVulnSeverityParam) ([]model.SeverityGroup, error)
 
 	GetImagesFromVuln(ctx context.Context, uniqueVuln uint64) ([]model.VulnImageList, error)
 
@@ -116,6 +117,27 @@ type ScannerOrm struct {
 	rdb *databases.RDBInstance
 }
 
+func (s *ScannerOrm) GroupRegistryProject(ctx context.Context, param GroupRegistryRepoParam) ([]RegProject, error) {
+	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*15)
+	defer cancelFunc()
+	db := s.rdb.Get().WithContext(ctx).Model(&model.ImageList{})
+	db = db.Where("from_type = ?", model.UserRegistry)
+	if param.RegID > 0 {
+		db = db.Where("registry_id = ?", param.RegID)
+	}
+
+	if param.ProjectKeyword != "" {
+		db = db.Where("project LIKE ?", fmt.Sprintf("%%%s%%", param.ProjectKeyword))
+	}
+	db = db.Select("distinct registry_id,project")
+
+	res := make([]RegProject, 0)
+	if err := db.Find(&res).Error; err != nil {
+		return nil, err
+	}
+	return res, nil
+}
+
 func (s *ScannerOrm) SearchSubTasksWithScanStatus(ctx context.Context, imageIds []int64, status []int) ([]model.SubTask, error) {
 
 	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*15)
@@ -123,14 +145,16 @@ func (s *ScannerOrm) SearchSubTasksWithScanStatus(ctx context.Context, imageIds 
 
 	res := make([]model.SubTask, 0)
 	db := s.rdb.Get().WithContext(ctx)
-	subQuery := db.Table(model.SubTask{}.TableName()).Select("max(id)  as id ").Group("image_id")
+	subQuery := db.Table(model.SubTask{}.TableName()).Select("max(id)  as id").Group("image_id")
 	if len(imageIds) > 0 {
 		subQuery = subQuery.Where("image_id IN ?", imageIds)
 	}
 	if len(status) > 0 {
 		subQuery = subQuery.Where("status IN ?", status)
 	}
-	err := db.Model(&model.SubTask{}).Joins(fmt.Sprintf("join ( ? ) as q on %s.id=q.id ", model.SubTask{}.TableName()), subQuery).Find(&res).Error
+	// 指定查询的字段
+	db = db.Model(&model.SubTask{}).Select("ivan_scanner_scan_subtask.id", "image_id", "status", "finished_at")
+	err := db.Joins(fmt.Sprintf("join ( ? ) as q on %s.id=q.id ", model.SubTask{}.TableName()), subQuery).Find(&res).Error
 
 	return res, err
 }
@@ -142,7 +166,7 @@ func (s *ScannerOrm) CreateImageAndUpdate(ctx context.Context, im *model.ImageLi
 	im.Layers = im.GetLayerString()
 	im.UniqueImage = im.GenUniqueImage()
 	im.CheckSum = im.GenImageCheckSum()
-	im.Flag = im.GenImageFlag(im.Flag)
+	im.GenImageFlag()
 
 	imageLists, _, err := s.SearchImage(ctx, SearchImageParam{UniqueImage: im.UniqueImage}, nil)
 	if err != nil {
@@ -165,7 +189,7 @@ func (s *ScannerOrm) CreateImage(ctx context.Context, im *model.ImageList) (*mod
 	im.Layers = im.GetLayerString()
 	im.UniqueImage = im.GenUniqueImage()
 	im.CheckSum = im.GenImageCheckSum()
-	im.Flag = im.GenImageFlag(consts.ImageEmptyFlag)
+	im.GenImageFlag()
 
 	err := s.rdb.Get().WithContext(ctx).Create(im).Error
 	if err != nil {
@@ -639,47 +663,18 @@ func (s *ScannerOrm) SearchScanLayer(ctx context.Context, param SearchScanLayerP
 	return res, cnt, nil
 }
 
-func (s *ScannerOrm) GetVulnTopNImage(ctx context.Context, topN int64) ([]model.ImageRiskScore, error) {
-	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*10)
-	defer cancelFunc()
-
-	type Score struct {
-		VulnScore float64 `gorm:"column:vuln_score" json:"vuln_score"`
-		ImageID   int64   `grom:"column:image_id" json:"image_id"`
-	}
-
-	images := make([]Score, 0)
-	db := s.rdb.Get().WithContext(ctx).Model(new(model.ScanImage))
-	err := db.Select("image_id", "vuln_score").Order(clause.OrderByColumn{
-		Column: clause.Column{Table: clause.CurrentTable, Name: "vuln_score"}, Desc: true,
-	}).Limit(int(topN)).Find(&images).Error
-	ans := make([]model.ImageRiskScore, 0)
-	for i := range images {
-		ans = append(ans, model.ImageRiskScore{
-			Score:   images[i].VulnScore,
-			ImageID: images[i].ImageID,
-		})
-	}
-	return ans, err
-}
-
-func (s *ScannerOrm) GroupVulnSeverity(ctx context.Context) ([]model.SeverityGroup, error) {
+func (s *ScannerOrm) GroupVulnSeverity(ctx context.Context, param GroupVulnSeverityParam) ([]model.SeverityGroup, error) {
 	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*10)
 	defer cancelFunc()
 	group := make([]model.SeverityGroup, 0)
 	db := s.rdb.Get().WithContext(ctx).Model(model.Vuln{})
-	err := db.Select("count(*) as cnt", "severity_int").Group("severity_int").Find(&group).Error
-	return group, err
-}
 
-func (s *ScannerOrm) GroupVulnSeverityByImageID(ctx context.Context, imageID int64) ([]model.SeverityGroup, error) {
-	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*10)
-	defer cancelFunc()
+	if len(param.ImageIds) > 0 {
+		sub := s.rdb.Get().WithContext(ctx).Model(new(model.VulnImage)).Select("distinct unique_vuln").Where("image_id IN ?", param.ImageIds)
+		db = db.Where("unique_vuln IN (?)", sub)
+	}
 
-	group := make([]model.SeverityGroup, 0)
-	db := s.rdb.Get().WithContext(ctx).Model(model.Vuln{})
-	sql := `select severity_int,count(b.id) as cnt from %s as a  join %s as b  where b.image_id=%d AND a.unique_vuln = b.unique_vuln group by a.severity_int;`
-	err := db.Raw(fmt.Sprintf(sql, model.Vuln{}.TableName(), model.VulnImage{}.TableName(), imageID)).Scan(&group).Error
+	err := db.Select("count(unique_vuln) as cnt", "severity_int").Group("severity_int").Find(&group).Error
 	return group, err
 }
 
@@ -1015,8 +1010,9 @@ func (s *ScannerOrm) SearchRegistry(ctx context.Context, param SearchRegistryPar
 func (s *ScannerOrm) SearchImage(ctx context.Context, param SearchImageParam, filter *model.Filter) ([]model.ImageList, int64, error) {
 	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*10)
 	defer cancelFunc()
+	logging.GetLogger().Info().Interface("SearchImageParam", param).Msg("SearchImage,start")
 	db := s.rdb.Get().Model(new(model.ImageList)).WithContext(ctx)
-	// 默认查询没有删除的,如果不传就是0
+
 	if len(param.Digests) > 0 {
 		db = db.Where("digest IN ? ", param.Digests)
 	}
@@ -1024,7 +1020,19 @@ func (s *ScannerOrm) SearchImage(ctx context.Context, param SearchImageParam, fi
 		db = db.Where("image_uuid IN ? ", param.UUIDs)
 	}
 	if len(param.Projects) > 0 {
-		db = db.Where("project IN   ? ", param.Projects)
+		where := make([]string, 0)
+		for i := range param.Projects {
+			if param.Projects[i].Project == "" {
+				where = append(where, fmt.Sprintf("(registry_id = %d)", param.Projects[i].RegistryID))
+			} else {
+				where = append(where, fmt.Sprintf("(registry_id = %d  AND project = '%s')", param.Projects[i].RegistryID, param.Projects[i].Project))
+			}
+		}
+		db = db.Where(strings.Join(where, " OR "))
+	}
+
+	if len(param.Libraries) > 0 {
+		db = db.Where("library IN ? ", param.Libraries)
 	}
 
 	if len(param.InIds) > 0 {
@@ -1040,14 +1048,12 @@ func (s *ScannerOrm) SearchImage(ctx context.Context, param SearchImageParam, fi
 	if len(param.RegistryIds) > 0 {
 		db = db.Where("registry_id IN ? ", param.RegistryIds)
 	}
-	if len(param.OmitFields) > 0 {
-		db = db.Omit(param.OmitFields...)
-	}
+
 	if len(param.Libraries) > 0 {
 		db = db.Where("library IN  ? ", param.Libraries)
 	}
-	if param.Search != "" {
-		db = db.Where("full_repo_name LIKE ?  OR tags LIKE ? ", fmt.Sprintf("%%%s%%", param.Search), fmt.Sprintf("%%%s%%", param.Search))
+	if param.Keyword != "" {
+		db = db.Where("full_repo_name LIKE ?  OR tags LIKE ? ", fmt.Sprintf("%%%s%%", param.Keyword), fmt.Sprintf("%%%s%%", param.Keyword))
 	}
 	if param.FullRepoName != "" {
 		db = db.Where("full_repo_name = ? ", param.FullRepoName)
@@ -1070,17 +1076,60 @@ func (s *ScannerOrm) SearchImage(ctx context.Context, param SearchImageParam, fi
 	if len(param.Where) > 0 {
 		db = db.Where(param.Where)
 	}
-
-	if param.NotFromType > 0 {
-		db = db.Where("from_type != ?", param.NotFromType)
-	}
-	if param.LayersPrefix != "" {
-		db = db.Where("layers LIKE ?", fmt.Sprintf("%s%%", param.LayersPrefix))
-	}
 	if param.Flag > 0 {
 		db = db.Where("flag & ? = ?", param.Flag, param.Flag)
 	}
-	if param.ImageType == consts.AppImageTypeString {
+
+	if param.LayersPrefix != "" {
+		db = db.Where("layers LIKE ?", fmt.Sprintf("%s%%", param.LayersPrefix))
+	}
+
+	// 属性取交集
+	if param.AttrIntersection == consts.AndString {
+		if param.AttrFlag > 0 {
+			db = db.Where("flag & ? = ?", param.AttrFlag, param.AttrFlag)
+		}
+		if len(param.TrustedImageIds) > 0 {
+			db = db.Where("id IN ?", param.TrustedImageIds)
+		}
+		if len(param.NotTrustedImageIds) > 0 {
+			db = db.Where("id NOT IN ?", param.NotTrustedImageIds)
+		}
+	}
+	// 属性取并集
+	if param.AttrIntersection == consts.OrString {
+		where := make([]string, 0)
+		if param.AttrFlag > 0 {
+			where = append(where, fmt.Sprintf("(flag & %d > 0)", param.AttrFlag))
+		}
+
+		if len(param.TrustedImageIds) > 0 {
+			where = append(where, fmt.Sprintf("(id IN ( %s ))", util.JoinInt64Slice(param.TrustedImageIds, ",")))
+		}
+
+		if len(param.NotTrustedImageIds) > 0 {
+			where = append(where, fmt.Sprintf("(id NOT IN ( %s ))", util.JoinInt64Slice(param.NotTrustedImageIds, ",")))
+		}
+		if len(where) > 0 {
+			db = db.Where(strings.Join(where, " OR "))
+		}
+	}
+
+	// 安全问题取交集
+	if param.IssueIntersection == consts.AndString && param.SecurityIssueFlag > 0 {
+		db = db.Where("flag & ? = ?", param.SecurityIssueFlag, param.SecurityIssueFlag)
+	}
+
+	// 安全问题取并集
+	if param.IssueIntersection == consts.OrString && param.SecurityIssueFlag > 0 {
+		db = db.Where("flag & ? > 0", param.SecurityIssueFlag)
+	}
+	// 扫描状态
+	if param.ScanStatusFlag > 0 {
+		db = db.Where("flag & ? > 0 ", param.ScanStatusFlag)
+	}
+
+	if param.ImageType == model.AppImageTypeString {
 		db = db.Where("(flag >> ?) & 1 = ?", model.FlagBaseImage, 0)
 	}
 
@@ -1090,6 +1139,9 @@ func (s *ScannerOrm) SearchImage(ctx context.Context, param SearchImageParam, fi
 
 	if len(param.Fields) > 0 {
 		db = db.Select(param.Fields)
+	}
+	if len(param.OmitFields) > 0 {
+		db = db.Omit(param.OmitFields...)
 	}
 	// 先查总数
 	var cnt int64
@@ -1237,7 +1289,7 @@ func (s *ScannerOrm) OverviewReasonTopN(ctx context.Context, param OverviewReaso
 		rrs := model.GetRejectReason(model.LangZh)
 
 		for re := range rrs {
-			if model.ExistFlag(rec.ReasonFlag, re) {
+			if model.ExistFlag(rec.ReasonFlag, uint64(re)) {
 				statistics[re] += rec.Count
 			}
 		}
@@ -1747,4 +1799,29 @@ func (s *ScannerOrm) GetAllScanStrategyEnv(ctx context.Context) ([]model.ScanStr
 		return nil, err
 	}
 	return res, nil
+}
+
+// 可能会有并发冲突，但是不影响最后的结果，只保存最后的扫描状态
+func (s *ScannerOrm) UpdateImageScanStatus(ctx context.Context, imageID int64, status uint64) error {
+	// 查出镜像
+	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*3)
+	defer cancelFunc()
+
+	images, _, err := s.SearchImage(ctx, SearchImageParam{InIds: []int64{imageID}}, nil)
+	if err != nil {
+		return err
+	}
+	if len(images) == 0 {
+		return fmt.Errorf("not fond image:%d", imageID)
+	}
+
+	image := images[0]
+	logging.GetLogger().Info().Uint64("PreFlag", image.Flag).Uint64("scanStatus", status).Int64("imageID", imageID).Msg("UpdateImageScanStatus")
+
+	image.SetScanStatusFlag(status)
+
+	logging.GetLogger().Info().Uint64("AfterFlag", image.Flag).Uint64("scanStatus", status).Int64("imageID", imageID).Msg("UpdateImageScanStatus")
+	// 更新状态
+	updater := map[string]interface{}{"flag": image.Flag}
+	return s.UpdateImage(ctx, fmt.Sprintf("id = %d", imageID), updater, nil)
 }

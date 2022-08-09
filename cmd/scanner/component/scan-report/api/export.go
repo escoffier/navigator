@@ -3,7 +3,6 @@ package api
 import (
 	"encoding/hex"
 	"fmt"
-	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scan-report/export"
 	"strings"
 	"time"
 
@@ -57,7 +56,52 @@ func (s *ExportApiSrv) CreateImageExportTask(ctx *gin.Context) {
 	fileName := fmt.Sprintf("%s_%s_%d.zip", strings.ReplaceAll(data.Parameter.FullRepoName, "/", "_"),
 		data.Parameter.Tag, now.Unix())
 	task := model.ExportTensorTask{
-		ExecuteType: string(consts.ExportImage),
+		ExecuteType: consts.ExportImage,
+		Parameter:   string(bys),
+		FilePath:    fileName,
+		Creator:     data.Creator,
+		CreatedAt:   now,
+	}
+
+	if err := s.exportSrv.CreateExportTask(ctx, task); err != nil {
+		response.JSONError(ctx, err)
+		return
+	}
+	response.JSONOK(ctx, response.WithItem(ResponseMsg{Msg: "创建导出任务成功"}))
+}
+
+func (s *ExportApiSrv) CreateVulnExportTask(ctx *gin.Context) {
+
+	type VulnExportParma struct {
+		UniqueVuln string `json:"uniqueVuln"`
+		Name       string `json:"name"`
+		PkgName    string `json:"pkgName"`
+		PkgVersion string `json:"pkgVersion"`
+	}
+	type ExportTensorTask struct {
+		Parameter VulnExportParma `json:"parameter"`
+		Creator   string          `json:"creator"` // 任务创建人
+	}
+
+	data := &ExportTensorTask{}
+	if err := ctx.BindJSON(data); err != nil {
+		response.JSONError(ctx, err)
+		return
+	}
+	if data.Parameter.UniqueVuln == "" {
+		response.JSONError(ctx, fmt.Errorf("no UniqueVuln"))
+		return
+	}
+
+	bys, err := json.Marshal(data.Parameter)
+	if err != nil {
+		response.JSONError(ctx, err)
+		return
+	}
+	now := time.Now()
+	fileName := fmt.Sprintf("%s_%d.zip", data.Parameter.Name, now.Unix())
+	task := model.ExportTensorTask{
+		ExecuteType: consts.ExportVuln,
 		Parameter:   string(bys),
 		FilePath:    fileName,
 		Creator:     data.Creator,
@@ -111,7 +155,7 @@ func (s *ExportApiSrv) CreateScanResultExportTask(ctx *gin.Context) {
 
 	fileName := fmt.Sprintf("%s_scan_result_export.zip", strings.ReplaceAll(data.Parameter.TaskCreateAt, " ", "T"))
 	task := model.ExportTensorTask{
-		ExecuteType: string(consts.ExportScanResult),
+		ExecuteType: consts.ExportScanResult,
 		Parameter:   string(bys),
 		Creator:     data.Creator,
 		FilePath:    fileName,
@@ -138,7 +182,7 @@ func (s *ExportApiSrv) CreateAuditExportTask(ctx *gin.Context) {
 
 	fileName := fmt.Sprintf("audit_log_%s.zip", strings.ReplaceAll(data.TaskCreateAt, " ", "T"))
 	task := model.ExportTensorTask{
-		ExecuteType: export.AuditExeType,
+		ExecuteType: consts.AuditExeType,
 		Creator:     data.Creator,
 		FilePath:    fileName,
 		CreatedAt:   time.Now(),

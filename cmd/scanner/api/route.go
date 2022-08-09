@@ -14,6 +14,7 @@ import (
 
 func SetupGinRouter(redisClient *redis.Client,
 	scannerSvc component.ScannerSrv,
+	imageSvc component.ImageSrvInterface,
 	rejectSvc component.ImageRejectSrv,
 	harborSvc component.HarborSvc,
 	registrySrv component.RegistrySrvInterface,
@@ -34,7 +35,7 @@ func SetupGinRouter(redisClient *redis.Client,
 		})
 	})
 
-	router = WebAPI(router, scannerSvc, rejectSvc, harborSvc, registrySrv, scanConfigSrv, vuluSrv, syncImageSrv)
+	router = WebAPI(router, scannerSvc, imageSvc, rejectSvc, harborSvc, registrySrv, scanConfigSrv, vuluSrv, syncImageSrv)
 	router = OpenAPI(router, scannerSvc, rejectSvc, harborSvc, registrySrv, scanConfigSrv, vuluSrv, redisClient)
 
 	return router
@@ -42,6 +43,7 @@ func SetupGinRouter(redisClient *redis.Client,
 
 func WebAPI(router *gin.Engine,
 	scannerSvc component.ScannerSrv,
+	imageService component.ImageSrvInterface,
 	rejectSvc component.ImageRejectSrv,
 	harborSvc component.HarborSvc,
 	registrySrv component.RegistrySrvInterface,
@@ -51,7 +53,7 @@ func WebAPI(router *gin.Engine,
 
 ) *gin.Engine {
 
-	apiScannerSrv := NewScannerAPISrv(scannerSvc, vuluSrv)
+	apiScannerSrv := NewScannerAPISrv(scannerSvc, vuluSrv, imageService)
 	apiRejectSrv := NewRejectAPISrv(rejectSvc)
 	apiHarborSrv := NewHarborAPISrv(harborSvc, harborSvc.GetRedisClient())
 	apiRegistrySrv := NewRegistrySrv(registrySrv, rejectSvc)
@@ -66,7 +68,7 @@ func WebAPI(router *gin.Engine,
 
 		v1.POST("/scanone", apiScannerSrv.StartScanOne)
 
-		v1.POST("/harbor/scanAllNow", apiScannerSrv.ScanAllNow)
+		// v1.POST("/harbor/scanAllNow", apiScannerSrv.ScanAllNow)
 		// v1.GET("/harbor/scanStatus", apiScannerSrv.GetScanStatus)
 		v1.GET("/harbor/scanOneStatus", apiScannerSrv.GetScanOneStatus)
 		v1.GET("/reportsByVulnOverview", apiScannerSrv.ListScannedByVulnOverview)
@@ -86,6 +88,8 @@ func WebAPI(router *gin.Engine,
 		v2.GET("/sampleList", apiScannerSrv.SearchImages)
 		v2.GET("/verifyExistence", apiScannerSrv.VerifyExistence)
 		v2.GET("/existenceCount", apiScannerSrv.ExistenceCount)
+		v2.POST("/list", apiScannerSrv.SearchImageWithScan)
+		v2.GET("/registryProject", apiScannerSrv.GetRegistryProject)
 		// v2.GET("/:imageID/vulns", apiScannerSrv.GetImageVulns)
 	}
 
@@ -101,7 +105,7 @@ func WebAPI(router *gin.Engine,
 		v4.GET("/statistic", apiScannerSrv.ListScannedByVulnOverview)
 		v4.GET("/topNImage", apiScannerSrv.GetVulnTopNImage)
 		v4.GET("/imageHistogram/:imageID", apiScannerSrv.GetImageHistogram)
-		v4.GET("/all", apiScannerSrv.ListScannedByVulnList) // 漏洞列表，分页获取
+		v4.GET("/all", apiScannerSrv.SearchVulns) // 漏洞列表，分页获取
 		v4.GET("/imageVuln/vuln", apiVulnSrv.GetImageVulns)
 		v4.GET("/imageVuln/pkg", apiVulnSrv.GetImageVulnPkg)
 		v4.GET("/imageVuln/language", apiVulnSrv.GetImageVulnLanguage)
@@ -182,6 +186,7 @@ func WebAPI(router *gin.Engine,
 	v9 := router.Group("/api/v1/tasks")
 	{
 		v9.PUT("/:id/status", apiScannerSrv.UpdateTaskStatus)
+		v9.POST("/image", apiScannerSrv.CreateScanImageTask)
 		v9.GET("/:id/subtasks", apiScannerSrv.GetScanSubTaskList)
 		v9.GET("", apiScannerSrv.GetScanTaskList)
 	}

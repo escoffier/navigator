@@ -23,6 +23,7 @@ func SetupGinRouter(exportSrv service.ExportInterface) *gin.Engine {
 		v1.POST("/image", exportApiSrv.CreateImageExportTask)
 		v1.POST("/scanTask", exportApiSrv.CreateScanResultExportTask)
 		v1.POST("/naviAudit", exportApiSrv.CreateAuditExportTask)
+		v1.POST("/vuln", exportApiSrv.CreateVulnExportTask)
 		v1.GET("/checkScanTask", exportApiSrv.CheckScanTask)
 		v1.GET("/detail", exportApiSrv.GetExportTaskDetail)
 		v1.GET("/list", exportApiSrv.GetReportTaskList)

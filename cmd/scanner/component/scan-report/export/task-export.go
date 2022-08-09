@@ -397,7 +397,7 @@ func (s *ScanTaskExport) worker(ctx context.Context, task model.ExportTensorTask
 }
 
 func (s *ScanTaskExport) Run(ctx context.Context) {
-	tasks, err := s.GetTensorTask(ctx, string(consts.ExportScanResult), consts.DefaultExportBathSize)
+	tasks, err := s.GetTensorTask(ctx, consts.ExportScanResult, consts.DefaultExportBathSize)
 	if err != nil {
 		logging.GetLogger().Err(err).Msg("SearchExportTensorTask")
 		return

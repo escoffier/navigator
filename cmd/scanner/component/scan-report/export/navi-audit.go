@@ -5,20 +5,21 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/olivere/elastic/v7"
-	"github.com/xuri/excelize/v2"
-	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
-	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
-	"gitlab.com/piccolo_su/vegeta/pkg/model"
-	pkgelastic "gitlab.com/security-rd/go-pkg/elastic"
-	"gitlab.com/security-rd/go-pkg/logging"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/olivere/elastic/v7"
+	"github.com/xuri/excelize/v2"
+	pkgelastic "gitlab.com/security-rd/go-pkg/elastic"
+	"gitlab.com/security-rd/go-pkg/logging"
+
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
+	"gitlab.com/piccolo_su/vegeta/pkg/model"
 )
 
 const (
-	AuditExeType          = "ExportNaviAudit"
 	DefaultExportBathSize = 1000
 	timeStampKey          = "Timestamp"
 	DefaultLogsNumPerFile = 2000
@@ -62,7 +63,7 @@ func NewAuditExport(
 }
 
 func (e *AuditExport) Run(ctx context.Context) {
-	tasks, err := e.GetTensorTask(ctx, AuditExeType, DefaultExportBathSize)
+	tasks, err := e.GetTensorTask(ctx, consts.AuditExeType, DefaultExportBathSize)
 	if err != nil {
 		logging.Get().Err(err).Msg("get task err")
 		return
@@ -166,7 +167,7 @@ func (e *AuditExport) Failure(ctx context.Context, id int64, msg string) error {
 	return nil
 }
 
-func (e *AuditExport) Export(ctx context.Context, task model.ExportTensorTask, executeType consts.ExportType) chan *excelize.File {
+func (e *AuditExport) Export(ctx context.Context, task model.ExportTensorTask, executeType string) chan *excelize.File {
 	out := make(chan *excelize.File)
 	go func(task model.ExportTensorTask) {
 		defer close(out)

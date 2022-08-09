@@ -14,10 +14,11 @@ import (
 	"github.com/go-chi/chi/middleware"
 	v7 "github.com/olivere/elastic/v7"
 	"github.com/rs/zerolog"
+	"k8s.io/apimachinery/pkg/util/wait"
+
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
-	"k8s.io/apimachinery/pkg/util/wait"
 )
 
 const JWTKeyUsername = "user_name"
@@ -332,7 +333,7 @@ func needAudit(w middleware.WrapResponseWriter) bool {
 
 func init() {
 	routeAction = newRouter()
-	//平台报告
+	// 平台报告
 	routeAction.POST("/api/v2/platform/report/template", func(params Params) (string, string) {
 		return createAction, "新增平台报告{{.}}"
 	})
@@ -346,7 +347,7 @@ func init() {
 		return importAction, "导出平台报告{{.}}"
 	})
 
-	//主动防御
+	// 主动防御
 	routeAction.POST("/api/v2/containerSec/watson/baitService", func(params Params) (string, string) {
 		return editAction, "编辑诱捕服务{{.}}"
 	})
@@ -357,12 +358,12 @@ func init() {
 		return deleteAction, "删除诱捕服务{{.}}"
 	})
 
-	//用户登录
+	// 用户登录
 	routeAction.POST("/api/v2/usercenter/login", func(params Params) (string, string) {
 		return "登录", "登录"
 	})
 
-	//资产发现
+	// 资产发现
 	routeAction.POST("/api/v2/platform/assets/namespace", func(params Params) (string, string) {
 		return editAction, "编辑命名空间{{.}}"
 	})
@@ -370,7 +371,7 @@ func init() {
 		return editAction, "编辑资源{{.}}"
 	})
 
-	//事件中心
+	// 事件中心
 	routeAction.POST("/api/v2/platform/processingCenter/record", func(params Params) (string, string) {
 		return processAction, "对Pod: {{.}}发起处置"
 	})
@@ -384,12 +385,12 @@ func init() {
 		return editAction, "编辑Syslog导出"
 	})
 
-	//ATT&CK
+	// ATT&CK
 	routeAction.POST("/api/v2/containerSec/ATTCK/ruleSwitch", func(params Params) (string, string) {
 		return "启用/停用", "启/停用检测规则"
 	})
 
-	//微隔离
+	// 微隔离
 	routeAction.PUT("/api/v2/microseg/clusters/:clusterKey/resourceTag/infras", func(params Params) (string, string) {
 		return editAction, "编辑资源配置"
 	})
@@ -451,7 +452,7 @@ func init() {
 		return deleteAction, "删除逻辑集群{{.}}"
 	})
 
-	//镜像安全
+	// 镜像安全
 	routeAction.POST("/api/v2/containerSec/scanner/scan-config/strategy", func(params Params) (string, string) {
 		return createAction, "新增扫描策略{{.}}"
 	})
@@ -503,11 +504,7 @@ func init() {
 		return deleteAction, "删除基础镜像{{.}}出基础镜像列表"
 	})
 
-	routeAction.POST("/api/v2/containerSec/scanner/scanone", func(params Params) (string, string) {
-		return createAction, "新增镜像扫描任务"
-	})
-
-	routeAction.POST("/api/v2/containerSec/scanner/harbor/scanAllNow", func(params Params) (string, string) {
+	routeAction.POST("/api/v2/containerSec/scanner/tasks/image", func(params Params) (string, string) {
 		return createAction, "新增镜像扫描任务"
 	})
 
@@ -535,7 +532,7 @@ func init() {
 		return editAction, "编辑镜像扫描任务"
 	})
 
-	//合规检测
+	// 合规检测
 	routeAction.POST("/api/v2/containerSec/scap/v2/:scapType/cronjob", func(params Params) (string, string) {
 		scapType := model.ComplianceCheckType(params.ByName("scapType"))
 		checkTypeName := ""
@@ -596,12 +593,12 @@ func init() {
 		return deleteAction, "删除 " + scapTypeName + " 扫描策略{{.}}"
 	})
 
-	//集群安全
+	// 集群安全
 	routeAction.POST("/api/v2/platform/hunter/scan", func(params Params) (string, string) {
 		return createAction, "新增集群安全扫描任务"
 	})
 
-	//管理中心
+	// 管理中心
 	routeAction.POST("/api/v2/platform/data/ttl", func(params Params) (string, string) {
 		return editAction, "编辑数据管理"
 	})
@@ -645,7 +642,7 @@ func init() {
 		return uploadAction, "上传漏洞库更新包"
 	})
 
-	//偏移防御
+	// 偏移防御
 	routeAction.POST("/api/v2/platform/drift/policy/create", func(params Params) (string, string) {
 		return createAction, "新增偏移防御策略{{.}}"
 	})

@@ -39,9 +39,9 @@ func (s *ScannerOrm) SearchTrustedImageIDs(ctx context.Context, param SearchTrus
 	if len(param.Digests) > 0 {
 		db = db.Where("t.digest IN ?", param.Digests)
 	}
-	if param.IsTrusted == consts.IsTrustedImageString {
+	if param.IsTrusted == consts.TrueString || param.IsTrusted == consts.IsTrustedImageString {
 		db = db.Where("t.is_trusted = ? ", consts.IsTrustedImage)
-	} else if param.IsTrusted == consts.NotTrustedImageString {
+	} else if param.IsTrusted == consts.FalseString || param.IsTrusted == consts.NotTrustedImageString {
 		db = db.Where("t.is_trusted = ? ", consts.NotTrustedImage)
 	}
 	db = db.Select(filed)

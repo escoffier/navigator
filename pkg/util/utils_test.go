@@ -156,3 +156,11 @@ func performRequest(r http.Handler, method, path string) *httptest.ResponseRecor
 	r.ServeHTTP(w, req)
 	return w
 }
+
+func TestJoinInt64Slice(t *testing.T) {
+	convey.Convey("TestJoinInt64Slice ", t, func() {
+		convey.So(JoinInt64Slice(nil, ","), convey.ShouldEqual, "")
+		convey.So(JoinInt64Slice([]int64{}, ","), convey.ShouldEqual, "")
+		convey.So(JoinInt64Slice([]int64{1, 2, 3}, ","), convey.ShouldEqual, "1,2,3")
+	})
+}

@@ -1,5 +1,9 @@
 package model
 
+import (
+	"strings"
+)
+
 var (
 	LanguageMap = map[string]string{
 		"bundler":      "ruby",
@@ -31,7 +35,7 @@ func GetVulnLanguageMap() map[string]string {
 }
 
 func GetSeverityInt(level string) int {
-	switch level {
+	switch strings.ToUpper(level) {
 	case SeverityCritical:
 		return SeverityCriticalInt
 	case SeverityHigh:
@@ -61,7 +65,7 @@ const (
 	SeverityNegligible    = "NEGLIGIBLE"
 	SeverityUnknown       = "UNKNOWN"
 
-	SeverityCriticalView   = "高危"
+	SeverityCriticalView   = "严重"
 	SeverityHighView       = "高"
 	SeverityMediumView     = "中"
 	SeverityLowView        = "低"

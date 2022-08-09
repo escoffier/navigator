@@ -15,10 +15,11 @@ import (
 )
 
 type UpdateTaskInfo struct {
-	Scope       int    `json:"scope"`
-	TriggerType int    `json:"trigger_type"`
-	StrategyID  int64  `json:"strategy_id"`
-	Operator    string `json:"operator"`
+	Scope        int    `json:"scope"`
+	TriggerType  int    `json:"trigger_type"`
+	StrategyID   int64  `json:"strategy_id"`
+	StrategyName string `json:"strategyName"` // 扫描策略名字 用于openapi
+	Operator     string `json:"operator"`
 }
 
 type TaskSrv struct { // nolint
@@ -114,9 +115,18 @@ func (t *TaskSrv) GenerateScanTask(ctx context.Context, imageIds []int64, info U
 	tmpTask.SubTaskCount = len(subtasks)
 
 	if _, err := scannerGormDb.AddTaskAndSubTask(ctx, tmpTask, subtasks); err != nil {
+		logging.GetLogger().Err(err).Interface("task", tmpTask).
+			Int("subtasks", len(subtasks)).Msg("AddTaskAndSubTask")
 		return err
 	}
-
+	// 新建时更新镜像的扫描状态（等待中）
+	for i := range subtasks {
+		if err := scannerGormDb.UpdateImageScanStatus(ctx, subtasks[i].ImageID, model.FlagImageScanPending); err != nil {
+			logging.GetLogger().Err(err).Int64("ImageId", subtasks[i].ImageID).
+				Int64("FlagImageScan", model.FlagImageScanPending).Msg("UpdateImageScanStatus")
+		}
+	}
+	logging.GetLogger().Info().Int64("taskID", tmpTask.ID).Int("images", len(subtasks)).Msg("UpdateImageScanStatus complete")
 	return nil
 }
 

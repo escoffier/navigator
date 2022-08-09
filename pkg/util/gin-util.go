@@ -40,3 +40,31 @@ func GetInt64FromQuery(ctx *gin.Context, key string) int64 {
 	}
 	return value
 }
+
+// 从gin的query中取值后解析成y或n, 如果即传了y又传了n，就认为没有传
+func GetYesOrNoFromQuery(ctx *gin.Context, key string) string {
+	split := strings.Split(ctx.Query(key), ",")
+	if len(split) == 1 {
+		if split[0] == "y" {
+			return "y"
+		}
+		if split[0] == "n" {
+			return "n"
+		}
+	}
+	return ""
+}
+
+// 从gin的query中取值后解析成 true和false,如果即传了true又传了false，就认为没有传
+func GetTrueOrFalseFromQuery(ctx *gin.Context, key string) string {
+	split := strings.Split(ctx.Query(key), ",")
+	if len(split) == 1 {
+		if split[0] == "true" {
+			return "true"
+		}
+		if split[0] == "false" {
+			return "false"
+		}
+	}
+	return ""
+}

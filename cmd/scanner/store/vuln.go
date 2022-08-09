@@ -14,8 +14,9 @@ import (
 )
 
 type VulnDalInterface interface {
-	SearchVuln(ctx context.Context, param SearchVulnParm, filter *model.Filter) ([]*model.Vuln, int64, error)
-	SearchVulnPkg(ctx context.Context, param SearchVulnParm, filter *model.Filter) ([]*model.Vuln, int64, error)
+	SearchVuln(ctx context.Context, param SearchVulnParam, filter *model.Filter) ([]*model.Vuln, int64, error)
+	SearchVulnImage(ctx context.Context, param SearchVulnImageParam, filter *model.Filter) ([]*model.VulnImage, int64, error)
+	SearchVulnPkg(ctx context.Context, param SearchVulnParam, filter *model.Filter) ([]*model.Vuln, int64, error)
 	CreateVuln(ctx context.Context, data []*model.Vuln) error
 	UpdateVuln(ctx context.Context, where string, updater map[string]interface{}, vuln *model.Vuln) error
 	CreateVulnImage(ctx context.Context, imageID int64, data []*model.VulnImage) error
@@ -73,7 +74,34 @@ func GetSingeVulnDao() *VulnDao {
 	return singeVulnDao
 }
 
-func (v *VulnDao) SearchVuln(ctx context.Context, param SearchVulnParm, filter *model.Filter) ([]*model.Vuln, int64, error) {
+func (v *VulnDao) SearchVulnImage(ctx context.Context, param SearchVulnImageParam, filter *model.Filter) ([]*model.VulnImage, int64, error) {
+	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*10)
+	defer cancelFunc()
+	db := v.rdb.Get().WithContext(ctx).Model(model.VulnImage{})
+
+	if len(param.UniqueVulns) > 0 {
+		db = db.Where("unique_vuln IN  ?", param.UniqueVulns)
+	}
+	if len(param.ImageIds) > 0 {
+		db = db.Where("image_id IN  ?", param.ImageIds)
+	}
+
+	res := make([]*model.VulnImage, 0)
+
+	var cnt int64
+
+	if err := db.Count(&cnt).Error; err != nil {
+		return nil, 0, err
+	}
+
+	db = model.AddFilter(db, filter)
+	if err := db.Find(&res).Error; err != nil {
+		return nil, 0, err
+	}
+	return res, cnt, nil
+}
+
+func (v *VulnDao) SearchVuln(ctx context.Context, param SearchVulnParam, filter *model.Filter) ([]*model.Vuln, int64, error) {
 	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*10)
 	defer cancelFunc()
 	db := v.rdb.Get().WithContext(ctx).Model(model.Vuln{})
@@ -90,8 +118,8 @@ func (v *VulnDao) SearchVuln(ctx context.Context, param SearchVulnParm, filter *
 	if param.Where != "" {
 		db = db.Where(param.Where)
 	}
-	if param.ImageID > 0 {
-		sub := v.rdb.Get().WithContext(ctx).Model(new(model.VulnImage)).Select("unique_vuln").Where("image_id = ?", param.ImageID)
+	if len(param.ImageIds) > 0 {
+		sub := v.rdb.Get().WithContext(ctx).Model(new(model.VulnImage)).Select("distinct unique_vuln").Where("image_id IN  ?", param.ImageIds)
 		db = db.Where("unique_vuln IN (?)", sub)
 	}
 	if param.PkgName != "" {
@@ -103,10 +131,10 @@ func (v *VulnDao) SearchVuln(ctx context.Context, param SearchVulnParm, filter *
 	if len(param.Sources) > 0 {
 		db = db.Where("source IN ？", param.Sources)
 	}
-	if param.CanFixed == consts.TrueString {
+	if param.CanFixed == consts.TrueString || param.CanFixed == consts.YesString {
 		db = db.Where("fixed_by != ''")
 	}
-	if param.CanFixed == consts.FalseString {
+	if param.CanFixed == consts.FalseString || param.CanFixed == consts.NoString {
 		db = db.Where("fixed_by = '' OR fixed_by is null")
 	}
 	if param.PkgKeyword != "" {
@@ -147,12 +175,11 @@ func (v *VulnDao) SearchVuln(ctx context.Context, param SearchVulnParm, filter *
 	}
 	for i := range res {
 		res[i].Deserialize()
-		res[i].Serialize()
 	}
 	return res, cnt, nil
 }
 
-func (v *VulnDao) SearchVulnPkg(ctx context.Context, param SearchVulnParm, filter *model.Filter) ([]*model.Vuln, int64, error) {
+func (v *VulnDao) SearchVulnPkg(ctx context.Context, param SearchVulnParam, filter *model.Filter) ([]*model.Vuln, int64, error) {
 	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*10)
 	defer cancelFunc()
 	db := v.rdb.Get().WithContext(ctx).Model(model.Vuln{})
@@ -171,8 +198,8 @@ func (v *VulnDao) SearchVulnPkg(ctx context.Context, param SearchVulnParm, filte
 	if param.Where != "" {
 		db = db.Where(param.Where)
 	}
-	if param.ImageID > 0 {
-		sub := v.rdb.Get().WithContext(ctx).Model(new(model.VulnImage)).Select("unique_vuln").Where("image_id = ?", param.ImageID)
+	if len(param.ImageIds) > 0 {
+		sub := v.rdb.Get().WithContext(ctx).Model(new(model.VulnImage)).Select("distinct unique_vuln").Where("image_id IN ? ", param.ImageIds)
 		db = db.Where("unique_vuln IN (?)", sub)
 	}
 	if param.PkgName != "" {
@@ -185,10 +212,10 @@ func (v *VulnDao) SearchVulnPkg(ctx context.Context, param SearchVulnParm, filte
 		db = db.Where("source IN ？", param.Sources)
 	}
 	if param.CanFixed == consts.TrueString {
-		db = db.Where("fixedby != ''")
+		db = db.Where("fixed_by != ''")
 	}
 	if param.CanFixed == consts.FalseString {
-		db = db.Where("fixedby = ''")
+		db = db.Where("fixed_by = ''")
 	}
 
 	res := make([]*model.Vuln, 0)
@@ -208,7 +235,6 @@ func (v *VulnDao) SearchVulnPkg(ctx context.Context, param SearchVulnParm, filte
 	}
 	for i := range res {
 		res[i].Deserialize()
-		res[i].Serialize()
 	}
 	return res, cnt, nil
 }
@@ -216,7 +242,6 @@ func (v *VulnDao) SearchVulnPkg(ctx context.Context, param SearchVulnParm, filte
 func (v *VulnDao) CreateVuln(ctx context.Context, data []*model.Vuln) error {
 	for i := range data {
 		vuln := data[i]
-		vuln.Deserialize()
 		vuln.Serialize()
 		vuln.CheckSum = vuln.GenCheckSum()
 		vuln.UniqueVuln = vuln.GenUniqueVuln()
@@ -228,7 +253,7 @@ func (v *VulnDao) CreateVuln(ctx context.Context, data []*model.Vuln) error {
 	defer cancelFunc()
 	for i := range data {
 		vuln := data[i]
-		vulns, _, err := v.SearchVuln(ctx, SearchVulnParm{UniqueVulns: []uint64{vuln.UniqueVuln}, Fields: []string{"id", "unique_vuln", "check_sum"}}, nil)
+		vulns, _, err := v.SearchVuln(ctx, SearchVulnParam{UniqueVulns: []uint64{vuln.UniqueVuln}, Fields: []string{"id", "unique_vuln", "check_sum"}}, nil)
 		if err != nil {
 			logging.GetLogger().Err(err).Uint64("UniqueVuln", vuln.UniqueVuln).Msg("CreateVuln")
 			return err

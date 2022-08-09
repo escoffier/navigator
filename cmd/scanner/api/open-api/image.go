@@ -25,9 +25,10 @@ type ImageOpenAPISvc struct {
 	ScanConfigSrv component.ScanConfigSrvInterface
 }
 
-func NewScannerOpenAPISrv(srv component.ScannerSrv,
-		registrySrv component.RegistrySrvInterface,
-		scanConfigSrv component.ScanConfigSrvInterface,
+func NewScannerOpenAPISrv(
+	srv component.ScannerSrv,
+	registrySrv component.RegistrySrvInterface,
+	scanConfigSrv component.ScanConfigSrvInterface,
 ) *ImageOpenAPISvc {
 	return &ImageOpenAPISvc{
 		ImageSrv:      srv,
@@ -62,9 +63,9 @@ func (s *ImageOpenAPISvc) ListImages(ctx *gin.Context) {
 		NodeHostname: nodeHostname,
 	}
 	fromTypeString := ctx.Query("fromType")
-	if fromTypeString == consts.ImageFromNode {
+	if fromTypeString == model.ImageFromNode {
 		param.FromType = model.NodeBuffRegistry
-	} else if fromTypeString == consts.ImageFromRegistry {
+	} else if fromTypeString == model.ImageFromRegistry {
 		param.FromType = model.UserRegistry
 	}
 
@@ -102,9 +103,9 @@ func (s *ImageOpenAPISvc) ListImages(ctx *gin.Context) {
 			im.SecurityIssue = append(im.SecurityIssue, images[i].Questions[j].ID)
 		}
 		if images[i].FromType == model.NodeBuffRegistry {
-			im.FromType = consts.ImageFromNode
+			im.FromType = model.ImageFromNode
 		} else if images[i].FromType == model.UserRegistry {
-			im.FromType = consts.ImageFromRegistry
+			im.FromType = model.ImageFromRegistry
 		}
 
 		res = append(res, im)
@@ -125,9 +126,9 @@ func (s *ImageOpenAPISvc) ImageStatistic(ctx *gin.Context) {
 	}
 	fromType := model.UserRegistry
 
-	if fromTypeString == consts.ImageFromNode {
+	if fromTypeString == model.ImageFromNode {
 		fromType = model.NodeBuffRegistry
-	} else if fromTypeString == consts.ImageFromRegistry {
+	} else if fromTypeString == model.ImageFromRegistry {
 		fromType = model.UserRegistry
 	}
 
@@ -234,9 +235,9 @@ func (s *ImageOpenAPISvc) GetImageDetails(ctx *gin.Context) {
 		res.RegistryURL = img.Registry.Url
 	}
 	if img.FromType == model.UserRegistry {
-		res.FromType = consts.ImageFromRegistry
+		res.FromType = model.ImageFromRegistry
 	} else if img.FromType == model.NodeBuffRegistry {
-		res.FromType = consts.ImageFromRegistry
+		res.FromType = model.ImageFromRegistry
 	}
 
 	for i := range img.ImageScanEnv {
@@ -367,7 +368,7 @@ func (s *ImageOpenAPISvc) CreateScanTask(ctx *gin.Context) {
 		return
 	}
 
-	if t.FromType != consts.ImageFromNode && t.FromType != consts.ImageFromRegistry {
+	if t.FromType != model.ImageFromNode && t.FromType != model.ImageFromRegistry {
 		response.JSONError(ctx, response.NewHttpError(http.StatusNotAcceptable, fmt.Errorf("fromType incorrect")))
 		return
 	}
@@ -382,12 +383,12 @@ func (s *ImageOpenAPISvc) CreateScanTask(ctx *gin.Context) {
 		JustReturnImage: true,
 	}
 	// 只支持存在可修复漏洞的筛选
-	if t.HasFixedVuln == consts.HasFixedvulnStringd {
-		search.HasFixedVulu = consts.HasFixedvulnStringd
+	if t.HasFixedVuln == consts.HasFixedvulnString {
+		search.HasFixedVulu = consts.HasFixedvulnString
 	}
-	if t.FromType == consts.ImageFromRegistry {
+	if t.FromType == model.ImageFromRegistry {
 		search.FromType = model.UserRegistry
-	} else if t.FromType == consts.ImageFromNode {
+	} else if t.FromType == model.ImageFromNode {
 		search.FromType = model.NodeBuffRegistry
 	}
 

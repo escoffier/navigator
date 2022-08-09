@@ -12,7 +12,7 @@ type SearchImageParam struct {
 	Libraries    []string
 	InIds        []int64
 	NotInIds     []int64
-	Search       string // full_repo_name和tag字段的模糊匹配
+	Keyword      string // full_repo_name和tag字段的模糊匹配
 	Digests      []string
 	FullRepoName string // 这里是精确匹配
 	Tag          string
@@ -21,7 +21,6 @@ type SearchImageParam struct {
 	FromType     int64
 	ImageType    string
 
-	NotFromType       int64
 	Fields            []string // 只想要的字端
 	OmitFields        []string // 不想要的字端
 	LayersPrefix      string
@@ -29,13 +28,22 @@ type SearchImageParam struct {
 	NodeHostnames     []string
 	JustCount         bool
 	UUIDs             []uint32
-	Flag              uint64
-	Where             string
-	UniqueImage       uint64
-	Projects          []string
-	NodeHostname      string `json:"node_hostname"`
-	JustReturnImage   bool   `json:"just_return_image"`
-	NotParseNodeImage bool   // 解析节点镜像的imageName
+	SecurityIssueFlag uint64
+	AttrFlag          uint64
+	ScanStatusFlag    uint64
+
+	Flag               uint64
+	Where              string
+	UniqueImage        uint64
+	Projects           []RegProject
+	NodeHostname       string `json:"node_hostname"`
+	JustReturnImage    bool   `json:"just_return_image"`
+	TrustedImageIds    []int64
+	NotTrustedImageIds []int64
+	NotParseNodeImage  bool // 解析节点镜像的imageName
+
+	AttrIntersection  string // 属性交集还是并集 and or
+	IssueIntersection string // 安全问题交集还是并集 and or
 }
 
 type GetSubTaskListWithImageParam struct {
@@ -279,7 +287,7 @@ type SearchTrustedImageParam struct {
 	IsTrusted string
 }
 
-type SearchVulnParm struct {
+type SearchVulnParam struct {
 	VulnKeyword     string
 	PkgKeyword      string
 	LanguageKeyword string
@@ -289,13 +297,22 @@ type SearchVulnParm struct {
 	Fields          []string
 	OmitFields      []string
 	Where           string
-	ImageID         int64
+	ImageIds        []int64
 	PkgName         string
 	PkgVersion      string
 	Sources         []string // 漏洞来源筛选
 	CanFixed        string
 	SeverityInt     []int64
 	JustReturnCount bool
+}
+
+type SearchVulnImageParam struct {
+	ImageIds    []int64
+	UniqueVulns []uint64
+}
+
+type SearchDistinctUniqueVulnParam struct {
+	ImageIds []int64
 }
 
 type VulnPkg struct {
@@ -322,7 +339,19 @@ type GroupImageVuln struct {
 type RSAListParam struct {
 	Name string
 }
-type SearchDeleteImageParam struct {
+
+type RegProject struct {
+	RegistryID int64  `json:"registryID"`
+	Project    string `json:"project"`
+	Name       string `json:"name"`
+	Key        string `json:"key"`
+}
+
+type GroupRegistryRepoParam struct {
+	RegID          int64
+	ProjectKeyword string
+}
+
+type GroupVulnSeverityParam struct {
 	ImageIds []int64
-	LastID   int64
 }

@@ -78,33 +78,6 @@ const (
 	ErrRegRemoved                    // "仓库已删除"
 )
 
-func GetErrMsgEnu(errNo int) string {
-	switch errNo {
-	case ErrScanPullImage:
-		return "拉取镜像出错"
-	case ErrScanTrivy:
-		return "扫描镜像出错"
-	case ErrScanSaveResult:
-		return "保存扫描数据出错"
-	case ErrScanConfig:
-		return "解析扫描配置出错"
-	case ErrScanGetImage:
-		return "查询待扫描镜像出错"
-	case ErrScanGetRegistry:
-		return "查询镜像仓库出错"
-	case ErrScanInternal:
-		return "程序内部出错"
-	case ErrExceededRetryCount:
-		return "超过重试次数"
-	case ErrScanImageRemoved:
-		return "镜像已被清除"
-	case ErrRegRemoved:
-		return "仓库已删除"
-	default:
-		return "程序内部出错"
-	}
-}
-
 const (
 	IsSyncingImage  = true  // 正在同步
 	NotSyncingImage = false // 没在同步

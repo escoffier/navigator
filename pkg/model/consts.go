@@ -9,13 +9,12 @@ const (
 	RejectPolicySafeModel = "safe" // 安全模式
 )
 const (
-	// TOP5 统计类别
-	RejectReasonVuluScore            = 1  // 漏洞评分低于设置值
+	RejectReasonVulnScore            = 1  // 漏洞评分低于设置值
 	RejectReasonHasSensitiveFile     = 2  // 存在敏感文件
 	RejectReasonHasMalicious         = 3  // 存在恶意文件
-	RejectReasonHasCustomizeVulu     = 4  // 存在自定义漏洞
+	RejectReasonHasCustomizeVuln     = 4  // 存在自定义漏洞
 	RejectReasonHasNegligible        = 5  // 存在可忽略漏洞
-	RejectReasonHasUnknown           = 6  // 存在末知漏洞
+	RejectReasonHasUnknown           = 6  // 存在未知漏洞
 	RejectReasonHasLow               = 7  // 存在低危漏洞
 	RejectReasonHasMedium            = 8  // 存在中危漏洞
 	RejectReasonHasHigh              = 9  // 存在危险漏洞
@@ -46,13 +45,18 @@ const (
 	NodeBuffRegistry    = 3 // 表示节点镜像所使用的仓库
 	UserRegistry        = 1 // 表示同步仓库
 	NodeImageSplitCount = 6
+
+	CICDImageRegistryString = "cicd"     // 表示CICD的中转仓库
+	NodeBuffRegistryString  = "node"     // 表示节点镜像所使用的仓库
+	UserRegistryString      = "registry" // 表示同步仓库
+
 )
 
 var reasonZHMap = map[int64]string{
-	RejectReasonVuluScore:            "漏洞评分低于设置值",
+	RejectReasonVulnScore:            "漏洞评分低于设置值",
 	RejectReasonHasSensitiveFile:     "存在敏感文件",
 	RejectReasonHasMalicious:         "存在恶意文件",
-	RejectReasonHasCustomizeVulu:     "存在自定义漏洞",
+	RejectReasonHasCustomizeVuln:     "存在自定义漏洞",
 	RejectReasonHasNegligible:        "存在可忽略漏洞",
 	RejectReasonHasUnknown:           "存在末知漏洞",
 	RejectReasonHasLow:               "存在低危漏洞",
@@ -70,10 +74,10 @@ var reasonZHMap = map[int64]string{
 	RejectReasonHasUntrustedEnv:      "包含不信任环境变量",
 }
 var reasonENMap = map[int64]string{
-	RejectReasonVuluScore:            "Vulnerability score lower than set value",
+	RejectReasonVulnScore:            "Vulnerability score lower than set value",
 	RejectReasonHasSensitiveFile:     "Exist sensitive file",
 	RejectReasonHasMalicious:         "Exist malicious file",
-	RejectReasonHasCustomizeVulu:     "Exist custom vulnerability file",
+	RejectReasonHasCustomizeVuln:     "Exist custom vulnerability file",
 	RejectReasonHasNegligible:        "Exist Negligible vulnerability file",
 	RejectReasonHasUnknown:           "Exist Unknown vulnerability file",
 	RejectReasonHasLow:               "Exist Low vulnerability file",
@@ -129,12 +133,12 @@ func GetSeverityRejectReason(severity string) int64 {
 	return subScore[severity]
 }
 
-func GetVuluRuleKey(vuleLeve string, lag string) string {
+func GetVulnRuleKey(vulnLevel string, lag string) string {
 	switch lag {
 	case LangEn:
-		return reasonEnMap[vuleLeve]
+		return reasonEnMap[vulnLevel]
 	case LangZh:
-		return reasonChMap[vuleLeve]
+		return reasonChMap[vulnLevel]
 	}
 	return ""
 }

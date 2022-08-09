@@ -60,7 +60,6 @@ type ImageInterface interface {
 	ListBaseImageOfApp(ctx context.Context, imageID int64, filter *model.Filter) ([]model.ImageList, int64, error)
 	ListAppImageOfBase(ctx context.Context, imageID int64, filter *model.Filter) ([]model.ImageList, int64, error)
 	GetImageDetail(ctx context.Context, imgID int64) (*model.ImageList, error)
-	GetScanOneStatus(ctx context.Context, imgID int64) (*model.ImageResponse, error)
 }
 
 type ImageExportParma struct {
@@ -84,7 +83,7 @@ func (s *ImageExport) GetTensorTask(ctx context.Context, executeType string, n i
 	return task, nil
 }
 
-func (s *ImageExport) Export(ctx context.Context, task model.ExportTensorTask, executeType consts.ExportType) chan *excelize.File {
+func (s *ImageExport) Export(ctx context.Context, task model.ExportTensorTask, executeType string) chan *excelize.File {
 
 	out := make(chan *excelize.File)
 
@@ -152,15 +151,10 @@ func (s *ImageExport) GetExcelData(ctx context.Context, imageID int64, vulnCol *
 		imageDetail.Library = imageDetail.Registry.Url
 	}
 
-	imageStatus, err := s.imageSrv.GetScanOneStatus(ctx, imageID)
-	if err != nil {
-		logging.GetLogger().Err(err).Int64("ImageID", imageID).Msg("GetDataAndCreateExcelFile.GetImageDetail")
-		return nil, err
-	}
 	logging.GetLogger().Debug().Int64("imageID", imageID).Msg("GetExcelData GetScanOneStatus")
 
 	// 获取关联容器
-	resources, err := s.resourceDal.SearchResources(ctx, imageDetail.ImageUUID)
+	resources, err := s.resourceDal.SearchResources(ctx, []uint32{imageDetail.ImageUUID})
 	if err != nil {
 		logging.GetLogger().Err(err).Int64("imageID", imageID).Uint32("ImageUUID", imageDetail.ImageUUID).Msg("GetDataAndCreateExcelFile.SearchResources")
 		return nil, err
@@ -169,7 +163,7 @@ func (s *ImageExport) GetExcelData(ctx context.Context, imageID int64, vulnCol *
 
 	res := make(map[string]chan []string)
 	// 写入数据
-	res[GenImageBaseInfoMeta().SheetName] = GenBaseInfoChan(*imageDetail, *imageStatus)
+	res[GenImageBaseInfoMeta().SheetName] = GenBaseInfoChan(*imageDetail)
 	res[GenImageVulnInfoMeta().SheetName] = GenVulnInfoChan(*imageDetail, vulnCol)
 	res[GenImageSensitiveFileInfoMeta().SheetName] = GenSensitiveFileChan(*imageDetail)
 	res[GenImageVirusInfoMeta().SheetName] = GenVirusChan(*imageDetail)
@@ -291,7 +285,7 @@ func (s *ImageExport) Run(ctx context.Context) {
 	// 	return
 	// }
 
-	tasks, err := s.GetTensorTask(ctx, string(consts.ExportImage), consts.DefaultExportBathSize)
+	tasks, err := s.GetTensorTask(ctx, consts.ExportImage, consts.DefaultExportBathSize)
 	if err != nil {
 		return
 	}

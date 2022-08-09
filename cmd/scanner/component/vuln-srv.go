@@ -17,13 +17,13 @@ type SearchVulnParam struct {
 	VulnKeyword     string // 漏洞名搜索
 	UniqueVulns     []uint64
 	Fields          []string
-	ImageID         int64
 	LayerDigest     string
 	PkgName         string  // 软件包来源
 	PkgVersion      string  // 软件包版本
 	Sources         string  // 来源筛选,用逗号分隔
 	CanFixed        string  // 是否可修复筛选
 	SeverityInt     []int64 // 漏洞级别筛选
+	ImageIds        []int64 // 镜像ID
 }
 
 type SearchScanLayerParam struct {
@@ -46,8 +46,7 @@ type VulnService struct {
 }
 
 func (vn *VulnService) SearchVulns(ctx context.Context, param SearchVulnParam, filter *model.Filter) ([]*model.Vuln, int64, error) {
-
-	daoParam := store.SearchVulnParm{
+	daoParam := store.SearchVulnParam{
 		VulnKeyword:     param.VulnKeyword,
 		PkgKeyword:      param.PkgKeyword,
 		TargetKeyword:   param.TargetKeyword,
@@ -55,7 +54,7 @@ func (vn *VulnService) SearchVulns(ctx context.Context, param SearchVulnParam, f
 		FrameKeyword:    param.FrameKeyword,
 		UniqueVulns:     param.UniqueVulns,
 		Fields:          param.Fields,
-		ImageID:         param.ImageID,
+		ImageIds:        param.ImageIds,
 		PkgName:         param.PkgName,
 		PkgVersion:      param.PkgVersion,
 		Sources:         nil,
@@ -63,7 +62,6 @@ func (vn *VulnService) SearchVulns(ctx context.Context, param SearchVulnParam, f
 		SeverityInt:     param.SeverityInt,
 		JustReturnCount: false,
 	}
-
 	if param.Sources != "" {
 		daoParam.Sources = strings.Split(param.Sources, ",")
 	}

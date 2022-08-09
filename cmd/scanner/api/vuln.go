@@ -35,16 +35,14 @@ func (s *VulnAPISrv) GetImageVulns(ctx *gin.Context) {
 	pkgName := ctx.Query("pkgName")
 	pkgVersion := ctx.Query("pkgVersion")
 	sources := ctx.Query("sources")
-	canFixed := ctx.Query("canFixed")
-	severityInts := make([]int64, 0)
-	severityStr := ctx.Query("severity")
-	if severityStr != "" {
-		severityStrs := strings.Split(severityStr, ",")
-		for _, severity := range severityStrs {
-			severityInt := model.GetSeverityInt(strings.ToUpper(severity))
-			if severityInt > 0 {
-				severityInts = append(severityInts, int64(severityInt))
-			}
+	canFixed := util.GetYesOrNoFromQuery(ctx, "canFixed") // 前端会传y,n，后端做处理
+
+	severityInt := make([]int64, 0)
+	severity := strings.Split(ctx.Query("severity"), ",")
+	for i := range severity {
+		se := model.GetSeverityInt(severity[i])
+		if se >= model.SeverityUnknownInt {
+			severityInt = append(severityInt, int64(se))
 		}
 	}
 
@@ -57,12 +55,12 @@ func (s *VulnAPISrv) GetImageVulns(ctx *gin.Context) {
 	}
 	param := component.SearchVulnParam{
 		VulnKeyword: vulnKeyword,
-		ImageID:     imageID,
+		ImageIds:    []int64{imageID},
 		PkgName:     pkgName,
 		PkgVersion:  pkgVersion,
 		Sources:     sources,
 		CanFixed:    canFixed,
-		SeverityInt: severityInts,
+		SeverityInt: severityInt,
 	}
 	layerDigest := ctx.Query("layerDigest")
 	if layerDigest != "" {
@@ -87,21 +85,10 @@ func (s *VulnAPISrv) GetImageVulns(ctx *gin.Context) {
 		return
 	}
 
-	res := make([]VulnList, len(vulns))
+	res := make([]VulnResponse, len(vulns))
 	for i := range vulns {
-		res[i] = VulnList{
-			ID:          vulns[i].ID,
-			Name:        vulns[i].Name,
-			SeverityInt: vulns[i].SeverityInt,
-			Severity:    vulns[i].Severity,
-			FixedBy:     vulns[i].FixedBy,
-			UniqueVuln:  vulns[i].UniqueVuln,
-			Language:    vulns[i].Language,
-			PkgName:     vulns[i].PkgName,
-			PkgVersion:  vulns[i].PkgVersion,
-		}
+		res[i] = convertVuln(vulns[i])
 	}
-	sort.Sort(VulnLists(res))
 
 	response.JSONOK(ctx, response.WithItems(res),
 		response.WithTotalItems(int64(cnt)),
@@ -126,7 +113,7 @@ func (s *VulnAPISrv) GetImageVulnPkg(ctx *gin.Context) {
 	}
 	param := component.SearchVulnParam{
 		PkgKeyword: pkgKeyword,
-		ImageID:    imageID,
+		ImageIds:   []int64{imageID},
 	}
 
 	layerDigest := ctx.Query("layerDigest")
@@ -160,7 +147,7 @@ func (s *VulnAPISrv) GetImageVulnPkg(ctx *gin.Context) {
 				PkgName:          vulns[i].PkgName,
 				PkgVersion:       vulns[i].PkgVersion,
 				SeverityOverview: make([]model.SeverityGroup, 0),
-				Vulns:            make([]VulnList, 0),
+				Vulns:            make([]VulnResponse, 0),
 			}
 		}
 		sf := pkgMap[key]
@@ -202,7 +189,7 @@ func (s *VulnAPISrv) GetImageVulnLanguage(ctx *gin.Context) {
 	}
 	param := component.SearchVulnParam{
 		LanguageKeyword: strings.ToLower(languageKeyword),
-		ImageID:         imageID,
+		ImageIds:        []int64{imageID},
 	}
 
 	layerDigest := ctx.Query("layerDigest")
@@ -240,7 +227,7 @@ func (s *VulnAPISrv) GetImageVulnLanguage(ctx *gin.Context) {
 				LanguageName:     vulns[i].Language,
 				LanguagePath:     vulns[i].Target,
 				SeverityOverview: make([]model.SeverityGroup, 0),
-				Vulns:            make([]VulnList, 0),
+				Vulns:            make([]VulnResponse, 0),
 			}
 		}
 		sf := languageMap[key]
@@ -283,7 +270,7 @@ func (s *VulnAPISrv) GetImageVulnGoBinary(ctx *gin.Context) {
 	}
 	param := component.SearchVulnParam{
 		TargetKeyword: targetKeyword,
-		ImageID:       imageID,
+		ImageIds:      []int64{imageID},
 	}
 	layerDigest := ctx.Query("layerDigest")
 	if layerDigest != "" {
@@ -317,7 +304,7 @@ func (s *VulnAPISrv) GetImageVulnGoBinary(ctx *gin.Context) {
 
 		vulnGO := VulnGobinary{
 			SeverityOverview: make([]model.SeverityGroup, 0),
-			Vulns:            make([]VulnList, 0),
+			Vulns:            make([]VulnResponse, 0),
 		}
 		if index == -1 {
 			vulnGO.GoName = vulns[i].Target
@@ -372,7 +359,7 @@ func (s *VulnAPISrv) GetImageVulnFrame(ctx *gin.Context) {
 
 	param := component.SearchVulnParam{
 		FrameKeyword: frameKeyword,
-		ImageID:      imageID,
+		ImageIds:     []int64{imageID},
 	}
 
 	layerDigest := ctx.Query("layerDigest")
@@ -432,11 +419,11 @@ func (s *VulnAPISrv) GetImageVulnFrame(ctx *gin.Context) {
 		response.WithStartIndex(filter.Offset))
 }
 
-func convertVuln(vuln *model.Vuln) VulnList {
+func convertVuln(vuln *model.Vuln) VulnResponse {
 	if vuln == nil {
-		return VulnList{}
+		return VulnResponse{}
 	}
-	res := VulnList{
+	res := VulnResponse{
 		ID:          vuln.ID,
 		Name:        vuln.Name,
 		SeverityInt: vuln.SeverityInt,
@@ -447,10 +434,13 @@ func convertVuln(vuln *model.Vuln) VulnList {
 		PkgName:     vuln.PkgName,
 		PkgVersion:  vuln.PkgVersion,
 	}
+	if vuln.Attr != nil {
+		res.AttackPath = vuln.Attr["AV"]
+	}
 	return res
 }
 
-type VulnList struct {
+type VulnResponse struct {
 	ID          int64  `json:"id"`
 	Name        string `json:"name"` // 形如CVE-2021-28831
 	SeverityInt int    `json:"severityInt"`
@@ -458,11 +448,12 @@ type VulnList struct {
 	PkgName     string `json:"pkgName"`    // 软件包来源
 	PkgVersion  string `json:"pkgVersion"` // 软件包版本
 	FixedBy     string `json:"fixedBy"`    // 修复建议
-	UniqueVuln  uint64 `json:"uniqueVuln"`
-	Language    string `json:"language"` // 把编程语言
+	UniqueVuln  uint64 `json:"uniqueVuln,string"`
+	Language    string `json:"language"`   // 把编程语言
+	AttackPath  string `json:"attackPath"` // 攻击路径
 }
 
-type VulnLists []VulnList
+type VulnLists []VulnResponse
 
 func (vl VulnLists) Len() int {
 	return len(vl)
@@ -480,7 +471,7 @@ type VulnPKG struct {
 	PkgName          string                `json:"pkgName"`
 	PkgVersion       string                `json:"pkgVersion"`
 	SeverityOverview []model.SeverityGroup `json:"severityOverview"`
-	Vulns            []VulnList            `json:"vulns"`
+	Vulns            []VulnResponse        `json:"vulns"`
 }
 
 type VulnPKGs []VulnPKG
@@ -521,7 +512,7 @@ type VulnLanguage struct {
 	LanguageName     string                `json:"languageName"`
 	LanguagePath     string                `json:"languagePath"`
 	SeverityOverview []model.SeverityGroup `json:"severityOverview"`
-	Vulns            []VulnList            `json:"vulns"`
+	Vulns            []VulnResponse        `json:"vulns"`
 }
 
 type VulnLanguages []*VulnLanguage
@@ -562,7 +553,7 @@ type VulnGobinary struct {
 	GoName           string                `json:"goName"`
 	GoPath           string                `json:"goPath"`
 	SeverityOverview []model.SeverityGroup `json:"severityOverview"`
-	Vulns            []VulnList            `json:"vulns"`
+	Vulns            []VulnResponse        `json:"vulns"`
 }
 
 type VulnGobinaries []*VulnGobinary
@@ -602,7 +593,7 @@ func (vf VulnGobinaries) Swap(i, j int) {
 type VulnFrame struct {
 	Frame            string                `json:"frame"`
 	SeverityOverview []model.SeverityGroup `json:"severityOverview"`
-	Vulns            []VulnList            `json:"vulns"`
+	Vulns            []VulnResponse        `json:"vulns"`
 }
 
 type VulnFrames []*VulnFrame
