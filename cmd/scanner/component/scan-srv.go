@@ -1341,7 +1341,10 @@ func (s *ConScannerSrv) GetImageDetail(ctx context.Context, imgID int64) (*model
 	// 最近扫描时间
 	subtasks, err := s.scanTaskDal.SearchSubTasksWithScanStatus(ctx, []int64{img.ID}, nil)
 	if err == nil && len(subtasks) > 0 {
-		img.LastScanAt = *subtasks[0].FinishedAt
+		finishAt := subtasks[0].FinishedAt
+		if finishAt != nil && !finishAt.IsZero() {
+			img.LastScanAt = *subtasks[0].FinishedAt
+		}
 	}
 
 	// 查在线
