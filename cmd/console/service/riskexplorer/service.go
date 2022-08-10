@@ -13,6 +13,7 @@ import (
 	assetsSvc "gitlab.com/piccolo_su/vegeta/cmd/console/service/assets"
 	"gitlab.com/piccolo_su/vegeta/pkg/assets"
 	"gitlab.com/piccolo_su/vegeta/pkg/dal"
+	"gitlab.com/piccolo_su/vegeta/pkg/echelper"
 	"gitlab.com/piccolo_su/vegeta/pkg/lang"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/security-rd/go-pkg/logging"
@@ -28,7 +29,7 @@ const (
 	limit    = 100
 )
 
-func Init(scannerURL string, redisCli *redis.Client) error {
+func Init(scannerURL string, redisCli *redis.Client, sherlockClient *echelper.SherlockClient) error {
 	initOnce.Do(func() {
 		singleton = &Service{
 			reporters:  make([]RiskTypeReporter, 0, 2),
@@ -36,6 +37,7 @@ func Init(scannerURL string, redisCli *redis.Client) error {
 		}
 		// add more reporters here
 		singleton.reporters = append(singleton.reporters, NewImageVulnsReporter(redisCli))
+		singleton.reporters = append(singleton.reporters, NewSignalReporter(sherlockClient))
 	})
 	return nil
 }

@@ -4,30 +4,37 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"net/http"
-	"os"
+	"time"
 
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 	"gitlab.com/security-rd/go-pkg/pb"
 )
 
-func (c *SherlockClient) getURL(path string) string {
-	base := os.Getenv("SHERLOCK_URL")
+func (c *SherlockClient) getURL(path string, a ...interface{}) string {
 	switch path {
 	case "ResetCategoryRules":
-		return base + "/api/v1/palace/internal/rules/reset"
+		return c.SherlockHost + "/api/v1/palace/internal/rules/reset"
 	case "AddDetectionRule":
-		return base + "/api/v1/palace/internal/rules"
+		return c.SherlockHost + "/api/v1/palace/internal/rules"
+	case "RiskStats":
+		return fmt.Sprintf(c.SherlockHost+"/api/v1/palace/internal/risk/stats?clusterKey=%s&createdAt=%d", a...)
 	}
-	return base
+
+	return c.SherlockHost
 }
 
-type SherlockClient struct{}
+type SherlockClient struct {
+	SherlockHost string
+}
 
-func NewSherlockClient() SherlockClient {
-	return SherlockClient{}
+func NewSherlockClient(host string) *SherlockClient {
+	return &SherlockClient{
+		SherlockHost: host,
+	}
 }
 
 func (c *SherlockClient) AddDetectionRule(ctx context.Context, rule *pb.DetectionRule) error {
@@ -97,4 +104,46 @@ func (c *SherlockClient) ResetCategoryRules(ctx context.Context, category string
 	logging.GetLogger().Debug().Msgf("ResetCategoryRules end, url:%s, req:%s, rsp:%s", c.getURL("ResetCategoryRules"), string(jsonBytes), string(body))
 
 	return nil
+}
+
+type RiskStatsItem struct {
+	EnKey    string `json:"enKey"`
+	ZhKey    string `json:"zhKey"`
+	Count    int    `json:"count"`
+	Severity int    `json:"severity"`
+}
+
+func (c *SherlockClient) RiskStats(ctx context.Context, clusterKey string) (map[string][]RiskStatsItem, error) {
+	url := c.getURL("RiskStats", clusterKey, time.Now().Add(-time.Hour*24*7).UnixMilli())
+
+	logging.GetLogger().Debug().Str("url", url).Str("clusterKey", clusterKey).Msg("RiskStats start")
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	rsp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer util.CloseBodyWithLog(rsp.Body)
+
+	body, err := ioutil.ReadAll(rsp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	logging.GetLogger().Debug().Str("url", url).Str("resp", string(body)).Msg("RiskStats end")
+
+	result := struct {
+		Code    int                        `json:"code"`
+		Message string                     `json:"message"`
+		Data    map[string][]RiskStatsItem `json:"data"`
+	}{}
+	if err = json.Unmarshal(body, &result); err != nil {
+		return nil, err
+	}
+
+	return result.Data, nil
 }

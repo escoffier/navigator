@@ -80,8 +80,6 @@ func NewConsole(
 	elasticOpts *flag.ElasticOpts,
 	rdbOptions *databases.Options,
 ) (*Console, error) {
-	sherlockClient := echelper.NewSherlockClient()
-
 	// Redis DB client
 	redisClient, err := cache.NewRedis()
 	if err != nil {
@@ -99,6 +97,8 @@ func NewConsole(
 	microsegURL := os.Getenv("MICROSEG_URL")
 	sherlockURL := os.Getenv("SHERLOCK_URL")
 	clusterManagerURL := env.GetClusterManagerUrl()
+
+	sherlockClient := echelper.NewSherlockClient(sherlockURL)
 
 	// main function context
 	mainCtx, mainCancel := context.WithCancel(context.Background())
@@ -180,7 +180,7 @@ func NewConsole(
 		logging.Get().Err(err).Msg("ERROR: cronService  init error")
 	}
 
-	reErr := riskexplorer.Init(scannerURL, redisClient)
+	reErr := riskexplorer.Init(scannerURL, redisClient, sherlockClient)
 	if reErr != nil {
 		logging.Get().Err(reErr).Msg("ERROR: riskexplorerService init error")
 	}
@@ -191,7 +191,7 @@ func NewConsole(
 		logging.Get().Err(ntErr).Msg("ERROR: networkFlowService init error")
 	}
 
-	err = attck.Init(rdb, redisClient, &sherlockClient)
+	err = attck.Init(rdb, redisClient, sherlockClient)
 	if err != nil {
 		logging.Get().Err(err).Msg("ERROR: config service init error")
 	}
