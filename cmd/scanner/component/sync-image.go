@@ -270,36 +270,91 @@ func (s *SyncRepoImage) SyncAddImage(ctx context.Context, syncType consts.SyncTy
 }
 
 func (s *SyncRepoImage) clearUpImage(ctx context.Context, imageIds []int64) error {
-	logging.GetLogger().Info().Msg("ClearUp start")
-
 	if len(imageIds) == 0 {
 		return nil
 	}
+	// 清理镜像时排除在线镜像
+	onlineSQL := fmt.Sprintf("select distinct a.id  from  %s a  join %s b  on  a.image_uuid = b.image_uuid", model.ImageList{}.TableName(), model.TensorContainer{}.TableName())
+	online, err := s.imageDal.GetOnlineImage(ctx, store.GetOnlineImageParam{SQL: onlineSQL})
+	if err != nil {
+		logging.GetLogger().Err(err).Msg("GetOnlineImageId.GetOnlineImage")
+		return err
+	}
+	onlineMap := make(map[int64]bool)
+	for i := range online {
+		onlineMap[online[i].ID] = true
+	}
+	logging.GetLogger().Info().Msg("ClearUp start")
 
+	deleteIds := make([]int64, 0)
+
+	for i := range imageIds {
+		if !onlineMap[imageIds[i]] {
+			deleteIds = append(deleteIds, imageIds[i])
+		}
+	}
+	if len(deleteIds) == 0 {
+		return nil
+	}
 	// 为了防止其他数据已清除ivan_scanner_image_list未删除的情况， 先删除 ivan_scanner_image_list 表，
 	// 这情情况下可能会出现脏数据,之后版本时间充足时再修复
-	if err := s.imageDal.DeleteImage(ctx, imageIds); err != nil {
+	if err := s.imageDal.DeleteImage(ctx, deleteIds); err != nil {
 		logging.GetLogger().Err(err).Msg("ClearUp")
 		return err
 	}
 	// 删除 ivan_scanner_vuln_images表
-	if err := s.vulnDal.DeleteVulnImage(ctx, imageIds); err != nil {
+	if err := s.vulnDal.DeleteVulnImage(ctx, deleteIds); err != nil {
 		logging.GetLogger().Err(err).Msg("ClearUp")
 		return err
 	}
 
 	// 删除 ivan_scanner_scan_layers 表
-	if err := s.scannerDB.DeleteScanLayer(ctx, imageIds); err != nil {
+	if err := s.scannerDB.DeleteScanLayer(ctx, deleteIds); err != nil {
 		logging.GetLogger().Err(err).Msg("ClearUp")
 		return err
 	}
 	// 删除 ivan_scanner_scan_images 表
-	if err := s.imageDal.DeleteScanImage(ctx, imageIds); err != nil {
+	if err := s.imageDal.DeleteScanImage(ctx, deleteIds); err != nil {
 		logging.GetLogger().Err(err).Msg("ClearUp")
 		return err
 	}
 
 	logging.GetLogger().Info().Msg("ClearUp end")
+	return nil
+}
+
+// 清理已删除的仓库的镜像
+func (s *SyncRepoImage) clearUpImageAfterDeleteRegistry(ctx context.Context) error {
+	registries, _, err := s.registryDal.SearchRegistry(ctx, store.SearchRegistryParam{NoDelete: false}, nil)
+	if err != nil {
+		return err
+	}
+	for i := range registries {
+		if registries[i].DeletedAt == 0 {
+			continue
+		}
+		regID := registries[i].ID
+		var startID int64
+		for {
+			image, _, err := s.imageDal.SearchImage(ctx, store.SearchImageParam{StartID: startID, Fields: []string{"id"}, RegistryIds: []int64{regID}},
+				&model.Filter{Limit: consts.DefaultLimit, SortFiled: "id", SortBy: consts.SortByAsc})
+			if err != nil {
+				return err
+			}
+			if len(image) == 0 {
+				break
+			}
+			startID = image[len(image)-1].ID
+			imaIds := make([]int64, 0)
+			for j := range image {
+				imaIds = append(imaIds, image[j].ID)
+			}
+
+			if err := s.clearUpImage(ctx, imaIds); err != nil {
+				return err
+			}
+		}
+	}
 	return nil
 }
 
@@ -374,7 +429,14 @@ func (s *SyncRepoImage) startSyncAllImage(ctx context.Context, regID int64, sync
 			logging.GetLogger().Err(err).Msg("ClearUp after TimingFullSync clearUP failure")
 			return err
 		}
-		logging.GetLogger().Info().Msg("ClearUp after TimingFullSync clearUP success")
+		logging.GetLogger().Info().Int64("regID", regID).Msg("ClearUp after TimingFullSync clearUP success")
+
+		if err := s.clearUpImageAfterDeleteRegistry(ctx); err != nil {
+			logging.GetLogger().Err(err).Msg("ClearUp after TimingFullSync clearUpImageAfterDeleteRegistry failure")
+			return err
+		}
+		logging.GetLogger().Info().Int64("regID", regID).Msg("ClearUp after TimingFullSync clearUpImageAfterDeleteRegistry success")
+
 	}
 
 	return nil
