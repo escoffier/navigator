@@ -434,7 +434,7 @@ func (s *Service) doRegisterEventsCenterRules(ctx context.Context) error {
 			defer cancel()
 
 			err := util.RetryWithBackoff(oneCtx, func() error {
-				sherlockClient := echelper.NewSherlockClient()
+				sherlockClient := echelper.NewSherlockClient(os.Getenv("SHERLOCK_URL"))
 				return sherlockClient.AddDetectionRule(oneCtx, detectionRule)
 			})
 
