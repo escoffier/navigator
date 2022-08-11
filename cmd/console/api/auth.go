@@ -617,7 +617,8 @@ func jwtAccessCheck(db *databases.RDBInstance) func(http.Handler) http.Handler {
 			ctx = context.WithValue(r.Context(), model.CtxUserSessionKey, userSession)
 			if r.Method == http.MethodGet ||
 				r.URL.Path == "/api/v2/platform/sherlock/palace/events" ||
-				r.URL.Path == "/api/v2/platform/sherlock/palace/signals" {
+				r.URL.Path == "/api/v2/platform/sherlock/palace/signals" ||
+				r.URL.Path == "/api/v2/containerSec/scanner/images/list" {
 				next.ServeHTTP(w, r.WithContext(ctx))
 				return
 			}
