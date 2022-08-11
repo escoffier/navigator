@@ -274,7 +274,7 @@ func (s *SyncRepoImage) clearUpImage(ctx context.Context, imageIds []int64) erro
 		return nil
 	}
 	// 清理镜像时排除在线镜像
-	onlineSQL := fmt.Sprintf("select distinct a.id  from  %s a  join %s b  on  a.image_uuid = b.image_uuid", model.ImageList{}.TableName(), model.TensorContainer{}.TableName())
+	onlineSQL := fmt.Sprintf("select distinct a.id  from  %s a  join %s b  on  a.image_uuid = b.image_uuid where b.status = 0", model.ImageList{}.TableName(), model.TensorContainer{}.TableName())
 	online, err := s.imageDal.GetOnlineImage(ctx, store.GetOnlineImageParam{SQL: onlineSQL})
 	if err != nil {
 		logging.GetLogger().Err(err).Msg("GetOnlineImageId.GetOnlineImage")
