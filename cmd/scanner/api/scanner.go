@@ -568,6 +568,15 @@ func (s *Scanner) ScannedByImageDetails(ctx *gin.Context) {
 		response.JSONError(ctx, err)
 		return
 	}
+	// 精简数据
+	img.Registry = nil
+	img.ConfigJSON = nil
+	img.ConfigFile = nil
+	img.ManifestV2 = nil
+	img.ManifestV2JSON = nil
+	img.ManifestV1 = nil
+	img.ManifestV1JSON = nil
+	img.ImageScanVuln.Vulns = nil
 	response.JSONOK(ctx, response.WithItem(*img))
 }
 
