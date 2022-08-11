@@ -296,7 +296,7 @@ type ImageList struct {
 
 	CheckSum       uint64 `gorm:"column:check_sum" json:"check_sum,string"`       // 这一行数据的check值，且于判断这一行数据是否有变动，如果没有变动，就不再更新
 	UniqueImage    uint64 `gorm:"column:unique_image" json:"unique_image,string"` // 由fullreponame+tags+registryId+fromType生成uuid，唯一确定一定镜像，优化查询
-	Flag           uint64 `gorm:"column:flag" json:"flag:string"`
+	Flag           uint64 `gorm:"column:flag" json:"flag,string"`
 	LastFullSyncAt int64  `gorm:"column:last_full_sync_at" json:"last_full_sync_at"`
 
 	Online     bool      `gorm:"-" json:"online"`
