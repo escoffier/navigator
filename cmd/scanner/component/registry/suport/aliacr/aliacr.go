@@ -44,6 +44,9 @@ func (aa *AliAcr) Ping() error {
 	if err := aa.RegistryClient.Ping(); err != nil {
 		return consts.ErrNotConnectOrWrongUsernameOrPasswd
 	}
+	if _, err := aa.listNamespaces(aa.AliAcrClient); err != nil {
+		return consts.ErrNotConnectOrWrongUsernameOrPasswd
+	}
 	return nil
 }
 

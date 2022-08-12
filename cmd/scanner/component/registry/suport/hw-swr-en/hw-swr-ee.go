@@ -127,6 +127,12 @@ func (h *HwSwrEE) Ping() error {
 	if err := h.RegistryClient.Ping(); err != nil {
 		return consts.ErrNotConnectOrWrongUsernameOrPasswd
 	}
+
+	// 通过docker-registry的接口也不会报错，只是获取不到数据
+	if _, err := h.getRepositories(context.Background()); err != nil {
+		return consts.ErrNotConnectOrWrongUsernameOrPasswd
+	}
+
 	return nil
 }
 
