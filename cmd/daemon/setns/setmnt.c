@@ -534,7 +534,8 @@ int GetProcessWithTcp(PidAssMnt *mnt, int pidNums, int pids[], int filesNum, cha
             inode = netdata[5];
             if(mnt->addrType == RCV_ADDR)
             {
-                if((state != LINK_ST_ESTABLISHED) || (localPort != mnt->dstPort)) continue;
+                if(localPort != mnt->dstPort) continue;
+                if(state != LINK_ST_ESTABLISHED) break;
             }
             else
             {

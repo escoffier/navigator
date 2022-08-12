@@ -667,7 +667,7 @@ func (fs *FlowSession) GetProcessName(netinfo *daemon.PidAssociateMnt) (*daemon.
 		return &pInfo, nil
 	}
 
-	return nil, errors.Errorf("read udp response timeout")
+	return nil, errors.Errorf("read unix response timeout")
 }
 
 func (fs *FlowSession) GetContainerProcessName(addrType uint8, res *daemon.K8sResData, tuple *daemon.FiveTuple) (*daemon.ProcessInfo, error) {
