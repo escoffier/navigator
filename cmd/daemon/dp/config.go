@@ -42,6 +42,7 @@ type ConfigManager struct {
 	execWhiteList  map[string]map[string]string // image digest => { hash1 => exec_path,hash2 => exec_path}
 	imageCountLock sync.Mutex
 	imageUsedCount map[string]*imageUsedItem
+	client         *http.Client
 }
 
 const (
@@ -49,21 +50,22 @@ const (
 )
 
 func (cm *ConfigManager) SyncPolicy(ctx context.Context) error {
+	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+	//url
 	url := fmt.Sprintf("%s/api/openapi/drift/policy?last_time=%d", cm.consoleAddr, cm.policies.LastTime)
 	logging.Get().Debug().Msgf("url is %v ", url)
-
-	tr := &http.Transport{
-		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
-	}
-	cli := http.Client{Transport: tr, Timeout: 60 * time.Second}
-	req, err := http.NewRequest("GET", url, nil)
-	req.Header.Add("X-Tensorsec-cicd-key", internalApiKey)
-	req.Header.Add("Content-Type", "application/json")
+	//http new request
+	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
 		logging.Get().Err(err).Msgf("init requset error", url)
 		return err
 	}
-	resp, err := cli.Do(req)
+	//http header
+	req.Header.Set("X-Tensorsec-cicd-key", internalApiKey)
+	req.Header.Set("Content-Type", "application/json")
+	//http request
+	resp, err := cm.client.Do(req)
 	if err != nil {
 		logging.Get().Error().Err(err).Msgf("request url:%v error", url)
 		return err
@@ -112,6 +114,7 @@ func (cm *ConfigManager) GetPolicyByResourceUUID(uuid uint32) (model.DriftPolicy
 
 func (cm *ConfigManager) Start() error {
 	logging.Get().Info().Msg("config manager start")
+
 	for {
 		ctx, cancel := context.WithTimeout(context.Background(), time.Second*60)
 		err := cm.SyncPolicy(ctx)
@@ -351,6 +354,12 @@ func NewConfigManger(consoleAddr string) (*ConfigManager, error) {
 		policyLock:  &sync.Mutex{},
 		consoleAddr: consoleAddr,
 	}
+	//http transport
+	tr := &http.Transport{
+		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+	}
+	//http client
+	cm.client = &http.Client{Transport: tr}
 	cm.execWhiteList = make(map[string]map[string]string)
 	cm.imageUsedCount = make(map[string]*imageUsedItem)
 	cm.policies = model.DaemonDriftPolicies{
