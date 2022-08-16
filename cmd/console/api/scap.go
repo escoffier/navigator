@@ -662,7 +662,6 @@ func (api *api) updateRecordVariate() http.HandlerFunc {
 }
 
 /* 下面是抽离出一些函数逻辑，用于和openapi共用*/
-
 func (api *api) scapCheckHandler(ctx context.Context, w http.ResponseWriter, checkType model.ComplianceCheckType, clusterKey, username string) {
 	// check scanning task
 	scapService, _ := scapper.GetService(ctx)

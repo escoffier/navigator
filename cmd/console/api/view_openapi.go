@@ -46,6 +46,7 @@ type resourceContainerOpenApi struct {
 }
 
 type TensorNodeOpenApi struct {
+	ID                      int64                   `json:"id"`
 	ClusterKey              string                  `json:"clusterKey"`
 	HostName                string                  `json:"hostName"`
 	NodeIP                  string                  `json:"nodeIP"`
