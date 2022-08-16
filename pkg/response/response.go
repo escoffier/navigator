@@ -165,7 +165,7 @@ func RespData(w http.ResponseWriter, code int, opts ...ResponseDataOptionFunc) {
 	resp := HTTPEnvelope{
 		ApiVersion: "1.0",
 		Data:       &HTTPData{},
-		Target:     &TargetRef{},
+		// Target:     &TargetRef{},
 	}
 
 	for _, opt := range opts {

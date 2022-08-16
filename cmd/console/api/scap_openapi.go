@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"math"
@@ -13,14 +14,21 @@ import (
 	"github.com/go-chi/chi"
 	param "github.com/oceanicdev/chi-param"
 
+	"gitlab.com/piccolo_su/vegeta/cmd/console/models/scap"
+	scapservice "gitlab.com/piccolo_su/vegeta/cmd/console/service/scap"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/scapper"
 	"gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
-	"gitlab.com/piccolo_su/vegeta/pkg/util"
 )
 
-func (api *api) scapCheckOpenApi() http.HandlerFunc {
+func (api *api) createScapScanTaskOpenApi() http.HandlerFunc {
+
+	type ClusterInfo struct {
+		ClusterKey string  `json:"clusterKey"`
+		Nodes      []int64 `json:"nodes"`
+		IsAllNodes bool    `json:"isAllNodes"`
+	}
 
 	type scapCheckReq struct {
 		// 操作人 必填
@@ -28,7 +36,9 @@ func (api *api) scapCheckOpenApi() http.HandlerFunc {
 		// 检测类型，docker:表示检测Docker，host:表示检测主机，kube：表示检测kubernetes 必填
 		CheckType string `json:"checkType" query:"checkType" form:"checkType" binding:"required"`
 		// 集群Key 必填
-		ClusterKey string `json:"clusterKey" query:"clusterKey" form:"clusterKey"`
+		ClusterKey   string             `json:"clusterKey" query:"clusterKey" form:"clusterKey"`
+		ClusterInfos []scap.ClusterInfo `json:"clusterInfos"`
+		PolicyID     uint               `json:"policyId"`
 	}
 
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -36,24 +46,41 @@ func (api *api) scapCheckOpenApi() http.HandlerFunc {
 		defer cancel()
 
 		var req scapCheckReq
-
-		err := util.DecodeJSONBody(w, r, &req)
+		err := json.NewDecoder(r.Body).Decode(&req)
 		if err != nil {
-			apperror.RespAndLog(w, ctx, apperror.NewFieldError(http.StatusBadRequest, errors.New("couldn't parse params")))
+			apperror.RespAndLog(w, ctx, apperror.NewErrorWithCode(
+				http.StatusBadRequest,
+				fmt.Errorf("invalid request parameters")),
+			)
 			return
 		}
 
-		if !checkType(req.CheckType) {
-			apperror.RespAndLog(w, ctx, apperror.NewFieldError(http.StatusBadRequest, errors.New("invaild check type")))
+		job := scap.Job{ClusterInfos: req.ClusterInfos, PolicyID: req.PolicyID}
+
+		if err := job.VerifyJob(); err != nil {
+			apperror.RespAndLog(
+				w,
+				ctx,
+				apperror.NewErrorWithCode(
+					http.StatusBadRequest,
+					err,
+				),
+			)
 			return
 		}
 
-		if req.ClusterKey == "" && req.Operator == "" {
-			apperror.RespAndLog(w, ctx, apperror.NewFieldError(http.StatusBadRequest, errors.New("param can't be empty")))
+		scapApiV2 := scapservice.NewService(api.rdb, api.redisClient)
+
+		err = scapApiV2.CreateJob(ctx, &scapservice.Job{Job: job, UserName: req.Operator, Type: model.GetModeScanType(req.CheckType)})
+		if err != nil {
+			apperror.RespAndLog(w, ctx, apperror.NewErrorWithCode(
+				http.StatusInternalServerError,
+				fmt.Errorf("create job failed")),
+			)
 			return
 		}
 
-		api.scapCheckHandler(ctx, w, model.ComplianceCheckType(req.CheckType), req.ClusterKey, req.Operator)
+		response.Ok(w)
 	}
 }
 
@@ -285,6 +312,51 @@ func (api *api) getPolicyDetailsOpenApi() http.HandlerFunc {
 	}
 }
 
+func (api *api) getScapScanPolicy() http.HandlerFunc {
+
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(r.Context(), time.Second*60)
+		defer cancel()
+
+		scapApiV2 := scapservice.NewService(api.rdb, api.redisClient)
+
+		scanCheckType, _ := param.QueryString(r, "checkType")
+		if scanCheckType == "" {
+			apperror.RespAndLog(w, ctx, apperror.NewErrorWithCode(
+				http.StatusBadRequest,
+				fmt.Errorf("not fond checkType"),
+			))
+			return
+		}
+
+		result, count, err := scapApiV2.PolicyBatch(ctx, model.GetModeScanType(scanCheckType), math.MaxInt32, 0, "")
+		if err != nil {
+			apperror.RespAndLog(w, ctx, apperror.NewErrorWithCode(
+				http.StatusInternalServerError,
+				err,
+			))
+			return
+		}
+
+		var resp = make([]scap.PolicyBrief, 0, len(result))
+		for i := range result {
+
+			s := scap.PolicyBrief{
+				ID:        result[i].ID,
+				Name:      result[i].Name,
+				Comment:   result[i].Comment,
+				Operator:  result[i].Operator,
+				CreatedAt: result[i].CreatedAt.Unix(),
+				IsDefault: result[i].IsDefault,
+			}
+
+			resp = append(resp, s)
+		}
+
+		response.Ok(w, response.WithItems(resp), response.WithTotalItems(count))
+	}
+}
+
 func (api *api) scapOpenApi() func(chi.Router) {
 	rate, err := strconv.Atoi(os.Getenv("OPENAPI_RATE_LIMIT_PER_MIN"))
 	if err != nil || rate <= 0 {
@@ -293,7 +365,7 @@ func (api *api) scapOpenApi() func(chi.Router) {
 
 	return func(r chi.Router) {
 		r.With(RateLimitMiddleware(api.redisClient, int64(rate))).
-			Post("/scan/scantask", api.scapCheckOpenApi())
+			Post("/scan/scantask", api.createScapScanTaskOpenApi())
 
 		r.With(RateLimitMiddleware(api.redisClient, int64(rate))).
 			Get("/scan/record", api.getLatestScanRecordOpenApi())
@@ -303,5 +375,9 @@ func (api *api) scapOpenApi() func(chi.Router) {
 
 		r.With(RateLimitMiddleware(api.redisClient, int64(rate))).
 			Get("/scan/record/tasks/{checkId}", api.getPolicyDetailsOpenApi())
+
+		r.With(RateLimitMiddleware(api.redisClient, int64(rate))).
+			Get("/scan/policies", api.getScapScanPolicy())
+
 	}
 }

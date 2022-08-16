@@ -44,6 +44,21 @@ const (
 	ComplianceCheckTargetTypeHost   ComplianceCheckType = "host"
 )
 
+func GetModeScanType(checkType string) uint8 {
+	var t uint8
+
+	switch ComplianceCheckType(checkType) {
+	case ComplianceCheckTargetTypeKube:
+		t = 1
+	case ComplianceCheckTargetTypeDocker:
+		t = 2
+	case ComplianceCheckTargetTypeHost:
+		t = 3
+	}
+	return t
+
+}
+
 type ComplianceCronConfig struct {
 	ClusterKey      string     `json:"clusterKey"`
 	KubeBenchCron   CronConfig `json:"kubeBenchCron"`

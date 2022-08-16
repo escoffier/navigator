@@ -373,6 +373,7 @@ func (api *api) getNodesForOpenapi() http.HandlerFunc {
 		res := make([]TensorNodeOpenApi, 0)
 		for i := range nodes {
 			no := TensorNodeOpenApi{
+				ID:                      int64(nodes[i].ID),
 				ClusterKey:              nodes[i].ClusterKey,
 				HostName:                nodes[i].HostName,
 				NodeIP:                  nodes[i].NodeIP,
