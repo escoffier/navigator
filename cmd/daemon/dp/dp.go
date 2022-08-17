@@ -306,7 +306,7 @@ func firstInjectContainer(rt container.Runtime, injector *Injector) error {
 		}
 		injected, err := injector.DoInject(cm)
 		if err != nil {
-			logging.Get().Err(err).Str("containerID", c.ID).Msg("inject container failed")
+			// logging.Get().Err(err).Str("containerID", c.ID).Msg("inject container failed")
 		}
 		if injected {
 			injectCount++

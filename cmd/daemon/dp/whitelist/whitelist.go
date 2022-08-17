@@ -84,7 +84,7 @@ func dumpWhitelist(whiteList []WhitelistFile, outputFile string) error {
 	sort.Slice(whiteList, func(i, j int) bool {
 		return whiteList[i].Name < whiteList[j].Name
 	})
-	logging.Get().Debug().Msgf("white list len:%v", len(whiteList))
+	logging.Get().Trace().Msgf("white list len:%v", len(whiteList))
 
 	if _, err := os.Stat(backFilePath); err != nil {
 		err = os.Mkdir(backFilePath, fs.FileMode(0x0700))
@@ -135,7 +135,7 @@ func dumpWhitelist(whiteList []WhitelistFile, outputFile string) error {
 
 func (wc *WhitelistCount) walkDir(imageDir []string) []WhitelistFile {
 
-	logging.Get().Debug().Msgf("image dir:%v", imageDir)
+	logging.Get().Trace().Msgf("image dir:%v", imageDir)
 
 	// loop dir
 	// whiteList := make([]WhitelistFile, 0)
@@ -145,7 +145,7 @@ func (wc *WhitelistCount) walkDir(imageDir []string) []WhitelistFile {
 		// lowerDirs seq reference https://wiki.archlinux.org/title/Overlay_filesystem
 		// and https://docs.docker.com/storage/storagedriver/overlayfs-driver/
 		v := imageDir[len(imageDir)-i-1]
-		logging.Get().Debug().Msgf("check image dir:%v", v)
+		logging.Get().Trace().Msgf("check image dir:%v", v)
 		if v == "" {
 			continue
 		}
@@ -153,7 +153,7 @@ func (wc *WhitelistCount) walkDir(imageDir []string) []WhitelistFile {
 		wc.Mapmutex.Lock()
 		wc.ImageDirCount++
 		if _, ok := wc.ImageWhiteListMap[v]; ok {
-			logging.Get().Debug().Msgf("image dir:%v already in white list", v)
+			logging.Get().Trace().Msgf("image dir:%v already in white list", v)
 			wc.HitCount++
 			for k, v := range wc.ImageWhiteListMap[v] {
 				whiteList[k] = v
@@ -168,7 +168,7 @@ func (wc *WhitelistCount) walkDir(imageDir []string) []WhitelistFile {
 		// rebuild link target
 		reLinkTarget := rebuildLinkTarget(linkTarget)
 		if len(reLinkTarget) != len(linkTarget) {
-			logging.Get().Debug().Msgf("linkTarget cnt:%d,after rebuild:%d", len(linkTarget), len(reLinkTarget))
+			logging.Get().Trace().Msgf("linkTarget cnt:%d,after rebuild:%d", len(linkTarget), len(reLinkTarget))
 		}
 
 		// check link hash and add to whitelist
@@ -216,7 +216,7 @@ func (wc *WhitelistCount) MakeWhiteListByOverLay(image types.ImageInspect) (imag
 	whiteListFileName := fmt.Sprintf(whiteListBackFileTemplate, arr[1])
 	var whiteList []WhitelistFile
 	if isFile(whiteListFileName) {
-		logging.Get().Debug().Msg("get from file")
+		logging.Get().Trace().Msg("get from file")
 		whiteList, err := loadWhiteListFromFile(whiteListFileName)
 		if err != nil {
 			logging.Get().Warn().Err(err).Msg("get white list from file fail")

