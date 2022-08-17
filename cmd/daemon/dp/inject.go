@@ -23,8 +23,8 @@ import (
 const (
 	// excludeImage = "daemon"
 	containerIDFilePathTemplate = "/host/proc/%d/root/.container_id"
-
-	supportOSConfigFilePath = "/etc/support-os/support-os.conf"
+	containerBasePathTemplate   = "/host/proc/%d/root"
+	supportOSConfigFilePath     = "/etc/support-os/support-os.conf"
 )
 
 type Injector struct {
@@ -40,7 +40,7 @@ var (
 	HostTensorPath              = "/host/tmp/tensor"
 	HostEtcPreloadPath          = "/host/tmp/ld.so.preload"
 	procPrefix                  = "/host/proc/"
-	ContainerPath               = "/.tensor"
+	ContainerTensorPath         = "/.tensor"
 	injectSoName                = "dp.so"
 	containerTmpMnt             = "/tmpmnt"
 	containerEtcPreloadPath     = "/etc/ld.so.preload"
@@ -121,8 +121,8 @@ func (ij *Injector) initCommandSeq() error {
 		{"chmod", "777", logOutputPath},
 		{"mkdir", containerTmpMnt},
 		{"mount", blockDevPath, containerTmpMnt},
-		{"mkdir", ContainerPath},
-		{"mount", "-o", "bind", tensorDir, ContainerPath},
+		{"mkdir", ContainerTensorPath},
+		{"mount", "-o", "bind", tensorDir, ContainerTensorPath},
 		{"touch", containerEtcPreloadPath},
 		{"mount", "-o", "bind,ro", containerTmpMnt + ij.subRoot + "/ld.so.preload", containerEtcPreloadPath},
 		{"umount", containerTmpMnt},
@@ -207,14 +207,31 @@ func (ij *Injector) getDev(path string) error {
 
 func (ij *Injector) mknodInProc(pid int) error {
 	path := procPrefix + strconv.Itoa(pid) + "/root" + blockDevPath
-	logging.Get().Debug().Msgf("mknod %s", path)
+	if err := os.RemoveAll(path); err != nil {
+		logging.Get().Error().Msg(err.Error())
+	}
+
+	logging.Get().Trace().Msgf("mknod %s", path)
 	dev := int(system.Mkdev(int64(ij.mountInfo.Major), int64(ij.mountInfo.Minor)))
 	return syscall.Mknod(path, syscall.S_IFBLK|uint32(os.FileMode(0660)), dev)
 }
 
+func (ij *Injector) rmOldConfigBeforeInject(pid int) error {
+	injectPaths := []string{fmt.Sprintf(containerBasePathTemplate, pid) + containerEtcPreloadPath,
+		fmt.Sprintf(containerBasePathTemplate, pid) + ContainerTensorPath,
+	}
+	for _, p := range injectPaths {
+		if err := os.RemoveAll(p); err != nil {
+			logging.Get().Err(err).Msg("rm old path fail")
+		}
+
+	}
+	return nil
+}
+
 func (ij *Injector) putContainerID2File(pid int, cid string) error {
 	path := fmt.Sprintf(containerIDFilePathTemplate, pid)
-	logging.Get().Debug().Msgf("put container id %s to %s", cid, path)
+	logging.Get().Trace().Msgf("put container id %s to %s", cid, path)
 	return ioutil.WriteFile(path, []byte(cid), 0644)
 }
 
@@ -271,6 +288,11 @@ func (ij *Injector) DoInject(cm container.ContainerMeta) (bool, error) {
 		logging.Get().Err(err).Int("ProcessID", cm.ProcessID).Str("containerID", cm.ID).Msg("mknod failed")
 	}
 
+	err = ij.rmOldConfigBeforeInject(cm.ProcessID)
+	if err != nil {
+		logging.Get().Warn().Int("ProcessID", cm.ProcessID).Str("containerID", cm.ID).Msg(err.Error())
+	}
+
 	for index, cmd := range ij.containerCommandSeq {
 		if len(cmd) == 0 {
 			break
@@ -281,7 +303,7 @@ func (ij *Injector) DoInject(cm container.ContainerMeta) (bool, error) {
 			msg := fmt.Sprintf("index:%d,%s,%s,%v", index, stdout, stderr, err)
 			normalMsg := fmt.Sprintf("index:%d,inject failed.", index)
 			EncryptedLogErrMsg(msg, logEncryptKey, normalMsg)
-			break
+			continue
 		}
 		// logging.Get().Debug().Msg(stdout)
 	}
