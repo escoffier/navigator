@@ -50,7 +50,9 @@ var (
 		"/host/proc/%d/root/etc/os-release",
 		"/host/proc/%d/root/etc/debian_release",
 		"/host/proc/%d/root/etc/centos-release",
-		"/host/proc/%d/root/etc/VERSION"}
+		"/host/proc/%d/root/etc/VERSION",
+		"/host/proc/%d/root/etc/redhat-release",
+	}
 
 	supportOSTargets = []string{
 		"ubuntu-22.04",
@@ -301,7 +303,35 @@ func (ij *Injector) DoInject(cm container.ContainerMeta) (bool, error) {
 	return IsInjected(cm.ProcessID)
 }
 
+func getRHELOSTargetFromFile(path string) (string, error) {
+	targetStr := "rhel-"
+
+	f, err := os.Open(path)
+	if err != nil {
+		logging.Get().Error().Msgf("Failed to read file %s", path)
+		return "", err
+	}
+	defer f.Close()
+	br := bufio.NewReader(f)
+	for {
+		line, _, c := br.ReadLine()
+		if c == io.EOF {
+			break
+		}
+		lineStr := string(line)
+		splitList := strings.Split(lineStr, " ")
+		if len(splitList) > 1 {
+			targetStr += splitList[len(splitList)-2]
+		}
+	}
+	return targetStr, nil
+}
+
 func getOSTargetFromFile(path string) (string, error) {
+	if strings.Contains(path, "redhat-release") {
+		return getRHELOSTargetFromFile(path)
+	}
+
 	targetStr := ""
 	osName := ""
 	osVersion := ""
@@ -338,6 +368,7 @@ func needSkipInject(pid int) bool {
 
 	for _, v := range containerOSFilePathTemplate {
 		path := fmt.Sprintf(v, pid)
+		// logging.Get().Info().Msgf("try path: %v\n", path)
 		if _, err := os.Stat(path); err != nil {
 			continue
 		}
@@ -349,6 +380,7 @@ func needSkipInject(pid int) bool {
 
 		for _, v := range supportOSTargets {
 			if v == osTarget {
+				// logging.Get().Info().Str("osTarget:", osTarget).Msg("")
 				return false
 			}
 		}
