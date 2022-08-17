@@ -11,6 +11,8 @@ import (
 
 	"github.com/go-chi/chi"
 	"github.com/go-chi/jwtauth"
+	uuid "github.com/satori/go.uuid"
+
 	"github.com/pkg/errors"
 	"gitlab.com/security-rd/go-pkg/logging"
 
@@ -675,7 +677,7 @@ func (api *api) scapCheckHandler(ctx context.Context, w http.ResponseWriter, che
 	}
 
 	scapper, _ := scapper.GetScapper(ctx)
-	checkUUID, err := scapper.RunComplianceCheck(clusterKey, checkType, username, 0, 0)
+	checkUUID, err := scapper.RunComplianceCheck(clusterKey, checkType, username, 0, 0, uuid.NewV4().String())
 	if err != nil {
 		RespAndLog(w, ctx, fmt.Errorf("Failed to run compliance check: %w", err))
 		return
@@ -686,7 +688,7 @@ func (api *api) scapCheckHandler(ctx context.Context, w http.ResponseWriter, che
 	}
 
 	response.Ok(w, response.WithItem(resp{
-		CheckId: checkUUID.String(),
+		CheckId: checkUUID,
 	}))
 }
 

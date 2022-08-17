@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/pkg/errors"
+	uuid "github.com/satori/go.uuid"
 	"gorm.io/gorm"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/console/models/scap"
@@ -18,14 +19,14 @@ type Job struct {
 	Type     uint8
 }
 
-func (s *Service) CreateJob(ctx context.Context, job *Job) error {
+func (s *Service) CreateJob(ctx context.Context, job *Job) ([]string, error) {
 	// 校验policy是否存在
 	if err := s.rdb.Get().WithContext(ctx).Where("type = ?", job.Type).First(&model.ScapPolicy{}, job.PolicyID).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return fmt.Errorf("policy <%d> not found", job.PolicyID)
+			return nil, fmt.Errorf("policy <%d> not found", job.PolicyID)
 		}
 
-		return fmt.Errorf("policy <%d> verify failed", job.PolicyID)
+		return nil, fmt.Errorf("policy <%d> verify failed", job.PolicyID)
 	}
 
 	clusters := make([]model.ScapClusterInfo, 0, len(job.ClusterInfos))
@@ -35,13 +36,18 @@ func (s *Service) CreateJob(ctx context.Context, job *Job) error {
 			IsAllNodes:     v.IsAllNodes,
 			ClusterKey:     v.ClusterKey,
 			ClusterNodeIds: v.Nodes,
+			CheckUUID:      uuid.NewV4().String(),
 		})
+	}
+	uuids := make([]string, 0, len(clusters))
+	for i := range clusters {
+		uuids = append(uuids, clusters[i].CheckUUID)
 	}
 
 	if err := s.rdb.Get().WithContext(ctx).Create(clusters).Error; err != nil {
 		logging.GetLogger().Err(err).Msg("创建集群信息失败")
-		return errors.New("启动任务失败")
+		return nil, errors.New("启动任务失败")
 	}
 
-	return s.Do(ctx, job, clusters)
+	return uuids, s.Do(ctx, job, clusters)
 }

@@ -3,6 +3,8 @@ package scap
 import (
 	"context"
 	"errors"
+	"fmt"
+	"time"
 
 	"golang.org/x/sync/errgroup"
 	"gorm.io/gorm"
@@ -74,6 +76,43 @@ func (s *Service) RecordBatch(ctx context.Context, scapType uint8, limit, offset
 	return result, n, nil
 }
 
-func (s *Service) RecordDetail(ctx context.Context, recordId uint) error {
-	panic("aaaa")
+func (s *Service) RecordDetail(ctx context.Context, checkUUID string) (scap.RecordDetail, error) {
+
+	pgCtx, mpgCancel := context.WithTimeout(ctx, time.Second*2)
+	defer mpgCancel()
+
+	db := s.rdb.Get().WithContext(pgCtx).Model(&model.ScanHistory{})
+	db = db.Where("task_id = ?", checkUUID)
+
+	var scanHistory = make([]model.ScanHistory, 0)
+	err := db.Find(&scanHistory).Error
+	if err != nil {
+		return scap.RecordDetail{}, err
+	}
+	if len(scanHistory) == 0 {
+		return scap.RecordDetail{}, fmt.Errorf("not fond:%s", checkUUID)
+	}
+
+	value := scanHistory[0]
+	data := scap.RecordDetail{
+		CheckID:     value.TaskID,
+		CheckType:   value.CheckType,
+		ClusterID:   value.ClusterKey,
+		Operator:    value.Operator,
+		ClusterName: value.ClusterName,
+		CreatedAt:   value.CreatedAt,
+		FinishedAt:  value.FinishedAt,
+		PolicyID:    value.PolicyID,
+	}
+
+	// data.NumFailed = value.FailNode
+	// check finish state
+	if value.State == model.ScanStateInProgress {
+		data.State = 1
+	} else if value.State == model.ScanStateCompleted {
+		data.State = 2
+	} else {
+		data.State = 3
+	}
+	return data, nil
 }

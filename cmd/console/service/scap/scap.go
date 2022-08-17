@@ -76,7 +76,7 @@ func (s *Service) initCron() {
 }
 
 // Scap 执行扫描逻辑
-func (s *Service) Scap(ctx context.Context, scapType uint8, clusterKey, username string, clusterId, policyId uint) {
+func (s *Service) Scap(ctx context.Context, scapType uint8, clusterKey, username string, clusterId, policyId uint, checkUUID string) {
 	defer func() {
 		if e := recover(); e != nil {
 			var buf [4096]byte
@@ -100,7 +100,7 @@ func (s *Service) Scap(ctx context.Context, scapType uint8, clusterKey, username
 		return
 	}
 
-	_, err := s.scap.RunComplianceCheck(clusterKey, checkType, username, clusterId, policyId)
+	_, err := s.scap.RunComplianceCheck(clusterKey, checkType, username, clusterId, policyId, checkUUID)
 	if err != nil {
 		logging.Get().Err(err).Msgf("运行检查失败, type: %d, clusterKey: %s, username: %s", scapType, clusterKey, username)
 	}
@@ -108,7 +108,7 @@ func (s *Service) Scap(ctx context.Context, scapType uint8, clusterKey, username
 
 func (s *Service) Do(ctx context.Context, job *Job, clusters []model.ScapClusterInfo) error {
 	for _, v := range clusters {
-		go s.Scap(context.Background(), job.Type, v.ClusterKey, job.UserName, v.ID, job.PolicyID)
+		go s.Scap(context.Background(), job.Type, v.ClusterKey, job.UserName, v.ID, job.PolicyID, v.CheckUUID)
 	}
 
 	return nil
@@ -300,7 +300,7 @@ func (s *Service) getInProgressJobs(ctx context.Context) ([]*model.ScanHistory, 
 }
 
 func (s *Service) getClusterInfo(ctx context.Context, clusterKey string) (*model.TensorCluster, error) {
-	//get namespaces
+	// get namespaces
 	resSvc, ok := assets.GetResourcesService(ctx)
 	if !ok {
 		return nil, errors.New("get resources service error")

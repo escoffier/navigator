@@ -24,6 +24,10 @@ import (
 
 func (api *api) createScapScanTaskOpenApi() http.HandlerFunc {
 
+	type Response struct {
+		CheckUUID []string `json:"checkUUID"`
+	}
+
 	type ClusterInfo struct {
 		ClusterKey string  `json:"clusterKey"`
 		Nodes      []int64 `json:"nodes"`
@@ -71,7 +75,7 @@ func (api *api) createScapScanTaskOpenApi() http.HandlerFunc {
 
 		scapApiV2 := scapservice.NewService(api.rdb, api.redisClient)
 
-		err = scapApiV2.CreateJob(ctx, &scapservice.Job{Job: job, UserName: req.Operator, Type: model.GetModeScanType(req.CheckType)})
+		checkUUID, err := scapApiV2.CreateJob(ctx, &scapservice.Job{Job: job, UserName: req.Operator, Type: model.GetModeScanType(req.CheckType)})
 		if err != nil {
 			apperror.RespAndLog(w, ctx, apperror.NewErrorWithCode(
 				http.StatusInternalServerError,
@@ -80,7 +84,7 @@ func (api *api) createScapScanTaskOpenApi() http.HandlerFunc {
 			return
 		}
 
-		response.Ok(w)
+		response.Ok(w, response.WithItem(Response{CheckUUID: checkUUID}))
 	}
 }
 
@@ -262,6 +266,8 @@ func (api *api) getPolicyDetailsOpenApi() http.HandlerFunc {
 		FailedOn []NodeInfo `json:"failedOn" query:"failedOn" form:"failedOn"`
 		// 含有警告的信息
 		WarnOn []NodeInfo `json:"warnOn" query:"warnOn" form:"warnOn"`
+		// 执行状态
+		Status string `json:"status"`
 	}
 
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -308,6 +314,45 @@ func (api *api) getPolicyDetailsOpenApi() http.HandlerFunc {
 			res.SuccessOn = append(res.SuccessOn, NodeInfo{NodeName: result.SuccessfulOn[i].NodeName, Remediation: result.SuccessfulOn[i].Remediation})
 		}
 
+		response.Ok(w, response.WithItem(res))
+	}
+}
+
+func (api *api) getScapCheckStatus() http.HandlerFunc {
+
+	// NodeInfo 节点信息
+	type Response struct {
+		CheckUUID string `json:"checkUUID"`
+		Status    string `json:"status"`
+	}
+
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(r.Context(), time.Second*60)
+		defer cancel()
+
+		checkUUID, _ := param.QueryString(r, "checkUUID")
+		if checkUUID == "" {
+			apperror.RespAndLog(w, ctx, apperror.NewMongoError(http.StatusInternalServerError, errors.New("checkUUID id can't be empty")))
+			return
+		}
+
+		scapApiV2 := scapservice.NewService(api.rdb, api.redisClient)
+
+		detail, err := scapApiV2.RecordDetail(ctx, checkUUID)
+
+		if err != nil {
+			apperror.RespAndLog(w, ctx, apperror.NewMongoError(http.StatusInternalServerError, errors.New("get check status error")))
+			return
+		}
+		res := Response{Status: "", CheckUUID: detail.CheckID}
+		switch detail.State {
+		case 1:
+			res.Status = "inprogress"
+		case 2:
+			res.Status = "finished"
+		case 3:
+			res.Status = "failed"
+		}
 		response.Ok(w, response.WithItem(res))
 	}
 }
@@ -365,19 +410,22 @@ func (api *api) scapOpenApi() func(chi.Router) {
 
 	return func(r chi.Router) {
 		r.With(RateLimitMiddleware(api.redisClient, int64(rate))).
-			Post("/scan/scantask", api.createScapScanTaskOpenApi())
+			Post("/scan/scantask", api.createScapScanTaskOpenApi()) // 创建合规扫描任务
 
 		r.With(RateLimitMiddleware(api.redisClient, int64(rate))).
-			Get("/scan/record", api.getLatestScanRecordOpenApi())
+			Get("/scan/record", api.getLatestScanRecordOpenApi()) // 获取扫描结果列表
 
 		r.With(RateLimitMiddleware(api.redisClient, int64(rate))).
-			Get("/scan/task", api.getCheckHistoryOpenApi())
+			Get("/scan/task", api.getCheckHistoryOpenApi()) // 合规扫描任务列表
 
 		r.With(RateLimitMiddleware(api.redisClient, int64(rate))).
-			Get("/scan/record/tasks/{checkId}", api.getPolicyDetailsOpenApi())
+			Get("/scan/record/tasks/{checkId}", api.getPolicyDetailsOpenApi()) // 合规检测详情
 
 		r.With(RateLimitMiddleware(api.redisClient, int64(rate))).
-			Get("/scan/policies", api.getScapScanPolicy())
+			Get("/scan/record/status", api.getScapCheckStatus()) // 合规检测状态
+
+		r.With(RateLimitMiddleware(api.redisClient, int64(rate))).
+			Get("/scan/policies", api.getScapScanPolicy()) // 合规策略列表
 
 	}
 }

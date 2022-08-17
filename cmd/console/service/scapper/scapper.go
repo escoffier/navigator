@@ -15,7 +15,6 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
-	uuid "github.com/satori/go.uuid"
 	"gitlab.com/security-rd/go-pkg/databases"
 	"gitlab.com/security-rd/go-pkg/logging"
 	"gorm.io/gorm"
@@ -189,11 +188,11 @@ func (s *Scapper) checkTargetTypeTasksStillInProgress(ctx context.Context, check
 		logging.Get().Err(err).Msgf("check target type tasks still in progress error: checkType:%s, clusterId: %s", checkType, clusterID)
 		return false
 	}
-	//task id
+	// task id
 	if scanTask.TaskID == "" || scanTask.CheckType != checkType {
 		return false
 	}
-	//task state
+	// task state
 	if scanTask.State == model.ScanStateInProgress {
 		logging.Get().Info().
 			Str("checkType", checkType).
@@ -212,17 +211,15 @@ func (s *Scapper) RunComplianceCheck(
 	username string,
 	clusterInfoID uint,
 	policyID uint,
-) (uuid.UUID, error) {
+	checkUUID string,
+) (string, error) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute*1)
 	defer cancel()
 
-	// generate check uuid that will identify results of this run in database
-	checkUUID := uuid.NewV4()
-
 	var check = model.Check{
 		CheckType: string(checkType),
-		CheckUUID: checkUUID.String(),
+		CheckUUID: checkUUID,
 		ClusterID: clusterID,
 		Operator:  username,
 		PolicyID:  policyID,
@@ -234,63 +231,63 @@ func (s *Scapper) RunComplianceCheck(
 	var jobObj *batchv1.Job
 
 	// 用个闭包接收错误，用来记录 失败 状态
-	uuid, err := func() (uuid.UUID, error) {
+	uuid, err := func() (string, error) {
 
-		//get namespaces
+		// get namespaces
 		resSvc, ok := assets.GetResourcesService(ctx)
 		if !ok {
-			return uuid.Nil, apperror.NewResourceNotFoundError(http.StatusInternalServerError, errors.Errorf("get resource failed"))
+			return "", apperror.NewResourceNotFoundError(http.StatusInternalServerError, errors.Errorf("get resource failed"))
 		}
 		cluster = resSvc.GetClusterByKey(ctx, clusterID)
 		if cluster == nil {
-			return uuid.Nil, apperror.NewClusterDoesntExistError(http.StatusInternalServerError, errors.Errorf("get cluster failed clusterId : %v", clusterID))
+			return "", apperror.NewClusterDoesntExistError(http.StatusInternalServerError, errors.Errorf("get cluster failed clusterId : %v", clusterID))
 		}
 		namespace := cluster.WorkerNamespace
 		if namespace == "" {
-			return uuid.Nil, apperror.NewClusterError(http.StatusInternalServerError, errors.Errorf("get namespaces failed with run compliance check"))
+			return "", apperror.NewClusterError(http.StatusInternalServerError, errors.Errorf("get namespaces failed with run compliance check"))
 		}
 
 		check.Namespace = namespace
 
 		if err := s.syncJobState(ctx, string(checkType), clusterID); err != nil {
-			return uuid.Nil, err
+			return "", err
 		}
 
 		if s.checkTargetTypeTasksStillInProgress(ctx, string(checkType), clusterID) {
-			return uuid.Nil, apperror.NewCheckAlreadyInProgressError(http.StatusInternalServerError, errors.Errorf("currently there are tasks still running"))
+			return "", apperror.NewCheckAlreadyInProgressError(http.StatusInternalServerError, errors.Errorf("currently there are tasks still running"))
 		}
 
-		//get cluster manager
+		// get cluster manager
 		clusterManager, ok := k8s.GetClusterManager()
 		if !ok {
-			return uuid.Nil, apperror.NewKubernetesError(http.StatusInternalServerError, fmt.Errorf("get cluster manager failed"))
+			return "", apperror.NewKubernetesError(http.StatusInternalServerError, fmt.Errorf("get cluster manager failed"))
 		}
-		//get k8s client
+		// get k8s client
 		kubeClient, ok = clusterManager.GetClient(clusterID)
 		if !ok {
-			return uuid.Nil, apperror.NewKubernetesError(http.StatusInternalServerError, fmt.Errorf("get k8s client failed, cluster id: %s", clusterID))
+			return "", apperror.NewKubernetesError(http.StatusInternalServerError, fmt.Errorf("get k8s client failed, cluster id: %s", clusterID))
 		}
 
 		err := s.garbageCollectHistoricalJobs(ctx, kubeClient, checkType, namespace)
 		if err != nil {
-			return uuid.Nil, apperror.NewKubernetesError(http.StatusInternalServerError, fmt.Errorf("Failed to garbage collect historical jobs: %v", err))
+			return "", apperror.NewKubernetesError(http.StatusInternalServerError, fmt.Errorf("Failed to garbage collect historical jobs: %v", err))
 		}
 
 		clusterInfo, err := s.getCluster(ctx, clusterInfoID)
 		if err != nil {
-			return uuid.Nil, err
+			return "", err
 		}
 
 		jobObj, err = s.prepareJobObject(ctx, kubeClient, &check)
 		if err != nil {
-			return uuid.Nil, err
+			return "", err
 		}
 
 		s.modifyJob(checkType, jobObj, cluster)
 
 		nodes, err = s.getNodes(ctx, kubeClient, clusterInfo)
 		if err != nil {
-			return uuid.Nil, apperror.NewKubernetesError(http.StatusInternalServerError, fmt.Errorf("Can't list nodes in this cluster: %v", err))
+			return "", apperror.NewKubernetesError(http.StatusInternalServerError, fmt.Errorf("Can't list nodes in this cluster: %v", err))
 		}
 
 		// schedule jobs
@@ -317,7 +314,7 @@ func (s *Scapper) RunComplianceCheck(
 		logging.Get().Err(err).Msg("start job error")
 	}
 
-	//create scan history
+	// create scan history
 	scanHistory := model.ScanHistory{
 		TaskID:      check.CheckUUID,
 		Operator:    check.Operator,
@@ -348,9 +345,9 @@ func (s *Scapper) RunComplianceCheck(
 func (s *Scapper) RunExportFileTask(task *model.ExportTask, language lang.LanguageType) {
 	// export file to xlsx
 	err := s.ScapService.GetScanResultToFile(task, language)
-	//print debug log
-	//logging.Get().Info().Msgf("save scan result to xlsx over!!")
-	//update task status
+	// print debug log
+	// logging.Get().Info().Msgf("save scan result to xlsx over!!")
+	// update task status
 	finishedAt := time.Now().Unix()
 	task.Status = 0
 	if err != nil {
@@ -362,15 +359,15 @@ func (s *Scapper) RunExportFileTask(task *model.ExportTask, language lang.Langua
 		if err != nil {
 			logging.Get().Error().Msgf("get file content failed, %v.", err)
 		}
-		//remove file
+		// remove file
 		_ = os.Remove(task.FileName)
 	}
-	//set timeout
+	// set timeout
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	//save finish time
+	// save finish time
 	task.FinishedAt = finishedAt
-	//update mongo data
+	// update mongo data
 	tbname := task.TableName()
 	err = s.rdb.Get().WithContext(ctx).Table(tbname).Select("status", "finished_at", "content").Where("task_id = ? and username = ?", task.CheckId, task.UserName).Updates(&task).Error
 	if err != nil {
@@ -499,7 +496,7 @@ FOR:
 			// I know kubeClient has some built in rate limiting so maybe it's ok?
 			// Note2: but we must close scheduledNodesCh after all jobs were scheduled.
 			// go func() {
-			//create job name
+			// create job name
 
 			if !pkgassets.NodeIsReady(&targetNode) {
 				continue FOR
@@ -508,7 +505,7 @@ FOR:
 			nodeName := targetNode.Name
 
 			jobName := s.CreateJobName(check.CheckUUID, check.CheckType, nodeName)
-			//schedule job
+			// schedule job
 			err := s.scheduleOneJob(ctx, kubeClient, check, jobObj.DeepCopy(), clusterName, jobName, nodeName)
 			if err != nil {
 				logging.Get().Error().Msgf("Failed to schedule job, %v.", err)
@@ -591,7 +588,7 @@ func (s Scapper) prepareJobObject(ctx context.Context, kubeClient *pkgassets.Cli
 			return jobObj, nil
 		}
 
-		//设置volume
+		// 设置volume
 		jobObj.Spec.Template.Spec.Volumes = append(jobObj.Spec.Template.Spec.Volumes, corev1.Volume{
 			Name: "tailoring-file",
 			VolumeSource: corev1.VolumeSource{
@@ -790,8 +787,8 @@ func (s *Scapper) dbJobStatusUpdate(state model.ScanState, check *model.Check, n
 	if err != nil {
 		logging.Get().Err(err).Msgf("Failed the scap update job status setting failed, task id : %s, node name : %s.", check.CheckUUID, nodeName)
 	}
-	//print debug log
-	//logging.Get().Info().Msgf("update scan node record, %v.", *scanRecord)
+	// print debug log
+	// logging.Get().Info().Msgf("update scan node record, %v.", *scanRecord)
 
 	return err
 }
@@ -988,12 +985,12 @@ func (s *Scapper) GetJobStatus(clusterID, namespaces, jobName string) (model.Sca
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	//get cluster manager
+	// get cluster manager
 	clusterManager, ok := k8s.GetClusterManager()
 	if !ok {
 		return model.ScanStateUnknown, errors.Errorf("get cluster manager failed")
 	}
-	//get k8s client
+	// get k8s client
 	kubeClient, ok := clusterManager.GetClient(clusterID)
 	if !ok {
 		return model.ScanStateUnknown, errors.Errorf("get k8s client failed")

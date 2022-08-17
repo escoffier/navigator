@@ -155,7 +155,7 @@ func (s *ScapService) SynScanState(checkHistory *model.CheckHistoryEntry) error 
 		return errors.Errorf("get scan node record failed, %v", err)
 	}
 
-	//get success node
+	// get success node
 	sucNode := 0
 	var finishAt int64
 	for _, nodeRecord := range scanNodes {
@@ -199,7 +199,7 @@ func (s *ScapService) SynScanState(checkHistory *model.CheckHistoryEntry) error 
 		taskId := nodeRecord.TaskID
 		nodename := nodeRecord.NodeName
 
-		//update state
+		// update state
 		err = s.rdb.Get().WithContext(ctx).Model(nodeRecord).Where(query, taskId, nodename).Updates(updates).Error
 		if err != nil {
 			logging.Get().Error().Msgf("updates scan node record failed, %v.", err)
@@ -209,9 +209,9 @@ func (s *ScapService) SynScanState(checkHistory *model.CheckHistoryEntry) error 
 	if finishAt < checkHistory.CreatedAt {
 		finishAt = checkHistory.CreatedAt
 	}
-	//update check history
+	// update check history
 	checkHistory.FinishedAt = finishAt
-	//update scan history
+	// update scan history
 	taskId := checkHistory.CheckID
 	tb := model.ScanHistory{
 		State:      model.ScanStateCompleted,
@@ -229,8 +229,8 @@ func (s *ScapService) SynScanState(checkHistory *model.CheckHistoryEntry) error 
 }
 
 func (s *ScapService) GetCheckHistory(ctx context.Context, offset, limit int64, clusterId, checkType, sortBy, sortOrder string) ([]model.CheckHistoryEntry, int64, error) {
-	//print debug log
-	//logging.Get().Debug().Msgf("offset : %v, limit : %v, sortBy : %v, sortOrder : %v.", offset, limit, sortBy, sortOrder)
+	// print debug log
+	// logging.Get().Debug().Msgf("offset : %v, limit : %v, sortBy : %v, sortOrder : %v.", offset, limit, sortBy, sortOrder)
 
 	pgCtx, mpgCancel := context.WithTimeout(ctx, time.Second*2)
 	defer mpgCancel()
@@ -255,8 +255,8 @@ func (s *ScapService) GetCheckHistory(ctx context.Context, offset, limit int64, 
 	}
 
 	var scanHistory = make([]model.ScanHistory, 0, limit)
-	//query := fmt.Sprintf("cluster_key = ? and check_type = ? order by %s %s limit %v offset %v", sortBy, sortOrder, limit, offset)
-	//err := s.rdb.Get().WithContext(pgCtx).Find(&scanHistory, query, clusterId, checkType).Error
+	// query := fmt.Sprintf("cluster_key = ? and check_type = ? order by %s %s limit %v offset %v", sortBy, sortOrder, limit, offset)
+	// err := s.rdb.Get().WithContext(pgCtx).Find(&scanHistory, query, clusterId, checkType).Error
 	err := db.Limit(int(limit)).Offset(int(offset)).Find(&scanHistory).Error
 	if err != nil {
 		return nil, 0, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Could not find scan history, %w", err))
@@ -275,21 +275,21 @@ func (s *ScapService) GetCheckHistory(ctx context.Context, offset, limit int64, 
 		data.FinishedAt = value.FinishedAt
 		data.PolicyId = value.PolicyID
 		data.NumSuccessful = int64(value.SucNode)
-		//data.NumFailed = value.FailNode
-		//check finish state
+		// data.NumFailed = value.FailNode
+		// check finish state
 		if value.State == model.ScanStateInProgress {
 			// ！！！！这里把通过k8s同步的逻辑删除调 @liuyang @lingximo
 
-			//err = s.SynScanState(&data)
-			//if err != nil {
+			// err = s.SynScanState(&data)
+			// if err != nil {
 			//	logging.Get().Error().Msgf("syn scan history failed, %v.", err)
-			//}
+			// }
 			//
-			//if data.FinishedAt != 0 {
+			// if data.FinishedAt != 0 {
 			//	data.State = 2
-			//} else {
+			// } else {
 			//	data.State = 1
-			//}
+			// }
 			data.State = 1
 		} else if value.State == model.ScanStateCompleted {
 			data.State = 2
@@ -529,7 +529,7 @@ func (s *ScapService) GetNodeState(ctx context.Context, waitingOn, errorOn, succ
 	if err != nil {
 		return errors.Errorf("can not find scan node record, %v", err)
 	}
-	//get node state
+	// get node state
 	for _, node := range scanNode {
 		switch node.State {
 		case model.ScanStateInProgress:
@@ -609,7 +609,7 @@ func (s *ScapService) GetKubeBreakdownEntries(ctx context.Context, checkMap map[
 	if err != nil {
 		return errors.Errorf("get scan result failed, %v", err)
 	}
-	//get scan result
+	// get scan result
 	for _, value := range scanRet {
 		_, ok := checkMap[value.PolicyID]
 		if !ok {
@@ -710,7 +710,7 @@ func (s *ScapService) GetHostBreakdownEntries(ctx context.Context, checkMap map[
 	if err != nil {
 		return errors.Errorf("get scan result failed, %v", err)
 	}
-	//get scan result
+	// get scan result
 	for _, value := range scanRet {
 		_, ok := checkMap[value.PolicyID]
 		if !ok {
@@ -809,25 +809,25 @@ func (s *ScapService) GetScanResultToFile(task *model.ExportTask, language lang.
 	if err != nil {
 		return errors.Errorf("get scan result to file failed, %v", err)
 	}
-	//print debug log
-	//logging.Get().Info().Msgf("get scan result data num : %v.", len(scanRet))
-	//xlsx file
+	// print debug log
+	// logging.Get().Info().Msgf("get scan result data num : %v.", len(scanRet))
+	// xlsx file
 	var exfile model.ScapRetData
-	//new xlsx file
+	// new xlsx file
 	file := xlsx.NewFile()
-	//save data
+	// save data
 	defer func() {
 		err = file.Save(task.FileName)
 		if err != nil {
 			logging.Get().Error().Msgf("save xlsx file failed, %v", err)
 		}
 	}()
-	//add sheet
+	// add sheet
 	sheet, err := file.AddSheet("Sheet1")
 	if err != nil {
 		return fmt.Errorf("add sheet failed, %v", err)
 	}
-	//add row
+	// add row
 	row := sheet.AddRow()
 	title := model.GetTitleEn()
 	if language == lang.LanguageZH {
@@ -868,7 +868,7 @@ func (s *ScapService) GetDockerBreakdownEntries(ctx context.Context, checkMap ma
 	if err != nil {
 		return errors.Errorf("get scan result failed, %v", err)
 	}
-	//get scan result
+	// get scan result
 	for _, value := range scanRet {
 		_, ok := checkMap[value.PolicyID]
 		if !ok {
