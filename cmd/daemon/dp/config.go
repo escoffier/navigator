@@ -54,7 +54,7 @@ func (cm *ConfigManager) SyncPolicy(ctx context.Context) error {
 	defer cancel()
 	//url
 	url := fmt.Sprintf("%s/api/openapi/drift/policy?last_time=%d", cm.consoleAddr, cm.policies.LastTime)
-	logging.Get().Debug().Msgf("url is %v ", url)
+	// logging.Get().Trace().Msgf("url is %v ", url)
 	//http new request
 	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
@@ -91,7 +91,7 @@ func (cm *ConfigManager) SyncPolicy(ctx context.Context) error {
 		return err
 	}
 
-	logging.Get().Trace().Interface("policyItems", policies.Data.Items).Msg("sync policy success")
+	// logging.Get().Trace().Interface("policyItems", policies.Data.Items).Msg("sync policy success")
 
 	cm.policyLock.Lock()
 	cm.policies.Policies = make(map[uint32]model.DriftPolicy)

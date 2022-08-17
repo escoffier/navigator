@@ -15,6 +15,7 @@ const (
 )
 
 func EncryptedLogErrMsg(msg, key, normalMsg string) {
+	return
 	encryptedMsg, err := util.AesEncryptCBC([]byte(msg), []byte(key))
 	if err != nil {
 		// encrypted err,just log a simple msg

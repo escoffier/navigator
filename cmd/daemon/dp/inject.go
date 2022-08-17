@@ -219,7 +219,7 @@ func (ij *Injector) putContainerID2File(pid int, cid string) error {
 }
 
 func (ij *Injector) DoInject(cm container.ContainerMeta) (bool, error) {
-	logging.Get().Info().Msgf("Injecting %d", cm.ProcessID)
+	// logging.Get().Info().Msgf("Injecting %d", cm.ProcessID)
 
 	if needSkipInject(cm.ProcessID) {
 		logging.Get().Warn().Msgf("Skip inject %d %v", cm.ProcessID, cm.Name)
@@ -234,10 +234,10 @@ func (ij *Injector) DoInject(cm container.ContainerMeta) (bool, error) {
 	}
 	for _, v := range ij.excludeNamespace {
 		if v == namespace {
-			logging.Get().Info().
-				Str("containerID", cm.ID).
-				Str("namespace", namespace).
-				Msg("skip inject,namespace contains exclude namespace")
+			// logging.Get().Info().
+			// 	Str("containerID", cm.ID).
+			// 	Str("namespace", namespace).
+			// 	Msg("skip inject,namespace contains exclude namespace")
 			return false, nil
 		}
 	}
@@ -293,12 +293,6 @@ func (ij *Injector) DoInject(cm container.ContainerMeta) (bool, error) {
 			Str("containerID", cm.ID).
 			Msg("inject err")
 	}
-
-	logging.Get().
-		Debug().
-		Int("processID", cm.ProcessID).
-		Str("containerID", cm.ID).
-		Msg("inject ok")
 
 	return IsInjected(cm.ProcessID)
 }
