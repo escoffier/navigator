@@ -109,6 +109,7 @@ type ScapClusterInfo struct {
 
 	ClusterName      string   `gorm:"-"`
 	ClusterNodeNames []string `gorm:"-"`
+	CheckUUID        string   `gorm:"-"` // 该次扫描的UUID主要用于查询状态
 }
 
 func (s *ScapClusterInfo) BeforeSave(tx *gorm.DB) (err error) {

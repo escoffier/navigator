@@ -5,6 +5,8 @@ import (
 	"sync"
 	"time"
 
+	uuid "github.com/satori/go.uuid"
+
 	"github.com/pkg/errors"
 	cr "github.com/robfig/cron/v3"
 	"gitlab.com/security-rd/go-pkg/databases"
@@ -59,11 +61,12 @@ func (s *CronService) startCron(ctx context.Context, cronData *model.CronScanTas
 
 		// don't cancel() when exiting this function as we are starting an async task
 		scap, _ := scapper.GetScapper(ctx)
-		_, err := scap.RunComplianceCheck(cronData.ClusterID, model.ComplianceCheckType(cronData.CheckType), "system", 0, 0)
+
+		_, err := scap.RunComplianceCheck(cronData.ClusterID, model.ComplianceCheckType(cronData.CheckType), "system", 0, 0, uuid.NewV4().String())
 		if err != nil {
 			logging.GetLogger().Error().Msgf("failed to run compliance check, clusterId : %v, checkType : %v.", cronData.ClusterID, cronData.CheckType)
 		}
-		//print debug log
+		// print debug log
 		logging.GetLogger().Info().Msgf("Compliance cron job scheduled successfully, clusterId : %v, checkType : %v.", cronData.ClusterID, cronData.CheckType)
 
 	})
@@ -81,7 +84,7 @@ func (s *CronService) startCron(ctx context.Context, cronData *model.CronScanTas
 		}
 		return nil
 	}
-	//update cron task
+	// update cron task
 	cronData.CronId = int(newCronID)
 	query := "cluster_id = ? and check_type = ?"
 	err = s.rdb.Get().WithContext(ctx).Where(query, cronData.ClusterID, cronData.CheckType).Select("*").Updates(cronData).Error
@@ -95,20 +98,20 @@ func (s *CronService) startCron(ctx context.Context, cronData *model.CronScanTas
 
 func (s *CronService) StartCrons(ctx context.Context) error {
 	return nil // 这里逻辑去掉？是否只有合规使用这个功能？todo 检查是否只有合规在使用这个功能
-	var cronTasks []*model.CronScanTask
-	err := s.rdb.GetReadDB().WithContext(ctx).Find(&cronTasks).Error
-	if err != nil {
-		return errors.Errorf("get cron task config failed, %v", err)
-	}
-
-	for _, cronData := range cronTasks {
-		err = s.startCron(ctx, cronData)
-		if err != nil {
-			logging.GetLogger().Error().Msgf("cron start failed, %v", err)
-		}
-	}
-
-	return nil
+	// var cronTasks []*model.CronScanTask
+	// err := s.rdb.GetReadDB().WithContext(ctx).Find(&cronTasks).Error
+	// if err != nil {
+	// 	return errors.Errorf("get cron task config failed, %v", err)
+	// }
+	//
+	// for _, cronData := range cronTasks {
+	// 	err = s.startCron(ctx, cronData)
+	// 	if err != nil {
+	// 		logging.GetLogger().Error().Msgf("cron start failed, %v", err)
+	// 	}
+	// }
+	//
+	// return nil
 }
 
 func (s *CronService) idInCronEntries(id int, cronEntries []cr.Entry) bool {
@@ -140,9 +143,9 @@ func (s *CronService) UpdateCron(ctx context.Context, clusterId string, checkTyp
 	var cronConfig model.CronScanTask
 	query := "cluster_id = ? and check_type = ?"
 	_ = s.rdb.GetReadDB().WithContext(pgCtx).First(&cronConfig, query, clusterId, string(checkType)).Error
-	//get cron id
+	// get cron id
 	cronData.CronId = cronConfig.CronId
-	//start cron
+	// start cron
 	return s.startCron(ctx, cronData)
 }
 

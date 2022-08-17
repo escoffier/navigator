@@ -44,7 +44,7 @@ func (a *ApiServer) JobCreate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = a.service.CreateJob(ctx, &scapservice.Job{Job: req.Job, UserName: username, Type: scapType})
+	_, err = a.service.CreateJob(ctx, &scapservice.Job{Job: req.Job, UserName: username, Type: scapType})
 	if err != nil {
 		apperror.RespAndLog(w, ctx, apperror.NewErrorWithCode(
 			http.StatusInternalServerError,
