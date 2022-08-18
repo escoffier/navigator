@@ -137,8 +137,8 @@ func (api *api) getLatestScanRecordOpenApi() http.HandlerFunc {
 			limit = 10
 		}
 
-		if limit > 100 {
-			limit = 100
+		if limit > 10000 {
+			limit = 10000
 		}
 
 		offset, _ := param.QueryInt64(r, "offset")
