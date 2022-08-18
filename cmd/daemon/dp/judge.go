@@ -36,7 +36,7 @@ const (
 	contentDelimiter   string = "|" // msg format: time containerID cmd exec-path file-hash
 	defaultDelimiter   byte   = '\n'
 	receiveTimeout     int    = 3
-	defaultJudgeSocket string = "/host/tmp/tensor/judge.sock"
+	defaultJudgeSocket string = "/host/var/lib/tensor/mnt/judge.sock"
 	resultPass         string = "pass"
 	resultBlock        string = "block"
 )

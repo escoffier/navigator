@@ -37,8 +37,8 @@ type Injector struct {
 }
 
 var (
-	HostTensorPath              = "/host/tmp/tensor"
-	HostEtcPreloadPath          = "/host/tmp/ld.so.preload"
+	HostTensorPath              = "/host/var/lib/tensor/mnt"
+	HostEtcPreloadPath          = "/host/var/lib/tensor/ld.so.preload"
 	procPrefix                  = "/host/proc/"
 	ContainerTensorPath         = "/.tensor"
 	injectSoName                = "dp.so"
@@ -175,7 +175,7 @@ func NewInjector(npw *nodeinfo.NodePodsWatcher) (*Injector, error) {
 
 	ij.npw = npw
 	ij.excludeNamespace = getExcludeNamespaces()
-
+	logging.Get().Info().Str("ij detail", fmt.Sprintf("%v", ij)).Msg("NewInjector")
 	return ij, err
 }
 
