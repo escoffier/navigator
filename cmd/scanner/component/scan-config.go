@@ -155,7 +155,7 @@ func (s *ScanConfigSrv) SearchStrategy(ctx context.Context, param SearchStrategy
 	if param.All == consts.TrueString {
 		// 默认策略永远在最前面,所以查出全部，在程序中分页
 		if filter == nil {
-			filter = model.EmptyFilterForTheTotalQuery()
+			filter = model.EmptyFilterForTotalQuery()
 		}
 		allFilter := filter.DeepCopy()
 

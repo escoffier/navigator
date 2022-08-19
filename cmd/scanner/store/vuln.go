@@ -85,7 +85,9 @@ func (v *VulnDao) SearchVulnImage(ctx context.Context, param SearchVulnImagePara
 	if len(param.ImageIds) > 0 {
 		db = db.Where("image_id IN  ?", param.ImageIds)
 	}
-
+	if len(param.Fields) > 0 {
+		db = db.Select(param.Fields)
+	}
 	res := make([]*model.VulnImage, 0)
 
 	var cnt int64
@@ -155,6 +157,10 @@ func (v *VulnDao) SearchVuln(ctx context.Context, param SearchVulnParam, filter 
 	if len(param.SeverityInt) > 0 {
 		db = db.Where("severity_int IN  ? ", param.SeverityInt)
 	}
+	if param.StartID > 0 {
+		db = db.Where("id >  ? ", param.StartID)
+	}
+
 	res := make([]*model.Vuln, 0)
 
 	db2 := db.Session(&gorm.Session{})

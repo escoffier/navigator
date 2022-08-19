@@ -6,10 +6,11 @@ import (
 	"github.com/gin-gonic/gin"
 	rkentry "github.com/rookie-ninja/rk-entry/entry"
 
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scan-report/export/html"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scan-report/service"
 )
 
-func SetupGinRouter(exportSrv service.ExportInterface) *gin.Engine {
+func SetupGinRouter(exportSrv service.ExportTaskInterface, ExportHtmlInterface html.ExportHtmlInterface) *gin.Engine {
 
 	router := gin.Default()
 	router.MaxMultipartMemory = 2 << 20
@@ -17,17 +18,30 @@ func SetupGinRouter(exportSrv service.ExportInterface) *gin.Engine {
 	router.Use(gin.Logger(), gin.Recovery())
 
 	exportApiSrv := NewExportApiSrv(exportSrv)
+	exportHtmlApiSrv := NewExportHtmlApiSrv(ExportHtmlInterface)
 
 	v1 := router.Group("/api/v1/export/task")
 	{
 		v1.POST("/image", exportApiSrv.CreateImageExportTask)
 		v1.POST("/scanTask", exportApiSrv.CreateScanResultExportTask)
-		v1.POST("/naviAudit", exportApiSrv.CreateAuditExportTask)
 		v1.POST("/vuln", exportApiSrv.CreateVulnExportTask)
+		v1.POST("/imageSearch", exportApiSrv.CreateImageSearchExportTask)
+		v1.POST("/naviAudit", exportApiSrv.CreateAuditExportTask)
 		v1.GET("/checkScanTask", exportApiSrv.CheckScanTask)
 		v1.GET("/detail", exportApiSrv.GetExportTaskDetail)
 		v1.GET("/list", exportApiSrv.GetReportTaskList)
 		v1.GET("/download", exportApiSrv.DownLoad)
+	}
+
+	v2 := router.Group("/api/v1/export/html")
+	{
+		v2.GET("/images", exportHtmlApiSrv.GetImages)
+		v2.GET("/imageIdNames", exportHtmlApiSrv.GetImageIdNames)
+		v2.GET("/riskOverView", exportHtmlApiSrv.GetRiskOverView)
+		v2.GET("/imageRisk", exportHtmlApiSrv.GetImageRisk)
+		v2.GET("/exportVulns", exportHtmlApiSrv.GetExportVulns)
+		v2.GET("/imageVulns", exportHtmlApiSrv.GetImageVulns)
+		v2.GET("/imageVirus", exportHtmlApiSrv.GetVirus)
 	}
 
 	return router

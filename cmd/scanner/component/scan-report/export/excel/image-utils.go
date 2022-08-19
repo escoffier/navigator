@@ -1,7 +1,6 @@
-package export
+package excel
 
 import (
-	"encoding/json"
 	"fmt"
 	"math"
 	"strings"
@@ -9,14 +8,11 @@ import (
 
 	"github.com/shopspring/decimal"
 	"go.uber.org/atomic"
-	"scm.tensorsecurity.cn/tensorsecurity-rd/trivy/pkg/report"
 
-	ftypes "scm.tensorsecurity.cn/tensorsecurity-rd/fanal/types"
-
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scan-report/export/utils"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
-	"gitlab.com/piccolo_su/vegeta/pkg/util"
 )
 
 func GenBaseInfoChan(image model.ImageList) chan []string {
@@ -317,8 +313,8 @@ func GenImageBaseInfo(image model.ImageList) []string {
 		info[1] = image.Registry.Url
 	}
 
-	vulnSuggest := genVulnSuggest(image.OS, image.ImageScanVuln.Vulns)
-	sensitiveFileSuggest := genSensitiveFileSuggest(image.ImageScanVuln.SensitiveFiles)
+	vulnSuggest := utils.GenVulnSuggest(image.OS, image.ImageScanVuln.Vulns)
+	sensitiveFileSuggest := utils.GenSensitiveFileSuggest(image.ImageScanVuln.SensitiveFiles)
 	suggest := make([]string, 0)
 	if vulnSuggest != "" {
 		suggest = append(suggest, vulnSuggest)
@@ -326,62 +322,14 @@ func GenImageBaseInfo(image model.ImageList) []string {
 	if sensitiveFileSuggest != "" {
 		suggest = append(suggest, sensitiveFileSuggest)
 	}
+	// 对于未扫描的镜像评分是0
+	if model.ExistFlag(image.Flag, model.FlagImageNotScan) {
+		info[2] = "0"
+	}
 
 	info = append(info, strings.Join(suggest, "\n"))
 
 	return info
-}
-
-// 生成敏感文件的修复建议
-func genSensitiveFileSuggest(files []model.Sensitive) string {
-	pre := "请确认相关文件是否存在风险，确认后在Dockerfile中删除异常文件："
-	res := make([]string, 0)
-	for i := range files {
-		res = append(res, files[i].Name)
-	}
-	res = util.DeDuplicationStringSlice(res)
-	if len(res) > 0 {
-		return fmt.Sprintf("%s%s", pre, strings.Join(res, ";"))
-	}
-	return ""
-}
-
-// 生成漏洞的修复建议
-func genVulnSuggest(osstring string, vulns []*model.Vuln) string {
-	os := new(ftypes.OS)
-	if err := json.Unmarshal([]byte(osstring), os); err != nil {
-		return ""
-	}
-
-	ans := make([]string, 0)
-
-	for i := range vulns {
-		if vulns[i].FixedBy != "" && vulns[i].Class == report.ClassOSPkg {
-			ans = append(ans, vulns[i].PkgName)
-		}
-	}
-	// 去重
-	ans = util.DeDuplicationStringSlice(ans)
-	install := installType(os)
-
-	pre := "请在该镜像的Dockerfile中增加如下代码，以修复存在安全问题的软件：RUN "
-
-	if len(ans) > 0 && install != "" {
-		return fmt.Sprintf("%s %s %s", pre, install, strings.Join(ans, " "))
-	}
-	return ""
-}
-
-func installType(os *ftypes.OS) string {
-	switch strings.ToLower(os.Family) {
-	case "ubuntu", "debian":
-		return "apt-get update  &&  apt upgrade -y "
-	case "centos", "fedora":
-		return "yum upgrade -y "
-	case "alpine":
-		return "apk update && apk add --upgrade -y "
-	}
-	return ""
 }
 
 func FormatTime(ti int64, format string) string {
@@ -496,7 +444,7 @@ func GetImageSheetInfo(executeType string) []ExcelMetaData {
 	sheets[6] = GenImageResourcesInfoMeta()
 	sheets[7] = GenImageTypeInfoMeta()
 
-	if executeType == consts.ExportImage {
+	if executeType == consts.ExportSingleImage {
 		for i := range sheets {
 			if sheets[i].SheetName != GenImageTypeInfoMeta().SheetName && sheets[i].SheetName != GenImageBaseInfoMeta().SheetName {
 				sheets[i].Header = sheets[i].Header[2:]

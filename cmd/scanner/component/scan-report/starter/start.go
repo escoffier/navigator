@@ -10,18 +10,22 @@ import (
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scan-report/export"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scan-report/export/excel"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scan-report/export/html"
 	scanreport "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scan-report/scan-report"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 )
 
 type BackgroundTasks struct {
-	ScanReport     *scanreport.ScanReportSrv
-	ImageExport    *export.ImageExport
-	ScanTaskExport *export.ScanTaskExport
-	AuditExport    *export.AuditExport
-	ClearFile      *export.ClearFile
-	VulnExport     *export.VulnExport
+	ScanReport         *scanreport.ScanReportSrv
+	ImageExport        *excel.ImageExport
+	ScanTaskExport     *excel.ScanTaskExport
+	AuditExport        *excel.AuditExport
+	ClearFileAndRecord *excel.ClearFileAndRecord
+	VulnExport         *excel.VulnExport
+	ImageSearchSrv     *excel.ImageSearchSrv
+	ImageExportHtml    *html.ExportImageHtmlSrv
 }
 
 type Config struct {
@@ -57,18 +61,36 @@ func NewBackgroundTasks(ctx context.Context, config Config) *BackgroundTasks {
 	scanConfigDal := store.NewScanConfigDao(config.Rdb)
 	vulnDal := store.NewVulnDao(config.Rdb)
 	imageSrv := component.NewConScannerSrv(dal, registryDal, dal, scanConfigDal, vulnDal, nil) // scan-report 无需上报事件中心，此处传空
-	imageExportSrv := export.NewImageExport(resourceDal, exportTaskDal, imageSrv, config.FileDir, config.Internal)
-	scanTaskExportSrv := export.NewScanTaskExport(imageExportSrv, exportTaskDal, dal, config.FileDir, config.Internal, imageExportSrv, config.MaxVulnCol, config.MaxImageByOneExportTask)
-	vulnExportSrv := export.NewVulnExport(exportTaskDal, config.FileDir, vulnDal, dal, resourceDal, imageExportSrv)
-	clearFile := export.NewClearFile(config.FileDir, config.Expiration, exportTaskDal)
-	naviAuditReport := export.NewAuditExport(exportTaskDal, config.Internal, config.FileDir, config.Es, "navi-audit-")
+	updateTask := export.NewUpdateTaskSrv(store.NewExportTaskDao(config.Rdb))
+
+	// 单个镜像导出excel
+	imageExportSrv := excel.NewImageExport(resourceDal, exportTaskDal, imageSrv, config.FileDir, config.Internal, updateTask)
+
+	// 扫描任务导出excel
+	scanTaskExportSrv := excel.NewScanTaskExport(imageExportSrv, exportTaskDal, dal, config.FileDir,
+		updateTask, config.MaxVulnCol, config.MaxImageByOneExportTask)
+	// 导出漏洞
+	vulnExportSrv := excel.NewVulnExport(exportTaskDal, config.FileDir, vulnDal, dal, resourceDal, updateTask)
+	// 清理文件
+	clearFile := excel.NewClearFile(config.FileDir, config.Expiration, exportTaskDal)
+
+	naviAuditReport := excel.NewAuditExport(exportTaskDal, config.Internal, config.FileDir, config.Es, "navi-audit-")
+
+	// 搜索列表导出excel
+	imageSearchSrv := excel.NewImageSearchSrv(scanTaskExportSrv, exportTaskDal, config.FileDir, updateTask,
+		component.NewImageService(dal, registryDal, dal))
+	// 镜像扫描报告导出到html
+	imageHtmlSrv := html.NewExportImageHtmlSrv(component.NewImageService(dal, registryDal, dal), vulnDal, dal, exportTaskDal, updateTask, config.FileDir)
+
 	srv := &BackgroundTasks{
-		ScanReport:     scanReportServer,
-		ImageExport:    imageExportSrv,
-		ScanTaskExport: scanTaskExportSrv,
-		AuditExport:    naviAuditReport,
-		ClearFile:      clearFile,
-		VulnExport:     vulnExportSrv,
+		ScanReport:         scanReportServer,
+		ImageExport:        imageExportSrv,
+		ScanTaskExport:     scanTaskExportSrv,
+		AuditExport:        naviAuditReport,
+		ClearFileAndRecord: clearFile,
+		VulnExport:         vulnExportSrv,
+		ImageSearchSrv:     imageSearchSrv,
+		ImageExportHtml:    imageHtmlSrv,
 	}
 	return srv
 }
@@ -95,6 +117,7 @@ func (s *BackgroundTasks) Start(ctx context.Context) {
 			<-tick.C
 		}
 	}()
+
 	// 扫描任务中镜像扫描数据导出excel
 	go func() {
 		tick := time.NewTicker(time.Second * 10)
@@ -116,6 +139,18 @@ func (s *BackgroundTasks) Start(ctx context.Context) {
 			<-tick.C
 		}
 	}()
+
+	// 对搜索结果导出excel
+	go func() {
+		tick := time.NewTicker(time.Second * 10)
+		defer tick.Stop()
+		for {
+			s.ImageSearchSrv.Run(ctx)
+			logging.GetLogger().Debug().Msg("finish ImageSearchSrv job")
+			<-tick.C
+		}
+	}()
+
 	// 审计日志数据导出excel
 	go func() {
 		tick := time.NewTicker(time.Second * 10)
@@ -127,13 +162,24 @@ func (s *BackgroundTasks) Start(ctx context.Context) {
 		}
 	}()
 
-	// 删除过期文件
+	// 删除过期文件及记录
 	go func() {
 		tick := time.NewTicker(time.Minute * 30)
 		defer tick.Stop()
 		for {
-			s.ClearFile.Run(ctx)
-			logging.GetLogger().Debug().Msg("finish ClearFile job")
+			s.ClearFileAndRecord.Run(ctx)
+			logging.GetLogger().Debug().Msg("finish ClearFileAndRecord job")
+			<-tick.C
+		}
+	}()
+
+	// 镜像扫描报告导出html
+	go func() {
+		tick := time.NewTicker(time.Second * 10)
+		defer tick.Stop()
+		for {
+			s.ImageExportHtml.Run(ctx)
+			logging.GetLogger().Debug().Msg("finish ImageExportHtml job")
 			<-tick.C
 		}
 	}()

@@ -304,6 +304,10 @@ type ImageList struct {
 	Trusted    bool      `gorm:"-"  json:"trusted"`
 }
 
+func (im *ImageList) GetImageName() string {
+	return fmt.Sprintf("%s/%s:%s", im.Library, im.FullRepoName, im.Tags)
+}
+
 func (im *ImageList) FromTypeToString() string {
 	switch im.FromType {
 	case UserRegistry:

@@ -1,4 +1,4 @@
-package export
+package excel
 
 import (
 	"context"
@@ -46,11 +46,11 @@ type Resp struct {
 }
 
 func NewAuditExport(
-	exportTaskDal store.ExportTaskDal,
-	interval time.Duration,
-	fileDir string,
-	esCli *pkgelastic.ESClient,
-	indexPrefix string,
+		exportTaskDal store.ExportTaskDal,
+		interval time.Duration,
+		fileDir string,
+		esCli *pkgelastic.ESClient,
+		indexPrefix string,
 ) *AuditExport {
 	return &AuditExport{
 		exportTaskDal: exportTaskDal,
@@ -82,7 +82,7 @@ func (e *AuditExport) Run(ctx context.Context) {
 			continue
 		}
 
-		excelChan := e.Export(ctx, tasks[i], consts.ExportImage)
+		excelChan := e.Export(ctx, tasks[i], consts.ExportSingleImage)
 
 		filename := tasks[i].FilePath
 		fn := strings.TrimSuffix(filename, ".zip")
@@ -116,7 +116,7 @@ func (e *AuditExport) Start(ctx context.Context, id int64) error {
 
 func (e *AuditExport) GetTensorTask(ctx context.Context, executeType string, n int64) ([]model.ExportTensorTask, error) {
 	task, _, err := e.exportTaskDal.SearchExportTensorTask(ctx, store.SearchExportTensorTask{
-		ExecuteType: executeType,
+		ExecuteType: []string{executeType},
 		Finished:    consts.FalseString,
 		Failure:     consts.FalseString,
 	}, &model.Filter{Limit: n})

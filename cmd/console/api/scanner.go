@@ -137,10 +137,20 @@ func (api *api) export() func(chi.Router) {
 		r.Post("/task/image", api.RedirectToExport())
 		r.Post("/task/scanTask", api.RedirectToExport())
 		r.Post("/task/vuln", api.RedirectToExport())
+		r.Post("/task/imageSearch", api.RedirectToExport())
 		r.Get("/task/detail", api.RedirectToExport())
 		r.Get("/task/list", api.RedirectToExport())
 		r.Get("/task/download", api.RedirectToExport())
 		r.Get("/task/checkScanTask", api.RedirectToExport())
+
+		// 这部分接口是内部使用接口，为了调试方便增加
+		r.Get("/html/images", api.RedirectToExport())
+		r.Get("/html/imageIdNames", api.RedirectToExport())
+		r.Get("/html/riskOverView", api.RedirectToExport())
+		r.Get("/html/imageRisk", api.RedirectToExport())
+		r.Get("/html/imageVulns", api.RedirectToExport())
+		r.Get("/html/exportVulns", api.RedirectToExport())
+		r.Get("/html/imageVirus", api.RedirectToExport())
 	}
 }
 
@@ -275,7 +285,7 @@ func (api *api) RedirectToScanner(repaleceScannner ...bool) http.HandlerFunc {
 func (api *api) RedirectToExport() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		// /api/v2/containerSec/export/task/list
-		// /api/v1/scan/export/task/list
+		// /api/v1/export/task/list
 
 		pre := r.URL.String()
 		newUrl := fmt.Sprintf("%s%s", api.exportURL,

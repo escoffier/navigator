@@ -12,7 +12,7 @@ type ExportTensorTaskView struct {
 	TaskType    string `json:"taskType"`    // 任务类型，周期任务，一次性任务等，暂时不用
 	ExecuteType string `json:"executeType"` // 导出类型,根据该名字取确实具体的执行函数
 	Parameter   string `json:"parameter"`   // 执行的参数
-	FilePath    string `json:"filePath"`    // 文件的绝对路径
+	FilePath    string `json:"filePath"`    // 文件名（含绝对路径）
 	Creator     string `json:"creator"`     // 任务创建人
 	StartAt     int64  `json:"startAt"`     // 任务开始执行时间
 	FinishAt    int64  `json:"finishAt"`    // 任务执行完成时间
@@ -26,25 +26,25 @@ type ExportTensorTaskView struct {
 func ModelToView(data model.ExportTensorTask) ExportTensorTaskView {
 
 	task := ExportTensorTaskView{
-		ID:        data.ID,
-		TaskType:  data.TaskType,
-		Parameter: data.Parameter,
-		Creator:   data.Creator,
-		StartAt:   data.StartAt,
-		FinishAt:  data.FinishAt,
-		ErrMsg:    data.ErrMsg,
-		CreatedAt: data.CreatedAt,
+		ID:          data.ID,
+		ExecuteType: data.ExecuteType,
+		TaskType:    data.TaskType,
+		Parameter:   data.Parameter,
+		Creator:     data.Creator,
+		StartAt:     data.StartAt,
+		FinishAt:    data.FinishAt,
+		ErrMsg:      data.ErrMsg,
+		CreatedAt:   data.CreatedAt,
 	}
 	task.FilePath = GetFilename(data.FilePath)
 
-	switch task.ExecuteType {
-	case consts.ExportImage, consts.ExportScanResult:
+	switch data.ExecuteType {
+	case consts.ExportSingleImage, consts.ExportScanResult, consts.ExportImageSearch:
 		task.ExecuteType = consts.ExportImageView
 	case consts.ExportVuln:
 		task.ExecuteType = consts.ExportVulnView
 	case consts.AuditExeType:
 		task.ExecuteType = consts.AuditExeTypeView
-
 	}
 
 	if data.StartAt == 0 {

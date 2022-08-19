@@ -399,7 +399,7 @@ func (s *ImageOpenAPISvc) CreateScanTask(ctx *gin.Context) {
 	}
 
 	if t.StrategyName != "" {
-		strategy, _, err := s.ScanConfigSrv.SearchStrategy(ctx, component.SearchStrategyParam{Name: t.StrategyName, All: consts.TrueString}, model.EmptyFilterForTheTotalQuery())
+		strategy, _, err := s.ScanConfigSrv.SearchStrategy(ctx, component.SearchStrategyParam{Name: t.StrategyName, All: consts.TrueString}, model.EmptyFilterForTotalQuery())
 		if err != nil {
 			response.JSONError(ctx, response.NewHttpError(http.StatusInternalServerError, err))
 			return

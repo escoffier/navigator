@@ -65,13 +65,13 @@ type SearchImageWithScanParam struct {
 	Library          string
 	SearchWord       string
 	Kind             string
-	ScanStatus       []string // 是否删除等状态
+	ScanStatus       []string
 	FromType         int64
 	ImageType        string
-	InIDs            []int64  //
-	NotInIDs         []int64  //
-	InDigests        []string //
-	NotInDigests     []string //
+	InIDs            []int64
+	NotInIDs         []int64
+	InDigests        []string
+	NotInDigests     []string
 	NodeHostname     string
 	SpecialImageType string
 	UUIDs            []uint32
@@ -304,11 +304,13 @@ type SearchVulnParam struct {
 	CanFixed        string
 	SeverityInt     []int64
 	JustReturnCount bool
+	StartID         int64
 }
 
 type SearchVulnImageParam struct {
 	ImageIds    []int64
 	UniqueVulns []uint64
+	Fields      []string
 }
 
 type SearchDistinctUniqueVulnParam struct {
@@ -320,14 +322,36 @@ type VulnPkg struct {
 	PkgVersion string
 }
 
+type SearchExportVulnDuplicateParam struct {
+	TaskID      int64
+	UniqueVulns []uint64
+	UseType     int64
+}
+
 type SearchExportTensorTask struct {
-	ExecuteType    string
+	ExecuteType    []string
+	TaskType       string
 	Parameter      string
 	Finished       string
 	Failure        string
 	ID             int64
 	NotIds         []int64
 	ExpirationDate time.Time
+}
+
+type SearchExportTaskImageParam struct {
+	TaskID   int64
+	StartID  int64
+	ImageIds []int64
+}
+
+type SearchHtmlVulnImageParam struct {
+	TaskID      int64
+	UniqueVulns []uint64
+	CanFixed    string
+	Severity    int
+	Fields      []string
+	StartID     int64
 }
 
 type GroupImageVuln struct {

@@ -17,7 +17,10 @@ import (
 	"gitlab.com/security-rd/go-pkg/logging"
 	_ "go.uber.org/automaxprocs"
 
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scan-report/api"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scan-report/export"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scan-report/export/html"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scan-report/service"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scan-report/starter"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
@@ -121,7 +124,26 @@ func main() {
 	backgroundSrv := starter.NewBackgroundTasks(context.Background(), config)
 	backgroundSrv.Start(context.Background())
 
-	router := api.SetupGinRouter(service.NewExportSrv(store.NewExportTaskDao(rdb), maxImageByOneExportTask, store.NewScannerOrm(rdb)))
+	dal := store.NewScannerOrm(config.Rdb)
+	registryDal := store.NewRegistryDao(config.Rdb)
+	vulnDal := store.NewVulnDao(config.Rdb)
+
+	exportTask := service.NewExportTaskSrv(
+		store.NewExportTaskDao(rdb),
+		maxImageByOneExportTask,
+		store.NewScannerOrm(rdb),
+		component.NewImageService(dal, registryDal, dal),
+	)
+
+	exportHtml := html.NewExportImageHtmlSrv(
+		component.NewImageService(dal, registryDal, dal),
+		vulnDal,
+		dal,
+		store.NewExportTaskDao(rdb),
+		export.NewUpdateTaskSrv(store.NewExportTaskDao(config.Rdb)),
+		fileDir)
+
+	router := api.SetupGinRouter(exportTask, exportHtml)
 
 	staticEntry := api.GenStaticFileHandlerEntry(fileDir)
 

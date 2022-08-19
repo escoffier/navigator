@@ -186,6 +186,7 @@ func (vn *Vuln) Serialize() {
 			vn.Frame = "fastjson"
 		}
 	}
+
 }
 
 func (vn *Vuln) Deserialize() {
