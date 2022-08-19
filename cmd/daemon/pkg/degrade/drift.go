@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	driftPath = "/host/tmp"
+	DriftPath = "/host/var/lib/tensor"
 )
 
 func driftRecover() {
@@ -20,7 +20,7 @@ func driftRecover() {
 		}
 	}()
 
-	finfo, err := os.Stat(fmt.Sprintf("%s/ld.so.preload", driftPath))
+	finfo, err := os.Stat(fmt.Sprintf("%s/ld.so.preload", DriftPath))
 	if err != nil {
 		logging.Get().Err(err).Msg("drift degrade: error stat or file is not empty")
 		return
@@ -29,29 +29,29 @@ func driftRecover() {
 		return
 	}
 
-	rinfo, err := os.Stat(fmt.Sprintf("%s/ld.so.preload.recover", driftPath))
+	rinfo, err := os.Stat(fmt.Sprintf("%s/ld.so.preload.recover", DriftPath))
 	if err != nil || rinfo.Size() == 0 {
 		logging.Get().Err(err).Msg("drift degrade: error stat or recover file is  empty")
 
-		err = os.WriteFile(fmt.Sprintf("%s/ld.so.preload.recover", driftPath), []byte("/.tensor/dp.so"), finfo.Mode())
+		err = os.WriteFile(fmt.Sprintf("%s/ld.so.preload.recover", DriftPath), []byte("/.tensor/dp.so"), finfo.Mode())
 		if err != nil {
 			logging.Get().Err(err).Msg("drift degrade: error write file")
 			return
 		}
 	}
 
-	input, err := os.ReadFile(fmt.Sprintf("%s/ld.so.preload.recover", driftPath))
+	input, err := os.ReadFile(fmt.Sprintf("%s/ld.so.preload.recover", DriftPath))
 	if err != nil {
 		logging.Get().Err(err).Msg("drift degrade: error read recover file")
 		return
 	}
 
-	err = os.WriteFile(fmt.Sprintf("%s/ld.so.preload", driftPath), input, finfo.Mode())
+	err = os.WriteFile(fmt.Sprintf("%s/ld.so.preload", DriftPath), input, finfo.Mode())
 	if err != nil {
 		logging.Get().Err(err).Msg("drift degrade: error write file")
 		return
 	}
-	if err := os.Remove(fmt.Sprintf("%s/ld.so.preload.recover", driftPath)); err != nil {
+	if err := os.Remove(fmt.Sprintf("%s/ld.so.preload.recover", DriftPath)); err != nil {
 		logging.Get().Warn().Err(err).Msg("remove recover file error")
 	}
 
@@ -64,7 +64,7 @@ func driftDegrade() {
 		}
 	}()
 
-	finfo, err := os.Stat(fmt.Sprintf("%s/ld.so.preload", driftPath))
+	finfo, err := os.Stat(fmt.Sprintf("%s/ld.so.preload", DriftPath))
 	if err != nil {
 		logging.Get().Err(err).Msg("drift degrade: error stat or file is empty")
 		return
@@ -72,24 +72,24 @@ func driftDegrade() {
 	if finfo.Size() == 0 {
 		return
 	}
-	if err := os.Remove(fmt.Sprintf("%s/ld.so.preload.recover", driftPath)); err != nil {
+	if err := os.Remove(fmt.Sprintf("%s/ld.so.preload.recover", DriftPath)); err != nil {
 		logging.Get().Warn().Err(err).Msg("remove recover file error")
 	}
 
-	input, err := os.ReadFile(fmt.Sprintf("%s/ld.so.preload", driftPath))
+	input, err := os.ReadFile(fmt.Sprintf("%s/ld.so.preload", DriftPath))
 	if err != nil {
 		logging.Get().Err(err).Msg("drift degrade: error read file")
 		return
 	}
 
-	err = os.WriteFile(fmt.Sprintf("%s/ld.so.preload.recover", driftPath), input, finfo.Mode())
+	err = os.WriteFile(fmt.Sprintf("%s/ld.so.preload.recover", DriftPath), input, finfo.Mode())
 	if err != nil {
 		logging.Get().Err(err).Msg("drift degrade: error write file")
 		return
 	}
 
-	err = exec.Command("/bin/bash", "-c", fmt.Sprintf("echo -n > %s", fmt.Sprintf("%s/ld.so.preload", driftPath))).Run()
-	// err = os.Truncate(fmt.Sprintf("%s/ld.so.preload", driftPath), 0)
+	err = exec.Command("/bin/bash", "-c", fmt.Sprintf("echo -n > %s", fmt.Sprintf("%s/ld.so.preload", DriftPath))).Run()
+	// err = os.Truncate(fmt.Sprintf("%s/ld.so.preload", DriftPath), 0)
 	if err != nil {
 		logging.Get().Err(err).Msg("drift degrade: error empty file")
 		return
