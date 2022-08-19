@@ -327,7 +327,7 @@ func (api *api) driftListPolicy() http.HandlerFunc {
 		}
 		res := []model.DriftListPolicyResp{}
 		for _, v := range policys {
-			signals, err := driSvc.GetAbnormal(ctx, v, 3000, "", "", "")
+			signals, err := driSvc.GetAbnormal(ctx, v, 3000, "", "")
 			if err != nil {
 				logging.GetLogger().Err(err).Msgf("GetAbnormal error")
 				continue
@@ -471,7 +471,7 @@ func (api *api) driftPolicyAbnormal() http.HandlerFunc {
 		}
 
 		logging.GetLogger().Info().Msgf("container_name :%v filePath:%v", containerName, filePath)
-		signals, err := driSvc.GetAbnormal(ctx, policy, 3000, "", containerName, filePath)
+		signals, err := driSvc.GetAbnormal(ctx, policy, 3000, containerName, filePath)
 		if err != nil {
 			logging.GetLogger().Err(err).Msg("GetAbnormal error")
 			apperror.RespAndLog(w, ctx, apperror.NewAnError(http.StatusInternalServerError, errors.New("GetAbnormal error")))

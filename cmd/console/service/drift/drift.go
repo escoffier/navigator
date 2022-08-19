@@ -110,7 +110,7 @@ func (rl *TensorDriftService) GetContainerByID(ctx context.Context, id uint32) (
 	return dal.GetContainerByID(ctx, rl.rdb.GetReadDB(), id)
 }
 
-func (rl *TensorDriftService) GetAbnormal(ctx context.Context, policy model.DriftPolicy, limit int, offset string, containerName string, filePath string) ([]*palace.Signal, error) {
+func (rl *TensorDriftService) GetAbnormal(ctx context.Context, policy model.DriftPolicy, limit int, containerName string, filePath string) ([]*palace.Signal, error) {
 	esCli, err := GetDriftES(ctx)
 	if err != nil {
 		return nil, err
@@ -126,13 +126,9 @@ func (rl *TensorDriftService) GetAbnormal(ctx context.Context, policy model.Drif
 
 	if containerName != "" {
 		boolQuery.Filter(es.NewMatchPhraseQuery("scope.container.name", containerName).Slop(0))
-	} else {
-		logging.GetLogger().Error().Msg("containerName is empty")
 	}
 	if filePath != "" {
 		boolQuery.Filter(es.NewMatchPhraseQuery("context.filePath", filePath).Slop(0))
-	} else {
-		logging.GetLogger().Error().Msg("filePath is empty")
 	}
 
 	// debug
