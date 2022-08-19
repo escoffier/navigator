@@ -7,11 +7,13 @@ import (
 	"io"
 	"io/ioutil"
 	"os"
+	"path"
 	"strconv"
 	"strings"
 	"syscall"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/container"
+	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/degrade"
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/nodeinfo"
 	"gitlab.com/security-rd/go-pkg/logging"
 
@@ -37,8 +39,8 @@ type Injector struct {
 }
 
 var (
-	HostTensorPath              = "/host/var/lib/tensor/mnt"
-	HostEtcPreloadPath          = "/host/var/lib/tensor/ld.so.preload"
+	HostTensorPath              = path.Join(degrade.DriftPath, "mnt")
+	HostEtcPreloadPath          = path.Join(degrade.DriftPath, "ld.so.preload")
 	procPrefix                  = "/host/proc/"
 	ContainerTensorPath         = "/.tensor"
 	injectSoName                = "dp.so"
