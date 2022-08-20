@@ -16,7 +16,6 @@ import (
 	"strings"
 	"sync"
 	"time"
-
 	// 引入驱动
 
 	"github.com/go-redis/redis/v8"
@@ -24,7 +23,6 @@ import (
 	_ "github.com/lib/pq"
 	"gitlab.com/security-rd/go-pkg/logging"
 	"go.mongodb.org/mongo-driver/mongo"
-
 	layerManage "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/layer-manage"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
@@ -190,6 +188,7 @@ func (rcSvc *RedClairService) cacheInvalidatorRun(ctx context.Context, wg *sync.
 		logging.Get().Err(err).Msg("updateLayerCache error")
 	}
 	ticker := time.NewTicker(cacheInvalidatorInterval)
+	defer ticker.Stop()
 loop:
 	for {
 		select {

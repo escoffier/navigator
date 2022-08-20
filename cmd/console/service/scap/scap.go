@@ -350,15 +350,13 @@ func (s *Service) deleteK8sJobs(ctx context.Context, his *model.ScanHistory) err
 	// labels
 	labelSet := labels.SelectorFromSet(labels.Set{"CHECK_ID": his.TaskID})
 	// delete these jobs which with label
-	k8sClient.BatchV1().
+	return k8sClient.BatchV1().
 		Jobs(cluster.WorkerNamespace).
 		DeleteCollection(
 			ctx,
 			v1.DeleteOptions{},
 			v1.ListOptions{LabelSelector: labelSet.String()},
 		)
-
-	return err
 }
 
 // 将job更新为完成

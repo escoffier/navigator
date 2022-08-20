@@ -102,6 +102,7 @@ func (l *KubeClusterMonitor) asyncDetection() {
 
 func (l *KubeClusterMonitor) sendToOutput(outputEvt *KubeMonitorEvent) {
 	timer := time.NewTimer(500 * time.Millisecond)
+	defer timer.Stop()
 	select {
 	case l.parent.outputChan <- outputEvt:
 	case <-timer.C:

@@ -56,6 +56,8 @@ func (s *Service) checkStorageLoop() {
 	time.Sleep(time.Minute * 5)
 	s.checkStorage()
 	ticker := time.NewTicker(time.Hour * 24)
+	defer ticker.Stop()
+
 	for {
 		<-ticker.C
 		s.checkStorage()

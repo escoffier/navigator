@@ -12,14 +12,13 @@ import (
 	"sync"
 	"time"
 
-	"gitlab.com/security-rd/go-pkg/logging"
-	ftypes "scm.tensorsecurity.cn/tensorsecurity-rd/fanal/types"
-
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scan-report/export"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scan-report/export/utils"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
+	"gitlab.com/security-rd/go-pkg/logging"
+	ftypes "scm.tensorsecurity.cn/tensorsecurity-rd/fanal/types"
 )
 
 // 镜像列表搜索的安全报告
@@ -764,6 +763,7 @@ func (s *ExportImageHtmlSrv) Run(ctx context.Context) {
 
 	// 如果创建成功，就一直轮询状态
 	ticker := time.NewTicker(time.Second * 10)
+	defer ticker.Stop()
 	// 服务可能会出错，所以这里提供一个重试机制
 	statusRetry := 1
 	for {

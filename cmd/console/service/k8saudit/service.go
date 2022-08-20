@@ -327,6 +327,8 @@ func (s *Service) asyncWatchConfig() {
 	}()
 
 	ticker := time.NewTicker(configWatchInterval)
+	defer ticker.Stop()
+	
 	for range ticker.C {
 		ctx, cancel := context.WithTimeout(context.Background(), configWatchInterval/2)
 		conf, err := s.getAuditConfig(ctx)

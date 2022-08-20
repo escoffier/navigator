@@ -83,6 +83,7 @@ func (s *ScanConfigSrv) SearchNodes(ctx context.Context) ([]string, error) {
 func (s *ScanConfigSrv) AddTaskByStrategy(ctx context.Context) error {
 
 	ticker := time.NewTicker(time.Second * consts.CheckTaskInterval)
+	defer ticker.Stop()
 
 	for {
 		<-ticker.C
