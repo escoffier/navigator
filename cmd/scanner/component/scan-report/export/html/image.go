@@ -557,10 +557,25 @@ func (s *ExportImageHtmlSrv) createExportHtml(ctx context.Context, task model.Ex
 	if err != nil {
 		return err
 	}
-	rsp, err := http.Post(url, "application/json", bytes.NewReader(data))
-	if err != nil {
-		return err
+	var rsp *http.Response
+	retry := 0
+	ticker := time.NewTicker(time.Second * 10)
+	defer ticker.Stop()
+	// pod刚启动时exporter服务可能还没有启动起来，加一个重试机制
+	for {
+		rsp1, err := http.Post(url, "application/json", bytes.NewReader(data))
+		if err != nil {
+			if retry >= 100 {
+				return err
+			}
+			<-ticker.C
+			retry++
+		} else {
+			rsp = rsp1
+			break
+		}
 	}
+
 	defer func() {
 		_ = rsp.Body.Close()
 	}()
