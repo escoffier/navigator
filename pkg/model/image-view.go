@@ -389,7 +389,7 @@ func (ir *ImageListResponse) Deserialize() {
 			ir.ImageAttr.HasFixedVuln = true
 		}
 
-		ir.RiskScore = ir.ScanInfo.VulnScore + ir.ScanInfo.SensitiveScore + math.Min(ir.ScanInfo.WebshellScore+ir.ScanInfo.VirusScore, MaxWebshellAndVirusScore)
+		ir.RiskScore = 100 - (ir.ScanInfo.VulnScore + ir.ScanInfo.SensitiveScore + math.Min(ir.ScanInfo.WebshellScore+ir.ScanInfo.VirusScore, MaxWebshellAndVirusScore))
 
 		// 把恶义文件加上
 		ir.Malicious = make([]VirusInfo, 0)
@@ -428,6 +428,10 @@ func (ir *ImageListResponse) Deserialize() {
 		}
 	}
 	ir.LastSyncAt = ir.Registry.LastSyncAt
+	// 如果没有扫描过，就统一改成0分
+	if ir.ScanInfo == nil {
+		ir.RiskScore = 0
+	}
 }
 
 func ParseConfigEnv(env []EnvKeyValue) string {

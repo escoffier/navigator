@@ -297,7 +297,7 @@ func GenImageBaseInfo(image model.ImageList) []string {
 	info := []string{
 		getImageName(image),
 		image.Library,
-		ToString(100 - image.ImageScanVuln.RiskScore),
+		ToString(image.ImageScanVuln.RiskScore),
 		getImageAttr(image.Flag, image.Trusted), // 属性
 		getImageOnline(image.Online),
 		getImageSecurityQuestion(image.Flag),
@@ -321,11 +321,6 @@ func GenImageBaseInfo(image model.ImageList) []string {
 	}
 	if sensitiveFileSuggest != "" {
 		suggest = append(suggest, sensitiveFileSuggest)
-	}
-	if model.ExistFlag(image.Flag, model.FlagImageNotScan) ||
-		model.ExistFlag(image.Flag, model.FlagImageScanUnknown) ||
-		model.ExistFlag(image.Flag, model.FlagImageScanPending) {
-		info[2] = "0"
 	}
 
 	info = append(info, strings.Join(suggest, "\n"))
