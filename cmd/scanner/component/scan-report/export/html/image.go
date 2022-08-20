@@ -144,7 +144,8 @@ func (s *ExportImageHtmlSrv) GetImages(ctx context.Context, taskID int64, starID
 				RiskScore:   100 - images[j].RiskScore,
 				Flag:        images[j].Flag,
 			}
-			if images[j].ScanStatus == model.ImageNotScan {
+			if images[j].ScanStatus == model.ImageNotScan || images[j].ScanStatus == model.ImageScanPending ||
+				images[j].ScanStatus == model.ImageScanUnknown {
 				im.RiskScore = 0
 			}
 			im.AddVulnSeverityCount(vulns)

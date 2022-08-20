@@ -322,8 +322,9 @@ func GenImageBaseInfo(image model.ImageList) []string {
 	if sensitiveFileSuggest != "" {
 		suggest = append(suggest, sensitiveFileSuggest)
 	}
-	// 对于未扫描的镜像评分是0
-	if model.ExistFlag(image.Flag, model.FlagImageNotScan) {
+	if model.ExistFlag(image.Flag, model.FlagImageNotScan) ||
+		model.ExistFlag(image.Flag, model.FlagImageScanUnknown) ||
+		model.ExistFlag(image.Flag, model.FlagImageScanPending) {
 		info[2] = "0"
 	}
 
