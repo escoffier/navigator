@@ -44,7 +44,8 @@ type Result struct {
 }
 
 type Data struct {
-	Item Item `json:"item"`
+	Item  Item   `json:"item"`
+	Items []Item `json:"items"`
 }
 
 type Item struct {
@@ -94,6 +95,9 @@ func (v *Validator) Validate(ctx context.Context, pod *corev1.Pod, params *proce
 
 	for _, c := range pod.Spec.Containers {
 		buildValidation(validation, c.Image)
+	}
+	if len(validation.Images) == 0 {
+		return nil
 	}
 
 	data, err := json.Marshal(validation.Images)
@@ -147,6 +151,11 @@ func (v *Validator) Validate(ctx context.Context, pod *corev1.Pod, params *proce
 func buildValidation(v *ImageValidatorReq, image string) {
 	var digest, imageTag string
 
+	if !checkRegistryUrl(context.Background(), image) {
+		logging.GetLogger().Info().Msgf("skip validation for image: %s", image)
+		return
+	}
+
 	digest = getDigest(image)
 	if digest != "" {
 		imageMap, ok := GetImageDigestMap()
@@ -154,6 +163,7 @@ func buildValidation(v *ImageValidatorReq, image string) {
 			imageTag = imageMap.get(digest)
 		}
 	}
+
 	if imageTag == "" {
 		imageTag = image
 	}
@@ -165,7 +175,7 @@ func buildValidation(v *ImageValidatorReq, image string) {
 	})
 }
 
-func (v *Validator) PreValidate(_ context.Context, pod *corev1.Pod, parameters *processors.ValidatingParameters) bool {
+func (v *Validator) PreValidate(_ context.Context, _ *corev1.Pod, parameters *processors.ValidatingParameters) bool {
 	for _, ns := range v.IgnoredNameSpaces {
 		if parameters.Namespace == ns {
 			logging.GetLogger().Info().Msgf("ignored mutating for resource %s in namespace %s", parameters.Kind, ns)
@@ -179,7 +189,7 @@ func (v *Validator) Name() string {
 	return "ImageTrustValidator"
 }
 
-func (v *Validator) Init(config *processors.WebHookConfig) error {
+func (v *Validator) Init(_ *processors.WebHookConfig) error {
 	v.client = &http.Client{
 		Transport: &http.Transport{
 			TLSClientConfig: &tls.Config{

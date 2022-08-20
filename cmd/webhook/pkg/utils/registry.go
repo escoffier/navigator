@@ -2,9 +2,12 @@ package utils
 
 import (
 	"bytes"
+	"context"
 	"crypto/x509"
 	"errors"
+	"fmt"
 	"strings"
+	"time"
 
 	"github.com/google/go-containerregistry/pkg/name"
 	registry2 "github.com/heroku/docker-registry-client/registry"
@@ -12,6 +15,8 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 )
+
+const DigestTineOut = time.Second * 4
 
 func NewDockerRegistryClient(url, userName, password string, skipTLSVerify bool) (*registry2.Registry, error) {
 	hub, err := registry2.New(url, userName, password)
@@ -34,37 +39,65 @@ func NewDockerRegistryClient(url, userName, password string, skipTLSVerify bool)
 }
 
 func GetImageDigest(userName, password string, skipTLSVerify bool, imageName string) (string, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), DigestTineOut)
+	defer cancel()
+
+	digest := make(chan string)
+	err := make(chan error)
+	go func() {
+		digest1, err1 := getImageDigest(userName, password, skipTLSVerify, imageName)
+		digest <- digest1
+		err <- err1
+	}()
+
+	select {
+	case d := <-digest:
+		return d, nil
+	case e := <-err:
+		logging.GetLogger().Err(e).Msg("get image err")
+		return "", e
+	case <-ctx.Done():
+		return "", fmt.Errorf("get image: %s digests time out", imageName)
+	}
+}
+
+func getImageDigest(userName, password string, skipTLSVerify bool, imageName string) (string, error) {
+
 	var nameOpts []name.Option
 	nameOpts = append(nameOpts, name.Insecure)
 
-	ref, err := name.ParseReference(imageName, nameOpts...)
-	if err != nil {
-		return "", err
+	ref, err1 := name.ParseReference(imageName, nameOpts...)
+	if err1 != nil {
+		//err <- err1
+		//return digest, err
+		return "", err1
 	}
 	url := ref.Context().RegistryStr()
 	if !strings.Contains(url, "http") {
 		url = "https://" + url
 	}
-	cli, err := NewDockerRegistryClient(url, userName, password, skipTLSVerify)
-	if err != nil {
-		return "", err
+	cli, err1 := NewDockerRegistryClient(url, userName, password, skipTLSVerify)
+	if err1 != nil {
+		return "", err1
 	}
 
 	tag := ref.Identifier()
 	repoName := ref.Context().RepositoryStr()
 
-	data, err := pullImageManifestV2(cli, repoName, tag)
-	if err != nil {
-		data, err = pullImageManifestV1(cli, repoName, tag)
-		if err != nil {
-			return "", err
+	data, err1 := pullImageManifestV2(cli, repoName, tag)
+	if err1 != nil {
+		data, err1 = pullImageManifestV1(cli, repoName, tag)
+		if err1 != nil {
+			return "", err1
 		}
 	}
 
-	dig, _, err := registry.SHA256(bytes.NewReader(data))
-	if err != nil {
-		return "", err
+	dig, _, err1 := registry.SHA256(bytes.NewReader(data))
+	if err1 != nil {
+		return "", err1
 	}
+	d := dig.String()
+	logging.GetLogger().Info().Msgf("digest of image %s is %s", imageName, d)
 	return dig.String(), nil
 }
 

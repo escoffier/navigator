@@ -3,7 +3,9 @@ package imagetrust
 import (
 	"context"
 	"encoding/json"
+	"gitlab.com/piccolo_su/vegeta/cmd/webhook/pkg/utils"
 	"io/ioutil"
+	coreinformers "k8s.io/client-go/informers/core/v1"
 	"net/http"
 	"reflect"
 	"testing"
@@ -55,7 +57,7 @@ func Test_patchImageDigest(t *testing.T) {
 }
 
 func setUpServer() {
-	server := http.Server{Addr: ":8080"}
+	server := http.Server{Addr: ":1999"}
 
 	mutex := http.NewServeMux()
 	mutex.HandleFunc("/imageDigest", func(w http.ResponseWriter, r *http.Request) {
@@ -82,6 +84,129 @@ func setUpServer() {
 			return
 		}
 		w.Write(resp)
+	})
+
+	mutex.HandleFunc("/registries", func(w http.ResponseWriter, request *http.Request) {
+		data := `{
+    "apiVersion": "1.0",
+    "data": {
+        "startIndex": 0,
+        "status": 0,
+        "itemsPerPage": 10,
+        "totalItems": 5,
+        "items": [
+            {
+                "password": "Hrbr12@Tensor.*#)",
+                "sync_interval": 0,
+                "created_at": "2022-07-19T09:40:37.893Z",
+                "deleted_at": 0,
+                "id": 19,
+                "description": "",
+                "auth_str": "Basic ZGV2b3BzOkhyYnIxMkBUZW5zb3IuKiMp",
+                "instance_id": "",
+                "name": "hb-prod",
+                "token": "",
+                "use_type": 1,
+                "last_sync_at": 1660288954,
+                "access_secret": "",
+                "reg_type": "harbor",
+                "url": "https://harbor-prod.tensorsecurity.com",
+                "username": "devops",
+                "access_key": "",
+                "region_id": "",
+                "updated_at": "2022-08-12T07:22:34.2Z"
+            },
+            {
+                "created_at": "2022-07-19T09:45:17.356Z",
+                "username": "devops",
+                "auth_str": "Basic ZGV2b3BzOkhyYnIxMkBUZW5zb3IuKiMp",
+                "use_type": 1,
+                "instance_id": "",
+                "region_id": "",
+                "name": "hellowrod",
+                "url": "https://harbor.tensorsecurity.com",
+                "updated_at": "2022-08-12T07:22:34.599Z",
+                "last_sync_at": 1660288954,
+                "access_secret": "",
+                "deleted_at": 0,
+                "id": 20,
+                "password": "Hrbr12@Tensor.*#)",
+                "token": "",
+                "description": "",
+                "sync_interval": 0,
+                "reg_type": "harbor",
+                "access_key": ""
+            },
+            {
+                "deleted_at": 0,
+                "reg_type": "registry-v2",
+                "url": "http://console.tensorsecurity.com",
+                "password": "Registry@Passw0rd",
+                "description": "",
+                "last_sync_at": 0,
+                "created_at": "2022-07-19T09:49:19.477Z",
+                "token": "",
+                "sync_interval": 5,
+                "instance_id": "",
+                "region_id": "",
+                "id": 23,
+                "use_type": 1,
+                "access_key": "",
+                "updated_at": "2022-07-19T09:49:19.477Z",
+                "name": "v2",
+                "username": "registry",
+                "auth_str": "Basic cmVnaXN0cnk6UmVnaXN0cnlAUGFzc3cwcmQ=",
+                "access_secret": ""
+            },
+            {
+                "url": "https://harbor-v1-sit.tensorsecurity.com",
+                "password": "Hrbr12@Tensor.*#)",
+                "access_key": "",
+                "access_secret": "",
+                "deleted_at": 0,
+                "reg_type": "harbor",
+                "description": "",
+                "auth_str": "Basic ZGV2b3BzOkhyYnIxMkBUZW5zb3IuKiMp",
+                "instance_id": "",
+                "region_id": "",
+                "updated_at": "2022-08-12T07:22:36.706Z",
+                "id": 24,
+                "token": "",
+                "sync_interval": 0,
+                "last_sync_at": 1660288956,
+                "created_at": "2022-07-19T09:49:52.453Z",
+                "name": "v1",
+                "use_type": 1,
+                "username": "devops"
+            },
+            {
+                "updated_at": "2022-08-12T07:21:36.35Z",
+                "url": "https://harbor-sample.tensorsecurity.cn",
+                "description": "",
+                "use_type": 1,
+                "access_secret": "",
+                "region_id": "",
+                "id": 25,
+                "reg_type": "harbor",
+                "password": "Hrbr12@Tensor.*#)",
+                "access_key": "",
+                "created_at": "2022-08-05T07:56:28.405Z",
+                "auth_str": "Basic ZGV2b3BzOkhyYnIxMkBUZW5zb3IuKiMp",
+                "last_sync_at": 1660288896,
+                "deleted_at": 0,
+                "name": "harbor-sample",
+                "username": "devops",
+                "token": "",
+                "sync_interval": 0,
+                "instance_id": ""
+            },
+            {
+                "url": "falut://harbor-sample.falut.tensorsecurity.cn" 
+            }
+        ]
+    }
+}`
+		w.Write([]byte(data))
 	})
 	server.Handler = mutex
 
@@ -140,7 +265,7 @@ func Test_getImageDigestFromHarbor(t *testing.T) {
 	type args struct {
 		in0    context.Context
 		image  string
-		secret *ImageRepoSecret
+		secret *utils.ImageRepoSecret
 	}
 	tests := []struct {
 		name string
@@ -150,9 +275,9 @@ func Test_getImageDigestFromHarbor(t *testing.T) {
 		{
 			name: "test-1",
 			args: args{image: "registry.t-appagile.com/tensorsecurity/tensorsec-operator:latest",
-				secret: &ImageRepoSecret{
-					user:     "admin",
-					password: "Hrbr12@Tensor.*#)",
+				secret: &utils.ImageRepoSecret{
+					User:     "admin",
+					Password: "Hrbr12@Tensor.*#)",
 				}},
 			want: "",
 		},
@@ -181,6 +306,67 @@ func Test_getImageDigestFromHarbor(t *testing.T) {
 				t.Errorf("getImageDigestFromHarbor() = %v, want %v", got, tt.want)
 			}
 			t.Log(got)
+		})
+	}
+}
+
+func TestMutator_checkRegistryUrl(t *testing.T) {
+	type fields struct {
+		client                *http.Client
+		digestUrl             string
+		IgnoredNameSpaces     []string
+		secretInformer        map[string]*coreinformers.SecretInformer
+		imageRegistryCheckUrl string
+	}
+	type args struct {
+		image string
+	}
+
+	go setUpServer()
+
+	tests := []struct {
+		name   string
+		fields fields
+		args   args
+		want   bool
+	}{
+		{
+			name: "test1",
+			fields: fields{
+				client:                http.DefaultClient,
+				digestUrl:             "",
+				IgnoredNameSpaces:     nil,
+				secretInformer:        nil,
+				imageRegistryCheckUrl: "http://localhost:1999/registries",
+			},
+			args: args{image: "harbor.tensorsecurity.com/tensorsecurity/console:testcn"},
+			want: true,
+		},
+		{
+			name: "test2",
+			fields: fields{
+				client:                http.DefaultClient,
+				digestUrl:             "",
+				IgnoredNameSpaces:     nil,
+				secretInformer:        nil,
+				imageRegistryCheckUrl: "http://localhost:1999/registries",
+			},
+			args: args{image: "harbor.aa.tensorsecurity.com/tensorsecurity/console:testcn"},
+			want: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m := &Mutator{
+				client:                tt.fields.client,
+				digestUrl:             tt.fields.digestUrl,
+				IgnoredNameSpaces:     tt.fields.IgnoredNameSpaces,
+				secretInformer:        tt.fields.secretInformer,
+				imageRegistryCheckUrl: tt.fields.imageRegistryCheckUrl,
+			}
+			if got := m.checkRegistryUrl(context.Background(), tt.args.image); got != tt.want {
+				t.Errorf("checkRegistryUrl() = %v, want %v", got, tt.want)
+			}
 		})
 	}
 }
