@@ -5,23 +5,25 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
+	"github.com/pkg/errors"
 	"gitlab.com/piccolo_su/vegeta/cmd/webhook/pkg/utils"
 	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
-	"io/ioutil"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"net/http"
-	"strings"
-
-	"github.com/pkg/errors"
 	"gopkg.in/yaml.v2"
+	"io/ioutil"
 	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	coreinformers "k8s.io/client-go/informers/core/v1"
+	"net/http"
+	"net/url"
+	"strings"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/webhook/pkg/processors"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 )
 
 const configFile = "image-trust-mutator.yaml"
+
+var checkImageRegistryUrl = ""
 
 type Mutator struct {
 	client            *http.Client
@@ -43,7 +45,12 @@ type ImageDigest struct {
 type ImageDigestResp ImageTagReq
 
 type MutatorConfig struct {
-	IgnoredNameSpaces []string `yaml:"ignored_name_spaces"`
+	IgnoredNameSpaces     []string `yaml:"ignored_name_spaces"`
+	ImageRegistryCheckUrl string   `yaml:"image_registry_check_url"`
+}
+
+type ImageRegistry struct {
+	Url string `json:"url"`
 }
 
 func (m *Mutator) Name() string {
@@ -68,6 +75,12 @@ func (m *Mutator) Init(webHookConfig *processors.WebHookConfig) error {
 		return err
 	}
 
+	checkUrl, err := url.Parse(config.ImageRegistryCheckUrl)
+	if err != nil {
+		return err
+	}
+
+	checkImageRegistryUrl = checkUrl.String()
 	m.IgnoredNameSpaces = append(m.IgnoredNameSpaces, config.IgnoredNameSpaces...)
 	InitImageDigestMap()
 	return nil
@@ -94,8 +107,15 @@ func (m *Mutator) Mutate(ctx context.Context, parameters *processors.MutatorPara
 	return patchImageDigest(digests)
 }
 
+//buildDigestImage replace image name with image digest
 func (m *Mutator) buildDigestImage(ctx context.Context, parameters *processors.MutatorParameters, container *corev1.Container, kubeSecretNames []string) string {
 	originImage := container.Image
+	result := checkRegistryUrl(ctx, originImage)
+	if !result {
+		logging.GetLogger().Info().Msgf("skip check for image: %s", originImage)
+		return ""
+	}
+
 	if strings.Contains(originImage, "@sha256") || container.ImagePullPolicy != "Always" {
 		return ""
 	}
@@ -230,8 +250,8 @@ func (m *Mutator) getSecrets(clusterKey, namespace, image string, kubeSecrets []
 		}
 		logging.GetLogger().Info().Msgf("%+v", dockerConfig)
 
-		for url, config := range dockerConfig.Auths {
-			if url == imageUrl {
+		for u, config := range dockerConfig.Auths {
+			if u == imageUrl {
 				return &utils.ImageRepoSecret{
 					User:     config.Username,
 					Password: config.Password,
