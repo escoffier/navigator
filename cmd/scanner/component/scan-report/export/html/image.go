@@ -141,12 +141,8 @@ func (s *ExportImageHtmlSrv) GetImages(ctx context.Context, taskID int64, starID
 				FixedVuln:   VulnSeverityCount{},
 				UnFixedVuln: VulnSeverityCount{},
 				Malicious:   int64(len(images[j].Malicious)),
-				RiskScore:   100 - images[j].RiskScore,
+				RiskScore:   images[j].RiskScore,
 				Flag:        images[j].Flag,
-			}
-			if images[j].ScanStatus == model.ImageNotScan || images[j].ScanStatus == model.ImageScanPending ||
-				images[j].ScanStatus == model.ImageScanUnknown {
-				im.RiskScore = 0
 			}
 			im.AddVulnSeverityCount(vulns)
 			res.Images = append(res.Images, im)

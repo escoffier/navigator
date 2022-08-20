@@ -283,12 +283,12 @@ func (s *ConScannerSrv) SearchImages(ctx context.Context, param SearchImageParam
 }
 
 func NewConScannerSrv(
-		dbdal store.ScannerDalInterface,
-		registryDal store.RegistryDal,
-		scanTaskDal store.ScanTaskInterface,
-		scanConfigDal store.ScanConfigDal,
-		vulnDal store.VulnDalInterface,
-		palaceHandler *palace.Palace) *ConScannerSrv {
+	dbdal store.ScannerDalInterface,
+	registryDal store.RegistryDal,
+	scanTaskDal store.ScanTaskInterface,
+	scanConfigDal store.ScanConfigDal,
+	vulnDal store.VulnDalInterface,
+	palaceHandler *palace.Palace) *ConScannerSrv {
 	return &ConScannerSrv{
 		dbdal:         dbdal,
 		registryDal:   registryDal,
@@ -1258,7 +1258,7 @@ func (s *ConScannerSrv) GetImageDetail(ctx context.Context, imgID int64) (*model
 		VirusScore:        scs[0].VirusScore,
 		WebshellScore:     scs[0].WebshellScore,
 		SensitiveScore:    scs[0].SensitiveScore,
-		RiskScore:         scs[0].VulnScore + scs[0].SensitiveScore + math.Min(scs[0].WebshellScore+scs[0].VirusScore, model.MaxWebshellAndVirusScore),
+		RiskScore:         100 - (scs[0].VulnScore + scs[0].SensitiveScore + math.Min(scs[0].WebshellScore+scs[0].VirusScore, model.MaxWebshellAndVirusScore)),
 	}
 
 	img.ImageScanVuln = imageScanResult
