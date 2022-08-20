@@ -305,6 +305,8 @@ func (s *QueueService) profileController(ctx context.Context, updatedBy string, 
 func (s *QueueService) init(redisClient *redis.Client) error {
 	ctx := context.Background()
 	falcoTicker := time.NewTicker(1 * time.Hour)
+	defer falcoTicker.Stop()
+	
 	falcoQuit := make(chan struct{})
 	go func() {
 		for {

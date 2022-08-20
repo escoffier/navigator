@@ -36,6 +36,7 @@ func main() {
 	}
 
 	ticker := time.NewTicker(time.Minute * time.Duration(pushInterval))
+	defer ticker.Stop()
 
 	for {
 		if err := worker(bathSize, bathInterval); err != nil {
