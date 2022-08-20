@@ -223,8 +223,8 @@ func (s *ScanTaskExport) ZipAndSave(ctx context.Context, filename string, excelF
 
 // 取一个任务来执行
 func (s *ScanTaskExport) worker(ctx context.Context, task model.ExportTensorTask) error {
-	// 检查同样的任务是否已经做过,且文件存在，就不再
-	tensorTask, _, err := s.ExportTaskDal.SearchExportTensorTask(ctx, store.SearchExportTensorTask{ExecuteType: []string{consts.ExportScanResult}, Parameter: task.Parameter, NotIds: []int64{task.ID}}, nil)
+	// 检查同样的任务是否已经做过,且文件存在，就不再执行
+	tensorTask, _, err := s.ExportTaskDal.SearchExportTensorTask(ctx, store.SearchExportTensorTask{ExecuteType: []string{consts.ExportScanResult}, TaskType: task.TaskType, Parameter: task.Parameter, NotIds: []int64{task.ID}}, nil)
 	if err != nil {
 		logging.GetLogger().Err(err).Int64("taskID", task.ID).Msg("SearchExportTensorTask")
 		return err

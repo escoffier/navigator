@@ -225,7 +225,7 @@ func (s *ExportApiSrv) CreateScanResultExportTask(ctx *gin.Context) {
 	}
 	now := time.Now()
 
-	fileName := fmt.Sprintf("%s_scan_result_export_%s.zip", strings.ReplaceAll(data.Parameter.TaskCreateAt, " ", "T"), data.TaskType)
+	fileName := fmt.Sprintf("%s_scan_result_export_%s_%d.zip", strings.ReplaceAll(data.Parameter.TaskCreateAt, " ", "T"), data.TaskType, now.Unix())
 	task := &model.ExportTensorTask{
 		ExecuteType: consts.ExportScanResult,
 		Parameter:   string(bys),
