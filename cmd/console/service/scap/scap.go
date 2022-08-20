@@ -11,19 +11,19 @@ import (
 	"github.com/go-redis/redis/v8"
 	"github.com/pkg/errors"
 	"github.com/robfig/cron/v3"
-	"gitlab.com/security-rd/go-pkg/databases"
-	"gitlab.com/security-rd/go-pkg/logging"
-	"golang.org/x/sync/errgroup"
-	"gorm.io/gorm"
-	batchv1 "k8s.io/api/batch/v1"
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/labels"
-
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/assets"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/scapper"
 	pkgasserts "gitlab.com/piccolo_su/vegeta/pkg/assets"
 	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
+	"gitlab.com/security-rd/go-pkg/databases"
+	"gitlab.com/security-rd/go-pkg/logging"
+	"golang.org/x/sync/errgroup"
+	"gorm.io/gorm"
+	batchv1 "k8s.io/api/batch/v1"
+	k8sErrors "k8s.io/apimachinery/pkg/api/errors"
+	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 )
 
 const (
@@ -174,6 +174,8 @@ func (s *Service) StateSyncDaemon() {
 	}
 
 	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+
 	for range ticker.C {
 		go func() {
 			defer func() {
@@ -240,7 +242,11 @@ func (s *Service) StateSyncDaemon() {
 								Str("func", "scap StateSyncDaemon").
 								Str("check task id", his.TaskID).
 								Msg("delete k8s jobs failed")
-							return err
+							// return error will cause it to retryfor the next time. retry for the following specific reasons.
+							if k8sErrors.IsServiceUnavailable(err) || k8sErrors.IsTimeout(err) || k8sErrors.IsServerTimeout(err) || k8sErrors.IsInternalError(err) ||
+								k8sErrors.IsUnexpectedServerError(err) {
+								return err
+							}
 						}
 
 						reason = "timeout"
@@ -344,7 +350,7 @@ func (s *Service) deleteK8sJobs(ctx context.Context, his *model.ScanHistory) err
 	// labels
 	labelSet := labels.SelectorFromSet(labels.Set{"CHECK_ID": his.TaskID})
 	// delete these jobs which with label
-	err = k8sClient.BatchV1().
+	k8sClient.BatchV1().
 		Jobs(cluster.WorkerNamespace).
 		DeleteCollection(
 			ctx,
