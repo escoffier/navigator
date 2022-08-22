@@ -2,7 +2,7 @@ VERSION = 0.1.0
 
 UNAME_S := $(shell uname -s)
 ifeq ($(UNAME_S),Linux)
-	LDFLAGS = '-extldflags "-static"'
+	LDFLAGS = -extldflags "-static"
 endif
 
 REPOPREFIX?=localhost:32000
