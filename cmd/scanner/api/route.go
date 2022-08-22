@@ -13,14 +13,14 @@ import (
 )
 
 func SetupGinRouter(redisClient *redis.Client,
-		scannerSvc component.ScannerSrv,
-		imageSvc component.ImageSrvInterface,
-		rejectSvc component.ImageRejectSrv,
-		harborSvc component.HarborSvc,
-		registrySrv component.RegistrySrvInterface,
-		scanConfigSrv component.ScanConfigSrvInterface,
-		vuluSrv component.VulnServiceInterface,
-		syncImageSrv component.SyncImageInterface,
+	scannerSvc component.ScannerSrv,
+	imageSvc component.ImageSrvInterface,
+	rejectSvc component.ImageRejectSrv,
+	harborSvc component.HarborSvc,
+	registrySrv component.RegistrySrvInterface,
+	scanConfigSrv component.ScanConfigSrvInterface,
+	vuluSrv component.VulnServiceInterface,
+	syncImageSrv component.SyncImageInterface,
 ) *gin.Engine {
 
 	router := gin.Default()
@@ -36,20 +36,20 @@ func SetupGinRouter(redisClient *redis.Client,
 	})
 
 	router = WebAPI(router, scannerSvc, imageSvc, rejectSvc, harborSvc, registrySrv, scanConfigSrv, vuluSrv, syncImageSrv)
-	router = OpenAPI(router, scannerSvc, rejectSvc, harborSvc, registrySrv, scanConfigSrv, vuluSrv, redisClient)
+	router = OpenAPI(router, scannerSvc, registrySrv, scanConfigSrv, vuluSrv, imageSvc)
 
 	return router
 }
 
 func WebAPI(router *gin.Engine,
-		scannerSvc component.ScannerSrv,
-		imageService component.ImageSrvInterface,
-		rejectSvc component.ImageRejectSrv,
-		harborSvc component.HarborSvc,
-		registrySrv component.RegistrySrvInterface,
-		scanConfigSrv component.ScanConfigSrvInterface,
-		vuluSrv component.VulnServiceInterface,
-		syncImageSrv component.SyncImageInterface,
+	scannerSvc component.ScannerSrv,
+	imageService component.ImageSrvInterface,
+	rejectSvc component.ImageRejectSrv,
+	harborSvc component.HarborSvc,
+	registrySrv component.RegistrySrvInterface,
+	scanConfigSrv component.ScanConfigSrvInterface,
+	vuluSrv component.VulnServiceInterface,
+	syncImageSrv component.SyncImageInterface,
 
 ) *gin.Engine {
 
@@ -62,7 +62,7 @@ func WebAPI(router *gin.Engine,
 
 	v1 := router.Group("/api/v1/scan")
 	{
-		v1.GET("/reportsByImageList", apiScannerSrv.ListScannedByImageList)
+		v1.GET("/reportsByImageList", apiScannerSrv.ListScannedByImageList) // Deprecated:
 		v1.GET("/reportsByImageOverview", apiScannerSrv.ListScannedByImageOverview)
 		v1.GET("/reportsByImageDetails", apiScannerSrv.ScannedByImageDetails)
 
@@ -226,14 +226,12 @@ func WebAPI(router *gin.Engine,
 }
 
 func OpenAPI(router *gin.Engine, scannerSvc component.ScannerSrv,
-		rejectSvc component.ImageRejectSrv,
-		harborSvc component.HarborSvc,
-		registrySrv component.RegistrySrvInterface,
-		scanConfigSrv component.ScanConfigSrvInterface,
-		vulnSrv component.VulnServiceInterface,
-		redisClient *redis.Client) *gin.Engine {
+	registrySrv component.RegistrySrvInterface,
+	scanConfigSrv component.ScanConfigSrvInterface,
+	vulnSrv component.VulnServiceInterface,
+	imageSrv component.ImageSrvInterface) *gin.Engine {
 
-	apiScannerSrv := openapi.NewScannerOpenAPISrv(scannerSvc, registrySrv, scanConfigSrv)
+	apiScannerSrv := openapi.NewScannerOpenAPISrv(scannerSvc, registrySrv, scanConfigSrv, imageSrv)
 
 	scanConfigAPISrv := openapi.NewScanConfigOpenAPISrv(scanConfigSrv)
 	apiVulnSrc := openapi.NewVulnServer(vulnSrv, scannerSvc)
@@ -245,8 +243,10 @@ func OpenAPI(router *gin.Engine, scannerSvc component.ScannerSrv,
 	{
 		image := v1.Group("/images")
 		{
-			image.GET("/list", apiScannerSrv.ListImages)
-			image.POST("/scan/scantask", apiScannerSrv.CreateScanTask)
+			image.GET("/list", apiScannerSrv.ListImages) // Deprecated:
+			image.POST("/list", apiScannerSrv.SearchImages)
+			image.POST("/scan/scantask/v2", apiScannerSrv.CreateScanTask) // Deprecated:
+			image.POST("/scan/scantask", apiScannerSrv.CreateScanImageTask)
 			image.GET("/detail", apiScannerSrv.GetImageDetails)
 			image.GET("/layers", apiScannerSrv.ListImgLayersByImageName)
 		}

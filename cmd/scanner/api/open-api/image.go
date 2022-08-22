@@ -20,7 +20,8 @@ import (
 )
 
 type ImageOpenAPISvc struct {
-	ImageSrv      component.ScannerSrv
+	ImageSrv      component.ImageSrvInterface
+	ScannerSrv    component.ScannerSrv
 	RegistrySrv   component.RegistrySrvInterface
 	ScanConfigSrv component.ScanConfigSrvInterface
 }
@@ -29,15 +30,17 @@ func NewScannerOpenAPISrv(
 	srv component.ScannerSrv,
 	registrySrv component.RegistrySrvInterface,
 	scanConfigSrv component.ScanConfigSrvInterface,
+	imageSrv component.ImageSrvInterface,
 ) *ImageOpenAPISvc {
 	return &ImageOpenAPISvc{
-		ImageSrv:      srv,
+		ScannerSrv:    srv,
+		ImageSrv:      imageSrv,
 		RegistrySrv:   registrySrv,
 		ScanConfigSrv: scanConfigSrv,
 	}
 }
 
-// open-api镜像列表
+// open-api镜像列表 discard
 func (s *ImageOpenAPISvc) ListImages(ctx *gin.Context) {
 	search := ctx.Query("keyword")
 	if len(search) > 64 {
@@ -73,7 +76,7 @@ func (s *ImageOpenAPISvc) ListImages(ctx *gin.Context) {
 	filter.SortFiled = "full_repo_name"
 	filter.SortBy = "asc"
 
-	images, cnt, err := s.ImageSrv.SearchImageWithScan(ctx, param, filter)
+	images, cnt, err := s.ScannerSrv.SearchImageWithScan(ctx, param, filter)
 	if err != nil {
 		response.JSONError(ctx, err)
 		return
@@ -117,6 +120,27 @@ func (s *ImageOpenAPISvc) ListImages(ctx *gin.Context) {
 		response.WithStartIndex(filter.Offset))
 }
 
+// open-api镜像列表
+func (s *ImageOpenAPISvc) SearchImages(ctx *gin.Context) {
+	body := model.ImageListParam{}
+	if err := ctx.BindJSON(&body); err != nil {
+		response.JSONError(ctx, response.NewHttpError(http.StatusBadRequest, err))
+		return
+	}
+	filter := model.GetFilterWithDefaultValue(ctx)
+
+	images, cnt, err := s.ImageSrv.ListImageWithScanInfo(ctx, body, filter)
+	if err != nil {
+		response.JSONError(ctx, err)
+		return
+	}
+
+	response.JSONOK(ctx, response.WithItems(images),
+		response.WithTotalItems(cnt),
+		response.WithItemsPerPage(filter.Limit),
+		response.WithStartIndex(filter.Offset))
+}
+
 // open-api镜像统计
 func (s *ImageOpenAPISvc) ImageStatistic(ctx *gin.Context) {
 	fromTypeString := ctx.Query("fromType")
@@ -132,7 +156,7 @@ func (s *ImageOpenAPISvc) ImageStatistic(ctx *gin.Context) {
 		fromType = model.UserRegistry
 	}
 
-	view, err := s.ImageSrv.GetImageOverView(ctx, int64(fromType))
+	view, err := s.ScannerSrv.GetImageOverView(ctx, int64(fromType))
 	if err != nil {
 		response.JSONError(ctx, err)
 		return
@@ -197,7 +221,7 @@ func (s *ImageOpenAPISvc) GetImageDetails(ctx *gin.Context) {
 		return
 	}
 
-	image, _, err := s.ImageSrv.SearchImages(ctx, component.SearchImageParam{
+	image, _, err := s.ScannerSrv.SearchImages(ctx, component.SearchImageParam{
 		FullRepoName: repoName,
 		Tags:         tag,
 		RegistryID:   registries[0].ID,
@@ -211,7 +235,7 @@ func (s *ImageOpenAPISvc) GetImageDetails(ctx *gin.Context) {
 		return
 	}
 
-	img, err := s.ImageSrv.GetImageDetail(ctx, image[0].ID)
+	img, err := s.ScannerSrv.GetImageDetail(ctx, image[0].ID)
 	if err != nil {
 		response.JSONError(ctx, err)
 		return
@@ -312,7 +336,7 @@ func (s *ImageOpenAPISvc) ListImgLayersByImageName(ctx *gin.Context) {
 		return
 	}
 
-	image, _, err := s.ImageSrv.SearchImages(ctx, component.SearchImageParam{
+	image, _, err := s.ScannerSrv.SearchImages(ctx, component.SearchImageParam{
 		FullRepoName: repoName,
 		Tags:         tag,
 		RegistryID:   registries[0].ID,
@@ -326,7 +350,7 @@ func (s *ImageOpenAPISvc) ListImgLayersByImageName(ctx *gin.Context) {
 		return
 	}
 
-	images, err := s.ImageSrv.ListImgLayers(ctx, image[0].ID, nil)
+	images, err := s.ScannerSrv.ListImgLayers(ctx, image[0].ID, nil)
 	if err != nil {
 		response.JSONError(ctx, err)
 		return
@@ -347,7 +371,35 @@ func (s *ImageOpenAPISvc) ListImgLayersByImageName(ctx *gin.Context) {
 	response.JSONOK(ctx, response.WithItems(res))
 }
 
-// 创建扫描任务
+func (s *ImageOpenAPISvc) CreateScanImageTask(ctx *gin.Context) {
+	body := model.ImageListParam{}
+
+	if err := ctx.BindJSON(&body); err != nil {
+		response.JSONError(ctx, response.NewHttpError(http.StatusBadRequest, err))
+		return
+	}
+
+	taskInfo := task.UpdateTaskInfo{
+		Scope:        consts.FullScan,
+		TriggerType:  consts.ManualTrigger,
+		StrategyID:   body.ImageScanTaskInfo.StrategyID,
+		StrategyName: body.ImageScanTaskInfo.StrategyName,
+		Operator:     body.ImageScanTaskInfo.Operator,
+	}
+
+	go func() {
+		if err := s.ImageSrv.CreateScanImageTask(ctx, body, taskInfo); err != nil {
+			logging.Get().Err(err).Msg("scan all error")
+		}
+	}()
+
+	response.JSONOK(ctx, response.WithTarget(&response.TargetRef{
+		Name: "CreateScanImageTask",
+		Link: "api/v2/containerSec/scanner/tasks/CreateScanImageTask",
+	}))
+}
+
+// 创建扫描任务(老接口，后溪会废弃)
 func (s *ImageOpenAPISvc) CreateScanTask(ctx *gin.Context) {
 	type tem struct {
 		Online        string `json:"online"`
@@ -407,7 +459,7 @@ func (s *ImageOpenAPISvc) CreateScanTask(ctx *gin.Context) {
 		scanInfo.StrategyID = strategy[0].ID
 	}
 
-	if err := s.ImageSrv.ScanAllNow(ctx, scanInfo, search); err != nil {
+	if err := s.ScannerSrv.ScanAllNow(ctx, scanInfo, search); err != nil {
 		logging.Get().Err(err).Msg("crate scan task error")
 		response.JSONError(ctx, err)
 		return
