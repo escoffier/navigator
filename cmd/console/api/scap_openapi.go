@@ -75,7 +75,7 @@ func (api *api) createScapScanTaskOpenApi() http.HandlerFunc {
 
 		scapApiV2 := scapservice.NewService(api.rdb, api.redisClient)
 
-		checkUUID, err := scapApiV2.CreateJob(ctx, &scapservice.Job{Job: job, UserName: req.Operator, Type: model.GetModeScanType(req.CheckType)})
+		res, err := scapApiV2.CreateJob(ctx, &scapservice.Job{Job: job, UserName: req.Operator, Type: model.GetModeScanType(req.CheckType)})
 		if err != nil {
 			apperror.RespAndLog(w, ctx, apperror.NewErrorWithCode(
 				http.StatusInternalServerError,
@@ -84,7 +84,7 @@ func (api *api) createScapScanTaskOpenApi() http.HandlerFunc {
 			return
 		}
 
-		response.Ok(w, response.WithItem(Response{CheckUUID: checkUUID}))
+		response.Ok(w, response.WithItems(res))
 	}
 }
 
@@ -110,6 +110,8 @@ func (api *api) getLatestScanRecordOpenApi() http.HandlerFunc {
 		NumSuccessful int64 `json:"numSuccessful" query:"numSuccessful" form:"numSuccessful"`
 		// 合规ID
 		PolicyNumber string `json:"policyNumber" query:"policyNumber" form:"policyNumber"`
+		PolicyID     int64  `json:"policyId" query:"policyId" form:"policyId"`
+		CheckType    string `json:"checkType"`
 	}
 
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -162,6 +164,8 @@ func (api *api) getLatestScanRecordOpenApi() http.HandlerFunc {
 				NumWarn:       v.NumWarn,
 				NumSuccessful: v.NumSuccessful,
 				PolicyNumber:  v.PolicyNumber,
+				PolicyID:      int64(v.PolicyId),
+				CheckType:     complianceType,
 			})
 		}
 
@@ -357,6 +361,59 @@ func (api *api) getScapCheckStatus() http.HandlerFunc {
 	}
 }
 
+func (api *api) getKubeScapCheckDetail() http.HandlerFunc {
+
+	type Rule struct {
+		PolicyId      int      `json:"policyId"`      // 合规的数据库ID
+		DefaultValue  string   `json:"defaultValue"`  // 默认值
+		Description   string   `json:"description"`   // 规则描述
+		Rationale     string   `json:"rationale"`     // 解释
+		FixSuggestion string   `json:"fixSuggestion"` // 修复建议
+		Impact        string   `json:"impact"`        // 影响
+		Audit         string   `json:"audit"`         // 验证方法
+		References    []string `json:"references"`    // 参考
+	}
+
+	return func(w http.ResponseWriter, r *http.Request) {
+
+		ctx, cancel := context.WithTimeout(r.Context(), time.Second*60)
+		defer cancel()
+
+		policyId, _ := param.QueryInt(r, "policyId")
+		if policyId <= 0 {
+			apperror.RespAndLog(w, ctx, apperror.NewMongoError(http.StatusInternalServerError, errors.New("policyId id can't be empty")))
+			return
+		}
+		scapApiV2 := scapservice.NewService(api.rdb, api.redisClient)
+
+		rule, err := scapApiV2.RuleDetail(ctx, 1, policyId)
+
+		if err != nil {
+			apperror.RespAndLog(w, ctx, apperror.NewMongoError(http.StatusInternalServerError, errors.New("get check status error")))
+			return
+		}
+		if rule.PolicyDetailInfoExtraDetail == nil {
+			apperror.RespAndLog(w, ctx, apperror.NewMongoError(http.StatusInternalServerError, errors.New("not get kube scap detail")))
+			return
+		}
+
+		resp := Rule{
+			PolicyId:      policyId,
+			DefaultValue:  rule.PolicyDetailInfoExtraDetail.DefaultValue,
+			Description:   rule.PolicyDetailInfoExtraDetail.Description,
+			Rationale:     rule.PolicyDetailInfoExtraDetail.Rationale,
+			FixSuggestion: rule.PolicyDetailInfoExtraDetail.Remediation,
+			Impact:        rule.PolicyDetailInfoExtraDetail.Impact,
+			Audit:         rule.PolicyDetailInfoExtraDetail.Audit,
+			References:    rule.PolicyDetailInfoExtraDetail.References,
+		}
+		if resp.References == nil {
+			resp.References = make([]string, 0)
+		}
+		response.Ok(w, response.WithItem(resp))
+	}
+}
+
 func (api *api) getScapScanPolicy() http.HandlerFunc {
 
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -423,6 +480,9 @@ func (api *api) scapOpenApi() func(chi.Router) {
 
 		r.With(RateLimitMiddleware(api.redisClient, int64(rate))).
 			Get("/scan/record/status", api.getScapCheckStatus()) // 合规检测状态
+
+		r.With(RateLimitMiddleware(api.redisClient, int64(rate))).
+			Get("/scan/record/kube/detail", api.getKubeScapCheckDetail()) // kube合规检测详情
 
 		r.With(RateLimitMiddleware(api.redisClient, int64(rate))).
 			Get("/scan/policies", api.getScapScanPolicy()) // 合规策略列表

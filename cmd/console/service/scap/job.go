@@ -19,7 +19,12 @@ type Job struct {
 	Type     uint8
 }
 
-func (s *Service) CreateJob(ctx context.Context, job *Job) ([]string, error) {
+type CreateJobResponse struct {
+	CheckUUID  string `json:"checkUUID"`
+	ClusterKey string `json:"clusterKey"`
+}
+
+func (s *Service) CreateJob(ctx context.Context, job *Job) ([]CreateJobResponse, error) {
 	// 校验policy是否存在
 	if err := s.rdb.Get().WithContext(ctx).Where("type = ?", job.Type).First(&model.ScapPolicy{}, job.PolicyID).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -39,9 +44,12 @@ func (s *Service) CreateJob(ctx context.Context, job *Job) ([]string, error) {
 			CheckUUID:      uuid.NewV4().String(),
 		})
 	}
-	uuids := make([]string, 0, len(clusters))
+	uuids := make([]CreateJobResponse, 0, len(clusters))
 	for i := range clusters {
-		uuids = append(uuids, clusters[i].CheckUUID)
+		uuids = append(uuids, CreateJobResponse{
+			CheckUUID:  clusters[i].CheckUUID,
+			ClusterKey: clusters[i].ClusterKey,
+		})
 	}
 
 	if err := s.rdb.Get().WithContext(ctx).Create(clusters).Error; err != nil {
