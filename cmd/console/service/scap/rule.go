@@ -2,6 +2,7 @@ package scap
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/pkg/errors"
 
@@ -67,7 +68,7 @@ func (s *Service) RuleDetail(ctx context.Context, scapType uint8, id int) (*mode
 	err := db.First(&data).Error
 	if err != nil {
 		logging.GetLogger().Err(err).Msg("get rules detail error")
-		return nil, errors.New("获取规则详情失败")
+		return nil, fmt.Errorf("获取规则详情失败:%s", err.Error())
 	}
 
 	return &data, nil
