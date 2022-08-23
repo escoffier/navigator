@@ -478,7 +478,8 @@ func (api *api) scapOpenApi() func(chi.Router) {
 		r.With(RateLimitMiddleware(api.redisClient, int64(rate))).
 			Get("/scan/record/tasks/{checkId}", api.getPolicyDetailsOpenApi()) // 合规检测详情
 
-		r.With(RateLimitMiddleware(api.redisClient, int64(rate))).
+		// 检测状态的接口请求会频繁一些
+		r.With(RateLimitMiddleware(api.redisClient, 60)).
 			Get("/scan/record/status", api.getScapCheckStatus()) // 合规检测状态
 
 		r.With(RateLimitMiddleware(api.redisClient, int64(rate))).
