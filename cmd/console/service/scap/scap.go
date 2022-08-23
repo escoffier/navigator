@@ -144,7 +144,7 @@ func (s *Service) StateSyncDaemon() {
 			Msgf("environment variable `SCAP_JOB_TIMEOUT` not be set. Use default value: 1h.", t)
 	}
 
-	interval := 30 * time.Second
+	interval := 60 * time.Second
 	if t := os.Getenv("SCAP_JOB_INTERVAL"); t != "" {
 		var err error
 		interval, err = time.ParseDuration(t)
@@ -154,13 +154,14 @@ func (s *Service) StateSyncDaemon() {
 				Warn().
 				Str("func", "scap StateSyncDaemon").
 				Msgf("environment variable `SCAP_JOB_INTERVAL` is %q, it not a valid Duration value. Use default value: 30s.", t)
+			interval = 60 * time.Second
 		}
 	} else {
 		logging.
 			Get().
 			Info().
 			Str("func", "scap StateSyncDaemon").
-			Msgf("environment variable `SCAP_JOB_INTERVAL` not be set. Use default value: 30s.", t)
+			Msgf("environment variable `SCAP_JOB_INTERVAL` not be set. Use default value: %v", interval)
 	}
 
 	logging.
@@ -214,20 +215,25 @@ func (s *Service) StateSyncDaemon() {
 					// 如果还没有过期，则获取所有的job，判断状态，如果都是成功，则把任务设置为成功, 并且把数据库还处于 inprogress 状态的置为失败
 					if time.Now().Add(-1*timeout).Unix() <= his.CreatedAt {
 						jobList, err := s.getK8sJobsList(ctx, his)
+
 						if err != nil {
 							logging.Get().
 								Err(err).
 								Str("func", "scap StateSyncDaemon").
 								Str("check task id", his.TaskID).
 								Msg("get k8s jobs list failed")
-							return err
-						}
-
-						for _, v := range jobList.Items {
-							// 当有一个job还未完成，则说明扫描任务还未完成，等待下一个循环更新状态
-							// 因为合规的job只有一个pod在执行，因此直接判断是否有成功的pod即可
-							if v.Status.Succeeded == 0 {
-								return nil
+							// return error will cause it to retryfor the next time. retry for the following specific reasons.
+							if k8sErrors.IsServiceUnavailable(err) || k8sErrors.IsTimeout(err) || k8sErrors.IsServerTimeout(err) || k8sErrors.IsInternalError(err) ||
+								k8sErrors.IsUnexpectedServerError(err) {
+								return err
+							}
+						} else {
+							for _, v := range jobList.Items {
+								// 当有一个job还未完成，则说明扫描任务还未完成，等待下一个循环更新状态
+								// 因为合规的job只有一个pod在执行，因此直接判断是否有成功的pod即可
+								if v.Status.Succeeded == 0 {
+									return nil
+								}
 							}
 						}
 
@@ -440,14 +446,8 @@ func (s *Service) getK8sJobsList(ctx context.Context, his *model.ScanHistory) (*
 	}
 	labelSet := labels.SelectorFromSet(labels.Set{"CHECK_ID": his.TaskID})
 
-	list, err := k8sClient.
+	return k8sClient.
 		BatchV1().
 		Jobs(cluster.WorkerNamespace).
 		List(ctx, v1.ListOptions{LabelSelector: labelSet.String()})
-
-	if err != nil {
-		return nil, err
-	}
-
-	return list, nil
 }
