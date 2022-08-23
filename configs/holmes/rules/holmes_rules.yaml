@@ -1,60 +1,5 @@
 - required_engine_version: 7
 
-##test
-# - rule: Connecting to a remote server through redis client in container
-#   hid: exec_1001
-#   hthreats: 0
-#   suggestion:
-#     en:
-#       key: "Suggestions"
-#       value: "Use the Immune Defence training application to block new or modified executables and restrict the users and recipients of the commands."
-#     zh:
-#       key: "处置建议"
-#       value: "使用免疫防御训练应用，阻拦新的或被修改的可执行文件，限制执行命令的用户和接收对象。"
-#   desc: Connecting to a remote server through redis client in container
-#   condition: >
-#    evt.type = write and container and (proc.cmdline contains "redis-cli -h" or evt.arg.data contains "6379") and not proc.cmdline contains "localhost" and not proc.cmdline contains "127.0.0.1" and not k8s.pod.name contains "51c1c6"
-#   output: >
-#     Connecting to a remote server through redis client in container (zh_msg=容器内通过redis客户端连接远程服务器,rule_type=Execution,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,
-#     original_info=user=%user.name user_loginuid=%user.loginuid %container.info
-#     shell=%proc.name parent=%proc.pname terminal=%proc.tty container_id=%container.id container_name=%container.name image=%container.image.repository)
-#   priority: WARNING
-#   tags: [ATT&CK, container, shell, mitre_execution]
-
-# - rule: View login information in the container
-#   hid: disc_1001
-#   hthreats: 1
-#   suggestion:
-#     en:
-#       key: "Suggestions"
-#       value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands and disable mounting of sensitive directories and files."
-#     zh:
-#       key: "处置建议"
-#       value: "使用免疫防御训练应用，限制敏感文件和命令的用户权限，禁止挂载敏感目录和文件。"
-#   desc: View login information in the container
-#   condition: >
-#     open_read and container and not k8s.pod.name contains "console" and fd.name="var/log/lastlog" or fd.name="/etc/localtime" and not proc.cmdline contains "bash" and not k8s.pod.name contains "calico"
-#   output: View login information inside the container (zh_msg=容器内查看登录信息,rule_type=Discovery,fd.name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type)
-#   priority: WARNING
-#   tags: [ATT&CK]
-
-# - rule: View history commands in the container
-#   hid: disc_1002
-#   hthreats: 1
-#   suggestion:
-#     en:
-#       key: "Suggestions"
-#       value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands and disable mounting of sensitive directories and files."
-#     zh:
-#       key: "处置建议"
-#       value: "使用免疫防御训练应用，限制敏感文件和命令的用户权限，禁止挂载敏感目录和文件。"
-#   desc: View history commands in the container
-#   condition: >
-#     container and proc.cmdline contains "history"
-#   output: View login information inside the container (zh_msg=容器内查看历史命令,rule_type=Discovery,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type)
-#   priority: WARNING
-#   tags: [ATT&CK]
-
 ##Watson
 - rule: Gaining sensitive information in Watson
   hid: hp_01
@@ -172,7 +117,7 @@
   condition: >
    (inbound_outbound) and fd.sport = 8009 and k8s.pod.name contains "b0f328"
   output: >
-    Other containers establish new connections to the tomcat (zh_msg=通过主动防御检测到tomcat读取本地webapp目录文件（CVE-2015-1427）,rule_type=Privilege_Escalation,fd.name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,container_id=%container.id,container_name=%container.name)
+    Other containers establish new connections to the tomcat (zh_msg=通过主动防御检测到tomcat读取本地webapp目录文件,rule_type=Privilege_Escalation,fd.name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,container_id=%container.id,container_name=%container.name)
   priority: ALERT
   tags: [Watson]
 
@@ -498,7 +443,7 @@
   priority: WARNING
   tags: [ATT&CK, container, shell, mitre_execution]
 
-- rule: Running netcat in a container
+- rule: Netcat Remote Code Execution in Container
   hid: exec_04
   hthreats: 1
   suggestion:
@@ -510,14 +455,12 @@
       value: "使用免疫防御训练应用，阻拦新的或被修改的可执行文件，限制执行命令的用户和接收对象。"
   desc: Netcat Program runs inside container that allows remote code execution(Risk of Reverse Shell exploit)
   condition: >
-    spawned_process and container and not ignore_proc_args and
-    (proc.name = "nc" or proc.name = "ncat") and
-    not proc.cmdline contains "-w 2 localhost 2181" and
-    not (k8s.pod.name contains "-kafka-zookeeper-" or tensorsec_namespace)
+    spawned_process and container and
+    (((proc.name = "nc" or proc.name = "nc.openbsd") and (proc.args contains "-e" or proc.args contains "-c")) or
+    (proc.name = "ncat" and (proc.args contains "--sh-exec" or proc.args contains "--exec" or proc.args contains "-e " or proc.args contains "-c " or proc.args contains "--lua-exec"))) and
+    not (k8s.pod.name contains "-kafka-zookeeper-" or tensorsec_namespace or ignore_proc_args)
   output: >
-    Netcat runs inside container that allows remote code execution (zh_msg=容器里运行netcat(反弹Shell攻击的风险),rule_type=Execution,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,
-    original_info=user=%user.name user_loginuid=%user.loginuid
-    container_id=%container.id container_name=%container.name image=%container.image.repository:%container.image.tag)
+     Netcat runs inside container that allows remote code execution (zh_msg=容器里通过netcat执行远程命令,rule_type=Execution,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid,container_id=%container.id,container_name=%container.name,image=%container.image.repository:%container.image.tag)
   priority: ALERT
   tags: [ATT&CK, network, process, mitre_execution]
 
@@ -553,7 +496,7 @@
       value: "使用免疫防御训练应用，阻拦新的或被修改的可执行文件，限制执行命令的用户和接收对象。"
   desc: Ruby Program runs inside container that allows remote code execution(Risk of Reverse Shell exploit)
   condition: >
-    evt.type=socket and proc.pname = "ruby"
+    evt.type=socket and evt.res!=ENOENT and proc.pname = "ruby" and container
   output: >
     Ruby runs inside container that allows remote code execution (zh_msg=容器内通过ruby反弹shell),rule_type=Execution,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,
     original_info=user=%user.name user_loginuid=%user.loginuid
@@ -598,28 +541,8 @@
   priority: ALERT
   tags: [ATT&CK, container, shell, mitre_execution]
 
-- rule: Reverse shell through zsh
-  hid: exec_09
-  hthreats: 1
-  suggestion:
-    en:
-      key: "Suggestions"
-      value: "Use the Immune Defence training application to block new or modified executables and restrict the users and recipients of the commands."
-    zh:
-      key: "处置建议"
-      value: "使用免疫防御训练应用，阻拦新的或被修改的可执行文件，限制执行命令的用户和接收对象。"
-  desc: zsh Program runs inside container that allows remote code execution(Risk of Reverse Shell exploit)
-  condition: >
-    evt.type=recvfrom and proc.name contains "zsh" and container and not ignore_proc_args
-  output: >
-    zsh runs inside container that allows remote code execution (zh_msg=容器内通过zsh反弹shell),rule_type=Execution,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_name=%proc.name,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,
-    original_info=user=%user.name user_loginuid=%user.loginuid
-    container_id=%container.id container_name=%container.name image=%container.image.repository:%container.image.tag)
-  priority: ALERT
-  tags: [ATT&CK, network, process, mitre_execution]
-
 - rule: Running k8s malicious tools in the container
-  hid: exec_10
+  hid: exec_09
   hthreats: 0
   suggestion:
     en:
@@ -644,6 +567,24 @@
     Running malicious tools in the container (zh_msg=容器内运行恶意工具,rule_type=Execution,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,
     original_info=user=%user.name user_loginuid=%user.loginuid %container.info
     shell=%proc.name parent=%proc.pname terminal=%proc.tty container_id=%container.id container_name=%container.name image=%container.image.repository)
+  priority: WARNING
+  tags: [ATT&CK, container, shell, mitre_execution, strict]
+
+- rule: Connecting to a remote server through redis client in container
+  hid: exec_10
+  hthreats: 0
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "Use the Immune Defence training application to block new or modified executables and restrict the users and recipients of the commands."
+    zh:
+      key: "处置建议"
+      value: "使用免疫防御训练应用，阻拦新的或被修改的可执行文件，限制执行命令的用户和接收对象。"
+  desc: Connecting to a remote server through redis client in container
+  condition: >
+   evt.type=openat and container and evt.arg.name contains ".rediscli_history" and proc.cmdline contains " -h " and not proc.cmdline contains "localhost" and not proc.cmdline contains "127.0.0.1" and not k8s.pod.name contains "51c1c6"
+  output: >
+    Connecting to a remote server through redis client in container (zh_msg=容器内通过redis客户端连接远程服务器,rule_type=Execution,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name user_loginuid=%user.loginuid parent=%proc.pname terminal=%proc.tty container_id=%container.id container_name=%container.name image=%container.image.repository)
   priority: WARNING
   tags: [ATT&CK, container, shell, mitre_execution, strict]
 
@@ -1561,11 +1502,10 @@
       value: "使用免疫防御训练应用，限制敏感文件和命令的用户权限，禁止挂载敏感目录和文件。"
   desc: Kubernetes Namespaces bypass
   condition: >
-    (open_read and container and
-    proc.name in (namespace_bypass_cmds))
-  output: View network information in the container (zh_msg=容器内查看网络信息,rule_type=Discovery,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type)
+    spawned_process and container and proc.name in (namespace_bypass_cmds)
+  output: View network information in the container (zh_msg=容器内查看网络信息,rule_type=Discovery,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,container_id=%container.id,container_name=%container.name)
   priority: WARNING
-  tags: [ATT&CK]
+  tags: [ATT&CK, strict]
 
 - rule: Read Shell Configuration File
   hid: disc_03
@@ -1581,8 +1521,9 @@
   condition: >
     open_read and
     (fd.filename in (shell_config_filenames) or
-     fd.name in (shell_config_files) or
-     fd.directory in (shell_config_directories))
+    fd.name in (shell_config_files) or
+    fd.directory in (shell_config_directories)) and
+    not proc.name in (shell_binaries)
   output: >
     a shell configuration file was read by a non-shell program (zh_msg=非shell程序读取shell配置文件,rule_type=Discovery,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid file=%fd.name container_id=%container.id container_name=%container.name image=%container.image.repository)
   priority: WARNING
@@ -1632,7 +1573,7 @@
     not user_known_contact_k8s_api_server_activities and 
     not tensorsec_namespace
   output: >
-    Unexpected connection to K8s API Server from container (zh_msg=尝试从容器内连接到K8s API服务器,rule_type=Discovery,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=%container.info image=%container.image.repository:%container.image.tag connection=%fd.name,container_id=%container.id,container_name=%container.name)
+    Unexpected connection to K8s API Server from container (zh_msg=尝试从容器内连接到K8s-API服务器,rule_type=Discovery,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=%container.info image=%container.image.repository:%container.image.tag connection=%fd.name,container_id=%container.id,container_name=%container.name)
   priority: NOTICE
   tags: [ATT&CK, network, k8s, container, mitre_discovery, strict]
 
@@ -1739,6 +1680,40 @@
   output: Find files with suid privilege by non-root users (zh_msg=非root用户查找含有suid权限的文件,fd.name=%fd.name,rule_type=Discovery,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,container_id=%container.id,container_name=%container.name)
   priority: WARNING
   tags: [ATT&CK]
+
+- rule: View login information in the container
+  hid: disc_11
+  hthreats: 1
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands and disable mounting of sensitive directories and files."
+    zh:
+      key: "处置建议"
+      value: "使用免疫防御训练应用，限制敏感文件和命令的用户权限，禁止挂载敏感目录和文件。"
+  desc: View login information in the container
+  condition: >
+    open_read and container and not k8s.pod.name contains "console" and fd.name="var/log/lastlog" or fd.name="/etc/localtime" and not proc.cmdline contains "bash" and not k8s.pod.name contains "calico"
+  output: View login information inside the container (zh_msg=容器内查看登录信息,rule_type=Discovery,fd.name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,container_id=%container.id,container_name=%container.name)
+  priority: WARNING
+  tags: [ATT&CK, strict]
+
+- rule: View history commands in the container
+  hid: disc_12
+  hthreats: 1
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands and disable mounting of sensitive directories and files."
+    zh:
+      key: "处置建议"
+      value: "使用免疫防御训练应用，限制敏感文件和命令的用户权限，禁止挂载敏感目录和文件。"
+  desc: View history commands in the container
+  condition: >
+    container and proc.cmdline contains "history"
+  output: View login information inside the container (zh_msg=容器内查看历史命令,rule_type=Discovery,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,container_id=%container.id,container_name=%container.name)
+  priority: WARNING
+  tags: [ATT&CK, strict]
 
 ##attck_rule_type=Lateral_Movement
 - rule: Launch Sensitive Mount Container
@@ -2596,6 +2571,15 @@
 
 - list: rfc_1918_addresses
   items: ['"10.0.0.0/8"', '"172.16.0.0/12"', '"192.168.0.0/16"']
+
+- macro: outbound_not_local
+  condition: >
+    (((evt.type = connect and evt.dir=<) or
+      (evt.type in (sendto,sendmsg) and evt.dir=< and
+       fd.l4proto != tcp and fd.connected=false and fd.name_changed=true)) and
+     (fd.typechar = 4 or fd.typechar = 6) and
+     (fd.ip != "0.0.0.0" and fd.net != "127.0.0.0/8") and
+     (evt.rawres >= 0 or evt.res = EINPROGRESS))
 
 - macro: outbound
   condition: >
@@ -4030,7 +4014,7 @@
 # This list allows easily whitelisting system proc names that are
 # expected to communicate on the network.
 - list: known_system_procs_network_activity_binaries
-  items: [systemd, hostid, id]
+  items: [systemd, hostid, id, calico-node, envoy, webhook, daemon, kube-rbac-proxy, palace, scan_report, console, microseg, cluster-manager, iptables-restor, safe-node-image, sherlock_api]
 
 # This macro allows specifying conditions under which a system binary
 # is allowed to communicate on the network. For instance, only specific
@@ -4196,7 +4180,7 @@
   condition: container
 
 - list: network_tool_binaries
-  items: [nc, ncat, nmap, dig, tcpdump, tshark, ngrep, telnet, mitmproxy, socat, zmap, hydra]
+  items: [nc, nc.openbsd, ncat, nmap, dig, tcpdump, tshark, ngrep, telnet, mitmproxy, socat, zmap, hydra]
 
 - macro: network_tool_procs
   condition: (proc.name in (network_tool_binaries))
