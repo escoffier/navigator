@@ -21,8 +21,48 @@
   priority: ALERT
   tags: [Watson]
 
-- rule: Other containers establish new connections to the redis-server in Watson
+- rule: Upload webshell through tomcat manager
   hid: hp_02
+  category: Watson
+  categoryZh: 主动防御
+  hthreats: 1
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands."
+    zh:
+      key: "处置建议"
+      value: "使用免疫防御训练应用，限制敏感文件和命令的用户权限。"
+  desc: Upload webshell through tomcat manager
+  condition: >
+    evt.type = read and evt.arg.data contains "POST /manager/html/upload" and fd.sport=8080 and proc.name=java and k8s.pod.name contains "51c1c6"
+  output: >
+    Upload webshell through tomcat manager (zh_msg=通过manager后台上传webshell,rule_type=Privilege_Escalation,fd.name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,container_id=%container.id,container_name=%container.name,http_request=%evt.args)
+  priority: ALERT
+  tags: [Watson]
+
+- rule: Execute commands through webshell
+  hid: hp_03
+  category: Watson
+  categoryZh: 主动防御
+  hthreats: 1
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands."
+    zh:
+      key: "处置建议"
+      value: "使用免疫防御训练应用，限制敏感文件和命令的用户权限。"
+  desc: Execute commands through webshell
+  condition: >
+    evt.type = read and (evt.arg.data contains "POST " or evt.arg.data contains "GET ") and evt.arg.data contains "jsp" and fd.sport=8080 and proc.name=java and k8s.pod.name contains "51c1c6"
+  output: >
+    Execute commands through webshell (zh_msg=通过tomcat-webshell执行命令,rule_type=Privilege_Escalation,fd.name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_vpgid=%proc.vpgid,proc_cmdline=%proc.cmdline,proc_name=%proc.name,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,container_id=%container.id,container_name=%container.name,http_request=%evt.args)
+  priority: ALERT
+  tags: [Watson]
+
+- rule: Other containers establish new connections to the redis-server in Watson
+  hid: hp_04
   category: Watson
   categoryZh: 主动防御
   hthreats: 1
@@ -42,7 +82,7 @@
   tags: [Watson]
 
 - rule: Other containers establish new connections to the ElasticSearch
-  hid: hp_03
+  hid: hp_05
   category: Watson
   categoryZh: 主动防御
   hthreats: 1
@@ -62,7 +102,7 @@
   tags: [Watson]
 
 - rule: Execute sensitive commands via ElasticSearch
-  hid: hp_04
+  hid: hp_06
   category: Watson
   categoryZh: 主动防御
   hthreats: 1
@@ -82,7 +122,7 @@
   tags: [Watson]
 
 - rule: Other containers establish new connections to the tomcat
-  hid: hp_05
+  hid: hp_07
   category: Watson
   categoryZh: 主动防御
   hthreats: 1
@@ -102,7 +142,7 @@
   tags: [Watson]
 
 - rule: Reading local files via tomcat
-  hid: hp_06
+  hid: hp_08
   category: Watson
   categoryZh: 主动防御
   hthreats: 1
@@ -122,7 +162,7 @@
   tags: [Watson]
 
 - rule: Other containers establish new connections to the Jenkins
-  hid: hp_07
+  hid: hp_09
   category: Watson
   categoryZh: 主动防御
   hthreats: 1
@@ -142,7 +182,7 @@
   tags: [Watson]
 
 - rule: Execute sensitive commands via Jenkins
-  hid: hp_08
+  hid: hp_10
   category: Watson
   categoryZh: 主动防御
   hthreats: 1
@@ -162,7 +202,7 @@
   tags: [Watson]
 
 - rule: Other containers establish new connections to the Jupyter
-  hid: hp_09
+  hid: hp_11
   category: Watson
   categoryZh: 主动防御
   hthreats: 1
@@ -182,7 +222,7 @@
   tags: [Watson]
 
 - rule: Execute sensitive commands via Jupyter
-  hid: hp_10
+  hid: hp_12
   category: Watson
   categoryZh: 主动防御
   hthreats: 1
@@ -202,7 +242,7 @@
   tags: [Watson]
 
 - rule: The k8s client is executed in Watson
-  hid: hp_11
+  hid: hp_13
   category: Watson
   categoryZh: 主动防御
   hthreats: 1
@@ -222,7 +262,7 @@
   tags: [Watson]
 
 - rule: Other containers establish new connections to the mysql
-  hid: hp_12
+  hid: hp_14
   category: Watson
   categoryZh: 主动防御
   hthreats: 1
@@ -242,7 +282,7 @@
   tags: [Watson]
 
 - rule: Connection with mysql successfully established detected
-  hid: hp_13
+  hid: hp_15
   category: Watson
   categoryZh: 主动防御
   hthreats: 1
@@ -262,7 +302,7 @@
   tags: [Watson]
 
 - rule: Other containers establish new connections to the ssh
-  hid: hp_14
+  hid: hp_16
   category: Watson
   categoryZh: 主动防御
   hthreats: 1
@@ -282,7 +322,7 @@
   tags: [Watson]
 
 - rule: Connection establishment using ssh is detected
-  hid: hp_15
+  hid: hp_17
   category: Watson
   categoryZh: 主动防御
   hthreats: 1
@@ -302,7 +342,7 @@
   tags: [Watson]
 
 - rule: Other containers establish new connections to the vsftpd
-  hid: hp_16
+  hid: hp_18
   category: Watson
   categoryZh: 主动防御
   hthreats: 1
@@ -322,7 +362,7 @@
   tags: [Watson]
 
 - rule: Connection establishment using ftp is detected
-  hid: hp_17
+  hid: hp_19
   category: Watson
   categoryZh: 主动防御
   hthreats: 1
