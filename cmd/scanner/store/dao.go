@@ -1013,6 +1013,15 @@ func (s *ScannerOrm) SearchImage(ctx context.Context, param SearchImageParam, fi
 	logging.GetLogger().Info().Interface("SearchImageParam", param).Msg("SearchImage,start")
 	db := s.rdb.Get().Model(new(model.ImageList)).WithContext(ctx)
 
+	if param.Keyword != "" && strings.Contains(param.Keyword, ":") {
+		split := strings.Split(param.Keyword, ":")
+		if len(split) >= 2 {
+			param.RepoKeyword = split[0]
+			param.TagKeyword = split[1]
+			param.Keyword = ""
+		}
+	}
+
 	if len(param.Digests) > 0 {
 		db = db.Where("digest IN ? ", param.Digests)
 	}
@@ -1052,9 +1061,18 @@ func (s *ScannerOrm) SearchImage(ctx context.Context, param SearchImageParam, fi
 	if len(param.Libraries) > 0 {
 		db = db.Where("library IN  ? ", param.Libraries)
 	}
+
 	if param.Keyword != "" {
 		db = db.Where("full_repo_name LIKE ?  OR tags LIKE ? ", fmt.Sprintf("%%%s%%", param.Keyword), fmt.Sprintf("%%%s%%", param.Keyword))
 	}
+
+	if param.RepoKeyword != "" {
+		db = db.Where("full_repo_name LIKE ?  ", fmt.Sprintf("%%%s%%", param.RepoKeyword))
+	}
+	if param.TagKeyword != "" {
+		db = db.Where(" tags LIKE ? ", fmt.Sprintf("%%%s%%", param.TagKeyword))
+	}
+
 	if param.FullRepoName != "" {
 		db = db.Where("full_repo_name = ? ", param.FullRepoName)
 	}

@@ -20,6 +20,8 @@ type SearchImageParam struct {
 	LastID       int64 // 取大于该ID的数据
 	FromType     int64
 	ImageType    string
+	RepoKeyword  string // full_repo_name的模糊匹配
+	TagKeyword   string // tag的模糊匹配
 
 	Fields            []string // 只想要的字端
 	OmitFields        []string // 不想要的字端
