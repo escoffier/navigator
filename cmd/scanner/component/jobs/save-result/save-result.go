@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"math"
 	"os/exec"
+	"regexp"
 	"strings"
 	"time"
 
@@ -30,6 +31,10 @@ import (
 
 const (
 	JobName = "save-result"
+)
+
+var (
+	compile = regexp.MustCompile("/errata/(RHSA-[0-9]+[-:][0-9]+)")
 )
 
 type Config struct {
@@ -132,25 +137,25 @@ func (s *ScanResultHandle) defaultEnvFill(scanDetails *model.ScanDetailScanImage
 	}
 }
 
-func (s *ScanResultHandle) AddRHSAAndCnnvd(vulnDetails *model.SingleScanDetail, vulnDetail model.NewVulnDetail, flag int) {
-	tmpDetail := vulnDetail
-	rhsaFlag := 0
-	for _, v := range vulnDetail.Trivy[0].References {
-		if strings.Contains(v, "/errata/RHSA") {
-			index := strings.LastIndex(v, "/")
-			tmpDetail.CVEID = v[index+1:]
-			rhsaFlag = 1
-			break
+// 对于redhat下的漏洞，做特殊处理,详情见以下：
+// https://access.redhat.com/errata-search/#/
+// https://access.redhat.com/errata/RHBA-2022:6141
+// https://access.redhat.com/errata/RHSA-2022:6103
+func (s *ScanResultHandle) AddRHSAAndCnnvd(vulnDetails *model.SingleScanDetail, vulnDetail model.NewVulnDetail) {
+	vuln := vulnDetail
+	for i := range vulnDetail.Trivy {
+		for j := range vulnDetail.Trivy[i].References {
+			ref := vulnDetail.Trivy[i].References[j]
+			sub := compile.FindStringSubmatch(ref)
+			if len(sub) == 2 {
+				vuln.CVEID = sub[1]
+				vulnDetails.Vulns = append(vulnDetails.Vulns, vuln)
+			}
 		}
 	}
-	if flag == 0 {
-		if rhsaFlag == 1 {
-			vulnDetails.Vulns = append(vulnDetails.Vulns, tmpDetail)
-		}
-		if tmpDetail.Cnnvd.Number != "" {
-			tmpDetail.CVEID = tmpDetail.Cnnvd.Number
-			vulnDetails.Vulns = append(vulnDetails.Vulns, tmpDetail)
-		}
+	if vuln.Cnnvd.Number != "" {
+		vuln.CVEID = vuln.Cnnvd.Number
+		vulnDetails.Vulns = append(vulnDetails.Vulns, vuln)
 	}
 }
 
@@ -182,13 +187,13 @@ func (s *ScanResultHandle) arrangeVulnDetails(trivyReport *report.Report, layers
 			if err != nil {
 				trivyDetail.CVEID = k
 				scanDetails.VulnDetails[i].Vulns = append(scanDetails.VulnDetails[i].Vulns, *trivyDetail)
-				s.AddRHSAAndCnnvd(&scanDetails.VulnDetails[i], *trivyDetail, 0)
+				s.AddRHSAAndCnnvd(&scanDetails.VulnDetails[i], *trivyDetail)
 				continue
 			}
 			trivyDetail.CVEID = k
 			trivyDetail.Cnnvd = tmpDetail.Cnnvd
 			trivyDetail.Cnvd = tmpDetail.Cnvd
-			s.AddRHSAAndCnnvd(&scanDetails.VulnDetails[i], *trivyDetail, 0)
+			s.AddRHSAAndCnnvd(&scanDetails.VulnDetails[i], *trivyDetail)
 			scanDetails.VulnDetails[i].Vulns = append(scanDetails.VulnDetails[i].Vulns, *trivyDetail)
 		}
 	}
