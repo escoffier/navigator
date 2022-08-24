@@ -3,7 +3,7 @@ package decode
 import (
 	"io/ioutil"
 
-	"gitlab.com/piccolo_su/vegeta/pkg/cryption"
+	"gitlab.com/security-rd/go-pkg/cryption"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 )
 

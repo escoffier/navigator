@@ -11,12 +11,11 @@ import (
 	"github.com/avast/retry-go"
 	"github.com/docker/docker/client"
 	"github.com/pkg/errors"
-
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner-cicd/pkg/request"
-	"gitlab.com/piccolo_su/vegeta/pkg/cryption/rsa"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
+	"gitlab.com/security-rd/go-pkg/cryption/rsa"
 )
 
 type Client struct {

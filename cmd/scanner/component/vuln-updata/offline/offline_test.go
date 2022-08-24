@@ -8,9 +8,8 @@ import (
 	"os"
 	"testing"
 
-	"gitlab.com/piccolo_su/vegeta/pkg/cryption"
-
-	log "github.com/sirupsen/logrus"
+	"gitlab.com/security-rd/go-pkg/cryption"
+t 	log "github.com/sirupsen/logrus"
 )
 
 func TestOfflineFile(t *testing.T) {
