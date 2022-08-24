@@ -27,10 +27,10 @@ type ImageOpenAPISvc struct {
 }
 
 func NewScannerOpenAPISrv(
-	srv component.ScannerSrv,
-	registrySrv component.RegistrySrvInterface,
-	scanConfigSrv component.ScanConfigSrvInterface,
-	imageSrv component.ImageSrvInterface,
+		srv component.ScannerSrv,
+		registrySrv component.RegistrySrvInterface,
+		scanConfigSrv component.ScanConfigSrvInterface,
+		imageSrv component.ImageSrvInterface,
 ) *ImageOpenAPISvc {
 	return &ImageOpenAPISvc{
 		ScannerSrv:    srv,
@@ -304,7 +304,7 @@ func (s *ImageOpenAPISvc) GetImageDetails(ctx *gin.Context) {
 	response.JSONOK(ctx, response.WithItem(res))
 }
 
-//  open api 镜像层级信息,返回全部数据，不分页
+// open api 镜像层级信息,返回全部数据，不分页
 func (s *ImageOpenAPISvc) ListImgLayersByImageName(ctx *gin.Context) {
 	registryName := ctx.Query("registryName")
 	imageName := ctx.Query("imageName")
@@ -385,6 +385,19 @@ func (s *ImageOpenAPISvc) CreateScanImageTask(ctx *gin.Context) {
 		StrategyID:   body.ImageScanTaskInfo.StrategyID,
 		StrategyName: body.ImageScanTaskInfo.StrategyName,
 		Operator:     body.ImageScanTaskInfo.Operator,
+	}
+
+	if body.ImageScanTaskInfo.StrategyName != "" {
+		strategy, _, err := s.ScanConfigSrv.SearchStrategy(ctx, component.SearchStrategyParam{Name: body.ImageScanTaskInfo.StrategyName, All: consts.TrueString}, model.EmptyFilterForTotalQuery())
+		if err != nil {
+			response.JSONError(ctx, response.NewHttpError(http.StatusInternalServerError, err))
+			return
+		}
+		if len(strategy) == 0 {
+			response.JSONError(ctx, response.NewHttpError(http.StatusBadRequest, fmt.Errorf("not find scan strategy :%s", body.ImageScanTaskInfo.StrategyName)))
+			return
+		}
+		taskInfo.StrategyID = strategy[0].ID
 	}
 
 	go func() {

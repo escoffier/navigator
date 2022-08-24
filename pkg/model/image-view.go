@@ -142,8 +142,14 @@ func (sp *ImageListParam) Deserialize() {
 		sp.UUIDs = nil
 		sp.Projects = nil
 		sp.NodeHostname = ""
-
 		return
+	}
+
+	if sp.AttrIntersection == "" {
+		sp.AttrIntersection = AndString
+	}
+	if sp.IssueIntersection == "" {
+		sp.IssueIntersection = AndString
 	}
 
 	repos := make([]Repo, 0)

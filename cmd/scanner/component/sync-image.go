@@ -409,7 +409,7 @@ func (s *SyncRepoImage) startSyncAllImage(ctx context.Context, regID int64, sync
 
 	if syncType != consts.TimingFullSync || res.HasErr {
 		logging.GetLogger().Info().
-			Str("syncType", string(consts.TimingFullSync)).
+			Str("syncType", string(syncType)).
 			Bool("HasErr", res.HasErr).Msg("not ClearUp image")
 		return nil
 	}
