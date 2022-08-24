@@ -14,7 +14,6 @@ import (
 	"github.com/go-redis/redis/v8"
 	json "github.com/json-iterator/go"
 	"github.com/pkg/errors"
-
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/nodeinfo"
 	"gitlab.com/piccolo_su/vegeta/pkg/daemon"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
@@ -757,7 +756,7 @@ func (fs *FlowSession) ProcSessionQueData() {
 	for nsData := range fs.nsDataChan {
 		err := fs.ProcSessionData(&nsData)
 		if err != nil {
-			logging.Get().Error().Msgf("get container info failed, %v.", err)
+			logging.Get().Warn().Err(err).Msg("get container info failed")
 		}
 	}
 }
@@ -899,7 +898,7 @@ func (fs *FlowSession) ProcSessionData(netSession *daemon.NetSessionLink) error 
 			//get container info
 			state, err = fs.GetContainerInfo(netData, src, dst, netAddr)
 			if err != nil {
-				logging.Get().Error().Msgf("get container info failed, %v.", err)
+				logging.Get().Err(err).Msg("get container info failed")
 			}
 		}
 

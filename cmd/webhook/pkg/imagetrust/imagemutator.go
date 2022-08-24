@@ -5,20 +5,20 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
-	"github.com/pkg/errors"
-	"gitlab.com/piccolo_su/vegeta/cmd/webhook/pkg/utils"
-	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
-	"gopkg.in/yaml.v2"
 	"io/ioutil"
-	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	coreinformers "k8s.io/client-go/informers/core/v1"
 	"net/http"
 	"net/url"
 	"strings"
 
+	"github.com/pkg/errors"
 	"gitlab.com/piccolo_su/vegeta/cmd/webhook/pkg/processors"
+	"gitlab.com/piccolo_su/vegeta/cmd/webhook/pkg/utils"
+	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
+	"gopkg.in/yaml.v2"
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	coreinformers "k8s.io/client-go/informers/core/v1"
 )
 
 const configFile = "image-trust-mutator.yaml"
@@ -107,7 +107,7 @@ func (m *Mutator) Mutate(ctx context.Context, parameters *processors.MutatorPara
 	return patchImageDigest(digests)
 }
 
-//buildDigestImage replace image name with image digest
+// buildDigestImage replace image name with image digest
 func (m *Mutator) buildDigestImage(ctx context.Context, parameters *processors.MutatorParameters, container *corev1.Container, kubeSecretNames []string) string {
 	originImage := container.Image
 	result := checkRegistryUrl(ctx, originImage)
@@ -233,7 +233,7 @@ func (m *Mutator) getSecrets(clusterKey, namespace, image string, kubeSecrets []
 		}
 		secret, err := client.CoreV1().Secrets(namespace).Get(context.Background(), s, metav1.GetOptions{})
 		if err != nil {
-			logging.GetLogger().Err(err).Msgf("get secret of %s err", s)
+			logging.GetLogger().Warn().Err(err).Msgf("get secret of %s err", s)
 			return nil
 		}
 		data, ok := secret.Data[".dockerconfigjson"]
