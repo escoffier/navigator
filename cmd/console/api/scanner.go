@@ -178,7 +178,13 @@ func (api *api) scannerOpenApi() func(router chi.Router) {
 			Get("/images/list", api.ForwardScannerOpenApi())
 
 		r.With(RateLimitMiddleware(api.redisClient, int64(rate))).
+			Post("/images/list", api.ForwardScannerOpenApi())
+
+		r.With(RateLimitMiddleware(api.redisClient, int64(rate))).
 			Post("/images/scan/scantask", api.ForwardScannerOpenApi())
+
+		r.With(RateLimitMiddleware(api.redisClient, int64(rate))).
+			Post("/images/scan/scantask/v2", api.ForwardScannerOpenApi()) // Deprecated
 
 		r.With(RateLimitMiddleware(api.redisClient, int64(rate))).
 			Get("/statistic/images", api.ForwardScannerOpenApi())
