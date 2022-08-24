@@ -4,7 +4,7 @@ import (
 	"io/ioutil"
 	"testing"
 
-	"gitlab.com/piccolo_su/vegeta/pkg/cryption"
+	"gitlab.com/security-rd/go-pkg/cryption"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 )
 

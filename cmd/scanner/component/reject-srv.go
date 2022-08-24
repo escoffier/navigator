@@ -11,10 +11,9 @@ import (
 	"github.com/gobwas/glob"
 	dockerparser "github.com/novln/docker-parser"
 	"github.com/pkg/errors"
-
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
-	"gitlab.com/piccolo_su/vegeta/pkg/cryption/rsa"
+	"gitlab.com/security-rd/go-pkg/cryption/rsa"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
