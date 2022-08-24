@@ -11,7 +11,6 @@ import (
 
 	"github.com/google/go-containerregistry/pkg/name"
 	registry2 "github.com/heroku/docker-registry-client/registry"
-
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 )
@@ -32,7 +31,7 @@ func NewDockerRegistryClient(url, userName, password string, skipTLSVerify bool)
 		}
 	}
 	if err != nil {
-		logging.GetLogger().Err(err).Msg("new registry client failed.")
+		logging.GetLogger().Warn().Err(err).Msg("new registry client failed.")
 		return nil, err
 	}
 	return hub, nil
