@@ -67,7 +67,11 @@ func (h *HarborV1) ListProjects() ([]Project, error) {
 		if err != nil {
 			break
 		}
-		projects = append(projects, p...)
+		for i := range p {
+			if !p[i].Deleted {
+				projects = append(projects, p[i])
+			}
+		}
 		if len(p) < DefaultPageSize {
 			// last page
 			break
@@ -203,8 +207,9 @@ func (h *HarborV1) GetManifest(repo string, repoTag Tag) (string, string, string
 		manifestV1   string
 		configBlob   string
 		configDigest digest.Digest
+		err          error
 	)
-	manifestV2, configDigest, err := h.pullImageManifestV2(repo, repoTag.Digest)
+	manifestV2, configDigest, err = h.pullImageManifestV2(repo, repoTag.Digest)
 	if err == nil {
 		// pull config json
 		configBlob, err = h.pullConfigBlob(repo, configDigest)
@@ -413,6 +418,7 @@ func (h *HarborV1) ListImages(ctx context.Context, extender registry.Extender, r
 	// get all projects
 	projects, err := h.ListProjects()
 	if err != nil {
+		logging.GetLogger().Err(err).Msg("ListImages.ListProjects")
 		return nil, err
 	}
 
@@ -422,7 +428,7 @@ func (h *HarborV1) ListImages(ctx context.Context, extender registry.Extender, r
 		if err != nil {
 			res.HasErr = true
 			// just log and try next project
-			logging.GetLogger().Err(err).Msgf("project %s get repo err,try next project. ", v.Name)
+			logging.GetLogger().Err(err).Str("project", v.Name).Msg("ListImages ListProjectRepos")
 			continue
 		}
 
@@ -432,11 +438,15 @@ func (h *HarborV1) ListImages(ctx context.Context, extender registry.Extender, r
 			tags, err := h.ListRepoTags(r.Name)
 			if err != nil {
 				res.HasErr = true
-				logging.GetLogger().Err(err).Msgf("repo %s get artifacts err,try next repo.", r.Name)
+				logging.GetLogger().Err(err).Str("project", v.Name).Str("repoName", r.Name).Msg("ListImages ListRepoTags")
 				continue
 			}
 
 			for _, t := range tags {
+				if t.Name == "" || t.Digest == "" {
+					logging.GetLogger().Err(err).Str("project", v.Name).Str("repoName", r.Name).Str("tag", t.Name).Msg("ListImages ListRepoTags has no name or digest")
+					continue
+				}
 				// pull manifest v2
 				manifestV1, manifestV2, configBlob, err := h.GetManifest(r.Name, t)
 				if err != nil {
@@ -446,17 +456,16 @@ func (h *HarborV1) ListImages(ctx context.Context, extender registry.Extender, r
 						logging.GetLogger().Err(err).Str("FullRepoName", r.Name).Str("Digest", t.Digest).Msg("CreateOrAddRetryCountExtender")
 					}
 
-					logging.GetLogger().Err(err).Msgf("ListImages GetManifest:%s", v.Name)
-
+					logging.GetLogger().Err(err).Str("project", v.Name).Str("repoName", r.Name).Str("tag", t.Name).Msg("ListImages GetManifest")
 					continue
 				}
-				i := h.makeImage(r.Name, t, manifestV1, manifestV2, configBlob)
+				image := h.makeImage(r.Name, t, manifestV1, manifestV2, configBlob)
 
 				cnt++
-				im, err := extender.CreateImageExtender(ctx, i)
+				im, err := extender.CreateImageExtender(ctx, image)
 				if err != nil {
 					res.HasErr = true
-					logging.GetLogger().Err(err).Msgf("HarborV1 Insert imagelist error")
+					logging.GetLogger().Err(err).Str("imageName", fmt.Sprintf("%s:%s", image.Repository, image.Tag)).Msg("ListImages CreateImageExtender")
 
 					retryImage := registry.Image{RegistryID: h.config.RegistryID, Repository: v.Name, Tag: t.Name, Message: err.Error()}
 					if err := extender.CreateOrAddRetryCountExtender(ctx, retryImage); err != nil {
