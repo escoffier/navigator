@@ -473,6 +473,11 @@ func (h *HarborV2) ListImages(ctx context.Context, extender registry.Extender, r
 			}
 
 			for _, a := range artifacts {
+				if len(a.Tags) == 0 || a.Digest == "" {
+					logging.GetLogger().Err(err).Str("FullRepoName", r.Name).Str("Digest", a.Digest).Msg("ListImages has no digest or has no tag")
+					continue
+				}
+
 				// pull manifest v2
 				retryImage := registry.Image{
 					RegistryID: h.config.RegistryID,
@@ -491,7 +496,7 @@ func (h *HarborV2) ListImages(ctx context.Context, extender registry.Extender, r
 						}
 					}
 
-					logging.GetLogger().Err(err).Str("FullRepoName", r.Name).Str("Digest", a.Digest).Msg("harbor V2 ListImages GetManifest")
+					logging.GetLogger().Err(err).Str("FullRepoName", r.Name).Str("Digest", a.Digest).Msg("ListImages harbor V2 ListImages GetManifest")
 					continue
 				}
 
@@ -507,7 +512,7 @@ func (h *HarborV2) ListImages(ctx context.Context, extender registry.Extender, r
 						retryImage.Message = err.Error()
 
 						if err := extender.CreateOrAddRetryCountExtender(ctx, retryImage); err != nil {
-							logging.GetLogger().Err(err).Str("FullRepoName", r.Name).Str("Digest", a.Digest).Msg("CreateOrAddRetryCountExtender")
+							logging.GetLogger().Err(err).Str("FullRepoName", r.Name).Str("Digest", a.Digest).Msg("ListImages CreateOrAddRetryCountExtender")
 						}
 
 						continue
