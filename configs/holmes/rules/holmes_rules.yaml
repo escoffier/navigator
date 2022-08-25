@@ -17,7 +17,7 @@
   condition: >
     (inbound_outbound) and fd.sport=8080 and k8s.pod.name contains "51c1c6"
   output: >
-    Gaining sensitive information in Watson (zh_msg=通过主动防御检测到web目录文件访问,rule_type=Privilege_Escalation,fd.name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,container_id=%container.id,container_name=%container.name)
+    Gaining sensitive information in Watson (zh_msg=通过主动防御检测到web目录文件访问,rule_type=Privilege_Escalation,fd_name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,container_id=%container.id,container_name=%container.name)
   priority: ALERT
   tags: [Watson]
 
@@ -37,7 +37,7 @@
   condition: >
     evt.type = read and evt.arg.data contains "POST /manager/html/upload" and fd.sport=8080 and proc.name=java and k8s.pod.name contains "51c1c6"
   output: >
-    Upload webshell through tomcat manager (zh_msg=通过manager后台上传webshell,rule_type=Privilege_Escalation,fd.name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,container_id=%container.id,container_name=%container.name,http_request=%evt.args)
+    Upload webshell through tomcat manager (zh_msg=通过manager后台上传webshell,rule_type=Privilege_Escalation,fd_name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,container_id=%container.id,container_name=%container.name,http_request=%evt.args)
   priority: ALERT
   tags: [Watson]
 
@@ -57,7 +57,7 @@
   condition: >
     evt.type = read and (evt.arg.data contains "POST " or evt.arg.data contains "GET ") and evt.arg.data contains "jsp" and fd.sport=8080 and proc.name=java and k8s.pod.name contains "51c1c6"
   output: >
-    Execute commands through webshell (zh_msg=通过tomcat-webshell执行命令,rule_type=Privilege_Escalation,fd.name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_vpgid=%proc.vpgid,proc_cmdline=%proc.cmdline,proc_name=%proc.name,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,container_id=%container.id,container_name=%container.name,http_request=%evt.args)
+    Execute commands through webshell (zh_msg=通过tomcat-webshell执行命令,rule_type=Privilege_Escalation,fd_name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_vpgid=%proc.vpgid,proc_cmdline=%proc.cmdline,proc_name=%proc.name,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,container_id=%container.id,container_name=%container.name,http_request=%evt.args)
   priority: ALERT
   tags: [Watson]
 
@@ -77,7 +77,7 @@
   condition: >
    (inbound_outbound) and fd.sport=6379 and k8s.pod.name contains "51c1c6"
   output: >
-    Other containers establish new connections to the redis-server in Watson (zh_msg=通过主动防御检测到redis-server未授权访问,rule_type=Privilege_Escalation,fd.name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,container_id=%container.id,container_name=%container.name)
+    Other containers establish new connections to the redis-server in Watson (zh_msg=通过主动防御检测到redis-server未授权访问,rule_type=Privilege_Escalation,fd_name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,container_id=%container.id,container_name=%container.name)
   priority: ALERT
   tags: [Watson]
 
@@ -97,7 +97,7 @@
   condition: >
    (inbound_outbound) and fd.sport=9200 and k8s.pod.name contains "75fb1c"
   output: >
-    Other containers establish new connections to the ElasticSearch (zh_msg=通过主动防御检测到与elasticsearch通信,rule_type=Privilege_Escalation,fd.name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,container_id=%container.id,container_name=%container.name)
+    Other containers establish new connections to the ElasticSearch (zh_msg=通过主动防御检测到与elasticsearch通信,rule_type=Privilege_Escalation,fd_name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,container_id=%container.id,container_name=%container.name)
   priority: ALERT
   tags: [Watson]
 
@@ -117,7 +117,7 @@
   condition: >
    evt.type=execve and evt.res!=ENOENT and proc.pname = java and k8s.pod.name contains "75fb1c"
   output: >
-    Execute sensitive commands via ElasticSearch (zh_msg=通过主动防御检测到elasticsearch执行命令（CVE-2015-1427）,rule_type=Privilege_Escalation,fd.name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,container_id=%container.id,container_name=%container.name)
+    Execute sensitive commands via ElasticSearch (zh_msg=通过主动防御检测到elasticsearch执行命令（CVE-2015-1427）,rule_type=Privilege_Escalation,fd_name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,container_id=%container.id,container_name=%container.name)
   priority: ALERT
   tags: [Watson]
 
@@ -137,7 +137,7 @@
   condition: >
    (inbound_outbound) and fd.sport = 8080 and k8s.pod.name contains "b0f328"
   output: >
-    Other containers establish new connections to the tomcat (zh_msg=通过主动防御检测到与tomcat通信,rule_type=Privilege_Escalation,fd.name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,container_id=%container.id,container_name=%container.name)
+    Other containers establish new connections to the tomcat (zh_msg=通过主动防御检测到与tomcat通信,rule_type=Privilege_Escalation,fd_name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,container_id=%container.id,container_name=%container.name)
   priority: ALERT
   tags: [Watson]
 
@@ -157,7 +157,7 @@
   condition: >
    (inbound_outbound) and fd.sport = 8009 and k8s.pod.name contains "b0f328"
   output: >
-    Other containers establish new connections to the tomcat (zh_msg=通过主动防御检测到tomcat读取本地webapp目录文件,rule_type=Privilege_Escalation,fd.name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,container_id=%container.id,container_name=%container.name)
+    Other containers establish new connections to the tomcat (zh_msg=通过主动防御检测到tomcat读取本地webapp目录文件,rule_type=Privilege_Escalation,fd_name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,container_id=%container.id,container_name=%container.name)
   priority: ALERT
   tags: [Watson]
 
@@ -177,7 +177,7 @@
   condition: >
    (inbound_outbound) and fd.sport = 8080 and k8s.pod.name contains "99a7ca"
   output: >
-    Other containers establish new connections to the jenkins (zh_msg=通过主动防御检测到与jenkins通信,rule_type=Privilege_Escalation,fd.name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,container_id=%container.id,container_name=%container.name)
+    Other containers establish new connections to the jenkins (zh_msg=通过主动防御检测到与jenkins通信,rule_type=Privilege_Escalation,fd_name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,container_id=%container.id,container_name=%container.name)
   priority: ALERT
   tags: [Watson]
 
@@ -197,7 +197,7 @@
   condition: >
    evt.type=execve and evt.res!=ENOENT and k8s.pod.name contains "99a7ca"
   output: >
-    Execute sensitive commands via Jenkins (zh_msg=通过主动防御检测到Jenkins执行命令（CVE-2018-1000861）,rule_type=Privilege_Escalation,fd.name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,container_id=%container.id,container_name=%container.name)
+    Execute sensitive commands via Jenkins (zh_msg=通过主动防御检测到Jenkins执行命令（CVE-2018-1000861）,rule_type=Privilege_Escalation,fd_name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,container_id=%container.id,container_name=%container.name)
   priority: ALERT
   tags: [Watson]
 
@@ -217,7 +217,7 @@
   condition: >
    (inbound_outbound) and fd.sport = 8888 and k8s.pod.name contains "ddc305"
   output: >
-    Other containers establish new connections to the jenkins (zh_msg=通过主动防御检测到与jupyter通信,rule_type=Privilege_Escalation,fd.name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,container_id=%container.id,container_name=%container.name)
+    Other containers establish new connections to the jenkins (zh_msg=通过主动防御检测到与jupyter通信,rule_type=Privilege_Escalation,fd_name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,container_id=%container.id,container_name=%container.name)
   priority: ALERT
   tags: [Watson]
 
@@ -237,7 +237,7 @@
   condition: >
     evt.type=execve and evt.res!=ENOENT and k8s.pod.name contains "ddc305"
   output: >
-    Execute sensitive commands via Jenkins (zh_msg=通过主动防御检测到Jupyter执行命令,rule_type=Privilege_Escalation,fd.name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,container_id=%container.id,container_name=%container.name)
+    Execute sensitive commands via Jenkins (zh_msg=通过主动防御检测到Jupyter执行命令,rule_type=Privilege_Escalation,fd_name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,container_id=%container.id,container_name=%container.name)
   priority: ALERT
   tags: [Watson]
 
@@ -277,7 +277,7 @@
   condition: >
    (inbound_outbound) and fd.sport = 3306 and k8s.pod.name contains "588ee1"
   output: >
-    Other containers establish new connections to the mysql (zh_msg=Watson：通过主动防御检测到与mysql通信,rule_type=Privilege_Escalation,fd.name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,container_id=%container.id,container_name=%container.name)
+    Other containers establish new connections to the mysql (zh_msg=Watson：通过主动防御检测到与mysql通信,rule_type=Privilege_Escalation,fd_name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,container_id=%container.id,container_name=%container.name)
   priority: ALERT
   tags: [Watson]
 
@@ -297,7 +297,7 @@
   condition: >
    evt.type=recvfrom and evt.arg.data contains "select" and fd.sport = 3306 and k8s.pod.name contains "588ee1"
   output: >
-    Connection with mysql successfully established detected (zh_msg=通过主动防御检测到与mysql成功建立连接,rule_type=Privilege_Escalation,fd.name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,container_id=%container.id,container_name=%container.name)
+    Connection with mysql successfully established detected (zh_msg=通过主动防御检测到与mysql成功建立连接,rule_type=Privilege_Escalation,fd_name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,container_id=%container.id,container_name=%container.name)
   priority: ALERT
   tags: [Watson]
 
@@ -317,7 +317,7 @@
   condition: >
    (inbound_outbound) and fd.sport = 22 and k8s.pod.name contains "98166d"
   output: >
-    Other containers establish new connections to the ssh (zh_msg=通过主动防御检测到与ssh通信,rule_type=Privilege_Escalation,fd.name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,container_id=%container.id,container_name=%container.name)
+    Other containers establish new connections to the ssh (zh_msg=通过主动防御检测到与ssh通信,rule_type=Privilege_Escalation,fd_name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,container_id=%container.id,container_name=%container.name)
   priority: ALERT
   tags: [Watson]
 
@@ -337,7 +337,7 @@
   condition: >
    evt.type=write and evt.arg.data contains "Welcome" and k8s.pod.name contains "98166d"
   output: >
-    Connection with mysql successfully established detected (zh_msg=通过主动防御检测到使用ssh建立连接,rule_type=Privilege_Escalation,fd.name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,fd.sport=%fd.sport,container_id=%container.id,container_name=%container.name)
+    Connection with mysql successfully established detected (zh_msg=通过主动防御检测到使用ssh建立连接,rule_type=Privilege_Escalation,fd_name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,fd.sport=%fd.sport,container_id=%container.id,container_name=%container.name)
   priority: ALERT
   tags: [Watson]
 
@@ -357,7 +357,7 @@
   condition: >
    (inbound_outbound) and fd.sport = 21 and k8s.pod.name contains "42cca6"
   output: >
-    Other containers establish new connections to the vsftpd (zh_msg=通过主动防御检测到与ftp通信,rule_type=Privilege_Escalation,fd.name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,container_id=%container.id,container_name=%container.name)
+    Other containers establish new connections to the vsftpd (zh_msg=通过主动防御检测到与ftp通信,rule_type=Privilege_Escalation,fd_name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,container_id=%container.id,container_name=%container.name)
   priority: ALERT
   tags: [Watson]
 
@@ -377,7 +377,7 @@
   condition: >
    evt.type=write and evt.arg.data contains "OK LOGIN" and k8s.pod.name contains "42cca6"
   output: >
-    Connection establishment using ftp is detected (zh_msg=通过主动防御检测到使用ftp建立连接,rule_type=Privilege_Escalation,fd.name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,fd.sport=%fd.sport,container_id=%container.id,container_name=%container.name)
+    Connection establishment using ftp is detected (zh_msg=通过主动防御检测到使用ftp建立连接,rule_type=Privilege_Escalation,fd_name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,fd.sport=%fd.sport,container_id=%container.id,container_name=%container.name)
   priority: ALERT
   tags: [Watson]
 
@@ -577,7 +577,7 @@
   desc: Reverse shell through socket and dup
   condition: evt.type=dup and container and fd.num in (0, 1, 2) and fd.type in ("ipv4", "ipv6") and not k8s.pod.name contains "98166d" and not k8s.pod.name contains "42cca6"
   output: >
-    Reverse shell through socket and dup (zh_msg=容器内通过socket和dup反弹shell,rule_type=Execution,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name %container.info process=%proc.name parent=%proc.pname terminal=%proc.tty container_id=%container.id container_name=%container.name image=%container.image.repository fd.name=%fd.name fd.num=%fd.num fd.type=%fd.type fd.sip=%fd.sip)
+    Reverse shell through socket and dup (zh_msg=容器内通过socket和dup反弹shell,rule_type=Execution,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name %container.info process=%proc.name parent=%proc.pname terminal=%proc.tty container_id=%container.id container_name=%container.name image=%container.image.repository fd_name=%fd.name fd.num=%fd.num fd.type=%fd.type fd.sip=%fd.sip)
   priority: ALERT
   tags: [ATT&CK, container, shell, mitre_execution]
 
@@ -650,7 +650,7 @@
     original_info=user=%user.name user_loginuid=%user.loginuid
     file=%fd.name container_id=%container.id container_name=%container.name image=%container.image.repository:%container.image.tag)
   priority: WARNING
-  tags: [ATT&CK, file, mitre_persistence]
+  tags: [ATT&CK, file, mitre_persistence, strict]
 
 - rule: run user mgmt binaries
   hid: pers_02
@@ -1074,7 +1074,7 @@
        not var_lib_docker_filepath and
        not proc.name in (docker_binaries)
   output: >
-    Shell history had been deleted or renamed (zh_msg=删除或重命名shell历史记录,rule_type=Privilege_Escalation,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid type=%evt.type fd.name=%fd.name name=%evt.arg.name path=%evt.arg.path oldpath=%evt.arg.oldpath %container.info container_id=%container.id,container_name=%container.name)
+    Shell history had been deleted or renamed (zh_msg=删除或重命名shell历史记录,rule_type=Privilege_Escalation,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid type=%evt.type fd_name=%fd.name name=%evt.arg.name path=%evt.arg.path oldpath=%evt.arg.oldpath %container.info container_id=%container.id,container_name=%container.name)
   priority: WARNING
   tags: [ATT&CK, process, mitre_defense_evasion]
 
@@ -1111,7 +1111,7 @@
   condition: >
     open_write and container and fd.name contains /sys/kernel/core_pattern
   output: >
-    container escape to access host system (zh_msg=容器内通过procfs逃逸,rule_type=Privilege_Escalation,fd.name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,container_id=%container.id,container_name=%container.name)
+    container escape to access host system (zh_msg=容器内通过procfs逃逸,rule_type=Privilege_Escalation,fd_name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,container_id=%container.id,container_name=%container.name)
   priority: ALERT
   tags: [ATT&CK]
 
@@ -1129,7 +1129,7 @@
   condition: >
    open_write and container and proc.name=debugfs
   output: >
-    container escape to access host system (zh_msg=容器内通过debugfs逃逸,rule_type=Privilege_Escalation,fd.name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,container_id=%container.id,container_name=%container.name)
+    container escape to access host system (zh_msg=容器内通过debugfs逃逸,rule_type=Privilege_Escalation,fd_name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,container_id=%container.id,container_name=%container.name)
   priority: ALERT
   tags: [ATT&CK]
 
@@ -1147,7 +1147,7 @@
   condition: >
    evt.type=mount and evt.arg.type = "cgroup" and container and user.uid=0
   output: >
-    container escape to access host system (zh_msg=容器内挂载cgroup,rule_type=Privilege_Escalation,fd.name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,container_id=%container.id,container_name=%container.name)
+    container escape to access host system (zh_msg=容器内挂载cgroup,rule_type=Privilege_Escalation,fd_name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,container_id=%container.id,container_name=%container.name)
   priority: ALERT
   tags: [ATT&CK]
 
@@ -1394,7 +1394,7 @@
     ((spawned_process and proc.name in (shred, rm, mv) and proc.args contains "bash_history") or
      (open_write and fd.name contains "bash_history" and evt.arg.flags contains "O_TRUNC"))
   output: >
-    Shell history had been deleted or renamed (zh_msg=bash历史文件被删除,rule_type=Defense_Evasion,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid type=%evt.type fd.name=%fd.name name=%evt.arg.name path=%evt.arg.path oldpath=%evt.arg.oldpath %container.info,container_id=%container.id,container_name=%container.name)
+    Shell history had been deleted or renamed (zh_msg=bash历史文件被删除,rule_type=Defense_Evasion,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid type=%evt.type fd_name=%fd.name name=%evt.arg.name path=%evt.arg.path oldpath=%evt.arg.oldpath %container.info,container_id=%container.id,container_name=%container.name)
   priority: WARNING
   tags: [ATT&CK, process, mitre_defense_evasion]
 
@@ -1433,7 +1433,7 @@
   condition: >
     open_read and container and ((proc.name in (show_information_binaries)) and
     (fd.filename in (sensitive_paths) or fd.name in (sensitive_paths) or fd.directory in (sensitive_paths)) or (proc.name in (show_env_binaries)))  and not tensorsec_namespace
-  output: container shell gaining environment info (zh_msg=容器内获取敏感信息,rule_type=Credential_Access,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,fd.name=%fd.name,container_id=%container.id,container_name=%container.name)
+  output: container shell gaining environment info (zh_msg=容器内获取敏感信息,rule_type=Credential_Access,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,fd_name=%fd.name,container_id=%container.id,container_name=%container.name)
   priority: WARNING
   tags: [ATT&CK]
 
@@ -1672,7 +1672,7 @@
   desc: View disk information in the container
   condition: >
     open_read and container and (proc.cmdline contains "fdisk -l" or (fd.name startswith "/sys/dev/block/" and evt.arg.flags contains O_RDONLY)) and not tensorsec_namespace
-  output: View disk information inside the container (zh_msg=容器内查看磁盘信息,rule_type=Discovery,fd.name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,container_id=%container.id,container_name=%container.name)
+  output: View disk information inside the container (zh_msg=容器内查看磁盘信息,rule_type=Discovery,fd_name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,container_id=%container.id,container_name=%container.name)
   priority: WARNING
   tags: [ATT&CK]
 
@@ -1689,7 +1689,7 @@
   desc: Scanning web directories in the container
   condition: >
     open_read and container and (fd.directory contains "www" or fd.directory contains "apache" or fd.directory contains "tomcat" or fd.directory contains "web" or fd.directory contains "http") and (fd.name contains ".jsp" or fd.name contains ".php" or fd.name contains ".config" or fd.name contains ".bak" or fd.name contains ".old" or fd.name contains ".log") and not tensorsec_namespace
-  output: Scanning web directories in the container (zh_msg=容器内扫描web目录,fd.name=%fd.name,rule_type=Discovery,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,container_id=%container.id,container_name=%container.name)
+  output: Scanning web directories in the container (zh_msg=容器内扫描web目录,fd_name=%fd.name,rule_type=Discovery,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,container_id=%container.id,container_name=%container.name)
   priority: WARNING
   tags: [ATT&CK, strict]
 
@@ -1717,7 +1717,7 @@
     evt.arg.data contains "cp" or
     evt.arg.data contains "awk"
     )
-  output: Find files with suid privilege by non-root users (zh_msg=非root用户查找含有suid权限的文件,fd.name=%fd.name,rule_type=Discovery,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,container_id=%container.id,container_name=%container.name)
+  output: Find files with suid privilege by non-root users (zh_msg=非root用户查找含有suid权限的文件,fd_name=%fd.name,rule_type=Discovery,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,container_id=%container.id,container_name=%container.name)
   priority: WARNING
   tags: [ATT&CK]
 
@@ -1734,7 +1734,7 @@
   desc: View login information in the container
   condition: >
     open_read and container and not k8s.pod.name contains "console" and fd.name="var/log/lastlog" or fd.name="/etc/localtime" and not proc.cmdline contains "bash" and not k8s.pod.name contains "calico"
-  output: View login information inside the container (zh_msg=容器内查看登录信息,rule_type=Discovery,fd.name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,container_id=%container.id,container_name=%container.name)
+  output: View login information inside the container (zh_msg=容器内查看登录信息,rule_type=Discovery,fd_name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,container_id=%container.id,container_name=%container.name)
   priority: WARNING
   tags: [ATT&CK, strict]
 
@@ -2160,7 +2160,7 @@
   condition: >
    (inbound_outbound) and allowed_ssh_hosts and container
   output: >
-    Detected connection to container through ssh (zh_msg=检测到尝试通过ssh连接到容器,rule_type=Exfiltration,fd.name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,container_id=%container.id,container_name=%container.name)
+    Detected connection to container through ssh (zh_msg=检测到尝试通过ssh连接到容器,rule_type=Exfiltration,fd_name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,container_id=%container.id,container_name=%container.name)
   priority: WARNING
   tags: [ATT&CK]
 
@@ -2274,7 +2274,7 @@
 #   desc: Detect redirecting stdout/stdin to network connection in container (potential reverse shell).
 #   condition: evt.type=dup and evt.dir=> and container and fd.num in (0, 1, 2) and fd.type in ("ipv4", "ipv6") and not user_known_stand_streams_redirect_activities
 #   output: >
-#     Redirect stdout/stdin to network connection (zh_msg=将标准输出/标准输入重定向到容器中的网络连接;检测标准输出/标准输入重定向容器中的网络连接,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid %container.info process=%proc.name parent=%proc.pname terminal=%proc.tty container_id=%container.id container_name=%container.name image=%container.image.repository fd.name=%fd.name fd.num=%fd.num fd.type=%fd.type fd.sip=%fd.sip)
+#     Redirect stdout/stdin to network connection (zh_msg=将标准输出/标准输入重定向到容器中的网络连接;检测标准输出/标准输入重定向容器中的网络连接,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid %container.info process=%proc.name parent=%proc.pname terminal=%proc.tty container_id=%container.id container_name=%container.name image=%container.image.repository fd_name=%fd.name fd.num=%fd.num fd.type=%fd.type fd.sip=%fd.sip)
 #   priority: WARNING
 
 # - rule: Container Drift Detected (chmod)
