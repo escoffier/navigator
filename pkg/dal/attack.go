@@ -10,6 +10,7 @@ import (
 	json "github.com/json-iterator/go"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
+	"gitlab.com/security-rd/go-pkg/httputil"
 )
 
 const (
@@ -49,7 +50,7 @@ func LoadAttackRules(ctx context.Context, consoleAddr string, curDataVersion, cu
 	}
 
 	req.Header.Set(tokenHeader, token)
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := httputil.DefaultClient.Do(req)
 	if err != nil {
 		logging.GetLogger().Err(err).Msgf("request error. url: %s", url)
 		return nil, err
