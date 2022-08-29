@@ -245,6 +245,7 @@ func OpenAPI(router *gin.Engine, scannerSvc component.ScannerSrv,
 		{
 			image.GET("/list", apiScannerSrv.ListImages) // Deprecated:
 			image.POST("/list", apiScannerSrv.SearchImages)
+			image.GET("/registryProject", apiScannerSrv.GetRegistryProject)
 			image.POST("/scan/scantask/v2", apiScannerSrv.CreateScanTask) // Deprecated:
 			image.POST("/scan/scantask", apiScannerSrv.CreateScanImageTask)
 			image.GET("/detail", apiScannerSrv.GetImageDetails)
@@ -275,6 +276,14 @@ func OpenAPI(router *gin.Engine, scannerSvc component.ScannerSrv,
 			vuln.GET("/detail", apiVulnSrc.Detail)
 			vuln.GET("/topNImage", apiVulnSrc.GetVulnTopNImage)
 		}
+
+		// 和仓库相关
+		register := v1.Group("/register")
+		{
+			register.GET("/registries", apiScannerSrv.SearchRegistry)
+			register.POST("/registry", apiScannerSrv.CreateRegistry)
+		}
+
 	}
 
 	return router
