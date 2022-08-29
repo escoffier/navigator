@@ -27,10 +27,10 @@ type ImageOpenAPISvc struct {
 }
 
 func NewScannerOpenAPISrv(
-		srv component.ScannerSrv,
-		registrySrv component.RegistrySrvInterface,
-		scanConfigSrv component.ScanConfigSrvInterface,
-		imageSrv component.ImageSrvInterface,
+	srv component.ScannerSrv,
+	registrySrv component.RegistrySrvInterface,
+	scanConfigSrv component.ScanConfigSrvInterface,
+	imageSrv component.ImageSrvInterface,
 ) *ImageOpenAPISvc {
 	return &ImageOpenAPISvc{
 		ScannerSrv:    srv,
@@ -139,6 +139,23 @@ func (s *ImageOpenAPISvc) SearchImages(ctx *gin.Context) {
 		response.WithTotalItems(cnt),
 		response.WithItemsPerPage(filter.Limit),
 		response.WithStartIndex(filter.Offset))
+}
+
+func (s *ImageOpenAPISvc) GetRegistryProject(ctx *gin.Context) {
+	regID, _ := strconv.ParseInt(ctx.Query("regID"), 10, 64)
+	projectKeyword := ctx.Query("projectKeyword")
+
+	repos, err := s.ImageSrv.GetRegistryProject(ctx, component.GetRegistryProjectParam{
+		RegID:          regID,
+		ProjectKeyword: projectKeyword,
+	})
+	if err != nil {
+		response.JSONError(ctx, err)
+		return
+	}
+
+	response.JSONOK(ctx, response.WithItems(repos),
+		response.WithTotalItems(int64(len(repos))))
 }
 
 // open-api镜像统计
@@ -412,7 +429,7 @@ func (s *ImageOpenAPISvc) CreateScanImageTask(ctx *gin.Context) {
 	}))
 }
 
-// 创建扫描任务(老接口，后溪会废弃)
+// 创建扫描任务(老接口，后期会废弃)
 func (s *ImageOpenAPISvc) CreateScanTask(ctx *gin.Context) {
 	type tem struct {
 		Online        string `json:"online"`
@@ -481,6 +498,55 @@ func (s *ImageOpenAPISvc) CreateScanTask(ctx *gin.Context) {
 	response.JSONOK(ctx)
 }
 
+// 仓库列表
+func (s *ImageOpenAPISvc) SearchRegistry(ctx *gin.Context) {
+	useType, _ := strconv.ParseInt(ctx.Query("usetype"), 10, 64)
+
+	regType := ctx.Query("reg_type")
+	filter := model.GetFilterWithDefaultValue(ctx)
+	if useType <= 0 {
+		useType = model.UserRegistry
+	}
+	param := component.SearchRegistryParam{UseType: useType}
+	if regType != "" {
+		param.RegType = strings.Split(strings.ReplaceAll(regType, " ", ""), ",")
+	}
+
+	registries, cnt, err := s.RegistrySrv.SearchRegistry(ctx, param, filter)
+	if err != nil {
+		response.JSONError(ctx, err)
+		return
+	}
+	res := make([]Registry, len(registries))
+	for i := range registries {
+		registries[i].Deserialize()
+		res[i] = ModelToRegistry(registries[i])
+	}
+
+	response.JSONOK(ctx, response.WithItems(res),
+		response.WithTotalItems(cnt),
+		response.WithItemsPerPage(filter.Limit),
+		response.WithStartIndex(filter.Offset))
+}
+
+func (s *ImageOpenAPISvc) CreateRegistry(ctx *gin.Context) {
+	reg := Registry{}
+	if err := ctx.BindJSON(&reg); err != nil {
+		logging.Get().Err(err).Msg("CreateRegistry序列化数据出错")
+		response.JSONError(ctx, err)
+		return
+	}
+	modeReg := RegistryToModel(reg)
+
+	modeReg.UseType = model.UserRegistry
+	_, err := s.RegistrySrv.CreateRegistry(ctx, modeReg)
+	if err != nil {
+		response.JSONError(ctx, err)
+		return
+	}
+	response.JSONOK(ctx)
+}
+
 func ParseImageName(imageName string) (string, string, error) {
 	if !strings.Contains(imageName, ":") {
 		return "", "", fmt.Errorf("illegal image name")
@@ -491,4 +557,53 @@ func ParseImageName(imageName string) (string, string, error) {
 	}
 
 	return split[0], split[1], nil
+}
+
+// Registry Registry表
+type Registry struct {
+	ID           int64  `json:"id"`
+	Name         string `json:"name"`     // 仓库名字,仓库名是仓库的唯一标识,一个仓库名称  对应一个用户
+	RegType      string `json:"regType"`  // 仓库类型
+	Url          string `json:"url"`      // 如:docker.io/v2, quay.io/v2
+	Username     string `json:"username"` // user for login registry
+	Password     string `json:"password"` // DES加密
+	Description  string `json:"description"`
+	SyncInterval int64  `json:"syncInterval"` // 单位：分钟
+	AccessKey    string `json:"accessKey"`    // 阿里云仓库的AccessKey
+	AccessSecret string `json:"accessSecret"` // 阿里云仓库的AccessSecret
+	InstanceID   string `json:"instanceId"`   // 阿里云仓库企业版实例ID
+	RegionID     string `json:"regionId"`     // 阿里云仓库企业版地域ID
+}
+
+func ModelToRegistry(reg model.Registry) Registry {
+	return Registry{
+		ID:           reg.ID,
+		Name:         reg.Name,
+		RegType:      reg.RegType,
+		Url:          reg.Url,
+		Username:     reg.Username,
+		Password:     reg.PasswordString,
+		Description:  reg.Description,
+		SyncInterval: reg.SyncInterval,
+		AccessKey:    reg.AccessKey,
+		AccessSecret: reg.AccessSecret,
+		InstanceID:   reg.InstanceID,
+		RegionID:     reg.RegionID,
+	}
+}
+
+func RegistryToModel(reg Registry) model.Registry {
+	return model.Registry{
+		Name:           reg.Name,
+		RegType:        reg.RegType,
+		Url:            reg.Url,
+		Username:       reg.Username,
+		PasswordString: reg.Password,
+		Description:    reg.Description,
+		SyncInterval:   reg.SyncInterval,
+		AccessKey:      reg.AccessKey,
+		AccessSecret:   reg.AccessSecret,
+		InstanceID:     reg.InstanceID,
+		RegionID:       reg.RegionID,
+	}
 }

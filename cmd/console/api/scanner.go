@@ -181,6 +181,9 @@ func (api *api) scannerOpenApi() func(router chi.Router) {
 			Post("/images/list", api.ForwardScannerOpenApi())
 
 		r.With(RateLimitMiddleware(api.redisClient, int64(rate))).
+			Get("/images/registryProject", api.ForwardScannerOpenApi())
+
+		r.With(RateLimitMiddleware(api.redisClient, int64(rate))).
 			Post("/images/scan/scantask", api.ForwardScannerOpenApi())
 
 		r.With(RateLimitMiddleware(api.redisClient, int64(rate))).
@@ -221,6 +224,12 @@ func (api *api) scannerOpenApi() func(router chi.Router) {
 
 		r.With(RateLimitMiddleware(api.redisClient, int64(rate))).
 			Get("/vulns/topNImage", api.ForwardScannerOpenApi())
+
+		r.With(RateLimitMiddleware(api.redisClient, int64(rate))).
+			Post("/register/registry", api.ForwardScannerOpenApi())
+
+		r.With(RateLimitMiddleware(api.redisClient, int64(rate))).
+			Get("/register/registries", api.ForwardScannerOpenApi())
 	}
 }
 
