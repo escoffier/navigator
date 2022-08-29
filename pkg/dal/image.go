@@ -9,12 +9,12 @@ import (
 
 	"github.com/avast/retry-go"
 	json "github.com/json-iterator/go"
-	"gorm.io/gorm"
-
 	"gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
+	"gitlab.com/security-rd/go-pkg/httputil"
+	"gorm.io/gorm"
 )
 
 type imageListWithVulnResp struct {
@@ -51,7 +51,7 @@ func GetImagesWithGivenVuln(ctx context.Context, scannerURL, imageVulnName, pkgN
 		}
 		return nil
 	}
-	err = util.HTTPRequest(ctx, http.DefaultClient, req, handler, retry.Attempts(3))
+	err = util.HTTPRequest(ctx, httputil.DefaultClient, req, handler, retry.Attempts(3))
 	if err != nil {
 		return nil, err
 	}
@@ -109,7 +109,7 @@ func GetAllVirusScanStatus(ctx context.Context, scannerURL string) (int, int) {
 	}
 	req.Header.Add("Content-Type", "application/json")
 
-	resp, err := http.DefaultClient.Do(req.WithContext(ctx))
+	resp, err := httputil.DefaultClient.Do(req.WithContext(ctx))
 	if err != nil {
 		logging.GetLogger().Err(err).Msg("failed to send get scan all status request to Virus")
 		return 0, 0
@@ -144,7 +144,7 @@ func GetAllVirusScanOneStatus(ctx context.Context, scannerURL, digest string) (s
 	}
 	req.Header.Add("Content-Type", "application/json")
 
-	resp, err := http.DefaultClient.Do(req.WithContext(ctx))
+	resp, err := httputil.DefaultClient.Do(req.WithContext(ctx))
 	if err != nil {
 		logging.GetLogger().Err(err).Msgf("failed to send get scan one status request to Virus")
 		return "", err

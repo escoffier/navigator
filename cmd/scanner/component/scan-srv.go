@@ -14,10 +14,6 @@ import (
 
 	"github.com/google/go-containerregistry/pkg/name"
 	"github.com/pkg/errors"
-	ftypes "scm.tensorsecurity.cn/tensorsecurity-rd/fanal/types"
-
-	"gitlab.com/security-rd/go-pkg/sdk/palace"
-
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/task"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
@@ -28,6 +24,9 @@ import (
 	scanreport "gitlab.com/piccolo_su/vegeta/pkg/model/scan-report"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
+	"gitlab.com/security-rd/go-pkg/httputil"
+	"gitlab.com/security-rd/go-pkg/sdk/palace"
+	ftypes "scm.tensorsecurity.cn/tensorsecurity-rd/fanal/types"
 )
 
 type SearchImageWithScanParam struct {
@@ -2620,7 +2619,7 @@ func (s *ConScannerSrv) DeleteCICDImage(ctx context.Context) {
 	timeOutCtx, cancelFunc := context.WithTimeout(ctx, time.Minute*2)
 	defer cancelFunc()
 
-	resp, err := http.DefaultClient.Do(req.WithContext(timeOutCtx))
+	resp, err := httputil.DefaultClient.Do(req.WithContext(timeOutCtx))
 	if err != nil {
 		logging.GetLogger().Err(err).Msgf("deleteCICDImage NewRequest,url:%s", url)
 		return

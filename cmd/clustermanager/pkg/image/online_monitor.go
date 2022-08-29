@@ -16,6 +16,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/security-rd/go-pkg/databases"
+	"gitlab.com/security-rd/go-pkg/httputil"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
@@ -285,7 +286,7 @@ func (s *OnlineMonitorCB) batchDetectImages(buffer map[string]model.RejectOnline
 	}
 	req.Header.Set("Content-Type", "application/json")
 
-	response, err := http.DefaultClient.Do(req)
+	response, err := httputil.DefaultClient.Do(req)
 	if err != nil {
 		logging.GetLogger().Err(err).Msg("detectImage 请求scanner服务出错")
 		return err

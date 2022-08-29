@@ -10,6 +10,7 @@ import (
 	"time"
 
 	json "github.com/json-iterator/go"
+	"gitlab.com/security-rd/go-pkg/httputil"
 	"gitlab.com/security-rd/go-pkg/logging"
 )
 
@@ -52,7 +53,7 @@ func (llmc *LocalLayerManageClient) GetLayer(ctx context.Context, username, pass
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Content-Length", strconv.Itoa(len(jsonStr)))
-	rsp, err := http.DefaultClient.Do(req)
+	rsp, err := httputil.DefaultClient.Do(req)
 	if err != nil {
 		logging.Get().Err(err).Msgf("client do req err")
 		return "", "", err
@@ -87,7 +88,7 @@ func (llmc *LocalLayerManageClient) DeleteLayer(ctx context.Context, digest stri
 	req.URL.RawQuery = q.Encode()
 
 	req.Header.Set("Content-Type", "application/json")
-	rsp, err := http.DefaultClient.Do(req)
+	rsp, err := httputil.DefaultClient.Do(req)
 	if err != nil {
 		return err
 	}

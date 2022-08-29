@@ -6,7 +6,6 @@ import (
 	"context"
 	"crypto/x509"
 	"encoding/base64"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -27,6 +26,7 @@ import (
 	dockerarchive "github.com/docker/docker/pkg/archive"
 	"github.com/go-redis/redis/v8"
 	"github.com/heroku/docker-registry-client/registry"
+	json "github.com/json-iterator/go"
 	layerManage "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/layer-manage"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
@@ -34,6 +34,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/flag"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
+	"gitlab.com/security-rd/go-pkg/httputil"
 	"gitlab.com/security-rd/go-pkg/logging"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -937,7 +938,7 @@ func (virusScan *VirusScan) webShellCall(ctx context.Context, reader io.Reader) 
 	req = req.WithContext(ctx)
 	req.Close = true
 
-	res, err := http.DefaultClient.Do(req)
+	res, err := httputil.DefaultClient.Do(req)
 	if err != nil {
 		return nil, err
 	}

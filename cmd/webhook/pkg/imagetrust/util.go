@@ -2,16 +2,18 @@ package imagetrust
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"gitlab.com/piccolo_su/vegeta/cmd/webhook/pkg/utils"
-	"gitlab.com/piccolo_su/vegeta/pkg/logging"
-	"gitlab.com/piccolo_su/vegeta/pkg/response"
-	"gitlab.com/piccolo_su/vegeta/pkg/util"
 	"io/ioutil"
 	"net/http"
 	"net/url"
 	"time"
+
+	json "github.com/json-iterator/go"
+	"gitlab.com/piccolo_su/vegeta/cmd/webhook/pkg/utils"
+	"gitlab.com/piccolo_su/vegeta/pkg/logging"
+	"gitlab.com/piccolo_su/vegeta/pkg/response"
+	"gitlab.com/piccolo_su/vegeta/pkg/util"
+	"gitlab.com/security-rd/go-pkg/httputil"
 )
 
 func checkRegistryUrl(ctx context.Context, image string) bool {
@@ -31,7 +33,7 @@ func checkRegistryUrl(ctx context.Context, image string) bool {
 		return false
 	}
 	var ImageRegs []ImageRegistry
-	err = util.HTTPRequest(ctx1, http.DefaultClient, req, func(resp *http.Response, err error) error {
+	err = util.HTTPRequest(ctx1, httputil.DefaultClient, req, func(resp *http.Response, err error) error {
 		if err != nil {
 			return err
 		}

@@ -19,6 +19,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 	"gitlab.com/security-rd/go-pkg/databases"
 	pkgelastic "gitlab.com/security-rd/go-pkg/elastic"
+	"gitlab.com/security-rd/go-pkg/httputil"
 	"gitlab.com/security-rd/go-pkg/logging"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -450,7 +451,7 @@ func (s *TensorDefenseService) GetBaitImageRepoInfo(ctx context.Context, imageNa
 	}
 	var images []*ImageDetail
 	var matchedImages []*ImageBase
-	err = util.HTTPRequest(ctx, http.DefaultClient, req, func(resp *http.Response, err error) error {
+	err = util.HTTPRequest(ctx, httputil.DefaultClient, req, func(resp *http.Response, err error) error {
 		if err != nil {
 			return errors.Errorf("request scanner imageList error: %v", err)
 		}
@@ -512,7 +513,7 @@ func (s *TensorDefenseService) GetImageRepoInfo(ctx context.Context, registryID 
 	}
 
 	var registry RegistryInfo
-	err = util.HTTPRequest(ctx, http.DefaultClient, req, func(resp *http.Response, err error) error {
+	err = util.HTTPRequest(ctx, httputil.DefaultClient, req, func(resp *http.Response, err error) error {
 		if err != nil {
 			return errors.Errorf("request scanner imageList error: %v", err)
 		}
