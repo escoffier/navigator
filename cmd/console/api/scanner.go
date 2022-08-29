@@ -86,8 +86,6 @@ func (api *api) scanner() func(chi.Router) {
 		r.Put("/imagereject/policy/single/{id}", api.RedirectToScanner())
 		r.Delete("/imagereject/policy/single/{id}", api.RedirectToScanner())
 
-		r.Post("/imagereject/scanone/cicd", api.RedirectToScanner())
-		r.Post("/imagereject/result/cicd", api.RedirectToScanner())
 		r.Post("/imagereject/online_moniter", api.RedirectToScanner())
 
 		r.Put("/tasks/{id}/status", api.RedirectToScanner())

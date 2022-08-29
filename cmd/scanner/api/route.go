@@ -129,8 +129,6 @@ func WebAPI(router *gin.Engine,
 		v5.DELETE("/policy/single/:id", apiRejectSrv.DeletePolicy)
 
 		v5.POST("/online_moniter", apiScannerSrv.TickOnlineScan)
-		v5.POST("/scanone/cicd", apiScannerSrv.ScanOneForDetectImage)
-		v5.POST("/result/cicd", apiScannerSrv.ScanOneForCICDRequest)
 		v5.GET("/result/file-checker", apiScannerSrv.GetFileChecker)
 
 		v5.GET("/reasons", apiRejectSrv.RejectReasons)
