@@ -3,14 +3,15 @@ package echelper
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"net/http"
 	"time"
 
+	json "github.com/json-iterator/go"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
+	"gitlab.com/security-rd/go-pkg/httputil"
 	"gitlab.com/security-rd/go-pkg/pb"
 )
 
@@ -56,7 +57,7 @@ func (c *SherlockClient) AddDetectionRule(ctx context.Context, rule *pb.Detectio
 		return err
 	}
 
-	rsp, err := http.DefaultClient.Do(req)
+	rsp, err := httputil.DefaultClient.Do(req)
 	if err != nil {
 		return err
 	}
@@ -92,7 +93,7 @@ func (c *SherlockClient) ResetCategoryRules(ctx context.Context, category string
 		return err
 	}
 
-	rsp, err := http.DefaultClient.Do(req)
+	rsp, err := httputil.DefaultClient.Do(req)
 	if err != nil {
 		return err
 	}
@@ -123,7 +124,7 @@ func (c *SherlockClient) RiskStats(ctx context.Context, clusterKey string) (map[
 		return nil, err
 	}
 
-	rsp, err := http.DefaultClient.Do(req)
+	rsp, err := httputil.DefaultClient.Do(req)
 	if err != nil {
 		return nil, err
 	}

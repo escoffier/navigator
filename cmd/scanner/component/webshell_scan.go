@@ -4,7 +4,6 @@ import (
 	"archive/tar"
 	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -16,10 +15,11 @@ import (
 	"time"
 
 	dockerarchive "github.com/docker/docker/pkg/archive"
-
+	json "github.com/json-iterator/go"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/global"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
+	"gitlab.com/security-rd/go-pkg/httputil"
 )
 
 type WebshellScan struct {
@@ -164,18 +164,17 @@ func (w *WebshellScan) webShellCall(ctx context.Context, reader io.Reader) (*mod
 		}
 	}()
 
-	req, err := http.NewRequest(http.MethodPost, w.WebshellAddr, reader)
+	tctx, cancel := context.WithTimeout(ctx, time.Duration(global.ScannerOpts.ScanWebshellTimeout)*time.Second)
+	defer cancel()
+	
+	req, err := http.NewRequestWithContext(tctx, http.MethodPost, w.WebshellAddr, reader)
 	if err != nil {
 		return nil, err
 	}
 	req = req.WithContext(ctx)
 	req.Close = true
 
-	var tmpClient = &http.Client{
-		Timeout: time.Duration(global.ScannerOpts.ScanWebshellTimeout) * time.Second,
-	}
-	res, err := tmpClient.Do(req)
-	// res, err := http.DefaultClient.Do(req)
+	res, err := httputil.DefaultClient.Do(req)
 	if err != nil {
 		logging.GetLogger().Err(err).Msg("request webshell server err")
 		return nil, err

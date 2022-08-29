@@ -9,6 +9,7 @@ import (
 
 	json "github.com/json-iterator/go"
 	"gitlab.com/security-rd/go-pkg/logging"
+	"gitlab.com/security-rd/go-pkg/httputil"
 )
 
 type Client struct {
@@ -58,7 +59,7 @@ func (icc *Client) GetManifest(username, password, url, repository, tag string, 
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Content-Length", strconv.Itoa(len(jsonStr)))
-	rsp, err := http.DefaultClient.Do(req)
+	rsp, err := httputil.DefaultClient.Do(req)
 	if err != nil {
 		logging.Get().Err(err).Msg("client do req err")
 		return "", err
@@ -97,7 +98,7 @@ func (icc *Client) GetLayer(username, password, url, repository, digest string, 
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Content-Length", strconv.Itoa(len(jsonStr)))
-	rsp, err := http.DefaultClient.Do(req)
+	rsp, err := httputil.DefaultClient.Do(req)
 	if err != nil {
 		logging.Get().Err(err).Msg("client do req err")
 		return "", "", err
@@ -132,7 +133,7 @@ func (icc *Client) DeleteLayer(digest string) error {
 	req.URL.RawQuery = q.Encode()
 
 	req.Header.Set("Content-Type", "application/json")
-	rsp, err := http.DefaultClient.Do(req)
+	rsp, err := httputil.DefaultClient.Do(req)
 	if err != nil {
 		return err
 	}

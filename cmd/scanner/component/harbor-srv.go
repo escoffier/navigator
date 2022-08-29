@@ -11,13 +11,13 @@ import (
 
 	"github.com/avast/retry-go"
 	"github.com/go-redis/redis/v8"
-
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
+	"gitlab.com/security-rd/go-pkg/httputil"
 )
 
 type HarborSvc interface {
@@ -71,7 +71,7 @@ func (hb *Harbor) reqHarbor(ctx context.Context, url string, username string, pa
 
 	err = util.RetryWithBackoff(ctx, func() error {
 		var err error
-		resp, err = http.DefaultClient.Do(req.WithContext(ctx))
+		resp, err = httputil.DefaultClient.Do(req.WithContext(ctx))
 		if err != nil {
 			return err
 		}

@@ -12,6 +12,7 @@ import (
 	"github.com/rs/zerolog"
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
+	"gitlab.com/security-rd/go-pkg/httputil"
 )
 
 const (
@@ -40,7 +41,7 @@ func (r *Redclair) scheduleLayerScanInClair(ctx context.Context, path, layerName
 	}
 	request.Header.Set("Content-Type", "application/json")
 
-	response, err := http.DefaultClient.Do(request.WithContext(ctx))
+	response, err := httputil.DefaultClient.Do(request.WithContext(ctx))
 	if err != nil {
 		return NewConnectionError(http.StatusInternalServerError, fmt.Errorf("Failed to send request to Clair: %w", err))
 	}
@@ -147,7 +148,7 @@ func (r *Redclair) fetchLayerVulnerabilitiesFromClair(ctx context.Context, layer
 		return NewerLayer{}, NewMalformedRequestError(http.StatusInternalServerError, fmt.Errorf("Failed to prepare request to Clair: %w", err))
 	}
 
-	response, err := http.DefaultClient.Do(request.WithContext(ctx))
+	response, err := httputil.DefaultClient.Do(request.WithContext(ctx))
 	if err != nil {
 		return NewerLayer{}, NewConnectionError(http.StatusInternalServerError, fmt.Errorf("Failed to send request to Clair: %w", err))
 	}

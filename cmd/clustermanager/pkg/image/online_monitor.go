@@ -285,7 +285,7 @@ func (s *OnlineMonitorCB) batchDetectImages(buffer map[string]model.RejectOnline
 	}
 	req.Header.Set("Content-Type", "application/json")
 
-	response, err := http.DefaultClient.Do(req)
+	response, err := httputil.DefaultClient.Do(req)
 	if err != nil {
 		logging.GetLogger().Err(err).Msg("detectImage 请求scanner服务出错")
 		return err

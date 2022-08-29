@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"gitlab.com/security-rd/go-pkg/logging"
 	"io/ioutil"
 	"net/http"
 	"strings"
@@ -18,6 +17,8 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 	"gitlab.com/security-rd/go-pkg/databases"
+	"gitlab.com/security-rd/go-pkg/httputil"
+	"gitlab.com/security-rd/go-pkg/logging"
 )
 
 const (
@@ -533,7 +534,7 @@ func (rl *TensorResourcesService) getImageFromScanner(ctx context.Context, tcs [
 		return nil, err
 	}
 	var images []*ImageResponse
-	err = util.HTTPRequest(ctx, http.DefaultClient, req, func(resp *http.Response, err error) error {
+	err = util.HTTPRequest(ctx, httputil.DefaultClient, req, func(resp *http.Response, err error) error {
 		if err != nil {
 			return err
 		}

@@ -17,6 +17,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
+	"gitlab.com/security-rd/go-pkg/httputil"
 	k8sErrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -124,7 +125,7 @@ func (s *Service) sendRequestToMicroSeg(ctx context.Context, pods []*model.PodIn
 		return nil, err
 	}
 
-	rsp, err := http.DefaultClient.Do(req)
+	rsp, err := httputil.DefaultClient.Do(req)
 	if err != nil {
 		return nil, err
 	}

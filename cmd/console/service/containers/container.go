@@ -5,6 +5,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
+	"net/http"
+	"net/url"
+	"strings"
+	"sync"
+	"time"
+
 	"github.com/google/go-containerregistry/pkg/name"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/assets"
 	"gitlab.com/piccolo_su/vegeta/pkg/dal"
@@ -12,14 +19,9 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 	"gitlab.com/security-rd/go-pkg/databases"
+	"gitlab.com/security-rd/go-pkg/httputil"
 	"gitlab.com/security-rd/go-pkg/logging"
-	"io/ioutil"
 	"k8s.io/apimachinery/pkg/util/wait"
-	"net/http"
-	"net/url"
-	"strings"
-	"sync"
-	"time"
 )
 
 var (
@@ -158,7 +160,7 @@ func (s *TensorContainerService) getImageOverviewFromScanner(ctx context.Context
 	}
 	var imageRisks = make(map[uint32]*assets.ImageRiskOverview, len(tcs))
 	var items []*assets.ImageRiskOverview
-	err = util.HTTPRequest(ctx, http.DefaultClient, req, func(resp *http.Response, err error) error {
+	err = util.HTTPRequest(ctx, httputil.DefaultClient, req, func(resp *http.Response, err error) error {
 		if err != nil {
 			return err
 		}
@@ -230,7 +232,7 @@ func (s *TensorContainerService) getRegistryRiskFromScanner(ctx context.Context,
 	}
 	var imageRisks = make(map[string]*assets.RegistryRisks, len(tcs))
 	var items []*assets.RegistryRisks
-	err = util.HTTPRequest(ctx, http.DefaultClient, req, func(resp *http.Response, err error) error {
+	err = util.HTTPRequest(ctx, httputil.DefaultClient, req, func(resp *http.Response, err error) error {
 		if err != nil {
 			return err
 		}

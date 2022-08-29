@@ -15,6 +15,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/assets"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 	"gitlab.com/security-rd/go-pkg/logging"
+	"gitlab.com/security-rd/go-pkg/httputil"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/informers"
 	configmaplister "k8s.io/client-go/listers/core/v1"
@@ -146,7 +147,7 @@ func getK8sClusterInfo(ctx context.Context, host string) (*TensorCluster, error)
 	}
 
 	clusterInfo := TensorCluster{}
-	err = util.HTTPRequest(ctx, http.DefaultClient, req, func(resp *http.Response, err error) error {
+	err = util.HTTPRequest(ctx, httputil.DefaultClient, req, func(resp *http.Response, err error) error {
 		// logging.Get().Debug().Msgf("%s/internal/cluster", host)
 		if err != nil {
 			return err
