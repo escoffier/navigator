@@ -25,6 +25,7 @@
 #define BasePath            ("/host")
 #define DAEMON_UNIX         ("/tmp/setns.sock")
 #define MATCH_SUCC          (1)
+#define GET_DATA_SUCC       (2)
 #define EBPF_SUCC           (1)
 
 typedef unsigned char		UCHAR;

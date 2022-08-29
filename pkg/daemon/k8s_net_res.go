@@ -7,16 +7,17 @@ import (
 )
 
 const (
-	RCV_ADDR   = 1
-	SND_ADDR   = 2
-	MATCH_SUCC = 1
+	RCV_ADDR      = 1
+	SND_ADDR      = 2
+	MATCH_SUCC    = 1
+	GET_DATA_SUCC = 2
 )
 
 const (
-	DATA_SETNS       = 0
-	DATA_EBPF        = 1
-	DATA_FILTER      = 2
-	DATA_EBPF_STATE  = 3
+	DATA_SETNS      = 0
+	DATA_EBPF       = 1
+	DATA_FILTER     = 2
+	DATA_EBPF_STATE = 3
 )
 
 const (

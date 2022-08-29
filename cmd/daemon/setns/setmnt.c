@@ -502,7 +502,7 @@ int GetProcessWithTcp(PidAssMnt *mnt, int pidNums, int pids[], int filesNum, cha
     FILE *fp;
     char buf[1024], netdata[6][33];
     char *localIp, *inode;
-    int localPort, state, ret, i, lineNum, pid = 0;
+    int localPort, state, i, lineNum, pid = 0, ret = -1;
     if((!pstProcData) || (!mnt)) return -2;
     //set default value
     memset(pstProcData, 0, sizeof(ProcessData));
@@ -549,24 +549,15 @@ int GetProcessWithTcp(PidAssMnt *mnt, int pidNums, int pids[], int filesNum, cha
             if(ret != 0) break;
             //get process name by pid
             ret = GetProcessName(pid, "", pstProcData->procname);
-            if(ret != 0) LOG_ERROR("get tcp process name failed! pid : %d, %s.", pid, PrintAddress(mnt));
+            if(ret != 0) {
+                LOG_ERROR("get tcp process name failed! pid : %d, %s.", pid, PrintAddress(mnt));
+            } else {
+                pstProcData->status = GET_DATA_SUCC;
+            }
             break;
         }
         fclose(fp);
         if(pstProcData->status != 0) break;
-    }
-    //save pid
-    pstProcData->pid = pid;
-    //set default pid
-    if(pstProcData->status != MATCH_SUCC)
-    {
-        pid = pids[0];
-        pstProcData->pid = pid;
-        //get process name by pid
-        ret = GetProcessName(pid, "", pstProcData->procname);
-        if(ret != 0) LOG_ERROR("get tcp process name failed by default pid! pid : %d, %s.", pid, PrintAddress(mnt));
-        //print information
-        //LOG_WARN("get tcp default process, pid : %d, process name : %s, %s.", pid, pstProcData->procname, PrintAddress(mnt));
     }
     //return
     return ret;
@@ -577,7 +568,7 @@ int GetProcessWithUdp(PidAssMnt *mnt, int pidNums, int pids[], int filesNum, cha
     FILE *fp;
     char buf[1024], netdata[6][33];
     char *localIp, *inode;
-    int localPort, state, ret, i, lineNum, pid = 0;
+    int localPort, state, i, lineNum, pid = 0, ret = -1;
     if((!pstProcData) || (!mnt)) return -2;
     //set default value
     memset(pstProcData, 0, sizeof(ProcessData));
@@ -619,25 +610,17 @@ int GetProcessWithUdp(PidAssMnt *mnt, int pidNums, int pids[], int filesNum, cha
             if(ret != 0) BREAK_ERROR("match udp inode failed! need enter other container, inode : %s.", inode);
             //get process name by pid
             ret = GetProcessName(pid, "", pstProcData->procname);
-            if(ret != 0) LOG_ERROR("get udp process name failed! pid : %d, %s.", pid, PrintAddress(mnt));
+            if(ret != 0) {
+                LOG_ERROR("get udp process name failed! pid : %d, %s.", pid, PrintAddress(mnt));
+            } else {
+                pstProcData->status = GET_DATA_SUCC;
+            }
             break;
         }
         fclose(fp);
         if(pstProcData->status != 0) break;
     }
-    //save pid
-    pstProcData->pid = pid;
-    //set default pid
-    if(pstProcData->status != MATCH_SUCC)
-    {
-        pid = pids[0];
-        pstProcData->pid = pid;
-        //get process name by pid
-        ret = GetProcessName(pid, "", pstProcData->procname);
-        if(ret != 0) LOG_ERROR("get udp process name failed by default pid! pid : %d, %s.", pid, PrintAddress(mnt));
-        //print information
-        LOG_WARN("get udp default process, pid : %d, process name : %s, %s.", pid, pstProcData->procname, PrintAddress(mnt));
-    }
+
     //return
     return ret;
 }
@@ -645,8 +628,9 @@ int GetProcessWithUdp(PidAssMnt *mnt, int pidNums, int pids[], int filesNum, cha
 int GetProcessData(PidAssMnt *mnt, ProcessData *pstProcData)
 {
     int pidNums = 30, filesNum = 2;
-    int ret, pids[30];
+    int ret, pids[30], pid;
     char files[20][128];
+    const char *pcDefPath = NULL;
     if((!mnt) || (!pstProcData)) return -2;
     if(pidNums > (sizeof(pids) / sizeof(int))) return -3;
     //set 0
@@ -670,6 +654,34 @@ int GetProcessData(PidAssMnt *mnt, ProcessData *pstProcData)
             LOG_ERROR("proto is error, proto : %d.", mnt->proto);
             return -4;
     }
+    //status
+    switch(pstProcData->status)
+    {
+        case 0:
+            //unshare mnt
+            unshare(CLONE_NEWNS);
+            //set local mnt
+            SetLocalMntNs();
+            //set default pid
+            pid = mnt->pid;
+            pcDefPath = BasePath;
+            break;
+        case GET_DATA_SUCC:
+            return 0;
+        case MATCH_SUCC:
+            pid = pids[0];
+            pcDefPath = "";
+            break;
+        default:
+            LOG_ERROR("get process status is error! pid : %d, %s.", pstProcData->pid, PrintAddress(mnt));
+            break;
+    }
+    //set default
+    pstProcData->pid =pid;
+    //get process name by pid
+    ret = GetProcessName(pid, pcDefPath, pstProcData->procname);
+    if(ret != 0) LOG_ERROR("get tcp process name failed by default pid! pid : %d, %s.", pid, PrintAddress(mnt));
+    //print information
 
     return ret;
 }

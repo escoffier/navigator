@@ -670,6 +670,10 @@ func (fs *FlowSession) GetProcessName(netinfo *daemon.PidAssociateMnt) (*daemon.
 }
 
 func (fs *FlowSession) GetContainerProcessName(addrType uint8, res *daemon.K8sResData, tuple *daemon.FiveTuple) (*daemon.ProcessInfo, error) {
+	//default value
+	var defValue daemon.ProcessInfo
+	defValue.Pid = 0
+	//list containers
 	for _, containerData := range res.ContainerInfo {
 		//logging.Get().Info().Msgf("get pid : %v, ns : %v, pod name : %v, %+v", pid, namespace, podname, *tuple)
 		netInfo := &daemon.PidAssociateMnt{
@@ -681,25 +685,34 @@ func (fs *FlowSession) GetContainerProcessName(addrType uint8, res *daemon.K8sRe
 		//get process
 		pInfo, err := fs.GetProcessName(netInfo)
 		if err != nil {
-			logging.Get().Warn().Msgf("get process failed, namespace : %v, pod name : %v, tuple : %+v, error : %v", res.Namespace, res.PodName, *tuple, err)
+			logging.Get().Warn().Msgf("get process failed, ns : %v, pod : %v, tuple : %+v, container : %v, error : %v", res.Namespace, res.PodName, *tuple, containerData.ContainerName, err)
 			continue
 		}
 		//container name
 		pInfo.ContainerName = containerData.ContainerName
-		//
-		if pInfo.Status != daemon.MATCH_SUCC {
-			if len(res.ContainerInfo) > 1 {
-				pInfo.ProcName = "unknown"
-				pInfo.ContainerName = "unknown"
-				pInfo.Pid = 0
+		//success
+		if pInfo.Status == daemon.GET_DATA_SUCC {
+			return pInfo, nil
+		}
+		//status
+		if len(res.ContainerInfo) == 1 {
+			if pInfo.Pid == 0 || len(pInfo.ProcName) == 0 {
+				return nil, errors.Errorf("process info error, ns : %v, pod : %v, tuple : %+v, container : %v, error : %v", res.Namespace, res.PodName, *tuple, containerData.ContainerName, err)
 			}
+			return pInfo, nil
 		} else {
-			if pInfo.Pid == 0 {
-				continue
+			if defValue.Pid == 0 && pInfo.Pid != 0 {
+				defValue.Pid = pInfo.Pid
+				defValue.Status = pInfo.Status
+				defValue.Timeout = pInfo.Timeout
+				defValue.ProcName = pInfo.ProcName
+				defValue.ContainerName = pInfo.ContainerName
 			}
 		}
+	}
 
-		return pInfo, nil
+	if defValue.Pid != 0 {
+		return &defValue, nil
 	}
 
 	return nil, errors.Errorf("container error, namespace : %v, pod name : %v, tuple : %+v", res.Namespace, res.PodName, *tuple)
@@ -841,7 +854,7 @@ func (fs *FlowSession) ProcSessionData(netSession *daemon.NetSessionLink) error 
 	dst, dstErr := fs.nodePodsInfo.GetPodDataByPodIP(netSession.Reply.SrcIp)
 	if err != nil && dstErr != nil {
 		logging.Get().Warn().Msgf("query k8s resource failed. %+v", *netSession)
-		return err
+		return nil
 	}
 	//network flow
 	netData := new(model.TensorNetworkFlow)
