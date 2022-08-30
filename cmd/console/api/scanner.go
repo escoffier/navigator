@@ -127,6 +127,31 @@ func (api *api) scanner() func(chi.Router) {
 		r.Post("/syncImage/startSync", api.RedirectToScanner())
 		r.Get("/syncImage/syncProgress", api.RedirectToScanner())
 		r.Get("/syncImage/syncStatus", api.RedirectToScanner())
+
+		r.Post("/ci/policy", api.RedirectToScanner())
+		r.Get("/ci/policy", api.RedirectToScanner())
+		r.Put("/ci/policy", api.RedirectToScanner())
+		r.Delete("/ci/policy", api.RedirectToScanner())
+		r.Get("/ci/policies", api.RedirectToScanner())
+		r.Get("/ci/images", api.RedirectToScanner())
+		r.Get("/ci/image", api.RedirectToScanner())
+		r.Get("/ci/statistic/image", api.RedirectToScanner())
+		r.Get("/ci/statistic/top5", api.RedirectToScanner())
+
+		r.Get("/ci/vulns", api.RedirectToScanner())
+		r.Get("/ci/pkgs", api.RedirectToScanner())
+		r.Get("/ci/whitelist", api.RedirectToScanner())
+		r.Post("/ci/whitelists", api.RedirectToScanner())
+		r.Delete("/ci/whitelist", api.RedirectToScanner())
+		r.Put("/ci/whitelists", api.RedirectToScanner())
+		r.Post("/ci/result", api.RedirectToScanner())
+		r.Get("/ci/webhook", api.RedirectToScanner())
+		r.Post("/ci/webhook", api.RedirectToScanner())
+		r.Put("/ci/webhook", api.RedirectToScanner())
+		r.Get("/ci/webhook/record", api.RedirectToScanner())
+		r.Get("/ci/vuln/detail", api.RedirectToScanner())
+		r.Get("/ci/image/whitelist", api.RedirectToScanner())
+		r.Get("/ci/sensitives", api.RedirectToScanner())
 	}
 }
 
@@ -225,6 +250,16 @@ func (api *api) scannerOpenApi() func(router chi.Router) {
 		r.With(RateLimitMiddleware(api.redisClient, int64(rate))).
 			Get("/vulns/topNImage", api.ForwardScannerOpenApi())
 
+		r.With(RateLimitMiddleware(api.redisClient, int64(rate))).
+			Get("/ci/policies", api.ForwardScannerOpenApi())
+		r.With(RateLimitMiddleware(api.redisClient, int64(rate))).
+			Get("/ci/policy/{name}", api.ForwardScannerOpenApi())
+		r.With(RateLimitMiddleware(api.redisClient, int64(rate))).
+			Post("/ci/result", api.ForwardScannerOpenApi())
+		r.With(RateLimitMiddleware(api.redisClient, int64(rate))).
+			Get("/ci/tidb/version", api.ForwardScannerOpenApi())
+		r.With(RateLimitMiddleware(api.redisClient, int64(rate))).
+			Get("/ci/tidb/assets/{name}", api.ForwardScannerOpenApi())
 		r.With(RateLimitMiddleware(api.redisClient, int64(rate))).
 			Post("/register/registry", api.ForwardScannerOpenApi())
 

@@ -20,11 +20,17 @@ const (
 	queyrKeyCurSettingVersion = "curSettingVersion"
 )
 
-func LoadAttackRules(ctx context.Context, consoleAddr string, curDataVersion, curSettingVersion int64) (*model.LatestATTCKRuleInfo, error) {
-	tctx, cancel := context.WithTimeout(ctx, 2*time.Second)
-	defer cancel()
+var (
+	attackClient *http.Client
+)
 
-	url := fmt.Sprintf("%s/api/openapi/ATTCK/latestData", consoleAddr)
+func init() {
+	attackClient = httputil.NewClientWithDefault()
+	attackClient.Timeout = 10 * time.Second
+}
+
+func LoadAttackRules(ctx context.Context, addr string, curDataVersion, curSettingVersion int64) (*model.LatestATTCKRuleInfo, error) {
+	url := fmt.Sprintf("%s/api/openapi/ATTCK/latestData", addr)
 	firstQuery := true
 	if curDataVersion > 0 {
 		connector := "&"
@@ -43,14 +49,14 @@ func LoadAttackRules(ctx context.Context, consoleAddr string, curDataVersion, cu
 		firstQuery = false
 	}
 
-	req, err := http.NewRequestWithContext(tctx, http.MethodGet, url, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		logging.GetLogger().Err(err).Msgf("Create request error. url: %s", url)
 		return nil, err
 	}
 
 	req.Header.Set(tokenHeader, token)
-	resp, err := httputil.DefaultClient.Do(req)
+	resp, err := attackClient.Do(req)
 	if err != nil {
 		logging.GetLogger().Err(err).Msgf("request error. url: %s", url)
 		return nil, err

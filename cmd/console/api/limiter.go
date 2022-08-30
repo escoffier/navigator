@@ -38,6 +38,7 @@ func RateLimitMiddleware(redisClient *redis.Client, burst int64) ChiMiddleware {
 			key := fmt.Sprintf("limit-%s-%s", chi.RouteContext(r.Context()).RoutePattern(), r.Method)
 
 			allow, err := bucket.Allow(key)
+			logging.GetLogger().Debug().Str("rateLimitKey", key).Bool("allow", allow).Msg("rate limit")
 			if err != nil {
 				// 内部组件出错，不阻断请求
 				logging.GetLogger().Error().Err(err).Msg(bucket.Msg())
@@ -67,8 +68,8 @@ func (tl *TokenLimiter) Msg() string {
 
 var script = redis.NewScript(`
 local exist = redis.call('setnx', KEYS[1], 1) 
-   redis.call('expire', KEYS[1], tonumber(ARGV[2]))
   if  exist > 0 then
+     redis.call('expire', KEYS[1], tonumber(ARGV[2]))
      return exist
    end
    local current = tonumber(redis.call('get', KEYS[1]))
@@ -96,6 +97,7 @@ func (tl *TokenLimiter) Allow(key string) (bool, error) {
 		logging.GetLogger().Error().Err(fmt.Errorf("assertion error")).Interface("result", result).Str("type", fmt.Sprintf("%T", result))
 		return true, nil
 	}
+	logging.GetLogger().Debug().Interface("result", result).Int64("allow", allow).Str("key", key).Msg("token limiter")
 
 	return allow > 0, nil
 }

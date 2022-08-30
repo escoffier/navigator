@@ -148,14 +148,6 @@ webshell-server: 		## Build cleaner binary
 	#upx --lzma --best dist/webshell-server
 	docker build -t $(REPOPREFIX)/webshell-server:latest -f ./build/webshell-server/Dockerfile .
 
-.PHONY: scanner-cicd
-scanner-cicd: generate
-	echo "+ $@"
-	go build -v \
-                --ldflags "$(LDFLAGS) -X gitlab.com/piccolo_su/vegeta/cmd/scanner-cicd/cmd.Version=$(VERSION)" \
-                -o dist/scanner-cicd gitlab.com/piccolo_su/vegeta/cmd/scanner-cicd
-	#upx --lzma --best dist/scanner-cicd
-
 .PHONY: safe-node-image
 safe-node-image: generate
 	echo "+ $@"
@@ -382,7 +374,7 @@ cluster-proxy: generate
 	docker build -t $(REPOPREFIX)/cluster-proxy:latest -f ./build/cluster-proxy/Dockerfile .
 
 .PHONY: all
-all: drift-prevention-client faulty scanner scanner-cicd scarecrow console data holmes daemon  \
+all: drift-prevention-client faulty scanner scarecrow console data holmes daemon  \
 webshell-server webhook cluster-manager kafka-proxy safe-node-image kube-scanner-report platform-report \
 scan_report apiscan-job cluster-proxy
 
