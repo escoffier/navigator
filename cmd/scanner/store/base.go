@@ -17,6 +17,7 @@ var scannerDB *databases.RDBInstance
 var scannerOrm *ScannerOrm
 var scannerDb *ScannerDB // todo: should be deprecated
 var scanConfigDao *ScanConfigDao
+var ciDao *CiDao
 var redisClients []*redis.Client = make([]*redis.Client, 2)
 
 func InitDb(loglevel string) (err error) {
@@ -37,6 +38,7 @@ func InitDb(loglevel string) (err error) {
 		scanConfigDao = NewScanConfigDao(scannerDB)
 		// todo: should be deprecated
 		scannerDb = NewScannerDB(scannerDB)
+		ciDao = NewCiDao(scannerDB)
 	})
 
 	return
@@ -56,6 +58,10 @@ func GetScannerOrmDb() *ScannerOrm {
 
 func GetScannerDb() *ScannerDB {
 	return scannerDb
+}
+
+func GetCiDb() ScanCiInterface {
+	return ciDao
 }
 
 func InitRedisClient() error {

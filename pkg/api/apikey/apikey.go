@@ -47,11 +47,10 @@ type DB struct {
 func init() {
 	db := &DB{}
 	//hard code user and key
-	tmpkey, err := db.InsertAPIKey(scannerUser, []byte(scannerApiKey))
+	_, err := db.InsertAPIKey(scannerUser, []byte(scannerApiKey))
 	if err != nil {
 		fmt.Println("insert api key err", err)
 	}
-	fmt.Println("tmpkey", string(tmpkey.Value()))
 	g, _ := api.NewGuard(
 		db,
 	)

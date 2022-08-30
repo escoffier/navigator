@@ -1,0 +1,54 @@
+package vulnmatch
+
+import (
+	dbTypes "github.com/aquasecurity/trivy-db/pkg/types"
+	"scm.tensorsecurity.cn/tensorsecurity-rd/trivy/pkg/commands/artifact"
+	"scm.tensorsecurity.cn/tensorsecurity-rd/trivy/pkg/commands/option"
+	"scm.tensorsecurity.cn/tensorsecurity-rd/trivy/pkg/log"
+	"scm.tensorsecurity.cn/tensorsecurity-rd/trivy/pkg/types"
+	"scm.tensorsecurity.cn/tensorsecurity-rd/trivy/pkg/utils"
+	"strings"
+)
+
+const (
+	Severities = "UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL"
+)
+
+func InitOption() artifact.Option {
+	// init report display severity
+	s := splitSeverity(Severities)
+
+	opt := artifact.Option{
+		GlobalOption: option.GlobalOption{
+			AppVersion: "dev",
+			Quiet:      false,
+			Debug:      true,
+			CacheDir:   utils.DefaultCacheDir(),
+		},
+		ArtifactOption: option.ArtifactOption{
+			OfflineScan: true,
+		},
+		ReportOption: option.ReportOption{
+			SecurityChecks: []string{types.SecurityCheckVulnerability},
+			VulnType:       []string{types.VulnTypeOS, types.VulnTypeLibrary},
+			Format:         "table", // default output
+			Severities:     s,
+		},
+		DBOption: option.DBOption{
+			SkipDBUpdate: false,
+		},
+	}
+	return opt
+}
+
+func splitSeverity(severity string) []dbTypes.Severity {
+	var severities []dbTypes.Severity
+	for _, s := range strings.Split(severity, ",") {
+		severity, err := dbTypes.NewSeverity(s)
+		if err != nil {
+			log.Logger.Warnf("unknown severity option: %s", err)
+		}
+		severities = append(severities, severity)
+	}
+	return severities
+}

@@ -1,0 +1,342 @@
++--------------+------------------+----------+------------------------+--------------------------+---------------------------------------+
+|   LIBRARY    | VULNERABILITY ID | SEVERITY |   INSTALLED VERSION    |      FIXED VERSION       |                 TITLE                 |
++--------------+------------------+----------+------------------------+--------------------------+---------------------------------------+
+| bash         | CVE-2019-18276   | LOW      | 4.4.18-2ubuntu1.2      | 4.4.18-2ubuntu1.3        | bash: when effective UID is not       |
+|              |                  |          |                        |                          | equal to its real UID the...          |
+|              |                  |          |                        |                          | -->avd.aquasec.com/nvd/cve-2019-18276 |
++--------------+------------------+          +------------------------+--------------------------+---------------------------------------+
+| coreutils    | CVE-2016-2781    |          | 8.28-1ubuntu1          |                          | coreutils: Non-privileged             |
+|              |                  |          |                        |                          | session can escape to the             |
+|              |                  |          |                        |                          | parent session in chroot              |
+|              |                  |          |                        |                          | -->avd.aquasec.com/nvd/cve-2016-2781  |
++--------------+------------------+----------+------------------------+--------------------------+---------------------------------------+
+| dpkg         | CVE-2022-1664    | MEDIUM   | 1.19.0.5ubuntu2.3      | 1.19.0.5ubuntu2.4        | Dpkg::Source::Archive in              |
+|              |                  |          |                        |                          | dpkg, the Debian package              |
+|              |                  |          |                        |                          | management system, b ...              |
+|              |                  |          |                        |                          | -->avd.aquasec.com/nvd/cve-2022-1664  |
++--------------+------------------+          +------------------------+--------------------------+---------------------------------------+
+| e2fsprogs    | CVE-2022-1304    |          | 1.44.1-1ubuntu1.3      | 1.44.1-1ubuntu1.4        | e2fsprogs: out-of-bounds              |
+|              |                  |          |                        |                          | read/write via crafted filesystem     |
+|              |                  |          |                        |                          | -->avd.aquasec.com/nvd/cve-2022-1304  |
++--------------+------------------+          +------------------------+--------------------------+---------------------------------------+
+| gcc-8-base   | CVE-2020-13844   |          | 8.4.0-1ubuntu1~18.04   |                          | kernel: ARM straight-line             |
+|              |                  |          |                        |                          | speculation vulnerability             |
+|              |                  |          |                        |                          | -->avd.aquasec.com/nvd/cve-2020-13844 |
++--------------+------------------+          +------------------------+--------------------------+---------------------------------------+
+| gpgv         | CVE-2022-34903   |          | 2.2.4-1ubuntu1.4       | 2.2.4-1ubuntu1.6         | gpg: Signature spoofing               |
+|              |                  |          |                        |                          | via status line injection             |
+|              |                  |          |                        |                          | -->avd.aquasec.com/nvd/cve-2022-34903 |
++              +------------------+----------+                        +--------------------------+---------------------------------------+
+|              | CVE-2019-13050   | LOW      |                        | 2.2.4-1ubuntu1.5         | GnuPG: interaction between the        |
+|              |                  |          |                        |                          | sks-keyserver code and GnuPG          |
+|              |                  |          |                        |                          | allows for a Certificate...           |
+|              |                  |          |                        |                          | -->avd.aquasec.com/nvd/cve-2019-13050 |
++--------------+------------------+----------+------------------------+--------------------------+---------------------------------------+
+| gzip         | CVE-2022-1271    | MEDIUM   | 1.6-5ubuntu1.1         | 1.6-5ubuntu1.2           | gzip: arbitrary-file-write            |
+|              |                  |          |                        |                          | vulnerability                         |
+|              |                  |          |                        |                          | -->avd.aquasec.com/nvd/cve-2022-1271  |
++--------------+------------------+          +------------------------+--------------------------+---------------------------------------+
+| libc-bin     | CVE-2021-3999    |          | 2.27-3ubuntu1.4        | 2.27-3ubuntu1.5          | glibc: Off-by-one buffer              |
+|              |                  |          |                        |                          | overflow/underflow in getcwd()        |
+|              |                  |          |                        |                          | -->avd.aquasec.com/nvd/cve-2021-3999  |
++              +------------------+----------+                        +--------------------------+---------------------------------------+
+|              | CVE-2009-5155    | LOW      |                        |                          | glibc: parse_reg_exp in               |
+|              |                  |          |                        |                          | posix/regcomp.c misparses             |
+|              |                  |          |                        |                          | alternatives leading to               |
+|              |                  |          |                        |                          | denial of service or...               |
+|              |                  |          |                        |                          | -->avd.aquasec.com/nvd/cve-2009-5155  |
++              +------------------+          +                        +--------------------------+---------------------------------------+
+|              | CVE-2015-8985    |          |                        |                          | glibc: potential denial of            |
+|              |                  |          |                        |                          | service in pop_fail_stack()           |
+|              |                  |          |                        |                          | -->avd.aquasec.com/nvd/cve-2015-8985  |
++              +------------------+          +                        +--------------------------+---------------------------------------+
+|              | CVE-2016-10228   |          |                        | 2.27-3ubuntu1.5          | glibc: iconv program can hang         |
+|              |                  |          |                        |                          | when invoked with the -c option       |
+|              |                  |          |                        |                          | -->avd.aquasec.com/nvd/cve-2016-10228 |
++              +------------------+          +                        +--------------------------+---------------------------------------+
+|              | CVE-2016-20013   |          |                        |                          | sha256crypt and sha512crypt           |
+|              |                  |          |                        |                          | through 0.6 allow attackers           |
+|              |                  |          |                        |                          | to cause a denial of...               |
+|              |                  |          |                        |                          | -->avd.aquasec.com/nvd/cve-2016-20013 |
++              +------------------+          +                        +--------------------------+---------------------------------------+
+|              | CVE-2019-25013   |          |                        | 2.27-3ubuntu1.5          | glibc: buffer over-read in            |
+|              |                  |          |                        |                          | iconv when processing invalid         |
+|              |                  |          |                        |                          | multi-byte input sequences in...      |
+|              |                  |          |                        |                          | -->avd.aquasec.com/nvd/cve-2019-25013 |
++              +------------------+          +                        +                          +---------------------------------------+
+|              | CVE-2020-27618   |          |                        |                          | glibc: iconv when processing          |
+|              |                  |          |                        |                          | invalid multi-byte input              |
+|              |                  |          |                        |                          | sequences fails to advance the...     |
+|              |                  |          |                        |                          | -->avd.aquasec.com/nvd/cve-2020-27618 |
++              +------------------+          +                        +                          +---------------------------------------+
+|              | CVE-2020-29562   |          |                        |                          | glibc: assertion failure in iconv     |
+|              |                  |          |                        |                          | when converting invalid UCS4          |
+|              |                  |          |                        |                          | -->avd.aquasec.com/nvd/cve-2020-29562 |
++              +------------------+          +                        +                          +---------------------------------------+
+|              | CVE-2020-6096    |          |                        |                          | glibc: signed comparison              |
+|              |                  |          |                        |                          | vulnerability in the                  |
+|              |                  |          |                        |                          | ARMv7 memcpy function                 |
+|              |                  |          |                        |                          | -->avd.aquasec.com/nvd/cve-2020-6096  |
++              +------------------+          +                        +                          +---------------------------------------+
+|              | CVE-2021-3326    |          |                        |                          | glibc: Assertion failure in           |
+|              |                  |          |                        |                          | ISO-2022-JP-3 gconv module            |
+|              |                  |          |                        |                          | related to combining characters       |
+|              |                  |          |                        |                          | -->avd.aquasec.com/nvd/cve-2021-3326  |
++              +------------------+          +                        +                          +---------------------------------------+
+|              | CVE-2021-35942   |          |                        |                          | glibc: Arbitrary read in wordexp()    |
+|              |                  |          |                        |                          | -->avd.aquasec.com/nvd/cve-2021-35942 |
++              +------------------+          +                        +                          +---------------------------------------+
+|              | CVE-2022-23218   |          |                        |                          | glibc: Stack-based buffer overflow    |
+|              |                  |          |                        |                          | in svcunix_create via long pathnames  |
+|              |                  |          |                        |                          | -->avd.aquasec.com/nvd/cve-2022-23218 |
++              +------------------+          +                        +                          +---------------------------------------+
+|              | CVE-2022-23219   |          |                        |                          | glibc: Stack-based buffer             |
+|              |                  |          |                        |                          | overflow in sunrpc clnt_create        |
+|              |                  |          |                        |                          | via a long pathname                   |
+|              |                  |          |                        |                          | -->avd.aquasec.com/nvd/cve-2022-23219 |
++--------------+------------------+----------+                        +                          +---------------------------------------+
+| libc6        | CVE-2021-3999    | MEDIUM   |                        |                          | glibc: Off-by-one buffer              |
+|              |                  |          |                        |                          | overflow/underflow in getcwd()        |
+|              |                  |          |                        |                          | -->avd.aquasec.com/nvd/cve-2021-3999  |
++              +------------------+----------+                        +--------------------------+---------------------------------------+
+|              | CVE-2009-5155    | LOW      |                        |                          | glibc: parse_reg_exp in               |
+|              |                  |          |                        |                          | posix/regcomp.c misparses             |
+|              |                  |          |                        |                          | alternatives leading to               |
+|              |                  |          |                        |                          | denial of service or...               |
+|              |                  |          |                        |                          | -->avd.aquasec.com/nvd/cve-2009-5155  |
++              +------------------+          +                        +--------------------------+---------------------------------------+
+|              | CVE-2015-8985    |          |                        |                          | glibc: potential denial of            |
+|              |                  |          |                        |                          | service in pop_fail_stack()           |
+|              |                  |          |                        |                          | -->avd.aquasec.com/nvd/cve-2015-8985  |
++              +------------------+          +                        +--------------------------+---------------------------------------+
+|              | CVE-2016-10228   |          |                        | 2.27-3ubuntu1.5          | glibc: iconv program can hang         |
+|              |                  |          |                        |                          | when invoked with the -c option       |
+|              |                  |          |                        |                          | -->avd.aquasec.com/nvd/cve-2016-10228 |
++              +------------------+          +                        +--------------------------+---------------------------------------+
+|              | CVE-2016-20013   |          |                        |                          | sha256crypt and sha512crypt           |
+|              |                  |          |                        |                          | through 0.6 allow attackers           |
+|              |                  |          |                        |                          | to cause a denial of...               |
+|              |                  |          |                        |                          | -->avd.aquasec.com/nvd/cve-2016-20013 |
++              +------------------+          +                        +--------------------------+---------------------------------------+
+|              | CVE-2019-25013   |          |                        | 2.27-3ubuntu1.5          | glibc: buffer over-read in            |
+|              |                  |          |                        |                          | iconv when processing invalid         |
+|              |                  |          |                        |                          | multi-byte input sequences in...      |
+|              |                  |          |                        |                          | -->avd.aquasec.com/nvd/cve-2019-25013 |
++              +------------------+          +                        +                          +---------------------------------------+
+|              | CVE-2020-27618   |          |                        |                          | glibc: iconv when processing          |
+|              |                  |          |                        |                          | invalid multi-byte input              |
+|              |                  |          |                        |                          | sequences fails to advance the...     |
+|              |                  |          |                        |                          | -->avd.aquasec.com/nvd/cve-2020-27618 |
++              +------------------+          +                        +                          +---------------------------------------+
+|              | CVE-2020-29562   |          |                        |                          | glibc: assertion failure in iconv     |
+|              |                  |          |                        |                          | when converting invalid UCS4          |
+|              |                  |          |                        |                          | -->avd.aquasec.com/nvd/cve-2020-29562 |
++              +------------------+          +                        +                          +---------------------------------------+
+|              | CVE-2020-6096    |          |                        |                          | glibc: signed comparison              |
+|              |                  |          |                        |                          | vulnerability in the                  |
+|              |                  |          |                        |                          | ARMv7 memcpy function                 |
+|              |                  |          |                        |                          | -->avd.aquasec.com/nvd/cve-2020-6096  |
++              +------------------+          +                        +                          +---------------------------------------+
+|              | CVE-2021-3326    |          |                        |                          | glibc: Assertion failure in           |
+|              |                  |          |                        |                          | ISO-2022-JP-3 gconv module            |
+|              |                  |          |                        |                          | related to combining characters       |
+|              |                  |          |                        |                          | -->avd.aquasec.com/nvd/cve-2021-3326  |
++              +------------------+          +                        +                          +---------------------------------------+
+|              | CVE-2021-35942   |          |                        |                          | glibc: Arbitrary read in wordexp()    |
+|              |                  |          |                        |                          | -->avd.aquasec.com/nvd/cve-2021-35942 |
++              +------------------+          +                        +                          +---------------------------------------+
+|              | CVE-2022-23218   |          |                        |                          | glibc: Stack-based buffer overflow    |
+|              |                  |          |                        |                          | in svcunix_create via long pathnames  |
+|              |                  |          |                        |                          | -->avd.aquasec.com/nvd/cve-2022-23218 |
++              +------------------+          +                        +                          +---------------------------------------+
+|              | CVE-2022-23219   |          |                        |                          | glibc: Stack-based buffer             |
+|              |                  |          |                        |                          | overflow in sunrpc clnt_create        |
+|              |                  |          |                        |                          | via a long pathname                   |
+|              |                  |          |                        |                          | -->avd.aquasec.com/nvd/cve-2022-23219 |
++--------------+------------------+----------+------------------------+--------------------------+---------------------------------------+
+| libcom-err2  | CVE-2022-1304    | MEDIUM   | 1.44.1-1ubuntu1.3      | 1.44.1-1ubuntu1.4        | e2fsprogs: out-of-bounds              |
+|              |                  |          |                        |                          | read/write via crafted filesystem     |
+|              |                  |          |                        |                          | -->avd.aquasec.com/nvd/cve-2022-1304  |
++--------------+                  +          +                        +                          +                                       +
+| libext2fs2   |                  |          |                        |                          |                                       |
+|              |                  |          |                        |                          |                                       |
+|              |                  |          |                        |                          |                                       |
++--------------+------------------+          +------------------------+--------------------------+---------------------------------------+
+| libgcc1      | CVE-2020-13844   |          | 8.4.0-1ubuntu1~18.04   |                          | kernel: ARM straight-line             |
+|              |                  |          |                        |                          | speculation vulnerability             |
+|              |                  |          |                        |                          | -->avd.aquasec.com/nvd/cve-2020-13844 |
++--------------+------------------+          +------------------------+--------------------------+---------------------------------------+
+| libgcrypt20  | CVE-2021-40528   |          | 1.8.1-4ubuntu1.2       | 1.8.1-4ubuntu1.3         | libgcrypt: ElGamal implementation     |
+|              |                  |          |                        |                          | allows plaintext recovery             |
+|              |                  |          |                        |                          | -->avd.aquasec.com/nvd/cve-2021-40528 |
++              +------------------+----------+                        +                          +---------------------------------------+
+|              | CVE-2021-33560   | LOW      |                        |                          | libgcrypt: mishandles ElGamal         |
+|              |                  |          |                        |                          | encryption because it lacks           |
+|              |                  |          |                        |                          | exponent blinding to address a...     |
+|              |                  |          |                        |                          | -->avd.aquasec.com/nvd/cve-2021-33560 |
++--------------+------------------+          +------------------------+--------------------------+---------------------------------------+
+| libgnutls30  | CVE-2018-16868   |          | 3.5.18-1ubuntu1.4      |                          | gnutls: Bleichenbacher-like side      |
+|              |                  |          |                        |                          | channel leakage in PKCS#1 v1.5        |
+|              |                  |          |                        |                          | verification and padding oracle...    |
+|              |                  |          |                        |                          | -->avd.aquasec.com/nvd/cve-2018-16868 |
++--------------+------------------+----------+------------------------+--------------------------+---------------------------------------+
+| liblzma5     | CVE-2022-1271    | MEDIUM   | 5.2.2-1.3              | 5.2.2-1.3ubuntu0.1       | gzip: arbitrary-file-write            |
+|              |                  |          |                        |                          | vulnerability                         |
+|              |                  |          |                        |                          | -->avd.aquasec.com/nvd/cve-2022-1271  |
++--------------+------------------+----------+------------------------+--------------------------+---------------------------------------+
+| libncurses5  | CVE-2019-17594   | LOW      | 6.1-1ubuntu1.18.04     |                          | ncurses: heap-based buffer            |
+|              |                  |          |                        |                          | overflow in the _nc_find_entry        |
+|              |                  |          |                        |                          | function in tinfo/comp_hash.c         |
+|              |                  |          |                        |                          | -->avd.aquasec.com/nvd/cve-2019-17594 |
++              +------------------+          +                        +--------------------------+---------------------------------------+
+|              | CVE-2019-17595   |          |                        |                          | ncurses: heap-based buffer            |
+|              |                  |          |                        |                          | overflow in the fmt_entry             |
+|              |                  |          |                        |                          | function in tinfo/comp_hash.c         |
+|              |                  |          |                        |                          | -->avd.aquasec.com/nvd/cve-2019-17595 |
++              +------------------+          +                        +--------------------------+---------------------------------------+
+|              | CVE-2021-39537   |          |                        |                          | ncurses: heap-based buffer overflow   |
+|              |                  |          |                        |                          | in _nc_captoinfo() in captoinfo.c     |
+|              |                  |          |                        |                          | -->avd.aquasec.com/nvd/cve-2021-39537 |
++              +------------------+          +                        +--------------------------+---------------------------------------+
+|              | CVE-2022-29458   |          |                        |                          | ncurses: segfaulting OOB read         |
+|              |                  |          |                        |                          | -->avd.aquasec.com/nvd/cve-2022-29458 |
++--------------+------------------+          +                        +--------------------------+---------------------------------------+
+| libncursesw5 | CVE-2019-17594   |          |                        |                          | ncurses: heap-based buffer            |
+|              |                  |          |                        |                          | overflow in the _nc_find_entry        |
+|              |                  |          |                        |                          | function in tinfo/comp_hash.c         |
+|              |                  |          |                        |                          | -->avd.aquasec.com/nvd/cve-2019-17594 |
++              +------------------+          +                        +--------------------------+---------------------------------------+
+|              | CVE-2019-17595   |          |                        |                          | ncurses: heap-based buffer            |
+|              |                  |          |                        |                          | overflow in the fmt_entry             |
+|              |                  |          |                        |                          | function in tinfo/comp_hash.c         |
+|              |                  |          |                        |                          | -->avd.aquasec.com/nvd/cve-2019-17595 |
++              +------------------+          +                        +--------------------------+---------------------------------------+
+|              | CVE-2021-39537   |          |                        |                          | ncurses: heap-based buffer overflow   |
+|              |                  |          |                        |                          | in _nc_captoinfo() in captoinfo.c     |
+|              |                  |          |                        |                          | -->avd.aquasec.com/nvd/cve-2021-39537 |
++              +------------------+          +                        +--------------------------+---------------------------------------+
+|              | CVE-2022-29458   |          |                        |                          | ncurses: segfaulting OOB read         |
+|              |                  |          |                        |                          | -->avd.aquasec.com/nvd/cve-2022-29458 |
++--------------+------------------+          +------------------------+--------------------------+---------------------------------------+
+| libpcre3     | CVE-2017-11164   |          | 2:8.39-9               |                          | pcre: OP_KETRMAX feature in the       |
+|              |                  |          |                        |                          | match function in pcre_exec.c         |
+|              |                  |          |                        |                          | -->avd.aquasec.com/nvd/cve-2017-11164 |
++              +------------------+          +                        +--------------------------+---------------------------------------+
+|              | CVE-2019-20838   |          |                        | 2:8.39-9ubuntu0.1        | pcre: Buffer over-read in JIT         |
+|              |                  |          |                        |                          | when UTF is disabled and \X or...     |
+|              |                  |          |                        |                          | -->avd.aquasec.com/nvd/cve-2019-20838 |
++              +------------------+          +                        +                          +---------------------------------------+
+|              | CVE-2020-14155   |          |                        |                          | pcre: Integer overflow when           |
+|              |                  |          |                        |                          | parsing callout numeric arguments     |
+|              |                  |          |                        |                          | -->avd.aquasec.com/nvd/cve-2020-14155 |
++--------------+------------------+          +------------------------+--------------------------+---------------------------------------+
+| libsepol1    | CVE-2021-36084   |          | 2.7-1                  | 2.7-1ubuntu0.1           | libsepol: use-after-free in           |
+|              |                  |          |                        |                          | __cil_verify_classperms()             |
+|              |                  |          |                        |                          | -->avd.aquasec.com/nvd/cve-2021-36084 |
++              +------------------+          +                        +                          +---------------------------------------+
+|              | CVE-2021-36085   |          |                        |                          | libsepol: use-after-free in           |
+|              |                  |          |                        |                          | __cil_verify_classperms()             |
+|              |                  |          |                        |                          | -->avd.aquasec.com/nvd/cve-2021-36085 |
++              +------------------+          +                        +                          +---------------------------------------+
+|              | CVE-2021-36086   |          |                        |                          | libsepol: use-after-free in           |
+|              |                  |          |                        |                          | cil_reset_classpermission()           |
+|              |                  |          |                        |                          | -->avd.aquasec.com/nvd/cve-2021-36086 |
++              +------------------+          +                        +                          +---------------------------------------+
+|              | CVE-2021-36087   |          |                        |                          | libsepol: heap-based buffer           |
+|              |                  |          |                        |                          | overflow in ebitmap_match_any()       |
+|              |                  |          |                        |                          | -->avd.aquasec.com/nvd/cve-2021-36087 |
++--------------+------------------+----------+------------------------+--------------------------+---------------------------------------+
+| libss2       | CVE-2022-1304    | MEDIUM   | 1.44.1-1ubuntu1.3      | 1.44.1-1ubuntu1.4        | e2fsprogs: out-of-bounds              |
+|              |                  |          |                        |                          | read/write via crafted filesystem     |
+|              |                  |          |                        |                          | -->avd.aquasec.com/nvd/cve-2022-1304  |
++--------------+------------------+          +------------------------+--------------------------+---------------------------------------+
+| libstdc++6   | CVE-2020-13844   |          | 8.4.0-1ubuntu1~18.04   |                          | kernel: ARM straight-line             |
+|              |                  |          |                        |                          | speculation vulnerability             |
+|              |                  |          |                        |                          | -->avd.aquasec.com/nvd/cve-2020-13844 |
++--------------+------------------+----------+------------------------+--------------------------+---------------------------------------+
+| libtinfo5    | CVE-2019-17594   | LOW      | 6.1-1ubuntu1.18.04     |                          | ncurses: heap-based buffer            |
+|              |                  |          |                        |                          | overflow in the _nc_find_entry        |
+|              |                  |          |                        |                          | function in tinfo/comp_hash.c         |
+|              |                  |          |                        |                          | -->avd.aquasec.com/nvd/cve-2019-17594 |
++              +------------------+          +                        +--------------------------+---------------------------------------+
+|              | CVE-2019-17595   |          |                        |                          | ncurses: heap-based buffer            |
+|              |                  |          |                        |                          | overflow in the fmt_entry             |
+|              |                  |          |                        |                          | function in tinfo/comp_hash.c         |
+|              |                  |          |                        |                          | -->avd.aquasec.com/nvd/cve-2019-17595 |
++              +------------------+          +                        +--------------------------+---------------------------------------+
+|              | CVE-2021-39537   |          |                        |                          | ncurses: heap-based buffer overflow   |
+|              |                  |          |                        |                          | in _nc_captoinfo() in captoinfo.c     |
+|              |                  |          |                        |                          | -->avd.aquasec.com/nvd/cve-2021-39537 |
++              +------------------+          +                        +--------------------------+---------------------------------------+
+|              | CVE-2022-29458   |          |                        |                          | ncurses: segfaulting OOB read         |
+|              |                  |          |                        |                          | -->avd.aquasec.com/nvd/cve-2022-29458 |
++--------------+------------------+          +------------------------+--------------------------+---------------------------------------+
+| login        | CVE-2013-4235    |          | 1:4.5-1ubuntu2         |                          | shadow-utils: TOCTOU race             |
+|              |                  |          |                        |                          | conditions by copying and             |
+|              |                  |          |                        |                          | removing directory trees              |
+|              |                  |          |                        |                          | -->avd.aquasec.com/nvd/cve-2013-4235  |
++              +------------------+          +                        +--------------------------+---------------------------------------+
+|              | CVE-2018-7169    |          |                        | 1:4.5-1ubuntu2.2         | shadow-utils: newgidmap               |
+|              |                  |          |                        |                          | allows unprivileged user to           |
+|              |                  |          |                        |                          | drop supplementary groups             |
+|              |                  |          |                        |                          | potentially allowing privilege...     |
+|              |                  |          |                        |                          | -->avd.aquasec.com/nvd/cve-2018-7169  |
++--------------+------------------+          +------------------------+--------------------------+---------------------------------------+
+| ncurses-base | CVE-2019-17594   |          | 6.1-1ubuntu1.18.04     |                          | ncurses: heap-based buffer            |
+|              |                  |          |                        |                          | overflow in the _nc_find_entry        |
+|              |                  |          |                        |                          | function in tinfo/comp_hash.c         |
+|              |                  |          |                        |                          | -->avd.aquasec.com/nvd/cve-2019-17594 |
++              +------------------+          +                        +--------------------------+---------------------------------------+
+|              | CVE-2019-17595   |          |                        |                          | ncurses: heap-based buffer            |
+|              |                  |          |                        |                          | overflow in the fmt_entry             |
+|              |                  |          |                        |                          | function in tinfo/comp_hash.c         |
+|              |                  |          |                        |                          | -->avd.aquasec.com/nvd/cve-2019-17595 |
++              +------------------+          +                        +--------------------------+---------------------------------------+
+|              | CVE-2021-39537   |          |                        |                          | ncurses: heap-based buffer overflow   |
+|              |                  |          |                        |                          | in _nc_captoinfo() in captoinfo.c     |
+|              |                  |          |                        |                          | -->avd.aquasec.com/nvd/cve-2021-39537 |
++              +------------------+          +                        +--------------------------+---------------------------------------+
+|              | CVE-2022-29458   |          |                        |                          | ncurses: segfaulting OOB read         |
+|              |                  |          |                        |                          | -->avd.aquasec.com/nvd/cve-2022-29458 |
++--------------+------------------+          +                        +--------------------------+---------------------------------------+
+| ncurses-bin  | CVE-2019-17594   |          |                        |                          | ncurses: heap-based buffer            |
+|              |                  |          |                        |                          | overflow in the _nc_find_entry        |
+|              |                  |          |                        |                          | function in tinfo/comp_hash.c         |
+|              |                  |          |                        |                          | -->avd.aquasec.com/nvd/cve-2019-17594 |
++              +------------------+          +                        +--------------------------+---------------------------------------+
+|              | CVE-2019-17595   |          |                        |                          | ncurses: heap-based buffer            |
+|              |                  |          |                        |                          | overflow in the fmt_entry             |
+|              |                  |          |                        |                          | function in tinfo/comp_hash.c         |
+|              |                  |          |                        |                          | -->avd.aquasec.com/nvd/cve-2019-17595 |
++              +------------------+          +                        +--------------------------+---------------------------------------+
+|              | CVE-2021-39537   |          |                        |                          | ncurses: heap-based buffer overflow   |
+|              |                  |          |                        |                          | in _nc_captoinfo() in captoinfo.c     |
+|              |                  |          |                        |                          | -->avd.aquasec.com/nvd/cve-2021-39537 |
++              +------------------+          +                        +--------------------------+---------------------------------------+
+|              | CVE-2022-29458   |          |                        |                          | ncurses: segfaulting OOB read         |
+|              |                  |          |                        |                          | -->avd.aquasec.com/nvd/cve-2022-29458 |
++--------------+------------------+          +------------------------+--------------------------+---------------------------------------+
+| passwd       | CVE-2013-4235    |          | 1:4.5-1ubuntu2         |                          | shadow-utils: TOCTOU race             |
+|              |                  |          |                        |                          | conditions by copying and             |
+|              |                  |          |                        |                          | removing directory trees              |
+|              |                  |          |                        |                          | -->avd.aquasec.com/nvd/cve-2013-4235  |
++              +------------------+          +                        +--------------------------+---------------------------------------+
+|              | CVE-2018-7169    |          |                        | 1:4.5-1ubuntu2.2         | shadow-utils: newgidmap               |
+|              |                  |          |                        |                          | allows unprivileged user to           |
+|              |                  |          |                        |                          | drop supplementary groups             |
+|              |                  |          |                        |                          | potentially allowing privilege...     |
+|              |                  |          |                        |                          | -->avd.aquasec.com/nvd/cve-2018-7169  |
++--------------+------------------+----------+------------------------+--------------------------+---------------------------------------+
+| perl-base    | CVE-2020-16156   | MEDIUM   | 5.26.1-6ubuntu0.5      |                          | perl-CPAN: Bypass of verification     |
+|              |                  |          |                        |                          | of signatures in CHECKSUMS files      |
+|              |                  |          |                        |                          | -->avd.aquasec.com/nvd/cve-2020-16156 |
++--------------+------------------+----------+------------------------+--------------------------+---------------------------------------+
+| tar          | CVE-2021-20193   | LOW      | 1.29b-2ubuntu0.2       | 1.29b-2ubuntu0.3         | tar: Memory leak in                   |
+|              |                  |          |                        |                          | read_header() in list.c               |
+|              |                  |          |                        |                          | -->avd.aquasec.com/nvd/cve-2021-20193 |
++--------------+------------------+----------+------------------------+--------------------------+---------------------------------------+
+| zlib1g       | CVE-2018-25032   | MEDIUM   | 1:1.2.11.dfsg-0ubuntu2 | 1:1.2.11.dfsg-0ubuntu2.1 | zlib: A flaw found in                 |
+|              |                  |          |                        |                          | zlib when compressing (not            |
+|              |                  |          |                        |                          | decompressing) certain inputs...      |
+|              |                  |          |                        |                          | -->avd.aquasec.com/nvd/cve-2018-25032 |
++--------------+------------------+----------+------------------------+--------------------------+---------------------------------------+
