@@ -114,7 +114,7 @@ func (i *HTTPRequestInfo) rulesUpdate() ([]byte, bool, bool, error) {
 func (i *HTTPRequestInfo) RulesUpdateLoop(udpateC chan<- struct{}, errorC chan error) {
 	randSec := rand.Int63n(5 * int64(time.Second/time.Nanosecond))
 	time.Sleep(time.Duration(randSec) * time.Nanosecond)
-	
+
 	for {
 		_, rulesUpdated, settingsUpdated, err := i.rulesUpdate()
 		if err != nil {
