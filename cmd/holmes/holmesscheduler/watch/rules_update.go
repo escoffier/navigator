@@ -112,6 +112,9 @@ func (i *HTTPRequestInfo) rulesUpdate() ([]byte, bool, bool, error) {
 	return tmpBytes, rulesUpdated, settingsUpdated, nil
 }
 func (i *HTTPRequestInfo) RulesUpdateLoop(udpateC chan<- struct{}, errorC chan error) {
+	randNano := rand.Int63n(3 * int64(time.Second/time.Nanosecond))
+	time.Sleep(time.Duration(randNano) * time.Nanosecond)
+
 	for {
 		_, rulesUpdated, settingsUpdated, err := i.rulesUpdate()
 		if err != nil {
@@ -126,8 +129,5 @@ func (i *HTTPRequestInfo) RulesUpdateLoop(udpateC chan<- struct{}, errorC chan e
 }
 
 func (i *HTTPRequestInfo) getData() (*model.LatestATTCKRuleInfo, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	return dal.LoadAttackRules(ctx, i.url, i.getCurrentRulesVersion(), i.getCurrentSettingVersion())
+	return dal.LoadAttackRules(context.Background(), i.url, i.getCurrentRulesVersion(), i.getCurrentSettingVersion())
 }
