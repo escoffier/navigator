@@ -42,7 +42,6 @@ const (
 type RegistryDao struct {
 	db *databases.RDBInstance
 }
-
 type SyncRetryImageDao struct {
 	db *databases.RDBInstance
 }

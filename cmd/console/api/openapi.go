@@ -22,6 +22,59 @@ import (
 func (api *api) openapiAuth() func(chi.Router) {
 	return func(r chi.Router) {
 		r.Post("/token", api.newOpenAPIToken())
+		r.Get("/token/{token}", api.validToken(api.rdb))
+	}
+}
+
+func (a *api) validToken(rdb *databases.RDBInstance) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		timeoutCtx, cancel := context.WithTimeout(r.Context(), OpenAPIAuthTimeout)
+		defer cancel()
+
+		token := chi.URLParam(r, "token")
+		service, ok := openapiauth.GetServiceInstance()
+		if !ok {
+			apperror.RespAndLog(w, r.Context(), ErrServiceNotReady)
+			return
+		}
+
+		username, err := service.GetUsernameByToken(timeoutCtx, token)
+		if err != nil {
+			if err == openapiauth.ErrInvalidToken {
+				apperror.RespAndLog(w, r.Context(), apperror.NewInvalidAuthToken(http.StatusUnauthorized, err))
+				return
+			}
+
+			apperror.RespAndLog(w, r.Context(), fmt.Errorf("GetUsernameByToken fail, err:%w", err))
+			return
+		}
+
+		exists, user, err := dal.SelectUser(timeoutCtx, rdb.GetReadDB(), username)
+		if err != nil {
+			apperror.RespAndLog(w, r.Context(), err)
+			return
+		}
+
+		if !exists {
+			apperror.RespAndLog(w, r.Context(), apperror.NewInvalidAuthToken(http.StatusUnauthorized, fmt.Errorf("user:%s not exists", username)))
+			return
+		}
+
+		if user.BanStatus == 1 {
+			apperror.RespAndLog(w, r.Context(),
+				apperror.NewAccountBanError(http.StatusPreconditionFailed,
+					fmt.Errorf("the account %s is banned", username)))
+			return
+		}
+
+		if !user.Checked {
+			apperror.RespAndLog(w, r.Context(),
+				apperror.AccountUnActive(http.StatusForbidden,
+					fmt.Errorf("account is not activated")))
+			return
+		}
+
+		response.Ok(w, response.WithApiVersion(OpenAPIVersion))
 	}
 }
 

@@ -44,7 +44,7 @@ func (e *MockExecutorScanVuln) Scan(ctx context.Context, param scan.Param) (scan
 
 	// get trivy path
 	//u, _ := user.Current()
-	// cmdPath := fmt.Sprintf("%s/go/src/github.com/aquasecurity/trivy/", u.HomeDir)
+	// cmdPath := fmt.Sprintf("%s/go/src/scm.tensorsecurity.cn/tensorsecurity-rd/trivy/", u.HomeDir)
 	cmd := exec.Command("sh", "-c", "trivy image -f json -o tmpscan.log "+e.imageCacheUrl)
 	var outBuf, errBuf bytes.Buffer
 	cmd.Stdout = &outBuf

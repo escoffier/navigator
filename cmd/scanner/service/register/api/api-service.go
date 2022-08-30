@@ -5,14 +5,14 @@ import (
 	"fmt"
 	"net/http"
 
-	"gitlab.com/security-rd/go-pkg/sdk/palace"
-
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/api"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/ci"
 	flag2 "gitlab.com/piccolo_su/vegeta/cmd/scanner/flag"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/service/register"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
+	"gitlab.com/security-rd/go-pkg/sdk/palace"
 )
 
 const (
@@ -71,6 +71,7 @@ func newService(config register.ScannerServiceConfig) (register.ScannerService, 
 	podResourceRelationDal := store.NewPodResourceRelationDao(scannerWrapperDb)
 	syncRetryImageDal := store.NewSyncRetryImageDao(scannerWrapperDb)
 	scannerDB := store.NewScannerDB(scannerWrapperDb)
+	ciDal := store.NewCiDao(scannerWrapperDb)
 	palaceHandler, err := palace.Init()
 	if err != nil {
 		logging.GetLogger().Error().Err(err).Msgf("Failed to init palaceHandler, %v", err)
@@ -91,6 +92,7 @@ func newService(config register.ScannerServiceConfig) (register.ScannerService, 
 			component.NewScanConfigSrv(scanConfigDal, registryDal, dal, scanTaskDal),
 			component.NewVulnService(vulnDal, scanTaskDal),
 			component.NewSyncRepoImage(registryDal, dal, podResourceRelationDal, scanConfigDal, syncRetryImageDal, vulnDal, scannerDB),
+			ci.NewCiComponent(ciDal),
 		),
 	}
 
