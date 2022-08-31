@@ -277,6 +277,10 @@ func (r *RejectAPI) UpdateGlobalPolicy(ctx *gin.Context) {
 
 	logging.GetLogger().Info().Msgf("received info is %v\n", global)
 
+	// 不再支持cicd和在线监控
+	global.CICDEnable = false
+	global.OnlineMonitor = false
+
 	if err := r.Srv.CreateGlobalPolicy(ctx, *global); err != nil {
 		response.JSONError(ctx, err)
 		return
