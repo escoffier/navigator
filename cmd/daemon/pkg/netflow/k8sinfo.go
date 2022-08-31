@@ -100,12 +100,15 @@ func (n *NodePodsInfo) savePodData(podEvt *nodeinfo.PodEvent) {
 	}
 
 	var rsData daemon.K8sResData
+	rsData.ContainerInfo = n.getContainerData(podEvt.Pod)
+	if len(rsData.ContainerInfo) == 0 {
+		return
+	}
 	res := podEvt.FinalOwnerResource(context.Background())
 	rsData.OwnerName = res.Name
 	rsData.Kind = res.Kind
 	rsData.PodName = podEvt.Pod.Name
 	rsData.Namespace = podEvt.Pod.Namespace
-	rsData.ContainerInfo = n.getContainerData(podEvt.Pod)
 	rsData.ListenPorts = make(map[string]*daemon.ProcessInfo, 2)
 
 	n.resInfos.LoadOrStore(podIP, &rsData)

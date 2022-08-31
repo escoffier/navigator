@@ -708,6 +708,10 @@ func (fs *FlowSession) GetContainerProcessName(addrType uint8, res *daemon.K8sRe
 				defValue.ProcName = pInfo.ProcName
 				defValue.ContainerName = pInfo.ContainerName
 			}
+
+			if pInfo.Pid == 0 {
+				logging.Get().Warn().Msgf("ns : %v, pod : %v, container : %+v, cpid : %v.", res.Namespace, res.PodName, *pInfo, containerData.ContainerPid)
+			}
 		}
 	}
 
@@ -715,7 +719,7 @@ func (fs *FlowSession) GetContainerProcessName(addrType uint8, res *daemon.K8sRe
 		return &defValue, nil
 	}
 
-	return nil, errors.Errorf("container error, namespace : %v, pod name : %v, tuple : %+v", res.Namespace, res.PodName, *tuple)
+	return nil, errors.Errorf("container error, ns : %v, pod name : %v, num : %v, tuple : %+v", res.Namespace, res.PodName, len(res.ContainerInfo), *tuple)
 }
 
 func (fs *FlowSession) GetContainerInfo(netRes *model.TensorNetworkFlow, src, dst *daemon.K8sResData, addr *daemon.FiveTuple) (bool, error) {
