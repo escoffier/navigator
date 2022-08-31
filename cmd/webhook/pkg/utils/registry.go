@@ -62,7 +62,7 @@ func GetImageDigest(userName, password string, skipTLSVerify bool, imageName str
 	select {
 	case r := <-dchan:
 		if r.err != nil {
-			logging.Get().Err(r.err).Msg("get image err")
+			logging.Get().Warn().Err(r.err).Msg("get image err")
 		}
 		return r.digest, r.err
 	case <-ctx.Done():
