@@ -46,7 +46,7 @@ func GetImageDigest(userName, password string, skipTLSVerify bool, imageName str
 	ctx, cancel := context.WithTimeout(context.Background(), DigestTimeOut)
 	defer cancel()
 
-	dchan := make(chan digestResult)
+	dchan := make(chan digestResult, 1)
 	go func() {
 		digest1, err1 := getImageDigest(userName, password, skipTLSVerify, imageName)
 		dchan <- digestResult{digest1, err1}
