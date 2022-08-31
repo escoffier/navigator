@@ -12,10 +12,10 @@ import (
 	"github.com/google/go-containerregistry/pkg/name"
 	registry2 "github.com/heroku/docker-registry-client/registry"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry"
-	"gitlab.com/piccolo_su/vegeta/pkg/logging"
+	"gitlab.com/security-rd/go-pkg/logging"
 )
 
-const DigestTineOut = time.Second * 4
+const DigestTimeOut = time.Second * 4
 
 func NewDockerRegistryClient(url, userName, password string, skipTLSVerify bool) (*registry2.Registry, error) {
 	hub, err := registry2.New(url, userName, password)
@@ -26,35 +26,39 @@ func NewDockerRegistryClient(url, userName, password string, skipTLSVerify bool)
 		_, ok3 := errors.Unwrap(err).(x509.UnknownAuthorityError)
 		_, ok4 := errors.Unwrap(err).(x509.HostnameError)
 		if ok1 || ok2 || ok3 || ok4 {
-			logging.GetLogger().Warn().Msg("Certificate validation failed, but insecure option is on - will retry and skip TLS cert verification")
+			logging.Get().Warn().Msg("Certificate validation failed, but insecure option is on - will retry and skip TLS cert verification")
 			hub, err = registry2.NewInsecure(url, userName, password)
 		}
 	}
 	if err != nil {
-		logging.GetLogger().Warn().Err(err).Msg("new registry client failed.")
+		logging.Get().Warn().Err(err).Msg("new registry client failed.")
 		return nil, err
 	}
 	return hub, nil
 }
 
+type digestResult struct {
+	digest string
+	err    error
+}
+
 func GetImageDigest(userName, password string, skipTLSVerify bool, imageName string) (string, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), DigestTineOut)
+	ctx, cancel := context.WithTimeout(context.Background(), DigestTimeOut)
 	defer cancel()
 
-	digest := make(chan string)
-	err := make(chan error)
+	dchan := make(chan digestResult, 1)
 	go func() {
 		digest1, err1 := getImageDigest(userName, password, skipTLSVerify, imageName)
-		digest <- digest1
-		err <- err1
+		dchan <- digestResult{digest1, err1}
+		close(dchan)
 	}()
 
 	select {
-	case d := <-digest:
-		return d, nil
-	case e := <-err:
-		logging.GetLogger().Err(e).Msg("get image err")
-		return "", e
+	case r := <-dchan:
+		if r.err != nil {
+			logging.Get().Err(r.err).Msg("get image err")
+		}
+		return r.digest, r.err
 	case <-ctx.Done():
 		return "", fmt.Errorf("get image: %s digests time out", imageName)
 	}
@@ -67,8 +71,6 @@ func getImageDigest(userName, password string, skipTLSVerify bool, imageName str
 
 	ref, err1 := name.ParseReference(imageName, nameOpts...)
 	if err1 != nil {
-		//err <- err1
-		//return digest, err
 		return "", err1
 	}
 	url := ref.Context().RegistryStr()
@@ -96,7 +98,7 @@ func getImageDigest(userName, password string, skipTLSVerify bool, imageName str
 		return "", err1
 	}
 	d := dig.String()
-	logging.GetLogger().Info().Msgf("digest of image %s is %s", imageName, d)
+	logging.Get().Trace().Msgf("digest of image %s is %s", imageName, d)
 	return dig.String(), nil
 }
 
