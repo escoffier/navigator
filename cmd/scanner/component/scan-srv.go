@@ -14,6 +14,10 @@ import (
 
 	"github.com/google/go-containerregistry/pkg/name"
 	"github.com/pkg/errors"
+	"gitlab.com/security-rd/go-pkg/httputil"
+	"gitlab.com/security-rd/go-pkg/sdk/palace"
+	ftypes "scm.tensorsecurity.cn/tensorsecurity-rd/fanal/types"
+
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/task"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
@@ -24,9 +28,6 @@ import (
 	scanreport "gitlab.com/piccolo_su/vegeta/pkg/model/scan-report"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
-	"gitlab.com/security-rd/go-pkg/httputil"
-	"gitlab.com/security-rd/go-pkg/sdk/palace"
-	ftypes "scm.tensorsecurity.cn/tensorsecurity-rd/fanal/types"
 )
 
 type SearchImageWithScanParam struct {
@@ -2578,9 +2579,16 @@ func (s *ConScannerSrv) DeleteCICDImage(ctx context.Context) {
 	createOrAddRetryCountExtender := func(ctx context.Context, image registry.Image) error {
 		return nil
 	}
+	updateExtender := func(ctx context.Context, image registry.Image) error {
+		return nil
+	}
 
 	// 先查询镜像，然后一个一个的删除
-	images, err := drive.ListImages(ctx, registry.Extender{CreateImageExtender: createExtender, CreateOrAddRetryCountExtender: createOrAddRetryCountExtender}, registry.ListImagesRequest{NeedToReturnAll: true})
+	images, err := drive.ListImages(ctx, registry.Extender{
+		CreateImageExtender:           createExtender,
+		CreateOrAddRetryCountExtender: createOrAddRetryCountExtender,
+		UpdateImageLastSyncExtender:   updateExtender,
+	}, registry.ListImagesRequest{NeedToReturnAll: true})
 	if err != nil {
 		logging.GetLogger().Info().Msgf("CICD asynchronously delete BuffRegistry image error: %s", err.Error())
 		return
