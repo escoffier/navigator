@@ -227,8 +227,11 @@ func (c *CiDao) GetImageList(ctx context.Context, params scanner_ci.ImageFilter)
 			db = db.Where("mode = ?", v)
 		}
 	}
-	if params.StartTime != 0 && params.EndTime != 0 {
+	if params.StartTime != 0 {
 		db = db.Where("started_at >= ?", params.StartTime)
+
+	}
+	if params.EndTime != 0 {
 		db = db.Where("started_at <= ?", params.EndTime)
 	}
 	var cnt int64
@@ -365,13 +368,12 @@ func (c *CiDao) GetWhitelist(ctx context.Context, params scanner_ci.WhitelistPar
 		db = db.Where("name like ?", fmt.Sprintf("%%%s%%", params.Image))
 	}
 
-	if params.StartTime != 0 && params.EndTime != 0 {
-
+	if params.StartTime != 0 {
 		db = db.Where("expire_time >= ?", params.StartTime)
-		db = db.Where("expire_time <= ?", params.EndTime)
-
 	}
-
+	if params.EndTime != 0 {
+		db = db.Where("expire_time <= ?", params.EndTime)
+	}
 	if params.NowTime != 0 {
 		db = db.Where("expire_time >= ?", params.NowTime)
 	}
