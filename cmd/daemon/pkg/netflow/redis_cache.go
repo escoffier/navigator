@@ -3,6 +3,7 @@ package netflow
 import (
 	"context"
 	"fmt"
+	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"time"
 
 	"github.com/go-redis/redis/v8"
@@ -91,7 +92,8 @@ func redisSaveOrUpdate(redisClient *redis.Client, addrType int, netflow *model.T
 	}
 
 	if len(netflow.SrcProcess) == 0 || len(netflow.DstProcess) == 0 {
-		return false, errors.Errorf("net data is nil, addr type : %v, %+v", addrType, *netflow)
+		logging.GetLogger().Warn().Msgf("net data is nil, addr type : %v, %+v", addrType, *netflow)
+		return false, nil
 	}
 
 	return true, nil

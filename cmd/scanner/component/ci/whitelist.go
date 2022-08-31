@@ -49,6 +49,7 @@ func (w *WhitelistManager) CreateWhitelist(ctx context.Context, whitelist []scan
 	}
 
 	mp := make(map[string]struct{}, 0)
+	mpAdd := make(map[string]struct{}, 0)
 	for _, v := range nowWhite {
 		mp[v.Name+strconv.FormatInt(v.ExpireTime, 10)] = struct{}{}
 	}
@@ -56,7 +57,10 @@ func (w *WhitelistManager) CreateWhitelist(ctx context.Context, whitelist []scan
 	addWhitelist := []scanner_ci.CiWhitelist{}
 	for _, v := range whitelists {
 		if _, ok := mp[v.Name+strconv.FormatInt(v.ExpireTime, 10)]; !ok {
-			addWhitelist = append(addWhitelist, v)
+			if _, ok := mpAdd[v.Name+strconv.FormatInt(v.ExpireTime, 10)]; !ok {
+				mpAdd[v.Name+strconv.FormatInt(v.ExpireTime, 10)] = struct{}{}
+				addWhitelist = append(addWhitelist, v)
+			}
 		}
 	}
 
