@@ -6,6 +6,7 @@ import (
 	"crypto/x509"
 	"errors"
 	"fmt"
+	"runtime/debug"
 	"strings"
 	"time"
 
@@ -48,6 +49,11 @@ func GetImageDigest(userName, password string, skipTLSVerify bool, imageName str
 
 	dchan := make(chan digestResult, 1)
 	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				logging.Get().Error().Str("stack", string(debug.Stack())).Msgf("Panic: %v", r)
+			}
+		}()
 		digest1, err1 := getImageDigest(userName, password, skipTLSVerify, imageName)
 		dchan <- digestResult{digest1, err1}
 		close(dchan)
