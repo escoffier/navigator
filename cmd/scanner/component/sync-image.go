@@ -756,6 +756,24 @@ func (s *SyncRepoImage) createImageExtender(ctx context.Context, image registry.
 	return res, nil
 }
 
+func (s *SyncRepoImage) updateImageLastSyncExtender(ctx context.Context, image registry.Image) error {
+	img := model.ImageList{
+		FullRepoName: image.Repository,
+		Tags:         image.Tag,
+		RegistryID:   image.RegistryID,
+		FromType:     image.FromType,
+	}
+
+	img.UniqueImage = img.GenUniqueImage()
+	// 更新最后同步时间，做删除处理
+	updater := map[string]interface{}{"last_full_sync_at": time.Now().UnixMilli()}
+	if err := s.imageDal.UpdateImage(ctx, fmt.Sprintf("unique_image = %d", img.UniqueImage), updater, nil); err != nil {
+		logging.GetLogger().Err(err).Msg("SyncAllImage.updateImageLastSyncExtender,UpdateImage")
+		return err
+	}
+	return nil
+}
+
 func (s *SyncRepoImage) createOrAddRetryCountExtender(ctx context.Context, image registry.Image) error {
 	data := model.SyncRetryImage{
 		FullRepoName: image.Repository,
@@ -807,6 +825,7 @@ func (s *SyncRepoImage) getExtender() registry.Extender {
 		CreateImageExtender:           s.createImageExtender,
 		CreateOrAddRetryCountExtender: s.createOrAddRetryCountExtender,
 		DeleteImageRetryExtender:      s.deleteImageRetryExtender,
+		UpdateImageLastSyncExtender:   s.updateImageLastSyncExtender,
 	}
 }
 

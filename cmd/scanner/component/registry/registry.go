@@ -29,6 +29,7 @@ type Driver func(RegistrableComponentConfig) (Registry, error)
 type ImageListExtender func(ctx context.Context, image Image) (*ListImagesRes, error)
 type CreateOrAddRetryCountExtender func(ctx context.Context, image Image) error
 type DeleteImageRetryExtender func(ctx context.Context, image Image) error
+type UpdateImageLastSyncExtender func(ctx context.Context, image Image) error
 
 // Register makes a Constructor available by the provided name.
 //
@@ -77,6 +78,7 @@ type Extender struct {
 	CreateImageExtender           ImageListExtender
 	CreateOrAddRetryCountExtender CreateOrAddRetryCountExtender
 	DeleteImageRetryExtender      DeleteImageRetryExtender
+	UpdateImageLastSyncExtender   UpdateImageLastSyncExtender
 }
 
 type ImageRetryRequest struct {
