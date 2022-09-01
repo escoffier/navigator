@@ -5,6 +5,7 @@ import (
 	"github.com/go-redis/redis/v8"
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
+
 	openapi "gitlab.com/piccolo_su/vegeta/cmd/scanner/api/open-api"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/ci"
@@ -38,7 +39,7 @@ func SetupGinRouter(redisClient *redis.Client,
 	})
 
 	router = WebAPI(router, scannerSvc, imageSvc, rejectSvc, harborSvc, registrySrv, scanConfigSrv, vuluSrv, syncImageSrv, ciDalSrv)
-	router = OpenAPI(router, scannerSvc, registrySrv, scanConfigSrv, vuluSrv, redisClient, ciDalSrv, imageSvc)
+	router = OpenAPI(router, scannerSvc, registrySrv, scanConfigSrv, vuluSrv, ciDalSrv, imageSvc, syncImageSrv)
 
 	return router
 }
@@ -60,7 +61,7 @@ func WebAPI(router *gin.Engine,
 	apiHarborSrv := NewHarborAPISrv(harborSvc, harborSvc.GetRedisClient())
 	apiRegistrySrv := NewRegistrySrv(registrySrv, rejectSvc)
 	apiVulnSrv := NewVulnAPISrv(vuluSrv)
-	apiSyncImageSrv := NewSyncImageAPISrv(syncImageSrv)
+	apiSyncImageSrv := NewSyncImageAPISrv(syncImageSrv, registrySrv)
 	v1 := router.Group("/api/v1/scan")
 	{
 		v1.GET("/reportsByImageList", apiScannerSrv.ListScannedByImageList) // Deprecated:
@@ -265,9 +266,9 @@ func OpenAPI(router *gin.Engine, scannerSvc component.ScannerSrv,
 	registrySrv component.RegistrySrvInterface,
 	scanConfigSrv component.ScanConfigSrvInterface,
 	vulnSrv component.VulnServiceInterface,
-	redisClient *redis.Client,
 	ciDalSrv ci.CiComponent,
 	imageSrv component.ImageSrvInterface,
+	syncImageSrv component.SyncImageInterface,
 ) *gin.Engine {
 
 	apiScannerSrv := openapi.NewScannerOpenAPISrv(scannerSvc, registrySrv, scanConfigSrv, imageSrv)
@@ -277,7 +278,7 @@ func OpenAPI(router *gin.Engine, scannerSvc component.ScannerSrv,
 
 	openAPIRouter := router.Group("/openapi")
 	// openApiRouter.Use(RateLimitMiddleware(redisClient, 20))
-
+	apiSyncImageSrv := NewSyncImageAPISrv(syncImageSrv, registrySrv)
 	v1 := openAPIRouter.Group("/v1")
 	{
 		image := v1.Group("/images")
@@ -330,9 +331,16 @@ func OpenAPI(router *gin.Engine, scannerSvc component.ScannerSrv,
 		register := v1.Group("/register")
 		{
 			register.GET("/registries", apiScannerSrv.SearchRegistry)
+			register.PUT("/registry", apiScannerSrv.UpdateRegistry)
+			register.DELETE("/registry", apiScannerSrv.DeleteRegistry)
 			register.POST("/registry", apiScannerSrv.CreateRegistry)
 		}
 
+		// 和同步镜像相关
+		v12 := v1.Group("/syncImage")
+		{
+			v12.POST("/startSync", apiSyncImageSrv.StartSyncByRegName)
+		}
 	}
 
 	return router

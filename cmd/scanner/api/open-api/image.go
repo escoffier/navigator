@@ -547,6 +547,59 @@ func (s *ImageOpenAPISvc) CreateRegistry(ctx *gin.Context) {
 	response.JSONOK(ctx)
 }
 
+func (s *ImageOpenAPISvc) UpdateRegistry(ctx *gin.Context) {
+
+	name := ctx.Query("registryName")
+
+	regs, _, err := s.RegistrySrv.SearchRegistry(ctx, component.SearchRegistryParam{Name: name, UseType: model.UserRegistry}, nil)
+	if err != nil {
+		response.JSONError(ctx, err)
+		return
+	}
+	if len(regs) == 0 {
+		response.JSONError(ctx, fmt.Errorf("not find registry:%s", name))
+		return
+	}
+
+	reg := Registry{}
+	if err := ctx.BindJSON(&reg); err != nil {
+		logging.Get().Err(err).Msg("序列化数据出错")
+		response.JSONError(ctx, err)
+		return
+	}
+	modeReg := RegistryToModel(reg)
+
+	modeReg.UseType = model.UserRegistry
+	modeReg.Name = name
+
+	if err := s.RegistrySrv.UpdateRegistry(ctx, regs[0].ID, modeReg); err != nil {
+		response.JSONError(ctx, err)
+		return
+	}
+	response.JSONOK(ctx)
+}
+
+func (s *ImageOpenAPISvc) DeleteRegistry(ctx *gin.Context) {
+
+	name := ctx.Query("registryName")
+
+	regs, _, err := s.RegistrySrv.SearchRegistry(ctx, component.SearchRegistryParam{Name: name, UseType: model.UserRegistry}, nil)
+	if err != nil {
+		response.JSONError(ctx, err)
+		return
+	}
+	if len(regs) == 0 {
+		response.JSONError(ctx, fmt.Errorf("not find registry:%s", name))
+		return
+	}
+
+	if err := s.RegistrySrv.DeleteRegistry(ctx, regs[0].ID); err != nil {
+		response.JSONError(ctx, err)
+		return
+	}
+	response.JSONOK(ctx)
+}
+
 func ParseImageName(imageName string) (string, string, error) {
 	if !strings.Contains(imageName, ":") {
 		return "", "", fmt.Errorf("illegal image name")
