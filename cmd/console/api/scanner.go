@@ -260,9 +260,9 @@ func (api *api) scannerOpenApi() func(router chi.Router) {
 			Get("/ci/tidb/version", api.ForwardScannerOpenApi())
 		r.With(RateLimitMiddleware(api.redisClient, int64(rate))).
 			Get("/ci/tidb/assets/{name}", api.ForwardScannerOpenApi())
+
 		r.With(RateLimitMiddleware(api.redisClient, int64(rate))).
 			Post("/register/registry", api.ForwardScannerOpenApi())
-
 		r.With(RateLimitMiddleware(api.redisClient, int64(rate))).
 			Get("/register/registries", api.ForwardScannerOpenApi())
 	}
