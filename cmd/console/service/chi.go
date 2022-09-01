@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"net/http"
 	"strings"
 	"time"
@@ -13,7 +14,6 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/console/api"
 	"gitlab.com/piccolo_su/vegeta/pkg/harbor"
 	"gitlab.com/piccolo_su/vegeta/pkg/lang"
-	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/security-rd/go-pkg/databases"
 	"gitlab.com/security-rd/go-pkg/elastic"
 )
@@ -70,9 +70,9 @@ func setupChiRouter(
 func Timeout(timeout time.Duration) func(next http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		fn := func(w http.ResponseWriter, r *http.Request) {
-			if strings.Contains(r.RequestURI, "/files") {
-				logging.GetLogger().Info().Str("RequestURI", r.RequestURI).Msg("Get download URI")
+			if strings.Contains(r.RequestURI, "/files") || strings.Contains(r.RequestURI, "ci/tidb/assets") {
 				timeout = 120 * time.Minute
+				logging.GetLogger().Info().Str("requestURI", r.RequestURI).Dur("timeout", timeout).Msg("change api timeout")
 			}
 
 			ctx, cancel := context.WithTimeout(r.Context(), timeout)
