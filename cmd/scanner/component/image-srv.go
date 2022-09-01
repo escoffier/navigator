@@ -29,9 +29,9 @@ type ImageSrv struct {
 }
 
 func NewImageService(
-		dbdal store.ScannerDalInterface,
-		registryDal store.RegistryDal,
-		scanTaskDal store.ScanTaskInterface,
+	dbdal store.ScannerDalInterface,
+	registryDal store.RegistryDal,
+	scanTaskDal store.ScanTaskInterface,
 ) *ImageSrv {
 	return &ImageSrv{
 		dbdal:       dbdal,
@@ -56,6 +56,9 @@ func (s *ImageSrv) ListImageWithScanInfo(ctx context.Context, param model.ImageL
 	res := make([]*model.ImageListResponse, 0)
 
 	param.Deserialize()
+	if err := param.Valid(); err != nil {
+		return nil, 0, err
+	}
 	logging.Get().Info().Interface("param", param).Msg("ListImageWithScanInfo")
 
 	registryIds := make([]int64, 0)
