@@ -984,7 +984,7 @@
   output: >
     Privileged container started (zh_msg=特权容器启动,rule_type=Privilege_Escalation,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid %container.info image=%container.image.repository:%container.image.tag,container_id=%container.id,container_name=%container.name)
   priority: INFO
-  tags: [ATT&CK, container, cis, mitre_privilege_escalation, mitre_lateral_movement]
+  tags: [ATT&CK, container, cis, mitre_privilege_escalation, mitre_lateral_movement, strict]
 
 - rule: Non sudo setuid
   hid: priv_02
@@ -1733,7 +1733,7 @@
       value: "使用免疫防御训练应用，限制敏感文件和命令的用户权限，禁止挂载敏感目录和文件。"
   desc: View login information in the container
   condition: >
-    open_read and container and not k8s.pod.name contains "console" and fd.name="var/log/lastlog" or fd.name="/etc/localtime" and not proc.cmdline contains "bash" and not k8s.pod.name contains "calico"
+    open_read and container and not tensorsec_namespace and fd.name="var/log/lastlog" or fd.name="/etc/localtime" and not proc.cmdline contains "bash" and not k8s.pod.name contains "calico"
   output: View login information inside the container (zh_msg=容器内查看登录信息,rule_type=Discovery,fd_name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,container_id=%container.id,container_name=%container.name)
   priority: WARNING
   tags: [ATT&CK, strict]
