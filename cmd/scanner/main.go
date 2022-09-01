@@ -27,6 +27,7 @@ import (
 	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/service/register/scanner-vuln"
 	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/service/register/task-check"
 	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/service/register/task-policy"
+	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/service/register/trivy-srv"
 	_ "gitlab.com/piccolo_su/vegeta/pkg/api/apikey"
 
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
