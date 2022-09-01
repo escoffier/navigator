@@ -151,7 +151,7 @@ func (dal *ExportTaskDao) CreateOrUpdateHtmlPrepare(ctx context.Context, data *m
 
 	db := dal.db.Get().WithContext(ctx).Model(new(model.ExportHtmlPrepare))
 	if err := db.Create(data).Error; err != nil && strings.Contains(err.Error(), consts.DuplicateKey) {
-		db = dal.db.Get().WithContext(ctx)
+		db = dal.db.Get().WithContext(ctx).Model(model.ExportHtmlPrepare{})
 		db = db.Where("task_id = ?", data.TaskID)
 		db = db.Where("data_type = ?", data.DataType)
 		updater := map[string]interface{}{"data": data.Data}

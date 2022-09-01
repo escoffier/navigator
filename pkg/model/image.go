@@ -71,6 +71,7 @@ const (
 const (
 	ImageFromRegistry = "registry"
 	ImageFromNode     = "node"
+	ImageFromCICD     = "cicd"
 
 	BaseImageType            = 1
 	AppImageType             = 0

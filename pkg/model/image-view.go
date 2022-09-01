@@ -125,8 +125,10 @@ func (sp *ImageListParam) GetFromType() int64 {
 		return UserRegistry
 	case ImageFromNode:
 		return NodeBuffRegistry
+	case ImageFromCICD:
+		return CICDImageRegistry
 	default:
-		return 0
+		return math.MaxInt64
 	}
 }
 
@@ -431,6 +433,7 @@ func (ir *ImageListResponse) Deserialize() {
 			ir.Os = fmt.Sprintf("%s:%s", imageOs.Family, imageOs.Name)
 		} else {
 			logging.Get().Err(err).Str("os", ir.Os).Msg("ImageListResponse.Deserialize")
+			ir.Os = ""
 		}
 	}
 	ir.LastSyncAt = ir.Registry.LastSyncAt
