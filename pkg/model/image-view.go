@@ -128,7 +128,7 @@ func (sp *ImageListParam) GetFromType() int64 {
 	case ImageFromCICD:
 		return CICDImageRegistry
 	default:
-		return math.MaxInt64
+		return 0
 	}
 }
 
@@ -215,6 +215,13 @@ func (sp *ImageListParam) Deserialize() {
 		scanStatusFlag = util.SetBit1(scanStatusFlag, GetSubTaskScanStatusFlag(sp.ScanStatus[i]))
 	}
 	sp.ScanStatusFlag = scanStatusFlag
+}
+
+func (sp *ImageListParam) Valid() error {
+	if sp.FromType != "" && (sp.FromType != NodeBuffRegistryString && sp.FromType != UserRegistryString) {
+		return fmt.Errorf("fromType is not valid %s", sp.FromType)
+	}
+	return nil
 }
 
 // image(subtask) scan status
