@@ -219,6 +219,20 @@ type CiVulns struct {
 	White        bool                `gorm:"-" json:"white"`                  //是否在白名单内
 }
 
+func (vn *CiVulns) GenCheckSum() uint64 {
+	createdAt, updatedAt, preCheck := vn.CreatedAt, vn.UpdatedAt, vn.CheckSum
+	vn.CreatedAt = 0
+	vn.UpdatedAt = 0
+	vn.CheckSum = 0
+
+	bys, err := json.Marshal(vn)
+	vn.CreatedAt, vn.UpdatedAt, vn.CheckSum = createdAt, updatedAt, preCheck
+	if err != nil {
+		return 0
+	}
+	return util.GenerateUUID64(string(bys))
+}
+
 func (vn *CiVulns) Serialize() {
 	if vn.Metadata != nil {
 		sort.Sort(model.CnvdMetadatas(vn.Metadata.CNVDs))

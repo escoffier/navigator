@@ -571,8 +571,8 @@ func (c *CiDao) UpdateVuln(ctx context.Context, where string, updater map[string
 func (c *CiDao) CreateCiVuln(ctx context.Context, data []*scanner_ci.CiVulns) error {
 	for i := range data {
 		vuln := data[i]
-		vuln.Deserialize()
 		vuln.Serialize()
+		vuln.CheckSum = vuln.GenCheckSum()
 		vuln.UniqueVuln = vuln.GenUniqueVuln()
 		data[i] = vuln
 	}
