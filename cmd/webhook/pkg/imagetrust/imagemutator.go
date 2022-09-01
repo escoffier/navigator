@@ -192,7 +192,7 @@ func getImageDigestFromHarbor(_ context.Context, image string, secret *utils.Ima
 	}
 
 	if err != nil {
-		logging.GetLogger().Err(err).Msgf("get digest of image [%s] from harbor error", image)
+		logging.GetLogger().Warn().Err(err).Str("image", image).Msg("get digest of image from harbor error")
 		return ""
 	}
 	return digest
