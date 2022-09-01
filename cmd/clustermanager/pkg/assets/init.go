@@ -6,15 +6,13 @@ import (
 	"runtime/debug"
 	"sync"
 
-	"gitlab.com/security-rd/go-pkg/mq"
-
 	"github.com/go-redis/redis/v8"
-	"gitlab.com/piccolo_su/vegeta/cmd/clustermanager/pkg/image"
 	"gitlab.com/piccolo_su/vegeta/cmd/clustermanager/pkg/kubemonitor"
 	"gitlab.com/piccolo_su/vegeta/cmd/clustermanager/pkg/microseg"
 	pkgassets "gitlab.com/piccolo_su/vegeta/pkg/assets"
 	"gitlab.com/security-rd/go-pkg/databases"
 	"gitlab.com/security-rd/go-pkg/logging"
+	"gitlab.com/security-rd/go-pkg/mq"
 )
 
 var (
@@ -45,7 +43,6 @@ func Watcher(rdb *databases.RDBInstance,
 			logging.Get().Err(err).Msg("init kube monitor error")
 		}
 		wInstance.AddCallback(newResourcesWatcher(rdb, scannerURL))
-		wInstance.AddCallback(image.NewOnlineMonitor(rdb, scannerURL))
 		wInstance.AddCallback(newHoneyspotService(rdb))
 
 		exportContainers := os.Getenv("EXPORT_CONTAINERS")
