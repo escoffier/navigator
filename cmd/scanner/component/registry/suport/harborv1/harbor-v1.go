@@ -410,8 +410,8 @@ func (h *HarborV1) ListImagesWithAuditLog(ctx context.Context, extender registry
 }
 
 func (h *HarborV1) ListImages(ctx context.Context, extender registry.Extender, req registry.ListImagesRequest) (*registry.ListImagesRes, error) {
-	if extender.CreateImageExtender == nil {
-		return nil, fmt.Errorf("not get CreateImageExtender")
+	if extender.CreateImageExtender == nil || extender.CreateOrAddRetryCountExtender == nil || extender.UpdateImageLastSyncExtender == nil {
+		return nil, fmt.Errorf("not get CreateImageExtender or CreateOrAddRetryCountExtender or UpdateImageLastSyncExtender")
 	}
 	res := new(registry.ListImagesRes)
 	cnt := 0
@@ -449,8 +449,13 @@ func (h *HarborV1) ListImages(ctx context.Context, extender registry.Extender, r
 				}
 				// pull manifest v2
 				manifestV1, manifestV2, configBlob, err := h.GetManifest(r.Name, t)
+				image := h.makeImage(r.Name, t, manifestV1, manifestV2, configBlob)
+
 				if err != nil {
-					res.HasErr = true
+					if err := extender.UpdateImageLastSyncExtender(ctx, image); err != nil {
+						logging.GetLogger().Err(err).Str("FullRepoName", r.Name).Str("Digest", t.Digest).Msg("UpdateImageLastSyncExtender")
+					}
+
 					retryImage := registry.Image{RegistryID: h.config.RegistryID, Repository: v.Name, Tag: t.Name, Message: err.Error()}
 					if err := extender.CreateOrAddRetryCountExtender(ctx, retryImage); err != nil {
 						logging.GetLogger().Err(err).Str("FullRepoName", r.Name).Str("Digest", t.Digest).Msg("CreateOrAddRetryCountExtender")
@@ -459,7 +464,6 @@ func (h *HarborV1) ListImages(ctx context.Context, extender registry.Extender, r
 					logging.GetLogger().Err(err).Str("project", v.Name).Str("repoName", r.Name).Str("tag", t.Name).Msg("ListImages GetManifest")
 					continue
 				}
-				image := h.makeImage(r.Name, t, manifestV1, manifestV2, configBlob)
 
 				cnt++
 				im, err := extender.CreateImageExtender(ctx, image)
