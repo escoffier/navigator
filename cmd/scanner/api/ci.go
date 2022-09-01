@@ -352,6 +352,22 @@ func (c *CiApiSrv) CreateWhitelist(ctx *gin.Context) {
 		response.JSONError(ctx, fmt.Errorf("bad request"))
 		return
 	}
+	var errStrings []string
+	mp := make(map[string]struct{})
+	for k := range whitelist {
+		if _, ok := mp[whitelist[k].Name]; !ok {
+			_, err := regexp.Compile(whitelist[k].Name)
+			mp[whitelist[k].Name] = struct{}{}
+			if err != nil {
+				logging.Get().Err(err).Msgf("%s 正则编译失败", whitelist[k].Name)
+				errStrings = append(errStrings, fmt.Sprintf("%s 不是有效的正则表达式，请参考RE2语法", whitelist[k].Name))
+			}
+		}
+	}
+	if len(errStrings) != 0 {
+		response.JSONError(ctx, response.NewHttpError(http.StatusNotAcceptable, fmt.Errorf(strings.Join(errStrings, "\n"))))
+		return
+	}
 	err = c.Component.WM.CreateWhitelist(ctx, whitelist)
 	if err != nil {
 		logging.Get().Err(err).Msgf("create whitelist err ")
