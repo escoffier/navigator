@@ -25,6 +25,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
+	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 )
@@ -59,9 +60,10 @@ func (srv *UpdataService) AutoScanAll(ctx context.Context, fromType int64, opera
 	if srv == nil {
 		return fmt.Errorf("srv is nil")
 	}
-	dal := store.GetScannerOrmDb()
+	imageDal := store.GetScannerOrmDb()
+	regDal := store.GetRegistryDao()
 	scanConfigDal := store.GetScanConfigDao()
-	if dal == nil || scanConfigDal == nil {
+	if imageDal == nil || scanConfigDal == nil || regDal == nil {
 		return fmt.Errorf("can't get global dal")
 	}
 
@@ -76,7 +78,7 @@ func (srv *UpdataService) AutoScanAll(ctx context.Context, fromType int64, opera
 
 	logging.GetLogger().Info().Int64("fromType", fromType).Msg("start full scan")
 	// 先查询当前时刻已存在的仓库列表
-	registries, _, err := dal.SearchRegistry(ctx, store.SearchRegistryParam{NoDelete: true}, nil)
+	registries, _, err := regDal.SearchRegistry(ctx, store.SearchRegistryParam{NoDelete: true, UseType: model.UserRegistry}, nil)
 	if err != nil {
 		logging.GetLogger().Err(err).Msg("not found registry info")
 		return err
@@ -88,7 +90,7 @@ func (srv *UpdataService) AutoScanAll(ctx context.Context, fromType int64, opera
 
 	imgIds := make([]int64, 0)
 
-	imgs, _, err := dal.SearchImage(ctx, store.SearchImageParam{FromType: fromType, RegistryIds: registryIds, Fields: []string{"id"}}, nil)
+	imgs, _, err := imageDal.SearchImage(ctx, store.SearchImageParam{FromType: fromType, RegistryIds: registryIds, Fields: []string{"id"}}, nil)
 	if err != nil {
 		logging.GetLogger().Err(err).Msg("query images error")
 		return err
@@ -120,7 +122,7 @@ func (srv *UpdataService) cpDB(volumePath string, fromPath string, FileName stri
 	}
 }
 func FileExists(path string) bool {
-	_, err := os.Stat(path) //os.Stat获取文件信息
+	_, err := os.Stat(path) // os.Stat获取文件信息
 
 	if err != nil {
 		return os.IsExist(err)
@@ -216,13 +218,13 @@ func (srv *UpdataService) InitUpdateSvc() {
 func (srv *UpdataService) Run(offline bool, volumePath string, ch chan<- string) {
 	var options bolt.Options
 	options.Timeout = time.Second * 5
-	//如果不存在更新后版本，初始化一份last版本（避免bolt锁）
+	// 如果不存在更新后版本，初始化一份last版本（避免bolt锁）
 	logging.GetLogger().Info().Msg("IN Run")
 	if !offline {
 		var db *bolt.DB
 		var err error
 
-		//srv.VulnUpdatas, _ = NewVulnUpdata(context.Background(), "/configs/scanner/updata.yaml")
+		// srv.VulnUpdatas, _ = NewVulnUpdata(context.Background(), "/configs/scanner/updata.yaml")
 		srv.VulnUpdatas = GetRegisterUpdater()
 		registers := []register.Registry{}
 		ticker := time.NewTicker(time.Hour * 6)
@@ -253,8 +255,8 @@ func (srv *UpdataService) Run(offline bool, volumePath string, ch chan<- string)
 			wgg.Wait()
 			db.Close()
 			srv.WriteVersion()
-			srv.cpDB(volumePath, volumePath, "init_custom.db", "last_custom.db") //更新的是init_custom.db
-			srv.cpDB(volumePath, volumePath, "last_trivy.db", "init_trivy.db")   //需要读取的是init_trivy.db
+			srv.cpDB(volumePath, volumePath, "init_custom.db", "last_custom.db") // 更新的是init_custom.db
+			srv.cpDB(volumePath, volumePath, "last_trivy.db", "init_trivy.db")   // 需要读取的是init_trivy.db
 			srv.cpDB(srv.VolumePath, srv.VolumePath, "trivy_version", "trivy_init_version")
 			srv.cpDB(srv.VolumePath, srv.VolumePath, "custom_version", "custom_init_version")
 			// srv.cpDB(volumePath, "/configs/scanner-vuln-updata/", "trivy_version", "trivy_version")
@@ -274,7 +276,7 @@ func (srv *UpdataService) Run(offline bool, volumePath string, ch chan<- string)
 		}
 	}
 	close(ch)
-	//wg.Wait()
+	// wg.Wait()
 }
 
 func (srv *UpdataService) ReadVersion(name string) string {
@@ -411,88 +413,15 @@ func UploadOffline(c *gin.Context) {
 				logging.GetLogger().Error().Msgf("Panic: %v. Stack: %s", r, debug.Stack())
 			}
 		}()
-		err = scannerVulnUpdata.AutoScanAll(c, 1, "离线更新成功后自动触发")
+		err = scannerVulnUpdata.AutoScanAll(c, model.UserRegistry, "离线更新成功后自动触发")
 		if err != nil {
 			logging.GetLogger().Err(err).Msgf("scanall error :%v", err)
-			//response.JSONError(c, fmt.Errorf("更新漏洞库成功，触发全量扫描失败"))
+			// response.JSONError(c, fmt.Errorf("更新漏洞库成功，触发全量扫描失败"))
 			return
 		}
 	}()
 	response.JSONOK(c)
 }
-
-// func (srv *UpdataService) fileServer(c *gin.Context) {
-//	path := srv.VolumePath
-//	fileName := path + c.Param("name")
-//	if strings.Contains(fileName, "trivy") {
-//		res := srv.ReadVersion("trivy")
-//		if res == "init" {
-//			c.File(srv.VolumePath + "init_trivy.db")
-//		} else if res == "last" {
-//			c.File(srv.VolumePath + "last_trivy.db")
-//		} else if res == "offline" {
-//			c.File(srv.VolumePath + "offline/init_trivy.db")
-//		}
-//	} else if strings.Contains(fileName, "custom") {
-//		res := srv.ReadVersion("custom")
-//		if res == "init" {
-//			c.File(srv.VolumePath + "init_custom.db")
-//		} else if res == "last" {
-//			c.File(srv.VolumePath + "last_custom.db")
-//		} else if res == "offline" {
-//			c.File(srv.VolumePath + "offline/init_custom.db")
-//		}
-//	}
-//}
-
-//func (srv *UpdataService) queryVersion(c *gin.Context) {
-//	res := VersionResp{}
-//	name := c.Param("name")
-//
-//	if strings.Contains(name, "trivy") {
-//		versionRes := srv.ReadVersion("trivy")
-//		versionPath := ""
-//		dbPath := ""
-//		if versionRes == "init" {
-//			versionPath = srv.VolumePath + "trivy_init_version"
-//			dbPath = srv.VolumePath + "init_trivy.db"
-//		} else if versionRes == "last" {
-//			versionPath = srv.VolumePath + "trivy_version"
-//			dbPath = srv.VolumePath + "last_trivy.db"
-//		} else if versionRes == "offline" {
-//			versionPath = srv.VolumePath + "offline/trivy_init_version"
-//			dbPath = srv.VolumePath + "offline/init_trivy.db"
-//		}
-//		if versionPath != "" {
-//			versionByte, _ := os.ReadFile(versionPath)
-//			res.Version = string(versionByte)
-//			res.MD5 = md5sum3(dbPath)
-//		}
-//	} else if strings.Contains(name, "custom") {
-//		versionRes := srv.ReadVersion("custom")
-//		versionPath := ""
-//		dbPath := ""
-//		if versionRes == "init" {
-//			versionPath = srv.VolumePath + "custom_init_version"
-//			dbPath = srv.VolumePath + "init_custom.db"
-//		} else if versionRes == "last" {
-//			versionPath = srv.VolumePath + "custom_version"
-//			dbPath = srv.VolumePath + "last_custom.db"
-//		} else if versionRes == "offline" {
-//			versionPath = srv.VolumePath + "offline/custom_init_version"
-//			dbPath = srv.VolumePath + "offline/init_custom.db"
-//		}
-//		if versionPath != "" {
-//			versionByte, _ := os.ReadFile(versionPath)
-//			res.Version = string(versionByte)
-//			res.MD5 = md5sum3(dbPath)
-//		}
-//	}
-//
-//	//fmt.Println(strings.TrimSpace(res.Version) + "abcd")
-//	//fmt.Println(res.MD5 + "jianbo")
-//	c.String(200, "%s %s", strings.TrimSpace(res.Version), res.MD5)
-//}
 
 func NewVulnUpdata(ctx context.Context, configPath string) ([]VulnUpdata, error) {
 	config, err := register.LoadConfig(configPath)
@@ -542,25 +471,6 @@ func (srv *UpdataService) CheckList() bool {
 	}
 	return true
 }
-
-//func md5sum3(file string) string {
-//	f, err := os.Open(file)
-//	if err != nil {
-//		return ""
-//	}
-//	defer f.Close()
-//	r := bufio.NewReader(f)
-//
-//	h := md5.New()
-//
-//	_, err = io.Copy(h, r)
-//	if err != nil {
-//		return ""
-//	}
-//
-//	return fmt.Sprintf("%x", h.Sum(nil))
-//
-//}
 
 func Unzip(zipFile string, destDir string) error {
 	zipReader, err := zip.OpenReader(zipFile)
