@@ -30,10 +30,6 @@ func (s ScanState) Value() (driver.Value, error) {
 }
 
 const (
-	ComplianceCheckStatusInProgress = "inprogress"
-	ComplianceCheckStatusCompleted  = "completed"
-	ComplianceCheckStatusFailed     = "failed"
-
 	ScanStateCompleted  ScanState = 0
 	ScanStateInProgress ScanState = 1
 	ScanStateFailed     ScanState = 2

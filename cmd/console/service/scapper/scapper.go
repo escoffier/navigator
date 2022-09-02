@@ -27,7 +27,6 @@ import (
 	k8Yaml "k8s.io/apimachinery/pkg/util/yaml"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/tools/cache"
-
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/assets"
 	"gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	pkgassets "gitlab.com/piccolo_su/vegeta/pkg/assets"
@@ -85,7 +84,7 @@ func (s *Scapper) setCheckHistoryFinishedAndJobStatusesFailed(ctx context.Contex
 		checkId := check.CheckUUID
 		ret := s.rdb.Get().WithContext(cleanCtx).Table(tbname).
 			Select("state", "finished_at", "message").
-			Where("state = ?", model.ComplianceCheckStatusInProgress).
+			Where("state = ?", model.ScanStateInProgress).
 			Where("task_id = ?", checkId).Updates(scanRecord).Error
 		if ret != nil {
 			logging.Get().WithContext(cleanCtx).Errorf(ret, "update scan record failed, checkID : %s", check.CheckUUID)
