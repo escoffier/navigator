@@ -127,8 +127,10 @@ func (sp *ImageListParam) GetFromType() int64 {
 		return NodeBuffRegistry
 	case ImageFromCICD:
 		return CICDImageRegistry
-	default:
+	case "":
 		return 0
+	default:
+		return math.MaxInt64
 	}
 }
 
@@ -219,7 +221,7 @@ func (sp *ImageListParam) Deserialize() {
 
 func (sp *ImageListParam) Valid() error {
 	if sp.FromType != "" && (sp.FromType != NodeBuffRegistryString && sp.FromType != UserRegistryString) {
-		return fmt.Errorf("fromType is not valid %s", sp.FromType)
+		return fmt.Errorf("fromType:%s is not valid", sp.FromType)
 	}
 	return nil
 }

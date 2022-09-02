@@ -240,12 +240,12 @@ func (dal *ExportTaskDao) SearchExportTensorTask(ctx context.Context, parma Sear
 	if parma.Finished == consts.TrueString {
 		db = db.Where("finish_at > ?", 0)
 	} else if parma.Finished == consts.FalseString {
-		db = db.Where("finish_at = 0 OR finish_at is null")
+		db = db.Where("finish_at = 0")
 	}
 	if parma.Failure == consts.TrueString {
 		db = db.Where("err_msg != ?", "")
 	} else if parma.Failure == consts.FalseString {
-		db = db.Where("err_msg = '' OR err_msg is null")
+		db = db.Where("err_msg = ''")
 	}
 	if parma.Parameter != "" {
 		db = db.Where("parameter = ? ", parma.Parameter)
