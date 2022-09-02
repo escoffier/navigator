@@ -2,10 +2,11 @@ package service
 
 import (
 	"context"
-	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"net/http"
 	"strings"
 	"time"
+
+	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 
 	"github.com/go-chi/chi"
 	"github.com/go-chi/chi/middleware"
@@ -67,10 +68,20 @@ func setupChiRouter(
 	return r
 }
 
+func checkChangeTimeout(URI string) bool {
+	checkList := []string{"/files", "ci/tidb/assets", "vulns/updata"}
+	for k := range checkList {
+		if strings.Contains(URI, checkList[k]) {
+			return true
+		}
+	}
+	return false
+}
+
 func Timeout(timeout time.Duration) func(next http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		fn := func(w http.ResponseWriter, r *http.Request) {
-			if strings.Contains(r.RequestURI, "/files") || strings.Contains(r.RequestURI, "ci/tidb/assets") {
+			if checkChangeTimeout(r.RequestURI) {
 				timeout = 120 * time.Minute
 				logging.GetLogger().Info().Str("requestURI", r.RequestURI).Dur("timeout", timeout).Msg("change api timeout")
 			}

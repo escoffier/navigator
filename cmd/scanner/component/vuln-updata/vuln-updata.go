@@ -23,7 +23,6 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/vuln-updata/register"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
-	"gitlab.com/piccolo_su/vegeta/pkg/api/apikey"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
@@ -371,13 +370,7 @@ func NewUpdataService(volumePath string, ch chan string) *UpdataService {
 
 func UploadOffline(c *gin.Context) {
 	logging.GetLogger().Info().Msgf("IN UploadOffline")
-	key := c.Request.Header.Get("X-Tensorsec-cicd-key")
-	valid, err := apikey.ValidateApiKey(key, scannerUser)
-	if err != nil || !valid {
-		logging.GetLogger().Err(err).Msgf("invalid ci/cd api key %v", err)
-		response.JSONError(c, fmt.Errorf("invalid key"))
-		return
-	}
+
 	header, err := c.FormFile("file")
 	if err != nil {
 		logging.GetLogger().Err(err).Msgf("ParseMultipartForm fail")
