@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime/debug"
 	"strconv"
 	"strings"
 	"sync"
@@ -404,12 +405,19 @@ func UploadOffline(c *gin.Context) {
 		response.JSONError(c, fmt.Errorf("更新漏洞库成功，中文库失败"))
 		return
 	}
-	err = scannerVulnUpdata.AutoScanAll(c, 1, "离线更新成功后自动触发")
-	if err != nil {
-		logging.GetLogger().Err(err).Msgf("scanall error :%v", err)
-		response.JSONError(c, fmt.Errorf("更新漏洞库成功，触发全量扫描失败"))
-		return
-	}
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				logging.GetLogger().Error().Msgf("Panic: %v. Stack: %s", r, debug.Stack())
+			}
+		}()
+		err = scannerVulnUpdata.AutoScanAll(c, 1, "离线更新成功后自动触发")
+		if err != nil {
+			logging.GetLogger().Err(err).Msgf("scanall error :%v", err)
+			//response.JSONError(c, fmt.Errorf("更新漏洞库成功，触发全量扫描失败"))
+			return
+		}
+	}()
 	response.JSONOK(c)
 }
 
