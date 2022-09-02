@@ -1778,7 +1778,7 @@
   output: >
     Container with sensitive mount started (zh_msg=挂载敏感路径容器启动,rule_type=Lateral_Movement,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid %container.info image=%container.image.repository:%container.image.tag mounts=%container.mounts,container_id=%container.id,container_name=%container.name)
   priority: INFO
-  tags: [ATT&CK, container, cis, mitre_lateral_movement]
+  tags: [ATT&CK, container, cis, mitre_lateral_movement, strict]
 
 - rule: Change thread namespace
   hid: move_02
