@@ -3,6 +3,7 @@ package scanner_ci
 import (
 	"encoding/json"
 	"fmt"
+	"scm.tensorsecurity.cn/tensorsecurity-rd/trivy/pkg/report"
 	"sort"
 	"strings"
 	"time"
@@ -59,9 +60,16 @@ type VulnRule struct {
 	ActionCode     int      `json:"action_code"`      // see CiPolicyResultCodePass etc.
 }
 
+type VulnWrapper struct {
+	types.DetectedVulnerability
+	Target string             `json:"target"`
+	Class  report.ResultClass `json:"class,omitempty"`
+	Type   string             `json:"type,omitempty"`
+}
+
 type VulnResult struct {
-	SeverityResults  []types.DetectedVulnerability
-	BlackListResults []types.DetectedVulnerability
+	SeverityResults  []VulnWrapper
+	BlackListResults []VulnWrapper
 	Remediation      string // remediation for os pkg. eg "RUN apt update -y nurse && ..."
 	Match            bool   // true: match any rule
 }
