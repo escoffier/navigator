@@ -10,18 +10,26 @@ import (
 )
 
 var (
-	hostPathBlacklist = map[string]struct{}{
-		"/user/bin/docker":                    {},
-		"/var/run/docker.sock":                {},
-		"/var/run/docker.service":             {},
-		"/var/run/crio/crio.sock":             {},
-		"/var/run/containerd/containerd.sock": {},
-		"/proc/":                              {},
-		"/proc":                               {},
-		"/mnt":                                {},
-		"/mnt/":                               {},
-		"/boot":                               {},
-		"/boot/":                              {},
+	hostPathBlacklist = map[string]bool{ // path -> exactMatched. exactedMatch: true: 必须保持匹配才命中；false: 可前缀匹配。
+		"/user/bin/docker":                    false,
+		"/var/run/docker.sock":                true,
+		"/var/run/docker.service":             true,
+		"/var/run/crio/crio.sock":             true,
+		"/var/run/containerd/containerd.sock": true,
+		"/run/containerd/containerd.sock":     true,
+		"/var/lib/kubelet":                    false,
+		"/var/lib/kubelet/pki":                false,
+		"/etc":                                true,
+		"/etc/kubernetes":                     false,
+		"/etc/kubernetes/manifests":           false,
+		"/root":                               false,
+		"/home/admin":                         false,
+		"/proc/":                              false,
+		"/proc":                               true,
+		"/mnt":                                true,
+		"/mnt/":                               false,
+		"/boot":                               true,
+		"/boot/":                              false,
 	}
 )
 
@@ -60,13 +68,17 @@ func (ResourceRiskyVolumeRule) Match(ctx context.Context, resource *assets.Tenso
 	for _, vol := range resource.PodTemplate.Spec.Volumes {
 		if vol.HostPath != nil {
 			hitted := false
+			hpath := vol.HostPath.Path
+			if strings.LastIndexByte(vol.HostPath.Path, '/') == len(vol.HostPath.Path)-1 {
+				hpath = vol.HostPath.Path[:len(vol.HostPath.Path)-1]
+			}
 			if vol.HostPath.Path == "/" {
 				hitted = true
-			} else if _, exist := hostPathBlacklist[vol.HostPath.Path]; exist {
+			} else if _, exist := hostPathBlacklist[hpath]; exist {
 				hitted = true
 			} else {
-				for key := range hostPathBlacklist {
-					if strings.Index(vol.HostPath.Path, key) == 0 {
+				for key, exactMatched := range hostPathBlacklist {
+					if !exactMatched && strings.Index(vol.HostPath.Path, key) == 0 {
 						hitted = true
 						break
 					}
