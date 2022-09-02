@@ -5,16 +5,16 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"gitlab.com/security-rd/go-pkg/logging"
 	"net/http"
 	"net/url"
+	"os"
 	"strings"
 
 	"github.com/pkg/errors"
 	"gitlab.com/piccolo_su/vegeta/cmd/webhook/pkg/processors"
 	"gitlab.com/piccolo_su/vegeta/cmd/webhook/pkg/utils"
 	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
-	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gopkg.in/yaml.v2"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -71,7 +71,7 @@ func (m *Mutator) Init(webHookConfig *processors.WebHookConfig) error {
 	path := processors.GetConfigFullPath(configFile)
 	config, err := loadMutatorConfig(path)
 	if err != nil {
-		logging.GetLogger().Err(err).Msg("load config err")
+		logging.Get().Warn().Err(err).Msg("load config err")
 		return err
 	}
 
@@ -87,7 +87,6 @@ func (m *Mutator) Init(webHookConfig *processors.WebHookConfig) error {
 }
 
 func (m *Mutator) Mutate(ctx context.Context, parameters *processors.MutatorParameters, pod *corev1.Pod) []*processors.Patch {
-
 	digests := &ImageDigest{}
 	var kubeSecretNames []string
 	for _, secs := range pod.Spec.ImagePullSecrets {
@@ -112,7 +111,7 @@ func (m *Mutator) buildDigestImage(ctx context.Context, parameters *processors.M
 	originImage := container.Image
 	result := checkRegistryUrl(ctx, originImage)
 	if !result {
-		logging.GetLogger().Info().Msgf("skip check for image: %s", originImage)
+		logging.Get().Info().Msgf("skip check for image: %s", originImage)
 		return ""
 	}
 
@@ -128,14 +127,14 @@ func (m *Mutator) buildDigestImage(ctx context.Context, parameters *processors.M
 		}
 		return replaceTagWithDigest(originImage, digest)
 	}
-	logging.GetLogger().Warn().Msgf("can't get digest of [%s]", originImage)
+	logging.Get().Warn().Msgf("can't get digest of [%s]", originImage)
 	return ""
 }
 
 func (m *Mutator) PreMutate(_ context.Context, _ *corev1.Pod, parameters *processors.MutatorParameters) bool {
 	for _, ns := range m.IgnoredNameSpaces {
 		if parameters.Namespace == ns {
-			logging.GetLogger().Info().Msgf("ingored mutating for resource %s in namespace %s", parameters.Kind, ns)
+			logging.Get().Info().Msgf("ingored mutating for resource %s in namespace %s", parameters.Kind, ns)
 			return false
 		}
 	}
@@ -173,10 +172,10 @@ func patchImageDigest(imageDigest *ImageDigest) []*processors.Patch {
 func logPatches(patches []*processors.Patch) {
 	patchData, err := json.Marshal(patches)
 	if err != nil {
-		logging.GetLogger().Err(err).Msg("failed to marshal patches")
+		logging.Get().Warn().Err(err).Msg("failed to marshal patches")
 		return
 	}
-	logging.GetLogger().Info().Msg(string(patchData))
+	logging.Get().Info().Msg(string(patchData))
 }
 
 func getImageDigestFromHarbor(_ context.Context, image string, secret *utils.ImageRepoSecret) string {
@@ -184,24 +183,24 @@ func getImageDigestFromHarbor(_ context.Context, image string, secret *utils.Ima
 	var err error
 
 	if secret != nil {
-		logging.GetLogger().Info().Msgf("image [%s] pulling secret %v", image, *secret)
+		logging.Get().Info().Msgf("image [%s] pulling secret %v", image, *secret)
 		digest, err = utils.GetImageDigest(secret.User, secret.Password, true, image)
 	} else {
-		logging.GetLogger().Info().Msgf("image [%s] pulling secret is empty", image)
+		logging.Get().Info().Msgf("image [%s] pulling secret is empty", image)
 		digest, err = utils.GetImageDigest("", "", true, image)
 	}
 
 	if err != nil {
-		logging.GetLogger().Warn().Err(err).Str("image", image).Msg("get digest of image from harbor error")
+		logging.Get().Warn().Err(err).Str("image", image).Msg("get digest of image from harbor error")
 		return ""
 	}
 	return digest
 }
 
 func loadMutatorConfig(path string) (*MutatorConfig, error) {
-	b, err := ioutil.ReadFile(path)
+	b, err := os.ReadFile(path)
 	if err != nil {
-		logging.GetLogger().Err(err).Msg("read config file failed")
+		logging.Get().Warn().Err(err).Msg("read config file failed")
 		return nil, err
 	}
 
@@ -216,39 +215,39 @@ func loadMutatorConfig(path string) (*MutatorConfig, error) {
 func (m *Mutator) getSecrets(clusterKey, namespace, image string, kubeSecrets []string) *utils.ImageRepoSecret {
 	imageUrl, err := utils.GetImageUrl(image)
 	if err != nil {
-		logging.GetLogger().Err(err).Msgf("get %s url err", image)
+		logging.Get().Warn().Err(err).Msgf("get %s url err", image)
 		return nil
 	}
 
 	clusterManager, ok := k8s.GetClusterManager()
 	if !ok {
-		logging.GetLogger().Err(errors.New("cluster manager not ready")).Msg(image)
+		logging.Get().Warn().Err(errors.New("cluster manager not ready")).Msg(image)
 		return nil
 	}
 	for _, s := range kubeSecrets {
 		client, ok := clusterManager.GetClient(clusterKey)
 		if !ok {
-			logging.GetLogger().Err(err).Msgf("get cluster client of %s err", clusterKey)
+			logging.Get().Warn().Err(err).Msgf("get cluster client of %s err", clusterKey)
 			return nil
 		}
 		secret, err := client.CoreV1().Secrets(namespace).Get(context.Background(), s, metav1.GetOptions{})
 		if err != nil {
-			logging.GetLogger().Warn().Err(err).Msgf("get secret of %s err", s)
+			logging.Get().Warn().Err(err).Msgf("get secret of %s err", s)
 			return nil
 		}
 		data, ok := secret.Data[".dockerconfigjson"]
 		if !ok {
-			logging.GetLogger().Err(err).Msg("invalid secret")
+			logging.Get().Warn().Err(err).Msg("invalid secret")
 			return nil
 		}
 
 		var dockerConfig utils.DockerConfigJSON
 		err = json.Unmarshal(data, &dockerConfig)
 		if err != nil {
-			logging.GetLogger().Err(err).Msgf("parse docker config err")
+			logging.Get().Warn().Err(err).Msgf("parse docker config err")
 			return nil
 		}
-		logging.GetLogger().Info().Msgf("%+v", dockerConfig)
+		logging.Get().Info().Msgf("%+v", dockerConfig)
 
 		for u, config := range dockerConfig.Auths {
 			if u == imageUrl {
@@ -259,7 +258,7 @@ func (m *Mutator) getSecrets(clusterKey, namespace, image string, kubeSecrets []
 			}
 		}
 	}
-	logging.GetLogger().Info().Msgf("not found secret for %s", image)
+	logging.Get().Info().Msgf("not found secret for %s", image)
 	return nil
 }
 

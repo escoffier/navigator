@@ -11,6 +11,7 @@ import (
 	"io/ioutil"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"net/http"
+	_ "net/http/pprof"
 	"os"
 	"reflect"
 	"scm.tensorsecurity.cn/tensorsecurity-rd/api/pkg/generated/informers/externalversions"
@@ -84,6 +85,7 @@ func newWebHookServer(config *Config) (*webHookServer, error) {
 	mutex := http.NewServeMux()
 	mutex.HandleFunc("/mutating", ws.Mutating)
 	mutex.HandleFunc("/validating", ws.Validating)
+
 	ws.Server.Handler = mutex
 	ws.Config = config
 
@@ -123,13 +125,23 @@ func newWebHookServer(config *Config) (*webHookServer, error) {
 }
 
 func (s *webHookServer) Start() {
-
 	logging.GetLogger().Debug().Msg("starting server ")
+
+	go func() {
+		err := http.ListenAndServe("0.0.0.0:8080", nil)
+		if err != nil {
+			logging.GetLogger().Err(err).Msg("failed to start profile server")
+			return
+		}
+		logging.GetLogger().Debug().Msg("profile server exited")
+	}()
+
 	err := s.Server.ListenAndServeTLS("", "")
 	if err != nil {
 		logging.GetLogger().Err(err).Msg("failed to start server")
 		os.Exit(1)
 	}
+
 }
 
 func (s *webHookServer) Stop() {
