@@ -57,7 +57,7 @@ func (s *ImageSrv) ListImageWithScanInfo(ctx context.Context, param model.ImageL
 
 	param.Deserialize()
 	if err := param.Valid(); err != nil {
-		return nil, 0, err
+		return nil, 0, response.NewHttpError(http.StatusInternalServerError, err)
 	}
 	logging.Get().Info().Interface("param", param).Msg("ListImageWithScanInfo")
 

@@ -12,13 +12,14 @@ import (
 	"sync"
 	"time"
 
+	"gitlab.com/security-rd/go-pkg/logging"
+	ftypes "scm.tensorsecurity.cn/tensorsecurity-rd/fanal/types"
+
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scan-report/export"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scan-report/export/utils"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
-	"gitlab.com/security-rd/go-pkg/logging"
-	ftypes "scm.tensorsecurity.cn/tensorsecurity-rd/fanal/types"
 )
 
 // 镜像列表搜索的安全报告
@@ -464,6 +465,7 @@ func (s *ExportImageHtmlSrv) createRiskOverView(ctx context.Context, taskID int6
 		// 风险统计
 		res.StatisticsImageAttr(images)
 		startID = taskImages[len(taskImages)-1].ID
+		logging.Get().Info().Int64("taskID", taskID).Ints64("ImageIds", taskImageIds).Msg("ExportImageHtmlSrv createRiskOverView.ListImageWithScanInfo")
 	}
 	// 统计漏洞信息
 	startID = 0
@@ -485,6 +487,8 @@ func (s *ExportImageHtmlSrv) createRiskOverView(ctx context.Context, taskID int6
 			break
 		}
 		startID = imageVulns[len(imageVulns)-1].ID
+
+		logging.Get().Info().Int64("taskID", taskID).Int64("startID", startID).Msg("ExportImageHtmlSrv createRiskOverView.SearchHtmlVulnImage")
 	}
 	res.Serializer()
 	bys, err := json.Marshal(res)
@@ -656,7 +660,7 @@ func (s *ExportImageHtmlSrv) createVulnImage(ctx context.Context, taskID int64) 
 			if len(duplicatedVuln) == 0 {
 				continue
 			}
-			vulnImage := make([]*model.ExportVulnImage, 0)
+			vulnImages := make([]*model.ExportVulnImage, 0)
 			for j := range duplicatedVuln {
 				vuln := duplicatedVuln[j]
 				// 获取这个漏洞所关联的镜像
@@ -670,22 +674,23 @@ func (s *ExportImageHtmlSrv) createVulnImage(ctx context.Context, taskID int64) 
 				for k := range taskImages {
 					taskImageNames = append(taskImageNames, taskImages[k].ImageName)
 				}
-				data := &model.ExportVulnImage{
+				vulnImage := &model.ExportVulnImage{
 					TaskID:     taskID,
 					UniqueVuln: vuln.UniqueVuln,
 					Images:     taskImageNames,
 					CanFixed:   vuln.FixedBy != "",
 					Severity:   vuln.SeverityInt,
 				}
-				vulnImage = append(vulnImage, data)
+				vulnImages = append(vulnImages, vulnImage)
 			}
 
-			if err := s.ExportTaskDal.CreateHtmlVulnImage(ctx, vulnImage); err != nil {
-				logging.Get().Err(err).Int64("taskID", taskID).Int("vulnImage", len(vulnImage)).Msg("ExportImageHtmlSrv prepareVuln CreateHtmlVulnImage")
+			if err := s.ExportTaskDal.CreateHtmlVulnImage(ctx, vulnImages); err != nil {
+				logging.Get().Err(err).Int64("taskID", taskID).Int("vulnImage", len(vulnImages)).Msg("ExportImageHtmlSrv prepareVuln CreateHtmlVulnImage")
 				continue
 			}
+			logging.Get().Info().Int64("taskID", taskID).Int64("imageID", exportImages[i].ImageID).Int("vulnImage", len(vulnImages)).Msg("ExportImageHtmlSrv prepareVuln CreateHtmlVulnImage")
 		}
-
+		// pod重启后不用再重新计算。
 		if err := s.ExportTaskDal.CreateOrUpdateHtmlPrepare(ctx, &model.ExportHtmlPrepare{
 			TaskID:   taskID,
 			DataType: model.ExportHtmlPrepareVulnLastImage,
@@ -714,6 +719,7 @@ func (s *ExportImageHtmlSrv) Run(ctx context.Context) {
 	}
 	task := tasks[0]
 	// 把漏洞统计好,pod可能会重启
+	logging.Get().Info().Int64("taskID", task.ID).Msg("ExportImageHtmlSrv start createVulnImage")
 	if err := s.createVulnImage(ctx, task.ID); err != nil {
 		logging.Get().Err(err).Int64("taskID", task.ID).Msg("ExportImageHtmlSrv pre createVulnImage")
 		if err := s.UpdateTask.Failure(ctx, task.ID, err.Error()); err != nil {
@@ -721,8 +727,10 @@ func (s *ExportImageHtmlSrv) Run(ctx context.Context) {
 		}
 		return
 	}
+	logging.Get().Info().Int64("taskID", task.ID).Msg("ExportImageHtmlSrv finish createVulnImage")
 
 	// 把风险概览信息准备好,pod重启后可能会重复写入
+	logging.Get().Info().Int64("taskID", task.ID).Msg("ExportImageHtmlSrv start createRiskOverView")
 	if err := s.createRiskOverView(ctx, task.ID); err != nil && !strings.Contains(err.Error(), consts.DuplicateKey) {
 		logging.Get().Err(err).Int64("taskID", task.ID).Msg("ExportImageHtmlSrv pre createRiskOverView")
 		if err := s.UpdateTask.Failure(ctx, task.ID, err.Error()); err != nil {
@@ -730,6 +738,8 @@ func (s *ExportImageHtmlSrv) Run(ctx context.Context) {
 		}
 		return
 	}
+
+	logging.Get().Info().Int64("taskID", task.ID).Msg("ExportImageHtmlSrv finish createRiskOverView")
 
 	if err := s.UpdateTask.Start(ctx, task.ID); err != nil {
 		logging.Get().Err(err).Int64("taskID", task.ID).Str("filePath", task.FilePath).Msg("ExportImageHtmlSrv export html Start")
@@ -803,10 +813,13 @@ func (s *ExportImageHtmlSrv) Run(ctx context.Context) {
 				logging.Get().Err(err).Int64("taskID", task.ID).Msg("ExportImageHtmlSrv Success export html task success update task")
 			}
 			break
-		} else if status.Data.Status == consts.KoaStatusFailed {
+		} else if status.Data.Status == consts.KoaStatusFailed || status.Data.Status == "" {
 			// 保存状态
 			logging.Get().Info().Int64("taskID", task.ID).Msg("export html execute failure")
 			if len(status.Data.FailedMsg) == 0 {
+				if status.Msg != "" {
+					status.Data.FailedMsg = []FailedMsg{{Message: status.Msg}}
+				}
 				status.Data.FailedMsg = []FailedMsg{{Message: "未知错误"}}
 			}
 			errMsg := status.Data.FailedMsg[len(status.Data.FailedMsg)-1].Message
