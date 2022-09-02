@@ -19,6 +19,7 @@ var scannerDb *ScannerDB // todo: should be deprecated
 var scanConfigDao *ScanConfigDao
 var ciDao *CiDao
 var redisClients []*redis.Client = make([]*redis.Client, 2)
+var registryDao *RegistryDao
 
 func InitDb(loglevel string) (err error) {
 	dbInitOnce.Do(func() {
@@ -39,6 +40,7 @@ func InitDb(loglevel string) (err error) {
 		// todo: should be deprecated
 		scannerDb = NewScannerDB(scannerDB)
 		ciDao = NewCiDao(scannerDB)
+		registryDao = NewRegistryDao(scannerDB)
 	})
 
 	return
@@ -46,6 +48,10 @@ func InitDb(loglevel string) (err error) {
 
 func GetScannerWrapperDb() *databases.RDBInstance {
 	return scannerDB
+}
+
+func GetRegistryDao() *RegistryDao {
+	return registryDao
 }
 
 func GetScanConfigDao() *ScanConfigDao {

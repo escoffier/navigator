@@ -24,20 +24,11 @@ type RegistryDal interface {
 }
 
 type SyncRetryImageDal interface {
-	// GetImageRetry(ctx context.Context, registryID uint, maxCount int) ([]model.SyncRetryImage, error)
 	SearchImageRetry(ctx context.Context, param SearchImageRetryParam) ([]model.SyncRetryImage, error)
-	// CountImageRetry(ctx context.Context, image model.SyncRetryImage, set int) error
 	CreateImageRetry(ctx context.Context, image model.SyncRetryImage) error
-	// UpdateImageRetry(ctx context.Context, uniqueImage string, updater map[string]interface{}) error
 	AddRetryCount(ctx context.Context, uniqueImage uint64) error
-	// DoneImageRetry(ctx context.Context, image model.SyncRetryImage) error
 	DeleteImageRetry(ctx context.Context, param SearchImageRetryParam) error
-	// SearchRegistry(ctx context.Context, param SearchRegistryParam, filter *model.Filter) ([]model.Registry, int64, error)
 }
-
-const (
-	UnSet = -1
-)
 
 type RegistryDao struct {
 	db *databases.RDBInstance
