@@ -41,7 +41,7 @@ func saveRulesFile(writeBytes []byte, path string) error {
 	return fp.Sync()
 }
 
-func prepareRulesFile(thrPath string, outputPath string, closedRules map[string]struct{}) ([]byte, error) {
+func prepareRulesFile(thrPath string, outputPath string, closedRules map[string]struct{}, initPhase bool) ([]byte, error) {
 	rulesContext, err := decode.DoRulesDecode(thrPath)
 	if err != nil {
 		logging.Get().Err(err).Msgf("decode error. path: %s", thrPath)
@@ -51,7 +51,7 @@ func prepareRulesFile(thrPath string, outputPath string, closedRules map[string]
 	// DEBUG
 	logging.Get().Trace().Msgf("closedFiles: %v", closedRules)
 	// rules swith mutation
-	rulesSwitchMutate := holmesengine.GetRuleSwitchMutationFunc(closedRules)
+	rulesSwitchMutate := holmesengine.GetRuleSwitchMutationFunc(closedRules, initPhase)
 	writeBytes, err := holmesengine.RulesMutate(rulesContext, rulesSwitchMutate, namespaceMutator)
 	if err != nil {
 		return nil, err
@@ -103,14 +103,15 @@ func main() {
 	logging.ReplaceLogger(loggingOptions)
 
 	consoleUpdateC := make(chan struct{})
-	configmapUpdateC := make(chan struct{})
+	// disable configmap watch for no usage currrently
+	// configmapUpdateC := make(chan struct{})
 	errorC := make(chan error)
 	quit := make(chan int)
 
 	hp := holmesengine.NewProcessInfo()
 	r := watch.NewHTTPRequest(clusterAddr)
 
-	go watch.ConfigmapWatchInit(configmapUpdateC, errorC)
+	// go watch.ConfigmapWatchInit(configmapUpdateC, errorC)
 	go r.RulesUpdateLoop(consoleUpdateC, errorC)
 
 	var err error
@@ -119,12 +120,12 @@ func main() {
 		err = nil
 		if hp.Handler == nil {
 			if hp.StartWithDefault {
-				_, err = prepareRulesFile(defaultThrPath, holmesengine.DefaultRulesFile, r.CloseRules())
+				_, err = prepareRulesFile(defaultThrPath, holmesengine.DefaultRulesFile, r.CloseRules(), true)
 				if err != nil {
 					logging.Get().Err(err).Msgf("parepare rules file error. thr path: %s", watch.UploadThrPath)
 				}
 			} else {
-				_, err = prepareRulesFile(watch.UploadThrPath, *outputRulesFilename, r.CloseRules())
+				_, err = prepareRulesFile(watch.UploadThrPath, *outputRulesFilename, r.CloseRules(), true)
 				if err != nil {
 					logging.Get().Err(err).Msgf("parepare rules file error. thr path: %s", watch.UploadThrPath)
 				}
@@ -143,13 +144,12 @@ func main() {
 		}
 
 		select {
-
 		case <-consoleUpdateC:
 			if hp.StartWithDefault {
 				hp.StartModeUpdate = true
 				hp.StartWithDefault = false
 			} else {
-				_, preErr := prepareRulesFile(watch.UploadThrPath, *outputRulesFilename, r.CloseRules())
+				_, preErr := prepareRulesFile(watch.UploadThrPath, *outputRulesFilename, r.CloseRules(), false)
 				if preErr != nil {
 					logging.Get().Err(preErr).Msgf("parepare rules file error. thr path: %s", watch.UploadThrPath)
 				}
@@ -159,24 +159,25 @@ func main() {
 				logging.Get().Err(rerr).Msg("Restart holmes error")
 			}
 
-		case <-configmapUpdateC:
-			if hp.StartWithDefault {
-				_, perr := prepareRulesFile(defaultThrPath, holmesengine.DefaultRulesFile, r.CloseRules())
-				if perr != nil {
-					logging.Get().Err(perr).Msg("prepare rules file error when configmap update. try restart container")
-					os.Exit(1)
-				}
-			} else {
-				_, perr := prepareRulesFile(watch.UploadThrPath, *outputRulesFilename, r.CloseRules())
-				if perr != nil {
-					logging.Get().Err(perr).Msg("prepare rules file error when configmap update. update fail.")
-					continue
-				}
-			}
-			logging.Get().Info().Msg("restart holmes because configmap update... ")
-			if rerr := hp.RestartHolmesViaSignal(); rerr != nil {
-				logging.Get().Err(rerr).Msg("Restart holmes error")
-			}
+		// disable configmap watch for no usage currrently
+		// case <-configmapUpdateC:
+		// 	if hp.StartWithDefault {
+		// 		_, perr := prepareRulesFile(defaultThrPath, holmesengine.DefaultRulesFile, r.CloseRules(), false)
+		// 		if perr != nil {
+		// 			logging.Get().Err(perr).Msg("prepare rules file error when configmap update. try restart container")
+		// 			os.Exit(1)
+		// 		}
+		// 	} else {
+		// 		_, perr := prepareRulesFile(watch.UploadThrPath, *outputRulesFilename, r.CloseRules(), false)
+		// 		if perr != nil {
+		// 			logging.Get().Err(perr).Msg("prepare rules file error when configmap update. update fail.")
+		// 			continue
+		// 		}
+		// 	}
+		// 	logging.Get().Info().Msg("restart holmes because configmap update... ")
+		// 	if rerr := hp.RestartHolmesViaSignal(); rerr != nil {
+		// 		logging.Get().Err(rerr).Msg("Restart holmes error")
+		// 	}
 
 		case err := <-errorC:
 			logging.Get().Err(err).Msg("===========holmes running error============")
