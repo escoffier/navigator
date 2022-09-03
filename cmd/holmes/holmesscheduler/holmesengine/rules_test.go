@@ -16,7 +16,7 @@ func TestRulesMutate(t *testing.T) {
 - rule: test1
   condition: a = b
 `)
-	f0 := GetRuleSwitchMutationFunc(map[string]struct{}{"The k8s client is executed in a container": {}})
+	f0 := GetRuleSwitchMutationFunc(map[string]struct{}{"The k8s client is executed in a container": {}}, false)
 	f1 := GetTensorsecNamespaceChange("idss")
 	f, err := os.Open("../../../../configs/holmes/rules/holmes_rules.yaml")
 	if err != nil {
