@@ -269,6 +269,7 @@ func (s *ExportApiSrv) CreateAuditExportTask(ctx *gin.Context) {
 		Creator:     data.Creator,
 		FilePath:    fileName,
 		CreatedAt:   time.Now(),
+		TaskType:    model.ExportExcel, // 日志审计现只支持excel，所以这里赋默认值
 	}
 	if err := s.exportSrv.CreateExportTask(ctx, task); err != nil {
 		response.JSONError(ctx, err)
