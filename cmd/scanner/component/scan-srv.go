@@ -472,7 +472,7 @@ func (s *ConScannerSrv) UpdateImageType(ctx context.Context, imageIds []int64, i
 			updater["flag"] = im.Flag
 			updater["image_type"] = model.BaseImageType
 		} else if imageType == model.AppImageType {
-			im.SetFlagBaseImage()
+			im.SetFlagAppImage()
 			updater["flag"] = im.Flag
 			updater["image_type"] = model.AppImageType
 		}
