@@ -258,19 +258,16 @@ func (s *ImageOpenAPISvc) GetImageDetails(ctx *gin.Context) {
 		return
 	}
 	res := apimodel.ImageDetail{
-		Digest:         img.Digest,
-		Image:          fmt.Sprintf("%s:%s", img.FullRepoName, img.Tags),
-		SensitiveFile:  make([]string, 0),
-		Viruses:        img.ImageScanVirus,
-		Envs:           make([]apimodel.SummaryEnv, 0),
-		Webshell:       img.ImageScanWebshell,
-		Vulns:          make([]apimodel.Vuln, 0),
-		ImageType:      img.ImageType,
-		Reinforced:     img.IsReinforce,
-		NodeHostname:   img.NodeHostname,
-		NodeIP:         img.NodeIP,
-		PrivilegedBoot: img.PrivilegedBoot,
-		Size:           img.Size,
+		ID:            img.ID,
+		Digest:        img.Digest,
+		Image:         fmt.Sprintf("%s:%s", img.FullRepoName, img.Tags),
+		SensitiveFile: make([]string, 0),
+		Viruses:       img.ImageScanVirus,
+		Envs:          make([]apimodel.SummaryEnv, 0),
+		Webshell:      img.ImageScanWebshell,
+		NodeHostname:  img.NodeHostname,
+		NodeIP:        img.NodeIP,
+		Size:          img.Size,
 	}
 	if img.Registry != nil {
 		res.RegistryURL = img.Registry.Url
@@ -285,38 +282,25 @@ func (s *ImageOpenAPISvc) GetImageDetails(ctx *gin.Context) {
 		res.Envs = append(res.Envs, apimodel.SummaryEnv{
 			EnvName:    img.ImageScanEnv[i].EnvName,
 			EnvValue:   img.ImageScanEnv[i].EnvValue,
-			IsAbnormal: img.ImageScanEnv[i].IsAbnormal,
+			IsAbnormal: img.ImageScanEnv[i].IsAbnormal == model.IsAbnormalEnv,
 		})
 	}
+
 	for i := range img.ImageScanVuln.SensitiveFiles {
 		res.SensitiveFile = append(res.SensitiveFile, img.ImageScanVuln.SensitiveFiles[i].Name)
 	}
-
-	for i := range img.ImageScanVuln.Vulns {
-		vuln := apimodel.Vuln{
-			Name:          img.ImageScanVuln.Vulns[i].Name,
-			Severity:      img.ImageScanVuln.Vulns[i].Severity,
-			Description:   img.ImageScanVuln.Vulns[i].Description,
-			FixSuggestion: img.ImageScanVuln.Vulns[i].FixedBy,
-			References:    img.ImageScanVuln.Vulns[i].Link,
-			PkgName:       img.ImageScanVuln.Vulns[i].PkgName,
-			PkgVersion:    img.ImageScanVuln.Vulns[i].PkgVersion,
-		}
-
-		if img.ImageScanVuln.Vulns[i].Metadata != nil {
-			vuln.FixedVersion = img.ImageScanVuln.Vulns[i].Metadata.CNNVDs.FixSuggestion
-			vuln.FixedVersion = img.ImageScanVuln.Vulns[i].Metadata.CNNVDs.FixSuggestion
-			vuln.CVSS.Vector = img.ImageScanVuln.Vulns[i].Metadata.CVSS.CVSSv3Vector
-		}
-		if len(img.ImageScanVuln.Vulns[i].Metadata.CNVDs) > 0 {
-			vuln.Title = img.ImageScanVuln.Vulns[i].Metadata.CNVDs[0].Title
-		}
-		score, _ := strconv.ParseFloat(img.ImageScanVuln.Vulns[i].Metadata.CVSS.CVSSv3Score, 64)
-
-		vuln.CVSS.Score = score
-
-		res.Vulns = append(res.Vulns, vuln)
+	if model.ExistFlag(img.Flag, model.FlagBaseImage) {
+		res.ImageAttr.ImageType = model.BaseImageTypeString
+	} else {
+		res.ImageAttr.ImageType = model.AppImageTypeString
 	}
+	if model.ExistFlag(img.Flag, model.FlagHasFixedVuln) {
+		res.ImageAttr.HasFixedVuln = true
+	}
+	if model.ExistFlag(img.Flag, model.FlagReinforced) {
+		res.ImageAttr.Reinforced = true
+	}
+	res.ImageAttr.Trusted = img.Trusted
 
 	response.JSONOK(ctx, response.WithItem(res))
 }

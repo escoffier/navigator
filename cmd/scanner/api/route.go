@@ -312,7 +312,7 @@ func OpenAPI(router *gin.Engine, scannerSvc component.ScannerSrv,
 
 		vuln := v1.Group("/vulns")
 		{
-			vuln.GET("", apiVulnSrc.List)
+			vuln.GET("/list", apiVulnSrc.List)
 			vuln.GET("/detail", apiVulnSrc.Detail)
 			vuln.GET("/topNImage", apiVulnSrc.GetVulnTopNImage)
 		}

@@ -45,6 +45,7 @@ const (
 	NodeBuffRegistry    = 3 // 表示节点镜像所使用的仓库
 	UserRegistry        = 1 // 表示同步仓库
 	NodeImageSplitCount = 6
+	IsAbnormalEnv       = 1
 
 	CICDImageRegistryString = "cicd"     // 表示CICD的中转仓库
 	NodeBuffRegistryString  = "node"     // 表示节点镜像所使用的仓库

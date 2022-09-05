@@ -29,6 +29,37 @@ func NewVulnServer(vulnService component.VulnServiceInterface, imageSrv componen
 }
 
 func (v *VulnServer) List(ctx *gin.Context) {
+	// 获取特定镜像的漏洞
+	registryName := ctx.Query("registryName")
+	imageName := ctx.Query("imageName")
+
+	imageIds := make([]int64, 0)
+	if registryName != "" && imageName != "" {
+		repoName, tag, err := ParseImageName(imageName)
+		if err != nil {
+			response.JSONError(ctx, err)
+			return
+		}
+
+		images, _, err := v.imageSrv.SearchImages(ctx, component.SearchImageParam{
+			FullRepoName: repoName,
+			Tags:         tag,
+		}, nil)
+		if err != nil {
+			response.JSONError(ctx, err)
+			return
+		}
+		for i := range images {
+			if images[i].Registry != nil && images[i].Registry.Name == registryName {
+				imageIds = append(imageIds, images[i].ID)
+			}
+		}
+		if len(imageIds) == 0 {
+			response.JSONError(ctx, fmt.Errorf("not fond image:(%s)%s", registryName, imageName))
+			return
+		}
+	}
+
 	search := ctx.Query("keyword")
 	if len(search) > 64 {
 		response.JSONError(ctx, errors.New("the maximum value is exceeded"))
@@ -41,7 +72,7 @@ func (v *VulnServer) List(ctx *gin.Context) {
 	if filter.SortBy == "" {
 		filter.SortBy = consts.SortByDesc
 	}
-	vulns, cnt, err := v.vulnService.SearchVulns(ctx, component.SearchVulnParam{VulnKeyword: search}, filter)
+	vulns, cnt, err := v.vulnService.SearchVulns(ctx, component.SearchVulnParam{VulnKeyword: search, ImageIds: imageIds}, filter)
 	if err != nil {
 		response.JSONError(ctx, err)
 		return
@@ -52,7 +83,7 @@ func (v *VulnServer) List(ctx *gin.Context) {
 		res[i] = apimodel.ModelToOpenapiDetail(vulns[i])
 	}
 
-	response.JSONOK(ctx, response.WithItems(vulns),
+	response.JSONOK(ctx, response.WithItems(res),
 		response.WithTotalItems(cnt),
 		response.WithItemsPerPage(filter.Limit),
 		response.WithStartIndex(filter.Offset))
