@@ -240,7 +240,7 @@ func (api *api) scannerOpenApi() func(router chi.Router) {
 			Get("/statistic/vulns", api.ForwardScannerOpenApi())
 
 		r.With(RateLimitMiddleware(api.redisClient, int64(rate))).
-			Get("/vulns", api.ForwardScannerOpenApi())
+			Get("/vulns/list", api.ForwardScannerOpenApi())
 
 		r.With(RateLimitMiddleware(api.redisClient, int64(rate))).
 			Get("/vulns/detail", api.ForwardScannerOpenApi())

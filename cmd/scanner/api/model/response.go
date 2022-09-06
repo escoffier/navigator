@@ -20,7 +20,7 @@ type ImageLayerInfo struct {
 type SummaryEnv struct {
 	EnvName    string `json:"envName"`
 	EnvValue   string `json:"envValue"`
-	IsAbnormal int    `json:"isAbnormal"` // 标记是否异常
+	IsAbnormal bool   `json:"isAbnormal"` // 标记是否异常
 }
 
 type Vuln struct {
@@ -37,21 +37,19 @@ type Vuln struct {
 }
 
 type ImageDetail struct {
-	Digest         string                   `json:"digest"`
-	FromType       string                   `json:"fromType"`
-	Image          string                   `json:"image"`
-	RegistryURL    string                   `json:"registryUrl"`
-	SensitiveFile  []string                 `json:"sensitiveFile"`
-	Viruses        []model.VirusFileInfo    `json:"viruses"`
-	Envs           []SummaryEnv             `json:"envs"`
-	Webshell       []model.WebshellFileInfo `json:"webshell"`
-	Vulns          []Vuln                   `json:"vulns"`
-	ImageType      int64                    `json:"imageType"`
-	Reinforced     int                      `json:"reinforced"`
-	NodeHostname   string                   `json:"nodeHostname"`
-	NodeIP         string                   `json:"nodeIp"`
-	PrivilegedBoot int64                    `json:"privilegedBoot"`
-	Size           int                      `json:"size"`
+	ID            int64                    `json:"id"`
+	Digest        string                   `json:"digest"`
+	FromType      string                   `json:"fromType"`
+	Image         string                   `json:"image"`
+	RegistryURL   string                   `json:"registryUrl"`
+	SensitiveFile []string                 `json:"sensitiveFile"`
+	Viruses       []model.VirusFileInfo    `json:"viruses"`
+	Envs          []SummaryEnv             `json:"envs"`
+	Webshell      []model.WebshellFileInfo `json:"webshell"`
+	NodeHostname  string                   `json:"nodeHostname"`
+	NodeIP        string                   `json:"nodeIp"`
+	Size          int                      `json:"size"`
+	ImageAttr     model.ImageAttrResponse  `json:"imageAttr"`
 }
 
 type ImageListResponse struct {
