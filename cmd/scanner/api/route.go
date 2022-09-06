@@ -39,7 +39,7 @@ func SetupGinRouter(redisClient *redis.Client,
 	})
 
 	router = WebAPI(router, scannerSvc, imageSvc, rejectSvc, harborSvc, registrySrv, scanConfigSrv, vuluSrv, syncImageSrv, ciDalSrv)
-	router = OpenAPI(router, scannerSvc, registrySrv, scanConfigSrv, vuluSrv, ciDalSrv, imageSvc, syncImageSrv)
+	router = OpenAPI(router, scannerSvc, rejectSvc, registrySrv, scanConfigSrv, vuluSrv, ciDalSrv, imageSvc, syncImageSrv)
 
 	return router
 }
@@ -263,6 +263,7 @@ func WebAPI(router *gin.Engine,
 }
 
 func OpenAPI(router *gin.Engine, scannerSvc component.ScannerSrv,
+	rejectSvc component.ImageRejectSrv,
 	registrySrv component.RegistrySrvInterface,
 	scanConfigSrv component.ScanConfigSrvInterface,
 	vulnSrv component.VulnServiceInterface,
@@ -272,7 +273,7 @@ func OpenAPI(router *gin.Engine, scannerSvc component.ScannerSrv,
 ) *gin.Engine {
 
 	apiScannerSrv := openapi.NewScannerOpenAPISrv(scannerSvc, registrySrv, scanConfigSrv, imageSrv)
-
+	apiRejectSrv := NewRejectAPISrv(rejectSvc)
 	scanConfigAPISrv := openapi.NewScanConfigOpenAPISrv(scanConfigSrv)
 	apiVulnSrc := openapi.NewVulnServer(vulnSrv, scannerSvc)
 
@@ -326,6 +327,7 @@ func OpenAPI(router *gin.Engine, scannerSvc component.ScannerSrv,
 			cig.GET("/tidb/version", ciSrv.TiDbVersion)
 			cig.Static("/tidb/assets", global.ScannerOpts.PvcPath)
 			cig.POST("/result", ciSrv.SaveResult)
+			cig.POST("/sign", apiRejectSrv.SignImageTrusted)
 		}
 		// 和仓库相关
 		register := v1.Group("/register")
