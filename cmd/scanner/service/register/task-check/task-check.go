@@ -40,6 +40,9 @@ func (t *TaskCheck) checkTaskStatus() error {
 			logging.GetLogger().Err(err).Int64("taskId", v.ID).Msg("get progressing subtask err")
 			continue
 		}
+		if len(sts) == 0 {
+			continue
+		}
 
 		if v.ScannerID != global.ScannerID {
 			// a processing task's scanner id not consistent with mine

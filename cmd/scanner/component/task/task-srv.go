@@ -599,6 +599,9 @@ func (t *TaskSrv) GetPendingSubTasks(taskIds []int64) ([]SubTask, error) {
 }
 
 func (t *TaskSrv) AddSubTaskRetryCount(subTasks []SubTask) error {
+	if len(subTasks) == 0 {
+		return nil
+	}
 	ids := make([]int64, 0)
 	for _, v := range subTasks {
 		ids = append(ids, v.ID)
