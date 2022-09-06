@@ -58,6 +58,17 @@ func (v *VulnServer) List(ctx *gin.Context) {
 			response.JSONError(ctx, fmt.Errorf("not fond image:(%s)%s", registryName, imageName))
 			return
 		}
+	} else {
+		// 默认查在线的
+		onlineIds, err := v.imageSrv.GetOnlineImageId(ctx)
+		if err != nil {
+			response.JSONError(ctx, err)
+			return
+		}
+		if len(onlineIds) == 0 {
+			response.JSONOK(ctx, response.WithItems([]model.Vuln{}))
+			return
+		}
 	}
 
 	search := ctx.Query("keyword")
@@ -72,6 +83,7 @@ func (v *VulnServer) List(ctx *gin.Context) {
 	if filter.SortBy == "" {
 		filter.SortBy = consts.SortByDesc
 	}
+
 	vulns, cnt, err := v.vulnService.SearchVulns(ctx, component.SearchVulnParam{VulnKeyword: search, ImageIds: imageIds}, filter)
 	if err != nil {
 		response.JSONError(ctx, err)
