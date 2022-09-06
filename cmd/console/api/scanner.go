@@ -258,6 +258,8 @@ func (api *api) scannerOpenApi() func(router chi.Router) {
 			Get("/ci/tidb/version", api.ForwardScannerOpenApi())
 		r.With(RateLimitMiddleware(api.redisClient, int64(rate))).
 			Get("/ci/tidb/assets/{name}", api.ForwardScannerOpenApi())
+		r.With(RateLimitMiddleware(api.redisClient, int64(rate))).
+			Post("/ci/sign", api.ForwardScannerOpenApi())
 
 		r.With(RateLimitMiddleware(api.redisClient, int64(rate))).
 			Post("/syncImage/startSync", api.ForwardScannerOpenApi())
