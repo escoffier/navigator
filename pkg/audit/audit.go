@@ -532,6 +532,34 @@ func init() {
 		return editAction, "编辑镜像扫描任务"
 	})
 
+	routeAction.POST("/api/v2/containerSec/scanner/ci/policy", func(params Params) (string, string) {
+		return createAction, "新增CI策略{{.}}"
+	})
+
+	routeAction.PUT("/api/v2/containerSec/scanner/ci/policy", func(params Params) (string, string) {
+		return editAction, "编辑CI策略{{.}}"
+	})
+
+	routeAction.DELETE("/api/v2/containerSec/scanner/ci/policy", func(params Params) (string, string) {
+		return deleteAction, "删除CI策略{{.}}"
+	})
+
+	routeAction.POST("/api/v2/containerSec/scanner/ci/whitelists", func(params Params) (string, string) {
+		return createAction, "新增CI白名单{{.}}"
+	})
+
+	routeAction.PUT("/api/v2/containerSec/scanner/ci/whitelists", func(params Params) (string, string) {
+		return editAction, "编辑CI白名单{{.}}"
+	})
+
+	routeAction.DELETE("/api/v2/containerSec/scanner/ci/whitelist", func(params Params) (string, string) {
+		return deleteAction, "删除CI白名单{{.}}"
+	})
+
+	routeAction.PUT("/api/v2/containerSec/scanner/ci/webhook", func(params Params) (string, string) {
+		return editAction, "编辑CIWehbook{{.}}"
+	})
+
 	// 合规检测
 	routeAction.POST("/api/v2/containerSec/scap/v2/:scapType/cronjob", func(params Params) (string, string) {
 		scapType := model.ComplianceCheckType(params.ByName("scapType"))
