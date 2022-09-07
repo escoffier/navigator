@@ -183,7 +183,7 @@ func (c *CiApiSrv) CreateCiPolicy(ctx *gin.Context) {
 		response.JSONError(ctx, fmt.Errorf("create policy error"))
 		return
 	}
-	response.JSONOK(ctx, response.WithItem(policyID))
+	response.JSONOK(ctx, response.WithItem(policyID), response.WithTarget(&response.TargetRef{ID: strconv.Itoa(int(policyID)), Name: policy.Name}))
 }
 
 func (c *CiApiSrv) UpdatePolicy(ctx *gin.Context) {
@@ -200,7 +200,7 @@ func (c *CiApiSrv) UpdatePolicy(ctx *gin.Context) {
 		response.JSONError(ctx, err)
 		return
 	}
-	response.JSONOK(ctx)
+	response.JSONOK(ctx, response.WithTarget(&response.TargetRef{ID: strconv.Itoa(int(policy.ID)), Name: policy.Name}))
 }
 
 func (c *CiApiSrv) DeleteCiPolicy(ctx *gin.Context) {
@@ -216,7 +216,7 @@ func (c *CiApiSrv) DeleteCiPolicy(ctx *gin.Context) {
 		response.JSONError(ctx, fmt.Errorf("delete ci policy error"))
 		return
 	}
-	response.JSONOK(ctx)
+	response.JSONOK(ctx, response.WithTarget(&response.TargetRef{ID: strconv.Itoa(int(id))}))
 }
 
 func (c *CiApiSrv) CiPolicyDetail(ctx *gin.Context) {
@@ -368,6 +368,7 @@ func (c *CiApiSrv) CreateWhitelist(ctx *gin.Context) {
 		response.JSONError(ctx, response.NewHttpError(http.StatusNotAcceptable, fmt.Errorf(strings.Join(errStrings, "\n"))))
 		return
 	}
+
 	err = c.Component.WM.CreateWhitelist(ctx, whitelist)
 	if err != nil {
 		logging.Get().Err(err).Msgf("create whitelist err ")
@@ -378,7 +379,11 @@ func (c *CiApiSrv) CreateWhitelist(ctx *gin.Context) {
 		}
 		return
 	}
-	response.JSONOK(ctx)
+	var creates []string
+	for k := range whitelist {
+		creates = append(creates, whitelist[k].Name)
+	}
+	response.JSONOK(ctx, response.WithTarget(&response.TargetRef{Name: strings.Join(creates, ",")}))
 }
 
 func (c *CiApiSrv) DeleteWhitelist(ctx *gin.Context) {
@@ -389,7 +394,7 @@ func (c *CiApiSrv) DeleteWhitelist(ctx *gin.Context) {
 		response.JSONError(ctx, fmt.Errorf("delete whitelist err id %v", id))
 		return
 	}
-	response.JSONOK(ctx)
+	response.JSONOK(ctx, response.WithTarget(&response.TargetRef{ID: strconv.Itoa(int(id))}))
 }
 
 func (c *CiApiSrv) MatchWhitelist(ctx *gin.Context) {
@@ -442,7 +447,11 @@ func (c *CiApiSrv) UpdateWhitelist(ctx *gin.Context) {
 		response.JSONError(ctx, fmt.Errorf("update whitelist err Name %v", whitelist[0].Name))
 		return
 	}
-	response.JSONOK(ctx)
+	var creates []string
+	for k := range whitelist {
+		creates = append(creates, whitelist[k].Name)
+	}
+	response.JSONOK(ctx, response.WithTarget(&response.TargetRef{Name: strings.Join(creates, ",")}))
 }
 
 func (c *CiApiSrv) GetWhitelist(ctx *gin.Context) {
@@ -622,7 +631,7 @@ func (c *CiApiSrv) UpDateWebhook(ctx *gin.Context) {
 		response.JSONError(ctx, fmt.Errorf("UpDateWebhook error"))
 		return
 	}
-	response.JSONOK(ctx)
+	response.JSONOK(ctx, response.WithTarget(&response.TargetRef{Name: fmt.Sprintf("enable:%v,url:%s,secret:%s,options:%s", wh.Enable, wh.URL, wh.Secret, wh.Options)}))
 }
 
 func (c *CiApiSrv) GetWebhook(ctx *gin.Context) {
