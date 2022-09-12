@@ -68,7 +68,7 @@ func (ej *ExecJudge) Start() error {
 	}
 
 	for {
-		logging.Get().Debug().Msg("wait unix socket request")
+		logging.Get().Trace().Msg("wait unix socket request")
 
 		unixConn, err := unixListener.AcceptUnix()
 		if err != nil {
@@ -77,12 +77,12 @@ func (ej *ExecJudge) Start() error {
 			continue
 		}
 
-		logging.Get().Debug().Msg("judge receive request")
+		logging.Get().Trace().Msg("judge receive request")
 
 		// every exec command will create a new conn
 		go func(conn *net.UnixConn) {
 			defer func() {
-				logging.Get().Debug().Msg("judge close conn")
+				logging.Get().Trace().Msg("judge close conn")
 				_ = conn.Close()
 			}()
 			defer func() {
@@ -138,7 +138,7 @@ func getContainerPolicyInfo(podUID string, npw *nodeinfo.NodePodsWatcher, podRes
 		logging.Get().Error().Err(err).Msg("get pod info fail")
 		return containerPolicyInfo, err
 	}
-	logging.Get().Debug().Msgf("generateEvent: %v", podInfo)
+	logging.Get().Trace().Msgf("generateEvent: %v", podInfo)
 	containerPolicyInfo.namespace = podInfo.Namespace
 	containerPolicyInfo.cluster = podInfo.ClusterKey
 	containerPolicyInfo.podFullName = podInfo.Name
@@ -161,7 +161,7 @@ var (
 )
 
 func (ej *ExecJudge) doRequest(conn *net.UnixConn, uuid uint64) error {
-	logging.Get().Debug().Uint64("uuid", uuid).Msg("start do request")
+	logging.Get().Trace().Uint64("uuid", uuid).Msg("start do request")
 
 	r := bufio.NewReader(conn)
 	// use for-loop to support multi msg,
@@ -174,12 +174,12 @@ func (ej *ExecJudge) doRequest(conn *net.UnixConn, uuid uint64) error {
 		}
 		if err == io.EOF {
 			// client close connection
-			logging.Get().Debug().Uint64("uuid", uuid).Msg("read eof,client close conn")
+			logging.Get().Trace().Uint64("uuid", uuid).Msg("read eof,client close conn")
 			return nil
 		}
 
 		// get containerID and file hash
-		logging.Get().Debug().Uint64("uuid", uuid).Str("msg", msg).Msg("receive msg content")
+		logging.Get().Trace().Uint64("uuid", uuid).Str("msg", msg).Msg("receive msg content")
 		arr := strings.Split(msg, contentDelimiter)
 		if len(arr) != 5 {
 			logging.Get().Error().Uint64("uuid", uuid).Str("content", msg).Msg("message format err")
@@ -200,21 +200,21 @@ func (ej *ExecJudge) doRequest(conn *net.UnixConn, uuid uint64) error {
 			_ = ej.Response(conn, resultPass, containerID, fileHash)
 			continue
 		}
-		logging.Get().Debug().Interface("Meta", containMeta).Msg("container meta info")
+		logging.Get().Trace().Interface("Meta", containMeta).Msg("container meta info")
 
 		skip := false
 		// check whitelist state
 		for _, digest := range containMeta.ImageDigest {
 			state, exist := ej.cm.GetWhiteListState(digest)
 			if state != WhiteListReady && exist {
-				logging.Get().Error().Msgf("whitelist not ready imageDigest: %s\n", digest)
+				logging.Get().Warn().Msgf("whitelist not ready imageDigest: %s\n", digest)
 				skip = true
 				break
 			}
 		}
 
 		if skip {
-			logging.Get().Debug().Msg("white list not ready skip check")
+			logging.Get().Warn().Msg("white list not ready skip check")
 			_ = ej.Response(conn, resultPass, containerID, fileHash)
 			continue
 		}
@@ -227,13 +227,13 @@ func (ej *ExecJudge) doRequest(conn *net.UnixConn, uuid uint64) error {
 			continue
 		}
 
-		logging.Get().Debug().Msgf("containerPolicyInfo: %+v", cPodInfo)
+		logging.Get().Trace().Msgf("containerPolicyInfo: %+v", cPodInfo)
 
 		polic, ok := ej.cm.GetPolicyByResourceUUID(cPodInfo.uuid)
 
 		logging.Get().Info().Msgf("plic: %+v ok? %v", polic, ok)
 		if !ok || polic.Enable == 0 {
-			logging.Get().Error().Uint64("uuid", uuid).Str("containerID", containerID).Msg("skip check file hash")
+			logging.Get().Warn().Uint64("uuid", uuid).Str("containerID", containerID).Msg("skip check file hash")
 			_ = ej.Response(conn, resultPass, containerID, fileHash)
 			continue
 		}
@@ -306,7 +306,7 @@ func (ej *ExecJudge) doRequest(conn *net.UnixConn, uuid uint64) error {
 
 		notInWhitelistFlag, crc32Expected := ej.cm.IsInWhiteList(existDigest, filePath)
 		fileHashMismatchFlag := crc32Expected != fileHash
-		logging.Get().Debug().Uint64("uuid", uuid).Str("containerID", containerID).Str("filePath", filePath).Str("fileHash", fileHash).Str("crc32Expected", crc32Expected).Msg("check file hash")
+		logging.Get().Trace().Uint64("uuid", uuid).Str("containerID", containerID).Str("filePath", filePath).Str("fileHash", fileHash).Str("crc32Expected", crc32Expected).Msg("check file hash")
 		if notInWhitelistFlag || fileHashMismatchFlag {
 			action := ""
 			if needBlock {
