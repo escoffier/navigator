@@ -720,7 +720,8 @@ func (s *SyncRepoImage) createImageExtender(ctx context.Context, image registry.
 		img.GenImageFlag()
 
 		img.CheckSum = img.GenImageCheckSum()
-		if img.CheckSum != searchImage[0].CheckSum {
+		if img.CheckSum != searchImage[0].CheckSum || img.Digest != searchImage[0].Digest {
+			res.Added = append(res.Added, &img)
 			// 全量更新
 			if err := s.imageDal.UpdateImage(ctx, fmt.Sprintf("id = %d", searchImage[0].ID), nil, &img); err != nil {
 				logging.GetLogger().Err(err).Msg("SyncAllImage.InsertImageList,UpdateImageType")

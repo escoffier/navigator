@@ -34,14 +34,22 @@ func (s *ClearFileAndRecord) Run(ctx context.Context) {
 		return
 	}
 	for i := range tasks {
-		// 删除中间目录
+		// 删除中间目录,任务可能出错，所以不能直接取数据库中的数据
 		filePath := strings.ReplaceAll(tasks[i].FilePath, ".zip", "")
-		if filePath != "" && strings.Contains(filePath, s.FileDir) && filePath != "/" {
-			if err := os.RemoveAll(filePath); err != nil {
-				logging.GetLogger().Err(err).Int64("taskID", tasks[i].ID).Str("filePath", filePath).Msg("RemoveAll")
+		filePath = strings.ReplaceAll(filePath, s.FileDir+"/", "")
+		if filePath != "" && s.FileDir != "" && s.FileDir != "/" {
+			if err := os.RemoveAll(s.FileDir + "/" + filePath); err != nil {
+				logging.GetLogger().Err(err).Int64("taskID", tasks[i].ID).Str("filePath", s.FileDir+"/"+filePath).Msg("RemoveAll")
 			}
 		}
 		// 删除文件
+		filePath = strings.ReplaceAll(filePath, s.FileDir+"/", "")
+		if filePath != "" && s.FileDir != "" && s.FileDir != "/" {
+			if err := os.RemoveAll(s.FileDir + "/" + filePath); err != nil {
+				logging.GetLogger().Err(err).Int64("taskID", tasks[i].ID).Str("filePath", s.FileDir+"/"+filePath).Msg("RemoveAll")
+			}
+		}
+
 		if tasks[i].FilePath != "" && strings.Contains(tasks[i].FilePath, s.FileDir) && strings.Contains(tasks[i].FilePath, ".zip") {
 			if err := os.Remove(tasks[i].FilePath); err != nil {
 				logging.GetLogger().Err(err).Int64("taskID", tasks[i].ID).Str("fileName", tasks[i].FilePath).Msg("Remove file")
