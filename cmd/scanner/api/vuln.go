@@ -3,6 +3,7 @@ package api
 import (
 	"fmt"
 	"net/http"
+	"scm.tensorsecurity.cn/tensorsecurity-rd/trivy/pkg/report"
 	"sort"
 	"strconv"
 	"strings"
@@ -133,11 +134,16 @@ func (s *VulnAPISrv) GetImageVulnPkg(ctx *gin.Context) {
 		param.UniqueVulns = uniqueVulns
 	}
 
-	vulns, _, err := s.VulnSrv.SearchVulns(ctx, param, filter)
+	preVulns, _, err := s.VulnSrv.SearchVulns(ctx, param, filter)
 	if err != nil {
 		response.JSONError(ctx, err)
 		return
 	}
+	vulns := make([]VulnResponse, 0)
+	for i := range preVulns {
+		vulns = append(vulns, convertVuln(preVulns[i]))
+	}
+
 	// 整理数据
 	pkgMap := make(map[string]VulnPKG)
 	for i := range vulns {
@@ -148,10 +154,11 @@ func (s *VulnAPISrv) GetImageVulnPkg(ctx *gin.Context) {
 				PkgVersion:       vulns[i].PkgVersion,
 				SeverityOverview: make([]model.SeverityGroup, 0),
 				Vulns:            make([]VulnResponse, 0),
+				Target:           vulns[i].Target,
 			}
 		}
 		sf := pkgMap[key]
-		sf.Vulns = append(sf.Vulns, convertVuln(vulns[i]))
+		sf.Vulns = vulns
 		sf.SeverityOverview = addSeverityGroup(sf.SeverityOverview, vulns[i].SeverityInt)
 		pkgMap[key] = sf
 	}
@@ -433,10 +440,28 @@ func convertVuln(vuln *model.Vuln) VulnResponse {
 		Language:    vuln.Language,
 		PkgName:     vuln.PkgName,
 		PkgVersion:  vuln.PkgVersion,
+		Target:      vuln.Target,
+		Class:       vuln.Class,
+		Frame:       vuln.Frame,
 	}
 	if vuln.Attr != nil {
 		res.AttackPath = vuln.Attr["AV"]
 	}
+	// 对于class是os-pkgs: 0.0.0.0:5566/zaherg/php-cli-xdebug:7.2 (alpine 3.10.2)
+	// 对于calss是lang-pkgs：root/.local/share/helm/plugins/helm-push.git/bin/helm-cm-push
+	// 对于语言包原样输出，对于系统包，需要做一定的处理
+	if vuln.Class == report.ClassOSPkg {
+
+		start := strings.Index(vuln.Target, "(")
+		last := strings.LastIndex(vuln.Target, ")")
+		if start >= 0 && last >= 0 && last > start && last < len(vuln.Target) {
+			target := string([]byte(vuln.Target)[start+1 : last])
+			res.Target = strings.Join(strings.Split(target, " "), ":")
+		} else {
+			res.Target = ""
+		}
+	}
+
 	return res
 }
 
@@ -451,6 +476,9 @@ type VulnResponse struct {
 	UniqueVuln  uint64 `json:"uniqueVuln,string"`
 	Language    string `json:"language"`   // 把编程语言
 	AttackPath  string `json:"attackPath"` // 攻击路径
+	Target      string ` json:"target"`    // 制品路径
+	Class       string `json:"class"`      // 代表是系统包还是语言包 os-pkgs
+	Frame       string `json:"frame"`      // 开发框架筛选
 }
 
 type VulnLists []VulnResponse
@@ -472,6 +500,7 @@ type VulnPKG struct {
 	PkgVersion       string                `json:"pkgVersion"`
 	SeverityOverview []model.SeverityGroup `json:"severityOverview"`
 	Vulns            []VulnResponse        `json:"vulns"`
+	Target           string                `json:"target"`
 }
 
 type VulnPKGs []VulnPKG
@@ -513,6 +542,7 @@ type VulnLanguage struct {
 	LanguagePath     string                `json:"languagePath"`
 	SeverityOverview []model.SeverityGroup `json:"severityOverview"`
 	Vulns            []VulnResponse        `json:"vulns"`
+	Target           string                `json:"target"`
 }
 
 type VulnLanguages []*VulnLanguage
