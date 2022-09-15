@@ -15,6 +15,14 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
+	"gitlab.com/piccolo_su/vegeta/cmd/console/service/assets"
+	"gitlab.com/piccolo_su/vegeta/pkg/apperror"
+	pkgassets "gitlab.com/piccolo_su/vegeta/pkg/assets"
+	"gitlab.com/piccolo_su/vegeta/pkg/flag"
+	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
+	"gitlab.com/piccolo_su/vegeta/pkg/lang"
+	"gitlab.com/piccolo_su/vegeta/pkg/model"
+	"gitlab.com/piccolo_su/vegeta/pkg/util"
 	"gitlab.com/security-rd/go-pkg/databases"
 	"gitlab.com/security-rd/go-pkg/logging"
 	"gorm.io/gorm"
@@ -27,20 +35,14 @@ import (
 	k8Yaml "k8s.io/apimachinery/pkg/util/yaml"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/tools/cache"
-	"gitlab.com/piccolo_su/vegeta/cmd/console/service/assets"
-	"gitlab.com/piccolo_su/vegeta/pkg/apperror"
-	pkgassets "gitlab.com/piccolo_su/vegeta/pkg/assets"
-	"gitlab.com/piccolo_su/vegeta/pkg/flag"
-	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
-	"gitlab.com/piccolo_su/vegeta/pkg/lang"
-	"gitlab.com/piccolo_su/vegeta/pkg/model"
-	"gitlab.com/piccolo_su/vegeta/pkg/util"
 )
 
 type Scapper struct {
-	ClusterAddr string
-	rdb         *databases.RDBInstance
-	ScapService *ScapService
+	myNamespace          string
+	myResourceNamePrefix string
+	ClusterAddr          string
+	rdb                  *databases.RDBInstance
+	ScapService          *ScapService
 }
 
 const (
@@ -54,15 +56,42 @@ const (
 	jobStatusRunning       = "running"
 )
 
+type EnvironmentInfo struct {
+	MyNamespace string
+	MyPodName   string
+}
+
+func getPrefixOfName(name string) string {
+	pos := strings.IndexByte(name, '-')
+	if pos >= 0 {
+		return name[:pos]
+	}
+	return ""
+}
+
 func newScapper(
+	envInfo EnvironmentInfo,
 	scapOpts *flag.ScapOpts,
 	scapService *ScapService,
 	rdb *databases.RDBInstance,
 ) *Scapper {
+	if len(envInfo.MyNamespace) == 0 {
+		envInfo.MyNamespace = "tensorsec"
+	}
+	prefix := "tensorsec"
+	if len(envInfo.MyPodName) > 0 {
+		prefix = getPrefixOfName(envInfo.MyPodName)
+		if prefix == "" {
+			prefix = "tensorsec"
+		}
+	}
+
 	s := &Scapper{
-		ScapService: scapService,
-		rdb:         rdb,
-		ClusterAddr: scapOpts.ClusterAddr,
+		myNamespace:          envInfo.MyNamespace,
+		myResourceNamePrefix: prefix,
+		ScapService:          scapService,
+		rdb:                  rdb,
+		ClusterAddr:          scapOpts.ClusterAddr,
 	}
 
 	return s
@@ -663,6 +692,9 @@ func (s *Scapper) scheduleOneJob(ctx context.Context, kubeClient *pkgassets.Clie
 			},
 		},
 	}
+
+	// for sub clusters, the image repos might be different from the yamls which is defined by the image repositories of the main cluster; so get the image repo prefix dynamically.
+	k8s.ReplaceJobYamlWithTheTargetImageRepos(ctx, jobObj, kubeClient, s.myResourceNamePrefix, s.myNamespace)
 
 	if jobObj.Labels == nil {
 		jobObj.Labels = make(map[string]string, 2)
