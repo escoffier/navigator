@@ -13,16 +13,15 @@ import (
 	json "github.com/json-iterator/go"
 	"github.com/pkg/errors"
 	"github.com/tealeg/xlsx"
-	"gitlab.com/security-rd/go-pkg/databases"
-	"gitlab.com/security-rd/go-pkg/logging"
-	"gorm.io/gorm"
-	"gorm.io/gorm/clause"
-
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	"gitlab.com/piccolo_su/vegeta/pkg/flag"
 	"gitlab.com/piccolo_su/vegeta/pkg/lang"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
+	"gitlab.com/security-rd/go-pkg/databases"
+	"gitlab.com/security-rd/go-pkg/logging"
+	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 var (
@@ -39,6 +38,7 @@ const (
 )
 
 func Init(mainCtx context.Context,
+	envInfo EnvironmentInfo,
 	scapOpts *flag.ScapOpts,
 	redisClient *redis.Client,
 	rdb *databases.RDBInstance,
@@ -52,7 +52,7 @@ func Init(mainCtx context.Context,
 		if err != nil {
 			return
 		}
-		scapperInstance = newScapper(scapOpts, svcInstance, rdb)
+		scapperInstance = newScapper(envInfo, scapOpts, svcInstance, rdb)
 
 	})
 	return err

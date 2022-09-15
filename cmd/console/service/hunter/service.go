@@ -22,10 +22,10 @@ import (
 	pkgassets "gitlab.com/piccolo_su/vegeta/pkg/assets"
 	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
 	"gitlab.com/piccolo_su/vegeta/pkg/lang"
-	"gitlab.com/security-rd/go-pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 	"gitlab.com/security-rd/go-pkg/databases"
+	"gitlab.com/security-rd/go-pkg/logging"
 	batchV1 "k8s.io/api/batch/v1"
 	coreV1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -33,8 +33,19 @@ import (
 )
 
 type Service struct {
+	myResourceNamePrefix string
+	myNamespace          string
+
 	taskManager def.TaskManager
 	conf        *model.KubeHunterTranslateConf
+}
+
+func getPrefixOfName(name string) string {
+	pos := strings.IndexByte(name, '-')
+	if pos >= 0 {
+		return name[:pos]
+	}
+	return ""
 }
 
 var (
@@ -46,13 +57,13 @@ func GetService(_ context.Context) (*Service, bool) {
 	return instance, instance != nil
 }
 
-func Init(db *databases.RDBInstance) error {
+func Init(myPodName, myNamespace string, db *databases.RDBInstance) error {
 	if db == nil {
 		return errors.New("illegal argument")
 	}
 	var err error
 	once.Do(func() {
-		instance, err = newService(db)
+		instance, err = newService(myPodName, myNamespace, db)
 	})
 	return err
 }
@@ -61,7 +72,7 @@ const (
 	MaxScanTime = time.Hour * 2
 )
 
-func newService(db *databases.RDBInstance) (*Service, error) {
+func newService(myPodName, myNamespace string, db *databases.RDBInstance) (*Service, error) {
 	confBytes, err := os.ReadFile("/kube-scanner/translate.json")
 	if err != nil {
 		logging.Get().Err(err).Msg("load kube-scanner translate conf fail")
@@ -75,9 +86,21 @@ func newService(db *databases.RDBInstance) (*Service, error) {
 		return nil, err
 	}
 
+	if myNamespace == "" {
+		myNamespace = "tensorsec"
+	}
+	myPrefix := "tensorsec"
+	if myPodName != "" {
+		myPrefix = getPrefixOfName(myPodName)
+		if myPrefix == "" {
+			myPrefix = "tensorsec"
+		}
+	}
 	service := &Service{
-		taskManager: taskmanager.NewManager(db, MaxScanTime),
-		conf:        &conf,
+		myNamespace:          myNamespace,
+		myResourceNamePrefix: myPrefix,
+		taskManager:          taskmanager.NewManager(db, MaxScanTime),
+		conf:                 &conf,
 	}
 
 	go service.expireRecordLoop()
@@ -148,7 +171,7 @@ func (s *Service) launchK8sJob(ctx context.Context, client *pkgassets.Clientset,
 		return fmt.Errorf("loadJobTemplate fail, err:%w", err)
 	}
 
-	if err = s.completeJobInfo(jobObj, uuid, consoleBaseURL); err != nil {
+	if err = s.completeJobInfo(jobObj, client, uuid, consoleBaseURL); err != nil {
 		return fmt.Errorf("completeJobInfo fail, err:%w", err)
 	}
 
@@ -178,10 +201,13 @@ func (s *Service) loadJobTemplate() (*batchV1.Job, error) {
 	return jobObj, nil
 }
 
-func (s *Service) completeJobInfo(job *batchV1.Job, uuid, consoleBaseURL string) error {
+func (s *Service) completeJobInfo(job *batchV1.Job, kubeClient *pkgassets.Clientset, uuid, consoleBaseURL string) error {
 	if len(job.Spec.Template.Spec.Containers) != 2 {
 		return fmt.Errorf("unexpected job template")
 	}
+
+	// for sub clusters, the image repos might be different from the yamls which is defined by the image repositories of the main cluster; so get the image repo prefix dynamically.
+	k8s.ReplaceJobYamlWithTheTargetImageRepos(context.Background(), job, kubeClient, s.myResourceNamePrefix, s.myNamespace)
 
 	job.Name = generateJobName(uuid)
 	uuidEnv := coreV1.EnvVar{

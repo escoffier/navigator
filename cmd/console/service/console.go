@@ -96,6 +96,8 @@ func NewConsole(
 	exportURL := fmt.Sprintf("http://%s:%d", exporterOpts.Host, exporterOpts.Port)
 	microsegURL := os.Getenv("MICROSEG_URL")
 	sherlockURL := os.Getenv("SHERLOCK_URL")
+	myNamespace := os.Getenv("MY_POD_NAMESPACE")
+	myPodName := os.Getenv("MY_POD_NAME")
 	clusterManagerURL := env.GetClusterManagerUrl()
 
 	sherlockClient := echelper.NewSherlockClient(sherlockURL)
@@ -167,7 +169,10 @@ func NewConsole(
 	}
 
 	// scap service
-	err = sp.Init(mainCtx, scapOpts, redisClient, rdb)
+	err = sp.Init(mainCtx, sp.EnvironmentInfo{
+		MyNamespace: myNamespace,
+		MyPodName:   myPodName,
+	}, scapOpts, redisClient, rdb)
 	if err != nil {
 		logging.Get().Err(err).Msg("ERROR: scapService  init error")
 	}
@@ -208,7 +213,7 @@ func NewConsole(
 		return nil, err
 	}
 
-	err = hunter.Init(rdb)
+	err = hunter.Init(myPodName, myNamespace, rdb)
 	if err != nil {
 		logging.Get().Err(err).Msg("ERROR: hunter service init error")
 	}
