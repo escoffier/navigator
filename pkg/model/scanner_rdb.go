@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+	"scm.tensorsecurity.cn/tensorsecurity-rd/trivy/pkg/report"
 	"sort"
 	"strings"
 	"sync"
@@ -209,6 +210,23 @@ func (vn *Vuln) Deserialize() {
 	}
 
 	vn.SetDefaultAttr() // 先设置成默认值，接下来更新
+
+	// 格式化攻击路径
+	// 对于class是os-pkgs: 0.0.0.0:5566/zaherg/php-cli-xdebug:7.2 (alpine 3.10.2)
+	// 对于calss是lang-pkgs：root/.local/share/helm/plugins/helm-push.git/bin/helm-cm-push
+	// 对于语言包原样输出，对于系统包，需要做一定的处理
+	target := vn.Target
+	if vn.Class == report.ClassOSPkg {
+		start := strings.Index(vn.Target, "(")
+		last := strings.LastIndex(vn.Target, ")")
+		if start >= 0 && last >= 0 && last > start && last < len(vn.Target) {
+			target = string([]byte(vn.Target)[start+1 : last])
+			target = strings.Join(strings.Split(target, " "), ":")
+		} else {
+			target = ""
+		}
+	}
+	vn.Target = target
 
 	if vn.Metadata != nil {
 		split := strings.Split(vn.Metadata.CVSS.CVSSv3Vector, "/")
@@ -511,8 +529,10 @@ type RootFS struct {
 }
 
 // Config is a submessage of the config file described as:
-//   The execution parameters which SHOULD be used as a base when running
-//   a container using the image.
+//
+//	The execution parameters which SHOULD be used as a base when running
+//	a container using the image.
+//
 // The names of the fields in this message are chosen to reflect the JSON
 // payload of the Config as defined here:
 // https://git.io/vrAET
