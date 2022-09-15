@@ -3,7 +3,6 @@ package api
 import (
 	"fmt"
 	"net/http"
-	"scm.tensorsecurity.cn/tensorsecurity-rd/trivy/pkg/report"
 	"sort"
 	"strconv"
 	"strings"
@@ -447,21 +446,6 @@ func convertVuln(vuln *model.Vuln) VulnResponse {
 	if vuln.Attr != nil {
 		res.AttackPath = vuln.Attr["AV"]
 	}
-	// 对于class是os-pkgs: 0.0.0.0:5566/zaherg/php-cli-xdebug:7.2 (alpine 3.10.2)
-	// 对于calss是lang-pkgs：root/.local/share/helm/plugins/helm-push.git/bin/helm-cm-push
-	// 对于语言包原样输出，对于系统包，需要做一定的处理
-	if vuln.Class == report.ClassOSPkg {
-
-		start := strings.Index(vuln.Target, "(")
-		last := strings.LastIndex(vuln.Target, ")")
-		if start >= 0 && last >= 0 && last > start && last < len(vuln.Target) {
-			target := string([]byte(vuln.Target)[start+1 : last])
-			res.Target = strings.Join(strings.Split(target, " "), ":")
-		} else {
-			res.Target = ""
-		}
-	}
-
 	return res
 }
 

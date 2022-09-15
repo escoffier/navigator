@@ -51,7 +51,7 @@ func init() {
 	flag.DurationVar(&internal, "interval", 1*time.Minute, "job interval")
 	flag.StringVar(&logLevel, "log-level", "info", "log level model")
 	flag.IntVar(&batchSize, "batch-size", 50, "the batch size of data")
-	flag.Int64Var(&maxVulnCol, "max-col", 10000, "max column in one excel file")
+	flag.Int64Var(&maxVulnCol, "max-col", 4000, "max column in one excel file")
 	flag.IntVar(&parallelTaskNum, "parallel-task-num", 1, "the batch size of data")
 	flag.Int64Var(&expiration, "expiration", 7, "file expiration day") // 默认七天
 	flag.Int64Var(&maxImageByOneExportTask, "export-max-image", 100000, "The maximum number of images exported by one export task")

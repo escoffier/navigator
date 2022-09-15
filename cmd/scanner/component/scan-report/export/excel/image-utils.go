@@ -481,7 +481,7 @@ func GenImageVulnInfoMeta() ExcelMetaData {
 			"CNNVD 编号",
 			"CVSS3.0评分",
 			"漏洞介绍",
-			"攻击路径",
+			"路径",
 			"攻击位置难易",
 			"是否自动化触发",
 			"所需权限级别",
