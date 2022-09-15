@@ -111,6 +111,10 @@ func (t *TaskSrv) GenerateScanTask(ctx context.Context, imageIds []int64, info U
 
 		start += consts.SubTaskBatchInsertCount
 	}
+	if len(subtasks) == 0 {
+		logging.GetLogger().Info().Ints64("imageIds", imageIds).Msg("GenerateScanTask not find image")
+		return nil
+	}
 	// 防止有镜像删除的情况
 	tmpTask.SubTaskCount = len(subtasks)
 
