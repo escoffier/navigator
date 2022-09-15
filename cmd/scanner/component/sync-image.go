@@ -851,10 +851,9 @@ func (s *SyncRepoImage) addScanTask(ctx context.Context, res *registry.ListImage
 				imgIds = append(imgIds, res.Added[i].ID)
 			}
 		}
-
+		imgIds = util.DeDuplicationInt64Slice(imgIds)
 		if len(imgIds) > 0 {
-			imgIds = util.DeDuplicationInt64Slice(imgIds)
-			logging.GetLogger().Info().Int("ImageIds", len(imgIds)).Msg("addScanTask send library image scan tasks")
+			logging.GetLogger().Info().Int("ImageIds", len(imgIds)).Msg("addScanTask send node image scan tasks")
 			ts := task.NewTaskSrv()
 			if err := ts.GenerateScanTask(ctx, imgIds, task.UpdateTaskInfo{Scope: consts.SingleScan,
 				TriggerType: consts.ImageSyncTrigger,
@@ -873,10 +872,9 @@ func (s *SyncRepoImage) addScanTask(ctx context.Context, res *registry.ListImage
 				imgIds = append(imgIds, res.Added[i].ID)
 			}
 		}
+		imgIds = util.DeDuplicationInt64Slice(imgIds)
 		if len(imgIds) > 0 {
-			imgIds = util.DeDuplicationInt64Slice(imgIds)
-
-			logging.GetLogger().Info().Int("ImageIds", len(imgIds)).Msg("addScanTask send node image scan tasks")
+			logging.GetLogger().Info().Int("ImageIds", len(imgIds)).Msg("addScanTask send library image scan tasks")
 			ts := task.NewTaskSrv()
 			if err := ts.GenerateScanTask(ctx, imgIds, task.UpdateTaskInfo{
 				Scope:       consts.SingleScan,
