@@ -15,6 +15,12 @@
     },
     {
       "indexPrefix": "navi-audit-"
+    },
+    {
+      "indexPrefix": "signals_"
+    },
+    {
+      "indexPrefix": "events_"
     }
   ]
 }
