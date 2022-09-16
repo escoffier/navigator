@@ -19,7 +19,7 @@ func GetImagePrefixAndPostFixFrom(image string) (string, string, bool) {
 	if len(image) == 0 {
 		return "", "", false
 	}
-	pos := strings.IndexByte(image, ':')
+	pos := strings.LastIndexByte(image, ':')
 	if pos <= 0 {
 		return "", "", false
 	}
