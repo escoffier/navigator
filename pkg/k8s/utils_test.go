@@ -58,6 +58,15 @@ func TestGetImagePrefixAndPostFixFrom(t *testing.T) {
 			want1: "",
 			want2: false,
 		},
+		{
+			name: "6",
+			args: args{
+				image: "10.253.148.253:31994/secure-idss/cluster-manager:2.8.1",
+			},
+			want:  "10.253.148.253:31994/secure-idss/",
+			want1: "cluster-manager:2.8.1",
+			want2: true,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
