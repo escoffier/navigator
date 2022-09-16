@@ -7,8 +7,6 @@ import (
 	"sync"
 	"time"
 
-	"go.uber.org/atomic"
-
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/task"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
@@ -39,7 +37,7 @@ type SyncRepoImage struct {
 	syncAllImageMap sync.Map // 不重复执行全量扫描
 	syncAddImageMap sync.Map // 不重复执行增量扫描
 
-	mutex *atomic.Int32 // 互斥锁
+	mutex *sync.RWMutex
 }
 
 type ResponseGetSyncStatus struct {
@@ -97,19 +95,16 @@ func NewSyncRepoImage(
 		scanConfigDal:          scanConfigDal,
 		syncAllImageMap:        sync.Map{},
 		syncAddImageMap:        sync.Map{},
-		mutex:                  atomic.NewInt32(NoRunning),
+		mutex:                  &sync.RWMutex{},
 	}
 }
 
 // 定期重试
 func (s *SyncRepoImage) RetryFailedSyncImage(ctx context.Context, lessRetryCount int64) error {
-	if err := s.preSync(ctx, consts.RetryIncSync); err != nil {
-		return err
-	}
-
-	defer s.mutex.Store(NoRunning)
-
 	logging.GetLogger().Info().Msg("start RetryFailedSyncImage")
+	// 加读锁
+	s.mutex.RLock()
+	defer s.mutex.RUnlock()
 
 	needRetry, err := s.syncRetryImageDal.SearchImageRetry(ctx, store.SearchImageRetryParam{LessRetryCount: lessRetryCount})
 	if err != nil {
@@ -155,13 +150,18 @@ func (s *SyncRepoImage) DeleteMoreRetryCount(ctx context.Context, moreRetryCount
 }
 
 func (s *SyncRepoImage) SyncAllImage(ctx context.Context, param SyncAllImageParam) error {
-	if err := s.preSync(ctx, param.SyncType); err != nil {
-		return err
-	}
-
-	defer s.mutex.Store(NoRunning)
-
 	logging.GetLogger().Info().Str("syncType", string(param.SyncType)).Msg("SyncAllImage start")
+
+	if param.SyncType == consts.TimingFullSync {
+		// 加写锁
+		s.mutex.Lock()
+		defer s.mutex.Unlock()
+	} else {
+		// 加读锁
+		s.mutex.RLock()
+		defer s.mutex.RUnlock()
+	}
+	logging.GetLogger().Info().Str("syncType", string(param.SyncType)).Msg("SyncAllImage RLook")
 
 	// 每次都去数据库查询，因为数据增加了用户之后要能感知到
 	registries, _, err := s.registryDal.SearchRegistry(ctx, store.SearchRegistryParam{
@@ -198,49 +198,15 @@ func (s *SyncRepoImage) SyncAllImage(ctx context.Context, param SyncAllImagePara
 	return nil
 }
 
-func (s *SyncRepoImage) preSync(ctx context.Context, syncType consts.SyncType) error {
-
-	// 持续等待，直到抢到锁
-	ticker := time.NewTicker(time.Second * 5)
-	defer ticker.Stop()
-	ti := 0
-	for {
-		<-ticker.C
-		logging.GetLogger().Info().Str("syncType", string(syncType)).Msg("preSync try to get lock")
-
-		if syncType == consts.TimingFullSync {
-			if !s.getAndSetMutex(ctx, NoRunning, ClearUpRunning) {
-				logging.GetLogger().Info().Str("syncType", string(syncType)).Int32("preTask", s.mutex.Load()).Msg("has task is running")
-				ti++
-			} else {
-				break
-			}
-		} else {
-			if !s.getAndSetMutex(ctx, NoRunning, SyncRunning) && !s.getAndSetMutex(ctx, SyncRunning, SyncRunning) {
-				logging.GetLogger().Info().Str("syncType", string(syncType)).Int32("preTask", s.mutex.Load()).Msg("has task is running")
-				ti++
-			} else {
-				break
-			}
-		}
-
-		if ti > 12*10 { // 最多等待10分钟
-			logging.GetLogger().Info().Str("syncType", string(syncType)).Msg("preSync not get lock")
-			return fmt.Errorf("%s not get lock", string(syncType))
-		}
-	}
-	return nil
-}
-
 func (s *SyncRepoImage) SyncAddImage(ctx context.Context, syncType consts.SyncType) error {
-	if err := s.preSync(ctx, syncType); err != nil {
-		return err
-	}
+	logging.GetLogger().Info().Str("syncType", string(syncType)).Msg("SyncAddImage start")
+	// 加读锁
+	s.mutex.RLock()
+	defer s.mutex.RUnlock()
 
-	defer s.mutex.Store(NoRunning)
+	logging.GetLogger().Info().Str("syncType", string(syncType)).Msg("SyncAddImage RLook")
 
 	// 每次都去数据库查询，因为数据增加了用户之后要能感知到
-	logging.GetLogger().Info().Str("syncType", string(syncType)).Msg("SyncAddImage start")
 	registries, _, err := s.registryDal.SearchRegistry(ctx, store.SearchRegistryParam{
 		UseTypes: []int64{model.UserRegistry, model.NodeBuffRegistry},
 		NoDelete: true}, nil)
@@ -257,6 +223,7 @@ func (s *SyncRepoImage) SyncAddImage(ctx context.Context, syncType consts.SyncTy
 		}
 
 		if !driver.SupportIncrementalSync(ctx) {
+			logging.GetLogger().Info().Str("regName", registries[i].Name).Str("regUrl", registries[i].Url).Msg("SyncAddImage not SupportIncrementalSync")
 			continue
 		}
 
@@ -705,6 +672,7 @@ func (s *SyncRepoImage) createImageExtender(ctx context.Context, image registry.
 			return nil, err
 		}
 		res.Added = append(res.Added, &img)
+
 		logging.GetLogger().Debug().Int64("RegistryID", img.RegistryID).
 			Int64("FromType", img.FromType).
 			Str("Library", img.Library).
@@ -721,6 +689,7 @@ func (s *SyncRepoImage) createImageExtender(ctx context.Context, image registry.
 
 		img.CheckSum = img.GenImageCheckSum()
 		if img.CheckSum != searchImage[0].CheckSum || img.Digest != searchImage[0].Digest {
+			img.ID = searchImage[0].ID
 			res.Added = append(res.Added, &img)
 			// 全量更新
 			if err := s.imageDal.UpdateImage(ctx, fmt.Sprintf("id = %d", searchImage[0].ID), nil, &img); err != nil {
@@ -894,13 +863,14 @@ func (s *SyncRepoImage) getRegistryDriver(ctx context.Context, reg model.Registr
 
 	drive, err := registry.Open(RegToRegistryConf(reg))
 	if err != nil {
-		logging.GetLogger().Err(err).Str("name", reg.Name).Msg("open registry driver err")
+		logging.GetLogger().Err(err).Str("name", reg.Name).Msg("getRegistryDriver open registry driver err")
 		return nil, err
 	}
 	if err := drive.Ping(); err != nil {
 		logging.GetLogger().Err(err).Msgf("尝试连接到仓库出错:%s", reg.Name)
 		return nil, err
 	}
+	logging.GetLogger().Info().Interface("reg", reg).Msg("getRegistryDriver get driver ")
 
 	return drive, nil
 }
@@ -933,10 +903,6 @@ func (s *SyncRepoImage) getSyncRegistryByRegID(ctx context.Context, registryId i
 	return &res, nil
 }
 
-func (s *SyncRepoImage) getAndSetMutex(ctx context.Context, oldTask, newTask int32) bool {
-	return s.mutex.CAS(oldTask, newTask)
-}
-
 type SyncAllImageParam struct {
 	RegistryIds []int64 `json:"registryIds"`
 	SyncType    consts.SyncType
@@ -945,9 +911,3 @@ type SyncAllImageParam struct {
 type SyncAddImageParam struct {
 	RegistryId int64 `json:"registryId"`
 }
-
-const (
-	NoRunning      = 0
-	ClearUpRunning = 1
-	SyncRunning    = 2
-)
