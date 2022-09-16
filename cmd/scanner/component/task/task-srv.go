@@ -94,6 +94,8 @@ func (t *TaskSrv) GenerateScanTask(ctx context.Context, imageIds []int64, info U
 			logging.GetLogger().Err(err).Msg("GenerateScanTask.SearchImage")
 			return err
 		}
+		logging.GetLogger().Info().Interface("image", images).Ints64("batch", batch).Msg("GenerateScanTask")
+
 		for i := range images {
 			now := time.Now()
 			// generate subtasks
