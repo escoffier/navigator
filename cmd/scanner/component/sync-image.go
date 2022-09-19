@@ -177,7 +177,7 @@ func (s *SyncRepoImage) SyncAllImage(ctx context.Context, param SyncAllImagePara
 	for i := range registries {
 		driver, err := s.getRegistryDriver(ctx, registries[i])
 		if err != nil {
-			logging.GetLogger().Err(err).Str("regName", registries[i].Name).Str("regUrl", registries[i].Url).Msg("SyncAddImage getRegistryDriver")
+			logging.GetLogger().Err(err).Str("regName", registries[i].Name).Str("regUrl", registries[i].Url).Msg("SyncAllImage getRegistryDriver")
 			continue
 		}
 		regID := registries[i].ID
@@ -204,33 +204,36 @@ func (s *SyncRepoImage) SyncAddImage(ctx context.Context, syncType consts.SyncTy
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
 
-	logging.GetLogger().Info().Str("syncType", string(syncType)).Msg("SyncAddImage RLook")
+	logging.GetLogger().Info().Str("syncType", string(syncType)).Msg("SyncAddImage Get RLook")
 
 	// 每次都去数据库查询，因为数据增加了用户之后要能感知到
 	registries, _, err := s.registryDal.SearchRegistry(ctx, store.SearchRegistryParam{
-		UseTypes: []int64{model.UserRegistry, model.NodeBuffRegistry},
+		UseTypes: []int64{model.UserRegistry},
 		NoDelete: true}, nil)
 	if err != nil {
 		logging.GetLogger().Err(err).Msg("查询仓库信息出错")
 		return err
 	}
+	logging.GetLogger().Debug().Int("registriesLength", len(registries)).Interface("registries", registries).Msg("SyncAddImage get registries")
 
 	for i := range registries {
+		logging.GetLogger().Debug().Int64("regID", registries[i].ID).Str("regName", registries[i].Name).Str("regUrl", registries[i].Url).Msg("SyncAddImage loop reg")
+
 		driver, err := s.getRegistryDriver(ctx, registries[i])
 		if err != nil {
-			logging.GetLogger().Err(err).Str("regName", registries[i].Name).Str("regUrl", registries[i].Url).Msg("SyncAddImage getRegistryDriver")
+			logging.GetLogger().Err(err).Int64("regID", registries[i].ID).Str("regName", registries[i].Name).Str("regUrl", registries[i].Url).Msg("SyncAddImage getRegistryDriver")
 			continue
 		}
-
+		logging.GetLogger().Info().Int64("regID", registries[i].ID).Str("regName", registries[i].Name).Str("regUrl", registries[i].Url).Msg("SyncAddImage get driver")
 		if !driver.SupportIncrementalSync(ctx) {
 			logging.GetLogger().Info().Str("regName", registries[i].Name).Str("regUrl", registries[i].Url).Msg("SyncAddImage not SupportIncrementalSync")
 			continue
 		}
-
 		if err := s.startSyncIncrementallyImage(ctx, registries[i].ID); err != nil {
 			logging.GetLogger().Err(err).Str("regName", registries[i].Name).Str("regUrl", registries[i].Url).Msg("SyncAddImage failure")
 			continue
 		}
+		logging.GetLogger().Debug().Int64("regID", registries[i].ID).Str("regName", registries[i].Name).Str("regUrl", registries[i].Url).Msg("SyncAddImage finish")
 	}
 	logging.GetLogger().Info().Str("syncType", string(syncType)).Msg("SyncAddImage end")
 	return nil
@@ -403,7 +406,6 @@ func (s *SyncRepoImage) startSyncAllImage(ctx context.Context, regID int64, sync
 			return err
 		}
 		logging.GetLogger().Info().Int64("regID", regID).Msg("ClearUp after TimingFullSync clearUpImageAfterDeleteRegistry success")
-
 	}
 
 	return nil
@@ -424,6 +426,8 @@ func (s *SyncRepoImage) startSyncIncrementallyImage(ctx context.Context, regID i
 	}
 
 	reg := regs[0]
+
+	logging.GetLogger().Info().Int64("regID", regID).Str("regName", reg.Name).Str("regUrl", reg.Url).Msg("StartSyncIncrementallyImage get driver")
 
 	if reg.LastSyncAt <= 0 {
 		logging.GetLogger().Info().Int64("LastSyncAt", reg.LastSyncAt).Msg("StartSyncIncrementallyImage start must more than 0")

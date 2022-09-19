@@ -28,9 +28,6 @@ type InitScanner struct {
 }
 
 func (s *InitScanner) Init(ctx context.Context) error {
-	if err := s.createCicdBufRegistry(ctx); err != nil {
-		return err
-	}
 	if err := s.createGlobalPolicy(ctx); err != nil {
 		return err
 	}
@@ -45,12 +42,6 @@ func (s *InitScanner) Init(ctx context.Context) error {
 		return err
 	}
 
-	// if err := s.checkUniqueImage(ctx); err != nil {
-	// 	return err
-	// }
-	// if err := s.checkUniqueVuln(ctx); err != nil {
-	// 	return err
-	// }
 	return nil
 }
 
