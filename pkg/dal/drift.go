@@ -127,7 +127,10 @@ func GetImageID(ctx context.Context, rdb *gorm.DB, ids uint32) ([]int64, error) 
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 	res := []int64{}
-	err := rdb.Model(&model.ImageList{}).WithContext(ctx).Where("image_uuid = ?", ids).Select("id").Find(&res).Error
+	err := rdb.Table(fmt.Sprintf("%s AS t", model.ImageList{}.TableName())).
+		WithContext(ctx).
+		Joins(fmt.Sprintf("JOIN  %s AS s on t.registry_id=s.id", model.Registry{}.TableName())).
+		Where("t.image_uuid = ? and deleted_at=0", ids).Select("t.id").Find(&res).Error
 	if err != nil {
 		return nil, err
 	}
