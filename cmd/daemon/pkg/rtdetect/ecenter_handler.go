@@ -47,21 +47,13 @@ func NewEventsOutputHandler(myNodeName string, cm *k8s.ClusterInfoManager, conta
 }
 
 func (ec *EventsOutputHandler) getOwnerInfo(podName, namespace string) (*nodeinfo.Resource, string, bool) {
-	// podName, exist := data.OutputFields[model.FieldK8sPodName]
-	// if !exist {
-	// 	return nil, "", false
-	// }
-	// namespace, exist := data.OutputFields[model.FieldK8sNsName]
-	// if !exist {
-	// 	return nil, "", false
-	// }
-
 	res, exist := ec.podResInfo.GetPod(namespace, podName)
 	if exist && res != nil {
 		return res, namespace, true
 	}
 	return nil, "", false
 }
+
 func (ec *EventsOutputHandler) Handle(ctx context.Context, events []eventItem) error {
 	for _, e := range events {
 		if isEventItemWhitelisted(e.data, ec.containerInfo) {
@@ -141,6 +133,29 @@ func (ec *EventsOutputHandler) Handle(ctx context.Context, events []eventItem) e
 				Kind: palace.ScopeKindContainer,
 				ID:   containerID,   // container id
 				Name: containerName, // container name
+			})
+
+			if namespace != "" || podName != "" {
+				// in k8s
+				scopes = append(scopes, palace.Scope{
+					Kind: palace.ScopeKindScene,
+					ID:   palace.ScopeIDSceneK8s,
+					Name: palace.ScopeNameSceneK8s,
+				})
+			} else {
+				// in not k8s
+				scopes = append(scopes, palace.Scope{
+					Kind: palace.ScopeKindScene,
+					ID:   palace.ScopeIDSceneNk8s,
+					Name: palace.ScopeNameSceneNk8s,
+				})
+			}
+		} else {
+			// in node
+			scopes = append(scopes, palace.Scope{
+				Kind: palace.ScopeKindScene,
+				ID:   palace.ScopeIDSceneHost,
+				Name: palace.ScopeNameSceneHost,
 			})
 		}
 
