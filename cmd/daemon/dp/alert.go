@@ -65,6 +65,11 @@ func genPalaceSignalParams(arg *EventArg, cPodInfo containerPolicy, category, na
 			Kind: palace.ScopeKindResource,
 			Name: fmt.Sprintf("%s(%s)", cPodInfo.resourceName, cPodInfo.resourceKind),
 		},
+		{
+			Kind: palace.ScopeKindScene,
+			ID:   palace.ScopeIDSceneK8s,
+			Name: palace.ScopeNameSceneK8s,
+		},
 	}
 
 	expectStr := ""

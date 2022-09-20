@@ -953,17 +953,6 @@ func (s *ScapService) GetDockerPolicyDetails(ctx context.Context, policyDetails 
 	return nil
 }
 
-func (s *ScapService) AddScapScanResult(ctx context.Context, r *model.ScanResult) error {
-	ctx, cancel := context.WithTimeout(ctx, 1000*time.Millisecond)
-	defer cancel()
-
-	return util.RetryWithBackoff(ctx, func() error {
-		oneCtx, oneCancel := context.WithTimeout(ctx, 300*time.Millisecond)
-		defer oneCancel()
-		return s.rdb.Get().WithContext(oneCtx).Model(&model.ScanResult{}).Create(r).Error
-	})
-}
-
 func (s *ScapService) AddScapScanResults(ctx context.Context, rs []*model.ScanResult) error {
 	if len(rs) == 0 {
 		logging.Get().Warn().
