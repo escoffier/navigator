@@ -17,6 +17,7 @@ type Reporter struct {
 type EventArg struct {
 	ClusterID     string
 	Cluster       string
+	Hostname      string
 	Namespace     string
 	PodName       string
 	PodUID        string
@@ -55,6 +56,10 @@ func genPalaceSignalParams(arg *EventArg, cPodInfo containerPolicy, category, na
 		{
 			Kind: palace.ScopeKindNamespace,
 			Name: arg.Namespace, // namespace name
+		},
+		{
+			Kind: palace.ScopeKindHostname,
+			Name: arg.Hostname,
 		},
 		{
 			Kind: palace.ScopeKindCluster,
