@@ -73,7 +73,7 @@ type NodePodsWatcher struct {
 	k8sClient   *kubernetes.Clientset
 	ownRefCache *ownerRefCache
 
-	nodeName   string
+	NodeName   string
 	clusterKey string
 }
 
@@ -85,7 +85,7 @@ func NewNodePodsWatcher(nodeName, clusterKey string) *Builder {
 	return &Builder{
 		instance: &NodePodsWatcher{
 			watchers:    make([]PodWatcher, 0, 3),
-			nodeName:    nodeName,
+			NodeName:    nodeName,
 			ownRefCache: newOwnerRefCache(50, 30*time.Minute),
 			clusterKey:  clusterKey,
 		},
@@ -119,7 +119,7 @@ func (n *NodePodsWatcher) GetContainerType() (string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 
-	node, err := n.k8sClient.CoreV1().Nodes().Get(ctx, n.nodeName, metav1.GetOptions{})
+	node, err := n.k8sClient.CoreV1().Nodes().Get(ctx, n.NodeName, metav1.GetOptions{})
 	if err != nil {
 		return "", errors.Errorf("get node info failed, %v", err)
 	}
@@ -218,7 +218,7 @@ func (n *NodePodsWatcher) Start(ctx context.Context) (err error) {
 		string(corev1.ResourcePods),
 		corev1.NamespaceAll,
 		func(options *metav1.ListOptions) {
-			options.FieldSelector = fmt.Sprintf("spec.nodeName=%v", n.nodeName)
+			options.FieldSelector = fmt.Sprintf("spec.nodeName=%v", n.NodeName)
 		},
 	)
 	n.store, n.controller = cache.NewIndexerInformer(

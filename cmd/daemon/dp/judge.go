@@ -271,6 +271,7 @@ func (ej *ExecJudge) doRequest(conn *net.UnixConn, uuid uint64) error {
 			eventArgs := &EventArg{
 				ClusterID:     cPodInfo.cluster,
 				Cluster:       ej.clusterName,
+				Hostname:      ej.npw.NodeName,
 				Namespace:     cPodInfo.namespace,
 				PodName:       cPodInfo.podFullName,
 				PodUID:        containMeta.PodUID,
@@ -323,6 +324,7 @@ func (ej *ExecJudge) doRequest(conn *net.UnixConn, uuid uint64) error {
 			eventArgs := &EventArg{
 				ClusterID:     cPodInfo.cluster,
 				Cluster:       ej.clusterName,
+				Hostname:      ej.npw.NodeName,
 				Namespace:     cPodInfo.namespace,
 				PodName:       cPodInfo.podFullName,
 				PodUID:        containMeta.PodUID,
