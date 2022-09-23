@@ -40,7 +40,7 @@ type K8sResData struct {
 	ListenPorts   map[string]*ProcessInfo   `json:"listen_ports"` //listen port -> process information
 }
 
-//session five tuple
+// session five tuple
 type FiveTuple struct {
 	SrcIp   string `json:"src_ip"`
 	DstIp   string `json:"dst_ip"`

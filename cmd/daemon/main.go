@@ -60,7 +60,7 @@ func initNodeInfos(hostName, hostIP, clusterKey, myNamespace string) (nodeinfo.C
 	}
 
 	cmWatcher := cmap.NewWatcher(k8sCli, myNamespace, "ivan-degradation-controller").AddFunc(degrade.DegradationCmapWatcher).Build()
-	cmWatcher.Start()
+	_ = cmWatcher.Start()
 
 	containerType, err := nodePods.Build().GetContainerType()
 	if err != nil {
@@ -94,7 +94,7 @@ func initNodeInfos(hostName, hostIP, clusterKey, myNamespace string) (nodeinfo.C
 		return nil, nil, nil, nil, fmt.Errorf("start dockerInfo listen failed, %v.", err)
 	}
 
-	k8sInfo := netflow.NewNodePodInfo(containerInfo)
+	k8sInfo := netflow.NewNodePodInfo(containerInfo, k8sCli)
 	podResInfo := nodeinfo.NewPodResInfo()
 	podsWatcher := nodePods.AddWatcher(k8sInfo).AddWatcher(podResInfo).Build()
 	err = podsWatcher.Start(context.Background())

@@ -147,6 +147,7 @@ func (n *NodePodsWatcher) getFinalResourceOfPod(ctx context.Context, pod *corev1
 	if pod == nil {
 		return name, kind
 	}
+
 	owner := metav1.GetControllerOf(pod)
 	if owner == nil {
 		kind = pod.Kind
