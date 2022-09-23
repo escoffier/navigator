@@ -557,7 +557,7 @@ func init() {
 	})
 
 	routeAction.PUT("/api/v2/containerSec/scanner/ci/webhook", func(params Params) (string, string) {
-		return editAction, "编辑CIWehbook{{.}}"
+		return editAction, "编辑CIWebhook{{.}}"
 	})
 
 	// 合规检测
