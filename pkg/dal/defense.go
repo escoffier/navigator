@@ -379,13 +379,20 @@ func InsertBaitService(ctx context.Context, rdb *gorm.DB, bait *model.BaitServic
 	return nil
 }
 
-func UpdateBaitService(ctx context.Context, rdb *gorm.DB, bait *model.BaitService) error {
+func UpdateBaitServiceAlert(ctx context.Context, rdb *gorm.DB, id uint32, haveAlerts bool) error {
 	oneCtx, oneCancel := context.WithTimeout(ctx, 750*time.Millisecond)
 	defer oneCancel()
 
-	err := rdb.WithContext(oneCtx).Model(&model.BaitService{}).Where("id = ?", bait.ID).Updates(bait).Error
-	if err != nil {
-		return err
-	}
-	return nil
+	err := rdb.WithContext(oneCtx).Model(&model.BaitService{}).Where("id = ?", id).
+		Updates(map[string]interface{}{"updated_at": time.Now(), "have_alerts": haveAlerts}).Error
+	return err
+}
+
+func UpdateBaitServiceWLStatus(ctx context.Context, rdb *gorm.DB, id uint32, status int32, workLoadStatus string) error {
+	oneCtx, oneCancel := context.WithTimeout(ctx, 750*time.Millisecond)
+	defer oneCancel()
+
+	err := rdb.WithContext(oneCtx).Model(&model.BaitService{}).Where("id = ?", id).
+		Updates(map[string]interface{}{"updated_at": time.Now(), "status": status, "workload_status": workLoadStatus}).Error
+	return err
 }

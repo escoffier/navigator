@@ -152,10 +152,6 @@ func (s *TensorDefenseService) UpdateBaitService(ctx context.Context, bait *mode
 	return dal.UpsertBaitService(ctx, s.rdb.Get(), bait)
 }
 
-func (s *TensorDefenseService) UpdateBaitServiceAlert(ctx context.Context, bait *model.BaitService) error {
-	return dal.UpdateBaitService(ctx, s.rdb.Get(), bait)
-}
-
 func (s *TensorDefenseService) addBaitServiceToKube(ctx context.Context, bait *model.BaitService, ports []int32, registry *RegistryInfo, prefix string) error {
 	clusterManager, ok := k8s.GetClusterManager()
 	if !ok {
@@ -584,12 +580,7 @@ func (s *TensorDefenseService) CheckAlertEvents() {
 				}
 
 				logging.Get().Info().Msgf("update bait service alerts flag %t", haveAlerts)
-				err = dal.UpdateBaitService(ctx, s.rdb.Get(), &model.BaitService{
-					TableBase: model.TableBase{
-						ID: bait.ID,
-					},
-					HaveAlerts: haveAlerts,
-				})
+				err = dal.UpdateBaitServiceAlert(ctx, s.rdb.Get(), bait.ID, haveAlerts)
 				if err != nil {
 					logging.Get().Err(err).Msg("failed to update bait services")
 					continue
