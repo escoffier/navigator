@@ -89,9 +89,9 @@ func (cs *ClusterServer) handleATTACKLatestData(c *gin.Context) {
 	if err != nil {
 		logging.Get().Err(err).Int64("reqDataVersion", reqDataVersion).Int64("reqSettingVersion", reqSettingVersion).Msg("get latest data err")
 		c.JSON(http.StatusInternalServerError, response.HTTPEnvelope{
-			Data: &response.HTTPData{
-				Status: 1,
-				Item:   []byte(err.Error()),
+			Error: &response.HTTPError{
+				Code:    1,
+				Message: err.Error(),
 			},
 		})
 		return
@@ -100,9 +100,9 @@ func (cs *ClusterServer) handleATTACKLatestData(c *gin.Context) {
 	if err != nil {
 		logging.Get().Err(err).Int64("reqDataVersion", reqDataVersion).Int64("reqSettingVersion", reqSettingVersion).Msg("marshal err")
 		c.JSON(http.StatusInternalServerError, response.HTTPEnvelope{
-			Data: &response.HTTPData{
-				Status: 1,
-				Item:   []byte(err.Error()),
+			Error: &response.HTTPError{
+				Code:    1,
+				Message: err.Error(),
 			},
 		})
 		return
