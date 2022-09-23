@@ -674,7 +674,7 @@ func (fs *FlowSession) GetContainerProcessName(addrType uint8, res *daemon.K8sRe
 	var defValue daemon.ProcessInfo
 	defValue.Pid = 0
 	//list containers
-	for _, containerData := range res.ContainerInfo {
+	for id, containerData := range res.ContainerInfo {
 		//logging.Get().Info().Msgf("get pid : %v, ns : %v, pod name : %v, %+v", pid, namespace, podname, *tuple)
 		netInfo := &daemon.PidAssociateMnt{
 			DataType:  daemon.DATA_SETNS,
@@ -697,7 +697,7 @@ func (fs *FlowSession) GetContainerProcessName(addrType uint8, res *daemon.K8sRe
 		//status
 		if len(res.ContainerInfo) == 1 {
 			if pInfo.Pid == 0 || len(pInfo.ProcName) == 0 {
-				return nil, errors.Errorf("process info error, ns : %v, pod : %v, tuple : %+v, container : %v, error : %v", res.Namespace, res.PodName, *tuple, containerData.ContainerName, err)
+				return nil, errors.Errorf("process info error, ns : %v, pod : %v, tuple : %+v, container : %v, id : %v", res.Namespace, res.PodName, *tuple, containerData.ContainerName, id)
 			}
 			return pInfo, nil
 		} else {
@@ -727,6 +727,10 @@ func (fs *FlowSession) GetContainerInfo(netRes *model.TensorNetworkFlow, src, ds
 	if src != nil {
 		pinfo, err := fs.GetContainerProcessName(daemon.SND_ADDR, src, addr)
 		if err != nil {
+			errn := fs.nodePodsInfo.UpdateContainerData(addr.SrcIp, src.Namespace, src.PodName)
+			if errn != nil {
+				logging.Get().Err(errn).Msg("update src container failed")
+			}
 			return false, errors.Errorf("get src container process name failed, %v", err)
 		}
 		netRes.SrcProcess = pinfo.ProcName
@@ -744,6 +748,10 @@ func (fs *FlowSession) GetContainerInfo(netRes *model.TensorNetworkFlow, src, ds
 		if !ok {
 			pinfo, err := fs.GetContainerProcessName(daemon.RCV_ADDR, dst, addr)
 			if err != nil {
+				errn := fs.nodePodsInfo.UpdateContainerData(addr.DstIp, dst.Namespace, dst.PodName)
+				if errn != nil {
+					logging.Get().Err(errn).Msg("update dst container failed")
+				}
 				return false, errors.Errorf("get dst container process name failed, %v", err)
 			}
 			//process timeout
