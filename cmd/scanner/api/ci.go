@@ -631,7 +631,7 @@ func (c *CiApiSrv) UpDateWebhook(ctx *gin.Context) {
 		response.JSONError(ctx, fmt.Errorf("UpDateWebhook error"))
 		return
 	}
-	response.JSONOK(ctx, response.WithTarget(&response.TargetRef{Name: fmt.Sprintf("enable:%v,url:%s,secret:%s,options:%s", wh.Enable, wh.URL, wh.Secret, wh.Options)}))
+	response.JSONOK(ctx, response.WithTarget(&response.TargetRef{Name: fmt.Sprintf("  enable:%v,url:%s,secret:%s,options:%s", wh.Enable, wh.URL, wh.Secret, wh.Options)}))
 }
 
 func (c *CiApiSrv) GetWebhook(ctx *gin.Context) {
