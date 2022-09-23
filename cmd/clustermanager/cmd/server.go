@@ -194,11 +194,16 @@ func fullHTTPSURL(str string) string {
 }
 
 func (s *server) initConfig() {
-	apiServerAddr := os.Getenv("API_SERVER_URL")
+	apiServerAddr := os.Getenv("INNER_API_SERVER_URL")
 	if apiServerAddr != "" {
 		s.config.APIServerAddr = apiServerAddr
-	} else {
+	} else if s.config.APIServerAddr != "" {
 		s.config.APIServerAddr = fullHTTPSURL(s.config.APIServerAddr)
+	}
+
+	externalAPIServerAddr := os.Getenv("API_SERVER_URL")
+	if externalAPIServerAddr != "" {
+		s.config.ExternalAPIServerAddr = externalAPIServerAddr
 	}
 
 	workerNs := os.Getenv("MY_POD_NAMESPACE")
@@ -233,7 +238,7 @@ func (s *server) initConfig() {
 func AddFlags(fs *pflag.FlagSet, rootCmd *cobra.Command) {
 	fs.StringVar(&ServerConfig.MasterAddr, "master-addr", "nil", "address of master cluster")
 	fs.StringVar(&ServerConfig.Name, "cluster-name", "kubernetes-cluster", "set cluster name")
-	fs.StringVar(&ServerConfig.APIServerAddr, "api-server-address", "127.0.0.1:6443", "api server address of current cluster")
+	fs.StringVar(&ServerConfig.APIServerAddr, "api-server-address", "", "api server address of current cluster")
 	fs.BoolVar(&ServerConfig.TLSClient, "tls-client", false, "use https client")
 	fs.IntVar(&ServerConfig.Port, "port", defaultPort, "The port of inject server to listen.")
 	fs.StringVar(&ServerConfig.CertFile, "tlsCertPath", "/etc/cluster-manager/certs/tls.crt", "The path of tls cert")

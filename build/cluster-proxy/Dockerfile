@@ -5,4 +5,6 @@ RUN apt-get update -y \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
-CMD ["/usr/local/bin/envoy", "-c", "/etc/envoy/envoy.yaml"]
+COPY bootstrap.yaml /etc/envoy/bootstrap.yaml
+
+CMD ["/usr/local/bin/envoy", "-c", "/etc/envoy/bootstrap.yaml"]
