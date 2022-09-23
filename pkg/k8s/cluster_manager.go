@@ -107,6 +107,7 @@ func (m *ClusterManager) WatchClusterResources(ctx context.Context, cluster *mod
 		}
 	}
 
+	logging.Get().Debug().Msgf("creating cluster client: %s-%s", cluster.Name, cluster.APIServerAddr)
 	clientset, err := CreateClientset(cluster)
 	if err != nil {
 		return err
@@ -123,9 +124,6 @@ func (m *ClusterManager) WatchClusterResources(ctx context.Context, cluster *mod
 
 func (m *ClusterManager) UnWatchCluster(ctx context.Context, clusterKey string) error {
 	logging.Get().Info().Msgf("unwatch cluster %s", clusterKey)
-	if m.watcher == nil {
-		return errors.New("watcher does not exist")
-	}
 	m.DeleteClient(clusterKey)
 	return nil
 }
@@ -216,7 +214,6 @@ func (m *ClusterManager) AddManagedClusterToKube(ctx context.Context, cluster *m
 }
 
 func (m *ClusterManager) watchClusterFromKube(informer cache.SharedIndexInformer) {
-	// informer := m.informerFactory.Cluster().V1().ManagedClusters().Informer()
 	informer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
 			cluster, ok := obj.(*clusterV1.ManagedCluster)
@@ -237,7 +234,8 @@ func (m *ClusterManager) watchClusterFromKube(informer cache.SharedIndexInformer
 				logging.Get().Err(fmt.Errorf(""))
 				return
 			}
-			if !bytes.Equal(oldCluster.Spec.ClientConfig, newCluster.Spec.ClientConfig) {
+			if !bytes.Equal(oldCluster.Spec.ClientConfig, newCluster.Spec.ClientConfig) ||
+				oldCluster.Spec.APIServerAddr != newCluster.Spec.APIServerAddr {
 				m.queue.Add(newCluster.Name)
 			}
 		},
@@ -287,10 +285,12 @@ func (m *ClusterManager) syncCluster(name string) error {
 	managedCluster, err := m.Lister.Get(name)
 	if err != nil {
 		if k8serr.IsNotFound(err) {
+			logging.Get().Info().Msgf("cluster: %s does not exist", name)
 			err = m.UnWatchCluster(ctx, name)
 			if err != nil {
 				return err
 			}
+			return nil
 		}
 		return err
 	}
@@ -432,7 +432,8 @@ func IsClusterChanged(oldCluster *model.TensorCluster, newCluster *model.TensorC
 		oldCluster.APIServerAddr != newCluster.APIServerAddr ||
 		oldCluster.ClusterType != newCluster.ClusterType ||
 		oldCluster.WorkerNamespace != newCluster.WorkerNamespace ||
-		oldCluster.Name != newCluster.Name {
+		oldCluster.Name != newCluster.Name ||
+		oldCluster.APIServerAddr != newCluster.APIServerAddr {
 		return true
 	}
 	return false

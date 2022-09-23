@@ -7,17 +7,18 @@ import (
 )
 
 type Config struct {
-	MasterAddr           string
-	Name                 string
-	APIServerAddr        string
-	ClusterType          model.ClusterType
-	TLSClient            bool
-	CertFile             string
-	KeyFile              string
-	Port                 int
-	TLSServer            bool
-	WorkerNamespace      string
-	DBLogDebug           bool
-	K8SInfoForRestConfig *k8s.InfoForRestConfig
-	PoolInfo             *assets.PoolInfo
+	MasterAddr            string
+	Name                  string
+	APIServerAddr         string
+	ExternalAPIServerAddr string
+	ClusterType           model.ClusterType
+	TLSClient             bool
+	CertFile              string
+	KeyFile               string
+	Port                  int
+	TLSServer             bool
+	WorkerNamespace       string
+	DBLogDebug            bool
+	K8SInfoForRestConfig  *k8s.InfoForRestConfig
+	PoolInfo              *assets.PoolInfo
 }

@@ -1,0 +1,20 @@
+node:
+  cluster: tensorsecurity-cluster
+  id: tenosrsecurity-0001
+dynamic_resources:
+  lds_config:
+    path_config_source:
+      path: "/etc/envoy/xds/lds.yaml"
+      watched_directory:
+        path: "/etc/envoy/xds"
+  cds_config:
+    path_config_source:
+      path: "/etc/envoy/xds/cds.yaml"
+      watched_directory:
+        path: "/etc/envoy/xds"
+admin:
+  access_log_path: "/dev/null"
+  address:
+    socket_address:
+      address: 127.0.0.1
+      port_value: 15000

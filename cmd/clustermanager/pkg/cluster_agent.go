@@ -14,6 +14,7 @@ import (
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/uuid"
 	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/client-go/rest"
 	"net/http"
 	"strings"
 	"time"
@@ -24,7 +25,6 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 	"gitlab.com/security-rd/go-pkg/logging"
-	"k8s.io/client-go/rest"
 	certutil "k8s.io/client-go/util/cert"
 )
 
@@ -47,18 +47,19 @@ type CertsData struct {
 }
 
 type ClusterAgent struct {
-	masterAddr      string
-	CusterID        string
-	Name            string
-	KubeRestConfig  *k8s.InfoForRestConfig
-	apiServerAddr   string
-	Description     string
-	ClusterType     model.ClusterType
-	httpClient      *http.Client
-	tlsClient       bool
-	workerNamespace string
-	HostClient      *assets.Clientset
-	platform        string
+	masterAddr            string
+	CusterID              string
+	Name                  string
+	KubeRestConfig        *k8s.InfoForRestConfig
+	externalApiServerAddr string
+	apiServerAddr         string
+	Description           string
+	ClusterType           model.ClusterType
+	httpClient            *http.Client
+	tlsClient             bool
+	workerNamespace       string
+	HostClient            *assets.Clientset
+	platform              string
 }
 
 const (
@@ -76,11 +77,12 @@ const (
 
 func NewClusterAgent(config *config.Config) *ClusterAgent {
 	return &ClusterAgent{
-		masterAddr:      config.MasterAddr,
-		Name:            config.Name,
-		apiServerAddr:   config.APIServerAddr,
-		workerNamespace: config.WorkerNamespace,
-		ClusterType:     config.ClusterType,
+		masterAddr:            config.MasterAddr,
+		Name:                  config.Name,
+		apiServerAddr:         config.APIServerAddr,
+		externalApiServerAddr: config.ExternalAPIServerAddr,
+		workerNamespace:       config.WorkerNamespace,
+		ClusterType:           config.ClusterType,
 	}
 }
 
@@ -128,7 +130,7 @@ func (c *ClusterAgent) Init() error {
 
 	c.httpClient = client
 
-	if c.ClusterType == model.HostCluster {
+	if c.apiServerAddr == "" {
 		clusterConfig, err := rest.InClusterConfig()
 		if err != nil {
 			return err
@@ -198,7 +200,7 @@ func (c *ClusterAgent) registerClusterInfo() error {
 		Name:                c.Name,
 		ClusterType:         c.ClusterType,
 		Description:         c.Description,
-		APIServerAddr:       c.apiServerAddr,
+		APIServerAddr:       c.externalApiServerAddr,
 		CertificateAuthData: string(c.KubeRestConfig.CAData),
 		SecretToken:         string(c.KubeRestConfig.Token),
 		ClientCertData:      string(c.KubeRestConfig.CertData),

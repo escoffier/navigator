@@ -148,7 +148,7 @@ func GenKubeConfig(c *InfoForRestConfig) (*rest.Config, error) {
 	}, nil
 }
 
-//KubeConfig get config from  cluster manager and generate rest.Config
+// KubeConfig get config from  cluster manager and generate rest.Config
 func KubeConfig() (*rest.Config, error) {
 	host := os.Getenv("CLUSTER_MANAGER_URL")
 	if host == "" {
