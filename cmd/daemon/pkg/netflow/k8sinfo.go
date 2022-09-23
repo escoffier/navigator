@@ -112,7 +112,6 @@ func (n *NodePodsInfo) savePodData(podEvt *nodeinfo.PodEvent) {
 	var rsData daemon.K8sResData
 	rsData.ContainerInfo, err = n.getContainerData(podEvt.Pod)
 	if err != nil {
-		logging.Get().Err(err).Msgf("get container info failed.")
 		return
 	}
 	res := podEvt.FinalOwnerResource(context.Background())
