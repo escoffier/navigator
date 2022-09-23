@@ -10,7 +10,6 @@ import (
 
 	"gitlab.com/piccolo_su/vegeta/pkg/assets"
 	"gitlab.com/piccolo_su/vegeta/pkg/dal"
-	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/security-rd/go-pkg/databases"
 	"gitlab.com/security-rd/go-pkg/logging"
 	corev1 "k8s.io/api/core/v1"
@@ -135,13 +134,7 @@ func (cb *HoneyspotCallback) processHoneyspot(event HoneyspotEvent) error {
 		if event.object.Status.WorkLoadStatus == "" {
 			event.object.Status.WorkLoadStatus = "offline"
 		}
-		err = dal.UpdateBaitService(context.Background(), cb.parent.rdb.Get(), &model.BaitService{
-			TableBase: model.TableBase{
-				ID:     id,
-				Status: 0,
-			},
-			WorkLoadStatus: event.object.Status.WorkLoadStatus,
-		})
+		err = dal.UpdateBaitServiceWLStatus(context.Background(), cb.parent.rdb.Get(), id, 0, event.object.Status.WorkLoadStatus)
 		if err != nil {
 			logging.Get().Err(err).Msg("upsert honeyspot in rdb error")
 			return err
