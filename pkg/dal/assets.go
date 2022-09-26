@@ -1405,6 +1405,33 @@ func GetNodes(ctx context.Context, rdb *gorm.DB, queryOptions *NodeQueryOption, 
 	return nodes, nil
 }
 
+func GetNodesHostAndOS(ctx context.Context, rdb *gorm.DB) ([]*model.TensorNode, error) {
+	rCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+
+	var nodes []*model.TensorNode
+	notFound := false
+	err := util.RetryWithBackoff(rCtx, func() error {
+		oneCtx, oneCancel := context.WithTimeout(rCtx, 5*time.Second)
+		defer oneCancel()
+
+		db := rdb.WithContext(oneCtx).Model(&model.TensorNode{}).Order("id asc")
+		err := db.Select("host_name", "os_info").Find(&nodes).Error
+		if err == gorm.ErrRecordNotFound {
+			notFound = true
+			return nil
+		}
+		return err
+	})
+	if notFound {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return nodes, nil
+}
+
 func CountNodes(ctx context.Context, rdb *gorm.DB, queryOptions *NodeQueryOption) (int64, error) {
 	rctx, cancel := context.WithTimeout(ctx, 2000*time.Millisecond)
 	defer cancel()

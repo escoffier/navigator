@@ -33,7 +33,7 @@ var (
 func InitContainersService(rdb *databases.RDBInstance, scannerURL string) error {
 	rlOnce.Do(func() {
 		instance = newTensorContainersService(rdb, scannerURL)
-		instance.loopGetNodeInfo()
+		go instance.loopGetNodeInfo()
 	})
 	return nil
 }
@@ -60,9 +60,9 @@ func newTensorContainersService(rdb *databases.RDBInstance, scannerURL string) *
 
 func (s *TensorContainerService) loopGetNodeInfo() {
 	wait.PollImmediateInfinite(time.Second*60, func() (done bool, err error) {
-		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
-		nodes, err := dal.GetNodes(ctx, s.rdb.GetReadDB(), dal.NodeQuery(), -1, -1)
+		nodes, err := dal.GetNodesHostAndOS(ctx, s.rdb.GetReadDB())
 		if err != nil {
 			logging.Get().Err(err).Msgf("get nodes error")
 			return false, nil
