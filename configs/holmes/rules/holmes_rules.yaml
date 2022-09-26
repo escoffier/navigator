@@ -255,7 +255,7 @@
       value: "禁止挂载敏感目录和文件，禁止敏感容器启动，更新容器内软件版本。"
   desc: The k8s client is executed in Watson
   condition: >
-    k8s.pod.name in (watson_id) and spawned_process and container and not user_known_k8s_client_container_parens and proc.name in (k8s_client_binaries)
+    watson_pods and spawned_process and container and not user_known_k8s_client_container_parens and proc.name in (k8s_client_binaries)
   output: >
     Docker or kubernetes client executed in container (zh_msg=通过主动防御检测到运行k8s相关二进制程序,rule_type=Lateral_Movement,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid %container.info parent=%proc.pname image=%container.image.repository:%container.image.tag,container_id=%container.id,container_name=%container.name)
   priority: ALERT
@@ -558,7 +558,7 @@
   condition: >
     evt.type=socket and container and not ignore_proc_args and proc.name = "awk"
   output: >
-    Ruby runs inside container that allows remote code execution (zh_msg=容器内通过awk反弹shell),rule_type=Execution,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,
+    awk runs inside container that allows remote code execution (zh_msg=容器内通过awk反弹shell),rule_type=Execution,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,
     original_info=user=%user.name user_loginuid=%user.loginuid
     container_id=%container.id container_name=%container.name image=%container.image.repository:%container.image.tag)
   priority: ALERT
@@ -1753,6 +1753,23 @@
   condition: >
     container and proc.cmdline contains "history"
   output: View login information inside the container (zh_msg=容器内查看历史命令,rule_type=Discovery,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,container_id=%container.id,container_name=%container.name)
+  priority: WARNING
+  tags: [ATT&CK, strict]
+
+- rule: Get ApiServer_token through kubectl
+  hid: disc_13
+  hthreats: 1
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands and disable mounting of sensitive directories and files."
+    zh:
+      key: "处置建议"
+      value: "使用免疫防御训练应用，限制敏感文件和命令的用户权限，禁止挂载敏感目录和文件。"
+  desc: Get ApiServer_token through kubectl
+  condition: >
+    evt.type = execve and (proc.cmdline contains "kubectl config view" or proc.cmdline contains "kubectl describe secrets")
+  output: Get ApiServer_token through kubectl (zh_msg=通过kubectl获取ApiServer_token,rule_type=Discovery,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,container_id=%container.id,container_name=%container.name)
   priority: WARNING
   tags: [ATT&CK, strict]
 
@@ -4055,7 +4072,7 @@
 # This list allows easily whitelisting system proc names that are
 # expected to communicate on the network.
 - list: known_system_procs_network_activity_binaries
-  items: [systemd, hostid, id, calico-node, envoy, webhook, daemon, kube-rbac-proxy, palace, scan_report, console, microseg, cluster-manager, iptables-restor, safe-node-image, sherlock_api]
+  items: [systemd, hostid, id, calico-node, envoy, webhook, daemon, kube-rbac-proxy, palace, scan_report, console, microseg, cluster-manager, iptables-restor, safe-node-image, sherlock_api, nginx, consul, speaker, prometheus, defender]
 
 # This macro allows specifying conditions under which a system binary
 # is allowed to communicate on the network. For instance, only specific
@@ -4543,7 +4560,7 @@
 # Two things to pay attention to:
 #   1) In most cases, 'docker cp' will not be identified, but the assumption is that if an attacker gained access to the container runtime daemon, they are already privileged
 #   2) Drift rules will be noisy in environments in which containers are built (e.g. docker build)
-# These two rules are not enabled by default. Use `never_true` in macro condition to enable them.
+# These two rules are not enabled by default. Use never_true in macro condition to enable them.
 
 - macro: user_known_container_drift_activities
   condition: (always_true)
@@ -4583,7 +4600,18 @@
   condition: proc.name in (docker_binaries)
 
 - list: watson_id
-  items: [51c1c6, 75fb1c, b0f328, 99a7ca, ddc305]
+  items: [51c1c6, 75fb1c, b0f328, 99a7ca, ddc305, 42cca6, 98166d, 588ee1]
+
+- macro: watson_pods
+  condition: >
+    (k8s.pod.name contains "51c1c6" or
+    k8s.pod.name contains "75fb1c" or
+    k8s.pod.name contains "b0f328" or
+    k8s.pod.name contains "99a7ca" or
+    k8s.pod.name contains "ddc305" or
+    k8s.pod.name contains "42cca6" or
+    k8s.pod.name contains "98166d" or
+    k8s.pod.name contains "588ee1")
 
 - macro: tensorsec_namespace
   condition: k8s.ns.name = tensorsec
