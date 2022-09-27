@@ -1174,6 +1174,7 @@ func AddCluster(ctx context.Context, rdb *gorm.DB, cluster *model.TensorCluster)
 				"platform",
 				"api_server_addr",
 				"platform",
+				"version",
 			}),
 		}).Create(cluster).Error
 	})

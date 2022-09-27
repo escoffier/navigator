@@ -6,25 +6,26 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
-	"gitlab.com/piccolo_su/vegeta/pkg/assets"
-	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
 	"io/ioutil"
-	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/util/uuid"
-	"k8s.io/apimachinery/pkg/util/wait"
-	"k8s.io/client-go/rest"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 
 	"github.com/avast/retry-go"
 	json "github.com/json-iterator/go"
 	"gitlab.com/piccolo_su/vegeta/cmd/clustermanager/pkg/config"
+	"gitlab.com/piccolo_su/vegeta/pkg/assets"
+	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 	"gitlab.com/security-rd/go-pkg/logging"
+	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
+	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/uuid"
+	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/client-go/rest"
 	certutil "k8s.io/client-go/util/cert"
 )
 
@@ -34,6 +35,20 @@ const (
 	//kubernetes     = "kubernetes"
 	//openshift      = "openshift"
 )
+
+var (
+	myResourcePrefix = "tensorsec"
+)
+
+func init() {
+	podName := os.Getenv("MY_POD_NAME")
+	if len(podName) > 0 {
+		pos := strings.IndexByte(podName, '-')
+		if pos > 0 {
+			myResourcePrefix = podName[:pos]
+		}
+	}
+}
 
 type SAToken struct {
 	Token  []byte
@@ -194,6 +209,11 @@ func (c *ClusterAgent) RegisterToHostCluster() {
 func (c *ClusterAgent) registerClusterInfo() error {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
 	defer cancel()
+	version, err := k8s.GetProductVersionFrom(context.Background(), c.HostClient, myResourcePrefix, c.workerNamespace)
+	if err != nil {
+		logging.Get().Err(err).Str("resource_prefix", myResourcePrefix).Str("ns", c.workerNamespace).Msg("get product version error")
+	}
+	logging.Get().Info().Str("product_version", version).Msg("Get cluster product version")
 
 	cluster := &model.TensorCluster{
 		Key:                 c.CusterID,
@@ -208,6 +228,7 @@ func (c *ClusterAgent) registerClusterInfo() error {
 		WorkerNamespace:     c.workerNamespace,
 		Status:              0,
 		Platform:            c.platform,
+		Version:             version,
 	}
 
 	data, err := json.Marshal(cluster)

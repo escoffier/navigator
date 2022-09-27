@@ -8,6 +8,10 @@ import (
 	"sync"
 	"time"
 
+	json "github.com/json-iterator/go"
+	"gitlab.com/piccolo_su/vegeta/pkg/assets"
+	"gitlab.com/piccolo_su/vegeta/pkg/model"
+	"gitlab.com/security-rd/go-pkg/logging"
 	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -15,14 +19,9 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
-	v1 "scm.tensorsecurity.cn/tensorsecurity-rd/api/pkg/generated/listers/cluster/v1"
-
-	json "github.com/json-iterator/go"
-	"gitlab.com/piccolo_su/vegeta/pkg/assets"
-	"gitlab.com/piccolo_su/vegeta/pkg/model"
-	"gitlab.com/security-rd/go-pkg/logging"
 	clusterV1 "scm.tensorsecurity.cn/tensorsecurity-rd/api/pkg/apis/cluster/v1"
 	"scm.tensorsecurity.cn/tensorsecurity-rd/api/pkg/generated/informers/externalversions"
+	v1 "scm.tensorsecurity.cn/tensorsecurity-rd/api/pkg/generated/listers/cluster/v1"
 )
 
 var (
@@ -207,6 +206,7 @@ func (m *ClusterManager) AddManagedClusterToKube(ctx context.Context, cluster *m
 			WorkerNamespace: cluster.WorkerNamespace,
 			ClusterType:     string(cluster.ClusterType),
 			Description:     cluster.Description,
+			Version:         cluster.Version,
 		},
 	}
 	_, err = m.HostClient.TensorClientset.ClusterV1().ManagedClusters().Create(ctx, cls, metav1.CreateOptions{})
@@ -338,6 +338,7 @@ func ClusterFromCrdToModel(cluster *clusterV1.ManagedCluster) (*model.TensorClus
 		ClientCertData:      string(clientConfig.CertData),
 		ClientKeyData:       string(clientConfig.KeyData),
 		WorkerNamespace:     cluster.Spec.WorkerNamespace,
+		Version:             cluster.Spec.Version,
 	}, nil
 }
 
@@ -383,6 +384,7 @@ func (m *ClusterManager) UpdateCluster(ctx context.Context, cluster *model.Tenso
 				"workerNamespace": cluster.WorkerNamespace,
 				"clusterType":     cluster.ClusterType,
 				"description":     cluster.Description,
+				"version":         cluster.Version,
 			},
 		}
 		var patchBytes []byte
@@ -433,6 +435,7 @@ func IsClusterChanged(oldCluster *model.TensorCluster, newCluster *model.TensorC
 		oldCluster.ClusterType != newCluster.ClusterType ||
 		oldCluster.WorkerNamespace != newCluster.WorkerNamespace ||
 		oldCluster.Name != newCluster.Name ||
+		oldCluster.Version != newCluster.Version ||
 		oldCluster.APIServerAddr != newCluster.APIServerAddr {
 		return true
 	}
