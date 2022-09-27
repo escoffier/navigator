@@ -4,16 +4,18 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"runtime/debug"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	json "github.com/json-iterator/go"
 	es "github.com/olivere/elastic/v7"
 	"gitlab.com/piccolo_su/vegeta/pkg/dal"
-	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/security-rd/go-pkg/databases"
 	"gitlab.com/security-rd/go-pkg/elastic"
+	"gitlab.com/security-rd/go-pkg/logging"
 	"gitlab.com/security-rd/go-pkg/sdk/palace"
 )
 
@@ -42,7 +44,7 @@ func (rl *TensorDriftService) UpdateCachePolicy() {
 	for {
 		policies, err := dal.GetAllPolicies(ctx, rl.rdb.GetReadDB())
 		if err != nil {
-			logging.GetLogger().Err(err).Msgf("UpdateCachePolicy error")
+			logging.Get().Err(err).Msgf("UpdateCachePolicy error")
 			return
 		}
 		var maxTime int64
@@ -65,13 +67,43 @@ type TensorDriftService struct {
 	rdb   *databases.RDBInstance
 	Cache model.DriftPolicyCache
 	es    *elastic.ESClient
+
+	policiesVal *atomic.Value
+}
+
+func (rl *TensorDriftService) loadPolicies() {
+	defer func() {
+		if r := recover(); r != nil {
+			logging.Get().Error().Str("stack", string(debug.Stack())).Msgf("Panic: %v", r)
+		}
+	}()
+
+	policies, err := dal.GetAllPolicies(context.Background(), rl.rdb.GetReadDB())
+	if err != nil {
+		logging.Get().Err(err).Msg("load drift policies error")
+		return
+	}
+	rl.policiesVal.Store(policies)
+}
+
+func (rl *TensorDriftService) asyncLoop() {
+	ticker := time.NewTicker(5 * time.Second)
+	defer ticker.Stop()
+
+	for _ = range ticker.C {
+		rl.loadPolicies()
+	}
 }
 
 func newTensorResourcesService(rdb *databases.RDBInstance, es *elastic.ESClient) *TensorDriftService {
-	return &TensorDriftService{
-		rdb: rdb,
-		es:  es,
+	s := &TensorDriftService{
+		rdb:         rdb,
+		es:          es,
+		policiesVal: new(atomic.Value),
 	}
+	s.loadPolicies()
+	s.asyncLoop()
+	return s
 }
 
 func (rl *TensorDriftService) CreatePolicy(ctx context.Context, policy model.DriftPolicy) (int64, error) {
@@ -95,7 +127,17 @@ func (rl *TensorDriftService) GetPolicyByID(ctx context.Context, id int64) (mode
 }
 
 func (rl *TensorDriftService) GetAllPolicies(ctx context.Context) ([]model.DriftPolicy, error) {
-	return dal.GetAllPolicies(ctx, rl.rdb.GetReadDB())
+	val := rl.policiesVal.Load()
+	if val == nil {
+		logging.Get().Warn().Msg("drift policies isn't set")
+		rl.loadPolicies()
+		val = rl.policiesVal.Load()
+		if val == nil {
+			logging.Get().Warn().Msg("drift policies isn't set")
+			return nil, nil
+		}
+	}
+	return val.([]model.DriftPolicy), nil
 }
 
 func (rl *TensorDriftService) PolicyDetail(ctx context.Context, policy model.DriftPolicy, limit int, offset int) ([]model.TensorContainer, error) {
@@ -133,21 +175,21 @@ func (rl *TensorDriftService) GetAbnormal(ctx context.Context, policy model.Drif
 
 	// debug
 	src, _ := boolQuery.Source()
-	logging.GetLogger().Debug().Interface("source", src).Msg("filter condition")
+	logging.Get().Debug().Interface("source", src).Msg("filter condition")
 
 	var result = make([]*palace.Signal, 0)
 	searchResult, err := esCli.Search("signals_*").Query(boolQuery).
 		Sort("createdAt", true).Sort("_id", true).
 		Size(limit).Do(ctx)
 	if err != nil {
-		logging.GetLogger().Warn().Err(err).Msg("search es error")
+		logging.Get().Warn().Err(err).Msg("search es error")
 		return result, nil
 	}
 
 	for _, item := range searchResult.Hits.Hits {
 		signal, err := parseSignal(item)
 		if err != nil {
-			logging.GetLogger().Err(err).Msgf("parse signal error")
+			logging.Get().Err(err).Msgf("parse signal error")
 			continue
 		}
 		result = append(result, signal)
