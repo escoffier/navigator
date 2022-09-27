@@ -31,7 +31,7 @@ func GetImagePrefixAndPostFixFrom(image string) (string, string, bool) {
 	return image[:pos+1], image[pos+1:], true
 }
 
-func GetImageRepositoryAndProjectPrefix(ctx context.Context, kubeClient *pkgassets.Clientset, myResourcePrefix, myNamespace string) (string, error) {
+func getClusterManagerdeploymenetObj(ctx context.Context, kubeClient *pkgassets.Clientset, myResourcePrefix, myNamespace string) (*appsv1.Deployment, error) {
 	clusterManagerName := fmt.Sprintf("%s-cluster-manager", myResourcePrefix)
 	var res *appsv1.Deployment
 	var notFound bool
@@ -47,10 +47,34 @@ func GetImageRepositoryAndProjectPrefix(ctx context.Context, kubeClient *pkgasse
 		return nil
 	}, retry.Attempts(3))
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	if notFound || res == nil {
-		return "", fmt.Errorf("target resource %s/%s not found", myNamespace, clusterManagerName)
+		return nil, fmt.Errorf("target resource %s/%s not found", myNamespace, clusterManagerName)
+	}
+	return res, nil
+}
+
+func GetProductVersionFrom(ctx context.Context, kubeClient *pkgassets.Clientset, myResourcePrefix, myNamespace string) (string, error) {
+	res, err := getClusterManagerdeploymenetObj(ctx, kubeClient, myResourcePrefix, myNamespace)
+	if err != nil {
+		return "", err
+	}
+
+	for _, cont := range res.Spec.Template.Spec.Containers {
+		if len(cont.Image) > 0 {
+			pos := strings.LastIndexByte(cont.Image, ':')
+			if pos > 0 && pos < len(cont.Image)-1 {
+				return cont.Image[pos+1:], nil
+			}
+		}
+	}
+	return "", fmt.Errorf("target resource image prefix %s/cluster-manager not found", myNamespace)
+}
+func GetImageRepositoryAndProjectPrefix(ctx context.Context, kubeClient *pkgassets.Clientset, myResourcePrefix, myNamespace string) (string, error) {
+	res, err := getClusterManagerdeploymenetObj(ctx, kubeClient, myResourcePrefix, myNamespace)
+	if err != nil {
+		return "", err
 	}
 
 	for _, cont := range res.Spec.Template.Spec.Containers {
@@ -59,7 +83,7 @@ func GetImageRepositoryAndProjectPrefix(ctx context.Context, kubeClient *pkgasse
 			return prefix, nil
 		}
 	}
-	return "", fmt.Errorf("target resource image prefix %s/%s not found", myNamespace, clusterManagerName)
+	return "", fmt.Errorf("target resource image prefix %s/cluster-manager not found", myNamespace)
 }
 
 // ReplaceJobYamlWithTheTargetImageRepos : for sub clusters, the image repos might be different from the yamls which is defined by the image repositories of the main cluster; so get the image repo prefix dynamically.
