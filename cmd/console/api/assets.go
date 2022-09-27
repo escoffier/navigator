@@ -3,7 +3,6 @@ package api
 import (
 	"context"
 	"fmt"
-	containers2 "gitlab.com/piccolo_su/vegeta/cmd/console/service/containers"
 	"net/http"
 	"os"
 	"strconv"
@@ -11,10 +10,12 @@ import (
 	"time"
 
 	"github.com/go-chi/chi"
+	"github.com/google/go-containerregistry/pkg/name"
 	json "github.com/json-iterator/go"
 	param "github.com/oceanicdev/chi-param"
 	"github.com/pkg/errors"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/assets"
+	containers2 "gitlab.com/piccolo_su/vegeta/cmd/console/service/containers"
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	assetsPkg "gitlab.com/piccolo_su/vegeta/pkg/assets"
 	"gitlab.com/piccolo_su/vegeta/pkg/dal"
@@ -825,31 +826,17 @@ func (api *api) updateResourceUserData() http.HandlerFunc {
 }
 
 func parseImage(image string) (string, string, string) {
-	var repo, name, tag string
-	i := strings.LastIndex(image, ":")
-	var repName string
-	if i != -1 {
-		if i < len(image) {
-			if strings.Contains(image[i+1:], "/") {
-				tag = ""
-				repName = image
-			} else {
-				tag = image[i+1:]
-				repName = image[:i]
-			}
-		}
-	} else {
-		repName = image
+	var repo, imageName, tag string
+	var nameOpts []name.Option
+	nameOpts = append(nameOpts, name.Insecure)
+	ref, err := name.ParseReference(image, nameOpts...)
+	if err != nil {
+		return "", "", ""
 	}
-
-	sp := strings.SplitN(repName, "/", 2)
-	if len(sp) < 2 {
-		name = sp[0]
-	} else {
-		repo = sp[0]
-		name = sp[len(sp)-1]
-	}
-	return repo, name, tag
+	repo = ref.Context().RegistryStr()
+	imageName = ref.Context().RepositoryStr()
+	tag = ref.Identifier()
+	return repo, imageName, tag
 }
 
 type container struct {

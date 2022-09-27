@@ -1,9 +1,11 @@
 package api
 
 import (
+	"testing"
+
+	"github.com/stretchr/testify/assert"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	v1 "k8s.io/api/core/v1"
-	"testing"
 )
 
 func Test_parseImage(t *testing.T) {
@@ -107,4 +109,21 @@ func TestSliceField(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Logf("%v", cmp)
+}
+
+func TestParseImage(t *testing.T) {
+	repo, name, tag := parseImage("wade23/deploy:deploytest")
+	assert.Equal(t, "index.docker.io", repo)
+	assert.Equal(t, "wade23/deploy", name)
+	assert.Equal(t, "deploytest", tag)
+
+	repo, name, tag = parseImage("har-prod.tensor.com/wade23/deploy:deploytest")
+	assert.Equal(t, "har-prod.tensor.com", repo)
+	assert.Equal(t, "wade23/deploy", name)
+	assert.Equal(t, "deploytest", tag)
+
+	repo, name, tag = parseImage("127.0.0.1:80/wade23/deploy:deploytest")
+	assert.Equal(t, "127.0.0.1:80", repo)
+	assert.Equal(t, "wade23/deploy", name)
+	assert.Equal(t, "deploytest", tag)
 }
