@@ -31,9 +31,9 @@ func (s *InitScanner) Init(ctx context.Context) error {
 	if err := s.createGlobalPolicy(ctx); err != nil {
 		return err
 	}
-	if err := s.createSafeNodeBufRegistry(ctx); err != nil {
-		return err
-	}
+	// if err := s.createSafeNodeBufRegistry(ctx); err != nil {
+	// 	return err
+	// }
 	// 一次要在写入默认策略前写入全局配置
 	if err := s.createDefaultScanStrategy(ctx); err != nil {
 		return err
