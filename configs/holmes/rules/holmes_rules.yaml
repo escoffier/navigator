@@ -12,12 +12,12 @@
       value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands."
     zh:
       key: "处置建议"
-      value: "使用免疫防御训练应用，限制敏感文件和命令的用户权限。"
+      value: "建议排查是否有攻击者已获取内部容器权限，同时使用免疫防御限制攻击者进行进一步攻击。"
   desc: Gaining sensitive information in Watson
   condition: >
     k8s.pod.name contains "51c1c6" and (inbound_outbound) and fd.sport=8080
   output: >
-    Gaining sensitive information in Watson (zh_msg=通过主动防御检测到web目录文件访问,rule_type=Privilege_Escalation,fd_name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,container_id=%container.id,container_name=%container.name)
+    Gaining sensitive information in Watson (zh_msg=通过主动防御检测到针对诱饵的web目录文件的异常访问,rule_type=Privilege_Escalation,fd_name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,container_id=%container.id,container_name=%container.name)
   priority: ALERT
   tags: [Watson]
 
@@ -32,12 +32,12 @@
       value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands."
     zh:
       key: "处置建议"
-      value: "使用免疫防御训练应用，限制敏感文件和命令的用户权限。"
+      value: "建议排查是否有攻击者已获取内部容器权限，同时使用免疫防御限制攻击者进行进一步攻击。"
   desc: Upload webshell through tomcat manager
   condition: >
     k8s.pod.name contains "51c1c6" and evt.type = read and evt.arg.data contains "POST /manager/html/upload" and fd.sport=8080 and proc.name=java
   output: >
-    Upload webshell through tomcat manager (zh_msg=通过manager后台上传webshell,rule_type=Privilege_Escalation,fd_name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,container_id=%container.id,container_name=%container.name,http_request=%evt.args)
+    Upload webshell through tomcat manager (zh_msg=主动防御检测到攻击者通过诱饵应用manager后台上传webshell,rule_type=Privilege_Escalation,fd_name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,container_id=%container.id,container_name=%container.name,http_request=%evt.args)
   priority: ALERT
   tags: [Watson]
 
@@ -52,12 +52,12 @@
       value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands."
     zh:
       key: "处置建议"
-      value: "使用免疫防御训练应用，限制敏感文件和命令的用户权限。"
+      value: "建议排查是否有攻击者已获取内部容器权限，同时使用免疫防御限制攻击者进行进一步攻击。"
   desc: Execute commands through webshell
   condition: >
     k8s.pod.name contains "51c1c6" and evt.type = read and (evt.arg.data contains "POST " or evt.arg.data contains "GET ") and evt.arg.data contains "jsp" and fd.sport=8080 and proc.name=java
   output: >
-    Execute commands through webshell (zh_msg=通过tomcat-webshell执行命令,rule_type=Privilege_Escalation,fd_name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_vpgid=%proc.vpgid,proc_cmdline=%proc.cmdline,proc_name=%proc.name,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,container_id=%container.id,container_name=%container.name,http_request=%evt.args)
+    Execute commands through webshell (zh_msg=主动防御检测到攻击者通过向诱饵tomcat植入webshell并执行命令,rule_type=Privilege_Escalation,fd_name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_vpgid=%proc.vpgid,proc_cmdline=%proc.cmdline,proc_name=%proc.name,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,container_id=%container.id,container_name=%container.name,http_request=%evt.args)
   priority: ALERT
   tags: [Watson]
 
@@ -72,12 +72,12 @@
       value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands."
     zh:
       key: "处置建议"
-      value: "使用免疫防御训练应用，限制敏感文件和命令的用户权限。"
+      value: "建议排查攻击源容器是否已遭到入侵，可使用微隔离与免疫防御限制攻击者进行进一步攻击。"
   desc: Other containers establish new connections to the redis-server in Watson
   condition: >
     k8s.pod.name contains "51c1c6" and (inbound_outbound) and fd.sport=6379 
   output: >
-    Other containers establish new connections to the redis-server in Watson (zh_msg=通过主动防御检测到redis-server未授权访问,rule_type=Privilege_Escalation,fd_name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,container_id=%container.id,container_name=%container.name)
+    Other containers establish new connections to the redis-server in Watson (zh_msg=通过主动防御检测到针对诱饵的redis-server未授权访问,rule_type=Privilege_Escalation,fd_name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,container_id=%container.id,container_name=%container.name)
   priority: ALERT
   tags: [Watson]
 
@@ -92,12 +92,12 @@
       value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands."
     zh:
       key: "处置建议"
-      value: "使用免疫防御训练应用，限制敏感文件和命令的用户权限。"
+      value: "建议排查攻击源容器是否已遭到入侵，可使用微隔离与免疫防御限制攻击者进行进一步攻击。"
   desc: Other containers establish new connections to the ElasticSearch
   condition: >
     k8s.pod.name contains "75fb1c" and (inbound_outbound) and fd.sport=9200
   output: >
-    Other containers establish new connections to the ElasticSearch (zh_msg=通过主动防御检测到与elasticsearch通信,rule_type=Privilege_Escalation,fd_name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,container_id=%container.id,container_name=%container.name)
+    Other containers establish new connections to the ElasticSearch (zh_msg=通过主动防御检测到存在与诱饵elasticsearch通信,rule_type=Privilege_Escalation,fd_name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,container_id=%container.id,container_name=%container.name)
   priority: ALERT
   tags: [Watson]
 
@@ -112,12 +112,12 @@
       value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands."
     zh:
       key: "处置建议"
-      value: "使用免疫防御训练应用，限制敏感文件和命令的用户权限。"
+      value: "建议排查攻击源容器是否已遭到入侵，可使用微隔离与免疫防御限制攻击者进行进一步攻击。"
   desc: Execute sensitive commands via ElasticSearch
   condition: >
     k8s.pod.name contains "75fb1c" and evt.type=execve and evt.res!=ENOENT and proc.pname = java
   output: >
-    Execute sensitive commands via ElasticSearch (zh_msg=通过主动防御检测到elasticsearch执行命令（CVE-2015-1427）,rule_type=Privilege_Escalation,fd_name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,container_id=%container.id,container_name=%container.name)
+    Execute sensitive commands via ElasticSearch (zh_msg=通过主动防御检测到攻击者通过诱饵elasticsearch执行命令（CVE-2015-1427）,rule_type=Privilege_Escalation,fd_name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,container_id=%container.id,container_name=%container.name)
   priority: ALERT
   tags: [Watson]
 
@@ -132,12 +132,12 @@
       value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands."
     zh:
       key: "处置建议"
-      value: "使用免疫防御训练应用，限制敏感文件和命令的用户权限。"
+      value: "建议排查攻击源容器是否已遭到入侵，可使用微隔离与免疫防御限制攻击者进行进一步攻击。"
   desc: Other containers establish new connections to the tomcat
   condition: >
     k8s.pod.name contains "b0f328" and (inbound_outbound) and fd.sport = 8080 
   output: >
-    Other containers establish new connections to the tomcat (zh_msg=通过主动防御检测到与tomcat通信,rule_type=Privilege_Escalation,fd_name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,container_id=%container.id,container_name=%container.name)
+    Other containers establish new connections to the tomcat (zh_msg=通过主动防御检测到存在容器与诱饵tomcat通信,rule_type=Privilege_Escalation,fd_name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,container_id=%container.id,container_name=%container.name)
   priority: ALERT
   tags: [Watson]
 
@@ -152,12 +152,12 @@
       value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands."
     zh:
       key: "处置建议"
-      value: "使用免疫防御训练应用，限制敏感文件和命令的用户权限。"
+      value: "建议排查攻击源容器是否已遭到入侵，可使用微隔离与免疫防御限制攻击者进行进一步攻击。"
   desc: Execute sensitive commands via tomcat
   condition: >
     k8s.pod.name contains "b0f328" and (inbound_outbound) and fd.sport = 8009
   output: >
-    Other containers establish new connections to the tomcat (zh_msg=通过主动防御检测到tomcat读取本地webapp目录文件,rule_type=Privilege_Escalation,fd_name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,container_id=%container.id,container_name=%container.name)
+    Other containers establish new connections to the tomcat (zh_msg=通过主动防御检测到流量通过诱饵tomcat读取本地webapp目录文件,rule_type=Privilege_Escalation,fd_name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,container_id=%container.id,container_name=%container.name)
   priority: ALERT
   tags: [Watson]
 
@@ -172,12 +172,12 @@
       value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands."
     zh:
       key: "处置建议"
-      value: "使用免疫防御训练应用，限制敏感文件和命令的用户权限。"
+      value: "建议排查攻击源容器是否已遭到入侵，可使用微隔离与免疫防御限制攻击者进行进一步攻击。"
   desc: Other containers establish new connections to the Jenkins
   condition: >
     k8s.pod.name contains "99a7ca" and (inbound_outbound) and fd.sport = 8080 
   output: >
-    Other containers establish new connections to the jenkins (zh_msg=通过主动防御检测到与jenkins通信,rule_type=Privilege_Escalation,fd_name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,container_id=%container.id,container_name=%container.name)
+    Other containers establish new connections to the jenkins (zh_msg=通过主动防御检测到存在与诱饵jenkins通信,rule_type=Privilege_Escalation,fd_name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,container_id=%container.id,container_name=%container.name)
   priority: ALERT
   tags: [Watson]
 
@@ -192,12 +192,12 @@
       value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands."
     zh:
       key: "处置建议"
-      value: "使用免疫防御训练应用，限制敏感文件和命令的用户权限。"
+      value: "建议排查攻击源容器是否已遭到入侵，可使用微隔离与免疫防御限制攻击者进行进一步攻击。"
   desc: Execute sensitive commands via Jenkins
   condition: >
    k8s.pod.name contains "99a7ca" and evt.type=execve and evt.res!=ENOENT
   output: >
-    Execute sensitive commands via Jenkins (zh_msg=通过主动防御检测到Jenkins执行命令（CVE-2018-1000861）,rule_type=Privilege_Escalation,fd_name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,container_id=%container.id,container_name=%container.name)
+    Execute sensitive commands via Jenkins (zh_msg=通过主动防御检测到攻击者通过诱饵Jenkins执行命令（CVE-2018-1000861）,rule_type=Privilege_Escalation,fd_name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,container_id=%container.id,container_name=%container.name)
   priority: ALERT
   tags: [Watson]
 
@@ -212,12 +212,12 @@
       value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands."
     zh:
       key: "处置建议"
-      value: "使用免疫防御训练应用，限制敏感文件和命令的用户权限。"
+      value: "建议排查攻击源容器是否已遭到入侵，可使用微隔离与免疫防御限制攻击者进行进一步攻击。"
   desc: Other containers establish new connections to the Jupyter
   condition: >
    (inbound_outbound) and fd.sport = 8888 and k8s.pod.name contains "ddc305"
   output: >
-    Other containers establish new connections to the jenkins (zh_msg=通过主动防御检测到与jupyter通信,rule_type=Privilege_Escalation,fd_name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,container_id=%container.id,container_name=%container.name)
+    Other containers establish new connections to the jenkins (zh_msg=通过主动防御检测到存在与诱饵jupyter通信,rule_type=Privilege_Escalation,fd_name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,container_id=%container.id,container_name=%container.name)
   priority: ALERT
   tags: [Watson]
 
@@ -232,12 +232,12 @@
       value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands."
     zh:
       key: "处置建议"
-      value: "使用免疫防御训练应用，限制敏感文件和命令的用户权限。"
+      value: "建议排查攻击源容器是否已遭到入侵，可使用微隔离与免疫防御限制攻击者进行进一步攻击。"
   desc: Execute sensitive commands via Jupyter
   condition: >
     k8s.pod.name contains "ddc305" and evt.type=execve and evt.res!=ENOENT
   output: >
-    Execute sensitive commands via Jenkins (zh_msg=通过主动防御检测到Jupyter执行命令,rule_type=Privilege_Escalation,fd_name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,container_id=%container.id,container_name=%container.name)
+    Execute sensitive commands via Jenkins (zh_msg=通过主动防御检测到攻击者通过诱饵Jupyter执行命令,rule_type=Privilege_Escalation,fd_name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,container_id=%container.id,container_name=%container.name)
   priority: ALERT
   tags: [Watson]
 
@@ -252,12 +252,12 @@
       value: "Prohibit mounting sensitive directories and files, prohibit sensitive containers from starting, and update software versions within containers."
     zh:
       key: "处置建议"
-      value: "禁止挂载敏感目录和文件，禁止敏感容器启动，更新容器内软件版本。"
+      value: "建议排查攻击源容器是否已遭到入侵，可使用微隔离与免疫防御限制攻击者进行进一步攻击。"
   desc: The k8s client is executed in Watson
   condition: >
     watson_pods and spawned_process and container and not user_known_k8s_client_container_parens and proc.name in (k8s_client_binaries)
   output: >
-    Docker or kubernetes client executed in container (zh_msg=通过主动防御检测到运行k8s相关二进制程序,rule_type=Lateral_Movement,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid %container.info parent=%proc.pname image=%container.image.repository:%container.image.tag,container_id=%container.id,container_name=%container.name)
+    Docker or kubernetes client executed in container (zh_msg=通过主动防御检测到诱饵容器内运行k8s相关二进制程序,rule_type=Lateral_Movement,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid %container.info parent=%proc.pname image=%container.image.repository:%container.image.tag,container_id=%container.id,container_name=%container.name)
   priority: ALERT
   tags: [Watson]
 
@@ -272,12 +272,12 @@
       value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands."
     zh:
       key: "处置建议"
-      value: "使用免疫防御训练应用，限制敏感文件和命令的用户权限。"
+      value: "建议排查攻击源容器是否已遭到入侵，可使用微隔离与免疫防御限制攻击者进行进一步攻击。"
   desc: Other containers establish new connections to the mysql
   condition: >
     k8s.pod.name contains "588ee1" and (inbound_outbound) and fd.sport = 3306
   output: >
-    Other containers establish new connections to the mysql (zh_msg=Watson：通过主动防御检测到与mysql通信,rule_type=Privilege_Escalation,fd_name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,container_id=%container.id,container_name=%container.name)
+    Other containers establish new connections to the mysql (zh_msg=Watson：通过主动防御检测到与诱饵mysql通信,rule_type=Privilege_Escalation,fd_name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,container_id=%container.id,container_name=%container.name)
   priority: ALERT
   tags: [Watson]
 
@@ -292,12 +292,12 @@
       value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands."
     zh:
       key: "处置建议"
-      value: "使用免疫防御训练应用，限制敏感文件和命令的用户权限。"
+      value: "建议排查攻击源容器是否已遭到入侵，可使用微隔离与免疫防御限制攻击者进行进一步攻击。"
   desc: Connection with mysql successfully established detected
   condition: >
     k8s.pod.name contains "588ee1" and evt.type=recvfrom and evt.arg.data contains "select" and fd.sport = 3306 
   output: >
-    Connection with mysql successfully established detected (zh_msg=通过主动防御检测到与mysql成功建立连接,rule_type=Privilege_Escalation,fd_name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,container_id=%container.id,container_name=%container.name)
+    Connection with mysql successfully established detected (zh_msg=通过主动防御检测到存在与诱饵mysql成功建立连接,rule_type=Privilege_Escalation,fd_name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,container_id=%container.id,container_name=%container.name)
   priority: ALERT
   tags: [Watson]
 
@@ -312,12 +312,12 @@
       value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands."
     zh:
       key: "处置建议"
-      value: "使用免疫防御训练应用，限制敏感文件和命令的用户权限。"
+      value: "建议排查攻击源容器是否已遭到入侵，可使用微隔离与免疫防御限制攻击者进行进一步攻击。"
   desc: Other containers establish new connections to the ssh
   condition: >
     k8s.pod.name contains "98166d" and (inbound_outbound) and fd.sport = 22
   output: >
-    Other containers establish new connections to the ssh (zh_msg=通过主动防御检测到与ssh通信,rule_type=Privilege_Escalation,fd_name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,container_id=%container.id,container_name=%container.name)
+    Other containers establish new connections to the ssh (zh_msg=通过主动防御检测到与诱饵ssh通信,rule_type=Privilege_Escalation,fd_name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,container_id=%container.id,container_name=%container.name)
   priority: ALERT
   tags: [Watson]
 
@@ -332,12 +332,12 @@
       value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands."
     zh:
       key: "处置建议"
-      value: "使用免疫防御训练应用，限制敏感文件和命令的用户权限。"
+      value: "建议排查攻击源容器是否已遭到入侵，可使用微隔离与免疫防御限制攻击者进行进一步攻击。"
   desc: Connection establishment using ssh is detected
   condition: >
     k8s.pod.name contains "98166d" and evt.type=write and evt.arg.data contains "Welcome" 
   output: >
-    Connection with mysql successfully established detected (zh_msg=通过主动防御检测到使用ssh建立连接,rule_type=Privilege_Escalation,fd_name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,fd.sport=%fd.sport,container_id=%container.id,container_name=%container.name)
+    Connection with mysql successfully established detected (zh_msg=通过主动防御检测到与诱饵容器建立ssh连接,rule_type=Privilege_Escalation,fd_name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,fd.sport=%fd.sport,container_id=%container.id,container_name=%container.name)
   priority: ALERT
   tags: [Watson]
 
@@ -352,12 +352,12 @@
       value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands."
     zh:
       key: "处置建议"
-      value: "使用免疫防御训练应用，限制敏感文件和命令的用户权限。"
+      value: "建议排查攻击源容器是否已遭到入侵，可使用微隔离与免疫防御限制攻击者进行进一步攻击。"
   desc: Other containers establish new connections to the vsftpd
   condition: >
     k8s.pod.name contains "42cca6" and (inbound_outbound) and fd.sport = 21
   output: >
-    Other containers establish new connections to the vsftpd (zh_msg=通过主动防御检测到与ftp通信,rule_type=Privilege_Escalation,fd_name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,container_id=%container.id,container_name=%container.name)
+    Other containers establish new connections to the vsftpd (zh_msg=通过主动防御检测到存在与诱饵容器的ftp通信,rule_type=Privilege_Escalation,fd_name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,container_id=%container.id,container_name=%container.name)
   priority: ALERT
   tags: [Watson]
 
@@ -372,12 +372,12 @@
       value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands."
     zh:
       key: "处置建议"
-      value: "使用免疫防御训练应用，限制敏感文件和命令的用户权限。"
+      value: "建议排查攻击源容器是否已遭到入侵，可使用微隔离与免疫防御限制攻击者进行进一步攻击。"
   desc: Connection establishment using ftp is detected
   condition: >
     k8s.pod.name contains "42cca6" and evt.type=write and evt.arg.data contains "OK LOGIN"
   output: >
-    Connection establishment using ftp is detected (zh_msg=通过主动防御检测到使用ftp建立连接,rule_type=Privilege_Escalation,fd_name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,fd.sport=%fd.sport,container_id=%container.id,container_name=%container.name)
+    Connection establishment using ftp is detected (zh_msg=通过主动防御检测到与诱饵容器建立ftp连接,rule_type=Privilege_Escalation,fd_name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,fd.sport=%fd.sport,container_id=%container.id,container_name=%container.name)
   priority: ALERT
   tags: [Watson]
 
@@ -392,7 +392,7 @@
       value: "Use the Immune Defence training application to block new or modified executables and restrict the users and recipients of the commands."
     zh:
       key: "处置建议"
-      value: "使用免疫防御训练应用，阻拦新的或被修改的可执行文件，限制执行命令的用户和接收对象。"
+      value: "建议排查数据库是否遭到注入攻击，存在通过数据库执行系统命令现象，可使用免疫防御阻断黑客进一步行为。"
   desc: >
     a database-server related program spawned a new process other than itself.
     This shouldn\'t occur and is a follow on from some SQL injection attacks.
@@ -404,7 +404,7 @@
     and not user_known_db_spawned_processes
     and not tensorsec_namespace
   output: >
-    Database-related program spawned process other than itself (zh_msg=SQL注入攻击后续：数据库服务生成非自身进程,rule_type=Execution,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,
+    Database-related program spawned process other than itself (zh_msg=SQL注入攻击后续利用：数据库服务生成非自身进程，可能存在提权行为,rule_type=Execution,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,
     original_info=user=%user.name user_loginuid=%user.loginuid parent=%proc.pname
     container_id=%container.id container_name=%container.name image=%container.image.repository)
   priority: ERROR
@@ -419,7 +419,7 @@
       value: "Use the Immune Defence training application to block new or modified executables and restrict the users and recipients of the commands."
     zh:
       key: "处置建议"
-      value: "使用免疫防御训练应用，阻拦新的或被修改的可执行文件，限制执行命令的用户和接收对象。"
+      value: "确认该二进制文件是否安全，可使用免疫防御训练应用，阻拦新的或被修改的可执行文件，限制执行命令的用户和接收对象。"
   desc: an attempt to spawn a shell below a non-shell application. Specific applications are monitored.
   condition: >
     spawned_process
@@ -452,7 +452,7 @@
     and not run_by_appdynamics
     and not user_shell_container_exclusions
   output: >
-    Shell spawned by untrusted binary (zh_msg=未受信任的二进制文件产生shell,rule_type=Execution,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type, webshell_name=%fd.name
+    Shell spawned by untrusted binary (zh_msg=未受信任的二进制文件产生shell，可能存在黑客工具引入 ,rule_type=Execution,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type, webshell_name=%fd.name
     original_info=user=%user.name user_loginuid=%user.loginuid shell=%proc.name parent=%proc.pname
     gparent=%proc.aname[2] ggparent=%proc.aname[3]
     aname[4]=%proc.aname[4] aname[5]=%proc.aname[5] aname[6]=%proc.aname[6] aname[7]=%proc.aname[7] container_id=%container.id container_name=%container.name image=%container.image.repository)
@@ -468,7 +468,7 @@
       value: "Use the Immune Defence training application to block new or modified executables and restrict the users and recipients of the commands."
     zh:
       key: "处置建议"
-      value: "使用免疫防御训练应用，阻拦新的或被修改的可执行文件，限制执行命令的用户和接收对象。"
+      value: "查看告警详情，排查shell产生原因。"
   desc: A shell was used as the entrypoint/exec point into a container with an attached terminal.
   condition: >
     spawned_process and container
@@ -477,7 +477,7 @@
     and not user_expected_terminal_shell_in_container_conditions
     and not tensorsec_namespace
   output: >
-    A shell was spawned in a container with an attached terminal (zh_msg=容器里产生shell,rule_type=Execution,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,
+    A shell was spawned in a container with an attached terminal (zh_msg=容器里产生shell，可能是黑客攻击或容器内应用产生,rule_type=Execution,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,
     original_info=user=%user.name user_loginuid=%user.loginuid %container.info
     shell=%proc.name parent=%proc.pname terminal=%proc.tty container_id=%container.id container_name=%container.name image=%container.image.repository)
   priority: WARNING
@@ -492,7 +492,7 @@
       value: "Use the Immune Defence training application to block new or modified executables and restrict the users and recipients of the commands."
     zh:
       key: "处置建议"
-      value: "使用免疫防御训练应用，阻拦新的或被修改的可执行文件，限制执行命令的用户和接收对象。"
+      value: "确认容器是否遭到入侵，如果非特殊原因则立即清除该黑客工具，并隔离该容器，同时排查其他攻击行为，确认集群安全。"
   desc: Netcat Program runs inside container that allows remote code execution(Risk of Reverse Shell exploit)
   condition: >
     spawned_process and container and
@@ -500,7 +500,7 @@
     (proc.name = "ncat" and (proc.args contains "--sh-exec" or proc.args contains "--exec" or proc.args contains "-e " or proc.args contains "-c " or proc.args contains "--lua-exec"))) and
     not (k8s.pod.name contains "-kafka-zookeeper-" or tensorsec_namespace or ignore_proc_args)
   output: >
-     Netcat runs inside container that allows remote code execution (zh_msg=容器里通过netcat执行远程命令,rule_type=Execution,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid,container_id=%container.id,container_name=%container.name,image=%container.image.repository:%container.image.tag)
+     Netcat runs inside container that allows remote code execution (zh_msg=容器里通过黑客工具netcat执行远程命令,rule_type=Execution,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid,container_id=%container.id,container_name=%container.name,image=%container.image.repository:%container.image.tag)
   priority: ALERT
   tags: [ATT&CK, network, process, mitre_execution]
 
@@ -513,12 +513,12 @@
       value: "Use the Immune Defence training application to block new or modified executables and restrict the users and recipients of the commands."
     zh:
       key: "处置建议"
-      value: "使用免疫防御训练应用，阻拦新的或被修改的可执行文件，限制执行命令的用户和接收对象。"
+      value: "容器遭到入侵，需隔离该容器，同时排查其他攻击行为，确认集群安全。"
   desc: Telnet Program runs inside container that allows remote code execution(Risk of Reverse Shell exploit)
   condition: >
     evt.type=recvfrom and proc.name contains "telnet" and container and not ignore_proc_args
   output: >
-    Telnet runs inside container that allows remote code execution (zh_msg=容器内通过telnet反弹shell),rule_type=Execution,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_name=%proc.name,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,
+    Telnet runs inside container that allows remote code execution (zh_msg=黑客在容器内通过telnet反弹shell),rule_type=Execution,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_name=%proc.name,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,
     original_info=user=%user.name user_loginuid=%user.loginuid
     container_id=%container.id container_name=%container.name image=%container.image.repository:%container.image.tag)
   priority: ALERT
@@ -533,12 +533,12 @@
       value: "Use the Immune Defence training application to block new or modified executables and restrict the users and recipients of the commands."
     zh:
       key: "处置建议"
-      value: "使用免疫防御训练应用，阻拦新的或被修改的可执行文件，限制执行命令的用户和接收对象。"
+      value: "容器遭到入侵，需隔离该容器，同时排查其他攻击行为，确认集群安全。"
   desc: Ruby Program runs inside container that allows remote code execution(Risk of Reverse Shell exploit)
   condition: >
     evt.type=socket and evt.res!=ENOENT and proc.pname = "ruby" and container
   output: >
-    Ruby runs inside container that allows remote code execution (zh_msg=容器内通过ruby反弹shell),rule_type=Execution,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,
+    Ruby runs inside container that allows remote code execution (zh_msg=黑客在容器内通过ruby反弹shell),rule_type=Execution,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,
     original_info=user=%user.name user_loginuid=%user.loginuid
     container_id=%container.id container_name=%container.name image=%container.image.repository:%container.image.tag)
   priority: ALERT
@@ -553,12 +553,12 @@
       value: "Use the Immune Defence training application to block new or modified executables and restrict the users and recipients of the commands."
     zh:
       key: "处置建议"
-      value: "使用免疫防御训练应用，阻拦新的或被修改的可执行文件，限制执行命令的用户和接收对象。"
+      value: "容器遭到入侵，需隔离该容器，同时排查其他攻击行为，确认集群安全。"
   desc: awk Program runs inside container that allows remote code execution(Risk of Reverse Shell exploit)
   condition: >
     evt.type=socket and container and not ignore_proc_args and proc.name = "awk"
   output: >
-    awk runs inside container that allows remote code execution (zh_msg=容器内通过awk反弹shell),rule_type=Execution,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,
+    awk runs inside container that allows remote code execution (zh_msg=黑客在容器内通过awk反弹shell),rule_type=Execution,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,
     original_info=user=%user.name user_loginuid=%user.loginuid
     container_id=%container.id container_name=%container.name image=%container.image.repository:%container.image.tag)
   priority: ALERT
@@ -573,11 +573,11 @@
       value: "Use the Immune Defence training application to block new or modified executables and restrict the users and recipients of the commands."
     zh:
       key: "处置建议"
-      value: "使用免疫防御训练应用，阻拦新的或被修改的可执行文件，限制执行命令的用户和接收对象。"
+      value: "容器遭到入侵，需隔离该容器，同时排查其他攻击行为，确认集群安全。"
   desc: Reverse shell through socket and dup
   condition: evt.type=dup and container and fd.num in (0, 1, 2) and fd.type in ("ipv4", "ipv6") and not k8s.pod.name contains "98166d" and not k8s.pod.name contains "42cca6"
   output: >
-    Reverse shell through socket and dup (zh_msg=容器内通过socket和dup反弹shell,rule_type=Execution,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name %container.info process=%proc.name parent=%proc.pname terminal=%proc.tty container_id=%container.id container_name=%container.name image=%container.image.repository fd_name=%fd.name fd.num=%fd.num fd.type=%fd.type fd.sip=%fd.sip)
+    Reverse shell through socket and dup (zh_msg=黑客在容器内通过socket和dup反弹shell,rule_type=Execution,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name %container.info process=%proc.name parent=%proc.pname terminal=%proc.tty container_id=%container.id container_name=%container.name image=%container.image.repository fd_name=%fd.name fd.num=%fd.num fd.type=%fd.type fd.sip=%fd.sip)
   priority: ALERT
   tags: [ATT&CK, container, shell, mitre_execution]
 
@@ -590,7 +590,7 @@
       value: "Use the Immune Defence training application to block new or modified executables and restrict the users and recipients of the commands."
     zh:
       key: "处置建议"
-      value: "使用免疫防御训练应用，阻拦新的或被修改的可执行文件，限制执行命令的用户和接收对象。"
+      value: "请确认容器是否遭到入侵，可使用免疫防御训练应用，阻拦新的或被修改的可执行文件，限制执行命令的用户和接收对象。"
   desc: Running malicious tools in the container
   condition: >
    evt.type = execve and container and
@@ -619,7 +619,7 @@
       value: "Use the Immune Defence training application to block new or modified executables and restrict the users and recipients of the commands."
     zh:
       key: "处置建议"
-      value: "使用免疫防御训练应用，阻拦新的或被修改的可执行文件，限制执行命令的用户和接收对象。"
+      value: "请确认该redis连接是否为业务正常连接，排查出现该连接原因。"
   desc: Connecting to a remote server through redis client in container
   condition: >
    evt.type=openat and container and evt.arg.name contains ".rediscli_history" and proc.cmdline contains " -h " and not proc.cmdline contains "localhost" and not proc.cmdline contains "127.0.0.1" and not k8s.pod.name contains "51c1c6"
@@ -638,7 +638,7 @@
       value: "Use the Immune Defence training application to block new or modified executables and restrict user permissions on sensitive files and commands."
     zh:
       key: "处置建议"
-      value: "使用免疫防御训练应用，阻拦新的或被修改的可执行文件，限制敏感文件和命令的用户权限。"
+      value: "确认该计划任务是否为运维人员操作，如果是必要操作可采用白名单放过告警，否则则可能为黑客后门。"
   desc: Detect cron jobs scheduled
   condition: >
     ((open_write and cron_dir_action) or
@@ -661,7 +661,7 @@
       value: "Use the Immune Defence training application to block new or modified executables and restrict user permissions on sensitive files and commands."
     zh:
       key: "处置建议"
-      value: "使用免疫防御训练应用，阻拦新的或被修改的可执行文件，限制敏感文件和命令的用户权限。"
+      value: "确认是否为管理员或可信应用操作，否则则可能是黑客操作，请排查系统安全。"
   desc: >
     activity by any programs that can manage users, passwords, or permissions. sudo and su are excluded.
     Activity in containers is also excluded--some containers create custom users on top
@@ -695,7 +695,7 @@
       value: "Use the Immune Defence training application to block new or modified executables and restrict user permissions on sensitive files and commands."
     zh:
       key: "处置建议"
-      value: "使用免疫防御训练应用，阻拦新的或被修改的可执行文件，限制敏感文件和命令的用户权限。"
+      value: "通常容器内不会出现包管理情况，确认该流程是否符合预期。"
   desc: Package management process ran inside container
   condition: >
     spawned_process
@@ -720,7 +720,7 @@
       value: "Use the Immune Defence training application to block new or modified executables and restrict user permissions on sensitive files and commands."
     zh:
       key: "处置建议"
-      value: "使用免疫防御训练应用，阻拦新的或被修改的可执行文件，限制敏感文件和命令的用户权限。"
+      value: "确认该更新操作是否符合预期，是否为运维人员触发。"
   desc: Detect package repositories get updated
   condition: >
     ((open_write and access_repositories) or (modify and modify_repositories))
@@ -729,7 +729,7 @@
     and not exe_running_docker_save
     and not user_known_update_package_registry
   output: >
-    Repository files get updated (zh_msg=更新软件源,rule_type=Persistence,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,
+    Repository files get updated (zh_msg=发现更新软件源,rule_type=Persistence,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,
     original_info=user=%user.name user_loginuid=%user.loginuid file=%fd.name newpath=%evt.arg.newpath container_id=%container.id container_name=%container.name image=%container.image.repository)
   priority: WARNING
   tags: [ATT&CK, filesystem, mitre_persistence]
@@ -743,7 +743,7 @@
       value: "Use the Immune Defence training application to block new or modified executables and restrict user permissions on sensitive files and commands."
     zh:
       key: "处置建议"
-      value: "使用免疫防御训练应用，阻拦新的或被修改的可执行文件，限制敏感文件和命令的用户权限。"
+      value: "通常rpm更新需要人为操作，请确认该操作是否符合预期。"
   desc: an attempt to write to the rpm database by any non-rpm related program
   condition: >
     fd.name startswith /var/lib/rpm and open_write
@@ -768,11 +768,11 @@
       value: "Use the Immune Defence training application to block new or modified executables and restrict user permissions on sensitive files and commands."
     zh:
       key: "处置建议"
-      value: "使用免疫防御训练应用，阻拦新的或被修改的可执行文件，限制敏感文件和命令的用户权限。"
+      value: "请确认该数据删除操作是否符合预期。"
   desc: Detect process running to clear bulk data from disk
   condition: spawned_process and clear_data_procs and not user_known_remove_data_activities
   output: >
-    Bulk data has been removed from disk (zh_msg=大量数据从硬盘删除,rule_type=Persistence,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid file=%fd.name container_id=%container.id container_name=%container.name image=%container.image.repository)
+    Bulk data has been removed from disk (zh_msg=大量数据从硬盘删除，可能存在数据丢失风险,rule_type=Persistence,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid file=%fd.name container_id=%container.id container_name=%container.name image=%container.image.repository)
   priority: WARNING
   tags: [ATT&CK, process, mitre_persistence]
 
@@ -785,7 +785,7 @@
       value: "Use the Immune Defence training application to block new or modified executables and restrict user permissions on sensitive files and commands."
     zh:
       key: "处置建议"
-      value: "使用免疫防御训练应用，阻拦新的或被修改的可执行文件，限制敏感文件和命令的用户权限。"
+      value: "请确认该修改是否为运维人员操作，否则可能会有入侵风险，建议排查。"
   desc: Detect attempt to modify shell configuration files
   condition: >
     open_write and
@@ -809,7 +809,7 @@
       value: "Use the Immune Defence training application to block new or modified executables and restrict user permissions on sensitive files and commands."
     zh:
       key: "处置建议"
-      value: "使用免疫防御训练应用，阻拦新的或被修改的可执行文件，限制敏感文件和命令的用户权限。"
+      value: "该操作可能为系统程序触发，请确认操作是否由可信程序完成。"
   desc: creating any files below /dev other than known programs that manage devices. Some rootkits hide files in /dev.
   condition: >
     fd.directory = /dev and
@@ -833,7 +833,7 @@
       value: "Use the Immune Defence training application to block new or modified executables and restrict user permissions on sensitive files and commands."
     zh:
       key: "处置建议"
-      value: "使用免疫防御训练应用，阻拦新的或被修改的可执行文件，限制敏感文件和命令的用户权限。"
+      value: "通常少有程序会操作/etc目录下内容，可能是黑客行为，请确认被修改文件是否存在风险。"
   desc: an attempt to write to any file below /etc
   condition: write_etc_common and not (tensorsec_namespace and k8s.pod.name contains "holmes")
   output: >
@@ -851,7 +851,7 @@
       value: "Use the Immune Defence training application to block new or modified executables and restrict user permissions on sensitive files and commands."
     zh:
       key: "处置建议"
-      value: "使用免疫防御训练应用，阻拦新的或被修改的可执行文件，限制敏感文件和命令的用户权限。"
+      value: "请确认被创建的文件或目录内容是否为可信程序所需，否则则排查文件内容确认安全。"
   desc: Detect hidden files or directories created
   condition: >
     ((modify and evt.arg.newpath contains "/.") or
@@ -875,7 +875,7 @@
       value: "Use the Immune Defence training application to block new or modified executables and restrict user permissions on sensitive files and commands."
     zh:
       key: "处置建议"
-      value: "使用免疫防御训练应用，阻拦新的或被修改的可执行文件，限制敏感文件和命令的用户权限。"
+      value: "请确认是否由可信程序修改，否则则排查修改文件内容。"
   desc: an attempt to write to any file below a set of binary directories
   condition: >
     evt.dir = < and open_write and monitored_dir
@@ -904,7 +904,7 @@
       value: "Use the Immune Defence training application to block new or modified executables and restrict user permissions on sensitive files and commands."
     zh:
       key: "处置建议"
-      value: "使用免疫防御训练应用，阻拦新的或被修改的可执行文件，限制敏感文件和命令的用户权限。"
+      value: "请确认是否由可信程序修改，否则使用免疫防御训练应用，阻拦新的或被修改的可执行文件，限制敏感文件和命令的用户权限。"
   desc: an attempt to write to any file below a set of binary directories
   condition: >
     bin_dir and evt.dir = < and open_write
@@ -929,7 +929,7 @@
       value: "Use the Immune Defence training application to block new or modified executables and restrict user permissions on sensitive files and commands."
     zh:
       key: "处置建议"
-      value: "使用免疫防御训练应用，阻拦新的或被修改的可执行文件，限制敏感文件和命令的用户权限。"
+      value: "该行为可能为黑客后门驻留行为，请确认被修改文件功能，可使用偏移防御阻拦新的或被修改的可执行文件。"
   desc: an attempt to modify any file below a set of binary directories.
   condition: bin_dir_rename and modify and not package_mgmt_procs and not exe_running_docker_save and not user_known_modify_bin_dir_activities
   output: >
@@ -948,7 +948,7 @@
       value: "Use the Immune Defence training application to block new or modified executables and restrict user permissions on sensitive files and commands."
     zh:
       key: "处置建议"
-      value: "使用免疫防御训练应用，阻拦新的或被修改的可执行文件，限制敏感文件和命令的用户权限。"
+      value: "请确认该行为目的，可使用免疫防御训练应用，阻拦新的或被修改的可执行文件，限制敏感文件和命令的用户权限。"
   desc: an attempt to create a directory below a set of binary directories.
   condition: >
     mkdir
@@ -973,7 +973,7 @@
       value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands."
     zh:
       key: "处置建议"
-      value: "使用免疫防御训练应用，限制敏感文件和命令的用户权限。"
+      value: "该行为容易导致黑客从容器中逃逸到主机，请确认该特权容器采用特权启动是否必要，可通过容器启动时privileged参数进行控制。"
   desc: Detect the initial process started in a privileged container. Exceptions are made for known trusted images.
   condition:
     container_started and container
@@ -995,7 +995,7 @@
       value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands."
     zh:
       key: "处置建议"
-      value: "使用免疫防御训练应用，限制敏感文件和命令的用户权限。"
+      value: "setuid通常为系统管理权限操作，非root调用可能为黑客提权行为，请确认系统是否遭到入侵。"
   desc: >
     an attempt to change users by calling setuid. sudo/su are excluded. users "root" and "nobody"
     suing to itself are also excluded, as setuid calls typically involve dropping privileges.
@@ -1025,7 +1025,7 @@
       value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands."
     zh:
       key: "处置建议"
-      value: "使用免疫防御训练应用，限制敏感文件和命令的用户权限。"
+      value: "该行为通常存在于黑客利用应用漏洞执行命令，请确认是否有应用遭到黑客攻击。"
   desc: an attempt to run interactive commands by a system (i.e. non-login) user
   condition: spawned_process and system_users and interactive and not user_known_system_user_login
   output: >
@@ -1042,7 +1042,7 @@
       value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands."
     zh:
       key: "处置建议"
-      value: "使用免疫防御训练应用，限制敏感文件和命令的用户权限。"
+      value: "请确认该操作行为目的，被修改文件是否为外部引入危险文件。"
   desc: >
     When the setuid or setgid bits are set for an application,
     this means that the application will run with the privileges of the owning user or group respectively.
@@ -1067,7 +1067,7 @@
       value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands."
     zh:
       key: "处置建议"
-      value: "使用免疫防御训练应用，限制敏感文件和命令的用户权限。"
+      value: "通常该行为发生于黑客清除攻击痕迹，请确认是否遭到入侵。"
   desc: Detect shell history deletion
   condition: >
     (modify_shell_history or truncate_shell_history) and
@@ -1087,7 +1087,7 @@
       value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands."
     zh:
       key: "处置建议"
-      value: "使用免疫防御训练应用，限制敏感文件和命令的用户权限。"
+      value: "容器遭到入侵，黑客通过挂载目录逃逸，请排查集群权限是否陷落，并确认该容器是否通过特权启动，可尝试采用微隔离和免疫防御阻止风险进一步扩散。"
   desc: Container escape to access host system
   condition: >
     (evt.type=chroot and container and proc.name !=sshd and proc.name !=vsftpd)
@@ -1106,7 +1106,7 @@
       value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands."
     zh:
       key: "处置建议"
-      value: "使用免疫防御训练应用，限制敏感文件和命令的用户权限。"
+      value: "容器遭到入侵，请排查集群权限是否陷落，可尝试采用微隔离和免疫防御阻止风险进一步扩散。"
   desc: Container escape to access host system
   condition: >
     open_write and container and fd.name contains /sys/kernel/core_pattern
@@ -1124,7 +1124,7 @@
       value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands."
     zh:
       key: "处置建议"
-      value: "使用免疫防御训练应用，限制敏感文件和命令的用户权限。"
+      value: "容器遭到入侵，请排查集群权限是否陷落，可尝试采用微隔离和免疫防御阻止风险进一步扩散。"
   desc: Detect file system debugger debugfs launched inside a privileged container which might lead to container escape.
   condition: >
    open_write and container and proc.name=debugfs
@@ -1142,7 +1142,7 @@
       value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands."
     zh:
       key: "处置建议"
-      value: "使用免疫防御训练应用，限制敏感文件和命令的用户权限。"
+      value: "容器遭到入侵，请排查集群权限是否陷落，可尝试采用微隔离和免疫防御阻止风险进一步扩散。"
   desc: Container escape to access host system
   condition: >
    evt.type=mount and evt.arg.type = "cgroup" and container and user.uid=0
@@ -1163,7 +1163,7 @@
       value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands."
     zh:
       key: "处置建议"
-      value: "使用免疫防御训练应用，限制敏感文件和命令的用户权限。"
+      value: "容器内出现提权行为，请排查集群权限是否陷落，可尝试采用微隔离和免疫防御阻止风险进一步扩散。"
   desc: Linux sudo Privilege_Escalation
   condition: (evt.type=execve and container and proc.name in (sensitive_cmd))
   output: >
@@ -1180,7 +1180,7 @@
       value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands."
     zh:
       key: "处置建议"
-      value: "使用免疫防御训练应用，限制敏感文件和命令的用户权限。"
+      value: "容器出现逃逸行为，请排查集群权限是否陷落，可采用免疫防御阻止风险进一步扩散使用免疫防御训练应用，限制敏感文件和命令的用户权限。"
   desc: Detect file write activities on container entrypoint symlink (/proc/self/exe)
   condition: >
     open_read and (fd.name=/proc/self/exe or fd.name startswith /proc/self/fd) and not docker_procs and container and not (tensorsec_namespace and (k8s.pod.name contains "-host-" or k8s.pod.name contains "-docker-" or k8s.pod.name contains "-kube-" or k8s.pod.name contains "-holmes-" or k8s.pod.name contains "-webhook-" or k8s.pod.name contains "-scanner")) and not proc.cmdline contains "runc init" and not proc.exeline contains "runc init" and not proc.exeline contains "kube-bench " and not proc.exeline contains "scanner "
@@ -1198,7 +1198,7 @@
       value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands."
     zh:
       key: "处置建议"
-      value: "使用免疫防御训练应用，限制敏感文件和命令的用户权限。"
+      value: "容器遭到入侵，请排查黑客是否已获取主机权限并有其它主机操作，可尝试采用微隔离和免疫防御阻止风险进一步扩散。"
   desc: When sudo is configured to allow a user to run commands as an arbitrary user via the ALL keyword in a Runas specification, it is possible to run commands as root by specifying the user ID -1 or 4294967295. This can be used by a user with sufficient sudo privileges to run commands as root even if the Runas specification explicitly disallows root access as long as the ALL keyword is listed first in the Runas specification
   condition: >
     spawned_process and
@@ -1218,7 +1218,7 @@
       value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands."
     zh:
       key: "处置建议"
-      value: "使用免疫防御训练应用，限制敏感文件和命令的用户权限。"
+      value: "容器遭到入侵，请排查集群权限是否陷落，可尝试采用微隔离和免疫防御阻止风险进一步扩散。。"
   desc: in Linux Kernel Can Allow Container Escape in Kubernetes Linux
   condition: >
     evt.type = unshare and proc.name=unshare and proc.args contains r and not proc.args contains "mount" and container
@@ -1236,7 +1236,7 @@
       value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands."
     zh:
       key: "处置建议"
-      value: "使用免疫防御训练应用，限制敏感文件和命令的用户权限。"
+      value: "容器遭到入侵，请排查黑客是否已获取主机权限并有其它主机操作，可尝试采用微隔离和免疫防御阻止风险进一步扩散。"
   desc: This rule detects an attempt to exploit a privilege escalation vulnerability in Polkit's pkexec. By running specially crafted code, a local user can leverage this flaw to gain root privileges on a compromised system
   condition: >
     spawned_process and user.uid != 0 and proc.name=pkexec and proc.args = ''
@@ -1254,7 +1254,7 @@
       value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands."
     zh:
       key: "处置建议"
-      value: "使用免疫防御训练应用，限制敏感文件和命令的用户权限。"
+      value: "请排查容器内nmap命令是否被授予s权限，从而被黑客尝试利用提权，可尝试采用微隔离和免疫防御阻止风险进一步扩散。"
   desc: Linux Privilege Escalation using nmap suid binaries
   condition: >
     (evt.type = stat and evt.arg.path contains "nmap.xsl" and user.uid != 0 and ((proc.cmdline contains "interactive") or (proc.cmdline contains "script") or (proc.cmdline contains "-oG"))) and not tensorsec_namespace
@@ -1272,7 +1272,7 @@
       value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands."
     zh:
       key: "处置建议"
-      value: "使用免疫防御训练应用，限制敏感文件和命令的用户权限。"
+      value: "请排查容器内find命令是否被授予s权限，从而被黑客尝试利用提权，可尝试采用微隔离和免疫防御阻止风险进一步扩散。"
   desc: Linux Privilege Escalation using find suid binaries
   condition: >
     spawned_process and user.uid != 0 and (
@@ -1293,7 +1293,7 @@
       value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands."
     zh:
       key: "处置建议"
-      value: "使用免疫防御训练应用，限制敏感文件和命令的用户权限。"
+      value: "请排查容器内vim命令是否被授予s权限，从而被黑客尝试利用提权，可尝试采用微隔离和免疫防御阻止风险进一步扩散。"
   desc: Linux Privilege Escalation using vim suid binaries
   condition: >
     spawned_process and evt.arg.exe = "/bin/sh" and user.uid != 0 and proc.pname contains vim
@@ -1311,7 +1311,7 @@
       value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands."
     zh:
       key: "处置建议"
-      value: "使用免疫防御训练应用，限制敏感文件和命令的用户权限。"
+      value: "容器可能已遭到入侵，可使用免疫防御训练应用，限制敏感文件和命令的用户权限。"
   desc: Linux Privilege Escalation using bash suid binaries
   condition: >
     evt.type = read and evt.arg.data contains "/etc/inputrc - global inputrc for libreadline" and user.uid != 0 and (proc.cmdline contains "-p" or proc.cmdline contains "-cp")
@@ -1329,7 +1329,7 @@
       value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands."
     zh:
       key: "处置建议"
-      value: "使用免疫防御训练应用，限制敏感文件和命令的用户权限。"
+      value: "容器可能已遭到入侵，可使用免疫防御训练应用，限制敏感文件和命令的用户权限。"
   desc: Linux Privilege Escalation by modifying sensitive files with suid binaries
   condition: >
     evt.type = write and sensitive_files and user.uid != 0
@@ -1347,7 +1347,7 @@
       value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands."
     zh:
       key: "处置建议"
-      value: "使用免疫防御训练应用，限制敏感文件和命令的用户权限。"
+      value: "容器可能已经遭到入侵，使用免疫防御训练应用，限制敏感文件和命令的用户权限。"
   desc: "Detect an attempt to exploit a container escape vulnerability in the Linux Kernel (CVE-2022-0492). By running a container with certains capabilities, a privileged user can modify release_agent file and escape from the container"
   condition: >
     open_write and container and fd.name endswith release_agent and user.uid=0 
@@ -1366,7 +1366,7 @@
       value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands."
     zh:
       key: "处置建议"
-      value: "使用免疫防御训练应用，限制敏感文件和命令的用户权限。"
+      value: "该行为可能发生于黑客清除攻击痕迹，请确认该行为的执行对象是否符合预期。"
   desc: Detect clearing of critical log files
   condition: >
     open_write and
@@ -1389,7 +1389,7 @@
       value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands."
     zh:
       key: "处置建议"
-      value: "使用免疫防御训练应用，限制敏感文件和命令的用户权限。"
+      value: "通常该行为发生于黑客清除攻击痕迹，请确认是否遭到入侵。"
   desc: Detect bash history deletion
   condition: >
     ((spawned_process and proc.name in (shred, rm, mv) and proc.args contains "bash_history") or
@@ -1408,7 +1408,7 @@
       value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands."
     zh:
       key: "处置建议"
-      value: "使用免疫防御训练应用，限制敏感文件和命令的用户权限。"
+      value: "黑客可能通过该行为绕过防御检测，请确认该行为是否符合预期，可使用免疫防御训练应用，限制敏感文件和命令的用户权限。"
   desc: Detect symlink created over sensitive files
   condition: >
     create_symlink
@@ -1429,12 +1429,12 @@
       value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands and disable mounting of sensitive directories and files."
     zh:
       key: "处置建议"
-      value: "使用免疫防御训练应用，限制敏感文件和命令的用户权限，禁止挂载敏感目录和文件。"
+      value: "请确认该行为产生是否为恶意工具所致，如果是容器则可能遭到黑客入侵，可使用偏移防御限制对应二进制执行。"
   desc: Gaining environment information
   condition: >
     open_read and container and ((proc.name in (show_information_binaries)) and
     (fd.filename in (sensitive_paths) or fd.name in (sensitive_paths) or fd.directory in (sensitive_paths)) or (proc.name in (show_env_binaries)))  and not tensorsec_namespace
-  output: container shell gaining environment info (zh_msg=容器内获取敏感信息,rule_type=Credential_Access,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,fd_name=%fd.name,container_id=%container.id,container_name=%container.name)
+  output: container shell gaining environment info (zh_msg=容器内存在敏感信息收集行为,rule_type=Credential_Access,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,fd_name=%fd.name,container_id=%container.id,container_name=%container.name)
   priority: WARNING
   tags: [ATT&CK]
 
@@ -1447,7 +1447,7 @@
       value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands and disable mounting of sensitive directories and files."
     zh:
       key: "处置建议"
-      value: "使用免疫防御训练应用，限制敏感文件和命令的用户权限，禁止挂载敏感目录和文件。"
+      value: "请确认该读取行为是否符合预期，可使用免疫防御训练应用，限制敏感文件和命令的用户权限，禁止挂载敏感目录和文件。"
   desc: >
     an attempt to read any sensitive file (e.g. files containing user/password/authentication
     information) by a trusted program after startup. Trusted programs might read these files
@@ -1468,7 +1468,7 @@
       value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands and disable mounting of sensitive directories and files."
     zh:
       key: "处置建议"
-      value: "使用免疫防御训练应用，限制敏感文件和命令的用户权限，禁止挂载敏感目录和文件。"
+      value: "该行为通常由黑客发起，请确认容器是否遭到入侵，容器内密钥是否泄漏，同时关联其他攻击行为。"
   desc: >
     Detect grep private keys or passwords activity.
   condition: >
@@ -1478,7 +1478,7 @@
     )
   output: >
     Grep private keys or passwords activities found
-    (zh_msg=查找私钥或密码,rule_type=Credential_Access,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid container_id=%container.id container_name=%container.name 
+    (zh_msg=存在查找私钥或密码行为,rule_type=Credential_Access,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid container_id=%container.id container_name=%container.name 
     image=%container.image.repository:%container.image.tag)
   priority: WARNING
   tags: [ATT&CK, process, mitre_credential_access]
@@ -1495,7 +1495,7 @@
       value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands and disable mounting of sensitive directories and files."
     zh:
       key: "处置建议"
-      value: "使用免疫防御训练应用，限制敏感文件和命令的用户权限，禁止挂载敏感目录和文件。"
+      value: "请确认该读取行为是否符合预期，可使用免疫防御训练应用，限制敏感文件和命令的用户权限，禁止挂载敏感目录和文件。"
   desc: >
     an attempt to read any sensitive file (e.g. files containing user/password/authentication
     information). Exceptions are made for known trusted programs.
@@ -1540,7 +1540,7 @@
       value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands and disable mounting of sensitive directories and files."
     zh:
       key: "处置建议"
-      value: "使用免疫防御训练应用，限制敏感文件和命令的用户权限，禁止挂载敏感目录和文件。"
+      value: "请确认该行为是否为运维人员执行或可信探针类程序发起，如果不是请关联其他攻击行为，确认容器是否遭到入侵。"
   desc: Kubernetes Namespaces bypass
   condition: >
     spawned_process and container and proc.name in (namespace_bypass_cmds)
@@ -1557,7 +1557,7 @@
       value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands and disable mounting of sensitive directories and files."
     zh:
       key: "处置建议"
-      value: "使用免疫防御训练应用，限制敏感文件和命令的用户权限，禁止挂载敏感目录和文件。"
+      value: "请确认该读取行为是否由可信程序执行，否则可使用偏移防御限制其执行。"
   desc: Detect attempts to read shell configuration files by non-shell programs
   condition: >
     open_read and
@@ -1579,7 +1579,7 @@
       value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands and disable mounting of sensitive directories and files."
     zh:
       key: "处置建议"
-      value: "使用免疫防御训练应用，限制敏感文件和命令的用户权限，禁止挂载敏感目录和文件。"
+      value: "该行为可能是黑客进行信息收集，可使用免疫防御训练应用，限制敏感文件和命令的用户权限，禁止挂载敏感目录和文件。"
   desc: Any attempt to read files below ssh directories by non-ssh programs
   condition: >
     ((open_read or open_directory) and
@@ -1602,7 +1602,7 @@
       value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands and disable mounting of sensitive directories and files."
     zh:
       key: "处置建议"
-      value: "使用免疫防御训练应用，限制敏感文件和命令的用户权限，禁止挂载敏感目录和文件。"
+      value: "请确认该行为是否由容器内可信应用产生，可使用白名单放过可信程序发起的连接请求，否则可采用微隔离对该容器进行限制。"
   desc: Detect attempts to contact the K8S API Server from a container
   condition: >
     evt.type=connect and evt.dir=< and
@@ -1627,7 +1627,7 @@
       value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands and disable mounting of sensitive directories and files."
     zh:
       key: "处置建议"
-      value: "使用免疫防御训练应用，限制敏感文件和命令的用户权限，禁止挂载敏感目录和文件。"
+      value: "请确认是否为黑客使用工具进行信息收集，或运维人员自身操作，可使用偏移防御限制可疑进程执行。"
   desc: Detect network tools launched on the host
   condition: >
     spawned_process and
@@ -1649,7 +1649,7 @@
       value: "Use the Immune Defence training application to block new or modified executables and restrict the users and recipients of the commands."
     zh:
       key: "处置建议"
-      value: "使用免疫防御训练应用，阻拦新的或被修改的可执行文件，限制执行命令的用户和接收对象。"
+      value: "请确认是否为黑客进行信息收集，或运维人员自身操作，可使用免疫防御训练应用，阻拦新的或被修改的可执行文件，限制执行命令的用户和接收对象。"
   desc: View process information in the container
   condition: >
    open_read and container and fd.name startswith "/proc/" and fd.name contains "pid_max" and evt.arg.flags = O_RDONLY and not k8s.pod.name contains "holmes" and not k8s.pod.name contains "calico" and not k8s.pod.name contains "node-exporter" and not k8s.pod.name contains "console" and not k8s.pod.name contains "51c1c6" and not k8s.pod.name contains "reviews" and not k8s.pod.name contains "prometheus" and not k8s.pod.name contains "console" and not k8s.pod.name contains "missing-contain"
@@ -1669,7 +1669,7 @@
       value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands and disable mounting of sensitive directories and files."
     zh:
       key: "处置建议"
-      value: "使用免疫防御训练应用，限制敏感文件和命令的用户权限，禁止挂载敏感目录和文件。"
+      value: "请确认该指令是否为可信人员或程序执行，可使用白名单放过告警，否则请排查容器是否遭到入侵，并使用免疫防御训练应用，限制敏感文件和命令的用户权限，禁止挂载敏感目录和文件。"
   desc: View disk information in the container
   condition: >
     open_read and container and (proc.cmdline contains "fdisk -l" or (fd.name startswith "/sys/dev/block/" and evt.arg.flags contains O_RDONLY)) and not tensorsec_namespace
@@ -1686,7 +1686,7 @@
       value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands and disable mounting of sensitive directories and files."
     zh:
       key: "处置建议"
-      value: "使用免疫防御训练应用，限制敏感文件和命令的用户权限，禁止挂载敏感目录和文件。"
+      value: "请确认该行为是否为第三方可信应用扫描，如果不是则可能为黑客工具行为，可使用免疫防御训练应用，限制敏感文件和命令的用户权限，禁止挂载敏感目录和文件。"
   desc: Scanning web directories in the container
   condition: >
     open_read and container and (fd.directory contains "www" or fd.directory contains "apache" or fd.directory contains "tomcat" or fd.directory contains "web" or fd.directory contains "http") and (fd.name contains ".jsp" or fd.name contains ".php" or fd.name contains ".config" or fd.name contains ".bak" or fd.name contains ".old" or fd.name contains ".log") and not tensorsec_namespace
@@ -1703,7 +1703,7 @@
       value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands and disable mounting of sensitive directories and files."
     zh:
       key: "处置建议"
-      value: "使用免疫防御训练应用，限制敏感文件和命令的用户权限，禁止挂载敏感目录和文件。"
+      value: "该行为大概率为黑客尝试提权前的信息收集操作，容器可能遭到入侵，可使用免疫防御训练应用，限制敏感文件和命令的用户权限，禁止挂载敏感目录和文件。"
   desc: Find files with suid privilege by non-root users
   condition: >
     evt.type = write and user.uid != 0 and
@@ -1731,7 +1731,7 @@
       value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands and disable mounting of sensitive directories and files."
     zh:
       key: "处置建议"
-      value: "使用免疫防御训练应用，限制敏感文件和命令的用户权限，禁止挂载敏感目录和文件。"
+      value: "可能为黑客信息收集行为，请确认执行对象，可使用免疫防御训练应用，限制敏感文件和命令的用户权限，禁止挂载敏感目录和文件。"
   desc: View login information in the container
   condition: >
     open_read and container and not tensorsec_namespace and fd.name="var/log/lastlog" or fd.name="/etc/localtime" and not proc.cmdline contains "bash" and not k8s.pod.name contains "calico"
@@ -1748,7 +1748,7 @@
       value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands and disable mounting of sensitive directories and files."
     zh:
       key: "处置建议"
-      value: "使用免疫防御训练应用，限制敏感文件和命令的用户权限，禁止挂载敏感目录和文件。"
+      value: "可能为黑客信息收集行为，请确认执行对象，使用免疫防御训练应用，限制敏感文件和命令的用户权限，禁止挂载敏感目录和文件。"
   desc: View history commands in the container
   condition: >
     container and proc.cmdline contains "history"
@@ -1765,7 +1765,7 @@
       value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands and disable mounting of sensitive directories and files."
     zh:
       key: "处置建议"
-      value: "使用免疫防御训练应用，限制敏感文件和命令的用户权限，禁止挂载敏感目录和文件。"
+      value: "请确认该行为发起对象是否为可信人员或程序，否则容器可能遭到入侵，可使用免疫防御训练应用，限制敏感文件和命令的用户权限，。"
   desc: Get ApiServer_token through kubectl
   condition: >
     evt.type = execve and (proc.cmdline contains "kubectl config view" or proc.cmdline contains "kubectl describe secrets")
@@ -1783,7 +1783,7 @@
       value: "Prohibit mounting sensitive directories and files, prohibit sensitive containers from starting, and update software versions within containers."
     zh:
       key: "处置建议"
-      value: "禁止挂载敏感目录和文件，禁止敏感容器启动，更新容器内软件版本。"
+      value: "不安全挂载启动，容易遭受黑客提权攻击，请确认挂载是否为必须，非必要请更换挂载路径。"
   desc: >
     Detect the initial process started by a container that has a mount from a sensitive host directory
     (i.e. /proc). Exceptions are made for known trusted images.
@@ -1807,7 +1807,7 @@
       value: "Prohibit mounting sensitive directories and files, prohibit sensitive containers from starting, and update software versions within containers."
     zh:
       key: "处置建议"
-      value: "禁止挂载敏感目录和文件，禁止敏感容器启动，更新容器内软件版本。"
+      value: "采用免疫防御禁止挂载敏感目录和文件，禁止敏感容器启动，更新容器内软件版本。"
   desc: >
     an attempt to change a program/thread\'s namespace (commonly done
     as a part of creating a container) by calling setns.
@@ -1846,7 +1846,7 @@
       value: "Prohibit mounting sensitive directories and files, prohibit sensitive containers from starting, and update software versions within containers."
     zh:
       key: "处置建议"
-      value: "禁止挂载敏感目录和文件，禁止敏感容器启动，更新容器内软件版本。"
+      value: "请确认该程序引入是否符合预期，否则则采用偏移防御限制该程序运行，并排查容器是否遭到黑客入侵。"
   desc: Detect a k8s client tool executed inside a container
   condition: spawned_process and container and not user_known_k8s_client_container_parens and proc.name in (k8s_client_binaries) and not tensorsec_namespace
   output: >
@@ -1863,12 +1863,12 @@
       value: "Prohibit mounting sensitive directories and files, prohibit sensitive containers from starting, and update software versions within containers."
     zh:
       key: "处置建议"
-      value: "禁止挂载敏感目录和文件，禁止敏感容器启动，更新容器内软件版本。"
+      value: "确认该容器启动是否符合预期，排查启动原因。"
   desc: >
     Detect the initial process started by a container that is not in a list of allowed containers.
   condition: container_started and container and not allowed_containers
   output: >
-    Container started and not in allowed list (zh_msg=不允许列表中的容器已启动,rule_type=Lateral_Movement,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid %container.info image=%container.image.repository:%container.image.tag)
+    Container started and not in allowed list (zh_msg=检测到在不允许列表中的容器启动,rule_type=Lateral_Movement,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid %container.info image=%container.image.repository:%container.image.tag)
   priority: WARNING
   tags: [ATT&CK, container, mitre_lateral_movement,container_id=%container.id,container_name=%container.name]
 
@@ -1884,7 +1884,7 @@
       value: "Train applications with immune defence, block traffic using micro-segmentation and restrict user permissions for sensitive files and commands."
     zh:
       key: "处置建议"
-      value: "使用免疫防御训练应用，使用微隔离阻拦流量，限制敏感文件和命令的用户权限。"
+      value: "确认该行为是否属符合预期，否则可使用免疫防御训练容器，防止该类行为。"
   desc: any network activity performed by system binaries that are not expected to send or receive any network traffic
   condition: >
     (fd.sockfamily = ip and (system_procs or proc.name in (shell_binaries)))
@@ -1894,7 +1894,7 @@
     and not user_expected_system_procs_network_activity_conditions
   output: >
     Known system binary sent/received network traffic
-    (zh_msg=网络流量中包含系统二进制,rule_type=Exfiltration,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid connection=%fd.name container_id=%container.id container_name=%container.name image=%container.image.repository)
+    (zh_msg=网络流量中包含系统二进制，可能从外部下载/上载应用,rule_type=Exfiltration,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid connection=%fd.name container_id=%container.id container_name=%container.name image=%container.image.repository)
   priority: NOTICE
   tags: [ATT&CK, network, mitre_exfiltration]
 
@@ -1907,14 +1907,14 @@
       value: "Train applications with immune defence, block traffic using micro-segmentation and restrict user permissions for sensitive files and commands."
     zh:
       key: "处置建议"
-      value: "使用免疫防御训练应用，使用微隔离阻拦流量，限制敏感文件和命令的用户权限。"
+      value: "确认该流量是否异常，可使用微隔离阻拦流量。"
   desc: Any inbound network activity performed by any interpreted program (perl, python, ruby, etc.)
   condition: >
     (inbound and consider_interpreted_inbound
      and interpreted_procs)
   output: >
     Interpreted program received/listened for network traffic
-    (zh_msg=有入站流量,rule_type=Exfiltration,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid connection=%fd.name container_id=%container.id container_name=%container.name image=%container.image.repository)
+    (zh_msg=发现有入站流量,rule_type=Exfiltration,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid connection=%fd.name container_id=%container.id container_name=%container.name image=%container.image.repository)
   priority: NOTICE
   tags: [ATT&CK, network, mitre_exfiltration]
 
@@ -1927,14 +1927,14 @@
       value: "Train applications with immune defence, block traffic using micro-segmentation and restrict user permissions for sensitive files and commands."
     zh:
       key: "处置建议"
-      value: "使用免疫防御训练应用，使用微隔离阻拦流量，限制敏感文件和命令的用户权限。"
+      value: "确认该流量是否异常，可使用微隔离阻拦流量。"
   desc: Any outbound network activity performed by any interpreted program (perl, python, ruby, etc.)
   condition: >
     (outbound and consider_interpreted_outbound
      and interpreted_procs)
   output: >
     Interpreted program performed outgoing network connection
-    (zh_msg=有出站流量,rule_type=Exfiltration,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid connection=%fd.name container_id=%container.id container_name=%container.name image=%container.image.repository)
+    (zh_msg=发现有出站流量,rule_type=Exfiltration,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid connection=%fd.name container_id=%container.id container_name=%container.name image=%container.image.repository)
   priority: NOTICE
   tags: [ATT&CK, network, mitre_exfiltration]
 
@@ -1947,7 +1947,7 @@
       value: "Train applications with immune defence, block traffic using micro-segmentation and restrict user permissions for sensitive files and commands."
     zh:
       key: "处置建议"
-      value: "使用免疫防御训练应用，使用微隔离阻拦流量，限制敏感文件和命令的用户权限。"
+      value: "确认该流量是否异常，可使用微隔离阻拦流量，限制敏感文件和命令的用户权限。"
   desc: Detect any outbound connection to a destination outside of an allowed set of ips, networks, or domain names
   condition: >
     consider_all_outbound_conns and outbound and not
@@ -2031,7 +2031,7 @@
       value: "使用免疫防御训练应用，使用微隔离阻拦流量，限制敏感文件和命令的用户权限。"
   desc: Detect attempts to use K8s NodePorts from a container
   condition: (inbound_outbound) and fd.sport >= 30000 and fd.sport <= 32767 and container and not nodeport_containers
-  output: Unexpected K8s NodePort Connection (zh_msg=容器内与NodePort建立连接,rule_type=Exfiltration,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=connection=%fd.name container_id=%container.id container_name=%container.name image=%container.image.repository)
+  output: Unexpected K8s NodePort Connection (zh_msg=检测到从容器内发出与k8s nodeport建立连接尝试,rule_type=Exfiltration,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=connection=%fd.name container_id=%container.id container_name=%container.name image=%container.image.repository)
   priority: NOTICE
   tags: [ATT&CK, network, k8s, container, mitre_port_knocking]
 
@@ -2044,7 +2044,7 @@
       value: "Train applications with immune defence, block traffic using micro-segmentation and restrict user permissions for sensitive files and commands."
     zh:
       key: "处置建议"
-      value: "使用免疫防御训练应用，使用微隔离阻拦流量，限制敏感文件和命令的用户权限。"
+      value: "请确认该行为是否为可信人员和程序操作，否则可使用免疫防御训练应用，限制异常行为。"
   desc: Detect remote file copy tools launched in container
   condition: >
     spawned_process
@@ -2084,7 +2084,7 @@
       value: "Train applications with immune defence, block traffic using micro-segmentation and restrict user permissions for sensitive files and commands."
     zh:
       key: "处置建议"
-      value: "使用免疫防御训练应用，使用微隔离阻拦流量，限制敏感文件和命令的用户权限。"
+      value: "请确认该工具具体行为，可能存在黑客扫描内网情况，推荐使用偏移防御限制该工具执行，并排查容器是否遭到入侵。"
   desc: Detect network tools launched inside container
   condition: >
     spawned_process and container and network_tool_procs and not ignore_proc_args and not user_known_network_tool_activities and not proc.cmdline contains "-w 2 localhost 2181" and not tensorsec_namespace
@@ -2103,12 +2103,12 @@
       value: "Train applications with immune defence, block traffic using micro-segmentation and restrict user permissions for sensitive files and commands."
     zh:
       key: "处置建议"
-      value: "使用免疫防御训练应用，使用微隔离阻拦流量，限制敏感文件和命令的用户权限。"
+      value: "使用微隔离阻拦流量，及时删除挖矿后门，同时排查容器是否遭到入侵。"
   desc: Miners typically connect to miner pools on common ports.
   condition: net_miner_pool and not trusted_images_query_miner_domain_dns
 #  enabled: false
   output: >
-    Outbound connection to IP/Port flagged by cryptoioc.ch (zh_msg=与cryptoioc.ch公开的IP/端口的连接,rule_type=Exfiltration,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=port=%fd.rport ip=%fd.rip container=%container.info image=%container.image.repository,container_id=%container.id,container_name=%container.name)
+    Outbound connection to IP/Port flagged by cryptoioc.ch (zh_msg=与cryptoioc.ch公开的IP/端口的连接，可能存在挖矿行为,rule_type=Exfiltration,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=port=%fd.rport ip=%fd.rip container=%container.info image=%container.image.repository,container_id=%container.id,container_name=%container.name)
   priority: ALERT
   tags: [ATT&CK, network, mitre_execution, strict]
 
@@ -2121,11 +2121,11 @@
       value: "Train applications with immune defence, block traffic using micro-segmentation and restrict user permissions for sensitive files and commands."
     zh:
       key: "处置建议"
-      value: "使用免疫防御训练应用，使用微隔离阻拦流量，限制敏感文件和命令的用户权限。"
+      value: "查看对应挖矿程序并通过偏移防御限制程序运行，同时排查系统应用漏洞。"
   desc: Miners typically specify the mining pool to connect to with a URI that begins with 'stratum+tcp'
   condition: spawned_process and (proc.cmdline contains "stratum+tcp" or proc.cmdline contains "stratum2+tcp" or proc.cmdline contains "stratum+ssl" or proc.cmdline contains "stratum2+ssl")
   output: >
-    Possible miner running (zh_msg=可能正在挖矿,rule_type=Exfiltration,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=container=%container.info image=%container.image.repository,container_id=%container.id,container_name=%container.name)
+    Possible miner running (zh_msg=可能存在挖矿程序正在挖矿,rule_type=Exfiltration,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=container=%container.info image=%container.image.repository,container_id=%container.id,container_name=%container.name)
   priority: ALERT
   tags: [ATT&CK, process, mitre_execution]
 
@@ -2138,7 +2138,7 @@
       value: "Train applications with immune defence, block traffic using micro-segmentation and restrict user permissions for sensitive files and commands."
     zh:
       key: "处置建议"
-      value: "使用免疫防御训练应用，使用微隔离阻拦流量，限制敏感文件和命令的用户权限。"
+      value: "容器中发现提权行为，请确认容器是否遭到入侵，可使用免疫防御训练应用，限制敏感文件和命令的用户权限。"
   desc: Detect new packet socket at the device driver (OSI Layer 2) level in a container. Packet socket could be used for ARP Spoofing and Privilege_Escalation(CVE-2020-14386) by attacker.
   condition: evt.type=socket and evt.arg[0]=AF_PACKET and consider_packet_socket_communication and container and not proc.name in (user_known_packet_socket_binaries)
   output: >
@@ -2155,7 +2155,7 @@
       value: "Train applications with immune defence, block traffic using micro-segmentation and restrict user permissions for sensitive files and commands."
     zh:
       key: "处置建议"
-      value: "使用免疫防御训练应用，使用微隔离阻拦流量，限制敏感文件和命令的用户权限。"
+      value: "使请确认是否为系统内部业务脚本导致，否则系统可能遭到入侵，可使用微隔离阻拦流量。"
   desc: Interpretative language detected scanning network
   condition: >
    interpreted_procs and evt.type=connect and not tensorsec_namespace
@@ -2166,14 +2166,14 @@
 
 - rule: Detected connection to container through ssh
   hid: exf_16
-  hthreats: 1
+  hthreats: 0
   suggestion:
     en:
       key: "Suggestions"
       value: "Train applications with immune defence, block traffic using micro-segmentation and restrict user permissions for sensitive files and commands."
     zh:
       key: "处置建议"
-      value: "使用免疫防御训练应用，使用微隔离阻拦流量，限制敏感文件和命令的用户权限。"
+      value: "可能存在ssh爆破行为，建议确认容器是否存在弱口令，并通过修改/etc/pam.d/sshd限制错误登录尝试次数。"
   desc: Detect any new ssh connection to a container
   condition: >
    (inbound_outbound) and allowed_ssh_hosts and container
@@ -2191,7 +2191,7 @@
       value: "Train applications with immune defence, block traffic using micro-segmentation and restrict user permissions for sensitive files and commands."
     zh:
       key: "处置建议"
-      value: "使用免疫防御训练应用，使用微隔离阻拦流量，限制敏感文件和命令的用户权限。"
+      value: "可能存在ssh爆破行为，建议确认主机是否存在弱口令，并通过修改/etc/pam.d/sshd限制错误登录尝试次数。"
   desc: Detect any new ssh connection to a host other than those in an allowed group of hosts
   condition: (inbound_outbound) and ssh_port and not allowed_ssh_hosts
   output: >
