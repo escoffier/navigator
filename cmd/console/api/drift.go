@@ -121,6 +121,7 @@ func (api *api) driftAllPolicy() http.HandlerFunc {
 			apperror.RespAndLog(w, ctx, apperror.NewAnError(http.StatusInternalServerError, errors.New("GetAllPolicies error")))
 			return
 		}
+
 		response.Ok(w, response.WithItems(policies), response.WithTotalItems(int64(len(policies))))
 		// } else {
 		// 	if lastTime < driSvc.Cache.LastTime {
