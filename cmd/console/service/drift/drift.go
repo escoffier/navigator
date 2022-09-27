@@ -87,12 +87,15 @@ func (rl *TensorDriftService) loadPolicies() {
 }
 
 func (rl *TensorDriftService) asyncLoop() {
-	ticker := time.NewTicker(5 * time.Second)
-	defer ticker.Stop()
+	go func() {
+		ticker := time.NewTicker(5 * time.Second)
+		defer ticker.Stop()
 
-	for _ = range ticker.C {
-		rl.loadPolicies()
-	}
+		for _ = range ticker.C {
+			rl.loadPolicies()
+		}
+	}()
+
 }
 
 func newTensorResourcesService(rdb *databases.RDBInstance, es *elastic.ESClient) *TensorDriftService {
