@@ -1270,9 +1270,14 @@ func (s *Scanner) GetOpenapiDoc(ctx *gin.Context) {
 	}
 	res := make([]Doc, 0)
 	res = append(res, Doc{Description: "简介", Path: "openapi-common.html"})
-	res = append(res, Doc{Description: "镜像安全api接口", Path: "openapi-scanner.html"})
-	res = append(res, Doc{Description: "合规检测api接口", Path: "openapi-scap.html"})
-	res = append(res, Doc{Description: "集群与资产api接口", Path: "openapi-assets.html"})
+	res = append(res, Doc{Description: "镜像安全 api接口", Path: "openapi-scanner.html"})
+	res = append(res, Doc{Description: "合规检测 api接口", Path: "openapi-scap.html"})
+	res = append(res, Doc{Description: "集群与资产 api接口", Path: "openapi-assets.html"})
+	res = append(res, Doc{Description: "主动防御 api接口", Path: "openapi-defense.html"})
+	res = append(res, Doc{Description: "偏移防御 api接口", Path: "openapi-drift.html"})
+	res = append(res, Doc{Description: "K8S审计 api接口", Path: "openapi-platform.html"})
+	res = append(res, Doc{Description: "事件中心 & ATT&CK api接口", Path: "openapi-sherlock.html"})
+	res = append(res, Doc{Description: "降级和恢复 api接口", Path: "openapi-degrade.html"})
 
 	response.JSONOK(ctx, response.WithItems(res), response.WithTotalItems(int64(len(res))))
 }
