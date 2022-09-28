@@ -272,14 +272,16 @@ func (api *api) getResourcesByImageVuln() http.HandlerFunc {
 // @Router /api/v2/platform/assets/cluters
 func (api *api) getClusters() http.HandlerFunc {
 	type cluster struct {
-		Key         string `json:"key"`
-		Name        string `json:"name"`
-		PlatForm    string `json:"platForm"`
-		Description string `json:"description"`
-		Creator     string `json:"creator"`
-		CreatedAt   int64  `json:"createdAt"`
-		Updater     string `json:"updater"`
-		UpdatedAt   int64  `json:"updatedAt"`
+		Key           string `json:"key"`
+		Name          string `json:"name"`
+		PlatForm      string `json:"platForm"`
+		APIServerAddr string `json:"apiServerAddr"`
+		Description   string `json:"description"`
+		Version       string `json:"version"`
+		Creator       string `json:"creator"`
+		CreatedAt     int64  `json:"createdAt"`
+		Updater       string `json:"updater"`
+		UpdatedAt     int64  `json:"updatedAt"`
 	}
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx, cancel := context.WithTimeout(r.Context(), 1*time.Second)
@@ -305,15 +307,17 @@ func (api *api) getClusters() http.HandlerFunc {
 			return
 		}
 		ret := make([]cluster, len(clusters))
-		for i, cluster := range clusters {
-			ret[i].Key = cluster.Key
-			ret[i].Description = cluster.Description
-			ret[i].Name = cluster.Name
-			ret[i].PlatForm = cluster.Platform
-			ret[i].Creator = cluster.Creator
-			ret[i].CreatedAt = cluster.CreatedAt.Unix()
-			ret[i].UpdatedAt = cluster.UpdatedAt.Unix()
-			ret[i].Updater = cluster.Updater
+		for i, c := range clusters {
+			ret[i].Key = c.Key
+			ret[i].Description = c.Description
+			ret[i].Name = c.Name
+			ret[i].PlatForm = c.Platform
+			ret[i].APIServerAddr = c.APIServerAddr
+			ret[i].Version = c.Version
+			ret[i].Creator = c.Creator
+			ret[i].CreatedAt = c.CreatedAt.Unix()
+			ret[i].UpdatedAt = c.UpdatedAt.Unix()
+			ret[i].Updater = c.Updater
 		}
 
 		response.Ok(w, response.WithItems(ret), response.WithTotalItems(totalCnt))
