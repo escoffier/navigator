@@ -680,4 +680,15 @@ func init() {
 	routeAction.POST("/api/v2/platform/drift/policy/delete", func(params Params) (string, string) {
 		return deleteAction, "删除偏移防御策略{{.}}"
 	})
+
+	// 事件中心白名单
+	routeAction.POST("/api/v2/platform/sherlock/palace/whitelist", func(params Params) (string, string) {
+		return createAction, "新增事件中心白名单{{.}}"
+	})
+	routeAction.PUT("/api/v2/platform/sherlock/palace/whitelist", func(params Params) (string, string) {
+		return editAction, "修改事件中心白名单{{.}}"
+	})
+	routeAction.DELETE("/api/v2/platform/sherlock/palace/whitelist", func(params Params) (string, string) {
+		return deleteAction, "删除事件中心白名单{{.}}"
+	})
 }
