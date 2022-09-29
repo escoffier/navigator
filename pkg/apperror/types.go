@@ -1423,3 +1423,27 @@ func NewDriftPolicyError(httpCode int, err error, suberrors ...Suberror) error {
 		},
 	}
 }
+
+func NewDriftGlobalWhitelistError(httpCode int, err error, suberrors ...Suberror) error {
+	return AddBaitServiceError{
+		detailedError{
+			err:       err,
+			English:   "same path",
+			Chinese:   "该路径已加入白名单",
+			HTTPCode:  httpCode,
+			Suberrors: suberrors,
+		},
+	}
+}
+
+func NewDriftGlobalWhitelistTimestampError(httpCode int, err error, suberrors ...Suberror) error {
+	return AddBaitServiceError{
+		detailedError{
+			err:       err,
+			English:   "expire time before now",
+			Chinese:   "过期时间小于当前时间",
+			HTTPCode:  httpCode,
+			Suberrors: suberrors,
+		},
+	}
+}

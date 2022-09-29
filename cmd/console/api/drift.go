@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
@@ -30,10 +31,274 @@ func (api *api) drift() func(chi.Router) {
 		r.Post("/policy/delete", api.driftDeletePolicy())
 		r.Get("/policy/list", api.driftListPolicy())
 		r.Get("/policy/detail", api.driftPolicyDetail())
+		r.Get("/policy/{policyID}", api.driftPolicyByID())
 		r.Get("/container", api.driftContainerByID())
 		r.Get("/policy/abnormal", api.driftPolicyAbnormal())
 		r.Get("/policy", api.driftAllPolicy())
 		r.Get("/namespaces", api.driftNamespace())
+		r.Post("/whitelist", api.driftCreateGlobalWhitelist())
+		r.Put("/whitelist/{whitelistID}", api.driftUpdateGlobalWhitelist())
+		r.Delete("/whitelist/{whitelistID}", api.driftDelGlobalWhitelist())
+		r.Get("/whitelists", api.driftListGlobalWhitelist())
+		r.Get("/whitelist/{whitelistID}", api.driftListGlobalWhitelistById())
+
+	}
+}
+
+func isPath(path string) bool {
+	if len(path) < 1 {
+		return false
+	}
+	fPath := filepath.Join("", path)
+	if path != fPath {
+		return false
+	}
+	return path[0] == os.PathSeparator
+
+}
+
+// @Summary Create whitelist
+// @Description Create whitelist
+// @ID v2-whitelist-create
+// @Produce json
+// @Accept json
+// @Success 200 {object} model.DriftGlobalWhitelistItem
+// @Param path body string true "path"
+// @Router /api/v2/platform/drift/whitelist [post]
+
+func (api *api) driftCreateGlobalWhitelist() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(r.Context(), 60*time.Second)
+		defer cancel()
+		type tmp struct {
+			ID int64 `json:"id"`
+		}
+		whitelistItem := model.DriftGlobalWhitelistItem{}
+		err := util.DecodeJSONBody(w, r, &whitelistItem)
+		//TODO: field security check
+
+		if err != nil {
+			apperror.RespAndLog(w, ctx,
+				apperror.NewMalformedRequestError(http.StatusBadRequest,
+					fmt.Errorf("failed to decode json: %w", err)))
+			return
+		}
+		if !isPath(whitelistItem.Path) {
+			apperror.RespAndLog(w, ctx,
+				apperror.NewMalformedRequestError(http.StatusBadRequest,
+					fmt.Errorf("path illegal"),
+					apperror.Suberror{Location: "dataType", Message: "path illegal"}))
+			return
+		}
+		driSvc, ok := drift.GetDriftService(ctx)
+		if !ok {
+			logging.GetLogger().Error().Msg("service instance get error")
+			apperror.RespAndLog(w, ctx, apperror.NewAnError(http.StatusInternalServerError, errors.New("service instance get error")))
+			return
+		}
+		nowTimestamp := time.Now().UnixMilli()
+		if whitelistItem.Expire_at < nowTimestamp && !whitelistItem.Is_forever {
+			logging.GetLogger().Err(fmt.Errorf("expire time can't before now")).Msg("")
+			apperror.RespAndLog(w, ctx, apperror.NewDriftGlobalWhitelistTimestampError(http.StatusInternalServerError, errors.New("expire time can't before now"),
+				apperror.Suberror{
+					Location: "timestamp",
+					Message:  "expire time before now",
+				}))
+			return
+		}
+		tmpWhitelist := model.DriftGlobalWhitelistItem{Path: strings.Trim(whitelistItem.Path, " "),
+			Creator:    whitelistItem.Creator,
+			Updater:    whitelistItem.Creator,
+			CreatedAt:  nowTimestamp,
+			UpdatedAt:  nowTimestamp,
+			Expire_at:  whitelistItem.Expire_at,
+			Is_forever: whitelistItem.Is_forever}
+		id, err := driSvc.CreateGlobalWhitelist(ctx, tmpWhitelist)
+		if err != nil {
+			if strings.Contains(err.Error(), "same path") {
+				logging.GetLogger().Err(err).Msg("Create Same path")
+				apperror.RespAndLog(w, ctx, apperror.NewDriftGlobalWhitelistError(http.StatusInternalServerError, errors.New("create same whitelist")))
+			} else {
+				logging.GetLogger().Err(err).Msg("Create whitelist error")
+				apperror.RespAndLog(w, ctx, apperror.NewAnError(http.StatusInternalServerError, errors.New("create whitelist error")))
+			}
+			return
+		}
+		respTmp := tmp{ID: id}
+		response.Ok(w, response.WithItem(respTmp), response.WithTarget(&response.TargetRef{ID: fmt.Sprintf("%d", respTmp.ID), Name: whitelistItem.Path}))
+	}
+}
+
+func (api *api) driftUpdateGlobalWhitelist() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(r.Context(), 60*time.Second)
+		defer cancel()
+
+		whitelistItemUpdate := model.DriftGlobalWhitelistItem{}
+
+		idStr := chi.URLParam(r, "whitelistID")
+		id, err := strconv.ParseInt(idStr, 10, 64)
+		if err != nil {
+			logging.GetLogger().Error().Err(err).Msg("get id fail")
+			apperror.RespAndLog(w, ctx, apperror.NewAnError(http.StatusInternalServerError, errors.New("service instance get error")))
+			return
+		}
+
+		err = util.DecodeJSONBody(w, r, &whitelistItemUpdate)
+		if err != nil {
+			apperror.RespAndLog(w, ctx,
+				apperror.NewMalformedRequestError(http.StatusBadRequest,
+					fmt.Errorf("failed to decode json: %w", err)))
+			return
+		}
+		if !isPath(whitelistItemUpdate.Path) {
+			apperror.RespAndLog(w, ctx,
+				apperror.NewMalformedRequestError(http.StatusBadRequest,
+					fmt.Errorf("path illegal"),
+					apperror.Suberror{Location: "dataType", Message: "path illegal"}))
+			return
+		}
+		nowTimestamp := time.Now().UnixMilli()
+		if whitelistItemUpdate.Expire_at < nowTimestamp && !whitelistItemUpdate.Is_forever {
+			logging.GetLogger().Err(fmt.Errorf("expire time can't before now")).Msg("")
+			apperror.RespAndLog(w, ctx, apperror.NewDriftGlobalWhitelistTimestampError(http.StatusInternalServerError, errors.New("expire time can't before now"),
+				apperror.Suberror{
+					Location: "timestamp",
+					Message:  "expire time before now",
+				}))
+			return
+		}
+
+		driSvc, ok := drift.GetDriftService(ctx)
+		if !ok {
+			logging.GetLogger().Error().Msg("service instance get error")
+			apperror.RespAndLog(w, ctx, apperror.NewAnError(http.StatusInternalServerError, errors.New("service instance get error")))
+			return
+		}
+		whitelistItemUpdate.UpdatedAt = nowTimestamp
+		whitelistItemUpdate.ID = id
+		whitelist, err := driSvc.UpdateGlobalWhitelist(ctx, whitelistItemUpdate)
+		if err != nil {
+			logging.GetLogger().Err(err).Msg("Update whitelist error")
+			if strings.Contains(err.Error(), "Duplicate entry") {
+				apperror.RespAndLog(w, ctx, apperror.
+					NewDriftGlobalWhitelistError(http.StatusInternalServerError, errors.New("update same whitelist")))
+			} else {
+
+				apperror.RespAndLog(w, ctx, apperror.NewAnError(http.StatusInternalServerError, errors.New("update whitelist error")))
+			}
+			return
+		}
+		response.Ok(w, response.WithItem(whitelist), response.WithTarget(&response.TargetRef{ID: fmt.Sprintf("%d", whitelist.ID), Name: whitelist.Path}))
+	}
+}
+
+func (api *api) driftDelGlobalWhitelist() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(r.Context(), 60*time.Second)
+		defer cancel()
+
+		idStr := chi.URLParam(r, "whitelistID")
+		id, err := strconv.ParseInt(idStr, 10, 64)
+		if err != nil {
+			logging.GetLogger().Error().Err(err).Msg("get id fail")
+			apperror.RespAndLog(w, ctx, apperror.NewAnError(http.StatusInternalServerError, errors.New("service instance get error")))
+			return
+		}
+
+		driSvc, ok := drift.GetDriftService(ctx)
+		if !ok {
+			logging.GetLogger().Error().Msg("service instance get error")
+			apperror.RespAndLog(w, ctx, apperror.NewAnError(http.StatusInternalServerError, errors.New("service instance get error")))
+			return
+		}
+		whitelist, err := driSvc.DelGlobalWhitelist(ctx, id)
+		if err != nil {
+			logging.GetLogger().Err(err).Msgf("Delete whitelist %v error\n", id)
+			apperror.RespAndLog(w, ctx, apperror.NewAnError(http.StatusBadRequest, errors.New("delete whitelist error")))
+			return
+		}
+
+		response.Ok(w, response.WithItem(whitelist), response.WithTarget(&response.TargetRef{ID: fmt.Sprintf("%d", whitelist.ID), Name: whitelist.Path}))
+	}
+}
+
+func (api *api) driftListGlobalWhitelist() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(r.Context(), 60*time.Second)
+		defer cancel()
+
+		offset, err := param.QueryInt(r, "offset")
+		if err != nil {
+			logging.GetLogger().Err(err).Msgf("get offset error\n")
+			apperror.RespAndLog(w, ctx, apperror.NewAnError(http.StatusBadRequest, errors.New("get offset error")))
+			return
+		}
+
+		limit, err := param.QueryInt(r, "limit")
+		if err != nil {
+			logging.GetLogger().Err(err).Msgf("get limit error\n")
+			apperror.RespAndLog(w, ctx, apperror.NewAnError(http.StatusBadRequest, errors.New("get limit error")))
+			return
+		}
+		search, err := param.QueryString(r, "search")
+		if err != nil {
+			logging.GetLogger().Warn().Err(err).Msgf("get search nil")
+		}
+		startTime, err := param.QueryInt64(r, "start")
+		if err != nil {
+			logging.GetLogger().Warn().Err(err).Msg("not start time")
+			startTime = 0
+		}
+		endTime, err := param.QueryInt64(r, "end")
+		if err != nil {
+			logging.GetLogger().Warn().Err(err).Msg("not end time")
+			endTime = 0
+		}
+
+		driSvc, ok := drift.GetDriftService(ctx)
+		if !ok {
+			logging.GetLogger().Error().Msg("service instance get error")
+			apperror.RespAndLog(w, ctx, apperror.NewAnError(http.StatusInternalServerError, errors.New("service instance get error")))
+			return
+		}
+		whitelist, count, err := driSvc.ListGlobalWhitelist(ctx, limit, offset, "", search, startTime, endTime)
+		if err != nil {
+			logging.GetLogger().Err(err).Msg("List whitelist error")
+			apperror.RespAndLog(w, ctx, apperror.NewAnError(http.StatusInternalServerError, errors.New("list whitelist error")))
+
+			return
+		}
+
+		response.Ok(w, response.WithItems(whitelist), response.WithTotalItems(count))
+	}
+}
+
+func (api *api) driftListGlobalWhitelistById() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(r.Context(), 60*time.Second)
+		defer cancel()
+		idStr := chi.URLParam(r, "whitelistID")
+		id, err := strconv.ParseInt(idStr, 10, 64)
+		if err != nil {
+			logging.GetLogger().Error().Err(err).Msg("get id fail")
+			apperror.RespAndLog(w, ctx, apperror.NewAnError(http.StatusInternalServerError, errors.New("service instance get error")))
+			return
+		}
+		driSvc, ok := drift.GetDriftService(ctx)
+		if !ok {
+			logging.GetLogger().Error().Msg("service instance get error")
+			apperror.RespAndLog(w, ctx, apperror.NewAnError(http.StatusInternalServerError, errors.New("service instance get error")))
+			return
+		}
+		whitelist, err := driSvc.GetGlobalWhitelistById(ctx, id)
+		if err != nil {
+			logging.GetLogger().Err(err).Msg("get whitelist error")
+			apperror.RespAndLog(w, ctx, apperror.NewAnError(http.StatusInternalServerError, errors.New("get whitelist error")))
+
+			return
+		}
+		response.Ok(w, response.WithItem(whitelist))
 	}
 }
 
@@ -122,7 +387,16 @@ func (api *api) driftAllPolicy() http.HandlerFunc {
 			return
 		}
 
-		response.Ok(w, response.WithItems(policies), response.WithTotalItems(int64(len(policies))))
+		whitelist, err := driSvc.GetAllGlobalWhitelist(ctx)
+		if err != nil {
+			logging.GetLogger().Err(err).Msg("GetAll whitelist error")
+			apperror.RespAndLog(w, ctx, apperror.NewAnError(http.StatusInternalServerError, errors.New("GetAll whitelist error")))
+			return
+		}
+
+		response.Ok(w, response.WithItems(policies),
+			response.WithTotalItems(int64(len(policies))),
+			response.WithCustomField("g_whitelist", whitelist))
 		// } else {
 		// 	if lastTime < driSvc.Cache.LastTime {
 		// 		policies := driSvc.Cache.Policies
@@ -261,6 +535,34 @@ func (api *api) driftUpdatePolicy() http.HandlerFunc {
 	}
 }
 
+func (api *api) driftPolicyByID() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(r.Context(), 60*time.Second)
+		defer cancel()
+		idStr := chi.URLParam(r, "policyID")
+		id, err := strconv.ParseInt(idStr, 10, 64)
+		if err != nil {
+			logging.GetLogger().Error().Err(err).Str("idStr:", idStr).Msg("get id fail")
+			apperror.RespAndLog(w, ctx, apperror.NewAnError(http.StatusInternalServerError, errors.New("service instance get error")))
+			return
+		}
+		driSvc, ok := drift.GetDriftService(ctx)
+		if !ok {
+			logging.GetLogger().Error().Msg("service instance get error")
+			apperror.RespAndLog(w, ctx, apperror.NewAnError(http.StatusInternalServerError, errors.New("service instance get error")))
+			return
+		}
+		policy, err := driSvc.GetPolicyByID(ctx, id)
+		if err != nil {
+			logging.GetLogger().Err(err).Msg("get policy error")
+			apperror.RespAndLog(w, ctx, apperror.NewAnError(http.StatusInternalServerError, errors.New("get policy error")))
+			return
+		}
+
+		response.Ok(w, response.WithItem(policy))
+	}
+}
+
 func (api *api) driftListPolicy() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx, cancel := context.WithTimeout(r.Context(), time.Second*60)
@@ -294,10 +596,18 @@ func (api *api) driftListPolicy() http.HandlerFunc {
 		} else {
 			resources = strings.Split(resource, ",")
 		}
+		namespace, err := param.QueryString(r, "namespace")
+		var namespaces []string
+		if err != nil {
+			logging.GetLogger().Warn().Err(err).Msgf("get namespace error")
+		} else {
+			namespaces = strings.Split(namespace, ",")
+		}
+
 		enable, err := param.QueryString(r, "enable")
 		var enables []string
 		if err != nil {
-			logging.GetLogger().Warn().Err(err).Msgf("get namespace error")
+			logging.GetLogger().Warn().Err(err).Msgf("get enable error")
 		} else {
 			enables = strings.Split(enable, ",")
 		}
@@ -320,7 +630,7 @@ func (api *api) driftListPolicy() http.HandlerFunc {
 			return
 		}
 
-		policys, count, err := driSvc.ListPolicy(ctx, limit, offset, clusterKey, resources, enables, modes, search)
+		policys, count, err := driSvc.ListPolicy(ctx, limit, offset, clusterKey, resources, namespaces, enables, modes, search)
 		if err != nil {
 			logging.GetLogger().Error().Msg("ListPolicy error")
 			apperror.RespAndLog(w, ctx, apperror.NewAnError(http.StatusInternalServerError, errors.New("ListPolicy error")))
@@ -497,6 +807,17 @@ func (api *api) driftPolicyAbnormal() http.HandlerFunc {
 			if tmpres.FilePath, ok = v.Context["filePath"].(string); !ok {
 				continue
 			}
+
+			if action, ok := v.Context["action"].(string); !ok {
+				continue
+			} else {
+				if action == "hit_whitelist" {
+					tmpres.IsInGlobalWhitelist = true
+				} else {
+					tmpres.IsInGlobalWhitelist = false
+				}
+			}
+			tmpres.ID = v.ID
 
 			res = append(res, tmpres)
 		}

@@ -22,8 +22,8 @@ func (e *errorResponder) Error(w http.ResponseWriter, req *http.Request, err err
 
 func (api *api) sherlock() func(chi.Router) {
 	return func(r chi.Router) {
-		// proxy palace
-		r.HandleFunc("/palace/*", func(w http.ResponseWriter, r *http.Request) {
+		// proxy palace、hola
+		sherlockHandler := func(w http.ResponseWriter, r *http.Request) {
 			su, err := url.Parse(api.sherlockURL)
 			if err != nil {
 				logging.GetLogger().Error().Err(err).Msg("SHERLOCK_URL error")
@@ -40,7 +40,9 @@ func (api *api) sherlock() func(chi.Router) {
 			r.Header.Set("X-Username", model.GetUsernameFromContext(r.Context()))
 			httpProxy := proxy.NewUpgradeAwareHandler(u, http.DefaultTransport, false, false, &errorResponder{})
 			httpProxy.ServeHTTP(w, r)
-		})
+		}
+		r.HandleFunc("/palace/*", sherlockHandler)
+		r.HandleFunc("/hola/*", sherlockHandler)
 	}
 }
 
