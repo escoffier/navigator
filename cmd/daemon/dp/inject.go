@@ -2,6 +2,7 @@ package dp
 
 import (
 	"bufio"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -16,6 +17,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/degrade"
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/nodeinfo"
 	"gitlab.com/security-rd/go-pkg/logging"
+	"gitlab.com/security-rd/go-pkg/mq"
 
 	"github.com/docker/docker/pkg/system"
 	"github.com/moby/sys/mountinfo"
@@ -34,9 +36,15 @@ type Injector struct {
 	subRoot             string
 	subPath             string
 	npw                 *nodeinfo.NodePodsWatcher
+	podResInfo          *nodeinfo.PodResInfo
+	write               mq.Writer
 	excludeNamespace    []string
 	containerCommandSeq [][]string
 }
+
+var (
+	errUnknownOSParam = errors.New("unknown os")
+)
 
 var (
 	HostTensorPath              = path.Join(degrade.DriftPath, "mnt")
@@ -159,7 +167,7 @@ func getExcludeNamespaces() []string {
 	return namespaces
 }
 
-func NewInjector(npw *nodeinfo.NodePodsWatcher) (*Injector, error) {
+func NewInjector(npw *nodeinfo.NodePodsWatcher, podResInfo *nodeinfo.PodResInfo, write mq.Writer) (*Injector, error) {
 	ij := &Injector{}
 
 	err := ij.prepareFiles()
@@ -177,7 +185,9 @@ func NewInjector(npw *nodeinfo.NodePodsWatcher) (*Injector, error) {
 	err = ij.initCommandSeq()
 
 	ij.npw = npw
+	ij.podResInfo = podResInfo
 	ij.excludeNamespace = getExcludeNamespaces()
+	ij.write = write
 	logging.Get().Info().Str("ij detail", fmt.Sprintf("%v", ij)).Msg("NewInjector")
 	return ij, err
 }
@@ -241,19 +251,38 @@ func (ij *Injector) putContainerID2File(pid int, cid string) error {
 func (ij *Injector) DoInject(cm container.ContainerMeta) (bool, error) {
 	// logging.Get().Info().Msgf("Injecting %d", cm.ProcessID)
 
-	if needSkipInject(cm.ProcessID) {
+	osTarget, err := getOSTarget(cm.ProcessID)
+	if err != nil && err != errUnknownOSParam {
 		logging.Get().Warn().Msgf("Skip inject %d %v", cm.ProcessID, cm.Name)
-		return false, nil
+		return false, err
+	}
+
+	isSupport := isSupportOS(osTarget)
+	supportInfo, err := GetContainerPodInfo(cm.PodUID, ij.npw, ij.podResInfo)
+	if err != nil {
+		logging.Get().Err(err).Msg("")
+	}
+	if osTarget != "" {
+		//pause image
+		supportInfo.IsSupportDrift = isSupport
+		supportInfo.OSTarget = osTarget
+		supportInfo.ContainerID = cm.ID
+		logging.Get().Info().Str("support info:", fmt.Sprintf("%+v", supportInfo)).Msg("")
+
+		msg, err := json.Marshal(supportInfo)
+		if err != nil {
+			logging.Get().Err(err).Msg("")
+		}
+		Send2Kafka(ij.write, msg)
 	}
 
 	// excludeNamespaces
-	namespace, _, err := GetContainerPodInfo(cm.PodUID, ij.npw)
-	if err != nil || namespace == "" {
+	if err != nil || supportInfo.Namespace == "" {
 		logging.Get().Error().Msgf("Failed to get container pod info %v", err)
 		return false, err
 	}
 	for _, v := range ij.excludeNamespace {
-		if v == namespace {
+		if v == supportInfo.Namespace {
 			// logging.Get().Info().
 			// 	Str("containerID", cm.ID).
 			// 	Str("namespace", namespace).
@@ -354,6 +383,7 @@ func getOSTargetFromFile(path string) (string, error) {
 	targetStr := ""
 	osName := ""
 	osVersion := ""
+	fileStr := ""
 	f, err := os.Open(path)
 	if err != nil {
 		logging.Get().Error().Msgf("Failed to read file %s", path)
@@ -377,13 +407,19 @@ func getOSTargetFromFile(path string) (string, error) {
 		if kv[0] == "VERSION_ID" {
 			osVersion = strings.Trim(strings.Trim(strings.Trim(kv[1], "\n"), " "), "\"")
 		}
+		fileStr += lineStr + " "
 	}
+
+	if osName == "" || osVersion == "" {
+		return fileStr, errUnknownOSParam
+	}
+
 	targetStr = osName + "-" + osVersion
 	return strings.ToLower(targetStr), nil
 
 }
 
-func needSkipInject(pid int) bool {
+func getOSTarget(pid int) (string, error) {
 
 	for _, v := range containerOSFilePathTemplate {
 		path := fmt.Sprintf(v, pid)
@@ -394,21 +430,22 @@ func needSkipInject(pid int) bool {
 		osTarget, err := getOSTargetFromFile(path)
 		if err != nil {
 			logging.Get().Error().Msgf("Failed to get os target from file %s", path)
-			return true
 		}
-
-		for _, v := range supportOSTargets {
-			if v == osTarget {
-				// logging.Get().Info().Str("osTarget:", osTarget).Msg("")
-				return false
-			}
-		}
-		logging.Get().Info().Msgf("unknown os target %s, try to support\n", osTarget)
-		break
-
+		return osTarget, err
 	}
 
-	return true
+	return "", errUnknownOSParam
+}
+
+func isSupportOS(osTarget string) bool {
+	for _, v := range supportOSTargets {
+		if v == osTarget {
+			// logging.Get().Info().Str("osTarget:", osTarget).Msg("")
+			return true
+		}
+	}
+	logging.Get().Info().Msgf("unsupport os target %s, try to support\n", osTarget)
+	return false
 }
 
 func initOSTargetsList(configFile string) error {

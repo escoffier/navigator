@@ -159,7 +159,7 @@ func NewDriftAssurance(podWatcher *nodeinfo.NodePodsWatcher, podResInfo *nodeinf
 	d.podResInfo = podResInfo
 
 	// init Injector
-	d.injector, err = NewInjector(podWatcher)
+	d.injector, err = NewInjector(podWatcher, podResInfo, mqWriter)
 	if err != nil {
 		logging.Get().Err(err).Msg("create injector failed")
 		return nil, err

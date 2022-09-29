@@ -58,13 +58,13 @@ func (d *dockerDriver) GetContainerMeta(containerID string) (container.Container
 		}
 	}
 	if cm.PodUID == "" {
-		return container.ContainerMeta{}, fmt.Errorf("get container's pod uid failed, pod uid : %v", cm.PodUID)
+		return *cm, fmt.Errorf("get container's pod uid failed, pod uid : %v", cm.PodUID)
 	}
 
 	// inspect image info
 	image, _, err := d.dockerCli.ImageInspectWithRaw(ctx, c.Image)
 	if err != nil {
-		return container.ContainerMeta{}, fmt.Errorf("image inspect failed.%v", err)
+		return *cm, fmt.Errorf("image inspect failed.%v", err)
 	}
 
 	// RepoDigests eg: ["library/deploy@sha256:26b1xxx","quay.io/test/dev@sha256:3445xxx"]

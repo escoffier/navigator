@@ -9,7 +9,7 @@ type DriftPolicyCreate struct {
 	ResourceKind string `json:"resource_kind"`
 	Creator      string `json:"creator"`
 	Enable       int    `json:"enable"`
-	Mode         int    `json:"mode"`
+	Mode         string `json:"mode"`
 }
 
 type DriftPolicyCache struct {
@@ -20,14 +20,14 @@ type DriftPolicyCache struct {
 type DriftPolicyUpdate struct {
 	PolicyID int64  `json:"policy_id"`
 	Enable   int    `json:"enable"`
-	Mode     int    `json:"mode"`
+	Mode     string `json:"mode"`
 	Updater  string `json:"updater"`
 }
 
 type DriftListPolicyResp struct {
 	PolicyID     int64  `json:"policy_id"`
 	Enable       int    `json:"enable"`
-	Mode         int    `json:"mode"`
+	Mode         string `gorm:"type:varchar(10)" json:"mode"`
 	Namespace    string `gorm:"type:varchar(255)" json:"namespace"`
 	Resource     string `gorm:"type:varchar(255)" json:"resource"`
 	ResourceKind string `gorm:"type:varchar(255)" json:"resource_type"`
@@ -36,10 +36,12 @@ type DriftListPolicyResp struct {
 }
 
 type DriftPolicyAbnormal struct {
-	FilePath    string `json:"file_path"`
-	ContainerID string `json:"container_id"`
-	PodName     string `json:"pod_name"`
-	HappendTime int64  `json:"happend_time"`
+	ID                  string `json:"id"`
+	FilePath            string `json:"file_path"`
+	ContainerID         string `json:"container_id"`
+	PodName             string `json:"pod_name"`
+	HappendTime         int64  `json:"happend_time"`
+	IsInGlobalWhitelist bool   `json:"in_global_whitelist"`
 }
 
 type DriftPolicyDetailResp struct {
@@ -61,7 +63,7 @@ type DriftPolicy struct {
 	Creator      string    `gorm:"type:varchar(255)" json:"creator"`
 	Updater      string    `gorm:"type:varchar(255)" json:"updator"`
 	Enable       int       `json:"enable"`
-	Mode         int       `json:"mode"`
+	Mode         string    `gorm:"type:varchar(10)" json:"mode"`
 }
 
 type DaemonDriftPolicies struct {
@@ -75,14 +77,40 @@ type DaemonDriftResp struct {
 }
 
 type DaemonDriftRespData struct {
-	Items      []DriftPolicy `json:"items"`
-	TotalItems int64         `json:"totalItems,omitempty"`
+	Items                []DriftPolicy              `json:"items"`
+	TotalItems           int64                      `json:"totalItems,omitempty"`
+	GlobalWhitelistItems []DriftGlobalWhitelistItem `json:"g_whitelist"`
 }
 
 func (DriftPolicy) TableName() string {
 	return "ivan_drift_policies"
 }
 
+type DriftGlobalWhitelistItem struct {
+	ID         int64  `gorm:"column:id" json:"id"`
+	CreatedAt  int64  `gorm:"autoCreateTime:milli;column:created_at" json:"created_at"`
+	UpdatedAt  int64  `gorm:"autoUpdateTime:milli;column:updated_at" json:"updated_at"`
+	Creator    string `gorm:"type:varchar(255);column:creator" json:"creator"`
+	Updater    string `gorm:"type:varchar(255);column:updater" json:"updater"`
+	Path       string `gorm:"type:varchar(768);column:path" json:"path"`
+	Expire_at  int64  `gorm:"type:bigint;column:expire_at" json:"expire_at"`
+	Is_forever bool   `gorm:"type:boolean;column:is_forever" json:"is_forever"`
+}
+
+func (DriftGlobalWhitelistItem) TableName() string {
+	return "ivan_drift_global_whitelist"
+}
+
 const (
-	SubjectOfDriftEvent = "ivan_drift_event"
+	SubjectOfDriftSupportEvent = "drifit_info_signals"
 )
+
+type DriftSupportInfo struct {
+	IsSupportDrift bool   `json:"is_support_drift"`
+	Cluster        string `json:"cluster"`
+	Namespace      string `json:"namespace"`
+	ResourceKind   string `json:"resource_kind"`
+	ResourceName   string `json:"resource_name"`
+	OSTarget       string `json:"os_target"`
+	ContainerID    string `json:"container_id"`
+}

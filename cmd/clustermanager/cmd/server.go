@@ -14,6 +14,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/clustermanager/pkg/assets"
 	"gitlab.com/piccolo_su/vegeta/cmd/clustermanager/pkg/clusterserver"
 	conf "gitlab.com/piccolo_su/vegeta/cmd/clustermanager/pkg/config"
+	"gitlab.com/piccolo_su/vegeta/cmd/clustermanager/pkg/drift"
 	assets2 "gitlab.com/piccolo_su/vegeta/pkg/assets"
 	"gitlab.com/piccolo_su/vegeta/pkg/dal"
 	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
@@ -163,6 +164,10 @@ func NewServer() (*server, error) {
 			return nil, err
 		}
 		go w.Run(stopChan)
+
+		driftWatcher := drift.NewDriftSupport(rdb, mqReader, model.SubjectOfDriftSupportEvent, "group-support-info")
+		go driftWatcher.Start(stopChan)
+
 	}
 
 	factory.Start(stopChan)

@@ -109,6 +109,28 @@ func newTensorResourcesService(rdb *databases.RDBInstance, es *elastic.ESClient)
 	return s
 }
 
+func (rl *TensorDriftService) CreateGlobalWhitelist(ctx context.Context, whitelist model.DriftGlobalWhitelistItem) (int64, error) {
+	return dal.CreateDriftGlobalWhiteList(ctx, rl.rdb.Get(), whitelist)
+}
+
+func (rl *TensorDriftService) UpdateGlobalWhitelist(ctx context.Context, whitelist model.DriftGlobalWhitelistItem) (model.DriftGlobalWhitelistItem, error) {
+	return dal.UpdateDriftGlobalWhiteList(ctx, rl.rdb.Get(), whitelist)
+}
+func (rl *TensorDriftService) DelGlobalWhitelist(ctx context.Context, whitelistID int64) (model.DriftGlobalWhitelistItem, error) {
+	return dal.DelDriftGlobalWhiteList(ctx, rl.rdb.Get(), whitelistID)
+}
+
+func (rl *TensorDriftService) ListGlobalWhitelist(ctx context.Context, limit, offset int, path, searchStr string, startTime, endTime int64) ([]model.DriftGlobalWhitelistItem, int64, error) {
+	return dal.ListDriftGlobalWhiteList(ctx, rl.rdb.Get(), limit, offset, path, searchStr, startTime, endTime)
+}
+
+func (rl *TensorDriftService) GetGlobalWhitelistById(ctx context.Context, id int64) (model.DriftGlobalWhitelistItem, error) {
+	return dal.GetDriftGlobalWhiteListById(ctx, rl.rdb.Get(), id)
+}
+
+func (rl *TensorDriftService) GetAllGlobalWhitelist(ctx context.Context) ([]model.DriftGlobalWhitelistItem, error) {
+	return dal.GetAllDriftGlobalWhiteList(ctx, rl.rdb.Get())
+}
 func (rl *TensorDriftService) CreatePolicy(ctx context.Context, policy model.DriftPolicy) (int64, error) {
 	return dal.CreateDriftPolicy(ctx, rl.rdb.Get(), policy)
 }
@@ -121,8 +143,8 @@ func (rl *TensorDriftService) UpdatePolicy(ctx context.Context, policy model.Dri
 	return dal.UpdateDriftPolicy(ctx, rl.rdb.Get(), policy)
 }
 
-func (rl *TensorDriftService) ListPolicy(ctx context.Context, limit int, offset int, clusterKey string, resourceType []string, enable []string, mode []string, search string) ([]model.DriftPolicy, int64, error) {
-	return dal.ListDriftPolicy(ctx, rl.rdb.GetReadDB(), limit, offset, clusterKey, resourceType, enable, mode, search)
+func (rl *TensorDriftService) ListPolicy(ctx context.Context, limit int, offset int, clusterKey string, resourceType, namespaces, enable, mode []string, search string) ([]model.DriftPolicy, int64, error) {
+	return dal.ListDriftPolicy(ctx, rl.rdb.GetReadDB(), limit, offset, clusterKey, resourceType, namespaces, enable, mode, search)
 }
 
 func (rl *TensorDriftService) GetPolicyByID(ctx context.Context, id int64) (model.DriftPolicy, error) {

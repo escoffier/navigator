@@ -63,6 +63,7 @@ func (api *api) assets() func(chi.Router) {
 		if exportContainers == "true" {
 			r.Get("/containers", api.getContainers())
 		}
+		r.Get("/resources/types", api.getResourceTypes())
 	}
 }
 
@@ -593,14 +594,16 @@ func (api *api) countNamespaces() http.HandlerFunc {
 
 func (api *api) getResourcesInNamespace() http.HandlerFunc {
 	type resource struct {
-		Cluster   string   `json:"cluster"`
-		Namespace string   `json:"namespace"`
-		Kind      string   `json:"kind"`
-		Name      string   `json:"name"`
-		UID       string   `json:"uid"`
-		Alias     string   `json:"alias"`
-		Managers  []string `json:"managers"`
-		Authority string   `json:"authority"`
+		Cluster        string   `json:"cluster"`
+		Namespace      string   `json:"namespace"`
+		Kind           string   `json:"kind"`
+		Name           string   `json:"name"`
+		UID            string   `json:"uid"`
+		Alias          string   `json:"alias"`
+		Managers       []string `json:"managers"`
+		Authority      string   `json:"authority"`
+		IsSupportDrift bool     `json:"is_support_drift"`
+		Reason         string   `json:"reason"`
 	}
 	modelToResource := func(rm *model.TensorResource) *resource {
 		r := new(resource)
@@ -612,6 +615,8 @@ func (api *api) getResourcesInNamespace() http.HandlerFunc {
 		r.Alias = rm.Alias
 		r.Managers = rm.Managers
 		r.Authority = rm.Authority
+		r.IsSupportDrift = rm.IsSupportDrift
+		r.Reason = rm.Reason
 		return r
 	}
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -1696,5 +1701,24 @@ func (api *api) getContainers() http.HandlerFunc {
 			return
 		}
 		response.Ok(w, response.WithItems(containers), response.WithTotalItems(totalCnt))
+	}
+}
+
+func (api *api) getResourceTypes() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		resourceTypes := []assetsPkg.ResourceKind{
+			assetsPkg.KindDeployment,
+			assetsPkg.KindReplicaSet,
+			assetsPkg.KindStatefulSet,
+			assetsPkg.KindReplicationController,
+			assetsPkg.KindDaemonSet,
+			assetsPkg.KindJob,
+			assetsPkg.KindCronJob,
+			assetsPkg.KindPodNoOwner,
+		}
+		response.Ok(w, response.WithItems(resourceTypes),
+			response.WithTotalItems(int64(len(resourceTypes))),
+			response.WithStartIndex(0),
+		)
 	}
 }

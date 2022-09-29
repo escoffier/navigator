@@ -35,14 +35,16 @@ type imageUsedItem struct {
 }
 
 type ConfigManager struct {
-	consoleAddr    string
-	lock           *sync.Mutex
-	policyLock     *sync.Mutex
-	policies       model.DaemonDriftPolicies
-	execWhiteList  map[string]map[string]string // image digest => { hash1 => exec_path,hash2 => exec_path}
-	imageCountLock sync.Mutex
-	imageUsedCount map[string]*imageUsedItem
-	client         *http.Client
+	consoleAddr         string
+	lock                *sync.Mutex
+	policyLock          *sync.Mutex
+	policies            model.DaemonDriftPolicies
+	execWhiteList       map[string]map[string]string // image digest => { hash1 => exec_path,hash2 => exec_path}
+	imageCountLock      sync.Mutex
+	imageUsedCount      map[string]*imageUsedItem
+	globalWhitelistLock *sync.Mutex
+	globalWhitelist     map[string]struct{}
+	client              *http.Client
 }
 
 const (
@@ -83,22 +85,30 @@ func (cm *ConfigManager) SyncPolicy(ctx context.Context) error {
 		logging.Get().Err(err).Msgf("read scanner req body error")
 		return err
 	}
+	logging.Get().Debug().Msg(string(data))
 
-	var policies model.DaemonDriftResp
-	err = json.Unmarshal(data, &policies)
+	var driftResp model.DaemonDriftResp
+	err = json.Unmarshal(data, &driftResp)
 	if err != nil {
 		logging.Get().Err(err).Msgf("unmarshal policy error")
 		return err
 	}
 
-	// logging.Get().Trace().Interface("policyItems", policies.Data.Items).Msg("sync policy success")
-
+	logging.Get().Trace().Interface("policyItems", driftResp.Data.Items).Msg("sync policy success")
+	logging.Get().Trace().Interface("whitelist", driftResp.Data.GlobalWhitelistItems).Msg("")
 	cm.policyLock.Lock()
 	cm.policies.Policies = make(map[uint32]model.DriftPolicy)
-	for _, v := range policies.Data.Items {
+	for _, v := range driftResp.Data.Items {
 		cm.policies.Policies[v.ResourceUUID] = v
 	}
 	cm.policyLock.Unlock()
+	nowTimetamp := time.Now().UnixMilli()
+	cm.cleanGlobalWhitelist()
+	for _, v := range driftResp.Data.GlobalWhitelistItems {
+		if nowTimetamp < v.Expire_at || v.Is_forever {
+			cm.setGlobalWhitelist(v.Path)
+		}
+	}
 
 	return nil
 }
@@ -348,11 +358,31 @@ func (cm *ConfigManager) GetWhiteListState(imageDigest string) (WhiteListScanner
 	return cm.imageUsedCount[imageDigest].whiteListState, true
 }
 
+func (cm *ConfigManager) setGlobalWhitelist(path string) {
+	cm.globalWhitelistLock.Lock()
+	defer cm.globalWhitelistLock.Unlock()
+	cm.globalWhitelist[path] = struct{}{}
+}
+
+func (cm *ConfigManager) IsInGlobalWhitelist(path string) bool {
+	cm.globalWhitelistLock.Lock()
+	defer cm.globalWhitelistLock.Unlock()
+	_, ok := cm.globalWhitelist[path]
+	return ok
+}
+
+func (cm *ConfigManager) cleanGlobalWhitelist() {
+	cm.globalWhitelistLock.Lock()
+	defer cm.globalWhitelistLock.Unlock()
+	cm.globalWhitelist = make(map[string]struct{})
+}
+
 func NewConfigManger(consoleAddr string) (*ConfigManager, error) {
 	cm := &ConfigManager{
-		lock:        &sync.Mutex{},
-		policyLock:  &sync.Mutex{},
-		consoleAddr: consoleAddr,
+		lock:                &sync.Mutex{},
+		policyLock:          &sync.Mutex{},
+		globalWhitelistLock: &sync.Mutex{},
+		consoleAddr:         consoleAddr,
 	}
 	//http transport
 	tr := &http.Transport{
@@ -366,5 +396,6 @@ func NewConfigManger(consoleAddr string) (*ConfigManager, error) {
 		Policies: make(map[uint32]model.DriftPolicy),
 		LastTime: 0,
 	}
+	cm.globalWhitelist = make(map[string]struct{})
 	return cm, nil
 }

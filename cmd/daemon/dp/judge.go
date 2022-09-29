@@ -191,8 +191,9 @@ func (ej *ExecJudge) doRequest(conn *net.UnixConn, uuid uint64) error {
 		filePath := arr[3]
 		fileHash := strings.TrimSuffix(arr[4], "\n")
 		crc32Expected := ""
-
+		skip := false
 		logging.Get().Info().Uint64("uuid", uuid).Str("containerID", containerID).Str("syscall", syscall).Str("filePath", filePath).Str("fileHash", fileHash).Msg("receive msg content")
+
 		// get image info by containerID
 		containMeta, err := ej.rt.GetContainerMeta(containerID)
 		if err != nil {
@@ -202,8 +203,6 @@ func (ej *ExecJudge) doRequest(conn *net.UnixConn, uuid uint64) error {
 		}
 		logging.Get().Trace().Interface("Meta", containMeta).Msg("container meta info")
 
-		skip := false
-		// check whitelist state
 		for _, digest := range containMeta.ImageDigest {
 			state, exist := ej.cm.GetWhiteListState(digest)
 			if state != WhiteListReady && exist {
@@ -214,7 +213,7 @@ func (ej *ExecJudge) doRequest(conn *net.UnixConn, uuid uint64) error {
 		}
 
 		if skip {
-			logging.Get().Warn().Msg("white list not ready skip check")
+			logging.Get().Trace().Msg("white list not ready skip check")
 			_ = ej.Response(conn, resultPass, containerID, fileHash)
 			continue
 		}
@@ -229,19 +228,19 @@ func (ej *ExecJudge) doRequest(conn *net.UnixConn, uuid uint64) error {
 
 		logging.Get().Trace().Msgf("containerPolicyInfo: %+v", cPodInfo)
 
-		polic, ok := ej.cm.GetPolicyByResourceUUID(cPodInfo.uuid)
+		policy, ok := ej.cm.GetPolicyByResourceUUID(cPodInfo.uuid)
 
-		logging.Get().Info().Msgf("plic: %+v ok? %v", polic, ok)
-		if !ok || polic.Enable == 0 {
+		logging.Get().Info().Msgf("plic: %+v ok? %v", policy, ok)
+		if !ok || policy.Enable == 0 {
 			logging.Get().Warn().Uint64("uuid", uuid).Str("containerID", containerID).Msg("skip check file hash")
 			_ = ej.Response(conn, resultPass, containerID, fileHash)
 			continue
 		}
-		if polic.Mode != 1 && polic.Mode != 2 {
+		if policy.Mode != "alert" && policy.Mode != "block" {
 			_ = ej.Response(conn, resultPass, containerID, fileHash)
 			continue
 		}
-		needBlock := polic.Mode == 2
+		needBlock := policy.Mode == "block"
 
 		stopCheck := false
 		if enforceBlock := os.Getenv("ENFORCE_BLOCK"); enforceBlock == "true" {
@@ -255,6 +254,7 @@ func (ej *ExecJudge) doRequest(conn *net.UnixConn, uuid uint64) error {
 			}
 
 		}
+
 		if stopCheck {
 			action := ""
 			if needBlock {
@@ -309,6 +309,40 @@ func (ej *ExecJudge) doRequest(conn *net.UnixConn, uuid uint64) error {
 		fileHashMismatchFlag := crc32Expected != fileHash
 		logging.Get().Trace().Uint64("uuid", uuid).Str("containerID", containerID).Str("filePath", filePath).Str("fileHash", fileHash).Str("crc32Expected", crc32Expected).Msg("check file hash")
 		if notInWhitelistFlag || fileHashMismatchFlag {
+			// check global whitelist
+			if ej.cm.IsInGlobalWhitelist(filePath) {
+				eventArgs := &EventArg{
+					ClusterID:     cPodInfo.cluster,
+					Cluster:       ej.clusterName,
+					Hostname:      ej.npw.NodeName,
+					Namespace:     cPodInfo.namespace,
+					PodName:       cPodInfo.podFullName,
+					PodUID:        containMeta.PodUID,
+					ContainerID:   containerID,
+					ContainerName: containMeta.Name,
+					FilePath:      filePath,
+					Syscall:       syscall,
+					crc32Expected: crc32Expected,
+					crc32Actual:   fileHash,
+					Action:        "hit_whitelist",
+					ImageRepoTags: strings.Join(containMeta.ImageRepoTags, "\n"),
+					reason:        "",
+				}
+				if notInWhitelistFlag {
+					eventArgs.reason = "file not in white list"
+				} else if fileHashMismatchFlag {
+					eventArgs.reason = "file hash mismatch"
+				}
+				ruleKey, scopes, signalContext := genPalaceSignalParams(eventArgs, cPodInfo, "DriftPrevention", "Drift Prevention")
+				err := ej.palaceHandler.SendSignal(ruleKey, scopes, signalContext)
+				if err != nil {
+					logging.Get().Err(err).Str("args", fmt.Sprintf("%+v", eventArgs)).Msg("DriftPrevention send signal to palace fails!")
+				}
+				logging.Get().Warn().Msg("hit global whitelist pass")
+				_ = ej.Response(conn, resultPass, containerID, fileHash)
+				continue
+			}
+
 			action := ""
 			if needBlock {
 				_ = ej.Response(conn, resultBlock, containerID, fileHash)
