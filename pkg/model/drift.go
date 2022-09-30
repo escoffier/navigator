@@ -1,6 +1,10 @@
 package model
 
-import "time"
+import (
+	"time"
+
+	v1 "k8s.io/api/core/v1"
+)
 
 type DriftPolicyCreate struct {
 	ClusterKey   string `json:"cluster_key"`
@@ -104,6 +108,79 @@ func (DriftGlobalWhitelistItem) TableName() string {
 const (
 	SubjectOfDriftSupportEvent = "drifit_info_signals"
 )
+
+type DriftPolicyAbnormalOpen struct {
+	FilePath    string `json:"filePath"`
+	ContainerID string `json:"containerId"`
+	PodName     string `json:"podName"`
+	HappendTime int64  `json:"happendTime"`
+}
+
+type OpenDriftPolicyDetailResp struct {
+	ContainerID   uint32 `json:"containerId"`
+	ContainerName string `json:"containerName"`
+	ImageID       int64  `json:"imageId"`
+	Image         string `json:"image"`
+}
+
+type OpenDriftContainer struct {
+	Cluster       string             `json:"cluster"`
+	Namespace     string             `json:"namespace"`
+	ResourceKind  string             `json:"resourceKind"`
+	ResourceName  string             `json:"resourceName"`
+	Name          string             `json:"name"`
+	WorkingDir    string             `json:"workingDir"`
+	Command       []string           `json:"command"`
+	Type          string             `json:"type"`
+	ImageRepo     string             `json:"imageRepo"`
+	ImageName     string             `json:"imageName"`
+	ImageTag      string             `json:"imageTag"`
+	Ports         []v1.ContainerPort `json:"ports"`
+	Envs          []v1.EnvVar        `json:"envs"`
+	FrameWorkInfo []WebFrameInfo     `json:"frameWorkInfo"`
+	VolumeMounts  []v1.VolumeMount   `json:"volumeMounts"`
+}
+
+type OpenDriftListPolicyResp struct {
+	PolicyID     int64  `json:"policyId"`
+	Enable       int    `json:"enable"`
+	Mode         string `json:"mode"`
+	Namespace    string `gorm:"type:varchar(255)" json:"namespace"`
+	Resource     string `gorm:"type:varchar(255)" json:"resource"`
+	ResourceKind string `gorm:"type:varchar(255)" json:"resourceType"`
+	ClusterKey   string `gorm:"type:varchar(255)" json:"clusterKey"`
+	AbnormalNum  int    `json:"abnormalNum"`
+}
+
+type OpenDriftPolicyUpdate struct {
+	PolicyID int64  `json:"policyId"`
+	Enable   int    `json:"enable"`
+	Mode     string `json:"mode"`
+	Updater  string `json:"updater"`
+}
+
+type OpenDriftPolicyCreate struct {
+	ClusterKey   string `json:"clusterKey"`
+	Namespace    string `json:"namespace"`
+	Resource     string `json:"resource"`
+	ResourceKind string `json:"resourceKind"`
+	Creator      string `json:"creator"`
+	Enable       int    `json:"enable"`
+	Mode         string `json:"mode"`
+}
+
+type OpenTensorNamespace struct {
+	CreatedAt       time.Time `gorm:"column:createdAt" json:"CreatedAt,omitempty"`
+	UpdatedAt       time.Time `gorm:"column:updatedAt" json:"UpdatedAt,omitempty"`
+	Name            string    `gorm:"column:name"`
+	ClusterKey      string    `gorm:"column:clusterKey;index:idx_tn_list_q"`
+	UID             string    `gorm:"column:UID"`
+	OwnerReferences OwnerRefs `gorm:"column:ownerReferences;type:varchar(256)"`
+	Labels          []byte    `gorm:"column:labels;type:blob"`
+	Alias           string    `gorm:"column:alias"`
+	Managers        Managers  `gorm:"column:managers;type:varchar(256)"`
+	Authority       string    `gorm:"column:authority"`
+}
 
 type DriftSupportInfo struct {
 	IsSupportDrift bool   `json:"is_support_drift"`
