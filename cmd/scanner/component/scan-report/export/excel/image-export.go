@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -241,7 +242,7 @@ func (s *ImageExport) Run(ctx context.Context) {
 			continue
 		}
 
-		filename := task.FilePath
+		filename := strings.ReplaceAll(task.FilePath, ".zip", "")
 
 		excelChan := s.Export(ctx, tasks[i], consts.ExportSingleImage)
 

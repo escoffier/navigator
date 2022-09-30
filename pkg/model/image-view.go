@@ -333,7 +333,7 @@ type ImageListResponse struct {
 	Registry    *Registry  `json:"-"`
 	Subtasks    *SubTask   `json:"-"`
 	ScanInfo    *ScanImage `json:"-"`
-	UniqueImage uint64     `json:"uniqueImage;string"`
+	UniqueImage uint64     `json:"uniqueImage,string"`
 }
 
 func (ir *ImageListResponse) GetImageName() string {
