@@ -28,5 +28,8 @@ func (api *api) platformOpenapi() func(chi.Router) {
 		r.Route("/assets", api.assetsForOpenapi())
 		r.Route("/degrade", api.degradeOpenAPI())
 		r.Route("/drift", api.driftOpen())
+		r.Route("/hunter", api.hunterOpenAPI())
+		r.Route("/processingCenter", api.processingCenterOpenAPI())
+		r.Route("/sherlock", api.sherlockOpenAPI())
 	}
 }
