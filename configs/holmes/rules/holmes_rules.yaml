@@ -1275,8 +1275,8 @@
       value: "请排查容器内find命令是否被授予s权限，从而被黑客尝试利用提权，可尝试采用微隔离和免疫防御阻止风险进一步扩散。"
   desc: Linux Privilege Escalation using find suid binaries
   condition: >
-    spawned_process and user.uid != 0 and (
-    proc.name = find or 
+    spawned_process and user.uid != 0 and evt.res != ENOENT and (
+    proc.name = find and
     ((proc.cmdline contains "-exec" or proc.cmdline contains "-ok") and proc.cmdline contains ";")
     ) and not tensorsec_namespace
   output: >
@@ -1353,6 +1353,24 @@
     open_write and container and fd.name endswith release_agent and user.uid=0 
   output: >
     Detect release_agent File Container Escapes(zh_msg=尝试修改release_agent进行Linux_Cgroup容器逃逸,rule_type=Privilege_Escalation,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type, container=%container.info,container_id=%container.id,container_name=%container.name)
+  priority: CRITICAL
+  tags: [ATT&CK, filesystem, mitre_privilege_escalation]
+
+- rule: Connect to docker.sock in container
+  hid: priv_21
+  hthreats: 1
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands."
+    zh:
+      key: "处置建议"
+      value: "容器可能已经遭到入侵，使用免疫防御训练应用，限制敏感文件和命令的用户权限。"
+  desc: Connect to docker.sock in container
+  condition: >
+    evt.type = connect and evt.args contains "docker.sock" and container and not tensorsec_namespace
+  output: >
+    Connect to docker.sock in container(zh_msg=容器内与docker.sock通信,rule_type=Privilege_Escalation,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type, container=%container.info,container_id=%container.id,container_name=%container.name)
   priority: CRITICAL
   tags: [ATT&CK, filesystem, mitre_privilege_escalation]
 
@@ -4072,7 +4090,7 @@
 # This list allows easily whitelisting system proc names that are
 # expected to communicate on the network.
 - list: known_system_procs_network_activity_binaries
-  items: [systemd, hostid, id, calico-node, envoy, webhook, daemon, kube-rbac-proxy, palace, scan_report, console, microseg, cluster-manager, iptables-restor, safe-node-image, sherlock_api, nginx, consul, speaker, prometheus, defender]
+  items: [systemd, hostid, id, calico-node, envoy, webhook, daemon, kube-rbac-proxy, palace, scan_report, console, microseg, cluster-manager, iptables-restor, safe-node-image, sherlock_api, nginx, consul, speaker, prometheus, defender, categraf, pilot-agent]
 
 # This macro allows specifying conditions under which a system binary
 # is allowed to communicate on the network. For instance, only specific
