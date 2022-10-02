@@ -1,7 +1,9 @@
 package api
 
 import (
+	"gitlab.com/piccolo_su/vegeta/cmd/console/service/defense"
 	corev1 "k8s.io/api/core/v1"
+	"time"
 
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 )
@@ -102,4 +104,51 @@ type ResourceSummery struct {
 	NodeNum       int64 `json:"nodeNum"`
 	PodNum        int64 `json:"podNum"`
 	ContainerNum  int64 `json:"containerNum"`
+}
+
+type KubeAuditLogOpenApi struct {
+	ID                       string   `json:"id"`
+	SourceIPs                []string `json:"sourceIPs"`
+	Verb                     string   `json:"verb"`
+	Namespace                string   `json:"namespace"`
+	ResourceKind             string   `json:"resourceKind"`
+	ResourceName             string   `json:"resourceName"`
+	ResponseStatusCode       int32    `json:"responseStatusCode"`
+	Stage                    string   `json:"stage"`
+	StageTimestamp           int64    `json:"stageTimestamp"`
+	Username                 string   `json:"username"`
+	Level                    string   `json:"level"`
+	RequestReceivedTimestamp int64    `json:"requestReceivedTimestamp"`
+	UserAgent                string   `json:"userAgent"`
+	RequestURI               string   `json:"requestURI"`
+	APIVersion               string   `json:"apiVersion"`
+	AuthorizationDecision    string   `json:"authorizationDecision"`
+	AuthorizationReason      string   `json:"authorizationReason"`
+}
+
+type BaitServiceOpenApi struct {
+	ID           uint32            `json:"id"`
+	Status       string            `json:"status"`
+	Name         string            `json:"name"`
+	BaitType     string            `json:"baitType"`
+	BaitId       uint32            `json:"baitId"`
+	ClusterKey   string            `json:"clusterKey"`
+	Namespace    string            `json:"namespace"`
+	ResourceName string            `json:"resourceName"`
+	PrefixName   string            `json:"prefixName"`
+	Image        string            `json:"image"`
+	OutboundOff  bool              `json:"outboundOff"`
+	RegistryId   int               `json:"registryId"`
+	Events       []*defense.Signal `json:"events"`
+	CreateAt     time.Time         `json:"crateAt"`
+}
+
+type BaitImageOpenApi struct {
+	ID            uint32                 `json:"id"`
+	Name          string                 `json:"name"`
+	BaitName      string                 `json:"baitName"`
+	Repositories  []*defense.ImageDetail `json:"repositories,omitempty"`
+	Vulnerability string                 `json:"vulnerability"`
+	Description   string                 `json:"description"`
+	Prefix        string                 `json:"prefix"`
 }

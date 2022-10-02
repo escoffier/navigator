@@ -37,16 +37,15 @@ func (r *AuditRecord) ToDisplay(id string) *AuditDisplay {
 }
 
 type AuditDisplay struct {
-	ID                 string
-	SourceIPs          []string
-	Verb               string
-	Namespace          string
-	ResourceKind       string
-	ResourceName       string
-	ResponseStatusCode int32
-	Stage              string
-	StageTimestamp     int64 // StageTimestamp
-
+	ID                       string
+	SourceIPs                []string
+	Verb                     string
+	Namespace                string
+	ResourceKind             string
+	ResourceName             string
+	ResponseStatusCode       int32
+	Stage                    string
+	StageTimestamp           int64 // StageTimestamp
 	Username                 string
 	Level                    string
 	RequestReceivedTimestamp int64

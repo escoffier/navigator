@@ -8,6 +8,7 @@ func (api *api) platform() func(chi.Router) {
 	return func(r chi.Router) {
 		r.Route("/riskExplorer", api.riskExplorer())
 		r.Route("/version", api.version())
+		// r.Route("/eventsCenter", api.eventsCenter())
 		r.Route("/sherlock", api.sherlock())
 		r.Route("/processingCenter", api.processingCenter())
 		r.Route("/data", api.data())
@@ -31,5 +32,6 @@ func (api *api) platformOpenapi() func(chi.Router) {
 		r.Route("/hunter", api.hunterOpenAPI())
 		r.Route("/processingCenter", api.processingCenterOpenAPI())
 		r.Route("/sherlock", api.sherlockOpenAPI())
+		r.Route("/audit", api.auditLogOpenApi())
 	}
 }
