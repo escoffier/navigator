@@ -25,99 +25,14 @@ import (
 
 func (api *api) defense() func(chi.Router) {
 	return func(r chi.Router) {
-		// r.Get("/baitService", api.getBaitService()) // deprecated
 		r.Get("/baitServices", api.getBaitServices())
 		r.Get("/baitImages", api.getBaitImages())
 		r.Get("/baitImage", api.getBaitImage())
 		r.Put("/baitService", api.addBaitService())
 		r.Post("/baitService", api.updateBaitServices())
-		// r.Get("/baitEvents", api.getBaitEvents()) // deprecated
 		r.Delete("/baitService", api.deleteBaitService())
 	}
 }
-
-// func (api *api) getBaitService() http.HandlerFunc {
-// 	type BaitService struct {
-// 		ID           uint32            `json:"id"`
-// 		Name         string            `json:"name"`
-// 		BaitType     string            `json:"baitType"`
-// 		BaitId       uint32            `json:"baitId"`
-// 		ClusterKey   string            `json:"clusterKey"`
-// 		Namespace    string            `json:"namespace"`
-// 		ResourceName string            `json:"resource_name"`
-// 		PrefixName   string            `json:"prefixName"`
-// 		Image        string            `json:"image"`
-// 		RegistryId   int               `json:"registryId"`
-// 		OutboundOff  bool              `json:"outboundOff"`
-// 		Events       []*defense.Signal `json:"events"`
-// 		Status       string            `json:"status"`
-// 		CreateAt     time.Time         `json:"crateAt"`
-// 	}
-// 	return func(w http.ResponseWriter, r *http.Request) {
-// 		ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
-// 		defer cancel()
-//
-// 		clusterKey, err := param.QueryString(r, "cluster_key")
-// 		if err != nil {
-// 			logging.GetLogger().Info().Msg("cluster_key param is empty.")
-// 			clusterKey = ""
-// 		}
-//
-// 		namespace, err := param.QueryString(r, "namespace")
-// 		if err != nil {
-// 			logging.GetLogger().Info().Msg("namespace param is empty.")
-// 			namespace = ""
-// 		}
-//
-// 		name, err := param.QueryString(r, "name")
-// 		if err != nil {
-// 			name = ""
-// 		}
-//
-// 		defenseSvc, ok := defense.GetDefenseService(ctx)
-// 		if !ok {
-// 			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.New("get bait service failed")))
-// 			return
-// 		}
-// 		queryOpt := dal.BaitsQuery()
-// 		if clusterKey != "" {
-// 			queryOpt = queryOpt.WithCluster(clusterKey)
-// 		}
-// 		if namespace != "" {
-// 			queryOpt = queryOpt.WithNamespace(namespace)
-// 		}
-// 		if name != "" {
-// 			queryOpt = queryOpt.WithName(name)
-// 		}
-//
-// 		baitService, err := defenseSvc.GetBaitService(ctx, queryOpt)
-// 		if err != nil {
-// 			return
-// 		}
-// 		prefixName := fmt.Sprintf("%s-%s", baitService.Prefix, baitService.ResourceName)
-// 		alertEvents, err := defenseSvc.GetAlertEvent(ctx, clusterKey, namespace, prefixName, 0, baitService.CreatedAt.UnixMilli())
-// 		if err != nil {
-// 			return
-// 		}
-// 		resp := BaitService{
-// 			ID:           baitService.ID,
-// 			Status:       "online",
-// 			Name:         baitService.Name,
-// 			BaitType:     baitService.BaitName,
-// 			BaitId:       baitService.BaitId,
-// 			ClusterKey:   baitService.ClusterKey,
-// 			Namespace:    baitService.Namespace,
-// 			ResourceName: baitService.ResourceName,
-// 			PrefixName:   fmt.Sprintf("%s-%s", baitService.Prefix, baitService.ResourceName),
-// 			Image:        baitService.Image,
-// 			OutboundOff:  baitService.OutboundOff,
-// 			RegistryId:   baitService.RegistryId,
-// 			CreateAt:     baitService.CreatedAt,
-// 			Events:       alertEvents,
-// 		}
-// 		response.Ok(w, response.WithItem(resp))
-// 	}
-// }
 
 func (api *api) getBaitServices() http.HandlerFunc {
 	type BaitService struct {
@@ -496,64 +411,6 @@ func (api *api) getBaitImage() http.HandlerFunc {
 		response.Ok(w, response.WithItem(resp))
 	}
 }
-
-// func (api *api) getBaitEvents() http.HandlerFunc {
-//
-// 	return func(w http.ResponseWriter, r *http.Request) {
-// 		ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
-// 		defer cancel()
-//
-// 		clusterKey, err := param.QueryString(r, "cluster_key")
-// 		if err != nil {
-// 			logging.GetLogger().Info().Msg("cluster_key param is empty.")
-// 			clusterKey = ""
-// 		}
-//
-// 		queryOpt := dal.BaitsQuery()
-// 		if clusterKey != "" {
-// 			queryOpt = queryOpt.WithCluster(clusterKey)
-// 		}
-//
-// 		defenseSvc, ok := defense.GetDefenseService(ctx)
-// 		if !ok {
-// 			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.New("get bait service failed")))
-// 			return
-// 		}
-//
-// 		baitServices, err := defenseSvc.GetBaitServices(ctx, queryOpt, 1000, 0)
-// 		if err != nil {
-// 			logging.GetLogger().Err(err).Msg("GetBaitImages error")
-// 			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, err))
-// 			return
-// 		}
-//
-// 		items := []*signal{}
-// 		for _, bait := range baitServices {
-// 			req := &pb.GetSignalsReq{
-// 				OffsetSignalID: "",
-// 				// Limit:          uint32(100),
-// 				SortOrder: pb.SortOrder_Desc,
-// 				Filter: map[string]string{
-// 					"cluster":   clusterKey,
-// 					"namespace": bait.Namespace,
-// 					"nodeKey":   bait.ResourceName,
-// 				},
-// 				Lang: string(lang.Language(ctx)),
-// 			}
-// 			model.Signal{}
-// 			resp, err := api.ecCli.GetSignals(ctx, req)
-// 			if err != nil {
-// 				RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, err))
-// 				return
-// 			}
-//
-// 			signals := convertSignals(resp.Signals)
-// 			items = append(items, signals...)
-// 		}
-// 		response.Ok(w, response.WithItems(items), response.WithTotalItems(int64(len(items))),
-// 			response.WithStartIndex(int64(0)))
-// 	}
-// }
 
 func isResourceNameValid(name string) bool {
 	if len(name) > 50 {

@@ -20,5 +20,6 @@ func (api *api) OpenApiContainerSec() func(chi.Router) {
 		r.Route("/scap", api.scapOpenApi())
 		r.Route("/scanner", api.scannerOpenApi())
 		r.Route("/ATTCK", api.ATTCKOpenAPI())
+		r.Route("/watson", api.defenseOpenApi())
 	}
 }
