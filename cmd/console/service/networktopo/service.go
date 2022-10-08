@@ -4,18 +4,16 @@ import (
 	"context"
 	"errors"
 	"strconv"
-	"strings"
 	"sync"
 	"time"
 
 	"github.com/ReneKroon/ttlcache/v2"
-	"gitlab.com/security-rd/go-pkg/databases"
-	"gitlab.com/security-rd/go-pkg/logging"
-	"gorm.io/gorm"
-
 	"gitlab.com/piccolo_su/vegeta/pkg/dal"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
+	"gitlab.com/security-rd/go-pkg/databases"
+	"gitlab.com/security-rd/go-pkg/logging"
+	"gorm.io/gorm"
 )
 
 var (
@@ -24,8 +22,8 @@ var (
 )
 
 const (
-	cacheSize = 5 * 1024
-	cacheTTL  = 10 * time.Minute
+	cacheSize = 64 * 1024
+	cacheTTL  = 60 * time.Minute
 )
 
 type NetProtocol = uint8
@@ -170,11 +168,6 @@ func (n *Service) addNetworkTopo(ctx context.Context, flow *model.TensorNetworkF
 func (n *Service) AddNetTopology(ctx context.Context, flow *model.TensorNetworkFlow) error {
 	if flow == nil {
 		return errors.New("nil")
-	}
-
-	// TODO tmp code remove immune-test flows
-	if strings.Contains(flow.SrcOwnerName, "immune-test") {
-		return nil
 	}
 
 	ctx, cancel := context.WithTimeout(ctx, 1200*time.Millisecond)

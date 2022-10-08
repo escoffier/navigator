@@ -12,18 +12,18 @@ import (
 
 	"github.com/pkg/errors"
 	flag "github.com/spf13/pflag"
-	_ "go.uber.org/automaxprocs"
-
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/dp"
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/degrade"
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/netflow"
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/nodeinfo"
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/rtdetect"
 	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
+	"gitlab.com/piccolo_su/vegeta/pkg/util"
 	"gitlab.com/security-rd/go-pkg/cmap"
 	"gitlab.com/security-rd/go-pkg/logging"
 	"gitlab.com/security-rd/go-pkg/mq"
 	"gitlab.com/security-rd/go-pkg/sdk/palace"
+	_ "go.uber.org/automaxprocs"
 )
 
 var loggingOptions *logging.Options
@@ -285,6 +285,7 @@ func main() {
 	mainCtx, mainCancel := context.WithCancel(context.Background())
 	defer mainCancel()
 
+	util.InitPprofMontitor()
 	err := Run(mainCtx)
 	if err != nil {
 		logging.Get().Error().Msgf("net init failed, %v.", err)

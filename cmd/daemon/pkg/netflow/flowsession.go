@@ -231,7 +231,7 @@ func NewFlowSession(containerInfo nodeinfo.ContainerInfoManager, k8sInfo *NodePo
 		nsDataChan:     make(chan daemon.NetSessionLink, 1000),
 		EbpfNetInfo:    make(map[string]*daemon.NetProcData),
 		redisClient:    redisClient,
-		submitter:      NewSubmitter(5*time.Minute, GetSubmitFunc(url)),
+		submitter:      NewSubmitter(5*time.Minute, 1024, GetSubmitFunc(url)),
 	}
 	//
 	err = fs.DialUnixSocket(unixSockFile)

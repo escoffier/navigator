@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	EnvPprofName = "TENSORSEC_PPROF_PORT"
+	EnvPprofName = "IVAN_PPROF_PORT"
 )
 
 func InitPprofMontitor() {
