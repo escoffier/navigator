@@ -536,7 +536,7 @@
       value: "容器遭到入侵，需隔离该容器，同时排查其他攻击行为，确认集群安全。"
   desc: Ruby Program runs inside container that allows remote code execution(Risk of Reverse Shell exploit)
   condition: >
-    evt.type=socket and evt.res!=ENOENT and proc.pname = "ruby" and container
+    evt.type=socket and evt.res!=ENOENT and (proc.pname contains "ruby" or proc.name contains "ruby") and proc.cmdline contains "TCPSocket" and container
   output: >
     Ruby runs inside container that allows remote code execution (zh_msg=黑客在容器内通过ruby反弹shell),rule_type=Execution,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,
     original_info=user=%user.name user_loginuid=%user.loginuid
@@ -556,9 +556,9 @@
       value: "容器遭到入侵，需隔离该容器，同时排查其他攻击行为，确认集群安全。"
   desc: awk Program runs inside container that allows remote code execution(Risk of Reverse Shell exploit)
   condition: >
-    evt.type=socket and container and not ignore_proc_args and proc.name = "awk"
+    evt.type=connect and not evt.res contains "ECONNREFUSED" and evt.arg.res!=0 and container and not ignore_proc_args and proc.name contains "awk" and proc.cmdline contains "/inet/tcp/"
   output: >
-    awk runs inside container that allows remote code execution (zh_msg=黑客在容器内通过awk反弹shell),rule_type=Execution,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,
+    awk runs inside container that allows remote code execution (zh_msg=黑客在容器内通过awk反弹shell),rule_type=Execution,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,evt.args=%evt.args
     original_info=user=%user.name user_loginuid=%user.loginuid
     container_id=%container.id container_name=%container.name image=%container.image.repository:%container.image.tag)
   priority: ALERT
@@ -1183,7 +1183,9 @@
       value: "容器出现逃逸行为，请排查集群权限是否陷落，可采用免疫防御阻止风险进一步扩散使用免疫防御训练应用，限制敏感文件和命令的用户权限。"
   desc: Detect file write activities on container entrypoint symlink (/proc/self/exe)
   condition: >
-    open_read and (fd.name=/proc/self/exe or fd.name startswith /proc/self/fd) and not docker_procs and container and not (tensorsec_namespace and (k8s.pod.name contains "-host-" or k8s.pod.name contains "-docker-" or k8s.pod.name contains "-kube-" or k8s.pod.name contains "-holmes-" or k8s.pod.name contains "-webhook-" or k8s.pod.name contains "-scanner")) and not proc.cmdline contains "runc init" and not proc.exeline contains "runc init" and not proc.exeline contains "kube-bench " and not proc.exeline contains "scanner "
+    open_write and container and (fd.name=/proc/self/exe or fd.name startswith /proc/self/fd/) and not docker_procs and not
+    (tensorsec_namespace and (k8s.pod.name contains "-host-" or k8s.pod.name contains "-docker-" or k8s.pod.name contains "-kube-" or k8s.pod.name contains "-holmes-" or k8s.pod.name contains "-webhook-" or k8s.pod.name contains "-scanner")) and not
+    proc.cmdline contains "runc init" and not proc.cmdline = "runc:[1:CHILD] init" and not proc.cmdline contains "kube-bench " and not proc.cmdline contains "scanner "
   output: >
     %fd.name is open to write by process (zh_msg=CVE-2019-5736修改容器入口,rule_type=Privilege_Escalation,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=%proc.name %proc.exeline,container_id=%container.id,container_name=%container.name)
   priority: ALERT
