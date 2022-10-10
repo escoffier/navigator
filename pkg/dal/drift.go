@@ -54,8 +54,8 @@ func UpdateDriftGlobalWhiteList(ctx context.Context, rdb *gorm.DB, whitelist mod
 	tmpWhitelist.Updater = whitelist.Updater
 	tmpWhitelist.UpdatedAt = whitelist.UpdatedAt
 	tmpWhitelist.Path = whitelist.Path
-	tmpWhitelist.Expire_at = whitelist.Expire_at
-	tmpWhitelist.Is_forever = whitelist.Is_forever
+	tmpWhitelist.ExpireAt = whitelist.ExpireAt
+	tmpWhitelist.IsForever = whitelist.IsForever
 	query := model.DriftGlobalWhitelistItem{}
 	err := rdb.Model(&model.DriftGlobalWhitelistItem{}).WithContext(ctx).Where("id = ?", whitelist.ID).Find(&query).Error
 	if err != nil {

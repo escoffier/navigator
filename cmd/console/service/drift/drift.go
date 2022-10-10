@@ -29,8 +29,7 @@ var (
 func InitResourcesService(rdb *databases.RDBInstance, es *elastic.ESClient) error {
 	rlOnce.Do(func() {
 		EScli = es
-		instance = newTensorResourcesService(rdb, es)
-		go instance.UpdateCachePolicy()
+		instance = newDriftService(rdb, es)
 	})
 	return nil
 }
@@ -39,36 +38,16 @@ func GetDriftES(ctx context.Context) (*es.Client, error) {
 	return EScli.Get()
 }
 
-func (rl *TensorDriftService) UpdateCachePolicy() {
-	ctx := context.Background()
-	for {
-		policies, err := dal.GetAllPolicies(ctx, rl.rdb.GetReadDB())
-		if err != nil {
-			logging.Get().Err(err).Msgf("UpdateCachePolicy error")
-			return
-		}
-		var maxTime int64
-		for _, v := range policies {
-			if v.UpdatedAt.Unix() > maxTime {
-				maxTime = v.UpdatedAt.Unix()
-			}
-		}
-		rl.Cache.LastTime = maxTime
-		rl.Cache.Policies = policies
-		time.Sleep(5 * time.Minute)
-	}
-}
-
 func GetDriftService(_ context.Context) (*TensorDriftService, bool) {
 	return instance, instance != nil
 }
 
 type TensorDriftService struct {
-	rdb   *databases.RDBInstance
-	Cache model.DriftPolicyCache
-	es    *elastic.ESClient
+	rdb *databases.RDBInstance
+	es  *elastic.ESClient
 
-	policiesVal *atomic.Value
+	policiesVal  *atomic.Value
+	whiteListVal *atomic.Value
 }
 
 func (rl *TensorDriftService) loadPolicies() {
@@ -86,25 +65,44 @@ func (rl *TensorDriftService) loadPolicies() {
 	rl.policiesVal.Store(policies)
 }
 
+func (rl *TensorDriftService) loadWhiteList() {
+	defer func() {
+		if r := recover(); r != nil {
+			logging.Get().Error().Str("stack", string(debug.Stack())).Msgf("Panic: %v", r)
+		}
+	}()
+
+	wlist, err := dal.GetAllDriftGlobalWhiteList(context.Background(), rl.rdb.GetReadDB())
+	if err != nil {
+		logging.Get().Err(err).Msg("load drift policies error")
+		return
+	}
+
+	rl.whiteListVal.Store(wlist)
+}
+
 func (rl *TensorDriftService) asyncLoop() {
 	go func() {
-		ticker := time.NewTicker(5 * time.Second)
+		ticker := time.NewTicker(10 * time.Second)
 		defer ticker.Stop()
 
 		for _ = range ticker.C {
 			rl.loadPolicies()
+			rl.loadWhiteList()
 		}
 	}()
 
 }
 
-func newTensorResourcesService(rdb *databases.RDBInstance, es *elastic.ESClient) *TensorDriftService {
+func newDriftService(rdb *databases.RDBInstance, es *elastic.ESClient) *TensorDriftService {
 	s := &TensorDriftService{
-		rdb:         rdb,
-		es:          es,
-		policiesVal: new(atomic.Value),
+		rdb:          rdb,
+		es:           es,
+		policiesVal:  new(atomic.Value),
+		whiteListVal: new(atomic.Value),
 	}
 	s.loadPolicies()
+	s.loadWhiteList()
 	s.asyncLoop()
 	return s
 }
@@ -121,15 +119,26 @@ func (rl *TensorDriftService) DelGlobalWhitelist(ctx context.Context, whitelistI
 }
 
 func (rl *TensorDriftService) ListGlobalWhitelist(ctx context.Context, limit, offset int, path, searchStr string, startTime, endTime int64) ([]model.DriftGlobalWhitelistItem, int64, error) {
-	return dal.ListDriftGlobalWhiteList(ctx, rl.rdb.Get(), limit, offset, path, searchStr, startTime, endTime)
+	return dal.ListDriftGlobalWhiteList(ctx, rl.rdb.GetReadDB(), limit, offset, path, searchStr, startTime, endTime)
 }
 
 func (rl *TensorDriftService) GetGlobalWhitelistById(ctx context.Context, id int64) (model.DriftGlobalWhitelistItem, error) {
-	return dal.GetDriftGlobalWhiteListById(ctx, rl.rdb.Get(), id)
+	return dal.GetDriftGlobalWhiteListById(ctx, rl.rdb.GetReadDB(), id)
 }
 
 func (rl *TensorDriftService) GetAllGlobalWhitelist(ctx context.Context) ([]model.DriftGlobalWhitelistItem, error) {
-	return dal.GetAllDriftGlobalWhiteList(ctx, rl.rdb.Get())
+	val := rl.whiteListVal.Load()
+	if val == nil {
+		logging.Get().Warn().Msg("drift whitelist isn't set")
+		rl.loadWhiteList()
+		val = rl.whiteListVal.Load()
+		if val == nil {
+			logging.Get().Warn().Msg("drift whitelist isn't set")
+			return nil, nil
+		}
+	}
+	whiteList := val.([]model.DriftGlobalWhitelistItem)
+	return whiteList, nil
 }
 func (rl *TensorDriftService) CreatePolicy(ctx context.Context, policy model.DriftPolicy) (int64, error) {
 	return dal.CreateDriftPolicy(ctx, rl.rdb.Get(), policy)
@@ -151,7 +160,8 @@ func (rl *TensorDriftService) GetPolicyByID(ctx context.Context, id int64) (mode
 	return dal.GetPolicyByID(ctx, rl.rdb.GetReadDB(), id)
 }
 
-func (rl *TensorDriftService) GetAllPolicies(ctx context.Context) ([]model.DriftPolicy, error) {
+// GetAllPolicies will return all the policies of the given cluster or all if given empty
+func (rl *TensorDriftService) GetAllPolicies(ctx context.Context, clusterKey string) ([]model.DriftPolicy, error) {
 	val := rl.policiesVal.Load()
 	if val == nil {
 		logging.Get().Warn().Msg("drift policies isn't set")
@@ -162,7 +172,15 @@ func (rl *TensorDriftService) GetAllPolicies(ctx context.Context) ([]model.Drift
 			return nil, nil
 		}
 	}
-	return val.([]model.DriftPolicy), nil
+	policies := val.([]model.DriftPolicy)
+	clusterFiltered := make([]model.DriftPolicy, 0, len(policies))
+	for i := range policies {
+		if clusterKey == "" || policies[i].ClusterKey == clusterKey {
+			clusterFiltered = append(clusterFiltered, policies[i])
+		}
+
+	}
+	return clusterFiltered, nil
 }
 
 func (rl *TensorDriftService) PolicyDetail(ctx context.Context, policy model.DriftPolicy, limit int, offset int) ([]model.TensorContainer, error) {
@@ -178,11 +196,10 @@ func (rl *TensorDriftService) GetContainerByID(ctx context.Context, id uint32) (
 }
 
 func (rl *TensorDriftService) GetAbnormal(ctx context.Context, policy model.DriftPolicy, limit int, containerName string, filePath string) ([]*palace.Signal, error) {
-	esCli, err := GetDriftES(ctx)
+	esCli, err := rl.es.Get()
 	if err != nil {
 		return nil, err
 	}
-
 	boolQuery := es.NewBoolQuery()
 	boolQuery.Filter(
 		es.NewTermQuery("ruleKey.category.keyword", "DriftPrevention"),
@@ -203,6 +220,7 @@ func (rl *TensorDriftService) GetAbnormal(ctx context.Context, policy model.Drif
 	logging.Get().Debug().Interface("source", src).Msg("filter condition")
 
 	var result = make([]*palace.Signal, 0)
+
 	searchResult, err := esCli.Search("signals_*").Query(boolQuery).
 		Sort("createdAt", true).Sort("_id", true).
 		Size(limit).Do(ctx)

@@ -97,7 +97,7 @@ func (api *api) driftCreateGlobalWhitelist() http.HandlerFunc {
 			return
 		}
 		nowTimestamp := time.Now().UnixMilli()
-		if whitelistItem.Expire_at < nowTimestamp && !whitelistItem.Is_forever {
+		if whitelistItem.ExpireAt < nowTimestamp && !whitelistItem.IsForever {
 			logging.GetLogger().Err(fmt.Errorf("expire time can't before now")).Msg("")
 			apperror.RespAndLog(w, ctx, apperror.NewDriftGlobalWhitelistTimestampError(http.StatusInternalServerError, errors.New("expire time can't before now"),
 				apperror.Suberror{
@@ -107,12 +107,12 @@ func (api *api) driftCreateGlobalWhitelist() http.HandlerFunc {
 			return
 		}
 		tmpWhitelist := model.DriftGlobalWhitelistItem{Path: strings.Trim(whitelistItem.Path, " "),
-			Creator:    whitelistItem.Creator,
-			Updater:    whitelistItem.Creator,
-			CreatedAt:  nowTimestamp,
-			UpdatedAt:  nowTimestamp,
-			Expire_at:  whitelistItem.Expire_at,
-			Is_forever: whitelistItem.Is_forever}
+			Creator:   whitelistItem.Creator,
+			Updater:   whitelistItem.Creator,
+			CreatedAt: nowTimestamp,
+			UpdatedAt: nowTimestamp,
+			ExpireAt:  whitelistItem.ExpireAt,
+			IsForever: whitelistItem.IsForever}
 		id, err := driSvc.CreateGlobalWhitelist(ctx, tmpWhitelist)
 		if err != nil {
 			if strings.Contains(err.Error(), "same path") {
@@ -159,7 +159,7 @@ func (api *api) driftUpdateGlobalWhitelist() http.HandlerFunc {
 			return
 		}
 		nowTimestamp := time.Now().UnixMilli()
-		if whitelistItemUpdate.Expire_at < nowTimestamp && !whitelistItemUpdate.Is_forever {
+		if whitelistItemUpdate.ExpireAt < nowTimestamp && !whitelistItemUpdate.IsForever {
 			logging.GetLogger().Err(fmt.Errorf("expire time can't before now")).Msg("")
 			apperror.RespAndLog(w, ctx, apperror.NewDriftGlobalWhitelistTimestampError(http.StatusInternalServerError, errors.New("expire time can't before now"),
 				apperror.Suberror{
@@ -361,6 +361,26 @@ func (api *api) driftNamespace() http.HandlerFunc {
 	}
 }
 
+func getVersionFromPolicies(policies []model.DriftPolicy) int64 {
+	version := int64(0)
+	for _, p := range policies {
+		stamp := p.UpdatedAt.UnixMilli()
+		if stamp > version {
+			version = stamp
+		}
+	}
+	return version
+}
+func getVersionFromWhitelist(list []model.DriftGlobalWhitelistItem) int64 {
+	version := int64(0)
+	for _, p := range list {
+		if p.UpdatedAt > version {
+			version = p.UpdatedAt
+		}
+	}
+	return version
+}
+
 func (api *api) driftAllPolicy() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx, cancel := context.WithTimeout(r.Context(), time.Second*60)
@@ -372,19 +392,36 @@ func (api *api) driftAllPolicy() http.HandlerFunc {
 			return
 		}
 
-		_, err := param.QueryInt64(r, "last_time")
+		clusterKey, err := param.QueryString(r, "cluster_key")
 		if err != nil {
-			logging.GetLogger().Err(err).Msgf("get lastTime error")
-			apperror.RespAndLog(w, ctx, apperror.NewAnError(http.StatusBadRequest, errors.New("get lastTime error")))
-			return
+			logging.GetLogger().Warn().Err(err).Msgf("get cluster_key error")
+			clusterKey = ""
+		}
+		policiesVersion, err := param.QueryInt64(r, "policies_version")
+		if err != nil {
+			logging.GetLogger().Warn().Err(err).Msgf("get policies_version error")
+			policiesVersion = 0
+		}
+		wlistVersion, err := param.QueryInt64(r, "wlist_version")
+		if err != nil {
+			logging.GetLogger().Warn().Err(err).Msgf("get wlist_version error")
+			wlistVersion = 0
 		}
 
-		// if driSvc.Cache.LastTime == 0 {
-		policies, err := driSvc.GetAllPolicies(ctx)
+		clusterPolicies, err := driSvc.GetAllPolicies(ctx, clusterKey)
 		if err != nil {
 			logging.GetLogger().Err(err).Msg("GetAllPolicies error")
 			apperror.RespAndLog(w, ctx, apperror.NewAnError(http.StatusInternalServerError, errors.New("GetAllPolicies error")))
 			return
+		}
+		var policies []model.DriftPolicy
+		if policiesVersion == 0 {
+			policies = clusterPolicies
+		} else {
+			currentVersion := getVersionFromPolicies(clusterPolicies)
+			if currentVersion != policiesVersion {
+				policies = clusterPolicies
+			}
 		}
 
 		whitelist, err := driSvc.GetAllGlobalWhitelist(ctx)
@@ -393,18 +430,19 @@ func (api *api) driftAllPolicy() http.HandlerFunc {
 			apperror.RespAndLog(w, ctx, apperror.NewAnError(http.StatusInternalServerError, errors.New("GetAll whitelist error")))
 			return
 		}
+		var finalWhitelist []model.DriftGlobalWhitelistItem
+		if wlistVersion == 0 {
+			finalWhitelist = whitelist
+		} else {
+			currentVersion := getVersionFromWhitelist(whitelist)
+			if currentVersion != wlistVersion {
+				finalWhitelist = whitelist
+			}
+		}
 
 		response.Ok(w, response.WithItems(policies),
 			response.WithTotalItems(int64(len(policies))),
-			response.WithCustomField("g_whitelist", whitelist))
-		// } else {
-		// 	if lastTime < driSvc.Cache.LastTime {
-		// 		policies := driSvc.Cache.Policies
-		// 		response.Ok(w, response.WithItems(policies), response.WithTotalItems(int64(len(policies))))
-		// 	} else {
-		// 		response.Ok(w, response.WithTotalItems(-1))
-		// 	}
-		// }
+			response.WithCustomField("g_whitelist", finalWhitelist))
 	}
 }
 

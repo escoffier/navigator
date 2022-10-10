@@ -241,13 +241,14 @@ func Run(ctx context.Context) error {
 	ciaEnabled := os.Getenv("CIA_ENABLED")
 	if ciaEnabled == "1" {
 		clusterName, _ := clusterManager.ClusterName()
+		clusterKey, _ := clusterManager.ClusterKey()
 
 		palaceHandler, err := palace.Init()
 		if err != nil {
 			logging.Get().Err(err).Msgf("Failed to init palaceHandler, %v", err)
 			return errors.Errorf("Failed to init palaceHandler, %v", err)
 		}
-		dpService, err := dp.NewDriftAssurance(podWatcher, podResInfo, mqWriter, consoleAddr, clusterName, &palaceHandler)
+		dpService, err := dp.NewDriftAssurance(podWatcher, podResInfo, mqWriter, consoleAddr, clusterName, clusterKey, &palaceHandler)
 		if err != nil {
 			logging.Get().Err(err).Msg("new drift assurance service failed")
 			return err

@@ -71,8 +71,13 @@ type DriftPolicy struct {
 }
 
 type DaemonDriftPolicies struct {
-	Policies map[uint32]DriftPolicy
-	LastTime int64
+	Policies     map[uint32]DriftPolicy
+	VersionStamp int64
+}
+
+type DaemonDriftWhitelist struct {
+	Whitelist    map[string]int64 // path -> ExpiredAt
+	VersionStamp int64
 }
 
 type DaemonDriftResp struct {
@@ -91,14 +96,14 @@ func (DriftPolicy) TableName() string {
 }
 
 type DriftGlobalWhitelistItem struct {
-	ID         int64  `gorm:"column:id" json:"id"`
-	CreatedAt  int64  `gorm:"autoCreateTime:milli;column:created_at" json:"created_at"`
-	UpdatedAt  int64  `gorm:"autoUpdateTime:milli;column:updated_at" json:"updated_at"`
-	Creator    string `gorm:"type:varchar(255);column:creator" json:"creator"`
-	Updater    string `gorm:"type:varchar(255);column:updater" json:"updater"`
-	Path       string `gorm:"type:varchar(768);column:path" json:"path"`
-	Expire_at  int64  `gorm:"type:bigint;column:expire_at" json:"expire_at"`
-	Is_forever bool   `gorm:"type:boolean;column:is_forever" json:"is_forever"`
+	ID        int64  `gorm:"column:id" json:"id"`
+	CreatedAt int64  `gorm:"autoCreateTime:milli;column:created_at" json:"created_at"` // milliseconds
+	UpdatedAt int64  `gorm:"autoUpdateTime:milli;column:updated_at" json:"updated_at"` // milliseconds
+	Creator   string `gorm:"type:varchar(255);column:creator" json:"creator"`
+	Updater   string `gorm:"type:varchar(255);column:updater" json:"updater"`
+	Path      string `gorm:"type:varchar(768);column:path" json:"path"`
+	ExpireAt  int64  `gorm:"type:bigint;column:expire_at" json:"expire_at"` // milliseconds
+	IsForever bool   `gorm:"type:boolean;column:is_forever" json:"is_forever"`
 }
 
 func (DriftGlobalWhitelistItem) TableName() string {
