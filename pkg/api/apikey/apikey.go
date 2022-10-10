@@ -3,13 +3,13 @@ package apikey
 import (
 	"context"
 	"fmt"
-	"gitlab.com/piccolo_su/vegeta/pkg/apperror"
-	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"net/http"
 	"sync"
 
 	"github.com/tomogoma/go-api-guard"
 	typederrs "github.com/tomogoma/go-typed-errors"
+	"gitlab.com/piccolo_su/vegeta/pkg/apperror"
+	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 )
 
 const (
@@ -128,9 +128,6 @@ func ValidateApiKey(key, user string) (bool, error) {
 			Msg("user not match key")
 		return false, nil
 	}
-	logging.GetLogger().Info().
-		Str("user", user).Str("req key", key).
-		Msg("valid user key")
 	return true, nil
 }
 
