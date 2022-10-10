@@ -425,7 +425,7 @@ func (cm *ConfigManager) IsInGlobalWhitelist(path string) bool {
 	if !ok {
 		return false
 	}
-	return time.Now().UnixMilli() <= expiredAt
+	return expiredAt == 0 || time.Now().UnixMilli() <= expiredAt
 }
 
 func NewConfigManger(consoleAddr, clusterKey string) (*ConfigManager, error) {
