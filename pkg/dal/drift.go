@@ -203,7 +203,7 @@ func ListDriftPolicy(ctx context.Context, rdb *gorm.DB, limit, offset int, clust
 	var len int64
 	db.Count(&len)
 	res := []model.DriftPolicy{}
-	err := db.Offset(offset).Limit(limit).Find(&res).Error
+	err := db.Order("created_at desc").Offset(offset).Limit(limit).Find(&res).Error
 	if err != nil {
 		return nil, 0, err
 	}
