@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"context"
 	"crypto/tls"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -12,14 +11,21 @@ import (
 	"math/rand"
 	"net/http"
 	"os"
+	"runtime/debug"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
+	json "github.com/json-iterator/go"
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/dp/whitelist"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/security-rd/go-pkg/logging"
 )
+
+func init() {
+	rand.Seed(time.Now().UnixNano())
+}
 
 type WhiteListScannerState uint32
 
@@ -35,29 +41,54 @@ type imageUsedItem struct {
 }
 
 type ConfigManager struct {
-	consoleAddr         string
-	lock                *sync.Mutex
-	policyLock          *sync.Mutex
-	policies            model.DaemonDriftPolicies
-	execWhiteList       map[string]map[string]string // image digest => { hash1 => exec_path,hash2 => exec_path}
-	imageCountLock      sync.Mutex
-	imageUsedCount      map[string]*imageUsedItem
-	globalWhitelistLock *sync.Mutex
-	globalWhitelist     map[string]struct{}
-	client              *http.Client
+	clusterKey     string
+	consoleAddr    string
+	lock           *sync.Mutex
+	syncLock       *sync.Mutex
+	policiesPtr    *atomic.Pointer[model.DaemonDriftPolicies]
+	execWhiteList  map[string]map[string]string // image digest => { hash1 => exec_path,hash2 => exec_path}
+	imageCountLock sync.Mutex
+	imageUsedCount map[string]*imageUsedItem
+	whitelistPtr   *atomic.Pointer[model.DaemonDriftWhitelist]
+	client         *http.Client
+}
+
+func (cm *ConfigManager) policies() *model.DaemonDriftPolicies {
+	return cm.policiesPtr.Load()
+}
+
+func (cm *ConfigManager) setPolicies(p *model.DaemonDriftPolicies) {
+	cm.policiesPtr.Store(p)
+}
+
+func (cm *ConfigManager) whitelist() *model.DaemonDriftWhitelist {
+	return cm.whitelistPtr.Load()
+}
+
+func (cm *ConfigManager) setWhitelist(l *model.DaemonDriftWhitelist) {
+	cm.whitelistPtr.Store(l)
 }
 
 const (
 	internalApiKey = "dGVuc29yc2VjLWNpY2QtdXNlcg==.qBFMMAvbbm3afG3y42CqKaN7WQe4Q7hiqtg5Jzwen7tWHhZG16P62kvv"
 )
 
-func (cm *ConfigManager) SyncPolicy(ctx context.Context) error {
+func (cm *ConfigManager) syncPolicy(ctx context.Context) error {
+	defer func() {
+		if r := recover(); r != nil {
+			logging.Get().Error().Str("stack", string(debug.Stack())).Msgf("panic: %v", r)
+		}
+	}()
+
+	cm.syncLock.Lock()
+	defer cm.syncLock.Unlock()
+
 	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
-	//url
-	url := fmt.Sprintf("%s/api/openapi/drift/policy?last_time=%d", cm.consoleAddr, cm.policies.LastTime)
-	// logging.Get().Trace().Msgf("url is %v ", url)
-	//http new request
+
+	url := fmt.Sprintf("%s/api/openapi/drift/policy?cluster_key=%s&policies_version=%d&wlist_version=%d", cm.consoleAddr, cm.clusterKey, cm.policies().VersionStamp, cm.whitelist().VersionStamp)
+	logging.Get().Info().Str("url", url).Msg("sync drift policies")
+
 	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
 		logging.Get().Err(err).Msgf("init requset error", url)
@@ -96,27 +127,60 @@ func (cm *ConfigManager) SyncPolicy(ctx context.Context) error {
 
 	logging.Get().Trace().Interface("policyItems", driftResp.Data.Items).Msg("sync policy success")
 	logging.Get().Trace().Interface("whitelist", driftResp.Data.GlobalWhitelistItems).Msg("")
-	cm.policyLock.Lock()
-	cm.policies.Policies = make(map[uint32]model.DriftPolicy)
-	for _, v := range driftResp.Data.Items {
-		cm.policies.Policies[v.ResourceUUID] = v
-	}
-	cm.policyLock.Unlock()
-	nowTimetamp := time.Now().UnixMilli()
-	cm.cleanGlobalWhitelist()
-	for _, v := range driftResp.Data.GlobalWhitelistItems {
-		if nowTimetamp < v.Expire_at || v.Is_forever {
-			cm.setGlobalWhitelist(v.Path)
+	if cm.policies().VersionStamp == 0 || len(driftResp.Data.Items) > 0 {
+		policies := make(map[uint32]model.DriftPolicy, len(driftResp.Data.Items))
+		var version int64
+		for _, v := range driftResp.Data.Items {
+			policies[v.ResourceUUID] = v
+			if v.UpdatedAt.UnixMilli() > version {
+				version = v.UpdatedAt.UnixMilli()
+			}
 		}
+		prevVersion := cm.policies().VersionStamp
+		cm.setPolicies(&model.DaemonDriftPolicies{
+			Policies:     policies,
+			VersionStamp: version,
+		})
+		logging.Get().Info().Int64("new_version", version).Int64("old_version", prevVersion).Msg("Policies updated successfully")
 	}
+
+	newWhitelist := make(map[string]int64, len(driftResp.Data.GlobalWhitelistItems))
+	nowTimestamp := time.Now().UnixMilli()
+	var version int64
+	if cm.whitelist().VersionStamp == 0 || len(driftResp.Data.GlobalWhitelistItems) > 0 { // update
+		for _, v := range driftResp.Data.GlobalWhitelistItems {
+			if nowTimestamp < v.ExpireAt {
+				newWhitelist[v.Path] = v.ExpireAt
+			} else if v.IsForever {
+				newWhitelist[v.Path] = 0
+			}
+			if v.UpdatedAt > version {
+				version = v.UpdatedAt
+			}
+		}
+		logging.Get().Info().Int64("new_version", version).Int64("old_version", cm.whitelist().VersionStamp).Msg("try to update whitelist")
+	} else { // clear items of expired
+		version = cm.whitelist().VersionStamp
+		for path, expiredAt := range cm.whitelist().Whitelist {
+			if nowTimestamp < expiredAt || expiredAt == 0 {
+				newWhitelist[path] = expiredAt
+			}
+		}
+		logging.Get().Info().Int64("new_version", version).Int64("old_version", cm.whitelist().VersionStamp).Msg("try to expire whitelist with no updates")
+	}
+
+	oldWlistVersion := cm.whitelist().VersionStamp
+	cm.setWhitelist(&model.DaemonDriftWhitelist{
+		Whitelist:    newWhitelist,
+		VersionStamp: version,
+	})
+	logging.Get().Info().Int64("new_version", version).Int64("old_version", oldWlistVersion).Msg("update whitelist successfully")
 
 	return nil
 }
 
 func (cm *ConfigManager) GetPolicyByResourceUUID(uuid uint32) (model.DriftPolicy, bool) {
-	cm.policyLock.Lock()
-	defer cm.policyLock.Unlock()
-	policy, ok := cm.policies.Policies[uuid]
+	policy, ok := cm.policies().Policies[uuid]
 	logging.Get().Info().Msgf("uuid:%v, policy:%+v", uuid, policy)
 
 	return policy, ok
@@ -126,16 +190,14 @@ func (cm *ConfigManager) Start() error {
 	logging.Get().Info().Msg("config manager start")
 
 	for {
-		ctx, cancel := context.WithTimeout(context.Background(), time.Second*60)
-		err := cm.SyncPolicy(ctx)
-		cancel()
+		err := cm.syncPolicy(context.Background())
 		if err != nil {
 			logging.Get().Error().Err(err).Msgf("SyncPolicy error")
 			time.Sleep(time.Second * 20)
 			continue
 		}
 		defaultTime := 10
-		intervalTime := int64(defaultTime) + rand.New(rand.NewSource(time.Now().Unix())).Int63n(6)
+		intervalTime := int64(defaultTime) + rand.Int63n(6)
 		time.Sleep(time.Second * time.Duration(intervalTime))
 	}
 }
@@ -358,32 +420,24 @@ func (cm *ConfigManager) GetWhiteListState(imageDigest string) (WhiteListScanner
 	return cm.imageUsedCount[imageDigest].whiteListState, true
 }
 
-func (cm *ConfigManager) setGlobalWhitelist(path string) {
-	cm.globalWhitelistLock.Lock()
-	defer cm.globalWhitelistLock.Unlock()
-	cm.globalWhitelist[path] = struct{}{}
-}
-
 func (cm *ConfigManager) IsInGlobalWhitelist(path string) bool {
-	cm.globalWhitelistLock.Lock()
-	defer cm.globalWhitelistLock.Unlock()
-	_, ok := cm.globalWhitelist[path]
-	return ok
-}
-
-func (cm *ConfigManager) cleanGlobalWhitelist() {
-	cm.globalWhitelistLock.Lock()
-	defer cm.globalWhitelistLock.Unlock()
-	cm.globalWhitelist = make(map[string]struct{})
-}
-
-func NewConfigManger(consoleAddr string) (*ConfigManager, error) {
-	cm := &ConfigManager{
-		lock:                &sync.Mutex{},
-		policyLock:          &sync.Mutex{},
-		globalWhitelistLock: &sync.Mutex{},
-		consoleAddr:         consoleAddr,
+	expiredAt, ok := cm.whitelist().Whitelist[path]
+	if !ok {
+		return false
 	}
+	return time.Now().UnixMilli() <= expiredAt
+}
+
+func NewConfigManger(consoleAddr, clusterKey string) (*ConfigManager, error) {
+	cm := &ConfigManager{
+		clusterKey:   clusterKey,
+		consoleAddr:  consoleAddr,
+		policiesPtr:  new(atomic.Pointer[model.DaemonDriftPolicies]),
+		whitelistPtr: new(atomic.Pointer[model.DaemonDriftWhitelist]),
+		lock:         new(sync.Mutex),
+		syncLock:     new(sync.Mutex),
+	}
+
 	//http transport
 	tr := &http.Transport{
 		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
@@ -392,10 +446,13 @@ func NewConfigManger(consoleAddr string) (*ConfigManager, error) {
 	cm.client = &http.Client{Transport: tr}
 	cm.execWhiteList = make(map[string]map[string]string)
 	cm.imageUsedCount = make(map[string]*imageUsedItem)
-	cm.policies = model.DaemonDriftPolicies{
-		Policies: make(map[uint32]model.DriftPolicy),
-		LastTime: 0,
-	}
-	cm.globalWhitelist = make(map[string]struct{})
+	cm.setWhitelist(&model.DaemonDriftWhitelist{
+		Whitelist:    make(map[string]int64, 0),
+		VersionStamp: 0,
+	})
+	cm.setPolicies(&model.DaemonDriftPolicies{
+		Policies:     make(map[uint32]model.DriftPolicy, 0),
+		VersionStamp: 0,
+	})
 	return cm, nil
 }

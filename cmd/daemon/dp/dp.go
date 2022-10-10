@@ -125,7 +125,7 @@ func (d *DriftAssurance) Start(ctx context.Context) error {
 	return nil
 }
 
-func NewDriftAssurance(podWatcher *nodeinfo.NodePodsWatcher, podResInfo *nodeinfo.PodResInfo, mqWriter mq.Writer, consoleAddr, clusterName string, palaceHandler *palace.Palace) (*DriftAssurance, error) {
+func NewDriftAssurance(podWatcher *nodeinfo.NodePodsWatcher, podResInfo *nodeinfo.PodResInfo, mqWriter mq.Writer, consoleAddr, clusterName, clusterKey string, palaceHandler *palace.Palace) (*DriftAssurance, error) {
 	d := &DriftAssurance{}
 
 	rt, err := createRuntimeCli()
@@ -135,7 +135,7 @@ func NewDriftAssurance(podWatcher *nodeinfo.NodePodsWatcher, podResInfo *nodeinf
 	}
 	d.rt = rt
 
-	cm, err := NewConfigManger(consoleAddr)
+	cm, err := NewConfigManger(consoleAddr, clusterKey)
 	if err != nil {
 		logging.Get().Err(err).Msg("create config manager failed")
 		return nil, fmt.Errorf("create config manager failed:%v", err)
