@@ -692,7 +692,7 @@ func (s *SyncRepoImage) createImageExtender(ctx context.Context, image registry.
 		img.GenImageFlag()
 
 		img.CheckSum = img.GenImageCheckSum()
-		if img.CheckSum != searchImage[0].CheckSum || img.Digest != searchImage[0].Digest {
+		if img.Digest != searchImage[0].Digest {
 			img.ID = searchImage[0].ID
 			res.Added = append(res.Added, &img)
 			// 全量更新
