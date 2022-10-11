@@ -437,7 +437,6 @@ func (api *api) driftAllPolicy() http.HandlerFunc {
 
 		// TODO tmp don't repeat data
 		clusterPolicies.Policies = nil
-		
 		response.Ok(w, response.WithItems(policies),
 			response.WithTotalItems(int64(len(policies))),
 			response.WithCustomField("g_whitelist", whitelist),

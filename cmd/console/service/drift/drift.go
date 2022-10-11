@@ -201,7 +201,7 @@ func (rl *TensorDriftService) GetGlobalWhitelistById(ctx context.Context, id uin
 	return dal.GetDriftGlobalWhiteListById(ctx, rl.rdb.GetReadDB(), id)
 }
 
-func (rl *TensorDriftService) GetAllGlobalWhitelist(ctx context.Context) (*model.WhitelistData, error) {
+func (rl *TensorDriftService) GetAllGlobalWhitelist(ctx context.Context) (model.WhitelistData, error) {
 	val := rl.whitelistPtr.Load()
 	if val == nil {
 		logging.Get().Warn().Msg("drift whitelist isn't set")
@@ -209,10 +209,13 @@ func (rl *TensorDriftService) GetAllGlobalWhitelist(ctx context.Context) (*model
 		val = rl.whitelistPtr.Load()
 		if val == nil {
 			logging.Get().Warn().Msg("drift whitelist isn't set")
-			return nil, nil
+			return model.WhitelistData{}, errors.New("drift whitelist isn't set")
 		}
 	}
-	return val, nil
+
+	// must fork data
+	forked := *val
+	return forked, nil
 }
 func (rl *TensorDriftService) CreatePolicy(ctx context.Context, policy model.DriftPolicy) (int64, error) {
 	return dal.CreateDriftPolicy(ctx, rl.rdb.Get(), policy)
@@ -235,7 +238,7 @@ func (rl *TensorDriftService) GetPolicyByID(ctx context.Context, id int64) (mode
 }
 
 // GetAllPolicies will return all the policies of the given cluster or all if given empty
-func (rl *TensorDriftService) GetAllPolicies(ctx context.Context, clusterKey string) (*model.PoliciesData, error) {
+func (rl *TensorDriftService) GetAllPolicies(ctx context.Context, clusterKey string) (model.PoliciesData, error) {
 	val := rl.policiesPtr.Load()
 	if val == nil {
 		logging.Get().Warn().Msg("drift policies isn't set")
@@ -243,7 +246,7 @@ func (rl *TensorDriftService) GetAllPolicies(ctx context.Context, clusterKey str
 		val = rl.policiesPtr.Load()
 		if val == nil {
 			logging.Get().Warn().Msg("drift policies isn't set")
-			return nil, nil
+			return model.PoliciesData{}, errors.New("drift policies isn't set")
 		}
 	}
 	clusterFiltered := make([]model.DriftPolicy, 0, len(val.Policies))
@@ -252,7 +255,7 @@ func (rl *TensorDriftService) GetAllPolicies(ctx context.Context, clusterKey str
 			clusterFiltered = append(clusterFiltered, val.Policies[i])
 		}
 	}
-	return &model.PoliciesData{Policies: clusterFiltered, VersionStamp: val.VersionStamp}, nil
+	return model.PoliciesData{Policies: clusterFiltered, VersionStamp: val.VersionStamp}, nil
 }
 
 func (rl *TensorDriftService) PolicyDetail(ctx context.Context, policy model.DriftPolicy, limit int, offset int) ([]model.TensorContainer, error) {
