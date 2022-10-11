@@ -214,8 +214,8 @@ func (api *api) driftDelGlobalWhitelist() http.HandlerFunc {
 		}
 		whitelist, err := driSvc.DelGlobalWhitelist(ctx, id)
 		if err != nil {
-			logging.GetLogger().Err(err).Msgf("Delete whitelist %v error\n", id)
-			apperror.RespAndLog(w, ctx, apperror.NewAnError(http.StatusBadRequest, errors.New("delete whitelist error")))
+			logging.GetLogger().Err(err).Msgf("Delete whitelist %v error", id)
+			apperror.RespAndLog(w, ctx, apperror.NewAnError(http.StatusInternalServerError, errors.New("delete whitelist error")))
 			return
 		}
 
@@ -268,6 +268,10 @@ func (api *api) driftListGlobalWhitelist() http.HandlerFunc {
 			apperror.RespAndLog(w, ctx, apperror.NewAnError(http.StatusInternalServerError, errors.New("list whitelist error")))
 
 			return
+		}
+		// the ID for frontend should be string; because the int64 might be larger than the max of the js number
+		for i := range whitelist {
+			whitelist[i].IDForFrontend = strconv.FormatUint(whitelist[i].ID, 10)
 		}
 
 		response.Ok(w, response.WithItems(whitelist), response.WithTotalItems(count))
@@ -519,7 +523,7 @@ func (api *api) driftDeletePolicy() http.HandlerFunc {
 		policy, err := driSvc.DeletePolicy(ctx, policyID)
 		if err != nil {
 			logging.GetLogger().Err(err).Msg("DeletePolicy error")
-			apperror.RespAndLog(w, ctx, apperror.NewAnError(http.StatusBadRequest, errors.New("DeletePolicy error")))
+			apperror.RespAndLog(w, ctx, apperror.NewAnError(http.StatusInternalServerError, errors.New("DeletePolicy error")))
 			return
 		}
 		clusterManager, ok := k8s.GetClusterManager()
@@ -556,7 +560,7 @@ func (api *api) driftUpdatePolicy() http.HandlerFunc {
 		policy, err := driSvc.UpdatePolicy(ctx, policyUpdate)
 		if err != nil {
 			logging.GetLogger().Err(err).Msg("UpdatePolicy error")
-			apperror.RespAndLog(w, ctx, apperror.NewAnError(http.StatusBadRequest, errors.New("UpdatePolicy error")))
+			apperror.RespAndLog(w, ctx, apperror.NewAnError(http.StatusInternalServerError, errors.New("UpdatePolicy error")))
 			return
 		}
 		clusterManager, ok := k8s.GetClusterManager()
