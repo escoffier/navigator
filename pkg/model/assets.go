@@ -214,7 +214,7 @@ type TensorResource struct {
 	Alias           string         `gorm:"column:alias"`
 	Managers        Managers       `gorm:"column:managers;type:varchar(256)"`
 	Authority       string         `gorm:"column:authority"`
-	IsSupportDrift  bool           `gorm:"column:is_support_drift;type:boolean"`
+	IsSupportDrift  bool           `gorm:"column:is_support_drift;type:boolean;default:true"`
 	Reason          string         `gorm:"column:reason;type:varchar(16)"`
 }
 
