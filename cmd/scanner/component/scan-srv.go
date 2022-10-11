@@ -2923,23 +2923,63 @@ func (s *ConScannerSrv) UpdateScanTaskStatus(ctx context.Context, taskID int64, 
 	}
 
 	if status == consts.Terminate {
-		// update pending subtask to terminated status
-		search := store.SearchSubTaskParam{
-			TaskIds:  []int64{taskID},
-			Statuses: []int{consts.ImageScanPending},
-		}
-		updateInfo := make(map[string]interface{})
-		updateInfo["status"] = consts.ImageNotScan
-		err := s.dbdal.UpdateSubTasksInfo(ctx, search, updateInfo)
-		if err != nil {
-			logging.GetLogger().Err(err).
-				Int64("taskId", taskID).
-				Uint8("status", status).
-				Msg("update subtask status to terminated err")
-			return errors.Wrapf(err, "更新子任务%d的状态为%d失败", taskID, consts.ImageNotScan)
-		}
-	}
+		// 更新镜像扫描状态(未扫描)
+		go func(taskIds []int64) {
+			if len(taskIds) == 0 {
+				return
+			}
+			var lastID int64
+			filter := &model.Filter{
+				SortBy:    consts.SortByAsc,
+				SortFiled: "id",
+				Limit:     consts.DefaultLimit,
+			}
 
+			for {
+				subTasks, _, err := s.dbdal.GetSubTasks(ctx, store.SearchSubTaskParam{
+					TaskIds: taskIds, LastID: lastID, Statuses: []int{
+						consts.ImageScanUnknown,
+						consts.ImageScanPending,
+						consts.ImageScanInProgress,
+					}}, filter)
+				if err != nil {
+					logging.GetLogger().Err(err).
+						Ints64("taskIds", taskIds).
+						Msg("UpdateScanTaskStatus GetSubTasks")
+					return
+				}
+				if len(subTasks) == 0 {
+					logging.GetLogger().Info().
+						Ints64("taskIds", taskIds).
+						Msg("UpdateScanTaskStatus update scan status finished")
+					break
+				}
+				lastID = subTasks[len(subTasks)-1].ID
+
+				subtaskIds := make([]int64, 0)
+				for i := range subTasks {
+					subtaskIds = append(subtaskIds, subTasks[i].ID)
+				}
+
+				updater := map[string]interface{}{"status": consts.ImageNotScan}
+				if err := s.dbdal.UpdateSubTasksInfo(ctx, store.SearchSubTaskParam{Ids: subtaskIds}, updater); err != nil {
+					logging.GetLogger().Err(err).
+						Ints64("taskIds", taskIds).
+						Uint8("status", status).
+						Msg("UpdateScanTaskStatus UpdateSubTasksInfo")
+					// 只记录日志不返回，下面要更新镜像flag
+				}
+
+				for i := range subTasks {
+					logging.GetLogger().Info().Int64("ImageID", subTasks[i].ImageID).Msg("UpdateImageScanStatus")
+					if err := s.dbdal.UpdateImageScanStatus(ctx, subTasks[i].ImageID, model.FlagImageNotScan); err != nil {
+						logging.GetLogger().Err(err).Int64("ImageId", subTasks[i].ImageID).
+							Int64("FlagImageScan", model.FlagImageNotScan).Msg("UpdateImageScanStatus")
+					}
+				}
+			}
+		}([]int64{taskID})
+	}
 	return nil
 }
 
