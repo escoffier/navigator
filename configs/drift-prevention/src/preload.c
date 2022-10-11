@@ -140,6 +140,7 @@ char * which(const char *name, void *dest) {
 #define OPENFILEERROR -1
 #define READERROR -2
 #define MEMORYERROR -3
+#define FILEACCESSERROR -4
 
 static int calc_file_crc32(const char *path, uint32_t *checksum)
 {
@@ -227,14 +228,16 @@ static int init_pre_data(const char *path, pre_info *pre_data)
         drift_prevent_write_log(INFO, "which: %s\n", pre_data->real_path);
     }
 
-    // calulate crc32
     if(tmppath){
+        if(access(tmppath, X_OK)) {
+            ret = FILEACCESSERROR;
+            return ret;
+        }
+        // calulate crc32
         ret = calc_file_crc32(pre_data->real_path, &(pre_data->calculated_crc32));
     } else {
         ret = OPENFILEERROR;
     }
-
-
     return ret;
 }
 
@@ -255,10 +258,11 @@ static int init_pre_data(const char *path, pre_info *pre_data)
             goto old_ret;                                                               \
         }                                                                               \
         if(is_block(pre_data.container_id, exec_str, pre_data.real_path,                \
-                    pre_data.calculated_crc32)){                                        \
+                    pre_data.calculated_crc32)) {                                       \
             drift_prevent_write_log(ERROR, "block: %s %s reterr: %s\n\n",               \
                         exec_str, file_path,strerror(errno));                           \
             drift_prevent_teardown_log();                                               \
+            printf("block by drift-prevent policy\n"); fflush(stdout);                  \
             errno = EACCES;                                                             \
             return errno;                                                               \
         }                                                                               \
