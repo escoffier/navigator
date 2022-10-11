@@ -62,6 +62,8 @@ func (api *api) assetsForOpenapi() func(chi.Router) {
 			r.With(RateLimitMiddleware(api.redisClient, int64(rate))).
 				Get("/containers", api.getContainers())
 		}
+		r.With(RateLimitMiddleware(api.redisClient, int64(rate))).
+			Get("/resources/types", api.getResourceTypes())
 	}
 }
 
