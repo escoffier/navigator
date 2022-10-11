@@ -5,7 +5,9 @@ import (
 )
 
 const (
-	ConfLicense = "conf-license"
+	ConfLicense                  = "conf-license"
+	ConfDriftPoliciesVersionKey  = "drift.policies.versionstamp"
+	ConfDriftWhitelistVersionKey = "drift.whitelist.versionstamp"
 )
 
 type TensorConfig struct {

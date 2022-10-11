@@ -153,7 +153,7 @@ func NewConsole(
 		logging.Get().Err(err).Msgf("ERROR: DataService init error")
 	}
 
-	drErr := drvSvc.InitResourcesService(rdb, es)
+	drErr := drvSvc.InitDriftService(rdb, es)
 	if drErr != nil {
 		logging.Get().Err(drErr).Msg("ERROR: InitDriftService init error")
 	}

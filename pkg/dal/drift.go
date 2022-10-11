@@ -4,34 +4,63 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
-	// "gitlab.com/security-rd/go-pkg/logging"
+	"gitlab.com/piccolo_su/vegeta/pkg/util"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
-func CreateDriftGlobalWhiteList(ctx context.Context, rdb *gorm.DB, whitelist model.DriftGlobalWhitelistItem) (int64, error) {
+
+func updateDriftVersionStamp(tx *gorm.DB, config *model.TensorConfig) error {
+
+	return tx.Model(&model.TensorConfig{}).Clauses(clause.OnConflict{
+		Columns: []clause.Column{{Name: "key"}},
+		DoUpdates: clause.AssignmentColumns([]string{
+			"config",
+			"updater",
+			"updated_at",
+			"status",
+		}),
+	}).Create(config).Error
+}
+func CreateDriftGlobalWhiteList(ctx context.Context, rdb *gorm.DB, whitelist model.DriftGlobalWhitelistItem) (uint64, error) {
+	whitelist.ID = util.GenerateUUID64(whitelist.Path)
+	if whitelist.UpdatedAt == 0 {
+		whitelist.UpdatedAt = time.Now().UnixMilli()
+	}
+
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
-	tmpList := []model.DriftGlobalWhitelistItem{}
-	err := rdb.Model(&model.DriftGlobalWhitelistItem{}).WithContext(ctx).Where("path=?", whitelist.Path).Find(&tmpList).Error
+	err := rdb.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		err := tx.Model(&model.DriftGlobalWhitelistItem{}).WithContext(ctx).Create(&whitelist).Error
+		if err != nil {
+			return err
+		}
+		versionStamp := strconv.FormatInt(whitelist.UpdatedAt, 10)
+		now := time.Now()
+		config := &model.TensorConfig{
+			Key:       model.ConfDriftWhitelistVersionKey,
+			Config:    []byte(versionStamp),
+			Creator:   whitelist.Creator,
+			CreatedAt: now,
+			Updater:   whitelist.Updater,
+			UpdatedAt: now,
+			Status:    0,
+		}
+		return updateDriftVersionStamp(tx, config)
+	})
 	if err != nil {
-		return -1, err
-	}
-	if len(tmpList) > 0 {
-		return tmpList[0].ID, fmt.Errorf("same path")
-	}
-	err = rdb.Model(&model.DriftGlobalWhitelistItem{}).WithContext(ctx).Create(&whitelist).Error
-	if err != nil {
-		return -1, err
+		return 0, err
 	}
 
 	return whitelist.ID, nil
 }
 
-func DelDriftGlobalWhiteList(ctx context.Context, rdb *gorm.DB, id int64) (model.DriftGlobalWhitelistItem, error) {
+func DelDriftGlobalWhiteList(ctx context.Context, rdb *gorm.DB, id uint64) (model.DriftGlobalWhitelistItem, error) {
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 	query := model.DriftGlobalWhitelistItem{}
@@ -39,7 +68,29 @@ func DelDriftGlobalWhiteList(ctx context.Context, rdb *gorm.DB, id int64) (model
 	if err != nil {
 		return model.DriftGlobalWhitelistItem{}, err
 	}
-	err = rdb.Model(&model.DriftGlobalWhitelistItem{}).WithContext(ctx).Where("id = ?", id).Delete(&model.DriftGlobalWhitelistItem{}).Error
+
+	userName := model.GetUsernameFromContext(ctx)
+	if userName == "" {
+		userName = "system"
+	}
+	err = rdb.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		err := tx.Model(&model.DriftGlobalWhitelistItem{}).Where("id = ?", id).Delete(&model.DriftGlobalWhitelistItem{}).Error
+		if err != nil {
+			return err
+		}
+		now := time.Now()
+		versionStamp := strconv.FormatInt(now.UnixMilli(), 10)
+		config := &model.TensorConfig{
+			Key:       model.ConfDriftWhitelistVersionKey,
+			Config:    []byte(versionStamp),
+			Creator:   userName,
+			CreatedAt: now,
+			Updater:   userName,
+			UpdatedAt: now,
+			Status:    0,
+		}
+		return updateDriftVersionStamp(tx, config)
+	})
 	if err != nil {
 		return model.DriftGlobalWhitelistItem{}, err
 	}
@@ -50,12 +101,7 @@ func DelDriftGlobalWhiteList(ctx context.Context, rdb *gorm.DB, id int64) (model
 func UpdateDriftGlobalWhiteList(ctx context.Context, rdb *gorm.DB, whitelist model.DriftGlobalWhitelistItem) (model.DriftGlobalWhitelistItem, error) {
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
-	tmpWhitelist := model.DriftGlobalWhitelistItem{}
-	tmpWhitelist.Updater = whitelist.Updater
-	tmpWhitelist.UpdatedAt = whitelist.UpdatedAt
-	tmpWhitelist.Path = whitelist.Path
-	tmpWhitelist.ExpireAt = whitelist.ExpireAt
-	tmpWhitelist.IsForever = whitelist.IsForever
+
 	query := model.DriftGlobalWhitelistItem{}
 	err := rdb.Model(&model.DriftGlobalWhitelistItem{}).WithContext(ctx).Where("id = ?", whitelist.ID).Find(&query).Error
 	if err != nil {
@@ -64,14 +110,40 @@ func UpdateDriftGlobalWhiteList(ctx context.Context, rdb *gorm.DB, whitelist mod
 	if query.ID == 0 {
 		return model.DriftGlobalWhitelistItem{}, errors.New("not found id")
 	}
-	// logging.Get().Info().Str("tmpData", fmt.Sprintf("%+v", tmpWhitelist)).Msg("update whitelist")
-	err = rdb.Model(&model.DriftGlobalWhitelistItem{}).WithContext(ctx).Where("id = ?", whitelist.ID).
-		Select("path", "updater", "updated_at", "expire_at", "is_forever").Updates(&tmpWhitelist).
-		Error
+
+	tmpWhitelist := model.DriftGlobalWhitelistItem{}
+	tmpWhitelist.ID = util.GenerateUUID64(whitelist.Path)
+	tmpWhitelist.Updater = whitelist.Updater
+	tmpWhitelist.UpdatedAt = whitelist.UpdatedAt
+	tmpWhitelist.Path = whitelist.Path
+	tmpWhitelist.ExpireAt = whitelist.ExpireAt
+	tmpWhitelist.IsForever = whitelist.IsForever
+
+	err = rdb.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		err := tx.Model(&model.DriftGlobalWhitelistItem{}).WithContext(ctx).Where("id = ?", tmpWhitelist.ID).
+			Select("path", "updater", "updated_at", "expire_at", "is_forever").Updates(&tmpWhitelist).
+			Error
+		if err != nil {
+			return err
+		}
+
+		now := time.Now()
+		versionStamp := strconv.FormatInt(tmpWhitelist.UpdatedAt, 10)
+		config := &model.TensorConfig{
+			Key:       model.ConfDriftWhitelistVersionKey,
+			Config:    []byte(versionStamp),
+			Creator:   tmpWhitelist.Creator,
+			CreatedAt: now,
+			Updater:   tmpWhitelist.Updater,
+			UpdatedAt: now,
+			Status:    0,
+		}
+		return updateDriftVersionStamp(tx, config)
+	})
+
 	if err != nil {
 		return model.DriftGlobalWhitelistItem{}, err
 	}
-	tmpWhitelist.ID = query.ID
 	return tmpWhitelist, nil
 }
 
@@ -108,7 +180,7 @@ func GetAllDriftGlobalWhiteList(ctx context.Context, rdb *gorm.DB) ([]model.Drif
 	return res, nil
 }
 
-func GetDriftGlobalWhiteListById(ctx context.Context, rdb *gorm.DB, id int64) (model.DriftGlobalWhitelistItem, error) {
+func GetDriftGlobalWhiteListById(ctx context.Context, rdb *gorm.DB, id uint64) (model.DriftGlobalWhitelistItem, error) {
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 	query := model.DriftGlobalWhitelistItem{}
@@ -134,7 +206,25 @@ func CreateDriftPolicy(ctx context.Context, rdb *gorm.DB, policy model.DriftPoli
 	if len(tmpPolicies) > 0 {
 		return tmpPolicies[0].ID, fmt.Errorf("same uuid")
 	}
-	err = rdb.Model(&model.DriftPolicy{}).WithContext(ctx).Create(&policy).Error
+
+	err = rdb.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		err := tx.Model(&model.DriftPolicy{}).Create(&policy).Error
+		if err != nil {
+			return err
+		}
+		versionStamp := strconv.FormatInt(policy.UpdatedAt.UnixMilli(), 10)
+		config := &model.TensorConfig{
+			Key:       model.ConfDriftPoliciesVersionKey,
+			Config:    []byte(versionStamp),
+			Creator:   policy.Creator,
+			CreatedAt: policy.CreatedAt,
+			Updater:   policy.Updater,
+			UpdatedAt: policy.UpdatedAt,
+			Status:    0,
+		}
+		return updateDriftVersionStamp(tx, config)
+	})
+
 	if err != nil {
 		return -1, err
 	}
@@ -149,7 +239,31 @@ func DeleteDriftPolicy(ctx context.Context, rdb *gorm.DB, policyID int64) (model
 	if err != nil {
 		return model.DriftPolicy{}, err
 	}
-	err = rdb.Model(&model.DriftPolicy{}).WithContext(ctx).Where("id = ?", policyID).Delete(&model.DriftPolicy{}).Error
+
+	userName := model.GetUsernameFromContext(ctx)
+	if userName == "" {
+		userName = "system"
+	}
+
+	err = rdb.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		err := tx.Model(&model.DriftPolicy{}).WithContext(ctx).Where("id = ?", policyID).Delete(&model.DriftPolicy{}).Error
+		if err != nil {
+			return err
+		}
+
+		now := time.Now()
+		versionStamp := strconv.FormatInt(now.UnixMilli(), 10)
+		config := &model.TensorConfig{
+			Key:       model.ConfDriftPoliciesVersionKey,
+			Config:    []byte(versionStamp),
+			Creator:   userName,
+			CreatedAt: now,
+			Updater:   userName,
+			UpdatedAt: now,
+			Status:    0,
+		}
+		return updateDriftVersionStamp(tx, config)
+	})
 	if err != nil {
 		return model.DriftPolicy{}, err
 	}
@@ -159,17 +273,38 @@ func DeleteDriftPolicy(ctx context.Context, rdb *gorm.DB, policyID int64) (model
 func UpdateDriftPolicy(ctx context.Context, rdb *gorm.DB, policy model.DriftPolicyUpdate) (model.DriftPolicy, error) {
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
-	tmpPolicy := model.DriftPolicy{}
-	tmpPolicy.ID = policy.PolicyID
-	tmpPolicy.Enable = policy.Enable
-	tmpPolicy.Mode = policy.Mode
-	tmpPolicy.Updater = policy.Updater
+
 	query := model.DriftPolicy{}
 	err := rdb.Model(&model.DriftPolicy{}).WithContext(ctx).Where("id = ?", policy.PolicyID).Find(&query).Error
 	if err != nil {
 		return model.DriftPolicy{}, err
 	}
-	err = rdb.Model(&model.DriftPolicy{}).WithContext(ctx).Where("id = ?", policy.PolicyID).Select("enable", "mode", "updater").Updates(&tmpPolicy).Error
+
+	tmpPolicy := model.DriftPolicy{}
+	tmpPolicy.ID = policy.PolicyID
+	tmpPolicy.Enable = policy.Enable
+	tmpPolicy.Mode = policy.Mode
+	tmpPolicy.Updater = policy.Updater
+	tmpPolicy.UpdatedAt = time.Now()
+
+	err = rdb.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		err := tx.Model(&model.DriftPolicy{}).WithContext(ctx).Where("id = ?", policy.PolicyID).Select("enable", "mode", "updater", "updated_at").Updates(&tmpPolicy).Error
+		if err != nil {
+			return err
+		}
+		versionStamp := strconv.FormatInt(tmpPolicy.UpdatedAt.UnixMilli(), 10)
+		config := &model.TensorConfig{
+			Key:       model.ConfDriftPoliciesVersionKey,
+			Config:    []byte(versionStamp),
+			Creator:   tmpPolicy.Updater,
+			CreatedAt: tmpPolicy.UpdatedAt,
+			Updater:   tmpPolicy.Updater,
+			UpdatedAt: tmpPolicy.UpdatedAt,
+			Status:    0,
+		}
+		return updateDriftVersionStamp(tx, config)
+	})
+
 	if err != nil {
 		return model.DriftPolicy{}, err
 	}
