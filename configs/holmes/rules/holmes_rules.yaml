@@ -9,7 +9,7 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands."
+      value: "It is recommended to check whether an attacker has obtained internal container permissions, and use immune defense to restrict attackers from further attacks"
     zh:
       key: "处置建议"
       value: "建议排查是否有攻击者已获取内部容器权限，同时使用免疫防御限制攻击者进行进一步攻击。"
@@ -29,7 +29,7 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands."
+      value: "It is recommended to check whether an attacker has obtained internal container permissions, and use immune defense to restrict attackers from further attacks"
     zh:
       key: "处置建议"
       value: "建议排查是否有攻击者已获取内部容器权限，同时使用免疫防御限制攻击者进行进一步攻击。"
@@ -49,7 +49,7 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands."
+      value: "It is recommended to check whether an attacker has obtained internal container permissions, and use immune defense to restrict attackers from further attacks"
     zh:
       key: "处置建议"
       value: "建议排查是否有攻击者已获取内部容器权限，同时使用免疫防御限制攻击者进行进一步攻击。"
@@ -69,7 +69,7 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands."
+      value: "It is recommended to check whether the attack source container has been invaded. Micro-Segmentation and immune defense can be used to restrict attackers from further attacks."
     zh:
       key: "处置建议"
       value: "建议排查攻击源容器是否已遭到入侵，可使用微隔离与免疫防御限制攻击者进行进一步攻击。"
@@ -89,7 +89,7 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands."
+      value: "It is recommended to check whether the attack source container has been invaded. Micro-Segmentation and immune defense can be used to restrict attackers from further attacks."
     zh:
       key: "处置建议"
       value: "建议排查攻击源容器是否已遭到入侵，可使用微隔离与免疫防御限制攻击者进行进一步攻击。"
@@ -109,7 +109,7 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands."
+      value: "It is recommended to check whether the attack source container has been invaded. Micro-Segmentation and immune defense can be used to restrict attackers from further attacks."
     zh:
       key: "处置建议"
       value: "建议排查攻击源容器是否已遭到入侵，可使用微隔离与免疫防御限制攻击者进行进一步攻击。"
@@ -129,7 +129,7 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands."
+      value: "It is recommended to check whether the attack source container has been invaded. Micro-Segmentation and immune defense can be used to restrict attackers from further attacks."
     zh:
       key: "处置建议"
       value: "建议排查攻击源容器是否已遭到入侵，可使用微隔离与免疫防御限制攻击者进行进一步攻击。"
@@ -149,7 +149,7 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands."
+      value: "It is recommended to check whether the attack source container has been invaded. Micro-Segmentation and immune defense can be used to restrict attackers from further attacks."
     zh:
       key: "处置建议"
       value: "建议排查攻击源容器是否已遭到入侵，可使用微隔离与免疫防御限制攻击者进行进一步攻击。"
@@ -169,7 +169,7 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands."
+      value: "It is recommended to check whether the attack source container has been invaded. Micro-Segmentation and immune defense can be used to restrict attackers from further attacks."
     zh:
       key: "处置建议"
       value: "建议排查攻击源容器是否已遭到入侵，可使用微隔离与免疫防御限制攻击者进行进一步攻击。"
@@ -189,7 +189,7 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands."
+      value: "It is recommended to check whether the attack source container has been invaded. Micro-Segmentation and immune defense can be used to restrict attackers from further attacks."
     zh:
       key: "处置建议"
       value: "建议排查攻击源容器是否已遭到入侵，可使用微隔离与免疫防御限制攻击者进行进一步攻击。"
@@ -209,7 +209,7 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands."
+      value: "It is recommended to check whether the attack source container has been invaded. Micro-Segmentation and immune defense can be used to restrict attackers from further attacks."
     zh:
       key: "处置建议"
       value: "建议排查攻击源容器是否已遭到入侵，可使用微隔离与免疫防御限制攻击者进行进一步攻击。"
@@ -229,7 +229,7 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands."
+      value: "It is recommended to check whether the attack source container has been invaded. Micro-Segmentation and immune defense can be used to restrict attackers from further attacks."
     zh:
       key: "处置建议"
       value: "建议排查攻击源容器是否已遭到入侵，可使用微隔离与免疫防御限制攻击者进行进一步攻击。"
@@ -249,7 +249,7 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "Prohibit mounting sensitive directories and files, prohibit sensitive containers from starting, and update software versions within containers."
+      value: "It is recommended to check whether the attack source container has been invaded. Micro-Segmentation and immune defense can be used to restrict attackers from further attacks."
     zh:
       key: "处置建议"
       value: "建议排查攻击源容器是否已遭到入侵，可使用微隔离与免疫防御限制攻击者进行进一步攻击。"
@@ -269,7 +269,7 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands."
+      value: "It is recommended to check whether the attack source container has been invaded. Micro-Segmentation and immune defense can be used to restrict attackers from further attacks."
     zh:
       key: "处置建议"
       value: "建议排查攻击源容器是否已遭到入侵，可使用微隔离与免疫防御限制攻击者进行进一步攻击。"
@@ -289,7 +289,7 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands."
+      value: "It is recommended to check whether the attack source container has been invaded. Micro-Segmentation and immune defense can be used to restrict attackers from further attacks."
     zh:
       key: "处置建议"
       value: "建议排查攻击源容器是否已遭到入侵，可使用微隔离与免疫防御限制攻击者进行进一步攻击。"
@@ -309,7 +309,7 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands."
+      value: "It is recommended to check whether the attack source container has been invaded. Micro-Segmentation and immune defense can be used to restrict attackers from further attacks."
     zh:
       key: "处置建议"
       value: "建议排查攻击源容器是否已遭到入侵，可使用微隔离与免疫防御限制攻击者进行进一步攻击。"
@@ -329,7 +329,7 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands."
+      value: "It is recommended to check whether the attack source container has been invaded. Micro-Segmentation and immune defense can be used to restrict attackers from further attacks."
     zh:
       key: "处置建议"
       value: "建议排查攻击源容器是否已遭到入侵，可使用微隔离与免疫防御限制攻击者进行进一步攻击。"
@@ -349,7 +349,7 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands."
+      value: "It is recommended to check whether the attack source container has been invaded. Micro-Segmentation and immune defense can be used to restrict attackers from further attacks."
     zh:
       key: "处置建议"
       value: "建议排查攻击源容器是否已遭到入侵，可使用微隔离与免疫防御限制攻击者进行进一步攻击。"
@@ -369,7 +369,7 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands."
+      value: "It is recommended to check whether the attack source container has been invaded. Micro-Segmentation and immune defense can be used to restrict attackers from further attacks."
     zh:
       key: "处置建议"
       value: "建议排查攻击源容器是否已遭到入侵，可使用微隔离与免疫防御限制攻击者进行进一步攻击。"
@@ -389,7 +389,7 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "Use the Immune Defence training application to block new or modified executables and restrict the users and recipients of the commands."
+      value: "It is recommended to check whether the database is attacked by injection. There is a phenomenon of executing system commands through the database. You can use immune defense to block further hacker behavior."
     zh:
       key: "处置建议"
       value: "建议排查数据库是否遭到注入攻击，存在通过数据库执行系统命令现象，可使用免疫防御阻断黑客进一步行为。"
@@ -416,7 +416,7 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "Use the Immune Defence training application to block new or modified executables and restrict the users and recipients of the commands."
+      value: "To confirm whether the binary file is safe, you can use the immune defense training application to block new or modified executable files, and limit the users and receiving objects who execute commands."
     zh:
       key: "处置建议"
       value: "确认该二进制文件是否安全，可使用免疫防御训练应用，阻拦新的或被修改的可执行文件，限制执行命令的用户和接收对象。"
@@ -465,7 +465,7 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "Use the Immune Defence training application to block new or modified executables and restrict the users and recipients of the commands."
+      value: "View the alarm details and troubleshoot the causes of the shell."
     zh:
       key: "处置建议"
       value: "查看告警详情，排查shell产生原因。"
@@ -489,7 +489,7 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "Use the Immune Defence training application to block new or modified executables and restrict the users and recipients of the commands."
+      value: "Confirm whether the container has been invaded. If it is not for special reasons, immediately remove the hacker tool, isolate the container, investigate other attacks, and confirm the cluster security"
     zh:
       key: "处置建议"
       value: "确认容器是否遭到入侵，如果非特殊原因则立即清除该黑客工具，并隔离该容器，同时排查其他攻击行为，确认集群安全。"
@@ -510,7 +510,7 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "Use the Immune Defence training application to block new or modified executables and restrict the users and recipients of the commands."
+      value: "The container is intruded, it is necessary to isolate the container, investigate other attacks, and confirm the security of the cluster."
     zh:
       key: "处置建议"
       value: "容器遭到入侵，需隔离该容器，同时排查其他攻击行为，确认集群安全。"
@@ -530,7 +530,7 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "Use the Immune Defence training application to block new or modified executables and restrict the users and recipients of the commands."
+      value: "The container is intruded, it is necessary to isolate the container, investigate other attacks, and confirm the security of the cluster."
     zh:
       key: "处置建议"
       value: "容器遭到入侵，需隔离该容器，同时排查其他攻击行为，确认集群安全。"
@@ -550,7 +550,7 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "Use the Immune Defence training application to block new or modified executables and restrict the users and recipients of the commands."
+      value: "The container is intruded, it is necessary to isolate the container, investigate other attacks, and confirm the security of the cluster."
     zh:
       key: "处置建议"
       value: "容器遭到入侵，需隔离该容器，同时排查其他攻击行为，确认集群安全。"
@@ -570,7 +570,7 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "Use the Immune Defence training application to block new or modified executables and restrict the users and recipients of the commands."
+      value: "The container is intruded, it is necessary to isolate the container, investigate other attacks, and confirm the security of the cluster."
     zh:
       key: "处置建议"
       value: "容器遭到入侵，需隔离该容器，同时排查其他攻击行为，确认集群安全。"
@@ -587,7 +587,7 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "Use the Immune Defence training application to block new or modified executables and restrict the users and recipients of the commands."
+      value: "Please confirm whether the container has been invaded. You can use the immune defense training application to block new or modified executables, and limit the users and recipients who execute commands."
     zh:
       key: "处置建议"
       value: "请确认容器是否遭到入侵，可使用免疫防御训练应用，阻拦新的或被修改的可执行文件，限制执行命令的用户和接收对象。"
@@ -616,7 +616,7 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "Use the Immune Defence training application to block new or modified executables and restrict the users and recipients of the commands."
+      value: "Please confirm whether the Redis connection is a normal service connection and check the cause of the connection."
     zh:
       key: "处置建议"
       value: "请确认该redis连接是否为业务正常连接，排查出现该连接原因。"
@@ -635,7 +635,7 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "Use the Immune Defence training application to block new or modified executables and restrict user permissions on sensitive files and commands."
+      value: "Confirm whether the planned task is operated by the operation and maintenance personnel. If necessary, the white list can be used to pass the alarm. Otherwise, it may be a back door for hackers."
     zh:
       key: "处置建议"
       value: "确认该计划任务是否为运维人员操作，如果是必要操作可采用白名单放过告警，否则则可能为黑客后门。"
@@ -658,7 +658,7 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "Use the Immune Defence training application to block new or modified executables and restrict user permissions on sensitive files and commands."
+      value: "Confirm whether it is an administrator or trusted application operation. Otherwise, it may be a hacker operation. Please check the system security."
     zh:
       key: "处置建议"
       value: "确认是否为管理员或可信应用操作，否则则可能是黑客操作，请排查系统安全。"
@@ -692,7 +692,7 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "Use the Immune Defence training application to block new or modified executables and restrict user permissions on sensitive files and commands."
+      value: "Usually, package management will not occur in the container, and confirm whether the process meets expectations."
     zh:
       key: "处置建议"
       value: "通常容器内不会出现包管理情况，确认该流程是否符合预期。"
@@ -717,7 +717,7 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "Use the Immune Defence training application to block new or modified executables and restrict user permissions on sensitive files and commands."
+      value: "Confirm whether the update operation is as expected and triggered by the operation and maintenance personnel."
     zh:
       key: "处置建议"
       value: "确认该更新操作是否符合预期，是否为运维人员触发。"
@@ -740,7 +740,7 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "Use the Immune Defence training application to block new or modified executables and restrict user permissions on sensitive files and commands."
+      value: "Usually, rpm update requires manual operation. Please confirm whether the operation is as expected."
     zh:
       key: "处置建议"
       value: "通常rpm更新需要人为操作，请确认该操作是否符合预期。"
@@ -765,7 +765,7 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "Use the Immune Defence training application to block new or modified executables and restrict user permissions on sensitive files and commands."
+      value: "Please confirm whether the data deletion operation is as expected."
     zh:
       key: "处置建议"
       value: "请确认该数据删除操作是否符合预期。"
@@ -782,7 +782,7 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "Use the Immune Defence training application to block new or modified executables and restrict user permissions on sensitive files and commands."
+      value: "Please confirm whether the modification is operated by the operation and maintenance personnel, otherwise there may be invasion risk, and it is recommended to check."
     zh:
       key: "处置建议"
       value: "请确认该修改是否为运维人员操作，否则可能会有入侵风险，建议排查。"
@@ -806,7 +806,7 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "Use the Immune Defence training application to block new or modified executables and restrict user permissions on sensitive files and commands."
+      value: "This operation may be triggered by a system program. Please confirm whether the operation is completed by a trusted program."
     zh:
       key: "处置建议"
       value: "该操作可能为系统程序触发，请确认操作是否由可信程序完成。"
@@ -830,7 +830,7 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "Use the Immune Defence training application to block new or modified executables and restrict user permissions on sensitive files and commands."
+      value: "Usually, few programs can operate on the contents of the /etc directory, which may be a hacker's behavior. Please confirm whether the modified files are at risk."
     zh:
       key: "处置建议"
       value: "通常少有程序会操作/etc目录下内容，可能是黑客行为，请确认被修改文件是否存在风险。"
@@ -848,7 +848,7 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "Use the Immune Defence training application to block new or modified executables and restrict user permissions on sensitive files and commands."
+      value: "Please confirm whether the created file or directory content is required by the trusted program. Otherwise, check the file content to ensure security."
     zh:
       key: "处置建议"
       value: "请确认被创建的文件或目录内容是否为可信程序所需，否则则排查文件内容确认安全。"
@@ -872,7 +872,7 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "Use the Immune Defence training application to block new or modified executables and restrict user permissions on sensitive files and commands."
+      value: "Please confirm whether it is modified by a trusted program. Otherwise, check the contents of the modified file."
     zh:
       key: "处置建议"
       value: "请确认是否由可信程序修改，否则则排查修改文件内容。"
@@ -901,7 +901,7 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "Use the Immune Defence training application to block new or modified executables and restrict user permissions on sensitive files and commands."
+      value: "Please confirm whether it is modified by a trusted program. Otherwise, use the immune defense training application to block new or modified executables and restrict the user permissions of sensitive files and commands."
     zh:
       key: "处置建议"
       value: "请确认是否由可信程序修改，否则使用免疫防御训练应用，阻拦新的或被修改的可执行文件，限制敏感文件和命令的用户权限。"
@@ -926,7 +926,7 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "Use the Immune Defence training application to block new or modified executables and restrict user permissions on sensitive files and commands."
+      value: "This behavior may be a hacker back door resident behavior. Please confirm the modified file function. You can use offset defense to block new or modified executable files."
     zh:
       key: "处置建议"
       value: "该行为可能为黑客后门驻留行为，请确认被修改文件功能，可使用偏移防御阻拦新的或被修改的可执行文件。"
@@ -945,7 +945,7 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "Use the Immune Defence training application to block new or modified executables and restrict user permissions on sensitive files and commands."
+      value: "Please confirm the purpose of this behavior. You can use the immune defense training application to block new or modified executable files, and limit the user permissions of sensitive files and commands."
     zh:
       key: "处置建议"
       value: "请确认该行为目的，可使用免疫防御训练应用，阻拦新的或被修改的可执行文件，限制敏感文件和命令的用户权限。"
@@ -970,7 +970,7 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands."
+      value: "This behavior is likely to cause hackers to escape from the container to the host. Please confirm whether it is necessary to start the privileged container with privileges. This can be controlled through the privileged parameter when the container starts."
     zh:
       key: "处置建议"
       value: "该行为容易导致黑客从容器中逃逸到主机，请确认该特权容器采用特权启动是否必要，可通过容器启动时privileged参数进行控制。"
@@ -992,7 +992,7 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands."
+      value: "Setuid is usually a system management permission operation. A non root call may be a hacker's authorization act. Please confirm whether the system has been invaded."
     zh:
       key: "处置建议"
       value: "setuid通常为系统管理权限操作，非root调用可能为黑客提权行为，请确认系统是否遭到入侵。"
@@ -1022,7 +1022,7 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands."
+      value: "This behavior usually exists when hackers use application vulnerabilities to execute commands. Please confirm whether any applications have been attacked by hackers."
     zh:
       key: "处置建议"
       value: "该行为通常存在于黑客利用应用漏洞执行命令，请确认是否有应用遭到黑客攻击。"
@@ -1039,7 +1039,7 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands."
+      value: "Please confirm the purpose of this operation, and whether the modified file is an externally imported dangerous file."
     zh:
       key: "处置建议"
       value: "请确认该操作行为目的，被修改文件是否为外部引入危险文件。"
@@ -1064,7 +1064,7 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands."
+      value: "Usually, this behavior occurs when the hacker clears the attack trace. Please confirm whether it is invaded."
     zh:
       key: "处置建议"
       value: "通常该行为发生于黑客清除攻击痕迹，请确认是否遭到入侵。"
@@ -1084,7 +1084,7 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands."
+      value: "The container is intruded, and the hacker escapes by attaching the directory. Please check whether the cluster permissions are trapped, and confirm whether the container is started by privileges. You can try to use micro isolation and immune defense to prevent the risk from spreading further."
     zh:
       key: "处置建议"
       value: "容器遭到入侵，黑客通过挂载目录逃逸，请排查集群权限是否陷落，并确认该容器是否通过特权启动，可尝试采用微隔离和免疫防御阻止风险进一步扩散。"
@@ -1103,7 +1103,7 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands."
+      value: "The container has been invaded. Please check whether the cluster permissions have fallen. You can try to use micro isolation and immune defense to prevent the risk from spreading further."
     zh:
       key: "处置建议"
       value: "容器遭到入侵，请排查集群权限是否陷落，可尝试采用微隔离和免疫防御阻止风险进一步扩散。"
@@ -1121,7 +1121,7 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands."
+      value: "The container has been invaded. Please check whether the cluster permissions have fallen. You can try to use micro isolation and immune defense to prevent the risk from spreading further."
     zh:
       key: "处置建议"
       value: "容器遭到入侵，请排查集群权限是否陷落，可尝试采用微隔离和免疫防御阻止风险进一步扩散。"
@@ -1139,7 +1139,7 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands."
+      value: "The container has been invaded. Please check whether the cluster permissions have fallen. You can try to use micro isolation and immune defense to prevent the risk from spreading further."
     zh:
       key: "处置建议"
       value: "容器遭到入侵，请排查集群权限是否陷落，可尝试采用微隔离和免疫防御阻止风险进一步扩散。"
@@ -1160,7 +1160,7 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands."
+      value: "In case of power raising in the container, please check whether the cluster authority has fallen, and try to use micro isolation and immune defense to prevent the risk from spreading further."
     zh:
       key: "处置建议"
       value: "容器内出现提权行为，请排查集群权限是否陷落，可尝试采用微隔离和免疫防御阻止风险进一步扩散。"
@@ -1177,7 +1177,7 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands."
+      value: "If the container escapes, please check whether the cluster permissions fall. You can use immune defense to prevent the risk from spreading further and use immune defense training applications to limit the user permissions of sensitive files and commands."
     zh:
       key: "处置建议"
       value: "容器出现逃逸行为，请排查集群权限是否陷落，可采用免疫防御阻止风险进一步扩散使用免疫防御训练应用，限制敏感文件和命令的用户权限。"
@@ -1197,7 +1197,7 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands."
+      value: "The container has been invaded. Please check whether the hacker has obtained host permissions and has other host operations. You can try to use micro isolation and immune defense to prevent the risk from spreading further."
     zh:
       key: "处置建议"
       value: "容器遭到入侵，请排查黑客是否已获取主机权限并有其它主机操作，可尝试采用微隔离和免疫防御阻止风险进一步扩散。"
@@ -1217,10 +1217,10 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands."
+      value: "The container has been invaded. Please check whether the cluster permissions have fallen. You can try to use micro isolation and immune defense to prevent the risk from spreading further."
     zh:
       key: "处置建议"
-      value: "容器遭到入侵，请排查集群权限是否陷落，可尝试采用微隔离和免疫防御阻止风险进一步扩散。。"
+      value: "容器遭到入侵，请排查集群权限是否陷落，可尝试采用微隔离和免疫防御阻止风险进一步扩散。"
   desc: in Linux Kernel Can Allow Container Escape in Kubernetes Linux
   condition: >
     evt.type = unshare and proc.name=unshare and proc.args contains r and not proc.args contains "mount" and container
@@ -1235,7 +1235,7 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands."
+      value: "The container has been invaded. Please check whether the hacker has obtained host permissions and has other host operations. You can try to use micro isolation and immune defense to prevent the risk from spreading further."
     zh:
       key: "处置建议"
       value: "容器遭到入侵，请排查黑客是否已获取主机权限并有其它主机操作，可尝试采用微隔离和免疫防御阻止风险进一步扩散。"
@@ -1253,7 +1253,7 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands."
+      value: "Please check whether the nmap command in the container has been granted S permission, so that hackers try to use it to improve their rights. You can try to use micro isolation and immune defense to prevent the risk from spreading further."
     zh:
       key: "处置建议"
       value: "请排查容器内nmap命令是否被授予s权限，从而被黑客尝试利用提权，可尝试采用微隔离和免疫防御阻止风险进一步扩散。"
@@ -1271,7 +1271,7 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands."
+      value: "Please check whether the find command in the container has been granted s permission, so that hackers try to use it to improve their rights. You can try to use micro isolation and immune defense to prevent the risk from spreading further."
     zh:
       key: "处置建议"
       value: "请排查容器内find命令是否被授予s权限，从而被黑客尝试利用提权，可尝试采用微隔离和免疫防御阻止风险进一步扩散。"
@@ -1292,7 +1292,7 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands."
+      value: "Please check whether the vim command in the container has been granted s permission, so that hackers try to use it to improve their rights. You can try to use micro isolation and immune defense to prevent the risk from spreading further."
     zh:
       key: "处置建议"
       value: "请排查容器内vim命令是否被授予s权限，从而被黑客尝试利用提权，可尝试采用微隔离和免疫防御阻止风险进一步扩散。"
@@ -1310,7 +1310,7 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands."
+      value: "The container may have been invaded. You can use the immune defense training application to limit the user permissions of sensitive files and commands."
     zh:
       key: "处置建议"
       value: "容器可能已遭到入侵，可使用免疫防御训练应用，限制敏感文件和命令的用户权限。"
@@ -1328,7 +1328,7 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands."
+      value: "The container may have been invaded. You can use the immune defense training application to limit the user permissions of sensitive files and commands."
     zh:
       key: "处置建议"
       value: "容器可能已遭到入侵，可使用免疫防御训练应用，限制敏感文件和命令的用户权限。"
@@ -1346,7 +1346,7 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands."
+      value: "The container may have been invaded. Use the immune defense training application to limit the user permissions of sensitive files and commands."
     zh:
       key: "处置建议"
       value: "容器可能已经遭到入侵，使用免疫防御训练应用，限制敏感文件和命令的用户权限。"
@@ -1364,7 +1364,7 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands."
+      value: "The container may have been invaded. Use the immune defense training application to limit the user permissions of sensitive files and commands."
     zh:
       key: "处置建议"
       value: "容器可能已经遭到入侵，使用免疫防御训练应用，限制敏感文件和命令的用户权限。"
@@ -1383,7 +1383,7 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands."
+      value: "This behavior may occur when the hacker cleans up the attack trace. Please confirm whether the execution object of this behavior meets the expectation."
     zh:
       key: "处置建议"
       value: "该行为可能发生于黑客清除攻击痕迹，请确认该行为的执行对象是否符合预期。"
@@ -1406,7 +1406,7 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands."
+      value: "This behavior may occur when the hacker cleans up the attack trace. Please confirm whether the execution object of this behavior meets the expectation."
     zh:
       key: "处置建议"
       value: "通常该行为发生于黑客清除攻击痕迹，请确认是否遭到入侵。"
@@ -1425,7 +1425,7 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands."
+      value: "Hackers may bypass defense detection through this behavior. Please confirm whether this behavior meets expectations. You can use immune defense training applications to limit user permissions for sensitive files and commands."
     zh:
       key: "处置建议"
       value: "黑客可能通过该行为绕过防御检测，请确认该行为是否符合预期，可使用免疫防御训练应用，限制敏感文件和命令的用户权限。"
@@ -1446,7 +1446,7 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands and disable mounting of sensitive directories and files."
+      value: "Please confirm whether this behavior is caused by malicious tools. If it is a container, it may be invaded by hackers. You can use offset defense to limit the corresponding binary execution."
     zh:
       key: "处置建议"
       value: "请确认该行为产生是否为恶意工具所致，如果是容器则可能遭到黑客入侵，可使用偏移防御限制对应二进制执行。"
@@ -1464,7 +1464,7 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands and disable mounting of sensitive directories and files."
+      value: "Please confirm whether the reading behavior is as expected. You can use the immune defense training application to limit the user permissions of sensitive files and commands, and prohibit mounting sensitive directories and files."
     zh:
       key: "处置建议"
       value: "请确认该读取行为是否符合预期，可使用免疫防御训练应用，限制敏感文件和命令的用户权限，禁止挂载敏感目录和文件。"
@@ -1485,7 +1485,7 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands and disable mounting of sensitive directories and files."
+      value: "This action is usually initiated by a hacker. Please confirm whether the container has been invaded, whether the key inside the container has been leaked, and whether other attacks are associated."
     zh:
       key: "处置建议"
       value: "该行为通常由黑客发起，请确认容器是否遭到入侵，容器内密钥是否泄漏，同时关联其他攻击行为。"
@@ -1512,7 +1512,7 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands and disable mounting of sensitive directories and files."
+      value: "Please confirm whether the reading behavior is as expected. You can use the immune defense training application to limit the user permissions of sensitive files and commands, and prohibit mounting sensitive directories and files."
     zh:
       key: "处置建议"
       value: "请确认该读取行为是否符合预期，可使用免疫防御训练应用，限制敏感文件和命令的用户权限，禁止挂载敏感目录和文件。"
@@ -1557,7 +1557,7 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands and disable mounting of sensitive directories and files."
+      value: "Please confirm whether this behavior is executed by the operation and maintenance personnel or initiated by the trusted probe program. If not, please associate with other attacks to confirm whether the container is invaded."
     zh:
       key: "处置建议"
       value: "请确认该行为是否为运维人员执行或可信探针类程序发起，如果不是请关联其他攻击行为，确认容器是否遭到入侵。"
@@ -1574,7 +1574,7 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands and disable mounting of sensitive directories and files."
+      value: "Please confirm whether the read behavior is executed by a trusted program. Otherwise, offset defense can be used to restrict its execution."
     zh:
       key: "处置建议"
       value: "请确认该读取行为是否由可信程序执行，否则可使用偏移防御限制其执行。"
@@ -1596,7 +1596,7 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands and disable mounting of sensitive directories and files."
+      value: "This behavior may be that hackers collect information, can use immune defense training applications, restrict user permissions of sensitive files and commands, and prohibit mounting sensitive directories and files."
     zh:
       key: "处置建议"
       value: "该行为可能是黑客进行信息收集，可使用免疫防御训练应用，限制敏感文件和命令的用户权限，禁止挂载敏感目录和文件。"
@@ -1619,7 +1619,7 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands and disable mounting of sensitive directories and files."
+      value: "Please confirm whether this behavior is generated by the trusted application in the container. You can use the white list to let go of the connection request initiated by the trusted program, or you can use micro isolation to restrict the container."
     zh:
       key: "处置建议"
       value: "请确认该行为是否由容器内可信应用产生，可使用白名单放过可信程序发起的连接请求，否则可采用微隔离对该容器进行限制。"
@@ -1644,7 +1644,7 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands and disable mounting of sensitive directories and files."
+      value: "Please confirm whether the hacker uses tools to collect information, or the operation and maintenance personnel can use offset defense to limit the execution of suspicious processes."
     zh:
       key: "处置建议"
       value: "请确认是否为黑客使用工具进行信息收集，或运维人员自身操作，可使用偏移防御限制可疑进程执行。"
@@ -1666,7 +1666,7 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "Use the Immune Defence training application to block new or modified executables and restrict the users and recipients of the commands."
+      value: "Please confirm whether information collection is carried out for hackers, or operation and maintenance personnel can use immune defense training applications to block new or modified executable files, and restrict users and recipients of commands."
     zh:
       key: "处置建议"
       value: "请确认是否为黑客进行信息收集，或运维人员自身操作，可使用免疫防御训练应用，阻拦新的或被修改的可执行文件，限制执行命令的用户和接收对象。"
@@ -1686,7 +1686,7 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands and disable mounting of sensitive directories and files."
+      value: "Please confirm whether the command is executed by a trusted person or program. You can use the white list to pass the alarm. Otherwise, please check whether the container has been invaded, and use the immune defense training application to restrict the user permissions of sensitive files and commands, and prohibit mounting sensitive directories and files."
     zh:
       key: "处置建议"
       value: "请确认该指令是否为可信人员或程序执行，可使用白名单放过告警，否则请排查容器是否遭到入侵，并使用免疫防御训练应用，限制敏感文件和命令的用户权限，禁止挂载敏感目录和文件。"
@@ -1703,7 +1703,7 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands and disable mounting of sensitive directories and files."
+      value: "Please confirm whether this behavior is a third-party trusted application scanning. If not, it may be a hacker tool behavior. You can use the immune defense training application to limit the user permissions of sensitive files and commands, and prohibit the mounting of sensitive directories and files."
     zh:
       key: "处置建议"
       value: "请确认该行为是否为第三方可信应用扫描，如果不是则可能为黑客工具行为，可使用免疫防御训练应用，限制敏感文件和命令的用户权限，禁止挂载敏感目录和文件。"
@@ -1720,7 +1720,7 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands and disable mounting of sensitive directories and files."
+      value: "This behavior probably refers to the information collection operation before the hacker attempts to raise authority. The container may be invaded. You can use the immune defense training application to limit the user permissions of sensitive files and commands, and prohibit the mounting of sensitive directories and files."
     zh:
       key: "处置建议"
       value: "该行为大概率为黑客尝试提权前的信息收集操作，容器可能遭到入侵，可使用免疫防御训练应用，限制敏感文件和命令的用户权限，禁止挂载敏感目录和文件。"
@@ -1748,7 +1748,7 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands and disable mounting of sensitive directories and files."
+      value: "It may be an act of hacker information collection. Please confirm the execution object. You can use the immune defense training application to limit the user permissions of sensitive files and commands, and prohibit mounting sensitive directories and files."
     zh:
       key: "处置建议"
       value: "可能为黑客信息收集行为，请确认执行对象，可使用免疫防御训练应用，限制敏感文件和命令的用户权限，禁止挂载敏感目录和文件。"
@@ -1765,7 +1765,7 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands and disable mounting of sensitive directories and files."
+      value: "It may be hacker information collection. Please confirm the execution object, use the immune defense training application, limit the user permissions of sensitive files and commands, and prohibit the mounting of sensitive directories and files."
     zh:
       key: "处置建议"
       value: "可能为黑客信息收集行为，请确认执行对象，使用免疫防御训练应用，限制敏感文件和命令的用户权限，禁止挂载敏感目录和文件。"
@@ -1782,10 +1782,10 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands and disable mounting of sensitive directories and files."
+      value: "Please confirm whether this behavior is initiated by a trusted person or program, or the container may be invaded. You can use the immune defense training application to limit the user permissions of sensitive files and commands."
     zh:
       key: "处置建议"
-      value: "请确认该行为发起对象是否为可信人员或程序，否则容器可能遭到入侵，可使用免疫防御训练应用，限制敏感文件和命令的用户权限，。"
+      value: "请确认该行为发起对象是否为可信人员或程序，否则容器可能遭到入侵，可使用免疫防御训练应用，限制敏感文件和命令的用户权限。"
   desc: Get ApiServer_token through kubectl
   condition: >
     evt.type = execve and (proc.cmdline contains "kubectl config view" or proc.cmdline contains "kubectl describe secrets")
@@ -1800,7 +1800,7 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "Prohibit mounting sensitive directories and files, prohibit sensitive containers from starting, and update software versions within containers."
+      value: "Unsafe mount startup is vulnerable to hackers' attacks. Please confirm whether the mount is necessary, and if not, please change the mount path."
     zh:
       key: "处置建议"
       value: "不安全挂载启动，容易遭受黑客提权攻击，请确认挂载是否为必须，非必要请更换挂载路径。"
@@ -1824,7 +1824,7 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "Prohibit mounting sensitive directories and files, prohibit sensitive containers from starting, and update software versions within containers."
+      value: "Immune defense is used to prevent sensitive directories and files from being mounted, prevent sensitive containers from being started, and update the software version in the containers."
     zh:
       key: "处置建议"
       value: "采用免疫防御禁止挂载敏感目录和文件，禁止敏感容器启动，更新容器内软件版本。"
@@ -1863,7 +1863,7 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "Prohibit mounting sensitive directories and files, prohibit sensitive containers from starting, and update software versions within containers."
+      value: "Please confirm whether the program is introduced as expected, or use offset defense to limit the program's operation, and check whether the container is invaded by hackers."
     zh:
       key: "处置建议"
       value: "请确认该程序引入是否符合预期，否则则采用偏移防御限制该程序运行，并排查容器是否遭到黑客入侵。"
@@ -1880,7 +1880,7 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "Prohibit mounting sensitive directories and files, prohibit sensitive containers from starting, and update software versions within containers."
+      value: "Confirm whether the startup of the container is as expected, and check the reason for startup."
     zh:
       key: "处置建议"
       value: "确认该容器启动是否符合预期，排查启动原因。"
@@ -1901,7 +1901,7 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "Train applications with immune defence, block traffic using micro-segmentation and restrict user permissions for sensitive files and commands."
+      value: "Confirm whether the behavior is as expected, or use the immune defense training container to prevent such behavior."
     zh:
       key: "处置建议"
       value: "确认该行为是否属符合预期，否则可使用免疫防御训练容器，防止该类行为。"
@@ -1924,7 +1924,7 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "Train applications with immune defence, block traffic using micro-segmentation and restrict user permissions for sensitive files and commands."
+      value: "To confirm whether the flow is abnormal, micro isolation can be used to block the flow."
     zh:
       key: "处置建议"
       value: "确认该流量是否异常，可使用微隔离阻拦流量。"
@@ -1944,7 +1944,7 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "Train applications with immune defence, block traffic using micro-segmentation and restrict user permissions for sensitive files and commands."
+      value: "To confirm whether the flow is abnormal, micro isolation can be used to block the flow."
     zh:
       key: "处置建议"
       value: "确认该流量是否异常，可使用微隔离阻拦流量。"
@@ -1964,7 +1964,7 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "Train applications with immune defence, block traffic using micro-segmentation and restrict user permissions for sensitive files and commands."
+      value: "To confirm whether the traffic is abnormal, you can use micro isolation to block the traffic and limit the user permissions of sensitive files and commands."
     zh:
       key: "处置建议"
       value: "确认该流量是否异常，可使用微隔离阻拦流量，限制敏感文件和命令的用户权限。"
@@ -1987,7 +1987,7 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "Train applications with immune defence, block traffic using micro-segmentation and restrict user permissions for sensitive files and commands."
+      value: "Use immune defense training applications, use micro isolation to block traffic, and limit user permissions for sensitive files and commands."
     zh:
       key: "处置建议"
       value: "使用免疫防御训练应用，使用微隔离阻拦流量，限制敏感文件和命令的用户权限。"
@@ -2006,7 +2006,7 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "Train applications with immune defence, block traffic using micro-segmentation and restrict user permissions for sensitive files and commands."
+      value: "Use immune defense training applications, use micro isolation to block traffic, and limit user permissions for sensitive files and commands."
     zh:
       key: "处置建议"
       value: "使用免疫防御训练应用，使用微隔离阻拦流量，限制敏感文件和命令的用户权限。"
@@ -2023,7 +2023,7 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "Train applications with immune defence, block traffic using micro-segmentation and restrict user permissions for sensitive files and commands."
+      value: "Use immune defense training applications, use micro isolation to block traffic, and limit user permissions for sensitive files and commands."
     zh:
       key: "处置建议"
       value: "使用免疫防御训练应用，使用微隔离阻拦流量，限制敏感文件和命令的用户权限。"
@@ -2045,7 +2045,7 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "Train applications with immune defence, block traffic using micro-segmentation and restrict user permissions for sensitive files and commands."
+      value: "Use immune defense training applications, use micro isolation to block traffic, and limit user permissions for sensitive files and commands."
     zh:
       key: "处置建议"
       value: "使用免疫防御训练应用，使用微隔离阻拦流量，限制敏感文件和命令的用户权限。"
@@ -2061,7 +2061,7 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "Train applications with immune defence, block traffic using micro-segmentation and restrict user permissions for sensitive files and commands."
+      value: "Please confirm whether the behavior is a trusted person and procedure operation, otherwise, you can use the immune defense training application to limit abnormal behavior."
     zh:
       key: "处置建议"
       value: "请确认该行为是否为可信人员和程序操作，否则可使用免疫防御训练应用，限制异常行为。"
@@ -2083,7 +2083,7 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "Train applications with immune defence, block traffic using micro-segmentation and restrict user permissions for sensitive files and commands."
+      value: "Use immune defense training applications, use micro isolation to block traffic, and limit user permissions for sensitive files and commands."
     zh:
       key: "处置建议"
       value: "使用免疫防御训练应用，使用微隔离阻拦流量，限制敏感文件和命令的用户权限。"
@@ -2101,7 +2101,7 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "Train applications with immune defence, block traffic using micro-segmentation and restrict user permissions for sensitive files and commands."
+      value: "Please confirm the specific behavior of the tool. Hackers may scan the intranet. It is recommended to use offset defense to limit the execution of the tool, and check whether the container has been invaded."
     zh:
       key: "处置建议"
       value: "请确认该工具具体行为，可能存在黑客扫描内网情况，推荐使用偏移防御限制该工具执行，并排查容器是否遭到入侵。"
@@ -2120,7 +2120,7 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "Train applications with immune defence, block traffic using micro-segmentation and restrict user permissions for sensitive files and commands."
+      value: "Use micro isolation to block the flow, delete the backdoor of mining in time, and check whether the container is invaded."
     zh:
       key: "处置建议"
       value: "使用微隔离阻拦流量，及时删除挖矿后门，同时排查容器是否遭到入侵。"
@@ -2138,7 +2138,7 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "Train applications with immune defence, block traffic using micro-segmentation and restrict user permissions for sensitive files and commands."
+      value: "Check the corresponding mining program and limit the operation of the program through offset defense, while troubleshooting system application vulnerabilities."
     zh:
       key: "处置建议"
       value: "查看对应挖矿程序并通过偏移防御限制程序运行，同时排查系统应用漏洞。"
@@ -2155,7 +2155,7 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "Train applications with immune defence, block traffic using micro-segmentation and restrict user permissions for sensitive files and commands."
+      value: "If an authorization raising behavior is found in the container, please confirm whether the container has been invaded. You can use the immune defense training application to limit the user permissions of sensitive files and commands."
     zh:
       key: "处置建议"
       value: "容器中发现提权行为，请确认容器是否遭到入侵，可使用免疫防御训练应用，限制敏感文件和命令的用户权限。"
@@ -2172,7 +2172,7 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "Train applications with immune defence, block traffic using micro-segmentation and restrict user permissions for sensitive files and commands."
+      value: "Please confirm whether it is caused by the internal business script of the system, otherwise the system may be invaded, and micro isolation can be used to block the traffic."
     zh:
       key: "处置建议"
       value: "使请确认是否为系统内部业务脚本导致，否则系统可能遭到入侵，可使用微隔离阻拦流量。"
@@ -2190,7 +2190,7 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "Train applications with immune defence, block traffic using micro-segmentation and restrict user permissions for sensitive files and commands."
+      value: "SSH burst may occur. It is recommended to confirm whether there is a weak password in the container and limit the number of incorrect login attempts by modifying/etc/pam.d/sshd."
     zh:
       key: "处置建议"
       value: "可能存在ssh爆破行为，建议确认容器是否存在弱口令，并通过修改/etc/pam.d/sshd限制错误登录尝试次数。"
@@ -2208,7 +2208,7 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "Train applications with immune defence, block traffic using micro-segmentation and restrict user permissions for sensitive files and commands."
+      value: "SSH explosion may occur. It is recommended to confirm whether there is a weak password on the host and limit the number of incorrect login attempts by modifying /etc/pam.d/sshd."
     zh:
       key: "处置建议"
       value: "可能存在ssh爆破行为，建议确认主机是否存在弱口令，并通过修改/etc/pam.d/sshd限制错误登录尝试次数。"
