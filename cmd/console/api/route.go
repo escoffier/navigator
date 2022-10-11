@@ -78,7 +78,7 @@ func SetupRoutes(
 			r.Route("/auth", api.openapiAuth())
 		})
 		r.Group(func(r chi.Router) {
-			//r.Use(openAPIAccessCheck(api.rdb))
+			r.Use(openAPIAccessCheck(api.rdb))
 			r.Route("/platform", api.platformOpenapi()) // platform
 			r.Route("/containerSec", api.OpenApiContainerSec())
 			// proxy to tensor-microseg
