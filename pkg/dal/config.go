@@ -32,7 +32,7 @@ func GetConfig(ctx context.Context, rdb *gorm.DB, key string) (*model.TensorConf
 	}
 
 	if innerErr == gorm.ErrRecordNotFound {
-		return nil, nil
+		return nil, innerErr
 	}
 
 	return &config, nil

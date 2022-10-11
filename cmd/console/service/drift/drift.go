@@ -52,8 +52,8 @@ type TensorDriftService struct {
 	whitelistPtr *atomic.Pointer[model.WhitelistData]
 }
 
-func (rl *TensorDriftService) getVersionOfKey(ctx context.Context, key string) (int64, error) {
-	config, err := dal.GetConfig(ctx, rl.rdb.GetReadDB(), key)
+func (rl *TensorDriftService) getVersionOfKey(ctx context.Context, db *gorm.DB, key string) (int64, error) {
+	config, err := dal.GetConfig(ctx, db, key)
 	if err != nil {
 		return 0, err
 	}
@@ -96,14 +96,19 @@ func (rl *TensorDriftService) loadPolicies() {
 
 	var policies []model.DriftPolicy
 	var version int64
+	versionNotSet := false
 	terr := rl.rdb.GetReadDB().WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var err error
-		policies, err = dal.GetAllPolicies(ctx, rl.rdb.GetReadDB())
+		policies, err = dal.GetAllPolicies(ctx, tx)
 		if err != nil {
 			logging.Get().Err(err).Msg("load drift policies error")
 			return err
 		}
-		version, err = rl.getVersionOfKey(ctx, model.ConfDriftPoliciesVersionKey)
+		version, err = rl.getVersionOfKey(ctx, tx, model.ConfDriftPoliciesVersionKey)
+		if err == gorm.ErrRecordNotFound {
+			versionNotSet = true
+			return nil
+		}
 		if err != nil {
 			logging.Get().Err(err).Msg("load drift policies version error")
 			return err
@@ -112,6 +117,9 @@ func (rl *TensorDriftService) loadPolicies() {
 	})
 	if terr != nil {
 		logging.Get().Err(terr).Msg("load drift policies error")
+	}
+	if versionNotSet {
+		version = getVersionFromPolicies(policies)
 	}
 
 	rl.policiesPtr.Store(&model.PoliciesData{
@@ -132,14 +140,19 @@ func (rl *TensorDriftService) loadWhiteList() {
 
 	var wlist []model.DriftGlobalWhitelistItem
 	var version int64
+	var versionNotSet bool
 	terr := rl.rdb.GetReadDB().WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var err error
-		wlist, err = dal.GetAllDriftGlobalWhiteList(ctx, rl.rdb.GetReadDB())
+		wlist, err = dal.GetAllDriftGlobalWhiteList(ctx, tx)
 		if err != nil {
 			logging.Get().Err(err).Msg("load drift whitelist error")
 			return err
 		}
-		version, err = rl.getVersionOfKey(ctx, model.ConfDriftWhitelistVersionKey)
+		version, err = rl.getVersionOfKey(ctx, tx, model.ConfDriftWhitelistVersionKey)
+		if err == gorm.ErrRecordNotFound {
+			versionNotSet = true
+			return nil
+		}
 		if err != nil {
 			logging.Get().Err(err).Msg("load drift whitelist version error")
 			return err
@@ -148,6 +161,9 @@ func (rl *TensorDriftService) loadWhiteList() {
 	})
 	if terr != nil {
 		logging.Get().Err(terr).Msg("load drift policies error")
+	}
+	if versionNotSet {
+		version = getVersionFromWhitelist(wlist)
 	}
 
 	rl.whitelistPtr.Store(&model.WhitelistData{
