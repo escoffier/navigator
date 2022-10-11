@@ -125,39 +125,33 @@ func (cm *ConfigManager) syncPolicy(ctx context.Context) error {
 		return err
 	}
 
-	logging.Get().Trace().Interface("policyItems", driftResp.Data.Items).Msg("sync policy success")
-	logging.Get().Trace().Interface("whitelist", driftResp.Data.GlobalWhitelistItems).Msg("")
+	logging.Get().Trace().Interface("whitelist", driftResp.Data.Whitelist).Interface("policies", driftResp.Data.Policies).Interface("policyItems", driftResp.Data.Items).Msg("sync policy success")
+
 	if cm.policies().VersionStamp == 0 || len(driftResp.Data.Items) > 0 {
 		policies := make(map[uint32]model.DriftPolicy, len(driftResp.Data.Items))
-		var version int64
 		for _, v := range driftResp.Data.Items {
 			policies[v.ResourceUUID] = v
-			if v.UpdatedAt.UnixMilli() > version {
-				version = v.UpdatedAt.UnixMilli()
-			}
 		}
 		prevVersion := cm.policies().VersionStamp
 		cm.setPolicies(&model.DaemonDriftPolicies{
 			Policies:     policies,
-			VersionStamp: version,
+			VersionStamp: driftResp.Data.Policies.VersionStamp,
 		})
-		logging.Get().Info().Int64("new_version", version).Int64("old_version", prevVersion).Msg("Policies updated successfully")
+		logging.Get().Info().Int64("new_version", driftResp.Data.Policies.VersionStamp).Int64("old_version", prevVersion).Msg("Policies updated successfully")
 	}
 
-	newWhitelist := make(map[string]int64, len(driftResp.Data.GlobalWhitelistItems))
+	newWhitelist := make(map[string]int64, len(driftResp.Data.Whitelist.Whitelist))
 	nowTimestamp := time.Now().UnixMilli()
 	var version int64
-	if cm.whitelist().VersionStamp == 0 || len(driftResp.Data.GlobalWhitelistItems) > 0 { // update
-		for _, v := range driftResp.Data.GlobalWhitelistItems {
+	if cm.whitelist().VersionStamp == 0 || len(driftResp.Data.Whitelist.Whitelist) > 0 { // update
+		for _, v := range driftResp.Data.Whitelist.Whitelist {
 			if nowTimestamp < v.ExpireAt {
 				newWhitelist[v.Path] = v.ExpireAt
 			} else if v.IsForever {
 				newWhitelist[v.Path] = 0
 			}
-			if v.UpdatedAt > version {
-				version = v.UpdatedAt
-			}
 		}
+		version = driftResp.Data.Whitelist.VersionStamp
 		logging.Get().Info().Int64("new_version", version).Int64("old_version", cm.whitelist().VersionStamp).Msg("try to update whitelist")
 	} else { // clear items of expired
 		version = cm.whitelist().VersionStamp

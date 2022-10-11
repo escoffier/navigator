@@ -11,13 +11,13 @@ import (
 )
 
 func GetConfig(ctx context.Context, rdb *gorm.DB, key string) (*model.TensorConfig, error) {
-	pgCtx, cancel := context.WithTimeout(ctx, 1*time.Second)
+	tctx, cancel := context.WithTimeout(ctx, 2*time.Second)
 	defer cancel()
 
 	var config model.TensorConfig
 	var innerErr error
-	err := util.RetryWithBackoff(pgCtx, func() error {
-		oneCtx, cancel := context.WithTimeout(pgCtx, 300*time.Millisecond)
+	err := util.RetryWithBackoff(tctx, func() error {
+		oneCtx, cancel := context.WithTimeout(tctx, 500*time.Millisecond)
 		defer cancel()
 
 		innerErr = rdb.WithContext(oneCtx).Model(&config).Where("k = ? AND status = ?", key, 0).First(&config).Error

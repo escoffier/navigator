@@ -71,7 +71,7 @@ func (api *api) driftCreateGlobalWhitelist() http.HandlerFunc {
 		ctx, cancel := context.WithTimeout(r.Context(), 60*time.Second)
 		defer cancel()
 		type tmp struct {
-			ID int64 `json:"id"`
+			ID uint64 `json:"id"`
 		}
 		whitelistItem := model.DriftGlobalWhitelistItem{}
 		err := util.DecodeJSONBody(w, r, &whitelistItem)
@@ -137,7 +137,7 @@ func (api *api) driftUpdateGlobalWhitelist() http.HandlerFunc {
 		whitelistItemUpdate := model.DriftGlobalWhitelistItem{}
 
 		idStr := chi.URLParam(r, "whitelistID")
-		id, err := strconv.ParseInt(idStr, 10, 64)
+		id, err := strconv.ParseUint(idStr, 10, 64)
 		if err != nil {
 			logging.GetLogger().Error().Err(err).Msg("get id fail")
 			apperror.RespAndLog(w, ctx, apperror.NewAnError(http.StatusInternalServerError, errors.New("service instance get error")))
@@ -199,7 +199,7 @@ func (api *api) driftDelGlobalWhitelist() http.HandlerFunc {
 		defer cancel()
 
 		idStr := chi.URLParam(r, "whitelistID")
-		id, err := strconv.ParseInt(idStr, 10, 64)
+		id, err := strconv.ParseUint(idStr, 10, 64)
 		if err != nil {
 			logging.GetLogger().Error().Err(err).Msg("get id fail")
 			apperror.RespAndLog(w, ctx, apperror.NewAnError(http.StatusInternalServerError, errors.New("service instance get error")))
@@ -279,7 +279,7 @@ func (api *api) driftListGlobalWhitelistById() http.HandlerFunc {
 		ctx, cancel := context.WithTimeout(r.Context(), 60*time.Second)
 		defer cancel()
 		idStr := chi.URLParam(r, "whitelistID")
-		id, err := strconv.ParseInt(idStr, 10, 64)
+		id, err := strconv.ParseUint(idStr, 10, 64)
 		if err != nil {
 			logging.GetLogger().Error().Err(err).Msg("get id fail")
 			apperror.RespAndLog(w, ctx, apperror.NewAnError(http.StatusInternalServerError, errors.New("service instance get error")))
@@ -416,11 +416,12 @@ func (api *api) driftAllPolicy() http.HandlerFunc {
 		}
 		var policies []model.DriftPolicy
 		if policiesVersion == 0 {
-			policies = clusterPolicies
+			policies = clusterPolicies.Policies
 		} else {
-			currentVersion := getVersionFromPolicies(clusterPolicies)
-			if currentVersion != policiesVersion {
-				policies = clusterPolicies
+			if clusterPolicies.VersionStamp != policiesVersion {
+				policies = clusterPolicies.Policies
+			} else {
+				clusterPolicies.Policies = nil
 			}
 		}
 
@@ -430,19 +431,18 @@ func (api *api) driftAllPolicy() http.HandlerFunc {
 			apperror.RespAndLog(w, ctx, apperror.NewAnError(http.StatusInternalServerError, errors.New("GetAll whitelist error")))
 			return
 		}
-		var finalWhitelist []model.DriftGlobalWhitelistItem
-		if wlistVersion == 0 {
-			finalWhitelist = whitelist
-		} else {
-			currentVersion := getVersionFromWhitelist(whitelist)
-			if currentVersion != wlistVersion {
-				finalWhitelist = whitelist
-			}
+		if wlistVersion != 0 && whitelist.VersionStamp == wlistVersion {
+			whitelist.Whitelist = nil
 		}
 
+		// TODO tmp don't repeat data
+		clusterPolicies.Policies = nil
+		
 		response.Ok(w, response.WithItems(policies),
 			response.WithTotalItems(int64(len(policies))),
-			response.WithCustomField("g_whitelist", finalWhitelist))
+			response.WithCustomField("g_whitelist", whitelist),
+			response.WithCustomField("policies", clusterPolicies),
+		)
 	}
 }
 

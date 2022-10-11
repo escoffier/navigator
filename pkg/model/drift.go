@@ -85,10 +85,20 @@ type DaemonDriftResp struct {
 	Data       DaemonDriftRespData `json:"data"`
 }
 
+type PoliciesData struct {
+	Policies     []DriftPolicy `json:"policies,omitempty"`
+	VersionStamp int64         `json:"versionStamp"`
+}
+type WhitelistData struct {
+	Whitelist    []DriftGlobalWhitelistItem `json:"whitelist,omitempty"`
+	VersionStamp int64                      `json:"versionStamp"`
+}
+
 type DaemonDriftRespData struct {
-	Items                []DriftPolicy              `json:"items"`
-	TotalItems           int64                      `json:"totalItems,omitempty"`
-	GlobalWhitelistItems []DriftGlobalWhitelistItem `json:"g_whitelist"`
+	Items      []DriftPolicy `json:"items"`
+	TotalItems int64         `json:"totalItems,omitempty"`
+	Whitelist  WhitelistData `json:"g_whitelist"`
+	Policies   PoliciesData  `json:"policies"`
 }
 
 func (DriftPolicy) TableName() string {
@@ -96,7 +106,7 @@ func (DriftPolicy) TableName() string {
 }
 
 type DriftGlobalWhitelistItem struct {
-	ID        int64  `gorm:"column:id" json:"id"`
+	ID        uint64 `gorm:"column:id" json:"id"`
 	CreatedAt int64  `gorm:"autoCreateTime:milli;column:created_at" json:"created_at"` // milliseconds
 	UpdatedAt int64  `gorm:"autoUpdateTime:milli;column:updated_at" json:"updated_at"` // milliseconds
 	Creator   string `gorm:"type:varchar(255);column:creator" json:"creator"`
