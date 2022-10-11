@@ -22,15 +22,14 @@ func (api *api) auditLogOpenApi() func(chi.Router) {
 	}
 
 	return func(r chi.Router) {
-
 		r.With(RateLimitMiddleware(api.redisClient, int64(rate))).
 			Get("/", api.getAuditLogOpenApi())
 
-		exportContainers := os.Getenv("EXPORT_CONTAINERS")
-		if exportContainers == "true" {
-			r.With(RateLimitMiddleware(api.redisClient, int64(rate))).
-				Get("/containers", api.getContainers())
-		}
+		r.With(RateLimitMiddleware(api.redisClient, int64(rate))).
+			Get("/config", api.getAuditConfig())
+
+		r.With(RateLimitMiddleware(api.redisClient, int64(rate))).
+			Post("/config", api.setAuditConfig())
 	}
 }
 
