@@ -160,7 +160,7 @@ func (api *api) driftUpdateGlobalWhitelist() http.HandlerFunc {
 		}
 		nowTimestamp := time.Now().UnixMilli()
 		if whitelistItemUpdate.ExpireAt < nowTimestamp && !whitelistItemUpdate.IsForever {
-			logging.GetLogger().Err(fmt.Errorf("expire time can't before now")).Msg("")
+			logging.GetLogger().Error().Int64("expired_at", whitelistItemUpdate.ExpireAt).Int64("now", nowTimestamp).Msg("expire time can't before now")
 			apperror.RespAndLog(w, ctx, apperror.NewDriftGlobalWhitelistTimestampError(http.StatusInternalServerError, errors.New("expire time can't before now"),
 				apperror.Suberror{
 					Location: "timestamp",
