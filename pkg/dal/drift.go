@@ -14,7 +14,6 @@ import (
 	"gorm.io/gorm/clause"
 )
 
-
 func updateDriftVersionStamp(tx *gorm.DB, config *model.TensorConfig) error {
 
 	return tx.Model(&model.TensorConfig{}).Clauses(clause.OnConflict{
@@ -112,7 +111,7 @@ func UpdateDriftGlobalWhiteList(ctx context.Context, rdb *gorm.DB, whitelist mod
 	}
 
 	tmpWhitelist := model.DriftGlobalWhitelistItem{}
-	tmpWhitelist.ID = util.GenerateUUID64(whitelist.Path)
+	tmpWhitelist.ID = whitelist.ID
 	tmpWhitelist.Updater = whitelist.Updater
 	tmpWhitelist.UpdatedAt = whitelist.UpdatedAt
 	tmpWhitelist.Path = whitelist.Path
