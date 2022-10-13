@@ -1348,7 +1348,7 @@ func (s *ConScannerSrv) GetImageDetail(ctx context.Context, imgID int64) (*model
 	}
 
 	// 查在线
-	onlineSQL := fmt.Sprintf("select distinct a.id  from  %s a  join %s b  on  a.image_uuid = b.image_uuid where b.image_uuid = %d and b.status = 0;", model.ImageList{}.TableName(), model.TensorContainer{}.TableName(), img.ImageUUID)
+	onlineSQL := fmt.Sprintf("select  a.id  from  %s a  join %s b  where  a.image_uuid = b.image_uuid and b.image_uuid = %d and b.status = 0;", model.ImageList{}.TableName(), model.TensorContainer{}.TableName(), img.ImageUUID)
 	online, err := s.dbdal.GetOnlineImage(ctx, store.GetOnlineImageParam{SQL: onlineSQL})
 	if err == nil && len(online) > 0 {
 		img.Online = true
@@ -1382,7 +1382,7 @@ func (s *ConScannerSrv) GetImageOverView(ctx context.Context, fromType int64) (*
 	}
 
 	// 查在线
-	onlineSQL := fmt.Sprintf("select distinct a.id,a.image_uuid from  %s a  join %s b  on  a.image_uuid = b.image_uuid where a.from_type = %d and b.status = 0 ;", model.ImageList{}.TableName(), model.TensorContainer{}.TableName(), fromType)
+	onlineSQL := fmt.Sprintf("select  a.id,a.image_uuid from  %s a  join %s b  where  a.image_uuid = b.image_uuid and a.from_type = %d and b.status = 0 ;", model.ImageList{}.TableName(), model.TensorContainer{}.TableName(), fromType)
 	onlineRes, err := s.dbdal.GetOnlineImage(ctx, store.GetOnlineImageParam{SQL: onlineSQL})
 	if err != nil {
 		logging.GetLogger().Err(err).Msg("GetImageOverView.GetOnlineImage")
@@ -1497,7 +1497,7 @@ func (s *ConScannerSrv) SearchImageWithScan(ctx context.Context, param SearchIma
 		UUIDs:        param.UUIDs,
 	}
 	// 查在线
-	onlineSQL := fmt.Sprintf("select distinct a.id  from  %s a  join %s b  on  a.image_uuid = b.image_uuid where b.status = 0 ;", model.ImageList{}.TableName(), model.TensorContainer{}.TableName())
+	onlineSQL := fmt.Sprintf("select  a.id  from  %s a  join %s b  where  a.image_uuid = b.image_uuid and b.status = 0 ;", model.ImageList{}.TableName(), model.TensorContainer{}.TableName())
 	online, err := s.dbdal.GetOnlineImage(ctx, store.GetOnlineImageParam{SQL: onlineSQL})
 	if err != nil {
 		logging.GetLogger().Err(err).Msg("SearchImageWithScan.GetOnlineImage")
@@ -3320,7 +3320,7 @@ func (s *ConScannerSrv) GetOnlineImageId(ctx context.Context) ([]int64, error) {
 		registryIds = append(registryIds, noDeleteRegistries[i].ID)
 	}
 
-	onlineSQL := fmt.Sprintf("select distinct a.id  from  %s a  join %s b  on  a.image_uuid = b.image_uuid where a.registry_id IN (%s) and b.status = 0 ", model.ImageList{}.TableName(), model.TensorContainer{}.TableName(), util.JoinInt64Slice(registryIds, ","))
+	onlineSQL := fmt.Sprintf("select  a.id  from  %s a  join %s b  where  a.image_uuid = b.image_uuid and a.registry_id IN (%s) and b.status = 0 ", model.ImageList{}.TableName(), model.TensorContainer{}.TableName(), util.JoinInt64Slice(registryIds, ","))
 	online, err := s.dbdal.GetOnlineImage(ctx, store.GetOnlineImageParam{SQL: onlineSQL})
 	if err != nil {
 		logging.GetLogger().Err(err).Msg("GetOnlineImageId.GetOnlineImage")
