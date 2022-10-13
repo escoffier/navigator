@@ -179,8 +179,13 @@ func (c *CiApiSrv) CreateCiPolicy(ctx *gin.Context) {
 	}
 	policyID, err := c.Component.PM.CreatePolicy(ctx, &policy)
 	if err != nil {
-		logging.Get().Err(err).Msg("create policy error")
-		response.JSONError(ctx, fmt.Errorf("create policy error"))
+		if strings.Contains(err.Error(), "Duplicate entry") {
+			logging.Get().Err(err).Msgf("create same name policy %s", policy.Name)
+			response.JSONError(ctx, fmt.Errorf("create same name policy %s", policy.Name))
+		} else {
+			logging.Get().Err(err).Msg("create policy error")
+			response.JSONError(ctx, fmt.Errorf("create policy error"))
+		}
 		return
 	}
 	response.JSONOK(ctx, response.WithItem(policyID), response.WithTarget(&response.TargetRef{ID: strconv.Itoa(int(policyID)), Name: policy.Name}))
