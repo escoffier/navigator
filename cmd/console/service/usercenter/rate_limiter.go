@@ -11,6 +11,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/dal"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/security-rd/go-pkg/databases"
+	"gorm.io/gorm"
 )
 
 const (
@@ -84,10 +85,10 @@ func readConfigs(rdb *databases.RDBInstance) (LimiterConfig, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
 	defer cancel()
 	conf, err := dal.GetConfig(ctx, rdb.GetReadDB(), ConfigKey)
-	if err != nil {
+	if err != nil && err != gorm.ErrRecordNotFound {
 		logging.GetLogger().Err(err).Msg("read configs from postgre error")
 		return config, err
-	} else if conf == nil {
+	} else if conf == nil || err == gorm.ErrRecordNotFound {
 		return LimiterConfig{
 			RateLimitEnable: 0,
 		}, nil

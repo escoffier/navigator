@@ -9,6 +9,7 @@ import (
 	"gitlab.com/security-rd/go-pkg/databases"
 	"gitlab.com/security-rd/go-pkg/pb"
 	"gitlab.com/security-rd/go-pkg/storeerror"
+	"gorm.io/gorm"
 )
 
 type store struct {
@@ -21,7 +22,7 @@ const (
 
 func (s *store) LoadSyslogSettings(ctx context.Context) (*pb.SyslogSetting, error) {
 	config, err := dal.GetConfig(ctx, s.db.GetReadDB(), auditSyslogConfigKey)
-	if err != nil {
+	if err != nil && err != gorm.ErrRecordNotFound {
 		return nil, storeerror.WrapError(storeerror.ErrCodeUnknown, err)
 	}
 
