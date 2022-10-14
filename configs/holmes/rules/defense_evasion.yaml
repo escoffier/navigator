@@ -1,0 +1,61 @@
+##attck_rule_type=Defense_Evasion
+- rule: Clear Log Activities
+  hid: def_01
+  hthreats: 0
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "This behavior may occur when the hacker cleans up the attack trace. Please confirm whether the execution object of this behavior meets the expectation."
+    zh:
+      key: "处置建议"
+      value: "该行为可能发生于黑客清除攻击痕迹，请确认该行为的执行对象是否符合预期。"
+  desc: Detect clearing of critical log files
+  condition: >
+    open_write and
+    access_log_files and
+    evt.arg.flags contains "O_TRUNC" and
+    not trusted_logging_images and
+    not allowed_clear_log_files and 
+    not tensorsec_namespace
+  output: >
+    Log files were tampered (zh_msg=日志文件被篡改,rule_type=Defense_Evasion,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid file=%fd.name container_id=%container.id container_name=%container.name image=%container.image.repository)
+  priority: WARNING
+  tags: [ATT&CK, file, mitre_defense_evasion]
+
+- rule: Delete Bash History
+  hid: def_02
+  hthreats: 1
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "This behavior may occur when the hacker cleans up the attack trace. Please confirm whether the execution object of this behavior meets the expectation."
+    zh:
+      key: "处置建议"
+      value: "通常该行为发生于黑客清除攻击痕迹，请确认是否遭到入侵。"
+  desc: Detect bash history deletion
+  condition: >
+    ((spawned_process and proc.name in (shred, rm, mv) and proc.args contains "bash_history") or
+     (open_write and fd.name contains "bash_history" and evt.arg.flags contains "O_TRUNC"))
+  output: >
+    Shell history had been deleted or renamed (zh_msg=bash历史文件被删除,rule_type=Defense_Evasion,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid type=%evt.type fd_name=%fd.name name=%evt.arg.name path=%evt.arg.path oldpath=%evt.arg.oldpath %container.info,container_id=%container.id,container_name=%container.name)
+  priority: WARNING
+  tags: [ATT&CK, process, mitre_defense_evasion]
+
+- rule: Create Symlink Over Sensitive Files
+  hid: def_03
+  hthreats: 0
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "Hackers may bypass defense detection through this behavior. Please confirm whether this behavior meets expectations. You can use immune defense training applications to limit user permissions for sensitive files and commands."
+    zh:
+      key: "处置建议"
+      value: "黑客可能通过该行为绕过防御检测，请确认该行为是否符合预期，可使用免疫防御训练应用，限制敏感文件和命令的用户权限。"
+  desc: Detect symlink created over sensitive files
+  condition: >
+    create_symlink
+    and (evt.arg.target in (sensitive_file_names) or evt.arg.target in (sensitive_directory_names) or link_sensitive_files)
+  output: >
+    Symlinks created over sensitive files (zh_msg=通过敏感文件创建符号链接,rule_type=Defense_Evasion,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid target=%evt.arg.target linkpath=%evt.arg.linkpath parent_process=%proc.pname,container_id=%container.id,container_name=%container.name)
+  priority: ERROR
+  tags: [ATT&CK, file, mitre_exfiltration]

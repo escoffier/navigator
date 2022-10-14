@@ -1,0 +1,287 @@
+##attck_rule_type=Discovery
+- rule: Read sensitive file untrusted
+  hid: disc_01
+  hthreats: 1
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "Please confirm whether the reading behavior is as expected. You can use the immune defense training application to limit the user permissions of sensitive files and commands, and prohibit mounting sensitive directories and files."
+    zh:
+      key: "处置建议"
+      value: "请确认该读取行为是否符合预期，可使用免疫防御训练应用，限制敏感文件和命令的用户权限，禁止挂载敏感目录和文件。"
+  desc: >
+    an attempt to read any sensitive file (e.g. files containing user/password/authentication
+    information). Exceptions are made for known trusted programs.
+  condition: >
+    sensitive_files and open_read and container
+    and proc_name_exists
+    and not proc.name in (user_mgmt_binaries, userexec_binaries, package_mgmt_binaries,
+     cron_binaries, read_sensitive_file_binaries, shell_binaries, hids_binaries,
+     vpn_binaries, mail_config_binaries, nomachine_binaries, sshkit_script_binaries,
+     in.proftpd, mandb, salt-minion, postgres_mgmt_binaries,
+     google_oslogin_
+     )
+    and not cmp_cp_by_passwd
+    and not ansible_running_python
+    and not proc.cmdline contains /usr/bin/mandb
+    and not run_by_qualys
+    and not run_by_chef
+    and not run_by_google_accounts_daemon
+    and not user_read_sensitive_file_conditions
+    and not perl_running_plesk
+    and not perl_running_updmap
+    and not veritas_driver_script
+    and not perl_running_centrifydc
+    and not runuser_reading_pam
+    and not linux_bench_reading_etc_shadow
+    and not user_known_read_sensitive_files_activities
+    and not user_read_sensitive_file_containers
+    and not runc_writing_passwd
+    and not tensorsec_namespace
+  output: >
+    Sensitive file opened for reading by non-trusted program (zh_msg=未受信任的程序试图读取敏感文件,rule_type=Discovery,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid program=%proc.name
+    file=%fd.name parent=%proc.pname gparent=%proc.aname[2] ggparent=%proc.aname[3] gggparent=%proc.aname[4] container_id=%container.id container_name=%container.name image=%container.image.repository)
+  priority: WARNING
+  tags: [ATT&CK, filesystem, mitre_credential_access, mitre_discovery]
+
+- rule: View network information in the container
+  hid: disc_02
+  hthreats: 1
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "Please confirm whether this behavior is executed by the operation and maintenance personnel or initiated by the trusted probe program. If not, please associate with other attacks to confirm whether the container is invaded."
+    zh:
+      key: "处置建议"
+      value: "请确认该行为是否为运维人员执行或可信探针类程序发起，如果不是请关联其他攻击行为，确认容器是否遭到入侵。"
+  desc: Kubernetes Namespaces bypass
+  condition: >
+    spawned_process and container and proc.name in (namespace_bypass_cmds)
+  output: View network information in the container (zh_msg=容器内查看网络信息,rule_type=Discovery,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,container_id=%container.id,container_name=%container.name)
+  priority: WARNING
+  tags: [ATT&CK, strict]
+
+- rule: Read Shell Configuration File
+  hid: disc_03
+  hthreats: 1
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "Please confirm whether the read behavior is executed by a trusted program. Otherwise, offset defense can be used to restrict its execution."
+    zh:
+      key: "处置建议"
+      value: "请确认该读取行为是否由可信程序执行，否则可使用偏移防御限制其执行。"
+  desc: Detect attempts to read shell configuration files by non-shell programs
+  condition: >
+    open_read and
+    (fd.filename in (shell_config_filenames) or
+    fd.name in (shell_config_files) or
+    fd.directory in (shell_config_directories)) and
+    not proc.name in (shell_binaries)
+  output: >
+    a shell configuration file was read by a non-shell program (zh_msg=非shell程序读取shell配置文件,rule_type=Discovery,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid file=%fd.name container_id=%container.id container_name=%container.name image=%container.image.repository)
+  priority: WARNING
+  tags: [ATT&CK, file, mitre_discovery]
+
+- rule: Read ssh information
+  hid: disc_04
+  hthreats: 1
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "This behavior may be that hackers collect information, can use immune defense training applications, restrict user permissions of sensitive files and commands, and prohibit mounting sensitive directories and files."
+    zh:
+      key: "处置建议"
+      value: "该行为可能是黑客进行信息收集，可使用免疫防御训练应用，限制敏感文件和命令的用户权限，禁止挂载敏感目录和文件。"
+  desc: Any attempt to read files below ssh directories by non-ssh programs
+  condition: >
+    ((open_read or open_directory) and
+     consider_ssh_reads and
+     (user_ssh_directory or fd.name startswith /root/.ssh) and
+     not user_known_read_ssh_information_activities and
+     not proc.name in (ssh_binaries))
+  output: >
+    ssh-related file/directory read by non-ssh program (zh_msg=非ssh用户查看ssh信息,rule_type=Discovery,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid
+    file=%fd.name parent=%proc.pname container_id=%container.id container_name=%container.name image=%container.image.repository)
+  priority: ERROR
+  tags: [ATT&CK, filesystem, mitre_discovery]
+
+- rule: Contact K8S API Server From Container
+  hid: disc_05
+  hthreats: 0
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "Please confirm whether this behavior is generated by the trusted application in the container. You can use the white list to let go of the connection request initiated by the trusted program, or you can use micro isolation to restrict the container."
+    zh:
+      key: "处置建议"
+      value: "请确认该行为是否由容器内可信应用产生，可使用白名单放过可信程序发起的连接请求，否则可采用微隔离对该容器进行限制。"
+  desc: Detect attempts to contact the K8S API Server from a container
+  condition: >
+    evt.type=connect and evt.dir=< and
+    (fd.typechar=4 or fd.typechar=6) and
+    container and
+    not k8s_containers and
+    k8s_api_server and
+    not ignore_proc_args and
+    not user_known_contact_k8s_api_server_activities and 
+    not tensorsec_namespace
+  output: >
+    Unexpected connection to K8s API Server from container (zh_msg=尝试从容器内连接到K8s-API服务器,rule_type=Discovery,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=%container.info image=%container.image.repository:%container.image.tag connection=%fd.name,container_id=%container.id,container_name=%container.name)
+  priority: NOTICE
+  tags: [ATT&CK, network, k8s, container, mitre_discovery, strict]
+
+- rule: Launch Suspicious Network Tool on Host
+  hid: disc_06
+  hthreats: 0
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "Please confirm whether the hacker uses tools to collect information, or the operation and maintenance personnel can use offset defense to limit the execution of suspicious processes."
+    zh:
+      key: "处置建议"
+      value: "请确认是否为黑客使用工具进行信息收集，或运维人员自身操作，可使用偏移防御限制可疑进程执行。"
+  desc: Detect network tools launched on the host
+  condition: >
+    spawned_process and
+    not container and
+    consider_network_tools_on_host and
+    network_tool_procs and
+    not user_known_network_tool_activities
+  output: >
+    Network tool launched on host (zh_msg=在主机中启动可疑的网络工具,rule_type=Discovery,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid parent_process=%proc.pname,container_id=%container.id,container_name=%container.name)
+  priority: ERROR
+  tags: [ATT&CK, network, process, mitre_discovery, mitre_exfiltration]
+
+- rule: View process information in the container
+  hid: disc_07
+  hthreats: 0
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "Please confirm whether information collection is carried out for hackers, or operation and maintenance personnel can use immune defense training applications to block new or modified executable files, and restrict users and recipients of commands."
+    zh:
+      key: "处置建议"
+      value: "请确认是否为黑客进行信息收集，或运维人员自身操作，可使用免疫防御训练应用，阻拦新的或被修改的可执行文件，限制执行命令的用户和接收对象。"
+  desc: View process information in the container
+  condition: >
+   open_read and container and fd.name startswith "/proc/" and fd.name contains "pid_max" and evt.arg.flags = O_RDONLY and not k8s.pod.name contains "holmes" and not k8s.pod.name contains "calico" and not k8s.pod.name contains "node-exporter" and not k8s.pod.name contains "console" and not k8s.pod.name contains "51c1c6" and not k8s.pod.name contains "reviews" and not k8s.pod.name contains "prometheus" and not k8s.pod.name contains "console" and not k8s.pod.name contains "missing-contain"
+  output: >
+    View process information in the container (zh_msg=容器内查看进程信息,rule_type=Execution,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,
+    original_info=user=%user.name user_loginuid=%user.loginuid %container.info
+    shell=%proc.name parent=%proc.pname terminal=%proc.tty container_id=%container.id container_name=%container.name image=%container.image.repository)
+  priority: INFO
+  tags: [ATT&CK, container, shell, mitre_execution, strict]
+
+- rule: View disk information in the container
+  hid: disc_08
+  hthreats: 1
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "Please confirm whether the command is executed by a trusted person or program. You can use the white list to pass the alarm. Otherwise, please check whether the container has been invaded, and use the immune defense training application to restrict the user permissions of sensitive files and commands, and prohibit mounting sensitive directories and files."
+    zh:
+      key: "处置建议"
+      value: "请确认该指令是否为可信人员或程序执行，可使用白名单放过告警，否则请排查容器是否遭到入侵，并使用免疫防御训练应用，限制敏感文件和命令的用户权限，禁止挂载敏感目录和文件。"
+  desc: View disk information in the container
+  condition: >
+    open_read and container and (proc.cmdline contains "fdisk -l" or (fd.name startswith "/sys/dev/block/" and evt.arg.flags contains O_RDONLY)) and not tensorsec_namespace
+  output: View disk information inside the container (zh_msg=容器内查看磁盘信息,rule_type=Discovery,fd_name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,container_id=%container.id,container_name=%container.name)
+  priority: WARNING
+  tags: [ATT&CK]
+
+- rule: Scanning web directories in the container
+  hid: disc_09
+  hthreats: 1
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "Please confirm whether this behavior is a third-party trusted application scanning. If not, it may be a hacker tool behavior. You can use the immune defense training application to limit the user permissions of sensitive files and commands, and prohibit the mounting of sensitive directories and files."
+    zh:
+      key: "处置建议"
+      value: "请确认该行为是否为第三方可信应用扫描，如果不是则可能为黑客工具行为，可使用免疫防御训练应用，限制敏感文件和命令的用户权限，禁止挂载敏感目录和文件。"
+  desc: Scanning web directories in the container
+  condition: >
+    open_read and container and (fd.directory contains "www" or fd.directory contains "apache" or fd.directory contains "tomcat" or fd.directory contains "web" or fd.directory contains "http") and (fd.name contains ".jsp" or fd.name contains ".php" or fd.name contains ".config" or fd.name contains ".bak" or fd.name contains ".old" or fd.name contains ".log") and not tensorsec_namespace
+  output: Scanning web directories in the container (zh_msg=容器内扫描web目录,fd_name=%fd.name,rule_type=Discovery,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,container_id=%container.id,container_name=%container.name)
+  priority: WARNING
+  tags: [ATT&CK, strict]
+
+- rule: Find files with suid privilege by non-root users
+  hid: disc_10
+  hthreats: 1
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "This behavior probably refers to the information collection operation before the hacker attempts to raise authority. The container may be invaded. You can use the immune defense training application to limit the user permissions of sensitive files and commands, and prohibit the mounting of sensitive directories and files."
+    zh:
+      key: "处置建议"
+      value: "该行为大概率为黑客尝试提权前的信息收集操作，容器可能遭到入侵，可使用免疫防御训练应用，限制敏感文件和命令的用户权限，禁止挂载敏感目录和文件。"
+  desc: Find files with suid privilege by non-root users
+  condition: >
+    evt.type = write and user.uid != 0 and
+    (proc.name = find or proc.cmdline contains "-perm") and (
+    evt.arg.data = "/usr/bin/find." or
+    evt.arg.data contains "nmap" or
+    evt.arg.data contains "vim" or
+    evt.arg.data contains "bash" or
+    evt.arg.data contains "less" or
+    evt.arg.data contains "more" or
+    evt.arg.data contains "nano" or
+    evt.arg.data contains "cp" or
+    evt.arg.data contains "awk"
+    )
+  output: Find files with suid privilege by non-root users (zh_msg=非root用户查找含有suid权限的文件,fd_name=%fd.name,rule_type=Discovery,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,container_id=%container.id,container_name=%container.name)
+  priority: WARNING
+  tags: [ATT&CK]
+
+- rule: View login information in the container
+  hid: disc_11
+  hthreats: 1
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "It may be an act of hacker information collection. Please confirm the execution object. You can use the immune defense training application to limit the user permissions of sensitive files and commands, and prohibit mounting sensitive directories and files."
+    zh:
+      key: "处置建议"
+      value: "可能为黑客信息收集行为，请确认执行对象，可使用免疫防御训练应用，限制敏感文件和命令的用户权限，禁止挂载敏感目录和文件。"
+  desc: View login information in the container
+  condition: >
+    open_read and container and (fd.name="/var/log/lastlog" or fd.name="/var/log/wtmp") and not proc.cmdline contains "bash" and not tensorsec_namespace and not k8s.pod.name contains "calico"
+  output: View login information inside the container (zh_msg=容器内查看登录信息,rule_type=Discovery,fd_name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,container_id=%container.id,container_name=%container.name)
+  priority: WARNING
+  tags: [ATT&CK]
+
+- rule: View history commands in the container
+  hid: disc_12
+  hthreats: 1
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "It may be hacker information collection. Please confirm the execution object, use the immune defense training application, limit the user permissions of sensitive files and commands, and prohibit the mounting of sensitive directories and files."
+    zh:
+      key: "处置建议"
+      value: "可能为黑客信息收集行为，请确认执行对象，使用免疫防御训练应用，限制敏感文件和命令的用户权限，禁止挂载敏感目录和文件。"
+  desc: View history commands in the container
+  condition: >
+    container and proc.cmdline contains "history"
+  output: View login information inside the container (zh_msg=容器内查看历史命令,rule_type=Discovery,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,container_id=%container.id,container_name=%container.name)
+  priority: WARNING
+  tags: [ATT&CK, strict]
+
+- rule: Get ApiServer_token through kubectl
+  hid: disc_13
+  hthreats: 1
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "Please confirm whether this behavior is initiated by a trusted person or program, or the container may be invaded. You can use the immune defense training application to limit the user permissions of sensitive files and commands."
+    zh:
+      key: "处置建议"
+      value: "请确认该行为发起对象是否为可信人员或程序，否则容器可能遭到入侵，可使用免疫防御训练应用，限制敏感文件和命令的用户权限。"
+  desc: Get ApiServer_token through kubectl
+  condition: >
+    evt.type = execve and (proc.cmdline contains "kubectl config view" or proc.cmdline contains "kubectl describe secrets")
+  output: Get ApiServer_token through kubectl (zh_msg=通过kubectl获取ApiServer_token,rule_type=Discovery,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,container_id=%container.id,container_name=%container.name)
+  priority: WARNING
+  tags: [ATT&CK, strict]

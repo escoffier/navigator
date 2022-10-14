@@ -1,0 +1,334 @@
+##attck_rule_type=Persistence
+- rule: Schedule Cron Jobs
+  hid: pers_01
+  hthreats: 0
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "Confirm whether the planned task is operated by the operation and maintenance personnel. If necessary, the white list can be used to pass the alarm. Otherwise, it may be a back door for hackers."
+    zh:
+      key: "处置建议"
+      value: "确认该计划任务是否为运维人员操作，如果是必要操作可采用白名单放过告警，否则则可能为黑客后门。"
+  desc: Detect cron jobs scheduled
+  condition: >
+    ((open_write and cron_dir_action) or
+     (spawned_process and proc.name = "crontab")) and
+    not consider_all_cron_jobs and container and
+    not user_known_cron_jobs
+  output: >
+    Cron jobs were scheduled to run (zh_msg=运行计划任务,rule_type=Persistence,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,
+    original_info=user=%user.name user_loginuid=%user.loginuid
+    file=%fd.name container_id=%container.id container_name=%container.name image=%container.image.repository:%container.image.tag)
+  priority: WARNING
+  tags: [ATT&CK, file, mitre_persistence, strict]
+
+- rule: run user mgmt binaries
+  hid: pers_02
+  hthreats: 0
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "Confirm whether it is an administrator or trusted application operation. Otherwise, it may be a hacker operation. Please check the system security."
+    zh:
+      key: "处置建议"
+      value: "确认是否为管理员或可信应用操作，否则则可能是黑客操作，请排查系统安全。"
+  desc: >
+    activity by any programs that can manage users, passwords, or permissions. sudo and su are excluded.
+    Activity in containers is also excluded--some containers create custom users on top
+    of a base linux distribution at startup.
+    Some innocuous commandlines that don't actually change anything are excluded.
+  condition: >
+    spawned_process and proc.name in (user_mgmt_binaries) and
+    not proc.name in (su, sudo, lastlog, nologin, unix_chkpwd) and
+    not proc.pname in (cron_binaries, systemd, systemd.postins, udev.postinst, run-parts) and
+    not proc.cmdline startswith "passwd -S" and
+    not proc.cmdline startswith "useradd -D" and
+    not proc.cmdline startswith "systemd --version" and
+    not run_by_qualys and
+    not run_by_sumologic_securefiles and
+    not run_by_yum and
+    not run_by_ms_oms and
+    not run_by_google_accounts_daemon and
+    not chage_list and
+    not user_known_user_management_activities
+  output: >
+    run user mgmt binaries (zh_msg=运行管理用户、密码或权限的命令,rule_type=Persistence,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid parent=%proc.pname gparent=%proc.aname[2] ggparent=%proc.aname[3] gggparent=%proc.aname[4] container_id=%container.id,container_name=%container.name)
+  priority: WARNING
+  tags: [ATT&CK, host, users, mitre_persistence]
+
+- rule: Launch Package Management Process in Container
+  hid: pers_03
+  hthreats: 0
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "Usually, package management will not occur in the container, and confirm whether the process meets expectations."
+    zh:
+      key: "处置建议"
+      value: "通常容器内不会出现包管理情况，确认该流程是否符合预期。"
+  desc: Package management process ran inside container
+  condition: >
+    spawned_process
+    and container
+    and user.name != "_apt"
+    and package_mgmt_procs
+    and not package_mgmt_ancestor_procs
+    and not user_known_package_manager_in_container
+    and not (tensorsec_namespace and k8s.pod.name contains "-frontend")
+  output: >
+    Package management process launched in container (zh_msg=容器内启动包安装管理流程,rule_type=Persistence,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid
+    container_id=%container.id container_name=%container.name image=%container.image.repository:%container.image.tag)
+  priority: NOTICE
+  tags: [ATT&CK, process, mitre_persistence]
+
+- rule: Update Package Repository
+  hid: pers_04
+  hthreats: 0
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "Confirm whether the update operation is as expected and triggered by the operation and maintenance personnel."
+    zh:
+      key: "处置建议"
+      value: "确认该更新操作是否符合预期，是否为运维人员触发。"
+  desc: Detect package repositories get updated
+  condition: >
+    ((open_write and access_repositories) or (modify and modify_repositories))
+    and not package_mgmt_procs
+    and not package_mgmt_ancestor_procs
+    and not exe_running_docker_save
+    and not user_known_update_package_registry
+  output: >
+    Repository files get updated (zh_msg=发现更新软件源,rule_type=Persistence,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,
+    original_info=user=%user.name user_loginuid=%user.loginuid file=%fd.name newpath=%evt.arg.newpath container_id=%container.id container_name=%container.name image=%container.image.repository)
+  priority: WARNING
+  tags: [ATT&CK, filesystem, mitre_persistence]
+
+- rule: Write below rpm database
+  hid: pers_05
+  hthreats: 0
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "Usually, rpm update requires manual operation. Please confirm whether the operation is as expected."
+    zh:
+      key: "处置建议"
+      value: "通常rpm更新需要人为操作，请确认该操作是否符合预期。"
+  desc: an attempt to write to the rpm database by any non-rpm related program
+  condition: >
+    fd.name startswith /var/lib/rpm and open_write
+    and not rpm_procs
+    and not ansible_running_python
+    and not python_running_chef
+    and not exe_running_docker_save
+    and not amazon_linux_running_python_yum
+    and not user_known_write_rpm_database_activities
+  output: >
+    Rpm database opened for writing by a non-rpm program (zh_msg=写入rpm数据库,rule_type=Persistence,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,
+    original_info=file=%fd.name parent=%proc.pname container_id=%container.id container_name=%container.name image=%container.image.repository)
+  priority: WARNING
+  tags: [ATT&CK, filesystem, software_mgmt, mitre_persistence]
+
+- rule: Remove Bulk Data from Disk
+  hid: pers_06
+  hthreats: 1
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "Please confirm whether the data deletion operation is as expected."
+    zh:
+      key: "处置建议"
+      value: "请确认该数据删除操作是否符合预期。"
+  desc: Detect process running to clear bulk data from disk
+  condition: spawned_process and clear_data_procs and not user_known_remove_data_activities
+  output: >
+    Bulk data has been removed from disk (zh_msg=大量数据从硬盘删除，可能存在数据丢失风险,rule_type=Persistence,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid file=%fd.name container_id=%container.id container_name=%container.name image=%container.image.repository)
+  priority: WARNING
+  tags: [ATT&CK, process, mitre_persistence]
+
+- rule: Modify Shell Configuration File
+  hid: pers_07
+  hthreats: 1
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "Please confirm whether the modification is operated by the operation and maintenance personnel, otherwise there may be invasion risk, and it is recommended to check."
+    zh:
+      key: "处置建议"
+      value: "请确认该修改是否为运维人员操作，否则可能会有入侵风险，建议排查。"
+  desc: Detect attempt to modify shell configuration files
+  condition: >
+    open_write and
+    (fd.filename in (shell_config_filenames) or
+     fd.name in (shell_config_files) or
+     fd.directory in (shell_config_directories))
+    and not proc.name in (shell_binaries)
+    and not exe_running_docker_save
+  output: >
+    a shell configuration file has been modified (zh_msg=修改shell配置文件,rule_type=Persistence,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,
+    original_info=user=%user.name user_loginuid=%user.loginuid file=%fd.name container_id=%container.id container_name=%container.name image=%container.image.repository)
+  priority: WARNING
+  tags: [ATT&CK, file, mitre_persistence]
+
+- rule: Create files below dev
+  hid: pers_08
+  hthreats: 0
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "This operation may be triggered by a system program. Please confirm whether the operation is completed by a trusted program."
+    zh:
+      key: "处置建议"
+      value: "该操作可能为系统程序触发，请确认操作是否由可信程序完成。"
+  desc: creating any files below /dev other than known programs that manage devices. Some rootkits hide files in /dev.
+  condition: >
+    fd.directory = /dev and
+    (evt.type = creat or (evt.type in (open,openat,openat2) and evt.arg.flags contains O_CREAT))
+    and not proc.name in (dev_creation_binaries)
+    and not fd.name in (allowed_dev_files)
+    and not fd.name startswith /dev/tty
+    and not user_known_create_files_below_dev_activities
+  output: >
+    File created below /dev by untrusted program (zh_msg=在/dev目录下创建文件,rule_type=Persistence,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,
+    original_info=user=%user.name user_loginuid=%user.loginuid file=%fd.name container_id=%container.id container_name=%container.name image=%container.image.repository)
+  priority: INFO
+  tags: [ATT&CK, filesystem, mitre_persistence]
+
+- rule: Write below etc
+  hid: pers_09
+  hthreats: 1
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "Usually, few programs can operate on the contents of the /etc directory, which may be a hacker's behavior. Please confirm whether the modified files are at risk."
+    zh:
+      key: "处置建议"
+      value: "通常少有程序会操作/etc目录下内容，可能是黑客行为，请确认被修改文件是否存在风险。"
+  desc: an attempt to write to any file below /etc
+  condition: write_etc_common and not (tensorsec_namespace and k8s.pod.name contains "holmes")
+  output: >
+    File below /etc opened for writing (zh_msg=尝试修改/etc路径下的文件,rule_type=Persistence,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,
+    original_info=user=%user.name user_loginuid=%user.loginuid parent=%proc.pname file=%fd.name program=%proc.name gparent=%proc.aname[2] ggparent=%proc.aname[3] gggparent=%proc.aname[4] container_id=%container.id container_name=%container.name image=%container.image.repository)
+  priority: WARNING
+  tags: [ATT&CK, filesystem, mitre_persistence]
+
+- rule: Create Hidden Files or Directories
+  hid: pers_10
+  hthreats: 0
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "Please confirm whether the created file or directory content is required by the trusted program. Otherwise, check the file content to ensure security."
+    zh:
+      key: "处置建议"
+      value: "请确认被创建的文件或目录内容是否为可信程序所需，否则则排查文件内容确认安全。"
+  desc: Detect hidden files or directories created
+  condition: >
+    ((modify and evt.arg.newpath contains "/.") or
+     (mkdir and evt.arg.path contains "/.") or
+     (open_write and evt.arg.flags contains "O_CREAT" and fd.name contains "/." and not fd.name pmatch (exclude_hidden_directories))) and
+    consider_hidden_file_creation and
+    not user_known_create_hidden_file_activities
+    and not exe_running_docker_save
+  output: >
+    Hidden file or directory created (zh_msg=创建隐藏文件或目录,rule_type=Persistence,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid
+    file=%fd.name newpath=%evt.arg.newpath container_id=%container.id container_name=%container.name image=%container.image.repository:%container.image.tag)
+  priority: NOTICE
+  tags: [ATT&CK, file, mitre_persistence]
+
+- rule: Write below monitored dir
+  hid: pers_11
+  hthreats: 1
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "Please confirm whether it is modified by a trusted program. Otherwise, check the contents of the modified file."
+    zh:
+      key: "处置建议"
+      value: "请确认是否由可信程序修改，否则则排查修改文件内容。"
+  desc: an attempt to write to any file below a set of binary directories
+  condition: >
+    evt.dir = < and open_write and monitored_dir
+    and not package_mgmt_procs
+    and not coreos_write_ssh_dir
+    and not exe_running_docker_save
+    and not python_running_get_pip
+    and not python_running_ms_oms
+    and not google_accounts_daemon_writing_ssh
+    and not cloud_init_writing_ssh
+    and not user_known_write_monitored_dir_conditions
+    and not tensorsec_namespace
+  output: >
+    File below a monitored directory opened for writing (zh_msg=尝试修改受监控的目录下的文件,rule_type=Persistence,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,
+    original_info=user=%user.name user_loginuid=%user.loginuid
+    file=%fd.name parent=%proc.pname gparent=%proc.aname[2] container_id=%container.id container_name=%container.name image=%container.image.repository)
+  priority: ERROR
+  tags: [ATT&CK, filesystem, mitre_persistence]
+
+- rule: Write below binary dir
+  hid: pers_12
+  hthreats: 0
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "Please confirm whether it is modified by a trusted program. Otherwise, use the immune defense training application to block new or modified executables and restrict the user permissions of sensitive files and commands."
+    zh:
+      key: "处置建议"
+      value: "请确认是否由可信程序修改，否则使用免疫防御训练应用，阻拦新的或被修改的可执行文件，限制敏感文件和命令的用户权限。"
+  desc: an attempt to write to any file below a set of binary directories
+  condition: >
+    bin_dir and evt.dir = < and open_write
+    and not package_mgmt_procs
+    and not exe_running_docker_save
+    and not python_running_get_pip
+    and not python_running_ms_oms
+    and not user_known_write_below_binary_dir_activities
+  output: >
+    File below a known binary directory opened for writing (zh_msg=尝试修改二进制目录下面的文件,rule_type=Persistence,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,
+    original_info=user=%user.name user_loginuid=%user.loginuid
+    file=%fd.name parent=%proc.pname gparent=%proc.aname[2] container_id=%container.id container_name=%container.name image=%container.image.repository)
+  priority: WARNING
+  tags: [ATT&CK, filesystem, mitre_persistence]
+
+- rule: Modify binary dirs
+  hid: pers_13
+  hthreats: 0
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "This behavior may be a hacker back door resident behavior. Please confirm the modified file function. You can use offset defense to block new or modified executable files."
+    zh:
+      key: "处置建议"
+      value: "该行为可能为黑客后门驻留行为，请确认被修改文件功能，可使用偏移防御阻拦新的或被修改的可执行文件。"
+  desc: an attempt to modify any file below a set of binary directories.
+  condition: bin_dir_rename and modify and not package_mgmt_procs and not exe_running_docker_save and not user_known_modify_bin_dir_activities
+  output: >
+    File below known binary directory renamed/removed (zh_msg=二进制文件目录下文件被重命名,rule_type=Persistence,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,
+    original_info=user=%user.name user_loginuid=%user.loginuid
+    operation=%evt.type file=%fd.name %evt.args container_id=%container.id container_name=%container.name image=%container.image.repository)
+  priority: ERROR
+  tags: [ATT&CK, filesystem, mitre_persistence]
+
+- rule: Mkdir binary dirs
+  hid: pers_14
+  hthreats: 0
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "Please confirm the purpose of this behavior. You can use the immune defense training application to block new or modified executable files, and limit the user permissions of sensitive files and commands."
+    zh:
+      key: "处置建议"
+      value: "请确认该行为目的，可使用免疫防御训练应用，阻拦新的或被修改的可执行文件，限制敏感文件和命令的用户权限。"
+  desc: an attempt to create a directory below a set of binary directories.
+  condition: >
+    mkdir
+    and bin_dir_mkdir
+    and not package_mgmt_procs
+    and not user_known_mkdir_bin_dir_activities
+    and not exe_running_docker_save
+  output: >
+    Directory below known binary directory created (zh_msg=尝试在二进制文件路径下创建目录,rule_type=Persistence,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,
+    original_info=user=%user.name user_loginuid=%user.loginuid
+    directory=%evt.arg.path container_id=%container.id container_name=%container.name image=%container.image.repository)
+  priority: ERROR
+  tags: [ATT&CK, filesystem, mitre_persistence]
