@@ -10,9 +10,10 @@ import (
 	"strconv"
 	"strings"
 
-	"gitlab.com/security-rd/go-pkg/cryption"
-	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gopkg.in/yaml.v2"
+
+	"gitlab.com/piccolo_su/vegeta/pkg/model"
+	"gitlab.com/security-rd/go-pkg/cryption"
 )
 
 func checkRulesDuplication(rules []model.RuleFromYaml) error {
@@ -81,9 +82,9 @@ func main() {
 		"./tensorsec-holmes.thr",
 		"Binary for holmes update, `./tensorsec-holmes.thr` is an example.")
 
-	inputRulesFilename := flag.String("input",
-		"./falco_rules.local.yaml",
-		"Rules file for holmes to work, `./falco_rules.local.yaml` is an example.")
+	inputRulesDirName := flag.String("input",
+		"./holmes/rules",
+		"Rules file dir for holmes to work, `./holmes/rules` is an example.")
 
 	version := flag.String("version",
 		"1.0",
@@ -97,11 +98,8 @@ func main() {
 	}
 	defer fp.Close()
 
-	fileBytes, err := ioutil.ReadFile(*inputRulesFilename)
-	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
-	}
+	fileBytes := readBytesFromDir(*inputRulesDirName)
+
 	if err = checkRulesFile(fileBytes); err != nil {
 		fmt.Printf("\033[1;37;41m%s\033[0m\n", err)
 		os.Exit(1)
@@ -133,4 +131,29 @@ func main() {
 		fmt.Println(err)
 		os.Exit(1)
 	}
+}
+
+func readBytesFromDir(dirPath string) []byte {
+	fileInfos, err := ioutil.ReadDir(dirPath)
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
+	fileBytes := make([]byte, 0)
+	partFileBytes := make([]byte, 0)
+	for _, fileInfo := range fileInfos {
+		if fileInfo.IsDir() {
+			partFileBytes = readBytesFromDir(dirPath + "/" + fileInfo.Name())
+		} else {
+			partFileBytes, err = ioutil.ReadFile(dirPath + "/" + fileInfo.Name())
+			if err != nil {
+				fmt.Println(err)
+				os.Exit(1)
+			}
+		}
+		fileBytes = append(fileBytes, append([]byte("\n\n"), partFileBytes...)...)
+		partFileBytes = make([]byte, 0)
+	}
+
+	return fileBytes
 }

@@ -1,0 +1,98 @@
+##attck_rule_type=Lateral_Movement
+- rule: Launch Sensitive Mount Container
+  hid: move_01
+  hthreats: 0
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "Unsafe mount startup is vulnerable to hackers' attacks. Please confirm whether the mount is necessary, and if not, please change the mount path."
+    zh:
+      key: "处置建议"
+      value: "不安全挂载启动，容易遭受黑客提权攻击，请确认挂载是否为必须，非必要请更换挂载路径。"
+  desc: >
+    Detect the initial process started by a container that has a mount from a sensitive host directory
+    (i.e. /proc). Exceptions are made for known trusted images.
+  condition: >
+    container_started and container
+    and sensitive_mount
+    and not falco_sensitive_mount_containers
+    and not user_sensitive_mount_containers
+    and not tensorsec_namespace
+  output: >
+    Container with sensitive mount started (zh_msg=挂载敏感路径容器启动,rule_type=Lateral_Movement,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid %container.info image=%container.image.repository:%container.image.tag mounts=%container.mounts,container_id=%container.id,container_name=%container.name)
+  priority: INFO
+  tags: [ATT&CK, container, cis, mitre_lateral_movement, strict]
+
+- rule: Change thread namespace
+  hid: move_02
+  hthreats: 0
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "Immune defense is used to prevent sensitive directories and files from being mounted, prevent sensitive containers from being started, and update the software version in the containers."
+    zh:
+      key: "处置建议"
+      value: "采用免疫防御禁止挂载敏感目录和文件，禁止敏感容器启动，更新容器内软件版本。"
+  desc: >
+    an attempt to change a program/thread\'s namespace (commonly done
+    as a part of creating a container) by calling setns.
+  condition: >
+    evt.type=setns and evt.dir=<
+    and proc_name_exists
+    and not (container.id=host and proc.name in (docker_binaries, k8s_binaries, lxd_binaries, nsenter))
+    and not proc.name in (sysdigcloud_binaries, sysdig, calico, oci-umount, cilium-cni, network_plugin_binaries)
+    and not proc.name in (user_known_change_thread_namespace_binaries)
+    and not proc.name startswith "runc"
+    and not proc.cmdline startswith "containerd"
+    and not proc.pname in (sysdigcloud_binaries, hyperkube, kubelet, protokube, dockerd, tini, aws)
+    and not python_running_sdchecks
+    and not java_running_sdjagent
+    and not kubelet_running_loopback
+    and not rancher_agent
+    and not rancher_network_manager
+    and not calico_node
+    and not weaveworks_scope
+    and not user_known_change_thread_namespace_activities
+    and not ignore_proc_args
+    and not (tensorsec_namespace and k8s.pod.name contains "holmes")
+    and not proc.cmdline contains 'ns-mnt'
+  output: >
+    Namespace change (setns) by unexpected program (zh_msg=更改线程命名空间;通过调用setns尝试更改程序/线程的命名空间,rule_type=Lateral_Movement,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid
+    parent=%proc.pname %container.info container_id=%container.id container_name=%container.name image=%container.image.repository:%container.image.tag)
+  priority: NOTICE
+  tags: [ATT&CK, process, mitre_privilege_escalation, mitre_lateral_movement]
+
+- rule: The k8s client is executed in a container
+  hid: move_03
+  hthreats: 1
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "Please confirm whether the program is introduced as expected, or use offset defense to limit the program's operation, and check whether the container is invaded by hackers."
+    zh:
+      key: "处置建议"
+      value: "请确认该程序引入是否符合预期，否则则采用偏移防御限制该程序运行，并排查容器是否遭到黑客入侵。"
+  desc: Detect a k8s client tool executed inside a container
+  condition: spawned_process and container and not user_known_k8s_client_container_parens and proc.name in (k8s_client_binaries) and not tensorsec_namespace
+  output: >
+    Docker or kubernetes client executed in container (zh_msg=容器中使用k8s相关二进制程序,rule_type=Lateral_Movement,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid %container.info parent=%proc.pname image=%container.image.repository:%container.image.tag,container_id=%container.id,container_name=%container.name)
+  priority: WARNING
+  tags: [ATT&CK, container, mitre_execution]
+
+- rule: Launch Disallowed Container
+  hid: move_04
+  hthreats: 1
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "Confirm whether the startup of the container is as expected, and check the reason for startup."
+    zh:
+      key: "处置建议"
+      value: "确认该容器启动是否符合预期，排查启动原因。"
+  desc: >
+    Detect the initial process started by a container that is not in a list of allowed containers.
+  condition: container_started and container and not allowed_containers
+  output: >
+    Container started and not in allowed list (zh_msg=检测到在不允许列表中的容器启动,rule_type=Lateral_Movement,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid %container.info image=%container.image.repository:%container.image.tag)
+  priority: WARNING
+  tags: [ATT&CK, container, mitre_lateral_movement,container_id=%container.id,container_name=%container.name]

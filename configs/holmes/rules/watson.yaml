@@ -1,0 +1,380 @@
+##Watson
+- rule: Gaining sensitive information in Watson
+  hid: hp_01
+  category: Watson
+  categoryZh: 主动防御
+  hthreats: 1
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "It is recommended to check whether an attacker has obtained internal container permissions, and use immune defense to restrict attackers from further attacks"
+    zh:
+      key: "处置建议"
+      value: "建议排查是否有攻击者已获取内部容器权限，同时使用免疫防御限制攻击者进行进一步攻击。"
+  desc: Gaining sensitive information in Watson
+  condition: >
+    k8s.pod.name contains "51c1c6" and (inbound_outbound) and fd.sport=8080
+  output: >
+    Gaining sensitive information in Watson (zh_msg=通过主动防御检测到针对诱饵的web目录文件的异常访问,rule_type=Privilege_Escalation,fd_name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,container_id=%container.id,container_name=%container.name)
+  priority: ALERT
+  tags: [Watson]
+
+- rule: Upload webshell through tomcat manager
+  hid: hp_02
+  category: Watson
+  categoryZh: 主动防御
+  hthreats: 1
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "It is recommended to check whether an attacker has obtained internal container permissions, and use immune defense to restrict attackers from further attacks"
+    zh:
+      key: "处置建议"
+      value: "建议排查是否有攻击者已获取内部容器权限，同时使用免疫防御限制攻击者进行进一步攻击。"
+  desc: Upload webshell through tomcat manager
+  condition: >
+    k8s.pod.name contains "51c1c6" and evt.type = read and evt.arg.data contains "POST /manager/html/upload" and fd.sport=8080 and proc.name=java
+  output: >
+    Upload webshell through tomcat manager (zh_msg=主动防御检测到攻击者通过诱饵应用manager后台上传webshell,rule_type=Privilege_Escalation,fd_name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,container_id=%container.id,container_name=%container.name,http_request=%evt.args)
+  priority: ALERT
+  tags: [Watson]
+
+- rule: Execute commands through webshell
+  hid: hp_03
+  category: Watson
+  categoryZh: 主动防御
+  hthreats: 1
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "It is recommended to check whether an attacker has obtained internal container permissions, and use immune defense to restrict attackers from further attacks"
+    zh:
+      key: "处置建议"
+      value: "建议排查是否有攻击者已获取内部容器权限，同时使用免疫防御限制攻击者进行进一步攻击。"
+  desc: Execute commands through webshell
+  condition: >
+    k8s.pod.name contains "51c1c6" and evt.type = read and (evt.arg.data contains "POST " or evt.arg.data contains "GET ") and evt.arg.data contains "jsp" and fd.sport=8080 and proc.name=java
+  output: >
+    Execute commands through webshell (zh_msg=主动防御检测到攻击者通过向诱饵tomcat植入webshell并执行命令,rule_type=Privilege_Escalation,fd_name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_vpgid=%proc.vpgid,proc_cmdline=%proc.cmdline,proc_name=%proc.name,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,container_id=%container.id,container_name=%container.name,http_request=%evt.args)
+  priority: ALERT
+  tags: [Watson]
+
+- rule: Other containers establish new connections to the redis-server in Watson
+  hid: hp_04
+  category: Watson
+  categoryZh: 主动防御
+  hthreats: 1
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "It is recommended to check whether the attack source container has been invaded. Micro-Segmentation and immune defense can be used to restrict attackers from further attacks."
+    zh:
+      key: "处置建议"
+      value: "建议排查攻击源容器是否已遭到入侵，可使用微隔离与免疫防御限制攻击者进行进一步攻击。"
+  desc: Other containers establish new connections to the redis-server in Watson
+  condition: >
+    k8s.pod.name contains "51c1c6" and (inbound_outbound) and fd.sport=6379 
+  output: >
+    Other containers establish new connections to the redis-server in Watson (zh_msg=通过主动防御检测到针对诱饵的redis-server未授权访问,rule_type=Privilege_Escalation,fd_name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,container_id=%container.id,container_name=%container.name)
+  priority: ALERT
+  tags: [Watson]
+
+- rule: Other containers establish new connections to the ElasticSearch
+  hid: hp_05
+  category: Watson
+  categoryZh: 主动防御
+  hthreats: 1
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "It is recommended to check whether the attack source container has been invaded. Micro-Segmentation and immune defense can be used to restrict attackers from further attacks."
+    zh:
+      key: "处置建议"
+      value: "建议排查攻击源容器是否已遭到入侵，可使用微隔离与免疫防御限制攻击者进行进一步攻击。"
+  desc: Other containers establish new connections to the ElasticSearch
+  condition: >
+    k8s.pod.name contains "75fb1c" and (inbound_outbound) and fd.sport=9200
+  output: >
+    Other containers establish new connections to the ElasticSearch (zh_msg=通过主动防御检测到存在与诱饵elasticsearch通信,rule_type=Privilege_Escalation,fd_name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,container_id=%container.id,container_name=%container.name)
+  priority: ALERT
+  tags: [Watson]
+
+- rule: Execute sensitive commands via ElasticSearch
+  hid: hp_06
+  category: Watson
+  categoryZh: 主动防御
+  hthreats: 1
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "It is recommended to check whether the attack source container has been invaded. Micro-Segmentation and immune defense can be used to restrict attackers from further attacks."
+    zh:
+      key: "处置建议"
+      value: "建议排查攻击源容器是否已遭到入侵，可使用微隔离与免疫防御限制攻击者进行进一步攻击。"
+  desc: Execute sensitive commands via ElasticSearch
+  condition: >
+    k8s.pod.name contains "75fb1c" and evt.type=execve and evt.res!=ENOENT and proc.pname = java
+  output: >
+    Execute sensitive commands via ElasticSearch (zh_msg=通过主动防御检测到攻击者通过诱饵elasticsearch执行命令（CVE-2015-1427）,rule_type=Privilege_Escalation,fd_name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,container_id=%container.id,container_name=%container.name)
+  priority: ALERT
+  tags: [Watson]
+
+- rule: Other containers establish new connections to the tomcat
+  hid: hp_07
+  category: Watson
+  categoryZh: 主动防御
+  hthreats: 1
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "It is recommended to check whether the attack source container has been invaded. Micro-Segmentation and immune defense can be used to restrict attackers from further attacks."
+    zh:
+      key: "处置建议"
+      value: "建议排查攻击源容器是否已遭到入侵，可使用微隔离与免疫防御限制攻击者进行进一步攻击。"
+  desc: Other containers establish new connections to the tomcat
+  condition: >
+    k8s.pod.name contains "b0f328" and (inbound_outbound) and fd.sport = 8080 
+  output: >
+    Other containers establish new connections to the tomcat (zh_msg=通过主动防御检测到存在容器与诱饵tomcat通信,rule_type=Privilege_Escalation,fd_name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,container_id=%container.id,container_name=%container.name)
+  priority: ALERT
+  tags: [Watson]
+
+- rule: Reading local files via tomcat
+  hid: hp_08
+  category: Watson
+  categoryZh: 主动防御
+  hthreats: 1
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "It is recommended to check whether the attack source container has been invaded. Micro-Segmentation and immune defense can be used to restrict attackers from further attacks."
+    zh:
+      key: "处置建议"
+      value: "建议排查攻击源容器是否已遭到入侵，可使用微隔离与免疫防御限制攻击者进行进一步攻击。"
+  desc: Execute sensitive commands via tomcat
+  condition: >
+    k8s.pod.name contains "b0f328" and (inbound_outbound) and fd.sport = 8009
+  output: >
+    Other containers establish new connections to the tomcat (zh_msg=通过主动防御检测到流量通过诱饵tomcat读取本地webapp目录文件,rule_type=Privilege_Escalation,fd_name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,container_id=%container.id,container_name=%container.name)
+  priority: ALERT
+  tags: [Watson]
+
+- rule: Other containers establish new connections to the Jenkins
+  hid: hp_09
+  category: Watson
+  categoryZh: 主动防御
+  hthreats: 1
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "It is recommended to check whether the attack source container has been invaded. Micro-Segmentation and immune defense can be used to restrict attackers from further attacks."
+    zh:
+      key: "处置建议"
+      value: "建议排查攻击源容器是否已遭到入侵，可使用微隔离与免疫防御限制攻击者进行进一步攻击。"
+  desc: Other containers establish new connections to the Jenkins
+  condition: >
+    k8s.pod.name contains "99a7ca" and (inbound_outbound) and fd.sport = 8080 
+  output: >
+    Other containers establish new connections to the jenkins (zh_msg=通过主动防御检测到存在与诱饵jenkins通信,rule_type=Privilege_Escalation,fd_name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,container_id=%container.id,container_name=%container.name)
+  priority: ALERT
+  tags: [Watson]
+
+- rule: Execute sensitive commands via Jenkins
+  hid: hp_10
+  category: Watson
+  categoryZh: 主动防御
+  hthreats: 1
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "It is recommended to check whether the attack source container has been invaded. Micro-Segmentation and immune defense can be used to restrict attackers from further attacks."
+    zh:
+      key: "处置建议"
+      value: "建议排查攻击源容器是否已遭到入侵，可使用微隔离与免疫防御限制攻击者进行进一步攻击。"
+  desc: Execute sensitive commands via Jenkins
+  condition: >
+   k8s.pod.name contains "99a7ca" and evt.type=execve and evt.res!=ENOENT
+  output: >
+    Execute sensitive commands via Jenkins (zh_msg=通过主动防御检测到攻击者通过诱饵Jenkins执行命令（CVE-2018-1000861）,rule_type=Privilege_Escalation,fd_name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,container_id=%container.id,container_name=%container.name)
+  priority: ALERT
+  tags: [Watson]
+
+- rule: Other containers establish new connections to the Jupyter
+  hid: hp_11
+  category: Watson
+  categoryZh: 主动防御
+  hthreats: 1
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "It is recommended to check whether the attack source container has been invaded. Micro-Segmentation and immune defense can be used to restrict attackers from further attacks."
+    zh:
+      key: "处置建议"
+      value: "建议排查攻击源容器是否已遭到入侵，可使用微隔离与免疫防御限制攻击者进行进一步攻击。"
+  desc: Other containers establish new connections to the Jupyter
+  condition: >
+   (inbound_outbound) and fd.sport = 8888 and k8s.pod.name contains "ddc305"
+  output: >
+    Other containers establish new connections to the jenkins (zh_msg=通过主动防御检测到存在与诱饵jupyter通信,rule_type=Privilege_Escalation,fd_name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,container_id=%container.id,container_name=%container.name)
+  priority: ALERT
+  tags: [Watson]
+
+- rule: Execute sensitive commands via Jupyter
+  hid: hp_12
+  category: Watson
+  categoryZh: 主动防御
+  hthreats: 1
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "It is recommended to check whether the attack source container has been invaded. Micro-Segmentation and immune defense can be used to restrict attackers from further attacks."
+    zh:
+      key: "处置建议"
+      value: "建议排查攻击源容器是否已遭到入侵，可使用微隔离与免疫防御限制攻击者进行进一步攻击。"
+  desc: Execute sensitive commands via Jupyter
+  condition: >
+    k8s.pod.name contains "ddc305" and evt.type=execve and evt.res!=ENOENT
+  output: >
+    Execute sensitive commands via Jenkins (zh_msg=通过主动防御检测到攻击者通过诱饵Jupyter执行命令,rule_type=Privilege_Escalation,fd_name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,container_id=%container.id,container_name=%container.name)
+  priority: ALERT
+  tags: [Watson]
+
+- rule: The k8s client is executed in Watson
+  hid: hp_13
+  category: Watson
+  categoryZh: 主动防御
+  hthreats: 1
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "It is recommended to check whether the attack source container has been invaded. Micro-Segmentation and immune defense can be used to restrict attackers from further attacks."
+    zh:
+      key: "处置建议"
+      value: "建议排查攻击源容器是否已遭到入侵，可使用微隔离与免疫防御限制攻击者进行进一步攻击。"
+  desc: The k8s client is executed in Watson
+  condition: >
+    watson_pods and spawned_process and container and not user_known_k8s_client_container_parens and proc.name in (k8s_client_binaries)
+  output: >
+    Docker or kubernetes client executed in container (zh_msg=通过主动防御检测到诱饵容器内运行k8s相关二进制程序,rule_type=Lateral_Movement,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid %container.info parent=%proc.pname image=%container.image.repository:%container.image.tag,container_id=%container.id,container_name=%container.name)
+  priority: ALERT
+  tags: [Watson]
+
+- rule: Other containers establish new connections to the mysql
+  hid: hp_14
+  category: Watson
+  categoryZh: 主动防御
+  hthreats: 1
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "It is recommended to check whether the attack source container has been invaded. Micro-Segmentation and immune defense can be used to restrict attackers from further attacks."
+    zh:
+      key: "处置建议"
+      value: "建议排查攻击源容器是否已遭到入侵，可使用微隔离与免疫防御限制攻击者进行进一步攻击。"
+  desc: Other containers establish new connections to the mysql
+  condition: >
+    k8s.pod.name contains "588ee1" and (inbound_outbound) and fd.sport = 3306
+  output: >
+    Other containers establish new connections to the mysql (zh_msg=Watson：通过主动防御检测到与诱饵mysql通信,rule_type=Privilege_Escalation,fd_name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,container_id=%container.id,container_name=%container.name)
+  priority: ALERT
+  tags: [Watson]
+
+- rule: Connection with mysql successfully established detected
+  hid: hp_15
+  category: Watson
+  categoryZh: 主动防御
+  hthreats: 1
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "It is recommended to check whether the attack source container has been invaded. Micro-Segmentation and immune defense can be used to restrict attackers from further attacks."
+    zh:
+      key: "处置建议"
+      value: "建议排查攻击源容器是否已遭到入侵，可使用微隔离与免疫防御限制攻击者进行进一步攻击。"
+  desc: Connection with mysql successfully established detected
+  condition: >
+    k8s.pod.name contains "588ee1" and evt.type=recvfrom and evt.arg.data contains "select" and fd.sport = 3306 
+  output: >
+    Connection with mysql successfully established detected (zh_msg=通过主动防御检测到存在与诱饵mysql成功建立连接,rule_type=Privilege_Escalation,fd_name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,container_id=%container.id,container_name=%container.name)
+  priority: ALERT
+  tags: [Watson]
+
+- rule: Other containers establish new connections to the ssh
+  hid: hp_16
+  category: Watson
+  categoryZh: 主动防御
+  hthreats: 1
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "It is recommended to check whether the attack source container has been invaded. Micro-Segmentation and immune defense can be used to restrict attackers from further attacks."
+    zh:
+      key: "处置建议"
+      value: "建议排查攻击源容器是否已遭到入侵，可使用微隔离与免疫防御限制攻击者进行进一步攻击。"
+  desc: Other containers establish new connections to the ssh
+  condition: >
+    k8s.pod.name contains "98166d" and (inbound_outbound) and fd.sport = 22
+  output: >
+    Other containers establish new connections to the ssh (zh_msg=通过主动防御检测到与诱饵ssh通信,rule_type=Privilege_Escalation,fd_name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,container_id=%container.id,container_name=%container.name)
+  priority: ALERT
+  tags: [Watson]
+
+- rule: Connection establishment using ssh is detected
+  hid: hp_17
+  category: Watson
+  categoryZh: 主动防御
+  hthreats: 1
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "It is recommended to check whether the attack source container has been invaded. Micro-Segmentation and immune defense can be used to restrict attackers from further attacks."
+    zh:
+      key: "处置建议"
+      value: "建议排查攻击源容器是否已遭到入侵，可使用微隔离与免疫防御限制攻击者进行进一步攻击。"
+  desc: Connection establishment using ssh is detected
+  condition: >
+    k8s.pod.name contains "98166d" and evt.type=write and evt.arg.data contains "Welcome" 
+  output: >
+    Connection with mysql successfully established detected (zh_msg=通过主动防御检测到与诱饵容器建立ssh连接,rule_type=Privilege_Escalation,fd_name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,fd.sport=%fd.sport,container_id=%container.id,container_name=%container.name)
+  priority: ALERT
+  tags: [Watson]
+
+- rule: Other containers establish new connections to the vsftpd
+  hid: hp_18
+  category: Watson
+  categoryZh: 主动防御
+  hthreats: 1
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "It is recommended to check whether the attack source container has been invaded. Micro-Segmentation and immune defense can be used to restrict attackers from further attacks."
+    zh:
+      key: "处置建议"
+      value: "建议排查攻击源容器是否已遭到入侵，可使用微隔离与免疫防御限制攻击者进行进一步攻击。"
+  desc: Other containers establish new connections to the vsftpd
+  condition: >
+    k8s.pod.name contains "42cca6" and (inbound_outbound) and fd.sport = 21
+  output: >
+    Other containers establish new connections to the vsftpd (zh_msg=通过主动防御检测到存在与诱饵容器的ftp通信,rule_type=Privilege_Escalation,fd_name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,container_id=%container.id,container_name=%container.name)
+  priority: ALERT
+  tags: [Watson]
+
+- rule: Connection establishment using ftp is detected
+  hid: hp_19
+  category: Watson
+  categoryZh: 主动防御
+  hthreats: 1
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "It is recommended to check whether the attack source container has been invaded. Micro-Segmentation and immune defense can be used to restrict attackers from further attacks."
+    zh:
+      key: "处置建议"
+      value: "建议排查攻击源容器是否已遭到入侵，可使用微隔离与免疫防御限制攻击者进行进一步攻击。"
+  desc: Connection establishment using ftp is detected
+  condition: >
+    k8s.pod.name contains "42cca6" and evt.type=write and evt.arg.data contains "OK LOGIN"
+  output: >
+    Connection establishment using ftp is detected (zh_msg=通过主动防御检测到与诱饵容器建立ftp连接,rule_type=Privilege_Escalation,fd_name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,fd.sport=%fd.sport,container_id=%container.id,container_name=%container.name)
+  priority: ALERT
+  tags: [Watson]
