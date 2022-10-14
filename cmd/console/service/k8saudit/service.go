@@ -14,11 +14,12 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 	"gitlab.com/security-rd/go-pkg/databases"
+	pkgelastic "gitlab.com/security-rd/go-pkg/elastic"
 	"gitlab.com/security-rd/go-pkg/logging"
 	"gitlab.com/security-rd/go-pkg/pb"
-	pkgelastic "gitlab.com/security-rd/go-pkg/elastic"
 	"gitlab.com/security-rd/go-pkg/syslog"
 	"go.uber.org/atomic"
+	"gorm.io/gorm"
 )
 
 var (
@@ -204,11 +205,11 @@ func (s *Service) GetAuditConfig(ctx context.Context) (*model.AuditLogConfig, er
 
 func (s *Service) getAuditConfig(ctx context.Context) (*model.AuditLogConfig, error) {
 	conf, err := dal.GetConfig(ctx, s.db.GetReadDB(), auditConfigKey)
-	if err != nil {
+	if err != nil && err != gorm.ErrRecordNotFound {
 		return nil, err
 	}
 
-	if conf == nil {
+	if conf == nil || err == gorm.ErrRecordNotFound {
 		return model.DefaultAuditLogConf, nil
 	}
 
@@ -328,7 +329,7 @@ func (s *Service) asyncWatchConfig() {
 
 	ticker := time.NewTicker(configWatchInterval)
 	defer ticker.Stop()
-	
+
 	for range ticker.C {
 		ctx, cancel := context.WithTimeout(context.Background(), configWatchInterval/2)
 		conf, err := s.getAuditConfig(ctx)

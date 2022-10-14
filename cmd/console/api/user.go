@@ -78,7 +78,7 @@ func getFromModel(m *model.TensorConfig) (usercenter.LimiterConfig, error) {
 func (api *api) readConfig() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		config, err := dal.GetConfig(r.Context(), api.rdb.GetReadDB(), usercenter.ConfigKey)
-		if err != nil {
+		if err != nil && err != gorm.ErrRecordNotFound {
 			RespAndLog(w, r.Context(),
 				NewAnError(http.StatusInternalServerError,
 					fmt.Errorf("failed to read posgre: %w", err)))

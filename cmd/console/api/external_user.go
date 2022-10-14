@@ -254,11 +254,11 @@ func (api *api) GetRadiusConf() http.HandlerFunc {
 
 func (api *api) getLdapConf(ctx context.Context) (*model.LdapServerConf, error) {
 	conf, err := dal.GetConfig(ctx, api.rdb.Get(), model.LdapConfKey)
-	if err != nil {
+	if err != nil && err != gorm.ErrRecordNotFound {
 		return nil, err
 	}
 
-	if conf == nil {
+	if conf == nil || err == gorm.ErrRecordNotFound {
 		return &model.DefaultLdapServerConf, nil
 	}
 
@@ -269,11 +269,11 @@ func (api *api) getLdapConf(ctx context.Context) (*model.LdapServerConf, error) 
 
 func (api *api) getRadiusConf(ctx context.Context) (*model.RadiusServerConf, error) {
 	conf, err := dal.GetConfig(ctx, api.rdb.Get(), model.RadiusConfKey)
-	if err != nil {
+	if err != nil && err != gorm.ErrRecordNotFound {
 		return nil, err
 	}
 
-	if conf == nil {
+	if conf == nil || err == gorm.ErrRecordNotFound {
 		return &model.DefaultRadiusServerConf, nil
 	}
 

@@ -9,6 +9,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/dal"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/security-rd/go-pkg/databases"
+	"gorm.io/gorm"
 )
 
 type Manager struct {
@@ -27,11 +28,11 @@ const (
 
 func (m *Manager) GetWaterline(ctx context.Context) (int, error) {
 	conf, err := dal.GetConfig(ctx, m.db.GetReadDB(), ConfigKey)
-	if err != nil {
+	if err != nil && err != gorm.ErrRecordNotFound {
 		return 0, err
 	}
 
-	if conf == nil {
+	if conf == nil || err == gorm.ErrRecordNotFound {
 		return def.DefaultWaterlinePercentage, nil
 	}
 

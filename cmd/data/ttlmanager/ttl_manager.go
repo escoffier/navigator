@@ -9,6 +9,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/dal"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/security-rd/go-pkg/databases"
+	"gorm.io/gorm"
 )
 
 type Manager struct {
@@ -30,11 +31,11 @@ func (m *Manager) GetTTLDayOffset(ctx context.Context, taskType def.GCTaskType) 
 		return 0, def.ErrInvalidDataType
 	}
 	conf, err := dal.GetConfig(ctx, m.db.GetReadDB(), generateConfigKey(taskType))
-	if err != nil {
+	if err != nil && err != gorm.ErrRecordNotFound {
 		return 0, fmt.Errorf("GetConfig fail, err:%w", err)
 	}
 
-	if conf == nil {
+	if conf == nil || err != gorm.ErrRecordNotFound {
 		return def.DefaultTTLDays[taskType], nil
 	}
 
