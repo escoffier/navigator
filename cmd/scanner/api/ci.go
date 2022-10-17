@@ -391,8 +391,8 @@ func (c *CiApiSrv) CreateWhitelist(ctx *gin.Context) {
 		return
 	}
 	var creates []string
-	for k := range whitelist {
-		creates = append(creates, whitelist[k].Name)
+	for k := range mp {
+		creates = append(creates, k)
 	}
 	response.JSONOK(ctx, response.WithTarget(&response.TargetRef{Name: strings.Join(creates, ",")}))
 }
