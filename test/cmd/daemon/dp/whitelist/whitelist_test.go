@@ -1,6 +1,7 @@
 package whitelist
 
 import (
+	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/fs"
 	"os"
 	"testing"
 )
@@ -12,7 +13,7 @@ func TestFileHashCrc32(t *testing.T) {
 	if err != nil {
 		t.Errorf("Failed to stat file: %v\n", err)
 	}
-	crc = FileHashCrc32(path, stat.Size())
+	crc = fs.FileHashCrc32(path, stat.Size())
 	t.Logf("checksum: %X", crc)
 
 }

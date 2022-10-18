@@ -216,7 +216,7 @@ func (cm *ConfigManager) IsInWhiteList(imageDigest, filePath string) (notInWhite
 	cm.lock.Lock()
 	defer cm.lock.Unlock()
 	_, ok := cm.execWhiteList[imageDigest]
-	logging.Get().Debug().Msgf("imageDigest:%v, filePath:%v, ok:%v", imageDigest, filePath, ok)
+	logging.Get().Debug().Msgf("imageDigest:%v, filePath:%v, whitelist generated:%v", imageDigest, filePath, ok)
 	notInWhitelist = !ok
 	if ok {
 		_, ok1 := cm.execWhiteList[imageDigest][filePath]

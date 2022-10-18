@@ -3,6 +3,7 @@ package dp
 import (
 	"context"
 	"fmt"
+	"gitlab.com/piccolo_su/vegeta/cmd/daemon/dp/whitelist/analyzer"
 	"os"
 	"runtime/debug"
 	"strconv"
@@ -41,10 +42,12 @@ func (d *DriftAssurance) GetConfigManager() *ConfigManager {
 }
 
 func (d *DriftAssurance) Start(ctx context.Context) error {
+	// do some clean job
+	_ = analyzer.Clean(d.rt)
 
 	wg := sync.WaitGroup{}
 
-	// config manager: sync white list
+	// config manager: sync drift policy
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
@@ -105,7 +108,7 @@ func (d *DriftAssurance) Start(ctx context.Context) error {
 				logging.Get().Error().Msgf("get running container image result panic: %v.stack:%s", r, debug.Stack())
 			}
 		}()
-		initRunningContainerImagesWhiteList(d.rt, d.config, d.wc)
+		_ = initRunningContainerImagesWhiteList(d.rt, d.config, d.wc)
 	}()
 
 	// first inject all containers
@@ -117,7 +120,7 @@ func (d *DriftAssurance) Start(ctx context.Context) error {
 				logging.Get().Error().Msgf("inject exist containers panic: %v.stack:%s", r, debug.Stack())
 			}
 		}()
-		firstInjectContainer(d.rt, d.injector)
+		_ = firstInjectContainer(d.rt, d.injector)
 	}()
 
 	logging.Get().Debug().Msg("dp service running")
@@ -128,7 +131,7 @@ func (d *DriftAssurance) Start(ctx context.Context) error {
 func NewDriftAssurance(podWatcher *nodeinfo.NodePodsWatcher, podResInfo *nodeinfo.PodResInfo, mqWriter mq.Writer, consoleAddr, clusterName, clusterKey string, palaceHandler *palace.Palace) (*DriftAssurance, error) {
 	d := &DriftAssurance{}
 
-	rt, err := createRuntimeCli()
+	rt, err := CreateRuntimeCli()
 	if err != nil {
 		logging.Get().Err(err).Msg("drift assurance create runtime failed")
 		return nil, err
@@ -165,7 +168,7 @@ func NewDriftAssurance(podWatcher *nodeinfo.NodePodsWatcher, podResInfo *nodeinf
 		return nil, err
 	}
 
-	d.wc = whitelist.NewWhitelistHandler()
+	d.wc = whitelist.NewWhitelistHandler(rt)
 
 	return d, nil
 }
@@ -190,7 +193,7 @@ func unixSockFileFromAddr(addr string) string {
 	return filename
 }
 
-func createRuntimeCli() (container.Runtime, error) {
+func CreateRuntimeCli() (container.Runtime, error) {
 	var rt container.Runtime
 	var err error
 	dockerHost := os.Getenv("DOCKER_SOCKET_ADDR")
@@ -265,7 +268,7 @@ func initRunningContainerImagesWhiteList(rt container.Runtime, config *ConfigMan
 				logging.Get().Err(err).Str("imageID", c.ImageID).Msg("get image inspect failed")
 				return
 			}
-			imageInfo, err := wc.MakeWhiteListByOverLay(imageInspect)
+			imageInfo, err := wc.GenerateExecWhiteList(imageInspect)
 			scannedCount++
 			if err != nil {
 				logging.Get().Err(err).Str("imageID", c.ImageID).Msg("make whitelist failed")
@@ -278,10 +281,10 @@ func initRunningContainerImagesWhiteList(rt container.Runtime, config *ConfigMan
 			logging.Get().Debug().Msgf("get container meta: %+v\n", cm)
 		}(c)
 	}
-	logging.Get().Info().Msgf("image scan time: %v, num: %v, hashtablesize: %v whitelist dirs num: %v, dir hitcount: %v",
-		time.Since(imageScanStart), scannedCount, len(config.execWhiteList), wc.ImageDirCount, wc.HitCount)
-	wc.CleanWhiteListCount()
+	logging.Get().Info().Msgf("image scan time: %v, num: %v, hashtablesize: %v",
+		time.Since(imageScanStart), scannedCount, len(config.execWhiteList))
 	wg.Wait()
+
 	return nil
 }
 
