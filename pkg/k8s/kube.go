@@ -189,7 +189,7 @@ func GetTensorCluster() (*TensorCluster, error) {
 }
 
 func CreateClientset(cluster *model.TensorCluster) (*assets.Clientset, error) {
-	tlsClientConfig := rest.TLSClientConfig{Insecure: false}
+	tlsClientConfig := rest.TLSClientConfig{Insecure: false, ServerName: "kubernetes"}
 	ca := []byte(cluster.CertificateAuthData)
 	_, err := certutil.NewPoolFromBytes(ca)
 	if err != nil {

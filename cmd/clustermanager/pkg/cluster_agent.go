@@ -173,7 +173,7 @@ func (c *ClusterAgent) Init() error {
 	}
 	c.KubeRestConfig = restConfig
 
-	kubeConfig, err := k8s.GenKubeConfig(c.KubeRestConfig)
+	kubeConfig, err := rest.InClusterConfig()
 	if err != nil {
 		return err
 	}
