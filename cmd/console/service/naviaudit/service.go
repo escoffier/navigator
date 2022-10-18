@@ -80,6 +80,10 @@ func (s *Service) GetAuditLog(ctx context.Context, opt *QueryNaviAuditLogOpt) ([
 				queries = append(queries, elastic.NewMatchQuery(k, v))
 				continue
 			}
+			if k == "User.Name" {
+				queries = append(queries, elastic.NewWildcardQuery(k+".keyword", fmt.Sprintf("*%s*", v)))
+				continue
+			}
 			queries = append(queries, elastic.NewWildcardQuery(k, fmt.Sprintf("*%s*", v)))
 		}
 	}
