@@ -1,9 +1,15 @@
 package docker
 
 import (
+	"archive/tar"
 	"context"
 	"fmt"
+	"io"
+	"path/filepath"
+
+	// "io"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -18,11 +24,13 @@ import (
 
 const (
 	version              = "docker"
-	dockerRequestTimeout = 3
+	dockerRequestTimeout = 20
+	exportImageTimeout   = 1800 // long timeout for big image
+	imageTarTimeoutENV   = "IMG_TAR_TIMEOUT_ENV"
 )
 
 type dockerDriverConfig struct {
-	Endpoint string `json: "endpoint"`
+	Endpoint string `json:"endpoint"`
 }
 
 type dockerDriver struct {
@@ -179,6 +187,79 @@ func (d *dockerDriver) GetContainerInspect(containerID string) (types.ContainerJ
 		return types.ContainerJSON{}, err
 	}
 	return ci, nil
+}
+
+func (d *dockerDriver) RuntimeInfo() (types.Info, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), dockerRequestTimeout*time.Second)
+	defer cancel()
+	i, err := d.dockerCli.Info(ctx)
+	if err != nil {
+		logging.Get().Err(err).Msg("failed to get docker info")
+		return types.Info{}, err
+	}
+	return i, nil
+}
+
+// untar uses a Reader that represents a tar to untar it on the fly to a target folder
+func unTar(imageReader io.ReadCloser, target string) error {
+	tarReader := tar.NewReader(imageReader)
+
+	for {
+		header, err := tarReader.Next()
+		if err == io.EOF {
+			break
+		} else if err != nil {
+			return err
+		}
+
+		path := filepath.Join(target, header.Name)
+		if !strings.HasPrefix(path, filepath.Clean(target)+string(os.PathSeparator)) {
+			return fmt.Errorf("%s: illegal file path", header.Name)
+		}
+		info := header.FileInfo()
+		if info.IsDir() {
+			if err = os.MkdirAll(path, info.Mode()); err != nil {
+				return err
+			}
+			continue
+		}
+
+		file, err := os.OpenFile(path, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, info.Mode())
+		if err != nil {
+			return err
+		}
+		defer file.Close()
+		if _, err = io.Copy(file, tarReader); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (d *dockerDriver) SaveImage(imageID, fullPath string) (string, error) {
+	exportTimeout := exportImageTimeout
+	timeout := os.Getenv(imageTarTimeoutENV)
+	if len(timeout) > 0 {
+		tmpTimeout, err := strconv.Atoi(timeout)
+		if err != nil {
+			logging.Get().Warn().Str("imageTarTimeoutEnv", timeout).Msg("timeout env not int,set default timeout")
+		} else {
+			exportTimeout = tmpTimeout
+		}
+	}
+	logging.Get().Debug().Int("imageExportTimeout", exportTimeout).Msg("save image set time out")
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(exportTimeout)*time.Second)
+	defer cancel()
+	res, err := d.dockerCli.ImageSave(ctx, []string{imageID})
+	if err != nil {
+		logging.Get().Err(err).Msg("")
+		return "", err
+	}
+	if err = unTar(res, fullPath); err != nil {
+		logging.Get().Err(err).Msg("unTar fail")
+		return "", err
+	}
+	return fullPath, err
 }
 
 func init() {

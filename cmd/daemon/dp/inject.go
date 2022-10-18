@@ -252,7 +252,7 @@ func (ij *Injector) DoInject(cm container.ContainerMeta) (bool, error) {
 	// logging.Get().Info().Msgf("Injecting %d", cm.ProcessID)
 
 	osTarget, err := getOSTarget(cm.ProcessID)
-	if err != nil && err != errUnknownOSParam {
+	if err != nil {
 		logging.Get().Warn().Msgf("Skip inject %d %v", cm.ProcessID, cm.Name)
 		return false, err
 	}
@@ -260,7 +260,8 @@ func (ij *Injector) DoInject(cm container.ContainerMeta) (bool, error) {
 	isSupport := isSupportOS(osTarget)
 	supportInfo, err := GetContainerPodInfo(cm.PodUID, ij.npw, ij.podResInfo)
 	if err != nil {
-		logging.Get().Err(err).Msg("")
+		logging.Get().Err(err).Msg("failed to get container pod info")
+		return false, err
 	}
 	if osTarget != "" {
 		//pause image
@@ -271,9 +272,17 @@ func (ij *Injector) DoInject(cm container.ContainerMeta) (bool, error) {
 
 		msg, err := json.Marshal(supportInfo)
 		if err != nil {
-			logging.Get().Err(err).Msg("")
+			logging.Get().Err(err).Msg("failed to marshal support info")
+		} else {
+			if err := Send2Kafka(ij.write, msg); err != nil {
+				logging.Get().Err(err).Msg("failed to send msg to kafka")
+			}
 		}
-		Send2Kafka(ij.write, msg)
+	}
+
+	if !isSupport {
+		logging.Get().Warn().Interface("containerMeta", cm).Msg("not support os,ignore inject")
+		return false, nil
 	}
 
 	// excludeNamespaces
@@ -283,10 +292,10 @@ func (ij *Injector) DoInject(cm container.ContainerMeta) (bool, error) {
 	}
 	for _, v := range ij.excludeNamespace {
 		if v == supportInfo.Namespace {
-			// logging.Get().Info().
-			// 	Str("containerID", cm.ID).
-			// 	Str("namespace", namespace).
-			// 	Msg("skip inject,namespace contains exclude namespace")
+			logging.Get().Info().
+				Str("containerID", cm.ID).
+				Str("namespace", v).
+				Msg("skip inject,namespace contains exclude namespace")
 			return false, nil
 		}
 	}
@@ -329,12 +338,14 @@ func (ij *Injector) DoInject(cm container.ContainerMeta) (bool, error) {
 		if len(cmd) == 0 {
 			break
 		}
-		stdout, stderr, err := config.Execute(cmd[0], cmd[1:]...)
+		_, _, err := config.Execute(cmd[0], cmd[1:]...)
 		if err != nil {
 			// encrypted log msg which contain inject detail
-			msg := fmt.Sprintf("index:%d,%s,%s,%v", index, stdout, stderr, err)
-			normalMsg := fmt.Sprintf("index:%d,inject failed.", index)
-			EncryptedLogErrMsg(msg, logEncryptKey, normalMsg)
+			//msg := fmt.Sprintf("index:%d,%s,%s,%v", index, stdout, stderr, err)
+			//normalMsg := fmt.Sprintf("index:%d,inject failed.", index)
+
+			// only log index
+			logging.Get().Err(err).Int("index", index).Msg("inject err")
 			continue
 		}
 		// logging.Get().Debug().Msg(stdout)
@@ -429,9 +440,10 @@ func getOSTarget(pid int) (string, error) {
 		}
 		osTarget, err := getOSTargetFromFile(path)
 		if err != nil {
-			logging.Get().Error().Msgf("Failed to get os target from file %s", path)
+			logging.Get().Error().Msgf("Failed to get os target from file %s,try next", path)
+			continue
 		}
-		return osTarget, err
+		return osTarget, nil
 	}
 
 	return "", errUnknownOSParam

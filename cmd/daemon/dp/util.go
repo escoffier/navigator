@@ -9,26 +9,13 @@ import (
 	"github.com/segmentio/kafka-go"
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/nodeinfo"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
-	"gitlab.com/piccolo_su/vegeta/pkg/util"
 	"gitlab.com/security-rd/go-pkg/logging"
 	"gitlab.com/security-rd/go-pkg/mq"
 )
 
 const (
-	logEncryptKey     = "1234567a1234567b"
 	checkFileTemplate = "/host/proc/%d/root/.tensor/dp.so"
 )
-
-func EncryptedLogErrMsg(msg, key, normalMsg string) {
-	return
-	encryptedMsg, err := util.AesEncryptCBC([]byte(msg), []byte(key))
-	if err != nil {
-		// encrypted err,just log a simple msg
-		logging.Get().Err(err).Msgf("%s", normalMsg)
-	} else {
-		logging.Get().Error().Msgf("%s", encryptedMsg)
-	}
-}
 
 func IsInjected(processID int) (bool, error) {
 	_, err := os.Stat(fmt.Sprintf(checkFileTemplate, processID))
@@ -69,7 +56,7 @@ func GetContainerPodInfo(podUID string, npw *nodeinfo.NodePodsWatcher, podResInf
 func Send2Kafka(mqWrite mq.Writer, msg []byte) error {
 	return mqWrite.Write(
 		context.Background(), model.SubjectOfDriftSupportEvent, kafka.Message{
-			Topic:  model.SubjectOfDriftSupportEvent,
+			Topic: model.SubjectOfDriftSupportEvent,
 			Key:   []byte("support resource info"),
 			Value: msg,
 		})

@@ -220,12 +220,12 @@ func TestInject(t *testing.T) {
 	// clean last test containers
 	cleanTestContainers(t)
 
-	dpService, err := dp.NewDriftAssurance()
+	dpService, err := dp.NewDriftAssurance(nil, nil, nil, "", "", nil)
 	if err != nil {
 		t.Fatalf("new dp service err:%v", err)
 	}
 	go func() {
-		_ = dpService.Start(context.Background(), "localhost:8081")
+		_ = dpService.Start(context.Background())
 	}()
 
 	// start test container
@@ -246,7 +246,7 @@ func TestBlock(t *testing.T) {
 	// clean last test containers
 	cleanTestContainers(t)
 
-	dpService, err := dp.NewDriftAssurance()
+	dpService, err := dp.NewDriftAssurance(nil, nil, nil, "", "", nil)
 	if err != nil {
 		t.Fatalf("new dp service err:%v", err)
 	}
@@ -256,7 +256,7 @@ func TestBlock(t *testing.T) {
 	cm.SetImageExecHash(testImageDigest, testExecHash, testExecPath)
 
 	go func() {
-		dpService.Start(context.Background())
+		_ = dpService.Start(context.Background())
 	}()
 
 	// start test container
@@ -275,7 +275,7 @@ func TestBlock(t *testing.T) {
 func TestWhiteList(t *testing.T) {
 	t.Log("start test whiteList")
 
-	dpService, err := dp.NewDriftAssurance()
+	dpService, err := dp.NewDriftAssurance(nil, nil, nil, "", "", nil)
 	if err != nil {
 		t.Fatalf("new dp service err:%v", err)
 	}

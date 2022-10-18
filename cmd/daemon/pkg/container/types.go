@@ -2,12 +2,13 @@ package container
 
 import (
 	"fmt"
+
 	"github.com/docker/docker/api/types"
 )
 
 type EventMessage struct {
 	Event string // start
-	Type  string // container,network,etc
+	Type  string // container,network,etc.
 	//ContainerID   string
 	//ProcessID     int
 	//ImageID       string   // eg: sha256:ebxxx,not manifest
@@ -25,7 +26,7 @@ type ContainerMeta struct {
 	// [sha256:xxx,sha256:yyy].for manifestv1, image digest could be different depend on registry.
 	// but the image content is same
 	ImageDigest []string
-	State 	 string
+	State       string
 
 	// one image may have different repo tags
 	// eg:[library/nginx:1.20,dev/nginx:1.20]
@@ -44,6 +45,8 @@ type Runtime interface {
 	ListImages() ([]types.ImageSummary, error)
 	GetContainerInspect(containerID string) (types.ContainerJSON, error)
 	GetImageInspect(imageID string) (types.ImageInspect, error)
+	RuntimeInfo() (types.Info, error)
+	SaveImage(imageID, fullPath string) (string, error)
 }
 
 type RuntimeConfig struct {

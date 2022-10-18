@@ -138,7 +138,8 @@ func getContainerPolicyInfo(podUID string, npw *nodeinfo.NodePodsWatcher, podRes
 		logging.Get().Error().Err(err).Msg("get pod info fail")
 		return containerPolicyInfo, err
 	}
-	logging.Get().Trace().Msgf("generateEvent: %v", podInfo)
+	logging.Get().Trace().Str("podUID", podUID).Interface("podInfo", podInfo).Msg("get pod by uid")
+
 	containerPolicyInfo.namespace = podInfo.Namespace
 	containerPolicyInfo.cluster = podInfo.ClusterKey
 	containerPolicyInfo.podFullName = podInfo.Name
@@ -148,11 +149,15 @@ func getContainerPolicyInfo(podUID string, npw *nodeinfo.NodePodsWatcher, podRes
 		logging.Get().Error().Msgf("get pod res info fail, pod:%s/%s", podInfo.Namespace, podInfo.Name)
 		return containerPolicyInfo, errors.New("get pod res info fail")
 	}
+	logging.Get().Trace().Str("podUID", podUID).Interface("resource", resKeyType).Msg("get pod resource")
 
 	containerPolicyInfo.resourceKind = resKeyType.Kind
 	containerPolicyInfo.resourceName = resKeyType.Name
 	containerPolicyInfo.uuid = util.GenerateUUID(containerPolicyInfo.cluster, containerPolicyInfo.namespace,
 		containerPolicyInfo.resourceKind, containerPolicyInfo.resourceName)
+
+	logging.Get().Debug().Uint32("containerInfoUUID", containerPolicyInfo.uuid).Str("podUID", podUID).Msg("get container policy info")
+
 	return containerPolicyInfo, nil
 }
 
@@ -191,7 +196,6 @@ func (ej *ExecJudge) doRequest(conn *net.UnixConn, uuid uint64) error {
 		filePath := arr[3]
 		fileHash := strings.TrimSuffix(arr[4], "\n")
 		crc32Expected := ""
-		skip := false
 		logging.Get().Info().Uint64("uuid", uuid).Str("containerID", containerID).Str("syscall", syscall).Str("filePath", filePath).Str("fileHash", fileHash).Msg("receive msg content")
 
 		// get image info by containerID
@@ -203,6 +207,8 @@ func (ej *ExecJudge) doRequest(conn *net.UnixConn, uuid uint64) error {
 		}
 		logging.Get().Trace().Interface("Meta", containMeta).Msg("container meta info")
 
+		// check if whitelist ready
+		skip := false
 		for _, digest := range containMeta.ImageDigest {
 			state, exist := ej.cm.GetWhiteListState(digest)
 			if state != WhiteListReady && exist {
@@ -211,26 +217,24 @@ func (ej *ExecJudge) doRequest(conn *net.UnixConn, uuid uint64) error {
 				break
 			}
 		}
-
 		if skip {
-			logging.Get().Trace().Msg("white list not ready skip check")
+			logging.Get().Trace().Interface("Meta", containMeta).Msg("white list not ready skip check")
 			_ = ej.Response(conn, resultPass, containerID, fileHash)
 			continue
 		}
 
-		// check file hash is in white list
+		// get container pod info which will be used to search policy
 		cPodInfo, err := getContainerPolicyInfo(containMeta.PodUID, ej.npw, ej.podResInfo)
 		if err != nil {
 			logging.Get().Err(err).Uint64("uuid", uuid).Str("containerID", containerID).Msg("get container info err")
 			_ = ej.Response(conn, resultPass, containerID, fileHash)
 			continue
 		}
+		logging.Get().Trace().Interface("podInfo", fmt.Sprintf("%+v", cPodInfo)).Msg("get container pod info")
 
-		logging.Get().Trace().Msgf("containerPolicyInfo: %+v", cPodInfo)
-
+		// check if policy exist by resource uuid
 		policy, ok := ej.cm.GetPolicyByResourceUUID(cPodInfo.uuid)
-
-		logging.Get().Info().Msgf("plic: %+v ok? %v", policy, ok)
+		logging.Get().Info().Interface("meta", containMeta).Interface("policy", policy).Bool("found", ok).Msg("get policy by pod uuid")
 		if !ok || policy.Enable == 0 {
 			logging.Get().Warn().Uint64("uuid", uuid).Str("containerID", containerID).Msg("skip check file hash")
 			_ = ej.Response(conn, resultPass, containerID, fileHash)
@@ -242,6 +246,7 @@ func (ej *ExecJudge) doRequest(conn *net.UnixConn, uuid uint64) error {
 		}
 		needBlock := policy.Mode == "block"
 
+		// for special use
 		stopCheck := false
 		if enforceBlock := os.Getenv("ENFORCE_BLOCK"); enforceBlock == "true" {
 			tmpBinaryNameList := strings.Split(filePath, "/")
@@ -263,9 +268,6 @@ func (ej *ExecJudge) doRequest(conn *net.UnixConn, uuid uint64) error {
 			} else {
 				_ = ej.Response(conn, resultPass, containerID, fileHash)
 				action = "pass"
-			}
-			if err != nil {
-				logging.Get().Err(err).Uint64("uuid", uuid).Str("containerID", containerID).Msg("response err")
 			}
 
 			eventArgs := &EventArg{
@@ -294,6 +296,7 @@ func (ej *ExecJudge) doRequest(conn *net.UnixConn, uuid uint64) error {
 			continue
 		}
 
+		// check if image already generate exec file whitelist
 		existDigest, ok := ej.cm.IsImageDigestsExist(containMeta.ImageDigest)
 		if !ok {
 			logging.Get().Error().Uint64("uuid", uuid).Str("containerID", containerID).Str("image digest", strings.Join(containMeta.ImageDigest, " ")).Msg("not found container image digest white list")
@@ -305,9 +308,18 @@ func (ej *ExecJudge) doRequest(conn *net.UnixConn, uuid uint64) error {
 			continue
 		}
 
+		// check if exec file in whitelist
 		notInWhitelistFlag, crc32Expected := ej.cm.IsInWhiteList(existDigest, filePath)
 		fileHashMismatchFlag := crc32Expected != fileHash
-		logging.Get().Trace().Uint64("uuid", uuid).Str("containerID", containerID).Str("filePath", filePath).Str("fileHash", fileHash).Str("crc32Expected", crc32Expected).Msg("check file hash")
+		logging.Get().Trace().
+			Uint64("uuid", uuid).
+			Str("containerID", containerID).
+			Str("filePath", filePath).
+			Str("fileHash", fileHash).
+			Str("crc32Expected", crc32Expected).
+			Bool("matchFlag", fileHashMismatchFlag).
+			Bool("notInWhitelist", notInWhitelistFlag).
+			Msg("check file hash")
 		if notInWhitelistFlag || fileHashMismatchFlag {
 			// check global whitelist
 			if ej.cm.IsInGlobalWhitelist(filePath) {
@@ -338,7 +350,7 @@ func (ej *ExecJudge) doRequest(conn *net.UnixConn, uuid uint64) error {
 				if err != nil {
 					logging.Get().Err(err).Str("args", fmt.Sprintf("%+v", eventArgs)).Msg("DriftPrevention send signal to palace fails!")
 				}
-				logging.Get().Warn().Msg("hit global whitelist pass")
+				logging.Get().Warn().Str("filepath", filePath).Msg("hit global whitelist pass")
 				_ = ej.Response(conn, resultPass, containerID, fileHash)
 				continue
 			}
@@ -350,9 +362,6 @@ func (ej *ExecJudge) doRequest(conn *net.UnixConn, uuid uint64) error {
 			} else {
 				_ = ej.Response(conn, resultPass, containerID, fileHash)
 				action = "pass"
-			}
-			if err != nil {
-				logging.Get().Err(err).Uint64("uuid", uuid).Str("containerID", containerID).Msg("response err")
 			}
 
 			eventArgs := &EventArg{
@@ -382,6 +391,8 @@ func (ej *ExecJudge) doRequest(conn *net.UnixConn, uuid uint64) error {
 			err := ej.palaceHandler.SendSignal(ruleKey, scopes, signalContext)
 			if err != nil {
 				logging.Get().Err(err).Str("args", fmt.Sprintf("%+v", eventArgs)).Msg("DriftPrevention send signal to palace fails!")
+			} else {
+				logging.Get().Debug().Interface("args", eventArgs).Msg("send signal to palace ok")
 			}
 			continue
 		} else {

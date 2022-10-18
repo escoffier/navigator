@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"github.com/rs/zerolog"
 	"math/rand"
 	"os"
 	"runtime/debug"
@@ -32,6 +33,7 @@ func init() {
 	rand.Seed(time.Now().UnixNano())
 
 	loggingOptions = logging.NewLoggingOptions()
+	loggingOptions.Level = int(zerolog.TraceLevel)
 	loggingOptions.AddFlags(flag.CommandLine)
 }
 

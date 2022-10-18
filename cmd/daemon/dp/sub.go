@@ -107,8 +107,7 @@ func (s *Subscriber) RuntimeEventCallBack(config *ConfigManager, rt container.Ru
 							Str("imageID", m.ContainerInfo.ImageID).
 							Msg("get image inspect failed")
 					} else {
-						imageInfo, err := wc.MakeWhiteListByOverLay(imageInspect)
-						wc.CleanWhiteListCount()
+						imageInfo, err := wc.GenerateExecWhiteList(imageInspect)
 						if err != nil {
 							logging.Get().
 								Err(err).
