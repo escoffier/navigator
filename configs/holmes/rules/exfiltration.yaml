@@ -288,7 +288,7 @@
   priority: WARNING
   tags: [ATT&CK]
 
-- rule: Detected connection to container through ssh
+- rule: Try ssh connection in container
   hid: exf_16
   hthreats: 0
   suggestion:
@@ -297,16 +297,16 @@
       value: "SSH burst may occur. It is recommended to confirm whether there is a weak password in the container and limit the number of incorrect login attempts by modifying/etc/pam.d/sshd."
     zh:
       key: "处置建议"
-      value: "可能存在ssh爆破行为，建议确认容器是否存在弱口令，并通过修改/etc/pam.d/sshd限制错误登录尝试次数。"
-  desc: Detect any new ssh connection to a container
+      value: "可能存在ssh爆破行为，建议确认主机和容器是否存在弱口令，并通过修改/etc/pam.d/sshd限制错误登录尝试次数。"
+  desc: Try ssh connection in container
   condition: >
    (inbound_outbound) and allowed_ssh_hosts and container
   output: >
-    Detected connection to container through ssh (zh_msg=检测到尝试通过ssh连接到容器,rule_type=Exfiltration,fd_name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,container_id=%container.id,container_name=%container.name)
+    Try ssh connection in container (zh_msg=检测到在容器内尝试ssh连接,rule_type=Exfiltration,,connection=%fd.name,client_ip=%fd.cip,client_port=%fd.cport,server_ip=%fd.rip,server_port=%fd.sport,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,container_id=%container.id,container_name=%container.name)
   priority: WARNING
   tags: [ATT&CK]
 
-- rule: Disallowed SSH Connection
+- rule: Try ssh connection in host
   hid: exf_17
   hthreats: 0
   suggestion:
@@ -315,10 +315,47 @@
       value: "SSH explosion may occur. It is recommended to confirm whether there is a weak password on the host and limit the number of incorrect login attempts by modifying /etc/pam.d/sshd."
     zh:
       key: "处置建议"
-      value: "可能存在ssh爆破行为，建议确认主机是否存在弱口令，并通过修改/etc/pam.d/sshd限制错误登录尝试次数。"
-  desc: Detect any new ssh connection to a host other than those in an allowed group of hosts
-  condition: (inbound_outbound) and ssh_port and not allowed_ssh_hosts
+      value: "可能存在ssh爆破行为，建议确认主机和容器是否存在弱口令，并通过修改/etc/pam.d/sshd限制错误登录尝试次数。"
+  desc: Try ssh connection in host
+  condition: >
+    (inbound_outbound) and allowed_ssh_hosts and not container and not proc.cmdline = "sshd -D"
   output: >
-    Disallowed SSH Connection (zh_msg=检测到尝试通过ssh连接到主机,rule_type=Exfiltration,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=connection=%fd.name user=%user.name user_loginuid=%user.loginuid container_id=%container.id container_name=%container.name image=%container.image.repository)
+    Try ssh connection in host (zh_msg=检测到在主机上尝试ssh连接,rule_type=Exfiltration,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,connection=%fd.name,client_ip=%fd.cip,client_port=%fd.cport,server_ip=%fd.rip,server_port=%fd.sport user=%user.name user_loginuid=%user.loginuid container_id=%container.id container_name=%container.name image=%container.image.repository)
   priority: WARNING
+  tags: [ATT&CK, network, mitre_remote_service]
+
+- rule: Scanning ports detected
+  hid: exf_18
+  hthreats: 0
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "There may be port scanning behavior, it is recommended to confirm whether there is a vulnerability in the service where the port is located."
+    zh:
+      key: "处置建议"
+      value: "可能存在端口扫描行为，建议确认端口所在服务是否存在漏洞。"
+  desc: Scanning ports detected
+  condition: >
+    easy_outbound and proc.name in (scan_ports_tool_binaries) and pentest_ports
+  output: >
+    Scanning ports detected (zh_msg=检测到正在扫描端口,rule_type=Exfiltration,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,connection=%fd.name,client_ip=%fd.cip,client_port=%fd.cport,server_ip=%fd.rip,server_port=%fd.sport user=%user.name user_loginuid=%user.loginuid container_id=%container.id container_name=%container.name image=%container.image.repository)
+  priority: ALERT
+  tags: [ATT&CK, network, mitre_remote_service]
+
+- rule: Brute force hacking detected
+  hid: exf_18
+  hthreats: 0
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "There may be brute force cracking, it is recommended to confirm whether there is a weak password in the service where the port is located."
+    zh:
+      key: "处置建议"
+      value: "可能存在暴力破解行为，建议确认端口所在服务是否存在弱口令。"
+  desc: Brute force hacking detected
+  condition: >
+    easy_outbound and proc.name in (brute_force_binaries) and pentest_ports
+  output: >
+    Brute force hacking detected (zh_msg=检测到正在暴力破解,rule_type=Exfiltration,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,connection=%fd.name,client_ip=%fd.cip,client_port=%fd.cport,server_ip=%fd.rip,server_port=%fd.sport user=%user.name user_loginuid=%user.loginuid container_id=%container.id container_name=%container.name image=%container.image.repository)
+  priority: ALERT
   tags: [ATT&CK, network, mitre_remote_service]
