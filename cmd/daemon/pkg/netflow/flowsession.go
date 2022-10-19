@@ -592,7 +592,7 @@ func (fs *FlowSession) SetEbpfState(enable bool) {
 
 	var length int
 	rcvBuf := make([]byte, 128)
-	readsign := make(chan struct{})
+	readsign := make(chan struct{}, 1)
 	go func() {
 		length, err = fs.sockClient.Read(rcvBuf)
 		if err != nil {
@@ -600,6 +600,7 @@ func (fs *FlowSession) SetEbpfState(enable bool) {
 			return
 		}
 		readsign <- struct{}{}
+		close(readsign)
 	}()
 
 	type EbpfState struct {
