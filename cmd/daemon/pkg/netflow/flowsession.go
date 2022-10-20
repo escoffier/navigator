@@ -461,7 +461,7 @@ func (fs *FlowSession) GetNetDataFromEbpf() bool {
 
 	var length int
 	rcvBuf := make([]byte, 102400)
-	readsign := make(chan struct{})
+	readsign := make(chan struct{}, 1)
 	go func() {
 		length, err = fs.sockClient.Read(rcvBuf)
 		if err != nil {
@@ -469,6 +469,7 @@ func (fs *FlowSession) GetNetDataFromEbpf() bool {
 			return
 		}
 		readsign <- struct{}{}
+		close(readsign)
 	}()
 	//ebpf net data
 	var netData []daemon.EbpfNetData
@@ -642,7 +643,7 @@ func (fs *FlowSession) GetProcessName(netinfo *daemon.PidAssociateMnt) (*daemon.
 
 	var length int
 	rcvBuf := make([]byte, 512)
-	readsign := make(chan struct{})
+	readsign := make(chan struct{}, 1)
 	go func() {
 		length, err = fs.sockClient.Read(rcvBuf)
 		if err != nil {
@@ -650,6 +651,7 @@ func (fs *FlowSession) GetProcessName(netinfo *daemon.PidAssociateMnt) (*daemon.
 			return
 		}
 		readsign <- struct{}{}
+		close(readsign)
 	}()
 
 	select {
