@@ -96,3 +96,78 @@ func TestDB(t *testing.T) {
 	}).Create(cnt_rels)
 
 }
+
+func TestGetAppType(t *testing.T) {
+	type args struct {
+		image   string
+		matcher func(repoName, version string) (bool, string, string, error)
+	}
+	tests := []struct {
+		name    string
+		args    args
+		want    bool
+		want1   string
+		want2   string
+		wantErr bool
+	}{
+		// TODO: Add test cases.
+		{
+			name:    "ip:port repo mysql",
+			args:    args{image: "11.1.2.1:10090/test/abc/mysql:v5.4", matcher: DBMatcher},
+			want:    true,
+			want1:   "mysql",
+			want2:   "v5.4",
+			wantErr: false,
+		},
+		{
+			name:    "domain repo redis",
+			args:    args{image: "harbor.test.com/redis:v5.4", matcher: DBMatcher},
+			want:    true,
+			want1:   "redis",
+			want2:   "v5.4",
+			wantErr: false,
+		},
+		{
+			name:    "postgres",
+			args:    args{image: "postgres:v5.4", matcher: DBMatcher},
+			want:    true,
+			want1:   "postgres",
+			want2:   "v5.4",
+			wantErr: false,
+		},
+		{
+			name:    "ip:port tomcat",
+			args:    args{image: "11.1.2.1:10090/test/abc/tomcat:v6.4", matcher: WebMatcher},
+			want:    true,
+			want1:   "tomcat",
+			want2:   "v6.4",
+			wantErr: false,
+		},
+		{
+			name:    "ip:port tomcat no tab",
+			args:    args{image: "11.1.2.1:10090/test/abc/tomcat", matcher: WebMatcher},
+			want:    true,
+			want1:   "tomcat",
+			want2:   "latest",
+			wantErr: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, got1, got2, err := GetAppType(tt.args.image, tt.args.matcher)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("GetAppType() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if got != tt.want {
+				t.Errorf("GetAppType() got = %v, want %v", got, tt.want)
+			}
+			if got1 != tt.want1 {
+				t.Errorf("GetAppType() got1 = %v, want %v", got1, tt.want1)
+			}
+			if got2 != tt.want2 {
+				t.Errorf("GetAppType() got2 = %v, want %v", got2, tt.want2)
+			}
+		})
+	}
+}
