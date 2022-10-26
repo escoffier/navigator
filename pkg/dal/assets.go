@@ -600,14 +600,14 @@ func fromContainerToModel(ctx context.Context, rdb *gorm.DB, container corev1.Co
 	contModel.Status = 0
 
 	if conType == ContainerTypeDefault {
-		isWebFrame, webType, version, err := model.GetWebType(contModel.Image)
+		isWebFrame, webType, version, err := model.GetAppType(contModel.Image, model.WebMatcher)
 		if err == nil && isWebFrame {
 			contModel.AppType = &model.AppTypeWeb
 			contModel.AppTargetName = &webType
 			contModel.AppTargetVersion = &version
 
 		} else {
-			isDB, dbType, version, err := model.GetDatabaseType(contModel.Image)
+			isDB, dbType, version, err := model.GetAppType(contModel.Image, model.DBMatcher)
 			if err == nil && isDB {
 				contModel.AppType = &model.AppTypeDB
 				contModel.AppTargetName = &dbType
