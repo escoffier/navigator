@@ -99,6 +99,7 @@ require github.com/go-ldap/ldap/v3 v3.4.1
 require (
 	github.com/elastic/go-libaudit/v2 v2.2.0
 	github.com/ghodss/yaml v1.0.0
+	github.com/gin-contrib/pprof v1.4.0
 	github.com/go-sql-driver/mysql v1.6.0
 	github.com/go-task/slim-sprig v0.0.0-20210107165309-348f09dbbbc0
 	github.com/gobwas/glob v0.2.3
