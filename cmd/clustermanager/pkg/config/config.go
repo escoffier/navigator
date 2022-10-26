@@ -21,4 +21,5 @@ type Config struct {
 	DBLogDebug            bool
 	K8SInfoForRestConfig  *k8s.InfoForRestConfig
 	PoolInfo              *assets.PoolInfo
+	Profile               bool
 }

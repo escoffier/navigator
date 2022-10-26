@@ -4,11 +4,12 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
+	"github.com/gin-contrib/pprof"
+	"github.com/gin-gonic/gin"
 	"net/http"
 	"strings"
 	"time"
 
-	"github.com/gin-gonic/gin"
 	json "github.com/json-iterator/go"
 	param "github.com/oceanicdev/chi-param"
 	"gitlab.com/piccolo_su/vegeta/cmd/clustermanager/pkg/attack"
@@ -133,6 +134,9 @@ func NewHTTPServer(clusterKey string, config *config.Config) (*ClusterServer, er
 	}
 
 	r := gin.Default()
+	if config.Profile {
+		pprof.Register(r)
+	}
 	r.GET("/internal/cluster", s.handleClusterQuery)
 	r.GET("/internal/watch_cluster", s.handleWatchCluster)
 	r.GET("/api/openapi/ATTCK/latestData", s.handleATTACKLatestData)

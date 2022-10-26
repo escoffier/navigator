@@ -248,8 +248,9 @@ func AddFlags(fs *pflag.FlagSet, rootCmd *cobra.Command) {
 	fs.IntVar(&ServerConfig.Port, "port", defaultPort, "The port of inject server to listen.")
 	fs.StringVar(&ServerConfig.CertFile, "tlsCertPath", "/etc/cluster-manager/certs/tls.crt", "The path of tls cert")
 	fs.StringVar(&ServerConfig.KeyFile, "tlsKeyPath", "/etc/cluster-manager/certs/tls.key", "The path of tls key")
-	fs.BoolVar(&ServerConfig.TLSServer, "tlsServer", false, "use tls server")
-	fs.BoolVar(&ServerConfig.DBLogDebug, "DBLogDebug", false, "debug db")
+	fs.BoolVar(&ServerConfig.TLSServer, "tlsServer", false, "Enable tls for server")
+	fs.BoolVar(&ServerConfig.DBLogDebug, "DBDebugLog", false, "Enable database debug log")
+	fs.BoolVar(&ServerConfig.Profile, "profile", true, "Enable profiling via web interface host:port/debug/pprof")
 }
 
 func init() {
