@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"runtime/debug"
 	"strings"
 	"sync"
 	"time"
@@ -84,10 +85,14 @@ func (s *ImageExport) GetTensorTask(ctx context.Context, executeType string, n i
 
 func (s *ImageExport) Export(ctx context.Context, task model.ExportTensorTask, executeType string) chan *excelize.File {
 
-	out := make(chan *excelize.File)
+	out := make(chan *excelize.File, 1)
 
 	go func(task model.ExportTensorTask) {
-
+		defer func() {
+			if r := recover(); r != nil {
+				logging.GetLogger().Error().Str("stack", string(debug.Stack())).Msg("ImageExport")
+			}
+		}()
 		defer close(out)
 
 		param := ImageExportParma{}
@@ -194,9 +199,16 @@ func (s *ImageExport) ConvertData(res map[string]chan []string) map[string]chan 
 		if key == GenImageTypeInfoMeta().SheetName || key == GenImageBaseInfoMeta().SheetName {
 			ans[key] = value
 		} else {
-			out := make(chan []string)
+			out := make(chan []string, 1)
 			go func(value chan []string) {
+				defer func() {
+					if r := recover(); r != nil {
+						logging.GetLogger().Error().Str("stack", string(debug.Stack())).Msg("ImageExport")
+					}
+				}()
+
 				defer close(out)
+
 				for data := range value {
 					data = data[2:]
 					out <- data

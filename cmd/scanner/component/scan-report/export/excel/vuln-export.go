@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"runtime/debug"
 	"strconv"
 	"sync"
 	"time"
@@ -214,10 +215,18 @@ func (s *VulnExport) ZipAndSave(ctx context.Context, filename string, files chan
 }
 
 func (s *VulnExport) Export(ctx context.Context, filename string, vuln model.Vuln, resources []ResourceWithImage) chan *excelize.File {
-	out := make(chan *excelize.File)
+	out := make(chan *excelize.File, 1)
 
 	go func(filename string, vuln model.Vuln, resources []ResourceWithImage) {
+
+		defer func() {
+			if r := recover(); r != nil {
+				logging.GetLogger().Error().Str("stack", string(debug.Stack())).Msg("VulnExport")
+			}
+		}()
+
 		defer close(out)
+
 		logging.GetLogger().Info().Str("vuln", vuln.Name).Msg("Export Vuln start")
 
 		excelData := make(map[string][]chan []string)
@@ -257,9 +266,16 @@ func (s *VulnExport) Export(ctx context.Context, filename string, vuln model.Vul
 }
 
 func (s *VulnExport) ConvertVulnData(res chan []string) chan []string {
-	out := make(chan []string)
+	out := make(chan []string, 1)
 	go func(value chan []string) {
+		defer func() {
+			if r := recover(); r != nil {
+				logging.GetLogger().Error().Str("stack", string(debug.Stack())).Msg("VulnExport")
+			}
+		}()
+
 		defer close(out)
+
 		for data := range value {
 			data = data[2:]
 			out <- data
@@ -269,9 +285,16 @@ func (s *VulnExport) ConvertVulnData(res chan []string) chan []string {
 }
 
 func (s *VulnExport) ConvertResourceData(res chan []string) chan []string {
-	out := make(chan []string)
+	out := make(chan []string, 1)
 	go func(value chan []string) {
+
+		defer func() {
+			if r := recover(); r != nil {
+				logging.GetLogger().Error().Str("stack", string(debug.Stack())).Msg("VulnExport")
+			}
+		}()
 		defer close(out)
+
 		for data := range value {
 			data = append(data[:1], data[2:]...)
 			out <- data
@@ -287,9 +310,17 @@ func (s *VulnExport) ConvertData(res map[string]chan []string) map[string]chan [
 	for key, value := range res {
 
 		if key == GenImageVulnInfoMeta().SheetName {
-			out := make(chan []string)
+			out := make(chan []string, 1)
 			go func(value chan []string) {
+
+				defer func() {
+					if r := recover(); r != nil {
+						logging.GetLogger().Error().Str("stack", string(debug.Stack())).Msg("VulnExport")
+					}
+				}()
+
 				defer close(out)
+
 				for data := range value {
 					data = data[2:]
 					out <- data
@@ -297,9 +328,16 @@ func (s *VulnExport) ConvertData(res map[string]chan []string) map[string]chan [
 			}(value)
 			ans[key] = out
 		} else if key == GenImageResourcesInfoMeta().SheetName {
-			out := make(chan []string)
+			out := make(chan []string, 1)
 			go func(value chan []string) {
+				defer func() {
+					if r := recover(); r != nil {
+						logging.GetLogger().Error().Str("stack", string(debug.Stack())).Msg("VulnExport")
+					}
+				}()
+
 				defer close(out)
+
 				for data := range value {
 					data = append(data[:1], data[2:]...)
 					out <- data
