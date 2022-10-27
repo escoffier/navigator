@@ -3,6 +3,7 @@ package excel
 import (
 	"fmt"
 	"math"
+	"runtime/debug"
 	"strings"
 	"time"
 
@@ -12,13 +13,20 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scan-report/export/utils"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
+	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 )
 
 func GenBaseInfoChan(image model.ImageList) chan []string {
-	out := make(chan []string)
+	out := make(chan []string, 1)
 	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				logging.GetLogger().Error().Str("stack", string(debug.Stack())).Msg("GenBaseInfoChan")
+			}
+		}()
 		defer close(out)
+
 		info := GenImageBaseInfo(image)
 		out <- info
 	}()
@@ -26,9 +34,17 @@ func GenBaseInfoChan(image model.ImageList) chan []string {
 }
 
 func GenVulnInfoChan(imageDetail model.ImageList, vulnCol *atomic.Int32) chan []string {
-	out := make(chan []string)
+	out := make(chan []string, 1)
 	go func(imageDetail model.ImageList) {
+
+		defer func() {
+			if r := recover(); r != nil {
+				logging.GetLogger().Error().Str("stack", string(debug.Stack())).Msg("GenVulnInfoChan")
+			}
+		}()
+
 		defer close(out)
+
 		vulns := imageDetail.ImageScanVuln.Vulns
 		if vulnCol != nil {
 			vulnCol.Add(int32(len(vulns)))
@@ -44,9 +60,15 @@ func GenVulnInfoChan(imageDetail model.ImageList, vulnCol *atomic.Int32) chan []
 }
 
 func GenSensitiveFileChan(imageDetail model.ImageList) chan []string {
-	out := make(chan []string)
+	out := make(chan []string, 1)
 	go func(imageDetail model.ImageList) {
+		defer func() {
+			if r := recover(); r != nil {
+				logging.GetLogger().Error().Str("stack", string(debug.Stack())).Msg("GenSensitiveFileChan")
+			}
+		}()
 		defer close(out)
+
 		files := imageDetail.ImageScanVuln.SensitiveFiles
 		for i := range files {
 			file := files[i]
@@ -58,9 +80,16 @@ func GenSensitiveFileChan(imageDetail model.ImageList) chan []string {
 }
 
 func GenWebShellChan(imageDetail model.ImageList) chan []string {
-	out := make(chan []string)
+	out := make(chan []string, 1)
 	go func(imageDetail model.ImageList) {
+
+		defer func() {
+			if r := recover(); r != nil {
+				logging.GetLogger().Error().Str("stack", string(debug.Stack())).Msg("GenWebShellChan")
+			}
+		}()
 		defer close(out)
+
 		files := imageDetail.ImageScanWebshell
 		for i := range files {
 			file := files[i]
@@ -72,9 +101,16 @@ func GenWebShellChan(imageDetail model.ImageList) chan []string {
 }
 
 func GenVirusChan(imageDetail model.ImageList) chan []string {
-	out := make(chan []string)
+	out := make(chan []string, 1)
+
 	go func(imageDetail model.ImageList) {
+		defer func() {
+			if r := recover(); r != nil {
+				logging.GetLogger().Error().Str("stack", string(debug.Stack())).Msg("GenVirusChan")
+			}
+		}()
 		defer close(out)
+
 		files := imageDetail.ImageScanVirus
 		for i := range files {
 			file := files[i]
@@ -86,9 +122,15 @@ func GenVirusChan(imageDetail model.ImageList) chan []string {
 }
 
 func GenEnvChan(imageDetail model.ImageList) chan []string {
-	out := make(chan []string)
+	out := make(chan []string, 1)
 	go func(imageDetail model.ImageList) {
+		defer func() {
+			if r := recover(); r != nil {
+				logging.GetLogger().Error().Str("stack", string(debug.Stack())).Msg("GenEnvChan")
+			}
+		}()
 		defer close(out)
+
 		files := imageDetail.ImageScanEnv
 		for i := range files {
 			file := files[i]
@@ -100,9 +142,16 @@ func GenEnvChan(imageDetail model.ImageList) chan []string {
 }
 
 func GenImageResourceChan(image model.ImageList, resources []store.TensorResources) chan []string {
-	out := make(chan []string)
+	out := make(chan []string, 1)
 	go func(image model.ImageList, resources []store.TensorResources) {
+		defer func() {
+			if r := recover(); r != nil {
+				logging.GetLogger().Error().Str("stack", string(debug.Stack())).Msg("GenImageResourceChan")
+			}
+		}()
+
 		defer close(out)
+
 		for i := range resources {
 			info := GenResponseInfo(image, resources[i])
 			out <- info
@@ -112,9 +161,16 @@ func GenImageResourceChan(image model.ImageList, resources []store.TensorResourc
 }
 
 func GenAppOrBaseImageChan(images []model.ImageList) chan []string {
-	out := make(chan []string)
+	out := make(chan []string, 1)
 	go func(imageDetail []model.ImageList) {
+		defer func() {
+			if r := recover(); r != nil {
+				logging.GetLogger().Error().Str("stack", string(debug.Stack())).Msg("ScanTaskExport")
+			}
+		}()
+
 		defer close(out)
+
 		for i := range images {
 			info := GenBaseOrAppImageInfo(images[i])
 			out <- info

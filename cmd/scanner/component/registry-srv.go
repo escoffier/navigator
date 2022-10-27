@@ -204,27 +204,6 @@ func (s *RegistrySrv) UpdateRegistry(ctx context.Context, id int64, reg model.Re
 		return response.NewHttpError(http.StatusExpectationFailed, err)
 	}
 
-	drive, err := registry.Open(RegToRegistryConf(reg))
-
-	if err != nil {
-		logging.GetLogger().Err(err).Msg("尝试连接到仓库出错")
-		switch err {
-		case consts.ErrAccessKeyOrAccessSecret, consts.ErrNotConnectOrWrongUsernameOrPasswd:
-			return response.NewHttpError(http.StatusBadRequest, err)
-		default:
-			return response.NewHttpError(http.StatusBadRequest, fmt.Errorf("尝试连接到仓库出错,请核对信息后重新提交,错误信息:%s", err.Error()))
-		}
-	}
-	if err := drive.Ping(); err != nil {
-		logging.GetLogger().Err(err).Msg("尝试连接到仓库出错")
-		switch err {
-		case consts.ErrAccessKeyOrAccessSecret, consts.ErrNotConnectOrWrongUsernameOrPasswd:
-			return response.NewHttpError(http.StatusBadRequest, err)
-		default:
-			return response.NewHttpError(http.StatusBadRequest, fmt.Errorf("尝试连接到仓库出错,请核对信息后重新提交,错误信息:%s", err.Error()))
-		}
-	}
-
 	updater := registryToUpdater(reg)
 	if reg.PasswordString != "" {
 		encryPass, err := util.DesEncrypt([]byte(reg.PasswordString), []byte(consts.EncryptPasswordKey))

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"runtime/debug"
 	"sync"
 
 	"github.com/xuri/excelize/v2"
@@ -56,11 +57,17 @@ func NewImageSearchSrv(
 }
 
 func (s *ImageSearchSrv) GenImageIdChan(ctx context.Context, task model.ExportTensorTask) chan int64 {
-	out := make(chan int64)
+	out := make(chan int64, 1)
 
 	go func() {
-		defer close(out)
 
+		defer func() {
+			if r := recover(); r != nil {
+				logging.GetLogger().Error().Str("stack", string(debug.Stack())).Msg("ImageSearchSrv")
+			}
+		}()
+
+		defer close(out)
 		var lastID int64
 		var completed int64
 		param := model.ImageListParam{}

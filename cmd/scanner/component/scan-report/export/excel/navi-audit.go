@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"runtime/debug"
 	"strings"
 	"sync"
 	"time"
@@ -46,11 +47,11 @@ type Resp struct {
 }
 
 func NewAuditExport(
-		exportTaskDal store.ExportTaskDal,
-		interval time.Duration,
-		fileDir string,
-		esCli *pkgelastic.ESClient,
-		indexPrefix string,
+	exportTaskDal store.ExportTaskDal,
+	interval time.Duration,
+	fileDir string,
+	esCli *pkgelastic.ESClient,
+	indexPrefix string,
 ) *AuditExport {
 	return &AuditExport{
 		exportTaskDal: exportTaskDal,
@@ -168,9 +169,16 @@ func (e *AuditExport) Failure(ctx context.Context, id int64, msg string) error {
 }
 
 func (e *AuditExport) Export(ctx context.Context, task model.ExportTensorTask, executeType string) chan *excelize.File {
-	out := make(chan *excelize.File)
+	out := make(chan *excelize.File, 1)
 	go func(task model.ExportTensorTask) {
+		defer func() {
+			if r := recover(); r != nil {
+				logging.Get().Error().Str("stack", string(debug.Stack())).Msg("AuditExport")
+			}
+		}()
+
 		defer close(out)
+
 		filename, err := e.genFileName(ctx, task)
 		if err != nil {
 			logging.Get().Err(err).Int64("taskID", task.ID).Msg("Export.genFilename")

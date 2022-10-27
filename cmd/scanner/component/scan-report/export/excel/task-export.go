@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"runtime/debug"
 	"sync"
 
 	json "github.com/json-iterator/go"
@@ -56,9 +57,15 @@ type TaskExportParma struct {
 }
 
 func (s *ScanTaskExport) GenExcelFileChan(ctx context.Context, dataChan chan ExcelDataWithMeta) chan *excelize.File {
-	out := make(chan *excelize.File)
+	out := make(chan *excelize.File, 1)
 
 	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				logging.GetLogger().Error().Str("stack", string(debug.Stack())).Msg("ScanTaskExport")
+			}
+		}()
+
 		defer close(out)
 
 		for excelData := range dataChan {
@@ -86,9 +93,14 @@ type ExcelDataWithMeta struct {
 }
 
 func (s *ScanTaskExport) GenExcelDataChan(ctx context.Context, imageIdChan chan int64, filenamePrefix string) chan ExcelDataWithMeta {
-	out := make(chan ExcelDataWithMeta)
+	out := make(chan ExcelDataWithMeta, 1)
 
 	go func(scanTaskChan chan int64) {
+		defer func() {
+			if r := recover(); r != nil {
+				logging.GetLogger().Error().Str("stack", string(debug.Stack())).Msg("ScanTaskExport")
+			}
+		}()
 		defer close(out)
 
 		vulnCol := atomic.NewInt32(0)
@@ -135,9 +147,15 @@ func (s *ScanTaskExport) GenExcelDataChan(ctx context.Context, imageIdChan chan 
 }
 
 func (s *ScanTaskExport) GenImageIdChan(ctx context.Context, task model.ExportTensorTask) chan int64 {
-	out := make(chan int64)
+	out := make(chan int64, 1)
 
 	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				logging.GetLogger().Error().Str("stack", string(debug.Stack())).Msg("ScanTaskExport")
+			}
+		}()
+
 		defer close(out)
 
 		var lastID int64
