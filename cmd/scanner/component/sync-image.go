@@ -7,6 +7,8 @@ import (
 	"sync"
 	"time"
 
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/global"
+
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/task"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
@@ -17,16 +19,19 @@ import (
 )
 
 type SyncImageInterface interface {
-	SyncAllImage(ctx context.Context, param SyncAllImageParam) error      // 全部仓库全量同步
+	CreateSyncTask(ctx context.Context, reg CreateSyncTaskParam) error    // 添加全量同布的任务
+	SyncAllImage(ctx context.Context) error                               // 全部仓库全量同步
 	SyncAddImage(ctx context.Context, syncType consts.SyncType) error     // 全部仓库增量同步
 	RetryFailedSyncImage(ctx context.Context, lessRetryCount int64) error // 重试
 	DeleteMoreRetryCount(ctx context.Context, moreRetryCount int64) error // 删除超过重试次数
-	GetSyncStatus(ctx context.Context, syncType consts.SyncType) ([]ResponseGetSyncStatus, error)
+	GetSyncStatus(ctx context.Context, syncType consts.SyncType) ([]*ResponseGetSyncStatus, error)
+	AddSyncTask(ctx context.Context) error
 }
 
 // SyncRepoImage sync registry repos and tags to db
 type SyncRepoImage struct {
 	registryDal            store.RegistryDal
+	syncTaskDal            store.SyncTaskDal
 	imageDal               store.ScannerDalInterface
 	podResourceRelationDAl store.PodResourceRelationDal
 	vulnDal                store.VulnDalInterface
@@ -40,42 +45,6 @@ type SyncRepoImage struct {
 	mutex *sync.RWMutex
 }
 
-type ResponseGetSyncStatus struct {
-	Status     bool  `json:"status"`
-	RegistryID int64 `json:"registryID"`
-}
-
-func (s *SyncRepoImage) GetSyncStatus(ctx context.Context, syncType consts.SyncType) ([]ResponseGetSyncStatus, error) {
-	registries, _, err := s.registryDal.SearchRegistry(ctx, store.SearchRegistryParam{NoDelete: true, UseTypes: []int64{model.UserRegistry, model.NodeBuffRegistry}}, nil)
-	if err != nil {
-		logging.GetLogger().Err(err).Msg("GetSyncStatus")
-		return nil, err
-	}
-	ans := make([]ResponseGetSyncStatus, 0)
-
-	for i := range registries {
-		status := ResponseGetSyncStatus{RegistryID: registries[i].ID}
-		switch syncType {
-		case consts.ManualSync, consts.TimingFullSync, consts.CycleFullSync:
-			if ex, ok := s.syncAllImageMap.Load(registries[i].ID); ok {
-				if ex1, ok := ex.(bool); ok {
-					status.Status = ex1
-				}
-			}
-
-		case consts.CycleIncSync:
-			if ex, ok := s.syncAddImageMap.Load(registries[i].ID); ok {
-				if ex1, ok := ex.(bool); ok {
-					status.Status = ex1
-				}
-			}
-		}
-		ans = append(ans, status)
-
-	}
-	return ans, nil
-}
-
 func NewSyncRepoImage(
 	registryDal store.RegistryDal,
 	imageDal store.ScannerDalInterface,
@@ -84,6 +53,7 @@ func NewSyncRepoImage(
 	syncRetryImageDal store.SyncRetryImageDal,
 	vulnDal store.VulnDalInterface,
 	scannerDB *store.ScannerDB,
+	syncTaskDal store.SyncTaskDal,
 ) *SyncRepoImage {
 	return &SyncRepoImage{
 		registryDal:            registryDal,
@@ -95,8 +65,58 @@ func NewSyncRepoImage(
 		scanConfigDal:          scanConfigDal,
 		syncAllImageMap:        sync.Map{},
 		syncAddImageMap:        sync.Map{},
+		syncTaskDal:            syncTaskDal,
 		mutex:                  &sync.RWMutex{},
 	}
+}
+
+func (s *SyncRepoImage) CreateSyncTask(ctx context.Context, param CreateSyncTaskParam) error {
+	regs, _, err := s.registryDal.SearchRegistry(ctx, store.SearchRegistryParam{ID: param.RegID,
+		ScannerInstance: param.ScannerInstance, NoDelete: true}, nil)
+	if err != nil {
+		logging.GetLogger().Err(err).Interface("param", param).Msg("CreateSyncTask SearchRegistry")
+		return err
+	}
+	for i := range regs {
+		syncTask := &model.SyncTask{RegistryID: regs[i].ID, SyncType: param.SyncType.String()}
+		err = s.syncTaskDal.CreateSyncTask(ctx, syncTask)
+		if err != nil && strings.Contains(err.Error(), consts.DuplicateKey) {
+			logging.GetLogger().Info().Interface("syncTask", syncTask).Msg("CreateSyncTask has one sync task is running ")
+		} else if err != nil {
+			logging.GetLogger().Err(err).Interface("syncTask", syncTask).Msg("CreateSyncTask CreateSyncTask")
+		}
+		logging.GetLogger().Info().Interface("syncTask", syncTask).Msg("CreateSyncTask CreateSyncTask")
+	}
+	return nil
+}
+
+func (s *SyncRepoImage) GetSyncStatus(ctx context.Context, syncType consts.SyncType) ([]*ResponseGetSyncStatus, error) {
+
+	registries, _, err := s.registryDal.SearchRegistry(ctx, store.SearchRegistryParam{NoDelete: true, UseTypes: []int64{model.UserRegistry, model.NodeBuffRegistry}}, nil)
+	if err != nil {
+		logging.GetLogger().Err(err).Msg("GetSyncStatus")
+		return nil, err
+	}
+	exit := make(map[int64]*ResponseGetSyncStatus)
+
+	for i := range registries {
+		exit[registries[i].ID] = &ResponseGetSyncStatus{RegistryID: registries[i].ID}
+	}
+
+	syncTask, err := s.syncTaskDal.SearchSyncTask(ctx, store.SearchSyncTaskParam{Finished: consts.FalseString, SyncType: syncType.String()}, nil)
+	if err != nil {
+		logging.GetLogger().Err(err).Msg("GetSyncStatus SearchSyncTask")
+		return nil, err
+	}
+	for i := range syncTask {
+		exit[syncTask[i].RegistryID].Status = true
+	}
+	ans := make([]*ResponseGetSyncStatus, 0)
+	for k := range exit {
+		ans = append(ans, exit[k])
+	}
+	return ans, nil
+
 }
 
 // 定期重试
@@ -149,10 +169,44 @@ func (s *SyncRepoImage) DeleteMoreRetryCount(ctx context.Context, moreRetryCount
 	return nil
 }
 
-func (s *SyncRepoImage) SyncAllImage(ctx context.Context, param SyncAllImageParam) error {
-	logging.GetLogger().Info().Str("syncType", string(param.SyncType)).Msg("SyncAllImage start")
+func (s *SyncRepoImage) SyncAllImage(ctx context.Context) error {
+	logging.GetLogger().Info().Str("ScannerInstance", global.ScannerInstance).Msg("SyncAllImage start")
 
-	if param.SyncType == consts.TimingFullSync {
+	registries, _, err := s.registryDal.SearchRegistry(ctx, store.SearchRegistryParam{
+		ScannerInstance: global.ScannerInstance,
+		NoDelete:        true}, nil)
+	if err != nil {
+		logging.GetLogger().Err(err).Msg("查询仓库信息出错")
+		return err
+	}
+
+	if len(registries) == 0 {
+		logging.GetLogger().Info().Str("ScannerInstance", global.ScannerInstance).Msg("SyncAllImage not fond registry")
+		return nil
+	}
+	regMap := make(map[int64]model.Registry)
+	regIds := make([]int64, 0)
+	for i := range registries {
+		regMap[registries[i].ID] = registries[i]
+		regIds = append(regIds, registries[i].ID)
+	}
+	if len(regIds) == 0 {
+		logging.GetLogger().Info().Str("ScannerInstance", global.ScannerInstance).Msg("SyncAllImage not find registry")
+		return nil
+	}
+	tasks, err := s.syncTaskDal.SearchSyncTask(ctx, store.SearchSyncTaskParam{RegIds: regIds, Finished: consts.FalseString},
+		&model.Filter{SortBy: consts.SortByDesc, SortFiled: "id", Limit: 1})
+	if err != nil {
+		logging.GetLogger().Err(err).Str("ScannerInstance", global.ScannerInstance).Msg("SyncAllImage SearchSyncTask")
+		return err
+	}
+	if len(tasks) == 0 {
+		logging.GetLogger().Info().Str("ScannerInstance", global.ScannerInstance).Msg("SyncAllImage has no sync task")
+		return nil
+	}
+
+	syncTask, reg := tasks[0], regMap[tasks[0].RegistryID]
+	if syncTask.SyncType == consts.TimingFullSync.String() {
 		// 加写锁
 		s.mutex.Lock()
 		defer s.mutex.Unlock()
@@ -161,40 +215,43 @@ func (s *SyncRepoImage) SyncAllImage(ctx context.Context, param SyncAllImagePara
 		s.mutex.RLock()
 		defer s.mutex.RUnlock()
 	}
-	logging.GetLogger().Info().Str("syncType", string(param.SyncType)).Msg("SyncAllImage RLook")
+	logging.GetLogger().Info().Str("syncType", syncTask.SyncType).Msg("SyncAllImage RLook")
 
+	logging.GetLogger().Info().Str("syncType", syncTask.SyncType).Int64("regID", reg.ID).Msg("SyncAllImage start")
+	if err := s.startSyncAllImage(ctx, reg.ID, consts.SyncType(syncTask.SyncType), syncTask.ID); err != nil {
+		logging.GetLogger().Err(err).Str("regName", reg.Name).Str("syncType", syncTask.SyncType).Msg("SyncAllImage failure")
+		return err
+	}
+	logging.GetLogger().Info().Str("syncType", syncTask.SyncType).Int64("regID", syncTask.RegistryID).Msg("SyncAllImage end")
+	return nil
+}
+
+func (s *SyncRepoImage) AddSyncTask(ctx context.Context) error {
+	logging.GetLogger().Info().Msg("AddSyncTask start")
 	// 每次都去数据库查询，因为数据增加了用户之后要能感知到
 	registries, _, err := s.registryDal.SearchRegistry(ctx, store.SearchRegistryParam{
-		UseTypes:    []int64{model.UserRegistry, model.NodeBuffRegistry},
-		RegistryIds: param.RegistryIds,
-		NoDelete:    true}, nil)
+		UseTypes:        []int64{model.UserRegistry, model.NodeBuffRegistry},
+		ScannerInstance: global.ScannerInstance,
+		NoDelete:        true}, nil)
 	if err != nil {
 		logging.GetLogger().Err(err).Msg("查询仓库信息出错")
 		return err
 	}
-	logging.GetLogger().Info().Str("syncType", string(param.SyncType)).Interface("registries", registries).Msg("SyncAllImage start")
 
 	for i := range registries {
+
 		driver, err := s.getRegistryDriver(ctx, registries[i])
 		if err != nil {
-			logging.GetLogger().Err(err).Str("regName", registries[i].Name).Str("regUrl", registries[i].Url).Msg("SyncAllImage getRegistryDriver")
+			logging.GetLogger().Err(err).Str("regName", registries[i].Name).Str("regUrl", registries[i].Url).Msg("AddSyncTask  getRegistryDriver")
 			continue
 		}
-		regID := registries[i].ID
-
-		if (registries[i].WhetherToStartSync() && !driver.SupportIncrementalSync(ctx)) || param.SyncType == consts.TimingFullSync || param.SyncType == consts.ManualSync {
-			// 兜底的同步，不需要同步缓存仓库
-			if param.SyncType == consts.TimingFullSync && registries[i].UseType != model.UserRegistry {
-				continue
-			}
-
-			logging.GetLogger().Info().Str("syncType", string(param.SyncType)).Int64("regID", regID).Msg("SyncAllImage start")
-			if err := s.startSyncAllImage(ctx, regID, param.SyncType); err != nil {
-				logging.GetLogger().Err(err).Str("regName", registries[i].Name).Str("syncType", string(param.SyncType)).Msg("SyncAllImage failure")
+		if registries[i].WhetherToStartSync() && !driver.SupportIncrementalSync(ctx) {
+			if err := s.CreateSyncTask(ctx, CreateSyncTaskParam{RegID: registries[0].ID, ScannerInstance: registries[0].ScannerInstance, SyncType: consts.CycleFullSync}); err != nil {
+				logging.GetLogger().Err(err).Str("regName", registries[i].Name).Str("syncType", consts.CycleFullSync.String()).Msg("AddSyncTask CreateSyncTask failure")
 			}
 		}
 	}
-	logging.GetLogger().Info().Str("syncType", string(param.SyncType)).Msg("SyncAllImage end")
+	logging.GetLogger().Info().Str("syncType", consts.CycleFullSync.String()).Msg("AddSyncTask SyncAllImage end")
 	return nil
 }
 
@@ -208,8 +265,9 @@ func (s *SyncRepoImage) SyncAddImage(ctx context.Context, syncType consts.SyncTy
 
 	// 每次都去数据库查询，因为数据增加了用户之后要能感知到
 	registries, _, err := s.registryDal.SearchRegistry(ctx, store.SearchRegistryParam{
-		UseTypes: []int64{model.UserRegistry},
-		NoDelete: true}, nil)
+		UseTypes:        []int64{model.UserRegistry},
+		ScannerInstance: global.ScannerInstance,
+		NoDelete:        true}, nil)
 	if err != nil {
 		logging.GetLogger().Err(err).Msg("查询仓库信息出错")
 		return err
@@ -329,7 +387,7 @@ func (s *SyncRepoImage) clearUpImageAfterDeleteRegistry(ctx context.Context) err
 }
 
 // 全量同步
-func (s *SyncRepoImage) startSyncAllImage(ctx context.Context, regID int64, syncType consts.SyncType) error {
+func (s *SyncRepoImage) startSyncAllImage(ctx context.Context, regID int64, syncType consts.SyncType, syncTaskID int64) error {
 	logging.GetLogger().Info().Int64("regID", regID).Str("syncType", string(syncType)).Msg("StartSyncAllImage start")
 	regs, _, err := s.registryDal.SearchRegistry(ctx, store.SearchRegistryParam{ID: regID}, nil)
 	if err != nil {
@@ -337,12 +395,17 @@ func (s *SyncRepoImage) startSyncAllImage(ctx context.Context, regID int64, sync
 		return err
 	}
 
+	start := time.Now().UnixMilli()
 	reg := regs[0]
 	logging.GetLogger().Info().Str("regName", reg.Name).Int64("regID", regID).Str("regUrl", reg.Url).Msg("StartSyncAllImage start")
 	defer s.syncAllImageMap.Store(reg.ID, consts.NotSyncingImage)
 	driver, err := s.getRegistryDriver(ctx, reg)
 	if err != nil {
 		logging.GetLogger().Err(err).Str("regName", reg.Name).Msg("StartSyncAllImage.getRegistryDriver")
+		updater := map[string]interface{}{"finish_at": start, "result": fmt.Sprintf("not get driver:%s", err.Error())}
+		if err2 := s.syncTaskDal.UpdateSyncTask(ctx, fmt.Sprintf("id = %d", syncTaskID), updater); err2 != nil {
+			logging.GetLogger().Err(err2).Int64("syncTaskID", syncTaskID).Msg("StartSyncAllImage UpdateSyncTask")
+		}
 		return err
 	}
 
@@ -354,13 +417,22 @@ func (s *SyncRepoImage) startSyncAllImage(ctx context.Context, regID int64, sync
 	}
 
 	s.syncAllImageMap.Store(reg.ID, consts.IsSyncingImage)
-	now := time.Now().Unix()
 	res, err := driver.ListImages(ctx, s.getExtender(), registry.ListImagesRequest{NeedToReturnAdded: true, NeedToReturnAll: false})
+	// 不管这一次同步任务是否出错都当做同步任务完成，更新同步任务
+	updater := map[string]interface{}{"finish_at": start}
+	if err != nil {
+		updater["result"] = fmt.Sprintf("ListImages:%s", err.Error())
+	}
+	if err2 := s.syncTaskDal.UpdateSyncTask(ctx, fmt.Sprintf("id = %d", syncTaskID), updater); err2 != nil {
+		logging.GetLogger().Err(err2).Int64("syncTaskID", syncTaskID).Msg("StartSyncAllImage UpdateSyncTask")
+	}
+
 	if err != nil {
 		logging.GetLogger().Err(err).Msg("StartSyncAllImage get images err")
 		return nil
 	}
-	if err := s.registryDal.UpdateRegistry(ctx, store.SearchRegistryParam{ID: reg.ID}, map[string]interface{}{"last_sync_at": now}); err != nil {
+
+	if err := s.registryDal.UpdateRegistry(ctx, store.SearchRegistryParam{ID: reg.ID}, map[string]interface{}{"last_sync_at": start / 1000}); err != nil {
 		logging.GetLogger().Err(err).Msg("StartSyncAllImage UpdateRegistry last_sync_at error")
 	}
 
@@ -373,7 +445,7 @@ func (s *SyncRepoImage) startSyncAllImage(ctx context.Context, regID int64, sync
 		Str("regUrl", reg.Url).
 		Int("all-images", len(res.All)).
 		Int("add-images", len(res.Added)).
-		Int64("Cost", time.Now().Unix()-now).
+		Int64("Cost", (time.Now().UnixMilli()-start)*1000).
 		Bool("HasErr", res.HasErr).
 		Msg("StartSyncAllImage end")
 
@@ -387,12 +459,12 @@ func (s *SyncRepoImage) startSyncAllImage(ctx context.Context, regID int64, sync
 	if syncType == consts.TimingFullSync && !res.HasErr {
 		// 标记清理任务
 		logging.GetLogger().Info().Int64("regID", regID).Str("regName", reg.Name).Msg("start searchDeletedImage")
-		deleteIds, err := s.searchDeletedImage(ctx, now, regID)
+		deleteIds, err := s.searchDeletedImage(ctx, start, regID)
 		if err != nil {
 			logging.GetLogger().Err(err).Msg("StartSyncAllImage.searchDeletedImage")
 			return err
 		}
-		logging.GetLogger().Info().Int64("regID", regID).Str("regName", reg.Name).Msg("end searchDeletedImage")
+		logging.GetLogger().Info().Int("deleteImage", len(deleteIds)).Int64("regID", regID).Str("regName", reg.Name).Msg("end searchDeletedImage")
 
 		// 然后马上执行删除
 		if err := s.clearUpImage(ctx, deleteIds); err != nil {
@@ -598,6 +670,7 @@ func RegToRegistryConf(reg model.Registry) registry.RegistrableComponentConfig {
 		Type:    reg.RegType,
 		Options: opt,
 	}
+	logging.GetLogger().Info().Interface("reg", opt).Msg("RegToRegistryConf")
 	return conf
 }
 
@@ -828,7 +901,7 @@ func (s *SyncRepoImage) addScanTask(ctx context.Context, res *registry.ListImage
 		if len(imgIds) > 0 {
 			logging.GetLogger().Info().Int("ImageIds", len(imgIds)).Msg("addScanTask send node image scan tasks")
 			ts := task.NewTaskSrv()
-			if err := ts.GenerateScanTask(ctx, imgIds, task.UpdateTaskInfo{Scope: consts.SingleScan,
+			if err := ts.GenerateScanTask(ctx, imgIds, task.UpdateTaskInfo{Scope: consts.FullScan,
 				TriggerType: consts.ImageSyncTrigger,
 				Operator:    consts.SyncTriggerOperator,
 				StrategyID:  config.NodeImageConfig.StrategyID}); err != nil {
@@ -850,7 +923,7 @@ func (s *SyncRepoImage) addScanTask(ctx context.Context, res *registry.ListImage
 			logging.GetLogger().Info().Int("ImageIds", len(imgIds)).Msg("addScanTask send library image scan tasks")
 			ts := task.NewTaskSrv()
 			if err := ts.GenerateScanTask(ctx, imgIds, task.UpdateTaskInfo{
-				Scope:       consts.SingleScan,
+				Scope:       consts.FullScan,
 				Operator:    consts.SyncTriggerOperator,
 				TriggerType: consts.ImageSyncTrigger,
 				StrategyID:  config.LibraryImageConfig.StrategyID,
@@ -914,4 +987,15 @@ type SyncAllImageParam struct {
 
 type SyncAddImageParam struct {
 	RegistryId int64 `json:"registryId"`
+}
+
+type CreateSyncTaskParam struct {
+	RegID           int64
+	ScannerInstance string
+	SyncType        consts.SyncType
+}
+
+type ResponseGetSyncStatus struct {
+	Status     bool  `json:"status"`
+	RegistryID int64 `json:"registryID"`
 }

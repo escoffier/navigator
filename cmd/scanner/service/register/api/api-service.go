@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"net/http"
 
+	"gitlab.com/security-rd/go-pkg/sdk/palace"
+
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/api"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/ci"
@@ -12,7 +14,6 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/service/register"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
-	"gitlab.com/security-rd/go-pkg/sdk/palace"
 )
 
 const (
@@ -72,11 +73,14 @@ func newService(config register.ScannerServiceConfig) (register.ScannerService, 
 	syncRetryImageDal := store.NewSyncRetryImageDao(scannerWrapperDb)
 	scannerDB := store.NewScannerDB(scannerWrapperDb)
 	ciDal := store.NewCiDao(scannerWrapperDb)
+	scannerInstanceDal := store.NewScannerInstanceDao(scannerWrapperDb)
 	palaceHandler, err := palace.Init()
 	if err != nil {
 		logging.GetLogger().Error().Err(err).Msgf("Failed to init palaceHandler, %v", err)
 		return nil, fmt.Errorf("failed to init palaceHandler, %v", err)
 	}
+
+	syncTaskDal := store.NewSyncTaskDao(scannerWrapperDb)
 
 	s := &ScannerAPIService{}
 	s.config.Options = config.Options
@@ -89,10 +93,11 @@ func newService(config register.ScannerServiceConfig) (register.ScannerService, 
 			component.NewImageRejectSrc(dal),
 			component.NewHarborSrc(dal, rc, nil), // todo: use new task interface,not redclair
 			component.NewRegistrySrv(registryDal, scanConfigDal),
-			component.NewScanConfigSrv(scanConfigDal, registryDal, dal, scanTaskDal),
+			component.NewScanConfigSrv(scanConfigDal, registryDal, dal, scanTaskDal, scannerInstanceDal),
 			component.NewVulnService(vulnDal, scanTaskDal),
-			component.NewSyncRepoImage(registryDal, dal, podResourceRelationDal, scanConfigDal, syncRetryImageDal, vulnDal, scannerDB),
+			component.NewSyncRepoImage(registryDal, dal, podResourceRelationDal, scanConfigDal, syncRetryImageDal, vulnDal, scannerDB, syncTaskDal),
 			ci.NewCiComponent(ciDal),
+			component.NewScannerInstanceInfoSrv(store.NewScannerInstanceDao(scannerWrapperDb)),
 		),
 	}
 

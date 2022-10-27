@@ -580,84 +580,6 @@ func (s *Scanner) ScannedByImageDetails(ctx *gin.Context) {
 	response.JSONOK(ctx, response.WithItem(*img))
 }
 
-// ListScannedByImageList
-// @Summary ListScannedByImageList
-// @Title ListScannedByImageList
-// @Author guolingkai@tensorsecurity.cn
-// @Description 获取单个镜像的扫描状态
-// @Tags scan image
-// @Param search query string false "for image like "
-// @Param kind query int false "0:vuln,1:vrius,2:senstive"
-// @Param online query bool true "is online?"
-// @Param offset query int true "int"
-// @Param limit query int true "int"
-// @Success 200 {object} ApiWithItem{data=ApiItems{items=[]model.ImageResponse{}}}
-// @Router	/api/v1/scan/reportsByImageList [get]
-func (s *Scanner) ListScannedByImageList(ctx *gin.Context) {
-	search := ctx.Query("search")
-	if len(search) > 64 {
-		response.JSONError(ctx, errors.New("the maximum value is exceeded"))
-		return
-	}
-	kind := ctx.Query("kind")
-	imageType := ctx.Query("image_type")
-	online := ctx.Query("online")
-	library := ctx.Query("library")
-	trusted := ctx.Query("trusted")
-	hasFixedVulu := ctx.Query("has_fixed_vulu")
-	isReinforce := ctx.Query("is_reinforce")
-	nodeHostname := ctx.Query("node_hostname")
-
-	fromType, err := strconv.ParseInt(ctx.Query("from_type"), 10, 64)
-	if err != nil || fromType == 0 {
-		fromType = model.UserRegistry
-	}
-	scanStatus := util.GetInt64SliceFromQuery(ctx, "scan_status")
-	registryIds := util.GetInt64SliceFromQuery(ctx, "registry_ids")
-
-	filter := model.GetFilter(ctx)
-	filter.SortFiled = "full_repo_name"
-	filter.SortBy = "asc"
-
-	param := component.SearchImageWithScanParam{
-		SearchWord:   search,
-		Kind:         kind,
-		Online:       online,
-		Library:      library,
-		ImageType:    imageType,
-		FromType:     fromType,
-		ScanStatus:   scanStatus,
-		RegistryIds:  registryIds,
-		Trusted:      trusted,
-		HasFixedVulu: hasFixedVulu,
-		IsReinforce:  isReinforce,
-		NodeHostname: nodeHostname,
-	}
-	uuids := ctx.Query("uuids")
-	if uuids != "" {
-		uuid := make([]uint32, 0)
-		split := strings.Split(uuids, ",")
-		for i := range split {
-			if parseInt, err := strconv.ParseInt(split[i], 10, 64); err != nil {
-				logging.Get().Err(err).Msg("UUID 格式不正确")
-			} else {
-				uuid = append(uuid, uint32(parseInt))
-			}
-		}
-		param.UUIDs = uuid
-	}
-	images, cnt, err := s.Srv.SearchImageWithScan(ctx, param, filter)
-	if err != nil {
-		response.JSONError(ctx, err)
-		return
-	}
-
-	response.JSONOK(ctx, response.WithItems(images),
-		response.WithTotalItems(cnt),
-		response.WithItemsPerPage(filter.Limit),
-		response.WithStartIndex(filter.Offset))
-}
-
 // SearchImages
 // @Summary SearchImages
 // @Title SearchImages
@@ -896,10 +818,18 @@ func NewScannerAPISrv(
 // @Router	/api/v1/images/bases [get]
 func (s *Scanner) ListBaseImage(ctx *gin.Context) {
 	filter := model.GetFilter(ctx)
-	filter.SortFiled = "full_repo_name"
-	filter.SortBy = "asc"
+	// 排序对性能影响很大
+	// filter.SortFiled = "full_repo_name"
+	// filter.SortBy = "asc"
 	search := ctx.Query("search")
-	images, cnt, err := s.Srv.SearchImageWithScan(ctx, component.SearchImageWithScanParam{ImageType: model.BaseImageTypeString, SearchWord: search, FromType: model.UserRegistry}, filter)
+	images, cnt, err := s.ImageSrv.ListImageWithScanInfo(ctx,
+		model.ImageListParam{
+			Keyword:   search,
+			FromType:  model.ImageFromRegistry,
+			ImageAttr: model.ImageAttrParam{ImageType: model.BaseImageTypeString},
+		}, filter)
+
+	// component.SearchImageWithScanParam{ImageType: model.BaseImageTypeString, SearchWord: search, FromType: model.UserRegistry}, filter)
 	if err != nil {
 		response.JSONError(ctx, err)
 		return
@@ -1146,13 +1076,18 @@ func (s *Scanner) ImageOverview(ctx *gin.Context) {
 // @Router	/api/v1/tasks [get]
 func (s *Scanner) GetScanTaskList(ctx *gin.Context) {
 	filter := model.GetFilterWithDefaultValue(ctx)
-	filter.SortFiled = "created_at"
+	filter.SortFiled = "group_id"
 	filter.SortBy = consts.SortByDesc
 
 	data, count, err := s.Srv.GetScanTaskList(ctx, filter)
 	if err != nil {
 		response.JSONError(ctx, errors.New("获取扫描任务记录失败"))
 		return
+	}
+
+	// 多集群适配，为了前端少改动，把groupID和ID对换
+	for i := range data {
+		data[i].ID, data[i].GroupID = data[i].GroupID, data[i].ID
 	}
 
 	response.JSONOK(ctx,
@@ -1174,7 +1109,7 @@ func (s *Scanner) GetScanTaskList(ctx *gin.Context) {
 // @Success 200 {object} ApiWithItem{data=ApiItem{}}
 // @Router	/api/v1/tasks/:id/subtasks [get]
 func (s *Scanner) GetScanSubTaskList(ctx *gin.Context) {
-	taskID, err := strconv.ParseInt(ctx.Param("id"), 10, 64)
+	groupID, err := strconv.ParseInt(ctx.Param("id"), 10, 64)
 	if err != nil {
 		response.JSONError(ctx, fmt.Errorf("无效的taskId: %s", ctx.Param("id")))
 		return
@@ -1186,7 +1121,7 @@ func (s *Scanner) GetScanSubTaskList(ctx *gin.Context) {
 	// 默认按如下排序
 	filter.OrderByColumns = append(filter.OrderByColumns, clause.OrderByColumn{Column: clause.Column{Name: "status"}, Desc: true})
 	filter.OrderByColumns = append(filter.OrderByColumns, clause.OrderByColumn{Column: clause.Column{Name: "started_at"}, Desc: true})
-	data, count, err := s.Srv.GetScanSubTaskList(ctx, taskID, status, filter)
+	data, count, err := s.Srv.GetScanSubTaskList(ctx, groupID, status, filter)
 	if err != nil {
 		response.JSONError(ctx, errors.New("获取扫描子任务记录失败"))
 		return
@@ -1245,21 +1180,21 @@ func (s *Scanner) UpdateTaskStatus(ctx *gin.Context) {
 		return
 	}
 
-	taskID, err := strconv.ParseInt(ctx.Param("id"), 10, 64)
+	taskGroupID, err := strconv.ParseInt(ctx.Param("id"), 10, 64)
 	if err != nil {
 		response.JSONError(ctx, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf("无效的taskId: %s", ctx.Param("id"))))
 		return
 	}
 
-	err = s.Srv.UpdateScanTaskStatus(ctx, taskID, data.Status)
+	err = s.Srv.UpdateScanTaskStatus(ctx, taskGroupID, data.Status)
 	if err != nil {
 		response.JSONError(ctx, response.NewHttpError(http.StatusInternalServerError, err))
 		return
 	}
 	response.JSONOK(ctx, response.WithTarget(&response.TargetRef{
-		Name: fmt.Sprintf("task %d", taskID),
-		ID:   strconv.Itoa(int(taskID)),
-		Link: "api/v2/containerSec/scanner/tasks/" + strconv.Itoa(int(taskID)) + "/status",
+		Name: fmt.Sprintf("task %d", taskGroupID),
+		ID:   strconv.Itoa(int(taskGroupID)),
+		Link: "api/v2/containerSec/scanner/tasks/" + strconv.Itoa(int(taskGroupID)) + "/status",
 	}))
 }
 

@@ -2,7 +2,10 @@ package api
 
 import (
 	"fmt"
+	"net/http"
 	"strconv"
+
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/global"
 
 	"github.com/gin-gonic/gin"
 
@@ -32,20 +35,13 @@ func (s *SyncImageAPISrv) StartSync(ctx *gin.Context) {
 		response.JSONError(ctx, fmt.Errorf("not get RegistryID:%d", param.RegistryID))
 		return
 	}
-	go func(regID int64) {
-		defer func() {
-			if err := recover(); err != nil {
-				logging.GetLogger().Error().Msg("StartSync recover")
-			}
-		}()
 
-		if err := s.syncImageSrv.SyncAllImage(ctx, component.SyncAllImageParam{
-			RegistryIds: []int64{regID},
-			SyncType:    consts.ManualSync,
-		}); err != nil {
-			logging.GetLogger().Err(err).Msg("StartSyncAllImage")
-		}
-	}(param.RegistryID)
+	if err := s.syncImageSrv.CreateSyncTask(ctx, component.CreateSyncTaskParam{
+		RegID:    param.RegistryID,
+		SyncType: consts.ManualSync,
+	}); err != nil {
+		logging.GetLogger().Err(err).Msg("StartSyncAllImage")
+	}
 	response.JSONOK(ctx,
 		response.WithItem(ResponseMsg{RegistryID: param.RegistryID, Msg: fmt.Sprintf("开启同步任务:registryID:%d", param.RegistryID)}),
 		response.WithTarget(&response.TargetRef{
@@ -78,20 +74,16 @@ func (s *SyncImageAPISrv) StartSyncByRegName(ctx *gin.Context) {
 		return
 	}
 
-	go func(regID int64) {
-		defer func() {
-			if err := recover(); err != nil {
-				logging.GetLogger().Error().Msg("StartSync recover")
-			}
-		}()
-
-		if err := s.syncImageSrv.SyncAllImage(ctx, component.SyncAllImageParam{
-			RegistryIds: []int64{regID},
-			SyncType:    consts.ManualSync,
-		}); err != nil {
-			logging.GetLogger().Err(err).Msg("StartSyncAllImage")
-		}
-	}(regs[0].ID)
+	err = s.syncImageSrv.CreateSyncTask(ctx, component.CreateSyncTaskParam{
+		RegID:           regs[0].ID,
+		SyncType:        consts.ManualSync,
+		ScannerInstance: global.ScannerInstance,
+	})
+	if err != nil {
+		logging.GetLogger().Err(err).Msg("StartSyncAllImage")
+		response.JSONError(ctx, response.NewHttpError(http.StatusInternalServerError, err))
+		return
+	}
 	response.JSONOK(ctx,
 		response.WithItem(ResponseMsg{RegistryID: regs[0].ID, RegistryName: param.RegistryName, Msg: fmt.Sprintf("开启同步任务:registryName:%s", param.RegistryName)}))
 }

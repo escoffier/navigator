@@ -30,9 +30,68 @@ type SyncRetryImageDal interface {
 	DeleteImageRetry(ctx context.Context, param SearchImageRetryParam) error
 }
 
+type SyncTaskDal interface {
+	SearchSyncTask(ctx context.Context, param SearchSyncTaskParam, filter *model.Filter) ([]model.SyncTask, error)
+	CreateSyncTask(ctx context.Context, task *model.SyncTask) error
+	UpdateSyncTask(ctx context.Context, where string, updater map[string]interface{}) error
+}
+
 type RegistryDao struct {
 	db *databases.RDBInstance
 }
+
+type SyncTaskDao struct {
+	db *databases.RDBInstance
+}
+
+func (dal *SyncTaskDao) SearchSyncTask(ctx context.Context, param SearchSyncTaskParam, filter *model.Filter) ([]model.SyncTask, error) {
+	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*10)
+	defer cancelFunc()
+	db := dal.db.Get().WithContext(ctx).Model(model.SyncTask{})
+	if len(param.RegIds) > 0 {
+		db = db.Where("registry_id IN  ? ", param.RegIds)
+	}
+	if param.Finished == consts.TrueString {
+		db = db.Where("finish_at > ?", 0)
+	}
+	if param.Finished == consts.FalseString {
+		db = db.Where("finish_at = ?", 0)
+	}
+	if param.SyncType != "" {
+		db = db.Where("sync_type = ?", param.SyncType)
+	}
+
+	db = model.AddFilter(db, filter)
+
+	res := make([]model.SyncTask, 0)
+	if err := db.Find(&res).Error; err != nil {
+		return nil, err
+	}
+	return res, nil
+}
+
+func (dal *SyncTaskDao) CreateSyncTask(ctx context.Context, task *model.SyncTask) error {
+	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*10)
+	defer cancelFunc()
+	db := dal.db.Get().WithContext(ctx).Model(&model.SyncTask{})
+	return db.Create(task).Error
+}
+
+func (dal *SyncTaskDao) UpdateSyncTask(ctx context.Context, where string, updater map[string]interface{}) error {
+	ctx2, cancelFunc := context.WithTimeout(ctx, time.Second*10)
+	defer cancelFunc()
+	db := dal.db.Get().WithContext(ctx2).Model(&model.SyncTask{})
+	if where == "" {
+		return fmt.Errorf("no where")
+	}
+	db = db.Where(where)
+
+	if err := db.Updates(updater).Error; err != nil {
+		return err
+	}
+	return nil
+}
+
 type SyncRetryImageDao struct {
 	db *databases.RDBInstance
 }
@@ -63,6 +122,10 @@ func NewSyncRetryImageDao(db *databases.RDBInstance) *SyncRetryImageDao {
 
 func NewRegistryDao(db *databases.RDBInstance) *RegistryDao {
 	return &RegistryDao{db: db}
+}
+
+func NewSyncTaskDao(db *databases.RDBInstance) *SyncTaskDao {
+	return &SyncTaskDao{db: db}
 }
 
 func (dal *SyncRetryImageDao) CreateImageRetry(ctx context.Context, image model.SyncRetryImage) error {
@@ -102,7 +165,9 @@ func (dal *RegistryDao) SearchRegistry(ctx context.Context, param SearchRegistry
 	if param.NoDelete {
 		db = db.Where("deleted_at = ?", 0)
 	}
-
+	if param.ScannerInstance != "" {
+		db = db.Where("scanner_instance = ?", param.ScannerInstance)
+	}
 	if param.ID > 0 {
 		db = db.Where("id = ?", param.ID)
 	}

@@ -5,7 +5,11 @@ import (
 	"fmt"
 	"os"
 
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/global"
+
 	"github.com/mileusna/crontab"
+
+	"gitlab.com/security-rd/go-pkg/sdk/palace"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
@@ -13,7 +17,6 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/service/register"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
-	"gitlab.com/security-rd/go-pkg/sdk/palace"
 )
 
 const (
@@ -51,8 +54,9 @@ func (s *Service) Start(ctx context.Context) error {
 	syncRetryDal := store.NewSyncRetryImageDao(store.GetScannerWrapperDb())
 	vulnDal := store.NewVulnDao(scannerWrapperDb)
 	scannerDB := store.NewScannerDB(scannerWrapperDb)
+	syncTaskDal := store.NewSyncTaskDao(scannerWrapperDb)
 
-	syncSrv := component.NewSyncRepoImage(registryDal, dal, podDal, scanConfigDal, syncRetryDal, vulnDal, scannerDB)
+	syncSrv := component.NewSyncRepoImage(registryDal, dal, podDal, scanConfigDal, syncRetryDal, vulnDal, scannerDB, syncTaskDal)
 
 	syncAllImage := os.Getenv("SyncAllImage") // 使用一个环境变量，方便测试
 	if syncAllImage == "" {
@@ -60,8 +64,8 @@ func (s *Service) Start(ctx context.Context) error {
 		syncAllImage = "4 19 * * *"
 	}
 
-	if err := cronjob.AddJob(syncAllImage, syncSrv.SyncAllImage, ctx,
-		component.SyncAllImageParam{SyncType: consts.TimingFullSync}); err != nil {
+	if err := cronjob.AddJob(syncAllImage, syncSrv.CreateSyncTask, ctx,
+		component.CreateSyncTaskParam{SyncType: consts.TimingFullSync, ScannerInstance: global.ScannerInstance}); err != nil {
 		logging.GetLogger().Err(err).Msg("add SyncAllImage cronjob")
 		return err
 	}

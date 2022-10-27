@@ -2,8 +2,13 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"io"
+	"net/http"
+	"os"
 	"runtime/debug"
+	"time"
 
 	"gitlab.com/security-rd/go-pkg/logging"
 
@@ -19,9 +24,49 @@ import (
 // Scanner represents the Vegeta Scanner server.
 type Scanner struct {
 	lifecycle.Service
-	ID           string // uuid
-	options      *flag2.ScannerOpts
-	servicesList map[string]register.ScannerService // save all scanner service
+	PodID           string // uuid
+	options         *flag2.ScannerOpts
+	servicesList    map[string]register.ScannerService // save all scanner service
+	ScannerInstance string
+	ClusterKey      string
+	ClusterName     string
+}
+
+type ClusterKey struct {
+	Key  string `json:"key"`
+	Name string `json:"name"`
+}
+
+func GetCluster(ctx context.Context) (ClusterKey, error) {
+	clusterURL := os.Getenv("CLUSTER_MANAGER_URL")
+	if clusterURL == "" {
+		return ClusterKey{}, fmt.Errorf("not get CLUSTER_MANAGER_URL")
+	}
+	url := fmt.Sprintf("%s%s", clusterURL, "/internal/cluster")
+	timeOutCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+	request, err := http.NewRequestWithContext(timeOutCtx, http.MethodGet, url, nil)
+	if err != nil {
+		return ClusterKey{}, err
+	}
+	request.Header.Set("Content-Type", "application/json; charset=utf-8")
+
+	client := &http.Client{}
+	resp, err := client.Do(request)
+	if err != nil {
+		return ClusterKey{}, err
+	}
+	content, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return ClusterKey{}, err
+	}
+	cluster := ClusterKey{}
+
+	if err := json.Unmarshal(content, &cluster); err != nil {
+		return cluster, err
+	}
+
+	return cluster, err
 }
 
 // NewScanner is to create a new Scanner struct.
@@ -38,23 +83,42 @@ func NewScanner(opts *flag2.ScannerOpts) (*Scanner, error) {
 		return nil, err
 	}
 
+	cluster, err := GetCluster(context.Background())
+	if err != nil {
+		logging.Get().Err(err).Msg("GetCluster key")
+		return nil, err
+	}
+
 	// init policy etc
 	regDal := store.NewRegistryDao(store.GetScannerWrapperDb())
-	imageDal := store.GetScannerOrmDb()
+	imageDal := store.NewScannerOrm(store.GetScannerWrapperDb())
 	vulnDal := store.GetSingeVulnDao()
 
 	scanConfigDAl := store.NewScanConfigDao(store.GetScannerWrapperDb())
 	dbInit := component.NewInitScanner(regDal, imageDal, scanConfigDAl, vulnDal)
-	if err := dbInit.Init(context.Background()); err != nil {
+
+	// scannerInstance := os.Getenv("ScannerInstance")
+	// if scannerInstance == "" {
+	// 	scannerInstance = fmt.Sprintf("scan-%s", cluster.Key)
+	// }
+	// logging.Get().Info().Str("scannerInstance", scannerInstance).Msg("NewScanner")
+
+	scanner := &Scanner{
+		PodID:           uuid.GenerateRandomID(),
+		ScannerInstance: fmt.Sprintf("scan-%s", cluster.Key),
+		ClusterKey:      cluster.Key,
+		ClusterName:     cluster.Name,
+		options:         opts,
+		servicesList:    make(map[string]register.ScannerService),
+	}
+
+	// 上报scanner的信息
+	if err := dbInit.Init(context.Background(), scanner.ScannerInstance); err != nil {
 		logging.Get().Err(err).Msg("db init policy err")
 		return nil, err
 	}
 
-	return &Scanner{
-		ID:           uuid.GenerateRandomID(),
-		options:      opts,
-		servicesList: make(map[string]register.ScannerService),
-	}, nil
+	return scanner, nil
 }
 
 // Run is to run the service.

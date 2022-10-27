@@ -10,6 +10,7 @@ import (
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/task"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/global"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
@@ -38,21 +39,33 @@ type ScanConfigSrvInterface interface {
 	UpdateScanConfig(ctx context.Context, configID int64, data *model.ScanConfig) (*model.ScanConfig, error)
 	SearchScanConfig(ctx context.Context, param SearchScanConfigParam, filter *model.Filter) ([]model.ScanConfig, int64, error)
 
-	SearchNodes(ctx context.Context) ([]string, error)
+	SearchNodes(ctx context.Context, fromType int64) ([]string, error)
 	AddTaskByStrategy(ctx context.Context) error
 	SearchProjects(ctx context.Context, registryID int64) ([]string, error)
 	SearchRepoNames(ctx context.Context) ([]string, error)
 }
 
 type ScanConfigSrv struct {
-	ScanConfigDal store.ScanConfigDal
-	RegistryDal   store.RegistryDal
-	ImageDal      store.ScannerDalInterface
-	ScanTaskDal   store.ScanTaskInterface
+	ScanConfigDal          store.ScanConfigDal
+	RegistryDal            store.RegistryDal
+	ScannerInstanceInfoDal store.ScannerInstanceInfoDal
+	ImageDal               store.ScannerDalInterface
+	ScanTaskDal            store.ScanTaskInterface
 }
 
-func NewScanConfigSrv(scanConfigDAl store.ScanConfigDal, registryDal store.RegistryDal, imageDal store.ScannerDalInterface, scanTaskDal store.ScanTaskInterface) *ScanConfigSrv {
-	return &ScanConfigSrv{ScanConfigDal: scanConfigDAl, RegistryDal: registryDal, ImageDal: imageDal, ScanTaskDal: scanTaskDal}
+func NewScanConfigSrv(
+	scanConfigDAl store.ScanConfigDal,
+	registryDal store.RegistryDal,
+	imageDal store.ScannerDalInterface,
+	scanTaskDal store.ScanTaskInterface,
+	ScannerInstanceInfoDal store.ScannerInstanceInfoDal,
+) *ScanConfigSrv {
+	return &ScanConfigSrv{
+		ScanConfigDal:          scanConfigDAl,
+		RegistryDal:            registryDal,
+		ImageDal:               imageDal,
+		ScanTaskDal:            scanTaskDal,
+		ScannerInstanceInfoDal: ScannerInstanceInfoDal}
 }
 
 func (s *ScanConfigSrv) SearchRepoNames(ctx context.Context) ([]string, error) {
@@ -71,8 +84,8 @@ func (s *ScanConfigSrv) SearchProjects(ctx context.Context, registryID int64) ([
 	}
 	return nodes, nil
 }
-func (s *ScanConfigSrv) SearchNodes(ctx context.Context) ([]string, error) {
-	nodes, err := s.ScanConfigDal.SearchNodes(ctx)
+func (s *ScanConfigSrv) SearchNodes(ctx context.Context, fromType int64) ([]string, error) {
+	nodes, err := s.ScanConfigDal.SearchNodes(ctx, fromType)
 	if err != nil {
 		logging.GetLogger().Err(err).Msg("SearchNodes")
 		return nil, response.NewHttpError(http.StatusInternalServerError, err)
@@ -264,7 +277,7 @@ func (s *ScanConfigSrv) DeleteStrategy(ctx context.Context, strategyID int64) er
 		}
 	}
 	// 再看是否有该策略的扫描任务
-	tasks, _, err := s.ScanTaskDal.GetTasks(ctx, store.SearchTaskParam{
+	tasks, _, err := s.ScanTaskDal.GetTaskList(ctx, store.SearchTaskParam{
 		Statuses:   []int8{consts.Pending, consts.InProgress, consts.Pause},
 		StrategyID: strategyID,
 	}, nil)
@@ -345,19 +358,32 @@ func (s *ScanConfigSrv) verifyStrategyID(ctx context.Context, ids []int64) error
 	return nil
 }
 
-func (s *ScanConfigSrv) getAllImageIds(ctx context.Context, daoParm store.SearchImageParam) ([]int64, error) {
+func (s *ScanConfigSrv) getAllImageIds(ctx context.Context, daoParam store.SearchImageParam) ([]int64, error) {
 	imgIds := make([]int64, 0)
-
-	imgs, _, err := s.ImageDal.SearchImage(ctx, daoParm, nil)
-	if err != nil {
-		logging.GetLogger().Err(err).Msgf("ScanAllNow.SearchImage error:%s", err.Error())
-		return imgIds, err
+	var startId int64
+	filter := &model.Filter{
+		SortBy:    consts.SortByAsc,
+		SortFiled: "id",
+		Limit:     consts.DefaultBathSize,
 	}
+	for {
+		daoParam.Fields = []string{"id"}
+		daoParam.StartID = startId
+		daoParam.NotCount = true
+		imgs, _, err := s.ImageDal.SearchImage(ctx, daoParam, filter)
+		if err != nil {
+			logging.GetLogger().Err(err).Msgf("ScanAllNow.SearchImage error:%s", err.Error())
+			return imgIds, err
+		}
+		if len(imgs) == 0 {
+			break
+		}
+		startId = imgs[len(imgs)-1].ID
 
-	for i := range imgs {
-		imgIds = append(imgIds, imgs[i].ID)
+		for i := range imgs {
+			imgIds = append(imgIds, imgs[i].ID)
+		}
 	}
-
 	return imgIds, nil
 }
 
@@ -375,11 +401,13 @@ func (s *ScanConfigSrv) addLibraryScanTask(ctx context.Context, config model.Sca
 		libs := config.LibraryImageConfig.Libraries
 		if config.LibraryImageConfig.ScanAll {
 			registry, _, err := s.RegistryDal.SearchRegistry(ctx, store.SearchRegistryParam{
-				UseType:  model.UserRegistry,
-				NoDelete: true,
+				UseType:         model.UserRegistry,
+				NoDelete:        true,
+				ScannerInstance: global.ScannerInstance,
 			}, nil)
 
 			if err != nil {
+				logging.GetLogger().Err(err).Msgf("AddTaskByStrategy SearchRegistry")
 				return err
 			}
 			lbs := make([]int64, 0)
@@ -388,13 +416,27 @@ func (s *ScanConfigSrv) addLibraryScanTask(ctx context.Context, config model.Sca
 			}
 			libs = lbs
 		}
+
+		// 获取扫描器名字
+		scannerInstance, err := s.ScannerInstanceInfoDal.SearchScannerInfo(ctx, store.ScannerInstanceInfoDaoParam{ScannerInstance: global.ScannerInstance})
+		if err != nil {
+			logging.GetLogger().Info().Msg("addLibraryScanTask SearchScannerInfo")
+			return err
+		}
+		if len(scannerInstance) == 0 {
+			logging.GetLogger().Info().Msg("addLibraryScanTask not find scanInstance")
+			return nil
+		}
+
 		if len(libs) == 0 {
-			logging.GetLogger().Info().Msg("not configured scan library")
+			logging.GetLogger().Info().Msg("addLibraryScanTask not configured scan library")
+			return nil
 		}
 		// 查找所有的镜像增加任务
-		daoParm := store.SearchImageParam{FromType: model.UserRegistry, RegistryIds: libs}
-		imgIds, err := s.getAllImageIds(ctx, daoParm)
+		daoParam := store.SearchImageParam{FromType: model.UserRegistry, RegistryIds: libs}
+		imgIds, err := s.getAllImageIds(ctx, daoParam)
 		if err != nil {
+			logging.GetLogger().Info().Msg("addLibraryScanTask getAllImageIds")
 			return err
 		}
 		// 增加扫描任务
@@ -403,7 +445,7 @@ func (s *ScanConfigSrv) addLibraryScanTask(ctx context.Context, config model.Sca
 			Scope:       consts.FullScan,
 			TriggerType: consts.ScheduleTrigger,
 			StrategyID:  config.LibraryImageConfig.StrategyID,
-			Operator:    consts.CycleTriggerOperator,
+			Operator:    fmt.Sprintf("%s(scanner-%s)", consts.CycleTriggerOperator, scannerInstance[0].ClusterName),
 		}); err != nil {
 			logging.GetLogger().Err(err).Msg("AddTaskByStrategy add scan task failed")
 			return err

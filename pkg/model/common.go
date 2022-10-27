@@ -147,6 +147,26 @@ func AddFilter(db *gorm.DB, filter *Filter) *gorm.DB {
 	return db
 }
 
+func AddFilterWithDefault(db *gorm.DB, filter *Filter) *gorm.DB {
+	if filter == nil {
+		filter = &Filter{Limit: 200}
+	}
+
+	if filter.Offset >= 0 && filter.Limit > 0 {
+		db = db.Offset(int(filter.Offset)).Limit(int(filter.Limit))
+	}
+	if filter.SortFiled != "" && filter.SortBy != "" {
+		db = db.Order(clause.OrderByColumn{Column: clause.Column{Name: filter.SortFiled}, Desc: strings.ToLower(filter.SortBy) == "desc"})
+	}
+
+	if filter.OrderByColumns != nil {
+		for i := range filter.OrderByColumns {
+			db = db.Order(filter.OrderByColumns[i])
+		}
+	}
+	return db
+}
+
 // 扫描状态
 type ScanStatus struct {
 	ScanAllStatus ScanAllStatus `json:"harborStatus"`

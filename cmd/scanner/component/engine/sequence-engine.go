@@ -255,25 +255,26 @@ func (s *SequenceEngine) handleFlow(ctx context.Context, flowConf []string, st *
 	}
 
 	if !success {
-		_ = taskSrv.SetSubTaskFailed(st.ID, errNo, errMsg)
+		if err := taskSrv.SetSubTaskFailed(st.ID, errNo, errMsg); err != nil {
+			logging.GetLogger().Err(err).Int64("subTaskID", st.ID).
+				Int64("FlagImageScan", model.FlagImageScanFailed).Msg("SetSubTaskFailed")
+		}
 		// 更新镜像扫描状态（扫描失败）
 		if err := orm.UpdateImageScanStatus(ctx, st.Image.ID, model.FlagImageScanFailed); err != nil {
 			logging.GetLogger().Err(err).Int64("ImageId", st.Image.ID).
 				Int64("FlagImageScan", model.FlagImageScanFailed).Msg("UpdateImageScanStatus")
 		}
-		return fmt.Errorf("subtask scan error: %v", errMsg)
-	}
-
-	if err := taskSrv.SetSubTaskSuccess(st.ID); err != nil {
-		success = false
-		errMsg = fmt.Sprintf("scan success,but update db err:%v", err)
-		return err
-	}
-	// 更新镜像扫描状态(扫描成功)
-	logging.GetLogger().Info().Int64("ImageID", st.Image.ID).Msg("UpdateImageScanStatus")
-	if err := orm.UpdateImageScanStatus(ctx, st.Image.ID, model.FlagImageScanSuccess); err != nil {
-		logging.GetLogger().Err(err).Int64("ImageId", st.Image.ID).
-			Int64("FlagImageScan", model.FlagImageScanSuccess).Msg("UpdateImageScanStatus")
+	} else {
+		if err := taskSrv.SetSubTaskSuccess(st.ID); err != nil {
+			logging.GetLogger().Err(err).Int64("subTaskID", st.ID).
+				Int64("FlagImageScan", model.FlagImageScanSuccess).Msg("SetSubTaskSuccess")
+		}
+		// 更新镜像扫描状态(扫描成功)
+		logging.GetLogger().Info().Int64("ImageID", st.Image.ID).Msg("UpdateImageScanStatus")
+		if err := orm.UpdateImageScanStatus(ctx, st.Image.ID, model.FlagImageScanSuccess); err != nil {
+			logging.GetLogger().Err(err).Int64("ImageId", st.Image.ID).
+				Int64("FlagImageScan", model.FlagImageScanSuccess).Msg("UpdateImageScanStatus")
+		}
 	}
 	return nil
 }

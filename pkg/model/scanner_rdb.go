@@ -4,12 +4,13 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
-	"scm.tensorsecurity.cn/tensorsecurity-rd/trivy/pkg/report"
 	"sort"
 	"strings"
 	"sync"
 	"time"
 	"unicode/utf8"
+
+	"scm.tensorsecurity.cn/tensorsecurity-rd/trivy/pkg/report"
 
 	"github.com/gobwas/glob"
 	json "github.com/json-iterator/go"
@@ -403,27 +404,44 @@ func (Package) TableName() string { return "ivan_scanner_package" }
 
 // Registry Registry表
 type Registry struct {
-	ID             int64  `gorm:"primaryKey" json:"id"`
-	Name           string `gorm:"type:varchar(255);uniqueIndex:uniq_idx_registry_name;priority:1" json:"name"` // 仓库名字,仓库名是仓库的唯一标识,一个仓库名称  对应一个用户
-	RegType        string `gorm:"type:varchar(255);column:reg_type" json:"reg_type"`                           // 仓库类型
-	Url            string `gorm:"type:varchar(255);column:url" json:"url"`                                     // 如:docker.io/v2, quay.io/v2
-	Username       string `gorm:"type:varchar(255);column:username" json:"username"`                           // user for login registry
-	Password       []byte `gorm:"type:blob" json:"-"`                                                          // DES加密
-	PasswordString string `gorm:"-" json:"password"`
-	Token          string `gorm:"-" json:"token"`
-	Description    string `gorm:"type:varchar(255);column:description"  json:"description"`
-	AuthStr        string `gorm:"-" json:"auth_str"`                                  // 用户名和密码加密后的数据，不存入数据库中
-	UseType        int    `gorm:"column:use_type" json:"use_type"`                    // 1-用户仓库,2-buf仓库
-	SyncInterval   int64  `gorm:"column:sync_interval" json:"sync_interval"`          // 单位：分钟
-	LastSyncAt     int64  `gorm:"column:last_sync_at; default:0" json:"last_sync_at"` // 最后一次同步时间(单位：秒)
-	AccessKey      string `gorm:"access_key" json:"access_key"`                       // 阿里云仓库的AccessKey
-	AccessSecret   string `gorm:"access_secret" json:"access_secret"`                 // 阿里云仓库的AccessSecret
-	InstanceID     string `gorm:"instance_id" json:"instance_id"`                     // 阿里云仓库企业版实例ID
-	RegionID       string `gorm:"region_id" json:"region_id"`                         // 阿里云仓库企业版地域ID
+	ID              int64  `gorm:"primaryKey" json:"id"`
+	Name            string `gorm:"type:varchar(255);uniqueIndex:uniq_idx_registry_name;priority:1" json:"name"` // 仓库名字,仓库名是仓库的唯一标识,一个仓库名称  对应一个用户
+	RegType         string `gorm:"type:varchar(255);column:reg_type" json:"reg_type"`                           // 仓库类型
+	Url             string `gorm:"type:varchar(255);column:url" json:"url"`                                     // 如:docker.io/v2, quay.io/v2
+	Username        string `gorm:"type:varchar(255);column:username" json:"username"`                           // user for login registry
+	Password        []byte `gorm:"type:blob" json:"-"`                                                          // DES加密
+	PasswordString  string `gorm:"-" json:"password"`
+	Token           string `gorm:"-" json:"token"`
+	Description     string `gorm:"type:varchar(255);column:description"  json:"description"`
+	AuthStr         string `gorm:"-" json:"auth_str"`                                  // 用户名和密码加密后的数据，不存入数据库中
+	UseType         int    `gorm:"column:use_type" json:"use_type"`                    // 1-用户仓库,2-buf仓库
+	SyncInterval    int64  `gorm:"column:sync_interval" json:"sync_interval"`          // 单位：分钟
+	LastSyncAt      int64  `gorm:"column:last_sync_at; default:0" json:"last_sync_at"` // 最后一次同步时间(单位：秒)
+	AccessKey       string `gorm:"access_key" json:"access_key"`                       // 阿里云仓库的AccessKey
+	AccessSecret    string `gorm:"access_secret" json:"access_secret"`                 // 阿里云仓库的AccessSecret
+	InstanceID      string `gorm:"instance_id" json:"instance_id"`                     // 阿里云仓库企业版实例ID
+	RegionID        string `gorm:"region_id" json:"region_id"`                         // 阿里云仓库企业版地域ID
+	ScannerInstance string `gorm:"scanner_instance" json:"scanner_instance"`           // 当前仓库所用扫描器
+	Status          string `gorm:"column:status" json:"status"`                        // 健康状况
+	HealthMsg       string `gorm:"column:health_msg" json:"health_msg"`                // 不健康时的错误信息
+	HeatBeat        int64  `gorm:"column:heat_beat" json:"heat_beat"`                  // 上一次检查时间
 
 	CreatedAt time.Time `gorm:"column:created_at" json:"created_at"`
 	UpdatedAt time.Time `gorm:"column:updated_at" json:"updated_at"`
 	DeletedAt int64     `gorm:"column:deleted_at; default:0;uniqueIndex:uniq_idx_registry_name;priority:2" json:"deleted_at"`
+}
+
+type SyncTask struct {
+	ID         int64  `gorm:"primaryKey" json:"id"`
+	RegistryID int64  `gorm:"column:registry_id" json:"registryID"`
+	SyncType   string `gorm:"column:sync_type" json:"syncType"`
+	Result     string `gorm:"column:result" json:"result"`
+	FinishAt   int64  `gorm:"column:finish_at" json:"finishAt"` // 完成时间
+	CreatedAt  int64  `gorm:"autoCreateTime:milli" json:"createdAt"`
+}
+
+func (*SyncTask) TableName() string {
+	return "ivan_scanner_sync_tasks"
 }
 
 type LabelValue struct {
@@ -809,9 +827,8 @@ func (RejectVuln) TableName() string {
 // Task define scan dimension
 type Task struct {
 	ID                  int64      `json:"id"`
-	ScopeType           int        `gorm:"scope_type" json:"scope_type"`         // full-scan or partial-scan
-	SubTaskCount        int        `gorm:"sub_task_count" json:"sub_task_count"` // subtask count
-	Trigger             int        `gorm:"trigger" json:"trigger"`               // 扫描类型， 1:cicd 2:漏洞库更新 3:病毒库更新 4:周期 5:手动
+	ScopeType           int        `gorm:"scope_type" json:"scope_type"` // full-scan or partial-scan
+	Trigger             int        `gorm:"trigger" json:"trigger"`       // 扫描类型， 1:cicd 2:漏洞库更新 3:病毒库更新 4:周期 5:手动
 	FlowConf            string     `gorm:"type:varchar(255);column:flow_conf" json:"flow_conf"`
 	Priority            int        `gorm:"priority" json:"priority"`
 	Status              int        `gorm:"status" json:"status"`
@@ -826,8 +843,12 @@ type Task struct {
 	Operator            string     `gorm:"type:varchar(255);column:operator" json:"operator"`
 	PolicyId            int64      `gorm:"policy_id" json:"policy_id"`                            // scan type,scan scope,detail policy info in policy table
 	ScannerId           string     `gorm:"type:varchar(255);column:scanner_id" json:"scanner_id"` // scanner uuid
+	GroupID             int64      `gorm:"column:group_id" json:"group_id"`                       // 多级群进的一组任务，创建时间的毫秒时间戳
+	RegistryID          int64      `gorm:"column:registry_id" json:"registry_id"`
+	ScannerInstance     string     `gorm:"-" json:"scanner_instance"`
 	ScanStrategyName    string     `gorm:"-" json:"scan_strategy_name"`
-	SuccessSubTaskCount int        `gorm:"-" json:"success_sub_task_count"` // 成功的子任务数量
+	SuccessSubTaskCount int64      `gorm:"-" json:"success_sub_task_count"` // 成功的子任务数量
+	SubTaskCount        int64      `gorm:"-" json:"sub_task_count"`         // subtask count
 }
 
 func (Task) TableName() string {
@@ -947,3 +968,32 @@ func (sri *SyncRetryImage) GenUniqueImage() uint64 {
 }
 
 func (SyncRetryImage) TableName() string { return "ivan_scanner_sync_retry_image" }
+
+type ScannerInstanceInfo struct {
+	ID              int64  `gorm:"id"  json:"id"`
+	ClusterKey      string `gorm:"cluster_key" json:"clusterKey"`
+	ClusterName     string `gorm:"cluster_name" json:"clusterName"`
+	ScannerPodID    string `gorm:"column:scanner_pod_id" json:"scannerPodID"` // scanner当前Pod，重新启动改变
+	ScannerInstance string `gorm:"scanner_instance" json:"scannerInstance"`   // scanner当前实例，重新启动不会改变
+	CreatedAt       int64  `gorm:"autoUpdateTime:milli" json:"createdAt"`
+	UpdatedAt       int64  `gorm:"autoUpdateTime:milli" json:"updatedAt"`
+}
+
+func (ScannerInstanceInfo) TableName() string { return "ivan_scanner_instance" }
+
+func (pre ScannerInstanceInfo) IsSame(info ScannerInstanceInfo) bool {
+	return pre.ClusterKey == info.ClusterKey &&
+		pre.ClusterName == info.ClusterName &&
+		pre.ScannerPodID == info.ScannerPodID &&
+		pre.ScannerInstance == info.ScannerInstance
+}
+
+func (pre ScannerInstanceInfo) ToUpdater() map[string]interface{} {
+	updater := map[string]interface{}{
+		"cluster_key":      pre.ClusterKey,
+		"cluster_name":     pre.ClusterName,
+		"scanner_instance": pre.ScannerInstance,
+		"scanner_pod_id":   pre.ScannerPodID,
+	}
+	return updater
+}
