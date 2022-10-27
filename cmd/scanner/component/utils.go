@@ -326,14 +326,15 @@ func registryToUpdater(reg model.Registry) map[string]interface{} {
 		"name": reg.Name,
 		// "reg_type":    reg.RegType, // 仓库类型 + 地址不可编辑
 		// "url":    reg.Url,
-		"username":      reg.Username,
-		"password":      reg.Password,
-		"description":   reg.Description,
-		"sync_interval": reg.SyncInterval,
-		"access_key":    reg.AccessKey,
-		"access_secret": reg.AccessSecret,
-		"region_id":     reg.RegionID,
-		"instance_id":   reg.InstanceID,
+		"scanner_instance": reg.ScannerInstance,
+		"username":         reg.Username,
+		"password":         reg.Password,
+		"description":      reg.Description,
+		"sync_interval":    reg.SyncInterval,
+		"access_key":       reg.AccessKey,
+		"access_secret":    reg.AccessSecret,
+		"region_id":        reg.RegionID,
+		"instance_id":      reg.InstanceID,
 	}
 	return updater
 }

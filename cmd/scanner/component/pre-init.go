@@ -17,7 +17,7 @@ import (
 )
 
 type InitScannerInterface interface {
-	Init(ctx context.Context) error
+	Init(ctx context.Context, scannerLocalID string) error
 }
 
 type InitScanner struct {
@@ -27,13 +27,13 @@ type InitScanner struct {
 	scanConfigDal store.ScanConfigDal
 }
 
-func (s *InitScanner) Init(ctx context.Context) error {
+func (s *InitScanner) Init(ctx context.Context, scannerInstance string) error {
 	if err := s.createGlobalPolicy(ctx); err != nil {
 		return err
 	}
 	safeNodeEnbale := os.Getenv("SAFENODE_ENABLE")
 	if strings.Trim(safeNodeEnbale, " ") == consts.TrueString {
-		if err := s.createSafeNodeBufRegistry(ctx); err != nil {
+		if err := s.createSafeNodeBufRegistry(ctx, scannerInstance); err != nil {
 			return err
 		}
 	}
@@ -45,6 +45,7 @@ func (s *InitScanner) Init(ctx context.Context) error {
 		return err
 	}
 
+	// 写入当前集群中的scanner信息
 	return nil
 }
 
@@ -172,7 +173,7 @@ func (s *InitScanner) createCicdBufRegistry(ctx context.Context) error {
 	return nil
 }
 
-func (s *InitScanner) createSafeNodeBufRegistry(ctx context.Context) error {
+func (s *InitScanner) createSafeNodeBufRegistry(ctx context.Context, scannerInstance string) error {
 	url := os.Getenv("BUF_REGISTRY_URL")
 	username := os.Getenv("BUF_REGISTRY_USER")
 	passwd := os.Getenv("BUF_REGISTRY_PASSWORD")
@@ -186,14 +187,15 @@ func (s *InitScanner) createSafeNodeBufRegistry(ctx context.Context) error {
 		return errors.New("safe node buf registry not setting")
 	}
 	data := model.Registry{
-		Name:           "safe-node-buf-registry",
-		RegType:        "registry-v2",
-		Url:            url,
-		Username:       username,
-		PasswordString: passwd,
-		Description:    "节点镜像中转仓库",
-		UseType:        model.NodeBuffRegistry,
-		SyncInterval:   inter1,
+		Name:            "safe-node-buf-registry",
+		RegType:         "registry-v2",
+		Url:             url,
+		Username:        username,
+		PasswordString:  passwd,
+		Description:     "节点镜像中转仓库",
+		UseType:         model.NodeBuffRegistry,
+		SyncInterval:    inter1,
+		ScannerInstance: scannerInstance,
 	}
 	// 先查一下,可能已经存在
 	registries, _, err := s.regDal.SearchRegistry(ctx, store.SearchRegistryParam{
@@ -329,6 +331,10 @@ func (s *InitScanner) checkUniqueVuln(ctx context.Context) error {
 	return nil
 }
 
-func NewInitScanner(regDal store.RegistryDal, imageDal store.ScannerDalInterface, scanConfigDAl store.ScanConfigDal, vulnDal store.VulnDalInterface) *InitScanner {
+func NewInitScanner(regDal store.RegistryDal,
+	imageDal store.ScannerDalInterface,
+	scanConfigDAl store.ScanConfigDal,
+	vulnDal store.VulnDalInterface,
+) *InitScanner {
 	return &InitScanner{regDal: regDal, imageDal: imageDal, scanConfigDal: scanConfigDAl, vulnDal: vulnDal}
 }

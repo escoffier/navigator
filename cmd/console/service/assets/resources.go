@@ -1,10 +1,11 @@
 package assets
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"strings"
 	"sync"
@@ -12,17 +13,18 @@ import (
 
 	"github.com/go-chi/chi"
 	"github.com/pkg/errors"
+	"gitlab.com/security-rd/go-pkg/databases"
+	"gitlab.com/security-rd/go-pkg/httputil"
+	"gitlab.com/security-rd/go-pkg/logging"
+
 	"gitlab.com/piccolo_su/vegeta/pkg/dal"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
-	"gitlab.com/security-rd/go-pkg/databases"
-	"gitlab.com/security-rd/go-pkg/httputil"
-	"gitlab.com/security-rd/go-pkg/logging"
 )
 
 const (
-	ImageListPath    = "/api/v1/scan/reportsByImageList"
+	ImageListPath    = "/api/v1/images/list?limit=100000&offset=0"
 	ImageRiskPath    = "/api/v1/internal/overview/image"
 	RegistryRiskPath = "/api/v1/internal/overview/registry"
 )
@@ -506,7 +508,7 @@ func (rl *TensorResourcesService) GetImageInfos(ctx context.Context, queryOption
 	return images, nil
 }
 
-func (rl *TensorResourcesService) GetImages(ctx context.Context, queryOptions *dal.ResContainersQueryOption, offset, limit int) ([]*ImageResponse, error) {
+func (rl *TensorResourcesService) GetImages(ctx context.Context, queryOptions *dal.ResContainersQueryOption, offset, limit int) ([]model.ImageListResponse, error) {
 	containers, err := dal.GetResourceContainersUnique(ctx, rl.rdb.GetReadDB(), queryOptions, offset, limit)
 	if err != nil {
 		return nil, err
@@ -514,26 +516,35 @@ func (rl *TensorResourcesService) GetImages(ctx context.Context, queryOptions *d
 	return rl.getImageFromScanner(ctx, containers)
 }
 
-func (rl *TensorResourcesService) getImageFromScanner(ctx context.Context, tcs []*model.TensorContainer) ([]*ImageResponse, error) {
-	uuids := ""
-	for i, c := range tcs {
-		id := util.ImageUUID(c.Image)
-		imageID := ""
-		if i != 0 {
-			imageID = fmt.Sprintf(",%d", id)
-		} else {
-			imageID = fmt.Sprintf("%d", id)
+func (rl *TensorResourcesService) getImageFromScanner(ctx context.Context, tcs []*model.TensorContainer) ([]model.ImageListResponse, error) {
+	uuids := make([]uint32, 0)
+	for _, c := range tcs {
+		if uuid := util.ImageUUID(c.Image); uuid > 0 {
+			uuids = append(uuids, uuid)
 		}
-		uuids += imageID
 	}
-	url := fmt.Sprintf("%s%s%s%s", rl.scannerURL, ImageListPath, "?uuids=", uuids)
+	if len(uuids) == 0 {
+		return nil, fmt.Errorf("not find image uuids")
+	}
+
+	url := fmt.Sprintf("%s%s", rl.scannerURL, ImageListPath)
+
+	bodyParam := model.ImageListParam{UUIDs: uuids}
+
+	bys, err := json.Marshal(bodyParam)
+
+	if err != nil {
+		logging.Get().Err(err).Msg("getImageFromScanner")
+		return nil, err
+	}
+
 	logging.Get().Debug().Msgf("url: %s", url)
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(bys))
 	if err != nil {
 		logging.Get().Err(err).Msg("create request failed")
 		return nil, err
 	}
-	var images []*ImageResponse
+	var images []model.ImageListResponse
 	err = util.HTTPRequest(ctx, httputil.DefaultClient, req, func(resp *http.Response, err error) error {
 		if err != nil {
 			return err
@@ -545,7 +556,7 @@ func (rl *TensorResourcesService) getImageFromScanner(ctx context.Context, tcs [
 		if resp.Body == nil {
 			return err
 		}
-		body, err := ioutil.ReadAll(resp.Body)
+		body, err := io.ReadAll(resp.Body)
 		if err != nil {
 			return err
 		}
@@ -561,7 +572,7 @@ func (rl *TensorResourcesService) getImageFromScanner(ctx context.Context, tcs [
 			}
 
 			for _, item := range images {
-				logging.Get().Debug().Msgf("%+v", *item)
+				logging.Get().Debug().Msgf("%+v", item)
 			}
 		}
 

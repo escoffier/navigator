@@ -44,7 +44,7 @@ func (t *TaskCheck) checkTaskStatus() error {
 			continue
 		}
 
-		if v.ScannerID != global.ScannerID {
+		if v.ScannerID != global.ScannerPodID {
 			// a processing task's scanner id not consistent with mine
 			// which means original scanner give up control of the task (eg: scanner reboot)
 			// so we take over,reset task status to pending

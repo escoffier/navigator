@@ -172,7 +172,7 @@ func (s *ImageSrv) ListImageWithScanInfo(ctx context.Context, param model.ImageL
 		logging.Get().Err(err).Msg("SearchImageWithScan.SearchImage")
 		return nil, 0, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf(consts.StatusInternalServerErrorMsg))
 	}
-	logging.Get().Info().Int64("count", cnt).Int("iamgeLength", len(images)).Msg("SearchImageWithScan.SearchImage")
+	// logging.Get().Info().Int64("count", cnt).Int("iamgeLength", len(images)).Msg("SearchImageWithScan.SearchImage")
 
 	if len(images) == 0 {
 		return res, 0, nil

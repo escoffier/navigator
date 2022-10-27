@@ -3,6 +3,8 @@ package task
 import (
 	"context"
 	"fmt"
+	"os"
+	"strconv"
 	"time"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/global"
@@ -64,19 +66,24 @@ func (t *TaskSrv) GenerateScanTask(ctx context.Context, imageIds []int64, info U
 		strategyID = strategies[0].ID
 	}
 
-	scannerGormDb := store.GetScannerOrmDb()
-	// generate task
-	tmpTask := model.Task{
-		Operator:     info.Operator,
-		ScopeType:    info.Scope,
-		SubTaskCount: 0, // scan one image
-		Trigger:      info.TriggerType,
-		Status:       consts.Pending,
-		FlowConf:     flowconf.DefaultImageScanFlowName,
-		PolicyId:     strategyID,
+	groupID := time.Now().UnixMilli()
+
+	registries, _, err := t.registryDal.SearchRegistry(ctx, store.SearchRegistryParam{NoDelete: true}, nil)
+	if err != nil {
+		logging.GetLogger().Err(err).Msg("GenerateScanTask SearchRegistry")
+		return err
 	}
+	regMap := make(map[int64]model.Registry)
+	taskMap := make(map[string]bool)
+	subTaskMap := make(map[string][]model.SubTask)
+	tasks := make([]model.Task, 0)
+	for i := range registries {
+		regMap[registries[i].ID] = registries[i]
+	}
+
+	scannerGormDb := store.GetScannerOrmDb()
+
 	// 批量查询
-	subtasks := make([]model.SubTask, 0)
 	start := 0
 	for start < len(imageIds) {
 		end := start + consts.SubTaskBatchInsertCount
@@ -94,13 +101,11 @@ func (t *TaskSrv) GenerateScanTask(ctx context.Context, imageIds []int64, info U
 			logging.GetLogger().Err(err).Msg("GenerateScanTask.SearchImage")
 			return err
 		}
-		logging.GetLogger().Info().Interface("image", images).Ints64("batch", batch).Msg("GenerateScanTask")
 
 		for i := range images {
 			now := time.Now()
 			// generate subtasks
 			subtask := model.SubTask{
-				TaskID:       0, // fill in gorm function
 				ImageID:      images[i].ID,
 				Status:       consts.ImageScanPending,
 				HeartBeat:    &now,
@@ -108,31 +113,52 @@ func (t *TaskSrv) GenerateScanTask(ctx context.Context, imageIds []int64, info U
 				Tag:          images[i].Tags,
 				Library:      images[i].Library,
 			}
-			subtasks = append(subtasks, subtask)
-		}
+			reg, ok := regMap[images[i].RegistryID]
+			if !ok {
+				continue
+			}
+			if _, ok := subTaskMap[reg.ScannerInstance]; !ok {
+				subTaskMap[reg.ScannerInstance] = make([]model.SubTask, 0)
+			}
+			subTaskMap[reg.ScannerInstance] = append(subTaskMap[reg.ScannerInstance], subtask)
 
+			if !taskMap[reg.ScannerInstance] {
+				tasks = append(tasks, model.Task{
+					RegistryID:      reg.ID,
+					Operator:        info.Operator,
+					ScopeType:       info.Scope,
+					Trigger:         info.TriggerType,
+					Status:          consts.Pending,
+					FlowConf:        flowconf.DefaultImageScanFlowName,
+					PolicyId:        strategyID,
+					GroupID:         groupID,
+					ScannerInstance: reg.ScannerInstance,
+				})
+				taskMap[reg.ScannerInstance] = true
+			}
+		}
 		start += consts.SubTaskBatchInsertCount
 	}
-	if len(subtasks) == 0 {
-		logging.GetLogger().Info().Ints64("imageIds", imageIds).Msg("GenerateScanTask not find image")
-		return nil
-	}
-	// 防止有镜像删除的情况
-	tmpTask.SubTaskCount = len(subtasks)
 
-	if _, err := scannerGormDb.AddTaskAndSubTask(ctx, tmpTask, subtasks); err != nil {
-		logging.GetLogger().Err(err).Interface("task", tmpTask).
-			Int("subtasks", len(subtasks)).Msg("AddTaskAndSubTask")
-		return err
-	}
-	// 新建时更新镜像的扫描状态（等待中）
-	for i := range subtasks {
-		if err := scannerGormDb.UpdateImageScanStatus(ctx, subtasks[i].ImageID, model.FlagImageScanPending); err != nil {
-			logging.GetLogger().Err(err).Int64("ImageId", subtasks[i].ImageID).
-				Int64("FlagImageScan", model.FlagImageScanPending).Msg("UpdateImageScanStatus")
+	for i := range tasks {
+		temTask, temSubtask := tasks[i], subTaskMap[tasks[i].ScannerInstance]
+		if _, err := scannerGormDb.AddTaskAndSubTask(ctx, temTask, temSubtask); err != nil {
+			logging.GetLogger().Err(err).Interface("task", temTask).Str("ScannerInstance", temTask.ScannerInstance).Int64("registryID", temTask.RegistryID).
+				Int("subtasks", len(temSubtask)).Msg("AddTaskAndSubTask")
+			continue
+		}
+		logging.GetLogger().Info().Interface("task", temTask).Str("ScannerInstance", temTask.ScannerInstance).Int64("registryID", temTask.RegistryID).
+			Int("subtasks", len(temSubtask)).Msg("AddTaskAndSubTask")
+
+		// 镜像扫描状态(等待中)
+		for j := range temSubtask {
+			if err := scannerGormDb.UpdateImageScanStatus(ctx, temSubtask[j].ImageID, model.FlagImageScanPending); err != nil {
+				logging.GetLogger().Err(err).Int64("ImageId", temSubtask[j].ImageID).
+					Int64("FlagImageScan", model.FlagImageScanPending).Msg("UpdateImageScanStatus")
+			}
 		}
 	}
-	logging.GetLogger().Info().Int64("taskID", tmpTask.ID).Int("images", len(subtasks)).Msg("UpdateImageScanStatus complete")
+	logging.GetLogger().Info().Msg("GenerateScanTask complete")
 	return nil
 }
 
@@ -156,22 +182,54 @@ func (t *TaskSrv) SetTaskFailed(id int64, msg string) error {
 }
 
 func (t *TaskSrv) GetPendingTasks(ctx context.Context, limit int64) ([]Task, error) {
+
+	pendingTasks := make([]Task, 0)
 	scannerGormDb := store.GetScannerOrmDb()
+	// 控制并发
+	inp, _, err := t.imageDal.GetTaskList(ctx, store.SearchTaskParam{Statuses: []int8{consts.InProgress}}, nil)
+	if err != nil {
+		logging.GetLogger().Err(err).Str("ScannerInstance", global.ScannerInstance).Msg("GetPendingTasks.GetTaskList")
+		return nil, err
+	}
+
+	maxTask, err := strconv.Atoi(os.Getenv("MAX_INPROGRESS_TASK_NUM"))
+	if err != nil || maxTask <= 0 {
+		maxTask = consts.DefaultMaxInProgressTask
+	}
+
+	if len(inp) > maxTask {
+		logging.GetLogger().Info().Int("maxTask", maxTask).Int("InProgressCount", len(inp)).Msg("GetPendingTasks")
+		return pendingTasks, nil
+	}
+	regs, _, err := t.registryDal.SearchRegistry(ctx, store.SearchRegistryParam{ScannerInstance: global.ScannerInstance}, nil)
+	if err != nil {
+		logging.GetLogger().Err(err).Str("ScannerInstance", global.ScannerInstance).Msg("GetPendingTasks.SearchRegistry")
+		return nil, err
+	}
+	regIds := make([]int64, 0)
+	for i := range regs {
+		regIds = append(regIds, regs[i].ID)
+	}
+	if len(regIds) == 0 {
+		logging.GetLogger().Info().Str("ScannerInstance", global.ScannerInstance).Msg("GetPendingTasks.not find registry")
+		return []Task{}, nil
+	}
+
 	search := store.SearchTaskParam{
+		RegIds:   regIds,
 		Statuses: []int8{consts.Pending},
 	}
 
 	filter := &model.Filter{
 		Limit: limit,
 	}
-	tasks, _, err := scannerGormDb.GetTasks(ctx, search, filter)
+
+	tasks, _, err := scannerGormDb.GetTaskList(ctx, search, filter)
 	if err != nil {
 		return nil, err
 	}
 
-	pendingTasks := make([]Task, 0)
 	for _, v := range tasks {
-
 		// get subtasks by task id
 		subtasks, err := t.GetPendingSubTasksByTaskID(ctx, v.ID)
 		if err != nil {
@@ -296,13 +354,12 @@ func (t *TaskSrv) GetPendingSubTasksByTaskID(ctx context.Context, taskID int64) 
 // notice: this function will set task scanner id to current scanner id which will be used for scanner fail over
 func (t *TaskSrv) SetTasksInProgress(ids []int64) error {
 	search := store.SearchTaskParam{
-		Ids:      ids,
-		Statuses: []int8{consts.Pending},
+		Ids: ids,
 	}
 	updateInfo := make(map[string]interface{})
 	updateInfo["heart_beat"] = time.Now()
 	updateInfo["status"] = consts.InProgress
-	updateInfo["scanner_id"] = global.ScannerID
+	updateInfo["scanner_id"] = global.ScannerPodID
 	err := store.GetScannerOrmDb().UpdateTasksInfo(context.Background(), search, updateInfo)
 	if err != nil {
 		return err
@@ -317,7 +374,7 @@ func (t *TaskSrv) ReScheduleTask(ids []int64) error {
 	updateInfo := make(map[string]interface{})
 	updateInfo["heart_beat"] = time.Now()
 	updateInfo["status"] = consts.Pending
-	updateInfo["scanner_id"] = global.ScannerID
+	updateInfo["scanner_id"] = ""
 	err := store.GetScannerOrmDb().UpdateTasksInfo(context.Background(), search, updateInfo)
 	if err != nil {
 		return err
@@ -360,14 +417,15 @@ func (t *TaskSrv) UpdateTaskStartTime(id int64, curTime time.Time) error {
 
 func (t *TaskSrv) SetSubTaskFailed(id int64, msgNo int, errDetail string) error {
 	tmpTime := time.Now()
-	dbTask := model.SubTask{
-		ID:         id,
-		Status:     consts.ImageScanFailed,
-		FinishedAt: &tmpTime,
-		ErrMsg:     errDetail,
-		ErrNo:      msgNo,
+
+	updater := map[string]interface{}{
+		"status":      consts.ImageScanFailed,
+		"finished_at": &tmpTime,
+		"err_msg":     errDetail,
+		"err_no":      msgNo,
 	}
-	err := store.GetScannerOrmDb().UpdateSubTask(context.Background(), dbTask)
+
+	err := store.GetScannerOrmDb().UpdateSubTasksInfo(context.Background(), store.SearchSubTaskParam{Ids: []int64{id}}, updater)
 	if err != nil {
 		logging.GetLogger().Err(err).Msg("update subtask db status to 'scan-failed' err")
 		return err
@@ -377,12 +435,13 @@ func (t *TaskSrv) SetSubTaskFailed(id int64, msgNo int, errDetail string) error 
 
 func (t *TaskSrv) SetSubTaskSuccess(id int64) error {
 	tmpTime := time.Now()
-	dbTask := model.SubTask{
-		ID:         id,
-		Status:     consts.ImageScanSuccess,
-		FinishedAt: &tmpTime,
+	updater := map[string]interface{}{
+		"status":      consts.ImageScanSuccess,
+		"finished_at": &tmpTime,
+		"err_msg":     "",
+		"err_no":      0,
 	}
-	err := store.GetScannerOrmDb().UpdateSubTask(context.Background(), dbTask)
+	err := store.GetScannerOrmDb().UpdateSubTasksInfo(context.Background(), store.SearchSubTaskParam{Ids: []int64{id}}, updater)
 	if err != nil {
 		logging.GetLogger().Err(err).Msg("update subtask db status to 'scan-success' err")
 		return err
@@ -392,13 +451,18 @@ func (t *TaskSrv) SetSubTaskSuccess(id int64) error {
 
 func (t *TaskSrv) SetSubTaskInProgress(id int64) error {
 	now := time.Now()
-	dbTask := model.SubTask{
-		ID:        id,
-		Status:    consts.ImageScanInProgress,
-		StartedAt: &now,
-		HeartBeat: &now,
+
+	updater := map[string]interface{}{
+		"status":      consts.ImageScanInProgress,
+		"finished_at": &now,
+		"started_at":  &now,
+		"heart_beat":  &now,
+		"err_msg":     "",
+		"err_no":      0,
 	}
-	err := store.GetScannerOrmDb().UpdateSubTask(context.Background(), dbTask)
+
+	err := store.GetScannerOrmDb().UpdateSubTasksInfo(context.Background(), store.SearchSubTaskParam{Ids: []int64{id}}, updater)
+
 	if err != nil {
 		logging.GetLogger().Err(err).Msg("update subtask db status to 'inprogress' err")
 		return err
@@ -407,11 +471,25 @@ func (t *TaskSrv) SetSubTaskInProgress(id int64) error {
 }
 
 func (t *TaskSrv) GetProgressingTasks() ([]Task, error) {
+	regs, _, err := t.registryDal.SearchRegistry(context.Background(), store.SearchRegistryParam{ScannerInstance: global.ScannerInstance, NoDelete: true}, nil)
+	if err != nil {
+		logging.GetLogger().Err(err).Str("ScannerInstance", global.ScannerInstance).Msg("GetPendingTasks.SearchRegistry")
+		return nil, err
+	}
+	regIds := make([]int64, 0)
+	for i := range regs {
+		regIds = append(regIds, regs[i].ID)
+	}
+	if len(regIds) == 0 {
+		logging.GetLogger().Info().Str("ScannerInstance", global.ScannerInstance).Msg("GetPendingTasks.not find registry")
+		return []Task{}, nil
+	}
 
 	search := store.SearchTaskParam{
+		RegIds:   regIds,
 		Statuses: []int8{consts.InProgress},
 	}
-	checkTasks, _, err := store.GetScannerOrmDb().GetTasks(context.Background(), search, nil)
+	checkTasks, _, err := store.GetScannerOrmDb().GetTaskList(context.Background(), search, nil)
 	if err != nil {
 		logging.GetLogger().Err(err).Msg("get progressing tasks err")
 		return nil, err
@@ -488,7 +566,7 @@ func (t *TaskSrv) GetTaskStatus(taskID int64) (int, error) {
 	search := store.SearchTaskParam{
 		Ids: []int64{taskID},
 	}
-	tasks, _, err := store.GetScannerOrmDb().GetTasks(context.Background(), search, nil)
+	tasks, _, err := store.GetScannerOrmDb().GetTaskList(context.Background(), search, nil)
 	if err != nil {
 		return 0, err
 	}
@@ -522,7 +600,7 @@ func (t *TaskSrv) FilterTasksInProgress(tasks []Task) ([]Task, error) {
 		Ids:      processTaskIds,
 		Statuses: []int8{consts.InProgress},
 	}
-	ts, _, err := store.GetScannerOrmDb().GetTasks(context.Background(), search, nil)
+	ts, _, err := store.GetScannerOrmDb().GetTaskList(context.Background(), search, nil)
 	if err != nil {
 		return nil, err
 	}

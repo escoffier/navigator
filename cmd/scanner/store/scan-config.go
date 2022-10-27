@@ -18,7 +18,7 @@ type ScanConfigDal interface {
 	UpdateStrategy(ctx context.Context, param SearchStrategyParam, updater map[string]interface{}) error
 	DeleteStrategy(ctx context.Context, strategyID int64) error
 	UpdateScanConfig(ctx context.Context, configID int64, updater map[string]interface{}) error
-	SearchNodes(ctx context.Context) ([]string, error)
+	SearchNodes(ctx context.Context, fromType int64) ([]string, error)
 	SearchProjects(ctx context.Context, param GetProjectParam) ([]string, error)
 	SearchRepoNames(ctx context.Context) ([]string, error)
 }
@@ -27,10 +27,11 @@ type ScanConfigDao struct {
 	db *databases.RDBInstance
 }
 
-func (s *ScanConfigDao) SearchNodes(ctx context.Context) ([]string, error) {
+func (s *ScanConfigDao) SearchNodes(ctx context.Context, fromType int64) ([]string, error) {
 	timeoutCtx, cancelFunc := context.WithTimeout(ctx, 10*time.Second)
 	defer cancelFunc()
 	db := s.db.Get().WithContext(timeoutCtx).Model(new(model.ImageList))
+	db = db.Where("from_type = ?", fromType)
 	res := make([]model.ImageList, 0)
 
 	err := db.Distinct("node_hostname").Find(&res).Error

@@ -52,6 +52,7 @@ func newService(config register.ScannerServiceConfig) (register.ScannerService, 
 		store.NewRegistryDao(store.GetScannerWrapperDb()),
 		store.NewScannerOrm(store.GetScannerWrapperDb()),
 		store.NewScannerOrm(store.GetScannerWrapperDb()),
+		store.NewScannerInstanceDao(store.GetScannerWrapperDb()),
 	)
 	s.ScanConfigSrv = scanConfigSrv
 

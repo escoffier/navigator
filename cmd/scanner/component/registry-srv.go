@@ -8,6 +8,8 @@ import (
 	"strings"
 	"time"
 
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/global"
+
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
@@ -23,6 +25,7 @@ type RegistrySrvInterface interface {
 	DeleteRegistry(ctx context.Context, id int64) error
 	SearchRegistry(ctx context.Context, param SearchRegistryParam, filter *model.Filter) ([]model.Registry, int64, error)
 	GetRegistryType(ctx context.Context) ([]model.LabelValue, error)
+	CheckHealth(ctx context.Context, scannerInstance string) error
 }
 type RegistrySrv struct {
 	registryDal   store.RegistryDal
@@ -108,26 +111,6 @@ func (s *RegistrySrv) createRegistry(ctx context.Context, reg model.Registry) (i
 		return 0, response.NewHttpError(http.StatusExpectationFailed, err)
 	}
 
-	drive, err := registry.Open(RegToRegistryConf(reg))
-	if err != nil {
-		logging.GetLogger().Err(err).Msg("尝试连接到仓库出错")
-		switch err {
-		case consts.ErrAccessKeyOrAccessSecret, consts.ErrNotConnectOrWrongUsernameOrPasswd:
-			return 0, response.NewHttpError(http.StatusBadRequest, err)
-		default:
-			return 0, response.NewHttpError(http.StatusBadRequest, fmt.Errorf("尝试连接到仓库出错,请核对信息后重新提交,错误信息:%s", err.Error()))
-		}
-	}
-	if err := drive.Ping(); err != nil {
-		logging.GetLogger().Err(err).Msg("尝试连接到仓库出错")
-		switch err {
-		case consts.ErrAccessKeyOrAccessSecret, consts.ErrNotConnectOrWrongUsernameOrPasswd:
-			return 0, response.NewHttpError(http.StatusBadRequest, err)
-		default:
-			return 0, response.NewHttpError(http.StatusBadRequest, fmt.Errorf("尝试连接到仓库出错,请核对信息后重新提交,错误信息:%s", err.Error()))
-		}
-	}
-
 	id, err := s.registryDal.CreateRegistry(ctx, reg)
 	if err != nil {
 		logging.GetLogger().Err(err).Msg("CreateRegistry")
@@ -140,7 +123,51 @@ func (s *RegistrySrv) createRegistry(ctx context.Context, reg model.Registry) (i
 
 }
 
+func (s *RegistrySrv) CheckHealth(ctx context.Context, scannerInstance string) error {
+	registries, _, err := s.registryDal.SearchRegistry(ctx, store.SearchRegistryParam{ScannerInstance: scannerInstance, NoDelete: true}, nil)
+	if err != nil {
+		logging.GetLogger().Err(err).Msg("RegistrySrv CheckHealth")
+		return err
+	}
+	for i := range registries {
+		reg := registries[i]
+
+		drive, err := registry.Open(RegToRegistryConf(reg))
+		if err != nil {
+			logging.GetLogger().Err(err).Msg("CheckHealth 尝试连接到仓库出错")
+			update := map[string]interface{}{"status": consts.RegAbnormal, "health_msg": err.Error(), "heat_beat": time.Now().UnixMilli()}
+			if err := s.registryDal.UpdateRegistry(ctx, store.SearchRegistryParam{ID: reg.ID}, update); err != nil {
+				logging.GetLogger().Err(err).Msg("RegistrySrv CheckHealth")
+			}
+			continue
+		}
+
+		if err := drive.Ping(); err != nil {
+			logging.GetLogger().Err(err).Msg("CheckHealth 尝试连接到仓库出错")
+			update := map[string]interface{}{"status": consts.RegAbnormal, "health_msg": err.Error(), "heat_beat": time.Now().UnixMilli()}
+			if err := s.registryDal.UpdateRegistry(ctx, store.SearchRegistryParam{ID: reg.ID}, update); err != nil {
+				logging.GetLogger().Err(err).Msg("RegistrySrv CheckHealth")
+			}
+			continue
+		}
+
+		if reg.Status != consts.RegNormal {
+			update := map[string]interface{}{"status": consts.RegNormal, "health_msg": "", "heat_beat": time.Now().UnixMilli()}
+			if err := s.registryDal.UpdateRegistry(ctx, store.SearchRegistryParam{ID: reg.ID}, update); err != nil {
+				logging.GetLogger().Err(err).Msg("RegistrySrv CheckHealth")
+			}
+		}
+	}
+
+	return nil
+}
+
 func (s *RegistrySrv) CreateRegistry(ctx context.Context, reg model.Registry) (int64, error) {
+	if reg.ScannerInstance == "" {
+		// 设置默认:当前集群
+		reg.ScannerInstance = global.ScannerInstance
+	}
+
 	if !InStringSlice(reg.RegType, []string{consts.HarborVersion, consts.HarborV1Version, consts.HarborV2Version}) {
 		return s.createRegistry(ctx, reg)
 	}
@@ -171,6 +198,7 @@ func (s *RegistrySrv) UpdateRegistry(ctx context.Context, id int64, reg model.Re
 
 	reg.RegType = registries[0].RegType
 	reg.Url = registries[0].Url
+	// reg.ScannerInstance = registries[0].ScannerInstance
 
 	if err := reg.Validate(consts.ValidateUpdate); err != nil {
 		return response.NewHttpError(http.StatusExpectationFailed, err)

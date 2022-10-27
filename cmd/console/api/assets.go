@@ -14,6 +14,9 @@ import (
 	json "github.com/json-iterator/go"
 	param "github.com/oceanicdev/chi-param"
 	"github.com/pkg/errors"
+	"gitlab.com/security-rd/go-pkg/logging"
+	v1 "k8s.io/api/core/v1"
+
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/assets"
 	containers2 "gitlab.com/piccolo_su/vegeta/cmd/console/service/containers"
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
@@ -23,8 +26,6 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
-	"gitlab.com/security-rd/go-pkg/logging"
-	v1 "k8s.io/api/core/v1"
 )
 
 func (api *api) assets() func(chi.Router) {
@@ -1032,7 +1033,7 @@ func (api *api) getPods() http.HandlerFunc {
 			query = ""
 		}
 		if query != "" {
-			//queryOpt.WithColumnQuery("pod_name", query)
+			// queryOpt.WithColumnQuery("pod_name", query)
 			queryOpt.WithMulColumnQuery([]string{"pod_name"}, query)
 		}
 
@@ -1297,9 +1298,9 @@ func (api *api) GetResourceAssociate() http.HandlerFunc {
 			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, err))
 			return
 		}
-		//print debug log
-		//logging.Get().Info().Msgf("resource argument : %+v", *arguments)
-		//get resource relation
+		// print debug log
+		// logging.Get().Info().Msgf("resource argument : %+v", *arguments)
+		// get resource relation
 		res, err := resSvc.GetResourceRelation(arguments)
 		if err != nil {
 			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.Errorf("get resource relations failed, %v", err)))
@@ -1325,9 +1326,9 @@ func (api *api) GetContainerAssociate() http.HandlerFunc {
 			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, err))
 			return
 		}
-		//print debug log
-		//logging.Get().Info().Msgf("container argument : %+v", *arguments)
-		//get container relation
+		// print debug log
+		// logging.Get().Info().Msgf("container argument : %+v", *arguments)
+		// get container relation
 		container, err := resSvc.GetContainerRelation(arguments)
 		if err != nil {
 			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.Errorf("get container relations failed, %v", err)))
@@ -1354,9 +1355,9 @@ func (api *api) GetProcessAssociate() http.HandlerFunc {
 			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, err))
 			return
 		}
-		//print debug log
-		//logging.Get().Info().Msgf("process argument : %+v", *arguments)
-		//get resource relation
+		// print debug log
+		// logging.Get().Info().Msgf("process argument : %+v", *arguments)
+		// get resource relation
 		process, err := resSvc.GetProcessRelation(arguments)
 		if err != nil {
 			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.Errorf("get process relations failed, %v", err)))
@@ -1383,9 +1384,9 @@ func (api *api) GetProcessList() http.HandlerFunc {
 			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.Errorf("get process argument failed, %v", err)))
 			return
 		}
-		//print debug log
-		//logging.Get().Info().Msgf("process argument : %+v", *arguments)
-		//get resource relation
+		// print debug log
+		// logging.Get().Info().Msgf("process argument : %+v", *arguments)
+		// get resource relation
 		process, err := resSvc.GetAllProcessList(arguments)
 		if err != nil {
 			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.Errorf("get process list failed, %v", err)))
@@ -1625,14 +1626,14 @@ func (api *api) getImageProblems() http.HandlerFunc {
 			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.New("get images failed")))
 			return
 		}
-		problems := make(map[int]struct{})
+		problems := make(map[int64]struct{})
 		for _, i := range images {
-			for _, q := range i.Questions {
-				problems[q.ID] = struct{}{}
+			for _, q := range i.SecurityIssue {
+				problems[q.Value] = struct{}{}
 			}
 		}
 
-		var resp []int
+		var resp []int64
 		for k, _ := range problems {
 			resp = append(resp, k)
 		}

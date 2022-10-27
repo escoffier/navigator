@@ -37,14 +37,33 @@ func (i *ImageSync) Start(ctx context.Context) error {
 
 		for {
 			<-ticker.C
-			err := i.syncImage.SyncAllImage(ctx, component.SyncAllImageParam{
-				SyncType: consts.CycleFullSync,
-			})
+			err := i.syncImage.SyncAllImage(ctx)
 			if err != nil {
 				logging.GetLogger().Err(err).Msg("SyncAllImage service end")
 				continue
 			}
 			logging.GetLogger().Info().Msg("SyncAllImage start success")
+		}
+	}()
+
+	// 定期增加同布任务
+	go func() {
+		defer func() {
+			if err := recover(); err != nil {
+				logging.GetLogger().Error().Msg("AddSyncTask recover")
+			}
+		}()
+		ticker := time.NewTicker(time.Minute)
+		defer ticker.Stop()
+
+		for {
+			<-ticker.C
+			err := i.syncImage.AddSyncTask(ctx)
+			if err != nil {
+				logging.GetLogger().Err(err).Msg("AddSyncTask service end")
+				continue
+			}
+			logging.GetLogger().Info().Msg("AddSyncTask start success")
 		}
 	}()
 	// 开启增量同步
@@ -67,36 +86,6 @@ func (i *ImageSync) Start(ctx context.Context) error {
 			}
 			logging.GetLogger().Info().Msg("SyncAddImage start success")
 		}
-	}()
-
-	// 定期重试
-	go func() {
-
-		defer func() {
-			if err := recover(); err != nil {
-				logging.GetLogger().Error().Msg("RetryFailedSyncImage recover")
-			}
-		}()
-
-		maxRetryCountStr := os.Getenv("SYNC_IMAGE_RETRY_MAX_COUNT")
-		maxRetryCount, err := strconv.ParseInt(maxRetryCountStr, 10, 64)
-		if err != nil || maxRetryCount <= 0 {
-			maxRetryCount = consts.SyncImageMaxCountDefault // 默认50次
-		}
-
-		ticker := time.NewTicker(time.Minute * 5)
-		defer ticker.Stop()
-		for {
-			<-ticker.C
-
-			err := i.syncImage.RetryFailedSyncImage(context.Background(), maxRetryCount)
-			if err != nil {
-				logging.GetLogger().Err(err).Msg("RetryFailedSyncImage service end")
-			} else {
-				logging.GetLogger().Info().Msg("RetryFailedSyncImage start success")
-			}
-		}
-
 	}()
 
 	// 定期删除重试超限
@@ -154,6 +143,7 @@ func newService(config register.ScannerServiceConfig) (register.ScannerService, 
 		store.NewSyncRetryImageDao(scannerWrapperDb),
 		store.NewVulnDao(scannerWrapperDb),
 		store.NewScannerDB(scannerWrapperDb),
+		store.NewSyncTaskDao(scannerWrapperDb),
 	)
 
 	p.syncImage = s

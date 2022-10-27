@@ -38,8 +38,8 @@ type SearchImageParam struct {
 	Where              string
 	UniqueImage        uint64
 	Projects           []RegProject
-	NodeHostname       string `json:"node_hostname"`
-	JustReturnImage    bool   `json:"just_return_image"`
+	NodeHostname       string
+	NotCount           bool
 	TrustedImageIds    []int64
 	NotTrustedImageIds []int64
 	NotParseNodeImage  bool // 解析节点镜像的imageName
@@ -49,8 +49,8 @@ type SearchImageParam struct {
 }
 
 type GetSubTaskListWithImageParam struct {
-	TaskID int64
-	Status []int64
+	TaskIds []int64
+	Status  []int64
 }
 
 func (sp *SearchImageParam) GetDefaultOmitFields() []string {
@@ -125,17 +125,17 @@ type SearchScanImageParam struct {
 }
 
 type SearchRegistryParam struct {
-	RegistryIds []int64
-	Fields      []string // 只想要的字端
-	LibraryURL  string
-	UseTypes    []int64
-	UseType     int64
-	RegType     []string
-	ID          int64
-	Search      string
-
-	Name     string
-	NoDelete bool
+	RegistryIds     []int64
+	Fields          []string // 只想要的字端
+	LibraryURL      string
+	UseTypes        []int64
+	UseType         int64
+	RegType         []string
+	ID              int64
+	Search          string
+	Name            string
+	NoDelete        bool
+	ScannerInstance string
 }
 
 func (s *SearchRegistryParam) Compatible() {
@@ -152,6 +152,13 @@ type SearchImageRetryParam struct {
 	MoreRetryCount int64
 	UniqueImage    uint64
 }
+
+type SearchSyncTaskParam struct {
+	RegIds   []int64
+	Finished string
+	SyncType string
+}
+
 type GetImageOverViewParam struct {
 	ImageUUIDs  []uint32
 	FlagMore    int
@@ -252,6 +259,9 @@ type SearchTaskParam struct {
 	ExcludeStatus []int   // exclude tasks with these statuses
 	Statuses      []int8  // task status
 	StrategyID    int64
+	GroupID       int64
+	DistinctFiled string
+	RegIds        []int64
 }
 
 type SearchSubTaskParam struct {
@@ -262,6 +272,8 @@ type SearchSubTaskParam struct {
 	GreaterThanRetryCount int64
 	LastID                int64
 	ImageID               int64
+	JustCount             bool // 计计算总数
+	GroupID               int64
 }
 
 type SearchStrategyParam struct {
@@ -380,4 +392,8 @@ type GroupRegistryRepoParam struct {
 
 type GroupVulnSeverityParam struct {
 	ImageIds []int64
+}
+
+type ScannerInstanceInfoDaoParam struct {
+	ScannerInstance string
 }

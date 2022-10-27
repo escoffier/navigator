@@ -133,8 +133,8 @@ type ScannerSrv interface {
 	ScanReportDownload(ctx context.Context, taskID, subTaskID uint) (*scanreport.ScanReportResult, error)
 	ScanReportGenerate(ctx context.Context, taskID uint) (uint, error)
 
-	GetScanTaskList(ctx context.Context, filter *model.Filter) ([]*model.Task, int64, error)
-	GetScanSubTaskList(ctx context.Context, taskID int64, status []int64, filter *model.Filter) ([]model.SubTask, int64, error)
+	GetScanTaskList(ctx context.Context, filter *model.Filter) ([]model.Task, int64, error)
+	GetScanSubTaskList(ctx context.Context, taskGroupID int64, status []int64, filter *model.Filter) ([]model.SubTask, int64, error)
 	UpdateScanTaskStatus(ctx context.Context, taskID int64, status uint8) error
 
 	GetStrategyForEnv(ctx context.Context, envName string) ([]model.ScanStrategy, error)
@@ -2863,13 +2863,20 @@ func (s *ConScannerSrv) DetectImageForK8s(ctx context.Context, img *model.ImageL
 	return safe, records, msgs, nil
 }
 
-func (s *ConScannerSrv) GetScanTaskList(ctx context.Context, filter *model.Filter) ([]*model.Task, int64, error) {
-	data, count, err := s.dbdal.GetTaskList(ctx, filter)
+func (s *ConScannerSrv) GetScanTaskList(ctx context.Context, filter *model.Filter) ([]model.Task, int64, error) {
+	if filter == nil {
+		filter = &model.Filter{Limit: 10, Offset: 0}
+	}
+	filter.SortFiled = "group_id"
+	filter.SortBy = consts.SortByDesc
+
+	distinctTask, cnt, err := s.dbdal.GetTaskList(ctx, store.SearchTaskParam{DistinctFiled: "group_id"}, filter)
 	if err != nil {
-		logging.GetLogger().Err(err).Msg("获取扫描任务记录失败")
+		logging.GetLogger().Err(err).Msg("GetScanTaskList GroupTaskByGroupID")
 		return nil, 0, err
 	}
 
+	res := make([]model.Task, 0)
 	// 获取策略名字
 	strategy, _, err := s.scanConfigDal.SearchStrategy(ctx, store.SearchStrategyParam{GetDeleted: true}, nil)
 	if err != nil {
@@ -2880,18 +2887,60 @@ func (s *ConScannerSrv) GetScanTaskList(ctx context.Context, filter *model.Filte
 	for i := range strategy {
 		strategyMap[strategy[i].ID] = strategy[i].Name
 	}
-	for i := range data {
-		data[i].ScanStrategyName = strategyMap[data[i].PolicyId]
+
+	for i := range distinctTask {
+		list, _, err := s.dbdal.GetTaskList(ctx, store.SearchTaskParam{GroupID: distinctTask[i].GroupID}, nil)
+		if err != nil {
+			logging.GetLogger().Err(err).Msg("GetScanTaskList GroupTaskByGroupID")
+			return nil, 0, err
+		}
+		if len(list) == 0 {
+			continue
+		}
+		view := list[0]
+
+		view.StartedAt, view.FinishedAt = GetScanTime(list)
+		view.Status = GetTaskStatus(list)
+
+		res = append(res, view)
+	}
+	// 计算成功失败的数量
+	for i := range res {
+		res[i].ScanStrategyName = strategyMap[res[i].PolicyId]
+		groups, err := s.dbdal.GroupSubtask(ctx, res[i].GroupID)
+		if err != nil {
+			logging.GetLogger().Err(err).Int64("groupID", res[i].GroupID).Msg("GetScanTaskList GroupTaskByGroupID")
+			continue
+		}
+
+		for j := range groups {
+			res[i].SubTaskCount += groups[j].Count
+			if groups[j].Status == consts.ImageScanSuccess {
+				res[i].SuccessSubTaskCount += groups[j].Count
+			}
+		}
 	}
 
-	return data, count, nil
+	return res, cnt, nil
 }
 
-func (s *ConScannerSrv) GetScanSubTaskList(ctx context.Context, taskID int64, status []int64, filter *model.Filter) ([]model.SubTask, int64, error) {
-
-	data, count, err := s.dbdal.GetSubTaskListWithImage(ctx, store.GetSubTaskListWithImageParam{TaskID: taskID, Status: status}, filter)
+func (s *ConScannerSrv) GetScanSubTaskList(ctx context.Context, taskGroupID int64, status []int64, filter *model.Filter) ([]model.SubTask, int64, error) {
+	tasks, _, err := s.dbdal.GetTaskList(ctx, store.SearchTaskParam{GroupID: taskGroupID}, nil)
 	if err != nil {
-		logging.GetLogger().Err(err).Msgf("获取扫描子任务记录失败, taskId: %d", taskID)
+		logging.GetLogger().Err(err).Int64("taskGroupID", taskGroupID).Ints64("status", status).Msg("GetScanSubTaskList GetTaskList")
+		return nil, 0, err
+	}
+	if len(tasks) == 0 {
+		return make([]model.SubTask, 0), 0, nil
+	}
+	taskIds := make([]int64, 0)
+	for i := range tasks {
+		taskIds = append(taskIds, tasks[i].ID)
+	}
+
+	data, count, err := s.dbdal.GetSubTaskListWithImage(ctx, store.GetSubTaskListWithImageParam{TaskIds: taskIds, Status: status}, filter)
+	if err != nil {
+		logging.GetLogger().Err(err).Int64("taskGroupID", taskGroupID).Ints64("status", status).Msg("GetScanSubTaskList GetSubTaskListWithImage")
 		return nil, 0, err
 	}
 	// 把错误的枚举信息加上
@@ -2904,22 +2953,22 @@ func (s *ConScannerSrv) GetScanSubTaskList(ctx context.Context, taskID int64, st
 	return data, count, nil
 }
 
-func (s *ConScannerSrv) UpdateScanTaskStatus(ctx context.Context, taskID int64, status uint8) error {
+func (s *ConScannerSrv) UpdateScanTaskStatus(ctx context.Context, groupID int64, status uint8) error {
 	if status < consts.Pending || status > consts.Terminate {
 		logging.GetLogger().Error().
-			Int64("taskId", taskID).
+			Int64("groupID", groupID).
 			Uint8("status", status).
 			Msg("update task status err")
 		return fmt.Errorf("invailed status enum: %d", status)
 	}
 
-	err := s.dbdal.UpdateTaskStatus(ctx, taskID, status)
+	taskIds, err := s.dbdal.UpdateTaskStatus(ctx, groupID, status)
 	if err != nil {
 		logging.GetLogger().Err(err).
-			Int64("taskId", taskID).
+			Int64("groupID", groupID).
 			Uint8("status", status).
 			Msg("update task status err")
-		return errors.Wrapf(err, "更新任务%d的状态为%d失败", taskID, status)
+		return errors.Wrapf(err, "更新任务%d的状态为%d失败", groupID, status)
 	}
 
 	if status == consts.Terminate {
@@ -2969,7 +3018,6 @@ func (s *ConScannerSrv) UpdateScanTaskStatus(ctx context.Context, taskID int64, 
 						Msg("UpdateScanTaskStatus UpdateSubTasksInfo")
 					// 只记录日志不返回，下面要更新镜像flag
 				}
-
 				for i := range subTasks {
 					logging.GetLogger().Info().Int64("ImageID", subTasks[i].ImageID).Msg("UpdateImageScanStatus")
 					if err := s.dbdal.UpdateImageScanStatus(ctx, subTasks[i].ImageID, model.FlagImageNotScan); err != nil {
@@ -2978,7 +3026,7 @@ func (s *ConScannerSrv) UpdateScanTaskStatus(ctx context.Context, taskID int64, 
 					}
 				}
 			}
-		}([]int64{taskID})
+		}(taskIds)
 	}
 	return nil
 }
@@ -3359,4 +3407,57 @@ func GetErrMsgEnu(errNo int) string {
 	default:
 		return "程序内部出错"
 	}
+}
+
+func GetTaskStatus(list []model.Task) int {
+
+	// 任务组里面的任务全部完成--状态为完成；全部任务为等待中--状态为等待中；全部任务为暂停或终止--状态为暂停或者终止；其他情况为执行中
+	// 然后按位统计全部任务情况，这样可能简单点
+	var status uint64
+
+	for i := range list {
+		status = util.SetBit1(status, uint64(list[i].Status))
+	}
+	switch status {
+	case uint64(1 << consts.End):
+		return consts.End
+	case uint64(1 << consts.Pause):
+		return consts.Pause
+	case uint64(1 << consts.Terminate):
+		return consts.Terminate
+	case uint64(1 << consts.Pending):
+		return consts.Pending
+
+	default:
+		return consts.InProgress
+	}
+}
+
+func GetScanTime(list []model.Task) (*time.Time, *time.Time) {
+	if len(list) == 0 {
+		return nil, nil
+	}
+	start, end := list[0].StartedAt, list[0].FinishedAt
+	for i := range list {
+		if list[i].StartedAt != nil {
+			if start == nil {
+				start = list[i].StartedAt
+			} else {
+				if list[i].StartedAt.Before(*start) {
+					start = list[i].StartedAt
+				}
+			}
+		}
+
+		if list[i].FinishedAt != nil {
+			if end == nil {
+				end = list[i].FinishedAt
+			} else {
+				if list[i].FinishedAt.After(*end) {
+					end = list[i].FinishedAt
+				}
+			}
+		}
+	}
+	return start, end
 }

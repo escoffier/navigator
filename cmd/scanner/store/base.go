@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/go-redis/redis/v8"
+	"gitlab.com/security-rd/go-pkg/logging"
 
 	"gitlab.com/security-rd/go-pkg/cache"
 	"gitlab.com/security-rd/go-pkg/databases"
@@ -29,6 +30,7 @@ func InitDb(loglevel string) (err error) {
 			databases.OptionWithConnMaxLifeTime(time.Hour),
 		)
 		if err != nil {
+			logging.Get().Err(err).Msg("InitDb")
 			err = fmt.Errorf("connect db err:%v", err)
 			return
 		}

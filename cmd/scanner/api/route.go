@@ -24,6 +24,7 @@ func SetupGinRouter(redisClient *redis.Client,
 	vuluSrv component.VulnServiceInterface,
 	syncImageSrv component.SyncImageInterface,
 	ciDalSrv ci.CiComponent,
+	scannerInfo component.ScannerInstanceInfoInterface,
 ) *gin.Engine {
 
 	router := gin.Default()
@@ -38,7 +39,7 @@ func SetupGinRouter(redisClient *redis.Client,
 		})
 	})
 
-	router = WebAPI(router, scannerSvc, imageSvc, rejectSvc, harborSvc, registrySrv, scanConfigSrv, vuluSrv, syncImageSrv, ciDalSrv)
+	router = WebAPI(router, scannerSvc, imageSvc, rejectSvc, harborSvc, registrySrv, scanConfigSrv, vuluSrv, syncImageSrv, ciDalSrv, scannerInfo)
 	router = OpenAPI(router, scannerSvc, rejectSvc, registrySrv, scanConfigSrv, vuluSrv, ciDalSrv, imageSvc, syncImageSrv)
 
 	return router
@@ -54,6 +55,7 @@ func WebAPI(router *gin.Engine,
 	vuluSrv component.VulnServiceInterface,
 	syncImageSrv component.SyncImageInterface,
 	ciDalSrv ci.CiComponent,
+	scannerInfo component.ScannerInstanceInfoInterface,
 ) *gin.Engine {
 
 	apiScannerSrv := NewScannerAPISrv(scannerSvc, vuluSrv, imageService)
@@ -64,11 +66,11 @@ func WebAPI(router *gin.Engine,
 	apiSyncImageSrv := NewSyncImageAPISrv(syncImageSrv, registrySrv)
 	v1 := router.Group("/api/v1/scan")
 	{
-		v1.GET("/reportsByImageList", apiScannerSrv.ListScannedByImageList) // Deprecated:
+		// v1.GET("/reportsByImageList", apiScannerSrv.ListScannedByImageList) // Deprecated:
 		v1.GET("/reportsByImageOverview", apiScannerSrv.ListScannedByImageOverview)
 		v1.GET("/reportsByImageDetails", apiScannerSrv.ScannedByImageDetails)
 
-		v1.POST("/scanone", apiScannerSrv.StartScanOne)
+		// v1.POST("/scanone", apiScannerSrv.StartScanOne)
 
 		// v1.POST("/harbor/scanAllNow", apiScannerSrv.ScanAllNow)
 		// v1.GET("/harbor/scanStatus", apiScannerSrv.GetScanStatus)
@@ -257,6 +259,15 @@ func WebAPI(router *gin.Engine,
 		v14.PUT("/webhook", ciSrv.UpDateWebhook)
 		v14.GET("/webhook", ciSrv.GetWebhook)
 		v14.GET("/webhook/record", ciSrv.GetWebhookRecords)
+
+		v14.GET("/tidb/version", ciSrv.TiDbVersion)
+		v14.Static("/tidb/assets", global.ScannerOpts.PvcPath)
+	}
+
+	scannerInstanceInfoSrv := NewScannerInstanceInfoSrv(scannerInfo)
+	v15 := router.Group("/api/v1/scannerInfo")
+	{
+		v15.GET("/list", scannerInstanceInfoSrv.GetScannerInstanceInfo)
 	}
 
 	return router

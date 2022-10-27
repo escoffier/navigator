@@ -40,7 +40,7 @@ func NewScannerOpenAPISrv(
 	}
 }
 
-// open-api镜像列表 discard
+// open-api镜像列表 已废弃
 func (s *ImageOpenAPISvc) ListImages(ctx *gin.Context) {
 	search := ctx.Query("keyword")
 	if len(search) > 64 {

@@ -8,7 +8,6 @@ const (
 	End
 	Pause
 	Terminate
-	NotScan // deprecated
 )
 
 // task result
@@ -29,9 +28,9 @@ const (
 )
 
 const (
-	FullScan   = iota // 全量扫描
-	SingleScan        // 单个扫描
-
+	FullScan                 = iota // 全量扫描
+	SingleScan                      // 单个扫描
+	DefaultMaxInProgressTask = 5
 )
 
 // task scan type

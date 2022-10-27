@@ -9,7 +9,11 @@ import (
 var TaskWg *sync.WaitGroup       // wait for all task processed before ti db update
 var TiDbUpdateWg *sync.WaitGroup // stop processing requests during ti db update
 var ScannerOpts *flag2.ScannerOpts
-var ScannerID string
+var ScannerPodID string // scanner当前POD的ID，重新启动都会改变
+var ClusterKey string
+var ClusterName string
+var ScannerInstance string // scanner扫描器的ID,重启后不会改变，主要用于调度仓库的同步和扫描
+var VulnDBVersion string
 
 func init() {
 	TaskWg = &sync.WaitGroup{}

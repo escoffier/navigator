@@ -16,6 +16,7 @@ import (
 	"gorm.io/gorm/clause"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/global"
 	"gitlab.com/piccolo_su/vegeta/pkg/harbor"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
@@ -66,7 +67,7 @@ type ScannerDalInterface interface {
 	SearchImageWhitelist(ctx context.Context, param SearchImageWhitelistParam, filter *model.Filter) ([]model.ImageWhitelist, int64, error)
 	UpdateImageWhitelist(ctx context.Context, where string, update map[string]interface{}) error
 	DeleteImageWhitelist(ctx context.Context, param DeleteImageWhitelistParam) error
-
+	GetInprogressTaskAndSetStatus(ctx context.Context, maxInprogress, dequeNum int64, regIds []int64) ([]model.Task, error)
 	SearchRejectPolicy(ctx context.Context, param SearchRejectPolicyParam) ([]model.RejectPolicy, error)
 	GetPolicyConfig(ctx context.Context, getVuln bool) ([]model.RejectPolicy, error)
 	AddSinglePolicy(ctx context.Context, policy model.RejectPolicy) (int64, error)
@@ -89,12 +90,9 @@ type ScanTaskInterface interface {
 	UpdateTask(ctx context.Context, task model.Task, param SearchTaskParam) error
 	UpdateTasksInfo(ctx context.Context, param SearchTaskParam, updateInfo map[string]interface{}) error
 	UpdateTasksStatus(ctx context.Context, updateIds []int64, status int) error
-	UpdateSubTask(ctx context.Context, subtask model.SubTask) error
 	UpdateSubTasksInfo(ctx context.Context, param SearchSubTaskParam, updateInfo map[string]interface{}) error
 	AddSubTasksRetryCount(ctx context.Context, ids []int64) error
-	GetTasks(ctx context.Context, param SearchTaskParam, filter *model.Filter) ([]model.Task, int64, error)
 	GetTotalTaskNum(ctx context.Context) (int64, error)
-	// GetImageInfo(ctx context.Context, imgID int64) (*model.ImageList, error)
 	GetRegistryInfo(ctx context.Context, ID int64) (*model.Registry, error)
 
 	AddTaskAndSubTask(ctx context.Context, task model.Task, subtask []model.SubTask) (int64, error)
@@ -104,12 +102,12 @@ type ScanTaskInterface interface {
 
 	SearchSubTasksWithScanStatus(ctx context.Context, imageIds []int64, status []int) ([]model.SubTask, error)
 
-	UpdateTaskStatus(ctx context.Context, id int64, status uint8) error
-	GetTaskList(ctx context.Context, filter *model.Filter) ([]*model.Task, int64, error)
+	UpdateTaskStatus(ctx context.Context, id int64, status uint8) ([]int64, error)
+	GetTaskList(ctx context.Context, param SearchTaskParam, filter *model.Filter) ([]model.Task, int64, error)
+	GroupSubtask(ctx context.Context, taskGroupIds int64) ([]GroupSubtaskRes, error)
 	GetSubTaskListWithImage(ctx context.Context, param GetSubTaskListWithImageParam, fileter *model.Filter) ([]model.SubTask, int64, error)
 
 	GetAllScanStrategyEnv(ctx context.Context) ([]model.ScanStrategy, error)
-	// GetStrategyForEnv(ctx context.Context, envName string) ([]model.ScanStrategy, error)
 	SetSingleStrategy(ctx context.Context, envName string, policyID []int64) error
 }
 
@@ -1010,7 +1008,7 @@ func (s *ScannerOrm) SearchRegistry(ctx context.Context, param SearchRegistryPar
 func (s *ScannerOrm) SearchImage(ctx context.Context, param SearchImageParam, filter *model.Filter) ([]model.ImageList, int64, error) {
 	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*10)
 	defer cancelFunc()
-	logging.GetLogger().Info().Interface("SearchImageParam", param).Msg("SearchImage,start")
+	// logging.GetLogger().Info().Interface("SearchImageParam", param).Msg("SearchImage,start")
 	db := s.rdb.Get().Model(new(model.ImageList)).WithContext(ctx)
 
 	if param.Keyword != "" && strings.Contains(param.Keyword, ":") {
@@ -1163,8 +1161,10 @@ func (s *ScannerOrm) SearchImage(ctx context.Context, param SearchImageParam, fi
 	}
 	// 先查总数
 	var cnt int64
-	if err := db.Count(&cnt).Error; err != nil {
-		return nil, 0, err
+	if !param.NotCount {
+		if err := db.Count(&cnt).Error; err != nil {
+			return nil, 0, err
+		}
 	}
 	if param.JustCount {
 		return nil, cnt, nil
@@ -1445,6 +1445,57 @@ func (s *ScannerOrm) DeleteImageWhitelist(ctx context.Context, param DeleteImage
 	return err
 }
 
+func (s *ScannerOrm) GetInprogressTaskAndSetStatus(ctx context.Context, maxInprogress int64, dequeNum int64, regIds []int64) ([]model.Task, error) {
+	if len(regIds) == 0 {
+		return nil, fmt.Errorf("no regids")
+	}
+	if maxInprogress <= 0 {
+		return nil, fmt.Errorf("maxInprogress less than 0")
+	}
+	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*5)
+	defer cancelFunc()
+	db := s.rdb.Get().WithContext(ctx).Model(&model.Task{})
+	tx := db.Begin()
+
+	var inp int64
+	if err := tx.Where("status = ?", consts.InProgress).Count(&inp).Error; err != nil {
+		return nil, err
+	}
+
+	if inp >= maxInprogress {
+		return []model.Task{}, nil
+	}
+	ans := make([]model.Task, 0)
+
+	limit := maxInprogress - inp
+	if limit >= dequeNum {
+		limit = dequeNum
+	}
+
+	if err := tx.Where("status = ?", consts.Pending).Where("registry_id IN ?", regIds).Limit(int(limit)).Find(&ans).Error; err != nil {
+		return nil, err
+	}
+	ids := make([]int64, 0)
+	for i := range ans {
+		ids = append(ids, ans[i].ID)
+	}
+	if len(ids) == 0 {
+		return []model.Task{}, nil
+	}
+	updateInfo := make(map[string]interface{})
+	updateInfo["heart_beat"] = time.Now()
+	updateInfo["status"] = consts.InProgress
+	updateInfo["scanner_id"] = global.ScannerPodID
+
+	if err := tx.Where("id IN ?", ids).Updates(updateInfo).Error; err != nil {
+		return nil, err
+	}
+	if err := tx.Commit().Error; err != nil {
+		return nil, err
+	}
+	return ans, nil
+}
+
 func (s *ScannerOrm) UpdateTasksInfo(ctx context.Context, param SearchTaskParam, updateInfo map[string]interface{}) error {
 	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*5)
 	defer cancelFunc()
@@ -1516,42 +1567,6 @@ func (s *ScannerOrm) AddSubTasksRetryCount(ctx context.Context, ids []int64) err
 	return db.Error
 }
 
-func (s *ScannerOrm) UpdateSubTask(ctx context.Context, subtask model.SubTask) error {
-	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*5)
-	defer cancelFunc()
-
-	db := s.rdb.Get().WithContext(ctx).Model(model.SubTask{}).Where("id = ?", subtask.ID).Updates(&subtask)
-	return db.Error
-}
-
-func (s *ScannerOrm) GetTasks(ctx context.Context, param SearchTaskParam, filter *model.Filter) ([]model.Task, int64, error) {
-	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*5)
-	defer cancelFunc()
-
-	db := s.rdb.Get().WithContext(ctx).Model(new(model.Task))
-	if param.StrategyID > 0 {
-		db = db.Where("policy_id = ? ", param.StrategyID)
-	}
-	if len(param.Statuses) > 0 {
-		db = db.Where("status IN ? ", param.Statuses)
-	}
-	if len(param.Ids) > 0 {
-		db = db.Where("id IN ? ", param.Ids)
-	}
-	db = db.Order("created_at DESC")
-
-	var cnt int64
-	if err := db.Count(&cnt).Error; err != nil {
-		return nil, 0, err
-	}
-	db = model.AddFilter(db, filter)
-	res := make([]model.Task, 0)
-	if err := db.Find(&res).Error; err != nil {
-		return nil, cnt, err
-	}
-	return res, cnt, nil
-}
-
 func (s *ScannerOrm) GetTotalTaskNum(ctx context.Context) (int64, error) {
 	db := s.rdb.Get().WithContext(ctx).Model(new(model.Task))
 	var cnt int64
@@ -1610,6 +1625,7 @@ func (s *ScannerOrm) AddTask(ctx context.Context, task model.Task) (int64, error
 
 	return task.ID, nil
 }
+
 func (s *ScannerOrm) AddSubTask(ctx context.Context, subtask []model.SubTask) error {
 	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*30)
 	defer cancelFunc()
@@ -1619,6 +1635,7 @@ func (s *ScannerOrm) AddSubTask(ctx context.Context, subtask []model.SubTask) er
 
 	return nil
 }
+
 func (s *ScannerOrm) GetSubTasks(ctx context.Context, param SearchSubTaskParam, filter *model.Filter) ([]model.SubTask, int64, error) {
 	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*5)
 	defer cancelFunc()
@@ -1647,6 +1664,9 @@ func (s *ScannerOrm) GetSubTasks(ctx context.Context, param SearchSubTaskParam, 
 	if err := db.Count(&cnt).Error; err != nil {
 		return nil, 0, err
 	}
+	if param.JustCount {
+		return nil, cnt, nil
+	}
 	db = model.AddFilter(db, filter)
 	res := make([]model.SubTask, 0)
 	if err := db.Find(&res).Error; err != nil {
@@ -1660,9 +1680,10 @@ func (s *ScannerOrm) CreateTasks(ctx context.Context, tasks ...model.Task) error
 	return s.rdb.Get().Model(model.Task{}).CreateInBatches(tasks, 100).Error
 }
 
-func (s *ScannerOrm) UpdateTaskStatus(ctx context.Context, id int64, status uint8) (err error) {
-	var data model.Task
+func (s *ScannerOrm) UpdateTaskStatus(ctx context.Context, groupID int64, status uint8) ([]int64, error) {
+	data := make([]model.Task, 0)
 	begin := s.rdb.Get().WithContext(ctx).Begin()
+	var err error
 
 	defer func() {
 		if err != nil {
@@ -1670,88 +1691,100 @@ func (s *ScannerOrm) UpdateTaskStatus(ctx context.Context, id int64, status uint
 		}
 	}()
 
-	err = begin.Model(data).Clauses(clause.Locking{Strength: "UPDATE"}).Where("id = ?", id).First(&data).Error
+	err = begin.Model(data).Clauses(clause.Locking{Strength: "UPDATE"}).Where("group_id = ?", groupID).Find(&data).Error
 	if err != nil {
-		return
+		return nil, err
 	}
 
-	if err = StatusCheck(uint8(data.Status), status); err != nil {
-		return
+	taskIds := make([]int64, 0)
+	for i := range data {
+		if err = StatusCheck(uint8(data[i].Status), status); err == nil {
+			taskIds = append(taskIds, data[i].ID)
+		} else {
+			logging.GetLogger().Info().Int64("taskID", data[i].ID).Int64("groupID", groupID).Msg("UpdateTaskStatus StatusCheck")
+		}
+	}
+	if len(taskIds) == 0 {
+		return taskIds, nil
 	}
 
-	err = begin.Model(data).Where("id = ?", id).UpdateColumn("status", status).Error
+	err = begin.Model(&model.Task{}).Where("id IN  ?", taskIds).UpdateColumn("status", status).Error
 
 	if err != nil {
-		return
+		return nil, err
 	}
 
 	err = begin.Commit().Error
 	if err != nil {
-		return
+		return taskIds, nil
 	}
 
-	return
+	return taskIds, nil
 }
 
-func (s *ScannerOrm) GetTaskList(ctx context.Context, filter *model.Filter) ([]*model.Task, int64, error) {
-	var (
-		count int64
-		err   error
-	)
+func (s *ScannerOrm) GetTaskList(ctx context.Context, param SearchTaskParam, filter *model.Filter) ([]model.Task, int64, error) {
 
+	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*10)
+	defer cancelFunc()
+
+	db := s.rdb.Get().WithContext(ctx).Model(model.Task{})
+
+	if len(param.Ids) > 0 {
+		db = db.Where("id IN ?", param.Ids)
+	}
+	if len(param.ExcludeStatus) > 0 {
+		db = db.Where("status NOT IN ?", param.ExcludeStatus)
+	}
+	if len(param.Statuses) > 0 {
+		db = db.Where("status IN ?", param.Statuses)
+	}
+	if param.StrategyID > 0 {
+		db = db.Where("policy_id =  ?", param.StrategyID)
+	}
+	if param.GroupID > 0 {
+		db = db.Where("group_id =  ?", param.GroupID)
+	}
+	if param.DistinctFiled != "" {
+		db = db.Distinct(param.DistinctFiled)
+	}
+	if len(param.RegIds) > 0 {
+		db = db.Where("registry_id IN ? ", param.RegIds)
+	}
+	var cnt int64
+	// 先找出所有的taskID，然后求得subtask的数量
+	if err := db.Count(&cnt).Error; err != nil {
+		return nil, 0, err
+	}
+	db = model.AddFilter(db, filter)
+	res := make([]model.Task, 0)
+	if err := db.Find(&res).Error; err != nil {
+		return nil, 0, err
+	}
+
+	return res, cnt, nil
+}
+
+type GroupSubtaskRes struct {
+	Count  int64 `gorm:"column:cnt" json:"count"`
+	Status int64 `gorm:"column:status" json:"status"`
+}
+
+func (s *ScannerOrm) GroupSubtask(ctx context.Context, taskGroupId int64) ([]GroupSubtaskRes, error) {
 	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*10)
 	defer cancelFunc()
 
 	db := s.rdb.Get().WithContext(ctx)
 
-	err = db.Model(model.Task{}).Where("status != ?", consts.Unknown).Count(&count).Error
+	res := make([]GroupSubtaskRes, 0)
+
+	sql := fmt.Sprintf("select count(b.id) as cnt,b.status from %s a join %s b on a.id=b.task_id where a.group_id = %d group by b.status,a.group_id;",
+		model.Task{}.TableName(), model.SubTask{}.TableName(), taskGroupId)
+
+	err := db.Raw(sql).Find(&res).Error
 	if err != nil {
-		return nil, 0, errors.Wrap(err, "get task total count failed")
+		return nil, err
 	}
-
-	data := make([]*model.Task, 0)
-	db = db.Model(model.Task{}).Where("status != ?", consts.Unknown)
-	if err := db.Count(&count).Error; err != nil {
-		return nil, 0, errors.Wrap(err, "get task total count failed")
-	}
-	db = model.AddFilter(db, filter)
-	if err := db.Find(&data).Error; err != nil {
-		return nil, 0, errors.Wrap(err, "get task data failed")
-	}
-
-	taskIds := make([]int64, 0, len(data))
-	taskIdsMap := make(map[int64]*model.Task, len(data))
-
-	for i := range data {
-		taskIds = append(taskIds, data[i].ID)
-		taskIdsMap[data[i].ID] = data[i]
-	}
-
-	type SubTaskCount struct {
-		SuccessCount int   `gorm:"column:sc"`
-		TaskID       int64 `gorm:"column:task_id"`
-	}
-
-	c := make([]SubTaskCount, 0, len(data))
-
-	err = s.rdb.Get().WithContext(ctx).
-		Model(model.SubTask{}).
-		Select("task_id, count(*) as sc").
-		Where("task_id in ?", taskIds).
-		Where("status = ?", consts.ImageScanSuccess).
-		Group("task_id").
-		Find(&c).
-		Error
-	if err != nil {
-		return nil, 0, errors.Wrap(err, "get success subtasks failed")
-	}
-
-	// 数据做聚合
-	for i := range c {
-		taskIdsMap[c[i].TaskID].SuccessSubTaskCount = c[i].SuccessCount
-	}
-
-	return data, count, nil
+	return res, nil
 }
 
 func (s *ScannerOrm) GetSubTaskListWithImage(ctx context.Context, param GetSubTaskListWithImageParam, filter *model.Filter) ([]model.SubTask, int64, error) {
@@ -1759,7 +1792,7 @@ func (s *ScannerOrm) GetSubTaskListWithImage(ctx context.Context, param GetSubTa
 	data := make([]model.SubTask, 0)
 	var count int64
 
-	db := s.rdb.Get().WithContext(ctx).Model(model.SubTask{}).Where("task_id = ?", param.TaskID)
+	db := s.rdb.Get().WithContext(ctx).Model(model.SubTask{}).Where("task_id IN ?", param.TaskIds)
 	if len(param.Status) > 0 {
 		db = db.Where("status IN ?", param.Status)
 	}
@@ -1809,6 +1842,7 @@ func (s *ScannerOrm) SetSingleStrategy(ctx context.Context, envName string, poli
 }
 
 func (s *ScannerOrm) GetAllScanStrategyEnv(ctx context.Context) ([]model.ScanStrategy, error) { // 这个接口留待下版本优化
+
 	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*10)
 	defer cancelFunc()
 	res := []model.ScanStrategy{}
@@ -1824,11 +1858,11 @@ func (s *ScannerOrm) UpdateImageScanStatus(ctx context.Context, imageID int64, s
 	// 查出镜像
 	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*3)
 	defer cancelFunc()
-
-	images, _, err := s.SearchImage(ctx, SearchImageParam{InIds: []int64{imageID}}, nil)
-	if err != nil {
+	images := make([]model.ImageList, 0)
+	if err := s.rdb.Get().WithContext(ctx).Model(model.ImageList{}).Where("id = ?", imageID).Find(&images).Error; err != nil {
 		return err
 	}
+
 	if len(images) == 0 {
 		return fmt.Errorf("not fond image:%d", imageID)
 	}
@@ -1841,5 +1875,8 @@ func (s *ScannerOrm) UpdateImageScanStatus(ctx context.Context, imageID int64, s
 	logging.GetLogger().Info().Uint64("AfterFlag", image.Flag).Uint64("scanStatus", status).Int64("imageID", imageID).Msg("UpdateImageScanStatus")
 	// 更新状态
 	updater := map[string]interface{}{"flag": image.Flag}
-	return s.UpdateImage(ctx, fmt.Sprintf("id = %d", imageID), updater, nil)
+	if err := s.rdb.Get().WithContext(ctx).Model(model.ImageList{}).Where("id = ?", imageID).Updates(updater).Error; err != nil {
+		return err
+	}
+	return nil
 }

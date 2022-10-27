@@ -1,10 +1,13 @@
 package vulnupdata
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"io/ioutil"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -13,6 +16,10 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/imroc/req/v3"
+
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/global"
 
 	"github.com/boltdb/bolt"
 	"github.com/gin-gonic/gin"
@@ -48,12 +55,14 @@ type VersionResp struct {
 }
 
 const (
-	scannerUser = "tensorsec-cicd-user"
+	scannerUser    = "X-Tensorsec-cicd-key"
+	internalApiKey = "dGVuc29yc2VjLWNpY2QtdXNlcg==.qBFMMAvbbm3afG3y42CqKaN7WQe4Q7hiqtg5Jzwen7tWHhZG16P62kvv"
 )
 
 var (
 	once              sync.Once
 	scannerVulnUpdata *UpdataService
+	fileList          = []string{"init_trivy.db", "init_custom.db", "custom_init_version", "trivy_init_version"}
 )
 
 func (srv *UpdataService) AutoScanAll(ctx context.Context, fromType int64, operator string) error {
@@ -63,9 +72,28 @@ func (srv *UpdataService) AutoScanAll(ctx context.Context, fromType int64, opera
 	imageDal := store.GetScannerOrmDb()
 	regDal := store.GetRegistryDao()
 	scanConfigDal := store.GetScanConfigDao()
-	if imageDal == nil || scanConfigDal == nil || regDal == nil {
+
+	db := store.GetScannerWrapperDb()
+	if db == nil {
+		return fmt.Errorf("globle db not init")
+	}
+	scannerInstanceDal := store.NewScannerInstanceDao(db)
+	if imageDal == nil || scanConfigDal == nil || regDal == nil || scannerInstanceDal == nil {
 		return fmt.Errorf("can't get global dal")
 	}
+
+	// 获取扫描器名字
+	scannerInstance, err := scannerInstanceDal.SearchScannerInfo(ctx, store.ScannerInstanceInfoDaoParam{ScannerInstance: global.ScannerInstance})
+	if err != nil {
+		logging.GetLogger().Info().Msg("addLibraryScanTask SearchScannerInfo")
+		return err
+	}
+	if len(scannerInstance) == 0 {
+		logging.GetLogger().Info().Msg("addLibraryScanTask not find scanInstance")
+		return nil
+	}
+
+	operator = fmt.Sprintf("%s(scanner-%s)", operator, scannerInstance[0].ClusterName)
 
 	config, cnt, err := scanConfigDal.SearchScanConfig(ctx, store.SearchScanConfigParam{}, nil)
 	if err != nil {
@@ -78,7 +106,11 @@ func (srv *UpdataService) AutoScanAll(ctx context.Context, fromType int64, opera
 
 	logging.GetLogger().Info().Int64("fromType", fromType).Msg("start full scan")
 	// 先查询当前时刻已存在的仓库列表
-	registries, _, err := regDal.SearchRegistry(ctx, store.SearchRegistryParam{NoDelete: true, UseType: model.UserRegistry}, nil)
+	registries, _, err := regDal.SearchRegistry(ctx, store.SearchRegistryParam{
+		NoDelete:        true,
+		UseType:         model.UserRegistry,
+		ScannerInstance: global.ScannerInstance,
+	}, nil)
 	if err != nil {
 		logging.GetLogger().Err(err).Msg("not found registry info")
 		return err
@@ -86,6 +118,10 @@ func (srv *UpdataService) AutoScanAll(ctx context.Context, fromType int64, opera
 	registryIds := make([]int64, len(registries))
 	for i := range registries {
 		registryIds[i] = registries[i].ID
+	}
+
+	if len(registryIds) == 0 {
+		return nil
 	}
 
 	imgIds := make([]int64, 0)
@@ -106,7 +142,11 @@ func (srv *UpdataService) AutoScanAll(ctx context.Context, fromType int64, opera
 	}
 
 	ts := task.NewTaskSrv()
-	if err := ts.GenerateScanTask(ctx, imgIds, task.UpdateTaskInfo{TriggerType: consts.VulDataUpdateTrigger, Scope: consts.FullScan, Operator: operator}); err != nil {
+	if err := ts.GenerateScanTask(ctx, imgIds,
+		task.UpdateTaskInfo{
+			TriggerType: consts.VulDataUpdateTrigger,
+			Scope:       consts.FullScan,
+			Operator:    operator}); err != nil {
 		logging.GetLogger().Err(err).Msg("add full scan task failed")
 		return err
 	}
@@ -121,6 +161,7 @@ func (srv *UpdataService) cpDB(volumePath string, fromPath string, FileName stri
 		logging.GetLogger().Err(err).Msgf("%s CP  err :%v", FileName, err)
 	}
 }
+
 func FileExists(path string) bool {
 	_, err := os.Stat(path) // os.Stat获取文件信息
 
@@ -345,6 +386,153 @@ func (srv *UpdataService) WriteVersion() {
 	fmt.Fprintf(file, "%s", version)
 }
 
+type ClusterKey struct {
+	Key  string `json:"key"`
+	Name string `json:"name"`
+}
+
+func (srv *UpdataService) GetVulnDBVersion(ctx context.Context, getVersionURL string) (string, error) {
+
+	type Res struct {
+		Data struct {
+			Item struct {
+				TiDbVersion string `json:"ti_db_version"`
+			} `json:"item"`
+		} `json:"data"`
+	}
+
+	timeoutCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+	request, err := http.NewRequestWithContext(timeoutCtx, http.MethodGet, getVersionURL, nil)
+	if err != nil {
+		return "", err
+	}
+	request.Header.Set("Content-Type", "application/json; charset=utf-8")
+	request.Header.Set(scannerUser, internalApiKey)
+
+	client := &http.Client{}
+	resp, err := client.Do(request)
+	if err != nil {
+		logging.GetLogger().Err(err).Str("url", getVersionURL).Msg("GetVulnDBVersion")
+		return "", err
+	}
+	content, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", err
+	}
+	res := Res{}
+
+	if err := json.Unmarshal(content, &res); err != nil {
+		logging.GetLogger().Err(err).Str("url", getVersionURL).Str("content", string(content)).Msg("GetVulnDBVersion.Unmarshal")
+		return "", err
+	}
+
+	return res.Data.Item.TiDbVersion, nil
+}
+
+func (srv *UpdataService) UploadVulnDb(ctx context.Context) error {
+	data, err := downVulnDB(ctx)
+	if err != nil {
+		logging.GetLogger().Err(err).Msg("TrivyServer UploadVulnDb")
+		return err
+	}
+	logging.GetLogger().Info().Strs("files", fileList).Msg("TrivyServer downVulnDB success ")
+	uploadURL := global.ScannerOpts.HTTPListenAddr
+	if !strings.Contains(uploadURL, "http") {
+		uploadURL = "http://localhost" + global.ScannerOpts.HTTPListenAddr
+	}
+
+	uploadURL = fmt.Sprintf("%s%s", uploadURL, "/api/v1/vulns/updata")
+
+	logging.GetLogger().Info().Str("url", uploadURL).Msg("TrivyServer UploadVulnDb ")
+
+	client := req.C().SetTimeout(2 * time.Hour)
+
+	resp, err := client.R().SetHeader(scannerUser, internalApiKey).
+		SetFileBytes("file", "down.zip", data).
+		Put(uploadURL)
+
+	if err != nil {
+		logging.GetLogger().Err(err).Str("url", uploadURL).Msg("UploadVulnDb")
+		return err
+	}
+	if !resp.IsSuccess() {
+		logging.GetLogger().Err(err).Str("url", uploadURL).Int("httpcode", resp.GetStatusCode()).Msg("UploadVulnDb")
+		return fmt.Errorf("UploadVulnDb not success")
+	}
+	logging.GetLogger().Info().Str("url", uploadURL).Msg("TrivyServer UploadVulnDb ")
+	return nil
+}
+
+func downVulnDB(ctx context.Context) ([]byte, error) {
+	consoleURL := os.Getenv("CONSOLE_EXTERNAL_URL")
+	if consoleURL == "" {
+		return nil, fmt.Errorf("TrivyServer not get CONSOLE_EXTERNAL_URL")
+	}
+	dbs := make([]VulnDBfile, 0)
+	for _, file := range fileList {
+		url := fmt.Sprintf("%s%s%s", consoleURL, "/api/openapi/scanner/ci/tidb/assets/offline", file)
+		logging.GetLogger().Info().Str("url", url).Msg("TrivyServer downVulnDB")
+		w := &bytes.Buffer{}
+		client := req.C().SetTimeout(2 * time.Hour)
+		_, err := client.R().SetHeader(scannerUser, internalApiKey).SetOutput(w).Get(url)
+		if err != nil {
+			return nil, err
+		}
+		logging.GetLogger().Info().Str("url", url).Msg("TrivyServer downVulnDB complete")
+
+		dbs = append(dbs, VulnDBfile{
+			fileName: file,
+			Content:  w.Bytes(),
+		})
+		logging.GetLogger().Info().Str("file", file).Msg("TrivyServer down vuln success")
+	}
+
+	b, err := ZipFile(dbs)
+	if err != nil {
+		return nil, err
+	}
+	logging.GetLogger().Info().Strs("files", fileList).Msg("TrivyServer all down success zip to one file")
+	return b, nil
+}
+
+type VulnDBfile struct {
+	fileName string
+	Content  []byte
+}
+
+// 把多个excel打包成一个zip文件返回,
+func ZipFile(files []VulnDBfile) ([]byte, error) {
+	b := new(bytes.Buffer)
+
+	zw := zip.NewWriter(b)
+
+	for i := range files {
+		logging.GetLogger().Info().Str("filePath", files[i].fileName).Msg("ZipFile get file")
+		hdr := zip.FileHeader{Name: files[i].fileName}
+		w, err := zw.CreateHeader(&hdr)
+		if err != nil {
+			return nil, err
+		}
+
+		_, err = io.Copy(w, bytes.NewReader(files[i].Content))
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	if err := zw.Flush(); err != nil {
+		return nil, err
+	}
+	if err := zw.Close(); err != nil {
+		return nil, err
+	}
+
+	logging.GetLogger().Info().Msg("ZipFile get all file, zip complete")
+
+	return b.Bytes(), nil
+}
+
 func GetUpdataService() *UpdataService {
 	return scannerVulnUpdata
 }
@@ -462,7 +650,6 @@ func (v *VulnUpdata) GetRegister(db *bolt.DB, dbPath string) register.Registry {
 }
 
 func (srv *UpdataService) CheckList() bool {
-	fileList := []string{"init_trivy.db", "init_custom.db", "custom_init_version", "trivy_init_version"}
 	for k := range fileList {
 		if !FileExists(filepath.Join(srv.VolumePath, fileList[k])) {
 			logging.GetLogger().Info().Msgf("File %v not exist while sleep 10S", srv.VolumePath+fileList[k])

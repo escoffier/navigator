@@ -47,6 +47,11 @@ func (s *RegistrySrv) UpdateRegistry(ctx *gin.Context) {
 		response.JSONError(ctx, err)
 		return
 	}
+	if reg.ScannerInstance == "" {
+		response.JSONError(ctx, response.NewHttpError(http.StatusBadRequest, fmt.Errorf("not get scanner_instance")))
+		return
+	}
+
 	err = s.RegistrySrv.UpdateRegistry(ctx, id, *reg)
 	if err != nil {
 		response.JSONError(ctx, err)
@@ -64,14 +69,19 @@ func (s *RegistrySrv) UpdateRegistry(ctx *gin.Context) {
 // @Success 200 {object} ApiWithItem{data=ApiItem{}}
 // @Router	/api/v1/register/registry [post]
 func (s *RegistrySrv) CreateRegistry(ctx *gin.Context) {
-	reg := new(model.Registry)
-	if err := ctx.BindJSON(reg); err != nil {
+	reg := model.Registry{}
+	if err := ctx.BindJSON(&reg); err != nil {
 		logging.GetLogger().Err(err).Msg("CreateRegistry序列化数据出错")
 		response.JSONError(ctx, err)
 		return
 	}
+	if reg.ScannerInstance == "" {
+		response.JSONError(ctx, response.NewHttpError(http.StatusBadRequest, fmt.Errorf("not get scanner_instance")))
+		return
+	}
 	reg.UseType = model.UserRegistry
-	_, err := s.RegistrySrv.CreateRegistry(ctx, *reg)
+	reg.Status = consts.RegNormal
+	_, err := s.RegistrySrv.CreateRegistry(ctx, reg)
 	if err != nil {
 		response.JSONError(ctx, err)
 		return

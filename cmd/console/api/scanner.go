@@ -21,11 +21,11 @@ import (
 func (api *api) scanner() func(chi.Router) {
 	return func(r chi.Router) {
 
-		r.Get("/reportsByImageList", api.RedirectToScanner(true))
+		// r.Get("/reportsByImageList", api.RedirectToScanner(true))
 		r.Get("/reportsByImageOverview", api.RedirectToScanner(true))
 		r.Get("/reportsByImageDetails", api.RedirectToScanner(true))
 		// r.Post("/scan", api.scan())
-		r.Post("/scanone", api.RedirectToScanner(true))
+		// r.Post("/scanone", api.RedirectToScanner(true))
 
 		r.Post("/harbor/scanAllNow", api.RedirectToScanner(true))
 		r.Get("/harbor/scanConfig", api.harborScanConfig())
@@ -150,6 +150,10 @@ func (api *api) scanner() func(chi.Router) {
 		r.Get("/ci/vuln/detail", api.RedirectToScanner())
 		r.Get("/ci/image/whitelist", api.RedirectToScanner())
 		r.Get("/ci/sensitives", api.RedirectToScanner())
+		r.Get("/ci/tidb/version", api.RedirectToScanner())
+		r.Get("/ci/tidb/assets/{fileName}", api.RedirectToScanner())
+
+		r.Get("/scannerInfo/list", api.RedirectToScanner())
 	}
 }
 

@@ -14,6 +14,10 @@ const (
 
 type SyncType string
 
+func (s SyncType) String() string {
+	return string(s)
+}
+
 const (
 	TimingFullSync SyncType = "TimingFullSync"
 	CycleFullSync  SyncType = "CycleFullSync"
@@ -23,4 +27,6 @@ const (
 )
 const (
 	SyncImageMaxCountDefault = 50
+	RegAbnormal              = "abnormal" // 仓库异常
+	RegNormal                = "normal"   // 仓库正常
 )

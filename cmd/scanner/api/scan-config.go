@@ -253,7 +253,7 @@ func (sc *ScanConfigAPISrv) ListOpenSource(ctx *gin.Context) {
 // @Success 200 {object} ApiWithItem{data=ApiItems{items=[]string{}}}
 // @Router	/api/v1/scan-config/strategy/node-hostnames [get]
 func (sc *ScanConfigAPISrv) GetAllNodes(ctx *gin.Context) {
-	nodes, err := sc.ScanConfigSrv.SearchNodes(ctx)
+	nodes, err := sc.ScanConfigSrv.SearchNodes(ctx, model.NodeBuffRegistry)
 	if err != nil {
 		response.JSONError(ctx, err)
 		return

@@ -147,13 +147,27 @@ func (s *ScanTaskExport) GenImageIdChan(ctx context.Context, task model.ExportTe
 			logging.GetLogger().Err(err).Str("ExportTensorTask", task.Parameter).Msg("GenImageIdChan Unmarshal")
 			return
 		}
+		// 前端传过来的是groupID
+		scanTasks, _, err := s.ScanTaskDal.GetTaskList(ctx, store.SearchTaskParam{GroupID: param.ScanTaskID}, nil)
+		if err != nil {
+			logging.GetLogger().Err(err).Str("ExportTensorTask", task.Parameter).Msg("GenImageIdChan GetTaskList")
+			return
+		}
+		taskIds := make([]int64, 0)
+		for i := range scanTasks {
+			taskIds = append(taskIds, scanTasks[i].ID)
+		}
+		if len(taskIds) == 0 {
+			logging.GetLogger().Err(err).Str("ExportTensorTask", task.Parameter).Msg("GenImageIdChan not fond task")
+			return
+		}
 
 		for {
 			scanTask, _, err := s.ScanTaskDal.GetSubTasks(ctx, store.SearchSubTaskParam{
-				TaskIds: []int64{param.ScanTaskID}, Statuses: []int{consts.ImageScanSuccess}, LastID: lastID},
+				TaskIds: taskIds, Statuses: []int{consts.ImageScanSuccess}, LastID: lastID},
 				&model.Filter{Limit: Min(consts.DefaultBathSize, s.MaxImageByOneExportTask-completed), SortFiled: "id", SortBy: consts.SortByAsc})
 			if err != nil {
-				logging.GetLogger().Err(err).Int64("taskID", task.ID).Msg("Export.GetSubTasks")
+				logging.GetLogger().Err(err).Int64("taskID", task.ID).Msg("GenImageIdChan Export.GetSubTasks")
 				return
 			}
 			if len(scanTask) == 0 {

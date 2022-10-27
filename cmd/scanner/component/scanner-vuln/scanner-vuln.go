@@ -15,6 +15,7 @@ import (
 
 	"github.com/avast/retry-go"
 	"github.com/boltdb/bolt"
+
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/vuln-updata/cnnvd"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/vuln-updata/cnvd"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
@@ -42,7 +43,8 @@ func GetScannerVuln() *ScannerVuln {
 	return scannerVuln
 }
 func CheckList(pvcPath string) bool {
-	fileList := []string{"init_trivy.db", "init_custom.db", "custom_init_version", "trivy_init_version"}
+	// fileList := []string{"init_trivy.db", "init_custom.db", "custom_init_version", "trivy_init_version"}
+	fileList := []string{"custom_init_version", "trivy_init_version"}
 	for k := range fileList {
 		if !util.FileExists(filepath.Join(pvcPath, fileList[k])) {
 			logging.GetLogger().Info().Msgf("File %v not exist while sleep 10S", filepath.Join(pvcPath, fileList[k]))

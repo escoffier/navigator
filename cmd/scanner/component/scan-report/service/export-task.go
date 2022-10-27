@@ -17,7 +17,7 @@ type ExportTaskInterface interface {
 	GetExportTask(ctx context.Context, id int64) (*model.ExportTensorTask, error)
 	CheckScanTask(ctx context.Context, scanTaskID int64) (*ExportLimit, error)
 	CreateSearchImage(ctx context.Context, taskID int64, param model.ImageListParam) error
-	CreateScanTaskImage(ctx context.Context, taskID int64, scanTaskID int64) error
+	CreateScanTaskImage(ctx context.Context, taskID int64, scanGroupID int64) error
 
 	ImageSrvInterface
 }
@@ -71,23 +71,37 @@ func (s *ExportTaskSrv) CreateSearchImage(ctx context.Context, taskID int64, par
 	return nil
 }
 
-func (s *ExportTaskSrv) CreateScanTaskImage(ctx context.Context, taskID int64, scanTaskID int64) error {
+func (s *ExportTaskSrv) CreateScanTaskImage(ctx context.Context, taskID int64, scanGroupID int64) error {
 	if taskID <= 0 {
 		return fmt.Errorf("no taskID:%d", taskID)
 	}
 	var startID int64
 	filter := &model.Filter{Limit: consts.DefaultLimit, SortBy: consts.SortByAsc, SortFiled: "id"}
+	// 前端传过来的是groupID
+	scanTasks, _, err := s.ScanTaskDal.GetTaskList(ctx, store.SearchTaskParam{GroupID: scanGroupID}, nil)
+	if err != nil {
+		logging.Get().Err(err).Int64("groupID", scanGroupID).Msg("CreateScanTaskImage GetTaskList")
+		return err
+	}
+	taskIds := make([]int64, 0)
+	for i := range scanTasks {
+		taskIds = append(taskIds, scanTasks[i].ID)
+	}
+	if len(taskIds) == 0 {
+		logging.Get().Err(err).Int64("scanGroupID", scanGroupID).Msg("GenImageIdChan not fond task")
+		return nil
+	}
 
 	for {
 		param := store.SearchSubTaskParam{
-			TaskIds:  []int64{scanTaskID},
+			TaskIds:  taskIds,
 			Statuses: []int{consts.ImageScanSuccess},
 			LastID:   startID,
 		}
 
 		subtasks, _, err := s.ScanTaskDal.GetSubTasks(ctx, param, filter)
 		if err != nil {
-			logging.Get().Err(err).Int64("taskID", taskID).Int64("ScanTaskID", scanTaskID).Msg("CreateScanTaskImage GetSubTasks")
+			logging.Get().Err(err).Int64("taskID", taskID).Int64("scanGroupID", scanGroupID).Msg("CreateScanTaskImage GetSubTasks")
 			return err
 		}
 		if len(subtasks) == 0 {
@@ -103,7 +117,7 @@ func (s *ExportTaskSrv) CreateScanTaskImage(ctx context.Context, taskID int64, s
 
 		images, _, err := s.ImageSrv.ListImageWithScanInfo(ctx, imageListParam, filter)
 		if err != nil {
-			logging.Get().Err(err).Int64("taskID", taskID).Int64("ScanTaskID", scanTaskID).Msg("CreateScanTaskImage ListImageWithScanInfo")
+			logging.Get().Err(err).Int64("taskID", taskID).Int64("scanGroupID", scanGroupID).Msg("CreateScanTaskImage ListImageWithScanInfo")
 			return err
 		}
 		data := make([]*model.ExportTaskImage, 0)
@@ -116,7 +130,7 @@ func (s *ExportTaskSrv) CreateScanTaskImage(ctx context.Context, taskID int64, s
 		}
 
 		if err := s.ExportDal.CreateExportTaskImage(ctx, data); err != nil {
-			logging.Get().Err(err).Int64("taskID", taskID).Int64("ScanTaskID", scanTaskID).Msg("CreateScanTaskImage CreateExportTaskImage")
+			logging.Get().Err(err).Int64("taskID", taskID).Int64("scanGroupID", scanGroupID).Msg("CreateScanTaskImage CreateExportTaskImage")
 		}
 	}
 	return nil

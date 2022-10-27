@@ -5,10 +5,11 @@ import (
 	"os"
 
 	"github.com/rs/zerolog"
+	"gitlab.com/security-rd/go-pkg/logging"
+
 	flag2 "gitlab.com/piccolo_su/vegeta/cmd/scanner/flag"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/global"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/service"
-	"gitlab.com/security-rd/go-pkg/logging"
 
 	"github.com/spf13/cobra"
 
@@ -35,11 +36,15 @@ var rootCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		global.ScannerID = scanner.ID
+		global.ScannerPodID = scanner.PodID
+		global.ScannerInstance = scanner.ScannerInstance
+		global.ClusterName = scanner.ClusterName
+		global.ClusterKey = scanner.ClusterKey
 		logging.Get().Info().
 			Str("version", Version).
-			Str("scannerId", global.ScannerID).
+			Str("ScannerInstance", global.ScannerInstance).
 			Interface("opts", ScannerRunOpts).
+			Interface("ScannerPodID", global.ScannerPodID).
 			Msg("starting scanner")
 
 		lifecycle.NewApplication(

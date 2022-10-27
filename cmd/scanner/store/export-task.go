@@ -333,5 +333,5 @@ func (dal *ResourceDao) SearchResources(ctx context.Context, imageUUID []uint32)
 
 type ScanTaskDal interface {
 	GetSubTasks(ctx context.Context, param SearchSubTaskParam, filter *model.Filter) ([]model.SubTask, int64, error)
-	GetTasks(ctx context.Context, param SearchTaskParam, filter *model.Filter) ([]model.Task, int64, error)
+	GetTaskList(ctx context.Context, param SearchTaskParam, filter *model.Filter) ([]model.Task, int64, error)
 }

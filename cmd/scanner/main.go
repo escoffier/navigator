@@ -4,6 +4,8 @@ import (
 	"math/rand"
 	"time"
 
+	"gitlab.com/piccolo_su/vegeta/pkg/util"
+
 	_ "go.uber.org/automaxprocs"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/cmd"
@@ -24,13 +26,13 @@ import (
 	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/service/register/image-cache"
 	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/service/register/image-sync"
 	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/service/register/malicious"
+	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/service/register/registry"
+	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/service/register/scanner-info"
 	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/service/register/scanner-vuln"
 	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/service/register/task-check"
 	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/service/register/task-policy"
 	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/service/register/trivy-srv"
 	_ "gitlab.com/piccolo_su/vegeta/pkg/api/apikey"
-
-	"gitlab.com/piccolo_su/vegeta/pkg/util"
 )
 
 // @title Vegeta API·
