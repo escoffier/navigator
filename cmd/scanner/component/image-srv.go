@@ -41,7 +41,7 @@ func NewImageService(
 }
 
 func (s *ImageSrv) GetScanOneStatus(ctx context.Context, imgID int64) (*model.ImageListResponse, error) {
-	info, _, err := s.ListImageWithScanInfo(ctx, model.ImageListParam{ImageIds: []int64{imgID}}, model.EmptyFilterForTotalQuery())
+	info, _, err := s.ListImageWithScanInfo(ctx, model.ImageListParam{ImageIds: []int64{imgID}}, &model.Filter{Limit: 1})
 	if err != nil {
 		logging.Get().Err(err).Int64("ImageID", imgID).Msg("GetScanOneStatus")
 		return nil, err
@@ -98,7 +98,8 @@ func (s *ImageSrv) ListImageWithScanInfo(ctx context.Context, param model.ImageL
 		StartID:      param.StartID,
 	}
 	// 查在线
-	onlineSQL := fmt.Sprintf("select  a.id  from  %s a  join %s b  where  a.image_uuid = b.image_uuid and a.registry_id IN (%s) and b.status = 0 ", model.ImageList{}.TableName(), model.TensorContainer{}.TableName(), util.JoinInt64Slice(registryIds, ","))
+	onlineSQL := fmt.Sprintf("select  a.id  from  %s a  join %s b  where  a.image_uuid = b.image_uuid  and b.status = 0 ",
+		model.ImageList{}.TableName(), model.TensorContainer{}.TableName())
 
 	online, err := s.dbdal.GetOnlineImage(ctx, store.GetOnlineImageParam{SQL: onlineSQL})
 	if err != nil {
