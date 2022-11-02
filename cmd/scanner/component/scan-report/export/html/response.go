@@ -1,6 +1,8 @@
 package html
 
 import (
+	"scm.tensorsecurity.cn/tensorsecurity-rd/trivy/pkg/report"
+
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 )
 
@@ -73,6 +75,10 @@ type Image struct {
 
 func (im *Image) AddVulnSeverityCount(vulns []*model.Vuln) {
 	for i := range vulns {
+		// 中移临时需求，html导出暂时屏蔽语言包漏洞
+		if vulns[i].Class == report.ClassLangPkg {
+			continue
+		}
 		if vulns[i].FixedBy != "" {
 
 			switch vulns[i].SeverityInt {
