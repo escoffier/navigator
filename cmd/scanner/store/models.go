@@ -319,6 +319,7 @@ type SearchVulnParam struct {
 	SeverityInt     []int64
 	JustReturnCount bool
 	StartID         int64
+	ClassType       []string
 }
 
 type SearchVulnImageParam struct {
