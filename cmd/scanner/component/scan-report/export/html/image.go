@@ -14,6 +14,7 @@ import (
 
 	"gitlab.com/security-rd/go-pkg/logging"
 	ftypes "scm.tensorsecurity.cn/tensorsecurity-rd/fanal/types"
+	"scm.tensorsecurity.cn/tensorsecurity-rd/trivy/pkg/report"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scan-report/export"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scan-report/export/utils"
@@ -638,6 +639,10 @@ func (s *ExportImageHtmlSrv) createVulnImage(ctx context.Context, taskID int64) 
 
 			uniques := make([]uint64, 0)
 			for i := range vulns {
+				// 中移临时需求，html导出暂时屏蔽语言包漏洞
+				if vulns[i].Class == report.ClassLangPkg {
+					continue
+				}
 				uniques = append(uniques, vulns[i].UniqueVuln)
 			}
 			if len(uniques) == 0 {
