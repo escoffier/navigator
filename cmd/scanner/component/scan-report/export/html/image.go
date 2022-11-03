@@ -129,8 +129,9 @@ func (s *ExportImageHtmlSrv) GetImages(ctx context.Context, taskID int64, starID
 		for j := range images {
 			// 获取镜像的漏洞统计信息信息
 			vulns, _, err := s.VulnDal.SearchVuln(ctx, store.SearchVulnParam{
-				ImageIds: []int64{images[j].ID},
-				Fields:   []string{"id", "fixed_by", "severity_int", "unique_vuln"}}, nil)
+				ClassType: []string{report.ClassOSPkg, report.ClassConfig},
+				ImageIds:  []int64{images[j].ID},
+				Fields:    []string{"id", "fixed_by", "severity_int", "unique_vuln"}}, nil)
 			if err != nil {
 				logging.Get().Err(err).Int64("taskID", taskID).Int64("imageID", images[j].ID).Msg("ExportImageHtmlSrv GetImages.SearchVuln")
 				return nil, err
@@ -299,7 +300,9 @@ func (s *ExportImageHtmlSrv) GetExportVulns(ctx context.Context, taskID int64, s
 
 		// 查漏洞详情
 		if len(uniqueVulns) > 0 {
-			vulns, _, err := s.VulnDal.SearchVuln(ctx, store.SearchVulnParam{UniqueVulns: uniqueVulns}, nil)
+			vulns, _, err := s.VulnDal.SearchVuln(ctx, store.SearchVulnParam{UniqueVulns: uniqueVulns,
+				ClassType: []string{report.ClassOSPkg, report.ClassConfig},
+			}, nil)
 			if err != nil {
 				logging.Get().Err(err).Int64("taskID", taskID).Msg("ExportImageHtmlSrv GetExportVulns SearchExportTaskImage")
 				return nil, err
@@ -329,7 +332,9 @@ func (s *ExportImageHtmlSrv) GetImageVulns(ctx context.Context, taskID, imageID 
 	count := 0
 	// 获取镜像的漏洞统计信息信息
 	vulns, _, err := s.VulnDal.SearchVuln(ctx, store.SearchVulnParam{StartID: startID,
-		ImageIds: []int64{imageID}, SeverityInt: []int64{int64(severity)}}, &model.Filter{SortFiled: "id", SortBy: consts.SortByAsc})
+		ClassType: []string{report.ClassOSPkg, report.ClassConfig},
+		ImageIds:  []int64{imageID}, SeverityInt: []int64{int64(severity)}},
+		&model.Filter{SortFiled: "id", SortBy: consts.SortByAsc})
 	if err != nil {
 		logging.Get().Err(err).Int64("taskID", taskID).Int64("imageID", imageID).Msg("GetImageVulns SearchVuln")
 		return nil, err
@@ -386,18 +391,11 @@ func (s *ExportImageHtmlSrv) GetImageRisk(ctx context.Context, taskID, imageID i
 	image := images[0]
 
 	// 获取所有漏洞
-	vulns, _, err := s.VulnDal.SearchVuln(ctx, store.SearchVulnParam{ImageIds: []int64{imageID}}, nil)
+	vulns, _, err := s.VulnDal.SearchVuln(ctx, store.SearchVulnParam{ImageIds: []int64{imageID},
+		ClassType: []string{report.ClassOSPkg, report.ClassConfig}}, nil)
 	if err != nil {
 		logging.Get().Err(err).Int64("taskID", taskID).Int64("imageID", imageID).Msg("ExportImageHtmlSrv GetImageRisk SearchVuln")
 		return nil, err
-	}
-	// 中移临时需求，html导出暂时屏蔽语言包漏洞
-	noLangVulns := make([]*model.Vuln, 0)
-	for i := range vulns {
-		if vulns[i].Class == report.ClassLangPkg {
-			continue
-		}
-		noLangVulns = append(noLangVulns, vulns[i])
 	}
 
 	// 查扫描结果
@@ -418,7 +416,7 @@ func (s *ExportImageHtmlSrv) GetImageRisk(ctx context.Context, taskID, imageID i
 	// 生成漏洞的建议
 	os := ftypes.OS{}
 	if err := json.Unmarshal([]byte(image.Os), &os); err != nil {
-		sug := utils.GenVulnSuggest(utils.InstallType(&os), noLangVulns)
+		sug := utils.GenVulnSuggest(utils.InstallType(&os), vulns)
 		if sug != "" {
 			suggests = append(suggests, sug)
 		}
@@ -428,7 +426,7 @@ func (s *ExportImageHtmlSrv) GetImageRisk(ctx context.Context, taskID, imageID i
 		ImageID:           image.ID,
 		ImageName:         image.GetImageName(),
 		FixSuggestion:     suggests,
-		VulnSeverityCount: StatisticsVulnSeverity(noLangVulns),
+		VulnSeverityCount: StatisticsVulnSeverity(vulns),
 	}
 
 	logging.Get().Info().Int64("taskID", taskID).Int64("imageID", imageID).Msg("ExportImageHtmlSrv.GetImageRisk finished")
@@ -640,18 +638,16 @@ func (s *ExportImageHtmlSrv) createVulnImage(ctx context.Context, taskID int64) 
 		for i := range exportImages {
 			// 获取该镜像的所有漏洞
 			vulns, _, err := s.VulnDal.SearchVuln(ctx, store.SearchVulnParam{
-				ImageIds: []int64{exportImages[i].ImageID}}, nil)
+				ClassType: []string{report.ClassOSPkg, report.ClassConfig},
+				ImageIds:  []int64{exportImages[i].ImageID}}, nil)
 			if err != nil {
-				logging.Get().Err(err).Int64("taskID", taskID).Int64("imageID", exportImages[i].ImageID).Msg("ExportImageHtmlSrv prepareVuln SearchVuln")
+				logging.Get().Err(err).Int64("taskID", taskID).
+					Int64("imageID", exportImages[i].ImageID).Msg("ExportImageHtmlSrv prepareVuln SearchVuln")
 				return err
 			}
 
 			uniques := make([]uint64, 0)
 			for i := range vulns {
-				// 中移临时需求，html导出暂时屏蔽语言包漏洞
-				if vulns[i].Class == report.ClassLangPkg {
-					continue
-				}
 				uniques = append(uniques, vulns[i].UniqueVuln)
 			}
 			if len(uniques) == 0 {

@@ -160,6 +160,9 @@ func (v *VulnDao) SearchVuln(ctx context.Context, param SearchVulnParam, filter 
 	if param.StartID > 0 {
 		db = db.Where("id >  ? ", param.StartID)
 	}
+	if len(param.ClassType) > 0 {
+		db = db.Where("`class` IN  ? ", param.ClassType)
+	}
 
 	res := make([]*model.Vuln, 0)
 
