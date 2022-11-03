@@ -9,6 +9,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	json "github.com/json-iterator/go"
+	"gitlab.com/security-rd/go-pkg/logging"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scan-report/service"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
@@ -72,8 +73,12 @@ func (s *ExportApiSrv) CreateImageSearchExportTask(ctx *gin.Context) {
 	if data.TaskType == model.ExportHtml {
 		go func() {
 			if err := s.exportSrv.CreateSearchImage(ctx, task.ID, data.Parameter); err != nil {
-				response.JSONError(ctx, err)
-				return
+				logging.Get().Err(err).Int64("taskID", task.ID).Msg("CreateSearchImage")
+			}
+
+			updater := map[string]interface{}{"start_at": consts.ExportHtmlReady}
+			if err := s.exportSrv.UpdateExportTask(ctx, task.ID, updater); err != nil {
+				logging.Get().Err(err).Int64("taskID", task.ID).Msg("UpdateExportTask")
 			}
 		}()
 	}
@@ -129,11 +134,13 @@ func (s *ExportApiSrv) CreateImageExportTask(ctx *gin.Context) {
 	if data.TaskType == model.ExportHtml {
 		go func() {
 			if err := s.exportSrv.CreateSearchImage(ctx, task.ID, model.ImageListParam{ImageIds: []int64{data.Parameter.ImageID}}); err != nil {
-				response.JSONError(ctx, err)
-				return
+				logging.Get().Err(err).Int64("taskID", task.ID).Msg("CreateSearchImage")
+			}
+			updater := map[string]interface{}{"start_at": consts.ExportHtmlReady}
+			if err := s.exportSrv.UpdateExportTask(ctx, task.ID, updater); err != nil {
+				logging.Get().Err(err).Int64("taskID", task.ID).Msg("UpdateExportTask")
 			}
 		}()
-
 	}
 
 	response.JSONOK(ctx, response.WithItem(ResponseMsg{Msg: "创建导出任务成功", TaskID: task.ID, FilePath: task.FilePath}))
@@ -242,7 +249,10 @@ func (s *ExportApiSrv) CreateScanResultExportTask(ctx *gin.Context) {
 	if data.TaskType == model.ExportHtml {
 		go func() {
 			if err := s.exportSrv.CreateScanTaskImage(ctx, task.ID, data.Parameter.ScanTaskID); err != nil {
-				response.JSONError(ctx, err)
+				logging.Get().Err(err).Int64("taskID", task.ID).Msg("CreateSearchImage")
+			}
+			updater := map[string]interface{}{"start_at": consts.ExportHtmlReady}
+			if err := s.exportSrv.UpdateExportTask(ctx, task.ID, updater); err != nil {
 				return
 			}
 		}()

@@ -15,6 +15,7 @@ type ExportTaskInterface interface {
 	CreateExportTask(ctx context.Context, data *model.ExportTensorTask) error
 	SearchExportTask(ctx context.Context, executeType string, filter *model.Filter) ([]model.ExportTensorTask, int64, error)
 	GetExportTask(ctx context.Context, id int64) (*model.ExportTensorTask, error)
+	UpdateExportTask(ctx context.Context, id int64, updater map[string]interface{}) error
 	CheckScanTask(ctx context.Context, scanTaskID int64) (*ExportLimit, error)
 	CreateSearchImage(ctx context.Context, taskID int64, param model.ImageListParam) error
 	CreateScanTaskImage(ctx context.Context, taskID int64, scanGroupID int64) error
@@ -27,6 +28,17 @@ type ExportTaskSrv struct {
 	ScanTaskDal             store.ScanTaskDal
 	MaxImageByOneExportTask int64
 }
+
+func (s *ExportTaskSrv) UpdateExportTask(ctx context.Context, id int64, updater map[string]interface{}) error {
+	if id <= 0 || len(updater) == 0 {
+		return fmt.Errorf("no id or no updater")
+	}
+	if err := s.ExportDal.UpdateExportTensorTask(ctx, fmt.Sprintf("id = %d", id), updater, nil); err != nil {
+		logging.Get().Err(err).Int64("taskID", id).Msg("UpdateExportTask")
+	}
+	return nil
+}
+
 type ImageSrvInterface interface {
 	ListImageWithScanInfo(ctx context.Context, param model.ImageListParam, filter *model.Filter) ([]*model.ImageListResponse, int64, error)
 }

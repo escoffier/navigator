@@ -344,14 +344,15 @@ type SearchExportVulnDuplicateParam struct {
 }
 
 type SearchExportTensorTask struct {
-	ExecuteType    []string
-	TaskType       string
-	Parameter      string
-	Finished       string
-	Failure        string
-	ID             int64
-	NotIds         []int64
-	ExpirationDate time.Time
+	ExecuteType     []string
+	TaskType        string
+	Parameter       string
+	Finished        string
+	Failure         string
+	ID              int64
+	NotIds          []int64
+	ExpirationDate  time.Time
+	ExportHtmlReady string
 }
 
 type SearchExportTaskImageParam struct {
