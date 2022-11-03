@@ -79,23 +79,23 @@ type ImageAttrResponse struct {
 }
 
 type ImageListParam struct {
-	Online            string         `json:"online"`            // 在线 "true",离线："false"
-	Keyword           string         `json:"keyword"`           // 关键字搜索
-	FromType          string         `json:"fromType"`          // 节点镜像："node" 仓库镜像:"registry"
-	SecurityIssue     []uint64       `json:"securityIssue"`     // 安全问题: 前端传字符串
-	ImageAttr         ImageAttrParam `json:"-"`                 // 镜像属性
-	ImageAttrView     []string       `json:"imageAttr"`         // 镜像属性,前端以列表的方式传递
-	ImageIds          []int64        `json:"imageIds"`          // 镜像ID列表
-	ScanStatus        []string       `json:"scanStatus"`        // 扫描状态
-	ScanStatusFlag    uint64         `json:"-"`                 // 扫描状态(对应数据库中的数据)
-	JustReturnImage   bool           `json:"justReturnImage"`   // 只返回镜像信息
-	ReturnMalicious   bool           `json:"returnMalicious"`   // 是否返回恶义文件
-	UUIDs             []uint32       `json:"uuids"`             // 镜像uuid
-	Projects          []string       `json:"projects"`          // 仓库和repo的筛选
-	NodeHostname      string         `json:"nodeHostname"`      // 节点名精确匹配
-	AttrIntersection  string         `json:"attrIntersection"`  // 属性交集还是并集 and or
-	IssueIntersection string         `json:"issueIntersection"` // 安全问题交集还是并集 and or
-
+	Online                   string         `json:"online"`                   // 在线 "true",离线："false"
+	Keyword                  string         `json:"keyword"`                  // 关键字搜索
+	FromType                 string         `json:"fromType"`                 // 节点镜像："node" 仓库镜像:"registry"
+	SecurityIssue            []uint64       `json:"securityIssue"`            // 安全问题: 前端传字符串
+	ImageAttr                ImageAttrParam `json:"-"`                        // 镜像属性
+	ImageAttrView            []string       `json:"imageAttr"`                // 镜像属性,前端以列表的方式传递
+	ImageIds                 []int64        `json:"imageIds"`                 // 镜像ID列表
+	ScanStatus               []string       `json:"scanStatus"`               // 扫描状态
+	ScanStatusFlag           uint64         `json:"-"`                        // 扫描状态(对应数据库中的数据)
+	JustReturnImage          bool           `json:"justReturnImage"`          // 只返回镜像信息
+	ReturnMalicious          bool           `json:"returnMalicious"`          // 是否返回恶义文件
+	UUIDs                    []uint32       `json:"uuids"`                    // 镜像uuid
+	Projects                 []string       `json:"projects"`                 // 仓库和repo的筛选
+	NodeHostname             string         `json:"nodeHostname"`             // 节点名精确匹配
+	AttrIntersection         string         `json:"attrIntersection"`         // 属性交集还是并集 and or
+	IssueIntersection        string         `json:"issueIntersection"`        // 安全问题交集还是并集 and or
+	NotNeedDistinguishOnline bool           `json:"notNeedDistinguishOnline"` // 是否需要确认镜像是在线还是离线
 	//  以下是镜像扫描时的参数
 	ImageScanTaskInfo ImageScanTaskInfo `json:"imageScanTaskInfo"`
 	StartID           int64             `json:"startID"`
