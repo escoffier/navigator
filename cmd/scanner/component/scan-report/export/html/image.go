@@ -57,6 +57,7 @@ func NewExportImageHtmlSrv(
 
 const (
 	MaxVulnImages = 5000
+	DefaultLimit  = 20
 	MaxImages     = 500
 )
 
@@ -120,7 +121,7 @@ func (s *ExportImageHtmlSrv) GetImages(ctx context.Context, taskID int64, starID
 			imageIds = append(imageIds, taskImages[i].ImageID)
 		}
 
-		images, _, err := s.ImageSrv.ListImageWithScanInfo(ctx, model.ImageListParam{ImageIds: imageIds, ReturnMalicious: true}, nil)
+		images, _, err := s.ImageSrv.ListImageWithScanInfo(ctx, model.ImageListParam{ImageIds: imageIds, ReturnMalicious: true, NotNeedDistinguishOnline: true}, nil)
 		if err != nil {
 			logging.Get().Err(err).Int64("taskID", taskID).Int64("startID", starID).Msg("ExportImageHtmlSrv GetImages.ListImageWithScanInfo")
 			return nil, err
@@ -205,7 +206,7 @@ func (s *ExportImageHtmlSrv) GetVirus(ctx context.Context, taskID int64) ([]Viru
 			taskImageIds = append(taskImageIds, taskImages[i].ImageID)
 		}
 
-		param := model.ImageListParam{ImageIds: taskImageIds, ReturnMalicious: true}
+		param := model.ImageListParam{ImageIds: taskImageIds, ReturnMalicious: true, NotNeedDistinguishOnline: true}
 		images, _, err := s.ImageSrv.ListImageWithScanInfo(ctx, param, nil)
 		if err != nil {
 			logging.Get().Err(err).Int64("taskID", taskID).Interface("param", param).Msg("ExportImageHtmlSrv GetVirus.ListImageWithScanInfo")
@@ -260,16 +261,18 @@ func (s *ExportImageHtmlSrv) GetVirus(ctx context.Context, taskID int64) ([]Viru
 }
 
 // 按层取漏洞信息 canFixed:"true"，取可修复的，"false"取不可修复的，""表示取全部
-func (s *ExportImageHtmlSrv) GetExportVulns(ctx context.Context, taskID int64, severity int, canFixed string, starID int64) (*VulnWithImageResponse, error) {
-
+func (s *ExportImageHtmlSrv) GetExportVulns(ctx context.Context, taskID int64, severity int, canFixed string, starID, limit int64) (*VulnWithImageResponse, error) {
+	if limit <= 0 {
+		limit = DefaultLimit
+	}
 	logging.Get().Info().Int64("taskID", taskID).Int("severity", severity).Str("canFixed", canFixed).Int64("startID", starID).Msg("ExportImageHtmlSrv.GetExportVulns start")
 
 	res := &VulnWithImageResponse{
 		Vulns: make([]VulnWithImage, 0),
 	}
 	uniqueVulns := make([]uint64, 0)
+	count := 0
 	for {
-		count := 0
 		// 分批获取漏洞
 		filter := &model.Filter{Limit: consts.DefaultLimit, SortFiled: "id", SortBy: consts.SortByAsc}
 		vulnImages, err := s.ExportTaskDal.SearchHtmlVulnImage(ctx, store.SearchHtmlVulnImageParam{TaskID: taskID, StartID: starID, Severity: severity, CanFixed: canFixed}, filter)
@@ -290,9 +293,10 @@ func (s *ExportImageHtmlSrv) GetExportVulns(ctx context.Context, taskID int64, s
 				Images:     vulnImages[i].Images,
 				UniqueVuln: vulnImages[i].UniqueVuln,
 			})
-			count = count + len(vulnImages[i].Images)
+			// 需求调整，首页漏洞列表需要分页
+			count++
 
-			if count > MaxVulnImages {
+			if count >= int(limit) {
 				logging.Get().Info().Int64("taskID", taskID).Int("severity", severity).Str("canFixed", canFixed).Int64("startID", starID).Msg("ExportImageHtmlSrv.GetExportVulns partial success")
 				break
 			}
@@ -379,7 +383,7 @@ func (s *ExportImageHtmlSrv) GetImageRisk(ctx context.Context, taskID, imageID i
 	logging.Get().Info().Int64("taskID", taskID).Int64("imageID", imageID).Msg("ExportImageHtmlSrv.GetImageRisk start")
 
 	// 获取当前镜像
-	images, _, err := s.ImageSrv.ListImageWithScanInfo(ctx, model.ImageListParam{ImageIds: []int64{imageID}}, nil)
+	images, _, err := s.ImageSrv.ListImageWithScanInfo(ctx, model.ImageListParam{ImageIds: []int64{imageID}, NotNeedDistinguishOnline: true}, nil)
 	if err != nil {
 		logging.Get().Err(err).Int64("taskID", taskID).Int64("imageID", imageID).Msg("ExportImageHtmlSrv GetImageRisk")
 		return nil, err
@@ -464,7 +468,7 @@ func (s *ExportImageHtmlSrv) createRiskOverView(ctx context.Context, taskID int6
 			taskImageIds = append(taskImageIds, taskImages[i].ImageID)
 		}
 
-		param := model.ImageListParam{ImageIds: taskImageIds}
+		param := model.ImageListParam{ImageIds: taskImageIds, NotNeedDistinguishOnline: true}
 		images, _, err := s.ImageSrv.ListImageWithScanInfo(ctx, param, nil)
 		if err != nil {
 			logging.Get().Err(err).Int64("taskID", taskID).Interface("param", param).Msg("ExportImageHtmlSrv createRiskOverView.ListImageWithScanInfo")

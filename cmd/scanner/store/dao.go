@@ -621,7 +621,8 @@ func (s *ScannerOrm) GetImagesFromVuln(ctx context.Context, uniqueVuln uint64) (
 }
 
 func (s *ScannerOrm) GetOnlineImage(ctx context.Context, param GetOnlineImageParam) ([]OnlineImage, error) {
-	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*2)
+	// 中移的环境中资产的数据较多，这里设置一下较大的值
+	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*20)
 	defer cancelFunc()
 	res := make([]OnlineImage, 0)
 	db := s.rdb.Get().WithContext(ctx)

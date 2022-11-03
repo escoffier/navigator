@@ -12,7 +12,7 @@ type ExportHtmlInterface interface {
 	// 镜像列表
 	GetImages(ctx context.Context, taskID int64, starID int64) (*ImageResponse, error)
 	// 漏洞列表
-	GetExportVulns(ctx context.Context, taskID int64, severity int, canFixed string, starID int64) (*VulnWithImageResponse, error)
+	GetExportVulns(ctx context.Context, taskID int64, severity int, canFixed string, starID, limit int64) (*VulnWithImageResponse, error)
 	// 镜像的漏洞列表
 	GetImageVulns(ctx context.Context, taskID int64, imageID int64, severity int, starID int64) (*VulnWithImageResponse, error)
 	// 病毒列表

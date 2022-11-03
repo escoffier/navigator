@@ -69,6 +69,7 @@ func (s ExportHtmlApiSrv) GetImageVulns(ctx *gin.Context) {
 func (s ExportHtmlApiSrv) GetExportVulns(ctx *gin.Context) {
 	taskID := util.GetInt64FromQuery(ctx, "taskID")
 	startID := util.GetInt64FromQuery(ctx, "startID")
+	limit := util.GetInt64FromQuery(ctx, "limit")
 
 	severity := model.GetSeverityInt(ctx.Query("severity"))
 	if severity <= model.SeverityNegligibleInt || severity > model.SeverityCriticalInt {
@@ -83,7 +84,7 @@ func (s ExportHtmlApiSrv) GetExportVulns(ctx *gin.Context) {
 		return
 	}
 
-	res, err := s.ExportHtmlInterface.GetExportVulns(ctx, taskID, severity, canFixed, startID)
+	res, err := s.ExportHtmlInterface.GetExportVulns(ctx, taskID, severity, canFixed, startID, limit)
 	if err != nil {
 		response.JSONError(ctx, err)
 		return
