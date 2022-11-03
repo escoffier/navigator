@@ -47,10 +47,10 @@ func ModelToView(data model.ExportTensorTask) ExportTensorTaskView {
 		task.ExecuteType = consts.AuditExeTypeView
 	}
 
-	if data.StartAt == 0 {
+	if data.StartAt <= consts.ExportHtmlReady {
 		task.Status = consts.ExportStatusPending
 	}
-	if data.StartAt > 0 && data.FinishAt == 0 {
+	if data.StartAt > consts.ExportHtmlReady && data.FinishAt == 0 {
 		task.Status = consts.ExportStatusRunning
 	}
 	if data.FinishAt > 0 && data.ErrMsg == "" {

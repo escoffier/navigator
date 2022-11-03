@@ -36,4 +36,5 @@ const (
 	KoaStatusInprogress = "inprogress"
 	KoaStatusFailed     = "failed"
 	KoaAddr             = "http://localhost:8090"
+	ExportHtmlReady     = 1
 )

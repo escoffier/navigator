@@ -57,7 +57,7 @@ func NewExportImageHtmlSrv(
 
 const (
 	MaxVulnImages = 5000
-	DefaultLimit  = 20
+	DefaultLimit  = 1000
 	MaxImages     = 500
 )
 
@@ -271,58 +271,46 @@ func (s *ExportImageHtmlSrv) GetExportVulns(ctx context.Context, taskID int64, s
 		Vulns: make([]VulnWithImage, 0),
 	}
 	uniqueVulns := make([]uint64, 0)
-	count := 0
-	for {
-		// 分批获取漏洞
-		filter := &model.Filter{Limit: consts.DefaultLimit, SortFiled: "id", SortBy: consts.SortByAsc}
-		vulnImages, err := s.ExportTaskDal.SearchHtmlVulnImage(ctx, store.SearchHtmlVulnImageParam{TaskID: taskID, StartID: starID, Severity: severity, CanFixed: canFixed}, filter)
+	// 分批获取漏洞
+	filter := &model.Filter{Limit: limit, SortFiled: "id", SortBy: consts.SortByAsc}
+	vulnImages, err := s.ExportTaskDal.SearchHtmlVulnImage(ctx, store.SearchHtmlVulnImageParam{
+		TaskID: taskID, StartID: starID, Severity: severity, CanFixed: canFixed}, filter)
+	if err != nil {
+		logging.Get().Err(err).Int64("taskID", taskID).Msg("ExportImageHtmlSrv GetExportVulns SearchExportTaskImage")
+		return nil, err
+	}
+	if len(vulnImages) < int(limit) {
+		res.End = true
+	}
+	for i := range vulnImages {
+		res.StartID = vulnImages[i].ID
+		uniqueVulns = append(uniqueVulns, vulnImages[i].UniqueVuln)
+		res.Vulns = append(res.Vulns, VulnWithImage{
+			Images:     vulnImages[i].Images,
+			UniqueVuln: vulnImages[i].UniqueVuln,
+		})
+	}
+
+	// 查漏洞详情
+	if len(uniqueVulns) > 0 {
+		vulns, _, err := s.VulnDal.SearchVuln(ctx, store.SearchVulnParam{UniqueVulns: uniqueVulns,
+			ClassType: []string{report.ClassOSPkg, report.ClassConfig},
+		}, nil)
 		if err != nil {
 			logging.Get().Err(err).Int64("taskID", taskID).Msg("ExportImageHtmlSrv GetExportVulns SearchExportTaskImage")
 			return nil, err
 		}
-		if len(vulnImages) == 0 {
-			logging.Get().Info().Int64("taskID", taskID).Msg("ExportImageHtmlSrv GetExportVulns finished")
-			res.End = true
-			break
+		vulnMap := make(map[uint64]*model.Vuln)
+		for i := range vulns {
+			vulnMap[vulns[i].UniqueVuln] = vulns[i]
 		}
-		starID = vulnImages[len(vulnImages)-1].ID
-		for i := range vulnImages {
-			res.StartID = vulnImages[i].ID
-			uniqueVulns = append(uniqueVulns, vulnImages[i].UniqueVuln)
-			res.Vulns = append(res.Vulns, VulnWithImage{
-				Images:     vulnImages[i].Images,
-				UniqueVuln: vulnImages[i].UniqueVuln,
-			})
-			// 需求调整，首页漏洞列表需要分页
-			count++
-
-			if count >= int(limit) {
-				logging.Get().Info().Int64("taskID", taskID).Int("severity", severity).Str("canFixed", canFixed).Int64("startID", starID).Msg("ExportImageHtmlSrv.GetExportVulns partial success")
-				break
-			}
+		for i := range res.Vulns {
+			res.Vulns[i].VulnDetail = ModelToVulnDetail(vulnMap[res.Vulns[i].UniqueVuln])
 		}
-
-		// 查漏洞详情
-		if len(uniqueVulns) > 0 {
-			vulns, _, err := s.VulnDal.SearchVuln(ctx, store.SearchVulnParam{UniqueVulns: uniqueVulns,
-				ClassType: []string{report.ClassOSPkg, report.ClassConfig},
-			}, nil)
-			if err != nil {
-				logging.Get().Err(err).Int64("taskID", taskID).Msg("ExportImageHtmlSrv GetExportVulns SearchExportTaskImage")
-				return nil, err
-			}
-			vulnMap := make(map[uint64]*model.Vuln)
-			for i := range vulns {
-				vulnMap[vulns[i].UniqueVuln] = vulns[i]
-			}
-			for i := range res.Vulns {
-				res.Vulns[i].VulnDetail = ModelToVulnDetail(vulnMap[res.Vulns[i].UniqueVuln])
-			}
-		}
-		return res, nil
 	}
 
-	logging.Get().Info().Int64("taskID", taskID).Int("severity", severity).Str("canFixed", canFixed).Int64("startID", starID).Msg("ExportImageHtmlSrv.GetExportVulns finished")
+	logging.Get().Info().Int64("taskID", taskID).Int("severity", severity).Str("canFixed", canFixed).Int("vulns", len(res.Vulns)).
+		Int64("startID", starID).Bool("isEnd", res.End).Msg("ExportImageHtmlSrv.GetExportVulns finished")
 	return res, nil
 }
 
@@ -635,7 +623,7 @@ func (s *ExportImageHtmlSrv) createVulnImage(ctx context.Context, taskID int64) 
 			return err
 		}
 		if len(exportImages) == 0 {
-			logging.Get().Info().Int64("taskID", taskID).Msg("ExportImageHtmlSrv GetExportVulns finished")
+			logging.Get().Info().Int64("taskID", taskID).Msg("ExportImageHtmlSrv createVulnImage finished")
 			break
 		}
 		startID = exportImages[len(exportImages)-1].ID
@@ -719,10 +707,11 @@ func (s *ExportImageHtmlSrv) createVulnImage(ctx context.Context, taskID int64) 
 
 func (s *ExportImageHtmlSrv) Run(ctx context.Context) {
 	tasks, _, err := s.ExportTaskDal.SearchExportTensorTask(ctx, store.SearchExportTensorTask{
-		TaskType:    model.ExportHtml,
-		ExecuteType: []string{consts.ExportScanResult, consts.ExportImageSearch, consts.ExportSingleImage},
-		Finished:    consts.FalseString,
-		Failure:     consts.FalseString,
+		TaskType:        model.ExportHtml,
+		ExecuteType:     []string{consts.ExportScanResult, consts.ExportImageSearch, consts.ExportSingleImage},
+		Finished:        consts.FalseString,
+		Failure:         consts.FalseString,
+		ExportHtmlReady: consts.TrueString,
 	}, &model.Filter{Limit: 1})
 	if err != nil {
 		logging.Get().Err(err).Str("TaskType", model.ExportHtml).Msg("SearchExportTensorTask")

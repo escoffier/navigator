@@ -256,7 +256,9 @@ func (dal *ExportTaskDao) SearchExportTensorTask(ctx context.Context, parma Sear
 	if parma.TaskType != "" {
 		db = db.Where("task_type =  ? ", parma.TaskType)
 	}
-
+	if parma.ExportHtmlReady == consts.TrueString {
+		db = db.Where("start_at = ?", consts.ExportHtmlReady)
+	}
 	var count int64
 	if err := db.Count(&count).Error; err != nil {
 		return nil, 0, err
