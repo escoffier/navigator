@@ -93,7 +93,7 @@
     and not user_expected_terminal_shell_in_container_conditions
     and not tensorsec_namespace
   output: >
-    A shell was spawned in a container with an attached terminal (zh_msg=容器里产生shell，可能是黑客攻击或容器内应用产生,rule_type=Execution,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,
+    A shell was spawned in a container with an attached terminal (zh_msg=通过entrypoint/exec的shell进入容器,rule_type=Execution,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,
     original_info=user=%user.name user_loginuid=%user.loginuid %container.info
     shell=%proc.name parent=%proc.pname terminal=%proc.tty container_id=%container.id container_name=%container.name image=%container.image.repository)
   priority: WARNING
@@ -137,7 +137,7 @@
     Telnet runs inside container that allows remote code execution (zh_msg=黑客在容器内通过telnet反弹shell),rule_type=Execution,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_name=%proc.name,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,
     original_info=user=%user.name user_loginuid=%user.loginuid
     container_id=%container.id container_name=%container.name image=%container.image.repository:%container.image.tag
-    connection=%fd.name,client_ip=%fd.cip,client_port=%fd.cport,server_ip=%fd.rip,server_port=%fd.sport)
+    connection=%fd.name,client_ip=%fd.cip,client_port=%fd.cport,server_ip=%fd.sip,server_port=%fd.sport)
   priority: ALERT
   tags: [ATT&CK, network, process, mitre_execution]
 
@@ -158,7 +158,7 @@
     Ruby runs inside container that allows remote code execution (zh_msg=黑客在容器内通过ruby反弹shell),rule_type=Execution,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,
     original_info=user=%user.name user_loginuid=%user.loginuid
     container_id=%container.id container_name=%container.name image=%container.image.repository:%container.image.tag
-    connection=%fd.name,client_ip=%fd.cip,client_port=%fd.cport,server_ip=%fd.rip,server_port=%fd.sport)
+    connection=%fd.name,client_ip=%fd.cip,client_port=%fd.cport,server_ip=%fd.sip,server_port=%fd.sport)
   priority: ALERT
   tags: [ATT&CK, network, process, mitre_execution]
 
@@ -179,7 +179,7 @@
     awk runs inside container that allows remote code execution (zh_msg=黑客在容器内通过awk反弹shell),rule_type=Execution,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,evt.args=%evt.args
     original_info=user=%user.name user_loginuid=%user.loginuid
     container_id=%container.id container_name=%container.name image=%container.image.repository:%container.image.tag
-    connection=%fd.name,client_ip=%fd.cip,client_port=%fd.cport,server_ip=%fd.rip,server_port=%fd.sport)
+    connection=%fd.name,client_ip=%fd.cip,client_port=%fd.cport,server_ip=%fd.sip,server_port=%fd.sport)
   priority: ALERT
   tags: [ATT&CK, network, process, mitre_execution]
 
@@ -196,7 +196,7 @@
   desc: Reverse shell through socket and dup
   condition: evt.type=dup and container and fd.num in (0, 1, 2) and fd.type in ("ipv4", "ipv6") and not k8s.pod.name contains "98166d" and not k8s.pod.name contains "42cca6"
   output: >
-    Reverse shell through socket and dup (zh_msg=黑客在容器内通过socket和dup反弹shell,rule_type=Execution,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name %container.info process=%proc.name parent=%proc.pname terminal=%proc.tty container_id=%container.id container_name=%container.name image=%container.image.repository fd_name=%fd.name fd.num=%fd.num fd.type=%fd.type connection=%fd.name,client_ip=%fd.cip,client_port=%fd.cport,server_ip=%fd.rip,server_port=%fd.sport)
+    Reverse shell through socket and dup (zh_msg=黑客在容器内通过socket和dup反弹shell,rule_type=Execution,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name %container.info process=%proc.name parent=%proc.pname terminal=%proc.tty container_id=%container.id container_name=%container.name image=%container.image.repository fd_name=%fd.name fd.num=%fd.num fd.type=%fd.type connection=%fd.name,client_ip=%fd.cip,client_port=%fd.cport,server_ip=%fd.sip,server_port=%fd.sport)
   priority: ALERT
   tags: [ATT&CK, container, shell, mitre_execution]
 

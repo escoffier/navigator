@@ -16,6 +16,7 @@
     and not proc.name in (known_system_procs_network_activity_binaries)
     and not login_doing_dns_lookup
     and not user_expected_system_procs_network_activity_conditions
+    and container
   output: >
     Known system binary sent/received network traffic
     (zh_msg=网络流量中包含系统二进制，可能从外部下载/上载应用,rule_type=Exfiltration,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid connection=%fd.name container_id=%container.id container_name=%container.name image=%container.image.repository)
@@ -232,7 +233,7 @@
   condition: net_miner_pool and not trusted_images_query_miner_domain_dns
 #  enabled: false
   output: >
-    Outbound connection to IP/Port flagged by cryptoioc.ch (zh_msg=与cryptoioc.ch公开的IP/端口的连接，可能存在挖矿行为,rule_type=Exfiltration,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=port=%fd.rport ip=%fd.rip container=%container.info image=%container.image.repository,container_id=%container.id,container_name=%container.name)
+    Outbound connection to IP/Port flagged by cryptoioc.ch (zh_msg=与cryptoioc.ch公开的IP/端口的连接，可能存在挖矿行为,rule_type=Exfiltration,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,connection=%fd.name,client_ip=%fd.cip,client_port=%fd.cport,server_ip=%fd.sip,server_port=%fd.sport,domain_name=%fd.sip.name,container=%container.info,image=%container.image.repository,container_id=%container.id,container_name=%container.name)
   priority: ALERT
   tags: [ATT&CK, network, mitre_execution, strict]
 
@@ -302,7 +303,7 @@
   condition: >
    (inbound_outbound) and allowed_ssh_hosts and container
   output: >
-    Try ssh connection in container (zh_msg=检测到在容器内尝试ssh连接,rule_type=Exfiltration,,connection=%fd.name,client_ip=%fd.cip,client_port=%fd.cport,server_ip=%fd.rip,server_port=%fd.sport,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,container_id=%container.id,container_name=%container.name)
+    Try ssh connection in container (zh_msg=检测到在容器内尝试ssh连接,rule_type=Exfiltration,connection=%fd.name,client_ip=%fd.cip,client_port=%fd.cport,server_ip=%fd.sip,server_port=%fd.sport,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,container_id=%container.id,container_name=%container.name)
   priority: WARNING
   tags: [ATT&CK]
 
@@ -320,7 +321,7 @@
   condition: >
     (inbound_outbound) and allowed_ssh_hosts and not container and not proc.cmdline = "sshd -D"
   output: >
-    Try ssh connection in host (zh_msg=检测到在主机上尝试ssh连接,rule_type=Exfiltration,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,connection=%fd.name,client_ip=%fd.cip,client_port=%fd.cport,server_ip=%fd.rip,server_port=%fd.sport user=%user.name user_loginuid=%user.loginuid container_id=%container.id container_name=%container.name image=%container.image.repository)
+    Try ssh connection in host (zh_msg=检测到在主机上尝试ssh连接,rule_type=Exfiltration,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,connection=%fd.name,client_ip=%fd.cip,client_port=%fd.cport,server_ip=%fd.sip,server_port=%fd.sport user=%user.name user_loginuid=%user.loginuid container_id=%container.id container_name=%container.name image=%container.image.repository)
   priority: WARNING
   tags: [ATT&CK, network, mitre_remote_service]
 
@@ -338,7 +339,7 @@
   condition: >
     easy_outbound and proc.name in (scan_ports_tool_binaries) and pentest_ports
   output: >
-    Scanning ports detected (zh_msg=检测到正在扫描端口,rule_type=Exfiltration,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,connection=%fd.name,client_ip=%fd.cip,client_port=%fd.cport,server_ip=%fd.rip,server_port=%fd.sport user=%user.name user_loginuid=%user.loginuid container_id=%container.id container_name=%container.name image=%container.image.repository)
+    Scanning ports detected (zh_msg=检测到正在扫描端口,rule_type=Exfiltration,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,connection=%fd.name,client_ip=%fd.cip,client_port=%fd.cport,server_ip=%fd.sip,server_port=%fd.sport user=%user.name user_loginuid=%user.loginuid container_id=%container.id container_name=%container.name image=%container.image.repository)
   priority: ALERT
   tags: [ATT&CK, network, mitre_remote_service]
 
@@ -356,6 +357,6 @@
   condition: >
     easy_outbound and proc.name in (brute_force_binaries) and pentest_ports
   output: >
-    Brute force hacking detected (zh_msg=检测到正在暴力破解,rule_type=Exfiltration,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,connection=%fd.name,client_ip=%fd.cip,client_port=%fd.cport,server_ip=%fd.rip,server_port=%fd.sport user=%user.name user_loginuid=%user.loginuid container_id=%container.id container_name=%container.name image=%container.image.repository)
+    Brute force hacking detected (zh_msg=检测到正在暴力破解,rule_type=Exfiltration,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,connection=%fd.name,client_ip=%fd.cip,client_port=%fd.cport,server_ip=%fd.sip,server_port=%fd.sport user=%user.name user_loginuid=%user.loginuid container_id=%container.id container_name=%container.name image=%container.image.repository)
   priority: ALERT
   tags: [ATT&CK, network, mitre_remote_service]

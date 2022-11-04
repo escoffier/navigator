@@ -6,6 +6,18 @@ goat_dict = {'chroot':'CHROOT-CONTAINER-ESCAPE', 'dind':'docker-in-docker', 'inf
 
 watson_ids ={'redis':'51c1c6', 'es':'75fb1c', 'tomcat':'b0f328', 'jenkins':'99a7ca', 'jupyter':'ddc305', 'ftp':'42cca6', 'ssh':'98166d', 'mysql':'588ee1'}
 
+http_miner_domains = [
+    "ca.minexmr.com",
+    "de.minexmr.com",
+    "fr.minexmr.com",
+    "mine.moneropool.com",
+    "mine.xmrpool.net",
+    "pool.minexmr.com",
+    "sg.minexmr.com",
+    "xmr.crypto-pool.fr",
+    "donate.v2.xmrig.com"
+    ]
+
 script_dir = '/test/'
 
 
@@ -63,7 +75,9 @@ if args.rs:
 	show_results("\033[31m"+"Successfully exploit all reverse shelll attacks\033[0m")
 
 if args.cm:
-	os.system('/test/crypto_miner/script.sh')
+	for domain in http_miner_domains:
+		res = os.popen("curl " + domain + " --connect-timeout 3").read()
+		print(res)
 	show_results("\033[31m"+"Successfully exploit crypto miner attacks\033[0m")
 
 if args.dp:
@@ -74,7 +88,7 @@ if args.watson:
 	if os.getenv("RDB_HOST"):
 		RDB_HOST = os.getenv("RDB_HOST")
 	else:
-		RDB_HOST = 'tensorsec-mysql-ha-leader'
+		RDB_HOST = 'tensorsec-mysql-primary.tensorsec.svc.cluster.local'
 	if os.getenv("RDB_PORT"):
 		RDB_PORT = int(os.getenv("RDB_PORT"))
 	else:
