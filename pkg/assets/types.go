@@ -1,6 +1,7 @@
 package assets
 
 import (
+	// don't replace it; need the order of fields for marshal
 	"encoding/json"
 	"strings"
 	"time"
@@ -76,7 +77,10 @@ func (r *TensorResource) KeyName() string {
 func (r *TensorResource) IdentityString() string {
 	sb := strings.Builder{}
 	if r.PodTemplate != nil {
-		sb.WriteString(r.PodTemplate.ResourceVersion)
+		specBytes, err := json.Marshal(r.PodTemplate.Spec)
+		if err == nil {
+			sb.WriteString(string(specBytes))
+		}
 	}
 	return sb.String()
 }
@@ -232,9 +236,9 @@ func (r *TensorNode) SetDuplicatedChecked(checked bool) {
 func (p *TensorNode) TailorSelf() {
 	p.Spec = corev1.NodeSpec{}
 	p.Status = corev1.NodeStatus{
-		Phase:    p.Status.Phase,
-		Addresses: p.Status.Addresses,
-		NodeInfo: p.Status.NodeInfo,
+		Phase:      p.Status.Phase,
+		Addresses:  p.Status.Addresses,
+		NodeInfo:   p.Status.NodeInfo,
 		Conditions: p.Status.Conditions,
 	}
 }
@@ -258,7 +262,6 @@ func (p *TensorNode) IdentityString() string {
 		sb.WriteString(string(addrBytes))
 	}
 	sb.WriteRune('\n')
-	
 	ninfo, err := json.Marshal(p.Status.NodeInfo)
 	if err == nil {
 		sb.WriteString(string(ninfo))
