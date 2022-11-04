@@ -408,6 +408,10 @@ func (ir *ImageListResponse) Deserialize() {
 
 		ir.RiskScore = 100 - (ir.ScanInfo.VulnScore + ir.ScanInfo.SensitiveScore + math.Min(ir.ScanInfo.WebshellScore+ir.ScanInfo.VirusScore, MaxWebshellAndVirusScore))
 
+		if ExistFlag(ir.Flag, FlagImageNotScan) && ir.RiskScore == 100 {
+			ir.RiskScore = 0
+		}
+
 		// 把恶义文件加上
 		ir.Malicious = make([]VirusInfo, 0)
 		for i := range ir.ScanInfo.MaliciousInfo {
