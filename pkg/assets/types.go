@@ -1,16 +1,18 @@
 package assets
 
 import (
-	"gitlab.com/security-rd/go-pkg/logging"
-	rbacv1 "k8s.io/api/rbac/v1"
-	defensev1 "scm.tensorsecurity.cn/tensorsecurity-rd/api/pkg/apis/defense/v1"
+	"encoding/json"
+	"strings"
 	"time"
 
+	"gitlab.com/security-rd/go-pkg/logging"
 	appsv1 "k8s.io/api/apps/v1"
 	batchv1 "k8s.io/api/batch/v1"
 	batchv1beta "k8s.io/api/batch/v1beta1"
 	corev1 "k8s.io/api/core/v1"
+	rbacv1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	defensev1 "scm.tensorsecurity.cn/tensorsecurity-rd/api/pkg/apis/defense/v1"
 )
 
 type ResourceKind string
@@ -51,6 +53,32 @@ type TensorResource struct {
 	LabelSelector *metav1.LabelSelector   `json:"label_selector"`
 	PodTemplate   *corev1.PodTemplateSpec `json:"pod_template"`
 	CreateTime    time.Time               `json:"create_time"`
+	dupChecked    bool
+}
+
+func (r *TensorResource) SetDuplicatedChecked(checked bool) {
+	r.dupChecked = checked
+}
+func (r *TensorResource) DuplicatedChecked() bool {
+	return r.dupChecked
+}
+func (r *TensorResource) KeyName() string {
+	sb := strings.Builder{}
+	sb.WriteString(r.Cluster)
+	sb.WriteRune('\n')
+	sb.WriteString(string(r.Kind))
+	sb.WriteRune('\n')
+	sb.WriteString(r.Name)
+	sb.WriteRune('\n')
+	sb.WriteString(r.Namespace)
+	return sb.String()
+}
+func (r *TensorResource) IdentityString() string {
+	sb := strings.Builder{}
+	if r.PodTemplate != nil {
+		sb.WriteString(r.PodTemplate.ResourceVersion)
+	}
+	return sb.String()
 }
 
 type PoolInfo struct {
@@ -62,34 +90,203 @@ type PoolInfo struct {
 
 type TensorPod struct {
 	*corev1.Pod
-	Cluster  string                 `json:"cluster"`
-	Owner    *metav1.OwnerReference `json:"owner"`
-	PoolInfo *PoolInfo              `json:"poolInfo"`
+	Cluster    string                 `json:"cluster"`
+	Owner      *metav1.OwnerReference `json:"owner"`
+	PoolInfo   *PoolInfo              `json:"poolInfo"`
+	dupChecked bool
+}
+
+func (r *TensorPod) DuplicatedChecked() bool {
+	return r.dupChecked
+}
+func (r *TensorPod) SetDuplicatedChecked(checked bool) {
+	r.dupChecked = checked
+}
+func (p *TensorPod) KeyName() string {
+	sb := strings.Builder{}
+	sb.WriteString(p.Cluster)
+	sb.WriteRune('\n')
+	sb.WriteString("Pod")
+	sb.WriteRune('\n')
+	sb.WriteString(p.Name)
+	sb.WriteRune('\n')
+	sb.WriteString(p.Namespace)
+	return sb.String()
+}
+func (p *TensorPod) IdentityString() string {
+	sb := strings.Builder{}
+	podSpecBytes, err := json.Marshal(p.Spec)
+	if err == nil {
+		sb.WriteString(string(podSpecBytes))
+	}
+	return sb.String()
 }
 
 type TensorRole struct {
 	Cluster string
 	*rbacv1.Role
+	dupChecked bool
+}
+
+func (r *TensorRole) DuplicatedChecked() bool {
+	return r.dupChecked
+}
+func (r *TensorRole) SetDuplicatedChecked(checked bool) {
+	r.dupChecked = checked
+}
+func (p *TensorRole) KeyName() string {
+	sb := strings.Builder{}
+	sb.WriteString(p.Cluster)
+	sb.WriteRune('\n')
+	sb.WriteString("Role")
+	sb.WriteRune('\n')
+	sb.WriteString(p.Name)
+	sb.WriteRune('\n')
+	sb.WriteString(p.Namespace)
+	return sb.String()
+}
+func (p *TensorRole) IdentityString() string {
+	sb := strings.Builder{}
+	sb.WriteString(p.ResourceVersion)
+	return sb.String()
 }
 
 type TensorClusterRole struct {
 	Cluster string
 	*rbacv1.ClusterRole
+	dupChecked bool
+}
+
+func (r *TensorClusterRole) DuplicatedChecked() bool {
+	return r.dupChecked
+}
+func (r *TensorClusterRole) SetDuplicatedChecked(checked bool) {
+	r.dupChecked = checked
+}
+
+func (p *TensorClusterRole) KeyName() string {
+	sb := strings.Builder{}
+	sb.WriteString(p.Cluster)
+	sb.WriteRune('\n')
+	sb.WriteString("Role")
+	sb.WriteRune('\n')
+	sb.WriteString(p.Name)
+	sb.WriteRune('\n')
+	sb.WriteString(p.Namespace)
+	return sb.String()
+}
+func (p *TensorClusterRole) IdentityString() string {
+	sb := strings.Builder{}
+	sb.WriteString(p.ResourceVersion)
+	return sb.String()
 }
 
 type TensorNamespace struct {
 	Cluster string
 	*corev1.Namespace
+	dupChecked bool
+}
+
+func (r *TensorNamespace) DuplicatedChecked() bool {
+	return r.dupChecked
+}
+func (r *TensorNamespace) SetDuplicatedChecked(c bool) {
+	r.dupChecked = c
+}
+func (p *TensorNamespace) KeyName() string {
+	sb := strings.Builder{}
+	sb.WriteString(p.Cluster)
+	sb.WriteRune('\n')
+	sb.WriteString("Namespace")
+	sb.WriteRune('\n')
+	sb.WriteString(p.Name)
+	return sb.String()
+}
+func (p *TensorNamespace) IdentityString() string {
+	return ""
 }
 
 type TensorNode struct {
 	Cluster string
 	*corev1.Node
+	dupChecked bool
+}
+
+func (r *TensorNode) DuplicatedChecked() bool {
+	return r.dupChecked
+}
+func (p *TensorNode) KeyName() string {
+	sb := strings.Builder{}
+	sb.WriteString(p.Cluster)
+	sb.WriteRune('\n')
+	sb.WriteString("Node")
+	sb.WriteRune('\n')
+	sb.WriteString(p.Name)
+	return sb.String()
+}
+
+func (r *TensorNode) SetDuplicatedChecked(checked bool) {
+	r.dupChecked = checked
+}
+
+func (p *TensorNode) TailorSelf() {
+	p.Spec = corev1.NodeSpec{}
+	p.Status = corev1.NodeStatus{
+		Phase:    p.Status.Phase,
+		NodeInfo: p.Status.NodeInfo,
+	}
+}
+func (p *TensorNode) IdentityString() string {
+	sb := strings.Builder{}
+	// specBytes, err := json.Marshal(p.Spec)
+	// if err == nil {
+	// 	sb.WriteString(string(specBytes))
+	// }
+	// sb.WriteRune('\n')
+	sb.WriteString(string(p.Status.Phase))
+	sb.WriteRune('\n')
+	condBytes, err := json.Marshal(p.Status.Conditions)
+	if err == nil {
+		sb.WriteString(string(condBytes))
+	}
+	sb.WriteRune('\n')
+
+	ninfo, err := json.Marshal(p.Status.NodeInfo)
+	if err == nil {
+		sb.WriteString(string(ninfo))
+	}
+
+	return sb.String()
 }
 
 type TensorHoneySpot struct {
 	Cluster string
 	*defensev1.Honeypot
+	dupChecked bool
+}
+
+func (r *TensorHoneySpot) DuplicatedChecked() bool {
+	return r.dupChecked
+}
+func (r *TensorHoneySpot) SetDuplicatedChecked(checked bool) {
+	r.dupChecked = checked
+}
+
+func (r *TensorHoneySpot) KeyName() string {
+	sb := strings.Builder{}
+	sb.WriteString(r.Cluster)
+	sb.WriteRune('\n')
+	sb.WriteString(string(r.Kind))
+	sb.WriteRune('\n')
+	sb.WriteString(r.Name)
+	sb.WriteRune('\n')
+	sb.WriteString(r.Namespace)
+	return sb.String()
+}
+func (r *TensorHoneySpot) IdentityString() string {
+	sb := strings.Builder{}
+	sb.WriteString(r.ResourceVersion)
+	return sb.String()
 }
 
 func NewResourceFromPodNoOwnerOrStaticPod(cluster string, pod *corev1.Pod) *TensorResource {

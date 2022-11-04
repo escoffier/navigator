@@ -3,11 +3,10 @@ package networktopo
 import (
 	"context"
 	"errors"
-	"strconv"
 	"sync"
 	"time"
 
-	"github.com/ReneKroon/ttlcache/v2"
+	"github.com/jellydator/ttlcache/v3"
 	"gitlab.com/piccolo_su/vegeta/pkg/dal"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
@@ -49,16 +48,14 @@ func Get(ctx context.Context) (*Service, bool) {
 
 type Service struct {
 	rdb       *databases.RDBInstance
-	topoCache *ttlcache.Cache
+	topoCache *ttlcache.Cache[uint32, struct{}]
 }
 
-func newTopoCache() *ttlcache.Cache {
-	cache := ttlcache.NewCache()
-	cache.SetCacheSizeLimit(cacheSize)
-	err := cache.SetTTL(cacheTTL)
-	if err != nil {
-		logging.Get().Error().Msgf("set ttl error, %v", err)
-	}
+func newTopoCache() *ttlcache.Cache[uint32, struct{}] {
+	cache := ttlcache.New[uint32, struct{}](
+		ttlcache.WithTTL[uint32, struct{}](cacheTTL),
+		ttlcache.WithCapacity[uint32, struct{}](cacheSize),
+	)
 	return cache
 }
 func newNetworkTopoService(rdb *databases.RDBInstance) *Service {
@@ -139,15 +136,16 @@ func (n *Service) checkCache(flow *model.TensorNetworkFlow) bool {
 	if flow.UUID == 0 {
 		return false
 	}
-	_, err := n.topoCache.Get(strconv.FormatUint(uint64(flow.UUID), 10))
-	return err == nil
+	item := n.topoCache.Get(flow.UUID)
+	return item != nil
 }
 
 func (n *Service) putToCache(flow *model.TensorNetworkFlow) error {
 	if n.topoCache == nil {
 		return nil
 	}
-	return n.topoCache.Set(strconv.FormatUint(uint64(flow.UUID), 10), struct{}{})
+	n.topoCache.Set(flow.UUID, struct{}{}, cacheTTL)
+	return nil
 }
 
 func (n *Service) addNetworkTopo(ctx context.Context, flow *model.TensorNetworkFlow, db *gorm.DB, t time.Time) error {

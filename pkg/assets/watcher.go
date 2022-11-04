@@ -16,6 +16,9 @@ type AssetsAction uint8
 type WatchedType string
 
 const (
+	cacheMaxSize = 128 * 1024
+	cacheTTL     = 3 * time.Hour
+
 	ActionAdd AssetsAction = iota
 	ActionDelete
 	ActionUpdate
@@ -75,6 +78,7 @@ type Watcher struct {
 	callbacksOfClusters *sync.Map // clusterKey-> clusterCallbacks
 	topic               string
 	groupID             string
+	dupCache            *DuplicationCheckingCache
 
 	ccMutex sync.Mutex
 }
@@ -86,6 +90,7 @@ func NewWatcher(reader mq.Reader, topic, groupID string) *Watcher {
 		callbacksOfClusters: new(sync.Map),
 		topic:               topic,
 		groupID:             groupID,
+		dupCache:            NewDuplicationCheckingCache(cacheTTL, cacheMaxSize),
 	}
 	return w
 }
@@ -106,7 +111,7 @@ func (w *Watcher) getOrCreateClusterCallbacks(clusterKey string) clusterCallback
 	}
 	cbs := clusterCallbacks{
 		clusterKey: clusterKey,
-		callbacks: make([]ClusterCallback, len(w.callbacks)),
+		callbacks:  make([]ClusterCallback, len(w.callbacks)),
 	}
 	for i, cb := range w.callbacks {
 		cbs.callbacks[i] = cb.BeforeWatchNewCluster(context.Background(), clusterKey, 0)
@@ -140,7 +145,7 @@ func (w *Watcher) process(ctx context.Context, message kafka.Message) error {
 	switch event.Type {
 	case AssetsSync:
 		logging.Get().Info().Msgf("cluster %s synced", string(message.Key))
-		
+
 		for _, cb := range cbs.callbacks {
 			cb.AfterDataSynced(context.Background(), true, string(message.Key))
 		}
@@ -151,9 +156,28 @@ func (w *Watcher) process(ctx context.Context, message kafka.Message) error {
 			logging.Get().Err(err).Msg("unmarshal TensorResource err")
 			return err
 		}
-		for _, cb := range cbs.callbacks {
-			cb.OnTensorResourceEvent(res, nil, event.Action)
+
+		if res.Namespace == "" {
+			logging.Get().Warn().Msgf("action: %v empty keyname: %+v", event.Action, res)
 		}
+
+		if event.Action == ActionDelete || res.DuplicatedChecked() || !w.dupCache.Check(res) {
+			errored := false
+			for _, cb := range cbs.callbacks {
+
+				err := cb.OnTensorResourceEvent(res, nil, event.Action)
+				if err != nil {
+					logging.Get().Err(err).Str("key", res.KeyName()).Msg("process res err")
+					errored = true
+				}
+			}
+			if !errored && !res.DuplicatedChecked() && event.Action != ActionDelete {
+				w.dupCache.Put(res)
+			}
+		} else {
+			logging.Get().Info().Str("key", res.KeyName()).Str("idStr", res.IdentityString()).Msg("duplicated and bypass.")
+		}
+
 	case Pods2Watch:
 		pod := &TensorPod{}
 		err = json.Unmarshal(rawMsg, pod)
@@ -161,12 +185,24 @@ func (w *Watcher) process(ctx context.Context, message kafka.Message) error {
 			logging.Get().Err(err).Msg("unmarshal TensorPod err")
 			return err
 		}
-		for _, cb := range cbs.callbacks {
-			err := cb.OnTensorPod(pod, event.Action)
-			if err != nil {
-				logging.Get().Err(err).Msgf("process pod err: %v", pod)
-				continue
+		if pod.Namespace == "" {
+			logging.Get().Warn().Msgf("empty keyname: %+v", pod)
+		}
+		if event.Action == ActionDelete || pod.DuplicatedChecked() || !w.dupCache.Check(pod) {
+			errored := false
+			for _, cb := range cbs.callbacks {
+				err := cb.OnTensorPod(pod, event.Action)
+				if err != nil {
+					logging.Get().Err(err).Msgf("process pod err: %v", pod)
+					errored = true
+					continue
+				}
 			}
+			if !errored && !pod.DuplicatedChecked() && event.Action != ActionDelete {
+				w.dupCache.Put(pod)
+			}
+		} else {
+			logging.Get().Info().Str("key", pod.KeyName()).Str("idStr", pod.IdentityString()).Msg("duplicated and bypass.")
 		}
 	case Roles2Watch:
 		role := &TensorRole{}
@@ -175,12 +211,24 @@ func (w *Watcher) process(ctx context.Context, message kafka.Message) error {
 			logging.Get().Err(err).Msg("unmarshal TensorRole err")
 			return err
 		}
-		for _, cb := range cbs.callbacks {
-			err := cb.OnTensorRole(role, event.Action)
-			if err != nil {
-				logging.Get().Err(err).Msgf("process role err: %v", role)
-				continue
+		if role.Namespace == "" {
+			logging.Get().Warn().Msgf("empty keyname: %+v", role)
+		}
+		if event.Action == ActionDelete || role.DuplicatedChecked() || !w.dupCache.Check(role) {
+			errored := false
+			for _, cb := range cbs.callbacks {
+				err := cb.OnTensorRole(role, event.Action)
+				if err != nil {
+					logging.Get().Err(err).Msgf("process role err: %v", role)
+					errored = true
+					continue
+				}
 			}
+			if !errored && !role.DuplicatedChecked() && event.Action != ActionDelete {
+				w.dupCache.Put(role)
+			}
+		} else {
+			logging.Get().Info().Str("key", role.KeyName()).Str("idStr", role.IdentityString()).Msg("duplicated and bypass.")
 		}
 	case ClusterRoles2Watch:
 		role := &TensorClusterRole{}
@@ -189,12 +237,23 @@ func (w *Watcher) process(ctx context.Context, message kafka.Message) error {
 			logging.Get().Err(err).Msg("unmarshal TensorRole err")
 			return err
 		}
-		for _, cb := range cbs.callbacks {
-			err = cb.OnTensorClusterRole(role, event.Action)
-			if err != nil {
-				logging.Get().Err(err).Msgf("process clusterrole err: %v", role)
-				continue
+		if role.Name == "" {
+			logging.Get().Warn().Msgf("empty keyname: %+v", role)
+		}
+		if event.Action == ActionDelete || role.DuplicatedChecked() || !w.dupCache.Check(role) {
+			errored := false
+			for _, cb := range cbs.callbacks {
+				err = cb.OnTensorClusterRole(role, event.Action)
+				if err != nil {
+					logging.Get().Err(err).Msgf("process clusterrole err: %v", role)
+					continue
+				}
 			}
+			if !errored && !role.DuplicatedChecked() && event.Action != ActionDelete {
+				w.dupCache.Put(role)
+			}
+		} else {
+			logging.Get().Info().Str("key", role.KeyName()).Str("idStr", role.IdentityString()).Msg("duplicated and bypass.")
 		}
 	case Namespaces2Watch:
 		ns := &TensorNamespace{}
@@ -203,12 +262,24 @@ func (w *Watcher) process(ctx context.Context, message kafka.Message) error {
 			logging.Get().Err(err).Msg("unmarshal TensorRole err")
 			return err
 		}
-		for _, cb := range cbs.callbacks {
-			err = cb.OnTensorNamespace(ns, event.Action)
-			if err != nil {
-				logging.Get().Err(err).Msgf("process namespace err: %v", ns)
-				continue
+		if ns.Name == "" {
+			logging.Get().Warn().Msgf("empty keyname: %+v", ns)
+		}
+		if event.Action == ActionDelete || ns.DuplicatedChecked() || !w.dupCache.Check(ns) {
+			errored := false
+			for _, cb := range cbs.callbacks {
+				err = cb.OnTensorNamespace(ns, event.Action)
+				if err != nil {
+					logging.Get().Err(err).Msgf("process namespace err: %v", ns)
+					errored = true
+					continue
+				}
 			}
+			if !errored && !ns.DuplicatedChecked() && event.Action != ActionDelete {
+				w.dupCache.Put(ns)
+			}
+		} else {
+			logging.Get().Info().Str("key", ns.KeyName()).Str("idStr", ns.IdentityString()).Msg("duplicated and bypass.")
 		}
 	case Nodes2Watch:
 		node := &TensorNode{}
@@ -217,12 +288,24 @@ func (w *Watcher) process(ctx context.Context, message kafka.Message) error {
 			logging.Get().Err(err).Msg("unmarshal TensorNode err")
 			return err
 		}
-		for _, cb := range cbs.callbacks {
-			err := cb.OnTensorNode(node, event.Action)
-			if err != nil {
-				logging.Get().Err(err).Msgf("process node err: %v", node)
-				continue
+		if node.Name == "" {
+			logging.Get().Warn().Msgf("empty keyname: %+v", node)
+		}
+		if event.Action == ActionDelete || node.DuplicatedChecked() || !w.dupCache.Check(node) {
+			errored := false
+			for _, cb := range cbs.callbacks {
+				err := cb.OnTensorNode(node, event.Action)
+				if err != nil {
+					logging.Get().Err(err).Msgf("process node err: %v", node)
+					errored = true
+					continue
+				}
 			}
+			if !errored && !node.DuplicatedChecked() && event.Action != ActionDelete {
+				w.dupCache.Put(node)
+			}
+		} else {
+			logging.Get().Info().Str("key", node.KeyName()).Str("idStr", node.IdentityString()).Msg("duplicated and bypass.")
 		}
 	case Honeyspots2Watch:
 		hp := &TensorHoneySpot{}
@@ -231,12 +314,24 @@ func (w *Watcher) process(ctx context.Context, message kafka.Message) error {
 			logging.Get().Err(err).Msg("unmarshal Honeyspots err")
 			return err
 		}
-		for _, cb := range cbs.callbacks {
-			err = cb.OnHoneyspot(hp, event.Action)
-			if err != nil {
-				logging.Get().Err(err).Msgf("process honeyspot err: %v", hp)
-				continue
+		if hp.Name == "" {
+			logging.Get().Warn().Msgf("empty keyname: %+v", hp)
+		}
+		if event.Action == ActionDelete || hp.DuplicatedChecked() || !w.dupCache.Check(hp) {
+			errored := false
+			for _, cb := range cbs.callbacks {
+				err = cb.OnHoneyspot(hp, event.Action)
+				if err != nil {
+					logging.Get().Err(err).Msgf("process honeyspot err: %v", hp)
+					errored = true
+					continue
+				}
 			}
+			if !errored && !hp.DuplicatedChecked() && event.Action != ActionDelete {
+				w.dupCache.Put(hp)
+			}
+		} else {
+			logging.Get().Info().Str("key", hp.KeyName()).Str("idStr", hp.IdentityString()).Msg("duplicated and bypass.")
 		}
 	}
 	return nil

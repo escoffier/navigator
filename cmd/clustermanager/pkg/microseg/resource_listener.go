@@ -80,7 +80,7 @@ func newModelFromResource(res *assets.TensorResource) *model.TensorMicrosegResou
 	m.Status = 0
 	m.NetworkType = model.PodNetwork
 	m.ResourceTag = 0
-	if res.PodTemplate.Spec.HostNetwork {
+	if res.PodTemplate != nil && res.PodTemplate.Spec.HostNetwork {
 		m.NetworkType = model.HostNetwork
 	}
 	return m
