@@ -140,6 +140,9 @@ func (w *Watcher) process(ctx context.Context, message kafka.Message) error {
 		logging.Get().Err(err).Msg("unmarshal message err")
 		return err
 	}
+	if event.Action == 2 {
+		logging.Get().Warn().Msgf("WARN action==2: update. data: %+v", event)
+	}
 
 	cbs := w.getOrCreateClusterCallbacks(event.ClusterKey)
 	switch event.Type {
