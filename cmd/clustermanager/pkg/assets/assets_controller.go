@@ -33,6 +33,10 @@ import (
 	defenselisters "scm.tensorsecurity.cn/tensorsecurity-rd/api/pkg/generated/listers/defense/v1"
 )
 
+const (
+	dupCacheSize = 16 * 1024
+)
+
 var (
 	DeploymentType        = reflect.TypeOf(&appsv1.Deployment{})
 	DaemonSetType         = reflect.TypeOf(&appsv1.DaemonSet{})
@@ -81,6 +85,8 @@ type Controller struct {
 	mqWriter   mq.Writer
 	topic      string
 	poolInfo   *pkgassets.PoolInfo
+
+	dupCache *pkgassets.DuplicationCheckingCache
 }
 
 type Assets struct {
@@ -108,6 +114,7 @@ func NewAssetsController(factory informers.SharedInformerFactory, tensorFactory 
 		mqWriter:   writer,
 		topic:      topic,
 		poolInfo:   poolInfo,
+		dupCache:   pkgassets.NewDuplicationCheckingCache(3*time.Hour, dupCacheSize),
 	}
 	tensorFactory.Defense().V1().Honeypots().Lister()
 	// Pods
@@ -559,6 +566,11 @@ func (ac *Controller) syncPod(key string) error {
 	if err != nil {
 		return err
 	}
+	if len(namespace) == 0 || len(name) == 0 {
+		err := fmt.Errorf("empty namespace or name from key: %s", key)
+		logging.Get().Err(err).Msg("empty namespace or name")
+		return err
+	}
 	pod, err := ac.podLister.Pods(namespace).Get(name)
 	var res *pkgassets.TensorPod
 	action := pkgassets.ActionAdd
@@ -581,7 +593,7 @@ func (ac *Controller) syncPod(key string) error {
 		//static pod as tensor resource
 		if len(pod.OwnerReferences) == 0 || pod.OwnerReferences[0].Kind == "Node" {
 			res := pkgassets.NewResourceFromPodNoOwnerOrStaticPod(ac.clusterKey, pod)
-			return ac.SendToMq(ctx, pkgassets.ActionAdd, pkgassets.TensorResources2Watch, res)
+			return ac.sendToMainClusterManager(ctx, pkgassets.ActionAdd, pkgassets.TensorResources2Watch, res)
 		}
 
 		owner, _ := ac.getUpperOwnerOfPod(pod)
@@ -599,7 +611,7 @@ func (ac *Controller) syncPod(key string) error {
 			PoolInfo: ac.poolInfo,
 		}
 	}
-	return ac.SendToMq(ctx, action, pkgassets.Pods2Watch, res)
+	return ac.sendToMainClusterManager(ctx, action, pkgassets.Pods2Watch, res)
 }
 
 func (ac *Controller) syncRole(key string) error {
@@ -608,6 +620,11 @@ func (ac *Controller) syncRole(key string) error {
 
 	namespace, name, err := cache.SplitMetaNamespaceKey(key)
 	if err != nil {
+		return err
+	}
+	if len(namespace) == 0 || len(name) == 0 {
+		err := fmt.Errorf("empty namespace or name from key: %s", key)
+		logging.Get().Err(err).Msg("empty namespace or name")
 		return err
 	}
 	action := pkgassets.ActionAdd
@@ -630,7 +647,7 @@ func (ac *Controller) syncRole(key string) error {
 		Cluster: ac.clusterKey,
 		Role:    r,
 	}
-	return ac.SendToMq(ctx, action, pkgassets.Roles2Watch, role)
+	return ac.sendToMainClusterManager(ctx, action, pkgassets.Roles2Watch, &role)
 }
 
 func (ac *Controller) syncClusterRole(key string) error {
@@ -639,6 +656,11 @@ func (ac *Controller) syncClusterRole(key string) error {
 
 	_, name, err := cache.SplitMetaNamespaceKey(key)
 	if err != nil {
+		return err
+	}
+	if len(name) == 0 {
+		err := fmt.Errorf("empty namespace or name from key: %s")
+		logging.Get().Err(err).Msg("empty namespace or name")
 		return err
 	}
 	action := pkgassets.ActionAdd
@@ -660,7 +682,7 @@ func (ac *Controller) syncClusterRole(key string) error {
 		Cluster:     ac.clusterKey,
 		ClusterRole: r,
 	}
-	return ac.SendToMq(ctx, action, pkgassets.ClusterRoles2Watch, role)
+	return ac.sendToMainClusterManager(ctx, action, pkgassets.ClusterRoles2Watch, &role)
 }
 
 func (ac *Controller) syncNamespace(key string) error {
@@ -669,6 +691,11 @@ func (ac *Controller) syncNamespace(key string) error {
 
 	_, name, err := cache.SplitMetaNamespaceKey(key)
 	if err != nil {
+		return err
+	}
+	if len(name) == 0 {
+		err := fmt.Errorf("empty namespace or name from key: %s", key)
+		logging.Get().Err(err).Msg("empty namespace or name")
 		return err
 	}
 	action := pkgassets.ActionAdd
@@ -689,7 +716,7 @@ func (ac *Controller) syncNamespace(key string) error {
 		Cluster:   ac.clusterKey,
 		Namespace: ns,
 	}
-	return ac.SendToMq(ctx, action, pkgassets.Namespaces2Watch, res)
+	return ac.sendToMainClusterManager(ctx, action, pkgassets.Namespaces2Watch, &res)
 }
 
 func (ac *Controller) syncNode(key string) error {
@@ -698,6 +725,11 @@ func (ac *Controller) syncNode(key string) error {
 
 	_, name, err := cache.SplitMetaNamespaceKey(key)
 	if err != nil {
+		return err
+	}
+	if len(name) == 0 {
+		err := fmt.Errorf("empty namespace or name from key: %s", key)
+		logging.Get().Err(err).Msg("empty namespace or name")
 		return err
 	}
 	action := pkgassets.ActionAdd
@@ -714,11 +746,12 @@ func (ac *Controller) syncNode(key string) error {
 			return err
 		}
 	}
-	n := pkgassets.TensorNode{
+	n := &pkgassets.TensorNode{
 		Cluster: ac.clusterKey,
 		Node:    node,
 	}
-	return ac.SendToMq(ctx, action, pkgassets.Nodes2Watch, n)
+	n.TailorSelf()
+	return ac.sendToMainClusterManager(ctx, action, pkgassets.Nodes2Watch, n)
 }
 
 func (ac *Controller) syncHoneySpot(key string) error {
@@ -727,6 +760,11 @@ func (ac *Controller) syncHoneySpot(key string) error {
 
 	namespace, name, err := cache.SplitMetaNamespaceKey(key)
 	if err != nil {
+		return err
+	}
+	if len(namespace) == 0 || len(name) == 0 {
+		err := fmt.Errorf("empty namespace or name from key: %s", key)
+		logging.Get().Err(err).Msg("empty namespace or name")
 		return err
 	}
 	action := pkgassets.ActionAdd
@@ -743,16 +781,21 @@ func (ac *Controller) syncHoneySpot(key string) error {
 			return err
 		}
 	}
-	n := pkgassets.TensorHoneySpot{
+	n := &pkgassets.TensorHoneySpot{
 		Cluster:  ac.clusterKey,
 		Honeypot: hp,
 	}
-	return ac.SendToMq(ctx, action, pkgassets.Honeyspots2Watch, n)
+	return ac.sendToMainClusterManager(ctx, action, pkgassets.Honeyspots2Watch, n)
 }
 
 func (ac *Controller) syncWorkLoad(key string, kind pkgassets.ResourceKind, f func(namespace, name string) (interface{}, error)) error {
 	namespace, name, err := cache.SplitMetaNamespaceKey(key)
 	if err != nil {
+		return err
+	}
+	if len(namespace) == 0 || len(name) == 0 {
+		err := fmt.Errorf("empty namespace or name from key: %s, kind: %s", key, kind)
+		logging.Get().Err(err).Msg("empty namespace or name")
 		return err
 	}
 	var res *pkgassets.TensorResource
@@ -780,9 +823,26 @@ func (ac *Controller) syncWorkLoad(key string, kind pkgassets.ResourceKind, f fu
 		logging.Get().Error().Msgf("resource: %s is nil", key)
 		return err
 	}
+
+	return ac.sendToMainClusterManager(context.Background(), action, pkgassets.TensorResources2Watch, res)
+}
+
+func (ac *Controller) sendToMainClusterManager(ctx context.Context, action pkgassets.AssetsAction, watchedType pkgassets.WatchedType, obj pkgassets.IdentifiableItem) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	return ac.SendToMq(ctx, action, pkgassets.TensorResources2Watch, res)
+
+	obj.SetDuplicatedChecked(true)
+	if action != pkgassets.ActionDelete && ac.dupCache.Check(obj) {
+		logging.Get().Info().Str("key", obj.KeyName()).Str("idStr", obj.IdentityString()).Msg("duplicated resource. cancel send to main stream")
+		return nil
+	}
+
+	err := ac.sendToMq(ctx, action, watchedType, obj)
+
+	if err == nil && action != pkgassets.ActionDelete {
+		ac.dupCache.Put(obj)
+	}
+	return err
 }
 
 func (ac *Controller) handleErr(err error, key interface{}) {
@@ -817,7 +877,7 @@ func (ac *Controller) getUpperOwnerOfPod(pod *corev1.Pod) (*metav1.OwnerReferenc
 	return owner, owner != nil
 }
 
-func (ac *Controller) SendToMq(ctx context.Context, action pkgassets.AssetsAction, watchedType pkgassets.WatchedType, obj interface{}) error {
+func (ac *Controller) sendToMq(ctx context.Context, action pkgassets.AssetsAction, watchedType pkgassets.WatchedType, obj interface{}) error {
 	event := &pkgassets.ResourceEvent{
 		ClusterKey: ac.clusterKey,
 		Action:     action,
@@ -851,7 +911,7 @@ func (ac *Controller) SendToMq(ctx context.Context, action pkgassets.AssetsActio
 func (ac *Controller) notifySync() {
 	logging.Get().Info().Msg("notify for syncing")
 	err := wait.PollImmediateUntil(3*time.Second, func() (bool, error) {
-		err1 := ac.SendToMq(context.Background(), pkgassets.ActionSync, pkgassets.AssetsSync, nil)
+		err1 := ac.sendToMq(context.Background(), pkgassets.ActionSync, pkgassets.AssetsSync, nil)
 		if err1 != nil {
 			logging.Get().Err(err1).Msg("sending AssetsSync err, will try again")
 			return false, nil
