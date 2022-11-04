@@ -106,8 +106,9 @@
   desc: Detect shell history deletion
   condition: >
     (modify_shell_history or truncate_shell_history) and
-       not var_lib_docker_filepath and
-       not proc.name in (docker_binaries)
+    not var_lib_docker_filepath and
+    not proc.name in (docker_binaries) and
+    container
   output: >
     Shell history had been deleted or renamed (zh_msg=删除或重命名shell历史记录,rule_type=Privilege_Escalation,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid type=%evt.type fd_name=%fd.name name=%evt.arg.name path=%evt.arg.path oldpath=%evt.arg.oldpath %container.info container_id=%container.id,container_name=%container.name)
   priority: WARNING
@@ -368,7 +369,7 @@
       value: "容器可能已遭到入侵，可使用免疫防御训练应用，限制敏感文件和命令的用户权限。"
   desc: Linux Privilege Escalation by modifying sensitive files with suid binaries
   condition: >
-    evt.type = write and sensitive_files and user.uid != 0
+    evt.type = write and sensitive_files and user.uid != 0 and container and not docker_procs
   output: >
     Linux Privilege Escalation by modifying sensitive files with suid binaries (zh_msg=尝试使用suid二进制修改敏感文件进行linux提权,rule_type=Privilege_Escalation,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,container=%container.info,container_id=%container.id,container_name=%container.name)
   priority: ALERT
