@@ -233,6 +233,7 @@ func (p *TensorNode) TailorSelf() {
 	p.Spec = corev1.NodeSpec{}
 	p.Status = corev1.NodeStatus{
 		Phase:    p.Status.Phase,
+		Addresses: p.Status.Addresses,
 		NodeInfo: p.Status.NodeInfo,
 		Conditions: p.Status.Conditions,
 	}
@@ -252,6 +253,12 @@ func (p *TensorNode) IdentityString() string {
 	}
 	sb.WriteRune('\n')
 
+	addrBytes, err := json.Marshal(p.Status.Addresses)
+	if err == nil {
+		sb.WriteString(string(addrBytes))
+	}
+	sb.WriteRune('\n')
+	
 	ninfo, err := json.Marshal(p.Status.NodeInfo)
 	if err == nil {
 		sb.WriteString(string(ninfo))
