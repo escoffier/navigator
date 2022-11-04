@@ -44,7 +44,7 @@ func (api *api) getCron() http.HandlerFunc {
 			return
 		}
 
-		if !model.IsAnyCheckType(checkType) {
+		if !checkType.IsValid() {
 			RespAndLog(w, ctx, NewFieldError(http.StatusBadRequest, fmt.Errorf("invalid checkType param value")))
 			return
 		}
@@ -88,7 +88,7 @@ func (api *api) putCron() http.HandlerFunc {
 			return
 		}
 
-		if !model.IsAnyCheckType(checkType) {
+		if !checkType.IsValid() {
 			RespAndLog(w, ctx, NewFieldError(http.StatusBadRequest, fmt.Errorf("invalid checkType param value (allowed: kube/docker/host)"),
 				Suberror{"checkType", "allowed: kube/docker/host"}))
 			return

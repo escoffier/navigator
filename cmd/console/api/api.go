@@ -84,19 +84,19 @@ func (api *api) NotFound(rw http.ResponseWriter, req *http.Request) {
 	rw.Header().Add("Content-Type", "text/plain; charset=UTF-8")
 	rw.Write([]byte("404 Not Found"))
 }
-func (api *api) getOffsetAndLimit(r *http.Request) (int64, int64) {
-	offset, err := param.QueryUint(r, "offset")
+func (api *api) getOffsetAndLimit(r *http.Request) (int, int) {
+	offset, err := param.QueryInt(r, "offset")
 	if err != nil {
 		offset = 0
 	}
-	limit, err := param.QueryUint(r, "limit")
+	limit, err := param.QueryInt(r, "limit")
 	if err != nil {
 		limit = 500
 	}
 	if limit > 1000 {
 		limit = 1000
 	}
-	return int64(offset), int64(limit)
+	return offset, limit
 }
 
 func (api *api) sortOrderFromQuery(r *http.Request, defaultSortOrder string) (string, error) {

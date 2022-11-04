@@ -3,31 +3,10 @@ package model
 import (
 	"encoding/json"
 
+	"github.com/shopspring/decimal"
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
 )
-
-type CheckHistoryEntry struct {
-	CheckID             string  `json:"checkId" bson:"checkId"`
-	CheckType           string  `json:"checkType" bson:"checkType"`
-	ClusterID           string  `json:"clusterId" bson:"clusterId"`
-	Operator            string  `json:"operator" bson:"operator"`
-	ClusterName         string  `json:"clusterName" bson:"-"`
-	CreatedAt           int64   `json:"createdAt" bson:"createdAt"`
-	FinishedAt          int64   `json:"finishedAt,omitempty" bson:"finishedAt,omitempty"`
-	NumSuccessful       int64   `json:"numSuccessful" bson:"numSuccessful"`
-	NumFailed           int64   `json:"numFailed" bson:"numFailed"`
-	NumError            int64   `json:"numError" bson:"numError"`
-	NumWaiting          int64   `json:"numWaiting" bson:"numWaiting"`
-	NumInconclusive     int64   `json:"numInconclusive" bson:"numInonclusive"`
-	Score               float32 `json:"score" bson:"score"`
-	MaxScore            float32 `json:"maxScore" bson:"maxScore"`
-	TotalPoliciesPassed int64   `json:"-" bson:"totalPoliciesPassed"`
-	TotalPoliciesTried  int64   `json:"-" bson:"totalPoliciesTried"`
-	PolicyId            uint    `json:"policyId" bson:"policyId"`
-	// 1.运行中 2.完成 3.失败
-	State uint8 `json:"state" bson:"state"`
-}
 
 type HarborConfigScan struct {
 	CheckID    string               `json:"check_id" bson:"checkId"`
@@ -58,18 +37,19 @@ type CfgScan struct {
 }
 
 type ScanResult struct {
-	ID            uint32 `gorm:"column:id"`
-	TaskID        string `gorm:"type:varchar(255);column:task_id"`
-	CheckType     string `gorm:"type:varchar(255);column:check_type"`
-	NodeName      string `gorm:"type:varchar(255);column:node_name"`
-	ClusterKey    string `gorm:"type:varchar(255);column:cluster_key"`
-	PolicyID      string `gorm:"type:varchar(255);column:policy_id"`
-	State         string `gorm:"type:varchar(255);column:state"`
-	ActualValue   string `gorm:"type:varchar(255);column:actual_value"`
-	RemediationEn string `gorm:"type:varchar(255);column:remediation_en"`
-	RemediationZh string `gorm:"type:varchar(255);column:remediation_zh"`
-	CreatedAt     int64  `gorm:"column:create_at"`
-	Status        int32  `gorm:"column:status"`
+	ID            uint32                  `gorm:"column:id"`
+	TaskID        string                  `gorm:"type:varchar(255);column:task_id"`
+	CheckType     ComplianceCheckType     `gorm:"type:varchar(255);column:check_type"`
+	NodeName      string                  `gorm:"type:varchar(255);column:node_name"`
+	ClusterKey    string                  `gorm:"type:varchar(255);column:cluster_key"`
+	PolicyID      string                  `gorm:"type:varchar(255);column:policy_id"`
+	State         ScapScanResultStateType `gorm:"type:varchar(255);column:state"`
+	ActualValue   string                  `gorm:"type:varchar(255);column:actual_value"`
+	RemediationEn string                  `gorm:"type:varchar(255);column:remediation_en"`
+	RemediationZh string                  `gorm:"type:varchar(255);column:remediation_zh"`
+	UDBCP         string                  `gorm:"type:varchar(32);column:udbcp"`
+	Section       string                  `gorm:"type:varchar(32);column:section"`
+	CreatedAt     int64                   `gorm:"column:create_at"`
 }
 
 func (ScanResult) TableName() string {
@@ -78,10 +58,10 @@ func (ScanResult) TableName() string {
 
 type ScanHistory struct {
 	TaskID      string    `gorm:"column:task_id"`
-	CheckType   string    `gorm:"varchar(255);column:check_type"`
-	ClusterKey  string    `gorm:"varchar(255);column:cluster_key"`
-	ClusterName string    `gorm:"varchar(255);column:cluster_name"`
-	Operator    string    `gorm:"varchar(255);column:operator"`
+	CheckType   string    `gorm:"column:check_type"`
+	ClusterKey  string    `gorm:"column:cluster_key"`
+	ClusterName string    `gorm:"column:cluster_name"`
+	Operator    string    `gorm:"column:operator"`
 	State       ScanState `gorm:"column:state"`
 	SucNode     int32     `gorm:"column:suc_node"`
 	FailNode    int32     `gorm:"column:fail_node"`
@@ -95,18 +75,23 @@ func (ScanHistory) TableName() string {
 }
 
 type ScanNodeRecord struct {
-	TaskID      string    `gorm:"column:task_id"`
-	CheckType   string    `gorm:"type:varchar(255);column:check_type"`
-	ClusterKey  string    `gorm:"type:varchar(255);column:cluster_key"`
-	Operator    string    `gorm:"type:varchar(255);column:operator"`
-	NodeName    string    `gorm:"type:varchar(255);column:node_name"`
-	Namespace   string    `gorm:"type:varchar(255);column:namespace"`
-	JobName     string    `gorm:"type:varchar(255);column:job_name"`
-	State       ScanState `gorm:"column:state"`
-	Message     string    `gorm:"type:varchar(255);column:message"`
-	CreatedAt   int64     `gorm:"column:created_at"`
-	FinishedAt  int64     `gorm:"column:finished_at"`
-	AutoVariate string    `gorm:"type:text;column:auto_variate"`
+	TaskID      string          `gorm:"column:task_id"`
+	CheckType   string          `gorm:"type:varchar(255);column:check_type"`
+	ClusterKey  string          `gorm:"type:varchar(255);column:cluster_key"`
+	Operator    string          `gorm:"type:varchar(255);column:operator"`
+	NodeName    string          `gorm:"type:varchar(255);column:node_name"`
+	Namespace   string          `gorm:"type:varchar(255);column:namespace"`
+	JobName     string          `gorm:"type:varchar(255);column:job_name"`
+	State       ScanState       `gorm:"column:state"`
+	Message     string          `gorm:"type:varchar(255);column:message"`
+	CreatedAt   int64           `gorm:"column:created_at"`
+	FinishedAt  int64           `gorm:"column:finished_at"`
+	AutoVariate datatypes.JSON  `gorm:"type:text;column:auto_variate"`
+	Pass        int             `gorm:"column:pass"`
+	Fail        int             `gorm:"column:fail"`
+	Warn        int             `gorm:"column:warn"`
+	Info        int             `gorm:"column:info"`
+	PassRate    decimal.Decimal `gorm:"column:pass_rate"`
 }
 
 func (ScanNodeRecord) TableName() string {
@@ -200,70 +185,55 @@ func (PolicyDetailInfo) TableName() string {
 }
 
 type CheckBreakdown struct {
-	PolicyId      uint   `json:"policyId"`
-	PolicyNumber  string `json:"policyNumber"`
-	Section       string `json:"section"`
-	Description   string `json:"description"`
-	NumSuccessful int64  `json:"numSuccessful"`
-	NumFailed     int64  `json:"numFailed"`
-	NumInfo       int64  `json:"numInfo"`
-	NumWarn       int64  `json:"numWarn"`
-	Classified    string `json:"classified"`
+	PolicyNumber string `json:"policyNumber" gorm:"column:policy_id"`
+	Section      string `json:"section" gorm:"column:udbcap"`
+	Description  string `json:"description"`
+	Pass         int    `json:"pass"`
+	Fail         int    `json:"fail"`
+	Warn         int    `json:"warn"`
+	Info         int    `json:"info"`
+	UDBCP        string `json:"udbcp"`
+}
+
+type ScapScanRecordNodeItem struct {
+	TaskID     string    `json:"taskID"`
+	CheckType  string    `json:"checkType"`
+	ClusterKey string    `json:"clusterKey"`
+	NodeName   string    `json:"nodeName"`
+	State      ScanState `json:"state"`
+	FinishedAt int64     `json:"finishedAt"`
+	Pass       int       `json:"pass"`
+	Fail       int       `json:"fail"`
+	Warn       int       `json:"warn"`
+	Info       int       `json:"info"`
 }
 
 type NodeCheckDetails struct {
-	CheckID       string               `json:"checkId"`
-	ClusterID     string               `json:"clusterId"`
-	Status        string               `json:"status"`
-	NodeName      string               `json:"nodeName"`
-	Logs          string               `json:"logs"`
-	ComplianceMap []ComplianceMapEntry `json:"complianceMap"`
+	TaskID     string    `json:"taskID"`
+	ClusterKey string    `json:"clusterKey"`
+	NodeName   string    `json:"nodeName"`
+	NodeStatus int8      `json:"nodeStatus"`
+	NodeReady  int8      `json:"nodeReady"`
+	ScanStatus ScanState `json:"scanStatus"`
 }
 
 type ComplianceMapEntry struct {
-	PolicyNumber string `json:"policyNumber"`
-	PolicyId     uint   `json:"policyId"`
-	Section      string `json:"section"`
-	Description  string `json:"description"`
-	Remediation  string `json:"remediation"`
-	TestStatus   string `json:"testStatus"`
-	Classified   string `json:"classified"`
-}
-
-type PolicyNodeRet struct {
-	NodeName    string `json:"nodeName"`
-	Remediation string `json:"remediation"`
-	TestStatus  string `json:"testStatus"`
+	PolicyNumber string                  `json:"policyNumber"`
+	PolicyId     uint                    `json:"policyId"`
+	Section      string                  `json:"section"`
+	Description  string                  `json:"description"`
+	Remediation  string                  `json:"remediation"`
+	TestStatus   ScapScanResultStateType `json:"testStatus"`
+	TestResult   string                  `json:"TestResult"`
+	UDBCP        string                  `json:"udbcp"`
 }
 
 type PolicyDetails struct {
-	CheckID        string   `json:"-"`
-	PolicyNumber   string   `json:"policyNumber"`
-	Section        string   `json:"section"`
-	Description    string   `json:"description"`
-	Audit          string   `json:"audit"`
-	ExpectedResult string   `json:"expectedResult"`
-	Remediation    string   `json:"remediation"`
-	Rationale      string   `json:"rationale"`
-	TestInfo       []string `json:"testInfo"`
-	Reason         string   `json:"reason"`
-
-	Details string   `json:"details"`
-	Items   []string `json:"items"`
-
-	NumSuccessful int64 `json:"numSuccessful"`
-	NumFailed     int64 `json:"numFailed"`
-	NumInfo       int64 `json:"numInfo"`
-	NumWarn       int64 `json:"numWarn"`
-	NumError      int64 `json:"numError"`
-	NumWaiting    int64 `json:"numWaiting"`
-
-	FailedOn     []PolicyNodeRet `json:"failedOn"`
-	WarnOn       []PolicyNodeRet `json:"warnOn"`
-	InfoOn       []PolicyNodeRet `json:"infoOn"`
-	SuccessfulOn []PolicyNodeRet `json:"successfulOn"`
-	ErrorOn      []PolicyNodeRet `json:"errorOn"`
-	WaitingOn    []PolicyNodeRet `json:"waitingOn"`
+	PolicyNumber string                       `json:"policyNumber"`
+	Section      string                       `json:"section"`
+	UDBCP        string                       `json:"udbcp"`
+	Description  string                       `json:"description"`
+	ExtraDetail  *PolicyDetailInfoExtraDetail `json:"extraDetail"`
 }
 
 type Check struct {

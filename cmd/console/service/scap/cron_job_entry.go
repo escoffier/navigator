@@ -4,19 +4,17 @@ import (
 	"context"
 	"fmt"
 	"time"
-
-	"github.com/go-redis/redis/v8"
+	_ "time/tzdata"
 
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 )
 
 type CronJobEntry struct {
-	cronJobId   uint
-	version     int64
-	server      *Service
-	cron        string
-	redisClient *redis.Client
+	cronJobId uint
+	version   int64
+	server    *Service
+	cron      string
 }
 
 // 首先先判断版本是否正确，如果版本不正确的话，移除本任务
@@ -47,7 +45,7 @@ func (c *CronJobEntry) Run() {
 
 	// 首先向redis插入一条数据，数据存在则说明已经有节点在执行此任务
 	key := fmt.Sprintf("scap-cron-job-%d-%d-%s", record.ID, record.Version, time.Now().Format("2006-01-02"))
-	setResult := c.redisClient.SetNX(ctx, key, "", time.Hour)
+	setResult := c.server.redisClient.SetNX(ctx, key, "", time.Hour)
 	if ok, err := setResult.Result(); err != nil || !ok {
 		logging.GetLogger().Info().Msgf("启动scap cronjob 失败, isExist: %v, err: %v", ok, err)
 		return

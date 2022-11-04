@@ -61,7 +61,7 @@ func UpdateUserPwd(ctx context.Context, rdb *gorm.DB, userName string, pwd strin
 	return nil
 }
 
-func SelectUserAll(ctx context.Context, rdb *gorm.DB, limit, offset int64) (int64, []model.User, error) {
+func SelectUserAll(ctx context.Context, rdb *gorm.DB, limit, offset int) (int64, []model.User, error) {
 	var user []model.User
 	var count int64
 
@@ -72,7 +72,7 @@ func SelectUserAll(ctx context.Context, rdb *gorm.DB, limit, offset int64) (int6
 		return 0, nil, err
 	}
 
-	p := rdb.WithContext(pgCtx).Where("username != ?", model.UserSuperAdmin).Limit(int(limit)).Offset(int(offset)).Order("id")
+	p := rdb.WithContext(pgCtx).Where("username != ?", model.UserSuperAdmin).Limit(limit).Offset(offset).Order("id")
 	err = p.Where("username != ?", model.UserSuperAdmin).Find(&user).Error
 	if err != nil {
 		return count, user, err

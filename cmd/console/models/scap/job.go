@@ -14,7 +14,6 @@ type Job struct {
 }
 
 func (job *Job) VerifyJob() error {
-
 	if job.PolicyID == 0 {
 		return errors.New("policy id is required")
 	}
@@ -50,10 +49,6 @@ type ClusterInfoDetail struct {
 	ClusterInfo `json:",inline"`
 	NodeNames   []string `json:"nodeName"`
 	ClusterName string   `json:"clusterName"`
-}
-
-type JobReq struct {
-	Job `json:",inline"`
 }
 
 type JobResp struct {

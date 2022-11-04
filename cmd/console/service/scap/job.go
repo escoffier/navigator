@@ -16,7 +16,7 @@ import (
 type Job struct {
 	scap.Job
 	UserName string
-	Type     uint8
+	Type     string
 }
 
 type CreateJobResponse struct {
@@ -26,7 +26,8 @@ type CreateJobResponse struct {
 
 func (s *Service) CreateJob(ctx context.Context, job *Job) ([]CreateJobResponse, error) {
 	// 校验policy是否存在
-	if err := s.rdb.Get().WithContext(ctx).Where("type = ?", job.Type).First(&model.ScapPolicy{}, job.PolicyID).Error; err != nil {
+	if err := s.rdb.Get().WithContext(ctx).Where("type = ?", job.Type).
+		First(&model.ScapPolicy{}, job.PolicyID).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, fmt.Errorf("policy <%d> not found", job.PolicyID)
 		}

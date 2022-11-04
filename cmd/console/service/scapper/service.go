@@ -2,22 +2,25 @@ package scapper
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"math/rand"
 	"net/http"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/ahmetb/go-linq/v3"
 	"github.com/go-redis/redis/v8"
-	json "github.com/json-iterator/go"
 	"github.com/pkg/errors"
+	"github.com/shopspring/decimal"
 	"github.com/tealeg/xlsx"
+	"gitlab.com/piccolo_su/vegeta/cmd/console/service/assets"
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
+	"gitlab.com/piccolo_su/vegeta/pkg/dal"
 	"gitlab.com/piccolo_su/vegeta/pkg/flag"
-	"gitlab.com/piccolo_su/vegeta/pkg/lang"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
-	"gitlab.com/piccolo_su/vegeta/pkg/util"
 	"gitlab.com/security-rd/go-pkg/databases"
 	"gitlab.com/security-rd/go-pkg/logging"
 	"gorm.io/gorm"
@@ -48,7 +51,7 @@ func Init(mainCtx context.Context,
 	}
 	var err error
 	once.Do(func() {
-		svcInstance, err = newScapService(scapOpts, rdb)
+		svcInstance, err = newScapService(scapOpts, rdb, redisClient)
 		if err != nil {
 			return
 		}
@@ -67,12 +70,14 @@ func GetService(ctx context.Context) (*ScapService, bool) {
 }
 
 type ScapService struct {
-	rdb *databases.RDBInstance
+	rdb   *databases.RDBInstance
+	cache *redis.Client
 }
 
-func newScapService(scapOpts *flag.ScapOpts, rdb *databases.RDBInstance) (*ScapService, error) {
+func newScapService(scapOpts *flag.ScapOpts, rdb *databases.RDBInstance, cache *redis.Client) (*ScapService, error) {
 	scapSvc := &ScapService{
-		rdb: rdb,
+		rdb:   rdb,
+		cache: cache,
 	}
 
 	go func() {
@@ -129,7 +134,7 @@ func (s *ScapService) PolicyInit(policyCounts int32) error {
 	return nil
 }
 
-func (s *ScapService) CheckScanningTask(ctx context.Context, checkType, clusterId string, timeout int64) (bool, error) {
+func (s *ScapService) CheckScanningTask(ctx context.Context, checkType, clusterId string) (bool, error) {
 	var task model.ScanHistory
 	query := "check_type = ? and cluster_key = ? and state = 1"
 	err := s.rdb.GetReadDB().WithContext(ctx).First(&task, query, checkType, clusterId).Error
@@ -142,7 +147,7 @@ func (s *ScapService) CheckScanningTask(ctx context.Context, checkType, clusterI
 	return true, nil
 }
 
-func (s *ScapService) SynScanState(checkHistory *model.CheckHistoryEntry) error {
+func (s *ScapService) SynScanState(checkHistory *model.ScanHistory) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
@@ -150,7 +155,7 @@ func (s *ScapService) SynScanState(checkHistory *model.CheckHistoryEntry) error 
 
 	var scanNodes []model.ScanNodeRecord
 	query := "task_id = ?"
-	err := s.rdb.Get().WithContext(ctx).Find(&scanNodes, query, checkHistory.CheckID).Error
+	err := s.rdb.Get().WithContext(ctx).Find(&scanNodes, query, checkHistory.TaskID).Error
 	if err != nil {
 		return errors.Errorf("get scan node record failed, %v", err)
 	}
@@ -212,7 +217,7 @@ func (s *ScapService) SynScanState(checkHistory *model.CheckHistoryEntry) error 
 	// update check history
 	checkHistory.FinishedAt = finishAt
 	// update scan history
-	taskId := checkHistory.CheckID
+	taskId := checkHistory.TaskID
 	tb := model.ScanHistory{
 		State:      model.ScanStateCompleted,
 		FinishedAt: finishAt,
@@ -228,7 +233,7 @@ func (s *ScapService) SynScanState(checkHistory *model.CheckHistoryEntry) error 
 	return nil
 }
 
-func (s *ScapService) GetCheckHistory(ctx context.Context, offset, limit int64, clusterId, checkType, sortBy, sortOrder string) ([]model.CheckHistoryEntry, int64, error) {
+func (s *ScapService) GetCheckHistory(ctx context.Context, offset, limit int, clusterId, checkType, sortBy, sortOrder string) ([]model.ScanHistory, int64, error) {
 	// print debug log
 	// logging.Get().Debug().Msgf("offset : %v, limit : %v, sortBy : %v, sortOrder : %v.", offset, limit, sortBy, sortOrder)
 
@@ -262,92 +267,38 @@ func (s *ScapService) GetCheckHistory(ctx context.Context, offset, limit int64, 
 		return nil, 0, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Could not find scan history, %w", err))
 	}
 
-	items := make([]model.CheckHistoryEntry, 0)
-
-	for _, value := range scanHistory {
-		var data model.CheckHistoryEntry
-		data.CheckType = checkType
-		data.ClusterName = value.ClusterName
-		data.ClusterID = value.ClusterKey
-		data.Operator = value.Operator
-		data.CheckID = value.TaskID
-		data.CreatedAt = value.CreatedAt
-		data.FinishedAt = value.FinishedAt
-		data.PolicyId = value.PolicyID
-		data.NumSuccessful = int64(value.SucNode)
-		// data.NumFailed = value.FailNode
-		// check finish state
-		if value.State == model.ScanStateInProgress {
-			// ！！！！这里把通过k8s同步的逻辑删除调 @liuyang @lingximo
-
-			// err = s.SynScanState(&data)
-			// if err != nil {
-			//	logging.Get().Error().Msgf("syn scan history failed, %v.", err)
-			// }
-			//
-			// if data.FinishedAt != 0 {
-			//	data.State = 2
-			// } else {
-			//	data.State = 1
-			// }
-			data.State = 1
-		} else if value.State == model.ScanStateCompleted {
-			data.State = 2
-		} else {
-			data.State = 3
-		}
-
-		items = append(items, data)
-	}
-
-	return items, docNum, nil
+	return scanHistory, docNum, nil
 }
 
-func (s *ScapService) GetLatestHistory(ctx context.Context, clusterId, checkType, sortBy, sortOrder string) (string, error) {
-	pgCtx, cancel := context.WithTimeout(ctx, time.Second*2)
-	defer cancel()
-
-	var scanHistory []model.ScanHistory
-	condition := fmt.Sprintf("cluster_key = ? and check_type = ? order by %s %s", sortBy, sortOrder)
-	err := s.rdb.GetReadDB().WithContext(pgCtx).Find(&scanHistory, condition, clusterId, checkType).Error
+func (s *ScapService) GetLatestHistory(ctx context.Context, clusterId string, checkType model.ComplianceCheckType) (string, int64, error) {
+	var scanHistory model.ScanHistory
+	err := s.rdb.GetReadDB().WithContext(ctx).Select("task_id", "finished_at").
+		Where("cluster_key = ? AND check_type = ?", clusterId, checkType).
+		Where("state = ? AND finished_at>0 AND suc_node>0", model.ScanStateCompleted).
+		Order(clause.OrderByColumn{Column: clause.Column{Name: "finished_at"}, Desc: true}).
+		First(&scanHistory).Error
 	if err != nil {
-		return "", errors.Errorf("get scan history failed, %v", err)
+		return "", 0, err
 	}
 
-	for _, value := range scanHistory {
-		if value.State != model.ScanStateCompleted || value.FinishedAt <= 0 || value.SucNode == 0 {
-			continue
-		}
-		return value.TaskID, nil
-	}
-
-	return "", errors.Errorf("can not find correct records")
+	return scanHistory.TaskID, scanHistory.FinishedAt, nil
 }
 
-func (s *ScapService) GetClassified(ctx context.Context, policyId, checkType string) string {
+func (s *ScapService) GetUDBCPMap(policyId string, checkType model.ComplianceCheckType) string {
 	var value string
-	ckType := model.ComplianceCheckType(checkType)
-	switch ckType {
+	switch checkType {
 	case model.ComplianceCheckTargetTypeKube:
-		classified, ok := model.ClassifiedKubeMap[policyId]
+		classified, ok := model.UDBCPKubeMap[policyId]
 		if !ok {
 			return ""
 		}
 		value = classified[0]
-		if lang.Language(ctx) == lang.LanguageEN {
-			value = classified[1]
-		}
-
 	case model.ComplianceCheckTargetTypeDocker:
-		classified, ok := model.ClassifiedDockerMap[policyId]
+		classified, ok := model.UDBCPDockerMap[policyId]
 		if !ok {
 			return ""
 		}
 		value = classified[0]
-		if lang.Language(ctx) == lang.LanguageEN {
-			value = classified[1]
-		}
-
 	default:
 		value = ""
 	}
@@ -355,204 +306,73 @@ func (s *ScapService) GetClassified(ctx context.Context, policyId, checkType str
 	return value
 }
 
-func (s *ScapService) GetClassifiedByLanguage(language lang.LanguageType, policyId, checkType string) string {
-	var value string
-	ckType := model.ComplianceCheckType(checkType)
-	switch ckType {
-	case model.ComplianceCheckTargetTypeKube:
-		classified, ok := model.ClassifiedKubeMap[policyId]
-		if !ok {
-			return ""
-		}
-		value = classified[0]
-		if language == lang.LanguageEN {
-			value = classified[1]
-		}
-
-	case model.ComplianceCheckTargetTypeDocker:
-		classified, ok := model.ClassifiedDockerMap[policyId]
-		if !ok {
-			return ""
-		}
-		value = classified[0]
-		if language == lang.LanguageEN {
-			value = classified[1]
-		}
-
-	default:
-		value = ""
-	}
-
-	return value
-}
-
-func (s *ScapService) GetNodeChecKubeDetails(ctx context.Context, nodeName, checkID, checkType string, nodeCheckDetails *model.NodeCheckDetails) error {
-	autoVars, err := s.GetNodeRecordAutoVariate(ctx, checkID, checkType)
+func (s *ScapService) GetNodeCheckDetails(ctx context.Context, nodeName, taskID string, nodeCheckDetails *model.NodeCheckDetails) error {
+	node := model.ScanNodeRecord{}
+	err := s.rdb.GetReadDB().WithContext(ctx).
+		First(&node, "task_id = ? AND node_name = ?", taskID, nodeName).Error
 	if err != nil {
-		return errors.Errorf("get node auto variate, %v", err)
+		logging.Get().Error().Err(err).Msg("")
+		return err
 	}
 
-	var scanRet []model.ScanResult
-	query := "node_name = ? and task_id = ?"
-	err = s.rdb.GetReadDB().Find(&scanRet, query, nodeName, checkID).Error
+	resSvc, ok := assets.GetResourcesService(ctx)
+	if !ok {
+		return errors.New("assets.GetResourcesService instance get error")
+	}
+
+	queryOpt := dal.NodeQuery()
+	queryOpt.WithCluster(node.ClusterKey)
+	queryOpt.WithCustom("host_name", node.NodeName)
+
+	nodes, err := resSvc.GetNodes(ctx, queryOpt, 0, 1)
 	if err != nil {
-		return errors.Errorf("get node scan result failed, %v", err)
+		return err
 	}
 
-	if len(scanRet) == 0 {
-		return nil
-	}
-
-	nodeCheckDetails.Status = "completed"
-	nodeCheckDetails.CheckID = checkID
+	nodeCheckDetails.TaskID = taskID
+	nodeCheckDetails.ClusterKey = node.ClusterKey
 	nodeCheckDetails.NodeName = nodeName
-	autoVar := autoVars[nodeName]
-
-	for _, value := range scanRet {
-		var cpMap model.ComplianceMapEntry
-		policy, err := s.GetPolicyInfo(ctx, value.PolicyID, checkType)
-		if err != nil {
-			logging.Get().Warn().Msgf("get policy info failed, policy id : %s.", value.PolicyID)
-			continue
-		}
-		cpMap.PolicyId = policy.Id
-		cpMap.Remediation = s.ReplaceAutoVariate(policy.RemediationZh, autoVar)
-		cpMap.Description = policy.DetailZh
-		cpMap.Section = policy.TitleZh
-
-		if lang.Language(ctx) == lang.LanguageEN {
-			cpMap.Remediation = s.ReplaceAutoVariate(policy.RemediationEn, autoVar)
-			cpMap.Description = policy.DetailEn
-			cpMap.Section = policy.TitleEn
-		}
-
-		cpMap.PolicyNumber = value.PolicyID
-		cpMap.TestStatus = value.State
-		cpMap.Classified = s.GetClassified(ctx, value.PolicyID, checkType)
-
-		nodeCheckDetails.ComplianceMap = append(nodeCheckDetails.ComplianceMap, cpMap)
+	nodeCheckDetails.NodeStatus = -1
+	nodeCheckDetails.NodeReady = -1
+	nodeCheckDetails.ScanStatus = node.State
+	if len(nodes) > 0 {
+		nodeCheckDetails.NodeStatus = nodes[0].Status
+		nodeCheckDetails.NodeReady = int8(nodes[0].Ready)
 	}
 
 	return nil
 }
 
-func (s *ScapService) GetNodeCheckDockerDetails(ctx context.Context, nodeName, checkID, checkType string, nodeCheckDetails *model.NodeCheckDetails) error {
-	var scanRet []model.ScanResult
-	query := "node_name = ? and task_id = ?"
-	err := s.rdb.GetReadDB().WithContext(ctx).Find(&scanRet, query, nodeName, checkID).Error
-	if err != nil {
-		return errors.Errorf("get node scan result failed, %v", err)
-	}
-
-	if len(scanRet) == 0 {
-		return nil
-	}
-
-	nodeCheckDetails.Status = "completed"
-	nodeCheckDetails.CheckID = checkID
-	nodeCheckDetails.NodeName = nodeName
-
-	for _, value := range scanRet {
-		var cpMap model.ComplianceMapEntry
-		policy, err := s.GetPolicyInfo(ctx, value.PolicyID, checkType)
-		if err != nil {
-			logging.Get().Warn().Msgf("get policy info failed, policy id : %s.", value.PolicyID)
-			continue
-		}
-
-		cpMap.PolicyId = policy.Id
-		cpMap.Remediation = value.RemediationZh
-		cpMap.Description = policy.DetailZh
-		cpMap.Section = policy.TitleZh
-
-		if lang.Language(ctx) == lang.LanguageEN {
-			cpMap.Remediation = value.RemediationEn
-			cpMap.Description = policy.DetailEn
-			cpMap.Section = policy.TitleEn
-		}
-
-		cpMap.PolicyNumber = value.PolicyID
-		cpMap.TestStatus = value.State
-		cpMap.Classified = s.GetClassified(ctx, value.PolicyID, checkType)
-
-		nodeCheckDetails.ComplianceMap = append(nodeCheckDetails.ComplianceMap, cpMap)
-	}
-
-	return nil
-}
-
-func (s *ScapService) GetNodeCheckHostDetails(ctx context.Context, nodeName, checkID, checkType string, nodeCheckDetails *model.NodeCheckDetails) error {
-	var scanRet []model.ScanResult
-	query := "node_name = ? and task_id = ?"
-	err := s.rdb.GetReadDB().WithContext(ctx).Find(&scanRet, query, nodeName, checkID).Error
-	if err != nil {
-		return errors.Errorf("get node scan result failed, %v", err)
-	}
-
-	if len(scanRet) == 0 {
-		return nil
-	}
-
-	nodeCheckDetails.Status = "completed"
-	nodeCheckDetails.CheckID = checkID
-	nodeCheckDetails.NodeName = nodeName
-
-	for _, value := range scanRet {
-		var cpMap model.ComplianceMapEntry
-		policy, err := s.GetPolicyInfo(ctx, value.PolicyID, checkType)
-		if err != nil {
-			logging.Get().Warn().Msgf("get policy info failed, policy id : %s.", value.PolicyID)
-			continue
-		}
-
-		cpMap.PolicyId = policy.Id
-		cpMap.Remediation = policy.DetailZh
-		cpMap.Description = policy.TitleZh
-		if lang.Language(ctx) == lang.LanguageEN {
-			cpMap.Remediation = policy.DetailEn
-			cpMap.Description = policy.TitleEn
-		}
-
-		cpMap.PolicyNumber = value.PolicyID
-		cpMap.TestStatus = value.State
-		cpMap.Classified = s.GetClassified(ctx, value.PolicyID, checkType)
-
-		nodeCheckDetails.ComplianceMap = append(nodeCheckDetails.ComplianceMap, cpMap)
-	}
-
-	return nil
-}
-
-func (s *ScapService) GetNodeState(ctx context.Context, waitingOn, errorOn, successOn *[]string, checkId string) error {
-	var scanNode []model.ScanNodeRecord
-	err := s.rdb.GetReadDB().WithContext(ctx).Find(&scanNode, "task_id = ?", checkId).Error
-	if err != nil {
-		return errors.Errorf("can not find scan node record, %v", err)
-	}
-	// get node state
-	for _, node := range scanNode {
-		switch node.State {
-		case model.ScanStateInProgress:
-			*waitingOn = util.AppendIfMissing(*waitingOn, node.NodeName)
-		case model.ScanStateCompleted:
-			*successOn = util.AppendIfMissing(*successOn, node.NodeName)
-		case model.ScanStateFailed:
-			*errorOn = util.AppendIfMissing(*errorOn, node.NodeName)
-		default:
-			break
-		}
-	}
-
-	return nil
-}
-
-func (s *ScapService) GetPolicyInfo(ctx context.Context, policyId, checkType string) (*model.PolicyDetailInfo, error) {
+func (s *ScapService) GetPolicyInfo(ctx context.Context, policyId string, checkType model.ComplianceCheckType) (*model.PolicyDetailInfo, error) {
 	var policy model.PolicyDetailInfo
+
+	// try get by cache
+	key := fmt.Sprintf("%s:%s", checkType, policyId)
+	rawJSON, err := s.cache.Get(ctx, key).Bytes()
+	if err != nil {
+		logging.Get().Info().Err(err).Msg("")
+	} else {
+		if err = json.Unmarshal(rawJSON, &policy); err == nil {
+			return &policy, nil
+		}
+		logging.Get().Info().Err(err).Msg("")
+	}
+
+	// get by db
 	condition := "policy_id = ? and check_type = ? and status = 0"
-	err := s.rdb.GetReadDB().WithContext(ctx).Take(&policy, condition, policyId, checkType).Error
+	err = s.rdb.GetReadDB().WithContext(ctx).First(&policy, condition, policyId, checkType).Error
 	if err != nil || policy.PolicyId == "" {
 		logging.Get().Err(err).Msgf("get policy information failed, policy id : %s, checkType : %s", policyId, checkType)
 		return nil, errors.Errorf("get policy information failed, policy id : %s, checkType : %s", policyId, checkType)
+	}
+
+	// save to cache
+	if rawJSON, err = json.Marshal(policy); err != nil {
+		logging.Get().Warn().Err(err).Msg("json.Marshal err")
+	} else {
+		if err = s.cache.Set(ctx, key, rawJSON, time.Hour+time.Second*time.Duration(rand.Intn(100))).Err(); err != nil {
+			logging.Get().Warn().Err(err).Msg("s.cache.Set err")
+		}
 	}
 
 	return &policy, nil
@@ -573,7 +393,7 @@ func (s *ScapService) GetNodeRecordAutoVariate(ctx context.Context, checkId, che
 
 	for _, node := range nodeRecord {
 		autoVar := make(map[string]string)
-		err = json.Unmarshal([]byte(node.AutoVariate), &autoVar)
+		err = json.Unmarshal(node.AutoVariate, &autoVar)
 		if err != nil {
 			logging.Get().Error().Msgf("json unmarshal AutoVariate failed, %v.", err)
 			continue
@@ -603,187 +423,93 @@ func (s *ScapService) ReplaceAutoVariate(src string, autoVar map[string]string) 
 	return dst
 }
 
-func (s *ScapService) GetKubeBreakdownEntries(ctx context.Context, checkMap map[string]*model.CheckBreakdown, checkId, checkType string) error {
-	var scanRet []model.ScanResult
-	err := s.rdb.GetReadDB().WithContext(ctx).Find(&scanRet, "task_id = ?", checkId).Error
+func (s *ScapService) FindBreakdownEntries(ctx context.Context, taskID string, checkType model.ComplianceCheckType, section, udbcp, policyID, checkStatus string) ([]*model.CheckBreakdown, error) {
+	db := s.rdb.GetReadDB().WithContext(ctx).Model(&model.ScanResult{})
+	if udbcp != "" {
+		db = db.Where("udbcp = ?", udbcp)
+	}
+	if section != "" {
+		db = db.Where("section = ?", section)
+	}
+	if policyID != "" {
+		db = db.Where("policy_id = ?", policyID)
+	}
+
+	list := make([]*model.CheckBreakdown, 0)
+	err := db.Select("COUNT(CASE WHEN state=? THEN 1 END) AS pass,"+
+		"COUNT(CASE WHEN state=? THEN 1 END) AS warn,"+
+		"COUNT(CASE WHEN state=? THEN 1 END) AS info,"+
+		"COUNT(CASE WHEN state=? THEN 1 END) AS fail,"+
+		"policy_id,udbcp", model.ScapScanResultStatePASS, model.ScapScanResultStateWARN,
+		model.ScapScanResultStateINFO, model.ScapScanResultStateFAIL).
+		Group("policy_id,udbcp").
+		Find(&list, "check_type = ? AND task_id = ?", checkType, taskID).Error
 	if err != nil {
-		return errors.Errorf("get scan result failed, %v", err)
-	}
-	// get scan result
-	for _, value := range scanRet {
-		_, ok := checkMap[value.PolicyID]
-		if !ok {
-			policy, err := s.GetPolicyInfo(ctx, value.PolicyID, checkType)
-			if err != nil {
-				logging.Get().Err(err).Msgf("get policy information failed, policy id : %s, checkType : %s.", value.PolicyID, checkType)
-				continue
-			}
-
-			title := policy.TitleZh
-			detail := policy.DetailZh
-			if lang.Language(ctx) == lang.LanguageEN {
-				title = policy.TitleEn
-				detail = policy.DetailEn
-			}
-
-			checkMap[value.PolicyID] = &model.CheckBreakdown{
-				PolicyNumber: value.PolicyID,
-				Section:      title,
-				Description:  detail,
-			}
-			checkMap[value.PolicyID].Classified = s.GetClassified(ctx, value.PolicyID, checkType)
-			checkMap[value.PolicyID].PolicyId = policy.Id
-		}
-
-		testStatus := value.State
-		switch testStatus {
-		case testLevelFail:
-			checkMap[value.PolicyID].NumFailed++
-		case testLevelWarn:
-			checkMap[value.PolicyID].NumWarn++
-		case testLevelPass:
-			checkMap[value.PolicyID].NumSuccessful++
-		case testLevelInfo:
-			checkMap[value.PolicyID].NumInfo++
-		default:
-			break
-		}
+		return nil, errors.Errorf("get scan result failed, %v", err)
 	}
 
-	return nil
+	for i := range list {
+		policy, err := s.GetPolicyInfo(ctx, list[i].PolicyNumber, checkType)
+		if err != nil {
+			logging.Get().Err(err).Msgf("get policy information failed, policy id : %s, checkType : %s.", list[i].PolicyNumber, checkType)
+			continue
+		}
+
+		list[i].Section = policy.TitleZh
+		list[i].Description = policy.DetailZh
+	}
+
+	// filter and sort
+	if checkStatus != "" {
+		linq.From(list).Where(func(i interface{}) bool {
+			item := i.(*model.CheckBreakdown)
+			if checkStatus == "compliance" {
+				return item.Fail == 0
+			} else if checkStatus == "unCompliance" {
+				return item.Fail > 0
+			}
+			return true
+		}).Sort(func(i, j interface{}) bool {
+			return i.(*model.CheckBreakdown).PolicyNumber < j.(*model.CheckBreakdown).PolicyNumber
+		}).ToSlice(&list)
+	} else {
+		linq.From(list).Sort(func(i, j interface{}) bool {
+			iv := i.(*model.CheckBreakdown)
+			jv := j.(*model.CheckBreakdown)
+			irate := float64(iv.Fail) / float64(iv.Pass+iv.Warn+iv.Info+iv.Fail)
+			jrate := float64(jv.Fail) / float64(jv.Pass+jv.Warn+jv.Info+jv.Fail)
+
+			if irate > jrate {
+				return true
+			} else if irate < jrate {
+				return false
+			} else {
+				return iv.PolicyNumber < jv.PolicyNumber
+			}
+		}).ToSlice(&list)
+	}
+
+	return list, nil
 }
 
-func (s *ScapService) GetKubePolicyDetails(ctx context.Context, policyDetails *model.PolicyDetails, policyId, checkType, checkId string) error {
-	autoVars, err := s.GetNodeRecordAutoVariate(ctx, checkId, checkType)
-	if err != nil {
-		return errors.Errorf("get node auto variate failed, %v", err)
-	}
-
+func (s *ScapService) GetPolicyDetails(ctx context.Context, policyDetails *model.PolicyDetails, policyId string, checkType model.ComplianceCheckType) error {
 	policy, err := s.GetPolicyInfo(ctx, policyId, checkType)
 	if err != nil {
 		return errors.Errorf("get policy information failed, policy id : %s, checkType : %s.", policyId, checkType)
 	}
 
-	var scanRet []model.ScanResult
-	query := "task_id = ? and policy_id = ?"
-	err = s.rdb.GetReadDB().WithContext(ctx).Find(&scanRet, query, checkId, policyId).Error
-	if err != nil {
-		return errors.Errorf("get scan result failed by policy id : %s, %v", policyId, err)
-	}
-
-	policyDetails.Audit = policy.Audit
 	policyDetails.PolicyNumber = policyId
-
-	for _, value := range scanRet {
-		var nodeRet model.PolicyNodeRet
-		nodeRet.NodeName = value.NodeName
-		autoVar := autoVars[nodeRet.NodeName]
-		nodeRet.TestStatus = value.State
-		nodeRet.Remediation = s.ReplaceAutoVariate(policy.RemediationZh, autoVar)
-		if lang.Language(ctx) == lang.LanguageEN {
-			nodeRet.Remediation = s.ReplaceAutoVariate(policy.RemediationEn, autoVar)
-		}
-
-		switch nodeRet.TestStatus {
-		case testLevelFail:
-			policyDetails.NumFailed++
-			policyDetails.FailedOn = append(policyDetails.FailedOn, nodeRet)
-		case testLevelWarn:
-			policyDetails.NumWarn++
-			policyDetails.WarnOn = append(policyDetails.WarnOn, nodeRet)
-		case testLevelPass:
-			policyDetails.NumSuccessful++
-			policyDetails.SuccessfulOn = append(policyDetails.SuccessfulOn, nodeRet)
-		case testLevelInfo:
-			policyDetails.NumInfo++
-			policyDetails.InfoOn = append(policyDetails.InfoOn, nodeRet)
-		default:
-		}
-	}
-
-	return nil
-}
-
-func (s *ScapService) GetHostBreakdownEntries(ctx context.Context, checkMap map[string]*model.CheckBreakdown, checkId, checkType string) error {
-	var scanRet []model.ScanResult
-	err := s.rdb.GetReadDB().WithContext(ctx).Find(&scanRet, "task_id = ?", checkId).Error
-	if err != nil {
-		return errors.Errorf("get scan result failed, %v", err)
-	}
-	// get scan result
-	for _, value := range scanRet {
-		_, ok := checkMap[value.PolicyID]
-		if !ok {
-			policy, err := s.GetPolicyInfo(ctx, value.PolicyID, checkType)
-			if err != nil {
-				logging.Get().Error().Msgf("get policy information failed, policy id : %s, checkType : %s.", value.PolicyID, checkType)
-				continue
-			}
-
-			title := policy.TitleZh
-			if lang.Language(ctx) == lang.LanguageEN {
-				title = policy.TitleEn
-			}
-			checkMap[value.PolicyID] = &model.CheckBreakdown{
-				PolicyNumber: value.PolicyID,
-				Description:  title,
-			}
-
-			checkMap[value.PolicyID].Classified = s.GetClassified(ctx, value.PolicyID, checkType)
-			checkMap[value.PolicyID].PolicyId = policy.Id
-		}
-
-		switch value.State {
-		case "fail":
-			checkMap[value.PolicyID].NumFailed++
-		case "notselected":
-			checkMap[value.PolicyID].NumInfo++
-		case "pass":
-			checkMap[value.PolicyID].NumSuccessful++
-		default:
-			break
-		}
-	}
-
-	return nil
-}
-
-func (s *ScapService) GetHostPolicyDetails(ctx context.Context, policyDetails *model.PolicyDetails, policyId, checkType, checkId string) error {
-	policy, err := s.GetPolicyInfo(ctx, policyId, checkType)
-	if err != nil {
-		return errors.Errorf("get policy information failed, policy id : %s, checkType : %s.", policyId, checkType)
-	}
-
-	var scanRet []model.ScanResult
-	query := "task_id = ? and policy_id = ?"
-	err = s.rdb.GetReadDB().WithContext(ctx).Find(&scanRet, query, checkId, policyId).Error
-	if err != nil {
-		return errors.Errorf("get scan result failed by policy id : %s, %v", policyId, err)
-	}
-
-	policyDetails.Audit = policy.Audit
-	policyDetails.PolicyNumber = policyId
-
-	for _, value := range scanRet {
-		var nodeRet model.PolicyNodeRet
-		nodeRet.NodeName = value.NodeName
-		nodeRet.TestStatus = value.State
-		nodeRet.Remediation = policy.DetailZh
-		if lang.Language(ctx) == lang.LanguageEN {
-			nodeRet.Remediation = policy.DetailEn
-		}
-
-		switch nodeRet.TestStatus {
-		case "fail":
-			policyDetails.NumFailed++
-			policyDetails.FailedOn = append(policyDetails.FailedOn, nodeRet)
-		case "notselected":
-			policyDetails.NumInfo++
-			policyDetails.InfoOn = append(policyDetails.InfoOn, nodeRet)
-		case "pass":
-			policyDetails.NumSuccessful++
-			policyDetails.SuccessfulOn = append(policyDetails.SuccessfulOn, nodeRet)
-		default:
+	policyDetails.Section = policy.TitleZh
+	policyDetails.UDBCP = s.GetUDBCPMap(policyId, checkType)
+	policyDetails.Description = policy.RemediationZh
+	policyDetails.ExtraDetail = policy.PolicyDetailInfoExtraDetail
+	if policyDetails.ExtraDetail == nil {
+		policyDetails.ExtraDetail = &model.PolicyDetailInfoExtraDetail{
+			Description: policy.DetailZh,
+			Rationale:   policy.TitleZh,
+			Audit:       policy.Audit,
+			Remediation: policy.RemediationZh,
+			References:  []string{},
 		}
 	}
 
@@ -799,7 +525,7 @@ func (s *ScapService) GetFileData(filename string) ([]byte, error) {
 	return data, nil
 }
 
-func (s *ScapService) GetScanResultToFile(task *model.ExportTask, language lang.LanguageType) error {
+func (s *ScapService) GetScanResultToFile(task *model.ExportTask) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
@@ -829,14 +555,10 @@ func (s *ScapService) GetScanResultToFile(task *model.ExportTask, language lang.
 	}
 	// add row
 	row := sheet.AddRow()
-	title := model.GetTitleEn()
-	if language == lang.LanguageZH {
-		title = model.GetTitleZh()
-	}
-	row.WriteStruct(title, -1)
+	row.WriteStruct(model.GetTitleZh(), -1)
 
 	for _, value := range scanRet {
-		policy, err := s.GetPolicyInfo(ctx, value.PolicyID, task.CheckType)
+		policy, err := s.GetPolicyInfo(ctx, value.PolicyID, model.ComplianceCheckType(task.CheckType))
 		if err != nil {
 			logging.Get().Error().Msgf("get policy %s failed, %v.", value.PolicyID, err)
 			continue
@@ -848,106 +570,14 @@ func (s *ScapService) GetScanResultToFile(task *model.ExportTask, language lang.
 		exfile.Section = policy.TitleZh
 		exfile.Descript = policy.RemediationZh
 		exfile.DecDetail = policy.DetailZh
-		exfile.Classified = s.GetClassifiedByLanguage(language, value.PolicyID, task.CheckType)
-		if language == lang.LanguageEN {
-			exfile.Section = policy.TitleEn
-			exfile.Descript = policy.RemediationEn
-			exfile.DecDetail = policy.DetailEn
-			exfile.Status = value.State
+		exfile.Classified = s.GetUDBCPMap(value.PolicyID, model.ComplianceCheckType(task.CheckType))
+		if policy.PolicyDetailInfoExtraDetail != nil {
+			exfile.Audit = policy.PolicyDetailInfoExtraDetail.Audit
+			exfile.Remediation = policy.PolicyDetailInfoExtraDetail.Remediation
 		}
+
 		row = sheet.AddRow()
 		row.WriteStruct(&exfile, -1)
-	}
-
-	return nil
-}
-
-func (s *ScapService) GetDockerBreakdownEntries(ctx context.Context, checkMap map[string]*model.CheckBreakdown, checkId, checkType string) error {
-	var scanRet []model.ScanResult
-	err := s.rdb.GetReadDB().WithContext(ctx).Find(&scanRet, "task_id = ?", checkId).Error
-	if err != nil {
-		return errors.Errorf("get scan result failed, %v", err)
-	}
-	// get scan result
-	for _, value := range scanRet {
-		_, ok := checkMap[value.PolicyID]
-		if !ok {
-			policy, err := s.GetPolicyInfo(ctx, value.PolicyID, checkType)
-			if err != nil {
-				logging.Get().Error().Msgf("get policy information failed, policy id : %s, checkType : %s.", value.PolicyID, checkType)
-				continue
-			}
-
-			title := policy.TitleZh
-			detail := policy.DetailZh
-			if lang.Language(ctx) == lang.LanguageEN {
-				title = policy.TitleEn
-				detail = policy.DetailEn
-			}
-
-			checkMap[value.PolicyID] = &model.CheckBreakdown{
-				PolicyNumber: value.PolicyID,
-				Section:      title,
-				Description:  detail,
-			}
-
-			checkMap[value.PolicyID].Classified = s.GetClassified(ctx, value.PolicyID, checkType)
-			checkMap[value.PolicyID].PolicyId = policy.Id
-		}
-
-		testStatus := value.State
-		switch testStatus {
-		case "WARN":
-			checkMap[value.PolicyID].NumFailed++
-		case "NOTE":
-			checkMap[value.PolicyID].NumInfo++
-		case "PASS":
-			checkMap[value.PolicyID].NumSuccessful++
-		case "INFO":
-			checkMap[value.PolicyID].NumInfo++
-		default:
-			break
-		}
-	}
-
-	return nil
-}
-
-func (s *ScapService) GetDockerPolicyDetails(ctx context.Context, policyDetails *model.PolicyDetails, policyId, checkType, checkId string) error {
-	var scanRet []model.ScanResult
-	query := "task_id = ? and policy_id = ?"
-	err := s.rdb.Get().WithContext(ctx).Find(&scanRet, query, checkId, policyId).Error
-	if err != nil {
-		return errors.Errorf("get scan result failed by policy id : %s, %v", policyId, err)
-	}
-
-	policyDetails.PolicyNumber = policyId
-
-	for _, value := range scanRet {
-		var nodeRet model.PolicyNodeRet
-		nodeRet.NodeName = value.NodeName
-		nodeRet.TestStatus = value.State
-		nodeRet.Remediation = value.RemediationZh
-		if lang.Language(ctx) == lang.LanguageEN {
-			nodeRet.Remediation = value.RemediationEn
-		}
-
-		switch nodeRet.TestStatus {
-		case "NOTE":
-			policyDetails.NumInfo++
-			policyDetails.InfoOn = append(policyDetails.InfoOn, nodeRet)
-		case "WARN":
-			policyDetails.NumFailed++
-			nodeRet.TestStatus = "FAIL"
-			policyDetails.FailedOn = append(policyDetails.FailedOn, nodeRet)
-		case "PASS":
-			policyDetails.NumSuccessful++
-			policyDetails.SuccessfulOn = append(policyDetails.SuccessfulOn, nodeRet)
-		case "INFO":
-			policyDetails.NumInfo++
-			policyDetails.InfoOn = append(policyDetails.InfoOn, nodeRet)
-		default:
-		}
 	}
 
 	return nil
@@ -964,13 +594,44 @@ func (s *ScapService) AddScapScanResults(ctx context.Context, rs []*model.ScanRe
 	logging.Get().Info().
 		Str("taskId", taskId).
 		Str("nodeName", nodeName).
-		Str("checkType", rs[0].CheckType).
+		Str("checkType", string(rs[0].CheckType)).
 		Msgf("add scap scan result, total: %d", len(rs))
+
+	var pass, warn, info, fail int
+	for i := range rs {
+		// TODO: 暂时这样，id应该发送端修改
+		rs[i].ID = 0
+		rs[i].UDBCP = s.GetUDBCPMap(rs[i].PolicyID, rs[i].CheckType)
+
+		policy, err := s.GetPolicyInfo(ctx, rs[i].PolicyID, rs[i].CheckType)
+		if err == nil {
+			rs[i].Section = policy.TitleZh
+		}
+
+		if rs[i].State == "PASS" || rs[i].State == "pass" {
+			rs[i].State = model.ScapScanResultStatePASS
+			pass++
+		} else if rs[i].State == "warn" {
+			rs[i].State = model.ScapScanResultStateWARN
+			warn++
+		} else if rs[i].State == "NOTE" || rs[i].State == "INFO" || rs[i].State == "notselected" {
+			rs[i].State = model.ScapScanResultStateINFO
+			info++
+		} else if (rs[i].CheckType == model.ComplianceCheckTargetTypeDocker && rs[i].State == "WARN") || rs[i].State == "fail" {
+			rs[i].State = model.ScapScanResultStateFAIL
+			fail++
+		}
+	}
 
 	scanRecord := &model.ScanNodeRecord{
 		State:      model.ScanStateCompleted,
-		FinishedAt: time.Now().Unix(),
 		Message:    "success",
+		FinishedAt: time.Now().Unix(),
+		Pass:       pass,
+		Fail:       fail,
+		Warn:       warn,
+		Info:       info,
+		PassRate:   decimal.NewFromFloat(float64(pass+warn+info) / float64(pass+warn+info+fail)),
 	}
 
 	err := s.rdb.Get().WithContext(ctx).Transaction(func(tx *gorm.DB) error {
@@ -980,16 +641,9 @@ func (s *ScapService) AddScapScanResults(ctx context.Context, rs []*model.ScanRe
 			return err
 		}
 
-		// 因为kube的还要接受 auto_variate 数据，所以在 auto_variate 那里设置状态为成功。
-		// Todo: 我认为两个请求能合并到一起
-		if rs[0].CheckType == string(model.ComplianceCheckTargetTypeKube) {
-			return nil
-		}
-
 		// 收到扫描结果将对应任务设置为完成
-		err = tx.
-			Model(scanRecord).
-			Select("state", "finished_at", "message").
+		err = tx.Model(scanRecord).
+			Select("state", "finished_at", "message", "pass", "warn", "info", "fail", "pass_rate").
 			Where("state = ?", model.ScanStateInProgress).
 			Where("node_name = ? and task_id = ?", nodeName, taskId).
 			Updates(scanRecord).
@@ -1002,59 +656,9 @@ func (s *ScapService) AddScapScanResults(ctx context.Context, rs []*model.ScanRe
 		logging.Get().Err(err).
 			Str("taskId", taskId).
 			Str("nodeName", nodeName).
-			Str("checkType", rs[0].CheckType).
+			Str("checkType", string(rs[0].CheckType)).
 			Msg("添加 扫描结果 数据失败")
 	}
 
 	return err
-}
-
-func (s *ScapService) UpdateSnrVariate(ctx context.Context, taskID, nodeName, checkType, autoVariate string) error {
-	ctx, cancel := context.WithTimeout(ctx, 1000*time.Millisecond)
-	defer cancel()
-
-	scanRecord := &model.ScanNodeRecord{
-		State:      model.ScanStateCompleted,
-		FinishedAt: time.Now().Unix(),
-		Message:    "success",
-	}
-
-	return util.RetryWithBackoff(ctx, func() error {
-		oneCtx, oneCancel := context.WithTimeout(ctx, 300*time.Millisecond)
-		defer oneCancel()
-
-		err := s.rdb.Get().WithContext(oneCtx).Transaction(func(tx *gorm.DB) error {
-			if err := tx.Model(&model.ScanNodeRecord{}).
-				Where("task_id = ? and node_name = ? and check_type = ?", taskID, nodeName, checkType).
-				Update("auto_variate", autoVariate).Error; err != nil {
-				return err
-			}
-
-			if checkType == string(model.ComplianceCheckTargetTypeKube) {
-				// 收到扫描结果将对应任务设置为完成
-				err := tx.
-					Model(scanRecord).
-					Select("state", "finished_at", "message").
-					Where("node_name = ? and task_id = ? and state = ?", nodeName, taskID, model.ScanStateInProgress).
-					Updates(scanRecord).
-					Error
-
-				if err != nil {
-					return err
-				}
-			}
-
-			return nil
-		})
-
-		if err != nil {
-			logging.Get().Err(err).
-				Str("taskId", taskID).
-				Str("nodeName", nodeName).
-				Str("checkType", checkType).
-				Msg("添加 auto_variate 数据失败")
-		}
-
-		return err
-	})
 }

@@ -18,8 +18,7 @@ func (a *ApiServer) CronJobCreate(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), time.Second*10)
 	defer cancel()
 
-	var scapType = r.Context().Value(sType).(uint8)
-	var username = "system"
+	var scapType = r.Context().Value(sType).(string)
 
 	var req scap.CronJob
 	err := json.NewDecoder(r.Body).Decode(&req)
@@ -32,30 +31,21 @@ func (a *ApiServer) CronJobCreate(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := internal.VerifyCronJob(&req); err != nil {
-		apperror.RespAndLog(
-			w,
-			ctx,
-			apperror.NewErrorWithCode(
-				http.StatusBadRequest,
-				err,
-			),
-		)
+		apperror.RespAndLog(w, ctx, apperror.NewErrorWithCode(http.StatusBadRequest, err))
 		return
 	}
 
 	cron, err := internal.Cron(req.Cron)
 	if err != nil {
-		apperror.RespAndLog(w, ctx, apperror.NewErrorWithCode(
-			http.StatusBadRequest,
-			err),
-		)
+		apperror.RespAndLog(w, ctx, apperror.NewErrorWithCode(http.StatusBadRequest, err))
 		return
 	}
 
 	var cronRecord = model.ScapCronRecord{
 		Type:     scapType,
-		Operator: username,
+		Operator: model.GetUsernameFromContext(r.Context()),
 		Cron:     cron,
+		Status:   req.Status,
 		PolicyID: req.PolicyID,
 	}
 
@@ -72,10 +62,7 @@ func (a *ApiServer) CronJobCreate(w http.ResponseWriter, r *http.Request) {
 
 	err = a.service.CronJobSave(ctx, &cronRecord, cluster)
 	if err != nil {
-		apperror.RespAndLog(w, ctx, apperror.NewErrorWithCode(
-			http.StatusInternalServerError,
-			err),
-		)
+		apperror.RespAndLog(w, ctx, apperror.NewErrorWithCode(http.StatusInternalServerError, err))
 		return
 	}
 
@@ -86,14 +73,12 @@ func (a *ApiServer) CronJobDetail(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), time.Second*10)
 	defer cancel()
 
-	var scapType = r.Context().Value(sType).(uint8)
+	var scapType = r.Context().Value(sType).(string)
 
 	cronJob, clusterInfo, err := a.service.CronJobDetail(ctx, scapType)
 	if err != nil {
-		apperror.RespAndLog(w, ctx, apperror.NewErrorWithCode(
-			http.StatusInternalServerError,
-			err),
-		)
+		apperror.RespAndLog(w, ctx,
+			apperror.NewErrorWithCode(http.StatusInternalServerError, err))
 		return
 	}
 
@@ -108,6 +93,7 @@ func (a *ApiServer) CronJobDetail(w http.ResponseWriter, r *http.Request) {
 	policy, _ := a.service.PolicyBrief(ctx, cronJob.PolicyID)
 
 	resp.Cron = internal.ParseCron(cronJob.Cron)
+	resp.Status = cronJob.Status
 	resp.PolicyID = cronJob.PolicyID
 	resp.PolicyName = policy.Name
 	resp.ClusterInfos = make([]scap.ClusterInfoDetail, 0, len(clusterInfo))

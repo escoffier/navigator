@@ -3,8 +3,9 @@ package scap
 import "gitlab.com/piccolo_su/vegeta/cmd/console/models"
 
 type CronJob struct {
-	Job  `json:",inline"`
-	Cron *Cron `json:"cron"`
+	Job    `json:",inline"`
+	Status bool  `json:"status"`
+	Cron   *Cron `json:"cron"`
 }
 
 type Cron struct {
@@ -20,8 +21,9 @@ type Cron struct {
 }
 
 type CronJobDetail struct {
-	ID   uint  `json:"id"`
-	Cron *Cron `json:"cron"`
+	ID     uint  `json:"id"`
+	Cron   *Cron `json:"cron"`
+	Status bool  `json:"status"`
 	// 策略id, 0为默认策略
 	PolicyID     uint                `json:"policyId"`
 	PolicyName   string              `json:"policyName"`

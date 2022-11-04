@@ -343,8 +343,8 @@ func (api *api) userList() http.HandlerFunc {
 		response.Ok(w,
 			response.WithItems(userList),
 			response.WithTotalItems(docNum),
-			response.WithItemsPerPage(limit),
-			response.WithStartIndex(offset))
+			response.WithItemsPerPage(int64(limit)),
+			response.WithStartIndex(int64(offset)))
 	}
 }
 

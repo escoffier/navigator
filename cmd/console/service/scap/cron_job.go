@@ -19,7 +19,8 @@ func (s *Service) CronJobSave(ctx context.Context, cronJob *model.ScapCronRecord
 	var scapType = cronJob.Type
 
 	// 校验policy是否存在
-	if err := s.rdb.Get().WithContext(ctx).Where("type = ?", cronJob.Type).First(&model.ScapPolicy{}, cronJob.PolicyID).Error; err != nil {
+	if err := s.rdb.Get().WithContext(ctx).Where("type = ?", cronJob.Type).
+		First(&model.ScapPolicy{}, cronJob.PolicyID).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return fmt.Errorf("policy <%d> not found", cronJob.PolicyID)
 		}
@@ -32,8 +33,7 @@ func (s *Service) CronJobSave(ctx context.Context, cronJob *model.ScapCronRecord
 		var old model.ScapCronRecord
 
 		// 通过互斥锁锁锁住 type = scapType 的数据
-		err = tx.
-			Model(cronJob).
+		err = tx.Model(cronJob).
 			Select("id", "version").
 			Clauses(clause.Locking{Strength: "UPDATE"}).
 			Where("type = ?", cronJob.Type).
@@ -77,8 +77,8 @@ func (s *Service) CronJobSave(ctx context.Context, cronJob *model.ScapCronRecord
 			}
 		}
 
-		// 当取消cronjob的时候，直接返回
-		if len(cronJob.Cron) == 0 {
+		// 当禁用cronjob的时候，直接返回
+		if !cronJob.Status {
 			return nil
 		}
 
@@ -99,14 +99,12 @@ func (s *Service) CronJobSave(ctx context.Context, cronJob *model.ScapCronRecord
 	return nil
 }
 
-func (s *Service) CronJobDetail(ctx context.Context, scapType uint8) (*model.ScapCronRecord, []model.ScapClusterInfo, error) {
+func (s *Service) CronJobDetail(ctx context.Context, scapType string) (*model.ScapCronRecord, []model.ScapClusterInfo, error) {
 	var cronJob model.ScapCronRecord
 	var clusterInfo []model.ScapClusterInfo
 	var db = s.rdb.Get().WithContext(ctx)
 
-	err := db.
-		Model(cronJob).
-		Where("type = ?", scapType).
+	err := db.Model(cronJob).Where("type = ?", scapType).
 		First(&cronJob).
 		Error
 
@@ -179,7 +177,7 @@ func (s *Service) CronJobDetail(ctx context.Context, scapType uint8) (*model.Sca
 
 func (s *Service) AddCronJob(ctx context.Context, spec string, cronJob *CronJobEntry) error {
 	logging.GetLogger().Info().Msgf("添加cronjob中, id: %d, cron: %s", cronJob.cronJobId, spec)
-	_, err := s.cronServer.AddJob(spec, cronJob)
+	_, err := s.cronServer.AddJob("TZ=Asia/Shanghai "+spec, cronJob)
 	if err != nil {
 		logging.GetLogger().Err(err).Msgf("创建或者更新cronjob失败，添加定时任务失败，id: %d, cron: %s", cronJob.cronJobId, spec)
 		return errors.New("cronjob 修改失败")
