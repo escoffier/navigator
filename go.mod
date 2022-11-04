@@ -103,6 +103,7 @@ require (
 	github.com/go-sql-driver/mysql v1.6.0
 	github.com/go-task/slim-sprig v0.0.0-20210107165309-348f09dbbbc0
 	github.com/gobwas/glob v0.2.3
+	github.com/golang-jwt/jwt v3.2.2+incompatible
 	github.com/golang/protobuf v1.5.2
 	github.com/imroc/req/v3 v3.23.0
 	github.com/jarcoal/httpmock v1.2.0
@@ -128,6 +129,7 @@ require (
 	github.com/Azure/go-autorest/autorest/date v0.3.0 // indirect
 	github.com/StackExchange/wmi v0.0.0-20190523213315-cbe66965904d // indirect
 	github.com/acarl005/stripansi v0.0.0-20180116102854-5a71ef0e047d // indirect
+	github.com/ahmetb/go-linq/v3 v3.2.0 // indirect
 	github.com/andres-erbsen/clock v0.0.0-20160526145045-9e14626cd129 // indirect
 	github.com/armon/go-metrics v0.3.11 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect

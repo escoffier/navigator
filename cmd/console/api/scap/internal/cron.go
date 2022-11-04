@@ -36,8 +36,8 @@ func Cron(cron *scap.Cron) (string, error) {
 	var time string
 
 	switch cron.Type {
-	case 1:
-		return "", nil
+	// case 1:
+	// 	return "", nil
 	case 2:
 		if !regexp1.MatchString(cron.Time) {
 			return "", fmt.Errorf("invalid cron, invalid time: %s", cron.Time)
@@ -64,6 +64,8 @@ func Cron(cron *scap.Cron) (string, error) {
 		time = split[2]
 		s[3] = split[1]
 		s[4] = split[0]
+	default:
+		return "", fmt.Errorf("unknown cron type")
 	}
 
 	times := strings.Split(time, ":")

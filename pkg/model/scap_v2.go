@@ -13,16 +13,16 @@ import (
 
 // ScapPolicy 是合规扫描的策略表对应的model
 type ScapPolicy struct {
-	ID uint `gorm:"primarykey"`
+	ID uint64 `gorm:"primarykey"`
 	// 策略名字，与deleted_at构成唯一索引
 	Name string `gorm:"column:name;type:varchar(100);uniqueIndex:name_unique;priority:2"`
 
 	// 是否默认
 	IsDefault bool `gorm:"column:is_default;type:bool"`
 
-	// 策略类型：kube:1/docker:2/host:3
-	Type uint8 `gorm:"column:type;uniqueIndex:name_unique;priority:1;type:tinyint"`
-
+	// 策略类型：kube/docker/host
+	Type    string `gorm:"column:type;uniqueIndex:name_unique;priority:1;type:tinyint"`
+	Creator string `gorm:"column:creator;type:varchar(30)"`
 	// 操作人
 	Operator string `gorm:"column:operator;type:varchar(30)"`
 	// 说明
@@ -62,10 +62,10 @@ func (s *ScapPolicy) AfterFind(tx *gorm.DB) (err error) {
 // ScapCronRecord 保存定时任务
 type ScapCronRecord struct {
 	gorm.Model
-	// 策略类型：kube:1/docker:2/host:3
-	Type uint8 `gorm:"column:type;type:tinyint"`
+	Type string `gorm:"column:type"`
 	// Cron表达式
-	Cron string `gorm:"column:cron;type:varchar(20)"`
+	Cron   string `gorm:"column:cron;type:varchar(20)"`
+	Status bool   `gorm:"column:status;type:tinyint"`
 	// 操作人
 	Operator string `gorm:"column:operator;type:varchar(30)"`
 	// 版本号

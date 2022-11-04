@@ -17,7 +17,7 @@ func (a *ApiServer) RuleBatch(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), time.Second*10)
 	defer cancel()
 
-	var scapType = r.Context().Value(sType).(uint8)
+	var scapType = r.Context().Value(sType).(string)
 
 	limit, err := param.QueryInt(r, "limit")
 	if err != nil {
@@ -37,7 +37,9 @@ func (a *ApiServer) RuleBatch(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	list, count, err := a.service.RuleBatch(ctx, scapType, limit, offset)
+	keyword, _ := param.QueryString(r, "keyword")
+
+	list, count, err := a.service.RuleBatch(ctx, scapType, keyword, limit, offset)
 	if err != nil {
 		apperror.RespAndLog(w, ctx, apperror.NewErrorWithCode(
 			http.StatusInternalServerError,
@@ -72,7 +74,7 @@ func (a *ApiServer) RuleDetail(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), time.Second*10)
 	defer cancel()
 
-	scapType := r.Context().Value(sType).(uint8)
+	scapType := r.Context().Value(sType).(string)
 
 	id, err := param.Int(r, "id")
 	if err != nil {

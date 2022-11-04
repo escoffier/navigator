@@ -10,20 +10,12 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 )
 
-func (s *Service) RuleBatch(ctx context.Context, scapType uint8, limit, offset int) ([]model.PolicyDetailInfo, int64, error) {
-	var checkType string
-	switch scapType {
-	case 1:
-		checkType = kube
-	case 2:
-		checkType = docker
-	case 3:
-		checkType = host
-	default:
-		return nil, 0, errors.New("unsupported check type")
+func (s *Service) RuleBatch(ctx context.Context, scapType, keyword string, limit, offset int) ([]model.PolicyDetailInfo, int64, error) {
+	db := s.rdb.Get().WithContext(ctx).Model(&model.PolicyDetailInfo{}).Where("check_type = ?", scapType)
+	if keyword != "" {
+		cond := "%" + keyword + "%"
+		db = db.Where("policy_id LIKE ? OR title_zh LIKE ?", cond, cond)
 	}
-
-	db := s.rdb.Get().WithContext(ctx).Model(&model.PolicyDetailInfo{}).Where("check_type = ?", checkType)
 
 	var count int64
 	if err := db.Count(&count).Error; err != nil {
@@ -41,25 +33,13 @@ func (s *Service) RuleBatch(ctx context.Context, scapType uint8, limit, offset i
 	return v, count, nil
 }
 
-func (s *Service) RuleDetail(ctx context.Context, scapType uint8, id int) (*model.PolicyDetailInfo, error) {
-	var checkType string
-	switch scapType {
-	case 1:
-		checkType = kube
-	case 2:
-		checkType = docker
-	case 3:
-		checkType = host
-	default:
-		return nil, errors.New("unsupported check type")
-	}
-
+func (s *Service) RuleDetail(ctx context.Context, scapType string, id int) (*model.PolicyDetailInfo, error) {
 	db := s.rdb.Get().WithContext(ctx).
 		Model(&model.PolicyDetailInfo{}).
-		Where("check_type = ?", checkType).
+		Where("check_type = ?", scapType).
 		Where("id = ?", id)
 	// 只有kube才会获取 extra_detail 字段
-	if scapType != 1 {
+	if scapType != "kube" {
 		db = db.Omit("extra_detail")
 	}
 

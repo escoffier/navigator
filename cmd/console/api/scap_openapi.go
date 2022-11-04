@@ -13,6 +13,7 @@ import (
 
 	"github.com/go-chi/chi"
 	param "github.com/oceanicdev/chi-param"
+	"gorm.io/gorm"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/console/models/scap"
 	scapservice "gitlab.com/piccolo_su/vegeta/cmd/console/service/scap"
@@ -20,6 +21,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
+	"gitlab.com/security-rd/go-pkg/logging"
 )
 
 func (api *api) createScapScanTaskOpenApi() http.HandlerFunc {
@@ -75,7 +77,7 @@ func (api *api) createScapScanTaskOpenApi() http.HandlerFunc {
 
 		scapApiV2 := scapservice.NewService(api.rdb, api.redisClient)
 
-		res, err := scapApiV2.CreateJob(ctx, &scapservice.Job{Job: job, UserName: req.Operator, Type: model.GetModeScanType(req.CheckType)})
+		res, err := scapApiV2.CreateJob(ctx, &scapservice.Job{Job: job, UserName: req.Operator, Type: req.CheckType})
 		if err != nil {
 			apperror.RespAndLog(w, ctx, apperror.NewErrorWithCode(
 				http.StatusInternalServerError,
@@ -86,10 +88,6 @@ func (api *api) createScapScanTaskOpenApi() http.HandlerFunc {
 
 		response.Ok(w, response.WithItems(res))
 	}
-}
-
-func checkType(checkType string) bool {
-	return checkType == string(model.ComplianceCheckTargetTypeDocker) || checkType == string(model.ComplianceCheckTargetTypeHost) || checkType == string(model.ComplianceCheckTargetTypeKube)
 }
 
 func (api *api) getLatestScanRecordOpenApi() http.HandlerFunc {
@@ -125,16 +123,15 @@ func (api *api) getLatestScanRecordOpenApi() http.HandlerFunc {
 		}
 
 		// 如果没有传就是空，就会取默认值，所以这里不处理错误
-		checkId, _ := param.QueryString(r, "checkId")
+		checkID, _ := param.QueryString(r, "checkId")
 
 		complianceType, err := param.QueryString(r, "checkType")
-		if err != nil || !checkType(complianceType) {
+		if err != nil || !model.ComplianceCheckType(complianceType).IsValid() {
 			apperror.RespAndLog(w, ctx, apperror.NewFieldError(http.StatusBadRequest, errors.New("invaild check type parameter")))
 			return
 		}
 		// 如果没有传就赋默认值，所以这里忽略错误
-		limit, _ := param.QueryInt64(r, "limit")
-
+		limit, _ := param.QueryInt(r, "limit")
 		if limit == 0 {
 			limit = 10
 		}
@@ -143,28 +140,42 @@ func (api *api) getLatestScanRecordOpenApi() http.HandlerFunc {
 			limit = 10000
 		}
 
-		offset, _ := param.QueryInt64(r, "offset")
+		offset, _ := param.QueryInt(r, "offset")
 		if offset < 0 {
 			offset = 0
 		}
 
-		checkId, _, _, _, checkMap, ok := api.getLatestScanRecordHandler(ctx, w, clusterKey, checkId, model.ComplianceCheckType(complianceType), "desc")
-		if !ok {
+		svc, _ := scapper.GetService(ctx)
+		if checkID == "" {
+			checkID, _, err = svc.GetLatestHistory(ctx, clusterKey, model.ComplianceCheckType(complianceType))
+			if err != nil {
+				if err != gorm.ErrRecordNotFound {
+					apperror.RespAndLog(w, ctx, err)
+					return
+				}
+
+				response.Ok(w, response.WithItems([]string{}), response.WithTotalItems(0))
+				return
+			}
+		}
+
+		list, err := svc.FindBreakdownEntries(ctx, checkID, model.ComplianceCheckType(complianceType), "", "", "", "")
+		if err != nil {
+			apperror.RespAndLog(w, ctx, err)
 			return
 		}
 
-		var results = make([]*result, 0, len(checkMap))
-		for _, v := range checkMap {
+		var results = make([]*result, 0, len(list))
+		for _, v := range list {
 			results = append(results, &result{
-				CheckId:       checkId,
-				Classified:    v.Classified,
+				CheckId:       checkID,
+				Classified:    v.UDBCP,
 				Description:   v.Description,
 				Section:       v.Section,
-				NumFailed:     v.NumFailed,
-				NumWarn:       v.NumWarn,
-				NumSuccessful: v.NumSuccessful,
+				NumFailed:     int64(v.Fail),
+				NumWarn:       int64(v.Warn),
+				NumSuccessful: int64(v.Pass),
 				PolicyNumber:  v.PolicyNumber,
-				PolicyID:      int64(v.PolicyId),
 				CheckType:     complianceType,
 			})
 		}
@@ -174,8 +185,8 @@ func (api *api) getLatestScanRecordOpenApi() http.HandlerFunc {
 
 		response.Ok(w,
 			response.WithItems(results[resultsOffset:resultsLimit]),
-			response.WithItemsPerPage(limit),
-			response.WithStartIndex(offset),
+			response.WithItemsPerPage(int64(limit)),
+			response.WithStartIndex(int64(offset)),
 			response.WithTotalItems(int64(len(results))))
 	}
 }
@@ -211,7 +222,7 @@ func (api *api) getCheckHistoryOpenApi() http.HandlerFunc {
 		}
 
 		complianceType, err := param.QueryString(r, "checkType")
-		if err != nil || !checkType(complianceType) {
+		if err != nil || !model.ComplianceCheckType(complianceType).IsValid() {
 			apperror.RespAndLog(w, ctx, apperror.NewFieldError(http.StatusBadRequest, errors.New("invaild check type parameter")))
 			return
 		}
@@ -235,9 +246,9 @@ func (api *api) getCheckHistoryOpenApi() http.HandlerFunc {
 		var results = make([]*taskDetail, 0, len(items))
 		for i := range items {
 			results = append(results, &taskDetail{
-				CheckId:     items[i].CheckID,
+				CheckId:     items[i].TaskID,
 				CheckType:   items[i].CheckType,
-				ClusterId:   items[i].ClusterID,
+				ClusterId:   items[i].ClusterKey,
 				ClusterName: items[i].ClusterName,
 				CreatedAt:   items[i].CreatedAt,
 				Operator:    items[i].Operator,
@@ -285,7 +296,7 @@ func (api *api) getPolicyDetailsOpenApi() http.HandlerFunc {
 		}
 
 		complianceType, err := param.QueryString(r, "checkType")
-		if err != nil || !checkType(complianceType) {
+		if err != nil || !model.ComplianceCheckType(complianceType).IsValid() {
 			apperror.RespAndLog(w, ctx, apperror.NewFieldError(http.StatusBadRequest, errors.New("invaild check type parameter")))
 			return
 		}
@@ -296,8 +307,25 @@ func (api *api) getPolicyDetailsOpenApi() http.HandlerFunc {
 			return
 		}
 
-		result, ok := api.getPolicyDetailsHandler(ctx, w, model.ComplianceCheckType(complianceType), policyNumber, checkId)
-		if !ok {
+		nodes := make([]*struct {
+			NodeName string
+			State    model.ScapScanResultStateType
+		}, 0)
+		err = api.rdb.GetReadDB().WithContext(ctx).Model(&model.ScanResult{}).
+			Where("check_type = ? AND task_id = ? AND policy_id = ?", complianceType, checkId, policyNumber).
+			Select("node_name,state").
+			Find(&nodes).Error
+		if err != nil {
+			logging.Get().Error().Err(err).Msg("")
+			apperror.RespAndLog(w, ctx, err)
+			return
+		}
+
+		scapService, _ := scapper.GetService(ctx)
+		policy, err := scapService.GetPolicyInfo(ctx, policyNumber, model.ComplianceCheckType(complianceType))
+		if err != nil {
+			logging.Get().Error().Err(err).Msg("")
+			apperror.RespAndLog(w, ctx, apperror.NewAnError(http.StatusInternalServerError, err))
 			return
 		}
 
@@ -307,15 +335,15 @@ func (api *api) getPolicyDetailsOpenApi() http.HandlerFunc {
 			WarnOn:    make([]NodeInfo, 0),
 		}
 
-		for i := range result.FailedOn {
-			res.FailedOn = append(res.FailedOn, NodeInfo{NodeName: result.FailedOn[i].NodeName, Remediation: result.FailedOn[i].Remediation})
-		}
-
-		for i := range result.WarnOn {
-			res.WarnOn = append(res.WarnOn, NodeInfo{NodeName: result.WarnOn[i].NodeName, Remediation: result.WarnOn[i].Remediation})
-		}
-		for i := range result.SuccessfulOn {
-			res.SuccessOn = append(res.SuccessOn, NodeInfo{NodeName: result.SuccessfulOn[i].NodeName, Remediation: result.SuccessfulOn[i].Remediation})
+		for _, v := range nodes {
+			node := NodeInfo{NodeName: v.NodeName, Remediation: policy.RemediationZh}
+			if v.State == model.ScapScanResultStateFAIL {
+				res.FailedOn = append(res.FailedOn, node)
+			} else if v.State == model.ScapScanResultStateWARN {
+				res.WarnOn = append(res.WarnOn, node)
+			} else {
+				res.SuccessOn = append(res.SuccessOn, node)
+			}
 		}
 
 		response.Ok(w, response.WithItem(res))
@@ -386,7 +414,7 @@ func (api *api) getKubeScapCheckDetail() http.HandlerFunc {
 		}
 		scapApiV2 := scapservice.NewService(api.rdb, api.redisClient)
 
-		rule, err := scapApiV2.RuleDetail(ctx, 1, policyId)
+		rule, err := scapApiV2.RuleDetail(ctx, "kube", policyId)
 
 		if err != nil {
 			apperror.RespAndLog(w, ctx, apperror.NewMongoError(http.StatusInternalServerError, errors.New("get check status error")))
@@ -431,7 +459,7 @@ func (api *api) getScapScanPolicy() http.HandlerFunc {
 			return
 		}
 
-		result, count, err := scapApiV2.PolicyBatch(ctx, model.GetModeScanType(scanCheckType), math.MaxInt32, 0, "")
+		result, count, err := scapApiV2.PolicyBatch(ctx, scanCheckType, math.MaxInt32, 0, "")
 		if err != nil {
 			apperror.RespAndLog(w, ctx, apperror.NewErrorWithCode(
 				http.StatusInternalServerError,
@@ -449,6 +477,7 @@ func (api *api) getScapScanPolicy() http.HandlerFunc {
 				Comment:   result[i].Comment,
 				Operator:  result[i].Operator,
 				CreatedAt: result[i].CreatedAt.Unix(),
+				UpdatedAt: result[i].UpdatedAt.Unix(),
 				IsDefault: result[i].IsDefault,
 			}
 

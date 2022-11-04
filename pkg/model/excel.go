@@ -1,7 +1,5 @@
 package model
 
-import "strings"
-
 type ExportTask struct {
 	Status     uint8  `gorm:"column:status"`
 	CheckType  string `gorm:"type:varchar(255);column:check_type"`
@@ -19,58 +17,48 @@ func (ExportTask) TableName() string {
 }
 
 type ScapRetData struct {
-	NodeName   string `xlsx:"0"`
-	PolicyId   string `xlsx:"1"`
-	Classified string `xlsx:"2"`
-	Section    string `xlsx:"3"`
-	Descript   string `xlsx:"4"`
-	DecDetail  string `xlsx:"5"`
-	LastTime   string `xlsx:"6"`
-	Status     string `xlsx:"7"`
-	Reason     string `xlsx:"8"`
+	NodeName    string `xlsx:"0"`
+	PolicyId    string `xlsx:"1"`
+	Classified  string `xlsx:"2"`
+	Section     string `xlsx:"3"`
+	Descript    string `xlsx:"4"`
+	DecDetail   string `xlsx:"5"`
+	LastTime    string `xlsx:"6"`
+	Status      string `xlsx:"7"`
+	TestResult  string `xlsx:"8"`
+	Audit       string `xlsx:"9"`
+	Remediation string `xlsx:"10"`
 }
 
-func GetStatusZh(status string) string {
+func GetStatusZh(status ScapScanResultStateType) string {
 	var ret string
-	switch strings.ToUpper(status) {
-	case "FAIL":
-		ret = "不合规"
-	case "WARN":
+	switch status {
+	case ScapScanResultStateFAIL:
+		ret = "未通过"
+	case ScapScanResultStateWARN:
 		ret = "警告"
-	case "PASS":
-		ret = "合规"
-	case "INFO":
-		ret = "未知"
+	case ScapScanResultStatePASS:
+		ret = "通过"
+	case ScapScanResultStateINFO:
+		ret = "忽略"
 	default:
-		ret = "未知"
+		ret = "未知: " + string(status)
 	}
 	return ret
 }
 
 func GetTitleZh() *ScapRetData {
 	return &ScapRetData{
-		NodeName:   "节点",
-		PolicyId:   "合规 ID",
-		Classified: "等保对齐",
-		Section:    "合规条目",
-		Descript:   "具体要求",
-		DecDetail:  "详情",
-		LastTime:   "最后扫描时间",
-		Status:     "状态",
-		Reason:     "未通过原因",
-	}
-}
-
-func GetTitleEn() *ScapRetData {
-	return &ScapRetData{
-		NodeName:   "Status Name",
-		PolicyId:   "Policy no",
-		Classified: "Dengbao 2.0",
-		Section:    "Type",
-		Descript:   "Description",
-		DecDetail:  "Details",
-		LastTime:   "Last scan time",
-		Status:     "Status",
-		Reason:     "Reason for failure",
+		NodeName:    "节点",
+		PolicyId:    "合规 ID",
+		Classified:  "等保对齐",
+		Section:     "合规条目",
+		Descript:    "具体要求",
+		DecDetail:   "详情",
+		LastTime:    "最后扫描时间",
+		Status:      "状态",
+		TestResult:  "检测结果",
+		Audit:       "验证方法",
+		Remediation: "修复建议",
 	}
 }

@@ -1,6 +1,6 @@
 package model
 
-var ClassifiedKubeMap = map[string][]string{
+var UDBCPKubeMap = map[string][]string{
 	"1.1.1":  {"访问控制专项", "Access Control"},
 	"1.1.2":  {"访问控制专项", "Access Control"},
 	"1.1.3":  {"访问控制专项", "Access Control"},
@@ -125,7 +125,7 @@ var ClassifiedKubeMap = map[string][]string{
 	"5.7.4":  {"资源控制专项", "Resource Control"},
 }
 
-var ClassifiedDockerMap = map[string][]string{
+var UDBCPDockerMap = map[string][]string{
 	"0.1.1":  {"入侵防御", "Intrusion Detection"},
 	"0.2.1":  {"资源控制", "Resource Control"},
 	"1.1.1":  {"访问控制", "Access Control"},

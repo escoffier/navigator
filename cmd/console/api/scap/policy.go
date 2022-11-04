@@ -12,7 +12,6 @@ import (
 	"github.com/pkg/errors"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/console/api/scap/internal"
-	"gitlab.com/piccolo_su/vegeta/cmd/console/models"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/models/scap"
 	"gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
@@ -23,8 +22,7 @@ func (a *ApiServer) PolicyCreate(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), time.Second*10)
 	defer cancel()
 
-	var scapType = r.Context().Value(sType).(uint8)
-	var username = r.Context().Value(uName).(string)
+	var scapType = r.Context().Value(sType).(string)
 
 	var req scap.Policy
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -34,25 +32,21 @@ func (a *ApiServer) PolicyCreate(w http.ResponseWriter, r *http.Request) {
 		))
 
 		response.RespError(w, http.StatusBadRequest)
-
 		return
 	}
 
 	if err := internal.VerifyPolicy(&req); err != nil {
-		apperror.RespAndLog(
-			w,
-			ctx,
-			apperror.NewErrorWithCode(
-				http.StatusBadRequest,
-				err,
-			),
+		apperror.RespAndLog(w, ctx,
+			apperror.NewErrorWithCode(http.StatusBadRequest, err),
 		)
 		return
 	}
 
+	username := model.GetUsernameFromContext(r.Context())
 	value := &model.ScapPolicy{
 		Name:     req.Name,
 		Type:     scapType,
+		Creator:  username,
 		Operator: username,
 		Comment:  req.Comment,
 		RuleIds:  req.RuleIds,
@@ -60,14 +54,11 @@ func (a *ApiServer) PolicyCreate(w http.ResponseWriter, r *http.Request) {
 
 	id, err := a.service.PolicyCreate(ctx, value)
 	if err != nil {
-		apperror.RespAndLog(w, ctx, apperror.NewErrorWithCode(
-			http.StatusInternalServerError,
-			err,
-		))
+		apperror.RespAndLog(w, ctx, apperror.NewErrorWithCode(http.StatusInternalServerError, err))
 		return
 	}
 
-	response.Ok(w, response.WithItem(scap.CreatePolicyResp{ID: models.ID{ID: id}}),
+	response.Ok(w, response.WithItem(map[string]uint64{"id": id}),
 		response.WithTarget(&response.TargetRef{
 			Name: req.Name,
 			ID:   "",
@@ -79,7 +70,7 @@ func (a *ApiServer) PolicyBatch(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), time.Second*10)
 	defer cancel()
 
-	var scapType = r.Context().Value(sType).(uint8)
+	var scapType = r.Context().Value(sType).(string)
 
 	limit, err := param.QueryInt(r, "limit")
 	if err != nil {
@@ -103,25 +94,20 @@ func (a *ApiServer) PolicyBatch(w http.ResponseWriter, r *http.Request) {
 
 	result, count, err := a.service.PolicyBatch(ctx, scapType, limit, offset, name)
 	if err != nil {
-		apperror.RespAndLog(w, ctx, apperror.NewErrorWithCode(
-			http.StatusInternalServerError,
-			err,
-		))
+		apperror.RespAndLog(w, ctx, apperror.NewErrorWithCode(http.StatusInternalServerError, err))
 		return
 	}
 
-	var resp = make([]scap.PolicyBrief, 0, len(result))
-	for i := range result {
-
-		s := scap.PolicyBrief{
-			ID:        result[i].ID,
-			Name:      result[i].Name,
-			Operator:  result[i].Operator,
-			CreatedAt: result[i].CreatedAt.Unix(),
-			IsDefault: result[i].IsDefault,
+	var resp = make([]scap.PolicyBrief, len(result))
+	for i, v := range result {
+		resp[i] = scap.PolicyBrief{
+			ID:        v.ID,
+			Name:      v.Name,
+			Operator:  v.Operator,
+			CreatedAt: v.CreatedAt.UnixMilli(),
+			UpdatedAt: v.UpdatedAt.UnixMilli(),
+			IsDefault: v.IsDefault,
 		}
-
-		resp = append(resp, s)
 	}
 
 	response.Ok(w, response.WithItems(resp), response.WithTotalItems(count))
@@ -131,10 +117,9 @@ func (a *ApiServer) PolicyUpdate(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), time.Second*10)
 	defer cancel()
 
-	var scapType = r.Context().Value(sType).(uint8)
-	var username = r.Context().Value(uName).(string)
+	var scapType = r.Context().Value(sType).(string)
 
-	policyId, err := param.Uint(r, "id")
+	policyId, err := param.Uint64(r, "id")
 	if err != nil {
 		apperror.RespAndLog(w, ctx, apperror.NewErrorWithCode(
 			http.StatusBadRequest,
@@ -153,13 +138,8 @@ func (a *ApiServer) PolicyUpdate(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := internal.VerifyPolicy(&policy); err != nil {
-		apperror.RespAndLog(
-			w,
-			ctx,
-			apperror.NewErrorWithCode(
-				http.StatusBadRequest,
-				err,
-			),
+		apperror.RespAndLog(w, ctx,
+			apperror.NewErrorWithCode(http.StatusBadRequest, err),
 		)
 		return
 	}
@@ -167,7 +147,7 @@ func (a *ApiServer) PolicyUpdate(w http.ResponseWriter, r *http.Request) {
 	value := &model.ScapPolicy{
 		Name:     policy.Name,
 		Type:     scapType,
-		Operator: username,
+		Operator: model.GetUsernameFromContext(r.Context()),
 		Comment:  policy.Comment,
 		RuleIds:  policy.RuleIds,
 	}
@@ -181,14 +161,14 @@ func (a *ApiServer) PolicyUpdate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	response.Ok(w, response.WithItem(scap.UpdatePolicyResp{ID: models.ID{ID: id}}))
+	response.Ok(w, response.WithItem(map[string]uint64{"id": id}))
 }
 
 func (a *ApiServer) PolicyDelete(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), time.Second*10)
 	defer cancel()
 
-	var scapType = r.Context().Value(sType).(uint8)
+	var scapType = r.Context().Value(sType).(string)
 
 	policyId, err := param.Uint(r, "id")
 	if err != nil {
@@ -235,21 +215,22 @@ func (a *ApiServer) PolicyDetail(w http.ResponseWriter, r *http.Request) {
 
 	policy, checks, err := a.service.PolicyDetail(ctx, policyId)
 	if err != nil {
-		apperror.RespAndLog(w, ctx, apperror.NewErrorWithCode(
-			http.StatusInternalServerError,
-			err,
-		))
+		apperror.RespAndLog(w, ctx,
+			apperror.NewErrorWithCode(http.StatusInternalServerError, err))
 		return
 	}
 
 	var result = scap.PolicyDetail{
 		PolicyBrief: scap.PolicyBrief{
+			ID:        policy.ID,
 			Name:      policy.Name,
 			Operator:  policy.Operator,
-			CreatedAt: policy.CreatedAt.Unix(),
+			CreatedAt: policy.CreatedAt.UnixMilli(),
+			UpdatedAt: policy.CreatedAt.UnixMilli(),
 			Comment:   policy.Comment,
 			IsDefault: policy.IsDefault,
 		},
+		Creator: policy.Creator,
 	}
 
 	result.Rules = make([]scap.Rule, 0, len(checks))

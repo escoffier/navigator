@@ -3,18 +3,18 @@ package scap
 import (
 	"context"
 	"fmt"
-	"sort"
 	"strings"
 
 	"github.com/pkg/errors"
 	"gitlab.com/security-rd/go-pkg/logging"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 )
 
 // PolicyCreate 创建一条合规扫描策略
-func (s *Service) PolicyCreate(ctx context.Context, policy *model.ScapPolicy) (uint, error) {
+func (s *Service) PolicyCreate(ctx context.Context, policy *model.ScapPolicy) (uint64, error) {
 	db := s.rdb.Get().WithContext(ctx).Create(policy)
 	if err := db.Error; err != nil {
 		logging.Get().Err(err).Msgf("创建合规策略失败, policy=%v", policy)
@@ -30,16 +30,12 @@ func (s *Service) PolicyCreate(ctx context.Context, policy *model.ScapPolicy) (u
 }
 
 // PolicyDelete 删除一条合规扫描策略
-func (s *Service) PolicyDelete(ctx context.Context, policyId uint, scapType uint8) error {
+func (s *Service) PolicyDelete(ctx context.Context, policyId uint, scapType string) error {
 	// 先判断是否在使用，如果有使用，则不能删除
 	var cron model.ScapCronRecord
-	if err := s.rdb.Get().WithContext(ctx).
-		Model(&cron).
-		Select("id").
-		Where("policy_id = ?", policyId).
-		Where("type = ?", scapType).
-		First(&cron).
-		Error; err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+	if err := s.rdb.Get().WithContext(ctx).Model(&cron).Select("id").
+		Where("policy_id = ?", policyId).Where("type = ?", scapType).
+		First(&cron).Error; err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
 		logging.Get().Err(err).Msgf("更新合规策略失败, 获取在使用的策略失败，id=%d", policyId)
 		return errors.New("更新合规策略失败, 获取关联的任务失败")
 	}
@@ -47,8 +43,7 @@ func (s *Service) PolicyDelete(ctx context.Context, policyId uint, scapType uint
 		return errors.New("更新合规策略失败, 策略已在使用")
 	}
 
-	db := s.rdb.Get().
-		WithContext(ctx).
+	db := s.rdb.Get().WithContext(ctx).
 		Where("type = ? AND id = ?", scapType, policyId).
 		Where("is_default =?", false).
 		Delete(&model.ScapPolicy{})
@@ -60,105 +55,40 @@ func (s *Service) PolicyDelete(ctx context.Context, policyId uint, scapType uint
 	return nil
 }
 
-func (s *Service) PolicyBatch(ctx context.Context, scapType uint8, limit, offset int, name string) ([]*model.ScapPolicy, int64, error) {
-
-	// 根据 is_default 获取数量
-	type c struct {
-		IsDefault bool `gorm:"column:is_default;type:bool"`
-		Count     int  `gorm:"column:count"`
-	}
-	var count = make([]c, 0, 2)
-
-	db := s.rdb.Get().
-		WithContext(ctx).
-		Model(&model.ScapPolicy{}).
+func (s *Service) PolicyBatch(ctx context.Context, scapType string, limit, offset int, name string) ([]*model.ScapPolicy, int64, error) {
+	db := s.rdb.Get().WithContext(ctx).Model(&model.ScapPolicy{}).
 		Where("type = ?", scapType)
 
-	// 当存在名字时候，使用模糊搜索查询
-	if len(name) != 0 {
+	if name != "" {
 		db = db.Where("name LIKE ?", "%"+name+"%")
 	}
 
-	if err := db.
-		Session(&gorm.Session{}).
-		Select("is_default, count(*) count").
-		Group("is_default").
-		Find(&count).
+	var total int64
+	if err := db.Session(&gorm.Session{}).Count(&total).
 		Error; err != nil {
 		logging.Get().Err(err).Msgf("获取策略列表失败, type=%d", scapType)
 		return nil, 0, errors.New("获取策略总数失败")
 	}
 
-	var total = 0          // 总数
-	var isDefaultCount = 0 // 默认策略数
-	for _, v := range count {
-		total += v.Count
-
-		if v.IsDefault {
-			isDefaultCount += v.Count
-		}
-	}
-
 	if total == 0 {
-		return nil, 0, nil
+		return []*model.ScapPolicy{}, 0, nil
 	}
 
-	db = db.Omit("rule_ids")
 	var result []*model.ScapPolicy
-
-	// 如果是第一页，则把默认策略搜索出来
-	if offset == 0 {
-		if err := db.
-			Session(&gorm.Session{}).
-			Where("is_default = true").
-			First(&result).
-			Error;
-			err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
-			logging.Get().Err(err).Msgf("获取默认策略失败, type=%d, limit=%d, offset=%d", scapType, limit, offset)
-			return nil, 0, errors.New("获取默认策略失败")
-		}
+	if err := db.Omit("rule_ids").
+		Order(clause.OrderByColumn{Column: clause.Column{Name: "is_default"}, Desc: true}).
+		Order(clause.OrderByColumn{Column: clause.Column{Name: "created_at"}, Desc: true}).
+		Limit(limit).Offset(offset).
+		Find(&result).Error; err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+		logging.Get().Err(err).Msgf("获取默认策略失败, type=%d, limit=%d, offset=%d", scapType, limit, offset)
+		return nil, 0, errors.New("获取默认策略失败")
 	}
 
-	var r []*model.ScapPolicy
-
-	if err := db.
-		Session(&gorm.Session{}).
-		Where("is_default = false").
-		Limit(limit - len(result)).
-		Offset(offset - isDefaultCount).
-		Order("id DESC").
-		Find(&r).
-		Error; err != nil {
-		logging.Get().Err(err).Msgf("获取策略列表失败, type=%d, limit=%d, offset=%d", scapType, limit, offset)
-		return nil, 0, errors.New("获取策略列表失败")
-	}
-
-	result = append(result, r...)
-
-	if len(result) == 0 {
-		return nil, 0, nil
-	}
-
-	// 手动排序，因为默认策略在第一位，只需要排后面的策略
-	// 这里将默认策略排在列表的前面，然后非默认策略按照策略的创建时间，按时间的倒叙排列
-	sort.Slice(result, func(i, j int) bool {
-		// 默认策略排到第一个
-		if result[i].IsDefault {
-			return true
-		}
-
-		if result[j].IsDefault {
-			return false
-		}
-
-		return result[i].CreatedAt.After(result[j].CreatedAt)
-	})
-
-	return result, int64(total), nil
+	return result, total, nil
 }
 
-func (s *Service) PolicyUpdate(ctx context.Context, policyId uint, policy *model.ScapPolicy) (uint, error) {
-	var id uint
+func (s *Service) PolicyUpdate(ctx context.Context, policyId uint64, policy *model.ScapPolicy) (uint64, error) {
+	var id uint64
 	err := s.rdb.Get().WithContext(ctx).Transaction(
 		func(tx *gorm.DB) error {
 			var err error
@@ -229,19 +159,9 @@ func (s *Service) PolicyDetail(ctx context.Context, policyId uint) (*model.ScapP
 		return nil, nil, errors.New("获取策略详情失败")
 	}
 
-	var checkType string
-	switch policy.Type {
-	case 1:
-		checkType = kube
-	case 2:
-		checkType = docker
-	case 3:
-		checkType = host
-	}
-
 	var checks []model.PolicyDetailInfo
 
-	db = db.Model(&model.PolicyDetailInfo{}).Where("check_type = ?", checkType)
+	db = db.Model(&model.PolicyDetailInfo{}).Where("check_type = ?", policy.Type)
 	if !policy.IsDefault {
 		checks = make([]model.PolicyDetailInfo, 0, len(policy.RuleIds))
 		db = db.Where("id IN ?", policy.RuleIds)

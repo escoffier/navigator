@@ -16,9 +16,9 @@ func (a *ApiServer) RecordBatch(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), time.Second*10)
 	defer cancel()
 
-	var scapType = r.Context().Value(sType).(uint8)
+	var scapType = r.Context().Value(sType).(string)
 
-	limit, err := param.QueryInt64(r, "limit")
+	limit, err := param.QueryInt(r, "limit")
 	if err != nil {
 		apperror.RespAndLog(w, ctx, apperror.NewErrorWithCode(
 			http.StatusBadRequest,
@@ -27,7 +27,7 @@ func (a *ApiServer) RecordBatch(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	offset, err := param.QueryInt64(r, "offset")
+	offset, err := param.QueryInt(r, "offset")
 	if err != nil {
 		apperror.RespAndLog(w, ctx, apperror.NewErrorWithCode(
 			http.StatusBadRequest,

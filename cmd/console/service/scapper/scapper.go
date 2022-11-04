@@ -20,7 +20,6 @@ import (
 	pkgassets "gitlab.com/piccolo_su/vegeta/pkg/assets"
 	"gitlab.com/piccolo_su/vegeta/pkg/flag"
 	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
-	"gitlab.com/piccolo_su/vegeta/pkg/lang"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 	"gitlab.com/security-rd/go-pkg/databases"
@@ -370,9 +369,9 @@ func (s *Scapper) RunComplianceCheck(
 	return uuid, nil
 }
 
-func (s *Scapper) RunExportFileTask(task *model.ExportTask, language lang.LanguageType) {
+func (s *Scapper) RunExportFileTask(task *model.ExportTask) {
 	// export file to xlsx
-	err := s.ScapService.GetScanResultToFile(task, language)
+	err := s.ScapService.GetScanResultToFile(task)
 	// print debug log
 	// logging.Get().Info().Msgf("save scan result to xlsx over!!")
 	// update task status
@@ -664,12 +663,13 @@ func (s Scapper) readJobObjFromYamlFile(checkType model.ComplianceCheckType) (*b
 	}
 
 	jobObj := &batchv1.Job{}
-	decoder := k8Yaml.NewYAMLOrJSONDecoder(bytes.NewReader([]byte(jobYaml)), 1000)
+	decoder := k8Yaml.NewYAMLOrJSONDecoder(bytes.NewReader(jobYaml), 1000)
 	err = decoder.Decode(&jobObj)
 	if err != nil {
 		return nil, apperror.NewConfigurationError(http.StatusInternalServerError, fmt.Errorf("Can't decode job file: %v", err))
 
 	}
+
 	return jobObj, nil
 }
 
@@ -789,7 +789,7 @@ func (s *Scapper) dbAddJobStatusInProgress(ctx context.Context, check *model.Che
 		Message:    message,
 	}
 
-	err := s.rdb.Get().WithContext(ctx).Create(task).Error
+	err := s.rdb.Get().WithContext(ctx).Create(&task).Error
 	if err != nil {
 		return errors.Errorf("create scan task failed, %v", err)
 	}
@@ -1272,14 +1272,9 @@ func (s *Scapper) syncJobState(ctx context.Context, checkType, clusterKey string
 
 	// 对正处于进行中的任务做一次数据同步
 	for i := range inProcessItem {
-		var data = &model.CheckHistoryEntry{
-			CheckID:   inProcessItem[i].TaskID,
-			CreatedAt: inProcessItem[i].CreatedAt,
-			CheckType: checkType,
-		}
 		// 复用以前的逻辑
-		if err := service.SynScanState(data); err != nil {
-			logger.Err(err).Str("checkId", data.CheckID).Msg("同步状态失败")
+		if err := service.SynScanState(inProcessItem[i]); err != nil {
+			logger.Err(err).Str("checkId", inProcessItem[i].TaskID).Msg("同步状态失败")
 			return err
 		}
 	}

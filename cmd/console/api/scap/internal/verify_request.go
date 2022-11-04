@@ -28,30 +28,8 @@ func VerifyPolicy(policy *scap.Policy) error {
 	return nil
 }
 
-func VerifyJob(job *scap.Job) error {
-	if job.PolicyID == 0 {
-		return errors.New("policy id is required")
-	}
-
-	if len(job.ClusterInfos) == 0 {
-		return errors.New("cluster info is required")
-	}
-
-	for i := range job.ClusterInfos {
-		if len(job.ClusterInfos[i].ClusterKey) == 0 {
-			return errors.New("cluster key is required")
-		}
-
-		if !job.ClusterInfos[i].IsAllNodes && len(job.ClusterInfos[i].Nodes) == 0 {
-			return errors.New("node ids are required")
-		}
-	}
-
-	return nil
-}
-
 func VerifyCronJob(job *scap.CronJob) error {
-	if err := VerifyJob(&job.Job); err != nil {
+	if err := job.Job.VerifyJob(); err != nil {
 		return err
 	}
 

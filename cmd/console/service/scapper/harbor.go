@@ -4,10 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/pkg/errors"
-
 	uuid "github.com/satori/go.uuid"
-
 	"gitlab.com/piccolo_su/vegeta/pkg/harbor"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
@@ -47,51 +44,4 @@ func (s *Scapper) RunHarborCheck(ctx context.Context, harborClient *harbor.Harbo
 	//}
 
 	return checkUUID, nil
-}
-
-func (s *Scapper) HarborConfigList(ctx context.Context, offset, limit int64, projectName, checkID string) ([]model.HarborConfigScan, int64, error) {
-	return nil, 0, errors.Errorf("not use this module")
-
-	//mongoCtx, mongoCtxCancel := context.WithTimeout(ctx, time.Second*2)
-	//defer mongoCtxCancel()
-	//
-	//opt := options.Find()
-	//opt.SetMaxTime(time.Second * 2)
-	//opt.SetLimit(limit)
-	//opt.SetSkip(offset)
-	//opt.SetSort(bson.D{{"finishedAt", -1}})
-	//copt := options.Count()
-	//
-	//filter := bson.M{}
-	//if checkID != "" {
-	//	filter = bson.M{"checkId": checkID}
-	//}
-
-	//count, err := s.MongoDB.Get().Collection(model.HarborProjectConfigCollection.String()).CountDocuments(mongoCtx, filter, copt)
-	//cur, err := s.MongoDB.Get().Collection(model.HarborProjectConfigCollection.String()).Find(mongoCtx, filter, opt)
-	//if err != nil {
-	//	apperror.NewMongoError(http.StatusInternalServerError,
-	//		fmt.Errorf("couldn't find document: %w", err))
-	//	return nil, 0, err
-	//}
-	//
-	//harborConfigSlice := make([]model.HarborConfigScan, 0)
-	//for cur.Next(mongoCtx) {
-	//	var harborConfig model.HarborConfigScan
-	//	err := cur.Decode(&harborConfig)
-	//	if err != nil {
-	//		return nil, 0, apperror.NewMongoError(http.StatusInternalServerError, fmt.Errorf("couldn't decode document: %w", err))
-	//	}
-	//	if projectName != "" {
-	//		for k, _ := range harborConfig.Report {
-	//			if k != projectName {
-	//				delete(harborConfig.Report, k)
-	//			}
-	//		}
-	//	}
-	//
-	//	harborConfigSlice = append(harborConfigSlice, harborConfig)
-	//}
-
-	//return harborConfigSlice, count, nil
 }

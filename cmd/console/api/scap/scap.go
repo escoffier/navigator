@@ -6,9 +6,6 @@ import (
 	"net/http"
 
 	"github.com/go-chi/chi"
-	"github.com/go-chi/jwtauth"
-	"github.com/pkg/errors"
-
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/scap"
 	"gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
@@ -16,7 +13,6 @@ import (
 
 const (
 	sType = "scap-type"
-	uName = "username"
 )
 
 type ApiServer struct {
@@ -67,7 +63,7 @@ func (a *ApiServer) InitRouter() func(chi.Router) {
 func (a *ApiServer) ScapParseParamsMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		checkType := chi.URLParam(r, sType)
-		if !model.IsAnyCheckType(model.ComplianceCheckType(checkType)) {
+		if !model.ComplianceCheckType(checkType).IsValid() {
 			apperror.RespAndLog(
 				w,
 				r.Context(),
@@ -79,35 +75,7 @@ func (a *ApiServer) ScapParseParamsMiddleware(next http.Handler) http.Handler {
 			return
 		}
 
-		var t uint8
-
-		switch model.ComplianceCheckType(checkType) {
-		case model.ComplianceCheckTargetTypeKube:
-			t = 1
-		case model.ComplianceCheckTargetTypeDocker:
-			t = 2
-		case model.ComplianceCheckTargetTypeHost:
-			t = 3
-		}
-
-		// get token
-		_, claims, err := jwtauth.FromContext(r.Context())
-		if err != nil || claims == nil {
-			apperror.RespAndLog(
-				w,
-				r.Context(),
-				apperror.NewAnError(
-					http.StatusUnauthorized,
-					errors.New("unauthenticated"),
-				),
-			)
-			return
-		}
-
-		username := claims["user_name"].(string)
-
-		r = r.WithContext(context.WithValue(r.Context(), sType, t))
-		r = r.WithContext(context.WithValue(r.Context(), uName, username))
+		r = r.WithContext(context.WithValue(r.Context(), sType, checkType))
 		next.ServeHTTP(w, r)
 	})
 }
