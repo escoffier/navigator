@@ -172,7 +172,7 @@ func (p *TensorClusterRole) KeyName() string {
 	sb := strings.Builder{}
 	sb.WriteString(p.Cluster)
 	sb.WriteRune('\n')
-	sb.WriteString("Role")
+	sb.WriteString("ClusterRole")
 	sb.WriteRune('\n')
 	sb.WriteString(p.Name)
 	sb.WriteRune('\n')
