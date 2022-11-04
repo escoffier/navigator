@@ -234,6 +234,7 @@ func (p *TensorNode) TailorSelf() {
 	p.Status = corev1.NodeStatus{
 		Phase:    p.Status.Phase,
 		NodeInfo: p.Status.NodeInfo,
+		Conditions: p.Status.Conditions,
 	}
 }
 func (p *TensorNode) IdentityString() string {
