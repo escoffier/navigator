@@ -15,14 +15,17 @@ import (
 type AssetsAction uint8
 type WatchedType string
 
+// FATAL: don't alter this const block!!!
 const (
-	cacheMaxSize = 128 * 1024
-	cacheTTL     = 3 * time.Hour
-
 	ActionAdd AssetsAction = iota
 	ActionDelete
 	ActionUpdate
 	ActionSync
+)
+
+const (
+	cacheMaxSize = 128 * 1024
+	cacheTTL     = 3 * time.Hour
 
 	Endpoints2Watch           WatchedType = "endpoints"
 	Services2Watch            WatchedType = "services"
@@ -139,9 +142,6 @@ func (w *Watcher) process(ctx context.Context, message kafka.Message) error {
 	if err != nil {
 		logging.Get().Err(err).Msg("unmarshal message err")
 		return err
-	}
-	if event.Action == 2 {
-		logging.Get().Warn().Msgf("WARN action==2: update. data: %+v", event)
 	}
 
 	cbs := w.getOrCreateClusterCallbacks(event.ClusterKey)
