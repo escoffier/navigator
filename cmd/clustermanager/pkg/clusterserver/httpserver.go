@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"github.com/gin-contrib/pprof"
 	"github.com/gin-gonic/gin"
+	"k8s.io/client-go/rest"
 	"net/http"
 	"strings"
 	"time"
@@ -35,13 +36,25 @@ func (cs *ClusterServer) SetClusterManager(cm *k8s.ClusterManager) {
 	cs.clusterManager = cm
 }
 func (cs *ClusterServer) handleClusterQuery(c *gin.Context) {
+	kubeConfig, err := rest.InClusterConfig()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, err.Error())
+		return
+	}
+
 	clusterInfo := &TensorCluster{
-		Key:           cs.ClusterID,
-		Name:          cs.config.Name,
-		ConsoleURL:    getConsoleURLPrefix(cs.config.MasterAddr),
-		Description:   "",
-		Status:        0,
-		K8SRestConfig: cs.config.K8SInfoForRestConfig,
+		Key:         cs.ClusterID,
+		Name:        cs.config.Name,
+		ConsoleURL:  getConsoleURLPrefix(cs.config.MasterAddr),
+		Description: "",
+		Status:      0,
+		K8SRestConfig: &k8s.InfoForRestConfig{
+			CertData:      kubeConfig.CertData,
+			KeyData:       kubeConfig.KeyData,
+			CAData:        kubeConfig.CAData,
+			Token:         []byte(kubeConfig.BearerToken),
+			APIServerAddr: kubeConfig.Host,
+		},
 	}
 
 	c.JSON(http.StatusOK, clusterInfo)

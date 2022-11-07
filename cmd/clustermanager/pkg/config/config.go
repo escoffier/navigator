@@ -2,7 +2,6 @@ package config
 
 import (
 	"gitlab.com/piccolo_su/vegeta/pkg/assets"
-	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 )
 
@@ -19,7 +18,6 @@ type Config struct {
 	TLSServer             bool
 	WorkerNamespace       string
 	DBLogDebug            bool
-	K8SInfoForRestConfig  *k8s.InfoForRestConfig
 	PoolInfo              *assets.PoolInfo
 	Profile               bool
 }

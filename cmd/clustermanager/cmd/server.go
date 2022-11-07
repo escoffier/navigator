@@ -62,7 +62,6 @@ func NewServer() (*server, error) {
 	}
 
 	s.agent = agent
-	s.config.K8SInfoForRestConfig = agent.KubeRestConfig
 
 	httpserver, err := clusterserver.NewHTTPServer(agent.CusterID, s.config)
 	if err != nil {
