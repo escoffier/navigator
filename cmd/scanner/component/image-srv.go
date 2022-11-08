@@ -102,8 +102,12 @@ func (s *ImageSrv) ListImageWithScanInfo(ctx context.Context, param model.ImageL
 	onlineMap := make(map[int64]bool)
 	if !param.NotNeedDistinguishOnline {
 		// 查在线
-		onlineSQL := fmt.Sprintf("select  a.id  from  %s a  join %s b  where  a.image_uuid = b.image_uuid  and b.status = 0 ",
+		onlineSQL := fmt.Sprintf("select  distinct a.id  from  %s a  join %s b  where  a.image_uuid = b.image_uuid  and b.status = 0 ",
 			model.ImageList{}.TableName(), model.TensorContainer{}.TableName())
+
+		if len(param.ImageIds) > 0 {
+			onlineSQL = fmt.Sprintf("%s and a.id IN (%s)", onlineSQL, util.JoinInt64Slice(param.ImageIds, ","))
+		}
 
 		online, err := s.dbdal.GetOnlineImage(ctx, store.GetOnlineImageParam{SQL: onlineSQL})
 		if err != nil {
