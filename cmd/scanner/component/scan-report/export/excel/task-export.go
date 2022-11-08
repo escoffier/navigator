@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"runtime/debug"
+	"strings"
 	"sync"
 
 	json "github.com/json-iterator/go"
@@ -284,7 +285,8 @@ func (s *ScanTaskExport) worker(ctx context.Context, task model.ExportTensorTask
 
 	s.ExportingMap.Store(task.ID, consts.TaskExporting)
 
-	filename := task.FilePath
+	filename := strings.ReplaceAll(task.FilePath, ".zip", "")
+
 	subTaskChan := s.GenImageIdChan(ctx, task)
 	excelDataChan := s.GenExcelDataChan(ctx, subTaskChan, filename)
 	excelFileChan := s.GenExcelFileChan(ctx, excelDataChan)

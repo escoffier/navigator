@@ -100,36 +100,34 @@ func (s *ImageSrv) ListImageWithScanInfo(ctx context.Context, param model.ImageL
 	inIds, notInIds := make([]int64, 0), make([]int64, 0)
 	onlineIds := make([]int64, 0)
 	onlineMap := make(map[int64]bool)
-	if !param.NotNeedDistinguishOnline {
-		// 查在线
-		onlineSQL := fmt.Sprintf("select  distinct a.id  from  %s a  join %s b  where  a.image_uuid = b.image_uuid  and b.status = 0 ",
-			model.ImageList{}.TableName(), model.TensorContainer{}.TableName())
+	// 查在线
+	onlineSQL := fmt.Sprintf("select  distinct a.id  from  %s a  join %s b  where  a.image_uuid = b.image_uuid  and b.status = 0 ",
+		model.ImageList{}.TableName(), model.TensorContainer{}.TableName())
 
-		if len(param.ImageIds) > 0 {
-			onlineSQL = fmt.Sprintf("%s and a.id IN (%s)", onlineSQL, util.JoinInt64Slice(param.ImageIds, ","))
-		}
+	if len(param.ImageIds) > 0 {
+		onlineSQL = fmt.Sprintf("%s and a.id IN (%s)", onlineSQL, util.JoinInt64Slice(param.ImageIds, ","))
+	}
 
-		online, err := s.dbdal.GetOnlineImage(ctx, store.GetOnlineImageParam{SQL: onlineSQL})
-		if err != nil {
-			logging.Get().Err(err).Msg("SearchImageWithScan.GetOnlineImage")
-			return nil, 0, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf(consts.StatusInternalServerErrorMsg))
+	online, err := s.dbdal.GetOnlineImage(ctx, store.GetOnlineImageParam{SQL: onlineSQL})
+	if err != nil {
+		logging.Get().Err(err).Msg("SearchImageWithScan.GetOnlineImage")
+		return nil, 0, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf(consts.StatusInternalServerErrorMsg))
+	}
+	for i := range online {
+		onlineIds = append(onlineIds, online[i].ID)
+		onlineMap[online[i].ID] = true
+	}
+	if param.Online == consts.TrueString {
+		if len(inIds) > 0 {
+			inIds = util.GetIntersectionSetForInt64(inIds, onlineIds)
+		} else {
+			inIds = append(inIds, onlineIds...)
 		}
-		for i := range online {
-			onlineIds = append(onlineIds, online[i].ID)
-			onlineMap[online[i].ID] = true
+		if len(inIds) == 0 {
+			return res, 0, nil
 		}
-		if param.Online == consts.TrueString {
-			if len(inIds) > 0 {
-				inIds = util.GetIntersectionSetForInt64(inIds, onlineIds)
-			} else {
-				inIds = append(inIds, onlineIds...)
-			}
-			if len(inIds) == 0 {
-				return res, 0, nil
-			}
-		} else if param.Online == consts.FalseString {
-			notInIds = append(notInIds, onlineIds...)
-		}
+	} else if param.Online == consts.FalseString {
+		notInIds = append(notInIds, onlineIds...)
 	}
 
 	// 可信镜像的筛选
