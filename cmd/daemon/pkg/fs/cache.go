@@ -36,7 +36,6 @@ func (i *ImageFsCache) HitCache(localPath string, whiteList map[string]string) b
 		for k, v1 := range i.imageWhiteListCache[localPath] {
 			whiteList[k] = v1
 		}
-		i.cacheLock.Unlock()
 		return true
 	}
 	return false
