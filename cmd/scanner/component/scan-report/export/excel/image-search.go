@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"runtime/debug"
+	"strings"
 	"sync"
 
 	"github.com/xuri/excelize/v2"
@@ -112,7 +113,7 @@ func (s *ImageSearchSrv) worker(ctx context.Context, task model.ExportTensorTask
 
 	s.ExportingMap.Store(task.ID, consts.TaskExporting)
 
-	filename := task.FilePath
+	filename := strings.ReplaceAll(task.FilePath, ".zip", "")
 
 	subTaskChan := s.GenImageIdChan(ctx, task)
 	excelDataChan := s.ExportImageInterface.GenExcelDataChan(ctx, subTaskChan, filename)

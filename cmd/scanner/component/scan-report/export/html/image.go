@@ -121,7 +121,7 @@ func (s *ExportImageHtmlSrv) GetImages(ctx context.Context, taskID int64, starID
 			imageIds = append(imageIds, taskImages[i].ImageID)
 		}
 
-		images, _, err := s.ImageSrv.ListImageWithScanInfo(ctx, model.ImageListParam{ImageIds: imageIds, ReturnMalicious: true, NotNeedDistinguishOnline: true}, nil)
+		images, _, err := s.ImageSrv.ListImageWithScanInfo(ctx, model.ImageListParam{ImageIds: imageIds, ReturnMalicious: true}, nil)
 		if err != nil {
 			logging.Get().Err(err).Int64("taskID", taskID).Int64("startID", starID).Msg("ExportImageHtmlSrv GetImages.ListImageWithScanInfo")
 			return nil, err
@@ -206,7 +206,7 @@ func (s *ExportImageHtmlSrv) GetVirus(ctx context.Context, taskID int64) ([]Viru
 			taskImageIds = append(taskImageIds, taskImages[i].ImageID)
 		}
 
-		param := model.ImageListParam{ImageIds: taskImageIds, ReturnMalicious: true, NotNeedDistinguishOnline: true}
+		param := model.ImageListParam{ImageIds: taskImageIds, ReturnMalicious: true}
 		images, _, err := s.ImageSrv.ListImageWithScanInfo(ctx, param, nil)
 		if err != nil {
 			logging.Get().Err(err).Int64("taskID", taskID).Interface("param", param).Msg("ExportImageHtmlSrv GetVirus.ListImageWithScanInfo")
@@ -371,7 +371,7 @@ func (s *ExportImageHtmlSrv) GetImageRisk(ctx context.Context, taskID, imageID i
 	logging.Get().Info().Int64("taskID", taskID).Int64("imageID", imageID).Msg("ExportImageHtmlSrv.GetImageRisk start")
 
 	// 获取当前镜像
-	images, _, err := s.ImageSrv.ListImageWithScanInfo(ctx, model.ImageListParam{ImageIds: []int64{imageID}, NotNeedDistinguishOnline: true}, nil)
+	images, _, err := s.ImageSrv.ListImageWithScanInfo(ctx, model.ImageListParam{ImageIds: []int64{imageID}}, nil)
 	if err != nil {
 		logging.Get().Err(err).Int64("taskID", taskID).Int64("imageID", imageID).Msg("ExportImageHtmlSrv GetImageRisk")
 		return nil, err
@@ -456,7 +456,7 @@ func (s *ExportImageHtmlSrv) createRiskOverView(ctx context.Context, taskID int6
 			taskImageIds = append(taskImageIds, taskImages[i].ImageID)
 		}
 
-		param := model.ImageListParam{ImageIds: taskImageIds, NotNeedDistinguishOnline: true}
+		param := model.ImageListParam{ImageIds: taskImageIds}
 		images, _, err := s.ImageSrv.ListImageWithScanInfo(ctx, param, nil)
 		if err != nil {
 			logging.Get().Err(err).Int64("taskID", taskID).Interface("param", param).Msg("ExportImageHtmlSrv createRiskOverView.ListImageWithScanInfo")
