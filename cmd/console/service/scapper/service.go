@@ -612,13 +612,13 @@ func (s *ScapService) AddScapScanResults(ctx context.Context, rs []*model.ScanRe
 		if rs[i].State == "PASS" || rs[i].State == "pass" {
 			rs[i].State = model.ScapScanResultStatePASS
 			pass++
-		} else if rs[i].State == "warn" {
+		} else if (rs[i].CheckType != model.ComplianceCheckTargetTypeDocker && rs[i].State == "WARN") || rs[i].State == "warn" {
 			rs[i].State = model.ScapScanResultStateWARN
 			warn++
 		} else if rs[i].State == "NOTE" || rs[i].State == "INFO" || rs[i].State == "notselected" {
 			rs[i].State = model.ScapScanResultStateINFO
 			info++
-		} else if (rs[i].CheckType == model.ComplianceCheckTargetTypeDocker && rs[i].State == "WARN") || rs[i].State == "fail" {
+		} else if (rs[i].CheckType == model.ComplianceCheckTargetTypeDocker && rs[i].State == "WARN") || rs[i].State == "FAIL" || rs[i].State == "fail" {
 			rs[i].State = model.ScapScanResultStateFAIL
 			fail++
 		}
