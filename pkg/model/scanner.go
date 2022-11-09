@@ -190,7 +190,6 @@ type VulnImageList struct {
 	ImageId      int    `json:"id" gorm:"column:id"`
 }
 
-//
 type VulnDetail struct {
 	VulninfoApi VulnDetailInfo        `json:"vulninfo"`
 	Containers  []VulnDetailContainer `json:"containers"`
@@ -220,6 +219,29 @@ type ImageVulnsSumData struct {
 	MediumNum   int64 `json:"medium_num"`
 	LowNum      int64 `json:"low_num"`
 	UnknownNum  int64 `json:"unknown_num"`
+}
+
+type ImageRiskOver struct {
+	CriticalNum int64 `json:"critical_num"` // 只需写入这个字段，含有病毒的文件数量。
+	HighNum     int64 `json:"high_num"`
+	MediumNum   int64 `json:"medium_num"`
+	LowNum      int64 `json:"low_num"`
+	UnknownNum  int64 `json:"unknown_num"`
+}
+
+type ImageRiskOverRedis struct {
+	Data ImageRiskOver `json:"data"`
+	Key  string        `json:"Key"`
+}
+
+func (ir *ImageRiskOverRedis) Valid() bool {
+	if ir.Key == "" {
+		return false
+	}
+	if ir.Data.LowNum <= 0 && ir.Data.UnknownNum <= 0 && ir.Data.MediumNum <= 0 && ir.Data.HighNum <= 0 && ir.Data.CriticalNum <= 0 {
+		return false
+	}
+	return true
 }
 
 type ImageVirusSumData struct {

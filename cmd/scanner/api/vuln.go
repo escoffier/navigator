@@ -425,6 +425,21 @@ func (s *VulnAPISrv) GetImageVulnFrame(ctx *gin.Context) {
 		response.WithStartIndex(filter.Offset))
 }
 
+func (v *VulnAPISrv) SetVulnToRedis(ctx *gin.Context) {
+	data := model.ImageRiskOverRedis{}
+	if err := ctx.BindJSON(&data); err != nil {
+		response.JSONError(ctx, response.NewHttpError(http.StatusInternalServerError, err))
+		return
+	}
+
+	if err := v.VulnSrv.SetImageRiskToRedis(ctx, data); err != nil {
+		response.JSONError(ctx, response.NewHttpError(http.StatusInternalServerError, err))
+		return
+	}
+
+	response.JSONOK(ctx)
+}
+
 func convertVuln(vuln *model.Vuln) VulnResponse {
 	if vuln == nil {
 		return VulnResponse{}

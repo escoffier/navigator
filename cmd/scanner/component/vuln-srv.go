@@ -2,7 +2,9 @@ package component
 
 import (
 	"context"
+	"encoding/json"
 	"strings"
+	"time"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
@@ -38,6 +40,7 @@ func GetVulnDefaultOmitFields() []string {
 type VulnServiceInterface interface {
 	SearchVulns(ctx context.Context, param SearchVulnParam, filter *model.Filter) ([]*model.Vuln, int64, error)
 	SearchLayerVuln(ctx context.Context, param SearchScanLayerParam, filter *model.Filter) ([]*model.ScanLayer, int64, error)
+	SetImageRiskToRedis(ctx context.Context, data model.ImageRiskOverRedis) error
 }
 
 type VulnService struct {
@@ -71,6 +74,25 @@ func (vn *VulnService) SearchVulns(ctx context.Context, param SearchVulnParam, f
 		return nil, 0, err
 	}
 	return vulns, cnt, nil
+}
+
+func (vn *VulnService) SetImageRiskToRedis(ctx context.Context, data model.ImageRiskOverRedis) error {
+	byts, err := json.Marshal(data.Data)
+	if err != nil {
+		return err
+	}
+
+	redis, err := store.GetRedisClient(0)
+	if err != nil {
+		logging.GetLogger().Err(err).Msg("Redis 0 can't get")
+		return err
+	}
+	err = redis.Set(ctx, data.Key, byts, time.Hour*144).Err()
+	if err != nil {
+		logging.GetLogger().Err(err).Msgf("Updata risk cache error image:%v", data.Key)
+		return err
+	}
+	return nil
 }
 
 func NewVulnService(vulnDal store.VulnDalInterface, scanDal store.ScannerDalInterface) *VulnService {

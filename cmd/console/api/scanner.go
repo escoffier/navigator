@@ -61,6 +61,7 @@ func (api *api) scanner() func(chi.Router) {
 		r.Get("/vulns/imageVuln/language", api.RedirectToScanner())
 		r.Get("/vulns/imageVuln/gobinary", api.RedirectToScanner())
 		r.Get("/vulns/imageVuln/frame", api.RedirectToScanner())
+		r.Post("/vulns/setVulnRisk", api.RedirectToScanner())
 
 		// r.Get("/register/projects/{projectName}", api.RedirectToScanner())
 		r.Get("/register/registries", api.RedirectToScanner())
@@ -323,7 +324,7 @@ func (api *api) RedirectToScanner(repaleceScannner ...bool) http.HandlerFunc {
 			}
 		} else {
 			newUrl = fmt.Sprintf("%s%s", api.scannerURL,
-				strings.Replace(pre, "/api/openapi/scanner", "/api/v1", 1))
+				strings.Replace(pre, InternalAPIURLPrefix+"/scanner", "/api/v1", 1))
 		}
 
 		u, err := url.Parse(newUrl)
