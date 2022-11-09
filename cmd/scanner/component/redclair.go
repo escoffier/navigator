@@ -23,6 +23,7 @@ import (
 	_ "github.com/lib/pq"
 	"gitlab.com/security-rd/go-pkg/logging"
 	"go.mongodb.org/mongo-driver/mongo"
+
 	layerManage "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/layer-manage"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
@@ -672,7 +673,6 @@ func (rcSvc *RedClairService) processScanTask(ctx context.Context, scanTask mode
 	if err != nil {
 		logging.Get().Error().Msgf("Construct scanImage error：%+v", err)
 	}
-	rcSvc.updateRiskCacheEntry(ctx, scanTask)
 	rcSvc.logLayerTable(ctx, scanTask, scanTask.ImageID)
 	rcSvc.logVulnTable(ctx, scanTask, scanTask.ImageID)
 	rcSvc.logPostgres(ctx, scanImage, scanTask.TableID, scanTask, model.ScanStatusSucceeded, "", nil)
@@ -1227,26 +1227,6 @@ func (rcSvc *RedClairService) caculateScore(severity string, num int64) float64 
 	return score
 }
 
-func (rcSvc *RedClairService) updateRiskCacheEntry(ctx context.Context, scantask model.ScanTask) {
-	url := strings.Replace(scantask.URL, "https://", "", 1)
-	url = strings.Replace(url, "http://", "", 1)
-	image := "riskexp-image-vulns-" + url + "/" + scantask.Repository + ":" + scantask.Tag
-	sumData := model.ImageVulnsSumData{}
-	sumData.CriticalNum = scantask.ScanReport.Vulns.SeverityHistogram.NumCritical
-	sumData.HighNum = scantask.ScanReport.Vulns.SeverityHistogram.NumHigh
-	sumData.MediumNum = scantask.ScanReport.Vulns.SeverityHistogram.NumMedium
-	sumData.LowNum = scantask.ScanReport.Vulns.SeverityHistogram.NumLow
-	sumData.UnknownNum = scantask.ScanReport.Vulns.SeverityHistogram.NumUnknown
-	bytes, err := json.Marshal(sumData)
-	if err != nil {
-		logging.Get().Err(err).Msgf("Risk Vuln json Marshal error")
-		return
-	}
-	err = rcSvc.redisClientShare.Set(ctx, image, bytes, riskTTL).Err()
-	if err != nil {
-		logging.Get().Err(err).Msgf("Updata risk cache error image:%v", image)
-	}
-}
 func SortVulnsBySeverityAndStuff(vulnerabilities []model.VulnerabilityInfo, asc bool) {
 	sort.Slice(vulnerabilities, func(i, j int) bool {
 		if !asc {

@@ -54,11 +54,6 @@ type VersionResp struct {
 	MD5     string
 }
 
-const (
-	scannerUser    = "X-Tensorsec-cicd-key"
-	internalApiKey = "dGVuc29yc2VjLWNpY2QtdXNlcg==.qBFMMAvbbm3afG3y42CqKaN7WQe4Q7hiqtg5Jzwen7tWHhZG16P62kvv"
-)
-
 var (
 	once              sync.Once
 	scannerVulnUpdata *UpdataService
@@ -408,7 +403,7 @@ func (srv *UpdataService) GetVulnDBVersion(ctx context.Context, getVersionURL st
 		return "", err
 	}
 	request.Header.Set("Content-Type", "application/json; charset=utf-8")
-	request.Header.Set(scannerUser, internalApiKey)
+	request.Header.Set(consts.ScannerUser, consts.InternalApiKey)
 
 	client := &http.Client{}
 	resp, err := client.Do(request)
@@ -448,7 +443,7 @@ func (srv *UpdataService) UploadVulnDb(ctx context.Context) error {
 
 	client := req.C().SetTimeout(2 * time.Hour)
 
-	resp, err := client.R().SetHeader(scannerUser, internalApiKey).
+	resp, err := client.R().SetHeader(consts.ScannerUser, consts.InternalApiKey).
 		SetFileBytes("file", "down.zip", data).
 		Put(uploadURL)
 
@@ -475,7 +470,7 @@ func downVulnDB(ctx context.Context) ([]byte, error) {
 		logging.GetLogger().Info().Str("url", url).Msg("TrivyServer downVulnDB")
 		w := &bytes.Buffer{}
 		client := req.C().SetTimeout(2 * time.Hour)
-		_, err := client.R().SetHeader(scannerUser, internalApiKey).SetOutput(w).Get(url)
+		_, err := client.R().SetHeader(consts.ScannerUser, consts.InternalApiKey).SetOutput(w).Get(url)
 		if err != nil {
 			return nil, err
 		}

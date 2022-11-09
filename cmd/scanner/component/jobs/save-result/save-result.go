@@ -6,10 +6,10 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"os"
 	"os/exec"
 	"regexp"
 	"strings"
-	"time"
 
 	"scm.tensorsecurity.cn/tensorsecurity-rd/trivy/pkg/report"
 
@@ -88,6 +88,14 @@ func (s *ScanResultHandle) calculateWebshellScore(webshell model.WebShellInfo, f
 func (s *ScanResultHandle) makeSeverityHistogramAndVulnScore(scanDetails *model.ScanDetailScanImage) {
 	sevHistorgram := model.SeverityHistogramInfo{}
 	for _, reuslts := range scanDetails.VulnDetails {
+		vulnType := os.Getenv("RISK_OVERVIEW_VULN_TYPE")
+		if len(vulnType) > 0 {
+			typeList := strings.Split(vulnType, ",")
+			if !util.ContainsString(typeList, reuslts.Class) {
+				continue
+			}
+		}
+
 		for _, vuln := range reuslts.Vulns {
 			for _, trivyVuln := range vuln.Trivy {
 				switch trivyVuln.Severity {
@@ -536,80 +544,60 @@ func (s *ScanResultHandle) logPostgresWebFrame(ctx context.Context, param jobs.P
 func (s *ScanResultHandle) updateRiskVulnCacheEntry(ctx context.Context, param jobs.Param, scanDetails *model.ScanDetailScanImage) {
 	jobURL, ok := param["url"].(string)
 	if !ok {
-		logging.GetLogger().Error().Msg("miss 'url' in parameter")
+		logging.GetLogger().Error().Msg("SetRedisData miss 'url' in parameter")
 		return
 	}
 	jobTag, ok := param["tag"].(string)
 	if !ok {
-		logging.GetLogger().Error().Msg("miss 'tag' in parameter")
+		logging.GetLogger().Error().Msg("SetRedisData miss 'tag' in parameter")
 		return
 	}
 	jobRepo, ok := param["repoName"].(string)
 	if !ok {
-		logging.GetLogger().Error().Msg("miss 'repoName' in parameter")
+		logging.GetLogger().Error().Msg("SetRedisData miss 'repoName' in parameter")
 		return
 	}
 
-	url := strings.Replace(jobURL, "https://", "", 1)
-	url = strings.Replace(url, "http://", "", 1)
-	image := "riskexp-image-vulns-" + url + "/" + jobRepo + ":" + jobTag
-	sumData := model.ImageVulnsSumData{}
-	sumData.CriticalNum = scanDetails.SeverityHistogram.NumCritical
-	sumData.HighNum = scanDetails.SeverityHistogram.NumHigh
-	sumData.MediumNum = scanDetails.SeverityHistogram.NumMedium
-	sumData.LowNum = scanDetails.SeverityHistogram.NumLow
-	sumData.UnknownNum = scanDetails.SeverityHistogram.NumUnknown
-	bytes, err := json.Marshal(sumData)
-	if err != nil {
-		logging.GetLogger().Err(err).Msg("Risk Vuln json Marshal")
-		return
+	data := model.ImageRiskOverRedis{
+		Key: fmt.Sprintf("riskexp-image-vulns-%s/%s:%s",
+			strings.Replace(strings.Replace(jobURL, "https://", "", 1), "http://", "", 1), jobRepo, jobTag),
+		Data: model.ImageRiskOver{
+			CriticalNum: scanDetails.SeverityHistogram.NumCritical,
+			HighNum:     scanDetails.SeverityHistogram.NumHigh,
+			MediumNum:   scanDetails.SeverityHistogram.NumMedium,
+			LowNum:      scanDetails.SeverityHistogram.NumLow,
+			UnknownNum:  scanDetails.SeverityHistogram.NumUnknown,
+		},
 	}
-	redis, err := store.GetRedisClient(0)
-	if err != nil {
-		logging.GetLogger().Err(err).Msg("Redis 0 can't get ")
-		return
-	}
-	err = redis.Set(ctx, image, bytes, time.Hour*144).Err()
-	if err != nil {
-		logging.GetLogger().Err(err).Msgf("Updata risk cache error image:%v", image)
+	if err := s.SetRedisData(ctx, data); err != nil {
+		logging.GetLogger().Err(err).Msg("updateRiskVulnCacheEntry SetRedisData")
 	}
 }
 
 func (s *ScanResultHandle) updateRiskVirusCacheEntry(ctx context.Context, param jobs.Param, scanDetails *model.ScanDetailScanImage) {
 	jobURL, ok := param["url"].(string)
 	if !ok {
-		logging.GetLogger().Error().Msg("miss 'url' in parameter")
+		logging.GetLogger().Error().Msg("SetRedisData miss 'url' in parameter")
 		return
 	}
 	jobTag, ok := param["tag"].(string)
 	if !ok {
-		logging.GetLogger().Error().Msg("miss 'tag' in parameter")
+		logging.GetLogger().Error().Msg("SetRedisData miss 'tag' in parameter")
 		return
 	}
 	jobRepo, ok := param["repoName"].(string)
 	if !ok {
-		logging.GetLogger().Error().Msg("miss 'repoName' in parameter")
+		logging.GetLogger().Error().Msg("SetRedisData miss 'repoName' in parameter")
 		return
 	}
 
-	url := strings.Replace(jobURL, "https://", "", 1)
-	url = strings.Replace(url, "http://", "", 1)
-	image := "riskexp-image-virus-" + url + "/" + jobRepo + ":" + jobTag
-	sumData := model.ImageVirusSumData{}
-	sumData.CriticalNum = int64(len(scanDetails.MaliciousDetails))
-	bytes, err := json.Marshal(sumData)
-	if err != nil {
-		logging.GetLogger().Err(err).Msg("Risk Virus json Marshal")
-		return
+	data := model.ImageRiskOverRedis{
+		Key: fmt.Sprintf("riskexp-image-virus-%s/%s:%s",
+			strings.Replace(strings.Replace(jobURL, "https://", "", 1), "http://", "", 1), jobRepo, jobTag),
+		Data: model.ImageRiskOver{CriticalNum: int64(len(scanDetails.MaliciousDetails))},
 	}
-	redis, err := store.GetRedisClient(0)
-	if err != nil {
-		logging.GetLogger().Err(err).Msg("Redis 0 can't get")
-		return
-	}
-	err = redis.Set(ctx, image, bytes, time.Hour*144).Err()
-	if err != nil {
-		logging.GetLogger().Err(err).Msgf("Updata risk cache error image:%v", image)
+	if err := s.SetRedisData(ctx, data); err != nil {
+		logging.GetLogger().Err(err).Msg("updateRiskVirusCacheEntry SetRedisData")
 	}
 }
 

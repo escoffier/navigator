@@ -115,6 +115,7 @@ func WebAPI(router *gin.Engine,
 		v4.GET("/imageVuln/gobinary", apiVulnSrv.GetImageVulnGoBinary)
 		v4.GET("/imageVuln/frame", apiVulnSrv.GetImageVulnFrame)
 		v4.PUT("/updata", vulnupdata.UploadOffline)
+		v4.POST("/setVulnRisk", apiVulnSrv.SetVulnToRedis)
 	}
 	v5 := router.Group("/api/v1/imagereject")
 	{

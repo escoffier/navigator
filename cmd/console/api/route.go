@@ -6,13 +6,14 @@ import (
 	"github.com/go-chi/chi"
 	"github.com/go-chi/jwtauth"
 	"github.com/go-redis/redis/v8"
+	"gitlab.com/security-rd/go-pkg/databases"
+	"gitlab.com/security-rd/go-pkg/elastic"
+	"gitlab.com/security-rd/go-pkg/logging"
+
 	"gitlab.com/piccolo_su/vegeta/pkg/api/apikey"
 	"gitlab.com/piccolo_su/vegeta/pkg/audit"
 	"gitlab.com/piccolo_su/vegeta/pkg/harbor"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
-	"gitlab.com/security-rd/go-pkg/databases"
-	"gitlab.com/security-rd/go-pkg/elastic"
-	"gitlab.com/security-rd/go-pkg/logging"
 )
 
 const (
@@ -58,7 +59,7 @@ func SetupRoutes(
 	// r.Get("/swagger/*", httpSwagger.Handler(httpSwagger.URL("swagger/doc.json")))
 
 	r.NotFound(api.NotFound)
-	// Open Api
+	// Internal Api
 	r.Route(InternalAPIURLPrefix, func(r chi.Router) {
 		r.Group(func(r chi.Router) {
 			r.Use(apikey.ScannerValid())
