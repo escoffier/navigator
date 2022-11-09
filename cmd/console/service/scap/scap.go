@@ -308,7 +308,7 @@ func (s *Service) getClusterInfo(ctx context.Context, clusterKey string) (*model
 	}
 
 	cluster := resSvc.GetClusterByKey(ctx, clusterKey)
-	if len(cluster.WorkerNamespace) == 0 {
+	if cluster == nil || len(cluster.WorkerNamespace) == 0 {
 		return nil, errors.New("error namespace, it's empty")
 	}
 

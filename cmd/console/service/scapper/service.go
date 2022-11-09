@@ -21,6 +21,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/dal"
 	"gitlab.com/piccolo_su/vegeta/pkg/flag"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
+	"gitlab.com/piccolo_su/vegeta/pkg/util"
 	"gitlab.com/security-rd/go-pkg/databases"
 	"gitlab.com/security-rd/go-pkg/logging"
 	"gorm.io/gorm"
@@ -635,10 +636,15 @@ func (s *ScapService) AddScapScanResults(ctx context.Context, rs []*model.ScanRe
 	}
 
 	err := s.rdb.Get().WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-
 		err := tx.Model(&model.ScanResult{}).CreateInBatches(rs, 100).Error
 		if err != nil {
 			return err
+		}
+
+		// 因为kube的还要接受 auto_variate 数据，所以在 auto_variate 那里设置状态为成功。
+		// Todo: 我认为两个请求能合并到一起
+		if rs[0].CheckType == model.ComplianceCheckTargetTypeKube {
+			return nil
 		}
 
 		// 收到扫描结果将对应任务设置为完成
@@ -661,4 +667,53 @@ func (s *ScapService) AddScapScanResults(ctx context.Context, rs []*model.ScanRe
 	}
 
 	return err
+}
+
+func (s *ScapService) UpdateSnrVariate(ctx context.Context, taskID, nodeName, checkType, autoVariate string) error {
+	ctx, cancel := context.WithTimeout(ctx, 1000*time.Millisecond)
+	defer cancel()
+
+	scanRecord := &model.ScanNodeRecord{
+		State:      model.ScanStateCompleted,
+		FinishedAt: time.Now().Unix(),
+		Message:    "success",
+	}
+
+	return util.RetryWithBackoff(ctx, func() error {
+		oneCtx, oneCancel := context.WithTimeout(ctx, 300*time.Millisecond)
+		defer oneCancel()
+		err := s.rdb.Get().WithContext(oneCtx).Transaction(func(tx *gorm.DB) error {
+			if err := tx.Model(&model.ScanNodeRecord{}).
+				Where("task_id = ? and node_name = ? and check_type = ?", taskID, nodeName, checkType).
+				Update("auto_variate", autoVariate).Error; err != nil {
+				return err
+			}
+
+			if checkType == string(model.ComplianceCheckTargetTypeKube) {
+				// 收到扫描结果将对应任务设置为完成
+				err := tx.
+					Model(scanRecord).
+					Select("state", "finished_at", "message").
+					Where("node_name = ? and task_id = ? and state = ?", nodeName, taskID, model.ScanStateInProgress).
+					Updates(scanRecord).
+					Error
+
+				if err != nil {
+					return err
+				}
+			}
+
+			return nil
+		})
+
+		if err != nil {
+			logging.Get().Err(err).
+				Str("taskId", taskID).
+				Str("nodeName", nodeName).
+				Str("checkType", checkType).
+				Msg("添加 auto_variate 数据失败")
+		}
+
+		return err
+	})
 }

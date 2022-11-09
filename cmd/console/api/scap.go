@@ -56,6 +56,7 @@ func (api *api) scap() func(chi.Router) {
 func (api *api) scapInternal() func(chi.Router) {
 	return func(r chi.Router) {
 		r.Put("/scanResults", api.addScanResults())
+		r.Post("/nodeRecordVariate", api.updateRecordVariate())
 		r.Post("/scanCallback", api.scanCallback())
 	}
 }
@@ -856,12 +857,13 @@ func (api *api) addScanResults() http.HandlerFunc {
 		defer cancel()
 
 		var scanResults []*model.ScanResult
-
-		err := util.DecodeJSONBody(w, r, &scanResults)
+		err := json.NewDecoder(r.Body).Decode(&scanResults)
 		if err != nil {
 			RespAndLog(w, ctx, NewMalformedRequestError(http.StatusBadRequest, fmt.Errorf("failed to decode json: %w", err)))
 			return
 		}
+		defer r.Body.Close()
+
 		svc, ok := scapper.GetService(ctx)
 		if !ok {
 			logging.Get().Error().Msg("service instance get error")
@@ -875,6 +877,45 @@ func (api *api) addScanResults() http.HandlerFunc {
 			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.New("add scanning results error")))
 			return
 		}
+		response.Ok(w)
+	}
+}
+
+func (api *api) updateRecordVariate() http.HandlerFunc {
+	type scanNodeRecord struct {
+		TaskID      string `json:"task_id"`
+		NodeName    string `json:"node_name"`
+		CheckType   string `json:"check_type"`
+		AutoVariate string `json:"auto_variate"`
+	}
+
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(r.Context(), defaultScapTimeout)
+		defer cancel()
+
+		record := &scanNodeRecord{}
+		err := util.DecodeJSONBody(w, r, record)
+		if err != nil {
+			RespAndLog(w, ctx,
+				NewMalformedRequestError(http.StatusBadRequest,
+					fmt.Errorf("failed to decode json: %w", err)))
+			RespAndLog(w, ctx, NewMalformedRequestError(http.StatusBadRequest,
+				fmt.Errorf("failed to decode json: %w", err)))
+			return
+		}
+		svc, ok := scapper.GetService(ctx)
+		if !ok {
+			logging.Get().Error().Msg("service instance get error")
+			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.New("service instance get error")))
+			return
+		}
+
+		err = svc.UpdateSnrVariate(ctx, record.TaskID, record.NodeName, record.CheckType, record.AutoVariate)
+		if err != nil {
+			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.New("update ScanNodeRecord err")))
+			return
+		}
+
 		response.Ok(w)
 	}
 }
