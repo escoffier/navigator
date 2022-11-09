@@ -320,13 +320,12 @@ func (s *Scapper) RunComplianceCheck(
 		// schedule jobs
 		logging.Get().Info().
 			Str("check-type", check.CheckType).Str("check-cluster", check.ClusterID).Str("check-uuid", check.CheckUUID).
-			Str("namespace", check.Namespace).Str("operator", check.Operator).Str("image", jobObj.Spec.Template.Spec.Containers[0].Image).
+			Str("namespace", check.Namespace).Str("operator", check.Operator).
 			Int("node-items-num", len(nodes)).Msg("Scheduling SCAP check jobs")
 
 		for i := range nodes {
 			// TODO: resilience. We should save a task to mongo so that in case of Console crash we can restart the check?
 			// or do we not care about this since this is a rare operation?
-
 			err := s.dbAddJobStatusInProgress(ctx, &check, &nodes[i])
 			if err != nil {
 				logging.Get().Err(err).Msgf("set node %s for check task %+v error", nodes[i].Name, check)
@@ -533,7 +532,7 @@ FOR:
 
 			jobName := s.CreateJobName(check.CheckUUID, check.CheckType, nodeName)
 			// schedule job
-			err := s.scheduleOneJob(ctx, kubeClient, check, jobObj.DeepCopy(), clusterName, jobName, nodeName)
+			err := s.scheduleOneJob(ctx, kubeClient, check, jobObj.DeepCopy(), clusterName, jobName, nodeName, targetNode.Status.NodeInfo.Architecture)
 			if err != nil {
 				logging.Get().Error().Msgf("Failed to schedule job, %v.", err)
 
@@ -673,7 +672,7 @@ func (s Scapper) readJobObjFromYamlFile(checkType model.ComplianceCheckType) (*b
 	return jobObj, nil
 }
 
-func (s *Scapper) scheduleOneJob(ctx context.Context, kubeClient *pkgassets.Clientset, check *model.Check, jobObj *batchv1.Job, clusterName, jobName, targetNodeName string) error {
+func (s *Scapper) scheduleOneJob(ctx context.Context, kubeClient *pkgassets.Clientset, check *model.Check, jobObj *batchv1.Job, clusterName, jobName, targetNodeName, targetNodeArch string) error {
 	// 使用节点亲和性替代nodeName
 	jobObj.Spec.Template.Spec.Affinity = &corev1.Affinity{
 		NodeAffinity: &corev1.NodeAffinity{
@@ -734,6 +733,13 @@ func (s *Scapper) scheduleOneJob(ctx context.Context, kubeClient *pkgassets.Clie
 	}
 	jobObj.Spec.Template.Spec.Containers[0].Env = append(jobObj.Spec.Template.Spec.Containers[0].Env, ClusterUrlEnv)
 
+	// replace the tag with arm64
+	if strings.HasPrefix(targetNodeArch, "arm") &&
+		jobObj.Spec.Template.Spec.Containers[0].Image != "" {
+		repo := strings.Split(jobObj.Spec.Template.Spec.Containers[0].Image, ":")[0]
+		jobObj.Spec.Template.Spec.Containers[0].Image = repo + ":arm64"
+	}
+
 	jobsClient := kubeClient.BatchV1().Jobs(check.Namespace)
 	res, err := jobsClient.Create(ctx, jobObj, metav1.CreateOptions{})
 	// HACK
@@ -753,7 +759,10 @@ func (s *Scapper) scheduleOneJob(ctx context.Context, kubeClient *pkgassets.Clie
 	jobsName := res.ObjectMeta.Name
 
 	logging.Get().Info().Str("target-node", jobObj.Spec.Template.Spec.NodeName).
-		Str("job-name", jobsName).Msg("Scheduled SCAP check job")
+		Str("job-name", jobsName).
+		Str("arch", targetNodeArch).
+		Str("image", jobObj.Spec.Template.Spec.Containers[0].Image).
+		Msg("Scheduled SCAP check job")
 
 	return nil
 }
