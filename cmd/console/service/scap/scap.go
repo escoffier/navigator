@@ -6,6 +6,7 @@ import (
 	"os"
 	"runtime"
 	"runtime/debug"
+	"sync"
 	"time"
 
 	"github.com/go-redis/redis/v8"
@@ -34,6 +35,8 @@ type Service struct {
 	redisClient *redis.Client
 }
 
+var once sync.Once
+
 func NewService(rdb *databases.RDBInstance, redisClient *redis.Client) *Service {
 	cronServer := cron.New(cron.WithParser(cron.NewParser(
 		cron.Second | cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow,
@@ -44,7 +47,9 @@ func NewService(rdb *databases.RDBInstance, redisClient *redis.Client) *Service 
 	s.initCron()
 	cronServer.Start()
 
-	go s.StateSyncDaemon() // 这里启动一个goroutine用作合规的job状态同步
+	go once.Do(func() {
+		s.StateSyncDaemon() // 这里启动一个goroutine用作合规的job状态同步
+	})
 
 	return s
 }
@@ -232,6 +237,7 @@ func (s *Service) StateSyncDaemon() {
 						// 如果超时，则删除对应k8s的job
 						err = s.deleteK8sJobs(newCtx, his)
 						if err != nil {
+							fmt.Println(err)
 							logging.Get().
 								Err(err).
 								Str("func", "scap StateSyncDaemon").

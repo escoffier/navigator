@@ -135,7 +135,7 @@ func (c *SherlockClient) RiskStats(ctx context.Context, clusterKey string) (map[
 		return nil, err
 	}
 
-	logging.GetLogger().Debug().Str("url", url).Str("resp", string(body)).Msg("RiskStats end")
+	logging.GetLogger().Trace().Str("url", url).Str("resp", string(body)).Msg("RiskStats end")
 
 	result := struct {
 		Code    int                        `json:"code"`
