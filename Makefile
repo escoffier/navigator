@@ -1,6 +1,8 @@
 VERSION = 0.1.0
 
 UNAME_S := $(shell uname -s)
+UNAME_M := $(shell uname -m)
+
 ifeq ($(UNAME_S),Linux)
 	LDFLAGS = -extldflags "-static"
 endif
@@ -302,13 +304,15 @@ holmes:     ## Build holmes docker
 	#upx --lzma --best dist/holmes-rules-pack
 	# generate the holmes rules thr file with version
 	./build_holmes_rules_thr.sh
-ifeq ($(USEMIRROR),true)
-	@echo "holmes will use mirror"
+
+ifeq ($(UNAME_M),x86_64)
 	docker build -t $(REPOPREFIX)/holmes:latest -f ./build/holmes/Dockerfile \
-                --build-arg MIRROR=mirrors.aliyun.com --build-arg REPO=$(REPOPREFIX) --build-arg TAG=$(FETCHTAG) .
+		--build-arg REPO=$(REPOPREFIX) --build-arg TAG=$(FETCHTAG) --build-arg MIRROR=mirrors.aliyun.com \
+		--build-arg TARGETARCH=amd64 .
 else
-	@echo "holmes will not use mirror"
-	docker build -t $(REPOPREFIX)/holmes:latest -f ./build/holmes/Dockerfile --build-arg REPO=$(REPOPREFIX) TAG=$(FETCHTAG) .
+	docker build -t $(REPOPREFIX)/holmes:latest -f ./build/holmes/Dockerfile \
+		--build-arg REPO=$(REPOPREFIX) --build-arg TAG=$(FETCHTAG) --build-arg MIRROR=mirrors.aliyun.com \
+		--build-arg TARGETARCH=arm64 .
 endif
 
 
