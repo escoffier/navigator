@@ -9,9 +9,12 @@ mkdir -p inject/tensor
 #     docker build -f ubuntu/Dockerfile.ubuntu -t drift-prevention-ubuntu:build \
 #         --build-arg MIRROR="$1" .
 # fi
+if [ "$(uname -m)"=="aarch64" ]; then
+    docker build -f arm64/Dockerfile.ubuntu -t drift-prevention:build .
+else
+    docker build -f rhel/Dockerfile.rhel -t drift-prevention:build .
+fi
 
-docker build -f rhel/Dockerfile.rhel -t drift-prevention-rhel:build .
-
-id=$(docker create drift-prevention-rhel:build)
+id=$(docker create drift-prevention:build)
 docker cp $id:/src/dp.so inject/tensor/dp.so
 docker rm -v $id

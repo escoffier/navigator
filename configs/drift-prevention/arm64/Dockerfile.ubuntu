@@ -1,0 +1,17 @@
+FROM ubuntu:14.04
+
+ARG MIRROR=archive.ubuntu.com
+RUN sed -i "s!archive.ubuntu.com/!${MIRROR}/!g" /etc/apt/sources.list
+
+
+RUN DEBIAN_FRONTEND=noninteractive apt-get update -y && DEBIAN_FRONTEND=noninteractive apt-get install -y \
+--no-install-recommends build-essential vim \
+openssl libssl-dev libgtk2.0-dev
+
+ADD src /src
+
+WORKDIR /src
+
+RUN make all
+
+CMD ["tail", "-f", "/dev/null"]
