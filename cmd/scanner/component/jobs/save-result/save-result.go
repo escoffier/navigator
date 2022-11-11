@@ -87,6 +87,9 @@ func (s *ScanResultHandle) calculateWebshellScore(webshell model.WebShellInfo, f
 
 func (s *ScanResultHandle) makeSeverityHistogramAndVulnScore(scanDetails *model.ScanDetailScanImage) {
 	sevHistorgram := model.SeverityHistogramInfo{}
+
+	fixed := os.Getenv("RISK_OVERVIEW_VULN_FIXED")
+
 	for _, reuslts := range scanDetails.VulnDetails {
 		vulnType := os.Getenv("RISK_OVERVIEW_VULN_TYPE")
 		if len(vulnType) > 0 {
@@ -95,9 +98,12 @@ func (s *ScanResultHandle) makeSeverityHistogramAndVulnScore(scanDetails *model.
 				continue
 			}
 		}
-
 		for _, vuln := range reuslts.Vulns {
 			for _, trivyVuln := range vuln.Trivy {
+				if fixed == consts.TrueString && trivyVuln.FixedVersion == "" {
+					continue
+				}
+
 				switch trivyVuln.Severity {
 				case "CRITICAL":
 					sevHistorgram.NumCritical++
