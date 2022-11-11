@@ -103,7 +103,7 @@ func (s *ImageExport) Export(ctx context.Context, task model.ExportTensorTask, e
 		}
 		logging.GetLogger().Info().Int64("taskID", task.ID).Int64("imageID", param.ImageID).Msg("Export Parse parameters")
 
-		filename := task.FilePath
+		filename := strings.Replace(task.FilePath, ".zip", "", 1)
 		logging.GetLogger().Info().Int64("taskID", task.ID).Int64("imageID", param.ImageID).Str("filename", filename).Msg("Export createExcelFile")
 
 		excelData := make(map[string][]chan []string)

@@ -37,7 +37,7 @@ func GenSensitiveFileSuggest(files []model.Sensitive) string {
 		if file.Name == "" {
 			continue
 		}
-		if !strings.HasPrefix("/", file.Name) {
+		if !strings.HasPrefix(file.Name, "/") {
 			file.Name = "/" + file.Name
 		}
 
@@ -69,7 +69,7 @@ func GenVulnSuggest(osstring string, vulns []*model.Vuln) string {
 	ans = util.DeDuplicationStringSlice(ans)
 	install := InstallType(split[0])
 
-	pre := "建议在Dockerfile里面使用以下命令升级软件包：\n"
+	pre := "建议在Dockerfile里面使用以下命令升级软件包：\n RUN "
 
 	if len(ans) > 0 && install != "" {
 		return fmt.Sprintf("%s%s %s", pre, install, strings.Join(ans, " "))
