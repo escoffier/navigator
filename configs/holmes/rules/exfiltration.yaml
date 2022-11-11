@@ -334,17 +334,17 @@
       value: "There may be port scanning behavior, it is recommended to confirm whether there is a vulnerability in the service where the port is located."
     zh:
       key: "处置建议"
-      value: "可能存在端口扫描行为，建议确认端口所在服务是否存在漏洞。"
+      value: "可能存在敏感端口扫描行为，建议确认端口所在服务是否存在漏洞。"
   desc: Scanning ports detected
   condition: >
     easy_outbound and proc.name in (scan_ports_tool_binaries) and pentest_ports
   output: >
-    Scanning ports detected (zh_msg=检测到正在扫描端口,rule_type=Exfiltration,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,connection=%fd.name,client_ip=%fd.cip,client_port=%fd.cport,server_ip=%fd.sip,server_port=%fd.sport user=%user.name user_loginuid=%user.loginuid container_id=%container.id container_name=%container.name image=%container.image.repository)
+    Scanning ports detected (zh_msg=检测到正在扫描敏感端口,rule_type=Exfiltration,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,connection=%fd.name,client_ip=%fd.cip,client_port=%fd.cport,server_ip=%fd.sip,server_port=%fd.sport user=%user.name user_loginuid=%user.loginuid container_id=%container.id container_name=%container.name image=%container.image.repository)
   priority: ALERT
   tags: [ATT&CK, network, mitre_remote_service]
 
 - rule: Brute force hacking detected
-  hid: exf_18
+  hid: exf_19
   hthreats: 0
   suggestion:
     en:
@@ -360,3 +360,21 @@
     Brute force hacking detected (zh_msg=检测到正在暴力破解,rule_type=Exfiltration,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,connection=%fd.name,client_ip=%fd.cip,client_port=%fd.cport,server_ip=%fd.sip,server_port=%fd.sport user=%user.name user_loginuid=%user.loginuid container_id=%container.id container_name=%container.name image=%container.image.repository)
   priority: ALERT
   tags: [ATT&CK, network, mitre_remote_service]
+
+- rule: Access k8s component ports detected
+  hid: exf_20
+  hthreats: 0
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "The K8S sensitive port access behavior is detected. Please confirm whether it is legal access in combination with specific commands. If not, it may be used by attackers. Please isolate the pod in time"
+    zh:
+      key: "处置建议"
+      value: "测到k8s敏感端口访问行为,请结合具体命令确认是否为合法访问，如果不是则可能遭到攻击者利用，请及时隔离该pod。"
+  desc: Access k8s component ports detected
+  condition: >
+    easy_outbound and proc.name!="<NA>" and fd.sport in (k8s_ports)
+  output: >
+    Scanning ports detected (zh_msg=检测到访问k8s组件敏感端口,rule_type=Exfiltration,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,connection=%fd.name,client_ip=%fd.cip,client_port=%fd.cport,server_ip=%fd.sip,server_port=%fd.sport user=%user.name user_loginuid=%user.loginuid container_id=%container.id container_name=%container.name image=%container.image.repository)
+  priority: ALERT
+  tags: [ATT&CK, network, mitre_remote_service, strict]

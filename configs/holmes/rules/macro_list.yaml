@@ -1392,7 +1392,7 @@
     iptables, ps, lsb_release, check-new-relea, dumpe2fs, accounts-daemon, sshd,
     vsftpd, systemd, mysql_install_d, psql, screen, debconf-show, sa-update,
     pam-auth-update, pam-config, /usr/sbin/spamd, polkit-agent-he, lsattr, file, sosreport,
-    scxcimservera, adclient, rtvscand, cockpit-session, userhelper, ossec-syscheckd
+    scxcimservera, adclient, rtvscand, cockpit-session, userhelper, ossec-syscheckd, tar, nmap
     ]
 
 # Add conditions to this macro (probably in a separate file,
@@ -2311,7 +2311,7 @@
   condition: (always_true)
 
 - list: user_known_packet_socket_binaries
-  items: [speaker]
+  items: [speaker, nmap]
 
 # Change to (always_true) to enable rule 'Network connection outside local subnet'
 - macro: enabled_rule_network_only_subnet
@@ -2424,7 +2424,7 @@
 # weave: 6781, 6782, 6783
 # kubeflow-dashboard: 8080
 - list: k8s_ports
-  items: [2375, 2379, 2380, 4149, 6443, 6781, 6782, 6783, 8080, 8081, 10250, 10251, 10252, 10255, 10256, 30000, 31442]
+  items: [2375, 2379, 2380, 4149, 6443, 6781, 6782, 6783, 10250, 10251, 10252, 10254, 10255, 10256, 30000, 31442]
 
 #Common database ports for penetration testing
 # MSSQL: 1433
@@ -2465,6 +2465,5 @@
 
 - macro: pentest_ports
   condition: >
-    (fd.sport in (k8s_ports) or
-    fd.sport in (database_ports) or
+    (fd.sport in (database_ports) or
     fd.sport in (vulnerable_ports))

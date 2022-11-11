@@ -183,7 +183,7 @@
   condition: >
    evt.type=mount and evt.arg.type = "cgroup" and container and user.uid=0
   output: >
-    container escape to access host system (zh_msg=容器内挂载cgroup,rule_type=Privilege_Escalation,fd_name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,container_id=%container.id,container_name=%container.name)
+    container escape to access host system (zh_msg=容器内挂载cgroup逃逸,rule_type=Privilege_Escalation,fd_name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,container_id=%container.id,container_name=%container.name)
   priority: ALERT
   tags: [ATT&CK]
 
