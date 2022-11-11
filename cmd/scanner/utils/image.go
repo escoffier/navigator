@@ -1,12 +1,10 @@
 package utils
 
 import (
-	"encoding/json"
 	"fmt"
 	"os"
 	"strings"
 
-	ftypes "scm.tensorsecurity.cn/tensorsecurity-rd/fanal/types"
 	"scm.tensorsecurity.cn/tensorsecurity-rd/trivy/pkg/report"
 
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
@@ -14,24 +12,49 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 )
 
+func GenFixSuggestion(sensitives []model.Sensitive, osString string, vulns []*model.Vuln) []string {
+	// 生成敏感文件的建议
+	suggests := make([]string, 0)
+	sug := GenSensitiveFileSuggest(sensitives)
+	if sug != "" {
+		suggests = append(suggests, sug)
+	}
+
+	// 生成漏洞的建议
+	sug = GenVulnSuggest(osString, vulns)
+	if sug != "" {
+		suggests = append(suggests, sug)
+	}
+	return suggests
+}
+
 // 生成敏感文件的修复建议
 func GenSensitiveFileSuggest(files []model.Sensitive) string {
-	pre := "请确认相关文件是否存在风险，确认后在Dockerfile中删除异常文件："
+	pre := []string{"建议在镜像中移除以下敏感文件，然后重新打包镜像："}
 	res := make([]string, 0)
 	for i := range files {
-		res = append(res, files[i].Name)
+		file := files[i]
+		if file.Name == "" {
+			continue
+		}
+		if !strings.HasPrefix("/", file.Name) {
+			file.Name = "/" + file.Name
+		}
+
+		res = append(res, file.Name)
 	}
 	res = util.DeDuplicationStringSlice(res)
 	if len(res) > 0 {
-		return fmt.Sprintf("%s%s", pre, strings.Join(res, ";"))
+		pre = append(pre, res...)
+		return strings.Join(pre, "\n")
 	}
 	return ""
 }
 
 // 生成漏洞的修复建议
 func GenVulnSuggest(osstring string, vulns []*model.Vuln) string {
-	imageOs := new(ftypes.OS)
-	if err := json.Unmarshal([]byte(osstring), imageOs); err != nil {
+	split := strings.Split(osstring, ":")
+	if len(split) == 0 || split[0] == "" {
 		return ""
 	}
 
@@ -44,18 +67,18 @@ func GenVulnSuggest(osstring string, vulns []*model.Vuln) string {
 	}
 	// 去重
 	ans = util.DeDuplicationStringSlice(ans)
-	install := InstallType(imageOs)
+	install := InstallType(split[0])
 
-	pre := "请在该镜像的Dockerfile中增加如下代码，以修复存在安全问题的软件：RUN "
+	pre := "建议在Dockerfile里面使用以下命令升级软件包：\n"
 
 	if len(ans) > 0 && install != "" {
-		return fmt.Sprintf("%s %s %s", pre, install, strings.Join(ans, " "))
+		return fmt.Sprintf("%s%s %s", pre, install, strings.Join(ans, " "))
 	}
 	return ""
 }
 
-func InstallType(os *ftypes.OS) string {
-	switch strings.ToLower(os.Family) {
+func InstallType(osFamily string) string {
+	switch strings.ToLower(osFamily) {
 	case "ubuntu", "debian":
 		return "apt-get update  &&  apt upgrade -y "
 	case "centos", "fedora":

@@ -27,8 +27,10 @@ type RegistrySrvInterface interface {
 	GetRegistryType(ctx context.Context) ([]model.LabelValue, error)
 	CheckHealth(ctx context.Context, scannerInstance string) error
 }
+
 type RegistrySrv struct {
 	registryDal   store.RegistryDal
+	syncTaskDal   store.SyncTaskDal
 	scanConfigDal store.ScanConfigDal
 }
 
@@ -119,8 +121,14 @@ func (s *RegistrySrv) createRegistry(ctx context.Context, reg model.Registry) (i
 		}
 		return 0, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf(consts.StatusInternalServerErrorMsg))
 	}
-	return id, nil
 
+	// 新增加的仓库需要自动同步
+	syncTask := &model.SyncTask{RegistryID: id, SyncType: consts.CycleFullSync.String()}
+	if err := s.syncTaskDal.CreateSyncTask(ctx, syncTask); err != nil {
+		logging.GetLogger().Err(err).Int64("regID", id).Msg("createRegistry CreateSyncTask")
+	}
+
+	return id, nil
 }
 
 func (s *RegistrySrv) CheckHealth(ctx context.Context, scannerInstance string) error {
@@ -163,6 +171,7 @@ func (s *RegistrySrv) CheckHealth(ctx context.Context, scannerInstance string) e
 }
 
 func (s *RegistrySrv) CreateRegistry(ctx context.Context, reg model.Registry) (int64, error) {
+
 	if reg.ScannerInstance == "" {
 		// 设置默认:当前集群
 		reg.ScannerInstance = global.ScannerInstance
@@ -224,8 +233,8 @@ func (s *RegistrySrv) UpdateRegistry(ctx context.Context, id int64, reg model.Re
 	return nil
 }
 
-func NewRegistrySrv(registryDal store.RegistryDal, scanConfigDal store.ScanConfigDal) *RegistrySrv {
-	return &RegistrySrv{registryDal: registryDal, scanConfigDal: scanConfigDal}
+func NewRegistrySrv(registryDal store.RegistryDal, scanConfigDal store.ScanConfigDal, syncTaskDal store.SyncTaskDal) *RegistrySrv {
+	return &RegistrySrv{registryDal: registryDal, scanConfigDal: scanConfigDal, syncTaskDal: syncTaskDal}
 }
 
 func validateRegistryType(regType string) error {

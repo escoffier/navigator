@@ -13,13 +13,12 @@ import (
 	"time"
 
 	"gitlab.com/security-rd/go-pkg/logging"
-	ftypes "scm.tensorsecurity.cn/tensorsecurity-rd/fanal/types"
 	"scm.tensorsecurity.cn/tensorsecurity-rd/trivy/pkg/report"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scan-report/export"
-	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scan-report/export/utils"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/utils"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 )
 
@@ -396,29 +395,15 @@ func (s *ExportImageHtmlSrv) GetImageRisk(ctx context.Context, taskID, imageID i
 		logging.Get().Err(err).Int64("taskID", taskID).Int64("imageID", imageID).Msg("ExportImageHtmlSrv GetImageRisk SearchScanImage")
 		return nil, err
 	}
-	// 生成敏感文件的建议
-	suggests := make([]string, 0)
-	for i := range scans {
-		sug := utils.GenSensitiveFileSuggest(scans[i].SensitiveFile)
-		if sug != "" {
-			suggests = append(suggests, sug)
-		}
-	}
-
-	// 生成漏洞的建议
-	os := ftypes.OS{}
-	if err := json.Unmarshal([]byte(image.Os), &os); err != nil {
-		sug := utils.GenVulnSuggest(utils.InstallType(&os), vulns)
-		if sug != "" {
-			suggests = append(suggests, sug)
-		}
-	}
 
 	res := &ImageRiskOverView{
 		ImageID:           image.ID,
 		ImageName:         image.GetImageName(),
-		FixSuggestion:     suggests,
 		VulnSeverityCount: StatisticsVulnSeverity(vulns),
+	}
+
+	if len(scans) > 0 {
+		res.FixSuggestion = utils.GenFixSuggestion(scans[0].SensitiveFile, image.Os, vulns)
 	}
 
 	logging.Get().Info().Int64("taskID", taskID).Int64("imageID", imageID).Msg("ExportImageHtmlSrv.GetImageRisk finished")

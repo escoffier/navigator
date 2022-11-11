@@ -15,10 +15,6 @@ type AllRiskOverView struct {
 	Virus        []model.VirusInfo       `json:"virus"`        // 病毒列表
 }
 
-func (rov *AllRiskOverView) StatisticsVulnSeverity(vulns []*model.Vuln) {
-
-}
-
 // 单个镜像的扫描报告
 type ImageRiskOverView struct {
 	ImageID           int64                   `json:"imageID"`
@@ -26,28 +22,6 @@ type ImageRiskOverView struct {
 	FixSuggestion     []string                `json:"fixSuggestion"`
 	Vulns             VulnDetailSeverityGroup `json:"vulns"`             // 漏洞层级列表
 	VulnSeverityCount VulnSeverityCount       `json:"vulnSeverityCount"` // 漏洞层级分布
-}
-
-// 拼装漏洞列表
-// vulnMap map[uniqueVuln]*VulnDetail
-// vulnImageMap map[uniqueVuln][imageName]
-func AssemblyVuln(vulnMap map[uint64]VulnDetail, vulnImageMap map[uint64][]string, fixed string) []VulnWithImage {
-
-	res := make([]VulnWithImage, 0)
-	for vuId, vu := range vulnMap {
-		if (fixed == model.TrueString && vu.FixedBy == "") || (fixed == model.FalseString && vu.FixedBy != "") {
-			continue
-		}
-		im := VulnWithImage{
-			Images:     vulnImageMap[vuId],
-			VulnDetail: vu,
-		}
-		if im.Images == nil {
-			im.Images = make([]string, 0)
-		}
-		res = append(res, im)
-	}
-	return res
 }
 
 type ImageResponse struct {

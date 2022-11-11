@@ -22,6 +22,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/task"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/utils"
 	"gitlab.com/piccolo_su/vegeta/pkg/compress"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
@@ -1361,6 +1362,8 @@ func (s *ConScannerSrv) GetImageDetail(ctx context.Context, imgID int64) (*model
 			img.OS = fmt.Sprintf("%s:%s", imageOs.Family, imageOs.Name)
 		}
 	}
+	// 增加安全建议
+	img.FixSuggestion = strings.Join(utils.GenFixSuggestion(img.ImageScanVuln.SensitiveFiles, img.OS, img.ImageScanVuln.Vulns), "\n")
 
 	return img, nil
 }
