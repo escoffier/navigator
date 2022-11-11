@@ -207,23 +207,56 @@ err:
     return -1;
 }
 
+int GetLocalMnt(char *path)
+{
+    DIR *pDir;
+    char comm[128];
+    int i = 0, pid = 0, ret;
+    struct dirent *ent;
+    //
+    if(!path) RETURN_ERROR(-1, "read pid failed with use error argument!");
+    //open dir
+    pDir = opendir(path);
+    if(!pDir) RETURN_ERROR(-1, "open dir : %s failed!", path);
+    //read dir
+    while ((ent = readdir(pDir)) != NULL)
+    {
+        if(!(ent->d_type & DT_DIR)) continue;
+        if(ent->d_name[0] < 48 || ent->d_name[0] > 57) continue;
+        if((strspn(ent->d_name, "0123456789") != strlen(ent->d_name))) continue;
+        pid = atoi(ent->d_name);
+        //init
+        memset(comm, 0, sizeof(comm));
+        ret = GetProcessName(pid, "", comm);
+        if(ret != 0) CONTINUE_ERROR("get process name failed, pid : %d.", pid);
+        //
+        if(strcmp(comm, "supervisord") == 0)
+        {
+            closedir(pDir);
+            return pid;
+        }
+    }
+    //close
+    closedir(pDir);
+    //
+    return 0;
+}
+
 int OpenLocalMntNs()
 {
-    int ret;
-    char path[] = "/proc/1/ns/mnt";
-    ret = unshare(CLONE_NEWNS);
-    if(ret != 0)
-    {
-        LOG_ERROR("unshare mnt failed!");
-        return -1;
-    }
+    int ret, pid = 0;
+    char *path = "/proc/%d/ns/mnt";
+    char buff[128] = {0};
+    //get pid
+    pid = GetLocalMnt("/proc");
+    if(pid <= 0) RETURN_ERROR(-1, "get local pid failed.");
+    //
+    memset(buff, 0, sizeof(buff));
+    sprintf(buff, path, pid);
     //open mnt namespaces
-    szLocalMntNsFd = open(path, O_RDONLY);
-    if(szLocalMntNsFd <= 0)
-    {
-        LOG_ERROR("open %s mnt namespaces failed!", path);
-        return -1;
-    }
+    szLocalMntNsFd = open(buff, O_RDONLY);
+    if(szLocalMntNsFd <= 0) RETURN_ERROR(-1, "open %s mnt namespaces failed! err : %s.", buff, strerror(errno));
+
     return 0;
 }
 
@@ -679,7 +712,7 @@ int GetProcessData(PidAssMnt *mnt, ProcessData *pstProcData)
     //set default
     pstProcData->pid =pid;
     //get process name by pid
-    ret = GetProcessName(pid, pcDefPath, pstProcData->procname);
+    ret = GetProcessName(pid, (char *)pcDefPath, pstProcData->procname);
     if(ret != 0) LOG_ERROR("get tcp process name failed by default pid! pid : %d, %s.", pid, PrintAddress(mnt));
     //print information
 
