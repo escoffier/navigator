@@ -14,9 +14,9 @@ import (
 	"go.uber.org/atomic"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scan-report/export"
-	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scan-report/export/utils"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/utils"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 )

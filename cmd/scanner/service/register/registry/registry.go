@@ -64,6 +64,7 @@ func newService(config register.ScannerServiceConfig) (register.ScannerService, 
 
 	registryDal := store.NewRegistryDao(scannerWrapperDb)
 	scanConfigDal := store.NewScanConfigDao(scannerWrapperDb)
-	s := component.NewRegistrySrv(registryDal, scanConfigDal)
+	syncTaskDal := store.NewSyncTaskDao(scannerWrapperDb)
+	s := component.NewRegistrySrv(registryDal, scanConfigDal, syncTaskDal)
 	return &Registry{update: s}, nil
 }

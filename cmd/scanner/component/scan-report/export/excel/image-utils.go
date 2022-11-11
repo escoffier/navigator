@@ -10,9 +10,9 @@ import (
 	"github.com/shopspring/decimal"
 	"go.uber.org/atomic"
 
-	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scan-report/export/utils"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/utils"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 )
@@ -368,17 +368,7 @@ func GenImageBaseInfo(image model.ImageList) []string {
 	if image.Registry != nil {
 		info[1] = image.Registry.Url
 	}
-
-	vulnSuggest := utils.GenVulnSuggest(image.OS, image.ImageScanVuln.Vulns)
-	sensitiveFileSuggest := utils.GenSensitiveFileSuggest(image.ImageScanVuln.SensitiveFiles)
-	suggest := make([]string, 0)
-	if vulnSuggest != "" {
-		suggest = append(suggest, vulnSuggest)
-	}
-	if sensitiveFileSuggest != "" {
-		suggest = append(suggest, sensitiveFileSuggest)
-	}
-
+	suggest := utils.GenFixSuggestion(image.ImageScanVuln.SensitiveFiles, image.OS, image.ImageScanVuln.Vulns)
 	info = append(info, strings.Join(suggest, "\n"))
 
 	return info

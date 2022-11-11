@@ -304,6 +304,13 @@ func (s *ScanResultHandle) arrangeSensitive(sensitivesResult []model.PerLayerSen
 	for _, v := range layerMp {
 		imageSensitive = append(imageSensitive, v.Sentitives...)
 	}
+
+	for i := range imageSensitive {
+		if !strings.HasPrefix(imageSensitive[i].Name, "/") {
+			imageSensitive[i].Name = "/" + imageSensitive[i].Name
+		}
+	}
+
 	scanDetails.Sentitives = imageSensitive
 	sensitiveScore := s.caculateScore("Sensitive", int64(imageSensitiveLen))
 	scanDetails.SensitiveScore = sensitiveScore

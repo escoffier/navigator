@@ -154,11 +154,11 @@ func (s *ImageExport) GetExcelData(ctx context.Context, imageID int64, vulnCol *
 	logging.GetLogger().Debug().Int64("imageID", imageID).Msg("GetExcelData GetScanOneStatus")
 
 	// 获取关联容器
-	// resources, err := s.ResourceDal.SearchResources(ctx, []uint32{imageDetail.ImageUUID})
-	// if err != nil {
-	// 	logging.GetLogger().Err(err).Int64("imageID", imageID).Uint32("ImageUUID", imageDetail.ImageUUID).Msg("GetDataAndCreateExcelFile.SearchResources")
-	// 	return nil, err
-	// }
+	resources, err := s.ResourceDal.SearchResources(ctx, []uint32{imageDetail.ImageUUID})
+	if err != nil {
+		logging.GetLogger().Err(err).Int64("imageID", imageID).Uint32("ImageUUID", imageDetail.ImageUUID).Msg("GetDataAndCreateExcelFile.SearchResources")
+		return nil, err
+	}
 	logging.GetLogger().Debug().Int64("imageID", imageID).Msg("GetExcelData SearchResources")
 
 	res := make(map[string]chan []string)
@@ -169,7 +169,7 @@ func (s *ImageExport) GetExcelData(ctx context.Context, imageID int64, vulnCol *
 	res[GenImageVirusInfoMeta().SheetName] = GenVirusChan(*imageDetail)
 	res[GenImageWebshellInfoMeta().SheetName] = GenWebShellChan(*imageDetail)
 	res[GenImageEnvInfoMeta().SheetName] = GenEnvChan(*imageDetail)
-	// res[GenImageResourcesInfoMeta().SheetName] = GenImageResourceChan(*imageDetail, resources)
+	res[GenImageResourcesInfoMeta().SheetName] = GenImageResourceChan(*imageDetail, resources)
 
 	if model.ExistFlag(imageDetail.Flag, model.FlagBaseImage) {
 		images, _, err := s.ImageSrv.ListAppImageOfBase(ctx, imageID, nil)
