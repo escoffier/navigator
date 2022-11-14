@@ -300,10 +300,11 @@ type ImageList struct {
 	Flag           uint64 `gorm:"column:flag" json:"flag,string"`
 	LastFullSyncAt int64  `gorm:"column:last_full_sync_at" json:"last_full_sync_at"`
 
-	Online        bool      `gorm:"-" json:"online"`
-	LastScanAt    time.Time `gorm:"-" json:"last_scan_at"`
-	Trusted       bool      `gorm:"-"  json:"trusted"`
-	FixSuggestion string    `gorm:"-" json:"fixSuggestion"`
+	Online               bool      `gorm:"-" json:"online"`
+	LastScanAt           time.Time `gorm:"-" json:"last_scan_at"`
+	Trusted              bool      `gorm:"-"  json:"trusted"`
+	VulnFixSuggestion    []string  `gorm:"-" json:"vulnFixSuggestion"`
+	SentiveFixSuggestion []string  `gorm:"-" json:"sentiveFixSuggestion"`
 }
 
 func (im *ImageList) GetImageName() string {
