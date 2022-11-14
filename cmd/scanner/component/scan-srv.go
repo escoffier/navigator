@@ -1363,7 +1363,8 @@ func (s *ConScannerSrv) GetImageDetail(ctx context.Context, imgID int64) (*model
 		}
 	}
 	// 增加安全建议
-	img.FixSuggestion = strings.Join(utils.GenFixSuggestion(img.ImageScanVuln.SensitiveFiles, img.OS, img.ImageScanVuln.Vulns), "\n")
+	img.SentiveFixSuggestion = utils.GenSensitiveFileSuggest(img.ImageScanVuln.SensitiveFiles)
+	img.VulnFixSuggestion = utils.GenVulnSuggest(img.OS, img.ImageScanVuln.Vulns)
 
 	return img, nil
 }

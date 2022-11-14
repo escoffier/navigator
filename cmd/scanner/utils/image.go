@@ -13,23 +13,17 @@ import (
 )
 
 func GenFixSuggestion(sensitives []model.Sensitive, osString string, vulns []*model.Vuln) []string {
-	// 生成敏感文件的建议
-	suggests := make([]string, 0)
-	sug := GenSensitiveFileSuggest(sensitives)
-	if sug != "" {
-		suggests = append(suggests, sug)
-	}
 
+	suggests := make([]string, 0)
 	// 生成漏洞的建议
-	sug = GenVulnSuggest(osString, vulns)
-	if sug != "" {
-		suggests = append(suggests, sug)
-	}
+	suggests = append(suggests, GenVulnSuggest(osString, vulns)...)
+	// 生成敏感文件的建议
+	suggests = append(suggests, GenSensitiveFileSuggest(sensitives)...)
 	return suggests
 }
 
 // 生成敏感文件的修复建议
-func GenSensitiveFileSuggest(files []model.Sensitive) string {
+func GenSensitiveFileSuggest(files []model.Sensitive) []string {
 	pre := []string{"建议在镜像中移除以下敏感文件，然后重新打包镜像："}
 	res := make([]string, 0)
 	for i := range files {
@@ -46,16 +40,16 @@ func GenSensitiveFileSuggest(files []model.Sensitive) string {
 	res = util.DeDuplicationStringSlice(res)
 	if len(res) > 0 {
 		pre = append(pre, res...)
-		return strings.Join(pre, "\n")
+		return pre
 	}
-	return ""
+	return []string{}
 }
 
 // 生成漏洞的修复建议
-func GenVulnSuggest(osstring string, vulns []*model.Vuln) string {
+func GenVulnSuggest(osstring string, vulns []*model.Vuln) []string {
 	split := strings.Split(osstring, ":")
 	if len(split) == 0 || split[0] == "" {
-		return ""
+		return []string{}
 	}
 
 	ans := make([]string, 0)
@@ -69,12 +63,13 @@ func GenVulnSuggest(osstring string, vulns []*model.Vuln) string {
 	ans = util.DeDuplicationStringSlice(ans)
 	install := InstallType(split[0])
 
-	pre := "建议在Dockerfile里面使用以下命令升级软件包：\n RUN "
+	pre := "建议在Dockerfile里面使用以下命令升级软件包:"
 
 	if len(ans) > 0 && install != "" {
-		return fmt.Sprintf("%s%s %s", pre, install, strings.Join(ans, " "))
+		cmd := fmt.Sprintf("%s %s %s", "RUN", install, strings.Join(ans, " "))
+		return []string{pre, cmd}
 	}
-	return ""
+	return []string{}
 }
 
 func InstallType(osFamily string) string {

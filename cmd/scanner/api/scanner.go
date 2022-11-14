@@ -577,6 +577,15 @@ func (s *Scanner) ScannedByImageDetails(ctx *gin.Context) {
 	img.ManifestV1 = nil
 	img.ManifestV1JSON = nil
 	img.ImageScanVuln.Vulns = nil
+
+	// 对web界面上的修复建议，不要表头文案
+	if len(img.VulnFixSuggestion) > 0 {
+		img.VulnFixSuggestion = img.VulnFixSuggestion[1:]
+	}
+	if len(img.SentiveFixSuggestion) > 0 {
+		img.SentiveFixSuggestion = img.SentiveFixSuggestion[1:]
+	}
+
 	response.JSONOK(ctx, response.WithItem(*img))
 }
 
