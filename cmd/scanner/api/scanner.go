@@ -501,30 +501,6 @@ func (s *Scanner) ScanOneForDetectImage(ctx *gin.Context) {
 	response.JSONOK(ctx, response.WithItem(*resp))
 }
 
-// GetScanOneStatus
-// @Summary GetScanOneStatus
-// @Title 获取单个镜像的扫描状态
-// @Author guolingkai@tensorsecurity.cn
-// @Description 获取单个镜像的扫描状态
-// @Tags scan image
-// @Param id query int true "Image ID"
-// @Success 200 {object} ApiWithItem{data=ApiItem{item=model.ImageResponse{}}}
-// @Router	/api/v1/scan/harbor/scanOneStatus [get]
-func (s *Scanner) GetScanOneStatus(ctx *gin.Context) {
-	imgID, err := strconv.ParseInt(ctx.Query("id"), 10, 64)
-	if err != nil {
-		response.JSONError(ctx, errors.New("no image id"))
-		return
-	}
-	res, err := s.ImageSrv.GetScanOneStatus(ctx, imgID)
-	if err != nil {
-		response.JSONError(ctx, err)
-		return
-	}
-
-	response.JSONOK(ctx, response.WithItem(*res))
-}
-
 // ListScannedByImageOverview
 // @Summary reportsByImageOverview
 // @Title 获取单个镜像的扫描状态

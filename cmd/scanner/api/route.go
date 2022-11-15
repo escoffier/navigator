@@ -70,11 +70,7 @@ func WebAPI(router *gin.Engine,
 		v1.GET("/reportsByImageOverview", apiScannerSrv.ListScannedByImageOverview)
 		v1.GET("/reportsByImageDetails", apiScannerSrv.ScannedByImageDetails)
 
-		// v1.POST("/scanone", apiScannerSrv.StartScanOne)
-
-		// v1.POST("/harbor/scanAllNow", apiScannerSrv.ScanAllNow)
-		// v1.GET("/harbor/scanStatus", apiScannerSrv.GetScanStatus)
-		v1.GET("/harbor/scanOneStatus", apiScannerSrv.GetScanOneStatus)
+		// v1.GET("/harbor/scanOneStatus", apiScannerSrv.GetScanOneStatus)
 		v1.GET("/reportsByVulnOverview", apiScannerSrv.ListScannedByVulnOverview)
 		v1.GET("/reportsBySimpleImageDetails", apiScannerSrv.GetSimpleImageDetail)
 	}
