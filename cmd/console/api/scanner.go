@@ -29,7 +29,7 @@ func (api *api) scanner() func(chi.Router) {
 
 		r.Post("/harbor/scanAllNow", api.RedirectToScanner(true))
 		r.Get("/harbor/scanConfig", api.harborScanConfig())
-		r.Get("/harbor/scanOneStatus", api.RedirectToScanner(true))
+		// r.Get("/harbor/scanOneStatus", api.RedirectToScanner(true))
 		r.Post("/harbor/abortScanAll", api.harborAbortScanAll())
 
 		r.Get("/images/{imgDigest}/layers", api.RedirectToScanner())

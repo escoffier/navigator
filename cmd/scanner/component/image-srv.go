@@ -19,7 +19,6 @@ type ImageSrvInterface interface {
 	ListImageWithScanInfo(ctx context.Context, param model.ImageListParam, filter *model.Filter) ([]*model.ImageListResponse, int64, error)
 	CreateScanImageTask(ctx context.Context, param model.ImageListParam, taskInfo task.UpdateTaskInfo) error
 	GetRegistryProject(ctx context.Context, param GetRegistryProjectParam) ([]RegistryRepo, error)
-	GetScanOneStatus(ctx context.Context, imgID int64) (*model.ImageListResponse, error)
 }
 
 type ImageSrv struct {
@@ -38,18 +37,6 @@ func NewImageService(
 		scanTaskDal: scanTaskDal,
 		registryDal: registryDal,
 	}
-}
-
-func (s *ImageSrv) GetScanOneStatus(ctx context.Context, imgID int64) (*model.ImageListResponse, error) {
-	info, _, err := s.ListImageWithScanInfo(ctx, model.ImageListParam{ImageIds: []int64{imgID}}, &model.Filter{Limit: 1})
-	if err != nil {
-		logging.Get().Err(err).Int64("ImageID", imgID).Msg("GetScanOneStatus")
-		return nil, err
-	}
-	if len(info) == 0 {
-		return nil, fmt.Errorf("not fond image:%d", imgID)
-	}
-	return info[0], nil
 }
 
 func (s *ImageSrv) ListImageWithScanInfo(ctx context.Context, param model.ImageListParam, filter *model.Filter) ([]*model.ImageListResponse, int64, error) {
