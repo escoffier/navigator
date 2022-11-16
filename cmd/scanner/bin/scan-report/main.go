@@ -12,6 +12,7 @@ import (
 	rkentry "github.com/rookie-ninja/rk-entry/entry"
 	rkgin "github.com/rookie-ninja/rk-gin/boot"
 	"github.com/rs/zerolog"
+	"gitlab.com/security-rd/go-pkg/cache"
 	"gitlab.com/security-rd/go-pkg/databases"
 	"gitlab.com/security-rd/go-pkg/elastic"
 	"gitlab.com/security-rd/go-pkg/logging"
@@ -94,6 +95,13 @@ func main() {
 		os.Exit(1)
 	}
 
+	// share data use db 0
+	rc0, err := cache.NewRedis(cache.SetDB(0))
+	if err != nil {
+		logging.Get().Fatal().Msgf("init redis error, err :%v", err)
+		os.Exit(1)
+	}
+
 	// 建议改为loggingOptions用法
 	// 目前由于log-level参数名称冲突
 	if logLevel == "debug" {
@@ -117,6 +125,7 @@ func main() {
 		Expiration:              expiration,
 		Es:                      es,
 		MaxImageByOneExportTask: maxImageByOneExportTask,
+		RedisCli:                rc0,
 	}
 
 	logging.Get().Info().Int64("MaxVulnCol", config.MaxVulnCol).Int64("MaxImageByOneExportTask", config.MaxImageByOneExportTask).Msg("config")
@@ -133,6 +142,7 @@ func main() {
 		maxImageByOneExportTask,
 		store.NewScannerOrm(rdb),
 		component.NewImageService(dal, registryDal, dal),
+		rc0,
 	)
 
 	exportHtml := html.NewExportImageHtmlSrv(
@@ -140,8 +150,9 @@ func main() {
 		vulnDal,
 		dal,
 		store.NewExportTaskDao(rdb),
-		export.NewUpdateTaskSrv(store.NewExportTaskDao(config.Rdb)),
-		fileDir)
+		export.NewUpdateTaskSrv(store.NewExportTaskDao(config.Rdb), rc0),
+		fileDir,
+	)
 
 	router := api.SetupGinRouter(exportTask, exportHtml)
 

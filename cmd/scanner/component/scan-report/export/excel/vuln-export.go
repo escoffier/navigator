@@ -10,11 +10,11 @@ import (
 	"time"
 
 	"github.com/xuri/excelize/v2"
+	"gitlab.com/security-rd/go-pkg/logging"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scan-report/export"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
-	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 )
 
@@ -55,7 +55,7 @@ func (s *VulnExport) GetTensorTask(ctx context.Context, executeType string, n in
 		Failure:     consts.FalseString,
 	}, &model.Filter{Limit: n})
 	if err != nil {
-		logging.GetLogger().Err(err).Str("ExecuteType", executeType).Msg("GetTensorTask")
+		logging.Get().Err(err).Str("ExecuteType", executeType).Msg("GetTensorTask")
 		return nil, err
 	}
 	return tasks, nil
@@ -64,18 +64,28 @@ func (s *VulnExport) GetTensorTask(ctx context.Context, executeType string, n in
 func (s *VulnExport) Run(ctx context.Context) {
 	tasks, err := s.GetTensorTask(ctx, consts.ExportVuln, consts.DefaultExportBathSize)
 	if err != nil {
-		logging.GetLogger().Err(err).Msg("SearchExportTensorTask")
+		logging.Get().Err(err).Msg("SearchExportTensorTask")
 		return
 	}
 
 	for i := range tasks {
+		// 支持横向扩展
+		created, err := s.ExportTaskDal.CreateExportIdempotent(ctx, tasks[i].ID)
+		if err != nil {
+			logging.Get().Err(err).Str("TaskType", model.ExportHtml).Msg("ExportImageHtmlSrv CreateExportIdempotent")
+			return
+		}
+		if !created {
+			continue
+		}
+
 		if err := s.UpdateTask.Start(ctx, tasks[i].ID); err != nil {
-			logging.GetLogger().Err(err).Int64("taskID", tasks[i].ID).Msg("Run.Start")
+			logging.Get().Err(err).Int64("taskID", tasks[i].ID).Msg("Run.Start")
 			continue
 		}
 
 		if err := s.worker(ctx, tasks[i]); err != nil {
-			logging.GetLogger().Err(err).Msg("worker")
+			logging.Get().Err(err).Msg("worker")
 		}
 	}
 }
@@ -91,20 +101,20 @@ func (s *VulnExport) worker(ctx context.Context, task model.ExportTensorTask) er
 		store.SearchExportTensorTask{ExecuteType: []string{consts.ExportVuln},
 			Parameter: task.Parameter, NotIds: []int64{task.ID}}, nil)
 	if err != nil {
-		logging.GetLogger().Err(err).Int64("taskID", task.ID).Msg("SearchExportTensorTask")
+		logging.Get().Err(err).Int64("taskID", task.ID).Msg("SearchExportTensorTask")
 		return err
 	}
 	if len(tensorTask) > 0 && tensorTask[0].FinishAt > 0 {
 		// 如果上一次执行成功了,成功之后更新任务
 		if err := s.UpdateTask.Success(ctx, task.ID, tensorTask[0].FilePath); err != nil {
-			logging.GetLogger().Err(err).Int64("taskID", task.ID).Msg("Success export task success update task")
+			logging.Get().Err(err).Int64("taskID", task.ID).Msg("Success export task success update task")
 		}
 		return err
 	}
 
 	if ex, ok := s.ExportingMap.Load(task.ID); ok {
 		if ex1, ok := ex.(bool); ok && ex1 == consts.TaskExporting {
-			logging.GetLogger().Info().Int64("taskID", task.ID).Msg("task is running")
+			logging.Get().Info().Int64("taskID", task.ID).Msg("task is running")
 			return nil
 		}
 	}
@@ -118,23 +128,23 @@ func (s *VulnExport) worker(ctx context.Context, task model.ExportTensorTask) er
 	}
 	uv, err := strconv.ParseUint(searchParam.UniqueVuln, 10, 64)
 	if err != nil {
-		logging.GetLogger().Err(err).Int64("taskID", task.ID).Msg("Unmarshal.VulnExportParma")
+		logging.Get().Err(err).Int64("taskID", task.ID).Msg("Unmarshal.VulnExportParma")
 		return fmt.Errorf("uniqueVuln incorrect")
 	}
 
 	vulns, _, err := s.VulnDal.SearchVuln(ctx, store.SearchVulnParam{UniqueVulns: []uint64{uv}}, nil)
 	if err != nil {
-		logging.GetLogger().Err(err).Int64("taskID", task.ID).Str("UniqueVuln", searchParam.UniqueVuln).Msg("SearchVuln")
+		logging.Get().Err(err).Int64("taskID", task.ID).Str("UniqueVuln", searchParam.UniqueVuln).Msg("SearchVuln")
 		return err
 	}
 	if len(vulns) == 0 {
-		logging.GetLogger().Err(err).Int64("taskID", task.ID).Str("UniqueVuln", searchParam.UniqueVuln).Msg("not find vuln")
+		logging.Get().Err(err).Int64("taskID", task.ID).Str("UniqueVuln", searchParam.UniqueVuln).Msg("not find vuln")
 		return fmt.Errorf("not fond the vulns:%s", searchParam.UniqueVuln)
 	}
 	// 查对应的镜像
 	vulnImage, _, err := s.VulnDal.SearchVulnImage(ctx, store.SearchVulnImageParam{UniqueVulns: []uint64{vulns[0].UniqueVuln}}, nil)
 	if err != nil {
-		logging.GetLogger().Err(err).Int64("taskID", task.ID).Str("UniqueVuln", searchParam.UniqueVuln).Msg("SearchVulnImage")
+		logging.Get().Err(err).Int64("taskID", task.ID).Str("UniqueVuln", searchParam.UniqueVuln).Msg("SearchVulnImage")
 		return err
 	}
 	resources := make([]ResourceWithImage, 0)
@@ -145,7 +155,7 @@ func (s *VulnExport) worker(ctx context.Context, task model.ExportTensorTask) er
 		}
 		images, _, err := s.ImageDal.SearchImage(ctx, store.SearchImageParam{InIds: imageIds}, nil)
 		if err != nil {
-			logging.GetLogger().Err(err).Int64("taskID", task.ID).Str("UniqueVuln", searchParam.UniqueVuln).Msg("SearchImage")
+			logging.Get().Err(err).Int64("taskID", task.ID).Str("UniqueVuln", searchParam.UniqueVuln).Msg("SearchImage")
 			return err
 		}
 		uuids := make([]uint32, 0)
@@ -157,7 +167,7 @@ func (s *VulnExport) worker(ctx context.Context, task model.ExportTensorTask) er
 		if len(uuids) > 0 {
 			res, err := s.ResourceDal.SearchResources(ctx, uuids)
 			if err != nil {
-				logging.GetLogger().Err(err).Int64("taskID", task.ID).Str("UniqueVuln", searchParam.UniqueVuln).Msg("SearchResources")
+				logging.Get().Err(err).Int64("taskID", task.ID).Str("UniqueVuln", searchParam.UniqueVuln).Msg("SearchResources")
 				return err
 			}
 			resources2 := make([]ResourceWithImage, 0)
@@ -176,18 +186,18 @@ func (s *VulnExport) worker(ctx context.Context, task model.ExportTensorTask) er
 	excelChan := s.Export(ctx, fileName, *(vulns[0]), resources)
 
 	if err := s.ZipAndSave(ctx, fileName, excelChan); err != nil {
-		logging.GetLogger().Err(err).Int64("taskID", task.ID).Msg("ZipAndSave")
+		logging.Get().Err(err).Int64("taskID", task.ID).Msg("ZipAndSave")
 		s.ExportingMap.Delete(task.ID)
 
 		if err := s.UpdateTask.Failure(ctx, task.ID, err.Error()); err != nil {
-			logging.GetLogger().Err(err).Int64("taskID", task.ID).Msg("Failure export task failure update task")
+			logging.Get().Err(err).Int64("taskID", task.ID).Msg("Failure export task failure update task")
 		}
 		return err
 	}
 	s.ExportingMap.Delete(task.ID)
 	// 成功之后更新任务
 	if err := s.UpdateTask.Success(ctx, task.ID, fmt.Sprintf("%s/%s.zip", s.FileDir, fileName)); err != nil {
-		logging.GetLogger().Err(err).Int64("taskID", task.ID).Msg("Success export task success update task")
+		logging.Get().Err(err).Int64("taskID", task.ID).Msg("Success export task success update task")
 	}
 	return nil
 }
@@ -201,16 +211,16 @@ type ResourceWithImage struct {
 func (s *VulnExport) ZipAndSave(ctx context.Context, filename string, files chan *excelize.File) error {
 	file, err := ZipExcelFile(files)
 	if err != nil {
-		logging.GetLogger().Err(err).Str("filename", filename).Msg("ZipAndSave.ZipExcelFile")
+		logging.Get().Err(err).Str("filename", filename).Msg("ZipAndSave.ZipExcelFile")
 		return err
 	}
-	logging.GetLogger().Info().Str("filename", filename).Msg("ZipAndSave.ZipExcelFile")
+	logging.Get().Info().Str("filename", filename).Msg("ZipAndSave.ZipExcelFile")
 
 	if err := SaveFile(file, s.FileDir+"/"+filename); err != nil {
-		logging.GetLogger().Err(err).Str("filename", filename).Msg("ZipAndSave.SaveFile")
+		logging.Get().Err(err).Str("filename", filename).Msg("ZipAndSave.SaveFile")
 		return err
 	}
-	logging.GetLogger().Info().Str("filename", filename).Msg("ZipAndSave.SaveFile")
+	logging.Get().Info().Str("filename", filename).Msg("ZipAndSave.SaveFile")
 	return nil
 }
 
@@ -221,13 +231,13 @@ func (s *VulnExport) Export(ctx context.Context, filename string, vuln model.Vul
 
 		defer func() {
 			if r := recover(); r != nil {
-				logging.GetLogger().Error().Str("stack", string(debug.Stack())).Msg("VulnExport")
+				logging.Get().Error().Str("stack", string(debug.Stack())).Msg("VulnExport")
 			}
 		}()
 
 		defer close(out)
 
-		logging.GetLogger().Info().Str("vuln", vuln.Name).Msg("Export Vuln start")
+		logging.Get().Info().Str("vuln", vuln.Name).Msg("Export Vuln start")
 
 		excelData := make(map[string][]chan []string)
 		// 加入漏洞数据
@@ -249,17 +259,17 @@ func (s *VulnExport) Export(ctx context.Context, filename string, vuln model.Vul
 				GenImageResourceChan(resources[i].Image, resources[i].Resource)))
 		}
 
-		logging.GetLogger().Info().Str("vuln", vuln.Name).Msg("ExportVuln.GetExcelData")
+		logging.Get().Info().Str("vuln", vuln.Name).Msg("ExportVuln.GetExcelData")
 
 		sheets := GetVulnSheetInfo()
 		excelFile, err := WriteToExcel(filename, sheets, excelData)
 		if err != nil {
-			logging.GetLogger().Err(err).Msg("Export.WriteToExcel")
+			logging.Get().Err(err).Msg("Export.WriteToExcel")
 			return
 		}
 
 		out <- excelFile
-		logging.GetLogger().Info().Str("vuln", vuln.Name).Msg("Export Vuln completed")
+		logging.Get().Info().Str("vuln", vuln.Name).Msg("Export Vuln completed")
 	}(filename, vuln, resources)
 
 	return out
@@ -270,7 +280,7 @@ func (s *VulnExport) ConvertVulnData(res chan []string) chan []string {
 	go func(value chan []string) {
 		defer func() {
 			if r := recover(); r != nil {
-				logging.GetLogger().Error().Str("stack", string(debug.Stack())).Msg("VulnExport")
+				logging.Get().Error().Str("stack", string(debug.Stack())).Msg("VulnExport")
 			}
 		}()
 
@@ -290,7 +300,7 @@ func (s *VulnExport) ConvertResourceData(res chan []string) chan []string {
 
 		defer func() {
 			if r := recover(); r != nil {
-				logging.GetLogger().Error().Str("stack", string(debug.Stack())).Msg("VulnExport")
+				logging.Get().Error().Str("stack", string(debug.Stack())).Msg("VulnExport")
 			}
 		}()
 		defer close(out)
@@ -315,7 +325,7 @@ func (s *VulnExport) ConvertData(res map[string]chan []string) map[string]chan [
 
 				defer func() {
 					if r := recover(); r != nil {
-						logging.GetLogger().Error().Str("stack", string(debug.Stack())).Msg("VulnExport")
+						logging.Get().Error().Str("stack", string(debug.Stack())).Msg("VulnExport")
 					}
 				}()
 
@@ -332,7 +342,7 @@ func (s *VulnExport) ConvertData(res map[string]chan []string) map[string]chan [
 			go func(value chan []string) {
 				defer func() {
 					if r := recover(); r != nil {
-						logging.GetLogger().Error().Str("stack", string(debug.Stack())).Msg("VulnExport")
+						logging.Get().Error().Str("stack", string(debug.Stack())).Msg("VulnExport")
 					}
 				}()
 

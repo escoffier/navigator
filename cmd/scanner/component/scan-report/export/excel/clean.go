@@ -8,19 +8,27 @@ import (
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
+	"gitlab.com/piccolo_su/vegeta/pkg/model"
 )
 
 type ClearFileAndRecord struct {
 	FileDir       string
 	Expiration    int64 // 多少天前过期
 	ExportTaskDal store.ExportTaskDal
+	IdempotentDal store.IdempotentDal
 }
 
-func NewClearFile(fileDir string, expiration int64, exportTaskDal store.ExportTaskDal) *ClearFileAndRecord {
+func NewClearFile(
+	fileDir string,
+	expiration int64,
+	exportTaskDal store.ExportTaskDal,
+	idempotentDal store.IdempotentDal,
+) *ClearFileAndRecord {
 	return &ClearFileAndRecord{
 		FileDir:       fileDir,
 		Expiration:    expiration,
 		ExportTaskDal: exportTaskDal,
+		IdempotentDal: idempotentDal,
 	}
 }
 
@@ -65,7 +73,10 @@ func (s *ClearFileAndRecord) Run(ctx context.Context) {
 		if err := s.ExportTaskDal.DeleteExportTensorTask(ctx, tasks[i].ID); err != nil {
 			logging.GetLogger().Err(err).Int64("taskID", tasks[i].ID).Msg("DeleteExportTensorTask")
 		}
-
+		if err := s.IdempotentDal.DeleteIdempotent(ctx, store.SearchIdempotentParam{
+			TableId: tasks[i].ID, TableNAME: new(model.ExportTensorTask).TableName()}); err != nil {
+			logging.GetLogger().Err(err).Int64("taskID", tasks[i].ID).Msg("DeleteIdempotent")
+		}
 	}
 
 	return

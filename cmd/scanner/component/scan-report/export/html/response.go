@@ -6,15 +6,6 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 )
 
-// 当前报告的安全总揽
-type AllRiskOverView struct {
-	RiskOverView RiskOverView            `json:"riskOverView"` // 风险信息总揽
-	Images       []Image                 `json:"images"`       // 镜像列表
-	FixedVulns   VulnDetailSeverityGroup `json:"fixedVulns"`   // 可修复漏洞列表
-	UnFixedVulns VulnDetailSeverityGroup `json:"unFixedVulns"` // 不可修复漏洞列表
-	Virus        []model.VirusInfo       `json:"virus"`        // 病毒列表
-}
-
 // 单个镜像的扫描报告
 type ImageRiskOverView struct {
 	ImageID           int64                   `json:"imageID"`

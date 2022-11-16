@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/go-redis/redis/v8"
 	"gitlab.com/security-rd/go-pkg/logging"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
@@ -19,14 +20,40 @@ type ExportTaskInterface interface {
 	CheckScanTask(ctx context.Context, scanTaskID int64) (*ExportLimit, error)
 	CreateSearchImage(ctx context.Context, taskID int64, param model.ImageListParam) error
 	CreateScanTaskImage(ctx context.Context, taskID int64, scanGroupID int64) error
-
+	GetTaskSchedule(ctx context.Context, task model.ExportTensorTask) (ExportSchedule, error)
 	ImageSrvInterface
 }
+
 type ExportTaskSrv struct {
 	ExportDal               store.ExportTaskDal
 	ImageSrv                ImageSrvInterface
 	ScanTaskDal             store.ScanTaskDal
 	MaxImageByOneExportTask int64
+	RedisCli                *redis.Client
+}
+type ExportSchedule struct {
+	All      int64
+	Finished int64
+}
+
+func (s *ExportTaskSrv) GetTaskSchedule(ctx context.Context, task model.ExportTensorTask) (ExportSchedule, error) {
+
+	cmd1 := s.RedisCli.Get(ctx, task.GenRedisAllKey())
+	if cmd1.Err() != nil && cmd1.Err() != redis.Nil {
+		return ExportSchedule{}, cmd1.Err()
+	}
+	all, _ := cmd1.Int64()
+
+	cmd2 := s.RedisCli.Get(ctx, task.GenRedisFinishedKey())
+	if cmd2.Err() != nil && cmd2.Err() != redis.Nil {
+		return ExportSchedule{}, cmd2.Err()
+	}
+	finished, _ := cmd2.Int64()
+	if finished >= all {
+		finished = all
+	}
+
+	return ExportSchedule{All: all, Finished: finished}, nil
 }
 
 func (s *ExportTaskSrv) UpdateExportTask(ctx context.Context, id int64, updater map[string]interface{}) error {
@@ -210,11 +237,18 @@ func (s *ExportTaskSrv) CheckScanTask(ctx context.Context, scanTaskId int64) (*E
 	return &ExportLimit{ImageCount: all, ImageLimit: s.MaxImageByOneExportTask}, nil
 }
 
-func NewExportTaskSrv(exportDal store.ExportTaskDal, maxImageByOneExportTask int64, scanTaskDal store.ScanTaskDal, ImageSrv ImageSrvInterface) *ExportTaskSrv {
+func NewExportTaskSrv(
+	exportDal store.ExportTaskDal,
+	maxImageByOneExportTask int64,
+	scanTaskDal store.ScanTaskDal,
+	ImageSrv ImageSrvInterface,
+	redisCli *redis.Client,
+) *ExportTaskSrv {
 	return &ExportTaskSrv{
 		ExportDal:               exportDal,
 		ImageSrv:                ImageSrv,
 		ScanTaskDal:             scanTaskDal,
 		MaxImageByOneExportTask: maxImageByOneExportTask,
+		RedisCli:                redisCli,
 	}
 }

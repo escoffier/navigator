@@ -3,6 +3,7 @@ package model
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"gitlab.com/security-rd/go-pkg/logging"
@@ -24,6 +25,18 @@ type ExportTensorTask struct {
 
 	CreatedAt time.Time `json:"createdAt"`
 	UpdatedAt time.Time `json:"updatedAt"`
+}
+
+func (s *ExportTensorTask) GenRedisAllKey() string {
+	return fmt.Sprintf("export-all-%s-%d", s.TaskType, s.ID)
+}
+
+func (s *ExportTensorTask) GenRedisFinishedKey() string {
+	return fmt.Sprintf("export-finished-%s-%d", s.TaskType, s.ID)
+}
+
+func (s *ExportTensorTask) GenFilenamePrefix() string {
+	return strings.ReplaceAll(s.FilePath, ".zip", "")
 }
 
 // 导出html时一些中间数据
@@ -93,7 +106,7 @@ func (evi *ExportVulnImage) Deserialize() {
 	}
 }
 
-func (ExportTensorTask) TableName() string {
+func (*ExportTensorTask) TableName() string {
 	return "ivan_export_task"
 }
 
@@ -113,4 +126,26 @@ func (s *ExportTensorTask) Serialize() {
 
 func (s *ExportTensorTask) Deserialize() {
 
+}
+
+type Idempotent struct {
+	ID        int64  `gorm:"id"  json:"id"`
+	DataID    int64  `gorm:"column:data_id" json:"dataID"`
+	DataName  string `gorm:"column:data_name" json:"dataName"`
+	CreatedAt int64  `gorm:"autoCreateTime:milli;column:created_at" json:"createdAt"`
+	UpdatedAt int64  `gorm:"autoUpdateTime:milli;column:updated_at" json:"updatedAt"`
+}
+
+func (s *Idempotent) TableName() string {
+	return "ivan_scanner_idempotent"
+}
+
+func (s *Idempotent) Valid() error {
+	if s.DataID <= 0 {
+		return fmt.Errorf("idempotent no tableID")
+	}
+	if s.DataName == "" {
+		return fmt.Errorf("idempotent no tableName")
+	}
+	return nil
 }
