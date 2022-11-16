@@ -27,10 +27,35 @@ type ExportTaskDal interface {
 
 	SearchHtmlVulnImage(ctx context.Context, param SearchHtmlVulnImageParam, filter *model.Filter) ([]model.ExportVulnImage, error)
 	CreateHtmlVulnImage(ctx context.Context, data []*model.ExportVulnImage) error
+
+	CreateExportIdempotent(ctx context.Context, id int64) (bool, error)
 }
 
 type ExportTaskDao struct {
 	db *databases.RDBInstance
+}
+
+func (dal *ExportTaskDao) CreateExportIdempotent(ctx context.Context, id int64) (bool, error) {
+
+	data := &model.Idempotent{
+		DataID:   id,
+		DataName: new(model.ExportTensorTask).TableName(),
+	}
+
+	if err := data.Valid(); err != nil {
+		return false, err
+	}
+	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*10)
+	defer cancelFunc()
+	db := dal.db.Get().WithContext(ctx).Model(model.Idempotent{})
+	err := db.Create(data).Error
+	if err == nil {
+		return true, nil
+	}
+	if strings.Contains(err.Error(), consts.DuplicateKey) {
+		return false, nil
+	}
+	return false, err
 }
 
 func (dal *ExportTaskDao) SearchHtmlVulnImage(ctx context.Context, param SearchHtmlVulnImageParam, filter *model.Filter) ([]model.ExportVulnImage, error) {

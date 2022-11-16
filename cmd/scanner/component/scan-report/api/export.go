@@ -314,6 +314,14 @@ func (s *ExportApiSrv) GetReportTaskList(ctx *gin.Context) {
 	for i := range tasks {
 		ans[i] = ModelToView(tasks[i])
 	}
+	for i := range ans {
+		if ans[i].Status == consts.ExportStatusRunning {
+			if sch, err := s.exportSrv.GetTaskSchedule(ctx, tasks[i]); err == nil {
+				ans[i].AllImage = sch.All
+				ans[i].FinishedImage = sch.Finished
+			}
+		}
+	}
 
 	response.JSONOK(ctx, response.WithItems(ans),
 		response.WithTotalItems(cnt),

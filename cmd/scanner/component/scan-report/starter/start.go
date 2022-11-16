@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/go-redis/redis/v8"
 	"gitlab.com/security-rd/go-pkg/elastic"
 
 	"gitlab.com/security-rd/go-pkg/databases"
@@ -42,6 +43,7 @@ type Config struct {
 	Rdb                     *databases.RDBInstance
 	Es                      *elastic.ESClient
 	MaxImageByOneExportTask int64
+	RedisCli                *redis.Client
 }
 
 func NewBackgroundTasks(ctx context.Context, config Config) *BackgroundTasks {
@@ -60,8 +62,9 @@ func NewBackgroundTasks(ctx context.Context, config Config) *BackgroundTasks {
 	registryDal := store.NewRegistryDao(config.Rdb)
 	scanConfigDal := store.NewScanConfigDao(config.Rdb)
 	vulnDal := store.NewVulnDao(config.Rdb)
+	idempotentDal := store.NewIdempotentDao(config.Rdb)
 	imageSrv := component.NewConScannerSrv(dal, registryDal, dal, scanConfigDal, vulnDal, nil) // scan-report 无需上报事件中心，此处传空
-	updateTask := export.NewUpdateTaskSrv(store.NewExportTaskDao(config.Rdb))
+	updateTask := export.NewUpdateTaskSrv(store.NewExportTaskDao(config.Rdb), config.RedisCli)
 
 	// 单个镜像导出excel
 	imageExportSrv := excel.NewImageExport(resourceDal, exportTaskDal, imageSrv, config.FileDir, config.Internal, updateTask)
@@ -72,7 +75,7 @@ func NewBackgroundTasks(ctx context.Context, config Config) *BackgroundTasks {
 	// 导出漏洞
 	vulnExportSrv := excel.NewVulnExport(exportTaskDal, config.FileDir, vulnDal, dal, resourceDal, updateTask)
 	// 清理文件
-	clearFile := excel.NewClearFile(config.FileDir, config.Expiration, exportTaskDal)
+	clearFile := excel.NewClearFile(config.FileDir, config.Expiration, exportTaskDal, idempotentDal)
 
 	naviAuditReport := excel.NewAuditExport(exportTaskDal, config.Internal, config.FileDir, config.Es, "navi-audit-")
 

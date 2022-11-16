@@ -1,6 +1,7 @@
 package store
 
 import (
+	"fmt"
 	"time"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
@@ -398,4 +399,15 @@ type GroupVulnSeverityParam struct {
 
 type ScannerInstanceInfoDaoParam struct {
 	ScannerInstance string
+}
+type SearchIdempotentParam struct {
+	TableId   int64
+	TableNAME string
+}
+
+func (s SearchIdempotentParam) Valid() error {
+	if s.TableId == 0 || s.TableNAME == "" {
+		return fmt.Errorf("not param SearchIdempotentParam")
+	}
+	return nil
 }

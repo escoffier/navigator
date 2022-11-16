@@ -400,21 +400,22 @@ func (s *ExportImageHtmlSrv) GetImageRisk(ctx context.Context, taskID, imageID i
 		ImageID:           image.ID,
 		ImageName:         image.GetImageName(),
 		VulnSeverityCount: StatisticsVulnSeverity(vulns),
+		FixSuggestion:     make([]string, 0),
 	}
 
 	if len(scans) > 0 {
 		res.FixSuggestion = utils.GenFixSuggestion(scans[0].SensitiveFile, image.Os, vulns)
 	}
-
+	_ = s.UpdateTask.IncrRedisFinished(ctx, model.ExportTensorTask{TaskType: model.ExportHtml, ID: taskID})
 	logging.Get().Info().Int64("taskID", taskID).Int64("imageID", imageID).Msg("ExportImageHtmlSrv.GetImageRisk finished")
 	return res, nil
 }
 
 // 风险总览,获取这部分数据很耗时，需要提前做好
-func (s *ExportImageHtmlSrv) createRiskOverView(ctx context.Context, taskID int64) error {
-	logging.Get().Info().Int64("taskID", taskID).Msg("ExportImageHtmlSrv.createRiskOverView start")
+func (s *ExportImageHtmlSrv) createRiskOverView(ctx context.Context, task model.ExportTensorTask) error {
+	logging.Get().Info().Int64("taskID", task.ID).Msg("ExportImageHtmlSrv.createRiskOverView start")
 	// 先查一下，是否存在
-	data, err := s.ExportTaskDal.SearchHtmlPrepare(ctx, taskID, model.ExportHtmlPrepareRiskOver)
+	data, err := s.ExportTaskDal.SearchHtmlPrepare(ctx, task.ID, model.ExportHtmlPrepareRiskOver)
 	if err != nil {
 		return err
 	}
@@ -427,13 +428,13 @@ func (s *ExportImageHtmlSrv) createRiskOverView(ctx context.Context, taskID int6
 	for {
 		// 分批获取镜像
 		filter := &model.Filter{Limit: 10, SortFiled: "id", SortBy: consts.SortByAsc}
-		taskImages, err := s.ExportTaskDal.SearchExportTaskImage(ctx, store.SearchExportTaskImageParam{TaskID: taskID, StartID: startID}, filter)
+		taskImages, err := s.ExportTaskDal.SearchExportTaskImage(ctx, store.SearchExportTaskImageParam{TaskID: task.ID, StartID: startID}, filter)
 		if err != nil {
-			logging.Get().Err(err).Int64("taskID", taskID).Msg("ExportImageHtmlSrv createRiskOverView.SearchExportTaskImage")
+			logging.Get().Err(err).Int64("taskID", task.ID).Msg("ExportImageHtmlSrv createRiskOverView.SearchExportTaskImage")
 			return err
 		}
 		if len(taskImages) == 0 {
-			logging.Get().Info().Int64("taskID", taskID).Msg("ExportImageHtmlSrv createRiskOverView finished")
+			logging.Get().Info().Int64("taskID", task.ID).Msg("ExportImageHtmlSrv createRiskOverView finished")
 			break
 		}
 		taskImageIds := make([]int64, 0)
@@ -444,25 +445,25 @@ func (s *ExportImageHtmlSrv) createRiskOverView(ctx context.Context, taskID int6
 		param := model.ImageListParam{ImageIds: taskImageIds}
 		images, _, err := s.ImageSrv.ListImageWithScanInfo(ctx, param, nil)
 		if err != nil {
-			logging.Get().Err(err).Int64("taskID", taskID).Interface("param", param).Msg("ExportImageHtmlSrv createRiskOverView.ListImageWithScanInfo")
+			logging.Get().Err(err).Int64("taskID", task.ID).Interface("param", param).Msg("ExportImageHtmlSrv createRiskOverView.ListImageWithScanInfo")
 			return err
 		}
 		// 风险统计
 		res.StatisticsImageAttr(images)
 		startID = taskImages[len(taskImages)-1].ID
-		logging.Get().Info().Int64("taskID", taskID).Ints64("ImageIds", taskImageIds).Msg("ExportImageHtmlSrv createRiskOverView.ListImageWithScanInfo")
+		logging.Get().Info().Int64("taskID", task.ID).Ints64("ImageIds", taskImageIds).Msg("ExportImageHtmlSrv createRiskOverView.ListImageWithScanInfo")
 	}
 	// 统计漏洞信息
 	startID = 0
 	for {
 		filter := &model.Filter{Limit: consts.DefaultLimit, SortFiled: "id", SortBy: consts.SortByAsc}
 		imageVulns, err := s.ExportTaskDal.SearchHtmlVulnImage(ctx, store.SearchHtmlVulnImageParam{
-			TaskID:  taskID,
+			TaskID:  task.ID,
 			Fields:  []string{"id", "severity"},
 			StartID: startID,
 		}, filter)
 		if err != nil {
-			logging.Get().Err(err).Int64("taskID", taskID).Msg("ExportImageHtmlSrv createRiskOverView ListImageWithScanInfo")
+			logging.Get().Err(err).Int64("taskID", task.ID).Msg("ExportImageHtmlSrv createRiskOverView ListImageWithScanInfo")
 			return err
 		}
 		for i := range imageVulns {
@@ -473,21 +474,22 @@ func (s *ExportImageHtmlSrv) createRiskOverView(ctx context.Context, taskID int6
 		}
 		startID = imageVulns[len(imageVulns)-1].ID
 
-		logging.Get().Info().Int64("taskID", taskID).Int64("startID", startID).Msg("ExportImageHtmlSrv createRiskOverView.SearchHtmlVulnImage")
+		logging.Get().Info().Int64("taskID", task.ID).Int64("startID", startID).Msg("ExportImageHtmlSrv createRiskOverView.SearchHtmlVulnImage")
 	}
 	res.Serializer()
 	bys, err := json.Marshal(res)
 	if err != nil {
-		logging.Get().Err(err).Int64("taskID", taskID).Msg("ExportImageHtmlSrv Marshal getRiskOverView")
+		logging.Get().Err(err).Int64("taskID", task.ID).Msg("ExportImageHtmlSrv Marshal getRiskOverView")
 		return err
 	}
 
-	if err := s.ExportTaskDal.CreateOrUpdateHtmlPrepare(ctx, &model.ExportHtmlPrepare{TaskID: taskID, Data: string(bys), DataType: model.ExportHtmlPrepareRiskOver}); err != nil {
-		logging.Get().Err(err).Int64("taskID", taskID).Msg("ExportImageHtmlSrv pre createRiskOverView")
+	if err := s.ExportTaskDal.CreateOrUpdateHtmlPrepare(ctx, &model.ExportHtmlPrepare{TaskID: task.ID, Data: string(bys), DataType: model.ExportHtmlPrepareRiskOver}); err != nil {
+		logging.Get().Err(err).Int64("taskID", task.ID).Msg("ExportImageHtmlSrv pre createRiskOverView")
 		return err
 	}
 
-	logging.Get().Info().Int64("taskID", taskID).Msg("ExportImageHtmlSrv createRiskOverView finished")
+	_ = s.UpdateTask.SetRedisAll(ctx, task, res.ImageCount)
+	logging.Get().Info().Int64("taskID", task.ID).Msg("ExportImageHtmlSrv createRiskOverView finished")
 	return nil
 }
 
@@ -699,13 +701,23 @@ func (s *ExportImageHtmlSrv) Run(ctx context.Context) {
 		ExportHtmlReady: consts.TrueString,
 	}, &model.Filter{Limit: 1})
 	if err != nil {
-		logging.Get().Err(err).Str("TaskType", model.ExportHtml).Msg("SearchExportTensorTask")
+		logging.Get().Err(err).Str("TaskType", model.ExportHtml).Msg("ExportImageHtmlSrv SearchExportTensorTask")
 		return
 	}
 	if len(tasks) == 0 {
 		return
 	}
 	task := tasks[0]
+	// 支持横向扩展
+	created, err := s.ExportTaskDal.CreateExportIdempotent(ctx, task.ID)
+	if err != nil {
+		logging.Get().Err(err).Str("TaskType", model.ExportHtml).Msg("ExportImageHtmlSrv CreateExportIdempotent")
+		return
+	}
+	if !created {
+		return
+	}
+
 	// 把漏洞统计好,pod可能会重启
 	logging.Get().Info().Int64("taskID", task.ID).Msg("ExportImageHtmlSrv start createVulnImage")
 	if err := s.createVulnImage(ctx, task.ID); err != nil {
@@ -719,7 +731,7 @@ func (s *ExportImageHtmlSrv) Run(ctx context.Context) {
 
 	// 把风险概览信息准备好,pod重启后可能会重复写入
 	logging.Get().Info().Int64("taskID", task.ID).Msg("ExportImageHtmlSrv start createRiskOverView")
-	if err := s.createRiskOverView(ctx, task.ID); err != nil && !strings.Contains(err.Error(), consts.DuplicateKey) {
+	if err := s.createRiskOverView(ctx, task); err != nil && !strings.Contains(err.Error(), consts.DuplicateKey) {
 		logging.Get().Err(err).Int64("taskID", task.ID).Msg("ExportImageHtmlSrv pre createRiskOverView")
 		if err := s.UpdateTask.Failure(ctx, task.ID, err.Error()); err != nil {
 			logging.Get().Err(err).Int64("taskID", task.ID).Msg("ExportImageHtmlSrv UpdateTask Failure")
@@ -821,6 +833,7 @@ func (s *ExportImageHtmlSrv) Run(ctx context.Context) {
 		}
 	}
 	logging.Get().Info().Int64("taskID", task.ID).Msg("ExportImageHtmlSrv export html execute complete")
+	_ = s.UpdateTask.DeleteRedisData(ctx, task)
 
 	return
 }
