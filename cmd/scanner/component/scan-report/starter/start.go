@@ -44,6 +44,8 @@ type Config struct {
 	Es                      *elastic.ESClient
 	MaxImageByOneExportTask int64
 	RedisCli                *redis.Client
+	IncludeCNNVDVuln        bool
+	IncludeRHSAVuln         bool
 }
 
 func NewBackgroundTasks(ctx context.Context, config Config) *BackgroundTasks {
@@ -66,12 +68,13 @@ func NewBackgroundTasks(ctx context.Context, config Config) *BackgroundTasks {
 	imageSrv := component.NewConScannerSrv(dal, registryDal, dal, scanConfigDal, vulnDal, nil) // scan-report 无需上报事件中心，此处传空
 	updateTask := export.NewUpdateTaskSrv(store.NewExportTaskDao(config.Rdb), config.RedisCli)
 
-	// 单个镜像导出excel
-	imageExportSrv := excel.NewImageExport(resourceDal, exportTaskDal, imageSrv, config.FileDir, config.Internal, updateTask)
+	// 镜像导出excel
+	imageExportSrv := excel.NewImageExport(resourceDal, exportTaskDal, imageSrv,
+		config.FileDir, config.Internal, updateTask, config.IncludeCNNVDVuln, config.IncludeRHSAVuln)
 
 	// 扫描任务导出excel
 	scanTaskExportSrv := excel.NewScanTaskExport(imageExportSrv, exportTaskDal, dal, config.FileDir,
-		updateTask, config.MaxVulnCol, config.MaxImageByOneExportTask)
+		updateTask, config.MaxVulnCol, config.MaxImageByOneExportTask, config.IncludeCNNVDVuln, config.IncludeRHSAVuln)
 	// 导出漏洞
 	vulnExportSrv := excel.NewVulnExport(exportTaskDal, config.FileDir, vulnDal, dal, resourceDal, updateTask)
 	// 清理文件
@@ -79,11 +82,12 @@ func NewBackgroundTasks(ctx context.Context, config Config) *BackgroundTasks {
 
 	naviAuditReport := excel.NewAuditExport(exportTaskDal, config.Internal, config.FileDir, config.Es, "navi-audit-")
 
-	// 搜索列表导出excel
+	// 镜像搜索列表导出excel
 	imageSearchSrv := excel.NewImageSearchSrv(scanTaskExportSrv, exportTaskDal, config.FileDir, updateTask,
-		component.NewImageService(dal, registryDal, dal))
+		component.NewImageService(dal, registryDal, dal), config.IncludeCNNVDVuln, config.IncludeRHSAVuln)
 	// 镜像扫描报告导出到html
-	imageHtmlSrv := html.NewExportImageHtmlSrv(component.NewImageService(dal, registryDal, dal), vulnDal, dal, exportTaskDal, updateTask, config.FileDir)
+	imageHtmlSrv := html.NewExportImageHtmlSrv(component.NewImageService(dal, registryDal, dal),
+		vulnDal, dal, exportTaskDal, updateTask, config.FileDir, config.IncludeCNNVDVuln, config.IncludeRHSAVuln)
 
 	srv := &BackgroundTasks{
 		ScanReport:         scanReportServer,

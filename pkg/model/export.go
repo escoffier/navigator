@@ -142,10 +142,10 @@ func (s *Idempotent) TableName() string {
 
 func (s *Idempotent) Valid() error {
 	if s.DataID <= 0 {
-		return fmt.Errorf("idempotent no tableID")
+		return fmt.Errorf("idempotent no dataID")
 	}
 	if s.DataName == "" {
-		return fmt.Errorf("idempotent no tableName")
+		return fmt.Errorf("idempotent no dataName")
 	}
 	return nil
 }

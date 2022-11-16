@@ -25,9 +25,11 @@ type ImageExport struct {
 	ImageSrv      ImageInterface
 	Interval      time.Duration
 
-	ExportingMap *sync.Map // 正在执行的任务
-	FileDir      string    // 文件存储的决对路径
-	UpdateTask   export.UpdateTask
+	ExportingMap     *sync.Map // 正在执行的任务
+	FileDir          string    // 文件存储的决对路径
+	UpdateTask       export.UpdateTask
+	IncludeCNNVDVuln bool
+	IncludeRHSAVuln  bool
 }
 
 type ImageExportInterface interface {
@@ -43,15 +45,19 @@ func NewImageExport(
 	fileDir string,
 	interval time.Duration,
 	UpdateTask export.UpdateTask,
+	includeCNNVDVuln bool,
+	includeRHSAVuln bool,
 ) *ImageExport {
 	return &ImageExport{
-		ResourceDal:   resourceDal,
-		ExportTaskDal: exportTaskDal,
-		ImageSrv:      imageSrv,
-		ExportingMap:  &sync.Map{},
-		FileDir:       fileDir,
-		Interval:      interval,
-		UpdateTask:    UpdateTask,
+		ResourceDal:      resourceDal,
+		ExportTaskDal:    exportTaskDal,
+		ImageSrv:         imageSrv,
+		ExportingMap:     &sync.Map{},
+		FileDir:          fileDir,
+		Interval:         interval,
+		UpdateTask:       UpdateTask,
+		IncludeCNNVDVuln: includeCNNVDVuln,
+		IncludeRHSAVuln:  includeRHSAVuln,
 	}
 }
 
@@ -164,7 +170,7 @@ func (s *ImageExport) GetExcelData(ctx context.Context, imageID int64, vulnCol *
 	res := make(map[string]chan []string)
 	// 写入数据
 	res[GenImageBaseInfoMeta().SheetName] = GenBaseInfoChan(*imageDetail)
-	res[GenImageVulnInfoMeta().SheetName] = GenVulnInfoChan(*imageDetail, vulnCol)
+	res[GenImageVulnInfoMeta().SheetName] = GenVulnInfoChan(*imageDetail, vulnCol, s.IncludeCNNVDVuln, s.IncludeRHSAVuln)
 	res[GenImageSensitiveFileInfoMeta().SheetName] = GenSensitiveFileChan(*imageDetail)
 	res[GenImageVirusInfoMeta().SheetName] = GenVirusChan(*imageDetail)
 	res[GenImageWebshellInfoMeta().SheetName] = GenWebShellChan(*imageDetail)

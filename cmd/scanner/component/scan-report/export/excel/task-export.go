@@ -29,6 +29,8 @@ type ScanTaskExport struct {
 	UpdateTask              export.UpdateTask
 	MaxVulnCol              int64
 	MaxImageByOneExportTask int64
+	IncludeCNNVDVuln        bool
+	IncludeRHSAVuln         bool
 }
 
 func NewScanTaskExport(
@@ -39,6 +41,8 @@ func NewScanTaskExport(
 	updateTask export.UpdateTask,
 	maxVulnCol int64,
 	maxImageByOneExportTask int64,
+	includeCNNVDVuln bool,
+	includeRHSAVuln bool,
 ) *ScanTaskExport {
 	return &ScanTaskExport{
 		ImageExport:             imageExport,
@@ -49,6 +53,8 @@ func NewScanTaskExport(
 		UpdateTask:              updateTask,
 		MaxVulnCol:              maxVulnCol,
 		MaxImageByOneExportTask: maxImageByOneExportTask,
+		IncludeCNNVDVuln:        includeCNNVDVuln,
+		IncludeRHSAVuln:         includeRHSAVuln,
 	}
 }
 

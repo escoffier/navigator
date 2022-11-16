@@ -75,7 +75,7 @@ func WriteToExcel(filenamePrefix string, sheets []ExcelMetaData, data map[string
 					data3[k] = sheetData[k]
 				}
 
-				cell, err := excelize.CoordinatesToCellName(1, col)
+				cell, err = excelize.CoordinatesToCellName(1, col)
 				if err != nil {
 					return nil, err
 				}
