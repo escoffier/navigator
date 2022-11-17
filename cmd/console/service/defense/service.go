@@ -361,7 +361,8 @@ func (s *TensorDefenseService) GetAlertEvent(ctx context.Context, clusterKey, na
 	src, _ := boolQuery.Source()
 	logging.Get().Debug().Interface("source", src).Msg("QSL")
 
-	signalsResp, err := es.Search("signals_*").Query(boolQuery).
+	// TODO: 应该不直接查询es，调用sherlockAPI
+	signalsResp, err := es.Search("signals,signal-*,signals_*").Query(boolQuery).
 		FetchSourceContext(elastic.NewFetchSourceContext(true).Include("severity")).
 		Sort("createdAt", false).Size(limit).Do(ctx)
 	if err != nil {

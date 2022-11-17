@@ -312,7 +312,8 @@ func (rl *TensorDriftService) GetAbnormal(ctx context.Context, policy model.Drif
 
 	var result = make([]*palace.Signal, 0)
 
-	searchResult, err := esCli.Search("signals_*").Query(boolQuery).
+	// TODO: 应该不直接查询es，调用sherlockAPI
+	searchResult, err := esCli.Search("signals,signal-*,signals_*").Query(boolQuery).
 		Sort("createdAt", true).Sort("_id", true).
 		Size(limit).Do(ctx)
 	if err != nil {
