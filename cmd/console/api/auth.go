@@ -429,7 +429,7 @@ func SendEmail(username, host, emailHashCode string) bool {
 
 }
 
-//  -----jwt-----
+// -----jwt-----
 const (
 	JWTKeyUsername   = "user_name"
 	JWTKeyUserRole   = "user_role"
@@ -617,6 +617,7 @@ func jwtAccessCheck(db *databases.RDBInstance) func(http.Handler) http.Handler {
 			ctx = context.WithValue(r.Context(), model.CtxUserSessionKey, userSession)
 			if r.Method == http.MethodGet ||
 				r.URL.Path == "/api/v2/platform/sherlock/palace/events" ||
+				r.URL.Path == "/api/v2/platform/sherlock/palace/event/overview" ||
 				r.URL.Path == "/api/v2/platform/sherlock/palace/signals" ||
 				r.URL.Path == "/api/v2/platform/sherlock/hola/rules" ||
 				r.URL.Path == "/api/v2/containerSec/scanner/images/list" {
