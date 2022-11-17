@@ -37,6 +37,8 @@ type ImageSearchSrv struct {
 	FileDir              string    // 文件存储的决对路径
 	UpdateTask           export.UpdateTask
 	ImageSrv             ImageSrvInterface
+	IncludeCNNVDVuln     bool
+	IncludeRHSAVuln      bool
 }
 
 func NewImageSearchSrv(
@@ -45,6 +47,8 @@ func NewImageSearchSrv(
 	fileDir string, // 文件存储的决对路径
 	updateTask export.UpdateTask,
 	imageSrv ImageSrvInterface,
+	includeCNNVDVuln bool,
+	includeRHSAVuln bool,
 ) *ImageSearchSrv {
 	return &ImageSearchSrv{
 		ExportImageInterface: exportImageInterface,
@@ -53,6 +57,8 @@ func NewImageSearchSrv(
 		FileDir:              fileDir,
 		UpdateTask:           updateTask,
 		ImageSrv:             imageSrv,
+		IncludeRHSAVuln:      includeRHSAVuln,
+		IncludeCNNVDVuln:     includeCNNVDVuln,
 	}
 }
 

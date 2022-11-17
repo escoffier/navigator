@@ -32,6 +32,9 @@ type ExportImageHtmlSrv struct {
 	KoaAddr       string    // 生成html的内部服务接口
 	FileDir       string    // 文件存放的绝对路径
 	ExportingMap  *sync.Map // 正在执行的任务
+
+	IncludeCNNVDVuln bool
+	IncludeRHSAVuln  bool
 }
 
 func NewExportImageHtmlSrv(
@@ -41,16 +44,20 @@ func NewExportImageHtmlSrv(
 	exportTaskDal store.ExportTaskDal,
 	updateTask export.UpdateTask,
 	fileDir string,
+	includeCNNVDVuln bool,
+	includeRHSAVuln bool,
 ) *ExportImageHtmlSrv {
 	return &ExportImageHtmlSrv{
-		ImageSrv:      imageSrv,
-		VulnDal:       vulnDal,
-		ImageScanDal:  imageScanDal,
-		ExportTaskDal: exportTaskDal,
-		UpdateTask:    updateTask,
-		FileDir:       fileDir,
-		ExportingMap:  &sync.Map{},
-		KoaAddr:       consts.KoaAddr,
+		ImageSrv:         imageSrv,
+		VulnDal:          vulnDal,
+		ImageScanDal:     imageScanDal,
+		ExportTaskDal:    exportTaskDal,
+		UpdateTask:       updateTask,
+		FileDir:          fileDir,
+		ExportingMap:     &sync.Map{},
+		KoaAddr:          consts.KoaAddr,
+		IncludeCNNVDVuln: includeCNNVDVuln,
+		IncludeRHSAVuln:  includeRHSAVuln,
 	}
 }
 
@@ -129,9 +136,13 @@ func (s *ExportImageHtmlSrv) GetImages(ctx context.Context, taskID int64, starID
 		for j := range images {
 			// 获取镜像的漏洞统计信息信息
 			vulns, _, err := s.VulnDal.SearchVuln(ctx, store.SearchVulnParam{
-				ClassType: []string{report.ClassOSPkg, report.ClassConfig},
-				ImageIds:  []int64{images[j].ID},
-				Fields:    []string{"id", "fixed_by", "severity_int", "unique_vuln"}}, nil)
+				ClassType:      []string{report.ClassOSPkg, report.ClassConfig},
+				ImageIds:       []int64{images[j].ID},
+				OmitFields:     new(model.Vuln).DefaultOmitField(),
+				NotCNNVD:       fmt.Sprintf("%t", !s.IncludeCNNVDVuln),
+				NotRHSA:        fmt.Sprintf("%t", !s.IncludeRHSAVuln),
+				NotReturnCount: true,
+			}, nil)
 			if err != nil {
 				logging.Get().Err(err).Int64("taskID", taskID).Int64("imageID", images[j].ID).Msg("ExportImageHtmlSrv GetImages.SearchVuln")
 				return nil, err
@@ -292,8 +303,12 @@ func (s *ExportImageHtmlSrv) GetExportVulns(ctx context.Context, taskID int64, s
 
 	// 查漏洞详情
 	if len(uniqueVulns) > 0 {
-		vulns, _, err := s.VulnDal.SearchVuln(ctx, store.SearchVulnParam{UniqueVulns: uniqueVulns,
-			ClassType: []string{report.ClassOSPkg, report.ClassConfig},
+		vulns, _, err := s.VulnDal.SearchVuln(ctx, store.SearchVulnParam{
+			UniqueVulns:    uniqueVulns,
+			ClassType:      []string{report.ClassOSPkg, report.ClassConfig},
+			NotCNNVD:       fmt.Sprintf("%t", !s.IncludeCNNVDVuln),
+			NotRHSA:        fmt.Sprintf("%t", !s.IncludeRHSAVuln),
+			NotReturnCount: true,
 		}, nil)
 		if err != nil {
 			logging.Get().Err(err).Int64("taskID", taskID).Msg("ExportImageHtmlSrv GetExportVulns SearchExportTaskImage")
@@ -323,8 +338,11 @@ func (s *ExportImageHtmlSrv) GetImageVulns(ctx context.Context, taskID, imageID 
 	count := 0
 	// 获取镜像的漏洞统计信息信息
 	vulns, _, err := s.VulnDal.SearchVuln(ctx, store.SearchVulnParam{StartID: startID,
-		ClassType: []string{report.ClassOSPkg, report.ClassConfig},
-		ImageIds:  []int64{imageID}, SeverityInt: []int64{int64(severity)}},
+		ClassType:      []string{report.ClassOSPkg, report.ClassConfig},
+		NotCNNVD:       fmt.Sprintf("%t", !s.IncludeCNNVDVuln),
+		NotRHSA:        fmt.Sprintf("%t", !s.IncludeRHSAVuln),
+		NotReturnCount: true,
+		ImageIds:       []int64{imageID}, SeverityInt: []int64{int64(severity)}},
 		&model.Filter{SortFiled: "id", SortBy: consts.SortByAsc})
 	if err != nil {
 		logging.Get().Err(err).Int64("taskID", taskID).Int64("imageID", imageID).Msg("GetImageVulns SearchVuln")
@@ -382,8 +400,13 @@ func (s *ExportImageHtmlSrv) GetImageRisk(ctx context.Context, taskID, imageID i
 	image := images[0]
 
 	// 获取所有漏洞
-	vulns, _, err := s.VulnDal.SearchVuln(ctx, store.SearchVulnParam{ImageIds: []int64{imageID},
-		ClassType: []string{report.ClassOSPkg, report.ClassConfig}}, nil)
+	vulns, _, err := s.VulnDal.SearchVuln(ctx, store.SearchVulnParam{
+		ImageIds:       []int64{imageID},
+		ClassType:      []string{report.ClassOSPkg, report.ClassConfig},
+		NotCNNVD:       fmt.Sprintf("%t", !s.IncludeCNNVDVuln),
+		NotRHSA:        fmt.Sprintf("%t", !s.IncludeRHSAVuln),
+		NotReturnCount: true,
+	}, nil)
 	if err != nil {
 		logging.Get().Err(err).Int64("taskID", taskID).Int64("imageID", imageID).Msg("ExportImageHtmlSrv GetImageRisk SearchVuln")
 		return nil, err
@@ -617,8 +640,12 @@ func (s *ExportImageHtmlSrv) createVulnImage(ctx context.Context, taskID int64) 
 		for i := range exportImages {
 			// 获取该镜像的所有漏洞
 			vulns, _, err := s.VulnDal.SearchVuln(ctx, store.SearchVulnParam{
-				ClassType: []string{report.ClassOSPkg, report.ClassConfig},
-				ImageIds:  []int64{exportImages[i].ImageID}}, nil)
+				ClassType:      []string{report.ClassOSPkg, report.ClassConfig},
+				OmitFields:     new(model.Vuln).DefaultOmitField(),
+				NotCNNVD:       fmt.Sprintf("%t", !s.IncludeCNNVDVuln),
+				NotRHSA:        fmt.Sprintf("%t", !s.IncludeRHSAVuln),
+				NotReturnCount: true,
+				ImageIds:       []int64{exportImages[i].ImageID}}, nil)
 			if err != nil {
 				logging.Get().Err(err).Int64("taskID", taskID).
 					Int64("imageID", exportImages[i].ImageID).Msg("ExportImageHtmlSrv prepareVuln SearchVuln")
@@ -626,8 +653,8 @@ func (s *ExportImageHtmlSrv) createVulnImage(ctx context.Context, taskID int64) 
 			}
 
 			uniques := make([]uint64, 0)
-			for i := range vulns {
-				uniques = append(uniques, vulns[i].UniqueVuln)
+			for j := range vulns {
+				uniques = append(uniques, vulns[j].UniqueVuln)
 			}
 			if len(uniques) == 0 {
 				continue

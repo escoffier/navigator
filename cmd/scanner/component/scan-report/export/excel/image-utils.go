@@ -33,7 +33,7 @@ func GenBaseInfoChan(image model.ImageList) chan []string {
 	return out
 }
 
-func GenVulnInfoChan(imageDetail model.ImageList, vulnCol *atomic.Int32) chan []string {
+func GenVulnInfoChan(imageDetail model.ImageList, vulnCol *atomic.Int32, includeCNNVDVuln, includeRHSAVuln bool) chan []string {
 	out := make(chan []string, 1)
 	go func(imageDetail model.ImageList) {
 
@@ -46,11 +46,19 @@ func GenVulnInfoChan(imageDetail model.ImageList, vulnCol *atomic.Int32) chan []
 		defer close(out)
 
 		vulns := imageDetail.ImageScanVuln.Vulns
-		if vulnCol != nil {
-			vulnCol.Add(int32(len(vulns)))
-		}
 		for i := range vulns {
 			vuln := vulns[i]
+			if vuln.IsCNNVDVuln() && !includeCNNVDVuln {
+				continue
+			}
+
+			if vuln.IsRHSAVuln() && !includeRHSAVuln {
+				continue
+			}
+
+			if vulnCol != nil {
+				vulnCol.Add(1)
+			}
 			info := GenVulnInfo(imageDetail, *vuln)
 			out <- info
 		}

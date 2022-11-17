@@ -83,6 +83,24 @@ type Vuln struct {
 	Attr map[string]string `gorm:"-" json:"attr"` // 漏洞详情中雷达图的数据
 }
 
+func (vu *Vuln) DefaultOmitField() []string {
+	return []string{"description", "metadata_json", "extra_info", "link_json"}
+}
+
+func (vn *Vuln) IsRHSAVuln() bool {
+	if strings.HasPrefix(vn.Name, "RHSA-") || strings.HasPrefix(vn.Name, "RHBA-") {
+		return true
+	}
+	return false
+}
+
+func (vn *Vuln) IsCNNVDVuln() bool {
+	if strings.HasPrefix(vn.Name, "CNNVD-") {
+		return true
+	}
+	return false
+}
+
 var vulnAttr map[string]map[string]string
 
 var defaultAttr map[string]string
@@ -144,7 +162,7 @@ func init() {
 	})
 }
 
-func (Vuln) TableName() string {
+func (*Vuln) TableName() string {
 	return "ivan_scanner_vulns"
 }
 

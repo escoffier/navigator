@@ -44,6 +44,9 @@ func (im *Image) AddVulnSeverityCount(vulns []*model.Vuln) {
 		if vulns[i].Class == report.ClassLangPkg {
 			continue
 		}
+		if vulns[i].IsRHSAVuln() || vulns[i].IsCNNVDVuln() {
+			continue
+		}
 		if vulns[i].FixedBy != "" {
 
 			switch vulns[i].SeverityInt {

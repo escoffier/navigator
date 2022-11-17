@@ -319,8 +319,11 @@ type SearchVulnParam struct {
 	CanFixed        string
 	SeverityInt     []int64
 	JustReturnCount bool
+	NotReturnCount  bool
 	StartID         int64
 	ClassType       []string
+	NotCNNVD        string // fixme 传这个参数时会用到like，性能不佳
+	NotRHSA         string // fixme 传这个参数时会用到like，性能不佳
 }
 
 type SearchVulnImageParam struct {

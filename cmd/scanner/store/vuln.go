@@ -163,17 +163,27 @@ func (v *VulnDao) SearchVuln(ctx context.Context, param SearchVulnParam, filter 
 	if len(param.ClassType) > 0 {
 		db = db.Where("`class` IN  ? ", param.ClassType)
 	}
+	if param.NotRHSA == consts.TrueString {
+		db = db.Where("name NOT LIKE ? ", fmt.Sprintf("%s%%", "RHSA-"))
+	}
+
+	if param.NotCNNVD == consts.TrueString {
+		db = db.Where("name NOT LIKE ? ", fmt.Sprintf("%s%%", "CNNVD-"))
+	}
 
 	res := make([]*model.Vuln, 0)
-
-	db2 := db.Session(&gorm.Session{})
 	var cnt int64
-	// https://cloud.tencent.com/developer/article/1658068
-	// 一般来说，mysql优化了count(*),count(*)也是性能更好的方式，但是我们环境中count(*)会耗时5s以上，用count(unique_vuln)到是很快，
-	// 没有找到具体原因，后面需要持续关注
-	if err := db2.Select("count(unique_vuln) as cnt").Find(&cnt).Error; err != nil {
-		return nil, 0, err
+	if !param.NotReturnCount {
+		db2 := db.Session(&gorm.Session{})
+		// https://cloud.tencent.com/developer/article/1658068
+		// 一般来说，mysql优化了count(*),count(*)也是性能更好的方式，但是我们环境中count(*)会耗时5s以上，用count(unique_vuln)到是很快，
+		// 没有找到具体原因，后面需要持续关注
+
+		if err := db2.Select("count(unique_vuln) as cnt").Find(&cnt).Error; err != nil {
+			return nil, 0, err
+		}
 	}
+
 	if param.JustReturnCount {
 		return nil, cnt, nil
 	}
@@ -182,6 +192,7 @@ func (v *VulnDao) SearchVuln(ctx context.Context, param SearchVulnParam, filter 
 	if err := db.Find(&res).Error; err != nil {
 		return nil, 0, err
 	}
+
 	for i := range res {
 		res[i].Deserialize()
 	}

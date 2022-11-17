@@ -248,7 +248,8 @@ func (s *VulnExport) Export(ctx context.Context, filename string, vuln model.Vul
 		}
 
 		excelData[vulnSheetName] = append(excelData[vulnSheetName], s.ConvertVulnData(
-			GenVulnInfoChan(model.ImageList{ImageScanVuln: model.ImageScanSummaryResult{Vulns: []*model.Vuln{&vuln}}}, nil)))
+			GenVulnInfoChan(model.ImageList{ImageScanVuln: model.ImageScanSummaryResult{Vulns: []*model.Vuln{&vuln}}},
+				nil, true, true)))
 
 		// 加入关联资源的数据
 		if excelData[resourceSheetName] == nil {
