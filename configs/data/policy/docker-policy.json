@@ -22,6 +22,17 @@
         "extraInfo": {
             "os": "",
             "rule": "check_5_28"
+        },
+        "extraDetail": {
+            "description": "你不应该使用Docker的默认桥docker0。相反，您应该使用Docker的用户定义网络进行容器联网。",
+            "rationale": "Docker将以网桥模式创建的虚拟接口连接到一个名为docker0的公共网桥。这种默认的组网模式由于没有应用过滤，很容易受到ARP欺骗和MAC泛洪攻击。",
+            "audit": "运行下面的命令:\ndocker network ls --quiet | xargs docker network inspect --format '{{ .Name}}: {{ .Options }}'\n并确保PidsLimit没有设置为0或-1。PidsLimit为0或-1意味着可以在容器内并发地fork任意数量的进程。",
+            "remediation": "您应该按照Docker文档设置用户定义的网络。所有的容器都应该在这个网络中运行。",
+            "impact": "用户自定义网络需要根据组织安全策略进行配置和管理。",
+            "defaultValue": "默认情况下，Docker在默认的docker0桥中运行容器。",
+            "references": [
+                "https://docs.docker.com/network/bridge/"
+            ]
         }
     },
     {
@@ -47,6 +58,17 @@
         "extraInfo": {
             "os": "",
             "rule": "check_7_10"
+        },
+        "extraDetail": {
+            "description": "应该将管理plane流量与数据plane流量分开。",
+            "rationale": "将management plane流量与data plane流量分离可以确保这两种类型的流量相互隔离。这些流量可以被单独监控，并与不同的流量控制策略和监控相关联。这也确保了即使data plane上有大量的通信，management plane也总是可达的。",
+            "audit": "请在每个集群节点上执行以下命令: \ndocker node inspect  --format '{{ .Status.Addr }}' self\n并确保management plane地址和data plane地址不相同。",
+            "remediation": "您应该分别使用management plane和data plane的专用接口初始化群集。",
+            "impact": "这需要每个节点有两个网络接口。",
+            "defaultValue": "默认情况下，data plane流量与management plane流量不分离。",
+            "references": [
+                "https://docs.docker.com/engine/reference/commandline/swarm_init/#--data-path-addr"
+            ]
         }
     },
     {
@@ -72,6 +94,17 @@
         "extraInfo": {
             "os": "",
             "rule": "check_3_5"
+        },
+        "extraDetail": {
+            "description": "您应该验证/etc/docker目录所有权和组所有权是否正确设置为root。",
+            "rationale": "/etc/docker目录包含证书和密钥，以及其他各种敏感文件。因此，它应该是根用户拥有的个人和组，以确保它不能被特权较低的用户修改。",
+            "audit": "执行以下命令: \nstat -c %U:%G /etc/docker | grep -v root:root\n并验证目录和组是否为root所拥有.",
+            "remediation": "要解决这个问题，您应该运行以下命令:\nchown root:root /etc/docker",
+            "impact": "",
+            "defaultValue": "默认情况下，该目录的所有权和组所有权被正确设置为root。",
+            "references": [
+                "https://docs.docker.com/engine/security/https/"
+            ]
         }
     },
     {
@@ -97,6 +130,17 @@
         "extraInfo": {
             "os": "",
             "rule": "check_3_22"
+        },
+        "extraDetail": {
+            "description": "您应该验证/etc/default/docker文件权限是否正确设置为644或更严格",
+            "rationale": "/etc/default/docker文件包含可能改变Docker守护进程行为的敏感参数。因此，它应该只能由根用户写，以确保它不会被特权较低的用户修改",
+            "audit": "执行以下命令: \nstat -c %a /etc/default/docker\n来验证文件权限是否被正确设置为644或更严格",
+            "remediation": "要解决这个问题，您应该运行以下命令:\nchmod 644 /etc/default/docker",
+            "impact": "",
+            "defaultValue": "此文件可能不存在于系统中，在这种情况下，此建议不适用。",
+            "references": [
+                "https://docs.docker.com/engine/admin/configuring/"
+            ]
         }
     },
     {
@@ -122,6 +166,17 @@
         "extraInfo": {
             "os": "",
             "rule": "check_5_4"
+        },
+        "extraDetail": {
+            "description": "使用——privilege标志为它所应用的容器提供了所有Linux内核功能，因此会覆盖——cap-add和——cap-drop标志。出于这个原因，你应该确保它没有被使用",
+            "rationale": "特权标志为它所应用的容器提供了所有的功能，同时也解除了设备cgroup控制器实施的所有限制。因此，容器拥有底层主机的大部分权限。这个标志只存在于特定的用例中(例如在Docker中运行Docker)，一般不应该被使用",
+            "audit": "执行以下命令: \ndocker ps --quiet --all | xargs docker inspect --format '{{ .Id }}:\nPrivileged={{ .HostConfig.Privileged }}'",
+            "remediation": "不应该运行带有——privilege标志的容器",
+            "impact": "如果你启动一个没有——privileges标志的容器，它将不会有过多的默认功能",
+            "defaultValue": "False",
+            "references": [
+                "https://docs.docker.com/engine/reference/run/#runtime-privilege-and-linux-capabilities"
+            ]
         }
     },
     {
@@ -147,6 +202,17 @@
         "extraInfo": {
             "os": "",
             "rule": "check_3_20"
+        },
+        "extraDetail": {
+            "description": "您应该验证/etc/sysconfig/docker文件的个人所有权和组所有权是否正确设置为root",
+            "rationale": "/etc/sysconfig/docker文件包含可能改变Docker守护进程行为的敏感参数。因此，它应该是由root单独拥有和组拥有的，以确保它不会被特权较低的用户修改",
+            "audit": "执行以下命令: \nstat -c %U:%G /etc/sysconfig/docker | grep -v root:root\n以验证该文件是由根用户单独拥有和组拥有的",
+            "remediation": "您应该运行以下命令:\nchown root:root /etc/sysconfig/docker",
+            "impact": "如果你启动一个没有——privileges标志的容器，它将不会有过多的默认功能",
+            "defaultValue": "该文件可能不存在于系统中，在这种情况下，此建议不适用",
+            "references": [
+                "https://docs.docker.com/engine/admin/configuring/"
+            ]
         }
     },
     {
@@ -172,6 +238,17 @@
         "extraInfo": {
             "os": "",
             "rule": "check_4_10"
+        },
+        "extraDetail": {
+            "description": "不要在dockerfile中存储任何secrets",
+            "rationale": "Docker镜像不是不透明的，并且包含关于用于构建它们的命令的信息。因为这些secrets不应该包含在用于构建镜像的dockerfile中，因为它们对镜像的任何用户都是可见的",
+            "audit": "执行以下命令: \ndocker images\n\n对上面列表中的每个image运行以下命令:\ndocker history <IMAGE ID>\n\n并寻找所有的secrets",
+            "remediation": "不要在Dockerfile中存储任何类型的secrets。如果在构建过程中需要secrets，请使用secrets管理工具，例如Docker中包含的buildkit构建器",
+            "impact": "Docker image的建立需要一个适当的secrets管理程序",
+            "defaultValue": "默认情况下，在Dockerfile中存储配置secrets没有任何限制",
+            "references": [
+                "https://docs.docker.com/develop/develop-images/build_enhancements/#new-docker-build-secret-information"
+            ]
         }
     },
     {
@@ -197,6 +274,18 @@
         "extraInfo": {
             "os": "",
             "rule": "check_2_11"
+        },
+        "extraDetail": {
+            "description": "您应该使用本地Docker授权插件，或者使用带有Docker守护进程的第三方授权机制来管理对Docker客户端命令的访问",
+            "rationale": "Docker开箱即用的授权模式目前是“全有或全无”。这意味着任何具有访问Docker守护进程权限的用户都可以运行任何Docker客户机命令。对于访问Docker的API来联系守护进程的远程用户也是如此。如果需要更大的访问控制，可以创建授权插件并将其添加到Docker守护进程配置中。通过使用授权插件，Docker管理员可以为管理对Docker守护进程的访问配置粒度访问策略。\n第三方的Docker集成可能会实现他们自己的授权模型，要求在Docker的本地授权插件(例如Kubernetes, Cloud Foundry, Openshift)之外使用Docker守护进程进行授权",
+            "impact": "每个Docker命令都需要通过授权插件机制。这可能会对性能产生影响。\n可以使用没有这种性能影响的替代机制",
+            "audit": "为了确认这个设置，应该检查dockerd启动选项和/etc/docker/daemon.json中的任何设置\n要查看dockerd启动选项，请使用:\nps -ef | grep dockerd",
+            "remediation": "步骤1:安装/创建授权插件。\n步骤2:根据实际情况配置授权策略。步骤3:启动docker守护进程，如下所示:\ndockerd --authorization-plugin=<PLUGIN_ID>",
+            "defaultValue": "默认情况下，没有设置授权插件",
+            "references": [
+                "https://docs.docker.com/engine/reference/commandline/dockerd/#access-authorization",
+                "https://docs.docker.com/engine/extend/plugins_authorization/"
+            ]
         }
     },
     {
@@ -222,6 +311,18 @@
         "extraInfo": {
             "os": "",
             "rule": "check_3_14"
+        },
+        "extraDetail": {
+            "description": "您应该验证Docker服务器证书密钥文件(随——tlskey参数一起传递的文件)具有400的权限",
+            "rationale": "Docker服务器证书密钥文件应该受到保护，不受任何篡改或不必要的读取。它保存Docker服务器证书的私钥。因此，它必须具有400的权限，以确保证书密钥文件不被修改",
+            "impact": "",
+            "audit": "您应该执行以下命令来验证Docker服务器证书密钥文件具有400的权限:\nstat -c %a <path to Docker server certificate key file>",
+            "remediation": "您应该执行以下命令:\nchmod 400 <path to Docker server certificate key file>",
+            "defaultValue": "默认情况下，Docker服务器证书密钥文件的权限可能不是400。默认的文件权限由操作系统或用户特定的umask值控制",
+            "references": [
+                "https://docs.docker.com/registry/insecure/",
+                "https://docs.docker.com/engine/security/https/"
+            ]
         }
     },
     {
@@ -247,6 +348,17 @@
         "extraInfo": {
             "os": "",
             "rule": "check_2_9"
+        },
+        "extraDetail": {
+            "description": "——cgroup-parent选项允许你设置默认的cgroup父类，以用于所有容器。如果对此没有特定的使用要求，则应该保持默认设置",
+            "rationale": "系统管理员通常定义容器应该在其中运行的cgroup。即使系统管理员没有显式地定义cgroup，默认情况下容器也会在docker cgroup下运行。\n可以附加到一个不同的cgroup，而不是默认的cgroup，但是这种类型的使用应该被监视和确认，因为附加到一个不同的cgroup，而不是默认的cgroup，可能会不均匀地共享资源，导致主机上的资源利用问题",
+            "impact": "",
+            "audit": "为了确认这个设置，应该检查dockerd启动选项和/etc/docker/daemon.json中的任何设置\n要查看dockerd启动选项，请使用:\nps -ef | grep dockerd\n你应该确保——cgroup-parent参数没有被设置，或者被设置为适当的非默认cgroup\n还应该检查/etc/docker/daemon.json的内容",
+            "remediation": "默认设置符合良好的安全实践，可以保留在原地。如果你希望专门设置一个非默认的cgroup，在启动Docker守护进程时将——cgroup-parent参数传递给它",
+            "defaultValue": "默认情况下，docker守护进程对fs cgroup驱动和系统使用/docker。为systemd cgroup驱动程序切片",
+            "references": [
+                "https://docs.docker.com/engine/reference/commandline/dockerd/#default-cgroup-parent"
+            ]
         }
     },
     {
@@ -272,6 +384,17 @@
         "extraInfo": {
             "os": "",
             "rule": "check_3_8"
+        },
+        "extraDetail": {
+            "description": "您应该验证所有注册表证书文件(通常位于/etc/docker/certs.d/<registry-name>目录下)是否具有444的权限，或者是否设置了更严格的权限",
+            "rationale": "/etc/docker/certs.d/<registry-name>目录包含Docker注册表证书。这些证书文件必须具有444或更严格的权限，以确保没有特权的用户不能完全访问它们",
+            "impact": "",
+            "audit": "您应该执行下面的命令来验证注册中心证书文件是否具有444的权限，或者是否设置了更严格的权限:\nfind /etc/docker/certs.d/ -type f -exec stat -c \"%a %n\" {} \\;",
+            "remediation": "您应该执行以下命令:\nfind /etc/docker/certs.d/ -type f -exec chmod 0444 {} \\;",
+            "defaultValue": "默认情况下，注册表证书文件的权限可能不是444。默认的文件权限由操作系统本身定义的系统或用户特定的umask值控制",
+            "references": [
+                "https://docs.docker.com/registry/insecure/"
+            ]
         }
     },
     {
@@ -297,6 +420,18 @@
         "extraInfo": {
             "os": "",
             "rule": "check_5_9"
+        },
+        "extraDetail": {
+            "description": "当容器上的网络模式设置为——net=host时，容器不会放在单独的网络堆栈中。实际上，应用这个选项指示Docker不要将容器的网络装入容器。这样做的结果是，容器位于主Docker主机的“外部”，可以完全访问其网络接口",
+            "rationale": "选择这个选项是有潜在危险的。它允许容器进程像其他根进程一样打开预留的低编号端口。它还允许容器访问网络服务，例如Docker主机上的D-bus。容器进程可能会执行不希望的操作，比如关闭Docker主机。除非有非常具体的原因，否则不应使用此选项",
+            "impact": "",
+            "audit": "您应该执行以下命令:\ndocker ps --quiet --all | xargs docker inspect --format '{{ .Id }}:\nNetworkMode={{ .HostConfig.NetworkMode }}'\n如果返回NetworkMode=host，这意味着在容器启动时传递了——net=host选项",
+            "remediation": "在启动任何容器时，不应该传递——net=host选项",
+            "defaultValue": "默认情况下，容器在启动时连接到Docker桥，而不是在主机的网络堆栈上下文中运行",
+            "references": [
+                "https://docs.docker.com/network/",
+                "https://docs.docker.com/engine/reference/run/#network-settings"
+            ]
         }
     },
     {
@@ -322,6 +457,18 @@
         "extraInfo": {
             "os": "",
             "rule": "check_7_3"
+        },
+        "extraDetail": {
+            "description": "默认情况下，Docker群集服务将监听主机上的所有接口。对于主机有多个网络接口的群集操作来说，这可能是不必要的",
+            "rationale": "当群集初始化时，——listen-addr标志的默认值是0.0.0.0:2377，这意味着群集服务将监听主机上的所有接口。如果一个主机有多个网络接口，这可能是不可取的，因为它可能向不涉及群集操作的网络公开群集服务。\n通过将特定的IP地址传递给——listen-addr，可以指定特定的网络接口，从而限制这种公开",
+            "impact": "",
+            "audit": "您应该检查端口2377 (docker swarm的默认端口)和7946(容器网络发现)上的网络监听器，并确认它只监听特定的接口。例如，可以使用以下命令:\nss -lp | grep -iE ':2377|:7946'",
+            "remediation": "解决这个问题需要重新初始化群集，为——listen-addr参数指定一个特定的接口",
+            "defaultValue": "默认情况下，Docker群集服务监听所有可用的主机接口",
+            "references": [
+                "https://docs.docker.com/engine/reference/commandline/swarm_init/#--listen-addr",
+                "https://docs.docker.com/engine/swarm/admin_guide/#recover-from-disaster"
+            ]
         }
     },
     {
@@ -347,6 +494,17 @@
         "extraInfo": {
             "os": "",
             "rule": "check_7_4"
+        },
+        "extraDetail": {
+            "description": "确保所有Docker群覆盖网络都是加密的",
+            "rationale": "默认情况下，覆盖网络上节点容器之间交换的数据不加密。这可能会暴露容器之间的通信",
+            "impact": "",
+            "audit": "您应该运行下面的命令，以确保每个覆盖网络都已加密:\ndocker network ls --filter driver=overlay --quiet | xargs docker network inspect --format '{{.Name}} {{ .Options }}'",
+            "remediation": "你应该用——opt加密标志创建覆盖网络",
+            "defaultValue": "默认情况下，Docker集群模式下覆盖网络交换的数据不加密",
+            "references": [
+                "https://docs.docker.com/network/overlay/#encrypt-traffic-on-an-overlay-network"
+            ]
         }
     },
     {
@@ -372,6 +530,17 @@
         "extraInfo": {
             "os": "",
             "rule": "check_7_6"
+        },
+        "extraDetail": {
+            "description": "您应该检查是否希望在自动锁定模式下运行Docker群集管理器",
+            "rationale": "当Docker重新启动时，用于加密群节点之间通信的TLS密钥和用于加密和解密磁盘上Raft日志的密钥都被加载到每个管理节点的内存中。您可以保护相互TLS加密密钥和用于加密和解密Raft日志的密钥。这个保护可以通过使用——autolock标志来初始化蜂群来实现。\n启用——autolock后，当Docker重新启动时，必须首先使用Docker生成的密钥加密密钥来解锁集群。\n这在高安全的环境中是有好处的，但是这应该与支持问题相平衡，如果集群不能自动启动，例如主机将经历停机",
+            "impact": "如果没有管理员手动干预输入解锁密钥，处于自动锁定模式的群集将无法从重启中恢复。这可能并不总是可取的，应该在策略级别进行审查",
+            "audit": "您应该运行下面的命令:\ndocker info --format 'Swarm Autolock: {{.Swarm.Cluster.Spec.EncryptionConfig.AutoLockManagers }}'\n如果结果为true，表示开启auto-lock模式。\n您还可以运行下面的命令。如果返回一个键值，这意味着群集使用——autolock标志进行了初始化。如果输出没有设置解锁键，这意味着swarm没有使用——autolock标志进行初始化。这应该根据组织的IT安全政策进行审查\ndocker swarm unlock-key",
+            "remediation": "如果你正在初始化一个蜂群，使用下面的命令:\ndocker swarm init --autolock\n如果你想在已有的集群管理节点上设置——autolock，使用以下命令:\ndocker swarm update --autolock",
+            "defaultValue": "默认情况下，Docker集群模式下覆盖网络交换的数据不加密",
+            "references": [
+                "https://docs.docker.com/engine/swarm/swarm_manager_locking/"
+            ]
         }
     },
     {
@@ -397,6 +566,18 @@
         "extraInfo": {
             "os": "",
             "rule": "check_1_1_1"
+        },
+        "extraDetail": {
+            "description": "容器主机能够运行一个或多个容器。对主机进行安全加固是缓解主机安全配置错误的重要手段",
+            "rationale": "您应该遵循基础设施安全最佳实践，并加强您的主机操作系统。对主机系统进行加固可以确保主机的漏洞不被破坏。不对主机系统进行加固可能会导致安全暴露和漏洞",
+            "impact": "",
+            "audit": "确保遵循特定于主机的安全指导方针。询问系统管理员，当前主机系统当前应该符合哪个安全基准，并检查与该标准相关的安全标准当前是否已就位",
+            "remediation": "您可以为容器主机考虑各种CIS安全基准测试。如果您有其他安全指导方针或法规要求需要遵守，请根据您的环境适当地遵守它们",
+            "defaultValue": "默认情况下，主机为出厂配置，未进行加固",
+            "references": [
+                "https://docs.docker.com/engine/security/",
+                "https://www.cisecurity.org/cis-benchmarks/"
+            ]
         }
     },
     {
@@ -422,6 +603,17 @@
         "extraInfo": {
             "os": "",
             "rule": "check_2_7"
+        },
+        "extraDetail": {
+            "description": "在您的环境中适当地设置默认的ulimit选项",
+            "rationale": "Ulimit提供对shell和它所启动的进程可用的资源的控制。明智地设置系统资源限制可以避免fork炸弹等灾难。有时，即使是友好的用户和合法的进程也会过度使用系统资源，从而导致系统不可用。\n为Docker守护进程设置默认ulimit将强制所有容器实例使用ulimit。在这种情况下，您不需要为每个容器实例设置ulimit。但是，如果需要，可以在容器运行时期间重写默认的ulimit。因此，为了对系统资源有适当的控制，请根据您的环境需要定义一个默认的ulimit",
+            "impact": "如果ulimit设置不正确，可能会导致系统资源出现问题，可能会导致拒绝服务的情况。因此，为了对系统资源有适当的控制，请根据您的环境需要定义一个默认的ulimit",
+            "audit": "要确认这个设置，你应该检查dockerd启动选项和/etc/docker/daemon.json中的任何设置。\n要https://docs.docker.com/engine/reference/commandline/dockerd/#daemon -user-\nnamespace-options查看dockerd启动选项，请使用:\nPs -ef | grep dockerd\n确保——default-ulimit参数的设置是适当的。\n还应该检查/etc/docker/daemon.json的内容",
+            "remediation": "以守护进程模式运行Docker，并传递——default-ulimit作为参数，在您的环境中使用相应的ulimit，并符合您的安全策略",
+            "defaultValue": "缺省情况下，没有设置ulimit",
+            "references": [
+                "https://docs.docker.com/engine/reference/commandline/dockerd/#default-ulimit-settings"
+            ]
         }
     },
     {
@@ -497,6 +689,19 @@
         "extraInfo": {
             "os": "",
             "rule": "check_5_11"
+        },
+        "extraDetail": {
+            "description": "默认情况下，Docker主机上的所有容器平等地共享资源。通过使用Docker主机的资源管理功能，您可以控制容器可能消耗的主机CPU资源",
+            "rationale": "默认情况下，CPU时间在容器之间平均分配。如果希望控制容器实例之间可用的CPU资源，可以使用CPU共享特性。CPU共享允许您将一个容器的优先级高于其他容器，并防止低优先级容器占用其他进程可能需要的CPU资源。这确保了高优先级容器能够声明它们所需的CPU运行时",
+            "impact": "如果没有正确分配CPU阈值，容器进程可能会耗尽资源并失去响应。如果主机的CPU资源不受约束，则CPU共享对单个资源没有任何限制",
+            "audit": "您应该运行以下命令:\ndocker ps --quiet --all | xargs docker inspect --format '{{ .Id }}:CpuShares={{ .HostConfig.CpuShares }}'\n如果上面的命令返回0或1024，则意味着CPU共享没有到位。如果它返回1024以外的非零值，则意味着它们已经存在",
+            "remediation": "您应该根据容器在组织中的优先级来管理它们之间的CPU运行时。为此，使用——cpu-shares参数启动容器",
+            "defaultValue": "默认情况下，Docker主机上的所有容器平等地共享它们的资源。不强制执行CPU共享",
+            "references": [
+                "https://docs.docker.com/config/containers/resource_constraints/#cpu",
+                "https://docs.docker.com/engine/reference/commandline/run/#options",
+                "https://docs.docker.com/engine/admin/runmetrics/"
+            ]
         }
     },
     {
@@ -522,6 +727,18 @@
         "extraInfo": {
             "os": "",
             "rule": "check_1_2_2"
+        },
+        "extraDetail": {
+            "description": "Docker守护进程目前需要访问Docker套接字，默认情况下，该套接字由root用户和Docker组拥有",
+            "rationale": "Docker允许您在Docker主机和来宾容器之间共享目录，而不限制容器的访问权限。这意味着您可以启动一个容器，并将主机上的/目录映射到该容器。这样容器就可以不受任何限制地修改主机文件系统。这意味着您只需作为docker组的成员，然后启动一个映射主机上根/目录的容器，就可以获得提升的特权",
+            "impact": "如果实现了上述指示，那么作为普通用户构建和执行容器的权利将受到限制",
+            "audit": "在docker主机上执行以下命令，确保只有受信任的用户是docker组的成员\ngetent group docker",
+            "remediation": "您应该从docker组中删除任何不受信任的用户。此外，您不应该创建从主机到容器卷的敏感目录的映射",
+            "defaultValue": "",
+            "references": [
+                "https://docs.docker.com/engine/security/#docker-daemon-attack-surface",
+                "http://www.projectatomic.io/blog/2015/08/why-we-dont-let-non-root-users-run-docker-in-centos-fedora-or-rhel/"
+            ]
         }
     },
     {
@@ -547,6 +764,17 @@
         "extraInfo": {
             "os": "",
             "rule": "check_2_16"
+        },
+        "extraDetail": {
+            "description": "不应该在生产环境中启用实验特性",
+            "rationale": "“实验性”目前是一个运行时Docker守护进程标志，而不是一个单独构建的特性。将——experimental作为运行时标志传递给docker守护进程可以激活实验性特性。虽然“实验性”被认为是一个稳定的版本，但它有许多特性可能没有经过充分测试，不能保证API的稳定性",
+            "impact": "",
+            "audit": "您应该运行下面的命令，并确保在Server部分中将Experimental属性设置为false\ndocker version --format '{{ .Server.Experimental }}'",
+            "remediation": "不应该将——experimental作为运行时参数传递给生产系统上的Docker守护进程",
+            "defaultValue": "默认情况下，Docker守护进程中不会激活实验特性",
+            "references": [
+                "https://docs.docker.com/engine/reference/commandline/dockerd/"
+            ]
         }
     },
     {
@@ -572,6 +800,17 @@
         "extraInfo": {
             "os": "",
             "rule": "check_5_18"
+        },
+        "extraDetail": {
+            "description": "默认的ulimit设置在Docker守护进程级别。但是，如果需要，可以在容器运行时覆盖默认的ulimit设置",
+            "rationale": "Ulimit提供对shell和由它启动的进程可用的资源的控制。以谨慎的方式设置系统资源限制，可以防止出现拒绝服务的情况。有时，合法的用户和进程可能会意外地过度使用系统资源，导致系统降级甚至无响应。\n应该遵循Docker守护进程级别设置的默认ulimit。如果默认的ulimit设置不适用于特定的容器实例，则可以作为异常覆盖它们，但不应该例行地这样做。如果您的许多容器实例超出了您的ulimit设置，那么您应该考虑更改默认设置，使其更适合您的需要",
+            "impact": "如果没有正确设置ulimit，各个容器的过度使用可能会导致主机系统不可用",
+            "audit": "您应该运行下面的命令:\ndocker ps --quiet --all | xargs docker inspect --format '{{ .Id }}:\nUlimits={{ .HostConfig.Ulimits }}'\n这个命令应该为每个容器实例返回Ulimits=<no value>，除非在特定情况下需要覆盖默认设置",
+            "remediation": "您应该只在特定情况下需要时重写默认的ulimit设置。例如，要覆盖默认的ulimit设置，启动一个容器如下所示:\ndocker run -ti -d --ulimit nofile=1024:1024 centos sleep 1000",
+            "defaultValue": "容器实例继承在Docker守护进程级别设置的默认ulimit设置",
+            "references": [
+                "https://docs.docker.com/engine/reference/commandline/run/#set-ulimits-in-container---ulimit"
+            ]
         }
     },
     {
@@ -597,6 +836,18 @@
         "extraInfo": {
             "os": "",
             "rule": "check_7_2"
+        },
+        "extraDetail": {
+            "description": "您应该确保在一个群集中创建所需的管理器节点的最小数量",
+            "rationale": "集群中的管理节点对集群具有控制权，可以修改集群的配置，包括修改安全参数。拥有过多的管理节点会使蜂群更容易妥协。\n如果管理器节点不需要容错，则应该选举一个节点作为管理器。如果需要容错，则应该配置最小奇数以实现适当的容错级别。这应该总是一个奇数，以确保达到多数派",
+            "impact": "",
+            "audit": "运行docker info并验证管理器的数量:\ndocker info --format '{{ .Swarm.Managers }}'\n或者运行以下命令:\ndocker node ls | grep 'Leader'",
+            "remediation": "如果配置的manager数量过多，可以使用以下命令将多余的节点降级为worker:\ndocker node demote <ID>\n其中为待降级管理器的节点ID值",
+            "defaultValue": "只需要一个管理器就可以启动给定的集群",
+            "references": [
+                "https://docs.docker.com/engine/swarm/manage-nodes/",
+                "https://docs.docker.com/engine/swarm/admin_guide/#add-manager-nodes-for-fault-tolerance"
+            ]
         }
     },
     {
@@ -622,6 +873,17 @@
         "extraInfo": {
             "os": "",
             "rule": "check_2_12"
+        },
+        "extraDetail": {
+            "description": "Docker支持各种日志机制。一种较好的日志存储方法是支持集中和远程管理",
+            "rationale": "集中式和远程日志记录可以确保所有重要的日志记录都是安全的，即使在出现重大数据可用性问题的情况下也是如此。Docker支持各种日志记录方法，您应该使用最符合您的IT安全策略的方法",
+            "impact": "",
+            "audit": "运行docker info并确保日Logging Driver属性设置为适当的:\ndocker info --format '{{ .LoggingDriver }}'\n或者，下面的命令将为您提供——log-driver设置。如果已配置，则应确保设置正确\nps -ef | grep dockerd\n还应该检查/etc/docker/daemon.json的内容",
+            "remediation": "步骤1:根据文档设置所需的日志驱动程序\n步骤2:使用日志记录驱动程序启动docker守护进程",
+            "defaultValue": "默认情况下，容器日志以json文件的形式维护",
+            "references": [
+                "https://docs.docker.com/config/containers/logging/configure/"
+            ]
         }
     },
     {
@@ -647,6 +909,17 @@
         "extraInfo": {
             "os": "",
             "rule": "check_5_24"
+        },
+        "extraDetail": {
+            "description": "当容器实例化时，可以附加到特定的cgroup。确认cgroup的使用将确保容器在定义的cgroup中运行",
+            "rationale": "系统管理员通常定义容器应该在其中运行的cgroup。如果系统管理员没有显式定义cgroup，容器默认在docker cgroup中运行。\n在运行时，可以将容器附加到最初定义的cgroup以外的其他cgroup。应该对这种使用进行监视和确认，因为通过附加到不同的cgroup，可能会将多余的权限和资源授予容器，因此这可能被证明是一个安全风险",
+            "impact": "",
+            "audit": "应该执行以下命令:\ndocker ps --quiet --all | xargs docker inspect --format '{{ .Id }}:\nCgroupParent={{ .HostConfig.CgroupParent }}'\n上面的命令返回正在运行容器的cgroup。如果为空，则意味着容器在默认的docker cgroup下运行。其他返回值表示系统没有按照良好的安全实践进行配置",
+            "remediation": "除非严格要求，否则不应该在docker run命令中使用——cgroup-parent选项",
+            "defaultValue": "默认情况下，容器在docker cgroup下运行",
+            "references": [
+                "https://docs.docker.com/engine/reference/run/#specify-custom-cgroups"
+            ]
         }
     },
     {
@@ -672,6 +945,17 @@
         "extraInfo": {
             "os": "",
             "rule": "check_3_21"
+        },
+        "extraDetail": {
+            "description": "您应该验证/etc/sysconfig/docker文件权限是否正确设置为644或更严格",
+            "rationale": "/etc/sysconfig/docker文件包含可能改变Docker守护进程行为的敏感参数。因此，它应该只能由根用户写，以确保它不会被特权较低的用户修改",
+            "impact": "",
+            "audit": "您应该执行以下命令来验证文件权限是否被正确设置为644或更严格:\nstat -c %a /etc/sysconfig/docker",
+            "remediation": "您应该执行以下命令:\nchmod 644 /etc/sysconfig/docker",
+            "defaultValue": "此文件可能不存在于系统中，在这种情况下，此建议不适用",
+            "references": [
+                "https://docs.docker.com/engine/admin/configuring/"
+            ]
         }
     },
     {
@@ -697,6 +981,17 @@
         "extraInfo": {
             "os": "",
             "rule": "check_4_9"
+        },
+        "extraDetail": {
+            "description": "你应该在Dockerfile中使用COPY指令而不是ADD指令",
+            "rationale": "COPY指令只是将文件从本地主机复制到容器文件系统。ADD指令可能从远程url检索文件并执行诸如解包等操作。因此，ADD指令会带来安全风险。例如，恶意文件可能不经过扫描直接从url访问，或者可能存在与解压相关的漏洞",
+            "impact": "如果应用程序需要作为ADD指令一部分的功能，例如，如果需要从远程url检索文件，那么在实现此控件时需要格外小心",
+            "audit": "运行下面的命令来获取image列表:\ndocker images\n对上面列表中的每个image运行下面的命令，查找ADD指令:\ndocker history <IMAGE ID>\n或者，如果您可以访问镜像的Dockerfile，您应该验证没有ADD指令",
+            "remediation": "你应该在dockerfile中使用COPY指令而不是ADD指令",
+            "defaultValue": "",
+            "references": [
+                "https://docs.docker.com/develop/develop-images/dockerfile_best-practices/#add-or-copy"
+            ]
         }
     },
     {
@@ -722,6 +1017,18 @@
         "extraInfo": {
             "os": "",
             "rule": "check_5_10"
+        },
+        "extraDetail": {
+            "description": "默认情况下，Docker主机上的所有容器平等地共享资源。通过使用Docker主机的资源管理功能，您可以控制容器能够使用的内存量",
+            "rationale": "默认情况下，容器可以使用主机上的所有内存。您可以使用内存限制机制来防止拒绝服务的发生，即一个容器消耗主机的所有资源，而同一主机上的其他容器因此无法工作。没有内存使用限制会导致一些问题，一个容器很容易使整个系统不稳定，从而导致不可用",
+            "impact": "如果没有对每个容器设置正确的内存限制，一个进程可能会扩大其使用量，导致其他容器耗尽资源",
+            "audit": "你应该运行下面的命令:\ndocker ps --quiet --all | xargs docker inspect --format '{{ .Id }}: Memory={{\n.HostConfig.Memory }}'\n如果该命令返回0，则表示没有设置内存限制;如果返回非零值，则表示它们已经存在",
+            "remediation": "通过使用——memory参数，你应该只在容器需要多少内存的情况下运行它",
+            "defaultValue": "默认情况下，Docker主机上的所有容器平等地共享它们的资源，不强制执行内存限制",
+            "references": [
+                "https://docs.docker.com/config/containers/resource_constraints/#limit-a-containers-access-to-memory",
+                "https://docs.docker.com/config/containers/runmetrics/"
+            ]
         }
     },
     {
@@ -747,6 +1054,18 @@
         "extraInfo": {
             "os": "",
             "rule": "check_1_2_11"
+        },
+        "extraDetail": {
+            "description": "适用情况下，审计/usr/bin/ containd",
+            "rationale": "除了审计普通的Linux文件系统和系统调用之外，还应该审计所有与Docker相关的文件和目录。Docker守护进程以根权限运行，其行为依赖于一些关键文件和目录。/usr/bin/containerd就是这样一个文件，因此应该进行审计",
+            "impact": "审计可以生成较大的日志文件。您应该确保定期轮换和归档这些文件。还应该为审计日志创建一个单独的分区，以避免填充任何其他关键分区",
+            "audit": "您应该验证是否存在与/usr/bin/containerd文件对应的审计规则。例如，您可以执行以下命令:\nauditctl -l | grep /usr/bin/containerd\n这应该显示一个/usr/bin/containerd文件的规则",
+            "remediation": "您应该为/usr/bin/containerd文件添加一条规则",
+            "defaultValue": "默认情况下，不审计Docker相关的文件和目录。文件/usr/bin/containd可能不存在于系统中，在这种情况下，此建议不适用",
+            "references": [
+                "https://access.redhat.com/documentation/en-us/red_hat_enterprise_linux/8/html/system_design_guide/auditing-the-system_system-design-guide",
+                "https://containerd.io/"
+            ]
         }
     },
     {
@@ -772,6 +1091,17 @@
         "extraInfo": {
             "os": "",
             "rule": "check_2_13"
+        },
+        "extraDetail": {
+            "description": "——live-restore选项使Docker完全支持无守护进程的容器。它确保Docker在关闭或恢复时不会停止容器，并在重新启动时正确地重新连接到容器",
+            "rationale": "一个重要的安全因素是可用性。在Docker守护进程中设置——live-restore标志可以确保当容器不可用时，它的执行不会中断。这也使得更新和修补Docker守护进程更容易，而不会导致应用程序停机",
+            "impact": "",
+            "audit": "您应该运行docker info并确保Live Restore Enabled属性设置为true\ndocker info --format '{{ .LiveRestoreEnabled }}'\n或者，您可以运行以下命令，并确保使用了——live-restore\nps -ef | grep dockerd\n还应该检查/etc/docker/daemon.json的内容，以确保设置到位",
+            "remediation": "以守护进程模式运行Docker，并将——live-restore作为参数传递给它",
+            "defaultValue": "默认情况下，——live-restore没有启用",
+            "references": [
+                "https://docs.docker.com/config/containers/live-restore/"
+            ]
         }
     },
     {
@@ -797,6 +1127,18 @@
         "extraInfo": {
             "os": "",
             "rule": "check_2_1"
+        },
+        "extraDetail": {
+            "description": "默认情况下，允许默认网桥上同一主机上的容器之间的所有网络流量。如果不需要，则限制所有容器间通信。将需要通信的特定容器链接在一起。或者，您可以创建自定义网络并只连接需要与该自定义网络通信的容器",
+            "rationale": "默认情况下，在默认网桥上同一主机上的所有容器之间启用不受限制的网络流量。因此，每个容器都有可能通过同一主机上的容器网络读取所有数据包。这可能导致向其他容器无意地和不希望的信息公开。因此，需要限制默认网桥上的容器间通信",
+            "impact": "容器间通信将在默认网桥上被禁用。如果需要在同一主机上的容器之间进行通信，则需要使用容器链接显式地定义它，或者必须定义自定义网络",
+            "audit": "运行以下命令并验证默认网桥已配置为限制容器间通信\ndocker network ls --quiet | xargs docker network inspect --format '{{ .Name\n}}: {{ .Options }}'\n对于默认网桥，它应该返回com.docker.network.bridge.enable_icc:false",
+            "remediation": "编辑Docker守护进程配置文件，确保禁用了icc。它应该包括以下设置\n\"icc\": false\n或者，直接运行docker守护进程并传递——icc=false作为参数\n或者，您也可以按照Docker文档创建一个自定义网络，并只加入需要与该自定义网络通信的容器。——icc参数只适用于默认的docker桥接，如果使用自定义网络，则应该采用分段网络的方法。\n为了使这个控制完全有效，连接到docker0桥的所有容器都应该放弃NET_RAW功能，否则，受影响的容器可以使用原始以太网数据包与其他容器通信，尽管有这种限制",
+            "defaultValue": "默认情况下，允许在缺省网桥上进行所有容器间通信",
+            "references": [
+                "https://docs.docker.com/network/",
+                "https://github.com/docker/cli/blob/v20.10.1/man/dockerd.8.md"
+            ]
         }
     },
     {
@@ -822,6 +1164,18 @@
         "extraInfo": {
             "os": "",
             "rule": "check_2_3"
+        },
+        "extraDetail": {
+            "description": "iptables防火墙用于建立、维护和检查Linux内核内部的IP包过滤规则表。应该允许Docker守护进程更改iptables规则集",
+            "rationale": "Docker永远不会改变你的系统iptables规则，除非你允许它这么做。如果您允许这样做，Docker服务器将自动进行任何必要的更改。我们建议让Docker自动更改iptables，以避免可能影响容器之间以及与外部世界通信的网络错误配置。此外，这还减少了每次添加容器或修改网络选项时更新iptables的管理开销",
+            "impact": "Docker守护进程服务需要在启动之前启用iptables规则。在Docker守护进程运行过程中，任何重新启动iptables都可能导致Docker创建的规则丢失。在iptables安装中添加iptables-persistent可以帮助减轻这种影响",
+            "audit": "要确认这个设置，你应该查看dockerd启动选项和/etc/docker/daemon.json中的设置\n要查看dockerd启动选项，请使用:\nps -ef | grep dockerd\n确保——iptables参数不存在或者没有设置为false。还应该检查/etc/docker/daemon.json的内容",
+            "remediation": "不要运行带有——iptables=false参数的Docker守护进程。例如，不启动Docker守护进程如下:\ndockerd --iptables=false",
+            "defaultValue": "默认情况下，iptables为true",
+            "references": [
+                "https://docs.docker.com/engine/reference/commandline/dockerd/",
+                "https://docs.docker.com/network/iptables/"
+            ]
         }
     },
     {
@@ -872,6 +1226,17 @@
         "extraInfo": {
             "os": "",
             "rule": "check_1_2_3"
+        },
+        "extraDetail": {
+            "description": "审计所有Docker守护进程活动",
+            "rationale": "除了审计普通的Linux文件系统和系统调用之外，还应该审计Docker守护进程。因为这个守护进程以根权限运行。审计它的活动和使用是非常重要的",
+            "impact": "审计可以生成较大的日志文件。您应该确保定期轮换和归档这些文件。还应该为审计日志创建一个单独的分区，以避免填充任何其他关键分区",
+            "audit": "验证Docker守护进程是否存在审计规则。例如，您可以执行以下命令:\nauditctl -l | grep /usr/bin/dockerd\n这将显示与Docker守护进程相关联的规则",
+            "remediation": "您应该为/etc/docker/daemon.json文件添加一条规则,例如:\n将以下行添加到/etc/audit/audit.rules文件中:\n-w /usr/bin/dockerd -k docker\n然后，使用以下命令重新启动审计守护进程\nsystemctl restart auditd",
+            "defaultValue": "默认情况下，不审计Docker守护进程",
+            "references": [
+                "https://access.redhat.com/documentation/en-us/red_hat_enterprise_linux/8/html/system_design_guide/auditing-the-system_system-design-guide"
+            ]
         }
     },
     {
@@ -897,6 +1262,19 @@
         "extraInfo": {
             "os": "",
             "rule": "check_3_4"
+        },
+        "extraDetail": {
+            "description": "您应该验证docker上的文件权限。套接字文件被正确设置为644或更严格",
+            "rationale": "docker.socket文件包含可能改变Docker远程API行为的敏感参数。因此，它应该只能由根用户写，以确保它不会被特权较低的用户修改",
+            "impact": "",
+            "audit": "第一步:找出文件的位置:\nsystemctl show -p FragmentPath docker.socket\n步骤2:如果文件不存在，则此建议不适用。如果文件存在，您应该执行下面的命令，包括正确的文件路径，以验证文件权限是否设置为644或更严格\n例如:\nstat -c %a /usr/lib/systemd/system/docker.socket",
+            "remediation": "第一步:找出文件的位置:\nsystemctl show -p FragmentPath docker.socket\n如果该文件不存在，则此建议不适用。如果文件存在，则应该执行以下命令，包括正确的文件路径，以将文件权限设置为644\n例如:\nchmod 644 /usr/lib/systemd/system/docker.socket",
+            "defaultValue": "该文件可能不存在于系统中，在这种情况下，此建议不适用。默认情况下，如果文件存在，权限应该设置为644或更严格",
+            "references": [
+                "https://docs.docker.com/engine/reference/commandline/dockerd/#bind-docker-to-another-hostport-or-a-unix-socket",
+                "https://github.com/YungSang/fedora-atomic-packer/blob/master/oem/docker.socket",
+                "http://daviddaeschler.com/2014/12/14/centos-7rhel-7-and-docker-containers-on-boot/"
+            ]
         }
     },
     {
@@ -922,6 +1300,17 @@
         "extraInfo": {
             "os": "",
             "rule": "check_3_6"
+        },
+        "extraDetail": {
+            "description": "您应该验证/etc/docker目录权限是否正确设置为755或更严格",
+            "rationale": "/etc/docker目录包含证书和密钥，以及各种敏感文件。因此，它应该只能由根用户写，以确保权限较低的用户不能修改它",
+            "impact": "",
+            "audit": "您应该执行以下命令来验证该目录是否具有755或更严格的权限:\nstat -c %a /etc/docker",
+            "remediation": "应该执行以下命令:\nchmod 755 /etc/docker",
+            "defaultValue": "默认情况下，该目录的权限设置为755",
+            "references": [
+                "https://docs.docker.com/engine/security/https/"
+            ]
         }
     },
     {
@@ -947,6 +1336,17 @@
         "extraInfo": {
             "os": "",
             "rule": "check_3_18"
+        },
+        "extraDetail": {
+            "description": "您应该验证是否存在daemon.json，其文件权限是否被正确设置为644或更严格",
+            "rationale": "daemon.json文件包含可能改变docker守护进程行为的敏感参数。因此，它应该只能由根用户写，以确保它不会被特权较低的用户修改",
+            "impact": "",
+            "audit": "您应该执行以下命令来验证文件权限是否被正确设置为644或更严格:\nstat -c %a /etc/docker/daemon.json\n如果该命令返回如下结果，则该文件不存在，此检查不适用:\nstat: cannot stat '/etc/docker/daemon.json': No such file or directory",
+            "remediation": "如果文件存在，您应该执行以下命令:\nchmod 644 /etc/docker/daemon.json",
+            "defaultValue": "该文件可能不存在于系统中，在这种情况下，此建议不适用",
+            "references": [
+                "https://docs.docker.com/engine/reference/commandline/dockerd/#daemon-configuration-file"
+            ]
         }
     },
     {
@@ -961,7 +1361,7 @@
         "title_en": "Container Images and Build File\n",
         "title_zh": "容器镜像和构建文件\n",
         "detail_en": "Ensure that containers use only trusted base images\n",
-        "detail_zh": "确保容器仅使用受信任的基本映像,\n",
+        "detail_zh": "确保容器仅使用受信任的基本镜像,\n",
         "remediation_en": "",
         "remediation_zh": "",
         "expeced_result": "",
@@ -972,6 +1372,19 @@
         "extraInfo": {
             "os": "",
             "rule": "check_4_2"
+        },
+        "extraDetail": {
+            "description": "您应该确保使用的容器镜像是从头开始编写的，或者是基于通过安全通道下载的另一个已建立的、受信任的基本镜像",
+            "rationale": "官方存储库包含Docker社区或其供应商策划和优化的Docker镜像。不能保证这些镜像是安全的，不包含安全漏洞或恶意代码。因此，在从Docker和第三方获取容器镜像时应保持谨慎，并应根据组织安全策略审查运行这些镜像",
+            "impact": "",
+            "audit": "您应该通过执行下面的命令来检查主机上存在哪些Docker镜像:\ndocker images\n这个命令列出了Docker主机上当前可用的所有容器镜像。然后，您应该检查每个镜像的起源，并根据组织的安全策略检查其内容。\n您可以使用下面的命令来查看提交到镜像的历史\ndocker history <imageName>",
+            "remediation": "以下过程对于建立特定镜像的信任非常有用\n•配置和使用Docker内容信任\n•查看每个Docker镜像的历史，评估其风险，取决于希望使用它部署的应用程序的敏感性\n•定期扫描Docker镜像以查找漏洞",
+            "defaultValue": "",
+            "references": [
+                "https://docs.docker.com/engine/reference/commandline/pull/",
+                "https://registry.hub.docker.com/",
+                "https://access.redhat.com/blogs/766093/posts/1976473"
+            ]
         }
     },
     {
@@ -997,6 +1410,18 @@
         "extraInfo": {
             "os": "",
             "rule": "check_5_22"
+        },
+        "extraDetail": {
+            "description": "你不应该使用docker exec带有——privileges选项",
+            "rationale": "在docker exec命令中使用——privilege选项为该命令提供了扩展的Linux功能。这可能是一种不安全的实践，特别是在运行功能减少或限制增强的容器时",
+            "impact": "如果您需要在容器中增强功能，那么可以使用它所需要的所有权限来运行它。这些应该单独指定",
+            "audit": "如果按照第1节的建议启用了审计，可以使用下面的命令过滤掉使用——privilege选项的docker exec命令\nausearch -k docker | grep exec | grep privilege",
+            "remediation": "你不应该在docker exec命令中使用——privilege选项",
+            "defaultValue": "默认情况下，docker exec命令运行时不带——privilege选项",
+            "references": [
+                "https://docs.docker.com/engine/reference/commandline/exec/",
+                "https://docs.docker.com/engine/reference/run/#runtime-privilege-and-linux-capabilities"
+            ]
         }
     },
     {
@@ -1047,6 +1472,17 @@
         "extraInfo": {
             "os": "",
             "rule": "check_1_2_4"
+        },
+        "extraDetail": {
+            "description": "审计/var/lib/docker",
+            "rationale": "除了审计普通的Linux文件系统和系统调用之外，还应该审计所有与Docker相关的文件和目录。Docker守护进程以根权限运行，其行为依赖于一些关键文件和目录。/var/lib/docker就是这样一个目录。由于它包含有关容器的所有信息，因此应该对其进行审计",
+            "impact": "审计可以生成较大的日志文件。您应该确保定期轮换和归档这些文件。还应该为审计日志创建一个单独的分区，以避免填充任何其他关键分区",
+            "audit": "您应该验证对/var/lib/docker目录应用了审计规则。例如，您可以执行以下命令:\nauditctl -l | grep /var/lib/docker\n这应该列出一个/var/lib/docker目录的规则",
+            "remediation": "您应该为/var/lib/docker目录添加一条规则,例如,\n在/etc/audit/audit.rules文件中添加如下行:\n-a exit,always -F path=/var/lib/docker -F perm=war -k docker\n然后，使用以下命令重新启动审计守护进程\nsystemctl restart auditd",
+            "defaultValue": "默认情况下，不审计Docker相关的文件和目录",
+            "references": [
+                "https://access.redhat.com/documentation/en-us/red_hat_enterprise_linux/8/html/system_design_guide/auditing-the-system_system-design-guide"
+            ]
         }
     },
     {
@@ -1072,6 +1508,17 @@
         "extraInfo": {
             "os": "",
             "rule": "check_1_2_5"
+        },
+        "extraDetail": {
+            "description": "审计/etc/docker",
+            "rationale": "除了审计普通的Linux文件系统和系统调用之外，还应该审计所有与Docker相关的文件和目录。Docker守护进程以根权限运行，它的行为依赖于一些关键文件和目录，其中之一就是/etc/docker。它保存着Docker守护进程和Docker客户机之间用于TLS通信的各种证书和密钥，因此应该对其进行审计",
+            "impact": "审计可以生成较大的日志文件。您应该确保定期轮换和归档这些文件。还应该为审计日志创建一个单独的分区，以避免填充任何其他关键分区",
+            "audit": "您应该验证是否有一个审计规则应用到/etc/docker目录。例如，您可以执行以下命令:\nauditctl -l | grep /etc/docker\n这将显示/etc/docker目录的规则",
+            "remediation": "您应该为/etc/docker目录添加一条规则,例如,\n在/etc/audit/audit.rules文件中添加如下行:\n-w /etc/docker -k docker\n然后，使用以下命令重新启动审计守护进程\nsystemctl restart auditd",
+            "defaultValue": "默认情况下，不审计Docker相关的文件和目录",
+            "references": [
+                "https://access.redhat.com/documentation/en-us/red_hat_enterprise_linux/8/html/system_design_guide/auditing-the-system_system-design-guide"
+            ]
         }
     },
     {
@@ -1097,6 +1544,17 @@
         "extraInfo": {
             "os": "",
             "rule": "check_5_6"
+        },
+        "extraDetail": {
+            "description": "SSH守护进程不应该在容器中运行。您应该SSH到Docker主机，并使用Docker exec进入容器",
+            "rationale": "在容器中运行SSH增加了安全管理的复杂性\n•难以管理SSH服务器的访问策略和安全符合性\n•难以跨不同容器管理密钥和密码\n•SSH服务器安全升级管理困难\n不使用SSH也可以通过shell访问容器，应该避免不必要地增加安全管理的复杂性",
+            "impact": "",
+            "audit": "通过执行以下命令列出所有正在运行的容器实例:\ndocker ps --quiet\n对于每个容器实例，执行以下命令:\ndocker exec <CONTAINER ID> ps -el\n确保SSH服务器没有进程",
+            "remediation": "从容器中卸载SSH守护进程，并使用docker exec进入远程主机上的容器\ndocker exec --interactive --tty <CONTAINER ID> sh\n或\ndocker attach <CONTAINER ID>",
+            "defaultValue": "默认情况下，SSH服务器不在容器中运行。每个容器只允许一个进程",
+            "references": [
+                "https://jpetazzo.github.io/2014/06/23/docker-ssh-considered-evil/"
+            ]
         }
     },
     {
@@ -1122,6 +1580,17 @@
         "extraInfo": {
             "os": "",
             "rule": "check_5_23"
+        },
+        "extraDetail": {
+            "description": "你不应该使用docker exec和——user=root选项",
+            "rationale": "在docker exec命令中使用——user=root选项，以根用户的身份在容器中执行它。这可能是不安全的，特别是在运行功能减少或限制增强的容器时\n例如，如果您的容器以tomcat用户(或任何其他非root用户)的身份运行，则可以以root用户身份通过docker exec运行命令，并使用——user=root选项。这可能很危险",
+            "impact": "",
+            "audit": "如果按照第1节的建议启用了审计，可以使用下面的命令过滤掉使用——user=root选项的docker exec命令\nausearch -k docker | grep exec | grep user",
+            "remediation": "你不应该在docker exec命令中使用——user=root选项",
+            "defaultValue": "默认情况下，docker exec命令运行时不带——user选项",
+            "references": [
+                "https://docs.docker.com/engine/reference/commandline/exec/"
+            ]
         }
     },
     {
@@ -1136,7 +1605,7 @@
         "title_en": "Container Images and Build File\n",
         "title_zh": "容器镜像和构建文件\n",
         "detail_en": "Ensure that HEALTHCHECK instructions have been added to container images\n",
-        "detail_zh": "确保已将HEALTHCHECK指令添加到容器映像中,\n",
+        "detail_zh": "确保已将HEALTHCHECK指令添加到容器镜像中,\n",
         "remediation_en": "",
         "remediation_zh": "",
         "expeced_result": "",
@@ -1147,6 +1616,17 @@
         "extraInfo": {
             "os": "",
             "rule": "check_4_6"
+        },
+        "extraDetail": {
+            "description": "您应该将HEALTHCHECK指令添加到Docker容器镜像中，以确保对正在运行的容器执行健康检查",
+            "rationale": "一个重要的安全控制是可用性控制。向容器镜像中添加HEALTHCHECK指令可以确保Docker引擎根据该指令定期检查正在运行的容器实例，以确保容器仍然是可操作的。\n根据运行状况检查的结果，Docker引擎可以终止没有正确响应的容器，并实例化新的容器",
+            "impact": "",
+            "audit": "您应该运行下面的命令，以确保Docker镜像配置了适当的HEALTHCHECK指令\ndocker inspect --format='{{ .Config.Healthcheck }}' <IMAGE>",
+            "remediation": "您应该遵循Docker文档并重新构建容器镜像以包含HEALTHCHECK指令",
+            "defaultValue": "默认情况下，没有配置HEALTHCHECK",
+            "references": [
+                "https://docs.docker.com/engine/reference/builder/#healthcheck"
+            ]
         }
     },
     {
@@ -1172,6 +1652,19 @@
         "extraInfo": {
             "os": "",
             "rule": "check_4_8"
+        },
+        "extraDetail": {
+            "description": "删除镜像中的setuid和setgid权限可以防止容器中的特权升级攻击",
+            "rationale": "setuid和setgid权限可以用于权限升级。虽然这些权限有时是合法需要的，但您应该考虑从不需要它们的包中删除它们。应该对每个镜像进行检查",
+            "impact": "上面的命令将中断所有依赖于setuid或setgid权限的可执行文件，包括合法的。因此，您应该谨慎地修改该命令以适应您的需求，这样它就不会过度减少合法程序的权限。因此，在进行这种类型的修改之前，您应该保持一定程度的谨慎并仔细检查所有流程，以避免中断",
+            "audit": "你应该对每个镜像运行下面的命令来列出具有setuid或setgid权限的可执行文件:\ndocker export <IMAGE ID> | tar -tv 2>/dev/null | grep -E '^[-rwx].*(s|S).*\\s[0-9]'\n然后，您应该检查该列表，并确保所有配置了这些权限的可执行程序实际上都需要它们",
+            "remediation": "您应该只允许setuid和setgid权限用于需要它们的可执行文件。你可以在构建时通过在Dockerfile中添加以下命令来删除这些权限，最好是在Dockerfile的末尾:\nRUN find / -perm /6000 -type f -exec chmod a-s {} \\; || true",
+            "defaultValue": "",
+            "references": [
+                "https://docs.docker.com/engine/reference/run/#runtime-privilege-and-linux-capabilities",
+                "http://man7.org/linux/man-pages/man2/setuid.2.html",
+                "http://man7.org/linux/man-pages/man2/setgid.2.html"
+            ]
         }
     },
     {
@@ -1197,6 +1690,18 @@
         "extraInfo": {
             "os": "",
             "rule": "check_4_11"
+        },
+        "extraDetail": {
+            "description": "在将软件包安装到镜像之前，您应该验证软件包的真实性",
+            "rationale": "验证软件包的真实性对于构建安全的容器镜像是必不可少的。来源不明的软件包可能是恶意的，或存在可能被利用的漏洞",
+            "impact": "",
+            "audit": "运行下面的命令来获取镜像列表:\ndocker images\n对上面列表中的每个镜像运行下面的命令，并检查如何确定包的真实性。这可以通过使用GPG密钥或其他安全的包分发机制实现\ndocker history <IMAGE ID>\n或者，如果您可以访问镜像的Dockerfile，请验证包的真实性",
+            "remediation": "您应该使用您选择的安全软件包分发机制来确保软件包的真实性",
+            "defaultValue": "",
+            "references": [
+                "https://www.redhat.com/sysadmin/rpm-gpg-verify-packages",
+                "https://help.ubuntu.com/community/SecureApt"
+            ]
         }
     },
     {
@@ -1236,7 +1741,7 @@
         "title_en": "Container Images and Build File\n",
         "title_zh": "容器镜像和构建文件\n",
         "detail_en": "Ensure images are scanned and rebuilt to include security patches\n",
-        "detail_zh": "确保扫描并重建图像以包括安全补丁,\n",
+        "detail_zh": "确保扫描并重建镜像以包括安全补丁,\n",
         "remediation_en": "",
         "remediation_zh": "",
         "expeced_result": "",
@@ -1247,6 +1752,17 @@
         "extraInfo": {
             "os": "",
             "rule": "check_4_4"
+        },
+        "extraDetail": {
+            "description": "应该经常扫描镜像以寻找任何漏洞。您应该重新构建所有镜像以包括这些补丁，然后从它们实例化新的容器",
+            "rationale": "漏洞是指黑客或恶意用户可以利用的漏洞或漏洞，而安全补丁是针对这些漏洞进行的更新。镜像漏洞扫描工具可用于查找镜像中的漏洞，然后检查可用的补丁以缓解这些漏洞。补丁会将系统更新到不包含这些问题的最新代码库，并且位于代码库的受支持版本上是非常重要的，因为供应商不倾向于为已经失去支持的旧版本提供补丁。应该在应用安全补丁之前进行评估，并且应该根据组织的IT安全策略来实施补丁\n应该注意漏洞评估工具返回的结果，因为有些工具会简单地根据软件横幅返回结果，而这些结果可能并不完全准确",
+            "impact": "",
+            "audit": "通过执行以下命令列出所有正在运行的容器实例:\ndocker ps --quiet\n对于每个容器实例，使用容器中的包管理器(假设有一个可用的)来检查安全补丁的可用性\n或者，运行镜像漏洞评估工具扫描环境中的所有镜像",
+            "remediation": "应该重新构建镜像，以确保使用基本镜像的最新版本，从而将操作系统补丁级别保持在适当的水平。重新构建镜像之后，应该使用更新的镜像重新启动容器",
+            "defaultValue": "默认情况下，容器和镜像不会自动更新以解决缺少的操作系统安全补丁",
+            "references": [
+                "https://docs.docker.com/engine/reference/builder/#onbuild"
+            ]
         }
     },
     {
@@ -1272,6 +1788,17 @@
         "extraInfo": {
             "os": "",
             "rule": "check_5_14"
+        },
+        "extraDetail": {
+            "description": "通过在docker run命令中使用——restart标志，您可以指定在退出时容器应该或不应该如何重新启动的重启策略。您应该选择on failure重启策略，并将重启尝试次数限制为5次",
+            "rationale": "如果您无限地尝试启动容器，可能会导致主机上的服务被拒绝。这可能是进行分布式拒绝服务攻击的一种简单方法，特别是在同一主机上有多个容器的情况下。此外，忽略容器的退出状态并总是试图重新启动容器，将导致不调查容器终止背后的根本原因。如果一个容器被终止，您应该调查它背后的原因，而不是试图无限期地重新启动它。您应该使用失败重新启动策略将容器重新启动的次数限制为最多5次",
+            "impact": "如果设置了这个选项，容器将只尝试重新启动自己5次",
+            "audit": "您应该使用下面的命令:\ndocker ps --quiet --all | xargs docker inspect --format '{{ .Id }}:RestartPolicyName={{ .HostConfig.RestartPolicy.Name }} MaximumRetryCount={{.HostConfig.RestartPolicy.MaximumRetryCount }}'\n如果该命令返回RestartPolicyName=always，则表示系统没有达到最优配置\n如果上面的命令返回RestartPolicyName=no或只是RestartPolicyName=，则重启策略没有被使用，容器将永远不会自动重新启动。虽然这可能是一个安全的选择，但从可用性的角度来看，这不是最好的选择\n如果上面的命令返回RestartPolicyName=on-failure，那么通过查看MaximumRetryCount来验证重新启动尝试的次数设置为5或更少",
+            "remediation": "如果你希望一个容器被自动重启，一个示例命令如下:\ndocker run --detach --restart=on-failure:5 nginx",
+            "defaultValue": "默认情况下，容器没有配置重启策略",
+            "references": [
+                "https://docs.docker.com/engine/reference/commandline/run/#restart-policies---restart"
+            ]
         }
     },
     {
@@ -1297,6 +1824,19 @@
         "extraInfo": {
             "os": "",
             "rule": "check_6_1"
+        },
+        "extraDetail": {
+            "description": "您不应该在同一主机上保留大量的容器镜像。适当时只使用带标签的镜像",
+            "rationale": "如果您需要从生产中的“最新”版本退回到镜像的特定版本，那么标记镜像是很有用的。带有未使用或旧标签的镜像可能包含在实例化后可能被利用的漏洞",
+            "impact": "docker system prune -a删除所有退出的容器，以及所有未被运行中的容器引用的镜像和卷。如果任何镜像被删除，这将导致需要将镜像重新加载到主机",
+            "audit": "步骤1:通过执行以下命令，列出当前实例化的所有镜像id:\ndocker images --quiet | xargs docker inspect --format '{{ .Id }}: Image={{.Config.Image }}'\n步骤2:通过执行以下命令，列出系统中存在的所有镜像:\ndocker images\n步骤3:比较步骤1和步骤2中的镜像id列表，查找当前未使用的镜像。如果发现任何未使用的或旧的镜像，请与系统管理员讨论是否需要在系统中保留这些镜像。如果镜像不再需要，就应该删除它们",
+            "remediation": "您应该只保留实际需要的镜像，并建立一个工作流来从主机中删除旧的或陈旧的镜像。此外，您应该使用诸如摘要拉取等功能从注册表中获取特定的镜像。\n您可以按照以下步骤在系统上找到未使用的镜像，以便删除它们\n步骤1:通过执行以下命令，列出当前实例化的所有镜像id:\ndocker images --quiet | xargs docker inspect --format '{{ .Id }}: Image={{.Config.Image }}'\n步骤2:通过执行以下命令，列出系统中存在的所有镜像:\ndocker images\n步骤3:比较步骤1和步骤2中创建的镜像id列表，找出当前没有实例化的镜像\n步骤4:决定是否要保留当前未使用的镜像。如果不需要，可以执行以下命令删除\ndocker rmi <IMAGE ID>\n另外，可以使用docker system prune命令删除未标记的悬空镜像，或者(如果必要)删除与-a选项一起使用时当前未被运行的容器使用的所有镜像",
+            "defaultValue": "在管理员删除引用这些镜像或层的所有标记之前，镜像和分层文件系统在主机上仍然可以访问",
+            "references": [
+                "https://docs.docker.com/config/pruning/",
+                "https://docs.docker.com/engine/reference/commandline/rmi/",
+                "https://docs.docker.com/engine/reference/commandline/pull/"
+            ]
         }
     },
     {
@@ -1322,6 +1862,17 @@
         "extraInfo": {
             "os": "",
             "rule": "check_3_19"
+        },
+        "extraDetail": {
+            "description": "您应该验证/etc/default/docker文件的所有权和组所有权被正确设置为root",
+            "rationale": "/etc/default/docker文件包含可能改变Docker守护进程行为的敏感参数。因此，它应该是由root单独拥有和组拥有的，以确保特权较低的用户不能修改它",
+            "impact": "",
+            "audit": "你应该执行下面的命令来验证文件是由root单独拥有和组拥有的:\nstat -c %U:%G /etc/default/docker | grep -v root:root",
+            "remediation": "您应该执行以下命令:\nchown root:root /etc/default/docker",
+            "defaultValue": "该文件可能不存在于系统中，在这种情况下，此建议不适用",
+            "references": [
+                "https://docs.docker.com/engine/admin/configuring/"
+            ]
         }
     },
     {
@@ -1347,6 +1898,19 @@
         "extraInfo": {
             "os": "",
             "rule": "check_4_5"
+        },
+        "extraDetail": {
+            "description": "默认情况下，内容信任是禁用的，应该根据组织安全策略启用",
+            "rationale": "内容信任提供了对发送到远程Docker注册中心和从远程Docker注册中心接收的数据使用数字签名的能力。这些签名允许客户端验证特定镜像标记的标识和发布者，并确保容器镜像的来源",
+            "impact": "在设置了DOCKER_CONTENT_TRUST的环境中，在使用与镜像相关的命令(构建、创建、拉、推和运行)时，需要遵循信任过程。您可以在需要时使用——disable-content-trust标志在没有内容信任的标记镜像上运行单个操作，但这违背了启用内容信任的目的，因此应该尽可能避免\n注意:内容信任目前仅对公共Docker Hub的用户可用。它目前不适用于Docker可信注册中心或私有注册中心",
+            "audit": "你应该执行下面的命令:\necho $DOCKER_CONTENT_TRUST\n这应该返回值为1",
+            "remediation": "要在bash shell中启用内容信任，您应该输入以下命令:\nexport DOCKER_CONTENT_TRUST=1\n或者，也可以在概要文件中设置此环境变量，以便每次登录时启用内容信任",
+            "defaultValue": "默认情况下，未启用内容信任",
+            "references": [
+                "https://docs.docker.com/engine/security/trust/",
+                "https://docs.docker.com/notary/service_architecture/",
+                "https://docs.docker.com/engine/reference/commandline/cli/#environment-variables"
+            ]
         }
     },
     {
@@ -1372,6 +1936,17 @@
         "extraInfo": {
             "os": "",
             "rule": "check_7_8"
+        },
+        "extraDetail": {
+            "description": "您应该根据您的组织安全策略轮换群集节点证书",
+            "rationale": "Docker Swarm使用TLS在节点之间进行集群操作。证书旋转可确保在发生节点或密钥受损等事件时，难以模拟节点。默认情况下，节点证书每90天轮换一次，但是您应该更频繁地轮换它们，或者在您的环境中根据情况进行轮换",
+            "impact": "",
+            "audit": "运行下面的命令之一，并确保将节点证书的“过期时间”设置为适当的值\ndocker info | grep \"Expiry Duration\"\ndocker info --format 'NodeCertExpiry: {{.Swarm.Cluster.Spec.CAConfig.NodeCertExpiry }}'",
+            "remediation": "您应该运行该命令在节点证书上设置所需的过期时间。例如:\ndocker swarm update --cert-expiry 48h",
+            "defaultValue": "默认情况下，节点证书每90天自动轮换一次",
+            "references": [
+                "https://docs.docker.com/engine/reference/commandline/swarm_update/#examples"
+            ]
         }
     },
     {
@@ -1386,7 +1961,7 @@
         "title_en": "Container Runtime\n",
         "title_zh": "容器运行时\n",
         "detail_en": "Ensure that Docker commands always make use of the latest version of their image\n",
-        "detail_zh": "确保Docker命令始终使用其映像的最新版本,\n",
+        "detail_zh": "确保Docker命令始终使用其镜像的最新版本,\n",
         "remediation_en": "",
         "remediation_zh": "",
         "expeced_result": "",
@@ -1397,6 +1972,17 @@
         "extraInfo": {
             "os": "",
             "rule": "check_5_27"
+        },
+        "extraDetail": {
+            "description": "您应该始终确保使用的是存储库中最新版本的镜像，而不是缓存的旧版本",
+            "rationale": "多个Docker命令，如Docker pull、Docker run等都有已知的问题，在默认情况下，它们提取镜像的本地副本(如果存在的话)，即使上游存储库中存在具有相同标记的更新版本的镜像。这可能导致使用包含已知漏洞的旧镜像",
+            "impact": "",
+            "audit": "你应该执行以下步骤:\n步骤1:打开镜像存储库，列出正在检查的镜像的镜像版本历史记录\n步骤2:观察触发docker pull命令时的状态。如果状态显示为Image is up to date，这意味着您正在获取镜像的缓存版本\n步骤3:将正在运行的镜像版本与存储库中报告的最新版本相匹配，这将告诉您运行的是缓存版本还是最新副本",
+            "remediation": "您应该使用适当的版本固定机制(默认情况下分配的“最新”标签仍然容易受到缓存攻击)，以避免提取缓存的旧版本。版本固定机制应该用于基本镜像、包和整个镜像。您可以根据需要定制版本固定规则",
+            "defaultValue": "默认情况下，Docker命令提取本地副本，除非使用版本固定机制或清除本地缓存",
+            "references": [
+                "https://docs.docker.com/engine/reference/commandline/pull/"
+            ]
         }
     },
     {
@@ -1408,10 +1994,10 @@
         "created_at": 1628414060,
         "updater": "",
         "updated_at": 0,
-        "title_en": "Docker daemon configuration\n",
-        "title_zh": "Docker守护程序配置\n",
-        "detail_en": "Ensure insecure registries are not used\n",
-        "detail_zh": "确保不使用不安全的注册表,\n",
+        "title_en": "Docker daemon configuration",
+        "title_zh": "Docker守护程序配置",
+        "detail_en": "Ensure insecure registries are not used(Automated)",
+        "detail_zh": "确保不使用不安全的注册表(自动)",
         "remediation_en": "",
         "remediation_zh": "",
         "expeced_result": "",
@@ -1422,6 +2008,17 @@
         "extraInfo": {
             "os": "",
             "rule": "check_2_4"
+        },
+        "extraDetail": {
+            "description": "Docker认为私有注册表是安全的还是不安全的。默认情况下，注册中心被认为是安全的",
+            "rationale": "安全注册中心使用TLS。注册中心的CA证书副本放在Docker主机的/etc/docker/certs.d/<registry-name>/目录。不安全的注册中心是没有有效注册中心证书的注册中心，或者不使用TLS的注册中心。不安全的注册中心不应该被使用，因为它们存在流量被拦截和修改的风险\n此外，一旦注册表被标记为不安全的命令，如docker pull、docker push和docker search将不会导致错误消息，用户可能会无限期地使用这种类型的不安全注册表，而从未被通知潜在的风险",
+            "impact": "",
+            "audit": "你应该执行下面的命令来找出是否有不安全的注册表正在使用:\ndocker info --format 'Insecure Registries:{{.RegistryConfig.InsecureRegistryCIDRs}}'",
+            "remediation": "您应该确保没有使用不安全的注册中心",
+            "defaultValue": "默认情况下，Docker假定除了本地之外的所有注册中心都是安全的",
+            "references": [
+                "https://docs.docker.com/registry/insecure/"
+            ]
         }
     },
     {
@@ -1433,10 +2030,10 @@
         "created_at": 1628414060,
         "updater": "",
         "updated_at": 0,
-        "title_en": "Docker daemon configuration files\n",
-        "title_zh": "Docker守护程序配置文件\n",
-        "detail_en": "Ensure that the Docker socket file permissions are set to 660 or more restrictively\n",
-        "detail_zh": "确保将Docker套接字文件权限限制严格地设置为660或更高,\n",
+        "title_en": "Docker daemon configuration files",
+        "title_zh": "Docker守护程序配置文件",
+        "detail_en": "Ensure that the Docker socket file permissions are set to 660 or more restrictively(Automated)",
+        "detail_zh": "确保将Docker套接字文件权限限制严格地设置为660或更高(自动)",
         "remediation_en": "",
         "remediation_zh": "",
         "expeced_result": "",
@@ -1447,6 +2044,18 @@
         "extraInfo": {
             "os": "",
             "rule": "check_3_16"
+        },
+        "extraDetail": {
+            "description": "您应该验证Docker套接字文件的权限是否为660，或者是否进行了更严格的配置",
+            "rationale": "应该只允许root和docker组的成员读写默认的docker Unix套接字。因此Docker套接字文件应该具有660或更多限制性权限",
+            "impact": "",
+            "audit": "您应该执行下面的命令来验证Docker套接字文件是否具有660或更多的限制性权限\nstat -c %a /var/run/docker.sock",
+            "remediation": "您应该执行以下命令:\nchmod 660 /var/run/docker.sock",
+            "defaultValue": "默认情况下，Docker套接字文件的权限被正确设置为660",
+            "references": [
+                "https://docs.docker.com/engine/reference/commandline/dockerd/#daemon-socket-option",
+                "https://docs.docker.com/engine/reference/commandline/dockerd/#bind-docker-to-another-hostport-or-a-unix-socket"
+            ]
         }
     },
     {
@@ -1458,10 +2067,10 @@
         "created_at": 1628414060,
         "updater": "",
         "updated_at": 0,
-        "title_en": "Container Images and Build File\n",
-        "title_zh": "容器镜像和构建文件\n",
-        "detail_en": "Ensure that unnecessary packages are not installed in the container\n",
-        "detail_zh": "确保容器中未安装不必要的软件包,\n",
+        "title_en": "Container Images and Build File",
+        "title_zh": "容器镜像和构建文件",
+        "detail_en": "Ensure that unnecessary packages are not installed in the container (Manual)",
+        "detail_zh": "确保容器中未安装不必要的软件包（手动）",
         "remediation_en": "",
         "remediation_zh": "",
         "expeced_result": "",
@@ -1472,6 +2081,18 @@
         "extraInfo": {
             "os": "",
             "rule": "check_4_3"
+        },
+        "extraDetail": {
+            "description": "容器应该有尽可能小的空间，并且不应该包含可能增加攻击面的不必要的软件包",
+            "rationale": "不应该在容器中安装不必要的软件，因为这样做会增加容器的攻击面。只应该安装对所部署的应用程序的正确操作严格必需的软件包",
+            "impact": "",
+            "audit": "通过执行以下命令列出所有正在运行的容器实例:\ndocker ps --quiet\n对于每个容器实例，执行相关的命令列出所有已安装的包，例如:\ndocker exec $INSTANCE_ID rpm -qa\n上面的命令列出了已安装的包。您应该检查列表，并确保安装的所有东西都是实际需要的",
+            "remediation": "您不应该在容器中安装任何不需要的东西。\n如果可以的话，应该考虑使用最小的基本镜像，而不是标准的Centos、Debian或Red Hat镜像。一些可用的选项包括BusyBox和Alpine。这不仅可以大幅缩减镜像大小，而且还可以减少包含攻击向量的软件片段",
+            "defaultValue": "",
+            "references": [
+                "https://docs.docker.com/develop/develop-images/baseimages/",
+                "https://jpetazzo.github.io/2020/02/01/quest-minimal-docker-images-part-1/"
+            ]
         }
     },
     {
@@ -1483,10 +2104,10 @@
         "created_at": 1628414060,
         "updater": "",
         "updated_at": 0,
-        "title_en": "Container Runtime\n",
-        "title_zh": "容器运行时\n",
-        "detail_en": "Ensure that the host's IPC namespace is not shared\n",
-        "detail_zh": "确保不共享主机的IPC名称空间,\n",
+        "title_en": "Container Runtime",
+        "title_zh": "容器运行时",
+        "detail_en": "Ensure that the host's IPC namespace is not shared (Automated)",
+        "detail_zh": "确保不共享主机的IPC名称空间（自动）",
         "remediation_en": "",
         "remediation_zh": "",
         "expeced_result": "",
@@ -1497,6 +2118,18 @@
         "extraInfo": {
             "os": "",
             "rule": "check_5_16"
+        },
+        "extraDetail": {
+            "description": "IPC (POSIX/SysV IPC)命名空间提供命名共享内存段、信号量和消息队列的分离。因此，主机上的IPC名称空间不应该与容器共享，应该保持隔离",
+            "rationale": "IPC命名空间提供了主机和容器之间的IPC分离。如果主机的IPC命名空间与容器共享，它将允许容器内的进程查看主机系统上的所有IPC通信。这将消除主机和容器之间IPC级别隔离的好处。具有容器访问权限的攻击者可以在此级别访问主机，并造成严重后果。因此，IPC名称空间不应该在主机及其容器之间共享",
+            "impact": "使用共享内存段是为了加速进程间通信，通常在高性能应用程序中。如果这种类型的应用程序被装入多个容器中，您可能需要共享容器的IPC名称空间，以实现高性能。在这些情况下，仍然应该只共享特定于容器的IPC名称空间，而不共享主机IPC名称空间\n一个容器的IPC命名空间可以与另一个容器共享，如下所示:\ndocker run --interactive --tty --ipc=container:e3a7a1a97c58 centos /bin/bash",
+            "audit": "应该执行以下命令:\ndocker ps --quiet --all | xargs docker inspect --format '{{ .Id }}:IpcMode={{ .HostConfig.IpcMode }}'\n如果该命令返回host，则意味着主机IPC命名空间与容器共享。任何其他结果都意味着它不是共享的，因此系统的配置符合良好的安全实践",
+            "remediation": "不应该使用——ipc=host参数启动容器。例如，不要像下面这样启动一个容器:\ndocker run --interactive --tty --ipc=host centos /bin/bash",
+            "defaultValue": "默认情况下，所有容器都启用了它们的IPC命名空间，主机IPC命名空间不与任何容器共享",
+            "references": [
+                "https://docs.docker.com/engine/reference/run/#ipc-settings---ipc",
+                "https://www.man7.org/linux/man-pages/man7/ipc_namespaces.7.html"
+            ]
         }
     },
     {
@@ -1508,10 +2141,10 @@
         "created_at": 1628414060,
         "updater": "",
         "updated_at": 0,
-        "title_en": "Container Runtime\n",
-        "title_zh": "容器运行时\n",
-        "detail_en": "Ensure that the host's UTS namespace is not shared\n",
-        "detail_zh": "确保不共享主机的UTS名称空间,\n",
+        "title_en": "Container Runtime",
+        "title_zh": "容器运行时",
+        "detail_en": "Ensure that the host's UTS namespace is not shared (Automated)",
+        "detail_zh": "确保不共享主机的UTS名称空间（自动）",
         "remediation_en": "",
         "remediation_zh": "",
         "expeced_result": "",
@@ -1522,6 +2155,18 @@
         "extraInfo": {
             "os": "",
             "rule": "check_5_20"
+        },
+        "extraDetail": {
+            "description": "UTS名称空间提供了两个系统标识符之间的隔离:主机名和NIS域名。它用于设置该名称空间中正在运行的进程可见的主机名和域。在容器中运行的进程通常不需要知道主机名或域名。因此，不应该与主机共享UTS名称空间",
+            "rationale": "与主机共享UTS名称空间为每个容器提供了更改主机主机名的完全权限。这与良好的安全实践不一致，不应该被允许",
+            "impact": "",
+            "audit": "应该执行以下命令:\ndocker ps --quiet --all | xargs docker inspect --format '{{ .Id }}:UTSMode={{ .HostConfig.UTSMode }}'\n如果上面的命令返回host，则意味着主机UTS名称空间与容器共享，并且这个建议是不符合的。如果上面的命令没有返回任何东西，那么就没有共享主机的UTS名称空间。这个建议是符合的",
+            "remediation": "你不应该用——uts=host参数启动一个容器。例如，不要使用下面的命令启动一个容器:\ndocker run --rm --interactive --tty --uts=host rhel7.2",
+            "defaultValue": "默认情况下，所有容器都启用了UTS名称空间，主机UTS名称空间不与任何容器共享",
+            "references": [
+                "https://docs.docker.com/engine/reference/run/#uts-settings---uts",
+                "https://www.man7.org/linux/man-pages/man7/uts_namespaces.7.html"
+            ]
         }
     },
     {
@@ -1533,10 +2178,10 @@
         "created_at": 1628414060,
         "updater": "",
         "updated_at": 0,
-        "title_en": "Docker Swarm Configuration\n",
-        "title_zh": "Docker Swarm配置\n",
-        "detail_en": "Ensure swarm mode is not Enabled, if not needed\n",
-        "detail_zh": "如果不需要，确保群模式未启用,\n",
+        "title_en": "Docker Swarm Configuration",
+        "title_zh": "Docker Swarm配置",
+        "detail_en": "Ensure swarm mode is not Enabled, if not needed(Automated)",
+        "detail_zh": "如果不需要，确保群模式未启用（自动）",
         "remediation_en": "",
         "remediation_zh": "",
         "expeced_result": "",
@@ -1547,6 +2192,17 @@
         "extraInfo": {
             "os": "",
             "rule": "check_7_1"
+        },
+        "extraDetail": {
+            "description": "除非需要，否则不要在Docker引擎实例上启用群集模式",
+            "rationale": "默认情况下，Docker引擎实例不会监听任何网口，与客户机的所有通信都通过Unix套接字进行。当Docker引擎实例启用Docker集群模式时，系统会打开多个网口，供网络上的其他系统使用，用于集群管理和节点通信\n打开系统上的网络端口会增加它的攻击面，除非需要，否则应该避免这样做\n需要注意的是，Docker Enterprise组件的操作需要集群模式",
+            "impact": "禁用集群模式会影响Docker Enterprise组件的运行",
+            "audit": "应该执行以下命令:\ndocker info --format '{{ .Swarm }}'\n如果输出包含active true，则表示Docker引擎已激活了群集模式。在这种情况下，您应该确认Docker引擎实例上的群集模式是否真的需要",
+            "remediation": "如果在错误的系统上开启了swarm模式，您应该执行以下命令:\ndocker swarm leave",
+            "defaultValue": "默认情况下，没有启用Docker集群模式",
+            "references": [
+                "https://docs.docker.com/engine/reference/commandline/swarm_leave/"
+            ]
         }
     },
     {
@@ -1583,10 +2239,10 @@
         "created_at": 1628414060,
         "updater": "",
         "updated_at": 0,
-        "title_en": "Docker daemon configuration files\n",
-        "title_zh": "Docker守护程序配置文件\n",
-        "detail_en": "Ensure that the Docker server certificate file permissions are set to 444 or more restrictively\n",
-        "detail_zh": "确保将Docker服务器证书文件权限限制严格地设置为444或更高,\n",
+        "title_en": "Docker daemon configuration files",
+        "title_zh": "Docker守护程序配置文件",
+        "detail_en": "Ensure that the Docker server certificate file permissions are set to 444 or more restrictively (Automated)",
+        "detail_zh": "确保将Docker服务器证书文件权限限制严格地设置为444或更高（自动）",
         "remediation_en": "",
         "remediation_zh": "",
         "expeced_result": "",
@@ -1597,6 +2253,18 @@
         "extraInfo": {
             "os": "",
             "rule": "check_3_12"
+        },
+        "extraDetail": {
+            "description": "您应该验证Docker服务器证书文件(与——tlscert参数一起传递的文件)是否具有444或更严格的权限",
+            "rationale": "Docker服务器证书文件应该受到保护，不受任何篡改。它用于基于给定的服务器证书对Docker服务器进行身份验证。因此，它应该具有444的权限，以防止对其进行修改",
+            "impact": "",
+            "audit": "您应该执行以下命令来验证Docker服务器证书文件具有444或更严格的权限:\nstat -c %a <path to Docker server certificate file>\n如果输出包含active true，则表示Docker引擎已激活了群集模式。在这种情况下，您应该确认Docker引擎实例上的群集模式是否真的需要",
+            "remediation": "您应该执行以下命令:\nchmod 444 <path to Docker server certificate file>",
+            "defaultValue": "默认情况下，Docker服务器证书文件的权限可能不是444。默认的文件权限由操作系统或用户特定的umask值控制",
+            "references": [
+                "https://docs.docker.com/registry/insecure/",
+                "https://docs.docker.com/engine/security/https/"
+            ]
         }
     },
     {
@@ -1608,10 +2276,10 @@
         "created_at": 1628414060,
         "updater": "",
         "updated_at": 0,
-        "title_en": "Container Runtime\n",
-        "title_zh": "容器运行时\n",
-        "detail_en": "Ensure mount propagation mode is not set to shared\n",
-        "detail_zh": "确保未将挂载传播模式设置为共享,\n",
+        "title_en": "Container Runtime",
+        "title_zh": "容器运行时",
+        "detail_en": "Ensure mount propagation mode is not set to shared(Automated)",
+        "detail_zh": "确保未将挂载传播模式设置为共享（自动）",
         "remediation_en": "",
         "remediation_zh": "",
         "expeced_result": "",
@@ -1622,6 +2290,18 @@
         "extraInfo": {
             "os": "",
             "rule": "check_5_19"
+        },
+        "extraDetail": {
+            "description": "挂载传播模式允许在容器上以共享、从或私有模式挂载卷。除非明确需要，否则不要使用共享挂载传播模式",
+            "rationale": "在所有挂载上复制共享挂载，在任何挂载点上所做的更改将传播到所有其他挂载点\n以共享模式挂载卷不会限制任何其他容器挂载和更改该卷\n因为从安全性的角度来看，这可能不是一个理想的选项，所以除非明确要求，否则不应该使用该特性",
+            "impact": "",
+            "audit": "docker ps --quiet --all | xargs docker inspect --format '{{ .Id }}:Propagation={{range $mnt := .Mounts}} {{json $mnt.Propagation}} {{end}}'\n上面的命令返回挂载卷的传播模式。除非需要，否则不应将传播模式设置为共享。如果没有挂载，上面的命令可能会抛出错误。在这种情况下，本建议不适用",
+            "remediation": "不要在共享模式传播中挂载卷。例如，不要像下面这样启动一个容器:\ndocker run <Run arguments> --volume=/hostPath:/containerPath:shared <Container Image Name or ID> <Command>",
+            "defaultValue": "默认情况下，容器挂载是私有的",
+            "references": [
+                "https://docs.docker.com/storage/bind-mounts/#configure-bind-propagation",
+                "https://docs.docker.com/engine/reference/run/#volume-shared-filesystems"
+            ]
         }
     },
     {
@@ -1633,10 +2313,10 @@
         "created_at": 1628414060,
         "updater": "",
         "updated_at": 0,
-        "title_en": "Docker daemon configuration files\n",
-        "title_zh": "Docker守护程序配置文件\n",
-        "detail_en": "Ensure that the Docker socket file ownership is set to root:docker\n",
-        "detail_zh": "确保将Docker套接字文件所有权设置为root：docker,\n",
+        "title_en": "Docker daemon configuration files",
+        "title_zh": "Docker守护程序配置文件",
+        "detail_en": "Ensure that the Docker socket file ownership is set to root:docker (Automated)",
+        "detail_zh": "确保将Docker套接字文件所有权设置为root：docker（自动）",
         "remediation_en": "",
         "remediation_zh": "",
         "expeced_result": "",
@@ -1647,6 +2327,18 @@
         "extraInfo": {
             "os": "",
             "rule": "check_3_15"
+        },
+        "extraDetail": {
+            "description": "您应该验证Docker套接字文件由root拥有，组由docker拥有",
+            "rationale": "Docker守护进程以root运行。因此，默认的Unix套接字必须由root拥有。如果任何其他用户或进程拥有这个套接字，那么这个非特权用户或进程就有可能与Docker守护进程交互。此外，在这种情况下，非特权用户或进程可能能够与容器交互，这既不是安全的，也不是理想的行为\n此外，Docker安装程序会创建一个名为docker的Unix组。您可以将用户添加到这个组中，在这种情况下，这些用户将能够读写默认的Docker Unix套接字。docker组的成员资格由系统管理员严格控制。但是，如果任何其他组拥有这个套接字，那么该组的成员就有可能与Docker守护进程交互。这样的组可能不像docker组那样受到严格控制。同样，这也不符合良好的安全实践\n由于这些原因，默认的Docker Unix套接字文件应该由root和docker拥有的组来维护套接字文件的完整性",
+            "impact": "",
+            "audit": "您应该执行以下命令来验证Docker套接字文件是由root和docker拥有的组:\nstat -c %U:%G /var/run/docker.sock | grep -v root:docker\n上面的命令应该不返回任何结果",
+            "remediation": "您应该执行以下命令:\nchown root:docker /var/run/docker.sock\n这将默认docker套接字文件的所有权设置为root，并将组所有权设置为docker",
+            "defaultValue": "默认情况下，Docker套接字文件的所有权和组所有权被正确设置为root:docker",
+            "references": [
+                "https://docs.docker.com/engine/reference/commandline/dockerd/#daemon-socket-option",
+                "https://docs.docker.com/engine/reference/commandline/dockerd/#bind-docker-to-another-hostport-or-a-unix-socket"
+            ]
         }
     },
     {
@@ -1658,10 +2350,10 @@
         "created_at": 1628414060,
         "updater": "",
         "updated_at": 0,
-        "title_en": "Docker daemon configuration\n",
-        "title_zh": "Docker守护程序配置\n",
-        "detail_en": "Ensure containers are restricted from acquiring new privileges\n",
-        "detail_zh": "确保限制容器获取新特权,\n",
+        "title_en": "Docker daemon configuration",
+        "title_zh": "Docker守护程序配置",
+        "detail_en": "Ensure containers are restricted from acquiring new privileges (Automated)",
+        "detail_zh": "确保限制容器获取新特权（自动）",
         "remediation_en": "",
         "remediation_zh": "",
         "expeced_result": "",
@@ -1672,6 +2364,18 @@
         "extraInfo": {
             "os": "",
             "rule": "check_2_17"
+        },
+        "extraDetail": {
+            "description": "默认情况下，应该限制容器通过suid或sgid获得额外的特权",
+            "rationale": "进程可以在内核中设置no_new_priv位，这将在fork、克隆和execve中持续存在。no_new_priv位确保进程及其子进程不会通过suid或sgid位获得任何额外的特权。这降低了与许多危险操作相关的安全风险，因为破坏特权二进制文件的能力大大降低了\n在守护进程级别设置此设置可确保在默认情况下限制所有新容器获取新特权",
+            "impact": "no_new_priv防止lsm(例如SELinux)升级个别容器的特权",
+            "audit": "要确认这个设置，您应该检查dockerd启动选项，并检查/etc/docker/daemon.json中的任何设置。\n要查看dockerd启动选项，可以使用以下命令:\nps -ef | grep dockerd\n您应该确保存在——no-new-privileges参数，并且它没有被设置为false\n还应该检查/etc/docker/daemon.json的内容",
+            "remediation": "你应该像下面这样运行Docker守护进程:\ndockerd --no-new-privileges",
+            "defaultValue": "默认情况下，不限制容器获取新的特权",
+            "references": [
+                "https://docs.docker.com/engine/reference/commandline/dockerd/",
+                "https://github.com/moby/moby/pull/20727"
+            ]
         }
     },
     {
@@ -1683,10 +2387,10 @@
         "created_at": 1628414060,
         "updater": "",
         "updated_at": 0,
-        "title_en": "Docker daemon configuration files\n",
-        "title_zh": "Docker守护程序配置文件\n",
-        "detail_en": "Ensure that registry certificate file ownership is set to root:root\n",
-        "detail_zh": "确保注册表证书文件所有权设置为root：root,\n",
+        "title_en": "Docker daemon configuration files",
+        "title_zh": "Docker守护程序配置文件",
+        "detail_en": "Ensure that registry certificate file ownership is set to root:root (Automated)",
+        "detail_zh": "确保注册表证书文件所有权设置为root：root（自动）",
         "remediation_en": "",
         "remediation_zh": "",
         "expeced_result": "",
@@ -1697,6 +2401,17 @@
         "extraInfo": {
             "os": "",
             "rule": "check_3_7"
+        },
+        "extraDetail": {
+            "description": "您应该验证所有注册表证书文件(通常在/etc/docker/certs.d/<registry-name>目录下)都是由root单独拥有和组拥有的",
+            "rationale": "/etc/docker/certs.d/<registry-name>目录包含Docker注册表证书。这些证书文件必须是根用户单独拥有和组拥有的，以确保特权较低的用户无法修改目录的内容",
+            "impact": "",
+            "audit": "您应该执行以下命令来验证注册表证书文件是由root单独拥有和组拥有的:\nstat -c %U:%G /etc/docker/certs.d/* | grep -v root:root\n上面的命令不应该返回任何值",
+            "remediation": "可以执行的命令如下:\nchown root:root /etc/docker/certs.d/<registry-name>/*\n",
+            "defaultValue": "默认情况下，注册表证书文件的个人和组所有权设置为root",
+            "references": [
+                "https://docs.docker.com/registry/insecure/"
+            ]
         }
     },
     {
@@ -1708,10 +2423,10 @@
         "created_at": 1628414060,
         "updater": "",
         "updated_at": 0,
-        "title_en": "Host Configuration\n",
-        "title_zh": "主机配置\n",
-        "detail_en": "Ensure auditing is configured for Docker files and directories - /etc/docker/daemon.json\n",
-        "detail_zh": "确保为Docker文件和目录配置了审核-/etc/docker/daemon.json\n",
+        "title_en": "Host Configuration",
+        "title_zh": "主机配置",
+        "detail_en": "Ensure auditing is configured for Docker files and directories - /etc/docker/daemon.json (Automated)",
+        "detail_zh": "确保为Docker文件和目录配置了审核-/etc/docker/daemon.json（自动）",
         "remediation_en": "",
         "remediation_zh": "",
         "expeced_result": "",
@@ -1722,6 +2437,18 @@
         "extraInfo": {
             "os": "",
             "rule": "check_1_2_10"
+        },
+        "extraDetail": {
+            "description": "适用情况下,审计/etc/docker/daemon.json",
+            "rationale": "除了审计普通的Linux文件系统和系统调用之外，还应该审计所有与Docker相关的文件和目录。Docker守护进程使用root特权运行，它的行为依赖于一些关键文件和目录。/etc/docker/daemon.json就是这样一个文件。它包含Docker守护进程的各种参数，因此应该对其进行审计",
+            "impact": "审计可以生成较大的日志文件。您应该确保定期轮换和归档这些文件。还应该为审计日志创建一个单独的分区，以避免填充任何其他关键分区",
+            "audit": "您应该验证是否存在与/etc/docker/daemon.json文件相关联的审计规则\n例如，您可以执行以下命令:\nauditctl -l | grep /etc/docker/daemon.json\n这将显示/etc/docker/daemon.json文件的规则",
+            "remediation": "您应该为Docker守护进程添加规则,例如:\n将以下行添加到/etc/audit/audit.rules文件中:\n-w /etc/docker/daemon.json -k docker\n然后，使用以下命令重新启动审计守护进程\nsystemctl restart auditd",
+            "defaultValue": "默认情况下，不审计Docker相关的文件和目录。文件/etc/docker/daemon.json可能不存在于系统中，在这种情况下，此建议不适用",
+            "references": [
+                "https://access.redhat.com/documentation/en-us/red_hat_enterprise_linux/8/html/system_design_guide/auditing-the-system_system-design-guide",
+                "https://docs.docker.com/engine/reference/commandline/dockerd/#daemon-configuration-file"
+            ]
         }
     },
     {
@@ -1733,10 +2460,10 @@
         "created_at": 1628414060,
         "updater": "",
         "updated_at": 0,
-        "title_en": "Docker daemon configuration\n",
-        "title_zh": "Docker守护程序配置\n",
-        "detail_en": "Ensure aufs storage driver is not used\n",
-        "detail_zh": "确保未使用aufs存储驱动程序,\n",
+        "title_en": "Docker daemon configuration",
+        "title_zh": "Docker守护程序配置",
+        "detail_en": "Ensure aufs storage driver is not used (Automated)",
+        "detail_zh": "确保未使用aufs存储驱动程序（自动）",
         "remediation_en": "",
         "remediation_zh": "",
         "expeced_result": "",
@@ -1747,6 +2474,17 @@
         "extraInfo": {
             "os": "",
             "rule": "check_2_5"
+        },
+        "extraDetail": {
+            "description": "不要使用aufs作为Docker实例的存储驱动程序",
+            "rationale": "aufs存储驱动程序是Linux系统中最古老的存储驱动程序。它基于Linux内核补丁集，将来不太可能合并到主操作系统内核中。众所周知，aufs驱动程序还会导致一些严重的内核崩溃。aufs只在使用Docker的系统中提供遗留支持\n最重要的是，aufs在许多使用最新Linux内核的Linux发行版中都不受支持，而且在Docker Engine发行版20.10中也已弃用",
+            "impact": "aufs是唯一允许容器共享可执行文件和共享库内存的存储驱动程序。如果您正在使用相同的程序或库运行数千个容器，那么它可能会很有用，但是应该根据组织的安全策略审查它的使用",
+            "audit": "执行以下命令，检查是否使用aufs作为存储驱动程序:\ndocker info --format 'Storage Driver: {{ .Driver }}'\n上面的命令不应该返回aufs",
+            "remediation": "不要显式地使用aufs作为存储驱动程序。\n例如，不启动Docker守护进程如下:\ndockerd --storage-driver aufs",
+            "defaultValue": "默认情况下，Docker在大多数平台上使用overlay2作为存储驱动程序。默认的存储驱动程序可能因操作系统厂商而异。您应该使用首选供应商推荐的存储驱动程序，并且该驱动程序符合所部署应用程序的相关策略",
+            "references": [
+                "https://docs.docker.com/storage/storagedriver/select-storage-driver/"
+            ]
         }
     },
     {
@@ -1758,10 +2496,10 @@
         "created_at": 1628414060,
         "updater": "",
         "updated_at": 0,
-        "title_en": "Container Runtime\n",
-        "title_zh": "容器运行时\n",
-        "detail_en": "Ensure that only needed ports are open on the container\n",
-        "detail_zh": "确保仅在容器上打开了需要的端口,\n",
+        "title_en": "Container Runtime",
+        "title_zh": "容器运行时",
+        "detail_en": "Ensure that only needed ports are open on the container(Manual)",
+        "detail_zh": "确保仅在容器上打开了需要的端口（手动）",
         "remediation_en": "",
         "remediation_zh": "",
         "expeced_result": "",
@@ -1772,6 +2510,17 @@
         "extraInfo": {
             "os": "",
             "rule": "check_5_8"
+        },
+        "extraDetail": {
+            "description": "容器镜像的dockerfile定义了在容器实例上默认打开的端口。端口列表与您在容器中运行的应用程序相关，只有在需要时才应该打开它们",
+            "rationale": "容器可以只使用Dockerfile中为其镜像定义的端口运行，也可以任意传递运行时参数以打开端口列表。此外,在时间的推移,Dockerfile可能经历的各种变化和暴露端口的列表可能或不可能仍然是相关的容器内运行的应用程序。打开不需要的端口会增加容器和相关的容器化应用程序的攻击面。良好的安全实践是只打开应用程序正确操作所需的端口",
+            "impact": "",
+            "audit": "你应该通过执行下面的命令列出所有正在运行的容器实例和它们关联的端口映射:\ndocker ps --quiet | xargs docker inspect --format '{{ .Id }}: Ports={{.NetworkSettings.Ports }}'\n然后应该检查列表，确保映射的所有端口实际上都是每个容器真正需要的",
+            "remediation": "您应该确保每个容器镜像的Dockerfile只公开所需的端口。你也可以通过在启动容器时不使用-P(大写)或——publish-all标志来完全忽略Dockerfile中定义的端口列表。相反，使用-p(小写)或——publish标志显式定义特定容器实例所需的端口，例如:\ndocker run --interactive --tty --publish 5000 --publish 5001 --publish 5002 centos /bin/bash",
+            "defaultValue": "默认情况下，当容器以-P或——publish-all标志运行时，将打开Dockerfile中image的EXPOSE指令下列出的所有端口",
+            "references": [
+                "https://docs.docker.com/engine/userguide/networking/"
+            ]
         }
     },
     {
@@ -1783,10 +2532,10 @@
         "created_at": 1628414060,
         "updater": "",
         "updated_at": 0,
-        "title_en": "Container Runtime\n",
-        "title_zh": "容器运行时\n",
-        "detail_en": "Ensure that Docker's default bridge docker0 is not used\n",
-        "detail_zh": "确保未使用Docker的默认网桥docker0,\n",
+        "title_en": "Container Runtime",
+        "title_zh": "容器运行时",
+        "detail_en": "Ensure that Docker's default bridge docker0 is not used (Manual)",
+        "detail_zh": "确保未使用Docker的默认网桥docker0（手动）",
         "remediation_en": "",
         "remediation_zh": "",
         "expeced_result": "",
@@ -1797,6 +2546,17 @@
         "extraInfo": {
             "os": "",
             "rule": "check_5_29"
+        },
+        "extraDetail": {
+            "description": "你不应该使用Docker的默认桥docker0。相反，您应该使用Docker的用户定义网络进行容器联网",
+            "rationale": "Docker将以网桥模式创建的虚拟接口连接到一个名为docker0的公共网桥。这种默认的组网模式由于没有应用过滤，很容易受到ARP欺骗和MAC泛洪攻击",
+            "impact": "用户自定义网络需要根据组织安全策略进行配置和管理",
+            "audit": "您应该运行下面的命令，并验证容器位于用户定义的网络上，而不是默认的docker0网桥上\ndocker network ls --quiet | xargs docker network inspect --format '{{ .Name}}: {{ .Options }}'",
+            "remediation": "您应该按照Docker文档设置用户定义的网络。所有的容器都应该在这个网络中运行",
+            "defaultValue": "默认情况下，Docker在默认的docker0桥中运行容器",
+            "references": [
+                "https://docs.docker.com/network/bridge/"
+            ]
         }
     },
     {
@@ -1833,10 +2593,10 @@
         "created_at": 1628414060,
         "updater": "",
         "updated_at": 0,
-        "title_en": "Host Configuration\n",
-        "title_zh": "主机配置\n",
-        "detail_en": "Ensure auditing is configured for Docker files and directories - /etc/default/docker\n",
-        "detail_zh": "确保为Docker文件和目录配置了审核-/ etc / default / docker\n",
+        "title_en": "Host Configuration",
+        "title_zh": "主机配置",
+        "detail_en": "Ensure auditing is configured for Docker files and directories - /etc/default/docker (Automated)",
+        "detail_zh": "确保为Docker文件和目录配置了审核-/ etc / default / docker（自动）",
         "remediation_en": "",
         "remediation_zh": "",
         "expeced_result": "",
@@ -1847,6 +2607,17 @@
         "extraInfo": {
             "os": "",
             "rule": "check_1_2_8"
+        },
+        "extraDetail": {
+            "description": "如果适用，审计/etc/default/docker",
+            "rationale": "除了审计普通的Linux文件系统和系统调用之外，还应该审计所有与Docker相关的文件和目录。Docker守护进程以根权限运行，其行为依赖于一些关键文件和目录。/etc/default/docker就是这样一个文件。它包含与Docker守护进程相关的各种参数，因此应该对其进行审计",
+            "impact": "审计可以生成较大的日志文件。您应该确保定期轮换和归档这些文件。还应该为审计日志创建一个单独的分区，以避免填充任何其他关键分区",
+            "audit": "您应该验证是否存在与/etc/default/docker文件相关的审计规则。例如，您可以执行以下命令:\nauditctl -l | grep /etc/default/docker\n这将显示/etc/default/docker文件的规则",
+            "remediation": "您应该为/etc/default/docker文件添加一条规则,例如:\n将以下行添加到/etc/audit/audit.rules文件中:\n-w /etc/default/docker -k docker\n然后，使用以下命令重新启动审计守护进程\nsystemctl restart auditd",
+            "defaultValue": "默认情况下，不审计Docker相关的文件和目录。文件/etc/default/docker可能不存在于系统中，在这种情况下，此建议不适用",
+            "references": [
+                "https://access.redhat.com/documentation/en-us/red_hat_enterprise_linux/8/html/system_design_guide/auditing-the-system_system-design-guide"
+            ]
         }
     },
     {
@@ -1858,10 +2629,10 @@
         "created_at": 1628414060,
         "updater": "",
         "updated_at": 0,
-        "title_en": "Host Configuration\n",
-        "title_zh": "主机配置\n",
-        "detail_en": "Ensure auditing is configured for Docker files and directories - /etc/sysconfig/docker\n",
-        "detail_zh": "确保为Docker文件和目录配置了审核-/ etc / sysconfig / docker\n",
+        "title_en": "Host Configuration",
+        "title_zh": "主机配置",
+        "detail_en": "Ensure auditing is configured for Docker files and directories - /etc/sysconfig/docker (Automated)",
+        "detail_zh": "确保为Docker文件和目录配置了审核-/etc/sysconfig/docker（自动）",
         "remediation_en": "",
         "remediation_zh": "",
         "expeced_result": "",
@@ -1872,6 +2643,17 @@
         "extraInfo": {
             "os": "",
             "rule": "check_1_2_9"
+        },
+        "extraDetail": {
+            "description": "如果适用，审计/etc/sysconfig/docker",
+            "rationale": "除了审计普通的Linux文件系统和系统调用之外，还应该审计Docker守护进程。因为这个守护进程使用根权限运行，所以审计它的活动和使用是非常重要的。它的行为取决于一些关键文件和目录，而/etc/sysconfig/docker就是这样一个文件，因为它包含了在基于CentOS和RHEL的发行版上运行时与Docker守护进程相关的各种参数。如果存在，审核是很重要的",
+            "impact": "审计可以生成较大的日志文件。您应该确保定期轮换和归档这些文件。还应该为审计日志创建一个单独的分区，以避免填充任何其他关键分区",
+            "audit": "您应该验证是否存在与/etc/sysconfig/docker文件相关的审计规则。例如，您可以执行以下命令:\nauditctl -l | grep /etc/sysconfig/docker\n这将显示/etc/sysconfig/docker文件的规则",
+            "remediation": "您应该为/etc/sysconfig/docker文件添加一条规则,例如:\n将以下行添加到/etc/audit/audit.rules文件中:\n-w /etc/sysconfig/docker -k docker\n然后，使用以下命令重新启动审计守护进程\nsystemctl restart auditd",
+            "defaultValue": "默认情况下，不审计Docker相关的文件和目录。文件/etc/sysconfig/docker可能不存在于系统中，在这种情况下，此建议不适用",
+            "references": [
+                "https://access.redhat.com/documentation/en-us/red_hat_enterprise_linux/8/html/system_design_guide/auditing-the-system_system-design-guide"
+            ]
         }
     },
     {
@@ -1883,10 +2665,10 @@
         "created_at": 1628414060,
         "updater": "",
         "updated_at": 0,
-        "title_en": "Docker daemon configuration files\n",
-        "title_zh": "Docker守护程序配置文件\n",
-        "detail_en": "Ensure that TLS CA certificate file permissions are set to 444 or more restrictively\n",
-        "detail_zh": "确保将TLS CA证书文件权限限制严格地设置为444或更高,\n",
+        "title_en": "Docker daemon configuration files",
+        "title_zh": "Docker守护程序配置文件",
+        "detail_en": "Ensure that TLS CA certificate file permissions are set to 444 or more restrictively (Automated)",
+        "detail_zh": "确保将TLS CA证书文件权限限制严格地设置为444或更高 （自动）",
         "remediation_en": "",
         "remediation_zh": "",
         "expeced_result": "",
@@ -1897,6 +2679,18 @@
         "extraInfo": {
             "os": "",
             "rule": "check_3_10"
+        },
+        "extraDetail": {
+            "description": "您应该验证TLS CA证书文件(随——tlscacert参数一起传递的文件)具有444的权限或设置得更严格",
+            "rationale": "应该保护TLS CA证书文件不受任何篡改。它用于基于给定的CA证书对Docker服务器进行身份验证。因此，它必须具有444的权限，或者更严格的权限，以确保权限较低的用户不能修改该文件",
+            "impact": "",
+            "audit": "您应该执行下面的命令来验证TLS CA证书文件是否具有444的权限，或者是否设置了更严格的权限:\nstat -c %a <path to TLS CA certificate file>",
+            "remediation": "您应该执行以下命令:\nchmod 444 <path to TLS CA certificate file>",
+            "defaultValue": "默认情况下，TLS CA证书文件的权限可能不是444。默认的文件权限由操作系统或用户特定的umask值控制",
+            "references": [
+                "https://docs.docker.com/registry/insecure/",
+                "https://docs.docker.com/engine/security/https/"
+            ]
         }
     },
     {
@@ -1908,10 +2702,10 @@
         "created_at": 1628414060,
         "updater": "",
         "updated_at": 0,
-        "title_en": "Container Runtime\n",
-        "title_zh": "容器运行时\n",
-        "detail_en": "Ensure that, if applicable, SELinux security options are set\n",
-        "detail_zh": "确保设置了SELinux安全选项,\n",
+        "title_en": "Container Runtime",
+        "title_zh": "容器运行时",
+        "detail_en": "Ensure that, if applicable, SELinux security options are set (Automated)",
+        "detail_zh": "确保设置了SELinux安全选项（自动）",
         "remediation_en": "",
         "remediation_zh": "",
         "expeced_result": "",
@@ -1922,6 +2716,19 @@
         "extraInfo": {
             "os": "",
             "rule": "check_5_2"
+        },
+        "extraDetail": {
+            "description": "SELinux是一个有效的、易于使用的Linux应用程序安全系统。它在Red Hat和Fedora等某些发行版上默认可用",
+            "rationale": "SELinux提供了一个强制访问控制(MAC)系统，它极大地增强了默认的任意访问控制(DAC)模型。因此，通过在Linux主机上启用SELinux，可以为容器添加额外的安全层",
+            "impact": "SELinux策略中定义的任何限制都将应用于您的容器。应该注意的是，如果您的SELinux策略配置错误，这可能会影响受影响容器的正确操作",
+            "audit": "您应该运行以下命令:\ndocker ps --quiet --all | xargs docker inspect --format '{{ .Id }}:SecurityOpt={{ .HostConfig.SecurityOpt }} MountLabel={{ .MountLabel }} ProcessLabel={{ .ProcessLabel }}'\n此命令返回列出的容器上当前配置的所有安全选项。注意，即使返回空的SecurityOpt, MountLabel和ProcessLabel值也将指示是否正在使用SELinux",
+            "remediation": "如果SELinux适用于您的Linux操作系统，您应该使用它\n1. 设置SELinux状态\n2. 设置SELinux策略\n3.为Docker容器创建或导入SELinux策略模板\n4. 在启用SELinux的守护程序模式下启动Docker。例如:\ndocker daemon --selinux-enabled\n或者在daemon.json配置文件中添加以下内容:{\"selinux-enabled\": true}\n5. 使用安全选项启动Docker容器。例如,\ndocker run --interactive --tty --security-opt label=level:TopSecret centos /bin/bash",
+            "defaultValue": "默认情况下，容器上不应用SELinux安全选项",
+            "references": [
+                "https://docs.docker.com/engine/security/#other-kernel-security-features",
+                "https://docs.docker.com/engine/reference/run/#security-configuration",
+                "https://access.redhat.com/documentation/en-us/red_hat_enterprise_linux_atomic_host/7/html/container_security_guide/docker_selinux_security_policy"
+            ]
         }
     },
     {
@@ -1933,10 +2740,10 @@
         "created_at": 1628414060,
         "updater": "",
         "updated_at": 0,
-        "title_en": "Host Configuration\n",
-        "title_zh": "主机配置\n",
-        "detail_en": "Ensure that the version of Docker is up to date\n",
-        "detail_zh": "确保Docker版本是最新的\n",
+        "title_en": "Host Configuration",
+        "title_zh": "主机配置",
+        "detail_en": "Ensure that the version of Docker is up to date (Manual)",
+        "detail_zh": "确保Docker版本是最新的（手动）",
         "remediation_en": "",
         "remediation_zh": "",
         "expeced_result": "",
@@ -1947,6 +2754,18 @@
         "extraInfo": {
             "os": "",
             "rule": "check_1_1_2"
+        },
+        "extraDetail": {
+            "description": "Docker的频繁发布解决了安全漏洞，解决了产品bug，并带来了新的功能。您应该密切关注这些产品更新，并根据组织的一般IT安全策略尽可能频繁地进行升级",
+            "rationale": "通过及时更新Docker，可以缓解软件中的漏洞。经验丰富的攻击者可能会利用已知的漏洞，从而获得不适当的访问或提升他们的特权。如果您不能确保Docker运行在与您的应用程序的要求一致的最新版本，您可能会引入不必要的行为，因此，确保您监控软件版本并及时升级是很重要的",
+            "impact": "您应该对Docker版本更新进行风险评估，并审查它们可能如何影响您的操作。您应该意识到，使用Docker的第三方产品可能需要支持较老的主要Docker版本，这应该根据您组织的通用IT安全政策进行审查，特别是在较老版本的安全漏洞已经公开披露的情况下",
+            "audit": "您应该执行下面的命令，以验证Docker版本是否符合您正在运行的应用程序的要求。应该注意的是，如果您正在使用的版本不包含任何关键的或高安全性的漏洞，那么使用最新的版本并不是安全需求\ndocker version",
+            "remediation": "您应该监视Docker版本的发布，并确保您的软件按要求进行了更新",
+            "defaultValue": "",
+            "references": [
+                "https://docs.docker.com/engine/install/",
+                "https://docs.docker.com/engine/release-notes/"
+            ]
         }
     },
     {
@@ -1958,10 +2777,10 @@
         "created_at": 1628414060,
         "updater": "",
         "updated_at": 0,
-        "title_en": "Host Configuration\n",
-        "title_zh": "主机配置\n",
-        "detail_en": "Ensure auditing is configured for Docker files and directories - docker.socket\n",
-        "detail_zh": "确保为Docker文件和目录配置了审核-docker.socket\n",
+        "title_en": "Host Configuration",
+        "title_zh": "主机配置",
+        "detail_en": "Ensure auditing is configured for Docker files and directories - docker.socket (Automated)",
+        "detail_zh": "确保为Docker文件和目录配置了审核-docker.socket（自动）",
         "remediation_en": "",
         "remediation_zh": "",
         "expeced_result": "",
@@ -1972,6 +2791,17 @@
         "extraInfo": {
             "os": "",
             "rule": "check_1_2_7"
+        },
+        "extraDetail": {
+            "description": "如果适用，审计docker.socket",
+            "rationale": "除了审计普通的Linux文件系统和系统调用之外，还应该审计Docker守护进程。因为这个守护进程使用根特权运行，所以审计它的活动和使用是非常重要的。它的行为依赖于一些关键文件和目录，docker.socket就是其中一个这样的文件，因为它包含Docker守护进程的各种参数，所以应该对它进行审计",
+            "impact": "审计可以生成较大的日志文件。您应该确保定期轮换和归档这些文件。还应该为审计日志创建一个单独的分区，以避免填充任何其他关键分区",
+            "audit": "步骤1:找出配置文件的位置:\nsystemctl show -p FragmentPath docker.socket\n步骤2:定位套接字文件的位置:\ngrep ListenStream <FragmentPath from previous step>\n步骤3:如果文件不存在，则此建议不适用。如果该文件存在，您应该验证是否存在与该文件对应的审计规则:\n例如，您可以执行以下命令:\nauditctl -l | grep docker.socket\n这应该显示docker.socket的规则",
+            "remediation": "如果文件存在，您应该为它添加一个规则,例如:\n将以下行添加到/etc/audit/audit.rules文件中:\n-w /var/run/docker.sock -k docker\n然后，使用以下命令重新启动审计守护进程\nsystemctl restart auditd",
+            "defaultValue": "默认情况下，不审计Docker相关的文件和目录。docker.socket文件可能不存在，但如果存在，则应该对其进行审计",
+            "references": [
+                "https://access.redhat.com/documentation/en-us/red_hat_enterprise_linux/8/html/system_design_guide/auditing-the-system_system-design-guide"
+            ]
         }
     },
     {
@@ -1983,10 +2813,10 @@
         "created_at": 1628414060,
         "updater": "",
         "updated_at": 0,
-        "title_en": "Container Runtime\n",
-        "title_zh": "容器运行时\n",
-        "detail_en": "Ensure that Linux kernel capabilities are restricted within containers\n",
-        "detail_zh": "确保在容器内限制Linux内核功能,\n",
+        "title_en": "Container Runtime",
+        "title_zh": "容器运行时",
+        "detail_en": "Ensure that Linux kernel capabilities are restricted within containers (Automated)",
+        "detail_zh": "确保在容器内限制Linux内核功能（自动）",
         "remediation_en": "",
         "remediation_zh": "",
         "expeced_result": "",
@@ -1997,6 +2827,20 @@
         "extraInfo": {
             "os": "",
             "rule": "check_5_3"
+        },
+        "extraDetail": {
+            "description": "默认情况下，Docker启动容器时使用一组受限的Linux内核功能。这意味着任何进程都可以被授予所需的功能，而不是给它根访问权限。使用Linux内核功能，进程通常不需要以根用户的身份运行",
+            "rationale": "Docker支持添加和删除功能。您应该删除容器的正确功能所不需要的所有功能。\n具体来说，在Docker提供的默认能力集中，如果不显式地需要NET_RAW能力，则应该删除它，因为它可以让访问容器的攻击者有能力创建伪造的网络流量",
+            "impact": "对容器内进程的限制取决于Linux功能的有效程度",
+            "audit": "你应该执行以下命令:docker ps --quiet --all | xargs docker inspect --format '{{ .Id }}: CapAdd={{.HostConfig.CapAdd }} CapDrop={{ .HostConfig.CapDrop }}'\n验证添加和删除的Linux内核功能是否与每个容器实例中的容器进程所需的功能一致。具体来说，如果不需要，请确保删除NET_RAW功能",
+            "remediation": "您应该执行下面的命令来添加所需的功能:\ndocker run --cap-add={\"Capability 1\",\"Capability 2\"} <Run arguments> <Container Image Name or ID> <Command>\n您应该执行以下命令来删除不需要的功能:\ndocker run --cap-drop={\"Capability 1\",\"Capability 2\"} <Run arguments> <Container Image Name or ID> <Command>\n或者，你可以删除所有当前配置的功能，然后只恢复你特别使用的功能:\ndocker run --cap-drop=all --cap-add={\"Capability 1\",\"Capability 2\"} <Run arguments> <Container Image Name or ID> <Command>\n注意，一些设置也可以使用——sysctl选项进行配置，从而进一步减少了对容器功能的需求。这包括不带NET_RAW的无特权ICMP echo套接字，并允许在没有NET_BIND_SERVICE的情况下打开小于1024的任何端口。当使用docker service命令时，也可以添加和删除功能:\ndocker service create --cap-drop=all --cap-add={\"Capability 1\",\"Capability 2\"} <Run arguments> <Container Image Name or ID> <Command>",
+            "defaultValue": "默认情况下，以下功能应用于容器:\nAUDIT_WRITE, CHOWN,DAC_OVERRIDE, FOWNER, FSETID, KILL, MKNOD, NET_BIND_SERVICE, NET_RAW, SETFCAP, SETGID, SETPCAP, SETUID, SYS_CHROOT",
+            "references": [
+                "https://docs.docker.com/engine/security/#linux-kernel-capabilities",
+                "https://docs.docker.com/compose/compose-file/compose-file-v3/#cap_add-cap_drop",
+                "https://docs.docker.com/engine/reference/commandline/service_create/#options",
+                "https://docs.docker.com/engine/reference/commandline/run/#configure-namespaced-kernel-parameters-sysctls-at-runtime"
+            ]
         }
     },
     {
@@ -2008,10 +2852,10 @@
         "created_at": 1628414060,
         "updater": "",
         "updated_at": 0,
-        "title_en": "Docker Security Operations\n",
-        "title_zh": "Docker安全运营\n",
-        "detail_en": "Ensure that container sprawl is avoided\n",
-        "detail_zh": "确保避免容器蔓延\n",
+        "title_en": "Docker Security Operations",
+        "title_zh": "Docker安全运营",
+        "detail_en": "Ensure that container sprawl is avoided (Manual)",
+        "detail_zh": "确保避免容器蔓延 （手动）",
         "remediation_en": "",
         "remediation_zh": "",
         "expeced_result": "",
@@ -2022,6 +2866,17 @@
         "extraInfo": {
             "os": "",
             "rule": "check_6_2"
+        },
+        "extraDetail": {
+            "description": "您不应该在同一个主机上保留大量的容器",
+            "rationale": "容器的灵活性使运行应用程序的多个实例变得容易，因此间接导致Docker镜像可以存在于不同的安全补丁级别。这还意味着您正在消耗本来可以用于运行“有用”容器的主机资源。在特定主机上拥有超过必要数量的容器会使系统容易受到错误处理、错误配置和碎片化的影响。因此，您应该将给定主机上的容器数量保持在与服务生产应用程序相适应的最小数量",
+            "impact": "应该保留正在积极使用的容器，删除不再需要的容器",
+            "audit": "步骤1 -查找主机上的容器总数:\ndocker info --format '{{ .Containers }}'\n步骤2 -执行下面的命令，查找主机上实际运行或处于停止状态的容器的总数\ndocker info --format '{{ .ContainersStopped }}'\ndocker info --format '{{ .ContainersRunning }}'\n如果主机上停止的容器数量与实际运行的容器数量之间的差异过大，您可能患有“容器扩张”，应该检查未使用的容器，以确定是否可能删除",
+            "remediation": "您应该定期检查每个主机上的容器库存，并使用以下命令清理未被积极使用的容器:\ndocker container prune",
+            "defaultValue": "默认情况下，Docker不限制主机上容器的数量",
+            "references": [
+                "https://docs.docker.com/config/pruning/#prune-containers"
+            ]
         }
     },
     {
@@ -2033,10 +2888,10 @@
         "created_at": 1628414060,
         "updater": "",
         "updated_at": 0,
-        "title_en": "Docker daemon configuration\n",
-        "title_zh": "Docker守护程序配置\n",
-        "detail_en": "Ensure the logging level is set to 'info'\n",
-        "detail_zh": "确保日志记录级别设置为“信息”,\n",
+        "title_en": "Docker daemon configuration",
+        "title_zh": "Docker守护程序配置",
+        "detail_en": "Ensure the logging level is set to 'info' (Automated)",
+        "detail_zh": "确保日志记录级别设置为“信息”（自动）",
         "remediation_en": "",
         "remediation_zh": "",
         "expeced_result": "",
@@ -2047,6 +2902,17 @@
         "extraInfo": {
             "os": "",
             "rule": "check_2_2"
+        },
+        "extraDetail": {
+            "description": "设置Docker守护进程日志级别为info",
+            "rationale": "设置一个适当的日志级别，配置Docker守护进程来记录您以后想要查看的事件。info及以上的基本日志级别将捕获除调试日志以外的所有日志。除非有必要，否则不要在debug日志级别运行Docker守护进程",
+            "impact": "",
+            "audit": "要确认这个设置，需要检查dockerd启动选项和检查/etc/docker/daemon.json中的任何设置，要查看dockerd启动选项，请使用:\nps -ef | grep dockerd\n确保——log-level参数不存在，或者如果存在，则将其设置为info\n还应该检查/etc/docker/daemon.json的内容",
+            "remediation": "确保Docker守护进程配置文件包含以下配置\n\"log-level\": \"info\"\n或者，运行Docker守护进程，如下所示:\ndockerd --log-level=\"info\"",
+            "defaultValue": "默认情况下，Docker守护进程设置为info的日志级别",
+            "references": [
+                "https://docs.docker.com/engine/reference/commandline/dockerd/"
+            ]
         }
     },
     {
@@ -2058,10 +2924,10 @@
         "created_at": 1628414060,
         "updater": "",
         "updated_at": 0,
-        "title_en": "Docker daemon configuration files\n",
-        "title_zh": "Docker守护程序配置文件\n",
-        "detail_en": "Ensure that the docker.service file ownership is set to root:root\n",
-        "detail_zh": "确保将docker.service文件所有权设置为root：root,\n",
+        "title_en": "Docker daemon configuration files",
+        "title_zh": "Docker守护程序配置文件",
+        "detail_en": "Ensure that the docker.service file ownership is set to root:root (Automated)",
+        "detail_zh": "确保将docker.service文件所有权设置为root：root（自动）",
         "remediation_en": "",
         "remediation_zh": "",
         "expeced_result": "",
@@ -2072,6 +2938,17 @@
         "extraInfo": {
             "os": "",
             "rule": "check_3_1"
+        },
+        "extraDetail": {
+            "description": "您应该验证docker.service文件所有权和组所有权是否正确设置为root",
+            "rationale": "docker.service文件包含可能改变Docker守护进程行为的敏感参数。因此，它应该由root用户单独或组拥有，以确保它不被特权较低的用户修改或损坏",
+            "impact": "",
+            "audit": "步骤1:找出文件的位置:\nsystemctl show -p FragmentPath docker.service\n步骤2:如果文件不存在，则此建议不适用。如果文件存在，则执行下面的命令，包括正确的文件路径，以验证该文件是root所拥有的和组,例如:\nstat -c %U:%G /usr/lib/systemd/system/docker.service | grep -v root:root\n上面的命令不应该返回任何东西",
+            "remediation": "步骤1:找出文件的位置:\nsystemctl show -p FragmentPath docker.service\n步骤2:如果文件不存在，则此建议不适用。如果文件确实存在，您应该执行下面的命令，包括正确的文件路径，以便将文件的所有权和组所有权设置为root,例如:\nchown root:root /usr/lib/systemd/system/docker.service",
+            "defaultValue": "该文件可能不存在于系统中，如果不存在，则此建议不适用。默认情况下，如果文件存在，正确的权限是所有权和组所有权设置为“root”",
+            "references": [
+                "https://docs.docker.com/config/daemon/systemd/"
+            ]
         }
     },
     {
@@ -2083,10 +2960,10 @@
         "created_at": 1628414060,
         "updater": "",
         "updated_at": 0,
-        "title_en": "Docker daemon configuration\n",
-        "title_zh": "Docker守护程序配置\n",
-        "detail_en": "Ensure that a daemon-wide custom seccomp profile is applied if appropriate\n",
-        "detail_zh": "确保在适当的情况下应用了守护程序范围的自定义seccomp配置文件,\n",
+        "title_en": "Docker daemon configuration",
+        "title_zh": "Docker守护程序配置",
+        "detail_en": "Ensure that a daemon-wide custom seccomp profile is applied if appropriate (Manual)",
+        "detail_zh": "确保在适当的情况下应用了守护程序范围的自定义seccomp配置文件（手动）",
         "remediation_en": "",
         "remediation_zh": "",
         "expeced_result": "",
@@ -2097,6 +2974,17 @@
         "extraInfo": {
             "os": "",
             "rule": "check_2_15"
+        },
+        "extraDetail": {
+            "description": "如果需要，您可以选择在守护进程级应用自定义seccomp配置文件，该配置文件覆盖Docker的默认seccomp配置文件",
+            "rationale": "大量的系统调用向每个用户域进程公开，其中许多在进程的整个生命周期内没有被使用。许多应用程序不需要所有这些系统调用，因此，根据组织安全策略审查当前使用的每个系统调用会使其受益。减少的系统调用集减少了向应用程序公开的总内核表面，从而提高了应用程序的安全性\n可以应用自定义的seccomp配置文件，而不是Docker默认的seccomp配置文件。或者，如果Docker的默认概要文件对您的环境已经足够，您可以选择忽略这个建议",
+            "impact": "配置错误的seccomp配置文件可能会中断容器环境。Docker-default阻塞调用已经被仔细检查过，并解决了容器环境中的一些关键漏洞/问题(例如，内核密钥环调用)。因此，如果选择覆盖默认设置，您应该格外小心",
+            "audit": "您应该运行下面的命令并查看Security Options部分中列出的seccomp配置文件。如果为default，则表示应用了Docker的默认seccomp配置文件\ndocker info --format '{{ .SecurityOptions }}'",
+            "remediation": "默认情况下，Docker的默认seccomp配置文件被应用。如果这对您的环境已经足够，则不需要执行任何操作。另外，如果您选择应用自己的seccomp配置文件，请在守护进程启动时使用——seccomp-profile标志，或者将其放在守护进程运行时参数文件中\ndockerd --seccomp-profile </path/to/seccomp/profile>",
+            "defaultValue": "默认情况下，Docker应用一个默认的seccomp配置文件",
+            "references": [
+                "https://docs.docker.com/engine/security/seccomp/"
+            ]
         }
     },
     {
@@ -2108,10 +2996,10 @@
         "created_at": 1628414060,
         "updater": "",
         "updated_at": 0,
-        "title_en": "Docker Swarm Configuration\n",
-        "title_zh": "Docker Swarm配置\n",
-        "detail_en": "Ensure that CA certificates are rotated as appropriate\n",
-        "detail_zh": "确保适当地轮换CA证书,\n",
+        "title_en": "Docker Swarm Configuration",
+        "title_zh": "Docker Swarm配置",
+        "detail_en": "Ensure that CA certificates are rotated as appropriate (Manual)",
+        "detail_zh": "确保适当地轮换CA证书（手动）",
         "remediation_en": "",
         "remediation_zh": "",
         "expeced_result": "",
@@ -2122,6 +3010,17 @@
         "extraInfo": {
             "os": "",
             "rule": "check_7_9"
+        },
+        "extraDetail": {
+            "description": "您应该根据实际情况轮换根CA证书",
+            "rationale": "Docker Swarm使用TLS在节点之间进行集群操作。证书旋转可确保在发生节点或密钥受损等事件时，难以模拟节点。节点证书依赖于根CA证书。为了行动安全，经常轮换是很重要的。目前，根CA证书不会自动轮换，因此您应该建立一个过程来根据您的组织安全策略轮换它们",
+            "impact": "",
+            "audit": "您应该检查根CA证书文件上的时间戳，例如:\nls -l /var/lib/docker/swarm/certificates/swarm-root-ca.crt\n证书应该显示与组织轮换策略一致的时间戳",
+            "remediation": "您应该运行下面的命令来更新证书\ndocker swarm ca --rotate",
+            "defaultValue": "默认情况下，不更新根CA证书",
+            "references": [
+                "https://docs.docker.com/engine/swarm/how-swarm-mode-works/pki/#rotating-the-ca-certificate"
+            ]
         }
     },
     {
@@ -2133,10 +3032,10 @@
         "created_at": 1628414060,
         "updater": "",
         "updated_at": 0,
-        "title_en": "Container Runtime\n",
-        "title_zh": "容器运行时\n",
-        "detail_en": "Ensure privileged ports are not mapped within containers\n",
-        "detail_zh": "确保特权端口未在容器内映射,\n",
+        "title_en": "Container Runtime",
+        "title_zh": "容器运行时",
+        "detail_en": "Ensure privileged ports are not mapped within containers (Automated)",
+        "detail_zh": "确保特权端口未在容器内映射（自动）",
         "remediation_en": "",
         "remediation_zh": "",
         "expeced_result": "",
@@ -2147,6 +3046,17 @@
         "extraInfo": {
             "os": "",
             "rule": "check_5_7"
+        },
+        "extraDetail": {
+            "description": "小于1024的TCP/IP端口号被认为是特权端口。出于各种安全原因，不允许普通用户和进程使用它们。但是Docker允许将一个容器端口映射到一个特权端口",
+            "rationale": "默认情况下，如果用户没有明确声明一个容器端口到主机端口的映射关系，Docker会自动并正确地将该容器端口映射到主机上49153- 65535范围内的可用容器端口。但是，如果用户显式地声明了容器端口，Docker允许将容器端口映射到主机上的特权端口。这是因为容器是使用NET_BIND_SERVICE Linux内核功能执行的，该功能不限制特权端口映射。特权端口接收和传输各种安全敏感的数据，允许容器使用它们不符合良好的安全实践",
+            "impact": "",
+            "audit": "您可以通过执行以下命令列出所有正在运行的容器实例及其端口映射:\ndocker ps --quiet | xargs docker inspect --format '{{ .Id }}: Ports={{.NetworkSettings.Ports }}'\n然后应该检查该列表，确保容器端口没有映射到1024以下的主机端口号",
+            "remediation": "在启动容器时，不应该将容器端口映射到特权主机端口。您还应该确保Dockerfile中没有这样的容器来承载特权端口映射声明",
+            "defaultValue": "默认情况下，允许将容器端口映射到主机的特权端口\n注意:在某些情况下，您可能希望映射特权端口，因为如果禁止它，则相应的应用程序必须在容器外部运行\n例如:HTTP和HTTPS负载均衡器需要分别绑定80/tcp和443/tcp。禁止映射特权端口有效地禁止在容器中运行这些端口，并强制使用外部负载均衡器。在这种情况下，应该将这些容器实例标记为本建议的例外",
+            "references": [
+                "https://docs.docker.com/network/"
+            ]
         }
     },
     {
@@ -2158,10 +3068,10 @@
         "created_at": 1628414060,
         "updater": "",
         "updated_at": 0,
-        "title_en": "Container Runtime\n",
-        "title_zh": "容器运行时\n",
-        "detail_en": "Ensure that the Docker socket is not mounted inside any containers\n",
-        "detail_zh": "确保 Docker socket 未安装在任何容器内,\n",
+        "title_en": "Container Runtime",
+        "title_zh": "容器运行时",
+        "detail_en": "Ensure that the Docker socket is not mounted inside any containers (Automated)",
+        "detail_zh": "确保 Docker socket 未安装在任何容器内（自动）",
         "remediation_en": "",
         "remediation_zh": "",
         "expeced_result": "",
@@ -2172,6 +3082,17 @@
         "extraInfo": {
             "os": "",
             "rule": "check_5_31"
+        },
+        "extraDetail": {
+            "description": "Docker套接字docker.sock不应该安装在容器中。在这种情况下，应该将这些容器实例标记为本建议的例外",
+            "rationale": "如果Docker套接字安装在一个容器中，它可以允许在容器中运行的进程执行Docker命令，这将有效地允许对主机的完全控制",
+            "impact": "",
+            "audit": "应该执行以下命令:\ndocker ps --quiet --all | xargs docker inspect --format '{{ .Id }}:Volumes={{ .Mounts }}' | grep docker.sock\n这将返回docker.sock作为卷映射到容器的任何实例",
+            "remediation": "您应该确保没有容器将docker.sock挂载为卷",
+            "defaultValue": "默认情况下，docker.sock不会挂载到容器中",
+            "references": [
+                "https://docs.docker.com/engine/reference/commandline/dockerd/#daemon - socket-option"
+            ]
         }
     },
     {
@@ -2183,10 +3104,10 @@
         "created_at": 1628414060,
         "updater": "",
         "updated_at": 0,
-        "title_en": "Docker daemon configuration files\n",
-        "title_zh": "Docker守护程序配置文件\n",
-        "detail_en": "Ensure that docker.service file permissions are appropriately set\n",
-        "detail_zh": "确保正确设置了docker.service文件权限,\n",
+        "title_en": "Docker daemon configuration files",
+        "title_zh": "Docker守护程序配置文件",
+        "detail_en": "Ensure that docker.service file permissions are appropriately set (Automated)",
+        "detail_zh": "确保正确设置了docker.service文件权限（自动）",
         "remediation_en": "",
         "remediation_zh": "",
         "expeced_result": "",
@@ -2197,6 +3118,17 @@
         "extraInfo": {
             "os": "",
             "rule": "check_3_2"
+        },
+        "extraDetail": {
+            "description": "您应该验证docker.service文件权限设置为644或更严格的值",
+            "rationale": "docker.service文件包含可能改变Docker守护进程行为的敏感参数。因此，除了root用户，其他任何用户都不能写它，以确保特权较低的用户不能修改它",
+            "impact": "",
+            "audit": "第一步:找出文件的位置:\nsystemctl show -p FragmentPath docker.service\n步骤2:如果文件不存在，则此建议不适用。如果文件存在，则执行下面的命令，包括正确的文件路径，以验证文件权限是否设置为644或更严格的值，例如:\nstat -c %a /usr/lib/systemd/system/docker.service",
+            "remediation": "第一步:找出文件的位置:\nsystemctl show -p FragmentPath docker.service\n步骤2:如果文件不存在，则此建议不适用。如果文件存在，则执行下面的命令，包括正确的文件路径，将文件权限设置为644，例如:\nchmod 644 /usr/lib/systemd/system/docker.service",
+            "defaultValue": "此文件可能不存在于系统中。在这种情况下，本建议不适用。默认情况下，如果文件存在，则文件权限被正确设置为644",
+            "references": [
+                "https://docs.docker.com/articles/systemd/"
+            ]
         }
     },
     {
@@ -2208,10 +3140,10 @@
         "created_at": 1628414060,
         "updater": "",
         "updated_at": 0,
-        "title_en": "Container Runtime\n",
-        "title_zh": "容器运行时\n",
-        "detail_en": "Ensure sensitive host system directories are not mounted on containers\n",
-        "detail_zh": "确保敏感主机系统目录未安装在容器上,\n",
+        "title_en": "Container Runtime",
+        "title_zh": "容器运行时",
+        "detail_en": "Ensure sensitive host system directories are not mounted on containers (Automated)",
+        "detail_zh": "确保敏感主机系统目录未安装在容器上（自动）",
         "remediation_en": "",
         "remediation_zh": "",
         "expeced_result": "",
@@ -2222,6 +3154,17 @@
         "extraInfo": {
             "os": "",
             "rule": "check_5_5"
+        },
+        "extraDetail": {
+            "description": "不应该允许将敏感的主机系统目录(如下面列出的目录)作为容器卷挂载，特别是在读写模式下。\n/, /boot, /dev, /etc, /lib, /proc, /sys, /usr",
+            "rationale": "如果以读写模式挂载敏感目录，则可以对其中的文件进行更改。这有明显的安全影响，应该避免",
+            "impact": "",
+            "audit": "应该执行以下命令:\ndocker ps --quiet --all | xargs docker inspect --format '{{ .Id }}:Volumes={{ .Mounts }}'\n此命令返回当前映射目录的列表，并指示它们是否以读写模式挂载于每个容器实例",
+            "remediation": "不应该在容器内的主机上挂载安全敏感的目录，特别是在读写模式下",
+            "defaultValue": "Docker默认使用读写卷，但也可以以只读方式挂载目录。默认情况下，容器内不挂载敏感的主机目录",
+            "references": [
+                "https://docs.docker.com/storage/volumes/"
+            ]
         }
     },
     {
@@ -2233,10 +3176,10 @@
         "created_at": 1628414060,
         "updater": "",
         "updated_at": 0,
-        "title_en": "Container Runtime\n",
-        "title_zh": "容器运行时\n",
-        "detail_en": "Ensure that the container is restricted from acquiring additional privileges\n",
-        "detail_zh": "确保限制容器获取其他特权,\n",
+        "title_en": "Container Runtime",
+        "title_zh": "容器运行时",
+        "detail_en": "Ensure that the container is restricted from acquiring additional privileges (Automated)",
+        "detail_zh": "确保限制容器获取其他特权（自动）",
         "remediation_en": "",
         "remediation_zh": "",
         "expeced_result": "",
@@ -2247,6 +3190,18 @@
         "extraInfo": {
             "os": "",
             "rule": "check_5_25"
+        },
+        "extraDetail": {
+            "description": "您应该限制容器通过suid或sgid位获得额外的特权",
+            "rationale": "进程可以在内核中设置no_new_priv位，这将在fork、clones和execve中持续存在。no_new_priv位确保进程及其子进程不会通过suid或sgid位获得任何额外的特权。这减少了与许多操作相关的危险，因为破坏特权二进制文件的可能性减少了",
+            "impact": "no_new_priv选项阻止SELinux等lsm允许进程获得新的特权",
+            "audit": "应该执行以下命令:\ndocker ps --quiet --all | xargs docker inspect --format '{{ .Id }}:SecurityOpt={{ .HostConfig.SecurityOpt }}'\n这个命令应该返回当前为容器配置的所有安全选项。no-new-privilege应该是其中之一\n注意，即使Docker daemon.json配置文件中配置了\"no-new-privileges\": true, SecurityOpt响应也将为空(i.e. SecurityOpt=<no value>)",
+            "remediation": "你应该用下面的选项开始你的容器:\ndocker run --rm -it --security-opt=no-new-privileges ubuntu bash",
+            "defaultValue": "默认情况下，不限制新增权限",
+            "references": [
+                "https://docs.docker.com/engine/reference/run/#security-configuration",
+                "https://www.kernel.org/doc/Documentation/prctl/no_new_privs.txt"
+            ]
         }
     },
     {
@@ -2283,10 +3238,10 @@
         "created_at": 1628414060,
         "updater": "",
         "updated_at": 0,
-        "title_en": "Container Runtime\n",
-        "title_zh": "容器运行时\n",
-        "detail_en": "Ensure that, if applicable, an AppArmor Profile is enabled\n",
-        "detail_zh": "如果适用，确保已启用AppArmor配置文件,\n",
+        "title_en": "Container Runtime",
+        "title_zh": "容器运行时",
+        "detail_en": "Ensure that, if applicable, an AppArmor Profile is enabled (Automated)",
+        "detail_zh": "如果适用，确保已启用AppArmor配置文件（自动）",
         "remediation_en": "",
         "remediation_zh": "",
         "expeced_result": "",
@@ -2297,6 +3252,19 @@
         "extraInfo": {
             "os": "",
             "rule": "check_5_1"
+        },
+        "extraDetail": {
+            "description": "AppArmor是一个有效的、易于使用的Linux应用程序安全系统。默认情况下，它可以在某些Linux发行版上使用，例如Debian和Ubuntu",
+            "rationale": "AppArmor通过实施安全策略(也称为AppArmor配置文件)来保护Linux操作系统和应用程序免受各种威胁。您可以为容器创建自己的AppArmor配置文件，也可以使用Docker的默认配置文件。启用此功能将强制在配置文件中定义的容器上执行安全策略",
+            "impact": "容器将具有在AppArmor配置文件中定义的安全控制。应该注意的是，如果AppArmor配置文件配置错误，这可能会导致容器的操作出现问题",
+            "audit": "应该执行以下命令:\ndocker ps --quiet --all | xargs docker inspect --format '{{ .Id }}:AppArmorProfile={{ .AppArmorProfile }}'\n该命令应该为每个容器实例返回有效的AppArmor配置文件",
+            "remediation": "如果AppArmor适用于您的Linux操作系统，您应该启用它\n1. 验证是否安装了AppArmor\n2. 为Docker容器创建或导入一个AppArmor配置文件\n3.启用策略的实施\n4. 使用定制的AppArmor配置文件启动Docker容器。例如:\ndocker run --interactive --tty --security-opt=\"apparmor:PROFILENAME\" ubuntu /bin/bash\n另外，也可以使用Docker默认的AppArmor策略",
+            "defaultValue": "默认情况下，docker-default AppArmor配置文件应用于正在运行的容器。Docker二进制文件生成这个概要文件，然后将其加载到内核中",
+            "references": [
+                "https://docs.docker.com/engine/security/apparmor/",
+                "https://docs.docker.com/engine/reference/run/#security-configuration",
+                "https://docs.docker.com/engine/security/#other-kernel-security-features"
+            ]
         }
     },
     {
@@ -2308,10 +3276,10 @@
         "created_at": 1628414060,
         "updater": "",
         "updated_at": 0,
-        "title_en": "Container Runtime\n",
-        "title_zh": "容器运行时\n",
-        "detail_en": "Ensure that the host's process namespace is not shared\n",
-        "detail_zh": "确保不共享主机的进程名称空间,\n",
+        "title_en": "Container Runtime",
+        "title_zh": "容器运行时",
+        "detail_en": "Ensure that the host's process namespace is not shared (Automated)",
+        "detail_zh": "确保不共享主机的进程名称空间（自动）",
         "remediation_en": "",
         "remediation_zh": "",
         "expeced_result": "",
@@ -2322,6 +3290,18 @@
         "extraInfo": {
             "os": "",
             "rule": "check_5_15"
+        },
+        "extraDetail": {
+            "description": "进程ID (PID)命名空间隔离了进程ID空间，这意味着不同PID命名空间中的进程可以具有相同的PID。这将在容器和主机之间创建进程级隔离",
+            "rationale": "PID命名空间提供了进程之间的分离。它阻止了系统进程的可见性，并允许进程id被重用，包括PID 1。如果主机的PID命名空间与容器共享，它基本上允许这些容器查看主机系统上的所有进程。这降低了主机和容器之间进程级隔离的好处。在这种情况下，能够访问容器的恶意用户可以访问主机本身上的进程，操纵它们，甚至能够杀死它们。这可能导致主机本身被关闭，这可能是非常严重的，特别是在多租户环境中。不应该与主机上运行的容器共享主机的进程名称空间",
+            "impact": "容器进程不能看到主机系统上的进程。在某些情况下，您可能希望容器共享主机的进程名称空间。例如，您可以构建一个包含诸如strace或gdb等调试工具的容器，并希望在调试主机上的进程时使用这些工具。如果需要这样做，那么使用-p开关共享特定的主机进程。\n例如:\ndocker run --pid=host rhel7 strace -p 1234",
+            "audit": "应该执行以下命令:\ndocker ps --quiet --all | xargs docker inspect --format '{{ .Id }}:PidMode={{ .HostConfig.PidMode }}'\n如果上面的命令返回host，这意味着主机PID命名空间与其容器共享;任何其他结果都意味着系统的配置符合良好的安全实践",
+            "remediation": "你不应该用——pid=host参数开始一个容器。例如，不要用下面的命令启动一个容器:\ndocker run --interactive --tty --pid=host centos /bin/bash",
+            "defaultValue": "默认情况下，所有容器都启用了PID名称空间，因此主机的进程名称空间不与其容器共享",
+            "references": [
+                "https://docs.docker.com/engine/reference/run/#pid-settings---pid",
+                "https://man7.org/linux/man-pages/man7/pid_namespaces.7.html"
+            ]
         }
     },
     {
@@ -2333,10 +3313,10 @@
         "created_at": 1628414060,
         "updater": "",
         "updated_at": 0,
-        "title_en": "Docker daemon configuration files\n",
-        "title_zh": "Docker守护程序配置文件\n",
-        "detail_en": "Ensure that Docker server certificate file ownership is set to root:root\n",
-        "detail_zh": "确保Docker服务器证书文件所有权设置为root：root,\n",
+        "title_en": "Docker daemon configuration files",
+        "title_zh": "Docker守护程序配置文件",
+        "detail_en": "Ensure that Docker server certificate file ownership is set to root:root (Automated)",
+        "detail_zh": "确保Docker服务器证书文件所有权设置为root：root（自动）",
         "remediation_en": "",
         "remediation_zh": "",
         "expeced_result": "",
@@ -2347,6 +3327,18 @@
         "extraInfo": {
             "os": "",
             "rule": "check_3_11"
+        },
+        "extraDetail": {
+            "description": "您应该验证Docker服务器证书文件(随——tlscert参数一起传递的文件)是root所拥有的个人和组",
+            "rationale": "Docker服务器证书文件应该受到保护，不受任何篡改。它用于基于给定的服务器证书对Docker服务器进行身份验证。因此，它必须由root单独拥有和组拥有，以防止特权较低的用户进行修改",
+            "impact": "",
+            "audit": "您应该执行以下命令来验证Docker服务器证书文件是由root单独拥有和组拥有的:\nstat -c %U:%G <path to Docker server certificate file> | grep -v root:root\n上面的命令应该不返回任何结果",
+            "remediation": "应该执行以下命令:\nchown root:root <path to Docker server certificate file>\n这将Docker server证书文件的个人所有权和组所有权设置为root",
+            "defaultValue": "默认情况下，Docker server证书文件的归属和组归属都正确设置为root",
+            "references": [
+                "https://docs.docker.com/registry/insecure/",
+                "https://docs.docker.com/engine/security/https/"
+            ]
         }
     },
     {
@@ -2358,10 +3350,10 @@
         "created_at": 1628414060,
         "updater": "",
         "updated_at": 0,
-        "title_en": "Container Runtime\n",
-        "title_zh": "容器运行时\n",
-        "detail_en": "Ensure that incoming container traffic is bound to a specific host interface\n",
-        "detail_zh": "确保传入容器流量绑定到特定主机接口,\n",
+        "title_en": "Container Runtime",
+        "title_zh": "容器运行时",
+        "detail_en": "Ensure that incoming container traffic is bound to a specific host interface (Automated)",
+        "detail_zh": "确保传入容器流量绑定到特定主机接口（自动）",
         "remediation_en": "",
         "remediation_zh": "",
         "expeced_result": "",
@@ -2372,6 +3364,17 @@
         "extraInfo": {
             "os": "",
             "rule": "check_5_13"
+        },
+        "extraDetail": {
+            "description": "默认情况下，Docker容器可以与外部世界建立连接，但是外部世界不能连接到容器，而且每个传出的连接似乎都来自主机自己的一个IP地址。您应该只允许通过主机上的特定外部接口联系容器服务",
+            "rationale": "如果您的主机上有多个网络接口，容器可以接受任何网络接口上公开端口上的连接。这可能是不可取的，也可能不安全。在许多情况下，一个特定的、想要的接口对外公开，而诸如入侵检测、入侵防御、防火墙、负载平衡等服务都是有意在那里运行的，以筛选传入的公共流量。因此，您不应该接受任何随机接口上的传入连接，而应该只接受指定用于这种类型流量的接口",
+            "impact": "",
+            "audit": "你应该通过执行下面的命令列出所有正在运行的容器实例和它们的端口映射:\ndocker ps --quiet | xargs docker inspect --format '{{ .Id }}: Ports={{.NetworkSettings.Ports }}'\n然后检查列表，确保公开的容器端口绑定到特定的接口，而不是通配符IP地址0.0.0.0",
+            "remediation": "您应该将容器端口绑定到所需主机端口上的特定主机接口。例如,\ndocker run --detach --publish 10.2.3.4:49153:80 nginx\n在上面的示例中，容器端口80绑定到49153上的主机端口，只接受来自10.2.3.4外部接口的传入连接",
+            "defaultValue": "默认情况下，Docker在0.0.0.0上公开容器端口，这个通配符IP地址将匹配主机上任何可能传入的网络接口",
+            "references": [
+                "https://docs.docker.com/network/"
+            ]
         }
     },
     {
@@ -2383,10 +3386,10 @@
         "created_at": 1628414060,
         "updater": "",
         "updated_at": 0,
-        "title_en": "Container Runtime\n",
-        "title_zh": "容器运行时\n",
-        "detail_en": "Ensure that host devices are not directly exposed to containers\n",
-        "detail_zh": "确保主机设备没有直接暴露在容器中,\n",
+        "title_en": "Container Runtime",
+        "title_zh": "容器运行时",
+        "detail_en": "Ensure that host devices are not directly exposed to containers (Manual)",
+        "detail_zh": "确保主机设备没有直接暴露在容器中（手动）",
         "remediation_en": "",
         "remediation_zh": "",
         "expeced_result": "",
@@ -2397,6 +3400,17 @@
         "extraInfo": {
             "os": "",
             "rule": "check_5_17"
+        },
+        "extraDetail": {
+            "description": "主机设备可以在运行时直接暴露给容器。不要将主机设备直接暴露给容器，特别是不受信任的容器",
+            "rationale": "device选项向容器公开主机设备，因此，容器可以直接访问这些设备。容器不需要以特权模式运行来访问和操作它们，因为默认情况下，容器被授予这种类型的访问权限。此外，容器还可以从主机上删除块设备。因此，不应该将主机设备直接暴露给容器\n如果出于某种原因，您希望将主机设备暴露给容器，您应该考虑在具体情况的基础上使用哪种共享权限，以适合您的组织:\n•r -只读\n•w -可写\n•允许m - mknod allowed",
+            "impact": "您将不能直接在容器中使用主机设备",
+            "audit": "你应该使用下面的命令:\ndocker ps --quiet --all | xargs docker inspect --format '{{ .Id }}:Devices={{ .HostConfig.Devices }}'\n上面的命令将列出每个设备的以下信息:\n•CgroupPermissions—例如，rwm\n•PathInContainer—容器中的设备路径\n•PathOnHost -主机上的设备路径\n您应该验证需要从容器内部访问主机设备，并且正确设置了所需的权限。如果上面的命令返回[]，那么容器就不能访问主机设备，并且按照良好的安全实践进行了配置",
+            "remediation": "不应该将主机设备直接暴露给容器。如果你确实需要将主机设备暴露给容器，你应该根据你的组织使用适当的粒度权限:\n例如，不要使用下面的命令启动一个容器:\ndocker run --interactive --tty --device=/dev/tty0:/dev/tty0:rwm --device=/dev/temp_sda:/dev/temp_sda:rwm centos bash\n您应该只使用适当的权限共享主机设备:\ndocker run --interactive --tty --device=/dev/tty0:/dev/tty0:rw --\ndevice=/dev/temp_sda:/dev/temp_sda:r centos bash",
+            "defaultValue": "默认情况下，主机设备不暴露给容器。如果不提供共享权限并选择将主机设备公开给容器，则主机设备将被公开为read、write和mknod权限",
+            "references": [
+                "https://docs.docker.com/engine/reference/commandline/run/#add-host-device-to-container---device"
+            ]
         }
     },
     {
@@ -2408,10 +3422,10 @@
         "created_at": 1628414060,
         "updater": "",
         "updated_at": 0,
-        "title_en": "Docker Swarm Configuration\n",
-        "title_zh": "Docker Swarm配置\n",
-        "detail_en": "Ensure that the swarm manager auto-lock key is rotated periodically\n",
-        "detail_zh": "确保群管理器自动锁定键定期旋转,\n",
+        "title_en": "Docker Swarm Configuration",
+        "title_zh": "Docker Swarm配置",
+        "detail_en": "Ensure that the swarm manager auto-lock key is rotated periodically (Manual)",
+        "detail_zh": "确保群管理器自动锁定键定期旋转（手动）",
         "remediation_en": "",
         "remediation_zh": "",
         "expeced_result": "",
@@ -2422,6 +3436,17 @@
         "extraInfo": {
             "os": "",
             "rule": "check_7_7"
+        },
+        "extraDetail": {
+            "description": "您应该定期旋转Swarm管理器自动锁定keys",
+            "rationale": "swarm管理器自动锁定key不会自动旋转。良好的安全实践是旋转密钥",
+            "impact": "",
+            "audit": "目前，还没有一种机制可以找出最后一次在swarm管理节点上旋转密钥是什么时候。您应该与系统管理员联系，查看是否存在key旋转过程，以及键旋转的频率",
+            "remediation": "您应该运行下面的命令来旋转keys\ndocker swarm unlock-key --rotate\n此外，为了便于对该建议进行审核，您应该保持key旋转记录，并确保您为key旋转建立了预定义的频率",
+            "defaultValue": "默认情况下，keys不会自动旋转",
+            "references": [
+                "https://docs.docker.com/engine/reference/commandline/swarm_unlock-key/"
+            ]
         }
     },
     {
@@ -2436,7 +3461,7 @@
         "title_en": "Docker Enterprise Configuration\n",
         "title_zh": "Docker企业配置\n",
         "detail_en": "Enable signed image enforcement\n",
-        "detail_zh": "启用签名图像实施\n",
+        "detail_zh": "启用签名镜像实施\n",
         "remediation_en": "",
         "remediation_zh": "",
         "expeced_result": "",
@@ -2458,10 +3483,10 @@
         "created_at": 1628414060,
         "updater": "",
         "updated_at": 0,
-        "title_en": "Host Configuration\n",
-        "title_zh": "主机配置\n",
-        "detail_en": "Ensure auditing is configured for Docker files and directories - docker.service\n",
-        "detail_zh": "确保为Docker文件和目录配置了审计-docker.service\n",
+        "title_en": "Host Configuration",
+        "title_zh": "主机配置",
+        "detail_en": "Ensure auditing is configured for Docker files and directories - docker.service (Automated)",
+        "detail_zh": "确保为Docker文件和目录配置了审计-docker.service（自动）",
         "remediation_en": "",
         "remediation_zh": "",
         "expeced_result": "",
@@ -2472,6 +3497,17 @@
         "extraInfo": {
             "os": "",
             "rule": "check_1_2_6"
+        },
+        "extraDetail": {
+            "description": "适用情况下,审计docker.service",
+            "rationale": "除了审计普通的Linux文件系统和系统调用之外，还应该审计所有与Docker相关的文件和目录。Docker守护进程使用root特权运行，它的行为依赖于一些关键文件和目录，docker.service就是其中一个这样的文件。如果管理员更改了守护进程参数，则可能出现docker.service文件。如果是，它包含Docker守护进程的各种参数，应该对其进行审计",
+            "impact": "审计可以生成较大的日志文件。您应该确保定期轮换和归档这些文件。还应该为审计日志创建一个单独的分区，以避免填充任何其他关键分区",
+            "audit": "第一步:找出文件的位置:\nsystemctl show -p FragmentPath docker.service\n步骤2:如果文件不存在，则此建议不适用。如果文件存在，请确认是否存在与该文件对应的审计规则:\n例如，您可以执行以下命令:\nauditctl -l | grep docker.service\n这应该显示docker.service的一条规则",
+            "remediation": "如果该文件存在，则应该为其添加一条规则，例如:\n将以下行添加到/etc/audit/audit.rules文件中:\n-w /usr/lib/systemd/system/docker.service -k docker\n然后，使用以下命令重新启动审计守护进程\nsystemctl restart auditd",
+            "defaultValue": "默认情况下，不审计Docker相关的文件和目录。系统上可能没有docker.service文件",
+            "references": [
+                "https://access.redhat.com/documentation/en-us/red_hat_enterprise_linux/8/html/system_design_guide/auditing-the-system_system-design-guide"
+            ]
         }
     },
     {
@@ -2483,10 +3519,10 @@
         "created_at": 1628414060,
         "updater": "",
         "updated_at": 0,
-        "title_en": "Docker daemon configuration\n",
-        "title_zh": "Docker守护程序配置\n",
-        "detail_en": "Ensure base device size is not changed until needed\n",
-        "detail_zh": "确保基本设备的大小直到需要时才更改,\n",
+        "title_en": "Docker daemon configuration",
+        "title_zh": "Docker守护程序配置",
+        "detail_en": "Ensure base device size is not changed until needed (Automated)",
+        "detail_zh": "确保基本设备的大小直到需要时才更改（自动）",
         "remediation_en": "",
         "remediation_zh": "",
         "expeced_result": "",
@@ -2497,6 +3533,17 @@
         "extraInfo": {
             "os": "",
             "rule": "check_2_10"
+        },
+        "extraDetail": {
+            "description": "在某些情况下，您可能需要大于10G的容器。在这种情况下，你应该仔细选择基本设备的大小",
+            "rationale": "基本设备大小可以在守护进程重新启动时增加。增加基本设备大小允许所有未来的镜像和容器具有新的基本设备大小。用户可以使用此选项扩展基本设备大小，但不允许缩小。该值影响系统范围的“基本”空文件系统，该文件系统可能已经初始化，因此被提取的镜像继承。\n尽管只要文件系统为空，它就不会分配增加的大小，但是会为额外的镜像分配更多的空间。如果分配的分区已满，这可能会导致拒绝服务条件",
+            "impact": "",
+            "audit": "为了确认这个设置，应该检查dockerd启动选项和/etc/docker/daemon.json中的任何设置\n要查看dockerd启动选项，请使用:\nps -ef | grep dockerd\n执行上面的命令，它应该不会显示任何——storage-opt dm.basesize参数\n还应该检查/etc/docker/daemon.json的内容",
+            "remediation": "除非需要，否则不要设置——storage-opt dm.basesize",
+            "defaultValue": "默认的基本设备大小是10G",
+            "references": [
+                "https://docs.docker.com/engine/reference/commandline/dockerd/#storage-driver-options"
+            ]
         }
     },
     {
@@ -2508,10 +3555,10 @@
         "created_at": 1628414060,
         "updater": "",
         "updated_at": 0,
-        "title_en": "Docker daemon configuration\n",
-        "title_zh": "Docker守护程序配置\n",
-        "detail_en": "Ensure Userland Proxy is Disabled\n",
-        "detail_zh": "确保Userland代理已禁用,\n",
+        "title_en": "Docker daemon configuration",
+        "title_zh": "Docker守护程序配置",
+        "detail_en": "Ensure Userland Proxy is Disabled (Automated)",
+        "detail_zh": "确保Userland代理已禁用（自动）",
         "remediation_en": "",
         "remediation_zh": "",
         "expeced_result": "",
@@ -2522,6 +3569,20 @@
         "extraInfo": {
             "os": "",
             "rule": "check_2_14"
+        },
+        "extraDetail": {
+            "description": "Docker守护进程在端口暴露时启动用户域代理服务进行端口转发。在发夹NAT可用的情况下，该服务通常是多余的，可以禁用",
+            "rationale": "Docker引擎提供了两种将端口从主机转发到容器的机制:发夹NAT和使用用户域代理。在大多数情况下，发夹NAT模式是首选的，因为它可以提高性能并利用本机Linux iptables功能，而不是使用额外的组件\n在发夹NAT可用的地方，用户域代理应该在启动时禁用，以减少安装的攻击面",
+            "impact": "一些使用较老的Linux内核的系统可能无法支持发夹式NAT，因此需要用户域代理服务。此外，删除用户域代理可能会影响一些网络设置",
+            "audit": "要确认这个设置，你应该检查dockerd启动选项和/etc/docker/daemon.json中的任何设置。\n要查看dockerd启动选项，请使用:\nps -ef | grep dockerd\n确保——userland-proxy参数设置为false。\n还应该检查/etc/docker/daemon.json的内容",
+            "remediation": "你应该像下面这样运行Docker守护进程:\ndockerd --userland-proxy=false",
+            "defaultValue": "默认情况下，用户域代理是启用的",
+            "references": [
+                "http://windsock.io/the-docker-proxy/",
+                "https://github.com/docker/docker/issues/14856",
+                "https://github.com/docker/docker/issues/22741",
+                "https://docs.docker.com/config/containers/container-networking/"
+            ]
         }
     },
     {
@@ -2533,10 +3594,10 @@
         "created_at": 1628414060,
         "updater": "",
         "updated_at": 0,
-        "title_en": "Docker daemon configuration files\n",
-        "title_zh": "Docker守护程序配置文件\n",
-        "detail_en": "Ensure that TLS CA certificate file ownership is set to root:root\n",
-        "detail_zh": "确保TLS CA证书文件所有权设置为root：root,\n",
+        "title_en": "Docker daemon configuration files",
+        "title_zh": "Docker守护程序配置文件",
+        "detail_en": "Ensure that TLS CA certificate file ownership is set to root:root (Automated)",
+        "detail_zh": "确保TLS CA证书文件所有权设置为root：root（自动）",
         "remediation_en": "",
         "remediation_zh": "",
         "expeced_result": "",
@@ -2547,6 +3608,18 @@
         "extraInfo": {
             "os": "",
             "rule": "check_3_9"
+        },
+        "extraDetail": {
+            "description": "您应该验证TLS CA证书文件(随——tlscacert参数一起传递的文件)是由root单独拥有和组拥有的",
+            "rationale": "应该保护TLS CA证书文件不受任何篡改。它用于基于给定的CA证书对Docker服务器进行身份验证。因此，它必须由root单独拥有和组拥有，以确保特权较低的用户不能修改它",
+            "impact": "",
+            "audit": "您应该执行以下命令来验证TLS CA证书文件是root所拥有和组所拥有的:\nstat -c %U:%G <path to TLS CA certificate file> | grep -v root:root\n上面的命令应该不返回任何结果",
+            "remediation": "您应该执行以下命令:\nchown root:root <path to TLS CA certificate file>\n这将TLS CA证书文件的个人所有权和组所有权设置为root",
+            "defaultValue": "默认情况下，正确设置TLS CA证书文件的归属和组归属为root",
+            "references": [
+                "https://docs.docker.com/registry/insecure/",
+                "https://docs.docker.com/engine/security/https/"
+            ]
         }
     },
     {
@@ -2558,10 +3631,10 @@
         "created_at": 1628414060,
         "updater": "",
         "updated_at": 0,
-        "title_en": "Container Images and Build File\n",
-        "title_zh": "容器镜像和构建文件\n",
-        "detail_en": "Ensure that a user for the container has been created\n",
-        "detail_zh": "确保已创建容器的用户,\n",
+        "title_en": "Container Images and Build File",
+        "title_zh": "容器镜像和构建文件",
+        "detail_en": "Ensure that a user for the container has been created (Automated)",
+        "detail_zh": "确保已创建容器的用户（自动）",
         "remediation_en": "",
         "remediation_zh": "",
         "expeced_result": "",
@@ -2572,6 +3645,18 @@
         "extraInfo": {
             "os": "",
             "rule": "check_4_1"
+        },
+        "extraDetail": {
+            "description": "容器应该以非root用户的身份运行",
+            "rationale": "在可能的情况下，作为非root用户运行容器是一种很好的实践。这可以通过Dockerfile中的USER指令来完成，也可以通过gosu或类似的方式来作为CMD或ENTRYPOINT指令的一部分",
+            "impact": "当您希望从底层主机绑定挂载卷时，作为非root用户运行可能会带来挑战。在这种情况下，应该注意确保运行所包含进程的用户能够根据自己的需求对绑定目录进行读写",
+            "audit": "您应该执行以下命令:\ndocker ps --quiet | xargs --max-args=1 -I{} docker exec {} cat /proc/1/status | grep '^Uid:' | awk '{print $3}'\n这应该为每个容器返回有效的UID，如果返回0，则表示容器进程以root身份运行。\n注意，有些服务可能以root用户启动，然后以非特权用户启动所有其他相关进程",
+            "remediation": "你应该确保每个容器镜像的Dockerfile包含以下信息:\nUSER <username or ID>\n在本例中，用户名或ID指的是在容器基镜像中找到的用户。如果在容器基镜像中没有创建特定的用户，则使用useradd命令在Dockerfile中的user指令之前添加特定的用户。例如，在Dockerfile中添加以下代码行，在容器中创建一个用户:\nRUN useradd -d /home/username -m -s /bin/bash username USER username\n注意:如果镜像中有不需要的用户，您应该考虑删除他们。删除这些用户之后，提交镜像，然后生成容器的新实例。\n或者，如果无法在Dockerfile中设置USER指令，则应该使用作为CMD或ENTRYPOINT部分的一部分运行的脚本来确保容器进程切换到非根用户",
+            "defaultValue": "默认情况下，容器以root权限运行，也以容器内的root用户运行",
+            "references": [
+                "https://docs.docker.com/engine/reference/builder/#user",
+                "https://docs.docker.com/engine/reference/run/#user"
+            ]
         }
     },
     {
@@ -2608,10 +3693,10 @@
         "created_at": 1628414060,
         "updater": "",
         "updated_at": 0,
-        "title_en": "Docker daemon configuration\n",
-        "title_zh": "Docker守护程序配置\n",
-        "detail_en": "Ensure TLS authentication for Docker daemon is configured\n",
-        "detail_zh": "确保已配置Docker守护程序的TLS身份验证,\n",
+        "title_en": "Docker daemon configuration",
+        "title_zh": "Docker守护程序配置",
+        "detail_en": "Ensure TLS authentication for Docker daemon is configured (Automated)",
+        "detail_zh": "确保已配置Docker守护程序的TLS身份验证（自动）",
         "remediation_en": "",
         "remediation_zh": "",
         "expeced_result": "",
@@ -2622,6 +3707,17 @@
         "extraInfo": {
             "os": "",
             "rule": "check_2_6"
+        },
+        "extraDetail": {
+            "description": "可以通过TCP端口使Docker守护进程远程可用。如果需要这样做，应该确保配置了TLS身份验证，以便通过IP地址和端口限制对Docker守护进程的访问",
+            "rationale": "默认情况下，Docker守护进程绑定到一个非联网的Unix套接字，并以根权限运行。如果您将默认的Docker守护进程绑定到TCP端口或任何其他Unix套接字，那么任何访问该端口或套接字的人都可以完全访问Docker守护进程，进而访问主机系统。因此，您不应该将Docker守护进程绑定到另一个IP/端口或Unix套接字。\n如果您必须通过网络套接字公开Docker守护进程，那么您应该为守护进程和任何Docker Swarm api(如果它们正在使用)配置TLS身份验证。这种类型的配置将通过网络连接到Docker守护进程的连接限制为能够访问TLS客户端凭证的有限数量的客户端",
+            "impact": "您需要管理和保护Docker守护进程和Docker客户机的证书和密钥",
+            "audit": "要确认这个设置，检查dockerd启动选项和/etc/docker/daemon.json中的任何设置。\n要查看dockerd启动选项，请使用:\nps -ef | grep dockerd\n确保下面的参数是存在的:\n--tlsverify, --tlscacert, --tlscert, --tlskey\n/etc/docker/daemon.json的内容，以确保这些设置已到位",
+            "remediation": "遵循Docker文档或其他参考资料中提到的步骤",
+            "defaultValue": "默认情况下，未配置TLS认证",
+            "references": [
+                "https://docs.docker.com/engine/security/https/"
+            ]
         }
     },
     {
@@ -2633,10 +3729,10 @@
         "created_at": 1628414060,
         "updater": "",
         "updated_at": 0,
-        "title_en": "Docker daemon configuration files\n",
-        "title_zh": "Docker守护程序配置文件\n",
-        "detail_en": "Ensure that the daemon.json file ownership is set to root:root\n",
-        "detail_zh": "确保将daemon.json文件所有权设置为root：root,\n",
+        "title_en": "Docker daemon configuration files",
+        "title_zh": "Docker守护程序配置文件",
+        "detail_en": "Ensure that the daemon.json file ownership is set to root:root (Automated)",
+        "detail_zh": "确保将daemon.json文件所有权设置为root：root（自动）",
         "remediation_en": "",
         "remediation_zh": "",
         "expeced_result": "",
@@ -2647,6 +3743,17 @@
         "extraInfo": {
             "os": "",
             "rule": "check_3_17"
+        },
+        "extraDetail": {
+            "description": "您应该验证daemon.json文件的个人所有权和组所有权是否被正确设置为root(如果它正在使用)",
+            "rationale": "daemon.json文件包含可能改变docker守护进程行为的敏感参数。因此，它应该由root拥有和组拥有，以确保特权较低的用户不能修改它",
+            "impact": "",
+            "audit": "您应该执行以下命令来验证该文件和组是否为root所拥有:\nstat -c %U:%G /etc/docker/daemon.json | grep -v root:root\n上面的命令不应该返回任何结果，或者，如果没有daemon.json文件，它将返回:\nstat: cannot stat '/etc/docker/daemon.json': No such file or directory",
+            "remediation": "如果存在daemon.json文件，您应该执行以下命令:\nchown root:root /etc/docker/daemon.json\n这将文件的所有权和组所有权设置为root",
+            "defaultValue": "该文件可能不存在于系统中，在这种情况下，此建议不适用",
+            "references": [
+                "https://docs.docker.com/engine/reference/commandline/dockerd/#daemon-configuration-file"
+            ]
         }
     },
     {
@@ -2658,10 +3765,10 @@
         "created_at": 1628414060,
         "updater": "",
         "updated_at": 0,
-        "title_en": "Docker Swarm Configuration\n",
-        "title_zh": "Docker Swarm配置\n",
-        "detail_en": "Ensure that Docker's secret management commands are used for managing secrets in a swarm cluster\n",
-        "detail_zh": "确保使用Docker的密钥管理命令来管理群集集群中的密钥,\n",
+        "title_en": "Docker Swarm Configuration",
+        "title_zh": "Docker Swarm配置",
+        "detail_en": "Ensure that Docker's secret management commands are used for managing secrets in a swarm cluster (Manual)",
+        "detail_zh": "确保使用Docker的密钥管理命令来管理群集集群中的密钥（手动）",
         "remediation_en": "",
         "remediation_zh": "",
         "expeced_result": "",
@@ -2672,6 +3779,17 @@
         "extraInfo": {
             "os": "",
             "rule": "check_7_5"
+        },
+        "extraDetail": {
+            "description": "您应该使用Docker内置的秘密管理命令来控制秘密",
+            "rationale": "Docker有各种各样的命令来管理集群中的秘密",
+            "impact": "",
+            "audit": "在群集管理节点上，您应该运行下面的命令，并确保在您的环境中使用docker secret管理，这与您的IT安全策略是一致的\ndocker secret ls",
+            "remediation": "您应该遵循docker secret文档并使用它来有效地管理秘密",
+            "defaultValue": "",
+            "references": [
+                "https://docs.docker.com/engine/reference/commandline/secret/"
+            ]
         }
     },
     {
@@ -2683,10 +3801,10 @@
         "created_at": 1628414060,
         "updater": "",
         "updated_at": 0,
-        "title_en": "Docker daemon configuration files\n",
-        "title_zh": "Docker守护程序配置文件\n",
-        "detail_en": "Ensure that docker.socket file ownership is set to root:root\n",
-        "detail_zh": "确保将docker.socket文件所有权设置为root：root,\n",
+        "title_en": "Docker daemon configuration files",
+        "title_zh": "Docker守护程序配置文件",
+        "detail_en": "Ensure that docker.socket file ownership is set to root:root (Automated)",
+        "detail_zh": "确保将docker.socket文件所有权设置为root：root（自动）",
         "remediation_en": "",
         "remediation_zh": "",
         "expeced_result": "",
@@ -2697,6 +3815,17 @@
         "extraInfo": {
             "os": "",
             "rule": "check_3_3"
+        },
+        "extraDetail": {
+            "description": "您应该验证docker.socket文件所有权和组所有权是否正确设置为root",
+            "rationale": "docker.socket文件包含可能改变Docker远程API行为的敏感参数。由于这个原因，它应该由root拥有和组拥有，以确保它不会被特权较低的用户修改",
+            "impact": "",
+            "audit": "第一步:找出文件的位置:\nsystemctl show -p FragmentPath docker.socket\n步骤2:如果文件不存在，则此建议不适用。如果文件存在，则执行下面的命令，包括正确的文件路径，以验证该文件是root所拥有和组拥有的,例如,\nstat -c %U:%G /usr/lib/systemd/system/docker.socket | grep -v root:root\n上面的命令不应该返回值",
+            "remediation": "第一步:找出文件的位置:\nsystemctl show -p FragmentPath docker.socket\n步骤2:如果文件不存在，则此建议不适用。如果文件存在，则执行以下命令，包括正确的文件路径，将文件的所有权和组所有权设置为root。例如,\nchown root:root /usr/lib/systemd/system/docker.socket",
+            "defaultValue": "此文件可能不存在于系统中。在这种情况下，本建议不适用。默认情况下，如果文件存在，那么它的所有权和组所有权应该设置为root",
+            "references": [
+                "https://docs.docker.com/engine/reference/commandline/dockerd/#daemon-socket-option"
+            ]
         }
     },
     {
@@ -2708,10 +3837,10 @@
         "created_at": 1628414060,
         "updater": "",
         "updated_at": 0,
-        "title_en": "Container Runtime\n",
-        "title_zh": "容器运行时\n",
-        "detail_en": "Ensure that the container's root filesystem is mounted as read only\n",
-        "detail_zh": "确保容器的根文件系统已挂载为只读,\n",
+        "title_en": "Container Runtime",
+        "title_zh": "容器运行时",
+        "detail_en": "Ensure that the container's root filesystem is mounted as read only (Automated)",
+        "detail_zh": "确保容器的根文件系统已挂载为只读（自动）",
         "remediation_en": "",
         "remediation_zh": "",
         "expeced_result": "",
@@ -2722,6 +3851,19 @@
         "extraInfo": {
             "os": "",
             "rule": "check_5_12"
+        },
+        "extraDetail": {
+            "description": "通过使用Docker run的——read-only选项，容器的根文件系统应该被视为“黄金镜像”。这防止了在容器运行时对容器根文件系统的任何写入，并强制执行不可变基础结构的原则",
+            "rationale": "启用此选项将迫使容器在运行时显式地定义其数据写入策略以持久化或不持久化其数据。\n这也减少了安全攻击向量，因为容器实例的文件系统不能被篡改或写入，除非它对其文件系统文件夹和目录具有显式的读写权限",
+            "impact": "如果没有定义数据写入策略，在容器运行时启用——只读可能会破坏某些容器操作系统包。\n您应该定义容器的数据应该在运行时持久化什么，不应该持久化什么，以便决定使用哪种策略。\n例子:\n•启用——tmpfs来临时写入/tmp文件\n•使用Docker共享数据卷进行持久数据写入",
+            "audit": "您应该在docker主机上执行以下命令:\ndocker ps --quiet --all | xargs docker inspect --format '{{ .Id }}:ReadonlyRootfs={{ .HostConfig.ReadonlyRootfs }}'\n如果上面的命令返回true，它意味着容器的根文件系统被挂载为read-only。\n如果上面的命令返回false，就意味着容器的根文件系统是可写的",
+            "remediation": "您应该在容器的运行时添加——read-only标志，以强制将容器的根文件系统挂载为只读\ndocker run <Run arguments> --read-only <Container Image Name or ID> <Command>\n在容器的运行时启用——read-only选项应该被管理员用来强制容器的可执行进程在其生命周期内只将容器数据写入显式的存储位置。\n容器运行时显式存储位置的例子包括但不限于:\n1. 使用——tmpfs选项为非持久数据写入挂载临时文件系统\ndocker run --interactive --tty --read-only --tmpfs \"/run\" --tmpfs \"/tmp\" centos /bin/bash\n2. 启用Docker rw挂载在容器的运行时，直接将容器数据持久化到Docker主机文件系统上\ndocker run --interactive --tty --read-only -v /opt/app/data:/run/app/data:rw centos /bin/bash\n3.利用Docker共享存储卷插件为Docker数据卷持久化容器数据\ndocker volume create -d convoy --opt o=size=20GB my-named-volume\ndocker run --interactive --tty --read-only -v my-named-volume:/run/app/data centos /bin/bash\n4.在容器运行时为容器数据在Docker控制区域外传输容器数据，以确保它是持久的。示例包括托管数据库、网络文件共享和api",
+            "defaultValue": "默认情况下，容器的根文件系统是可写的，允许所有容器进程写入容器实际运行时用户拥有的文件",
+            "references": [
+                "https://docs.docker.com/storage/volumes/",
+                "https://docs.docker.com/storage/volumes/#use-a-read-only-volume",
+                "https://docs.docker.com/engine/reference/commandline/run/#mount-tmpfs---tmpfs"
+            ]
         }
     },
     {
@@ -2733,10 +3875,10 @@
         "created_at": 1628414060,
         "updater": "",
         "updated_at": 0,
-        "title_en": "Container Runtime\n",
-        "title_zh": "容器运行时\n",
-        "detail_en": "Ensure that the host's user namespaces are not shared\n",
-        "detail_zh": "确保不共享主机的用户名称空间,\n",
+        "title_en": "Container Runtime",
+        "title_zh": "容器运行时",
+        "detail_en": "Ensure that the host's user namespaces are not shared (Automated)",
+        "detail_zh": "确保不共享主机的用户名称空间（自动）",
         "remediation_en": "",
         "remediation_zh": "",
         "expeced_result": "",
@@ -2747,6 +3889,18 @@
         "extraInfo": {
             "os": "",
             "rule": "check_5_30"
+        },
+        "extraDetail": {
+            "description": "您不应该与在主机上运行的容器共享主机的用户名称空间",
+            "rationale": "用户名称空间确保容器内的根进程将映射到容器外的非根进程。因此，与容器共享主机的用户名称空间并不会将主机上的用户与容器中的用户隔离开来",
+            "impact": "",
+            "audit": "您应该运行下面的命令，并确保它不为UsernsMode返回任何值。如果它返回host的值，则意味着主机用户名称空间与其容器共享\ndocker ps --quiet --all | xargs docker inspect --format '{{ .Id }}:UsernsMode={{ .HostConfig.UsernsMode }}'",
+            "remediation": "不应该在主机和容器之间共享用户名称空间。例如，你不应该运行下面的命令:\ndocker run --rm -it --userns=host ubuntu bash",
+            "defaultValue": "默认情况下，主机用户名称空间与容器共享，除非启用了用户名称空间支持",
+            "references": [
+                "https://docs.docker.com/engine/security/userns-remap/",
+                "https://docs.docker.com/engine/reference/commandline/run/#options"
+            ]
         }
     },
     {
@@ -2758,10 +3912,10 @@
         "created_at": 1628414060,
         "updater": "",
         "updated_at": 0,
-        "title_en": "Host Configuration\n",
-        "title_zh": "主机配置\n",
-        "detail_en": "Ensure a separate partition for containers has been created\n",
-        "detail_zh": "确保已为容器创建单独的分区\n",
+        "title_en": "Host Configuration",
+        "title_zh": "主机配置",
+        "detail_en": "Ensure a separate partition for containers has been created (Automated)",
+        "detail_zh": "确保已为容器创建单独的分区（自动）",
         "remediation_en": "",
         "remediation_zh": "",
         "expeced_result": "",
@@ -2772,6 +3926,18 @@
         "extraInfo": {
             "os": "",
             "rule": "check_1_2_1"
+        },
+        "extraDetail": {
+            "description": "所有Docker容器及其数据和元数据都存储在/var/lib/docker目录下。默认情况下，/var/lib/docker应该挂载在/或/var分区下，这取决于所使用的Linux操作系统的配置方式",
+            "rationale": "Docker依赖/var/lib/docker作为所有Docker相关文件(包括镜像)的默认存储目录。这个目录会很快被填满，导致Docker和主机都无法使用。因此，您应该创建一个单独的分区(逻辑卷)来存储Docker文件",
+            "impact": "",
+            "audit": "在Docker主机上执行以下命令之一:\ngrep '/var/lib/docker\\s' /proc/mounts\n这将返回/var/lib/docker挂载点的分区详细信息\nmountpoint -- \"$(docker info -f '{{ .DockerRootDir }}')\"\n这将返回配置的根目录是否为挂载点",
+            "remediation": "对于新的安装，您应该为/var/lib/docker挂载点创建一个单独的分区。对于已经安装的系统，您应该使用Linux中的逻辑卷管理器(LVM)来创建一个新分区",
+            "defaultValue": "默认情况下，/var/lib/docker挂载在/或/var分区下，具体取决于操作系统的配置",
+            "references": [
+                "https://www.projectatomic.io/docs/docker-storage-recommendation/",
+                "https://docs.docker.com/storage/"
+            ]
         }
     },
     {
@@ -2783,10 +3949,10 @@
         "created_at": 1628414060,
         "updater": "",
         "updated_at": 0,
-        "title_en": "Container Runtime\n",
-        "title_zh": "容器运行时\n",
-        "detail_en": "Ensurethe default seccomp profile is not Disabled\n",
-        "detail_zh": "确保默认的seccomp配置文件未禁用,\n",
+        "title_en": "Container Runtime",
+        "title_zh": "容器运行时",
+        "detail_en": "Ensurethe default seccomp profile is not Disabled (Automated)",
+        "detail_zh": "确保默认的seccomp配置文件未禁用（自动）",
         "remediation_en": "",
         "remediation_zh": "",
         "expeced_result": "",
@@ -2797,6 +3963,20 @@
         "extraInfo": {
             "os": "",
             "rule": "check_5_21"
+        },
+        "extraDetail": {
+            "description": "Seccomp筛选为进程指定传入系统调用的筛选器提供了一种方法。默认的Docker seccomp配置文件工作在白名单的基础上，允许大量的公共系统调用，同时阻止所有其他的。不应禁用此筛选，除非它导致容器应用程序的使用出现问题",
+            "rationale": "大量的系统调用向每个用户域进程公开，其中许多调用在进程的整个生命周期内都没有使用过。大多数应用程序不需要所有这些系统调用，因此可以从减少可用的系统调用集合中获益。减少系统调用集可以减少向应用程序公开的总内核表面，从而提高应用程序安全性",
+            "impact": "在Docker 1.10及更高版本中，默认的seccomp配置文件会阻塞系统调用，而不管是否向容器传递——cap-add。在这种情况下，您应该创建自己的自定义seccomp配置文件。你也可以通过在docker run上传递--security- opt=seccomp:unconfined来禁用默认的seccomp配置文件",
+            "audit": "应该执行以下命令:\ndocker ps --quiet --all | xargs docker inspect --format '{{ .Id }}:SecurityOpt={{ .HostConfig.SecurityOpt }}'\n这应该返回<no value>或修改后的seccomp配置文件。如果它返回[seccomp:unrestricted]，则表示容器在没有任何seccomp配置文件的情况下运行，因此没有按照良好的安全实践进行配置",
+            "remediation": "默认情况下，启用seccomp配置文件。您不需要做任何事情，除非您想修改和使用已修改的seccomp配置文件",
+            "defaultValue": "当运行容器时，它使用默认配置文件，除非使用——security-opt选项覆盖它",
+            "references": [
+                "https://docs.docker.com/engine/reference/run/#security-configuration",
+                "https://github.com/moby/moby/blob/master/profiles/seccomp/default.json",
+                "https://docs.docker.com/engine/security/seccomp/",
+                "https://www.kernel.org/doc/Documentation/prctl/seccomp_filter.txt"
+            ]
         }
     },
     {
@@ -2808,10 +3988,10 @@
         "created_at": 1628414060,
         "updater": "",
         "updated_at": 0,
-        "title_en": "Docker daemon configuration files\n",
-        "title_zh": "Docker守护程序配置文件\n",
-        "detail_en": "Ensure that the Docker server certificate key file ownership is set to root:root\n",
-        "detail_zh": "确保Docker服务器证书密钥文件所有权设置为root：root,\n",
+        "title_en": "Docker daemon configuration files",
+        "title_zh": "Docker守护程序配置文件",
+        "detail_en": "Ensure that the Docker server certificate key file ownership is set to root:root (Automated)",
+        "detail_zh": "确保Docker服务器证书密钥文件所有权设置为root：root（自动）",
         "remediation_en": "",
         "remediation_zh": "",
         "expeced_result": "",
@@ -2822,6 +4002,18 @@
         "extraInfo": {
             "os": "",
             "rule": "check_3_13"
+        },
+        "extraDetail": {
+            "description": "您应该验证Docker服务器证书密钥文件(随——tlskey参数一起传递的文件)是root单独拥有的和组拥有的",
+            "rationale": "Docker服务器证书密钥文件应该受到保护，不受任何篡改或不必要的读/写。由于它持有Docker服务器证书的私钥，因此它必须由root单独拥有和组拥有，以确保特权较低的用户无法访问它",
+            "impact": "",
+            "audit": "您应该执行以下命令来验证Docker服务器证书密钥文件是由root单独拥有和组拥有的:\nstat -c %U:%G <path to Docker server certificate key file> | grep -v root:root\n上面的命令应该不返回任何结果",
+            "remediation": "您应该执行以下命令:\nchown root:root <path to Docker server certificate key file>\n这将Docker服务器证书密钥文件的个人所有权和组所有权设置为root",
+            "defaultValue": "默认情况下，Docker服务器证书密钥文件的个人所有权和组所有权被正确设置为root",
+            "references": [
+                "https://docs.docker.com/registry/insecure/",
+                "https://docs.docker.com/engine/security/https/"
+            ]
         }
     },
     {
@@ -2833,10 +4025,10 @@
         "created_at": 1628414060,
         "updater": "",
         "updated_at": 0,
-        "title_en": "Container Images and Build File\n",
-        "title_zh": "容器镜像和构建文件\n",
-        "detail_en": "Ensure update instructions are not use alone in the Dockerfile\n",
-        "detail_zh": "确保更新说明不单独在Dockerfile中使用,\n",
+        "title_en": "Container Images and Build File",
+        "title_zh": "容器镜像和构建文件",
+        "detail_en": "Ensure update instructions are not use alone in the Dockerfile (Manual)",
+        "detail_zh": "确保更新说明不单独在Dockerfile中使用（手动）",
         "remediation_en": "",
         "remediation_zh": "",
         "expeced_result": "",
@@ -2847,6 +4039,17 @@
         "extraInfo": {
             "os": "",
             "rule": "check_4_7"
+        },
+        "extraDetail": {
+            "description": "你不应该单独使用操作系统包管理器更新指令，如apt-get update或yum update，也不应该在任何dockerfile中单独使用这类指令，这些dockerfile用于生成被审查的镜像",
+            "rationale": "在Dockerfile的单行中添加更新指令将导致更新层被缓存。当您随后使用相同的指令构建任何镜像时，这将导致使用先前缓存的更新层，从而潜在地阻止任何新的更新应用到以后的构建",
+            "impact": "",
+            "audit": "步骤1:运行下面的命令获取镜像列表:\ndocker images\n第二步:对上面列表中的每一个镜像运行下面的命令，寻找包含在一行中的任何更新指令:\ndocker history <Image_ID>\n或者，如果您可以访问镜像的Dockerfile，则应该验证没有如上所述配置的更新说明",
+            "remediation": "在安装包时，应该将更新指示与安装指示和版本固定一起使用。这将防止缓存并强制提取所需的版本\n或者，你可以在docker build过程中使用——no-cache标志来避免使用缓存层",
+            "defaultValue": "默认情况下，Docker对使用更新指令没有任何限制",
+            "references": [
+                "https://docs.docker.com/develop/develop-images/dockerfile_best-practices/"
+            ]
         }
     },
     {
@@ -2858,10 +4061,10 @@
         "created_at": 1628414060,
         "updater": "",
         "updated_at": 0,
-        "title_en": "Container Runtime\n",
-        "title_zh": "容器运行时\n",
-        "detail_en": "Ensure that container health is checked at runtime\n",
-        "detail_zh": "确保在运行时检查容器的运行状况,\n",
+        "title_en": "Container Runtime",
+        "title_zh": "容器运行时",
+        "detail_en": "Ensure that container health is checked at runtime (Automated)",
+        "detail_zh": "确保在运行时检查容器的运行状况（自动）",
         "remediation_en": "",
         "remediation_zh": "",
         "expeced_result": "",
@@ -2872,6 +4075,17 @@
         "extraInfo": {
             "os": "",
             "rule": "check_5_26"
+        },
+        "extraDetail": {
+            "description": "如果容器镜像没有定义HEALTHCHECK指令，则应该在容器运行时使用——health-cmd参数来检查容器运行状况",
+            "rationale": "如果正在使用的容器镜像没有预定义的HEALTHCHECK指令，请在运行时使用——health-cmd参数检查容器运行状况。\n根据所报告的健康状况，必要时可采取补救行动",
+            "impact": "",
+            "audit": "您应该运行以下命令，并确保所有容器都在报告它们的运行状况状态:\ndocker ps --quiet | xargs docker inspect --format '{{ .Id }}: Health={{.State.Health.Status }}",
+            "remediation": "您应该使用——health-cmd参数运行容器。例如:\ndocker run -d --health-cmd='stat /etc/passwd || exit 1' nginx",
+            "defaultValue": "默认情况下，不在容器运行时执行运行状况检查",
+            "references": [
+                "https://docs.docker.com/engine/reference/run/#healthcheck"
+            ]
         }
     },
     {
@@ -2933,10 +4147,10 @@
         "created_at": 1628414060,
         "updater": "",
         "updated_at": 0,
-        "title_en": "Docker daemon configuration\n",
-        "title_zh": "Docker守护程序配置\n",
-        "detail_en": "Enable user namespace support\n",
-        "detail_zh": "启用用户名称空间支持,\n",
+        "title_en": "Docker daemon configuration",
+        "title_zh": "Docker守护程序配置",
+        "detail_en": "Enable user namespace support (Automated)",
+        "detail_zh": "启用用户名称空间支持（自动）",
         "remediation_en": "",
         "remediation_zh": "",
         "expeced_result": "",
@@ -2947,6 +4161,18 @@
         "extraInfo": {
             "os": "",
             "rule": "check_2_8"
+        },
+        "extraDetail": {
+            "description": "您应该在Docker守护进程中启用用户名称空间支持，以利用容器用户到主机用户的重映射。当您使用的容器没有在容器镜像中定义显式的容器用户时，此建议是有益的。如果您正在使用的容器镜像具有预定义的非根用户，则可以跳过此建议，因为该特性仍处于初级阶段，并且可能会导致不可预测的问题或配置困难",
+            "rationale": "Docker守护进程中的Linux内核“user namespace”支持为Docker主机系统提供了额外的安全性。它允许容器具有唯一的用户和组id范围，这超出了主机系统所使用的传统用户和组范围。\n例如，root用户可以在容器内拥有预期的管理特权，但可以有效地将其映射到主机系统上的无特权UID",
+            "impact": "用户名称空间重映射与许多Docker特性不兼容，目前还破坏了它的一些功能。详细信息请参考Docker文档和包含的链接",
+            "audit": "docker inspect --format='{{ .State.Pid }}' $(docker ps -q) | while read -r line; do ps -h -p \"$line\" -o pid,user; done\n上面的命令将找到容器的PID，然后列出关联的主机用户使用容器过程。如果容器进程以root身份运行，则此配置可能不符合组织的安全策略。\n或者，你可以运行docker info来确保userns列在Security Options下面:\ndocker info --format '{{ .SecurityOptions }}'",
+            "remediation": "请参考Docker文档，了解根据您的需求可以配置的各种方法。您的步骤也可能因平台的不同而有所不同——例如，在Red Hat上，子uid和子gid映射创建不会自动工作。您可能需要创建自己的映射。\n高层步骤如下:\n步骤1:确保/etc/subuid和/etc/subgid文件存在\ntouch /etc/subuid /etc/subgid\n步骤2:使用——users -remap标志启动docker守护进程\ndockerd --userns-remap=default",
+            "defaultValue": "默认情况下，不重新映射用户名称空间。应该考虑根据所使用的应用程序的需求和组织的安全策略来实现这一点",
+            "references": [
+                "https://man7.org/linux/man-pages/man7/user_namespaces.7.html",
+                "https://docs.docker.com/engine/reference/commandline/dockerd/#daemon-user-namespace-options"
+            ]
         }
     }
 ]
