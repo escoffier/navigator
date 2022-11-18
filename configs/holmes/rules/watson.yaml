@@ -1,5 +1,5 @@
 ##Watson
-- rule: Gaining sensitive information in Watson
+- rule: Unauthorized access to Tomcat-Web in Redis
   hid: hp_01
   category: Watson
   categoryZh: 主动防御
@@ -11,15 +11,15 @@
     zh:
       key: "处置建议"
       value: "建议排查是否有攻击者已获取内部容器权限，同时使用免疫防御限制攻击者进行进一步攻击。"
-  desc: Gaining sensitive information in Watson
+  desc: Unauthorized access to Tomcat-Web in Redis
   condition: >
     k8s.pod.name contains "51c1c6" and (inbound_outbound) and fd.sport=8080
   output: >
-    Gaining sensitive information in Watson (zh_msg=通过主动防御检测到针对诱饵的web目录文件的异常访问,rule_type=Privilege_Escalation,fd_name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,container_id=%container.id,container_name=%container.name)
+    Unauthorized access to Tomcat-Web in Redis (zh_msg=Tomcat-Web未授权访问,rule_type=Privilege_Escalation,fd_name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,container_id=%container.id,container_name=%container.name)
   priority: ALERT
   tags: [Watson]
 
-- rule: Upload webshell through tomcat manager
+- rule: Upload webshell through the Tomcat-Manager-App
   hid: hp_02
   category: Watson
   categoryZh: 主动防御
@@ -31,11 +31,11 @@
     zh:
       key: "处置建议"
       value: "建议排查是否有攻击者已获取内部容器权限，同时使用免疫防御限制攻击者进行进一步攻击。"
-  desc: Upload webshell through tomcat manager
+  desc: Upload webshell through the Tomcat-Manager-App
   condition: >
     k8s.pod.name contains "51c1c6" and evt.type = read and evt.arg.data contains "POST /manager/html/upload" and fd.sport=8080 and proc.name=java
   output: >
-    Upload webshell through tomcat manager (zh_msg=主动防御检测到攻击者通过诱饵应用manager后台上传webshell,rule_type=Privilege_Escalation,fd_name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,container_id=%container.id,container_name=%container.name,http_request=%evt.args)
+    Upload webshell through the Tomcat-Manager-App (zh_msg=通过Tomcat-Manager-App上传webshell,rule_type=Privilege_Escalation,fd_name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,container_id=%container.id,container_name=%container.name,http_request=%evt.args)
   priority: ALERT
   tags: [Watson]
 
@@ -55,11 +55,11 @@
   condition: >
     k8s.pod.name contains "51c1c6" and evt.type = read and (evt.arg.data contains "POST " or evt.arg.data contains "GET ") and evt.arg.data contains "jsp" and fd.sport=8080 and proc.name=java
   output: >
-    Execute commands through webshell (zh_msg=主动防御检测到攻击者通过向诱饵tomcat植入webshell并执行命令,rule_type=Privilege_Escalation,fd_name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_vpgid=%proc.vpgid,proc_cmdline=%proc.cmdline,proc_name=%proc.name,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,container_id=%container.id,container_name=%container.name,http_request=%evt.args)
+    Execute commands through webshell (zh_msg=通过向Tomcat上传webshell并执行命令,rule_type=Privilege_Escalation,fd_name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_vpgid=%proc.vpgid,proc_cmdline=%proc.cmdline,proc_name=%proc.name,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,container_id=%container.id,container_name=%container.name,http_request=%evt.args)
   priority: ALERT
   tags: [Watson]
 
-- rule: Other containers establish new connections to the redis-server in Watson
+- rule: Unauthorized access to Redis-Server
   hid: hp_04
   category: Watson
   categoryZh: 主动防御
@@ -71,15 +71,15 @@
     zh:
       key: "处置建议"
       value: "建议排查攻击源容器是否已遭到入侵，可使用微隔离与免疫防御限制攻击者进行进一步攻击。"
-  desc: Other containers establish new connections to the redis-server in Watson
+  desc: Unauthorized access to Redis-Server
   condition: >
     k8s.pod.name contains "51c1c6" and (inbound_outbound) and fd.sport=6379 
   output: >
-    Other containers establish new connections to the redis-server in Watson (zh_msg=通过主动防御检测到针对诱饵的redis-server未授权访问,rule_type=Privilege_Escalation,fd_name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,container_id=%container.id,container_name=%container.name)
+    Unauthorized access to Redis-Server (zh_msg=Redis-Server未授权访问,rule_type=Privilege_Escalation,fd_name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,container_id=%container.id,container_name=%container.name)
   priority: ALERT
   tags: [Watson]
 
-- rule: Other containers establish new connections to the ElasticSearch
+- rule: Unauthorized access to ElasticSearch
   hid: hp_05
   category: Watson
   categoryZh: 主动防御
@@ -91,15 +91,15 @@
     zh:
       key: "处置建议"
       value: "建议排查攻击源容器是否已遭到入侵，可使用微隔离与免疫防御限制攻击者进行进一步攻击。"
-  desc: Other containers establish new connections to the ElasticSearch
+  desc: Unauthorized access to ElasticSearch
   condition: >
     k8s.pod.name contains "75fb1c" and (inbound_outbound) and fd.sport=9200
   output: >
-    Other containers establish new connections to the ElasticSearch (zh_msg=通过主动防御检测到存在与诱饵elasticsearch通信,rule_type=Privilege_Escalation,fd_name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,container_id=%container.id,container_name=%container.name)
+    Unauthorized access to ElasticSearch (zh_msg=ElasticSearch未授权访问,rule_type=Privilege_Escalation,fd_name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,container_id=%container.id,container_name=%container.name)
   priority: ALERT
   tags: [Watson]
 
-- rule: Execute sensitive commands via ElasticSearch
+- rule: Execute sensitive commands through ElasticSearch（CVE-2015-1427）
   hid: hp_06
   category: Watson
   categoryZh: 主动防御
@@ -111,15 +111,15 @@
     zh:
       key: "处置建议"
       value: "建议排查攻击源容器是否已遭到入侵，可使用微隔离与免疫防御限制攻击者进行进一步攻击。"
-  desc: Execute sensitive commands via ElasticSearch
+  desc: Execute sensitive commands through ElasticSearch（CVE-2015-1427）
   condition: >
     k8s.pod.name contains "75fb1c" and evt.type=execve and evt.res!=ENOENT and proc.pname = java
   output: >
-    Execute sensitive commands via ElasticSearch (zh_msg=通过主动防御检测到攻击者通过诱饵elasticsearch执行命令（CVE-2015-1427）,rule_type=Privilege_Escalation,fd_name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,container_id=%container.id,container_name=%container.name)
+    Execute sensitive commands through ElasticSearch (zh_msg=通过ElasticSearch执行命令（CVE-2015-1427）,rule_type=Privilege_Escalation,fd_name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,container_id=%container.id,container_name=%container.name)
   priority: ALERT
   tags: [Watson]
 
-- rule: Other containers establish new connections to the tomcat
+- rule: Unauthorized access to Tomcat-Web
   hid: hp_07
   category: Watson
   categoryZh: 主动防御
@@ -131,15 +131,15 @@
     zh:
       key: "处置建议"
       value: "建议排查攻击源容器是否已遭到入侵，可使用微隔离与免疫防御限制攻击者进行进一步攻击。"
-  desc: Other containers establish new connections to the tomcat
+  desc: Unauthorized access to Tomcat-Web
   condition: >
     k8s.pod.name contains "b0f328" and (inbound_outbound) and fd.sport = 8080 
   output: >
-    Other containers establish new connections to the tomcat (zh_msg=通过主动防御检测到存在容器与诱饵tomcat通信,rule_type=Privilege_Escalation,fd_name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,container_id=%container.id,container_name=%container.name)
+    Unauthorized access to Tomcat-Web (zh_msg=Tomcat-Web未授权访问,rule_type=Privilege_Escalation,fd_name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,container_id=%container.id,container_name=%container.name)
   priority: ALERT
   tags: [Watson]
 
-- rule: Reading local files via tomcat
+- rule: Reading local files through Tomcat-AJP-Connector（CVE-2020-1938）
   hid: hp_08
   category: Watson
   categoryZh: 主动防御
@@ -151,15 +151,15 @@
     zh:
       key: "处置建议"
       value: "建议排查攻击源容器是否已遭到入侵，可使用微隔离与免疫防御限制攻击者进行进一步攻击。"
-  desc: Execute sensitive commands via tomcat
+  desc: Reading local files through Tomcat-AJP-Connector（CVE-2020-1938）
   condition: >
     k8s.pod.name contains "b0f328" and (inbound_outbound) and fd.sport = 8009
   output: >
-    Other containers establish new connections to the tomcat (zh_msg=通过主动防御检测到流量通过诱饵tomcat读取本地webapp目录文件,rule_type=Privilege_Escalation,fd_name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,container_id=%container.id,container_name=%container.name)
+    Reading local files through Tomcat-AJP-Connector (zh_msg=攻击者尝试利用Tomcat-AJP-Connector文件包含漏洞（CVE-2020-1938）,rule_type=Privilege_Escalation,fd_name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,container_id=%container.id,container_name=%container.name)
   priority: ALERT
   tags: [Watson]
 
-- rule: Other containers establish new connections to the Jenkins
+- rule: Unauthorized access to Jenkins
   hid: hp_09
   category: Watson
   categoryZh: 主动防御
@@ -171,15 +171,15 @@
     zh:
       key: "处置建议"
       value: "建议排查攻击源容器是否已遭到入侵，可使用微隔离与免疫防御限制攻击者进行进一步攻击。"
-  desc: Other containers establish new connections to the Jenkins
+  desc: Unauthorized access to Jenkins
   condition: >
     k8s.pod.name contains "99a7ca" and (inbound_outbound) and fd.sport = 8080 
   output: >
-    Other containers establish new connections to the jenkins (zh_msg=通过主动防御检测到存在与诱饵jenkins通信,rule_type=Privilege_Escalation,fd_name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,container_id=%container.id,container_name=%container.name)
+    Unauthorized access to Jenkins (zh_msg=Jenkins未授权访问,rule_type=Privilege_Escalation,fd_name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,container_id=%container.id,container_name=%container.name)
   priority: ALERT
   tags: [Watson]
 
-- rule: Execute sensitive commands via Jenkins
+- rule: Execute sensitive commands through Jenkins
   hid: hp_10
   category: Watson
   categoryZh: 主动防御
@@ -191,15 +191,15 @@
     zh:
       key: "处置建议"
       value: "建议排查攻击源容器是否已遭到入侵，可使用微隔离与免疫防御限制攻击者进行进一步攻击。"
-  desc: Execute sensitive commands via Jenkins
+  desc: Execute sensitive commands through Jenkins
   condition: >
    k8s.pod.name contains "99a7ca" and evt.type=execve and evt.res!=ENOENT
   output: >
-    Execute sensitive commands via Jenkins (zh_msg=通过主动防御检测到攻击者通过诱饵Jenkins执行命令（CVE-2018-1000861）,rule_type=Privilege_Escalation,fd_name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,container_id=%container.id,container_name=%container.name)
+    Execute sensitive commands through Jenkins (zh_msg=通过Jenkins执行命令（CVE-2018-1000861）,rule_type=Privilege_Escalation,fd_name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,container_id=%container.id,container_name=%container.name)
   priority: ALERT
   tags: [Watson]
 
-- rule: Other containers establish new connections to the Jupyter
+- rule: Unauthorized access to Jupyter-Notebook
   hid: hp_11
   category: Watson
   categoryZh: 主动防御
@@ -211,15 +211,15 @@
     zh:
       key: "处置建议"
       value: "建议排查攻击源容器是否已遭到入侵，可使用微隔离与免疫防御限制攻击者进行进一步攻击。"
-  desc: Other containers establish new connections to the Jupyter
+  desc: Unauthorized access to Jupyter-Notebook
   condition: >
    (inbound_outbound) and fd.sport = 8888 and k8s.pod.name contains "ddc305"
   output: >
-    Other containers establish new connections to the jenkins (zh_msg=通过主动防御检测到存在与诱饵jupyter通信,rule_type=Privilege_Escalation,fd_name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,container_id=%container.id,container_name=%container.name)
+    Unauthorized access to Jupyter-Notebook (zh_msg=Jupyter-Notebook未授权访问,rule_type=Privilege_Escalation,fd_name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,container_id=%container.id,container_name=%container.name)
   priority: ALERT
   tags: [Watson]
 
-- rule: Execute sensitive commands via Jupyter
+- rule: Execute sensitive commands through Jupyter-Notebook
   hid: hp_12
   category: Watson
   categoryZh: 主动防御
@@ -231,11 +231,11 @@
     zh:
       key: "处置建议"
       value: "建议排查攻击源容器是否已遭到入侵，可使用微隔离与免疫防御限制攻击者进行进一步攻击。"
-  desc: Execute sensitive commands via Jupyter
+  desc: Execute sensitive commands through Jupyter-Notebook
   condition: >
     k8s.pod.name contains "ddc305" and evt.type=execve and evt.res!=ENOENT
   output: >
-    Execute sensitive commands via Jenkins (zh_msg=通过主动防御检测到攻击者通过诱饵Jupyter执行命令,rule_type=Privilege_Escalation,fd_name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,container_id=%container.id,container_name=%container.name)
+    Execute sensitive commands through Jupyter-Notebook (zh_msg=通过Jupyter-Notebook执行命令,rule_type=Privilege_Escalation,fd_name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,container_id=%container.id,container_name=%container.name)
   priority: ALERT
   tags: [Watson]
 
@@ -255,11 +255,11 @@
   condition: >
     watson_pods and spawned_process and container and not user_known_k8s_client_container_parens and proc.name in (k8s_client_binaries)
   output: >
-    Docker or kubernetes client executed in container (zh_msg=通过主动防御检测到诱饵容器内运行k8s相关二进制程序,rule_type=Lateral_Movement,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid %container.info parent=%proc.pname image=%container.image.repository:%container.image.tag,container_id=%container.id,container_name=%container.name)
+    Docker or kubernetes client executed in container (zh_msg=诱饵容器内运行k8s相关二进制程序,rule_type=Lateral_Movement,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid %container.info parent=%proc.pname image=%container.image.repository:%container.image.tag,container_id=%container.id,container_name=%container.name)
   priority: ALERT
   tags: [Watson]
 
-- rule: Other containers establish new connections to the mysql
+- rule: Unauthorized access to Mysql
   hid: hp_14
   category: Watson
   categoryZh: 主动防御
@@ -271,15 +271,15 @@
     zh:
       key: "处置建议"
       value: "建议排查攻击源容器是否已遭到入侵，可使用微隔离与免疫防御限制攻击者进行进一步攻击。"
-  desc: Other containers establish new connections to the mysql
+  desc: Unauthorized access to Mysql
   condition: >
     k8s.pod.name contains "588ee1" and (inbound_outbound) and fd.sport = 3306
   output: >
-    Other containers establish new connections to the mysql (zh_msg=Watson：通过主动防御检测到与诱饵mysql通信,rule_type=Privilege_Escalation,fd_name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,container_id=%container.id,container_name=%container.name)
+    Unauthorized access to Mysql (zh_msg=Mysql未授权访问,rule_type=Privilege_Escalation,fd_name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,container_id=%container.id,container_name=%container.name)
   priority: ALERT
   tags: [Watson]
 
-- rule: Connection with mysql successfully established detected
+- rule: The attacker successfully cracked the weak Mysql password
   hid: hp_15
   category: Watson
   categoryZh: 主动防御
@@ -291,15 +291,15 @@
     zh:
       key: "处置建议"
       value: "建议排查攻击源容器是否已遭到入侵，可使用微隔离与免疫防御限制攻击者进行进一步攻击。"
-  desc: Connection with mysql successfully established detected
+  desc: The attacker successfully cracked the weak Mysql password
   condition: >
     k8s.pod.name contains "588ee1" and evt.type=recvfrom and evt.arg.data contains "select" and fd.sport = 3306 
   output: >
-    Connection with mysql successfully established detected (zh_msg=通过主动防御检测到存在与诱饵mysql成功建立连接,rule_type=Privilege_Escalation,fd_name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,container_id=%container.id,container_name=%container.name)
+    The attacker successfully cracked the weak Mysql password (zh_msg=攻击者成功暴破出Mysql弱口令,rule_type=Privilege_Escalation,fd_name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,container_id=%container.id,container_name=%container.name)
   priority: ALERT
   tags: [Watson]
 
-- rule: Other containers establish new connections to the ssh
+- rule: Unauthorized access to SSH
   hid: hp_16
   category: Watson
   categoryZh: 主动防御
@@ -311,15 +311,15 @@
     zh:
       key: "处置建议"
       value: "建议排查攻击源容器是否已遭到入侵，可使用微隔离与免疫防御限制攻击者进行进一步攻击。"
-  desc: Other containers establish new connections to the ssh
+  desc: Unauthorized access to SSH
   condition: >
     k8s.pod.name contains "98166d" and (inbound_outbound) and fd.sport = 22
   output: >
-    Other containers establish new connections to the ssh (zh_msg=通过主动防御检测到与诱饵ssh通信,rule_type=Privilege_Escalation,fd_name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,container_id=%container.id,container_name=%container.name)
+    Unauthorized access to SSH (zh_msg=SSH未授权访问,rule_type=Privilege_Escalation,fd_name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,container_id=%container.id,container_name=%container.name)
   priority: ALERT
   tags: [Watson]
 
-- rule: Connection establishment using ssh is detected
+- rule: The attacker successfully cracked the weak SSH password
   hid: hp_17
   category: Watson
   categoryZh: 主动防御
@@ -331,15 +331,15 @@
     zh:
       key: "处置建议"
       value: "建议排查攻击源容器是否已遭到入侵，可使用微隔离与免疫防御限制攻击者进行进一步攻击。"
-  desc: Connection establishment using ssh is detected
+  desc: The attacker successfully cracked the weak SSH password
   condition: >
     k8s.pod.name contains "98166d" and evt.type=write and evt.arg.data contains "Welcome" 
   output: >
-    Connection with mysql successfully established detected (zh_msg=通过主动防御检测到与诱饵容器建立ssh连接,rule_type=Privilege_Escalation,fd_name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,fd.sport=%fd.sport,container_id=%container.id,container_name=%container.name)
+    The attacker successfully cracked the weak SSH password (zh_msg=攻击者成功暴破出SSH弱口令,rule_type=Privilege_Escalation,fd_name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,fd.sport=%fd.sport,container_id=%container.id,container_name=%container.name)
   priority: ALERT
   tags: [Watson]
 
-- rule: Other containers establish new connections to the vsftpd
+- rule: Unauthorized access to vsftpd
   hid: hp_18
   category: Watson
   categoryZh: 主动防御
@@ -351,15 +351,15 @@
     zh:
       key: "处置建议"
       value: "建议排查攻击源容器是否已遭到入侵，可使用微隔离与免疫防御限制攻击者进行进一步攻击。"
-  desc: Other containers establish new connections to the vsftpd
+  desc: Unauthorized access to vsftpd
   condition: >
     k8s.pod.name contains "42cca6" and (inbound_outbound) and fd.sport = 21
   output: >
-    Other containers establish new connections to the vsftpd (zh_msg=通过主动防御检测到存在与诱饵容器的ftp通信,rule_type=Privilege_Escalation,fd_name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,container_id=%container.id,container_name=%container.name)
+    Unauthorized access to vsftpd (zh_msg=vsftpd未授权访问,rule_type=Privilege_Escalation,fd_name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,container_id=%container.id,container_name=%container.name)
   priority: ALERT
   tags: [Watson]
 
-- rule: Connection establishment using ftp is detected
+- rule: The attacker successfully cracked the weak ftp password
   hid: hp_19
   category: Watson
   categoryZh: 主动防御
@@ -371,10 +371,10 @@
     zh:
       key: "处置建议"
       value: "建议排查攻击源容器是否已遭到入侵，可使用微隔离与免疫防御限制攻击者进行进一步攻击。"
-  desc: Connection establishment using ftp is detected
+  desc: The attacker successfully cracked the weak ftp password
   condition: >
     k8s.pod.name contains "42cca6" and evt.type=write and evt.arg.data contains "OK LOGIN"
   output: >
-    Connection establishment using ftp is detected (zh_msg=通过主动防御检测到与诱饵容器建立ftp连接,rule_type=Privilege_Escalation,fd_name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,fd.sport=%fd.sport,container_id=%container.id,container_name=%container.name)
+    The attacker successfully cracked the weak ftp password (zh_msg=攻击者成功暴破出ftp弱口令,rule_type=Privilege_Escalation,fd_name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,fd.sport=%fd.sport,container_id=%container.id,container_name=%container.name)
   priority: ALERT
   tags: [Watson]
