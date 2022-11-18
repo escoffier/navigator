@@ -17,7 +17,7 @@ type ExportTensorTaskView struct {
 	StartAt       int64  `json:"startAt"`       // 任务开始执行时间
 	FinishAt      int64  `json:"finishAt"`      // 任务执行完成时间
 	ErrMsg        string `json:"errMsg"`        // 错误信息
-	Status        int    `json:"status"`        // 当前的状态
+	Status        string `json:"status"`        // 当前的状态
 	AllImage      int64  `json:"AllImage"`      // 总数的镜像数
 	FinishedImage int64  `json:"finishedImage"` // 已完成的镜像数
 

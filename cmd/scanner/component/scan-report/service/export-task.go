@@ -14,7 +14,7 @@ import (
 
 type ExportTaskInterface interface {
 	CreateExportTask(ctx context.Context, data *model.ExportTensorTask) error
-	SearchExportTask(ctx context.Context, executeType string, filter *model.Filter) ([]model.ExportTensorTask, int64, error)
+	SearchExportTask(ctx context.Context, param SearchExportTaskParam, filter *model.Filter) ([]model.ExportTensorTask, int64, error)
 	GetExportTask(ctx context.Context, id int64) (*model.ExportTensorTask, error)
 	UpdateExportTask(ctx context.Context, id int64, updater map[string]interface{}) error
 	CheckScanTask(ctx context.Context, scanTaskID int64) (*ExportLimit, error)
@@ -188,12 +188,13 @@ func (s *ExportTaskSrv) CreateExportTask(ctx context.Context, data *model.Export
 	return nil
 }
 
-func (s *ExportTaskSrv) SearchExportTask(ctx context.Context, executeType string, filter *model.Filter) ([]model.ExportTensorTask, int64, error) {
+func (s *ExportTaskSrv) SearchExportTask(ctx context.Context, param SearchExportTaskParam, filter *model.Filter) ([]model.ExportTensorTask, int64, error) {
 	ext := make([]string, 0)
-	if executeType != "" {
-		ext = append(ext, executeType)
+	if param.ExecuteType != "" {
+		ext = append(ext, param.ExecuteType)
 	}
-	tasks, cnt, err := s.ExportDal.SearchExportTensorTask(ctx, store.SearchExportTensorTask{ExecuteType: ext}, filter)
+	tasks, cnt, err := s.ExportDal.SearchExportTensorTask(ctx,
+		store.SearchExportTensorTask{ExecuteType: ext, Finished: param.Finished, Failure: param.Failure}, filter)
 	if err != nil {
 		logging.Get().Err(err).Msg("SearchExportTask")
 		return nil, 0, err

@@ -305,7 +305,9 @@ func (s *ExportApiSrv) GetReportTaskList(ctx *gin.Context) {
 	filter := model.GetFilterWithDefaultValue(ctx)
 	filter.SortFiled = "id"
 	filter.SortBy = consts.SortByDesc
-	tasks, cnt, err := s.exportSrv.SearchExportTask(ctx, executeType, filter)
+	tasks, cnt, err := s.exportSrv.SearchExportTask(ctx, service.SearchExportTaskParam{
+		ExecuteType: executeType,
+	}, filter)
 	if err != nil {
 		response.JSONError(ctx, err)
 		return
@@ -323,7 +325,19 @@ func (s *ExportApiSrv) GetReportTaskList(ctx *gin.Context) {
 		}
 	}
 
+	// 前端需要字段当前有多少个任务未完成
+	_, notFinished, err := s.exportSrv.SearchExportTask(ctx, service.SearchExportTaskParam{
+		ExecuteType: executeType,
+		Finished:    consts.FalseString,
+		Failure:     consts.FalseString,
+	}, filter)
+	if err != nil {
+		response.JSONError(ctx, err)
+		return
+	}
+
 	response.JSONOK(ctx, response.WithItems(ans),
+		response.WithCustomField("notFinished", notFinished),
 		response.WithTotalItems(cnt),
 		response.WithItemsPerPage(filter.Limit),
 		response.WithStartIndex(filter.Offset))
