@@ -412,18 +412,11 @@ func (s *ConScannerSrv) ListAppImageOfBase(ctx context.Context, imageID int64, f
 	}
 	baseLayer := baseImages[0].GetLayerString()
 	// 因为应用镜像占绝大多数，所以这里查全部数据，在程序中过滤
-	images, cnt, err := s.dbdal.SearchImage(ctx, store.SearchImageParam{LayersPrefix: baseLayer,
+	images, cnt, err := s.dbdal.SearchImage(ctx, store.SearchImageParam{LayersPrefix: baseLayer, ImageType: model.AppImageTypeString,
 		OmitFields: []string{"config_json", "manifest_v1_json", "manifest_v2_json"}}, filter)
 	if err != nil {
 		logging.GetLogger().Err(err).Msg("ListAppImageOfBase.SearchImage")
 		return nil, 0, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf(consts.StatusInternalServerErrorMsg))
-	}
-	appImages := make([]model.ImageList, 0)
-
-	for i := range images {
-		if !model.ExistFlag(images[i].Flag, model.FlagBaseImage) {
-			appImages = append(appImages, images[i])
-		}
 	}
 
 	// 把仓库信息加上
@@ -436,13 +429,13 @@ func (s *ConScannerSrv) ListAppImageOfBase(ctx context.Context, imageID int64, f
 	for i := range registries {
 		regMap[registries[i].ID] = registries[i]
 	}
-	for i := range appImages {
-		if re, ok := regMap[appImages[i].RegistryID]; ok {
-			appImages[i].Registry = &re
+	for i := range images {
+		if re, ok := regMap[images[i].RegistryID]; ok {
+			images[i].Registry = &re
 		}
 	}
 
-	return appImages, cnt, nil
+	return images, cnt, nil
 }
 
 func (s *ConScannerSrv) UpdateImageType(ctx context.Context, imageIds []int64, imageType int64) error {
