@@ -7,6 +7,7 @@ import (
 	"io/ioutil"
 	"math/rand"
 	"net/http"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -101,10 +102,11 @@ func (s *ScapService) PolicyInit(policyCounts int32) error {
 		"/policy/kube-policy.json",
 		"/policy/docker-policy.json",
 		"/policy/host-policy.json",
+		"/Users/wangxer/go/src/tensornavigator/configs/data/policy/docker-policy.json",
 	}
 
 	for _, file := range files {
-		data, err := ioutil.ReadFile(file)
+		data, err := os.ReadFile(file)
 		if err != nil {
 			logging.Get().Err(err).Msgf("read data failed from %s", file)
 			continue
@@ -117,7 +119,7 @@ func (s *ScapService) PolicyInit(policyCounts int32) error {
 			continue
 		}
 
-		// 批量插入，如果主键冲突，则ignore
+		// 批量插入，如果主键冲突，则update
 		err = s.rdb.Get().
 			WithContext(ctx).
 			Clauses(clause.OnConflict{
