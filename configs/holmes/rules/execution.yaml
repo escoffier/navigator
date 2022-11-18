@@ -246,3 +246,24 @@
     Connecting to a remote server through redis client in container (zh_msg=容器内通过redis客户端连接远程服务器,rule_type=Execution,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name user_loginuid=%user.loginuid parent=%proc.pname terminal=%proc.tty container_id=%container.id container_name=%container.name image=%container.image.repository)
   priority: WARNING
   tags: [ATT&CK, container, shell, mitre_execution, strict]
+
+- rule: Suspected sending data through tunnel
+  hid: exec_11
+  hthreats: 0
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "Check whether the execution of the relevant command is as expected and whether it is an operation and maintenance operation. If it is triggered by the system probe, please add the corresponding container to the white list. Otherwise, please check the specific reason and isolate the container."
+    zh:
+      key: "处置建议"
+      value: "查看相关命令执行是否符合预期，是否为运维操作，如果为系统探针触发请采用白名单加白对应容器，否则请排查具体原因并隔离该容器。"
+  desc: Suspected hacker transmits data through tunnel in container
+  condition: >
+    evt.type=socket and container and (proc.name=ping and proc.cmdline contains "-p") or proc.name=nslookup or (proc.name=curl and proc.cmdline contains "-d")
+  output: >
+    Suspected hacker transmits data through tunnel in container (zh_msg=疑似黑客在容器内通过隧道传输数据),rule_type=Execution,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,evt.args=%evt.args
+    original_info=user=%user.name user_loginuid=%user.loginuid
+    container_id=%container.id container_name=%container.name image=%container.image.repository:%container.image.tag
+    connection=%fd.name,client_ip=%fd.cip,client_port=%fd.cport,server_ip=%fd.sip,server_port=%fd.sport)
+  priority: WARNING
+  tags: [ATT&CK, network, process, mitre_execution, strict]
