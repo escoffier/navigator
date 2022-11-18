@@ -243,6 +243,9 @@
 - macro: shell_procs
   condition: proc.name in (shell_binaries)
 
+- macro: shell_parent_procs
+  condition: proc.pname in (shell_binaries)
+
 - list: coreutils_binaries
   items: [
     truncate, sha1sum, numfmt, fmt, fold, uniq, cut, who,

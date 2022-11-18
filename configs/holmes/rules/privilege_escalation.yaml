@@ -410,3 +410,39 @@
     Connect to docker.sock in container(zh_msg=容器内与docker.sock通信,rule_type=Privilege_Escalation,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type, container=%container.info,container_id=%container.id,container_name=%container.name)
   priority: CRITICAL
   tags: [ATT&CK, filesystem, mitre_privilege_escalation]
+
+- rule: Bypass K8s RBAC
+  hid: priv_22
+  hthreats: 1
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "The container may have been invaded. You can use the immune defense training application to limit the user permissions of sensitive files and commands."
+    zh:
+      key: "处置建议"
+      value: "容器可能已遭到入侵，可使用免疫防御训练应用，限制敏感文件和命令的用户权限。"
+  desc: Bypass K8s RBAC
+  condition: >
+    open_read and fd.name = /var/run/secrets/kubernetes.io/serviceaccount/token and container and shell_parent_procs
+  output: >
+    Bypass K8s RBAC (zh_msg=K8s-RBAC绕过,rule_type=Privilege_Escalation,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,container=%container.info,container_id=%container.id,container_name=%container.name)
+  priority: ALERT
+  tags: [ATT&CK, filesystem, mitre_privilege_escalation]
+
+- rule: Execute commands through the docker api
+  hid: priv_23
+  hthreats: 1
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "The container may have been invaded. You can use the immune defense training application to limit the user permissions of sensitive files and commands."
+    zh:
+      key: "处置建议"
+      value: "容器可能已遭到入侵，可使用免疫防御训练应用，限制敏感文件和命令的用户权限。"
+  desc: Execute commands through the docker api
+  condition: >
+    evt.type in (sendto, sendmsg, connect) and fd.sport = 2375 and shell_parent_procs
+  output: >
+    Execute commands through the docker api (zh_msg=通过Docker-api执行命令,rule_type=Privilege_Escalation,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,container=%container.info,container_id=%container.id,container_name=%container.name)
+  priority: ALERT
+  tags: [ATT&CK, filesystem, mitre_privilege_escalation]

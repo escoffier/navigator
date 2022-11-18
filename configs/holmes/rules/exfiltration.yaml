@@ -156,7 +156,7 @@
       value: "使用免疫防御训练应用，使用微隔离阻拦流量，限制敏感文件和命令的用户权限。"
   desc: Detect attempts to use K8s NodePorts from a container
   condition: (inbound_outbound) and fd.sport >= 30000 and fd.sport <= 32767 and container and not nodeport_containers
-  output: Unexpected K8s NodePort Connection (zh_msg=检测到从容器内发出与k8s nodeport建立连接尝试,rule_type=Exfiltration,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=connection=%fd.name container_id=%container.id container_name=%container.name image=%container.image.repository)
+  output: Unexpected K8s NodePort Connection (zh_msg=检测到从容器内发出与NodePort建立连接尝试,rule_type=Exfiltration,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=connection=%fd.name container_id=%container.id container_name=%container.name image=%container.image.repository)
   priority: NOTICE
   tags: [ATT&CK, network, k8s, container, mitre_port_knocking]
 
@@ -373,8 +373,8 @@
       value: "测到k8s敏感端口访问行为,请结合具体命令确认是否为合法访问，如果不是则可能遭到攻击者利用，请及时隔离该pod。"
   desc: Access k8s component ports detected
   condition: >
-    easy_outbound and proc.name!="<NA>" and fd.sport in (k8s_ports)
+    easy_outbound and not proc.name in (<NA>, kubectl) and fd.sport in (k8s_ports) and shell_parent_procs
   output: >
     Scanning ports detected (zh_msg=检测到访问k8s组件敏感端口,rule_type=Exfiltration,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,connection=%fd.name,client_ip=%fd.cip,client_port=%fd.cport,server_ip=%fd.sip,server_port=%fd.sport user=%user.name user_loginuid=%user.loginuid container_id=%container.id container_name=%container.name image=%container.image.repository)
   priority: ALERT
-  tags: [ATT&CK, network, mitre_remote_service, strict]
+  tags: [ATT&CK, network, mitre_remote_service]
