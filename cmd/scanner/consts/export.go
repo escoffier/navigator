@@ -13,11 +13,11 @@ const (
 )
 
 const (
-	ExportStatusEmpty = iota
-	ExportStatusPending
-	ExportStatusRunning
-	ExportStatusFinish
-	ExportStatusError
+	ExportStatusEmpty   = ""
+	ExportStatusPending = "pending"
+	ExportStatusRunning = "running"
+	ExportStatusFinish  = "finished"
+	ExportStatusError   = "error"
 )
 
 const (
