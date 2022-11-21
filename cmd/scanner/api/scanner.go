@@ -1188,16 +1188,33 @@ func (s *Scanner) GetOpenapiDoc(ctx *gin.Context) {
 		Description string `json:"description"`
 		Path        string `json:"path"`
 	}
-	res := make([]Doc, 0)
-	res = append(res, Doc{Description: "简介", Path: "openapi-common.html"})
-	res = append(res, Doc{Description: "镜像安全 api接口", Path: "openapi-scanner.html"})
-	res = append(res, Doc{Description: "合规检测 api接口", Path: "openapi-scap.html"})
-	res = append(res, Doc{Description: "集群与资产 api接口", Path: "openapi-assets.html"})
-	res = append(res, Doc{Description: "主动防御 api接口", Path: "openapi-defense.html"})
-	res = append(res, Doc{Description: "偏移防御 api接口", Path: "openapi-drift.html"})
-	res = append(res, Doc{Description: "集群安全 api接口", Path: "openapi-platform.html"})
-	res = append(res, Doc{Description: "事件中心 & ATT&CK api接口", Path: "openapi-sherlock.html"})
-	res = append(res, Doc{Description: "降级和恢复 api接口", Path: "openapi-degrade.html"})
+	resZH := make([]Doc, 0)
+	resZH = append(resZH, Doc{Description: "简介", Path: "openapi-common.html"})
+	resZH = append(resZH, Doc{Description: "镜像安全 api接口", Path: "openapi-scanner.html"})
+	resZH = append(resZH, Doc{Description: "合规检测 api接口", Path: "openapi-scap.html"})
+	resZH = append(resZH, Doc{Description: "集群与资产 api接口", Path: "openapi-assets.html"})
+	resZH = append(resZH, Doc{Description: "主动防御 api接口", Path: "openapi-defense.html"})
+	resZH = append(resZH, Doc{Description: "偏移防御 api接口", Path: "openapi-drift.html"})
+	resZH = append(resZH, Doc{Description: "集群安全 api接口", Path: "openapi-platform.html"})
+	resZH = append(resZH, Doc{Description: "事件中心 & ATT&CK api接口", Path: "openapi-sherlock.html"})
+	resZH = append(resZH, Doc{Description: "降级和恢复 api接口", Path: "openapi-degrade.html"})
+
+	resEN := make([]Doc, 0)
+	resEN = append(resEN, Doc{Description: "Info", Path: "openapi-common.html"})
+	resEN = append(resEN, Doc{Description: "Image Security API", Path: "openapi-scanner.html"})
+	resEN = append(resEN, Doc{Description: "Compliance API", Path: "openapi-scap.html"})
+	resEN = append(resEN, Doc{Description: "Clusters Assets API", Path: "openapi-assets.html"})
+	resEN = append(resEN, Doc{Description: "Active Defense API", Path: "openapi-defense.html"})
+	resEN = append(resEN, Doc{Description: "Drift Defense API", Path: "openapi-drift.html"})
+	resEN = append(resEN, Doc{Description: "Cluster Security API", Path: "openapi-platform.html"})
+	resEN = append(resEN, Doc{Description: "Event Center & ATT&CK API", Path: "openapi-sherlock.html"})
+	resEN = append(resEN, Doc{Description: "Downgrade Recovery API", Path: "openapi-degrade.html"})
+
+	res := resZH
+	if strings.ToLower(ctx.GetHeader("Accept-Language")) == "en" ||
+		strings.ToLower(ctx.GetHeader("accept-language")) == "en" {
+		res = resEN
+	}
 
 	response.JSONOK(ctx, response.WithItems(res), response.WithTotalItems(int64(len(res))))
 }
