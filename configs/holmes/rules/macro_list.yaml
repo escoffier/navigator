@@ -2020,6 +2020,9 @@
 - macro: k8s_api_server
   condition: (fd.sip.name="kubernetes.default.svc.cluster.local")
 
+- macro: k8s_dns_server
+  condition: (fd.sip.name="kube-dns.kube-system.svc.cluster.local")
+
 - macro: user_known_contact_k8s_api_server_activities
   condition: (never_true)
 
