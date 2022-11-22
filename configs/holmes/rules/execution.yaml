@@ -214,7 +214,7 @@
   condition: >
    evt.type = execve and container and
    (not tensorsec_namespace) and 
-   (proc.cmdline contains "cdk evaluate" or
+   (proc.cmdline contains "cdk eva" or
     proc.cmdline contains "k0otkit" or
     proc.cmdline contains "kubesploit" or
     proc.cmdline contains "red-kube" or

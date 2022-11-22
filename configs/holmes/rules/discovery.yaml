@@ -15,6 +15,7 @@
   condition: >
     sensitive_files and open_read and container
     and proc_name_exists
+    and shell_parent_procs
     and not proc.name in (user_mgmt_binaries, userexec_binaries, package_mgmt_binaries,
      cron_binaries, read_sensitive_file_binaries, shell_binaries, hids_binaries,
      vpn_binaries, mail_config_binaries, nomachine_binaries, sshkit_script_binaries,
@@ -231,6 +232,7 @@
     evt.arg.data contains "cp" or
     evt.arg.data contains "awk"
     )
+    and shell_parent_procs
   output: Find files with suid privilege by non-root users (zh_msg=非root用户查找含有suid权限的文件,fd_name=%fd.name,rule_type=Discovery,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,container_id=%container.id,container_name=%container.name)
   priority: WARNING
   tags: [ATT&CK]
@@ -281,7 +283,30 @@
       value: "请确认该行为发起对象是否为可信人员或程序，否则容器可能遭到入侵，可使用免疫防御训练应用，限制敏感文件和命令的用户权限。"
   desc: Get ApiServer_token through kubectl
   condition: >
-    evt.type = execve and (proc.cmdline contains "kubectl config view" or proc.cmdline contains "kubectl describe secrets")
+    evt.type = execve and (proc.cmdline contains "kubectl config view" or proc.cmdline contains "kubectl describe secrets") and shell_parent_procs
   output: Get ApiServer_token through kubectl (zh_msg=通过kubectl获取ApiServer_token,rule_type=Discovery,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,container_id=%container.id,container_name=%container.name)
   priority: WARNING
   tags: [ATT&CK, strict]
+
+- rule: Contact K8S DNS Server From Container
+  hid: disc_14
+  hthreats: 0
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "This behavior may be that hackers use malicious tools to communicate with K8s DNS to obtain sensitive information. Please check whether this behavior is expected, or immediately isolate the container."
+    zh:
+      key: "处置建议"
+      value: "该行为可能是黑客使用恶意工具与K8s-DNS通信进而获取敏感信息，请排查该行为是否为预期内操作，否则请立即对该容器进行隔离。"
+  desc: Detect attempts to contact the K8S API Server from a container
+  condition: >
+    evt.type=connect and evt.dir=< and
+    container and
+    not k8s_containers and
+    k8s_dns_server and
+    not ignore_proc_args and
+    shell_parent_procs
+  output: >
+    Unexpected connection to K8s DNS Server from container (zh_msg=尝试从容器内连接到k8s_DNS_Server,rule_type=Discovery,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=%container.info image=%container.image.repository:%container.image.tag connection=%fd.name,container_id=%container.id,container_name=%container.name)
+  priority: WARNING
+  tags: [ATT&CK, network, k8s, container, mitre_discovery]

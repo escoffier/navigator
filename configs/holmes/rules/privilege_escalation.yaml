@@ -108,6 +108,7 @@
     (modify_shell_history or truncate_shell_history) and
     not var_lib_docker_filepath and
     not proc.name in (docker_binaries) and
+    shell_parent_procs and
     container
   output: >
     Shell history had been deleted or renamed (zh_msg=删除或重命名shell历史记录,rule_type=Privilege_Escalation,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid type=%evt.type fd_name=%fd.name name=%evt.arg.name path=%evt.arg.path oldpath=%evt.arg.oldpath %container.info container_id=%container.id,container_name=%container.name)
@@ -411,7 +412,7 @@
   priority: CRITICAL
   tags: [ATT&CK, filesystem, mitre_privilege_escalation]
 
-- rule: Bypass K8s RBAC
+- rule: Try to read the k8s token and bypass RBAC
   hid: priv_22
   hthreats: 1
   suggestion:
@@ -425,8 +426,8 @@
   condition: >
     open_read and fd.name = /var/run/secrets/kubernetes.io/serviceaccount/token and container and shell_parent_procs
   output: >
-    Bypass K8s RBAC (zh_msg=K8s-RBAC绕过,rule_type=Privilege_Escalation,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,container=%container.info,container_id=%container.id,container_name=%container.name)
-  priority: ALERT
+    Bypass K8s RBAC (zh_msg=尝试读取K8s-token并进行RBAC权限绕过,rule_type=Privilege_Escalation,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,container=%container.info,container_id=%container.id,container_name=%container.name)
+  priority: WARNING
   tags: [ATT&CK, filesystem, mitre_privilege_escalation]
 
 - rule: Execute commands through the docker api
