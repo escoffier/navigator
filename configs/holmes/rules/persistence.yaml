@@ -94,6 +94,7 @@
   desc: Detect package repositories get updated
   condition: >
     ((open_write and access_repositories) or (modify and modify_repositories))
+    and shell_parent_procs
     and not package_mgmt_procs
     and not package_mgmt_ancestor_procs
     and not exe_running_docker_save
