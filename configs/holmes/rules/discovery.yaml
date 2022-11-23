@@ -75,6 +75,7 @@
   desc: Detect attempts to read shell configuration files by non-shell programs
   condition: >
     open_read and
+    shell_parent_procs and
     (fd.filename in (shell_config_filenames) or
     fd.name in (shell_config_files) or
     fd.directory in (shell_config_directories)) and

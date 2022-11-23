@@ -84,6 +84,7 @@
     Detect setuid or setgid bits set via chmod
   condition: >
     consider_all_chmods and chmod and (evt.arg.mode contains "S_ISUID" or evt.arg.mode contains "S_ISGID")
+    and shell_parent_procs
     and not proc.name in (user_known_chmod_applications)
     and not exe_running_docker_save
     and not user_known_set_setuid_or_setgid_bit_conditions
@@ -406,7 +407,7 @@
       value: "容器可能已经遭到入侵，使用免疫防御训练应用，限制敏感文件和命令的用户权限。"
   desc: Connect to docker.sock in container
   condition: >
-    evt.type = connect and evt.args contains "docker.sock" and container and not tensorsec_namespace
+    evt.type = connect and evt.args contains "docker.sock" and container and not tensorsec_namespace and shell_parent_procs
   output: >
     Connect to docker.sock in container(zh_msg=容器内与docker.sock通信,rule_type=Privilege_Escalation,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type, container=%container.info,container_id=%container.id,container_name=%container.name)
   priority: CRITICAL

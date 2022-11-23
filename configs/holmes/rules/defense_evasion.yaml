@@ -36,7 +36,7 @@
   desc: Detect bash history deletion
   condition: >
     ((spawned_process and proc.name in (shred, rm, mv) and proc.args contains "bash_history") or
-     (open_write and fd.name contains "bash_history" and evt.arg.flags contains "O_TRUNC"))
+     (open_write and fd.name contains "bash_history" and evt.arg.flags contains "O_TRUNC")) and shell_parent_procs
   output: >
     Shell history had been deleted or renamed (zh_msg=bash历史文件被删除,rule_type=Defense_Evasion,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid type=%evt.type fd_name=%fd.name name=%evt.arg.name path=%evt.arg.path oldpath=%evt.arg.oldpath %container.info,container_id=%container.id,container_name=%container.name)
   priority: WARNING

@@ -283,7 +283,7 @@
       value: "使请确认是否为系统内部业务脚本导致，否则系统可能遭到入侵，可使用微隔离阻拦流量。"
   desc: Interpretative language detected scanning network
   condition: >
-   interpreted_procs and evt.type=connect and not tensorsec_namespace
+   interpreted_procs and evt.type=connect and not tensorsec_namespace and shell_parent_procs
   output: >
     Interpretative language detected scanning network (zh_msg=通过解释型语言探测网络,rule_type=Exfiltration,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid connection=%fd.name container_id=%container.id container_name=%container.name image=%container.image.repository)
   priority: WARNING
@@ -301,7 +301,7 @@
       value: "可能存在ssh爆破行为，建议确认主机和容器是否存在弱口令，并通过修改/etc/pam.d/sshd限制错误登录尝试次数。"
   desc: Try ssh connection in container
   condition: >
-   (inbound_outbound) and allowed_ssh_hosts and container
+   (inbound_outbound) and allowed_ssh_hosts and container and shell_parent_procs
   output: >
     Try ssh connection in container (zh_msg=检测到在容器内尝试ssh连接,rule_type=Exfiltration,connection=%fd.name,client_ip=%fd.cip,client_port=%fd.cport,server_ip=%fd.sip,server_port=%fd.sport,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,container_id=%container.id,container_name=%container.name)
   priority: WARNING
@@ -319,7 +319,7 @@
       value: "可能存在ssh爆破行为，建议确认主机和容器是否存在弱口令，并通过修改/etc/pam.d/sshd限制错误登录尝试次数。"
   desc: Try ssh connection in host
   condition: >
-    (inbound_outbound) and allowed_ssh_hosts and not container and not proc.cmdline = "sshd -D"
+    (inbound_outbound) and allowed_ssh_hosts and not container and not proc.cmdline = "sshd -D" and shell_parent_procs
   output: >
     Try ssh connection in host (zh_msg=检测到在主机上尝试ssh连接,rule_type=Exfiltration,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,connection=%fd.name,client_ip=%fd.cip,client_port=%fd.cport,server_ip=%fd.sip,server_port=%fd.sport user=%user.name user_loginuid=%user.loginuid container_id=%container.id container_name=%container.name image=%container.image.repository)
   priority: WARNING
