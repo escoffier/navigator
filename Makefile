@@ -169,12 +169,16 @@ scanner: generate		## Build scanner binary
 .PHONY: faulty-base
 faulty-base: ## Build faulty base image
 	@echo "+ $@"
-ifeq ($(USEMIRROR),true)
+ifeq ($(UNAME_M),x86_64)
 	docker build -t $(REPOPREFIX)/baseimage-faulty:latest \
-    --build-arg MIRROR=mirrors.aliyun.com -f ./build/faulty/baseimage-dockerfile .
+	-f ./build/faulty/baseimage-dockerfile \
+	--build-arg MIRROR=mirrors.aliyun.com \
+	--build-arg TARGETARCH=amd64 .
 else
 	docker build -t $(REPOPREFIX)/baseimage-faulty:latest \
-    -f ./build/faulty/baseimage-dockerfile .
+	-f ./build/faulty/baseimage-dockerfile \
+	--build-arg MIRROR=mirrors.aliyun.com \
+	--build-arg TARGETARCH=arm64 .
 endif
 
 .PHONY: daemon
@@ -211,7 +215,7 @@ endif
 
 
 .PHONY: faulty
-faulty: drift-prevention-client     ## Build faulty docker to test CVEs
+faulty:
 	@echo "+ $@"
 ifeq ($(USEMIRROR),true)
 	@echo "faulty will use mirror"

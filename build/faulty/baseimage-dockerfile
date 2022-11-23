@@ -1,6 +1,7 @@
 FROM ubuntu:18.04
 
-ARG MIRROR=mirrors.ustc.edu.cn
+ARG TARGETARCH
+ARG MIRROR=archive.ubuntu.com
 ARG TOMCAT_VERSION=8.5.73
 
 ENV PATH="/usr/lib/go-1.10/bin:$PATH"
@@ -45,24 +46,21 @@ RUN sed -i "s!archive.ubuntu.com/!${MIRROR}/!g" /etc/apt/sources.list \
     && rm /usr/bin/python3 \
     && ln -s /usr/bin/python3.8 /usr/bin/python3 \
     && pip3 install --upgrade pip \
-    && pip3 install PyMySQL setuptools setuptools_rust paramiko -i https://pypi.tuna.tsinghua.edu.cn/simple\
-    && curl -o /tmp/docker-19.03.9.tgz https://mirrors.tuna.tsinghua.edu.cn/docker-ce/linux/static/stable/x86_64/docker-18.09.9.tgz \
-    && wget https://repo.huaweicloud.com/java/jdk/8u151-b12/jdk-8u151-linux-x64.tar.gz \
-    && tar xvzf /jdk-8u151-linux-x64.tar.gz \
+    && pip3 install PyMySQL setuptools setuptools_rust paramiko -i https://pypi.tuna.tsinghua.edu.cn/simple
+
+RUN if [ "$TARGETARCH" = "amd64" ]; then \
+    wget -O /tmp/docker-19.03.9.tgz https://mirrors.tuna.tsinghua.edu.cn/docker-ce/linux/static/stable/x86_64/docker-19.03.9.tgz \
+    && wget -O /jdk.tar.gz https://repo.huaweicloud.com/java/jdk/8u151-b12/jdk-8u151-linux-x64.tar.gz; \
+    elif [ "$TARGETARCH" = "arm64" ]; then \
+    wget -O /tmp/docker-19.03.9.tgz https://mirrors.tuna.tsinghua.edu.cn/docker-ce/linux/static/stable/aarch64/docker-19.03.9.tgz \
+    && wget -O /jdk.tar.gz https://repo.huaweicloud.com/java/jdk/8u151-b12/jdk-8u151-linux-arm64-vfp-hflt.tar.gz; \
+    fi
+
+RUN tar xvzf /jdk.tar.gz \
     && mv /jdk1.8.0_151 /usr/local/jdk1.8 \
-    && rm jdk-8u151-linux-x64.tar.gz \
-    && TOMCAT_VERSION=`curl --silent  https://mirrors.cnnic.cn/apache/tomcat/tomcat-8/ | grep v8 | awk '{split($5,c,">v") ; split(c[2],d,"/") ; print d[1]}'` \
-    && wget https://mirrors.cnnic.cn/apache/tomcat/tomcat-8/v${TOMCAT_VERSION}/bin/apache-tomcat-${TOMCAT_VERSION}.tar.gz -O /usr/local/tomcat.tar.gz \
+    && rm /jdk.tar.gz \
+    && TOMCAT_VERSION=`curl --silent  https://mirrors.cnnic.cn/apache/tomcat/tomcat-8/ | grep v8 | head -1 | awk '{split($5,c,">v") ; split(c[2],d,"/") ; print d[1]}'` \
+    && wget -O /usr/local/tomcat.tar.gz https://mirrors.cnnic.cn/apache/tomcat/tomcat-8/v${TOMCAT_VERSION}/bin/apache-tomcat-${TOMCAT_VERSION}.tar.gz \
     && tar -zxvf /usr/local/tomcat.tar.gz -C /usr/local/ \
     && chmod 755 -R /usr/local/apache-tomcat-${TOMCAT_VERSION}/ \
     && rm /usr/local/tomcat.tar.gz \
-    && apt upgrade -y \
-    && rm -rf /var/lib/apt/lists/ \
-    && find /usr/local -type f -executable -exec ldd '{}' ';' \
-    | awk '/=>/ { print $(NF-1) }' \
-    | sort -u \
-    | xargs -r dpkg-query --search \
-    | cut -d: -f1 \
-    | sort -u \
-    | xargs -r apt-mark manual \
-    &&  apt-get purge -y --auto-remove -o APT::AutoRemove::RecommendsImportant=false
