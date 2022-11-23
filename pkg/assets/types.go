@@ -117,12 +117,35 @@ func (p *TensorPod) KeyName() string {
 	sb.WriteString(p.Namespace)
 	return sb.String()
 }
+
+func getContainerStatusStr(cs []corev1.ContainerStatus) string {
+	s := strings.Builder{}
+	for _, c := range cs {
+		s.WriteString(c.Name)
+		s.WriteRune('\t')
+		s.WriteString(c.ContainerID)
+		s.WriteRune('\t')
+		s.WriteString(c.Image)
+		s.WriteRune('\t')
+		s.WriteString(c.ImageID)
+		s.WriteRune('\n')
+	}
+	return s.String()
+}
 func (p *TensorPod) IdentityString() string {
 	sb := strings.Builder{}
 	podSpecBytes, err := json.Marshal(p.Spec)
 	if err == nil {
 		sb.WriteString(string(podSpecBytes))
 	}
+	sb.WriteRune('\n')
+	sb.WriteString(p.Status.PodIP)
+	sb.WriteRune('\n')
+	sb.WriteString(p.Status.HostIP)
+	sb.WriteRune('\n')
+	sb.WriteString(getContainerStatusStr(p.Status.InitContainerStatuses))
+	sb.WriteRune('\n')
+	sb.WriteString(getContainerStatusStr(p.Status.ContainerStatuses))
 	return sb.String()
 }
 
