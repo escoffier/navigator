@@ -60,7 +60,7 @@
     spawned_process and container and proc.name in (namespace_bypass_cmds)
   output: View network information in the container (zh_msg=容器内查看网络信息,rule_type=Discovery,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,container_id=%container.id,container_name=%container.name)
   priority: WARNING
-  tags: [ATT&CK, strict]
+  tags: [ATT&CK]
 
 - rule: Read Shell Configuration File
   hid: disc_03
@@ -204,10 +204,10 @@
       value: "请确认该行为是否为第三方可信应用扫描，如果不是则可能为黑客工具行为，可使用免疫防御训练应用，限制敏感文件和命令的用户权限，禁止挂载敏感目录和文件。"
   desc: Scanning web directories in the container
   condition: >
-    open_read and container and (fd.directory contains "www" or fd.directory contains "apache" or fd.directory contains "tomcat" or fd.directory contains "web" or fd.directory contains "http") and (fd.name contains ".jsp" or fd.name contains ".php" or fd.name contains ".config" or fd.name contains ".bak" or fd.name contains ".old" or fd.name contains ".log") and not tensorsec_namespace
+    open_read and container and (fd.directory contains "www" or fd.directory contains "apache" or fd.directory contains "tomcat" or fd.directory contains "web" or fd.directory contains "http") and (fd.name contains ".jsp" or fd.name contains ".php" or fd.name contains ".config" or fd.name contains ".bak" or fd.name contains ".old" or fd.name contains ".log") and not tensorsec_namespace and shell_parent_procs
   output: Scanning web directories in the container (zh_msg=容器内扫描web目录,fd_name=%fd.name,rule_type=Discovery,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,container_id=%container.id,container_name=%container.name)
   priority: WARNING
-  tags: [ATT&CK, strict]
+  tags: [ATT&CK]
 
 - rule: Find files with suid privilege by non-root users
   hid: disc_10
@@ -270,7 +270,7 @@
     container and proc.cmdline contains "history"
   output: View login information inside the container (zh_msg=容器内查看历史命令,rule_type=Discovery,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,container_id=%container.id,container_name=%container.name)
   priority: WARNING
-  tags: [ATT&CK, strict]
+  tags: [ATT&CK]
 
 - rule: Get ApiServer_token through kubectl
   hid: disc_13
