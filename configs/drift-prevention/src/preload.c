@@ -262,7 +262,13 @@ static int init_pre_data(const char *path, pre_info *pre_data)
             drift_prevent_write_log(ERROR, "block: %s %s reterr: %s\n\n",               \
                         exec_str, file_path,strerror(errno));                           \
             drift_prevent_teardown_log();                                               \
-            printf("block by drift-prevent policy\n"); fflush(stdout);                  \
+            printf("block by drift-prevent policy\n");                                  \
+            int flush_ret = fflush(stdout);                                             \
+            if (flush_ret != 0)                                                         \
+            {                                                                           \
+                printf("fflush failed: %s\n", strerror(errno));                         \
+                fflush(stdout);                                                         \
+            }                                                                           \
             errno = EACCES;                                                             \
             return errno;                                                               \
         }                                                                               \
