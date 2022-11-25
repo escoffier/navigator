@@ -246,6 +246,16 @@
 - macro: shell_parent_procs
   condition: proc.pname in (shell_binaries)
 
+- macro: remote_server_subnet
+  condition: >
+    fd.name contains '->' and not (
+    fd.name contains "127.0.0.1" or
+    fd.name contains "0.0.0.0" or
+    fd.snet in (rfc_1918_addresses) or
+    fd.sip = "0.0.0.0" or
+    fd.snet = "127.0.0.0/8"
+    )
+
 - list: coreutils_binaries
   items: [
     truncate, sha1sum, numfmt, fmt, fold, uniq, cut, who,

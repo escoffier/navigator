@@ -271,24 +271,6 @@
   priority: NOTICE
   tags: [ATT&CK, network, mitre_discovery]
 
-- rule: Network scanning through interpreted language
-  hid: exf_15
-  hthreats: 1
-  suggestion:
-    en:
-      key: "Suggestions"
-      value: "Please confirm whether it is caused by the internal business script of the system, otherwise the system may be invaded, and micro isolation can be used to block the traffic."
-    zh:
-      key: "处置建议"
-      value: "使请确认是否为系统内部业务脚本导致，否则系统可能遭到入侵，可使用微隔离阻拦流量。"
-  desc: Interpretative language detected scanning network
-  condition: >
-   interpreted_procs and evt.type=connect and not tensorsec_namespace and shell_parent_procs
-  output: >
-    Interpretative language detected scanning network (zh_msg=通过解释型语言探测网络,rule_type=Exfiltration,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid connection=%fd.name container_id=%container.id container_name=%container.name image=%container.image.repository)
-  priority: WARNING
-  tags: [ATT&CK]
-
 - rule: Try ssh connection in container
   hid: exf_16
   hthreats: 0
