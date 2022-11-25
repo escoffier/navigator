@@ -561,6 +561,12 @@ func (s *Scanner) ScannedByImageDetails(ctx *gin.Context) {
 	if len(img.SentiveFixSuggestion) > 0 {
 		img.SentiveFixSuggestion = img.SentiveFixSuggestion[1:]
 	}
+	if len(img.SentiveFixSuggestion) == 0 {
+		img.SentiveFixSuggestion = make([]string, 0)
+	}
+	if len(img.VulnFixSuggestion) == 0 {
+		img.VulnFixSuggestion = make([]string, 0)
+	}
 
 	response.JSONOK(ctx, response.WithItem(*img))
 }
