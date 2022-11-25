@@ -114,8 +114,26 @@ func (s *Subscriber) RuntimeEventCallBack(config *ConfigManager, rt container.Ru
 								Str("imageID", m.ContainerInfo.ImageID).
 								Msg("make whitelist by overlay failed")
 						} else {
-							for _, v := range m.ContainerInfo.ImageDigest {
-								config.SetContainerWhiteList(v, imageInfo.WhiteList)
+
+							for _, d := range m.ContainerInfo.ImageDigest {
+								err = config.SetWhiteListScanning(d)
+								if err != nil {
+									logging.Get().Err(err).Msgf("imageDigest: %v", d)
+								}
+							}
+							if len(imageInfo.WhiteList) > 0 {
+								logging.Get().
+									Info().
+									Str("imageID", m.ContainerInfo.ImageID).
+									Interface("whiteList", imageInfo.WhiteList).
+									Msg("make whitelist by overlay success")
+								for _, d := range m.ContainerInfo.ImageDigest {
+									config.SetContainerWhiteList(d, imageInfo.WhiteList)
+									err = config.SetWhiteListReady(d)
+									if err != nil {
+										logging.Get().Err(err).Msgf("imageDigest: %v", d)
+									}
+								}
 							}
 						}
 					}

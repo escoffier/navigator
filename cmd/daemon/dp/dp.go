@@ -274,9 +274,12 @@ func initRunningContainerImagesWhiteList(rt container.Runtime, config *ConfigMan
 				logging.Get().Err(err).Str("imageID", c.ImageID).Msg("make whitelist failed")
 				return
 			}
-			for _, v := range digests {
-				config.SetContainerWhiteList(v, imageInfo.WhiteList)
-				_ = config.SetWhiteListReady(v)
+			if len(imageInfo.WhiteList) > 0 {
+				logging.Get().Info().Str("imageID", c.ImageID).Msg("make whitelist success")
+				for _, v := range digests {
+					config.SetContainerWhiteList(v, imageInfo.WhiteList)
+					_ = config.SetWhiteListReady(v)
+				}
 			}
 			logging.Get().Debug().Msgf("get container meta: %+v\n", cm)
 		}(c)
