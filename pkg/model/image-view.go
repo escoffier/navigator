@@ -453,6 +453,12 @@ func (ir *ImageListResponse) Deserialize() {
 	if ir.ScanInfo == nil {
 		ir.RiskScore = 0
 	}
+	if len(ir.Malicious) == 0 {
+		ir.Malicious = make([]VirusInfo, 0)
+	}
+	if len(ir.SecurityIssue) == 0 {
+		ir.SecurityIssue = make([]SecurityIssue, 0)
+	}
 }
 
 func ParseConfigEnv(env []EnvKeyValue) string {
