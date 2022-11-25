@@ -184,8 +184,16 @@ func (s *ScanConfig) Deserialize() {
 		if err != nil {
 			logging.GetLogger().Error().Err(err).Msg("ScanConfig,Deserialize")
 		} else {
+			if ll.Libraries == nil {
+				ll.Libraries = make([]int64, 0)
+			}
+			if ll.ScanCycle == nil {
+				ll.ScanCycle = make([]int64, 0)
+			}
+
 			s.LibraryImageConfig = ll
 		}
+
 	}
 	if s.NodeImageJson != "" {
 		ll := new(ScanConfigSinge)
@@ -193,6 +201,12 @@ func (s *ScanConfig) Deserialize() {
 		if err != nil {
 			logging.GetLogger().Error().Err(err).Msg("ScanConfig,Deserialize")
 		} else {
+			if len(ll.NodeHostnames) == 0 {
+				ll.NodeHostnames = make([]string, 0)
+			}
+			if len(ll.ScanCycle) == 0 {
+				ll.ScanCycle = make([]int64, 0)
+			}
 			s.NodeImageConfig = ll
 		}
 	}
