@@ -12,7 +12,6 @@ import (
 	"gitlab.com/security-rd/go-pkg/databases"
 	"gorm.io/gorm/clause"
 	corev1 "k8s.io/api/core/v1"
-	rbacv1 "k8s.io/api/rbac/v1"
 )
 
 const (
@@ -50,20 +49,15 @@ type ResourcesClusterListener struct {
 	stTime     time.Time
 }
 
-func (cl *ResourcesClusterListener) OnTensorPod(pod *assets.TensorPod, action assets.AssetsAction) error {
+func (cl *ResourcesClusterListener) OnRawContainer(*assets.TensorRawContainer, assets.Action) error {
 	return nil
 }
 
-func (cl *ResourcesClusterListener) OnPodEvent(newPod, oldPod *corev1.Pod, action assets.AssetsAction) error {
-	// do nothing
+func (cl *ResourcesClusterListener) OnSync(*assets.TensorSync) error {
 	return nil
 }
-func (cl *ResourcesClusterListener) OnEndPointEvent(newEpt, oldEpt *corev1.Endpoints, action assets.AssetsAction) error {
-	// do nothing
-	return nil
-}
-func (cl *ResourcesClusterListener) OnServiceEvent(newSvc, oldEvc *corev1.Service, action assets.AssetsAction) error {
-	// do nothing
+
+func (cl *ResourcesClusterListener) OnTensorPod(*assets.TensorPod, assets.Action) error {
 	return nil
 }
 
@@ -117,33 +111,10 @@ func (cl *ResourcesClusterListener) removeMicrosegResource(ctx context.Context, 
 	})
 }
 
-func (cl *ResourcesClusterListener) OnRoleEvent(newRole, oldRole *rbacv1.Role, action assets.AssetsAction) error {
-	// do nothing
+func (cl *ResourcesClusterListener) OnNodeEvent(newNode, oldNode *corev1.Node, action assets.Action) error {
 	return nil
 }
-func (cl *ResourcesClusterListener) OnClusterRoleEvent(newCRole, oldCRole *rbacv1.ClusterRole, action assets.AssetsAction) error {
-	// do nothing
-	return nil
-}
-func (cl *ResourcesClusterListener) OnRoleBindingEvent(newB, oldB *rbacv1.RoleBinding, action assets.AssetsAction) error {
-	return nil
-}
-func (cl *ResourcesClusterListener) OnClusterRoleBindingEvent(newB, oldB *rbacv1.ClusterRoleBinding, action assets.AssetsAction) error {
-	// do nothing
-	return nil
-}
-func (cl *ResourcesClusterListener) OnNamespaceEvent(newNs, oldNs *corev1.Namespace, action assets.AssetsAction) error {
-	// do nothing
-	return nil
-}
-func (cl *ResourcesClusterListener) OnServiceAccountEvent(newSa, oldSa *corev1.ServiceAccount, action assets.AssetsAction) error {
-	// do nothing
-	return nil
-}
-func (cl *ResourcesClusterListener) OnNodeEvent(newNode, oldNode *corev1.Node, action assets.AssetsAction) error {
-	return nil
-}
-func (cl *ResourcesClusterListener) OnTensorResourceEvent(newResource, oldResource *assets.TensorResource, action assets.AssetsAction) error {
+func (cl *ResourcesClusterListener) OnTensorResourceEvent(newResource, oldResource *assets.TensorResource, action assets.Action) error {
 
 	switch action {
 	case assets.ActionAdd, assets.ActionUpdate:
@@ -200,23 +171,23 @@ func (cl *ResourcesClusterListener) AfterDataSynced(ctx context.Context, dataSyn
 	}
 
 }
-func (cl *ResourcesClusterListener) OnHoneyspot(honeyspot *assets.TensorHoneySpot, action assets.AssetsAction) error {
+func (cl *ResourcesClusterListener) OnHoneyspot(honeyspot *assets.TensorHoneySpot, action assets.Action) error {
 	return nil
 }
 
-func (cl *ResourcesClusterListener) OnTensorRole(tensorRole *assets.TensorRole, action assets.AssetsAction) error {
+func (cl *ResourcesClusterListener) OnTensorRole(tensorRole *assets.TensorRole, action assets.Action) error {
 	return nil
 }
 
-func (cl *ResourcesClusterListener) OnTensorClusterRole(tensorRole *assets.TensorClusterRole, action assets.AssetsAction) error {
+func (cl *ResourcesClusterListener) OnTensorClusterRole(tensorRole *assets.TensorClusterRole, action assets.Action) error {
 	return nil
 }
 
-func (cl *ResourcesClusterListener) OnTensorNamespace(namespace *assets.TensorNamespace, action assets.AssetsAction) error {
+func (cl *ResourcesClusterListener) OnTensorNamespace(namespace *assets.TensorNamespace, action assets.Action) error {
 	return nil
 }
 
-func (cl *ResourcesClusterListener) OnTensorNode(node *assets.TensorNode, action assets.AssetsAction) error {
+func (cl *ResourcesClusterListener) OnTensorNode(node *assets.TensorNode, action assets.Action) error {
 	return nil
 }
 

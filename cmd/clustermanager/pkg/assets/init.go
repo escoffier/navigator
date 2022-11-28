@@ -44,6 +44,7 @@ func Watcher(rdb *databases.RDBInstance,
 		}
 		wInstance.AddCallback(newResourcesWatcher(rdb, scannerURL))
 		wInstance.AddCallback(newHoneyspotService(rdb))
+		wInstance.AddCallback(newRawContainerWatcher(rdb))
 
 		exportContainers := os.Getenv("EXPORT_CONTAINERS")
 		if exportContainers == "true" {

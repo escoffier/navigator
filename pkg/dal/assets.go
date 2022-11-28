@@ -477,7 +477,6 @@ func SoftDeleteResource(ctx context.Context, rdb *gorm.DB, resource *assets.Tens
 		return doSoftDeleteResourceContainers(ctx, db, resource, updateTime)
 	})
 }
-
 func newModelFromTensorResource(resource *assets.TensorResource, updateTime time.Time) *model.TensorResource {
 	m := new(model.TensorResource)
 	m.ID = GetResourceUUID(resource.Cluster, resource.Namespace, string(resource.Kind), resource.Name)
@@ -1025,7 +1024,8 @@ func GetResourcePodsList(ctx context.Context, rdb *gorm.DB, queryOptions *ResPod
 		if len(queryOptions.mulColQuery.columns) > 0 && len(queryOptions.mulColQuery.query) > 0 {
 			expr := getLikeExpr(queryOptions.mulColQuery.query)
 			db = db.Where(
-				rdb.WithContext(oneCtx).Model(&model.PodResourceRelation{}).Where("pod_name LIKE ?", expr).Or("pod_ip LIKE ?", expr).Or("node_name LIKE ?", expr))
+				rdb.WithContext(oneCtx).Model(&model.PodResourceRelation{}).Where("pod_name LIKE ?", expr).
+					Or("pod_ip LIKE ?", expr).Or("node_name LIKE ?", expr))
 		}
 
 		if offset >= 0 && limit >= 0 {
@@ -1790,4 +1790,264 @@ func getContainerStatus(status *corev1.ContainerState) int32 {
 		return terminated
 	}
 	return running
+}
+
+type colMultiQuery struct {
+	column string
+	query  []string
+}
+
+type RawContainersQueryOption struct {
+	whereEqCondition      map[string]interface{}
+	whereNotNullCondition map[string]struct{}
+	whereInCondition      map[string]interface{}
+	columnQuery           colQuery
+	columnQueries         []colMultiQuery
+	//mulColQuery           mulColQuery
+}
+
+func RawContainersQuery() *RawContainersQueryOption {
+	return &RawContainersQueryOption{
+		whereEqCondition: make(map[string]interface{}, 3),
+		whereInCondition: make(map[string]interface{}, 3),
+	}
+}
+
+func (q *RawContainersQueryOption) WithCluster(clusterKey string) *RawContainersQueryOption {
+	q.whereEqCondition["cluster_key"] = clusterKey
+	return q
+}
+
+func (q *RawContainersQueryOption) WithNamespace(ns string) *RawContainersQueryOption {
+	q.whereEqCondition["namespace"] = ns
+	return q
+}
+
+func (q *RawContainersQueryOption) WithPodName(ns string) *RawContainersQueryOption {
+	q.whereEqCondition["pod_name"] = ns
+	return q
+}
+
+func (q *RawContainersQueryOption) WithNodeName(ns string) *RawContainersQueryOption {
+	q.whereEqCondition["node_name"] = ns
+	return q
+}
+
+func (q *RawContainersQueryOption) WithContainerName(ns string) *RawContainersQueryOption {
+	q.whereEqCondition["name"] = ns
+	return q
+}
+
+func (q *RawContainersQueryOption) WithID(ns string) *RawContainersQueryOption {
+	q.whereEqCondition["id"] = ns
+	return q
+}
+
+func (q *RawContainersQueryOption) WithK8sManaged(k8s bool) *RawContainersQueryOption {
+	q.whereEqCondition["k8s_managed"] = k8s
+	return q
+}
+
+func (q *RawContainersQueryOption) WithStatus(status int32) *RawContainersQueryOption {
+	q.whereEqCondition["status"] = status
+	return q
+}
+
+func (q *RawContainersQueryOption) WithInConditionCustom(column string, value interface{}) *RawContainersQueryOption {
+	q.whereInCondition[column] = value
+	return q
+}
+
+func (q *RawContainersQueryOption) WithColumnQuery(column, query string) *RawContainersQueryOption {
+	q.columnQuery.column = column
+	q.columnQuery.query = query
+	return q
+}
+
+func (q *RawContainersQueryOption) WithColumnMultiQuery(column string, query []string) *RawContainersQueryOption {
+	q.columnQueries = append(q.columnQueries, colMultiQuery{
+		column: column,
+		query:  query,
+	})
+	return q
+}
+
+func CountRawContainer(ctx context.Context, rdb *gorm.DB, queryOptions *RawContainersQueryOption) (int64, error) {
+	ctx, cancel := context.WithTimeout(ctx, 6000*time.Millisecond)
+	defer cancel()
+
+	var cntNum int64
+	err := util.RetryWithBackoff(ctx, func() error {
+		oneCtx, oneCancel := context.WithTimeout(ctx, 2000*time.Millisecond)
+		defer oneCancel()
+
+		var db *gorm.DB
+		db = rdb.WithContext(oneCtx).Model(&model.TensorRawContainer{})
+
+		if len(queryOptions.whereEqCondition) > 0 {
+			db = db.Where(queryOptions.whereEqCondition)
+		}
+		status, statusCondition := queryOptions.whereInCondition["status"]
+		if !statusCondition {
+			db = db.Where("status < ?", assets.Exited)
+		}
+		if len(queryOptions.whereInCondition) > 0 {
+			if statusCondition && status == assets.All {
+				delete(queryOptions.whereInCondition, "status")
+			}
+			for column, val := range queryOptions.whereInCondition {
+				db = db.Where(fmt.Sprintf("%s in ?", column), val)
+			}
+		}
+		if len(queryOptions.columnQuery.column) > 0 && len(queryOptions.columnQuery.query) > 0 {
+			db = db.Where(fmt.Sprintf("%s LIKE ?", queryOptions.columnQuery.column), getLikeExpr(queryOptions.columnQuery.query))
+		}
+		if len(queryOptions.columnQueries) > 0 {
+			for _, c := range queryOptions.columnQueries {
+				if len(c.query) > 0 {
+					if len(c.query) == 1 {
+						db = db.Where(fmt.Sprintf("%s LIKE ?", c.column), getLikeExpr(c.query[0]))
+						continue
+					}
+					subQuery := rdb.WithContext(oneCtx).Model(&model.TensorRawContainer{}).Where(fmt.Sprintf("%s LIKE ?", c.column), getLikeExpr(c.query[0]))
+					for _, q := range c.query[1:] {
+						subQuery = subQuery.Or(fmt.Sprintf("%s LIKE ?", c.column), getLikeExpr(q))
+					}
+					db = db.Where(subQuery)
+				}
+			}
+		}
+		return db.Count(&cntNum).Error
+	})
+
+	return cntNum, err
+}
+
+func GetRawContainers(ctx context.Context, rdb *gorm.DB, queryOptions *RawContainersQueryOption, offset int, limit int) ([]*model.TensorRawContainer, error) {
+	rCtx, cancel := context.WithTimeout(ctx, 6000*time.Millisecond)
+	defer cancel()
+
+	var containers []*model.TensorRawContainer
+	notFound := false
+	err := util.RetryWithBackoff(rCtx, func() error {
+		oneCtx, oneCancel := context.WithTimeout(rCtx, 2000*time.Millisecond)
+		defer oneCancel()
+
+		var db *gorm.DB
+		db = rdb.WithContext(oneCtx).Model(&model.TensorRawContainer{})
+
+		if len(queryOptions.whereEqCondition) > 0 {
+			db.Where(queryOptions.whereEqCondition)
+		}
+		status, statusCondition := queryOptions.whereInCondition["status"]
+		if !statusCondition {
+			db = db.Where("status < ?", assets.Exited)
+		}
+		if len(queryOptions.whereInCondition) > 0 {
+			if statusCondition && status == assets.All {
+				delete(queryOptions.whereInCondition, "status")
+			}
+			for column, val := range queryOptions.whereInCondition {
+				db = db.Where(fmt.Sprintf("%s in ?", column), val)
+			}
+		}
+		if len(queryOptions.columnQuery.column) > 0 && len(queryOptions.columnQuery.query) > 0 {
+			db = db.Where(fmt.Sprintf("%s LIKE ?", queryOptions.columnQuery.column), getLikeExpr(queryOptions.columnQuery.query))
+		}
+		if len(queryOptions.columnQueries) > 0 {
+			for _, c := range queryOptions.columnQueries {
+				if len(c.query) > 0 {
+					if len(c.query) == 1 {
+						db = db.Where(fmt.Sprintf("%s LIKE ?", c.column), getLikeExpr(c.query[0]))
+						continue
+					}
+					subQuery := rdb.WithContext(oneCtx).Model(&model.TensorRawContainer{}).Where(fmt.Sprintf("%s LIKE ?", c.column), getLikeExpr(c.query[0]))
+					for _, q := range c.query[1:] {
+						subQuery = subQuery.Or(fmt.Sprintf("%s LIKE ?", c.column), getLikeExpr(q))
+					}
+					db = db.Where(subQuery)
+				}
+			}
+		}
+		if offset >= 0 && limit >= 0 {
+			db.Offset(offset).Limit(limit)
+		}
+
+		err := db.Order("id ASC").Find(&containers).Error
+		if err == gorm.ErrRecordNotFound {
+			notFound = true
+			return nil
+		}
+		return err
+	})
+	if notFound {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return containers, nil
+}
+
+func UpsertRawContainers(ctx context.Context, rdb *gorm.DB, container *model.TensorRawContainer) error {
+	rCtx, cancel := context.WithTimeout(ctx, 15000*time.Millisecond)
+	defer cancel()
+
+	return rdb.WithContext(rCtx).Model(&model.TensorRawContainer{}).Clauses(clause.OnConflict{
+		Columns: []clause.Column{{Name: "id"}},
+		DoUpdates: clause.AssignmentColumns([]string{
+			"updated_at",
+			"status",
+			"name",
+			"pod_name",
+			"namespace",
+			"cluster_key",
+			"resource_kind",
+			"resource_name",
+			"image_id",
+			"image_name",
+			"environment",
+			"volume_mounts",
+			"reserved_cpu",
+			"reserved_memory",
+			"pid",
+			"k8s_managed",
+			"node_ip",
+			"node_name",
+			"cmd",
+			"image_digest",
+			"process_number",
+			"processes",
+			"ports",
+			"image_size",
+			"image_created",
+			"user",
+			"ip",
+			"ipv6",
+			"gateway",
+			"mac",
+			"network_mode",
+		}),
+	}).Create(container).Error
+}
+
+func DeleteRawContainer(ctx context.Context, rdb *gorm.DB, clusterKey, id string) error {
+	rCtx, cancel := context.WithTimeout(ctx, 2500*time.Millisecond)
+	defer cancel()
+
+	return rdb.WithContext(rCtx).Model(&model.TensorRawContainer{}).Where("cluster_key = ? and id = ?", clusterKey, id).Updates(map[string]interface{}{
+		"status":     assets.Exited,
+		"updated_at": time.Now(),
+	}).Error
+}
+
+func CleanUpRawContainer(ctx context.Context, rdb *gorm.DB, ts time.Time, clusterKey, nodeName string) error {
+	rCtx, cancel := context.WithTimeout(ctx, 2500*time.Millisecond)
+	defer cancel()
+
+	return rdb.WithContext(rCtx).Model(&model.TensorRawContainer{}).
+		Where("cluster_key = ? and node_name = ? and updated_at < ?", clusterKey, nodeName, ts).Updates(map[string]interface{}{
+		"status":     assets.Exited,
+		"updated_at": time.Now(),
+	}).Error
 }

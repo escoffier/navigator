@@ -13,6 +13,7 @@
 #include <sys/epoll.h>
 #include <netinet/in.h>
 #include <unistd.h>
+#include <arpa/inet.h>
 
 #include "cjson.h"
 #include "netebpf_user.h"
@@ -26,6 +27,33 @@ typedef struct
     int status;
     char procname[128];
 } ProcessData;
+
+int ReadFileList(char *path)
+{
+    DIR *dir;
+    struct dirent *ptr;
+    //open dir
+    dir = opendir(path);
+    if(!dir) RETURN_ERROR(-1, "open dir %s failed, err : %s.", path, strerror(errno));
+    //read dir
+    while ((ptr = readdir(dir)) != NULL)
+    {
+        if(strcmp(ptr->d_name,".") == 0 || strcmp(ptr->d_name,"..") == 0)    ///current dir OR parrent dir
+            continue;
+        else if(ptr->d_type == 8)    ///file
+            printf("%s ", ptr->d_name);
+        else if(ptr->d_type == 10)    ///link file
+            printf("%s ", ptr->d_name);
+        else if(ptr->d_type == 4)    ///dir
+        {
+            printf("%s ", ptr->d_name);
+        }
+    }
+    closedir(dir);
+    printf("\n");
+
+    return 0;
+}
 
 char *PrintPids(int pids[], int pidsNum)
 {
@@ -58,83 +86,52 @@ int ParseRcvJson(char *buf, PidAssMnt *mnt)
     memset(mnt, 0, sizeof(PidAssMnt));
     //parse json
     root = cJSON_Parse(buf);
-    if(root == NULL)
-    {
-        LOG_ERROR("parse json failed! original data : %s.", buf);
-        goto err;
-    }
+    if(root == NULL) GOTO_ERROR(err, "parse json failed! original data : %s.", buf);
+
     //get data type
     item = cJSON_GetObjectItem(root, "data_type");
-    if(item == NULL)
-    {
-        LOG_ERROR("get data type item failed!");
-        goto err;
-    }
+    if(item == NULL) GOTO_ERROR(err, "get data type item failed!");
     mnt->dataType = item->valueint;
+
     //judge data type
-    if((mnt->dataType == DATA_FILTER) || (mnt->dataType == DATA_EBPF_STATE) || (mnt->dataType == DATA_EBPF)) goto end;
+    if((mnt->dataType == DATA_FILTER) || (mnt->dataType == DATA_EBPF_STATE) || (mnt->dataType == DATA_EBPF) || (mnt->dataType == DATA_HOST_GATEWAY)) goto end;
     //get pid
     item = cJSON_GetObjectItem(root, "pid");
-    if(item == NULL)
-    {
-        LOG_ERROR("get pid item failed!");
-        goto err;
-    }
+    if(item == NULL) GOTO_ERROR(err, "get pid item failed!");
     mnt->pid = item->valueint;
+    if(mnt->dataType == DATA_CONTAINER) goto end;
+
     //get addr_type
     item = cJSON_GetObjectItem(root, "addr_type");
-    if(item == NULL)
-    {
-        LOG_ERROR("get addr_type item failed!");
-        goto err;
-    }
+    if(item == NULL) GOTO_ERROR(err, "get addr_type item failed!");
     mnt->addrType = item->valueint;
     //get tuple_info
     item = cJSON_GetObjectItem(root, "tuple_info");
-    if(item == NULL)
-    {
-        LOG_ERROR("get tuple_info item failed!");
-        goto err;
-    }
+    if(item == NULL) GOTO_ERROR(err, "get tuple_info item failed!");
+
     //get src_ip
     tuple = cJSON_GetObjectItem(item, "src_ip");
-    if(item == NULL)
-    {
-        LOG_ERROR("get src_ip item failed!");
-        goto err;
-    }
+    if(item == NULL) GOTO_ERROR(err, "get src_ip item failed!");
     memcpy(mnt->srcIp, tuple->valuestring, strlen(tuple->valuestring));
+
     //get dst_ip
     tuple = cJSON_GetObjectItem(item, "dst_ip");
-    if(item == NULL)
-    {
-        LOG_ERROR("get dst_ip item failed!");
-        goto err;
-    }
+    if(item == NULL) GOTO_ERROR(err, "get dst_ip item failed!");
     memcpy(mnt->dstIp, tuple->valuestring, strlen(tuple->valuestring));
+
     //get src_port
     tuple = cJSON_GetObjectItem(item, "src_port");
-    if(item == NULL)
-    {
-        LOG_ERROR("get src_port item failed!");
-        goto err;
-    }
+    if(item == NULL) GOTO_ERROR(err, "get src_port item failed!");
     mnt->srcPort = tuple->valueint;
+
     //get dst_port
     tuple = cJSON_GetObjectItem(item, "dst_port");
-    if(item == NULL)
-    {
-        LOG_ERROR("get dst_port item failed!");
-        goto err;
-    }
+    if(item == NULL) GOTO_ERROR(err, "get dst_port item failed!");
     mnt->dstPort = tuple->valueint;
+
     //get proto
     tuple = cJSON_GetObjectItem(item, "proto");
-    if(item == NULL)
-    {
-        LOG_ERROR("get proto item failed!");
-        goto err;
-    }
+    if(item == NULL) GOTO_ERROR(err, "get proto item failed!");
     mnt->proto = tuple->valueint;
 
 end:
@@ -147,30 +144,24 @@ err:
     return -1;
 }
 
-int GetProcessName(int pid, char *basepath, char procname[128])
+int GetProcessName(int pid, const char *basepath, char procname[128])
 {
     int fd, ret;
     char path[36];
-    if((pid == 0) || (!procname)) return -2;
+    if((pid <= 0) || (!procname)) return -2;
+
     memset(path, 0, sizeof(path));
     sprintf(path, "%s/proc/%d/comm", basepath, pid);
+    //open path
     fd = open(path, O_RDONLY);
-    if(fd <= 0)
-    {
-        LOG_ERROR("open %s failed, %s.", path, strerror(errno));
-        return -1;
-    }
+    if(fd <= 0) RETURN_ERROR(-1, "open %s failed, %s.", path, strerror(errno));
     //default process name length is 128 byte
     memset(procname, 0, 128);
     ret = read(fd, procname, 128);
     //close fd
     close(fd);
-    if(ret <= 0)
-    {
-        LOG_ERROR("read process name failed, %s.", strerror(errno));
-        return -1;
-    }
-
+    if(ret <= 0) RETURN_ERROR(-1, "read process name failed, %s.", strerror(errno));
+    //string end
     procname[ret - 1] = 0;
     return 0;
 }
@@ -183,27 +174,25 @@ int ResultPack(PidAssMnt *mnt, ProcessData *pstProcData, char *dstBuf)
     if((!mnt) || (!pstProcData) || (!dstBuf))  return -1;
     //create json object
     root = cJSON_CreateObject();
-    if(root == NULL)
-    {
-        LOG_ERROR("create json new object failed!");
-        return -1;
-    }
+    if(!root) RETURN_ERROR(-1, "create json new object failed!");
+    //set default pid
+    pstProcData->pid = (pstProcData->pid > 0) ? pstProcData->pid : mnt->pid;
+    //json add
     cJSON_AddNumberToObject(root, "pid", pstProcData->pid);
     cJSON_AddNumberToObject(root, "status", pstProcData->status);
     cJSON_AddStringToObject(root, "proc_name", pstProcData->procname);
     str = cJSON_PrintUnformatted(root);
-    if(str == NULL)
-    {
-        LOG_ERROR("print json unformatted failed!");
-        goto err;
-    }
+    if(str == NULL) GOTO_ERROR(err, "print json unformatted failed!");
+    //copy
     memcpy(dstBuf, str, strlen(str));
     cJSON_Delete(root);
     free(str);
+
     return 0;
 err:
     if(root != NULL) cJSON_Delete(root);
     if(str != NULL) free(str);
+
     return -1;
 }
 
@@ -260,51 +249,47 @@ int OpenLocalMntNs()
     return 0;
 }
 
-int SetLocalMntNs()
+int SetLocalMntNs(int fd)
 {
     int ret;
-    if(szLocalMntNsFd <= 0)
-    {
-        LOG_ERROR("local mnt ns fd is error!!");
-        return -1;
-    }
+    if(fd <= 0) RETURN_ERROR(-1, "local mnt ns fd is error!!");
+    //unshare mnt
+    ret = unshare(CLONE_NEWNS);
+    if(ret != 0) RETURN_ERROR(-1, "unshare mnt failed! err : %s.", strerror(errno));
     //set local mnt ns
-    ret = setns(szLocalMntNsFd, 0);
-    if(ret != 0)
-    {
-        LOG_ERROR("set local mnt ns failed!");
-        return -1;
-    }
+    ret = setns(fd, CLONE_NEWNS);
+    if(ret != 0) RETURN_ERROR(-1, "set local mnt ns failed! err : %s.", strerror(errno));
+
     return 0;
 }
 
 int SetNs(int pid)
 {
-    int fd, ret;
+    int fd = 0, ret;
     char path[128];
-    if(pid <= 0)
-    {
-        LOG_ERROR("pid is error!");
-        return -1;
-    }
+    if(pid <= 0) RETURN_ERROR(-1, "pid is error!");
+    //set local mnt
+    //ret = SetLocalMntNs(szLocalMntNsFd);
+    //if(ret != 0) RETURN_ERROR(ret, "set local mnt ns failed!");
+    //path
     memset(path, 0, sizeof(path));
     sprintf(path, "%s/proc/%d/ns/mnt", BasePath, pid);
+    //open path
     fd = open(path, O_RDONLY);
-    if(fd <= 0)
-    {
-        LOG_ERROR("open %s failed!", path);
-        return -1;
-    }
+    if(fd <= 0) RETURN_ERROR(-1, "open %s failed, err : %s.", path, strerror(errno));
+    //unshare mnt
+    ret = unshare(CLONE_NEWNS);
+    if(ret != 0) GOTO_ERROR(err, "unshare mnt failed! err : %s.", strerror(errno));
     //set mnt ns
-    ret = setns(fd, 0);
+    ret = setns(fd, CLONE_NEWNS);
+    if(ret != 0) GOTO_ERROR(err, "set mnt ns failed, path : %s, err : %s.", path, strerror(errno));
     //close fd
     close(fd);
-    if(ret != 0)
-    {
-        LOG_ERROR("set mnt ns failed, %s!", path);
-        return -1;
-    }
+    //return
     return 0;
+err:
+    if(fd > 0) close(fd);
+    return -1;
 }
 
 int ReadAllPid(char *path, int *procNum, int pids[])
@@ -511,6 +496,7 @@ int MatchInode(char *inode, int pidNums, int pids[], int *pid)
             if(ret < 0)
             {
                 LOG_WARN("readlink failed, path : %s, %s.", path, strerror(errno));
+                if(errno == ENOENT) break;
                 continue;
             }
             //compare
@@ -543,11 +529,7 @@ int GetProcessWithTcp(PidAssMnt *mnt, int pidNums, int pids[], int filesNum, cha
     for(i = 0; i < filesNum; i++)
     {
         fp = fopen(files[i], "r");
-        if(fp == NULL)
-        {
-            LOG_ERROR("open tcp file %s failed, pids : %s, %s.", files[i], PrintPids(pids, pidNums), strerror(errno));
-            continue;
-        }
+        if(!fp) CONTINUE_ERROR("open tcp file %s failed, pids : %s, %s.", files[i], PrintPids(pids, pidNums), strerror(errno));
         
         lineNum = 0;
         while (!feof(fp))
@@ -576,20 +558,20 @@ int GetProcessWithTcp(PidAssMnt *mnt, int pidNums, int pids[], int filesNum, cha
             }
             //set flag
             pstProcData->status = MATCH_SUCC;
+            pstProcData->pid    = pid;
             //match inode
             ret = MatchInode(inode, pidNums, pids, &pid);
             //if(ret != 0) BREAK_ERROR("match tcp inode failed! need enter other container, inode : %s.", inode);
             if(ret != 0) break;
             //get process name by pid
             ret = GetProcessName(pid, "", pstProcData->procname);
-            if(ret != 0) {
-                LOG_ERROR("get tcp process name failed! pid : %d, %s.", pid, PrintAddress(mnt));
-            } else {
-                pstProcData->status = GET_DATA_SUCC;
-            }
+            if(ret != 0) BREAK_ERROR("get tcp process name failed! pid : %d, %s.", pid, PrintAddress(mnt));
+            //set status
+            pstProcData->status = GET_DATA_SUCC;
             break;
         }
         fclose(fp);
+        //
         if(pstProcData->status != 0) break;
     }
     //return
@@ -609,11 +591,7 @@ int GetProcessWithUdp(PidAssMnt *mnt, int pidNums, int pids[], int filesNum, cha
     for(i = 0; i < filesNum; i++)
     {
         fp = fopen(files[i], "r");
-        if(fp == NULL)
-        {
-            LOG_ERROR("open udp file %s failed, pids : %s, %s.", files[i], PrintPids(pids, pidNums), strerror(errno));
-            continue;
-        }
+        if(fp == NULL) CONTINUE_ERROR("open udp file %s failed, pids : %s, %s.", files[i], PrintPids(pids, pidNums), strerror(errno));
 
         lineNum = 0;
         while (!feof(fp))
@@ -658,10 +636,10 @@ int GetProcessWithUdp(PidAssMnt *mnt, int pidNums, int pids[], int filesNum, cha
     return ret;
 }
 
-int GetProcessData(PidAssMnt *mnt, ProcessData *pstProcData)
+static int GetProcessData(PidAssMnt *mnt, ProcessData *pstProcData)
 {
     int pidNums = 30, filesNum = 2;
-    int ret, pids[30], pid;
+    int ret, pids[30];
     char files[20][128];
     const char *pcDefPath = NULL;
     if((!mnt) || (!pstProcData)) return -2;
@@ -687,75 +665,179 @@ int GetProcessData(PidAssMnt *mnt, ProcessData *pstProcData)
             LOG_ERROR("proto is error, proto : %d.", mnt->proto);
             return -4;
     }
+    //set default path
+    pcDefPath = "";
     //status
     switch(pstProcData->status)
     {
-        case 0:
-            //unshare mnt
-            unshare(CLONE_NEWNS);
+        case MATCH_IDLE:
             //set local mnt
-            SetLocalMntNs();
-            //set default pid
-            pid = mnt->pid;
+            ret = SetLocalMntNs(szLocalMntNsFd);
+            if(ret != 0) RETURN_ERROR(ret, "set local mnt ns failed!");
+            //set default path
             pcDefPath = BasePath;
             break;
+
         case GET_DATA_SUCC:
             return 0;
+
         case MATCH_SUCC:
-            pid = pids[0];
-            pcDefPath = "";
             break;
+
         default:
             LOG_ERROR("get process status is error! pid : %d, %s.", pstProcData->pid, PrintAddress(mnt));
             break;
     }
-    //set default
-    pstProcData->pid =pid;
+    //set pid
+    pstProcData->pid = (pstProcData->pid > 0) ? pstProcData->pid : mnt->pid;
     //get process name by pid
-    ret = GetProcessName(pid, (char *)pcDefPath, pstProcData->procname);
-    if(ret != 0) LOG_ERROR("get tcp process name failed by default pid! pid : %d, %s.", pid, PrintAddress(mnt));
+    ret = GetProcessName(pstProcData->pid, (char *)pcDefPath, pstProcData->procname);
+    if(ret != 0) LOG_ERROR("get tcp process name failed by default pid! pid : %d, %s.", pstProcData->pid, PrintAddress(mnt));
     //print information
 
     return ret;
 }
 
+static char *encode_gateway(DATA_HEAD *data)
+{
+    int i;
+    ROUTE_INFO *pstRtInfo;
+    cJSON *root = NULL, *subobj = NULL;
+    struct in_addr gate;
+    char  *retstr = NULL;
+    char ipv4[INET_ADDRSTRLEN];
+    //check argument
+    if(!data) return NULL;
+    //create json object
+    root = cJSON_CreateArray();
+    if(!root) GOTO_ERROR(err, "create json new object failed!");
+    //list
+    for(i = 0; i < data->length; i++)
+    {
+        subobj = cJSON_CreateObject();
+        if(!subobj) GOTO_ERROR(err, "create json new object failed!");
+        //
+        pstRtInfo = (ROUTE_INFO *)data->data;
+        pstRtInfo += i;
+        gate.s_addr = pstRtInfo->gateWay;
+        memset(ipv4, 0, sizeof(ipv4));
+        sprintf(ipv4, "%s", inet_ntoa(gate));
+        cJSON_AddStringToObject(subobj, "gateway", ipv4);
+        cJSON_AddStringToObject(subobj, "ifName", pstRtInfo->ifName);
+        //add to root
+        cJSON_AddItemToArray(root, subobj);
+    }
+    //
+    retstr = cJSON_PrintUnformatted(root);
+    //
+    free(data->data);
+    if(root != NULL) cJSON_Delete(root);
+    return retstr;
+err:
+    if(data->data) free(data->data);
+    if(root != NULL) cJSON_Delete(root);
+    return NULL;
+}
+
+static char *get_container_info()
+{
+    int ret = 0, i;
+    char *str;
+    DATA_HEAD   data;
+    IF_INFO     *pstIf;
+    LISTEN_PORT *pstLport;
+    DEFAULT_ROUTE *pstDefRoute;
+    cJSON *root = NULL, *subobj, *param;
+    //create json object
+    root = cJSON_CreateObject();
+    if(!root) GOTO_ERROR(err, "create json new object failed!");
+    //put listen port
+    subobj = cJSON_CreateArray();
+    if(!subobj) GOTO_ERROR(err, "create json new array failed!");
+    //get listen port
+    ret = get_listen_port(&data, "");
+    if(ret != 0) LOG_ERROR("get listen port infor failed.");
+    for(i = 0; i < data.length; i++)
+    {
+        pstLport  = (LISTEN_PORT *)data.data;
+        pstLport += i;
+        param = cJSON_CreateObject();
+        if(!param) CONTINUE_ERROR("create json new object failed!");
+        cJSON_AddNumberToObject(param, "port", pstLport->port);
+        cJSON_AddNumberToObject(param, "proto", pstLport->proto);
+        //LOG_PRINT("listen port : %d, proto : %s.", pstLport->port, (pstLport->proto == IPPROTO_TCP) ? "tcp" : "udp");
+        //add to array
+        cJSON_AddItemToArray(subobj, param);
+    }
+    free(data.data);
+    //add to root
+    cJSON_AddArrayToObject(root, subobj);
+    //get default gateway
+    ret = get_default_gateway(&data, "");
+    if(ret != 0) LOG_ERROR("get default gateway infor failed.");
+    for(i = 0; i < data.length; i++)
+    {
+        pstDefRoute = (DEFAULT_ROUTE *)data.data;
+        pstDefRoute += i;
+        //LOG_PRINT("default gateway : %s, ifname : %s.", pstDefRoute->gateway, pstDefRoute->ifName);
+        cJSON_AddStringToObject(root, "gateway", pstDefRoute->gateway);
+        break;
+    }
+    free(data.data);
+    //get default gateway
+    ret = get_dev_name(&data, "");
+    if(ret != 0) LOG_ERROR("get dev name infor failed.");
+    for(i = 0; i < data.length; i++)
+    {
+        pstIf = (IF_INFO *)data.data;
+        pstIf += i;
+        //LOG_PRINT("if : %s, ipv4 : %s, ipv6 : %s, mac : %s.", pstIf->ifName, pstIf->ipv4, pstIf->ipv6, pstIf->mac);
+        cJSON_AddStringToObject(root, "dev", pstIf->ifName);
+        cJSON_AddStringToObject(root, "mac", pstIf->mac);
+        if(strlen(pstIf->ipv4) > 0) cJSON_AddStringToObject(root, "ipv4", pstIf->ipv4);
+        if(strlen(pstIf->ipv6) > 0) cJSON_AddStringToObject(root, "ipv6", pstIf->ipv6);
+        break;
+    }
+    free(data.data);
+    //
+    str = cJSON_PrintUnformatted(root);
+    cJSON_Delete(root);
+    
+    return str;
+err:
+    if(root) cJSON_Delete(root);
+
+    return NULL;
+}
+
 int ParseRcvData(int fd, char *buf)
 {
     int ret, length;
-    char result[256], *retdata = NULL, *str = NULL;
+    char result[1024], *retdata = NULL, *str = NULL;
     PidAssMnt mnt;
+    DATA_HEAD data;
     ProcessData stProcData;
-    if((fd <= 0) || (!buf))
-    {
-        LOG_ERROR("parse failed by argumnet is error!");
-        return -2;
-    }
+    if((fd <= 0) || (!buf)) RETURN_ERROR(-2, "[setns] parse failed by argumnet is error!");
     //set 0
     memset(result, 0, sizeof(result));
     memset(&stProcData, 0, sizeof(stProcData));
     //parse json
     ret = ParseRcvJson(buf, &mnt);
-    if(ret < 0)
-    {
-        LOG_ERROR("parse receive json failed!");
-        goto out;
-    }
+    if(ret < 0) GOTO_ERROR(out, "[setns] parse receive json failed!");
     //init buf
     memset(result, 0, sizeof(result));
     //condition
     switch (mnt.dataType)
     {
-        case DATA_EBPF_STATE:
-            //parse json
-            ret = parse_get_ebpf_state(buf, result, sizeof(result));
-            if(ret != 0) LOG_ERROR("parse get ebpf state failed.");
-            //move point
-            retdata = result;
-            goto rsp;
-
-        case DATA_FILTER:
-            return parse_filter_condition(buf);
-
+         case DATA_SETNS:
+            //set ns
+            ret = SetNs(mnt.pid);
+            if(ret < 0) goto out;
+            //get process data
+            ret = GetProcessData(&mnt, &stProcData);
+            //if(ret != 0) LOG_ERROR("get process failed! ret : %d, %s.", ret,  PrintAddress(&mnt));
+            goto out;
+        
         case DATA_EBPF:
             //set default response data
             memcpy(result, "[]", sizeof(result));
@@ -766,21 +848,55 @@ int ParseRcvData(int fd, char *buf)
             if(str) retdata = str;
             goto rsp;
 
-        default:
-            //set ns
+         case DATA_FILTER:
+            return parse_filter_condition(buf);
+        
+        case DATA_EBPF_STATE:
+            //parse json
+            ret = parse_get_ebpf_state(buf, result, sizeof(result));
+            if(ret != 0) LOG_ERROR("parse get ebpf state failed.");
+            //move point
+            retdata = result;
+            goto rsp;
+        
+        case DATA_HOST_GATEWAY:
+            //set default response data
+            memcpy(result, "[]", sizeof(result));
+            //init response data
+            retdata = result;
+            //get gateway
+            ret = get_gateway(&data);
+            if(ret != 0) GOTO_ERROR(rsp, "get gateway infor failed.");
+            //encode gateway
+            str = encode_gateway(&data);
+            if(str) retdata = str;
+            goto rsp;
+
+        case DATA_CONTAINER:
+            //set default response data
+            memcpy(result, "{}", sizeof(result));
+            //init response data
+            retdata = result;
+            //setns
             ret = SetNs(mnt.pid);
-            if(ret < 0) goto out;
-            //get process data
-            ret = GetProcessData(&mnt, &stProcData);
-            //if(ret != 0) LOG_ERROR("get process failed! ret : %d, %s.", ret,  PrintAddress(&mnt));
+            if(ret < 0) goto rsp;
+            //get container infor
+            str = get_container_info();
+            if(str) retdata = str;
+            //set local mnt
+            ret = SetLocalMntNs(szLocalMntNsFd);
+            if(ret != 0) LOG_ERROR("set local mnt ns failed!");
+            goto rsp;
+
+        default:
+            LOG_ERROR("data type is error, datatype : %d.", mnt.dataType);
             break;
     }
-   
+
 out:
-    //unshare mnt
-    unshare(CLONE_NEWNS);
     //set local mnt
-    SetLocalMntNs();
+    ret = SetLocalMntNs(szLocalMntNsFd);
+    if(ret != 0) LOG_ERROR("set local mnt ns failed!");
     //pack data
     ret = ResultPack(&mnt, &stProcData, result);
     if(ret < 0) return 0;
@@ -788,6 +904,8 @@ out:
 rsp:
     //data len
     length = strlen(retdata);
+    //print debug log
+    //LOG_PRINT("rsp data : %s.", retdata);
     //send response data
     ret = write(fd, retdata, length);
     //free
@@ -812,7 +930,8 @@ int main(int argc, char *argv[])
     int zListenFd = 0, epfd = 0, zClientFd, zLinkFd;
     int ret, zDataLen, nfds, i;
     //open local mnt namespaces
-    OpenLocalMntNs();
+    ret = OpenLocalMntNs();
+    if(ret != 0) RETURN_ERROR(ret, "open local mnt ns failed.");
     //epoll fd
     epfd = epoll_create(256);
     if(epfd <= 0)
@@ -820,38 +939,24 @@ int main(int argc, char *argv[])
         LOG_ERROR("create epoll fd failed, %s.", strerror(errno));
         goto err;
     }
+    //create socket
     zListenFd = socket(PF_UNIX, SOCK_STREAM, 0);
-    if(zListenFd <= 0)
-    {
-        LOG_ERROR("create unix socket failed! %s.", strerror(errno));
-        goto err;
-    }
+    if(zListenFd <= 0) GOTO_ERROR(err, "create unix socket failed! %s.", strerror(errno));
+    //socket address
     svrAddr.sun_family = AF_UNIX;
     strcpy(svrAddr.sun_path, DAEMON_UNIX);
     unlink(DAEMON_UNIX);
     //bind socket address
     ret = bind(zListenFd, (struct sockaddr *)&svrAddr, sizeof(svrAddr));
-    if(ret < 0)
-    {
-        LOG_ERROR("bind server unix socket failed, %s!", strerror(errno));
-        goto err;
-    }
+    if(ret < 0) GOTO_ERROR(err, "bind server unix socket failed, %s!", strerror(errno));
     //listen sockfd
     ret = listen(zListenFd, 1);
-    if(ret < 0)
-    {
-        LOG_ERROR("listen the client connect request!");
-        goto err;
-    }
+    if(ret < 0) GOTO_ERROR(err, "listen the client connect request! err : %s.", strerror(errno));
     //register epoll event
     ev.data.fd = zListenFd;
     ev.events = EPOLLIN;
     ret = epoll_ctl(epfd, EPOLL_CTL_ADD, zListenFd, &ev);
-    if(ret < 0)
-    {
-        LOG_ERROR("epoll ctl failed, %s.", strerror(errno));
-        goto err;
-    }
+    if(ret < 0) GOTO_ERROR(err, "epoll ctl failed, %s.", strerror(errno));
     //accept client request
     while (1)
     {
@@ -866,11 +971,8 @@ int main(int argc, char *argv[])
                 //client address length
                 cliAddrLen = sizeof(struct sockaddr_in);
                 zClientFd = accept(zListenFd, (struct sockaddr *)&cltAddr, &cliAddrLen);
-                if(zClientFd <= 0)
-                {
-                    LOG_ERROR("accept a new client failed, %s.", strerror(errno));
-                    continue;
-                }
+                if(zClientFd <= 0) CONTINUE_ERROR("accept a new client failed, %s.", strerror(errno));
+                //epoll event
                 ev.data.fd = zClientFd;
                 ev.events = EPOLLIN;
                 ret = epoll_ctl(epfd, EPOLL_CTL_ADD, zClientFd, &ev);

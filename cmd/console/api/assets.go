@@ -55,15 +55,19 @@ func (api *api) assets() func(chi.Router) {
 		r.Get("/nodes", api.getNodes())
 		r.Get("/frameworks", api.getFrameworks())
 
-		r.Get("/{clusterKey}/{namespace}/{resourceName}/{resourceKind}/processlist", api.GetProcessList())
-		r.Get("/{clusterKey}/{namespace}/{resourceName}/{resourceKind}/{route}/resource", api.GetResourceAssociate())
-		r.Get("/{clusterKey}/{namespace}/{resourceName}/{resourceKind}/{containerName}/{route}/container", api.GetContainerAssociate())
-		r.Get("/{clusterKey}/{namespace}/{resourceName}/{resourceKind}/{containerName}/{processName}/{route}/process", api.GetProcessAssociate())
+		r.Get("/container/processlist", api.GetProcessList())
+		r.Get("/resource/netflow/info", api.GetResourceAssociate())
+		r.Get("/container/netflow/info", api.GetContainerAssociate())
+		r.Get("/container/process/netflow/info", api.GetProcessAssociate())
 
 		exportContainers := os.Getenv("EXPORT_CONTAINERS")
 		if exportContainers == "true" {
 			r.Get("/containers", api.getContainers())
 		}
+
+		r.Get("/rawContainers", api.getRawContainers())
+		r.Get("/rawContainers/count", api.countRawContainers())
+		r.Get("/rawContainer/{containerID}", api.getRawContainer())
 		r.Get("/resources/types", api.getResourceTypes())
 	}
 }
@@ -1194,6 +1198,13 @@ func (api *api) countPods() http.HandlerFunc {
 		if resName != "" {
 			queryOpt.WithResourceName(resName)
 		}
+		nodeName, err := param.QueryString(r, "node_name")
+		if err != nil {
+			nodeName = ""
+		}
+		if nodeName != "" {
+			queryOpt.WithNodeName(nodeName)
+		}
 
 		cnt, err := resSvc.CountPods(ctx, queryOpt)
 		if err != nil {
@@ -1293,7 +1304,7 @@ func (api *api) GetResourceAssociate() http.HandlerFunc {
 			return
 		}
 
-		arguments, err := resSvc.GetArguments(r, "")
+		arguments, err := resSvc.GetArguments(r)
 		if err != nil {
 			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, err))
 			return
@@ -1321,7 +1332,7 @@ func (api *api) GetContainerAssociate() http.HandlerFunc {
 			return
 		}
 
-		arguments, err := resSvc.GetArguments(r, "container")
+		arguments, err := resSvc.GetArguments(r)
 		if err != nil {
 			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, err))
 			return
@@ -1350,7 +1361,7 @@ func (api *api) GetProcessAssociate() http.HandlerFunc {
 			return
 		}
 
-		arguments, err := resSvc.GetArguments(r, "process")
+		arguments, err := resSvc.GetArguments(r)
 		if err != nil {
 			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, err))
 			return
@@ -1379,7 +1390,7 @@ func (api *api) GetProcessList() http.HandlerFunc {
 			return
 		}
 
-		arguments, err := resSvc.GetArguments(r, "process_list")
+		arguments, err := resSvc.GetArguments(r)
 		if err != nil {
 			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.Errorf("get process argument failed, %v", err)))
 			return
@@ -1387,7 +1398,7 @@ func (api *api) GetProcessList() http.HandlerFunc {
 		// print debug log
 		// logging.Get().Info().Msgf("process argument : %+v", *arguments)
 		// get resource relation
-		process, err := resSvc.GetAllProcessList(arguments)
+		process, err := resSvc.GetContainerProcessList(arguments)
 		if err != nil {
 			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.Errorf("get process list failed, %v", err)))
 			return
@@ -1725,5 +1736,153 @@ func (api *api) getResourceTypes() http.HandlerFunc {
 			response.WithTotalItems(int64(len(resourceTypes))),
 			response.WithStartIndex(0),
 		)
+	}
+}
+
+func (api *api) getRawContainers() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+
+		query := dal.RawContainersQuery()
+
+		limit, offset, err := getLimitAndOffset(r)
+		if err != nil {
+			logging.Get().Err(err).Msgf("get limit or offset query error")
+			RespAndLog(w, ctx, NewAnError(http.StatusBadRequest, errors.New("no limit or offset given in params")))
+			return
+		}
+		clusterKey, _ := param.QueryString(r, "cluster_key")
+		nodeNames, _ := param.QueryStringArray(r, "node_name")
+		namespaces, _ := param.QueryStringArray(r, "namespace")
+		podNames, _ := param.QueryStringArray(r, "pod_name")
+		containerNames, _ := param.QueryStringArray(r, "container_name")
+
+		isK8sManaged, err := param.QueryBool(r, "k8s_managed")
+		if err == nil {
+			query.WithK8sManaged(isK8sManaged)
+		}
+		status, _ := param.QueryInt32Array(r, "status")
+		if len(status) > 0 {
+			query.WithInConditionCustom("status", status)
+		}
+		resourceNames, _ := param.QueryStringArray(r, "resource_name")
+
+		resSvc, ok := assets.GetResourcesService(ctx)
+		if !ok {
+			logging.Get().Error().Msg("service instance get error")
+			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.New("service instance get error")))
+			return
+		}
+
+		if clusterKey != "" {
+			query = query.WithCluster(clusterKey)
+		}
+		if len(nodeNames) != 0 {
+			query = query.WithColumnMultiQuery("node_name", nodeNames)
+		}
+		if len(namespaces) != 0 {
+			query = query.WithColumnMultiQuery("namespace", namespaces)
+		}
+		if len(podNames) != 0 {
+			query = query.WithColumnMultiQuery("pod_name", podNames)
+		}
+		if len(containerNames) != 0 {
+			query = query.WithColumnMultiQuery("name", containerNames)
+		}
+		if len(resourceNames) != 0 {
+			query = query.WithColumnMultiQuery("resource_name", resourceNames)
+		}
+
+		containers, err := resSvc.GetRawContainer(ctx, query, offset, limit)
+		if err != nil {
+			logging.Get().Err(err).Msg("get raw container error")
+			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, err))
+			return
+		}
+		totalCnt, err := resSvc.CountRawContainer(ctx, query)
+		if err != nil {
+			logging.Get().Err(err).Msg("count raw container error")
+			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, err))
+			return
+		}
+		response.Ok(w, response.WithItems(containers),
+			response.WithTotalItems(totalCnt),
+			response.WithStartIndex(int64(offset+len(containers))),
+		)
+	}
+}
+
+func (api *api) getRawContainer() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+
+		clusterKey, err := param.QueryString(r, "cluster_key")
+		if err != nil {
+			clusterKey = ""
+		}
+
+		containerID := chi.URLParam(r, "containerID")
+
+		resSvc, ok := assets.GetResourcesService(ctx)
+		if !ok {
+			logging.Get().Error().Msg("service instance get error")
+			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.New("service instance get error")))
+			return
+		}
+
+		query := dal.RawContainersQuery()
+		if clusterKey != "" {
+			query = query.WithCluster(clusterKey)
+		}
+
+		if containerID != "" {
+			query = query.WithID(containerID)
+		}
+		query.WithInConditionCustom("status", assetsPkg.All)
+		containers, err := resSvc.GetRawContainer(ctx, query, -1, -1)
+		if err != nil || len(containers) == 0 {
+			logging.Get().Err(err).Msgf("get raw container error, got number %d", len(containers))
+			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, err))
+			return
+		}
+
+		response.Ok(w, response.WithItem(containers[0]))
+	}
+}
+
+func (api *api) countRawContainers() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+
+		query := dal.RawContainersQuery()
+
+		clusterKey, _ := param.QueryString(r, "cluster_key")
+
+		nodeName, _ := param.QueryString(r, "node_name")
+
+		resSvc, ok := assets.GetResourcesService(ctx)
+		if !ok {
+			logging.Get().Error().Msg("service instance get error")
+			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.New("service instance get error")))
+			return
+		}
+
+		if clusterKey != "" {
+			query = query.WithCluster(clusterKey)
+		}
+		if nodeName != "" {
+			query = query.WithNodeName(nodeName)
+		}
+
+		totalCnt, err := resSvc.CountRawContainer(ctx, query)
+		if err != nil {
+			logging.Get().Err(err).Msg("count raw container error")
+			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, err))
+			return
+		}
+		response.Ok(w, response.WithItem(countResp{Count: totalCnt}))
 	}
 }

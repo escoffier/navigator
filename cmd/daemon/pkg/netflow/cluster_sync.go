@@ -9,7 +9,7 @@ import (
 
 	json "github.com/json-iterator/go"
 	"github.com/pkg/errors"
-	"gitlab.com/piccolo_su/vegeta/pkg/model"
+	"gitlab.com/security-rd/go-pkg/model"
 )
 
 func GetSubmitFunc(url string) SubmitFunc {

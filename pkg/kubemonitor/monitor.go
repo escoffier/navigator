@@ -86,6 +86,14 @@ type KubeClusterMonitor struct {
 	eventCh      chan detectionEvent
 }
 
+func (l *KubeClusterMonitor) OnRawContainer(*assets.TensorRawContainer, assets.Action) error {
+	return nil
+}
+
+func (l *KubeClusterMonitor) OnSync(*assets.TensorSync) error {
+	return nil
+}
+
 func (l *KubeClusterMonitor) asyncDetection() {
 	go func() {
 		defer func() {
@@ -230,24 +238,24 @@ func (l *KubeClusterMonitor) GetRole(name, namespace string) (*rbacv1.Role, bool
 	return r, ok
 }
 
-func (l *KubeClusterMonitor) OnTensorPod(pod *assets.TensorPod, action assets.AssetsAction) error {
+func (l *KubeClusterMonitor) OnTensorPod(pod *assets.TensorPod, action assets.Action) error {
 	return nil
 }
 
-func (l *KubeClusterMonitor) OnPodEvent(newPod, oldPod *corev1.Pod, action assets.AssetsAction) error {
+func (l *KubeClusterMonitor) OnPodEvent(newPod, oldPod *corev1.Pod, action assets.Action) error {
 	// do nothing
 	return nil
 }
 
-func (l *KubeClusterMonitor) OnEndPointEvent(newEpt, oldEpt *corev1.Endpoints, action assets.AssetsAction) error {
+func (l *KubeClusterMonitor) OnEndPointEvent(newEpt, oldEpt *corev1.Endpoints, action assets.Action) error {
 	// do nothing
 	return nil
 }
-func (l *KubeClusterMonitor) OnServiceEvent(newSvc, oldEvc *corev1.Service, action assets.AssetsAction) error {
+func (l *KubeClusterMonitor) OnServiceEvent(newSvc, oldEvc *corev1.Service, action assets.Action) error {
 	// do nothing
 	return nil
 }
-func (l *KubeClusterMonitor) OnTensorResourceEvent(newResource, oldResource *assets.TensorResource, action assets.AssetsAction) error {
+func (l *KubeClusterMonitor) OnTensorResourceEvent(newResource, oldResource *assets.TensorResource, action assets.Action) error {
 	if action == assets.ActionDelete { // ignore delation
 		return nil
 	}
@@ -334,7 +342,7 @@ func (l *KubeClusterMonitor) deleteRole(role RoleInterface) {
 	delete(l.roles, getKeyFromRole(role))
 }
 
-func (l *KubeClusterMonitor) OnTensorRole(tensorRole *assets.TensorRole, action assets.AssetsAction) error {
+func (l *KubeClusterMonitor) OnTensorRole(tensorRole *assets.TensorRole, action assets.Action) error {
 	role := tensorRole.Role
 	switch action {
 	case assets.ActionAdd, assets.ActionUpdate:
@@ -367,7 +375,7 @@ func (l *KubeClusterMonitor) OnTensorRole(tensorRole *assets.TensorRole, action 
 	return nil
 }
 
-func (l *KubeClusterMonitor) OnTensorClusterRole(tensorRole *assets.TensorClusterRole, action assets.AssetsAction) error {
+func (l *KubeClusterMonitor) OnTensorClusterRole(tensorRole *assets.TensorClusterRole, action assets.Action) error {
 	clusterRole := tensorRole.ClusterRole
 	switch action {
 	case assets.ActionAdd, assets.ActionUpdate:
@@ -398,17 +406,17 @@ func (l *KubeClusterMonitor) OnTensorClusterRole(tensorRole *assets.TensorCluste
 	return nil
 }
 
-func (l *KubeClusterMonitor) OnNodeEvent(newNode, oldNode *corev1.Node, action assets.AssetsAction) error {
+func (l *KubeClusterMonitor) OnNodeEvent(newNode, oldNode *corev1.Node, action assets.Action) error {
 	return nil
 }
-func (l *KubeClusterMonitor) OnHoneyspot(honeyspot *assets.TensorHoneySpot, action assets.AssetsAction) error {
+func (l *KubeClusterMonitor) OnHoneyspot(honeyspot *assets.TensorHoneySpot, action assets.Action) error {
 	return nil
 }
-func (l *KubeClusterMonitor) OnTensorNamespace(namespace *assets.TensorNamespace, action assets.AssetsAction) error {
+func (l *KubeClusterMonitor) OnTensorNamespace(namespace *assets.TensorNamespace, action assets.Action) error {
 	return nil
 }
 
-func (l *KubeClusterMonitor) OnTensorNode(node *assets.TensorNode, action assets.AssetsAction) error {
+func (l *KubeClusterMonitor) OnTensorNode(node *assets.TensorNode, action assets.Action) error {
 	return nil
 }
 

@@ -1,6 +1,7 @@
 package nodeinfo
 
 import (
+	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/containerassets"
 	"os"
 	"runtime/debug"
 	"strings"
@@ -21,6 +22,13 @@ type CrioInfoManager struct {
 	containerData map[string]int64 // map[containerId]time
 
 	sync.RWMutex
+}
+
+func (p *CrioInfoManager) SetPodStore(store containerassets.PodCache) {
+}
+
+func (p *CrioInfoManager) AddEventHandler(handler ContainerEventHandler) {
+	//TODO implement me
 }
 
 func NewCrioInfoManager() (*CrioInfoManager, error) {

@@ -25,17 +25,20 @@ const (
 )
 
 const PodUIDIndex = "podUID"
+const PodIPIndex = "podIP"
 
 type Resource struct {
 	Name string
 	Kind string
 }
+
 type PodEvent struct {
 	Pod                *corev1.Pod
 	finalOwnerResource *Resource
 	fetchFunc          func(ctx context.Context, pod *corev1.Pod) *Resource
 	sync.Mutex
 }
+
 type TensorPod struct {
 	ClusterKey string   `json:"clusterKey"`
 	Namespace  string   `json:"namespace"`
@@ -61,11 +64,12 @@ func (p *PodEvent) FinalOwnerResource(ctx context.Context) *Resource {
 }
 
 type PodWatcher interface {
-	OnAdd(newPod *PodEvent)
+	OnAdd(newPod *PodEvent, containerInfo ContainerInfoManager)
 	OnDelete(oldPod *PodEvent)
-	OnUpdate(oldPod, newPod *PodEvent)
+	OnUpdate(oldPod, newPod *PodEvent, containerInfo ContainerInfoManager)
 	Name() string
 }
+
 type NodePodsWatcher struct {
 	watchers    []PodWatcher
 	store       cache.Indexer
@@ -75,6 +79,10 @@ type NodePodsWatcher struct {
 
 	NodeName   string
 	clusterKey string
+}
+
+func (n *NodePodsWatcher) Store() cache.Indexer {
+	return n.store
 }
 
 type Builder struct {
@@ -104,12 +112,12 @@ func (b *Builder) Build() *NodePodsWatcher {
 func (n *NodePodsWatcher) InitK8sClient() (*kubernetes.Clientset, error) {
 	config, err := k8s.KubeConfig()
 	if err != nil {
-		return nil, errors.Errorf("Couldn't initialize k8s config: %w", err)
+		return nil, errors.Errorf("Couldn't initialize k8s config: %v", err)
 	}
 	// k8s client
 	n.k8sClient, err = kubernetes.NewForConfig(config)
 	if err != nil {
-		return nil, errors.Errorf("Couldn't initialize k8s clientset: %w", err)
+		return nil, errors.Errorf("Couldn't initialize k8s clientset: %v", err)
 	}
 
 	return n.k8sClient, nil
@@ -212,7 +220,7 @@ func (n *NodePodsWatcher) getFinalResourceOfPod(ctx context.Context, pod *corev1
 	}
 }
 
-func (n *NodePodsWatcher) Start(ctx context.Context) (err error) {
+func (n *NodePodsWatcher) Start(ctx context.Context, containerInfo ContainerInfoManager) (err error) {
 
 	watchlist := cache.NewFilteredListWatchFromClient(
 		n.k8sClient.CoreV1().RESTClient(),
@@ -246,7 +254,7 @@ func (n *NodePodsWatcher) Start(ctx context.Context) (err error) {
 					})
 
 					for _, w := range n.watchers {
-						w.OnAdd(podEvt)
+						w.OnAdd(podEvt, containerInfo)
 					}
 				}
 			},
@@ -301,21 +309,33 @@ func (n *NodePodsWatcher) Start(ctx context.Context) (err error) {
 							}
 						})
 						for _, w := range n.watchers {
-							w.OnUpdate(oldPodEvt, newPodEvt)
+							w.OnUpdate(oldPodEvt, newPodEvt, containerInfo)
 						}
 					}
 				}
 			},
 		},
-		cache.Indexers{},
+		cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
 	)
-	n.store.AddIndexers(cache.Indexers{PodUIDIndex: func(obj interface{}) ([]string, error) {
-		pod, ok := obj.(*corev1.Pod)
-		if ok {
-			return []string{string(pod.UID)}, nil
-		}
-		return nil, fmt.Errorf("object is not pod")
-	}})
+	n.store.AddIndexers(cache.Indexers{
+		PodUIDIndex: func(obj interface{}) ([]string, error) {
+			pod, ok := obj.(*corev1.Pod)
+			if ok {
+				return []string{string(pod.UID)}, nil
+			}
+			return nil, fmt.Errorf("object is not pod")
+		},
+		PodIPIndex: func(obj interface{}) ([]string, error) {
+			pod, ok := obj.(*corev1.Pod)
+			if ok {
+				//if pod.Status.PodIP == "" {
+				//	return nil, fmt.Errorf("pod ip not allocated")
+				//}
+				return []string{string(pod.Status.PodIP)}, nil
+			}
+			return nil, fmt.Errorf("object is not pod")
+		},
+	})
 
 	stopChan := make(chan struct{}, 1)
 	go func() {
@@ -365,4 +385,32 @@ func (n *NodePodsWatcher) GetPodByUID(uid string) (*TensorPod, error) {
 	}
 
 	return tensorPod, nil
+}
+
+func (n *NodePodsWatcher) GetPodOwner(namespace, name string) (string, string, error) {
+	obj, exists, err := n.store.GetByKey(namespace + "/" + name)
+	if err != nil {
+		return "", "", err
+	}
+	if !exists {
+		return "", "", errors.Errorf("pod %s not found", namespace+"/"+name)
+	}
+	pod := obj.(*corev1.Pod)
+	resName, resKind := n.getFinalResourceOfPod(context.Background(), pod)
+	return resName, resKind, nil
+}
+
+func (n *NodePodsWatcher) GetPod(namespace, name string) (*corev1.Pod, error) {
+	obj, exists, err := n.store.GetByKey(namespace + "/" + name)
+	if err != nil {
+		return nil, err
+	}
+	if !exists {
+		return nil, errors.Errorf("pod %s not found", namespace+"/"+name)
+	}
+	pod, ok := obj.(*corev1.Pod)
+	if !ok {
+		return nil, errors.New("invalid pod object")
+	}
+	return pod, nil
 }

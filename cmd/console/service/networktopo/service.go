@@ -8,10 +8,10 @@ import (
 
 	"github.com/jellydator/ttlcache/v3"
 	"gitlab.com/piccolo_su/vegeta/pkg/dal"
-	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 	"gitlab.com/security-rd/go-pkg/databases"
 	"gitlab.com/security-rd/go-pkg/logging"
+	"gitlab.com/security-rd/go-pkg/model"
 	"gorm.io/gorm"
 )
 
@@ -48,13 +48,13 @@ func Get(ctx context.Context) (*Service, bool) {
 
 type Service struct {
 	rdb       *databases.RDBInstance
-	topoCache *ttlcache.Cache[uint32, struct{}]
+	topoCache *ttlcache.Cache[uint64, struct{}]
 }
 
-func newTopoCache() *ttlcache.Cache[uint32, struct{}] {
-	cache := ttlcache.New[uint32, struct{}](
-		ttlcache.WithTTL[uint32, struct{}](cacheTTL),
-		ttlcache.WithCapacity[uint32, struct{}](cacheSize),
+func newTopoCache() *ttlcache.Cache[uint64, struct{}] {
+	cache := ttlcache.New[uint64, struct{}](
+		ttlcache.WithTTL[uint64, struct{}](cacheTTL),
+		ttlcache.WithCapacity[uint64, struct{}](cacheSize),
 	)
 	return cache
 }
@@ -72,7 +72,7 @@ func (n *Service) ListUpstreamInfo(ctx context.Context, scluster, sns, skind, sn
 		Where("src_cluster = ?", scluster).
 		Where("src_namespace = ?", sns).
 		Where("src_kind = ?", skind).
-		Where("src_name = ?", sname).
+		Where("src_owner_name = ?", sname).
 		Find(&tfs).Error
 	if err != nil {
 		return nil, 0, err

@@ -515,3 +515,133 @@ type TensorContainerRelation struct {
 func (r TensorContainerRelation) TableName() string {
 	return "ivan_assets_container_relations"
 }
+
+type Mounts struct {
+	Type string
+	// This must match the Name of a Volume.
+	Name string `json:"name"`
+	// Mounted read-only if true, read-write otherwise (false or unspecified).
+	// Defaults to false.
+	// +optional
+	ReadOnly bool `json:"readOnly"`
+	// Path within the container at which the volume should be mounted.  Must
+	// not contain ':'.
+	SourcePath string
+	MountPath  string `json:"mountPath"`
+	// Path within the volume from which the container's volume should be mounted.
+	// Defaults to "" (volume's root).
+	// +optional
+	SubPath string `json:"subPath"`
+	// mountPropagation determines how mounts are propagated from the host
+	// to container and the other way around.
+	// When not set, MountPropagationNone is used.
+	// This field is beta in 1.10.
+	// +optional
+	MountPropagation string `json:"mountPropagation"`
+	// Expanded path within the volume from which the container's volume should be mounted.
+	// Behaves similarly to SubPath but environment variable references $(VAR_NAME) are expanded using the container's environment.
+	// Defaults to "" (volume's root).
+	// SubPathExpr and SubPath are mutually exclusive.
+	// +optional
+	SubPathExpr string `json:"subPathExpr"`
+}
+
+type VolumeMountSlice []Mounts
+
+func (ev *VolumeMountSlice) Scan(value interface{}) error {
+	b, ok := value.([]byte)
+	if !ok {
+		return TypeAssertErr
+	}
+	return json.Unmarshal(b, &ev)
+}
+
+func (ev VolumeMountSlice) Value() (driver.Value, error) {
+	return json.Marshal(ev)
+}
+
+type ProcessData struct {
+	HostPid      int    `json:"hostPid"`
+	ContainerPid int    `json:"containerPid"`
+	Comm         string `json:"comm"`
+	UserName     string `json:"userName"`
+	StartTime    string `json:"startTime"`
+}
+
+type ProcessSlice []ProcessData
+
+func (ev *ProcessSlice) Scan(value interface{}) error {
+	b, ok := value.([]byte)
+	if !ok {
+		return TypeAssertErr
+	}
+	return json.Unmarshal(b, &ev)
+}
+
+func (ev ProcessSlice) Value() (driver.Value, error) {
+	return json.Marshal(ev)
+}
+
+type Port struct {
+	Name          string
+	ContainerPort int32
+	HostPort      int32
+	Proto         string
+	ContainerIP   string
+	HostIP        string
+}
+
+type PortSlice []Port
+
+func (ev *PortSlice) Scan(value interface{}) error {
+	b, ok := value.([]byte)
+	if !ok {
+		return TypeAssertErr
+	}
+	return json.Unmarshal(b, &ev)
+}
+func (ev PortSlice) Value() (driver.Value, error) {
+	return json.Marshal(ev)
+}
+
+type TensorRawContainer struct {
+	CreatedAt      time.Time        `json:"createdAt" gorm:"column:created_at"`
+	UpdatedAt      time.Time        `json:"updatedAt" gorm:"column:updated_at"`
+	Status         int32            `json:"status" gorm:"column:status;type:smallint"`
+	ContainerID    string           `json:"id" gorm:"column:id;type:bigint;primaryKey"`
+	NetworkMode    string           `json:"networkMode" gorm:"column:network_mode""`
+	IP             string           `json:"ip" gorm:"column:ip"`
+	IPV6           string           `json:"ipv6" gorm:"column:ipv6"`
+	Gateway        string           `json:"gateway" gorm:"column:gateway"`
+	Mac            string           `json:"mac" gorm:"column:mac"`
+	Name           string           `json:"name" gorm:"column:name"`
+	PodName        string           `json:"podName" gorm:"column:pod_name"`
+	ResourceName   string           `json:"resourceName" gorm:"column:resource_name"`
+	Namespace      string           `json:"namespace" gorm:"column:namespace"`
+	ClusterKey     string           `json:"clusterKey" gorm:"column:cluster_key"`
+	ResourceKind   string           `json:"resourceKind" gorm:"column:resource_kind"`
+	NodeName       string           `json:"nodeName" gorm:"column:node_name"`
+	NodeIP         string           `json:"nodeIP" gorm:"column:node_ip"`
+	ImageName      string           `json:"image" gorm:"column:image_name"`
+	ImageID        string           `json:"imageID" gorm:"column:image_id"`
+	ImageDigest    string           `json:"imageDigest" gorm:"column:image_digest"`
+	ImageSize      int64            `json:"imageSize" gorm:"column:image_size"`
+	ImageCreated   string           `json:"imageCreated" gorm:"column:image_created"`
+	Cmd            StringSlice      `json:"cmd" gorm:"column:cmd"`
+	Arguments      StringSlice      `json:"arguments" gorm:"column:arguments;type:varchar(128)"`
+	Environment    StringSlice      `json:"environment" gorm:"column:environment"`
+	VolumeMounts   VolumeMountSlice `json:"volumeMounts" gorm:"column:volume_mounts;type:varchar(256)"`
+	Path           string           `json:"path" gorm:"column:path"`
+	ReservedCPU    int64            `json:"reservedCPU" gorm:"column:reserved_cpu"`
+	ReservedMemory int64            `json:"reservedMemory" gorm:"reserved_memory"`
+	Pid            int              `json:"pid" gorm:"column:pid"`
+	K8sManaged     bool             `json:"k8sManaged" gorm:"column:k8s_managed"`
+	ProcessNumber  int              `json:"processNumber" gorm:"column:process_number"`
+	Processes      ProcessSlice     `json:"processes" gorm:"column:processes"`
+	Ports          PortSlice        `json:"ports" gorm:"column:ports"`
+	User           string           `json:"user" gorm:"column:user"`
+}
+
+func (rc TensorRawContainer) TableName() string {
+	return "ivan_assets_raw_containers"
+}

@@ -39,9 +39,9 @@ func newResourcesWatcher(rdb *databases.RDBInstance, scannerURL string) *Resourc
 	}
 }
 
-// called before watch events
-func (rl *ResourcesWatcher) BeforeWatchNewCluster(ctx context.Context, clusterName string, resyncTTL time.Duration) assets.ClusterCallback {
-	cl := newResourcesClusterListener(rl, clusterName)
+//BeforeWatchNewCluster called before watch events
+func (rl *ResourcesWatcher) BeforeWatchNewCluster(_ context.Context, clusterName string, _ time.Duration) assets.ClusterCallback {
+	cl := newResourcesClusterListener(rl)
 	rl.addClusterListener(clusterName, cl)
 	return cl
 }
@@ -72,7 +72,7 @@ type resourceEvent struct {
 	newNode      *corev1.Node
 	oldNode      *corev1.Node
 	clusterKey   string
-	action       assets.AssetsAction
+	action       assets.Action
 	updateTime   time.Time
 	retryCount   int
 }
@@ -84,11 +84,17 @@ type ResourcesClusterListener struct {
 	refreshTime time.Time
 }
 
+func (cl *ResourcesClusterListener) OnRawContainer(*assets.TensorRawContainer, assets.Action) error {
+	return nil
+}
+
+func (cl *ResourcesClusterListener) OnSync(*assets.TensorSync) error {
+	return nil
+}
+
 type ProcFunc func(ctx context.Context, db *gorm.DB, obj interface{}) error
 
-var ResourceActionProcFuncs map[assets.WatchedType]map[assets.AssetsAction]ProcFunc
-
-func newResourcesClusterListener(parent *ResourcesWatcher, clusterKey string) *ResourcesClusterListener {
+func newResourcesClusterListener(parent *ResourcesWatcher) *ResourcesClusterListener {
 	cl := ResourcesClusterListener{
 		parent:      parent,
 		retryQueue:  util.NewQueue(),
@@ -159,7 +165,7 @@ func (cl *ResourcesClusterListener) sendToRetry(resAction resourceEvent) {
 	cl.retryQueue.Add(resAction)
 }
 
-func (cl *ResourcesClusterListener) OnNodeEvent(newNode, oldNode *corev1.Node, action assets.AssetsAction) error {
+func (cl *ResourcesClusterListener) OnNodeEvent(newNode, oldNode *corev1.Node, action assets.Action) error {
 	defer func() {
 		if r := recover(); r != nil {
 			logging.GetLogger().Error().Msgf("Panic when OnNodeEvent: %v. stack: %s", r, debug.Stack())
@@ -272,7 +278,7 @@ func (cl *ResourcesClusterListener) doOnResource(ctx context.Context, resEvent r
 
 	return nil
 }
-func (cl *ResourcesClusterListener) OnTensorResourceEvent(newResource, oldResource *assets.TensorResource, action assets.AssetsAction) error {
+func (cl *ResourcesClusterListener) OnTensorResourceEvent(newResource, oldResource *assets.TensorResource, action assets.Action) error {
 	defer func() {
 		if r := recover(); r != nil {
 			logging.GetLogger().Error().Msgf("Panic when OnTensorResourceEvent: %v. stack: %s", r, debug.Stack())
@@ -297,7 +303,7 @@ func (cl *ResourcesClusterListener) OnTensorResourceEvent(newResource, oldResour
 	return nil
 }
 
-func (cl *ResourcesClusterListener) OnNamespaceEvent(newNs, oldNs *corev1.Namespace, action assets.AssetsAction) error {
+func (cl *ResourcesClusterListener) OnNamespaceEvent(newNs, oldNs *corev1.Namespace, action assets.Action) error {
 	defer func() {
 		if r := recover(); r != nil {
 			logging.GetLogger().Error().Msgf("Panic when OnNamespaceEvent: %v. stack: %s", r, debug.Stack())
@@ -321,7 +327,7 @@ func (cl *ResourcesClusterListener) OnNamespaceEvent(newNs, oldNs *corev1.Namesp
 	return nil
 }
 
-func (cl *ResourcesClusterListener) OnTensorNamespace(namespace *assets.TensorNamespace, action assets.AssetsAction) error {
+func (cl *ResourcesClusterListener) OnTensorNamespace(namespace *assets.TensorNamespace, action assets.Action) error {
 	defer func() {
 		if r := recover(); r != nil {
 			logging.GetLogger().Error().Msgf("Panic when OnNamespaceEvent: %v. stack: %s", r, debug.Stack())
@@ -346,7 +352,7 @@ func (cl *ResourcesClusterListener) OnTensorNamespace(namespace *assets.TensorNa
 	return nil
 }
 
-func (cl *ResourcesClusterListener) OnTensorNode(node *assets.TensorNode, action assets.AssetsAction) error {
+func (cl *ResourcesClusterListener) OnTensorNode(node *assets.TensorNode, action assets.Action) error {
 	defer func() {
 		if r := recover(); r != nil {
 			logging.GetLogger().Error().Msgf("Panic when OnNodeEvent: %v. stack: %s", r, debug.Stack())
@@ -405,7 +411,7 @@ func (cl *ResourcesClusterListener) Name() string {
 	return cl.parent.Name()
 }
 
-func (cl *ResourcesClusterListener) OnTensorPod(pod *assets.TensorPod, action assets.AssetsAction) error {
+func (cl *ResourcesClusterListener) OnTensorPod(pod *assets.TensorPod, action assets.Action) error {
 	defer func() {
 		if r := recover(); r != nil {
 			logging.GetLogger().Error().Msgf("Panic when OnTensorPod: %v. stack: %s", r, debug.Stack())
@@ -438,14 +444,14 @@ func (cl *ResourcesClusterListener) OnTensorPod(pod *assets.TensorPod, action as
 	return nil
 }
 
-func (cl *ResourcesClusterListener) OnHoneyspot(honeyspot *assets.TensorHoneySpot, action assets.AssetsAction) error {
+func (cl *ResourcesClusterListener) OnHoneyspot(*assets.TensorHoneySpot, assets.Action) error {
 	return nil
 }
 
-func (cl *ResourcesClusterListener) OnTensorRole(tensorRole *assets.TensorRole, action assets.AssetsAction) error {
+func (cl *ResourcesClusterListener) OnTensorRole(*assets.TensorRole, assets.Action) error {
 	return nil
 }
 
-func (cl *ResourcesClusterListener) OnTensorClusterRole(tensorRole *assets.TensorClusterRole, action assets.AssetsAction) error {
+func (cl *ResourcesClusterListener) OnTensorClusterRole(*assets.TensorClusterRole, assets.Action) error {
 	return nil
 }

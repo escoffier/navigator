@@ -3,34 +3,36 @@ package netflow
 import (
 	"context"
 	"errors"
+	"math/rand"
 	"runtime/debug"
 	"time"
 
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
-	"gitlab.com/piccolo_su/vegeta/pkg/model"
+	"gitlab.com/security-rd/go-pkg/model"
+	"gitlab.com/security-rd/go-pkg/sdk/palace"
 )
 
 type SubmitFunc func(context.Context, []*model.TensorNetworkFlow) error
+
 type Submitter struct {
 	submitInterval time.Duration
-	maxBufferSize  int
+	flowChan       chan *model.TensorNetworkFlow
 	submitFunc     SubmitFunc
-
-	flowChan chan *model.TensorNetworkFlow
+	Palace         palace.Palace
 }
 
-func NewSubmitter(intv time.Duration, maxBufferSize int, submitFunc SubmitFunc) *Submitter {
-	if intv == 0 {
-		intv = 1 * time.Minute
+func NewSubmitter(intv time.Duration, submitFunc SubmitFunc) *Submitter {
+	Palace, err := palace.Init()
+	if err != nil {
+		logging.GetLogger().Error().Msgf("init palace failed, %+v.", err)
+		return nil
 	}
-	if maxBufferSize <= 0 {
-		maxBufferSize = 1024
-	}
+
 	s := &Submitter{
 		submitInterval: intv,
-		maxBufferSize:  maxBufferSize,
 		submitFunc:     submitFunc,
 		flowChan:       make(chan *model.TensorNetworkFlow, 50),
+		Palace:         Palace,
 	}
 	s.asyncLoop()
 	return s
@@ -91,24 +93,53 @@ func (s *Submitter) asyncLoop() {
 				logging.GetLogger().Error().Msgf("panic for submitter: %v. stack: %s", r, debug.Stack())
 			}
 		}()
-		ticker := time.NewTicker(s.submitInterval)
+
+		timestamp := time.Duration(s.submitInterval.Seconds() + float64(rand.Intn(120)))
+		ticker := time.NewTicker(timestamp * time.Second)
 		defer ticker.Stop()
 
-		flowMap := make(map[uint32]*model.TensorNetworkFlow, s.maxBufferSize)
+		flowMap := make(map[uint64]*model.TensorSimpleNetworkFlow, 500)
 		for {
 			select {
 			case flow := <-s.flowChan:
-				if flow.UUID > 0 {
-					flowMap[flow.UUID] = flow
+				sflow, ok := flowMap[flow.UUID]
+				if !ok {
+					flowMap[flow.UUID] = &model.TensorSimpleNetworkFlow{
+						UUID:      flow.UUID,
+						Increment: 0,
+						CreatedAt: time.Now(),
+						UpdatedAt: time.Now(),
+					}
+					//post
+					err := s.Palace.SendOneNetworkFlow(*flow)
+					if err != nil {
+						logging.GetLogger().Err(err).Msg("post net flow data failed.")
+					}
+				} else {
+					sflow.Increment += 1
+					sflow.UpdatedAt = time.Now()
 				}
-				fmSize := len(flowMap)
-				if fmSize >= s.maxBufferSize {
-					s.submitBuffer(flowMap)
-					flowMap = make(map[uint32]*model.TensorNetworkFlow, s.maxBufferSize)
-				}
+
 			case <-ticker.C:
-				s.submitBuffer(flowMap)
-				flowMap = make(map[uint32]*model.TensorNetworkFlow, len(flowMap))
+				for _, flow := range flowMap {
+					//filter
+					if time.Now().Unix()-flow.CreatedAt.Unix() < 300 {
+						continue
+					}
+					//delete invalid data
+					if flow.Increment == 0 {
+						delete(flowMap, flow.UUID)
+						continue
+					}
+					//post
+					err := s.Palace.SendIncrementNetworkFlow(*flow)
+					if err != nil {
+						logging.GetLogger().Err(err).Msgf("send net increment failed.")
+						continue
+					}
+					//delete
+					delete(flowMap, flow.UUID)
+				}
 			}
 		}
 	}()

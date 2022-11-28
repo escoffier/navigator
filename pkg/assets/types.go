@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/security-rd/go-pkg/logging"
 	appsv1 "k8s.io/api/apps/v1"
 	batchv1 "k8s.io/api/batch/v1"
@@ -27,6 +28,17 @@ const (
 	KindJob                   ResourceKind = "Job"
 	KindCronJob               ResourceKind = "CronJob"
 	KindPodNoOwner            ResourceKind = "Pod"
+)
+
+const (
+	Running = iota
+	Created
+	Restarting
+	Removing
+	Paused
+	Exited
+	Dead
+	All
 )
 
 type ConvertFunc func(cluster string, wl interface{}) *TensorResource
@@ -321,6 +333,14 @@ func (r *TensorHoneySpot) IdentityString() string {
 	sb := strings.Builder{}
 	sb.WriteString(r.ResourceVersion)
 	return sb.String()
+}
+
+type TensorRawContainer model.TensorRawContainer
+
+type TensorSync struct {
+	Cluster  string
+	NodeName string
+	SyncTime time.Time
 }
 
 func NewResourceFromPodNoOwnerOrStaticPod(cluster string, pod *corev1.Pod) *TensorResource {

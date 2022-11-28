@@ -118,38 +118,7 @@ func (s *Service) completeJobInfo(job *batchV1.Job, taskType def.GCTaskType, ttl
 		Value: strconv.Itoa(ttl),
 	}
 
-	pgHostEnv := coreV1.EnvVar{
-		Name:  env.RDBHost,
-		Value: util.GetEnvWithDefault(env.RDBHost, ""),
-	}
-
-	pgPortEnv := coreV1.EnvVar{
-		Name:  env.RDBPort,
-		Value: util.GetEnvWithDefault(env.RDBPort, ""),
-	}
-
-	pgDBNameEnv := coreV1.EnvVar{
-		Name:  env.RDBDBName,
-		Value: util.GetEnvWithDefault(env.RDBDBName, ""),
-	}
-
-	pgUserEnv := coreV1.EnvVar{
-		Name:  env.RDBUser,
-		Value: util.GetEnvWithDefault(env.RDBUser, ""),
-	}
-
-	pgPasswordEnv := coreV1.EnvVar{
-		Name:  env.RDBPassword,
-		Value: util.GetEnvWithDefault(env.RDBPassword, ""),
-	}
-
-	pgSSLModeEnv := coreV1.EnvVar{
-		Name:  env.RDBSSLMode,
-		Value: util.GetEnvWithDefault(env.RDBSSLMode, ""),
-	}
-
-	job.Spec.Template.Spec.Containers[0].Env = append(job.Spec.Template.Spec.Containers[0].Env, taskIDEnv, ttlEnv,
-		pgHostEnv, pgPortEnv, pgDBNameEnv, pgUserEnv, pgPasswordEnv, pgSSLModeEnv)
+	job.Spec.Template.Spec.Containers[0].Env = append(job.Spec.Template.Spec.Containers[0].Env, taskIDEnv, ttlEnv)
 	if taskType == def.GCTaskTypeHotOffline {
 		esURLEnv := coreV1.EnvVar{
 			Name:  env.ElasticURL,

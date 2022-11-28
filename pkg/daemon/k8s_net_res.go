@@ -2,6 +2,7 @@ package daemon
 
 import (
 	"bytes"
+	"gitlab.com/security-rd/go-pkg/model"
 	"hash/fnv"
 	"strconv"
 )
@@ -40,15 +41,6 @@ type K8sResData struct {
 	ListenPorts   map[string]*ProcessInfo   `json:"listen_ports"` //listen port -> process information
 }
 
-// session five tuple
-type FiveTuple struct {
-	SrcIp   string `json:"src_ip"`
-	DstIp   string `json:"dst_ip"`
-	SrcPort uint16 `json:"src_port"`
-	DstPort uint16 `json:"dst_port"`
-	Proto   uint8  `json:"proto"`
-}
-
 type EbpfNetData struct {
 	Proto    int    `json:"proto"`
 	Sport    int    `json:"sport"`
@@ -79,10 +71,10 @@ type ContainerData struct {
 }
 
 type PidAssociateMnt struct {
-	DataType  int       `json:"data_type"`
-	Pid       int       `json:"pid"`
-	AddrType  uint8     `json:"addr_type"`
-	TupleInfo FiveTuple `json:"tuple_info"`
+	DataType  int             `json:"data_type"`
+	Pid       int             `json:"pid"`
+	AddrType  uint8           `json:"addr_type"`
+	TupleInfo model.FiveTuple `json:"tuple_info"`
 }
 
 type ProcessInfo struct {
@@ -90,6 +82,7 @@ type ProcessInfo struct {
 	Status        int    `json:"status"`
 	ProcName      string `json:"proc_name"`
 	ContainerName string `json:"-"`
+	ContainerId   string `json:"-"`
 	Timeout       int64  `json:"-"`
 }
 
@@ -97,8 +90,8 @@ type NetSessionLink struct {
 	NlType    uint8
 	DataType  uint8
 	CreatedAt int64
-	Origin    FiveTuple
-	Reply     FiveTuple
+	Origin    model.FiveTuple
+	Reply     model.FiveTuple
 }
 
 func (nets NetSessionLink) CreateUuid() uint32 {
@@ -117,6 +110,6 @@ func (nets NetSessionLink) CreateUuid() uint32 {
 	buf.WriteString(strconv.Itoa(int(nets.Reply.DstPort)))
 	//hash
 	h := fnv.New32a()
-	h.Write(buf.Bytes())
+	_, _ = h.Write(buf.Bytes())
 	return h.Sum32()
 }
