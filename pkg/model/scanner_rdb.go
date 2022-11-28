@@ -500,7 +500,7 @@ func GetRegType() map[string]LabelValue {
 	return regTypeNameKey
 }
 
-func (r *Registry) Deserialize() {
+func (r *Registry) FitHarborVersion() {
 	if r.RegType == consts.HarborV1Version || r.RegType == consts.HarborV2Version {
 		r.RegType = consts.HarborVersion
 	}
@@ -518,7 +518,7 @@ func (r *Registry) Validate(valTY string) error {
 		return errors.New("no password")
 	}
 	// FIXME: 这里的增量支持适配代码散落在各处，日后支持的越来越多后是一个隐患。需要重构
-	if r.RegType != consts.HarborV1Version && r.RegType != consts.HarborV2Version && r.SyncInterval <= 0 {
+	if r.RegType != consts.HarborV1Version && r.RegType != consts.HarborV2Version && r.RegType != consts.HarborVersion && r.SyncInterval <= 0 {
 		return errors.New("SyncInterval must be larger than 0")
 	}
 	if valTY == consts.ValidateCreate {

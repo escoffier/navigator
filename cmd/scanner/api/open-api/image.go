@@ -503,7 +503,7 @@ func (s *ImageOpenAPISvc) SearchRegistry(ctx *gin.Context) {
 	}
 	res := make([]Registry, len(registries))
 	for i := range registries {
-		registries[i].Deserialize()
+		registries[i].FitHarborVersion()
 		res[i] = ModelToRegistry(registries[i])
 	}
 

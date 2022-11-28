@@ -100,7 +100,9 @@ func (s *SyncRepoImage) GetSyncStatus(ctx context.Context, syncType consts.SyncT
 	exit := make(map[int64]*ResponseGetSyncStatus)
 
 	for i := range registries {
-		exit[registries[i].ID] = &ResponseGetSyncStatus{RegistryID: registries[i].ID}
+		if _, ok := exit[registries[i].ID]; ok {
+			exit[registries[i].ID] = &ResponseGetSyncStatus{RegistryID: registries[i].ID}
+		}
 	}
 
 	syncTask, err := s.syncTaskDal.SearchSyncTask(ctx, store.SearchSyncTaskParam{Finished: consts.FalseString, SyncType: syncType.String()}, nil)
