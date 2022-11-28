@@ -13,7 +13,6 @@ import (
 	"gitlab.com/security-rd/go-pkg/databases"
 	"gitlab.com/security-rd/go-pkg/logging"
 	corev1 "k8s.io/api/core/v1"
-	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/client-go/util/workqueue"
 	defensev1 "scm.tensorsecurity.cn/tensorsecurity-rd/api/pkg/apis/defense/v1"
 )
@@ -30,10 +29,18 @@ type HoneyspotCallback struct {
 	refreshTimestamp int64
 }
 
+func (cb *HoneyspotCallback) OnRawContainer(*assets.TensorRawContainer, assets.Action) error {
+	return nil
+}
+
+func (cb *HoneyspotCallback) OnSync(*assets.TensorSync) error {
+	return nil
+}
+
 type HoneyspotEvent struct {
 	clusterKey string
 	object     *defensev1.Honeypot
-	action     assets.AssetsAction
+	action     assets.Action
 	updateTime time.Time
 }
 
@@ -44,7 +51,7 @@ func (cb *HoneyspotService) WatchedTypes() map[assets.WatchedType]struct{} {
 	}
 }
 
-func (cb *HoneyspotService) BeforeWatchNewCluster(ctx context.Context, clusterKey string, resyncInterval time.Duration) assets.ClusterCallback {
+func (cb *HoneyspotService) BeforeWatchNewCluster(_ context.Context, clusterKey string, _ time.Duration) assets.ClusterCallback {
 	logging.Get().Info().Msgf("honeyspot assets before watch new cluster %s called.", clusterKey)
 
 	ccb := &HoneyspotCallback{
@@ -101,7 +108,7 @@ func (cb *HoneyspotCallback) Name() string {
 	return cb.parent.Name()
 }
 
-func (cb *HoneyspotCallback) OnHoneyspot(honeySpot *assets.TensorHoneySpot, action assets.AssetsAction) error {
+func (cb *HoneyspotCallback) OnHoneyspot(honeySpot *assets.TensorHoneySpot, action assets.Action) error {
 	var event HoneyspotEvent
 
 	event.clusterKey = honeySpot.Cluster
@@ -143,65 +150,35 @@ func (cb *HoneyspotCallback) processHoneyspot(event HoneyspotEvent) error {
 	return nil
 }
 
-func (cb *HoneyspotCallback) OnPodEvent(newPod, oldPod *corev1.Pod, action assets.AssetsAction) error {
-	return nil
-}
-func (cb *HoneyspotCallback) OnRoleEvent(newRole, oldRole *rbacv1.Role, action assets.AssetsAction) error {
-	return nil
-}
-func (cb *HoneyspotCallback) OnClusterRoleEvent(newCRole, oldCRole *rbacv1.ClusterRole, action assets.AssetsAction) error {
-	return nil
-}
-func (cb *HoneyspotCallback) OnRoleBindingEvent(newB, oldB *rbacv1.RoleBinding, action assets.AssetsAction) error {
-	return nil
-}
-func (cb *HoneyspotCallback) OnClusterRoleBindingEvent(newB, oldB *rbacv1.ClusterRoleBinding, action assets.AssetsAction) error {
-	return nil
-}
-func (cb *HoneyspotCallback) OnNamespaceEvent(newNs, oldNs *corev1.Namespace, action assets.AssetsAction) error {
-	return nil
-}
-func (cb *HoneyspotCallback) OnServiceAccountEvent(newSa, oldSa *corev1.ServiceAccount, action assets.AssetsAction) error {
+func (cb *HoneyspotCallback) OnNodeEvent(*corev1.Node, *corev1.Node, assets.Action) error {
 	return nil
 }
 
-func (cb *HoneyspotCallback) OnEndPointEvent(newEpt, oldEpt *corev1.Endpoints, action assets.AssetsAction) error {
-	// ignore endpoint events
-	return nil
-}
-func (cb *HoneyspotCallback) OnServiceEvent(newSvc, oldEvc *corev1.Service, action assets.AssetsAction) error {
+func (cb *HoneyspotCallback) OnTensorResourceEvent(newResource, oldResource *assets.TensorResource, action assets.Action) error {
 	return nil
 }
 
-func (cb *HoneyspotCallback) OnNodeEvent(newNode, oldNode *corev1.Node, action assets.AssetsAction) error {
+func (cb *HoneyspotCallback) OnTensorPod(*assets.TensorPod, assets.Action) error {
 	return nil
 }
 
-func (cb *HoneyspotCallback) OnTensorResourceEvent(newResource, oldResource *assets.TensorResource, action assets.AssetsAction) error {
+func (cb *HoneyspotCallback) OnTensorRole(*assets.TensorRole, assets.Action) error {
 	return nil
 }
 
-func (cb *HoneyspotCallback) OnTensorPod(pod *assets.TensorPod, action assets.AssetsAction) error {
+func (cb *HoneyspotCallback) OnTensorClusterRole(*assets.TensorClusterRole, assets.Action) error {
 	return nil
 }
 
-func (cb *HoneyspotCallback) OnTensorRole(tensorRole *assets.TensorRole, action assets.AssetsAction) error {
+func (cb *HoneyspotCallback) OnTensorNamespace(*assets.TensorNamespace, assets.Action) error {
 	return nil
 }
 
-func (cb *HoneyspotCallback) OnTensorClusterRole(tensorRole *assets.TensorClusterRole, action assets.AssetsAction) error {
+func (cb *HoneyspotCallback) OnTensorNode(*assets.TensorNode, assets.Action) error {
 	return nil
 }
 
-func (cb *HoneyspotCallback) OnTensorNamespace(namespace *assets.TensorNamespace, action assets.AssetsAction) error {
-	return nil
-}
-
-func (cb *HoneyspotCallback) OnTensorNode(node *assets.TensorNode, action assets.AssetsAction) error {
-	return nil
-}
-
-func (cb *HoneyspotCallback) AfterDataSynced(ctx context.Context, dataSynced bool, _ string) {
+func (cb *HoneyspotCallback) AfterDataSynced(context.Context, bool, string) {
 }
 
 func getBaitServiceID(name string) (uint32, error) {

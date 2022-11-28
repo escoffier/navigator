@@ -12,9 +12,8 @@ import (
 )
 
 const (
-	typeIngress  = "ingress"
-	typeEgress   = "egress"
-	valueUnknown = "unknown"
+	typeIngress = "ingress"
+	typeEgress  = "egress"
 )
 
 type OnlineVulnListItem struct {
@@ -65,22 +64,29 @@ type OnlineVulnDetails struct {
 }
 
 type ArgumentDetails struct {
-	ClusterKey    string
-	Namespace     string
-	ResourceName  string
-	ResourceKind  string
-	ContainerName string
-	ProcessName   string
-	Route         string
+	ClusterKey   string
+	Namespace    string
+	ResourceName string
+	ResourceKind string
+	ContainerId  string
+	ProcessName  string
+	Route        string
+	Day          int
 }
 
 type ProcessInfo struct {
-	ProcessName   string `json:"process_name,omitempty"`
-	ContainerName string `json:"container_name,omitempty"`
-	ResourceName  string `json:"resource_name"`
-	ResourceKind  string `json:"resource_kind"`
-	Namespace     string `json:"namespace"`
-	DstPort       uint16 `json:"dst_port,omitempty"`
+	ClusterID     string    `json:"cluster_id,omitempty"`
+	ProcessName   string    `json:"process_name,omitempty"`
+	ContainerId   string    `json:"container_id,omitempty"`
+	ContainerName string    `json:"container_name,omitempty"`
+	PodName       string    `json:"pod_name,omitempty"`
+	ResourceName  string    `json:"resource_name"`
+	ResourceKind  string    `json:"resource_kind"`
+	Namespace     string    `json:"namespace"`
+	CreateAt      time.Time `json:"create_at"`
+	UpdateAt      time.Time `json:"update_at"`
+	LinkCount     int       `json:"link_count"`
+	DstPort       uint16    `json:"dst_port,omitempty"`
 }
 
 func (t *ProcessInfo) CreateUUID() uint32 {
@@ -90,14 +96,14 @@ func (t *ProcessInfo) CreateUUID() uint32 {
 	bui.WriteByte(',')
 	bui.WriteString(t.ResourceKind)
 	bui.WriteByte(',')
-	bui.WriteString(t.ContainerName)
+	bui.WriteString(t.ContainerId)
 	bui.WriteByte(',')
 	bui.WriteString(t.ProcessName)
 	bui.WriteByte(',')
 	bui.WriteString(fmt.Sprintf("%v", t.DstPort))
 
 	h := fnv.New32a()
-	h.Write(bui.Bytes())
+	_, _ = h.Write(bui.Bytes())
 	return h.Sum32()
 }
 

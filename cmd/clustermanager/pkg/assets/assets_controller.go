@@ -827,7 +827,7 @@ func (ac *Controller) syncWorkLoad(key string, kind pkgassets.ResourceKind, f fu
 	return ac.sendToMainClusterManager(context.Background(), action, pkgassets.TensorResources2Watch, res)
 }
 
-func (ac *Controller) sendToMainClusterManager(ctx context.Context, action pkgassets.AssetsAction, watchedType pkgassets.WatchedType, obj pkgassets.IdentifiableItem) error {
+func (ac *Controller) sendToMainClusterManager(ctx context.Context, action pkgassets.Action, watchedType pkgassets.WatchedType, obj pkgassets.IdentifiableItem) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
@@ -877,7 +877,7 @@ func (ac *Controller) getUpperOwnerOfPod(pod *corev1.Pod) (*metav1.OwnerReferenc
 	return owner, owner != nil
 }
 
-func (ac *Controller) sendToMq(ctx context.Context, action pkgassets.AssetsAction, watchedType pkgassets.WatchedType, obj interface{}) error {
+func (ac *Controller) sendToMq(ctx context.Context, action pkgassets.Action, watchedType pkgassets.WatchedType, obj interface{}) error {
 	event := &pkgassets.ResourceEvent{
 		ClusterKey: ac.clusterKey,
 		Action:     action,

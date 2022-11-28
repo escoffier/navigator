@@ -53,7 +53,7 @@ func TestStringSlice_Value(t *testing.T) {
 	}
 }
 
-func mockGorm() (*databases.RDBInstance, sqlmock.Sqlmock, error) {
+func assetsMockGorm() (*databases.RDBInstance, sqlmock.Sqlmock, error) {
 	db, mock, err := sqlmock.New()
 	if nil != err {
 		return nil, nil, fmt.Errorf("init sqlmock failed, err: %w", err)
@@ -82,7 +82,7 @@ func mockGorm() (*databases.RDBInstance, sqlmock.Sqlmock, error) {
 }
 
 func TestDB(t *testing.T) {
-	db, mock, _ := mockGorm()
+	db, mock, _ := assetsMockGorm()
 	mock.ExpectBegin()
 	mock.ExpectExec("^INSERT").WillReturnResult(sqlmock.NewResult(1, 1))
 	mock.ExpectCommit()

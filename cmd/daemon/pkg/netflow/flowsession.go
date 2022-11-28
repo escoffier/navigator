@@ -16,9 +16,9 @@ import (
 	"github.com/pkg/errors"
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/nodeinfo"
 	"gitlab.com/piccolo_su/vegeta/pkg/daemon"
-	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/security-rd/go-pkg/cache"
 	"gitlab.com/security-rd/go-pkg/logging"
+	"gitlab.com/security-rd/go-pkg/model"
 )
 
 const (
@@ -34,14 +34,15 @@ type FlowSession struct {
 	url            string
 	hostIP         string
 	NetLog         bool
+	NetFlowEnable  bool
 	EbpfStat       int
 	CtFlow         ConntrackTools
 	sockClient     *net.UnixConn
 	nodePodsInfo   *NodePodsInfo
-	containerInfo  nodeinfo.ContainerInfoManager
+	CriManage      nodeinfo.ContainerInfoManager
 	clusterManager ClusterManager
 	submitter      *Submitter
-	nsDataChan     chan daemon.NetSessionLink
+	nsDataChan     chan *daemon.NetSessionLink
 	redisClient    *redis.Client
 	netLinkData    map[uint32]*daemon.NetSessionLink
 	EbpfNetInfo    map[string]*daemon.NetProcData
@@ -54,11 +55,11 @@ func IpStringToUint32(value string) uint32 {
 	return binary.LittleEndian.Uint32(ip.To4())
 }
 
-func SessionToFiveTuple(data ct.Con, proto uint8) (*daemon.FiveTuple, *daemon.FiveTuple) {
+func SessionToFiveTuple(data ct.Con, proto uint8) (*model.FiveTuple, *model.FiveTuple) {
 	origin := data.Origin
 	reply := data.Reply
 
-	src := &daemon.FiveTuple{
+	src := &model.FiveTuple{
 		SrcIp:   origin.Src.String(),
 		SrcPort: *origin.Proto.SrcPort,
 		DstIp:   origin.Dst.String(),
@@ -66,7 +67,7 @@ func SessionToFiveTuple(data ct.Con, proto uint8) (*daemon.FiveTuple, *daemon.Fi
 		Proto:   proto,
 	}
 
-	dst := &daemon.FiveTuple{
+	dst := &model.FiveTuple{
 		SrcIp:   reply.Src.String(),
 		SrcPort: *reply.Proto.SrcPort,
 		DstIp:   reply.Dst.String(),
@@ -77,11 +78,11 @@ func SessionToFiveTuple(data ct.Con, proto uint8) (*daemon.FiveTuple, *daemon.Fi
 	return src, dst
 }
 
-func NetlinkToFiveTuple(data *ConntrackFlow, proto uint8) (*daemon.FiveTuple, *daemon.FiveTuple) {
+func NetlinkToFiveTuple(data *ConntrackFlow, proto uint8) (*model.FiveTuple, *model.FiveTuple) {
 	origin := &data.Forward
 	reply := &data.Reverse
 
-	src := &daemon.FiveTuple{
+	src := &model.FiveTuple{
 		SrcIp:   origin.SrcIP.String(),
 		SrcPort: origin.SrcPort,
 		DstIp:   origin.DstIP.String(),
@@ -89,7 +90,7 @@ func NetlinkToFiveTuple(data *ConntrackFlow, proto uint8) (*daemon.FiveTuple, *d
 		Proto:   proto,
 	}
 
-	dst := &daemon.FiveTuple{
+	dst := &model.FiveTuple{
 		SrcIp:   reply.SrcIP.String(),
 		SrcPort: reply.SrcPort,
 		DstIp:   reply.DstIP.String(),
@@ -179,7 +180,7 @@ func NetProtoConvert(proto uint8) uint8 {
 	return 0
 }
 
-func NewFlowSession(containerInfo nodeinfo.ContainerInfoManager, k8sInfo *NodePodsInfo, clusterManager ClusterManager, consoleURL string) (*FlowSession, error) {
+func NewFlowSession(k8sInfo *NodePodsInfo, crim nodeinfo.ContainerInfoManager, clusterManager ClusterManager, consoleURL string) (*FlowSession, error) {
 
 	redisClient, err := cache.NewRedis()
 	if err != nil {
@@ -203,6 +204,11 @@ func NewFlowSession(containerInfo nodeinfo.ContainerInfoManager, k8sInfo *NodePo
 		NetLog = true
 	}
 
+	NetFlowEnable := true
+	if ok := os.Getenv("NETFLOW_ENABLE"); ok == "false" {
+		NetFlowEnable = false
+	}
+
 	myPodIP := os.Getenv("MY_POD_IP")
 	if myPodIP == "" {
 		return nil, errors.Errorf("Pod IP (found=%s) is missing, set MY_POD_IP env using k8s Downward API", myPodIP)
@@ -223,15 +229,16 @@ func NewFlowSession(containerInfo nodeinfo.ContainerInfoManager, k8sInfo *NodePo
 		CtFlow:         ctFlow,
 		hostIP:         myHostIP,
 		NetLog:         NetLog,
+		NetFlowEnable:  NetFlowEnable,
 		EbpfStat:       daemon.EBPF_FAILE,
 		nodePodsInfo:   k8sInfo,
-		containerInfo:  containerInfo,
 		clusterManager: clusterManager,
+		CriManage:      crim,
 		url:            url,
-		nsDataChan:     make(chan daemon.NetSessionLink, 1000),
+		nsDataChan:     make(chan *daemon.NetSessionLink, 5000),
 		EbpfNetInfo:    make(map[string]*daemon.NetProcData),
 		redisClient:    redisClient,
-		submitter:      NewSubmitter(5*time.Minute, 1024, GetSubmitFunc(url)),
+		submitter:      NewSubmitter(5*time.Minute, GetSubmitFunc(url)),
 	}
 	//
 	err = fs.DialUnixSocket(unixSockFile)
@@ -273,7 +280,8 @@ func (fs *FlowSession) Start(ctx context.Context) {
 		//process session
 		fs.ProcSessionQueData()
 	}()
-
+	//wait get container information
+	time.Sleep(10 * time.Second)
 	//crontab check session
 	go func() {
 		defer func() {
@@ -509,7 +517,7 @@ func (fs *FlowSession) GetNetDataFromEbpf() bool {
 	return true
 }
 
-func (fs *FlowSession) GetNetProcInfo(netRes *model.TensorNetworkFlow, src, dst *daemon.K8sResData, addr *daemon.FiveTuple) (bool, error) {
+func (fs *FlowSession) GetNetProcInfo(netRes *model.TensorNetworkFlow, src, dst *daemon.K8sResData, addr *model.FiveTuple) (bool, error) {
 	if netRes == nil || addr == nil {
 		return false, fmt.Errorf("argument point is nil")
 	}
@@ -529,16 +537,23 @@ func (fs *FlowSession) GetNetProcInfo(netRes *model.TensorNetworkFlow, src, dst 
 			}
 		}
 		//
-		cname := ""
-		for _, containerData := range src.ContainerInfo {
-			cname = containerData.ContainerName
+		containerId := ""
+		containerName := ""
+		for id, containerData := range src.ContainerInfo {
 			if containerData.ContainerPid == data.Pid {
+				containerId = id[0:12]
+				containerName = containerData.ContainerName
 				break
 			}
 		}
+		//check container id
+		if containerId == "" {
+			return false, errors.Errorf("source container id is nil")
+		}
 		//
 		netRes.SrcProcess = data.ProcName
-		netRes.SrcContainerName = cname
+		netRes.SrcContainerID = containerId
+		netRes.SrcContainerName = containerName
 		netRes.SrcPid = data.Pid
 		//return
 		if dst == nil {
@@ -561,17 +576,24 @@ func (fs *FlowSession) GetNetProcInfo(netRes *model.TensorNetworkFlow, src, dst 
 			}
 		}
 		//
-		cname := ""
-		for _, containerData := range dst.ContainerInfo {
-			cname = containerData.ContainerName
+		containerId := ""
+		containerName := ""
+		for id, containerData := range dst.ContainerInfo {
 			if containerData.ContainerPid == data.Pid {
+				containerId = id[0:12]
+				containerName = containerData.ContainerName
 				break
 			}
 		}
+		//check container id
+		if containerId == "" {
+			return false, errors.Errorf("dst container id is nil")
+		}
 		//
-		netRes.SrcProcess = data.ProcName
-		netRes.SrcContainerName = cname
-		netRes.SrcPid = data.Pid
+		netRes.DstProcess = data.ProcName
+		netRes.DstContainerID = containerId
+		netRes.DstContainerName = containerName
+		netRes.DstPid = data.Pid
 		//return
 		return redisSaveOrUpdate(fs.redisClient, daemon.RCV_ADDR, netRes)
 	}
@@ -641,9 +663,10 @@ func (fs *FlowSession) GetProcessName(netinfo *daemon.PidAssociateMnt) (*daemon.
 		return nil, errors.Errorf("retry send data failed, %v", err)
 	}
 
-	var length int
+	length := 0
 	rcvBuf := make([]byte, 512)
 	readsign := make(chan struct{}, 1)
+	//read data
 	go func() {
 		length, err = fs.sockClient.Read(rcvBuf)
 		if err != nil {
@@ -659,25 +682,50 @@ func (fs *FlowSession) GetProcessName(netinfo *daemon.PidAssociateMnt) (*daemon.
 		length = 0
 
 	case <-readsign:
+		//check data length
+		if length <= 0 {
+			return nil, errors.Errorf("read unix response's data length is %v", length)
+		}
 		//logging.Get().Info().Msgf("receive data : %v", string(rcvBuf[:length]))
 		var pInfo daemon.ProcessInfo
 		err = json.Unmarshal(rcvBuf[:length], &pInfo)
 		if err != nil {
 			return nil, errors.Errorf("json unmarshal with setns process response data failed, %v", err)
 		}
-		//
+		//return
 		return &pInfo, nil
 	}
 
 	return nil, errors.Errorf("read unix response timeout")
 }
 
-func (fs *FlowSession) GetContainerProcessName(addrType uint8, res *daemon.K8sResData, tuple *daemon.FiveTuple) (*daemon.ProcessInfo, error) {
+func (fs *FlowSession) GetContainerProcessName(addrType uint8, res *daemon.K8sResData, tuple *model.FiveTuple) (*daemon.ProcessInfo, error) {
+	if len(res.ContainerInfo) == 1 {
+		for id, container := range res.ContainerInfo {
+			pid := container.ContainerPid
+			comm, ok := nodeinfo.GetContainerProcess(pid, "/host")
+			if !ok {
+				break
+			}
+			return &daemon.ProcessInfo{
+				Pid:           pid,
+				Status:        daemon.GET_DATA_SUCC,
+				ProcName:      comm,
+				ContainerName: container.ContainerName,
+				ContainerId:   id[0:12],
+			}, nil
+		}
+	}
+
 	//default value
 	var defValue daemon.ProcessInfo
 	defValue.Pid = 0
 	//list containers
 	for id, containerData := range res.ContainerInfo {
+		if len(id) == 0 || len(containerData.ContainerName) == 0 {
+			logging.Get().Warn().Msgf("[container-warn] container id : %v, container name : %v, podname : %+v.", id, containerData.ContainerName, res.PodName)
+			continue
+		}
 		//logging.Get().Info().Msgf("get pid : %v, ns : %v, pod name : %v, %+v", pid, namespace, podname, *tuple)
 		netInfo := &daemon.PidAssociateMnt{
 			DataType:  daemon.DATA_SETNS,
@@ -692,6 +740,7 @@ func (fs *FlowSession) GetContainerProcessName(addrType uint8, res *daemon.K8sRe
 			continue
 		}
 		//container name
+		pInfo.ContainerId = id[0:12]
 		pInfo.ContainerName = containerData.ContainerName
 		//success
 		if pInfo.Status == daemon.GET_DATA_SUCC {
@@ -700,7 +749,7 @@ func (fs *FlowSession) GetContainerProcessName(addrType uint8, res *daemon.K8sRe
 		//status
 		if len(res.ContainerInfo) == 1 {
 			if pInfo.Pid == 0 || len(pInfo.ProcName) == 0 {
-				return nil, errors.Errorf("process info error, ns : %v, pod : %v, tuple : %+v, container : %v, id : %v", res.Namespace, res.PodName, *tuple, containerData.ContainerName, id)
+				return nil, errors.Errorf("process info error, ns : %v, pod : %v, tuple : %+v, container : %+v", res.Namespace, res.PodName, *tuple, *pInfo)
 			}
 			return pInfo, nil
 		} else {
@@ -709,6 +758,7 @@ func (fs *FlowSession) GetContainerProcessName(addrType uint8, res *daemon.K8sRe
 				defValue.Status = pInfo.Status
 				defValue.Timeout = pInfo.Timeout
 				defValue.ProcName = pInfo.ProcName
+				defValue.ContainerId = pInfo.ContainerId
 				defValue.ContainerName = pInfo.ContainerName
 			}
 
@@ -725,18 +775,19 @@ func (fs *FlowSession) GetContainerProcessName(addrType uint8, res *daemon.K8sRe
 	return nil, errors.Errorf("container error, ns : %v, pod name : %v, num : %v, tuple : %+v", res.Namespace, res.PodName, len(res.ContainerInfo), *tuple)
 }
 
-func (fs *FlowSession) GetContainerInfo(netRes *model.TensorNetworkFlow, src, dst *daemon.K8sResData, addr *daemon.FiveTuple) (bool, error) {
+func (fs *FlowSession) GetContainerInfo(netRes *model.TensorNetworkFlow, src, dst *daemon.K8sResData, addr *model.FiveTuple) (bool, error) {
 
 	if src != nil {
 		pinfo, err := fs.GetContainerProcessName(daemon.SND_ADDR, src, addr)
 		if err != nil {
-			errn := fs.nodePodsInfo.UpdateContainerData(addr.SrcIp, src.Namespace, src.PodName)
+			errn := fs.nodePodsInfo.UpdateContainerData(fs.CriManage, addr.SrcIp, src.Namespace, src.PodName)
 			if errn != nil {
 				logging.Get().Err(errn).Msg("update src container failed")
 			}
 			return false, errors.Errorf("get src container process name failed, %v", err)
 		}
 		netRes.SrcProcess = pinfo.ProcName
+		netRes.SrcContainerID = pinfo.ContainerId
 		netRes.SrcContainerName = pinfo.ContainerName
 		netRes.SrcPid = pinfo.Pid
 		//return
@@ -751,7 +802,7 @@ func (fs *FlowSession) GetContainerInfo(netRes *model.TensorNetworkFlow, src, ds
 		if !ok {
 			pinfo, err := fs.GetContainerProcessName(daemon.RCV_ADDR, dst, addr)
 			if err != nil {
-				errn := fs.nodePodsInfo.UpdateContainerData(addr.DstIp, dst.Namespace, dst.PodName)
+				errn := fs.nodePodsInfo.UpdateContainerData(fs.CriManage, addr.DstIp, dst.Namespace, dst.PodName)
 				if errn != nil {
 					logging.Get().Err(errn).Msg("update dst container failed")
 				}
@@ -762,10 +813,12 @@ func (fs *FlowSession) GetContainerInfo(netRes *model.TensorNetworkFlow, src, ds
 			//save process information
 			dst.ListenPorts[key] = pinfo
 			netRes.DstProcess = pinfo.ProcName
+			netRes.DstContainerID = pinfo.ContainerId
 			netRes.DstContainerName = pinfo.ContainerName
 			netRes.DstPid = pinfo.Pid
 		} else {
 			netRes.DstProcess = process.ProcName
+			netRes.DstContainerID = process.ContainerId
 			netRes.DstContainerName = process.ContainerName
 			netRes.DstPid = process.Pid
 			//timeout
@@ -781,21 +834,30 @@ func (fs *FlowSession) GetContainerInfo(netRes *model.TensorNetworkFlow, src, ds
 }
 
 func (fs *FlowSession) ProcSessionQueData() {
-	for nsData := range fs.nsDataChan {
-		err := fs.ProcSessionData(&nsData)
-		if err != nil {
-			logging.Get().Warn().Err(err).Msg("get container info failed")
+	for {
+		select {
+		case data, ok := <-fs.nsDataChan:
+			if !ok {
+				logging.Get().Warn().Msgf("netflow data chan closed!")
+				fs.nsDataChan = nil
+				return
+			}
+			//proc session
+			err := fs.ProcSessionData(data)
+			if err != nil {
+				logging.Get().Warn().Err(err).Msg("get container info failed")
+			}
 		}
 	}
 }
 
-func (fs *FlowSession) PutNetSession(nlType, netType uint8, origin, reply *daemon.FiveTuple) {
+func (fs *FlowSession) PutNetSession(nlType, netType uint8, origin, reply *model.FiveTuple) {
 	ok := fs.filterUnusedSession(origin)
 	if !ok {
 		return
 	}
 
-	nsData := daemon.NetSessionLink{
+	nsData := &daemon.NetSessionLink{
 		NlType:   nlType,
 		DataType: netType,
 		Origin:   *origin,
@@ -831,7 +893,7 @@ func (fs *FlowSession) AllowLinkState(proto uint8, session ct.Con) bool {
 	return true
 }
 
-func (fs *FlowSession) filterUnusedSession(addr *daemon.FiveTuple) bool {
+func (fs *FlowSession) filterUnusedSession(addr *model.FiveTuple) bool {
 	if addr.SrcIp == "127.0.0.1" || addr.DstIp == "127.0.0.1" {
 		return false
 	}
@@ -854,22 +916,28 @@ func (fs *FlowSession) ProcSessionData(netSession *daemon.NetSessionLink) error 
 			logging.Get().Error().Msgf("Panic: %v. Stack: %s", r, debug.Stack())
 		}
 	}()
-	//
-	switch netSession.NlType {
-	case NFCT_T_NEW:
-		fs.SaveNetLinkData(netSession)
-		return nil
-	case NFCT_T_UPDATE, NFCT_T_TIMEOUT:
-		fs.DeleteNetLinkData(netSession)
-	default:
-		return nil
-	}
+	/*
+		switch netSession.NlType {
+		case NFCT_T_NEW:
+			fs.SaveNetLinkData(netSession)
+			return nil
+		case NFCT_T_UPDATE, NFCT_T_TIMEOUT:
+			fs.DeleteNetLinkData(netSession)
+		default:
+			return nil
+		}
+	*/
 	//match pod information
-	src, err := fs.nodePodsInfo.GetPodDataByPodIP(netSession.Origin.SrcIp)
-	dst, dstErr := fs.nodePodsInfo.GetPodDataByPodIP(netSession.Reply.SrcIp)
+	src, err := fs.nodePodsInfo.GetResDataByIp(netSession.Origin.SrcIp)
+	dst, dstErr := fs.nodePodsInfo.GetResDataByIp(netSession.Reply.SrcIp)
 	if err != nil && dstErr != nil {
 		logging.Get().Warn().Msgf("query k8s resource failed. %+v", *netSession)
 		return nil
+	}
+	//get cluster key
+	clusterKey, ok := fs.clusterManager.ClusterKey()
+	if !ok {
+		clusterKey = "default"
 	}
 	//network flow
 	netData := new(model.TensorNetworkFlow)
@@ -880,6 +948,7 @@ func (fs *FlowSession) ProcSessionData(netSession *daemon.NetSessionLink) error 
 		netData.SrcKind = src.Kind
 		netData.SrcNamespace = src.Namespace
 		netData.SrcPodName = src.PodName
+		netData.SrcCluster = clusterKey
 	}
 	//get dst resource
 	if dst != nil {
@@ -887,6 +956,7 @@ func (fs *FlowSession) ProcSessionData(netSession *daemon.NetSessionLink) error 
 		netData.DstKind = dst.Kind
 		netData.DstNamespace = dst.Namespace
 		netData.DstPodName = dst.PodName
+		netData.DstCluster = clusterKey
 	}
 	//dst ip address
 	netData.DstPort = netSession.Reply.SrcPort
@@ -895,14 +965,8 @@ func (fs *FlowSession) ProcSessionData(netSession *daemon.NetSessionLink) error 
 	netData.UpdatedAt = time.Now()
 	netData.Status = int(netSession.NlType)
 	netData.Proto = NetProtoConvert(netSession.Origin.Proto)
-	clusterKey, ok := fs.clusterManager.ClusterKey()
-	if !ok {
-		clusterKey = "default"
-	}
-	netData.SrcCluster = clusterKey
-	netData.DstCluster = clusterKey
 	//five tuple
-	netAddr := &daemon.FiveTuple{
+	netAddr := &model.FiveTuple{
 		Proto:   netSession.Origin.Proto,
 		SrcPort: netSession.Origin.SrcPort,
 		SrcIp:   netSession.Origin.SrcIp,
@@ -988,6 +1052,7 @@ func (fs *FlowSession) conntrackInitList(ctx context.Context) error {
 		}
 
 		origin, reply := SessionToFiveTuple(session, proto)
+		//put net session
 		fs.PutNetSession(NFCT_T_UPDATE, daemon.NET_INIT, origin, reply)
 	}
 
@@ -1022,6 +1087,7 @@ func (fs *FlowSession) onFlowCallback(header *NlMsgHdr, flow *ConntrackFlow) err
 		}
 
 		origin, reply := NetlinkToFiveTuple(flow, iptuple.Protocol)
+		//put net session
 		fs.PutNetSession(nfType, daemon.NET_UPDATE, origin, reply)
 
 	case IPCTNL_MSG_CT_DELETE:

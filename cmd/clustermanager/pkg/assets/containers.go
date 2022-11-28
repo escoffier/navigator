@@ -25,13 +25,21 @@ type PodContainerCallBack struct {
 	inputQueue *util.Queue
 }
 
+func (cb *PodContainerCallBack) OnSync(*assets.TensorSync) error {
+	return nil
+}
+
+func (cb *PodContainerCallBack) OnRawContainer(*assets.TensorRawContainer, assets.Action) error {
+	return nil
+}
+
 func newPodContainerWatcher(rdb *databases.RDBInstance) *PodContainerWatcher {
 	return &PodContainerWatcher{
 		rdb: rdb,
 	}
 }
 
-func (p *PodContainerWatcher) BeforeWatchNewCluster(ctx context.Context, clusterName string, resyncInterval time.Duration) assets.ClusterCallback {
+func (p *PodContainerWatcher) BeforeWatchNewCluster(context.Context, string, time.Duration) assets.ClusterCallback {
 	ccb := &PodContainerCallBack{
 		parent:     p,
 		inputQueue: util.NewQueue(),
@@ -62,21 +70,21 @@ func (p *PodContainerWatcher) Name() string {
 	return "PodContainerWatcher"
 }
 
-func (cb *PodContainerCallBack) OnTensorResourceEvent(newResource, oldResource *assets.TensorResource, action assets.AssetsAction) error {
+func (cb *PodContainerCallBack) OnTensorResourceEvent(*assets.TensorResource, *assets.TensorResource, assets.Action) error {
 	return nil
 }
 
-func (cb *PodContainerCallBack) OnNodeEvent(newNode, oldNode *corev1.Node, action assets.AssetsAction) error {
+func (cb *PodContainerCallBack) OnNodeEvent(*corev1.Node, *corev1.Node, assets.Action) error {
 	return nil
 }
 
-func (cb *PodContainerCallBack) AfterDataSynced(ctx context.Context, dataSynced bool, clusterKey string) {
+func (cb *PodContainerCallBack) AfterDataSynced(_ context.Context, dataSynced bool, clusterKey string) {
 	if dataSynced {
 		cb.inputQueue.Add(syncSignal{clusterKey: clusterKey})
 	}
 }
 
-func (cb *PodContainerCallBack) OnTensorPod(pod *assets.TensorPod, action assets.AssetsAction) error {
+func (cb *PodContainerCallBack) OnTensorPod(pod *assets.TensorPod, action assets.Action) error {
 	cb.inputQueue.Add(podEvent{
 		pod:        pod,
 		action:     action,
@@ -85,23 +93,23 @@ func (cb *PodContainerCallBack) OnTensorPod(pod *assets.TensorPod, action assets
 	return nil
 }
 
-func (cb *PodContainerCallBack) OnTensorRole(role *assets.TensorRole, action assets.AssetsAction) error {
+func (cb *PodContainerCallBack) OnTensorRole(*assets.TensorRole, assets.Action) error {
 	return nil
 }
 
-func (cb *PodContainerCallBack) OnTensorClusterRole(clusterRole *assets.TensorClusterRole, action assets.AssetsAction) error {
+func (cb *PodContainerCallBack) OnTensorClusterRole(*assets.TensorClusterRole, assets.Action) error {
 	return nil
 }
 
-func (cb *PodContainerCallBack) OnTensorNamespace(ns *assets.TensorNamespace, action assets.AssetsAction) error {
+func (cb *PodContainerCallBack) OnTensorNamespace(*assets.TensorNamespace, assets.Action) error {
 	return nil
 }
 
-func (cb *PodContainerCallBack) OnTensorNode(node *assets.TensorNode, action assets.AssetsAction) error {
+func (cb *PodContainerCallBack) OnTensorNode(*assets.TensorNode, assets.Action) error {
 	return nil
 }
 
-func (cb *PodContainerCallBack) OnHoneyspot(honeyspot *assets.TensorHoneySpot, action assets.AssetsAction) error {
+func (cb *PodContainerCallBack) OnHoneyspot(*assets.TensorHoneySpot, assets.Action) error {
 	return nil
 }
 

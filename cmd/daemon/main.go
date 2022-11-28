@@ -11,6 +11,11 @@ import (
 	"sync"
 	"time"
 
+	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/containerassets"
+	"gitlab.com/piccolo_su/vegeta/pkg/assets"
+	"gitlab.com/piccolo_su/vegeta/pkg/daemon"
+	"gitlab.com/piccolo_su/vegeta/pkg/model"
+
 	"github.com/pkg/errors"
 	flag "github.com/spf13/pflag"
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/dp"
@@ -69,10 +74,19 @@ func initNodeInfos(hostName, hostIP, clusterKey, myNamespace string) (nodeinfo.C
 		return nil, nil, nil, nil, errors.Errorf("get k8s node containerRuntimeVersion failed, %v", err)
 	}
 
+	mqWriter, err := mq.GetClientFactory().Writer(context.Background())
+	if err != nil {
+		return nil, nil, nil, nil, errors.Errorf("get mq writer failed, %v", err)
+	}
+
+	agent := containerassets.NewAgent(mqWriter)
+	podResInfo := nodeinfo.NewPodResInfo(agent, clusterKey)
+	k8sInfo := netflow.NewNodePodInfo(k8sCli)
+
 	var containerInfo nodeinfo.ContainerInfoManager
 	switch containerType {
 	case nodeinfo.DockerType:
-		containerInfo, err = nodeinfo.NewDockerInfoManager(hostName, hostIP)
+		containerInfo, err = nodeinfo.NewDockerInfoManager(clusterKey, hostName, hostIP, agent)
 		if err != nil {
 			return nil, nil, nil, nil, errors.Errorf("Failed to initialize docker info manager, %v", err)
 		}
@@ -91,17 +105,66 @@ func initNodeInfos(hostName, hostIP, clusterKey, myNamespace string) (nodeinfo.C
 		logging.Get().Info().Msgf("new podman client success!")
 	}
 
+	containerInfo.AddEventHandler(nodeinfo.ContainerEventHandlerFuncs{
+		AddFunc: func(object interface{}) {
+			ctx, cancel := context.WithTimeout(context.Background(), time.Second*1)
+			defer cancel()
+
+			container, ok := object.(*model.TensorRawContainer)
+			if !ok {
+				return
+			}
+			if container.IPV6 != "" {
+				k8sInfo.SaveContainerData(container.IP, container.ContainerID, &daemon.ContainerData{
+					ContainerName: container.Name,
+					ContainerPid:  container.Pid,
+				})
+			}
+			agent.HandlerContainerEvent(ctx, clusterKey, assets.ActionAdd, container)
+		},
+		UpdateFunc: func(oldObj, newObj interface{}) {
+			ctx, cancel := context.WithTimeout(context.Background(), time.Second*1)
+			defer cancel()
+
+			logging.Get().Debug().Msgf("handle event %+v", newObj)
+			container, ok := newObj.(*model.TensorRawContainer)
+			if !ok {
+				return
+			}
+			if container.IP != "" {
+				k8sInfo.SaveContainerData(container.IPV6, container.ContainerID, &daemon.ContainerData{
+					ContainerName: container.Name,
+					ContainerPid:  container.Pid,
+				})
+			}
+			agent.HandlerContainerEvent(ctx, clusterKey, assets.ActionUpdate, container)
+		},
+		DeleteFunc: func(obj interface{}) {
+			ctx, cancel := context.WithTimeout(context.Background(), time.Second*1)
+			defer cancel()
+
+			container, ok := obj.(*model.TensorRawContainer)
+			if !ok {
+				return
+			}
+			if container.IP != "" {
+				k8sInfo.DeleteResData(container.IP)
+			}
+			logging.Get().Debug().Msgf("delete container: %s, action %v", container.ContainerID, assets.ActionDelete)
+			agent.HandlerContainerEvent(ctx, clusterKey, assets.ActionDelete, container)
+		},
+	})
+
+	podsWatcher := nodePods.AddWatcher(k8sInfo).AddWatcher(podResInfo).Build()
+	err = podsWatcher.Start(context.Background(), containerInfo)
+	if err != nil {
+		return nil, nil, nil, nil, fmt.Errorf("start pods watcher error: %v", err)
+	}
+
+	containerInfo.SetPodStore(podsWatcher)
 	err = containerInfo.Start()
 	if err != nil {
 		return nil, nil, nil, nil, fmt.Errorf("start dockerInfo listen failed, %v.", err)
-	}
-
-	k8sInfo := netflow.NewNodePodInfo(containerInfo, k8sCli)
-	podResInfo := nodeinfo.NewPodResInfo()
-	podsWatcher := nodePods.AddWatcher(k8sInfo).AddWatcher(podResInfo).Build()
-	err = podsWatcher.Start(context.Background())
-	if err != nil {
-		return nil, nil, nil, nil, fmt.Errorf("start pods watcher error: %v", err)
 	}
 
 	return containerInfo, k8sInfo, podResInfo, podsWatcher, nil
@@ -190,12 +253,18 @@ func Run(ctx context.Context) error {
 	if myNamespace == "" {
 		myNamespace = "tensorsec"
 	}
+
+	export := os.Getenv("EXPORTRAWCONTAINER")
+	if export == "false" {
+		nodeinfo.ExportRawContainer = false
+	}
+
 	containerInfo, k8sInfo, podResInfo, podWatcher, err := initNodeInfos(hostName, hostIP, clusterKey, myNamespace)
 	if err != nil {
 		return err
 	}
 	//new flow session
-	flow, err := netflow.NewFlowSession(containerInfo, k8sInfo, clusterManager, consoleAddr)
+	flow, err := netflow.NewFlowSession(k8sInfo, containerInfo, clusterManager, consoleAddr)
 	if err != nil {
 		return fmt.Errorf("Failed to initialize flow session, %w", err)
 	}

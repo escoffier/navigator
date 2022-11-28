@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"gitlab.com/piccolo_su/vegeta/pkg/model"
+	"gitlab.com/security-rd/go-pkg/model"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )

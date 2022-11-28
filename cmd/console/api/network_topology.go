@@ -11,9 +11,9 @@ import (
 	param "github.com/oceanicdev/chi-param"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/networktopo"
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
-	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
+	"gitlab.com/security-rd/go-pkg/model"
 )
 
 func (api *api) networkTopo() func(chi.Router) {
@@ -25,10 +25,99 @@ func (api *api) networkTopo() func(chi.Router) {
 	}
 }
 
+type OldNetworkFlow struct {
+	UUID             uint32    `json:"uuid" gorm:"type:bigint;primarykey"`
+	AssocKey         uint32    `json:"assoc_key" gorm:"-"`
+	SrcCluster       string    `json:"src_cluster" gorm:"type:varchar(100);"`
+	SrcNamespace     string    `json:"src_namespace" gorm:"type:varchar(100)"`
+	SrcKind          string    `json:"src_kind" gorm:"type:varchar(100)"`
+	SrcOwnerName     string    `json:"src_owner_name" gorm:"type:varchar(100);column:src_name;index:idx_flow_sname"`
+	SrcContainerName string    `json:"src_container_name" gorm:"type:varchar(100)"`
+	SrcProcess       string    `json:"src_process" gorm:"type:varchar(100)"`
+	SrcPodName       string    `json:"src_pod_name"  gorm:"-"`
+	SrcPid           int       `json:"src_pid" gorm:"-"`
+	DstCluster       string    `json:"dst_cluster" gorm:"type:varchar(100)"`
+	DstNamespace     string    `json:"dst_namespace" gorm:"type:varchar(100)"`
+	DstKind          string    `json:"dst_kind" gorm:"type:varchar(100)"`
+	DstOwnerName     string    `json:"dst_owner_name" gorm:"type:varchar(100);column:dst_name;index:idx_flow_dname"`
+	DstContainerName string    `json:"dst_container_name" gorm:"type:varchar(100)"`
+	DstProcess       string    `json:"dst_process" gorm:"type:varchar(100)"`
+	DstPodName       string    `json:"dst_pod_name" gorm:"-"`
+	DstPid           int       `json:"dst_pid" gorm:"-"`
+	Proto            uint8     `json:"proto" gorm:"type:smallint"`
+	DstPort          uint16    `json:"dst_port" gorm:"type:integer"`
+	Status           int       `json:"status" gorm:"status"`
+	CreatedAt        time.Time `json:"created_at" gorm:"created_at"`
+	UpdatedAt        time.Time `json:"updated_at" gorm:"updated_at"`
+}
+
 type request struct {
 	UUID   uint32 `json:"uuid"`
 	Time   int64  `json:"time"`
 	Status int    `json:"status"`
+}
+
+func NetflowsConvert(datas []*OldNetworkFlow) []*model.TensorNetworkFlow {
+	rets := make([]*model.TensorNetworkFlow, len(datas))
+	for i := 0; i < len(datas); i++ {
+		value := &model.TensorNetworkFlow{
+			UUID:             uint64(datas[i].UUID),
+			AssocKey:         datas[i].AssocKey,
+			SrcCluster:       datas[i].SrcCluster,
+			SrcNamespace:     datas[i].SrcNamespace,
+			SrcKind:          datas[i].SrcKind,
+			SrcOwnerName:     datas[i].SrcOwnerName,
+			SrcContainerName: datas[i].SrcContainerName,
+			SrcProcess:       datas[i].SrcProcess,
+			SrcPodName:       datas[i].SrcPodName,
+			SrcPid:           datas[i].SrcPid,
+			DstCluster:       datas[i].DstCluster,
+			DstNamespace:     datas[i].DstNamespace,
+			DstKind:          datas[i].DstKind,
+			DstOwnerName:     datas[i].DstOwnerName,
+			DstContainerName: datas[i].DstContainerName,
+			DstProcess:       datas[i].DstProcess,
+			DstPodName:       datas[i].DstPodName,
+			DstPid:           datas[i].DstPid,
+			Proto:            datas[i].Proto,
+			DstPort:          datas[i].DstPort,
+			Status:           datas[i].Status,
+			CreatedAt:        datas[i].CreatedAt,
+			UpdatedAt:        datas[i].UpdatedAt,
+		}
+		rets = append(rets, value)
+	}
+	return rets
+}
+
+func NetflowConvert(data *OldNetworkFlow) *model.TensorNetworkFlow {
+	value := &model.TensorNetworkFlow{
+		UUID:             uint64(data.UUID),
+		AssocKey:         data.AssocKey,
+		SrcCluster:       data.SrcCluster,
+		SrcNamespace:     data.SrcNamespace,
+		SrcKind:          data.SrcKind,
+		SrcOwnerName:     data.SrcOwnerName,
+		SrcContainerName: data.SrcContainerName,
+		SrcProcess:       data.SrcProcess,
+		SrcPodName:       data.SrcPodName,
+		SrcPid:           data.SrcPid,
+		DstCluster:       data.DstCluster,
+		DstNamespace:     data.DstNamespace,
+		DstKind:          data.DstKind,
+		DstOwnerName:     data.DstOwnerName,
+		DstContainerName: data.DstContainerName,
+		DstProcess:       data.DstProcess,
+		DstPodName:       data.DstPodName,
+		DstPid:           data.DstPid,
+		Proto:            data.Proto,
+		DstPort:          data.DstPort,
+		Status:           data.Status,
+		CreatedAt:        data.CreatedAt,
+		UpdatedAt:        data.UpdatedAt,
+	}
+
+	return value
 }
 
 // @Summary Find upstream services
@@ -86,17 +175,15 @@ func (api *api) addNetTopologiges() http.HandlerFunc {
 		ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
 		defer cancel()
 
-		var topologies []*model.TensorNetworkFlow
+		var topologies []*OldNetworkFlow
 		err := util.DecodeJSONBody(w, r, &topologies)
 		if err != nil {
-			RespAndLog(w, ctx,
-				NewMalformedRequestError(http.StatusBadRequest,
-					fmt.Errorf("failed to decode json: %w", err)))
+			RespAndLog(w, ctx, NewMalformedRequestError(http.StatusBadRequest, fmt.Errorf("failed to decode json: %w", err)))
 			return
 		}
 		networkTopoService, _ := networktopo.Get(ctx)
-
-		err = networkTopoService.AddNetTopologies(ctx, topologies)
+		values := NetflowsConvert(topologies)
+		err = networkTopoService.AddNetTopologies(ctx, values)
 		if err != nil {
 			RespAndLog(w, ctx,
 				NewAnError(http.StatusInternalServerError,
@@ -114,12 +201,12 @@ func (api *api) addNetTopologiges() http.HandlerFunc {
 // @Router /internal/platform/networkTopo/topology
 func (api *api) addNetTopology() http.HandlerFunc {
 	type resp struct {
-		ID uint32 `json:"ID"`
+		ID uint64 `json:"ID"`
 	}
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
 		defer cancel()
-		topology := model.TensorNetworkFlow{}
+		topology := OldNetworkFlow{}
 		err := util.DecodeJSONBody(w, r, &topology)
 		if err != nil {
 			RespAndLog(w, ctx,
@@ -128,8 +215,8 @@ func (api *api) addNetTopology() http.HandlerFunc {
 			return
 		}
 		networkTopoService, _ := networktopo.Get(ctx)
-
-		err = networkTopoService.AddNetTopology(ctx, &topology)
+		value := NetflowConvert(&topology)
+		err = networkTopoService.AddNetTopology(ctx, value)
 		if err != nil {
 			RespAndLog(w, ctx,
 				NewAnError(http.StatusInternalServerError,
@@ -137,7 +224,7 @@ func (api *api) addNetTopology() http.HandlerFunc {
 			return
 		}
 		response.Ok(w, response.WithItem(resp{
-			ID: topology.UUID,
+			ID: value.UUID,
 		}))
 	}
 }

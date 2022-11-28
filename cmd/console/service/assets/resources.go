@@ -5,13 +5,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	param "github.com/oceanicdev/chi-param"
 	"io"
 	"net/http"
 	"strings"
 	"sync"
 	"time"
 
-	"github.com/go-chi/chi"
 	"github.com/pkg/errors"
 	"gitlab.com/security-rd/go-pkg/databases"
 	"gitlab.com/security-rd/go-pkg/httputil"
@@ -21,6 +21,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
+	pmodel "gitlab.com/security-rd/go-pkg/model"
 )
 
 const (
@@ -206,60 +207,27 @@ func (rl *TensorResourcesService) GetResourceContainersWithGivenVuln(ctx context
 	return containers, totalCnt, nil
 }
 
-func (rl *TensorResourcesService) GetArguments(r *http.Request, dataType string) (*ArgumentDetails, error) {
+func (rl *TensorResourcesService) GetArguments(r *http.Request) (*ArgumentDetails, error) {
 	var arg ArgumentDetails
-
-	arg.ClusterKey = chi.URLParam(r, "clusterKey")
-	if arg.ClusterKey == "" {
-		return nil, errors.Errorf("cluster key is error")
+	//cluster key
+	arg.ClusterKey, _ = param.QueryString(r, "cluster_key")
+	if len(arg.ClusterKey) == 0 {
+		return nil, errors.Errorf("cluster_key is nil, please input cluster_key")
 	}
-
-	arg.Namespace = chi.URLParam(r, "namespace")
-	if arg.Namespace == "" {
-		return nil, errors.Errorf("namespace is error")
-	}
-
-	arg.ResourceName = chi.URLParam(r, "resourceName")
-	if arg.ResourceName == "" {
-		return nil, errors.Errorf("resourceName is error")
-	}
-
-	arg.ResourceKind = chi.URLParam(r, "resourceKind")
-	if arg.ResourceKind == "" {
-		return nil, errors.Errorf("resourceKind is error")
-	}
-
-	if dataType == "process_list" {
-		return &arg, nil
-	}
-
-	arg.Route = chi.URLParam(r, "route")
-	if arg.Route == "" {
-		return nil, errors.Errorf("route is error")
-	}
-
-	if arg.Route != typeIngress && arg.Route != typeEgress {
-		return nil, errors.Errorf("route is error, ingress or egress")
-	}
-
-	if dataType == "container" {
-		arg.ContainerName = chi.URLParam(r, "containerName")
-		if arg.ContainerName == "" {
-			return nil, errors.Errorf("container name is error")
-		}
-	}
-
-	if dataType == "process" {
-		arg.ContainerName = chi.URLParam(r, "containerName")
-		if arg.ContainerName == "" {
-			return nil, errors.Errorf("container name is error")
-		}
-
-		arg.ProcessName = chi.URLParam(r, "processName")
-		if arg.ProcessName == "" {
-			return nil, errors.Errorf("process name is error")
-		}
-	}
+	//namespace
+	arg.Namespace, _ = param.QueryString(r, "namespace")
+	//resource name
+	arg.ResourceName, _ = param.QueryString(r, "res_name")
+	//resource kind
+	arg.ResourceKind, _ = param.QueryString(r, "res_kind")
+	//net flow route
+	arg.Route, _ = param.QueryString(r, "route")
+	//day time
+	arg.Day, _ = param.QueryInt(r, "day")
+	//container id
+	arg.ContainerId, _ = param.QueryString(r, "container_id")
+	//process name
+	arg.ProcessName, _ = param.QueryString(r, "proc_name")
 
 	return &arg, nil
 }
@@ -270,19 +238,19 @@ func (rl *TensorResourcesService) GetResourceRelation(arg *ArgumentDetails) ([]P
 
 	var query string
 	if arg.Route == typeIngress {
-		query = "dst_cluster = ? and dst_namespace = ? and dst_name = ? and dst_kind = ?"
+		query = "dst_cluster = ? and dst_namespace = ? and dst_owner_name = ? and dst_kind = ?"
 	} else {
-		query = "src_cluster = ? and src_namespace = ? and src_name = ? and src_kind = ?"
+		query = "src_cluster = ? and src_namespace = ? and src_owner_name = ? and src_kind = ?"
 	}
 
-	netflows := make([]model.TensorNetworkFlow, 0)
+	netflows := make([]pmodel.TensorNetworkFlow, 0)
 
 	err := rl.rdb.GetReadDB().WithContext(ctx).Find(&netflows, query, arg.ClusterKey, arg.Namespace, arg.ResourceName, arg.ResourceKind).Error
 	if err != nil {
 		return nil, errors.Errorf("find resource from db failed, %v", err)
 	}
 
-	uuid := make(map[uint32]struct{})
+	uuid := make(map[uint32]*ProcessInfo)
 	resource := make([]ProcessInfo, 0)
 	for i := 0; i < len(netflows); i++ {
 		var res ProcessInfo
@@ -290,19 +258,36 @@ func (rl *TensorResourcesService) GetResourceRelation(arg *ArgumentDetails) ([]P
 			res.ResourceName = netflows[i].SrcOwnerName
 			res.ResourceKind = netflows[i].SrcKind
 			res.Namespace = netflows[i].SrcNamespace
+			res.ClusterID = netflows[i].SrcCluster
 		} else {
 			res.ResourceName = netflows[i].DstOwnerName
 			res.ResourceKind = netflows[i].DstKind
 			res.Namespace = netflows[i].DstNamespace
+			res.ClusterID = netflows[i].DstCluster
 		}
 		res.DstPort = netflows[i].DstPort
+		res.CreateAt = netflows[i].CreatedAt
+		res.UpdateAt = netflows[i].UpdatedAt
 
 		key := res.CreateUUID()
-		_, ok := uuid[key]
+		value, ok := uuid[key]
 		if !ok {
-			uuid[key] = struct{}{}
-			resource = append(resource, res)
+			res.LinkCount = netflows[i].Bucket.CalculteCurrentCountBucketSum(arg.Day)
+			uuid[key] = &res
+		} else {
+			value.LinkCount += netflows[i].Bucket.CalculteCurrentCountBucketSum(arg.Day)
+			if res.CreateAt.Before(value.CreateAt) {
+				value.CreateAt = res.CreateAt
+			}
+			//
+			if res.UpdateAt.After(value.UpdateAt) {
+				value.UpdateAt = res.UpdateAt
+			}
 		}
+	}
+
+	for _, value := range uuid {
+		resource = append(resource, *value)
 	}
 
 	return resource, nil
@@ -314,45 +299,62 @@ func (rl *TensorResourcesService) GetContainerRelation(arg *ArgumentDetails) ([]
 
 	var query string
 	if arg.Route == typeIngress {
-		query = "dst_cluster = ? and dst_namespace = ? and dst_name = ? and dst_kind = ? and dst_container_name = ?"
+		query = "dst_cluster = ? and dst_namespace = ? and dst_owner_name = ? and dst_kind = ? and dst_container_id = ?"
 	} else {
-		query = "src_cluster = ? and src_namespace = ? and src_name = ? and src_kind = ? and src_container_name = ?"
+		query = "src_cluster = ? and src_namespace = ? and src_owner_name = ? and src_kind = ? and src_container_id = ?"
 	}
 
-	netflows := make([]model.TensorNetworkFlow, 0)
+	netflows := make([]pmodel.TensorNetworkFlow, 0)
 
-	err := rl.rdb.GetReadDB().WithContext(ctx).Find(&netflows, query, arg.ClusterKey, arg.Namespace, arg.ResourceName, arg.ResourceKind, arg.ContainerName).Error
+	err := rl.rdb.GetReadDB().WithContext(ctx).Find(&netflows, query, arg.ClusterKey, arg.Namespace, arg.ResourceName, arg.ResourceKind, arg.ContainerId).Error
 	if err != nil {
 		return nil, errors.Errorf("find resource from db failed, %v", err)
 	}
 
-	uuid := make(map[uint32]struct{})
+	uuid := make(map[uint32]*ProcessInfo)
 	resource := make([]ProcessInfo, 0)
 	for i := 0; i < len(netflows); i++ {
-		if netflows[i].SrcContainerName == valueUnknown || netflows[i].DstContainerName == valueUnknown {
-			continue
-		}
-
 		var res ProcessInfo
 		if arg.Route == typeIngress {
 			res.ResourceName = netflows[i].SrcOwnerName
 			res.ResourceKind = netflows[i].SrcKind
 			res.Namespace = netflows[i].SrcNamespace
+			res.ContainerId = netflows[i].SrcContainerID
 			res.ContainerName = netflows[i].SrcContainerName
+			res.PodName = netflows[i].SrcPodName
+			res.ClusterID = netflows[i].SrcCluster
 		} else {
 			res.ResourceName = netflows[i].DstOwnerName
 			res.ResourceKind = netflows[i].DstKind
 			res.Namespace = netflows[i].DstNamespace
+			res.ContainerId = netflows[i].DstContainerID
 			res.ContainerName = netflows[i].DstContainerName
+			res.PodName = netflows[i].DstPodName
+			res.ClusterID = netflows[i].DstCluster
 		}
 		res.DstPort = netflows[i].DstPort
+		res.CreateAt = netflows[i].CreatedAt
+		res.UpdateAt = netflows[i].UpdatedAt
 
 		key := res.CreateUUID()
-		_, ok := uuid[key]
+		value, ok := uuid[key]
 		if !ok {
-			uuid[key] = struct{}{}
-			resource = append(resource, res)
+			res.LinkCount = netflows[i].Bucket.CalculteCurrentCountBucketSum(arg.Day)
+			uuid[key] = &res
+		} else {
+			value.LinkCount += netflows[i].Bucket.CalculteCurrentCountBucketSum(arg.Day)
+			if res.CreateAt.Before(value.CreateAt) {
+				value.CreateAt = res.CreateAt
+			}
+			//
+			if res.UpdateAt.After(value.UpdateAt) {
+				value.UpdateAt = res.UpdateAt
+			}
 		}
+	}
+
+	for _, value := range uuid {
+		resource = append(resource, *value)
 	}
 
 	return resource, nil
@@ -364,69 +366,89 @@ func (rl *TensorResourcesService) GetProcessRelation(arg *ArgumentDetails) ([]Pr
 
 	var query string
 	if arg.Route == typeIngress {
-		query = "dst_cluster = ? and dst_namespace = ? and dst_name = ? and dst_kind = ? and dst_container_name = ? and dst_process = ?"
+		query = "dst_cluster = ? and dst_namespace = ? and dst_owner_name = ? and dst_kind = ? and dst_container_id = ? and dst_process = ?"
 	} else {
-		query = "src_cluster = ? and src_namespace = ? and src_name = ? and src_kind = ? and src_container_name = ? and src_process = ?"
+		query = "src_cluster = ? and src_namespace = ? and src_owner_name = ? and src_kind = ? and src_container_id = ? and src_process = ?"
 	}
 
-	netflows := make([]model.TensorNetworkFlow, 0)
+	netflows := make([]pmodel.TensorNetworkFlow, 0)
 
-	err := rl.rdb.GetReadDB().WithContext(ctx).Find(&netflows, query, arg.ClusterKey, arg.Namespace, arg.ResourceName, arg.ResourceKind, arg.ContainerName, arg.ProcessName).Error
+	err := rl.rdb.GetReadDB().WithContext(ctx).Find(&netflows, query, arg.ClusterKey, arg.Namespace, arg.ResourceName, arg.ResourceKind, arg.ContainerId, arg.ProcessName).Error
 	if err != nil {
 		return nil, errors.Errorf("find resource from db failed, %v", err)
 	}
 
-	uuid := make(map[uint32]struct{})
+	uuid := make(map[uint32]*ProcessInfo)
 	resource := make([]ProcessInfo, 0)
 	for i := 0; i < len(netflows); i++ {
-		if netflows[i].SrcProcess == valueUnknown || netflows[i].DstProcess == valueUnknown {
-			continue
-		}
-
 		var res ProcessInfo
 		if arg.Route == typeIngress {
 			res.ResourceName = netflows[i].SrcOwnerName
 			res.ResourceKind = netflows[i].SrcKind
 			res.Namespace = netflows[i].SrcNamespace
+			res.ContainerId = netflows[i].SrcContainerID
 			res.ContainerName = netflows[i].SrcContainerName
 			res.ProcessName = netflows[i].SrcProcess
+			res.PodName = netflows[i].SrcPodName
+			res.ClusterID = netflows[i].SrcCluster
 		} else {
 			res.ResourceName = netflows[i].DstOwnerName
 			res.ResourceKind = netflows[i].DstKind
 			res.Namespace = netflows[i].DstNamespace
+			res.ContainerId = netflows[i].DstContainerID
 			res.ContainerName = netflows[i].DstContainerName
 			res.ProcessName = netflows[i].DstProcess
+			res.PodName = netflows[i].DstPodName
+			res.ClusterID = netflows[i].DstCluster
 		}
 		res.DstPort = netflows[i].DstPort
+		res.CreateAt = netflows[i].CreatedAt
+		res.UpdateAt = netflows[i].UpdatedAt
 
 		key := res.CreateUUID()
-		_, ok := uuid[key]
+		value, ok := uuid[key]
 		if !ok {
-			uuid[key] = struct{}{}
-			resource = append(resource, res)
+			res.LinkCount = netflows[i].Bucket.CalculteCurrentCountBucketSum(arg.Day)
+			uuid[key] = &res
+		} else {
+			value.LinkCount += netflows[i].Bucket.CalculteCurrentCountBucketSum(arg.Day)
+			if res.CreateAt.Before(value.CreateAt) {
+				value.CreateAt = res.CreateAt
+			}
+			//
+			if res.UpdateAt.After(value.UpdateAt) {
+				value.UpdateAt = res.UpdateAt
+			}
 		}
+	}
+
+	for _, value := range uuid {
+		resource = append(resource, *value)
 	}
 
 	return resource, nil
 }
 
-func (rl *TensorResourcesService) GetAllProcessList(arg *ArgumentDetails) ([]ProcessInfo, error) {
+func (rl *TensorResourcesService) GetContainerProcessList(arg *ArgumentDetails) ([]ProcessInfo, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*3)
 	defer cancel()
-
-	defProcess := valueUnknown
+	//
 	var dstQuery, srcQuery string
-	dstQuery = "dst_cluster = ? and dst_namespace = ? and dst_name = ? and dst_kind = ? and not dst_process = ?"
-	srcQuery = "src_cluster = ? and src_namespace = ? and src_name = ? and src_kind = ? and not src_process = ?"
-
-	netflows := make([]model.TensorNetworkFlow, 0, 5)
-
-	err := rl.rdb.GetReadDB().WithContext(ctx).Find(&netflows, dstQuery, arg.ClusterKey, arg.Namespace, arg.ResourceName, arg.ResourceKind, defProcess).Error
+	dstQuery = "dst_cluster = ? and dst_namespace = ? and dst_owner_name = ? and dst_kind = ? and dst_container_id = ?"
+	srcQuery = "src_cluster = ? and src_namespace = ? and src_owner_name = ? and src_kind = ? and src_container_id = ?"
+	if arg.ContainerId == "" {
+		dstQuery = "dst_cluster = ? and dst_namespace = ? and dst_owner_name = ? and dst_kind = ? and not dst_container_id = ?"
+		srcQuery = "src_cluster = ? and src_namespace = ? and src_owner_name = ? and src_kind = ? and not src_container_id = ?"
+	}
+	//
+	netflows := make([]pmodel.TensorNetworkFlow, 0, 5)
+	//query data
+	err := rl.rdb.GetReadDB().WithContext(ctx).Find(&netflows, dstQuery, arg.ClusterKey, arg.Namespace, arg.ResourceName, arg.ResourceKind, arg.ContainerId).Error
 	if err != nil {
 		return nil, errors.Errorf("find resource from db failed with dst info, %v", err)
 	}
 
-	tmpflows := make([]model.TensorNetworkFlow, 0, len(netflows))
+	tmpflows := make([]pmodel.TensorNetworkFlow, 0, len(netflows))
 	uuid := make(map[uint32]struct{}, len(netflows))
 	resource := make([]ProcessInfo, 0, len(netflows))
 	for i := 0; i < len(netflows); i++ {
@@ -437,6 +459,7 @@ func (rl *TensorResourcesService) GetAllProcessList(arg *ArgumentDetails) ([]Pro
 		res.ResourceName = netflows[i].DstOwnerName
 		res.ResourceKind = netflows[i].DstKind
 		res.Namespace = netflows[i].DstNamespace
+		res.ContainerId = netflows[i].DstContainerID
 		res.ContainerName = netflows[i].DstContainerName
 		res.ProcessName = netflows[i].DstProcess
 
@@ -447,8 +470,8 @@ func (rl *TensorResourcesService) GetAllProcessList(arg *ArgumentDetails) ([]Pro
 			resource = append(resource, res)
 		}
 	}
-
-	err = rl.rdb.GetReadDB().WithContext(ctx).Find(&tmpflows, srcQuery, arg.ClusterKey, arg.Namespace, arg.ResourceName, arg.ResourceKind, defProcess).Error
+	//query data
+	err = rl.rdb.GetReadDB().WithContext(ctx).Find(&tmpflows, srcQuery, arg.ClusterKey, arg.Namespace, arg.ResourceName, arg.ResourceKind, arg.ContainerId).Error
 	if err != nil {
 		return nil, errors.Errorf("find resource from db failed with src info, %v", err)
 	}
@@ -462,6 +485,7 @@ func (rl *TensorResourcesService) GetAllProcessList(arg *ArgumentDetails) ([]Pro
 		res.ResourceName = tmpflows[i].SrcOwnerName
 		res.ResourceKind = tmpflows[i].SrcKind
 		res.Namespace = tmpflows[i].SrcNamespace
+		res.ContainerId = tmpflows[i].SrcContainerID
 		res.ContainerName = tmpflows[i].SrcContainerName
 		res.ProcessName = tmpflows[i].SrcProcess
 
@@ -583,4 +607,20 @@ func (rl *TensorResourcesService) getImageFromScanner(ctx context.Context, tcs [
 	}
 
 	return images, nil
+}
+
+func (rl *TensorResourcesService) GetContainer(ctx context.Context, queryOptions *dal.ResContainersQueryOption, offset, limit int) ([]model.ImageListResponse, error) {
+	containers, err := dal.GetResourceContainersUnique(ctx, rl.rdb.GetReadDB(), queryOptions, offset, limit)
+	if err != nil {
+		return nil, err
+	}
+	return rl.getImageFromScanner(ctx, containers)
+}
+
+func (rl *TensorResourcesService) GetRawContainer(ctx context.Context, queryOptions *dal.RawContainersQueryOption, offset, limit int) ([]*model.TensorRawContainer, error) {
+	return dal.GetRawContainers(ctx, rl.rdb.GetReadDB(), queryOptions, offset, limit)
+}
+
+func (rl *TensorResourcesService) CountRawContainer(ctx context.Context, queryOptions *dal.RawContainersQueryOption) (int64, error) {
+	return dal.CountRawContainer(ctx, rl.rdb.GetReadDB(), queryOptions)
 }

@@ -5,34 +5,34 @@
 #include <net/if.h>
 
 #define LOG_ERROR(fmt, ...) {\
-    printf("[ERROR] [line:%d] [%s] " fmt "\n", __LINE__, __FUNCTION__, ##__VA_ARGS__);\
+    printf("[ERROR] [line:%d] [%s] [setns] " fmt "\n", __LINE__, __FUNCTION__, ##__VA_ARGS__);\
 }
 
 #define LOG_PRINT(fmt, ...) {\
-    printf("[INFO] [line:%d] [%s] " fmt "\n", __LINE__, __FUNCTION__, ##__VA_ARGS__);\
+    printf("[INFO] [line:%d] [%s] [setns] " fmt "\n", __LINE__, __FUNCTION__, ##__VA_ARGS__);\
 }
 
 #define LOG_WARN(fmt, ...) {\
-    printf("[WARN] [line:%d] [%s] " fmt "\n", __LINE__, __FUNCTION__, ##__VA_ARGS__);\
+    printf("[WARN] [line:%d] [%s] [setns] " fmt "\n", __LINE__, __FUNCTION__, ##__VA_ARGS__);\
 }
 
 #define RETURN_ERROR(ret, fmt, ...) {\
-    printf("[WARN] [line:%d] [%s] " fmt "\n", __LINE__, __FUNCTION__, ##__VA_ARGS__);\
+    printf("[WARN] [line:%d] [%s] [setns] " fmt "\n", __LINE__, __FUNCTION__, ##__VA_ARGS__);\
     return ret;\
 }
 
 #define BREAK_ERROR(fmt, ...) {\
-    printf("[WARN] [line:%d] [%s] " fmt "\n", __LINE__, __FUNCTION__, ##__VA_ARGS__);\
+    printf("[WARN] [line:%d] [%s] [setns] " fmt "\n", __LINE__, __FUNCTION__, ##__VA_ARGS__);\
     break;\
 }
 
 #define CONTINUE_ERROR(fmt, ...) {\
-    printf("[WARN] [line:%d] [%s] " fmt "\n", __LINE__, __FUNCTION__, ##__VA_ARGS__);\
+    printf("[WARN] [line:%d] [%s] [setns] " fmt "\n", __LINE__, __FUNCTION__, ##__VA_ARGS__);\
     continue;\
 }
 
 #define GOTO_ERROR(state, fmt, ...) {\
-    printf("[WARN] [line:%d] [%s] " fmt "\n", __LINE__, __FUNCTION__, ##__VA_ARGS__);\
+    printf("[WARN] [line:%d] [%s] [setns] " fmt "\n", __LINE__, __FUNCTION__, ##__VA_ARGS__);\
     goto state;\
 }
 
@@ -42,6 +42,7 @@
 #define SND_ADDR            (2)
 #define BasePath            ("/host")
 #define DAEMON_UNIX         ("/tmp/setns.sock")
+#define MATCH_IDLE          (0)
 #define MATCH_SUCC          (1)
 #define GET_DATA_SUCC       (2)
 #define EBPF_SUCC           (1)
@@ -57,12 +58,12 @@ typedef unsigned long       ULONG;
 
 enum
 {
-    DATA_SETNS      = 0,
-    DATA_EBPF       = 1,
-    DATA_FILTER     = 2,
-    DATA_EBPF_STATE = 3,
-    DATA_GATEWAY    = 4,
-    DATA_CONTAINER  = 5,
+    DATA_SETNS        = 0,
+    DATA_EBPF         = 1,
+    DATA_FILTER       = 2,
+    DATA_EBPF_STATE   = 3,
+    DATA_HOST_GATEWAY = 4,
+    DATA_CONTAINER    = 5,
 };
 
 typedef struct
@@ -87,6 +88,12 @@ typedef struct
 
 typedef struct
 {
+    char gateway[INET6_ADDRSTRLEN];
+    char ifName[IF_NAMESIZE];
+} DEFAULT_ROUTE;
+
+typedef struct
+{
     char ipv4[INET_ADDRSTRLEN];
     char ipv6[INET6_ADDRSTRLEN];
     char mac[MAC_ADDRSTRLEN];
@@ -97,7 +104,14 @@ typedef struct
 {
     int  pid;
     char comm[COMM_SIZE];
+    char starttime[COMM_SIZE];
 } PROC_INFO;
+
+typedef struct
+{
+    int port;
+    int proto;
+} LISTEN_PORT;
 
 typedef struct
 {
@@ -118,5 +132,8 @@ extern int get_sub_process(int pid, char *pcBasePath, int spid[], int *num);
 extern int get_process_starttime(int pid, char *pcBasePath, char *dst);
 extern int get_process_user(int pid, char *pcBasePath, char *dst);
 extern int get_if_name(DATA_HEAD *data);
+extern int get_dev_name(DATA_HEAD *data, char *pcBasePath);
+extern int get_default_gateway(DATA_HEAD *data, char *pcBasePath);
+extern int get_listen_port(DATA_HEAD *data, char *pcBasePath);
 
 #endif //NET_EBPF_USER_H

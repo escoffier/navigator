@@ -12,12 +12,12 @@ import (
 	corev1 "k8s.io/api/core/v1"
 )
 
-type AssetsAction uint8
+type Action uint8
 type WatchedType string
 
 // FATAL: don't alter this const block!!!
 const (
-	ActionAdd AssetsAction = iota
+	ActionAdd Action = iota
 	ActionDelete
 	ActionUpdate
 	ActionSync
@@ -41,9 +41,11 @@ const (
 	Nodes2Watch               WatchedType = "nodes"
 	Honeyspots2Watch          WatchedType = "honeyspots"
 	AssetsSync                WatchedType = "assetssync"
+	RawContainer              WatchedType = "rawcontainer"
+	ContainerSync             WatchedType = "containersync"
 )
 
-type AssetsCallback interface {
+type Callback interface {
 	// BeforeWatchNewCluster called before watch events
 	BeforeWatchNewCluster(ctx context.Context, clusterName string, resyncInterval time.Duration) ClusterCallback
 
@@ -52,21 +54,23 @@ type AssetsCallback interface {
 }
 
 type ClusterCallback interface {
-	OnTensorResourceEvent(newResource, oldResource *TensorResource, action AssetsAction) error
-	OnNodeEvent(newNode, oldNode *corev1.Node, action AssetsAction) error
+	OnTensorResourceEvent(newResource, oldResource *TensorResource, action Action) error
+	OnNodeEvent(newNode, oldNode *corev1.Node, action Action) error
 	AfterDataSynced(ctx context.Context, dataSynced bool, clusterKey string)
-	OnTensorPod(pod *TensorPod, action AssetsAction) error
-	OnTensorRole(role *TensorRole, action AssetsAction) error
-	OnTensorClusterRole(clusterRole *TensorClusterRole, action AssetsAction) error
-	OnTensorNamespace(ns *TensorNamespace, action AssetsAction) error
-	OnTensorNode(node *TensorNode, action AssetsAction) error
-	OnHoneyspot(honeyspot *TensorHoneySpot, action AssetsAction) error
+	OnTensorPod(pod *TensorPod, action Action) error
+	OnTensorRole(role *TensorRole, action Action) error
+	OnTensorClusterRole(clusterRole *TensorClusterRole, action Action) error
+	OnTensorNamespace(ns *TensorNamespace, action Action) error
+	OnTensorNode(node *TensorNode, action Action) error
+	OnHoneyspot(honeyspot *TensorHoneySpot, action Action) error
+	OnRawContainer(container *TensorRawContainer, action Action) error
+	OnSync(*TensorSync) error
 	Name() string
 }
 
 type ResourceEvent struct {
-	Action     AssetsAction `json:"action"`
-	Type       WatchedType  `json:"type"`
+	Action     Action      `json:"action"`
+	Type       WatchedType `json:"type"`
 	ClusterKey string
 	Resource   interface{} `json:"resource"`
 }
@@ -77,7 +81,7 @@ type clusterCallbacks struct {
 }
 type Watcher struct {
 	consumer            mq.Reader
-	callbacks           []AssetsCallback
+	callbacks           []Callback
 	callbacksOfClusters *sync.Map // clusterKey-> clusterCallbacks
 	topic               string
 	groupID             string
@@ -124,7 +128,7 @@ func (w *Watcher) getOrCreateClusterCallbacks(clusterKey string) clusterCallback
 	return cbs
 }
 
-func (w *Watcher) AddCallback(cb AssetsCallback) {
+func (w *Watcher) AddCallback(cb Callback) {
 	w.callbacks = append(w.callbacks, cb)
 }
 
@@ -335,6 +339,36 @@ func (w *Watcher) process(ctx context.Context, message kafka.Message) error {
 			}
 		} else {
 			logging.Get().Info().Str("key", hp.KeyName()).Str("idStr", hp.IdentityString()).Msg("duplicated and bypass.")
+		}
+	case RawContainer:
+		logging.Get().Debug().Msg("processing raw container")
+		rc := &TensorRawContainer{}
+		err = json.Unmarshal(rawMsg, rc)
+		if err != nil {
+			logging.Get().Err(err).Msg("unmarshal raw container err")
+			return err
+		}
+		for _, cb := range cbs.callbacks {
+			err = cb.OnRawContainer(rc, event.Action)
+			if err != nil {
+				logging.Get().Err(err).Msgf("process raw container err: %v", rc)
+				continue
+			}
+		}
+	case ContainerSync:
+		logging.Get().Debug().Msg("sync raw container")
+		ts := &TensorSync{}
+		err = json.Unmarshal(rawMsg, ts)
+		if err != nil {
+			logging.Get().Err(err).Msg("unmarshal container sync err")
+			return err
+		}
+		for _, cb := range cbs.callbacks {
+			err = cb.OnSync(ts)
+			if err != nil {
+				logging.Get().Err(err).Msgf("sync raw container err: %v", ts)
+				continue
+			}
 		}
 	}
 	return nil

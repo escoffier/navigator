@@ -31,7 +31,7 @@ type PodResourcesService struct {
 
 type podEvent struct {
 	pod        *assets.TensorPod
-	action     assets.AssetsAction
+	action     assets.Action
 	updateTime time.Time
 }
 type PodResourcesClusterCallback struct {
@@ -42,6 +42,15 @@ type PodResourcesClusterCallback struct {
 	rsUpdateUnixTime    int64
 	inputQueue          *util.Queue
 	consumed            int32
+}
+
+func (cb *PodResourcesClusterCallback) OnSync(tensorSync *assets.TensorSync) error {
+	//TODO implement me
+	return nil
+}
+
+func (cb *PodResourcesClusterCallback) OnRawContainer(container *assets.TensorRawContainer, action assets.Action) error {
+	return nil
 }
 
 func newPodResourcesService(redisCli *redis.Client, rdb *databases.RDBInstance) *PodResourcesService {
@@ -143,7 +152,7 @@ func (cb *PodResourcesClusterCallback) getUpperOwnerOfPod(pod *corev1.Pod) (*met
 	return owner, owner != nil
 }
 
-func (cb *PodResourcesClusterCallback) OnNodeEvent(newNode, oldNode *corev1.Node, action assets.AssetsAction) error {
+func (cb *PodResourcesClusterCallback) OnNodeEvent(newNode, oldNode *corev1.Node, action assets.Action) error {
 	return nil
 }
 
@@ -182,7 +191,7 @@ func (cb *PodResourcesClusterCallback) doOnPodEvent(ctx context.Context, e podEv
 	return nil
 }
 
-func (cb *PodResourcesClusterCallback) OnTensorPod(pod *assets.TensorPod, action assets.AssetsAction) error {
+func (cb *PodResourcesClusterCallback) OnTensorPod(pod *assets.TensorPod, action assets.Action) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 
@@ -227,7 +236,7 @@ func (cb *PodResourcesClusterCallback) getOwnerRefOfRS(name string, namespace st
 	return owner, true
 }
 
-func (cb *PodResourcesClusterCallback) OnTensorResourceEvent(newResource, oldResource *assets.TensorResource, action assets.AssetsAction) error {
+func (cb *PodResourcesClusterCallback) OnTensorResourceEvent(newResource, oldResource *assets.TensorResource, action assets.Action) error {
 	switch action {
 	case assets.ActionDelete:
 		if oldResource == nil {
@@ -285,23 +294,23 @@ func (cb *PodResourcesClusterCallback) removeInactiveData(ctx context.Context, c
 	return dal.CleanUpPodResourceRelationsInRDB(ctx, cb.parent.rdb.Get(), cb.refreshTime(), clusterKey)
 }
 
-func (cb *PodResourcesClusterCallback) OnHoneyspot(honeyspot *assets.TensorHoneySpot, action assets.AssetsAction) error {
+func (cb *PodResourcesClusterCallback) OnHoneyspot(honeyspot *assets.TensorHoneySpot, action assets.Action) error {
 	return nil
 }
 
-func (cb *PodResourcesClusterCallback) OnTensorRole(tensorRole *assets.TensorRole, action assets.AssetsAction) error {
+func (cb *PodResourcesClusterCallback) OnTensorRole(tensorRole *assets.TensorRole, action assets.Action) error {
 	return nil
 }
 
-func (cb *PodResourcesClusterCallback) OnTensorClusterRole(tensorRole *assets.TensorClusterRole, action assets.AssetsAction) error {
+func (cb *PodResourcesClusterCallback) OnTensorClusterRole(tensorRole *assets.TensorClusterRole, action assets.Action) error {
 	return nil
 }
 
-func (cb *PodResourcesClusterCallback) OnTensorNamespace(namespace *assets.TensorNamespace, action assets.AssetsAction) error {
+func (cb *PodResourcesClusterCallback) OnTensorNamespace(namespace *assets.TensorNamespace, action assets.Action) error {
 	return nil
 }
 
-func (cb *PodResourcesClusterCallback) OnTensorNode(node *assets.TensorNode, action assets.AssetsAction) error {
+func (cb *PodResourcesClusterCallback) OnTensorNode(node *assets.TensorNode, action assets.Action) error {
 	return nil
 }
 

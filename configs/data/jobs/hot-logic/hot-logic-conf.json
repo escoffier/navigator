@@ -38,8 +38,7 @@
       "name": "ivan_network_flows",
       "timeField": "updated_at",
       "primaryKey": ["uuid"],
-      "condition": "status in (0, 1)",
-      "ttl": 30,
+      "ttl": 7,
       "dataDir": "/audit/mysql/ivan_network_flows",
       "batch": 1000
     },
@@ -144,6 +143,14 @@
       "timeField": "updated_at",
       "condition": "status = 1",
       "dataDir": "/audit/mysql/immune_policies",
+      "batch": 1000
+    },
+    {
+      "name": "ivan_assets_raw_containers",
+      "timeField": "updated_at",
+      "condition": "status in (5, 6)",
+      "ttl": 7,
+      "dataDir": "/audit/mysql/ivan_assets_raw_containers",
       "batch": 1000
     }
   ]

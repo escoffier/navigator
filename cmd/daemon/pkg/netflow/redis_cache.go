@@ -10,7 +10,7 @@ import (
 	json "github.com/json-iterator/go"
 	"github.com/pkg/errors"
 	"gitlab.com/piccolo_su/vegeta/pkg/daemon"
-	"gitlab.com/piccolo_su/vegeta/pkg/model"
+	"gitlab.com/security-rd/go-pkg/model"
 )
 
 func redisGet(redisClient *redis.Client, key string) (*model.TensorNetworkFlow, error) {
@@ -52,7 +52,7 @@ func redisSaveOrUpdate(redisClient *redis.Client, addrType int, netflow *model.T
 		return false, errors.Errorf("argument point is nil")
 	}
 
-	if len(netflow.SrcPodName) > 0 && len(netflow.DstPodName) > 0 {
+	if len(netflow.SrcContainerName) > 0 && len(netflow.DstContainerName) > 0 {
 		return true, nil
 	}
 
@@ -74,6 +74,7 @@ func redisSaveOrUpdate(redisClient *redis.Client, addrType int, netflow *model.T
 
 	switch addrType {
 	case daemon.SND_ADDR:
+		netflow.DstContainerID = net.DstContainerID
 		netflow.DstContainerName = net.DstContainerName
 		netflow.DstProcess = net.DstProcess
 		netflow.DstPid = net.DstPid
@@ -81,7 +82,9 @@ func redisSaveOrUpdate(redisClient *redis.Client, addrType int, netflow *model.T
 		netflow.DstPodName = net.DstPodName
 		netflow.DstNamespace = net.DstNamespace
 		netflow.DstKind = net.DstKind
+		netflow.DstCluster = net.DstCluster
 	case daemon.RCV_ADDR:
+		netflow.SrcContainerID = net.SrcContainerID
 		netflow.SrcContainerName = net.SrcContainerName
 		netflow.SrcProcess = net.SrcProcess
 		netflow.SrcPid = net.SrcPid
@@ -89,6 +92,7 @@ func redisSaveOrUpdate(redisClient *redis.Client, addrType int, netflow *model.T
 		netflow.SrcPodName = net.SrcPodName
 		netflow.SrcNamespace = net.SrcNamespace
 		netflow.SrcKind = net.SrcKind
+		netflow.SrcCluster = net.SrcCluster
 	}
 
 	if len(netflow.SrcProcess) == 0 || len(netflow.DstProcess) == 0 {

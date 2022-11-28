@@ -3,6 +3,7 @@ package nodeinfo
 import (
 	"bufio"
 	"context"
+	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/containerassets"
 	"net/http"
 	"net/url"
 	"os"
@@ -27,6 +28,14 @@ type PodmanInfoManager struct {
 	containerData map[string]int64 // map[containerId]time
 
 	sync.RWMutex
+}
+
+func (p *PodmanInfoManager) SetPodStore(store containerassets.PodCache) {
+}
+
+func (p *PodmanInfoManager) AddEventHandler(handler ContainerEventHandler) {
+	//TODO implement me
+	panic("implement me")
 }
 
 func NewPodmanInfoManager() (*PodmanInfoManager, error) {
