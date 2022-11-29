@@ -80,7 +80,6 @@ func (s *RegistrySrv) CreateRegistry(ctx *gin.Context) {
 		return
 	}
 	reg.UseType = model.UserRegistry
-	reg.Status = consts.RegNormal
 	_, err := s.RegistrySrv.CreateRegistry(ctx, reg)
 	if err != nil {
 		response.JSONError(ctx, err)
@@ -255,7 +254,7 @@ func (s *RegistrySrv) SearchRegistry(ctx *gin.Context) {
 		return
 	}
 	for i := range registries {
-		registries[i].Deserialize()
+		registries[i].FitHarborVersion()
 	}
 
 	response.JSONOK(ctx, response.WithItems(registries),
@@ -286,7 +285,7 @@ func (s *RegistrySrv) GetRegistry(ctx *gin.Context) {
 		return
 	}
 	reg := regs[0]
-	reg.Deserialize()
+	reg.FitHarborVersion()
 	response.JSONOK(ctx, response.WithItem(reg))
 }
 

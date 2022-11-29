@@ -104,7 +104,12 @@ func (s *RegistrySrv) DeleteRegistry(ctx context.Context, id int64) error {
 	return nil
 }
 
-func (s *RegistrySrv) createRegistry(ctx context.Context, reg model.Registry) (int64, error) {
+func (s *RegistrySrv) CreateRegistry(ctx context.Context, reg model.Registry) (int64, error) {
+	if reg.ScannerInstance == "" {
+		// 设置默认:当前集群（openapi接口还不支持多集群）
+		reg.ScannerInstance = global.ScannerInstance
+	}
+	// 新建时不能验证仓库配置是否正确,所以直接新建
 	if err := reg.Validate(consts.ValidateCreate); err != nil {
 		return 0, response.NewHttpError(http.StatusExpectationFailed, err)
 	}
@@ -122,13 +127,38 @@ func (s *RegistrySrv) createRegistry(ctx context.Context, reg model.Registry) (i
 		return 0, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf(consts.StatusInternalServerErrorMsg))
 	}
 
-	// 新增加的仓库需要自动同步
-	syncTask := &model.SyncTask{RegistryID: id, SyncType: consts.CycleFullSync.String()}
-	if err := s.syncTaskDal.CreateSyncTask(ctx, syncTask); err != nil {
-		logging.GetLogger().Err(err).Int64("regID", id).Msg("createRegistry CreateSyncTask")
-	}
+	// 新增加的仓库需要自动同步,但是对于harbor的仓库，需要在等一次健康检查之后才能确定版本类型,
+	// 这里使用一种取巧的方式，直接休眠3分钟，后期镜像同步重构之后再优化
+	go func() {
+		defer func() {
+			if err := recover(); err != nil {
+				logging.GetLogger().Error().Msg("CreateRegistry recover")
+			}
+		}()
+		ticker := time.NewTicker(time.Minute * 3)
+		defer ticker.Stop()
+		<-ticker.C
+
+		syncTask := &model.SyncTask{RegistryID: id, SyncType: consts.CycleFullSync.String()}
+		if err := s.syncTaskDal.CreateSyncTask(ctx, syncTask); err != nil {
+			logging.GetLogger().Err(err).Int64("regID", id).Msg("createRegistry CreateSyncTask")
+		}
+	}()
 
 	return id, nil
+}
+
+func (s *RegistrySrv) checkHealth(ctx context.Context, reg model.Registry) (string, error) {
+	drive, err := registry.Open(RegToRegistryConf(reg))
+	if err != nil {
+		logging.GetLogger().Err(err).Msg("CheckHealth Open 尝试连接到仓库出错")
+		return consts.RegAbnormal, err
+	}
+	if err := drive.Ping(); err != nil {
+		logging.GetLogger().Err(err).Msg("CheckHealth 尝试连接到仓库出错")
+		return consts.RegAbnormal, err
+	}
+	return consts.RegNormal, nil
 }
 
 func (s *RegistrySrv) CheckHealth(ctx context.Context, scannerInstance string) error {
@@ -137,59 +167,47 @@ func (s *RegistrySrv) CheckHealth(ctx context.Context, scannerInstance string) e
 		logging.GetLogger().Err(err).Msg("RegistrySrv CheckHealth")
 		return err
 	}
+
 	for i := range registries {
 		reg := registries[i]
 
-		drive, err := registry.Open(RegToRegistryConf(reg))
+		var health string
+		var err error
+		regType := reg.RegType
+
+		if reg.RegType == consts.HarborVersion {
+			// 先试V2
+			reg.RegType = consts.HarborV2Version
+			regType = consts.HarborV2Version
+			health, err = s.checkHealth(ctx, reg)
+			if health == consts.RegAbnormal {
+				regType = consts.HarborV1Version
+				reg.RegType = consts.HarborV1Version
+				health, err = s.checkHealth(ctx, reg)
+			}
+		} else {
+			health, err = s.checkHealth(ctx, reg)
+		}
+
+		if health == consts.RegNormal {
+			reg.RegType = regType
+		}
+
+		update := map[string]interface{}{"status": health, "reg_type": reg.RegType, "heat_beat": time.Now().UnixMilli()}
 		if err != nil {
-			logging.GetLogger().Err(err).Msg("CheckHealth 尝试连接到仓库出错")
-			update := map[string]interface{}{"status": consts.RegAbnormal, "health_msg": err.Error(), "heat_beat": time.Now().UnixMilli()}
-			if err := s.registryDal.UpdateRegistry(ctx, store.SearchRegistryParam{ID: reg.ID}, update); err != nil {
-				logging.GetLogger().Err(err).Msg("RegistrySrv CheckHealth")
-			}
-			continue
+			logging.GetLogger().Err(err).Msg("RegistrySrv CheckHealth")
+			update["health_msg"] = err.Error()
 		}
 
-		if err := drive.Ping(); err != nil {
-			logging.GetLogger().Err(err).Msg("CheckHealth 尝试连接到仓库出错")
-			update := map[string]interface{}{"status": consts.RegAbnormal, "health_msg": err.Error(), "heat_beat": time.Now().UnixMilli()}
+		if reg.Status != health || reg.RegType != regType {
 			if err := s.registryDal.UpdateRegistry(ctx, store.SearchRegistryParam{ID: reg.ID}, update); err != nil {
 				logging.GetLogger().Err(err).Msg("RegistrySrv CheckHealth")
-			}
-			continue
-		}
-
-		if reg.Status != consts.RegNormal {
-			update := map[string]interface{}{"status": consts.RegNormal, "health_msg": "", "heat_beat": time.Now().UnixMilli()}
-			if err := s.registryDal.UpdateRegistry(ctx, store.SearchRegistryParam{ID: reg.ID}, update); err != nil {
-				logging.GetLogger().Err(err).Msg("RegistrySrv CheckHealth")
+				continue
 			}
 		}
 	}
 
 	return nil
-}
-
-func (s *RegistrySrv) CreateRegistry(ctx context.Context, reg model.Registry) (int64, error) {
-
-	if reg.ScannerInstance == "" {
-		// 设置默认:当前集群
-		reg.ScannerInstance = global.ScannerInstance
-	}
-
-	if !InStringSlice(reg.RegType, []string{consts.HarborVersion, consts.HarborV1Version, consts.HarborV2Version}) {
-		return s.createRegistry(ctx, reg)
-	}
-	// 对于harbor做一下兼容
-	// 先试v2
-	reg.RegType = consts.HarborV2Version
-	id, err := s.createRegistry(ctx, reg)
-	if err != nil {
-		// 再试v1
-		reg.RegType = consts.HarborV1Version
-		return s.createRegistry(ctx, reg)
-	}
-	return id, nil
 }
 
 func (s *RegistrySrv) UpdateRegistry(ctx context.Context, id int64, reg model.Registry) error {
@@ -238,7 +256,8 @@ func NewRegistrySrv(registryDal store.RegistryDal, scanConfigDal store.ScanConfi
 }
 
 func validateRegistryType(regType string) error {
-	if !InStringSlice(regType, registry.DriverTypes) {
+	regTypes := append([]string{consts.HarborVersion}, registry.DriverTypes...)
+	if !InStringSlice(regType, regTypes) {
 		return errors.New("registry type is illegal")
 	}
 	return nil
