@@ -114,7 +114,7 @@ func initNodeInfos(hostName, hostIP, clusterKey, myNamespace string) (nodeinfo.C
 			if !ok {
 				return
 			}
-			if container.IPV6 != "" {
+			if container.IP != "" {
 				k8sInfo.SaveContainerData(container.IP, container.ContainerID, &daemon.ContainerData{
 					ContainerName: container.Name,
 					ContainerPid:  container.Pid,
