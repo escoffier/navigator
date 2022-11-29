@@ -541,7 +541,7 @@ func (fs *FlowSession) GetNetProcInfo(netRes *model.TensorNetworkFlow, src, dst 
 		containerName := ""
 		for id, containerData := range src.ContainerInfo {
 			if containerData.ContainerPid == data.Pid {
-				containerId = id[0:12]
+				containerId = id
 				containerName = containerData.ContainerName
 				break
 			}
@@ -580,7 +580,7 @@ func (fs *FlowSession) GetNetProcInfo(netRes *model.TensorNetworkFlow, src, dst 
 		containerName := ""
 		for id, containerData := range dst.ContainerInfo {
 			if containerData.ContainerPid == data.Pid {
-				containerId = id[0:12]
+				containerId = id
 				containerName = containerData.ContainerName
 				break
 			}
@@ -712,7 +712,7 @@ func (fs *FlowSession) GetContainerProcessName(addrType uint8, res *daemon.K8sRe
 				Status:        daemon.GET_DATA_SUCC,
 				ProcName:      comm,
 				ContainerName: container.ContainerName,
-				ContainerId:   id[0:12],
+				ContainerId:   id,
 			}, nil
 		}
 	}
@@ -740,7 +740,7 @@ func (fs *FlowSession) GetContainerProcessName(addrType uint8, res *daemon.K8sRe
 			continue
 		}
 		//container name
-		pInfo.ContainerId = id[0:12]
+		pInfo.ContainerId = id
 		pInfo.ContainerName = containerData.ContainerName
 		//success
 		if pInfo.Status == daemon.GET_DATA_SUCC {
