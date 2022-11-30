@@ -6,7 +6,6 @@ import (
 	"os"
 	"os/exec"
 	"runtime/debug"
-	"sync"
 
 	json "github.com/json-iterator/go"
 	"github.com/xuri/excelize/v2"
@@ -24,8 +23,7 @@ type ScanTaskExport struct {
 	ImageExport             ImageExportInterface
 	ExportTaskDal           store.ExportTaskDal
 	ScanTaskDal             store.ScanTaskDal
-	ExportingMap            *sync.Map // 正在执行的任务
-	FileDir                 string    // 文件存储的决对路径
+	FileDir                 string // 文件存储的决对路径
 	UpdateTask              export.UpdateTask
 	MaxVulnCol              int64
 	MaxImageByOneExportTask int64
@@ -48,7 +46,6 @@ func NewScanTaskExport(
 		ImageExport:             imageExport,
 		ExportTaskDal:           exportTaskDal,
 		ScanTaskDal:             scanTaskDal,
-		ExportingMap:            &sync.Map{},
 		FileDir:                 fileDir,
 		UpdateTask:              updateTask,
 		MaxVulnCol:              maxVulnCol,
@@ -287,15 +284,6 @@ func (s *ScanTaskExport) worker(ctx context.Context, task model.ExportTensorTask
 		}
 	}
 
-	if ex, ok := s.ExportingMap.Load(task.ID); ok {
-		if ex1, ok := ex.(bool); ok && ex1 == consts.TaskExporting {
-			logging.Get().Info().Int64("taskID", task.ID).Msg("task is running")
-			return nil
-		}
-	}
-
-	s.ExportingMap.Store(task.ID, consts.TaskExporting)
-
 	filename := task.GenFilenamePrefix()
 
 	subTaskChan := s.GenImageIdChan(ctx, task)
@@ -304,14 +292,12 @@ func (s *ScanTaskExport) worker(ctx context.Context, task model.ExportTensorTask
 
 	if err := s.ZipAndSave(ctx, filename, excelFileChan); err != nil {
 		logging.Get().Err(err).Int64("taskID", task.ID).Msg("ZipAndSave")
-		s.ExportingMap.Delete(task.ID)
 
 		if err := s.UpdateTask.Failure(ctx, task.ID, err.Error()); err != nil {
 			logging.Get().Err(err).Int64("taskID", task.ID).Msg("Failure export task failure update task")
 		}
 		return err
 	}
-	s.ExportingMap.Delete(task.ID)
 	// 成功之后更新任务
 	if err := s.UpdateTask.Success(ctx, task.ID, fmt.Sprintf("%s/%s.zip", s.FileDir, filename)); err != nil {
 		logging.Get().Err(err).Int64("taskID", task.ID).Msg("Success export task success update task")

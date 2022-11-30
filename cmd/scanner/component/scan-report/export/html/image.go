@@ -9,7 +9,6 @@ import (
 	"os/exec"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
 	"gitlab.com/security-rd/go-pkg/logging"
@@ -29,9 +28,8 @@ type ExportImageHtmlSrv struct {
 	ImageScanDal  export.ImageScanDal
 	ExportTaskDal store.ExportTaskDal
 	UpdateTask    export.UpdateTask
-	KoaAddr       string    // 生成html的内部服务接口
-	FileDir       string    // 文件存放的绝对路径
-	ExportingMap  *sync.Map // 正在执行的任务
+	KoaAddr       string // 生成html的内部服务接口
+	FileDir       string // 文件存放的绝对路径
 
 	IncludeCNNVDVuln bool
 	IncludeRHSAVuln  bool
@@ -54,7 +52,6 @@ func NewExportImageHtmlSrv(
 		ExportTaskDal:    exportTaskDal,
 		UpdateTask:       updateTask,
 		FileDir:          fileDir,
-		ExportingMap:     &sync.Map{},
 		KoaAddr:          consts.KoaAddr,
 		IncludeCNNVDVuln: includeCNNVDVuln,
 		IncludeRHSAVuln:  includeRHSAVuln,
@@ -742,6 +739,7 @@ func (s *ExportImageHtmlSrv) Run(ctx context.Context) {
 		return
 	}
 	if !created {
+		logging.Get().Info().Str("TaskType", model.ExportHtml).Msg("ExportImageHtmlSrv task running other pod ")
 		return
 	}
 
@@ -772,15 +770,6 @@ func (s *ExportImageHtmlSrv) Run(ctx context.Context) {
 		logging.Get().Err(err).Int64("taskID", task.ID).Str("filePath", task.FilePath).Msg("ExportImageHtmlSrv export html Start")
 		return
 	}
-	if ex, ok := s.ExportingMap.Load(task.ID); ok {
-		if ex1, ok := ex.(bool); ok && ex1 == consts.TaskExporting {
-			logging.Get().Info().Int64("taskID", task.ID).Str("filePath", task.FilePath).Msg("ExportImageHtmlSrv task is running")
-			return
-		}
-	}
-
-	s.ExportingMap.Store(task.ID, consts.TaskExporting)
-	defer s.ExportingMap.Delete(task.ID)
 
 	// 新建目录
 	filePath := s.genFilePath(ctx, task)

@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"runtime/debug"
-	"sync"
 
 	"github.com/xuri/excelize/v2"
 	"gitlab.com/security-rd/go-pkg/logging"
@@ -33,8 +32,7 @@ type ImageSrvInterface interface {
 type ImageSearchSrv struct {
 	ExportImageInterface ExportImageInterface
 	ExportTaskDal        store.ExportTaskDal
-	ExportingMap         *sync.Map // 正在执行的任务
-	FileDir              string    // 文件存储的决对路径
+	FileDir              string // 文件存储的决对路径
 	UpdateTask           export.UpdateTask
 	ImageSrv             ImageSrvInterface
 	IncludeCNNVDVuln     bool
@@ -53,7 +51,6 @@ func NewImageSearchSrv(
 	return &ImageSearchSrv{
 		ExportImageInterface: exportImageInterface,
 		ExportTaskDal:        exportTaskDal,
-		ExportingMap:         &sync.Map{},
 		FileDir:              fileDir,
 		UpdateTask:           updateTask,
 		ImageSrv:             imageSrv,
@@ -112,14 +109,6 @@ func (s *ImageSearchSrv) GenImageIdChan(ctx context.Context, task model.ExportTe
 
 // 取一个任务来执行
 func (s *ImageSearchSrv) worker(ctx context.Context, task model.ExportTensorTask) error {
-	if ex, ok := s.ExportingMap.Load(task.ID); ok {
-		if ex1, ok := ex.(bool); ok && ex1 == consts.TaskExporting {
-			logging.Get().Info().Int64("taskID", task.ID).Msg("task is running")
-			return nil
-		}
-	}
-
-	s.ExportingMap.Store(task.ID, consts.TaskExporting)
 
 	filename := task.GenFilenamePrefix()
 
@@ -129,14 +118,12 @@ func (s *ImageSearchSrv) worker(ctx context.Context, task model.ExportTensorTask
 
 	if err := s.ExportImageInterface.ZipAndSave(ctx, filename, excelFileChan); err != nil {
 		logging.Get().Err(err).Int64("taskID", task.ID).Msg("ZipAndSave")
-		s.ExportingMap.Delete(task.ID)
 
 		if err := s.UpdateTask.Failure(ctx, task.ID, err.Error()); err != nil {
 			logging.Get().Err(err).Int64("taskID", task.ID).Msg("Failure export task failure update task")
 		}
 		return err
 	}
-	s.ExportingMap.Delete(task.ID)
 	// 成功之后更新任务
 	if err := s.UpdateTask.Success(ctx, task.ID, fmt.Sprintf("%s/%s.zip", s.FileDir, filename)); err != nil {
 		logging.Get().Err(err).Int64("taskID", task.ID).Msg("Success export task success update task")
@@ -176,6 +163,5 @@ func (s *ImageSearchSrv) Run(ctx context.Context) {
 		if err := s.worker(ctx, tasks[i]); err != nil {
 			logging.Get().Err(err).Msg("worker")
 		}
-
 	}
 }

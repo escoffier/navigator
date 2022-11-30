@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"runtime/debug"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/xuri/excelize/v2"
@@ -25,8 +24,7 @@ type ImageExport struct {
 	ImageSrv      ImageInterface
 	Interval      time.Duration
 
-	ExportingMap     *sync.Map // 正在执行的任务
-	FileDir          string    // 文件存储的决对路径
+	FileDir          string // 文件存储的决对路径
 	UpdateTask       export.UpdateTask
 	IncludeCNNVDVuln bool
 	IncludeRHSAVuln  bool
@@ -52,7 +50,6 @@ func NewImageExport(
 		ResourceDal:      resourceDal,
 		ExportTaskDal:    exportTaskDal,
 		ImageSrv:         imageSrv,
-		ExportingMap:     &sync.Map{},
 		FileDir:          fileDir,
 		Interval:         interval,
 		UpdateTask:       UpdateTask,
@@ -259,13 +256,6 @@ func (s *ImageExport) Run(ctx context.Context) {
 			continue
 		}
 
-		if ex, ok := s.ExportingMap.Load(task.ID); ok {
-			if ex1, ok := ex.(bool); ok && ex1 == consts.TaskExporting {
-				logging.Get().Info().Int64("taskID", task.ID).Msg("task is running")
-				continue
-			}
-		}
-		s.ExportingMap.Store(task.ID, consts.TaskExporting)
 		if err := s.UpdateTask.Start(ctx, task.ID); err != nil {
 			logging.Get().Err(err).Int64("taskID", task.ID).Msg("Run.Start")
 			continue
@@ -277,16 +267,13 @@ func (s *ImageExport) Run(ctx context.Context) {
 
 		if err := s.ZipAndSave(ctx, filename, excelChan); err != nil {
 			logging.Get().Err(err).Int64("taskID", task.ID).Msg("ZipAndSave")
-			s.ExportingMap.Delete(task.ID)
 
 			if err := s.UpdateTask.Failure(ctx, task.ID, err.Error()); err != nil {
 				logging.Get().Err(err).Int64("taskID", task.ID).Msg("Failure export task failure update task")
 			}
-
 			continue
 		}
 		logging.Get().Info().Int64("taskID", task.ID).Str("filename", filename).Msg("export task success")
-		s.ExportingMap.Delete(task.ID)
 		// 成功之后更新任务
 		if err := s.UpdateTask.Success(ctx, task.ID, fmt.Sprintf("%s/%s.zip", s.FileDir, filename)); err != nil {
 			logging.Get().Err(err).Int64("taskID", task.ID).Msg("Success export task success update task")
