@@ -2,8 +2,11 @@ package dp
 
 import (
 	"context"
+	"crypto/md5"
+	"encoding/hex"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 
 	"github.com/segmentio/kafka-go"
@@ -15,6 +18,7 @@ import (
 
 const (
 	checkFileTemplate = "/host/proc/%d/root/.tensor/dp.so"
+	curFileTemplate   = "/tensor/dp.so"
 )
 
 func IsInjected(processID int) (bool, error) {
@@ -26,6 +30,37 @@ func IsInjected(processID int) (bool, error) {
 		}
 		logging.Get().Error().Msgf("Failed to check if process %d is injected: %v", processID, err)
 		return false, err
+	}
+	originFile, err := os.Open(fmt.Sprintf(checkFileTemplate, processID))
+	if err != nil {
+		logging.Get().Error().Msgf("Failed to open origin file: %v", err)
+		return false, err
+	}
+
+	originMd5 := md5.New()
+
+	_, err = io.Copy(originMd5, originFile)
+	if err != nil {
+		logging.Get().Error().Msgf("Failed to check if process %d is injected: %v", processID, err)
+		return false, err
+	}
+	originMd5Str := hex.EncodeToString(originMd5.Sum(nil))
+	curFile, err := os.Open(curFileTemplate)
+	if err != nil {
+		logging.Get().Error().Msgf("Failed to open cur file: %v", err)
+		return false, err
+	}
+	curMd5 := md5.New()
+	_, err = io.Copy(curMd5, curFile)
+	if err != nil {
+		logging.Get().Error().Msgf("Failed to check if process %d is injected: %v", processID, err)
+		return false, err
+	}
+	curMd5Str := hex.EncodeToString(curMd5.Sum(nil))
+	if originMd5Str != curMd5Str {
+		logging.Get().Warn().Msg("injected file is not the same as current file")
+		os.RemoveAll(fmt.Sprintf(checkFileTemplate, processID))
+		return false, nil
 	}
 
 	return true, nil
