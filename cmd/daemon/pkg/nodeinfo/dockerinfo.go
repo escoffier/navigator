@@ -12,6 +12,7 @@ import (
 	"runtime/debug"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/docker/docker/api/types"
@@ -36,6 +37,7 @@ type DockerInfoManager struct {
 	agent         *containerassets.Agent
 	store         containerassets.PodCache
 	clusterKey    string
+	mqReady       atomic.Bool
 	sync.RWMutex
 }
 
@@ -75,6 +77,7 @@ func NewDockerInfoManager(clusterKey, hostName, hostIP string, agent *containera
 		clusterKey:    clusterKey,
 		agent:         agent,
 	}
+	rs.mqReady.Store(false)
 
 	go func() {
 		defer func() {
@@ -175,18 +178,20 @@ func (d *DockerInfoManager) ListenEvents(saveData SaveContainerDataFunc) {
 				ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
 				defer cancel()
 
-				saveData(m.ID, m.Time)
 				logging.Get().Debug().Msgf("raw-container - received event from docker %+v", m)
-				if m.Actor.Attributes["io.kubernetes.docker.type"] == "podsandbox" {
-					logging.Get().Debug().Msgf("skip podsandbox container")
-					return
-				}
-				if ExportRawContainer {
-					container := d.containerFromEvent(m)
-					if m.Action != "stop" && m.Action != "destroy" {
-						container = d.updateContainerDetail(ctx, container)
+				saveData(m.ID, m.Time)
+				if d.mqReady.Load() {
+					if m.Actor.Attributes["io.kubernetes.docker.type"] == "podsandbox" {
+						logging.Get().Debug().Msgf("skip podsandbox container")
+						return
 					}
-					d.processEvents(ctx, container, m.Action)
+					if ExportRawContainer {
+						container := d.containerFromEvent(m)
+						if m.Action != "stop" && m.Action != "destroy" {
+							container = d.updateContainerDetail(ctx, container)
+						}
+						d.processEvents(ctx, container, m.Action)
+					}
 				}
 			}()
 		case err := <-errs:
@@ -212,6 +217,11 @@ func (d *DockerInfoManager) Start() error {
 
 		logging.Get().Debug().Msg("start DockerInfoManager")
 		if ExportRawContainer {
+			// check if mq ready
+			d.agent.HandlerContainerSyncCheck(context.Background(), d.clusterKey, d.hostName)
+			d.agent.MqReady(true)
+			d.mqReady.Store(true)
+
 			d.listAll()
 			d.agent.HandlerContainerSync(context.Background(), d.clusterKey, d.hostName, t)
 		}

@@ -43,6 +43,7 @@ const (
 	AssetsSync                WatchedType = "assetssync"
 	RawContainer              WatchedType = "rawcontainer"
 	ContainerSync             WatchedType = "containersync"
+	ContainerSyncStart        WatchedType = "containersyncstart"
 )
 
 type Callback interface {
@@ -370,6 +371,15 @@ func (w *Watcher) process(ctx context.Context, message kafka.Message) error {
 				continue
 			}
 		}
+	case ContainerSyncStart:
+		ts := &TensorSync{}
+		err = json.Unmarshal(rawMsg, ts)
+		if err != nil {
+			logging.Get().Err(err).Msg("unmarshal container sync err")
+			return err
+		}
+		logging.Get().Info().Msgf("raw container at host %s/%s start syncing at %v",
+			ts.Cluster, ts.NodeName, ts.SyncTime)
 	}
 	return nil
 }
