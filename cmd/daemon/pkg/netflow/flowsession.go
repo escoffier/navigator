@@ -268,6 +268,11 @@ func (fs *FlowSession) DialUnixSocket(address string) error {
 }
 
 func (fs *FlowSession) Start(ctx context.Context) {
+	if !fs.NetFlowEnable {
+		logging.Get().Warn().Msgf("netflow disable!!!")
+		return
+	}
+
 	//handle queue data
 	go func() {
 		defer func() {
