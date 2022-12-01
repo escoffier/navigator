@@ -9,7 +9,9 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/security-rd/go-pkg/logging"
 	"gitlab.com/security-rd/go-pkg/mq"
+	"k8s.io/apimachinery/pkg/util/wait"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -17,6 +19,7 @@ type Agent struct {
 	mqWriter mq.Writer
 	cache    *cache
 	lock     sync.Mutex
+	mqReady  atomic.Bool
 }
 
 func NewAgent(writer mq.Writer) *Agent {
@@ -24,6 +27,10 @@ func NewAgent(writer mq.Writer) *Agent {
 }
 
 func (a *Agent) HandlerContainerEvent(ctx context.Context, clusterKey string, action assets.Action, container *model.TensorRawContainer) {
+	if !a.mqReady.Load() {
+		logging.Get().Debug().Str("raw-container", "handle event").Msg("mq is not ready")
+		return
+	}
 	finalContainer := container
 	if container.K8sManaged && action != assets.ActionDelete && (container.ResourceName == "" || container.ContainerID == "") {
 		rawContainer, ok := a.cache.get(keyFunc(container.Namespace, container.PodName))
@@ -72,10 +79,14 @@ func (a *Agent) HandlerContainerEvent(ctx context.Context, clusterKey string, ac
 	}
 
 	logging.Get().Debug().Msgf("raw-container - handle container: %v", string(data))
-	a.mqWriter.Write(ctx, "kube-resources", kafka.Message{
+	err = a.mqWriter.Write(ctx, "kube-resources", kafka.Message{
 		Key:   []byte(container.ContainerID),
 		Value: data,
 	})
+	if err != nil {
+		logging.Get().Err(err).Msgf("failed to write raw-container: %s to mq", container.ContainerID)
+		return
+	}
 }
 
 func (a *Agent) HandlerContainerSync(ctx context.Context, clusterKey, nodeName string, t time.Time) {
@@ -95,36 +106,49 @@ func (a *Agent) HandlerContainerSync(ctx context.Context, clusterKey, nodeName s
 	}
 
 	logging.Get().Debug().Msgf("handle container sync: %v", string(data))
-	a.mqWriter.Write(ctx, "kube-resources", kafka.Message{
+	err = a.mqWriter.Write(ctx, "kube-resources", kafka.Message{
 		Key:   []byte(clusterKey),
 		Value: data,
 	})
-}
-
-func mergeContainer(old, new *model.TensorRawContainer) *model.TensorRawContainer {
-	// from pod
-	if new.ContainerID == "" {
-		old.ResourceKind = new.ResourceKind
-		old.ResourceName = new.ResourceName
-		return old
-	} else {
-		new.ResourceKind = old.ResourceKind
-		new.ResourceName = old.ResourceName
-		return new
+	if err != nil {
+		logging.Get().Err(err).Msg("failed to write raw-container sync to mq")
+		return
 	}
 }
 
-//func MergeVolumeMounts(kubeMounts, dockerMounts []model.Mounts) []model.Mounts {
-//	volumeMounts := make([]model.Mounts, 0, len(dockerMounts))
-//	for _, dockerMount := range dockerMounts {
-//		for _, kubeMount := range kubeMounts {
-//			if dockerMount.MountPath == kubeMount.MountPath {
-//				dockerMount.SubPath = kubeMount.SubPath
-//				dockerMount.SubPathExpr = kubeMount.SubPathExpr
-//				break
-//			}
-//		}
-//		volumeMounts = append(volumeMounts, dockerMount)
-//	}
-//	return volumeMounts
-//}
+// HandlerContainerSyncCheck check if syncing container could start, it will wait until check passed
+func (a *Agent) HandlerContainerSyncCheck(ctx context.Context, clusterKey, nodeName string) {
+	event := &assets.ResourceEvent{
+		Type:       assets.ContainerSyncStart,
+		ClusterKey: clusterKey,
+		Resource: &assets.TensorSync{
+			Cluster:  clusterKey,
+			NodeName: nodeName,
+			SyncTime: time.Now(),
+		},
+	}
+	data, err := json.Marshal(event)
+	if err != nil {
+		logging.Get().Err(err).Str("raw-container", "sync start").Msgf("marshal container sync-start: %s failed")
+		return
+	}
+
+	logging.Get().Debug().Str("raw-container", "sync start").Msg("handle container sync start")
+	stopChan := make(chan struct{})
+	wait.PollImmediateUntil(time.Second*10, func() (done bool, err error) {
+		err = a.mqWriter.Write(ctx, "kube-resources", kafka.Message{
+			Key:   []byte(clusterKey),
+			Value: data,
+		})
+		if err != nil {
+			logging.Get().Err(err).Str("raw-container", "sync start").Msg("failed to write raw-container sync-start to mq")
+			return false, nil
+		}
+		return true, nil
+	}, stopChan)
+
+}
+
+func (a *Agent) MqReady(flag bool) {
+	a.mqReady.Store(flag)
+}
