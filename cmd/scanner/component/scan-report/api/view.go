@@ -25,7 +25,7 @@ type ExportTensorTaskView struct {
 	UpdatedAt time.Time `json:"updatedAt"`
 }
 
-func ModelToView(data model.ExportTensorTask) ExportTensorTaskView {
+func ModelToView(data model.ExportTensorTask, lang string) ExportTensorTaskView {
 
 	task := ExportTensorTaskView{
 		ID:          data.ID,
@@ -39,15 +39,7 @@ func ModelToView(data model.ExportTensorTask) ExportTensorTaskView {
 		CreatedAt:   data.CreatedAt,
 	}
 	task.FilePath = GetFilename(data.FilePath)
-
-	switch data.ExecuteType {
-	case consts.ExportSingleImage, consts.ExportScanResult, consts.ExportImageSearch:
-		task.ExecuteType = consts.ExportImageView
-	case consts.ExportVuln:
-		task.ExecuteType = consts.ExportVulnView
-	case consts.AuditExeType:
-		task.ExecuteType = consts.AuditExeTypeView
-	}
+	task.ExecuteType = consts.GetExportTypeView(task.ExecuteType, lang)
 
 	if data.StartAt <= consts.ExportHtmlReady {
 		task.Status = consts.ExportStatusPending
