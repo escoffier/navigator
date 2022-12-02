@@ -1,5 +1,9 @@
 package consts
 
+import (
+	"strings"
+)
+
 const (
 	ExportScanResult  string = "ExportScanTask"
 	ExportVuln        string = "ExportVuln"
@@ -7,10 +11,45 @@ const (
 	ExportSingleImage string = "ExportImage"
 	ExportImageSearch string = "ExportImageSearch"
 
-	ExportImageView  string = "镜像报告"
-	AuditExeTypeView string = "审计日志"
-	ExportVulnView   string = "漏洞报告"
+	ExportImageViewCH  string = "镜像报告"
+	AuditExeTypeViewCH string = "审计日志"
+	ExportVulnViewCH   string = "漏洞报告"
+
+	ExportImageViewEN  string = "Image Report"
+	AuditExeTypeViewEN string = "Audit Log"
+	ExportVulnViewEN   string = "Vulnerability Report"
 )
+
+const (
+	LangEN  = "en"
+	LangCH  = "ch"
+	LangKey = "lang"
+)
+
+func GetExportTypeView(exportType string, lang string) string {
+	if strings.ToLower(lang) == LangCH {
+		switch exportType {
+		case ExportSingleImage, ExportScanResult, ExportImageSearch:
+			return ExportImageViewCH
+		case ExportVuln:
+			return ExportVulnViewCH
+		case AuditExeType:
+			return AuditExeTypeViewCH
+		}
+	}
+
+	if strings.ToLower(lang) == LangEN {
+		switch exportType {
+		case ExportSingleImage, ExportScanResult, ExportImageSearch:
+			return ExportImageViewEN
+		case ExportVuln:
+			return ExportVulnViewEN
+		case AuditExeType:
+			return AuditExeTypeViewEN
+		}
+	}
+	return ""
+}
 
 const (
 	ExportStatusEmpty   = ""

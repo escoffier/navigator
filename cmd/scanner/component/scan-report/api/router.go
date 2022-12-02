@@ -2,12 +2,14 @@ package api
 
 import (
 	"net/http"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	rkentry "github.com/rookie-ninja/rk-entry/entry"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scan-report/export/html"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scan-report/service"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 )
 
 func SetupGinRouter(exportSrv service.ExportTaskInterface, ExportHtmlInterface html.ExportHtmlInterface) *gin.Engine {
@@ -15,7 +17,7 @@ func SetupGinRouter(exportSrv service.ExportTaskInterface, ExportHtmlInterface h
 	router := gin.Default()
 	router.MaxMultipartMemory = 2 << 20
 
-	router.Use(gin.Logger(), gin.Recovery())
+	router.Use(gin.Logger(), gin.Recovery(), LangMiddleware)
 
 	exportApiSrv := NewExportApiSrv(exportSrv)
 	exportHtmlApiSrv := NewExportHtmlApiSrv(ExportHtmlInterface)
@@ -45,6 +47,18 @@ func SetupGinRouter(exportSrv service.ExportTaskInterface, ExportHtmlInterface h
 	}
 
 	return router
+}
+
+func LangMiddleware(ctx *gin.Context) {
+	lang := strings.ToLower(ctx.GetHeader("Accept-Language"))
+	if lang == "" {
+		lang = strings.ToLower(ctx.GetHeader("accept-language"))
+	}
+	if lang != consts.LangEN {
+		lang = consts.LangCH
+	}
+	ctx.Set(consts.LangKey, strings.ToLower(lang))
+	ctx.Next()
 }
 
 func GenStaticFileHandlerEntry(fileDir string) *rkentry.StaticFileHandlerEntry {

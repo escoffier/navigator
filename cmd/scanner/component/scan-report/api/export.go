@@ -296,7 +296,7 @@ func (s *ExportApiSrv) GetExportTaskDetail(ctx *gin.Context) {
 		response.JSONError(ctx, err)
 		return
 	}
-	response.JSONOK(ctx, response.WithItem(ModelToView(*task)))
+	response.JSONOK(ctx, response.WithItem(ModelToView(*task, ctx.GetString(consts.LangKey))))
 }
 
 func (s *ExportApiSrv) GetReportTaskList(ctx *gin.Context) {
@@ -314,7 +314,7 @@ func (s *ExportApiSrv) GetReportTaskList(ctx *gin.Context) {
 	}
 	ans := make([]ExportTensorTaskView, len(tasks))
 	for i := range tasks {
-		ans[i] = ModelToView(tasks[i])
+		ans[i] = ModelToView(tasks[i], ctx.GetString(consts.LangKey))
 	}
 	for i := range ans {
 		if ans[i].Status == consts.ExportStatusRunning {
@@ -325,7 +325,7 @@ func (s *ExportApiSrv) GetReportTaskList(ctx *gin.Context) {
 		}
 	}
 
-	// 前端需要字段当前有多少个任务未完成
+	// 前端需要知道当前有多少个任务未完成
 	_, notFinished, err := s.exportSrv.SearchExportTask(ctx, service.SearchExportTaskParam{
 		ExecuteType: executeType,
 		Finished:    consts.FalseString,
