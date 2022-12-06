@@ -111,6 +111,10 @@ func (s *SyncRepoImage) GetSyncStatus(ctx context.Context, syncType consts.SyncT
 		return nil, err
 	}
 	for i := range syncTask {
+		_, ok := exit[syncTask[i].RegistryID]
+		if !ok {
+			continue
+		}
 		exit[syncTask[i].RegistryID].Status = true
 	}
 	ans := make([]*ResponseGetSyncStatus, 0)
