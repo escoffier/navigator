@@ -74,8 +74,8 @@ typedef struct
     int  addrType;
     int  srcPort;
     int  dstPort;
-    char srcIp[16];
-    char dstIp[16];
+    char srcIp[INET6_ADDRSTRLEN];
+    char dstIp[INET6_ADDRSTRLEN];
 } PidAssMnt;
 
 typedef struct

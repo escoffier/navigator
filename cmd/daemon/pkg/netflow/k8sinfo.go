@@ -76,7 +76,7 @@ func (n *NodePodsInfo) OnAdd(newPod *nodeinfo.PodEvent, containerInfo nodeinfo.C
 		return
 	}
 
-	if newPod.Pod.Spec.HostNetwork || newPod.Pod.Status.PodIP == "" || newPod.Pod.Status.PodIP == NoneValue {
+	if newPod.Pod.Spec.HostNetwork {
 		return
 	}
 
@@ -88,10 +88,16 @@ func (n *NodePodsInfo) OnDelete(oldPod *nodeinfo.PodEvent) {
 		return
 	}
 
-	if oldPod.Pod.Spec.HostNetwork || oldPod.Pod.Status.PodIP == "" || oldPod.Pod.Status.PodIP == NoneValue {
+	if oldPod.Pod.Spec.HostNetwork {
 		return
 	}
-	n.DeleteResData(oldPod.Pod.Status.PodIP)
+
+	for _, podIp := range oldPod.Pod.Status.PodIPs {
+		if podIp.IP == "" || podIp.IP == NoneValue {
+			continue
+		}
+		n.DeleteResData(podIp.IP)
+	}
 }
 
 func (n *NodePodsInfo) OnUpdate(oldPod, newPod *nodeinfo.PodEvent, containerInfo nodeinfo.ContainerInfoManager) {
@@ -106,10 +112,21 @@ func (n *NodePodsInfo) savePodData(podEvt *nodeinfo.PodEvent, containerInfo node
 	if podEvt.Pod == nil {
 		return
 	}
+	//need save
+	keys := make([]string, 0)
+	for _, podIP := range podEvt.Pod.Status.PodIPs {
+		if podIP.IP == "" || podIP.IP == NoneValue {
+			continue
+		}
 
-	podIP := podEvt.Pod.Status.PodIP
-	_, ok := n.resInfos.Load(podIP)
-	if ok {
+		_, ok := n.resInfos.Load(podIP.IP)
+		if ok {
+			continue
+		}
+		keys = append(keys, podIP.IP)
+	}
+	//check ip
+	if len(keys) == 0 {
 		return
 	}
 
@@ -127,7 +144,10 @@ func (n *NodePodsInfo) savePodData(podEvt *nodeinfo.PodEvent, containerInfo node
 	rsData.Namespace = podEvt.Pod.Namespace
 	rsData.ListenPorts = make(map[string]*daemon.ProcessInfo, 2)
 
-	n.resInfos.LoadOrStore(podIP, &rsData)
+	for _, ip := range keys {
+		//logging.Get().Info().Msgf("save pods : %+v.", ip)
+		n.resInfos.LoadOrStore(ip, &rsData)
+	}
 }
 
 func (n *NodePodsInfo) DeleteResData(ip string) {
