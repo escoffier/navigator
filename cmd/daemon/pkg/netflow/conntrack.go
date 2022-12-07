@@ -41,6 +41,8 @@ const (
 const (
 	IPPROTO_TCP = unix.IPPROTO_TCP
 	IPPROTO_UDP = unix.IPPROTO_UDP
+	AF_INET     = unix.AF_INET
+	AF_INET6    = unix.AF_INET6
 )
 
 type NlMsgHdr struct {
@@ -58,7 +60,7 @@ type ConntrackTools struct {
 	SocketFd int
 }
 
-//create conntrack socket
+// create conntrack socket
 func (ct *ConntrackTools) CreateConntrackSocket() error {
 	if ct.Groups == 0 {
 		return errors.Errorf("conntrack's groups is error, now groups : %v", ct.Groups)
@@ -87,7 +89,7 @@ func (ct *ConntrackTools) CreateConntrackSocket() error {
 	return nil
 }
 
-//close conntrack socket
+// close conntrack socket
 func (ct ConntrackTools) Close() {
 	if ct.SocketFd > 0 {
 		unix.Close(ct.SocketFd)

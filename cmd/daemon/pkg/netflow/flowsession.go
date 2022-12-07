@@ -208,21 +208,12 @@ func NewFlowSession(k8sInfo *NodePodsInfo, crim nodeinfo.ContainerInfoManager, c
 	if ok := os.Getenv("NETFLOW_ENABLE"); ok == "false" {
 		NetFlowEnable = false
 	}
-
-	myPodIP := os.Getenv("MY_POD_IP")
-	if myPodIP == "" {
-		return nil, errors.Errorf("Pod IP (found=%s) is missing, set MY_POD_IP env using k8s Downward API", myPodIP)
-	}
-
+	//get host ip
 	myHostIP := os.Getenv("MY_HOST_IP")
-	if myPodIP == "" {
-		return nil, errors.Errorf("Host IP (found=%s) is missing, set MY_HOST_IP env using k8s Downward API", myPodIP)
+	if myHostIP == "" {
+		return nil, errors.Errorf("Host IP (found=%s) is missing, set MY_HOST_IP env using k8s Downward API", myHostIP)
 	}
-
-	if myPodIP != myHostIP {
-		return nil, errors.Errorf("Pod IP (found=%s) must equal Host IP (found=%s), check if hostNetwork is true", myPodIP, myHostIP)
-	}
-
+	//console url
 	url := fmt.Sprintf("%s/internal/platform/networkTopo/topologies", consoleURL)
 
 	fs := FlowSession{
@@ -296,10 +287,15 @@ func (fs *FlowSession) Start(ctx context.Context) {
 		}()
 		//print log
 		logging.Get().Info().Msgf("conntrack session init list.")
-		//list session
-		err := fs.conntrackInitList(ctx)
+		//list ipv4 session
+		err := fs.conntrackInitList(ct.IPv4)
 		if err != nil {
-			logging.Get().Error().Msgf("init session failed, %v.", err)
+			logging.Get().Error().Msgf("init ipv4 session failed, %v.", err)
+		}
+		//list ipv4 session
+		err = fs.conntrackInitList(ct.IPv6)
+		if err != nil {
+			logging.Get().Error().Msgf("init ipv6 session failed, %v.", err)
 		}
 	}()
 	//handling timeout session
@@ -1027,16 +1023,18 @@ func (fs *FlowSession) ProcSessionData(netSession *daemon.NetSessionLink) error 
 	return fs.submitter.Submit(context.Background(), netData)
 }
 
-func (fs *FlowSession) conntrackInitList(ctx context.Context) error {
+func (fs *FlowSession) conntrackInitList(family ct.Family) error {
 	nfct, err := ct.Open(&ct.Config{})
 	if err != nil {
 		return errors.Errorf("conntrack open faied, %v", err)
 	}
 
-	defer nfct.Close()
+	defer func() {
+		_ = nfct.Close()
+	}()
 
 	// Get all IPv4 entries of the expected table.
-	sessions, err := nfct.Dump(ct.Conntrack, ct.IPv4)
+	sessions, err := nfct.Dump(ct.Conntrack, family)
 	if err != nil {
 		return errors.Errorf("conntrack dump failed, %v", err)
 	}

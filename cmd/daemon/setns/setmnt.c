@@ -78,6 +78,28 @@ char *PrintAddress(PidAssMnt *mnt)
     return str;
 }
 
+int Ipv6Equal(char *addr1, char *addr2)
+{
+    int ret = -1, i = 0;
+    unsigned char n_addr1[17];
+    unsigned char n_addr2[17];
+
+    if(!addr1 || !addr2) return -1;
+    //init
+    memset(n_addr1, 0, sizeof(n_addr1));
+    memset(n_addr2, 0, sizeof(n_addr2));
+    //convert
+    ret = inet_pton(AF_INET6, addr1, &(n_addr1));
+    if(ret <= 0) RETURN_ERROR(-1, "format ipv6 address failed, ipv6 : %s.", addr1);
+    //
+    ret = inet_pton(AF_INET6, addr2, &(n_addr2));
+    if(ret <= 0) RETURN_ERROR(-1, "format ipv6 address failed, ipv6 : %s.", addr2);
+    //
+    if(memcmp(n_addr1, n_addr2, sizeof(n_addr1)) == 0 ) return 0;
+
+    return -1;
+}
+
 int ParseRcvJson(char *buf, PidAssMnt *mnt)
 {
     cJSON *root, *item, *tuple;
@@ -298,17 +320,10 @@ int ReadAllPid(char *path, int *procNum, int pids[])
     DIR *pDir; 
     struct dirent *ent;
     
-    if((path == NULL) || (procNum == NULL) || (*procNum <= 0))
-    {
-        LOG_ERROR("read pid failed with use error argument!");
-        return -1;
-    }
+    if(!path || !procNum || (*procNum <= 0))  RETURN_ERROR(-1, "read pid failed with use error argument!");
+
     pDir = opendir(path);
-    if(pDir == NULL)
-    {
-        LOG_ERROR("open dir : %s failed!", path);
-        return -1;
-    }
+    if(pDir == NULL) RETURN_ERROR(-1, "open dir : %s failed!", path);
 
     while ((ent = readdir(pDir)) != NULL)
     {
@@ -321,62 +336,58 @@ int ReadAllPid(char *path, int *procNum, int pids[])
     //close
     closedir(pDir);
     //
-    if(i == 0)
-    {
-        LOG_ERROR("get pid failed! path : %s.", path);
-        return -1;
-    }
-    //
+    if(i == 0) RETURN_ERROR(-1, "get pid failed! path : %s.", path);
+   //
     *procNum = i;
     return 0;
 }
 
-int GetProcNetFiles(int proto, int *filesNum, int pids[], char filesPath[][128])
+int GetProcNetFiles(int proto, int pid, char filesPath[][256])
 {
-    int i, j = 0;
+    int j = 0;
 
-    if(!filesNum) return -2;
-
-    for(i = 0; i < *filesNum; i++)
+    switch(proto)
     {
-        if(pids[i] <= 0) continue;
-
-        switch(proto)
-        {
-            case IPPROTO_TCP:
-                memset(filesPath[j], 0, sizeof(filesPath[j]));
-                sprintf(filesPath[j++], "/proc/%d/net/tcp", pids[i]);
-                memset(filesPath[j], 0, sizeof(filesPath[j]));
-                sprintf(filesPath[j++], "/proc/%d/net/tcp6", pids[i]);
-                break;
-            case IPPROTO_UDP:
-                memset(filesPath[j], 0, sizeof(filesPath[j]));
-                sprintf(filesPath[j++], "/proc/%d/net/udp", pids[i]);
-                memset(filesPath[j], 0, sizeof(filesPath[j]));
-                sprintf(filesPath[j++], "/proc/%d/net/udp6", pids[i]);
-                break;
-            default:
-                break;
-        }
+        case IPPROTO_TCP:
+            memset(filesPath[j], 0, sizeof(filesPath[j]));
+            sprintf(filesPath[j++], "/proc/%d/net/tcp", pid);
+            memset(filesPath[j], 0, sizeof(filesPath[j]));
+            sprintf(filesPath[j++], "/proc/%d/net/tcp6", pid);
+            break;
+        case IPPROTO_UDP:
+            memset(filesPath[j], 0, sizeof(filesPath[j]));
+            sprintf(filesPath[j++], "/proc/%d/net/udp", pid);
+            memset(filesPath[j], 0, sizeof(filesPath[j]));
+            sprintf(filesPath[j++], "/proc/%d/net/udp6", pid);
+            break;
+        default:
+            break;
     }
 
-    if(j == 0)
-    {
-        LOG_ERROR("get all pid's net file failed!");
-        return -1;
-    }
-    //
-    *filesNum = j;
+    if(j == 0) RETURN_ERROR(-1, "get all pid's net file failed!");
+
     return 0;
+}
+
+char HexToByte(char s)
+{
+    if((s <= '9') && (s >= '0')) {
+        return s - '0';
+    } else if ((s >= 'a') && (s <= 'f')) {
+        return s - 'a' + 10;
+    } else if ((s >= 'A') && (s <= 'F')) {
+        return s - 'A' + 10;
+    }
+    return s;
 }
 
 int HexToDec(char *data)
 {
-    if(data == NULL) return 0;
+    if(!data) return 0;
     return strtol(data, NULL, 16);
 }
 
-void FormatIpString(char *buf, char ip[16][3])
+void FormatIpv4(char *buf, char ip[16][3])
 {
     int i = 0;
     for(i = 0; i < strlen(buf) / 2; i++)
@@ -386,31 +397,62 @@ void FormatIpString(char *buf, char ip[16][3])
     }
 }
 
+void FormatIpv6(char *buf, char ip[16][3])
+{
+    char c, d;
+    int i, j, srcIndex, targetIndex;
+    for(i = 0; i < 4; i++)
+    {
+        for(j = 0; j < 4; j++)
+        {
+            srcIndex = i *4 +3 -j;
+            targetIndex = i *4 + j;
+            c = HexToByte(buf[srcIndex * 2]);
+            d = HexToByte(buf[srcIndex * 2 + 1]);
+            memset(ip[targetIndex], 0, sizeof(ip[targetIndex]));
+            sprintf(ip[targetIndex], "%02x", c * 16 + d);
+        }
+    }
+}
+
 char *ConvertIp(char *buf)
 {
     int len;
     char str[16][3];
     static int seq = 0;
-    static char ip[10][32];
+    static char ip[10][INET6_ADDRSTRLEN];
     if(buf == NULL) return "";
     memset(ip[seq % 10], 0, sizeof(ip[seq % 10]));
     len = strlen(buf);
     if(len <= 8)
     {
-        FormatIpString(buf, str);
+        FormatIpv4(buf, str);
         sprintf(ip[seq % 10], "%d.%d.%d.%d", HexToDec(str[3]), HexToDec(str[2]), HexToDec(str[1]), HexToDec(str[0]));
     }
     else
     {
-        FormatIpString(buf, str);
+        FormatIpv6(buf, str);
         sprintf(ip[seq % 10], "%s%s:%s%s:%s%s:%s%s:%s%s:%s%s:%s%s:%s%s",
-        str[14], str[15], str[13], str[12], str[10], str[11], str[8], str[9],
-        str[6], str[7], str[4], str[5], str[2], str[3], str[0], str[1]);
+        str[0], str[1], str[2], str[3], str[4], str[5], str[6], str[7],
+        str[8], str[9], str[10], str[11], str[12], str[13], str[14], str[15]);
+        LOG_PRINT("ipv6 : %s.", ip[seq % 10]);
     }
+
     return ip[(seq++) % 10];
 }
 
-int ParseNetRawData(char *data, char netdata[6][33])
+int IpEqual(char *buf, char *ip)
+{
+    int ret;
+    char *localIp;
+    if(!buf || !ip) return -1;
+    localIp = ConvertIp(buf);
+    if(strlen(buf) <= 8) return strcmp(localIp, ip);
+    /*compare ipv6*/
+    return Ipv6Equal(localIp, ip);
+}
+
+int ParseNetRawData(char *data, char netdata[6][48])
 {
     int ret, i = 0, index = 0;
     char *str, *p, tmp[1024] = {0};
@@ -479,11 +521,8 @@ int MatchInode(char *inode, int pidNums, int pids[], int *pid)
         memset(dirPath, 0, sizeof(dirPath));
         sprintf(dirPath, "/proc/%d/fd", pids[i]);
         pDir = opendir(dirPath);
-        if(!pDir)
-        {
-            LOG_WARN("open dir : %s failed!", dirPath);
-            continue;
-        }
+        if(!pDir) CONTINUE_ERROR("open dir : %s failed!", dirPath);
+
         while((ent = readdir(pDir)) != NULL)
         {
             if(ent->d_type & DT_DIR) continue;
@@ -516,20 +555,22 @@ int MatchInode(char *inode, int pidNums, int pids[], int *pid)
     return -1;
 }
 
-int GetProcessWithTcp(PidAssMnt *mnt, int pidNums, int pids[], int filesNum, char files[][128], ProcessData *pstProcData)
+int GetProcessWithTcp(PidAssMnt *mnt, int pidNums, int pids[], int filesNum, char files[][256], ProcessData *pstProcData)
 {
     FILE *fp;
-    char buf[1024], netdata[6][33];
+    char buf[1024], netdata[6][48];
     char *localIp, *inode;
     int localPort, state, i, lineNum, pid = 0, ret = -1;
     if((!pstProcData) || (!mnt)) return -2;
     //set default value
     memset(pstProcData, 0, sizeof(ProcessData));
+    //print debug log
+    //LOG_PRINT("proto : %d, src_ip : %s:%d, dst_ip : %s:%d.", mnt->proto, mnt->srcIp, mnt->srcPort, mnt->dstIp, mnt->dstPort);
     //get process information
     for(i = 0; i < filesNum; i++)
     {
         fp = fopen(files[i], "r");
-        if(!fp) CONTINUE_ERROR("open tcp file %s failed, pids : %s, %s.", files[i], PrintPids(pids, pidNums), strerror(errno));
+        if(!fp) CONTINUE_ERROR("host pid : %d, open tcp file %s failed, pids : %s, %s.", mnt->pid, files[i], PrintPids(pids, pidNums), strerror(errno));
         
         lineNum = 0;
         while (!feof(fp))
@@ -544,7 +585,6 @@ int GetProcessWithTcp(PidAssMnt *mnt, int pidNums, int pids[], int filesNum, cha
             state = HexToDec(netdata[4]);
             if((state != LINK_ST_ESTABLISHED) && (state != LINK_ST_LISTEN)) continue;
             //match address
-            localIp = ConvertIp(netdata[0]);
             localPort = HexToDec(netdata[1]);
             inode = netdata[5];
             if(mnt->addrType == RCV_ADDR)
@@ -554,7 +594,7 @@ int GetProcessWithTcp(PidAssMnt *mnt, int pidNums, int pids[], int filesNum, cha
             }
             else
             {
-                if((localPort != mnt->srcPort) || (strcmp(localIp, mnt->srcIp) != 0)) continue;
+                if((localPort != mnt->srcPort) || (IpEqual(netdata[0], mnt->srcIp) != 0)) continue;
             }
             //set flag
             pstProcData->status = MATCH_SUCC;
@@ -578,11 +618,11 @@ int GetProcessWithTcp(PidAssMnt *mnt, int pidNums, int pids[], int filesNum, cha
     return ret;
 }
 
-int GetProcessWithUdp(PidAssMnt *mnt, int pidNums, int pids[], int filesNum, char files[][128], ProcessData *pstProcData)
+int GetProcessWithUdp(PidAssMnt *mnt, int pidNums, int pids[], int filesNum, char files[][256], ProcessData *pstProcData)
 {
     FILE *fp;
-    char buf[1024], netdata[6][33];
-    char *localIp, *inode;
+    char buf[1024], netdata[6][48];
+    char *inode;
     int localPort, state, i, lineNum, pid = 0, ret = -1;
     if((!pstProcData) || (!mnt)) return -2;
     //set default value
@@ -591,7 +631,7 @@ int GetProcessWithUdp(PidAssMnt *mnt, int pidNums, int pids[], int filesNum, cha
     for(i = 0; i < filesNum; i++)
     {
         fp = fopen(files[i], "r");
-        if(fp == NULL) CONTINUE_ERROR("open udp file %s failed, pids : %s, %s.", files[i], PrintPids(pids, pidNums), strerror(errno));
+        if(!fp) CONTINUE_ERROR("open udp file %s failed, pids : %s, %s.", files[i], PrintPids(pids, pidNums), strerror(errno));
 
         lineNum = 0;
         while (!feof(fp))
@@ -603,7 +643,6 @@ int GetProcessWithUdp(PidAssMnt *mnt, int pidNums, int pids[], int filesNum, cha
             ret = ParseNetRawData(buf, netdata);
             if(ret != 0) continue;
             //match address
-            localIp = ConvertIp(netdata[0]);
             localPort = HexToDec(netdata[1]);
             inode = netdata[5];
             if(mnt->addrType == RCV_ADDR)
@@ -612,7 +651,7 @@ int GetProcessWithUdp(PidAssMnt *mnt, int pidNums, int pids[], int filesNum, cha
             }
             else
             {
-                if((localPort != mnt->srcPort) || (strcmp(localIp, mnt->srcIp) != 0)) continue;
+                if((localPort != mnt->srcPort) || (IpEqual(netdata[0], mnt->srcIp) != 0)) continue;
             }
             //set flag
             pstProcData->status = MATCH_SUCC;
@@ -638,9 +677,9 @@ int GetProcessWithUdp(PidAssMnt *mnt, int pidNums, int pids[], int filesNum, cha
 
 static int GetProcessData(PidAssMnt *mnt, ProcessData *pstProcData)
 {
-    int pidNums = 30, filesNum = 2;
+    int pidNums = 20, filesNum = 2;
     int ret, pids[30];
-    char files[20][128];
+    char files[2][256];
     const char *pcDefPath = NULL;
     if((!mnt) || (!pstProcData)) return -2;
     if(pidNums > (sizeof(pids) / sizeof(int))) return -3;
@@ -650,7 +689,7 @@ static int GetProcessData(PidAssMnt *mnt, ProcessData *pstProcData)
     ret = ReadAllPid("/proc", &pidNums, pids);
     if(ret != 0) return ret;
     //get net files
-    ret = GetProcNetFiles(mnt->proto, &filesNum, pids, files);
+    ret = GetProcNetFiles(mnt->proto, pids[0], files);
     if(ret != 0) return ret;
     //
     switch (mnt->proto)
@@ -671,6 +710,7 @@ static int GetProcessData(PidAssMnt *mnt, ProcessData *pstProcData)
     switch(pstProcData->status)
     {
         case MATCH_IDLE:
+        case MATCH_SUCC:
             //set local mnt
             ret = SetLocalMntNs(szLocalMntNsFd);
             if(ret != 0) RETURN_ERROR(ret, "set local mnt ns failed!");
@@ -680,9 +720,6 @@ static int GetProcessData(PidAssMnt *mnt, ProcessData *pstProcData)
 
         case GET_DATA_SUCC:
             return 0;
-
-        case MATCH_SUCC:
-            break;
 
         default:
             LOG_ERROR("get process status is error! pid : %d, %s.", pstProcData->pid, PrintAddress(mnt));
