@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/google/go-containerregistry/pkg/name"
+	"github.com/shopspring/decimal"
 
 	"github.com/golang/gddo/httputil/header"
 	json "github.com/json-iterator/go"
@@ -233,4 +234,17 @@ func JoinInt64Slice(data []int64, join string) string {
 		res[i] = strconv.Itoa(int(data[i]))
 	}
 	return strings.Join(res, join)
+}
+
+func ByteToMB(b int) string {
+	if b <= 0 {
+		return ""
+	}
+	mb := float64(b) / (1024 * 1024)
+	f, _ := decimal.NewFromFloat(mb).Round(2).Float64()
+	return ToString(f) + "MB"
+}
+
+func ToString(value interface{}) string {
+	return fmt.Sprintf("%v", value)
 }

@@ -7,14 +7,15 @@ import (
 	"strings"
 	"time"
 
-	scanVuln "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scanner-vuln"
+	"gitlab.com/security-rd/go-pkg/logging"
+	"scm.tensorsecurity.cn/tensorsecurity-rd/trivy/pkg/report"
+
+	scanVuln "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/bolt-vuln"
 	vulnmatch "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/vuln-match"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	scanner_ci "gitlab.com/piccolo_su/vegeta/pkg/model/scanner-ci"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
-	"gitlab.com/security-rd/go-pkg/logging"
-	"scm.tensorsecurity.cn/tensorsecurity-rd/trivy/pkg/report"
 )
 
 type Controller struct {
@@ -277,7 +278,7 @@ func (c *Controller) AddRHSAAndCnnvd(vulnDetails *model.SingleScanDetail, vulnDe
 }
 
 func (c *Controller) arrangeVulnDetails(trivyReport *report.Results, scanDetails *model.ScanDetailScanImage) {
-	vulnQuery := scanVuln.GetScannerVuln()
+	vulnQuery := scanVuln.GetSingleBoltVuln()
 	fixedFlag := 0
 	for i, v := range *trivyReport {
 		mp := make(map[string]*model.NewVulnDetail)
@@ -300,17 +301,17 @@ func (c *Controller) arrangeVulnDetails(trivyReport *report.Results, scanDetails
 		// 整合漏洞数据
 		scanDetails.VulnDetails[i].Vulns = make([]model.NewVulnDetail, 0, len(mp))
 		for k, trivyDetail := range mp {
-			tmpDetail, err := vulnQuery.GetVulnDetail(k)
+			cnvd, cnnvd, err := vulnQuery.GetVulnDetail(k)
 			if err != nil {
 				trivyDetail.CVEID = k
 				scanDetails.VulnDetails[i].Vulns = append(scanDetails.VulnDetails[i].Vulns, *trivyDetail)
-				//c.AddRHSAAndCnnvd(&scanDetails.VulnDetails[i], *trivyDetail, 0)
+				// c.AddRHSAAndCnnvd(&scanDetails.Vulns[i], *trivyDetail, 0)
 				continue
 			}
 			trivyDetail.CVEID = k
-			trivyDetail.Cnnvd = tmpDetail.Cnnvd
-			trivyDetail.Cnvd = tmpDetail.Cnvd
-			//c.AddRHSAAndCnnvd(&scanDetails.VulnDetails[i], *trivyDetail, 0)
+			trivyDetail.Cnnvd = cnnvd
+			trivyDetail.Cnvd = cnvd
+			// c.AddRHSAAndCnnvd(&scanDetails.Vulns[i], *trivyDetail, 0)
 			scanDetails.VulnDetails[i].Vulns = append(scanDetails.VulnDetails[i].Vulns, *trivyDetail)
 		}
 	}

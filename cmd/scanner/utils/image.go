@@ -5,8 +5,6 @@ import (
 	"os"
 	"strings"
 
-	"scm.tensorsecurity.cn/tensorsecurity-rd/trivy/pkg/report"
-
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
@@ -18,12 +16,36 @@ func GenFixSuggestion(sensitives []model.Sensitive, osString string, vulns []*mo
 	// 生成漏洞的建议
 	suggests = append(suggests, GenVulnSuggest(osString, vulns)...)
 	// 生成敏感文件的建议
-	suggests = append(suggests, GenSensitiveFileSuggest(sensitives)...)
+	suggests = append(suggests, GenSensitiveFileSuggest2(sensitives)...)
 	return suggests
 }
 
 // 生成敏感文件的修复建议
-func GenSensitiveFileSuggest(files []model.Sensitive) []string {
+// 下个版本废弃
+func GenSensitiveFileSuggest2(files []model.Sensitive) []string {
+	pre := []string{"建议在镜像中移除以下敏感文件，然后重新打包镜像："}
+	res := make([]string, 0)
+	for i := range files {
+		file := files[i]
+		if file.Name == "" {
+			continue
+		}
+		if !strings.HasPrefix(file.Name, "/") {
+			file.Name = "/" + file.Name
+		}
+
+		res = append(res, file.Name)
+	}
+	res = util.DeDuplicationStringSlice(res)
+	if len(res) > 0 {
+		pre = append(pre, res...)
+		return pre
+	}
+	return []string{}
+}
+
+// 生成敏感文件的修复建议
+func GenSensitiveFileSuggest(files []*model.ImageSensitiveFile) []string {
 	pre := []string{"建议在镜像中移除以下敏感文件，然后重新打包镜像："}
 	res := make([]string, 0)
 	for i := range files {
@@ -55,7 +77,7 @@ func GenVulnSuggest(osstring string, vulns []*model.Vuln) []string {
 	ans := make([]string, 0)
 
 	for i := range vulns {
-		if vulns[i].FixedBy != "" && vulns[i].Class == report.ClassOSPkg {
+		if vulns[i].FixedBy != "" && util.ExistBit1(vulns[i].Flag, model.VulnFlagClassOSPkg) {
 			ans = append(ans, vulns[i].PkgName)
 		}
 	}

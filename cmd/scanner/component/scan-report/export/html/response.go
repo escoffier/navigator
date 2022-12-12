@@ -1,9 +1,8 @@
 package html
 
 import (
-	"scm.tensorsecurity.cn/tensorsecurity-rd/trivy/pkg/report"
-
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
+	"gitlab.com/piccolo_su/vegeta/pkg/util"
 )
 
 // 单个镜像的扫描报告
@@ -29,24 +28,23 @@ type VirusInfo struct {
 
 // 镜像列表
 type Image struct {
-	ImageID     int64             `json:"imageID"`
-	ImageName   string            `json:"imageName"`
-	FixedVuln   VulnSeverityCount `json:"fixedVuln"`
-	UnFixedVuln VulnSeverityCount `json:"unFixedVuln"`
-	Malicious   int64             `json:"malicious"` // 病毒
-	RiskScore   float64           `json:"riskScore"`
-	Flag        uint64            `json:"flag"`
+	ImageID       int64             `json:"imageID"`
+	ImageName     string            `json:"imageName"`
+	FixedVuln     VulnSeverityCount `json:"fixedVuln"`
+	UnFixedVuln   VulnSeverityCount `json:"unFixedVuln"`
+	Malicious     int64             `json:"malicious"` // 病毒
+	RiskScore     float64           `json:"riskScore"`
+	NotMaintained bool              `json:"notMaintained"` // 镜像不再维护
+	Flag          uint64            `json:"flag"`
 }
 
 func (im *Image) AddVulnSeverityCount(vulns []*model.Vuln) {
 	for i := range vulns {
-		// 中移临时需求，html导出暂时屏蔽语言包漏洞
-		if vulns[i].Class == report.ClassLangPkg {
+		// todo 中移临时需求，html导出暂时屏蔽语言包漏洞
+		if util.ExistBit1(vulns[i].Flag, model.VulnFlagClassLangPkg) {
 			continue
 		}
-		if vulns[i].IsRHSAVuln() || vulns[i].IsCNNVDVuln() {
-			continue
-		}
+
 		if vulns[i].FixedBy != "" {
 
 			switch vulns[i].SeverityInt {
@@ -115,7 +113,9 @@ type VulnDetail struct {
 	PkgName       string `json:"pkgName"`       // 软件包来源
 	PkgVersion    string `json:"pkgVersion"`    // 软件包版本
 	UniqueVuln    uint64 `json:"uniqueVuln,string"`
-	Link          string `json:"link"`
+	Link          string `json:"link"`     // 链接
+	Class         string `json:"class"`    // 漏洞类型:os-pkgs:表示系统漏洞， lang-pkgs 表示应用漏洞
+	IsKernel      bool   `json:"isKernel"` // 是否是内核漏洞
 }
 
 // 漏洞详情按层级统计
@@ -140,6 +140,9 @@ func ModelToVulnDetail(vuln *model.Vuln) VulnDetail {
 		PkgName:     vuln.PkgName,
 		PkgVersion:  vuln.PkgVersion,
 		UniqueVuln:  vuln.UniqueVuln,
+		Class:       vuln.GetVulnClass(),
+		IsKernel:    util.ExistBit1(vuln.Flag, model.VulnFlagKernel),
+		CNNVDNumber: vuln.CnnvdName,
 	}
 	if vuln.Metadata != nil {
 		vd.Cvssv3score = vuln.Metadata.CVSS.CVSSv3Score

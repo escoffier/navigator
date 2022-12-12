@@ -81,8 +81,12 @@ func (s *ScanStrategy) TableName() string {
 }
 
 type Software struct {
-	Name    string `json:"name"`
-	Version string `json:"version"`
+	Name            string `json:"name"`
+	Version         string `json:"version"`
+	License         string `json:"license"`
+	AbnormalSoft    bool   `json:"abnormalSoft"`
+	AbnormalLicense bool   `json:"AbnormalLicense"`
+	LayerDigest     string `json:"layerDigest"`
 }
 
 func (s *ScanConfig) ToUpdater() map[string]interface{} {

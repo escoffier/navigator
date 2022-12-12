@@ -319,7 +319,7 @@ func (s *ScannerOrm) GetImagesByTask(ctx context.Context, limit, offset int, tas
 		Offset(offset).
 		Select(selectFiled).
 		// Where("t.updated_at >= ? AND t.updated_at < ?", time.Unix(task.StartTimeStamp, 0), time.Unix(task.EndTimeStamp, 0)).
-		Joins(fmt.Sprintf("LEFT JOIN %s AS s ON t.id = s.image_id", model.ScanImage{}.TableName())).
+		Joins(fmt.Sprintf("LEFT JOIN %s AS s ON t.id = s.image_id", new(model.ScanImage).TableName())).
 		Joins(fmt.Sprintf("LEFT JOIN %s AS ti ON t.digest = ti.digest", model.TrustedImages{}.TableName())).
 		Joins(fmt.Sprintf("LEFT JOIN (SELECT DISTINCT image_uuid FROM %s) as tc ON t.image_uuid = tc.image_uuid AND t.from_type != 2", model.TensorContainer{}.TableName()))
 

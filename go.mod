@@ -90,7 +90,7 @@ require (
 	k8s.io/apiserver v0.20.15
 	k8s.io/client-go v0.20.15
 	scm.tensorsecurity.cn/tensorsecurity-rd/cloudwalker v0.0.5
-	scm.tensorsecurity.cn/tensorsecurity-rd/trivy v0.19.3-0.20220415061753-3cc5416a372e
+	scm.tensorsecurity.cn/tensorsecurity-rd/trivy v0.19.3-0.20221214060750-295710458d65
 )
 
 require github.com/go-ldap/ldap/v3 v3.4.1

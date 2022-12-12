@@ -10,6 +10,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/task"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/utils"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
@@ -19,27 +20,152 @@ type ImageSrvInterface interface {
 	ListImageWithScanInfo(ctx context.Context, param model.ImageListParam, filter *model.Filter) ([]*model.ImageListResponse, int64, error)
 	CreateScanImageTask(ctx context.Context, param model.ImageListParam, taskInfo task.UpdateTaskInfo) error
 	GetRegistryProject(ctx context.Context, param GetRegistryProjectParam) ([]RegistryRepo, error)
+	ImageIssueStatistic(ctx context.Context, imageID int64) (*model.SecurityIssueOverview, error)
+	ImageBaseDetail(ctx context.Context, imageID int64) (*model.ImageBaseResponse, error)
 }
 
 type ImageSrv struct {
-	dbdal       store.ScannerDalInterface
-	scanTaskDal store.ScanTaskInterface
-	registryDal store.RegistryDal
+	dbdal         store.ScannerDalInterface
+	scanTaskDal   store.ScanTaskInterface
+	registryDal   store.RegistryDal
+	vulnDal       store.VulnDalInterface
+	scanResultDal store.ImageScanResultDal
 }
 
 func NewImageService(
 	dbdal store.ScannerDalInterface,
 	registryDal store.RegistryDal,
 	scanTaskDal store.ScanTaskInterface,
+	vulnDal store.VulnDalInterface,
+	scanResultDal store.ImageScanResultDal,
 ) *ImageSrv {
 	return &ImageSrv{
-		dbdal:       dbdal,
-		scanTaskDal: scanTaskDal,
-		registryDal: registryDal,
+		dbdal:         dbdal,
+		scanTaskDal:   scanTaskDal,
+		registryDal:   registryDal,
+		vulnDal:       vulnDal,
+		scanResultDal: scanResultDal,
 	}
 }
 
-func (s *ImageSrv) ListImageWithScanInfo(ctx context.Context, param model.ImageListParam, filter *model.Filter) ([]*model.ImageListResponse, int64, error) {
+func (s *ImageSrv) ImageIssueStatistic(ctx context.Context, imageID int64) (*model.SecurityIssueOverview, error) {
+	// base info
+	filter := &model.Filter{Limit: 1}
+	images, _, err := s.dbdal.SearchImage(ctx, store.SearchImageParam{InIds: []int64{imageID}}, filter)
+	if err != nil {
+		return nil, err
+	}
+	if len(images) == 0 {
+		return nil, fmt.Errorf("not find image:%d", imageID)
+	}
+	image := images[0]
+	res := &model.SecurityIssueOverview{}
+
+	// webshell
+	// _, webshellCnt, err := s.scanResultDal.SearchWebShell(ctx, store.SearchImageScanResultParam{ImageID: imageID}, filter)
+	// if err != nil {
+	// 	return nil, err
+	// }
+	// sensitiveFile
+	_, sensitiveCnt, err := s.scanResultDal.SearchSensitive(ctx, store.SearchImageScanResultParam{ImageID: imageID}, filter)
+	if err != nil {
+		return nil, err
+	}
+	// vuln
+	_, vulnCnt, err := s.vulnDal.SearchVuln(ctx, store.SearchVulnParam{ImageIds: []int64{imageID}}, nil)
+	if err != nil {
+		return nil, err
+	}
+	// env
+	_, envCnt, err := s.scanResultDal.SearchImageEnv(ctx, store.SearchImageScanResultParam{ImageID: imageID, NormalEnv: consts.FalseString}, filter)
+	if err != nil {
+		return nil, err
+	}
+	// software
+	_, softCnt, err := s.scanResultDal.SearchSoftware(ctx, store.SearchImageScanResultParam{ImageID: imageID, Flag: util.SetBit1(uint64(0), model.FlagHasSoftware)}, filter)
+	if err != nil {
+		return nil, err
+	}
+
+	// virus
+	_, virusCnt, err := s.scanResultDal.SearchVirus(ctx, store.SearchImageScanResultParam{ImageID: imageID}, filter)
+	if err != nil {
+		return nil, err
+	}
+
+	// license
+	_, licenseCnt, err := s.scanResultDal.SearchSoftware(ctx, store.SearchImageScanResultParam{ImageID: imageID, Flag: util.SetBit1(uint64(0), model.FlagHasExceptLicense)}, filter)
+	if err != nil {
+		return nil, err
+	}
+
+	res = &model.SecurityIssueOverview{
+		VULN:      vulnCnt,
+		VIRUS:     virusCnt,
+		SENSITIVE: sensitiveCnt,
+		// Webshell:       webshellCnt,
+		Envs:           envCnt,
+		Software:       softCnt,
+		License:        licenseCnt,
+		PrivilegedBoot: 0,
+	}
+	if image.ConfigFile != nil && (image.ConfigFile.Config.User == consts.BootRootUser || image.ConfigFile.Config.User == "") {
+		res.PrivilegedBoot += 1
+	}
+	return res, nil
+}
+
+func (s *ImageSrv) ImageBaseDetail(ctx context.Context, imageID int64) (*model.ImageBaseResponse, error) {
+	images, _, err := s.ListImageWithScanInfo(ctx, model.ImageListParam{ImageIds: []int64{imageID}}, nil)
+	if err != nil {
+		return nil, err
+	}
+	if len(images) == 0 {
+		return nil, fmt.Errorf("not find image:%d", imageID)
+	}
+	image := images[0]
+	// search vulns
+	vulns, _, err := s.vulnDal.SearchVuln(ctx, store.SearchVulnParam{ImageIds: []int64{imageID}}, nil)
+	if err != nil {
+		return nil, err
+	}
+	// search sensitive file
+
+	sensitive, _, err := s.scanResultDal.SearchSensitive(ctx, store.SearchImageScanResultParam{ImageID: imageID}, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	ans := &model.ImageBaseResponse{
+		ID:                     image.ID,
+		Digest:                 image.Digest,
+		Online:                 image.Online,
+		SecurityIssue:          image.SecurityIssue,
+		ImageAttr:              image.ImageAttr,
+		UUID:                   image.UUID,
+		LastScanAt:             image.LastScanAt,
+		FullRepoName:           image.FullRepoName,
+		Tag:                    image.Tag,
+		Os:                     image.Os,
+		Size:                   image.Size,
+		Flag:                   image.Flag,
+		LastSyncAt:             image.LastSyncAt,
+		Maintained:             !util.ExistBit1(image.Flag, model.FlagImageNotMaintained),
+		BootUser:               image.BootUser,
+		VulnFixSuggestion:      make([]string, 0),
+		RegistryUrl:            image.RegistryUrl,
+		SensitiveFixSuggestion: make([]string, 0),
+		RiskScore:              image.RiskScore,
+	}
+
+	ans.SensitiveFixSuggestion = utils.GenSensitiveFileSuggest(sensitive)
+	ans.VulnFixSuggestion = utils.GenVulnSuggest(ans.Os, vulns)
+
+	return ans, nil
+}
+
+func (s *ImageSrv) ListImageWithScanInfo(ctx context.Context, param model.ImageListParam,
+	filter *model.Filter) ([]*model.ImageListResponse, int64, error) {
 	res := make([]*model.ImageListResponse, 0)
 
 	param.Deserialize()
@@ -164,7 +290,6 @@ func (s *ImageSrv) ListImageWithScanInfo(ctx context.Context, param model.ImageL
 		logging.Get().Err(err).Msg("SearchImageWithScan.SearchImage")
 		return nil, 0, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf(consts.StatusInternalServerErrorMsg))
 	}
-	// logging.Get().Info().Int64("count", cnt).Int("iamgeLength", len(images)).Msg("SearchImageWithScan.SearchImage")
 
 	if len(images) == 0 {
 		return res, 0, nil
@@ -189,9 +314,16 @@ func (s *ImageSrv) ListImageWithScanInfo(ctx context.Context, param model.ImageL
 			NodeHostname:  images[i].NodeHostname,
 			Flag:          images[i].Flag,
 			Project:       images[i].Project,
-			LastSyncAt:    images[i].LastFullSyncAt * 1000, // 前端要求毫秒时间戳
+			LastSyncAt:    images[i].LastFullSyncAt, // 前端要求毫秒时间戳
 			Registry:      regMap[images[i].RegistryID],
 			UniqueImage:   images[i].UniqueImage,
+			Size:          util.ByteToMB(images[i].Size),
+		}
+		if images[i].ConfigFile != nil {
+			ans.BootUser = images[i].ConfigFile.Config.User // fixme 应该在数据表把bootUser单独存一列，优化镜像同步时再做
+			if ans.BootUser == "" {
+				ans.BootUser = consts.BootRootUser
+			}
 		}
 		res = append(res, &ans)
 	}

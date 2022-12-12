@@ -155,6 +155,15 @@ func (api *api) scanner() func(chi.Router) {
 		r.Get("/ci/tidb/assets/{fileName}", api.RedirectToScanner())
 
 		r.Get("/scannerInfo/list", api.RedirectToScanner())
+
+		// 镜像详情
+		r.Get("/images/detail/base", api.RedirectToScanner())
+		r.Get("/images/detail/issueStatistic", api.RedirectToScanner())
+		r.Get("/images/detail/env", api.RedirectToScanner())
+		r.Get("/images/detail/webshell", api.RedirectToScanner())
+		r.Get("/images/detail/virus", api.RedirectToScanner())
+		r.Get("/images/detail/sensitiveFile", api.RedirectToScanner())
+		r.Get("/images/detail/software", api.RedirectToScanner())
 	}
 }
 

@@ -92,10 +92,10 @@ type VulnerabilityInImages struct {
 
 // Sensitive ...
 type Sensitive struct {
-	Name          string `json:"name" bson:"name"`
-	Description   string `json:"description" bson:"description"`
-	DescriptionEn string `json:"description_en" bson:"description_en"`
-	DescriptionZh string `json:"description_zh" bson:"description_zh"`
+	Name          string `json:"name"`
+	Description   string `json:"description"`
+	DescriptionEn string `json:"description_en"`
+	DescriptionZh string `json:"description_zh"`
 }
 
 const (
@@ -146,7 +146,6 @@ type ImageRiskScore struct {
 }
 
 type ConstMapScore struct {
-	// Severity    string
 	MaxScore    float64
 	SingleScore float64
 }
@@ -164,6 +163,7 @@ type VulnDetailInfo struct {
 	Pkgname     string                  `json:"pkgname"`
 	Pkgversion  string                  `json:"pkgversion"`
 	Cvss        CVSSVulnerabilityInfo   `json:"cvss"`
+	CvssMap     map[string]string       `json:"cvssMap"`
 	Cnvd        []cnvd.Metadata         `json:"cnvds"`
 	CNNVDs      cnnvd.VulnerabilityInfo `json:"cnnvds"`
 	Links       []string                `json:"links"`
@@ -311,8 +311,7 @@ type ScanDetailScanImage struct {
 }
 
 type LayerScanDetail struct {
-	// LayerDigest string
-	VulnDetails      []LayerVulnDetail
+	Vulns            []uint64
 	MaliciousDetails []Malicious
 	Sentitives       []Sensitive
 	WebshellInfos    []Webshell

@@ -25,6 +25,7 @@ func SetupGinRouter(redisClient *redis.Client,
 	syncImageSrv component.SyncImageInterface,
 	ciDalSrv ci.CiComponent,
 	scannerInfo component.ScannerInstanceInfoInterface,
+	imageScanResult component.ScanResultInterface,
 ) *gin.Engine {
 
 	router := gin.Default()
@@ -39,7 +40,20 @@ func SetupGinRouter(redisClient *redis.Client,
 		})
 	})
 
-	router = WebAPI(router, scannerSvc, imageSvc, rejectSvc, harborSvc, registrySrv, scanConfigSrv, vuluSrv, syncImageSrv, ciDalSrv, scannerInfo)
+	router = WebAPI(
+		router,
+		scannerSvc,
+		imageSvc,
+		rejectSvc,
+		harborSvc,
+		registrySrv,
+		scanConfigSrv,
+		vuluSrv,
+		syncImageSrv,
+		ciDalSrv,
+		scannerInfo,
+		imageScanResult,
+	)
 	router = OpenAPI(router, scannerSvc, rejectSvc, registrySrv, scanConfigSrv, vuluSrv, ciDalSrv, imageSvc, syncImageSrv)
 
 	return router
@@ -56,6 +70,7 @@ func WebAPI(router *gin.Engine,
 	syncImageSrv component.SyncImageInterface,
 	ciDalSrv ci.CiComponent,
 	scannerInfo component.ScannerInstanceInfoInterface,
+	scanResult component.ScanResultInterface,
 ) *gin.Engine {
 
 	apiScannerSrv := NewScannerAPISrv(scannerSvc, vuluSrv, imageService)
@@ -64,6 +79,8 @@ func WebAPI(router *gin.Engine,
 	apiRegistrySrv := NewRegistrySrv(registrySrv, rejectSvc)
 	apiVulnSrv := NewVulnAPISrv(vuluSrv)
 	apiSyncImageSrv := NewSyncImageAPISrv(syncImageSrv, registrySrv)
+	scanResultApi := NewScanResultAPI(imageService, scanResult, vuluSrv)
+
 	v1 := router.Group("/api/v1/scan")
 	{
 		// v1.GET("/reportsByImageList", apiScannerSrv.ListScannedByImageList) // Deprecated:
@@ -90,6 +107,14 @@ func WebAPI(router *gin.Engine,
 		v2.GET("/existenceCount", apiScannerSrv.ExistenceCount)
 		v2.POST("/list", apiScannerSrv.SearchImageWithScan)
 		v2.GET("/registryProject", apiScannerSrv.GetRegistryProject)
+
+		v2.GET("/detail/base", scanResultApi.ImageBaseDetail)
+		v2.GET("/detail/issueStatistic", scanResultApi.ImageIssueStatistic)
+		v2.GET("/detail/env", scanResultApi.SearchEnv)
+		v2.GET("/detail/webshell", scanResultApi.SearchWebShell)
+		v2.GET("/detail/virus", scanResultApi.SearchVirus)
+		v2.GET("/detail/sensitiveFile", scanResultApi.SearchSensitive)
+		v2.GET("/detail/software", scanResultApi.SearchSoftware)
 	}
 
 	v3 := router.Group("/api/v1/layers")

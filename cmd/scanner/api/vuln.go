@@ -3,11 +3,13 @@ package api
 import (
 	"fmt"
 	"net/http"
+	"os"
 	"sort"
 	"strconv"
 	"strings"
 
 	"github.com/gin-gonic/gin"
+	"scm.tensorsecurity.cn/tensorsecurity-rd/trivy/pkg/report"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
@@ -35,7 +37,7 @@ func (s *VulnAPISrv) GetImageVulns(ctx *gin.Context) {
 	pkgName := ctx.Query("pkgName")
 	pkgVersion := ctx.Query("pkgVersion")
 	sources := ctx.Query("sources")
-	canFixed := util.GetYesOrNoFromQuery(ctx, "canFixed") // 前端会传y,n，后端做处理
+	canFixed := ctx.Query("canFixed")
 
 	severityInt := make([]int64, 0)
 	severity := strings.Split(ctx.Query("severity"), ",")
@@ -44,6 +46,13 @@ func (s *VulnAPISrv) GetImageVulns(ctx *gin.Context) {
 		if se >= model.SeverityUnknownInt {
 			severityInt = append(severityInt, int64(se))
 		}
+	}
+
+	attackPath := util.GetStringSliceFromQuery(ctx, "attackPath") // 攻击途径
+	class := util.GetStringSliceFromQuery(ctx, "class")           // 漏洞类型
+	kernel := util.GetStringSliceFromQuery(ctx, "kernelVuln")     // 是否内核漏洞
+	if util.ExistInStringSlice(kernel, consts.TrueString) && util.ExistInStringSlice(kernel, consts.FalseString) {
+		kernel = nil
 	}
 
 	filter := model.GetFilter(ctx)
@@ -89,8 +98,25 @@ func (s *VulnAPISrv) GetImageVulns(ctx *gin.Context) {
 	for i := range vulns {
 		res[i] = convertVuln(vulns[i])
 	}
+	ans := make([]VulnResponse, 0)
+	for i := range res {
+		add := true
+		if len(attackPath) > 0 && !util.ExistInStringSlice(attackPath, res[i].AttackPath) {
+			add = false
+		}
 
-	response.JSONOK(ctx, response.WithItems(res),
+		if len(class) > 0 && !util.ExistInStringSlice(class, res[i].Class) {
+			add = false
+		}
+		if len(kernel) > 0 && ((res[i].KernelVuln && kernel[0] == consts.FalseString) || (!res[i].KernelVuln && kernel[0] == consts.TrueString)) {
+			add = false
+		}
+		if add {
+			ans = append(ans, res[i])
+		}
+	}
+
+	response.JSONOK(ctx, response.WithItems(ans),
 		response.WithTotalItems(int64(cnt)),
 		response.WithItemsPerPage(filter.Limit),
 		response.WithStartIndex(filter.Offset))
@@ -153,7 +179,6 @@ func (s *VulnAPISrv) GetImageVulnPkg(ctx *gin.Context) {
 				PkgVersion:       vulns[i].PkgVersion,
 				SeverityOverview: make([]model.SeverityGroup, 0),
 				Vulns:            make([]VulnResponse, 0),
-				Target:           vulns[i].Target,
 			}
 		}
 		sf := pkgMap[key]
@@ -171,6 +196,7 @@ func (s *VulnAPISrv) GetImageVulnPkg(ctx *gin.Context) {
 		res = append(res, vp)
 	}
 	sort.Sort(VulnPKGs(res))
+
 	response.JSONOK(ctx, response.WithItems(res),
 		response.WithTotalItems(int64(len(res))),
 		response.WithItemsPerPage(filter.Limit),
@@ -455,18 +481,30 @@ func convertVuln(vuln *model.Vuln) VulnResponse {
 		PkgName:     vuln.PkgName,
 		PkgVersion:  vuln.PkgVersion,
 		Target:      vuln.Target,
-		Class:       vuln.Class,
 		Frame:       vuln.Frame,
+		CnnvdName:   vuln.CnnvdName,
+		KernelVuln:  util.ExistBit1(vuln.Flag, model.VulnFlagKernel),
 	}
 	if vuln.Attr != nil {
 		res.AttackPath = vuln.Attr["AV"]
+	}
+	if util.ExistBit1(vuln.Flag, model.VulnFlagClassOSPkg) || vuln.Class == report.ClassOSPkg {
+		res.Class = report.ClassOSPkg
+	} else if util.ExistBit1(vuln.Flag, model.VulnFlagClassLangPkg) || vuln.Class == report.ClassLangPkg {
+		res.Class = report.ClassLangPkg
+	}
+	kernelVuln := os.Getenv("IDENTITY_KERNEL_VULN")
+	// 提供开关临时关闭内核漏洞的判断
+	if kernelVuln == consts.FalseString {
+		res.KernelVuln = false
 	}
 	return res
 }
 
 type VulnResponse struct {
 	ID          int64  `json:"id"`
-	Name        string `json:"name"` // 形如CVE-2021-28831
+	Name        string `json:"name"`      // 形如CVE-2021-28831
+	CnnvdName   string `json:"cnnvdName"` // CNNVD
 	SeverityInt int    `json:"severityInt"`
 	Severity    string `json:"severity"`
 	PkgName     string `json:"pkgName"`    // 软件包来源
@@ -478,6 +516,7 @@ type VulnResponse struct {
 	Target      string ` json:"target"`    // 制品路径
 	Class       string `json:"class"`      // 代表是系统包还是语言包 os-pkgs
 	Frame       string `json:"frame"`      // 开发框架筛选
+	KernelVuln  bool   `json:"kernelVuln"` // 是否是内核漏洞
 }
 
 type VulnLists []VulnResponse
@@ -499,7 +538,9 @@ type VulnPKG struct {
 	PkgVersion       string                `json:"pkgVersion"`
 	SeverityOverview []model.SeverityGroup `json:"severityOverview"`
 	Vulns            []VulnResponse        `json:"vulns"`
-	Target           string                `json:"target"`
+	License          string                `json:"license"` // 软件的开源协议
+	AbnormalSoft     bool                  `json:"abnormalSoft"`
+	AbnormalLicense  bool                  `json:"abnormalLicense"`
 }
 
 type VulnPKGs []VulnPKG
@@ -681,14 +722,14 @@ func (sgs SeverityGroups) Swap(i, j int) {
 }
 
 func addSeverityGroup(sgs []model.SeverityGroup, severityInt int) []model.SeverityGroup {
-	add := false
+	needAdd := true
 	for i := range sgs {
 		if sgs[i].SeverityInt == severityInt {
-			add = true
+			needAdd = false
 			sgs[i].Count++
 		}
 	}
-	if !add {
+	if needAdd {
 		sgs = append(sgs, model.SeverityGroup{
 			SeverityInt: severityInt,
 			Count:       1,

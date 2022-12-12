@@ -26,7 +26,7 @@ import (
 
 	"github.com/yeka/zip"
 
-	scanvuln "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scanner-vuln"
+	scanvuln "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/bolt-vuln"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/task"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/vuln-updata/register"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
@@ -583,7 +583,7 @@ func UploadOffline(c *gin.Context) {
 		return
 	}
 	scannerVulnUpdata.Ch <- filePath
-	vuln := scanvuln.GetScannerVuln()
+	vuln := scanvuln.GetSingleBoltVuln()
 	err = vuln.InitDB()
 	if err != nil {
 		logging.GetLogger().Err(err).Msgf("init db err :%v", err)

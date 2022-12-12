@@ -535,7 +535,7 @@ func (t *TaskSrv) GenerateScanTypeByPolicy(ctx context.Context, policyID int64) 
 		scanPolicy[ScanType(consts.ScanMalicious)] = MaliciousPolicy{}
 	}
 	if dbPolicy.VulEnable {
-		scanPolicy[ScanType(consts.ScanVul)] = VulnPolicy{dbPolicy.SoftwareJson}
+		scanPolicy[ScanType(consts.ScanVul)] = VulnPolicy{Pkgs: dbPolicy.SoftwareJson, Licenses: dbPolicy.OpenLicenseJson}
 	}
 	if dbPolicy.SensitiveEnable {
 		scanPolicy[ScanType(consts.ScanSensitiveFile)] = SensitiveFilePolicy{CustomFileName: dbPolicy.SensitiveFileJson}

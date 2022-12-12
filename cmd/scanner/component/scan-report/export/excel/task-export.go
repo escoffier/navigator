@@ -87,7 +87,10 @@ func (s *ScanTaskExport) GenExcelFileChan(ctx context.Context, dataChan chan Exc
 	return out
 }
 
-type ExcelData map[string][]chan []string // key：excel sheet name
+// key：excel sheet name
+// value：`chan []string`：表示一个sheet的数据流(一个镜像或一个漏洞的数据)
+// 为啥使用：[] chan []string ，因为要导出多个镜像
+type ExcelData map[string][]chan []string
 
 type ExcelDataWithMeta struct {
 	ExcelData     ExcelData
@@ -95,7 +98,8 @@ type ExcelDataWithMeta struct {
 	ExcelMetaData []ExcelMetaData
 }
 
-func (s *ScanTaskExport) GenExcelDataChan(ctx context.Context, task model.ExportTensorTask, imageIdChan chan int64) chan ExcelDataWithMeta {
+func (s *ScanTaskExport) GenExcelDataChan(ctx context.Context, task model.ExportTensorTask,
+	imageIdChan chan int64) chan ExcelDataWithMeta {
 	out := make(chan ExcelDataWithMeta, 1)
 
 	go func(imageIdChan chan int64) {

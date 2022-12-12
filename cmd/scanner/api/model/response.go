@@ -122,3 +122,9 @@ type SubTask struct {
 	Tag          string     `json:"tag"`            // eg:1.10, may not use
 	Library      string     `json:"library"`        // registry name
 }
+
+type ImageSensitiveFile struct {
+	ID   int64  `json:"id"`
+	Name string `json:"name"`
+	Path string `json:"path"`
+}

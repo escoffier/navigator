@@ -24,11 +24,7 @@ type ExcelMetaData struct {
 
 type ExcelMetaDataOption func(data *ExcelMetaData)
 
-func ToString(value interface{}) string {
-	return fmt.Sprintf("%v", value)
-}
-
-func WriteToExcel(filenamePrefix string, sheets []ExcelMetaData, data map[string][]chan []string) (*excelize.File, error) {
+func WriteToExcel(filenamePrefix string, sheets []ExcelMetaData, data ExcelData) (*excelize.File, error) {
 	if data == nil {
 		return nil, fmt.Errorf("WriteToExcel  data is nil")
 	}
@@ -39,6 +35,12 @@ func WriteToExcel(filenamePrefix string, sheets []ExcelMetaData, data map[string
 	file := excelize.NewFile()
 	file.Path = filenamePrefix + ".xlsx"
 	logging.GetLogger().Info().Str("excelPath", file.Path).Msg("WriteToExcel")
+
+	styleID, err := file.NewStyle(&excelize.Style{Font: &excelize.Font{Color: "#777777"}})
+	if err != nil {
+		styleID = 0
+	}
+
 	for i := range sheets {
 		// 写入数据，用流式方式
 		idx := file.NewSheet(sheets[i].SheetName)
@@ -59,7 +61,7 @@ func WriteToExcel(filenamePrefix string, sheets []ExcelMetaData, data map[string
 		if err != nil {
 			return nil, err
 		}
-		if err := streamWriter.SetRow(cell, data2); err != nil {
+		if err := streamWriter.SetRow(cell, data2, excelize.RowOpts{StyleID: styleID}); err != nil {
 			return nil, err
 		}
 		// 再写数据
@@ -230,5 +232,4 @@ func (s *DataExportTask) Failure(ctx context.Context, id int64, msg string) erro
 		return err
 	}
 	return nil
-
 }

@@ -2,8 +2,11 @@ package model
 
 import (
 	"encoding/json"
+	"fmt"
+	"strings"
 	"time"
 
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 )
@@ -54,7 +57,7 @@ type ScanImage struct { // 镜像结果// 加上镜像结果,对应原来的scan
 	CheckSum uint64 `gorm:"column:check_sum" json:"check_sum,string"` // 这一行数据的check值，且于判断这一行数据是否有变动，如果没有变动，就不再更新
 }
 
-func (si ScanImage) TableName() string {
+func (si *ScanImage) TableName() string {
 	return "ivan_scanner_scan_images"
 }
 
@@ -289,4 +292,172 @@ func (si *ScanImage) GetCheckSum() uint64 {
 type ImageFlagGroup struct {
 	Flag  uint64 `gorm:"column:flag" json:"flag"`
 	Count int64  `gorm:"column:cnt" json:"count"`
+}
+
+type ImageVirus struct {
+	ID        int64  `gorm:"primaryKey" json:"id"`
+	UniqueID  uint64 `gorm:"column:unique_id" json:"uniqueID,string"`
+	Filename  string `gorm:"column:filename" json:"filename"`
+	Filepath  string `gorm:"column:filepath" json:"filepath"`
+	Name      string `gorm:"column:name" json:"name"`
+	CreatedAt int64  `gorm:"autoCreateTime:milli;column:created_at" json:"createdAt"` // milliseconds
+	UpdatedAt int64  `gorm:"autoUpdateTime:milli;column:updated_at" json:"updatedAt"` // milliseconds
+}
+
+func (vi *ImageVirus) TableName() string {
+	return "ivan_scanner_virus"
+}
+
+func (vi *ImageVirus) GenUniqueVuln() uint64 {
+	key := fmt.Sprintf(consts.UniqueVirusFamat, vi.Name, vi.Filename, vi.Filepath)
+	uid := util.GenerateUUID64(key)
+	return uid
+}
+
+type ImageWebShell struct {
+	ID        int64    `gorm:"primaryKey" json:"id"`
+	UniqueID  uint64   `gorm:"column:unique_id" json:"uniqueID,string"`
+	Filename  string   `gorm:"column:filename" json:"filename"`
+	Filepath  string   `gorm:"column:filepath" json:"filepath"`
+	Score     int64    `gorm:"column:score" json:"score"`                               // the score of webshell detection
+	Codes     []string `gorm:"column:codes" json:"codes"`                               // the code-segments which contain webshell
+	CreatedAt int64    `gorm:"autoCreateTime:milli;column:created_at" json:"createdAt"` // milliseconds
+	UpdatedAt int64    `gorm:"autoUpdateTime:milli;column:updated_at" json:"updatedAt"` // milliseconds
+}
+
+func (ws *ImageWebShell) TableName() string {
+	return "ivan_scanner_webshell"
+}
+
+func (ws *ImageWebShell) GenUniqueVuln() uint64 {
+	key := fmt.Sprintf(consts.UniqueWebshellFamat, ws.Filename, ws.Filepath, strings.Join(ws.Codes, "|"))
+	uid := util.GenerateUUID64(key)
+	return uid
+}
+
+type ImageSensitiveFile struct {
+	ID            int64  `gorm:"primaryKey" json:"id"`
+	UniqueID      uint64 `gorm:"column:unique_id" json:"uniqueID,string"`
+	Name          string `gorm:"column:name" json:"name"`
+	Description   string `gorm:"column:description" json:"description"`
+	DescriptionEn string `gorm:"column:description_en" json:"descriptionEn"`
+	DescriptionZh string `gorm:"column:description_zh" json:"descriptionZh"`
+	CreatedAt     int64  `gorm:"autoCreateTime:milli;column:created_at" json:"createdAt"` // milliseconds
+	UpdatedAt     int64  `gorm:"autoUpdateTime:milli;column:updated_at" json:"updatedAt"` // milliseconds
+}
+
+func (ws *ImageSensitiveFile) TableName() string {
+	return "ivan_scanner_sensitive"
+}
+
+func (ws *ImageSensitiveFile) GenUniqueVuln() uint64 {
+	key := fmt.Sprintf(consts.UniqueSensitiveFamat, ws.Name, ws.Description)
+	uid := util.GenerateUUID64(key)
+	return uid
+}
+
+func (ws *ImageSensitiveFile) Same(after *ImageSensitiveFile) bool {
+	if ws.Name != ws.Name || ws.Description != after.Description || ws.DescriptionEn != after.DescriptionEn ||
+		ws.DescriptionZh != after.DescriptionZh {
+		return false
+	}
+	return true
+}
+
+type ScanIssueToImage struct {
+	ID            int64  `gorm:"primaryKey" json:"id"`
+	SecurityIssue int64  `gorm:"security_issue" json:"securityIssue"`
+	UniqueTarget  uint64 `gorm:"column:unique_target" json:"uniqueTarget,string"`
+	ImageID       int64  `gorm:"column:image_id" json:"imageID"`
+	Flag          uint64 `gorm:"column:flag" json:"flag"` // 其他的信息:比如license是否允许，软件包是否允许等等，用于筛选
+	LayerDigest   string `gorm:"column:layer_digest" json:"layerDigest"`
+}
+
+func (vi *ScanIssueToImage) Same(after *ScanIssueToImage) bool {
+	if vi.LayerDigest != after.LayerDigest || vi.Flag != after.Flag || vi.ImageID != after.ImageID ||
+		vi.UniqueTarget != after.UniqueTarget || vi.SecurityIssue != after.SecurityIssue {
+		return false
+	}
+	return true
+}
+
+func (vi *ScanIssueToImage) TableName() string {
+	return "ivan_scanner_issue_image"
+}
+
+// type ImageLicense struct {
+// 	ID          int64  `gorm:"primaryKey" json:"id"`
+// 	UniqueID    uint64 `gorm:"column:unique_id" json:"uniqueID,string"`
+// 	Value       string `gorm:"column:value" json:"value"`
+// 	Description string `gorm:"column:description" json:"description"`
+// 	Name        string `gorm:"column:name" json:"name"`
+// 	CreatedAt   int64  `gorm:"autoCreateTime:milli;column:created_at" json:"createdAt"` // milliseconds
+// 	UpdatedAt   int64  `gorm:"autoUpdateTime:milli;column:updated_at" json:"updatedAt"` // milliseconds
+// }
+//
+// func (ws *ImageLicense) GenUniqueVuln() uint64 {
+// 	key := fmt.Sprintf(consts.UniqueLicenseFamat, ws.Name, ws.Value, ws.Description)
+// 	uid := util.GenerateUUID64(key)
+// 	return uid
+// }
+//
+// func (ws *ImageLicense) TableName() string {
+// 	return "ivan_scanner_license"
+// }
+
+type ImageSoftware struct {
+	ID        int64  `gorm:"primaryKey" json:"id"`
+	UniqueID  uint64 `gorm:"column:unique_id" json:"uniqueID,string"`
+	Name      string `gorm:"column:name" json:"name"`
+	Version   string `gorm:"column:version" json:"version"`
+	License   string `gorm:"column:license" json:"license"`
+	CreatedAt int64  `gorm:"autoCreateTime:milli;column:created_at" json:"createdAt"` // milliseconds
+	UpdatedAt int64  `gorm:"autoUpdateTime:milli;column:updated_at" json:"updatedAt"` // milliseconds
+
+	Flag uint64 `gorm:"-" json:"flag"`
+}
+
+func (s *ImageSoftware) GenUniqueVuln() uint64 {
+	key := fmt.Sprintf(consts.UniqueSoftwareFamat, s.Name, s.Version)
+	uid := util.GenerateUUID64(key)
+	return uid
+}
+
+func (s *ImageSoftware) TableName() string {
+	return "ivan_scanner_software"
+}
+
+func (s *ImageSoftware) Same(after *ImageSoftware) bool {
+	if s.Name != after.Name || s.Version != after.Version || s.License != after.License {
+		return false
+	}
+	return true
+}
+
+type ImageEnv struct {
+	ID        int64  `gorm:"primaryKey" json:"id"`
+	UniqueID  uint64 `gorm:"column:unique_id" json:"uniqueID,string"`
+	ImageID   int64  `gorm:"column:image_id" json:"imageID"`
+	Key       string `gorm:"column:key" json:"key"`
+	Value     string `gorm:"column:value" json:"value"`
+	Normal    bool   `gorm:"column:normal" json:"normal"`
+	CreatedAt int64  `gorm:"autoCreateTime:milli;column:created_at" json:"createdAt"` // milliseconds
+	UpdatedAt int64  `gorm:"autoUpdateTime:milli;column:updated_at" json:"updatedAt"` // milliseconds
+}
+
+func (vi *ImageEnv) GenUniqueVuln() uint64 {
+	key := fmt.Sprintf(consts.UniqueENVFamat, vi.Key, vi.Value, vi.Normal)
+	uid := util.GenerateUUID64(key)
+	return uid
+}
+
+func (vi *ImageEnv) TableName() string {
+	return "ivan_scanner_env"
+}
+
+func (vi *ImageEnv) Same(after *ImageEnv) bool {
+	if vi.Normal != after.Normal || vi.Key != after.Key || vi.Value != after.Value || vi.ImageID != after.ImageID {
+		return false
+	}
+	return true
 }

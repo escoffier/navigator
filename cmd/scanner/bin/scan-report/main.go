@@ -24,7 +24,6 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scan-report/export/html"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scan-report/service"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scan-report/starter"
-	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
 )
 
@@ -111,8 +110,6 @@ func main() {
 		logging.Get().Warn().Msg("debug model!!! please close debug model when release.")
 	}
 
-	includeCNNVDVuln := os.Getenv("INCLUDE_CNNVD_VULN")
-	includeRHSAVuln := os.Getenv("INCLUDE_RHSA_VULN")
 	es := elastic.NewESClientWithEnv(context.Background())
 	config := starter.Config{
 		Internal:                internal,
@@ -129,8 +126,6 @@ func main() {
 		Es:                      es,
 		MaxImageByOneExportTask: maxImageByOneExportTask,
 		RedisCli:                rc0,
-		IncludeCNNVDVuln:        includeCNNVDVuln == "" || includeCNNVDVuln == consts.TrueString,
-		IncludeRHSAVuln:         includeRHSAVuln == "" || includeRHSAVuln == consts.TrueString,
 	}
 
 	logging.Get().Info().Int64("MaxVulnCol", config.MaxVulnCol).Int64("MaxImageByOneExportTask", config.MaxImageByOneExportTask).Msg("config")
@@ -141,23 +136,23 @@ func main() {
 	dal := store.NewScannerOrm(config.Rdb)
 	registryDal := store.NewRegistryDao(config.Rdb)
 	vulnDal := store.NewVulnDao(config.Rdb)
+	scanResult := store.NewImageScanResultDao(config.Rdb)
 
 	exportTask := service.NewExportTaskSrv(
 		store.NewExportTaskDao(rdb),
 		maxImageByOneExportTask,
 		store.NewScannerOrm(rdb),
-		component.NewImageService(dal, registryDal, dal),
+		component.NewImageService(dal, registryDal, dal, vulnDal, scanResult),
 		rc0,
 	)
 
 	exportHtml := html.NewExportImageHtmlSrv(
-		component.NewImageService(dal, registryDal, dal),
+		component.NewImageService(dal, registryDal, dal, vulnDal, scanResult),
 		vulnDal,
 		dal,
 		store.NewExportTaskDao(rdb),
 		export.NewUpdateTaskSrv(store.NewExportTaskDao(config.Rdb), rc0),
 		fileDir,
-		config.IncludeCNNVDVuln, config.IncludeRHSAVuln,
 	)
 
 	router := api.SetupGinRouter(exportTask, exportHtml)

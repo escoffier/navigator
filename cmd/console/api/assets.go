@@ -136,6 +136,8 @@ type resourceContainer struct {
 	ImageTag   string   `json:"image_tag"`
 	WorkingDir string   `json:"working_dir"`
 	Command    []string `json:"command"`
+
+	PopName string `json:"popName"`
 }
 
 func (api *api) getResourcesByImage() http.HandlerFunc {
@@ -187,6 +189,8 @@ func (api *api) getResourcesByImage() http.HandlerFunc {
 			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.New("get resources error")))
 			return
 		}
+
+		// KEY `idx_aprr_res` (`cluster_key`,`namespace`,`resource_kind`,`resource_name`),
 		ret := make([]resourceContainer, len(containers))
 		for i, cont := range containers {
 			ret[i].Cluster = cont.ClusterKey
@@ -197,14 +201,29 @@ func (api *api) getResourcesByImage() http.HandlerFunc {
 			ret[i].ResourceName = cont.ResourceName
 			ret[i].Type = cont.Type
 
-			repo, name, tag := parseImage(cont.Image)
-			ret[i].ImageRepo = repo
-			ret[i].ImageName = name
-			ret[i].ImageTag = tag
+			imageRepo, imageName, imageTag := parseImage(cont.Image)
+			ret[i].ImageRepo = imageRepo
+			ret[i].ImageName = imageName
+			ret[i].ImageTag = imageTag
 			ret[i].Image = cont.Image
 			if cont.Spec != nil {
 				ret[i].WorkingDir = cont.Spec.WorkingDir
 				ret[i].Command = cont.Spec.Command
+			}
+
+			// 因为clusterKey+namespace+resource_kind+resource_name确定一个pod,所以在循环中取这一批Pod
+			queryOpt := dal.ResourcePodssQuery()
+			queryOpt.WithCluster(cont.ClusterKey)
+			queryOpt.WithNamespace(cont.Namespace)
+			queryOpt.WithResourceKind(assetsPkg.ResourceKind(cont.ResourceKind))
+			queryOpt.WithResourceName(cont.ResourceName)
+			pods, _, err := resSvc.GetResourcePods(ctx, queryOpt, offset, limit)
+			if err != nil {
+				logging.Get().Err(err).Msg("GetResourceContainers error")
+				continue
+			}
+			if len(pods) > 0 {
+				ret[i].PopName = pods[0].PodName
 			}
 		}
 

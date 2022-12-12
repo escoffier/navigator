@@ -152,7 +152,8 @@ func (v *VulnDao) SearchVuln(ctx context.Context, param SearchVulnParam, filter 
 		db = db.Where("target LIKE ? ", fmt.Sprintf("%%%s%%", param.TargetKeyword))
 	}
 	if param.VulnKeyword != "" {
-		db = db.Where("name LIKE ?", fmt.Sprintf("%%%s%%", param.VulnKeyword))
+		db = db.Where("name LIKE ? OR cnnvd_name LIKE ? ", fmt.Sprintf("%%%s%%", param.VulnKeyword),
+			fmt.Sprintf("%%%s%%", param.VulnKeyword))
 	}
 	if len(param.SeverityInt) > 0 {
 		db = db.Where("severity_int IN  ? ", param.SeverityInt)
@@ -162,13 +163,6 @@ func (v *VulnDao) SearchVuln(ctx context.Context, param SearchVulnParam, filter 
 	}
 	if len(param.ClassType) > 0 {
 		db = db.Where("`class` IN  ? ", param.ClassType)
-	}
-	if param.NotRHSA == consts.TrueString {
-		db = db.Where("name NOT LIKE ? ", fmt.Sprintf("%s%%", "RHSA-"))
-	}
-
-	if param.NotCNNVD == consts.TrueString {
-		db = db.Where("name NOT LIKE ? ", fmt.Sprintf("%s%%", "CNNVD-"))
 	}
 
 	res := make([]*model.Vuln, 0)

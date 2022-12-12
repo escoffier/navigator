@@ -91,15 +91,16 @@ func (e *executorScanLicense) Scan(ctx context.Context, param Param) (Artifact, 
 	return r, nil
 }
 
-func init() {
-	err := Register(executorScanLicenselName, newScanLicense)
-	if err != nil {
-		logging.GetLogger().Err(err).Str("executorName", executorScanLicenselName).Msg("int executor err")
-	}
-}
-func newScanLicense(config ExecutorConfig) (Executor, error) { // Open时调用
-	e := &executorScanLicense{}
-	e.LicenseScan = component.LicenseScan{}
-	e.policy = config.Policy
-	return e, nil
-}
+// func init() {
+// 	err := Register(executorScanLicenselName, newScanLicense)
+// 	if err != nil {
+// 		logging.GetLogger().Err(err).Str("executorName", executorScanLicenselName).Msg("int executor err")
+// 	}
+// }
+//
+// func newScanLicense(config ExecutorConfig) (Executor, error) { // Open时调用
+// 	e := &executorScanLicense{}
+// 	e.LicenseScan = component.LicenseScan{}
+// 	e.policy = config.Policy
+// 	return e, nil
+// }

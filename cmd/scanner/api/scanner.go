@@ -111,27 +111,29 @@ func (s *Scanner) ListImageInfoFromVuln(ctx *gin.Context) {
 	response.JSONOK(ctx, response.WithItems(res))
 }
 
-// ScannedByVulnDetails
-// detail/:name
-// @Summary detail/:name
-// @Title detail/:name
-// @Author guolingkai@tensorsecurity.cn
-// @Description 获取漏洞详细信息
-// @Tags Vuln
-// @Param name query string true "vuln name"
-// @Success 200 {object} ApiWithItem{data=ApiItem{item=model.VulnDetail{}}}
-// @Router /api/v1/vulns/detail [get]
 func (s *Scanner) ScannedByVulnDetails(ctx *gin.Context) {
 
-	vulnName := ctx.Query("vulnName")
-	pkgName := ctx.Query("pkgName")
-	pkgVersion := ctx.Query("pkgVersion")
-
-	if vulnName == "" || pkgName == "" || pkgVersion == "" {
-		response.JSONError(ctx, fmt.Errorf("vulnName,pkgName,pkgVersion must not empty"))
-		return
+	uniqueVulnStr := ctx.Query("uniqueVuln")
+	var (
+		uniqueVuln uint64
+		err        error
+	)
+	if uniqueVulnStr == "" {
+		vulnName := ctx.Query("vulnName")
+		pkgName := ctx.Query("pkgName")
+		pkgVersion := ctx.Query("pkgVersion")
+		if vulnName == "" || pkgName == "" || pkgVersion == "" {
+			response.JSONError(ctx, fmt.Errorf("vulnName,pkgName,pkgVersion must not empty"))
+			return
+		}
+		uniqueVuln = util.GenerateUUID64(fmt.Sprintf(consts.UniqueVulnFamat, vulnName, pkgName, pkgVersion))
+	} else {
+		uniqueVuln, err = strconv.ParseUint(uniqueVulnStr, 64, 10)
+		if err != nil {
+			response.JSONError(ctx, fmt.Errorf("not get uniqueVuln"))
+			return
+		}
 	}
-	uniqueVuln := util.GenerateUUID64(fmt.Sprintf(consts.UniqueVulnFamat, vulnName, pkgName, pkgVersion))
 
 	vulns, _, err := s.VulnSrv.SearchVulns(ctx, component.SearchVulnParam{UniqueVulns: []uint64{uniqueVuln}}, nil)
 	if err != nil {
@@ -146,6 +148,7 @@ func (s *Scanner) ScannedByVulnDetails(ctx *gin.Context) {
 	vuln := vulns[0]
 	res := model.VulnDetail{
 		VulninfoApi: model.VulnDetailInfo{
+			CvssMap:     vuln.CvssMap,
 			ID:          vuln.ID,
 			UniqueVuln:  vuln.UniqueVuln,
 			Name:        vuln.Name,
@@ -508,7 +511,7 @@ func (s *Scanner) ScanOneForDetectImage(ctx *gin.Context) {
 // @Description 获取单个镜像的扫描状态
 // @Tags scan image
 // @Param fromUrl query string false "registry url"
-// @Success 200 {object} ApiWithItem{data=ApiWithItem{item=model.OverView{online=model.SafeOver{}}}}
+// @Success 200 {object} ApiWithItem{data=ApiWithItem{item=model.OverView{online=model.SecurityIssueOverview{}}}}
 // @Router	/api/v1/scan/reportsByImageOverview [get]
 func (s *Scanner) ListScannedByImageOverview(ctx *gin.Context) {
 	fromType, err := strconv.ParseInt(ctx.Query("from_type"), 10, 64)

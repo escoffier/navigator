@@ -3,11 +3,11 @@ package excel
 import (
 	"fmt"
 	"math"
+	"os"
 	"runtime/debug"
 	"strings"
 	"time"
 
-	"github.com/shopspring/decimal"
 	"go.uber.org/atomic"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
@@ -15,6 +15,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/utils"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
+	"gitlab.com/piccolo_su/vegeta/pkg/util"
 )
 
 func GenBaseInfoChan(image model.ImageList) chan []string {
@@ -48,13 +49,6 @@ func GenVulnInfoChan(imageDetail model.ImageList, vulnCol *atomic.Int32, include
 		vulns := imageDetail.ImageScanVuln.Vulns
 		for i := range vulns {
 			vuln := vulns[i]
-			if vuln.IsCNNVDVuln() && !includeCNNVDVuln {
-				continue
-			}
-
-			if vuln.IsRHSAVuln() && !includeRHSAVuln {
-				continue
-			}
 
 			if vulnCol != nil {
 				vulnCol.Add(1)
@@ -213,6 +207,8 @@ func GenVulnInfo(image model.ImageList, vuln model.Vuln) []string {
 		getVulnFixSuggestion(vuln),
 		vuln.FixedBy,
 		getVulnReference(vuln),
+		vuln.GetVulnClass(),
+		getVulnIsKernel(vuln),
 	}
 
 	return info
@@ -254,7 +250,7 @@ func GenVirusInfo(image model.ImageList, file model.VirusFileInfo) []string {
 }
 
 func GenWebShellInfo(image model.ImageList, file model.WebshellFileInfo) []string {
-	info := []string{getImageName(image), image.Library, file.Filename, strings.Join(file.Codes, ";"), file.Filepath, ToString(file.Score)}
+	info := []string{getImageName(image), image.Library, file.Filename, strings.Join(file.Codes, ";"), file.Filepath, util.ToString(file.Score)}
 	return info
 }
 
@@ -330,6 +326,19 @@ func getVulnReference(vuln model.Vuln) string {
 	return ""
 }
 
+// 是否内核漏洞
+func getVulnIsKernel(vu model.Vuln) string {
+	// 提供开关临时关闭内核漏洞的判断
+	kernelVuln := os.Getenv("IDENTITY_KERNEL_VULN")
+	if kernelVuln != consts.FalseString {
+		if util.ExistBit1(vu.Flag, model.VulnFlagKernel) {
+			return "是"
+		}
+	}
+
+	return "否"
+}
+
 func getVulnCvssScore(vuln model.Vuln) string {
 	if vuln.Metadata != nil {
 		return vuln.Metadata.CVSS.CVSSv3Score
@@ -351,30 +360,27 @@ func getVulnIsFixed(fixedBy string) string {
 	return "是"
 }
 
-func ByteToMB(b int) string {
-	mb := float64(b) / (1024 * 1024)
-	f, _ := decimal.NewFromFloat(mb).Round(2).Float64()
-	return ToString(f) + "MB"
-}
-
 func GenImageBaseInfo(image model.ImageList) []string {
 	info := []string{
 		getImageName(image),
 		image.Library,
-		ToString(image.ImageScanVuln.RiskScore),
+		util.ToString(image.ImageScanVuln.RiskScore),
 		getImageAttr(image.Flag, image.Trusted), // 属性
 		getImageOnline(image.Online),
 		getImageSecurityQuestion(image.Flag),
 		FormatTime(image.LastScanAt.UnixMilli(), consts.ExportTimeFormat),
 		image.Digest,
 		image.Tags,
-		ByteToMB(image.Size),
+		util.ByteToMB(image.Size),
 		image.OS,
 		FormatTime(image.FirstPushTime.UnixMilli(), consts.ExportTimeFormat),
 		IsBaseImage(image.Flag),
 	}
 	if image.Registry != nil {
 		info[1] = image.Registry.Url
+	}
+	if util.ExistBit1(image.Flag, model.FlagImageNotMaintained) {
+		info[11] = fmt.Sprintf("%s(%s)", image.OS, "此操作系统已经不再维护，可能导致漏洞扫描结果不准确，建议尽快升级")
 	}
 	suggest := utils.GenFixSuggestion(image.ImageScanVuln.SensitiveFiles, image.OS, image.ImageScanVuln.Vulns)
 	info = append(info, strings.Join(suggest, "\n"))
@@ -547,6 +553,8 @@ func GenImageVulnInfoMeta() ExcelMetaData {
 			"修复建议",
 			"修复版本",
 			"参考链接",
+			"漏洞类型",
+			"是否是内核漏洞",
 		},
 	}
 	return data
