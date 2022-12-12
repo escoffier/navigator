@@ -174,6 +174,7 @@ func (s *RegistrySrv) CheckHealth(ctx context.Context, scannerInstance string) e
 		var health string
 		var err error
 		regType := reg.RegType
+		healthMsg := ""
 
 		if reg.RegType == consts.HarborVersion {
 			// 先试V2
@@ -196,10 +197,13 @@ func (s *RegistrySrv) CheckHealth(ctx context.Context, scannerInstance string) e
 		update := map[string]interface{}{"status": health, "reg_type": reg.RegType, "heat_beat": time.Now().UnixMilli()}
 		if err != nil {
 			logging.GetLogger().Err(err).Msg("RegistrySrv CheckHealth")
-			update["health_msg"] = err.Error()
+			healthMsg = err.Error()
+		} else {
+			healthMsg = ""
 		}
 
-		if reg.Status != health || reg.RegType != regType {
+		update["health_msg"] = healthMsg
+		if reg.Status != health || reg.RegType != regType || reg.HealthMsg != healthMsg {
 			if err := s.registryDal.UpdateRegistry(ctx, store.SearchRegistryParam{ID: reg.ID}, update); err != nil {
 				logging.GetLogger().Err(err).Msg("RegistrySrv CheckHealth")
 				continue
