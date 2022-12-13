@@ -521,7 +521,11 @@ func (api *api) driftDeletePolicy() http.HandlerFunc {
 			return
 		}
 		policy, err := driSvc.DeletePolicy(ctx, policyID)
-		if err != nil {
+		if err == drift.ErrPolicyEnabledCannotDelete {
+			logging.GetLogger().Warn().Err(err).Int64("policyID", policyID).Msg("Policy is not disabled. cannot be deleted")
+			apperror.RespAndLog(w, ctx, apperror.NewDriftPolicyDeletionNotDisabledWarn(err))
+			return
+		} else if err != nil {
 			logging.GetLogger().Err(err).Msg("DeletePolicy error")
 			apperror.RespAndLog(w, ctx, apperror.NewAnError(http.StatusInternalServerError, errors.New("DeletePolicy error")))
 			return

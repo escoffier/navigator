@@ -1,5 +1,7 @@
 package apperror
 
+import "net/http"
+
 type AnError struct{ detailedError }
 type MongoError struct{ detailedError }
 type KubernetesError struct{ detailedError }
@@ -105,6 +107,17 @@ func NewAnError(httpCode int, err error, suberrors ...Suberror) error {
 	}
 }
 
+func NewDriftPolicyDeletionNotDisabledWarn(err error, suberrors ...Suberror) error {
+	return AnError{
+		detailedError{
+			err:       err,
+			English:   "Deletion failed. Please first disable it.",
+			Chinese:   "删除失败.请先禁用策略",
+			HTTPCode:  http.StatusBadRequest,
+			Suberrors: suberrors,
+		},
+	}
+}
 func NoTokenError(httpCode int, err error, suberrors ...Suberror) error {
 
 	return AnError{
