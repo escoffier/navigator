@@ -99,8 +99,8 @@ func NewAnError(httpCode int, err error, suberrors ...Suberror) error {
 	return AnError{
 		detailedError{
 			err:       err,
-			English:   "An error has occurred",
-			Chinese:   "发生了错误",
+			English:   "An error has occurred. Please retry.",
+			Chinese:   "服务端发生了错误，请尝试重试",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
 		},
@@ -111,8 +111,8 @@ func NewDriftPolicyDeletionNotDisabledWarn(err error, suberrors ...Suberror) err
 	return AnError{
 		detailedError{
 			err:       err,
-			English:   "Deletion failed. Please first disable it.",
-			Chinese:   "删除失败.请先禁用策略",
+			English:   "Deletion failed. Please first disable the policy.",
+			Chinese:   "删除失败，请先禁用策略",
 			HTTPCode:  http.StatusBadRequest,
 			Suberrors: suberrors,
 		},
