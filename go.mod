@@ -27,7 +27,7 @@ require (
 	github.com/go-openapi/swag v0.19.14 // indirect
 	github.com/go-playground/validator/v10 v10.11.1 // indirect
 	github.com/go-redis/redis/v8 v8.11.5
-	github.com/gofrs/uuid v4.2.0+incompatible
+	github.com/gofrs/uuid v4.3.1+incompatible
 	github.com/golang-migrate/migrate/v4 v4.14.1
 	github.com/golang/gddo v0.0.0-20210115222349-20d68f94ee1f
 	github.com/google/go-containerregistry v0.7.1-0.20211214010025-a65b7844a475 //ct
@@ -69,7 +69,7 @@ require (
 	github.com/tomogoma/go-typed-errors v0.0.0-20181222204503-0532faf740be
 	github.com/urfave/cli/v2 v2.3.0
 	github.com/yeka/zip v0.0.0-20180914125537-d046722c6feb
-	gitlab.com/security-rd/go-pkg v0.2.41
+	gitlab.com/security-rd/go-pkg v0.2.63
 	go.mongodb.org/mongo-driver v1.8.2
 	go.uber.org/atomic v1.10.0
 	go.uber.org/automaxprocs v1.5.1
@@ -381,7 +381,7 @@ require (
 	github.com/jpillora/backoff v1.0.0 // indirect
 	github.com/jtolds/gls v4.20.0+incompatible // indirect
 	github.com/kevinburke/ssh_config v0.0.0-20201106050909-4977a11b4351 // indirect
-	github.com/klauspost/compress v1.15.12 // indirect
+	github.com/klauspost/compress v1.15.13 // indirect
 	github.com/knqyf263/go-apk-version v0.0.0-20200609155635-041fdbb8563f // indirect
 	github.com/knqyf263/go-deb-version v0.0.0-20190517075300-09fca494f03d // indirect
 	github.com/knqyf263/go-rpm-version v0.0.0-20170716094938-74609b86c936 // indirect
@@ -395,7 +395,7 @@ require (
 	github.com/matryer/is v1.4.0 // indirect
 	github.com/mattn/go-isatty v0.0.16 // indirect
 	github.com/mattn/go-runewidth v0.0.13 // indirect
-	github.com/mdlayher/netlink v1.7.0 // indirect
+	github.com/mdlayher/netlink v1.7.1 // indirect
 	github.com/mdlayher/socket v0.4.0 // indirect
 	github.com/mitchellh/copystructure v1.1.1 // indirect
 	github.com/mitchellh/go-testing-interface v1.14.1 // indirect
@@ -448,7 +448,7 @@ require (
 	github.com/zclconf/go-cty-yaml v1.0.2 // indirect
 	go.etcd.io/bbolt v1.3.6 // indirect
 	go.opencensus.io v0.24.0 // indirect
-	golang.org/x/crypto v0.3.0 // indirect
+	golang.org/x/crypto v0.4.0 // indirect
 	golang.org/x/mod v0.6.0 // indirect
 	golang.org/x/oauth2 v0.1.0 // indirect
 	golang.org/x/term v0.3.0 // indirect
@@ -458,7 +458,7 @@ require (
 	gomodules.xyz/orderedmap v0.1.0 // indirect
 	google.golang.org/api v0.103.0 // indirect
 	google.golang.org/appengine v1.6.7 // indirect
-	google.golang.org/genproto v0.0.0-20221206210731-b1a01be3a5f6 // indirect
+	google.golang.org/genproto v0.0.0-20221207170731-23e4bf6bdc37 // indirect
 	gopkg.in/cheggaaa/pb.v1 v1.0.28 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/ini.v1 v1.66.4 // indirect
@@ -474,7 +474,7 @@ require (
 replace (
 	github.com/containers/podman/v3 => scm.tensorsecurity.cn/tensorsecurity-rd/podman/v3 v3.4.6-20220425170000
 	github.com/opencontainers/image-spec => github.com/opencontainers/image-spec v1.0.2-0.20210819154149-5ad6f50d6283
-	gitlab.com/security-rd/go-pkg => scm.tensorsecurity.cn/tensorsecurity-rd/go-pkg v0.2.59
+	gitlab.com/security-rd/go-pkg => scm.tensorsecurity.cn/tensorsecurity-rd/go-pkg v0.2.63
 	k8s.io/api => k8s.io/kubernetes/staging/src/k8s.io/api v0.0.0-20220503133649-4ce5a8954017
 	k8s.io/apiextensions-apiserver => k8s.io/kubernetes/staging/src/k8s.io/apiextensions-apiserver v0.0.0-20220503133649-4ce5a8954017
 	k8s.io/apimachinery => k8s.io/kubernetes/staging/src/k8s.io/apimachinery v0.0.0-20220503133649-4ce5a8954017

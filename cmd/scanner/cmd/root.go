@@ -3,18 +3,16 @@ package cmd
 
 import (
 	"os"
+	"strconv"
 
 	"github.com/rs/zerolog"
-	"gitlab.com/security-rd/go-pkg/logging"
-
+	"github.com/spf13/cobra"
 	flag2 "gitlab.com/piccolo_su/vegeta/cmd/scanner/flag"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/global"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/service"
-
-	"github.com/spf13/cobra"
-
 	"gitlab.com/piccolo_su/vegeta/pkg/flag"
 	"gitlab.com/piccolo_su/vegeta/pkg/lifecycle"
+	"gitlab.com/security-rd/go-pkg/logging"
 )
 
 // rootCmd represents the base command when called without any subcommands
@@ -31,6 +29,16 @@ var rootCmd = &cobra.Command{
 		if ScannerRunOpts.LogLevel == "debug" {
 			logging.Get().Logger = logging.Get().Logger.Level(zerolog.DebugLevel)
 		}
+		
+		logLevel := zerolog.InfoLevel
+		logLevelStr := os.Getenv("LOGGING_LEVEL")
+		if logLevelStr != "" {
+			ll, err := strconv.ParseInt(logLevelStr, 10, 8)
+			if err == nil {
+				logLevel = zerolog.Level(ll)
+			}
+		}
+		logging.Get().SetLevel(logLevel)
 
 		scanner, err := service.NewScanner(ScannerRunOpts)
 		if err != nil {

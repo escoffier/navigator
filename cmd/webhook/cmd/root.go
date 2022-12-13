@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 
 	"github.com/rs/zerolog"
@@ -33,6 +34,16 @@ func NewWebhookCommand() *cobra.Command {
 
 			loggingOptions.SetConsoleWriterWrapper(logging.ConsoleCallerWriter)
 			logging.ReplaceLogger(loggingOptions)
+
+			logLevel := zerolog.InfoLevel
+			logLevelStr := os.Getenv("LOGGING_LEVEL")
+			if logLevelStr != "" {
+				ll, err := strconv.ParseInt(logLevelStr, 10, 8)
+				if err == nil {
+					logLevel = zerolog.Level(ll)
+				}
+			}
+			logging.Get().SetLevel(logLevel)
 
 			loadConfigFromEnv()
 			server, err := webhook.NewWebHookServer(webHookConfig)
