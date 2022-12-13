@@ -4,14 +4,16 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"strconv"
 
+	"github.com/rs/zerolog"
 	"github.com/spf13/cobra"
-	"gitlab.com/security-rd/go-pkg/logging"
-	"gitlab.com/security-rd/go-pkg/databases"
-	"gorm.io/gorm/logger"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service"
 	"gitlab.com/piccolo_su/vegeta/pkg/flag"
 	"gitlab.com/piccolo_su/vegeta/pkg/lifecycle"
+	"gitlab.com/security-rd/go-pkg/databases"
+	"gitlab.com/security-rd/go-pkg/logging"
+	"gorm.io/gorm/logger"
 )
 
 var (
@@ -35,6 +37,16 @@ var rootCmd = &cobra.Command{
 		loggingOptions.SetConsoleWriterWrapper(logging.ConsoleCallerWriter)
 		logging.ReplaceLogger(loggingOptions)
 
+		logLevel := zerolog.InfoLevel
+		logLevelStr := os.Getenv("LOGGING_LEVEL")
+		if logLevelStr != "" {
+			ll, err := strconv.ParseInt(logLevelStr, 10, 8)
+			if err == nil {
+				logLevel = zerolog.Level(ll)
+			}
+		}
+		logging.Get().SetLevel(logLevel)
+		
 		logging.Get().Info().
 			Str("version", Version).
 			Msg("starting Console")

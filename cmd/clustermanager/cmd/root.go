@@ -2,6 +2,8 @@ package cmd
 
 import (
 	"fmt"
+	"os"
+	"strconv"
 
 	"github.com/rs/zerolog"
 	"github.com/spf13/cobra"
@@ -31,6 +33,16 @@ func NewClusterManagerCommand() *cobra.Command {
 
 			loggingOptions.SetConsoleWriterWrapper(logging.ConsoleCallerWriter)
 			logging.ReplaceLogger(loggingOptions)
+
+			logLevel := zerolog.InfoLevel
+			logLevelStr := os.Getenv("LOGGING_LEVEL")
+			if logLevelStr != "" {
+				ll, err := strconv.ParseInt(logLevelStr, 10, 8)
+				if err == nil {
+					logLevel = zerolog.Level(ll)
+				}
+			}
+			logging.Get().SetLevel(logLevel)
 
 			server, err := NewServer()
 			if err != nil {

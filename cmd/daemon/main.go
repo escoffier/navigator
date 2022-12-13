@@ -3,27 +3,27 @@ package main
 import (
 	"context"
 	"fmt"
-	"github.com/rs/zerolog"
 	"math/rand"
 	"os"
 	"runtime/debug"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
 
-	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/containerassets"
-	"gitlab.com/piccolo_su/vegeta/pkg/assets"
-	"gitlab.com/piccolo_su/vegeta/pkg/daemon"
-	"gitlab.com/piccolo_su/vegeta/pkg/model"
-
 	"github.com/pkg/errors"
+	"github.com/rs/zerolog"
 	flag "github.com/spf13/pflag"
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/dp"
+	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/containerassets"
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/degrade"
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/netflow"
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/nodeinfo"
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/rtdetect"
+	"gitlab.com/piccolo_su/vegeta/pkg/assets"
+	"gitlab.com/piccolo_su/vegeta/pkg/daemon"
 	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
+	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 	"gitlab.com/security-rd/go-pkg/cmap"
 	"gitlab.com/security-rd/go-pkg/logging"
@@ -208,6 +208,8 @@ func GetEnvInfo() (string, string) {
 }
 
 func Run(ctx context.Context) error {
+	logging.Get().Info().Msg("start initing")
+
 	wg := sync.WaitGroup{}
 	//get local env
 	hostName, hostIP := GetEnvInfo()
@@ -240,6 +242,8 @@ func Run(ctx context.Context) error {
 	mqWriter, err := mqFactory.Writer(context.Background())
 	if err != nil {
 		logging.Get().Err(err).Msg("Init mq error")
+	} else {
+		logging.Get().Info().Msg("Init mq done")
 	}
 
 	clusterManager := k8s.NewClusterInfoManager(clusterAddr)
@@ -248,6 +252,7 @@ func Run(ctx context.Context) error {
 		logging.Get().Warn().Msg("get cluster key failed")
 		return errors.Errorf("get cluster key failed.")
 	}
+	logging.Get().Info().Msg("Init cluster manager done")
 
 	myNamespace := os.Getenv("MY_POD_NAMESPACE")
 	if myNamespace == "" {
@@ -263,11 +268,15 @@ func Run(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	logging.Get().Info().Msg("Init NodeInfo done")
+
 	//new flow session
 	flow, err := netflow.NewFlowSession(k8sInfo, containerInfo, clusterManager, consoleAddr)
 	if err != nil {
 		return fmt.Errorf("Failed to initialize flow session, %w", err)
 	}
+	logging.Get().Info().Msg("Init netflows done")
+
 	//free resource
 	defer flow.Close()
 
@@ -289,11 +298,17 @@ func Run(ctx context.Context) error {
 		if err != nil {
 			logging.Get().Err(err).Msgf("Failed to init palaceHandler, %v", err)
 			return errors.Errorf("Failed to init palaceHandler, %v", err)
+		} else {
+			logging.Get().Info().Msg("Init palace done")
 		}
+
 		rtStream, err := initEventStreams(rtUdsAddr, hostName, clusterManager, mqWriter, containerInfo, podResInfo, &palaceHandler)
 		if err != nil {
 			return errors.Errorf("Failed to rt events streams, %v", err)
+		} else {
+			logging.Get().Info().Msg("Init event streams done")
 		}
+
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
@@ -318,12 +333,18 @@ func Run(ctx context.Context) error {
 		if err != nil {
 			logging.Get().Err(err).Msgf("Failed to init palaceHandler, %v", err)
 			return errors.Errorf("Failed to init palaceHandler, %v", err)
+		} else {
+			logging.Get().Info().Msg("Init palace done")
 		}
+
 		dpService, err := dp.NewDriftAssurance(podWatcher, podResInfo, mqWriter, consoleAddr, clusterName, clusterKey, &palaceHandler)
 		if err != nil {
 			logging.Get().Err(err).Msg("new drift assurance service failed")
 			return err
+		} else {
+			logging.Get().Info().Msg("Init drift done")
 		}
+
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
@@ -353,6 +374,16 @@ func main() {
 	}
 	loggingOptions.SetConsoleWriterWrapper(logging.ConsoleCallerWriter)
 	logging.ReplaceLogger(loggingOptions)
+
+	logLevel := zerolog.InfoLevel
+	logLevelStr := os.Getenv("LOGGING_LEVEL")
+	if logLevelStr != "" {
+		ll, err := strconv.ParseInt(logLevelStr, 10, 8)
+		if err == nil {
+			logLevel = zerolog.Level(ll)
+		}
+	}
+	logging.Get().SetLevel(logLevel)
 
 	mainCtx, mainCancel := context.WithCancel(context.Background())
 	defer mainCancel()
