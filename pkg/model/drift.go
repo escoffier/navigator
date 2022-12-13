@@ -88,10 +88,12 @@ type DaemonDriftResp struct {
 type PoliciesData struct {
 	Policies     []DriftPolicy `json:"policies,omitempty"`
 	VersionStamp int64         `json:"versionStamp"`
+	Err          error         `json:"-"`
 }
 type WhitelistData struct {
 	Whitelist    []DriftGlobalWhitelistItem `json:"whitelist,omitempty"`
 	VersionStamp int64                      `json:"versionStamp"`
+	Err          error                      `json:"-"`
 }
 
 type DaemonDriftRespData struct {

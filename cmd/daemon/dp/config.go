@@ -116,7 +116,6 @@ func (cm *ConfigManager) syncPolicy(ctx context.Context) error {
 		logging.Get().Err(err).Msgf("read scanner req body error")
 		return err
 	}
-	logging.Get().Debug().Msg(string(data))
 
 	var driftResp model.DaemonDriftResp
 	err = json.Unmarshal(data, &driftResp)
@@ -125,25 +124,27 @@ func (cm *ConfigManager) syncPolicy(ctx context.Context) error {
 		return err
 	}
 
-	logging.Get().Trace().Interface("whitelist", driftResp.Data.Whitelist).Interface("policies", driftResp.Data.Policies).Interface("policyItems", driftResp.Data.Items).Msg("sync policy success")
+	prevVersion := cm.policies().VersionStamp
+	newVersion := driftResp.Data.Policies.VersionStamp
 
-	if cm.policies().VersionStamp == 0 || len(driftResp.Data.Items) > 0 {
+	logging.Get().Trace().Interface("whitelist", driftResp.Data.Whitelist).Interface("policies", driftResp.Data.Policies).Interface("policyItems", driftResp.Data.Items).Int64("new_version", newVersion).Int64("old_version", prevVersion).Msg("Try to update drift policies")
+
+	if newVersion > prevVersion {
 		policies := make(map[uint32]model.DriftPolicy, len(driftResp.Data.Items))
 		for _, v := range driftResp.Data.Items {
 			policies[v.ResourceUUID] = v
 		}
-		prevVersion := cm.policies().VersionStamp
 		cm.setPolicies(&model.DaemonDriftPolicies{
 			Policies:     policies,
-			VersionStamp: driftResp.Data.Policies.VersionStamp,
+			VersionStamp: newVersion,
 		})
-		logging.Get().Info().Int64("new_version", driftResp.Data.Policies.VersionStamp).Int64("old_version", prevVersion).Msg("Policies updated successfully")
+		logging.Get().Info().Int64("new_version", newVersion).Int64("old_version", prevVersion).Msg("Policies updated successfully")
 	}
 
 	newWhitelist := make(map[string]int64, len(driftResp.Data.Whitelist.Whitelist))
 	nowTimestamp := time.Now().UnixMilli()
 	var version int64
-	if cm.whitelist().VersionStamp == 0 || len(driftResp.Data.Whitelist.Whitelist) > 0 { // update
+	if driftResp.Data.Whitelist.VersionStamp > cm.whitelist().VersionStamp {
 		for _, v := range driftResp.Data.Whitelist.Whitelist {
 			if nowTimestamp < v.ExpireAt {
 				newWhitelist[v.Path] = v.ExpireAt
@@ -151,10 +152,7 @@ func (cm *ConfigManager) syncPolicy(ctx context.Context) error {
 				newWhitelist[v.Path] = 0
 			}
 		}
-		version = driftResp.Data.Whitelist.VersionStamp
-		logging.Get().Info().Int64("new_version", version).Int64("old_version", cm.whitelist().VersionStamp).Msg("try to update whitelist")
-	} else { // clear items of expired
-		version = cm.whitelist().VersionStamp
+	} else { // if no updates, expire items.
 		for path, expiredAt := range cm.whitelist().Whitelist {
 			if nowTimestamp < expiredAt || expiredAt == 0 {
 				newWhitelist[path] = expiredAt
@@ -162,6 +160,9 @@ func (cm *ConfigManager) syncPolicy(ctx context.Context) error {
 		}
 		logging.Get().Info().Int64("new_version", version).Int64("old_version", cm.whitelist().VersionStamp).Msg("try to expire whitelist with no updates")
 	}
+
+	version = driftResp.Data.Whitelist.VersionStamp
+	logging.Get().Info().Int64("new_version", version).Int64("old_version", cm.whitelist().VersionStamp).Msg("try to update whitelist")
 
 	oldWlistVersion := cm.whitelist().VersionStamp
 	cm.setWhitelist(&model.DaemonDriftWhitelist{

@@ -10,6 +10,7 @@ import (
 
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
+	"gitlab.com/security-rd/go-pkg/logging"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
@@ -127,7 +128,7 @@ func UpdateDriftGlobalWhiteList(ctx context.Context, rdb *gorm.DB, whitelist mod
 		}
 
 		now := time.Now()
-		versionStamp := strconv.FormatInt(tmpWhitelist.UpdatedAt, 10)
+		versionStamp := strconv.FormatInt(now.UnixMilli(), 10)
 		config := &model.TensorConfig{
 			Key:       model.ConfDriftWhitelistVersionKey,
 			Config:    []byte(versionStamp),
@@ -173,6 +174,9 @@ func GetAllDriftGlobalWhiteList(ctx context.Context, rdb *gorm.DB) ([]model.Drif
 	defer cancel()
 	res := []model.DriftGlobalWhitelistItem{}
 	err := rdb.Model(&model.DriftGlobalWhitelistItem{}).WithContext(ctx).Find(&res).Error
+	if err == gorm.ErrRecordNotFound {
+		return nil, nil
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -197,6 +201,14 @@ func GetDriftGlobalWhiteListById(ctx context.Context, rdb *gorm.DB, id uint64) (
 func CreateDriftPolicy(ctx context.Context, rdb *gorm.DB, policy model.DriftPolicy) (int64, error) {
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
+
+	now := time.Now()
+	if policy.CreatedAt.IsZero() {
+		policy.CreatedAt = now
+	}
+	if policy.UpdatedAt.IsZero() {
+		policy.UpdatedAt = now
+	}
 	tmpPolicies := []model.DriftPolicy{}
 	err := rdb.Model(&model.DriftPolicy{}).WithContext(ctx).Where("resource_uuid=?", policy.ResourceUUID).Find(&tmpPolicies).Error
 	if err != nil {
@@ -211,7 +223,7 @@ func CreateDriftPolicy(ctx context.Context, rdb *gorm.DB, policy model.DriftPoli
 		if err != nil {
 			return err
 		}
-		versionStamp := strconv.FormatInt(policy.UpdatedAt.UnixMilli(), 10)
+		versionStamp := strconv.FormatInt(now.UnixMilli(), 10)
 		config := &model.TensorConfig{
 			Key:       model.ConfDriftPoliciesVersionKey,
 			Config:    []byte(versionStamp),
@@ -230,23 +242,23 @@ func CreateDriftPolicy(ctx context.Context, rdb *gorm.DB, policy model.DriftPoli
 	return policy.ID, nil
 }
 
-func DeleteDriftPolicy(ctx context.Context, rdb *gorm.DB, policyID int64) (model.DriftPolicy, error) {
-	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+func DeleteDriftPolicy(ctx context.Context, rdb *gorm.DB, policyID int64) error {
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
-	query := model.DriftPolicy{}
-	err := rdb.Model(&model.DriftPolicy{}).WithContext(ctx).Where("id = ?", policyID).Find(&query).Error
-	if err != nil {
-		return model.DriftPolicy{}, err
-	}
 
 	userName := model.GetUsernameFromContext(ctx)
 	if userName == "" {
 		userName = "system"
 	}
 
-	err = rdb.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		err := tx.Model(&model.DriftPolicy{}).WithContext(ctx).Where("id = ?", policyID).Delete(&model.DriftPolicy{}).Error
-		if err != nil {
+	err := rdb.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var tmpPolicy model.DriftPolicy
+		err := tx.Model(&tmpPolicy).WithContext(ctx).Where("id = ?", policyID).Delete(&tmpPolicy).Error
+
+		if err == gorm.ErrRecordNotFound {
+			logging.Get().Warn().Int64("policyID", policyID).Msg("Try to delete an nonexisted policy")
+			return nil
+		} else if err != nil {
 			return err
 		}
 
@@ -263,10 +275,7 @@ func DeleteDriftPolicy(ctx context.Context, rdb *gorm.DB, policyID int64) (model
 		}
 		return updateDriftVersionStamp(tx, config)
 	})
-	if err != nil {
-		return model.DriftPolicy{}, err
-	}
-	return query, nil
+	return err
 }
 
 func UpdateDriftPolicy(ctx context.Context, rdb *gorm.DB, policy model.DriftPolicyUpdate) (model.DriftPolicy, error) {
@@ -279,19 +288,20 @@ func UpdateDriftPolicy(ctx context.Context, rdb *gorm.DB, policy model.DriftPoli
 		return model.DriftPolicy{}, err
 	}
 
+	now := time.Now()
 	tmpPolicy := model.DriftPolicy{}
 	tmpPolicy.ID = policy.PolicyID
 	tmpPolicy.Enable = policy.Enable
 	tmpPolicy.Mode = policy.Mode
 	tmpPolicy.Updater = policy.Updater
-	tmpPolicy.UpdatedAt = time.Now()
+	tmpPolicy.UpdatedAt = now
 
 	err = rdb.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		err := tx.Model(&model.DriftPolicy{}).WithContext(ctx).Where("id = ?", policy.PolicyID).Select("enable", "mode", "updater", "updated_at").Updates(&tmpPolicy).Error
 		if err != nil {
 			return err
 		}
-		versionStamp := strconv.FormatInt(tmpPolicy.UpdatedAt.UnixMilli(), 10)
+		versionStamp := strconv.FormatInt(now.UnixMilli(), 10)
 		config := &model.TensorConfig{
 			Key:       model.ConfDriftPoliciesVersionKey,
 			Config:    []byte(versionStamp),
@@ -349,7 +359,9 @@ func GetAllPolicies(ctx context.Context, rdb *gorm.DB) ([]model.DriftPolicy, err
 	defer cancel()
 	res := []model.DriftPolicy{}
 	err := rdb.Model(&model.DriftPolicy{}).WithContext(ctx).Find(&res).Error
-	if err != nil {
+	if err == gorm.ErrRecordNotFound {
+		return nil, nil
+	} else if err != nil {
 		return nil, err
 	}
 	return res, nil

@@ -115,17 +115,25 @@ func (rl *TensorDriftService) loadPolicies() {
 		}
 		return nil
 	})
+	setPtr := false
 	if terr != nil {
 		logging.Get().Err(terr).Msg("load drift policies error")
+		// set the error message if it's the first loading situation. Don't set when it has value set, which means it will return the previous result if errored and not first time.
+		setPtr = rl.policiesPtr.CompareAndSwap(nil, &model.PoliciesData{
+			Err: terr,
+		})
 	}
-	if versionNotSet {
-		version = getVersionFromPolicies(policies)
+	if !setPtr { // if it hasn't set the cache
+		if versionNotSet {
+			version = getVersionFromPolicies(policies)
+		}
+
+		rl.policiesPtr.Store(&model.PoliciesData{
+			Policies:     policies,
+			VersionStamp: version,
+		})
 	}
 
-	rl.policiesPtr.Store(&model.PoliciesData{
-		Policies:     policies,
-		VersionStamp: version,
-	})
 }
 
 func (rl *TensorDriftService) loadWhiteList() {
@@ -159,17 +167,26 @@ func (rl *TensorDriftService) loadWhiteList() {
 		}
 		return nil
 	})
+
+	setPtr := false
 	if terr != nil {
 		logging.Get().Err(terr).Msg("load drift policies error")
+		// set the error message if it's the first loading situation. Don't set when it has value set, which means it will return the previous result if errored and not first time.
+		setPtr = rl.whitelistPtr.CompareAndSwap(nil, &model.WhitelistData{
+			Err: terr,
+		})
 	}
-	if versionNotSet {
-		version = getVersionFromWhitelist(wlist)
+	if !setPtr {
+		if versionNotSet {
+			version = getVersionFromWhitelist(wlist)
+		}
+
+		rl.whitelistPtr.Store(&model.WhitelistData{
+			Whitelist:    wlist,
+			VersionStamp: version,
+		})
 	}
 
-	rl.whitelistPtr.Store(&model.WhitelistData{
-		Whitelist:    wlist,
-		VersionStamp: version,
-	})
 }
 
 func (rl *TensorDriftService) asyncLoop() {
@@ -229,6 +246,10 @@ func (rl *TensorDriftService) GetAllGlobalWhitelist(ctx context.Context) (model.
 		}
 	}
 
+	if val.Err != nil {
+		return model.WhitelistData{}, val.Err
+	}
+
 	// must fork data
 	forked := *val
 	return forked, nil
@@ -237,8 +258,27 @@ func (rl *TensorDriftService) CreatePolicy(ctx context.Context, policy model.Dri
 	return dal.CreateDriftPolicy(ctx, rl.rdb.Get(), policy)
 }
 
+var (
+	ErrPolicyEnabledCannotDelete = errors.New("cannot delete an enabled policy")
+)
+
 func (rl *TensorDriftService) DeletePolicy(ctx context.Context, policyID int64) (model.DriftPolicy, error) {
-	return dal.DeleteDriftPolicy(ctx, rl.rdb.Get(), policyID)
+	policy, err := dal.GetPolicyByID(ctx, rl.rdb.Get(), policyID)
+	if err == nil && policy.Enable == 1 {
+		return policy, ErrPolicyEnabledCannotDelete
+	} else if err == gorm.ErrRecordNotFound {
+		return model.DriftPolicy{}, err
+	} else if err != nil {
+		logging.Get().Warn().Int64("policyID", policyID).Msg("error get policy")
+		return model.DriftPolicy{}, err
+	}
+
+	err = dal.DeleteDriftPolicy(ctx, rl.rdb.Get(), policyID)
+	if err != nil {
+		logging.Get().Err(err).Int64("policyID", policyID).Msg("failed to delete policy")
+		return policy, err
+	}
+	return policy, nil
 }
 
 func (rl *TensorDriftService) UpdatePolicy(ctx context.Context, policy model.DriftPolicyUpdate) (model.DriftPolicy, error) {
@@ -262,8 +302,11 @@ func (rl *TensorDriftService) GetAllPolicies(ctx context.Context, clusterKey str
 		val = rl.policiesPtr.Load()
 		if val == nil {
 			logging.Get().Warn().Msg("drift policies isn't set")
-			return model.PoliciesData{}, errors.New("drift policies isn't set")
+			return model.PoliciesData{}, nil
 		}
+	}
+	if val.Err != nil {
+		return model.PoliciesData{}, val.Err
 	}
 	clusterFiltered := make([]model.DriftPolicy, 0, len(val.Policies))
 	for i := range val.Policies {
