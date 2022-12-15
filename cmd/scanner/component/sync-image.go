@@ -100,9 +100,7 @@ func (s *SyncRepoImage) GetSyncStatus(ctx context.Context, syncType consts.SyncT
 	exit := make(map[int64]*ResponseGetSyncStatus)
 
 	for i := range registries {
-		if _, ok := exit[registries[i].ID]; ok {
-			exit[registries[i].ID] = &ResponseGetSyncStatus{RegistryID: registries[i].ID}
-		}
+		exit[registries[i].ID] = &ResponseGetSyncStatus{RegistryID: registries[i].ID}
 	}
 
 	syncTask, err := s.syncTaskDal.SearchSyncTask(ctx, store.SearchSyncTaskParam{Finished: consts.FalseString, SyncType: syncType.String()}, nil)
@@ -122,7 +120,6 @@ func (s *SyncRepoImage) GetSyncStatus(ctx context.Context, syncType consts.SyncT
 		ans = append(ans, exit[k])
 	}
 	return ans, nil
-
 }
 
 // 定期重试
@@ -1002,6 +999,6 @@ type CreateSyncTaskParam struct {
 }
 
 type ResponseGetSyncStatus struct {
-	Status     bool  `json:"status"`
+	Status     bool  `json:"status"` // true表示正在同步中
 	RegistryID int64 `json:"registryID"`
 }
