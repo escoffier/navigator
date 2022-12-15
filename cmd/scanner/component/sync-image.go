@@ -24,7 +24,7 @@ type SyncImageInterface interface {
 	SyncAddImage(ctx context.Context, syncType consts.SyncType) error     // 全部仓库增量同步
 	RetryFailedSyncImage(ctx context.Context, lessRetryCount int64) error // 重试
 	DeleteMoreRetryCount(ctx context.Context, moreRetryCount int64) error // 删除超过重试次数
-	GetSyncStatus(ctx context.Context, syncType consts.SyncType) ([]*ResponseGetSyncStatus, error)
+	GetSyncStatus(ctx context.Context) ([]*ResponseGetSyncStatus, error)
 	AddSyncTask(ctx context.Context) error
 }
 
@@ -90,7 +90,7 @@ func (s *SyncRepoImage) CreateSyncTask(ctx context.Context, param CreateSyncTask
 	return nil
 }
 
-func (s *SyncRepoImage) GetSyncStatus(ctx context.Context, syncType consts.SyncType) ([]*ResponseGetSyncStatus, error) {
+func (s *SyncRepoImage) GetSyncStatus(ctx context.Context) ([]*ResponseGetSyncStatus, error) {
 
 	registries, _, err := s.registryDal.SearchRegistry(ctx, store.SearchRegistryParam{NoDelete: true, UseTypes: []int64{model.UserRegistry, model.NodeBuffRegistry}}, nil)
 	if err != nil {
@@ -103,7 +103,7 @@ func (s *SyncRepoImage) GetSyncStatus(ctx context.Context, syncType consts.SyncT
 		exit[registries[i].ID] = &ResponseGetSyncStatus{RegistryID: registries[i].ID}
 	}
 
-	syncTask, err := s.syncTaskDal.SearchSyncTask(ctx, store.SearchSyncTaskParam{Finished: consts.FalseString, SyncType: syncType.String()}, nil)
+	syncTask, err := s.syncTaskDal.SearchSyncTask(ctx, store.SearchSyncTaskParam{Finished: consts.FalseString}, nil)
 	if err != nil {
 		logging.GetLogger().Err(err).Msg("GetSyncStatus SearchSyncTask")
 		return nil, err
