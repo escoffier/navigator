@@ -93,7 +93,7 @@ func (s *SyncImageAPISrv) GetSyncProgress(ctx *gin.Context) {
 }
 
 func (s *SyncImageAPISrv) GetSyncStatus(ctx *gin.Context) {
-	status, err := s.syncImageSrv.GetSyncStatus(ctx, consts.ManualSync)
+	status, err := s.syncImageSrv.GetSyncStatus(ctx)
 
 	if err != nil {
 		response.JSONError(ctx, err)
