@@ -306,7 +306,11 @@
     not k8s_containers and
     k8s_dns_server and
     not ignore_proc_args and
-    shell_parent_procs
+    shell_parent_procs and
+    not proc.cmdline contains "java" and
+    not proc.cmdline contains "redis" and
+    not proc.cmdline contains "mysql" and
+    not proc.name = "git"
   output: >
     Unexpected connection to K8s DNS Server from container (zh_msg=尝试从容器内连接到k8s_DNS_Server,rule_type=Discovery,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=%container.info image=%container.image.repository:%container.image.tag connection=%fd.name,container_id=%container.id,container_name=%container.name)
   priority: WARNING
