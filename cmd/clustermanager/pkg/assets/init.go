@@ -19,7 +19,16 @@ var (
 	initOnce sync.Once
 	//wInstance *assets.Watcher
 	wInstance *pkgassets.Watcher
+
+	disableKubeMonitor = false
 )
+
+func init() {
+	disableFlag := os.Getenv("DISABLE_KUBE_MONITOR")
+	if disableFlag == "1" {
+		disableKubeMonitor = true
+	}
+}
 
 // Watcher singleton
 func Watcher(rdb *databases.RDBInstance,
@@ -36,12 +45,17 @@ func Watcher(rdb *databases.RDBInstance,
 		wInstance = pkgassets.NewWatcher(reader, topic, groupID)
 		wInstance.AddCallback(newPodResourcesService(redisCli, rdb))
 		wInstance.AddCallback(microseg.NewResourcesListener(rdb))
-		kbm, err := kubemonitor.NewService()
-		if err == nil {
-			wInstance.AddCallback(kbm.RiskMonitor())
+		if !disableKubeMonitor {
+			kbm, err := kubemonitor.NewService()
+			if err == nil {
+				wInstance.AddCallback(kbm.RiskMonitor())
+			} else {
+				logging.Get().Err(err).Msg("init kube monitor error")
+			}
 		} else {
-			logging.Get().Err(err).Msg("init kube monitor error")
+			logging.Get().Warn().Msg("Kube Monitor is disabled according to the enviroment var")
 		}
+
 		wInstance.AddCallback(newResourcesWatcher(rdb, scannerURL))
 		wInstance.AddCallback(newHoneyspotService(rdb))
 		wInstance.AddCallback(newRawContainerWatcher(rdb))

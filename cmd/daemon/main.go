@@ -374,6 +374,7 @@ func main() {
 	}
 	loggingOptions.SetConsoleWriterWrapper(logging.ConsoleCallerWriter)
 	logging.ReplaceLogger(loggingOptions)
+	
 
 	logLevel := zerolog.InfoLevel
 	logLevelStr := os.Getenv("LOGGING_LEVEL")
