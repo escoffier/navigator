@@ -13,7 +13,8 @@
     a database-server related program spawned a new process other than itself.
     This shouldn\'t occur and is a follow on from some SQL injection attacks.
   condition: >
-    proc.pname in (db_server_binaries)
+    shell_procs
+    and proc.pname in (db_server_binaries)
     and spawned_process
     and not proc.name in (db_server_binaries)
     and not postgres_running_wal_e
@@ -21,7 +22,7 @@
     and not tensorsec_namespace
   output: >
     Database-related program spawned process other than itself (zh_msg=SQL注入攻击后续利用：数据库服务生成非自身进程，可能存在提权行为,rule_type=Execution,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,
-    original_info=user=%user.name user_loginuid=%user.loginuid parent=%proc.pname
+    original_info=user=%user.name user_loginuid=%user.loginuid parent=%proc.pname gparent=%proc.aname[2]
     container_id=%container.id container_name=%container.name image=%container.image.repository)
   priority: ERROR
   tags: [ATT&CK, process, database, mitre_execution]

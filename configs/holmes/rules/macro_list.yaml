@@ -913,7 +913,8 @@
   condition: >
     proc.name = "exe"
     and (proc.cmdline contains "/var/lib/docker"
-    or proc.cmdline contains "/var/run/docker")
+    or proc.cmdline contains "/var/run/docker"
+    or proc.cmdline contains "/var/lib/containers/docker")
     and proc.pname in (dockerd, docker, dockerd-current, docker-current)
 
 # Ideally we'd have a length check here as well but sysdig
@@ -2299,7 +2300,7 @@
 # Note: falco will send DNS request to resolve miner pool domain which may trigger alerts in your environment.
 
 - list: k8s_client_binaries
-  items: [docker, kubectl, crictl]
+  items: [docker, kubectl, crictl, helm, clair-scanner]
 
 - list: user_known_k8s_ns_kube_system_images
   items: [
