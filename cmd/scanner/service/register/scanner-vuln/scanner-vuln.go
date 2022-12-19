@@ -3,7 +3,7 @@ package scanvuln
 import (
 	"context"
 
-	scanVuln "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scanner-vuln"
+	scanVuln "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/bolt-vuln"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/service/register"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 )
@@ -17,7 +17,7 @@ type Config struct {
 
 type ScannerVulnService struct {
 	// config      Config
-	scannerVuln *scanVuln.ScannerVuln
+	scannerVuln *scanVuln.BoltVuln
 }
 
 func (s *ScannerVulnService) Start(ctx context.Context) error {

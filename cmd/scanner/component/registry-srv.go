@@ -129,7 +129,7 @@ func (s *RegistrySrv) CreateRegistry(ctx context.Context, reg model.Registry) (i
 
 	// 新增加的仓库需要自动同步,但是对于harbor的仓库，需要在等一次健康检查之后才能确定版本类型,
 	// 这里使用一种取巧的方式，直接休眠3分钟，后期镜像同步重构之后再优化
-	go func() {
+	go func(regID int64) {
 		defer func() {
 			if err := recover(); err != nil {
 				logging.GetLogger().Error().Msg("CreateRegistry recover")
@@ -139,11 +139,11 @@ func (s *RegistrySrv) CreateRegistry(ctx context.Context, reg model.Registry) (i
 		defer ticker.Stop()
 		<-ticker.C
 
-		syncTask := &model.SyncTask{RegistryID: id, SyncType: consts.CycleFullSync.String()}
+		syncTask := &model.SyncTask{RegistryID: regID, SyncType: consts.CycleFullSync.String()}
 		if err := s.syncTaskDal.CreateSyncTask(ctx, syncTask); err != nil {
-			logging.GetLogger().Err(err).Int64("regID", id).Msg("createRegistry CreateSyncTask")
+			logging.GetLogger().Err(err).Int64("regID", regID).Msg("createRegistry CreateSyncTask")
 		}
-	}()
+	}(id)
 
 	return id, nil
 }

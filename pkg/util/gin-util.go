@@ -27,6 +27,18 @@ func GetInt64SliceFromQuery(ctx *gin.Context, key string) []int64 {
 	return DeDuplicationInt64Slice(values)
 }
 
+func GetStringSliceFromQuery(ctx *gin.Context, key string) []string {
+	res := make([]string, 0)
+	statusStr := ctx.Query(key)
+	split := strings.Split(statusStr, ",")
+	for i := range split {
+		if split[i] != "" {
+			res = append(res, split[i])
+		}
+	}
+	return DeDuplicationStringSlice(res)
+}
+
 // 从gin的query中取值后解析成int64,如果没有传或解析出错，都是返回0
 func GetInt64FromQuery(ctx *gin.Context, key string) int64 {
 	var value int64
@@ -56,7 +68,7 @@ func GetYesOrNoFromQuery(ctx *gin.Context, key string) string {
 }
 
 // 从gin的query中取值后解析成 true和false,如果即传了true又传了false，就认为没有传
-func GetTrueOrFalseFromQuery(ctx *gin.Context, key string) string {
+func GetBoolStringFromQuery(ctx *gin.Context, key string) string {
 	split := strings.Split(ctx.Query(key), ",")
 	if len(split) == 1 {
 		if split[0] == "true" {

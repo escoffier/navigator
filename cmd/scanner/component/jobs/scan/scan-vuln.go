@@ -24,24 +24,66 @@ type ExecutorScanVuln struct {
 	policy        interface{}
 }
 
-func (e *ExecutorScanVuln) filterCustomPkg(r *report.Report, customPkg []task.CustomPkgPolicy) []model.Software {
+func (e *ExecutorScanVuln) filterCustomPkg(r *report.Report, customPkg []task.CustomPkgPolicy, customLicenses []string) []model.Software {
 	logging.GetLogger().Info().Interface("customPkg", customPkg).Msg("filterCustomPkg")
-	mp := make(map[string]bool) // 是否已增加
+	abnormalPkg := make(map[string]bool)
+	abnormalLicense := make(map[string]bool)
 	for _, v := range customPkg {
 		pkg := fmt.Sprintf("%s/%s", v.CustomPkgName, v.CustomPkgVersion)
-		mp[pkg] = false
+		abnormalPkg[pkg] = true
 	}
-	var res []model.Software
-	for _, v := range r.Results {
-		for _, vv := range v.Vulnerabilities {
-			pkg := fmt.Sprintf("%s/%s", vv.PkgName, vv.InstalledVersion)
-			if added, ok := mp[pkg]; ok && !added {
-				// 不重复增加
-				res = append(res, model.Software{Name: vv.PkgName, Version: vv.InstalledVersion})
-				mp[pkg] = true
+	for i := range customLicenses {
+		abnormalLicense[customLicenses[i]] = true
+	}
+	logging.GetLogger().Info().Int("Results", len(r.Results)).Msg("imageScanSoftware")
+	res := make([]model.Software, 0)
+	for i := range r.Results {
+		logging.GetLogger().Info().Int("Packages", len(r.Results[i].Packages)).Msg("imageScanSoftware")
+		for j := range r.Results[i].Packages {
+			vv := r.Results[i].Packages[j]
+
+			pkg := model.Software{
+				Name:            vv.Name,    // fixme(liuqiang) use vv.Name OR vv.SrcName
+				Version:         vv.Version, // fixme(liuqiang) use vv.Version OR vv.SrcVersion
+				License:         vv.License,
+				AbnormalSoft:    false,
+				AbnormalLicense: false,
+				LayerDigest:     vv.Layer.Digest,
 			}
+			pkgKey := fmt.Sprintf("%s/%s", pkg.Name, pkg.Version)
+			if abnormalPkg[pkgKey] {
+				pkg.AbnormalSoft = true
+			}
+			if pkg.License != "" && abnormalLicense[pkg.License] {
+				pkg.AbnormalLicense = true
+			}
+			res = append(res, pkg)
 		}
 	}
+
+	for i := range r.Results {
+		logging.GetLogger().Info().Int("Packages", len(r.Results[i].Packages)).Msg("imageScanSoftware")
+		for j := range r.Results[i].Vulnerabilities {
+			vv := r.Results[i].Vulnerabilities[j]
+
+			pkg := model.Software{
+				Name:            vv.PkgName,
+				Version:         vv.InstalledVersion,
+				AbnormalSoft:    false,
+				AbnormalLicense: false,
+				LayerDigest:     vv.Layer.Digest,
+			}
+			pkgKey := fmt.Sprintf("%s/%s", pkg.Name, pkg.Version)
+			if abnormalPkg[pkgKey] {
+				pkg.AbnormalSoft = true
+			}
+			if pkg.License != "" && abnormalLicense[pkg.License] {
+				pkg.AbnormalLicense = true
+			}
+			res = append(res, pkg)
+		}
+	}
+
 	return res
 }
 
@@ -60,9 +102,6 @@ func (e *ExecutorScanVuln) Scan(ctx context.Context, param Param) (Artifact, err
 		logging.GetLogger().Err(err).Msg("parse image failed")
 		return nil, errors.New("parse image failed")
 	}
-	// repo := ref.Context()
-
-	// registryStr := repo.RegistryStr()
 
 	tag := ref.Identifier()
 	repositoryName := ref.Context().RepositoryStr()
@@ -92,19 +131,23 @@ func (e *ExecutorScanVuln) Scan(ctx context.Context, param Param) (Artifact, err
 		logging.GetLogger().Error().Msg("miss 'VulnPolicyRule' in parameter")
 		return nil, errors.New("miss 'VulnPolicyRule' in parameter")
 	}
-	var customPkg []task.CustomPkgPolicy
+	customPkg := make([]task.CustomPkgPolicy, 0)
+	customLicenses := make([]string, 0)
 	if policyRule.Pkgs != "" {
 		if err := json.Unmarshal([]byte(policyRule.Pkgs), &customPkg); err != nil {
 			logging.GetLogger().Err(err).Msg("Unmarshal VulnPolicyRule failed")
-			return nil, errors.New("Unmarshal VulnPolicyRule failed")
+		}
+	}
+	if policyRule.Licenses != "" {
+		if err := json.Unmarshal([]byte(policyRule.Licenses), &customLicenses); err != nil {
+			logging.GetLogger().Err(err).Msg("Unmarshal VulnPolicyRule failed")
 		}
 	}
 
 	r["result"] = result
 	r["customFlag"] = 1
-	r["software"] = e.filterCustomPkg(result, customPkg)
+	r["software"] = e.filterCustomPkg(result, customPkg, customLicenses)
 
-	// logging.GetLogger().Info().Msgf("result is : %v", result.Results)
 	return r, nil
 }
 

@@ -323,16 +323,40 @@ type ImageListResponse struct {
 	RegistryUrl       string            `json:"registryUrl"`
 	RegistryDeletedAt int64             `json:"registryDeletedAt"`
 	Os                string            `json:"os"`
+	Size              string            `json:"size"`
 	NodeHostname      string            `json:"nodeHostname"`
 	Flag              uint64            `json:"flag"`
 	Project           string            `json:"project"`
 	LastSyncAt        int64             `json:"lastSyncAt"` // 上次同步时间(单位：毫秒)
 	Malicious         []VirusInfo       `json:"malicious"`  // 恶义文件
+	BootUser          string            `json:"bootUser"`   // 启动用户
 
 	Registry    *Registry  `json:"-"`
 	Subtasks    *SubTask   `json:"-"`
 	ScanInfo    *ScanImage `json:"-"`
 	UniqueImage uint64     `json:"uniqueImage,string"`
+}
+
+type ImageBaseResponse struct {
+	ID                     int64             `json:"id"`
+	Digest                 string            `json:"digest"`
+	Online                 bool              `json:"online"`        // 在线 "true",离线："false"
+	SecurityIssue          []SecurityIssue   `json:"securityIssue"` // 安全问题
+	ImageAttr              ImageAttrResponse `json:"imageAttr"`     // 镜像属性
+	UUID                   uint32            `json:"uuid"`          // 镜像uuid
+	LastScanAt             int64             `json:"lastScanAt"`    // 扫描完成时间戳(单位毫秒)
+	FullRepoName           string            `json:"fullRepoName"`
+	Tag                    string            `json:"tag"`
+	Size                   string            `json:"size"`
+	Os                     string            `json:"os"`
+	Flag                   uint64            `json:"flag"`
+	LastSyncAt             int64             `json:"lastSyncAt"` // 上次同步时间(单位：毫秒)
+	Maintained             bool              `json:"maintained"` // os是否维护维护
+	BootUser               string            `json:"bootUser"`   // 启动用户
+	RiskScore              float64           `json:"riskScore"`
+	VulnFixSuggestion      []string          `json:"vulnFixSuggestion"`
+	SensitiveFixSuggestion []string          `json:"sensitiveFixSuggestion"`
+	RegistryUrl            string            `json:"registryUrl"`
 }
 
 func (ir *ImageListResponse) GetImageName() string {
@@ -436,7 +460,7 @@ func (ir *ImageListResponse) Deserialize() {
 		ir.RegistryName = ir.Registry.Name
 		ir.RegistryUrl = ir.Registry.Url
 		ir.RegistryDeletedAt = ir.Registry.DeletedAt
-		ir.LastSyncAt = ir.Registry.LastSyncAt * 1000 // 前端要求毫秒
+		ir.LastSyncAt = ir.Registry.LastSyncAt
 	}
 	// 处理os版本
 	imageOs := ftypes.OS{}

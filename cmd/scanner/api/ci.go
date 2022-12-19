@@ -17,13 +17,14 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/global"
 
 	"github.com/gin-gonic/gin"
+	"gitlab.com/security-rd/go-pkg/logging"
+
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/ci"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	scanner_ci "gitlab.com/piccolo_su/vegeta/pkg/model/scanner-ci"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
-	"gitlab.com/security-rd/go-pkg/logging"
 )
 
 type CiApiSrv struct {
@@ -496,15 +497,28 @@ func (c *CiApiSrv) GetRecordPkgs(ctx *gin.Context) {
 }
 
 func (c *CiApiSrv) GetVulnDetail(ctx *gin.Context) {
-	vulnName := ctx.Query("vulnName")
-	pkgName := ctx.Query("pkgName")
-	pkgVersion := ctx.Query("pkgVersion")
+	uniqueVulnStr := ctx.Query("uniqueVuln")
+	var (
+		uniqueVuln uint64
+		err        error
+	)
+	if uniqueVulnStr == "" {
+		vulnName := ctx.Query("vulnName")
+		pkgName := ctx.Query("pkgName")
+		pkgVersion := ctx.Query("pkgVersion")
 
-	if vulnName == "" || pkgName == "" || pkgVersion == "" {
-		response.JSONError(ctx, fmt.Errorf("vulnName,pkgName,pkgVersion must not empty"))
-		return
+		if vulnName == "" || pkgName == "" || pkgVersion == "" {
+			response.JSONError(ctx, fmt.Errorf("vulnName,pkgName,pkgVersion must not empty"))
+			return
+		}
+		uniqueVuln = util.GenerateUUID64(fmt.Sprintf(consts.UniqueVulnFamat, vulnName, pkgName, pkgVersion))
+	} else {
+		uniqueVuln, err = strconv.ParseUint(uniqueVulnStr, 64, 10)
+		if err != nil {
+			response.JSONError(ctx, fmt.Errorf("not get uniqueVuln"))
+			return
+		}
 	}
-	uniqueVuln := util.GenerateUUID64(fmt.Sprintf(consts.UniqueVulnFamat, vulnName, pkgName, pkgVersion))
 
 	vulns, _, _, err := c.Component.IM.SearchVulns(ctx, scanner_ci.SearchVulnParam{UniqueVulns: []uint64{uniqueVuln}}, nil)
 	if err != nil {

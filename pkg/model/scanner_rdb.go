@@ -4,13 +4,9 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
-	"sort"
 	"strings"
-	"sync"
 	"time"
 	"unicode/utf8"
-
-	"scm.tensorsecurity.cn/tensorsecurity-rd/trivy/pkg/report"
 
 	"github.com/gobwas/glob"
 	json "github.com/json-iterator/go"
@@ -52,243 +48,6 @@ type PostModel struct {
 	CreatedAt time.Time
 	UpdatedAt time.Time
 	DeletedAt int
-}
-
-// 漏洞表
-type Vuln struct {
-	ID           int64         `gorm:"primaryKey" json:"id"`
-	CreatedAt    time.Time     `json:"created_at" json:"created_at"`
-	UpdatedAt    time.Time     `json:"updated_at" json:"updated_at"`
-	DeletedAt    int           `json:"deleted_at" json:"deleted_at"`
-	Target       string        `gorm:"column:target" json:"target"`
-	Name         string        `gorm:"type:varchar(255);uniqueIndex:uniq_idx_vuln,priority:1" json:"name"` // 形如CVE-2021-28831
-	Namespace    string        `gorm:"type:varchar(255)" json:"namespace"`                                 // 发行版名字：alpine，redhat等
-	Description  string        `gorm:"type:text" json:"description"`                                       // 描述
-	Link         []string      `gorm:"-" json:"link"`                                                      // 参考链接
-	LinkJSON     []byte        `gorm:"type:Blob" json:"-"`
-	Severity     string        `gorm:"type:varchar(255)" json:"severity"` // 威胁等级
-	SeverityInt  int           `gorm:"column:severity_int" json:"severity_int"`
-	Metadata     *VulnMatedata `gorm:"-" json:"metadata"`
-	MetadataJSON []byte        `gorm:"type:Blob" json:"-"`                                                        // 元数据
-	PkgName      string        `gorm:"type:varchar(255);uniqueIndex:uniq_idx_vuln,priority:2" json:"pkg_name"`    // 软件包来源
-	PkgVersion   string        `gorm:"type:varchar(255);uniqueIndex:uniq_idx_vuln,priority:3" json:"pkg_version"` // 软件包版本
-	FixedBy      string        `gorm:"type:varchar(255)" json:"fixedby"`                                          // 修复建议
-	UniqueVuln   uint64        `gorm:"column:unique_vuln" json:"unique_vuln,string"`
-	ExtraInfo    []byte        `gorm:"type:Blob" json:"-"` //  预留，漏洞属性。如我们自己的漏洞评级
-	CheckSum     uint64        `gorm:"column:check_sum" json:"check_sum,string"`
-	Class        string        `gorm:"column:class" json:"class"`       // 代表是系统包还是语言包 os-pkgs
-	Language     string        `gorm:"column:language" json:"language"` // 把编程语言入库用于搜索 统一存小写，便于搜索
-	Frame        string        `gorm:"column:frame" json:"frame"`       // 开发框架筛选
-
-	Attr map[string]string `gorm:"-" json:"attr"` // 漏洞详情中雷达图的数据
-}
-
-func (vu *Vuln) DefaultOmitField() []string {
-	return []string{"description", "metadata_json", "extra_info", "link_json"}
-}
-
-func (vn *Vuln) IsRHSAVuln() bool {
-	if strings.HasPrefix(vn.Name, "RHSA-") || strings.HasPrefix(vn.Name, "RHBA-") {
-		return true
-	}
-	return false
-}
-
-func (vn *Vuln) IsCNNVDVuln() bool {
-	if strings.HasPrefix(vn.Name, "CNNVD-") {
-		return true
-	}
-	return false
-}
-
-var vulnAttr map[string]map[string]string
-
-var defaultAttr map[string]string
-
-func init() {
-	var once sync.Once
-	once.Do(func() {
-		vulnAttr = make(map[string]map[string]string)
-		// 攻击位置难易
-		vulnAttr["AV"] = map[string]string{
-			"N": "网络访问",
-			"L": "本地访问",
-			"P": "物理访问",
-			"":  "相邻网络访问",
-		}
-		// 是否自动化触发
-		vulnAttr["UI"] = map[string]string{
-			"N": "自动",
-			"R": "非自动",
-		}
-		// 所需权限级别 and 攻击复杂度
-		vulnAttr["AC"] = map[string]string{
-			"N": "无",
-			"L": "低",
-			"H": "高",
-		}
-		// 信息泄露风险
-		vulnAttr["C"] = map[string]string{
-			"N": "无",
-			"L": "低",
-			"H": "高",
-		}
-		// 信息/系统篡改风险
-		vulnAttr["A"] = map[string]string{
-			"N": "无",
-			"L": "低",
-			"H": "高",
-		}
-		//  权限范围扩大
-		vulnAttr["S"] = map[string]string{
-			"C": "扩大",
-			"U": "不变",
-		}
-		// 造成 DoS 风险
-		vulnAttr["PR"] = map[string]string{
-			"N": "无",
-			"L": "低",
-			"H": "高",
-		}
-		defaultAttr = map[string]string{
-			"AV": "相邻网络访问", // 攻击位置难易
-			"UI": "非自动",    // 是否自动化触发
-			"AC": "无",      // 所需权限级别, 攻击复杂度 都是这个字段
-			"C":  "无",      // 信息泄露风险
-			"A":  "无",      // 信息/系统篡改风险
-			"PR": "无",      // 造成 DoS 风险
-			"S":  "不变",     // 权限范围扩大
-		}
-	})
-}
-
-func (*Vuln) TableName() string {
-	return "ivan_scanner_vulns"
-}
-
-func (vn *Vuln) SetDefaultAttr() {
-	if vn.Attr == nil {
-		vn.Attr = make(map[string]string)
-	}
-	for k, v := range defaultAttr {
-		vn.Attr[k] = v
-	}
-}
-
-func (vn *Vuln) Serialize() {
-	if vn.Metadata != nil {
-		sort.Sort(CnvdMetadatas(vn.Metadata.CNVDs))
-		bys, err := json.Marshal(vn.Metadata)
-		if err != nil {
-			logging.GetLogger().Err(err).Msg("Vuln.Serialize")
-		} else {
-			vn.MetadataJSON = bys
-		}
-	}
-	if len(vn.Link) > 0 {
-		sort.Strings(vn.Link)
-		bys, err := json.Marshal(vn.Link)
-		if err != nil {
-			logging.GetLogger().Err(err).Msg("Vuln.Serialize")
-		} else {
-			vn.LinkJSON = bys
-		}
-	}
-	if vn.Language == "" {
-		vn.Language = GetVulnLanguageMap()[vn.Namespace] // 如果没有编程语言，就存空
-	}
-
-	if vn.Language == "java" {
-		if strings.Contains(vn.PkgName, "struts2") {
-			vn.Frame = "struts2"
-		}
-		if strings.Contains(vn.PkgName, "fastjson") {
-			vn.Frame = "fastjson"
-		}
-	}
-
-}
-
-func (vn *Vuln) Deserialize() {
-	if len(vn.MetadataJSON) > 0 {
-		meta := VulnMatedata{}
-		if err := json.Unmarshal(vn.MetadataJSON, &meta); err != nil {
-			logging.GetLogger().Err(err).Msg("Vuln.Deserialize")
-			meta = VulnMatedata{} // 一定改成默认值
-		}
-		vn.Metadata = &meta
-	}
-
-	if len(vn.LinkJSON) > 0 {
-		link := make([]string, 0)
-		if err := json.Unmarshal(vn.LinkJSON, &link); err != nil {
-			logging.GetLogger().Err(err).Msg("Vuln.Deserialize")
-			link = make([]string, 0)
-		}
-		vn.Link = link
-	}
-
-	vn.SetDefaultAttr() // 先设置成默认值，接下来更新
-
-	// 格式化攻击路径
-	// 对于class是os-pkgs: 0.0.0.0:5566/zaherg/php-cli-xdebug:7.2 (alpine 3.10.2)
-	// 对于calss是lang-pkgs：root/.local/share/helm/plugins/helm-push.git/bin/helm-cm-push
-	// 对于语言包原样输出，对于系统包，需要做一定的处理
-	target := vn.Target
-	if vn.Class == report.ClassOSPkg {
-		start := strings.Index(vn.Target, "(")
-		last := strings.LastIndex(vn.Target, ")")
-		if start >= 0 && last >= 0 && last > start && last < len(vn.Target) {
-			target = string([]byte(vn.Target)[start+1 : last])
-			target = strings.Join(strings.Split(target, " "), ":")
-		} else {
-			target = ""
-		}
-	}
-	vn.Target = target
-
-	if vn.Metadata != nil {
-		split := strings.Split(vn.Metadata.CVSS.CVSSv3Vector, "/")
-		for i := range split {
-			attr := strings.Split(split[i], ":")
-			if len(attr) >= 2 && vulnAttr[attr[0]] != nil {
-				vn.Attr[attr[0]] = vulnAttr[attr[0]][attr[1]]
-			}
-		}
-	}
-}
-
-func (vn *Vuln) GenCheckSum() uint64 {
-	createdAt, updatedAt, preCheck := vn.CreatedAt, vn.UpdatedAt, vn.CheckSum
-	vn.CreatedAt = time.Time{}
-	vn.UpdatedAt = time.Time{}
-	vn.CheckSum = 0
-
-	bys, err := json.Marshal(vn)
-	vn.CreatedAt, vn.UpdatedAt, vn.CheckSum = createdAt, updatedAt, preCheck
-	if err != nil {
-		return 0
-	}
-	return util.GenerateUUID64(string(bys))
-}
-
-func (vn *Vuln) GenUniqueVuln() uint64 {
-	key := fmt.Sprintf(consts.UniqueVulnFamat, vn.Name, vn.PkgName, vn.PkgVersion)
-	uid := util.GenerateUUID64(key)
-	return uid
-}
-
-// 漏洞关联镜像表
-type VulnImage struct {
-	ID         int64     `gorm:"primaryKey" json:"id,omitempty"`
-	CreatedAt  time.Time `json:"created_at"`
-	UpdatedAt  time.Time `json:"updated_at"`
-	UniqueVuln uint64    `gorm:"column:unique_vuln" json:"unique_vuln"`                      // 漏洞的唯一标识
-	ImageId    int64     `gorm:"uniqueIndex:uniq_idx_vnlu_image,priority:2" json:"image_id"` // 镜像id
-}
-
-func (VulnImage) TableName() string {
-	return "ivan_scanner_vuln_images"
 }
 
 type ScanLayer struct { // 层级扫描结果
@@ -431,18 +190,18 @@ type Registry struct {
 	PasswordString  string `gorm:"-" json:"password"`
 	Token           string `gorm:"-" json:"token"`
 	Description     string `gorm:"type:varchar(255);column:description"  json:"description"`
-	AuthStr         string `gorm:"-" json:"auth_str"`                                  // 用户名和密码加密后的数据，不存入数据库中
-	UseType         int    `gorm:"column:use_type" json:"use_type"`                    // 1-用户仓库,2-buf仓库
-	SyncInterval    int64  `gorm:"column:sync_interval" json:"sync_interval"`          // 单位：分钟
-	LastSyncAt      int64  `gorm:"column:last_sync_at; default:0" json:"last_sync_at"` // 最后一次同步时间(单位：秒)
-	AccessKey       string `gorm:"access_key" json:"access_key"`                       // 阿里云仓库的AccessKey
-	AccessSecret    string `gorm:"access_secret" json:"access_secret"`                 // 阿里云仓库的AccessSecret
-	InstanceID      string `gorm:"instance_id" json:"instance_id"`                     // 阿里云仓库企业版实例ID
-	RegionID        string `gorm:"region_id" json:"region_id"`                         // 阿里云仓库企业版地域ID
-	ScannerInstance string `gorm:"scanner_instance" json:"scanner_instance"`           // 当前仓库所用扫描器
-	Status          string `gorm:"column:status" json:"status"`                        // 健康状况
-	HealthMsg       string `gorm:"column:health_msg" json:"health_msg"`                // 不健康时的错误信息
-	HeatBeat        int64  `gorm:"column:heat_beat" json:"heat_beat"`                  // 上一次检查时间
+	AuthStr         string `gorm:"-" json:"auth_str"`                         // 用户名和密码加密后的数据，不存入数据库中
+	UseType         int    `gorm:"column:use_type" json:"use_type"`           // 1-用户仓库,2-buf仓库
+	SyncInterval    int64  `gorm:"column:sync_interval" json:"sync_interval"` // 单位：分钟
+	LastSyncAt      int64  `gorm:"column:last_sync_at" json:"last_sync_at"`   // 最后一次同步时间(单位：秒)
+	AccessKey       string `gorm:"access_key" json:"access_key"`              // 阿里云仓库的AccessKey
+	AccessSecret    string `gorm:"access_secret" json:"access_secret"`        // 阿里云仓库的AccessSecret
+	InstanceID      string `gorm:"instance_id" json:"instance_id"`            // 阿里云仓库企业版实例ID
+	RegionID        string `gorm:"region_id" json:"region_id"`                // 阿里云仓库企业版地域ID
+	ScannerInstance string `gorm:"scanner_instance" json:"scanner_instance"`  // 当前仓库所用扫描器
+	Status          string `gorm:"column:status" json:"status"`               // 健康状况
+	HealthMsg       string `gorm:"column:health_msg" json:"health_msg"`       // 不健康时的错误信息
+	HeatBeat        int64  `gorm:"column:heat_beat" json:"heat_beat"`         // 上一次检查时间
 
 	CreatedAt time.Time `gorm:"column:created_at" json:"created_at"`
 	UpdatedAt time.Time `gorm:"column:updated_at" json:"updated_at"`
@@ -474,7 +233,7 @@ func (r *Registry) WhetherToStartSync() bool {
 
 	now := time.Now().Unix()
 
-	if r.LastSyncAt+r.SyncInterval*60 < now {
+	if r.LastSyncAt/1000+r.SyncInterval*60 < now {
 		return false
 	}
 	return true
@@ -795,36 +554,61 @@ type RejectPolicy struct {
 	VulnPolicy    string `gorm:"type:varchar(255);" json:"vuln_policy"` //
 	WebShellScore int64  `json:"web_shell_score"`
 
-	WebShellPolicy       string `gorm:"type:varchar(255);" json:"web_shell_policy"`
-	SensitiveFilePolicy  string `gorm:"type:varchar(255);" json:"sensitive_file_policy"`       // 敏感文件规则
-	MaliciousPolicy      string `gorm:"type:varchar(255);" json:"malicious_policy"`            // 恶意文件规则
-	BaseImagePolicy      string `gorm:"type:varchar(255);" json:"base_image_policy"`           // 基础镜像规则
-	TrustedImagePolicy   string `gorm:"type:varchar(255);" json:"trusted_image_policy"`        // 可信镜像规则
-	PrivilegedBootPolicy string `gorm:"type:varchar(255);" json:"privileged_boot_policy"`      // 特权启动规则
-	EnvPolicy            string `gorm:"type:varchar(255);column:env_policy" json:"env_policy"` // 环境变量
+	WebShellPolicy       string                `gorm:"type:varchar(255);" json:"web_shell_policy"`
+	SensitiveFilePolicy  string                `gorm:"type:varchar(255);" json:"sensitive_file_policy"`       // 敏感文件规则
+	MaliciousPolicy      string                `gorm:"type:varchar(255);" json:"malicious_policy"`            // 恶意文件规则
+	BaseImagePolicy      string                `gorm:"type:varchar(255);" json:"base_image_policy"`           // 基础镜像规则
+	TrustedImagePolicy   string                `gorm:"type:varchar(255);" json:"trusted_image_policy"`        // 可信镜像规则
+	PrivilegedBootPolicy string                `gorm:"type:varchar(255);" json:"privileged_boot_policy"`      // 特权启动规则
+	EnvPolicy            string                `gorm:"type:varchar(255);column:env_policy" json:"env_policy"` // 环境变量
+	SensitiveFileJson    string                `gorm:"type:text;column:sensitive_file" json:"-"`
+	SensitiveFile        []SensitiveFilePolicy `gorm:"-" json:"sensitive_file"`
+	EnvsJson             string                `gorm:"type:text;column:envs" json:"-"`
+	Envs                 []string              `gorm:"-" json:"envs"`
+	CicdEnable           bool                  `gorm:"cicd_enable" json:"cicd_enable"`
+	K8sEnable            bool                  `gorm:"k8s_enable" json:"k8s_enable"`
+	RejectVulns          []RejectVuln          `gorm:"-" json:"reject_vulns"`
+	Mode                 string                `gorm:"type:varchar(255);column:mode" json:"mode"` // 阻断模式(基本模式,安全模式)
+	OnlineMonitor        bool                  `gorm:"online_monitor" json:"online_monitor"`      // 是否开启在线监控
+	CreatedAt            time.Time             `json:"created_at"`                                //
+	UpdatedAt            time.Time             `json:"updated_at"`
+	Enable               bool                  `json:"enable"` // 是否启用该策略
+	IsGlobal             bool                  `json:"is_global"`
+	IgnoreNotFixedVuln   bool                  `gorm:"column:ignore_not_fixed_vuln" json:"ignoreNotFixedVuln"`
+	IgnoreLangVuln       bool                  `gorm:"column:ignore_lang_vuln" json:"ignoreLangVuln"`
+	DeletedAt            int                   `json:"deleted_at,omitempty"`
+}
 
-	SensitiveFileJson string                `gorm:"type:text;column:sensitive_file" json:"-"`
-	SensitiveFile     []SensitiveFilePolicy `gorm:"-" json:"sensitive_file"`
-	EnvsJson          string                `gorm:"type:text;column:envs" json:"-"`
-	Envs              []string              `gorm:"-" json:"envs"`
-	CicdEnable        bool                  `gorm:"cicd_enable" json:"cicd_enable"`
-	K8sEnable         bool                  `gorm:"k8s_enable" json:"k8s_enable"`
-	RejectVulns       []RejectVuln          `gorm:"-" json:"reject_vulns"`
-	Mode              string                `gorm:"type:varchar(255);column:mode" json:"mode"` // 阻断模式(基本模式,安全模式)
-	OnlineMonitor     bool                  `gorm:"online_monitor" json:"online_monitor"`      // 是否开启在线监控
-	CreatedAt         time.Time             `json:"created_at"`                                //
-	UpdatedAt         time.Time             `json:"updated_at"`
-	Enable            bool                  `json:"enable"` // 是否启用该策略
-	IsGlobal          bool                  `json:"is_global"`
-	DeletedAt         int                   `json:"deleted_at,omitempty"`
-} // @name RejectPolicy
+func (s *RejectPolicy) Serialize() {
+
+}
+
+func (s *RejectPolicy) Deserialize() {
+	if len(s.SensitiveFileJson) > 0 {
+		ses := make([]SensitiveFilePolicy, 0)
+		if err := json.Unmarshal([]byte(s.SensitiveFileJson), &ses); err == nil {
+			s.SensitiveFile = ses
+		} else {
+			logging.GetLogger().Err(err).Msg("SearchRejectPolicy")
+		}
+	}
+
+	if len(s.EnvsJson) > 0 {
+		ses := make([]string, 0)
+		if err := json.Unmarshal([]byte(s.EnvsJson), &ses); err == nil {
+			s.Envs = ses
+		} else {
+			logging.GetLogger().Err(err).Msg("SearchRejectPolicy")
+		}
+	}
+}
 
 type SensitiveFilePolicy struct {
 	Key    string `json:"key"`
 	Policy string `json:"policy"`
 }
 
-func (RejectPolicy) TableName() string {
+func (*RejectPolicy) TableName() string {
 	return "ivan_scanner_reject_policy"
 }
 

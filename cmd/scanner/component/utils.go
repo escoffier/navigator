@@ -17,6 +17,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
+	"gitlab.com/piccolo_su/vegeta/pkg/util"
 	"gitlab.com/piccolo_su/vegeta/pkg/uuid"
 )
 
@@ -115,7 +116,7 @@ var (
 	}
 )
 
-func CalculateVulnScore(imascan model.ScanImage, cus map[string]model.RejectVuln) int {
+func CalculateVulnScore(imascan model.ScanImage, cus map[string]model.RejectVuln, ignoreNotFixedVuln, ignoreLangVuln bool) int {
 	// 就先写魔法数字吧，恶心是恶心了点
 	subScore := map[string]int{
 		model.SeverityCritical:   25,
@@ -136,6 +137,13 @@ func CalculateVulnScore(imascan model.ScanImage, cus map[string]model.RejectVuln
 	}
 	ans := 50
 	for _, vu := range imascan.VulnInfo {
+		if (ignoreNotFixedVuln && vu.FixedBy == "") || (ignoreLangVuln && util.ExistBit1(vu.Flag, model.VulnFlagClassLangPkg)) {
+			continue
+		}
+
+		if ignoreNotFixedVuln && vu.FixedBy == "" {
+			continue
+		}
 		if cu, ok := cus[vu.Name]; ok && cu.RejectPolicy == model.RejectPolicyIgnore {
 			continue
 		}
@@ -293,6 +301,8 @@ func rejectPolicyToUpdater(po model.RejectPolicy) map[string]interface{} {
 		"online_monitor":         po.OnlineMonitor,
 		"mode":                   po.Mode,
 		"env_policy":             po.EnvPolicy,
+		"ignore_not_fixed_vuln":  po.IgnoreNotFixedVuln,
+		"ignore_lang_vuln":       po.IgnoreLangVuln,
 	}
 	bys, err := json.Marshal(po.Envs)
 	if err == nil {

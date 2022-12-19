@@ -322,14 +322,27 @@ type SearchVulnParam struct {
 	NotReturnCount  bool
 	StartID         int64
 	ClassType       []string
-	NotCNNVD        string // fixme 传这个参数时会用到like，性能不佳
-	NotRHSA         string // fixme 传这个参数时会用到like，性能不佳
 }
 
 type SearchVulnImageParam struct {
 	ImageIds    []int64
 	UniqueVulns []uint64
 	Fields      []string
+}
+
+type SearchImageScanResultParam struct {
+	UniqueTarget []uint64
+	ImageID      int64
+	LayerDigest  string
+	Fields       []string
+	NormalEnv    string
+	Keyword      string
+	Flag         uint64
+	License      []string
+}
+
+func (vi *SearchImageScanResultParam) Serialize() {
+
 }
 
 type SearchDistinctUniqueVulnParam struct {

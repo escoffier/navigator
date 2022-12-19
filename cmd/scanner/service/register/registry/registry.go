@@ -37,7 +37,7 @@ func (s *Registry) Start(ctx context.Context) error {
 				continue
 			}
 			if err := s.update.CheckHealth(ctx, global.ScannerInstance); err != nil {
-				logging.GetLogger().Err(err).Msg("CheckHealth service end")
+				logging.GetLogger().Err(err).Str("ScannerInstance", global.ScannerInstance).Msg("CheckHealth service end")
 				continue
 			}
 			logging.GetLogger().Debug().Str("ScannerInstance", global.ScannerInstance).Msg("CheckHealth start success")

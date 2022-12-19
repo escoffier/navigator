@@ -64,6 +64,7 @@ func NewBackgroundTasks(ctx context.Context, config Config) *BackgroundTasks {
 	registryDal := store.NewRegistryDao(config.Rdb)
 	scanConfigDal := store.NewScanConfigDao(config.Rdb)
 	vulnDal := store.NewVulnDao(config.Rdb)
+	scanResultDal := store.NewImageScanResultDao(config.Rdb)
 	idempotentDal := store.NewIdempotentDao(config.Rdb)
 	imageSrv := component.NewConScannerSrv(dal, registryDal, dal, scanConfigDal, vulnDal, nil) // scan-report 无需上报事件中心，此处传空
 	updateTask := export.NewUpdateTaskSrv(store.NewExportTaskDao(config.Rdb), config.RedisCli)
@@ -84,10 +85,10 @@ func NewBackgroundTasks(ctx context.Context, config Config) *BackgroundTasks {
 
 	// 镜像搜索列表导出excel
 	imageSearchSrv := excel.NewImageSearchSrv(scanTaskExportSrv, exportTaskDal, config.FileDir, updateTask,
-		component.NewImageService(dal, registryDal, dal), config.IncludeCNNVDVuln, config.IncludeRHSAVuln)
+		component.NewImageService(dal, registryDal, dal, vulnDal, scanResultDal), config.IncludeCNNVDVuln, config.IncludeRHSAVuln)
 	// 镜像扫描报告导出到html
-	imageHtmlSrv := html.NewExportImageHtmlSrv(component.NewImageService(dal, registryDal, dal),
-		vulnDal, dal, exportTaskDal, updateTask, config.FileDir, config.IncludeCNNVDVuln, config.IncludeRHSAVuln)
+	imageHtmlSrv := html.NewExportImageHtmlSrv(component.NewImageService(dal, registryDal, dal, vulnDal, scanResultDal),
+		vulnDal, dal, exportTaskDal, updateTask, config.FileDir)
 
 	srv := &BackgroundTasks{
 		ScanReport:         scanReportServer,

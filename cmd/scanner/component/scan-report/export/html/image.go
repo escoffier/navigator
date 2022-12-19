@@ -19,6 +19,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/utils"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
+	"gitlab.com/piccolo_su/vegeta/pkg/util"
 )
 
 // 镜像列表搜索的安全报告
@@ -30,9 +31,6 @@ type ExportImageHtmlSrv struct {
 	UpdateTask    export.UpdateTask
 	KoaAddr       string // 生成html的内部服务接口
 	FileDir       string // 文件存放的绝对路径
-
-	IncludeCNNVDVuln bool
-	IncludeRHSAVuln  bool
 }
 
 func NewExportImageHtmlSrv(
@@ -42,19 +40,15 @@ func NewExportImageHtmlSrv(
 	exportTaskDal store.ExportTaskDal,
 	updateTask export.UpdateTask,
 	fileDir string,
-	includeCNNVDVuln bool,
-	includeRHSAVuln bool,
 ) *ExportImageHtmlSrv {
 	return &ExportImageHtmlSrv{
-		ImageSrv:         imageSrv,
-		VulnDal:          vulnDal,
-		ImageScanDal:     imageScanDal,
-		ExportTaskDal:    exportTaskDal,
-		UpdateTask:       updateTask,
-		FileDir:          fileDir,
-		KoaAddr:          consts.KoaAddr,
-		IncludeCNNVDVuln: includeCNNVDVuln,
-		IncludeRHSAVuln:  includeRHSAVuln,
+		ImageSrv:      imageSrv,
+		VulnDal:       vulnDal,
+		ImageScanDal:  imageScanDal,
+		ExportTaskDal: exportTaskDal,
+		UpdateTask:    updateTask,
+		FileDir:       fileDir,
+		KoaAddr:       consts.KoaAddr,
 	}
 }
 
@@ -136,8 +130,6 @@ func (s *ExportImageHtmlSrv) GetImages(ctx context.Context, taskID int64, starID
 				ClassType:      []string{report.ClassOSPkg, report.ClassConfig},
 				ImageIds:       []int64{images[j].ID},
 				OmitFields:     new(model.Vuln).DefaultOmitField(),
-				NotCNNVD:       fmt.Sprintf("%t", !s.IncludeCNNVDVuln),
-				NotRHSA:        fmt.Sprintf("%t", !s.IncludeRHSAVuln),
 				NotReturnCount: true,
 			}, nil)
 			if err != nil {
@@ -146,13 +138,14 @@ func (s *ExportImageHtmlSrv) GetImages(ctx context.Context, taskID int64, starID
 			}
 
 			im := Image{
-				ImageID:     images[j].ID,
-				ImageName:   images[j].GetImageName(),
-				FixedVuln:   VulnSeverityCount{},
-				UnFixedVuln: VulnSeverityCount{},
-				Malicious:   int64(len(images[j].Malicious)),
-				RiskScore:   images[j].RiskScore,
-				Flag:        images[j].Flag,
+				ImageID:       images[j].ID,
+				ImageName:     images[j].GetImageName(),
+				FixedVuln:     VulnSeverityCount{},
+				UnFixedVuln:   VulnSeverityCount{},
+				Malicious:     int64(len(images[j].Malicious)),
+				RiskScore:     images[j].RiskScore,
+				NotMaintained: util.ExistBit1(images[j].Flag, model.FlagImageNotMaintained),
+				Flag:          images[j].Flag,
 			}
 			im.AddVulnSeverityCount(vulns)
 			res.Images = append(res.Images, im)
@@ -303,8 +296,6 @@ func (s *ExportImageHtmlSrv) GetExportVulns(ctx context.Context, taskID int64, s
 		vulns, _, err := s.VulnDal.SearchVuln(ctx, store.SearchVulnParam{
 			UniqueVulns:    uniqueVulns,
 			ClassType:      []string{report.ClassOSPkg, report.ClassConfig},
-			NotCNNVD:       fmt.Sprintf("%t", !s.IncludeCNNVDVuln),
-			NotRHSA:        fmt.Sprintf("%t", !s.IncludeRHSAVuln),
 			NotReturnCount: true,
 		}, nil)
 		if err != nil {
@@ -336,8 +327,6 @@ func (s *ExportImageHtmlSrv) GetImageVulns(ctx context.Context, taskID, imageID 
 	// 获取镜像的漏洞统计信息信息
 	vulns, _, err := s.VulnDal.SearchVuln(ctx, store.SearchVulnParam{StartID: startID,
 		ClassType:      []string{report.ClassOSPkg, report.ClassConfig},
-		NotCNNVD:       fmt.Sprintf("%t", !s.IncludeCNNVDVuln),
-		NotRHSA:        fmt.Sprintf("%t", !s.IncludeRHSAVuln),
 		NotReturnCount: true,
 		ImageIds:       []int64{imageID}, SeverityInt: []int64{int64(severity)}},
 		&model.Filter{SortFiled: "id", SortBy: consts.SortByAsc})
@@ -400,8 +389,6 @@ func (s *ExportImageHtmlSrv) GetImageRisk(ctx context.Context, taskID, imageID i
 	vulns, _, err := s.VulnDal.SearchVuln(ctx, store.SearchVulnParam{
 		ImageIds:       []int64{imageID},
 		ClassType:      []string{report.ClassOSPkg, report.ClassConfig},
-		NotCNNVD:       fmt.Sprintf("%t", !s.IncludeCNNVDVuln),
-		NotRHSA:        fmt.Sprintf("%t", !s.IncludeRHSAVuln),
 		NotReturnCount: true,
 	}, nil)
 	if err != nil {
@@ -639,8 +626,6 @@ func (s *ExportImageHtmlSrv) createVulnImage(ctx context.Context, taskID int64) 
 			vulns, _, err := s.VulnDal.SearchVuln(ctx, store.SearchVulnParam{
 				ClassType:      []string{report.ClassOSPkg, report.ClassConfig},
 				OmitFields:     new(model.Vuln).DefaultOmitField(),
-				NotCNNVD:       fmt.Sprintf("%t", !s.IncludeCNNVDVuln),
-				NotRHSA:        fmt.Sprintf("%t", !s.IncludeRHSAVuln),
 				NotReturnCount: true,
 				ImageIds:       []int64{exportImages[i].ImageID}}, nil)
 			if err != nil {

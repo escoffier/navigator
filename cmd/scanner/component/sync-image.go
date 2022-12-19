@@ -435,7 +435,7 @@ func (s *SyncRepoImage) startSyncAllImage(ctx context.Context, regID int64, sync
 		return nil
 	}
 
-	if err := s.registryDal.UpdateRegistry(ctx, store.SearchRegistryParam{ID: reg.ID}, map[string]interface{}{"last_sync_at": start / 1000}); err != nil {
+	if err := s.registryDal.UpdateRegistry(ctx, store.SearchRegistryParam{ID: reg.ID}, map[string]interface{}{"last_sync_at": start}); err != nil {
 		logging.GetLogger().Err(err).Msg("StartSyncAllImage UpdateRegistry last_sync_at error")
 	}
 
@@ -532,7 +532,7 @@ func (s *SyncRepoImage) startSyncIncrementallyImage(ctx context.Context, regID i
 
 	res, err := driver.ListImagesWithAuditLog(ctx, s.getExtender(),
 		registry.ListImagesAuditLog{
-			StartAt: reg.LastSyncAt,
+			StartAt: reg.LastSyncAt / 1000, // 数据库中存的是毫秒
 			EndAt:   now,
 		})
 	if err != nil {
@@ -540,7 +540,7 @@ func (s *SyncRepoImage) startSyncIncrementallyImage(ctx context.Context, regID i
 		return err
 	}
 	if !res.GetAuditLogError {
-		if err := s.registryDal.UpdateRegistry(ctx, store.SearchRegistryParam{ID: reg.ID}, map[string]interface{}{"last_sync_at": now}); err != nil {
+		if err := s.registryDal.UpdateRegistry(ctx, store.SearchRegistryParam{ID: reg.ID}, map[string]interface{}{"last_sync_at": time.Now().UnixMilli()}); err != nil {
 			logging.GetLogger().Err(err).Msg("UpdateRegistry last_sync_at error")
 		}
 	}

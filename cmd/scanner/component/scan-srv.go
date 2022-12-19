@@ -344,7 +344,7 @@ func (s *ConScannerSrv) ListBaseImageOfApp(ctx context.Context, imageID int64, f
 		return []model.ImageList{}, 0, nil
 	}
 
-	baseImages, _, err := s.dbdal.SearchImage(ctx, store.SearchImageParam{AttrFlag: 1 << model.FlagBaseImage}, nil)
+	baseImages, _, err := s.dbdal.SearchImage(ctx, store.SearchImageParam{Flag: 1 << model.FlagBaseImage}, nil)
 	if err != nil {
 		logging.GetLogger().Err(err).Msg("ListBaseImageOfApp")
 		return nil, 0, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf("获取基础镜像出错"))
@@ -1356,7 +1356,7 @@ func (s *ConScannerSrv) GetImageDetail(ctx context.Context, imgID int64) (*model
 		}
 	}
 	// 增加安全建议
-	img.SentiveFixSuggestion = utils.GenSensitiveFileSuggest(img.ImageScanVuln.SensitiveFiles)
+	img.SentiveFixSuggestion = utils.GenSensitiveFileSuggest2(img.ImageScanVuln.SensitiveFiles)
 	img.VulnFixSuggestion = utils.GenVulnSuggest(img.OS, img.ImageScanVuln.Vulns)
 
 	return img, nil
@@ -2404,6 +2404,9 @@ func (s *ConScannerSrv) checkCustomizeVuln(ctx context.Context, scanImage model.
 	cusBlockVuln := make([]string, 0)
 	cusAlertVuln := make([]string, 0)
 	for _, vu := range scanImage.VulnInfo {
+		if (po.IgnoreNotFixedVuln && vu.FixedBy == "") || (po.IgnoreLangVuln && util.ExistBit1(vu.Flag, model.VulnFlagClassLangPkg)) {
+			continue
+		}
 		// 自定义漏洞规则
 		if svn, ok := customizeVulnMap[vu.Name]; ok {
 			logging.GetLogger().Info().Msgf("Contains custom vulnerabilities, imag Id:" + strconv.Itoa(int(img.ID)))
@@ -2469,6 +2472,9 @@ func (s *ConScannerSrv) checkVulnSeverity(ctx context.Context, scanImage model.S
 			if vumMap[vu.Severity] == nil {
 				vumMap[vu.Severity] = make([]string, 0)
 			}
+			if (po.IgnoreNotFixedVuln && vu.FixedBy == "") || (po.IgnoreLangVuln && util.ExistBit1(vu.Flag, model.VulnFlagClassLangPkg)) {
+				continue
+			}
 			vumMap[vu.Severity] = append(vumMap[vu.Severity], vu.Name)
 		}
 	}
@@ -2515,7 +2521,7 @@ func (s *ConScannerSrv) checkVulnScore(ctx context.Context, scanImage model.Scan
 		customizeVuluMap[po.RejectVulns[i].Name] = po.RejectVulns[i]
 	}
 	//  如果配置了漏洞分数,
-	ans := CalculateVulnScore(scanImage, customizeVuluMap)
+	ans := CalculateVulnScore(scanImage, customizeVuluMap, po.IgnoreNotFixedVuln, po.IgnoreLangVuln)
 	if po.VulnScore > 0 && int64(ans) < po.VulnScore {
 		msgZh := fmt.Sprintf("{漏洞综合评分：}%d{，低于阻断分数：}%d", ans, po.VulnScore)
 		msgEN := fmt.Sprintf("{vulnerability rate:} %d{,Lower than:}%d", ans, po.VulnScore)
@@ -3409,7 +3415,7 @@ func GetErrMsgEnu(errNo int) string {
 func GetTaskStatus(list []model.Task) int {
 
 	// 任务组里面的任务全部完成--状态为完成；全部任务为等待中--状态为等待中；全部任务为暂停或终止--状态为暂停或者终止；其他情况为执行中
-	// 然后按位统计全部任务情况，这样可能简单点
+	// 然后按位统计全部任务情况
 	var status uint64
 
 	for i := range list {

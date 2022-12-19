@@ -1,4 +1,4 @@
-package scanvuln
+package boltvuln
 
 import (
 	"context"
@@ -22,26 +22,27 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 )
 
-type ScannerVuln struct {
+type BoltVuln struct {
 	lock     *sync.RWMutex
 	customDB *bolt.DB
 	dbPath   string
 	PvcPath  string
 }
 
-type VulnDetail struct {
-	Cnvd  []cnvd.Metadata
-	Cnnvd cnnvd.VulnerabilityInfo
+type VulnBoltDal interface {
+	GetVulnDetail(name string) ([]cnvd.Metadata, cnnvd.VulnerabilityInfo, error)
 }
 
 var (
-	once        sync.Once
-	scannerVuln *ScannerVuln
+	once     sync.Once
+	boltVuln *BoltVuln
 )
 
-func GetScannerVuln() *ScannerVuln {
-	return scannerVuln
+func GetSingleBoltVuln() *BoltVuln {
+
+	return boltVuln
 }
+
 func CheckList(pvcPath string) bool {
 	// fileList := []string{"init_trivy.db", "init_custom.db", "custom_init_version", "trivy_init_version"}
 	fileList := []string{"custom_init_version", "trivy_init_version"}
@@ -53,7 +54,8 @@ func CheckList(pvcPath string) bool {
 	}
 	return true
 }
-func NewScannerVuln(pvcPath string) *ScannerVuln {
+
+func NewScannerVuln(pvcPath string) *BoltVuln {
 	for {
 		if CheckList(pvcPath) {
 			break
@@ -62,14 +64,14 @@ func NewScannerVuln(pvcPath string) *ScannerVuln {
 		}
 	}
 	once.Do(func() {
-		scannerVuln = &ScannerVuln{}
-		scannerVuln.PvcPath = pvcPath
-		scannerVuln.lock = new(sync.RWMutex)
+		boltVuln = &BoltVuln{}
+		boltVuln.PvcPath = pvcPath
+		boltVuln.lock = new(sync.RWMutex)
 	})
-	return scannerVuln
+	return boltVuln
 }
 
-func (s *ScannerVuln) GetDBPath() (string, error) {
+func (s *BoltVuln) GetDBPath() (string, error) {
 	tmpDir, err := ioutil.TempDir(s.PvcPath, "")
 	if err != nil {
 		return "", err
@@ -85,7 +87,7 @@ func (s *ScannerVuln) GetDBPath() (string, error) {
 	return tmpDir, nil
 }
 
-func (s *ScannerVuln) TickerRun() error {
+func (s *BoltVuln) TickerRun() error {
 	preDir := s.dbPath
 	err := s.InitDB()
 	if err != nil {
@@ -128,7 +130,7 @@ func CompareVersion(vtype string, old string, new string) bool {
 	return true
 }
 
-func (s *ScannerVuln) ReadVersion(name string) string {
+func (s *BoltVuln) ReadVersion(name string) string {
 	res := "last"
 	if strings.Contains(name, "custom") {
 		offlineVersion := "2006-01-02 15:04:04"
@@ -157,7 +159,8 @@ func (s *ScannerVuln) ReadVersion(name string) string {
 	}
 	return res
 }
-func (s *ScannerVuln) getVulnPath() string {
+
+func (s *BoltVuln) getVulnPath() string {
 	version := s.ReadVersion("custom")
 	if version == "last" {
 		return filepath.Join(s.PvcPath, "last_custom.db")
@@ -165,7 +168,7 @@ func (s *ScannerVuln) getVulnPath() string {
 	return filepath.Join(s.PvcPath, "offline", "init_custom.db")
 }
 
-func (s *ScannerVuln) InitDB() error {
+func (s *BoltVuln) InitDB() error {
 	s.lock.Lock()
 	defer s.lock.Unlock()
 
@@ -208,7 +211,7 @@ func (s *ScannerVuln) InitDB() error {
 	return nil
 }
 
-func (s *ScannerVuln) Run() {
+func (s *BoltVuln) Run() {
 	defer func() {
 		if s.dbPath != "" {
 			os.RemoveAll(s.dbPath)
@@ -243,50 +246,46 @@ func (s *ScannerVuln) Run() {
 	}
 }
 
-func (s *ScannerVuln) GetVulnDetail(name string) (VulnDetail, error) {
+func (s *BoltVuln) GetVulnDetail(name string) ([]cnvd.Metadata, cnnvd.VulnerabilityInfo, error) {
 	logging.GetLogger().Info().Msgf("IN Query %s", name)
 	if s.customDB == nil {
-		return VulnDetail{}, fmt.Errorf("db not open")
+		return nil, cnnvd.VulnerabilityInfo{}, fmt.Errorf("db not open")
 	}
 	s.lock.RLock()
 	defer s.lock.RUnlock()
-	res := VulnDetail{}
-	if s.customDB != nil {
-		_ = s.customDB.View(func(tx *bolt.Tx) error { // customDB
-			var err error
-			cnvdBucket := tx.Bucket([]byte("cnvd"))
-			if cnvdBucket == nil {
-				logging.GetLogger().Error().Msg("get cnvdBucket err")
-				return fmt.Errorf("get cnvdBucket err")
-			}
-			cnvdResByte := cnvdBucket.Get([]byte(name))
-			cnvdRes := []cnvd.Metadata{}
-			if cnvdResByte != nil {
-				err = json.Unmarshal(cnvdResByte, &cnvdRes)
-				if err != nil {
-					logging.GetLogger().Err(err).Msgf("unmarshal cnvdRes err")
-					return err
-				}
-			}
-			res.Cnvd = cnvdRes
-			cnnvdBucket := tx.Bucket([]byte("cnnvd"))
-			if cnnvdBucket == nil {
-				logging.GetLogger().Error().Msgf("get cnnvdBucker err")
-				return fmt.Errorf("get cnnvdBucker err")
-			}
-			cnnvdResByte := cnnvdBucket.Get([]byte(name))
-			cnnvdRes := cnnvd.VulnerabilityInfo{}
-			if cnnvdResByte != nil {
-				err = json.Unmarshal(cnnvdResByte, &cnnvdRes)
-				if err != nil {
-					logging.GetLogger().Err(err).Msgf("unmarshal cnnvdRes err")
-					return err
-				}
+	cnvdRes := make([]cnvd.Metadata, 0)
+	cnnvdRes := cnnvd.VulnerabilityInfo{}
+	err := s.customDB.View(func(tx *bolt.Tx) error { // customDB
+		var err error
+		cnvdBucket := tx.Bucket([]byte("cnvd"))
+		if cnvdBucket == nil {
+			logging.GetLogger().Error().Msg("get cnvdBucket err")
+			return fmt.Errorf("get cnvdBucket err")
+		}
+		cnvdResByte := cnvdBucket.Get([]byte(name))
 
+		if cnvdResByte != nil {
+			err = json.Unmarshal(cnvdResByte, &cnvdRes)
+			if err != nil {
+				logging.GetLogger().Err(err).Msgf("unmarshal cnvdRes err")
+				return err
 			}
-			res.Cnnvd = cnnvdRes
-			return nil
-		})
-	}
-	return res, nil
+		}
+		cnnvdBucket := tx.Bucket([]byte("cnnvd"))
+		if cnnvdBucket == nil {
+			logging.GetLogger().Error().Msgf("get cnnvdBucker err")
+			return fmt.Errorf("get cnnvdBucker err")
+		}
+		cnnvdResByte := cnnvdBucket.Get([]byte(name))
+
+		if cnnvdResByte != nil {
+			err = json.Unmarshal(cnnvdResByte, &cnnvdRes)
+			if err != nil {
+				logging.GetLogger().Err(err).Msgf("unmarshal cnnvdRes err")
+				return err
+			}
+		}
+		return nil
+	})
+	return cnvdRes, cnnvdRes, err
 }

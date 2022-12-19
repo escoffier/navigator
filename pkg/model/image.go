@@ -64,6 +64,7 @@ const (
 	FlagImageScanSuccess    = 14
 	FlagImageScanFailed     = 15
 	FlagImageNotScan        = 16
+	FlagImageNotMaintained  = 17 // os是否在维护
 
 	JobNotScan string = "not_scan"
 )
@@ -231,22 +232,21 @@ type Artifacts1 struct {
 }
 
 type OverView struct {
-	ImageTotal  int64    `json:"image_total"`
-	OnlineTotal int64    `json:"online_total"`
-	Sum         SafeOver `json:"sum"`
-	Online      SafeOver `json:"online"`
+	ImageTotal  int64                 `json:"imageTotal"`
+	OnlineTotal int64                 `json:"onlineTotal"`
+	Sum         SecurityIssueOverview `json:"sum"`
+	Online      SecurityIssueOverview `json:"online"`
 }
 
-type SafeOver struct {
+type SecurityIssueOverview struct {
 	VULN           int64 `json:"vuln"`
 	VIRUS          int64 `json:"virus"`
 	SENSITIVE      int64 `json:"sensitive"`
 	Webshell       int64 `json:"webshell"`
-	Pkg            int64 `json:"pkg"`
 	Envs           int64 `json:"envs"`
 	Software       int64 `json:"software"`
 	License        int64 `json:"license"`
-	PrivilegedBoot int64 `json:"privileged_boot"`
+	PrivilegedBoot int64 `json:"privilegedBoot"`
 }
 
 // ImageList 镜像信息表

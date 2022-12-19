@@ -69,6 +69,7 @@ func newService(config register.ScannerServiceConfig) (register.ScannerService, 
 	registryDal := store.NewRegistryDao(scannerWrapperDb)
 	scanConfigDal := store.NewScanConfigDao(scannerWrapperDb)
 	vulnDal := store.NewVulnDao(scannerWrapperDb)
+	scanResultDal := store.NewImageScanResultDao(scannerWrapperDb)
 	podResourceRelationDal := store.NewPodResourceRelationDao(scannerWrapperDb)
 	syncRetryImageDal := store.NewSyncRetryImageDao(scannerWrapperDb)
 	scannerDB := store.NewScannerDB(scannerWrapperDb)
@@ -89,7 +90,7 @@ func newService(config register.ScannerServiceConfig) (register.ScannerService, 
 		Handler: api.SetupGinRouter(
 			rc,
 			component.NewConScannerSrv(dal, registryDal, dal, scanConfigDal, store.GetSingeVulnDao(), &palaceHandler),
-			component.NewImageService(dal, registryDal, scanTaskDal),
+			component.NewImageService(dal, registryDal, scanTaskDal, vulnDal, scanResultDal),
 			component.NewImageRejectSrc(dal),
 			component.NewHarborSrc(dal, rc, nil), // todo: use new task interface,not redclair
 			component.NewRegistrySrv(registryDal, scanConfigDal, syncTaskDal),
@@ -98,6 +99,7 @@ func newService(config register.ScannerServiceConfig) (register.ScannerService, 
 			component.NewSyncRepoImage(registryDal, dal, podResourceRelationDal, scanConfigDal, syncRetryImageDal, vulnDal, scannerDB, syncTaskDal),
 			ci.NewCiComponent(ciDal),
 			component.NewScannerInstanceInfoSrv(store.NewScannerInstanceDao(scannerWrapperDb)),
+			component.NewImageScanResultSrv(store.NewImageScanResultDao(store.GetScannerWrapperDb())),
 		),
 	}
 

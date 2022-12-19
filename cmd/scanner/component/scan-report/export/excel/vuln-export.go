@@ -69,7 +69,7 @@ func (s *VulnExport) Run(ctx context.Context) {
 		// 支持横向扩展
 		created, err := s.ExportTaskDal.CreateExportIdempotent(ctx, tasks[i].ID)
 		if err != nil {
-			logging.Get().Err(err).Str("TaskType", model.ExportHtml).Msg("ExportImageHtmlSrv CreateExportIdempotent")
+			logging.Get().Err(err).Str("TaskType", model.ExportHtml).Msg("VulnExport CreateExportIdempotent")
 			return
 		}
 		if !created {
@@ -192,6 +192,28 @@ func (s *VulnExport) ZipAndSave(ctx context.Context, filename string, files chan
 	return nil
 }
 
+func GenVulnResourceChan(resources []ResourceWithImage) chan []string {
+	out := make(chan []string, 1)
+
+	go func(resources []ResourceWithImage) {
+
+		defer func() {
+			if r := recover(); r != nil {
+				logging.Get().Error().Str("stack", string(debug.Stack())).Msg("VulnExport")
+			}
+		}()
+		defer close(out)
+
+		for i := range resources {
+			data := GenImageResourceChan(resources[i].Image, resources[i].Resource)
+			for d := range data {
+				out <- d
+			}
+		}
+	}(resources)
+	return out
+}
+
 func (s *VulnExport) Export(ctx context.Context, filename string, vuln model.Vuln, resources []ResourceWithImage) chan *excelize.File {
 	out := make(chan *excelize.File, 1)
 
@@ -263,6 +285,7 @@ func (s *VulnExport) ConvertVulnData(res chan []string) chan []string {
 	return out
 }
 
+// 漏洞导出时
 func (s *VulnExport) ConvertResourceData(res chan []string) chan []string {
 	out := make(chan []string, 1)
 	go func(value chan []string) {

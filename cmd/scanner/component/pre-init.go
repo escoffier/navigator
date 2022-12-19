@@ -271,66 +271,6 @@ func (s *InitScanner) createGlobalPolicy(ctx context.Context) error {
 	return nil
 }
 
-func (s *InitScanner) checkUniqueImage(ctx context.Context) error {
-	var lastID int64
-	for {
-		param := store.SearchImageParam{Where: fmt.Sprintf("(unique_image is null OR unique_image = 0 ) AND id > %d", lastID)}
-		param.OmitFields = param.GetDefaultOmitFields()
-		images, _, err := s.imageDal.SearchImage(ctx, param, &model.Filter{Limit: consts.DefaultBathSize, SortBy: consts.SortByAsc, SortFiled: "id"})
-		if err != nil {
-			logging.GetLogger().Err(err).Msg("InitScanner.checkUniqueImage")
-			return err
-		}
-		logging.GetLogger().Info().Int("vuln", len(images)).Msg("初始化时写入uniqueImage")
-		if len(images) == 0 {
-			break
-		}
-		lastID = images[len(images)-1].ID
-		for _, image := range images {
-			uniqueImage := image.GenUniqueImage()
-			updater := map[string]interface{}{"unique_image": uniqueImage}
-			where := fmt.Sprintf("id = %d", image.ID)
-			if err := s.imageDal.UpdateImage(ctx, where, updater, nil); err != nil {
-				logging.GetLogger().Err(err).Int64("ImageID", image.ID).Msg("InitScanner.checkUniqueImage")
-				return err
-			}
-		}
-	}
-	return nil
-}
-
-func (s *InitScanner) checkUniqueVuln(ctx context.Context) error {
-	var lastID int64
-	for {
-		param := store.SearchVulnParam{Where: fmt.Sprintf("(unique_vuln is null OR unique_vuln = 0 ) AND id > %d", lastID)}
-		vulus, _, err := s.vulnDal.SearchVuln(ctx, param, &model.Filter{Limit: consts.DefaultBathSize, SortBy: consts.SortByAsc, SortFiled: "id"})
-		if err != nil {
-			logging.GetLogger().Err(err).Msg("InitScanner.checkUniqueImage")
-			return err
-		}
-
-		logging.GetLogger().Info().Int("vuln", len(vulus)).Msg("初始化时写入uniqueVuln")
-		if len(vulus) == 0 {
-			break
-		}
-		lastID = vulus[len(vulus)-1].ID
-		for _, vu := range vulus {
-			uniqueVuln := vu.GenUniqueVuln()
-			updater := map[string]interface{}{"unique_vuln": uniqueVuln}
-			where := fmt.Sprintf("id = %d", vu.ID)
-			if err := s.vulnDal.UpdateVuln(ctx, where, updater, nil); err != nil {
-				if strings.Contains(err.Error(), consts.DuplicateKey) {
-					logging.GetLogger().Err(err).Int64("vulnID", vu.ID).Str("vuln", fmt.Sprintf("%s-%s-%s", vu.Name, vu.PkgName, vu.PkgVersion)).Uint64("UniqueVuln", uniqueVuln).Msg("InitScanner.checkUniqueVuln")
-					continue
-				}
-				logging.GetLogger().Err(err).Int64("vulnID", vu.ID).Msg("InitScanner.checkUniqueVuln")
-				return err
-			}
-		}
-	}
-	return nil
-}
-
 func NewInitScanner(regDal store.RegistryDal,
 	imageDal store.ScannerDalInterface,
 	scanConfigDAl store.ScanConfigDal,

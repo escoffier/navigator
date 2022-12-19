@@ -6,22 +6,16 @@ import (
 	"errors"
 	"fmt"
 	"math"
-	"os"
 	"os/exec"
-	"regexp"
 	"strings"
 
 	"scm.tensorsecurity.cn/tensorsecurity-rd/trivy/pkg/report"
-
-	ftypes "scm.tensorsecurity.cn/tensorsecurity-rd/fanal/types"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/jobs"
 	pullImage "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/jobs/pull-image"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/jobs/scan"
-	scanVuln "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scanner-vuln"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/task"
-	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	imageCache "gitlab.com/piccolo_su/vegeta/cmd/scanner/service/register/image-cache"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
@@ -31,10 +25,6 @@ import (
 
 const (
 	JobName = "save-result"
-)
-
-var (
-	compile = regexp.MustCompile("/errata/(RHSA-[0-9]+[-:][0-9]+)")
 )
 
 type Config struct {
@@ -51,23 +41,14 @@ var (
 	webshellSixToEight = 30.0
 	webshellFourToFive = 20.0
 	maxVulnscore       = 50.0
-	constMapScore      = map[string]model.ConstMapScore{
-		"Critical":   {MaxScore: 25, SingleScore: 25},
-		"High":       {MaxScore: 20, SingleScore: 20},
-		"Medium":     {MaxScore: 15, SingleScore: 15},
-		"Low":        {MaxScore: 10, SingleScore: 10},
-		"Negligible": {MaxScore: 5, SingleScore: 5},
-		"Unknown":    {MaxScore: 5, SingleScore: 5},
-		"Sensitive":  {MaxScore: 10, SingleScore: 5},
-	}
 )
 
-func (s *ScanResultHandle) caculateScore(severity string, num int64) float64 {
-	score := constMapScore[severity].SingleScore * float64(num)
-	if score >= constMapScore[severity].MaxScore {
-		score = constMapScore[severity].MaxScore
+func GenSensitiveScore(num int64) float64 {
+	res := 5 * num
+	if res > 10 {
+		return 10
 	}
-	return score
+	return float64(res)
 }
 
 func (s *ScanResultHandle) calculateWebshellScore(webshell model.WebShellInfo, flag *int) float64 {
@@ -83,53 +64,6 @@ func (s *ScanResultHandle) calculateWebshellScore(webshell model.WebShellInfo, f
 	} else {
 		return 0
 	}
-}
-
-func (s *ScanResultHandle) makeSeverityHistogramAndVulnScore(scanDetails *model.ScanDetailScanImage) {
-	sevHistorgram := model.SeverityHistogramInfo{}
-
-	fixed := os.Getenv("RISK_OVERVIEW_VULN_FIXED")
-
-	for _, reuslts := range scanDetails.VulnDetails {
-		vulnType := os.Getenv("RISK_OVERVIEW_VULN_TYPE")
-		if len(vulnType) > 0 {
-			typeList := strings.Split(vulnType, ",")
-			if !util.ContainsString(typeList, reuslts.Class) {
-				continue
-			}
-		}
-		for _, vuln := range reuslts.Vulns {
-			for _, trivyVuln := range vuln.Trivy {
-				if fixed == consts.TrueString && trivyVuln.FixedVersion == "" {
-					continue
-				}
-
-				switch trivyVuln.Severity {
-				case "CRITICAL":
-					sevHistorgram.NumCritical++
-				case "HIGH":
-					sevHistorgram.NumHigh++
-				case "MEDIUM":
-					sevHistorgram.NumMedium++
-				case "LOW":
-					sevHistorgram.NumLow++
-				case "UNKNOWN":
-					sevHistorgram.NumUnknown++
-				}
-			}
-		}
-	}
-	criticalScore := s.caculateScore("Critical", sevHistorgram.NumCritical)
-	highScore := s.caculateScore("High", sevHistorgram.NumHigh)
-	mediumScore := s.caculateScore("Medium", sevHistorgram.NumMedium)
-	lowScore := s.caculateScore("Low", sevHistorgram.NumLow)
-	negligibleScore := s.caculateScore("Negligible", sevHistorgram.NumNegligible)
-	unknownScore := s.caculateScore("Unknown", sevHistorgram.NumUnknown)
-	scanDetails.VulnScore = criticalScore + highScore + mediumScore + lowScore + negligibleScore + unknownScore
-	if scanDetails.VulnScore > maxVulnscore {
-		scanDetails.VulnScore = maxVulnscore
-	}
-	scanDetails.SeverityHistogram = sevHistorgram
 }
 
 func (s *ScanResultHandle) defaultEnvFill(scanDetails *model.ScanDetailScanImage, param jobs.Param) {
@@ -149,111 +83,6 @@ func (s *ScanResultHandle) defaultEnvFill(scanDetails *model.ScanDetailScanImage
 	if len(envs) != 0 {
 		scanDetails.EnvDetails = append(scanDetails.EnvDetails, envs...)
 	}
-}
-
-// 对于redhat下的漏洞，做特殊处理,详情见以下：
-// https://access.redhat.com/errata-search/#/
-// https://access.redhat.com/errata/RHBA-2022:6141
-// https://access.redhat.com/errata/RHSA-2022:6103
-func (s *ScanResultHandle) AddRHSAAndCnnvd(vulnDetails *model.SingleScanDetail, vulnDetail model.NewVulnDetail) {
-	vuln := vulnDetail
-	for i := range vulnDetail.Trivy {
-		for j := range vulnDetail.Trivy[i].References {
-			ref := vulnDetail.Trivy[i].References[j]
-			sub := compile.FindStringSubmatch(ref)
-			if len(sub) == 2 {
-				vuln.CVEID = sub[1]
-				vulnDetails.Vulns = append(vulnDetails.Vulns, vuln)
-			}
-		}
-	}
-	if vuln.Cnnvd.Number != "" {
-		vuln.CVEID = vuln.Cnnvd.Number
-		vulnDetails.Vulns = append(vulnDetails.Vulns, vuln)
-	}
-}
-
-func (s *ScanResultHandle) arrangeVulnDetails(trivyReport *report.Report, layers []string, scanDetails *model.ScanDetailScanImage, layerMp map[string]*model.LayerScanDetail) {
-	vulnQuery := scanVuln.GetScannerVuln()
-	fixedFlag := 0
-	for i, v := range trivyReport.Results {
-		mp := make(map[string]*model.NewVulnDetail)
-		scanDetails.VulnDetails = append(scanDetails.VulnDetails, model.SingleScanDetail{Class: string(v.Class), Target: v.Target, Type: v.Type})
-		// 筛选去重trivy的漏洞
-		for _, vuln := range v.Vulnerabilities {
-			if fixedFlag == 0 && vuln.FixedVersion != "" {
-				fixedFlag = 1
-			}
-			if detail, ok := mp[vuln.VulnerabilityID]; ok {
-				detail.Trivy = append(detail.Trivy, vuln)
-			} else {
-				tmp := &model.NewVulnDetail{}
-				tmp.Trivy = append(tmp.Trivy, vuln)
-				mp[vuln.VulnerabilityID] = tmp
-
-			}
-		}
-
-		// 整合漏洞数据
-		scanDetails.VulnDetails[i].Vulns = make([]model.NewVulnDetail, 0, len(mp))
-		for k, trivyDetail := range mp {
-			tmpDetail, err := vulnQuery.GetVulnDetail(k)
-			if err != nil {
-				trivyDetail.CVEID = k
-				scanDetails.VulnDetails[i].Vulns = append(scanDetails.VulnDetails[i].Vulns, *trivyDetail)
-				s.AddRHSAAndCnnvd(&scanDetails.VulnDetails[i], *trivyDetail)
-				continue
-			}
-			trivyDetail.CVEID = k
-			trivyDetail.Cnnvd = tmpDetail.Cnnvd
-			trivyDetail.Cnvd = tmpDetail.Cnvd
-			s.AddRHSAAndCnnvd(&scanDetails.VulnDetails[i], *trivyDetail)
-			scanDetails.VulnDetails[i].Vulns = append(scanDetails.VulnDetails[i].Vulns, *trivyDetail)
-		}
-	}
-	// scanDetails对应Vuln_info_json 整合完毕
-	for _, v := range layers {
-		tmp := &model.LayerScanDetail{}
-		for i := range trivyReport.Results {
-			tmpVulnDetails := &model.LayerVulnDetail{}
-			tmpVulnDetails.Class = string(trivyReport.Results[i].Class)
-			tmpVulnDetails.Target = trivyReport.Results[i].Target
-			tmpVulnDetails.Type = trivyReport.Results[i].Type
-			tmpVulnDetails.Vulns = make(map[string]*model.NewVulnDetail)
-			tmp.VulnDetails = append(tmp.VulnDetails, *tmpVulnDetails)
-		}
-		layerMp[v] = tmp
-	}
-
-	// 整合层级需要入库的数据
-	for i, v := range scanDetails.VulnDetails { // 这一层量级为个位数
-		for _, vuln := range v.Vulns { // 漏洞数
-			for _, trivyVvuln := range vuln.Trivy { // 个位数
-				if trivyVvuln.Layer.Digest == "" {
-					continue
-				}
-				_, ok := layerMp[trivyVvuln.Layer.Digest]
-				if !ok {
-					logging.GetLogger().Warn().Msgf("Maybe layer Error layer Digest:%v", trivyVvuln.Layer.Digest)
-					continue
-				}
-				if len(layerMp[trivyVvuln.Layer.Digest].VulnDetails) <= i {
-					logging.GetLogger().Warn().Msgf("Maybe Result len Error layerMpLen:%v,i:%v", len(layerMp[trivyVvuln.Layer.Digest].VulnDetails), i)
-					continue
-				}
-				layerVulns, ok := layerMp[trivyVvuln.Layer.Digest].VulnDetails[i].Vulns[vuln.CVEID]
-				if !ok {
-					tmp := &model.NewVulnDetail{CVEID: vuln.CVEID, Cnvd: vuln.Cnvd, Cnnvd: vuln.Cnnvd}
-					tmp.Trivy = append(tmp.Trivy, trivyVvuln)
-					layerMp[trivyVvuln.Layer.Digest].VulnDetails[i].Vulns[vuln.CVEID] = tmp
-				} else {
-					layerVulns.Trivy = append(layerVulns.Trivy, trivyVvuln)
-				}
-			}
-		}
-	}
-	scanDetails.HasFixedVuln = fixedFlag
-	s.makeSeverityHistogramAndVulnScore(scanDetails)
 }
 
 func (s *ScanResultHandle) arrangeMalicious(maliciousResult []model.PerLayerMaliciousResult, scanDetails *model.ScanDetailScanImage, layerMp map[string]*model.LayerScanDetail) {
@@ -312,8 +141,7 @@ func (s *ScanResultHandle) arrangeSensitive(sensitivesResult []model.PerLayerSen
 	}
 
 	scanDetails.Sentitives = imageSensitive
-	sensitiveScore := s.caculateScore("Sensitive", int64(imageSensitiveLen))
-	scanDetails.SensitiveScore = sensitiveScore
+	scanDetails.SensitiveScore = GenSensitiveScore(int64(imageSensitiveLen))
 }
 
 func (s *ScanResultHandle) arrangeWebshell(webshellInfoReuslt []model.PerLayerWebshellResult, scanDetails *model.ScanDetailScanImage, layerMp map[string]*model.LayerScanDetail) {
@@ -354,31 +182,14 @@ func (s *ScanResultHandle) arrangeLicense(licenseResult []model.PerLayerLicenseR
 	}
 }
 
-func (s *ScanResultHandle) logPostgresLayer(ctx context.Context, scanDetails *model.ScanDetailScanImage, layerMp map[string]*model.LayerScanDetail, imageID int64) error {
+func (s *ScanResultHandle) logPostgresLayer(ctx context.Context, layerMp map[string]*model.LayerScanDetail, imageID int64) error {
 	scannerOrm := store.GetScannerDb()
 	var err error
 	for layerDigest, layer := range layerMp {
-
-		var uniqueVulns []uint64
-
-		if layer.VulnDetails != nil {
-			for _, t := range layer.VulnDetails {
-				for _, tt := range t.Vulns {
-					for _, vu := range tt.Trivy {
-						vuln := util.GenerateUUID64(fmt.Sprintf(consts.UniqueVulnFamat, tt.CVEID, vu.PkgName, vu.InstalledVersion))
-						// 因为结构体里的嵌套结构都是值引用，可能会有空的情况
-						if vuln > 0 {
-							uniqueVulns = append(uniqueVulns, vuln)
-						}
-					}
-				}
-			}
-		}
-
 		scanLayer := model.ScanLayer{
 			ImageID:       imageID,
 			LayerDigest:   layerDigest,
-			VulnInfo:      uniqueVulns,
+			VulnInfo:      layer.Vulns,
 			MaliciousInfo: layer.MaliciousDetails,
 			WebshellInfo:  layer.WebshellInfos,
 			SensitiveFile: layer.Sentitives,
@@ -393,17 +204,16 @@ func (s *ScanResultHandle) logPostgresLayer(ctx context.Context, scanDetails *mo
 	return err
 }
 
-func (s *ScanResultHandle) logPostgresImage(ctx context.Context, scanDetails *model.ScanDetailScanImage, layerMp map[string]*model.LayerScanDetail, imageID int64) error {
+func (s *ScanResultHandle) logPostgresScanImageResult(ctx context.Context, scanDetails *model.ScanDetailScanImage, imageID int64) error {
 	scannerOrm := store.GetScannerDb()
 	tmpScanImage := &model.ScanImage{
-		ID:             0,
-		ImageID:        imageID,
-		RiskScore:      scanDetails.VulnScore + math.Min(40, scanDetails.MaliciousScore+scanDetails.WebShellScore) + scanDetails.SensitiveScore,
-		VulnScore:      scanDetails.VulnScore,
-		SensitiveScore: scanDetails.SensitiveScore,
-		VirusScore:     scanDetails.MaliciousScore,
-		WebshellScore:  scanDetails.WebShellScore,
-		// VulnInfo:             scanDetails.VulnDetails,
+		ID:                   0,
+		ImageID:              imageID,
+		RiskScore:            scanDetails.VulnScore + math.Min(40, scanDetails.MaliciousScore+scanDetails.WebShellScore) + scanDetails.SensitiveScore,
+		VulnScore:            scanDetails.VulnScore,
+		SensitiveScore:       scanDetails.SensitiveScore,
+		VirusScore:           scanDetails.MaliciousScore,
+		WebshellScore:        scanDetails.WebShellScore,
 		MaliciousInfo:        scanDetails.MaliciousDetails,
 		WebshellInfo:         scanDetails.WebshellInfos,
 		SensitiveFile:        scanDetails.Sentitives,
@@ -438,65 +248,9 @@ func (s *ScanResultHandle) UpdateImageFlag(ctx context.Context, imageID int64, s
 	if len(image) == 0 {
 		return fmt.Errorf("not find image:%d", imageID)
 	}
-	updater := map[string]interface{}{"flag": scan.GenImageFlag(image[0].Flag)}
-	err = imageDal.UpdateImage(ctx, fmt.Sprintf("id = %d", imageID), updater, nil)
-	return err
-}
-
-func (s *ScanResultHandle) logPostgresVuln(ctx context.Context, scanDetails *model.ScanDetailScanImage, layerMp map[string]*model.LayerScanDetail, imageID int64) error {
-	vulnDal := store.GetSingeVulnDao()
-
-	vulns := make([]*model.Vuln, 0, 20)
-	vulnImages := make([]*model.VulnImage, 0, 20)
-
-	for _, v := range scanDetails.VulnDetails {
-		for _, vuln := range v.Vulns {
-			tmpMatedate := model.VulnMatedata{}
-			if vuln.Cnvd != nil {
-				tmpMatedate.CNVDs = vuln.Cnvd
-			}
-			if vuln.Cnnvd.Number != "" {
-				tmpMatedate.CNNVDs = vuln.Cnnvd
-			}
-			for _, trivyVuln := range vuln.Trivy {
-				tmpMate := tmpMatedate
-				for _, cvss := range trivyVuln.CVSS {
-					tmpMate.CVSS.CVSSv3Score = fmt.Sprintf("%f", cvss.V3Score)
-					tmpMate.CVSS.CVSSv3Vector = cvss.V3Vector
-					break
-				}
-
-				vu := &model.Vuln{
-					Target:      v.Target,
-					Name:        vuln.CVEID,
-					Namespace:   strings.ToLower(v.Type),
-					Description: trivyVuln.Description,
-					Link:        trivyVuln.References,
-					Severity:    trivyVuln.Severity,
-					SeverityInt: model.GetSeverityInt(trivyVuln.Severity),
-					Metadata:    &tmpMate,
-					PkgName:     trivyVuln.PkgName,
-					PkgVersion:  trivyVuln.InstalledVersion,
-					FixedBy:     trivyVuln.FixedVersion,
-					Class:       v.Class,
-				}
-
-				vulns = append(vulns, vu)
-				vulnImages = append(vulnImages, &model.VulnImage{ImageId: imageID, UniqueVuln: vu.GenUniqueVuln()})
-			}
-		}
-	}
-
-	if err := vulnDal.CreateVuln(ctx, vulns); err != nil {
-		// 部分写入失败后还是要写入ivan_scanner_vuln_images表数据，所以不能直接返回
-		logging.GetLogger().Err(err).Int64("imageID", imageID).Msg("save-result CreateVuln")
-	}
-
-	if err := vulnDal.CreateVulnImage(ctx, imageID, vulnImages); err != nil {
-		logging.GetLogger().Err(err).Int64("imageID", imageID).Msg("save-result CreateVulnImage")
-		return err
-	}
-	return nil
+	afterFlag := scan.GenImageFlag(image[0].Flag)
+	updater := map[string]interface{}{"flag": afterFlag}
+	return imageDal.UpdateImage(ctx, fmt.Sprintf("id = %d", imageID), updater, nil)
 }
 
 func (s *ScanResultHandle) logPostgresWebFrame(ctx context.Context, param jobs.Param) {
@@ -554,86 +308,20 @@ func (s *ScanResultHandle) logPostgresWebFrame(ctx context.Context, param jobs.P
 	}
 }
 
-func (s *ScanResultHandle) updateRiskVulnCacheEntry(ctx context.Context, param jobs.Param, scanDetails *model.ScanDetailScanImage) {
-	jobURL, ok := param["url"].(string)
-	if !ok {
-		logging.GetLogger().Error().Msg("SetRedisData miss 'url' in parameter")
-		return
-	}
-	jobTag, ok := param["tag"].(string)
-	if !ok {
-		logging.GetLogger().Error().Msg("SetRedisData miss 'tag' in parameter")
-		return
-	}
-	jobRepo, ok := param["repoName"].(string)
-	if !ok {
-		logging.GetLogger().Error().Msg("SetRedisData miss 'repoName' in parameter")
-		return
-	}
-
-	data := model.ImageRiskOverRedis{
-		Key: fmt.Sprintf("riskexp-image-vulns-%s/%s:%s",
-			strings.Replace(strings.Replace(jobURL, "https://", "", 1), "http://", "", 1), jobRepo, jobTag),
-		Data: model.ImageRiskOver{
-			CriticalNum: scanDetails.SeverityHistogram.NumCritical,
-			HighNum:     scanDetails.SeverityHistogram.NumHigh,
-			MediumNum:   scanDetails.SeverityHistogram.NumMedium,
-			LowNum:      scanDetails.SeverityHistogram.NumLow,
-			UnknownNum:  scanDetails.SeverityHistogram.NumUnknown,
-		},
-	}
-	if err := s.SetRedisData(ctx, data); err != nil {
-		logging.GetLogger().Err(err).Msg("updateRiskVulnCacheEntry SetRedisData")
-	}
-}
-
-func (s *ScanResultHandle) updateRiskVirusCacheEntry(ctx context.Context, param jobs.Param, scanDetails *model.ScanDetailScanImage) {
-	jobURL, ok := param["url"].(string)
-	if !ok {
-		logging.GetLogger().Error().Msg("SetRedisData miss 'url' in parameter")
-		return
-	}
-	jobTag, ok := param["tag"].(string)
-	if !ok {
-		logging.GetLogger().Error().Msg("SetRedisData miss 'tag' in parameter")
-		return
-	}
-	jobRepo, ok := param["repoName"].(string)
-	if !ok {
-		logging.GetLogger().Error().Msg("SetRedisData miss 'repoName' in parameter")
-		return
-	}
-
-	data := model.ImageRiskOverRedis{
-		Key: fmt.Sprintf("riskexp-image-virus-%s/%s:%s",
-			strings.Replace(strings.Replace(jobURL, "https://", "", 1), "http://", "", 1), jobRepo, jobTag),
-		Data: model.ImageRiskOver{CriticalNum: int64(len(scanDetails.MaliciousDetails))},
-	}
-	if err := s.SetRedisData(ctx, data); err != nil {
-		logging.GetLogger().Err(err).Msg("updateRiskVirusCacheEntry SetRedisData")
-	}
-}
-
-func (s *ScanResultHandle) updateImageOs(ctx context.Context, os *ftypes.OS, imageId int64) error {
-	orm := store.GetScannerOrmDb()
-
-	if os == nil {
-		return fmt.Errorf("not get os info for image:%d", imageId)
-	}
-
-	bys, err := json.Marshal(os)
-	if err != nil {
-		return err
-	}
-	update := map[string]interface{}{"os": string(bys)}
-
-	if err := orm.UpdateImage(ctx, fmt.Sprintf("id = %d", imageId), update, nil); err != nil {
-		return err
-	}
-	return nil
-}
-
 func (s *ScanResultHandle) Run(ctx context.Context, param jobs.Param) (jobs.Artifact, error) {
+
+	// 这一次只是拆分了扫描数据，镜像详情页面使用拆分后的表数据，导出，阻断，报告等还是使用原来保存的数据
+	// 所以这一版本继续保留原数据存储逻辑，等k8s阻断上线的版本中再重构这部分逻辑
+	var (
+		imageScanVirus      []model.PerLayerMaliciousResult
+		imageScanSensitive  []model.PerLayerSensitiveResult
+		imageScanWebshell   []model.PerLayerWebshellResult
+		imageScanEnv        []model.EnvKeyValue
+		imageScanSoftware   []model.Software
+		imageScanVulnResult *report.Report // 漏洞
+	)
+
+	imageID := s.config.subtask.Image.ID
 
 	// get scan result from param
 	r := make(map[string]interface{})
@@ -654,36 +342,6 @@ func (s *ScanResultHandle) Run(ctx context.Context, param jobs.Param) (jobs.Arti
 	// 结果集合
 	var scanDetails model.ScanDetailScanImage
 	layerMp := make(map[string]*model.LayerScanDetail)
-
-	// 整合漏洞
-	scanVuln, ok := scanResult["scan-vuln"].(scan.Artifact)
-	if !ok {
-		logging.GetLogger().Warn().Msg("miss 'scan-vuln' in parameter")
-		// return nil, errors.New("miss 'scan-vuln' in parameter")
-	} else {
-		trivyReport, ok := scanVuln["result"].(*report.Report)
-		if !ok {
-			logging.GetLogger().Error().Msg("miss 'result' in parameter")
-			// return nil, errors.New("miss 'result' in parameter")
-		} else {
-			s.arrangeVulnDetails(trivyReport, layers, &scanDetails, layerMp)
-			if len(scanDetails.VulnDetails) > 0 {
-				flag, ok := scanVuln["customFlag"]
-				if ok && flag == 1 {
-					v, ok := scanVuln["software"].([]model.Software)
-					if ok && len(v) > 0 {
-						scanDetails.Software = v
-						scanDetails.ScanEnableCollection.SoftwareEnable = 1
-					}
-				}
-			}
-		}
-		// 更新os信息
-		if err := s.updateImageOs(ctx, trivyReport.Metadata.OS, s.config.subtask.Image.ID); err != nil {
-			logging.GetLogger().Err(err).Msg("updateImageOs")
-		}
-	}
-
 	// 整合病毒
 	scanMalicious, ok := scanResult["scan-malicious"].(scan.Artifact)
 	if !ok {
@@ -695,6 +353,7 @@ func (s *ScanResultHandle) Run(ctx context.Context, param jobs.Param) (jobs.Arti
 			logging.GetLogger().Error().Msg("miss 'maliciousResult' in parameter")
 			// return nil, errors.New("miss 'maliciousResult' in parameter")
 		} else {
+			imageScanVirus = maliciousResult
 			s.arrangeMalicious(maliciousResult, &scanDetails, layerMp)
 		}
 	}
@@ -710,6 +369,7 @@ func (s *ScanResultHandle) Run(ctx context.Context, param jobs.Param) (jobs.Arti
 			logging.GetLogger().Error().Msg("miss 'sensitivesResult' in parameter")
 			// return nil, errors.New("miss 'maliciousResult' in parameter")
 		} else {
+			imageScanSensitive = sensitivesResult
 			s.arrangeSensitive(sensitivesResult, &scanDetails, layerMp)
 			if len(scanDetails.Sentitives) > 0 {
 				flag, ok := scanSensitive["customFlag"]
@@ -729,6 +389,7 @@ func (s *ScanResultHandle) Run(ctx context.Context, param jobs.Param) (jobs.Arti
 		if !ok {
 			logging.GetLogger().Error().Msg("miss 'webshellResult' in parameter")
 		} else {
+			imageScanWebshell = webshellResult
 			s.arrangeWebshell(webshellResult, &scanDetails, layerMp)
 		}
 	}
@@ -738,11 +399,14 @@ func (s *ScanResultHandle) Run(ctx context.Context, param jobs.Param) (jobs.Arti
 	if !ok {
 		s.defaultEnvFill(&scanDetails, param)
 		logging.GetLogger().Warn().Msg("miss 'scan-env' in parameter")
+		// fixme 糟糕的写法
+		imageScanEnv = scanDetails.EnvDetails
 	} else {
 		envReuslt, ok := scanEnv["result"].([]model.EnvKeyValue)
 		if !ok {
 			logging.GetLogger().Error().Msg("miss 'envReuslt' in parameter")
 		} else {
+			imageScanEnv = envReuslt
 			s.arrangeEnv(envReuslt, &scanDetails)
 			if len(scanDetails.EnvDetails) > 0 {
 				flag, ok := scanEnv["customFlag"]
@@ -768,15 +432,159 @@ func (s *ScanResultHandle) Run(ctx context.Context, param jobs.Param) (jobs.Arti
 			}
 		}
 	}
+	// 不合规软件
+	vulnResult, ok := scanResult["scan-vuln"].(scan.Artifact)
+	if !ok {
+		logging.GetLogger().Warn().Msg("miss 'scan-vuln' in parameter")
+	} else {
+		if software, ok := vulnResult["software"].([]model.Software); ok {
+			imageScanSoftware = software
+			scanDetails.Software = software
+			scanDetails.ScanEnableCollection.SoftwareEnable = 1
+		}
+	}
+
+	scanResultSaveSrv := NewScanResultSave()
+
+	imageName, ok := param["imageName"].(string)
+	if !ok {
+		imageName = ""
+	}
+
+	vulnResult, ok = scanResult["scan-vuln"].(scan.Artifact)
+	if !ok {
+		logging.GetLogger().Warn().Msg("miss 'scan-vuln' in parameter")
+	} else {
+		trivyReport, ok := vulnResult["result"].(*report.Report)
+		if !ok || trivyReport == nil {
+			logging.GetLogger().Error().Msg("miss 'result' in parameter")
+		} else {
+			imageScanVulnResult = trivyReport
+		}
+	}
+	if imageName != "" {
+		if err := scanResultSaveSrv.UpdateRiskCacheEntry(ctx, fmt.Sprintf("riskexp-image-virus-%s", imageName),
+			model.SeverityHistogramInfo{NumCritical: int64(len(scanDetails.MaliciousDetails))}); err != nil {
+			logging.GetLogger().Err(err).Msg("UpdateRiskCacheEntry")
+		}
+	}
+
+	// 保存漏洞
+	if imageScanVulnResult != nil {
+		vulns, vulnImages := ConvertVuln(imageID, *imageScanVulnResult)
+
+		logging.GetLogger().Info().Int("data", len(vulns)).Msg("save-result ConvertVuln")
+		// 存漏洞数据
+		for i := range vulns {
+			vulns[i] = scanResultSaveSrv.AddVulnMeta(ctx, vulns[i])
+		}
+
+		if err := scanResultSaveSrv.VulnDal.CreateVuln(ctx, vulns); err != nil {
+			logging.GetLogger().Err(err).Msg("CreateVuln")
+		}
+
+		if err := scanResultSaveSrv.VulnDal.CreateVulnImage(ctx, imageID, vulnImages); err != nil {
+			logging.GetLogger().Err(err).Msg("CreateVulnImage")
+		}
+
+		// 更新os信息
+		if err := scanResultSaveSrv.UpdateImageOs(ctx, imageScanVulnResult.Metadata.OS, s.config.subtask.Image.ID); err != nil {
+			logging.GetLogger().Err(err).Msg("updateImageOs")
+		}
+		// 把漏洞统计写入redis，风险探索使用
+		if imageName != "" {
+			if err := scanResultSaveSrv.UpdateRiskCacheEntry(ctx, fmt.Sprintf("riskexp-image-vulns-%s", imageName), scanResultSaveSrv.GenSeverityHistogram(ctx, vulns)); err != nil {
+				logging.GetLogger().Err(err).Int64("imageID", imageID).Msg("UpdateRiskCacheEntry")
+			}
+		}
+
+		// 漏洞层级信息（原来的逻辑，暂时不删除）
+		for i := range vulnImages {
+			if layerMp[vulnImages[i].LayerDigest].Vulns == nil {
+				layerMp[vulnImages[i].LayerDigest].Vulns = make([]uint64, 0)
+			}
+			layerMp[vulnImages[i].LayerDigest].Vulns = append(layerMp[vulnImages[i].LayerDigest].Vulns, vulnImages[i].UniqueVuln)
+		}
+
+		// scanImage数据，以供保存（原来的逻辑，暂时不删除）
+		scanDetails.VulnScore = scanResultSaveSrv.GenVulnScore(ctx, vulns)
+		scanDetails.SeverityHistogram = scanResultSaveSrv.GenSeverityHistogram(ctx, vulns)
+	}
+
+	// 敏感文件
+	if imageScanSensitive != nil {
+		data, issueToImages := ConvertSensitive(imageID, imageScanSensitive)
+		if err := scanResultSaveSrv.ImageScanResultDal.CreateSensitive(ctx, data); err != nil {
+			logging.GetLogger().Err(err).Int64("imageID", imageID).Msg("CreateSensitive")
+		}
+		if err := scanResultSaveSrv.ImageScanResultDal.CreateScanIssueToImage(ctx, imageID, model.FlagHasSensitive, issueToImages); err != nil {
+			logging.GetLogger().Err(err).Int64("imageID", imageID).Msg("CreateSensitive CreateScanIssueToImage")
+		}
+	}
+
+	// websehll
+	if imageScanWebshell != nil {
+		sensitive, issueToImages := ConvertWebshell(imageID, imageScanWebshell)
+		if err := scanResultSaveSrv.ImageScanResultDal.CreateWebShell(ctx, sensitive); err != nil {
+			logging.GetLogger().Err(err).Int64("imageID", imageID).Msg("CreateWebShell")
+		}
+		if err := scanResultSaveSrv.ImageScanResultDal.CreateScanIssueToImage(ctx, imageID, model.FlagHasWebshell, issueToImages); err != nil {
+			logging.GetLogger().Err(err).Int64("imageID", imageID).Msg("CreateWebShell CreateScanIssueToImage")
+		}
+	}
+
+	// 病毒
+	if imageScanVirus != nil {
+		data, issueToImages := ConvertVirus(imageID, imageScanVirus)
+		if err := scanResultSaveSrv.ImageScanResultDal.CreateVirus(ctx, data); err != nil {
+			logging.GetLogger().Err(err).Int64("imageID", imageID).Msg("CreateVirus")
+		}
+		if err := scanResultSaveSrv.ImageScanResultDal.CreateScanIssueToImage(ctx, imageID, model.FlagHasMalicious, issueToImages); err != nil {
+			logging.GetLogger().Err(err).Int64("imageID", imageID).Msg("CreateVirus CreateScanIssueToImage")
+		}
+	}
+
+	// ENV
+	if imageScanEnv != nil {
+		data := ConvertEnv(imageID, imageScanEnv)
+		if err := scanResultSaveSrv.ImageScanResultDal.CreateImageEnv(ctx, imageID, data); err != nil {
+			logging.GetLogger().Err(err).Int64("imageID", imageID).Msg("CreateImageEnv")
+		}
+	}
+
+	// Soft
+	logging.GetLogger().Info().Int("softLenght", len(imageScanSoftware)).Msg("imageScanSoftware")
+	if imageScanSoftware != nil {
+		data, issueToImages := ConvertSoftware(imageID, imageScanSoftware)
+		if err := scanResultSaveSrv.ImageScanResultDal.CreateSoftware(ctx, data); err != nil {
+			logging.GetLogger().Err(err).Int64("imageID", imageID).Msg("CreateSoftware")
+		}
+		if err := scanResultSaveSrv.ImageScanResultDal.CreateScanIssueToImage(ctx, imageID, model.FlagHasSoftware, issueToImages); err != nil {
+			logging.GetLogger().Err(err).Int64("imageID", imageID).Msg("CreateLicense CreateScanIssueToImage")
+		}
+
+		// 把异常license和异常soft存入scanImage表中兼容之前的逻辑
+		licenseAdd := make(map[string]bool)
+		for i := range imageScanSoftware {
+			if imageScanSoftware[i].AbnormalSoft {
+				scanDetails.Software = append(scanDetails.Software, imageScanSoftware[i])
+			}
+			if imageScanSoftware[i].AbnormalLicense && !licenseAdd[imageScanSoftware[i].License] {
+				scanDetails.LicenseDetail = append(scanDetails.LicenseDetail, model.LicenseInfo{Name: imageScanSoftware[i].License})
+				licenseAdd[imageScanSoftware[i].License] = true
+			}
+		}
+	}
+
 	var err error
 
-	err = s.logPostgresLayer(ctx, &scanDetails, layerMp, s.config.subtask.Image.ID)
+	err = s.logPostgresLayer(ctx, layerMp, s.config.subtask.Image.ID)
+
 	// 先写漏洞表和漏洞关联表，再写入ivan_scanner_scan_images和ivan_scanner_images_list表，防止镜像已打上有漏洞的标记，确查不出漏洞的情况
-	err = s.logPostgresVuln(ctx, &scanDetails, layerMp, s.config.subtask.Image.ID)
-	err = s.logPostgresImage(ctx, &scanDetails, layerMp, s.config.subtask.Image.ID)
-	s.updateRiskVulnCacheEntry(ctx, param, &scanDetails)
-	s.updateRiskVirusCacheEntry(ctx, param, &scanDetails)
+	err = s.logPostgresScanImageResult(ctx, &scanDetails, s.config.subtask.Image.ID)
+
 	s.logPostgresWebFrame(ctx, param)
+
 	dockerFlag, ok := param["docker"].(int)
 	if ok && dockerFlag == 1 {
 		if imageName, ok := param["imageName"]; ok {

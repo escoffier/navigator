@@ -44,7 +44,8 @@ type CustomPkgPolicy struct {
 }
 
 type VulnPolicy struct {
-	Pkgs string
+	Pkgs     string
+	Licenses string
 }
 
 type LicensePolicy struct {
