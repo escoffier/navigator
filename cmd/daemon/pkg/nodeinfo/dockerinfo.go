@@ -3,17 +3,19 @@ package nodeinfo
 import (
 	"context"
 	"fmt"
-	"github.com/docker/docker/api/types/events"
-	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/containerassets"
-	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/utils"
-	"gitlab.com/piccolo_su/vegeta/pkg/assets"
-	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"os"
 	"runtime/debug"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/docker/docker/api/types/events"
+	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/containerassets"
+	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/utils"
+	"gitlab.com/piccolo_su/vegeta/pkg/assets"
+	"gitlab.com/piccolo_su/vegeta/pkg/model"
+	"gitlab.com/piccolo_su/vegeta/pkg/util"
 
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/filters"
@@ -420,7 +422,7 @@ func (d *DockerInfoManager) containerFromRaw(containerJson *types.ContainerJSON)
 		ReservedMemory: containerJson.HostConfig.Memory,
 		Pid:            containerJson.State.Pid,
 		K8sManaged:     k8sManaged,
-		Environment:    containerJson.Config.Env,
+		Environment:    util.DeIdentificationEnvs(containerJson.Config.Env),
 		ProcessNumber:  len(processes),
 		Processes:      processes,
 		User:           containerJson.Config.User,
@@ -490,7 +492,7 @@ func (d *DockerInfoManager) updateContainerDetail(ctx context.Context, container
 	container.Mac = containerJson.NetworkSettings.MacAddress
 	container.NetworkMode = getNetworkMode(string(containerJson.HostConfig.NetworkMode))
 	container.VolumeMounts = volumeMounts
-	container.Environment = containerJson.Config.Env
+	container.Environment = util.DeIdentificationEnvs(containerJson.Config.Env)
 	container.ImageID = containerJson.Image
 	container.ImageDigest = getImageDigest(containerJson.Config.Image)
 	container.ImageName, container.ImageCreated, container.ImageSize = d.getImageInfo(container.ImageID)

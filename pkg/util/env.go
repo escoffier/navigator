@@ -3,6 +3,7 @@ package util
 import (
 	"os"
 	"strconv"
+	"strings"
 )
 
 const (
@@ -52,4 +53,25 @@ func GetBoolValWithDefault(key string, fallback bool) bool {
 	}
 
 	return fallback
+}
+
+func DeIdentificationEnvs(envs []string) []string {
+	var es []string
+	for _, str := range envs {
+		elems := strings.SplitN(str, "=", 2)
+
+		// we should discard invald env variable
+		if len(elems) != 2 {
+			continue
+		}
+		key := elems[0]
+		lowStr := strings.ToLower(key)
+
+		// replace password with stars
+		if strings.Contains(lowStr, "password") || strings.Contains(lowStr, "pwd") {
+			str = key + "=" + "******"
+		}
+		es = append(es, str)
+	}
+	return es
 }
