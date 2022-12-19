@@ -265,7 +265,7 @@
       key: "处置建议"
       value: "容器中发现提权行为，请确认容器是否遭到入侵，可使用免疫防御训练应用，限制敏感文件和命令的用户权限。"
   desc: Detect new packet socket at the device driver (OSI Layer 2) level in a container. Packet socket could be used for ARP Spoofing and Privilege_Escalation(CVE-2020-14386) by attacker.
-  condition: evt.type=socket and evt.arg[0]=AF_PACKET and consider_packet_socket_communication and container and not proc.name in (user_known_packet_socket_binaries)
+  condition: evt.type=socket and (evt.arg[0]=AF_PACKET or evt.arg[0]=17) and consider_packet_socket_communication and container and not proc.name in (user_known_packet_socket_binaries)
   output: >
     Packet socket was created in a container (zh_msg=CVE-2020-14386(在容器中创建的数据包套接字),rule_type=Exfiltration,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid socket_info=%evt.args container_id=%container.id container_name=%container.name image=%container.image.repository:%container.image.tag)
   priority: NOTICE
