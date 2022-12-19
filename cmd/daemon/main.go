@@ -114,8 +114,12 @@ func initNodeInfos(hostName, hostIP, clusterKey, myNamespace string) (nodeinfo.C
 			if !ok {
 				return
 			}
-			if container.IP != "" {
-				k8sInfo.SaveContainerData(container.IP, container.ContainerID, &daemon.ContainerData{
+			if (!container.K8sManaged) && (container.IP != "" || container.IPV6 != "") {
+				ip := container.IP
+				if container.IPV6 != "" {
+					ip = container.IPV6
+				}
+				k8sInfo.SaveContainerData(ip, container.ContainerID, &daemon.ContainerData{
 					ContainerName: container.Name,
 					ContainerPid:  container.Pid,
 				})
@@ -131,8 +135,12 @@ func initNodeInfos(hostName, hostIP, clusterKey, myNamespace string) (nodeinfo.C
 			if !ok {
 				return
 			}
-			if container.IP != "" {
-				k8sInfo.SaveContainerData(container.IPV6, container.ContainerID, &daemon.ContainerData{
+			if (!container.K8sManaged) && (container.IP != "" || container.IPV6 != "") {
+				ip := container.IP
+				if container.IPV6 != "" {
+					ip = container.IPV6
+				}
+				k8sInfo.SaveContainerData(ip, container.ContainerID, &daemon.ContainerData{
 					ContainerName: container.Name,
 					ContainerPid:  container.Pid,
 				})
@@ -147,8 +155,12 @@ func initNodeInfos(hostName, hostIP, clusterKey, myNamespace string) (nodeinfo.C
 			if !ok {
 				return
 			}
-			if container.IP != "" {
-				k8sInfo.DeleteResData(container.IP)
+			if (!container.K8sManaged) && (container.IP != "" || container.IPV6 != "") {
+				ip := container.IP
+				if container.IPV6 != "" {
+					ip = container.IPV6
+				}
+				k8sInfo.DeleteResData(ip)
 			}
 			logging.Get().Debug().Msgf("delete container: %s, action %v", container.ContainerID, assets.ActionDelete)
 			agent.HandlerContainerEvent(ctx, clusterKey, assets.ActionDelete, container)
@@ -374,7 +386,6 @@ func main() {
 	}
 	loggingOptions.SetConsoleWriterWrapper(logging.ConsoleCallerWriter)
 	logging.ReplaceLogger(loggingOptions)
-	
 
 	logLevel := zerolog.InfoLevel
 	logLevelStr := os.Getenv("LOGGING_LEVEL")
