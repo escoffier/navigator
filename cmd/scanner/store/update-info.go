@@ -22,7 +22,7 @@ type ScannerInstanceInfoDao struct {
 func (dal *ScannerInstanceInfoDao) SearchScannerInfo(ctx context.Context, param ScannerInstanceInfoDaoParam) ([]model.ScannerInstanceInfo, error) {
 	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*10)
 	defer cancelFunc()
-	db := dal.db.Get().WithContext(ctx).Model(model.ScannerInstanceInfo{})
+	db := dal.db.Get().WithContext(ctx).Model(new(model.ScannerInstanceInfo))
 	if param.ScannerInstance != "" {
 		db = db.Where("scanner_instance = ?", param.ScannerInstance)
 	}
@@ -37,14 +37,20 @@ func (dal *ScannerInstanceInfoDao) SearchScannerInfo(ctx context.Context, param 
 func (dal *ScannerInstanceInfoDao) CreateAndReplace(ctx context.Context, info model.ScannerInstanceInfo) (int64, error) {
 	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*10)
 	defer cancelFunc()
-	db := dal.db.Get().WithContext(ctx).Model(model.ScannerInstanceInfo{})
+	db := dal.db.Get().WithContext(ctx).Model(new(model.ScannerInstanceInfo))
+
 	// 先查，有变动才更新，
 	exist := make([]model.ScannerInstanceInfo, 0)
 	if err := db.Where("scanner_instance = ?", info.ScannerInstance).Find(&exist).Error; err != nil {
 		return 0, err
 	}
-	// 没有变动，不更新
-	if len(exist) > 0 && info.IsSame(exist[0]) {
+	// 没有变动
+	if len(exist) > 0 && info.Same(exist[0]) {
+		// 更新心跳
+		if err := dal.db.Get().WithContext(ctx).Model(new(model.ScannerInstanceInfo)).
+			Where("scanner_instance = ?", info.ScannerInstance).Updates(info.ToHeartBeatAt()).Error; err != nil {
+			return 0, err
+		}
 		return exist[0].ID, nil
 	}
 

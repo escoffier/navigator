@@ -769,7 +769,7 @@ func (sri *SyncRetryImage) GenUniqueImage() uint64 {
 	return uid
 }
 
-func (SyncRetryImage) TableName() string { return "ivan_scanner_sync_retry_image" }
+func (*SyncRetryImage) TableName() string { return "ivan_scanner_sync_retry_image" }
 
 type ScannerInstanceInfo struct {
 	ID              int64  `gorm:"id"  json:"id"`
@@ -777,25 +777,34 @@ type ScannerInstanceInfo struct {
 	ClusterName     string `gorm:"cluster_name" json:"clusterName"`
 	ScannerPodID    string `gorm:"column:scanner_pod_id" json:"scannerPodID"` // scanner当前Pod，重新启动改变
 	ScannerInstance string `gorm:"scanner_instance" json:"scannerInstance"`   // scanner当前实例，重新启动不会改变
+	HeartBeatAt     int64  `gorm:"column:heart_beat_at" json:"heartBeatAt"`   // 上报的心跳
 	CreatedAt       int64  `gorm:"autoUpdateTime:milli" json:"createdAt"`
 	UpdatedAt       int64  `gorm:"autoUpdateTime:milli" json:"updatedAt"`
 }
 
-func (ScannerInstanceInfo) TableName() string { return "ivan_scanner_instance" }
+func (*ScannerInstanceInfo) TableName() string { return "ivan_scanner_instance" }
 
-func (pre ScannerInstanceInfo) IsSame(info ScannerInstanceInfo) bool {
+func (pre *ScannerInstanceInfo) Same(info ScannerInstanceInfo) bool {
 	return pre.ClusterKey == info.ClusterKey &&
 		pre.ClusterName == info.ClusterName &&
 		pre.ScannerPodID == info.ScannerPodID &&
 		pre.ScannerInstance == info.ScannerInstance
 }
 
-func (pre ScannerInstanceInfo) ToUpdater() map[string]interface{} {
+func (pre *ScannerInstanceInfo) ToUpdater() map[string]interface{} {
 	updater := map[string]interface{}{
 		"cluster_key":      pre.ClusterKey,
 		"cluster_name":     pre.ClusterName,
 		"scanner_instance": pre.ScannerInstance,
 		"scanner_pod_id":   pre.ScannerPodID,
+		"heart_beat_at":    time.Now().Unix(),
+	}
+	return updater
+}
+
+func (pre *ScannerInstanceInfo) ToHeartBeatAt() map[string]interface{} {
+	updater := map[string]interface{}{
+		"heart_beat_at": time.Now().Unix(),
 	}
 	return updater
 }
