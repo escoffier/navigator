@@ -2,6 +2,7 @@ package api
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"gitlab.com/security-rd/go-pkg/logging"
@@ -36,12 +37,16 @@ func (sc *ScannerInstanceInfoAPISrv) GetScannerInstanceInfo(ctx *gin.Context) {
 	res := make([]scannerInstanceInfo, 0)
 	for i := range info {
 		logging.Get().Info().Int64("ID", info[i].ID).Msg("GetScannerInstanceInfo")
-		res = append(res, scannerInstanceInfo{
+		ins := scannerInstanceInfo{
 			ID:                  info[i].ID,
 			ClusterName:         info[i].ClusterName,
 			ScannerInstance:     info[i].ScannerInstance,
 			ScannerInstanceName: fmt.Sprintf("scanner-%s", info[i].ClusterName),
-		})
+		}
+		if time.Now().Unix()-info[i].HeartBeatAt > 5*60 {
+			ins.ScannerInstanceName = ins.ScannerInstanceName + "(abnormal)"
+		}
+		res = append(res, ins)
 	}
 
 	response.JSONOK(ctx, response.WithItems(res))
