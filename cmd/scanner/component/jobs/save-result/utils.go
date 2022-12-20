@@ -50,6 +50,10 @@ func ConvertSensitive(imageID int64, data []model.PerLayerSensitiveResult) ([]*m
 				DescriptionEn: vir.Sensitives[j].DescriptionEn,
 				DescriptionZh: vir.Sensitives[j].DescriptionZh,
 			}
+			if !strings.HasPrefix(viru.Name, "/") {
+				viru.Name = "/" + viru.Name
+			}
+
 			viru.UniqueID = viru.GenUniqueVuln()
 			virus = append(virus, viru)
 			issue = append(issue, &model.ScanIssueToImage{
