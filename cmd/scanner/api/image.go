@@ -51,7 +51,8 @@ func (s *ScanResultAPI) SearchVirus(ctx *gin.Context) {
 		response.JSONError(ctx, err)
 		return
 	}
-	filter := model.GetFilter(ctx)
+	// 镜像详情页面统一返回全部分数据,由前端分页
+	filter := &model.Filter{Offset: 0, Limit: math.MaxInt32}
 	res, cnt, err := s.ScanResultSrv.SearchVirus(ctx, param, filter)
 	if err != nil {
 		response.JSONError(ctx, err)
@@ -87,7 +88,7 @@ func (s *ScanResultAPI) SearchSensitive(ctx *gin.Context) {
 		response.JSONError(ctx, err)
 		return
 	}
-	filter := model.GetFilter(ctx)
+	filter := &model.Filter{Offset: 0, Limit: math.MaxInt32}
 	res, cnt, err := s.ScanResultSrv.SearchSensitive(ctx, param, filter)
 	if err != nil {
 		response.JSONError(ctx, err)
@@ -120,7 +121,7 @@ func (s *ScanResultAPI) SearchEnv(ctx *gin.Context) {
 		response.JSONError(ctx, err)
 		return
 	}
-	filter := model.GetFilter(ctx)
+	filter := &model.Filter{Offset: 0, Limit: math.MaxInt32}
 	res, cnt, err := s.ScanResultSrv.SearchEnv(ctx, param, filter)
 	if err != nil {
 		response.JSONError(ctx, err)
@@ -138,7 +139,7 @@ func (s *ScanResultAPI) SearchSoftware(ctx *gin.Context) {
 		response.JSONError(ctx, err)
 		return
 	}
-	filter := &model.Filter{Offset: 0, Limit: math.MaxInt64}
+	filter := &model.Filter{Offset: 0, Limit: math.MaxInt32}
 	software, cnt, err := s.ScanResultSrv.SearchSoftware(ctx, param, filter)
 	if err != nil {
 		response.JSONError(ctx, err)
