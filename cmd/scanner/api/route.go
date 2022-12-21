@@ -83,11 +83,8 @@ func WebAPI(router *gin.Engine,
 
 	v1 := router.Group("/api/v1/scan")
 	{
-		// v1.GET("/reportsByImageList", apiScannerSrv.ListScannedByImageList) // Deprecated:
 		v1.GET("/reportsByImageOverview", apiScannerSrv.ListScannedByImageOverview)
 		v1.GET("/reportsByImageDetails", apiScannerSrv.ScannedByImageDetails)
-
-		// v1.GET("/harbor/scanOneStatus", apiScannerSrv.GetScanOneStatus)
 		v1.GET("/reportsByVulnOverview", apiScannerSrv.ListScannedByVulnOverview)
 		v1.GET("/reportsBySimpleImageDetails", apiScannerSrv.GetSimpleImageDetail)
 	}

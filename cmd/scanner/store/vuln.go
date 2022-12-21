@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"gitlab.com/security-rd/go-pkg/databases"
@@ -312,52 +313,65 @@ func (v *VulnDao) UpdateVuln(ctx context.Context, where string, updater map[stri
 }
 
 func (v *VulnDao) CreateVulnImage(ctx context.Context, imageID int64, data []*model.VulnImage) error {
+
 	for i := range data {
 		data[i].ImageId = imageID
 	}
 	data = removeDuplicateVulnImage(data)
-	newExit := make(map[string]*model.VulnImage)
-	for i := range data {
-		key := fmt.Sprintf("%d_%d", data[i].ImageId, data[i].UniqueVuln)
-		newExit[key] = data[i]
-	}
 
 	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*100) // 大批量写入，时间会久些
 	defer cancelFunc()
-	// 不能简单的先删除再新建，因为主建可能被用完，也不能使用ON DUPLICATE KEY UPDATE方法，因为本质上mysql还是做的先删除再新建
-	// 不用事务，因为插入部分出错没有影响
-	vulnImages := make([]model.VulnImage, 0)
-	if err := v.rdb.Get().Model(new(model.VulnImage)).Select("id", "unique_vuln", "image_id").Where("image_id = ?", imageID).Find(&vulnImages).Error; err != nil {
+
+	dbPre := make([]*model.VulnImage, 0)
+	if err := v.rdb.Get().Model(new(model.VulnImage)).Where("image_id = ?", imageID).
+		Find(&dbPre).Error; err != nil {
 		return err
 	}
-	dbExit := make(map[string]int64)
+
 	createData := make([]*model.VulnImage, 0)
 	deleteData := make([]int64, 0)
 
-	for i := range vulnImages {
-		key := fmt.Sprintf("%d_%d", vulnImages[i].ImageId, vulnImages[i].UniqueVuln)
-		dbExit[key] = vulnImages[i].ID
+	// find need delete data
+	for i := range dbPre {
+		needDelete := true
+		for j := range data {
+			if dbPre[i].Same(data[j]) {
+				needDelete = false
+				break
+			}
+		}
+		if needDelete {
+			deleteData = append(deleteData, dbPre[i].ID)
+		}
 	}
-	for key := range newExit {
-		if _, ok := dbExit[key]; !ok {
-			createData = append(createData, newExit[key])
+	// find need create
+	for i := range data {
+		needCreate := true
+		for j := range dbPre {
+			if data[i].Same(dbPre[j]) {
+				needCreate = false
+				break
+			}
+		}
+		if needCreate {
+			createData = append(createData, data[i])
 		}
 	}
 
-	for key := range dbExit {
-		if _, ok := newExit[key]; !ok {
-			deleteData = append(deleteData, dbExit[key])
-		}
-	}
-
-	if len(createData) > 0 {
-		if err := v.rdb.Get().Model(new(model.VulnImage)).CreateInBatches(createData, 100).Error; err != nil {
-			return err
-		}
-	}
 	if len(deleteData) > 0 {
-		if err := v.rdb.Get().Model(new(model.VulnImage)).Where("id IN  ? ", deleteData).Delete(&model.VulnImage{}).Error; err != nil {
+		if err := v.rdb.Get().WithContext(ctx).Model(new(model.VulnImage)).Where("id IN  ? ", deleteData).
+			Delete(&model.VulnImage{}).Error; err != nil {
 			return err
+		}
+	}
+	for i := range createData {
+		da := createData[i]
+		if err := v.rdb.Get().WithContext(ctx).Model(new(model.VulnImage)).Create(da).Error; err != nil {
+			if strings.Contains(err.Error(), consts.DuplicateKey) {
+				continue
+			} else {
+				return err
+			}
 		}
 	}
 	return nil

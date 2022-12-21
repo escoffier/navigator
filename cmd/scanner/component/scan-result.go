@@ -116,15 +116,6 @@ func (s *ImageScanResultSrv) SearchSoftware(ctx context.Context, param ScanResul
 	return res, cnt, nil
 }
 
-// func (s *ImageScanResultSrv) SearchLicense(ctx context.Context, param ScanResultSearchParam, filter *model.Filter) ([]*model.ImageLicense, int64, error) {
-// 	res, cnt, err := s.imageScanResultDal.SearchLicense(ctx, param.ToStoreParam(), filter)
-// 	if err != nil {
-// 		logging.Get().Err(err).Interface("Param", param).Msg("SearchLicense")
-// 		return nil, 0, err
-// 	}
-// 	return res, cnt, nil
-// }
-
 func (s *ImageScanResultSrv) SearchEnv(ctx context.Context, param ScanResultSearchParam, filter *model.Filter) ([]*model.ImageEnv, int64, error) {
 	res, cnt, err := s.imageScanResultDal.SearchImageEnv(ctx, param.ToStoreParam(), filter)
 	if err != nil {

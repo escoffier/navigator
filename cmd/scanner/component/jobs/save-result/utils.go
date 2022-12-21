@@ -105,6 +105,7 @@ func ConvertSoftware(imageID int64, data []model.Software) ([]*model.ImageSoftwa
 		}
 		sf.UniqueID = sf.GenUniqueVuln()
 		software = append(software, sf)
+
 		iss := &model.ScanIssueToImage{
 			SecurityIssue: model.FlagHasWebshell,
 			UniqueTarget:  sf.UniqueID,
@@ -184,6 +185,7 @@ func ConvertVuln(imageID int64, trivyRes report.Report) ([]*model.Vuln, []*model
 				PkgVersion:  trivyVuln.InstalledVersion,
 				FixedBy:     trivyVuln.FixedVersion,
 				Target:      trivyRes.Results[i].Target,
+				Class:       string(trivyRes.Results[i].Class),
 			}
 
 			// 取第一个，适配以前的设计
@@ -209,6 +211,7 @@ func ConvertVuln(imageID int64, trivyRes report.Report) ([]*model.Vuln, []*model
 				vu.Flag = util.SetBit1(vu.Flag, model.VulnFlagHasFixed)
 			}
 			vu.UniqueVuln = vu.GenUniqueVuln()
+
 			vulnImages = append(vulnImages, &model.VulnImage{
 				UniqueVuln:  vu.UniqueVuln,
 				ImageId:     imageID,
@@ -224,10 +227,6 @@ func ConvertVuln(imageID int64, trivyRes report.Report) ([]*model.Vuln, []*model
 				// 是否内核漏洞
 				if vus[k].PkgName == pkg.Name && vus[k].PkgVersion == pkg.Version && IsKernelPkg(pkg) {
 					vus[i].Flag = util.SetBit1(vus[i].Flag, model.VulnFlagKernel)
-				}
-				// 开源协议
-				if vus[k].PkgName == pkg.Name && vus[k].PkgVersion == pkg.Version {
-					vus[k].License = pkg.License
 				}
 			}
 		}

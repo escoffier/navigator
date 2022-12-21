@@ -69,7 +69,7 @@ func (dal *ImageScanResultDao) CreateImageEnv(ctx context.Context, imageID int64
 		needDelete := true
 		for j := range data {
 			if dbPre[i].Same(data[j]) {
-				needDelete = true
+				needDelete = false
 				break
 			}
 		}
@@ -423,6 +423,8 @@ func (dal *ImageScanResultDao) CreateScanIssueToImage(ctx context.Context, image
 		data[i].SecurityIssue = securityIssue
 	}
 
+	data = DuplicateIssueToImage(data)
+
 	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*100) // 大批量写入，时间会久些
 	defer cancelFunc()
 
@@ -440,7 +442,7 @@ func (dal *ImageScanResultDao) CreateScanIssueToImage(ctx context.Context, image
 		needDelete := true
 		for j := range data {
 			if dbPre[i].Same(data[j]) {
-				needDelete = true
+				needDelete = false
 				break
 			}
 		}
@@ -467,9 +469,14 @@ func (dal *ImageScanResultDao) CreateScanIssueToImage(ctx context.Context, image
 			return err
 		}
 	}
-	if len(createData) > 0 {
-		if err := dal.rdb.Get().WithContext(ctx).Model(new(model.ScanIssueToImage)).CreateInBatches(createData, consts.DefaultCreateInBatches).Error; err != nil {
-			return err
+	for i := range createData {
+		da := createData[i]
+		if err := dal.rdb.Get().WithContext(ctx).Model(new(model.ScanIssueToImage)).Create(da).Error; err != nil {
+			if strings.Contains(err.Error(), consts.DuplicateKey) {
+				continue
+			} else {
+				return err
+			}
 		}
 	}
 
@@ -533,6 +540,19 @@ func DuplicateSensitiveFile(data []*model.ImageSensitiveFile) []*model.ImageSens
 		if !exit[data[i].UniqueID] {
 			after = append(after, data[i])
 			exit[data[i].UniqueID] = true
+		}
+	}
+	return after
+}
+
+func DuplicateIssueToImage(data []*model.ScanIssueToImage) []*model.ScanIssueToImage {
+	exit := make(map[string]bool)
+	after := make([]*model.ScanIssueToImage, 0)
+	for i := range data {
+		key := fmt.Sprintf("%d-%d-%d-%s", data[i].SecurityIssue, data[i].ImageID, data[i].UniqueTarget, data[i].LayerDigest)
+		if !exit[key] {
+			after = append(after, data[i])
+			exit[key] = true
 		}
 	}
 	return after

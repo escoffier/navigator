@@ -146,6 +146,7 @@ func init() {
 			"L": "本地访问",
 			"P": "物理访问",
 			"":  "相邻网络访问",
+			"A": "相邻网络访问", // https://www.first.org/cvss/calculator/3.1
 		}
 		// 是否自动化触发
 		vulnAttr["UI"] = map[string]string{
@@ -373,7 +374,14 @@ type VulnImage struct {
 	LayerDigest string    `gorm:"column:layer_digest" json:"layerDigest"`
 }
 
-func (VulnImage) TableName() string {
+func (vi *VulnImage) Same(after *VulnImage) bool {
+	if vi.ImageId != after.ImageId || vi.UniqueVuln != after.UniqueVuln || vi.LayerDigest != after.LayerDigest {
+		return false
+	}
+	return true
+}
+
+func (*VulnImage) TableName() string {
 	return "ivan_scanner_vuln_images"
 }
 
@@ -393,7 +401,6 @@ type Vuln struct {
 	MetadataJSON []byte        `gorm:"column:metadata_json" json:"-"`         // 元数据
 	PkgName      string        `gorm:"column:pkg_name" json:"pkg_name"`       // 软件包来源
 	PkgVersion   string        `gorm:"column:pkg_version" json:"pkg_version"` // 软件包版本
-	License      string        `gorm:"column:license" json:"license"`         // 软件的开源协议
 	FixedBy      string        `gorm:"column:fixed_by" json:"fixedby"`        // 修复建议
 	Target       string        `gorm:"column:target" json:"target"`
 	ExtraInfo    []byte        `gorm:"type:Blob" json:"-"` //  预留，漏洞属性。如我们自己的漏洞评级

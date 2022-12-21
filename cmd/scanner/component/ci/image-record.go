@@ -356,7 +356,7 @@ func (im *ImageManager) GetRecordPkgs(ctx context.Context, limit int64, offset i
 		}
 	}
 
-	//把没有漏洞的软件包也加入
+	// 把没有漏洞的软件包也加入
 	for _, v := range disPkgs {
 		if _, ok := mp[v.UniquePkg]; !ok {
 			mp[v.UniquePkg] = []uint64{}

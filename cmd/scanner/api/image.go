@@ -2,7 +2,6 @@ package api
 
 import (
 	"fmt"
-	"math"
 	"sort"
 	"strconv"
 	"strings"
@@ -51,8 +50,7 @@ func (s *ScanResultAPI) SearchVirus(ctx *gin.Context) {
 		response.JSONError(ctx, err)
 		return
 	}
-	// 镜像详情页面统一返回全部分数据,由前端分页
-	filter := &model.Filter{Offset: 0, Limit: math.MaxInt32}
+	filter := model.GetFilter(ctx)
 	res, cnt, err := s.ScanResultSrv.SearchVirus(ctx, param, filter)
 	if err != nil {
 		response.JSONError(ctx, err)
@@ -88,7 +86,7 @@ func (s *ScanResultAPI) SearchSensitive(ctx *gin.Context) {
 		response.JSONError(ctx, err)
 		return
 	}
-	filter := &model.Filter{Offset: 0, Limit: math.MaxInt32}
+	filter := model.GetFilter(ctx)
 	res, cnt, err := s.ScanResultSrv.SearchSensitive(ctx, param, filter)
 	if err != nil {
 		response.JSONError(ctx, err)
@@ -121,7 +119,7 @@ func (s *ScanResultAPI) SearchEnv(ctx *gin.Context) {
 		response.JSONError(ctx, err)
 		return
 	}
-	filter := &model.Filter{Offset: 0, Limit: math.MaxInt32}
+	filter := model.GetFilter(ctx)
 	res, cnt, err := s.ScanResultSrv.SearchEnv(ctx, param, filter)
 	if err != nil {
 		response.JSONError(ctx, err)
@@ -139,14 +137,14 @@ func (s *ScanResultAPI) SearchSoftware(ctx *gin.Context) {
 		response.JSONError(ctx, err)
 		return
 	}
-	filter := &model.Filter{Offset: 0, Limit: math.MaxInt32}
-	software, cnt, err := s.ScanResultSrv.SearchSoftware(ctx, param, filter)
+	filter := model.GetFilter(ctx)
+	software, cnt, err := s.ScanResultSrv.SearchSoftware(ctx, param, model.EmptyFilterForTotalQuery())
 	if err != nil {
 		response.JSONError(ctx, err)
 		return
 	}
 	// 再查漏洞
-	preVulns, _, err := s.vulnSrv.SearchVulns(ctx, component.SearchVulnParam{ImageIds: []int64{param.ImageID}}, filter)
+	preVulns, _, err := s.vulnSrv.SearchVulns(ctx, component.SearchVulnParam{ImageIds: []int64{param.ImageID}}, model.EmptyFilterForTotalQuery())
 	if err != nil {
 		response.JSONError(ctx, err)
 		return
@@ -170,6 +168,7 @@ func (s *ScanResultAPI) SearchSoftware(ctx *gin.Context) {
 			vp := VulnPKG{
 				PkgName:          software[i].Name,
 				PkgVersion:       software[i].Version,
+				UniqueID:         software[i].UniqueID,
 				SeverityOverview: make([]model.SeverityGroup, 0),
 				Vulns:            make([]VulnResponse, 0),
 				License:          software[i].License,
@@ -185,11 +184,7 @@ func (s *ScanResultAPI) SearchSoftware(ctx *gin.Context) {
 		}
 		pkgMap[key] = sf
 	}
-	// 按层级排序一下,便于前端展示
-	for _, v := range pkgMap {
-		sort.Sort(SeverityGroups(v.SeverityOverview))
-		sort.Sort(VulnLists(v.Vulns))
-	}
+
 	res := make([]VulnPKG, 0)
 	for _, vp := range pkgMap {
 		// 漏洞级别筛选
@@ -208,10 +203,20 @@ func (s *ScanResultAPI) SearchSoftware(ctx *gin.Context) {
 			res = append(res, vp)
 		}
 	}
-	sort.Sort(VulnPKGs(res))
-	// 不需要返回漏洞信息
+	// 按层级排序一下,便于前端展示
 	for i := range res {
+		sort.Sort(SeverityGroups(res[i].SeverityOverview))
+		res[i].SortScore = res[i].GetSortScore()
 		res[i].Vulns = make([]VulnResponse, 0)
+	}
+	sort.Sort(VulnPKGs(res))
+
+	if len(res) <= int(filter.Offset) {
+		res = make([]VulnPKG, 0)
+	} else if len(res) <= int(filter.Offset+filter.Limit) {
+		res = res[int(filter.Offset):]
+	} else {
+		res = res[int(filter.Offset):int(filter.Offset+filter.Limit)]
 	}
 
 	response.JSONOK(ctx, response.WithItems(res),
