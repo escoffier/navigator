@@ -373,14 +373,14 @@ func GenImageBaseInfo(image model.ImageList) []string {
 		image.Tags,
 		util.ByteToMB(image.Size),
 		image.OS,
-		FormatTime(image.FirstPushTime.UnixMilli(), consts.ExportTimeFormat),
+		FormatTime(image.UpdatedAt.UnixMilli(), consts.ExportTimeFormat),
 		IsBaseImage(image.Flag),
 	}
 	if image.Registry != nil {
 		info[1] = image.Registry.Url
 	}
 	if util.ExistBit1(image.Flag, model.FlagImageNotMaintained) {
-		info[11] = fmt.Sprintf("%s(%s)", image.OS, "此操作系统已经不再维护，可能导致漏洞扫描结果不准确，建议尽快升级")
+		info[10] = fmt.Sprintf("%s(%s)", image.OS, "此操作系统已经不再维护，可能导致漏洞扫描结果不准确，建议尽快升级")
 	}
 	suggest := utils.GenFixSuggestion(image.ImageScanVuln.SensitiveFiles, image.OS, image.ImageScanVuln.Vulns)
 	info = append(info, strings.Join(suggest, "\n"))
@@ -428,7 +428,7 @@ func getImageSecurityQuestion(flag uint64) string {
 		qus = append(qus, "异常环境变量")
 	}
 	if model.ExistFlag(flag, model.FlagPrivilegedBoot) {
-		qus = append(qus, "特权启动")
+		qus = append(qus, "root用户启动")
 	}
 	if model.ExistFlag(flag, model.FlagHasExceptLicense) {
 		qus = append(qus, "不允许开源许可")

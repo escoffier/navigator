@@ -19,6 +19,7 @@ type ScanResultSearchParam struct {
 	Keyword         string   `json:"keyword"`
 	AbnormalSoft    string   `json:"abnormalSoft"`
 	AbnormalLicense string   `json:"abnormalLicense"`
+	AbnormalEnv     string   `json:"abnormalEnv"`
 	VulnSeverity    []string `json:"vulnSeverity"`
 	License         []string `json:"license"`
 }
@@ -40,6 +41,11 @@ func (s ScanResultSearchParam) ToStoreParam() store.SearchImageScanResultParam {
 		param.Flag = util.SetBit1(param.Flag, model.FlagHasExceptLicense)
 	}
 	param.License = s.License
+	if s.AbnormalEnv == consts.TrueString {
+		param.NormalEnv = consts.FalseString
+	} else if s.AbnormalEnv == consts.FalseString {
+		param.NormalEnv = consts.TrueString
+	}
 
 	if s.AbnormalSoft == consts.TrueString {
 		param.Flag = util.SetBit1(param.Flag, model.FlagHasSoftware)

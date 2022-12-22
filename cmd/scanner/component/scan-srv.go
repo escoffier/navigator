@@ -3225,7 +3225,7 @@ func (s *ConScannerSrv) checkTrustedImage(ctx context.Context, img *model.ImageL
 	return safe, reasonAndDetail, kv
 }
 
-// 检查是否为特权启动
+// 检查是否为root用户启动
 func (s *ConScannerSrv) checkPrivilegedBoot(ctx context.Context, img *model.ImageList, po model.RejectPolicy) (bool, []ReasonAndDetail, []model.KVHashs) {
 	logging.GetLogger().Debug().Msgf("checkPrivilegedBoot, image digest: %s, ConfigFile: %v, PrivilegedBootPolicy: %s", img.Digest, img.ConfigFile, po.PrivilegedBootPolicy)
 	// 当用户不包含root时，说明不是特权用户启动
@@ -3260,7 +3260,7 @@ func (s *ConScannerSrv) checkPrivilegedBoot(ctx context.Context, img *model.Imag
 			},
 		}
 
-		logging.GetLogger().Info().Msgf("镜像<%s>特权启动，被阻断", img.Digest)
+		logging.GetLogger().Info().Msgf("镜像<%s>root用户启动，被阻断", img.Digest)
 	case model.RejectPolicyAlarm:
 		kv = []model.KVHashs{
 			{
@@ -3270,7 +3270,7 @@ func (s *ConScannerSrv) checkPrivilegedBoot(ctx context.Context, img *model.Imag
 				},
 			},
 		}
-		logging.GetLogger().Info().Msgf("镜像<%s>特权启动，告警不阻断", img.Digest)
+		logging.GetLogger().Info().Msgf("镜像<%s>root用户启动，告警不阻断", img.Digest)
 	}
 
 	return safe, reasonAndDetail, kv

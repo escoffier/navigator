@@ -304,6 +304,13 @@ type ImageVirus struct {
 	UpdatedAt int64  `gorm:"autoUpdateTime:milli;column:updated_at" json:"updatedAt"` // milliseconds
 }
 
+func (vi *ImageVirus) Same(after *ImageVirus) bool {
+	if vi.Filename != after.Filename || vi.Filepath != after.Filepath || vi.Name != after.Name {
+		return false
+	}
+	return true
+}
+
 func (vi *ImageVirus) TableName() string {
 	return "ivan_scanner_virus"
 }
@@ -366,11 +373,21 @@ func (ws *ImageSensitiveFile) Same(after *ImageSensitiveFile) bool {
 
 type ScanIssueToImage struct {
 	ID            int64  `gorm:"primaryKey" json:"id"`
+	UniqueID      uint64 `gorm:"column:unique_id" json:"uniqueID,string"` // 数据库的中唯一建，去重效率高
 	SecurityIssue int64  `gorm:"security_issue" json:"securityIssue"`
 	UniqueTarget  uint64 `gorm:"column:unique_target" json:"uniqueTarget,string"`
 	ImageID       int64  `gorm:"column:image_id" json:"imageID"`
 	Flag          uint64 `gorm:"column:flag" json:"flag"` // 其他的信息:比如license是否允许，软件包是否允许等等，用于筛选
 	LayerDigest   string `gorm:"column:layer_digest" json:"layerDigest"`
+	CreatedAt     int64  `gorm:"autoCreateTime:milli;column:created_at" json:"createdAt"` // milliseconds
+	UpdatedAt     int64  `gorm:"autoUpdateTime:milli;column:updated_at" json:"updatedAt"` // milliseconds
+}
+
+func (vi *ScanIssueToImage) GenUniqueVuln() uint64 {
+	key := fmt.Sprintf("%d-%d-%d-%s", vi.ImageID, vi.SecurityIssue, vi.UniqueTarget, vi.LayerDigest)
+	uid := util.GenerateUUID64(key)
+	vi.UniqueID = uid
+	return uid
 }
 
 func (vi *ScanIssueToImage) Same(after *ScanIssueToImage) bool {
@@ -384,26 +401,6 @@ func (vi *ScanIssueToImage) Same(after *ScanIssueToImage) bool {
 func (vi *ScanIssueToImage) TableName() string {
 	return "ivan_scanner_issue_image"
 }
-
-// type ImageLicense struct {
-// 	ID          int64  `gorm:"primaryKey" json:"id"`
-// 	UniqueID    uint64 `gorm:"column:unique_id" json:"uniqueID,string"`
-// 	Value       string `gorm:"column:value" json:"value"`
-// 	Description string `gorm:"column:description" json:"description"`
-// 	Name        string `gorm:"column:name" json:"name"`
-// 	CreatedAt   int64  `gorm:"autoCreateTime:milli;column:created_at" json:"createdAt"` // milliseconds
-// 	UpdatedAt   int64  `gorm:"autoUpdateTime:milli;column:updated_at" json:"updatedAt"` // milliseconds
-// }
-//
-// func (ws *ImageLicense) GenUniqueVuln() uint64 {
-// 	key := fmt.Sprintf(consts.UniqueLicenseFamat, ws.Name, ws.Value, ws.Description)
-// 	uid := util.GenerateUUID64(key)
-// 	return uid
-// }
-//
-// func (ws *ImageLicense) TableName() string {
-// 	return "ivan_scanner_license"
-// }
 
 type ImageSoftware struct {
 	ID        int64  `gorm:"primaryKey" json:"id"`

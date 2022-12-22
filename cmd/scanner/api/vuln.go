@@ -136,12 +136,7 @@ func (s *VulnAPISrv) GetImageVulnPkg(ctx *gin.Context) {
 	}
 	pkgKeyword := ctx.Query("keyword")
 	filter := model.GetFilter(ctx)
-	if filter.SortFiled == "" {
-		filter.SortFiled = "severity_int"
-	}
-	if filter.SortBy == "" {
-		filter.SortBy = consts.SortByDesc
-	}
+
 	param := component.SearchVulnParam{
 		PkgKeyword: pkgKeyword,
 		ImageIds:   []int64{imageID},
@@ -164,7 +159,7 @@ func (s *VulnAPISrv) GetImageVulnPkg(ctx *gin.Context) {
 		param.UniqueVulns = uniqueVulns
 	}
 
-	preVulns, _, err := s.VulnSrv.SearchVulns(ctx, param, filter)
+	preVulns, _, err := s.VulnSrv.SearchVulns(ctx, param, model.EmptyFilterForTotalQuery())
 	if err != nil {
 		response.JSONError(ctx, err)
 		return
@@ -184,6 +179,7 @@ func (s *VulnAPISrv) GetImageVulnPkg(ctx *gin.Context) {
 				PkgVersion:       vulns[i].PkgVersion,
 				SeverityOverview: make([]model.SeverityGroup, 0),
 				Vulns:            make([]VulnResponse, 0),
+				Target:           vulns[i].Target,
 			}
 		}
 		sf := pkgMap[key]
@@ -199,12 +195,24 @@ func (s *VulnAPISrv) GetImageVulnPkg(ctx *gin.Context) {
 	res := make([]VulnPKG, 0)
 	for _, vp := range pkgMap {
 		vp.SortScore = vp.GetSortScore()
+		vp.UniqueID = vp.GenUniqueVuln()
+		vp.Vulns = make([]VulnResponse, 0)
 		res = append(res, vp)
 	}
+
 	sort.Sort(VulnPKGs(res))
+	cnt := len(res)
+
+	if len(res) <= int(filter.Offset) {
+		res = make([]VulnPKG, 0)
+	} else if len(res) <= int(filter.Offset+filter.Limit) {
+		res = res[int(filter.Offset):]
+	} else {
+		res = res[int(filter.Offset):int(filter.Offset+filter.Limit)]
+	}
 
 	response.JSONOK(ctx, response.WithItems(res),
-		response.WithTotalItems(int64(len(res))),
+		response.WithTotalItems(int64(cnt)),
 		response.WithItemsPerPage(filter.Limit),
 		response.WithStartIndex(filter.Offset))
 }
@@ -219,12 +227,7 @@ func (s *VulnAPISrv) GetImageVulnLanguage(ctx *gin.Context) {
 	languageKeyword := ctx.Query("keyword")
 
 	filter := model.GetFilter(ctx)
-	if filter.SortFiled == "" {
-		filter.SortFiled = "severity_int"
-	}
-	if filter.SortBy == "" {
-		filter.SortBy = consts.SortByDesc
-	}
+
 	param := component.SearchVulnParam{
 		LanguageKeyword: strings.ToLower(languageKeyword),
 		ImageIds:        []int64{imageID},
@@ -247,7 +250,7 @@ func (s *VulnAPISrv) GetImageVulnLanguage(ctx *gin.Context) {
 		param.UniqueVulns = uniqueVulns
 	}
 
-	vulns, _, err := s.VulnSrv.SearchVulns(ctx, param, filter)
+	vulns, _, err := s.VulnSrv.SearchVulns(ctx, param, model.EmptyFilterForTotalQuery())
 	if err != nil {
 		response.JSONError(ctx, err)
 		return
@@ -280,12 +283,22 @@ func (s *VulnAPISrv) GetImageVulnLanguage(ctx *gin.Context) {
 	}
 	res := make([]*VulnLanguage, 0)
 	for _, vp := range languageMap {
+		vp.SortScore = vp.GetSortScore()
+		vp.Vulns = make([]VulnResponse, 0)
 		res = append(res, vp)
 	}
+	cnt := int64(len(res))
 	sort.Sort(VulnLanguages(res))
+	if len(res) <= int(filter.Offset) {
+		res = make([]*VulnLanguage, 0)
+	} else if len(res) <= int(filter.Offset+filter.Limit) {
+		res = res[int(filter.Offset):]
+	} else {
+		res = res[int(filter.Offset):int(filter.Offset+filter.Limit)]
+	}
 
 	response.JSONOK(ctx, response.WithItems(res),
-		response.WithTotalItems(int64(len(res))),
+		response.WithTotalItems(cnt),
 		response.WithItemsPerPage(filter.Limit),
 		response.WithStartIndex(filter.Offset))
 }
@@ -300,12 +313,6 @@ func (s *VulnAPISrv) GetImageVulnGoBinary(ctx *gin.Context) {
 	targetKeyword := ctx.Query("keyword")
 
 	filter := model.GetFilter(ctx)
-	if filter.SortFiled == "" {
-		filter.SortFiled = "severity_int"
-	}
-	if filter.SortBy == "" {
-		filter.SortBy = consts.SortByDesc
-	}
 	param := component.SearchVulnParam{
 		TargetKeyword: targetKeyword,
 		ImageIds:      []int64{imageID},
@@ -326,7 +333,7 @@ func (s *VulnAPISrv) GetImageVulnGoBinary(ctx *gin.Context) {
 		}
 		param.UniqueVulns = uniqueVulns
 	}
-	vulns, _, err := s.VulnSrv.SearchVulns(ctx, param, filter)
+	vulns, _, err := s.VulnSrv.SearchVulns(ctx, param, model.EmptyFilterForTotalQuery())
 	if err != nil {
 		response.JSONError(ctx, err)
 		return
@@ -369,11 +376,22 @@ func (s *VulnAPISrv) GetImageVulnGoBinary(ctx *gin.Context) {
 	}
 	res := make([]*VulnGobinary, 0)
 	for _, vp := range gobinaryMap {
+		vp.SortScore = vp.GetSortScore()
+		vp.Vulns = make([]VulnResponse, 0)
 		res = append(res, vp)
 	}
 	sort.Sort(VulnGobinaries(res))
+	cnt := int64(len(res))
+	if len(res) <= int(filter.Offset) {
+		res = make([]*VulnGobinary, 0)
+	} else if len(res) <= int(filter.Offset+filter.Limit) {
+		res = res[int(filter.Offset):]
+	} else {
+		res = res[int(filter.Offset):int(filter.Offset+filter.Limit)]
+	}
+
 	response.JSONOK(ctx, response.WithItems(res),
-		response.WithTotalItems(int64(len(res))),
+		response.WithTotalItems(cnt),
 		response.WithItemsPerPage(filter.Limit),
 		response.WithStartIndex(filter.Offset))
 }
@@ -388,12 +406,6 @@ func (s *VulnAPISrv) GetImageVulnFrame(ctx *gin.Context) {
 	frameKeyword := ctx.Query("keyword")
 
 	filter := model.GetFilter(ctx)
-	if filter.SortFiled == "" {
-		filter.SortFiled = "severity_int"
-	}
-	if filter.SortBy == "" {
-		filter.SortBy = consts.SortByDesc
-	}
 
 	param := component.SearchVulnParam{
 		FrameKeyword: frameKeyword,
@@ -417,7 +429,7 @@ func (s *VulnAPISrv) GetImageVulnFrame(ctx *gin.Context) {
 		param.UniqueVulns = uniqueVulns
 	}
 
-	vulns, _, err := s.VulnSrv.SearchVulns(ctx, param, filter)
+	vulns, _, err := s.VulnSrv.SearchVulns(ctx, param, model.EmptyFilterForTotalQuery())
 	if err != nil {
 		response.JSONError(ctx, err)
 		return
@@ -447,12 +459,22 @@ func (s *VulnAPISrv) GetImageVulnFrame(ctx *gin.Context) {
 	}
 	res := make([]*VulnFrame, 0)
 	for _, vp := range frameMap {
+		vp.SortScore = vp.GetSortScore()
+		vp.Vulns = make([]VulnResponse, 0)
 		res = append(res, vp)
 	}
 	sort.Sort(VulnFrames(res))
+	cnt := int64(len(res))
+	if len(res) <= int(filter.Offset) {
+		res = make([]*VulnFrame, 0)
+	} else if len(res) <= int(filter.Offset+filter.Limit) {
+		res = res[int(filter.Offset):]
+	} else {
+		res = res[int(filter.Offset):int(filter.Offset+filter.Limit)]
+	}
 
 	response.JSONOK(ctx, response.WithItems(res),
-		response.WithTotalItems(int64(len(res))),
+		response.WithTotalItems(cnt),
 		response.WithItemsPerPage(filter.Limit),
 		response.WithStartIndex(filter.Offset))
 }
@@ -547,6 +569,7 @@ type VulnPKG struct {
 	SeverityOverview []model.SeverityGroup `json:"severityOverview"`
 	Vulns            []VulnResponse        `json:"vulns"`
 	License          string                `json:"license"` // 软件的开源协议
+	Target           string                `json:"target"`
 	AbnormalSoft     bool                  `json:"abnormalSoft"`
 	AbnormalLicense  bool                  `json:"abnormalLicense"`
 	SortScore        int64                 `json:"sortScore"`
@@ -563,6 +586,12 @@ func (vp VulnPKG) GetSortScore() int64 {
 		score += level * vp.SeverityOverview[i].Count
 	}
 	return score
+}
+
+func (vp VulnPKG) GenUniqueVuln() uint64 {
+	key := fmt.Sprintf(consts.UniqueSoftwareFamat, vp.PkgName, vp.PkgVersion)
+	uid := util.GenerateUUID64(key)
+	return uid
 }
 
 type VulnPKGs []VulnPKG
@@ -585,6 +614,19 @@ type VulnLanguage struct {
 	SeverityOverview []model.SeverityGroup `json:"severityOverview"`
 	Vulns            []VulnResponse        `json:"vulns"`
 	Target           string                `json:"target"`
+	SortScore        int64                 `json:"sortScore"`
+}
+
+func (vp VulnLanguage) GetSortScore() int64 {
+	var score int64
+	for i := range vp.SeverityOverview {
+		if vp.SeverityOverview[i].SeverityInt <= 0 {
+			continue
+		}
+		level := int64(math.Pow10((vp.SeverityOverview[i].SeverityInt - 1) * 3))
+		score += level * vp.SeverityOverview[i].Count
+	}
+	return score
 }
 
 type VulnLanguages []*VulnLanguage
@@ -594,27 +636,7 @@ func (vf VulnLanguages) Len() int {
 }
 
 func (vf VulnLanguages) Less(i, j int) bool {
-	if len(vf[i].SeverityOverview) > 0 && len(vf[j].SeverityOverview) == 0 {
-		return true
-	} else if len(vf[i].SeverityOverview) == 0 && len(vf[j].SeverityOverview) > 0 {
-		return false
-	} else {
-		for k := range vf[i].SeverityOverview {
-			if len(vf[j].SeverityOverview)-1 < k {
-				return true
-			} else if vf[i].SeverityOverview[k].SeverityInt > vf[j].SeverityOverview[k].SeverityInt {
-				return true
-			} else if vf[i].SeverityOverview[k].SeverityInt < vf[j].SeverityOverview[k].SeverityInt {
-				return false
-			} else if vf[i].SeverityOverview[k].SeverityInt == vf[j].SeverityOverview[k].SeverityInt {
-				return vf[i].SeverityOverview[k].Count >= vf[j].SeverityOverview[k].Count
-			}
-		}
-		if len(vf[i].SeverityOverview) < len(vf[j].SeverityOverview) {
-			return false
-		}
-	}
-	return true
+	return vf[i].SortScore > vf[i].SortScore
 }
 
 func (vf VulnLanguages) Swap(i, j int) {
@@ -626,6 +648,19 @@ type VulnGobinary struct {
 	GoPath           string                `json:"goPath"`
 	SeverityOverview []model.SeverityGroup `json:"severityOverview"`
 	Vulns            []VulnResponse        `json:"vulns"`
+	SortScore        int64                 `json:"sortScore"`
+}
+
+func (vp VulnGobinary) GetSortScore() int64 {
+	var score int64
+	for i := range vp.SeverityOverview {
+		if vp.SeverityOverview[i].SeverityInt <= 0 {
+			continue
+		}
+		level := int64(math.Pow10((vp.SeverityOverview[i].SeverityInt - 1) * 3))
+		score += level * vp.SeverityOverview[i].Count
+	}
+	return score
 }
 
 type VulnGobinaries []*VulnGobinary
@@ -635,27 +670,7 @@ func (vf VulnGobinaries) Len() int {
 }
 
 func (vf VulnGobinaries) Less(i, j int) bool {
-	if len(vf[i].SeverityOverview) > 0 && len(vf[j].SeverityOverview) == 0 {
-		return true
-	} else if len(vf[i].SeverityOverview) == 0 && len(vf[j].SeverityOverview) > 0 {
-		return false
-	} else {
-		for k := range vf[i].SeverityOverview {
-			if len(vf[j].SeverityOverview)-1 < k {
-				return true
-			} else if vf[i].SeverityOverview[k].SeverityInt > vf[j].SeverityOverview[k].SeverityInt {
-				return true
-			} else if vf[i].SeverityOverview[k].SeverityInt < vf[j].SeverityOverview[k].SeverityInt {
-				return false
-			} else if vf[i].SeverityOverview[k].SeverityInt == vf[j].SeverityOverview[k].SeverityInt {
-				return vf[i].SeverityOverview[k].Count >= vf[j].SeverityOverview[k].Count
-			}
-		}
-		if len(vf[i].SeverityOverview) < len(vf[j].SeverityOverview) {
-			return false
-		}
-	}
-	return true
+	return vf[i].SortScore > vf[i].SortScore
 }
 
 func (vf VulnGobinaries) Swap(i, j int) {
@@ -666,6 +681,19 @@ type VulnFrame struct {
 	Frame            string                `json:"frame"`
 	SeverityOverview []model.SeverityGroup `json:"severityOverview"`
 	Vulns            []VulnResponse        `json:"vulns"`
+	SortScore        int64                 `json:"sortScore"`
+}
+
+func (vp VulnFrame) GetSortScore() int64 {
+	var score int64
+	for i := range vp.SeverityOverview {
+		if vp.SeverityOverview[i].SeverityInt <= 0 {
+			continue
+		}
+		level := int64(math.Pow10((vp.SeverityOverview[i].SeverityInt - 1) * 3))
+		score += level * vp.SeverityOverview[i].Count
+	}
+	return score
 }
 
 type VulnFrames []*VulnFrame
@@ -675,27 +703,7 @@ func (vf VulnFrames) Len() int {
 }
 
 func (vf VulnFrames) Less(i, j int) bool {
-	if len(vf[i].SeverityOverview) > 0 && len(vf[j].SeverityOverview) == 0 {
-		return true
-	} else if len(vf[i].SeverityOverview) == 0 && len(vf[j].SeverityOverview) > 0 {
-		return false
-	} else {
-		for k := range vf[i].SeverityOverview {
-			if len(vf[j].SeverityOverview)-1 < k {
-				return true
-			} else if vf[i].SeverityOverview[k].SeverityInt > vf[j].SeverityOverview[k].SeverityInt {
-				return true
-			} else if vf[i].SeverityOverview[k].SeverityInt < vf[j].SeverityOverview[k].SeverityInt {
-				return false
-			} else if vf[i].SeverityOverview[k].SeverityInt == vf[j].SeverityOverview[k].SeverityInt {
-				return vf[i].SeverityOverview[k].Count >= vf[j].SeverityOverview[k].Count
-			}
-		}
-		if len(vf[i].SeverityOverview) < len(vf[j].SeverityOverview) {
-			return false
-		}
-	}
-	return true
+	return vf[i].SortScore > vf[i].SortScore
 }
 
 func (vf VulnFrames) Swap(i, j int) {

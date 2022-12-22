@@ -71,7 +71,7 @@ var reasonZHMap = map[int64]string{
 	RejectReasonUntrustedBaseImage:   "非基础镜像构建的应用镜像",
 	RejectReasonWebshellScore:        "webshell评分高于设置值",
 	RejectReasonUntrustedImage:       "非可信镜像",
-	RejectReasonPrivilegedBoot:       "特权启动镜像",
+	RejectReasonPrivilegedBoot:       "root用户启动镜像",
 	RejectReasonHasUntrustedEnv:      "包含不信任环境变量",
 }
 var reasonENMap = map[int64]string{
@@ -92,7 +92,7 @@ var reasonENMap = map[int64]string{
 	RejectReasonUntrustedBaseImage:   "The application image is not built with a verified base image",
 	RejectReasonWebshellScore:        "Webshell score more than set value",
 	RejectReasonUntrustedImage:       "Untrusted image",
-	RejectReasonPrivilegedBoot:       "Privileged boot image",
+	RejectReasonPrivilegedBoot:       "root user boot image",
 	RejectReasonHasUntrustedEnv:      "Untrusted envs",
 }
 
