@@ -35,10 +35,8 @@ func (e *ExecutorScanVuln) filterCustomPkg(r *report.Report, customPkg []task.Cu
 	for i := range customLicenses {
 		abnormalLicense[customLicenses[i]] = true
 	}
-	logging.GetLogger().Info().Int("Results", len(r.Results)).Msg("imageScanSoftware")
 	res := make([]model.Software, 0)
 	for i := range r.Results {
-		logging.GetLogger().Info().Int("Packages", len(r.Results[i].Packages)).Msg("imageScanSoftware")
 		for j := range r.Results[i].Packages {
 			vv := r.Results[i].Packages[j]
 
@@ -62,7 +60,6 @@ func (e *ExecutorScanVuln) filterCustomPkg(r *report.Report, customPkg []task.Cu
 	}
 
 	for i := range r.Results {
-		logging.GetLogger().Info().Int("Packages", len(r.Results[i].Packages)).Msg("imageScanSoftware")
 		for j := range r.Results[i].Vulnerabilities {
 			vv := r.Results[i].Vulnerabilities[j]
 

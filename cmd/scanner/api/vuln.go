@@ -2,6 +2,7 @@ package api
 
 import (
 	"fmt"
+	"math"
 	"net/http"
 	"os"
 	"sort"
@@ -56,12 +57,6 @@ func (s *VulnAPISrv) GetImageVulns(ctx *gin.Context) {
 	}
 
 	filter := model.GetFilter(ctx)
-	if filter.SortFiled == "" {
-		filter.SortFiled = "severity_int"
-	}
-	if filter.SortBy == "" {
-		filter.SortBy = consts.SortByDesc
-	}
 	param := component.SearchVulnParam{
 		VulnKeyword: vulnKeyword,
 		ImageIds:    []int64{imageID},
@@ -88,7 +83,8 @@ func (s *VulnAPISrv) GetImageVulns(ctx *gin.Context) {
 		param.UniqueVulns = util.DeDuplicationUint64Slice(uniqueVulns)
 	}
 
-	vulns, cnt, err := s.VulnSrv.SearchVulns(ctx, param, filter)
+	vulns, cnt, err := s.VulnSrv.SearchVulns(ctx, param,
+		model.EmptyFilterForTotalQuery().SetSortFiled("severity_int").SetSortDesc())
 	if err != nil {
 		response.JSONError(ctx, err)
 		return
@@ -116,8 +112,17 @@ func (s *VulnAPISrv) GetImageVulns(ctx *gin.Context) {
 		}
 	}
 
+	cnt = int64(len(ans))
+	if len(ans) <= int(filter.Offset) {
+		ans = make([]VulnResponse, 0)
+	} else if len(ans) <= int(filter.Offset+filter.Limit) {
+		ans = ans[int(filter.Offset):]
+	} else {
+		ans = ans[int(filter.Offset):int(filter.Offset+filter.Limit)]
+	}
+
 	response.JSONOK(ctx, response.WithItems(ans),
-		response.WithTotalItems(int64(cnt)),
+		response.WithTotalItems(cnt),
 		response.WithItemsPerPage(filter.Limit),
 		response.WithStartIndex(filter.Offset))
 }
@@ -147,7 +152,7 @@ func (s *VulnAPISrv) GetImageVulnPkg(ctx *gin.Context) {
 		layers, _, err := s.VulnSrv.SearchLayerVuln(ctx, component.SearchScanLayerParam{
 			ImageID:      imageID,
 			LayerDigests: []string{layerDigest},
-		}, nil)
+		}, model.EmptyFilterForTotalQuery())
 		if err != nil {
 			response.JSONError(ctx, err)
 			return
@@ -193,6 +198,7 @@ func (s *VulnAPISrv) GetImageVulnPkg(ctx *gin.Context) {
 	}
 	res := make([]VulnPKG, 0)
 	for _, vp := range pkgMap {
+		vp.SortScore = vp.GetSortScore()
 		res = append(res, vp)
 	}
 	sort.Sort(VulnPKGs(res))
@@ -483,6 +489,7 @@ func convertVuln(vuln *model.Vuln) VulnResponse {
 		Target:      vuln.Target,
 		Frame:       vuln.Frame,
 		CnnvdName:   vuln.CnnvdName,
+		Class:       vuln.Class,
 		KernelVuln:  util.ExistBit1(vuln.Flag, model.VulnFlagKernel),
 	}
 	if vuln.Attr != nil {
@@ -536,11 +543,26 @@ func (vl VulnLists) Swap(i, j int) {
 type VulnPKG struct {
 	PkgName          string                `json:"pkgName"`
 	PkgVersion       string                `json:"pkgVersion"`
+	UniqueID         uint64                `json:"uniqueID,string"`
 	SeverityOverview []model.SeverityGroup `json:"severityOverview"`
 	Vulns            []VulnResponse        `json:"vulns"`
 	License          string                `json:"license"` // 软件的开源协议
 	AbnormalSoft     bool                  `json:"abnormalSoft"`
 	AbnormalLicense  bool                  `json:"abnormalLicense"`
+	SortScore        int64                 `json:"sortScore"`
+}
+
+// 为了排序方便，一般情况下，单个镜像单个级别的漏洞不会超过100个
+func (vp VulnPKG) GetSortScore() int64 {
+	var score int64
+	for i := range vp.SeverityOverview {
+		if vp.SeverityOverview[i].SeverityInt <= 0 {
+			continue
+		}
+		level := int64(math.Pow10((vp.SeverityOverview[i].SeverityInt - 1) * 3))
+		score += level * vp.SeverityOverview[i].Count
+	}
+	return score
 }
 
 type VulnPKGs []VulnPKG
@@ -550,27 +572,7 @@ func (vf VulnPKGs) Len() int {
 }
 
 func (vf VulnPKGs) Less(i, j int) bool {
-	if len(vf[i].SeverityOverview) > 0 && len(vf[j].SeverityOverview) == 0 {
-		return true
-	} else if len(vf[i].SeverityOverview) == 0 && len(vf[j].SeverityOverview) > 0 {
-		return false
-	} else {
-		for k := range vf[i].SeverityOverview {
-			if len(vf[j].SeverityOverview)-1 < k {
-				return true
-			} else if vf[i].SeverityOverview[k].SeverityInt > vf[j].SeverityOverview[k].SeverityInt {
-				return true
-			} else if vf[i].SeverityOverview[k].SeverityInt < vf[j].SeverityOverview[k].SeverityInt {
-				return false
-			} else if vf[i].SeverityOverview[k].SeverityInt == vf[j].SeverityOverview[k].SeverityInt {
-				return vf[i].SeverityOverview[k].Count >= vf[j].SeverityOverview[k].Count
-			}
-		}
-		if len(vf[i].SeverityOverview) < len(vf[j].SeverityOverview) {
-			return false
-		}
-	}
-	return true
+	return vf[i].SortScore > vf[j].SortScore
 }
 
 func (vf VulnPKGs) Swap(i, j int) {

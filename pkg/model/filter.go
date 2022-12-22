@@ -4,7 +4,6 @@ import (
 	"math"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
@@ -29,8 +28,9 @@ func (f *Filter) AddSortCreatedAt() {
 	f.SortFiled = "created_at"
 }
 
-func (f *Filter) AddSortDesc() {
+func (f *Filter) SetSortDesc() *Filter {
 	f.SortBy = consts.SortByDesc
+	return f
 }
 
 func (f *Filter) AddSortAsc() {
@@ -42,9 +42,10 @@ func GetFilter(ctx *gin.Context) *Filter {
 	limit, _ := strconv.ParseInt(ctx.Query("limit"), 10, 64)
 	sortBy := ctx.Query("sort_by")
 	sortFiled := ctx.Query("sort_filed")
-	if limit > 200 {
-		limit = 200
+	if limit <= 0 {
+		limit = math.MaxInt32 // 说明取全部数据
 	}
+
 	if offset <= 0 {
 		offset = 0
 	}
@@ -77,10 +78,15 @@ func GetFilterWithDefaultValue(ctx *gin.Context) *Filter {
 func EmptyFilterForTotalQuery() *Filter {
 	return &Filter{
 		Offset:    0,
-		Limit:     math.MaxInt64,
+		Limit:     math.MaxInt32,
 		SortBy:    "desc",
 		SortFiled: "id",
 	}
+}
+
+func (f *Filter) SetSortFiled(sortFiled string) *Filter {
+	f.SortFiled = sortFiled
+	return f
 }
 
 func (f *Filter) SetDefault() *Filter {
@@ -106,7 +112,7 @@ func (f *Filter) SetDefault() *Filter {
 		f.Offset = 0 // 取第一页
 	}
 	if f.Limit <= 0 {
-		f.Limit = math.MaxInt64 // 没传就表示取全部，这里赋一个最大值
+		f.Limit = math.MaxInt32 // 没传就表示取全部，这里赋一个最大值
 	}
 	return f
 }
@@ -165,28 +171,4 @@ func AddFilterWithDefault(db *gorm.DB, filter *Filter) *gorm.DB {
 		}
 	}
 	return db
-}
-
-// 扫描状态
-type ScanStatus struct {
-	ScanAllStatus ScanAllStatus `json:"harborStatus"`
-	IsAborted     bool          `json:"isAborted"` // if true, we are currently in the process of aborting harbor scan al
-
-	EndTime    time.Time `json:"end_time"`
-	ScanStatus string    `json:"scan_status"`
-}
-
-type ScanAllStatusMetrics struct {
-	Error   int `json:"error"`
-	Pending int `json:"pending"`
-	Running int `json:"running"`
-	Success int `json:"success"`
-}
-
-type ScanAllStatus struct {
-	Completed int                  `json:"completed"`
-	IsOngoing bool                 `json:"ongoing"`
-	Requester string               `json:"requester"` // no idea what this is for
-	Total     int                  `json:"total"`
-	Metrics   ScanAllStatusMetrics `json:"metrics"`
 }

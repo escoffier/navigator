@@ -115,7 +115,7 @@ func (dal *ExportTaskDao) GetExportImageRelatedVuln(ctx context.Context, uniqueV
 	}
 	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*20)
 	defer cancelFunc()
-	vulnTable := model.VulnImage{}.TableName()
+	vulnTable := new(model.VulnImage).TableName()
 	exportTable := model.ExportTaskImage{}.TableName()
 
 	db := dal.db.Get().WithContext(ctx).Model(new(model.ExportTaskImage))

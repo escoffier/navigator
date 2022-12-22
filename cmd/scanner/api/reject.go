@@ -461,7 +461,7 @@ func (r *RejectAPI) RSAUpdate(ctx *gin.Context) {
 func (r *RejectAPI) RSAList(ctx *gin.Context) {
 	filter := model.GetFilterWithDefaultValue(ctx)
 	filter.AddSortCreatedAt()
-	filter.AddSortDesc()
+	filter = filter.SetSortDesc()
 
 	result, count, err := r.Srv.RSAList(ctx, component.RSAListParam{}, filter)
 	if err != nil {

@@ -553,9 +553,9 @@ func (s *ScanResultHandle) Run(ctx context.Context, param jobs.Param) (jobs.Arti
 	}
 
 	// Soft
-	logging.GetLogger().Info().Int("softLenght", len(imageScanSoftware)).Msg("imageScanSoftware")
 	if imageScanSoftware != nil {
 		data, issueToImages := ConvertSoftware(imageID, imageScanSoftware)
+		logging.GetLogger().Info().Int("data", len(data)).Int64("imageID", imageID).Int("issueToImages", len(issueToImages)).Msg("imageScanSoftware")
 		if err := scanResultSaveSrv.ImageScanResultDal.CreateSoftware(ctx, data); err != nil {
 			logging.GetLogger().Err(err).Int64("imageID", imageID).Msg("CreateSoftware")
 		}
