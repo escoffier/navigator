@@ -8,6 +8,7 @@ import (
 
 	"github.com/shopspring/decimal"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/scapper"
+	"gitlab.com/piccolo_su/vegeta/pkg/lang"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/security-rd/go-pkg/logging"
 	"gorm.io/datatypes"
@@ -107,7 +108,7 @@ func CallbackScanResults(ctx context.Context, db *gorm.DB, checkType model.Compl
 						State:         model.ScapScanResultStateType(check.State),
 						ActualValue:   check.ActualValue,
 						RemediationEn: check.Remediation,
-						UDBCP:         svc.GetUDBCPMap(check.ID, checkType),
+						UDBCP:         svc.GetUDBCPMap(lang.LanguageZH, check.ID, checkType),
 						CreatedAt:     time.Now().Unix(),
 					}
 

@@ -12,6 +12,7 @@ import (
 	"github.com/go-chi/chi"
 	param "github.com/oceanicdev/chi-param"
 	uuid "github.com/satori/go.uuid"
+	"gitlab.com/piccolo_su/vegeta/pkg/lang"
 	"gorm.io/gorm"
 
 	"github.com/pkg/errors"
@@ -174,6 +175,7 @@ func (a *api) findScanNodeDetailList() http.HandlerFunc {
 			return
 		}
 
+		language := lang.Language(ctx)
 		svc, _ := scapper.GetService(ctx)
 		for i, c := range result.Compliances {
 			policy, err := svc.GetPolicyInfo(ctx, c.PolicyNumber, checkType)
@@ -183,9 +185,40 @@ func (a *api) findScanNodeDetailList() http.HandlerFunc {
 			}
 
 			result.Compliances[i].PolicyId = policy.Id
-			result.Compliances[i].Description = policy.DetailZh
-			result.Compliances[i].Section = policy.TitleZh
-			result.Compliances[i].ExtraDetail = policy.PolicyDetailInfoExtraDetail
+			if language == lang.LanguageEN {
+				result.Compliances[i].Description = policy.DetailEn
+				result.Compliances[i].Section = policy.TitleEn
+				result.Compliances[i].UDBCP = svc.GetUDBCPMap(language, c.PolicyNumber, checkType)
+			} else {
+				result.Compliances[i].Description = policy.DetailZh
+				result.Compliances[i].Section = policy.TitleZh
+			}
+
+			if policy.PolicyDetailInfoExtraDetail != nil {
+				if language == lang.LanguageEN {
+					result.Compliances[i].ExtraDetail.Description = policy.PolicyDetailInfoExtraDetail.DescriptionEn
+					result.Compliances[i].ExtraDetail.Rationale = policy.PolicyDetailInfoExtraDetail.RationaleEn
+					result.Compliances[i].ExtraDetail.Audit = policy.PolicyDetailInfoExtraDetail.AuditEn
+					result.Compliances[i].ExtraDetail.Remediation = policy.PolicyDetailInfoExtraDetail.RemediationEn
+					result.Compliances[i].ExtraDetail.Impact = policy.PolicyDetailInfoExtraDetail.ImpactEn
+					result.Compliances[i].ExtraDetail.DefaultValue = policy.PolicyDetailInfoExtraDetail.DefaultValueEn
+				} else {
+					result.Compliances[i].ExtraDetail = &policy.PolicyDetailInfoExtraDetail.PolicyDetailInfoExtraDetail
+				}
+			} else {
+				result.Compliances[i].ExtraDetail = &model.PolicyDetailInfoExtraDetail{
+					Description: policy.DetailZh,
+					Rationale:   policy.TitleZh,
+					Audit:       policy.Audit,
+					Remediation: policy.RemediationZh,
+					References:  []string{},
+				}
+				if language == lang.LanguageEN {
+					result.Compliances[i].ExtraDetail.Description = policy.DetailEn
+					result.Compliances[i].ExtraDetail.Rationale = policy.TitleEn
+					result.Compliances[i].ExtraDetail.Remediation = policy.RemediationEn
+				}
+			}
 		}
 
 		response.Ok(w, response.WithItems(result.Compliances),
@@ -255,10 +288,6 @@ func (api *api) getCheckHistory() http.HandlerFunc {
 }
 
 func (a *api) findSuggest() http.HandlerFunc {
-	type item struct {
-		Label string `json:"label"`
-		Value string `json:"value"`
-	}
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx, cancel := context.WithTimeout(r.Context(), defaultScapTimeout)
 		defer cancel()
@@ -296,15 +325,21 @@ func (a *api) findSuggest() http.HandlerFunc {
 			return
 		}
 
-		items := make([]*item, len(result))
-		for i, v := range result {
-			items[i] = &item{
-				Label: v.Text,
-				Value: v.Text,
-			}
-		}
+		// if language := lang.Language(ctx); language == lang.LanguageEN {
+		// 	svc, _ := scapper.GetService(ctx)
+		// 	if suggestType == "section" {
+		// 		for i := range result {
+		// 			svc.GetUDBCPMap(language, "", "")
+		// 			result[i].Label = "//i18n"
+		// 		}
+		// 	} else if suggestType == "udbcp" {
+		// 		for i := range result {
+		// 			result[i].Label = "//i18n"
+		// 		}
+		// 	}
+		// }
 
-		response.Ok(w, response.WithItems(items))
+		response.Ok(w, response.WithItems(result))
 	}
 }
 

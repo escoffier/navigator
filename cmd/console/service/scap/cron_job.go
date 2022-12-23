@@ -129,7 +129,7 @@ func (s *Service) CronJobDetail(ctx context.Context, scapType string) (*model.Sc
 	// 启动goroutine去查询
 	for i := range clusterInfo {
 		tmp := &clusterInfo[i] // 临时变量避免被shadow
-		wg.Go(func() (err error) {
+		wg.Go(func() error {
 			defer func() {
 				if e := recover(); e != nil {
 					err = errors.Errorf("panic when get clusterInfo, %v", e)
@@ -144,12 +144,16 @@ func (s *Service) CronJobDetail(ctx context.Context, scapType string) (*model.Sc
 				Where("id = ?", tmp.ClusterKey).
 				First(&tmp.ClusterName).
 				Error; err != nil {
-				return
+				if err == gorm.ErrRecordNotFound {
+					logging.GetLogger().Warn().Str("clusterKey", tmp.ClusterKey).Msg("not found")
+					return nil
+				}
+				return err
 			}
 
 			// 如果是全部节点的话，不需要查询节点的信息
 			if tmp.IsAllNodes {
-				return
+				return nil
 			}
 
 			if err = db.
@@ -160,10 +164,10 @@ func (s *Service) CronJobDetail(ctx context.Context, scapType string) (*model.Sc
 				Where("id IN ?", tmp.ClusterNodeIds).
 				Find(&tmp.ClusterNodeNames).
 				Error; err != nil {
-				return
+				return err
 			}
 
-			return
+			return nil
 		})
 	}
 

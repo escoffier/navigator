@@ -152,8 +152,16 @@ type PolicyDetailInfo struct {
 		Rule string `json:"rule"`
 	} `json:"extraInfo" gorm:"-"`
 
-	PolicyDetailInfoExtraDetail     *PolicyDetailInfoExtraDetail `json:"extraDetail" gorm:"-"`
-	PolicyDetailInfoExtraDetailJson datatypes.JSON               `json:"-" gorm:"column:extra_detail;type:json"`
+	PolicyDetailInfoExtraDetail *struct {
+		PolicyDetailInfoExtraDetail `json:",inline"`
+		DescriptionEn               string `json:"description_en"`
+		RationaleEn                 string `json:"rationale_en"`
+		AuditEn                     string `json:"audit_en"`
+		RemediationEn               string `json:"remediation_en"`
+		ImpactEn                    string `json:"impact_en"`
+		DefaultValueEn              string `json:"defaultValue_en"`
+	} `json:"extraDetail" gorm:"-"`
+	PolicyDetailInfoExtraDetailJson datatypes.JSON `json:"-" gorm:"column:extra_detail;type:json"`
 }
 
 func (p *PolicyDetailInfo) BeforeSave(tx *gorm.DB) (err error) {
