@@ -110,7 +110,7 @@ func (a *ApiServer) RuleDetail(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if rule.PolicyDetailInfoExtraDetail != nil {
-		resp.ExtraDetail = rule.PolicyDetailInfoExtraDetail
+		resp.ExtraDetail = &rule.PolicyDetailInfoExtraDetail.PolicyDetailInfoExtraDetail
 	}
 
 	response.Ok(w, response.WithItem(resp))

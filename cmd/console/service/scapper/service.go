@@ -21,6 +21,7 @@ import (
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	"gitlab.com/piccolo_su/vegeta/pkg/dal"
 	"gitlab.com/piccolo_su/vegeta/pkg/flag"
+	"gitlab.com/piccolo_su/vegeta/pkg/lang"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 	"gitlab.com/security-rd/go-pkg/databases"
@@ -102,7 +103,6 @@ func (s *ScapService) PolicyInit(policyCounts int32) error {
 		"/policy/kube-policy.json",
 		"/policy/docker-policy.json",
 		"/policy/host-policy.json",
-		"/Users/wangxer/go/src/tensornavigator/configs/data/policy/docker-policy.json",
 	}
 
 	for _, file := range files {
@@ -287,7 +287,7 @@ func (s *ScapService) GetLatestHistory(ctx context.Context, clusterId string, ch
 	return scanHistory.TaskID, scanHistory.FinishedAt, nil
 }
 
-func (s *ScapService) GetUDBCPMap(policyId string, checkType model.ComplianceCheckType) string {
+func (s *ScapService) GetUDBCPMap(language lang.LanguageType, policyId string, checkType model.ComplianceCheckType) string {
 	var value string
 	switch checkType {
 	case model.ComplianceCheckTargetTypeKube:
@@ -295,13 +295,22 @@ func (s *ScapService) GetUDBCPMap(policyId string, checkType model.ComplianceChe
 		if !ok {
 			return ""
 		}
-		value = classified[0]
+
+		if language == lang.LanguageEN {
+			value = classified[1]
+		} else {
+			value = classified[0]
+		}
 	case model.ComplianceCheckTargetTypeDocker:
 		classified, ok := model.UDBCPDockerMap[policyId]
 		if !ok {
 			return ""
 		}
-		value = classified[0]
+		if language == lang.LanguageEN {
+			value = classified[1]
+		} else {
+			value = classified[0]
+		}
 	default:
 		value = ""
 	}
@@ -451,6 +460,7 @@ func (s *ScapService) FindBreakdownEntries(ctx context.Context, taskID string, c
 		return nil, errors.Errorf("get scan result failed, %v", err)
 	}
 
+	language := lang.Language(ctx)
 	for i := range list {
 		policy, err := s.GetPolicyInfo(ctx, list[i].PolicyNumber, checkType)
 		if err != nil {
@@ -458,8 +468,14 @@ func (s *ScapService) FindBreakdownEntries(ctx context.Context, taskID string, c
 			continue
 		}
 
-		list[i].Section = policy.TitleZh
-		list[i].Description = policy.DetailZh
+		if language == lang.LanguageEN {
+			list[i].Section = policy.TitleEn
+			list[i].Description = policy.DetailEn
+			list[i].UDBCP = s.GetUDBCPMap(language, list[i].PolicyNumber, checkType)
+		} else {
+			list[i].Section = policy.TitleZh
+			list[i].Description = policy.DetailZh
+		}
 	}
 
 	// filter and sort
@@ -501,18 +517,44 @@ func (s *ScapService) GetPolicyDetails(ctx context.Context, policyDetails *model
 		return errors.Errorf("get policy information failed, policy id : %s, checkType : %s.", policyId, checkType)
 	}
 
+	language := lang.Language(ctx)
+
 	policyDetails.PolicyNumber = policyId
-	policyDetails.Section = policy.TitleZh
-	policyDetails.UDBCP = s.GetUDBCPMap(policyId, checkType)
-	policyDetails.Description = policy.RemediationZh
-	policyDetails.ExtraDetail = policy.PolicyDetailInfoExtraDetail
-	if policyDetails.ExtraDetail == nil {
+
+	if language == lang.LanguageEN {
+		policyDetails.Section = policy.TitleEn
+		policyDetails.Description = policy.RemediationEn
+	} else {
+		policyDetails.Section = policy.TitleZh
+		policyDetails.Description = policy.RemediationZh
+	}
+
+	policyDetails.UDBCP = s.GetUDBCPMap(language, policyId, checkType)
+	if policy.PolicyDetailInfoExtraDetail != nil {
+		policyDetails.ExtraDetail = &model.PolicyDetailInfoExtraDetail{References: policy.PolicyDetailInfoExtraDetail.References}
+
+		if language == lang.LanguageEN {
+			policyDetails.ExtraDetail.Description = policy.PolicyDetailInfoExtraDetail.DescriptionEn
+			policyDetails.ExtraDetail.Rationale = policy.PolicyDetailInfoExtraDetail.RationaleEn
+			policyDetails.ExtraDetail.Audit = policy.PolicyDetailInfoExtraDetail.AuditEn
+			policyDetails.ExtraDetail.Remediation = policy.PolicyDetailInfoExtraDetail.RemediationEn
+			policyDetails.ExtraDetail.Impact = policy.PolicyDetailInfoExtraDetail.ImpactEn
+			policyDetails.ExtraDetail.DefaultValue = policy.PolicyDetailInfoExtraDetail.DefaultValueEn
+		} else {
+			policyDetails.ExtraDetail = &policy.PolicyDetailInfoExtraDetail.PolicyDetailInfoExtraDetail
+		}
+	} else {
 		policyDetails.ExtraDetail = &model.PolicyDetailInfoExtraDetail{
 			Description: policy.DetailZh,
 			Rationale:   policy.TitleZh,
 			Audit:       policy.Audit,
 			Remediation: policy.RemediationZh,
 			References:  []string{},
+		}
+		if language == lang.LanguageEN {
+			policyDetails.ExtraDetail.Description = policy.DetailEn
+			policyDetails.ExtraDetail.Rationale = policy.TitleEn
+			policyDetails.ExtraDetail.Remediation = policy.RemediationEn
 		}
 	}
 
@@ -573,7 +615,7 @@ func (s *ScapService) GetScanResultToFile(task *model.ExportTask) error {
 		exfile.Section = policy.TitleZh
 		exfile.Descript = policy.RemediationZh
 		exfile.DecDetail = policy.DetailZh
-		exfile.Classified = s.GetUDBCPMap(value.PolicyID, model.ComplianceCheckType(task.CheckType))
+		exfile.Classified = s.GetUDBCPMap(lang.LanguageZH, value.PolicyID, model.ComplianceCheckType(task.CheckType))
 		if policy.PolicyDetailInfoExtraDetail != nil {
 			exfile.Audit = policy.PolicyDetailInfoExtraDetail.Audit
 			exfile.Remediation = policy.PolicyDetailInfoExtraDetail.Remediation
@@ -604,7 +646,7 @@ func (s *ScapService) AddScapScanResults(ctx context.Context, rs []*model.ScanRe
 	for i := range rs {
 		// TODO: 暂时这样，id应该发送端修改
 		rs[i].ID = 0
-		rs[i].UDBCP = s.GetUDBCPMap(rs[i].PolicyID, rs[i].CheckType)
+		rs[i].UDBCP = s.GetUDBCPMap(lang.LanguageZH, rs[i].PolicyID, rs[i].CheckType)
 
 		policy, err := s.GetPolicyInfo(ctx, rs[i].PolicyID, rs[i].CheckType)
 		if err == nil {

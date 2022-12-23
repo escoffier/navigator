@@ -39,7 +39,8 @@ type SuggestProvider interface {
 }
 
 type suggestItem struct {
-	Text string `json:"text"`
+	Label string `json:"label"`
+	Value string `json:"value"`
 }
 
 // providerBase
@@ -58,7 +59,7 @@ func (providerComplianceItem) FindSuggestList(ctx context.Context, db *gorm.DB, 
 	list := make([]*suggestItem, 0)
 
 	db = db.WithContext(ctx).Model(&model.ScanResult{}).
-		Select("policy_id AS text").
+		Select("policy_id AS value, policy_id AS label").
 		Where("task_id = ?", taskID).Group("policy_id")
 	if keyword != "" {
 		db = db.Where("policy_id LIKE ?", "%"+keyword+"%")
@@ -77,7 +78,7 @@ func (providerComplianceSection) FindSuggestList(ctx context.Context, db *gorm.D
 	list := make([]*suggestItem, 0)
 
 	db = db.WithContext(ctx).Model(&model.ScanResult{}).
-		Select("section AS text").
+		Select("section AS value, section AS label").
 		Where("task_id = ?", taskID).Group("section")
 	if keyword != "" {
 		db = db.Where("section LIKE ?", "%"+keyword+"%")
@@ -96,7 +97,7 @@ func (providerUDBCP) FindSuggestList(ctx context.Context, db *gorm.DB, taskID, k
 	list := make([]*suggestItem, 0)
 
 	db = db.WithContext(ctx).Model(&model.ScanResult{}).
-		Select("udbcp AS text").
+		Select("udbcp AS value,udbcp AS label").
 		Where("task_id = ?", taskID).Group("udbcp")
 	if keyword != "" {
 		db = db.Where("udbcp LIKE ?", "%"+keyword+"%")
@@ -115,7 +116,7 @@ func (providerHostname) FindSuggestList(ctx context.Context, db *gorm.DB, taskID
 	list := make([]*suggestItem, 0)
 
 	db = db.WithContext(ctx).Model(&model.ScanNodeRecord{}).
-		Select("node_name AS text").
+		Select("node_name AS value, node_name AS label").
 		Where("task_id = ?", taskID)
 	if keyword != "" {
 		db = db.Where("node_name LIKE ?", "%"+keyword+"%")
