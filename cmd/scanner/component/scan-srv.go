@@ -122,8 +122,8 @@ type ScannerSrv interface {
 	TickOnlineScan(ctx context.Context, containerInfo []model.RejectOnlineMonitorImage) bool
 
 	DeleteCICDImage(ctx context.Context)
-	ListBaseImageOfApp(ctx context.Context, imageID int64, filter *model.Filter) ([]model.ImageList, int64, error)
-	ListAppImageOfBase(ctx context.Context, imageID int64, filter *model.Filter) ([]model.ImageList, int64, error)
+	ListBaseImageOfApp(ctx context.Context, imageID int64, keyword string, filter *model.Filter) ([]model.ImageList, int64, error)
+	ListAppImageOfBase(ctx context.Context, imageID int64, keyword string, filter *model.Filter) ([]model.ImageList, int64, error)
 
 	ScanReportCreate(ctx context.Context, data *scanreport.TensorScanReportTasks) (uint, error)
 	ScanReportUpdate(ctx context.Context, data *scanreport.TensorScanReportTasks) error
@@ -334,7 +334,7 @@ func (s *ConScannerSrv) GetStrategyForEnv(ctx context.Context, envName string) (
 }
 
 // 获取应用镜像的基础镜像列表
-func (s *ConScannerSrv) ListBaseImageOfApp(ctx context.Context, imageID int64, filter *model.Filter) ([]model.ImageList, int64, error) {
+func (s *ConScannerSrv) ListBaseImageOfApp(ctx context.Context, imageID int64, keyword string, filter *model.Filter) ([]model.ImageList, int64, error) {
 	images, _, err := s.dbdal.SearchImage(ctx, store.SearchImageParam{InIds: []int64{imageID}}, nil)
 	if err != nil {
 		logging.GetLogger().Err(err).Msg("ListBaseImageOfApp")
@@ -344,7 +344,7 @@ func (s *ConScannerSrv) ListBaseImageOfApp(ctx context.Context, imageID int64, f
 		return []model.ImageList{}, 0, nil
 	}
 
-	baseImages, _, err := s.dbdal.SearchImage(ctx, store.SearchImageParam{Flag: 1 << model.FlagBaseImage}, nil)
+	baseImages, _, err := s.dbdal.SearchImage(ctx, store.SearchImageParam{Flag: 1 << model.FlagBaseImage, Keyword: keyword}, nil)
 	if err != nil {
 		logging.GetLogger().Err(err).Msg("ListBaseImageOfApp")
 		return nil, 0, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf("获取基础镜像出错"))
@@ -400,7 +400,7 @@ func (s *ConScannerSrv) ListBaseImageOfApp(ctx context.Context, imageID int64, f
 }
 
 // 获取基础镜像的应用镜像列表
-func (s *ConScannerSrv) ListAppImageOfBase(ctx context.Context, imageID int64, filter *model.Filter) ([]model.ImageList, int64, error) {
+func (s *ConScannerSrv) ListAppImageOfBase(ctx context.Context, imageID int64, keyword string, filter *model.Filter) ([]model.ImageList, int64, error) {
 	baseImages, _, err := s.dbdal.SearchImage(ctx, store.SearchImageParam{InIds: []int64{imageID},
 		OmitFields: []string{"config_json", "manifest_v1_json", "manifest_v2_json"}}, nil)
 	if err != nil {
@@ -412,7 +412,8 @@ func (s *ConScannerSrv) ListAppImageOfBase(ctx context.Context, imageID int64, f
 	}
 	baseLayer := baseImages[0].GetLayerString()
 	// 因为应用镜像占绝大多数，所以这里查全部数据，在程序中过滤
-	images, cnt, err := s.dbdal.SearchImage(ctx, store.SearchImageParam{LayersPrefix: baseLayer, ImageType: model.AppImageTypeString,
+	images, cnt, err := s.dbdal.SearchImage(ctx, store.SearchImageParam{
+		LayersPrefix: baseLayer, ImageType: model.AppImageTypeString, Keyword: keyword,
 		OmitFields: []string{"config_json", "manifest_v1_json", "manifest_v2_json"}}, filter)
 	if err != nil {
 		logging.GetLogger().Err(err).Msg("ListAppImageOfBase.SearchImage")
@@ -2057,7 +2058,7 @@ func (s *ConScannerSrv) checkBaseImage(ctx context.Context, img *model.ImageList
 	records := make([]ReasonAndDetail, 0)
 	msgs := make([]model.KVHashs, 0)
 	safe := true
-	images, _, err := s.ListBaseImageOfApp(ctx, img.ID, nil)
+	images, _, err := s.ListBaseImageOfApp(ctx, img.ID, "", nil)
 	if len(images) > 0 {
 		logging.GetLogger().Info().Msgf("checkBaseImage find base image:%s/%s:%s,imagID:%d", images[0].Library, images[0].FullRepoName, images[0].Tags, images[0].ID)
 		return true, records, msgs

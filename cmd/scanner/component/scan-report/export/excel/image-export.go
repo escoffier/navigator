@@ -59,8 +59,8 @@ func NewImageExport(
 }
 
 type ImageInterface interface {
-	ListBaseImageOfApp(ctx context.Context, imageID int64, filter *model.Filter) ([]model.ImageList, int64, error)
-	ListAppImageOfBase(ctx context.Context, imageID int64, filter *model.Filter) ([]model.ImageList, int64, error)
+	ListBaseImageOfApp(ctx context.Context, imageID int64, keyword string, filter *model.Filter) ([]model.ImageList, int64, error)
+	ListAppImageOfBase(ctx context.Context, imageID int64, keyword string, filter *model.Filter) ([]model.ImageList, int64, error)
 	GetImageDetail(ctx context.Context, imgID int64) (*model.ImageList, error)
 }
 
@@ -175,7 +175,7 @@ func (s *ImageExport) GetExcelData(ctx context.Context, imageID int64, vulnCol *
 	res[GenImageResourcesInfoMeta().SheetName] = GenImageResourceChan(*imageDetail, resources)
 
 	if model.ExistFlag(imageDetail.Flag, model.FlagBaseImage) {
-		images, _, err := s.ImageSrv.ListAppImageOfBase(ctx, imageID, nil)
+		images, _, err := s.ImageSrv.ListAppImageOfBase(ctx, imageID, "", nil)
 		if err != nil {
 			logging.Get().Err(err).Int64("imageID", imageID).Msg("GetDataAndCreateExcelFile.WriteToExcel")
 			return res, nil
@@ -183,7 +183,7 @@ func (s *ImageExport) GetExcelData(ctx context.Context, imageID int64, vulnCol *
 		res[GenImageTypeInfoMeta().SheetName] = GenAppOrBaseImageChan(images)
 	}
 	if !model.ExistFlag(imageDetail.Flag, model.FlagBaseImage) {
-		images, _, err := s.ImageSrv.ListAppImageOfBase(ctx, imageID, nil)
+		images, _, err := s.ImageSrv.ListAppImageOfBase(ctx, imageID, "", nil)
 		if err != nil {
 			logging.Get().Err(err).Int64("imageID", imageID).Msg("GetDataAndCreateExcelFile.WriteToExcel")
 			return res, nil

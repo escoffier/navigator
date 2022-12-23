@@ -846,26 +846,38 @@ func (s *Scanner) ListBaseImage(ctx *gin.Context) {
 // @Success 200 {object} ApiWithItem{data=ApiItem{items=[]model.ImageResponse{}}}
 // @Router	/api/v1/images/app/:imageID/bases [get]
 func (s *Scanner) ListAppToBaseImage(ctx *gin.Context) {
-	start := time.Now().UnixNano() / 1000
-	logging.Get().Info().Msgf("ListBaseImageOfApp start:%d", start)
 	imageID, err := strconv.ParseInt(ctx.Param("imageID"), 10, 64)
 	if err != nil {
 		response.JSONError(ctx, err)
 		return
 	}
+	keyword := ctx.Query("keyword")
 	filter := model.GetFilter(ctx)
-	images, cnt, err := s.Srv.ListBaseImageOfApp(ctx, imageID, filter)
+	images, cnt, err := s.Srv.ListBaseImageOfApp(ctx, imageID, keyword, filter)
 	if err != nil {
 		response.JSONError(ctx, err)
 		return
 	}
-	// 数据规整
-	res := make([]model.ImageResponse, 0)
+
+	imageIds := make([]int64, 0)
 	for i := range images {
-		res = append(res, model.ImageToImageResponse(images[i]))
+		imageIds = append(imageIds, images[i].ID)
 	}
-	logging.Get().Info().Msgf("ListBaseImageOfApp end:%d,cost:%d", time.Now().UnixNano()/1000, time.Now().UnixNano()/1000-start)
-	response.JSONOK(ctx, response.WithItems(res),
+	if len(imageIds) == 0 {
+		response.JSONOK(ctx, response.WithItems(images),
+			response.WithTotalItems(cnt),
+			response.WithItemsPerPage(filter.Limit),
+			response.WithStartIndex(filter.Offset),
+		)
+		return
+	}
+
+	imageScanInfo, _, err := s.ImageSrv.ListImageWithScanInfo(ctx, model.ImageListParam{ImageIds: imageIds}, nil)
+	if err != nil {
+		response.JSONError(ctx, err)
+		return
+	}
+	response.JSONOK(ctx, response.WithItems(imageScanInfo),
 		response.WithTotalItems(cnt),
 		response.WithItemsPerPage(filter.Limit),
 		response.WithStartIndex(filter.Offset),
@@ -943,26 +955,38 @@ func (s *Scanner) SetEnvToStrategy(ctx *gin.Context) {
 // @Success 200 {object} ApiWithItem{data=ApiItem{items=[]model.ImageResponse{}}}
 // @Router	/api/v1/images/base/:imageID/apps [get]
 func (s *Scanner) ListBaseToAppImage(ctx *gin.Context) {
-	start := time.Now().UnixNano() / (1000 * 1000)
-	logging.Get().Info().Msgf("ListAppImageOfBase start:%d", start)
 	imageID, err := strconv.ParseInt(ctx.Param("imageID"), 10, 64)
 	if err != nil {
 		response.JSONError(ctx, err)
 		return
 	}
+	keyword := ctx.Query("keyword")
 	filter := model.GetFilter(ctx)
-	images, cnt, err := s.Srv.ListAppImageOfBase(ctx, imageID, filter)
+	images, cnt, err := s.Srv.ListAppImageOfBase(ctx, imageID, keyword, filter)
 	if err != nil {
 		response.JSONError(ctx, err)
 		return
 	}
-	// 数据规整
-	res := make([]model.ImageResponse, 0)
+	imageIds := make([]int64, 0)
 	for i := range images {
-		res = append(res, model.ImageToImageResponse(images[i]))
+		imageIds = append(imageIds, images[i].ID)
 	}
-	logging.Get().Info().Msgf("ListAppImageOfBase end:%d,cost:%d", time.Now().UnixNano()/(1000*1000), time.Now().UnixNano()/(1000*1000)-start)
-	response.JSONOK(ctx, response.WithItems(res),
+
+	if len(imageIds) == 0 {
+		response.JSONOK(ctx, response.WithItems(images),
+			response.WithTotalItems(cnt),
+			response.WithItemsPerPage(filter.Limit),
+			response.WithStartIndex(filter.Offset),
+		)
+		return
+	}
+	imageScanInfo, _, err := s.ImageSrv.ListImageWithScanInfo(ctx, model.ImageListParam{ImageIds: imageIds}, nil)
+	if err != nil {
+		response.JSONError(ctx, err)
+		return
+	}
+
+	response.JSONOK(ctx, response.WithItems(imageScanInfo),
 		response.WithTotalItems(cnt),
 		response.WithItemsPerPage(filter.Limit),
 		response.WithStartIndex(filter.Offset),
