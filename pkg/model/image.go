@@ -102,7 +102,7 @@ func GetSecurityIssueLabel(flag int64) string {
 	case FlagHasExceptEnv:
 		return "异常环境变量"
 	case FlagPrivilegedBoot:
-		return "特权启动"
+		return "root用户启动"
 	case FlagHasExceptLicense:
 		return "不允许的开源许可"
 	case FlagHasMalicious:

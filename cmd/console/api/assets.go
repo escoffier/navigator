@@ -137,7 +137,7 @@ type resourceContainer struct {
 	WorkingDir string   `json:"working_dir"`
 	Command    []string `json:"command"`
 
-	PopName string `json:"popName"`
+	PodName string `json:"podName"`
 }
 
 func (api *api) getResourcesByImage() http.HandlerFunc {
@@ -223,7 +223,7 @@ func (api *api) getResourcesByImage() http.HandlerFunc {
 				continue
 			}
 			if len(pods) > 0 {
-				ret[i].PopName = pods[0].PodName
+				ret[i].PodName = pods[0].PodName
 			}
 		}
 

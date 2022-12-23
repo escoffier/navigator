@@ -205,7 +205,7 @@ func (s *ImageSrv) ListImageWithScanInfo(ctx context.Context, param model.ImageL
 		ImageType:    param.ImageAttr.ImageType,
 		Keyword:      param.Keyword,
 		NodeHostname: param.NodeHostname,
-		OmitFields:   []string{"config_json", "manifest_v1_json", "manifest_v2_json"},
+		OmitFields:   []string{"manifest_v1_json", "manifest_v2_json"},
 		UUIDs:        param.UUIDs,
 		Fields:       param.Fields,
 		StartID:      param.StartID,

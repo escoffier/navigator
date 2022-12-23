@@ -39,6 +39,7 @@ func GetParamFromCtx(ctx *gin.Context) component.ScanResultSearchParam {
 	param.Keyword = ctx.Query("keyword")
 	param.AbnormalSoft = ctx.Query("abnormalSoft")       // 查看异常软件
 	param.AbnormalLicense = ctx.Query("abnormalLicense") // 查看不允许的开源协议
+	param.AbnormalEnv = ctx.Query("abnormalEnv")         // 查看不允许的开源协议
 	param.VulnSeverity = util.GetStringSliceFromQuery(ctx, "vulnSeverity")
 	param.License = util.GetStringSliceFromQuery(ctx, "license")
 	return param

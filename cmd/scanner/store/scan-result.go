@@ -119,7 +119,7 @@ func (dal *ImageScanResultDao) SearchImageEnv(ctx context.Context, param SearchI
 		db.Where("unique_id IN ?", param.UniqueTarget)
 	}
 	if param.Keyword != "" {
-		db = db.Where("key LIKE ? OR value LIKE ? OR name LIKE ? ",
+		db = db.Where("`key` LIKE ? OR `value` LIKE ? ",
 			fmt.Sprintf("%%%s%%", param.Keyword), fmt.Sprintf("%%%s%%", param.Keyword))
 	}
 	if param.NormalEnv == consts.TrueString {
@@ -147,15 +147,17 @@ func (dal *ImageScanResultDao) SearchImageEnv(ctx context.Context, param SearchI
 }
 
 func (dal *ImageScanResultDao) CreateSoftware(ctx context.Context, data []*model.ImageSoftware) error {
+	data = DuplicateSoft(data)
+	if len(data) == 0 {
+		return nil
+	}
+
 	uniqueIds := make([]uint64, 0)
-	dataMap := make(map[uint64]*model.ImageSoftware)
 	for i := range data {
 		vuln := data[i]
 		vuln.UniqueID = vuln.GenUniqueVuln()
 		uniqueIds = append(uniqueIds, data[i].UniqueID)
-		dataMap[vuln.UniqueID] = data[i]
 	}
-	data = DuplicateSoft(data)
 
 	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*1000)
 	defer cancelFunc()
@@ -167,33 +169,40 @@ func (dal *ImageScanResultDao) CreateSoftware(ctx context.Context, data []*model
 	createData := make([]*model.ImageSoftware, 0)
 	deleteData := make([]int64, 0)
 
-	dbExit := make(map[uint64]*model.ImageSoftware)
+	// find need delete data
 	for i := range dbPre {
-		dbExit[dbPre[i].UniqueID] = dbPre[i]
-	}
-
-	for i := range dbPre {
-		sf, ok := dataMap[dbPre[i].UniqueID]
-		if ok && !sf.Same(dbPre[i]) {
+		needDelete := true
+		for j := range data {
+			if dbPre[i].Same(data[j]) {
+				needDelete = false
+				break
+			}
+		}
+		if needDelete {
 			deleteData = append(deleteData, dbPre[i].ID)
 		}
 	}
-
+	// find need create
 	for i := range data {
-		sf, ok := dbExit[data[i].UniqueID]
-		if !ok || sf.Same(data[i]) {
+		needCreate := true
+		for j := range dbPre {
+			if data[i].Same(dbPre[j]) {
+				needCreate = false
+				break
+			}
+		}
+		if needCreate {
 			createData = append(createData, data[i])
 		}
 	}
-
 	if len(deleteData) > 0 {
 		if err := dal.rdb.Get().WithContext(ctx).Model(new(model.ImageSoftware)).Where("id IN  ? ", deleteData).Delete(&model.ImageSoftware{}).Error; err != nil {
 			return err
 		}
 	}
-
 	for i := range createData {
-		if err := dal.rdb.Get().WithContext(ctx).Model(new(model.ImageSoftware)).Create(createData[i]).Error; err != nil {
+		da := createData[i]
+		if err := dal.rdb.Get().WithContext(ctx).Model(new(model.ImageSoftware)).Create(da).Error; err != nil {
 			if strings.Contains(err.Error(), consts.DuplicateKey) {
 				continue
 			} else {
@@ -201,7 +210,6 @@ func (dal *ImageScanResultDao) CreateSoftware(ctx context.Context, data []*model
 			}
 		}
 	}
-
 	return nil
 }
 
@@ -251,14 +259,18 @@ func (dal *ImageScanResultDao) SearchSoftware(ctx context.Context, param SearchI
 }
 
 func (dal *ImageScanResultDao) CreateSensitive(ctx context.Context, data []*model.ImageSensitiveFile) error {
+
 	uniqueIds := make([]uint64, 0)
 	for i := range data {
 		vuln := data[i]
 		vuln.UniqueID = vuln.GenUniqueVuln()
 		uniqueIds = append(uniqueIds, data[i].UniqueID)
 	}
-	data = DuplicateSensitiveFile(data)
 
+	data = DuplicateSensitiveFile(data)
+	if len(data) == 0 || len(uniqueIds) == 0 {
+		return nil
+	}
 	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*1000)
 	defer cancelFunc()
 
@@ -266,19 +278,45 @@ func (dal *ImageScanResultDao) CreateSensitive(ctx context.Context, data []*mode
 	if err != nil {
 		return err
 	}
-	createData := make([]*model.ImageSensitiveFile, 0)
-	dbExit := make(map[uint64]bool)
-	for i := range dbPre {
-		dbExit[dbPre[i].UniqueID] = true
-	}
 
+	createData := make([]*model.ImageSensitiveFile, 0)
+	deleteData := make([]int64, 0)
+
+	// find need delete data
+	for i := range dbPre {
+		needDelete := true
+		for j := range data {
+			if dbPre[i].Same(data[j]) {
+				needDelete = false
+				break
+			}
+		}
+		if needDelete {
+			deleteData = append(deleteData, dbPre[i].ID)
+		}
+	}
+	// find need create
 	for i := range data {
-		if !dbExit[data[i].UniqueID] {
+		needCreate := true
+		for j := range dbPre {
+			if data[i].Same(dbPre[j]) {
+				needCreate = false
+				break
+			}
+		}
+		if needCreate {
 			createData = append(createData, data[i])
 		}
 	}
+
+	if len(deleteData) > 0 {
+		if err := dal.rdb.Get().WithContext(ctx).Model(new(model.ImageSensitiveFile)).Where("id IN  ? ", deleteData).Delete(&model.ImageSensitiveFile{}).Error; err != nil {
+			return err
+		}
+	}
 	for i := range createData {
-		if err := dal.rdb.Get().WithContext(ctx).Model(new(model.ImageSensitiveFile)).Create(createData[i]).Error; err != nil {
+		da := createData[i]
+		if err := dal.rdb.Get().WithContext(ctx).Model(new(model.ImageSensitiveFile)).Create(da).Error; err != nil {
 			if strings.Contains(err.Error(), consts.DuplicateKey) {
 				continue
 			} else {
@@ -329,6 +367,7 @@ func (dal *ImageScanResultDao) SearchSensitive(ctx context.Context, param Search
 }
 
 func (dal *ImageScanResultDao) CreateVirus(ctx context.Context, data []*model.ImageVirus) error {
+
 	uniqueIds := make([]uint64, 0)
 	for i := range data {
 		vuln := data[i]
@@ -336,33 +375,61 @@ func (dal *ImageScanResultDao) CreateVirus(ctx context.Context, data []*model.Im
 		uniqueIds = append(uniqueIds, data[i].UniqueID)
 	}
 	data = DuplicateVirus(data)
+	if len(data) == 0 || len(uniqueIds) == 0 {
+		return nil
+	}
 
 	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*1000)
 	defer cancelFunc()
 
-	dbPre, _, err := dal.SearchSoftware(ctx, SearchImageScanResultParam{UniqueTarget: uniqueIds}, nil)
+	dbPre, _, err := dal.SearchVirus(ctx, SearchImageScanResultParam{UniqueTarget: uniqueIds}, nil)
 	if err != nil {
 		return err
 	}
-	createData := make([]*model.ImageVirus, 0)
-	dbExit := make(map[uint64]bool)
-	for i := range dbPre {
-		dbExit[dbPre[i].UniqueID] = true
-	}
 
+	createData := make([]*model.ImageVirus, 0)
+	deleteData := make([]int64, 0)
+
+	// find need delete data
+	for i := range dbPre {
+		needDelete := true
+		for j := range data {
+			if dbPre[i].Same(data[j]) {
+				needDelete = false
+				break
+			}
+		}
+		if needDelete {
+			deleteData = append(deleteData, dbPre[i].ID)
+		}
+	}
+	// find need create
 	for i := range data {
-		if !dbExit[data[i].UniqueID] {
+		needCreate := true
+		for j := range dbPre {
+			if data[i].Same(dbPre[j]) {
+				needCreate = false
+				break
+			}
+		}
+		if needCreate {
 			createData = append(createData, data[i])
 		}
 	}
+
+	if len(deleteData) > 0 {
+		if err := dal.rdb.Get().WithContext(ctx).Model(new(model.ImageVirus)).Where("id IN  ? ", deleteData).Delete(&model.ImageVirus{}).Error; err != nil {
+			return err
+		}
+	}
 	for i := range createData {
-		if err := dal.rdb.Get().WithContext(ctx).Model(new(model.ImageVirus)).Create(createData[i]).Error; err != nil {
+		da := createData[i]
+		if err := dal.rdb.Get().WithContext(ctx).Model(new(model.ImageVirus)).Create(da).Error; err != nil {
 			if strings.Contains(err.Error(), consts.DuplicateKey) {
 				continue
 			} else {
 				return err
 			}
-
 		}
 	}
 	return nil
@@ -421,6 +488,7 @@ func (dal *ImageScanResultDao) CreateScanIssueToImage(ctx context.Context, image
 	for i := range data {
 		data[i].ImageID = imageID
 		data[i].SecurityIssue = securityIssue
+		data[i].UniqueID = data[i].GenUniqueVuln()
 	}
 
 	data = DuplicateIssueToImage(data)
