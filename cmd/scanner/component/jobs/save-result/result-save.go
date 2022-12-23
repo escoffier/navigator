@@ -127,8 +127,16 @@ func (sv *ScanResultSave) UpdateImageOs(ctx context.Context, os *ftypes.OS, imag
 	if len(image) == 0 {
 		return fmt.Errorf("not find image:%d", imageID)
 	}
-	update["flag"] = util.SetBit1(image[0].Flag, model.FlagImageNotMaintained)
-
+	if len(image) == 0 {
+		return fmt.Errorf("not find image:%d", imageID)
+	}
+	flag := image[0].Flag
+	if os.Eosl {
+		flag = util.SetBit1(flag, model.FlagImageNotMaintained)
+	} else {
+		flag = util.SetBit0(flag, model.FlagImageNotMaintained)
+	}
+	update["flag"] = flag
 	if err := sv.ImageDal.UpdateImage(ctx, fmt.Sprintf("id = %d", imageID), update, nil); err != nil {
 		return err
 	}
