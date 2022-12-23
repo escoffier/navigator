@@ -119,17 +119,15 @@ func (sv *ScanResultSave) UpdateImageOs(ctx context.Context, os *ftypes.OS, imag
 		return err
 	}
 	update := map[string]interface{}{"os": string(bys)}
-
-	if os.Eosl {
-		image, _, err := sv.ImageDal.SearchImage(ctx, store.SearchImageParam{InIds: []int64{imageID}, Fields: []string{"id", "flag"}}, nil)
-		if err != nil {
-			return err
-		}
-		if len(image) == 0 {
-			return fmt.Errorf("not find image:%d", imageID)
-		}
-		update["flag"] = util.SetBit1(image[0].Flag, model.FlagImageNotMaintained)
+	// pkg/detector/ospkg/ubuntu/ubuntu.go
+	image, _, err := sv.ImageDal.SearchImage(ctx, store.SearchImageParam{InIds: []int64{imageID}, Fields: []string{"id", "flag"}}, nil)
+	if err != nil {
+		return err
 	}
+	if len(image) == 0 {
+		return fmt.Errorf("not find image:%d", imageID)
+	}
+	update["flag"] = util.SetBit1(image[0].Flag, model.FlagImageNotMaintained)
 
 	if err := sv.ImageDal.UpdateImage(ctx, fmt.Sprintf("id = %d", imageID), update, nil); err != nil {
 		return err
