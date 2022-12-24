@@ -87,7 +87,7 @@ func (si *ScanImage) GenImageFlag(preFlag uint64) uint64 {
 		preFlag = util.SetBit0(preFlag, FlagHasMalicious)
 	}
 
-	if len(si.WebshellInfo) > 0 {
+	if si.WebshellScore > 0 {
 		preFlag = util.SetBit1(preFlag, FlagHasWebshell)
 	} else {
 		preFlag = util.SetBit0(preFlag, FlagHasWebshell)

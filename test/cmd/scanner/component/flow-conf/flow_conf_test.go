@@ -1,7 +1,10 @@
 package flowconf
 
 import (
+	"archive/tar"
 	"encoding/json"
+	"fmt"
+	"io"
 	"os"
 	"strings"
 	"testing"
@@ -43,4 +46,37 @@ func TestReadConfig(t *testing.T) {
 	t.Log(config.Config.Env)
 	res := parseConfigEnv(config.Config.Env)
 	t.Log(res)
+}
+
+func TestXxx(t *testing.T) {
+	GetCode()
+}
+
+func GetCode() {
+	tarFile, err := os.Open("/alltest.tar")
+	if err != nil {
+		//	return 0, fmt.Errorf("Failed to advance tarReader: %w", err)
+	}
+	defer func() { _ = tarFile.Close() }() // close the file
+
+	// decompressStreamReader, err := dockerarchive.DecompressStream(tarFile)
+	// if err != nil {
+	// 	//return 0, fmt.Errorf("Failed to DecompressStream: %w", err)
+	// }
+
+	// defer func() { _ = decompressStreamReader.Close() }() // close the decompressStreamReader
+
+	tarReader := tar.NewReader(tarFile)
+	//var count uint64 = 0
+	for {
+		header, err := tarReader.Next()
+		if err == io.EOF {
+			break
+		} else if err != nil {
+			//	return count, fmt.Errorf("Failed to advance tarReader: %w", err)
+		}
+		sys, _ := header.FileInfo().Sys().(*tar.Header)
+		fmt.Println(sys.Uid, sys.Uname, sys.Gid, sys.Gname, header.Uid)
+	}
+	return
 }

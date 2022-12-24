@@ -12,6 +12,7 @@ ld-preload/
 *.iml
 venv/
 *.pyc
+hm-linux.tgz
 settings.json
 tensor-compliance-check/
 

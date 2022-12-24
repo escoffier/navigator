@@ -324,7 +324,7 @@ func (c *Controller) logPostgresVuln(ctx context.Context, result scanner_ci.Poli
 	vulnImages := make([]*scanner_ci.CiVulnImage, 0, 20)
 
 	mpBlack := make(map[string]struct{})
-	mpWhite := make(map[string]struct{})
+	mpWhite := make(map[string]scanner_ci.VulnWhitelist)
 	if result.PolicySnapShot.Vuln.Enabled {
 		for _, v := range result.MatchVulns.BlackListResults {
 			mpBlack[v.VulnerabilityID] = struct{}{}
@@ -334,7 +334,7 @@ func (c *Controller) logPostgresVuln(ctx context.Context, result scanner_ci.Poli
 		}
 	}
 	for _, v := range result.PolicySnapShot.Vuln.WhiteListVulns {
-		mpWhite[v] = struct{}{}
+		mpWhite[v.Name] = v
 	}
 	match := 0
 	if result.PolicySnapShot.Vuln.Action == scanner_ci.CiActionAlert {
@@ -380,8 +380,17 @@ func (c *Controller) logPostgresVuln(ctx context.Context, result scanner_ci.Poli
 				if _, ok := mpBlack[tmpVuln.Name]; ok {
 					vulnImage.MatchPolicy = match
 				}
-				if _, ok := mpWhite[tmpVuln.Name]; ok {
-					vulnImage.White = true
+				if v, ok := mpWhite[tmpVuln.Name]; ok {
+					if v.Object == "all" {
+						vulnImage.White = true
+					}
+					vw := strings.Split(v.Object, ",")
+					for k := range vw {
+						pkg := strings.Split(vw[k], "@")
+						if tmpVuln.PkgName == pkg[0] && tmpVuln.PkgVersion == pkg[1] {
+							vulnImage.White = true
+						}
+					}
 				}
 				vulnImages = append(vulnImages, &vulnImage)
 			}

@@ -416,6 +416,14 @@ type GroupVulnSeverityParam struct {
 type ScannerInstanceInfoDaoParam struct {
 	ScannerInstance string
 }
+
+type SearchWebshellParam struct {
+	ImageID     int64
+	UUIDS       []uint64
+	Search      string
+	Md5         string
+	LayerDigest string
+}
 type SearchIdempotentParam struct {
 	TableId   int64
 	TableNAME string

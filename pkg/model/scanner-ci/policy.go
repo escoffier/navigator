@@ -3,10 +3,11 @@ package scanner_ci
 import (
 	"encoding/json"
 	"fmt"
-	"scm.tensorsecurity.cn/tensorsecurity-rd/trivy/pkg/report"
 	"sort"
 	"strings"
 	"time"
+
+	"scm.tensorsecurity.cn/tensorsecurity-rd/trivy/pkg/report"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
@@ -51,13 +52,14 @@ type ImageNameWhiteListResult struct {
 
 // VulnRule vulnerability ci rule
 type VulnRule struct {
-	Enabled        bool     `json:"enabled"`
-	Severity       string   `json:"severity"`         // critical,high,medium...
-	BlackListVulns []string `json:"black_list_vulns"` // cve-id blacklist
-	WhiteListVulns []string `json:"white_list_vulns"` // cve-id whitelist
-	IgnoreUnfixed  bool     `json:"ignore_unfixed"`   // true: ignore unfixed vuln when audit by other rules
-	Action         string   `json:"action"`           // block or alert
-	ActionCode     int      `json:"action_code"`      // see CiPolicyResultCodePass etc.
+	Enabled        bool            `json:"enabled"`
+	Severity       string          `json:"severity"`         // critical,high,medium...
+	BlackListVulns []string        `json:"black_list_vulns"` // cve-id blacklist
+	WhiteListVulns []VulnWhitelist `json:"white_list_vulns"` // cve-id whitelist
+	IgnoreUnfixed  bool            `json:"ignore_unfixed"`   // true: ignore unfixed vuln when audit by other rules
+	IgnoreLangaue  bool            `json:"ignore_langaue"`
+	Action         string          `json:"action"`      // block or alert
+	ActionCode     int             `json:"action_code"` // see CiPolicyResultCodePass etc.
 }
 
 type VulnWrapper struct {
@@ -139,6 +141,11 @@ type PolicyResult struct {
 	ScanEndTime time.Time
 }
 
+type VulnWhitelist struct {
+	Name   string `json:"name"`   //cveID
+	Object string `json:"object"` //all 全部生效。否则 xxx@123,rrr@456
+}
+
 // Policy protocol for ci-tool and ci-controller
 type Policy struct {
 	Name                string             `json:"name"`
@@ -160,7 +167,8 @@ type CiPolicy struct {
 	VulnPolicy          string `gorm:"type:varchar(255);" json:"vuln_policy"`        //
 	VulnEnable          bool   `gorm:"vuln_enable" json:"vuln_enable"`               // 漏洞开关
 	IgnoreIrreparable   bool   `gorm:"ignore_irreparable" json:"ignore_irreparable"` // 忽略不可修复
-	VulnWhitelist       string `gorm:"type:varchar(255);" json:"vuln_whitelist"`
+	IgnoreLangaue       bool   `gorm:"ignore_langaue" json:"ignore_langaue"`         //忽略应用漏洞
+	VulnWhitelist       []byte `gorm:"type:blob;" json:"vuln_whitelist"`
 	VulnRuleMode        string `gorm:"type:varhar(255);column:vuln_rule_mode;" json:"vuln_rule_mode"`
 	SensitiveEnable     bool   `gorm:"sensitive_enable" json:"sensitive_enable"`        // 敏感文件开关
 	SensitiveFilePolicy string `gorm:"type:varchar(255);" json:"sensitive_file_policy"` // 自定义敏感文件规则
@@ -377,4 +385,80 @@ type CiPkgImage struct {
 
 func (CiPkgImage) TableName() string {
 	return "ivan_ci_scan_pkg_images"
+}
+
+type CiPolicyAPI struct {
+	ID                  int64           `gorm:"primaryKey" json:"id"`
+	CreatedAt           int64           `gorm:"autoCreateTime:milli;column:created_at" json:"created_at"`
+	UpdatedAt           int64           `gorm:"autoUpdateTime:milli;column:updated_at" json:"updated_at"`
+	Name                string          `gorm:"type:varchar(255);" json:"name"`               // 策略名
+	Comment             string          `gorm:"type:varchar(255);" json:"comment"`            // 备注
+	Operator            string          `gorm:"type:varchar(255);" json:"operator"`           // 操作员名字
+	Updater             string          `gorm:"type:varchar(255);" json:"Updater"`            // 更新者名字
+	VulnLevel           string          `gorm:"type:varchar(255);" json:"vuln_level"`         // 漏洞按严重级别阻断
+	VulnPolicy          string          `gorm:"type:varchar(255);" json:"vuln_policy"`        //
+	VulnEnable          bool            `gorm:"vuln_enable" json:"vuln_enable"`               // 漏洞开关
+	IgnoreIrreparable   bool            `gorm:"ignore_irreparable" json:"ignore_irreparable"` // 忽略不可修复
+	VulnWhitelist       []VulnWhitelist `gorm:"type:varchar(255);" json:"vuln_whitelist"`
+	IgnoreLangaue       bool            `gorm:"ignore_langaue" json:"ignore_langaue"` //忽略应用漏洞
+	VulnRuleMode        string          `gorm:"type:varhar(255);column:vuln_rule_mode;" json:"vuln_rule_mode"`
+	SensitiveEnable     bool            `gorm:"sensitive_enable" json:"sensitive_enable"`        // 敏感文件开关
+	SensitiveFilePolicy string          `gorm:"type:varchar(255);" json:"sensitive_file_policy"` // 自定义敏感文件规则
+	SensitiveWhitelist  string          `gorm:"type:varchar(255);" json:"sensitive_whitelist"`
+	SensitiveRuleMode   string          `gorm:"type:varchar(255);" json:"sensitive_rule_mode"`
+	DeletedAt           int             `json:"deleted_at,omitempty"`
+}
+
+func (c *CiPolicyAPI) TransToPolicy() CiPolicy {
+	var err error
+	res := CiPolicy{}
+	res.ID = c.ID
+	res.CreatedAt = c.CreatedAt
+	res.UpdatedAt = c.UpdatedAt
+	res.Name = c.Name
+	res.Comment = c.Comment
+	res.Operator = c.Operator
+	res.Updater = c.Updater
+	res.VulnLevel = c.VulnLevel
+	res.VulnPolicy = c.VulnPolicy
+	res.VulnEnable = c.VulnEnable
+	res.IgnoreIrreparable = c.IgnoreIrreparable
+	res.IgnoreLangaue = c.IgnoreLangaue
+	res.VulnRuleMode = c.VulnRuleMode
+	res.SensitiveEnable = c.SensitiveEnable
+	res.SensitiveFilePolicy = c.SensitiveFilePolicy
+	res.SensitiveWhitelist = c.SensitiveWhitelist
+	res.SensitiveRuleMode = c.SensitiveRuleMode
+	res.VulnWhitelist, err = json.Marshal(c.VulnWhitelist)
+	if err != nil {
+		logging.GetLogger().Err(err).Msgf("marshal vulnWhitelist error")
+	}
+	return res
+}
+
+func (c *CiPolicy) TransToPolicyAPI() CiPolicyAPI {
+	var err error
+	res := CiPolicyAPI{}
+	res.ID = c.ID
+	res.CreatedAt = c.CreatedAt
+	res.UpdatedAt = c.UpdatedAt
+	res.Name = c.Name
+	res.Comment = c.Comment
+	res.Operator = c.Operator
+	res.Updater = c.Updater
+	res.VulnLevel = c.VulnLevel
+	res.VulnPolicy = c.VulnPolicy
+	res.VulnEnable = c.VulnEnable
+	res.IgnoreIrreparable = c.IgnoreIrreparable
+	res.IgnoreLangaue = c.IgnoreLangaue
+	res.VulnRuleMode = c.VulnRuleMode
+	res.SensitiveEnable = c.SensitiveEnable
+	res.SensitiveFilePolicy = c.SensitiveFilePolicy
+	res.SensitiveWhitelist = c.SensitiveWhitelist
+	res.SensitiveRuleMode = c.SensitiveRuleMode
+	err = json.Unmarshal(c.VulnWhitelist, &res.VulnWhitelist)
+	if err != nil {
+		logging.GetLogger().Err(err).Msgf("marshal vulnWhitelist error")
+	}
+	return res
 }

@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/task"
+	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 )
 
 // Artifact define job's output
@@ -42,9 +43,11 @@ func Register(name string, creator Creator) error {
 	if creator == nil {
 		return errors.New("could not register nil Creator")
 	}
+	logging.GetLogger().Info().Msgf("before name:%v jobs :%v", name, jobs)
 	if _, dup := jobs[name]; dup {
 		return errors.New("could not register duplicate Creator: " + name)
 	}
+	logging.GetLogger().Info().Msgf("after name:%v jobs:%v", name, jobs)
 	jobs[name] = creator
 	return nil
 }

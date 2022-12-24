@@ -66,8 +66,8 @@ type ScanLayer struct { // 层级扫描结果
 	MaliciousInfoJSON []byte      `gorm:"type:longblob" json:"-"`  // 恶意文件
 	MaliciousInfo     []Malicious `gorm:"-" json:"malicious_info"` // 恶意文件
 
-	WebshellInfoJSON []byte     `gorm:"type:longblob" json:"-"` // webshell
-	WebshellInfo     []Webshell `gorm:"-" json:"webshell_info"` // webshell
+	WebshellInfoJSON []byte   `gorm:"type:longblob" json:"-"` // webshell
+	WebshellInfo     []string `gorm:"-" json:"webshell_info"` // webshell
 
 	SensitiveFileJSON []byte      `gorm:"type:longblob" json:"-"` // 敏感文件
 	SensitiveFile     []Sensitive `gorm:"-" json:"sensitive_file"`
@@ -116,11 +116,11 @@ func (sl *ScanLayer) Deserialize() {
 	}
 	sl.MaliciousInfo = malic
 
-	webshell := make([]Webshell, 0)
+	webshell := make([]string, 0)
 	if len(sl.MaliciousInfoJSON) > 0 {
 		if err := json.Unmarshal(sl.WebshellInfoJSON, &webshell); err != nil {
 			logging.GetLogger().Err(err).Msg("ScanLayer.Deserialize")
-			webshell = make([]Webshell, 0)
+			webshell = make([]string, 0)
 		}
 	}
 	sl.WebshellInfo = webshell

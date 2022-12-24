@@ -10,6 +10,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/api"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/ci"
+	scanwebshell "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scanner-webshell"
 	flag2 "gitlab.com/piccolo_su/vegeta/cmd/scanner/flag"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/service/register"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
@@ -74,6 +75,7 @@ func newService(config register.ScannerServiceConfig) (register.ScannerService, 
 	syncRetryImageDal := store.NewSyncRetryImageDao(scannerWrapperDb)
 	scannerDB := store.NewScannerDB(scannerWrapperDb)
 	ciDal := store.NewCiDao(scannerWrapperDb)
+	webshellDal := store.NewWebsehllDao(scannerWrapperDb)
 	scannerInstanceDal := store.NewScannerInstanceDao(scannerWrapperDb)
 	palaceHandler, err := palace.Init()
 	if err != nil {
@@ -90,7 +92,7 @@ func newService(config register.ScannerServiceConfig) (register.ScannerService, 
 		Handler: api.SetupGinRouter(
 			rc,
 			component.NewConScannerSrv(dal, registryDal, dal, scanConfigDal, store.GetSingeVulnDao(), &palaceHandler),
-			component.NewImageService(dal, registryDal, scanTaskDal, vulnDal, scanResultDal),
+			component.NewImageService(dal, registryDal, scanTaskDal, vulnDal, scanResultDal, webshellDal),
 			component.NewImageRejectSrc(dal),
 			component.NewHarborSrc(dal, rc, nil), // todo: use new task interface,not redclair
 			component.NewRegistrySrv(registryDal, scanConfigDal, syncTaskDal),
@@ -99,6 +101,7 @@ func newService(config register.ScannerServiceConfig) (register.ScannerService, 
 			component.NewSyncRepoImage(registryDal, dal, podResourceRelationDal, scanConfigDal, syncRetryImageDal, vulnDal, scannerDB, syncTaskDal),
 			ci.NewCiComponent(ciDal),
 			component.NewScannerInstanceInfoSrv(store.NewScannerInstanceDao(scannerWrapperDb)),
+			scanwebshell.NewWebshellComponent(webshellDal),
 			component.NewImageScanResultSrv(store.NewImageScanResultDao(store.GetScannerWrapperDb())),
 		),
 	}

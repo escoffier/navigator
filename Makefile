@@ -3,9 +3,9 @@ VERSION = 0.1.0
 UNAME_S := $(shell uname -s)
 UNAME_M := $(shell uname -m)
 
-ifeq ($(UNAME_S),Linux)
-	LDFLAGS = -extldflags "-static"
-endif
+#ifeq ($(UNAME_S),Linux)
+#	LDFLAGS = -extldflags "-static"
+#endif
 
 REPOPREFIX?=localhost:32000
 REPOPREFIXOLD?=localhost:32000

@@ -1016,11 +1016,11 @@ func (s *ConScannerSrv) ImgLayerInfo(ctx context.Context, imageID int64, layerDi
 	}
 	res.MaliciousInfo = malic
 
-	webshell := make([]model.WebShellInfo, 0)
-	for i := range layers[0].WebshellInfo {
-		webshell = append(webshell, layers[0].WebshellInfo[i].WebShellInfo)
-	}
-	res.WebshellInfo = webshell
+	// webshell := make([]model.WebShellInfo, 0)
+	// for i := range layers[0].WebshellInfo {
+	// 	webshell = append(webshell, layers[0].WebshellInfo[i].WebShellInfo)
+	// }
+	//res.WebshellInfo = webshell
 
 	return &res, nil
 }
@@ -1098,9 +1098,7 @@ func (s *ConScannerSrv) ListImgLayers(ctx context.Context, imaID int64, filter *
 					for k := range layers[j].MaliciousInfo {
 						res[i].Malicious = append(res[i].Malicious, layers[j].MaliciousInfo[k].VirusInfo.VirusName)
 					}
-					for k := range layers[j].WebshellInfo {
-						res[i].WebshellInfo = append(res[i].WebshellInfo, layers[j].WebshellInfo[k].WebShellInfo.FileName)
-					}
+					res[i].WebshellInfo = append(res[i].WebshellInfo, layers[j].WebshellInfo...)
 				}
 			}
 		}
