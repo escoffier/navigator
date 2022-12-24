@@ -123,6 +123,7 @@ type resourceContainer struct {
 	Cluster       string `json:"cluster"`
 	Namespace     string `json:"namespace"`
 	ContainerName string `json:"container_name"`
+	ContainerID   uint32 `json:"containerID"`
 
 	ResourceName string               `json:"resource_name"`
 	ClusterKey   string               `json:"cluster_key"`
@@ -189,17 +190,20 @@ func (api *api) getResourcesByImage() http.HandlerFunc {
 			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.New("get resources error")))
 			return
 		}
+		clusterMap := make(map[string]string) // clusterKey-->clusterName
 
 		// KEY `idx_aprr_res` (`cluster_key`,`namespace`,`resource_kind`,`resource_name`),
 		ret := make([]resourceContainer, len(containers))
 		for i, cont := range containers {
 			ret[i].Cluster = cont.ClusterKey
+			ret[i].ClusterKey = cont.ClusterKey
 			ret[i].Namespace = cont.Namespace
-			ret[i].ContainerName = cont.Name
+			ret[i].ContainerName = cont.ResourceName
 			ret[i].Ports = cont.Ports
 			ret[i].ResourceKind = cont.ResourceKind
 			ret[i].ResourceName = cont.ResourceName
 			ret[i].Type = cont.Type
+			ret[i].ImageUUID = imageUUID
 
 			imageRepo, imageName, imageTag := parseImage(cont.Image)
 			ret[i].ImageRepo = imageRepo
@@ -209,6 +213,16 @@ func (api *api) getResourcesByImage() http.HandlerFunc {
 			if cont.Spec != nil {
 				ret[i].WorkingDir = cont.Spec.WorkingDir
 				ret[i].Command = cont.Spec.Command
+			}
+			clusterName := clusterMap[cont.ClusterKey]
+			if clusterName != "" {
+				ret[i].Cluster = clusterName
+			} else {
+				cluster := resSvc.GetClusterByKey(ctx, cont.ClusterKey)
+				if cluster != nil {
+					ret[i].Cluster = cluster.Name
+					clusterMap[cont.ClusterKey] = cluster.Name
+				}
 			}
 
 			// 因为clusterKey+namespace+resource_kind+resource_name确定一个pod,所以在循环中取这一批Pod

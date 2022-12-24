@@ -231,8 +231,10 @@ func (s *ScanStrategy) Serialize() {
 	if len(s.SensitiveFile) > 0 {
 		ses := make([]SensitiveFileScan, 0)
 		for i := range s.SensitiveFile {
-			if s.SensitiveFile[i].Value != "" {
-				ses = append(ses, s.SensitiveFile[i])
+			sen := s.SensitiveFile[i]
+			sen.Value = strings.TrimSpace(sen.Value)
+			if sen.Value != "" {
+				ses = append(ses, sen)
 			}
 		}
 		// 设置默认值
@@ -268,13 +270,21 @@ func (s *ScanStrategy) Serialize() {
 			logging.GetLogger().Error().Err(err)
 		}
 	}
+
 	if len(s.Software) > 0 {
 		ans := make([]Software, 0)
 		exit := make(map[string]bool)
 		for i := range s.Software {
-			if !exit[fmt.Sprintf("%s_%s", s.Software[i].Name, s.Software[i].Version)] {
-				exit[fmt.Sprintf("%s_%s", s.Software[i].Name, s.Software[i].Version)] = true
-				ans = append(ans, s.Software[i])
+			sfo := s.Software[i]
+			sfo.AbnormalSoft = true
+			sfo.Name = strings.TrimSpace(sfo.Name)
+			sfo.Version = strings.TrimSpace(sfo.Version)
+			if sfo.Name == "" || sfo.Version == "" {
+				continue
+			}
+			if !exit[fmt.Sprintf("%s_%s", sfo.Name, sfo.Version)] {
+				exit[fmt.Sprintf("%s_%s", sfo.Name, sfo.Version)] = true
+				ans = append(ans, sfo)
 			}
 		}
 		s.Software = ans
@@ -303,12 +313,6 @@ func (s *ScanStrategy) ToUpdater() map[string]interface{} {
 		"webshell_enable":     s.WebshellEnable,
 		"vul_enable":          s.VulEnable,
 		"malicious_enable":    s.MaliciousEnable,
-	}
-	if len(s.Envs) == 0 {
-		updater["envs_enable"] = false
-	}
-	if len(s.Software) == 0 {
-		updater["software_enable"] = false
 	}
 	return updater
 }
@@ -387,18 +391,11 @@ func (s *ScanStrategy) Check() error {
 }
 
 func (s *ScanStrategy) SetDefault() {
-	if len(s.Envs) > 0 {
-		s.EnvsEnable = true
-	}
-	if len(s.Software) > 0 {
-		s.SoftwareEnable = true
-	}
-	if len(s.OpenLicense) > 0 {
-		s.OpenLicenseEnable = true
-	}
-	if len(s.SensitiveFile) > 0 {
-		s.SensitiveEnable = true
-	}
+	// 2.11版本后默认全部扫描
+	s.EnvsEnable = true
+	s.SoftwareEnable = true
+	s.OpenLicenseEnable = true
+	s.SensitiveEnable = true
 	// 漏洞，恶义文件,webshell现阶段默认都扫描，前端还没有选项目
 	s.VulEnable = true
 	s.WebshellEnable = true
@@ -458,9 +455,10 @@ func DeDuplicateString(ss []string) []string {
 	ans := make([]string, 0)
 	exit := make(map[string]bool)
 	for i := range ss {
-		if !exit[ss[i]] && ss[i] != "" {
-			exit[ss[i]] = true
-			ans = append(ans, ss[i])
+		value := strings.TrimSpace(ss[i])
+		if !exit[value] && value != "" {
+			exit[value] = true
+			ans = append(ans, value)
 		}
 	}
 	return ans
