@@ -25,7 +25,7 @@ type ExecutorScanVuln struct {
 }
 
 func (e *ExecutorScanVuln) filterCustomPkg(r *report.Report, customPkg []task.CustomPkgPolicy, customLicenses []string) []model.Software {
-	logging.GetLogger().Info().Interface("customPkg", customPkg).Msg("filterCustomPkg")
+	added := make(map[string]bool)
 	abnormalPkg := make(map[string]bool)
 	abnormalLicense := make(map[string]bool)
 	for _, v := range customPkg {
@@ -55,6 +55,7 @@ func (e *ExecutorScanVuln) filterCustomPkg(r *report.Report, customPkg []task.Cu
 			if pkg.License != "" && abnormalLicense[pkg.License] {
 				pkg.AbnormalLicense = true
 			}
+			added[pkgKey] = true
 			res = append(res, pkg)
 		}
 	}
@@ -77,7 +78,10 @@ func (e *ExecutorScanVuln) filterCustomPkg(r *report.Report, customPkg []task.Cu
 			if pkg.License != "" && abnormalLicense[pkg.License] {
 				pkg.AbnormalLicense = true
 			}
-			res = append(res, pkg)
+			if !added[pkgKey] {
+				added[pkgKey] = true
+				res = append(res, pkg)
+			}
 		}
 	}
 
