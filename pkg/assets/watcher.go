@@ -179,8 +179,12 @@ func (w *Watcher) process(ctx context.Context, message kafka.Message) error {
 					errored = true
 				}
 			}
-			if !errored && !res.DuplicatedChecked() && event.Action != ActionDelete {
-				w.dupCache.Put(res)
+			if !errored && !res.DuplicatedChecked() {
+				if event.Action != ActionDelete {
+					w.dupCache.Put(res)
+				} else {
+					w.dupCache.Remove(res)
+				}
 			}
 		} else {
 			logging.Get().Info().Str("key", res.KeyName()).Str("idStr", res.IdentityString()).Msg("duplicated and bypass.")
@@ -206,8 +210,12 @@ func (w *Watcher) process(ctx context.Context, message kafka.Message) error {
 					continue
 				}
 			}
-			if !errored && !pod.DuplicatedChecked() && event.Action != ActionDelete {
-				w.dupCache.Put(pod)
+			if !errored && !pod.DuplicatedChecked() {
+				if event.Action != ActionDelete {
+					w.dupCache.Put(pod)
+				} else {
+					w.dupCache.Remove(pod)
+				}
 			}
 		} else {
 			logging.Get().Info().Str("key", pod.KeyName()).Str("idStr", pod.IdentityString()).Msg("duplicated and bypass.")
@@ -232,8 +240,12 @@ func (w *Watcher) process(ctx context.Context, message kafka.Message) error {
 					continue
 				}
 			}
-			if !errored && !role.DuplicatedChecked() && event.Action != ActionDelete {
-				w.dupCache.Put(role)
+			if !errored && !role.DuplicatedChecked() {
+				if event.Action != ActionDelete {
+					w.dupCache.Put(role)
+				} else {
+					w.dupCache.Remove(role)
+				}
 			}
 		} else {
 			logging.Get().Info().Str("key", role.KeyName()).Str("idStr", role.IdentityString()).Msg("duplicated and bypass.")
@@ -257,8 +269,12 @@ func (w *Watcher) process(ctx context.Context, message kafka.Message) error {
 					continue
 				}
 			}
-			if !errored && !role.DuplicatedChecked() && event.Action != ActionDelete {
-				w.dupCache.Put(role)
+			if !errored && !role.DuplicatedChecked() {
+				if event.Action != ActionDelete {
+					w.dupCache.Put(role)
+				} else {
+					w.dupCache.Remove(role)
+				}
 			}
 		} else {
 			logging.Get().Info().Str("key", role.KeyName()).Str("idStr", role.IdentityString()).Msg("duplicated and bypass.")
@@ -283,8 +299,12 @@ func (w *Watcher) process(ctx context.Context, message kafka.Message) error {
 					continue
 				}
 			}
-			if !errored && !ns.DuplicatedChecked() && event.Action != ActionDelete {
-				w.dupCache.Put(ns)
+			if !errored && !ns.DuplicatedChecked() {
+				if event.Action != ActionDelete {
+					w.dupCache.Put(ns)
+				} else {
+					w.dupCache.Remove(ns)
+				}
 			}
 		} else {
 			logging.Get().Info().Str("key", ns.KeyName()).Str("idStr", ns.IdentityString()).Msg("duplicated and bypass.")
@@ -309,8 +329,12 @@ func (w *Watcher) process(ctx context.Context, message kafka.Message) error {
 					continue
 				}
 			}
-			if !errored && !node.DuplicatedChecked() && event.Action != ActionDelete {
-				w.dupCache.Put(node)
+			if !errored && !node.DuplicatedChecked() {
+				if event.Action != ActionDelete {
+					w.dupCache.Put(node)
+				} else {
+					w.dupCache.Remove(node)
+				}
 			}
 		} else {
 			logging.Get().Info().Str("key", node.KeyName()).Str("idStr", node.IdentityString()).Msg("duplicated and bypass.")
@@ -335,8 +359,12 @@ func (w *Watcher) process(ctx context.Context, message kafka.Message) error {
 					continue
 				}
 			}
-			if !errored && !hp.DuplicatedChecked() && event.Action != ActionDelete {
-				w.dupCache.Put(hp)
+			if !errored && !hp.DuplicatedChecked() {
+				if event.Action != ActionDelete {
+					w.dupCache.Put(hp)
+				} else {
+					w.dupCache.Remove(hp)
+				}
 			}
 		} else {
 			logging.Get().Info().Str("key", hp.KeyName()).Str("idStr", hp.IdentityString()).Msg("duplicated and bypass.")
