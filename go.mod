@@ -115,6 +115,7 @@ require (
 	github.com/xuri/excelize/v2 v2.6.0
 	gomodules.xyz/jsonpatch/v3 v3.0.1
 	google.golang.org/protobuf v1.28.1
+	gorm.io/driver/sqlite v1.4.3
 	k8s.io/cri-api v0.24.0
 	k8s.io/klog/v2 v2.60.1
 	k8s.io/kubernetes v1.24.0
@@ -191,6 +192,7 @@ require (
 	github.com/marten-seemann/qtls-go1-18 v0.1.2 // indirect
 	github.com/marten-seemann/qtls-go1-19 v0.1.0-beta.1 // indirect
 	github.com/mattn/go-shellwords v1.0.12 // indirect
+	github.com/mattn/go-sqlite3 v1.14.15 // indirect
 	github.com/matttproud/golang_protobuf_extensions v1.0.2-0.20181231171920-c182affec369 // indirect
 	github.com/miekg/pkcs11 v1.0.3 // indirect
 	github.com/mistifyio/go-zfs v2.1.2-0.20190413222219-f784269be439+incompatible // indirect

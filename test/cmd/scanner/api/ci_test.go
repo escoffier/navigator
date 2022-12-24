@@ -2,8 +2,10 @@ package api
 
 import (
 	"bytes"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"math/rand"
 	"net/http"
@@ -118,12 +120,11 @@ func TestSaveResultAPI(t *testing.T) {
 }
 
 func TestTime(t *testing.T) {
-	tt := time.Unix(1661398947989/1000, 0)
-	t.Log(tt.Format("2006-01-02 15"))
-	cstzone := time.FixedZone("CST", -8*3600)
-	ttt, err := time.Parse("2006-01-02 15:04:05", "2022-08-24 18:13:27")
-	t.Log(err)
-	t.Log(ttt.In(cstzone).String())
+	decode, err := base64.StdEncoding.DecodeString("PD9waHAgYXNzZXJ0KCRfUkVRVUVTVFsiYyJdKTs/Pg==")
+	if err != nil {
+		fmt.Println(err)
+	}
+	fmt.Println(string(decode))
 }
 
 func TestWhitelist(t *testing.T) {

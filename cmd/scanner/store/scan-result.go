@@ -480,6 +480,7 @@ func (dal *ImageScanResultDao) CreateWebShell(ctx context.Context, data []*model
 
 func (dal *ImageScanResultDao) SearchWebShell(ctx context.Context, param SearchImageScanResultParam,
 	filter *model.Filter) ([]*model.ImageWebShell, int64, error) {
+
 	return make([]*model.ImageWebShell, 0), 0, nil
 }
 

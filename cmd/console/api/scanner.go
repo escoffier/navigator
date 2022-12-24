@@ -154,6 +154,10 @@ func (api *api) scanner() func(chi.Router) {
 		r.Get("/ci/tidb/version", api.RedirectToScanner())
 		r.Get("/ci/tidb/assets/{fileName}", api.RedirectToScanner())
 
+		r.Get("/webshells/imageWebshell/webshell", api.RedirectToScanner())
+		r.Get("/webshells/imageWebshell/detail", api.RedirectToScanner())
+		r.Get("/webshells/imageWebshell/download", api.RedirectToScanner())
+		r.Post("/webshells/imageWebshell/file", api.RedirectToScanner())
 		r.Get("/scannerInfo/list", api.RedirectToScanner())
 
 		// 镜像详情

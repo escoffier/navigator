@@ -2,9 +2,10 @@ package scan
 
 import (
 	"context"
+	"testing"
+
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/jobs/scan"
 	_ "gitlab.com/piccolo_su/vegeta/test/cmd/scanner/component/jobs/mock-scan"
-	"testing"
 )
 
 func TestMockScan(t *testing.T) {

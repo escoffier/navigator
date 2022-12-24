@@ -171,13 +171,14 @@ func (c *CiApiSrv) GetCiPolicyList(ctx *gin.Context) {
 }
 
 func (c *CiApiSrv) CreateCiPolicy(ctx *gin.Context) {
-	policy := scanner_ci.CiPolicy{}
-	err := ctx.BindJSON(&policy)
+	policyAPI := scanner_ci.CiPolicyAPI{}
+	err := ctx.BindJSON(&policyAPI)
 	if err != nil {
 		logging.Get().Err(err).Msg("bad request format")
 		response.JSONError(ctx, fmt.Errorf("bad request format"))
 		return
 	}
+	policy := policyAPI.TransToPolicy()
 	policyID, err := c.Component.PM.CreatePolicy(ctx, &policy)
 	if err != nil {
 		str := ""
@@ -199,13 +200,14 @@ func (c *CiApiSrv) CreateCiPolicy(ctx *gin.Context) {
 }
 
 func (c *CiApiSrv) UpdatePolicy(ctx *gin.Context) {
-	policy := scanner_ci.CiPolicy{}
-	err := ctx.BindJSON(&policy)
+	policyAPI := scanner_ci.CiPolicyAPI{}
+	err := ctx.BindJSON(&policyAPI)
 	if err != nil {
 		logging.Get().Err(err).Msg("bad request format")
 		response.JSONError(ctx, fmt.Errorf("bad request format"))
 		return
 	}
+	policy := policyAPI.TransToPolicy()
 	err = c.Component.PM.UpdatePolicy(ctx, &policy)
 	if err != nil {
 		logging.Get().Err(err).Msgf("update policy error policyID :%v", policy.ID)

@@ -1,12 +1,16 @@
 package saveresult
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"math"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 
 	"scm.tensorsecurity.cn/tensorsecurity-rd/trivy/pkg/report"
@@ -20,7 +24,9 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
+	scannermodel "gitlab.com/piccolo_su/vegeta/pkg/model/scanner-model"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
+	"gitlab.com/security-rd/go-pkg/mq"
 )
 
 const (
@@ -33,7 +39,8 @@ type Config struct {
 }
 
 type ScanResultHandle struct {
-	config Config
+	config   Config
+	MqWriter mq.Writer
 }
 
 var (
@@ -144,31 +151,20 @@ func (s *ScanResultHandle) arrangeSensitive(sensitivesResult []model.PerLayerSen
 	scanDetails.SensitiveScore = GenSensitiveScore(int64(imageSensitiveLen))
 }
 
-func (s *ScanResultHandle) arrangeWebshell(webshellInfoReuslt []model.PerLayerWebshellResult, scanDetails *model.ScanDetailScanImage, layerMp map[string]*model.LayerScanDetail) {
-	imageWebshellLen := 0
-	webshellFlag := 0
-	for _, v := range webshellInfoReuslt {
-		tmpWebshell := make([]model.Webshell, 0, len(v.WebShellInfos))
-		imageWebshellLen += len(v.WebShellInfos)
-		for _, webshell := range v.WebShellInfos {
-			scanDetails.WebShellScore += s.calculateWebshellScore(webshell, &webshellFlag)
-			singleWebshell := model.Webshell{}
-			singleWebshell.WebShellInfo = webshell
-			tmpWebshell = append(tmpWebshell, singleWebshell)
-		}
+func (s *ScanResultHandle) arrangeWebshell(webshellInfoReuslt scannermodel.WebshellResult, scanDetails *model.ScanDetailScanImage, layerMp map[string]*model.LayerScanDetail) {
+	for _, v := range webshellInfoReuslt.FileInfos {
 		_, ok := layerMp[v.LayerDigest]
 		if ok {
-			layerMp[v.LayerDigest].WebshellInfos = append(layerMp[v.LayerDigest].WebshellInfos, tmpWebshell...)
+			layerMp[v.LayerDigest].WebshellInfos = append(layerMp[v.LayerDigest].WebshellInfos, v.Md5Hash)
 		} else {
 			layerMp[v.LayerDigest] = &model.LayerScanDetail{}
-			layerMp[v.LayerDigest].WebshellInfos = append(layerMp[v.LayerDigest].WebshellInfos, tmpWebshell...)
+			layerMp[v.LayerDigest].WebshellInfos = append(layerMp[v.LayerDigest].WebshellInfos, v.Md5Hash)
 		}
 	}
-	imageWebshell := make([]model.Webshell, 0, imageWebshellLen)
-	for _, v := range layerMp {
-		imageWebshell = append(imageWebshell, v.WebshellInfos...)
+	if len(webshellInfoReuslt.FileInfos) > 0 {
+		scanDetails.WebShellScore += 30
 	}
-	scanDetails.WebshellInfos = append(scanDetails.WebshellInfos, imageWebshell...)
+	scanDetails.WebshellInfos = webshellInfoReuslt.FileInfos
 
 }
 
@@ -204,18 +200,37 @@ func (s *ScanResultHandle) logPostgresLayer(ctx context.Context, layerMp map[str
 	return err
 }
 
+func (s *ScanResultHandle) logPostgresWebshell(ctx context.Context, scanDetails *model.ScanDetailScanImage, layerMp map[string]*model.LayerScanDetail, imageID int64) error {
+	scannerOrm := store.GetSingeWebsehllDao()
+	webshells := []scannermodel.Webshell{}
+	for k, _ := range scanDetails.WebshellInfos {
+		webshells = append(webshells, scanDetails.WebshellInfos[k].TransToWebshell())
+	}
+	err := scannerOrm.CreateWebshell(ctx, webshells)
+	if err != nil {
+		logging.GetLogger().Err(err).Msgf("create webshell error")
+		return err
+	}
+	err = scannerOrm.CreateWebshellImage(ctx, imageID, webshells)
+	if err != nil {
+		logging.GetLogger().Err(err).Msgf("create webshellImage error")
+		return err
+	}
+	return nil
+}
+
 func (s *ScanResultHandle) logPostgresScanImageResult(ctx context.Context, scanDetails *model.ScanDetailScanImage, imageID int64) error {
 	scannerOrm := store.GetScannerDb()
 	tmpScanImage := &model.ScanImage{
-		ID:                   0,
-		ImageID:              imageID,
-		RiskScore:            scanDetails.VulnScore + math.Min(40, scanDetails.MaliciousScore+scanDetails.WebShellScore) + scanDetails.SensitiveScore,
-		VulnScore:            scanDetails.VulnScore,
-		SensitiveScore:       scanDetails.SensitiveScore,
-		VirusScore:           scanDetails.MaliciousScore,
-		WebshellScore:        scanDetails.WebShellScore,
-		MaliciousInfo:        scanDetails.MaliciousDetails,
-		WebshellInfo:         scanDetails.WebshellInfos,
+		ID:             0,
+		ImageID:        imageID,
+		RiskScore:      scanDetails.VulnScore + math.Min(40, scanDetails.MaliciousScore+scanDetails.WebShellScore) + scanDetails.SensitiveScore,
+		VulnScore:      scanDetails.VulnScore,
+		SensitiveScore: scanDetails.SensitiveScore,
+		VirusScore:     scanDetails.MaliciousScore,
+		WebshellScore:  scanDetails.WebShellScore,
+		MaliciousInfo:  scanDetails.MaliciousDetails,
+		//WebshellInfo:         scanDetails.WebshellInfos,
 		SensitiveFile:        scanDetails.Sentitives,
 		LicenseInfo:          scanDetails.LicenseDetail,
 		Software:             scanDetails.Software,
@@ -313,9 +328,9 @@ func (s *ScanResultHandle) Run(ctx context.Context, param jobs.Param) (jobs.Arti
 	// 这一次只是拆分了扫描数据，镜像详情页面使用拆分后的表数据，导出，阻断，报告等还是使用原来保存的数据
 	// 所以这一版本继续保留原数据存储逻辑，等k8s阻断上线的版本中再重构这部分逻辑
 	var (
-		imageScanVirus      []model.PerLayerMaliciousResult
-		imageScanSensitive  []model.PerLayerSensitiveResult
-		imageScanWebshell   []model.PerLayerWebshellResult
+		imageScanVirus     []model.PerLayerMaliciousResult
+		imageScanSensitive []model.PerLayerSensitiveResult
+		//imageScanWebshell   []model.PerLayerWebshellResult
 		imageScanEnv        []model.EnvKeyValue
 		imageScanSoftware   []model.Software
 		imageScanVulnResult *report.Report // 漏洞
@@ -338,6 +353,12 @@ func (s *ScanResultHandle) Run(ctx context.Context, param jobs.Param) (jobs.Arti
 		r["pullFailed"] = true
 		return r, errors.New("miss 'layersFilePath' in parameter")
 	}
+
+	// digest, ok := param["digest"].(string)
+	// if !ok {
+	// 	logging.GetLogger().Error().Msg("miss 'digest' in parameter")
+	// 	return r, errors.New("miss 'digest' in parameter ")
+	// }
 
 	// 结果集合
 	var scanDetails model.ScanDetailScanImage
@@ -385,11 +406,11 @@ func (s *ScanResultHandle) Run(ctx context.Context, param jobs.Param) (jobs.Arti
 	if !ok {
 		logging.GetLogger().Warn().Msg("miss 'scan-webshell' in parameter")
 	} else {
-		webshellResult, ok := scanWebshell["result"].([]model.PerLayerWebshellResult)
+		webshellResult, ok := scanWebshell["result"].(scannermodel.WebshellResult)
 		if !ok {
 			logging.GetLogger().Error().Msg("miss 'webshellResult' in parameter")
 		} else {
-			imageScanWebshell = webshellResult
+			//imageScanWebshell = webshellResult
 			s.arrangeWebshell(webshellResult, &scanDetails, layerMp)
 		}
 	}
@@ -523,15 +544,15 @@ func (s *ScanResultHandle) Run(ctx context.Context, param jobs.Param) (jobs.Arti
 	}
 
 	// websehll
-	if imageScanWebshell != nil {
-		sensitive, issueToImages := ConvertWebshell(imageID, imageScanWebshell)
-		if err := scanResultSaveSrv.ImageScanResultDal.CreateWebShell(ctx, sensitive); err != nil {
-			logging.GetLogger().Err(err).Int64("imageID", imageID).Msg("CreateWebShell")
-		}
-		if err := scanResultSaveSrv.ImageScanResultDal.CreateScanIssueToImage(ctx, imageID, model.FlagHasWebshell, issueToImages); err != nil {
-			logging.GetLogger().Err(err).Int64("imageID", imageID).Msg("CreateWebShell CreateScanIssueToImage")
-		}
-	}
+	// if imageScanWebshell != nil {
+	// 	sensitive, issueToImages := ConvertWebshell(imageID, imageScanWebshell)
+	// 	if err := scanResultSaveSrv.ImageScanResultDal.CreateWebShell(ctx, sensitive); err != nil {
+	// 		logging.GetLogger().Err(err).Int64("imageID", imageID).Msg("CreateWebShell")
+	// 	}
+	// 	if err := scanResultSaveSrv.ImageScanResultDal.CreateScanIssueToImage(ctx, imageID, model.FlagHasWebshell, issueToImages); err != nil {
+	// 		logging.GetLogger().Err(err).Int64("imageID", imageID).Msg("CreateWebShell CreateScanIssueToImage")
+	// 	}
+	// }
 
 	// 病毒
 	if imageScanVirus != nil {
@@ -577,6 +598,46 @@ func (s *ScanResultHandle) Run(ctx context.Context, param jobs.Param) (jobs.Arti
 	}
 
 	var err error
+	// err = s.logPostgresLayer(ctx, &scanDetails, layerMp, s.config.subtask.Image.ID)
+	// // 先写漏洞表和漏洞关联表，再写入ivan_scanner_scan_images和ivan_scanner_images_list表，防止镜像已打上有漏洞的标记，确查不出漏洞的情况
+	// err = s.logPostgresVuln(ctx, &scanDetails, layerMp, s.config.subtask.Image.ID)
+	// err = s.logPostgresImage(ctx, &scanDetails, layerMp, s.config.subtask.Image.ID)
+	err = s.logPostgresWebshell(ctx, &scanDetails, layerMp, s.config.subtask.Image.ID)
+	if os.Getenv("IS_MAIN_CLUSTER") != "true" {
+		for _, v := range scanDetails.WebshellInfos {
+			saveInfo := scannermodel.WebshellSaveInfo{}
+			tmpData, err := os.ReadFile(v.FilePath)
+			if err != nil {
+				logging.GetLogger().Err(err).Msg("Read file error")
+				continue
+			}
+			saveInfo.FileMd5 = v.Md5Hash
+			saveInfo.Data = tmpData
+			saveByte, err := json.Marshal(saveInfo)
+			if err != nil {
+				logging.GetLogger().Err(err).Msg("marshal Webshell Save Info error")
+				continue
+			}
+			logging.GetLogger().Info().Msgf("%v send to kafka", v.Md5Hash)
+			err = Send2Kafka(s.MqWriter, saveByte)
+			if err != nil {
+				logging.GetLogger().Err(err).Msgf("%v send to kafka error", v.Md5Hash)
+			}
+		}
+	} else {
+		for _, v := range scanDetails.WebshellInfos {
+			tmpData, err := os.ReadFile(v.FilePath)
+			if err != nil {
+				logging.GetLogger().Err(err).Msg("Read Webshell File error")
+				continue
+			}
+			err = s.saveWebshell(v.Md5Hash, tmpData)
+			if err != nil {
+				logging.GetLogger().Err(err).Msg("save Webshell File error")
+				continue
+			}
+		}
+	}
 
 	err = s.logPostgresLayer(ctx, layerMp, s.config.subtask.Image.ID)
 
@@ -627,15 +688,59 @@ func rmImage(imageName string) error {
 	return nil
 }
 
+func (s *ScanResultHandle) createFile(name string) (*os.File, error) {
+	err := os.MkdirAll(string([]rune(name)[0:strings.LastIndex(name, "/")]), 0755)
+	if err != nil {
+		return nil, err
+	}
+	return os.Create(name)
+}
+
 func init() {
+	logging.GetLogger().Info().Msgf("want to register job :%v", JobName)
 	err := jobs.Register(JobName, newJob)
 	if err != nil {
 		logging.GetLogger().Err(err).Str("jobName", JobName).Msg("init job err")
 	}
 }
 
+func (s *ScanResultHandle) PathExists(path string) bool {
+	_, err := os.Stat(path)
+	if err == nil {
+		return true
+	}
+	if os.IsNotExist(err) {
+		return false
+	}
+	return false
+}
+
+func (s *ScanResultHandle) saveWebshell(fileMd5 string, data []byte) error {
+	dstPath := filepath.Join("/root/webshell", fileMd5)
+	if s.PathExists(dstPath) {
+		return nil
+	}
+	tmpFs, err := s.createFile(dstPath)
+	if err != nil {
+		logging.GetLogger().Err(err).Msg("create webshell file error")
+		return err
+	}
+	_, err = io.Copy(tmpFs, bytes.NewReader(data))
+	if err != nil {
+		logging.GetLogger().Err(err).Msg("copy webshell file error")
+		return err
+	}
+	return nil
+}
+
 func newJob(config jobs.JobConfig) (jobs.Job, error) {
 	i := &ScanResultHandle{}
+	mqFactory := mq.GetClientFactory()
+	mqWriter, err := mqFactory.Writer(context.Background())
+	if err != nil {
+		logging.GetLogger().Err(err).Msg("Init mq error")
+	}
+	i.MqWriter = mqWriter
 	i.config.task = config.Info.Task
 	i.config.subtask = config.Info.SubTask
 

@@ -8,6 +8,7 @@ import (
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/vuln-updata/cnnvd"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/vuln-updata/cnvd"
+	scannermodel "gitlab.com/piccolo_su/vegeta/pkg/model/scanner-model"
 )
 
 var VulnerabilityInImagesRiskFilters = map[string]int{
@@ -297,7 +298,7 @@ type ScanDetailScanImage struct {
 	VulnDetails          []SingleScanDetail
 	MaliciousDetails     []Malicious
 	Sentitives           []Sensitive
-	WebshellInfos        []Webshell
+	WebshellInfos        []scannermodel.WebshellFileInfo
 	EnvDetails           []EnvKeyValue
 	Software             []Software
 	LicenseDetail        []LicenseInfo
@@ -310,11 +311,18 @@ type ScanDetailScanImage struct {
 	SensitiveScore       float64
 }
 
+type SubScannerLogData struct {
+	ScanDetail  ScanDetailScanImage         `json:"scanDetail"`
+	LayerMp     map[string]*LayerScanDetail `json:"layerMp"`
+	ImageID     int64                       `json:"imageID"`
+	ImageDigest string                      `json:"imageDigest"`
+}
+
 type LayerScanDetail struct {
 	Vulns            []uint64
 	MaliciousDetails []Malicious
 	Sentitives       []Sensitive
-	WebshellInfos    []Webshell
+	WebshellInfos    []string
 }
 
 type RespSingleVulnDetail struct {

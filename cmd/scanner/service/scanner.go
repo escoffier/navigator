@@ -187,6 +187,7 @@ func (s *Scanner) StartServices() {
 			if err != nil {
 				logging.Get().Err(err).Str("serviceName", serviceName).Msg("scanner service run err")
 			}
+			logging.Get().Info().Str("serviceName", serviceName).Msg("scanner service alreadey start")
 		}(name)
 	}
 

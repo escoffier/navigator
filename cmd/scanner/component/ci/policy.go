@@ -20,8 +20,16 @@ func NewPolicyManager(dal store.ScanCiInterface) PolicyManager {
 	return PolicyManager{dal: dal}
 }
 
-func (p *PolicyManager) GetPolicyList(ctx context.Context, limit int64, offset int64, name string) ([]scanner_ci.CiPolicy, int64, error) {
-	return p.dal.GetPolicyList(ctx, limit, offset, name)
+func (p *PolicyManager) GetPolicyList(ctx context.Context, limit int64, offset int64, name string) ([]scanner_ci.CiPolicyAPI, int64, error) {
+	policies, cnt, err := p.dal.GetPolicyList(ctx, limit, offset, name)
+	if err != nil {
+		return nil, 0, err
+	}
+	res := []scanner_ci.CiPolicyAPI{}
+	for k := range policies {
+		res = append(res, policies[k].TransToPolicyAPI())
+	}
+	return res, cnt, err
 }
 
 func (p *PolicyManager) CreatePolicy(ctx context.Context, data *scanner_ci.CiPolicy) (int64, error) {
@@ -32,8 +40,12 @@ func (p *PolicyManager) UpdatePolicy(ctx context.Context, data *scanner_ci.CiPol
 	return p.dal.UpdatePolicy(ctx, *data)
 }
 
-func (p *PolicyManager) GetPolicyDetail(ctx context.Context, id int64) (scanner_ci.CiPolicy, error) {
-	return p.dal.GetPolicyDetail(ctx, id)
+func (p *PolicyManager) GetPolicyDetail(ctx context.Context, id int64) (scanner_ci.CiPolicyAPI, error) {
+	policy, err := p.dal.GetPolicyDetail(ctx, id)
+	if err != nil {
+		return scanner_ci.CiPolicyAPI{}, err
+	}
+	return policy.TransToPolicyAPI(), nil
 }
 
 func (p *PolicyManager) DeleteCiPolicy(ctx context.Context, id int64) error {
@@ -89,7 +101,11 @@ func (p *PolicyManager) TransFormPolicy(ciPolicy scanner_ci.CiPolicy, imageWhite
 	}
 
 	// vuln whitelist for ci tool
-	vw := strings.Split(ciPolicy.VulnWhitelist, ",")
+	vw := []scanner_ci.VulnWhitelist{}
+	err := json.Unmarshal(ciPolicy.VulnWhitelist, &vw)
+	if err != nil {
+		logging.Get().Err(err).Msgf("ciPolicy Unmarshal vulnWhitelist error")
+	}
 	vb := strings.Split(ciPolicy.VulnPolicy, ",")
 
 	// transform
@@ -100,6 +116,7 @@ func (p *PolicyManager) TransFormPolicy(ciPolicy scanner_ci.CiPolicy, imageWhite
 	policy.Vuln.BlackListVulns = vb
 	policy.Vuln.WhiteListVulns = vw
 	policy.Vuln.IgnoreUnfixed = ciPolicy.IgnoreIrreparable
+	policy.Vuln.IgnoreLangaue = ciPolicy.IgnoreLangaue
 	policy.Vuln.Action = ciPolicy.VulnRuleMode
 	policy.Vuln.ActionCode = ActionNameToCode(ciPolicy.VulnRuleMode)
 	policy.ImageNameWhiteLists = iw

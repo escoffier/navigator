@@ -137,17 +137,17 @@ func main() {
 	registryDal := store.NewRegistryDao(config.Rdb)
 	vulnDal := store.NewVulnDao(config.Rdb)
 	scanResult := store.NewImageScanResultDao(config.Rdb)
-
+	webshellDal := store.NewWebsehllDao(config.Rdb)
 	exportTask := service.NewExportTaskSrv(
 		store.NewExportTaskDao(rdb),
 		maxImageByOneExportTask,
 		store.NewScannerOrm(rdb),
-		component.NewImageService(dal, registryDal, dal, vulnDal, scanResult),
+		component.NewImageService(dal, registryDal, dal, vulnDal, scanResult, webshellDal),
 		rc0,
 	)
 
 	exportHtml := html.NewExportImageHtmlSrv(
-		component.NewImageService(dal, registryDal, dal, vulnDal, scanResult),
+		component.NewImageService(dal, registryDal, dal, vulnDal, scanResult, webshellDal),
 		vulnDal,
 		dal,
 		store.NewExportTaskDao(rdb),

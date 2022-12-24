@@ -28,6 +28,7 @@ type ImageSrv struct {
 	dbdal         store.ScannerDalInterface
 	scanTaskDal   store.ScanTaskInterface
 	registryDal   store.RegistryDal
+	webshellDal   store.WebshellDalInterface
 	vulnDal       store.VulnDalInterface
 	scanResultDal store.ImageScanResultDal
 }
@@ -38,6 +39,7 @@ func NewImageService(
 	scanTaskDal store.ScanTaskInterface,
 	vulnDal store.VulnDalInterface,
 	scanResultDal store.ImageScanResultDal,
+	webshellDal store.WebshellDalInterface,
 ) *ImageSrv {
 	return &ImageSrv{
 		dbdal:         dbdal,
@@ -45,6 +47,7 @@ func NewImageService(
 		registryDal:   registryDal,
 		vulnDal:       vulnDal,
 		scanResultDal: scanResultDal,
+		webshellDal:   webshellDal,
 	}
 }
 
@@ -99,11 +102,15 @@ func (s *ImageSrv) ImageIssueStatistic(ctx context.Context, imageID int64) (*mod
 		return nil, err
 	}
 
+	_, webshellCnt, err := s.webshellDal.SearchWebshellImage(ctx, store.SearchWebshellParam{ImageID: imageID}, model.Filter{})
+	if err != nil {
+		return nil, err
+	}
 	res = &model.SecurityIssueOverview{
-		VULN:      vulnCnt,
-		VIRUS:     virusCnt,
-		SENSITIVE: sensitiveCnt,
-		// Webshell:       webshellCnt,
+		VULN:           vulnCnt,
+		VIRUS:          virusCnt,
+		SENSITIVE:      sensitiveCnt,
+		Webshell:       webshellCnt,
 		Envs:           envCnt,
 		Software:       softCnt,
 		License:        licenseCnt,

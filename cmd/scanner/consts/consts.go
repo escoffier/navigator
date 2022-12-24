@@ -121,3 +121,7 @@ const (
 	ScannerUser    = "X-Tensorsec-cicd-key"
 	InternalApiKey = "dGVuc29yc2VjLWNpY2QtdXNlcg==.qBFMMAvbbm3afG3y42CqKaN7WQe4Q7hiqtg5Jzwen7tWHhZG16P62kvv"
 )
+
+const (
+	WebshellDir = "/opt/webshell"
+)

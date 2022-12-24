@@ -4,22 +4,16 @@ import (
 	"archive/tar"
 	"bytes"
 	"context"
+	"crypto/md5"
+	"encoding/hex"
 	"fmt"
 	"io"
-	"io/ioutil"
-	"net/http"
 	"os"
 	"path/filepath"
-	"runtime/debug"
-	"sync/atomic"
-	"time"
 
 	dockerarchive "github.com/docker/docker/pkg/archive"
-	json "github.com/json-iterator/go"
-	"gitlab.com/piccolo_su/vegeta/cmd/scanner/global"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
-	"gitlab.com/piccolo_su/vegeta/pkg/model"
-	"gitlab.com/security-rd/go-pkg/httputil"
+	scannermodel "gitlab.com/piccolo_su/vegeta/pkg/model/scanner-model"
 )
 
 type WebshellScan struct {
@@ -27,24 +21,33 @@ type WebshellScan struct {
 	TotalFileNum int64
 }
 
-func (w *WebshellScan) ScanLayer(ctx context.Context, digest string, layerPath string) ([]model.WebShellInfo, error) {
+func (w *WebshellScan) FileMD5(tar io.Reader) (string, error) {
+	hash := md5.New()
+	_, _ = io.Copy(hash, tar)
+	return hex.EncodeToString(hash.Sum(nil)), nil
+}
 
-	sendCh := make(chan *fileContent, 10)
-	revcCh := w.webShellTask(ctx, sendCh, 0)
-	fileCount, err := w.parseLayerTar(layerPath, sendCh)
+func (w *WebshellScan) PathExists(path string) bool {
+	_, err := os.Stat(path)
+	if err == nil {
+		return true
+	}
+	if os.IsNotExist(err) {
+		return false
+	}
+	return false
+}
+
+func (w *WebshellScan) ScanLayer(ctx context.Context, digest string, layerPath string, digestPath string, mp map[string][]scannermodel.WebshellFileInfo) error {
+	_, err := w.parseLayerTar(layerPath, digestPath, digest, mp)
 	if err != nil {
-		return []model.WebShellInfo{}, fmt.Errorf("Failed to parseLayerTar: %w", err)
+		return fmt.Errorf("Failed to parseLayerTar: %w", err)
 	}
-	if fileCount == 0 {
-		return []model.WebShellInfo{}, nil
-	}
-	webshellResult := <-revcCh
-	return webshellResult, nil
+	return nil
 
 }
 
-func (w *WebshellScan) parseLayerTar(tarFileName string, ch chan<- *fileContent) (uint64, error) {
-	defer func() { close(ch) }() // close the channel
+func (w *WebshellScan) parseLayerTar(tarFileName string, digestPath string, digest string, mp map[string][]scannermodel.WebshellFileInfo) (uint64, error) {
 	tarFile, err := os.Open(tarFileName)
 	if err != nil {
 		return 0, fmt.Errorf("Failed to advance tarReader: %w", err)
@@ -74,126 +77,44 @@ func (w *WebshellScan) parseLayerTar(tarFileName string, ch chan<- *fileContent)
 			continue
 		}
 		if w.webshellFileExt(filepath.Ext(header.Name)) {
-			content, err := ioutil.ReadAll(tarReader)
-			if err != nil {
+			if header.Size > 1024*1024*10 {
 				continue
 			}
-			ch <- &fileContent{fileName: header.Name, reader: bytes.NewReader(content)}
+			fileByte, err := io.ReadAll(tarReader)
+			if err != nil {
+				logging.GetLogger().Err(err).Msgf("copy from tarReader error")
+			}
+
+			fileMd5, err := w.FileMD5(bytes.NewReader(fileByte))
+			if err != nil {
+				logging.GetLogger().Err(err).Msg("generate md5 failed")
+				continue
+			}
+			tmpPath := filepath.Join(digestPath, fileMd5)
+			tmpfs, err := os.Create(tmpPath)
+			if err != nil {
+				logging.GetLogger().Err(err).Msg("generate tmpFile failed")
+				continue
+			}
+			//logging.GetLogger().Info().Msgf("name :%v,size:%v", header.Name, header.Size)
+			_, err = io.Copy(tmpfs, bytes.NewReader(fileByte))
+			if err != nil {
+				logging.GetLogger().Err(err).Msg("copy tmpFile failed")
+				continue
+			}
+			tmpfs.Close()
+			tmpInfo := scannermodel.WebshellFileInfo{}
+			tmpInfo.FilePath = tmpPath
+			tmpInfo.FileName = header.Name
+			tmpInfo.Size = header.Size
+			tmpInfo.LayerDigest = digest
+			tmpInfo.ModeTime = header.ModTime.UnixMilli()
+			tmpInfo.Mode = header.FileInfo().Mode().String()
+			mp[fileMd5] = append(mp[fileMd5], tmpInfo)
 			count++
 		}
 	}
 	return count, nil
-}
-
-func (w *WebshellScan) webShellTask(ctx context.Context, ch <-chan *fileContent, taskNum int32) <-chan []model.WebShellInfo {
-	// The default value of taskNum is 6
-	if taskNum <= 0 {
-		taskNum = 6
-	}
-
-	var resultChan = make(chan model.WebShellInfo)
-	var resultChan1 = make(chan []model.WebShellInfo)
-
-	for i, end := int32(0), taskNum; i < end; i++ {
-
-		// run task
-		go func() {
-			defer func() {
-				// The last completed task closes the channel resultChan
-				if atomic.AddInt32(&taskNum, -1) == 0 {
-					close(resultChan)
-				}
-			}()
-
-			for {
-				file, ok := <-ch
-				if !ok {
-					break
-				}
-
-				w.TotalFileNum = w.TotalFileNum + 1
-				webshellInfo, err := w.webShellCall(ctx, file.reader)
-				if err != nil {
-					logging.GetLogger().
-						Err(err).
-						Str("fileName", file.fileName).
-						Msg("webshell call failed ")
-					continue
-				}
-				if webshellInfo == nil {
-					logging.GetLogger().Error().
-						Msg("webshell info is nil")
-					continue
-				}
-				if webshellInfo.Score < 4 {
-					logging.GetLogger().Trace().
-						Int64("score", webshellInfo.Score).
-						Msg("webshell score below watermark")
-					continue
-				}
-
-				webshellInfo.FilePath, webshellInfo.FileName = filepath.Split(file.fileName)
-
-				resultChan <- *webshellInfo
-			}
-
-		}()
-	}
-
-	// result collector
-	go func() {
-		defer func() { close(resultChan1) }()
-
-		r := make([]model.WebShellInfo, 0)
-		for webshellResult := range resultChan {
-			r = append(r, webshellResult)
-		}
-
-		// send all results
-		resultChan1 <- r
-	}()
-
-	return resultChan1
-}
-
-func (w *WebshellScan) webShellCall(ctx context.Context, reader io.Reader) (*model.WebShellInfo, error) {
-
-	defer func() {
-		if err := recover(); err != nil {
-			logging.GetLogger().Error().Msgf("call webshell server failed, panic: %v Stack: %s", err, string(debug.Stack()))
-		}
-	}()
-
-	tctx, cancel := context.WithTimeout(ctx, time.Duration(global.ScannerOpts.ScanWebshellTimeout)*time.Second)
-	defer cancel()
-	
-	req, err := http.NewRequestWithContext(tctx, http.MethodPost, w.WebshellAddr, reader)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	req.Close = true
-
-	res, err := httputil.DefaultClient.Do(req)
-	if err != nil {
-		logging.GetLogger().Err(err).Msg("request webshell server err")
-		return nil, err
-	}
-
-	defer func() { _ = res.Body.Close() }()
-
-	if res.StatusCode != http.StatusOK {
-		_, _ = io.Copy(ioutil.Discard, res.Body)
-		return nil, fmt.Errorf("error http code: %d", res.StatusCode)
-	}
-	var s = &model.WebShellInfo{}
-	decoder := json.NewDecoder(res.Body)
-	err = decoder.Decode(s)
-	if err != nil {
-		return nil, err
-	}
-
-	return s, nil
 }
 
 // webshell文件后缀列表
