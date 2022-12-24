@@ -51,6 +51,14 @@ func (c *DuplicationCheckingCache) Put(item IdentifiableItem) {
 	c.cache.Set(keyName, idStr, c.ttl)
 }
 
+func (c *DuplicationCheckingCache) Remove(item IdentifiableItem) {
+	keyName := item.KeyName()
+	if len(keyName) > maxUnMd5Length {
+		keyName = getMD5(keyName)
+	}
+	c.cache.Delete(keyName)
+}
+
 func (c *DuplicationCheckingCache) Check(item IdentifiableItem) bool {
 	keyName := item.KeyName()
 	if len(keyName) > maxUnMd5Length {

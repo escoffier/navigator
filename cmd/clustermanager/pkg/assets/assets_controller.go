@@ -839,8 +839,12 @@ func (ac *Controller) sendToMainClusterManager(ctx context.Context, action pkgas
 
 	err := ac.sendToMq(ctx, action, watchedType, obj)
 
-	if err == nil && action != pkgassets.ActionDelete {
-		ac.dupCache.Put(obj)
+	if err == nil {
+		if action != pkgassets.ActionDelete {
+			ac.dupCache.Put(obj)
+		} else {
+			ac.dupCache.Remove(obj)
+		}
 	}
 	return err
 }

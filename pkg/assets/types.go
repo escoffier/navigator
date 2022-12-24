@@ -3,6 +3,7 @@ package assets
 import (
 	// don't replace it; need the order of fields for marshal
 	"encoding/json"
+	"strconv"
 	"strings"
 	"time"
 
@@ -93,6 +94,10 @@ func (r *TensorResource) IdentityString() string {
 		if err == nil {
 			sb.WriteString(string(specBytes))
 		}
+	}
+	sb.WriteRune('\n')
+	if !r.CreationTimestamp.IsZero() {
+		sb.WriteString(strconv.FormatInt(r.CreationTimestamp.UnixMilli(), 10))
 	}
 	return sb.String()
 }
@@ -300,6 +305,10 @@ func (p *TensorNode) IdentityString() string {
 	ninfo, err := json.Marshal(p.Status.NodeInfo)
 	if err == nil {
 		sb.WriteString(string(ninfo))
+	}
+	sb.WriteRune('\n')
+	if !p.CreationTimestamp.IsZero() {
+		sb.WriteString(strconv.FormatInt(p.CreationTimestamp.UnixMilli(), 10))
 	}
 
 	return sb.String()
