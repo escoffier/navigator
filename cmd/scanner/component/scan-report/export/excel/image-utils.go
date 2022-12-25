@@ -373,7 +373,7 @@ func GenImageBaseInfo(image model.ImageList) []string {
 		image.Tags,
 		util.ByteToMB(image.Size),
 		image.OS,
-		FormatTime(image.CreatedAt.UnixMilli(), consts.ExportTimeFormat),
+		FormatTime(image.LastPushTime.UnixMilli(), consts.ExportTimeFormat),
 		IsBaseImage(image.Flag),
 	}
 	if image.Registry != nil {
