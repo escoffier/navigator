@@ -205,7 +205,7 @@ func (w *WebshellSrv) GetCode(md5 string, uuid uint64) ([]scannermodel.ProblemCo
 				}
 			}
 		}
-		lenth += len(datas[k])
+		lenth += len(datas[k]) + 1 //补足换行
 		if len(tmpPro.Problem) > 0 {
 			str := base64.StdEncoding.EncodeToString([]byte(tmpPro.Problem[0]))
 			tmpPro.Problem[0] = str
