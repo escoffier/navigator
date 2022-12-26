@@ -266,7 +266,7 @@ func GenWebShellInfo(image model.ImageList, file scannermodel.Webshell) []string
 	} else {
 		level = "确认"
 	}
-	info := []string{getImageName(image), image.Library, path, name, level, file.MaliciousData}
+	info := []string{getImageName(image), image.Library, name, path, level, file.MaliciousData}
 	return info
 }
 
