@@ -61,7 +61,6 @@ type ScanResultInterface interface {
 	SearchWebShell(ctx context.Context, param ScanResultSearchParam, filter *model.Filter) ([]*model.ImageWebShell, int64, error)
 	SearchSensitive(ctx context.Context, param ScanResultSearchParam, filter *model.Filter) ([]*model.ImageSensitiveFile, int64, error)
 	SearchSoftware(ctx context.Context, param ScanResultSearchParam, filter *model.Filter) ([]*model.ImageSoftware, int64, error)
-	// SearchLicense(ctx context.Context, param ScanResultSearchParam, filter *model.Filter) ([]*model.ImageLicense, int64, error)
 	SearchEnv(ctx context.Context, param ScanResultSearchParam, filter *model.Filter) ([]*model.ImageEnv, int64, error)
 }
 

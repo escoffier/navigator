@@ -1268,7 +1268,7 @@ func (s *ConScannerSrv) GetImageDetail(ctx context.Context, imgID int64) (*model
 	// 增加漏洞和敏感文件信息
 	imageScanResult := model.ImageScanSummaryResult{
 		Vulns:             vulns,
-		SensitiveFiles:    scs[0].SensitiveFile,
+		SensitiveFiles:    DuplicateSensitive(scs[0].SensitiveFile),
 		Repository:        img.FullRepoName,
 		HarborURL:         img.Library,
 		Tag:               img.Tags,
@@ -3496,4 +3496,17 @@ func GetScanTime(list []model.Task) (*time.Time, *time.Time) {
 		}
 	}
 	return start, end
+}
+
+func DuplicateSensitive(data []model.Sensitive) []model.Sensitive {
+	exist := make(map[string]bool)
+	after := make([]model.Sensitive, 0)
+	for i := range data {
+		key := fmt.Sprintf("%s-%s", data[i].Name, data[i].Description)
+		if !exist[key] {
+			after = append(after, data[i])
+			exist[key] = true
+		}
+	}
+	return after
 }
