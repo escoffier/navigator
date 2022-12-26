@@ -12,9 +12,9 @@ import (
 )
 
 // 为了兼容以前的扫描代码，写一个转换层
-func ConvertVirus(imageID int64, data []model.PerLayerMaliciousResult) ([]*model.ImageVirus, []*model.ScanIssueToImage) {
+func ConvertVirus(imageID int64, data []model.PerLayerMaliciousResult) ([]*model.ImageVirus, []*model.ScanVirusToImage) {
 	virus := make([]*model.ImageVirus, 0)
-	issue := make([]*model.ScanIssueToImage, 0)
+	issue := make([]*model.ScanVirusToImage, 0)
 	for i := range data {
 		vir := data[i]
 		for j := range vir.VirusInfos {
@@ -26,11 +26,10 @@ func ConvertVirus(imageID int64, data []model.PerLayerMaliciousResult) ([]*model
 			viru.UniqueID = viru.GenUniqueVuln()
 
 			virus = append(virus, viru)
-			issue = append(issue, &model.ScanIssueToImage{
-				SecurityIssue: model.FlagHasMalicious,
-				UniqueTarget:  viru.UniqueID,
-				ImageID:       imageID,
-				LayerDigest:   vir.LayerDigest,
+			issue = append(issue, &model.ScanVirusToImage{
+				UniqueTarget: viru.UniqueID,
+				ImageID:      imageID,
+				LayerDigest:  vir.LayerDigest,
 			})
 		}
 	}
@@ -38,9 +37,9 @@ func ConvertVirus(imageID int64, data []model.PerLayerMaliciousResult) ([]*model
 	return virus, issue
 }
 
-func ConvertSensitive(imageID int64, data []model.PerLayerSensitiveResult) ([]*model.ImageSensitiveFile, []*model.ScanIssueToImage) {
+func ConvertSensitive(imageID int64, data []model.PerLayerSensitiveResult) ([]*model.ImageSensitiveFile, []*model.ScanSensitiveToImage) {
 	virus := make([]*model.ImageSensitiveFile, 0)
-	issue := make([]*model.ScanIssueToImage, 0)
+	issue := make([]*model.ScanSensitiveToImage, 0)
 	for i := range data {
 		vir := data[i]
 		for j := range vir.Sensitives {
@@ -56,11 +55,10 @@ func ConvertSensitive(imageID int64, data []model.PerLayerSensitiveResult) ([]*m
 
 			viru.UniqueID = viru.GenUniqueVuln()
 			virus = append(virus, viru)
-			issue = append(issue, &model.ScanIssueToImage{
-				SecurityIssue: model.FlagHasSensitive,
-				UniqueTarget:  viru.UniqueID,
-				ImageID:       imageID,
-				LayerDigest:   vir.LayerDigest,
+			issue = append(issue, &model.ScanSensitiveToImage{
+				UniqueTarget: viru.UniqueID,
+				ImageID:      imageID,
+				LayerDigest:  vir.LayerDigest,
 			})
 		}
 	}
@@ -68,35 +66,9 @@ func ConvertSensitive(imageID int64, data []model.PerLayerSensitiveResult) ([]*m
 	return virus, issue
 }
 
-func ConvertWebshell(imageID int64, data []model.PerLayerWebshellResult) ([]*model.ImageWebShell, []*model.ScanIssueToImage) {
-	webshell := make([]*model.ImageWebShell, 0)
-	issue := make([]*model.ScanIssueToImage, 0)
-	for i := range data {
-		vir := data[i]
-		for j := range vir.WebShellInfos {
-			viru := &model.ImageWebShell{
-				Filename: vir.WebShellInfos[j].FileName,
-				Filepath: vir.WebShellInfos[j].FilePath,
-				Score:    vir.WebShellInfos[j].Score,
-				Codes:    vir.WebShellInfos[j].Codes,
-			}
-			viru.UniqueID = viru.GenUniqueVuln()
-			webshell = append(webshell, viru)
-			issue = append(issue, &model.ScanIssueToImage{
-				SecurityIssue: model.FlagHasWebshell,
-				UniqueTarget:  viru.UniqueID,
-				ImageID:       imageID,
-				LayerDigest:   vir.LayerDigest,
-			})
-		}
-	}
-
-	return webshell, issue
-}
-
-func ConvertSoftware(imageID int64, data []model.Software) ([]*model.ImageSoftware, []*model.ScanIssueToImage) {
+func ConvertSoftware(imageID int64, data []model.Software) ([]*model.ImageSoftware, []*model.ScanSoftwareToImage) {
 	software := make([]*model.ImageSoftware, 0)
-	issue := make([]*model.ScanIssueToImage, 0)
+	issue := make([]*model.ScanSoftwareToImage, 0)
 	for i := range data {
 		sf := &model.ImageSoftware{
 			Name:    data[i].Name,
@@ -106,11 +78,10 @@ func ConvertSoftware(imageID int64, data []model.Software) ([]*model.ImageSoftwa
 		sf.UniqueID = sf.GenUniqueVuln()
 		software = append(software, sf)
 
-		iss := &model.ScanIssueToImage{
-			SecurityIssue: model.FlagHasWebshell,
-			UniqueTarget:  sf.UniqueID,
-			ImageID:       imageID,
-			LayerDigest:   data[i].LayerDigest,
+		iss := &model.ScanSoftwareToImage{
+			UniqueTarget: sf.UniqueID,
+			ImageID:      imageID,
+			LayerDigest:  data[i].LayerDigest,
 		}
 		if data[i].AbnormalLicense {
 			iss.Flag = util.SetBit1(iss.Flag, model.FlagHasExceptLicense)

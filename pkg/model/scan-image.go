@@ -371,35 +371,94 @@ func (ws *ImageSensitiveFile) Same(after *ImageSensitiveFile) bool {
 	return true
 }
 
-type ScanIssueToImage struct {
-	ID            int64  `gorm:"primaryKey" json:"id"`
-	UniqueID      uint64 `gorm:"column:unique_id" json:"uniqueID,string"` // 数据库的中唯一建，去重效率高
-	SecurityIssue int64  `gorm:"security_issue" json:"securityIssue"`
-	UniqueTarget  uint64 `gorm:"column:unique_target" json:"uniqueTarget,string"`
-	ImageID       int64  `gorm:"column:image_id" json:"imageID"`
-	Flag          uint64 `gorm:"column:flag" json:"flag"` // 其他的信息:比如license是否允许，软件包是否允许等等，用于筛选
-	LayerDigest   string `gorm:"column:layer_digest" json:"layerDigest"`
-	CreatedAt     int64  `gorm:"autoCreateTime:milli;column:created_at" json:"createdAt"` // milliseconds
-	UpdatedAt     int64  `gorm:"autoUpdateTime:milli;column:updated_at" json:"updatedAt"` // milliseconds
+type ScanSensitiveToImage struct {
+	ID           int64  `gorm:"primaryKey" json:"id"`
+	UniqueID     uint64 `gorm:"column:unique_id" json:"uniqueID,string"` // 数据库的中唯一建，去重效率高
+	UniqueTarget uint64 `gorm:"column:unique_target" json:"uniqueTarget,string"`
+	ImageID      int64  `gorm:"column:image_id" json:"imageID"`
+	Flag         uint64 `gorm:"column:flag" json:"flag"` // 其他的信息:比如license是否允许，软件包是否允许等等，用于筛选
+	LayerDigest  string `gorm:"column:layer_digest" json:"layerDigest"`
+	CreatedAt    int64  `gorm:"autoCreateTime:milli;column:created_at" json:"createdAt"` // milliseconds
+	UpdatedAt    int64  `gorm:"autoUpdateTime:milli;column:updated_at" json:"updatedAt"` // milliseconds
 }
 
-func (vi *ScanIssueToImage) GenUniqueVuln() uint64 {
-	key := fmt.Sprintf("%d-%d-%d-%s", vi.ImageID, vi.SecurityIssue, vi.UniqueTarget, vi.LayerDigest)
+func (vi *ScanSensitiveToImage) GenUniqueVuln() uint64 {
+	key := fmt.Sprintf("%d-%d-%s", vi.ImageID, vi.UniqueTarget, vi.LayerDigest)
 	uid := util.GenerateUUID64(key)
 	vi.UniqueID = uid
 	return uid
 }
 
-func (vi *ScanIssueToImage) Same(after *ScanIssueToImage) bool {
+func (vi *ScanSensitiveToImage) Same(after *ScanSensitiveToImage) bool {
 	if vi.LayerDigest != after.LayerDigest || vi.Flag != after.Flag || vi.ImageID != after.ImageID ||
-		vi.UniqueTarget != after.UniqueTarget || vi.SecurityIssue != after.SecurityIssue {
+		vi.UniqueTarget != after.UniqueTarget {
 		return false
 	}
 	return true
 }
 
-func (vi *ScanIssueToImage) TableName() string {
-	return "ivan_scanner_issue_image"
+func (vi *ScanSensitiveToImage) TableName() string {
+	return "ivan_sensitive_issue_image"
+}
+
+type ScanSoftwareToImage struct {
+	ID           int64  `gorm:"primaryKey" json:"id"`
+	UniqueID     uint64 `gorm:"column:unique_id" json:"uniqueID,string"` // 数据库的中唯一建，去重效率高
+	UniqueTarget uint64 `gorm:"column:unique_target" json:"uniqueTarget,string"`
+	ImageID      int64  `gorm:"column:image_id" json:"imageID"`
+	Flag         uint64 `gorm:"column:flag" json:"flag"` // 其他的信息:比如license是否允许，软件包是否允许等等，用于筛选
+	LayerDigest  string `gorm:"column:layer_digest" json:"layerDigest"`
+	CreatedAt    int64  `gorm:"autoCreateTime:milli;column:created_at" json:"createdAt"` // milliseconds
+	UpdatedAt    int64  `gorm:"autoUpdateTime:milli;column:updated_at" json:"updatedAt"` // milliseconds
+}
+
+func (vi *ScanSoftwareToImage) GenUniqueVuln() uint64 {
+	key := fmt.Sprintf("%d-%d-%s", vi.ImageID, vi.UniqueTarget, vi.LayerDigest)
+	uid := util.GenerateUUID64(key)
+	vi.UniqueID = uid
+	return uid
+}
+
+func (vi *ScanSoftwareToImage) Same(after *ScanSoftwareToImage) bool {
+	if vi.LayerDigest != after.LayerDigest || vi.Flag != after.Flag || vi.ImageID != after.ImageID ||
+		vi.UniqueTarget != after.UniqueTarget {
+		return false
+	}
+	return true
+}
+
+func (vi *ScanSoftwareToImage) TableName() string {
+	return "ivan_software_issue_image"
+}
+
+type ScanVirusToImage struct {
+	ID           int64  `gorm:"primaryKey" json:"id"`
+	UniqueID     uint64 `gorm:"column:unique_id" json:"uniqueID,string"` // 数据库的中唯一建，去重效率高
+	UniqueTarget uint64 `gorm:"column:unique_target" json:"uniqueTarget,string"`
+	ImageID      int64  `gorm:"column:image_id" json:"imageID"`
+	Flag         uint64 `gorm:"column:flag" json:"flag"` // 其他的信息:比如license是否允许，软件包是否允许等等，用于筛选
+	LayerDigest  string `gorm:"column:layer_digest" json:"layerDigest"`
+	CreatedAt    int64  `gorm:"autoCreateTime:milli;column:created_at" json:"createdAt"` // milliseconds
+	UpdatedAt    int64  `gorm:"autoUpdateTime:milli;column:updated_at" json:"updatedAt"` // milliseconds
+}
+
+func (vi *ScanVirusToImage) GenUniqueVuln() uint64 {
+	key := fmt.Sprintf("%d-%d-%s", vi.ImageID, vi.UniqueTarget, vi.LayerDigest)
+	uid := util.GenerateUUID64(key)
+	vi.UniqueID = uid
+	return uid
+}
+
+func (vi *ScanVirusToImage) Same(after *ScanVirusToImage) bool {
+	if vi.LayerDigest != after.LayerDigest || vi.Flag != after.Flag || vi.ImageID != after.ImageID ||
+		vi.UniqueTarget != after.UniqueTarget {
+		return false
+	}
+	return true
+}
+
+func (vi *ScanVirusToImage) TableName() string {
+	return "ivan_virus_issue_image"
 }
 
 type ScanIssueToImageWebshell struct {
@@ -421,7 +480,7 @@ func (vi *ScanIssueToImageWebshell) GenUniqueVuln() uint64 {
 	return uid
 }
 
-func (vi *ScanIssueToImageWebshell) Same(after *ScanIssueToImage) bool {
+func (vi *ScanIssueToImageWebshell) Same(after *ScanIssueToImageWebshell) bool {
 	if vi.LayerDigest != after.LayerDigest || vi.Flag != after.Flag || vi.ImageID != after.ImageID ||
 		vi.UniqueTarget != after.UniqueTarget || vi.SecurityIssue != after.SecurityIssue {
 		return false

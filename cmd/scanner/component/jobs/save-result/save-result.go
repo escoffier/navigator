@@ -15,6 +15,8 @@ import (
 
 	"scm.tensorsecurity.cn/tensorsecurity-rd/trivy/pkg/report"
 
+	"gitlab.com/security-rd/go-pkg/mq"
+
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/jobs"
 	pullImage "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/jobs/pull-image"
@@ -26,7 +28,6 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	scannermodel "gitlab.com/piccolo_su/vegeta/pkg/model/scanner-model"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
-	"gitlab.com/security-rd/go-pkg/mq"
 )
 
 const (
@@ -230,7 +231,7 @@ func (s *ScanResultHandle) logPostgresScanImageResult(ctx context.Context, scanD
 		VirusScore:     scanDetails.MaliciousScore,
 		WebshellScore:  scanDetails.WebShellScore,
 		MaliciousInfo:  scanDetails.MaliciousDetails,
-		//WebshellInfo:         scanDetails.WebshellInfos,
+		// WebshellInfo:         scanDetails.WebshellInfos,
 		SensitiveFile:        scanDetails.Sentitives,
 		LicenseInfo:          scanDetails.LicenseDetail,
 		Software:             scanDetails.Software,
@@ -330,7 +331,7 @@ func (s *ScanResultHandle) Run(ctx context.Context, param jobs.Param) (jobs.Arti
 	var (
 		imageScanVirus     []model.PerLayerMaliciousResult
 		imageScanSensitive []model.PerLayerSensitiveResult
-		//imageScanWebshell   []model.PerLayerWebshellResult
+		// imageScanWebshell   []model.PerLayerWebshellResult
 		imageScanEnv        []model.EnvKeyValue
 		imageScanSoftware   []model.Software
 		imageScanVulnResult *report.Report // 漏洞
@@ -410,7 +411,7 @@ func (s *ScanResultHandle) Run(ctx context.Context, param jobs.Param) (jobs.Arti
 		if !ok {
 			logging.GetLogger().Error().Msg("miss 'webshellResult' in parameter")
 		} else {
-			//imageScanWebshell = webshellResult
+			// imageScanWebshell = webshellResult
 			s.arrangeWebshell(webshellResult, &scanDetails, layerMp)
 		}
 	}
@@ -538,21 +539,10 @@ func (s *ScanResultHandle) Run(ctx context.Context, param jobs.Param) (jobs.Arti
 		if err := scanResultSaveSrv.ImageScanResultDal.CreateSensitive(ctx, data); err != nil {
 			logging.GetLogger().Err(err).Int64("imageID", imageID).Msg("CreateSensitive")
 		}
-		if err := scanResultSaveSrv.ImageScanResultDal.CreateScanIssueToImage(ctx, imageID, model.FlagHasSensitive, issueToImages); err != nil {
+		if err := scanResultSaveSrv.ImageScanResultDal.CreateScanSensitiveToImage(ctx, imageID, issueToImages); err != nil {
 			logging.GetLogger().Err(err).Int64("imageID", imageID).Msg("CreateSensitive CreateScanIssueToImage")
 		}
 	}
-
-	// websehll
-	// if imageScanWebshell != nil {
-	// 	sensitive, issueToImages := ConvertWebshell(imageID, imageScanWebshell)
-	// 	if err := scanResultSaveSrv.ImageScanResultDal.CreateWebShell(ctx, sensitive); err != nil {
-	// 		logging.GetLogger().Err(err).Int64("imageID", imageID).Msg("CreateWebShell")
-	// 	}
-	// 	if err := scanResultSaveSrv.ImageScanResultDal.CreateScanIssueToImage(ctx, imageID, model.FlagHasWebshell, issueToImages); err != nil {
-	// 		logging.GetLogger().Err(err).Int64("imageID", imageID).Msg("CreateWebShell CreateScanIssueToImage")
-	// 	}
-	// }
 
 	// 病毒
 	if imageScanVirus != nil {
@@ -560,7 +550,7 @@ func (s *ScanResultHandle) Run(ctx context.Context, param jobs.Param) (jobs.Arti
 		if err := scanResultSaveSrv.ImageScanResultDal.CreateVirus(ctx, data); err != nil {
 			logging.GetLogger().Err(err).Int64("imageID", imageID).Msg("CreateVirus")
 		}
-		if err := scanResultSaveSrv.ImageScanResultDal.CreateScanIssueToImage(ctx, imageID, model.FlagHasMalicious, issueToImages); err != nil {
+		if err := scanResultSaveSrv.ImageScanResultDal.CreateScanVirusToImage(ctx, imageID, issueToImages); err != nil {
 			logging.GetLogger().Err(err).Int64("imageID", imageID).Msg("CreateVirus CreateScanIssueToImage")
 		}
 	}
@@ -580,7 +570,7 @@ func (s *ScanResultHandle) Run(ctx context.Context, param jobs.Param) (jobs.Arti
 		if err := scanResultSaveSrv.ImageScanResultDal.CreateSoftware(ctx, data); err != nil {
 			logging.GetLogger().Err(err).Int64("imageID", imageID).Msg("CreateSoftware")
 		}
-		if err := scanResultSaveSrv.ImageScanResultDal.CreateScanIssueToImage(ctx, imageID, model.FlagHasSoftware, issueToImages); err != nil {
+		if err := scanResultSaveSrv.ImageScanResultDal.CreateSoftwareToImage(ctx, imageID, issueToImages); err != nil {
 			logging.GetLogger().Err(err).Int64("imageID", imageID).Msg("CreateLicense CreateScanIssueToImage")
 		}
 

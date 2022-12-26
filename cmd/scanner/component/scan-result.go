@@ -107,7 +107,7 @@ func (s *ImageScanResultSrv) SearchSoftware(ctx context.Context, param ScanResul
 		return nil, 0, err
 	}
 
-	issueToImage, err := s.imageScanResultDal.SearchScanIssueToImage(ctx, param.ImageID, model.FlagHasSoftware)
+	issueToImage, err := s.imageScanResultDal.SearchScanSoftwareToImage(ctx, param.ImageID)
 	if err != nil {
 		return nil, 0, err
 	}
