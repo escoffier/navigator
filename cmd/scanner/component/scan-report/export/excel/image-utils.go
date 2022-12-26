@@ -15,6 +15,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/utils"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
+	scannermodel "gitlab.com/piccolo_su/vegeta/pkg/model/scanner-model"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 )
 
@@ -249,8 +250,23 @@ func GenVirusInfo(image model.ImageList, file model.VirusFileInfo) []string {
 	return info
 }
 
-func GenWebShellInfo(image model.ImageList, file model.WebshellFileInfo) []string {
-	info := []string{getImageName(image), image.Library, file.Filename, strings.Join(file.Codes, ";"), file.Filepath, util.ToString(file.Score)}
+func GenWebShellInfo(image model.ImageList, file scannermodel.Webshell) []string {
+	index := strings.LastIndex(file.FileName, "/")
+	var name, path string
+	if index != -1 {
+		path = file.FileName[:index]
+		name = file.FileName[index+1:]
+	} else {
+		path = "/"
+		name = file.FileName
+	}
+	var level string
+	if file.Level == "maybe" {
+		level = "疑似"
+	} else {
+		level = "确认"
+	}
+	info := []string{getImageName(image), image.Library, path, name, level, file.MaliciousData}
 	return info
 }
 
@@ -587,7 +603,7 @@ func GenImageWebshellInfoMeta() ExcelMetaData {
 		SheetName: "Webshell信息",
 
 		Header: []string{
-			"镜像名称", "来源仓库", "文件名", "代码段", "路径", "评分",
+			"镜像名称", "来源仓库", "文件名", "路径", "严重程度", "代码段",
 		},
 	}
 	return data

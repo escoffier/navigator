@@ -91,7 +91,7 @@ func newService(config register.ScannerServiceConfig) (register.ScannerService, 
 		Addr: s.config.Options.HTTPListenAddr,
 		Handler: api.SetupGinRouter(
 			rc,
-			component.NewConScannerSrv(dal, registryDal, dal, scanConfigDal, store.GetSingeVulnDao(), &palaceHandler),
+			component.NewConScannerSrv(dal, registryDal, dal, scanConfigDal, store.GetSingeVulnDao(), webshellDal, &palaceHandler),
 			component.NewImageService(dal, registryDal, scanTaskDal, vulnDal, scanResultDal, webshellDal),
 			component.NewImageRejectSrc(dal),
 			component.NewHarborSrc(dal, rc, nil), // todo: use new task interface,not redclair

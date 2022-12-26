@@ -37,12 +37,13 @@ func (s *Service) Start(ctx context.Context) error {
 	dal := store.GetScannerOrmDb()
 	registryDal := store.NewRegistryDao(store.GetScannerWrapperDb())
 	scanConfigDal := store.NewScanConfigDao(store.GetScannerWrapperDb())
+	webshellDal := store.NewWebsehllDao(store.GetScannerWrapperDb())
 	palaceHandler, err := palace.Init()
 	if err != nil {
 		logging.GetLogger().Error().Err(err).Msgf("Failed to init palaceHandler, %v", err)
 		return fmt.Errorf("failed to init palaceHandler, %v", err)
 	}
-	scannerSrv := component.NewConScannerSrv(dal, registryDal, dal, scanConfigDal, nil, &palaceHandler)
+	scannerSrv := component.NewConScannerSrv(dal, registryDal, dal, scanConfigDal, nil, webshellDal, &palaceHandler)
 	cronjob := crontab.New() // create cron table
 
 	// AddJob ,每月1日0点过2分时运行一次

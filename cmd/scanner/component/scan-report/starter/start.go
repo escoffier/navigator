@@ -66,9 +66,9 @@ func NewBackgroundTasks(ctx context.Context, config Config) *BackgroundTasks {
 	vulnDal := store.NewVulnDao(config.Rdb)
 	scanResultDal := store.NewImageScanResultDao(config.Rdb)
 	idempotentDal := store.NewIdempotentDao(config.Rdb)
-	imageSrv := component.NewConScannerSrv(dal, registryDal, dal, scanConfigDal, vulnDal, nil) // scan-report 无需上报事件中心，此处传空
-	updateTask := export.NewUpdateTaskSrv(store.NewExportTaskDao(config.Rdb), config.RedisCli)
 	webshellDal := store.NewWebsehllDao(config.Rdb)
+	imageSrv := component.NewConScannerSrv(dal, registryDal, dal, scanConfigDal, vulnDal, webshellDal, nil) // scan-report 无需上报事件中心，此处传空
+	updateTask := export.NewUpdateTaskSrv(store.NewExportTaskDao(config.Rdb), config.RedisCli)
 	// 镜像导出excel
 	imageExportSrv := excel.NewImageExport(resourceDal, exportTaskDal, imageSrv,
 		config.FileDir, config.Internal, updateTask, config.IncludeCNNVDVuln, config.IncludeRHSAVuln)

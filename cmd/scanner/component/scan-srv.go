@@ -149,7 +149,7 @@ type ConScannerSrv struct {
 	scanTaskDal   store.ScanTaskInterface
 	registryDal   store.RegistryDal
 	scanConfigDal store.ScanConfigDal
-
+	webshellDal   store.WebshellDalInterface
 	palaceHandler *palace.Palace
 }
 
@@ -289,6 +289,7 @@ func NewConScannerSrv(
 	scanTaskDal store.ScanTaskInterface,
 	scanConfigDal store.ScanConfigDal,
 	vulnDal store.VulnDalInterface,
+	webshellDal store.WebshellDalInterface,
 	palaceHandler *palace.Palace) *ConScannerSrv {
 	return &ConScannerSrv{
 		dbdal:         dbdal,
@@ -296,6 +297,7 @@ func NewConScannerSrv(
 		scanTaskDal:   scanTaskDal,
 		scanConfigDal: scanConfigDal,
 		vulnDal:       vulnDal,
+		webshellDal:   webshellDal,
 		palaceHandler: palaceHandler,
 	}
 }
@@ -1263,18 +1265,22 @@ func (s *ConScannerSrv) GetImageDetail(ctx context.Context, imgID int64) (*model
 				Virusname: scs[0].MaliciousInfo[i].VirusInfo.VirusName})
 	}
 
-	img.ImageScanWebshell = make([]model.WebshellFileInfo, 0, len(scs[0].WebshellInfo))
-	// 增加webshell信息
-	for i := range scs[0].WebshellInfo {
-		img.ImageScanWebshell = append(img.ImageScanWebshell,
-			model.WebshellFileInfo{
-				Filename: scs[0].WebshellInfo[i].WebShellInfo.FileName,
-				Filepath: scs[0].WebshellInfo[i].WebShellInfo.FilePath,
-				Score:    scs[0].WebshellInfo[i].WebShellInfo.Score,
-				Codes:    scs[0].WebshellInfo[i].WebShellInfo.Codes,
-			},
-		)
+	webshellImage, _, err := s.webshellDal.SearchWebshellImage(ctx, store.SearchWebshellParam{ImageID: imgID}, model.Filter{})
+	if err != nil {
+		logging.GetLogger().Err(err).Int64("ImageID", imgID).Msg("GetImageDetail.SearchWebshellImage")
+		return nil, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf(consts.StatusInternalServerErrorMsg))
 	}
+	uuids := []uint64{}
+	for k := range webshellImage {
+		uuids = append(uuids, webshellImage[k].UniqueTarget)
+	}
+	webshells, _, err := s.webshellDal.SearchWebshell(ctx, store.SearchWebshellParam{UUIDS: uuids}, model.Filter{})
+	if err != nil {
+		logging.GetLogger().Err(err).Int64("ImageID", imgID).Msg("GetImageDetail.SearchWebshell")
+		return nil, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf(consts.StatusInternalServerErrorMsg))
+	}
+	// 增加webshell信息
+	img.ImageScanWebshell = webshells
 
 	// 整合Env信息
 	scanStrategies, err := s.dbdal.GetAllScanStrategyEnv(ctx)
