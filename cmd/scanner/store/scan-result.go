@@ -28,19 +28,22 @@ type ImageScanResultDal interface {
 	CreateImageEnv(ctx context.Context, imageID int64, data []*model.ImageEnv) error
 	SearchImageEnv(ctx context.Context, param SearchImageScanResultParam, filter *model.Filter) ([]*model.ImageEnv, int64, error)
 
-	CreateScanIssueToImage(ctx context.Context, imageID int64, securityIssue int64, data []*model.ScanIssueToImage) error
-	SearchScanIssueToImage(ctx context.Context, imageID int64, securityIssue int64) ([]*model.ScanIssueToImage, error)
+	CreateScanVirusToImage(ctx context.Context, imageID int64, data []*model.ScanVirusToImage) error
+	CreateScanSensitiveToImage(ctx context.Context, imageID int64, data []*model.ScanSensitiveToImage) error
+	CreateSoftwareToImage(ctx context.Context, imageID int64, data []*model.ScanSoftwareToImage) error
+
+	SearchScanSoftwareToImage(ctx context.Context, imageID int64) ([]*model.ScanSoftwareToImage, error)
 }
 
 type ImageScanResultDao struct {
 	rdb *databases.RDBInstance
 }
 
-func (dal *ImageScanResultDao) SearchScanIssueToImage(ctx context.Context, imageID int64, securityIssue int64) ([]*model.ScanIssueToImage, error) {
+func (dal *ImageScanResultDao) SearchScanSoftwareToImage(ctx context.Context, imageID int64) ([]*model.ScanSoftwareToImage, error) {
 	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*10)
 	defer cancelFunc()
-	db := dal.rdb.Get().WithContext(ctx).Model(new(model.ScanIssueToImage)).Where("image_id = ?", imageID).Where("security_issue = ?", securityIssue)
-	res := make([]*model.ScanIssueToImage, 0)
+	db := dal.rdb.Get().WithContext(ctx).Model(new(model.ScanSoftwareToImage)).Where("image_id = ?", imageID)
+	res := make([]*model.ScanSoftwareToImage, 0)
 	err := db.Find(&res).Error
 	return res, err
 }
@@ -231,9 +234,8 @@ func (dal *ImageScanResultDao) SearchSoftware(ctx context.Context, param SearchI
 	}
 	// 查单个镜像
 	if param.ImageID > 0 {
-		sub := dal.rdb.Get().WithContext(ctx).Model(new(model.ScanIssueToImage)).
-			Select("distinct unique_target").Where("image_id = ?", param.ImageID).
-			Where("security_issue = ?", model.FlagHasSoftware)
+		sub := dal.rdb.Get().WithContext(ctx).Model(new(model.ScanSoftwareToImage)).
+			Select("distinct unique_target").Where("image_id = ?", param.ImageID)
 		// 查镜像的层级
 		if param.LayerDigest != "" {
 			sub = sub.Where("layer_digest = ?", param.LayerDigest)
@@ -343,9 +345,8 @@ func (dal *ImageScanResultDao) SearchSensitive(ctx context.Context, param Search
 
 	// 查单个镜像
 	if param.ImageID > 0 {
-		sub := dal.rdb.Get().WithContext(ctx).Model(new(model.ScanIssueToImage)).
-			Select("distinct unique_target").Where("image_id = ?", param.ImageID).
-			Where("security_issue = ?", model.FlagHasSensitive)
+		sub := dal.rdb.Get().WithContext(ctx).Model(new(model.ScanSensitiveToImage)).
+			Select("distinct unique_target").Where("image_id = ?", param.ImageID)
 		// 查镜像的层级
 		if param.LayerDigest != "" {
 			sub = sub.Where("layer_digest = ?", param.LayerDigest)
@@ -451,9 +452,8 @@ func (dal *ImageScanResultDao) SearchVirus(ctx context.Context, param SearchImag
 	}
 	// 查单个镜像
 	if param.ImageID > 0 {
-		sub := dal.rdb.Get().WithContext(ctx).Model(new(model.ScanIssueToImage)).
-			Select("distinct unique_target").Where("image_id = ?", param.ImageID).
-			Where("security_issue = ?", model.FlagHasMalicious)
+		sub := dal.rdb.Get().WithContext(ctx).Model(new(model.ScanVirusToImage)).
+			Select("distinct unique_target").Where("image_id = ?", param.ImageID)
 		// 查镜像的层级
 		if param.LayerDigest != "" {
 			sub = sub.Where("layer_digest = ?", param.LayerDigest)
@@ -484,26 +484,24 @@ func (dal *ImageScanResultDao) SearchWebShell(ctx context.Context, param SearchI
 	return make([]*model.ImageWebShell, 0), 0, nil
 }
 
-func (dal *ImageScanResultDao) CreateScanIssueToImage(ctx context.Context, imageID int64, securityIssue int64, data []*model.ScanIssueToImage) error {
+func (dal *ImageScanResultDao) CreateScanVirusToImage(ctx context.Context, imageID int64, data []*model.ScanVirusToImage) error {
 
 	for i := range data {
 		data[i].ImageID = imageID
-		data[i].SecurityIssue = securityIssue
 		data[i].UniqueID = data[i].GenUniqueVuln()
 	}
 
-	data = DuplicateIssueToImage(data)
+	data = DuplicateScanVirusToImage(data)
 
 	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*100) // 大批量写入，时间会久些
 	defer cancelFunc()
 
-	dbPre := make([]*model.ScanIssueToImage, 0)
-	if err := dal.rdb.Get().Model(new(model.ScanIssueToImage)).Where("image_id = ?", imageID).
-		Where("security_issue = ?", securityIssue).Find(&dbPre).Error; err != nil {
+	dbPre := make([]*model.ScanVirusToImage, 0)
+	if err := dal.rdb.Get().Model(new(model.ScanVirusToImage)).Where("image_id = ?", imageID).Find(&dbPre).Error; err != nil {
 		return err
 	}
 
-	createData := make([]*model.ScanIssueToImage, 0)
+	createData := make([]*model.ScanVirusToImage, 0)
 	deleteData := make([]int64, 0)
 
 	// find need delete data
@@ -534,13 +532,145 @@ func (dal *ImageScanResultDao) CreateScanIssueToImage(ctx context.Context, image
 	}
 
 	if len(deleteData) > 0 {
-		if err := dal.rdb.Get().WithContext(ctx).Model(new(model.ScanIssueToImage)).Where("id IN  ? ", deleteData).Delete(&model.ScanIssueToImage{}).Error; err != nil {
+		if err := dal.rdb.Get().WithContext(ctx).Model(new(model.ScanVirusToImage)).Where("id IN  ? ", deleteData).Delete(&model.ScanVirusToImage{}).Error; err != nil {
 			return err
 		}
 	}
 	for i := range createData {
 		da := createData[i]
-		if err := dal.rdb.Get().WithContext(ctx).Model(new(model.ScanIssueToImage)).Create(da).Error; err != nil {
+		if err := dal.rdb.Get().WithContext(ctx).Model(new(model.ScanVirusToImage)).Create(da).Error; err != nil {
+			if strings.Contains(err.Error(), consts.DuplicateKey) {
+				continue
+			} else {
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+
+func (dal *ImageScanResultDao) CreateScanSensitiveToImage(ctx context.Context, imageID int64, data []*model.ScanSensitiveToImage) error {
+
+	for i := range data {
+		data[i].ImageID = imageID
+		data[i].UniqueID = data[i].GenUniqueVuln()
+	}
+
+	data = DuplicateScanSensitiveToImage(data)
+
+	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*100) // 大批量写入，时间会久些
+	defer cancelFunc()
+
+	dbPre := make([]*model.ScanSensitiveToImage, 0)
+	if err := dal.rdb.Get().Model(new(model.ScanSensitiveToImage)).Where("image_id = ?", imageID).Find(&dbPre).Error; err != nil {
+		return err
+	}
+
+	createData := make([]*model.ScanSensitiveToImage, 0)
+	deleteData := make([]int64, 0)
+
+	// find need delete data
+	for i := range dbPre {
+		needDelete := true
+		for j := range data {
+			if dbPre[i].Same(data[j]) {
+				needDelete = false
+				break
+			}
+		}
+		if needDelete {
+			deleteData = append(deleteData, dbPre[i].ID)
+		}
+	}
+	// find need create
+	for i := range data {
+		needCreate := true
+		for j := range dbPre {
+			if data[i].Same(dbPre[j]) {
+				needCreate = false
+				break
+			}
+		}
+		if needCreate {
+			createData = append(createData, data[i])
+		}
+	}
+
+	if len(deleteData) > 0 {
+		if err := dal.rdb.Get().WithContext(ctx).Model(new(model.ScanSensitiveToImage)).Where("id IN  ? ", deleteData).Delete(&model.ScanSensitiveToImage{}).Error; err != nil {
+			return err
+		}
+	}
+	for i := range createData {
+		da := createData[i]
+		if err := dal.rdb.Get().WithContext(ctx).Model(new(model.ScanSensitiveToImage)).Create(da).Error; err != nil {
+			if strings.Contains(err.Error(), consts.DuplicateKey) {
+				continue
+			} else {
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+
+func (dal *ImageScanResultDao) CreateSoftwareToImage(ctx context.Context, imageID int64, data []*model.ScanSoftwareToImage) error {
+
+	for i := range data {
+		data[i].ImageID = imageID
+		data[i].UniqueID = data[i].GenUniqueVuln()
+	}
+
+	data = DuplicateScanSoftwareToImage(data)
+
+	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*100) // 大批量写入，时间会久些
+	defer cancelFunc()
+
+	dbPre := make([]*model.ScanSoftwareToImage, 0)
+	if err := dal.rdb.Get().Model(new(model.ScanSoftwareToImage)).Where("image_id = ?", imageID).Find(&dbPre).Error; err != nil {
+		return err
+	}
+
+	createData := make([]*model.ScanSoftwareToImage, 0)
+	deleteData := make([]int64, 0)
+
+	// find need delete data
+	for i := range dbPre {
+		needDelete := true
+		for j := range data {
+			if dbPre[i].Same(data[j]) {
+				needDelete = false
+				break
+			}
+		}
+		if needDelete {
+			deleteData = append(deleteData, dbPre[i].ID)
+		}
+	}
+	// find need create
+	for i := range data {
+		needCreate := true
+		for j := range dbPre {
+			if data[i].Same(dbPre[j]) {
+				needCreate = false
+				break
+			}
+		}
+		if needCreate {
+			createData = append(createData, data[i])
+		}
+	}
+
+	if len(deleteData) > 0 {
+		if err := dal.rdb.Get().WithContext(ctx).Model(new(model.ScanSoftwareToImage)).Where("id IN  ? ", deleteData).Delete(&model.ScanSoftwareToImage{}).Error; err != nil {
+			return err
+		}
+	}
+	for i := range createData {
+		da := createData[i]
+		if err := dal.rdb.Get().WithContext(ctx).Model(new(model.ScanSoftwareToImage)).Create(da).Error; err != nil {
 			if strings.Contains(err.Error(), consts.DuplicateKey) {
 				continue
 			} else {
@@ -614,14 +744,37 @@ func DuplicateSensitiveFile(data []*model.ImageSensitiveFile) []*model.ImageSens
 	return after
 }
 
-func DuplicateIssueToImage(data []*model.ScanIssueToImage) []*model.ScanIssueToImage {
-	exit := make(map[string]bool)
-	after := make([]*model.ScanIssueToImage, 0)
+func DuplicateScanVirusToImage(data []*model.ScanVirusToImage) []*model.ScanVirusToImage {
+	exit := make(map[uint64]bool)
+	after := make([]*model.ScanVirusToImage, 0)
 	for i := range data {
-		key := fmt.Sprintf("%d-%d-%d-%s", data[i].SecurityIssue, data[i].ImageID, data[i].UniqueTarget, data[i].LayerDigest)
-		if !exit[key] {
+		if !exit[data[i].UniqueID] {
 			after = append(after, data[i])
-			exit[key] = true
+			exit[data[i].UniqueID] = true
+		}
+	}
+	return after
+}
+
+func DuplicateScanSensitiveToImage(data []*model.ScanSensitiveToImage) []*model.ScanSensitiveToImage {
+	exit := make(map[uint64]bool)
+	after := make([]*model.ScanSensitiveToImage, 0)
+	for i := range data {
+		if !exit[data[i].UniqueID] {
+			after = append(after, data[i])
+			exit[data[i].UniqueID] = true
+		}
+	}
+	return after
+}
+
+func DuplicateScanSoftwareToImage(data []*model.ScanSoftwareToImage) []*model.ScanSoftwareToImage {
+	exit := make(map[uint64]bool)
+	after := make([]*model.ScanSoftwareToImage, 0)
+	for i := range data {
+		if !exit[data[i].UniqueID] {
+			after = append(after, data[i])
+			exit[data[i].UniqueID] = true
 		}
 	}
 	return after

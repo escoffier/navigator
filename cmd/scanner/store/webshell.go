@@ -63,7 +63,7 @@ func (w *WebshellDao) CreateWebshell(ctx context.Context, webshells []scannermod
 	for k := range inTable {
 		mp[inTable[k].UniqueID] = struct{}{}
 	}
-	//同样digest的文件应该不会变 暂时不做checkSum机制
+	// 同样digest的文件应该不会变 暂时不做checkSum机制
 	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*1000)
 	defer cancelFunc()
 	for k, v := range webshells {
