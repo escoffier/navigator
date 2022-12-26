@@ -9,6 +9,7 @@ import (
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
+	scannermodel "gitlab.com/piccolo_su/vegeta/pkg/model/scanner-model"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 )
 
@@ -251,25 +252,25 @@ type SecurityIssueOverview struct {
 
 // ImageList 镜像信息表
 type ImageList struct {
-	ID                int64                  `gorm:"primary_key;AUTO_INCREMENT" json:"id" `
-	CreatedAt         time.Time              `json:"created_at"`
-	UpdatedAt         time.Time              `json:"updated_at"`
-	FullRepoName      string                 `gorm:"type:varchar(255)"  json:"full_repo_name"`
-	Tags              string                 `gorm:"type:varchar(255)" json:"tags"`
-	Digest            string                 `gorm:"type:varchar(255);index:idx_image_digest" json:"digest"`
-	OS                string                 `gorm:"type:varchar(255);column:os" json:"os"`
-	Size              int                    `gorm:"column:size" json:"size"`
-	Library           string                 `gorm:"type:varchar(255);column:library" json:"library"`
-	ImageUUID         uint32                 `gorm:"column:image_uuid" json:"-"`
-	Questions         []QuestionInfo         `gorm:"-" json:"questions"`
-	ImageScanVuln     ImageScanSummaryResult `gorm:"-" json:"image_scan_vuln"`
-	ScanStatus        int                    `gorm:"-" json:"scan_status"`
-	ImageScanVirus    []VirusFileInfo        `gorm:"-" json:"image_scan_virus"`
-	ImageScanWebshell []WebshellFileInfo     `gorm:"-" json:"image_scan_webshell"`
-	ImageScanEnv      []SummaryEnv           `gorm:"-"  json:"image_scan_env"`
-	OnLineCount       int                    `gorm:"column:on_line_count;default:0" json:"-"`
-	Status            int                    `gorm:"column:status;default:0" json:"status"`           //  status: -1 not ready images 0 normal status
-	RegistryID        int64                  `gorm:"column:registry_id;default:0" json:"registry_id"` // 来源registry，id为registry表的id
+	ID                int64                   `gorm:"primary_key;AUTO_INCREMENT" json:"id" `
+	CreatedAt         time.Time               `json:"created_at"`
+	UpdatedAt         time.Time               `json:"updated_at"`
+	FullRepoName      string                  `gorm:"type:varchar(255)"  json:"full_repo_name"`
+	Tags              string                  `gorm:"type:varchar(255)" json:"tags"`
+	Digest            string                  `gorm:"type:varchar(255);index:idx_image_digest" json:"digest"`
+	OS                string                  `gorm:"type:varchar(255);column:os" json:"os"`
+	Size              int                     `gorm:"column:size" json:"size"`
+	Library           string                  `gorm:"type:varchar(255);column:library" json:"library"`
+	ImageUUID         uint32                  `gorm:"column:image_uuid" json:"-"`
+	Questions         []QuestionInfo          `gorm:"-" json:"questions"`
+	ImageScanVuln     ImageScanSummaryResult  `gorm:"-" json:"image_scan_vuln"`
+	ScanStatus        int                     `gorm:"-" json:"scan_status"`
+	ImageScanVirus    []VirusFileInfo         `gorm:"-" json:"image_scan_virus"`
+	ImageScanWebshell []scannermodel.Webshell `gorm:"-" json:"image_scan_webshell"`
+	ImageScanEnv      []SummaryEnv            `gorm:"-"  json:"image_scan_env"`
+	OnLineCount       int                     `gorm:"column:on_line_count;default:0" json:"-"`
+	Status            int                     `gorm:"column:status;default:0" json:"status"`           //  status: -1 not ready images 0 normal status
+	RegistryID        int64                   `gorm:"column:registry_id;default:0" json:"registry_id"` // 来源registry，id为registry表的id
 	FirstPushTime     time.Time
 	LastPushTime      time.Time   `gorm:"not null"` // 上次push时间
 	LastPullTime      time.Time   // 上次pull时间

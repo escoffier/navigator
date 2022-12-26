@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
+	scannermodel "gitlab.com/piccolo_su/vegeta/pkg/model/scanner-model"
 )
 
 type ImageLayerInfo struct {
@@ -37,19 +38,19 @@ type Vuln struct {
 }
 
 type ImageDetail struct {
-	ID            int64                    `json:"id"`
-	Digest        string                   `json:"digest"`
-	FromType      string                   `json:"fromType"`
-	Image         string                   `json:"image"`
-	RegistryURL   string                   `json:"registryUrl"`
-	SensitiveFile []string                 `json:"sensitiveFile"`
-	Viruses       []model.VirusFileInfo    `json:"viruses"`
-	Envs          []SummaryEnv             `json:"envs"`
-	Webshell      []model.WebshellFileInfo `json:"webshell"`
-	NodeHostname  string                   `json:"nodeHostname"`
-	NodeIP        string                   `json:"nodeIp"`
-	Size          int                      `json:"size"`
-	ImageAttr     model.ImageAttrResponse  `json:"imageAttr"`
+	ID            int64                   `json:"id"`
+	Digest        string                  `json:"digest"`
+	FromType      string                  `json:"fromType"`
+	Image         string                  `json:"image"`
+	RegistryURL   string                  `json:"registryUrl"`
+	SensitiveFile []string                `json:"sensitiveFile"`
+	Viruses       []model.VirusFileInfo   `json:"viruses"`
+	Envs          []SummaryEnv            `json:"envs"`
+	Webshell      []scannermodel.Webshell `json:"webshell"`
+	NodeHostname  string                  `json:"nodeHostname"`
+	NodeIP        string                  `json:"nodeIp"`
+	Size          int                     `json:"size"`
+	ImageAttr     model.ImageAttrResponse `json:"imageAttr"`
 }
 
 type ImageListResponse struct {

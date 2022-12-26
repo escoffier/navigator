@@ -15,7 +15,7 @@ import (
 
 type WebshellDalInterface interface {
 	SearchWebshell(ctx context.Context, params SearchWebshellParam, filter model.Filter) ([]scannermodel.Webshell, int64, error)
-	SearchWebshellImage(ctx context.Context, params SearchWebshellParam, filter model.Filter) ([]model.ScanIssueToImage, int64, error)
+	SearchWebshellImage(ctx context.Context, params SearchWebshellParam, filter model.Filter) ([]model.ScanIssueToImageWebshell, int64, error)
 	SearchRegistry(ctx context.Context, images []int64) ([]scannermodel.WebshellImage, error)
 	// SearchVulnImage(ctx context.Context, param SearchVulnImageParam, filter *model.Filter) ([]*model.VulnImage, int64, error)
 	// SearchVulnPkg(ctx context.Context, param SearchVulnParam, filter *model.Filter) ([]*model.Vuln, int64, error)
@@ -107,13 +107,13 @@ func (w *WebshellDao) CreateWebshellImage(ctx context.Context, imageID int64, we
 		if _, ok := isCreate[v.UniqueID]; ok {
 			continue
 		}
-		tmp := model.ScanIssueToImage{}
+		tmp := model.ScanIssueToImageWebshell{}
 		tmp.SecurityIssue = model.FlagHasWebshell
 		tmp.UniqueTarget = v.UniqueID
 		tmp.LayerDigest = v.LayerDigest
 		tmp.ImageID = imageID
 		tmp.UniqueID = tmp.GenUniqueVuln()
-		err := w.rdb.Get().WithContext(ctx).Model(model.ScanIssueToImage{}).Clauses(clause.OnConflict{
+		err := w.rdb.Get().WithContext(ctx).Model(model.ScanIssueToImageWebshell{}).Clauses(clause.OnConflict{
 			Columns:   []clause.Column{{Name: "unique_target"}},
 			DoNothing: true,
 		}).Create(&tmp).Error
@@ -194,10 +194,10 @@ func (w *WebshellDao) SearchWebshell(ctx context.Context, params SearchWebshellP
 // 	return res, cnt, err
 // }
 
-func (w *WebshellDao) SearchWebshellImage(ctx context.Context, params SearchWebshellParam, filter model.Filter) ([]model.ScanIssueToImage, int64, error) {
+func (w *WebshellDao) SearchWebshellImage(ctx context.Context, params SearchWebshellParam, filter model.Filter) ([]model.ScanIssueToImageWebshell, int64, error) {
 	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*10)
 	defer cancelFunc()
-	db := w.rdb.Get().WithContext(ctx).Model(model.ScanIssueToImage{})
+	db := w.rdb.Get().WithContext(ctx).Model(model.ScanIssueToImageWebshell{})
 	db = db.Where("security_issue = ?", model.FlagHasWebshell)
 	if params.ImageID != 0 {
 		db = db.Where("image_id = ?", params.ImageID)
@@ -207,7 +207,7 @@ func (w *WebshellDao) SearchWebshellImage(ctx context.Context, params SearchWebs
 		db = db.Where("unique_target in ?", params.UUIDS)
 		db = db.Select("image_id")
 	}
-	res := []model.ScanIssueToImage{}
+	res := []model.ScanIssueToImageWebshell{}
 	var cnt int64
 	err := db.Count(&cnt).Error
 	if err != nil {

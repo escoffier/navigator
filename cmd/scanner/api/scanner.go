@@ -452,7 +452,7 @@ func (s *Scanner) ScanOneForCICDRequest(ctx *gin.Context) {
 		if resp.ImageDetail != nil && len(resp.ImageDetail.ImageScanWebshell) > 0 {
 			resp.Webshell = append(resp.Webshell, []string{"文件名", "文件路径", "评分", "代码详情"})
 			for _, vu := range resp.ImageDetail.ImageScanWebshell {
-				resp.Webshell = append(resp.Webshell, []string{vu.Filename, vu.Filepath, strconv.Itoa(int(vu.Score)), strings.Join(vu.Codes, ",")})
+				resp.Webshell = append(resp.Webshell, []string{vu.FileName, vu.FileName, "30", ""})
 			}
 		}
 		// 再看环境变量
