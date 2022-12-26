@@ -109,12 +109,12 @@ func (s *InitScanner) createDefaultScanStrategy(ctx context.Context) error {
 		Operator:  "系统创建",
 		IsDefault: true,
 
-		OpenLicenseEnable: false,
-		SoftwareEnable:    false,
-		EnvsEnable:        false,
+		OpenLicenseEnable: true,
+		SoftwareEnable:    true,
+		EnvsEnable:        true,
 		SensitiveEnable:   true,
 		VulEnable:         true,
-		WebshellEnable:    false, // default disable webshell scan
+		WebshellEnable:    true, // default disable webshell scan
 		MaliciousEnable:   true,
 	}
 	return s.scanConfigDal.CreateStrategy(ctx, &data)

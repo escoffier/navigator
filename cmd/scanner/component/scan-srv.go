@@ -346,7 +346,21 @@ func (s *ConScannerSrv) ListBaseImageOfApp(ctx context.Context, imageID int64, k
 		return []model.ImageList{}, 0, nil
 	}
 
-	baseImages, _, err := s.dbdal.SearchImage(ctx, store.SearchImageParam{Flag: 1 << model.FlagBaseImage, Keyword: keyword}, nil)
+	// 查询未删除的仓库
+	registryIds := make([]int64, 0)
+	noDeleteRegistries, _, err := s.registryDal.SearchRegistry(ctx, store.SearchRegistryParam{NoDelete: true}, nil)
+	if err != nil {
+		return nil, 0, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf(consts.StatusInternalServerErrorMsg))
+	}
+	if len(noDeleteRegistries) == 0 {
+		return nil, 0, nil
+	}
+
+	for i := range noDeleteRegistries {
+		registryIds = append(registryIds, noDeleteRegistries[i].ID)
+	}
+
+	baseImages, _, err := s.dbdal.SearchImage(ctx, store.SearchImageParam{Flag: 1 << model.FlagBaseImage, Keyword: keyword, RegistryIds: registryIds}, nil)
 	if err != nil {
 		logging.GetLogger().Err(err).Msg("ListBaseImageOfApp")
 		return nil, 0, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf("获取基础镜像出错"))
@@ -413,9 +427,23 @@ func (s *ConScannerSrv) ListAppImageOfBase(ctx context.Context, imageID int64, k
 		return make([]model.ImageList, 0), 0, nil
 	}
 	baseLayer := baseImages[0].GetLayerString()
+
+	// 查询未删除的仓库
+	registryIds := make([]int64, 0)
+	noDeleteRegistries, _, err := s.registryDal.SearchRegistry(ctx, store.SearchRegistryParam{NoDelete: true}, nil)
+	if err != nil {
+		return nil, 0, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf(consts.StatusInternalServerErrorMsg))
+	}
+	if len(noDeleteRegistries) == 0 {
+		return nil, 0, nil
+	}
+	for i := range noDeleteRegistries {
+		registryIds = append(registryIds, noDeleteRegistries[i].ID)
+	}
+
 	// 因为应用镜像占绝大多数，所以这里查全部数据，在程序中过滤
 	images, cnt, err := s.dbdal.SearchImage(ctx, store.SearchImageParam{
-		LayersPrefix: baseLayer, ImageType: model.AppImageTypeString, Keyword: keyword,
+		LayersPrefix: baseLayer, ImageType: model.AppImageTypeString, Keyword: keyword, RegistryIds: registryIds,
 		OmitFields: []string{"config_json", "manifest_v1_json", "manifest_v2_json"}}, filter)
 	if err != nil {
 		logging.GetLogger().Err(err).Msg("ListAppImageOfBase.SearchImage")
@@ -1022,7 +1050,7 @@ func (s *ConScannerSrv) ImgLayerInfo(ctx context.Context, imageID int64, layerDi
 	// for i := range layers[0].WebshellInfo {
 	// 	webshell = append(webshell, layers[0].WebshellInfo[i].WebShellInfo)
 	// }
-	//res.WebshellInfo = webshell
+	// res.WebshellInfo = webshell
 
 	return &res, nil
 }
