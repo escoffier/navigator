@@ -50,16 +50,23 @@ type ImageNameWhiteListResult struct {
 	Pattern ImageNamePattern `json:"pattern"` // matched pattern
 }
 
+type PkgVuln struct {
+	VulnId              string `json:"vuln_id"`
+	PkgName             string `json:"pkg_name"`
+	PkgInstalledVersion string `json:"pkg_installed_version"`
+}
+
 // VulnRule vulnerability ci rule
 type VulnRule struct {
-	Enabled        bool            `json:"enabled"`
-	Severity       string          `json:"severity"`         // critical,high,medium...
-	BlackListVulns []string        `json:"black_list_vulns"` // cve-id blacklist
-	WhiteListVulns []VulnWhitelist `json:"white_list_vulns"` // cve-id whitelist
-	IgnoreUnfixed  bool            `json:"ignore_unfixed"`   // true: ignore unfixed vuln when audit by other rules
-	IgnoreLangaue  bool            `json:"ignore_langaue"`
-	Action         string          `json:"action"`      // block or alert
-	ActionCode     int             `json:"action_code"` // see CiPolicyResultCodePass etc.
+	Enabled           bool      `json:"enabled"`
+	Severity          string    `json:"severity"`             // critical,high,medium...
+	BlackListVulns    []string  `json:"black_list_vulns"`     // cve-id blacklist
+	WhiteListVulns    []string  `json:"white_list_vulns"`     // cve-id whitelist
+	WhiteListPkgVulns []PkgVuln `json:"white_list_pkg_vulns"` // cve-x-y of pkg-name and version
+	IgnoreUnfixed     bool      `json:"ignore_unfixed"`       // true: ignore unfixed vuln when audit by other rules
+	IgnoreLangPkgVuln bool      `json:"ignore_lang_pkg_vuln"`
+	Action            string    `json:"action"`      // block or alert
+	ActionCode        int       `json:"action_code"` // see CiPolicyResultCodePass etc.
 }
 
 type VulnWrapper struct {
@@ -74,6 +81,14 @@ type VulnResult struct {
 	BlackListResults []VulnWrapper
 	Remediation      string // remediation for os pkg. eg "RUN apt update -y nurse && ..."
 	Match            bool   // true: match any rule
+}
+
+// VulnWhiteListResult container vunls that match vuln whitelist rule
+type VulnWhiteListResult struct {
+	UnfixedVulns []PkgVuln // ignore unfixed vuln
+	LangPkgVulns []PkgVuln // ignore lang pkg vuln
+	VulId        []PkgVuln // ignore vuln id
+	PkgVulns     []PkgVuln // ignore vuln of pkg name and version
 }
 
 // Pattern sensitive file match pattern
@@ -119,10 +134,13 @@ type PolicyResult struct {
 	// vuln match result
 	MatchVulns VulnResult
 
+	// vulns that match vuln whitelist rule
+	MatchWhiteListVulns VulnWhiteListResult
+
 	// sensitive files
 	MatchSensitiveFiles SensitiveFileResult
 
-	// white list
+	// image white list
 	MatchImageWhiteListResult ImageNameWhiteListResult
 
 	// exit code which return to devops tool

@@ -323,19 +323,66 @@ func (c *Controller) logPostgresVuln(ctx context.Context, result scanner_ci.Poli
 	vulns := make([]*scanner_ci.CiVulns, 0, 20)
 	vulnImages := make([]*scanner_ci.CiVulnImage, 0, 20)
 
-	mpBlack := make(map[string]struct{})
-	mpWhite := make(map[string]scanner_ci.VulnWhitelist)
-	if result.PolicySnapShot.Vuln.Enabled {
-		for _, v := range result.MatchVulns.BlackListResults {
-			mpBlack[v.VulnerabilityID] = struct{}{}
+	// function: check if vuln hit policy
+	// todo: save match result to db
+	vulnHitFunc := func(result *scanner_ci.PolicyResult, ciVuln *scanner_ci.CiVulns) bool {
+		checkFunc := func(vulns []scanner_ci.VulnWrapper, ciVuln *scanner_ci.CiVulns) bool {
+			for _, v := range vulns {
+				if strings.ToLower(ciVuln.Name) == strings.ToLower(v.VulnerabilityID) &&
+					strings.ToLower(ciVuln.PkgName) == strings.ToLower(v.PkgName) &&
+					strings.ToLower(ciVuln.PkgVersion) == strings.ToLower(v.InstalledVersion) {
+					return true
+				}
+			}
+			return false
 		}
-		for _, v := range result.MatchVulns.SeverityResults {
-			mpBlack[v.VulnerabilityID] = struct{}{}
+		if checkFunc(result.MatchVulns.BlackListResults, ciVuln) {
+			return true
 		}
+		if checkFunc(result.MatchVulns.SeverityResults, ciVuln) {
+			return true
+		}
+		return false
 	}
-	for _, v := range result.PolicySnapShot.Vuln.WhiteListVulns {
-		mpWhite[v.Name] = v
+
+	// function: check if vuln in whitelist result
+	// todo: save whitelist result to db
+	logging.Get().Debug().Interface("whitelist", result.MatchWhiteListVulns).Msg("recv whitelist result")
+	vulnInWhiteListFunc := func(result *scanner_ci.PolicyResult, ciVuln *scanner_ci.CiVulns) bool {
+		checkVulnExistFunc := func(cv *scanner_ci.CiVulns, vulns []scanner_ci.PkgVuln, withPkg bool) bool {
+			if withPkg {
+				for _, v := range vulns {
+					if strings.ToLower(v.VulnId) == strings.ToLower(cv.Name) &&
+						strings.ToLower(cv.PkgName) == strings.ToLower(v.PkgName) &&
+						strings.ToLower(cv.PkgVersion) == strings.ToLower(v.PkgInstalledVersion) {
+						return true
+					}
+				}
+			} else {
+				for _, v := range vulns {
+					if strings.ToLower(v.VulnId) == strings.ToLower(cv.Name) {
+						return true
+					}
+				}
+			}
+
+			return false
+		}
+		if checkVulnExistFunc(ciVuln, result.MatchWhiteListVulns.UnfixedVulns, false) {
+			return true
+		}
+		if checkVulnExistFunc(ciVuln, result.MatchWhiteListVulns.LangPkgVulns, false) {
+			return true
+		}
+		if checkVulnExistFunc(ciVuln, result.MatchWhiteListVulns.VulId, false) {
+			return true
+		}
+		if checkVulnExistFunc(ciVuln, result.MatchWhiteListVulns.PkgVulns, true) {
+			return true
+		}
+		return false
 	}
+
 	match := 0
 	if result.PolicySnapShot.Vuln.Action == scanner_ci.CiActionAlert {
 		match = 1
@@ -377,21 +424,28 @@ func (c *Controller) logPostgresVuln(ctx context.Context, result scanner_ci.Poli
 				}
 				vulns = append(vulns, tmpVuln)
 				vulnImage := scanner_ci.CiVulnImage{ImageID: imageID, UniqueVuln: tmpVuln.GenUniqueVuln(), SeverityInt: tmpVuln.SeverityInt}
-				if _, ok := mpBlack[tmpVuln.Name]; ok {
+
+				// check if vuln hit policy
+				if vulnHitFunc(&result, tmpVuln) {
 					vulnImage.MatchPolicy = match
 				}
-				if v, ok := mpWhite[tmpVuln.Name]; ok {
-					if v.Object == "all" {
-						vulnImage.White = true
-					}
-					vw := strings.Split(v.Object, ",")
-					for k := range vw {
-						pkg := strings.Split(vw[k], "@")
-						if tmpVuln.PkgName == pkg[0] && tmpVuln.PkgVersion == pkg[1] {
-							vulnImage.White = true
-						}
-					}
+
+				// check if vuln in white list
+				if vulnInWhiteListFunc(&result, tmpVuln) {
+					vulnImage.White = true
+					logging.Get().Debug().
+						Str("vulId", tmpVuln.Name).
+						Str("pkg", tmpVuln.PkgName).
+						Str("installed", tmpVuln.PkgVersion).
+						Msg("hit whitelist")
+				} else {
+					logging.Get().Debug().
+						Str("vulId", tmpVuln.Name).
+						Str("pkg", tmpVuln.PkgName).
+						Str("installed", tmpVuln.PkgVersion).
+						Msg("not hit whitelist")
 				}
+
 				vulnImages = append(vulnImages, &vulnImage)
 			}
 		}

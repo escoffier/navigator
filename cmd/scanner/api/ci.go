@@ -499,15 +499,18 @@ func (c *CiApiSrv) GetRecordPkgs(ctx *gin.Context) {
 }
 
 func (c *CiApiSrv) GetVulnDetail(ctx *gin.Context) {
-	uniqueVulnStr := ctx.Query("uniqueVuln")
 	var (
 		uniqueVuln uint64
 		err        error
 	)
+
+	uniqueVulnStr := ctx.Query("uniqueVuln")
+	logging.Get().Debug().Str("uniqueVulnStr", uniqueVulnStr).Msg("recv get vuln req")
 	if uniqueVulnStr == "" {
 		vulnName := ctx.Query("vulnName")
 		pkgName := ctx.Query("pkgName")
 		pkgVersion := ctx.Query("pkgVersion")
+		logging.Get().Debug().Str("vuln", vulnName).Str("pkgName", pkgName).Str("pkgVersion", pkgVersion).Msg("recv get vuln req")
 
 		if vulnName == "" || pkgName == "" || pkgVersion == "" {
 			response.JSONError(ctx, fmt.Errorf("vulnName,pkgName,pkgVersion must not empty"))
@@ -515,12 +518,14 @@ func (c *CiApiSrv) GetVulnDetail(ctx *gin.Context) {
 		}
 		uniqueVuln = util.GenerateUUID64(fmt.Sprintf(consts.UniqueVulnFamat, vulnName, pkgName, pkgVersion))
 	} else {
-		uniqueVuln, err = strconv.ParseUint(uniqueVulnStr, 64, 10)
+		uniqueVuln, err = strconv.ParseUint(uniqueVulnStr, 10, 64)
 		if err != nil {
+			logging.Get().Err(err).Msg("parse uniq vuln err")
 			response.JSONError(ctx, fmt.Errorf("not get uniqueVuln"))
 			return
 		}
 	}
+	logging.Get().Debug().Uint64("uniqVuln", uniqueVuln).Msg("get vuln hash")
 
 	vulns, _, _, err := c.Component.IM.SearchVulns(ctx, scanner_ci.SearchVulnParam{UniqueVulns: []uint64{uniqueVuln}}, nil)
 	if err != nil {
@@ -531,6 +536,7 @@ func (c *CiApiSrv) GetVulnDetail(ctx *gin.Context) {
 		response.JSONError(ctx, response.NewHttpError(http.StatusBadRequest, fmt.Errorf("not fond vuln")))
 		return
 	}
+
 	// 数据转换，兼容前端
 	vuln := vulns[0]
 	res := scanner_ci.VulnDetail{
