@@ -24,7 +24,7 @@ type VulnList struct {
 	PkgName     string `json:"pkgName"`    // 软件包来源
 	PkgVersion  string `json:"pkgVersion"` // 软件包版本
 	FixedBy     string `json:"fixedBy"`    // 修复建议
-	UniqueVuln  uint64 `json:"uniqueVuln"`
+	UniqueVuln  uint64 `json:"uniqueVuln,string"`
 	Language    string `json:"language"` // 把编程语言
 	Match       int
 	White       bool

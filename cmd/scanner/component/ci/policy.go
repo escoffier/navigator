@@ -100,12 +100,50 @@ func (p *PolicyManager) TransFormPolicy(ciPolicy scanner_ci.CiPolicy, imageWhite
 		sr = append(sr, pt)
 	}
 
+	// parse pkg name and version
+	type pkgInfo struct {
+		Name             string
+		InstalledVersion string
+	}
+	parsePkgFunc := func(vulnId string, object string) []scanner_ci.PkgVuln {
+		pkgs := make([]scanner_ci.PkgVuln, 0)
+		arr := strings.Split(object, ",")
+		for _, p := range arr {
+			pkgArr := strings.Split(p, "@")
+			if len(pkgArr) != 2 {
+				logging.Get().Error().Msgf("ci vuln pkg rule format err.%v", p)
+			} else {
+				pkgs = append(pkgs, scanner_ci.PkgVuln{
+					VulnId:              vulnId,
+					PkgName:             pkgArr[0],
+					PkgInstalledVersion: pkgArr[1]})
+			}
+		}
+		return pkgs
+	}
+
 	// vuln whitelist for ci tool
-	vw := []scanner_ci.VulnWhitelist{}
+	vunIdWhiteList := make([]string, 0)
+	pkgVulnWhiteList := make([]scanner_ci.PkgVuln, 0)
+	var vw []scanner_ci.VulnWhitelist
 	err := json.Unmarshal(ciPolicy.VulnWhitelist, &vw)
 	if err != nil {
 		logging.Get().Err(err).Msgf("ciPolicy Unmarshal vulnWhitelist error")
+	} else {
+		for _, v := range vw {
+			if v.Object == "all" {
+				// cve-id whitelist
+				// {"name":"cve-2022-2021","object":"all"}
+				vunIdWhiteList = append(vunIdWhiteList, v.Name)
+			} else {
+				// cve-id of pkg name whitelist
+				// {"name":"cve-2022-2000","object":"bash@4.5,zlib@123"}
+				pkgVulnWhiteList = parsePkgFunc(v.Name, v.Object)
+			}
+		}
 	}
+
+	// vuln black list
 	vb := strings.Split(ciPolicy.VulnPolicy, ",")
 
 	// transform
@@ -114,9 +152,10 @@ func (p *PolicyManager) TransFormPolicy(ciPolicy scanner_ci.CiPolicy, imageWhite
 	policy.Vuln.Enabled = ciPolicy.VulnEnable
 	policy.Vuln.Severity = ciPolicy.VulnLevel
 	policy.Vuln.BlackListVulns = vb
-	policy.Vuln.WhiteListVulns = vw
+	policy.Vuln.WhiteListVulns = vunIdWhiteList
+	policy.Vuln.WhiteListPkgVulns = pkgVulnWhiteList
 	policy.Vuln.IgnoreUnfixed = ciPolicy.IgnoreIrreparable
-	policy.Vuln.IgnoreLangaue = ciPolicy.IgnoreLangaue
+	policy.Vuln.IgnoreLangPkgVuln = ciPolicy.IgnoreLangaue
 	policy.Vuln.Action = ciPolicy.VulnRuleMode
 	policy.Vuln.ActionCode = ActionNameToCode(ciPolicy.VulnRuleMode)
 	policy.ImageNameWhiteLists = iw
