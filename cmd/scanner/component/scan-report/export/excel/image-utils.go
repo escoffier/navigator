@@ -264,7 +264,7 @@ func GenWebShellInfo(image model.ImageList, file scannermodel.Webshell) []string
 	if file.Level == "maybe" {
 		level = "疑似"
 	} else {
-		level = "确认"
+		level = "确定"
 	}
 	info := []string{getImageName(image), image.Library, name, path, level, file.MaliciousData}
 	return info
