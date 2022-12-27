@@ -126,6 +126,9 @@ func parseItems(header cryption.FileHeader, rulesContext []byte) (version string
 		tsAdapter[string(lang.LanguageZH)] = make(map[string]string)
 		tsAdapter[string(lang.LanguageZH)][typeKey] = ruleTypeZh
 		tsAdapter[string(lang.LanguageZH)][descriptionKey] = descZh
+		tsAdapter[string(lang.LanguageEN)] = make(map[string]string)
+		tsAdapter[string(lang.LanguageEN)][typeKey] = ruleType
+		tsAdapter[string(lang.LanguageEN)][descriptionKey] = item.Desc
 
 		// for the prevention of ambiguity, we have "_" instead of " "(space). This is for the recovery
 		ruleType = strings.ReplaceAll(ruleType, "_", " ")
