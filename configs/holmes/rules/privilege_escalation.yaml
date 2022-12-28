@@ -45,7 +45,6 @@
     and not java_running_sdjagent
     and not nrpe_becoming_nagios
     and not user_known_non_sudo_setuid_conditions
-    and shell_parent_procs
   output: >
     Unexpected setuid call by non-sudo, non-root program (zh_msg=非sudo、非root程序意外调用setuid,rule_type=Privilege_Escalation,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid cur_uid=%user.uid parent=%proc.pname
     uid=%evt.arg.uid container_id=%container.id container_name=%container.name image=%container.image.repository)
@@ -222,9 +221,16 @@
       value: "容器出现逃逸行为，请排查集群权限是否陷落，可采用免疫防御阻止风险进一步扩散使用免疫防御训练应用，限制敏感文件和命令的用户权限。"
   desc: Detect file write activities on container entrypoint symlink (/proc/self/exe)
   condition: >
-    open_write and container and (fd.name=/proc/self/exe or fd.name startswith /proc/self/fd/) and not docker_procs and not
-    (tensorsec_namespace and (k8s.pod.name contains "-host-" or k8s.pod.name contains "-docker-" or k8s.pod.name contains "-kube-" or k8s.pod.name contains "-holmes-" or k8s.pod.name contains "-webhook-" or k8s.pod.name contains "-scanner")) and not
-    proc.cmdline contains "runc init" and not proc.cmdline = "runc:[1:CHILD] init" and not proc.cmdline contains "kube-bench " and not proc.cmdline contains "scanner "
+    open_write and container
+    and (fd.name=/proc/self/exe or fd.name startswith /proc/self/fd/)
+    and not docker_procs
+    and not (tensorsec_namespace
+    and proc.pname != "<NA>"
+    and (k8s.pod.name contains "-host-" or k8s.pod.name contains "-docker-" or k8s.pod.name contains "-kube-" or k8s.pod.name contains "-holmes-" or k8s.pod.name contains "-webhook-" or k8s.pod.name contains "-scanner"))
+    and not proc.cmdline contains "runc init"
+    and not proc.cmdline = "runc:[1:CHILD] init"
+    and not proc.cmdline contains "kube-bench "
+    and not proc.cmdline contains "scanner "
   output: >
     %fd.name is open to write by process (zh_msg=CVE-2019-5736修改容器入口,rule_type=Privilege_Escalation,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=%proc.name %proc.exeline,container_id=%container.id,container_name=%container.name)
   priority: ALERT
@@ -408,7 +414,7 @@
       value: "容器可能已经遭到入侵，使用免疫防御训练应用，限制敏感文件和命令的用户权限。"
   desc: Connect to docker.sock in container
   condition: >
-    evt.type = connect and evt.args contains "docker.sock" and container and not tensorsec_namespace and shell_parent_procs and not proc.name in (k8s_client_binaries) and not proc.cmdline contains "ilogtail"
+    evt.type = connect and evt.args contains "docker.sock" and container and not tensorsec_namespace and shell_parent_procs
   output: >
     Connect to docker.sock in container(zh_msg=容器内与docker.sock通信,rule_type=Privilege_Escalation,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type, container=%container.info,container_id=%container.id,container_name=%container.name)
   priority: CRITICAL
@@ -426,7 +432,7 @@
       value: "容器可能已遭到入侵，可使用免疫防御训练应用，限制敏感文件和命令的用户权限。"
   desc: Bypass K8s RBAC
   condition: >
-    open_read and fd.name = /var/run/secrets/kubernetes.io/serviceaccount/token and container and shell_parent_procs and not proc.name in (k8s_client_binaries) and not proc.cmdline contains "java"
+    open_read and fd.name = /var/run/secrets/kubernetes.io/serviceaccount/token and container and shell_parent_procs
   output: >
     Bypass K8s RBAC (zh_msg=尝试读取K8s-token并进行RBAC权限绕过,rule_type=Privilege_Escalation,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,container=%container.info,container_id=%container.id,container_name=%container.name)
   priority: WARNING

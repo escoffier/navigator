@@ -13,16 +13,16 @@
     a database-server related program spawned a new process other than itself.
     This shouldn\'t occur and is a follow on from some SQL injection attacks.
   condition: >
-    shell_procs
-    and proc.pname in (db_server_binaries)
+    proc.pname in (db_server_binaries)
     and spawned_process
+    and shell_parent_procs
     and not proc.name in (db_server_binaries)
     and not postgres_running_wal_e
     and not user_known_db_spawned_processes
     and not tensorsec_namespace
   output: >
     Database-related program spawned process other than itself (zh_msg=SQL注入攻击后续利用：数据库服务生成非自身进程，可能存在提权行为,rule_type=Execution,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,
-    original_info=user=%user.name user_loginuid=%user.loginuid parent=%proc.pname gparent=%proc.aname[2]
+    original_info=user=%user.name user_loginuid=%user.loginuid parent=%proc.pname
     container_id=%container.id container_name=%container.name image=%container.image.repository)
   priority: ERROR
   tags: [ATT&CK, process, database, mitre_execution]
@@ -133,7 +133,7 @@
       value: "容器遭到入侵，需隔离该容器，同时排查其他攻击行为，确认集群安全。"
   desc: Telnet Program runs inside container that allows remote code execution(Risk of Reverse Shell exploit)
   condition: >
-    evt.type=connect and proc.name contains "telnet" and container and not ignore_proc_args and remote_server_subnet and shell_parent_procs
+    evt.type=recvfrom and proc.name contains "telnet" and container and not ignore_proc_args and remote_server_subnet and shell_parent_procs
   output: >
     Telnet runs inside container that allows remote code execution (zh_msg=黑客在容器内通过telnet反弹shell),rule_type=Execution,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_name=%proc.name,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,
     original_info=user=%user.name user_loginuid=%user.loginuid

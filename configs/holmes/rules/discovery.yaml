@@ -57,7 +57,7 @@
       value: "请确认该行为是否为运维人员执行或可信探针类程序发起，如果不是请关联其他攻击行为，确认容器是否遭到入侵。"
   desc: Kubernetes Namespaces bypass
   condition: >
-    spawned_process and container and proc.name in (namespace_bypass_cmds)
+    spawned_process and container and proc.name in (namespace_bypass_cmds) and shell_parent_procs
   output: View network information in the container (zh_msg=容器内查看网络信息,rule_type=Discovery,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,container_id=%container.id,container_name=%container.name)
   priority: WARNING
   tags: [ATT&CK]
@@ -167,7 +167,7 @@
       value: "请确认是否为黑客进行信息收集，或运维人员自身操作，可使用免疫防御训练应用，阻拦新的或被修改的可执行文件，限制执行命令的用户和接收对象。"
   desc: View process information in the container
   condition: >
-   open_read and container and fd.name startswith "/proc/" and fd.name contains "pid_max" and evt.arg.flags = O_RDONLY and not k8s.pod.name contains "holmes" and not k8s.pod.name contains "calico" and not k8s.pod.name contains "node-exporter" and not k8s.pod.name contains "console" and not k8s.pod.name contains "51c1c6" and not k8s.pod.name contains "reviews" and not k8s.pod.name contains "prometheus" and not k8s.pod.name contains "console" and not k8s.pod.name contains "missing-contain"
+   open_read and container and fd.name startswith "/proc/" and fd.name contains "pid_max" and evt.arg.flags = O_RDONLY and shell_parent_procs and not k8s.pod.name contains "holmes" and not k8s.pod.name contains "calico" and not k8s.pod.name contains "node-exporter" and not k8s.pod.name contains "console" and not k8s.pod.name contains "51c1c6" and not k8s.pod.name contains "prometheus"
   output: >
     View process information in the container (zh_msg=容器内查看进程信息,rule_type=Execution,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,
     original_info=user=%user.name user_loginuid=%user.loginuid %container.info
@@ -187,7 +187,7 @@
       value: "请确认该指令是否为可信人员或程序执行，可使用白名单放过告警，否则请排查容器是否遭到入侵，并使用免疫防御训练应用，限制敏感文件和命令的用户权限，禁止挂载敏感目录和文件。"
   desc: View disk information in the container
   condition: >
-    open_read and container and (proc.cmdline contains "fdisk -l" or (fd.name startswith "/sys/dev/block/" and evt.arg.flags contains O_RDONLY)) and not tensorsec_namespace
+    open_read and container and (proc.cmdline contains "fdisk -l" or (fd.name startswith "/sys/dev/block/" and evt.arg.flags contains O_RDONLY)) and not tensorsec_namespace and shell_parent_procs
   output: View disk information inside the container (zh_msg=容器内查看磁盘信息,rule_type=Discovery,fd_name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,container_id=%container.id,container_name=%container.name)
   priority: WARNING
   tags: [ATT&CK]
@@ -204,7 +204,11 @@
       value: "请确认该行为是否为第三方可信应用扫描，如果不是则可能为黑客工具行为，可使用免疫防御训练应用，限制敏感文件和命令的用户权限，禁止挂载敏感目录和文件。"
   desc: Scanning web directories in the container
   condition: >
-    open_read and container and (fd.directory contains "www" or fd.directory contains "apache" or fd.directory contains "tomcat" or fd.directory contains "web" or fd.directory contains "http") and (fd.name contains ".jsp" or fd.name contains ".php" or fd.name contains ".config" or fd.name contains ".bak" or fd.name contains ".old" or fd.name contains ".log") and not tensorsec_namespace and shell_parent_procs
+    open_read and container
+    and (fd.directory contains "www" or fd.directory contains "apache" or fd.directory contains "tomcat" or fd.directory contains "web" or fd.directory contains "http")
+    and (fd.name contains ".jsp" or fd.name contains ".php" or fd.name contains ".config" or fd.name contains ".bak" or fd.name contains ".old" or fd.name contains ".log")
+    and not tensorsec_namespace
+    and shell_parent_procs
   output: Scanning web directories in the container (zh_msg=容器内扫描web目录,fd_name=%fd.name,rule_type=Discovery,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,container_id=%container.id,container_name=%container.name)
   priority: WARNING
   tags: [ATT&CK]
@@ -267,7 +271,7 @@
       value: "可能为黑客信息收集行为，请确认执行对象，使用免疫防御训练应用，限制敏感文件和命令的用户权限，禁止挂载敏感目录和文件。"
   desc: View history commands in the container
   condition: >
-    container and proc.cmdline contains "history"
+    container and proc.cmdline contains "history" and shell_parent_procs
   output: View login information inside the container (zh_msg=容器内查看历史命令,rule_type=Discovery,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,container_id=%container.id,container_name=%container.name)
   priority: WARNING
   tags: [ATT&CK]
@@ -299,19 +303,16 @@
     zh:
       key: "处置建议"
       value: "该行为可能是黑客使用恶意工具与K8s-DNS通信进而获取敏感信息，请排查该行为是否为预期内操作，否则请立即对该容器进行隔离。"
-  desc: Detect attempts to contact the K8S API Server from a container
+  desc: Detect attempts to contact the K8S DNS Server from a container
   condition: >
     evt.type=connect and evt.dir=< and
+    (fd.typechar=4 or fd.typechar=6) and
     container and
     not k8s_containers and
     k8s_dns_server and
     not ignore_proc_args and
-    shell_parent_procs and
-    not proc.cmdline contains "java" and
-    not proc.cmdline contains "redis" and
-    not proc.cmdline contains "mysql" and
-    not proc.name = "git"
+    shell_parent_procs
   output: >
     Unexpected connection to K8s DNS Server from container (zh_msg=尝试从容器内连接到k8s_DNS_Server,rule_type=Discovery,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=%container.info image=%container.image.repository:%container.image.tag connection=%fd.name,container_id=%container.id,container_name=%container.name)
   priority: WARNING
-  tags: [ATT&CK, network, k8s, container, mitre_discovery]
+  tags: [ATT&CK, network, k8s, container, mitre_discovery, strict]

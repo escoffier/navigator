@@ -72,6 +72,7 @@
     and container
     and user.name != "_apt"
     and package_mgmt_procs
+    and shell_parent_procs
     and not package_mgmt_ancestor_procs
     and not user_known_package_manager_in_container
     and not (tensorsec_namespace and k8s.pod.name contains "-frontend")
@@ -99,6 +100,7 @@
     and not package_mgmt_ancestor_procs
     and not exe_running_docker_save
     and not user_known_update_package_registry
+    and shell_parent_procs
   output: >
     Repository files get updated (zh_msg=发现更新软件源,rule_type=Persistence,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,
     original_info=user=%user.name user_loginuid=%user.loginuid file=%fd.name newpath=%evt.arg.newpath container_id=%container.id container_name=%container.name image=%container.image.repository)
@@ -118,6 +120,7 @@
   desc: an attempt to write to the rpm database by any non-rpm related program
   condition: >
     fd.name startswith /var/lib/rpm and open_write
+    and shell_parent_procs
     and not rpm_procs
     and not ansible_running_python
     and not python_running_chef
