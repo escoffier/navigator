@@ -212,7 +212,7 @@
       value: "请确认该工具具体行为，可能存在黑客扫描内网情况，推荐使用偏移防御限制该工具执行，并排查容器是否遭到入侵。"
   desc: Detect network tools launched inside container
   condition: >
-    spawned_process and container and network_tool_procs and not ignore_proc_args and not user_known_network_tool_activities and not proc.cmdline contains "-w 2 localhost 2181" and not tensorsec_namespace
+    spawned_process and container and network_tool_procs and shell_parent_procs and not ignore_proc_args and not user_known_network_tool_activities and not proc.cmdline contains "-w 2 localhost 2181" and not tensorsec_namespace
   output: >
     Network tool launched in container (zh_msg=在容器中启动可疑的网络工具,rule_type=Exfiltration,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid parent_process=%proc.pname
     container_id=%container.id container_name=%container.name image=%container.image.repository:%container.image.tag)
@@ -265,7 +265,7 @@
       key: "处置建议"
       value: "容器中发现提权行为，请确认容器是否遭到入侵，可使用免疫防御训练应用，限制敏感文件和命令的用户权限。"
   desc: Detect new packet socket at the device driver (OSI Layer 2) level in a container. Packet socket could be used for ARP Spoofing and Privilege_Escalation(CVE-2020-14386) by attacker.
-  condition: evt.type=socket and (evt.arg[0]=AF_PACKET or evt.arg[0]=17) and consider_packet_socket_communication and container and not proc.name in (user_known_packet_socket_binaries)
+  condition: evt.type=socket and evt.arg[0]=AF_PACKET and consider_packet_socket_communication and container and not proc.name in (user_known_packet_socket_binaries)
   output: >
     Packet socket was created in a container (zh_msg=CVE-2020-14386(在容器中创建的数据包套接字),rule_type=Exfiltration,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid socket_info=%evt.args container_id=%container.id container_name=%container.name image=%container.image.repository:%container.image.tag)
   priority: NOTICE
