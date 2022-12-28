@@ -21,6 +21,12 @@
     },
     {
       "indexPrefix": "events_"
+    },
+    {
+      "indexPrefix": "suggestions",
+      "condition": {
+        "filter": "{\"bool\":{\"filter\":{\"range\":{\"timestamp\":{\"from\":0,\"to\":$ENDTIME$}}}}}"
+      }
     }
   ]
 }

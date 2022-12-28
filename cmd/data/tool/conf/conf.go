@@ -22,6 +22,11 @@ type OfflineConf struct {
 }
 
 type ESDumpItem struct {
-	IndexPrefix string `json:"indexPrefix"`
-	TTL         int32  `json:"ttl"`
+	IndexPrefix string     `json:"indexPrefix"`
+	TTL         int32      `json:"ttl"`
+	Condition   *Condition `json:"condition"`
+}
+
+type Condition struct {
+	Filter string `json:"filter"`
 }
