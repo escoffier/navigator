@@ -2,7 +2,9 @@ package cleaner
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -52,6 +54,7 @@ func (e *ElasticsearchCleaner) Clean(ctx context.Context, arg *def.CleanArg) err
 	var errMap = make(map[string]error)
 	for _, index := range indexes {
 		logging.GetLogger().Info().Msgf("index:%s", index.Index)
+		// 按index完整清理
 		if e.checkNeedDeleteIndex(index.Index, dateFilter, arg.Cron) {
 			err = e.deleteIndex(ctx, index.Index)
 			if err != nil {
@@ -61,6 +64,15 @@ func (e *ElasticsearchCleaner) Clean(ctx context.Context, arg *def.CleanArg) err
 			}
 
 			logging.GetLogger().Info().Msgf("delete index:%s successfully", index.Index)
+			time.Sleep(esInterval)
+		}
+		// 按条件清理部分数据
+		if need, err := e.checkAndDoDeleteByCondition(index.Index, dateFilter, arg.Cron); need && err != nil {
+			logging.GetLogger().Err(err).Msgf("delete by condition fail, index: %s", index.Index)
+			errMap[index.Index] = err
+			continue
+		} else if need && err == nil {
+			logging.GetLogger().Info().Msgf("delete by condition successfully, index: %s", index.Index)
 			time.Sleep(esInterval)
 		}
 	}
@@ -73,6 +85,10 @@ func (e *ElasticsearchCleaner) Clean(ctx context.Context, arg *def.CleanArg) err
 
 func (e *ElasticsearchCleaner) checkNeedDeleteIndex(index string, defaultDateFilter time.Time, cron bool) bool {
 	for _, item := range e.items {
+		// 按条件清理，不删除index
+		if item.Condition != nil {
+			continue
+		}
 		if !strings.HasPrefix(index, item.IndexPrefix) {
 			continue
 		}
@@ -97,6 +113,41 @@ func (e *ElasticsearchCleaner) checkNeedDeleteIndex(index string, defaultDateFil
 	}
 
 	return false
+}
+
+func (e *ElasticsearchCleaner) checkAndDoDeleteByCondition(index string, defaultTimeFilter time.Time, cron bool) (bool, error) {
+	do := false
+	for _, item := range e.items {
+		if item.Condition == nil {
+			continue
+		}
+		if !strings.HasPrefix(index, item.IndexPrefix) {
+			continue
+		}
+		do = true
+
+		logging.GetLogger().Info().Msgf("index:%s, match:%s", index, item.IndexPrefix)
+
+		timeFilter := defaultTimeFilter
+		if cron && item.TTL > 0 {
+			timeFilter = generateDateFilter(int(item.TTL))
+		}
+
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
+		filter := strings.Replace(item.Condition.Filter, "$ENDTIME$", strconv.FormatInt(timeFilter.UnixMilli(), 10), 1)
+		q := elastic.NewRawStringQuery(filter)
+		src, _ := q.Source()
+		bs, _ := json.Marshal(src)
+		res, err := e.esCli.DeleteByQuery().Index(index).Query(q).Do(ctx)
+		if err != nil {
+			logging.GetLogger().Error().Err(err).Str("index", index).Str("match", item.IndexPrefix).Str("filter", string(bs)).Msg("delete by condition fails")
+		} else {
+			logging.GetLogger().Info().Str("index", index).Str("match", item.IndexPrefix).Str("filter", string(bs)).Int64("res.deleted", res.Deleted).Msg("delete by condition success")
+		}
+		cancel()
+	}
+
+	return do, nil
 }
 
 func (e *ElasticsearchCleaner) getAllIndexes(ctx context.Context) (rsp elastic.CatIndicesResponse, err error) {
