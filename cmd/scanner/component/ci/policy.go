@@ -101,10 +101,6 @@ func (p *PolicyManager) TransFormPolicy(ciPolicy scanner_ci.CiPolicy, imageWhite
 	}
 
 	// parse pkg name and version
-	type pkgInfo struct {
-		Name             string
-		InstalledVersion string
-	}
 	parsePkgFunc := func(vulnId string, object string) []scanner_ci.PkgVuln {
 		pkgs := make([]scanner_ci.PkgVuln, 0)
 		arr := strings.Split(object, ",")
@@ -149,6 +145,7 @@ func (p *PolicyManager) TransFormPolicy(ciPolicy scanner_ci.CiPolicy, imageWhite
 	// transform
 	policy := scanner_ci.Policy{}
 	policy.Name = ciPolicy.Name
+	policy.RawVulnWhiteList = vw
 	policy.Vuln.Enabled = ciPolicy.VulnEnable
 	policy.Vuln.Severity = ciPolicy.VulnLevel
 	policy.Vuln.BlackListVulns = vb
