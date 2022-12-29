@@ -5,11 +5,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/console/api/scap/internal"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/models/scap"
 	"gitlab.com/piccolo_su/vegeta/pkg/apperror"
+	"gitlab.com/piccolo_su/vegeta/pkg/lang"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
 )
@@ -91,6 +93,9 @@ func (a *ApiServer) CronJobDetail(w http.ResponseWriter, r *http.Request) {
 	}
 
 	policy, _ := a.service.PolicyBrief(ctx, cronJob.PolicyID)
+	if policy.IsDefault && lang.LanguageEN == lang.Language(ctx) {
+		policy.Name = strings.ReplaceAll(policy.Name, "合规检测默认策略", "default policy")
+	}
 
 	resp.Cron = internal.ParseCron(cronJob.Cron)
 	resp.Status = cronJob.Status

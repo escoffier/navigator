@@ -6,10 +6,12 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	param "github.com/oceanicdev/chi-param"
 	"github.com/pkg/errors"
+	"gitlab.com/piccolo_su/vegeta/pkg/lang"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/console/api/scap/internal"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/models/scap"
@@ -99,7 +101,12 @@ func (a *ApiServer) PolicyBatch(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var resp = make([]scap.PolicyBrief, len(result))
+	language := lang.Language(ctx)
 	for i, v := range result {
+		if v.IsDefault && lang.LanguageEN == language {
+			v.Name = strings.ReplaceAll(v.Name, "合规检测默认策略", "default policy")
+		}
+
 		resp[i] = scap.PolicyBrief{
 			ID:        v.ID,
 			Name:      v.Name,
@@ -220,6 +227,11 @@ func (a *ApiServer) PolicyDetail(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if policy.IsDefault && lang.LanguageEN == lang.Language(ctx) {
+		policy.Name = strings.ReplaceAll(policy.Name, "合规检测默认策略", "default policy")
+		policy.Comment = strings.ReplaceAll(policy.Comment, "合规检测默认策略", "default policy")
+	}
+
 	var result = scap.PolicyDetail{
 		PolicyBrief: scap.PolicyBrief{
 			ID:        policy.ID,
@@ -235,19 +247,28 @@ func (a *ApiServer) PolicyDetail(w http.ResponseWriter, r *http.Request) {
 
 	result.Rules = make([]scap.Rule, 0, len(checks))
 
+	language := lang.Language(ctx)
 	for i := range checks {
-		result.Rules = append(result.Rules, scap.Rule{
+		tmp := scap.Rule{
 			ID:             checks[i].Id,
 			RawID:          checks[i].PolicyId,
-			TitleEn:        checks[i].TitleEn,
-			TitleZh:        checks[i].TitleZh,
-			DetailEn:       checks[i].DetailEn,
-			DetailZh:       checks[i].DetailZh,
-			RemediationEn:  checks[i].RemediationEn,
-			RemediationZh:  checks[i].RemediationZh,
 			ExpectedResult: checks[i].ExpectedResult,
 			Audit:          checks[i].Audit,
-		})
+		}
+
+		if language == lang.LanguageEN {
+			tmp.Title = checks[i].TitleEn
+			tmp.Detail = checks[i].DetailEn
+			tmp.Remediation = checks[i].RemediationEn
+			tmp.Classified = checks[i].ClassifiedEn
+		} else {
+			tmp.Title = checks[i].TitleZh
+			tmp.Detail = checks[i].DetailZh
+			tmp.Remediation = checks[i].RemediationZh
+			tmp.Classified = checks[i].ClassifiedZh
+		}
+
+		result.Rules = append(result.Rules, tmp)
 	}
 
 	response.Ok(w, response.WithItem(result))

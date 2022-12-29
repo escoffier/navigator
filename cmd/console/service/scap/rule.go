@@ -25,7 +25,8 @@ func (s *Service) RuleBatch(ctx context.Context, scapType, keyword string, limit
 
 	var v = make([]model.PolicyDetailInfo, 0, limit)
 
-	if err := db.Limit(limit).Offset(offset).Omit("extra_detail").Find(&v).Error; err != nil {
+	if err := db.Limit(limit).Offset(offset).Omit("extra_detail").
+		Order("policy_id ASC").Find(&v).Error; err != nil {
 		logging.GetLogger().Err(err).Msg("get rules error")
 		return nil, 0, errors.New("获取规则失败")
 	}

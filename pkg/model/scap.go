@@ -195,12 +195,12 @@ func (PolicyDetailInfo) TableName() string {
 type CheckBreakdown struct {
 	PolicyNumber string `json:"policyNumber" gorm:"column:policy_id"`
 	Section      string `json:"section" gorm:"column:udbcap"`
+	UDBCP        string `json:"udbcp"`
 	Description  string `json:"description"`
 	Pass         int    `json:"pass"`
 	Fail         int    `json:"fail"`
 	Warn         int    `json:"warn"`
 	Info         int    `json:"info"`
-	UDBCP        string `json:"udbcp"`
 }
 
 type ScapScanRecordNodeItem struct {
