@@ -332,7 +332,6 @@ func (c *CiApiSrv) SaveResult(ctx *gin.Context) {
 		response.JSONError(ctx, fmt.Errorf("bad request"))
 		return
 	}
-
 	ciCtl := c.Component.Ctrl
 	err = ciCtl.SaveResult(result)
 	if err != nil {
@@ -573,6 +572,7 @@ func (c *CiApiSrv) GetRecordVulns(ctx *gin.Context) {
 	sources := ctx.Query("sources")
 	canFixed := ctx.Query("canFixed")
 	severityInts := make([]int64, 0)
+	class := util.GetStringSliceFromQuery(ctx, "class")
 	severityStr := ctx.Query("severity")
 	matchPolicy := ctx.Query("match_policy")
 	match := false
@@ -604,6 +604,7 @@ func (c *CiApiSrv) GetRecordVulns(ctx *gin.Context) {
 		Sources:     sources,
 		CanFixed:    canFixed,
 		SeverityInt: severityInts,
+		Class:       class,
 		MatchPolicy: match,
 	}
 	vulns, levels, cnt, err := c.Component.IM.SearchVulns(ctx, param, filter)
@@ -626,6 +627,7 @@ func (c *CiApiSrv) GetRecordVulns(ctx *gin.Context) {
 			PkgVersion:  vulns[i].PkgVersion,
 			Match:       vulns[i].Match,
 			White:       vulns[i].White,
+			Class:       vulns[i].Class,
 		}
 	}
 	sort.Sort(scanner_ci.VulnLists(res))
