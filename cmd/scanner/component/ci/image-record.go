@@ -412,6 +412,7 @@ func (im *ImageManager) SearchVulns(ctx context.Context, param scanner_ci.Search
 		SeverityInt:     param.SeverityInt,
 		JustReturnCount: false,
 		MatchPolicy:     param.MatchPolicy,
+		Class:           param.Class,
 	}
 
 	vulns, levels, cnt, err := im.dal.SearchVuln(ctx, daoParam, filter)

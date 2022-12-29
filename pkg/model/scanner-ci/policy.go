@@ -246,7 +246,7 @@ type CiVulns struct {
 	UniqueVuln   uint64              `gorm:"column:unique_vuln" json:"unique_vuln,string"`
 	ExtraInfo    []byte              `gorm:"type:Blob" json:"-"` //  预留，漏洞属性。如我们自己的漏洞评级
 	CheckSum     uint64              `gorm:"column:check_sum" json:"check_sum,string"`
-	Class        string              `gorm:"column:target" json:"class"`      // 代表是系统包还是语言包 os-pkgs
+	Class        string              `gorm:"column:class" json:"class"`       // 代表是系统包还是语言包 os-pkgs
 	Language     string              `gorm:"column:language" json:"language"` // 把编程语言入库用于搜索 统一存小写，便于搜索
 	Frame        string              `gorm:"column:frame" json:"frame"`       // 开发框架筛选
 	Match        int                 `gorm:"-" json:"match"`                  //黑名单类型

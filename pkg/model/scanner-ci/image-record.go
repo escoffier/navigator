@@ -26,6 +26,7 @@ type VulnList struct {
 	FixedBy     string `json:"fixedBy"`    // 修复建议
 	UniqueVuln  uint64 `json:"uniqueVuln,string"`
 	Language    string `json:"language"` // 把编程语言
+	Class       string `json:"class"`
 	Match       int
 	White       bool
 }
@@ -168,6 +169,7 @@ type SearchVulnParam struct {
 	LanguageKeyword string
 	TargetKeyword   string
 	FrameKeyword    string
+	Class           []string
 	VulnKeyword     string // 漏洞名搜索
 	UniqueVulns     []uint64
 	Fields          []string
@@ -198,6 +200,7 @@ type SearchVulnParm struct {
 	SeverityInt     []int64
 	JustReturnCount bool
 	MatchPolicy     bool
+	Class           []string
 }
 
 type Sensitive struct {
