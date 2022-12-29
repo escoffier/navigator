@@ -7,6 +7,7 @@ import (
 	"time"
 
 	param "github.com/oceanicdev/chi-param"
+	"gitlab.com/piccolo_su/vegeta/pkg/lang"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/console/models/scap"
 	"gitlab.com/piccolo_su/vegeta/pkg/apperror"
@@ -48,23 +49,27 @@ func (a *ApiServer) RuleBatch(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	language := lang.Language(ctx)
 	var rules = make([]scap.Rule, 0, len(list))
 	for i := range list {
+		tmp := scap.Rule{
+			ID:    list[i].Id,
+			RawID: list[i].PolicyId,
+		}
 
-		rules = append(rules, scap.Rule{
-			ID:             list[i].Id,
-			RawID:          list[i].PolicyId,
-			TitleEn:        list[i].TitleEn,
-			TitleZh:        list[i].TitleZh,
-			DetailEn:       list[i].DetailEn,
-			DetailZh:       list[i].DetailZh,
-			RemediationEn:  list[i].RemediationEn,
-			RemediationZh:  list[i].RemediationZh,
-			ExpectedResult: list[i].ExpectedResult,
-			Audit:          list[i].Audit,
-			ClassifiedZh:   list[i].ClassifiedZh,
-			ClassifiedEn:   list[i].ClassifiedEn,
-		})
+		if language == lang.LanguageEN {
+			tmp.Title = list[i].TitleEn
+			tmp.Detail = list[i].DetailEn
+			tmp.Remediation = list[i].RemediationEn
+			tmp.Classified = list[i].ClassifiedEn
+		} else {
+			tmp.Title = list[i].TitleZh
+			tmp.Detail = list[i].DetailZh
+			tmp.Remediation = list[i].RemediationZh
+			tmp.Classified = list[i].ClassifiedZh
+		}
+
+		rules = append(rules, tmp)
 	}
 
 	response.Ok(w, response.WithItems(rules), response.WithTotalItems(count))
@@ -97,16 +102,20 @@ func (a *ApiServer) RuleDetail(w http.ResponseWriter, r *http.Request) {
 	resp := scap.Rule{
 		ID:             rule.Id,
 		RawID:          rule.PolicyId,
-		TitleEn:        rule.TitleEn,
-		TitleZh:        rule.TitleZh,
-		DetailEn:       rule.DetailEn,
-		DetailZh:       rule.DetailZh,
-		RemediationEn:  rule.RemediationEn,
-		RemediationZh:  rule.RemediationZh,
 		ExpectedResult: rule.ExpectedResult,
 		Audit:          rule.Audit,
-		ClassifiedZh:   rule.ClassifiedZh,
-		ClassifiedEn:   rule.ClassifiedEn,
+	}
+
+	if lang.Language(ctx) == lang.LanguageEN {
+		resp.Title = rule.TitleEn
+		resp.Detail = rule.DetailEn
+		resp.Remediation = rule.RemediationEn
+		resp.Classified = rule.ClassifiedEn
+	} else {
+		resp.Title = rule.TitleZh
+		resp.Detail = rule.DetailZh
+		resp.Remediation = rule.RemediationZh
+		resp.Classified = rule.ClassifiedZh
 	}
 
 	if rule.PolicyDetailInfoExtraDetail != nil {
