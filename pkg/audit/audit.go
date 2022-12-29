@@ -690,7 +690,8 @@ func init() {
 		return deleteAction, "删除偏移防御白名单{{.}}"
 	})
 
-	// 事件中心白名单
+	// 事件中心
+	// 白名单
 	routeAction.POST("/api/v2/platform/sherlock/palace/whitelist", func(params Params) (string, string) {
 		return createAction, "新增事件中心白名单{{.}}"
 	})
@@ -699,5 +700,9 @@ func init() {
 	})
 	routeAction.DELETE("/api/v2/platform/sherlock/palace/whitelist", func(params Params) (string, string) {
 		return deleteAction, "删除事件中心白名单{{.}}"
+	})
+	// 事件标记
+	routeAction.POST("/api/v2/platform/sherlock/palace/event/process", func(params Params) (string, string) {
+		return editAction, "编辑事件 {{.}} 的事件标记"
 	})
 }
