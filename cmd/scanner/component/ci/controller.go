@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"scm.tensorsecurity.cn/tensorsecurity-rd/fanal/types"
 	"strings"
 	"time"
 
@@ -186,21 +187,41 @@ func (c *Controller) logPostgresSensitive(ctx context.Context, result scanner_ci
 }
 
 func (c *Controller) logPostgresPkgs(ctx context.Context, result scanner_ci.PolicyResult, ImageID int64) error {
-	pkgs := []scanner_ci.CiPkgs{}
-	mp := make(map[string]struct{})
-	for _, v := range result.Artifact.Artifact.Packages {
-		key := fmt.Sprintf("%s:%s", v.Name, v.Version)
-		if _, ok := mp[key]; !ok {
-			mp[key] = struct{}{}
-			pkgs = append(pkgs, scanner_ci.CiPkgs{ImageID: ImageID, UniquePkg: key, Layer: v.Layer.Digest, License: v.License})
+	logging.Get().Debug().
+		Int("osPkgNum", len(result.Artifact.Artifact.Packages)).
+		Int("appNum", len(result.Artifact.Artifact.Applications)).
+		Msg("compose ci pkgs")
+
+	addPkgFunc := func(found []types.Package, result []scanner_ci.CiPkgs, filter map[string]struct{}) []scanner_ci.CiPkgs {
+		for _, v := range found {
+			key := fmt.Sprintf("%s:%s", v.Name, v.Version)
+			if _, ok := filter[key]; !ok {
+				filter[key] = struct{}{}
+				result = append(result, scanner_ci.CiPkgs{ImageID: ImageID, UniquePkg: key, Layer: v.Layer.Digest, License: v.License})
+			}
 		}
+		return result
 	}
 
+	pkgs := make([]scanner_ci.CiPkgs, 0)
+	mp := make(map[string]struct{})
+
+	// add os pkgs
+	pkgs = addPkgFunc(result.Artifact.Artifact.Packages, pkgs, mp)
+
+	// add lang pkgs
+	for _, v := range result.Artifact.Artifact.Applications {
+		logging.Get().Debug().Str("appType", v.Type).Int("pkgNum", len(v.Libraries)).Msg("add app pkgs")
+		pkgs = addPkgFunc(v.Libraries, pkgs, mp)
+	}
+	logging.Get().Debug().Int("totalPkgNum", len(pkgs)).Msg("ready to save ci pkgs")
 	err := c.dal.CreatePkgs(ctx, pkgs)
 	if err != nil {
-		logging.Get().Logger.Err(err).Msgf("create pkgs error")
+		logging.Get().Err(err).Msg("create ci pkgs error")
 		return err
 	}
+
+	logging.Get().Debug().Msg("save ci pkgs ok")
 	return nil
 }
 
