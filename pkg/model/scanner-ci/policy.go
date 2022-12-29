@@ -170,6 +170,7 @@ type Policy struct {
 	Vuln                VulnRule           `json:"vuln"`
 	SensitiveFile       SensitiveFileRule  `json:"sensitive_file"`
 	ImageNameWhiteLists []ImageNamePattern `json:"white_lists"`
+	RawVulnWhiteList    []VulnWhitelist    `json:"raw_vuln_white_list"` // [{ "name":"cve-x-y","object":"zlib@123,bash@456"}]
 }
 
 // CiPolicy policy db schema
