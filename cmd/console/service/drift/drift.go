@@ -381,6 +381,13 @@ func (rl *TensorDriftService) GetAllPolicies(ctx context.Context, clusterKey str
 	return model.PoliciesData{Policies: clusterFiltered, VersionStamp: val.VersionStamp}, nil
 }
 
+func (rl *TensorDriftService) GetAllPoliciesFromDB(ctx context.Context, clusterKey string) ([]model.DriftPolicy, error) {
+	if clusterKey == "" {
+		return dal.GetAllPolicies(ctx, rl.rdb.GetReadDB())
+	}
+	return dal.GetAllPoliciesByClusterKey(ctx, rl.rdb.GetReadDB(), clusterKey)
+}
+
 func (rl *TensorDriftService) GetRawContainers(ctx context.Context, policy model.DriftPolicy) ([]model.TensorRawContainer, error) {
 	return dal.RawContainers(ctx, rl.rdb.GetReadDB(), policy)
 }

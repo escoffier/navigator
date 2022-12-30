@@ -452,6 +452,19 @@ func GetDriftSupportResources(ctx context.Context, rdb *gorm.DB, clusterKey stri
 	return res, nil
 }
 
+func GetAllPoliciesByClusterKey(ctx context.Context, rdb *gorm.DB, clusterKey string) ([]model.DriftPolicy, error) {
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+	res := []model.DriftPolicy{}
+	err := rdb.Model(&model.DriftPolicy{}).WithContext(ctx).Where("cluster_key = ?", clusterKey).Find(&res).Error
+	if err == gorm.ErrRecordNotFound {
+		return nil, nil
+	} else if err != nil {
+		return nil, err
+	}
+	return res, nil
+}
+
 func GetAllPolicies(ctx context.Context, rdb *gorm.DB) ([]model.DriftPolicy, error) {
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
@@ -480,7 +493,13 @@ func RawContainers(ctx context.Context, rdb *gorm.DB, policy model.DriftPolicy) 
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 	res := []model.TensorRawContainer{}
-	err := rdb.Model(&model.TensorRawContainer{}).WithContext(ctx).Where("cluster_key=? and resource_name = ? and namespace = ? and resource_kind=?", policy.ClusterKey, policy.Resource, policy.Namespace, policy.ResourceKind).Find(&res).Error
+	err := rdb.Model(&model.TensorRawContainer{}).WithContext(ctx).
+		Where("cluster_key=? and resource_name = ? and namespace = ? and resource_kind=?",
+			policy.ClusterKey, policy.Resource,
+							policy.Namespace, policy.ResourceKind).
+		Order("created_at desc").Limit(100). // return 50 latest containers, reduce the pressure of es
+		Find(&res).Error
+
 	if err != nil {
 		return nil, err
 	}
@@ -491,7 +510,12 @@ func PolicyDetail(ctx context.Context, rdb *gorm.DB, policy model.DriftPolicy, l
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 	res := []model.TensorContainer{}
-	err := rdb.Model(&model.TensorContainer{}).WithContext(ctx).Where("cluster_key=? and resource_name = ? and namespace = ? and resource_kind=?", policy.ClusterKey, policy.Resource, policy.Namespace, policy.ResourceKind).Limit(limit).
+	err := rdb.Model(&model.TensorContainer{}).WithContext(ctx).
+		Where("cluster_key=? and resource_name = ? and namespace = ? and resource_kind=?",
+			policy.ClusterKey,
+			policy.Resource,
+			policy.Namespace,
+			policy.ResourceKind).Limit(limit).
 		Offset(offset).Find(&res).Error
 	if err != nil {
 		return nil, err
