@@ -612,6 +612,7 @@ func (s *ScapService) GetScanResultToFile(task *model.ExportTask) error {
 		exfile.LastTime = time.Unix(value.CreatedAt, 0).Format("2006-01-02 15:04:05")
 		exfile.Status = model.GetStatusZh(value.State)
 		exfile.PolicyId = value.PolicyID
+		exfile.TestResult = value.ActualValue
 		exfile.Section = policy.TitleZh
 		exfile.Descript = policy.RemediationZh
 		exfile.DecDetail = policy.DetailZh
