@@ -167,7 +167,7 @@ func (api *api) driftResources() http.HandlerFunc {
 		}
 
 		// get drift policy
-		policyData, err := driSvc.GetAllPolicies(ctx, clusterKey)
+		policyData, err := driSvc.GetAllPoliciesFromDB(ctx, clusterKey)
 		if err != nil {
 			logging.GetLogger().Error().Err(err).Msg("get drift policies fail")
 			apperror.RespAndLog(w, ctx, apperror.NewAnError(http.StatusInternalServerError, errors.New("get drift policies fail")))
@@ -175,7 +175,7 @@ func (api *api) driftResources() http.HandlerFunc {
 		}
 
 		var policyMap = make(map[string]struct{})
-		for _, policy := range policyData.Policies {
+		for _, policy := range policyData {
 			if policy.Namespace != namespace {
 				continue
 			}
@@ -230,7 +230,7 @@ func (api *api) driftPolicyStatsTop() http.HandlerFunc {
 			return
 		}
 
-		policyData, err := driSvc.GetAllPolicies(ctx, clusterKey)
+		policyData, err := driSvc.GetAllPoliciesFromDB(ctx, clusterKey)
 		if err != nil {
 			logging.GetLogger().Error().Err(err).Msg("get all policies fail")
 			apperror.RespAndLog(w, ctx, apperror.NewAnError(http.StatusInternalServerError, errors.New("get all policies fail")))
@@ -238,7 +238,7 @@ func (api *api) driftPolicyStatsTop() http.HandlerFunc {
 		}
 
 		var topRank []topRankItem
-		for _, p := range policyData.Policies {
+		for _, p := range policyData {
 
 			signals, err := driSvc.GetAbnormal(ctx, p, 3000, "", "")
 			if err != nil {
@@ -865,7 +865,7 @@ func (api *api) driftCreateBatchPolicy() http.HandlerFunc {
 			return
 		}
 
-		existPolicies, err := driSvc.GetAllPolicies(ctx, "")
+		existPolicies, err := driSvc.GetAllPoliciesFromDB(ctx, "")
 		if err != nil {
 			logging.GetLogger().Warn().Msg("GetAllPolicies error")
 		}
@@ -875,8 +875,8 @@ func (api *api) driftCreateBatchPolicy() http.HandlerFunc {
 			tmpPolicy := model.DriftPolicy{Enable: item.Enable, Mode: item.Mode, Creator: item.Creator, ClusterKey: item.ClusterKey,
 				Namespace: item.Namespace, Resource: item.Resource, ResourceKind: item.ResourceKind}
 			tmpPolicy.ResourceUUID = util.GenerateUUID(item.ClusterKey, item.Namespace, item.ResourceKind, item.Resource)
-			if len(existPolicies.Policies) > 0 {
-				for _, existPolicy := range existPolicies.Policies {
+			if len(existPolicies) > 0 {
+				for _, existPolicy := range existPolicies {
 					if existPolicy.ResourceUUID == tmpPolicy.ResourceUUID {
 						logging.GetLogger().Warn().Msgf("policy %s already exist", tmpPolicy.ResourceUUID)
 						continue
