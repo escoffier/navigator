@@ -29,14 +29,15 @@ type DriftPolicyUpdate struct {
 }
 
 type DriftListPolicyResp struct {
-	PolicyID     int64  `json:"policy_id"`
-	Enable       int    `json:"enable"`
-	Mode         string `gorm:"type:varchar(10)" json:"mode"`
-	Namespace    string `gorm:"type:varchar(255)" json:"namespace"`
-	Resource     string `gorm:"type:varchar(255)" json:"resource"`
-	ResourceKind string `gorm:"type:varchar(255)" json:"resource_type"`
-	ClusterKey   string `gorm:"type:varchar(255)" json:"cluster_key"`
-	AbnormalNum  int    `json:"abnormal_num"`
+	PolicyID      int64  `json:"policy_id"`
+	Enable        int    `json:"enable"`
+	Mode          string `gorm:"type:varchar(10)" json:"mode"`
+	Namespace     string `gorm:"type:varchar(255)" json:"namespace"`
+	Resource      string `gorm:"type:varchar(255)" json:"resource"`
+	ResourceKind  string `gorm:"type:varchar(255)" json:"resource_type"`
+	ClusterKey    string `gorm:"type:varchar(255)" json:"cluster_key"`
+	AbnormalNum   int    `json:"abnormal_num"`
+	ScannerStatus int8   `json:"scanner_status"`
 }
 
 type DriftPolicyAbnormal struct {
@@ -45,14 +46,16 @@ type DriftPolicyAbnormal struct {
 	ContainerID         string `json:"container_id"`
 	PodName             string `json:"pod_name"`
 	HappendTime         int64  `json:"happend_time"`
+	Action              string `json:"action"`
 	IsInGlobalWhitelist bool   `json:"in_global_whitelist"`
 }
 
 type DriftPolicyDetailResp struct {
-	ContainerID   uint32 `json:"container_id"`
-	ContainerName string `json:"container_name"`
-	ImageID       int64  `json:"image_id"`
-	Image         string `json:"image"`
+	ContainerID        uint32   `json:"container_id"`
+	ContainerName      string   `json:"container_name"`
+	ImageID            int64    `json:"image_id"`
+	Image              string   `json:"image"`
+	ContainerFullNames []string `json:"container_full_names"`
 }
 
 type DriftPolicy struct {
@@ -65,7 +68,7 @@ type DriftPolicy struct {
 	Resource     string    `gorm:"type:varchar(255)" json:"resource"`
 	ClusterKey   string    `gorm:"type:varchar(255)" json:"cluster_key"`
 	Creator      string    `gorm:"type:varchar(255)" json:"creator"`
-	Updater      string    `gorm:"type:varchar(255)" json:"updator"`
+	Updater      string    `gorm:"type:varchar(255)" json:"updater"`
 	Enable       int       `json:"enable"`
 	Mode         string    `gorm:"type:varchar(10)" json:"mode"`
 }
@@ -124,7 +127,8 @@ func (DriftGlobalWhitelistItem) TableName() string {
 }
 
 const (
-	SubjectOfDriftSupportEvent = "drifit_info_signals"
+	SubjectOfDriftSupportEvent   = "drifit_info_signals"
+	SubjectOfDriftWhiteListEvent = "drift_whitelist_signals"
 )
 
 type DriftPolicyAbnormalOpen struct {
@@ -208,4 +212,29 @@ type DriftSupportInfo struct {
 	ResourceName   string `json:"resource_name"`
 	OSTarget       string `json:"os_target"`
 	ContainerID    string `json:"container_id"`
+	ScannerStatus  int8   `json:"scanner_status"`
+}
+
+type DriftImageWhitelist struct {
+	ImageID   string `json:"image_id" gorm:"column:image_id;varchar(65)"`
+	Filepath  string `json:"filepath" gorm:"column:path;varchar(768)"`
+	CheckSum  string `json:"check_sum" gore:"column:hash;varchar(8)"`
+	RepoTag   string `json:"repo_tag" gorm:"column:repo_tag;varchar(255)"`
+	CreatedAt int64  `json:"created_at" gorm:"column:created_at;autoCreateTime:milli"`
+	UpdatedAt int64  `json:"updated_at" gorm:"column:updated_at;autoUpdateTime:milli"`
+}
+
+func (DriftImageWhitelist) TableName() string {
+	return "ivan_drift_default_whitelist"
+}
+
+type DriftWhitelistFile struct {
+	FileName string `json:"file_name"`
+	Checksum string `json:"checksum" `
+}
+
+type DriftImageWhitelistKafka struct {
+	ImageID    string               `json:"image_id"`
+	RepoTags   []string             `json:"repo_tags"`
+	Whitelists []DriftWhitelistFile `json:"whitelists"`
 }

@@ -88,10 +88,10 @@ func GetContainerPodInfo(podUID string, npw *nodeinfo.NodePodsWatcher, podResInf
 	return supportInfo, nil
 }
 
-func Send2Kafka(mqWrite mq.Writer, msg []byte) error {
+func Send2Kafka(mqWrite mq.Writer, topicStr string, msg []byte) error {
 	return mqWrite.Write(
-		context.Background(), model.SubjectOfDriftSupportEvent, kafka.Message{
-			Topic: model.SubjectOfDriftSupportEvent,
+		context.Background(), topicStr, kafka.Message{
+			Topic: topicStr,
 			Key:   []byte("support resource info"),
 			Value: msg,
 		})

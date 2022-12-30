@@ -2,13 +2,10 @@ package whitelist
 
 import (
 	"bufio"
+	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/docker/docker/api/types"
-	"gitlab.com/piccolo_su/vegeta/cmd/daemon/dp/whitelist/analyzer"
-	_ "gitlab.com/piccolo_su/vegeta/cmd/daemon/dp/whitelist/analyzer/all"
-	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/container"
-	"gitlab.com/security-rd/go-pkg/logging"
 	"io"
 	"io/fs"
 	"math/rand"
@@ -16,6 +13,15 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/docker/docker/api/types"
+	"github.com/segmentio/kafka-go"
+	"gitlab.com/piccolo_su/vegeta/cmd/daemon/dp/whitelist/analyzer"
+	_ "gitlab.com/piccolo_su/vegeta/cmd/daemon/dp/whitelist/analyzer/all"
+	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/container"
+	"gitlab.com/piccolo_su/vegeta/pkg/model"
+	"gitlab.com/security-rd/go-pkg/logging"
+	"gitlab.com/security-rd/go-pkg/mq"
 )
 
 type WhitelistFile struct {
@@ -35,6 +41,7 @@ const (
 
 type WhitelistCount struct {
 	runtimeCli container.Runtime
+	mqWriter   mq.Writer
 }
 
 func init() {
@@ -87,13 +94,16 @@ func (wc *WhitelistCount) GenerateExecWhiteList(image types.ImageInspect) (image
 
 	// save whitelist result to file cache
 	_ = dumpWhitelist(resWhiteList, whiteListFileName)
+	// send whitelist to kafka
+	_ = sendWhitelist(wc.mqWriter, strings.Trim(image.ID, "sha256:"), image.RepoTags, resWhiteList)
 
 	return imageInfo{WhiteList: resWhiteList}, nil
 }
 
-func NewWhitelistHandler(runtime container.Runtime) *WhitelistCount {
+func NewWhitelistHandler(runtime container.Runtime, mqWriter mq.Writer) *WhitelistCount {
 	wc := &WhitelistCount{
 		runtimeCli: runtime,
+		mqWriter:   mqWriter,
 	}
 	return wc
 }
@@ -215,4 +225,49 @@ func dumpWhitelist(whiteList []WhitelistFile, outputFile string) error {
 		}
 	}
 	return nil
+}
+
+func transformListType(whitelist []WhitelistFile) []model.DriftWhitelistFile {
+	var res []model.DriftWhitelistFile
+	for _, item := range whitelist {
+		res = append(res, model.DriftWhitelistFile{
+			FileName: item.Name,
+			Checksum: item.Checksum,
+		})
+	}
+	return res
+}
+
+func sendWhitelist(mqWrite mq.Writer, imageID string, repoTags []string, whitelist []WhitelistFile) error {
+	if len(whitelist) <= 0 {
+		return fmt.Errorf("whitelist is null, skip send")
+	}
+	whitelist = Unique(whitelist)
+	sort.Slice(whitelist, func(i, j int) bool {
+		return whitelist[i].Name < whitelist[j].Name
+	})
+	logging.Get().Trace().Msgf("white list len:%v", len(whitelist))
+
+	kafkaData := model.DriftImageWhitelistKafka{
+		ImageID:    imageID,
+		RepoTags:   repoTags,
+		Whitelists: transformListType(whitelist),
+	}
+	msg, err := json.Marshal(kafkaData)
+	if err != nil {
+		logging.Get().Error().Msgf("json marshal fail, err:%v", err)
+		return err
+	}
+
+	sendWhiteList2Kafka(mqWrite, model.SubjectOfDriftWhiteListEvent, msg)
+	return nil
+}
+
+func sendWhiteList2Kafka(mqWrite mq.Writer, topicStr string, msg []byte) error {
+	return mqWrite.Write(
+		context.Background(), topicStr, kafka.Message{
+			Topic: topicStr,
+			Key:   []byte("support resource info"),
+			Value: msg,
+		})
 }

@@ -16,6 +16,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/container"
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/degrade"
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/nodeinfo"
+	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/security-rd/go-pkg/logging"
 	"gitlab.com/security-rd/go-pkg/mq"
 
@@ -263,20 +264,24 @@ func (ij *Injector) DoInject(cm container.ContainerMeta) (bool, error) {
 		logging.Get().Err(err).Msg("failed to get container pod info")
 		return false, err
 	}
-	if osTarget != "" {
-		//pause image
-		supportInfo.IsSupportDrift = isSupport
-		supportInfo.OSTarget = osTarget
-		supportInfo.ContainerID = cm.ID
-		logging.Get().Info().Str("support info:", fmt.Sprintf("%+v", supportInfo)).Msg("")
 
-		msg, err := json.Marshal(supportInfo)
-		if err != nil {
-			logging.Get().Err(err).Msg("failed to marshal support info")
-		} else {
-			if err := Send2Kafka(ij.write, msg); err != nil {
-				logging.Get().Err(err).Msg("failed to send msg to kafka")
-			}
+	//pause image
+	supportInfo.IsSupportDrift = isSupport
+	supportInfo.OSTarget = osTarget
+	supportInfo.ContainerID = cm.ID
+	supportInfo.ScannerStatus = -1
+	if osTarget == "" {
+		osTarget = "unknown"
+		supportInfo.IsSupportDrift = false
+	}
+	logging.Get().Info().Str("support info:", fmt.Sprintf("%+v", supportInfo)).Msg("")
+
+	msg, err := json.Marshal(supportInfo)
+	if err != nil {
+		logging.Get().Err(err).Msg("failed to marshal support info")
+	} else {
+		if err := Send2Kafka(ij.write, model.SubjectOfDriftSupportEvent, msg); err != nil {
+			logging.Get().Err(err).Msg("failed to send msg to kafka")
 		}
 	}
 
