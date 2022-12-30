@@ -288,7 +288,7 @@ func (dal *ImageScanResultDao) CreateSensitive(ctx context.Context, data []*mode
 	for i := range dbPre {
 		needDelete := true
 		for j := range data {
-			if dbPre[i].Same(data[j]) {
+			if dbPre[i].Same(data[j]) && dbPre[i].UniqueID == data[j].UniqueID {
 				needDelete = false
 				break
 			}
@@ -301,7 +301,7 @@ func (dal *ImageScanResultDao) CreateSensitive(ctx context.Context, data []*mode
 	for i := range data {
 		needCreate := true
 		for j := range dbPre {
-			if data[i].Same(dbPre[j]) {
+			if data[i].Same(dbPre[j]) && dbPre[j].UniqueID == data[i].UniqueID {
 				needCreate = false
 				break
 			}
