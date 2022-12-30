@@ -17,15 +17,19 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/assets"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/drift"
 	"gitlab.com/piccolo_su/vegeta/pkg/apperror"
+	assetsPkg "gitlab.com/piccolo_su/vegeta/pkg/assets"
+	"gitlab.com/piccolo_su/vegeta/pkg/dal"
 	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
+	"gitlab.com/security-rd/go-pkg/sdk/palace"
 )
 
 func (api *api) drift() func(chi.Router) {
 	return func(r chi.Router) {
+		r.Get("/resources", api.driftResources())
 		r.Post("/policy/create", api.driftCreatePolicy())
 		r.Post("/policy/update", api.driftUpdatePolicy())
 		r.Post("/policy/delete", api.driftDeletePolicy())
@@ -41,7 +45,11 @@ func (api *api) drift() func(chi.Router) {
 		r.Delete("/whitelist/{whitelistID}", api.driftDelGlobalWhitelist())
 		r.Get("/whitelists", api.driftListGlobalWhitelist())
 		r.Get("/whitelist/{whitelistID}", api.driftListGlobalWhitelistById())
-
+		r.Get("/default/whitelist", api.driftPolicyImageWhitelist())
+		r.Get("/resource/stats", api.driftResourceStats())
+		r.Get("/policy/stats/top", api.driftPolicyStatsTop())
+		r.Post("/policy/batch/create", api.driftCreateBatchPolicy())
+		r.Put("/policy/batch/update", api.driftUpdateBatchPolicy())
 	}
 }
 
@@ -55,6 +63,351 @@ func isPath(path string) bool {
 	}
 	return path[0] == os.PathSeparator
 
+}
+
+func getSpecialNameSpaces() map[string]struct{} {
+
+	workerNs := os.Getenv("MY_POD_NAMESPACE")
+	return map[string]struct{}{
+		"kube-system":                           {},
+		"kube-public":                           {},
+		"kube-node-lease":                       {},
+		"kube-node-lease-renewer":               {},
+		"kube-node-lease-maintenance":           {},
+		"kube-node-lease-reclaim":               {},
+		"kube-node-lease-preemptor":             {},
+		"kube-node-lease-preemptor-maintenance": {},
+		"kube-node-lease-preemptor-renewer":     {},
+		"kube-node-lease-preemptor-reclaim":     {},
+		workerNs:                                {},
+	}
+}
+
+// @Summary get can build policy resource
+// @Description get can build policy resource
+// @Tags drift
+// @Accept json
+// @Produce json
+// @Success 200 {object} response.Response
+// @Router /api/v2/platform/drift/resource [get]
+func (api *api) driftResources() http.HandlerFunc {
+	type resource struct {
+		Cluster        string `json:"cluster"`
+		Namespace      string `json:"namespace"`
+		Kind           string `json:"kind"`
+		Name           string `json:"name"`
+		IsSupportDrift bool   `json:"is_support_drift"`
+		Reason         string `json:"reason"`
+		IsExist        int    `json:"is_exist"`
+		ScannerStatus  int8   `json:"scanner_status"`
+	}
+	modelToResource := func(rm *model.TensorResource) resource {
+		r := resource{}
+		r.Cluster = rm.ClusterKey
+		r.Namespace = rm.Namespace
+		r.Kind = rm.Kind
+		r.Name = rm.Name
+		r.IsSupportDrift = rm.IsSupportDrift
+		r.Reason = rm.Reason
+		r.IsExist = 0
+		r.ScannerStatus = rm.ScannerStatus
+		return r
+	}
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(r.Context(), 60*time.Second)
+		defer cancel()
+
+		limit, offset, err := getLimitAndOffset(r)
+		if err != nil {
+			apperror.RespAndLog(w, ctx, apperror.NewAnError(http.StatusBadRequest, err))
+			return
+		}
+
+		clusterKey, err := param.QueryString(r, "cluster_key")
+		if err != nil || clusterKey == "" {
+			logging.GetLogger().Error().Err(err).Msg("get cluster_key fail")
+			apperror.RespAndLog(w, ctx, apperror.NewAnError(http.StatusInternalServerError, errors.New("get cluster_key fail")))
+			return
+		}
+		namespace, err := param.QueryString(r, "namespace")
+		if err != nil || namespace == "" {
+			logging.GetLogger().Error().Err(err).Msg("get namespace fail")
+			apperror.RespAndLog(w, ctx, apperror.NewAnError(http.StatusInternalServerError, errors.New("get namespace fail")))
+			return
+		}
+		excludeNamespaces := getSpecialNameSpaces()
+		if _, ok := excludeNamespaces[namespace]; ok {
+			apperror.RespAndLog(w, ctx, apperror.NewAnError(http.StatusBadRequest, errors.New("namespace is invalid")))
+			return
+		}
+
+		resSvc, ok := assets.GetResourcesService(ctx)
+		if !ok {
+			logging.GetLogger().Error().Msg("get drift service fail")
+			apperror.RespAndLog(w, ctx, apperror.NewAnError(http.StatusInternalServerError, errors.New("get drift service fail")))
+			return
+		}
+
+		query := dal.ResourcesQuery()
+		query = query.WithCluster(clusterKey)
+		query = query.WithNamespace(namespace)
+
+		resources, _, err := resSvc.GetResources(ctx, query, offset, limit)
+		if err != nil {
+			logging.GetLogger().Error().Err(err).Msg("get resources fail")
+			apperror.RespAndLog(w, ctx, apperror.NewAnError(http.StatusInternalServerError, errors.New("get resources fail")))
+			return
+		}
+
+		driSvc, ok := drift.GetDriftService(ctx)
+		if !ok {
+			logging.GetLogger().Error().Msg("get drift service fail")
+			apperror.RespAndLog(w, ctx, apperror.NewAnError(http.StatusInternalServerError, errors.New("get drift service fail")))
+			return
+		}
+
+		// get drift policy
+		policyData, err := driSvc.GetAllPolicies(ctx, clusterKey)
+		if err != nil {
+			logging.GetLogger().Error().Err(err).Msg("get drift policies fail")
+			apperror.RespAndLog(w, ctx, apperror.NewAnError(http.StatusInternalServerError, errors.New("get drift policies fail")))
+			return
+		}
+
+		var policyMap = make(map[string]struct{})
+		for _, policy := range policyData.Policies {
+			if policy.Namespace != namespace {
+				continue
+			}
+			policyMap[policy.ResourceKind+policy.Resource] = struct{}{}
+		}
+
+		items := []resource{}
+		for _, resource := range resources {
+			if resource.Status != 0 {
+				continue
+			}
+			tmpItem := modelToResource(resource)
+			if _, ok := policyMap[resource.Kind+resource.Name]; ok {
+				tmpItem.IsExist = 1
+			}
+
+			items = append(items, tmpItem)
+		}
+
+		response.Ok(w, response.WithItems(items), response.WithTotalItems(int64(len(items))), response.WithStartIndex(int64(offset+len(items))))
+	}
+}
+
+// @Summary get drift policy stats top
+// @Description get drift policy stats top
+// @Tags drift
+// @Accept json
+// @Produce json
+// @Success 200 {object} response.Response
+// @Router /api/v2/platform/drift/policy/stats/top [get]
+func (api *api) driftPolicyStatsTop() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(r.Context(), 60*time.Second)
+		defer cancel()
+
+		type topRankItem struct {
+			Name  string `json:"name"`
+			Count int    `json:"count"`
+		}
+
+		clusterKey, err := param.QueryString(r, "cluster_key")
+		if err != nil {
+			logging.GetLogger().Error().Err(err).Msg("get cluster_key fail")
+			apperror.RespAndLog(w, ctx, apperror.NewAnError(http.StatusInternalServerError, errors.New("get cluster_key fail")))
+			return
+		}
+
+		driSvc, ok := drift.GetDriftService(ctx)
+		if !ok {
+			logging.GetLogger().Error().Msg("service instance get error")
+			apperror.RespAndLog(w, ctx, apperror.NewAnError(http.StatusInternalServerError, errors.New("service instance get error")))
+			return
+		}
+
+		policyData, err := driSvc.GetAllPolicies(ctx, clusterKey)
+		if err != nil {
+			logging.GetLogger().Error().Err(err).Msg("get all policies fail")
+			apperror.RespAndLog(w, ctx, apperror.NewAnError(http.StatusInternalServerError, errors.New("get all policies fail")))
+			return
+		}
+
+		var topRank []topRankItem
+		for _, p := range policyData.Policies {
+
+			signals, err := driSvc.GetAbnormal(ctx, p, 3000, "", "")
+			if err != nil {
+				logging.GetLogger().Error().Err(err).Interface("policy", p).Msg("get abnormal fail")
+				continue
+			}
+
+			rankItem := topRankItem{
+				Name:  p.Namespace + "/" + p.Resource,
+				Count: len(filterAbnormalInPolicy(p, signals)),
+			}
+			topRank = append(topRank, rankItem)
+		}
+		sort.SliceStable(topRank, func(i, j int) bool {
+			return topRank[i].Count > topRank[j].Count
+		})
+		topN := len(topRank)
+		if topN > 5 {
+			topN = 5
+		}
+		response.Ok(w, response.WithItems(topRank[:topN]))
+	}
+}
+
+// @Summary get drift support stats
+// @Description get drift support stats
+// @Tags drift
+// @Accept json
+// @Produce json
+// @Success 200 {object} response.Response
+// @Router /api/v2/platform/drift/resource/stats [get]
+func (api *api) driftResourceStats() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(r.Context(), 60*time.Second)
+		defer cancel()
+		type stats struct {
+			Total int64 `json:"total"`
+			Used  int64 `json:"used"`
+		}
+		clusterKey, err := param.QueryString(r, "cluster_key")
+		if err != nil {
+			logging.GetLogger().Err(err).Msgf("get cluster_key error")
+			apperror.RespAndLog(w, ctx, apperror.NewAnError(http.StatusBadRequest, errors.New("get cluster_key error")))
+			return
+		}
+
+		driSvc, ok := drift.GetDriftService(ctx)
+		if !ok {
+			logging.GetLogger().Error().Msg("service instance get error")
+			apperror.RespAndLog(w, ctx, apperror.NewAnError(http.StatusInternalServerError, errors.New("service instance get error")))
+			return
+		}
+
+		usedCount, err := driSvc.GetPoliciesCount(ctx, clusterKey)
+		if err != nil {
+			logging.GetLogger().Err(err).Msgf("get policies count error")
+			apperror.RespAndLog(w, ctx, apperror.NewAnError(http.StatusInternalServerError, errors.New("get policies count error")))
+			return
+		}
+
+		allRes, err := driSvc.GetSupportResources(ctx, clusterKey)
+		if err != nil {
+			logging.GetLogger().Err(err).Msgf("get support resource count error")
+			apperror.RespAndLog(w, ctx, apperror.NewAnError(http.StatusInternalServerError, errors.New("get support resource count error")))
+			return
+		}
+
+		excludeNS := getSpecialNameSpaces()
+
+		var total int64 = 0
+
+		for _, res := range allRes {
+			logging.GetLogger().Debug().Interface("res", res).Msg("resource detail")
+			if _, ok := excludeNS[res.Namespace]; ok {
+				continue
+			}
+			if res.TableBase.Status != 0 {
+				continue
+			}
+			total += 1
+		}
+
+		res := stats{
+			Total: total,
+			Used:  usedCount,
+		}
+		response.Ok(w, response.WithItem(res))
+
+	}
+}
+
+// @Summary Get drift policy default image whitelist
+// @Description Get drift policy default image whitelist
+// @Tags drift
+// @Accept json
+// @Produce json
+// @Success 200 {object} response.Response
+// @Router /api/v2/platform/drift/default/whitelist [get]
+func (api *api) driftPolicyImageWhitelist() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(r.Context(), 60*time.Second)
+		defer cancel()
+
+		policyID, err := param.QueryInt64(r, "policy_id")
+		if err != nil {
+			logging.GetLogger().Error().Err(err).Msg("get policy_id fail")
+			apperror.RespAndLog(w, ctx, apperror.NewAnError(http.StatusInternalServerError, errors.New("get policy_id fail")))
+			return
+		}
+
+		offset, err := param.QueryInt(r, "offset")
+		if err != nil {
+			logging.GetLogger().Error().Err(err).Msg("get offset fail")
+			apperror.RespAndLog(w, ctx, apperror.NewAnError(http.StatusInternalServerError, errors.New("get offset fail")))
+			return
+
+		}
+		limit, err := param.QueryInt(r, "limit")
+		if err != nil {
+			logging.GetLogger().Error().Err(err).Msg("get limit fail")
+			apperror.RespAndLog(w, ctx, apperror.NewAnError(http.StatusInternalServerError, errors.New("get limit fail")))
+			return
+		}
+
+		searchStr := ""
+		searchStr, err = param.QueryString(r, "search")
+		if err != nil {
+			logging.GetLogger().Warn().Err(err).Msg("get search fail")
+			searchStr = ""
+		}
+
+		driSvc, ok := drift.GetDriftService(ctx)
+		if !ok {
+			logging.GetLogger().Error().Msg("service instance get error")
+			apperror.RespAndLog(w, ctx, apperror.NewAnError(http.StatusInternalServerError, errors.New("service instance get error")))
+			return
+		}
+
+		policy, err := driSvc.GetPolicyByID(ctx, policyID)
+		if err != nil {
+			logging.GetLogger().Err(err).Msg("get GetPolicyByID error")
+			apperror.RespAndLog(w, ctx, apperror.NewAnError(http.StatusInternalServerError, errors.New("get GetPolicyByID error")))
+			return
+		}
+
+		containers, err := driSvc.PolicyDetail(ctx, policy, 10000, 0)
+		if err != nil {
+			logging.GetLogger().Err(err).Msg("get containers error")
+			apperror.RespAndLog(w, ctx, apperror.NewAnError(http.StatusInternalServerError, errors.New("get containers error")))
+			return
+		}
+
+		imageTags := []string{}
+		for _, container := range containers {
+			imageTags = append(imageTags, container.Image)
+		}
+
+		whitelist, count, err := driSvc.GetDefaultWhitelist(ctx, offset, limit, imageTags, searchStr)
+		if err != nil {
+			logging.GetLogger().Err(err).Msgf("Get default whitelist error")
+			apperror.RespAndLog(w, ctx, apperror.NewAnError(http.StatusInternalServerError, errors.New("Get default whitelist error")))
+			return
+		}
+		response.Ok(w, response.WithItems(whitelist),
+			response.WithStartIndex(int64(offset)),
+			response.WithItemsPerPage(int64(limit)),
+			response.WithTotalItems(count))
+
+	}
 }
 
 // @Summary Create whitelist
@@ -338,20 +691,7 @@ func (api *api) driftNamespace() http.HandlerFunc {
 			apperror.RespAndLog(w, ctx, apperror.NewAnError(http.StatusInternalServerError, err))
 			return
 		}
-		workerNs := os.Getenv("MY_POD_NAMESPACE")
-		namespacesDefault := map[string]struct{}{
-			"kube-system":                           {},
-			"kube-public":                           {},
-			"kube-node-lease":                       {},
-			"kube-node-lease-renewer":               {},
-			"kube-node-lease-maintenance":           {},
-			"kube-node-lease-reclaim":               {},
-			"kube-node-lease-preemptor":             {},
-			"kube-node-lease-preemptor-maintenance": {},
-			"kube-node-lease-preemptor-renewer":     {},
-			"kube-node-lease-preemptor-reclaim":     {},
-			workerNs:                                {},
-		}
+		namespacesDefault := getSpecialNameSpaces()
 		var res []*model.TensorNamespace
 		for _, v := range namespaces {
 			if _, ok := namespacesDefault[v.Name]; !ok {
@@ -498,6 +838,63 @@ func (api *api) driftCreatePolicy() http.HandlerFunc {
 	}
 }
 
+func (api *api) driftCreateBatchPolicy() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(r.Context(), 60*time.Second)
+		defer cancel()
+		type tmpReq struct {
+			Data []model.DriftPolicyCreate `json:"data"`
+		}
+
+		var reqData tmpReq
+
+		err := util.DecodeJSONBody(w, r, &reqData)
+
+		if err != nil {
+			apperror.RespAndLog(w, ctx,
+				apperror.NewMalformedRequestError(http.StatusBadRequest,
+					fmt.Errorf("failed to decode json: %w", err)))
+			return
+		}
+
+		policyItems := reqData.Data
+		driSvc, ok := drift.GetDriftService(ctx)
+		if !ok {
+			logging.GetLogger().Error().Msg("service instance get error")
+			apperror.RespAndLog(w, ctx, apperror.NewAnError(http.StatusInternalServerError, errors.New("service instance get error")))
+			return
+		}
+
+		existPolicies, err := driSvc.GetAllPolicies(ctx, "")
+		if err != nil {
+			logging.GetLogger().Warn().Msg("GetAllPolicies error")
+		}
+
+		var insertItems []model.DriftPolicy
+		for _, item := range policyItems {
+			tmpPolicy := model.DriftPolicy{Enable: item.Enable, Mode: item.Mode, Creator: item.Creator, ClusterKey: item.ClusterKey,
+				Namespace: item.Namespace, Resource: item.Resource, ResourceKind: item.ResourceKind}
+			tmpPolicy.ResourceUUID = util.GenerateUUID(item.ClusterKey, item.Namespace, item.ResourceKind, item.Resource)
+			if len(existPolicies.Policies) > 0 {
+				for _, existPolicy := range existPolicies.Policies {
+					if existPolicy.ResourceUUID == tmpPolicy.ResourceUUID {
+						logging.GetLogger().Warn().Msgf("policy %s already exist", tmpPolicy.ResourceUUID)
+						continue
+					}
+				}
+			}
+			insertItems = append(insertItems, tmpPolicy)
+		}
+		resp, err := driSvc.CreatePolicies(ctx, insertItems)
+		if err != nil {
+			logging.GetLogger().Err(err).Msg("CreatePolicies error")
+			apperror.RespAndLog(w, ctx, apperror.NewAnError(http.StatusInternalServerError, errors.New("CreatePolicies error")))
+			return
+		}
+		response.Ok(w, response.WithItems(resp), response.WithTotalItems(int64(len(resp))))
+	}
+}
+
 func (api *api) driftDeletePolicy() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx, cancel := context.WithTimeout(r.Context(), time.Second*60)
@@ -580,6 +977,44 @@ func (api *api) driftUpdatePolicy() http.HandlerFunc {
 	}
 }
 
+func (api *api) driftUpdateBatchPolicy() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(r.Context(), time.Second*60)
+		defer cancel()
+		type tmpReqData struct {
+			Data []model.DriftPolicyUpdate `json:"data"`
+		}
+		reqData := tmpReqData{}
+		err := util.DecodeJSONBody(w, r, &reqData)
+		if err != nil {
+			apperror.RespAndLog(w, ctx,
+				apperror.NewMalformedRequestError(http.StatusBadRequest,
+					fmt.Errorf("failed to decode json: %w", err)))
+			return
+		}
+		driSvc, ok := drift.GetDriftService(ctx)
+		if !ok {
+			logging.GetLogger().Error().Msg("service instance get error")
+			apperror.RespAndLog(w, ctx, apperror.NewAnError(http.StatusInternalServerError, errors.New("service instance get error")))
+			return
+		}
+		errs := driSvc.UpdatePolicies(ctx, reqData.Data)
+		if len(errs) > 0 {
+			retErrs := make([]apperror.Suberror, 0)
+			for _, err := range errs {
+				logging.GetLogger().Err(err).Msg("UpdatePolicies error")
+				retErrs = append(retErrs, apperror.Suberror{
+					Location: "UpdatePolicies",
+					Message:  err.Error(),
+				})
+			}
+			apperror.RespAndLog(w, ctx, apperror.NewAnError(http.StatusInternalServerError, errors.New("UpdatePolicies error"), retErrs...))
+			return
+		}
+		response.Ok(w)
+	}
+}
+
 func (api *api) driftPolicyByID() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx, cancel := context.WithTimeout(r.Context(), 60*time.Second)
@@ -606,6 +1041,55 @@ func (api *api) driftPolicyByID() http.HandlerFunc {
 
 		response.Ok(w, response.WithItem(policy))
 	}
+}
+
+func filterAbnormalInPolicy(policy model.DriftPolicy, signals []*palace.Signal) []model.DriftPolicyAbnormal {
+	policyCreateTimestamp := policy.CreatedAt.UnixMilli()
+	res := []model.DriftPolicyAbnormal{}
+	for _, v := range signals {
+		if policyCreateTimestamp > v.CreatedAt {
+			logging.GetLogger().Warn().Msgf("signal:%v happend before policy:%v created", v, policy)
+			continue
+		}
+		tmpRes := model.DriftPolicyAbnormal{HappendTime: v.CreatedAt}
+		if ct, ok := (*v.Scope)["container"]; ok {
+			tmpRes.ContainerID = ct.ID
+		} else {
+			logging.GetLogger().Error().Msgf("container not found in scope:%v", v.Scope)
+			continue
+		}
+
+		if pod, ok := (*v.Scope)["pod"]; ok {
+			tmpRes.PodName = pod.Name
+		} else {
+			logging.GetLogger().Error().Msgf("pod not found in scope:%v", v.Scope)
+			continue
+		}
+
+		if filePath, ok := v.Context["filePath"].(string); !ok {
+			logging.GetLogger().Error().Msgf("filePath not found in context:%v", v.Context)
+			continue
+		} else {
+			tmpRes.FilePath = filePath
+		}
+
+		if action, ok := v.Context["action"].(string); !ok {
+			logging.GetLogger().Error().Msgf("action not found in context:%v", v.Context)
+			continue
+		} else {
+			if action == "hit_whitelist" {
+				tmpRes.IsInGlobalWhitelist = true
+			} else {
+				tmpRes.IsInGlobalWhitelist = false
+			}
+			tmpRes.Action = action
+		}
+		tmpRes.ID = v.ID
+
+		res = append(res, tmpRes)
+	}
+	sort.Slice(res, func(i, j int) bool { return res[i].HappendTime > res[j].HappendTime })
+	return res
 }
 
 func (api *api) driftListPolicy() http.HandlerFunc {
@@ -657,6 +1141,12 @@ func (api *api) driftListPolicy() http.HandlerFunc {
 			enables = strings.Split(enable, ",")
 		}
 
+		status, err := param.QueryString(r, "status")
+		if err != nil {
+			logging.GetLogger().Warn().Err(err).Msgf("get status error")
+			status = ""
+		}
+
 		mode, err := param.QueryString(r, "mode")
 		var modes []string
 		if err != nil {
@@ -675,21 +1165,50 @@ func (api *api) driftListPolicy() http.HandlerFunc {
 			return
 		}
 
-		policys, count, err := driSvc.ListPolicy(ctx, limit, offset, clusterKey, resources, namespaces, enables, modes, search)
+		policies, count, err := driSvc.ListPolicy(ctx, limit, offset, clusterKey, resources, namespaces, enables, modes, search)
 		if err != nil {
 			logging.GetLogger().Error().Msg("ListPolicy error")
 			apperror.RespAndLog(w, ctx, apperror.NewAnError(http.StatusInternalServerError, errors.New("ListPolicy error")))
 			return
 		}
+		resSvc, ok := assets.GetResourcesService(ctx)
+		if !ok {
+			logging.GetLogger().Error().Msg("get drift service fail")
+			apperror.RespAndLog(w, ctx, apperror.NewAnError(http.StatusInternalServerError, errors.New("get drift service fail")))
+			return
+		}
+
 		res := []model.DriftListPolicyResp{}
-		for _, v := range policys {
+		for _, v := range policies {
+
+			query := dal.ResourcesQuery()
+			query = query.WithCluster(v.ClusterKey)
+			query = query.WithNamespace(v.Namespace)
+			query = query.WithResourceKind(assetsPkg.ResourceKind(v.ResourceKind))
+			query = query.WithResourceName(v.Resource)
+
+			resources, _, err := resSvc.GetResources(ctx, query, offset, limit)
+			if err != nil {
+				logging.GetLogger().Error().Err(err).Msg("get resources fail")
+				apperror.RespAndLog(w, ctx, apperror.NewAnError(http.StatusInternalServerError, errors.New("get resources fail")))
+				return
+			}
+			if status == "1" && resources[0].ScannerStatus > 1 {
+				continue
+			}
+			if enable != "" && resources[0].ScannerStatus <= 1 {
+				continue
+			}
+			tmpResp := model.DriftListPolicyResp{ClusterKey: v.ClusterKey, Namespace: v.Namespace, Enable: v.Enable, Mode: v.Mode, Resource: v.Resource, ResourceKind: v.ResourceKind, PolicyID: v.ID}
+
+			tmpResp.ScannerStatus = resources[0].ScannerStatus
+
 			signals, err := driSvc.GetAbnormal(ctx, v, 3000, "", "")
 			if err != nil {
 				logging.GetLogger().Err(err).Msgf("GetAbnormal error")
 				continue
 			}
-			tmpResp := model.DriftListPolicyResp{ClusterKey: v.ClusterKey, Namespace: v.Namespace, Enable: v.Enable, Mode: v.Mode, Resource: v.Resource, ResourceKind: v.ResourceKind, PolicyID: v.ID}
-			tmpResp.AbnormalNum = len(signals)
+			tmpResp.AbnormalNum = len(filterAbnormalInPolicy(v, signals))
 			res = append(res, tmpResp)
 		}
 		response.Ok(w, response.WithItems(res), response.WithTotalItems(count))
@@ -740,11 +1259,23 @@ func (api *api) driftPolicyDetail() http.HandlerFunc {
 			apperror.RespAndLog(w, ctx, apperror.NewAnError(http.StatusInternalServerError, errors.New("get containers error")))
 			return
 		}
+
+		rawContainers, err := driSvc.GetRawContainers(ctx, policy)
+		if err != nil {
+			logging.GetLogger().Err(err).Msg("get raw containers error")
+			apperror.RespAndLog(w, ctx, apperror.NewAnError(http.StatusInternalServerError, errors.New("get raw containers error")))
+			return
+		}
+
 		res := []model.DriftPolicyDetailResp{}
 		for _, v := range containers {
 			ids, err := driSvc.GetImageID(ctx, v.ImageUUID)
 			if err != nil {
 				logging.GetLogger().Err(err).Msgf("get image id error %d", v.ImageUUID)
+				continue
+			}
+			if v.Status != 0 {
+				logging.GetLogger().Warn().Msgf("container status is not 0 %d", v.Status)
 				continue
 			}
 			tmpResp := model.DriftPolicyDetailResp{}
@@ -754,6 +1285,15 @@ func (api *api) driftPolicyDetail() http.HandlerFunc {
 			if len(ids) > 0 {
 				tmpResp.ImageID = ids[0]
 			}
+
+			matchStr := fmt.Sprintf("k8s_%s_", v.Name)
+			fullNames := []string{}
+			for _, v := range rawContainers {
+				if matchStr == v.Name[:len(matchStr)] {
+					fullNames = append(fullNames, v.Name)
+				}
+			}
+			tmpResp.ContainerFullNames = fullNames
 			res = append(res, tmpResp)
 		}
 		response.Ok(w, response.WithItems(res))
@@ -807,6 +1347,17 @@ func (api *api) driftPolicyAbnormal() http.HandlerFunc {
 			return
 		}
 
+		actionTargets, err := param.QueryString(r, "action")
+		actionsMap := make(map[string]struct{})
+		if err != nil {
+			logging.GetLogger().Warn().Msgf("get action error")
+			actionTargets = ""
+		} else {
+			for _, v := range strings.Split(actionTargets, ",") {
+				actionsMap[v] = struct{}{}
+			}
+		}
+
 		filePath, err := param.QueryString(r, "file_path")
 		if err != nil {
 			logging.GetLogger().Err(err).Msgf("get file_path error")
@@ -833,40 +1384,27 @@ func (api *api) driftPolicyAbnormal() http.HandlerFunc {
 			apperror.RespAndLog(w, ctx, apperror.NewAnError(http.StatusInternalServerError, errors.New("GetAbnormal error")))
 			return
 		}
+		logging.GetLogger().Info().Msgf("signals len %d :%v", len(signals), signals)
+		tmpSignals := []*palace.Signal{}
 
-		res := []model.DriftPolicyAbnormal{}
-		for _, v := range signals {
-			tmpres := model.DriftPolicyAbnormal{HappendTime: v.CreatedAt}
-			if ct, ok := (*v.Scope)["container"]; ok {
-				tmpres.ContainerID = ct.ID
-			} else {
-				continue
-			}
-
-			if pod, ok := (*v.Scope)["pod"]; ok {
-				tmpres.PodName = pod.Name
-			} else {
-				continue
-			}
-
-			if tmpres.FilePath, ok = v.Context["filePath"].(string); !ok {
-				continue
-			}
-
-			if action, ok := v.Context["action"].(string); !ok {
-				continue
-			} else {
-				if action == "hit_whitelist" {
-					tmpres.IsInGlobalWhitelist = true
-				} else {
-					tmpres.IsInGlobalWhitelist = false
+		if actionTargets != "" {
+			for _, v := range signals {
+				action, ok := v.Context["action"].(string)
+				if !ok {
+					logging.GetLogger().Error().Msgf("action not found in context:%v", v.Context)
+					continue
+				}
+				if _, ok := actionsMap[action]; ok {
+					tmpSignals = append(tmpSignals, v)
 				}
 			}
-			tmpres.ID = v.ID
-
-			res = append(res, tmpres)
+		} else {
+			tmpSignals = signals
 		}
-		sort.Slice(res, func(i, j int) bool { return res[i].HappendTime > res[j].HappendTime })
+		logging.GetLogger().Info().Msgf("tmpSignals len %d :%v", len(tmpSignals), tmpSignals)
+
+		res := filterAbnormalInPolicy(policy, tmpSignals)
+		logging.GetLogger().Info().Msgf("res len %d :%v", len(res), res)
 		response.Ok(w, response.WithItems(res))
 	}
 }

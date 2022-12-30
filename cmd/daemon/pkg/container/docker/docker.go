@@ -55,7 +55,7 @@ func (d *dockerDriver) GetContainerMeta(containerID string) (container.Container
 	cm.ProcessID = c.State.Pid
 	cm.ImageID = c.Image
 	cm.ID = c.ID
-	cm.Name = c.Name
+	cm.Name = strings.TrimPrefix(c.Name, "/")
 	cm.State = c.State.Status
 
 	labels := c.Config.Labels

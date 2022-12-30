@@ -50,6 +50,7 @@ import (
 	"gitlab.com/security-rd/go-pkg/databases"
 	"gitlab.com/security-rd/go-pkg/elastic"
 	"gitlab.com/security-rd/go-pkg/logging"
+	"gitlab.com/security-rd/go-pkg/mq"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -153,7 +154,13 @@ func NewConsole(
 		logging.Get().Err(err).Msgf("ERROR: DataService init error")
 	}
 
-	drErr := drvSvc.InitDriftService(rdb, es)
+	mqFactory := mq.GetClientFactory()
+	mqReader, err := mqFactory.Reader(context.Background())
+	if err != nil {
+		logging.Get().Err(err).Msg("init mq reader error")
+		panic(err)
+	}
+	drErr := drvSvc.InitDriftService(rdb, es, mqReader)
 	if drErr != nil {
 		logging.Get().Err(drErr).Msg("ERROR: InitDriftService init error")
 	}

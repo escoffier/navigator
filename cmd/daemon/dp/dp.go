@@ -2,14 +2,17 @@ package dp
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
-	"gitlab.com/piccolo_su/vegeta/cmd/daemon/dp/whitelist/analyzer"
 	"os"
 	"runtime/debug"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
+
+	"gitlab.com/piccolo_su/vegeta/cmd/daemon/dp/whitelist/analyzer"
+	"gitlab.com/piccolo_su/vegeta/pkg/model"
 
 	"github.com/docker/docker/api/types"
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/dp/whitelist"
@@ -108,7 +111,7 @@ func (d *DriftAssurance) Start(ctx context.Context) error {
 				logging.Get().Error().Msgf("get running container image result panic: %v.stack:%s", r, debug.Stack())
 			}
 		}()
-		_ = initRunningContainerImagesWhiteList(d.rt, d.config, d.wc)
+		_ = initRunningContainerImagesWhiteList(d.rt, d.config, d.wc, d.injector)
 	}()
 
 	// first inject all containers
@@ -168,7 +171,7 @@ func NewDriftAssurance(podWatcher *nodeinfo.NodePodsWatcher, podResInfo *nodeinf
 		return nil, err
 	}
 
-	d.wc = whitelist.NewWhitelistHandler(rt)
+	d.wc = whitelist.NewWhitelistHandler(rt, mqWriter)
 
 	return d, nil
 }
@@ -212,7 +215,7 @@ func CreateRuntimeCli() (container.Runtime, error) {
 	return rt, nil
 }
 
-func initRunningContainerImagesWhiteList(rt container.Runtime, config *ConfigManager, wc *whitelist.WhitelistCount) error {
+func initRunningContainerImagesWhiteList(rt container.Runtime, config *ConfigManager, wc *whitelist.WhitelistCount, ij *Injector) error {
 	imageScanStart := time.Now()
 	scannedCount := 0
 
@@ -254,12 +257,42 @@ func initRunningContainerImagesWhiteList(rt container.Runtime, config *ConfigMan
 			}
 			digests := cm.ImageDigest
 			if _, skip := config.IsImageDigestsExist(digests); skip {
+				supportInfo, err := GetContainerPodInfo(cm.PodUID, ij.npw, ij.podResInfo)
+				if err != nil {
+					logging.Get().Err(err).Str("imageID", c.ImageID).Msg("get container pod info failed")
+				}
+				supportInfo.IsSupportDrift = true
+				supportInfo.ScannerStatus = 2
+				msg, err := json.Marshal(supportInfo)
+				if err != nil {
+					logging.Get().Err(err).Msg("marshal support info failed")
+				} else {
+					err = Send2Kafka(ij.write, model.SubjectOfDriftSupportEvent, msg)
+					if err != nil {
+						logging.Get().Err(err).Msg("send support info to kafka failed")
+					}
+				}
 				return
 			}
 			for _, d := range digests {
 				err = config.SetWhiteListScanning(d)
 				if err != nil {
 					logging.Get().Err(err).Msgf("imageDigest: %v", d)
+				}
+			}
+			supportInfo, err := GetContainerPodInfo(cm.PodUID, ij.npw, ij.podResInfo)
+			if err != nil {
+				logging.Get().Err(err).Str("imageID", c.ImageID).Msg("get container pod info failed")
+			}
+			supportInfo.IsSupportDrift = true
+			supportInfo.ScannerStatus = 1
+			msg, err := json.Marshal(supportInfo)
+			if err != nil {
+				logging.Get().Err(err).Msg("marshal support info failed")
+			} else {
+				err = Send2Kafka(ij.write, model.SubjectOfDriftSupportEvent, msg)
+				if err != nil {
+					logging.Get().Err(err).Msg("send support info to kafka failed")
 				}
 			}
 
@@ -279,6 +312,22 @@ func initRunningContainerImagesWhiteList(rt container.Runtime, config *ConfigMan
 				for _, v := range digests {
 					config.SetContainerWhiteList(v, imageInfo.WhiteList)
 					_ = config.SetWhiteListReady(v)
+
+				}
+				supportInfo, err := GetContainerPodInfo(cm.PodUID, ij.npw, ij.podResInfo)
+				if err != nil {
+					logging.Get().Err(err).Str("imageID", c.ImageID).Msg("get container pod info failed")
+				}
+				supportInfo.IsSupportDrift = true
+				supportInfo.ScannerStatus = 2
+				msg, err := json.Marshal(supportInfo)
+				if err != nil {
+					logging.Get().Err(err).Msg("marshal support info failed")
+				} else {
+					err = Send2Kafka(ij.write, model.SubjectOfDriftSupportEvent, msg)
+					if err != nil {
+						logging.Get().Err(err).Msg("send support info to kafka failed")
+					}
 				}
 			}
 			logging.Get().Debug().Msgf("get container meta: %+v\n", cm)

@@ -1,6 +1,7 @@
 package dp
 
 import (
+	"encoding/json"
 	"os"
 	"runtime/debug"
 
@@ -8,6 +9,7 @@ import (
 	_ "gitlab.com/piccolo_su/vegeta/cmd/daemon/dp/scope/image"
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/dp/whitelist"
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/container"
+	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/security-rd/go-pkg/logging"
 )
 
@@ -94,9 +96,18 @@ func (s *Subscriber) RuntimeEventCallBack(config *ConfigManager, rt container.Ru
 				// get image whitelist
 				skipScanner := false
 				if _, skipScanner = config.IsImageDigestsExist(m.ContainerInfo.ImageDigest); skipScanner {
-					// logging.Get().
-					// 	Info().
-					// 	Msg("imageDigest in exec white list,ignore whitelist scanner")
+					supportInfo, err := GetContainerPodInfo(m.ContainerInfo.PodUID, injector.npw, injector.podResInfo)
+					if err != nil {
+						logging.Get().Err(err).Msgf("imageDigest: %v", m.ContainerInfo.ImageDigest)
+					}
+					supportInfo.IsSupportDrift = true
+					supportInfo.ScannerStatus = 2
+					msg, err := json.Marshal(supportInfo)
+					if err != nil {
+						logging.Get().Err(err).Msgf("imageDigest: %v", m.ContainerInfo.ImageDigest)
+					} else {
+						err = Send2Kafka(injector.write, model.SubjectOfDriftSupportEvent, msg)
+					}
 				}
 
 				if !skipScanner {
@@ -121,6 +132,21 @@ func (s *Subscriber) RuntimeEventCallBack(config *ConfigManager, rt container.Ru
 									logging.Get().Err(err).Msgf("imageDigest: %v", d)
 								}
 							}
+							supportInfo, err := GetContainerPodInfo(m.ContainerInfo.PodUID, injector.npw, injector.podResInfo)
+							if err != nil {
+								logging.Get().Err(err).Msgf("imageDigest: %v", m.ContainerInfo.ImageDigest)
+							}
+							supportInfo.IsSupportDrift = true
+							supportInfo.ScannerStatus = 1
+							msg, err := json.Marshal(supportInfo)
+							if err != nil {
+								logging.Get().Err(err).Msgf("imageDigest: %v", m.ContainerInfo.ImageDigest)
+							} else {
+								err = Send2Kafka(injector.write, model.SubjectOfDriftSupportEvent, msg)
+								if err != nil {
+									logging.Get().Err(err).Msgf("imageDigest: %v", m.ContainerInfo.ImageDigest)
+								}
+							}
 							if len(imageInfo.WhiteList) > 0 {
 								logging.Get().
 									Info().
@@ -132,6 +158,22 @@ func (s *Subscriber) RuntimeEventCallBack(config *ConfigManager, rt container.Ru
 									err = config.SetWhiteListReady(d)
 									if err != nil {
 										logging.Get().Err(err).Msgf("imageDigest: %v", d)
+									}
+
+								}
+								supportInfo, err := GetContainerPodInfo(m.ContainerInfo.PodUID, injector.npw, injector.podResInfo)
+								if err != nil {
+									logging.Get().Err(err).Msgf("imageDigest: %v", m.ContainerInfo.ImageDigest)
+								}
+								supportInfo.IsSupportDrift = true
+								supportInfo.ScannerStatus = 2
+								msg, err := json.Marshal(supportInfo)
+								if err != nil {
+									logging.Get().Err(err).Msgf("imageDigest: %v", m.ContainerInfo.ImageDigest)
+								} else {
+									err = Send2Kafka(injector.write, model.SubjectOfDriftSupportEvent, msg)
+									if err != nil {
+										logging.Get().Err(err).Msgf("imageDigest: %v", m.ContainerInfo.ImageDigest)
 									}
 								}
 							}

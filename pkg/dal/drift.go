@@ -198,6 +198,36 @@ func GetDriftGlobalWhiteListById(ctx context.Context, rdb *gorm.DB, id uint64) (
 
 }
 
+func CreateDriftPolicies(ctx context.Context, rdb *gorm.DB, policies []model.DriftPolicy) ([]model.DriftPolicy, error) {
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+
+	err := rdb.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		err := tx.Model(&model.DriftPolicy{}).Create(&policies).Error
+		if err != nil {
+			return err
+		}
+		policy := policies[len(policies)-1]
+		versionStamp := strconv.FormatInt(time.Now().UnixMilli(), 10)
+		config := &model.TensorConfig{
+			Key:       model.ConfDriftPoliciesVersionKey,
+			Config:    []byte(versionStamp),
+			Creator:   policy.Creator,
+			CreatedAt: policy.CreatedAt,
+			Updater:   policy.Updater,
+			UpdatedAt: policy.UpdatedAt,
+			Status:    0,
+		}
+		return updateDriftVersionStamp(tx, config)
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	return policies, err
+}
+
 func CreateDriftPolicy(ctx context.Context, rdb *gorm.DB, policy model.DriftPolicy) (int64, error) {
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
@@ -278,6 +308,52 @@ func DeleteDriftPolicy(ctx context.Context, rdb *gorm.DB, policyID int64) error 
 	return err
 }
 
+func UpdateDriftPolicies(ctx context.Context, rdb *gorm.DB, policies []model.DriftPolicyUpdate) []error {
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+	query := model.DriftPolicy{}
+	errs := make([]error, 0)
+	for index, policy := range policies {
+		err := rdb.Model(&model.DriftPolicy{}).WithContext(ctx).Where("id = ?", policy.PolicyID).Find(&query).Error
+		if err != nil {
+			errs = append(errs, err)
+			continue
+		}
+
+		tmpPolicy := model.DriftPolicy{}
+		tmpPolicy.ID = policy.PolicyID
+		tmpPolicy.Enable = policy.Enable
+		tmpPolicy.Mode = policy.Mode
+		tmpPolicy.Updater = policy.Updater
+		tmpPolicy.UpdatedAt = time.Now()
+		err = rdb.Model(&model.DriftPolicy{}).WithContext(ctx).Where("id = ?", policy.PolicyID).Select("enable", "mode", "updater", "updated_at").Updates(&tmpPolicy).Error
+		if err != nil {
+			errs = append(errs, fmt.Errorf("update policy %d failed: %v", policy.PolicyID, err))
+			continue
+		}
+		if index == len(policies)-1 {
+			err = rdb.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+				versionStamp := strconv.FormatInt(tmpPolicy.UpdatedAt.UnixMilli(), 10)
+				config := &model.TensorConfig{
+					Key:       model.ConfDriftPoliciesVersionKey,
+					Config:    []byte(versionStamp),
+					Creator:   tmpPolicy.Updater,
+					CreatedAt: tmpPolicy.UpdatedAt,
+					Updater:   tmpPolicy.Updater,
+					UpdatedAt: tmpPolicy.UpdatedAt,
+					Status:    0,
+				}
+				return updateDriftVersionStamp(tx, config)
+			})
+			if err != nil {
+				errs = append(errs, fmt.Errorf("update version stamp failed: %v", err))
+			}
+		}
+	}
+
+	return errs
+}
+
 func UpdateDriftPolicy(ctx context.Context, rdb *gorm.DB, policy model.DriftPolicyUpdate) (model.DriftPolicy, error) {
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
@@ -354,6 +430,28 @@ func ListDriftPolicy(ctx context.Context, rdb *gorm.DB, limit, offset int, clust
 	return res, len, nil
 }
 
+func GetDriftPoliciesCount(ctx context.Context, rdb *gorm.DB, clusterKey string) (int64, error) {
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+	var len int64
+	err := rdb.Model(&model.DriftPolicy{}).WithContext(ctx).Where("cluster_key = ?", clusterKey).Count(&len).Error
+	if err != nil {
+		return 0, err
+	}
+	return len, nil
+}
+
+func GetDriftSupportResources(ctx context.Context, rdb *gorm.DB, clusterKey string) ([]model.TensorResource, error) {
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+	res := []model.TensorResource{}
+	err := rdb.Model(&model.TensorResource{}).WithContext(ctx).Where("cluster_key = ? AND is_support_drift = ?", clusterKey, true).Find(&res).Error
+	if err != nil {
+		return nil, err
+	}
+	return res, nil
+}
+
 func GetAllPolicies(ctx context.Context, rdb *gorm.DB) ([]model.DriftPolicy, error) {
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
@@ -374,6 +472,17 @@ func GetPolicyByID(ctx context.Context, rdb *gorm.DB, id int64) (model.DriftPoli
 	err := rdb.Model(&model.DriftPolicy{}).WithContext(ctx).Where("id = ?", id).Find(&res).Error
 	if err != nil {
 		return model.DriftPolicy{}, err
+	}
+	return res, nil
+}
+
+func RawContainers(ctx context.Context, rdb *gorm.DB, policy model.DriftPolicy) ([]model.TensorRawContainer, error) {
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+	res := []model.TensorRawContainer{}
+	err := rdb.Model(&model.TensorRawContainer{}).WithContext(ctx).Where("cluster_key=? and resource_name = ? and namespace = ? and resource_kind=?", policy.ClusterKey, policy.Resource, policy.Namespace, policy.ResourceKind).Find(&res).Error
+	if err != nil {
+		return nil, err
 	}
 	return res, nil
 }
@@ -458,18 +567,75 @@ func UpdateResourceSupportInfo(ctx context.Context, rdb *gorm.DB, originData mod
 		}
 	}
 	tmpData.IsSupportDrift = query.IsSupportDrift && originData.IsSupportDrift
-
-	// logging.Get().Info().
-	// 	Str("originData", fmt.Sprintf("%v", originData)).
-	// 	Str("query:", fmt.Sprintf("%+v", query)).
-	// 	Str("tmpData", fmt.Sprintf("%+v", tmpData)).
-	// 	Msg("update support info")
-
-	err = db.
-		Select("reason", "is_support_drift").Updates(&tmpData).
-		Error
+	if originData.ScannerStatus > 0 {
+		tmpData.ScannerStatus = originData.ScannerStatus
+		err = db.Select("scanner_status").Updates(&tmpData).Error
+	} else {
+		err = db.
+			Select("reason", "is_support_drift").Updates(&tmpData).
+			Error
+	}
 	if err != nil {
 		return err
 	}
 	return nil
+}
+
+func InsertImageWhitelist(ctx context.Context, rdb *gorm.DB, imageWhitelist []model.DriftImageWhitelist) error {
+	ctx, cancel := context.WithTimeout(ctx, time.Second*10)
+	defer cancel()
+	db := rdb.Model(&model.DriftImageWhitelist{}).WithContext(ctx)
+
+	err := db.Create(&imageWhitelist).Error
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func GetDefaultWhitelistByImageID(ctx context.Context, rdb *gorm.DB, offset, limit int, imageID string) ([]model.DriftImageWhitelist, error) {
+	ctx, cancel := context.WithTimeout(ctx, time.Second*10)
+	defer cancel()
+	db := rdb.Model(&model.DriftImageWhitelist{}).WithContext(ctx)
+	db = db.Where("image_id = ?", imageID)
+	db = db.Offset(offset)
+	db = db.Limit(limit)
+	res := []model.DriftImageWhitelist{}
+	err := db.Find(&res).Error
+	if err != nil {
+		return nil, err
+	}
+	return res, nil
+}
+
+func GetDefaultWhitelistByImageTags(ctx context.Context, rdb *gorm.DB, offset, limit int, tags []string, searchStr string) ([]model.DriftImageWhitelist, int64, error) {
+	if len(tags) == 0 {
+		return nil, 0, nil
+	}
+
+	ctx, cancel := context.WithTimeout(ctx, time.Second*10)
+	defer cancel()
+
+	var res []model.DriftImageWhitelist
+
+	db := rdb.Model(&res).WithContext(ctx)
+
+	if searchStr != "" {
+		db = db.Where("path LIKE ?", "%"+searchStr+"%")
+	}
+	db = db.Where("repo_tag IN (?)", tags)
+
+	var count int64
+	err := db.Count(&count).Error
+	if err != nil {
+		return nil, 0, err
+	}
+
+	db = db.Offset(offset)
+	db = db.Limit(limit)
+	err = db.Find(&res).Error
+	if err != nil {
+		return nil, 0, err
+	}
+	return res, count, nil
 }

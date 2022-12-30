@@ -12,11 +12,13 @@ import (
 
 	json "github.com/json-iterator/go"
 	es "github.com/olivere/elastic/v7"
+	"github.com/segmentio/kafka-go"
 	"gitlab.com/piccolo_su/vegeta/pkg/dal"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/security-rd/go-pkg/databases"
 	"gitlab.com/security-rd/go-pkg/elastic"
 	"gitlab.com/security-rd/go-pkg/logging"
+	"gitlab.com/security-rd/go-pkg/mq"
 	"gitlab.com/security-rd/go-pkg/sdk/palace"
 	"gorm.io/gorm"
 )
@@ -28,10 +30,18 @@ var (
 	ErrESDocumentNotFound = errors.New("es document not found")
 )
 
-func InitDriftService(rdb *databases.RDBInstance, es *elastic.ESClient) error {
+func InitDriftService(rdb *databases.RDBInstance, es *elastic.ESClient, mqReader mq.Reader) error {
 	rlOnce.Do(func() {
 		EScli = es
 		instance = newDriftService(rdb, es)
+		err := mqReader.Subscribe(
+			model.SubjectOfDriftWhiteListEvent,
+			"drift image whitelist",
+			handleDriftWhitelistEvent,
+		)
+		if err != nil {
+			logging.Get().Err(err).Msg("subscribe drift image whitelist event error")
+		}
 	})
 	return nil
 }
@@ -82,6 +92,43 @@ func getVersionFromWhitelist(list []model.DriftGlobalWhitelistItem) int64 {
 		}
 	}
 	return version
+}
+
+func updateImageWhitelist(ctx context.Context, db *gorm.DB, data model.DriftImageWhitelistKafka) error {
+
+	var insertData []model.DriftImageWhitelist
+	for _, v := range data.Whitelists {
+		insertData = append(insertData, model.DriftImageWhitelist{
+			ImageID:  data.ImageID,
+			RepoTag:  data.RepoTags[0],
+			Filepath: v.FileName,
+			CheckSum: v.Checksum,
+		})
+	}
+
+	err := dal.InsertImageWhitelist(ctx, db, insertData)
+	if err != nil {
+		logging.Get().Err(err).Msg("update image whitelist error")
+		return err
+	}
+	return nil
+}
+
+func handleDriftWhitelistEvent(ctx context.Context, m kafka.Message) error {
+	var data model.DriftImageWhitelistKafka
+	err := json.Unmarshal(m.Value, &data)
+	if err != nil {
+		logging.Get().Err(err).Msg("json decode fail")
+		return err
+	}
+	ctx, cancel := context.WithTimeout(ctx, time.Second*60)
+	defer cancel()
+	logging.Get().Info().Str("receive msg:", fmt.Sprintf("%+v", data)).Msg("handleDriftWhitelistEvent")
+	err = updateImageWhitelist(ctx, instance.rdb.Get(), data)
+	if err != nil {
+		logging.Get().Err(err).Msg("update fail")
+	}
+	return err
 }
 
 func (rl *TensorDriftService) loadPolicies() {
@@ -254,6 +301,11 @@ func (rl *TensorDriftService) GetAllGlobalWhitelist(ctx context.Context) (model.
 	forked := *val
 	return forked, nil
 }
+
+func (rl *TensorDriftService) CreatePolicies(ctx context.Context, policies []model.DriftPolicy) ([]model.DriftPolicy, error) {
+	return dal.CreateDriftPolicies(ctx, rl.rdb.Get(), policies)
+}
+
 func (rl *TensorDriftService) CreatePolicy(ctx context.Context, policy model.DriftPolicy) (int64, error) {
 	return dal.CreateDriftPolicy(ctx, rl.rdb.Get(), policy)
 }
@@ -285,8 +337,20 @@ func (rl *TensorDriftService) UpdatePolicy(ctx context.Context, policy model.Dri
 	return dal.UpdateDriftPolicy(ctx, rl.rdb.Get(), policy)
 }
 
+func (rl *TensorDriftService) UpdatePolicies(ctx context.Context, policies []model.DriftPolicyUpdate) []error {
+	return dal.UpdateDriftPolicies(ctx, rl.rdb.Get(), policies)
+}
+
 func (rl *TensorDriftService) ListPolicy(ctx context.Context, limit int, offset int, clusterKey string, resourceType, namespaces, enable, mode []string, search string) ([]model.DriftPolicy, int64, error) {
 	return dal.ListDriftPolicy(ctx, rl.rdb.GetReadDB(), limit, offset, clusterKey, resourceType, namespaces, enable, mode, search)
+}
+
+func (rl *TensorDriftService) GetPoliciesCount(ctx context.Context, clusterKey string) (int64, error) {
+	return dal.GetDriftPoliciesCount(ctx, rl.rdb.GetReadDB(), clusterKey)
+}
+
+func (rl *TensorDriftService) GetSupportResources(ctx context.Context, clusterKey string) ([]model.TensorResource, error) {
+	return dal.GetDriftSupportResources(ctx, rl.rdb.GetReadDB(), clusterKey)
 }
 
 func (rl *TensorDriftService) GetPolicyByID(ctx context.Context, id int64) (model.DriftPolicy, error) {
@@ -315,6 +379,10 @@ func (rl *TensorDriftService) GetAllPolicies(ctx context.Context, clusterKey str
 		}
 	}
 	return model.PoliciesData{Policies: clusterFiltered, VersionStamp: val.VersionStamp}, nil
+}
+
+func (rl *TensorDriftService) GetRawContainers(ctx context.Context, policy model.DriftPolicy) ([]model.TensorRawContainer, error) {
+	return dal.RawContainers(ctx, rl.rdb.GetReadDB(), policy)
 }
 
 func (rl *TensorDriftService) PolicyDetail(ctx context.Context, policy model.DriftPolicy, limit int, offset int) ([]model.TensorContainer, error) {
@@ -383,4 +451,8 @@ func parseSignal(item *es.SearchHit) (*palace.Signal, error) {
 	}
 
 	return &signal, nil
+}
+
+func (rl *TensorDriftService) GetDefaultWhitelist(ctx context.Context, offset, limit int, tags []string, searchStr string) ([]model.DriftImageWhitelist, int64, error) {
+	return dal.GetDefaultWhitelistByImageTags(ctx, rl.rdb.GetReadDB(), offset, limit, tags, searchStr)
 }

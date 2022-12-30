@@ -32,7 +32,7 @@ const (
 	DBTypeRedis       = "redis"
 	DBTypePostgres    = "postgres"
 	DBTypeMysql       = "mysql"
-	DBTypeMariadb     = "mariadb"
+	DBTypeMariadb     = "shui"
 	DBTypeMemcached   = "memcached"
 	DBTypeMongo       = "mongo"
 	DBTypeMsSQLServer = "mssql"
@@ -215,6 +215,7 @@ type TensorResource struct {
 	Authority       string         `gorm:"column:authority"`
 	IsSupportDrift  bool           `gorm:"column:is_support_drift;type:boolean;default:true"`
 	Reason          string         `gorm:"column:reason;type:text"`
+	ScannerStatus   int8           `gorm:"column:scanner_status;type:tinyint;default:0"`
 }
 
 func (TensorResource) TableName() string {
