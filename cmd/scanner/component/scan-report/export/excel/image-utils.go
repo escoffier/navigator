@@ -603,7 +603,7 @@ func GenImageWebshellInfoMeta() ExcelMetaData {
 		SheetName: "Webshell信息",
 
 		Header: []string{
-			"镜像名称", "来源仓库", "文件名", "路径", "严重程度", "代码段",
+			"镜像名称", "来源仓库", "文件名", "路径", "风险程度", "代码段",
 		},
 	}
 	return data

@@ -135,6 +135,10 @@ func (w *WebshellDao) SearchWebshell(ctx context.Context, params SearchWebshellP
 		//	db = db.Select("unique_id")
 	}
 
+	if params.Level != "" {
+		db = db.Where("level = ?", params.Level)
+	}
+
 	if params.Search != "" {
 		db = db.Where("file_name like ? ", fmt.Sprintf("%%%s%%", params.Search))
 	}

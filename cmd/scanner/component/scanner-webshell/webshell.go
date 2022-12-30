@@ -43,13 +43,14 @@ func (w *WebshellController) ListWebshell(ctx *gin.Context) {
 	offset := w.GetParseInt(ctx, "offset")
 	imageID := w.GetParseInt(ctx, "imageID")
 	search := ctx.Query("keyword")
+	level := ctx.Query("level")
 	layerDigest := ctx.Query("layer_digest")
 	if imageID == 0 {
 		logging.Get().Error().Msg("image_id is 0")
 		response.JSONError(ctx, fmt.Errorf("imageID can't be 0"))
 		return
 	}
-	webshells, cnt, err := w.Srv.ListWebshells(ctx, store.SearchWebshellParam{ImageID: imageID, Search: search, LayerDigest: layerDigest}, model.Filter{Limit: limit, Offset: offset})
+	webshells, cnt, err := w.Srv.ListWebshells(ctx, store.SearchWebshellParam{ImageID: imageID, Search: search, LayerDigest: layerDigest, Level: level}, model.Filter{Limit: limit, Offset: offset})
 	if err != nil {
 		response.JSONError(ctx, fmt.Errorf("get webshell list error"))
 		return
