@@ -364,7 +364,7 @@ func (ws *ImageSensitiveFile) GenUniqueVuln() uint64 {
 }
 
 func (ws *ImageSensitiveFile) Same(after *ImageSensitiveFile) bool {
-	if ws.Name != ws.Name || ws.Description != after.Description || ws.DescriptionEn != after.DescriptionEn ||
+	if ws.Name != after.Name || ws.Description != after.Description || ws.DescriptionEn != after.DescriptionEn ||
 		ws.DescriptionZh != after.DescriptionZh {
 		return false
 	}
