@@ -1048,7 +1048,7 @@ func filterAbnormalInPolicy(policy model.DriftPolicy, signals []*palace.Signal) 
 	res := []model.DriftPolicyAbnormal{}
 	for _, v := range signals {
 		if policyCreateTimestamp > v.CreatedAt {
-			logging.GetLogger().Warn().Msgf("signal:%v happend before policy:%v created", v, policy)
+			// logging.GetLogger().Warn().Msgf("signal:%v happend before policy:%v created", v, policy)
 			continue
 		}
 		tmpRes := model.DriftPolicyAbnormal{HappendTime: v.CreatedAt}
@@ -1187,22 +1187,24 @@ func (api *api) driftListPolicy() http.HandlerFunc {
 			query = query.WithResourceKind(assetsPkg.ResourceKind(v.ResourceKind))
 			query = query.WithResourceName(v.Resource)
 
-			resources, _, err := resSvc.GetResources(ctx, query, offset, limit)
-			if err != nil {
-				logging.GetLogger().Error().Err(err).Msg("get resources fail")
-				apperror.RespAndLog(w, ctx, apperror.NewAnError(http.StatusInternalServerError, errors.New("get resources fail")))
-				return
+			resources, resCnt, err := resSvc.GetResources(ctx, query, offset, limit)
+			if err != nil || resCnt == 0 || len(resources) == 0 {
+				logging.GetLogger().Error().Err(err).
+					Str("resource_info: ", fmt.Sprintf("cluster: %s namespace: %s name: %s", v.ClusterKey, v.Namespace, v.Resource)).
+					Msg("get resources fail")
 			}
-			if status == "1" && resources[0].ScannerStatus > 1 {
+			if status == "1" && len(resources) != 0 && resources[0].ScannerStatus > 1 {
 				continue
 			}
-			if enable != "" && resources[0].ScannerStatus <= 1 {
+			if enable != "" && (len(resources) == 0 || resources[0].ScannerStatus <= 1) {
 				continue
 			}
 			tmpResp := model.DriftListPolicyResp{ClusterKey: v.ClusterKey, Namespace: v.Namespace, Enable: v.Enable, Mode: v.Mode, Resource: v.Resource, ResourceKind: v.ResourceKind, PolicyID: v.ID}
-
-			tmpResp.ScannerStatus = resources[0].ScannerStatus
-
+			if len(resources) > 0 {
+				tmpResp.ScannerStatus = resources[0].ScannerStatus
+			} else {
+				tmpResp.ScannerStatus = 0
+			}
 			signals, err := driSvc.GetAbnormal(ctx, v, 3000, "", "")
 			if err != nil {
 				logging.GetLogger().Err(err).Msgf("GetAbnormal error")
@@ -1384,7 +1386,6 @@ func (api *api) driftPolicyAbnormal() http.HandlerFunc {
 			apperror.RespAndLog(w, ctx, apperror.NewAnError(http.StatusInternalServerError, errors.New("GetAbnormal error")))
 			return
 		}
-		logging.GetLogger().Info().Msgf("signals len %d :%v", len(signals), signals)
 		tmpSignals := []*palace.Signal{}
 
 		if actionTargets != "" {
@@ -1401,10 +1402,8 @@ func (api *api) driftPolicyAbnormal() http.HandlerFunc {
 		} else {
 			tmpSignals = signals
 		}
-		logging.GetLogger().Info().Msgf("tmpSignals len %d :%v", len(tmpSignals), tmpSignals)
 
 		res := filterAbnormalInPolicy(policy, tmpSignals)
-		logging.GetLogger().Info().Msgf("res len %d :%v", len(res), res)
 		response.Ok(w, response.WithItems(res))
 	}
 }
