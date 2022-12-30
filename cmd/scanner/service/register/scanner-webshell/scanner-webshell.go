@@ -110,13 +110,14 @@ func (s *ScannerWebshellService) DeleteFile() {
 				day = tmp
 			}
 		}
-		expire := time.Now().Add(time.Hour * time.Duration(day)).UnixMilli()
+		expire := time.Now().Add(time.Hour * time.Duration(day) * 24 * -1).UnixMilli()
 		filepath.Walk("/root/webshell", func(path string, info fs.FileInfo, err error) error {
 			if info.ModTime().UnixMilli() < expire {
 				err := os.Remove(path)
 				if err != nil {
 					logging.GetLogger().Err(err).Msgf("remove error")
 				}
+				logging.GetLogger().Info().Msgf("remove webshell file %v", info.Name())
 			}
 			return nil
 		})

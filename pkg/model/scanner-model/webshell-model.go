@@ -11,6 +11,7 @@ import (
 const (
 	WebshellKafkaTopic   = "ivan_scanner_webshell"
 	WebshellKafkaGroupID = "ivan_scanner_webshell_scanner"
+	WebshellSize         = (1 << 20) * 10
 )
 
 var LevelToString = map[int]string{
@@ -144,6 +145,7 @@ type WebshellList struct {
 	Level    string `json:"level"`
 	Download int    `json:"download"`
 	FileMd5  string `json:"fileMd5"`
+	Tip      string `json:"tip"`
 	UUID     uint64 `json:"uuid,string"`
 }
 
