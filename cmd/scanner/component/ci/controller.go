@@ -195,7 +195,7 @@ func (c *Controller) logPostgresPkgs(ctx context.Context, result scanner_ci.Poli
 
 	addPkgFunc := func(found []types.Package, result []scanner_ci.CiPkgs, filter map[string]struct{}) []scanner_ci.CiPkgs {
 		for _, v := range found {
-			key := fmt.Sprintf("%s|%s", v.Name, v.Version)
+			key := fmt.Sprintf(scanner_ci.CiUniquePkg, v.Name, v.Version)
 			if _, ok := filter[key]; !ok {
 				filter[key] = struct{}{}
 				result = append(result, scanner_ci.CiPkgs{ImageID: ImageID, UniquePkg: key, Layer: v.Layer.Digest, License: v.License})
@@ -234,7 +234,7 @@ func (c *Controller) logPostgresPkgImages(ctx context.Context, result scanner_ci
 			for _, trivyVuln := range vuln.Trivy {
 				tmpPkg := scanner_ci.CiPkgImage{}
 				tmpPkg.ImageID = ImageID
-				tmpPkg.UniquePkg = fmt.Sprintf("%s:%s", trivyVuln.PkgName, trivyVuln.InstalledVersion)
+				tmpPkg.UniquePkg = fmt.Sprintf(scanner_ci.CiUniquePkg, trivyVuln.PkgName, trivyVuln.InstalledVersion)
 				tmpVuln := scanner_ci.CiVulns{Name: vuln.CVEID, PkgName: trivyVuln.PkgName, PkgVersion: trivyVuln.InstalledVersion}
 				tmpPkg.UniqueVuln = tmpVuln.GenUniqueVuln()
 				key := fmt.Sprintf("%s_%d_%d", tmpPkg.UniquePkg, tmpPkg.UniqueVuln, ImageID)
