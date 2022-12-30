@@ -4,8 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
+	"gitlab.com/piccolo_su/vegeta/pkg/lang"
 	"golang.org/x/sync/errgroup"
 	"gorm.io/gorm"
 
@@ -25,6 +27,8 @@ func (s *Service) RecordBatch(ctx context.Context, scapType string, limit, offse
 
 	var result = make([]scap.RecordDetail, 0, len(r))
 
+	language := lang.Language(ctx)
+
 	wg, nctx := errgroup.WithContext(ctx)
 	for i := range r {
 		result = append(result, scap.RecordDetail{
@@ -43,9 +47,13 @@ func (s *Service) RecordBatch(ctx context.Context, scapType string, limit, offse
 		// 获取策略名称
 		wg.Go(func() error {
 			var r model.ScapPolicy
-			if err := s.rdb.Get().WithContext(nctx).Unscoped().Select("name").
+			if err := s.rdb.Get().WithContext(nctx).Unscoped().Select("name, is_default").
 				First(&r, tmp.PolicyID).Error; err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
 				return err
+			}
+
+			if r.IsDefault && language == lang.LanguageEN {
+				r.Name = strings.ReplaceAll(r.Name, "合规检测默认策略", "default policy")
 			}
 
 			tmp.PolicyName = r.Name
