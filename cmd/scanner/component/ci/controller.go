@@ -4,9 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"scm.tensorsecurity.cn/tensorsecurity-rd/fanal/types"
 	"strings"
 	"time"
+
+	"scm.tensorsecurity.cn/tensorsecurity-rd/fanal/types"
 
 	"gitlab.com/security-rd/go-pkg/logging"
 	"scm.tensorsecurity.cn/tensorsecurity-rd/trivy/pkg/report"
@@ -194,7 +195,7 @@ func (c *Controller) logPostgresPkgs(ctx context.Context, result scanner_ci.Poli
 
 	addPkgFunc := func(found []types.Package, result []scanner_ci.CiPkgs, filter map[string]struct{}) []scanner_ci.CiPkgs {
 		for _, v := range found {
-			key := fmt.Sprintf("%s:%s", v.Name, v.Version)
+			key := fmt.Sprintf("%s|%s", v.Name, v.Version)
 			if _, ok := filter[key]; !ok {
 				filter[key] = struct{}{}
 				result = append(result, scanner_ci.CiPkgs{ImageID: ImageID, UniquePkg: key, Layer: v.Layer.Digest, License: v.License})

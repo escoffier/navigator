@@ -365,8 +365,16 @@ func (im *ImageManager) GetRecordPkgs(ctx context.Context, limit int64, offset i
 
 	res := []scanner_ci.PkgList{}
 	for k := range mp {
-		index := strings.Index(k, ":")
-		tmp := scanner_ci.PkgList{PkgName: k[0:index], PkgVersion: k[index+1:]}
+		index := strings.LastIndex(k, "|")
+		var tmp scanner_ci.PkgList
+		if index != -1 {
+			tmp = scanner_ci.PkgList{PkgName: k[0:index], PkgVersion: k[index+1:]}
+		} else {
+			index = strings.LastIndex(k, ":")
+			if index != -1 {
+				tmp = scanner_ci.PkgList{PkgName: k[0:index], PkgVersion: k[index+1:]}
+			}
+		}
 		if len(mp[k]) == 0 {
 			res = append(res, tmp)
 			continue
