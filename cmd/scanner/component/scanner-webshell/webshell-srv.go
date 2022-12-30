@@ -60,6 +60,13 @@ func (w *WebshellSrv) ListWebshells(ctx *gin.Context, params store.SearchWebshel
 		tmp.Level = v.Level
 		tmp.UUID = v.UniqueID
 		tmp.Download = w.IsDownload(tmp.FileMd5)
+		if tmp.Download == 0 {
+			if v.FileSize > scannermodel.WebshellSize {
+				tmp.Tip = "文件超过 10M，暂不支持下载"
+			} else {
+				tmp.Tip = "文件已清理，请重新扫描镜像"
+			}
+		}
 		res = append(res, tmp)
 	}
 	return res, cnt, nil

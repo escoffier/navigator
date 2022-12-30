@@ -77,7 +77,7 @@ func (w *WebshellScan) parseLayerTar(tarFileName string, digestPath string, dige
 			continue
 		}
 		if w.webshellFileExt(filepath.Ext(header.Name)) {
-			if header.Size > 1024*1024*10 {
+			if header.Size > scannermodel.WebshellSize {
 				continue
 			}
 			fileByte, err := io.ReadAll(tarReader)
