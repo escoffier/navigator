@@ -40,6 +40,10 @@ const (
 	CiExitCodeBlock = 1
 )
 
+const (
+	CiUniquePkg = "%s|%s"
+)
+
 type ImageNamePattern struct {
 	EndTime int64  `json:"end_time"` // white list end time,eg: 2023-01-01 12:00:00
 	Value   string `json:"value"`    // name regexp string,eg: dev/test*
