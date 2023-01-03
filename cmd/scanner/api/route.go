@@ -3,8 +3,9 @@ package api
 import (
 	"github.com/gin-gonic/gin"
 	"github.com/go-redis/redis/v8"
-	swaggerFiles "github.com/swaggo/files"
-	ginSwagger "github.com/swaggo/gin-swagger"
+
+	//swaggerFiles "github.com/swaggo/files"
+	//ginSwagger "github.com/swaggo/gin-swagger"
 
 	openapi "gitlab.com/piccolo_su/vegeta/cmd/scanner/api/open-api"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component"
@@ -35,7 +36,7 @@ func SetupGinRouter(redisClient *redis.Client,
 
 	router.Use(gin.Logger(), gin.Recovery())
 
-	router.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
+	//router.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 	router.GET("/health", func(c *gin.Context) {
 		c.JSON(200, gin.H{
 			"message": "healthy",
