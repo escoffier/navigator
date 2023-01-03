@@ -13,6 +13,8 @@ import (
 	json "github.com/json-iterator/go"
 	es "github.com/olivere/elastic/v7"
 	"github.com/segmentio/kafka-go"
+	"gitlab.com/piccolo_su/vegeta/cmd/console/service/assets"
+	assetsPkg "gitlab.com/piccolo_su/vegeta/pkg/assets"
 	"gitlab.com/piccolo_su/vegeta/pkg/dal"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/security-rd/go-pkg/databases"
@@ -316,7 +318,25 @@ var (
 
 func (rl *TensorDriftService) DeletePolicy(ctx context.Context, policyID int64) (model.DriftPolicy, error) {
 	policy, err := dal.GetPolicyByID(ctx, rl.rdb.Get(), policyID)
-	if err == nil && policy.Enable == 1 {
+	// resource status
+	resourceIsReady := true
+	resSvc, ok := assets.GetResourcesService(ctx)
+	if !ok {
+		logging.Get().Error().Msg("get assets service fail")
+	} else {
+		query := dal.ResourcesQuery()
+		query = query.WithCluster(policy.ClusterKey)
+		query = query.WithNamespace(policy.Namespace)
+		query = query.WithResourceKind(assetsPkg.ResourceKind(policy.ResourceKind))
+		query = query.WithResourceName(policy.Resource)
+
+		resources, resCnt, err := resSvc.GetResources(ctx, query, 0, 1)
+		if err != nil || resCnt == 0 || len(resources) == 0 || resources[0].Status != 0 || resources[0].ScannerStatus != 2 {
+			resourceIsReady = false
+		}
+	}
+
+	if err == nil && policy.Enable == 1 && resourceIsReady {
 		return policy, ErrPolicyEnabledCannotDelete
 	} else if err == gorm.ErrRecordNotFound {
 		return model.DriftPolicy{}, err
