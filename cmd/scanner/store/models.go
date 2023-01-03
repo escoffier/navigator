@@ -423,7 +423,7 @@ type SearchWebshellParam struct {
 	Search      string
 	Md5         string
 	LayerDigest string
-	Level       string
+	Level       []string
 }
 type SearchIdempotentParam struct {
 	TableId   int64

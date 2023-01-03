@@ -135,8 +135,8 @@ func (w *WebshellDao) SearchWebshell(ctx context.Context, params SearchWebshellP
 		//	db = db.Select("unique_id")
 	}
 
-	if params.Level != "" {
-		db = db.Where("level = ?", params.Level)
+	if len(params.Level) != 0 {
+		db = db.Where("level in ?", params.Level)
 	}
 
 	if params.Search != "" {

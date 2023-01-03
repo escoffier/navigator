@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
@@ -45,12 +46,16 @@ func (w *WebshellController) ListWebshell(ctx *gin.Context) {
 	search := ctx.Query("keyword")
 	level := ctx.Query("level")
 	layerDigest := ctx.Query("layer_digest")
+	var levels []string
+	if level != "" {
+		levels = strings.Split(level, ",")
+	}
 	if imageID == 0 {
 		logging.Get().Error().Msg("image_id is 0")
 		response.JSONError(ctx, fmt.Errorf("imageID can't be 0"))
 		return
 	}
-	webshells, cnt, err := w.Srv.ListWebshells(ctx, store.SearchWebshellParam{ImageID: imageID, Search: search, LayerDigest: layerDigest, Level: level}, model.Filter{Limit: limit, Offset: offset})
+	webshells, cnt, err := w.Srv.ListWebshells(ctx, store.SearchWebshellParam{ImageID: imageID, Search: search, LayerDigest: layerDigest, Level: levels}, model.Filter{Limit: limit, Offset: offset})
 	if err != nil {
 		response.JSONError(ctx, fmt.Errorf("get webshell list error"))
 		return
