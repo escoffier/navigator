@@ -1016,6 +1016,10 @@ func (api *api) driftUpdateBatchPolicy() http.HandlerFunc {
 }
 
 func (api *api) driftPolicyByID() http.HandlerFunc {
+	type RespData struct {
+		model.DriftPolicy
+		ScannerStatus int8 `json:"scanner_status"`
+	}
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx, cancel := context.WithTimeout(r.Context(), 60*time.Second)
 		defer cancel()
@@ -1039,7 +1043,31 @@ func (api *api) driftPolicyByID() http.HandlerFunc {
 			return
 		}
 
-		response.Ok(w, response.WithItem(policy))
+		resp := RespData{policy, 0}
+
+		resSvc, ok := assets.GetResourcesService(ctx)
+		if !ok {
+			logging.GetLogger().Error().Msg("get drift service fail")
+		} else {
+			query := dal.ResourcesQuery()
+			query = query.WithCluster(policy.ClusterKey)
+			query = query.WithNamespace(policy.Namespace)
+			query = query.WithResourceKind(assetsPkg.ResourceKind(policy.ResourceKind))
+			query = query.WithResourceName(policy.Resource)
+
+			resources, resCnt, err := resSvc.GetResources(ctx, query, 0, 1)
+			if err != nil || resCnt == 0 || len(resources) == 0 {
+				logging.GetLogger().Error().Err(err).
+					Str("resource_info: ", fmt.Sprintf("cluster: %s namespace: %s name: %s", policy.ClusterKey, policy.Namespace, policy.Resource)).
+					Msg("get resources fail")
+			}
+
+			if len(resources) > 0 {
+				resp.ScannerStatus = resources[0].ScannerStatus
+			}
+		}
+
+		response.Ok(w, response.WithItem(resp))
 	}
 }
 
@@ -1187,7 +1215,7 @@ func (api *api) driftListPolicy() http.HandlerFunc {
 			query = query.WithResourceKind(assetsPkg.ResourceKind(v.ResourceKind))
 			query = query.WithResourceName(v.Resource)
 
-			resources, resCnt, err := resSvc.GetResources(ctx, query, offset, limit)
+			resources, resCnt, err := resSvc.GetResources(ctx, query, 0, 1)
 			if err != nil || resCnt == 0 || len(resources) == 0 {
 				logging.GetLogger().Error().Err(err).
 					Str("resource_info: ", fmt.Sprintf("cluster: %s namespace: %s name: %s", v.ClusterKey, v.Namespace, v.Resource)).
