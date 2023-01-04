@@ -178,6 +178,23 @@ func (c *CiApiSrv) CreateCiPolicy(ctx *gin.Context) {
 		response.JSONError(ctx, fmt.Errorf("bad request format"))
 		return
 	}
+	if len(policyAPI.VulnWhitelist) > 0 {
+		for _, v := range policyAPI.VulnWhitelist {
+			if v.Object != "all" {
+				if !strings.Contains(v.Object, "@") {
+					str := fmt.Sprintf("%v软件包格式错误", v.Object)
+					logging.Get().Err(err).Msg(str)
+					ctx.JSON(http.StatusInternalServerError, response.HTTPEnvelope{
+						Error: &response.HTTPError{
+							Code:    1,
+							Message: str,
+						},
+					})
+					return
+				}
+			}
+		}
+	}
 	policy := policyAPI.TransToPolicy()
 	policyID, err := c.Component.PM.CreatePolicy(ctx, &policy)
 	if err != nil {
