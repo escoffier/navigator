@@ -36,18 +36,23 @@ func (d *DbDequeue) DequeueTasks(ctx context.Context) ([]task.Task, error) {
 
 	regs, _, err := registryDal.SearchRegistry(ctx, store.SearchRegistryParam{ScannerInstance: global.ScannerInstance}, nil)
 	if err != nil {
-		logging.GetLogger().Err(err).Str("ScannerInstance", global.ScannerInstance).Msg("GetPendingTasks.SearchRegistry")
+		logging.GetLogger().Err(err).Str("scannerInstance", global.ScannerInstance).Msg("GetPendingTasks.SearchRegistry")
 		return nil, err
 	}
 	regIds := make([]int64, 0)
 	for i := range regs {
 		regIds = append(regIds, regs[i].ID)
 	}
+	if len(regIds) == 0 {
+		logging.GetLogger().Warn().Str("scannerInstance", global.ScannerInstance).Msg("scanner not bind any registry")
+		return nil, nil
+	}
+
 	taskDal := store.GetScannerOrmDb()
 	tasks, err := taskDal.GetInprogressTaskAndSetStatus(ctx, int64(maxTask), int64(d.config.DequeNum), regIds)
-	logging.GetLogger().Info().Interface("tasks", tasks).Msg("DequeueTasks GetInprogressTaskAndSetStatus")
+	logging.GetLogger().Info().Interface("tasks", tasks).Msg("DequeueTasks GetInProgressTaskAndSetStatus")
 	if err != nil {
-		logging.GetLogger().Err(err).Msg("DequeueTasks GetInprogressTaskAndSetStatus")
+		logging.GetLogger().Err(err).Msg("DequeueTasks GetInProgressTaskAndSetStatus")
 		return nil, err
 	}
 	pendingTasks := make([]task.Task, 0)

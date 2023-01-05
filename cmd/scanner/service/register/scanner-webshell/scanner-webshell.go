@@ -193,7 +193,7 @@ func newService(config register.ScannerServiceConfig) (register.ScannerService, 
 	num, err := strconv.Atoi(numStr)
 	if err != nil {
 		s.Num = 5
-		logging.GetLogger().Err(err).Msgf("get websehllNum env error")
+		logging.GetLogger().Warn().Msgf("failed to get websehllNum env,set worker num to default value")
 	} else {
 		s.Num = num
 	}
