@@ -10,6 +10,8 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strconv"
+	"strings"
 
 	dockerarchive "github.com/docker/docker/pkg/archive"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
@@ -38,8 +40,8 @@ func (w *WebshellScan) PathExists(path string) bool {
 	return false
 }
 
-func (w *WebshellScan) ScanLayer(ctx context.Context, digest string, layerPath string, digestPath string, mp map[string][]scannermodel.WebshellFileInfo) error {
-	_, err := w.parseLayerTar(layerPath, digestPath, digest, mp)
+func (w *WebshellScan) ScanLayer(ctx context.Context, digest string, layerPath string, digestPath string, mp map[string][]scannermodel.WebshellFileInfo, IDMap scannermodel.IDMap) error {
+	_, err := w.parseLayerTar(layerPath, digestPath, digest, mp, IDMap)
 	if err != nil {
 		return fmt.Errorf("Failed to parseLayerTar: %w", err)
 	}
@@ -47,7 +49,7 @@ func (w *WebshellScan) ScanLayer(ctx context.Context, digest string, layerPath s
 
 }
 
-func (w *WebshellScan) parseLayerTar(tarFileName string, digestPath string, digest string, mp map[string][]scannermodel.WebshellFileInfo) (uint64, error) {
+func (w *WebshellScan) parseLayerTar(tarFileName string, digestPath string, digest string, mp map[string][]scannermodel.WebshellFileInfo, IDMap scannermodel.IDMap) (uint64, error) {
 	tarFile, err := os.Open(tarFileName)
 	if err != nil {
 		return 0, fmt.Errorf("Failed to advance tarReader: %w", err)
@@ -76,6 +78,25 @@ func (w *WebshellScan) parseLayerTar(tarFileName string, digestPath string, dige
 		case tar.TypeDir, tar.TypeLink, tar.TypeSymlink:
 			continue
 		}
+
+		if strings.Contains(header.Name, "etc/passwd") {
+			fileByte, err := io.ReadAll(tarReader)
+			if err != nil {
+				logging.GetLogger().Err(err).Msgf("copy from tarReader error")
+			}
+			w.parseUid(fileByte, IDMap.UIDMap)
+			continue
+		}
+
+		if strings.Contains(header.Name, "etc/group") {
+			fileByte, err := io.ReadAll(tarReader)
+			if err != nil {
+				logging.GetLogger().Err(err).Msgf("copy from tarReader error")
+			}
+			w.parseUid(fileByte, IDMap.GIDMap)
+			continue
+		}
+
 		if w.webshellFileExt(filepath.Ext(header.Name)) {
 			if header.Size > scannermodel.WebshellSize {
 				continue
@@ -84,7 +105,6 @@ func (w *WebshellScan) parseLayerTar(tarFileName string, digestPath string, dige
 			if err != nil {
 				logging.GetLogger().Err(err).Msgf("copy from tarReader error")
 			}
-
 			fileMd5, err := w.FileMD5(bytes.NewReader(fileByte))
 			if err != nil {
 				logging.GetLogger().Err(err).Msg("generate md5 failed")
@@ -102,6 +122,7 @@ func (w *WebshellScan) parseLayerTar(tarFileName string, digestPath string, dige
 				logging.GetLogger().Err(err).Msg("copy tmpFile failed")
 				continue
 			}
+
 			tmpfs.Close()
 			tmpInfo := scannermodel.WebshellFileInfo{}
 			tmpInfo.FilePath = tmpPath
@@ -115,6 +136,21 @@ func (w *WebshellScan) parseLayerTar(tarFileName string, digestPath string, dige
 		}
 	}
 	return count, nil
+}
+
+func (w *WebshellScan) parseUid(text []byte, uidMap map[int64]string) {
+	byts := bytes.Split(text, []byte("\n"))
+	for k := range byts {
+		lines := bytes.Split(byts[k], []byte(":"))
+		if len(lines) > 2 {
+			uid, err := strconv.ParseInt(string(lines[2]), 10, 64)
+			if err != nil {
+				logging.GetLogger().Err(err).Msgf("parse etc passwd uid error")
+				continue
+			}
+			uidMap[uid] = string(lines[0])
+		}
+	}
 }
 
 // webshell文件后缀列表

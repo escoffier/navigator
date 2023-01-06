@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"gitlab.com/security-rd/go-pkg/databases"
@@ -59,20 +60,22 @@ func (w *WebshellDao) CreateWebshell(ctx context.Context, webshells []scannermod
 		logging.GetLogger().Err(err).Msgf("search Webshell error")
 		return err
 	}
-	mp := make(map[uint64]struct{}, 0)
+	mp := make(map[uint64]scannermodel.Webshell, 0)
 	for k := range inTable {
-		mp[inTable[k].UniqueID] = struct{}{}
+		mp[inTable[k].UniqueID] = inTable[k]
 	}
 	// 同样digest的文件应该不会变 暂时不做checkSum机制
 	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*1000)
 	defer cancelFunc()
 	for k, v := range webshells {
-		if _, ok := mp[v.UniqueID]; ok {
-			continue
+		if vv, ok := mp[v.UniqueID]; ok { // 兼容老的权限行
+			if strings.Compare(v.FileMode, vv.FileMode) == 0 {
+				continue
+			}
 		}
 		err := w.rdb.Get().WithContext(ctx).Model(scannermodel.Webshell{}).Clauses(clause.OnConflict{
 			Columns:   []clause.Column{{Name: "uuid"}},
-			DoNothing: true,
+			DoUpdates: clause.AssignmentColumns([]string{"file_mode"}),
 		}).Create(&webshells[k]).Error
 		if err != nil {
 			logging.GetLogger().Err(err).Msg("CreateWebsehll")
