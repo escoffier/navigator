@@ -108,6 +108,10 @@ type WebshellFileInfo struct {
 	MaliciousData string
 	Ext           string
 	FilePath      string
+	UID           int64
+	GID           int64
+	UName         string
+	GName         string
 }
 
 type WebshellMd5AndLayer struct {
@@ -129,7 +133,7 @@ func (w *WebshellFileInfo) TransToWebshell() Webshell {
 	res.LayerDigest = w.LayerDigest
 	res.Description = w.Description
 	res.FileMd5 = w.Md5Hash
-	res.FileMode = w.Mode
+	res.FileMode = fmt.Sprintf("%v(用户名:%v 用户组名:%v)", w.Mode, w.UName, w.GName)
 	res.FileModtime = w.ModeTime
 	res.FileName = w.FileName
 	res.FileSize = int(w.Size)
@@ -179,4 +183,9 @@ type BeforeDecode struct {
 type ProblemCode struct {
 	Data    []byte
 	Problem []string
+}
+
+type IDMap struct {
+	UIDMap map[int64]string
+	GIDMap map[int64]string
 }

@@ -59,11 +59,11 @@ func (e *ExecutorScanWebshell) Scan(ctx context.Context, param Param) (Artifact,
 			logging.GetLogger().Err(err).Msg("Mkdir error")
 		}
 	}
-
+	idMap := scannermodel.IDMap{UIDMap: make(map[int64]string), GIDMap: map[int64]string{}}
 	for i := 1; i < len(layers); i++ {
 		tmpWebshellInfo := model.PerLayerWebshellResult{}
 		tmpWebshellInfo.LayerDigest = layers[i]
-		err := e.WebshellScan.ScanLayer(context.Background(), layers[i], filepath.Join(layersFilePath[i], "layer.tar"), digestPath, mp)
+		err := e.WebshellScan.ScanLayer(context.Background(), layers[i], filepath.Join(layersFilePath[i], "layer.tar"), digestPath, mp, idMap)
 		if err != nil {
 			logging.GetLogger().Err(err).Msgf("ScanWebshell %v failed", layers[i])
 			continue
@@ -84,11 +84,22 @@ func (e *ExecutorScanWebshell) Scan(ctx context.Context, param Param) (Artifact,
 	}
 	webshellReuslt := e.arrangeResult(tblB, tblS, mp)
 	logging.GetLogger().Info().Int64("fileNum", e.WebshellScan.TotalFileNum).Msg("webshell scan end")
-
+	e.PaeseUGName(webshellReuslt, idMap)
 	r := make(map[string]interface{})
 	r["tmpPath"] = digestPath
 	r["result"] = webshellReuslt
 	return r, nil
+}
+
+func (e *ExecutorScanWebshell) PaeseUGName(result scannermodel.WebshellResult, idMap scannermodel.IDMap) {
+	for k, v := range result.FileInfos {
+		if vv, ok := idMap.UIDMap[v.UID]; ok {
+			result.FileInfos[k].UName = vv
+		}
+		if vv, ok := idMap.GIDMap[v.GID]; ok {
+			result.FileInfos[k].GName = vv
+		}
+	}
 }
 
 func (e *ExecutorScanWebshell) arrangeResult(tblB []scannermodel.TblB, tblS []scannermodel.TblS, mp map[string][]scannermodel.WebshellFileInfo) scannermodel.WebshellResult {

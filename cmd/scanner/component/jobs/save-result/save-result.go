@@ -733,6 +733,5 @@ func newJob(config jobs.JobConfig) (jobs.Job, error) {
 	i.MqWriter = mqWriter
 	i.config.task = config.Info.Task
 	i.config.subtask = config.Info.SubTask
-
 	return i, nil
 }
