@@ -1,16 +1,15 @@
 package model
 
 import (
-	"encoding/json"
 	"fmt"
 	"math"
 	"strconv"
 	"strings"
 
+	json "github.com/json-iterator/go"
+	"gitlab.com/piccolo_su/vegeta/pkg/util"
 	"gitlab.com/security-rd/go-pkg/logging"
 	ftypes "scm.tensorsecurity.cn/tensorsecurity-rd/fanal/types"
-
-	"gitlab.com/piccolo_su/vegeta/pkg/util"
 )
 
 // 镜像属性

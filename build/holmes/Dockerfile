@@ -136,7 +136,5 @@ RUN curl -L -o binutils_2.30-22_${TARGETARCH}.deb https://download.falco.org/dep
 # RUN apt-get update -y && apt --fix-broken install -y && apt-get install supervisor -y
 
 COPY ./configs/holmes/docker-entrypoint.sh /
-COPY ./dist/holmes-scheduler /
-COPY ./dist/holmes-rules.thr /
 
 ENTRYPOINT ["/docker-entrypoint.sh"]
