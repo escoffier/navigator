@@ -12,7 +12,7 @@ RUN sed -i "s!archive.ubuntu.com/!mirrors.aliyun.com/!g" /etc/apt/sources.list \
     && freshclam \
     && apt-get install -y clamav-daemon \
     && update-rc.d clamav-daemon defaults 99 \
-    && apt-get install -y apt-transport-https ca-certificates curl gnupg-agent software-properties-common \
+    && apt-get install -y apt-transport-https ca-certificates curl gnupg-agent software-properties-common iptables \
     && curl -fsSL https://mirrors.ustc.edu.cn/docker-ce/linux/ubuntu/gpg | apt-key add - \
     && add-apt-repository "deb [arch=$(dpkg --print-architecture)] https://mirrors.ustc.edu.cn/docker-ce/linux/ubuntu $(lsb_release -cs) stable" \
     && apt-get install -y  docker-ce-cli \
@@ -24,5 +24,6 @@ RUN sed -i "s!archive.ubuntu.com/!mirrors.aliyun.com/!g" /etc/apt/sources.list \
 
 ADD dist/scanner /
 ADD configs/scanner /configs/scanner/
+ADD configs/scanner/entrypoint.sh /entrypoint.sh
 
-CMD /scanner
+ENTRYPOINT ["/entrypoint.sh"]
