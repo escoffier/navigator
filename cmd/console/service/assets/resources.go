@@ -5,12 +5,14 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	param "github.com/oceanicdev/chi-param"
 	"io"
 	"net/http"
 	"strings"
 	"sync"
 	"time"
+
+	param "github.com/oceanicdev/chi-param"
+	"google.golang.org/protobuf/reflect/protoreflect"
 
 	"github.com/pkg/errors"
 	"gitlab.com/security-rd/go-pkg/databases"
@@ -20,6 +22,8 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/dal"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
+	rpcstream "gitlab.com/piccolo_su/vegeta/pkg/streaming"
+	"gitlab.com/piccolo_su/vegeta/pkg/streaming/pb"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 	pmodel "gitlab.com/security-rd/go-pkg/model"
 )
@@ -623,4 +627,49 @@ func (rl *TensorResourcesService) GetRawContainer(ctx context.Context, queryOpti
 
 func (rl *TensorResourcesService) CountRawContainer(ctx context.Context, queryOptions *dal.RawContainersQueryOption) (int64, error) {
 	return dal.CountRawContainer(ctx, rl.rdb.GetReadDB(), queryOptions)
+}
+
+type ClustertHandler struct {
+	DB *databases.RDBInstance
+}
+
+func (ch *ClustertHandler) OnCreate(s rpcstream.Stream, reqID string, message protoreflect.ProtoMessage) {
+	cluster := message.(*pb.ClusterRegister)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+	defer cancel()
+
+	resp := &pb.CommonReponse{
+		Status: 0,
+	}
+	logging.Get().Info().Msgf("received cluster: %s", cluster.String())
+	err := dal.AddCluster(ctx, ch.DB.Get(), &model.TensorCluster{
+		Key:                 cluster.Key,
+		Name:                cluster.Name,
+		ClusterType:         model.ClusterType(cluster.ClusterType),
+		Description:         cluster.Description,
+		APIServerAddr:       cluster.APIServerAddr,
+		CertificateAuthData: string(cluster.CertificateAuthData),
+		SecretToken:         string(cluster.SecretToken),
+		ClientCertData:      string(cluster.ClientCertData),
+		ClientKeyData:       string(cluster.ClientKeyData),
+		WorkerNamespace:     cluster.WorkerNamespace,
+		Status:              0,
+		Platform:            cluster.Platform,
+		Version:             cluster.Version,
+	})
+	if err != nil {
+		logging.Get().Err(err).Msgf("add cluster : %s-%s err", cluster.Key, cluster.Name)
+		resp.Status = 1
+		resp.StatusMessage = err.Error()
+	}
+	err = s.SendResponse(reqID, resp)
+	if err != nil {
+		logging.Get().Err(err).Msg("send reponse err")
+	}
+}
+func (ch *ClustertHandler) OnRead(s rpcstream.Stream, reqID string, message protoreflect.ProtoMessage) {
+}
+func (ch *ClustertHandler) OnUpdate(s rpcstream.Stream, reqID string, message protoreflect.ProtoMessage) {
+}
+func (ch *ClustertHandler) OnDelete(s rpcstream.Stream, reqID string, message protoreflect.ProtoMessage) {
 }

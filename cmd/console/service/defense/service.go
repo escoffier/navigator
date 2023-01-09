@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -16,6 +17,8 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
+	rpcstream "gitlab.com/piccolo_su/vegeta/pkg/streaming"
+	"gitlab.com/piccolo_su/vegeta/pkg/streaming/pb"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 	"gitlab.com/security-rd/go-pkg/databases"
 	pkgelastic "gitlab.com/security-rd/go-pkg/elastic"
@@ -33,8 +36,9 @@ const (
 )
 
 var (
-	instance *TensorDefenseService
-	rlOnce   sync.Once
+	instance  *TensorDefenseService
+	rlOnce    sync.Once
+	usingGrpc = false
 )
 
 type Signal struct {
@@ -55,12 +59,13 @@ type RegistryInfo struct {
 	URL      string `json:"url"`
 }
 
-func InitDefenseService(rdb *databases.RDBInstance, esCli *pkgelastic.ESClient, scannerURL string) error {
+func InitDefenseService(rdb *databases.RDBInstance, esCli *pkgelastic.ESClient, scannerURL string, stream rpcstream.MessageStream) error {
 	rlOnce.Do(func() {
 		instance = &TensorDefenseService{
 			rdb:        rdb,
 			EsCli:      esCli,
 			scannerURL: scannerURL,
+			stream:     stream,
 		}
 		instance.CheckAlertEvents()
 	})
@@ -71,6 +76,7 @@ type TensorDefenseService struct {
 	rdb        *databases.RDBInstance
 	EsCli      *pkgelastic.ESClient
 	scannerURL string
+	stream     rpcstream.MessageStream
 }
 
 func GetDefenseService(_ context.Context) (*TensorDefenseService, bool) {
@@ -93,14 +99,23 @@ func (s *TensorDefenseService) AddBaitService(ctx context.Context, bait *model.B
 	}
 
 	bait.Prefix = image.EventPrefix
-	err = s.addBaitServiceToKube(ctx, bait, image.Ports, registry, image.EventPrefix)
+	if usingGrpc {
+		err = s.addBaitService(ctx, bait, image.Ports, registry, image.EventPrefix)
+	} else {
+		err = s.addBaitServiceToKube(ctx, bait, image.Ports, registry, image.EventPrefix)
+	}
+
 	if err != nil {
 		return err
 	}
 	err = dal.InsertBaitService(ctx, s.rdb.Get(), bait)
 	if err != nil {
 		baitName, _ := getHoneyspotName(bait)
-		s.deleteBaitServiceFromKube(ctx, bait.ClusterKey, bait.Namespace, baitName)
+		if usingGrpc {
+			s.deleteBaitService(ctx, bait.ClusterKey, bait.Namespace, baitName)
+		} else {
+			s.deleteBaitServiceFromKube(ctx, bait.ClusterKey, bait.Namespace, baitName)
+		}
 		return err
 	}
 	return nil
@@ -140,7 +155,12 @@ func (s *TensorDefenseService) DeleteBaitService(ctx context.Context, id uint32)
 	if err != nil {
 		return err
 	}
-	err = s.deleteBaitServiceFromKube(ctx, baitService.ClusterKey, baitService.Namespace, baitName)
+	if usingGrpc {
+		s.deleteBaitService(ctx, baitService.ClusterKey, baitService.Namespace, baitName)
+	} else {
+		err = s.deleteBaitServiceFromKube(ctx, baitService.ClusterKey, baitService.Namespace, baitName)
+	}
+
 	if err != nil {
 		return err
 	}
@@ -210,6 +230,50 @@ func (s *TensorDefenseService) addBaitServiceToKube(ctx context.Context, bait *m
 	return nil
 }
 
+func (s *TensorDefenseService) addBaitService(ctx context.Context, bait *model.BaitService, ports []int32, registry *RegistryInfo, prefix string) error {
+	honeyspotName, err := getHoneyspotName(bait)
+	if err != nil {
+		return err
+	}
+
+	logging.Get().Info().Msgf("ports: %v", ports)
+
+	servicePorts := make([]*pb.ServicePort, 0, len(ports))
+	for _, p := range ports {
+		servicePorts = append(servicePorts, &pb.ServicePort{
+			Port:       p,
+			TargetPort: p,
+		})
+	}
+
+	secrets := []*pb.ImagePullSecret{
+		{
+			UserName: registry.UserName,
+			Password: registry.Password,
+			Server:   registry.URL,
+		},
+	}
+
+	resourceName := fmt.Sprintf("%s-%s", prefix, bait.ResourceName)
+	resp, err := s.stream.CreateHoneySpot(ctx, bait.ClusterKey, &pb.HoneySpotReq{
+		Namespace:   bait.Namespace,
+		Name:        honeyspotName,
+		WorkLoad:    resourceName,
+		Ports:       servicePorts,
+		Service:     bait.ResourceName,
+		Image:       bait.Image,
+		Secrets:     secrets,
+		Replica:     bait.Replica,
+		OutboundOff: bait.OutboundOff,
+	})
+	if err != nil {
+		logging.Get().Err(err).Msg("create honeyspot err")
+	} else {
+		logging.Get().Info().Msgf("create honeyspot reponse: %s", resp.String())
+	}
+	return nil
+}
+
 func (s *TensorDefenseService) updateBaitServiceToKube(ctx context.Context, bait *model.BaitService) error {
 	clusterManager, ok := k8s.GetClusterManager()
 	if !ok {
@@ -253,6 +317,11 @@ func (s *TensorDefenseService) deleteBaitServiceFromKube(ctx context.Context, cl
 	}
 
 	err := clientset.TensorClientset.DefenseV1().Honeypots(namespace).Delete(ctx, name, metav1.DeleteOptions{})
+	return err
+}
+
+func (s *TensorDefenseService) deleteBaitService(ctx context.Context, clusterKey, namespace, name string) error {
+	err := s.stream.DeleteHoneySpot(ctx, clusterKey, namespace, name)
 	return err
 }
 
@@ -598,5 +667,12 @@ func removePrefix(url string) string {
 		return url[7:]
 	} else {
 		return url
+	}
+}
+
+func init() {
+	useGrpc := os.Getenv("USING_GRPC")
+	if useGrpc == "true" {
+		usingGrpc = true
 	}
 }
