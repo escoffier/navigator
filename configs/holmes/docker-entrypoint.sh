@@ -41,6 +41,9 @@ if [[ ! -z "${SKIP_MODULE_LOAD}" ]]; then
     echo "* SKIP_MODULE_LOAD is deprecated and will be removed soon, use SKIP_DRIVER_LOADER instead"
 fi
 
+echo "before driver loader: " `date +%s%3N`
+
+
 # Set the SKIP_DRIVER_LOADER variable to skip loading the driver
 
 if [[ -z "${SKIP_DRIVER_LOADER}" ]] && [[ -z "${SKIP_MODULE_LOAD}" ]]; then
@@ -55,4 +58,15 @@ if [[ -z "${SKIP_DRIVER_LOADER}" ]] && [[ -z "${SKIP_MODULE_LOAD}" ]]; then
     /usr/bin/holmes-driver-loader
 fi
 
-exec /holmes-scheduler --output /tmp/latest_rules.yaml --holmes-args "$*"
+echo "after driver loader: " `date +%s%3N`
+
+if [ -d "/var/run/holmes-engine/rules" ];
+then 
+    echo "the dir exists"
+else
+    mkdir –p /var/run/holmes-engine/rules
+fi
+echo "" > /var/run/holmes-engine/rules/holmes_engr.yaml
+echo "" > /var/run/holmes-engine/rules/holmes_engdr.yaml
+
+exec /usr/bin/holmes -r /var/run/holmes-engine/rules/holmes_engr.yaml -r /var/run/holmes-engine/rules/holmes_engdr.yaml $*

@@ -2,12 +2,12 @@ package cmd
 
 import (
 	"context"
-	"encoding/json"
 	"flag"
 	"os"
 	"strings"
 	"time"
 
+	json "github.com/json-iterator/go"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 	clusterAgent "gitlab.com/piccolo_su/vegeta/cmd/clustermanager/pkg"

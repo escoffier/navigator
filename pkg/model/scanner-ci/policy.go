@@ -7,12 +7,11 @@ import (
 	"strings"
 	"time"
 
-	"scm.tensorsecurity.cn/tensorsecurity-rd/trivy/pkg/report"
-
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
+	"scm.tensorsecurity.cn/tensorsecurity-rd/trivy/pkg/report"
 	"scm.tensorsecurity.cn/tensorsecurity-rd/trivy/pkg/types"
 )
 

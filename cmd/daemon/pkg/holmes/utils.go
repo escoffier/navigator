@@ -1,4 +1,4 @@
-package rtdetect
+package holmes
 
 import (
 	"bytes"

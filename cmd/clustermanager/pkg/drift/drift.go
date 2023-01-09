@@ -2,10 +2,10 @@ package drift
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"time"
 
+	json "github.com/json-iterator/go"
 	"github.com/segmentio/kafka-go"
 	"gitlab.com/piccolo_su/vegeta/pkg/dal"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"

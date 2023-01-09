@@ -1,11 +1,11 @@
 package model
 
 import (
-	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
 
+	json "github.com/json-iterator/go"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
@@ -125,7 +125,6 @@ func (si *ScanImage) GenImageFlag(preFlag uint64) uint64 {
 }
 
 func (si *ScanImage) Deserialize() {
-
 	perLayerReport := make([]VulnerabilityLayerReport, 0)
 	if len(si.PerLayerReportJSON) > 0 {
 		if err := json.Unmarshal(si.PerLayerReportJSON, &perLayerReport); err != nil {

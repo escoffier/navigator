@@ -17,9 +17,9 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/dp"
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/containerassets"
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/degrade"
+	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/holmes"
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/netflow"
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/nodeinfo"
-	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/rtdetect"
 	"gitlab.com/piccolo_su/vegeta/pkg/assets"
 	"gitlab.com/piccolo_su/vegeta/pkg/daemon"
 	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
@@ -48,15 +48,11 @@ const (
 	defaultRTBuffSize     = 100
 )
 
-func initEventStreams(udsAddr, nodeName string, cm *k8s.ClusterInfoManager, mqWriter mq.Writer, containerInfo nodeinfo.ContainerInfoManager, podResInfo *nodeinfo.PodResInfo, palaceHandler *palace.Palace) (*rtdetect.RuntimeEventStream, error) {
-	bui := rtdetect.StreamBuilder(udsAddr, nodeName, cm)
-
-	// add handlers here
-	ecHandler := rtdetect.NewEventsOutputHandler(nodeName, cm, containerInfo, podResInfo, palaceHandler)
-	bui.WithHandler(rtdetect.NewSyncHandler(ecHandler))
-
-	s, err := bui.Build(context.Background())
-	return s, err
+func initEventStreams(udsAddr, nodeName, myNamespace, ctrlURL, ruleDirPath string, cm *k8s.ClusterInfoManager, containerInfo nodeinfo.ContainerInfoManager, podResInfo *nodeinfo.PodResInfo, palaceHandler *palace.Palace) (*holmes.EngineStreamHandler, error) {
+	config := holmes.NewEngineStreamConfig()
+	config.WithCtrlServerURL(ctrlURL).WithMyNodeName(nodeName).WithRulesDirPath(ruleDirPath).WithUnixSocketPath(udsAddr).WithMyNamespace(myNamespace)
+	handler := holmes.NewEventsStreamHandler(config, cm, containerInfo, podResInfo, palaceHandler)
+	return handler, nil
 }
 
 func initNodeInfos(hostName, hostIP, clusterKey, myNamespace string) (nodeinfo.ContainerInfoManager, *netflow.NodePodsInfo, *nodeinfo.PodResInfo, *nodeinfo.NodePodsWatcher, error) {
@@ -230,6 +226,10 @@ func Run(ctx context.Context) error {
 	if rtUdsAddr == "" {
 		logging.Get().Warn().Msg("env RTDETECT_UDS_ADDR not found")
 	}
+	rulesDirPath := os.Getenv("RTDETECT_RULES_DIR")
+	if rulesDirPath == "" {
+		rulesDirPath = "/var/run/holmes-engine/rules/"
+	}
 	clusterAddr := os.Getenv("CLUSTER_MANAGER_URL")
 	if clusterAddr == "" {
 		logging.Get().Warn().Msg("env CLUSTER_MANAGER_URL not found")
@@ -314,14 +314,13 @@ func Run(ctx context.Context) error {
 			logging.Get().Info().Msg("Init palace done")
 		}
 
-		rtStream, err := initEventStreams(rtUdsAddr, hostName, clusterManager, mqWriter, containerInfo, podResInfo, &palaceHandler)
+		rtStream, err := initEventStreams(rtUdsAddr, hostName, myNamespace, clusterAddr, rulesDirPath, clusterManager, containerInfo, podResInfo, &palaceHandler)
 		if err != nil {
 			return errors.Errorf("Failed to rt events streams, %v", err)
 		} else {
 			logging.Get().Info().Msg("Init event streams done")
 		}
 
-		wg.Add(1)
 		go func() {
 			defer wg.Done()
 			defer func() {
@@ -329,8 +328,9 @@ func Run(ctx context.Context) error {
 					logging.Get().Error().Msgf("Panic: %v. Stack: %s", r, debug.Stack())
 				}
 			}()
-			if err = rtStream.Start(ctx); err != nil {
-				logging.Get().Err(err).Msgf("runtime detection start error %v", err)
+			err := rtStream.StartToHandle(context.Background())
+			if err != nil {
+				logging.Get().Err(err).Msg("handler error")
 			}
 		}()
 	}

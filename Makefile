@@ -69,7 +69,7 @@ console: generate 		## Build console binary
 	@echo "+ $@"
 	go build -v \
 		--ldflags "$(LDFLAGS) -X gitlab.com/piccolo_su/vegeta/cmd/console/cmd.Version=$(VERSION)" \
-		-tags $(LICENSE_SECRET) -o dist/console gitlab.com/piccolo_su/vegeta/cmd/console
+		-tags $(LICENSE_SECRET) -tags=jsoniter -o dist/console gitlab.com/piccolo_su/vegeta/cmd/console
 	#upx --lzma --best dist/console
 
 	go build -v \
@@ -162,7 +162,7 @@ scanner: generate		## Build scanner binary
 	@echo "+ $@"
 	go build -v \
 		--ldflags "$(LDFLAGS) -X gitlab.com/piccolo_su/vegeta/cmd/scanner/cmd.Version=$(VERSION)" \
-		-o dist/scanner gitlab.com/piccolo_su/vegeta/cmd/scanner
+		-tags=jsoniter -o dist/scanner gitlab.com/piccolo_su/vegeta/cmd/scanner
 	#upx --lzma --best dist/scanner
 	docker build -t $(REPOPREFIX)/scanner:latest --build-arg REPO=$(REPOPREFIX) -f ./build/scanner/Dockerfile .
 
@@ -291,24 +291,6 @@ endif
 .PHONY: holmes
 holmes:     ## Build holmes docker
 	@echo "+ $@"
-	go build -v \
-		--ldflags "$(LDFLAGS) -X gitlab.com/piccolo_su/vegeta/cmd/holmes/holmesscheduler/cmd.Version=$(VERSION)" \
-		-o dist/holmes-scheduler gitlab.com/piccolo_su/vegeta/cmd/holmes/holmesscheduler
-	#upx --lzma --best dist/holmes-scheduler
-	# go build -v \
-	# 	--ldflags "$(LDFLAGS) -X gitlab.com/piccolo_su/vegeta/cmd/holmes/enginesider/cmd.Version=$(VERSION)" \
-	# 	-o dist/holmes-engine-sider gitlab.com/piccolo_su/vegeta/cmd/holmes/enginesider
-	# #upx --lzma --best dist/holmes-engine-sider
-	rm -rf ./dist/*.thr > /dev/null 2>&1
-	sync
-
-	go build -v \
-		--ldflags "$(LDFLAGS) -X gitlab.com/piccolo_su/vegeta/cmd/holmes/encodefile/cmd.Version=$(VERSION)" \
-		-o dist/holmes-rules-pack gitlab.com/piccolo_su/vegeta/cmd/holmes/encodefile
-	#upx --lzma --best dist/holmes-rules-pack
-	# generate the holmes rules thr file with version
-	./build_holmes_rules_thr.sh
-
 ifeq ($(UNAME_M),x86_64)
 	docker build -t $(REPOPREFIX)/holmes:latest -f ./build/holmes/Dockerfile \
 		--build-arg REPO=$(REPOPREFIX) --build-arg TAG=$(FETCHTAG) --build-arg MIRROR=mirrors.aliyun.com \
@@ -340,7 +322,7 @@ image-validate: generate
 webhook: generate
 	@echo "build webhook"
 	go build -v \
-		-o dist/webhook gitlab.com/piccolo_su/vegeta/cmd/webhook
+		-tags=jsoniter -o dist/webhook gitlab.com/piccolo_su/vegeta/cmd/webhook
 	#upx --lzma --best dist/webhook
 	docker build -t $(REPOPREFIX)/webhook:latest -f ./build/webhook/Dockerfile .
 
@@ -348,7 +330,7 @@ webhook: generate
 cluster-manager: generate
 	@echo "build cluster-manager"
 	go build -v \
-		-o dist/cluster-manager gitlab.com/piccolo_su/vegeta/cmd/clustermanager
+		-tags=jsoniter -o dist/cluster-manager gitlab.com/piccolo_su/vegeta/cmd/clustermanager
 	#upx --lzma --best dist/cluster-manager
 	docker build -t $(REPOPREFIX)/cluster-manager:latest -f ./build/cluster-manager/Dockerfile .
 
