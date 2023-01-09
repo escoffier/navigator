@@ -8,4 +8,6 @@ type Config struct {
 	IgnoredNameSpaces   []string
 	Validators          []string
 	Mutators            []string
+	Timeout             int32
+	Concurrency         int32
 }

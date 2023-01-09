@@ -95,6 +95,7 @@ require (
 require github.com/go-ldap/ldap/v3 v3.4.1
 
 require (
+	github.com/afex/hystrix-go v0.0.0-20180502004556-fa1af6a1f4f5
 	github.com/ahmetb/go-linq/v3 v3.2.0
 	github.com/elastic/go-libaudit/v2 v2.2.0
 	github.com/ghodss/yaml v1.0.0
@@ -103,6 +104,7 @@ require (
 	github.com/go-task/slim-sprig v0.0.0-20210107165309-348f09dbbbc0
 	github.com/gobwas/glob v0.2.3
 	github.com/golang/protobuf v1.5.2
+	github.com/gorilla/handlers v1.4.2
 	github.com/imroc/req/v3 v3.23.0
 	github.com/jarcoal/httpmock v1.2.0
 	github.com/jellydator/ttlcache/v3 v3.0.0

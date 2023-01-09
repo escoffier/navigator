@@ -5,7 +5,9 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
-	"io/ioutil"
+	"gitlab.com/piccolo_su/vegeta/pkg/assets"
+	"io"
+
 	"net/http"
 	_ "net/http/pprof"
 	"os"
@@ -13,25 +15,28 @@ import (
 	"sync"
 	"time"
 
+	"github.com/afex/hystrix-go/hystrix"
 	json "github.com/json-iterator/go"
 	param2 "github.com/oceanicdev/chi-param"
-	"gitlab.com/piccolo_su/vegeta/cmd/webhook/pkg/driftprevention"
-	"gitlab.com/piccolo_su/vegeta/cmd/webhook/pkg/imagetrust"
-	"gitlab.com/piccolo_su/vegeta/cmd/webhook/pkg/imagevalidator"
-	"gitlab.com/piccolo_su/vegeta/cmd/webhook/pkg/immune"
-	"gitlab.com/piccolo_su/vegeta/cmd/webhook/pkg/microsegmutator"
-	"gitlab.com/piccolo_su/vegeta/cmd/webhook/pkg/processors"
-	inject "gitlab.com/piccolo_su/vegeta/cmd/webhook/pkg/sidecar"
-	"gitlab.com/piccolo_su/vegeta/pkg/assets"
 	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
-	"gitlab.com/piccolo_su/vegeta/pkg/logging"
-	"gitlab.com/piccolo_su/vegeta/pkg/model"
-	"gitlab.com/security-rd/go-pkg/databases"
-	"gorm.io/gorm"
 	v1 "k8s.io/api/admission/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
+	"k8s.io/client-go/kubernetes"
+
+	"github.com/gorilla/handlers"
+	"gitlab.com/piccolo_su/vegeta/cmd/webhook/pkg/driftprevention"
+	"gitlab.com/piccolo_su/vegeta/cmd/webhook/pkg/imagetrust"
+	"gitlab.com/piccolo_su/vegeta/cmd/webhook/pkg/immune"
+	"gitlab.com/piccolo_su/vegeta/cmd/webhook/pkg/microsegmutator"
+	"gitlab.com/piccolo_su/vegeta/cmd/webhook/pkg/processors"
+	inject "gitlab.com/piccolo_su/vegeta/cmd/webhook/pkg/sidecar"
+
+	"gitlab.com/piccolo_su/vegeta/pkg/model"
+	"gitlab.com/security-rd/go-pkg/databases"
+	"gitlab.com/security-rd/go-pkg/logging"
+	"gorm.io/gorm"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"scm.tensorsecurity.cn/tensorsecurity-rd/api/pkg/generated/informers/externalversions"
 )
@@ -43,6 +48,9 @@ var (
 )
 
 const resyncInterval = 8 * time.Hour
+const (
+	mutating = "mutating"
+)
 
 var (
 	runtimeScheme = runtime.NewScheme()
@@ -60,7 +68,6 @@ type webHookServer struct {
 }
 
 func NewWebHookServer(config *Config) (*webHookServer, error) {
-	//var ws *webHookServer
 	once.Do(func() {
 		ws, wsErr = newWebHookServer(config)
 
@@ -83,12 +90,23 @@ func newWebHookServer(config *Config) (*webHookServer, error) {
 	}}
 	mutex := http.NewServeMux()
 	mutex.HandleFunc("/mutating", ws.Mutating)
-	mutex.HandleFunc("/validating", ws.Validating)
 
-	ws.Server.Handler = mutex
+	loggedHandler := handlers.CustomLoggingHandler(os.Stdout, mutex, func(writer io.Writer, params handlers.LogFormatterParams) {
+		latency := time.Since(params.TimeStamp)
+		buf := make([]byte, 0, 100)
+		buf = append(buf, "start at: "...)
+		buf = append(buf, params.TimeStamp.Format(time.RFC3339)...)
+		buf = append(buf, " "...)
+		buf = append(buf, "latency: "...)
+		buf = append(buf, latency.String()...)
+		buf = append(buf, '\n')
+		writer.Write(buf)
+	})
+
+	ws.Server.Handler = loggedHandler
 	ws.Config = config
 
-	err = ws.initPG()
+	err = ws.initDB()
 	if err != nil {
 		return nil, err
 	}
@@ -120,31 +138,38 @@ func newWebHookServer(config *Config) (*webHookServer, error) {
 	clsManager.Start()
 	factory.Start(wait.NeverStop)
 	factory.WaitForCacheSync(wait.NeverStop)
+
+	hystrix.ConfigureCommand(mutating, hystrix.CommandConfig{
+		Timeout:                int(config.Timeout * 1000),
+		MaxConcurrentRequests:  int(config.Concurrency),
+		RequestVolumeThreshold: hystrix.DefaultVolumeThreshold,
+		SleepWindow:            hystrix.DefaultSleepWindow,
+		ErrorPercentThreshold:  hystrix.DefaultErrorPercentThreshold,
+	})
 	return ws, nil
 }
 
 func (s *webHookServer) Start() {
-	logging.GetLogger().Debug().Msg("starting server ")
+	logging.Get().Debug().Msg("starting server ")
 
 	go func() {
 		err := http.ListenAndServe("0.0.0.0:8080", nil)
 		if err != nil {
-			logging.GetLogger().Err(err).Msg("failed to start profile server")
+			logging.Get().Err(err).Msg("failed to start profile server")
 			return
 		}
-		logging.GetLogger().Debug().Msg("profile server exited")
+		logging.Get().Debug().Msg("profile server exited")
 	}()
 
 	err := s.Server.ListenAndServeTLS("", "")
 	if err != nil {
-		logging.GetLogger().Err(err).Msg("failed to start server")
+		logging.Get().Err(err).Msg("failed to start server")
 		os.Exit(1)
 	}
-
 }
 
 func (s *webHookServer) Stop() {
-	err := s.Server.Shutdown(context.Background())
+	err := s.Server.Shutdown(context.TODO())
 	if err != nil {
 		return
 	}
@@ -152,12 +177,12 @@ func (s *webHookServer) Stop() {
 
 func getAdmissionReview(r *http.Request) (*v1.AdmissionReview, int) {
 	var body []byte
-	var err error
 	if r.Body != nil {
-		body, err = ioutil.ReadAll(r.Body)
+		data, err := io.ReadAll(r.Body)
 		if err != nil {
 			return nil, http.StatusNoContent
 		}
+		body = data
 	}
 
 	if len(body) == 0 {
@@ -166,12 +191,12 @@ func getAdmissionReview(r *http.Request) (*v1.AdmissionReview, int) {
 	// verify the content type is accurate
 	contentType := r.Header.Get("Content-Type")
 	if contentType != "application/json" {
-		logging.GetLogger().Err(errors.New("invalid content")).Msgf("Content-Type=%s, expect application/json", contentType)
+		logging.Get().Err(errors.New("invalid content")).Msgf("Content-Type=%s, expect application/json", contentType)
 		return nil, http.StatusInternalServerError
 	}
 	ar := &v1.AdmissionReview{}
 	if _, _, err := deserializer.Decode(body, nil, ar); err != nil {
-		logging.GetLogger().Err(err).Msg("failed to decode AdmissionReview")
+		logging.Get().Err(err).Msg("failed to decode AdmissionReview")
 		return nil, http.StatusInternalServerError
 	}
 	return ar, http.StatusOK
@@ -184,12 +209,8 @@ func (s *webHookServer) Mutating(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	clusterKey, err := param2.QueryString(r, "cluster")
-	//host cluster request has no cluster param
-	if err != nil {
-		logging.GetLogger().Info().Msg("no request param")
-	}
 
-	//if cluster param is empty, means that mutating request comes from api-server of host cluster
+	// if cluster param is empty, means that mutating request comes from api-server of host cluster
 	if clusterKey == "" {
 		clusterKey = s.HostClusterKey
 	}
@@ -201,102 +222,41 @@ func (s *webHookServer) Mutating(w http.ResponseWriter, r *http.Request) {
 		ClusterKey: clusterKey,
 	}
 
-	var admissionResponse *v1.AdmissionResponse
-
-	patch := processors.MutatorChain.Mutate(param, ar.Request.Object.Raw)
-
-	if patch != nil && len(patch) != 0 {
-		patchType := v1.PatchTypeJSONPatch
-		admissionResponse = &v1.AdmissionResponse{
-			Allowed: true,
-			//Result:    result,
-			PatchType: &patchType,
-			Patch:     patch,
-		}
-	} else {
-		admissionResponse = &v1.AdmissionResponse{Allowed: true}
+	admissionResponse := &v1.AdmissionResponse{
+		Allowed: true,
 	}
+	var patch []byte
 
-	admissionReview := v1.AdmissionReview{}
-	admissionReview.TypeMeta = ar.TypeMeta
-	admissionReview.Response = admissionResponse
-	if ar.Request != nil {
-		admissionReview.Response.UID = ar.Request.UID
-	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
 
-	var resp []byte
-	resp, err = json.Marshal(&admissionReview)
-	if err != nil {
-		http.Error(w, fmt.Sprintf("could not encode response: %v", err), http.StatusInternalServerError)
-		return
-	}
-
-	_, err = w.Write(resp)
-	if err != nil {
-		http.Error(w, fmt.Sprintf("could not write response: %v", err), http.StatusInternalServerError)
-	}
-}
-
-func (s *webHookServer) Validating(w http.ResponseWriter, r *http.Request) {
-	var body []byte
-	var err error
-	if r.Body != nil {
-		body, err = ioutil.ReadAll(r.Body)
+	err = hystrix.Do(mutating, func() error {
+		patch, err = processors.MutatorChain.Mutate(ctx, param, ar.Request.Object.Raw)
 		if err != nil {
-			http.Error(w, "read request body err", http.StatusNoContent)
-			return
+			admissionResponse.Allowed = false
+			admissionResponse.Result = &metav1.Status{Message: err.Error()}
+		} else if len(patch) != 0 {
+			patchType := v1.PatchTypeJSONPatch
+			admissionResponse.Allowed = true
+			admissionResponse.PatchType = &patchType
+			admissionResponse.Patch = patch
+		} else {
+			admissionResponse.Allowed = true
 		}
-	}
-
-	if len(body) == 0 {
-		http.Error(w, "empty request body", http.StatusNoContent)
-		return
-	}
-	// verify the content type is accurate
-	contentType := r.Header.Get("Content-Type")
-	if contentType != "application/json" {
-		logging.GetLogger().Err(errors.New("invalid content type")).Msgf("Content-Type=%s, expect application/json", contentType)
-		http.Error(w, "invalid Content-Type, expect `application/json`", http.StatusUnsupportedMediaType)
-		return
-	}
-	var admissionResponse *v1.AdmissionResponse
-	ar := v1.AdmissionReview{}
-	if _, _, err := deserializer.Decode(body, nil, &ar); err != nil {
-		admissionResponse = &v1.AdmissionResponse{
-			Result: &metav1.Status{
-				Message: err.Error(),
-			},
-		}
-	}
-	clusterKey, err := param2.QueryString(r, "cluster")
-	//host cluster request has no cluster param
+		return nil
+	}, func(err error) error {
+		logging.Get().Error().Msgf("hystrix err %v", err)
+		admissionResponse.Allowed = true
+		return nil
+	})
 	if err != nil {
-		logging.GetLogger().Info().Msg("no request param")
+		logging.Get().Warn().Err(err).Msg("hystrix mutating calling err")
 	}
 
-	if clusterKey == "" {
-		clusterKey = s.HostClusterKey
-	}
-	kind := ar.Request.Kind.Kind
-
-	validateParas := processors.ValidatingParameters{
-		ClusterKey: clusterKey,
-		Namespace:  ar.Request.Namespace,
-		Kind:       kind,
-	}
-	err = processors.ValidationFilterChain.Validate(validateParas, ar.Request.Object.Raw)
-	if err != nil {
-		logging.GetLogger().Err(err).Msgf("process object %s:%s err", validateParas.Namespace, validateParas.Kind)
-		admissionResponse = &v1.AdmissionResponse{
-			Allowed: false,
-			Result: &metav1.Status{
-				Message: err.Error(),
-			},
-		}
-	} else {
-		admissionResponse = &v1.AdmissionResponse{
-			Allowed: true,
-		}
+	if len(patch) != 0 {
+		patchType := v1.PatchTypeJSONPatch
+		admissionResponse.PatchType = &patchType
+		admissionResponse.Patch = patch
 	}
 
 	admissionReview := v1.AdmissionReview{}
@@ -321,7 +281,18 @@ func (s *webHookServer) Validating(w http.ResponseWriter, r *http.Request) {
 
 func (s *webHookServer) initProcessorChain() {
 	webHookConfig := &processors.WebHookConfig{RDB: s.rdb}
-	initValidatingChain(s.Config, webHookConfig)
+	config, err := k8s.KubeConfig()
+	if err != nil {
+		logging.Get().Err(err).Msg("init kube config err")
+		return
+	}
+
+	kubeCli, err := kubernetes.NewForConfig(config)
+	if err != nil {
+		logging.Get().Err(err).Msg("init kube cli err")
+		return
+	}
+	webHookConfig.KubeCli = kubeCli
 	initMutatingChain(s.Config, webHookConfig)
 }
 
@@ -335,10 +306,10 @@ func (s *webHookServer) loadHostCluster() error {
 	return err
 }
 
-func (s *webHookServer) initPG() error {
+func (s *webHookServer) initDB() error {
 	rdb, err := databases.GetMysqlWithEnv(context.TODO())
 	if err != nil || rdb == nil {
-		logging.GetLogger().Err(err).Msg("Init rdb error")
+		logging.Get().Err(err).Msg("Init rdb error")
 		return err
 	}
 	s.rdb = rdb
@@ -350,13 +321,12 @@ func initValidatingChain(config *Config, webHookConfig *processors.WebHookConfig
 		IgnoredNameSpaces: config.IgnoredNameSpaces,
 	}
 	processors.ValidationFilterChain = processors.NewValidatorChain(vConfig)
-
 	for _, processor := range config.Validators {
 		v := makeProcessor(processor, webHookConfig)
 		if v != nil {
 			processors.ValidationFilterChain.AddValidator(v)
 		} else {
-			logging.GetLogger().Err(errors.New("invalid validator")).Msg(processor)
+			logging.Get().Err(errors.New("invalid validator")).Msg(processor)
 		}
 	}
 }
@@ -370,7 +340,7 @@ func initMutatingChain(config *Config, webHookConfig *processors.WebHookConfig) 
 		if v != nil {
 			processors.MutatorChain.AddMutator(v)
 		} else {
-			logging.GetLogger().Err(errors.New("invalid mutator")).Msg(processor)
+			logging.Get().Err(errors.New("invalid mutator")).Msg(processor)
 		}
 	}
 }
@@ -387,16 +357,15 @@ func makeProcessor(name string, webHookConfig *processors.WebHookConfig) interfa
 			if method.IsValid() {
 				params := make([]reflect.Value, 1)
 				params[0] = reflect.ValueOf(webHookConfig)
-				logging.GetLogger().Info().Msgf("Initilizing processor %s", name)
+				logging.Get().Info().Msgf("initializing processor %s", name)
 				r := method.Call(params)
 				ret := r[0].Interface()
-
 				if ret != nil {
 					e, isErr := ret.(error)
 					if isErr {
-						logging.GetLogger().Err(e).Msgf("init processor %s failed", name)
+						logging.Get().Err(e).Msgf("init processor %s failed", name)
 					} else {
-						logging.GetLogger().Err(errors.New("unexpected return value")).Msgf("%v", ret)
+						logging.Get().Err(errors.New("unexpected return value")).Msgf("%v", ret)
 					}
 					return nil
 				}
@@ -409,12 +378,10 @@ func makeProcessor(name string, webHookConfig *processors.WebHookConfig) interfa
 
 func init() {
 	// register all processors here
-	logging.GetLogger().Info().Msg("Registering processors...")
-	imagevalidator.Register()
+	logging.Get().Info().Msg("Registering processors...")
 	microsegmutator.Register()
 	driftprevention.Register()
 	immune.Register()
-	imagetrust.Register()
 	imagetrust.Register()
 	inject.Register()
 }

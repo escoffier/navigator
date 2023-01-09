@@ -5,7 +5,10 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
+	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
 	"gitlab.com/security-rd/go-pkg/logging"
+	"gopkg.in/yaml.v2"
+	"k8s.io/client-go/kubernetes"
 	"net/http"
 	"net/url"
 	"os"
@@ -14,8 +17,6 @@ import (
 	"github.com/pkg/errors"
 	"gitlab.com/piccolo_su/vegeta/cmd/webhook/pkg/processors"
 	"gitlab.com/piccolo_su/vegeta/cmd/webhook/pkg/utils"
-	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
-	"gopkg.in/yaml.v2"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	coreinformers "k8s.io/client-go/informers/core/v1"
@@ -30,6 +31,8 @@ type Mutator struct {
 	digestUrl         string
 	IgnoredNameSpaces []string
 	secretInformer    map[string]*coreinformers.SecretInformer
+	kubeCli           *kubernetes.Clientset
+	validator         *Validator
 }
 
 type ImageTagReq struct {
@@ -83,10 +86,14 @@ func (m *Mutator) Init(webHookConfig *processors.WebHookConfig) error {
 	checkImageRegistryUrl = checkUrl.String()
 	m.IgnoredNameSpaces = append(m.IgnoredNameSpaces, config.IgnoredNameSpaces...)
 	InitImageDigestMap()
+	m.kubeCli = webHookConfig.KubeCli
+
+	m.validator = &Validator{}
+	m.validator.Init(nil)
 	return nil
 }
 
-func (m *Mutator) Mutate(ctx context.Context, parameters *processors.MutatorParameters, pod *corev1.Pod) []*processors.Patch {
+func (m *Mutator) Mutate(ctx context.Context, parameters *processors.MutatorParameters, pod *corev1.Pod) ([]*processors.Patch, error) {
 	digests := &ImageDigest{}
 	var kubeSecretNames []string
 	for _, secs := range pod.Spec.ImagePullSecrets {
@@ -102,8 +109,14 @@ func (m *Mutator) Mutate(ctx context.Context, parameters *processors.MutatorPara
 		digests.ContainerImages = append(digests.ContainerImages,
 			m.buildDigestImage(ctx, parameters, &pod.Spec.Containers[index], kubeSecretNames))
 	}
-
-	return patchImageDigest(digests)
+	patch := patchImageDigest(digests)
+	err := m.validator.Validate(ctx, digests, &processors.ValidatingParameters{
+		ClusterKey:   parameters.ClusterKey,
+		Namespace:    parameters.Namespace,
+		ResourceKind: parameters.ResourceKind,
+		ResourceName: parameters.ResourceName,
+	})
+	return patch, err
 }
 
 // buildDigestImage replace image name with image digest
@@ -165,7 +178,6 @@ func patchImageDigest(imageDigest *ImageDigest) []*processors.Patch {
 		}
 	}
 	logPatches(patches)
-
 	return patches
 }
 
@@ -175,20 +187,22 @@ func logPatches(patches []*processors.Patch) {
 		logging.Get().Warn().Err(err).Msg("failed to marshal patches")
 		return
 	}
-	logging.Get().Info().Msg(string(patchData))
+	logging.Get().Info().Msgf("patch data: %s", string(patchData))
 }
 
-func getImageDigestFromHarbor(_ context.Context, image string, secret *utils.ImageRepoSecret) string {
+func getImageDigestFromHarbor(ctx context.Context, image string, secret *utils.ImageRepoSecret) string {
 	var digest string
 	var err error
 
+	var user, password string
 	if secret != nil {
-		logging.Get().Info().Msgf("image [%s] pulling secret %v", image, *secret)
-		digest, err = utils.GetImageDigest(secret.User, secret.Password, true, image)
+		user = secret.User
+		password = secret.Password
 	} else {
 		logging.Get().Info().Msgf("image [%s] pulling secret is empty", image)
-		digest, err = utils.GetImageDigest("", "", true, image)
 	}
+
+	digest, err = utils.GetImageDigest(ctx, user, password, true, image)
 
 	if err != nil {
 		logging.Get().Warn().Err(err).Str("image", image).Msg("get digest of image from harbor error")
@@ -232,7 +246,7 @@ func (m *Mutator) getSecrets(clusterKey, namespace, image string, kubeSecrets []
 		}
 		secret, err := client.CoreV1().Secrets(namespace).Get(context.Background(), s, metav1.GetOptions{})
 		if err != nil {
-			logging.Get().Warn().Err(err).Msgf("get secret of %s err", s)
+			logging.Get().Warn().Err(err).Msgf("get secret %s err", s)
 			return nil
 		}
 		data, ok := secret.Data[".dockerconfigjson"]

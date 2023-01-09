@@ -41,9 +41,6 @@ func (d *ImageDigestMap) get(k string) string {
 }
 
 func Register() {
-	v := Validator{}
-	processors.Registry(v.Name(), v)
-
-	m := Mutator{}
+	m := Mutator{validator: &Validator{}}
 	processors.Registry(m.Name(), m)
 }

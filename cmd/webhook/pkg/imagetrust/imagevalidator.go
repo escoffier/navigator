@@ -8,14 +8,15 @@ import (
 	"errors"
 	"github.com/avast/retry-go"
 	"gitlab.com/piccolo_su/vegeta/cmd/webhook/pkg/processors"
-	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
+	"gitlab.com/security-rd/go-pkg/logging"
 	"gopkg.in/yaml.v2"
-	"io/ioutil"
+	"io"
 	corev1 "k8s.io/api/core/v1"
 	"net/http"
 	"net/url"
+	"os"
 	"strings"
 )
 
@@ -57,7 +58,7 @@ type ValidatorConfig struct {
 	IgnoredNameSpaces []string `yaml:"ignored_name_spaces"`
 }
 
-func (v *Validator) Validate(ctx context.Context, pod *corev1.Pod, params *processors.ValidatingParameters) error {
+func (v *Validator) Validate(ctx context.Context, digests *ImageDigest, params *processors.ValidatingParameters) error {
 	validation := &ImageValidatorReq{
 		NotifyContext: model.NotifyContext{
 			PodUID:    "",
@@ -89,12 +90,12 @@ func (v *Validator) Validate(ctx context.Context, pod *corev1.Pod, params *proce
 		},
 	}
 
-	for _, c := range pod.Spec.InitContainers {
-		buildValidation(validation, c.Image)
+	for _, image := range digests.InitContainerImages {
+		buildValidation(validation, image)
 	}
 
-	for _, c := range pod.Spec.Containers {
-		buildValidation(validation, c.Image)
+	for _, image := range digests.ContainerImages {
+		buildValidation(validation, image)
 	}
 	if len(validation.Images) == 0 {
 		return nil
@@ -102,15 +103,15 @@ func (v *Validator) Validate(ctx context.Context, pod *corev1.Pod, params *proce
 
 	data, err := json.Marshal(validation.Images)
 	if err != nil {
-		logging.GetLogger().Err(err).Msg("marshal json err")
+		logging.Get().Err(err).Msg("marshal json err")
 		return nil
 	}
 
-	logging.GetLogger().Info().Msgf("validation: %s", string(data))
+	logging.Get().Info().Msgf("validation data: %s", string(data))
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, v.digestUrl, bytes.NewReader(data))
 	if err != nil {
-		logging.GetLogger().Err(err).Msg("create request failed")
+		logging.Get().Err(err).Msg("create request failed")
 		return nil
 	}
 
@@ -123,21 +124,21 @@ func (v *Validator) Validate(ctx context.Context, pod *corev1.Pod, params *proce
 		if resp.Body == nil {
 			return err
 		}
-		body, err := ioutil.ReadAll(resp.Body)
+		body, err := io.ReadAll(resp.Body)
 		if err != nil {
 			return err
 		}
 
-		logging.GetLogger().Info().Msgf("resp %s", string(body))
+		logging.Get().Debug().Msgf("resp %s", string(body))
 		err = json.Unmarshal(body, &validationResp)
 		if err != nil {
-			logging.GetLogger().Err(err).Msgf("validation resp err")
+			logging.Get().Err(err).Msgf("validation resp err")
 			return err
 		}
 		return nil
 	}, retry.Attempts(3))
 	if err != nil {
-		logging.GetLogger().Err(err).Msg("http request failed")
+		logging.Get().Err(err).Msg("http request failed")
 		return nil
 	}
 
@@ -151,11 +152,6 @@ func (v *Validator) Validate(ctx context.Context, pod *corev1.Pod, params *proce
 func buildValidation(v *ImageValidatorReq, image string) {
 	var digest, imageTag string
 
-	if !checkRegistryUrl(context.Background(), image) {
-		logging.GetLogger().Info().Msgf("skip validation for image: %s", image)
-		return
-	}
-
 	digest = getDigest(image)
 	if digest != "" {
 		imageMap, ok := GetImageDigestMap()
@@ -163,11 +159,9 @@ func buildValidation(v *ImageValidatorReq, image string) {
 			imageTag = imageMap.get(digest)
 		}
 	}
-
 	if imageTag == "" {
 		imageTag = image
 	}
-
 	v.Images = append(v.Images, RejectOnlineMonitorImage{
 		Image:    imageTag,
 		FromType: "k8s_deployment",
@@ -178,7 +172,7 @@ func buildValidation(v *ImageValidatorReq, image string) {
 func (v *Validator) PreValidate(_ context.Context, _ *corev1.Pod, parameters *processors.ValidatingParameters) bool {
 	for _, ns := range v.IgnoredNameSpaces {
 		if parameters.Namespace == ns {
-			logging.GetLogger().Info().Msgf("ignored mutating for resource %s in namespace %s", parameters.Kind, ns)
+			logging.Get().Info().Msgf("ignored mutating for resource %s in namespace %s", parameters.Kind, ns)
 			return false
 		}
 	}
@@ -200,7 +194,7 @@ func (v *Validator) Init(_ *processors.WebHookConfig) error {
 	path := processors.GetConfigFullPath(validatorConfigFile)
 	validatorConfig, err := loadValidatorConfig(path)
 	if err != nil {
-		logging.GetLogger().Err(err).Msg("load config err")
+		logging.Get().Err(err).Msg("load config err")
 		return err
 	}
 
@@ -215,9 +209,9 @@ func (v *Validator) Init(_ *processors.WebHookConfig) error {
 }
 
 func loadValidatorConfig(path string) (*ValidatorConfig, error) {
-	b, err := ioutil.ReadFile(path)
+	b, err := os.ReadFile(path)
 	if err != nil {
-		logging.GetLogger().Err(err).Msg("read config file failed")
+		logging.Get().Err(err).Msg("read config file failed")
 		return nil, err
 	}
 
