@@ -46,6 +46,8 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
 	"gitlab.com/piccolo_su/vegeta/pkg/lifecycle"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
+	rpcstream "gitlab.com/piccolo_su/vegeta/pkg/streaming"
+	"gitlab.com/piccolo_su/vegeta/pkg/streaming/pb"
 	"gitlab.com/security-rd/go-pkg/cache"
 	"gitlab.com/security-rd/go-pkg/databases"
 	"gitlab.com/security-rd/go-pkg/elastic"
@@ -284,7 +286,13 @@ func NewConsole(
 		logging.Get().Err(err).Msg("init process center error")
 	}
 
-	err = defense.InitDefenseService(rdb, es, scannerURL)
+	stream := rpcstream.NewStreamFactory(rpcstream.WithClusterKey("main")).Server("tcp", ":19090")
+	stream.AddHandler(&pb.ClusterRegister{}, &assetsSvc.ClustertHandler{
+		DB: rdb,
+	})
+	stream.Start()
+
+	err = defense.InitDefenseService(rdb, es, scannerURL, stream)
 	if err != nil {
 		logging.Get().Err(err).Msg("ERROR: bait service init error")
 	}

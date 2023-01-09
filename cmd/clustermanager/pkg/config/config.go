@@ -7,6 +7,7 @@ import (
 
 type Config struct {
 	MasterAddr            string
+	MasterGrpcAddr        string
 	Name                  string
 	APIServerAddr         string
 	ExternalAPIServerAddr string

@@ -15,10 +15,13 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/clustermanager/pkg/clusterserver"
 	conf "gitlab.com/piccolo_su/vegeta/cmd/clustermanager/pkg/config"
 	"gitlab.com/piccolo_su/vegeta/cmd/clustermanager/pkg/drift"
+	"gitlab.com/piccolo_su/vegeta/cmd/clustermanager/service"
 	assets2 "gitlab.com/piccolo_su/vegeta/pkg/assets"
 	"gitlab.com/piccolo_su/vegeta/pkg/dal"
 	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
+	rpcstream "gitlab.com/piccolo_su/vegeta/pkg/streaming"
+	"gitlab.com/piccolo_su/vegeta/pkg/streaming/pb"
 	"gitlab.com/security-rd/go-pkg/cache"
 	"gitlab.com/security-rd/go-pkg/databases"
 	"gitlab.com/security-rd/go-pkg/logging"
@@ -50,7 +53,7 @@ func NewServer() (*server, error) {
 		config: ServerConfig,
 	}
 
-	s.initConfig()
+	s.loadConfig()
 
 	logging.Get().Info().Msgf("config: %+v", s.config)
 
@@ -60,6 +63,14 @@ func NewServer() (*server, error) {
 		logging.Get().Err(err).Msg("failed to init cluster manager")
 		return nil, err
 	}
+
+	stream := rpcstream.NewStreamFactory(rpcstream.WithClusterKey(agent.CusterID)).Client(s.config.MasterGrpcAddr)
+	stream.AddHandler(&pb.HoneySpotReq{}, &service.HoneypotHandler{
+		KubeClient: agent.GetHostClient(),
+	})
+	stream.Start()
+
+	agent.Stream = stream
 
 	s.agent = agent
 
@@ -169,6 +180,9 @@ func NewServer() (*server, error) {
 
 	}
 
+	inClusterStream := rpcstream.NewStreamFactory(rpcstream.WithPodNameKey()).Server("tcp", ":19090")
+	inClusterStream.Start()
+
 	factory.Start(stopChan)
 	tensorFactory.Start(stopChan)
 
@@ -197,7 +211,7 @@ func fullHTTPSURL(str string) string {
 	return "https://" + str
 }
 
-func (s *server) initConfig() {
+func (s *server) loadConfig() {
 	apiServerAddr := os.Getenv("INNER_API_SERVER_URL")
 	if apiServerAddr != "" {
 		s.config.APIServerAddr = apiServerAddr
@@ -222,9 +236,11 @@ func (s *server) initConfig() {
 	if isHostCluster == "true" {
 		s.config.ClusterType = model.HostCluster
 		s.config.MasterAddr = os.Getenv("CONSOLE_INTERNAL_URL")
+		s.config.MasterGrpcAddr = os.Getenv("CONSOLE_INTERNAL_GRPC_ADDR")
 	} else {
 		s.config.ClusterType = model.MemberCluster
 		s.config.MasterAddr = os.Getenv("CONSOLE_EXTERNAL_URL")
+		s.config.MasterGrpcAddr = os.Getenv("CONSOLE_EXTERNAL_GRPC_ADDR")
 	}
 	poolData := os.Getenv("POOL_INFO")
 	poolInfo := &assets2.PoolInfo{}

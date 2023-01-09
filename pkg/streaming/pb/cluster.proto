@@ -1,0 +1,82 @@
+syntax = "proto3";
+package pb;
+option go_package = "./;pb";
+import "google/protobuf/any.proto";
+
+enum MessageType {
+    CREATE = 0;
+    READ = 1;
+    UPDATE = 2;
+    DELETE = 3;
+}
+
+message ClusterMessage {
+    MessageType  MessageType = 1;
+    string Topic = 2;
+    string ReqUUID = 3;
+    string NodeKey = 4;
+    map<string, string> MetaData = 5;
+    google.protobuf.Any Payload = 6;
+}
+
+message CommonReponse {
+    int32  Status = 1;
+    string StatusMessage = 2; 
+}
+
+message ImagePullSecret {
+	string UserName = 1;
+	string Password = 2;
+	string Email = 3;
+	string Server = 4;
+}
+
+message ServicePort {
+	int32 Port = 1;
+	int32 TargetPort = 2;
+}
+
+message HoneySpotReq {
+    string Name = 1;
+    string Namespace = 2;
+    string ClusterKey = 3;              
+	string Service = 4;             
+	repeated ServicePort Ports = 5;     
+	string WorkLoad = 6;                 
+	int32  Replica = 7;               
+	string Image = 8;              
+	repeated ImagePullSecret Secrets = 9;
+	bool   OutboundOff = 10;             
+}
+
+message HoneySpotResp {
+    string Name = 1;
+    string Namespace = 2;
+    string StatusMessage = 3; 
+    int32  Status = 4;
+    repeated HoneySpotReq Results = 5;
+}
+
+message Register {
+    string NodeKey = 1;
+}
+
+message ClusterRegister {
+    string Key = 1;
+    string Name = 2;
+    string Description = 3;
+    string ClusterType = 4;
+    string APIServerAddr = 5;
+    string CertificateAuthData = 6;
+    string SecretToken = 7;
+    string ClientCertData = 8;
+    string ClientKeyData = 9;
+    string WorkerNamespace = 10;
+    string Platform = 11;
+    string Version = 12;
+    int32  Status = 13;
+}
+
+service ClusterService {
+     rpc SendMessage(stream ClusterMessage) returns(stream ClusterMessage);
+}

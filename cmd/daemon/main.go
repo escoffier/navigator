@@ -11,16 +11,20 @@ import (
 	"sync"
 	"time"
 
-	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
+
+	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/containerassets"
+	"gitlab.com/piccolo_su/vegeta/pkg/assets"
+
+	rpcstream "gitlab.com/piccolo_su/vegeta/pkg/streaming"
+
+	"github.com/pkg/errors"
 	flag "github.com/spf13/pflag"
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/dp"
-	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/containerassets"
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/degrade"
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/holmes"
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/netflow"
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/nodeinfo"
-	"gitlab.com/piccolo_su/vegeta/pkg/assets"
 	"gitlab.com/piccolo_su/vegeta/pkg/daemon"
 	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
@@ -249,6 +253,14 @@ func Run(ctx context.Context) error {
 		logging.Get().Warn().Msgf("env %v not found", addrStr)
 		return errors.Errorf("get console address failed.")
 	}
+	clusterGrpcAddr := os.Getenv("CLUSTER_MANAGER_GRPC_ADDR")
+	if clusterAddr == "" {
+		logging.Get().Warn().Msg("env CLUSTER_MANAGER_GRPC_ADDR not found")
+		return errors.Errorf("get cluster grpc address failed.")
+	}
+
+	rpcStream := rpcstream.NewStreamFactory(rpcstream.WithPodNameKey()).Client(clusterGrpcAddr)
+	rpcStream.Start()
 
 	mqFactory := mq.GetClientFactory()
 	mqWriter, err := mqFactory.Writer(context.Background())

@@ -18,6 +18,8 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/assets"
 	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
+	rpcstream "gitlab.com/piccolo_su/vegeta/pkg/streaming"
+	"gitlab.com/piccolo_su/vegeta/pkg/streaming/pb"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 	"gitlab.com/security-rd/go-pkg/logging"
 	corev1 "k8s.io/api/core/v1"
@@ -38,6 +40,7 @@ const (
 
 var (
 	myResourcePrefix = "tensorsec"
+	usingGrpc        = false
 )
 
 func init() {
@@ -47,6 +50,10 @@ func init() {
 		if pos > 0 {
 			myResourcePrefix = podName[:pos]
 		}
+	}
+	useGrpc := os.Getenv("USING_GRPC")
+	if useGrpc == "true" {
+		usingGrpc = true
 	}
 }
 
@@ -75,6 +82,7 @@ type ClusterAgent struct {
 	workerNamespace       string
 	HostClient            *assets.Clientset
 	platform              string
+	Stream                rpcstream.MessageStream
 }
 
 const (
@@ -193,7 +201,12 @@ func (c *ClusterAgent) Init() error {
 func (c *ClusterAgent) RegisterToHostCluster() {
 	stopChan := make(chan struct{})
 	err := wait.PollImmediateUntil(time.Second*60, func() (bool, error) {
-		err := c.registerClusterInfo()
+		var err error
+		if usingGrpc {
+			err = c.grpcRegisterClusterInfo()
+		} else {
+			err = c.registerClusterInfo()
+		}
 		if err != nil { //nolint
 			return false, nil //nolint
 		}
@@ -262,6 +275,45 @@ func (c *ClusterAgent) registerClusterInfo() error {
 
 	logging.Get().Debug().Msgf("post cluster info to master cluster %v", string(data))
 	err = util.HTTPRequest(ctx, c.httpClient, request, respHandler, retry.Attempts(3))
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (c *ClusterAgent) grpcRegisterClusterInfo() error {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
+	defer cancel()
+	version, err := k8s.GetProductVersionFrom(context.Background(), c.HostClient, myResourcePrefix, c.workerNamespace)
+	if err != nil {
+		logging.Get().Err(err).Str("resource_prefix", myResourcePrefix).Str("ns", c.workerNamespace).Msg("get product version error")
+	}
+	logging.Get().Info().Str("product_version", version).Msg("Get cluster product version")
+
+	cluster := &pb.ClusterRegister{
+		Key:                 c.CusterID,
+		Name:                c.Name,
+		ClusterType:         string(c.ClusterType),
+		Description:         c.Description,
+		APIServerAddr:       c.externalApiServerAddr,
+		CertificateAuthData: string(c.KubeRestConfig.CAData),
+		SecretToken:         string(c.KubeRestConfig.Token),
+		ClientCertData:      string(c.KubeRestConfig.CertData),
+		ClientKeyData:       string(c.KubeRestConfig.KeyData),
+		WorkerNamespace:     c.workerNamespace,
+		Status:              0,
+		Platform:            c.platform,
+		Version:             version,
+	}
+
+	data, err := json.Marshal(cluster)
+	if err != nil {
+		logging.Get().Err(err).Msg("Failed to marshal cluster")
+		return err
+	}
+	logging.Get().Debug().Msgf("cluster info: %s", string(data))
+
+	_, err = c.Stream.CreateCluster(ctx, "default", cluster)
 	if err != nil {
 		return err
 	}
