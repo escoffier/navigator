@@ -139,8 +139,8 @@ func (s *InitScanner) createCicdBufRegistry(ctx context.Context) error {
 	}
 	// 先查一下,可能已经存在
 	registries, _, err := s.regDal.SearchRegistry(ctx, store.SearchRegistryParam{
-		UseType:  model.CICDImageRegistry,
-		NoDelete: true,
+		UseType: model.CICDImageRegistry,
+		Deleted: consts.FalseString,
 	}, nil)
 	if err != nil {
 		logging.GetLogger().Err(err).Msg("when initializing the buff registry, query error occurred")
@@ -199,8 +199,8 @@ func (s *InitScanner) createSafeNodeBufRegistry(ctx context.Context, scannerInst
 	}
 	// 先查一下,可能已经存在
 	registries, _, err := s.regDal.SearchRegistry(ctx, store.SearchRegistryParam{
-		UseType:  model.NodeBuffRegistry,
-		NoDelete: true,
+		UseType: model.NodeBuffRegistry,
+		Deleted: consts.FalseString,
 	}, nil)
 	if err != nil {
 		logging.GetLogger().Err(err).Msg("when initializing the buff registry, query error occurred")

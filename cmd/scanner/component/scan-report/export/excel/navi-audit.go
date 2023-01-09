@@ -15,6 +15,7 @@ import (
 	pkgelastic "gitlab.com/security-rd/go-pkg/elastic"
 	"gitlab.com/security-rd/go-pkg/logging"
 
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scan-report/common"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
@@ -134,12 +135,12 @@ func (e *AuditExport) genFileName(_ context.Context, task model.ExportTensorTask
 }
 
 func (e *AuditExport) ZipAndSave(_ context.Context, filename string, files chan *excelize.File) error {
-	file, err := ZipExcelFile(files)
+	file, err := common.ZipExcelFile(files)
 	if err != nil {
 		logging.Get().Err(err).Str("filename", filename).Msg("ZipAndSave.WriteToExcel")
 		return err
 	}
-	if err := SaveFile(file, e.fileDir+"/"+filename); err != nil {
+	if err := common.SaveFile(file, e.fileDir+"/"+filename); err != nil {
 		logging.Get().Err(err).Str("filename", filename).Msg("ZipAndSave.SaveFile")
 		return err
 	}

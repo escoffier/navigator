@@ -11,22 +11,25 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
+
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
+
+	"gitlab.com/security-rd/go-pkg/logging"
 
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
-	"gitlab.com/security-rd/go-pkg/logging"
 )
 
 type WebshellController struct {
-	dal store.WebshellDalInterface
+	dal store.WebshellDal
 	Srv WebshellSrv
 }
 
-func NewWebshellComponent(dal store.WebshellDalInterface) WebshellController {
+func NewWebshellComponent(dal store.WebshellDal) WebshellController {
 	return WebshellController{dal: dal, Srv: NewWebshellSrv(dal)}
 }
+
 func (w *WebshellController) GetParseInt(ctx *gin.Context, s string) int64 {
 	str := ctx.Query(s)
 	if str == "" {
@@ -39,6 +42,7 @@ func (w *WebshellController) GetParseInt(ctx *gin.Context, s string) int64 {
 	}
 	return num
 }
+
 func (w *WebshellController) ListWebshell(ctx *gin.Context) {
 	limit := w.GetParseInt(ctx, "limit")
 	offset := w.GetParseInt(ctx, "offset")

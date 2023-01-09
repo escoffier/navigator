@@ -32,6 +32,7 @@ type RegistrySrv struct {
 	registryDal   store.RegistryDal
 	syncTaskDal   store.SyncTaskDal
 	scanConfigDal store.ScanConfigDal
+	imageDal      store.ImageDal
 }
 
 type SearchRegistryParam struct {
@@ -53,8 +54,17 @@ func (s *RegistrySrv) GetRegistryType(ctx context.Context) ([]model.LabelValue, 
 
 func (s *RegistrySrv) SearchRegistry(ctx context.Context, param SearchRegistryParam, filter *model.Filter) ([]model.Registry, int64, error) {
 
-	daoParam := store.SearchRegistryParam{RegistryIds: param.Ids, Name: param.Name, UseType: param.UseType, Search: param.Search, RegType: param.RegType, NoDelete: true}
+	daoParam := store.SearchRegistryParam{
+		RegistryIds: param.Ids,
+		Name:        param.Name,
+		UseType:     param.UseType,
+		Search:      param.Search,
+		RegType:     param.RegType,
+		Deleted:     consts.FalseString,
+	}
+
 	daoParam.Compatible()
+
 	registries, cnt, err := s.registryDal.SearchRegistry(ctx, daoParam, filter)
 	if err != nil {
 		logging.GetLogger().Err(err).Msg("SearchRegistry")
@@ -69,6 +79,7 @@ func (s *RegistrySrv) DeleteRegistry(ctx context.Context, id int64) error {
 	}
 	update := make(map[string]interface{})
 	update["deleted_at"] = time.Now().Unix()
+
 	err := s.registryDal.UpdateRegistry(ctx, store.SearchRegistryParam{ID: id}, update)
 	if err != nil {
 		logging.GetLogger().Err(err).Msg("DeleteRegistry")
@@ -100,6 +111,37 @@ func (s *RegistrySrv) DeleteRegistry(ctx context.Context, id int64) error {
 			}
 		}
 	}
+
+	// 删除仓库后删除对应的镜像
+	go func(regID int64) {
+		defer func() {
+			if err := recover(); err != nil {
+				logging.GetLogger().Error().Msg("DeleteRegistry delete image recover")
+			}
+		}()
+
+		var startID int64
+		filter := model.EmptyFilter().AddLimit(consts.DefaultLimit).AddSortAsc().AddSortFiledByID()
+		for {
+			images, _, err := s.imageDal.SearchImage(ctx, store.SearchImageParam{RegistryIds: []int64{regID},
+				Fields: []string{"id"}, StartID: startID}, filter)
+			if err != nil {
+				logging.GetLogger().Err(err).Int64("regID", regID).Msg("after DeleteRegistry delete image")
+				break
+			}
+			if len(images) == 0 {
+				break
+			}
+			startID = images[len(images)-1].ID
+			for i := range images {
+				if err := s.imageDal.DeleteImage(ctx, images[i].ID); err != nil {
+					logging.GetLogger().Err(err).Int64("regID", regID).Int64("ImageID", images[i].ID).Msg("after DeleteRegistry delete image")
+					continue
+				}
+			}
+			logging.GetLogger().Info().Int64("regID", regID).Msg("after DeleteRegistry delete image")
+		}
+	}(id)
 
 	return nil
 }
@@ -162,7 +204,7 @@ func (s *RegistrySrv) checkHealth(ctx context.Context, reg model.Registry) (stri
 }
 
 func (s *RegistrySrv) CheckHealth(ctx context.Context, scannerInstance string) error {
-	registries, _, err := s.registryDal.SearchRegistry(ctx, store.SearchRegistryParam{ScannerInstance: scannerInstance, NoDelete: true}, nil)
+	registries, _, err := s.registryDal.SearchRegistry(ctx, store.SearchRegistryParam{ScannerInstance: scannerInstance, Deleted: consts.FalseString}, nil)
 	if err != nil {
 		logging.GetLogger().Err(err).Msg("RegistrySrv CheckHealth")
 		return err
@@ -218,7 +260,7 @@ func (s *RegistrySrv) UpdateRegistry(ctx context.Context, id int64, reg model.Re
 	if id <= 0 {
 		return response.NewHttpError(http.StatusExpectationFailed, fmt.Errorf("请传入要更新仓库的ID"))
 	}
-	registries, _, err := s.registryDal.SearchRegistry(ctx, store.SearchRegistryParam{ID: id, NoDelete: true}, nil)
+	registries, _, err := s.registryDal.SearchRegistry(ctx, store.SearchRegistryParam{ID: id, Deleted: consts.FalseString}, nil)
 	if err != nil {
 		logging.GetLogger().Err(err).Msg("UpdateRegistry.SearchRegistry")
 		return response.NewHttpError(http.StatusInternalServerError, fmt.Errorf(consts.StatusInternalServerErrorMsg))

@@ -12,8 +12,9 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 )
 
-type TrustedImageInterface interface {
+type TrustedImageDal interface {
 	SearchTrustedImageIDs(ctx context.Context, param SearchTrustedImageParam) ([]int64, error)
+	SearchTrustedImage(ctx context.Context, param SearchTrustedImageParam) ([]*model.TrustedImages, error)
 	TrustedImageCreat(ctx context.Context, trustedImage *model.TrustedImages) error
 
 	ImageRsaCreate(ctx context.Context, data *model.ImageRsa) error
@@ -22,6 +23,24 @@ type TrustedImageInterface interface {
 	ImageRsaDelete(ctx context.Context, id int64) error
 	ImageRsaList(ctx context.Context, param RSAListParam, filter *model.Filter) ([]model.ImageRsa, int64, error)
 	ImageRsaQueryByPrivateKey(ctx context.Context, privateKey string) (*model.ImageRsa, error)
+}
+
+func (s *ScannerOrm) SearchTrustedImage(ctx context.Context, param SearchTrustedImageParam) ([]*model.TrustedImages, error) {
+	timeOutCtx, cancelFunc := context.WithTimeout(ctx, time.Second*10)
+	defer cancelFunc()
+
+	db := s.rdb.Get().Where(timeOutCtx).Model(new(model.TrustedImages))
+	if len(param.Digests) > 0 {
+		db = db.Where("digest IN ?", param.Digests)
+	}
+	if param.IsTrusted == consts.TrueString {
+		db = db.Where("is_trusted = ?", consts.TrustedImage)
+	} else if param.IsTrusted == consts.FalseString {
+		db = db.Where("is_trusted = ?", consts.NotTrustedImage)
+	}
+	res := make([]*model.TrustedImages, 0)
+	err := db.Find(&res).Error
+	return res, err
 }
 
 // SearchTrustedImageIDs 获取多个镜像的可信信息,可能需要查询全部

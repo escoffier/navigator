@@ -125,3 +125,7 @@ const (
 const (
 	WebshellDir = "/opt/webshell"
 )
+
+const (
+	ScannerVersion211 = "2.11"
+)

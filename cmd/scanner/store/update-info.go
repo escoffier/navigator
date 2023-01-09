@@ -46,7 +46,7 @@ func (dal *ScannerInstanceInfoDao) CreateAndReplace(ctx context.Context, info mo
 	}
 	// 没有变动
 	if len(exist) > 0 && info.Same(exist[0]) {
-		// 更新心跳
+		// 更新心跳及scanner的版本号
 		if err := dal.db.Get().WithContext(ctx).Model(new(model.ScannerInstanceInfo)).
 			Where("scanner_instance = ?", info.ScannerInstance).Updates(info.ToHeartBeatAt()).Error; err != nil {
 			return 0, err

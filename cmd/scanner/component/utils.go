@@ -248,7 +248,7 @@ func checkRejectPolicy(po model.RejectPolicy) error {
 	}
 
 	if po.MaliciousPolicy != model.RejectPolicyAlarm && po.MaliciousPolicy != model.RejectPolicyReject && po.MaliciousPolicy != model.RejectPolicyIgnore {
-		return errors.New("no Malicious policy")
+		return errors.New("no Virus policy")
 	}
 
 	if po.WebShellPolicy != model.RejectPolicyAlarm && po.WebShellPolicy != model.RejectPolicyReject {

@@ -26,7 +26,7 @@ func (s *ExportHtmlApiSrv) GetImageIdNames(ctx *gin.Context) {
 	response.JSONOK(ctx, response.WithItem(*res))
 }
 
-func (s ExportHtmlApiSrv) GetRiskOverView(ctx *gin.Context) {
+func (s *ExportHtmlApiSrv) GetRiskOverView(ctx *gin.Context) {
 	taskID := util.GetInt64FromQuery(ctx, "taskID")
 	res, err := s.ExportHtmlInterface.GetRiskOverView(ctx, taskID)
 	if err != nil {
@@ -36,7 +36,7 @@ func (s ExportHtmlApiSrv) GetRiskOverView(ctx *gin.Context) {
 	response.JSONOK(ctx, response.WithItem(*res))
 }
 
-func (s ExportHtmlApiSrv) GetImages(ctx *gin.Context) {
+func (s *ExportHtmlApiSrv) GetImages(ctx *gin.Context) {
 	taskID := util.GetInt64FromQuery(ctx, "taskID")
 	startID := util.GetInt64FromQuery(ctx, "startID")
 	res, err := s.ExportHtmlInterface.GetImages(ctx, taskID, startID)
@@ -47,7 +47,7 @@ func (s ExportHtmlApiSrv) GetImages(ctx *gin.Context) {
 	response.JSONOK(ctx, response.WithItem(*res))
 }
 
-func (s ExportHtmlApiSrv) GetImageVulns(ctx *gin.Context) {
+func (s *ExportHtmlApiSrv) GetImageVulns(ctx *gin.Context) {
 	taskID := util.GetInt64FromQuery(ctx, "taskID")
 	startID := util.GetInt64FromQuery(ctx, "startID")
 	imageID := util.GetInt64FromQuery(ctx, "imageID")
@@ -66,7 +66,7 @@ func (s ExportHtmlApiSrv) GetImageVulns(ctx *gin.Context) {
 	response.JSONOK(ctx, response.WithItem(*res))
 }
 
-func (s ExportHtmlApiSrv) GetExportVulns(ctx *gin.Context) {
+func (s *ExportHtmlApiSrv) GetExportVulns(ctx *gin.Context) {
 	taskID := util.GetInt64FromQuery(ctx, "taskID")
 	startID := util.GetInt64FromQuery(ctx, "startID")
 	limit := util.GetInt64FromQuery(ctx, "limit")
@@ -92,7 +92,7 @@ func (s ExportHtmlApiSrv) GetExportVulns(ctx *gin.Context) {
 	response.JSONOK(ctx, response.WithItem(*res))
 }
 
-func (s ExportHtmlApiSrv) GetVirus(ctx *gin.Context) {
+func (s *ExportHtmlApiSrv) GetVirus(ctx *gin.Context) {
 	taskID := util.GetInt64FromQuery(ctx, "taskID")
 	virus, err := s.ExportHtmlInterface.GetVirus(ctx, taskID)
 	if err != nil {
@@ -102,7 +102,7 @@ func (s ExportHtmlApiSrv) GetVirus(ctx *gin.Context) {
 	response.JSONOK(ctx, response.WithItems(virus))
 }
 
-func (s ExportHtmlApiSrv) GetImageRisk(ctx *gin.Context) {
+func (s *ExportHtmlApiSrv) GetImageRisk(ctx *gin.Context) {
 	taskID := util.GetInt64FromQuery(ctx, "taskID")
 	imageID := util.GetInt64FromQuery(ctx, "imageID")
 	imageRisk, err := s.ExportHtmlInterface.GetImageRisk(ctx, taskID, imageID)

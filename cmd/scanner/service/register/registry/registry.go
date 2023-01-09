@@ -16,7 +16,8 @@ const (
 )
 
 type Registry struct {
-	update component.RegistrySrvInterface
+	registrySrv component.RegistrySrvInterface
+	imageSrv    store.ImageDal
 }
 
 func (s *Registry) Start(ctx context.Context) error {
@@ -36,7 +37,7 @@ func (s *Registry) Start(ctx context.Context) error {
 				logging.GetLogger().Info().Msg("CheckHealth Registry global.ScannerInstance is empty ")
 				continue
 			}
-			if err := s.update.CheckHealth(ctx, global.ScannerInstance); err != nil {
+			if err := s.registrySrv.CheckHealth(ctx, global.ScannerInstance); err != nil {
 				logging.GetLogger().Err(err).Str("ScannerInstance", global.ScannerInstance).Msg("CheckHealth service end")
 				continue
 			}
@@ -66,5 +67,5 @@ func newService(config register.ScannerServiceConfig) (register.ScannerService, 
 	scanConfigDal := store.NewScanConfigDao(scannerWrapperDb)
 	syncTaskDal := store.NewSyncTaskDao(scannerWrapperDb)
 	s := component.NewRegistrySrv(registryDal, scanConfigDal, syncTaskDal)
-	return &Registry{update: s}, nil
+	return &Registry{registrySrv: s}, nil
 }

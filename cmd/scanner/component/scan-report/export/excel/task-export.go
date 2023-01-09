@@ -12,23 +12,20 @@ import (
 	"gitlab.com/security-rd/go-pkg/logging"
 	"go.uber.org/atomic"
 
-	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scan-report/export"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scan-report/common"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
-	"gitlab.com/piccolo_su/vegeta/cmd/scanner/utils"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
+	"gitlab.com/piccolo_su/vegeta/pkg/util"
 )
 
 type ScanTaskExport struct {
-	ImageExport             ImageExportInterface
-	ExportTaskDal           store.ExportTaskDal
-	ScanTaskDal             store.ScanTaskDal
-	FileDir                 string // 文件存储的决对路径
-	UpdateTask              export.UpdateTask
-	MaxVulnCol              int64
-	MaxImageByOneExportTask int64
-	IncludeCNNVDVuln        bool
-	IncludeRHSAVuln         bool
+	ImageExport   ImageExportInterface
+	ExportTaskDal store.ExportTaskDal
+	ScanTaskDal   store.ScanTaskDal
+	FileDir       string // 文件存储的决对路径
+	UpdateTask    common.UpdateExportTask
+	MaxVulnCol    int64
 }
 
 func NewScanTaskExport(
@@ -36,22 +33,16 @@ func NewScanTaskExport(
 	exportTaskDal store.ExportTaskDal,
 	scanTaskDal store.ScanTaskDal,
 	fileDir string, // 文件存储的决对路径
-	updateTask export.UpdateTask,
+	updateTask common.UpdateExportTask,
 	maxVulnCol int64,
-	maxImageByOneExportTask int64,
-	includeCNNVDVuln bool,
-	includeRHSAVuln bool,
 ) *ScanTaskExport {
 	return &ScanTaskExport{
-		ImageExport:             imageExport,
-		ExportTaskDal:           exportTaskDal,
-		ScanTaskDal:             scanTaskDal,
-		FileDir:                 fileDir,
-		UpdateTask:              updateTask,
-		MaxVulnCol:              maxVulnCol,
-		MaxImageByOneExportTask: maxImageByOneExportTask,
-		IncludeCNNVDVuln:        includeCNNVDVuln,
-		IncludeRHSAVuln:         includeRHSAVuln,
+		ImageExport:   imageExport,
+		ExportTaskDal: exportTaskDal,
+		ScanTaskDal:   scanTaskDal,
+		FileDir:       fileDir,
+		UpdateTask:    updateTask,
+		MaxVulnCol:    maxVulnCol,
 	}
 }
 
@@ -59,7 +50,7 @@ type TaskExportParma struct {
 	ScanTaskID int64 `json:"scanTaskId"`
 }
 
-func (s *ScanTaskExport) GenExcelFileChan(ctx context.Context, dataChan chan ExcelDataWithMeta) chan *excelize.File {
+func (s *ScanTaskExport) GenExcelFileChan(ctx context.Context, dataChan chan common.ExcelDataWithMeta) chan *excelize.File {
 	out := make(chan *excelize.File, 1)
 
 	go func() {
@@ -72,7 +63,7 @@ func (s *ScanTaskExport) GenExcelFileChan(ctx context.Context, dataChan chan Exc
 		defer close(out)
 
 		for excelData := range dataChan {
-			excelFile, err := WriteToExcel(excelData.Filename, excelData.ExcelMetaData, excelData.ExcelData)
+			excelFile, err := common.WriteToExcel(excelData.Filename, excelData.ExcelMetaData, excelData.ExcelData)
 			if err != nil {
 				logging.Get().Err(err).Msg("Export.WriteToExcel")
 				continue
@@ -87,20 +78,9 @@ func (s *ScanTaskExport) GenExcelFileChan(ctx context.Context, dataChan chan Exc
 	return out
 }
 
-// key：excel sheet name
-// value：`chan []string`：表示一个sheet的数据流(一个镜像或一个漏洞的数据)
-// 为啥使用：[] chan []string ，因为要导出多个镜像
-type ExcelData map[string][]chan []string
-
-type ExcelDataWithMeta struct {
-	ExcelData     ExcelData
-	Filename      string
-	ExcelMetaData []ExcelMetaData
-}
-
 func (s *ScanTaskExport) GenExcelDataChan(ctx context.Context, task model.ExportTensorTask,
-	imageIdChan chan int64) chan ExcelDataWithMeta {
-	out := make(chan ExcelDataWithMeta, 1)
+	imageIdChan chan int64) chan common.ExcelDataWithMeta {
+	out := make(chan common.ExcelDataWithMeta, 1)
 
 	go func(imageIdChan chan int64) {
 		defer func() {
@@ -113,8 +93,8 @@ func (s *ScanTaskExport) GenExcelDataChan(ctx context.Context, task model.Export
 		vulnCol := atomic.NewInt32(0)
 		index := 0
 
-		excelData := ExcelDataWithMeta{
-			ExcelData:     make(ExcelData),
+		excelData := common.ExcelDataWithMeta{
+			ExcelData:     make(common.ExcelData),
 			Filename:      fmt.Sprintf("%s_%d", task.GenFilenamePrefix(), index),
 			ExcelMetaData: GetImageSheetInfo(consts.ExportScanResult),
 		}
@@ -139,8 +119,8 @@ func (s *ScanTaskExport) GenExcelDataChan(ctx context.Context, task model.Export
 				out <- excelData
 				index++
 				vulnCol = atomic.NewInt32(0)
-				excelData = ExcelDataWithMeta{
-					ExcelData:     make(ExcelData),
+				excelData = common.ExcelDataWithMeta{
+					ExcelData:     make(common.ExcelData),
 					Filename:      fmt.Sprintf("%s_%d", task.GenFilenamePrefix(), index),
 					ExcelMetaData: GetImageSheetInfo(consts.ExportScanResult),
 				}
@@ -194,7 +174,7 @@ func (s *ScanTaskExport) GenImageIdChan(ctx context.Context, task model.ExportTe
 		for {
 			scanTask, cnt, err := s.ScanTaskDal.GetSubTasks(ctx, store.SearchSubTaskParam{
 				TaskIds: taskIds, Statuses: []int{consts.ImageScanSuccess}, LastID: lastID},
-				&model.Filter{Limit: Min(consts.DefaultBathSize, s.MaxImageByOneExportTask-completed), SortFiled: "id", SortBy: consts.SortByAsc})
+				&model.Filter{Limit: consts.DefaultBathSize, SortFiled: "id", SortBy: consts.SortByAsc})
 			if err != nil {
 				logging.Get().Err(err).Int64("taskID", task.ID).Msg("GenImageIdChan Export.GetSubTasks")
 				return
@@ -221,7 +201,7 @@ func (s *ScanTaskExport) GenImageIdChan(ctx context.Context, task model.ExportTe
 func (s *ScanTaskExport) ZipAndSave(ctx context.Context, filename string, excelFileChan chan *excelize.File) error {
 
 	// 先保存所有的excel文件
-	var filePath string
+	filePath := s.FileDir + "/" + filename
 	defer func() {
 		if filePath != "" {
 			if err := os.RemoveAll(filePath); err != nil {
@@ -230,16 +210,14 @@ func (s *ScanTaskExport) ZipAndSave(ctx context.Context, filename string, excelF
 			logging.Get().Info().Str("filePath", filePath).Msg("ZipAndSave defer RemoveAll")
 		}
 	}()
-	remove := true
+
+	if err := util.MkdirIfNotExist(filePath, true); err != nil {
+		logging.Get().Info().Str("filePath", filePath).Msg("ZipAndSave MkdirIfNotExist")
+		return err
+	}
 
 	for file := range excelFileChan {
-		filePath = s.FileDir + "/" + filename
 		// 检测目录是否存在
-		if err := utils.MkdirIfNotExist(filePath, remove); err != nil {
-			logging.Get().Err(err).Str("filePath", filePath).Msg("ZipAndSave MkdirIfNotExist")
-			return err
-		}
-		remove = false
 		if err := file.SaveAs(filePath + "/" + file.Path); err != nil {
 			logging.Get().Err(err).Str("filename", filename).Msg("ZipAndSave")
 			continue
@@ -248,7 +226,7 @@ func (s *ScanTaskExport) ZipAndSave(ctx context.Context, filename string, excelF
 		if err := file.Close(); err != nil {
 			logging.Get().Info().Str("filePath", filePath).Str("excelFile", file.Path).Msg("ZipAndSave close excel file")
 		}
-		file = nil // GC
+		file = nil // For GC
 	}
 	logging.Get().Info().Str("filePath", filePath).Msg("ZipAndSave save all  excel file start zip files")
 
@@ -263,6 +241,7 @@ func (s *ScanTaskExport) ZipAndSave(ctx context.Context, filename string, excelF
 			return err
 		}
 	}
+
 	return nil
 }
 
@@ -342,6 +321,5 @@ func (s *ScanTaskExport) Run(ctx context.Context) {
 		if err := s.worker(ctx, tasks[i]); err != nil {
 			logging.Get().Err(err).Msg("worker")
 		}
-
 	}
 }

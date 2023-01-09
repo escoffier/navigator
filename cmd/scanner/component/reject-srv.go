@@ -53,7 +53,6 @@ type RSAListParam struct {
 
 type ImageReject struct {
 	dbdal store.ScannerDalInterface
-	// rejectDbDal store.BaseImageDalInterface
 }
 
 func (s *ImageReject) UpdateSinglePolicy(ctx context.Context, id int64, policy model.RejectPolicy) error {

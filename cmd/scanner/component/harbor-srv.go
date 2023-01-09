@@ -11,13 +11,14 @@ import (
 
 	"github.com/avast/retry-go"
 	"github.com/go-redis/redis/v8"
+	"gitlab.com/security-rd/go-pkg/httputil"
+
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
-	"gitlab.com/security-rd/go-pkg/httputil"
 )
 
 type HarborSvc interface {
@@ -150,6 +151,6 @@ func (hb *Harbor) GetRedisClient() *redis.Client {
 	return hb.RedisClient
 }
 
-func NewHarborSrc(dbdal store.ScannerDalInterface, redis *redis.Client, redclairSvc *RedClairService) *Harbor {
-	return &Harbor{dbdal: dbdal, RedisClient: redis, redclair: redclairSvc}
+func NewHarborSrc(dbdal store.ScannerDalInterface, redis *redis.Client) *Harbor {
+	return &Harbor{dbdal: dbdal, RedisClient: redis, redclair: nil}
 }

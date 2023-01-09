@@ -31,6 +31,23 @@ const (
 )
 
 const (
+	SeverityCRITICALString = "CRITICAL"
+	SeverityHIGHString     = "HIGH"
+	SeverityMEDIUMString   = "MEDIUM"
+	SeverityLOWString      = "LOW"
+	SeverityUNKNOWNString  = "UNKNOWN"
+)
+
+const (
+	MaxVulnScore             = 50
+	MaxWebshellScore         = 30
+	MaxVirusScore            = 40
+	MaxSensitiveScore        = 10
+	SingleSensitiveScore     = 5
+	MaxWebshellAndVirusScore = 40 // 评分细则规定webshell和病毒都算恶意文件加起来满分40
+)
+
+const (
 	LangEn = "en"
 	LangZh = "ch"
 )

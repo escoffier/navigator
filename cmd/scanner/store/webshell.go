@@ -14,7 +14,7 @@ import (
 	scannermodel "gitlab.com/piccolo_su/vegeta/pkg/model/scanner-model"
 )
 
-type WebshellDalInterface interface {
+type WebshellDal interface {
 	SearchWebshell(ctx context.Context, params SearchWebshellParam, filter model.Filter) ([]scannermodel.Webshell, int64, error)
 	SearchWebshellImage(ctx context.Context, params SearchWebshellParam, filter model.Filter) ([]model.ScanIssueToImageWebshell, int64, error)
 	SearchRegistry(ctx context.Context, images []int64) ([]scannermodel.WebshellImage, error)

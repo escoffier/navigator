@@ -19,24 +19,6 @@ var LevelToString = map[int]string{
 	2: "certainly",
 }
 
-// type WebshellImage struct {
-// 	ID          int64  `gorm:"primaryKey" json:"id"`
-// 	CreatedAt   int64  `gorm:"autoCreateTime:milli;column:created_at" json:"created_at"`
-// 	UpdatedAt   int64  `gorm:"autoUpdateTime:milli;column:updated_at" json:"updated_at"`
-// 	ImageDigest string `gorm:"column:image_digest;type:varchar(255)" json:"image_digest"`
-// 	FileMd5     string `gorm:"column:file_md5;type:varchar(255)" json:"file_md5"`
-// 	UUID        uint64 `gorm:"column:uuid" json:"uuid"`
-// }
-
-// func (WebshellImage) TableName() string {
-// 	return "ivan_scanner_webshell_image"
-// }
-// func (w *WebshellImage) GenUniqueWebshellImage() uint64 {
-// 	key := fmt.Sprintf("%s-%s", w.FileMd5, w.ImageDigest)
-// 	uid := util.GenerateUUID64(key)
-// 	return uid
-// }
-
 type Webshell struct {
 	ID            int64  `gorm:"primaryKey" json:"id"`
 	CreatedAt     int64  `gorm:"autoCreateTime:milli;column:created_at" json:"createdAt"`

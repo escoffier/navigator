@@ -417,6 +417,38 @@ type Vuln struct {
 	CvssMap map[string]string `gorm:"-" json:"cvssMap"` // 漏洞详情中雷达图的位置数据
 }
 
+type SearchVulnParam struct {
+	PkgKeyword      string
+	LanguageKeyword string
+	TargetKeyword   string
+	FrameKeyword    string
+	VulnKeyword     string // 漏洞名搜索
+	UniqueVulns     []uint64
+	Fields          []string
+	OmitFields      []string
+	PkgName         string       // 软件包来源
+	PkgVersion      string       // 软件包版本
+	Sources         string       // 来源筛选,用逗号分隔
+	CanFixed        string       // 是否可修复筛选
+	SeverityInt     []int64      // 漏洞级别筛选
+	ImageIds        []int64      // 镜像ID
+	LayerSearch     *LayerSearch // 层级
+}
+
+type LayerSearch struct {
+	ImageID     int64
+	LayerDigest string
+}
+
+type SearchScanLayerParam struct {
+	ImageID      int64
+	LayerDigests []string
+}
+
+func GetVulnDefaultOmitFields() []string {
+	return []string{"link_json", "metadata_json", "extra_info"}
+}
+
 // 漏洞类型
 func (vu *Vuln) GetVulnClass() string {
 	if util.ExistBit1(vu.Flag, VulnFlagClassOSPkg) {

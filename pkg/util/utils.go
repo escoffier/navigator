@@ -259,3 +259,40 @@ func ByteToMB(b int) string {
 func ToString(value interface{}) string {
 	return fmt.Sprintf("%v", value)
 }
+
+func InstallType(osFamily string) string {
+	switch strings.ToLower(osFamily) {
+	case "ubuntu", "debian":
+		return "apt-get update  &&  apt upgrade -y "
+	case "centos", "fedora":
+		return "yum upgrade -y "
+	case "alpine":
+		return "apk update && apk add --upgrade -y "
+	}
+	return ""
+}
+
+func MkdirIfNotExist(path string, remove bool) error {
+	if remove {
+		// 先删除
+		_ = os.RemoveAll(path)
+	}
+
+	stat, err := os.Stat(path)
+	if err == nil {
+		if stat.IsDir() {
+			return nil
+		} else {
+			// 先删除这个文件再创建
+			logging.GetLogger().Info().Str("filename", path).Msg("file exist remove it")
+			if err := os.Remove(path); err != nil {
+				return err
+			}
+			return os.Mkdir(path, os.ModePerm)
+		}
+	}
+	if os.IsNotExist(err) {
+		return os.Mkdir(path, os.ModePerm)
+	}
+	return err
+}

@@ -125,6 +125,12 @@ func (v *VulnDao) SearchVuln(ctx context.Context, param SearchVulnParam, filter 
 		sub := v.rdb.Get().WithContext(ctx).Model(new(model.VulnImage)).Select("distinct unique_vuln").Where("image_id IN  ?", param.ImageIds)
 		db = db.Where("unique_vuln IN (?)", sub)
 	}
+	if param.LayerSearch != nil {
+		sub := v.rdb.Get().WithContext(ctx).Model(new(model.VulnImage)).Select("distinct unique_vuln").
+			Where("image_id =  ?", param.LayerSearch.ImageID).Where("layer_digest = ?", param.LayerSearch.LayerDigest)
+		db = db.Where("unique_vuln IN (?)", sub)
+	}
+
 	if param.PkgName != "" {
 		db = db.Where("pkg_name = ?", param.PkgName)
 	}

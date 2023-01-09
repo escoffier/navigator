@@ -22,7 +22,6 @@ type SyncImageInterface interface {
 	CreateSyncTask(ctx context.Context, reg CreateSyncTaskParam) error    // 添加全量同布的任务
 	SyncAllImage(ctx context.Context) error                               // 全部仓库全量同步
 	SyncAddImage(ctx context.Context, syncType consts.SyncType) error     // 全部仓库增量同步
-	RetryFailedSyncImage(ctx context.Context, lessRetryCount int64) error // 重试
 	DeleteMoreRetryCount(ctx context.Context, moreRetryCount int64) error // 删除超过重试次数
 	GetSyncStatus(ctx context.Context) ([]*ResponseGetSyncStatus, error)
 	AddSyncTask(ctx context.Context) error
@@ -30,49 +29,39 @@ type SyncImageInterface interface {
 
 // SyncRepoImage sync registry repos and tags to db
 type SyncRepoImage struct {
-	registryDal            store.RegistryDal
-	syncTaskDal            store.SyncTaskDal
-	imageDal               store.ScannerDalInterface
-	podResourceRelationDAl store.PodResourceRelationDal
-	vulnDal                store.VulnDalInterface
-	scannerDB              *store.ScannerDB
-	syncRetryImageDal      store.SyncRetryImageDal
-
-	scanConfigDal   store.ScanConfigDal
-	syncAllImageMap sync.Map // 不重复执行全量扫描
-	syncAddImageMap sync.Map // 不重复执行增量扫描
-
-	mutex *sync.RWMutex
+	registryDal       store.RegistryDal
+	syncTaskDal       store.SyncTaskDal
+	imageDal          store.ScannerDalInterface
+	vulnDal           store.VulnDalInterface
+	syncRetryImageDal store.SyncRetryImageDal
+	scanConfigDal     store.ScanConfigDal
+	syncAllImageMap   sync.Map // 不重复执行全量扫描
+	syncAddImageMap   sync.Map // 不重复执行增量扫描
+	mutex             *sync.RWMutex
 }
 
 func NewSyncRepoImage(
 	registryDal store.RegistryDal,
 	imageDal store.ScannerDalInterface,
-	podResourceRelationDAl store.PodResourceRelationDal,
 	scanConfigDal store.ScanConfigDal,
-	syncRetryImageDal store.SyncRetryImageDal,
 	vulnDal store.VulnDalInterface,
-	scannerDB *store.ScannerDB,
 	syncTaskDal store.SyncTaskDal,
 ) *SyncRepoImage {
 	return &SyncRepoImage{
-		registryDal:            registryDal,
-		imageDal:               imageDal,
-		podResourceRelationDAl: podResourceRelationDAl,
-		vulnDal:                vulnDal,
-		scannerDB:              scannerDB,
-		syncRetryImageDal:      syncRetryImageDal,
-		scanConfigDal:          scanConfigDal,
-		syncAllImageMap:        sync.Map{},
-		syncAddImageMap:        sync.Map{},
-		syncTaskDal:            syncTaskDal,
-		mutex:                  &sync.RWMutex{},
+		registryDal:     registryDal,
+		imageDal:        imageDal,
+		vulnDal:         vulnDal,
+		scanConfigDal:   scanConfigDal,
+		syncAllImageMap: sync.Map{},
+		syncAddImageMap: sync.Map{},
+		syncTaskDal:     syncTaskDal,
+		mutex:           &sync.RWMutex{},
 	}
 }
 
 func (s *SyncRepoImage) CreateSyncTask(ctx context.Context, param CreateSyncTaskParam) error {
 	regs, _, err := s.registryDal.SearchRegistry(ctx, store.SearchRegistryParam{ID: param.RegID,
-		ScannerInstance: param.ScannerInstance, NoDelete: true}, nil)
+		ScannerInstance: param.ScannerInstance, Deleted: consts.FalseString}, nil)
 	if err != nil {
 		logging.GetLogger().Err(err).Interface("param", param).Msg("CreateSyncTask SearchRegistry")
 		return err
@@ -92,7 +81,7 @@ func (s *SyncRepoImage) CreateSyncTask(ctx context.Context, param CreateSyncTask
 
 func (s *SyncRepoImage) GetSyncStatus(ctx context.Context) ([]*ResponseGetSyncStatus, error) {
 
-	registries, _, err := s.registryDal.SearchRegistry(ctx, store.SearchRegistryParam{NoDelete: true, UseTypes: []int64{model.UserRegistry, model.NodeBuffRegistry}}, nil)
+	registries, _, err := s.registryDal.SearchRegistry(ctx, store.SearchRegistryParam{Deleted: consts.FalseString, UseTypes: []int64{model.UserRegistry, model.NodeBuffRegistry}}, nil)
 	if err != nil {
 		logging.GetLogger().Err(err).Msg("GetSyncStatus")
 		return nil, err
@@ -122,46 +111,6 @@ func (s *SyncRepoImage) GetSyncStatus(ctx context.Context) ([]*ResponseGetSyncSt
 	return ans, nil
 }
 
-// 定期重试
-func (s *SyncRepoImage) RetryFailedSyncImage(ctx context.Context, lessRetryCount int64) error {
-	logging.GetLogger().Info().Msg("start RetryFailedSyncImage")
-	// 加读锁
-	s.mutex.RLock()
-	defer s.mutex.RUnlock()
-
-	needRetry, err := s.syncRetryImageDal.SearchImageRetry(ctx, store.SearchImageRetryParam{LessRetryCount: lessRetryCount})
-	if err != nil {
-		logging.GetLogger().Err(err).Msg("RetryFailedSync.ImageSearchImageRetry")
-		return err
-	}
-	mm := make(map[int64][]model.SyncRetryImage)
-	for i := range needRetry {
-		if mm[needRetry[i].RegistryID] == nil {
-			mm[needRetry[i].RegistryID] = make([]model.SyncRetryImage, 0)
-		}
-		mm[needRetry[i].RegistryID] = append(mm[needRetry[i].RegistryID], needRetry[i])
-	}
-
-	for regId, images := range mm {
-		diver, err := s.getSyncRegistryByRegID(ctx, regId)
-		if err != nil {
-			logging.GetLogger().Err(err).Msg("RetryFailedSync.getSyncRegistryByRegID")
-			return err
-		}
-
-		res, err := diver.Registry.ImageRetry(context.Background(), s.getExtender(), registry.ImageRetryRequest{RetryImages: images})
-		if err != nil {
-			logging.GetLogger().Err(err).Msg("RetryFailedSync.ImageRetry")
-			return err
-		}
-		if err := s.addScanTask(ctx, res); err != nil {
-			logging.GetLogger().Err(err).Msg("addScanTask")
-			return err
-		}
-	}
-	return err
-}
-
 // 定期删除超过重试次数
 func (s *SyncRepoImage) DeleteMoreRetryCount(ctx context.Context, moreRetryCount int64) error {
 	err := s.syncRetryImageDal.DeleteImageRetry(ctx, store.SearchImageRetryParam{MoreRetryCount: moreRetryCount})
@@ -177,7 +126,7 @@ func (s *SyncRepoImage) SyncAllImage(ctx context.Context) error {
 
 	registries, _, err := s.registryDal.SearchRegistry(ctx, store.SearchRegistryParam{
 		ScannerInstance: global.ScannerInstance,
-		NoDelete:        true}, nil)
+		Deleted:         consts.FalseString}, nil)
 	if err != nil {
 		logging.GetLogger().Err(err).Msg("查询仓库信息出错")
 		return err
@@ -235,7 +184,7 @@ func (s *SyncRepoImage) AddSyncTask(ctx context.Context) error {
 	registries, _, err := s.registryDal.SearchRegistry(ctx, store.SearchRegistryParam{
 		UseTypes:        []int64{model.UserRegistry, model.NodeBuffRegistry},
 		ScannerInstance: global.ScannerInstance,
-		NoDelete:        true}, nil)
+		Deleted:         consts.FalseString}, nil)
 	if err != nil {
 		logging.GetLogger().Err(err).Msg("查询仓库信息出错")
 		return err
@@ -270,7 +219,7 @@ func (s *SyncRepoImage) SyncAddImage(ctx context.Context, syncType consts.SyncTy
 	registries, _, err := s.registryDal.SearchRegistry(ctx, store.SearchRegistryParam{
 		UseTypes:        []int64{model.UserRegistry},
 		ScannerInstance: global.ScannerInstance,
-		NoDelete:        true}, nil)
+		Deleted:         consts.FalseString}, nil)
 	if err != nil {
 		logging.GetLogger().Err(err).Msg("查询仓库信息出错")
 		return err
@@ -329,9 +278,11 @@ func (s *SyncRepoImage) clearUpImage(ctx context.Context, imageIds []int64) erro
 	}
 	// 为了防止其他数据已清除ivan_scanner_image_list未删除的情况， 先删除 ivan_scanner_image_list 表，
 	// 这情情况下可能会出现脏数据,之后版本时间充足时再修复
-	if err := s.imageDal.DeleteImage(ctx, deleteIds); err != nil {
-		logging.GetLogger().Err(err).Msg("ClearUp")
-		return err
+	for i := range deleteIds {
+		if err := s.imageDal.DeleteImage(ctx, deleteIds[i]); err != nil {
+			logging.GetLogger().Err(err).Msg("ClearUp")
+			return err
+		}
 	}
 	// 删除 ivan_scanner_vuln_images表
 	if err := s.vulnDal.DeleteVulnImage(ctx, deleteIds); err != nil {
@@ -339,11 +290,6 @@ func (s *SyncRepoImage) clearUpImage(ctx context.Context, imageIds []int64) erro
 		return err
 	}
 
-	// 删除 ivan_scanner_scan_layers 表
-	if err := s.scannerDB.DeleteScanLayer(ctx, deleteIds); err != nil {
-		logging.GetLogger().Err(err).Msg("ClearUp")
-		return err
-	}
 	// 删除 ivan_scanner_scan_images 表
 	if err := s.imageDal.DeleteScanImage(ctx, deleteIds); err != nil {
 		logging.GetLogger().Err(err).Msg("ClearUp")
@@ -356,7 +302,7 @@ func (s *SyncRepoImage) clearUpImage(ctx context.Context, imageIds []int64) erro
 
 // 清理已删除的仓库的镜像
 func (s *SyncRepoImage) clearUpImageAfterDeleteRegistry(ctx context.Context) error {
-	registries, _, err := s.registryDal.SearchRegistry(ctx, store.SearchRegistryParam{NoDelete: false}, nil)
+	registries, _, err := s.registryDal.SearchRegistry(ctx, store.SearchRegistryParam{Deleted: consts.TrueString}, nil)
 	if err != nil {
 		return err
 	}
@@ -606,27 +552,10 @@ func (s *SyncRepoImage) transImageToImageList(ctx context.Context, image registr
 		img.LastPullTime = time.Now().UTC()
 	}
 
-	if img.FromType == model.NodeBuffRegistry {
-		// logging.GetLogger().Info().Msgf("transImageToImageList Url:%s,UseType:%d", reg.Url, reg.UseType)
-		newImage, err := s.parseImageFromNodeSafe(ctx, image.Repository)
-		if err != nil {
-			if err != consts.ErrNotNodeImage {
-				logging.GetLogger().Err(err).Msgf("reg.UseType:%d,reg.url:%s", image.FromType, image.RegistryUrl)
-			}
-			return img, err
-		}
-		img.NodeIP = newImage.NodeIP
-		img.NodeHostname = newImage.NodeHostname
-		img.OS = newImage.OS
-		img.Project = newImage.Project
-		img.RepoName = newImage.RepoName
-		img.FromType = model.NodeBuffRegistry
-	} else if image.FromType == model.UserRegistry {
-		split := strings.Split(img.FullRepoName, "/")
-		if len(split) >= 2 {
-			img.Project = split[0]
-			img.RepoName = strings.Join(split[1:], "/")
-		}
+	split := strings.Split(img.FullRepoName, "/")
+	if len(split) >= 2 {
+		img.Project = split[0]
+		img.RepoName = strings.Join(split[1:], "/")
 	}
 	img.Deserialize(false)
 	if img.ConfigFile != nil {
@@ -675,55 +604,6 @@ func RegToRegistryConf(reg model.Registry) registry.RegistrableComponentConfig {
 	}
 	logging.GetLogger().Info().Interface("reg", opt).Msg("RegToRegistryConf")
 	return conf
-}
-
-func (s *SyncRepoImage) parseImageFromNodeSafe(ctx context.Context, fullRepoName string) (*model.ImageList, error) {
-	// tensorsecurity/clusterKey/namespace/podName/tensorsec-safe-node-image-v2x54/linux/registry.t-appagile.com/google_containers/coredns
-
-	// 仓库地址/tensorsec/clusterKey/namespace/podName/os/镜像名
-	fullRepoName = strings.Trim(fullRepoName, " ")
-	// fullRepoName = strings.Replace(fullRepoName, "_", ".", -1)
-	split := strings.Split(fullRepoName, "/")
-	if len(split) <= model.NodeImageSplitCount {
-		logging.GetLogger().Debug().Msgf("not node image:%s", fullRepoName)
-		return nil, consts.ErrNotNodeImage
-	}
-	if split[0] != consts.NodeSafeSalt {
-		logging.GetLogger().Debug().Msgf("parse error not fond NodeSafeSalt %s", fullRepoName)
-		return nil, consts.ErrNotNodeImage
-	}
-	// NodeSafeTage = NodeSafeSalt + "/%s/%s%s/%s" // tensorsec/hostname/ip/os/镜像名
-	clusterKey := split[1]
-	namespace := split[2]
-	namespace = strings.Replace(namespace, consts.ColonSalt, ":", -1)
-
-	podName := split[3]
-	info, err := s.podResourceRelationDAl.Search(ctx, namespace, clusterKey, podName)
-	if err != nil {
-		return nil, err
-	}
-	if len(info) == 0 {
-		return nil, consts.ErrNotNodeImage
-	}
-	// logging.GetLogger().Info().Msgf("cluster info:%+v", info[0])
-
-	im := &model.ImageList{
-		NodeIP:       info[0].HostIP,
-		OS:           split[4],
-		NodeHostname: info[0].NodeName,
-		Library:      split[5],
-		Project:      split[6],
-	}
-	im.Library = strings.Replace(im.Library, consts.ColonSalt, ":", -1)
-
-	if len(split) >= model.NodeImageSplitCount+1 {
-		im.RepoName = strings.Join(split[model.NodeImageSplitCount+1:], "/")
-	}
-	// NodeSafeTage     = NodeSafeSalt + "/%s/%s/%s/%s/%s" // tensorsec/clusterKey/namespace/podName/podIp/os/镜像名
-	if !strings.Contains(im.Library, "http://") && !strings.Contains(im.Library, "https://") {
-		im.Library = "https://" + im.Library
-	}
-	return im, nil
 }
 
 func (s *SyncRepoImage) createImageExtender(ctx context.Context, image registry.Image) (*registry.ListImagesRes, error) {
@@ -957,7 +837,7 @@ func (s *SyncRepoImage) getRegistryDriver(ctx context.Context, reg model.Registr
 
 func (s *SyncRepoImage) getSyncRegistryByRegID(ctx context.Context, registryId int64) (*registry.RegistryWithConf, error) {
 
-	registries, _, err := s.registryDal.SearchRegistry(ctx, store.SearchRegistryParam{NoDelete: true,
+	registries, _, err := s.registryDal.SearchRegistry(ctx, store.SearchRegistryParam{Deleted: consts.FalseString,
 		UseTypes: []int64{model.UserRegistry, model.NodeBuffRegistry}, RegistryIds: []int64{registryId}}, nil)
 	if err != nil {
 		return nil, err

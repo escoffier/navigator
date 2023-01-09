@@ -102,7 +102,7 @@ func (srv *UpdataService) AutoScanAll(ctx context.Context, fromType int64, opera
 	logging.GetLogger().Info().Int64("fromType", fromType).Msg("start full scan")
 	// 先查询当前时刻已存在的仓库列表
 	registries, _, err := regDal.SearchRegistry(ctx, store.SearchRegistryParam{
-		NoDelete:        true,
+		Deleted:         consts.FalseString,
 		UseType:         model.UserRegistry,
 		ScannerInstance: global.ScannerInstance,
 	}, nil)
@@ -121,7 +121,7 @@ func (srv *UpdataService) AutoScanAll(ctx context.Context, fromType int64, opera
 
 	imgIds := make([]int64, 0)
 
-	imgs, _, err := imageDal.SearchImage(ctx, store.SearchImageParam{FromType: fromType, RegistryIds: registryIds, Fields: []string{"id"}}, nil)
+	imgs, _, err := imageDal.SearchImage(ctx, store.SearchImageParam{RegistryIds: registryIds, Fields: []string{"id"}}, nil)
 	if err != nil {
 		logging.GetLogger().Err(err).Msg("query images error")
 		return err

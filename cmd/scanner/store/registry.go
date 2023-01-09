@@ -162,9 +162,12 @@ func (dal *RegistryDao) SearchRegistry(ctx context.Context, param SearchRegistry
 	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*10)
 	defer cancelFunc()
 	db := dal.db.Get().WithContext(ctx).Model(model.Registry{})
-	if param.NoDelete {
-		db = db.Where("deleted_at = ?", 0)
+	if param.Deleted == consts.TrueString {
+		db = db.Where("deleted_at > 0")
+	} else if param.Deleted == consts.FalseString {
+		db = db.Where("deleted_at = 0")
 	}
+
 	if param.ScannerInstance != "" {
 		db = db.Where("scanner_instance = ?", param.ScannerInstance)
 	}

@@ -33,7 +33,7 @@ type Image struct {
 	FixedVuln     VulnSeverityCount `json:"fixedVuln"`
 	UnFixedVuln   VulnSeverityCount `json:"unFixedVuln"`
 	Malicious     int64             `json:"malicious"` // 病毒
-	RiskScore     float64           `json:"riskScore"`
+	RiskScore     int64             `json:"riskScore"`
 	NotMaintained bool              `json:"notMaintained"` // 镜像不再维护
 	Flag          uint64            `json:"flag"`
 }
@@ -198,7 +198,7 @@ func (rov *RiskOverView) Serializer() {
 		rov.VulnSeverity.Medium + rov.VulnSeverity.High + rov.VulnSeverity.Critical
 }
 
-func (rov *RiskOverView) StatisticsImageAttr(images []*model.ImageListResponse) {
+func (rov *RiskOverView) StatisticsImageAttr(images []*model.ImageBaseResponse) {
 
 	for i := range images {
 		rov.ImageCount++

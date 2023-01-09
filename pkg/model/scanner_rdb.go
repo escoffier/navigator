@@ -775,9 +775,10 @@ type ScannerInstanceInfo struct {
 	ID              int64  `gorm:"id"  json:"id"`
 	ClusterKey      string `gorm:"cluster_key" json:"clusterKey"`
 	ClusterName     string `gorm:"cluster_name" json:"clusterName"`
-	ScannerPodID    string `gorm:"column:scanner_pod_id" json:"scannerPodID"` // scanner当前Pod，重新启动改变
-	ScannerInstance string `gorm:"scanner_instance" json:"scannerInstance"`   // scanner当前实例，重新启动不会改变
-	HeartBeatAt     int64  `gorm:"column:heart_beat_at" json:"heartBeatAt"`   // 上报的心跳
+	ScannerPodID    string `gorm:"column:scanner_pod_id" json:"scannerPodID"`    // scanner当前Pod，重新启动改变
+	ScannerInstance string `gorm:"scanner_instance" json:"scannerInstance"`      // scanner当前实例，重新启动不会改变
+	ScannerVersion  string `gorm:"column:scanner_version" json:"scannerVersion"` // 扫描器版本号
+	HeartBeatAt     int64  `gorm:"column:heart_beat_at" json:"heartBeatAt"`      // 上报的心跳
 	CreatedAt       int64  `gorm:"autoUpdateTime:milli" json:"createdAt"`
 	UpdatedAt       int64  `gorm:"autoUpdateTime:milli" json:"updatedAt"`
 }
@@ -804,7 +805,8 @@ func (pre *ScannerInstanceInfo) ToUpdater() map[string]interface{} {
 
 func (pre *ScannerInstanceInfo) ToHeartBeatAt() map[string]interface{} {
 	updater := map[string]interface{}{
-		"heart_beat_at": time.Now().Unix(),
+		"heart_beat_at":   time.Now().Unix(),
+		"scanner_version": pre.ScannerVersion,
 	}
 	return updater
 }

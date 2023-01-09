@@ -19,7 +19,7 @@ import (
 )
 
 type ScanResultSave struct {
-	ImageDal           store.ImageInterface
+	ImageDal           store.ImageDal
 	VulnBoltDal        boltvuln.VulnBoltDal
 	VulnDal            store.VulnDalInterface
 	ImageScanResultDal store.ImageScanResultDal
@@ -52,11 +52,11 @@ func (sv *ScanResultSave) AddVulnMeta(ctx context.Context, cevVuln *model.Vuln) 
 func (sv *ScanResultSave) GenVulnScore(ctx context.Context, vulns []*model.Vuln) float64 {
 
 	constMapScore := map[string]model.ConstMapScore{
-		consts.SeverityCRITICALString: {MaxScore: 25, SingleScore: 25},
-		consts.SeverityHIGHString:     {MaxScore: 20, SingleScore: 20},
-		consts.SeverityMEDIUMString:   {MaxScore: 15, SingleScore: 15},
-		consts.SeverityLOWString:      {MaxScore: 10, SingleScore: 10},
-		consts.SeverityUNKNOWNString:  {MaxScore: 5, SingleScore: 5},
+		model.SeverityCRITICALString: {MaxScore: 25, SingleScore: 25},
+		model.SeverityHIGHString:     {MaxScore: 20, SingleScore: 20},
+		model.SeverityMEDIUMString:   {MaxScore: 15, SingleScore: 15},
+		model.SeverityLOWString:      {MaxScore: 10, SingleScore: 10},
+		model.SeverityUNKNOWNString:  {MaxScore: 5, SingleScore: 5},
 	}
 
 	getScore := func(severity string, num int64) float64 {
@@ -69,13 +69,13 @@ func (sv *ScanResultSave) GenVulnScore(ctx context.Context, vulns []*model.Vuln)
 	ret := sv.GenSeverityHistogram(ctx, vulns)
 	var score float64
 
-	score += getScore(consts.SeverityCRITICALString, ret.NumCritical)
-	score += getScore(consts.SeverityHIGHString, ret.NumHigh)
-	score += getScore(consts.SeverityMEDIUMString, ret.NumMedium)
-	score += getScore(consts.SeverityLOWString, ret.NumLow)
-	score += getScore(consts.SeverityUNKNOWNString, ret.NumUnknown)
+	score += getScore(model.SeverityCRITICALString, ret.NumCritical)
+	score += getScore(model.SeverityHIGHString, ret.NumHigh)
+	score += getScore(model.SeverityMEDIUMString, ret.NumMedium)
+	score += getScore(model.SeverityLOWString, ret.NumLow)
+	score += getScore(model.SeverityUNKNOWNString, ret.NumUnknown)
 
-	if score > maxVulnscore {
+	if score > model.MaxVulnScore {
 		return maxVulnscore
 	}
 
@@ -87,15 +87,15 @@ func (sv *ScanResultSave) GenSeverityHistogram(ctx context.Context, vulns []*mod
 
 	for _, vuln := range vulns {
 		switch vuln.Severity {
-		case consts.SeverityCRITICALString:
+		case model.SeverityCRITICALString:
 			ret.NumCritical++
-		case consts.SeverityHIGHString:
+		case model.SeverityHIGHString:
 			ret.NumHigh++
-		case consts.SeverityMEDIUMString:
+		case model.SeverityMEDIUMString:
 			ret.NumMedium++
-		case consts.SeverityLOWString:
+		case model.SeverityLOWString:
 			ret.NumLow++
-		case consts.SeverityUNKNOWNString:
+		case model.SeverityUNKNOWNString:
 			ret.NumUnknown++
 		}
 	}
@@ -127,10 +127,8 @@ func (sv *ScanResultSave) UpdateImageOs(ctx context.Context, os *ftypes.OS, imag
 	if len(image) == 0 {
 		return fmt.Errorf("not find image:%d", imageID)
 	}
-	if len(image) == 0 {
-		return fmt.Errorf("not find image:%d", imageID)
-	}
 	flag := image[0].Flag
+
 	if os.Eosl {
 		flag = util.SetBit1(flag, model.FlagImageNotMaintained)
 	} else {

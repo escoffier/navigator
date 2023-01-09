@@ -10,6 +10,8 @@ import (
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
+	scannermodel "gitlab.com/piccolo_su/vegeta/pkg/model/scanner-model"
+	"gitlab.com/piccolo_su/vegeta/pkg/util"
 )
 
 type ImageScanResultDal interface {
@@ -17,7 +19,7 @@ type ImageScanResultDal interface {
 	SearchVirus(ctx context.Context, param SearchImageScanResultParam, filter *model.Filter) ([]*model.ImageVirus, int64, error)
 
 	CreateWebShell(ctx context.Context, data []*model.ImageWebShell) error
-	SearchWebShell(ctx context.Context, param SearchImageScanResultParam, filter *model.Filter) ([]*model.ImageWebShell, int64, error)
+	SearchWebShell(ctx context.Context, param SearchImageScanResultParam, filter *model.Filter) ([]*scannermodel.Webshell, int64, error)
 
 	CreateSensitive(ctx context.Context, data []*model.ImageSensitiveFile) error
 	SearchSensitive(ctx context.Context, param SearchImageScanResultParam, filter *model.Filter) ([]*model.ImageSensitiveFile, int64, error)
@@ -33,10 +35,152 @@ type ImageScanResultDal interface {
 	CreateSoftwareToImage(ctx context.Context, imageID int64, data []*model.ScanSoftwareToImage) error
 
 	SearchScanSoftwareToImage(ctx context.Context, imageID int64) ([]*model.ScanSoftwareToImage, error)
+
+	SearchScanImage(ctx context.Context, param model.ScanResultSearchParam) (*model.ImageWithCorrelateData, error)
 }
 
 type ImageScanResultDao struct {
 	rdb *databases.RDBInstance
+}
+
+func (dal *ImageScanResultDao) SearchScanImage(ctx context.Context, param model.ScanResultSearchParam) (*model.ImageWithCorrelateData, error) {
+
+	if param.ImageID <= 0 {
+		return nil, fmt.Errorf("not get imageID")
+	}
+
+	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*3)
+	defer cancelFunc()
+	imageData := &model.ImageWithCorrelateData{}
+
+	virus := make([]*model.ImageVirus, 0)
+	sensitive := make([]*model.ImageSensitiveFile, 0)
+	envs := make([]*model.ImageEnv, 0)
+	license := make([]string, 0)
+
+	// 查层级
+	if param.LayerDigest != "" {
+		// 查层级
+		db2 := dal.rdb.Get().Model(new(model.ScanLayer)).Where("image_id = ?", param.ImageID).Where("layer_digest = ?", param.LayerDigest)
+		layers := make([]model.ScanLayer, 0)
+		if err := db2.Find(&layers).Error; err != nil {
+			return nil, err
+		}
+		if len(layers) == 0 {
+			return imageData, nil
+		}
+		layer := layers[0]
+		layer.Deserialize()
+
+		for i := range layer.MaliciousInfo {
+			if (param.Keyword != "" && strings.Contains(strings.ToLower(layer.MaliciousInfo[i].VirusInfo.VirusName), param.Keyword)) || param.Keyword == "" {
+				virus = append(virus, &model.ImageVirus{
+					Filename: layer.MaliciousInfo[i].VirusInfo.FileName,
+					Filepath: layer.MaliciousInfo[i].VirusInfo.FilePath,
+					Name:     layer.MaliciousInfo[i].VirusInfo.VirusName,
+				})
+			}
+		}
+
+		for i := range layer.SensitiveFile {
+			if (param.Keyword != "" && strings.Contains(strings.ToLower(layer.SensitiveFile[i].Name), param.Keyword)) || param.Keyword == "" {
+				sensitive = append(sensitive, &model.ImageSensitiveFile{
+					Name:          layer.SensitiveFile[i].Name,
+					Description:   layer.SensitiveFile[i].Description,
+					DescriptionEn: layer.SensitiveFile[i].DescriptionEn,
+					DescriptionZh: layer.SensitiveFile[i].DescriptionZh,
+				})
+			}
+		}
+	}
+
+	// 查整个镜像
+	if param.LayerDigest == "" {
+		db := dal.rdb.Get().Model(new(model.ScanImage)).WithContext(ctx).Where("image_id = ? ", param.ImageID)
+
+		res := make([]model.ScanImage, 0)
+		if err := db.Find(&res).Error; err != nil {
+			return nil, err
+		}
+		if len(res) == 0 {
+			return imageData, nil
+		}
+		layer := res[0]
+		layer.Deserialize()
+		for i := range layer.LicenseInfo {
+			param.LicenseSearch = append(param.LicenseSearch, layer.LicenseInfo[i].Name)
+		}
+
+		for i := range layer.MaliciousInfo {
+			if (param.Keyword != "" && strings.Contains(strings.ToLower(layer.MaliciousInfo[i].VirusInfo.VirusName), param.Keyword)) || param.Keyword == "" {
+				virus = append(virus, &model.ImageVirus{
+					Filename: layer.MaliciousInfo[i].VirusInfo.FileName,
+					Filepath: layer.MaliciousInfo[i].VirusInfo.FilePath,
+					Name:     layer.MaliciousInfo[i].VirusInfo.VirusName,
+				})
+			}
+		}
+
+		for i := range layer.SensitiveFile {
+			if (param.Keyword != "" && strings.Contains(strings.ToLower(layer.SensitiveFile[i].Name), param.Keyword)) || param.Keyword == "" {
+				sensitive = append(sensitive, &model.ImageSensitiveFile{
+					Name:          layer.SensitiveFile[i].Name,
+					Description:   layer.SensitiveFile[i].Description,
+					DescriptionEn: layer.SensitiveFile[i].DescriptionEn,
+					DescriptionZh: layer.SensitiveFile[i].DescriptionZh,
+				})
+			}
+		}
+		// env
+		for i := range layer.EnvKeyValue {
+			if param.AbnormalEnv == consts.TrueString && layer.EnvKeyValue[i].IsAbnormal != consts.EnvIsAbnormal {
+				continue
+			}
+			// env 统一大写
+			if param.Keyword != "" && !strings.Contains(strings.ToUpper(layer.EnvKeyValue[i].Key), strings.ToUpper(param.Keyword)) {
+				continue
+			}
+			envs = append(envs, &model.ImageEnv{
+				ImageID: param.ImageID,
+				Key:     layer.EnvKeyValue[i].Key,
+				Value:   layer.EnvKeyValue[i].Value,
+				Normal:  layer.EnvKeyValue[i].IsAbnormal == 0,
+			})
+		}
+
+		for i := range layer.LicenseInfo {
+			license = append(license, layer.LicenseInfo[i].Name)
+		}
+		param.LicenseSearch = util.DeDuplicationStringSlice(license)
+
+		// abnormal software
+		softExit := make(map[string]bool)
+		soft := make([]*model.ImageSoftware, 0)
+
+		for i := range layer.Software {
+			key := fmt.Sprintf("%s|%s", layer.Software[i].Name, layer.Software[i].Version)
+			if !softExit[key] {
+				softExit[key] = true
+
+				soft = append(soft, &model.ImageSoftware{
+					Name:    layer.Software[i].Name,
+					Version: layer.Software[i].Version,
+					Flag:    util.SetBit1(0, model.FlagHasSoftware),
+				})
+			}
+		}
+
+	}
+
+	imageData.Sensitive = DuplicateSensitiveFile(sensitive)
+	imageData.SensitiveCnt = int64(len(imageData.Sensitive))
+	imageData.Virus = DuplicateVirus(virus)
+	imageData.VirusCnt = int64(len(imageData.Virus))
+	imageData.Env = DuplicateEnv(envs)
+	imageData.EnvCnt = int64(len(imageData.Env))
+	imageData.License = util.DeDuplicationStringSlice(license)
+
+	return imageData, nil
 }
 
 func (dal *ImageScanResultDao) SearchScanSoftwareToImage(ctx context.Context, imageID int64) ([]*model.ScanSoftwareToImage, error) {
@@ -119,7 +263,7 @@ func (dal *ImageScanResultDao) SearchImageEnv(ctx context.Context, param SearchI
 
 	param.Serialize()
 	if len(param.UniqueTarget) > 0 {
-		db.Where("unique_id IN ?", param.UniqueTarget)
+		db = db.Where("unique_id IN ?", param.UniqueTarget)
 	}
 	if param.Keyword != "" {
 		db = db.Where("`key` LIKE ? OR `value` LIKE ? ",
@@ -133,7 +277,7 @@ func (dal *ImageScanResultDao) SearchImageEnv(ctx context.Context, param SearchI
 
 	// 查单个镜像
 	if param.ImageID > 0 {
-		db.Where("image_id = ?", param.ImageID)
+		db = db.Where("image_id = ?", param.ImageID)
 	}
 
 	res := make([]*model.ImageEnv, 0)
@@ -479,9 +623,42 @@ func (dal *ImageScanResultDao) CreateWebShell(ctx context.Context, data []*model
 }
 
 func (dal *ImageScanResultDao) SearchWebShell(ctx context.Context, param SearchImageScanResultParam,
-	filter *model.Filter) ([]*model.ImageWebShell, int64, error) {
+	filter *model.Filter) ([]*scannermodel.Webshell, int64, error) {
 
-	return make([]*model.ImageWebShell, 0), 0, nil
+	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*10)
+	defer cancelFunc()
+	db := dal.rdb.Get().WithContext(ctx).Model(new(scannermodel.Webshell))
+
+	param.Serialize()
+	if len(param.UniqueTarget) > 0 {
+		db = db.Where("unique_id IN ?", param.UniqueTarget)
+	}
+	if param.Keyword != "" {
+		db = db.Where("file_name LIKE ? ", fmt.Sprintf("%%%s%%", param.Keyword))
+	}
+
+	// 查单个镜像
+	if param.ImageID > 0 {
+		sub := dal.rdb.Get().WithContext(ctx).Model(new(model.ScanIssueToImageWebshell)).
+			Select("distinct unique_target").Where("image_id = ?", param.ImageID)
+		// 查镜像的层级
+		if param.LayerDigest != "" {
+			sub = sub.Where("layer_digest = ?", param.LayerDigest)
+		}
+
+		db = db.Where("unique_id IN ( ? )", sub)
+	}
+	res := make([]*scannermodel.Webshell, 0)
+	var cnt int64
+	if err := db.Count(&cnt).Error; err != nil {
+		return nil, 0, err
+	}
+	db = model.AddFilter(db, filter)
+
+	if err := db.Find(&res).Error; err != nil {
+		return nil, 0, err
+	}
+	return res, cnt, nil
 }
 
 func (dal *ImageScanResultDao) CreateScanVirusToImage(ctx context.Context, imageID int64, data []*model.ScanVirusToImage) error {

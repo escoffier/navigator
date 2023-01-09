@@ -12,12 +12,12 @@ import (
 	"time"
 
 	param "github.com/oceanicdev/chi-param"
-	"google.golang.org/protobuf/reflect/protoreflect"
-
 	"github.com/pkg/errors"
 	"gitlab.com/security-rd/go-pkg/databases"
 	"gitlab.com/security-rd/go-pkg/httputil"
 	"gitlab.com/security-rd/go-pkg/logging"
+	pmodel "gitlab.com/security-rd/go-pkg/model"
+	"google.golang.org/protobuf/reflect/protoreflect"
 
 	"gitlab.com/piccolo_su/vegeta/pkg/dal"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
@@ -25,7 +25,6 @@ import (
 	rpcstream "gitlab.com/piccolo_su/vegeta/pkg/streaming"
 	"gitlab.com/piccolo_su/vegeta/pkg/streaming/pb"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
-	pmodel "gitlab.com/security-rd/go-pkg/model"
 )
 
 const (
@@ -213,24 +212,24 @@ func (rl *TensorResourcesService) GetResourceContainersWithGivenVuln(ctx context
 
 func (rl *TensorResourcesService) GetArguments(r *http.Request) (*ArgumentDetails, error) {
 	var arg ArgumentDetails
-	//cluster key
+	// cluster key
 	arg.ClusterKey, _ = param.QueryString(r, "cluster_key")
 	if len(arg.ClusterKey) == 0 {
 		return nil, errors.Errorf("cluster_key is nil, please input cluster_key")
 	}
-	//namespace
+	// namespace
 	arg.Namespace, _ = param.QueryString(r, "namespace")
-	//resource name
+	// resource name
 	arg.ResourceName, _ = param.QueryString(r, "res_name")
-	//resource kind
+	// resource kind
 	arg.ResourceKind, _ = param.QueryString(r, "res_kind")
-	//net flow route
+	// net flow route
 	arg.Route, _ = param.QueryString(r, "route")
-	//day time
+	// day time
 	arg.Day, _ = param.QueryInt(r, "day")
-	//container id
+	// container id
 	arg.ContainerId, _ = param.QueryString(r, "container_id")
-	//process name
+	// process name
 	arg.ProcessName, _ = param.QueryString(r, "proc_name")
 
 	return &arg, nil
@@ -446,7 +445,7 @@ func (rl *TensorResourcesService) GetContainerProcessList(arg *ArgumentDetails) 
 	}
 	//
 	netflows := make([]pmodel.TensorNetworkFlow, 0, 5)
-	//query data
+	// query data
 	err := rl.rdb.GetReadDB().WithContext(ctx).Find(&netflows, dstQuery, arg.ClusterKey, arg.Namespace, arg.ResourceName, arg.ResourceKind, arg.ContainerId).Error
 	if err != nil {
 		return nil, errors.Errorf("find resource from db failed with dst info, %v", err)
@@ -474,7 +473,7 @@ func (rl *TensorResourcesService) GetContainerProcessList(arg *ArgumentDetails) 
 			resource = append(resource, res)
 		}
 	}
-	//query data
+	// query data
 	err = rl.rdb.GetReadDB().WithContext(ctx).Find(&tmpflows, srcQuery, arg.ClusterKey, arg.Namespace, arg.ResourceName, arg.ResourceKind, arg.ContainerId).Error
 	if err != nil {
 		return nil, errors.Errorf("find resource from db failed with src info, %v", err)
@@ -536,7 +535,7 @@ func (rl *TensorResourcesService) GetImageInfos(ctx context.Context, queryOption
 	return images, nil
 }
 
-func (rl *TensorResourcesService) GetImages(ctx context.Context, queryOptions *dal.ResContainersQueryOption, offset, limit int) ([]model.ImageListResponse, error) {
+func (rl *TensorResourcesService) GetImages(ctx context.Context, queryOptions *dal.ResContainersQueryOption, offset, limit int) ([]model.ImageBaseResponse, error) {
 	containers, err := dal.GetResourceContainersUnique(ctx, rl.rdb.GetReadDB(), queryOptions, offset, limit)
 	if err != nil {
 		return nil, err
@@ -544,7 +543,7 @@ func (rl *TensorResourcesService) GetImages(ctx context.Context, queryOptions *d
 	return rl.getImageFromScanner(ctx, containers)
 }
 
-func (rl *TensorResourcesService) getImageFromScanner(ctx context.Context, tcs []*model.TensorContainer) ([]model.ImageListResponse, error) {
+func (rl *TensorResourcesService) getImageFromScanner(ctx context.Context, tcs []*model.TensorContainer) ([]model.ImageBaseResponse, error) {
 	uuids := make([]uint32, 0)
 	for _, c := range tcs {
 		if uuid := util.ImageUUID(c.Image); uuid > 0 {
@@ -572,7 +571,7 @@ func (rl *TensorResourcesService) getImageFromScanner(ctx context.Context, tcs [
 		logging.Get().Err(err).Msg("create request failed")
 		return nil, err
 	}
-	var images []model.ImageListResponse
+	var images []model.ImageBaseResponse
 	err = util.HTTPRequest(ctx, httputil.DefaultClient, req, func(resp *http.Response, err error) error {
 		if err != nil {
 			return err
@@ -613,7 +612,7 @@ func (rl *TensorResourcesService) getImageFromScanner(ctx context.Context, tcs [
 	return images, nil
 }
 
-func (rl *TensorResourcesService) GetContainer(ctx context.Context, queryOptions *dal.ResContainersQueryOption, offset, limit int) ([]model.ImageListResponse, error) {
+func (rl *TensorResourcesService) GetContainer(ctx context.Context, queryOptions *dal.ResContainersQueryOption, offset, limit int) ([]model.ImageBaseResponse, error) {
 	containers, err := dal.GetResourceContainersUnique(ctx, rl.rdb.GetReadDB(), queryOptions, offset, limit)
 	if err != nil {
 		return nil, err

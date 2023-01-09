@@ -461,8 +461,6 @@ func (s *ScanResultHandle) Run(ctx context.Context, param jobs.Param) (jobs.Arti
 	} else {
 		if software, ok := vulnResult["software"].([]model.Software); ok {
 			imageScanSoftware = software
-			scanDetails.Software = software
-			scanDetails.ScanEnableCollection.SoftwareEnable = 1
 		}
 	}
 

@@ -11,35 +11,10 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 )
 
-type SearchVulnParam struct {
-	PkgKeyword      string
-	LanguageKeyword string
-	TargetKeyword   string
-	FrameKeyword    string
-	VulnKeyword     string // 漏洞名搜索
-	UniqueVulns     []uint64
-	Fields          []string
-	LayerDigest     string
-	PkgName         string  // 软件包来源
-	PkgVersion      string  // 软件包版本
-	Sources         string  // 来源筛选,用逗号分隔
-	CanFixed        string  // 是否可修复筛选
-	SeverityInt     []int64 // 漏洞级别筛选
-	ImageIds        []int64 // 镜像ID
-}
-
-type SearchScanLayerParam struct {
-	ImageID      int64
-	LayerDigests []string
-}
-
-func GetVulnDefaultOmitFields() []string {
-	return []string{"link_json", "metadata_json", "extra_info"}
-}
-
 type VulnServiceInterface interface {
-	SearchVulns(ctx context.Context, param SearchVulnParam, filter *model.Filter) ([]*model.Vuln, int64, error)
-	SearchLayerVuln(ctx context.Context, param SearchScanLayerParam, filter *model.Filter) ([]*model.ScanLayer, int64, error)
+	SearchVulns(ctx context.Context, param model.SearchVulnParam, filter *model.Filter) ([]*model.Vuln, int64, error)
+	// 查询scanlayer表，2.12之后废弃
+	SearchLayerVuln(ctx context.Context, param model.SearchScanLayerParam, filter *model.Filter) ([]*model.ScanLayer, int64, error)
 	SetImageRiskToRedis(ctx context.Context, data model.ImageRiskOverRedis) error
 }
 
@@ -48,7 +23,7 @@ type VulnService struct {
 	scanDal store.ScannerDalInterface
 }
 
-func (vn *VulnService) SearchVulns(ctx context.Context, param SearchVulnParam, filter *model.Filter) ([]*model.Vuln, int64, error) {
+func (vn *VulnService) SearchVulns(ctx context.Context, param model.SearchVulnParam, filter *model.Filter) ([]*model.Vuln, int64, error) {
 	daoParam := store.SearchVulnParam{
 		VulnKeyword:     param.VulnKeyword,
 		PkgKeyword:      param.PkgKeyword,
@@ -67,6 +42,12 @@ func (vn *VulnService) SearchVulns(ctx context.Context, param SearchVulnParam, f
 	}
 	if param.Sources != "" {
 		daoParam.Sources = strings.Split(param.Sources, ",")
+	}
+	if param.LayerSearch != nil {
+		daoParam.LayerSearch = &model.LayerSearch{
+			ImageID:     param.LayerSearch.ImageID,
+			LayerDigest: param.LayerSearch.LayerDigest,
+		}
 	}
 	vulns, cnt, err := vn.vuluDal.SearchVuln(ctx, daoParam, filter)
 	if err != nil {
@@ -99,7 +80,7 @@ func NewVulnService(vulnDal store.VulnDalInterface, scanDal store.ScannerDalInte
 	return &VulnService{vuluDal: vulnDal, scanDal: scanDal}
 }
 
-func (vn *VulnService) SearchLayerVuln(ctx context.Context, param SearchScanLayerParam, filter *model.Filter) ([]*model.ScanLayer, int64, error) {
+func (vn *VulnService) SearchLayerVuln(ctx context.Context, param model.SearchScanLayerParam, filter *model.Filter) ([]*model.ScanLayer, int64, error) {
 	layers, cnt, err := vn.scanDal.SearchScanLayer(ctx, store.SearchScanLayerParam{
 		ImageId:      param.ImageID,
 		LayerDigests: param.LayerDigests,

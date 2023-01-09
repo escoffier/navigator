@@ -4,198 +4,79 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"runtime/debug"
+	"strings"
+	"time"
 
 	"gitlab.com/security-rd/go-pkg/logging"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/task"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
-	"gitlab.com/piccolo_su/vegeta/cmd/scanner/utils"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 )
 
 type ImageSrvInterface interface {
-	ListImageWithScanInfo(ctx context.Context, param model.ImageListParam, filter *model.Filter) ([]*model.ImageListResponse, int64, error)
+	ListImageWithScanInfo(ctx context.Context, param model.ImageListParam, filter *model.Filter) ([]*model.ImageBaseResponse, int64, error)
 	CreateScanImageTask(ctx context.Context, param model.ImageListParam, taskInfo task.UpdateTaskInfo) error
 	GetRegistryProject(ctx context.Context, param GetRegistryProjectParam) ([]RegistryRepo, error)
-	ImageIssueStatistic(ctx context.Context, imageID int64) (*model.SecurityIssueOverview, error)
-	ImageBaseDetail(ctx context.Context, imageID int64) (*model.ImageBaseResponse, error)
+	UpdateImage(ctx context.Context, where string, updater map[string]interface{}) error
+	// 查询很重的接口，慎重传参
+	GetImageCorrelateData(ctx context.Context, param model.GetImageAssociateDataParam) (*model.ImageWithCorrelateData, error)
+	// 持续更新镜像的flag
+	ContinueUpdateImage(ctx context.Context) error
 }
 
-type ImageSrv struct {
-	dbdal         store.ScannerDalInterface
-	scanTaskDal   store.ScanTaskInterface
-	registryDal   store.RegistryDal
-	webshellDal   store.WebshellDalInterface
-	vulnDal       store.VulnDalInterface
-	scanResultDal store.ImageScanResultDal
+func (s *ImageSrv) ContinueUpdateImage(ctx context.Context) error {
+	// 已删除的仓库
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				logging.Get().Error().Str("stack", string(debug.Stack())).Msg("deleteImageAfterDeleteRegistry")
+			}
+		}()
+
+		s.deleteImageAfterDeleteRegistry(ctx)
+	}()
+
+	// 可信镜像flag更新
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				logging.Get().Error().Str("stack", string(debug.Stack())).Msg("updateTrustedImage")
+			}
+		}()
+
+		s.updateTrustedImage(ctx)
+	}()
+	// 在线镜像更新
+	return nil
 }
 
-func NewImageService(
-	dbdal store.ScannerDalInterface,
-	registryDal store.RegistryDal,
-	scanTaskDal store.ScanTaskInterface,
-	vulnDal store.VulnDalInterface,
-	scanResultDal store.ImageScanResultDal,
-	webshellDal store.WebshellDalInterface,
-) *ImageSrv {
-	return &ImageSrv{
-		dbdal:         dbdal,
-		scanTaskDal:   scanTaskDal,
-		registryDal:   registryDal,
-		vulnDal:       vulnDal,
-		scanResultDal: scanResultDal,
-		webshellDal:   webshellDal,
+func (s *ImageSrv) UpdateImage(ctx context.Context, where string, updater map[string]interface{}) error {
+	if where == "" {
+		return fmt.Errorf("no where condition")
 	}
-}
-
-func (s *ImageSrv) ImageIssueStatistic(ctx context.Context, imageID int64) (*model.SecurityIssueOverview, error) {
-	// base info
-	filter := &model.Filter{Limit: 1}
-	images, _, err := s.dbdal.SearchImage(ctx, store.SearchImageParam{InIds: []int64{imageID}}, filter)
+	if len(updater) == 0 {
+		return fmt.Errorf("no update data")
+	}
+	err := s.imageDal.UpdateImage(ctx, where, updater, nil)
 	if err != nil {
-		return nil, err
+		logging.Get().Err(err).Str("where", where).Interface("updater", updater).Msg("UpdateImage")
+		return err
 	}
-	if len(images) == 0 {
-		return nil, fmt.Errorf("not find image:%d", imageID)
-	}
-	image := images[0]
-	res := &model.SecurityIssueOverview{}
-
-	// webshell
-	// _, webshellCnt, err := s.scanResultDal.SearchWebShell(ctx, store.SearchImageScanResultParam{ImageID: imageID}, filter)
-	// if err != nil {
-	// 	return nil, err
-	// }
-	// sensitiveFile
-	_, sensitiveCnt, err := s.scanResultDal.SearchSensitive(ctx, store.SearchImageScanResultParam{ImageID: imageID}, filter)
-	if err != nil {
-		return nil, err
-	}
-	// vuln
-	_, vulnCnt, err := s.vulnDal.SearchVuln(ctx, store.SearchVulnParam{ImageIds: []int64{imageID}}, nil)
-	if err != nil {
-		return nil, err
-	}
-	// env
-	_, envCnt, err := s.scanResultDal.SearchImageEnv(ctx, store.SearchImageScanResultParam{ImageID: imageID, NormalEnv: consts.FalseString}, filter)
-	if err != nil {
-		return nil, err
-	}
-	// software
-	_, softCnt, err := s.scanResultDal.SearchSoftware(ctx, store.SearchImageScanResultParam{ImageID: imageID, Flag: util.SetBit1(uint64(0), model.FlagHasSoftware)}, filter)
-	if err != nil {
-		return nil, err
-	}
-
-	// virus
-	_, virusCnt, err := s.scanResultDal.SearchVirus(ctx, store.SearchImageScanResultParam{ImageID: imageID}, filter)
-	if err != nil {
-		return nil, err
-	}
-
-	// license
-	_, licenseCnt, err := s.scanResultDal.SearchSoftware(ctx, store.SearchImageScanResultParam{ImageID: imageID, Flag: util.SetBit1(uint64(0), model.FlagHasExceptLicense)}, filter)
-	if err != nil {
-		return nil, err
-	}
-
-	_, webshellCnt, err := s.webshellDal.SearchWebshellImage(ctx, store.SearchWebshellParam{ImageID: imageID}, model.Filter{})
-	if err != nil {
-		return nil, err
-	}
-	res = &model.SecurityIssueOverview{
-		VULN:           vulnCnt,
-		VIRUS:          virusCnt,
-		SENSITIVE:      sensitiveCnt,
-		Webshell:       webshellCnt,
-		Envs:           envCnt,
-		Software:       softCnt,
-		License:        licenseCnt,
-		PrivilegedBoot: 0,
-	}
-	if image.ConfigFile != nil && (image.ConfigFile.Config.User == consts.BootRootUser || image.ConfigFile.Config.User == "") {
-		res.PrivilegedBoot += 1
-	}
-	return res, nil
-}
-
-func (s *ImageSrv) ImageBaseDetail(ctx context.Context, imageID int64) (*model.ImageBaseResponse, error) {
-	images, _, err := s.ListImageWithScanInfo(ctx, model.ImageListParam{ImageIds: []int64{imageID}}, nil)
-	if err != nil {
-		return nil, err
-	}
-	if len(images) == 0 {
-		return nil, fmt.Errorf("not find image:%d", imageID)
-	}
-	image := images[0]
-	// search vulns
-	vulns, _, err := s.vulnDal.SearchVuln(ctx, store.SearchVulnParam{ImageIds: []int64{imageID}}, nil)
-	if err != nil {
-		return nil, err
-	}
-	// search sensitive file
-
-	sensitive, _, err := s.scanResultDal.SearchSensitive(ctx, store.SearchImageScanResultParam{ImageID: imageID}, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	ans := &model.ImageBaseResponse{
-		ID:                     image.ID,
-		Digest:                 image.Digest,
-		Online:                 image.Online,
-		SecurityIssue:          image.SecurityIssue,
-		ImageAttr:              image.ImageAttr,
-		UUID:                   image.UUID,
-		LastScanAt:             image.LastScanAt,
-		FullRepoName:           image.FullRepoName,
-		Tag:                    image.Tag,
-		Os:                     image.Os,
-		Size:                   image.Size,
-		Flag:                   image.Flag,
-		LastSyncAt:             image.LastSyncAt,
-		Maintained:             !util.ExistBit1(image.Flag, model.FlagImageNotMaintained),
-		BootUser:               image.BootUser,
-		VulnFixSuggestion:      make([]string, 0),
-		RegistryUrl:            image.RegistryUrl,
-		SensitiveFixSuggestion: make([]string, 0),
-		RiskScore:              image.RiskScore,
-	}
-
-	ans.SensitiveFixSuggestion = utils.GenSensitiveFileSuggest(sensitive)
-	ans.VulnFixSuggestion = utils.GenVulnSuggest(ans.Os, vulns)
-
-	return ans, nil
+	return nil
 }
 
 func (s *ImageSrv) ListImageWithScanInfo(ctx context.Context, param model.ImageListParam,
-	filter *model.Filter) ([]*model.ImageListResponse, int64, error) {
-	res := make([]*model.ImageListResponse, 0)
+	filter *model.Filter) ([]*model.ImageBaseResponse, int64, error) {
+	res := make([]*model.ImageBaseResponse, 0)
 
 	param.Deserialize()
-	if err := param.Valid(); err != nil {
-		return nil, 0, response.NewHttpError(http.StatusInternalServerError, err)
-	}
+
 	logging.Get().Info().Interface("param", param).Msg("ListImageWithScanInfo")
-
-	registryIds := make([]int64, 0)
-	// 查询未删除的仓库
-	noDeleteRegistries, _, err := s.registryDal.SearchRegistry(ctx, store.SearchRegistryParam{NoDelete: true}, nil)
-	if err != nil {
-		return nil, 0, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf(consts.StatusInternalServerErrorMsg))
-	}
-	if len(noDeleteRegistries) == 0 {
-		return res, 0, nil
-	}
-	regMap := make(map[int64]*model.Registry)
-
-	for i := range noDeleteRegistries {
-		registryIds = append(registryIds, noDeleteRegistries[i].ID)
-		regMap[noDeleteRegistries[i].ID] = &noDeleteRegistries[i]
-	}
 
 	projects := make([]store.RegProject, 0)
 	for i := range param.Repos {
@@ -207,9 +88,6 @@ func (s *ImageSrv) ListImageWithScanInfo(ctx context.Context, param model.ImageL
 
 	daoParam := store.SearchImageParam{
 		Projects:     projects,
-		RegistryIds:  registryIds,
-		FromType:     param.GetFromType(),
-		ImageType:    param.ImageAttr.ImageType,
 		Keyword:      param.Keyword,
 		NodeHostname: param.NodeHostname,
 		OmitFields:   []string{"manifest_v1_json", "manifest_v2_json"},
@@ -217,82 +95,23 @@ func (s *ImageSrv) ListImageWithScanInfo(ctx context.Context, param model.ImageL
 		Fields:       param.Fields,
 		StartID:      param.StartID,
 	}
-	inIds, notInIds := make([]int64, 0), make([]int64, 0)
-	onlineIds := make([]int64, 0)
-	onlineMap := make(map[int64]bool)
-	// 查在线
-	onlineSQL := fmt.Sprintf("select  distinct a.id  from  %s a  join %s b  where  a.image_uuid = b.image_uuid  and b.status = 0 ",
-		model.ImageList{}.TableName(), model.TensorContainer{}.TableName())
 
-	if len(param.ImageIds) > 0 {
-		onlineSQL = fmt.Sprintf("%s and a.id IN (%s)", onlineSQL, util.JoinInt64Slice(param.ImageIds, ","))
+	if daoParam.StartID > 0 && filter != nil {
+		filter.Offset = 0
 	}
 
-	online, err := s.dbdal.GetOnlineImage(ctx, store.GetOnlineImageParam{SQL: onlineSQL})
-	if err != nil {
-		logging.Get().Err(err).Msg("SearchImageWithScan.GetOnlineImage")
-		return nil, 0, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf(consts.StatusInternalServerErrorMsg))
-	}
-	for i := range online {
-		onlineIds = append(onlineIds, online[i].ID)
-		onlineMap[online[i].ID] = true
-	}
-	if param.Online == consts.TrueString {
-		if len(inIds) > 0 {
-			inIds = util.GetIntersectionSetForInt64(inIds, onlineIds)
-		} else {
-			inIds = append(inIds, onlineIds...)
-		}
-		if len(inIds) == 0 {
-			return res, 0, nil
-		}
-	} else if param.Online == consts.FalseString {
-		notInIds = append(notInIds, onlineIds...)
-	}
-
-	// 可信镜像的筛选
-	trustedImages, err := s.dbdal.SearchTrustedImageIDs(ctx, store.SearchTrustedImageParam{IsTrusted: consts.TrueString})
-	if err != nil {
-		logging.Get().Err(err).Msg("SearchImageWithScan.SearchQuestionInfo")
-		return nil, 0, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf(consts.StatusInternalServerErrorMsg))
-	}
-	trustedIds := make([]int64, 0)
-	trustedMap := make(map[int64]bool)
-	for i := range trustedImages {
-		trustedIds = append(trustedIds, trustedImages[i])
-		trustedMap[trustedImages[i]] = true
-	}
-
-	if param.ImageAttr.Trusted != "" {
-		if param.ImageAttr.Trusted == consts.TrueString {
-			if param.AttrIntersection == consts.AndString && len(trustedIds) == 0 {
-				return res, 0, nil
-			}
-			daoParam.TrustedImageIds = trustedIds
-		} else if param.ImageAttr.Trusted == consts.FalseString {
-			daoParam.NotTrustedImageIds = trustedIds
-		}
-	}
-
-	inIds = util.DeDuplicationInt64Slice(inIds)
-	if len(param.ImageIds) > 0 {
-		if len(inIds) > 0 {
-			inIds = util.GetIntersectionSetForInt64(inIds, param.ImageIds)
-		} else {
-			inIds = param.ImageIds
-		}
-	}
-	daoParam.InIds = inIds
-	daoParam.NotInIds = util.DeDuplicationInt64Slice(notInIds)
+	daoParam.InIds = param.ImageIds
 	daoParam.AttrFlag = param.GenAttrFlag()
 	daoParam.SecurityIssueFlag = param.GenSecurityIssueFlag()
 	daoParam.AttrIntersection = param.AttrIntersection
 	daoParam.IssueIntersection = param.IssueIntersection
 	daoParam.ScanStatusFlag = param.ScanStatusFlag
+	daoParam.TrustedImage = param.ImageAttr.Trusted
+	daoParam.OnlineImage = param.Online
 
 	logging.Get().Info().Interface("daoParam", daoParam).Interface("filter", filter).Msg("SearchImageWithScan.SearchImage")
 
-	images, cnt, err := s.dbdal.SearchImage(ctx, daoParam, filter)
+	images, cnt, err := s.imageDal.SearchImage(ctx, daoParam, filter)
 	if err != nil {
 		logging.Get().Err(err).Msg("SearchImageWithScan.SearchImage")
 		return nil, 0, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf(consts.StatusInternalServerErrorMsg))
@@ -301,87 +120,80 @@ func (s *ImageSrv) ListImageWithScanInfo(ctx context.Context, param model.ImageL
 	if len(images) == 0 {
 		return res, 0, nil
 	}
-
-	// 转换数据
-	for i := range images {
-		ans := model.ImageListResponse{
-			ID:            images[i].ID,
-			Digest:        images[i].Digest,
-			NodeIP:        images[i].NodeIP,
-			Online:        onlineMap[images[i].ID],
-			FromType:      images[i].FromTypeToString(),
-			SecurityIssue: make([]model.SecurityIssue, 0),
-			ImageAttr:     model.ImageAttrResponse{Trusted: trustedMap[images[i].ID]},
-			UUID:          images[i].ImageUUID,
-			FullRepoName:  images[i].FullRepoName,
-			Tag:           images[i].Tags,
-			RegistryID:    images[i].RegistryID,
-			RegistryUrl:   images[i].Library,
-			Os:            images[i].OS,
-			NodeHostname:  images[i].NodeHostname,
-			Flag:          images[i].Flag,
-			Project:       images[i].Project,
-			LastSyncAt:    images[i].LastFullSyncAt, // 前端要求毫秒时间戳
-			Registry:      regMap[images[i].RegistryID],
-			UniqueImage:   images[i].UniqueImage,
-			Size:          util.ByteToMB(images[i].Size),
-		}
-		if images[i].ConfigFile != nil {
-			ans.BootUser = images[i].ConfigFile.Config.User // fixme 应该在数据表把bootUser单独存一列，优化镜像同步时再做
-			if ans.BootUser == "" {
-				ans.BootUser = consts.BootRootUser
-			}
-		}
-		res = append(res, &ans)
-	}
-
 	if param.JustReturnImage {
+		for i := range images {
+			image := images[i]
+			base := image.ToImageBaseResponse()
+			res = append(res, &base)
+		}
 		return res, cnt, nil
 	}
 
-	imageIds := make([]int64, 0)
+	uuids, digests := make([]uint32, 0), make([]string, 0)
+	onlineMap, trustedMap := make(map[uint32]bool), make(map[string]bool)
+
+	// 转换数据
 	for i := range images {
-		imageIds = append(imageIds, images[i].ID)
+		image := images[i]
+		uuids = append(uuids, images[i].ImageUUID)
+		digests = append(digests, images[i].Digest)
+
+		// 其他数据
+		data, err := s.GetImageCorrelateData(ctx, model.GetImageAssociateDataParam{
+			ImageId:        image.ID,
+			EnvEnable:      true,
+			SoftwareEnable: true,
+			SubtaskEnable:  true,
+			RegistryEnable: true,
+		})
+		if err != nil {
+			logging.Get().Err(err).Msg("SearchImageWithScan.GetImageCorrelateData")
+			return nil, 0, err
+		}
+
+		baseImageInfo := data.ImageBaseResponse
+		res = append(res, &baseImageInfo)
 	}
 
-	// 获取镜像的扫描的状态
-	statusMap := make(map[int64]*model.SubTask)
-	subtasks, err := s.scanTaskDal.SearchSubTasksWithScanStatus(ctx, imageIds, nil)
-	if err != nil {
-		logging.Get().Err(err).Msg("SearchImageWithScan.SearchSubTasksWithStatusFilter")
-		return nil, 0, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf(consts.StatusInternalServerErrorMsg))
+	if !param.NotIdentifyOnline && param.Online == "" {
+		resources, err := s.resourceDal.SearchResources(ctx, uuids)
+		if err != nil {
+			logging.Get().Err(err).Msg("SearchImages.SearchResources")
+		} else {
+			for i := range resources {
+				onlineMap[resources[i].ImageUUID] = true
+			}
+		}
 	}
 
-	logging.Get().Info().Int("subtaskLength", len(subtasks)).Msg("SearchImageWithScan.SearchSubTasksWithScanStatus")
-	for i := range subtasks {
-		statusMap[subtasks[i].ImageID] = &subtasks[i]
-	}
-
-	// 镜像评分
-	fields := []string{"vuln_score", "sensitive_score", "virus_score", "webshell_score", "id", "image_id"}
-	if param.ReturnMalicious {
-		fields = append(fields, "malicious_info_json")
-	}
-	scs, _, err := s.dbdal.SearchScanImage(ctx, store.SearchScanImageParam{ImageIds: imageIds, Fields: fields}, nil)
-	if err != nil {
-		logging.Get().Err(err).Msg("SearchImages.SearchScanImage")
-		return nil, 0, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf(consts.StatusInternalServerErrorMsg))
-	}
-
-	logging.Get().Info().Int("subtasscs", len(scs)).Msg("SearchImageWithScan.SearchScanImage")
-
-	scanMap := make(map[int64]*model.ScanImage)
-	for i := range scs {
-		scanMap[scs[i].ImageID] = &scs[i]
+	if !param.NotIdentifyTrusted && param.ImageAttr.Trusted == "" {
+		trustedImages, err := s.trustedImageDal.SearchTrustedImage(ctx, store.SearchTrustedImageParam{IsTrusted: consts.TrueString, Digests: digests})
+		if err != nil {
+			logging.Get().Err(err).Msg("SearchImageWithScan.SearchQuestionInfo")
+			return nil, 0, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf(consts.StatusInternalServerErrorMsg))
+		}
+		for i := range trustedImages {
+			trustedMap[trustedImages[i].Digest] = true
+		}
 	}
 
 	// 转换数据
 	for i := range res {
-		res[i].Registry = regMap[res[i].RegistryID]
-		res[i].Subtasks = statusMap[res[i].ID]
-		res[i].ScanInfo = scanMap[res[i].ID]
+		if param.Online == consts.TrueString {
+			res[i].Online = true
+		} else if param.Online == consts.FalseString {
+			res[i].Online = false
+		} else {
+			res[i].Online = onlineMap[res[i].UUID]
+		}
 
-		res[i].Deserialize()
+		if param.ImageAttr.Trusted == consts.TrueString {
+			res[i].ImageAttr.Trusted = true
+		} else if param.ImageAttr.Trusted == consts.FalseString {
+			res[i].ImageAttr.Trusted = false
+		} else {
+			res[i].ImageAttr.Trusted = trustedMap[res[i].Digest]
+		}
 	}
 
 	return res, cnt, nil
@@ -411,8 +223,7 @@ func (s *ImageSrv) CreateScanImageTask(ctx context.Context, param model.ImageLis
 }
 
 func (s *ImageSrv) GetRegistryProject(ctx context.Context, param GetRegistryProjectParam) ([]RegistryRepo, error) {
-
-	repos, err := s.dbdal.GroupRegistryProject(ctx, store.GroupRegistryRepoParam{ProjectKeyword: param.ProjectKeyword, RegID: param.RegID})
+	repos, err := s.imageDal.GroupRegistryProject(ctx, store.GroupRegistryRepoParam{ProjectKeyword: param.ProjectKeyword, RegID: param.RegID})
 	if err != nil {
 		logging.Get().Err(err).Msg("GetRegistryProject.GroupRegistryProject")
 		return nil, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf(consts.StatusInternalServerErrorMsg))
@@ -422,7 +233,7 @@ func (s *ImageSrv) GetRegistryProject(ctx context.Context, param GetRegistryProj
 		repos[i].Name = repos[i].Project
 	}
 	// 查出所有的registry
-	registries, _, err := s.registryDal.SearchRegistry(ctx, store.SearchRegistryParam{NoDelete: true}, nil)
+	registries, _, err := s.registryDal.SearchRegistry(ctx, store.SearchRegistryParam{Deleted: consts.FalseString}, nil)
 	if err != nil {
 		logging.Get().Err(err).Msg("GetRegistryProject.SearchRegistry")
 		return nil, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf(consts.StatusInternalServerErrorMsg))
@@ -457,6 +268,538 @@ func (s *ImageSrv) GetRegistryProject(ctx context.Context, param GetRegistryProj
 	return res, nil
 }
 
+func (s *ImageSrv) GetImageCorrelateData(ctx context.Context, param model.GetImageAssociateDataParam) (*model.ImageWithCorrelateData, error) {
+	// base image info
+	if err := param.Valid(); err != nil {
+		return nil, err
+	}
+	param.Deserialize()
+
+	ans := &model.ImageWithCorrelateData{}
+
+	images, _, err := s.imageDal.SearchImage(ctx, store.SearchImageParam{InIds: []int64{param.ImageId}}, nil)
+	if err != nil {
+		logging.Get().Err(err).Int64("ImageID", param.ImageId).Msg("ImageWithCorrelateData ImageBaseDetail")
+		return nil, err
+	}
+	if len(images) == 0 {
+		return nil, fmt.Errorf("not find image:%d", param.ImageId)
+	}
+	image := images[0]
+
+	ans.ImageList = image
+
+	imageID := param.ImageId
+
+	registry, _, err := s.registryDal.SearchRegistry(ctx, store.SearchRegistryParam{Deleted: consts.FalseString, ID: image.RegistryID}, nil)
+	if err != nil {
+		logging.Get().Err(err).Msg("SearchImageWithScan.SearchRegistry")
+		return nil, err
+	}
+	if len(registry) > 0 {
+		ans.Registry = &(registry[0])
+	}
+
+	daoParam := ScanResultParamToStoreParam(param.ScanResultSearchParam)
+
+	daoParam.ImageID = imageID
+
+	versionThan211 := s.versionThan211(ans.ImageList)
+	logging.Get().Info().Bool("versionThan211", versionThan211).Msg("GetImageCorrelateData")
+
+	if !versionThan211 && (param.EnvEnable || param.VirusEnable || param.SensitiveEnable || param.SoftwareEnable || param.LicenseEnable) {
+		dataFor211, err := s.GetImageCorrelateDataFor211(ctx, param)
+		if err != nil {
+			logging.Get().Err(err).Int64("imageID", param.ImageId).Msg("GetImageCorrelateData GetImageCorrelateDataFor211")
+			return nil, err
+		}
+
+		ans.VirusCnt = dataFor211.VirusCnt
+		ans.Virus = dataFor211.Virus
+		ans.SensitiveCnt = dataFor211.SensitiveCnt
+		ans.Sensitive = dataFor211.Sensitive
+		ans.EnvCnt = dataFor211.EnvCnt
+		ans.Env = dataFor211.Env
+		ans.License = dataFor211.License
+		ans.Software = dataFor211.Software
+		ans.SoftwareCnt = dataFor211.SoftwareCnt
+	}
+
+	if versionThan211 {
+		// env
+		if param.EnvEnable {
+			env, cnt, err := s.scanResultDal.SearchImageEnv(ctx, daoParam, nil)
+			if err != nil {
+				logging.Get().Err(err).Int64("ImageID", imageID).Msg("ImageWithCorrelateData SearchImageEnv")
+				return nil, err
+			}
+			ans.Env = env
+			ans.EnvCnt = cnt
+		}
+
+		if param.SensitiveEnable {
+			sensitive, cnt, err := s.scanResultDal.SearchSensitive(ctx, daoParam, nil)
+			if err != nil {
+				logging.Get().Err(err).Int64("ImageID", imageID).Msg("ImageWithCorrelateData SearchSensitive")
+				return nil, err
+			}
+			ans.Sensitive = sensitive
+			ans.SensitiveCnt = cnt
+		}
+
+		if param.SoftwareEnable {
+			software, cnt, err := s.scanResultDal.SearchSoftware(ctx, daoParam, nil)
+			if err != nil {
+				logging.Get().Err(err).Int64("ImageID", imageID).Msg("ImageWithCorrelateData SearchSoftware")
+				return nil, err
+			}
+			ans.Software = software
+			ans.SoftwareCnt = cnt
+		}
+		if param.LicenseEnable {
+			software, _, err := s.scanResultDal.SearchSoftware(ctx, daoParam, nil)
+			if err != nil {
+				return nil, err
+			}
+			for i := range software {
+				if software[i].License != "" {
+					ans.License = append(ans.License, software[i].License)
+				}
+			}
+			ans.License = util.DeDuplicationStringSlice(ans.License)
+		}
+
+		if param.VirusEnable {
+			virus, cnt, err := s.scanResultDal.SearchVirus(ctx, daoParam, param.Filter)
+			if err != nil {
+				logging.Get().Err(err).Int64("ImageID", imageID).Msg("ImageWithCorrelateData SearchVirus")
+				return nil, err
+			}
+			ans.Virus = virus
+			ans.VirusCnt = cnt
+		}
+
+		if param.WebshellEnable {
+			webshell, webshellCnt, err := s.scanResultDal.SearchWebShell(ctx, daoParam, nil)
+			if err != nil {
+				logging.Get().Err(err).Msg("SearchImageWithScan.SearchWebShell")
+				return nil, err
+			}
+			ans.WebshellCnt = webshellCnt
+			ans.Webshell = webshell
+		}
+	}
+
+	// 查询该镜像的所有漏洞，更详细的查询请使用VulnServiceInterface
+	if param.VulnEnable {
+		vuln, cnt, err := s.vulnDal.SearchVuln(ctx, store.SearchVulnParam{ImageIds: []int64{imageID},
+			OmitFields: param.ScanResultSearchParam.OmitFields}, nil)
+		if err != nil {
+			logging.Get().Err(err).Int64("ImageID", imageID).Msg("ImageWithCorrelateData SearchVuln")
+			return nil, err
+		}
+		ans.Vuln = vuln
+		ans.VulnCnt = cnt
+	}
+
+	// lastScanTask
+	if param.SubtaskEnable {
+		subtasks, cnt, err := s.scanTaskDal.GetSubTasks(ctx, store.SearchSubTaskParam{ImageID: imageID},
+			model.EmptyFilter().AddSortDesc().AddSortFiledByID().AddLimit(1))
+		if err != nil {
+			logging.Get().Err(err).Msg("SearchImageWithScan.SearchSubTasksWithStatusFilter")
+			return nil, err
+		}
+		ans.SubTask = subtasks
+		ans.SubTaskCnt = cnt
+	}
+
+	// container
+	if param.ContainerEnable {
+		resources, err := s.resourceDal.SearchResources(ctx, []uint32{image.ImageUUID})
+		if err != nil {
+			logging.Get().Err(err).Msg("SearchImageWithScan.SearchResources")
+			return nil, err
+		}
+		ans.Container = resources
+	}
+
+	if param.AppImageEnable && util.ExistBit1(image.Flag, model.FlagBaseImage) {
+		base, cnt, err := s.ListAppImageOfBase(ctx, model.ImageListParam{ImageIds: []int64{image.ID}, Keyword: param.ScanResultSearchParam.Keyword}, nil)
+		if err != nil {
+			logging.Get().Err(err).Msg("SearchImageWithScan.ListAppImageOfBase")
+			return nil, err
+		}
+		ans.BaseImages = base
+		ans.BaseImageCnt = cnt
+	}
+
+	if param.BaseImageEnable && !util.ExistBit1(image.Flag, model.FlagBaseImage) {
+		apps, cnt, err := s.ListBaseImageOfApp(ctx, model.ImageListParam{ImageIds: []int64{image.ID}, Keyword: param.ScanResultSearchParam.Keyword}, nil)
+		if err != nil {
+			logging.Get().Err(err).Msg("SearchImageWithScan.SearchResources")
+			return nil, err
+		}
+		ans.AppImages = apps
+		ans.AppImageCnt = cnt
+	}
+
+	ans.ImageBaseResponse = ans.ToImageBaseResponse()
+	// 程序中分页
+	ans = ans.AddFilter(param.Filter)
+	return ans, nil
+}
+
+// 获取应用镜像的基础镜像列表
+func (s *ImageSrv) ListBaseImageOfApp(ctx context.Context, param model.ImageListParam, filter *model.Filter) ([]*model.ImageBaseResponse, int64, error) {
+	if len(param.ImageIds) == 0 {
+		return nil, 0, fmt.Errorf("not get imageID")
+	}
+
+	images, _, err := s.imageDal.SearchImage(ctx, store.SearchImageParam{
+		InIds:  param.ImageIds,
+		Fields: []string{"id", "flag", "layers"}}, nil)
+	if err != nil {
+		logging.Get().Err(err).Msg("SearchImage")
+		return nil, 0, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf("获取基础镜像出错"))
+	}
+	if len(images) == 0 || model.ExistFlag(images[0].Flag, model.FlagBaseImage) {
+		return nil, 0, nil
+	}
+	// 先获取所有基础镜像
+	baseImages, _, err := s.imageDal.SearchImage(ctx, store.SearchImageParam{
+		AttrFlag: util.SetBit1(0, model.FlagBaseImage),
+		Keyword:  param.Keyword,
+		NotInIds: []int64{images[0].ID}},
+		model.EmptyFilterForTotalQuery())
+	if err != nil {
+		logging.Get().Err(err).Msg("ListBaseImageOfApp")
+		return nil, 0, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf("ListBaseImageOfApp"))
+	}
+
+	baseImageMap := make(map[int64]model.ImageList)
+	for i := range baseImages {
+		baseImageMap[baseImages[i].ID] = baseImages[i]
+	}
+	baseImageIds := make([]int64, 0)
+	for i := range baseImages {
+		if strings.HasPrefix(images[0].Layers, baseImages[i].Layers) {
+			baseImageIds = append(baseImageIds, baseImages[i].ID)
+		}
+	}
+	cnt := int64(len(baseImageIds))
+
+	// 应付前端分页
+	if filter != nil && len(baseImageIds) > 0 {
+		start := int(filter.Offset)
+		end := int(filter.Offset + filter.Limit)
+
+		if len(baseImageIds) <= start {
+			return make([]*model.ImageBaseResponse, 0), int64(len(baseImages)), nil
+		}
+		if end > len(baseImageIds) {
+			end = len(baseImageIds)
+		}
+		baseImageIds = baseImageIds[start:end]
+	}
+
+	baseInfo, _, err := s.ListImageWithScanInfo(ctx, model.ImageListParam{ImageIds: baseImageIds}, model.EmptyFilterForTotalQuery())
+	if err != nil {
+		logging.Get().Err(err).Msg("ListBaseImageOfApp")
+		return nil, 0, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf("ListBaseImageOfApp"))
+	}
+	return baseInfo, cnt, nil
+}
+
+// 获取基础镜像的应用的镜像列表
+func (s *ImageSrv) ListAppImageOfBase(ctx context.Context, param model.ImageListParam, filter *model.Filter) ([]*model.ImageBaseResponse, int64, error) {
+
+	if len(param.ImageIds) == 0 {
+		return nil, 0, fmt.Errorf("not get imageID")
+	}
+
+	images, _, err := s.imageDal.SearchImage(ctx, store.SearchImageParam{InIds: param.ImageIds,
+		Fields: []string{"id", "flag", "layers"}}, nil)
+	if err != nil {
+		logging.Get().Err(err).Msg("ListAppImageOfBase")
+		return nil, 0, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf("获取基础镜像出错"))
+	}
+	if len(images) == 0 || !model.ExistFlag(images[0].Flag, model.FlagBaseImage) {
+		return nil, 0, nil
+	}
+
+	appImage, cnt, err := s.imageDal.SearchImage(ctx, store.SearchImageParam{
+		LayersPrefix: images[0].Layers, NotInIds: []int64{images[0].ID},
+		Fields: []string{"id", "flag", "layers"}}, filter)
+	if err != nil {
+		logging.Get().Err(err).Msg("ListAppImageOfBase")
+		return nil, 0, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf("ListAppImageOfBase"))
+	}
+	appImageIds := make([]int64, 0)
+	for i := range appImage {
+		appImageIds = append(appImageIds, appImage[i].ID)
+	}
+	if len(appImageIds) == 0 {
+		return make([]*model.ImageBaseResponse, 0), cnt, nil
+	}
+
+	appInfo, _, err := s.ListImageWithScanInfo(ctx, model.ImageListParam{ImageIds: appImageIds}, model.EmptyFilterForTotalQuery())
+	if err != nil {
+		logging.Get().Err(err).Msg("ListBaseImageOfApp")
+		return nil, 0, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf("ListBaseImageOfApp"))
+	}
+	return appInfo, cnt, nil
+}
+
+// 2.11版本，数据没有拆分,兼容老数据
+func (s *ImageSrv) GetImageCorrelateDataFor211(ctx context.Context, param model.GetImageAssociateDataParam) (*model.ImageWithCorrelateData, error) {
+	imageData, err := s.scanResultDal.SearchScanImage(ctx, param.ScanResultSearchParam)
+	if err != nil {
+		logging.Get().Err(err).Int64("imageID", param.ImageId).Msg("GetImageCorrelateDataFor211 SearchScanImage")
+		return nil, err
+	}
+	if !param.SoftwareEnable || param.ScanResultSearchParam.AbnormalSoft == consts.TrueString {
+		return imageData, nil
+	}
+	abnormalSoft := make(map[string]uint64)
+	for i := range imageData.Software {
+		key := fmt.Sprintf("%s|%s", imageData.Software[i].Name, imageData.Software[i].Version)
+		abnormalSoft[key] = imageData.Software[i].Flag
+	}
+
+	// 查software
+	vulns, _, err := s.vulnDal.SearchVuln(ctx, store.SearchVulnParam{
+		Fields:   []string{"id", "name", "pkg_name", "pkg_version"},
+		ImageIds: []int64{param.ImageId},
+	}, nil)
+
+	if err != nil {
+		logging.Get().Err(err).Int64("imageID", param.ImageId).Msg("GetImageCorrelateDataFor211 SearchVuln")
+		return nil, err
+	}
+
+	softExit := make(map[string]bool)
+	soft := make([]*model.ImageSoftware, 0)
+	keyword := param.ScanResultSearchParam.Keyword
+	for i := range vulns {
+		key := fmt.Sprintf("%s|%s", vulns[i].PkgName, vulns[i].PkgVersion)
+		if !softExit[key] {
+			softExit[key] = true
+
+			if keyword != "" && (!strings.Contains(strings.ToLower(vulns[i].PkgName), keyword) &&
+				!strings.Contains(strings.ToLower(vulns[i].PkgVersion), keyword)) {
+				continue
+			}
+
+			so := &model.ImageSoftware{
+				Name:    vulns[i].PkgName,
+				Version: vulns[i].PkgVersion,
+				Flag:    abnormalSoft[key],
+			}
+
+			soft = append(soft, so)
+		}
+	}
+
+	imageData.Software = soft
+	imageData.SoftwareCnt = int64(len(soft))
+
+	return imageData, nil
+}
+
+func (s *ImageSrv) deleteImageAfterDeleteRegistry(ctx context.Context) {
+	regChan := s.getDeleteRegistry(ctx)
+
+	for reg := range regChan {
+		var startID int64
+		filter := model.EmptyFilter().AddLimit(consts.DefaultLimit).AddSortAsc().AddSortFiledByID()
+		for {
+			images, _, err := s.imageDal.SearchImage(ctx, store.SearchImageParam{RegistryIds: []int64{reg.ID},
+				Fields: []string{"id"}, StartID: startID}, filter)
+			if err != nil {
+				break
+			}
+			if len(images) == 0 {
+				break
+			}
+			startID = images[len(images)-1].ID
+
+			for i := range images {
+				if err := s.imageDal.DeleteImage(ctx, images[i].ID); err != nil {
+					continue
+				}
+			}
+		}
+	}
+}
+
+func (s *ImageSrv) updateTrustedImage(ctx context.Context) {
+	regChan := s.getTrustImage(ctx)
+
+	for reg := range regChan {
+		var startID int64
+		filter := model.EmptyFilter().AddLimit(consts.DefaultLimit).AddSortAsc().AddSortFiledByID()
+		for {
+			images, _, err := s.imageDal.SearchImage(ctx, store.SearchImageParam{Digests: []string{reg.Digest},
+				Fields: []string{"id", "flag"}, StartID: startID}, filter)
+			if err != nil {
+				break
+			}
+			if len(images) == 0 {
+				break
+			}
+			startID = images[len(images)-1].ID
+
+			for i := range images {
+				if util.ExistBit1(images[i].Flag, model.FlagImageTrusted) {
+					continue
+				}
+
+				updater := map[string]interface{}{"flag": util.SetBit1(images[i].Flag, model.FlagImageTrusted)}
+				if err := s.UpdateImage(ctx, fmt.Sprintf("id = %d", images[i].ID), updater); err != nil {
+					continue
+				}
+			}
+		}
+	}
+}
+
+func (s *ImageSrv) getDeleteRegistry(ctx context.Context) chan model.Registry {
+	out := make(chan model.Registry)
+
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				logging.Get().Error().Str("stack", string(debug.Stack())).Msg("getDeleteRegistry")
+			}
+		}()
+
+		defer close(out)
+		ticker := time.NewTicker(time.Minute)
+		defer ticker.Stop()
+		// 对于镜像检测，前10分钟，每一分钟检测一次，10分钟之后，就每5分钟检测一次
+		regMap := make(map[int64]int)
+		for {
+			<-ticker.C
+			regs, _, err := s.registryDal.SearchRegistry(ctx, store.SearchRegistryParam{Deleted: consts.TrueString}, nil)
+			if err != nil {
+				logging.Get().Err(err).Msg("ContinueUpdateImage SearchRegistry")
+			}
+			for i := range regs {
+				if (time.Now().Unix()-regs[i].DeletedAt)/60 <= 10 {
+					out <- regs[i]
+				} else {
+					regMap[regs[i].ID]++
+					if regMap[regs[i].ID] == 5 {
+						regMap[regs[i].ID] = 0
+						out <- regs[i]
+					}
+				}
+			}
+		}
+	}()
+	return out
+}
+
+func (s *ImageSrv) getTrustImage(ctx context.Context) chan *model.TrustedImages {
+	out := make(chan *model.TrustedImages)
+
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				logging.Get().Error().Str("stack", string(debug.Stack())).Msg("getDeleteRegistry")
+			}
+		}()
+
+		defer close(out)
+		ticker := time.NewTicker(time.Minute)
+		defer ticker.Stop()
+		// 对于镜像检测，前10分钟，每一分钟检测一次，10分钟之后，就每5分钟检测一次
+		regMap := make(map[uint]int)
+		for {
+			<-ticker.C
+			regs, err := s.trustedImageDal.SearchTrustedImage(ctx, store.SearchTrustedImageParam{IsTrusted: consts.TrueString})
+			if err != nil {
+				logging.Get().Err(err).Msg("ContinueUpdateImage SearchTrustedImage")
+			}
+			for i := range regs {
+				if (time.Now().Unix()-regs[i].UpdatedAt.Unix())/60 <= 10 {
+					out <- regs[i]
+				} else {
+					regMap[regs[i].ID]++
+					if regMap[regs[i].ID] == 5 {
+						regMap[regs[i].ID] = 0
+						out <- regs[i]
+					}
+				}
+			}
+		}
+	}()
+	return out
+}
+
+func (s *ImageSrv) versionThan211(im model.ImageList) bool {
+	regID := im.RegistryID
+	registries, _, err := s.registryDal.SearchRegistry(context.Background(), store.SearchRegistryParam{ID: regID, Deleted: consts.FalseString}, nil)
+	if err != nil {
+		logging.Get().Err(err).Int64("regID", regID).Msg("versionThan211 SearchRegistry")
+		return true
+	}
+	if len(registries) == 0 {
+		logging.Get().Error().Int64("regID", regID).Msg("versionThan211 SearchRegistry not find registry")
+		return true
+	}
+
+	scannerInstance, err := s.scannerInfoDal.SearchScannerInfo(context.Background(), store.ScannerInstanceInfoDaoParam{ScannerInstance: registries[0].ScannerInstance})
+	if err != nil {
+		logging.Get().Err(err).Int64("regID", regID).Msg("versionThan211 SearchScannerInfo")
+		return true
+	}
+
+	if len(scannerInstance) == 0 {
+		logging.Get().Error().Int64("regID", regID).Str("scannerInstance", registries[0].ScannerInstance).Msg("versionThan211 SearchRegistry not find scannerInstance")
+		return true
+	}
+
+	return util.CompareVersion(scannerInstance[0].ScannerVersion, consts.ScannerVersion211) > 0
+}
+
+type ImageSrv struct {
+	imageDal        store.ImageDal
+	scanTaskDal     store.ScanTaskInterface
+	registryDal     store.RegistryDal
+	webshellDal     store.WebshellDal
+	vulnDal         store.VulnDalInterface
+	scanResultDal   store.ImageScanResultDal
+	trustedImageDal store.TrustedImageDal
+	resourceDal     store.ResourceDal
+	scannerInfoDal  store.ScannerInstanceInfoDal
+}
+
+func NewImageSrv(
+	imageDal store.ImageDal,
+	registryDal store.RegistryDal,
+	scanTaskDal store.ScanTaskInterface,
+	vulnDal store.VulnDalInterface,
+	scanResultDal store.ImageScanResultDal,
+	webshellDal store.WebshellDal,
+	trustedImageDal store.TrustedImageDal,
+	resourceDal store.ResourceDal,
+	scannerInfoDal store.ScannerInstanceInfoDal,
+) *ImageSrv {
+	return &ImageSrv{
+		imageDal:        imageDal,
+		scanTaskDal:     scanTaskDal,
+		registryDal:     registryDal,
+		vulnDal:         vulnDal,
+		scanResultDal:   scanResultDal,
+		webshellDal:     webshellDal,
+		trustedImageDal: trustedImageDal,
+		resourceDal:     resourceDal,
+		scannerInfoDal:  scannerInfoDal,
+	}
+}
+
 type GetRegistryProjectParam struct {
 	RegID          int64
 	ProjectKeyword string
@@ -468,4 +811,26 @@ type RegistryRepo struct {
 	URL        string             `json:"url"`
 	Projects   []store.RegProject `json:"projects"`
 	Key        string             `json:"key"`
+}
+
+func ScanResultParamToStoreParam(s model.ScanResultSearchParam) store.SearchImageScanResultParam {
+	param := store.SearchImageScanResultParam{
+		ImageID:     s.ImageID,
+		LayerDigest: s.LayerDigest,
+		Keyword:     s.Keyword,
+	}
+	if s.AbnormalLicense == consts.TrueString {
+		param.Flag = util.SetBit1(param.Flag, model.FlagHasExceptLicense)
+	}
+
+	if s.AbnormalEnv == consts.TrueString {
+		param.NormalEnv = consts.FalseString
+	} else if s.AbnormalEnv == consts.FalseString {
+		param.NormalEnv = consts.TrueString
+	}
+
+	if s.AbnormalSoft == consts.TrueString {
+		param.Flag = util.SetBit1(param.Flag, model.FlagHasSoftware)
+	}
+	return param
 }

@@ -138,7 +138,7 @@ func (s *ScanConfigSrv) SearchScanConfig(ctx context.Context, param SearchScanCo
 		return nil, 0, err
 	}
 	// 去除掉已删除的仓库，兼容直接清理数据的情况
-	registry, _, err := s.RegistryDal.SearchRegistry(ctx, store.SearchRegistryParam{NoDelete: true}, nil)
+	registry, _, err := s.RegistryDal.SearchRegistry(ctx, store.SearchRegistryParam{Deleted: consts.FalseString}, nil)
 	if err != nil {
 		logging.GetLogger().Err(err).Msg("SearchRegistry")
 		return nil, 0, err
@@ -328,8 +328,8 @@ func (s *ScanConfigSrv) UpdateScanConfig(ctx context.Context, configID int64, da
 func (s *ScanConfigSrv) verifyLibrary(ctx context.Context, libs []int64) error {
 	for i := range libs {
 		registry, _, err := s.RegistryDal.SearchRegistry(ctx, store.SearchRegistryParam{
-			ID:       libs[i],
-			NoDelete: true,
+			ID:      libs[i],
+			Deleted: consts.FalseString,
 		}, nil)
 		if err != nil {
 			logging.GetLogger().Err(err).Msg("verifyLibrary")
@@ -402,7 +402,7 @@ func (s *ScanConfigSrv) addLibraryScanTask(ctx context.Context, config model.Sca
 		if config.LibraryImageConfig.ScanAll {
 			registry, _, err := s.RegistryDal.SearchRegistry(ctx, store.SearchRegistryParam{
 				UseType:         model.UserRegistry,
-				NoDelete:        true,
+				Deleted:         consts.FalseString,
 				ScannerInstance: global.ScannerInstance,
 			}, nil)
 
@@ -433,7 +433,7 @@ func (s *ScanConfigSrv) addLibraryScanTask(ctx context.Context, config model.Sca
 			return nil
 		}
 		// 查找所有的镜像增加任务
-		daoParam := store.SearchImageParam{FromType: model.UserRegistry, RegistryIds: libs}
+		daoParam := store.SearchImageParam{RegistryIds: libs}
 		imgIds, err := s.getAllImageIds(ctx, daoParam)
 		if err != nil {
 			logging.GetLogger().Info().Msg("addLibraryScanTask getAllImageIds")
@@ -462,7 +462,7 @@ func (s *ScanConfigSrv) addNodeScanTask(ctx context.Context, config model.ScanCo
 		return err
 	}
 	if add {
-		daoParm := store.SearchImageParam{FromType: model.NodeBuffRegistry}
+		daoParm := store.SearchImageParam{}
 		if !config.NodeImageConfig.ScanAll {
 			daoParm.NodeHostnames = config.NodeImageConfig.NodeHostnames
 		}

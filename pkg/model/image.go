@@ -45,6 +45,7 @@ func GetAllFlag() []uint64 {
 	return flags
 }
 
+// 镜像表中Flag
 const (
 	FlagHasVuln          = 0
 	FlagHasMalicious     = 1
@@ -65,7 +66,8 @@ const (
 	FlagImageScanSuccess    = 14
 	FlagImageScanFailed     = 15
 	FlagImageNotScan        = 16
-	FlagImageNotMaintained  = 17 // os是否在维护
+	FlagImageNotMaintained  = 17 // os不再维护
+	FlagImageTrusted        = 18 // 可信息镜像
 
 	JobNotScan string = "not_scan"
 )
@@ -75,19 +77,18 @@ const (
 	ImageFromNode     = "node"
 	ImageFromCICD     = "cicd"
 
-	BaseImageType            = 1
-	AppImageType             = 0
-	BaseImageTypeString      = "base"
-	AppImageTypeString       = "app"
-	AndString                = "and"
-	OrString                 = "or"
-	TrueString               = "true"
-	FalseString              = "false"
-	TrustedString            = "trusted"
-	UnTrustedString          = "untrusted"
-	HasFixedVulnString       = "hasFixedVuln"
-	ReinforcedString         = "reinforced"
-	MaxWebshellAndVirusScore = 40 // 评分细则规定webshell和病毒都算恶意文件加起来满分40
+	BaseImageType       = 1
+	AppImageType        = 0
+	BaseImageTypeString = "base"
+	AppImageTypeString  = "app"
+	AndString           = "and"
+	OrString            = "or"
+	TrueString          = "true"
+	FalseString         = "false"
+	TrustedString       = "trusted"
+	UnTrustedString     = "untrusted"
+	HasFixedVulnString  = "hasFixedVuln"
+	ReinforcedString    = "reinforced"
 )
 
 func GetSecurityIssueLabel(flag int64) string {
@@ -306,6 +307,34 @@ type ImageList struct {
 	Trusted              bool      `gorm:"-"  json:"trusted"`
 	VulnFixSuggestion    []string  `gorm:"-" json:"vulnFixSuggestion"`
 	SentiveFixSuggestion []string  `gorm:"-" json:"sentiveFixSuggestion"`
+}
+
+func (im *ImageList) ToImageBaseResponse() ImageBaseResponse {
+	ans := ImageBaseResponse{
+		ID:           im.ID,
+		Digest:       im.Digest,
+		ImageAttr:    ImageAttrResponse{},
+		UUID:         im.ImageUUID,
+		FullRepoName: im.FullRepoName,
+		Tag:          im.Tags,
+		Size:         util.ByteToMB(im.Size),
+		Os:           im.OS,
+		Flag:         im.Flag,
+		RegistryID:   im.RegistryID,
+		Project:      im.Project,
+	}
+	return ans
+}
+
+func (im *ImageList) GetBootUser() string {
+	user := ""
+	if im.ConfigFile != nil {
+		user = im.ConfigFile.Config.User
+		if user == "" {
+			user = "root"
+		}
+	}
+	return user
 }
 
 func (im *ImageList) GetImageName() string {

@@ -7,6 +7,7 @@ import (
 	"github.com/go-redis/redis/v8"
 	"gitlab.com/security-rd/go-pkg/logging"
 
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scan-report/common"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
@@ -21,16 +22,25 @@ type ExportTaskInterface interface {
 	CreateSearchImage(ctx context.Context, taskID int64, param model.ImageListParam) error
 	CreateScanTaskImage(ctx context.Context, taskID int64, scanGroupID int64) error
 	GetTaskSchedule(ctx context.Context, task model.ExportTensorTask) (ExportSchedule, error)
-	ImageSrvInterface
+	common.ImageInterface
 }
 
 type ExportTaskSrv struct {
 	ExportDal               store.ExportTaskDal
-	ImageSrv                ImageSrvInterface
+	ImageSrv                common.ImageInterface
 	ScanTaskDal             store.ScanTaskDal
 	MaxImageByOneExportTask int64
 	RedisCli                *redis.Client
 }
+
+func (s *ExportTaskSrv) GetImageCorrelateData(ctx context.Context, param model.GetImageAssociateDataParam) (*model.ImageWithCorrelateData, error) {
+	return s.ImageSrv.GetImageCorrelateData(ctx, param)
+}
+
+func (s *ExportTaskSrv) ListImageWithScanInfo(ctx context.Context, param model.ImageListParam, filter *model.Filter) ([]*model.ImageBaseResponse, int64, error) {
+	return s.ImageSrv.ListImageWithScanInfo(ctx, param, filter)
+}
+
 type ExportSchedule struct {
 	All      int64
 	Finished int64
@@ -66,14 +76,6 @@ func (s *ExportTaskSrv) UpdateExportTask(ctx context.Context, id int64, updater 
 	return nil
 }
 
-type ImageSrvInterface interface {
-	ListImageWithScanInfo(ctx context.Context, param model.ImageListParam, filter *model.Filter) ([]*model.ImageListResponse, int64, error)
-}
-
-func (s *ExportTaskSrv) ListImageWithScanInfo(ctx context.Context, param model.ImageListParam, filter *model.Filter) ([]*model.ImageListResponse, int64, error) {
-	return s.ImageSrv.ListImageWithScanInfo(ctx, param, filter)
-}
-
 func (s *ExportTaskSrv) CreateSearchImage(ctx context.Context, taskID int64, param model.ImageListParam) error {
 	if taskID <= 0 {
 		return fmt.Errorf("no taskID:%d", taskID)
@@ -81,7 +83,6 @@ func (s *ExportTaskSrv) CreateSearchImage(ctx context.Context, taskID int64, par
 	var startID int64
 	for {
 		filter := &model.Filter{Limit: consts.DefaultLimit, SortBy: consts.SortByAsc, SortFiled: "id"}
-		param.JustReturnImage = true
 		param.StartID = startID
 
 		images, _, err := s.ImageSrv.ListImageWithScanInfo(ctx, param, filter)
@@ -152,7 +153,7 @@ func (s *ExportTaskSrv) CreateScanTaskImage(ctx context.Context, taskID int64, s
 		for i := range subtasks {
 			imageIds = append(imageIds, subtasks[i].ImageID)
 		}
-		imageListParam := model.ImageListParam{ImageIds: imageIds, JustReturnImage: true}
+		imageListParam := model.ImageListParam{ImageIds: imageIds}
 
 		images, _, err := s.ImageSrv.ListImageWithScanInfo(ctx, imageListParam, filter)
 		if err != nil {
@@ -242,7 +243,7 @@ func NewExportTaskSrv(
 	exportDal store.ExportTaskDal,
 	maxImageByOneExportTask int64,
 	scanTaskDal store.ScanTaskDal,
-	ImageSrv ImageSrvInterface,
+	ImageSrv common.ImageInterface,
 	redisCli *redis.Client,
 ) *ExportTaskSrv {
 	return &ExportTaskSrv{

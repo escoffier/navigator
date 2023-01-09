@@ -168,6 +168,7 @@ func (api *api) scanner() func(chi.Router) {
 		r.Get("/images/detail/virus", api.RedirectToScanner())
 		r.Get("/images/detail/sensitiveFile", api.RedirectToScanner())
 		r.Get("/images/detail/software", api.RedirectToScanner())
+		r.Post("/images/detail/riskInfo", api.RedirectToScanner())
 	}
 }
 

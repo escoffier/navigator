@@ -77,7 +77,7 @@ type ExportVulnImage struct {
 	Images     []string `gorm:"-" json:"images"`
 }
 
-func (ExportVulnImage) TableName() string {
+func (*ExportVulnImage) TableName() string {
 	return "ivan_export_vuln_image"
 }
 
@@ -91,6 +91,7 @@ func (evi *ExportVulnImage) Serialize() {
 		}
 	}
 }
+
 func (evi *ExportVulnImage) Deserialize() {
 	if len(evi.ImagesJson) > 0 {
 		images := make([]string, 0)

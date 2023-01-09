@@ -84,7 +84,7 @@ func (v *VulnServer) List(ctx *gin.Context) {
 		filter.SortBy = consts.SortByDesc
 	}
 
-	vulns, cnt, err := v.vulnService.SearchVulns(ctx, component.SearchVulnParam{VulnKeyword: search, ImageIds: imageIds}, filter)
+	vulns, cnt, err := v.vulnService.SearchVulns(ctx, model.SearchVulnParam{VulnKeyword: search, ImageIds: imageIds}, filter)
 	if err != nil {
 		response.JSONError(ctx, err)
 		return
@@ -112,7 +112,7 @@ func (v *VulnServer) Detail(ctx *gin.Context) {
 	}
 	uniqueVuln := util.GenerateUUID64(fmt.Sprintf(consts.UniqueVulnFamat, vulnName, pkgName, pkgVersion))
 
-	res, _, err := v.vulnService.SearchVulns(ctx, component.SearchVulnParam{UniqueVulns: []uint64{uniqueVuln}}, nil)
+	res, _, err := v.vulnService.SearchVulns(ctx, model.SearchVulnParam{UniqueVulns: []uint64{uniqueVuln}}, nil)
 
 	if err != nil {
 		response.JSONError(ctx, err)

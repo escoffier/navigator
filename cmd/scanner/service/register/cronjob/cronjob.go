@@ -51,13 +51,11 @@ func (s *Service) Start(ctx context.Context) error {
 		logging.GetLogger().Err(err).Msg("add buffer registry GC job")
 		return err
 	}
-	podDal := store.NewPodResourceRelationDao(store.GetScannerWrapperDb())
-	syncRetryDal := store.NewSyncRetryImageDao(store.GetScannerWrapperDb())
 	vulnDal := store.NewVulnDao(scannerWrapperDb)
-	scannerDB := store.NewScannerDB(scannerWrapperDb)
 	syncTaskDal := store.NewSyncTaskDao(scannerWrapperDb)
+	imageDal := store.NewScannerOrm(scannerWrapperDb)
 
-	syncSrv := component.NewSyncRepoImage(registryDal, dal, podDal, scanConfigDal, syncRetryDal, vulnDal, scannerDB, syncTaskDal)
+	syncSrv := component.NewSyncRepoImage(registryDal, imageDal, scanConfigDal, vulnDal, syncTaskDal)
 
 	syncAllImage := os.Getenv("SyncAllImage") // 使用一个环境变量，方便测试
 	if syncAllImage == "" {
