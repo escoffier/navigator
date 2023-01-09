@@ -3741,12 +3741,12 @@ scm.tensorsecurity.cn/tensorsecurity-rd/api v0.2.2 h1:+6cDWreEqrPgGsarxCVxCdDurQ
 scm.tensorsecurity.cn/tensorsecurity-rd/api v0.2.2/go.mod h1:u/xCwx6xgCx3jw5u+qMuU77PK1Fatg9gaJNNZi66CJs=
 scm.tensorsecurity.cn/tensorsecurity-rd/cloudwalker v0.0.5 h1:WQE20asHHBgKonWksiIE+Qh3zaRIMdy8e3yZWgb1oqU=
 scm.tensorsecurity.cn/tensorsecurity-rd/cloudwalker v0.0.5/go.mod h1:vDsqw0i9Urt3k5euCjY+ISnhaCHh8iaCK4Cd2+N1ItU=
-scm.tensorsecurity.cn/tensorsecurity-rd/falcosider v0.1.0 h1:gAwgGzfslsDSDpkXqdpsgptj1aqp/saOPEQOQsRkYIg=
-scm.tensorsecurity.cn/tensorsecurity-rd/falcosider v0.1.0/go.mod h1:ugWqLBqPfWFy+X7QZxCMrLsSeU6lslGOeiV074oe25w=
+scm.tensorsecurity.cn/tensorsecurity-rd/falcosider v0.1.1 h1:3lEQuiz/w1bvqYRwtjr/0baWp1/k9bwBQMO3jNKCksA=
+scm.tensorsecurity.cn/tensorsecurity-rd/falcosider v0.1.1/go.mod h1:58pQ9AoBM4LaT/C0U4+bp3zcMwqwyQ2IUiwgzdReTN0=
 scm.tensorsecurity.cn/tensorsecurity-rd/fanal v0.0.0-20220415061508-baf9465b55a7 h1:Z6hI2OnqLsDm4J75P6klP4v95c5IF/Pt9rY3irghyP8=
 scm.tensorsecurity.cn/tensorsecurity-rd/fanal v0.0.0-20220415061508-baf9465b55a7/go.mod h1:soK0f05cz92yM1I5diMOTvJZKjGZXhMxv5KpMbkNUgE=
-scm.tensorsecurity.cn/tensorsecurity-rd/go-pkg v0.2.63 h1:drxGM6uGT3T4MI67iXcL9p6xM2LHFy/qWzUFrJr7GY8=
-scm.tensorsecurity.cn/tensorsecurity-rd/go-pkg v0.2.63/go.mod h1:7SGQC806aNDjM+IRDYROn2MSbWV/5Dh80jGi2ivYsLc=
+scm.tensorsecurity.cn/tensorsecurity-rd/go-pkg v0.2.64 h1:27gmjoiop+79+o+pZtAEJ16CbqdLt8dAacINMQuC2/U=
+scm.tensorsecurity.cn/tensorsecurity-rd/go-pkg v0.2.64/go.mod h1:7SGQC806aNDjM+IRDYROn2MSbWV/5Dh80jGi2ivYsLc=
 scm.tensorsecurity.cn/tensorsecurity-rd/podman/v3 v3.4.6-20220425170000 h1:rDGiAo7tgLYDTzUOVlK31AfAcRHqr1DCtI24mi+LzyE=
 scm.tensorsecurity.cn/tensorsecurity-rd/podman/v3 v3.4.6-20220425170000/go.mod h1:ITId80W6JXHyW8fOwmaPCQtzMYkbL/F7EGE0A2nJmDI=
 scm.tensorsecurity.cn/tensorsecurity-rd/trivy v0.19.3-0.20221223094108-043b8936a019 h1:pHArh4GRu2O83ubERXobqw/YhuPgTOpQchUpLTedlr0=
