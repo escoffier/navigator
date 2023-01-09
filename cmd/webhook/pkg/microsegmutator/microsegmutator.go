@@ -2,6 +2,8 @@ package microsegmutator
 
 import (
 	"context"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
 
 	log "github.com/sirupsen/logrus"
 	"gitlab.com/piccolo_su/vegeta/cmd/webhook/pkg/microsegmutator/service"
@@ -16,12 +18,12 @@ type MicroSegMutator struct {
 var _ processors.NamespaceMutator = (*MicroSegMutator)(nil)
 var _ processors.PodMutator = (*MicroSegMutator)(nil)
 
-func (m *MicroSegMutator) Mutate(ctx context.Context, parameters *processors.MutatorParameters, pod *v1.Pod) []*processors.Patch {
+func (m *MicroSegMutator) Mutate(ctx context.Context, parameters *processors.MutatorParameters, pod *v1.Pod) ([]*processors.Patch, error) {
 	log.Info("MicroSegMutator for Pod processing")
 	return m.svc.MutateLabels(ctx, parameters, pod)
 }
 
-func (m *MicroSegMutator) NamespaceMutate(ctx context.Context, parameters *processors.MutatorParameters, ns *v1.Namespace) []*processors.Patch {
+func (m *MicroSegMutator) NamespaceMutate(ctx context.Context, parameters *processors.MutatorParameters, ns *v1.Namespace) ([]*processors.Patch, error) {
 	log.Info("MicroSegMutator for Namespace processing")
 	return m.svc.MutateNamespaceLabels(ctx, parameters, ns)
 }
@@ -40,7 +42,15 @@ func (m *MicroSegMutator) Name() string {
 
 func (m *MicroSegMutator) Init(webHookConfig *processors.WebHookConfig) error {
 	log.Info("init MicroSegMutator")
-	m.svc = service.NewMutationService(webHookConfig.RDB)
+	config, err := rest.InClusterConfig()
+	if err != nil {
+		return err
+	}
+	kubeCli, err := kubernetes.NewForConfig(config)
+	if err != nil {
+		return err
+	}
+	m.svc = service.NewMutationService(webHookConfig.RDB, kubeCli)
 	return nil
 }
 

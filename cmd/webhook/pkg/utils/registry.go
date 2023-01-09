@@ -43,35 +43,34 @@ type digestResult struct {
 	err    error
 }
 
-func GetImageDigest(userName, password string, skipTLSVerify bool, imageName string) (string, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), DigestTimeOut)
+func GetImageDigest(ctx context.Context, userName, password string, skipTLSVerify bool, imageName string) (string, error) {
+	digestCtx, cancel := context.WithTimeout(ctx, DigestTimeOut)
 	defer cancel()
 
-	dchan := make(chan digestResult, 1)
+	digestChan := make(chan digestResult, 1)
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
 				logging.Get().Error().Str("stack", string(debug.Stack())).Msgf("Panic: %v", r)
 			}
 		}()
-		digest1, err1 := getImageDigest(userName, password, skipTLSVerify, imageName)
-		dchan <- digestResult{digest1, err1}
-		close(dchan)
+		digest, err := getImageDigest(userName, password, skipTLSVerify, imageName)
+		digestChan <- digestResult{digest, err}
+		close(digestChan)
 	}()
 
 	select {
-	case r := <-dchan:
+	case r := <-digestChan:
 		if r.err != nil {
 			logging.Get().Warn().Err(r.err).Msg("get image err")
 		}
 		return r.digest, r.err
-	case <-ctx.Done():
+	case <-digestCtx.Done():
 		return "", fmt.Errorf("get image: %s digests time out", imageName)
 	}
 }
 
 func getImageDigest(userName, password string, skipTLSVerify bool, imageName string) (string, error) {
-
 	var nameOpts []name.Option
 	nameOpts = append(nameOpts, name.Insecure)
 

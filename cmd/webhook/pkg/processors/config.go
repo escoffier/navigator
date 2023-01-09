@@ -3,6 +3,8 @@ package processors
 import (
 	"path/filepath"
 
+	"k8s.io/client-go/kubernetes"
+
 	flag "github.com/spf13/pflag"
 	"gorm.io/gorm"
 )
@@ -14,7 +16,8 @@ const (
 var ConfigBasePath string
 
 type WebHookConfig struct {
-	RDB *gorm.DB
+	KubeCli *kubernetes.Clientset
+	RDB     *gorm.DB
 }
 
 func GetConfigFullPath(configFile string) string {

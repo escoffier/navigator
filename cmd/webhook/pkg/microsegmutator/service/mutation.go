@@ -15,20 +15,19 @@ import (
 
 var _ Service = (*mutationService)(nil)
 
-func (m *mutationService) MutateLabels(ctx context.Context, parameters *processors.MutatorParameters, pod *corev1.Pod) []*processors.Patch {
+func (m *mutationService) MutateLabels(ctx context.Context, parameters *processors.MutatorParameters, pod *corev1.Pod) ([]*processors.Patch, error) {
 	patches := m.patchPod(ctx, pod, parameters.ClusterKey, parameters.Namespace)
-
 	for _, patch := range patches {
 		p := patch.Value.(map[string]string)
 		for _, v := range p {
 			err := util.EnsureValidK8sLabel(v)
 			if err != nil {
 				logging.Get().Err(err).Msgf("Patch label %s sanity check failed", patch.Value)
-				return nil
+				return nil, nil
 			}
 		}
 	}
-	return patches
+	return patches, nil
 }
 
 func (m *mutationService) MutatePodLabels(ctx context.Context, cluster string, review *v1beta1.AdmissionReview) *v1beta1.AdmissionResponse {
@@ -88,7 +87,7 @@ func (m *mutationService) MutatePodLabels(ctx context.Context, cluster string, r
 	}
 }
 
-func (m *mutationService) MutateNamespaceLabels(ctx context.Context, parameters *processors.MutatorParameters, ns *corev1.Namespace) []*processors.Patch {
+func (m *mutationService) MutateNamespaceLabels(ctx context.Context, parameters *processors.MutatorParameters, ns *corev1.Namespace) ([]*processors.Patch, error) {
 	patches := m.patchNamespace(ctx, ns, parameters.ClusterKey)
 
 	for _, patch := range patches {
@@ -96,10 +95,10 @@ func (m *mutationService) MutateNamespaceLabels(ctx context.Context, parameters 
 		err := util.EnsureValidK8sLabel(p)
 		if err != nil {
 			logging.Get().Err(err).Msgf("Patch label %s sanity check failed", patch.Value)
-			return nil
+			return nil, nil
 		}
 	}
-	return patches
+	return patches, nil
 }
 
 func (m *mutationService) patchPod(ctx context.Context, pod *corev1.Pod, clusterKey, namespace string) []*processors.Patch {
@@ -150,7 +149,7 @@ func (m *mutationService) patchPod(ctx context.Context, pod *corev1.Pod, cluster
 	}
 
 	resID = util.GenID(clusterKey, namespace, resKind, resName)
-	logging.Get().Info().Msgf("resource info is %s:%s:%s:%s", clusterKey, namespace, resKind, resName)
+	logging.Get().Info().Msgf("resource info is %s/%s/%s/%s", clusterKey, namespace, resKind, resName)
 
 	newResLabelValue = fmt.Sprintf("%d", resID)
 

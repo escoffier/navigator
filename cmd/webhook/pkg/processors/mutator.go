@@ -4,8 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"time"
-
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/security-rd/go-pkg/databases"
 	corev1 "k8s.io/api/core/v1"
@@ -16,7 +14,7 @@ var MutatorChain *mutatorChain
 type PodMutator interface {
 	Name() string
 	Init(webHookConfig *WebHookConfig) error
-	Mutate(ctx context.Context, parameters *MutatorParameters, pod *corev1.Pod) []*Patch
+	Mutate(ctx context.Context, parameters *MutatorParameters, pod *corev1.Pod) ([]*Patch, error)
 	PreMutate(ctx context.Context, pod *corev1.Pod, parameters *MutatorParameters) bool
 }
 
@@ -30,7 +28,7 @@ type ConfigMapMutator interface {
 type NamespaceMutator interface {
 	Name() string
 	Init(webHookConfig *WebHookConfig) error
-	NamespaceMutate(ctx context.Context, parameters *MutatorParameters, ns *corev1.Namespace) []*Patch
+	NamespaceMutate(ctx context.Context, parameters *MutatorParameters, ns *corev1.Namespace) ([]*Patch, error)
 	PreNamespaceMutate(ctx context.Context, ns *corev1.Namespace, parameters *MutatorParameters) bool
 }
 
@@ -42,11 +40,12 @@ type mutatorChain struct {
 }
 
 type MutatorParameters struct {
-	// Deal with potential empty fields, e.g., when the pod is created by a deployment
-	Namespace  string
-	Kind       string
-	ClusterKey string
-	rdb        *databases.RDBInstance
+	Kind         string
+	Namespace    string
+	ResourceKind string
+	ResourceName string
+	ClusterKey   string
+	rdb          *databases.RDBInstance
 }
 
 type MutatingConfig struct {
@@ -66,27 +65,25 @@ func (m *mutatorChain) AddMutator(mutator interface{}) {
 	}
 }
 
-func (m *mutatorChain) Mutate(parameters *MutatorParameters, rawObj []byte) []byte {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
+func (m *mutatorChain) Mutate(ctx context.Context, parameters *MutatorParameters, rawObj []byte) ([]byte, error) {
 	if m.needMutating(parameters) {
-		return nil
+		return nil, nil
 	}
 	var patch []byte
+	var err error
 	switch parameters.Kind {
 	case "Pod":
 		pod := &corev1.Pod{}
 		if err := json.Unmarshal(rawObj, pod); err != nil {
 			logging.GetLogger().Err(err).Msg("failed to Unmarshal pod")
-			return nil
+			return nil, nil
 		}
-		patch = m.mutatePod(ctx, parameters, pod)
+		patch, err = m.mutatePod(ctx, parameters, pod)
 	case "ConfigMap":
 		cm := &corev1.ConfigMap{}
 		if err := json.Unmarshal(rawObj, cm); err != nil {
 			logging.GetLogger().Err(err).Msg("failed to Unmarshal configmap")
-			return nil
+			return nil, nil
 		}
 		patch = m.mutateConfigMap(ctx, parameters, cm)
 	//case "Namespace":
@@ -99,25 +96,29 @@ func (m *mutatorChain) Mutate(parameters *MutatorParameters, rawObj []byte) []by
 	default:
 		logging.GetLogger().Err(errors.New("unsupported resource kind")).Msg(parameters.Kind)
 	}
-	return patch
+	return patch, err
 }
 
-func (m *mutatorChain) mutatePod(ctx context.Context, parameters *MutatorParameters, pod *corev1.Pod) []byte {
+func (m *mutatorChain) mutatePod(ctx context.Context, parameters *MutatorParameters, pod *corev1.Pod) ([]byte, error) {
 	var patches []*Patch
+	var err error
 	for _, m := range m.podMutators {
 		if m.PreMutate(ctx, pod, parameters) {
 			logging.GetLogger().Debug().Msgf("mutatePod by %s", m.Name())
-			p := m.Mutate(ctx, parameters, pod)
+			p, err := m.Mutate(ctx, parameters, pod)
+			if err != nil {
+				return nil, err
+			}
 			patches = append(patches, p...)
 		}
 	}
 	patchData, err := json.Marshal(patches)
 	if err != nil {
 		logging.GetLogger().Err(err).Msg("failed to marshal patches")
-		return nil
+		return nil, nil
 	}
 	logging.GetLogger().Info().Msg(string(patchData))
-	return patchData
+	return patchData, nil
 }
 
 func (m *mutatorChain) mutateConfigMap(ctx context.Context, parameters *MutatorParameters, cm *corev1.ConfigMap) []byte {
@@ -135,19 +136,22 @@ func (m *mutatorChain) mutateConfigMap(ctx context.Context, parameters *MutatorP
 	return patchData
 }
 
-func (m *mutatorChain) mutateNamespace(ctx context.Context, parameters *MutatorParameters, ns *corev1.Namespace) []byte {
+func (m *mutatorChain) mutateNamespace(ctx context.Context, parameters *MutatorParameters, ns *corev1.Namespace) ([]byte, error) {
 	var patches []*Patch
 	for _, m := range m.nsMutators {
-		p := m.NamespaceMutate(ctx, parameters, ns)
+		p, err := m.NamespaceMutate(ctx, parameters, ns)
+		if err != nil {
+			return nil, err
+		}
 		patches = append(patches, p...)
 	}
 	patchData, err := json.Marshal(patches)
 	if err != nil {
 		logging.GetLogger().Err(err).Msg("failed to marshal patches")
-		return nil
+		return nil, nil
 	}
 	logging.GetLogger().Info().Msg(string(patchData))
-	return patchData
+	return patchData, nil
 }
 
 func (m *mutatorChain) needMutating(resource *MutatorParameters) bool {

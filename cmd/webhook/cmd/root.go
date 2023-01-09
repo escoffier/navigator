@@ -13,7 +13,10 @@ import (
 )
 
 var (
-	webHookConfig  = &webhook.Config{}
+	webHookConfig = &webhook.Config{
+		Timeout:     6,
+		Concurrency: 100,
+	}
 	loggingOptions *logging.Options
 )
 
@@ -84,5 +87,24 @@ func loadConfigFromEnv() {
 	if mutators != "" {
 		ms := strings.Split(mutators, ",")
 		webHookConfig.Mutators = ms
+	}
+	timeOut := os.Getenv("TIMEOUT")
+	if timeOut != "" {
+		t, err := strconv.ParseInt(timeOut, 10, 32)
+		if err != nil {
+			logging.Get().Err(err).Msgf("parse timeout :%s err", timeOut)
+		} else {
+			webHookConfig.Timeout = int32(t)
+		}
+	}
+
+	concurrency := os.Getenv("CONCURRENCY")
+	if concurrency != "" {
+		t, err := strconv.ParseInt(concurrency, 10, 32)
+		if err != nil {
+			logging.Get().Err(err).Msgf("parse concurrency :%s err", concurrency)
+		} else {
+			webHookConfig.Concurrency = int32(t)
+		}
 	}
 }
