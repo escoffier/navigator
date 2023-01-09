@@ -195,6 +195,7 @@ func (ec *EngineStreamHandler) engineReloads(ctx context.Context) error {
 	}
 	sconfigs := ec.currentConfigVal.Load()
 	reloadReq.StaticVersion = strconv.FormatInt(sversion, 10)
+	reloadReq.SConfigVersion = strconv.FormatInt(ec.currentConfigVal.Load().version, 10)
 	if rulesInfo.LatestSettingVersion > ec.currentConfigVal.Load().version {
 		configsArr := toConfigsArr(rulesInfo)
 		sconfigs = &ruleConfig{
