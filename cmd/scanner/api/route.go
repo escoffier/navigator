@@ -2,10 +2,6 @@ package api
 
 import (
 	"github.com/gin-gonic/gin"
-	"github.com/go-redis/redis/v8"
-
-	//swaggerFiles "github.com/swaggo/files"
-	//ginSwagger "github.com/swaggo/gin-swagger"
 
 	openapi "gitlab.com/piccolo_su/vegeta/cmd/scanner/api/open-api"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component"
@@ -16,7 +12,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/global"
 )
 
-func SetupGinRouter(redisClient *redis.Client,
+func SetupGinRouter(
 	scannerSvc component.ScannerSrv,
 	imageSvc component.ImageSrvInterface,
 	rejectSvc component.ImageRejectSrv,
@@ -28,7 +24,6 @@ func SetupGinRouter(redisClient *redis.Client,
 	ciDalSrv ci.CiComponent,
 	scannerInfo component.ScannerInstanceInfoInterface,
 	webshellSrv scanwebshell.WebshellController,
-	imageScanResult component.ScanResultInterface,
 ) *gin.Engine {
 
 	router := gin.Default()
@@ -36,14 +31,13 @@ func SetupGinRouter(redisClient *redis.Client,
 
 	router.Use(gin.Logger(), gin.Recovery())
 
-	//router.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 	router.GET("/health", func(c *gin.Context) {
 		c.JSON(200, gin.H{
 			"message": "healthy",
 		})
 	})
 
-	//router = WebAPI(router, scannerSvc, imageSvc, rejectSvc, harborSvc, registrySrv, scanConfigSrv, vuluSrv, syncImageSrv, ciDalSrv, scannerInfo, webshellSrv)
+	// router = WebAPI(router, scannerSvc, imageSvc, rejectSvc, harborSvc, registrySrv, scanConfigSrv, vuluSrv, syncImageSrv, ciDalSrv, scannerInfo, webshellSrv)
 	router = WebAPI(
 		router,
 		scannerSvc,
@@ -57,7 +51,6 @@ func SetupGinRouter(redisClient *redis.Client,
 		ciDalSrv,
 		scannerInfo,
 		webshellSrv,
-		imageScanResult,
 	)
 	router = OpenAPI(router, scannerSvc, rejectSvc, registrySrv, scanConfigSrv, vuluSrv, ciDalSrv, imageSvc, syncImageSrv)
 
@@ -76,7 +69,6 @@ func WebAPI(router *gin.Engine,
 	ciDalSrv ci.CiComponent,
 	scannerInfo component.ScannerInstanceInfoInterface,
 	webshellSrv scanwebshell.WebshellController,
-	scanResult component.ScanResultInterface,
 ) *gin.Engine {
 	apiScannerSrv := NewScannerAPISrv(scannerSvc, vuluSrv, imageService)
 	apiRejectSrv := NewRejectAPISrv(rejectSvc)
@@ -84,7 +76,9 @@ func WebAPI(router *gin.Engine,
 	apiRegistrySrv := NewRegistrySrv(registrySrv, rejectSvc)
 	apiVulnSrv := NewVulnAPISrv(vuluSrv)
 	apiSyncImageSrv := NewSyncImageAPISrv(syncImageSrv, registrySrv)
-	scanResultApi := NewScanResultAPI(imageService, scanResult, vuluSrv)
+	scanResultApi := NewScanResultAPI(imageService, vuluSrv)
+
+	imageBaseApi := NewImageInfoAPI(imageService)
 
 	v1 := router.Group("/api/v1/scan")
 	{
@@ -97,11 +91,11 @@ func WebAPI(router *gin.Engine,
 	v2 := router.Group("/api/v1/images")
 	{
 		v2.GET("/:imgID/layers", apiScannerSrv.ListImgLayers)
-		v2.POST("/bases", apiScannerSrv.CreateBaseImage)
-		v2.DELETE("/bases/:imageID", apiScannerSrv.DeleteBaseImage)
-		v2.GET("/bases", apiScannerSrv.ListBaseImage)
-		v2.GET("/base/:imageID/apps", apiScannerSrv.ListBaseToAppImage)
-		v2.GET("/app/:imageID/bases", apiScannerSrv.ListAppToBaseImage)
+		v2.POST("/bases", imageBaseApi.CreateBaseImage)
+		v2.DELETE("/bases/:imageID", imageBaseApi.DeleteBaseImage)
+		v2.GET("/bases", imageBaseApi.ListBaseImage)
+		v2.GET("/base/:imageID/apps", imageBaseApi.ListBaseToAppImage)
+		v2.GET("/app/:imageID/bases", imageBaseApi.ListAppToBaseImage)
 		v2.GET("/env/:envName", apiScannerSrv.QueryEnvInStrategy)
 		v2.PUT("/env/:envName", apiScannerSrv.SetEnvToStrategy)
 		v2.GET("/sampleList", apiScannerSrv.SearchImages)
@@ -113,10 +107,10 @@ func WebAPI(router *gin.Engine,
 		v2.GET("/detail/base", scanResultApi.ImageBaseDetail)
 		v2.GET("/detail/issueStatistic", scanResultApi.ImageIssueStatistic)
 		v2.GET("/detail/env", scanResultApi.SearchEnv)
-		v2.GET("/detail/webshell", scanResultApi.SearchWebShell)
 		v2.GET("/detail/virus", scanResultApi.SearchVirus)
 		v2.GET("/detail/sensitiveFile", scanResultApi.SearchSensitive)
 		v2.GET("/detail/software", scanResultApi.SearchSoftware)
+		v2.POST("/detail/riskInfo", scanResultApi.GetImageRiskInfo)
 	}
 
 	v3 := router.Group("/api/v1/layers")
@@ -252,7 +246,7 @@ func WebAPI(router *gin.Engine,
 	{
 		v13.POST("/overview/image", apiScannerSrv.ImageOverview)
 		v13.POST("/overview/registry", apiRegistrySrv.RegistryOverview)
-		//v13.POST("/save/webshell",api)
+		// v13.POST("/save/webshell",api)
 	}
 
 	// ci

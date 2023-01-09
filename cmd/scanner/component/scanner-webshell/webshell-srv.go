@@ -18,10 +18,10 @@ import (
 )
 
 type WebshellSrv struct {
-	dal store.WebshellDalInterface
+	dal store.WebshellDal
 }
 
-func NewWebshellSrv(dal store.WebshellDalInterface) WebshellSrv {
+func NewWebshellSrv(dal store.WebshellDal) WebshellSrv {
 	return WebshellSrv{dal: dal}
 }
 

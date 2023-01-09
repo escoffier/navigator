@@ -67,7 +67,7 @@ func (t *TaskSrv) GenerateScanTask(ctx context.Context, imageIds []int64, info U
 
 	groupID := time.Now().UnixMilli()
 
-	registries, _, err := t.registryDal.SearchRegistry(ctx, store.SearchRegistryParam{NoDelete: true}, nil)
+	registries, _, err := t.registryDal.SearchRegistry(ctx, store.SearchRegistryParam{Deleted: consts.FalseString}, nil)
 	if err != nil {
 		logging.GetLogger().Err(err).Msg("GenerateScanTask SearchRegistry")
 		return err
@@ -93,9 +93,9 @@ func (t *TaskSrv) GenerateScanTask(ctx context.Context, imageIds []int64, info U
 		batch := imageIds[start:end]
 
 		images, _, err := t.imageDal.SearchImage(ctx, store.SearchImageParam{
-			InIds:             batch,
-			OmitFields:        []string{"config_json", "manifest_v1_json", "manifest_v2_json"},
-			NotParseNodeImage: true}, nil)
+			InIds:      batch,
+			OmitFields: []string{"config_json", "manifest_v1_json", "manifest_v2_json"},
+		}, nil)
 		if err != nil {
 			logging.GetLogger().Err(err).Msg("GenerateScanTask.SearchImage")
 			return err
@@ -288,7 +288,7 @@ func (t *TaskSrv) GetPendingSubTasksByTaskID(ctx context.Context, taskID int64) 
 		imageID := v.ImageID
 
 		// get image info
-		images, _, err := scannerGormDb.SearchImage(ctx, store.SearchImageParam{InIds: []int64{imageID}, NotParseNodeImage: true}, nil)
+		images, _, err := scannerGormDb.SearchImage(ctx, store.SearchImageParam{InIds: []int64{imageID}}, nil)
 		if err != nil {
 			// set subtask err
 			_ = t.SetSubTaskFailed(v.ID, consts.ErrScanGetImage, fmt.Sprintf("get image info failed.%v", err))
@@ -311,7 +311,7 @@ func (t *TaskSrv) GetPendingSubTasksByTaskID(ctx context.Context, taskID int64) 
 		}
 
 		// get registry info
-		registries, _, err := t.registryDal.SearchRegistry(ctx, store.SearchRegistryParam{ID: images[0].RegistryID, NoDelete: true}, nil)
+		registries, _, err := t.registryDal.SearchRegistry(ctx, store.SearchRegistryParam{ID: images[0].RegistryID, Deleted: consts.FalseString}, nil)
 		if err != nil {
 			_ = t.SetSubTaskFailed(v.ID, consts.ErrScanGetRegistry, fmt.Sprintf("get registry info failed.registry id:%d,%v", images[0].RegistryID, err))
 			logging.GetLogger().Err(err).
@@ -470,7 +470,7 @@ func (t *TaskSrv) SetSubTaskInProgress(id int64) error {
 }
 
 func (t *TaskSrv) GetProgressingTasks() ([]Task, error) {
-	regs, _, err := t.registryDal.SearchRegistry(context.Background(), store.SearchRegistryParam{ScannerInstance: global.ScannerInstance, NoDelete: true}, nil)
+	regs, _, err := t.registryDal.SearchRegistry(context.Background(), store.SearchRegistryParam{ScannerInstance: global.ScannerInstance, Deleted: consts.FalseString}, nil)
 	if err != nil {
 		logging.GetLogger().Err(err).Str("ScannerInstance", global.ScannerInstance).Msg("GetPendingTasks.SearchRegistry")
 		return nil, err

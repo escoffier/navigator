@@ -10,7 +10,7 @@ import (
 	"gitlab.com/security-rd/go-pkg/databases"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component"
-	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scan-report/export"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scan-report/common"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scan-report/export/excel"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scan-report/export/html"
 	scanreport "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scan-report/scan-report"
@@ -58,37 +58,38 @@ func NewBackgroundTasks(ctx context.Context, config Config) *BackgroundTasks {
 	)
 
 	exportTaskDal := store.NewExportTaskDao(config.Rdb)
-	dal := store.NewScannerOrm(config.Rdb)
+	scanTaskDal := store.NewScannerOrm(config.Rdb)
+	imageDal := store.NewScannerOrm(config.Rdb)
 	resourceDal := store.NewResourceDao(config.Rdb)
-
+	trustedImageDal := store.NewScannerOrm(config.Rdb)
 	registryDal := store.NewRegistryDao(config.Rdb)
-	scanConfigDal := store.NewScanConfigDao(config.Rdb)
 	vulnDal := store.NewVulnDao(config.Rdb)
 	scanResultDal := store.NewImageScanResultDao(config.Rdb)
 	idempotentDal := store.NewIdempotentDao(config.Rdb)
 	webshellDal := store.NewWebsehllDao(config.Rdb)
-	imageSrv := component.NewConScannerSrv(dal, registryDal, dal, scanConfigDal, vulnDal, webshellDal, nil) // scan-report 无需上报事件中心，此处传空
-	updateTask := export.NewUpdateTaskSrv(store.NewExportTaskDao(config.Rdb), config.RedisCli)
+
+	scannerInstanceInfoDal := store.NewScannerInstanceDao(config.Rdb)
+
+	imageSrv := component.NewImageSrv(imageDal, registryDal, scanTaskDal, vulnDal, scanResultDal,
+		webshellDal, trustedImageDal, resourceDal, scannerInstanceInfoDal)
+	updateTask := common.NewUpdateTaskSrv(store.NewExportTaskDao(config.Rdb), config.RedisCli)
+
 	// 镜像导出excel
-	imageExportSrv := excel.NewImageExport(resourceDal, exportTaskDal, imageSrv,
-		config.FileDir, config.Internal, updateTask, config.IncludeCNNVDVuln, config.IncludeRHSAVuln)
+	imageExportSrv := excel.NewImageExport(exportTaskDal, imageSrv, config.FileDir, updateTask)
 
 	// 扫描任务导出excel
-	scanTaskExportSrv := excel.NewScanTaskExport(imageExportSrv, exportTaskDal, dal, config.FileDir,
-		updateTask, config.MaxVulnCol, config.MaxImageByOneExportTask, config.IncludeCNNVDVuln, config.IncludeRHSAVuln)
+	scanTaskExportSrv := excel.NewScanTaskExport(imageExportSrv, exportTaskDal, scanTaskDal, config.FileDir, updateTask, config.MaxVulnCol)
 	// 导出漏洞
-	vulnExportSrv := excel.NewVulnExport(exportTaskDal, config.FileDir, vulnDal, dal, resourceDal, updateTask)
+	vulnExportSrv := excel.NewVulnExport(exportTaskDal, config.FileDir, vulnDal, updateTask)
 	// 清理文件
 	clearFile := excel.NewClearFile(config.FileDir, config.Expiration, exportTaskDal, idempotentDal)
 
 	naviAuditReport := excel.NewAuditExport(exportTaskDal, config.Internal, config.FileDir, config.Es, "navi-audit-")
 
 	// 镜像搜索列表导出excel
-	imageSearchSrv := excel.NewImageSearchSrv(scanTaskExportSrv, exportTaskDal, config.FileDir, updateTask,
-		component.NewImageService(dal, registryDal, dal, vulnDal, scanResultDal, webshellDal), config.IncludeCNNVDVuln, config.IncludeRHSAVuln)
+	imageSearchSrv := excel.NewImageSearchSrv(scanTaskExportSrv, exportTaskDal, config.FileDir, updateTask, imageSrv)
 	// 镜像扫描报告导出到html
-	imageHtmlSrv := html.NewExportImageHtmlSrv(component.NewImageService(dal, registryDal, dal, vulnDal, scanResultDal, webshellDal),
-		vulnDal, dal, exportTaskDal, updateTask, config.FileDir)
+	imageHtmlSrv := html.NewExportImageHtmlSrv(imageSrv, vulnDal, exportTaskDal, updateTask, config.FileDir)
 
 	srv := &BackgroundTasks{
 		ScanReport:         scanReportServer,

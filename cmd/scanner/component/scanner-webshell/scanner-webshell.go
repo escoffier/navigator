@@ -9,11 +9,12 @@ import (
 	"strconv"
 	"sync"
 
+	"gorm.io/driver/sqlite"
+	"gorm.io/gorm"
+
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	scannermodel "gitlab.com/piccolo_su/vegeta/pkg/model/scanner-model"
-	"gorm.io/driver/sqlite"
-	"gorm.io/gorm"
 )
 
 type ScannerWebshell struct {
@@ -57,7 +58,7 @@ func GetService(ctx context.Context) (*ScannerWebshell, error) {
 	}
 }
 
-func (s *ScannerWebshell) BackServe() { //理论上只要外部调用代码不写错，这里是不会有阻塞的
+func (s *ScannerWebshell) BackServe() { // 理论上只要外部调用代码不写错，这里是不会有阻塞的
 	token <- s.Token
 }
 

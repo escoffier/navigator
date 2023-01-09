@@ -59,50 +59,56 @@ func init() {
 func newService(config register.ScannerServiceConfig) (register.ScannerService, error) {
 	dal := store.GetScannerOrmDb()
 	scannerWrapperDb := store.GetScannerWrapperDb()
-	// sdb := store.GetScannerDb()
+
 	rc, err := store.GetRedisClient(0)
 	if err != nil {
 		logging.GetLogger().Err(err).Msg("get redis client failed")
 		return nil, err
 	}
-	scanTaskDal := store.NewScannerOrm(store.GetScannerWrapperDb())
 
 	registryDal := store.NewRegistryDao(scannerWrapperDb)
 	scanConfigDal := store.NewScanConfigDao(scannerWrapperDb)
 	vulnDal := store.NewVulnDao(scannerWrapperDb)
 	scanResultDal := store.NewImageScanResultDao(scannerWrapperDb)
-	podResourceRelationDal := store.NewPodResourceRelationDao(scannerWrapperDb)
-	syncRetryImageDal := store.NewSyncRetryImageDao(scannerWrapperDb)
-	scannerDB := store.NewScannerDB(scannerWrapperDb)
 	ciDal := store.NewCiDao(scannerWrapperDb)
 	webshellDal := store.NewWebsehllDao(scannerWrapperDb)
 	scannerInstanceDal := store.NewScannerInstanceDao(scannerWrapperDb)
+	scanTaskDal := store.NewScannerOrm(scannerWrapperDb)
+	imageDal := store.NewScannerOrm(scannerWrapperDb)
+	resourceDal := store.NewResourceDao(scannerWrapperDb)
+	trustedImageDal := store.NewScannerOrm(scannerWrapperDb)
+	syncTaskDal := store.NewSyncTaskDao(scannerWrapperDb)
+
 	palaceHandler, err := palace.Init()
 	if err != nil {
 		logging.GetLogger().Error().Err(err).Msgf("Failed to init palaceHandler, %v", err)
 		return nil, fmt.Errorf("failed to init palaceHandler, %v", err)
 	}
 
-	syncTaskDal := store.NewSyncTaskDao(scannerWrapperDb)
+	scannerSvc := component.NewConScannerSrv(dal, registryDal, scanTaskDal, scanConfigDal, vulnDal, webshellDal, &palaceHandler)
+	imageSvc := component.NewImageSrv(imageDal, registryDal, scanTaskDal, vulnDal, scanResultDal, webshellDal, trustedImageDal, resourceDal, scannerInstanceDal)
+	rejectSvc := component.NewImageRejectSrc(dal)
+	harborSvc := component.NewHarborSrc(dal, rc)
+	registrySrv := component.NewRegistrySrv(registryDal, scanConfigDal, syncTaskDal)
+	scanConfigSrv := component.NewScanConfigSrv(scanConfigDal, registryDal, dal, scanTaskDal, scannerInstanceDal)
+	syncSrv := component.NewSyncRepoImage(registryDal, imageDal, scanConfigDal, vulnDal, syncTaskDal)
 
 	s := &ScannerAPIService{}
 	s.config.Options = config.Options
 	s.ginServer = &http.Server{
 		Addr: s.config.Options.HTTPListenAddr,
 		Handler: api.SetupGinRouter(
-			rc,
-			component.NewConScannerSrv(dal, registryDal, dal, scanConfigDal, store.GetSingeVulnDao(), webshellDal, &palaceHandler),
-			component.NewImageService(dal, registryDal, scanTaskDal, vulnDal, scanResultDal, webshellDal),
-			component.NewImageRejectSrc(dal),
-			component.NewHarborSrc(dal, rc, nil), // todo: use new task interface,not redclair
-			component.NewRegistrySrv(registryDal, scanConfigDal, syncTaskDal),
-			component.NewScanConfigSrv(scanConfigDal, registryDal, dal, scanTaskDal, scannerInstanceDal),
+			scannerSvc,
+			imageSvc,
+			rejectSvc,
+			harborSvc,
+			registrySrv,
+			scanConfigSrv,
 			component.NewVulnService(vulnDal, scanTaskDal),
-			component.NewSyncRepoImage(registryDal, dal, podResourceRelationDal, scanConfigDal, syncRetryImageDal, vulnDal, scannerDB, syncTaskDal),
+			syncSrv,
 			ci.NewCiComponent(ciDal),
 			component.NewScannerInstanceInfoSrv(store.NewScannerInstanceDao(scannerWrapperDb)),
 			scanwebshell.NewWebshellComponent(webshellDal),
-			component.NewImageScanResultSrv(store.NewImageScanResultDao(store.GetScannerWrapperDb())),
 		),
 	}
 

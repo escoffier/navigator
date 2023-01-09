@@ -22,6 +22,7 @@ type Config struct {
 
 type ImageSync struct {
 	syncImage component.SyncImageInterface
+	imageSrv  component.ImageSrvInterface
 }
 
 func (i *ImageSync) Start(ctx context.Context) error {
@@ -117,6 +118,16 @@ func (i *ImageSync) Start(ctx context.Context) error {
 		}
 	}()
 
+	// 镜像更新
+	go func() {
+		defer func() {
+			if err := recover(); err != nil {
+				logging.GetLogger().Error().Msg("DeleteMoreRetryCount recover")
+			}
+		}()
+		_ = i.imageSrv.ContinueUpdateImage(ctx)
+	}()
+
 	return nil
 }
 
@@ -134,18 +145,27 @@ func init() {
 
 func newService(config register.ScannerServiceConfig) (register.ScannerService, error) {
 	scannerWrapperDb := store.GetScannerWrapperDb()
-	p := &ImageSync{}
-	s := component.NewSyncRepoImage(
-		store.NewRegistryDao(scannerWrapperDb),
-		store.NewScannerOrm(scannerWrapperDb),
-		store.NewPodResourceRelationDao(scannerWrapperDb),
-		store.NewScanConfigDao(scannerWrapperDb),
-		store.NewSyncRetryImageDao(scannerWrapperDb),
-		store.NewVulnDao(scannerWrapperDb),
-		store.NewScannerDB(scannerWrapperDb),
-		store.NewSyncTaskDao(scannerWrapperDb),
-	)
 
-	p.syncImage = s
+	registryDal := store.NewRegistryDao(scannerWrapperDb)
+	scanConfigDal := store.NewScanConfigDao(scannerWrapperDb)
+	vulnDal := store.NewVulnDao(scannerWrapperDb)
+	scanResultDal := store.NewImageScanResultDao(scannerWrapperDb)
+	webshellDal := store.NewWebsehllDao(scannerWrapperDb)
+	scanTaskDal := store.NewScannerOrm(scannerWrapperDb)
+	imageDal := store.NewScannerOrm(scannerWrapperDb)
+	resourceDal := store.NewResourceDao(scannerWrapperDb)
+	trustedImageDal := store.NewScannerOrm(scannerWrapperDb)
+	syncTaskDal := store.NewSyncTaskDao(scannerWrapperDb)
+
+	scannerInstanceInfoDal := store.NewScannerInstanceDao(scannerWrapperDb)
+
+	imageSrv := component.NewImageSrv(imageDal, registryDal, scanTaskDal, vulnDal, scanResultDal, webshellDal, trustedImageDal, resourceDal, scannerInstanceInfoDal)
+	syncSrv := component.NewSyncRepoImage(registryDal, imageDal, scanConfigDal, vulnDal, syncTaskDal)
+
+	p := &ImageSync{
+		syncImage: syncSrv,
+		imageSrv:  imageSrv,
+	}
+
 	return p, nil
 }

@@ -20,7 +20,7 @@ import (
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scan-report/api"
-	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scan-report/export"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scan-report/common"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scan-report/export/html"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scan-report/service"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scan-report/starter"
@@ -133,27 +133,31 @@ func main() {
 	backgroundSrv := starter.NewBackgroundTasks(context.Background(), config)
 	backgroundSrv.Start(context.Background())
 
-	dal := store.NewScannerOrm(config.Rdb)
 	registryDal := store.NewRegistryDao(config.Rdb)
 	vulnDal := store.NewVulnDao(config.Rdb)
-	scanResult := store.NewImageScanResultDao(config.Rdb)
 	webshellDal := store.NewWebsehllDao(config.Rdb)
+	resourceDal := store.NewResourceDao(config.Rdb)
+	trustedImageDal := store.NewScannerOrm(config.Rdb)
+	exportTaskDal := store.NewExportTaskDao(config.Rdb)
+	scanTaskDal := store.NewScannerOrm(config.Rdb)
+	imageDal := store.NewScannerOrm(config.Rdb)
+	scanResultDal := store.NewImageScanResultDao(config.Rdb)
+	scannerInstanceInfoDal := store.NewScannerInstanceDao(config.Rdb)
+
+	updateTaskDal := common.NewUpdateTaskSrv(exportTaskDal, rc0)
+
+	imageSrv := component.NewImageSrv(imageDal, registryDal, scanTaskDal, vulnDal,
+		scanResultDal, webshellDal, trustedImageDal, resourceDal, scannerInstanceInfoDal)
+
 	exportTask := service.NewExportTaskSrv(
 		store.NewExportTaskDao(rdb),
 		maxImageByOneExportTask,
 		store.NewScannerOrm(rdb),
-		component.NewImageService(dal, registryDal, dal, vulnDal, scanResult, webshellDal),
+		imageSrv,
 		rc0,
 	)
 
-	exportHtml := html.NewExportImageHtmlSrv(
-		component.NewImageService(dal, registryDal, dal, vulnDal, scanResult, webshellDal),
-		vulnDal,
-		dal,
-		store.NewExportTaskDao(rdb),
-		export.NewUpdateTaskSrv(store.NewExportTaskDao(config.Rdb), rc0),
-		fileDir,
-	)
+	exportHtml := html.NewExportImageHtmlSrv(imageSrv, vulnDal, exportTaskDal, updateTaskDal, fileDir)
 
 	router := api.SetupGinRouter(exportTask, exportHtml)
 

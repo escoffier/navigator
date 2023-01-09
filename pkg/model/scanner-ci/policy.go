@@ -7,12 +7,13 @@ import (
 	"strings"
 	"time"
 
+	"scm.tensorsecurity.cn/tensorsecurity-rd/trivy/pkg/report"
+	"scm.tensorsecurity.cn/tensorsecurity-rd/trivy/pkg/types"
+
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
-	"scm.tensorsecurity.cn/tensorsecurity-rd/trivy/pkg/report"
-	"scm.tensorsecurity.cn/tensorsecurity-rd/trivy/pkg/types"
 )
 
 // Policy rule action
@@ -163,8 +164,8 @@ type PolicyResult struct {
 }
 
 type VulnWhitelist struct {
-	Name   string `json:"name"`   //cveID
-	Object string `json:"object"` //all 全部生效。否则 xxx@123,rrr@456
+	Name   string `json:"name"`   // cveID
+	Object string `json:"object"` // all 全部生效。否则 xxx@123,rrr@456
 }
 
 // Policy protocol for ci-tool and ci-controller
@@ -189,7 +190,7 @@ type CiPolicy struct {
 	VulnPolicy          string `gorm:"type:varchar(255);" json:"vuln_policy"`        //
 	VulnEnable          bool   `gorm:"vuln_enable" json:"vuln_enable"`               // 漏洞开关
 	IgnoreIrreparable   bool   `gorm:"ignore_irreparable" json:"ignore_irreparable"` // 忽略不可修复
-	IgnoreLangaue       bool   `gorm:"ignore_langaue" json:"ignore_langaue"`         //忽略应用漏洞
+	IgnoreLangaue       bool   `gorm:"ignore_langaue" json:"ignore_langaue"`         // 忽略应用漏洞
 	VulnWhitelist       []byte `gorm:"type:blob;" json:"vuln_whitelist"`
 	VulnRuleMode        string `gorm:"type:varhar(255);column:vuln_rule_mode;" json:"vuln_rule_mode"`
 	SensitiveEnable     bool   `gorm:"sensitive_enable" json:"sensitive_enable"`        // 敏感文件开关
@@ -253,8 +254,8 @@ type CiVulns struct {
 	Class        string              `gorm:"column:class" json:"class"`       // 代表是系统包还是语言包 os-pkgs
 	Language     string              `gorm:"column:language" json:"language"` // 把编程语言入库用于搜索 统一存小写，便于搜索
 	Frame        string              `gorm:"column:frame" json:"frame"`       // 开发框架筛选
-	Match        int                 `gorm:"-" json:"match"`                  //黑名单类型
-	White        bool                `gorm:"-" json:"white"`                  //是否在白名单内
+	Match        int                 `gorm:"-" json:"match"`                  // 黑名单类型
+	White        bool                `gorm:"-" json:"white"`                  // 是否在白名单内
 }
 
 func (vn *CiVulns) GenCheckSum() uint64 {
@@ -422,7 +423,7 @@ type CiPolicyAPI struct {
 	VulnEnable          bool            `gorm:"vuln_enable" json:"vuln_enable"`               // 漏洞开关
 	IgnoreIrreparable   bool            `gorm:"ignore_irreparable" json:"ignore_irreparable"` // 忽略不可修复
 	VulnWhitelist       []VulnWhitelist `gorm:"type:varchar(255);" json:"vuln_whitelist"`
-	IgnoreLangaue       bool            `gorm:"ignore_langaue" json:"ignore_langaue"` //忽略应用漏洞
+	IgnoreLangaue       bool            `gorm:"ignore_langaue" json:"ignore_langaue"` // 忽略应用漏洞
 	VulnRuleMode        string          `gorm:"type:varhar(255);column:vuln_rule_mode;" json:"vuln_rule_mode"`
 	SensitiveEnable     bool            `gorm:"sensitive_enable" json:"sensitive_enable"`        // 敏感文件开关
 	SensitiveFilePolicy string          `gorm:"type:varchar(255);" json:"sensitive_file_policy"` // 自定义敏感文件规则

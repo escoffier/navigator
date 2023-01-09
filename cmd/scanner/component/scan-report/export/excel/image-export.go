@@ -6,28 +6,22 @@ import (
 	"fmt"
 	"runtime/debug"
 	"strings"
-	"time"
 
 	"github.com/xuri/excelize/v2"
 	"gitlab.com/security-rd/go-pkg/logging"
 	"go.uber.org/atomic"
 
-	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scan-report/export"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scan-report/common"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 )
 
 type ImageExport struct {
-	ResourceDal   store.ResourceDal
 	ExportTaskDal store.ExportTaskDal
-	ImageSrv      ImageInterface
-	Interval      time.Duration
-
-	FileDir          string // 文件存储的决对路径
-	UpdateTask       export.UpdateTask
-	IncludeCNNVDVuln bool
-	IncludeRHSAVuln  bool
+	ImageSrv      common.ImageInterface
+	FileDir       string // 文件存储的决对路径
+	UpdateTask    common.UpdateExportTask
 }
 
 type ImageExportInterface interface {
@@ -37,39 +31,21 @@ type ImageExportInterface interface {
 }
 
 func NewImageExport(
-	resourceDal store.ResourceDal,
 	exportTaskDal store.ExportTaskDal,
-	imageSrv ImageInterface,
+	imageSrv common.ImageInterface,
 	fileDir string,
-	interval time.Duration,
-	UpdateTask export.UpdateTask,
-	includeCNNVDVuln bool,
-	includeRHSAVuln bool,
+	updateTask common.UpdateExportTask,
 ) *ImageExport {
 	return &ImageExport{
-		ResourceDal:      resourceDal,
-		ExportTaskDal:    exportTaskDal,
-		ImageSrv:         imageSrv,
-		FileDir:          fileDir,
-		Interval:         interval,
-		UpdateTask:       UpdateTask,
-		IncludeCNNVDVuln: includeCNNVDVuln,
-		IncludeRHSAVuln:  includeRHSAVuln,
+		ExportTaskDal: exportTaskDal,
+		ImageSrv:      imageSrv,
+		FileDir:       fileDir,
+		UpdateTask:    updateTask,
 	}
-}
-
-type ImageInterface interface {
-	ListBaseImageOfApp(ctx context.Context, imageID int64, keyword string, filter *model.Filter) ([]model.ImageList, int64, error)
-	ListAppImageOfBase(ctx context.Context, imageID int64, keyword string, filter *model.Filter) ([]model.ImageList, int64, error)
-	GetImageDetail(ctx context.Context, imgID int64) (*model.ImageList, error)
 }
 
 type ImageExportParma struct {
 	ImageID int64 `json:"imageID"`
-}
-
-type ImageExportData struct {
-	BaseDetail []string
 }
 
 func (s *ImageExport) GetTensorTask(ctx context.Context, executeType string, n int64) ([]model.ExportTensorTask, error) {
@@ -127,7 +103,7 @@ func (s *ImageExport) Export(ctx context.Context, task model.ExportTensorTask, e
 
 		sheets := GetImageSheetInfo(executeType)
 
-		excelFile, err := WriteToExcel(filename, sheets, excelData)
+		excelFile, err := common.WriteToExcel(filename, sheets, excelData)
 
 		if err != nil {
 			logging.Get().Err(err).Msg("Export.WriteToExcel")
@@ -143,52 +119,43 @@ func (s *ImageExport) Export(ctx context.Context, task model.ExportTensorTask, e
 
 func (s *ImageExport) GetExcelData(ctx context.Context, imageID int64, vulnCol *atomic.Int32) (map[string]chan []string, error) {
 	// 获取镜像详情
-	imageDetail, err := s.ImageSrv.GetImageDetail(ctx, imageID)
+	data, err := s.ImageSrv.GetImageCorrelateData(ctx, model.GetImageAssociateDataParam{
+		ImageId:         imageID,
+		VulnEnable:      true,
+		VirusEnable:     true,
+		EnvEnable:       true,
+		SoftwareEnable:  true,
+		SensitiveEnable: true,
+		WebshellEnable:  true,
+		ContainerEnable: true,
+		SubtaskEnable:   true,
+		RegistryEnable:  true,
+		BaseImageEnable: true,
+		AppImageEnable:  true,
+	})
 	if err != nil {
 		logging.Get().Err(err).Int64("ImageID", imageID).Msg("GetDataAndCreateExcelFile.GetImageDetail")
 		return nil, err
 	}
 	logging.Get().Debug().Int64("imageID", imageID).Msg("GetExcelData GetImageDetail")
 
-	if imageDetail.Registry != nil {
-		imageDetail.Library = imageDetail.Registry.Url
-	}
-
-	logging.Get().Debug().Int64("imageID", imageID).Msg("GetExcelData GetScanOneStatus")
-
-	// 获取关联容器
-	resources, err := s.ResourceDal.SearchResources(ctx, []uint32{imageDetail.ImageUUID})
-	if err != nil {
-		logging.Get().Err(err).Int64("imageID", imageID).Uint32("ImageUUID", imageDetail.ImageUUID).Msg("GetDataAndCreateExcelFile.SearchResources")
-		return nil, err
-	}
-	logging.Get().Debug().Int64("imageID", imageID).Msg("GetExcelData SearchResources")
+	baseImage := data.ToImageBaseResponse()
 
 	res := make(map[string]chan []string)
 	// 写入数据
-	res[GenImageBaseInfoMeta().SheetName] = GenBaseInfoChan(*imageDetail)
-	res[GenImageVulnInfoMeta().SheetName] = GenVulnInfoChan(*imageDetail, vulnCol, s.IncludeCNNVDVuln, s.IncludeRHSAVuln)
-	res[GenImageSensitiveFileInfoMeta().SheetName] = GenSensitiveFileChan(*imageDetail)
-	res[GenImageVirusInfoMeta().SheetName] = GenVirusChan(*imageDetail)
-	res[GenImageWebshellInfoMeta().SheetName] = GenWebShellChan(*imageDetail)
-	res[GenImageEnvInfoMeta().SheetName] = GenEnvChan(*imageDetail)
-	res[GenImageResourcesInfoMeta().SheetName] = GenImageResourceChan(*imageDetail, resources)
+	res[GenImageBaseInfoMeta().SheetName] = GenBaseInfoChan(*data)
+	res[GenImageVulnInfoMeta().SheetName] = GenVulnInfoChan(baseImage, data.Vuln, vulnCol)
+	res[GenImageSensitiveFileInfoMeta().SheetName] = GenSensitiveFileChan(baseImage, data.Sensitive)
+	res[GenImageVirusInfoMeta().SheetName] = GenVirusChan(baseImage, data.Virus)
+	res[GenImageWebshellInfoMeta().SheetName] = GenWebShellChan(baseImage, data.Webshell)
+	res[GenImageEnvInfoMeta().SheetName] = GenEnvChan(baseImage, data.Env)
+	res[GenImageResourcesInfoMeta().SheetName] = GenImageResourceChan(baseImage, data.Container)
 
-	if model.ExistFlag(imageDetail.Flag, model.FlagBaseImage) {
-		images, _, err := s.ImageSrv.ListAppImageOfBase(ctx, imageID, "", nil)
-		if err != nil {
-			logging.Get().Err(err).Int64("imageID", imageID).Msg("GetDataAndCreateExcelFile.WriteToExcel")
-			return res, nil
-		}
-		res[GenImageTypeInfoMeta().SheetName] = GenAppOrBaseImageChan(images)
+	if model.ExistFlag(baseImage.Flag, model.FlagBaseImage) {
+		res[GenImageTypeInfoMeta().SheetName] = GenAppOrBaseImageChan(data.AppImages)
 	}
-	if !model.ExistFlag(imageDetail.Flag, model.FlagBaseImage) {
-		images, _, err := s.ImageSrv.ListAppImageOfBase(ctx, imageID, "", nil)
-		if err != nil {
-			logging.Get().Err(err).Int64("imageID", imageID).Msg("GetDataAndCreateExcelFile.WriteToExcel")
-			return res, nil
-		}
-		res[GenImageTypeInfoMeta().SheetName] = GenAppOrBaseImageChan(images)
+	if !model.ExistFlag(baseImage.Flag, model.FlagBaseImage) {
+		res[GenImageTypeInfoMeta().SheetName] = GenAppOrBaseImageChan(data.BaseImages)
 	}
 	return res, nil
 }
@@ -225,12 +192,12 @@ func (s *ImageExport) ConvertData(res map[string]chan []string) map[string]chan 
 
 func (s *ImageExport) ZipAndSave(ctx context.Context, filename string, files chan *excelize.File) error {
 
-	file, err := ZipExcelFile(files)
+	file, err := common.ZipExcelFile(files)
 	if err != nil {
 		logging.Get().Err(err).Str("filename", filename).Msg("ZipAndSave.WriteToExcel")
 		return err
 	}
-	if err := SaveFile(file, s.FileDir+"/"+filename); err != nil {
+	if err := common.SaveFile(file, s.FileDir+"/"+filename); err != nil {
 		logging.Get().Err(err).Str("filename", filename).Msg("ZipAndSave.SaveFile")
 		return err
 	}

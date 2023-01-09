@@ -10,20 +10,17 @@ import (
 )
 
 type SearchImageParam struct {
-	Libraries    []string
-	InIds        []int64
-	NotInIds     []int64
-	Keyword      string // full_repo_name和tag字段的模糊匹配
-	Digests      []string
-	FullRepoName string // 这里是精确匹配
-	Tag          string
-	StartID      int64 // 取大于该ID的数据
-	LastID       int64 // 取大于该ID的数据
-	FromType     int64
-	ImageType    string
-	RepoKeyword  string // full_repo_name的模糊匹配
-	TagKeyword   string // tag的模糊匹配
-
+	Libraries         []string
+	InIds             []int64
+	NotInIds          []int64
+	Keyword           string // full_repo_name和tag字段的模糊匹配
+	Digests           []string
+	FullRepoName      string // 这里是精确匹配
+	Tag               string
+	StartID           int64    // 取大于该ID的数据
+	JustGetAppImage   bool     // 只取app image
+	RepoKeyword       string   // full_repo_name的模糊匹配
+	TagKeyword        string   // tag的模糊匹配
 	Fields            []string // 只想要的字端
 	OmitFields        []string // 不想要的字端
 	LayersPrefix      string
@@ -34,19 +31,16 @@ type SearchImageParam struct {
 	SecurityIssueFlag uint64
 	AttrFlag          uint64
 	ScanStatusFlag    uint64
-
-	Flag               uint64
-	Where              string
-	UniqueImage        uint64
-	Projects           []RegProject
-	NodeHostname       string
-	NotCount           bool
-	TrustedImageIds    []int64
-	NotTrustedImageIds []int64
-	NotParseNodeImage  bool // 解析节点镜像的imageName
-
+	Where             string
+	UniqueImage       uint64
+	Projects          []RegProject
+	NodeHostname      string
+	NotCount          bool
+	NotParseNodeImage bool   // 解析节点镜像的imageName
 	AttrIntersection  string // 属性交集还是并集 and or
 	IssueIntersection string // 安全问题交集还是并集 and or
+	OnlineImage       string // 在线离线查询
+	TrustedImage      string // 可信息镜像的查询
 }
 
 type GetSubTaskListWithImageParam struct {
@@ -135,7 +129,7 @@ type SearchRegistryParam struct {
 	ID              int64
 	Search          string
 	Name            string
-	NoDelete        bool
+	Deleted         string
 	ScannerInstance string
 }
 
@@ -322,6 +316,7 @@ type SearchVulnParam struct {
 	NotReturnCount  bool
 	StartID         int64
 	ClassType       []string
+	LayerSearch     *model.LayerSearch
 }
 
 type SearchVulnImageParam struct {

@@ -10,16 +10,15 @@ import (
 
 	"go.uber.org/atomic"
 
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scan-report/common"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
-	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
-	"gitlab.com/piccolo_su/vegeta/cmd/scanner/utils"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	scannermodel "gitlab.com/piccolo_su/vegeta/pkg/model/scanner-model"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 )
 
-func GenBaseInfoChan(image model.ImageList) chan []string {
+func GenBaseInfoChan(image model.ImageWithCorrelateData) chan []string {
 	out := make(chan []string, 1)
 	go func() {
 		defer func() {
@@ -35,9 +34,9 @@ func GenBaseInfoChan(image model.ImageList) chan []string {
 	return out
 }
 
-func GenVulnInfoChan(imageDetail model.ImageList, vulnCol *atomic.Int32, includeCNNVDVuln, includeRHSAVuln bool) chan []string {
+func GenVulnInfoChan(baseImage model.ImageBaseResponse, files []*model.Vuln, vulnCol *atomic.Int32) chan []string {
 	out := make(chan []string, 1)
-	go func(imageDetail model.ImageList) {
+	go func() {
 
 		defer func() {
 			if r := recover(); r != nil {
@@ -47,24 +46,23 @@ func GenVulnInfoChan(imageDetail model.ImageList, vulnCol *atomic.Int32, include
 
 		defer close(out)
 
-		vulns := imageDetail.ImageScanVuln.Vulns
-		for i := range vulns {
-			vuln := vulns[i]
+		for i := range files {
+			vuln := files[i]
 
 			if vulnCol != nil {
 				vulnCol.Add(1)
 			}
-			info := GenVulnInfo(imageDetail, *vuln)
+			info := GenVulnInfo(baseImage, *vuln)
 			out <- info
 		}
 
-	}(imageDetail)
+	}()
 	return out
 }
 
-func GenSensitiveFileChan(imageDetail model.ImageList) chan []string {
+func GenSensitiveFileChan(baseImage model.ImageBaseResponse, files []*model.ImageSensitiveFile) chan []string {
 	out := make(chan []string, 1)
-	go func(imageDetail model.ImageList) {
+	go func() {
 		defer func() {
 			if r := recover(); r != nil {
 				logging.GetLogger().Error().Str("stack", string(debug.Stack())).Msg("GenSensitiveFileChan")
@@ -72,61 +70,55 @@ func GenSensitiveFileChan(imageDetail model.ImageList) chan []string {
 		}()
 		defer close(out)
 
-		files := imageDetail.ImageScanVuln.SensitiveFiles
 		for i := range files {
 			file := files[i]
-			info := GenSensitiveFileInfo(imageDetail, file)
+			info := GenSensitiveFileInfo(baseImage, *file)
 			out <- info
 		}
-	}(imageDetail)
+	}()
 	return out
 }
 
-func GenWebShellChan(imageDetail model.ImageList) chan []string {
+func GenWebShellChan(baseImage model.ImageBaseResponse, files []*scannermodel.Webshell) chan []string {
 	out := make(chan []string, 1)
-	go func(imageDetail model.ImageList) {
-
+	go func() {
 		defer func() {
 			if r := recover(); r != nil {
 				logging.GetLogger().Error().Str("stack", string(debug.Stack())).Msg("GenWebShellChan")
 			}
 		}()
 		defer close(out)
-
-		files := imageDetail.ImageScanWebshell
 		for i := range files {
 			file := files[i]
-			info := GenWebShellInfo(imageDetail, file)
+			info := GenWebShellInfo(baseImage, *file)
 			out <- info
 		}
-	}(imageDetail)
+	}()
 	return out
 }
 
-func GenVirusChan(imageDetail model.ImageList) chan []string {
+func GenVirusChan(baseImage model.ImageBaseResponse, files []*model.ImageVirus) chan []string {
 	out := make(chan []string, 1)
 
-	go func(imageDetail model.ImageList) {
+	go func() {
 		defer func() {
 			if r := recover(); r != nil {
 				logging.GetLogger().Error().Str("stack", string(debug.Stack())).Msg("GenVirusChan")
 			}
 		}()
 		defer close(out)
-
-		files := imageDetail.ImageScanVirus
 		for i := range files {
 			file := files[i]
-			info := GenVirusInfo(imageDetail, file)
+			info := GenVirusInfo(baseImage, *file)
 			out <- info
 		}
-	}(imageDetail)
+	}()
 	return out
 }
 
-func GenEnvChan(imageDetail model.ImageList) chan []string {
+func GenEnvChan(baseImage model.ImageBaseResponse, files []*model.ImageEnv) chan []string {
 	out := make(chan []string, 1)
-	go func(imageDetail model.ImageList) {
+	go func() {
 		defer func() {
 			if r := recover(); r != nil {
 				logging.GetLogger().Error().Str("stack", string(debug.Stack())).Msg("GenEnvChan")
@@ -134,19 +126,18 @@ func GenEnvChan(imageDetail model.ImageList) chan []string {
 		}()
 		defer close(out)
 
-		files := imageDetail.ImageScanEnv
 		for i := range files {
 			file := files[i]
-			info := GenEnvInfo(imageDetail, file)
+			info := GenEnvInfo(baseImage, *file)
 			out <- info
 		}
-	}(imageDetail)
+	}()
 	return out
 }
 
-func GenImageResourceChan(image model.ImageList, resources []store.TensorResources) chan []string {
+func GenImageResourceChan(baseImage model.ImageBaseResponse, files []*model.ImageContainerResources) chan []string {
 	out := make(chan []string, 1)
-	go func(image model.ImageList, resources []store.TensorResources) {
+	go func() {
 		defer func() {
 			if r := recover(); r != nil {
 				logging.GetLogger().Error().Str("stack", string(debug.Stack())).Msg("GenImageResourceChan")
@@ -155,17 +146,18 @@ func GenImageResourceChan(image model.ImageList, resources []store.TensorResourc
 
 		defer close(out)
 
-		for i := range resources {
-			info := GenResponseInfo(image, resources[i])
+		for i := range files {
+			file := files[i]
+			info := GenResponseInfo(baseImage, *file)
 			out <- info
 		}
-	}(image, resources)
+	}()
 	return out
 }
 
-func GenAppOrBaseImageChan(images []model.ImageList) chan []string {
+func GenAppOrBaseImageChan(images []*model.ImageBaseResponse) chan []string {
 	out := make(chan []string, 1)
-	go func(imageDetail []model.ImageList) {
+	go func() {
 		defer func() {
 			if r := recover(); r != nil {
 				logging.GetLogger().Error().Str("stack", string(debug.Stack())).Msg("ScanTaskExport")
@@ -175,19 +167,19 @@ func GenAppOrBaseImageChan(images []model.ImageList) chan []string {
 		defer close(out)
 
 		for i := range images {
-			info := GenBaseOrAppImageInfo(images[i])
+			file := images[i]
+			info := GenBaseOrAppImageInfo(*file)
 			out <- info
 		}
-	}(images)
+	}()
 	return out
 }
 
-func GenVulnInfo(image model.ImageList, vuln model.Vuln) []string {
+func GenVulnInfo(image model.ImageBaseResponse, vuln model.Vuln) []string {
 
 	info := []string{
 		getImageName(image),
-		image.Library,
-
+		image.RegistryUrl,
 		vuln.Name,
 		model.GetSeverityView(vuln.SeverityInt),
 		vuln.PkgName,
@@ -215,7 +207,7 @@ func GenVulnInfo(image model.ImageList, vuln model.Vuln) []string {
 	return info
 }
 
-func GenSensitiveFileInfo(image model.ImageList, file model.Sensitive) []string {
+func GenSensitiveFileInfo(image model.ImageBaseResponse, file model.ImageSensitiveFile) []string {
 
 	info := make([]string, 5)
 	if file.Name == "" {
@@ -223,7 +215,7 @@ func GenSensitiveFileInfo(image model.ImageList, file model.Sensitive) []string 
 	}
 
 	info[0] = getImageName(image)
-	info[1] = image.Library
+	info[1] = image.RegistryUrl
 	info[3] = file.Name
 
 	// 暂时没有文件类型
@@ -236,44 +228,40 @@ func GenSensitiveFileInfo(image model.ImageList, file model.Sensitive) []string 
 	return info
 }
 
-func getImageName(image model.ImageList) string {
-	return fmt.Sprintf("%s:%s", image.FullRepoName, image.Tags)
+func getImageName(image model.ImageBaseResponse) string {
+	return fmt.Sprintf("%s:%s", image.FullRepoName, image.Tag)
 }
 
-func GenResponseInfo(image model.ImageList, file store.TensorResources) []string {
-	info := []string{getImageName(image), image.Library, file.Name, file.ResourceName, file.Namespace, file.ClusterName}
+func GenResponseInfo(image model.ImageBaseResponse, file model.ImageContainerResources) []string {
+	info := []string{getImageName(image), image.RegistryUrl, file.Name, file.ResourceName, file.Namespace, file.ClusterName}
 	return info
 }
 
-func GenVirusInfo(image model.ImageList, file model.VirusFileInfo) []string {
-	info := []string{getImageName(image), image.Library, file.Virusname, file.Filename, file.Filepath}
+func GenVirusInfo(image model.ImageBaseResponse, file model.ImageVirus) []string {
+	info := []string{getImageName(image), image.RegistryUrl, file.Name, file.Filename, file.Filepath}
 	return info
 }
 
-func GenWebShellInfo(image model.ImageList, file scannermodel.Webshell) []string {
-	index := strings.LastIndex(file.FileName, "/")
-	var name, path string
-	if index != -1 {
-		path = file.FileName[:index]
-		name = file.FileName[index+1:]
-	} else {
-		path = "/"
-		name = file.FileName
+func GenWebShellInfo(image model.ImageBaseResponse, file scannermodel.Webshell) []string {
+	split := strings.Split(file.FileName, "/")
+
+	name, path := file.FileName, ""
+	if len(split) > 1 {
+		name = strings.Join(split[:len(split)-1], "/")
+		path = split[len(split)-1]
 	}
-	var level string
+
+	level := "确定"
 	if file.Level == "maybe" {
 		level = "疑似"
-	} else {
-		level = "确定"
 	}
-	info := []string{getImageName(image), image.Library, name, path, level, file.MaliciousData}
+	info := []string{getImageName(image), image.RegistryUrl, name, path, level, file.MaliciousData}
 	return info
 }
 
-func GenEnvInfo(image model.ImageList, file model.SummaryEnv) []string {
-
-	info := []string{getImageName(image), image.Library, file.EnvName, file.EnvValue}
-	if file.IsAbnormal > 0 {
+func GenEnvInfo(image model.ImageBaseResponse, file model.ImageEnv) []string {
+	info := []string{getImageName(image), image.RegistryUrl, file.Key, file.Value}
+	if !file.Normal {
 		info = append(info, "异常")
 	} else {
 		info = append(info, "正常")
@@ -281,8 +269,8 @@ func GenEnvInfo(image model.ImageList, file model.SummaryEnv) []string {
 	return info
 }
 
-func GenBaseOrAppImageInfo(image model.ImageList) []string {
-	info := []string{getImageName(image), image.Library}
+func GenBaseOrAppImageInfo(image model.ImageBaseResponse) []string {
+	info := []string{getImageName(image), image.RegistryUrl}
 	return info
 }
 
@@ -376,29 +364,30 @@ func getVulnIsFixed(fixedBy string) string {
 	return "是"
 }
 
-func GenImageBaseInfo(image model.ImageList) []string {
+func GenImageBaseInfo(data model.ImageWithCorrelateData) []string {
+
+	im := data.ToImageBaseResponse()
+
 	info := []string{
-		getImageName(image),
-		image.Library,
-		util.ToString(image.ImageScanVuln.RiskScore),
-		getImageAttr(image.Flag, image.Trusted), // 属性
-		getImageOnline(image.Online),
-		getImageSecurityQuestion(image.Flag),
-		FormatTime(image.LastScanAt.UnixMilli(), consts.ExportTimeFormat),
-		image.Digest,
-		image.Tags,
-		util.ByteToMB(image.Size),
-		image.OS,
-		FormatTime(image.LastPushTime.UnixMilli(), consts.ExportTimeFormat),
-		IsBaseImage(image.Flag),
+		fmt.Sprintf("%s:%s", im.FullRepoName, im.Tag),
+		im.RegistryUrl,
+		util.ToString(im.RiskScore),
+		getImageAttr(im.Flag, im.ImageAttr.Trusted), // 属性
+		getImageOnline(im.Online),
+		getImageSecurityQuestion(im.Flag),
+		FormatTime(im.LastScanAt, consts.ExportTimeFormat),
+		im.Digest,
+		im.Tag,
+		im.Size,
+		im.Os,
+		FormatTime(data.ImageList.CreatedAt.UnixMilli(), consts.ExportTimeFormat),
+		IsBaseImage(im.Flag),
 	}
-	if image.Registry != nil {
-		info[1] = image.Registry.Url
+	if util.ExistBit1(im.Flag, model.FlagImageNotMaintained) {
+		info[10] = fmt.Sprintf("%s(%s)", im.Os, "此操作系统已经不再维护，可能导致漏洞扫描结果不准确，建议尽快升级")
 	}
-	if util.ExistBit1(image.Flag, model.FlagImageNotMaintained) {
-		info[10] = fmt.Sprintf("%s(%s)", image.OS, "此操作系统已经不再维护，可能导致漏洞扫描结果不准确，建议尽快升级")
-	}
-	suggest := utils.GenFixSuggestion(image.ImageScanVuln.SensitiveFiles, image.OS, image.ImageScanVuln.Vulns)
+	suggest := append([]string{}, im.VulnFixSuggestion...)
+	suggest = append([]string{}, im.SensitiveFixSuggestion...)
 	info = append(info, strings.Join(suggest, "\n"))
 
 	return info
@@ -479,8 +468,8 @@ func getImageAttr(flag uint64, trusted bool) string {
 	return strings.Join(qus, ",")
 }
 
-func GenImageBaseInfoMeta() ExcelMetaData {
-	data := ExcelMetaData{
+func GenImageBaseInfoMeta() common.ExcelMetaData {
+	data := common.ExcelMetaData{
 		SheetName: "基础信息",
 
 		Header: []string{
@@ -504,9 +493,9 @@ func GenImageBaseInfoMeta() ExcelMetaData {
 	return data
 }
 
-func GetImageSheetInfo(executeType string) []ExcelMetaData {
+func GetImageSheetInfo(executeType string) []common.ExcelMetaData {
 
-	sheets := make([]ExcelMetaData, 8)
+	sheets := make([]common.ExcelMetaData, 8)
 	sheets[0] = GenImageBaseInfoMeta()
 	sheets[1] = GenImageVulnInfoMeta()
 	sheets[2] = GenImageSensitiveFileInfoMeta()
@@ -526,8 +515,8 @@ func GetImageSheetInfo(executeType string) []ExcelMetaData {
 	return sheets
 }
 
-func GetVulnSheetInfo() []ExcelMetaData {
-	sheets := make([]ExcelMetaData, 2)
+func GetVulnSheetInfo() []common.ExcelMetaData {
+	sheets := make([]common.ExcelMetaData, 2)
 	vulnHeader := GenImageVulnInfoMeta().Header[2:]
 	vulnMete := GenImageVulnInfoMeta()
 	vulnMete.Header = vulnHeader
@@ -542,8 +531,8 @@ func GetVulnSheetInfo() []ExcelMetaData {
 	return sheets
 }
 
-func GenImageVulnInfoMeta() ExcelMetaData {
-	data := ExcelMetaData{
+func GenImageVulnInfoMeta() common.ExcelMetaData {
+	data := common.ExcelMetaData{
 		SheetName: "漏洞信息",
 
 		Header: []string{
@@ -576,8 +565,8 @@ func GenImageVulnInfoMeta() ExcelMetaData {
 	return data
 }
 
-func GenImageSensitiveFileInfoMeta() ExcelMetaData {
-	data := ExcelMetaData{
+func GenImageSensitiveFileInfoMeta() common.ExcelMetaData {
+	data := common.ExcelMetaData{
 		SheetName: "敏感文件",
 
 		Header: []string{
@@ -587,8 +576,8 @@ func GenImageSensitiveFileInfoMeta() ExcelMetaData {
 	return data
 }
 
-func GenImageVirusInfoMeta() ExcelMetaData {
-	data := ExcelMetaData{
+func GenImageVirusInfoMeta() common.ExcelMetaData {
+	data := common.ExcelMetaData{
 		SheetName: "恶意文件信息",
 
 		Header: []string{
@@ -598,8 +587,8 @@ func GenImageVirusInfoMeta() ExcelMetaData {
 	return data
 }
 
-func GenImageWebshellInfoMeta() ExcelMetaData {
-	data := ExcelMetaData{
+func GenImageWebshellInfoMeta() common.ExcelMetaData {
+	data := common.ExcelMetaData{
 		SheetName: "Webshell信息",
 
 		Header: []string{
@@ -609,8 +598,8 @@ func GenImageWebshellInfoMeta() ExcelMetaData {
 	return data
 }
 
-func GenImageEnvInfoMeta() ExcelMetaData {
-	data := ExcelMetaData{
+func GenImageEnvInfoMeta() common.ExcelMetaData {
+	data := common.ExcelMetaData{
 		SheetName: "环境变量",
 
 		Header: []string{
@@ -620,8 +609,8 @@ func GenImageEnvInfoMeta() ExcelMetaData {
 	return data
 }
 
-func GenImageResourcesInfoMeta() ExcelMetaData {
-	data := ExcelMetaData{
+func GenImageResourcesInfoMeta() common.ExcelMetaData {
+	data := common.ExcelMetaData{
 		SheetName: "关联容器",
 
 		Header: []string{
@@ -631,8 +620,8 @@ func GenImageResourcesInfoMeta() ExcelMetaData {
 	return data
 }
 
-func GenImageTypeInfoMeta() ExcelMetaData {
-	data := ExcelMetaData{
+func GenImageTypeInfoMeta() common.ExcelMetaData {
+	data := common.ExcelMetaData{
 		SheetName: "基础镜像/应用镜像信息",
 
 		Header: []string{

@@ -57,7 +57,7 @@ func (s *VulnAPISrv) GetImageVulns(ctx *gin.Context) {
 	}
 
 	filter := model.GetFilter(ctx)
-	param := component.SearchVulnParam{
+	param := model.SearchVulnParam{
 		VulnKeyword: vulnKeyword,
 		ImageIds:    []int64{imageID},
 		PkgName:     pkgName,
@@ -66,9 +66,10 @@ func (s *VulnAPISrv) GetImageVulns(ctx *gin.Context) {
 		CanFixed:    canFixed,
 		SeverityInt: severityInt,
 	}
+	// 查层级
 	layerDigest := ctx.Query("layerDigest")
 	if layerDigest != "" {
-		layers, _, err := s.VulnSrv.SearchLayerVuln(ctx, component.SearchScanLayerParam{
+		layers, _, err := s.VulnSrv.SearchLayerVuln(ctx, model.SearchScanLayerParam{
 			ImageID:      imageID,
 			LayerDigests: []string{layerDigest},
 		}, nil)
@@ -81,10 +82,17 @@ func (s *VulnAPISrv) GetImageVulns(ctx *gin.Context) {
 			uniqueVulns = append(uniqueVulns, layers[i].VulnInfo...)
 		}
 		param.UniqueVulns = util.DeDuplicationUint64Slice(uniqueVulns)
-	}
 
+		/* 2.12之后应该使用这种方式查询,等扫描重构之后再使用
+		param.LayerSearch = &model.LayerSearch{
+			ImageID:     imageID,
+			LayerDigest: layerDigest,
+		}
+		param.ImageIds = nil
+		*/
+	}
 	vulns, cnt, err := s.VulnSrv.SearchVulns(ctx, param,
-		model.EmptyFilterForTotalQuery().SetSortFiled("severity_int").SetSortDesc())
+		model.EmptyFilterForTotalQuery().SetSortFiled("severity_int").AddSortDesc())
 	if err != nil {
 		response.JSONError(ctx, err)
 		return
@@ -137,28 +145,19 @@ func (s *VulnAPISrv) GetImageVulnPkg(ctx *gin.Context) {
 	pkgKeyword := ctx.Query("keyword")
 	filter := model.GetFilter(ctx)
 
-	param := component.SearchVulnParam{
+	param := model.SearchVulnParam{
 		PkgKeyword: pkgKeyword,
 		ImageIds:   []int64{imageID},
 	}
 
+	// 查层级
 	layerDigest := ctx.Query("layerDigest")
 	if layerDigest != "" {
-		layers, _, err := s.VulnSrv.SearchLayerVuln(ctx, component.SearchScanLayerParam{
-			ImageID:      imageID,
-			LayerDigests: []string{layerDigest},
-		}, model.EmptyFilterForTotalQuery())
-		if err != nil {
-			response.JSONError(ctx, err)
-			return
+		param.LayerSearch = &model.LayerSearch{
+			ImageID:     imageID,
+			LayerDigest: layerDigest,
 		}
-		uniqueVulns := make([]uint64, 0)
-		for i := range layers {
-			uniqueVulns = append(uniqueVulns, layers[i].VulnInfo...)
-		}
-		param.UniqueVulns = uniqueVulns
 	}
-
 	preVulns, _, err := s.VulnSrv.SearchVulns(ctx, param, model.EmptyFilterForTotalQuery())
 	if err != nil {
 		response.JSONError(ctx, err)
@@ -228,26 +227,18 @@ func (s *VulnAPISrv) GetImageVulnLanguage(ctx *gin.Context) {
 
 	filter := model.GetFilter(ctx)
 
-	param := component.SearchVulnParam{
+	param := model.SearchVulnParam{
 		LanguageKeyword: strings.ToLower(languageKeyword),
 		ImageIds:        []int64{imageID},
 	}
 
+	// 查层级
 	layerDigest := ctx.Query("layerDigest")
 	if layerDigest != "" {
-		layers, _, err := s.VulnSrv.SearchLayerVuln(ctx, component.SearchScanLayerParam{
-			ImageID:      imageID,
-			LayerDigests: []string{layerDigest},
-		}, nil)
-		if err != nil {
-			response.JSONError(ctx, err)
-			return
+		param.LayerSearch = &model.LayerSearch{
+			ImageID:     imageID,
+			LayerDigest: layerDigest,
 		}
-		uniqueVulns := make([]uint64, 0)
-		for i := range layers {
-			uniqueVulns = append(uniqueVulns, layers[i].VulnInfo...)
-		}
-		param.UniqueVulns = uniqueVulns
 	}
 
 	vulns, _, err := s.VulnSrv.SearchVulns(ctx, param, model.EmptyFilterForTotalQuery())
@@ -313,26 +304,20 @@ func (s *VulnAPISrv) GetImageVulnGoBinary(ctx *gin.Context) {
 	targetKeyword := ctx.Query("keyword")
 
 	filter := model.GetFilter(ctx)
-	param := component.SearchVulnParam{
+	param := model.SearchVulnParam{
 		TargetKeyword: targetKeyword,
 		ImageIds:      []int64{imageID},
 	}
+	// 查层级
 	layerDigest := ctx.Query("layerDigest")
 	if layerDigest != "" {
-		layers, _, err := s.VulnSrv.SearchLayerVuln(ctx, component.SearchScanLayerParam{
-			ImageID:      imageID,
-			LayerDigests: []string{layerDigest},
-		}, nil)
-		if err != nil {
-			response.JSONError(ctx, err)
-			return
+		param.LayerSearch = &model.LayerSearch{
+			ImageID:     imageID,
+			LayerDigest: layerDigest,
 		}
-		uniqueVulns := make([]uint64, 0)
-		for i := range layers {
-			uniqueVulns = append(uniqueVulns, layers[i].VulnInfo...)
-		}
-		param.UniqueVulns = uniqueVulns
+		param.ImageIds = nil
 	}
+
 	vulns, _, err := s.VulnSrv.SearchVulns(ctx, param, model.EmptyFilterForTotalQuery())
 	if err != nil {
 		response.JSONError(ctx, err)
@@ -407,28 +392,20 @@ func (s *VulnAPISrv) GetImageVulnFrame(ctx *gin.Context) {
 
 	filter := model.GetFilter(ctx)
 
-	param := component.SearchVulnParam{
+	param := model.SearchVulnParam{
 		FrameKeyword: frameKeyword,
 		ImageIds:     []int64{imageID},
 	}
 
+	// 查层级
 	layerDigest := ctx.Query("layerDigest")
 	if layerDigest != "" {
-		layers, _, err := s.VulnSrv.SearchLayerVuln(ctx, component.SearchScanLayerParam{
-			ImageID:      imageID,
-			LayerDigests: []string{layerDigest},
-		}, nil)
-		if err != nil {
-			response.JSONError(ctx, err)
-			return
+		param.LayerSearch = &model.LayerSearch{
+			ImageID:     imageID,
+			LayerDigest: layerDigest,
 		}
-		uniqueVulns := make([]uint64, 0)
-		for i := range layers {
-			uniqueVulns = append(uniqueVulns, layers[i].VulnInfo...)
-		}
-		param.UniqueVulns = uniqueVulns
+		param.ImageIds = nil
 	}
-
 	vulns, _, err := s.VulnSrv.SearchVulns(ctx, param, model.EmptyFilterForTotalQuery())
 	if err != nil {
 		response.JSONError(ctx, err)
@@ -575,7 +552,13 @@ type VulnPKG struct {
 	SortScore        int64                 `json:"sortScore"`
 }
 
-// 为了排序方便，一般情况下，单个镜像单个级别的漏洞不会超过100个
+type ImageRiskStatic struct {
+	ImageBaseResponse model.ImageBaseResponse     `json:"imageBaseResponse"`
+	Issue             model.SecurityIssueOverview `json:"issue"`
+	SeverityOverview  []model.SeverityGroup       `json:"severityOverview"`
+}
+
+// 为了排序方便，一般情况下，单个镜像单个级别的漏洞不会超过1000个
 func (vp VulnPKG) GetSortScore() int64 {
 	var score int64
 	for i := range vp.SeverityOverview {

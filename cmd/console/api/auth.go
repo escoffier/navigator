@@ -620,7 +620,8 @@ func jwtAccessCheck(db *databases.RDBInstance) func(http.Handler) http.Handler {
 				r.URL.Path == "/api/v2/platform/sherlock/palace/event/overview" ||
 				r.URL.Path == "/api/v2/platform/sherlock/palace/signals" ||
 				r.URL.Path == "/api/v2/platform/sherlock/hola/rules" ||
-				r.URL.Path == "/api/v2/containerSec/scanner/images/list" {
+				r.URL.Path == "/api/v2/containerSec/scanner/images/list" ||
+				r.URL.Path == "/api/v2/containerSec/scanner/images/detail/riskInfo" {
 				next.ServeHTTP(w, r.WithContext(ctx))
 				return
 			}

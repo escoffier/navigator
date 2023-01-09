@@ -6,6 +6,7 @@ package scannerinfo
 
 import (
 	"context"
+	"os"
 	"time"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component"
@@ -36,7 +37,10 @@ func (i *InfoUpdate) Start(ctx context.Context) error {
 		defer ticker.Stop()
 
 		for {
+			scannerVersion := os.Getenv("SOFT_VERSION")
+
 			<-ticker.C
+
 			if global.ScannerInstance == "" {
 				logging.GetLogger().Info().Msg("CreateOrUpdateInstance global.ScannerInstance is empty ")
 				continue
@@ -45,6 +49,7 @@ func (i *InfoUpdate) Start(ctx context.Context) error {
 				ClusterKey:      global.ClusterKey,
 				ClusterName:     global.ClusterName,
 				ScannerPodID:    global.ScannerPodID,
+				ScannerVersion:  scannerVersion,
 				ScannerInstance: global.ScannerInstance,
 			}
 

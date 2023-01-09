@@ -9,7 +9,7 @@ import (
 	"github.com/xuri/excelize/v2"
 	"gitlab.com/security-rd/go-pkg/logging"
 
-	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scan-report/export"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scan-report/common"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
@@ -20,33 +20,25 @@ import (
 */
 
 type ExportImageInterface interface {
-	GenExcelDataChan(ctx context.Context, task model.ExportTensorTask, imageIdChan chan int64) chan ExcelDataWithMeta
+	GenExcelDataChan(ctx context.Context, task model.ExportTensorTask, imageIdChan chan int64) chan common.ExcelDataWithMeta
 	ZipAndSave(ctx context.Context, filename string, excelFileChan chan *excelize.File) error
-	GenExcelFileChan(ctx context.Context, dataChan chan ExcelDataWithMeta) chan *excelize.File
-}
-
-type ImageSrvInterface interface {
-	ListImageWithScanInfo(ctx context.Context, param model.ImageListParam, filter *model.Filter) ([]*model.ImageListResponse, int64, error)
+	GenExcelFileChan(ctx context.Context, dataChan chan common.ExcelDataWithMeta) chan *excelize.File
 }
 
 type ImageSearchSrv struct {
 	ExportImageInterface ExportImageInterface
 	ExportTaskDal        store.ExportTaskDal
 	FileDir              string // 文件存储的决对路径
-	UpdateTask           export.UpdateTask
-	ImageSrv             ImageSrvInterface
-	IncludeCNNVDVuln     bool
-	IncludeRHSAVuln      bool
+	UpdateTask           common.UpdateExportTask
+	ImageSrv             common.ImageInterface
 }
 
 func NewImageSearchSrv(
 	exportImageInterface ExportImageInterface,
 	exportTaskDal store.ExportTaskDal,
 	fileDir string, // 文件存储的决对路径
-	updateTask export.UpdateTask,
-	imageSrv ImageSrvInterface,
-	includeCNNVDVuln bool,
-	includeRHSAVuln bool,
+	updateTask common.UpdateExportTask,
+	imageSrv common.ImageInterface,
 ) *ImageSearchSrv {
 	return &ImageSearchSrv{
 		ExportImageInterface: exportImageInterface,
@@ -54,8 +46,6 @@ func NewImageSearchSrv(
 		FileDir:              fileDir,
 		UpdateTask:           updateTask,
 		ImageSrv:             imageSrv,
-		IncludeRHSAVuln:      includeRHSAVuln,
-		IncludeCNNVDVuln:     includeCNNVDVuln,
 	}
 }
 

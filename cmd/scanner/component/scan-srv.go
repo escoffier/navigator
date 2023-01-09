@@ -22,7 +22,6 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/task"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
-	"gitlab.com/piccolo_su/vegeta/cmd/scanner/utils"
 	"gitlab.com/piccolo_su/vegeta/pkg/compress"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
@@ -122,8 +121,6 @@ type ScannerSrv interface {
 	TickOnlineScan(ctx context.Context, containerInfo []model.RejectOnlineMonitorImage) bool
 
 	DeleteCICDImage(ctx context.Context)
-	ListBaseImageOfApp(ctx context.Context, imageID int64, keyword string, filter *model.Filter) ([]model.ImageList, int64, error)
-	ListAppImageOfBase(ctx context.Context, imageID int64, keyword string, filter *model.Filter) ([]model.ImageList, int64, error)
 
 	ScanReportCreate(ctx context.Context, data *scanreport.TensorScanReportTasks) (uint, error)
 	ScanReportUpdate(ctx context.Context, data *scanreport.TensorScanReportTasks) error
@@ -149,8 +146,9 @@ type ConScannerSrv struct {
 	scanTaskDal   store.ScanTaskInterface
 	registryDal   store.RegistryDal
 	scanConfigDal store.ScanConfigDal
-	webshellDal   store.WebshellDalInterface
+	webshellDal   store.WebshellDal
 	palaceHandler *palace.Palace
+	ImageSrv      ImageSrvInterface
 }
 
 type ImageOverviewRes struct {
@@ -247,7 +245,7 @@ func (s *ConScannerSrv) SearchImages(ctx context.Context, param SearchImageParam
 	registryIds := make([]int64, 0)
 
 	regMap := make(map[int64]*model.Registry)
-	registries, _, err := s.registryDal.SearchRegistry(ctx, store.SearchRegistryParam{NoDelete: true, ID: param.RegistryID}, nil)
+	registries, _, err := s.registryDal.SearchRegistry(ctx, store.SearchRegistryParam{Deleted: consts.FalseString, ID: param.RegistryID}, nil)
 	if err != nil {
 		logging.GetLogger().Err(err).Msg("SearchImages.SearchRegistry")
 		return nil, 0, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf(consts.StatusInternalServerErrorMsg))
@@ -266,7 +264,6 @@ func (s *ConScannerSrv) SearchImages(ctx context.Context, param SearchImageParam
 		Tag:          param.Tags,
 		FullRepoName: param.FullRepoName,
 		Keyword:      param.Search,
-		FromType:     param.FromType,
 		RegistryIds:  registryIds,
 		UUIDs:        param.UUIDs,
 		Fields:       param.Fields,
@@ -289,8 +286,9 @@ func NewConScannerSrv(
 	scanTaskDal store.ScanTaskInterface,
 	scanConfigDal store.ScanConfigDal,
 	vulnDal store.VulnDalInterface,
-	webshellDal store.WebshellDalInterface,
-	palaceHandler *palace.Palace) *ConScannerSrv {
+	webshellDal store.WebshellDal,
+	palaceHandler *palace.Palace,
+) *ConScannerSrv {
 	return &ConScannerSrv{
 		dbdal:         dbdal,
 		registryDal:   registryDal,
@@ -348,7 +346,7 @@ func (s *ConScannerSrv) ListBaseImageOfApp(ctx context.Context, imageID int64, k
 
 	// 查询未删除的仓库
 	registryIds := make([]int64, 0)
-	noDeleteRegistries, _, err := s.registryDal.SearchRegistry(ctx, store.SearchRegistryParam{NoDelete: true}, nil)
+	noDeleteRegistries, _, err := s.registryDal.SearchRegistry(ctx, store.SearchRegistryParam{Deleted: consts.FalseString}, nil)
 	if err != nil {
 		return nil, 0, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf(consts.StatusInternalServerErrorMsg))
 	}
@@ -360,7 +358,7 @@ func (s *ConScannerSrv) ListBaseImageOfApp(ctx context.Context, imageID int64, k
 		registryIds = append(registryIds, noDeleteRegistries[i].ID)
 	}
 
-	baseImages, _, err := s.dbdal.SearchImage(ctx, store.SearchImageParam{Flag: 1 << model.FlagBaseImage, Keyword: keyword, RegistryIds: registryIds}, nil)
+	baseImages, _, err := s.dbdal.SearchImage(ctx, store.SearchImageParam{AttrFlag: util.SetBit1(0, model.FlagBaseImage), Keyword: keyword, RegistryIds: registryIds}, nil)
 	if err != nil {
 		logging.GetLogger().Err(err).Msg("ListBaseImageOfApp")
 		return nil, 0, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf("获取基础镜像出错"))
@@ -413,60 +411,6 @@ func (s *ConScannerSrv) ListBaseImageOfApp(ctx context.Context, imageID int64, k
 		return ans[start:end], int64(len(ans)), nil
 	}
 	return ans, int64(len(ans)), nil
-}
-
-// 获取基础镜像的应用镜像列表
-func (s *ConScannerSrv) ListAppImageOfBase(ctx context.Context, imageID int64, keyword string, filter *model.Filter) ([]model.ImageList, int64, error) {
-	baseImages, _, err := s.dbdal.SearchImage(ctx, store.SearchImageParam{InIds: []int64{imageID},
-		OmitFields: []string{"config_json", "manifest_v1_json", "manifest_v2_json"}}, nil)
-	if err != nil {
-		logging.GetLogger().Err(err).Msg("ListAppImageOfBase")
-		return nil, 0, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf("获取应用镜像出错"))
-	}
-	if len(baseImages) == 0 || !model.ExistFlag(baseImages[0].Flag, model.FlagBaseImage) {
-		return make([]model.ImageList, 0), 0, nil
-	}
-	baseLayer := baseImages[0].GetLayerString()
-
-	// 查询未删除的仓库
-	registryIds := make([]int64, 0)
-	noDeleteRegistries, _, err := s.registryDal.SearchRegistry(ctx, store.SearchRegistryParam{NoDelete: true}, nil)
-	if err != nil {
-		return nil, 0, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf(consts.StatusInternalServerErrorMsg))
-	}
-	if len(noDeleteRegistries) == 0 {
-		return nil, 0, nil
-	}
-	for i := range noDeleteRegistries {
-		registryIds = append(registryIds, noDeleteRegistries[i].ID)
-	}
-
-	// 因为应用镜像占绝大多数，所以这里查全部数据，在程序中过滤
-	images, cnt, err := s.dbdal.SearchImage(ctx, store.SearchImageParam{
-		LayersPrefix: baseLayer, ImageType: model.AppImageTypeString, Keyword: keyword, RegistryIds: registryIds,
-		OmitFields: []string{"config_json", "manifest_v1_json", "manifest_v2_json"}}, filter)
-	if err != nil {
-		logging.GetLogger().Err(err).Msg("ListAppImageOfBase.SearchImage")
-		return nil, 0, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf(consts.StatusInternalServerErrorMsg))
-	}
-
-	// 把仓库信息加上
-	registries, _, err := s.registryDal.SearchRegistry(ctx, store.SearchRegistryParam{}, nil)
-	if err != nil {
-		logging.GetLogger().Err(err).Msg("ListAppImageOfBase")
-		return nil, 0, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf("获取应用镜像出错"))
-	}
-	regMap := make(map[int64]model.Registry)
-	for i := range registries {
-		regMap[registries[i].ID] = registries[i]
-	}
-	for i := range images {
-		if re, ok := regMap[images[i].RegistryID]; ok {
-			images[i].Registry = &re
-		}
-	}
-
-	return images, cnt, nil
 }
 
 func (s *ConScannerSrv) UpdateImageType(ctx context.Context, imageIds []int64, imageType int64) error {
@@ -529,7 +473,7 @@ func (s *ConScannerSrv) K8sDeployDetect(ctx context.Context, containerInfo []mod
 
 	registryIds := make([]int64, 0)
 	// 查询未删除的仓库
-	noDeleteRegistries, _, err := s.registryDal.SearchRegistry(ctx, store.SearchRegistryParam{NoDelete: true}, nil)
+	noDeleteRegistries, _, err := s.registryDal.SearchRegistry(ctx, store.SearchRegistryParam{Deleted: consts.FalseString}, nil)
 	if err != nil {
 		logging.GetLogger().Err(err).Msg("K8sDeployDetect")
 		return true
@@ -1146,7 +1090,7 @@ func (s *ConScannerSrv) ScanAllNow(ctx context.Context, info task.UpdateTaskInfo
 	}
 
 	// 先查询当前时刻已存在的仓库列表
-	registries, _, err := s.registryDal.SearchRegistry(ctx, store.SearchRegistryParam{NoDelete: true}, nil)
+	registries, _, err := s.registryDal.SearchRegistry(ctx, store.SearchRegistryParam{Deleted: consts.FalseString}, nil)
 	if err != nil {
 		logging.GetLogger().Err(err).Msg("not found registry info")
 		return err
@@ -1185,7 +1129,7 @@ func (s *ConScannerSrv) TickScanOne(ctx context.Context, imgID int64, info task.
 
 func (s *ConScannerSrv) GetImageDetail(ctx context.Context, imgID int64) (*model.ImageList, error) {
 	// 查询未删除的仓库
-	noDeleteRegistries, _, err := s.registryDal.SearchRegistry(ctx, store.SearchRegistryParam{NoDelete: true}, nil)
+	noDeleteRegistries, _, err := s.registryDal.SearchRegistry(ctx, store.SearchRegistryParam{Deleted: consts.FalseString}, nil)
 	if err != nil {
 		return nil, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf(consts.StatusInternalServerErrorMsg))
 	}
@@ -1388,9 +1332,6 @@ func (s *ConScannerSrv) GetImageDetail(ctx context.Context, imgID int64) (*model
 			img.OS = fmt.Sprintf("%s:%s", imageOs.Family, imageOs.Name)
 		}
 	}
-	// 增加安全建议
-	img.SentiveFixSuggestion = utils.GenSensitiveFileSuggest2(img.ImageScanVuln.SensitiveFiles)
-	img.VulnFixSuggestion = utils.GenVulnSuggest(img.OS, img.ImageScanVuln.Vulns)
 
 	return img, nil
 }
@@ -1400,7 +1341,7 @@ func (s *ConScannerSrv) GetImageOverView(ctx context.Context, fromType int64) (*
 	overView := new(model.OverView)
 	registryIds := make([]int64, 0)
 	// 查询未删除的仓库
-	noDeleteRegistries, _, err := s.registryDal.SearchRegistry(ctx, store.SearchRegistryParam{NoDelete: true}, nil)
+	noDeleteRegistries, _, err := s.registryDal.SearchRegistry(ctx, store.SearchRegistryParam{Deleted: consts.FalseString}, nil)
 	if err != nil {
 		return nil, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf(consts.StatusInternalServerErrorMsg))
 	}
@@ -1502,7 +1443,7 @@ func (s *ConScannerSrv) GetImageOverView(ctx context.Context, fromType int64) (*
 func (s *ConScannerSrv) SearchImageWithScan(ctx context.Context, param SearchImageWithScanParam, filter *model.Filter) ([]*model.ImageResponse, int64, error) {
 	registryIds := make([]int64, 0)
 	// 查询未删除的仓库
-	noDeleteRegistries, _, err := s.registryDal.SearchRegistry(ctx, store.SearchRegistryParam{NoDelete: true}, nil)
+	noDeleteRegistries, _, err := s.registryDal.SearchRegistry(ctx, store.SearchRegistryParam{Deleted: consts.FalseString}, nil)
 	if err != nil {
 		return nil, 0, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf(consts.StatusInternalServerErrorMsg))
 	}
@@ -1519,8 +1460,6 @@ func (s *ConScannerSrv) SearchImageWithScan(ctx context.Context, param SearchIma
 
 	daoParam := store.SearchImageParam{
 		RegistryIds:  registryIds,
-		FromType:     param.FromType,
-		ImageType:    param.ImageType,
 		Keyword:      param.SearchWord,
 		NodeHostname: param.NodeHostname,
 		OmitFields:   []string{"config_json", "manifest_v1_json", "manifest_v2_json"},
@@ -1598,7 +1537,6 @@ func (s *ConScannerSrv) SearchImageWithScan(ctx context.Context, param SearchIma
 	}
 	daoParam.InIds = util.DeDuplicationInt64Slice(inIds)
 	daoParam.NotInIds = util.DeDuplicationInt64Slice(notInIds)
-	daoParam.Flag = param.genFlag()
 
 	logging.GetLogger().Info().Interface("daoparam", daoParam).Msg("SearchImageWithScan.SearchImage")
 
@@ -1768,7 +1706,7 @@ func (s *ConScannerSrv) filterScanStatus(ctx context.Context, status []int64) ([
 func (s *ConScannerSrv) getRegistry(ctx context.Context, library string, useType int64) (registry.Registry, error) {
 	// cicd集成时，首先会把公司镜像推送到我们自己搭建的仓库中(默认是docker-registry),然后拉取镜像进行扫描，
 	// 通过library查registryID
-	regs, _, err := s.registryDal.SearchRegistry(ctx, store.SearchRegistryParam{LibraryURL: library, UseType: useType, NoDelete: true}, nil)
+	regs, _, err := s.registryDal.SearchRegistry(ctx, store.SearchRegistryParam{LibraryURL: library, UseType: useType, Deleted: consts.FalseString}, nil)
 	if err != nil {
 		logging.GetLogger().Err(err).Msgf("can not find the library:%s", library)
 		return nil, response.NewHttpError(http.StatusBadGateway, fmt.Errorf("can not find the library:%s,error is %s", library, err.Error()))
@@ -1812,7 +1750,7 @@ func (s *ConScannerSrv) DetectImageForCICD(ctx context.Context, img *model.Image
 		return true, records, msgs, nil
 	}
 
-	regs, _, err := s.registryDal.SearchRegistry(ctx, store.SearchRegistryParam{ID: img.RegistryID, NoDelete: true}, nil)
+	regs, _, err := s.registryDal.SearchRegistry(ctx, store.SearchRegistryParam{ID: img.RegistryID, Deleted: consts.FalseString}, nil)
 	if err != nil {
 		logging.GetLogger().Err(err).Msg("CICD ScanOneForCICDResult search SearchRegistry")
 		return false, records, msgs, fmt.Errorf(fmt.Sprintf("CICD,查询镜像仓库地址出错：%d", img.ID))
@@ -2276,7 +2214,7 @@ func (s *ConScannerSrv) checkImageExist(ctx context.Context, usePattern string, 
 	}
 	registryIds := make([]int64, 0)
 	// 查询未删除的仓库
-	noDeleteRegistries, _, err := s.registryDal.SearchRegistry(ctx, store.SearchRegistryParam{NoDelete: true}, nil)
+	noDeleteRegistries, _, err := s.registryDal.SearchRegistry(ctx, store.SearchRegistryParam{Deleted: consts.FalseString}, nil)
 	if err != nil {
 		logging.GetLogger().Err(err).Int64("ImageID", img.ID).Msg("checkImageExist")
 		return res
@@ -3392,7 +3330,7 @@ func (s *ConScannerSrv) GetOnlineImageId(ctx context.Context) ([]int64, error) {
 	res := make([]int64, 0)
 	registryIds := make([]int64, 0)
 	// 查询未删除的仓库
-	noDeleteRegistries, _, err := s.registryDal.SearchRegistry(ctx, store.SearchRegistryParam{NoDelete: true}, nil)
+	noDeleteRegistries, _, err := s.registryDal.SearchRegistry(ctx, store.SearchRegistryParam{Deleted: consts.FalseString}, nil)
 	if err != nil {
 		return nil, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf(consts.StatusInternalServerErrorMsg))
 	}

@@ -136,20 +136,20 @@ type ImageSeverityCount struct {
 }
 
 type ImageRiskScore struct {
-	Name  string  // servicename
-	Score float64 `gorm:"column:vuln_score" json:"Score"`
-	// SeverityHistogramInfo SeverityHistogramInfo
-	Tag       string `json:"tag"`
-	ImageID   int64  `grom:"column:image_id" json:"id"`
-	ImageType int64  `json:"image_type"`
-	FromType  int64  `json:"from_type"`
-	Library   string `json:"registryUrl"`
+	Name      string  // servicename
+	Score     float64 `gorm:"column:vuln_score" json:"Score"`
+	Tag       string  `json:"tag"`
+	ImageID   int64   `gorm:"column:image_id" json:"id"`
+	ImageType int64   `json:"image_type"`
+	FromType  int64   `json:"from_type"`
+	Library   string  `json:"registryUrl"`
 }
 
 type ConstMapScore struct {
 	MaxScore    float64
 	SingleScore float64
 }
+
 type VulnOverview struct {
 	VulnTotal int64         `json:"vuln_total"`
 	Severity  SeverityCount `json:"severity"`

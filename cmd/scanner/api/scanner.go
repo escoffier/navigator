@@ -135,7 +135,7 @@ func (s *Scanner) ScannedByVulnDetails(ctx *gin.Context) {
 		}
 	}
 
-	vulns, _, err := s.VulnSrv.SearchVulns(ctx, component.SearchVulnParam{UniqueVulns: []uint64{uniqueVuln}}, nil)
+	vulns, _, err := s.VulnSrv.SearchVulns(ctx, model.SearchVulnParam{UniqueVulns: []uint64{uniqueVuln}}, nil)
 	if err != nil {
 		response.JSONError(ctx, err)
 		return
@@ -204,7 +204,7 @@ func (s *Scanner) SearchVulns(ctx *gin.Context) {
 		return
 	}
 
-	vulns, cnt, err := s.VulnSrv.SearchVulns(ctx, component.SearchVulnParam{ImageIds: onlineIds, VulnKeyword: search}, filter)
+	vulns, cnt, err := s.VulnSrv.SearchVulns(ctx, model.SearchVulnParam{ImageIds: onlineIds, VulnKeyword: search}, filter)
 	if err != nil {
 		response.JSONError(ctx, err)
 		return
@@ -361,6 +361,10 @@ func (s *Scanner) SearchImageWithScan(ctx *gin.Context) {
 	if err != nil {
 		response.JSONError(ctx, err)
 		return
+	}
+	for i := range images {
+		images[i].SensitiveFixSuggestion = nil
+		images[i].VulnFixSuggestion = nil
 	}
 
 	response.JSONOK(ctx, response.WithItems(images),
@@ -801,89 +805,6 @@ func NewScannerAPISrv(
 	}
 }
 
-// ListBaseImage 基础镜像列表
-// @Summary ListBaseImage
-// @Title 基础镜像列表
-// @Author liuqiang@tensorsecurity.cn
-// @Description 基础镜像列表
-// @Tags image reject
-// @Param search query string false "搜索关键词"
-// @Success 200 {object} ApiWithItem{data=ApiItem{items=[]model.ImageResponse{}}}
-// @Router	/api/v1/images/bases [get]
-func (s *Scanner) ListBaseImage(ctx *gin.Context) {
-	filter := model.GetFilter(ctx)
-	// 排序对性能影响很大
-	// filter.SortFiled = "full_repo_name"
-	// filter.SortBy = "asc"
-	search := ctx.Query("search")
-	images, cnt, err := s.ImageSrv.ListImageWithScanInfo(ctx,
-		model.ImageListParam{
-			Keyword:   search,
-			FromType:  model.ImageFromRegistry,
-			ImageAttr: model.ImageAttrParam{ImageType: model.BaseImageTypeString},
-		}, filter)
-
-	// component.SearchImageWithScanParam{ImageType: model.BaseImageTypeString, SearchWord: search, FromType: model.UserRegistry}, filter)
-	if err != nil {
-		response.JSONError(ctx, err)
-		return
-	}
-
-	response.JSONOK(ctx, response.WithItems(images),
-		response.WithTotalItems(cnt),
-		response.WithItemsPerPage(filter.Limit),
-		response.WithStartIndex(filter.Offset),
-	)
-}
-
-// ListAppToBaseImage 获取应用镜像的基础镜像列表
-// @Summary ListAppToBaseImage
-// @Title 获取应用镜像的基础镜像列表
-// @Author liuqiang@tensorsecurity.cn
-// @Description 获取应用镜像的基础镜像列表
-// @Tags image reject
-// @Param imageID path int true "镜像ID"
-// @Success 200 {object} ApiWithItem{data=ApiItem{items=[]model.ImageResponse{}}}
-// @Router	/api/v1/images/app/:imageID/bases [get]
-func (s *Scanner) ListAppToBaseImage(ctx *gin.Context) {
-	imageID, err := strconv.ParseInt(ctx.Param("imageID"), 10, 64)
-	if err != nil {
-		response.JSONError(ctx, err)
-		return
-	}
-	keyword := ctx.Query("keyword")
-	filter := model.GetFilter(ctx)
-	images, cnt, err := s.Srv.ListBaseImageOfApp(ctx, imageID, keyword, filter)
-	if err != nil {
-		response.JSONError(ctx, err)
-		return
-	}
-
-	imageIds := make([]int64, 0)
-	for i := range images {
-		imageIds = append(imageIds, images[i].ID)
-	}
-	if len(imageIds) == 0 {
-		response.JSONOK(ctx, response.WithItems(images),
-			response.WithTotalItems(cnt),
-			response.WithItemsPerPage(filter.Limit),
-			response.WithStartIndex(filter.Offset),
-		)
-		return
-	}
-
-	imageScanInfo, _, err := s.ImageSrv.ListImageWithScanInfo(ctx, model.ImageListParam{ImageIds: imageIds}, nil)
-	if err != nil {
-		response.JSONError(ctx, err)
-		return
-	}
-	response.JSONOK(ctx, response.WithItems(imageScanInfo),
-		response.WithTotalItems(cnt),
-		response.WithItemsPerPage(filter.Limit),
-		response.WithStartIndex(filter.Offset),
-	)
-}
-
 // QueryEnvInStrategy 获取对应环境变量还未被多少策略引用
 // @Summary QueryEnvInStrategy
 // @Title 获取对应环境变量还未被多少策略引用
@@ -942,126 +863,6 @@ func (s *Scanner) SetEnvToStrategy(ctx *gin.Context) {
 		Name: envName,
 		ID:   envName,
 		Link: "api/v2/containerSec/scanner/images/env/" + envName,
-	}))
-}
-
-// ListBaseToAppImage 获取基础镜像的应用镜像列表
-// @Summary ListBaseToAppImage
-// @Title 获取基础镜像的应用镜像列表
-// @Author liuqiang@tensorsecurity.cn
-// @Description 获取基础镜像的应用镜像列表
-// @Tags image reject
-// @Param imageID path int true "镜像ID"
-// @Success 200 {object} ApiWithItem{data=ApiItem{items=[]model.ImageResponse{}}}
-// @Router	/api/v1/images/base/:imageID/apps [get]
-func (s *Scanner) ListBaseToAppImage(ctx *gin.Context) {
-	imageID, err := strconv.ParseInt(ctx.Param("imageID"), 10, 64)
-	if err != nil {
-		response.JSONError(ctx, err)
-		return
-	}
-	keyword := ctx.Query("keyword")
-	filter := model.GetFilter(ctx)
-	images, cnt, err := s.Srv.ListAppImageOfBase(ctx, imageID, keyword, filter)
-	if err != nil {
-		response.JSONError(ctx, err)
-		return
-	}
-	imageIds := make([]int64, 0)
-	for i := range images {
-		imageIds = append(imageIds, images[i].ID)
-	}
-
-	if len(imageIds) == 0 {
-		response.JSONOK(ctx, response.WithItems(images),
-			response.WithTotalItems(cnt),
-			response.WithItemsPerPage(filter.Limit),
-			response.WithStartIndex(filter.Offset),
-		)
-		return
-	}
-	imageScanInfo, _, err := s.ImageSrv.ListImageWithScanInfo(ctx, model.ImageListParam{ImageIds: imageIds}, nil)
-	if err != nil {
-		response.JSONError(ctx, err)
-		return
-	}
-
-	response.JSONOK(ctx, response.WithItems(imageScanInfo),
-		response.WithTotalItems(cnt),
-		response.WithItemsPerPage(filter.Limit),
-		response.WithStartIndex(filter.Offset),
-	)
-}
-
-// CreateBaseImage 创建基础镜像
-// @Summary CreateBaseImage
-// @Title 创建基础镜像
-// @Author liuqiang@tensorsecurity.cn
-// @Description 创建基础镜像
-// @Tags image reject
-// @Param body body []int true "镜像ID列表"
-// @Success 200 {object} ApiWithItem{data=ApiItem{}}
-// @Router	/api/v1/images/bases [post]
-func (s *Scanner) CreateBaseImage(ctx *gin.Context) {
-	type ids struct {
-		ImageIds []int64 `json:"image_ids"`
-	}
-	body := new(ids)
-	if err := ctx.BindJSON(body); err != nil {
-		response.JSONError(ctx, err)
-		return
-	}
-	scan, _, err := s.Srv.SearchImages(ctx, component.SearchImageParam{ImageIds: body.ImageIds}, nil)
-	if err != nil {
-		response.JSONError(ctx, err)
-		return
-	}
-
-	if err := s.Srv.UpdateImageType(ctx, body.ImageIds, model.BaseImageType); err != nil {
-		response.JSONError(ctx, err)
-		return
-	}
-
-	names := make([]string, len(scan))
-	for i := range scan {
-		names[i] = fmt.Sprintf("%s:%s", scan[i].FullRepoName, scan[i].Tags)
-	}
-
-	response.JSONOK(ctx, response.WithTarget(&response.TargetRef{
-		Name: strings.Join(names, ","),
-		Link: "api/v2/containerSec/scanner/images/bases",
-	}))
-}
-
-// DeleteBaseImage 删除基础镜像
-// @Summary DeleteBaseImage
-// @Title 删除基础镜像
-// @Author liuqiang@tensorsecurity.cn
-// @Description 删除基础镜像
-// @Tags image reject
-// @Param imageID path int true "镜像ID"
-// @Success 200 {object} ApiWithItem{data=ApiItem{}}
-// @Router	/api/v1/images/base/:imageID [delete]
-func (s *Scanner) DeleteBaseImage(ctx *gin.Context) {
-	imageID, err := strconv.ParseInt(ctx.Param("imageID"), 10, 64)
-	if err != nil {
-		response.JSONError(ctx, err)
-		return
-	}
-	if err := s.Srv.UpdateImageType(ctx, []int64{imageID}, model.AppImageType); err != nil {
-		response.JSONError(ctx, err)
-		return
-	}
-	detail, err := s.Srv.GetImageDetail(ctx, imageID)
-	if err != nil {
-		response.JSONError(ctx, err)
-		return
-	}
-
-	response.JSONOK(ctx, response.WithTarget(&response.TargetRef{
-		Name: fmt.Sprintf("%s:%s", detail.FullRepoName, detail.Tags),
-		ID:   strconv.Itoa(int(imageID)),
-		Link: "api/v2/containerSec/scanner/images/base/" + strconv.Itoa(int(imageID)),
 	}))
 }
 

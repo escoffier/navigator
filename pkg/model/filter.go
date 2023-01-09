@@ -28,13 +28,33 @@ func (f *Filter) AddSortCreatedAt() {
 	f.SortFiled = "created_at"
 }
 
-func (f *Filter) SetSortDesc() *Filter {
+func (f *Filter) AddSortDesc() *Filter {
 	f.SortBy = consts.SortByDesc
 	return f
 }
 
-func (f *Filter) AddSortAsc() {
+func (f *Filter) AddSortAsc() *Filter {
 	f.SortBy = consts.SortByAsc
+	return f
+}
+
+func (f *Filter) AddSortFiledByID() *Filter {
+	f.SortFiled = "id"
+	return f
+}
+
+func (f *Filter) AddLimit(limit int64) *Filter {
+	f.Limit = limit
+	return f
+}
+
+func (f *Filter) AddOffset(offset int64) *Filter {
+	f.Offset = offset
+	return f
+}
+
+func EmptyFilter() *Filter {
+	return &Filter{}
 }
 
 func GetFilter(ctx *gin.Context) *Filter {
@@ -74,7 +94,6 @@ func GetFilterWithDefaultValue(ctx *gin.Context) *Filter {
 	return filter
 }
 
-// EmptyFilterForTotalQuery 查总数所用的Filter
 func EmptyFilterForTotalQuery() *Filter {
 	return &Filter{
 		Offset:    0,

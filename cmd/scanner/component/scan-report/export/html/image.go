@@ -14,37 +14,33 @@ import (
 	"gitlab.com/security-rd/go-pkg/logging"
 	"scm.tensorsecurity.cn/tensorsecurity-rd/trivy/pkg/report"
 
-	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scan-report/export"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scan-report/common"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
-	"gitlab.com/piccolo_su/vegeta/cmd/scanner/utils"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 )
 
 // 镜像列表搜索的安全报告
 type ExportImageHtmlSrv struct {
-	ImageSrv      export.ImageSrvInterface
+	ImageSrv      common.ImageInterface
 	VulnDal       store.VulnDalInterface
-	ImageScanDal  export.ImageScanDal
 	ExportTaskDal store.ExportTaskDal
-	UpdateTask    export.UpdateTask
+	UpdateTask    common.UpdateExportTask
 	KoaAddr       string // 生成html的内部服务接口
 	FileDir       string // 文件存放的绝对路径
 }
 
 func NewExportImageHtmlSrv(
-	imageSrv export.ImageSrvInterface,
+	imageSrv common.ImageInterface,
 	vulnDal store.VulnDalInterface,
-	imageScanDal export.ImageScanDal,
 	exportTaskDal store.ExportTaskDal,
-	updateTask export.UpdateTask,
+	updateTask common.UpdateExportTask,
 	fileDir string,
 ) *ExportImageHtmlSrv {
 	return &ExportImageHtmlSrv{
 		ImageSrv:      imageSrv,
 		VulnDal:       vulnDal,
-		ImageScanDal:  imageScanDal,
 		ExportTaskDal: exportTaskDal,
 		UpdateTask:    updateTask,
 		FileDir:       fileDir,
@@ -114,41 +110,35 @@ func (s *ExportImageHtmlSrv) GetImages(ctx context.Context, taskID int64, starID
 		res.StartID = starID
 		imageIds := make([]int64, 0)
 
+		param := model.GetImageAssociateDataParam{
+			VulnEnable:      true,
+			VirusEnable:     true,
+			SensitiveEnable: true,
+			WebshellEnable:  true,
+		}
 		for i := range taskImages {
-			imageIds = append(imageIds, taskImages[i].ImageID)
-		}
-
-		images, _, err := s.ImageSrv.ListImageWithScanInfo(ctx, model.ImageListParam{ImageIds: imageIds, ReturnMalicious: true}, nil)
-		if err != nil {
-			logging.Get().Err(err).Int64("taskID", taskID).Int64("startID", starID).Msg("ExportImageHtmlSrv GetImages.ListImageWithScanInfo")
-			return nil, err
-		}
-
-		for j := range images {
-			// 获取镜像的漏洞统计信息信息
-			vulns, _, err := s.VulnDal.SearchVuln(ctx, store.SearchVulnParam{
-				ClassType:      []string{report.ClassOSPkg, report.ClassConfig},
-				ImageIds:       []int64{images[j].ID},
-				OmitFields:     new(model.Vuln).DefaultOmitField(),
-				NotReturnCount: true,
-			}, nil)
+			param.ImageId = taskImages[i].ImageID
+			image, err := s.ImageSrv.GetImageCorrelateData(ctx, param)
 			if err != nil {
-				logging.Get().Err(err).Int64("taskID", taskID).Int64("imageID", images[j].ID).Msg("ExportImageHtmlSrv GetImages.SearchVuln")
+				logging.Get().Err(err).Int64("taskID", taskID).Int64("startID", starID).Msg("ExportImageHtmlSrv GetImages.ListImageWithScanInfo")
 				return nil, err
 			}
+			baseImage := image.ToImageBaseResponse()
 
 			im := Image{
-				ImageID:       images[j].ID,
-				ImageName:     images[j].GetImageName(),
+				ImageID:       baseImage.ID,
+				ImageName:     baseImage.GetImageName(),
 				FixedVuln:     VulnSeverityCount{},
 				UnFixedVuln:   VulnSeverityCount{},
-				Malicious:     int64(len(images[j].Malicious)),
-				RiskScore:     images[j].RiskScore,
-				NotMaintained: util.ExistBit1(images[j].Flag, model.FlagImageNotMaintained),
-				Flag:          images[j].Flag,
+				Malicious:     int64(len(image.Virus)),
+				RiskScore:     baseImage.RiskScore,
+				NotMaintained: util.ExistBit1(baseImage.Flag, model.FlagImageNotMaintained),
+				Flag:          baseImage.Flag,
 			}
-			im.AddVulnSeverityCount(vulns)
+			im.AddVulnSeverityCount(image.Vuln)
 			res.Images = append(res.Images, im)
+
+			imageIds = append(imageIds, taskImages[i].ImageID)
 		}
 
 		if len(res.Images) > MaxImages {
@@ -184,8 +174,9 @@ func (s *ExportImageHtmlSrv) GetVirus(ctx context.Context, taskID int64) ([]Viru
 	logging.Get().Info().Int64("taskID", taskID).Msg("ExportImageHtmlSrv.GetVirus start")
 	var startID int64
 	res := make([]VirusInfo, 0)
-	virusExist := make(map[string]map[int64]struct{})
-	virusMap := make(map[string]string)
+
+	virusMap := make(map[int64]*model.ImageVirus)
+	virusToImage := make(map[int64][]string)
 	// 查镜像信息 批量查询
 	for {
 		// 分批获取镜像
@@ -201,58 +192,34 @@ func (s *ExportImageHtmlSrv) GetVirus(ctx context.Context, taskID int64) ([]Viru
 		}
 		startID = taskImages[len(taskImages)-1].ID
 
-		taskImageIds := make([]int64, 0)
 		for i := range taskImages {
-			taskImageIds = append(taskImageIds, taskImages[i].ImageID)
-		}
+			image, err := s.ImageSrv.GetImageCorrelateData(ctx, model.GetImageAssociateDataParam{ImageId: taskImages[i].ImageID, VirusEnable: true})
+			if err != nil {
+				logging.Get().Err(err).Int64("taskID", taskID).Int64("imageID", taskImages[i].ImageID).Msg("ExportImageHtmlSrv GetVirus")
+				return nil, err
+			}
+			for k := range image.Virus {
 
-		param := model.ImageListParam{ImageIds: taskImageIds, ReturnMalicious: true}
-		images, _, err := s.ImageSrv.ListImageWithScanInfo(ctx, param, nil)
-		if err != nil {
-			logging.Get().Err(err).Int64("taskID", taskID).Interface("param", param).Msg("ExportImageHtmlSrv GetVirus.ListImageWithScanInfo")
-			return nil, err
-		}
-
-		for i := range images {
-			// 加入病毒
-			virus := images[i].Malicious
-			for k := range virus {
-				virusName := strings.Trim(virus[k].VirusName, " ")
-				filePath := strings.Trim(virus[k].FilePath, " ")
-
-				virusMap[virusName] = filePath
-				if image := virusExist[virusName]; image == nil {
-					virusExist[virusName] = make(map[int64]struct{})
+				vir := image.Virus[k]
+				virusMap[vir.ID] = vir
+				if virusToImage[vir.ID] == nil {
+					virusToImage[vir.ID] = make([]string, 0)
 				}
-				virusExist[virusName][images[i].ID] = struct{}{}
+				virusToImage[vir.ID] = append(virusToImage[vir.ID], image.ImageBaseResponse.GetImageName())
 			}
 		}
 	}
 	// 拼装数据
-	for v, ima := range virusExist {
-		imagIds := make([]int64, 0)
-
-		for id := range ima {
-			imagIds = append(imagIds, id)
+	for v, ima := range virusMap {
+		vi := VirusInfo{
+			FilePath:  ima.Filepath,
+			VirusName: ima.Name,
+			Images:    virusToImage[v],
 		}
-		if len(imagIds) == 0 {
-			continue
+		if vi.Images == nil {
+			vi.Images = make([]string, 0)
 		}
-
-		image, err := s.ExportTaskDal.SearchExportTaskImage(ctx, store.SearchExportTaskImageParam{TaskID: taskID, ImageIds: imagIds}, nil)
-		if err != nil {
-			logging.Get().Err(err).Int64("taskID", taskID).Msg("ExportImageHtmlSrv GetVirus.SearchExportTaskImage")
-			continue
-		}
-		imageNames := make([]string, 0)
-		for i := range image {
-			imageNames = append(imageNames, image[i].ImageName)
-		}
-		res = append(res, VirusInfo{
-			FilePath:  virusMap[v],
-			VirusName: v,
-			Images:    imageNames,
-		})
+		res = append(res, vi)
 	}
 
 	logging.Get().Info().Int64("taskID", taskID).Int("virus-length", len(res)).Msg("ExportImageHtmlSrv.GetVirus finished")
@@ -373,46 +340,28 @@ func (s *ExportImageHtmlSrv) GetImageVulns(ctx context.Context, taskID, imageID 
 func (s *ExportImageHtmlSrv) GetImageRisk(ctx context.Context, taskID, imageID int64) (*ImageRiskOverView, error) {
 	logging.Get().Info().Int64("taskID", taskID).Int64("imageID", imageID).Msg("ExportImageHtmlSrv.GetImageRisk start")
 
-	// 获取当前镜像
-	images, _, err := s.ImageSrv.ListImageWithScanInfo(ctx, model.ImageListParam{ImageIds: []int64{imageID}}, nil)
-	if err != nil {
-		logging.Get().Err(err).Int64("taskID", taskID).Int64("imageID", imageID).Msg("ExportImageHtmlSrv GetImageRisk")
-		return nil, err
+	// 查漏洞和敏感文件，生成处置建议
+	param := model.GetImageAssociateDataParam{
+		ImageId:               imageID,
+		VulnEnable:            true,
+		SensitiveEnable:       true,
+		ScanResultSearchParam: model.ScanResultSearchParam{OmitFields: model.GetVulnDefaultOmitFields()},
 	}
-	if len(images) == 0 {
-		logging.Get().Info().Int64("taskID", taskID).Int64("imageID", imageID).Msgf("ExportImageHtmlSrv GetImageRisk not fond image")
-		return nil, fmt.Errorf("not fond image :%d", imageID)
-	}
-	image := images[0]
-
-	// 获取所有漏洞
-	vulns, _, err := s.VulnDal.SearchVuln(ctx, store.SearchVulnParam{
-		ImageIds:       []int64{imageID},
-		ClassType:      []string{report.ClassOSPkg, report.ClassConfig},
-		NotReturnCount: true,
-	}, nil)
-	if err != nil {
-		logging.Get().Err(err).Int64("taskID", taskID).Int64("imageID", imageID).Msg("ExportImageHtmlSrv GetImageRisk SearchVuln")
-		return nil, err
-	}
-
-	// 查扫描结果
-	scans, _, err := s.ImageScanDal.SearchScanImage(ctx, store.SearchScanImageParam{ImageIds: []int64{imageID}}, nil)
+	data, err := s.ImageSrv.GetImageCorrelateData(ctx, param)
 	if err != nil {
 		logging.Get().Err(err).Int64("taskID", taskID).Int64("imageID", imageID).Msg("ExportImageHtmlSrv GetImageRisk SearchScanImage")
 		return nil, err
 	}
 
 	res := &ImageRiskOverView{
-		ImageID:           image.ID,
-		ImageName:         image.GetImageName(),
-		VulnSeverityCount: StatisticsVulnSeverity(vulns),
+		ImageID:           data.ImageBaseResponse.ID,
+		ImageName:         data.ImageBaseResponse.GetImageName(),
+		VulnSeverityCount: StatisticsVulnSeverity(data.Vuln),
 		FixSuggestion:     make([]string, 0),
 	}
+	res.FixSuggestion = append(res.FixSuggestion, data.GenVulnSuggest()...)
+	res.FixSuggestion = append(res.FixSuggestion, data.GenSensitiveFileSuggest()...)
 
-	if len(scans) > 0 {
-		res.FixSuggestion = utils.GenFixSuggestion(scans[0].SensitiveFile, image.Os, vulns)
-	}
 	_ = s.UpdateTask.IncrRedisFinished(ctx, model.ExportTensorTask{TaskType: model.ExportHtml, ID: taskID})
 	logging.Get().Info().Int64("taskID", taskID).Int64("imageID", imageID).Msg("ExportImageHtmlSrv.GetImageRisk finished")
 	return res, nil
@@ -654,7 +603,7 @@ func (s *ExportImageHtmlSrv) createVulnImage(ctx context.Context, taskID int64) 
 				return err
 			}
 			// 整理漏洞
-			duplicatedVuln := utils.InANotInB(vulns, duplicates)
+			duplicatedVuln := InANotInB(vulns, duplicates)
 			if len(duplicatedVuln) == 0 {
 				continue
 			}
@@ -733,7 +682,7 @@ func (s *ExportImageHtmlSrv) Run(ctx context.Context) {
 	if err := s.createVulnImage(ctx, task.ID); err != nil {
 		logging.Get().Err(err).Int64("taskID", task.ID).Msg("ExportImageHtmlSrv pre createVulnImage")
 		if err := s.UpdateTask.Failure(ctx, task.ID, err.Error()); err != nil {
-			logging.Get().Err(err).Int64("taskID", task.ID).Msg("ExportImageHtmlSrv UpdateTask Failure")
+			logging.Get().Err(err).Int64("taskID", task.ID).Msg("ExportImageHtmlSrv UpdateExportTask Failure")
 		}
 		return
 	}
@@ -744,7 +693,7 @@ func (s *ExportImageHtmlSrv) Run(ctx context.Context) {
 	if err := s.createRiskOverView(ctx, task); err != nil && !strings.Contains(err.Error(), consts.DuplicateKey) {
 		logging.Get().Err(err).Int64("taskID", task.ID).Msg("ExportImageHtmlSrv pre createRiskOverView")
 		if err := s.UpdateTask.Failure(ctx, task.ID, err.Error()); err != nil {
-			logging.Get().Err(err).Int64("taskID", task.ID).Msg("ExportImageHtmlSrv UpdateTask Failure")
+			logging.Get().Err(err).Int64("taskID", task.ID).Msg("ExportImageHtmlSrv UpdateExportTask Failure")
 		}
 		return
 	}
@@ -758,7 +707,7 @@ func (s *ExportImageHtmlSrv) Run(ctx context.Context) {
 
 	// 新建目录
 	filePath := s.genFilePath(ctx, task)
-	if err := utils.MkdirIfNotExist(filePath, true); err != nil {
+	if err := util.MkdirIfNotExist(filePath, true); err != nil {
 		logging.Get().Err(err).Str("filePath", filePath).Msg("ExportImageHtmlSrv export html MkdirIfNotExist")
 		return
 	}
@@ -766,7 +715,7 @@ func (s *ExportImageHtmlSrv) Run(ctx context.Context) {
 	if err = s.createExportHtml(ctx, task); err != nil {
 		logging.Get().Err(err).Int64("taskID", task.ID).Str("filePath", task.FilePath).Msg("ExportImageHtmlSrv export html task create failure")
 		if err := s.UpdateTask.Failure(ctx, task.ID, err.Error()); err != nil {
-			logging.Get().Err(err).Int64("taskID", task.ID).Msg("ExportImageHtmlSrv UpdateTask Failure")
+			logging.Get().Err(err).Int64("taskID", task.ID).Msg("ExportImageHtmlSrv UpdateExportTask Failure")
 		}
 		return
 	}
@@ -787,7 +736,7 @@ func (s *ExportImageHtmlSrv) Run(ctx context.Context) {
 				continue
 			}
 			if err := s.UpdateTask.Failure(ctx, task.ID, err.Error()); err != nil {
-				logging.Get().Err(err).Int64("taskID", task.ID).Msg("UpdateTask Failure")
+				logging.Get().Err(err).Int64("taskID", task.ID).Msg("UpdateExportTask Failure")
 			}
 			break
 		}
@@ -804,7 +753,7 @@ func (s *ExportImageHtmlSrv) Run(ctx context.Context) {
 			if err := cmd.Run(); err != nil {
 				logging.Get().Err(err).Str("zipFilename", zipFilename).Str("filePath", task.FilePath).Msg("ExportImageHtmlSrv ZipAndSave use zip")
 				if err := s.UpdateTask.Failure(ctx, task.ID, "zip error"); err != nil {
-					logging.Get().Err(err).Int64("taskID", task.ID).Msg("ExportImageHtmlSrv UpdateTask Failure")
+					logging.Get().Err(err).Int64("taskID", task.ID).Msg("ExportImageHtmlSrv UpdateExportTask Failure")
 				}
 			}
 			logging.Get().Err(err).Str("zipFilename", zipFilename).Str("filePath", status.Data.FilePath).Msg("ExportImageHtmlSrv ZipAndSave use zip success")
@@ -826,7 +775,7 @@ func (s *ExportImageHtmlSrv) Run(ctx context.Context) {
 			errMsg := status.Data.FailedMsg[len(status.Data.FailedMsg)-1].Message
 
 			if err := s.UpdateTask.Failure(ctx, task.ID, errMsg); err != nil {
-				logging.Get().Err(err).Int64("taskID", task.ID).Msg("ExportImageHtmlSrv UpdateTask Failure")
+				logging.Get().Err(err).Int64("taskID", task.ID).Msg("ExportImageHtmlSrv UpdateExportTask Failure")
 			}
 			break
 		} else {
@@ -837,4 +786,21 @@ func (s *ExportImageHtmlSrv) Run(ctx context.Context) {
 	_ = s.UpdateTask.DeleteRedisData(ctx, task)
 
 	return
+}
+
+func InANotInB(a []*model.Vuln, b []model.ExportVulnImage) []*model.Vuln {
+	if len(a) == 0 || len(b) == 0 {
+		return a
+	}
+	mapB := make(map[uint64]struct{})
+	for i := range b {
+		mapB[b[i].UniqueVuln] = struct{}{}
+	}
+	ans := make([]*model.Vuln, 0)
+	for k := range a {
+		if _, ok := mapB[a[k].UniqueVuln]; !ok {
+			ans = append(ans, a[k])
+		}
+	}
+	return ans
 }

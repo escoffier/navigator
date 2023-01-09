@@ -26,7 +26,7 @@ import (
 type ScannerDalInterface interface {
 	SearchImage(ctx context.Context, param SearchImageParam, filter *model.Filter) ([]model.ImageList, int64, error)
 	UpdateImageScanStatus(ctx context.Context, imageID int64, status uint64) error
-	DeleteImage(ctx context.Context, imageIds []int64) error
+	DeleteImage(ctx context.Context, imageId int64) error
 	UpdateImage(ctx context.Context, where string, updater map[string]interface{}, image *model.ImageList) error
 	CreateImage(ctx context.Context, data *model.ImageList) (*model.ImageList, error)
 	CreateImageAndUpdate(ctx context.Context, im *model.ImageList) (*model.ImageList, error)
@@ -82,7 +82,7 @@ type ScannerDalInterface interface {
 
 	ScanTaskInterface
 	ScanReportInterface
-	TrustedImageInterface
+	TrustedImageDal
 }
 
 type ScanTaskInterface interface {
@@ -279,15 +279,12 @@ func (s *ScannerOrm) UpdateImageWhitelist(ctx context.Context, where string, upd
 
 }
 
-func (s *ScannerOrm) DeleteImage(ctx context.Context, imageIds []int64) error {
-	if len(imageIds) == 0 {
-		return nil
-	}
+func (s *ScannerOrm) DeleteImage(ctx context.Context, imageId int64) error {
 
 	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*1)
 	defer cancelFunc()
 	db := s.rdb.Get().Model(new(model.ImageList)).WithContext(ctx)
-	db = db.Where("id IN ?", imageIds)
+	db = db.Where("id = ?", imageId)
 	err := db.Delete(&model.ImageList{}).Error
 	return err
 }
@@ -1007,9 +1004,10 @@ func (s *ScannerOrm) SearchRegistry(ctx context.Context, param SearchRegistryPar
 }
 
 func (s *ScannerOrm) SearchImage(ctx context.Context, param SearchImageParam, filter *model.Filter) ([]model.ImageList, int64, error) {
+
 	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*10)
 	defer cancelFunc()
-	// logging.GetLogger().Info().Interface("SearchImageParam", param).Msg("SearchImage,start")
+
 	db := s.rdb.Get().Model(new(model.ImageList)).WithContext(ctx)
 
 	if param.Keyword != "" && strings.Contains(param.Keyword, ":") {
@@ -1078,23 +1076,12 @@ func (s *ScannerOrm) SearchImage(ctx context.Context, param SearchImageParam, fi
 	if param.Tag != "" {
 		db = db.Where("tags = ? ", param.Tag)
 	}
-	if param.StartID > 0 {
-		db = db.Where("id > ?", param.StartID)
-	}
-	if param.LastID > 0 {
-		db = db.Where("id < ?", param.LastID)
-	}
-	if param.FromType > 0 {
-		db = db.Where("from_type = ? ", param.FromType)
-	}
+
 	if param.UniqueImage > 0 {
 		db = db.Where("unique_image = ?", param.UniqueImage)
 	}
 	if len(param.Where) > 0 {
 		db = db.Where(param.Where)
-	}
-	if param.Flag > 0 {
-		db = db.Where("flag & ? = ?", param.Flag, param.Flag)
 	}
 
 	if param.LayersPrefix != "" {
@@ -1106,11 +1093,9 @@ func (s *ScannerOrm) SearchImage(ctx context.Context, param SearchImageParam, fi
 		if param.AttrFlag > 0 {
 			db = db.Where("flag & ? = ?", param.AttrFlag, param.AttrFlag)
 		}
-		if len(param.TrustedImageIds) > 0 {
-			db = db.Where("id IN ?", param.TrustedImageIds)
-		}
-		if len(param.NotTrustedImageIds) > 0 {
-			db = db.Where("id NOT IN ?", param.NotTrustedImageIds)
+		if param.TrustedImage == consts.FalseString {
+			sub := s.rdb.Get().WithContext(ctx).Model(new(model.TrustedImages)).Select("distinct digest").Where("is_trusted > 0 ")
+			db = db.Where("digest NOT  IN ( ? )", sub)
 		}
 	}
 	// 属性取并集
@@ -1119,14 +1104,11 @@ func (s *ScannerOrm) SearchImage(ctx context.Context, param SearchImageParam, fi
 		if param.AttrFlag > 0 {
 			where = append(where, fmt.Sprintf("(flag & %d > 0)", param.AttrFlag))
 		}
-
-		if len(param.TrustedImageIds) > 0 {
-			where = append(where, fmt.Sprintf("(id IN ( %s ))", util.JoinInt64Slice(param.TrustedImageIds, ",")))
+		// 非可信镜像单处理
+		if param.TrustedImage == consts.FalseString {
+			where = append(where, fmt.Sprintf("(flag & %d = 0)", util.SetBit1(0, model.FlagImageTrusted)))
 		}
 
-		if len(param.NotTrustedImageIds) > 0 {
-			where = append(where, fmt.Sprintf("(id NOT IN ( %s ))", util.JoinInt64Slice(param.NotTrustedImageIds, ",")))
-		}
 		if len(where) > 0 {
 			db = db.Where(strings.Join(where, " OR "))
 		}
@@ -1146,20 +1128,22 @@ func (s *ScannerOrm) SearchImage(ctx context.Context, param SearchImageParam, fi
 		db = db.Where("flag & ? > 0 ", param.ScanStatusFlag)
 	}
 
-	if param.ImageType == model.AppImageTypeString {
-		db = db.Where("(flag >> ?) & 1 = ?", model.FlagBaseImage, 0)
-	}
-
-	if param.FromType == model.NodeBuffRegistry && param.NodeHostname != "" {
-		db = db.Where("node_hostname =  ? ", param.NodeHostname)
-	}
-
 	if len(param.Fields) > 0 {
 		db = db.Select(param.Fields)
 	}
 	if len(param.OmitFields) > 0 {
 		db = db.Omit(param.OmitFields...)
 	}
+	if param.OnlineImage == consts.TrueString {
+		sub := s.rdb.Get().WithContext(ctx).Model(new(model.ImageList)).Select("distinct ivan_scanner_image_list.image_uuid").
+			Joins("join ivan_assets_containers on ivan_assets_containers.image_uuid = ivan_scanner_image_list.image_uuid")
+		db = db.Where("image_uuid IN ( ? )", sub)
+	} else if param.OnlineImage == consts.FalseString {
+		sub := s.rdb.Get().WithContext(ctx).Model(new(model.ImageList)).Select("distinct ivan_scanner_image_list.image_uuid").
+			Joins("join ivan_assets_containers on ivan_assets_containers.image_uuid = ivan_scanner_image_list.image_uuid")
+		db = db.Where("image_uuid NOT IN ( ? )", sub)
+	}
+
 	// 先查总数
 	var cnt int64
 	if !param.NotCount {
@@ -1169,6 +1153,10 @@ func (s *ScannerOrm) SearchImage(ctx context.Context, param SearchImageParam, fi
 	}
 	if param.JustCount {
 		return nil, cnt, nil
+	}
+
+	if param.StartID > 0 {
+		db = db.Where("id > ?", param.StartID)
 	}
 
 	db = model.AddFilter(db, filter)
