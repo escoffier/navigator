@@ -378,18 +378,17 @@ func (s *ImageSrv) GetImageCorrelateData(ctx context.Context, param model.GetIma
 			ans.Virus = virus
 			ans.VirusCnt = cnt
 		}
-
-		if param.WebshellEnable {
-			webshell, webshellCnt, err := s.scanResultDal.SearchWebShell(ctx, daoParam, nil)
-			if err != nil {
-				logging.Get().Err(err).Msg("SearchImageWithScan.SearchWebShell")
-				return nil, err
-			}
-			ans.WebshellCnt = webshellCnt
-			ans.Webshell = webshell
-		}
 	}
 
+	if param.WebshellEnable {
+		webshell, webshellCnt, err := s.scanResultDal.SearchWebShell(ctx, daoParam, nil)
+		if err != nil {
+			logging.Get().Err(err).Msg("SearchImageWithScan.SearchWebShell")
+			return nil, err
+		}
+		ans.WebshellCnt = webshellCnt
+		ans.Webshell = webshell
+	}
 	// 查询该镜像的所有漏洞，更详细的查询请使用VulnServiceInterface
 	if param.VulnEnable {
 		vuln, cnt, err := s.vulnDal.SearchVuln(ctx, store.SearchVulnParam{ImageIds: []int64{imageID},
