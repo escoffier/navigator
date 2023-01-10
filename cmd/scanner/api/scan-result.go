@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"net/http"
 	"sort"
-	"strconv"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -31,18 +30,16 @@ func NewScanResultAPI(
 }
 
 func GetParamFromCtx(ctx *gin.Context) model.ScanResultSearchParam {
-	param := model.ScanResultSearchParam{}
-	if uniqueImage, err := strconv.ParseInt(ctx.Query("imageID"), 10, 64); err == nil {
-		param.ImageID = uniqueImage
+	param := model.ScanResultSearchParam{
+		ImageID:         util.GetInt64FromQuery(ctx, "imageID"),
+		LayerDigest:     ctx.Query("layerDigest"),
+		Keyword:         ctx.Query("keyword"),
+		AbnormalSoft:    ctx.Query("abnormalSoft"),    // 查看异常软件
+		AbnormalLicense: ctx.Query("abnormalLicense"), // 查看不允许的开源协议
+		AbnormalEnv:     ctx.Query("abnormalEnv"),     // 查看不允许的开源协议
+		VulnSeverity:    util.GetStringSliceFromQuery(ctx, "vulnSeverity"),
+		LicenseSearch:   util.GetStringSliceFromQuery(ctx, "license"),
 	}
-
-	param.LayerDigest = ctx.Query("layerDigest")
-	param.Keyword = ctx.Query("keyword")
-	param.AbnormalSoft = ctx.Query("abnormalSoft")       // 查看异常软件
-	param.AbnormalLicense = ctx.Query("abnormalLicense") // 查看不允许的开源协议
-	param.AbnormalEnv = ctx.Query("abnormalEnv")         // 查看不允许的开源协议
-	param.VulnSeverity = util.GetStringSliceFromQuery(ctx, "vulnSeverity")
-	param.LicenseSearch = util.GetStringSliceFromQuery(ctx, "license")
 	return param
 }
 

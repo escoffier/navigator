@@ -1645,6 +1645,9 @@ func (s *ScannerOrm) GetSubTasks(ctx context.Context, param SearchSubTaskParam, 
 	if param.LastID > 0 {
 		db = db.Where("id > ? ", param.LastID)
 	}
+	if param.ImageID > 0 {
+		db = db.Where("image_id = ? ", param.ImageID)
+	}
 	if param.LessThanRetryCount > 0 {
 		db = db.Where("retry_count >= ? ", param.GreaterThanRetryCount)
 	}

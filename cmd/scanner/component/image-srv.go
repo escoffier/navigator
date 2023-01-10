@@ -370,7 +370,7 @@ func (s *ImageSrv) GetImageCorrelateData(ctx context.Context, param model.GetIma
 		}
 
 		if param.VirusEnable {
-			virus, cnt, err := s.scanResultDal.SearchVirus(ctx, daoParam, param.Filter)
+			virus, cnt, err := s.scanResultDal.SearchVirus(ctx, daoParam, nil)
 			if err != nil {
 				logging.Get().Err(err).Int64("ImageID", imageID).Msg("ImageWithCorrelateData SearchVirus")
 				return nil, err
