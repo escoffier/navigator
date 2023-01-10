@@ -127,5 +127,5 @@ const (
 )
 
 const (
-	ScannerVersion211 = "2.11"
+	ScannerVersion211 = "2.11.1"
 )
