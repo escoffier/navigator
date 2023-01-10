@@ -11,6 +11,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
+	"gitlab.com/piccolo_su/vegeta/pkg/util"
 )
 
 type ScannerInstanceInfoAPISrv struct {
@@ -28,6 +29,7 @@ func (sc *ScannerInstanceInfoAPISrv) GetScannerInstanceInfo(ctx *gin.Context) {
 		ClusterName         string `json:"clusterName"`
 		ScannerInstance     string `json:"scannerInstance"`     // scanner当前实例，重新启动都会改变
 		ScannerInstanceName string `json:"scannerInstanceName"` // 前端展示，scanner+ClusterName的方式
+		ScannerVersion      string `json:"scannerVersion"`
 	}
 
 	info, err := sc.ScannerInfoSrv.SearchScannerInfo(ctx)
@@ -44,8 +46,9 @@ func (sc *ScannerInstanceInfoAPISrv) GetScannerInstanceInfo(ctx *gin.Context) {
 			ClusterName:         info[i].ClusterName,
 			ScannerInstance:     info[i].ScannerInstance,
 			ScannerInstanceName: fmt.Sprintf("scanner-%s", info[i].ClusterName),
+			ScannerVersion:      info[i].ScannerVersion,
 		}
-		if time.Now().Unix()-info[i].HeartBeatAt > 5*60 {
+		if time.Now().Unix()-info[i].HeartBeatAt > 5*60 && util.CompareVersion(ins.ScannerVersion, consts.ScannerVersion211) > 0 {
 			if GetLanguage(ctx) == consts.LangEN {
 				ins.ScannerInstanceName = ins.ScannerInstanceName + "(abnormal)"
 			} else {
