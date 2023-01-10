@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 
 	json "github.com/json-iterator/go"
 	"gitlab.com/security-rd/go-pkg/logging"
@@ -622,6 +623,9 @@ func (iws *ImageWithCorrelateData) ToImageBaseResponse() ImageBaseResponse {
 		baseResponse.RegistryUrl = iws.Registry.Url
 		baseResponse.LastSyncAt = iws.Registry.LastSyncAt
 		baseResponse.RegistryID = iws.Registry.ID
+	}
+	if baseResponse.LastSyncAt < time.Now().Unix()/100 {
+		baseResponse.LastSyncAt = baseResponse.LastSyncAt * 1000 // 2.11.1之前用的是秒，2.11.1之后统一用的毫秒，中移部分集群还没有升级2.11.2
 	}
 	// 扫描状态
 	baseResponse.ScanStatus = GetSubTaskStatusFlagString(image.Flag)
