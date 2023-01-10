@@ -16,8 +16,15 @@ ENV FALCO_VERSION=${FALCO_VERSION}
 ENV HOST_ROOT /host
 ENV HOME /root
 
-RUN cp /etc/skel/.bashrc /root && cp /etc/skel/.profile /root \
+RUN sed -i "s!deb.debian.org/!${MIRROR}/!g" /etc/apt/sources.list \
+    && apt-get update && apt-get full-upgrade -y \
+    && apt-get install supervisor libdevmapper-dev libgpgme-dev -y \
+    && export DEBIAN_FRONTEND=noninteractive \
+    && apt-get install libglib2.0-dev -y \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
 
+RUN cp /etc/skel/.bashrc /root && cp /etc/skel/.profile /root \
     && sed -i "s!deb.debian.org/!${MIRROR}/!g" /etc/apt/sources.list \
     &&apt-get update \
 	&& apt-get full-upgrade -y \
@@ -90,21 +97,17 @@ RUN rm -rf /usr/bin/gcc && ln -s /usr/bin/gcc-5 /usr/bin/gcc \
 	&& rm -rf /usr/bin/llc \
 	&& ln -s /usr/bin/clang-7 /usr/bin/clang \
 	&& ln -s /usr/bin/llc-7 /usr/bin/llc \
-
 	# && curl -s https://falco.org/repo/falcosecurity-3672BA8F.asc | apt-key add - \
 	# && echo "deb https://download.falco.org/packages/${VERSION_BUCKET} stable main" | tee -a /etc/apt/sources.list.d/falcosecurity.list \
 	# && apt-get update -y \
 	# && if [ "$FALCO_VERSION" = "latest" ]; then apt-get install -y --no-install-recommends falco; else apt-get install -y --no-install-recommends falco=${FALCO_VERSION}; fi \
 	# && apt-get clean \
 	# && rm -rf /var/lib/apt/lists/* \
-
 	&& cd /tmp && dpkg -i holmes*.deb && rm /tmp/holmes*.deb && cd - \
-
 # Change the falco config within the container to enable ISO 8601
 # output.
 	&& sed -e 's/time_format_iso_8601: false/time_format_iso_8601: true/' < /etc/holmes/holmes.yaml > /etc/holmes/holmes.yaml.new \
 	&& mv /etc/holmes/holmes.yaml.new /etc/holmes/holmes.yaml \
-
 # Some base images have an empty /lib/modules by default
 # If it's not empty, docker build will fail instead of
 # silently overwriting the existing directory
@@ -135,6 +138,8 @@ RUN curl -L -o binutils_2.30-22_${TARGETARCH}.deb https://download.falco.org/dep
 
 # RUN apt-get update -y && apt --fix-broken install -y && apt-get install supervisor -y
 
+COPY ./configs/holmes/supervisord.conf /etc/
 COPY ./configs/holmes/docker-entrypoint.sh /
+COPY ./configs/holmes/holmes /
 
 ENTRYPOINT ["/docker-entrypoint.sh"]
