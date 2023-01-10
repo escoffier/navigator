@@ -60,13 +60,5 @@ fi
 
 echo "after driver loader: " `date +%s%3N`
 
-if [ -d "/var/run/holmes-engine/rules" ];
-then 
-    echo "the dir exists"
-else
-    mkdir –p /var/run/holmes-engine/rules
-fi
-echo "" > /var/run/holmes-engine/rules/holmes_engr.yaml
-echo "" > /var/run/holmes-engine/rules/holmes_engdr.yaml
-
-exec /usr/bin/holmes -r /var/run/holmes-engine/rules/holmes_engr.yaml -r /var/run/holmes-engine/rules/holmes_engdr.yaml $*
+echo $* > /var/arg.txt
+exec supervisord

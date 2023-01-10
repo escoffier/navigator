@@ -193,9 +193,9 @@ func (ec *EngineStreamHandler) engineReloads(ctx context.Context) error {
 			return err
 		}
 	}
+
 	sconfigs := ec.currentConfigVal.Load()
 	reloadReq.StaticVersion = strconv.FormatInt(sversion, 10)
-	reloadReq.SConfigVersion = strconv.FormatInt(ec.currentConfigVal.Load().version, 10)
 	if rulesInfo.LatestSettingVersion > ec.currentConfigVal.Load().version {
 		configsArr := toConfigsArr(rulesInfo)
 		sconfigs = &ruleConfig{
@@ -205,6 +205,9 @@ func (ec *EngineStreamHandler) engineReloads(ctx context.Context) error {
 		configsChanged = true
 	}
 	reloadReq.SRuleConfigs = sconfigs.rulesConfig
+	reloadReq.SConfigVersion = strconv.FormatInt(sconfigs.version, 10)
+	logging.Get().Info().Int64("currRulesVersion", ec.getCurrentRulesVersion()).Int64("newRulesVersion", rulesInfo.LatestDataVersion).
+		Int64("currConfigVersion", ec.currentConfigVal.Load().version).Int64("newConfigVersion", rulesInfo.LatestSettingVersion).Msg("Recieve new rules data")
 
 	if rulesChanged || configsChanged {
 		err := ec.engineManager.ReloadEngine(context.Background(), reloadReq)

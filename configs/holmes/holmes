@@ -1,0 +1,30 @@
+#!/usr/bin/env bash
+
+args=`cat /var/arg.txt`
+while [ -z "${args}" ]
+do
+    args=`cat /var/arg.txt`
+    [ ! -z "${args}" ] && break
+    ##sleep
+    sleep 2
+    echo "waiting to read arguments"
+done
+
+if [ -d "/var/run/holmes-engine/rules" ];
+then 
+    echo "the dir exists"
+else
+    mkdir –p /var/run/holmes-engine/rules
+fi
+if [ -f "/var/run/holmes-engine/rules/holmes_engr.yaml" ]; then
+    echo "holmes_engr.yaml exists" 
+else
+    echo "" > /var/run/holmes-engine/rules/holmes_engr.yaml
+fi
+if [ -f "/var/run/holmes-engine/rules/holmes_engdr.yaml" ]; then
+    echo "holmes_engdr.yaml exists"
+else
+    echo "" > /var/run/holmes-engine/rules/holmes_engdr.yaml
+fi
+
+/usr/bin/holmes -r /var/run/holmes-engine/rules/holmes_engr.yaml -r /var/run/holmes-engine/rules/holmes_engdr.yaml ${args}
