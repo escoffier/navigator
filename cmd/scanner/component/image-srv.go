@@ -353,6 +353,20 @@ func (s *ImageSrv) GetImageCorrelateData(ctx context.Context, param model.GetIma
 				logging.Get().Err(err).Int64("ImageID", imageID).Msg("ImageWithCorrelateData SearchSoftware")
 				return nil, err
 			}
+
+			issueToImage, err := s.scanResultDal.SearchScanSoftwareToImage(ctx, param.ImageId)
+			if err != nil {
+				return nil, err
+			}
+
+			issueMap := make(map[uint64]uint64)
+			for i := range issueToImage {
+				issueMap[issueToImage[i].UniqueTarget] = issueToImage[i].Flag
+			}
+			for i := range software {
+				software[i].Flag = issueMap[software[i].UniqueID]
+			}
+
 			ans.Software = software
 			ans.SoftwareCnt = cnt
 		}

@@ -1366,7 +1366,7 @@ func (s *ConScannerSrv) GetImageOverView(ctx context.Context, fromType int64) (*
 		onlineUuids[i] = onlineRes[i].ImageUUID
 	}
 	// 查总数
-	groups, err := s.dbdal.GroupImageFlags(ctx, store.GetImageOverViewParam{FromType: fromType, RegistryIds: registryIds})
+	groups, err := s.dbdal.GroupImageFlags(ctx, store.GetImageOverViewParam{})
 	if err != nil {
 		logging.GetLogger().Err(err).Msg("GetImageOverView.GroupImageFlags")
 		return nil, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf(consts.StatusInternalServerErrorMsg))
@@ -1404,7 +1404,7 @@ func (s *ConScannerSrv) GetImageOverView(ctx context.Context, fromType int64) (*
 	if len(onlineUuids) == 0 {
 		return overView, nil
 	}
-	onlinGroups, err := s.dbdal.GroupImageFlags(ctx, store.GetImageOverViewParam{FromType: fromType, ImageUUIDs: onlineUuids, RegistryIds: registryIds})
+	onlinGroups, err := s.dbdal.GroupImageFlags(ctx, store.GetImageOverViewParam{ImageUUIDs: onlineUuids})
 	if err != nil {
 		logging.GetLogger().Err(err).Msg("GetImageOverView.GroupImageFlags")
 		return nil, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf(consts.StatusInternalServerErrorMsg))
