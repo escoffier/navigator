@@ -195,7 +195,7 @@ func (dal *ImageScanResultDao) SearchScanSoftwareToImage(ctx context.Context, im
 func (dal *ImageScanResultDao) CreateImageEnv(ctx context.Context, imageID int64, data []*model.ImageEnv) error {
 	for i := range data {
 		vuln := data[i]
-		vuln.UniqueID = vuln.GenUniqueVuln()
+		vuln.UniqueID = vuln.GenUniqueID()
 		data[i] = vuln
 	}
 	data = DuplicateEnv(data)
@@ -409,7 +409,7 @@ func (dal *ImageScanResultDao) CreateSensitive(ctx context.Context, data []*mode
 	uniqueIds := make([]uint64, 0)
 	for i := range data {
 		vuln := data[i]
-		vuln.UniqueID = vuln.GenUniqueVuln()
+		vuln.UniqueID = vuln.GenUniqueID()
 		uniqueIds = append(uniqueIds, data[i].UniqueID)
 	}
 
@@ -516,7 +516,7 @@ func (dal *ImageScanResultDao) CreateVirus(ctx context.Context, data []*model.Im
 	uniqueIds := make([]uint64, 0)
 	for i := range data {
 		vuln := data[i]
-		vuln.UniqueID = vuln.GenUniqueVuln()
+		vuln.UniqueID = vuln.GenUniqueID()
 		uniqueIds = append(uniqueIds, data[i].UniqueID)
 	}
 	data = DuplicateVirus(data)
@@ -665,7 +665,7 @@ func (dal *ImageScanResultDao) CreateScanVirusToImage(ctx context.Context, image
 
 	for i := range data {
 		data[i].ImageID = imageID
-		data[i].UniqueID = data[i].GenUniqueVuln()
+		data[i].UniqueID = data[i].GenUniqueID()
 	}
 
 	data = DuplicateScanVirusToImage(data)
@@ -889,6 +889,9 @@ func DuplicateEnv(data []*model.ImageEnv) []*model.ImageEnv {
 	exit := make(map[uint64]bool)
 	after := make([]*model.ImageEnv, 0)
 	for i := range data {
+		if data[i].UniqueID == 0 {
+			data[i].UniqueID = data[i].GenUniqueID()
+		}
 		if !exit[data[i].UniqueID] {
 			after = append(after, data[i])
 			exit[data[i].UniqueID] = true
@@ -901,6 +904,9 @@ func DuplicateVirus(data []*model.ImageVirus) []*model.ImageVirus {
 	exit := make(map[uint64]bool)
 	after := make([]*model.ImageVirus, 0)
 	for i := range data {
+		if data[i].UniqueID == 0 {
+			data[i].UniqueID = data[i].GenUniqueID()
+		}
 		if !exit[data[i].UniqueID] {
 			after = append(after, data[i])
 			exit[data[i].UniqueID] = true
@@ -913,6 +919,9 @@ func DuplicateSensitiveFile(data []*model.ImageSensitiveFile) []*model.ImageSens
 	exit := make(map[uint64]bool)
 	after := make([]*model.ImageSensitiveFile, 0)
 	for i := range data {
+		if data[i].UniqueID == 0 {
+			data[i].UniqueID = data[i].GenUniqueID()
+		}
 		if !exit[data[i].UniqueID] {
 			after = append(after, data[i])
 			exit[data[i].UniqueID] = true
@@ -925,6 +934,9 @@ func DuplicateScanVirusToImage(data []*model.ScanVirusToImage) []*model.ScanViru
 	exit := make(map[uint64]bool)
 	after := make([]*model.ScanVirusToImage, 0)
 	for i := range data {
+		if data[i].UniqueID == 0 {
+			data[i].UniqueID = data[i].GenUniqueID()
+		}
 		if !exit[data[i].UniqueID] {
 			after = append(after, data[i])
 			exit[data[i].UniqueID] = true
