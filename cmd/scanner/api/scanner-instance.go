@@ -2,12 +2,14 @@ package api
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"gitlab.com/security-rd/go-pkg/logging"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
 )
 
@@ -44,10 +46,22 @@ func (sc *ScannerInstanceInfoAPISrv) GetScannerInstanceInfo(ctx *gin.Context) {
 			ScannerInstanceName: fmt.Sprintf("scanner-%s", info[i].ClusterName),
 		}
 		if time.Now().Unix()-info[i].HeartBeatAt > 5*60 {
-			ins.ScannerInstanceName = ins.ScannerInstanceName + "(abnormal)"
+			if GetLanguage(ctx) == consts.LangEN {
+				ins.ScannerInstanceName = ins.ScannerInstanceName + "(abnormal)"
+			} else {
+				ins.ScannerInstanceName = ins.ScannerInstanceName + "(异常)"
+			}
 		}
 		res = append(res, ins)
 	}
 
 	response.JSONOK(ctx, response.WithItems(res))
+}
+
+func GetLanguage(ctx *gin.Context) string {
+	if strings.ToLower(ctx.GetHeader("Accept-Language")) == consts.LangEN ||
+		strings.ToLower(ctx.GetHeader("accept-language")) == consts.LangEN {
+		return consts.LangEN
+	}
+	return consts.LangCH
 }

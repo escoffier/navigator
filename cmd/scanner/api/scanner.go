@@ -1045,8 +1045,7 @@ func (s *Scanner) GetOpenapiDoc(ctx *gin.Context) {
 	resEN = append(resEN, Doc{Description: "Downgrade Recovery API", Path: "openapi-degrade.html"})
 
 	res := resZH
-	if strings.ToLower(ctx.GetHeader("Accept-Language")) == "en" ||
-		strings.ToLower(ctx.GetHeader("accept-language")) == "en" {
+	if GetLanguage(ctx) == consts.LangEN {
 		res = resEN
 	}
 
