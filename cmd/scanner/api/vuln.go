@@ -104,20 +104,16 @@ func (s *VulnAPISrv) GetImageVulns(ctx *gin.Context) {
 	}
 	ans := make([]VulnResponse, 0)
 	for i := range res {
-		add := true
 		if len(attackPath) > 0 && !util.ExistInStringSlice(attackPath, res[i].AttackPath) {
-			add = false
+			continue
 		}
-
 		if len(class) > 0 && !util.ExistInStringSlice(class, res[i].Class) {
-			add = false
+			continue
 		}
 		if len(kernel) > 0 && ((res[i].KernelVuln && kernel[0] == consts.FalseString) || (!res[i].KernelVuln && kernel[0] == consts.TrueString)) {
-			add = false
+			continue
 		}
-		if add {
-			ans = append(ans, res[i])
-		}
+		ans = append(ans, res[i])
 	}
 
 	cnt = int64(len(ans))
