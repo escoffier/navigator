@@ -57,7 +57,7 @@ func (dal *ImageScanResultDao) SearchScanImage(ctx context.Context, param model.
 	sensitive := make([]*model.ImageSensitiveFile, 0)
 	envs := make([]*model.ImageEnv, 0)
 	license := make([]string, 0)
-
+	soft := make([]*model.ImageSoftware, 0)
 	// 查层级
 	if param.LayerDigest != "" {
 		// 查层级
@@ -155,7 +155,6 @@ func (dal *ImageScanResultDao) SearchScanImage(ctx context.Context, param model.
 
 		// abnormal software
 		softExit := make(map[string]bool)
-		soft := make([]*model.ImageSoftware, 0)
 
 		for i := range layer.Software {
 			key := fmt.Sprintf("%s|%s", layer.Software[i].Name, layer.Software[i].Version)
@@ -179,6 +178,8 @@ func (dal *ImageScanResultDao) SearchScanImage(ctx context.Context, param model.
 	imageData.Env = DuplicateEnv(envs)
 	imageData.EnvCnt = int64(len(imageData.Env))
 	imageData.License = util.DeDuplicationStringSlice(license)
+	imageData.Software = DuplicateSoft(soft)
+	imageData.SoftwareCnt = int64(len(imageData.Software))
 
 	return imageData, nil
 }

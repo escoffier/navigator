@@ -1,7 +1,6 @@
 package model
 
 import (
-	"math"
 	"time"
 
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -110,36 +109,6 @@ type ImageResponse struct {
 	Flag              uint64         `json:"flag"`
 	Project           string         `json:"project"`
 	LastSyncAt        int64          `json:"last_sync_at"`
-}
-
-func ImageToImageResponse(img ImageList) ImageResponse {
-	im := ImageResponse{
-		ID:           img.ID,
-		Digest:       img.Digest,
-		Library:      img.Library,
-		ScanStatus:   img.ScanStatus,
-		Questions:    img.Questions,
-		FullRepoName: img.FullRepoName,
-		Tags:         img.Tags,
-		ImageType:    img.ImageType,
-		NodeIP:       img.NodeIP,
-		NodeHostname: img.NodeHostname,
-		Os:           img.OS,
-		FromType:     img.FromType,
-		Flag:         img.Flag,
-	}
-	if img.ScanImage != nil {
-		im.CompleteTime = img.ScanImage.FinishAt
-		im.RiskScore = img.ScanImage.VulnScore + img.ScanImage.SensitiveScore + math.Min(img.ScanImage.WebshellScore+img.ScanImage.VirusScore, 40)
-	}
-
-	if img.Registry != nil {
-		im.RegistryName = img.Registry.Name
-		im.Library = img.Registry.Url
-		im.RegistryDeletedAt = img.Registry.DeletedAt
-		im.LastSyncAt = img.Registry.LastSyncAt
-	}
-	return im
 }
 
 type ScanOneStatusResponse struct {
