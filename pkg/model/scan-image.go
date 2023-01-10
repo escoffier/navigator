@@ -6,6 +6,7 @@ import (
 	"time"
 
 	json "github.com/json-iterator/go"
+
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
@@ -314,7 +315,7 @@ func (vi *ImageVirus) TableName() string {
 	return "ivan_scanner_virus"
 }
 
-func (vi *ImageVirus) GenUniqueVuln() uint64 {
+func (vi *ImageVirus) GenUniqueID() uint64 {
 	key := fmt.Sprintf(consts.UniqueVirusFamat, vi.Name, vi.Filename, vi.Filepath)
 	uid := util.GenerateUUID64(key)
 	return uid
@@ -356,7 +357,7 @@ func (ws *ImageSensitiveFile) TableName() string {
 	return "ivan_scanner_sensitive"
 }
 
-func (ws *ImageSensitiveFile) GenUniqueVuln() uint64 {
+func (ws *ImageSensitiveFile) GenUniqueID() uint64 {
 	key := fmt.Sprintf(consts.UniqueSensitiveFamat, ws.Name, ws.Description)
 	uid := util.GenerateUUID64(key)
 	return uid
@@ -441,7 +442,7 @@ type ScanVirusToImage struct {
 	UpdatedAt    int64  `gorm:"autoUpdateTime:milli;column:updated_at" json:"updatedAt"` // milliseconds
 }
 
-func (vi *ScanVirusToImage) GenUniqueVuln() uint64 {
+func (vi *ScanVirusToImage) GenUniqueID() uint64 {
 	key := fmt.Sprintf("%d-%d-%s", vi.ImageID, vi.UniqueTarget, vi.LayerDigest)
 	uid := util.GenerateUUID64(key)
 	vi.UniqueID = uid
@@ -531,7 +532,7 @@ type ImageEnv struct {
 	UpdatedAt int64  `gorm:"autoUpdateTime:milli;column:updated_at" json:"updatedAt"` // milliseconds
 }
 
-func (vi *ImageEnv) GenUniqueVuln() uint64 {
+func (vi *ImageEnv) GenUniqueID() uint64 {
 	key := fmt.Sprintf(consts.UniqueENVFamat, vi.Key, vi.Value, vi.Normal)
 	uid := util.GenerateUUID64(key)
 	return uid

@@ -23,7 +23,7 @@ func ConvertVirus(imageID int64, data []model.PerLayerMaliciousResult) ([]*model
 				Filepath: vir.VirusInfos[j].FilePath,
 				Name:     vir.VirusInfos[j].VirusName,
 			}
-			viru.UniqueID = viru.GenUniqueVuln()
+			viru.UniqueID = viru.GenUniqueID()
 
 			virus = append(virus, viru)
 			issue = append(issue, &model.ScanVirusToImage{
@@ -53,7 +53,7 @@ func ConvertSensitive(imageID int64, data []model.PerLayerSensitiveResult) ([]*m
 				viru.Name = "/" + viru.Name
 			}
 
-			viru.UniqueID = viru.GenUniqueVuln()
+			viru.UniqueID = viru.GenUniqueID()
 			virus = append(virus, viru)
 			issue = append(issue, &model.ScanSensitiveToImage{
 				UniqueTarget: viru.UniqueID,
@@ -106,7 +106,7 @@ func ConvertSoftware(imageID int64, data []model.Software) ([]*model.ImageSoftwa
 // 				Description: vir.LicenseInfos[j].Descripion,
 // 				Name:        vir.LicenseInfos[j].Name,
 // 			}
-// 			viru.UniqueID = viru.GenUniqueVuln()
+// 			viru.UniqueID = viru.GenUniqueID()
 // 			licenses = append(licenses, viru)
 // 			issue = append(issue, &model.ScanIssueToImage{
 // 				SecurityIssue: model.FlagHasExceptLicense,
@@ -129,7 +129,7 @@ func ConvertEnv(imageID int64, data []model.EnvKeyValue) []*model.ImageEnv {
 			Normal:  data[i].IsAbnormal != consts.EnvIsAbnormal,
 			ImageID: imageID,
 		}
-		env.UniqueID = env.GenUniqueVuln()
+		env.UniqueID = env.GenUniqueID()
 		envs = append(envs, env)
 	}
 
