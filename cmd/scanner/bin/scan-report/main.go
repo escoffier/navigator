@@ -146,6 +146,10 @@ func main() {
 
 	updateTaskDal := common.NewUpdateTaskSrv(exportTaskDal, rc0)
 
+	if err := updateTaskDal.DeleteIdempotent(context.Background()); err != nil {
+		os.Exit(1)
+	}
+
 	imageSrv := component.NewImageSrv(imageDal, registryDal, scanTaskDal, vulnDal,
 		scanResultDal, webshellDal, trustedImageDal, resourceDal, scannerInstanceInfoDal)
 

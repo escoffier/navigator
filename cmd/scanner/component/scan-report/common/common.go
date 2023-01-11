@@ -25,6 +25,7 @@ type UpdateExportTask interface {
 	IncrRedisFinished(ctx context.Context, task model.ExportTensorTask) error
 	SetRedisAll(ctx context.Context, task model.ExportTensorTask, all int64) error
 	DeleteRedisData(ctx context.Context, task model.ExportTensorTask) error
+	DeleteIdempotent(ctx context.Context) error
 }
 
 type ExcelMetaData struct {
@@ -221,6 +222,17 @@ func SaveFile(reader io.Reader, filenamePrefix string) error {
 type UpdateTaskSrv struct {
 	ExportTaskDal store.ExportTaskDal
 	RedisCli      *redis.Client
+}
+
+func (s *UpdateTaskSrv) DeleteIdempotent(ctx context.Context) error {
+
+	dataName := new(model.ExportTensorTask).TableName()
+	err := s.ExportTaskDal.DeleteExportIdempotent(ctx, dataName, 0)
+	if err != nil {
+		logging.Get().Err(err).Str("dataName", dataName).Msg("DeleteIdempotent")
+		return err
+	}
+	return nil
 }
 
 func NewUpdateTaskSrv(exportTaskDal store.ExportTaskDal, redisCli *redis.Client) *UpdateTaskSrv {
