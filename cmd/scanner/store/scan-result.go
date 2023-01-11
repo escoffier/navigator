@@ -303,7 +303,7 @@ func (dal *ImageScanResultDao) CreateSoftware(ctx context.Context, data []*model
 	uniqueIds := make([]uint64, 0)
 	for i := range data {
 		vuln := data[i]
-		vuln.UniqueID = vuln.GenUniqueVuln()
+		vuln.UniqueID = vuln.GenUniqueID()
 		uniqueIds = append(uniqueIds, data[i].UniqueID)
 	}
 
@@ -878,6 +878,9 @@ func DuplicateSoft(data []*model.ImageSoftware) []*model.ImageSoftware {
 	exit := make(map[uint64]bool)
 	after := make([]*model.ImageSoftware, 0)
 	for i := range data {
+		if data[i].UniqueID == 0 {
+			data[i].UniqueID = data[i].GenUniqueID()
+		}
 		if !exit[data[i].UniqueID] {
 			after = append(after, data[i])
 			exit[data[i].UniqueID] = true

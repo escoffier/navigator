@@ -504,7 +504,7 @@ type ImageSoftware struct {
 	Flag uint64 `gorm:"-" json:"flag"`
 }
 
-func (s *ImageSoftware) GenUniqueVuln() uint64 {
+func (s *ImageSoftware) GenUniqueID() uint64 {
 	key := fmt.Sprintf(consts.UniqueSoftwareFamat, s.Name, s.Version)
 	uid := util.GenerateUUID64(key)
 	return uid

@@ -75,7 +75,7 @@ func ConvertSoftware(imageID int64, data []model.Software) ([]*model.ImageSoftwa
 			Version: data[i].Version,
 			License: data[i].License,
 		}
-		sf.UniqueID = sf.GenUniqueVuln()
+		sf.UniqueID = sf.GenUniqueID()
 		software = append(software, sf)
 
 		iss := &model.ScanSoftwareToImage{
