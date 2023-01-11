@@ -29,10 +29,28 @@ type ExportTaskDal interface {
 	CreateHtmlVulnImage(ctx context.Context, data []*model.ExportVulnImage) error
 
 	CreateExportIdempotent(ctx context.Context, id int64) (bool, error)
+	DeleteExportIdempotent(ctx context.Context, dataName string, dataID int64) error
 }
 
 type ExportTaskDao struct {
 	db *databases.RDBInstance
+}
+
+func (dal *ExportTaskDao) DeleteExportIdempotent(ctx context.Context, dataName string, dataID int64) error {
+
+	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*10)
+	defer cancelFunc()
+	db := dal.db.Get().WithContext(ctx).Model(model.Idempotent{})
+	if dataName != "" {
+		db = db.Where("data_name = ?", dataName)
+	}
+	if dataID > 0 {
+		db = db.Where("data_id = ?", dataID)
+	}
+	if err := db.Delete(&model.Idempotent{}).Error; err != nil {
+		return err
+	}
+	return nil
 }
 
 func (dal *ExportTaskDao) CreateExportIdempotent(ctx context.Context, id int64) (bool, error) {

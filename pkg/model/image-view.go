@@ -624,7 +624,7 @@ func (iws *ImageWithCorrelateData) ToImageBaseResponse() ImageBaseResponse {
 		baseResponse.LastSyncAt = iws.Registry.LastSyncAt
 		baseResponse.RegistryID = iws.Registry.ID
 	}
-	if baseResponse.LastSyncAt < time.Now().Unix()/100 {
+	if baseResponse.LastSyncAt < time.Now().UnixMilli()/100 {
 		baseResponse.LastSyncAt = baseResponse.LastSyncAt * 1000 // 2.11.1之前用的是秒，2.11.1之后统一用的毫秒，中移部分集群还没有升级2.11.2
 	}
 	// 扫描状态
