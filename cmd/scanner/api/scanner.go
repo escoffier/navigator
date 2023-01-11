@@ -180,7 +180,7 @@ func (s *Scanner) ScannedByVulnDetails(ctx *gin.Context) {
 // @Param limit query int true "int"
 // @Success 200 {object} ApiWithItem{data=ApiItems{items=[]model.Vuln{}}}
 // @Router	/api/v1/vulns/all [get]
-func (s *Scanner) SearchVulns(ctx *gin.Context) {
+func (s *Scanner) SearchOnlineImageVulns(ctx *gin.Context) {
 	search := ctx.Query("search")
 	if len(search) > 64 {
 		response.JSONError(ctx, errors.New("the maximum value is exceeded"))
@@ -193,18 +193,7 @@ func (s *Scanner) SearchVulns(ctx *gin.Context) {
 	if filter.SortBy == "" {
 		filter.SortBy = consts.SortByDesc
 	}
-	// 默认查在线的
-	onlineIds, err := s.Srv.GetOnlineImageId(ctx)
-	if err != nil {
-		response.JSONError(ctx, err)
-		return
-	}
-	if len(onlineIds) == 0 {
-		response.JSONOK(ctx, response.WithItems([]model.Vuln{}))
-		return
-	}
-
-	vulns, cnt, err := s.VulnSrv.SearchVulns(ctx, model.SearchVulnParam{ImageIds: onlineIds, VulnKeyword: search}, filter)
+	vulns, cnt, err := s.VulnSrv.SearchVulns(ctx, model.SearchVulnParam{OnlineImageVuln: consts.TrueString, VulnKeyword: search}, filter)
 	if err != nil {
 		response.JSONError(ctx, err)
 		return
@@ -238,15 +227,19 @@ func (s *Scanner) ListScannedByVulnOverview(ctx *gin.Context) {
 	response.JSONOK(ctx, response.WithItem(res), response.WithExportFileStatus(0))
 }
 
-// GetVulnTopNImage
-// @Summary 获取漏洞评分Top5的镜像
-// @Title statistic
-// @Author guolingkai@tensorsecurity.cn
-// @Description 获取漏洞评分Top5的镜像
-// @Tags Vuln
-// @Success 200 {object} ApiWithItem{data=ApiItem{item=model.VulnOverview{top5=[]model.ImageRiskScore{}}}}
-// @Router	/api/v1/vulns/statistic [get]
+type VulnTopNImage struct {
+	Ans    []model.ImageRiskScore
+	Update time.Time
+}
+
+var vulnTopNImage *VulnTopNImage
+
 func (s *Scanner) GetVulnTopNImage(ctx *gin.Context) {
+
+	if vulnTopNImage != nil && time.Now().Sub(vulnTopNImage.Update) < time.Minute*10 {
+		response.JSONOK(ctx, response.WithItems(vulnTopNImage.Ans), response.WithTotalItems(int64(len(vulnTopNImage.Ans))))
+		return
+	}
 
 	topN, err := strconv.ParseInt(ctx.Query("topn"), 10, 64)
 	if err != nil {
@@ -257,6 +250,10 @@ func (s *Scanner) GetVulnTopNImage(ctx *gin.Context) {
 	if err != nil {
 		response.JSONError(ctx, response.NewHttpError(http.StatusInternalServerError, err))
 		return
+	}
+	vulnTopNImage = &VulnTopNImage{
+		Ans:    res,
+		Update: time.Now(),
 	}
 	response.JSONOK(ctx, response.WithItems(res), response.WithTotalItems(int64(len(res))))
 }

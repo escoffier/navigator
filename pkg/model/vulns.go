@@ -433,6 +433,7 @@ type SearchVulnParam struct {
 	SeverityInt     []int64      // 漏洞级别筛选
 	ImageIds        []int64      // 镜像ID
 	LayerSearch     *LayerSearch // 层级
+	OnlineImageVuln string
 }
 
 type LayerSearch struct {

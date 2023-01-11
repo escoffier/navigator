@@ -168,7 +168,6 @@ func (s *ConScannerSrv) ImageOverview(ctx context.Context, uuids []uint32) ([]Im
 		return res, nil
 	}
 	// 查出有扫描结果的镜像
-
 	images, _, err := s.dbdal.SearchImage(ctx, store.SearchImageParam{UUIDs: uuids}, nil)
 	if err != nil {
 		logging.GetLogger().Err(err).Msg("SearchImages.SearchImage")
@@ -885,16 +884,8 @@ func (s *ConScannerSrv) GetOnlineVulnTopN(ctx context.Context, topN int64) ([]mo
 	if topN <= 0 {
 		topN = consts.DefaultVulnTopNImage
 	}
-	onlineIds, err := s.GetOnlineImageId(ctx)
-	if err != nil {
-		logging.GetLogger().Err(err).Msg("SearchImageWithScan.SearchQuestionInfo")
-		return nil, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf(consts.StatusInternalServerErrorMsg))
-	}
-	if len(onlineIds) == 0 {
-		return []model.ImageRiskScore{}, nil
-	}
 
-	topNImage, _, err := s.dbdal.SearchScanImage(ctx, store.SearchScanImageParam{ImageIds: onlineIds, Fields: []string{"id", "image_id", "risk_score"}},
+	topNImage, _, err := s.dbdal.SearchScanImage(ctx, store.SearchScanImageParam{Online: consts.TrueString, Fields: []string{"id", "image_id", "risk_score"}},
 		&model.Filter{Limit: topN, SortBy: consts.SortByDesc, SortFiled: "risk_score"})
 	if err != nil {
 		logging.GetLogger().Err(err).Msg("GetOnlineVulnTopN")

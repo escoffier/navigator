@@ -910,7 +910,7 @@ func (s *ScannerOrm) GroupImageFlags(ctx context.Context, param GetImageOverView
 }
 
 func (s *ScannerOrm) SearchScanImage(ctx context.Context, param SearchScanImageParam, filter *model.Filter) ([]model.ScanImage, int64, error) {
-	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*3)
+	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*30)
 	defer cancelFunc()
 	db := s.rdb.Get().Model(new(model.ScanImage)).WithContext(ctx)
 
@@ -923,6 +923,9 @@ func (s *ScannerOrm) SearchScanImage(ctx context.Context, param SearchScanImageP
 	}
 	if len(param.TaskIds) > 0 {
 		db = db.Where("scan_task_id IN ? ", param.TaskIds)
+	}
+	if param.Online == consts.TrueString {
+		db = db.Where("image_id IN ( ? )", GetOnlineImageIdSub(ctx, s.rdb.Get()))
 	}
 	if len(param.ImageIds) > 0 {
 		db = db.Where("image_id IN ? ", param.ImageIds)
@@ -1134,14 +1137,13 @@ func (s *ScannerOrm) SearchImage(ctx context.Context, param SearchImageParam, fi
 	if len(param.OmitFields) > 0 {
 		db = db.Omit(param.OmitFields...)
 	}
-	if param.OnlineImage == consts.TrueString {
-		sub := s.rdb.Get().WithContext(ctx).Model(new(model.ImageList)).Select("distinct ivan_scanner_image_list.image_uuid").
-			Joins("join ivan_assets_containers on ivan_assets_containers.image_uuid = ivan_scanner_image_list.image_uuid")
-		db = db.Where("image_uuid IN ( ? )", sub)
-	} else if param.OnlineImage == consts.FalseString {
-		sub := s.rdb.Get().WithContext(ctx).Model(new(model.ImageList)).Select("distinct ivan_scanner_image_list.image_uuid").
-			Joins("join ivan_assets_containers on ivan_assets_containers.image_uuid = ivan_scanner_image_list.image_uuid")
-		db = db.Where("image_uuid NOT IN ( ? )", sub)
+	if param.OnlineImage == consts.TrueString || param.OnlineImage == consts.FalseString {
+		sub := GetOnlineImageUUIDSub(ctx, s.rdb.Get())
+		if param.OnlineImage == consts.TrueString {
+			db = db.Where("image_uuid IN ( ? )", sub)
+		} else {
+			db = db.Where("image_uuid NOT IN ( ? )", sub)
+		}
 	}
 
 	// 先查总数

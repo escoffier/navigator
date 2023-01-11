@@ -39,7 +39,9 @@ func (vn *VulnService) SearchVulns(ctx context.Context, param model.SearchVulnPa
 		CanFixed:        param.CanFixed,
 		SeverityInt:     param.SeverityInt,
 		JustReturnCount: false,
+		OnlineImageVuln: param.OnlineImageVuln,
 	}
+
 	if param.Sources != "" {
 		daoParam.Sources = strings.Split(param.Sources, ",")
 	}

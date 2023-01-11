@@ -1,9 +1,13 @@
 package store
 
 import (
+	"context"
 	"fmt"
 
+	"gorm.io/gorm"
+
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
+	"gitlab.com/piccolo_su/vegeta/pkg/model"
 )
 
 // StatusCheck 检查当前状态是否可以流转到下一个状态
@@ -53,4 +57,18 @@ func UnionSlice(vules ...[]int64) []int64 {
 		}
 	}
 	return ans
+}
+
+func GetOnlineImageIdSub(ctx context.Context, db *gorm.DB) *gorm.DB {
+	sub := db.WithContext(ctx).Model(new(model.ImageList)).Select("ivan_scanner_image_list.id").
+		Joins("join ivan_assets_containers on ivan_assets_containers.image_uuid = ivan_scanner_image_list.image_uuid").
+		Where("ivan_assets_containers.status = 0")
+	return sub
+}
+
+func GetOnlineImageUUIDSub(ctx context.Context, db *gorm.DB) *gorm.DB {
+	sub := db.WithContext(ctx).Model(new(model.ImageList)).Select("distinct ivan_scanner_image_list.image_uuid").
+		Joins("join ivan_assets_containers on ivan_assets_containers.image_uuid = ivan_scanner_image_list.image_uuid").
+		Where("ivan_assets_containers.status = 0")
+	return sub
 }
