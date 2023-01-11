@@ -320,7 +320,6 @@ func (s *ImageSrv) GetImageCorrelateData(ctx context.Context, param model.GetIma
 		ans.Sensitive = dataFor211.Sensitive
 		ans.EnvCnt = dataFor211.EnvCnt
 		ans.Env = dataFor211.Env
-		ans.License = dataFor211.License
 		ans.Software = dataFor211.Software
 		ans.SoftwareCnt = dataFor211.SoftwareCnt
 	}
