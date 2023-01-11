@@ -105,7 +105,7 @@ func (v *VulnDao) SearchVulnImage(ctx context.Context, param SearchVulnImagePara
 }
 
 func (v *VulnDao) SearchVuln(ctx context.Context, param SearchVulnParam, filter *model.Filter) ([]*model.Vuln, int64, error) {
-	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*10)
+	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*30)
 	defer cancelFunc()
 	db := v.rdb.Get().WithContext(ctx).Model(model.Vuln{})
 
@@ -121,6 +121,13 @@ func (v *VulnDao) SearchVuln(ctx context.Context, param SearchVulnParam, filter 
 	if param.Where != "" {
 		db = db.Where(param.Where)
 	}
+
+	if param.OnlineImageVuln == consts.TrueString {
+		sub := v.rdb.Get().WithContext(ctx).Model(new(model.VulnImage)).Select("distinct unique_vuln").
+			Where("image_id IN (?) ", GetOnlineImageIdSub(ctx, v.rdb.Get()))
+		db = db.Where("unique_vuln IN (?)", sub)
+	}
+
 	if len(param.ImageIds) > 0 {
 		sub := v.rdb.Get().WithContext(ctx).Model(new(model.VulnImage)).Select("distinct unique_vuln").Where("image_id IN  ?", param.ImageIds)
 		db = db.Where("unique_vuln IN (?)", sub)

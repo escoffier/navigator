@@ -117,6 +117,7 @@ type SearchScanImageParam struct {
 	NoStatus        string
 	Status          string
 	Fields          []string // 只想要的字端
+	Online          string
 }
 
 type SearchRegistryParam struct {
@@ -317,6 +318,7 @@ type SearchVulnParam struct {
 	StartID         int64
 	ClassType       []string
 	LayerSearch     *model.LayerSearch
+	OnlineImageVuln string
 }
 
 type SearchVulnImageParam struct {

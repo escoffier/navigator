@@ -125,7 +125,7 @@ func WebAPI(router *gin.Engine,
 		v4.GET("/statistic", apiScannerSrv.ListScannedByVulnOverview)
 		v4.GET("/topNImage", apiScannerSrv.GetVulnTopNImage)
 		v4.GET("/imageHistogram/:imageID", apiScannerSrv.GetImageHistogram)
-		v4.GET("/all", apiScannerSrv.SearchVulns) // 漏洞列表，分页获取
+		v4.GET("/all", apiScannerSrv.SearchOnlineImageVulns) // 漏洞列表，分页获取
 		v4.GET("/imageVuln/vuln", apiVulnSrv.GetImageVulns)
 		v4.GET("/imageVuln/pkg", apiVulnSrv.GetImageVulnPkg)
 		v4.GET("/imageVuln/language", apiVulnSrv.GetImageVulnLanguage)
