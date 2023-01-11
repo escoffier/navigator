@@ -221,7 +221,7 @@
       value: "容器出现逃逸行为，请排查集群权限是否陷落，可采用免疫防御阻止风险进一步扩散使用免疫防御训练应用，限制敏感文件和命令的用户权限。"
   desc: Detect file write activities on container entrypoint symlink (/proc/self/exe)
   condition: >
-    open_write and container
+    open_read and container
     and (fd.name=/proc/self/exe or fd.name startswith /proc/self/fd/)
     and not docker_procs
     and not (tensorsec_namespace
@@ -231,6 +231,7 @@
     and not proc.cmdline = "runc:[1:CHILD] init"
     and not proc.cmdline contains "kube-bench "
     and not proc.cmdline contains "scanner "
+    and shell_parent_procs
   output: >
     %fd.name is open to write by process (zh_msg=CVE-2019-5736修改容器入口,rule_type=Privilege_Escalation,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=%proc.name %proc.exeline,container_id=%container.id,container_name=%container.name)
   priority: ALERT

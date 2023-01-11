@@ -62,7 +62,7 @@ if args.cve:
 	if args.cve == 'cve-2020-14386':
 		os.system('python3 /test/cve/CVE-2020-14386/server.py')
 	if args.cve == 'cve-2019-5736':
-		os.system('go run /test/cve/CVE-2019-5736/main.go')
+		os.system('/test/cve/CVE-2019-5736/cve-2019-5736-poc')
 	if args.cve == 'cve-2022-0185':
 		os.system('/test/cve/CVE-2022-0185/script.sh')
 	if args.cve == 'cve-2021-4034':
