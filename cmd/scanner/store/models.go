@@ -161,6 +161,7 @@ type GetImageOverViewParam struct {
 	FlagLess    int
 	FromType    int64
 	RegistryIds []int64
+	Online      string
 }
 type SearchRejectPolicyParam struct {
 	ID                int64
