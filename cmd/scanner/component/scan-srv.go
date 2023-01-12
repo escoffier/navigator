@@ -1330,32 +1330,6 @@ func (s *ConScannerSrv) GetImageDetail(ctx context.Context, imgID int64) (*model
 func (s *ConScannerSrv) GetImageOverView(ctx context.Context, fromType int64) (*model.OverView, error) {
 
 	overView := new(model.OverView)
-	registryIds := make([]int64, 0)
-	// 查询未删除的仓库
-	noDeleteRegistries, _, err := s.registryDal.SearchRegistry(ctx, store.SearchRegistryParam{Deleted: consts.FalseString}, nil)
-	if err != nil {
-		return nil, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf(consts.StatusInternalServerErrorMsg))
-	}
-	if len(noDeleteRegistries) == 0 {
-		return overView, nil
-	}
-	for i := range noDeleteRegistries {
-		registryIds = append(registryIds, noDeleteRegistries[i].ID)
-	}
-
-	// 查在线
-	onlineSQL := fmt.Sprintf("select distinct  a.id,a.image_uuid from  %s a  join %s b  where  a.image_uuid = b.image_uuid and a.from_type = %d and b.status = 0 ;", model.ImageList{}.TableName(), model.TensorContainer{}.TableName(), fromType)
-	onlineRes, err := s.dbdal.GetOnlineImage(ctx, store.GetOnlineImageParam{SQL: onlineSQL})
-	if err != nil {
-		logging.GetLogger().Err(err).Msg("GetImageOverView.GetOnlineImage")
-		return nil, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf(consts.StatusInternalServerErrorMsg))
-	}
-	onlineMap := make(map[int64]bool)
-	onlineUuids := make([]uint32, len(onlineRes))
-	for i := range onlineRes {
-		onlineMap[onlineRes[i].ID] = true
-		onlineUuids[i] = onlineRes[i].ImageUUID
-	}
 	// 查总数
 	groups, err := s.dbdal.GroupImageFlags(ctx, store.GetImageOverViewParam{})
 	if err != nil {
@@ -1391,11 +1365,7 @@ func (s *ConScannerSrv) GetImageOverView(ctx context.Context, fromType int64) (*
 		}
 	}
 
-	// 查在线
-	if len(onlineUuids) == 0 {
-		return overView, nil
-	}
-	onlinGroups, err := s.dbdal.GroupImageFlags(ctx, store.GetImageOverViewParam{ImageUUIDs: onlineUuids})
+	onlinGroups, err := s.dbdal.GroupImageFlags(ctx, store.GetImageOverViewParam{Online: consts.TrueString})
 	if err != nil {
 		logging.GetLogger().Err(err).Msg("GetImageOverView.GroupImageFlags")
 		return nil, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf(consts.StatusInternalServerErrorMsg))

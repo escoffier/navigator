@@ -896,6 +896,11 @@ func (s *ScannerOrm) GroupImageFlags(ctx context.Context, param GetImageOverView
 	if param.FromType > 0 {
 		db = db.Where("from_type = ?", param.FromType)
 	}
+
+	if param.Online == consts.TrueString {
+		db = db.Where("image_uuid IN ( ? )", GetOnlineImageUUIDSub(ctx, s.rdb.Get()))
+	}
+
 	if len(param.ImageUUIDs) > 0 {
 		db = db.Where("image_uuid IN ?", param.ImageUUIDs)
 	}
