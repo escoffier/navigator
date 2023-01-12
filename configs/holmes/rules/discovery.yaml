@@ -226,7 +226,7 @@
   desc: Find files with suid privilege by non-root users
   condition: >
     evt.type = write and user.uid != 0 and
-    (proc.name = find or proc.cmdline contains "-perm") and (
+    (proc.name = find and proc.cmdline contains "-perm" ) and (
     evt.arg.data = "/usr/bin/find." or
     evt.arg.data contains "nmap" or
     evt.arg.data contains "vim" or
@@ -254,7 +254,7 @@
       value: "可能为黑客信息收集行为，请确认执行对象，可使用免疫防御训练应用，限制敏感文件和命令的用户权限，禁止挂载敏感目录和文件。"
   desc: View login information in the container
   condition: >
-    open_read and container and (fd.name="/var/log/lastlog" or fd.name="/var/log/wtmp") and not proc.cmdline contains "bash" and not tensorsec_namespace and not k8s.pod.name contains "calico"
+    open_read and container and (fd.name="/var/log/lastlog" or fd.name="/var/log/wtmp") and not proc.cmdline contains "bash" and not tensorsec_namespace and not k8s.pod.name contains "calico" and shell_parent_procs
   output: View login information inside the container (zh_msg=容器内查看登录信息,rule_type=Discovery,fd_name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,container_id=%container.id,container_name=%container.name)
   priority: WARNING
   tags: [ATT&CK]
