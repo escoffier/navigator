@@ -213,11 +213,15 @@ func (ec *EngineStreamHandler) engineReloads(ctx context.Context) error {
 		err := ec.engineManager.ReloadEngine(context.Background(), reloadReq)
 		if err != nil {
 			logging.Get().Err(err).Str("sversion", reloadReq.StaticVersion).Msg("reload error")
+			if manager.IsEngineStartError(err) {
+				ec.setCurrentRulesVersion(sversion)
+				logging.Get().Err(err).Str("sversion", reloadReq.StaticVersion).Msg("set the rules version when the static rules version is invalid")
+			}
 			return err
 		} else {
 			ec.setCurrentRulesVersion(sversion)
 			ec.setRulesConfig(sconfigs.rulesConfig, sconfigs.version)
-			logging.Get().Info().Str("sversion", reloadReq.StaticVersion).Msg("reload ok")
+			logging.Get().Info().Str("sversion", reloadReq.StaticVersion).Int64("sconfigversion", sconfigs.version).Msg("reload ok")
 		}
 	} else {
 		logging.Get().Info().Int64("dataVersion", rulesInfo.LatestDataVersion).Int64("configVersion", rulesInfo.LatestSettingVersion).
