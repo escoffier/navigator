@@ -80,3 +80,8 @@ func GetBoolStringFromQuery(ctx *gin.Context, key string) string {
 	}
 	return ""
 }
+
+func GetKeywordFromQuery(ctx *gin.Context, key string) string {
+	word := ctx.Query(key)
+	return strings.TrimSpace(word)
+}

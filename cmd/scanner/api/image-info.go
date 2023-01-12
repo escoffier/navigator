@@ -2,6 +2,7 @@ package api
 
 import (
 	"fmt"
+	"net/http"
 	"strconv"
 	"strings"
 
@@ -25,13 +26,16 @@ func NewImageInfoAPI(
 }
 
 func (s *ImageInfoAPI) ListBaseToAppImage(ctx *gin.Context) {
-	imageID, err := strconv.ParseInt(ctx.Param("imageID"), 10, 64)
-	if err != nil {
-		response.JSONError(ctx, err)
+
+	imageID := util.GetInt64FromQuery(ctx, "imageID")
+	if imageID <= 0 {
+		response.JSONError(ctx, response.NewHttpError(http.StatusBadRequest, fmt.Errorf("not get imageID")))
 		return
 	}
-	keyword := ctx.Query("keyword")
+
+	keyword := util.GetKeywordFromQuery(ctx, "keyword")
 	filter := model.GetFilter(ctx)
+
 	data, err := s.ImageSrv.GetImageCorrelateData(ctx, model.GetImageAssociateDataParam{
 		ImageId:         imageID,
 		BaseImageEnable: true,
