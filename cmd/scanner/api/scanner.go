@@ -119,9 +119,9 @@ func (s *Scanner) ScannedByVulnDetails(ctx *gin.Context) {
 		err        error
 	)
 	if uniqueVulnStr == "" {
-		vulnName := ctx.Query("vulnName")
-		pkgName := ctx.Query("pkgName")
-		pkgVersion := ctx.Query("pkgVersion")
+		vulnName := util.GetKeywordFromQuery(ctx, "vulnName")
+		pkgName := util.GetKeywordFromQuery(ctx, "pkgName")
+		pkgVersion := util.GetKeywordFromQuery(ctx, "pkgVersion")
 		if vulnName == "" || pkgName == "" || pkgVersion == "" {
 			response.JSONError(ctx, fmt.Errorf("vulnName,pkgName,pkgVersion must not empty"))
 			return
@@ -181,7 +181,8 @@ func (s *Scanner) ScannedByVulnDetails(ctx *gin.Context) {
 // @Success 200 {object} ApiWithItem{data=ApiItems{items=[]model.Vuln{}}}
 // @Router	/api/v1/vulns/all [get]
 func (s *Scanner) SearchOnlineImageVulns(ctx *gin.Context) {
-	search := ctx.Query("search")
+	search := util.GetKeywordFromQuery(ctx, "search")
+
 	if len(search) > 64 {
 		response.JSONError(ctx, errors.New("the maximum value is exceeded"))
 		return

@@ -248,6 +248,7 @@ func (sp *ImageListParam) Deserialize() {
 	if sp.NotIdentifyTrusted {
 		sp.ImageAttr.Trusted = ""
 	}
+	sp.Keyword = strings.TrimSpace(sp.Keyword)
 }
 
 // image(subtask) scan status

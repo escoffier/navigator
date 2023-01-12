@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"os"
 	"sort"
-	"strconv"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -29,16 +28,19 @@ func NewVulnAPISrv(vulnSrv component.VulnServiceInterface) *VulnAPISrv {
 
 // 获取镜像漏洞-漏洞视角
 func (s *VulnAPISrv) GetImageVulns(ctx *gin.Context) {
-	vulnKeyword := ctx.Query("keyword")
-	imageID, err := strconv.ParseInt(ctx.Query("imageID"), 10, 64)
-	if err != nil || imageID <= 0 {
+
+	vulnKeyword := util.GetKeywordFromQuery(ctx, "keyword")
+	imageID := util.GetInt64FromQuery(ctx, "imageID")
+
+	if imageID <= 0 {
 		response.JSONError(ctx, response.NewHttpError(http.StatusBadRequest, fmt.Errorf("not get imageID")))
 		return
 	}
-	pkgName := ctx.Query("pkgName")
-	pkgVersion := ctx.Query("pkgVersion")
-	sources := ctx.Query("sources")
-	canFixed := ctx.Query("canFixed")
+
+	pkgName := util.GetKeywordFromQuery(ctx, "pkgName")
+	pkgVersion := util.GetKeywordFromQuery(ctx, "pkgVersion")
+	sources := util.GetKeywordFromQuery(ctx, "sources")
+	canFixed := util.GetKeywordFromQuery(ctx, "canFixed")
 
 	severityInt := make([]int64, 0)
 	severity := strings.Split(ctx.Query("severity"), ",")
@@ -133,12 +135,13 @@ func (s *VulnAPISrv) GetImageVulns(ctx *gin.Context) {
 
 // 获取镜像漏洞-软件视角
 func (s *VulnAPISrv) GetImageVulnPkg(ctx *gin.Context) {
-	imageID, err := strconv.ParseInt(ctx.Query("imageID"), 10, 64)
-	if err != nil || imageID <= 0 {
+	imageID := util.GetInt64FromQuery(ctx, "imageID")
+	if imageID <= 0 {
 		response.JSONError(ctx, response.NewHttpError(http.StatusBadRequest, fmt.Errorf("not get imageID")))
 		return
 	}
-	pkgKeyword := ctx.Query("keyword")
+
+	pkgKeyword := util.GetKeywordFromQuery(ctx, "keyword")
 	filter := model.GetFilter(ctx)
 
 	param := model.SearchVulnParam{
@@ -147,12 +150,13 @@ func (s *VulnAPISrv) GetImageVulnPkg(ctx *gin.Context) {
 	}
 
 	// 查层级
-	layerDigest := ctx.Query("layerDigest")
+	layerDigest := util.GetKeywordFromQuery(ctx, "layerDigest")
 	if layerDigest != "" {
 		param.LayerSearch = &model.LayerSearch{
 			ImageID:     imageID,
 			LayerDigest: layerDigest,
 		}
+		param.ImageIds = nil
 	}
 	preVulns, _, err := s.VulnSrv.SearchVulns(ctx, param, model.EmptyFilterForTotalQuery())
 	if err != nil {
@@ -214,27 +218,29 @@ func (s *VulnAPISrv) GetImageVulnPkg(ctx *gin.Context) {
 
 // 获取镜像漏洞-编程语言
 func (s *VulnAPISrv) GetImageVulnLanguage(ctx *gin.Context) {
-	imageID, err := strconv.ParseInt(ctx.Query("imageID"), 10, 64)
-	if err != nil || imageID <= 0 {
+
+	imageID := util.GetInt64FromQuery(ctx, "imageID")
+	if imageID <= 0 {
 		response.JSONError(ctx, response.NewHttpError(http.StatusBadRequest, fmt.Errorf("not get imageID")))
 		return
 	}
-	languageKeyword := ctx.Query("keyword")
 
+	languageKeyword := util.GetKeywordFromQuery(ctx, "keyword")
 	filter := model.GetFilter(ctx)
 
 	param := model.SearchVulnParam{
-		LanguageKeyword: strings.ToLower(languageKeyword),
-		ImageIds:        []int64{imageID},
+		PkgKeyword: strings.ToLower(languageKeyword),
+		ImageIds:   []int64{imageID},
 	}
 
 	// 查层级
-	layerDigest := ctx.Query("layerDigest")
+	layerDigest := util.GetKeywordFromQuery(ctx, "layerDigest")
 	if layerDigest != "" {
 		param.LayerSearch = &model.LayerSearch{
 			ImageID:     imageID,
 			LayerDigest: layerDigest,
 		}
+		param.ImageIds = nil
 	}
 
 	vulns, _, err := s.VulnSrv.SearchVulns(ctx, param, model.EmptyFilterForTotalQuery())
@@ -292,20 +298,22 @@ func (s *VulnAPISrv) GetImageVulnLanguage(ctx *gin.Context) {
 
 // 获取镜像漏洞-Gobinary视角
 func (s *VulnAPISrv) GetImageVulnGoBinary(ctx *gin.Context) {
-	imageID, err := strconv.ParseInt(ctx.Query("imageID"), 10, 64)
-	if err != nil || imageID <= 0 {
+	imageID := util.GetInt64FromQuery(ctx, "imageID")
+	if imageID <= 0 {
 		response.JSONError(ctx, response.NewHttpError(http.StatusBadRequest, fmt.Errorf("not get imageID")))
 		return
 	}
-	targetKeyword := ctx.Query("keyword")
 
+	targetKeyword := util.GetKeywordFromQuery(ctx, "keyword")
 	filter := model.GetFilter(ctx)
+
 	param := model.SearchVulnParam{
-		TargetKeyword: targetKeyword,
-		ImageIds:      []int64{imageID},
+		PkgKeyword: targetKeyword,
+		ImageIds:   []int64{imageID},
 	}
+
 	// 查层级
-	layerDigest := ctx.Query("layerDigest")
+	layerDigest := util.GetKeywordFromQuery(ctx, "layerDigest")
 	if layerDigest != "" {
 		param.LayerSearch = &model.LayerSearch{
 			ImageID:     imageID,
@@ -379,22 +387,23 @@ func (s *VulnAPISrv) GetImageVulnGoBinary(ctx *gin.Context) {
 
 // 获取镜像漏洞-开发框架视角
 func (s *VulnAPISrv) GetImageVulnFrame(ctx *gin.Context) {
-	imageID, err := strconv.ParseInt(ctx.Query("imageID"), 10, 64)
-	if err != nil || imageID <= 0 {
+
+	imageID := util.GetInt64FromQuery(ctx, "imageID")
+	if imageID <= 0 {
 		response.JSONError(ctx, response.NewHttpError(http.StatusBadRequest, fmt.Errorf("not get imageID")))
 		return
 	}
-	frameKeyword := ctx.Query("keyword")
 
+	frameKeyword := util.GetKeywordFromQuery(ctx, "keyword")
 	filter := model.GetFilter(ctx)
 
 	param := model.SearchVulnParam{
-		FrameKeyword: frameKeyword,
-		ImageIds:     []int64{imageID},
+		PkgKeyword: frameKeyword,
+		ImageIds:   []int64{imageID},
 	}
 
 	// 查层级
-	layerDigest := ctx.Query("layerDigest")
+	layerDigest := util.GetKeywordFromQuery(ctx, "layerDigest")
 	if layerDigest != "" {
 		param.LayerSearch = &model.LayerSearch{
 			ImageID:     imageID,
