@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
 	"os/exec"
 	"strconv"
 	"strings"
@@ -711,6 +712,14 @@ func (s *ExportImageHtmlSrv) Run(ctx context.Context) {
 		logging.Get().Err(err).Str("filePath", filePath).Msg("ExportImageHtmlSrv export html MkdirIfNotExist")
 		return
 	}
+	// 导出完成时删除目录
+	defer func(filePath string) {
+		if err := os.RemoveAll(filePath); err != nil {
+			logging.Get().Err(err).Str("filePath", filePath).Int64("taskID", task.ID).Msg("ExportImageHtmlSrv defer remove path ")
+			return
+		}
+		logging.Get().Info().Str("filePath", filePath).Int64("taskID", task.ID).Msg("ExportImageHtmlSrv defer remove path ")
+	}(filePath)
 
 	if err = s.createExportHtml(ctx, task); err != nil {
 		logging.Get().Err(err).Int64("taskID", task.ID).Str("filePath", task.FilePath).Msg("ExportImageHtmlSrv export html task create failure")
