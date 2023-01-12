@@ -157,7 +157,7 @@
   condition: evt.type in (open,openat,openat2) and evt.is_open_write=true and fd.typechar='f' and fd.num>=0
 
 - macro: open_read
-  condition: evt.type in (open,openat,openat2) and evt.is_open_read=true and fd.typechar='f' and fd.num>=0
+  condition: evt.type in (open,openat,openat2) and evt.is_open_read=true and not evt.is_open_write=true and fd.typechar='f' and fd.num>=0
 
 - macro: open_directory
   condition: evt.type in (open,openat,openat2) and evt.is_open_read=true and fd.typechar='d' and fd.num>=0

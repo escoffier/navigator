@@ -38,7 +38,7 @@
     of a base linux distribution at startup.
     Some innocuous commandlines that don't actually change anything are excluded.
   condition: >
-    spawned_process and proc.name in (user_mgmt_binaries) and
+    spawned_process and proc.name in (user_mgmt_binaries) and shell_parent_procs and
     not proc.name in (su, sudo, lastlog, nologin, unix_chkpwd) and
     not proc.pname in (cron_binaries, systemd, systemd.postins, udev.postinst, run-parts) and
     not proc.cmdline startswith "passwd -S" and
@@ -198,23 +198,23 @@
   priority: INFO
   tags: [ATT&CK, filesystem, mitre_persistence]
 
-- rule: Write below etc
-  hid: pers_09
-  hthreats: 1
-  suggestion:
-    en:
-      key: "Suggestions"
-      value: "Usually, few programs can operate on the contents of the /etc directory, which may be a hacker's behavior. Please confirm whether the modified files are at risk."
-    zh:
-      key: "处置建议"
-      value: "通常少有程序会操作/etc目录下内容，可能是黑客行为，请确认被修改文件是否存在风险。"
-  desc: an attempt to write to any file below /etc
-  condition: write_etc_common and not (tensorsec_namespace and k8s.pod.name contains "holmes") and shell_parent_procs
-  output: >
-    File below /etc opened for writing (zh_msg=尝试修改/etc路径下的文件,rule_type=Persistence,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,
-    original_info=user=%user.name user_loginuid=%user.loginuid parent=%proc.pname file=%fd.name program=%proc.name gparent=%proc.aname[2] ggparent=%proc.aname[3] gggparent=%proc.aname[4] container_id=%container.id container_name=%container.name image=%container.image.repository)
-  priority: WARNING
-  tags: [ATT&CK, filesystem, mitre_persistence]
+#- rule: Write below etc
+#  hid: pers_09
+#  hthreats: 1
+#  suggestion:
+#    en:
+#      key: "Suggestions"
+#      value: "Usually, few programs can operate on the contents of the /etc directory, which may be a hacker's behavior. Please confirm whether the modified files are at risk."
+#    zh:
+#      key: "处置建议"
+#      value: "通常少有程序会操作/etc目录下内容，可能是黑客行为，请确认被修改文件是否存在风险。"
+#  desc: an attempt to write to any file below /etc
+#  condition: write_etc_common and not (tensorsec_namespace and k8s.pod.name contains "holmes") and shell_parent_procs
+#  output: >
+#    File below /etc opened for writing (zh_msg=尝试修改/etc路径下的文件,rule_type=Persistence,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,
+#    original_info=user=%user.name user_loginuid=%user.loginuid parent=%proc.pname file=%fd.name program=%proc.name gparent=%proc.aname[2] ggparent=%proc.aname[3] gggparent=%proc.aname[4] container_id=%container.id container_name=%container.name image=%container.image.repository)
+#  priority: WARNING
+#  tags: [ATT&CK, filesystem, mitre_persistence]
 
 - rule: Create Hidden Files or Directories
   hid: pers_10
