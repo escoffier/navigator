@@ -123,8 +123,19 @@ func (v *VulnDao) SearchVuln(ctx context.Context, param SearchVulnParam, filter 
 	}
 
 	if param.OnlineImageVuln == consts.TrueString {
-		sub := v.rdb.Get().WithContext(ctx).Model(new(model.VulnImage)).Select("distinct unique_vuln").
-			Where("image_id IN (?) ", GetOnlineImageIdSub(ctx, v.rdb.Get()))
+		defer func() {
+			_ = db.Exec(consts.DropOnlineImageTempTableSql).Error
+		}()
+
+		if err := db.Exec(consts.CreateOnlineImageTempTableSql).Error; err != nil {
+			return nil, 0, nil
+		}
+		if err := db.Exec(consts.InsertOnlineImageTempTableSql).Error; err != nil {
+			return nil, 0, nil
+		}
+
+		sub := v.rdb.Get().WithContext(ctx).Table("ivan_scanner_vuln_images a").
+			Joins("join ivan_scanner_online_image b  on a.image_id = b.image_id").Select("distinct a.unique_vuln")
 		db = db.Where("unique_vuln IN (?)", sub)
 	}
 
