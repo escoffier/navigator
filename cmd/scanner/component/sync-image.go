@@ -290,7 +290,7 @@ func (s *SyncRepoImage) clearUpImage(ctx context.Context, imageIds []int64) erro
 		return err
 	}
 
-	// 删除 ivan_scanner_scan_images 表
+	// 删除 ivan_scanner_scan_images表
 	if err := s.imageDal.DeleteScanImage(ctx, deleteIds); err != nil {
 		logging.GetLogger().Err(err).Msg("ClearUp")
 		return err

@@ -754,11 +754,11 @@ func (s *ImageSrv) versionThan211(im model.ImageList) bool {
 	regID := im.RegistryID
 	registries, _, err := s.registryDal.SearchRegistry(context.Background(), store.SearchRegistryParam{ID: regID, Deleted: consts.FalseString}, nil)
 	if err != nil {
-		logging.Get().Err(err).Int64("regID", regID).Msg("versionThan211 SearchRegistry")
+		logging.Get().Info().Int64("regID", regID).Msg("versionThan211 SearchRegistry")
 		return true
 	}
 	if len(registries) == 0 {
-		logging.Get().Error().Int64("regID", regID).Msg("versionThan211 SearchRegistry not find registry")
+		logging.Get().Info().Int64("regID", regID).Msg("versionThan211 SearchRegistry not find registry")
 		return true
 	}
 
@@ -769,7 +769,7 @@ func (s *ImageSrv) versionThan211(im model.ImageList) bool {
 	}
 
 	if len(scannerInstance) == 0 {
-		logging.Get().Error().Int64("regID", regID).Str("scannerInstance", registries[0].ScannerInstance).Msg("versionThan211 SearchRegistry not find scannerInstance")
+		logging.Get().Info().Int64("regID", regID).Str("scannerInstance", registries[0].ScannerInstance).Msg("versionThan211 SearchRegistry not find scannerInstance")
 		return true
 	}
 
