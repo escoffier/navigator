@@ -435,7 +435,7 @@ func (iws *ImageWithCorrelateData) GenVulnSuggest() []string {
 	for i := range iws.Vuln {
 		vu := iws.Vuln[i]
 		if vu.FixedBy != "" && util.ExistBit1(vu.Flag, VulnFlagClassOSPkg) {
-			ans = append(ans, vu.Name)
+			ans = append(ans, vu.PkgName)
 		}
 	}
 	// 去重
