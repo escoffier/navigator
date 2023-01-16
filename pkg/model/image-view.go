@@ -9,6 +9,7 @@ import (
 	json "github.com/json-iterator/go"
 	"gitlab.com/security-rd/go-pkg/logging"
 	ftypes "scm.tensorsecurity.cn/tensorsecurity-rd/fanal/types"
+	"scm.tensorsecurity.cn/tensorsecurity-rd/trivy/pkg/report"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	scannermodel "gitlab.com/piccolo_su/vegeta/pkg/model/scanner-model"
@@ -434,7 +435,7 @@ func (iws *ImageWithCorrelateData) GenVulnSuggest() []string {
 
 	for i := range iws.Vuln {
 		vu := iws.Vuln[i]
-		if vu.FixedBy != "" && util.ExistBit1(vu.Flag, VulnFlagClassOSPkg) {
+		if vu.FixedBy != "" && (util.ExistBit1(vu.Flag, VulnFlagClassOSPkg) || vu.Class == report.ClassOSPkg) {
 			ans = append(ans, vu.PkgName)
 		}
 	}
