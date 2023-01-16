@@ -189,7 +189,6 @@ func NewInjector(npw *nodeinfo.NodePodsWatcher, podResInfo *nodeinfo.PodResInfo,
 	ij.podResInfo = podResInfo
 	ij.excludeNamespace = getExcludeNamespaces()
 	ij.write = write
-	logging.Get().Info().Str("ij detail", fmt.Sprintf("%v", ij)).Msg("NewInjector")
 	return ij, err
 }
 
