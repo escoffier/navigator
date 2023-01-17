@@ -13,7 +13,6 @@ import (
 	"time"
 
 	"gitlab.com/security-rd/go-pkg/logging"
-	"scm.tensorsecurity.cn/tensorsecurity-rd/trivy/pkg/report"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scan-report/common"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
@@ -30,6 +29,7 @@ type ExportImageHtmlSrv struct {
 	UpdateTask    common.UpdateExportTask
 	KoaAddr       string // 生成html的内部服务接口
 	FileDir       string // 文件存放的绝对路径
+	VulnClassType []string
 }
 
 func NewExportImageHtmlSrv(
@@ -38,6 +38,7 @@ func NewExportImageHtmlSrv(
 	exportTaskDal store.ExportTaskDal,
 	updateTask common.UpdateExportTask,
 	fileDir string,
+	vulnClassType []string,
 ) *ExportImageHtmlSrv {
 	return &ExportImageHtmlSrv{
 		ImageSrv:      imageSrv,
@@ -46,6 +47,7 @@ func NewExportImageHtmlSrv(
 		UpdateTask:    updateTask,
 		FileDir:       fileDir,
 		KoaAddr:       consts.KoaAddr,
+		VulnClassType: vulnClassType,
 	}
 }
 
@@ -112,7 +114,7 @@ func (s *ExportImageHtmlSrv) GetImages(ctx context.Context, taskID int64, starID
 		imageIds := make([]int64, 0)
 
 		param := model.GetImageAssociateDataParam{
-			VulnEnable:      true,
+			VulnEnable:      false, // 调用漏洞的接口查询
 			VirusEnable:     true,
 			SensitiveEnable: true,
 			WebshellEnable:  true,
@@ -124,6 +126,19 @@ func (s *ExportImageHtmlSrv) GetImages(ctx context.Context, taskID int64, starID
 				logging.Get().Err(err).Int64("taskID", taskID).Int64("startID", starID).Msg("ExportImageHtmlSrv GetImages.ListImageWithScanInfo")
 				return nil, err
 			}
+
+			// 中移环境只统计系统漏洞,所以需要单独查询
+			vulns, _, err := s.VulnDal.SearchVuln(ctx, store.SearchVulnParam{
+				ClassType:      s.VulnClassType,
+				NotReturnCount: true,
+				ImageIds:       []int64{taskImages[i].ImageID}},
+				&model.Filter{SortFiled: "id", SortBy: consts.SortByAsc})
+			if err != nil {
+				logging.Get().Err(err).Int64("taskID", taskID).Int64("imageID", taskImages[i].ImageID).Msg("GetImageVulns SearchVuln")
+				return nil, err
+			}
+			image.Vuln = vulns
+
 			baseImage := image.ToImageBaseResponse()
 
 			im := Image{
@@ -136,6 +151,7 @@ func (s *ExportImageHtmlSrv) GetImages(ctx context.Context, taskID int64, starID
 				NotMaintained: util.ExistBit1(baseImage.Flag, model.FlagImageNotMaintained),
 				Flag:          baseImage.Flag,
 			}
+
 			im.AddVulnSeverityCount(image.Vuln)
 			res.Images = append(res.Images, im)
 
@@ -229,6 +245,7 @@ func (s *ExportImageHtmlSrv) GetVirus(ctx context.Context, taskID int64) ([]Viru
 }
 
 // 按层取漏洞信息 canFixed:"true"，取可修复的，"false"取不可修复的，""表示取全部
+// 首页信息，所有漏洞
 func (s *ExportImageHtmlSrv) GetExportVulns(ctx context.Context, taskID int64, severity int, canFixed string, starID, limit int64) (*VulnWithImageResponse, error) {
 	if limit <= 0 {
 		limit = DefaultLimit
@@ -263,7 +280,7 @@ func (s *ExportImageHtmlSrv) GetExportVulns(ctx context.Context, taskID int64, s
 	if len(uniqueVulns) > 0 {
 		vulns, _, err := s.VulnDal.SearchVuln(ctx, store.SearchVulnParam{
 			UniqueVulns:    uniqueVulns,
-			ClassType:      []string{report.ClassOSPkg, report.ClassConfig},
+			ClassType:      s.VulnClassType,
 			NotReturnCount: true,
 		}, nil)
 		if err != nil {
@@ -285,6 +302,7 @@ func (s *ExportImageHtmlSrv) GetExportVulns(ctx context.Context, taskID int64, s
 }
 
 // 按层级获取镜像的漏洞信息
+// 单个镜像
 func (s *ExportImageHtmlSrv) GetImageVulns(ctx context.Context, taskID, imageID int64, severity int, startID int64) (*VulnWithImageResponse, error) {
 	logging.Get().Info().Int64("taskID", taskID).Int64("imageID", imageID).Int("severity", severity).Msg("ExportImageHtmlSrv.GetImageVulns start")
 	res := &VulnWithImageResponse{
@@ -294,7 +312,7 @@ func (s *ExportImageHtmlSrv) GetImageVulns(ctx context.Context, taskID, imageID 
 	count := 0
 	// 获取镜像的漏洞统计信息信息
 	vulns, _, err := s.VulnDal.SearchVuln(ctx, store.SearchVulnParam{StartID: startID,
-		ClassType:      []string{report.ClassOSPkg, report.ClassConfig},
+		ClassType:      s.VulnClassType,
 		NotReturnCount: true,
 		ImageIds:       []int64{imageID}, SeverityInt: []int64{int64(severity)}},
 		&model.Filter{SortFiled: "id", SortBy: consts.SortByAsc})
@@ -344,7 +362,7 @@ func (s *ExportImageHtmlSrv) GetImageRisk(ctx context.Context, taskID, imageID i
 	// 查漏洞和敏感文件，生成处置建议
 	param := model.GetImageAssociateDataParam{
 		ImageId:               imageID,
-		VulnEnable:            true,
+		VulnEnable:            false, // 漏洞单独查询
 		SensitiveEnable:       true,
 		ScanResultSearchParam: model.ScanResultSearchParam{OmitFields: model.GetVulnDefaultOmitFields()},
 	}
@@ -353,6 +371,12 @@ func (s *ExportImageHtmlSrv) GetImageRisk(ctx context.Context, taskID, imageID i
 		logging.Get().Err(err).Int64("taskID", taskID).Int64("imageID", imageID).Msg("ExportImageHtmlSrv GetImageRisk SearchScanImage")
 		return nil, err
 	}
+	vuln, _, err := s.VulnDal.SearchVuln(ctx, store.SearchVulnParam{ImageIds: []int64{imageID}, ClassType: s.VulnClassType, NotReturnCount: true}, nil)
+	if err != nil {
+		logging.Get().Err(err).Int64("taskID", taskID).Int64("imageID", imageID).Msg("ExportImageHtmlSrv GetImageRisk SearchVuln")
+		return nil, err
+	}
+	data.Vuln = vuln
 
 	res := &ImageRiskOverView{
 		ImageID:           data.ImageBaseResponse.ID,
@@ -374,9 +398,11 @@ func (s *ExportImageHtmlSrv) createRiskOverView(ctx context.Context, task model.
 	// 先查一下，是否存在
 	data, err := s.ExportTaskDal.SearchHtmlPrepare(ctx, task.ID, model.ExportHtmlPrepareRiskOver)
 	if err != nil {
+		logging.Get().Err(err).Int64("taskID", task.ID).Msg("ExportImageHtmlSrv createRiskOverView.SearchHtmlPrepare")
 		return err
 	}
 	if len(data) > 0 {
+		logging.Get().Info().Int64("taskID", task.ID).Msg("ExportImageHtmlSrv createRiskOverView.SearchHtmlPrepare find data")
 		return nil
 	}
 	var startID int64
@@ -574,7 +600,7 @@ func (s *ExportImageHtmlSrv) createVulnImage(ctx context.Context, taskID int64) 
 		for i := range exportImages {
 			// 获取该镜像的所有漏洞
 			vulns, _, err := s.VulnDal.SearchVuln(ctx, store.SearchVulnParam{
-				ClassType:      []string{report.ClassOSPkg, report.ClassConfig},
+				ClassType:      s.VulnClassType,
 				OmitFields:     new(model.Vuln).DefaultOmitField(),
 				NotReturnCount: true,
 				ImageIds:       []int64{exportImages[i].ImageID}}, nil)

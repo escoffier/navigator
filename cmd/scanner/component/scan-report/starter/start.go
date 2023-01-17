@@ -46,6 +46,7 @@ type Config struct {
 	RedisCli                *redis.Client
 	IncludeCNNVDVuln        bool
 	IncludeRHSAVuln         bool
+	VulnClassType           []string
 }
 
 func NewBackgroundTasks(ctx context.Context, config Config) *BackgroundTasks {
@@ -89,7 +90,7 @@ func NewBackgroundTasks(ctx context.Context, config Config) *BackgroundTasks {
 	// 镜像搜索列表导出excel
 	imageSearchSrv := excel.NewImageSearchSrv(scanTaskExportSrv, exportTaskDal, config.FileDir, updateTask, imageSrv)
 	// 镜像扫描报告导出到html
-	imageHtmlSrv := html.NewExportImageHtmlSrv(imageSrv, vulnDal, exportTaskDal, updateTask, config.FileDir)
+	imageHtmlSrv := html.NewExportImageHtmlSrv(imageSrv, vulnDal, exportTaskDal, updateTask, config.FileDir, config.VulnClassType)
 
 	srv := &BackgroundTasks{
 		ScanReport:         scanReportServer,

@@ -119,6 +119,7 @@ func (s *VulnAPISrv) GetImageVulns(ctx *gin.Context) {
 	}
 
 	cnt = int64(len(ans))
+
 	if len(ans) <= int(filter.Offset) {
 		ans = make([]VulnResponse, 0)
 	} else if len(ans) <= int(filter.Offset+filter.Limit) {

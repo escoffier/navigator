@@ -17,6 +17,7 @@ import (
 	"gitlab.com/security-rd/go-pkg/elastic"
 	"gitlab.com/security-rd/go-pkg/logging"
 	_ "go.uber.org/automaxprocs"
+	"scm.tensorsecurity.cn/tensorsecurity-rd/trivy/pkg/report"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scan-report/api"
@@ -111,6 +112,16 @@ func main() {
 	}
 
 	es := elastic.NewESClientWithEnv(context.Background())
+
+	// 导出的漏洞类型，中移环境默认导出应用漏洞和config文件引入的漏洞
+	vct := make([]string, 0)
+	vulnClassType := strings.TrimSpace(os.Getenv("EXPORT_VULN_CLASS"))
+	if vulnClassType == "" {
+		vct = []string{report.ClassOSPkg, report.ClassConfig}
+	} else {
+		vct = strings.Split(vulnClassType, ",")
+	}
+
 	config := starter.Config{
 		Internal:                internal,
 		BatchSize:               batchSize,
@@ -126,6 +137,7 @@ func main() {
 		Es:                      es,
 		MaxImageByOneExportTask: maxImageByOneExportTask,
 		RedisCli:                rc0,
+		VulnClassType:           vct,
 	}
 
 	logging.Get().Info().Int64("MaxVulnCol", config.MaxVulnCol).Int64("MaxImageByOneExportTask", config.MaxImageByOneExportTask).Msg("config")
@@ -161,7 +173,7 @@ func main() {
 		rc0,
 	)
 
-	exportHtml := html.NewExportImageHtmlSrv(imageSrv, vulnDal, exportTaskDal, updateTaskDal, fileDir)
+	exportHtml := html.NewExportImageHtmlSrv(imageSrv, vulnDal, exportTaskDal, updateTaskDal, fileDir, vct)
 
 	router := api.SetupGinRouter(exportTask, exportHtml)
 
