@@ -6,6 +6,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"net/http"
 	"os"
@@ -82,6 +83,7 @@ type ClusterAgent struct {
 	workerNamespace       string
 	HostClient            *assets.Clientset
 	platform              string
+	ruleVersion           string
 	Stream                rpcstream.MessageStream
 }
 
@@ -242,6 +244,7 @@ func (c *ClusterAgent) registerClusterInfo() error {
 		Status:              0,
 		Platform:            c.platform,
 		Version:             version,
+		RuleVersion:         c.ruleVersion,
 	}
 
 	data, err := json.Marshal(cluster)
@@ -251,7 +254,7 @@ func (c *ClusterAgent) registerClusterInfo() error {
 	}
 	logging.Get().Debug().Msgf("cluster info: %s", string(data))
 	logging.Get().Info().Msgf("register to %s", buildURL(c.masterAddr, masterAssetURL))
-	request, err := http.NewRequestWithContext(ctx, http.MethodPut, buildURL(c.masterAddr, masterAssetURL), bytes.NewReader(data))
+	request, err := http.NewRequestWithContext(ctx, http.MethodPost, buildURL(c.masterAddr, masterAssetURL), bytes.NewReader(data))
 	if err != nil {
 		return err
 	}
@@ -265,7 +268,7 @@ func (c *ClusterAgent) registerClusterInfo() error {
 			logging.Get().Error().Msgf("http resp error: %s", resp.Status)
 			return fmt.Errorf("http resp error: %s", resp.Status)
 		}
-		data, err := ioutil.ReadAll(resp.Body)
+		data, err := io.ReadAll(resp.Body)
 		if err != nil {
 			return err
 		}
@@ -320,11 +323,10 @@ func (c *ClusterAgent) grpcRegisterClusterInfo() error {
 	return nil
 }
 
-func (c *ClusterAgent) updateClusterInfo() {
+func (c *ClusterAgent) updateClusterInfo() error {
 	type updateCluster struct {
 		ClusterKey  string `json:"cluster_key"`
-		Name        string `json:"name"`
-		Description string `json:"Description"`
+		RuleVersion string `json:"rule_version"`
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
@@ -332,23 +334,22 @@ func (c *ClusterAgent) updateClusterInfo() {
 
 	req := updateCluster{
 		ClusterKey:  c.CusterID,
-		Name:        c.Name,
-		Description: c.Description,
+		RuleVersion: c.ruleVersion,
 	}
 
 	data, err := json.Marshal(req)
 	if err != nil {
 		logging.Get().Err(err).Msg("Failed to marshal cluster")
-		return
+		return err
 	}
-	request, err := http.NewRequestWithContext(ctx, http.MethodPost, buildURL(c.masterAddr, masterAssetURL), bytes.NewReader(data))
+	request, err := http.NewRequestWithContext(ctx, http.MethodPut, buildURL(c.masterAddr, masterAssetURL), bytes.NewReader(data))
 	if err != nil {
-		return
+		return err
 	}
 
 	respHandler := func(resp *http.Response, err error) error {
 		if err != nil {
-			logging.Get().Err(err).Msg("post cluster info err")
+			logging.Get().Err(err).Msg("update cluster info err")
 			return err
 		}
 
@@ -356,7 +357,7 @@ func (c *ClusterAgent) updateClusterInfo() {
 			logging.Get().Error().Msgf("http resp error: %s", resp.Status)
 			return fmt.Errorf("http resp error: %s", resp.Status)
 		}
-		data, err := ioutil.ReadAll(resp.Body)
+		data, err := io.ReadAll(resp.Body)
 		if err != nil {
 			return err
 		}
@@ -364,12 +365,13 @@ func (c *ClusterAgent) updateClusterInfo() {
 		return nil
 	}
 
-	logging.Get().Debug().Msgf("post cluster info to master cluster %s", string(data))
+	logging.Get().Debug().Msgf("put cluster info to master cluster %s", string(data))
 	err = util.HTTPRequest(ctx, c.httpClient, request, respHandler, retry.Attempts(3))
 	if err != nil {
-		logging.Get().Err(err).Msg("post cluster info to master cluster err")
-		return
+		logging.Get().Err(err).Msg("put cluster info to master cluster err")
+		return err
 	}
+	return nil
 }
 
 func (c *ClusterAgent) Platform() string {
@@ -393,7 +395,7 @@ func buildURL(host, path string) string {
 }
 
 func loadSATokenData() (*SAToken, error) {
-	token, err := ioutil.ReadFile(tokenFile)
+	token, err := os.ReadFile(tokenFile)
 	if err != nil {
 		return nil, err
 	}
@@ -403,7 +405,7 @@ func loadSATokenData() (*SAToken, error) {
 		logging.Get().Err(err).Msg("load-file-err")
 		return nil, err
 	} else {
-		caData, err = ioutil.ReadFile(rootCAFile)
+		caData, err = os.ReadFile(rootCAFile)
 		if err != nil {
 			return nil, err
 		}
@@ -416,11 +418,11 @@ func loadSATokenData() (*SAToken, error) {
 }
 
 func loadCertsData() (*CertsData, error) {
-	certData, err := ioutil.ReadFile(ApiServerCertFile)
+	certData, err := os.ReadFile(ApiServerCertFile)
 	if err != nil {
 		return nil, err
 	}
-	keyData, err := ioutil.ReadFile(ApiServerKeyFile)
+	keyData, err := os.ReadFile(ApiServerKeyFile)
 	if err != nil {
 		return nil, err
 	}
@@ -440,7 +442,7 @@ func loadCertsData() (*CertsData, error) {
 	} else {
 		caFile = ApiServerCaFile
 	}
-	caData, err = ioutil.ReadFile(caFile)
+	caData, err = os.ReadFile(caFile)
 	if err != nil {
 		return nil, err
 	}
@@ -533,4 +535,9 @@ func (c *ClusterAgent) updateClusterConfig(clusterConfig *k8s.TensorCluster) err
 
 func (c *ClusterAgent) GetHostClient() *assets.Clientset {
 	return c.HostClient
+}
+
+func (c *ClusterAgent) UpdateRuleVersion(ruleVersion string) error {
+	c.ruleVersion = ruleVersion
+	return c.updateClusterInfo()
 }

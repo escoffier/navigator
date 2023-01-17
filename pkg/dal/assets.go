@@ -726,28 +726,6 @@ func CleanUpUnUpdatedResourceContainers(ctx context.Context, rdb *gorm.DB, ts ti
 }
 
 func doSoftDeleteResourceContainers(ctx context.Context, rdb *gorm.DB, resource *assets.TensorResource, updateTime time.Time) error {
-	//if resource.PodTemplate == nil {
-	//	return nil
-	//}
-	//
-	//uuids := make([]uint32, 0, 3)
-	//for _, c := range resource.PodTemplate.Spec.InitContainers {
-	//	uuid := util.GenerateUUID(resource.Cluster, resource.Namespace, string(resource.Kind), resource.Name, c.Name)
-	//	uuids = append(uuids, uuid)
-	//}
-	//for _, c := range resource.PodTemplate.Spec.Containers {
-	//	uuid := util.GenerateUUID(resource.Cluster, resource.Namespace, string(resource.Kind), resource.Name, c.Name)
-	//	uuids = append(uuids, uuid)
-	//}
-	//
-	//oneCtx, oneCancel := context.WithTimeout(ctx, 1000*time.Millisecond)
-	//defer oneCancel()
-	//
-	//err := rdb.WithContext(oneCtx).Model(&model.TensorContainer{}).Where("id in ?", uuids).Updates(map[string]interface{}{
-	//	"status":     1,
-	//	"updated_at": updateTime,
-	//}).Error
-
 	oneCtx, oneCancel := context.WithTimeout(ctx, 1000*time.Millisecond)
 	defer oneCancel()
 	err := rdb.WithContext(oneCtx).Model(&model.TensorContainer{}).
@@ -780,10 +758,6 @@ func fromNamespaceToModel(ns *corev1.Namespace, clusterKey string, updateTime ti
 
 	if ns.Labels != nil {
 		nsModel.Labels, _ = json.Marshal(ns.Labels)
-		//nsModel.Labels = make(model.Labels, len(ns.Labels))
-		//for key, value := range ns.Labels {
-		//	nsModel.Labels[key] = value
-		//}
 	}
 
 	nsModel.CreatedAt = ns.CreationTimestamp.Time
@@ -1085,7 +1059,59 @@ func CountPods(ctx context.Context, rdb *gorm.DB, queryOptions *ResPodsQueryOpti
 	return cntNum, err
 }
 
-func GetClusters(ctx context.Context, rdb *gorm.DB, offset, limit int) (clusters []*model.TensorCluster, totalCnt int64, err error) {
+func ClusterQuery() *ClusterQueryOption {
+	return &ClusterQueryOption{
+		WhereEqCondition:   make(map[string]interface{}),
+		WhereLikeCondition: make(map[string]string),
+		columnQuery:        colQuery{},
+		mulColQuery:        mulColQuery{},
+	}
+
+}
+
+type ClusterQueryOption struct {
+	WhereEqCondition   map[string]interface{}
+	WhereLikeCondition map[string]string
+	columnQuery        colQuery
+	mulColQuery        mulColQuery
+}
+
+func (q *ClusterQueryOption) WithKey(clusterKey string) *ClusterQueryOption {
+	q.WhereLikeCondition["id"] = clusterKey
+	return q
+}
+
+func (q *ClusterQueryOption) WithName(name string) *ClusterQueryOption {
+	q.WhereLikeCondition["name"] = name
+	return q
+}
+
+func (q *ClusterQueryOption) WithAPIServerAddr(addr string) *ClusterQueryOption {
+	q.WhereLikeCondition["api_server_addr"] = addr
+	return q
+}
+
+func (q *ClusterQueryOption) WithVersion(version string) *ClusterQueryOption {
+	q.WhereLikeCondition["version"] = version
+	return q
+}
+
+func (q *ClusterQueryOption) WithType(t string) *ClusterQueryOption {
+	q.WhereEqCondition["cluster_type"] = t
+	return q
+}
+
+func (q *ClusterQueryOption) WithPlatform(platform string) *ClusterQueryOption {
+	q.WhereEqCondition["platform"] = platform
+	return q
+}
+
+func (q *ClusterQueryOption) WithRulesVersion(version string) *ClusterQueryOption {
+	q.WhereEqCondition["rule_version"] = version
+	return q
+}
+
+func GetClusters(ctx context.Context, rdb *gorm.DB, query *ClusterQueryOption, offset, limit int) (clusters []*model.TensorCluster, err error) {
 	ctx, cancel := context.WithTimeout(ctx, 1000*time.Millisecond)
 	defer cancel()
 
@@ -1093,11 +1119,41 @@ func GetClusters(ctx context.Context, rdb *gorm.DB, offset, limit int) (clusters
 		oneCtx, oneCancel := context.WithTimeout(ctx, 300*time.Millisecond)
 		defer oneCancel()
 
+		if len(query.WhereEqCondition) > 0 {
+			rdb = rdb.Where(query.WhereEqCondition)
+		}
+		if len(query.WhereLikeCondition) > 0 {
+			for column, val := range query.WhereLikeCondition {
+				rdb = rdb.Where(fmt.Sprintf("%s LIKE ?", column), getLikeExpr(val))
+			}
+		}
+
 		oneErr := rdb.WithContext(oneCtx).Model(&model.TensorCluster{}).Where("status = ?", 0).Order("id").Offset(offset).Limit(limit).Find(&clusters).Error
 		if oneErr != nil {
 			return oneErr
 		}
-		return rdb.WithContext(ctx).Model(&model.TensorCluster{}).Where("status = ?", 0).Count(&totalCnt).Error
+		return nil
+	})
+	return
+}
+
+func CountClusters(ctx context.Context, rdb *gorm.DB, query *ClusterQueryOption) (totalCnt int64, err error) {
+	ctx, cancel := context.WithTimeout(ctx, 1000*time.Millisecond)
+	defer cancel()
+
+	err = util.RetryWithBackoff(ctx, func() error {
+		oneCtx, oneCancel := context.WithTimeout(ctx, 300*time.Millisecond)
+		defer oneCancel()
+
+		if len(query.WhereEqCondition) > 0 {
+			rdb = rdb.Where(query.WhereEqCondition)
+		}
+		if len(query.WhereLikeCondition) > 0 {
+			for column, val := range query.WhereLikeCondition {
+				rdb = rdb.Where(fmt.Sprintf("%s LIKE ?", column), getLikeExpr(val))
+			}
+		}
+		return rdb.WithContext(oneCtx).Model(&model.TensorCluster{}).Where("status = ?", 0).Count(&totalCnt).Error
 	})
 	return
 }
@@ -1117,23 +1173,29 @@ func GetClustersByKey(ctx context.Context, rdb *gorm.DB, key string) *model.Tens
 
 	return &cluster
 }
-func UpdateCluster(ctx context.Context, rdb *gorm.DB, clusterKey string, name string, description string) error {
+func UpdateCluster(ctx context.Context, rdb *gorm.DB, clusterKey string, clusterName, description, ruleVersion string) error {
 	if clusterKey == "" {
-		return errors.New("illegal argument")
+		return errors.New("illegal cluster key argument")
 	}
 	ctx, cancel := context.WithTimeout(ctx, 1000*time.Millisecond)
 	defer cancel()
 
 	userInfo, ok := model.GetSessionFromContext(ctx)
 	updateMap := map[string]interface{}{
-		"name":        name,
-		"description": description,
-		"updated_at":  time.Now(),
+		"updated_at": time.Now(),
 	}
 	if ok {
 		updateMap["updater"] = userInfo.Username
 	}
-
+	if clusterName != "" {
+		updateMap["name"] = clusterName
+	}
+	if description != "" {
+		updateMap["description"] = description
+	}
+	if ruleVersion != "" {
+		updateMap["rule_version"] = ruleVersion
+	}
 	return util.RetryWithBackoff(ctx, func() error {
 		oneCtx, oneCancel := context.WithTimeout(ctx, 300*time.Millisecond)
 		defer oneCancel()
@@ -1189,7 +1251,8 @@ func DeleteCluster(ctx context.Context, rdb *gorm.DB, clusterKey string) error {
 	return util.RetryWithBackoff(ctx, func() error {
 		oneCtx, oneCancel := context.WithTimeout(ctx, 600*time.Millisecond)
 		defer oneCancel()
-		return rdb.WithContext(oneCtx).Delete(&model.TensorCluster{}, clusterKey).Error
+		return rdb.WithContext(oneCtx).Model(&model.TensorCluster{}).
+			Where("id = ?", clusterKey).Update("status", 1).Error
 	})
 }
 
@@ -2050,4 +2113,89 @@ func CleanUpRawContainer(ctx context.Context, rdb *gorm.DB, ts time.Time, cluste
 		"status":     assets.Exited,
 		"updated_at": time.Now(),
 	}).Error
+}
+
+func DeleteClusterAll(ctx context.Context, rdb *gorm.DB, clusterKey string) error {
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+
+	return rdb.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		err := tx.WithContext(ctx).Where("cluster_key = ?", clusterKey).Delete(&model.TensorResource{}).Error
+		if err != nil {
+			return err
+		}
+		err = tx.WithContext(ctx).Where("cluster_key = ?", clusterKey).Delete(&model.TensorContainer{}).Error
+		if err != nil {
+			return err
+		}
+
+		err = tx.Where("cluster_key = ?", clusterKey).Delete(&model.TensorContainerRelation{}).Error
+		if err != nil {
+			return err
+		}
+
+		err = tx.Where("cluster_key = ?", clusterKey).Delete(&model.TensorRawContainer{}).Error
+		if err != nil {
+			return err
+		}
+
+		err = tx.WithContext(ctx).Where("cluster_key = ?", clusterKey).Delete(&model.TensorNamespace{}).Error
+		if err != nil {
+			return err
+		}
+
+		err = tx.WithContext(ctx).Where("cluster_key = ?", clusterKey).Delete(&model.BaitService{}).Error
+		if err != nil {
+			return err
+		}
+		err = tx.WithContext(ctx).Where("id = ?", clusterKey).Delete(&model.TensorCluster{}).Error
+		if err != nil {
+			return err
+		}
+		return nil
+	})
+}
+
+func GetRuleVersions(ctx context.Context, rdb *gorm.DB, offset int, limit int) ([]string, error) {
+	rCtx, cancel := context.WithTimeout(ctx, 6000*time.Millisecond)
+	defer cancel()
+
+	var clusters []*model.TensorCluster
+	notFound := false
+	err := util.RetryWithBackoff(rCtx, func() error {
+		oneCtx, oneCancel := context.WithTimeout(rCtx, 2000*time.Millisecond)
+		defer oneCancel()
+
+		err := rdb.WithContext(oneCtx).Distinct("rule_version").Find(&clusters).Error
+		if err == gorm.ErrRecordNotFound {
+			notFound = true
+			return nil
+		}
+		return err
+	})
+	if notFound {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	var ruleVersions []string
+	for _, c := range clusters {
+		ruleVersions = append(ruleVersions, c.RuleVersion)
+	}
+	return ruleVersions, nil
+}
+
+func CountRuleVersions(ctx context.Context, rdb *gorm.DB) (int64, error) {
+	rCtx, cancel := context.WithTimeout(ctx, 6000*time.Millisecond)
+	defer cancel()
+
+	var count int64
+	err := util.RetryWithBackoff(rCtx, func() error {
+		oneCtx, oneCancel := context.WithTimeout(rCtx, 2000*time.Millisecond)
+		defer oneCancel()
+		err := rdb.WithContext(oneCtx).Model(&model.TensorCluster{}).Distinct("rule_version").Count(&count).Error
+		return err
+	})
+	return count, err
 }

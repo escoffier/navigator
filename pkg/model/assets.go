@@ -367,6 +367,7 @@ type TensorCluster struct {
 	Status              int32       `gorm:"column:status"`
 	Platform            string      `gorm:"column:platform" json:"platform"`
 	Version             string      `gorm:"column:version" json:"version"`
+	RuleVersion         string      `gorm:"column:rule_version" json:"RuleVersion"`
 }
 
 func (TensorCluster) TableName() string {
