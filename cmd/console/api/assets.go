@@ -19,6 +19,7 @@ import (
 
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/assets"
 	containers2 "gitlab.com/piccolo_su/vegeta/cmd/console/service/containers"
+	"gitlab.com/piccolo_su/vegeta/cmd/console/service/defense"
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	assetsPkg "gitlab.com/piccolo_su/vegeta/pkg/assets"
 	"gitlab.com/piccolo_su/vegeta/pkg/dal"
@@ -31,8 +32,8 @@ import (
 func (api *api) assets() func(chi.Router) {
 	return func(r chi.Router) {
 		r.Get("/clusters", api.getClusters())
-		r.Put("/cluster", api.addNewCluster())
-		r.Post("/cluster", api.updateClusterInfo())
+		r.Post("/cluster", api.addNewCluster())
+		r.Put("/cluster", api.updateClusterInfo())
 		r.Delete("/cluster/{clusterKey}", api.deleteCluster())
 		r.Get("/namespaces", api.getNamespaces())
 		r.Post("/namespace", api.updateNamespace())
@@ -69,6 +70,7 @@ func (api *api) assets() func(chi.Router) {
 		r.Get("/rawContainers/count", api.countRawContainers())
 		r.Get("/rawContainer/{containerID}", api.getRawContainer())
 		r.Get("/resources/types", api.getResourceTypes())
+		r.Get("/cluster/ruleversion", api.getRuleVersion())
 	}
 }
 
@@ -321,6 +323,7 @@ func (api *api) getClusters() http.HandlerFunc {
 		CreatedAt     int64  `json:"createdAt"`
 		Updater       string `json:"updater"`
 		UpdatedAt     int64  `json:"updatedAt"`
+		RuleVersion   string `json:"ruleVersion"`
 	}
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx, cancel := context.WithTimeout(r.Context(), 1*time.Second)
@@ -332,14 +335,47 @@ func (api *api) getClusters() http.HandlerFunc {
 			RespAndLog(w, ctx, NewAnError(http.StatusBadRequest, errors.New("no limit or offset given in params")))
 			return
 		}
+		query := dal.ClusterQuery()
 
+		clusterKey, _ := param.QueryString(r, "key")
+		clusterKey = strings.TrimSpace(clusterKey)
+		if clusterKey != "" {
+			query.WithKey(clusterKey)
+		}
+		name, _ := param.QueryString(r, "name")
+		name = strings.TrimSpace(name)
+		if name != "" {
+			query.WithName(name)
+		}
+		apiServerAddr, _ := param.QueryString(r, "api_server_addr")
+		apiServerAddr = strings.TrimSpace(apiServerAddr)
+		if apiServerAddr != "" {
+			query.WithAPIServerAddr(apiServerAddr)
+		}
+		version, _ := param.QueryString(r, "version")
+		version = strings.TrimSpace(version)
+		if version != "" {
+			query.WithVersion(version)
+		}
+		clusterType, _ := param.QueryString(r, "cluster_type")
+		if clusterType != "" {
+			query.WithType(clusterType)
+		}
+		rulesVersion, _ := param.QueryString(r, "rules_version")
+		if rulesVersion != "" {
+			query.WithRulesVersion(rulesVersion)
+		}
+		platform, _ := param.QueryString(r, "platform")
+		if platform != "" {
+			query.WithPlatform(platform)
+		}
 		resSvc, ok := assets.GetResourcesService(ctx)
 		if !ok {
 			logging.Get().Error().Msg("service instance get error")
 			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.New("service instance get error")))
 			return
 		}
-		clusters, totalCnt, err := resSvc.GetClusters(ctx, offset, limit)
+		clusters, totalCnt, err := resSvc.GetClusters(ctx, query, offset, limit)
 		if err != nil {
 			logging.Get().Err(err).Msg("get cluster error")
 			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.New("get cluster error")))
@@ -357,8 +393,8 @@ func (api *api) getClusters() http.HandlerFunc {
 			ret[i].CreatedAt = c.CreatedAt.Unix()
 			ret[i].UpdatedAt = c.UpdatedAt.Unix()
 			ret[i].Updater = c.Updater
+			ret[i].RuleVersion = c.RuleVersion
 		}
-
 		response.Ok(w, response.WithItems(ret), response.WithTotalItems(totalCnt))
 	}
 }
@@ -422,6 +458,7 @@ func (api *api) updateClusterInfo() http.HandlerFunc {
 		ClusterKey  string `json:"cluster_key"`
 		ClusterName string `json:"cluster_name"`
 		Description string `json:"description"`
+		RuleVersion string `json:"rule_version"`
 	}
 
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -443,22 +480,10 @@ func (api *api) updateClusterInfo() http.HandlerFunc {
 			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.New("service instance get error")))
 			return
 		}
-		err = resSvc.UpdateCluster(ctx, request.ClusterKey, request.ClusterName, request.Description)
+		err = resSvc.UpdateCluster(ctx, request.ClusterKey, request.ClusterName, request.Description, request.RuleVersion)
 		if err != nil {
 			logging.Get().Err(err).Msgf("update cluster error. data: %v", request)
 			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.New("update cluster error")))
-			return
-		}
-		clusterManager, ok := k8s.GetClusterManager()
-		if !ok {
-			RespAndLog(w, ctx,
-				NewAnError(http.StatusInternalServerError, errors.New("cluster manager not exist")))
-			return
-		}
-		err = clusterManager.UpdateClusterName(ctx, request.ClusterKey, request.ClusterName, request.Description)
-		if err != nil {
-			RespAndLog(w, ctx,
-				NewAnError(http.StatusInternalServerError, errors.New("update cluster name failed")))
 			return
 		}
 		response.Ok(w)
@@ -493,6 +518,16 @@ func (api *api) deleteCluster() http.HandlerFunc {
 			RespAndLog(w, ctx,
 				NewAnError(http.StatusInternalServerError, err))
 			return
+		}
+
+		defSvc, ok := defense.GetDefenseService(ctx)
+		if !ok {
+			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.New("defense instance get error")))
+			return
+		}
+		err = defSvc.DeleteAllBaitServicesFromKube(ctx, clusterKey)
+		if err != nil {
+			logging.Get().Warn().Err(fmt.Errorf("delete bait services in cluster error: %v", err))
 		}
 
 		err = resSvc.DeleteCluster(ctx, clusterKey)
@@ -1917,5 +1952,34 @@ func (api *api) countRawContainers() http.HandlerFunc {
 			return
 		}
 		response.Ok(w, response.WithItem(countResp{Count: totalCnt}))
+	}
+}
+
+func (api *api) getRuleVersion() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+
+		limit, offset, err := getLimitAndOffset(r)
+		if err != nil {
+			logging.Get().Err(err).Msgf("get limit or offset query error")
+			RespAndLog(w, ctx, NewAnError(http.StatusBadRequest, errors.New("no limit or offset given in params")))
+			return
+		}
+
+		resSvc, ok := assets.GetResourcesService(ctx)
+		if !ok {
+			logging.Get().Error().Msg("service instance get error")
+			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.New("service instance get error")))
+			return
+		}
+
+		ruleVersions, cnt, err := resSvc.GetRuleVersions(ctx, offset, limit)
+		if err != nil {
+			logging.Get().Err(err).Msg("get rule versions error")
+			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, err))
+			return
+		}
+		response.Ok(w, response.WithItems(ruleVersions), response.WithTotalItems(cnt))
 	}
 }

@@ -188,6 +188,9 @@ func NewServer() (*server, error) {
 
 	factory.WaitForCacheSync(stopChan)
 	tensorFactory.WaitForCacheSync(stopChan)
+	if err != nil {
+		logging.Get().Err(err).Msg("update cluster ruleVersion err")
+	}
 
 	return s, nil
 }

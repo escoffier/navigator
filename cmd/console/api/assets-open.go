@@ -547,7 +547,7 @@ func (api *api) getClustersForOpenapi() http.HandlerFunc {
 			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.New("service instance get error")))
 			return
 		}
-		clusters, totalCnt, err := resSvc.GetClusters(ctx, offset, limit)
+		clusters, totalCnt, err := resSvc.GetClusters(ctx, dal.ClusterQuery(), offset, limit)
 		if err != nil {
 			logging.GetLogger().Err(err).Msg("get cluster error")
 			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.New("get cluster error")))

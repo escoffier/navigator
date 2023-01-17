@@ -670,6 +670,27 @@ func removePrefix(url string) string {
 	}
 }
 
+func (s *TensorDefenseService) DeleteAllBaitServicesFromKube(ctx context.Context, clusterKey string) error {
+	clusterManager, ok := k8s.GetClusterManager()
+	if !ok {
+		return fmt.Errorf("cluster manager not available")
+	}
+	clientset, ok := clusterManager.GetClient(clusterKey)
+	if !ok {
+		return fmt.Errorf("clientset not available")
+	}
+
+	nsList, err := clientset.CoreV1().Namespaces().List(ctx, metav1.ListOptions{})
+	if err != nil {
+		return err
+	}
+	for _, ns := range nsList.Items {
+		err = clientset.TensorClientset.DefenseV1().Honeypots(ns.Name).DeleteCollection(ctx, metav1.DeleteOptions{}, metav1.ListOptions{})
+	}
+
+	return err
+}
+
 func init() {
 	useGrpc := os.Getenv("USING_GRPC")
 	if useGrpc == "true" {

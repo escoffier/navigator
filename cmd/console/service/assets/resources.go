@@ -12,6 +12,7 @@ import (
 	"time"
 
 	param "github.com/oceanicdev/chi-param"
+
 	"github.com/pkg/errors"
 	"gitlab.com/security-rd/go-pkg/databases"
 	"gitlab.com/security-rd/go-pkg/httputil"
@@ -61,8 +62,17 @@ func newTensorResourcesService(rdb *databases.RDBInstance, scannerURL string) *T
 	}
 }
 
-func (rl *TensorResourcesService) GetClusters(ctx context.Context, offset, limit int) ([]*model.TensorCluster, int64, error) {
-	return dal.GetClusters(ctx, rl.rdb.GetReadDB(), offset, limit)
+func (rl *TensorResourcesService) GetClusters(ctx context.Context, query *dal.ClusterQueryOption, offset, limit int) ([]*model.TensorCluster, int64, error) {
+	clusters, err := dal.GetClusters(ctx, rl.rdb.GetReadDB(), query, offset, limit)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	totalCnt, err := dal.CountClusters(ctx, rl.rdb.GetReadDB(), query)
+	if err != nil {
+		return nil, 0, err
+	}
+	return clusters, totalCnt, nil
 }
 
 func (rl *TensorResourcesService) GetClusterByKey(ctx context.Context, key string) *model.TensorCluster {
@@ -74,12 +84,12 @@ func (rl *TensorResourcesService) AddCluster(ctx context.Context, cluster *model
 	return dal.AddCluster(ctx, rl.rdb.Get(), cluster)
 }
 
-func (rl *TensorResourcesService) UpdateCluster(ctx context.Context, clusterKey, newClusterName, newDescription string) error {
-	return dal.UpdateCluster(ctx, rl.rdb.Get(), clusterKey, newClusterName, newDescription)
+func (rl *TensorResourcesService) UpdateCluster(ctx context.Context, clusterKey, clusterName, description, ruleVersion string) error {
+	return dal.UpdateCluster(ctx, rl.rdb.Get(), clusterKey, clusterName, description, ruleVersion)
 }
 
 func (rl *TensorResourcesService) DeleteCluster(ctx context.Context, clusterKey string) error {
-	return dal.DeleteCluster(ctx, rl.rdb.Get(), clusterKey)
+	return dal.DeleteClusterAll(ctx, rl.rdb.Get(), clusterKey)
 }
 
 func (rl *TensorResourcesService) GetResources(ctx context.Context, queryOptions *dal.ResourcesQueryOption, offset, limit int) ([]*model.TensorResource, int64, error) {
@@ -626,6 +636,23 @@ func (rl *TensorResourcesService) GetRawContainer(ctx context.Context, queryOpti
 
 func (rl *TensorResourcesService) CountRawContainer(ctx context.Context, queryOptions *dal.RawContainersQueryOption) (int64, error) {
 	return dal.CountRawContainer(ctx, rl.rdb.GetReadDB(), queryOptions)
+}
+
+func (rl *TensorResourcesService) GetRuleVersions(ctx context.Context, offset, limit int) ([]string, int64, error) {
+	ruleVersions, err := dal.GetRuleVersions(ctx, rl.rdb.GetReadDB(), offset, limit)
+	if err != nil {
+		return nil, 0, err
+	}
+	totalCnt, err := dal.CountRuleVersions(ctx, rl.rdb.GetReadDB())
+	if err != nil {
+		return nil, 0, err
+	}
+	return ruleVersions, totalCnt, nil
+
+}
+
+func (rl *TensorResourcesService) CountRuleVersions(ctx context.Context) (int64, error) {
+	return dal.CountRuleVersions(ctx, rl.rdb.GetReadDB())
 }
 
 type ClustertHandler struct {
