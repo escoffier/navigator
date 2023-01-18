@@ -108,6 +108,7 @@ func (s *ExportTaskSrv) CreateSearchImage(ctx context.Context, taskID int64, par
 			return err
 		}
 	}
+	logging.Get().Info().Int64("taskID", taskID).Msg("CreateSearchImage CreateSearchImage finished")
 	return nil
 }
 

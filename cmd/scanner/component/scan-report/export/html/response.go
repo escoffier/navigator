@@ -40,11 +40,6 @@ type Image struct {
 
 func (im *Image) AddVulnSeverityCount(vulns []*model.Vuln) {
 	for i := range vulns {
-		// todo 中移临时需求，html导出暂时屏蔽语言包漏洞
-		if util.ExistBit1(vulns[i].Flag, model.VulnFlagClassLangPkg) {
-			continue
-		}
-
 		if vulns[i].FixedBy != "" {
 
 			switch vulns[i].SeverityInt {
