@@ -7,10 +7,9 @@ import (
 	"time"
 
 	param "github.com/oceanicdev/chi-param"
-	"gitlab.com/piccolo_su/vegeta/pkg/lang"
-
 	"gitlab.com/piccolo_su/vegeta/cmd/console/models/scap"
 	"gitlab.com/piccolo_su/vegeta/pkg/apperror"
+	"gitlab.com/piccolo_su/vegeta/pkg/lang"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
 )
 

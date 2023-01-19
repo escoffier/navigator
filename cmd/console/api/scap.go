@@ -2,7 +2,6 @@ package api
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -10,21 +9,20 @@ import (
 	"time"
 
 	"github.com/go-chi/chi"
+	json "github.com/json-iterator/go"
 	param "github.com/oceanicdev/chi-param"
-	uuid "github.com/satori/go.uuid"
-	"gitlab.com/piccolo_su/vegeta/pkg/lang"
-	"gorm.io/gorm"
-
 	"github.com/pkg/errors"
-	"gitlab.com/security-rd/go-pkg/logging"
-
+	uuid "github.com/satori/go.uuid"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/api/scap"
 	scapservice "gitlab.com/piccolo_su/vegeta/cmd/console/service/scap"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/scapper"
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
+	"gitlab.com/piccolo_su/vegeta/pkg/lang"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
+	"gitlab.com/security-rd/go-pkg/logging"
+	"gorm.io/gorm"
 )
 
 const defaultScapTimeout = time.Second * 5

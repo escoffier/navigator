@@ -258,7 +258,7 @@ func (s *ExportImageHtmlSrv) GetExportVulns(ctx context.Context, taskID int64, s
 	uniqueVulns := make([]uint64, 0)
 	// 分批获取漏洞
 	filter := &model.Filter{Limit: limit, SortFiled: "id", SortBy: consts.SortByAsc}
-	vulnImages, err := s.ExportTaskDal.SearchHtmlVulnImage(ctx, store.SearchHtmlVulnImageParam{
+	vulnImages, err := s.ExportTaskDal.SearchHTMLVulnImage(ctx, store.SearchHtmlVulnImageParam{
 		TaskID: taskID, StartID: starID, Severity: severity, CanFixed: canFixed}, filter)
 	if err != nil {
 		logging.Get().Err(err).Int64("taskID", taskID).Msg("ExportImageHtmlSrv GetExportVulns SearchExportTaskImage")
@@ -333,7 +333,7 @@ func (s *ExportImageHtmlSrv) GetImageVulns(ctx context.Context, taskID, imageID 
 		vulnMap[vuln.UniqueVuln] = vuln
 		uniqueVulns = append(uniqueVulns, vuln.UniqueVuln)
 		if (j >= len(vulns)-1 && len(uniqueVulns) > 0) || len(uniqueVulns) >= consts.DefaultLimit {
-			vulnImage, err := s.ExportTaskDal.SearchHtmlVulnImage(ctx, store.SearchHtmlVulnImageParam{TaskID: taskID, UniqueVulns: uniqueVulns}, nil)
+			vulnImage, err := s.ExportTaskDal.SearchHTMLVulnImage(ctx, store.SearchHtmlVulnImageParam{TaskID: taskID, UniqueVulns: uniqueVulns}, nil)
 			if err != nil {
 				logging.Get().Err(err).Int64("taskID", taskID).Int64("imageID", imageID).Uint64("UniqueVuln", vuln.UniqueVuln).Msg("ExportImageHtmlSrv GetImageVulns SearchHtmlVulnImage")
 				return nil, err
@@ -440,7 +440,7 @@ func (s *ExportImageHtmlSrv) createRiskOverView(ctx context.Context, task model.
 	startID = 0
 	for {
 		filter := &model.Filter{Limit: consts.DefaultLimit, SortFiled: "id", SortBy: consts.SortByAsc}
-		imageVulns, err := s.ExportTaskDal.SearchHtmlVulnImage(ctx, store.SearchHtmlVulnImageParam{
+		imageVulns, err := s.ExportTaskDal.SearchHTMLVulnImage(ctx, store.SearchHtmlVulnImageParam{
 			TaskID:  task.ID,
 			Fields:  []string{"id", "severity"},
 			StartID: startID,
@@ -466,7 +466,7 @@ func (s *ExportImageHtmlSrv) createRiskOverView(ctx context.Context, task model.
 		return err
 	}
 
-	if err := s.ExportTaskDal.CreateOrUpdateHtmlPrepare(ctx, &model.ExportHtmlPrepare{TaskID: task.ID, Data: string(bys), DataType: model.ExportHtmlPrepareRiskOver}); err != nil {
+	if err := s.ExportTaskDal.CreateOrUpdateHTMLPrepare(ctx, &model.ExportHtmlPrepare{TaskID: task.ID, Data: string(bys), DataType: model.ExportHtmlPrepareRiskOver}); err != nil {
 		logging.Get().Err(err).Int64("taskID", task.ID).Msg("ExportImageHtmlSrv pre createRiskOverView")
 		return err
 	}
@@ -620,7 +620,7 @@ func (s *ExportImageHtmlSrv) createVulnImage(ctx context.Context, taskID int64) 
 
 			//  正确的去重方式是向数据库写入，利用数据库的唯一索引，但是这种方式效率很低，在大数据导出时会超时
 			//  所以采用查询的方式，这种方式在当前的情况下，暂时不会出错：1，任务没有并发，2，mysql没有主从延迟
-			duplicates, err := s.ExportTaskDal.SearchHtmlVulnImage(ctx, store.SearchHtmlVulnImageParam{
+			duplicates, err := s.ExportTaskDal.SearchHTMLVulnImage(ctx, store.SearchHtmlVulnImageParam{
 				TaskID:      taskID,
 				Fields:      []string{"id", "task_id", "unique_vuln"},
 				UniqueVulns: uniques,
@@ -658,14 +658,14 @@ func (s *ExportImageHtmlSrv) createVulnImage(ctx context.Context, taskID int64) 
 				vulnImages = append(vulnImages, vulnImage)
 			}
 
-			if err := s.ExportTaskDal.CreateHtmlVulnImage(ctx, vulnImages); err != nil {
+			if err := s.ExportTaskDal.CreateHTMLVulnImage(ctx, vulnImages); err != nil {
 				logging.Get().Err(err).Int64("taskID", taskID).Int("vulnImage", len(vulnImages)).Msg("ExportImageHtmlSrv prepareVuln CreateHtmlVulnImage")
 				continue
 			}
 			logging.Get().Info().Int64("taskID", taskID).Int64("imageID", exportImages[i].ImageID).Int("vulnImage", len(vulnImages)).Msg("ExportImageHtmlSrv prepareVuln CreateHtmlVulnImage")
 		}
 		// pod重启后不用再重新计算。
-		if err := s.ExportTaskDal.CreateOrUpdateHtmlPrepare(ctx, &model.ExportHtmlPrepare{
+		if err := s.ExportTaskDal.CreateOrUpdateHTMLPrepare(ctx, &model.ExportHtmlPrepare{
 			TaskID:   taskID,
 			DataType: model.ExportHtmlPrepareVulnLastImage,
 			Data:     fmt.Sprintf("%d", startID),

@@ -2,20 +2,19 @@ package scap
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
 	"time"
 
+	json "github.com/json-iterator/go"
 	param "github.com/oceanicdev/chi-param"
 	"github.com/pkg/errors"
-	"gitlab.com/piccolo_su/vegeta/pkg/lang"
-
 	"gitlab.com/piccolo_su/vegeta/cmd/console/api/scap/internal"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/models/scap"
 	"gitlab.com/piccolo_su/vegeta/pkg/apperror"
+	"gitlab.com/piccolo_su/vegeta/pkg/lang"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
 )
