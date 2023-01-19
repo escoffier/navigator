@@ -2,10 +2,10 @@ package scap
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"time"
 
+	json "github.com/json-iterator/go"
 	"github.com/shopspring/decimal"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/scapper"
 	"gitlab.com/piccolo_su/vegeta/pkg/lang"

@@ -9,13 +9,12 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
-	"scm.tensorsecurity.cn/tensorsecurity-rd/trivy/pkg/report"
-
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
+	"scm.tensorsecurity.cn/tensorsecurity-rd/trivy/pkg/report"
 )
 
 type VulnAPISrv struct {
@@ -93,7 +92,7 @@ func (s *VulnAPISrv) GetImageVulns(ctx *gin.Context) {
 		param.ImageIds = nil
 		*/
 	}
-	vulns, cnt, err := s.VulnSrv.SearchVulns(ctx, param,
+	vulns, _, err := s.VulnSrv.SearchVulns(ctx, param,
 		model.EmptyFilterForTotalQuery().SetSortFiled("severity_int").AddSortDesc())
 	if err != nil {
 		response.JSONError(ctx, err)
@@ -118,7 +117,7 @@ func (s *VulnAPISrv) GetImageVulns(ctx *gin.Context) {
 		ans = append(ans, res[i])
 	}
 
-	cnt = int64(len(ans))
+	cnt := int64(len(ans))
 
 	if len(ans) <= int(filter.Offset) {
 		ans = make([]VulnResponse, 0)

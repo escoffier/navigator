@@ -11,23 +11,20 @@ import (
 	"sync"
 	"time"
 
-	"github.com/rs/zerolog"
-
-	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/containerassets"
-	"gitlab.com/piccolo_su/vegeta/pkg/assets"
-
-	rpcstream "gitlab.com/piccolo_su/vegeta/pkg/streaming"
-
 	"github.com/pkg/errors"
+	"github.com/rs/zerolog"
 	flag "github.com/spf13/pflag"
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/dp"
+	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/containerassets"
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/degrade"
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/holmes"
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/netflow"
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/nodeinfo"
+	"gitlab.com/piccolo_su/vegeta/pkg/assets"
 	"gitlab.com/piccolo_su/vegeta/pkg/daemon"
 	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
+	rpcstream "gitlab.com/piccolo_su/vegeta/pkg/streaming"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 	"gitlab.com/security-rd/go-pkg/cmap"
 	"gitlab.com/security-rd/go-pkg/logging"
@@ -390,15 +387,7 @@ func Run(ctx context.Context) error {
 	return err
 }
 
-func main() {
-	flag.Parse()
-
-	if errs := loggingOptions.Validate(); len(errs) > 0 {
-		logging.Get().Panic().Err(fmt.Errorf("%v", errs)).Msg("")
-	}
-	loggingOptions.SetConsoleWriterWrapper(logging.ConsoleCallerWriter)
-	logging.ReplaceLogger(loggingOptions)
-
+func setLoggingLevel() {
 	logLevel := zerolog.InfoLevel
 	logLevelStr := os.Getenv("LOGGING_LEVEL")
 	if logLevelStr != "" {
@@ -408,7 +397,18 @@ func main() {
 		}
 	}
 	logging.Get().SetLevel(logLevel)
+}
+func main() {
+	flag.Parse()
 
+	if errs := loggingOptions.Validate(); len(errs) > 0 {
+		logging.Get().Panic().Err(fmt.Errorf("%v", errs)).Msg("")
+	}
+	loggingOptions.SetConsoleWriterWrapper(logging.ConsoleCallerWriter)
+	logging.ReplaceLogger(loggingOptions)
+
+	setLoggingLevel()
+	
 	mainCtx, mainCancel := context.WithCancel(context.Background())
 	defer mainCancel()
 

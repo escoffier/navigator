@@ -5,7 +5,7 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"log"
 	"net/http"
 	"os"
@@ -52,7 +52,7 @@ func NewCmd() *cobra.Command {
 				if err != nil {
 					return err
 				}
-				result, err := ioutil.ReadAll(f)
+				result, err := io.ReadAll(f)
 				if err != nil {
 					return err
 				}

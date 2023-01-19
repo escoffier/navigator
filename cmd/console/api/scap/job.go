@@ -2,11 +2,11 @@ package scap
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"time"
 
+	json "github.com/json-iterator/go"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/models/scap"
 	scapservice "gitlab.com/piccolo_su/vegeta/cmd/console/service/scap"
 	"gitlab.com/piccolo_su/vegeta/pkg/apperror"

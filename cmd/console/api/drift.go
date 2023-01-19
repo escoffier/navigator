@@ -878,7 +878,7 @@ func (api *api) driftCreateBatchPolicy() http.HandlerFunc {
 			if len(existPolicies) > 0 {
 				for _, existPolicy := range existPolicies {
 					if existPolicy.ResourceUUID == tmpPolicy.ResourceUUID {
-						logging.GetLogger().Warn().Msgf("policy %s already exist", tmpPolicy.ResourceUUID)
+						logging.GetLogger().Warn().Uint32("policy ResourceUUID", tmpPolicy.ResourceUUID).Msg("policy already exist")
 						continue
 					}
 				}

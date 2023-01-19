@@ -6,10 +6,9 @@ import (
 	"strings"
 	"time"
 
-	"gitlab.com/security-rd/go-pkg/databases"
-
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
+	"gitlab.com/security-rd/go-pkg/databases"
 )
 
 type ExportTaskDal interface {
@@ -17,16 +16,16 @@ type ExportTaskDal interface {
 	CreateExportTensorTask(ctx context.Context, data *model.ExportTensorTask) error
 	UpdateExportTensorTask(ctx context.Context, where string, updater map[string]interface{}, data *model.ExportTensorTask) error
 	DeleteExportTensorTask(ctx context.Context, taskID int64) error
-	DeleteExportVulnImage(ctx context.Context, taskId int64) error
+	DeleteExportVulnImage(ctx context.Context, taskID int64) error
 	CreateExportTaskImage(ctx context.Context, data []*model.ExportTaskImage) error
 	DeleteExportTaskImage(ctx context.Context, taskID int64) error
 	SearchExportTaskImage(ctx context.Context, param SearchExportTaskImageParam, filter *model.Filter) ([]model.ExportTaskImage, error)
-	GetExportImageRelatedVuln(ctx context.Context, uniqueVuln uint64, taskId int64) ([]model.ExportTaskImage, error)
+	GetExportImageRelatedVuln(ctx context.Context, uniqueVuln uint64, taskID int64) ([]model.ExportTaskImage, error)
 	SearchHtmlPrepare(ctx context.Context, taskID int64, dataType int8) ([]model.ExportHtmlPrepare, error)
-	CreateOrUpdateHtmlPrepare(ctx context.Context, data *model.ExportHtmlPrepare) error
+	CreateOrUpdateHTMLPrepare(ctx context.Context, data *model.ExportHtmlPrepare) error
 
-	SearchHtmlVulnImage(ctx context.Context, param SearchHtmlVulnImageParam, filter *model.Filter) ([]model.ExportVulnImage, error)
-	CreateHtmlVulnImage(ctx context.Context, data []*model.ExportVulnImage) error
+	SearchHTMLVulnImage(ctx context.Context, param SearchHtmlVulnImageParam, filter *model.Filter) ([]model.ExportVulnImage, error)
+	CreateHTMLVulnImage(ctx context.Context, data []*model.ExportVulnImage) error
 
 	CreateExportIdempotent(ctx context.Context, id int64) (bool, error)
 	DeleteExportIdempotent(ctx context.Context, dataName string, dataID int64) error
@@ -76,7 +75,7 @@ func (dal *ExportTaskDao) CreateExportIdempotent(ctx context.Context, id int64) 
 	return false, err
 }
 
-func (dal *ExportTaskDao) SearchHtmlVulnImage(ctx context.Context, param SearchHtmlVulnImageParam, filter *model.Filter) ([]model.ExportVulnImage, error) {
+func (dal *ExportTaskDao) SearchHTMLVulnImage(ctx context.Context, param SearchHtmlVulnImageParam, filter *model.Filter) ([]model.ExportVulnImage, error) {
 	if param.TaskID <= 0 {
 		return nil, fmt.Errorf("no taskID")
 	}
@@ -115,7 +114,7 @@ func (dal *ExportTaskDao) SearchHtmlVulnImage(ctx context.Context, param SearchH
 	return res, nil
 }
 
-func (dal *ExportTaskDao) CreateHtmlVulnImage(ctx context.Context, data []*model.ExportVulnImage) error {
+func (dal *ExportTaskDao) CreateHTMLVulnImage(ctx context.Context, data []*model.ExportVulnImage) error {
 	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*10)
 	defer cancelFunc()
 	db := dal.db.Get().WithContext(ctx).Model(new(model.ExportVulnImage))
@@ -190,7 +189,7 @@ func (dal *ExportTaskDao) SearchHtmlPrepare(ctx context.Context, taskID int64, d
 	return res, nil
 }
 
-func (dal *ExportTaskDao) CreateOrUpdateHtmlPrepare(ctx context.Context, data *model.ExportHtmlPrepare) error {
+func (dal *ExportTaskDao) CreateOrUpdateHTMLPrepare(ctx context.Context, data *model.ExportHtmlPrepare) error {
 	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*10)
 	defer cancelFunc()
 
@@ -214,18 +213,18 @@ func (dal *ExportTaskDao) CreateExportTaskImage(ctx context.Context, data []*mod
 	return db.CreateInBatches(data, consts.DefaultCreateInBatches).Error
 }
 
-func (dal *ExportTaskDao) DeleteExportTaskImage(ctx context.Context, taskId int64) error {
+func (dal *ExportTaskDao) DeleteExportTaskImage(ctx context.Context, taskID int64) error {
 	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*10)
 	defer cancelFunc()
 	db := dal.db.Get().WithContext(ctx).Model(new(model.ExportTaskImage))
-	return db.Where("task_id  = ? ", taskId).Delete(&model.ExportTaskImage{}).Error
+	return db.Where("task_id  = ? ", taskID).Delete(&model.ExportTaskImage{}).Error
 }
 
-func (dal *ExportTaskDao) DeleteExportVulnImage(ctx context.Context, taskId int64) error {
+func (dal *ExportTaskDao) DeleteExportVulnImage(ctx context.Context, taskID int64) error {
 	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*10)
 	defer cancelFunc()
 	db := dal.db.Get().WithContext(ctx).Model(new(model.ExportVulnImage))
-	return db.Where("task_id  = ? ", taskId).Delete(&model.ExportVulnImage{}).Error
+	return db.Where("task_id  = ? ", taskID).Delete(&model.ExportVulnImage{}).Error
 }
 
 func (dal *ExportTaskDao) DeleteExportTensorTask(ctx context.Context, taskID int64) error {

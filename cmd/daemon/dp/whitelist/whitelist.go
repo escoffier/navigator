@@ -171,7 +171,7 @@ func randString(n int) string {
 }
 
 func dumpWhitelist(whiteList []WhitelistFile, outputFile string) error {
-	if len(whiteList) <= 0 {
+	if len(whiteList) == 0 {
 		return fmt.Errorf("whitelist is null, skip dump")
 	}
 	whiteList = Unique(whiteList)
@@ -239,7 +239,7 @@ func transformListType(whitelist []WhitelistFile) []model.DriftWhitelistFile {
 }
 
 func sendWhitelist(mqWrite mq.Writer, imageID string, repoTags []string, whitelist []WhitelistFile) error {
-	if len(whitelist) <= 0 {
+	if len(whitelist) == 0 {
 		return fmt.Errorf("whitelist is null, skip send")
 	}
 	whitelist = Unique(whitelist)
@@ -259,8 +259,7 @@ func sendWhitelist(mqWrite mq.Writer, imageID string, repoTags []string, whiteli
 		return err
 	}
 
-	sendWhiteList2Kafka(mqWrite, model.SubjectOfDriftWhiteListEvent, msg)
-	return nil
+	return sendWhiteList2Kafka(mqWrite, model.SubjectOfDriftWhiteListEvent, msg)
 }
 
 func sendWhiteList2Kafka(mqWrite mq.Writer, topicStr string, msg []byte) error {
