@@ -2,7 +2,6 @@ package api
 
 import (
 	"fmt"
-	"net/http"
 	"strconv"
 	"strings"
 
@@ -25,14 +24,10 @@ func NewImageInfoAPI(
 	return &ImageInfoAPI{ImageSrv: imageSrv}
 }
 
+// 获取应用镜像的基础镜像列表
 func (s *ImageInfoAPI) ListBaseToAppImage(ctx *gin.Context) {
 
 	imageID := util.GetInt64FromQuery(ctx, "imageID")
-	if imageID <= 0 {
-		response.JSONError(ctx, response.NewHttpError(http.StatusBadRequest, fmt.Errorf("not get imageID")))
-		return
-	}
-
 	keyword := util.GetKeywordFromQuery(ctx, "keyword")
 	filter := model.GetFilter(ctx)
 
@@ -56,13 +51,10 @@ func (s *ImageInfoAPI) ListBaseToAppImage(ctx *gin.Context) {
 		response.WithStartIndex(filter.Offset))
 }
 
+// 获取基础镜像的应用镜像列表
 func (s *ImageInfoAPI) ListAppToBaseImage(ctx *gin.Context) {
-	imageID, err := strconv.ParseInt(ctx.Param("imageID"), 10, 64)
-	if err != nil {
-		response.JSONError(ctx, err)
-		return
-	}
-	keyword := ctx.Query("keyword")
+	imageID := util.GetInt64FromQuery(ctx, "imageID")
+	keyword := util.GetKeywordFromQuery(ctx, "keyword")
 	filter := model.GetFilter(ctx)
 
 	data, err := s.ImageSrv.GetImageCorrelateData(ctx, model.GetImageAssociateDataParam{

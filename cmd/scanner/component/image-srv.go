@@ -437,23 +437,23 @@ func (s *ImageSrv) GetImageCorrelateData(ctx context.Context, param model.GetIma
 	}
 
 	if param.AppImageEnable && util.ExistBit1(image.Flag, model.FlagBaseImage) {
-		base, cnt, err := s.ListAppImageOfBase(ctx, model.ImageListParam{ImageIds: []int64{image.ID}, Keyword: param.ScanResultSearchParam.Keyword}, nil)
+		appImages, appImageCnt, err := s.ListAppImageOfBase(ctx, model.ImageListParam{ImageIds: []int64{image.ID}, Keyword: param.ScanResultSearchParam.Keyword}, nil)
 		if err != nil {
 			logging.Get().Err(err).Msg("SearchImageWithScan.ListAppImageOfBase")
 			return nil, err
 		}
-		ans.BaseImages = base
-		ans.BaseImageCnt = cnt
+		ans.AppImages = appImages
+		ans.AppImageCnt = appImageCnt
 	}
 
 	if param.BaseImageEnable && !util.ExistBit1(image.Flag, model.FlagBaseImage) {
-		apps, cnt, err := s.ListBaseImageOfApp(ctx, model.ImageListParam{ImageIds: []int64{image.ID}, Keyword: param.ScanResultSearchParam.Keyword}, nil)
+		baseImages, baseImageCnt, err := s.ListBaseImageOfApp(ctx, model.ImageListParam{ImageIds: []int64{image.ID}, Keyword: param.ScanResultSearchParam.Keyword}, nil)
 		if err != nil {
 			logging.Get().Err(err).Msg("SearchImageWithScan.SearchResources")
 			return nil, err
 		}
-		ans.AppImages = apps
-		ans.AppImageCnt = cnt
+		ans.BaseImages = baseImages
+		ans.BaseImageCnt = baseImageCnt
 	}
 
 	ans.ImageBaseResponse = ans.ToImageBaseResponse()
@@ -500,20 +500,6 @@ func (s *ImageSrv) ListBaseImageOfApp(ctx context.Context, param model.ImageList
 		}
 	}
 	cnt := int64(len(baseImageIds))
-
-	// 应付前端分页
-	if filter != nil && len(baseImageIds) > 0 {
-		start := int(filter.Offset)
-		end := int(filter.Offset + filter.Limit)
-
-		if len(baseImageIds) <= start {
-			return make([]*model.ImageBaseResponse, 0), int64(len(baseImages)), nil
-		}
-		if end > len(baseImageIds) {
-			end = len(baseImageIds)
-		}
-		baseImageIds = baseImageIds[start:end]
-	}
 
 	baseInfo, _, err := s.ListImageWithScanInfo(ctx, model.ImageListParam{ImageIds: baseImageIds}, model.EmptyFilterForTotalQuery())
 	if err != nil {
