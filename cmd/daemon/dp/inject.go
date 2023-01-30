@@ -306,7 +306,7 @@ func (ij *Injector) DoInject(cm container.ContainerMeta) (bool, error) {
 
 	err = ij.putContainerID2File(cm.ProcessID, cm.ID)
 	if err != nil {
-		logging.Get().Err(err).Int("ProcessID", cm.ProcessID).Str("containerdID", cm.ID).Msg("put container id failed")
+		logging.Get().Err(err).Int("ProcessID", cm.ProcessID).Str("containerID", cm.ID).Msg("put container id failed")
 		return false, err
 	}
 
@@ -343,16 +343,17 @@ func (ij *Injector) DoInject(cm container.ContainerMeta) (bool, error) {
 			break
 		}
 		_, _, err := config.Execute(cmd[0], cmd[1:]...)
+		//outMsg, errMsg, err := config.Execute(cmd[0], cmd[1:]...)
 		if err != nil {
 			// encrypted log msg which contain inject detail
 			//msg := fmt.Sprintf("index:%d,%s,%s,%v", index, stdout, stderr, err)
 			//normalMsg := fmt.Sprintf("index:%d,inject failed.", index)
+			//logging.Get().Err(err).Str("container", cm.ID).Int("PID", cm.ProcessID).Str("outMsg", outMsg).Str("errMsg", errMsg).Msg("inject err detail")
 
 			// only log index
-			logging.Get().Err(err).Int("index", index).Msg("inject err")
+			logging.Get().Err(err).Str("container", cm.ID).Int("PID", cm.ProcessID).Int("index", index).Msg("inject err")
 			continue
 		}
-		// logging.Get().Debug().Msg(stdout)
 	}
 
 	if err != nil {

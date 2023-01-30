@@ -13,6 +13,10 @@ import (
 	"time"
 )
 
+const (
+	dmDelimiter = "|"
+)
+
 var (
 	instance *Dmsetup
 )
@@ -47,17 +51,17 @@ func GetDmSetup() *Dmsetup {
 }
 
 func (d *Dmsetup) RecordMessage(poolDevName string, curSnapDevId int) error {
-	content := fmt.Sprintf("%s-%d", poolDevName, curSnapDevId)
+	content := fmt.Sprintf("%s%s%d", poolDevName, dmDelimiter, curSnapDevId)
 	return os.WriteFile(d.MessageRecordFile, []byte(content), os.ModePerm)
 }
 
 func (d *Dmsetup) RecordSnap(snapName string, allocateDevId int) error {
-	content := fmt.Sprintf("%s-%d", snapName, allocateDevId)
+	content := fmt.Sprintf("%s%s%d", snapName, dmDelimiter, allocateDevId)
 	return os.WriteFile(d.SnapRecordFile, []byte(content), os.ModePerm)
 }
 
 func (d *Dmsetup) RecordMount(snapDevName, mountPath string) error {
-	content := fmt.Sprintf("%s-%s", snapDevName, mountPath)
+	content := fmt.Sprintf("%s%s%s", snapDevName, dmDelimiter, mountPath)
 	return os.WriteFile(d.MountRecordFile, []byte(content), os.ModePerm)
 }
 
@@ -79,7 +83,7 @@ func (d *Dmsetup) UmountByFile() error {
 		logging.Get().Err(err).Msg("failed to read mount file")
 		return err
 	}
-	arr := strings.Split(string(data), "-")
+	arr := strings.Split(string(data), dmDelimiter)
 	if len(arr) < 2 {
 		logging.Get().Error().Msg("mount record file format err")
 		return fmt.Errorf("mount record file format err")
@@ -98,7 +102,7 @@ func (d *Dmsetup) RemoveSnap() error {
 		logging.Get().Err(err).Msg("failed to read snap file")
 		return err
 	}
-	arr := strings.Split(string(data), "-")
+	arr := strings.Split(string(data), dmDelimiter)
 	if len(arr) < 2 {
 		logging.Get().Error().Msg("snap record file format err")
 		return fmt.Errorf("snap record file format err")
@@ -116,7 +120,7 @@ func (d *Dmsetup) DeleteMessage() error {
 		logging.Get().Err(err).Msg("failed to read message record file")
 		return err
 	}
-	arr := strings.Split(string(data), "-")
+	arr := strings.Split(string(data), dmDelimiter)
 	if len(arr) < 2 {
 		logging.Get().Error().Msg("message record file format err")
 		return fmt.Errorf("message record file format err")
