@@ -1175,7 +1175,7 @@ func (s *ScannerOrm) SearchImage(ctx context.Context, param SearchImageParam, fi
 	// serialize
 	for i := range res {
 		res[i].Serialize()
-		res[i].Deserialize(!param.NotParseNodeImage)
+		res[i].Deserialize()
 	}
 
 	return res, cnt, nil
