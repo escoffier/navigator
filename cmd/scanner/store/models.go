@@ -36,7 +36,6 @@ type SearchImageParam struct {
 	Projects          []RegProject
 	NodeHostname      string
 	NotCount          bool
-	NotParseNodeImage bool   // 解析节点镜像的imageName
 	AttrIntersection  string // 属性交集还是并集 and or
 	IssueIntersection string // 安全问题交集还是并集 and or
 	OnlineImage       string // 在线离线查询

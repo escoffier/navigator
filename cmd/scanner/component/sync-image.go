@@ -557,7 +557,7 @@ func (s *SyncRepoImage) transImageToImageList(ctx context.Context, image registr
 		img.Project = split[0]
 		img.RepoName = strings.Join(split[1:], "/")
 	}
-	img.Deserialize(false)
+	img.Deserialize()
 	if img.ConfigFile != nil {
 		if img.ConfigFile.Config.User == "" || strings.Contains(img.ConfigFile.Config.User, "root") {
 			img.PrivilegedBoot = consts.PrivilegedBootImage

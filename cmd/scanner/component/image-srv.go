@@ -435,7 +435,7 @@ func (s *ImageSrv) GetImageCorrelateData(ctx context.Context, param model.GetIma
 		}
 		ans.Container = resources
 	}
-
+	// 获取应用镜像列表
 	if param.AppImageEnable && util.ExistBit1(image.Flag, model.FlagBaseImage) {
 		appImages, appImageCnt, err := s.ListAppImageOfBase(ctx, model.ImageListParam{ImageIds: []int64{image.ID}, Keyword: param.ScanResultSearchParam.Keyword}, nil)
 		if err != nil {
@@ -464,8 +464,9 @@ func (s *ImageSrv) GetImageCorrelateData(ctx context.Context, param model.GetIma
 
 // 获取应用镜像的基础镜像列表
 func (s *ImageSrv) ListBaseImageOfApp(ctx context.Context, param model.ImageListParam, filter *model.Filter) ([]*model.ImageBaseResponse, int64, error) {
+	empty := make([]*model.ImageBaseResponse, 0)
 	if len(param.ImageIds) == 0 {
-		return nil, 0, fmt.Errorf("not get imageID")
+		return empty, 0, fmt.Errorf("not get imageID")
 	}
 
 	images, _, err := s.imageDal.SearchImage(ctx, store.SearchImageParam{
@@ -475,17 +476,17 @@ func (s *ImageSrv) ListBaseImageOfApp(ctx context.Context, param model.ImageList
 		logging.Get().Err(err).Msg("SearchImage")
 		return nil, 0, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf("获取基础镜像出错"))
 	}
-	if len(images) == 0 || model.ExistFlag(images[0].Flag, model.FlagBaseImage) {
-		return nil, 0, nil
+	if len(images) == 0 || model.ExistFlag(images[0].Flag, model.FlagBaseImage) || images[0].Layers == "" {
+		return empty, 0, nil
 	}
 	// 先获取所有基础镜像
 	baseImages, _, err := s.imageDal.SearchImage(ctx, store.SearchImageParam{
-		AttrFlag: util.SetBit1(0, model.FlagBaseImage),
-		Keyword:  param.Keyword,
-		NotInIds: []int64{images[0].ID}},
+		AttrIntersection: consts.AndString,
+		AttrFlag:         util.SetBit1(0, model.FlagBaseImage),
+		Keyword:          param.Keyword},
 		model.EmptyFilterForTotalQuery())
 	if err != nil {
-		logging.Get().Err(err).Msg("ListBaseImageOfApp")
+		logging.Get().Err(err).Ints64("imageIds", param.ImageIds).Msg("ListBaseImageOfApp")
 		return nil, 0, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf("ListBaseImageOfApp"))
 	}
 
@@ -499,11 +500,10 @@ func (s *ImageSrv) ListBaseImageOfApp(ctx context.Context, param model.ImageList
 			baseImageIds = append(baseImageIds, baseImages[i].ID)
 		}
 	}
-	cnt := int64(len(baseImageIds))
 
-	baseInfo, _, err := s.ListImageWithScanInfo(ctx, model.ImageListParam{ImageIds: baseImageIds}, model.EmptyFilterForTotalQuery())
+	baseInfo, cnt, err := s.ListImageWithScanInfo(ctx, model.ImageListParam{ImageIds: baseImageIds}, model.EmptyFilterForTotalQuery())
 	if err != nil {
-		logging.Get().Err(err).Msg("ListBaseImageOfApp")
+		logging.Get().Err(err).Ints64("imageIds", param.ImageIds).Msg("ListBaseImageOfApp")
 		return nil, 0, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf("ListBaseImageOfApp"))
 	}
 	return baseInfo, cnt, nil
@@ -511,7 +511,7 @@ func (s *ImageSrv) ListBaseImageOfApp(ctx context.Context, param model.ImageList
 
 // 获取基础镜像的应用的镜像列表
 func (s *ImageSrv) ListAppImageOfBase(ctx context.Context, param model.ImageListParam, filter *model.Filter) ([]*model.ImageBaseResponse, int64, error) {
-
+	empty := make([]*model.ImageBaseResponse, 0)
 	if len(param.ImageIds) == 0 {
 		return nil, 0, fmt.Errorf("not get imageID")
 	}
@@ -519,18 +519,19 @@ func (s *ImageSrv) ListAppImageOfBase(ctx context.Context, param model.ImageList
 	images, _, err := s.imageDal.SearchImage(ctx, store.SearchImageParam{InIds: param.ImageIds,
 		Fields: []string{"id", "flag", "layers"}}, nil)
 	if err != nil {
-		logging.Get().Err(err).Msg("ListAppImageOfBase")
+		logging.Get().Err(err).Ints64("imageIds", param.ImageIds).Msg("ListAppImageOfBase")
 		return nil, 0, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf("获取基础镜像出错"))
 	}
-	if len(images) == 0 || !model.ExistFlag(images[0].Flag, model.FlagBaseImage) {
-		return nil, 0, nil
+	// 对于from scratch的镜像，可能没有层级信息
+	if len(images) == 0 || !model.ExistFlag(images[0].Flag, model.FlagBaseImage) || images[0].Layers == "" {
+		return empty, 0, nil
 	}
 
 	appImage, cnt, err := s.imageDal.SearchImage(ctx, store.SearchImageParam{
 		LayersPrefix: images[0].Layers, NotInIds: []int64{images[0].ID},
 		Fields: []string{"id", "flag", "layers"}}, filter)
 	if err != nil {
-		logging.Get().Err(err).Msg("ListAppImageOfBase")
+		logging.Get().Err(err).Ints64("imageIds", param.ImageIds).Msg("ListAppImageOfBase")
 		return nil, 0, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf("ListAppImageOfBase"))
 	}
 	appImageIds := make([]int64, 0)
@@ -538,12 +539,12 @@ func (s *ImageSrv) ListAppImageOfBase(ctx context.Context, param model.ImageList
 		appImageIds = append(appImageIds, appImage[i].ID)
 	}
 	if len(appImageIds) == 0 {
-		return make([]*model.ImageBaseResponse, 0), cnt, nil
+		return empty, cnt, nil
 	}
 
 	appInfo, _, err := s.ListImageWithScanInfo(ctx, model.ImageListParam{ImageIds: appImageIds}, model.EmptyFilterForTotalQuery())
 	if err != nil {
-		logging.Get().Err(err).Msg("ListBaseImageOfApp")
+		logging.Get().Err(err).Ints64("imageIds", param.ImageIds).Msg("ListBaseImageOfApp")
 		return nil, 0, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf("ListBaseImageOfApp"))
 	}
 	return appInfo, cnt, nil
