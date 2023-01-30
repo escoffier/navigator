@@ -496,7 +496,7 @@ func (s *ImageSrv) ListBaseImageOfApp(ctx context.Context, param model.ImageList
 	}
 	baseImageIds := make([]int64, 0)
 	for i := range baseImages {
-		if strings.HasPrefix(images[0].Layers, baseImages[i].Layers) {
+		if baseImages[i].Layers != "" && strings.HasPrefix(images[0].Layers, baseImages[i].Layers) {
 			baseImageIds = append(baseImageIds, baseImages[i].ID)
 		}
 	}
@@ -527,9 +527,10 @@ func (s *ImageSrv) ListAppImageOfBase(ctx context.Context, param model.ImageList
 		return empty, 0, nil
 	}
 
-	appImage, cnt, err := s.imageDal.SearchImage(ctx, store.SearchImageParam{
-		LayersPrefix: images[0].Layers, NotInIds: []int64{images[0].ID},
-		Fields: []string{"id", "flag", "layers"}}, filter)
+	appImage, _, err := s.imageDal.SearchImage(ctx, store.SearchImageParam{
+		LayersPrefix: images[0].Layers,
+		NotInIds:     []int64{images[0].ID},
+		Fields:       []string{"id", "flag", "layers"}}, filter)
 	if err != nil {
 		logging.Get().Err(err).Ints64("imageIds", param.ImageIds).Msg("ListAppImageOfBase")
 		return nil, 0, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf("ListAppImageOfBase"))
@@ -539,10 +540,10 @@ func (s *ImageSrv) ListAppImageOfBase(ctx context.Context, param model.ImageList
 		appImageIds = append(appImageIds, appImage[i].ID)
 	}
 	if len(appImageIds) == 0 {
-		return empty, cnt, nil
+		return empty, 0, nil
 	}
 
-	appInfo, _, err := s.ListImageWithScanInfo(ctx, model.ImageListParam{ImageIds: appImageIds}, model.EmptyFilterForTotalQuery())
+	appInfo, cnt, err := s.ListImageWithScanInfo(ctx, model.ImageListParam{ImageIds: appImageIds}, model.EmptyFilterForTotalQuery())
 	if err != nil {
 		logging.Get().Err(err).Ints64("imageIds", param.ImageIds).Msg("ListBaseImageOfApp")
 		return nil, 0, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf("ListBaseImageOfApp"))
