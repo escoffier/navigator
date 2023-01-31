@@ -16,7 +16,7 @@ require (
 	github.com/elazarl/goproxy v0.0.0-20220901064549-fbd10ff4f5a1 // indirect
 	github.com/emicklei/go-restful v2.16.0+incompatible
 	github.com/facebookarchive/freeport v0.0.0-20150612182905-d4adf43b75b9
-	github.com/falcosecurity/client-go v0.5.0
+	github.com/falcosecurity/client-go v0.5.1
 	github.com/fatih/color v1.13.0 // indirect
 	github.com/florianl/go-conntrack v0.3.0 //conntrack
 	github.com/fsnotify/fsnotify v1.6.0 // indirect
@@ -88,7 +88,7 @@ require (
 	k8s.io/apiserver v0.20.15
 	k8s.io/client-go v0.20.15
 	scm.tensorsecurity.cn/tensorsecurity-rd/cloudwalker v0.0.5
-	scm.tensorsecurity.cn/tensorsecurity-rd/falcosider v0.1.17
+	scm.tensorsecurity.cn/tensorsecurity-rd/falcosider v0.1.18
 	scm.tensorsecurity.cn/tensorsecurity-rd/trivy v0.19.3-0.20221223094108-043b8936a019
 )
 
@@ -223,13 +223,13 @@ require (
 	github.com/rookie-ninja/rk-logger v1.2.10 // indirect
 	github.com/rookie-ninja/rk-query v1.2.10 // indirect
 	github.com/rs/xid v1.4.0 // indirect
-	github.com/shirou/gopsutil/v3 v3.22.10 // indirect
+	github.com/shirou/gopsutil/v3 v3.22.12 // indirect
 	github.com/sony/sonyflake v1.0.0 // indirect
 	github.com/stefanberger/go-pkcs11uri v0.0.0-20201008174630-78d3cae3a980 // indirect
 	github.com/syndtr/gocapability v0.0.0-20200815063812-42c35b437635 // indirect
 	github.com/tchap/go-patricia v2.3.0+incompatible // indirect
-	github.com/tklauser/go-sysconf v0.3.10 // indirect
-	github.com/tklauser/numcpus v0.4.0 // indirect
+	github.com/tklauser/go-sysconf v0.3.11 // indirect
+	github.com/tklauser/numcpus v0.6.0 // indirect
 	github.com/vbauerster/mpb/v7 v7.1.5 // indirect
 	github.com/vishvananda/netlink v1.1.1-0.20201029203352-d40f9887b852 // indirect
 	github.com/vishvananda/netns v0.0.0-20200728191858-db3c7e526aae // indirect
@@ -355,7 +355,7 @@ require (
 	github.com/googleapis/gax-go/v2 v2.7.0 // indirect
 	github.com/gopherjs/gopherjs v0.0.0-20200217142428-fce0ec30dd00 // indirect
 	github.com/grd/stat v0.0.0-20130623202159-138af3fd5012 // indirect
-	github.com/grpc-ecosystem/grpc-gateway/v2 v2.11.3 // indirect
+	github.com/grpc-ecosystem/grpc-gateway/v2 v2.15.0 // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect
 	github.com/hashicorp/go-cleanhttp v0.5.2 // indirect
 	github.com/hashicorp/go-getter v1.6.2 // indirect
@@ -449,7 +449,7 @@ require (
 	go.opencensus.io v0.24.0 // indirect
 	golang.org/x/crypto v0.5.0 // indirect
 	golang.org/x/mod v0.6.0 // indirect
-	golang.org/x/oauth2 v0.1.0 // indirect
+	golang.org/x/oauth2 v0.3.0 // indirect
 	golang.org/x/term v0.4.0 // indirect
 	golang.org/x/text v0.6.0 // indirect
 	golang.org/x/tools v0.1.12 // indirect
