@@ -71,16 +71,16 @@ func (c *SherlockClient) AddDetectionRule(ctx context.Context, rule *pb.Detectio
 	return nil
 }
 
-func (c *SherlockClient) ResetCategoryRules(ctx context.Context, category string, rules []*pb.DetectionRule) error {
-
-	logging.GetLogger().Debug().Msgf("ResetCategoryRules start, url:%s, category:%s, rules:%v", c.getURL("ResetCategoryRules"), category, rules)
+func (c *SherlockClient) ResetCategoryRules(ctx context.Context, category string, rules []*pb.DetectionRule, version string) error {
 
 	type Request struct {
+		Version  string              `json:"Version"`
 		Category string              `json:"Category"`
 		Rules    []*pb.DetectionRule `json:"Rules"`
 	}
 
 	jsonBytes, err := json.Marshal(Request{
+		Version:  version,
 		Category: category,
 		Rules:    rules,
 	})
@@ -98,11 +98,6 @@ func (c *SherlockClient) ResetCategoryRules(ctx context.Context, category string
 		return err
 	}
 	defer util.CloseBodyWithLog(rsp.Body)
-	body, err := ioutil.ReadAll(rsp.Body)
-	if err != nil {
-		return err
-	}
-	logging.GetLogger().Debug().Msgf("ResetCategoryRules end, url:%s, req:%s, rsp:%s", c.getURL("ResetCategoryRules"), string(jsonBytes), string(body))
 
 	return nil
 }

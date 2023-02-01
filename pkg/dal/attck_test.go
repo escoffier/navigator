@@ -11,7 +11,7 @@ import (
 
 func TestLoadATTCKConfData(t *testing.T) {
 	initDB(t)
-	data, err := LoadATTCKConfData(context.TODO(), db)
+	data, err := LoadATTCKConfDataByVersion1(context.TODO(), db, 1)
 	if err != nil && err != ErrATTCKConfDataNotFound {
 		t.Fatal(err)
 	}
@@ -29,7 +29,7 @@ func TestLoadATTCKConfVersion(t *testing.T) {
 
 func TestLoadATTCKConfVersions(t *testing.T) {
 	initDB(t)
-	total, versions, err := LoadATTCKConfVersions(context.TODO(), db, 0, 10)
+	total, versions, err := LoadATTCKConfVersions(context.TODO(), db, 0, 10, 1)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -64,7 +64,8 @@ func TestSaveATTCKConfData(t *testing.T) {
 	baseOffset, err := SaveATTCKConfData(context.TODO(), db, &model.ATTCKRuleData{
 		Content: content,
 		ATTCKConfVersion: model.ATTCKConfVersion{
-			Version:   "1.0",
+			Version1:  1,
+			Version2:  0,
 			Username:  "testUsername",
 			CreatedAt: time.Now(),
 		},

@@ -5,6 +5,6 @@ ADD configs/data/policy /policy
 
 COPY configs/kube-scanner/translate.json /kube-scanner/translate.json
 # TODO move to tensor-sherlock in the future
-COPY dist/holmes-rules.thr /rules/holmes-rules.thr
+COPY dist/holmes-rules-v* /rules/
 
 CMD /console

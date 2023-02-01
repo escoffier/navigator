@@ -2,6 +2,7 @@ package holmes
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math/rand"
 	"os"
@@ -12,15 +13,21 @@ import (
 	"time"
 
 	"github.com/falcosecurity/client-go/pkg/api/outputs"
+	json "github.com/json-iterator/go"
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/nodeinfo"
 	"gitlab.com/piccolo_su/vegeta/pkg/dal"
 	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
+	"gitlab.com/piccolo_su/vegeta/pkg/mozart"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 	"gitlab.com/security-rd/go-pkg/logging"
 	"gitlab.com/security-rd/go-pkg/pb"
 	"gitlab.com/security-rd/go-pkg/sdk/palace"
 	"scm.tensorsecurity.cn/tensorsecurity-rd/falcosider/manager"
+)
+
+const (
+	currentEngineLargeVersion = 2 // 随holmes版本升级
 )
 
 var (
@@ -84,6 +91,7 @@ type EngineStreamHandler struct {
 	containerInfo nodeinfo.ContainerInfoManager
 	podResInfo    *nodeinfo.PodResInfo
 	palaceHandler *palace.Palace
+	mozart        *mozart.Engine
 
 	currentRulesVersion int64
 	currentConfigVal    *atomic.Pointer[ruleConfig]
@@ -94,16 +102,16 @@ type ruleConfig struct {
 	version     int64
 }
 
-func NewEventsStreamHandler(config EngineStreamConfig, cm *k8s.ClusterInfoManager, containerInfo nodeinfo.ContainerInfoManager, podResInfo *nodeinfo.PodResInfo, palaceHandler *palace.Palace) *EngineStreamHandler {
+func NewEventsStreamHandler(config EngineStreamConfig, cm *k8s.ClusterInfoManager, containerInfo nodeinfo.ContainerInfoManager, podResInfo *nodeinfo.PodResInfo, palaceHandler *palace.Palace, mozartEngine *mozart.Engine) *EngineStreamHandler {
 	h := &EngineStreamHandler{
 		config: config,
 
-		engineManager: manager.NewEngineManager(config.RulesDirPath, config.UnixSocketPath, config.MyNamespace),
-		cm:            cm,
-		containerInfo: containerInfo,
-		podResInfo:    podResInfo,
-		palaceHandler: palaceHandler,
-
+		engineManager:    manager.NewEngineManager(config.RulesDirPath, config.UnixSocketPath, config.MyNamespace),
+		cm:               cm,
+		containerInfo:    containerInfo,
+		podResInfo:       podResInfo,
+		palaceHandler:    palaceHandler,
+		mozart:           mozartEngine,
 		currentConfigVal: new(atomic.Pointer[ruleConfig]),
 	}
 	h.setRulesConfig(nil, 0)
@@ -154,6 +162,7 @@ func (ec *EngineStreamHandler) saveToDir(data []byte, version int64) error {
 	}
 	return nil
 }
+
 func (ec *EngineStreamHandler) asyncLoad() {
 	go func() {
 		defer func() {
@@ -171,6 +180,132 @@ func (ec *EngineStreamHandler) asyncLoad() {
 		}
 	}()
 }
+
+func (ec *EngineStreamHandler) doReloadingMozart(ctx context.Context, reloadReq *pb.ReloadRequest, rulesBytes []byte, rulesChanged, configChanged bool) error {
+	newV := reloadReq.StaticVersion + ";" + reloadReq.SConfigVersion
+	disabledFalcoM := make(map[string]*pb.RuleConfig)
+	rules := make([]mozart.Rule, 0, 150)
+	var err error
+
+	if rulesChanged {
+		_, decodedRuleBytes, err := manager.DoRulesDecode(rulesBytes)
+		if err != nil {
+			logging.Get().Error().Err(err).Str("version", reloadReq.StaticVersion).Msg("rules data mozart decode fails")
+			return err
+		}
+		// todo: 配置修改的时候也应该改
+		rules, err = ec.mozart.LoadFromRuleBytes(ctx, decodedRuleBytes)
+		if err != nil {
+			logging.Get().Error().Err(err).Str("version", reloadReq.StaticVersion).Msg("rules data mozart loads fails")
+			return err
+		}
+
+		dM, err := extractDisabledRulesFromRules(ctx, decodedRuleBytes)
+		if err != nil {
+			logging.Get().Error().Err(err).Str("version", reloadReq.StaticVersion).Msg("extractDisabledRulesFromRules from ruleBytes fails")
+			return err
+		}
+		for k := range dM {
+			disabledFalcoM[k] = &pb.RuleConfig{Disabled: true, RuleKey: k}
+		}
+
+		err = ec.mozart.UpdateRules(mozart.RuleUpdateOperationAdd, newV, rules)
+		if err != nil {
+			logging.Get().Error().Err(err).Msg("update mozart rules fails")
+			return err
+		}
+	}
+
+	if configChanged {
+		enabledFalcoM := make(map[string]struct{})
+		disabledMozartM := make(map[string]struct{})
+		for _, ruleConf := range reloadReq.SRuleConfigs {
+			if ruleConf.Disabled {
+				disabledMozartM[ruleConf.RuleKey] = struct{}{}
+			}
+		}
+
+		// 数据没有变，读现有规则，如果没有现有规则，则报错
+		if !rulesChanged {
+			var ok bool
+			rules, ok = ec.mozart.GetActiveRules()
+			if !ok {
+				logging.Get().Warn().Err(err).Str("active version", ec.mozart.GetActiveRulesVersion()).Msg("mozart GetActiveRules fails")
+				return errors.New("get active rules failed")
+			}
+		}
+		// 获得开启的falco规则
+		for i := range rules {
+			if _, ok := disabledMozartM[rules[i].Name]; !ok {
+				for k := range rules[i].Steps {
+					if rules[i].Steps[k].Name != "checkRelatedExists" {
+						continue
+					}
+					if params, ok := rules[i].Steps[k].OriginParams.([]string); ok {
+						enabledFalcoM[params[0]] = struct{}{}
+					}
+				}
+			}
+		}
+		// 获得关闭的falco规则
+		// 操作mozart规则的开关
+		for i := range rules {
+			if _, ok := disabledMozartM[rules[i].Name]; ok {
+				rules[i].Enabled = false
+				if rules[i].Type == "basic" {
+					disabledFalcoM[rules[i].Name] = &pb.RuleConfig{RuleKey: rules[i].Name, Disabled: true}
+				}
+				for k := range rules[i].Steps {
+					if rules[i].Steps[k].Name != "checkRelatedExists" {
+						continue
+					}
+					if params, ok := rules[i].Steps[k].OriginParams.([]string); ok {
+						if _, ok := enabledFalcoM[params[0]]; !ok {
+							disabledFalcoM[params[0]] = &pb.RuleConfig{RuleKey: params[0], Disabled: true}
+						}
+					}
+				}
+			} else {
+				rules[i].Enabled = true
+			}
+		}
+		err = ec.mozart.UpdateRules(mozart.RuleUpdateOperationAdd, newV, rules)
+		if err != nil {
+			logging.Get().Error().Err(err).Msg("update mozart rules fails")
+			return err
+		}
+	}
+
+	ruleConfigs := make([]*pb.RuleConfig, 0, len(disabledFalcoM))
+	for _, v := range disabledFalcoM {
+		ruleConfigs = append(ruleConfigs, v)
+	}
+	reloadReq.SRuleConfigs = ruleConfigs
+
+	// 同步更新engine，并等待结果
+	err = ec.engineManager.ReloadEngine(context.Background(), reloadReq)
+	if err != nil {
+		logging.Get().Err(err).Str("sversion", reloadReq.StaticVersion).Msg("reload error")
+
+		merr := ec.mozart.UpdateRules(mozart.RuleUpdateOperationDel, newV, nil)
+		if merr != nil {
+			logging.Get().Error().Err(merr).Msg("update mozart rules fails")
+			return merr
+		}
+		return err
+	} else {
+		logging.Get().Info().Str("sversion", reloadReq.StaticVersion).Msg("reload ok")
+		err = ec.mozart.UpdateRules(mozart.RuleUpdateOperationDel, ec.mozart.GetActiveRulesVersion(), nil)
+		if err != nil {
+			logging.Get().Error().Err(err).Msg("update mozart rules fails")
+			return err
+		}
+		ec.mozart.SetActiveRulesVersion(newV)
+	}
+
+	return nil
+}
+
 func (ec *EngineStreamHandler) engineReloads(ctx context.Context) error {
 	defer func() {
 		if r := recover(); r != nil {
@@ -178,14 +313,14 @@ func (ec *EngineStreamHandler) engineReloads(ctx context.Context) error {
 		}
 	}()
 
-	rulesInfo, err := dal.LoadAttackRules(context.Background(), ec.config.CtrlServerUrl, ec.getCurrentRulesVersion(), ec.currentConfigVal.Load().version)
+	rulesInfo, err := dal.LoadAttackRules(context.Background(), ec.config.CtrlServerUrl, currentEngineLargeVersion, ec.getCurrentRulesVersion(), ec.currentConfigVal.Load().version)
 	if err != nil {
 		return err
 	}
 	rulesChanged, configsChanged := false, false
 	sversion := ec.getCurrentRulesVersion()
 	reloadReq := new(pb.ReloadRequest)
-	if rulesInfo.LatestDataVersion > ec.getCurrentRulesVersion() {
+	if rulesInfo.LatestDataVersion > ec.getCurrentRulesVersion() && rulesInfo.DataChanged {
 		if err := ec.saveToDir([]byte(rulesInfo.Data), rulesInfo.LatestDataVersion); err == nil {
 			rulesChanged = true
 			sversion = rulesInfo.LatestDataVersion
@@ -196,7 +331,7 @@ func (ec *EngineStreamHandler) engineReloads(ctx context.Context) error {
 
 	sconfigs := ec.currentConfigVal.Load()
 	reloadReq.StaticVersion = strconv.FormatInt(sversion, 10)
-	if rulesInfo.LatestSettingVersion > ec.currentConfigVal.Load().version {
+	if rulesInfo.LatestSettingVersion > ec.currentConfigVal.Load().version && rulesInfo.SettingChanged {
 		configsArr := toConfigsArr(rulesInfo)
 		sconfigs = &ruleConfig{
 			rulesConfig: configsArr,
@@ -210,7 +345,7 @@ func (ec *EngineStreamHandler) engineReloads(ctx context.Context) error {
 		Int64("currConfigVersion", ec.currentConfigVal.Load().version).Int64("newConfigVersion", rulesInfo.LatestSettingVersion).Msg("Recieve new rules data")
 
 	if rulesChanged || configsChanged {
-		err := ec.engineManager.ReloadEngine(context.Background(), reloadReq)
+		err := ec.doReloadingMozart(context.Background(), reloadReq, []byte(rulesInfo.Data), rulesChanged, configsChanged)
 		if err != nil {
 			logging.Get().Err(err).Str("sversion", reloadReq.StaticVersion).Msg("reload error")
 			if manager.IsEngineStartError(err) {
@@ -229,6 +364,7 @@ func (ec *EngineStreamHandler) engineReloads(ctx context.Context) error {
 	}
 	return nil
 }
+
 func (ec *EngineStreamHandler) handleMsg(ctx context.Context, msg *outputs.Response) error {
 	defer func() {
 		if r := recover(); r != nil {
@@ -286,109 +422,23 @@ func (ec *EngineStreamHandler) handle(ctx context.Context, e eventItem) error {
 		return nil
 	}
 
-	logging.Get().Debug().Interface("data", e.data).Msg("ATT&CK handle")
-	ruleCategory := "ATT&CK"
-	for _, tag := range e.data.Tags {
-		if tag == "Watson" || tag == "ATT&CK" {
-			ruleCategory = tag
-			break
-		}
-	}
+	bd, _ := json.Marshal(e.data)
+	md := make(map[string]interface{}, 9)
+	_ = json.Unmarshal(bd, &md)
+	md["cluster_key"] = e.clusterKey
+	md["node_name"] = myNodeName
+	md["output_map"] = mozart.ConvertOutput2OutputMap(e.data.Output)
+	md["version1"] = currentEngineLargeVersion
+	err := ec.mozart.Run(mozart.Event{
+		Name:    e.data.Rule,
+		Payload: mozart.ConvertDotKeyToUnderScore(md),
+		Time:    e.data.Time.AsTime(),
+	})
 
-	ruleKey := palace.RuleKey{
-		Category: ruleCategory,
-		Name:     e.data.Rule,
-	}
-
-	clusterName, ok := ec.cm.ClusterName()
-	if !ok {
-		clusterName = e.clusterKey
-	}
-
-	signalContext, podUID, podName, namespace := generateSignalContext(e.data)
-	containerID, _ := signalContext[model.FieldContainerID].(string)
-	containerName, _ := signalContext[model.FieldContainerName].(string)
-	if containerName == "" {
-		var err error
-		containerName, err = model.GetInfoFromOutput("container_name=", e.data.Output)
-		if err != nil || containerName == "<NA>" {
-			containerName = containerID
-		}
-	}
-
-	// 所有告警均存在 cluster + hostname
-	scopes := []palace.Scope{
-		{
-			Kind: palace.ScopeKindCluster,
-			ID:   e.clusterKey,
-			Name: clusterName, // cluster name
-		},
-		{
-			Kind: palace.ScopeKindHostname,
-			Name: myNodeName,
-		},
-	}
-
-	if namespace != "" {
-		scopes = append(scopes, palace.Scope{
-			Kind: palace.ScopeKindNamespace,
-			Name: namespace,
-		})
-	}
-
-	ownerRes, _, exist := ec.getOwnerInfo(podName, namespace)
-	if exist {
-		scopes = append(scopes, palace.Scope{
-			Kind: palace.ScopeKindResource,
-			Name: fmt.Sprintf("%s(%s)", ownerRes.Name, ownerRes.Kind),
-		})
-	}
-
-	if podName != "" {
-		scopes = append(scopes, palace.Scope{
-			Kind: palace.ScopeKindPod,
-			ID:   podUID,
-			Name: podName,
-		})
-	}
-
-	// 明确不是主机告警，追加 container
-	if containerID != "host" {
-		scopes = append(scopes, palace.Scope{
-			Kind: palace.ScopeKindContainer,
-			ID:   containerID,   // container id
-			Name: containerName, // container name
-		})
-
-		if namespace != "" || podName != "" {
-			// in k8s
-			scopes = append(scopes, palace.Scope{
-				Kind: palace.ScopeKindScene,
-				ID:   palace.ScopeIDSceneK8s,
-				Name: palace.ScopeNameSceneK8s,
-			})
-		} else {
-			// in not k8s
-			scopes = append(scopes, palace.Scope{
-				Kind: palace.ScopeKindScene,
-				ID:   palace.ScopeIDSceneNk8s,
-				Name: palace.ScopeNameSceneNk8s,
-			})
-		}
-	} else {
-		// in node
-		scopes = append(scopes, palace.Scope{
-			Kind: palace.ScopeKindScene,
-			ID:   palace.ScopeIDSceneHost,
-			Name: palace.ScopeNameSceneHost,
-		})
-	}
-
-	err := ec.palaceHandler.SendSignal(ruleKey, scopes, signalContext)
 	if err != nil {
-		logging.Get().Err(err).Str("args", fmt.Sprintf("%+v", e.data)).Msg("ATT&CK send signal to palace fails!")
+		logging.Get().Error().Err(err).Interface("event", md).Msg("mozart run fails")
+		return err
 	}
-
 	return nil
 }
 

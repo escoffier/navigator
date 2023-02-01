@@ -332,23 +332,23 @@
   priority: ALERT
   tags: [ATT&CK, filesystem, mitre_privilege_escalation]
 
-- rule: Linux Privilege Escalation using vim suid binaries
-  hid: priv_17
-  hthreats: 1
-  suggestion:
-    en:
-      key: "Suggestions"
-      value: "Please check whether the vim command in the container has been granted s permission, so that hackers try to use it to improve their rights. You can try to use micro isolation and immune defense to prevent the risk from spreading further."
-    zh:
-      key: "处置建议"
-      value: "请排查容器内vim命令是否被授予s权限，从而被黑客尝试利用提权，可尝试采用微隔离和免疫防御阻止风险进一步扩散。"
-  desc: Linux Privilege Escalation using vim suid binaries
-  condition: >
-    spawned_process and evt.arg.exe = "/bin/sh" and user.uid != 0 and proc.pname contains vim
-  output: >
-    Linux Privilege Escalation using vim suid binaries (zh_msg=尝试利用vim_suid进行linux提权,rule_type=Privilege_Escalation,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type, container=%container.info,container_id=%container.id,container_name=%container.name)
-  priority: ALERT
-  tags: [ATT&CK, filesystem, mitre_privilege_escalation]
+# - rule: Linux Privilege Escalation using vim suid binaries
+#   hid: priv_17
+#   hthreats: 1
+#   suggestion:
+#     en:
+#       key: "Suggestions"
+#       value: "Please check whether the vim command in the container has been granted s permission, so that hackers try to use it to improve their rights. You can try to use micro isolation and immune defense to prevent the risk from spreading further."
+#     zh:
+#       key: "处置建议"
+#       value: "请排查容器内vim命令是否被授予s权限，从而被黑客尝试利用提权，可尝试采用微隔离和免疫防御阻止风险进一步扩散。"
+#   desc: Linux Privilege Escalation using vim suid binaries
+#   condition: >
+#     spawned_process and evt.arg.exe = "/bin/sh" and user.uid != 0 and proc.pname contains vim
+#   output: >
+#     Linux Privilege Escalation using vim suid binaries (zh_msg=尝试利用vim_suid进行linux提权,rule_type=Privilege_Escalation,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type, container=%container.info,container_id=%container.id,container_name=%container.name)
+#   priority: ALERT
+#   tags: [ATT&CK, filesystem, mitre_privilege_escalation]
 
 - rule: Linux Privilege Escalation using bash suid binaries
   hid: priv_18
@@ -384,7 +384,7 @@
   output: >
     Linux Privilege Escalation by modifying sensitive files with suid binaries (zh_msg=尝试使用suid二进制修改敏感文件进行linux提权,rule_type=Privilege_Escalation,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,container=%container.info,container_id=%container.id,container_name=%container.name)
   priority: ALERT
-  tags: [ATT&CK, filesystem, mitre_privilege_escalation]
+  tags: [ATT&CK, filesystem, mitre_privilege_escalation, triggered]
 
 - rule: Detect release_agent File Container Escapes
   hid: priv_20

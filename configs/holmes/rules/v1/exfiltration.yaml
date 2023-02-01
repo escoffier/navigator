@@ -1,0 +1,362 @@
+##attck_rule_type=Exfiltration
+- rule: System procs network activity
+  hid: exf_01
+  hthreats: 0
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "Confirm whether the behavior is as expected, or use the immune defense training container to prevent such behavior."
+    zh:
+      key: "处置建议"
+      value: "确认该行为是否属符合预期，否则可使用免疫防御训练容器，防止该类行为。"
+  desc: any network activity performed by system binaries that are not expected to send or receive any network traffic
+  condition: >
+    (fd.sockfamily = ip and (system_procs or proc.name in (shell_binaries)))
+    and (inbound_outbound)
+    and not proc.name in (known_system_procs_network_activity_binaries)
+    and not login_doing_dns_lookup
+    and not user_expected_system_procs_network_activity_conditions
+    and container
+  output: >
+    Known system binary sent/received network traffic
+    (zh_msg=网络流量中包含系统二进制，可能从外部下载/上载应用,rule_type=Exfiltration,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid connection=%fd.name container_id=%container.id container_name=%container.name image=%container.image.repository)
+  priority: NOTICE
+  tags: [ATT&CK, network, mitre_exfiltration]
+
+- rule: Interpreted procs inbound network activity
+  hid: exf_02
+  hthreats: 0
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "To confirm whether the flow is abnormal, micro isolation can be used to block the flow."
+    zh:
+      key: "处置建议"
+      value: "确认该流量是否异常，可使用微隔离阻拦流量。"
+  desc: Any inbound network activity performed by any interpreted program (perl, python, ruby, etc.)
+  condition: >
+    (inbound and consider_interpreted_inbound
+     and interpreted_procs)
+  output: >
+    Interpreted program received/listened for network traffic
+    (zh_msg=发现有入站流量,rule_type=Exfiltration,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid connection=%fd.name container_id=%container.id container_name=%container.name image=%container.image.repository)
+  priority: NOTICE
+  tags: [ATT&CK, network, mitre_exfiltration]
+
+- rule: Interpreted procs outbound network activity
+  hid: exf_03
+  hthreats: 0
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "To confirm whether the flow is abnormal, micro isolation can be used to block the flow."
+    zh:
+      key: "处置建议"
+      value: "确认该流量是否异常，可使用微隔离阻拦流量。"
+  desc: Any outbound network activity performed by any interpreted program (perl, python, ruby, etc.)
+  condition: >
+    (outbound and consider_interpreted_outbound
+     and interpreted_procs)
+  output: >
+    Interpreted program performed outgoing network connection
+    (zh_msg=发现有出站流量,rule_type=Exfiltration,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid connection=%fd.name container_id=%container.id container_name=%container.name image=%container.image.repository)
+  priority: NOTICE
+  tags: [ATT&CK, network, mitre_exfiltration]
+
+- rule: Unexpected outbound connection destination
+  hid: exf_04
+  hthreats: 0
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "To confirm whether the traffic is abnormal, you can use micro isolation to block the traffic and limit the user permissions of sensitive files and commands."
+    zh:
+      key: "处置建议"
+      value: "确认该流量是否异常，可使用微隔离阻拦流量，限制敏感文件和命令的用户权限。"
+  desc: Detect any outbound connection to a destination outside of an allowed set of ips, networks, or domain names
+  condition: >
+    consider_all_outbound_conns and outbound and not
+    ((fd.sip in (allowed_outbound_destination_ipaddrs)) or
+     (fd.snet in (allowed_outbound_destination_networks)) or
+     (fd.sip.name in (allowed_outbound_destination_domains)))
+  output: Disallowed outbound connection destination (zh_msg=检测到在允许的ips、网络或域名之外的对外流量,rule_type=Exfiltration,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=connection=%fd.name user=%user.name user_loginuid=%user.loginuid container_id=%container.id container_name=%container.name image=%container.image.repository)
+  priority: INFO
+  tags: [ATT&CK, network]
+
+# On EC2 instances, 169.254.169.254 is a special IP used to fetch
+# metadata about the instance. It may be desirable to prevent access
+# to this IP from containers.
+- rule: Contact EC2 Instance Metadata Service From Container
+  hid: exf_05
+  hthreats: 0
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "Use immune defense training applications, use micro isolation to block traffic, and limit user permissions for sensitive files and commands."
+    zh:
+      key: "处置建议"
+      value: "使用免疫防御训练应用，使用微隔离阻拦流量，限制敏感文件和命令的用户权限。"
+  desc: Detect attempts to contact the EC2 Instance Metadata Service from a container
+  condition: outbound and fd.sip="169.254.169.254" and container and not ec2_metadata_containers
+  output: >
+    Outbound connection to EC2 instance metadata service (zh_msg=从容器获取EC2实例元数据,rule_type=Exfiltration,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=connection=%fd.name %container.info image=%container.image.repository:%container.image.tag,container_id=%container.id,container_name=%container.name)
+  priority: NOTICE
+  tags: [ATT&CK, network, aws, container, mitre_discovery]
+
+# On GCP, AWS and Azure, 169.254.169.254 is a special IP used to fetch
+# metadata about the instance. The metadata could be used to get credentials by attackers.
+- rule: Contact cloud metadata service from container
+  hid: exf_06
+  hthreats: 0
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "Use immune defense training applications, use micro isolation to block traffic, and limit user permissions for sensitive files and commands."
+    zh:
+      key: "处置建议"
+      value: "使用免疫防御训练应用，使用微隔离阻拦流量，限制敏感文件和命令的用户权限。"
+  desc: Detect attempts to contact the Cloud Instance Metadata Service from a container
+  condition: outbound and fd.sip="169.254.169.254" and container and consider_metadata_access and not user_known_metadata_access
+  output: >
+    Outbound connection to cloud instance metadata service (zh_msg=容器内与云元数据服务通信,rule_type=Exfiltration,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=connection=%fd.name %container.info image=%container.image.repository:%container.image.tag,container_id=%container.id,container_name=%container.name)
+  priority: NOTICE
+  tags: [ATT&CK, network, container, mitre_discovery]
+
+- rule: Program run with disallowed http proxy env
+  hid: exf_07
+  hthreats: 0
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "Use immune defense training applications, use micro isolation to block traffic, and limit user permissions for sensitive files and commands."
+    zh:
+      key: "处置建议"
+      value: "使用免疫防御训练应用，使用微隔离阻拦流量，限制敏感文件和命令的用户权限。"
+  desc: An attempt to run a program with a disallowed HTTP_PROXY environment variable
+  condition: >
+    spawned_process and
+    http_proxy_procs and
+    not allowed_ssh_proxy_env and
+    proc.env icontains HTTP_PROXY
+  output: >
+    Program run with disallowed HTTP_PROXY environment variable
+    (zh_msg=尝试运行带有不允许的HTTP_PROXY环境变量的程序,rule_type=Exfiltration,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid env=%proc.env parent=%proc.pname container_id=%container.id container_name=%container.name image=%container.image.repository)
+  priority: INFO
+  tags: [ATT&CK, host, users]
+
+- rule: Unexpected K8s NodePort Connection
+  hid: exf_08
+  hthreats: 0
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "Use immune defense training applications, use micro isolation to block traffic, and limit user permissions for sensitive files and commands."
+    zh:
+      key: "处置建议"
+      value: "使用免疫防御训练应用，使用微隔离阻拦流量，限制敏感文件和命令的用户权限。"
+  desc: Detect attempts to use K8s NodePorts from a container
+  condition: (inbound_outbound) and fd.sport >= 30000 and fd.sport <= 32767 and container and not nodeport_containers
+  output: Unexpected K8s NodePort Connection (zh_msg=检测到从容器内发出与NodePort建立连接尝试,rule_type=Exfiltration,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=connection=%fd.name container_id=%container.id container_name=%container.name image=%container.image.repository)
+  priority: NOTICE
+  tags: [ATT&CK, network, k8s, container, mitre_port_knocking]
+
+- rule: Launch Remote File Copy Tools in Container
+  hid: exf_09
+  hthreats: 0
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "Please confirm whether the behavior is a trusted person and procedure operation, otherwise, you can use the immune defense training application to limit abnormal behavior."
+    zh:
+      key: "处置建议"
+      value: "请确认该行为是否为可信人员和程序操作，否则可使用免疫防御训练应用，限制异常行为。"
+  desc: Detect remote file copy tools launched in container
+  condition: >
+    spawned_process
+    and container
+    and remote_file_copy_procs
+    and not user_known_remote_file_copy_activities
+  output: >
+    Remote file copy tool launched in container (zh_msg=在容器中启动远程文件复制工具,rule_type=Exfiltration,,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid parent_process=%proc.pname
+    container_id=%container.id container_name=%container.name image=%container.image.repository:%container.image.tag)
+  priority: ALERT
+  tags: [ATT&CK, network, process, mitre_lateral_movement, mitre_exfiltration]
+
+- rule: Unexpected UDP Traffic
+  hid: exf_10
+  hthreats: 0
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "Use immune defense training applications, use micro isolation to block traffic, and limit user permissions for sensitive files and commands."
+    zh:
+      key: "处置建议"
+      value: "使用免疫防御训练应用，使用微隔离阻拦流量，限制敏感文件和命令的用户权限。"
+  desc: UDP traffic not on port 53 (DNS) or other commonly used ports
+  condition: (inbound_outbound) and do_unexpected_udp_check and fd.l4proto=udp and not expected_udp_traffic
+  output: >
+    Unexpected UDP Traffic Seen
+    (zh_msg=意外的udp连接,rule_type=Exfiltration,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid connection=%fd.name proto=%fd.l4proto evt=%evt.type %evt.args container_id=%container.id container_name=%container.name image=%container.image.repository)
+  priority: NOTICE
+  tags: [ATT&CK, network, mitre_exfiltration]
+
+- rule: Launch Suspicious Network Tool in Container
+  hid: exf_11
+  hthreats: 0
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "Please confirm the specific behavior of the tool. Hackers may scan the intranet. It is recommended to use offset defense to limit the execution of the tool, and check whether the container has been invaded."
+    zh:
+      key: "处置建议"
+      value: "请确认该工具具体行为，可能存在黑客扫描内网情况，推荐使用偏移防御限制该工具执行，并排查容器是否遭到入侵。"
+  desc: Detect network tools launched inside container
+  condition: >
+    spawned_process and container and network_tool_procs and shell_parent_procs and not ignore_proc_args and not user_known_network_tool_activities and not proc.cmdline contains "-w 2 localhost 2181" and not tensorsec_namespace
+  output: >
+    Network tool launched in container (zh_msg=在容器中启动可疑的网络工具,rule_type=Exfiltration,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid parent_process=%proc.pname
+    container_id=%container.id container_name=%container.name image=%container.image.repository:%container.image.tag)
+  priority: NOTICE
+  tags: [ATT&CK, network, process, mitre_discovery, mitre_exfiltration]
+
+- rule: Detect outbound connections to common miner pool ports
+  hid: exf_12
+  hthreats: 1
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "Use micro isolation to block the flow, delete the backdoor of mining in time, and check whether the container is invaded."
+    zh:
+      key: "处置建议"
+      value: "使用微隔离阻拦流量，及时删除挖矿后门，同时排查容器是否遭到入侵。"
+  desc: Miners typically connect to miner pools on common ports.
+  condition: net_miner_pool and not trusted_images_query_miner_domain_dns
+  #  enabled: false
+  output: >
+    Outbound connection to IP/Port flagged by cryptoioc.ch (zh_msg=与cryptoioc.ch公开的IP/端口的连接，可能存在挖矿行为,rule_type=Exfiltration,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,connection=%fd.name,client_ip=%fd.cip,client_port=%fd.cport,server_ip=%fd.sip,server_port=%fd.sport,domain_name=%fd.sip.name,container=%container.info,image=%container.image.repository,container_id=%container.id,container_name=%container.name)
+  priority: ALERT
+  tags: [ATT&CK, network, mitre_execution, strict]
+
+- rule: Detect crypto miners using the Stratum protocol
+  hid: exf_13
+  hthreats: 1
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "Check the corresponding mining program and limit the operation of the program through offset defense, while troubleshooting system application vulnerabilities."
+    zh:
+      key: "处置建议"
+      value: "查看对应挖矿程序并通过偏移防御限制程序运行，同时排查系统应用漏洞。"
+  desc: Miners typically specify the mining pool to connect to with a URI that begins with 'stratum+tcp'
+  condition: spawned_process and (proc.cmdline contains "stratum+tcp" or proc.cmdline contains "stratum2+tcp" or proc.cmdline contains "stratum+ssl" or proc.cmdline contains "stratum2+ssl")
+  output: >
+    Possible miner running (zh_msg=可能存在挖矿程序正在挖矿,rule_type=Exfiltration,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=container=%container.info image=%container.image.repository,container_id=%container.id,container_name=%container.name)
+  priority: ALERT
+  tags: [ATT&CK, process, mitre_execution]
+
+- rule: CVE-2020-14386(Packet socket created in container)
+  hid: exf_14
+  hthreats: 1
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "If an authorization raising behavior is found in the container, please confirm whether the container has been invaded. You can use the immune defense training application to limit the user permissions of sensitive files and commands."
+    zh:
+      key: "处置建议"
+      value: "容器中发现提权行为，请确认容器是否遭到入侵，可使用免疫防御训练应用，限制敏感文件和命令的用户权限。"
+  desc: Detect new packet socket at the device driver (OSI Layer 2) level in a container. Packet socket could be used for ARP Spoofing and Privilege_Escalation(CVE-2020-14386) by attacker.
+  condition: evt.type=socket and evt.arg[0]=AF_PACKET and consider_packet_socket_communication and container and not proc.name in (user_known_packet_socket_binaries)
+  output: >
+    Packet socket was created in a container (zh_msg=CVE-2020-14386(在容器中创建的数据包套接字),rule_type=Exfiltration,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid socket_info=%evt.args container_id=%container.id container_name=%container.name image=%container.image.repository:%container.image.tag)
+  priority: NOTICE
+  tags: [ATT&CK, network, mitre_discovery]
+
+- rule: Try ssh connection in container
+  hid: exf_16
+  hthreats: 0
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "SSH burst may occur. It is recommended to confirm whether there is a weak password in the container and limit the number of incorrect login attempts by modifying/etc/pam.d/sshd."
+    zh:
+      key: "处置建议"
+      value: "可能存在ssh爆破行为，建议确认主机和容器是否存在弱口令，并通过修改/etc/pam.d/sshd限制错误登录尝试次数。"
+  desc: Try ssh connection in container
+  condition: >
+    (inbound_outbound) and allowed_ssh_hosts and container and shell_parent_procs
+  output: >
+    Try ssh connection in container (zh_msg=检测到在容器内尝试ssh连接,rule_type=Exfiltration,connection=%fd.name,client_ip=%fd.cip,client_port=%fd.cport,server_ip=%fd.sip,server_port=%fd.sport,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,container_id=%container.id,container_name=%container.name)
+  priority: WARNING
+  tags: [ATT&CK]
+
+- rule: Try ssh connection in host
+  hid: exf_17
+  hthreats: 0
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "SSH explosion may occur. It is recommended to confirm whether there is a weak password on the host and limit the number of incorrect login attempts by modifying /etc/pam.d/sshd."
+    zh:
+      key: "处置建议"
+      value: "可能存在ssh爆破行为，建议确认主机和容器是否存在弱口令，并通过修改/etc/pam.d/sshd限制错误登录尝试次数。"
+  desc: Try ssh connection in host
+  condition: >
+    (inbound_outbound) and allowed_ssh_hosts and not container and not proc.cmdline = "sshd -D" and shell_parent_procs
+  output: >
+    Try ssh connection in host (zh_msg=检测到在主机上尝试ssh连接,rule_type=Exfiltration,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,connection=%fd.name,client_ip=%fd.cip,client_port=%fd.cport,server_ip=%fd.sip,server_port=%fd.sport user=%user.name user_loginuid=%user.loginuid container_id=%container.id container_name=%container.name image=%container.image.repository)
+  priority: WARNING
+  tags: [ATT&CK, network, mitre_remote_service]
+
+- rule: Scanning ports detected
+  hid: exf_18
+  hthreats: 0
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "There may be port scanning behavior, it is recommended to confirm whether there is a vulnerability in the service where the port is located."
+    zh:
+      key: "处置建议"
+      value: "可能存在敏感端口扫描行为，建议确认端口所在服务是否存在漏洞。"
+  desc: Scanning ports detected
+  condition: >
+    easy_outbound and proc.name in (scan_ports_tool_binaries) and pentest_ports
+  output: >
+    Scanning ports detected (zh_msg=检测到正在扫描敏感端口,rule_type=Exfiltration,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,connection=%fd.name,client_ip=%fd.cip,client_port=%fd.cport,server_ip=%fd.sip,server_port=%fd.sport user=%user.name user_loginuid=%user.loginuid container_id=%container.id container_name=%container.name image=%container.image.repository)
+  priority: ALERT
+  tags: [ATT&CK, network, mitre_remote_service]
+
+- rule: Brute force hacking detected
+  hid: exf_19
+  hthreats: 0
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "There may be brute force cracking, it is recommended to confirm whether there is a weak password in the service where the port is located."
+    zh:
+      key: "处置建议"
+      value: "可能存在暴力破解行为，建议确认端口所在服务是否存在弱口令。"
+  desc: Brute force hacking detected
+  condition: >
+    easy_outbound and proc.name in (brute_force_binaries) and pentest_ports
+  output: >
+    Brute force hacking detected (zh_msg=检测到正在暴力破解,rule_type=Exfiltration,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,connection=%fd.name,client_ip=%fd.cip,client_port=%fd.cport,server_ip=%fd.sip,server_port=%fd.sport user=%user.name user_loginuid=%user.loginuid container_id=%container.id container_name=%container.name image=%container.image.repository)
+  priority: ALERT
+  tags: [ATT&CK, network, mitre_remote_service]
+
+- rule: Access k8s component ports detected
+  hid: exf_20
+  hthreats: 0
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "The K8S sensitive port access behavior is detected. Please confirm whether it is legal access in combination with specific commands. If not, it may be used by attackers. Please isolate the pod in time"
+    zh:
+      key: "处置建议"
+      value: "测到k8s敏感端口访问行为,请结合具体命令确认是否为合法访问，如果不是则可能遭到攻击者利用，请及时隔离该pod。"
+  desc: Access k8s component ports detected
+  condition: >
+    easy_outbound and not proc.name in (<NA>, kubectl) and fd.sport in (k8s_ports) and shell_parent_procs
+  output: >
+    Scanning ports detected (zh_msg=检测到访问k8s组件敏感端口,rule_type=Exfiltration,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,connection=%fd.name,client_ip=%fd.cip,client_port=%fd.cport,server_ip=%fd.sip,server_port=%fd.sport user=%user.name user_loginuid=%user.loginuid container_id=%container.id container_name=%container.name image=%container.image.repository)
+  priority: ALERT
+  tags: [ATT&CK, network, mitre_remote_service]

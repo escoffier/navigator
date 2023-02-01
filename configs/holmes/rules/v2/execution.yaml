@@ -121,47 +121,47 @@
   priority: ALERT
   tags: [ATT&CK, network, process, mitre_execution]
 
-- rule: Reverse shell through telnet
-  hid: exec_05
-  hthreats: 1
-  suggestion:
-    en:
-      key: "Suggestions"
-      value: "The container is intruded, it is necessary to isolate the container, investigate other attacks, and confirm the security of the cluster."
-    zh:
-      key: "处置建议"
-      value: "容器遭到入侵，需隔离该容器，同时排查其他攻击行为，确认集群安全。"
-  desc: Telnet Program runs inside container that allows remote code execution(Risk of Reverse Shell exploit)
-  condition: >
-    evt.type=recvfrom and proc.name contains "telnet" and container and not ignore_proc_args and remote_server_subnet and shell_parent_procs
-  output: >
-    Telnet runs inside container that allows remote code execution (zh_msg=黑客在容器内通过telnet反弹shell),rule_type=Execution,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_name=%proc.name,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,
-    original_info=user=%user.name user_loginuid=%user.loginuid
-    container_id=%container.id container_name=%container.name image=%container.image.repository:%container.image.tag
-    connection=%fd.name,client_ip=%fd.cip,client_port=%fd.cport,server_ip=%fd.sip,server_port=%fd.sport)
-  priority: ALERT
-  tags: [ATT&CK, network, process, mitre_execution]
+# - rule: Reverse shell through telnet
+#   hid: exec_05
+#   hthreats: 1
+#   suggestion:
+#     en:
+#       key: "Suggestions"
+#       value: "The container is intruded, it is necessary to isolate the container, investigate other attacks, and confirm the security of the cluster."
+#     zh:
+#       key: "处置建议"
+#       value: "容器遭到入侵，需隔离该容器，同时排查其他攻击行为，确认集群安全。"
+#   desc: Telnet Program runs inside container that allows remote code execution(Risk of Reverse Shell exploit)
+#   condition: >
+#     evt.type=connect and proc.name contains "telnet" and container and not ignore_proc_args and remote_server_subnet and shell_parent_procs
+#   output: >
+#     Telnet runs inside container that allows remote code execution (zh_msg=黑客在容器内通过telnet反弹shell),rule_type=Execution,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_name=%proc.name,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,
+#     original_info=user=%user.name user_loginuid=%user.loginuid
+#     container_id=%container.id container_name=%container.name image=%container.image.repository:%container.image.tag
+#     connection=%fd.name,client_ip=%fd.cip,client_port=%fd.cport,server_ip=%fd.sip,server_port=%fd.sport)
+#   priority: ALERT
+#   tags: [ATT&CK, network, process, mitre_execution]
 
-- rule: Reverse shell through ruby
-  hid: exec_06
-  hthreats: 1
-  suggestion:
-    en:
-      key: "Suggestions"
-      value: "The container is intruded, it is necessary to isolate the container, investigate other attacks, and confirm the security of the cluster."
-    zh:
-      key: "处置建议"
-      value: "容器遭到入侵，需隔离该容器，同时排查其他攻击行为，确认集群安全。"
-  desc: Ruby Program runs inside container that allows remote code execution(Risk of Reverse Shell exploit)
-  condition: >
-    evt.type=socket and evt.res!=ENOENT and (proc.pname contains "ruby" or proc.name contains "ruby") and proc.cmdline contains "TCPSocket" and container and shell_parent_procs
-  output: >
-    Ruby runs inside container that allows remote code execution (zh_msg=黑客在容器内通过ruby反弹shell),rule_type=Execution,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,
-    original_info=user=%user.name user_loginuid=%user.loginuid
-    container_id=%container.id container_name=%container.name image=%container.image.repository:%container.image.tag
-    connection=%fd.name,client_ip=%fd.cip,client_port=%fd.cport,server_ip=%fd.sip,server_port=%fd.sport)
-  priority: ALERT
-  tags: [ATT&CK, network, process, mitre_execution]
+# - rule: Reverse shell through ruby
+#   hid: exec_06
+#   hthreats: 1
+#   suggestion:
+#     en:
+#       key: "Suggestions"
+#       value: "The container is intruded, it is necessary to isolate the container, investigate other attacks, and confirm the security of the cluster."
+#     zh:
+#       key: "处置建议"
+#       value: "容器遭到入侵，需隔离该容器，同时排查其他攻击行为，确认集群安全。"
+#   desc: Ruby Program runs inside container that allows remote code execution(Risk of Reverse Shell exploit)
+#   condition: >
+#     evt.type=socket and evt.res!=ENOENT and (proc.pname contains "ruby" or proc.name contains "ruby") and proc.cmdline contains "TCPSocket" and container and shell_parent_procs
+#   output: >
+#     Ruby runs inside container that allows remote code execution (zh_msg=黑客在容器内通过ruby反弹shell),rule_type=Execution,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,
+#     original_info=user=%user.name user_loginuid=%user.loginuid
+#     container_id=%container.id container_name=%container.name image=%container.image.repository:%container.image.tag
+#     connection=%fd.name,client_ip=%fd.cip,client_port=%fd.cport,server_ip=%fd.sip,server_port=%fd.sport)
+#   priority: ALERT
+#   tags: [ATT&CK, network, process, mitre_execution]
 
 - rule: Reverse shell through awk
   hid: exec_07
@@ -247,7 +247,7 @@
   output: >
     Connecting to a remote server through redis client in container (zh_msg=容器内通过redis客户端连接远程服务器,rule_type=Execution,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name user_loginuid=%user.loginuid parent=%proc.pname terminal=%proc.tty container_id=%container.id container_name=%container.name image=%container.image.repository)
   priority: WARNING
-  tags: [ATT&CK, container, shell, mitre_execution, strict]
+  tags: [ATT&CK, container, shell, mitre_execution, triggered]
 
 - rule: Suspected sending data through tunnel
   hid: exec_11
@@ -269,3 +269,39 @@
     connection=%fd.name,client_ip=%fd.cip,client_port=%fd.cport,server_ip=%fd.sip,server_port=%fd.sport)
   priority: WARNING
   tags: [ATT&CK, network, process, mitre_execution, strict]
+
+- rule: Run the tool for scanning ports
+  hid: exec_12
+  hthreats: 0
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "There may be port scanning behavior, it is recommended to confirm whether there is a vulnerability in the service where the port is located."
+    zh:
+      key: "处置建议"
+      value: "可能存在敏感端口扫描行为，建议确认端口所在服务是否存在漏洞。"
+  desc: Run the tool for scanning ports
+  condition: >
+    spawned_process and proc.name in (scan_ports_tool_binaries)
+  output: >
+    Run the tool for scanning ports (zh_msg=运行端口扫描工具,rule_type=Exfiltration,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,connection=%fd.name,client_ip=%fd.cip,client_port=%fd.cport,server_ip=%fd.sip,server_port=%fd.sport user=%user.name user_loginuid=%user.loginuid container_id=%container.id container_name=%container.name image=%container.image.repository)
+  priority: ALERT
+  tags: [ATT&CK, network, mitre_remote_service]
+
+- rule: Run the tool for brute-force cracking
+  hid: exec_13
+  hthreats: 0
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "There may be brute force cracking, it is recommended to confirm whether there is a weak password in the service where the port is located."
+    zh:
+      key: "处置建议"
+      value: "可能存在暴力破解行为，建议确认端口所在服务是否存在弱口令。"
+  desc: Run the tool for brute-force cracking
+  condition: >
+    spawned_process and proc.name in (brute_force_binaries)
+  output: >
+    Run the tool for brute-force cracking (zh_msg=运行暴力破解工具,rule_type=Exfiltration,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,connection=%fd.name,client_ip=%fd.cip,client_port=%fd.cport,server_ip=%fd.sip,server_port=%fd.sport user=%user.name user_loginuid=%user.loginuid container_id=%container.id container_name=%container.name image=%container.image.repository)
+  priority: ALERT
+  tags: [ATT&CK, network, mitre_remote_service]  

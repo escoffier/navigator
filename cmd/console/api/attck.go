@@ -51,6 +51,11 @@ func (api *api) getATTCKLatestData() http.HandlerFunc {
 			return
 		}
 
+		version1, err := param.QueryUint16(r, "curVersion")
+		if err != nil {
+			// 老版本的holmes和cluster-manager不会传该参数，默认版本号为 1
+			version1 = 1
+		}
 		curDataVersion, err := param.QueryUint32(r, "curDataVersion")
 		if err != nil {
 			curDataVersion = 0
@@ -60,7 +65,7 @@ func (api *api) getATTCKLatestData() http.HandlerFunc {
 			curSettingVersion = 0
 		}
 
-		info, err := service.GetATTCKConfData(ctx, curDataVersion, curSettingVersion)
+		info, err := service.GetATTCKConfData(ctx, curDataVersion, curSettingVersion, version1)
 		if err != nil {
 			apperror.RespAndLog(w, ctx, err)
 			return
@@ -123,7 +128,7 @@ func (api *api) updateATTCKConf() http.HandlerFunc {
 		}
 
 		response.Ok(w, response.WithItem(rsp{
-			Version:        item.Version,
+			Version:        item.VString(),
 			LastUpdateTime: util.GetMillisecondTimestampByTime(item.CreatedAt),
 		}), response.WithApiVersion(versionAPIVersion))
 	}
@@ -155,6 +160,12 @@ func (api *api) getATTCKRuleList() http.HandlerFunc {
 		service, ok := attck.GetServiceInstance()
 		if !ok {
 			apperror.RespAndLog(w, ctx, ErrServiceNotReady)
+			return
+		}
+
+		version1, err := param.QueryUint16(r, "version1")
+		if err != nil {
+			apperror.RespAndLog(w, ctx, err)
 			return
 		}
 
@@ -191,7 +202,7 @@ func (api *api) getATTCKRuleList() http.HandlerFunc {
 			HthreatsFilter: hthreatsFilter,
 			Query:          query,
 			Lang:           string(lang.Language(ctx)),
-		})
+		}, version1)
 		if err != nil {
 			apperror.RespAndLog(w, ctx, err)
 			return
@@ -226,7 +237,10 @@ func (api *api) updateRuleSwitch() http.HandlerFunc {
 			return
 		}
 
-		var items []*model.ATTCKRuleSwitch
+		var items struct {
+			Items    []*model.ATTCKRuleSwitch `json:"items"`
+			Version1 uint16                   `json:"version1"`
+		}
 		err := util.DecodeJSONBody(w, r, &items)
 		if err != nil {
 			apperror.RespAndLog(w, ctx,
@@ -235,7 +249,7 @@ func (api *api) updateRuleSwitch() http.HandlerFunc {
 			return
 		}
 
-		switches, err := service.UpdateRuleSettings(ctx, items)
+		switches, err := service.UpdateRuleSettings(ctx, items.Items, items.Version1)
 		if err != nil {
 			if err == dal.ErrRuleNotExists {
 				apperror.RespAndLog(w, ctx,
