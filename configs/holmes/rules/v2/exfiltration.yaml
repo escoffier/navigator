@@ -265,7 +265,7 @@
       key: "处置建议"
       value: "容器中发现提权行为，请确认容器是否遭到入侵，可使用免疫防御训练应用，限制敏感文件和命令的用户权限。"
   desc: Detect new packet socket at the device driver (OSI Layer 2) level in a container. Packet socket could be used for ARP Spoofing and Privilege_Escalation(CVE-2020-14386) by attacker.
-  condition: evt.type=socket and evt.arg[0]=AF_PACKET and consider_packet_socket_communication and container and not proc.name in (user_known_packet_socket_binaries)
+  condition: evt.type=socket and (evt.arg[0]=AF_PACKET or evt.arg[0]=17) and consider_packet_socket_communication and container and not proc.name in (user_known_packet_socket_binaries)
   output: >
     Packet socket was created in a container (zh_msg=CVE-2020-14386(在容器中创建的数据包套接字),rule_type=Exfiltration,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid socket_info=%evt.args container_id=%container.id container_name=%container.name image=%container.image.repository:%container.image.tag)
   priority: NOTICE
@@ -307,44 +307,8 @@
   priority: WARNING
   tags: [ATT&CK, network, mitre_remote_service]
 
-- rule: Scanning ports detected
-  hid: exf_18
-  hthreats: 0
-  suggestion:
-    en:
-      key: "Suggestions"
-      value: "There may be port scanning behavior, it is recommended to confirm whether there is a vulnerability in the service where the port is located."
-    zh:
-      key: "处置建议"
-      value: "可能存在敏感端口扫描行为，建议确认端口所在服务是否存在漏洞。"
-  desc: Scanning ports detected
-  condition: >
-    easy_outbound and proc.name in (scan_ports_tool_binaries) and pentest_ports
-  output: >
-    Scanning ports detected (zh_msg=检测到正在扫描敏感端口,rule_type=Exfiltration,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,connection=%fd.name,client_ip=%fd.cip,client_port=%fd.cport,server_ip=%fd.sip,server_port=%fd.sport user=%user.name user_loginuid=%user.loginuid container_id=%container.id container_name=%container.name image=%container.image.repository)
-  priority: ALERT
-  tags: [ATT&CK, network, mitre_remote_service]
-
-- rule: Brute force hacking detected
-  hid: exf_19
-  hthreats: 0
-  suggestion:
-    en:
-      key: "Suggestions"
-      value: "There may be brute force cracking, it is recommended to confirm whether there is a weak password in the service where the port is located."
-    zh:
-      key: "处置建议"
-      value: "可能存在暴力破解行为，建议确认端口所在服务是否存在弱口令。"
-  desc: Brute force hacking detected
-  condition: >
-    easy_outbound and proc.name in (brute_force_binaries) and pentest_ports
-  output: >
-    Brute force hacking detected (zh_msg=检测到正在暴力破解,rule_type=Exfiltration,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,connection=%fd.name,client_ip=%fd.cip,client_port=%fd.cport,server_ip=%fd.sip,server_port=%fd.sport user=%user.name user_loginuid=%user.loginuid container_id=%container.id container_name=%container.name image=%container.image.repository)
-  priority: ALERT
-  tags: [ATT&CK, network, mitre_remote_service]
-
 - rule: Access k8s component ports detected
-  hid: exf_20
+  hid: exf_18
   hthreats: 0
   suggestion:
     en:

@@ -3,7 +3,8 @@ FROM ubuntu:20.04
 ## 配置国内yum源
 
 RUN sed -i "s!deb.debian.org/!${MIRROR}/!g" /etc/apt/sources.list \
-    && apt-get update && apt-get full-upgrade -y \
+    && apt-get update \
+    && apt-get full-upgrade -y \
     && apt-get install supervisor libdevmapper-dev libgpgme-dev -y \
     && export DEBIAN_FRONTEND=noninteractive \
     && apt-get install libglib2.0-dev -y \

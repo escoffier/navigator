@@ -1,0 +1,271 @@
+##attck_rule_type=Execution
+- rule: DB program spawned process
+  hid: exec_01
+  hthreats: 0
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "It is recommended to check whether the database is attacked by injection. There is a phenomenon of executing system commands through the database. You can use immune defense to block further hacker behavior."
+    zh:
+      key: "处置建议"
+      value: "建议排查数据库是否遭到注入攻击，存在通过数据库执行系统命令现象，可使用免疫防御阻断黑客进一步行为。"
+  desc: >
+    a database-server related program spawned a new process other than itself.
+    This shouldn\'t occur and is a follow on from some SQL injection attacks.
+  condition: >
+    proc.pname in (db_server_binaries)
+    and spawned_process
+    and shell_parent_procs
+    and not proc.name in (db_server_binaries)
+    and not postgres_running_wal_e
+    and not user_known_db_spawned_processes
+    and not tensorsec_namespace
+  output: >
+    Database-related program spawned process other than itself (zh_msg=SQL注入攻击后续利用：数据库服务生成非自身进程，可能存在提权行为,rule_type=Execution,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,
+    original_info=user=%user.name user_loginuid=%user.loginuid parent=%proc.pname
+    container_id=%container.id container_name=%container.name image=%container.image.repository)
+  priority: ERROR
+  tags: [ATT&CK, process, database, mitre_execution]
+
+- rule: Run shell untrusted
+  hid: exec_02
+  hthreats: 0
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "To confirm whether the binary file is safe, you can use the immune defense training application to block new or modified executable files, and limit the users and receiving objects who execute commands."
+    zh:
+      key: "处置建议"
+      value: "确认该二进制文件是否安全，可使用免疫防御训练应用，阻拦新的或被修改的可执行文件，限制执行命令的用户和接收对象。"
+  desc: an attempt to spawn a shell below a non-shell application. Specific applications are monitored.
+  condition: >
+    spawned_process
+    and shell_procs
+    and proc.pname exists
+    and protected_shell_spawner
+    and not proc.pname in (shell_binaries, gitlab_binaries, cron_binaries, user_known_shell_spawn_binaries,
+                           needrestart_binaries,
+                           mesos_shell_binaries,
+                           erl_child_setup, exechealthz,
+                           PM2, PassengerWatchd, c_rehash, svlogd, logrotate, hhvm, serf,
+                           lb-controller, nvidia-installe, runsv, statsite, erlexec, calico-node,
+                           "puma reactor")
+    and not proc.cmdline in (known_shell_spawn_cmdlines)
+    and not proc.aname in (unicorn_launche)
+    and not consul_running_net_scripts
+    and not consul_running_alert_checks
+    and not nginx_starting_nginx
+    and not nginx_running_aws_s3_cp
+    and not run_by_package_mgmt_binaries
+    and not serf_script
+    and not check_process_status
+    and not run_by_foreman
+    and not python_mesos_marathon_scripting
+    and not splunk_running_forwarder
+    and not postgres_running_wal_e
+    and not redis_running_prepost_scripts
+    and not rabbitmq_running_scripts
+    and not rabbitmqctl_running_scripts
+    and not run_by_appdynamics
+    and not user_shell_container_exclusions
+  output: >
+    Shell spawned by untrusted binary (zh_msg=未受信任的二进制文件产生shell，可能存在黑客工具引入 ,rule_type=Execution,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type, webshell_name=%fd.name
+    original_info=user=%user.name user_loginuid=%user.loginuid shell=%proc.name parent=%proc.pname
+    gparent=%proc.aname[2] ggparent=%proc.aname[3]
+    aname[4]=%proc.aname[4] aname[5]=%proc.aname[5] aname[6]=%proc.aname[6] aname[7]=%proc.aname[7] container_id=%container.id container_name=%container.name image=%container.image.repository)
+  priority: WARNING
+  tags: [ATT&CK, shell, mitre_execution]
+
+- rule: Terminal shell in container
+  hid: exec_03
+  hthreats: 0
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "View the alarm details and troubleshoot the causes of the shell."
+    zh:
+      key: "处置建议"
+      value: "查看告警详情，排查shell产生原因。"
+  desc: A shell was used as the entrypoint/exec point into a container with an attached terminal.
+  condition: >
+    spawned_process and container
+    and shell_procs and proc.tty != 0
+    and container_entrypoint
+    and not user_expected_terminal_shell_in_container_conditions
+    and not tensorsec_namespace
+  output: >
+    A shell was spawned in a container with an attached terminal (zh_msg=通过entrypoint/exec的shell进入容器,rule_type=Execution,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,
+    original_info=user=%user.name user_loginuid=%user.loginuid %container.info
+    shell=%proc.name parent=%proc.pname terminal=%proc.tty container_id=%container.id container_name=%container.name image=%container.image.repository)
+  priority: WARNING
+  tags: [ATT&CK, container, shell, mitre_execution]
+
+- rule: Netcat Remote Code Execution in Container
+  hid: exec_04
+  hthreats: 1
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "Confirm whether the container has been invaded. If it is not for special reasons, immediately remove the hacker tool, isolate the container, investigate other attacks, and confirm the cluster security"
+    zh:
+      key: "处置建议"
+      value: "确认容器是否遭到入侵，如果非特殊原因则立即清除该黑客工具，并隔离该容器，同时排查其他攻击行为，确认集群安全。"
+  desc: Netcat Program runs inside container that allows remote code execution(Risk of Reverse Shell exploit)
+  condition: >
+    spawned_process and container and
+    (((proc.name = "nc" or proc.name = "nc.openbsd") and (proc.args contains "-e" or proc.args contains "-c")) or
+    (proc.name = "ncat" and (proc.args contains "--sh-exec" or proc.args contains "--exec" or proc.args contains "-e " or proc.args contains "-c " or proc.args contains "--lua-exec"))) and
+    not (k8s.pod.name contains "-kafka-zookeeper-" or tensorsec_namespace or ignore_proc_args)
+  output: >
+    Netcat runs inside container that allows remote code execution (zh_msg=容器里通过黑客工具netcat执行远程命令,rule_type=Execution,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid,container_id=%container.id,container_name=%container.name,image=%container.image.repository:%container.image.tag)
+  priority: ALERT
+  tags: [ATT&CK, network, process, mitre_execution]
+
+- rule: Reverse shell through telnet
+  hid: exec_05
+  hthreats: 1
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "The container is intruded, it is necessary to isolate the container, investigate other attacks, and confirm the security of the cluster."
+    zh:
+      key: "处置建议"
+      value: "容器遭到入侵，需隔离该容器，同时排查其他攻击行为，确认集群安全。"
+  desc: Telnet Program runs inside container that allows remote code execution(Risk of Reverse Shell exploit)
+  condition: >
+    evt.type=recvfrom and proc.name contains "telnet" and container and not ignore_proc_args and remote_server_subnet and shell_parent_procs
+  output: >
+    Telnet runs inside container that allows remote code execution (zh_msg=黑客在容器内通过telnet反弹shell),rule_type=Execution,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_name=%proc.name,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,
+    original_info=user=%user.name user_loginuid=%user.loginuid
+    container_id=%container.id container_name=%container.name image=%container.image.repository:%container.image.tag
+    connection=%fd.name,client_ip=%fd.cip,client_port=%fd.cport,server_ip=%fd.sip,server_port=%fd.sport)
+  priority: ALERT
+  tags: [ATT&CK, network, process, mitre_execution]
+
+- rule: Reverse shell through ruby
+  hid: exec_06
+  hthreats: 1
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "The container is intruded, it is necessary to isolate the container, investigate other attacks, and confirm the security of the cluster."
+    zh:
+      key: "处置建议"
+      value: "容器遭到入侵，需隔离该容器，同时排查其他攻击行为，确认集群安全。"
+  desc: Ruby Program runs inside container that allows remote code execution(Risk of Reverse Shell exploit)
+  condition: >
+    evt.type=socket and evt.res!=ENOENT and (proc.pname contains "ruby" or proc.name contains "ruby") and proc.cmdline contains "TCPSocket" and container and shell_parent_procs
+  output: >
+    Ruby runs inside container that allows remote code execution (zh_msg=黑客在容器内通过ruby反弹shell),rule_type=Execution,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,
+    original_info=user=%user.name user_loginuid=%user.loginuid
+    container_id=%container.id container_name=%container.name image=%container.image.repository:%container.image.tag
+    connection=%fd.name,client_ip=%fd.cip,client_port=%fd.cport,server_ip=%fd.sip,server_port=%fd.sport)
+  priority: ALERT
+  tags: [ATT&CK, network, process, mitre_execution]
+
+- rule: Reverse shell through awk
+  hid: exec_07
+  hthreats: 1
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "The container is intruded, it is necessary to isolate the container, investigate other attacks, and confirm the security of the cluster."
+    zh:
+      key: "处置建议"
+      value: "容器遭到入侵，需隔离该容器，同时排查其他攻击行为，确认集群安全。"
+  desc: awk Program runs inside container that allows remote code execution(Risk of Reverse Shell exploit)
+  condition: >
+    evt.type=connect and not evt.res contains "ECONNREFUSED" and evt.arg.res!=0 and container and not ignore_proc_args and proc.name contains "awk" and proc.cmdline contains "/inet/tcp/" and shell_parent_procs
+  output: >
+    awk runs inside container that allows remote code execution (zh_msg=黑客在容器内通过awk反弹shell),rule_type=Execution,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,evt.args=%evt.args
+    original_info=user=%user.name user_loginuid=%user.loginuid
+    container_id=%container.id container_name=%container.name image=%container.image.repository:%container.image.tag
+    connection=%fd.name,client_ip=%fd.cip,client_port=%fd.cport,server_ip=%fd.sip,server_port=%fd.sport)
+  priority: ALERT
+  tags: [ATT&CK, network, process, mitre_execution]
+
+- rule: Reverse shell through socket and dup
+  hid: exec_08
+  hthreats: 1
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "The container is intruded, it is necessary to isolate the container, investigate other attacks, and confirm the security of the cluster."
+    zh:
+      key: "处置建议"
+      value: "容器遭到入侵，需隔离该容器，同时排查其他攻击行为，确认集群安全。"
+  desc: Reverse shell through socket and dup
+  condition: evt.type=dup and container and fd.num in (0, 1, 2) and fd.type in ("ipv4", "ipv6") and not k8s.pod.name contains "98166d" and not k8s.pod.name contains "42cca6" and shell_parent_procs
+  output: >
+    Reverse shell through socket and dup (zh_msg=黑客在容器内通过socket和dup反弹shell,rule_type=Execution,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name %container.info process=%proc.name parent=%proc.pname terminal=%proc.tty container_id=%container.id container_name=%container.name image=%container.image.repository fd_name=%fd.name fd.num=%fd.num fd.type=%fd.type connection=%fd.name,client_ip=%fd.cip,client_port=%fd.cport,server_ip=%fd.sip,server_port=%fd.sport)
+  priority: ALERT
+  tags: [ATT&CK, container, shell, mitre_execution]
+
+- rule: Running k8s malicious tools in the container
+  hid: exec_09
+  hthreats: 0
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "Please confirm whether the container has been invaded. You can use the immune defense training application to block new or modified executables, and limit the users and recipients who execute commands."
+    zh:
+      key: "处置建议"
+      value: "请确认容器是否遭到入侵，可使用免疫防御训练应用，阻拦新的或被修改的可执行文件，限制执行命令的用户和接收对象。"
+  desc: Running malicious tools in the container
+  condition: >
+    evt.type = execve and container and
+    shell_parent_procs and
+    (not tensorsec_namespace) and 
+    (proc.cmdline contains "cdk eva" or
+     proc.cmdline contains "k0otkit" or
+     proc.cmdline contains "kubesploit" or
+     proc.cmdline contains "red-kube" or
+     proc.cmdline contains "kubestriker" or
+     proc.cmdline contains "kube-hunter" or
+     proc.cmdline contains "kubiscan"
+      )
+  output: >
+    Running malicious tools in the container (zh_msg=容器内运行恶意工具,rule_type=Execution,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,
+    original_info=user=%user.name user_loginuid=%user.loginuid %container.info
+    shell=%proc.name parent=%proc.pname terminal=%proc.tty container_id=%container.id container_name=%container.name image=%container.image.repository)
+  priority: WARNING
+  tags: [ATT&CK, container, shell, mitre_execution, strict]
+
+- rule: Connecting to a remote server through redis client in container
+  hid: exec_10
+  hthreats: 0
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "Please confirm whether the Redis connection is a normal service connection and check the cause of the connection."
+    zh:
+      key: "处置建议"
+      value: "请确认该redis连接是否为业务正常连接，排查出现该连接原因。"
+  desc: Connecting to a remote server through redis client in container
+  condition: >
+    evt.type=openat and container and evt.arg.name contains ".rediscli_history" and proc.cmdline contains " -h " and not proc.cmdline contains "localhost" and not proc.cmdline contains "127.0.0.1" and not k8s.pod.name contains "51c1c6"
+  output: >
+    Connecting to a remote server through redis client in container (zh_msg=容器内通过redis客户端连接远程服务器,rule_type=Execution,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name user_loginuid=%user.loginuid parent=%proc.pname terminal=%proc.tty container_id=%container.id container_name=%container.name image=%container.image.repository)
+  priority: WARNING
+  tags: [ATT&CK, container, shell, mitre_execution, strict]
+
+- rule: Suspected sending data through tunnel
+  hid: exec_11
+  hthreats: 0
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "Check whether the execution of the relevant command is as expected and whether it is an operation and maintenance operation. If it is triggered by the system probe, please add the corresponding container to the white list. Otherwise, please check the specific reason and isolate the container."
+    zh:
+      key: "处置建议"
+      value: "查看相关命令执行是否符合预期，是否为运维操作，如果为系统探针触发请采用白名单加白对应容器，否则请排查具体原因并隔离该容器。"
+  desc: Suspected hacker transmits data through tunnel in container
+  condition: >
+    evt.type=socket and container and (proc.name=ping and proc.cmdline contains "-p") or proc.name=nslookup or (proc.name=curl and proc.cmdline contains "-d")  and shell_parent_procs
+  output: >
+    Suspected hacker transmits data through tunnel in container (zh_msg=疑似黑客在容器内通过隧道传输数据),rule_type=Execution,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,evt.args=%evt.args
+    original_info=user=%user.name user_loginuid=%user.loginuid
+    container_id=%container.id container_name=%container.name image=%container.image.repository:%container.image.tag
+    connection=%fd.name,client_ip=%fd.cip,client_port=%fd.cport,server_ip=%fd.sip,server_port=%fd.sport)
+  priority: WARNING
+  tags: [ATT&CK, network, process, mitre_execution, strict]

@@ -67,9 +67,7 @@ require (
 	github.com/tomogoma/go-typed-errors v0.0.0-20181222204503-0532faf740be
 	github.com/urfave/cli/v2 v2.3.0
 	github.com/yeka/zip v0.0.0-20180914125537-d046722c6feb
-	gitlab.com/security-rd/go-pkg v0.2.63
 	go.mongodb.org/mongo-driver v1.8.2
-	go.uber.org/atomic v1.10.0
 	go.uber.org/automaxprocs v1.5.1
 	go.uber.org/zap v1.24.0 // indirect
 	golang.org/x/net v0.5.0
@@ -100,6 +98,7 @@ require (
 	github.com/elastic/go-libaudit/v2 v2.2.0
 	github.com/ghodss/yaml v1.0.0
 	github.com/gin-contrib/pprof v1.4.0
+	github.com/go-redsync/redsync/v4 v4.7.1
 	github.com/go-sql-driver/mysql v1.7.0
 	github.com/go-task/slim-sprig v0.0.0-20210107165309-348f09dbbbc0
 	github.com/gobwas/glob v0.2.3
@@ -108,12 +107,15 @@ require (
 	github.com/imroc/req/v3 v3.23.0
 	github.com/jarcoal/httpmock v1.2.0
 	github.com/jellydator/ttlcache/v3 v3.0.0
+	github.com/panjf2000/ants/v2 v2.7.1
 	github.com/rookie-ninja/rk-entry v1.0.11
 	github.com/rookie-ninja/rk-gin v1.2.22
 	github.com/segmentio/kafka-go v0.4.38
 	github.com/shopspring/decimal v1.2.0
 	github.com/sony/gobreaker v0.5.0
 	github.com/xuri/excelize/v2 v2.6.0
+	gitlab.com/security-rd/go-pkg v0.2.65
+	go.uber.org/atomic v1.10.0
 	gomodules.xyz/jsonpatch/v3 v3.0.1
 	google.golang.org/protobuf v1.28.1
 	gorm.io/driver/sqlite v1.4.3
@@ -258,7 +260,6 @@ require (
 
 require (
 	github.com/aliyun/alibaba-cloud-sdk-go v1.61.1452
-	github.com/go-redsync/redsync/v4 v4.3.0
 	github.com/gogo/protobuf v1.3.2
 	github.com/smartystreets/goconvey v1.6.4
 	go.uber.org/multierr v1.9.0 // indirect
@@ -408,7 +409,7 @@ require (
 	github.com/modern-go/reflect2 v1.0.2 // indirect
 	github.com/nats-io/nkeys v0.3.0 // indirect
 	github.com/nats-io/nuid v1.0.1 // indirect
-	github.com/open-policy-agent/opa v0.36.1 // indirect
+	github.com/open-policy-agent/opa v0.36.1
 	github.com/opencontainers/image-spec v1.1.0-rc2 // indirect
 	github.com/opencontainers/runc v1.1.1 // indirect
 	github.com/owenrumney/go-sarif/v2 v2.1.1 // indirect
@@ -473,7 +474,7 @@ require (
 replace (
 	github.com/containers/podman/v3 => scm.tensorsecurity.cn/tensorsecurity-rd/podman/v3 v3.4.6-20220425170000
 	github.com/opencontainers/image-spec => github.com/opencontainers/image-spec v1.0.2-0.20210819154149-5ad6f50d6283
-	gitlab.com/security-rd/go-pkg => scm.tensorsecurity.cn/tensorsecurity-rd/go-pkg v0.2.64
+	gitlab.com/security-rd/go-pkg => scm.tensorsecurity.cn/tensorsecurity-rd/go-pkg v0.2.65
 	k8s.io/api => k8s.io/kubernetes/staging/src/k8s.io/api v0.0.0-20220503133649-4ce5a8954017
 	k8s.io/apiextensions-apiserver => k8s.io/kubernetes/staging/src/k8s.io/apiextensions-apiserver v0.0.0-20220503133649-4ce5a8954017
 	k8s.io/apimachinery => k8s.io/kubernetes/staging/src/k8s.io/apimachinery v0.0.0-20220503133649-4ce5a8954017

@@ -1,0 +1,459 @@
+##attck_rule_type=Privilege_Escalation
+- rule: Launch Privileged Container
+  hid: priv_01
+  hthreats: 0
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "This behavior is likely to cause hackers to escape from the container to the host. Please confirm whether it is necessary to start the privileged container with privileges. This can be controlled through the privileged parameter when the container starts."
+    zh:
+      key: "处置建议"
+      value: "该行为容易导致黑客从容器中逃逸到主机，请确认该特权容器采用特权启动是否必要，可通过容器启动时privileged参数进行控制。"
+  desc: Detect the initial process started in a privileged container. Exceptions are made for known trusted images.
+  condition:
+    container_started and container
+    and container.privileged=true
+    and not falco_privileged_containers
+    and not user_privileged_containers
+    and not tensorsec_namespace
+  output: >
+    Privileged container started (zh_msg=特权容器启动,rule_type=Privilege_Escalation,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid %container.info image=%container.image.repository:%container.image.tag,container_id=%container.id,container_name=%container.name)
+  priority: INFO
+  tags: [ATT&CK, container, cis, mitre_privilege_escalation, mitre_lateral_movement, strict]
+
+- rule: Non sudo setuid
+  hid: priv_02
+  hthreats: 1
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "Setuid is usually a system management permission operation. A non root call may be a hacker's authorization act. Please confirm whether the system has been invaded."
+    zh:
+      key: "处置建议"
+      value: "setuid通常为系统管理权限操作，非root调用可能为黑客提权行为，请确认系统是否遭到入侵。"
+  desc: >
+    an attempt to change users by calling setuid. sudo/su are excluded. users "root" and "nobody"
+    suing to itself are also excluded, as setuid calls typically involve dropping privileges.
+  condition: >
+    evt.type=setuid and evt.dir=>
+    and (known_user_in_container or not container)
+    and shell_parent_procs
+    and not user.name=root
+    and not somebody_becoming_themself
+    and not proc.name in (known_setuid_binaries, userexec_binaries, mail_binaries, docker_binaries,
+                          nomachine_binaries)
+    and not proc.name startswith "runc:"
+    and not java_running_sdjagent
+    and not nrpe_becoming_nagios
+    and not user_known_non_sudo_setuid_conditions
+  output: >
+    Unexpected setuid call by non-sudo, non-root program (zh_msg=非sudo、非root程序意外调用setuid,rule_type=Privilege_Escalation,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid cur_uid=%user.uid parent=%proc.pname
+    uid=%evt.arg.uid container_id=%container.id container_name=%container.name image=%container.image.repository)
+  priority: NOTICE
+  tags: [ATT&CK, users, mitre_privilege_escalation]
+
+- rule: System user interactive
+  hid: priv_03
+  hthreats: 0
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "This behavior usually exists when hackers use application vulnerabilities to execute commands. Please confirm whether any applications have been attacked by hackers."
+    zh:
+      key: "处置建议"
+      value: "该行为通常存在于黑客利用应用漏洞执行命令，请确认是否有应用遭到黑客攻击。"
+  desc: an attempt to run interactive commands by a system (i.e. non-login) user
+  condition: spawned_process and system_users and interactive and not user_known_system_user_login
+  output: >
+    System user ran an interactive command (zh_msg=未登录用户试图运行交互式命令,rule_type=Privilege_Escalation,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid container_id=%container.id container_name=%container.name image=%container.image.repository)
+  priority: ALERT
+  tags: [ATT&CK, users, mitre_remote_access_tools]
+
+- rule: Set Setuid or Setgid bit
+  hid: priv_04
+  hthreats: 1
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "Please confirm the purpose of this operation, and whether the modified file is an externally imported dangerous file."
+    zh:
+      key: "处置建议"
+      value: "请确认该操作行为目的，被修改文件是否为外部引入危险文件。"
+  desc: >
+    When the setuid or setgid bits are set for an application,
+    this means that the application will run with the privileges of the owning user or group respectively.
+    Detect setuid or setgid bits set via chmod
+  condition: >
+    consider_all_chmods and chmod and (evt.arg.mode contains "S_ISUID" or evt.arg.mode contains "S_ISGID")
+    and shell_parent_procs
+    and not proc.name in (user_known_chmod_applications)
+    and not exe_running_docker_save
+    and not user_known_set_setuid_or_setgid_bit_conditions
+  output: >
+    Setuid or setgid bit is set via chmod (zh_msg=通过chmod修改文件访问权限,rule_type=Privilege_Escalation,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=fd=%evt.arg.fd filename=%evt.arg.filename mode=%evt.arg.mode user=%user.name user_loginuid=%user.loginuid process=%proc.name
+    container_id=%container.id container_name=%container.name image=%container.image.repository:%container.image.tag)
+  priority: WARNING
+  tags: [ATT&CK, process, mitre_persistence]
+
+- rule: Delete or rename shell history
+  hid: priv_05
+  hthreats: 1
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "Usually, this behavior occurs when the hacker clears the attack trace. Please confirm whether it is invaded."
+    zh:
+      key: "处置建议"
+      value: "通常该行为发生于黑客清除攻击痕迹，请确认是否遭到入侵。"
+  desc: Detect shell history deletion
+  condition: >
+    (modify_shell_history or truncate_shell_history) and
+    not var_lib_docker_filepath and
+    not proc.name in (docker_binaries) and
+    shell_parent_procs and
+    container
+  output: >
+    Shell history had been deleted or renamed (zh_msg=删除或重命名shell历史记录,rule_type=Privilege_Escalation,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid type=%evt.type fd_name=%fd.name name=%evt.arg.name path=%evt.arg.path oldpath=%evt.arg.oldpath %container.info container_id=%container.id,container_name=%container.name)
+  priority: WARNING
+  tags: [ATT&CK, process, mitre_defense_evasion]
+
+- rule: Escape to access by chroot
+  hid: priv_06
+  hthreats: 1
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "The container is intruded, and the hacker escapes by attaching the directory. Please check whether the cluster permissions are trapped, and confirm whether the container is started by privileges. You can try to use micro isolation and immune defense to prevent the risk from spreading further."
+    zh:
+      key: "处置建议"
+      value: "容器遭到入侵，黑客通过挂载目录逃逸，请排查集群权限是否陷落，并确认该容器是否通过特权启动，可尝试采用微隔离和免疫防御阻止风险进一步扩散。"
+  desc: Container escape to access host system
+  condition: >
+    (evt.type=chroot and container and proc.name !=sshd and proc.name !=vsftpd)
+    and not (tensorsec_namespace and (k8s.pod.name contains "-host-" or k8s.pod.name contains "-docker-" or k8s.pod.name contains "-kube-")) and shell_parent_procs
+  output: >
+    container escape to access host system (zh_msg=容器内挂载主机目录逃逸,rule_type=Privilege_Escalation,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,container_id=%container.id,container_name=%container.name)
+  priority: ALERT
+  tags: [ATT&CK]
+
+- rule: Escape to access rule by procfs
+  hid: priv_07
+  hthreats: 1
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "The container has been invaded. Please check whether the cluster permissions have fallen. You can try to use micro isolation and immune defense to prevent the risk from spreading further."
+    zh:
+      key: "处置建议"
+      value: "容器遭到入侵，请排查集群权限是否陷落，可尝试采用微隔离和免疫防御阻止风险进一步扩散。"
+  desc: Container escape to access host system
+  condition: >
+    open_write and container and fd.name contains /sys/kernel/core_pattern
+  output: >
+    container escape to access host system (zh_msg=容器内通过procfs逃逸,rule_type=Privilege_Escalation,fd_name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,container_id=%container.id,container_name=%container.name)
+  priority: ALERT
+  tags: [ATT&CK]
+
+- rule: Escape to access rule by debugfs
+  hid: priv_08
+  hthreats: 1
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "The container has been invaded. Please check whether the cluster permissions have fallen. You can try to use micro isolation and immune defense to prevent the risk from spreading further."
+    zh:
+      key: "处置建议"
+      value: "容器遭到入侵，请排查集群权限是否陷落，可尝试采用微隔离和免疫防御阻止风险进一步扩散。"
+  desc: Detect file system debugger debugfs launched inside a privileged container which might lead to container escape.
+  condition: >
+    evt.type = write and container and evt.arg.data contains "debugfs " and not evt.arg.data contains "-w" and proc.cmdline contains " -w"
+  output: >
+    container escape to access host system (zh_msg=容器内通过debugfs逃逸,rule_type=Privilege_Escalation,fd_name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,container_id=%container.id,container_name=%container.name)
+  priority: ALERT
+  tags: [ATT&CK]
+
+- rule: Escape to access rule by cgroup
+  hid: priv_09
+  hthreats: 1
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "The container has been invaded. Please check whether the cluster permissions have fallen. You can try to use micro isolation and immune defense to prevent the risk from spreading further."
+    zh:
+      key: "处置建议"
+      value: "容器遭到入侵，请排查集群权限是否陷落，可尝试采用微隔离和免疫防御阻止风险进一步扩散。"
+  desc: Container escape to access host system
+  condition: >
+    evt.type=mount and evt.arg.type = "cgroup" and container and user.uid=0
+  output: >
+    container escape to access host system (zh_msg=容器内挂载cgroup逃逸,rule_type=Privilege_Escalation,fd_name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,container_id=%container.id,container_name=%container.name)
+  priority: ALERT
+  tags: [ATT&CK]
+
+- rule: CVE-2021-3156(Linux sudo Privilege_Escalation)
+  hid: priv_10
+  hthreats: 1
+  ruletype:
+    en: "Privilege_Escalation"
+    zh: "权限提升"
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "In case of power raising in the container, please check whether the cluster authority has fallen, and try to use micro isolation and immune defense to prevent the risk from spreading further."
+    zh:
+      key: "处置建议"
+      value: "容器内出现提权行为，请排查集群权限是否陷落，可尝试采用微隔离和免疫防御阻止风险进一步扩散。"
+  desc: Linux sudo Privilege_Escalation
+  condition: (evt.type=execve and container and proc.name in (sensitive_cmd))
+  output: >
+    Linux sudo Privilege_Escalation (zh_msg=CVE-2021-3156(Linux sudo 权限提升),rule_type=Privilege_Escalation,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,container_id=%container.id,container_name=%container.name)
+  priority: ALERT
+  tags: [ATT&CK]
+
+- rule: CVE-2019-5736(Modify Container Entrypoint)
+  hid: priv_11
+  hthreats: 1
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "If the container escapes, please check whether the cluster permissions fall. You can use immune defense to prevent the risk from spreading further and use immune defense training applications to limit the user permissions of sensitive files and commands."
+    zh:
+      key: "处置建议"
+      value: "容器出现逃逸行为，请排查集群权限是否陷落，可采用免疫防御阻止风险进一步扩散使用免疫防御训练应用，限制敏感文件和命令的用户权限。"
+  desc: Detect file write activities on container entrypoint symlink (/proc/self/exe)
+  condition: >
+    open_read and container
+    and (fd.name=/proc/self/exe or fd.name startswith /proc/self/fd/)
+    and not docker_procs
+    and not (tensorsec_namespace
+    and proc.pname != "<NA>"
+    and (k8s.pod.name contains "-host-" or k8s.pod.name contains "-docker-" or k8s.pod.name contains "-kube-" or k8s.pod.name contains "-holmes-" or k8s.pod.name contains "-webhook-" or k8s.pod.name contains "-scanner"))
+    and not proc.cmdline contains "runc init"
+    and not proc.cmdline = "runc:[1:CHILD] init"
+    and not proc.cmdline contains "kube-bench "
+    and not proc.cmdline contains "scanner "
+    and shell_parent_procs
+  output: >
+    %fd.name is open to write by process (zh_msg=CVE-2019-5736修改容器入口,rule_type=Privilege_Escalation,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=%proc.name %proc.exeline,container_id=%container.id,container_name=%container.name)
+  priority: ALERT
+  tags: [ATT&CK]
+
+- rule: CVE-2019-14287(Sudo Potential bypass of Run as user restrictions)
+  hid: priv_12
+  hthreats: 1
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "The container has been invaded. Please check whether the hacker has obtained host permissions and has other host operations. You can try to use micro isolation and immune defense to prevent the risk from spreading further."
+    zh:
+      key: "处置建议"
+      value: "容器遭到入侵，请排查黑客是否已获取主机权限并有其它主机操作，可尝试采用微隔离和免疫防御阻止风险进一步扩散。"
+  desc: When sudo is configured to allow a user to run commands as an arbitrary user via the ALL keyword in a Runas specification, it is possible to run commands as root by specifying the user ID -1 or 4294967295. This can be used by a user with sufficient sudo privileges to run commands as root even if the Runas specification explicitly disallows root access as long as the ALL keyword is listed first in the Runas specification
+  condition: >
+    open_read and evt.args contains "/usr/lib/sudo/sudoers.so" and
+    (proc.cmdline contains "-u#-1" or proc.cmdline contains "-u#4294967295")
+  output: >
+    (zh_msg=CVE-2019-14287(sudo有可能绕过以用户身份运行的限制),rule_type=Privilege_Escalation,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name container=%container.info,container_id=%container.id,container_name=%container.name)
+  priority: ALERT
+  tags: [ATT&CK, filesystem, mitre_privilege_escalation]
+
+- rule: CVE-2022-0185(in Linux Kernel Can Allow Container Escape in Kubernetes Linux)
+  hid: priv_13
+  hthreats: 1
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "The container has been invaded. Please check whether the cluster permissions have fallen. You can try to use micro isolation and immune defense to prevent the risk from spreading further."
+    zh:
+      key: "处置建议"
+      value: "容器遭到入侵，请排查集群权限是否陷落，可尝试采用微隔离和免疫防御阻止风险进一步扩散。"
+  desc: in Linux Kernel Can Allow Container Escape in Kubernetes Linux
+  condition: >
+    evt.type = unshare and proc.name=unshare and proc.args contains r and not proc.args contains "mount" and container
+  output: >
+    in Linux Kernel Can Allow Container Escape in Kubernetes Linux (zh_msg=CVE-2022-0185：Linux_kernel_bug可实现Kubernetes容器逃逸,rule_type=Privilege_Escalation,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name container=%container.info container_id=%container.id,container_name=%container.name)
+  priority: ALERT
+  tags: [ATT&CK, filesystem, mitre_privilege_escalation]
+
+- rule: CVE-2021-4034(Polkit Local Privilege Escalation Vulnerability)
+  hid: priv_14
+  hthreats: 1
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "The container has been invaded. Please check whether the hacker has obtained host permissions and has other host operations. You can try to use micro isolation and immune defense to prevent the risk from spreading further."
+    zh:
+      key: "处置建议"
+      value: "容器遭到入侵，请排查黑客是否已获取主机权限并有其它主机操作，可尝试采用微隔离和免疫防御阻止风险进一步扩散。"
+  desc: This rule detects an attempt to exploit a privilege escalation vulnerability in Polkit's pkexec. By running specially crafted code, a local user can leverage this flaw to gain root privileges on a compromised system
+  condition: >
+    spawned_process and user.uid != 0 and proc.name=pkexec and proc.args = ''
+  output: >
+    Polkit Local Privilege Escalation Vulnerability (zh_msg=CVE-2021-4034：Polkit本地提权漏洞,rule_type=Privilege_Escalation,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,container=%container.info,container_id=%container.id,container_name=%container.name)
+  priority: ALERT
+  tags: [ATT&CK, filesystem, mitre_privilege_escalation]
+
+- rule: Linux Privilege Escalation using nmap suid binaries
+  hid: priv_15
+  hthreats: 1
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "Please check whether the nmap command in the container has been granted S permission, so that hackers try to use it to improve their rights. You can try to use micro isolation and immune defense to prevent the risk from spreading further."
+    zh:
+      key: "处置建议"
+      value: "请排查容器内nmap命令是否被授予s权限，从而被黑客尝试利用提权，可尝试采用微隔离和免疫防御阻止风险进一步扩散。"
+  desc: Linux Privilege Escalation using nmap suid binaries
+  condition: >
+    (evt.type = stat and evt.arg.path contains "nmap.xsl" and user.uid != 0 and ((proc.cmdline contains "interactive") or (proc.cmdline contains "script") or (proc.cmdline contains "-oG"))) and not tensorsec_namespace
+  output: >
+    Linux Privilege Escalation using nmap suid binaries (zh_msg=尝试利用nmap_suid进行linux提权,rule_type=Privilege_Escalation,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,container=%container.info,container_id=%container.id,container_name=%container.name)
+  priority: ALERT
+  tags: [ATT&CK, filesystem, mitre_privilege_escalation]
+
+- rule: Linux Privilege Escalation using find suid binaries
+  hid: priv_16
+  hthreats: 1
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "Please check whether the find command in the container has been granted s permission, so that hackers try to use it to improve their rights. You can try to use micro isolation and immune defense to prevent the risk from spreading further."
+    zh:
+      key: "处置建议"
+      value: "请排查容器内find命令是否被授予s权限，从而被黑客尝试利用提权，可尝试采用微隔离和免疫防御阻止风险进一步扩散。"
+  desc: Linux Privilege Escalation using find suid binaries
+  condition: >
+    spawned_process and user.uid != 0 and evt.res != ENOENT and (
+    proc.name = find and
+    ((proc.cmdline contains "-exec" or proc.cmdline contains "-ok") and proc.cmdline contains ";")
+    ) and not tensorsec_namespace
+  output: >
+    Linux Privilege Escalation using find suid binaries (zh_msg=尝试利用find_suid进行linux提权,rule_type=Privilege_Escalation,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,container=%container.info,container_id=%container.id,container_name=%container.name)
+  priority: ALERT
+  tags: [ATT&CK, filesystem, mitre_privilege_escalation]
+
+- rule: Linux Privilege Escalation using vim suid binaries
+  hid: priv_17
+  hthreats: 1
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "Please check whether the vim command in the container has been granted s permission, so that hackers try to use it to improve their rights. You can try to use micro isolation and immune defense to prevent the risk from spreading further."
+    zh:
+      key: "处置建议"
+      value: "请排查容器内vim命令是否被授予s权限，从而被黑客尝试利用提权，可尝试采用微隔离和免疫防御阻止风险进一步扩散。"
+  desc: Linux Privilege Escalation using vim suid binaries
+  condition: >
+    spawned_process and evt.arg.exe = "/bin/sh" and user.uid != 0 and proc.pname contains vim
+  output: >
+    Linux Privilege Escalation using vim suid binaries (zh_msg=尝试利用vim_suid进行linux提权,rule_type=Privilege_Escalation,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type, container=%container.info,container_id=%container.id,container_name=%container.name)
+  priority: ALERT
+  tags: [ATT&CK, filesystem, mitre_privilege_escalation]
+
+- rule: Linux Privilege Escalation using bash suid binaries
+  hid: priv_18
+  hthreats: 1
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "The container may have been invaded. You can use the immune defense training application to limit the user permissions of sensitive files and commands."
+    zh:
+      key: "处置建议"
+      value: "容器可能已遭到入侵，可使用免疫防御训练应用，限制敏感文件和命令的用户权限。"
+  desc: Linux Privilege Escalation using bash suid binaries
+  condition: >
+    evt.type = read and evt.arg.data contains "/etc/inputrc - global inputrc for libreadline" and user.uid != 0 and (proc.cmdline contains "-p" or proc.cmdline contains "-cp")
+  output: >
+    Linux Privilege Escalation using bash suid binaries (zh_msg=尝试利用bash_suid进行linux提权,rule_type=Privilege_Escalation,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,container=%container.info,container_id=%container.id,container_name=%container.name)
+  priority: ALERT
+  tags: [ATT&CK, filesystem, mitre_privilege_escalation]
+
+- rule: Linux Privilege Escalation by modifying sensitive files with suid binaries
+  hid: priv_19
+  hthreats: 1
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "The container may have been invaded. You can use the immune defense training application to limit the user permissions of sensitive files and commands."
+    zh:
+      key: "处置建议"
+      value: "容器可能已遭到入侵，可使用免疫防御训练应用，限制敏感文件和命令的用户权限。"
+  desc: Linux Privilege Escalation by modifying sensitive files with suid binaries
+  condition: >
+    evt.type = write and sensitive_files and user.uid != 0 and container and not docker_procs
+  output: >
+    Linux Privilege Escalation by modifying sensitive files with suid binaries (zh_msg=尝试使用suid二进制修改敏感文件进行linux提权,rule_type=Privilege_Escalation,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,container=%container.info,container_id=%container.id,container_name=%container.name)
+  priority: ALERT
+  tags: [ATT&CK, filesystem, mitre_privilege_escalation]
+
+- rule: Detect release_agent File Container Escapes
+  hid: priv_20
+  hthreats: 1
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "The container may have been invaded. Use the immune defense training application to limit the user permissions of sensitive files and commands."
+    zh:
+      key: "处置建议"
+      value: "容器可能已经遭到入侵，使用免疫防御训练应用，限制敏感文件和命令的用户权限。"
+  desc: "Detect an attempt to exploit a container escape vulnerability in the Linux Kernel (CVE-2022-0492). By running a container with certains capabilities, a privileged user can modify release_agent file and escape from the container"
+  condition: >
+    open_write and container and fd.name endswith release_agent and user.uid=0 
+  output: >
+    Detect release_agent File Container Escapes(zh_msg=尝试修改release_agent进行Linux_Cgroup容器逃逸,rule_type=Privilege_Escalation,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type, container=%container.info,container_id=%container.id,container_name=%container.name)
+  priority: CRITICAL
+  tags: [ATT&CK, filesystem, mitre_privilege_escalation]
+
+- rule: Connect to docker.sock in container
+  hid: priv_21
+  hthreats: 1
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "The container may have been invaded. Use the immune defense training application to limit the user permissions of sensitive files and commands."
+    zh:
+      key: "处置建议"
+      value: "容器可能已经遭到入侵，使用免疫防御训练应用，限制敏感文件和命令的用户权限。"
+  desc: Connect to docker.sock in container
+  condition: >
+    evt.type = connect and evt.args contains "docker.sock" and container and not tensorsec_namespace and shell_parent_procs
+  output: >
+    Connect to docker.sock in container(zh_msg=容器内与docker.sock通信,rule_type=Privilege_Escalation,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type, container=%container.info,container_id=%container.id,container_name=%container.name)
+  priority: CRITICAL
+  tags: [ATT&CK, filesystem, mitre_privilege_escalation]
+
+- rule: Try to read the k8s token and bypass RBAC
+  hid: priv_22
+  hthreats: 1
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "The container may have been invaded. You can use the immune defense training application to limit the user permissions of sensitive files and commands."
+    zh:
+      key: "处置建议"
+      value: "容器可能已遭到入侵，可使用免疫防御训练应用，限制敏感文件和命令的用户权限。"
+  desc: Bypass K8s RBAC
+  condition: >
+    open_read and fd.name = /var/run/secrets/kubernetes.io/serviceaccount/token and container and shell_parent_procs
+  output: >
+    Bypass K8s RBAC (zh_msg=尝试读取K8s-token并进行RBAC权限绕过,rule_type=Privilege_Escalation,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,container=%container.info,container_id=%container.id,container_name=%container.name)
+  priority: WARNING
+  tags: [ATT&CK, filesystem, mitre_privilege_escalation]
+
+- rule: Execute commands through the docker api
+  hid: priv_23
+  hthreats: 1
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "The container may have been invaded. You can use the immune defense training application to limit the user permissions of sensitive files and commands."
+    zh:
+      key: "处置建议"
+      value: "容器可能已遭到入侵，可使用免疫防御训练应用，限制敏感文件和命令的用户权限。"
+  desc: Execute commands through the docker api
+  condition: >
+    evt.type in (sendto, sendmsg, connect) and fd.sport = 2375 and shell_parent_procs
+  output: >
+    Execute commands through the docker api (zh_msg=通过Docker-api执行命令,rule_type=Privilege_Escalation,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,container=%container.info,container_id=%container.id,container_name=%container.name)
+  priority: ALERT
+  tags: [ATT&CK, filesystem, mitre_privilege_escalation]

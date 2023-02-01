@@ -1,0 +1,96 @@
+- rule: Contact remote server from container
+  hid: related_01
+  hthreats: 0
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands."
+    zh:
+      key: "处置建议"
+      value: "使用免疫防御训练应用，限制敏感文件和命令的用户权限。"
+  desc: Contact remote server from container
+  condition: >
+    evt.type in (connect,sendto,sendmsg)
+    and fd.net != "127.0.0.0/8"
+    and (shell_parent_procs or proc.aname[2] in (shell_binaries))
+    and not proc.name in (known_system_procs_network_activity_binaries)
+    and not proc.pname in (known_system_procs_network_activity_binaries)
+    and not login_doing_dns_lookup
+    and not user_expected_system_procs_network_activity_conditions and container
+  output: >
+    Contact remote server from container(zh_msg=容器内与远程服务器通信,rule_type=Execution,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,pod_id=%k8s.pod.id,syscall_name=%syscall.type,evt.arg.exe=%evt.arg.exe,terminal=%proc.tty,user_uid=%user.uid,container_id=%container.id,container_name=%container.name,parent=%proc.pname,gparent=%proc.aname[2],proc_pgid=%proc.vpgid,fd.num=%fd.num,fd.type=%fd.type,connection=%fd.name,client_ip=%fd.cip,client_port=%fd.cport,server_ip=%fd.sip,server_port=%fd.sport,proc_name=%proc.name parent=%proc.pname gparent=%proc.aname[2] ggparent=%proc.aname[3] gggparent=%proc.aname[4])
+  priority: INFO
+  tags: [ATT&CK, filesystem, mitre_privilege_escalation, related]
+
+- rule: Running vim in container
+  hid: related_02
+  hthreats: 0
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands."
+    zh:
+      key: "处置建议"
+      value: "使用免疫防御训练应用，限制敏感文件和命令的用户权限。"
+  desc: Running vim in container
+  condition: >
+    open_read and evt.arg.name = "/usr/share/vim/vimrc" and container
+  output: >
+    Running vim in container (zh_msg=容器内运行vim,rule_type=Execution,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_name=%proc.name,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,container_id=%container.id,container_name=%container.name)
+  priority: INFO
+  tags: [ATT&CK, filesystem, mitre_privilege_escalation, related]
+
+- rule: Running telnet in container
+  hid: related_03
+  hthreats: 0
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands."
+    zh:
+      key: "处置建议"
+      value: "使用免疫防御训练应用，限制敏感文件和命令的用户权限。"
+  desc: Running telnet in container
+  condition: >
+    ((evt.type=openat and evt.arg.name contains ".telnetrc") or (evt.type=write and evt.arg.data contains "telnet: Unable to connect") or (evt.type=recvfrom and proc.name contains "telnet" and container and not ignore_proc_args)) and container
+  output: >
+    Running telnet in container (zh_msg=容器内运行telnet,rule_type=Execution,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_name=%proc.name,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,container_id=%container.id,container_name=%container.name,proc_pgid=%proc.vpgid)
+  priority: INFO
+  tags: [ATT&CK, filesystem, mitre_privilege_escalation, related]
+
+- rule: Created remote connection through ruby in container
+  hid: related_04
+  hthreats: 0
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands."
+    zh:
+      key: "处置建议"
+      value: "使用免疫防御训练应用，限制敏感文件和命令的用户权限。"
+  desc: Created remote connection through ruby in container
+  condition: >
+    evt.type=openat and (evt.arg.name contains "/lib64/libruby.so" or evt.arg.name contains "/usr/share/rubygems-integration/all/specifications") and
+    evt.res!=ENOENT and proc.cmdline contains "TCPSocket" and container
+  output: >
+    Created remote connection through ruby in container (zh_msg=容器内通过ruby创建远程连接,rule_type=Execution,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_name=%proc.name,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,container_id=%container.id,container_name=%container.name,proc_pgid=%proc.vpgid)
+  priority: INFO
+  tags: [ATT&CK, filesystem, mitre_privilege_escalation, related]
+  
+- rule: Running visudo in container
+  hid: related_05
+  hthreats: 0
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands."
+    zh:
+      key: "处置建议"
+      value: "使用免疫防御训练应用，限制敏感文件和命令的用户权限。"
+  desc: Running visudo in container
+  condition: >
+    ((spawned_process and proc.name = visudo) or (open_write and evt.arg.data contains visudo)) and container
+  output: >
+    Running visudo in container (zh_msg=容器内运行visudo,rule_type=Execution,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_name=%proc.name,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,container_id=%container.id,container_name=%container.name)
+  priority: INFO
+  tags: [ATT&CK, filesystem, mitre_privilege_escalation, related]

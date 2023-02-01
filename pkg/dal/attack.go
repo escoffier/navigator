@@ -29,24 +29,14 @@ func init() {
 	attackClient.Timeout = 10 * time.Second
 }
 
-func LoadAttackRules(ctx context.Context, addr string, curDataVersion, curSettingVersion int64) (*model.LatestATTCKRuleInfo, error) {
-	url := fmt.Sprintf("%s/api/openapi/ATTCK/latestData", addr)
-	firstQuery := true
+func LoadAttackRules(ctx context.Context, addr string, curVersion, curDataVersion, curSettingVersion int64) (*model.LatestATTCKRuleInfo, error) {
+	url := fmt.Sprintf("%s/api/openapi/ATTCK/latestData?curVersion=%d", addr, curVersion)
+
 	if curDataVersion > 0 {
-		connector := "&"
-		if firstQuery {
-			connector = "?"
-		}
-		url = fmt.Sprintf("%s%s%s=%d", url, connector, queryKeyCurDataVersion, curDataVersion)
-		firstQuery = false
+		url = fmt.Sprintf("%s&%s=%d", url, queryKeyCurDataVersion, curDataVersion)
 	}
 	if curSettingVersion > 0 {
-		connector := "&"
-		if firstQuery {
-			connector = "?"
-		}
-		url = fmt.Sprintf("%s%s%s=%d", url, connector, queyrKeyCurSettingVersion, curSettingVersion)
-		firstQuery = false
+		url = fmt.Sprintf("%s&%s=%d", url, queyrKeyCurSettingVersion, curSettingVersion)
 	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)

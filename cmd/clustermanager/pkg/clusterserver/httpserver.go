@@ -4,15 +4,17 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
-	"github.com/gin-contrib/pprof"
-	"github.com/gin-gonic/gin"
-	"k8s.io/client-go/rest"
 	"net/http"
 	"strings"
 	"time"
 
+	"github.com/gin-contrib/pprof"
+	"github.com/gin-gonic/gin"
 	json "github.com/json-iterator/go"
 	param "github.com/oceanicdev/chi-param"
+	"k8s.io/client-go/rest"
+
+	clusterAgent "gitlab.com/piccolo_su/vegeta/cmd/clustermanager/pkg"
 	"gitlab.com/piccolo_su/vegeta/cmd/clustermanager/pkg/attack"
 	"gitlab.com/piccolo_su/vegeta/cmd/clustermanager/pkg/config"
 	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
@@ -90,6 +92,18 @@ func (cs *ClusterServer) handleATTACKLatestData(c *gin.Context) {
 	ctx, cancel := context.WithTimeout(c, time.Second*2)
 	defer cancel()
 
+	reqVersion, err := param.QueryInt64(c.Request, "curVersion")
+	if err != nil {
+		logging.Get().Err(err).Int64("reqVersion", reqVersion).Msg("parse curVersion err")
+		c.JSON(http.StatusInternalServerError, response.HTTPEnvelope{
+			Error: &response.HTTPError{
+				Code:    1,
+				Message: err.Error(),
+			},
+		})
+		return
+	}
+
 	reqDataVersion, err := param.QueryInt64(c.Request, "curDataVersion")
 	if err != nil {
 		reqDataVersion = 0
@@ -99,7 +113,7 @@ func (cs *ClusterServer) handleATTACKLatestData(c *gin.Context) {
 		reqSettingVersion = 0
 	}
 
-	data, err := cs.attackCacheService.GetLatestData(ctx, reqDataVersion, reqSettingVersion)
+	data, err := cs.attackCacheService.GetLatestData(ctx, reqVersion, reqDataVersion, reqSettingVersion)
 	if err != nil {
 		logging.Get().Err(err).Int64("reqDataVersion", reqDataVersion).Int64("reqSettingVersion", reqSettingVersion).Msg("get latest data err")
 		c.JSON(http.StatusInternalServerError, response.HTTPEnvelope{
@@ -128,7 +142,7 @@ func (cs *ClusterServer) handleATTACKLatestData(c *gin.Context) {
 	})
 }
 
-func NewHTTPServer(clusterKey string, config *config.Config) (*ClusterServer, error) {
+func NewHTTPServer(agent *clusterAgent.ClusterAgent, config *config.Config) (*ClusterServer, error) {
 	tlsConfig := &tls.Config{}
 	if config.TLSServer {
 		tlsKeyPair, err := tls.LoadX509KeyPair(config.CertFile, config.KeyFile)
@@ -140,10 +154,10 @@ func NewHTTPServer(clusterKey string, config *config.Config) (*ClusterServer, er
 	}
 
 	s := &ClusterServer{
-		ClusterID:          clusterKey,
+		ClusterID:          agent.CusterID,
 		Name:               config.Name,
 		config:             config,
-		attackCacheService: attack.NewCacheService(config.MasterAddr),
+		attackCacheService: attack.NewCacheService(config.MasterAddr, agent),
 	}
 
 	r := gin.Default()

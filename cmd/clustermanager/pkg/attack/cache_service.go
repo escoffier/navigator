@@ -2,16 +2,21 @@ package attack
 
 import (
 	"context"
+	"encoding/base64"
 	"errors"
+	"fmt"
 	"math/rand"
 	"runtime/debug"
 	"sync/atomic"
 	"time"
 
 	"github.com/avast/retry-go"
+
+	clusterAgent "gitlab.com/piccolo_su/vegeta/cmd/clustermanager/pkg"
 	"gitlab.com/piccolo_su/vegeta/pkg/dal"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
+	"gitlab.com/security-rd/go-pkg/cryption"
 	"gitlab.com/security-rd/go-pkg/logging"
 )
 
@@ -30,14 +35,19 @@ type config struct {
 type CacheService struct {
 	consoleURL string
 
+	versionVal atomic.Value
+
 	dataVal atomic.Value
 
 	configVal atomic.Value
+
+	agent *clusterAgent.ClusterAgent
 }
 
-func NewCacheService(consoleURL string) *CacheService {
+func NewCacheService(consoleURL string, agent *clusterAgent.ClusterAgent) *CacheService {
 	cs := &CacheService{
 		consoleURL: consoleURL,
+		agent:      agent,
 	}
 	cs.setData("", 0)
 	cs.setConfig(nil, 0)
@@ -48,6 +58,14 @@ func NewCacheService(consoleURL string) *CacheService {
 	cs.asyncLoop()
 	return cs
 }
+func (c *CacheService) setVersion(v int64) {
+	c.versionVal.Store(v)
+}
+func (c *CacheService) version() int64 {
+	// 随holmes版本升级
+	return c.versionVal.Load().(int64)
+}
+
 func (c *CacheService) setData(d string, version int64) {
 	c.dataVal.Store(data{
 		Version: version,
@@ -78,7 +96,7 @@ func (c *CacheService) load() error {
 	var respData *model.LatestATTCKRuleInfo
 	err := util.RetryWithBackoff(context.Background(), func() error {
 		var err error
-		respData, err = dal.LoadAttackRules(context.Background(), c.consoleURL, c.data().Version, c.config().Version)
+		respData, err = dal.LoadAttackRules(context.Background(), c.consoleURL, c.version(), c.data().Version, c.config().Version)
 		return err
 	}, retry.Attempts(3))
 	if err != nil {
@@ -88,10 +106,20 @@ func (c *CacheService) load() error {
 	if respData.DataChanged {
 		data := c.data()
 		if respData.LatestDataVersion != data.Version {
-			// tmpBytes, err := base64.StdEncoding.DecodeString(respData.Data)
-			// if err != nil {
-			// 	return fmt.Errorf("data decode error: %v", err)
-			// }
+			// 同步集群最新规则库版本
+			b64Decoded, err := base64.StdEncoding.DecodeString(respData.Data)
+			if err != nil {
+				return err
+			}
+			header, _, _, err := cryption.ReadRulesData(b64Decoded)
+			if err != nil {
+				return err
+			}
+			err = c.agent.UpdateRuleVersion(fmt.Sprintf("v%d.%d", header.Version[0], header.Version[1]))
+			if err != nil {
+				return err
+			}
+			// 缓存数据
 			c.setData(respData.Data, respData.LatestDataVersion)
 		}
 	}
@@ -103,6 +131,7 @@ func (c *CacheService) load() error {
 	}
 	return nil
 }
+
 func (c *CacheService) asyncLoop() {
 	go func() {
 		defer func() {
@@ -122,9 +151,11 @@ func (c *CacheService) asyncLoop() {
 		}
 	}()
 }
-func (c *CacheService) GetLatestData(ctx context.Context, reqDataVersion, reqSettingVersion int64) (*model.LatestATTCKRuleInfo, error) {
+
+func (c *CacheService) GetLatestData(ctx context.Context, reqVersion, reqDataVersion, reqSettingVersion int64) (*model.LatestATTCKRuleInfo, error) {
 	data := c.data()
 	config := c.config()
+	c.setVersion(reqVersion)
 	if data.Version == 0 || config.Version == 0 {
 		return nil, errors.New("cache empty")
 	}

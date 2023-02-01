@@ -57,7 +57,7 @@
   output: >
     Execute commands through webshell (zh_msg=通过向Tomcat上传webshell并执行命令,rule_type=Privilege_Escalation,fd_name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_vpgid=%proc.vpgid,proc_cmdline=%proc.cmdline,proc_name=%proc.name,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,container_id=%container.id,container_name=%container.name,http_request=%evt.args)
   priority: ALERT
-  tags: [Watson]
+  tags: [Watson, triggered]
 
 - rule: Unauthorized access to Redis-Server
   hid: hp_04

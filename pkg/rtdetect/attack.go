@@ -16,14 +16,13 @@ const (
 	KeyUuid         = "_uuid"
 	KeyOwnerResName = "_owner_resource_name"
 	KeyOwnerResKind = "_owner_resource_kind"
-
 )
 
 var filteredOutFields = map[string]struct{}{
 	model.FieldK8sNsName:  {},
 	model.FieldK8sPodName: {},
-	model.FieldPodUID:   {},
-	model.FieldEvtTime:     {},
+	model.FieldPodUID:     {},
+	model.FieldEvtTime:    {},
 }
 var eventKVsMap = map[string]map[string]pb.KV{
 	// event
@@ -355,4 +354,26 @@ func GenerateAttackEvent(module, category string, data *outputs.Response, cluste
 	}
 
 	return req
+}
+
+// ComparePriority
+// true: p <= t
+// false: p > t || p 或 t 无效
+func ComparePriority(p, t string) bool {
+	priorities := map[string]int{
+		"EMERGENCY": 0,
+		"ALERT":     1,
+		"CRITICAL":  2,
+		"ERROR":     3,
+		"WARNING":   4,
+		"NOTICE":    5,
+		"INFO":      6,
+		"DEBUG":     7,
+	}
+	pi, okp := priorities[p]
+	ti, okt := priorities[t]
+	if !okp || !okt {
+		return false
+	}
+	return pi <= ti
 }

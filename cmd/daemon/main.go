@@ -24,13 +24,13 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/daemon"
 	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
+	"gitlab.com/piccolo_su/vegeta/pkg/mozart"
 	rpcstream "gitlab.com/piccolo_su/vegeta/pkg/streaming"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 	"gitlab.com/security-rd/go-pkg/cmap"
 	"gitlab.com/security-rd/go-pkg/logging"
 	"gitlab.com/security-rd/go-pkg/mq"
 	"gitlab.com/security-rd/go-pkg/sdk/palace"
-	_ "go.uber.org/automaxprocs"
 )
 
 var loggingOptions *logging.Options
@@ -49,10 +49,10 @@ const (
 	defaultRTBuffSize     = 100
 )
 
-func initEventStreams(udsAddr, nodeName, myNamespace, ctrlURL, ruleDirPath string, cm *k8s.ClusterInfoManager, containerInfo nodeinfo.ContainerInfoManager, podResInfo *nodeinfo.PodResInfo, palaceHandler *palace.Palace) (*holmes.EngineStreamHandler, error) {
+func initEventStreams(udsAddr, nodeName, myNamespace, ctrlURL, ruleDirPath string, cm *k8s.ClusterInfoManager, containerInfo nodeinfo.ContainerInfoManager, podResInfo *nodeinfo.PodResInfo, palaceHandler *palace.Palace, mozartEngine *mozart.Engine) (*holmes.EngineStreamHandler, error) {
 	config := holmes.NewEngineStreamConfig()
 	config.WithCtrlServerURL(ctrlURL).WithMyNodeName(nodeName).WithRulesDirPath(ruleDirPath).WithUnixSocketPath(udsAddr).WithMyNamespace(myNamespace)
-	handler := holmes.NewEventsStreamHandler(config, cm, containerInfo, podResInfo, palaceHandler)
+	handler := holmes.NewEventsStreamHandler(config, cm, containerInfo, podResInfo, palaceHandler, mozartEngine)
 	return handler, nil
 }
 
@@ -323,7 +323,14 @@ func Run(ctx context.Context) error {
 			logging.Get().Info().Msg("Init palace done")
 		}
 
-		rtStream, err := initEventStreams(rtUdsAddr, hostName, myNamespace, clusterAddr, rulesDirPath, clusterManager, containerInfo, podResInfo, &palaceHandler)
+		mozartEngine, err := mozart.NewMozartEngine(ctx, mozart.SetPalace(&palaceHandler), mozart.SetClusterManager(clusterManager), mozart.SetPrInfo(podResInfo))
+		if err != nil {
+			logging.Get().Err(err).Msgf("Failed to init mozartEngine, %v", err)
+			return errors.Errorf("Failed to init mozartEngine, %v", err)
+		}
+
+		rtStream, err := initEventStreams(rtUdsAddr, hostName, myNamespace, clusterAddr, rulesDirPath, clusterManager, containerInfo, podResInfo, &palaceHandler, mozartEngine)
+
 		if err != nil {
 			return errors.Errorf("Failed to rt events streams, %v", err)
 		} else {
@@ -348,7 +355,6 @@ func Run(ctx context.Context) error {
 	ciaEnabled := os.Getenv("CIA_ENABLED")
 	if ciaEnabled == "1" {
 		clusterName, _ := clusterManager.ClusterName()
-		clusterKey, _ := clusterManager.ClusterKey()
 
 		palaceHandler, err := palace.Init()
 		if err != nil {
@@ -383,7 +389,6 @@ func Run(ctx context.Context) error {
 	}
 
 	wg.Wait()
-
 	return err
 }
 
@@ -408,7 +413,7 @@ func main() {
 	logging.ReplaceLogger(loggingOptions)
 
 	setLoggingLevel()
-	
+
 	mainCtx, mainCancel := context.WithCancel(context.Background())
 	defer mainCancel()
 

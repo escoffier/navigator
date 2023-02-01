@@ -10,6 +10,9 @@ import (
 	json "github.com/json-iterator/go"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
+	"k8s.io/client-go/informers"
+	"k8s.io/klog/v2"
+
 	clusterAgent "gitlab.com/piccolo_su/vegeta/cmd/clustermanager/pkg"
 	"gitlab.com/piccolo_su/vegeta/cmd/clustermanager/pkg/assets"
 	"gitlab.com/piccolo_su/vegeta/cmd/clustermanager/pkg/clusterserver"
@@ -26,8 +29,6 @@ import (
 	"gitlab.com/security-rd/go-pkg/databases"
 	"gitlab.com/security-rd/go-pkg/logging"
 	"gitlab.com/security-rd/go-pkg/mq"
-	"k8s.io/client-go/informers"
-	"k8s.io/klog/v2"
 	"scm.tensorsecurity.cn/tensorsecurity-rd/api/pkg/generated/informers/externalversions"
 )
 
@@ -74,7 +75,7 @@ func NewServer() (*server, error) {
 
 	s.agent = agent
 
-	httpserver, err := clusterserver.NewHTTPServer(agent.CusterID, s.config)
+	httpserver, err := clusterserver.NewHTTPServer(agent, s.config)
 	if err != nil {
 		logging.Get().Err(err).Msg("cluster server err")
 		return nil, err

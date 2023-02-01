@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi"
@@ -35,6 +36,7 @@ func (api *api) version() func(chi.Router) {
 		r.Get("/system", api.getSystemVersion())
 		r.Get("/ATTCK", api.getATTCKVersion())
 		r.Get("/ATTCKHistory", api.getATTCKVersionHistory())
+		r.Get("/ATTCKVersionList", api.getATTCKVersionList())
 	}
 }
 
@@ -78,7 +80,7 @@ func (api *api) getATTCKVersion() http.HandlerFunc {
 		}
 		response.Ok(w, response.WithItem(rsp{
 			LastUpdateTime: util.GetMillisecondTimestampByTime(version.CreatedAt),
-			Version:        version.Version,
+			Version:        version.VString(),
 		}), response.WithApiVersion(versionAPIVersion))
 	}
 }
@@ -98,7 +100,7 @@ func (api *api) getATTCKVersionHistory() http.HandlerFunc {
 		result := make([]*history, len(items))
 		for i := range items {
 			result[i] = &history{
-				Version:   items[i].Version,
+				Version:   items[i].VString(),
 				User:      items[i].Username,
 				Timestamp: util.GetMillisecondTimestampByTime(items[i].CreatedAt),
 			}
@@ -128,7 +130,13 @@ func (api *api) getATTCKVersionHistory() http.HandlerFunc {
 			limit = defaultLimit
 		}
 
-		total, items, err := service.GetATTCKVersionHistory(ctx, int(offset), int(limit))
+		version, err := param.QueryString(r, "version")
+		if err != nil {
+			logging.GetLogger().Warn().Msgf("parse version fail, err:%s", err.Error())
+			version = ""
+		}
+
+		total, items, err := service.GetATTCKVersionHistory(ctx, int(offset), int(limit), strings.TrimSpace(version))
 		if err != nil {
 			apperror.RespAndLog(w, ctx, err)
 			return
@@ -136,6 +144,43 @@ func (api *api) getATTCKVersionHistory() http.HandlerFunc {
 
 		response.Ok(w, response.WithItems(convert(items)),
 			response.WithTotalItems(total),
+			response.WithApiVersion(versionAPIVersion))
+	}
+}
+
+func (api *api) getATTCKVersionList() http.HandlerFunc {
+	type version struct {
+		Name     string `json:"name"`
+		Version1 uint16 `json:"version1"`
+		Version2 uint16 `json:"version2"`
+	}
+
+	convert := func(items []*model.ATTCKConfVersion) []*version {
+		result := make([]*version, len(items))
+		for i := range items {
+			result[i] = &version{
+				Name:     items[i].VString(),
+				Version1: items[i].Version1,
+				Version2: items[i].Version2,
+			}
+		}
+
+		return result
+	}
+
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(r.Context(), defaultVersionTimeout)
+		defer cancel()
+		service, ok := attck.GetServiceInstance()
+		if !ok {
+			apperror.RespAndLog(w, ctx, ErrServiceNotReady)
+			return
+		}
+
+		items := service.GetATTCKVersionList(ctx)
+
+		response.Ok(w, response.WithItems(convert(items)),
+			response.WithTotalItems(int64(len(items))),
 			response.WithApiVersion(versionAPIVersion))
 	}
 }

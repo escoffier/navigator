@@ -4,8 +4,8 @@ import (
 	"io/ioutil"
 	"testing"
 
-	"gitlab.com/security-rd/go-pkg/cryption"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
+	"gitlab.com/security-rd/go-pkg/cryption"
 )
 
 func TestParseItems(t *testing.T) {
@@ -21,7 +21,7 @@ func TestParseItems(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	version, rules, err := parseItems(header, rulesContext)
+	version, rules, _, err := parseItems(header, rulesContext)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -55,7 +55,8 @@ func Test_compareVersion(t *testing.T) {
 			args: args{
 				latestConf: &model.ATTCKRuleData{
 					ATTCKConfVersion: model.ATTCKConfVersion{
-						Version: "v1.0",
+						Version1: 1,
+						Version2: 0,
 					},
 				},
 				toCompareHeader: cryption.FileHeader{
@@ -69,7 +70,8 @@ func Test_compareVersion(t *testing.T) {
 			args: args{
 				latestConf: &model.ATTCKRuleData{
 					ATTCKConfVersion: model.ATTCKConfVersion{
-						Version: "v1.0",
+						Version1: 1,
+						Version2: 0,
 					},
 				},
 				toCompareHeader: cryption.FileHeader{
@@ -83,7 +85,8 @@ func Test_compareVersion(t *testing.T) {
 			args: args{
 				latestConf: &model.ATTCKRuleData{
 					ATTCKConfVersion: model.ATTCKConfVersion{
-						Version: "v1.103",
+						Version1: 1,
+						Version2: 103,
 					},
 				},
 				toCompareHeader: cryption.FileHeader{
@@ -97,7 +100,8 @@ func Test_compareVersion(t *testing.T) {
 			args: args{
 				latestConf: &model.ATTCKRuleData{
 					ATTCKConfVersion: model.ATTCKConfVersion{
-						Version: "v2.0",
+						Version1: 2,
+						Version2: 0,
 					},
 				},
 				toCompareHeader: cryption.FileHeader{
@@ -111,7 +115,8 @@ func Test_compareVersion(t *testing.T) {
 			args: args{
 				latestConf: &model.ATTCKRuleData{
 					ATTCKConfVersion: model.ATTCKConfVersion{
-						Version: "2.0",
+						Version1: 2,
+						Version2: 0,
 					},
 				},
 				toCompareHeader: cryption.FileHeader{
@@ -125,7 +130,8 @@ func Test_compareVersion(t *testing.T) {
 			args: args{
 				latestConf: &model.ATTCKRuleData{
 					ATTCKConfVersion: model.ATTCKConfVersion{
-						Version: "v1.0xx",
+						Version1: 1,
+						Version2: 0,
 					},
 				},
 				toCompareHeader: cryption.FileHeader{
@@ -139,21 +145,23 @@ func Test_compareVersion(t *testing.T) {
 			args: args{
 				latestConf: &model.ATTCKRuleData{
 					ATTCKConfVersion: model.ATTCKConfVersion{
-						Version: "v23",
+						Version1: 23,
+						Version2: 0,
 					},
 				},
 				toCompareHeader: cryption.FileHeader{
 					Version: [2]uint16{1, 10},
 				},
 			},
-			want: true,
+			want: false,
 		},
 		{
 			name: "6",
 			args: args{
 				latestConf: &model.ATTCKRuleData{
 					ATTCKConfVersion: model.ATTCKConfVersion{
-						Version: "v1.10",
+						Version1: 1,
+						Version2: 10,
 					},
 				},
 				toCompareHeader: cryption.FileHeader{

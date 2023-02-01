@@ -2,6 +2,7 @@ package model
 
 import (
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 )
@@ -52,9 +53,14 @@ type ATTCKRuleData struct {
 }
 
 type ATTCKConfVersion struct {
-	Version   string    `gorm:"column:version"`
+	Version1  uint16    `gorm:"column:version1"`
+	Version2  uint16    `gorm:"column:version2"`
 	Username  string    `gorm:"column:username"`
 	CreatedAt time.Time `gorm:"index:attck_rule_data_created_at_key;column:created_at"`
+}
+
+func (v ATTCKConfVersion) VString() string {
+	return fmt.Sprintf("v%d.%d", v.Version1, v.Version2)
 }
 
 func (ATTCKRuleData) TableName() string {
@@ -62,8 +68,9 @@ func (ATTCKRuleData) TableName() string {
 }
 
 type ATTCKRuleMask struct {
-	ID   uint32 `gorm:"primaryKey;autoIncrement;column:id"`
-	Name string `gorm:"index:attck_rule_masks_name;column:name"`
+	Version1 uint16 `gorm:"column:version1"`
+	ID       uint32 `gorm:"primaryKey;autoIncrement;column:id"`
+	Name     string `gorm:"index:attck_rule_masks_name;column:name"`
 }
 
 func (ATTCKRuleMask) TableName() string {
@@ -71,7 +78,8 @@ func (ATTCKRuleMask) TableName() string {
 }
 
 type ATTCKRuleMaskVersion struct {
-	Version uint32 `gorm:"column:version"`
+	Version1 string `gorm:"column:version1"`
+	Version  uint32 `gorm:"column:version"`
 }
 
 func (ATTCKRuleMaskVersion) TableName() string {
@@ -120,6 +128,8 @@ type RuleFromYaml struct {
 	Items                 []string       `yaml:"items,omitempty"`
 	RequiredEngineVersion int            `yaml:"required_engine_version,omitempty"`
 	Source                string         `yaml:"source,omitempty"`
+
+	Mozart []ConfigMozart `yaml:"mozart,omitempty"`
 }
 
 func (r *RuleFromYaml) Enabled() bool {
