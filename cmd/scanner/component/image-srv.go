@@ -305,7 +305,7 @@ func (s *ImageSrv) GetImageCorrelateData(ctx context.Context, param model.GetIma
 	daoParam.ImageID = imageID
 
 	versionThan211 := s.versionThan211(ans.ImageList)
-	logging.Get().Info().Bool("versionThan211", versionThan211).Msg("GetImageCorrelateData")
+	logging.Get().Debug().Bool("versionThan211", versionThan211).Msg("GetImageCorrelateData")
 
 	if !versionThan211 && (param.EnvEnable || param.VirusEnable || param.SensitiveEnable || param.SoftwareEnable || param.LicenseEnable) {
 		dataFor211, err := s.GetImageCorrelateDataFor211(ctx, param)
@@ -499,6 +499,10 @@ func (s *ImageSrv) ListBaseImageOfApp(ctx context.Context, param model.ImageList
 		if baseImages[i].Layers != "" && strings.HasPrefix(images[0].Layers, baseImages[i].Layers) {
 			baseImageIds = append(baseImageIds, baseImages[i].ID)
 		}
+	}
+
+	if len(baseImageIds) == 0 {
+		return empty, 0, nil
 	}
 
 	baseInfo, cnt, err := s.ListImageWithScanInfo(ctx, model.ImageListParam{ImageIds: baseImageIds}, model.EmptyFilterForTotalQuery())

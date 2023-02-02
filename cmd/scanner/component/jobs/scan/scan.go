@@ -35,9 +35,9 @@ func (i *ImageScan) Run(ctx context.Context, param jobs.Param) (jobs.Artifact, e
 		return nil, errors.New("not find 'imageCacheUrl' in parameter")
 	}
 	// l, ok := param["layersFilePath"].([map[string]string])
-	if !ok {
-		return nil, errors.New("not find 'layersFilePath' in parameter")
-	}
+	// if !ok {
+	// 	return nil, errors.New("not find 'layersFilePath' in parameter")
+	// }
 	i.imageCacheURL = u
 	// i.layersFilePath = l
 

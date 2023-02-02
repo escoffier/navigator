@@ -326,12 +326,9 @@ func (s *ScanResultHandle) logPostgresWebFrame(ctx context.Context, param jobs.P
 
 func (s *ScanResultHandle) Run(ctx context.Context, param jobs.Param) (jobs.Artifact, error) {
 
-	// 这一次只是拆分了扫描数据，镜像详情页面使用拆分后的表数据，导出，阻断，报告等还是使用原来保存的数据
-	// 所以这一版本继续保留原数据存储逻辑，等k8s阻断上线的版本中再重构这部分逻辑
 	var (
-		imageScanVirus     []model.PerLayerMaliciousResult
-		imageScanSensitive []model.PerLayerSensitiveResult
-		// imageScanWebshell   []model.PerLayerWebshellResult
+		imageScanVirus      []model.PerLayerMaliciousResult
+		imageScanSensitive  []model.PerLayerSensitiveResult
 		imageScanEnv        []model.EnvKeyValue
 		imageScanSoftware   []model.Software
 		imageScanVulnResult *report.Report // 漏洞
@@ -354,12 +351,6 @@ func (s *ScanResultHandle) Run(ctx context.Context, param jobs.Param) (jobs.Arti
 		r["pullFailed"] = true
 		return r, errors.New("miss 'layersFilePath' in parameter")
 	}
-
-	// digest, ok := param["digest"].(string)
-	// if !ok {
-	// 	logging.GetLogger().Error().Msg("miss 'digest' in parameter")
-	// 	return r, errors.New("miss 'digest' in parameter ")
-	// }
 
 	// 结果集合
 	var scanDetails model.ScanDetailScanImage

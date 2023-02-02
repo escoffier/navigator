@@ -163,15 +163,13 @@ func (p *Job) Run(ctx context.Context, param jobs.Param) (jobs.Artifact, error) 
 	// r["imageCacheUrl"] = "192.168.134.26:80/fff/alltest:latest"
 	logging.GetLogger().Info().Msgf("dockerImage is %v:", p.config.URL+"/"+p.config.RepoName+":"+p.config.Tag)
 	r["dockerImage"] = fmt.Sprintf("%s/%s:%s", getLib(p.config.URL), p.config.RepoName, p.config.Tag)
+	r["imageName"] = fmt.Sprintf("%s/%s:%s", getLib(p.config.URL), p.config.RepoName, p.config.Tag)
 	r["pullImageJob"] = p.config
 	r["repoName"] = p.config.RepoName
 	r["tag"] = p.config.Tag
 	r["url"] = p.config.URL
 
 	r["imageCacheUrl"] = image_cache.GenerateImageCacheURL(p.config.RepoName, p.config.Tag)
-	// r["layers"] = layers
-	// r["layersFilePath"] = layersFilePath
-	// r["configJson"] = string(configJSON)
 	logging.GetLogger().Info().Msg("pull image end")
 
 	return r, nil
