@@ -155,6 +155,7 @@ func (s *messageStreamServer) SendMessage(stream pb.ClusterService_SendMessageSe
 	rs.Dispatch()
 
 	logging.Get().Info().Msgf("lost stream: %s", in.NodeKey)
+	rs.Clean()
 	delete(s.streams, in.NodeKey)
 
 	return nil
@@ -322,9 +323,9 @@ func (c *messageStreamClient) Start() {
 				NodeKey: defaultNodeKey,
 			}, false)
 			cs.Dispatch()
-
 			logging.Get().Info().Msg("connection lost, will try to reconnect")
 			c.streamLock.Lock()
+			cs.Clean()
 			delete(c.streams, defaultNodeKey)
 			c.streamLock.Unlock()
 

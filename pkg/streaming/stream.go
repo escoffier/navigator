@@ -26,6 +26,7 @@ type Stream interface {
 	Response(reqUUID string) chan protoreflect.ProtoMessage
 	SendResponse(reqUUID string, resp protoreflect.ProtoMessage) error
 	Run(stopChan chan struct{})
+	Clean()
 }
 
 type baseStream struct {
@@ -95,11 +96,11 @@ func (s *baseStream) Dispatch() error {
 		in, err := s.Receiver()
 
 		if err == io.EOF {
-			logging.Get().Err(err)
+			logging.Get().Err(err).Msg("close Dispatch")
 			return nil
 		}
 		if err != nil {
-			logging.Get().Err(err)
+			logging.Get().Err(err).Msg("close Dispatch")
 			return err
 		}
 
@@ -157,10 +158,15 @@ func (s *baseStream) Run(stopChan chan struct{}) {
 		})
 		if err != nil {
 			if err == cache.ErrFIFOClosed {
+				logging.Get().Info().Msgf("cache close")
 				return
 			}
 		}
 	}
+}
+
+func (s *baseStream) Clean() {
+	s.queue.Close() // 标记位置位，不涉及重复关闭判断
 }
 
 type serverStream struct {
