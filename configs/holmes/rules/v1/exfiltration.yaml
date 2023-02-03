@@ -5,10 +5,10 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "Confirm whether the behavior is as expected, or use the immune defense training container to prevent such behavior."
+      value: "Please confirm whether the behavior is the normal behavior of the process and determine whether the server-side ip address is as expected, otherwise you can use the immune defense training container to prevent this type of behavior."
     zh:
       key: "处置建议"
-      value: "确认该行为是否属符合预期，否则可使用免疫防御训练容器，防止该类行为。"
+      value: "请确认该行为是否属于进程的正常行为，判断服务端ip地址是否符合预期，否则可使用免疫防御训练容器，防止该类行为。"
   desc: any network activity performed by system binaries that are not expected to send or receive any network traffic
   condition: >
     (fd.sockfamily = ip and (system_procs or proc.name in (shell_binaries)))
@@ -29,10 +29,10 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "To confirm whether the flow is abnormal, micro isolation can be used to block the flow."
+      value: "Please judge whether the command belongs to the normal behavior of known processes through the process tree, judge whether the server IP address is as expected, confirm whether the traffic is abnormal, and can use micro-isolation to block the traffic."
     zh:
       key: "处置建议"
-      value: "确认该流量是否异常，可使用微隔离阻拦流量。"
+      value: "请通过进程树判断该命令是否属于已知进程的正常行为，判断服务端ip地址是否符合预期，确认该流量是否异常，可使用微隔离阻拦流量。"
   desc: Any inbound network activity performed by any interpreted program (perl, python, ruby, etc.)
   condition: >
     (inbound and consider_interpreted_inbound
@@ -49,10 +49,10 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "To confirm whether the flow is abnormal, micro isolation can be used to block the flow."
+      value: "Please judge whether the command belongs to the normal behavior of known processes through the process tree, judge whether the server IP address is as expected, confirm whether the traffic is abnormal, and can use micro-isolation to block the traffic."
     zh:
       key: "处置建议"
-      value: "确认该流量是否异常，可使用微隔离阻拦流量。"
+      value: "请通过进程树判断该命令是否属于已知进程的正常行为，判断服务端ip地址是否符合预期，确认该流量是否异常，可使用微隔离阻拦流量。"
   desc: Any outbound network activity performed by any interpreted program (perl, python, ruby, etc.)
   condition: >
     (outbound and consider_interpreted_outbound
@@ -69,10 +69,10 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "To confirm whether the traffic is abnormal, you can use micro isolation to block the traffic and limit the user permissions of sensitive files and commands."
+      value: "Please judge whether the command belongs to the normal behavior of known processes through the process tree, judge whether the server IP address is as expected, confirm whether the traffic is abnormal, and can use micro-isolation to block the traffic."
     zh:
       key: "处置建议"
-      value: "确认该流量是否异常，可使用微隔离阻拦流量，限制敏感文件和命令的用户权限。"
+      value: "请通过进程树判断该命令是否属于已知进程的正常行为，判断服务端ip地址是否符合预期，确认该流量是否异常，可使用微隔离阻拦流量。"
   desc: Detect any outbound connection to a destination outside of an allowed set of ips, networks, or domain names
   condition: >
     consider_all_outbound_conns and outbound and not
@@ -92,10 +92,10 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "Use immune defense training applications, use micro isolation to block traffic, and limit user permissions for sensitive files and commands."
+      value: "Please confirm if the behavior is normal for the process, train the application using immune defense, block traffic using micro-isolation, and restrict user permissions for sensitive files and commands."
     zh:
       key: "处置建议"
-      value: "使用免疫防御训练应用，使用微隔离阻拦流量，限制敏感文件和命令的用户权限。"
+      value: "请确认该行为是否属于进程的正常行为，使用免疫防御训练应用，使用微隔离阻拦流量，限制敏感文件和命令的用户权限。"
   desc: Detect attempts to contact the EC2 Instance Metadata Service from a container
   condition: outbound and fd.sip="169.254.169.254" and container and not ec2_metadata_containers
   output: >
@@ -111,10 +111,10 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "Use immune defense training applications, use micro isolation to block traffic, and limit user permissions for sensitive files and commands."
+      value: "Please confirm if the behavior is normal for the process, train the application using immune defense, block traffic using micro-isolation, and restrict user permissions for sensitive files and commands."
     zh:
       key: "处置建议"
-      value: "使用免疫防御训练应用，使用微隔离阻拦流量，限制敏感文件和命令的用户权限。"
+      value: "请确认该行为是否属于进程的正常行为，使用免疫防御训练应用，使用微隔离阻拦流量，限制敏感文件和命令的用户权限。"
   desc: Detect attempts to contact the Cloud Instance Metadata Service from a container
   condition: outbound and fd.sip="169.254.169.254" and container and consider_metadata_access and not user_known_metadata_access
   output: >
@@ -128,10 +128,10 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "Use immune defense training applications, use micro isolation to block traffic, and limit user permissions for sensitive files and commands."
+      value: "Please use the process tree to determine whether the command is a normal behavior of a known process, whether it is executed by malware, use immune defense to train the application, use micro-isolation to block traffic, and restrict user permissions for sensitive files and commands."
     zh:
       key: "处置建议"
-      value: "使用免疫防御训练应用，使用微隔离阻拦流量，限制敏感文件和命令的用户权限。"
+      value: "请通过进程树判断该命令是否属于已知进程的正常行为，是否由恶意软件执行，使用免疫防御训练应用，使用微隔离阻拦流量，限制敏感文件和命令的用户权限。"
   desc: An attempt to run a program with a disallowed HTTP_PROXY environment variable
   condition: >
     spawned_process and
@@ -150,10 +150,10 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "Use immune defense training applications, use micro isolation to block traffic, and limit user permissions for sensitive files and commands."
+      value: "Please use the process tree to determine whether the command is a normal behavior of a known process, whether it is executed by malware, use immune defense to train the application, use micro-isolation to block traffic, and restrict user permissions for sensitive files and commands."
     zh:
       key: "处置建议"
-      value: "使用免疫防御训练应用，使用微隔离阻拦流量，限制敏感文件和命令的用户权限。"
+      value: "请通过进程树判断该命令是否属于已知进程的正常行为，是否由恶意软件执行，使用免疫防御训练应用，使用微隔离阻拦流量，限制敏感文件和命令的用户权限。"
   desc: Detect attempts to use K8s NodePorts from a container
   condition: (inbound_outbound) and fd.sport >= 30000 and fd.sport <= 32767 and container and not nodeport_containers
   output: Unexpected K8s NodePort Connection (zh_msg=检测到从容器内发出与NodePort建立连接尝试,rule_type=Exfiltration,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=connection=%fd.name container_id=%container.id container_name=%container.name image=%container.image.repository)
@@ -166,10 +166,10 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "Please confirm whether the behavior is a trusted person and procedure operation, otherwise, you can use the immune defense training application to limit abnormal behavior."
+      value: "Please confirm whether the behavior belongs to the normal behavior of the process, judge whether the server-side ip address is as expected, and confirm whether the behavior is a trusted person and program operation; otherwise, you can use the immune defense training application to limit the abnormal behavior."
     zh:
       key: "处置建议"
-      value: "请确认该行为是否为可信人员和程序操作，否则可使用免疫防御训练应用，限制异常行为。"
+      value: "请确认该行为是否属于进程的正常行为，判断服务端ip地址是否符合预期，确认该行为是否为可信人员和程序操作，否则可使用免疫防御训练应用，限制异常行为。"
   desc: Detect remote file copy tools launched in container
   condition: >
     spawned_process
@@ -188,10 +188,10 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "Use immune defense training applications, use micro isolation to block traffic, and limit user permissions for sensitive files and commands."
+      value: "Please use the process tree to determine whether the command is a normal behavior of a known process, whether it is executed by malware, use immune defense to train the application, use micro-isolation to block traffic, and restrict user permissions for sensitive files and commands."
     zh:
       key: "处置建议"
-      value: "使用免疫防御训练应用，使用微隔离阻拦流量，限制敏感文件和命令的用户权限。"
+      value: "请通过进程树判断该命令是否属于已知进程的正常行为，是否由恶意软件执行，使用免疫防御训练应用，使用微隔离阻拦流量，限制敏感文件和命令的用户权限。"
   desc: UDP traffic not on port 53 (DNS) or other commonly used ports
   condition: (inbound_outbound) and do_unexpected_udp_check and fd.l4proto=udp and not expected_udp_traffic
   output: >
@@ -231,7 +231,7 @@
       value: "使用微隔离阻拦流量，及时删除挖矿后门，同时排查容器是否遭到入侵。"
   desc: Miners typically connect to miner pools on common ports.
   condition: net_miner_pool and not trusted_images_query_miner_domain_dns
-  #  enabled: false
+#  enabled: false
   output: >
     Outbound connection to IP/Port flagged by cryptoioc.ch (zh_msg=与cryptoioc.ch公开的IP/端口的连接，可能存在挖矿行为,rule_type=Exfiltration,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,connection=%fd.name,client_ip=%fd.cip,client_port=%fd.cport,server_ip=%fd.sip,server_port=%fd.sport,domain_name=%fd.sip.name,container=%container.info,image=%container.image.repository,container_id=%container.id,container_name=%container.name)
   priority: ALERT
@@ -265,7 +265,7 @@
       key: "处置建议"
       value: "容器中发现提权行为，请确认容器是否遭到入侵，可使用免疫防御训练应用，限制敏感文件和命令的用户权限。"
   desc: Detect new packet socket at the device driver (OSI Layer 2) level in a container. Packet socket could be used for ARP Spoofing and Privilege_Escalation(CVE-2020-14386) by attacker.
-  condition: evt.type=socket and evt.arg[0]=AF_PACKET and consider_packet_socket_communication and container and not proc.name in (user_known_packet_socket_binaries)
+  condition: evt.type=socket and (evt.arg[0]=AF_PACKET or evt.arg[0]=17) and consider_packet_socket_communication and container and not proc.name in (user_known_packet_socket_binaries)
   output: >
     Packet socket was created in a container (zh_msg=CVE-2020-14386(在容器中创建的数据包套接字),rule_type=Exfiltration,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid socket_info=%evt.args container_id=%container.id container_name=%container.name image=%container.image.repository:%container.image.tag)
   priority: NOTICE
@@ -313,10 +313,10 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "There may be port scanning behavior, it is recommended to confirm whether there is a vulnerability in the service where the port is located."
+      value: "There may be sensitive port scanning behavior, please use the process tree to determine whether the command is a normal behavior of known processes, whether it is suggested by malware execution, and confirm whether there is a vulnerability in the service where the port is located."
     zh:
       key: "处置建议"
-      value: "可能存在敏感端口扫描行为，建议确认端口所在服务是否存在漏洞。"
+      value: "可能存在敏感端口扫描行为，请通过进程树判断该命令是否属于已知进程的正常行为，是否由恶意软件执行建议，确认端口所在服务是否存在漏洞。"
   desc: Scanning ports detected
   condition: >
     easy_outbound and proc.name in (scan_ports_tool_binaries) and pentest_ports
@@ -331,10 +331,10 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "There may be brute force cracking, it is recommended to confirm whether there is a weak password in the service where the port is located."
+      value: "There may be brute force cracking behavior, please determine through the process tree whether the command belongs to the normal behavior of known processes, whether it is suggested by malware execution, it is recommended to confirm whether there is a weak password for the service where the port is located and limit the number of wrong login attempts."
     zh:
       key: "处置建议"
-      value: "可能存在暴力破解行为，建议确认端口所在服务是否存在弱口令。"
+      value: "可能存在暴力破解行为，请通过进程树判断该命令是否属于已知进程的正常行为，是否由恶意软件执行建议，建议确认端口所在服务是否存在弱口令，限制错误登录尝试次数。"
   desc: Brute force hacking detected
   condition: >
     easy_outbound and proc.name in (brute_force_binaries) and pentest_ports
