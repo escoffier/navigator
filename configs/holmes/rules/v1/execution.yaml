@@ -5,10 +5,10 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "It is recommended to check whether the database is attacked by injection. There is a phenomenon of executing system commands through the database. You can use immune defense to block further hacker behavior."
+      value: "Please confirm whether it is the normal behavior of the process, otherwise it is recommended to check whether the database is under injection attack, there is the phenomenon of executing system commands through the database, you can use immune defense to block the further behavior of hackers."
     zh:
       key: "处置建议"
-      value: "建议排查数据库是否遭到注入攻击，存在通过数据库执行系统命令现象，可使用免疫防御阻断黑客进一步行为。"
+      value: "请确认是否属于进程的正常行为，否则建议排查数据库是否遭到注入攻击，存在通过数据库执行系统命令现象，可使用免疫防御阻断黑客进一步行为。"
   desc: >
     a database-server related program spawned a new process other than itself.
     This shouldn\'t occur and is a follow on from some SQL injection attacks.
@@ -33,10 +33,10 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "To confirm whether the binary file is safe, you can use the immune defense training application to block new or modified executable files, and limit the users and receiving objects who execute commands."
+      value: "Please confirm whether it is a normal behavior of the process, whether malicious commands are executed, and confirm whether there is a security vulnerability in that binary file. You can use the immune defense training application to block new or modified executable files and restrict the users and recipients of the executed commands."
     zh:
       key: "处置建议"
-      value: "确认该二进制文件是否安全，可使用免疫防御训练应用，阻拦新的或被修改的可执行文件，限制执行命令的用户和接收对象。"
+      value: "请确认是否属于进程的正常行为，是否执行了恶意命令，确认该二进制文件是否存在安全漏洞，可使用免疫防御训练应用，阻拦新的或被修改的可执行文件，限制执行命令的用户和接收对象。"
   desc: an attempt to spawn a shell below a non-shell application. Specific applications are monitored.
   condition: >
     spawned_process
@@ -82,10 +82,10 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "View the alarm details and troubleshoot the causes of the shell."
+      value: "Check the alert details, troubleshoot the reason for shell generation, confirm whether the user who entered the container and the time are as expected, and pay attention to whether the subsequent execution of malicious commands."
     zh:
       key: "处置建议"
-      value: "查看告警详情，排查shell产生原因。"
+      value: "查看告警详情，排查shell产生原因，确认进入容器的用户和时间是否符合预期，关注后续是否执行恶意命令。"
   desc: A shell was used as the entrypoint/exec point into a container with an attached terminal.
   condition: >
     spawned_process and container
@@ -117,7 +117,7 @@
     (proc.name = "ncat" and (proc.args contains "--sh-exec" or proc.args contains "--exec" or proc.args contains "-e " or proc.args contains "-c " or proc.args contains "--lua-exec"))) and
     not (k8s.pod.name contains "-kafka-zookeeper-" or tensorsec_namespace or ignore_proc_args)
   output: >
-    Netcat runs inside container that allows remote code execution (zh_msg=容器里通过黑客工具netcat执行远程命令,rule_type=Execution,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid,container_id=%container.id,container_name=%container.name,image=%container.image.repository:%container.image.tag)
+     Netcat runs inside container that allows remote code execution (zh_msg=容器里通过黑客工具netcat执行远程命令,rule_type=Execution,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid,container_id=%container.id,container_name=%container.name,image=%container.image.repository:%container.image.tag)
   priority: ALERT
   tags: [ATT&CK, network, process, mitre_execution]
 
@@ -127,10 +127,10 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "The container is intruded, it is necessary to isolate the container, investigate other attacks, and confirm the security of the cluster."
+      value: "If the container is intruded, we need to isolate the container, get the remote ip address of the attacker, and check other attacks to confirm the security of the cluster."
     zh:
       key: "处置建议"
-      value: "容器遭到入侵，需隔离该容器，同时排查其他攻击行为，确认集群安全。"
+      value: "容器遭到入侵，需隔离该容器，获取攻击者远程ip地址，同时排查其他攻击行为，确认集群安全。"
   desc: Telnet Program runs inside container that allows remote code execution(Risk of Reverse Shell exploit)
   condition: >
     evt.type=recvfrom and proc.name contains "telnet" and container and not ignore_proc_args and remote_server_subnet and shell_parent_procs
@@ -148,10 +148,10 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "The container is intruded, it is necessary to isolate the container, investigate other attacks, and confirm the security of the cluster."
+      value: "If the container is intruded, we need to isolate the container, get the remote ip address of the attacker, and check other attacks to confirm the security of the cluster."
     zh:
       key: "处置建议"
-      value: "容器遭到入侵，需隔离该容器，同时排查其他攻击行为，确认集群安全。"
+      value: "容器遭到入侵，需隔离该容器，获取攻击者远程ip地址，同时排查其他攻击行为，确认集群安全。"
   desc: Ruby Program runs inside container that allows remote code execution(Risk of Reverse Shell exploit)
   condition: >
     evt.type=socket and evt.res!=ENOENT and (proc.pname contains "ruby" or proc.name contains "ruby") and proc.cmdline contains "TCPSocket" and container and shell_parent_procs
@@ -169,10 +169,10 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "The container is intruded, it is necessary to isolate the container, investigate other attacks, and confirm the security of the cluster."
+      value: "If the container is intruded, we need to isolate the container, get the remote ip address of the attacker, and check other attacks to confirm the security of the cluster."
     zh:
       key: "处置建议"
-      value: "容器遭到入侵，需隔离该容器，同时排查其他攻击行为，确认集群安全。"
+      value: "容器遭到入侵，需隔离该容器，获取攻击者远程ip地址，同时排查其他攻击行为，确认集群安全。"
   desc: awk Program runs inside container that allows remote code execution(Risk of Reverse Shell exploit)
   condition: >
     evt.type=connect and not evt.res contains "ECONNREFUSED" and evt.arg.res!=0 and container and not ignore_proc_args and proc.name contains "awk" and proc.cmdline contains "/inet/tcp/" and shell_parent_procs
@@ -190,10 +190,10 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "The container is intruded, it is necessary to isolate the container, investigate other attacks, and confirm the security of the cluster."
+      value: "If the container is intruded, we need to isolate the container, get the remote ip address of the attacker, and check other attacks to confirm the security of the cluster."
     zh:
       key: "处置建议"
-      value: "容器遭到入侵，需隔离该容器，同时排查其他攻击行为，确认集群安全。"
+      value: "容器遭到入侵，需隔离该容器，获取攻击者远程ip地址，同时排查其他攻击行为，确认集群安全。"
   desc: Reverse shell through socket and dup
   condition: evt.type=dup and container and fd.num in (0, 1, 2) and fd.type in ("ipv4", "ipv6") and not k8s.pod.name contains "98166d" and not k8s.pod.name contains "42cca6" and shell_parent_procs
   output: >
@@ -214,8 +214,8 @@
   desc: Running malicious tools in the container
   condition: >
     evt.type = execve and container and
-    shell_parent_procs and
-    (not tensorsec_namespace) and 
+    shell_parent_procs and 
+    (not tensorsec_namespace) and
     (proc.cmdline contains "cdk eva" or
      proc.cmdline contains "k0otkit" or
      proc.cmdline contains "kubesploit" or
@@ -237,13 +237,13 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "Please confirm whether the Redis connection is a normal service connection and check the cause of the connection."
+      value: "Please use the process tree to determine whether the command is executed by malware, confirm whether the redis connection is a normal business connection, and investigate the reason for the connection."
     zh:
       key: "处置建议"
-      value: "请确认该redis连接是否为业务正常连接，排查出现该连接原因。"
+      value: 请通过进程树判断该命令是否由恶意软件执行，确认该redis连接是否为业务正常连接，排查出现该连接原因。"
   desc: Connecting to a remote server through redis client in container
   condition: >
-    evt.type=openat and container and evt.arg.name contains ".rediscli_history" and proc.cmdline contains " -h " and not proc.cmdline contains "localhost" and not proc.cmdline contains "127.0.0.1" and not k8s.pod.name contains "51c1c6"
+    evt.type=openat and container and evt.arg.name contains ".rediscli_history" and proc.cmdline  contains " -h " and not proc.cmdline contains "localhost" and not proc.cmdline contains "127.0. 0.1" and not k8s.pod.name contains "51c1c6"
   output: >
     Connecting to a remote server through redis client in container (zh_msg=容器内通过redis客户端连接远程服务器,rule_type=Execution,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name user_loginuid=%user.loginuid parent=%proc.pname terminal=%proc.tty container_id=%container.id container_name=%container.name image=%container.image.repository)
   priority: WARNING
@@ -255,10 +255,10 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "Check whether the execution of the relevant command is as expected and whether it is an operation and maintenance operation. If it is triggered by the system probe, please add the corresponding container to the white list. Otherwise, please check the specific reason and isolate the container."
+      value: "Please determine through the process tree whether the command belongs to the normal behavior of known processes, whether it is an operation and maintenance operation, if it is triggered by the system probe, please use the whitelist plus white corresponding container, otherwise please investigate the specific reasons and isolate the container."
     zh:
       key: "处置建议"
-      value: "查看相关命令执行是否符合预期，是否为运维操作，如果为系统探针触发请采用白名单加白对应容器，否则请排查具体原因并隔离该容器。"
+      value: "请通过进程树判断该命令是否属于已知进程的正常行为，是否为运维操作，如果为系统探针触发请采用白名单加白对应容器，否则请排查具体原因并隔离该容器。"
   desc: Suspected hacker transmits data through tunnel in container
   condition: >
     evt.type=socket and container and (proc.name=ping and proc.cmdline contains "-p") or proc.name=nslookup or (proc.name=curl and proc.cmdline contains "-d")  and shell_parent_procs
