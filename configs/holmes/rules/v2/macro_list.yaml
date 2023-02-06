@@ -197,29 +197,29 @@
 
 - macro: bin_dir_mkdir
   condition: >
-     (evt.arg.path startswith /bin/ or
-     evt.arg.path startswith /sbin/ or
-     evt.arg.path startswith /usr/bin/ or
-     evt.arg.path startswith /usr/sbin/)
+    (evt.arg.path startswith /bin/ or
+    evt.arg.path startswith /sbin/ or
+    evt.arg.path startswith /usr/bin/ or
+    evt.arg.path startswith /usr/sbin/)
 
 - macro: bin_dir_rename
   condition: >
-     (evt.arg.path startswith /bin/ or
-     evt.arg.path startswith /sbin/ or
-     evt.arg.path startswith /usr/bin/ or
-     evt.arg.path startswith /usr/sbin/ or
-     evt.arg.name startswith /bin/ or
-     evt.arg.name startswith /sbin/ or
-     evt.arg.name startswith /usr/bin/ or
-     evt.arg.name startswith /usr/sbin/ or
-     evt.arg.oldpath startswith /bin/ or
-     evt.arg.oldpath startswith /sbin/ or
-     evt.arg.oldpath startswith /usr/bin/ or
-     evt.arg.oldpath startswith /usr/sbin/ or
-     evt.arg.newpath startswith /bin/ or
-     evt.arg.newpath startswith /sbin/ or
-     evt.arg.newpath startswith /usr/bin/ or
-     evt.arg.newpath startswith /usr/sbin/)
+    (evt.arg.path startswith /bin/ or
+    evt.arg.path startswith /sbin/ or
+    evt.arg.path startswith /usr/bin/ or
+    evt.arg.path startswith /usr/sbin/ or
+    evt.arg.name startswith /bin/ or
+    evt.arg.name startswith /sbin/ or
+    evt.arg.name startswith /usr/bin/ or
+    evt.arg.name startswith /usr/sbin/ or
+    evt.arg.oldpath startswith /bin/ or
+    evt.arg.oldpath startswith /sbin/ or
+    evt.arg.oldpath startswith /usr/bin/ or
+    evt.arg.oldpath startswith /usr/sbin/ or
+    evt.arg.newpath startswith /bin/ or
+    evt.arg.newpath startswith /sbin/ or
+    evt.arg.newpath startswith /usr/bin/ or
+    evt.arg.newpath startswith /usr/sbin/)
 
 - macro: etc_dir
   condition: fd.name startswith /etc/
@@ -235,7 +235,7 @@
     sshd, sftp-server, ssh-agent,
     ssh, scp, sftp,
     ssh-keygen, ssh-keysign, ssh-keyscan, ssh-add
-    ]
+  ]
 
 - list: shell_mgmt_binaries
   items: [add-shell, remove-shell]
@@ -268,13 +268,13 @@
     tac, link, chroot, vdir, chown, touch, ls, dd, uname, "true", pwd, date,
     chgrp, chmod, mktemp, cat, mknod, sync, ln, "false", rm, mv, cp, echo,
     readlink, sleep, stty, mkdir, df, dir, rmdir, touch
-    ]
+  ]
 
 - list: login_binaries
   items: [
     login, systemd, '"(systemd)"', systemd-logind, su,
     nologin, faillog, lastlog, newgrp, sg
-    ]
+  ]
 
 - list: passwd_binaries
   items: [
@@ -282,14 +282,14 @@
     groupmod, vipw, pwconv, useradd, newusers, cppw, chpasswd, usermod,
     groupadd, groupdel, grpunconv, chgpasswd, userdel, chage, chsh,
     gpasswd, chfn, expiry, passwd, vigr, cpgr, adduser, addgroup, deluser, delgroup
-    ]
+  ]
 
 - list: shadowutils_binaries
   items: [
     chage, gpasswd, lastlog, newgrp, sg, adduser, deluser, chpasswd,
     groupadd, groupdel, addgroup, delgroup, groupmems, groupmod, grpck, grpconv, grpunconv,
     newusers, pwck, pwconv, pwunconv, useradd, userdel, usermod, vigr, vipw, unix_chkpwd
-    ]
+  ]
 
 - list: sysdigcloud_binaries
   items: [setup-backend, dragent, sdchecks]
@@ -347,9 +347,9 @@
 
 - list: deb_binaries
   items: [dpkg, dpkg-preconfigu, dpkg-reconfigur, dpkg-divert, apt, apt-get, aptitude,
-    frontend, preinst, add-apt-reposit, apt-auto-remova, apt-key,
-    apt-listchanges, unattended-upgr, apt-add-reposit, apt-cache
-    ]
+          frontend, preinst, add-apt-reposit, apt-auto-remova, apt-key,
+          apt-listchanges, unattended-upgr, apt-add-reposit, apt-cache
+  ]
 
 - list: package_mgmt_binaries
   items: [rpm_binaries, deb_binaries, update-alternat, gem, npm, pip, pip3, sane-utils.post, alternatives, chef-client, apk, snapd]
@@ -359,9 +359,9 @@
 
 - macro: package_mgmt_ancestor_procs
   condition: proc.pname in (package_mgmt_binaries) or
-             proc.aname[2] in (package_mgmt_binaries) or
-             proc.aname[3] in (package_mgmt_binaries) or
-             proc.aname[4] in (package_mgmt_binaries)
+    proc.aname[2] in (package_mgmt_binaries) or
+    proc.aname[3] in (package_mgmt_binaries) or
+    proc.aname[4] in (package_mgmt_binaries)
 
 - macro: coreos_write_ssh_dir
   condition: (proc.name=update-ssh-keys and fd.name startswith /home/core/.ssh)
@@ -383,7 +383,7 @@
     sshd, dbus-daemon-lau, ping, ping6, critical-stack-, pmmcli,
     filemng, PassengerAgent, bwrap, osdetect, nginxmng, sw-engine-fpm,
     start-stop-daem
-    ]
+  ]
 
 - list: user_mgmt_binaries
   items: [login_binaries, passwd_binaries, shadowutils_binaries]
@@ -408,14 +408,14 @@
     sendmail, sendmail-msp, postfix, procmail, exim4,
     pickup, showq, mailq, dovecot, imap-login, imap,
     mailmng-core, pop3-login, dovecot-lda, pop3
-    ]
+  ]
 
 - list: mail_config_binaries
   items: [
     update_conf, parse_mc, makemap_hash, newaliases, update_mk, update_tlsm4,
     update_db, update_mc, ssmtp.postinst, mailq, postalias, postfix.config.,
     postfix.config, postfix-script, postconf
-    ]
+  ]
 
 - list: sensitive_file_names
   items: [/etc/shadow, /etc/passwd, /etc/sudoers, /etc/pam.conf, /etc/security/pwquality.conf]
@@ -658,8 +658,8 @@
 
 - macro: parent_node_running_npm
   condition: (proc.pcmdline startswith "node /usr/local/bin/npm" or
-              proc.pcmdline startswith "node /usr/local/nodejs/bin/npm" or
-              proc.pcmdline startswith "node /opt/rh/rh-nodejs6/root/usr/bin/npm")
+    proc.pcmdline startswith "node /usr/local/nodejs/bin/npm" or
+    proc.pcmdline startswith "node /opt/rh/rh-nodejs6/root/usr/bin/npm")
 
 - macro: parent_java_running_sbt
   condition: (proc.pname=java and proc.pcmdline contains sbt-launch.jar)
@@ -700,7 +700,7 @@
 
 - macro: run_by_yum
   condition: ((proc.pname=sh and proc.aname[2]=yum) or
-              (proc.aname[2]=sh and proc.aname[3]=yum))
+    (proc.aname[2]=sh and proc.aname[3]=yum))
 
 - macro: run_by_ms_oms
   condition: >
@@ -716,8 +716,8 @@
 # Chef is similar.
 - macro: run_by_chef
   condition: (proc.aname[2]=chef_command_wr or proc.aname[3]=chef_command_wr or
-              proc.aname[2]=chef-client or proc.aname[3]=chef-client or
-              proc.name=chef-client)
+    proc.aname[2]=chef-client or proc.aname[3]=chef-client or
+    proc.name=chef-client)
 
 - macro: run_by_adclient
   condition: (proc.aname[2]=adclient or proc.aname[3]=adclient or proc.aname[4]=adclient)
@@ -771,7 +771,7 @@
 
 - macro: perl_running_plesk
   condition: (proc.cmdline startswith "perl /opt/psa/admin/bin/plesk_agent_manager" or
-              proc.pcmdline startswith "perl /opt/psa/admin/bin/plesk_agent_manager")
+    proc.pcmdline startswith "perl /opt/psa/admin/bin/plesk_agent_manager")
 
 - macro: perl_running_updmap
   condition: (proc.cmdline startswith "perl /usr/bin/updmap")
@@ -785,9 +785,9 @@
 # CIS Linux Benchmark program
 - macro: linux_bench_reading_etc_shadow
   condition: ((proc.aname[2]=linux-bench and
-               proc.name in (awk,cut,grep)) and
-              (fd.name=/etc/shadow or
-               fd.directory=/etc/pam.d))
+    proc.name in (awk,cut,grep)) and
+    (fd.name=/etc/shadow or
+    fd.directory=/etc/pam.d))
 
 - macro: parent_ucf_writing_conf
   condition: (proc.pname=ucf and proc.aname[2]=frontend)
@@ -978,8 +978,8 @@
 
 - macro: access_repositories
   condition: (fd.directory in (repository_directories) or
-              (fd.name pmatch (repository_directories) and
-               fd.filename in (repository_files)))
+    (fd.name pmatch (repository_directories) and
+    fd.filename in (repository_files)))
 
 - macro: modify_repositories
   condition: (evt.arg.newpath pmatch (repository_directories))
@@ -1064,7 +1064,7 @@
 
 - macro: plesk_install_writing_apache_conf
   condition: (proc.cmdline startswith "bash -hB /usr/lib/plesk-9.0/services/webserver.apache configure"
-              and fd.name="/etc/apache2/apache2.conf.tmp")
+    and fd.name="/etc/apache2/apache2.conf.tmp")
 
 - macro: plesk_running_mktemp
   condition: (proc.name=mktemp and proc.aname[3] in (plesk_binaries))
@@ -1083,26 +1083,26 @@
 
 - macro: datadog_writing_conf
   condition: ((proc.cmdline startswith "python /opt/datadog-agent" or
-               proc.cmdline startswith "entrypoint.sh /entrypoint.sh datadog start" or
-               proc.cmdline startswith "agent.py /opt/datadog-agent")
-              and fd.name startswith "/etc/dd-agent")
+    proc.cmdline startswith "entrypoint.sh /entrypoint.sh datadog start" or
+    proc.cmdline startswith "agent.py /opt/datadog-agent")
+    and fd.name startswith "/etc/dd-agent")
 
 - macro: rancher_writing_conf
   condition: ((proc.name in (healthcheck, lb-controller, rancher-dns)) and
-              (container.image.repository contains "rancher/healthcheck" or
-               container.image.repository contains "rancher/lb-service-haproxy" or
-               container.image.repository contains "rancher/dns") and
-              (fd.name startswith "/etc/haproxy" or fd.name startswith "/etc/rancher-dns"))
+    (container.image.repository contains "rancher/healthcheck" or
+    container.image.repository contains "rancher/lb-service-haproxy" or
+    container.image.repository contains "rancher/dns") and
+    (fd.name startswith "/etc/haproxy" or fd.name startswith "/etc/rancher-dns"))
 
 - macro: rancher_writing_root
   condition: (proc.name=rancher-metadat and
-              (container.image.repository contains "rancher/metadata" or container.image.repository contains "rancher/lb-service-haproxy") and
-              fd.name startswith "/answers.json")
+    (container.image.repository contains "rancher/metadata" or container.image.repository contains "rancher/lb-service-haproxy") and
+    fd.name startswith "/answers.json")
 
 - macro: checkpoint_writing_state
   condition: (proc.name=checkpoint and
-              container.image.repository contains "coreos/pod-checkpointer" and
-              fd.name startswith "/etc/kubernetes")
+    container.image.repository contains "coreos/pod-checkpointer" and
+    fd.name startswith "/etc/kubernetes")
 
 - macro: jboss_in_container_writing_passwd
   condition: >
@@ -1116,7 +1116,7 @@
 
 - macro: haproxy_writing_conf
   condition: ((proc.name in (update-haproxy-,haproxy_reload.) or proc.pname in (update-haproxy-,haproxy_reload,haproxy_reload.))
-               and (fd.name=/etc/openvpn/client.map or fd.name startswith /etc/haproxy))
+    and (fd.name=/etc/openvpn/client.map or fd.name startswith /etc/haproxy))
 
 - macro: java_writing_conf
   condition: (proc.name=java and fd.name=/etc/.java/.systemPrefs/.system.lock)
@@ -1126,7 +1126,7 @@
 
 - macro: rook_writing_conf
   condition: (proc.name=toolbox.sh and container.image.repository=rook/toolbox
-              and fd.directory=/etc/ceph)
+    and fd.directory=/etc/ceph)
 
 - macro: httpd_writing_conf_logs
   condition: (proc.name=httpd and fd.name startswith /etc/httpd/)
@@ -1333,40 +1333,40 @@
 
 - macro: known_root_conditions
   condition: (fd.name startswith /root/orcexec.
-              or fd.name startswith /root/.m2
-              or fd.name startswith /root/.npm
-              or fd.name startswith /root/.pki
-              or fd.name startswith /root/.ivy2
-              or fd.name startswith /root/.config/Cypress
-              or fd.name startswith /root/.config/pulse
-              or fd.name startswith /root/.config/configstore
-              or fd.name startswith /root/jenkins/workspace
-              or fd.name startswith /root/.jenkins
-              or fd.name startswith /root/.cache
-              or fd.name startswith /root/.sbt
-              or fd.name startswith /root/.java
-              or fd.name startswith /root/.glide
-              or fd.name startswith /root/.sonar
-              or fd.name startswith /root/.v8flag
-              or fd.name startswith /root/infaagent
-              or fd.name startswith /root/.local/lib/python
-              or fd.name startswith /root/.pm2
-              or fd.name startswith /root/.gnupg
-              or fd.name startswith /root/.pgpass
-              or fd.name startswith /root/.theano
-              or fd.name startswith /root/.gradle
-              or fd.name startswith /root/.android
-              or fd.name startswith /root/.ansible
-              or fd.name startswith /root/.crashlytics
-              or fd.name startswith /root/.dbus
-              or fd.name startswith /root/.composer
-              or fd.name startswith /root/.gconf
-              or fd.name startswith /root/.nv
-              or fd.name startswith /root/.local/share/jupyter
-              or fd.name startswith /root/oradiag_root
-              or fd.name startswith /root/workspace
-              or fd.name startswith /root/jvm
-              or fd.name startswith /root/.node-gyp)
+    or fd.name startswith /root/.m2
+    or fd.name startswith /root/.npm
+    or fd.name startswith /root/.pki
+    or fd.name startswith /root/.ivy2
+    or fd.name startswith /root/.config/Cypress
+    or fd.name startswith /root/.config/pulse
+    or fd.name startswith /root/.config/configstore
+    or fd.name startswith /root/jenkins/workspace
+    or fd.name startswith /root/.jenkins
+    or fd.name startswith /root/.cache
+    or fd.name startswith /root/.sbt
+    or fd.name startswith /root/.java
+    or fd.name startswith /root/.glide
+    or fd.name startswith /root/.sonar
+    or fd.name startswith /root/.v8flag
+    or fd.name startswith /root/infaagent
+    or fd.name startswith /root/.local/lib/python
+    or fd.name startswith /root/.pm2
+    or fd.name startswith /root/.gnupg
+    or fd.name startswith /root/.pgpass
+    or fd.name startswith /root/.theano
+    or fd.name startswith /root/.gradle
+    or fd.name startswith /root/.android
+    or fd.name startswith /root/.ansible
+    or fd.name startswith /root/.crashlytics
+    or fd.name startswith /root/.dbus
+    or fd.name startswith /root/.composer
+    or fd.name startswith /root/.gconf
+    or fd.name startswith /root/.nv
+    or fd.name startswith /root/.local/share/jupyter
+    or fd.name startswith /root/oradiag_root
+    or fd.name startswith /root/workspace
+    or fd.name startswith /root/jvm
+    or fd.name startswith /root/.node-gyp)
 
 # Add conditions to this macro (probably in a separate file,
 # overwriting this macro) to allow for specific combinations of
@@ -1406,7 +1406,7 @@
     vsftpd, systemd, mysql_install_d, psql, screen, debconf-show, sa-update,
     pam-auth-update, pam-config, /usr/sbin/spamd, polkit-agent-he, lsattr, file, sosreport,
     scxcimservera, adclient, rtvscand, cockpit-session, userhelper, ossec-syscheckd, tar, nmap
-    ]
+  ]
 
 # Add conditions to this macro (probably in a separate file,
 # overwriting this macro) to allow for specific combinations of
@@ -1497,7 +1497,7 @@
   items: [
     http_server_binaries, db_server_binaries, nosql_server_binaries, mail_binaries,
     fluentd, flanneld, splunkd, consul, smbd, runsv, PM2
-    ]
+  ]
 
 - macro: parent_java_running_zookeeper
   condition: (proc.pname=java and proc.pcmdline contains org.apache.zookeeper.server)
@@ -1684,15 +1684,15 @@
     sysdig/falco,
     sysdig/sysdig,
     sematext_images
-    ]
+  ]
 
 - macro: falco_privileged_containers
   condition: (openshift_image or
-              user_trusted_containers or
-              container.image.repository in (trusted_images) or
-              container.image.repository in (falco_privileged_images) or
-              container.image.repository startswith istio/proxy_ or
-              container.image.repository startswith quay.io/sysdig/)
+    user_trusted_containers or
+    container.image.repository in (trusted_images) or
+    container.image.repository in (falco_privileged_images) or
+    container.image.repository startswith istio/proxy_ or
+    container.image.repository startswith quay.io/sysdig/)
 
 # Add conditions to this macro (probably in a separate file,
 # overwriting this macro) to specify additional containers that are
@@ -1702,9 +1702,9 @@
 # and repeats it.
 - macro: user_privileged_containers
   condition: (container.image.repository endswith /tensorsec-scanner or
-              container.image.repository endswith /kube-proxy or
-              container.image.repository endswith /tensorsec-daemon or
-              container.image.repository endswith /tensorsec-holmes)
+    container.image.repository endswith /kube-proxy or
+    container.image.repository endswith /tensorsec-daemon or
+    container.image.repository endswith /tensorsec-holmes)
 
 - list: rancher_images
   items: [
@@ -1724,13 +1724,13 @@
     docker.io/datadog/docker-dd-agent, docker.io/datadog/agent, docker.io/docker/ucp-agent, docker.io/gliderlabs/logspout,
     docker.io/netdata/netdata, docker.io/google/cadvisor, docker.io/prom/node-exporter,
     amazon/amazon-ecs-agent,quay.io/prometheus/node-exporter
-    ]
+  ]
 
 - macro: falco_sensitive_mount_containers
   condition: (user_trusted_containers or
-              container.image.repository in (trusted_images) or
-              container.image.repository in (falco_sensitive_mount_images) or
-              container.image.repository startswith quay.io/sysdig/)
+    container.image.repository in (trusted_images) or
+    container.image.repository in (falco_sensitive_mount_images) or
+    container.image.repository startswith quay.io/sysdig/)
 
 # These container images are allowed to run with hostnetwork=true
 - list: falco_hostnetwork_images
@@ -1742,8 +1742,8 @@
     gke.gcr.io/kube-proxy,
     gke.gcr.io/netd-amd64,
     k8s.gcr.io/ip-masq-agent-amd64
-    k8s.gcr.io/prometheus-to-sd,
-    ]
+      k8s.gcr.io/prometheus-to-sd,
+  ]
 
 # Add conditions to this macro (probably in a separate file,
 # overwriting this macro) to specify additional containers that are
@@ -1753,8 +1753,8 @@
 # and repeats it.
 - macro: user_sensitive_mount_containers
   condition: (container.image.repository endswith /tensorsec-scanner or
-              container.image.repository endswith /tensordig or
-              container.image.repository endswith /tensorsec-holmes)
+    container.image.repository endswith /tensordig or
+    container.image.repository endswith /tensorsec-holmes)
 
 # For now, only considering a full mount of /etc as
 # sensitive. Ideally, this would also consider all subdirectories
@@ -1762,17 +1762,17 @@
 # doesn't allow exclusions of a full pattern, only single characters.
 - macro: sensitive_mount
   condition: (container.mount.dest[/proc*] != "N/A" or
-              container.mount.dest[/var/run/docker.sock] != "N/A" or
-              container.mount.dest[/var/run/crio/crio.sock] != "N/A" or
-              container.mount.dest[/run/containerd/containerd.sock] != "N/A" or
-              container.mount.dest[/var/lib/kubelet] != "N/A" or
-              container.mount.dest[/var/lib/kubelet/pki] != "N/A" or
-              container.mount.dest[/] != "N/A" or
-              container.mount.dest[/home/admin] != "N/A" or
-              container.mount.dest[/etc] != "N/A" or
-              container.mount.dest[/etc/kubernetes] != "N/A" or
-              container.mount.dest[/etc/kubernetes/manifests] != "N/A" or
-              container.mount.dest[/root*] != "N/A")
+    container.mount.dest[/var/run/docker.sock] != "N/A" or
+    container.mount.dest[/var/run/crio/crio.sock] != "N/A" or
+    container.mount.dest[/run/containerd/containerd.sock] != "N/A" or
+    container.mount.dest[/var/lib/kubelet] != "N/A" or
+    container.mount.dest[/var/lib/kubelet/pki] != "N/A" or
+    container.mount.dest[/] != "N/A" or
+    container.mount.dest[/home/admin] != "N/A" or
+    container.mount.dest[/etc] != "N/A" or
+    container.mount.dest[/etc/kubernetes] != "N/A" or
+    container.mount.dest[/etc/kubernetes/manifests] != "N/A" or
+    container.mount.dest[/root*] != "N/A")
 
 # The steps libcontainer performs to set up the root program for a container are:
 # - clone + exec self to a program runc:[0:PARENT]
@@ -1853,7 +1853,7 @@
     '"bash -c id -Gn kafadmin"',
     '"sh -c /bin/sh -c ''date +%%s''"',
     '"sh -c /usr/share/lighttpd/create-mime.conf.pl"'
-    ]
+  ]
 
 # This list allows for easy additions to the set of commands allowed
 # to run shells in containers without having to without having to copy
@@ -1880,7 +1880,7 @@
 # This list allows easily whitelisting system proc names that are
 # expected to communicate on the network.
 - list: known_system_procs_network_activity_binaries
-  items: [systemd, hostid, id, calico-node, envoy, webhook, daemon, kube-rbac-proxy, palace, scan_report, console, microseg, cluster-manager, iptables-restor, safe-node-image, sherlock_api, nginx, consul, speaker, prometheus, defender, categraf, pilot-agent, curl, timeout]
+  items: [systemd, hostid, id, calico-node, envoy, webhook, daemon, kube-rbac-proxy, palace, scan_report, console, microseg, cluster-manager, iptables-restor, safe-node-image, sherlock_api, nginx, consul, speaker, prometheus, defender, categraf, pilot-agent]
 
 # This macro allows specifying conditions under which a system binary
 # is allowed to communicate on the network. For instance, only specific
@@ -1948,13 +1948,13 @@
 
 - macro: somebody_becoming_themself
   condition: ((user.name=nobody and evt.arg.uid=nobody) or
-              (user.name=www-data and evt.arg.uid=www-data) or
-              (user.name=_apt and evt.arg.uid=_apt) or
-              (user.name=postfix and evt.arg.uid=postfix) or
-              (user.name=pki-agent and evt.arg.uid=pki-agent) or
-              (user.name=pki-acme and evt.arg.uid=pki-acme) or
-              (user.name=nfsnobody and evt.arg.uid=nfsnobody) or
-              (user.name=postgres and evt.arg.uid=postgres))
+    (user.name=www-data and evt.arg.uid=www-data) or
+    (user.name=_apt and evt.arg.uid=_apt) or
+    (user.name=postfix and evt.arg.uid=postfix) or
+    (user.name=pki-agent and evt.arg.uid=pki-agent) or
+    (user.name=pki-acme and evt.arg.uid=pki-acme) or
+    (user.name=nfsnobody and evt.arg.uid=nfsnobody) or
+    (user.name=postgres and evt.arg.uid=postgres))
 
 - macro: nrpe_becoming_nagios
   condition: (proc.name=nrpe and evt.arg.uid=nagios)
@@ -1987,7 +1987,7 @@
   items: [
     /dev/null, /dev/stdin, /dev/stdout, /dev/stderr,
     /dev/random, /dev/urandom, /dev/console, /dev/kmsg
-    ]
+  ]
 
 - macro: user_known_create_files_below_dev_activities
   condition: (never_true)
@@ -2112,9 +2112,9 @@
 
 - macro: trusted_logging_images
   condition: (container.image.repository endswith "splunk/fluentd-hec" or
-              container.image.repository endswith "fluent/fluentd-kubernetes-daemonset" or
-              container.image.repository endswith "openshift3/ose-logging-fluentd" or
-              container.image.repository endswith "containernetworking/azure-npm")
+    container.image.repository endswith "fluent/fluentd-kubernetes-daemonset" or
+    container.image.repository endswith "openshift3/ose-logging-fluentd" or
+    container.image.repository endswith "containernetworking/azure-npm")
 
 
 - list: data_remove_commands
@@ -2199,48 +2199,48 @@
 
 - list: miner_ports
   items: [
-        25, 3333, 3334, 3335, 3336, 3357, 4444,
-        5555, 5556, 5588, 5730, 6099, 6666, 7777,
-        7778, 8000, 8001, 8008, 8080, 8118, 8333,
-        8888, 8899, 9332, 9999, 14433, 14444,
-        45560, 45700
-    ]
+    25, 3333, 3334, 3335, 3336, 3357, 4444,
+    5555, 5556, 5588, 5730, 6099, 6666, 7777,
+    7778, 8000, 8001, 8008, 8080, 8118, 8333,
+    8888, 8899, 9332, 9999, 14433, 14444,
+    45560, 45700
+  ]
 
 - list: miner_domains
   items: [
-      "asia1.ethpool.org","ca.minexmr.com",
-      "cn.stratum.slushpool.com","de.minexmr.com",
-      "eth-ar.dwarfpool.com","eth-asia.dwarfpool.com",
-      "eth-asia1.nanopool.org","eth-au.dwarfpool.com",
-      "eth-au1.nanopool.org","eth-br.dwarfpool.com",
-      "eth-cn.dwarfpool.com","eth-cn2.dwarfpool.com",
-      "eth-eu.dwarfpool.com","eth-eu1.nanopool.org",
-      "eth-eu2.nanopool.org","eth-hk.dwarfpool.com",
-      "eth-jp1.nanopool.org","eth-ru.dwarfpool.com",
-      "eth-ru2.dwarfpool.com","eth-sg.dwarfpool.com",
-      "eth-us-east1.nanopool.org","eth-us-west1.nanopool.org",
-      "eth-us.dwarfpool.com","eth-us2.dwarfpool.com",
-      "eu.stratum.slushpool.com","eu1.ethermine.org",
-      "eu1.ethpool.org","fr.minexmr.com",
-      "mine.moneropool.com","mine.xmrpool.net",
-      "pool.minexmr.com","pool.monero.hashvault.pro",
-      "pool.supportxmr.com","sg.minexmr.com",
-      "sg.stratum.slushpool.com","stratum-eth.antpool.com",
-      "stratum-ltc.antpool.com","stratum-zec.antpool.com",
-      "stratum.antpool.com","us-east.stratum.slushpool.com",
-      "us1.ethermine.org","us1.ethpool.org",
-      "us2.ethermine.org","us2.ethpool.org",
-      "xmr-asia1.nanopool.org","xmr-au1.nanopool.org",
-      "xmr-eu1.nanopool.org","xmr-eu2.nanopool.org",
-      "xmr-jp1.nanopool.org","xmr-us-east1.nanopool.org",
-      "xmr-us-west1.nanopool.org","xmr.crypto-pool.fr",
-      "xmr.pool.minergate.com", "rx.unmineable.com",
-      "ss.antpool.com","dash.antpool.com",
-      "eth.antpool.com","zec.antpool.com",
-      "xmc.antpool.com","btm.antpool.com",
-      "stratum-dash.antpool.com","stratum-xmc.antpool.com",
-      "stratum-btm.antpool.com","donate.v2.xmrig.com"
-      ]
+    "asia1.ethpool.org","ca.minexmr.com",
+    "cn.stratum.slushpool.com","de.minexmr.com",
+    "eth-ar.dwarfpool.com","eth-asia.dwarfpool.com",
+    "eth-asia1.nanopool.org","eth-au.dwarfpool.com",
+    "eth-au1.nanopool.org","eth-br.dwarfpool.com",
+    "eth-cn.dwarfpool.com","eth-cn2.dwarfpool.com",
+    "eth-eu.dwarfpool.com","eth-eu1.nanopool.org",
+    "eth-eu2.nanopool.org","eth-hk.dwarfpool.com",
+    "eth-jp1.nanopool.org","eth-ru.dwarfpool.com",
+    "eth-ru2.dwarfpool.com","eth-sg.dwarfpool.com",
+    "eth-us-east1.nanopool.org","eth-us-west1.nanopool.org",
+    "eth-us.dwarfpool.com","eth-us2.dwarfpool.com",
+    "eu.stratum.slushpool.com","eu1.ethermine.org",
+    "eu1.ethpool.org","fr.minexmr.com",
+    "mine.moneropool.com","mine.xmrpool.net",
+    "pool.minexmr.com","pool.monero.hashvault.pro",
+    "pool.supportxmr.com","sg.minexmr.com",
+    "sg.stratum.slushpool.com","stratum-eth.antpool.com",
+    "stratum-ltc.antpool.com","stratum-zec.antpool.com",
+    "stratum.antpool.com","us-east.stratum.slushpool.com",
+    "us1.ethermine.org","us1.ethpool.org",
+    "us2.ethermine.org","us2.ethpool.org",
+    "xmr-asia1.nanopool.org","xmr-au1.nanopool.org",
+    "xmr-eu1.nanopool.org","xmr-eu2.nanopool.org",
+    "xmr-jp1.nanopool.org","xmr-us-east1.nanopool.org",
+    "xmr-us-west1.nanopool.org","xmr.crypto-pool.fr",
+    "xmr.pool.minergate.com", "rx.unmineable.com",
+    "ss.antpool.com","dash.antpool.com",
+    "eth.antpool.com","zec.antpool.com",
+    "xmc.antpool.com","btm.antpool.com",
+    "stratum-dash.antpool.com","stratum-xmc.antpool.com",
+    "stratum-btm.antpool.com","donate.v2.xmrig.com"
+  ]
 
 - list: https_miner_domains
   items: [
@@ -2303,13 +2303,13 @@
 
 - list: user_known_k8s_ns_kube_system_images
   items: [
-      k8s.gcr.io/fluentd-gcp-scaler,
-      k8s.gcr.io/node-problem-detector/node-problem-detector
+    k8s.gcr.io/fluentd-gcp-scaler,
+    k8s.gcr.io/node-problem-detector/node-problem-detector
   ]
 
 - list: user_known_k8s_images
   items: [
-      mcr.microsoft.com/aks/hcp/hcp-tunnel-front
+    mcr.microsoft.com/aks/hcp/hcp-tunnel-front
   ]
 
 # Whitelist for known docker client binaries run inside container

@@ -142,10 +142,10 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "The container has been invaded. Please check whether the cluster permissions have fallen. You can try to use micro isolation and immune defense to prevent the risk from spreading further."
+      value: "Please use the process tree to determine whether the command is a normal behavior of a known process, whether it is executed by malware, troubleshoot whether the hacker has obtained host privileges and has other host operations, and use the immune defense training application to restrict user privileges for sensitive files and commands."
     zh:
       key: "处置建议"
-      value: "容器遭到入侵，请排查集群权限是否陷落，可尝试采用微隔离和免疫防御阻止风险进一步扩散。"
+      value: "请通过进程树判断该命令是否属于已知进程的正常行为，是否由恶意软件执行，排查黑客是否已获取主机权限并有其它主机操作，使用免疫防御训练应用，限制敏感文件和命令的用户权限。"
   desc: Container escape to access host system
   condition: >
     open_write and container and fd.name contains /sys/kernel/core_pattern
@@ -160,10 +160,10 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "The container has been invaded. Please check whether the cluster permissions have fallen. You can try to use micro isolation and immune defense to prevent the risk from spreading further."
+      value: "Please use the process tree to determine whether the command is a normal behavior of a known process, whether it is executed by malware, troubleshoot whether the hacker has obtained host privileges and has other host operations, and use the immune defense training application to restrict user privileges for sensitive files and commands."
     zh:
       key: "处置建议"
-      value: "容器遭到入侵，请排查集群权限是否陷落，可尝试采用微隔离和免疫防御阻止风险进一步扩散。"
+      value: "请通过进程树判断该命令是否属于已知进程的正常行为，是否由恶意软件执行，排查黑客是否已获取主机权限并有其它主机操作，使用免疫防御训练应用，限制敏感文件和命令的用户权限。"
   desc: Detect file system debugger debugfs launched inside a privileged container which might lead to container escape.
   condition: >
    evt.type = write and container and evt.arg.data contains "debugfs " and not evt.arg.data contains "-w" and proc.cmdline contains " -w"
@@ -178,10 +178,10 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "The container has been invaded. Please check whether the cluster permissions have fallen. You can try to use micro isolation and immune defense to prevent the risk from spreading further."
+      value: "Please use the process tree to determine whether the command is a normal behavior of a known process, whether it is executed by malware, troubleshoot whether the hacker has obtained host privileges and has other host operations, and use the immune defense training application to restrict user privileges for sensitive files and commands."
     zh:
       key: "处置建议"
-      value: "容器遭到入侵，请排查集群权限是否陷落，可尝试采用微隔离和免疫防御阻止风险进一步扩散。"
+      value: "请通过进程树判断该命令是否属于已知进程的正常行为，是否由恶意软件执行，排查黑客是否已获取主机权限并有其它主机操作，使用免疫防御训练应用，限制敏感文件和命令的用户权限。"
   desc: Container escape to access host system
   condition: >
    evt.type=mount and evt.arg.type = "cgroup" and container and user.uid=0
@@ -332,26 +332,8 @@
   priority: ALERT
   tags: [ATT&CK, filesystem, mitre_privilege_escalation]
 
-# - rule: Linux Privilege Escalation using vim suid binaries
-#   hid: priv_17
-#   hthreats: 1
-#   suggestion:
-#     en:
-#       key: "Suggestions"
-#       value: "Please check whether the vim command in the container has been granted s permission, so that hackers try to use it to improve their rights. You can try to use micro isolation and immune defense to prevent the risk from spreading further."
-#     zh:
-#       key: "处置建议"
-#       value: "请排查容器内vim命令是否被授予s权限，从而被黑客尝试利用提权，可尝试采用微隔离和免疫防御阻止风险进一步扩散。"
-#   desc: Linux Privilege Escalation using vim suid binaries
-#   condition: >
-#     spawned_process and evt.arg.exe = "/bin/sh" and user.uid != 0 and proc.pname contains vim
-#   output: >
-#     Linux Privilege Escalation using vim suid binaries (zh_msg=尝试利用vim_suid进行linux提权,rule_type=Privilege_Escalation,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type, container=%container.info,container_id=%container.id,container_name=%container.name)
-#   priority: ALERT
-#   tags: [ATT&CK, filesystem, mitre_privilege_escalation]
-
 - rule: Linux Privilege Escalation using bash suid binaries
-  hid: priv_18
+  hid: priv_17
   hthreats: 1
   suggestion:
     en:
@@ -369,7 +351,7 @@
   tags: [ATT&CK, filesystem, mitre_privilege_escalation]
 
 - rule: Linux Privilege Escalation by modifying sensitive files with suid binaries
-  hid: priv_19
+  hid: priv_18
   hthreats: 1
   suggestion:
     en:
@@ -387,15 +369,15 @@
   tags: [ATT&CK, filesystem, mitre_privilege_escalation, triggered]
 
 - rule: Detect release_agent File Container Escapes
-  hid: priv_20
+  hid: priv_19
   hthreats: 1
   suggestion:
     en:
       key: "Suggestions"
-      value: "The container may have been invaded. Use the immune defense training application to limit the user permissions of sensitive files and commands."
+      value: "Please use the process tree to determine whether the command is a normal behavior of a known process, whether it is executed by malware, troubleshoot whether the hacker has obtained host privileges and has other host operations, and use the immune defense training application to restrict user privileges for sensitive files and commands."
     zh:
       key: "处置建议"
-      value: "容器可能已经遭到入侵，使用免疫防御训练应用，限制敏感文件和命令的用户权限。"
+      value: "请通过进程树判断该命令是否属于已知进程的正常行为，是否由恶意软件执行，排查黑客是否已获取主机权限并有其它主机操作，使用免疫防御训练应用，限制敏感文件和命令的用户权限。"
   desc: "Detect an attempt to exploit a container escape vulnerability in the Linux Kernel (CVE-2022-0492). By running a container with certains capabilities, a privileged user can modify release_agent file and escape from the container"
   condition: >
     open_write and container and fd.name endswith release_agent and user.uid=0 
@@ -405,15 +387,15 @@
   tags: [ATT&CK, filesystem, mitre_privilege_escalation]
 
 - rule: Connect to docker.sock in container
-  hid: priv_21
+  hid: priv_20
   hthreats: 1
   suggestion:
     en:
       key: "Suggestions"
-      value: "The container may have been invaded. Use the immune defense training application to limit the user permissions of sensitive files and commands."
+      value: "Please use the process tree to determine whether the command is a normal behavior of a known process and whether it is executed by malware, and you can use the immune defense training application to restrict user permissions for sensitive files and commands."
     zh:
       key: "处置建议"
-      value: "容器可能已经遭到入侵，使用免疫防御训练应用，限制敏感文件和命令的用户权限。"
+      value: "请通过进程树判断该命令是否属于已知进程的正常行为，是否由恶意软件执行，可使用免疫防御训练应用，限制敏感文件和命令的用户权限。"
   desc: Connect to docker.sock in container
   condition: >
     evt.type = connect and evt.args contains "docker.sock" and container and not tensorsec_namespace and shell_parent_procs
@@ -423,7 +405,7 @@
   tags: [ATT&CK, filesystem, mitre_privilege_escalation]
 
 - rule: Try to read the k8s token and bypass RBAC
-  hid: priv_22
+  hid: priv_21
   hthreats: 1
   suggestion:
     en:
@@ -431,7 +413,7 @@
       value: "The container may have been invaded. You can use the immune defense training application to limit the user permissions of sensitive files and commands."
     zh:
       key: "处置建议"
-      value: "容器可能已遭到入侵，可使用免疫防御训练应用，限制敏感文件和命令的用户权限。"
+      value: "请确认该读取行为是否属于进程的正常行为，是否由恶意软件执行，建议否则容器可能已遭到入侵，可使用免疫防御训练应用，限制敏感文件和命令的用户权限。"
   desc: Bypass K8s RBAC
   condition: >
     open_read and fd.name = /var/run/secrets/kubernetes.io/serviceaccount/token and container and shell_parent_procs
@@ -441,15 +423,15 @@
   tags: [ATT&CK, filesystem, mitre_privilege_escalation]
 
 - rule: Execute commands through the docker api
-  hid: priv_23
+  hid: priv_22
   hthreats: 1
   suggestion:
     en:
       key: "Suggestions"
-      value: "The container may have been invaded. You can use the immune defense training application to limit the user permissions of sensitive files and commands."
+      value: "Please use the process tree to determine whether the command is a normal behavior of a known process and whether it is executed by malware, and you can use the immune defense training application to restrict user permissions for sensitive files and commands."
     zh:
       key: "处置建议"
-      value: "容器可能已遭到入侵，可使用免疫防御训练应用，限制敏感文件和命令的用户权限。"
+      value: "请通过进程树判断该命令是否属于已知进程的正常行为，是否由恶意软件执行，可使用免疫防御训练应用，限制敏感文件和命令的用户权限。"
   desc: Execute commands through the docker api
   condition: >
     evt.type in (sendto, sendmsg, connect) and fd.sport = 2375 and shell_parent_procs
