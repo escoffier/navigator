@@ -12,6 +12,7 @@ import (
 	"github.com/PuerkitoBio/goquery"
 	"github.com/rs/zerolog"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
+	"gitlab.com/security-rd/go-pkg/httputil"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -131,8 +132,6 @@ func (r *Redclair) enrichWithCNNVD(ctx context.Context, vulns []model.Vulnerabil
 }
 
 func (r *Redclair) getFromCNNVDdotOrg(ctx context.Context, cveID string) (string, string, error) {
-	client := http.Client{}
-
 	form := url.Values{}
 	form.Add("qcvCnnvdid", cveID) // yes, the form field to find by CVE is called "Cnnvdid", this is not a mistake.
 	encodedForm := form.Encode()
@@ -149,7 +148,7 @@ func (r *Redclair) getFromCNNVDdotOrg(ctx context.Context, cveID string) (string
 	// Let's do it for as long as we can based on parent ctx
 	cnnvdCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
-	resp, err := client.Do(request.WithContext(cnnvdCtx))
+	resp, err := httputil.DefaultClient.Do(request.WithContext(cnnvdCtx))
 	if err != nil {
 		return "", "", fmt.Errorf("Failed to send request: %w", err)
 	}

@@ -3,7 +3,6 @@ package vulnupdata
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -17,24 +16,22 @@ import (
 	"sync"
 	"time"
 
-	"github.com/imroc/req/v3"
-
-	"gitlab.com/piccolo_su/vegeta/cmd/scanner/global"
-
 	"github.com/boltdb/bolt"
 	"github.com/gin-gonic/gin"
-
+	"github.com/imroc/req/v3"
+	json "github.com/json-iterator/go"
 	"github.com/yeka/zip"
-
 	scanvuln "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/bolt-vuln"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/task"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/vuln-updata/register"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/global"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
+	"gitlab.com/security-rd/go-pkg/httputil"
 )
 
 type VulnUpdata struct {
@@ -405,12 +402,13 @@ func (srv *UpdataService) GetVulnDBVersion(ctx context.Context, getVersionURL st
 	request.Header.Set("Content-Type", "application/json; charset=utf-8")
 	request.Header.Set(consts.ScannerUser, consts.InternalApiKey)
 
-	client := &http.Client{}
-	resp, err := client.Do(request)
+	resp, err := httputil.DefaultClient.Do(request)
 	if err != nil {
 		logging.GetLogger().Err(err).Str("url", getVersionURL).Msg("GetVulnDBVersion")
 		return "", err
 	}
+	defer resp.Body.Close()
+
 	content, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return "", err

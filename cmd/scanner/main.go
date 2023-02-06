@@ -4,28 +4,21 @@ import (
 	"math/rand"
 	"time"
 
-	"gitlab.com/piccolo_su/vegeta/pkg/util"
-
-	_ "go.uber.org/automaxprocs"
-
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/cmd"
 	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/dequeue"
-
 	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/jobs/pull-image"
 	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/jobs/save-result"
-
 	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/jobs/scan"
-	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry/suport/aliacr"
-	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry/suport/aliacr-ee"
-	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry/suport/docker"
-	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry/suport/harborv1"
-	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry/suport/harborv2"
-	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry/suport/hw-swr"
-	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry/suport/hw-swr-en"
-	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry/suport/jfrog"
+	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry/support/aliacr"
+	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry/support/aliacr-ee"
+	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry/support/docker"
+	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry/support/harborv1"
+	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry/support/harborv2"
+	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry/support/hw-swr"
+	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry/support/hw-swr-en"
+	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry/support/jfrog"
 	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/service/register/api"
 	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/service/register/cronjob"
-
 	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/service/register/image-cache"
 	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/service/register/image-sync"
 	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/service/register/malicious"
@@ -37,6 +30,8 @@ import (
 	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/service/register/task-policy"
 	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/service/register/trivy-srv"
 	_ "gitlab.com/piccolo_su/vegeta/pkg/api/apikey"
+	"gitlab.com/piccolo_su/vegeta/pkg/util"
+	_ "go.uber.org/automaxprocs"
 )
 
 // @title Vegeta API·

@@ -6,12 +6,11 @@ import (
 	"strings"
 	"time"
 
-	"gitlab.com/security-rd/go-pkg/databases"
-	"gorm.io/gorm"
-
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
+	"gitlab.com/security-rd/go-pkg/databases"
+	"gorm.io/gorm"
 )
 
 type VulnDalInterface interface {
@@ -128,10 +127,10 @@ func (v *VulnDao) SearchVuln(ctx context.Context, param SearchVulnParam, filter 
 		}()
 
 		if err := db.Exec(consts.CreateOnlineImageTempTableSql).Error; err != nil {
-			return nil, 0, nil
+			return nil, 0, err
 		}
 		if err := db.Exec(consts.InsertOnlineImageTempTableSql).Error; err != nil {
-			return nil, 0, nil
+			return nil, 0, err
 		}
 
 		sub := v.rdb.Get().WithContext(ctx).Table("ivan_scanner_vuln_images a").

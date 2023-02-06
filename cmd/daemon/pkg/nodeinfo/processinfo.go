@@ -2,9 +2,6 @@ package nodeinfo
 
 import (
 	"fmt"
-	"github.com/pkg/errors"
-	"gitlab.com/piccolo_su/vegeta/pkg/daemon"
-	"gitlab.com/security-rd/go-pkg/logging"
 	"io/ioutil"
 	"os"
 	"os/user"
@@ -12,6 +9,10 @@ import (
 	"strings"
 	"syscall"
 	"time"
+
+	"github.com/pkg/errors"
+	"gitlab.com/piccolo_su/vegeta/pkg/daemon"
+	"gitlab.com/security-rd/go-pkg/logging"
 )
 
 func GetProcessPid(pid int, basePath string) ([]int, error) {
@@ -73,7 +74,7 @@ func GetProcessStartTime() func(int, string) (string, error) {
 		}
 		fields := strings.Fields(string(buf))
 		if len(fields) <= 22 {
-			return "", errors.Errorf("%v data error")
+			return "", errors.Errorf("%v data error", fields)
 		}
 		start, err := strconv.ParseInt(fields[21], 10, 0)
 		if err != nil {
@@ -116,7 +117,7 @@ func GetProcessUser(pid int, basePath string) (string, error) {
 	}
 	//check
 	if !status {
-		return "", errors.Errorf("pase %v's data failed")
+		return "", errors.Errorf("path %s data failed", path)
 	}
 	//get uid
 	fields := strings.Fields(lines[i])
@@ -242,17 +243,17 @@ func GetContainerProcessInfo(pid int, basePath string) ([]*daemon.ProcessData, e
 	for _, value := range pids {
 		stime, err := getProcStartTime(value, basePath)
 		if err != nil {
-			logging.Get().Error().Msgf("get %v's start time failed, %+v.", err)
+			logging.Get().Err(err).Int("pid", value).Str("basePath", basePath).Msg("get start time failed.")
 			continue
 		}
 		name, err := GetProcessName(value, basePath)
 		if err != nil {
-			logging.Get().Error().Msgf("get %v's process name failed, %v.", value, err)
+			logging.Get().Err(err).Int("pid", value).Str("basePath", basePath).Msg("get process name failed")
 			continue
 		}
 		username, err := GetProcessUser(value, basePath)
 		if err != nil {
-			logging.Get().Error().Msgf("get process user failed, %+v.", err)
+			logging.Get().Err(err).Int("pid", value).Str("basePath", basePath).Msg("get process user failed")
 			continue
 		}
 		//

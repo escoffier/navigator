@@ -3,16 +3,15 @@ package component
 import (
 	"context"
 	"encoding/base64"
-	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"strings"
 
+	json "github.com/json-iterator/go"
 	"github.com/avast/retry-go"
 	"github.com/go-redis/redis/v8"
 	"gitlab.com/security-rd/go-pkg/httputil"
-
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
@@ -76,13 +75,13 @@ func (hb *Harbor) reqHarbor(ctx context.Context, url string, username string, pa
 		if err != nil {
 			return err
 		}
+		defer resp.Body.Close()
 		if resp.StatusCode != http.StatusOK && resp.StatusCode >= 500 {
 			return fmt.Errorf("status code is %d", resp.StatusCode)
 		}
 		return nil
 	}, retry.Attempts(3))
 
-	// defer util.CloseBodyWithLog(resp.Body)
 	if err != nil {
 		return nil, fmt.Errorf(fmt.Sprintf("get harbor projects err.%v", err.Error()))
 	}

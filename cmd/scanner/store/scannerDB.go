@@ -8,13 +8,12 @@ import (
 	"strings"
 	"time"
 
-	"gitlab.com/security-rd/go-pkg/databases"
-	"gorm.io/gorm"
-
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
+	"gitlab.com/security-rd/go-pkg/databases"
+	"gorm.io/gorm"
 )
 
 type ScannerDB struct {
@@ -100,7 +99,7 @@ func (scdb *ScannerDB) GetImageID(ctx context.Context, digest string, fullRepoNa
 	var tmp model.ImageList
 	res := scdb.RDB.Get().WithContext(ctx).Where("digest = ? and full_repo_name= ?", digest, fullRepoName).First(&tmp)
 	if res.Error != nil {
-		return -1, nil
+		return -1, res.Error
 	}
 	return tmp.ID, nil
 }
@@ -221,32 +220,32 @@ func (scdb *ScannerDB) FindRegistryAll(ctx context.Context) model.Registry {
 	return resRegis
 }
 
-func (scdb *ScannerDB) InsertToRegistry(ctx context.Context, Registry *model.Registry) {
+func (scdb *ScannerDB) InsertToRegistry(ctx context.Context, registry *model.Registry) {
 	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*5)
 	defer cancelFunc()
 
 	// fmt.Println("初始化时加密前的密码:", string(Registry.Password))
-	encryPass, err := util.DesEncrypt(Registry.Password, []byte(consts.EncryptPasswordKey))
+	encryPass, err := util.DesEncrypt(registry.Password, []byte(consts.EncryptPasswordKey))
 	if err != nil {
 		logging.GetLogger().Err(err).Msg("NewCipher Error")
 	}
-	Registry.Password = encryPass
+	registry.Password = encryPass
 	/*decryPass := make([]byte, 1024)
 	decryPass, err = scdb.DesDecrypt(encryPass, key)
 	fmt.Println("初始化时解压后的密码:", string(decryPass))*/
-	if Registry.UseType == 2 {
+	if registry.UseType == 2 {
 		scdb.RDB.Get().WithContext(ctx).Model(model.Registry{}).Where("use_type=2").Update("use_type", 0)
 	}
 	tmpRegistry := model.Registry{}
-	res := scdb.RDB.Get().WithContext(ctx).Model(Registry).Where("url = ?", Registry.Url).First(&tmpRegistry)
-	Registry.ID = tmpRegistry.ID
+	res := scdb.RDB.Get().WithContext(ctx).Model(registry).Where("url = ?", registry.Url).First(&tmpRegistry)
+	registry.ID = tmpRegistry.ID
 	if res.Error == nil {
-		if err := scdb.RDB.Get().WithContext(ctx).Updates(&Registry).Omit("created_at").Error; err != nil {
+		if err := scdb.RDB.Get().WithContext(ctx).Updates(&registry).Omit("created_at").Error; err != nil {
 			logging.GetLogger().WithContext(ctx).Errorf(err, "InsertToRegistry Updates Registry error%s ", err.Error())
 		}
 		return
 	}
-	scdb.RDB.Get().WithContext(ctx).Create(&Registry)
+	scdb.RDB.Get().WithContext(ctx).Create(&registry)
 }
 
 func (scdb *ScannerDB) GetAuthFromRegistry(ctx context.Context, url string) string {

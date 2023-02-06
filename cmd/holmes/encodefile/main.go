@@ -5,7 +5,6 @@ import (
 	"encoding/binary"
 	"flag"
 	"fmt"
-	"gopkg.in/yaml.v2"
 	"io/ioutil"
 	"os"
 	"strconv"
@@ -13,6 +12,7 @@ import (
 
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/security-rd/go-pkg/cryption"
+	"gopkg.in/yaml.v2"
 )
 
 func checkRulesDuplication(rules []model.RuleFromYaml) error {
@@ -101,24 +101,28 @@ func main() {
 
 	if err = checkRulesFile(fileBytes); err != nil {
 		fmt.Printf("\033[1;37;41m%s\033[0m\n", err)
+		fp.Close()
 		os.Exit(2)
 	}
 	data, md5, blockNum := cryption.EncryptionRules(fileBytes)
 	versionList := strings.Split(*version, ".")
 	if len(versionList) != 2 {
 		fmt.Printf("version number parse error. input: %s", *version)
+		fp.Close()
 		os.Exit(3)
 	}
 	versionNum := [2]uint16{0, 0}
 	tmpInt, err := strconv.ParseUint(versionList[0], 10, 16)
 	if err != nil {
 		fmt.Println(err)
+		fp.Close()
 		os.Exit(4)
 	}
 	versionNum[0] = uint16(tmpInt)
 	tmpInt, err = strconv.ParseUint(versionList[1], 10, 16)
 	if err != nil {
 		fmt.Println(err)
+		fp.Close()
 		os.Exit(5)
 	}
 	versionNum[1] = uint16(tmpInt)
@@ -128,6 +132,7 @@ func main() {
 	err = writeOutputFile(fp, header, data)
 	if err != nil {
 		fmt.Println(err)
+		fp.Close()
 		os.Exit(6)
 	}
 }
@@ -138,8 +143,8 @@ func readBytesFromDir(dirPath string) []byte {
 		fmt.Println(err)
 		os.Exit(7)
 	}
-	fileBytes := make([]byte, 0)
-	partFileBytes := make([]byte, 0)
+	fileBytes := make([]byte, 0, 50)
+	partFileBytes := make([]byte, 0, 50)
 	for _, fileInfo := range fileInfos {
 		if fileInfo.IsDir() {
 			partFileBytes = readBytesFromDir(dirPath + "/" + fileInfo.Name())
@@ -151,7 +156,7 @@ func readBytesFromDir(dirPath string) []byte {
 			}
 		}
 		fileBytes = append(fileBytes, append([]byte("\n\n"), partFileBytes...)...)
-		partFileBytes = make([]byte, 0)
+		partFileBytes = make([]byte, 0, 50)
 	}
 
 	return fileBytes

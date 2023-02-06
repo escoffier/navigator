@@ -659,7 +659,7 @@ func (ac *Controller) syncClusterRole(key string) error {
 		return err
 	}
 	if len(name) == 0 {
-		err := fmt.Errorf("empty namespace or name from key: %s")
+		err := fmt.Errorf("empty namespace or name from key: %s", name)
 		logging.Get().Err(err).Msg("empty namespace or name")
 		return err
 	}
@@ -828,7 +828,7 @@ func (ac *Controller) syncWorkLoad(key string, kind pkgassets.ResourceKind, f fu
 }
 
 func (ac *Controller) sendToMainClusterManager(ctx context.Context, action pkgassets.Action, watchedType pkgassets.WatchedType, obj pkgassets.IdentifiableItem) error {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
 	obj.SetDuplicatedChecked(true)
