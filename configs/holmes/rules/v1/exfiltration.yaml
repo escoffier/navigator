@@ -349,7 +349,7 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "The K8S sensitive port access behavior is detected. Please confirm whether it is legal access in combination with specific commands. If not, it may be used by attackers. Please isolate the pod in time"
+      value: "The K8S sensitive port access behavior is detected. Please confirm whether it is legal access in combination with specific commands. If not, it may be used by attackers. Please isolate the pod in time."
     zh:
       key: "处置建议"
       value: "测到k8s敏感端口访问行为,请结合具体命令确认是否为合法访问，如果不是则可能遭到攻击者利用，请及时隔离该pod。"

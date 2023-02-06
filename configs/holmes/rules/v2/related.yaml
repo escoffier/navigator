@@ -18,9 +18,10 @@
     and not login_doing_dns_lookup
     and not user_expected_system_procs_network_activity_conditions and container
   output: >
-    Contact remote server from container(zh_msg=容器内与远程服务器通信,rule_type=Execution,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,pod_id=%k8s.pod.id,syscall_name=%syscall.type,evt.arg.exe=%evt.arg.exe,terminal=%proc.tty,user_uid=%user.uid,container_id=%container.id,container_name=%container.name,parent=%proc.pname,gparent=%proc.aname[2],proc_pgid=%proc.vpgid,fd.num=%fd.num,fd.type=%fd.type,connection=%fd.name,client_ip=%fd.cip,client_port=%fd.cport,server_ip=%fd.sip,server_port=%fd.sport,proc_name=%proc.name parent=%proc.pname gparent=%proc.aname[2] ggparent=%proc.aname[3] gggparent=%proc.aname[4])
+    Contact remote server from container(zh_msg=容器内与远程服务器通信,rule_type=Execution,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,pod_id=%k8s.pod.id,syscall_name=%syscall.type,evt.arg.exe=%evt.arg.exe,terminal=%proc.tty,user_uid=%user.uid,container_id=%container.id,container_name=%container.name,parent=%proc.pname,gparent=%proc.aname[2],proc_pgid=%proc.vpgid,fd.name=%fd.name,fd.num=%fd.num,fd.type=%fd.type,fd.sip=%fd.sip
+    proc_name=%proc.name parent=%proc.pname gparent=%proc.aname[2] ggparent=%proc.aname[3] gggparent=%proc.aname[4])
   priority: INFO
-  tags: [ATT&CK, filesystem, mitre_privilege_escalation, related]
+  tags: [ATT&CK, filesystem, mitre_privilege_escalation, related, triggered]
 
 - rule: Running vim in container
   hid: related_02

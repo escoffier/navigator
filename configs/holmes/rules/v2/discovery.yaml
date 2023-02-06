@@ -5,10 +5,10 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "Please confirm whether the reading behavior is as expected. You can use the immune defense training application to limit the user permissions of sensitive files and commands, and prohibit mounting sensitive directories and files."
+      value: "Please use the process tree to determine whether the command is a normal behavior of a known process and whether it is executed by malware. You can use the immune defense training application to restrict the user rights of sensitive files and commands and prohibit the mounting of sensitive directories and files."
     zh:
       key: "处置建议"
-      value: "请确认该读取行为是否符合预期，可使用免疫防御训练应用，限制敏感文件和命令的用户权限，禁止挂载敏感目录和文件。"
+      value: "请通过进程树判断该命令是否属于已知进程的正常行为，是否由恶意软件执行，可使用免疫防御训练应用，限制敏感文件和命令的用户权限，禁止挂载敏感目录和文件。"
   desc: >
     an attempt to read any sensitive file (e.g. files containing user/password/authentication
     information). Exceptions are made for known trusted programs.
@@ -51,10 +51,10 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "Please confirm whether this behavior is executed by the operation and maintenance personnel or initiated by the trusted probe program. If not, please associate with other attacks to confirm whether the container is invaded."
+      value: "Please use the process tree to determine whether the behavior is executed by the operation and maintenance personnel or initiated by a trusted probe type program, if not, please correlate other attacks to confirm whether the container has been compromised."
     zh:
       key: "处置建议"
-      value: "请确认该行为是否为运维人员执行或可信探针类程序发起，如果不是请关联其他攻击行为，确认容器是否遭到入侵。"
+      value: "请通过进程树判断该行为是否为运维人员执行或可信探针类程序发起，如果不是请关联其他攻击行为，确认容器是否遭到入侵。"
   desc: Kubernetes Namespaces bypass
   condition: >
     spawned_process and container and proc.name in (namespace_bypass_cmds) and shell_parent_procs
@@ -68,10 +68,10 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "Please confirm whether the read behavior is executed by a trusted program. Otherwise, offset defense can be used to restrict its execution."
+      value: "Please use the process tree to determine whether the command is a normal behavior of known processes and whether it is executed by malware, otherwise you can use offset defense to restrict its execution."
     zh:
       key: "处置建议"
-      value: "请确认该读取行为是否由可信程序执行，否则可使用偏移防御限制其执行。"
+      value: "请通过进程树判断该命令是否属于已知进程的正常行为，是否由恶意软件执行，否则可使用偏移防御限制其执行。"
   desc: Detect attempts to read shell configuration files by non-shell programs
   condition: >
     open_read and
@@ -167,7 +167,7 @@
       value: "请确认是否为黑客进行信息收集，或运维人员自身操作，可使用免疫防御训练应用，阻拦新的或被修改的可执行文件，限制执行命令的用户和接收对象。"
   desc: View process information in the container
   condition: >
-   open_read and container and fd.name startswith "/proc/" and fd.name contains "pid_max" and evt.arg.flags = O_RDONLY and shell_parent_procs and not k8s.pod.name contains "holmes" and not k8s.pod.name contains "calico" and not k8s.pod.name contains "node-exporter" and not k8s.pod.name contains "console" and not k8s.pod.name contains "51c1c6" and not k8s.pod.name contains "prometheus"
+    open_read and container and fd.name startswith "/proc/" and fd.name contains "pid_max" and evt.arg.flags = O_RDONLY and shell_parent_procs and not k8s.pod.name contains "holmes" and not k8s.pod.name contains "calico" and not k8s.pod.name contains "node-exporter" and not k8s.pod.name contains "console" and not k8s.pod.name contains "51c1c6" and not k8s.pod.name contains "prometheus"
   output: >
     View process information in the container (zh_msg=容器内查看进程信息,rule_type=Execution,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,
     original_info=user=%user.name user_loginuid=%user.loginuid %container.info

@@ -193,7 +193,7 @@
       value: "建议排查攻击源容器是否已遭到入侵，可使用微隔离与免疫防御限制攻击者进行进一步攻击。"
   desc: Execute sensitive commands through Jenkins
   condition: >
-   k8s.pod.name contains "99a7ca" and evt.type=execve and evt.res!=ENOENT
+    k8s.pod.name contains "99a7ca" and evt.type=execve and evt.res!=ENOENT
   output: >
     Execute sensitive commands through Jenkins (zh_msg=通过Jenkins执行命令（CVE-2018-1000861）,rule_type=Privilege_Escalation,fd_name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,container_id=%container.id,container_name=%container.name)
   priority: ALERT
@@ -213,7 +213,7 @@
       value: "建议排查攻击源容器是否已遭到入侵，可使用微隔离与免疫防御限制攻击者进行进一步攻击。"
   desc: Unauthorized access to Jupyter-Notebook
   condition: >
-   (inbound_outbound) and fd.sport = 8888 and k8s.pod.name contains "ddc305"
+    (inbound_outbound) and fd.sport = 8888 and k8s.pod.name contains "ddc305"
   output: >
     Unauthorized access to Jupyter-Notebook (zh_msg=Jupyter-Notebook未授权访问,rule_type=Privilege_Escalation,fd_name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,container_id=%container.id,container_name=%container.name)
   priority: ALERT
