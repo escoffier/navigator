@@ -10,17 +10,16 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
-	"gitlab.com/security-rd/go-pkg/databases"
-	"go.mongodb.org/mongo-driver/bson/primitive"
-	"gorm.io/gorm"
-	"gorm.io/gorm/clause"
-
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/global"
 	"gitlab.com/piccolo_su/vegeta/pkg/harbor"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
+	"gitlab.com/security-rd/go-pkg/databases"
+	"go.mongodb.org/mongo-driver/bson/primitive"
+	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 type ScannerDalInterface interface {
@@ -548,7 +547,7 @@ func (s ScannerOrm) GetPolicyConfig(ctx context.Context, getVuln bool) ([]model.
 	tmpPolicies := []model.RejectPolicy{}
 	err := s.rdb.Get().WithContext(ctx).Model(model.RejectPolicy{}).Where("deleted_at = 0 And is_global != true").Find(&tmpPolicies).Error
 	if err != nil {
-		return []model.RejectPolicy{}, nil
+		return nil, err
 	}
 	if getVuln {
 		for k := range tmpPolicies {
@@ -766,7 +765,7 @@ func (s *ScannerOrm) GetImageID(ctx context.Context, digest string, fullRepoName
 	var tmp model.ImageList
 	res := s.rdb.Get().WithContext(ctx).Where("digest = ? and full_repo_name= ?", digest, fullRepoName).First(&tmp)
 	if res.Error != nil {
-		return -1, nil
+		return -1, res.Error
 	}
 	return tmp.ID, nil
 }

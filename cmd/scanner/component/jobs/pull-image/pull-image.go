@@ -10,9 +10,8 @@ import (
 	"github.com/docker/distribution/manifest/schema1"
 	"github.com/docker/distribution/manifest/schema2"
 	"github.com/pkg/errors"
-
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/jobs"
-	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry/suport/docker"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry/support/docker"
 	image_cache "gitlab.com/piccolo_su/vegeta/cmd/scanner/service/register/image-cache"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"

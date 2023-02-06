@@ -930,11 +930,16 @@ func (fs *FlowSession) ProcSessionData(netSession *daemon.NetSessionLink) error 
 	*/
 	//match pod information
 	src, err := fs.nodePodsInfo.GetResDataByIp(netSession.Origin.SrcIp)
-	dst, dstErr := fs.nodePodsInfo.GetResDataByIp(netSession.Reply.SrcIp)
-	if err != nil && dstErr != nil {
-		logging.Get().Warn().Msgf("query k8s resource failed. %+v", *netSession)
-		return nil
+	if err != nil {
+		logging.Get().Warn().Err(err).Msgf("query k8s resource failed. %+v", *netSession)
+		return err
 	}
+	dst, dstErr := fs.nodePodsInfo.GetResDataByIp(netSession.Reply.SrcIp)
+	if dstErr != nil {
+		logging.Get().Warn().Err(dstErr).Msgf("query k8s resource failed. %+v", *netSession)
+		return dstErr
+	}
+	
 	//get cluster key
 	clusterKey, ok := fs.clusterManager.ClusterKey()
 	if !ok {
