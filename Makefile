@@ -160,7 +160,7 @@ safe-node-image: generate
 .PHONY: scanner
 scanner: generate		## Build scanner binary
 	@echo "+ $@"
-	go build -v \
+	CGO_ENABLED=1	go build -v \
 		--ldflags "$(LDFLAGS) -X gitlab.com/piccolo_su/vegeta/cmd/scanner/cmd.Version=$(VERSION)" \
 		-tags=jsoniter -o dist/scanner gitlab.com/piccolo_su/vegeta/cmd/scanner
 	#upx --lzma --best dist/scanner
