@@ -10,105 +10,105 @@ import (
 	"gitlab.com/security-rd/go-pkg/logging"
 )
 
-func (w *Worker) configToRegoQuery(stepName, stepCode string) (regoQuery rego.PreparedEvalQuery, err error) {
+func (e *Engine) configToRegoQuery(stepName, stepCode string) (regoQuery rego.PreparedEvalQuery, err error) {
 	ctx := context.Background()
 	switch stepName {
 	// 纯表达式
 	case "checkExpression":
 		regoQuery, err = rego.New(
 			rego.Query(stepCode),
-			rego.Function1(
+			rego.Function2(
 				&rego.Function{
 					Name: "CacheContext",
-					Decl: types.NewFunction(types.Args(types.S), types.A),
+					Decl: types.NewFunction(types.Args(types.S, types.S), types.A),
 				},
-				w.CacheContext),
+				CacheContext),
 		).PrepareForEval(ctx)
 	case "execExpression":
 		regoQuery, err = rego.New(
 			rego.Query(stepCode),
-			rego.Function1(
+			rego.Function2(
 				&rego.Function{
 					Name: "CacheContext",
-					Decl: types.NewFunction(types.Args(types.S), types.A),
+					Decl: types.NewFunction(types.Args(types.S, types.S), types.A),
 				},
-				w.CacheContext),
+				CacheContext),
 		).PrepareForEval(ctx)
 
 	// 内置函数
 	case "checkValue":
 		regoQuery, err = rego.New(
 			rego.Query(stepCode),
-			rego.Function1(
+			rego.Function2(
 				&rego.Function{
 					Name: "CacheContext",
-					Decl: types.NewFunction(types.Args(types.S), types.A),
+					Decl: types.NewFunction(types.Args(types.S, types.S), types.A),
 				},
-				w.CacheContext),
+				CacheContext),
 		).PrepareForEval(ctx)
 	case "checkRelatedExists":
 		regoQuery, err = rego.New(
 			rego.Query(stepCode),
-			rego.Function1(
+			rego.Function2(
 				&rego.Function{
 					Name: "CacheContext",
-					Decl: types.NewFunction(types.Args(types.S), types.A),
+					Decl: types.NewFunction(types.Args(types.S, types.S), types.A),
 				},
-				w.CacheContext),
+				CacheContext),
 			rego.FunctionDyn(
 				&rego.Function{
 					Name: "ExistsInPeriod",
 					Decl: types.NewFunction(types.Args(types.S, types.S, types.S, types.A, types.S), types.B),
 				},
-				w.ExistsInPeriod),
+				e.ExistsInPeriod),
 		).PrepareForEval(ctx)
 	case "checkRelatedNotExists":
 		regoQuery, err = rego.New(
 			rego.Query(stepCode),
-			rego.Function1(
+			rego.Function2(
 				&rego.Function{
 					Name: "CacheContext",
-					Decl: types.NewFunction(types.Args(types.S), types.A),
+					Decl: types.NewFunction(types.Args(types.S, types.S), types.A),
 				},
-				w.CacheContext),
+				CacheContext),
 			rego.Function3(
 				&rego.Function{
 					Name: "NotExistsInPeriod",
 					Decl: types.NewFunction(types.Args(types.S, types.S, types.S), types.A),
 				},
-				w.NotExistsInPeriod),
+				e.NotExistsInPeriod),
 		).PrepareForEval(ctx)
 	case "execGenerateSignal":
 		regoQuery, err = rego.New(
 			rego.Query(stepCode),
-			rego.Function1(
+			rego.Function2(
 				&rego.Function{
 					Name: "CacheContext",
-					Decl: types.NewFunction(types.Args(types.S), types.A),
+					Decl: types.NewFunction(types.Args(types.S, types.S), types.A),
 				},
-				w.CacheContext),
+				CacheContext),
 			rego.Function2(
 				&rego.Function{
 					Name: "generateAlertSignal",
 					Decl: types.NewFunction(types.Args(types.A, types.A), types.A),
 				},
-				w.GenerateAlertSignal),
+				e.GenerateAlertSignal),
 		).PrepareForEval(ctx)
 	case "execSendPalace":
 		regoQuery, err = rego.New(
 			rego.Query(stepCode),
-			rego.Function1(
+			rego.Function2(
 				&rego.Function{
 					Name: "CacheContext",
-					Decl: types.NewFunction(types.Args(types.S), types.A),
+					Decl: types.NewFunction(types.Args(types.S, types.S), types.A),
 				},
-				w.CacheContext),
+				CacheContext),
 			rego.Function1(
 				&rego.Function{
 					Name: "sendSignalToPalace",
 					Decl: types.NewFunction(types.Args(types.A), types.A),
 				},
-				w.SendSignalToPalace),
+				e.SendSignalToPalace),
 		).PrepareForEval(ctx)
 	default:
 		err = errors.New("no match step name")

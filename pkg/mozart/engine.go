@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	"fmt"
 	"os"
 	"strconv"
 	"strings"
@@ -68,13 +67,12 @@ type Engine struct {
 	deps depOption
 }
 
-var regoPool RegoPool
-
 func NewMozartEngine(ctx context.Context, options ...Option) (*Engine, error) {
 
 	Cache = CacheStruct{
-		Lock: sync.Mutex{},
-		Data: make(map[string][]map[string]interface{}),
+		Lock:     sync.Mutex{},
+		Data:     make(map[string][]map[string]interface{}),
+		Sessions: make(map[string]map[string]interface{}),
 	}
 
 	sPoolSize := os.Getenv(envPoolSize)
@@ -101,7 +99,7 @@ func NewMozartEngine(ctx context.Context, options ...Option) (*Engine, error) {
 		deps:     do,
 	}
 
-	regoPool.Init()
+	regoPreQueries.init()
 
 	return e, nil
 }
@@ -133,6 +131,21 @@ func asyncClearCache(ctx context.Context) {
 		}
 		for i := range deleteKs {
 			delete(Cache.Data, deleteKs[i])
+		}
+
+		deleteSKs := make([]string, 0)
+		for k, v := range Cache.Sessions {
+			sEventTime, ok := v["event_time"].(string)
+			if ok {
+				et, err := time.Parse(time.RFC3339, sEventTime)
+				if err == nil && time.Now().Sub(et) <= time.Second*maxTTL {
+					continue
+				}
+			}
+			deleteSKs = append(deleteSKs, k)
+		}
+		for j := range deleteSKs {
+			delete(Cache.Sessions, deleteSKs[j])
 		}
 	}
 
@@ -215,43 +228,14 @@ func (e *Engine) LoadFromRuleBytes(ctx context.Context, ruleBytes []byte) ([]Rul
 	}
 
 	data := config.Config
+
+	// mozart
+	var mozartConfig []model.ConfigMozart
 	for i := range data {
-		// 非mozart
-		if len(data[i].Mozart) == 0 && data[i].Rule != "" {
-			// 纯关联规则，跳过
-			if util.ContainsString(data[i].Tags, "related") && !util.ContainsString(data[i].Tags, "triggered") {
-				continue
-			}
-
-			// 不是关联也不是触发，普通falco规则，追加mozart基础规则
-			if !util.ContainsString(data[i].Tags, "related") && !util.ContainsString(data[i].Tags, "triggered") {
-				rules = append(rules, Rule{
-					Name:    data[i].Rule,
-					Enabled: true,
-					Trigger: Trigger{Event: map[string]interface{}{
-						"name": data[i].Rule,
-					}},
-					Steps: e.makeupBasicSteps(ctx, data[i].Rule),
-					Type:  "basic",
-				})
-			}
-
-			// 如果触发信号为高危，则追加一条fallback规则（当没有任何关联信号时，直接上报触发信号）
-			if util.ContainsString(data[i].Tags, "triggered") && rtdetect.ComparePriority(data[i].Priority, "ERROR") {
-				rules = append(rules, Rule{
-					Name:    data[i].Rule,
-					Enabled: true,
-					Trigger: Trigger{Event: map[string]interface{}{
-						"name": data[i].Rule,
-					}},
-					Steps: e.makeupFallbackSteps(ctx, data[i].Rule, data[i].Mozart),
-					Type:  "fallback",
-				})
-			}
+		if len(data[i].Mozart) == 0 {
 			continue
 		}
-
-		// mozart
+		mozartConfig = data[i].Mozart
 		for j := range data[i].Mozart {
 			// 没有配置mozart steps，跳过
 			if len(data[i].Mozart[j].Steps) == 0 {
@@ -276,74 +260,90 @@ func (e *Engine) LoadFromRuleBytes(ctx context.Context, ruleBytes []byte) ([]Rul
 			}
 			rules = append(rules, rule)
 		}
-
+		break
 	}
 
+	// 非mozart
+	for i := range data {
+		if len(data[i].Mozart) != 0 || data[i].Rule == "" {
+			continue
+		}
+
+		// 纯关联规则，跳过
+		if util.ContainsString(data[i].Tags, "related") && !util.ContainsString(data[i].Tags, "triggered") {
+			continue
+		}
+
+		// 不是关联也不是触发，普通falco规则，追加mozart基础规则
+		if !util.ContainsString(data[i].Tags, "related") && !util.ContainsString(data[i].Tags, "triggered") {
+			steps := e.makeupBasicSteps(ctx, data[i].Rule)
+			rules = append(rules, Rule{
+				Name:    data[i].Rule,
+				Enabled: true,
+				Trigger: Trigger{Event: map[string]interface{}{
+					"name": data[i].Rule,
+				}},
+				Steps: steps,
+				Type:  "basic",
+			})
+		}
+
+		// 如果触发信号为高危，则追加一条fallback规则（当没有任何关联信号时，直接上报触发信号）
+		if util.ContainsString(data[i].Tags, "triggered") && rtdetect.ComparePriority(data[i].Priority, "ERROR") {
+			steps := e.makeupFallbackSteps(ctx, data[i].Rule, mozartConfig)
+			rules = append(rules, Rule{
+				Name:    data[i].Rule,
+				Enabled: true,
+				Trigger: Trigger{Event: map[string]interface{}{
+					"name": data[i].Rule,
+				}},
+				Steps: steps,
+				Type:  "fallback",
+			})
+		}
+		continue
+	}
+
+	e.fillUpRegoPreQueries(ctx, rules)
 	return rules, nil
 }
 
-type RegoPool struct {
-	Pool map[string]chan map[string]*rego.Rego
-	Lock sync.Mutex
+type RegoPreQueries struct {
+	lock    sync.Mutex
+	queries map[string]*rego.PreparedEvalQuery
 }
 
-func (p *RegoPool) Init() {
-	m := make(map[string]chan map[string]*rego.Rego)
-	p.Pool = m
-	p.Lock = sync.Mutex{}
+var regoPreQueries RegoPreQueries
+
+func (rpq *RegoPreQueries) init() {
+	rpq.queries = make(map[string]*rego.PreparedEvalQuery, 0)
 }
 
-func (p *RegoPool) Get(key string) (map[string]*rego.Rego, error) {
-	regoPool.Lock.Lock()
-	defer regoPool.Lock.Unlock()
-	pool, ok := p.Pool[key]
+func (rpq *RegoPreQueries) get(key string) (*rego.PreparedEvalQuery, error) {
+	rpq.lock.Lock()
+	defer rpq.lock.Unlock()
+	query, ok := rpq.queries[key]
 	if !ok {
-		err := fmt.Errorf("no invalid key pool")
-		logging.Get().Error().Err(err).Str("key", key).Int("poolsize", len(p.Pool)).Msg("no invalid key pool?!")
-		return nil, err
+		return query, errors.New("no such query: " + key)
 	}
-	return <-pool, nil
+	return query, nil
 }
 
-func (p *RegoPool) Put(key string, mrq map[string]*rego.Rego) {
-	regoPool.Lock.Lock()
-	defer regoPool.Lock.Unlock()
-	pool, ok := p.Pool[key]
-	if !ok {
-		logging.Get().Error().Err(fmt.Errorf("no invalid key pool")).Str("key", key).Int("poolsize", len(p.Pool)).Msg("no invalid key pool?!")
-		return
-	}
-	pool <- mrq
-}
+func (e *Engine) fillUpRegoPreQueries(ctx context.Context, rules []Rule) {
+	regoPreQueries.lock.Lock()
+	defer regoPreQueries.lock.Unlock()
 
-func (e *Engine) appendMozartRegoPool(ctx context.Context, steps []Step, key string) {
-	regoPool.Lock.Lock()
-	defer regoPool.Lock.Unlock()
-
-	if _, ok := regoPool.Pool[key]; ok {
-		return
+	for k := range rules {
+		for j := range rules[k].Steps {
+			step := rules[k].Steps[j]
+			r, err := e.configToRegoQuery(step.Name, step.Code)
+			if err != nil {
+				logging.Get().Error().Err(err).Msg("invalid step for rego prepare")
+				continue
+			}
+			regoPreQueries.queries[step.Code] = &r
+		}
 	}
-
-	regoQueries := make(map[string]*rego.Rego, 0)
-	for i := range steps {
-		step := steps[i]
-		var r *rego.Rego
-		r = rego.New(
-			rego.Query(step.Code),
-		)
-
-		regoQueries[step.Code] = r
-	}
-	sPoolSize := os.Getenv("MOZART_POOL_SIZE")
-	poolSize, err := strconv.Atoi(sPoolSize)
-	if err != nil {
-		poolSize = defaultPoolSize
-	}
-	ch := make(chan map[string]*rego.Rego, poolSize)
-	for i := 0; i < poolSize; i++ {
-		ch <- regoQueries
-	}
-	regoPool.Pool[key] = ch
 }
 
 func (e *Engine) configStep2MozartStep(ctx context.Context, configStep model.ConfigMozartStep) Step {
@@ -393,6 +393,9 @@ func (e *Engine) makeupFallbackSteps(ctx context.Context, rule string, configMoz
 	relatedMap := make(map[interface{}]struct{})
 	// checkRelatedNotExists
 	for i := range configMozartList {
+		if configMozartList[i].Trigger != rule {
+			continue
+		}
 		for j := range configMozartList[i].Steps {
 			if configMozartList[i].Steps[j].Name == "checkRelatedExists" {
 				if _, ok := relatedMap[configMozartList[i].Steps[j].Params.([]interface{})[0]]; ok {
@@ -496,6 +499,11 @@ func (e *Engine) Rules(v, key string) ([]Rule, bool) {
 }
 
 func (e *Engine) Run(event Event) error {
+	if e.pool.Free() == 0 { // todo: 可以考虑和 pool.waiting() 一起做控制
+		err := errors.New("exhausted mozart pool")
+		logging.Get().Error().Err(err).Int("pool_size", e.pool.Cap()).Msg("exhausted mozart pool")
+		return err
+	}
 	err := e.pool.Invoke(jobArgs{Event: event, e: e})
 	return err
 }

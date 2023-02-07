@@ -18,11 +18,14 @@ import (
 	"gitlab.com/security-rd/go-pkg/sdk/palace"
 )
 
-func (w *Worker) CacheContext(x rego.BuiltinContext, a *ast.Term) (*ast.Term, error) {
+func CacheContext(x rego.BuiltinContext, a, b *ast.Term) (*ast.Term, error) {
+	Cache.Lock.Lock()
+	defer Cache.Lock.Unlock()
 	sa := a.Value.String()
-	v, err := w.getByPath(w.Cache, sa[1:len(sa)-1])
+	sb := b.Value.String()
+	sb = sb[1 : len(sb)-1]
+	v, err := getByPath(Cache.Sessions[sb], sa[1:len(sa)-1])
 	if err != nil {
-		logging.Get().Debug().Err(err).Str("path", sa).Interface("cache", w.Cache).Msg("getByPath fails")
 		return ast.NullTerm(), err
 	}
 
@@ -44,7 +47,7 @@ func (w *Worker) CacheContext(x rego.BuiltinContext, a *ast.Term) (*ast.Term, er
 	return ast.NullTerm(), nil
 }
 
-func (w *Worker) getByPath(m map[string]interface{}, path string) (interface{}, error) {
+func getByPath(m map[string]interface{}, path string) (interface{}, error) {
 	keys := strings.Split(path, ".")
 	var ok bool
 	var v interface{}
@@ -65,7 +68,7 @@ func (w *Worker) getByPath(m map[string]interface{}, path string) (interface{}, 
 	return nil, nil
 }
 
-func (w *Worker) ExistsInPeriod(x rego.BuiltinContext, as []*ast.Term) (*ast.Term, error) {
+func (e *Engine) ExistsInPeriod(x rego.BuiltinContext, as []*ast.Term) (*ast.Term, error) {
 	param, ok := as[0].Value.(ast.String)
 	if !ok {
 		err := errors.New("a not string")
@@ -120,9 +123,8 @@ func (w *Worker) ExistsInPeriod(x rego.BuiltinContext, as []*ast.Term) (*ast.Ter
 
 		sRelatedPath := as[4].Value.String()
 		for i := range events {
-			iRelatedValue, err := w.getByPath(events[i], sRelatedPath[1:len(sRelatedPath)-1])
+			iRelatedValue, err := getByPath(events[i], sRelatedPath[1:len(sRelatedPath)-1])
 			if err != nil {
-				logging.Get().Error().Err(err).Str("related_path", sRelatedPath).Msg("getByPath fails")
 				continue
 			}
 			sRelatedValue, ok := iRelatedValue.(string)
@@ -137,7 +139,7 @@ func (w *Worker) ExistsInPeriod(x rego.BuiltinContext, as []*ast.Term) (*ast.Ter
 	return ast.BooleanTerm(false), errors.New("no matched cache: " + sParam)
 }
 
-func (w *Worker) NotExistsInPeriod(x rego.BuiltinContext, a, b, c *ast.Term) (*ast.Term, error) {
+func (e *Engine) NotExistsInPeriod(x rego.BuiltinContext, a, b, c *ast.Term) (*ast.Term, error) {
 	param, ok := a.Value.(ast.String)
 	if !ok {
 		err := errors.New("a not string")
@@ -193,7 +195,7 @@ func (w *Worker) NotExistsInPeriod(x rego.BuiltinContext, a, b, c *ast.Term) (*a
 
 }
 
-func (w *Worker) GenerateAlertSignal(x rego.BuiltinContext, a, b *ast.Term) (*ast.Term, error) {
+func (e *Engine) GenerateAlertSignal(x rego.BuiltinContext, a, b *ast.Term) (*ast.Term, error) {
 
 	tPayload := a.Value.String()
 	tPayload = tPayload[1 : len(tPayload)-1]
@@ -250,7 +252,7 @@ func (w *Worker) GenerateAlertSignal(x rego.BuiltinContext, a, b *ast.Term) (*as
 	return ast.StringTerm(string(bas)), nil
 }
 
-func (w *Worker) SendSignalToPalace(x rego.BuiltinContext, a *ast.Term) (*ast.Term, error) {
+func (e *Engine) SendSignalToPalace(x rego.BuiltinContext, a *ast.Term) (*ast.Term, error) {
 
 	sSignal := a.Value.String()
 	sSignal = sSignal[1 : len(sSignal)-1]
@@ -278,7 +280,7 @@ func (w *Worker) SendSignalToPalace(x rego.BuiltinContext, a *ast.Term) (*ast.Te
 		Name:     signal.Rule,
 	}
 
-	clusterName, ok := w.deps.cm.ClusterName()
+	clusterName, ok := e.deps.cm.ClusterName()
 	if !ok || clusterName == "" {
 		clusterName = signal.ClusterKey
 	}
@@ -313,7 +315,7 @@ func (w *Worker) SendSignalToPalace(x rego.BuiltinContext, a *ast.Term) (*ast.Te
 		})
 	}
 
-	ownerRes, _, exist := w.getOwnerInfo(podName, namespace)
+	ownerRes, _, exist := e.getOwnerInfo(podName, namespace)
 	if exist {
 		scopes = append(scopes, palace.Scope{
 			Kind: palace.ScopeKindResource,
@@ -338,13 +340,13 @@ func (w *Worker) SendSignalToPalace(x rego.BuiltinContext, a *ast.Term) (*ast.Te
 		})
 	}
 
-	err = w.deps.palace.SendSignal(ruleKey, scopes, signalContext)
+	err = e.deps.palace.SendSignal(ruleKey, scopes, signalContext)
 	return ast.NullTerm(), err
 }
 
-func (w *Worker) getOwnerInfo(podName, namespace string) (*nodeinfo.Resource, string, bool) {
+func (e *Engine) getOwnerInfo(podName, namespace string) (*nodeinfo.Resource, string, bool) {
 
-	res, exist := w.deps.prInfo.GetPod(namespace, podName)
+	res, exist := e.deps.prInfo.GetPod(namespace, podName)
 	if exist && res != nil {
 		return res, namespace, true
 	}
