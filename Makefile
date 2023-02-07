@@ -186,7 +186,7 @@ daemon: drift-prevention-client ## Build daemon binary
 	@echo "+ $@"
 ifeq ($(USEMIRROR),true)
 	@echo "daemon will use mirror"
-	go build -v -o bin/daemon  cmd/daemon/main.go
+	CGO_ENABLED=1 go build -v -o bin/daemon  cmd/daemon/main.go
 	gcc -o bin/ns-mnt  cmd/daemon/setns/cjson.c cmd/daemon/setns/setmnt.c cmd/daemon/setns/net_info.c cmd/daemon/setns/netebpf_user.c cmd/daemon/setns/bpf.c cmd/daemon/setns/bpf_load.c -lelf -lpthread
 	#upx --lzma --best bin/daemon
 	docker build -f build/daemon/Dockerfile -t $(REPOPREFIX)/daemon:latest \
