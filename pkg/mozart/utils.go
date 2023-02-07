@@ -1,6 +1,8 @@
 package mozart
 
 import (
+	"crypto/sha256"
+	"fmt"
 	"strings"
 )
 
@@ -76,4 +78,11 @@ func ConvertOutput2OutputMap(output string) map[string]string {
 	}
 
 	return m
+}
+
+func sha256Hash(bs []byte) string {
+	m := sha256.New()
+	m.Write(bs)
+	sbs := m.Sum(nil)
+	return fmt.Sprintf("%x", sbs)
 }

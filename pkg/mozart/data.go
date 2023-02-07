@@ -62,15 +62,15 @@ func (cp ConfigMozartStepParamsCheckExpression) RCode() string {
 }
 
 func (cp ConfigMozartStepParamsCheckValue) RCode() string {
-	return fmt.Sprintf("CacheContext(\"%s\") == \"%s\"", cp[0], cp[1])
+	return fmt.Sprintf("CacheContext(\"%s\", input.session_id) == \"%s\"", cp[0], cp[1])
 }
 
 func (cp ConfigMozartStepParamsCheckRelatedExists) RCode() string {
-	return fmt.Sprintf("ExistsInPeriod(\"%s\", \"%s\", CacheContext(\"event_time\"), CacheContext(\"%s\"), \"%s\")", cp[0], cp[1], cp[2], cp[3])
+	return fmt.Sprintf("ExistsInPeriod(\"%s\", \"%s\", CacheContext(\"event_time\", input.session_id), CacheContext(\"%s\", input.session_id), \"%s\")", cp[0], cp[1], cp[2], cp[3])
 }
 
 func (cp ConfigMozartStepParamsCheckRelatedNotExists) RCode() string {
-	return fmt.Sprintf("NotExistsInPeriod(\"%s\", \"%s\", CacheContext(\"event_time\"))", cp[0], cp[1])
+	return fmt.Sprintf("NotExistsInPeriod(\"%s\", \"%s\", CacheContext(\"event_time\", input.session_id))", cp[0], cp[1])
 }
 
 func (cp ConfigMozartStepParamsExecExpression) RCode() string {
@@ -94,11 +94,11 @@ func (cp ConfigMozartStepParamsExecGenerateSignal) RCode() string {
 		}
 		s += fmt.Sprintf(template, k, v)
 	}
-	return fmt.Sprintf("signal := generateAlertSignal(CacheContext(\"trigger.payload\"), {%s})", s)
+	return fmt.Sprintf("signal := generateAlertSignal(CacheContext(\"trigger.payload\", input.session_id), {%s})", s)
 }
 
 func (cp ConfigMozartStepParamsExecSendPalace) RCode() string {
-	return "sendSignalToPalace(CacheContext(\"signal\"))"
+	return "sendSignalToPalace(CacheContext(\"signal\", input.session_id))"
 }
 
 type ConfigMozartStepParams interface {
@@ -106,8 +106,9 @@ type ConfigMozartStepParams interface {
 }
 
 type CacheStruct struct {
-	Lock sync.Mutex
-	Data map[string][]map[string]interface{}
+	Lock     sync.Mutex
+	Data     map[string][]map[string]interface{}
+	Sessions map[string]map[string]interface{}
 }
 
 var Cache CacheStruct
