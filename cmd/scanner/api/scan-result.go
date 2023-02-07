@@ -318,7 +318,8 @@ func (s *ScanResultAPI) GetImageRiskInfo(ctx *gin.Context) {
 			logging.Get().Err(err).Int64("ImageID", images[i].ID).Msg("GetImageCorrelateData")
 			continue
 		}
-		if data.ImageBaseResponse.RiskScore == 0 || data.ImageBaseResponse.RiskScore == 100 {
+		// 只要风险镜像
+		if data.ImageBaseResponse.RiskScore == consts.NoRiskImageScore {
 			continue
 		}
 

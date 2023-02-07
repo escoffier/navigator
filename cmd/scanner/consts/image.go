@@ -5,3 +5,7 @@ const (
 	OrString     = "or"
 	BootRootUser = "root"
 )
+
+const (
+	NoRiskImageScore = 100
+)
