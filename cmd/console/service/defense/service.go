@@ -438,7 +438,6 @@ func (s *TensorDefenseService) GetAlertEvent(ctx context.Context, clusterKey, na
 		return nil, err
 	}
 
-	// TODO: aggs count
 	result := make([]*Signal, 0, len(signalsResp.Hits.Hits))
 	for _, hit := range signalsResp.Hits.Hits {
 		s := map[string]uint32{}

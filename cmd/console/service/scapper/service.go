@@ -531,7 +531,10 @@ func (s *ScapService) GetPolicyDetails(ctx context.Context, policyDetails *model
 
 	policyDetails.UDBCP = s.GetUDBCPMap(language, policyId, checkType)
 	if policy.PolicyDetailInfoExtraDetail != nil {
-		policyDetails.ExtraDetail = &model.PolicyDetailInfoExtraDetail{References: policy.PolicyDetailInfoExtraDetail.References}
+		policyDetails.ExtraDetail = &model.PolicyDetailInfoExtraDetail{
+			References: policy.PolicyDetailInfoExtraDetail.References,
+			Audit:      policy.Audit,
+		}
 
 		if language == lang.LanguageEN {
 			policyDetails.ExtraDetail.Description = policy.PolicyDetailInfoExtraDetail.DescriptionEn

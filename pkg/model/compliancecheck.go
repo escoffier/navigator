@@ -40,8 +40,11 @@ const (
 	ScanStateFailed     ScanState = 2
 	ScanStateUnknown    ScanState = 3
 
-	ComplianceCheckTargetTypeKube   ComplianceCheckType = "kube"
+	ComplianceCheckTargetTypeKube ComplianceCheckType = "kube"
+
+	// Deprecated: fixme@lilin 后续会全部替换为成CRI，docker不再是一个type
 	ComplianceCheckTargetTypeDocker ComplianceCheckType = "docker"
+	ComplianceCheckTargetTypeCRI    ComplianceCheckType = "cri"
 	ComplianceCheckTargetTypeHost   ComplianceCheckType = "host"
 
 	ScapScanResultStatePASS ScapScanResultStateType = "PASS"

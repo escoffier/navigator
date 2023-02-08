@@ -16,6 +16,11 @@ func (s *Service) RuleBatch(ctx context.Context, scapType, keyword string, limit
 		cond := "%" + keyword + "%"
 		db = db.Where("policy_id LIKE ? OR title_zh LIKE ?", cond, cond)
 	}
+	if scapType == "host" {
+		db = db.Where("id >= 1000")
+	} else if scapType == "docker" {
+		db = db.Where("policy_id NOT IN ?", []string{"0.1.1", "0.2.1", "1.1"})
+	}
 
 	var count int64
 	if err := db.Count(&count).Error; err != nil {

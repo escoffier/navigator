@@ -144,14 +144,6 @@ type PolicyDetailInfo struct {
 	ClassifiedZh   string `json:"classified_zh" gorm:"type:varchar(255);column:classified_zh"`
 	ClassifiedEn   string `json:"classified_en" gorm:"type:varchar(255);column:classified_en"`
 
-	// 保存策略信息
-	ExtraInfo datatypes.JSON `json:"-" gorm:"column:extra_info;type:json"`
-
-	Extra *struct {
-		Os   string `json:"os"`
-		Rule string `json:"rule"`
-	} `json:"extraInfo" gorm:"-"`
-
 	PolicyDetailInfoExtraDetail *struct {
 		PolicyDetailInfoExtraDetail `json:",inline"`
 		DescriptionEn               string `json:"description_en"`
@@ -165,10 +157,6 @@ type PolicyDetailInfo struct {
 }
 
 func (p *PolicyDetailInfo) BeforeSave(tx *gorm.DB) (err error) {
-	if p.Extra != nil {
-		p.ExtraInfo, err = json.Marshal(p.Extra)
-	}
-
 	if p.PolicyDetailInfoExtraDetail != nil {
 		p.PolicyDetailInfoExtraDetailJson, err = json.Marshal(p.PolicyDetailInfoExtraDetail)
 	}
@@ -177,9 +165,9 @@ func (p *PolicyDetailInfo) BeforeSave(tx *gorm.DB) (err error) {
 }
 
 func (p *PolicyDetailInfo) AfterFind(tx *gorm.DB) (err error) {
-	if p.ExtraInfo != nil {
-		err = json.Unmarshal(p.ExtraInfo, &p.Extra)
-	}
+	// if p.ExtraInfo != nil {
+	// 	err = json.Unmarshal(p.ExtraInfo, &p.Extra)
+	// }
 
 	if p.PolicyDetailInfoExtraDetailJson != nil {
 		err = json.Unmarshal(p.PolicyDetailInfoExtraDetailJson, &p.PolicyDetailInfoExtraDetail)
