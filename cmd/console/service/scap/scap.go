@@ -135,7 +135,7 @@ func (s *Service) StateSyncDaemon() {
 			Get().
 			Info().
 			Str("func", "scap StateSyncDaemon").
-			Msgf("environment variable `SCAP_JOB_TIMEOUT` not be set. Use default value: 1h.", t)
+			Msgf("environment variable `SCAP_JOB_TIMEOUT` not be set. Use default value: 1h.", timeout)
 	}
 
 	interval := 60 * time.Second
@@ -217,7 +217,10 @@ func (s *Service) StateSyncDaemon() {
 								Str("check task id", his.TaskID).
 								Msg("get k8s jobs list failed")
 							// return error will cause it to retryfor the next time. retry for the following specific reasons.
-							if k8sErrors.IsServiceUnavailable(err) || k8sErrors.IsTimeout(err) || k8sErrors.IsServerTimeout(err) || k8sErrors.IsInternalError(err) ||
+							if k8sErrors.IsServiceUnavailable(err) ||
+								k8sErrors.IsTimeout(err) ||
+								k8sErrors.IsServerTimeout(err) ||
+								k8sErrors.IsInternalError(err) ||
 								k8sErrors.IsUnexpectedServerError(err) {
 								return err
 							}

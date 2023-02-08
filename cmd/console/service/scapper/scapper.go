@@ -305,7 +305,7 @@ func (s *Scapper) RunComplianceCheck(
 			return "", err
 		}
 
-		jobObj, err = s.prepareJobObject(ctx, kubeClient, &check)
+		jobObj, err = s.prepareJobObject(ctx, &check)
 		if err != nil {
 			return "", err
 		}
@@ -553,7 +553,7 @@ FOR:
 	close(scheduledNodesCh)
 }
 
-func (s Scapper) prepareJobObject(ctx context.Context, kubeClient *pkgassets.Clientset, check *model.Check) (*batchv1.Job, error) {
+func (s Scapper) prepareJobObject(ctx context.Context, check *model.Check) (*batchv1.Job, error) {
 	jobObj, err := s.readJobObjFromYamlFile(model.ComplianceCheckType(check.CheckType))
 	if err != nil {
 		logging.Get().Error().Err(err).Msg("Can't read job .yaml file")
@@ -565,7 +565,7 @@ func (s Scapper) prepareJobObject(ctx context.Context, kubeClient *pkgassets.Cli
 	}
 
 	var policy model.ScapPolicy
-	if err := s.rdb.Get().Unscoped().First(&policy, check.PolicyID).Error; err != nil {
+	if err := s.rdb.Get().WithContext(ctx).Unscoped().First(&policy, check.PolicyID).Error; err != nil {
 		return nil, err
 	}
 
@@ -574,72 +574,20 @@ func (s Scapper) prepareJobObject(ctx context.Context, kubeClient *pkgassets.Cli
 		return jobObj, nil
 	}
 
-	var db = s.rdb.Get().Model(&model.PolicyDetailInfo{}).Where("check_type = ?", check.CheckType)
-	switch model.ComplianceCheckType(check.CheckType) {
-	case model.ComplianceCheckTargetTypeKube, model.ComplianceCheckTargetTypeDocker:
-		db = db.Where("id IN ?", policy.RuleIds)
-	case model.ComplianceCheckTargetTypeHost:
-		db = db.Where("id NOT IN ?", policy.RuleIds)
-	}
-
 	var rules []model.PolicyDetailInfo
-	if err := db.Find(&rules).Error; err != nil {
+	err = s.rdb.Get().WithContext(ctx).Model(&model.PolicyDetailInfo{}).
+		Where("check_type = ?", check.CheckType).
+		Where("id IN ?", policy.RuleIds).Find(&rules).Error
+	if err != nil {
 		return nil, err
 	}
 
 	var r = make([]string, 0, len(rules))
 	for _, v := range rules {
-		if v.Extra != nil {
-			r = append(r, v.Extra.Rule)
-		}
+		r = append(r, v.PolicyId)
 	}
 
-	switch model.ComplianceCheckType(check.CheckType) {
-	case model.ComplianceCheckTargetTypeKube:
-		jobObj.Spec.Template.Spec.Containers[0].Args = append(jobObj.Spec.Template.Spec.Containers[0].Args, "--check="+strings.Join(r, ","))
-	case model.ComplianceCheckTargetTypeDocker:
-		// 这里加个check_1临时解决docker-bench执行的时候解析出结果数据不一致的问题
-		// https://scm.tensorsecurity.cn/tensorsecurity-rd/tensor-compliance-check/-/issues/1
-		jobObj.Spec.Template.Spec.Containers[0].Args = append(jobObj.Spec.Template.Spec.Containers[0].Args, "-c "+"check_1,"+strings.Join(r, ",")+",check_1_end")
-	case model.ComplianceCheckTargetTypeHost:
-		// 创建configmap
-		configmap, err := s.getHostConfigMap(ctx, kubeClient, r, check)
-		if err != nil {
-			logging.Get().Err(err).Msg("创建configmap error")
-			return nil, err
-		}
-
-		// configmap name为空且err 为空。则说明不需要挂载configmap
-		if len(configmap) == 0 {
-			return jobObj, nil
-		}
-
-		// 设置volume
-		jobObj.Spec.Template.Spec.Volumes = append(jobObj.Spec.Template.Spec.Volumes, corev1.Volume{
-			Name: "tailoring-file",
-			VolumeSource: corev1.VolumeSource{
-				ConfigMap: &corev1.ConfigMapVolumeSource{
-					LocalObjectReference: corev1.LocalObjectReference{Name: configmap},
-					Items: []corev1.KeyToPath{
-						{
-							Key:  "tailoring-file-centos.xml",
-							Path: "tailoring-file-centos.xml",
-						},
-					},
-				},
-			},
-		})
-
-		// 挂载到container中
-		jobObj.Spec.Template.Spec.Containers[0].VolumeMounts = append(
-			jobObj.Spec.Template.Spec.Containers[0].VolumeMounts,
-			corev1.VolumeMount{
-				Name:      "tailoring-file",
-				MountPath: "./tailoring/tailoring-file-centos.xml",
-				SubPath:   "tailoring-file-centos.xml",
-			},
-		)
-	}
+	jobObj.Spec.Template.Spec.Containers[0].Args = append(jobObj.Spec.Template.Spec.Containers[0].Args, "--check="+strings.Join(r, ","))
 
 	return jobObj, nil
 }

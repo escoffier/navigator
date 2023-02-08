@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -9,7 +10,6 @@ import (
 	"time"
 
 	"github.com/go-chi/chi"
-	json "github.com/json-iterator/go"
 	param "github.com/oceanicdev/chi-param"
 	"github.com/pkg/errors"
 	uuid "github.com/satori/go.uuid"
