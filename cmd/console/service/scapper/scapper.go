@@ -597,7 +597,7 @@ func (s Scapper) readJobObjFromYamlFile(checkType model.ComplianceCheckType) (*b
 	if checkType == model.ComplianceCheckTargetTypeKube {
 		jobYamlPath = "/jobs/kube-bench/job.yaml"
 	} else if checkType == model.ComplianceCheckTargetTypeDocker {
-		jobYamlPath = "/jobs/docker-bench-security/job.yaml"
+		jobYamlPath = "/jobs/cri-bench/job.yaml"
 	} else if checkType == model.ComplianceCheckTargetTypeHost {
 		jobYamlPath = "/jobs/host-bench/job.yaml"
 	} else {
