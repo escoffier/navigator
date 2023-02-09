@@ -207,27 +207,6 @@
   priority: WARNING
   tags: [ATT&CK, container, shell, mitre_execution, triggered]
 
-- rule: Suspected sending data through tunnel
-  hid: exec_09
-  hthreats: 0
-  suggestion:
-    en:
-      key: "Suggestions"
-      value: "Please determine through the process tree whether the command belongs to the normal behavior of known processes, whether it is an operation and maintenance operation, if it is triggered by the system probe, please use the whitelist plus white corresponding container, otherwise please investigate the specific reasons and isolate the container."
-    zh:
-      key: "处置建议"
-      value: "请通过进程树判断该命令是否属于已知进程的正常行为，是否为运维操作，如果为系统探针触发请采用白名单加白对应容器，否则请排查具体原因并隔离该容器。"
-  desc: Suspected hacker transmits data through tunnel in container
-  condition: >
-    evt.type=socket and container and (proc.name=ping and proc.cmdline contains "-p") or proc.name=nslookup or (proc.name=curl and proc.cmdline contains "-d")  and shell_parent_procs
-  output: >
-    Suspected hacker transmits data through tunnel in container (zh_msg=疑似黑客在容器内通过隧道传输数据),rule_type=Execution,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,evt.args=%evt.args
-    original_info=user=%user.name user_loginuid=%user.loginuid
-    container_id=%container.id container_name=%container.name image=%container.image.repository:%container.image.tag
-    connection=%fd.name,client_ip=%fd.cip,client_port=%fd.cport,server_ip=%fd.sip,server_port=%fd.sport)
-  priority: WARNING
-  tags: [ATT&CK, network, process, mitre_execution, strict]
-
 - rule: Run the tool for scanning ports
   hid: exec_10
   hthreats: 0
