@@ -1,0 +1,153 @@
+##POC
+- rule: Suspected to create webshell file
+  hid: poc_1
+  hthreats: 0
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "This operation may be triggered by a system program. Please confirm whether the operation is completed by a trusted program."
+    zh:
+      key: "处置建议"
+      value: "疑似创建了webshell文件，需进一步对内容进行检测。"
+  desc: It is suspected that a webshell file has been created, and the content needs further detection.
+  condition: >
+    container and (evt.type = creat or open_write or open_read)
+    and (proc.cmdline contains ".php"
+    or proc.cmdline contains ".asp"
+    or proc.cmdline contains ".jsp"
+    or proc.cmdline contains ".jspx"
+    or proc.cmdline contains ".aspx"
+    or proc.cmdline contains ".war"
+    or fd.name contains ".php"
+    or fd.name contains ".asp"
+    or fd.name contains ".aspx"
+    or fd.name contains ".jsp"
+    or fd.name contains ".jspx"
+    or fd.name contains ".war"
+    )
+  output: >
+    suspected to create webshell file (zh_msg=疑似创建webshell文件,rule_type=Persistence,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,
+    original_info=user=%user.name user_loginuid=%user.loginuid file=%fd.name container_id=%container.id container_name=%container.name image=%container.image.repository)
+  priority: WARNING
+  tags: [ATT&CK, filesystem, mitre_persistence, qt, xy]
+
+- rule: Suspected of out-of-band detection through dnslog and other methods
+  hid: poc_2
+  hthreats: 0
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "There may be out-of-band detection using tools such as dnslog. Please confirm whether there are command execution vulnerabilities in the business and whether the server has been invaded."
+    zh:
+      key: "处置建议"
+      value: "可能存在利用dnslog等工具进行带外探测，请确认业务是否存在命令执行漏洞及服务器是否遭到入侵。"
+  desc: Suspected of out-of-band detection through dnslog and other methods
+  condition: >
+    (inbound_outbound) and proc.cmdline contains "dnslog"
+  output: >
+    Try ssh connection in host (zh_msg=疑似通过dnslog等方式进行带外探测,rule_type=Exfiltration,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,connection=%fd.name,client_ip=%fd.cip,client_port=%fd.cport,server_ip=%fd.sip,server_port=%fd.sport user=%user.name user_loginuid=%user.loginuid container_id=%container.id container_name=%container.name image=%container.image.repository)
+  priority: WARNING
+  tags: [ATT&CK, network, mitre_remote_service, xy]
+
+
+- rule: Suspected sending data through tunnel
+  hid: poc_3
+  hthreats: 0
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "Check whether the execution of the relevant command is as expected and whether it is an operation and maintenance operation. If it is triggered by the system probe, please add the corresponding container to the white list. Otherwise, please check the specific reason and isolate the container."
+    zh:
+      key: "处置建议"
+      value: "查看相关命令执行是否符合预期，是否为运维操作，如果为系统探针触发请采用白名单加白对应容器，否则请排查具体原因并隔离该容器。"
+  desc: Suspected hacker transmits data through tunnel in container
+  condition: >
+    evt.type=socket and container and (proc.name=ping and proc.cmdline contains "-p") or proc.name=nslookup or (proc.name=curl and proc.cmdline contains "-d")  and shell_parent_procs
+  output: >
+    Suspected hacker transmits data through tunnel in container (zh_msg=疑似黑客在容器内通过隧道传输数据,rule_type=Execution,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,evt.args=%evt.args
+    original_info=user=%user.name user_loginuid=%user.loginuid
+    container_id=%container.id container_name=%container.name image=%container.image.repository:%container.image.tag
+    connection=%fd.name,client_ip=%fd.cip,client_port=%fd.cport,server_ip=%fd.sip,server_port=%fd.sport)
+  priority: WARNING
+  tags: [ATT&CK, network, process, mitre_execution, strict, xy]
+
+- rule: Network scanning through interpreted language
+  hid: poc_4
+  hthreats: 1
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "Please confirm whether it is caused by the internal business script of the system, otherwise the system may be invaded, and micro isolation can be used to block the traffic."
+    zh:
+      key: "处置建议"
+      value: "使请确认是否为系统内部业务脚本导致，否则系统可能遭到入侵，可使用微隔离阻拦流量。"
+  desc: Interpretative language detected scanning network
+  condition: >
+    interpreted_procs and evt.type=connect and not tensorsec_namespace and shell_parent_procs
+  output: >
+    Interpretative language detected scanning network (zh_msg=通过解释型语言探测网络,rule_type=Exfiltration,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid connection=%fd.name container_id=%container.id container_name=%container.name image=%container.image.repository)
+  priority: WARNING
+  tags: [ATT&CK, xy, qt]
+
+- rule: Reverse shell through channel
+  hid: poc_5
+  hthreats: 1
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "The container is intruded, it is necessary to isolate the container, investigate other attacks, and confirm the security of the cluster."
+    zh:
+      key: "处置建议"
+      value: "容器遭到入侵，需隔离该容器，同时排查其他攻击行为，确认集群安全。"
+  desc: awk Program runs inside container that allows remote code execution(Risk of Reverse Shell exploit)
+  condition: >
+    evt.type=connect and container and (proc.cmdline contains "mkfifo" or proc.cmdline contains "mknode") and shell_parent_procs
+  output: >
+    awk runs inside container that allows remote code execution (zh_msg=黑客在容器内通过隧道反弹shell,rule_type=Execution,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,evt.args=%evt.args
+    original_info=user=%user.name user_loginuid=%user.loginuid
+    container_id=%container.id container_name=%container.name image=%container.image.repository:%container.image.tag
+    connection=%fd.name,client_ip=%fd.cip,client_port=%fd.cport,server_ip=%fd.sip,server_port=%fd.sport)
+  priority: ALERT
+  tags: [ATT&CK, network, process, mitre_execution, xy]
+
+- rule: Mount directory detected in container
+  hid: poc_6
+  hthreats: 0
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "Check whether the execution of the relevant command is as expected and whether it is an operation and maintenance operation. If it is triggered by the system probe, please add the corresponding container to the white list. Otherwise, please check the specific reason and isolate the container."
+    zh:
+      key: "处置建议"
+      value: "请确认该挂载行为是否符合预期，如果是业务行为可使用白名单对业务pod进行加白，否则可能存在黑客借用目录挂载进行逃逸的风险，需及时隔离该容器"
+  desc: The behavior of mounting directory in the container is detected
+  condition: >
+    open_read and container and (fd.name startswith /sys/dev/block/ or proc.cmdline contains "mount") and proc.name=mount and shell_parent_procs
+  output: >
+    The behavior of mounting directory in the container is detected (zh_msg=检测到容器内挂载目录行为,rule_type=Execution,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,evt.args=%evt.args
+    original_info=user=%user.name user_loginuid=%user.loginuid
+    container_id=%container.id container_name=%container.name image=%container.image.repository:%container.image.tag
+    connection=%fd.name,client_ip=%fd.cip,client_port=%fd.cport,server_ip=%fd.sip,server_port=%fd.sport)
+  priority: WARNING
+  tags: [ATT&CK, network, process, mitre_execution, xy]
+
+- rule: Suspected malicious script execution
+  hid: poc_7
+  hthreats: 0
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "Please confirm whether the script is used by the business. If not, please check the source of the script and use immune defense to limit the file."
+    zh:
+      key: "处置建议"
+      value: "请确认该脚本是否为业务所用脚本，如不是则请排查脚本来源，可使用免疫防御对该文件进行限制"
+  desc: Suspected malicious script execution
+  condition: >
+    spawned_process and container and (proc.cmdline contains ".py" or proc.cmdline contains ".sh") and shell_parent_procs
+  output: >
+    Suspected malicious script execution (zh_msg=疑似恶意脚本执行,rule_type=Execution,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,evt.args=%evt.args
+    original_info=user=%user.name user_loginuid=%user.loginuid
+    container_id=%container.id container_name=%container.name image=%container.image.repository:%container.image.tag
+    connection=%fd.name,client_ip=%fd.cip,client_port=%fd.cport,server_ip=%fd.sip,server_port=%fd.sport)
+  priority: WARNING
+  tags: [ATT&CK, network, process, mitre_execution, xy, qt]
