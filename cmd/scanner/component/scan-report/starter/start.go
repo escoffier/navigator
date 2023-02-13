@@ -81,7 +81,7 @@ func NewBackgroundTasks(ctx context.Context, config Config) *BackgroundTasks {
 	// 扫描任务导出excel
 	scanTaskExportSrv := excel.NewScanTaskExport(imageExportSrv, exportTaskDal, scanTaskDal, config.FileDir, updateTask, config.MaxVulnCol)
 	// 导出漏洞
-	vulnExportSrv := excel.NewVulnExport(exportTaskDal, config.FileDir, vulnDal, updateTask)
+	vulnExportSrv := excel.NewVulnExport(exportTaskDal, config.FileDir, vulnDal, imageSrv, updateTask)
 	// 清理文件
 	clearFile := excel.NewClearFile(config.FileDir, config.Expiration, exportTaskDal, idempotentDal)
 
@@ -106,7 +106,7 @@ func NewBackgroundTasks(ctx context.Context, config Config) *BackgroundTasks {
 }
 
 func (s *BackgroundTasks) Start(ctx context.Context) {
-	// 导出镜像报告
+	// 导出风险探索中的镜像报告
 	go func() {
 		tick := time.NewTicker(time.Second * 10)
 		defer tick.Stop()
