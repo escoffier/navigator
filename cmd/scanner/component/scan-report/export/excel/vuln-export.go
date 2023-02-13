@@ -29,12 +29,14 @@ func NewVulnExport(
 	exportTaskDal store.ExportTaskDal,
 	fileDir string, // 文件存储的决对路径
 	vulnDal store.VulnDalInterface,
+	imageSrv common.ImageInterface,
 	updateTask common.UpdateExportTask,
 ) *VulnExport {
 	return &VulnExport{
 		ExportTaskDal: exportTaskDal,
 		FileDir:       fileDir,
 		VulnDal:       vulnDal,
+		ImageSrv:      imageSrv,
 		UpdateTask:    updateTask,
 	}
 }
