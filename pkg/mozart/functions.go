@@ -341,6 +341,7 @@ func (e *Engine) SendSignalToPalace(x rego.BuiltinContext, a *ast.Term) (*ast.Te
 	}
 
 	err = e.deps.palace.SendSignal(ruleKey, scopes, signalContext)
+	logging.Get().Info().Err(err).Str("rule", ruleKey.Name).Msg("send signal to palace")
 	return ast.NullTerm(), err
 }
 
@@ -397,8 +398,8 @@ func generateSignalContext(data *SignalPayload) (signalContext map[string]interf
 	ppid := data.OutputMap["proc_ppid"]
 
 	procPname, ok := data.OutputMap["proc_pname"]
-	if ok && len(ppid) > 0 {
-		signalContext["proc.pname"] = procPname + fmt.Sprintf("(%s)", ppid)
+	if ok {
+		signalContext["proc.pname"] = procPname
 		delete(data.OutputMap, model.FieldParentProcessName)
 		delete(data.OutputMap, "proc_pname")
 	}
@@ -406,8 +407,8 @@ func generateSignalContext(data *SignalPayload) (signalContext map[string]interf
 	command := data.OutputMap["proc_cmdline"]
 
 	pid := data.OutputMap["proc_pid"]
-	if command != "" && pid != "" {
-		signalContext["proc.name"] = strings.Split(command, " ")[0] + fmt.Sprintf("(%s)", pid)
+	if command != "" {
+		signalContext["proc.name"] = strings.Split(command, " ")[0]
 		delete(data.OutputMap, model.FieldProcessName)
 		delete(data.OutputMap, "proc_name")
 	}
