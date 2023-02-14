@@ -1,8 +1,6 @@
 package main
 
 import (
-	"bytes"
-	"encoding/binary"
 	"flag"
 	"fmt"
 	"io/ioutil"
@@ -10,8 +8,8 @@ import (
 	"strconv"
 	"strings"
 
+	"gitlab.com/piccolo_su/vegeta/pkg/holmes"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
-	"gitlab.com/security-rd/go-pkg/cryption"
 	"gopkg.in/yaml.v2"
 )
 
@@ -54,18 +52,8 @@ func checkRulesFile(in []byte) error {
 	return nil
 }
 
-func writeOutputFile(fp *os.File, header *cryption.FileHeader, data []byte) error {
-
-	buf := new(bytes.Buffer)
-	err := binary.Write(buf, binary.LittleEndian, header)
-	if err != nil {
-		return err
-	}
-	_, err = fp.Write(buf.Bytes())
-	if err != nil {
-		return err
-	}
-	_, err = fp.Write(data)
+func writeOutputFile(fp *os.File, data []byte) error {
+	_, err := fp.Write(data)
 	if err != nil {
 		return err
 	}
@@ -104,7 +92,6 @@ func main() {
 		fp.Close()
 		os.Exit(2)
 	}
-	data, md5, blockNum := cryption.EncryptionRules(fileBytes)
 	versionList := strings.Split(*version, ".")
 	if len(versionList) != 2 {
 		fmt.Printf("version number parse error. input: %s", *version)
@@ -126,10 +113,14 @@ func main() {
 		os.Exit(5)
 	}
 	versionNum[1] = uint16(tmpInt)
-	header := &cryption.FileHeader{BlockNum: blockNum, Version: versionNum}
-	header.Init(md5)
 
-	err = writeOutputFile(fp, header, data)
+	thrBytes, err := holmes.ToThrBytes(fileBytes, versionNum)
+	if err != nil {
+		fmt.Println(err)
+		fp.Close()
+		os.Exit(6)
+	}
+	err = writeOutputFile(fp, thrBytes)
 	if err != nil {
 		fmt.Println(err)
 		fp.Close()

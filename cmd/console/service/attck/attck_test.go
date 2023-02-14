@@ -21,7 +21,8 @@ func TestParseItems(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	version, rules, _, err := parseItems(header, rulesContext)
+	h := new(ATTCKHandler)
+	version, rules, _, err := h.parseItems(header, rulesContext)
 	if err != nil {
 		t.Fatal(err)
 	}

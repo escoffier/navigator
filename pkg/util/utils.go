@@ -11,12 +11,10 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/google/go-containerregistry/pkg/name"
-	"github.com/shopspring/decimal"
-
 	"github.com/golang/gddo/httputil/header"
+	"github.com/google/go-containerregistry/pkg/name"
 	json "github.com/json-iterator/go"
-
+	"github.com/shopspring/decimal"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 )
 

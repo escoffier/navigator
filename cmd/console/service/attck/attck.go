@@ -5,20 +5,21 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
-	"github.com/avast/retry-go"
-	"github.com/go-redis/redis/v8"
-	"github.com/go-redsync/redsync/v4"
-	"github.com/go-redsync/redsync/v4/redis/goredis/v8"
-	"gopkg.in/yaml.v2"
 	"io/ioutil"
+	"os"
 	"runtime/debug"
 	"sort"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/avast/retry-go"
+	"github.com/go-redis/redis/v8"
+	"github.com/go-redsync/redsync/v4"
+	"github.com/go-redsync/redsync/v4/redis/goredis/v8"
 	"gitlab.com/piccolo_su/vegeta/pkg/dal"
 	"gitlab.com/piccolo_su/vegeta/pkg/echelper"
+	"gitlab.com/piccolo_su/vegeta/pkg/holmes"
 	"gitlab.com/piccolo_su/vegeta/pkg/lang"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/rtdetect"
@@ -26,25 +27,27 @@ import (
 	"gitlab.com/security-rd/go-pkg/cryption"
 	"gitlab.com/security-rd/go-pkg/databases"
 	"gitlab.com/security-rd/go-pkg/logging"
+	"gopkg.in/yaml.v2"
 )
 
 const (
 	currentRulesVersion = 2
-
-	localRulesDirPath = "/rules"
+	localRulesDirPath   = "/rules"
 )
 
 var (
-	ErrVersionNotUpper = errors.New("the given version is not upper than the latest")
+	ErrVersionNotUpper     = errors.New("the given version is not upper than the latest")
+	ErrNotFalcoRuleElement = errors.New("this is not a rule element")
 )
 
 type ATTCKHandler struct {
 	db             *databases.RDBInstance
 	sherlockClient *echelper.SherlockClient
 
-	cacheLock sync.RWMutex
-	rules     map[uint16]attckRules
-	rs        *redsync.Redsync
+	cacheLock        sync.RWMutex
+	rules            map[uint16]*attckRules
+	rs               *redsync.Redsync
+	displayedPocTags map[string]struct{}
 }
 
 type attckRules struct {
@@ -99,88 +102,9 @@ func (rv *RulesVersion) String() string {
 	return fmt.Sprintf("v%d.%d", rv.Seg1, rv.Seg2)
 }
 
-func parseItems(header cryption.FileHeader, rulesContext []byte) (version RulesVersion, rules map[string]*ruleItem, strictRules map[string]struct{}, err error) {
-	version = RulesVersion{
-		header.Version[0],
-		header.Version[1],
-	}
-
-	var fDataRules []model.RuleFromYaml
-	err = yaml.Unmarshal(rulesContext, &fDataRules)
-	if err != nil {
-		logging.Get().Warn().Msgf("unmarshal rule fail, err:%s", err.Error())
-		return version, nil, nil, ErrInvalidRuleData
-	}
-
-	// rules为会触发告警，会由用户控制开关的规parseItems则
-	rules = make(map[string]*ruleItem, 0)
-	strictRules = make(map[string]struct{}, 0)
-
-	// 针对不同的规则版本，进行分别的解析
-	switch version.Seg1 {
-	// falco
-	case 1:
-
-		for _, item := range fDataRules {
-			ok, isStrict, rule := parseFalcoRule(item)
-			if !ok {
-				continue
-			}
-			if isStrict {
-				strictRules[rule.name] = struct{}{}
-			}
-			rules[rule.name] = &rule
-		}
-
-	// falco + mozart
-	case 2:
-
-		for _, item := range fDataRules {
-			// 处理mozart规则
-			if len(item.Mozart) != 0 {
-				for i := range item.Mozart {
-					ok, isStrict, rule := parseMozartRule(item.Mozart[i])
-					if !ok {
-						continue
-					}
-					rules[rule.name] = &rule
-					if isStrict {
-						strictRules[rule.name] = struct{}{}
-					}
-				}
-				// mozart规则列表下，没有正常的falco规则，跳过
-				continue
-			}
-
-			// 只是关联规则，不应展示，跳过
-			if !util.ContainsString(item.Tags, "triggered") && util.ContainsString(item.Tags, "related") {
-				continue
-			}
-			// 触发规则严重级别较低，不应展示，跳过
-			if util.ContainsString(item.Tags, "triggered") && !rtdetect.ComparePriority(item.Priority, "ERROR") {
-				continue
-			}
-
-			// falco
-			ok, isStrict, rule := parseFalcoRule(item)
-			if !ok {
-				continue
-			}
-			if isStrict {
-				strictRules[rule.name] = struct{}{}
-			}
-			rules[rule.name] = &rule
-
-		}
-	}
-
-	return version, rules, strictRules, nil
-}
-
-func parseFalcoRule(item model.RuleFromYaml) (bool, bool, ruleItem) {
-	isStrict := false
+func parseFalcoRule(item model.RuleFromYaml) (isStrict bool, target ruleItem, err error) {
 	if len(item.Rule) == 0 || len(item.Priority) == 0 {
-		return false, isStrict, ruleItem{}
+		return isStrict, target, ErrNotFalcoRuleElement
 	}
 	if util.ContainsString(item.Tags, "strict") {
 		isStrict = true
@@ -194,7 +118,7 @@ func parseFalcoRule(item model.RuleFromYaml) (bool, bool, ruleItem) {
 	descZh := ""
 	zhMsg, err := model.GetInfoFromOutput("zh_msg=", item.Output)
 	if err != nil {
-		return false, isStrict, ruleItem{}
+		return isStrict, target, err
 	}
 
 	if len(strings.Split(zhMsg, ";")) < 2 {
@@ -203,17 +127,17 @@ func parseFalcoRule(item model.RuleFromYaml) (bool, bool, ruleItem) {
 		descZh = strings.Split(zhMsg, ";")[1]
 	}
 
-	tsAdapter := make(map[string]map[string]string)
-	tsAdapter[string(lang.LanguageZH)] = make(map[string]string)
+	tsAdapter := make(map[string]map[string]string, 2)
+	tsAdapter[string(lang.LanguageZH)] = make(map[string]string, 2)
 	tsAdapter[string(lang.LanguageZH)][typeKey] = ruleTypeZh
 	tsAdapter[string(lang.LanguageZH)][descriptionKey] = descZh
-	tsAdapter[string(lang.LanguageEN)] = make(map[string]string)
+	tsAdapter[string(lang.LanguageEN)] = make(map[string]string, 2)
 	tsAdapter[string(lang.LanguageEN)][typeKey] = ruleType
 	tsAdapter[string(lang.LanguageEN)][descriptionKey] = item.Desc
 
 	// for the prevention of ambiguity, we have "_" instead of " "(space). This is for the recovery
 	ruleType = strings.ReplaceAll(ruleType, "_", " ")
-	return true, isStrict, ruleItem{
+	return isStrict, ruleItem{
 		name:        item.Rule,
 		description: item.Desc,
 		severity:    model.Str2SeverityNum(item.Priority),
@@ -221,10 +145,10 @@ func parseFalcoRule(item model.RuleFromYaml) (bool, bool, ruleItem) {
 		ruleType:    ruleType,
 		adapter:     tsAdapter,
 		category:    item.Category,
-	}
+	}, nil
 }
 
-func parseMozartRule(configMozart model.ConfigMozart) (bool, bool, ruleItem) {
+func parseMozartRule(configMozart model.ConfigMozart) (bool, ruleItem, error) {
 	isStrict := !configMozart.Enabled
 	ruleEnName := ""
 	for j := range configMozart.Steps {
@@ -238,22 +162,23 @@ func parseMozartRule(configMozart model.ConfigMozart) (bool, bool, ruleItem) {
 		}
 	}
 	if ruleEnName == "" {
-		logging.Get().Error().Err(errors.New("no invalid rule en name")).Msg("no invalid rule en name")
-		return false, isStrict, ruleItem{}
+		err := errors.New("no invalid rule en name")
+		logging.Get().Error().Err(err).Msg("no invalid rule en name")
+		return isStrict, ruleItem{}, err
 	}
 	hthreats := 0
 	if configMozart.Info.Urgency {
 		hthreats = 1
 	}
-	tsAdapter := make(map[string]map[string]string)
-	tsAdapter[string(lang.LanguageZH)] = make(map[string]string)
+	tsAdapter := make(map[string]map[string]string, 2)
+	tsAdapter[string(lang.LanguageZH)] = make(map[string]string, 2)
 	tsAdapter[string(lang.LanguageZH)][typeKey] = model.TranslateRuleType(configMozart.Info.RuleType)
 	tsAdapter[string(lang.LanguageZH)][descriptionKey] = configMozart.Info.Desc.Zh
-	tsAdapter[string(lang.LanguageEN)] = make(map[string]string)
+	tsAdapter[string(lang.LanguageEN)] = make(map[string]string, 2)
 	tsAdapter[string(lang.LanguageEN)][typeKey] = configMozart.Info.RuleType
 	tsAdapter[string(lang.LanguageEN)][descriptionKey] = configMozart.Info.Desc.En
 
-	return true, isStrict, ruleItem{
+	return isStrict, ruleItem{
 		name:        ruleEnName,
 		description: configMozart.Info.Desc.En,
 		severity:    model.Str2SeverityNum(configMozart.Info.Priority),
@@ -261,15 +186,17 @@ func parseMozartRule(configMozart model.ConfigMozart) (bool, bool, ruleItem) {
 		ruleType:    strings.ReplaceAll(configMozart.Info.RuleType, "_", " "),
 		adapter:     tsAdapter,
 		category:    "ATT&CK",
-	}
+	}, nil
 }
 
 func NewATTCKHandler(db *databases.RDBInstance, redisCli *redis.Client, sherlockClient *echelper.SherlockClient) (*ATTCKHandler, error) {
+	displayedPocTagsStr := os.Getenv("DP_TAGS")
 	handler := &ATTCKHandler{
-		db:             db,
-		sherlockClient: sherlockClient,
-		rules:          make(map[uint16]attckRules, 0),
-		rs:             redsync.New(goredis.NewPool(redisCli)),
+		db:               db,
+		sherlockClient:   sherlockClient,
+		rules:            make(map[uint16]*attckRules, 0),
+		rs:               redsync.New(goredis.NewPool(redisCli)),
+		displayedPocTags: ReadFromConfig(displayedPocTagsStr),
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
@@ -299,6 +226,106 @@ func (h *ATTCKHandler) loadFromLocal(ctx context.Context, v uint16) ([]byte, err
 	}
 
 	return ioutil.ReadFile(localRulesDirPath + "/holmes-rules.thr")
+}
+
+func (h *ATTCKHandler) parseItems(header cryption.FileHeader, rulesContext []byte) (version RulesVersion, rules map[string]*ruleItem, strictRules map[string]struct{}, afterBytes []byte, err error) {
+	version = RulesVersion{
+		header.Version[0],
+		header.Version[1],
+	}
+
+	var fDataRules []model.RuleFromYaml
+	err = yaml.Unmarshal(rulesContext, &fDataRules)
+	if err != nil {
+		logging.Get().Warn().Msgf("unmarshal rule fail, err:%s", err.Error())
+		return version, nil, nil, nil, ErrInvalidRuleData
+	}
+
+	// rules为会触发告警，会由用户控制开关的规parseItems则
+	rules = make(map[string]*ruleItem, len(fDataRules))
+	strictRules = make(map[string]struct{}, len(fDataRules)/3)
+	afterRules := make([]model.RuleFromYaml, 0, len(fDataRules))
+
+	// 针对不同的规则版本，进行分别的解析
+	switch version.Seg1 {
+	// falco
+	case 1:
+		for _, item := range fDataRules {
+			if IsRule4PocIgnored(item, h.displayedPocTags) {
+				continue
+			}
+			afterRules = append(afterRules, item)
+
+			isStrict, rule, err := parseFalcoRule(item)
+			if err == ErrNotFalcoRuleElement {
+				continue
+			} else if err != nil {
+				logging.Get().Err(err).Interface("item", item).Msg("Parse falco rule error")
+				continue
+			}
+
+			if isStrict {
+				strictRules[rule.name] = struct{}{}
+			}
+			rules[rule.name] = &rule
+		}
+
+	// falco + mozart
+	case 2:
+		for _, item := range fDataRules {
+			// 处理mozart规则
+			if len(item.Mozart) != 0 {
+				for i := range item.Mozart {
+					isStrict, rule, err := parseMozartRule(item.Mozart[i])
+					if err != nil {
+						logging.Get().Err(err).Interface("item", item.Mozart).Msg("Parse mozart error")
+						continue
+					}
+					rules[rule.name] = &rule
+					if isStrict {
+						strictRules[rule.name] = struct{}{}
+					}
+				}
+				// mozart规则列表下，没有正常的falco规则，跳过
+				afterRules = append(afterRules, item)
+				continue
+			}
+
+			if IsRule4PocIgnored(item, h.displayedPocTags) {
+				continue
+			}
+			afterRules = append(afterRules, item)
+
+			// 只是关联规则，不应展示，跳过
+			if !util.ContainsString(item.Tags, "triggered") && util.ContainsString(item.Tags, "related") {
+				continue
+			}
+			// 触发规则严重级别较低，不应展示，跳过
+			if util.ContainsString(item.Tags, "triggered") && !rtdetect.ComparePriority(item.Priority, "ERROR") {
+				continue
+			}
+
+			// falco
+			isStrict, rule, err := parseFalcoRule(item)
+			if err == ErrNotFalcoRuleElement {
+				continue
+			} else if err != nil {
+				logging.Get().Err(err).Interface("item", item).Msg("Parse falco rule error")
+				continue
+			}
+			if isStrict {
+				strictRules[rule.name] = struct{}{}
+			}
+			rules[rule.name] = &rule
+
+		}
+	}
+
+	afterBytes, err = yaml.Marshal(afterRules)
+	if err != nil {
+		logging.Get().Err(err).Msg("marshal rules error")
+	}
+	return version, rules, strictRules, afterBytes, nil
 }
 
 func (h *ATTCKHandler) loadFromStore(ctx context.Context, v uint16) (*model.ATTCKRuleData, error) {
@@ -410,9 +437,10 @@ func (h *ATTCKHandler) updateConfigs(ctx context.Context, v uint16) error {
 		logging.Get().Info().Uints16("local version", header.Version[:]).Msg("Initialize with local rules.")
 		var version RulesVersion
 		var strictRules map[string]struct{}
-		version, rules, strictRules, err = parseItems(header, rulesContext)
+		var afterBytes []byte
+		version, rules, strictRules, afterBytes, err = h.parseItems(header, rulesContext)
 		if err != nil {
-			logging.Get().Err(err).Msgf("parse items error. data: %s", string(ruleBytes))
+			logging.Get().Err(err).Str("data", string(ruleBytes)).Msg("parse items error.")
 			return err
 		}
 
@@ -421,8 +449,13 @@ func (h *ATTCKHandler) updateConfigs(ctx context.Context, v uint16) error {
 				logging.Get().Err(err).Msg("updateDefaultMasksForStricts error")
 			}
 		}
+		afterBytesEncoded, err := holmes.ToThrBytes(afterBytes, header.Version)
+		if err != nil {
+			logging.Get().Err(err).Str("data", string(ruleBytes)).Msg("ToThrBytes error")
+			return err
+		}
 		confData := model.ATTCKRuleData{
-			Content: ruleBytes,
+			Content: afterBytesEncoded,
 		}
 		confData.ATTCKConfVersion = model.ATTCKConfVersion{
 			Version1:  version.Seg1,
@@ -441,7 +474,7 @@ func (h *ATTCKHandler) updateConfigs(ctx context.Context, v uint16) error {
 			logging.Get().Info().Str("conf version", version.String()).Msg("Successfully store attack conf data from local.")
 		}
 
-		h.asyncUploadRulesToEventsCenter(rulesContext, version.String())
+		h.asyncUploadRulesToEventsCenter(afterBytes, version.String())
 	} else { // use storage
 		logging.Get().Info().Uints16("storage version", header.Version[:]).Msg("Initialize with stored rules.")
 		header, rulesContext, _, err := cryption.ReadRulesData(storeConf.Content)
@@ -449,11 +482,40 @@ func (h *ATTCKHandler) updateConfigs(ctx context.Context, v uint16) error {
 			logging.Get().Err(err).Str("data", string(storeConf.Content)).Msg("decode rule data fail")
 			return err
 		}
-		_, rules, _, err = parseItems(header, rulesContext)
+		var afterBytes []byte
+		var version RulesVersion
+		version, rules, _, afterBytes, err = h.parseItems(header, rulesContext)
 		if err != nil {
 			logging.Get().Err(err).Msgf("parse items error. data: %s", string(storeConf.Content))
 			return err
 		}
+
+		afterBytesEncoded, err := holmes.ToThrBytes(afterBytes, header.Version)
+		if err != nil {
+			logging.Get().Err(err).Str("data", string(ruleBytes)).Msg("ToThrBytes error")
+			return err
+		}
+		confData := model.ATTCKRuleData{
+			Content: afterBytesEncoded,
+		}
+		confData.ATTCKConfVersion = model.ATTCKConfVersion{
+			Version1:  version.Seg1,
+			Version2:  version.Seg2,
+			Username:  "system",
+			CreatedAt: time.Now(),
+		}
+		err = util.RetryWithBackoff(ctx, func() error {
+			var err error
+			storeConf, err = dal.SaveATTCKConfData(ctx, h.db.Get(), &confData, nil, version.Seg1)
+			return err
+		}, retry.Attempts(3))
+		if err != nil {
+			logging.Get().Err(err).Msg("store attck conf data error. ")
+		} else {
+			logging.Get().Info().Str("conf version", version.String()).Msg("Successfully store attack conf data from local.")
+		}
+
+		h.asyncUploadRulesToEventsCenter(afterBytes, version.String())
 	}
 
 	onlineOffset, err := dal.LoadATTCKRuleMaskVersion(ctx, h.db.Get(), storeConf.Version1)
@@ -530,11 +592,16 @@ func (h *ATTCKHandler) UpdateConfig(ctx context.Context, username string, data [
 		return nil, err
 	}
 
-	version, rules, strictRules, err := parseItems(header, rulesContext)
+	version, rules, strictRules, rulesContext, err := h.parseItems(header, rulesContext)
 	if err != nil {
 		return nil, err
 	}
 	h.flushCache(version.Seg1)
+	data, err = holmes.ToThrBytes(rulesContext, header.Version)
+	if err != nil {
+		logging.Get().Err(err).Str("data", string(rulesContext)).Msg("ToThrBytes error")
+		return nil, err
+	}
 
 	if version.Seg1 == uint16(1) {
 		// fixme: 增加一个hack逻辑，当version大版本号为1时，批量更新数据库的ivan_assets_clusters.rule_version字段。   原因是 多版本集群环境下，老版集群没有同步规则库版本的逻辑
@@ -607,7 +674,7 @@ func (h *ATTCKHandler) UpdateConfig(ctx context.Context, username string, data [
 func (h *ATTCKHandler) updateRulesByVersion(rules map[string]*ruleItem, baseOffset, onlineOffset uint32, version model.ATTCKConfVersion) {
 	vRules, ok := h.rules[version.Version1]
 	if !ok {
-		vRules = attckRules{}
+		vRules = new(attckRules)
 	}
 	vRules.baseOffset = baseOffset
 	vRules.onlineOffset = onlineOffset
