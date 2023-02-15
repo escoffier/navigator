@@ -49,7 +49,7 @@ type ATTCKHandler struct {
 	rules            map[uint16]*attckRules
 	rs               *redsync.Redsync
 	displayedPocTags map[string]struct{}
-	pocTagsChecked   *atomic.Bool
+	pocTagsChecked   []*atomic.Bool
 }
 
 type attckRules struct {
@@ -199,9 +199,12 @@ func NewATTCKHandler(db *databases.RDBInstance, redisCli *redis.Client, sherlock
 		rules:            make(map[uint16]*attckRules, 0),
 		rs:               redsync.New(goredis.NewPool(redisCli)),
 		displayedPocTags: ReadFromConfig(displayedPocTagsStr),
-		pocTagsChecked:   new(atomic.Bool),
+		pocTagsChecked:   make([]*atomic.Bool, currentRulesVersion),
 	}
-	handler.pocTagsChecked.Store(false)
+	for i := 0; i < currentRulesVersion; i++ {
+		handler.pocTagsChecked[i] = new(atomic.Bool)
+		handler.pocTagsChecked[i].Store(false)
+	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
@@ -495,7 +498,7 @@ func (h *ATTCKHandler) updateConfigs(ctx context.Context, v uint16) error {
 		}
 
 		// On first load when the process starts, filter the latest conf with poc settings. No need to execute if not.
-		if !h.pocTagsChecked.Load() {
+		if v > 0 && v <= currentRulesVersion && !h.pocTagsChecked[v-1].Load() {
 			afterBytesEncoded, err := holmes.ToThrBytes(afterBytes, header.Version)
 			if err != nil {
 				logging.Get().Err(err).Str("data", string(ruleBytes)).Msg("ToThrBytes error")
@@ -519,7 +522,7 @@ func (h *ATTCKHandler) updateConfigs(ctx context.Context, v uint16) error {
 				logging.Get().Err(err).Msg("store attck conf data error. ")
 			} else {
 				logging.Get().Info().Str("conf version", version.String()).Msg("Successfully store attack conf data from local.")
-				h.pocTagsChecked.Store(true)
+				h.pocTagsChecked[v-1].Store(true)
 			}
 			h.asyncUploadRulesToEventsCenter(afterBytes, version.String())
 		}
