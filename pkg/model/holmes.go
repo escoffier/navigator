@@ -117,7 +117,7 @@ type RuleFromYaml struct {
 	Priority              string         `yaml:"priority,omitempty"`
 	Desc                  string         `yaml:"desc,omitempty"`
 	Output                string         `yaml:"output,omitempty"`
-	Condition             string         `yaml:"condition,omitempty"`
+	Condition             string         `yaml:"condition"`
 	Suggestion            map[string]*KV `yaml:"suggestion,omitempty"`
 	Category              string         `yaml:"category,omitempty"`
 	CategoryZh            string         `yaml:"categoryZh,omitempty"`
@@ -125,7 +125,7 @@ type RuleFromYaml struct {
 	EnabledPtr            *bool          `yaml:"enabled,omitempty"` // the default value is true, so set it to a pointer
 	Macro                 string         `yaml:"macro,omitempty"`
 	List                  string         `yaml:"list,omitempty"`
-	Items                 []string       `yaml:"items,omitempty"`
+	Items                 []string       `yaml:"items"`
 	RequiredEngineVersion int            `yaml:"required_engine_version,omitempty"`
 	Source                string         `yaml:"source,omitempty"`
 
