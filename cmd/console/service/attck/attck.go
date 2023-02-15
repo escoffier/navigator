@@ -33,6 +33,7 @@ import (
 
 const (
 	currentRulesVersion = 2
+	minPocVersion       = 2
 	localRulesDirPath   = "/rules"
 )
 
@@ -199,9 +200,9 @@ func NewATTCKHandler(db *databases.RDBInstance, redisCli *redis.Client, sherlock
 		rules:            make(map[uint16]*attckRules, 0),
 		rs:               redsync.New(goredis.NewPool(redisCli)),
 		displayedPocTags: ReadFromConfig(displayedPocTagsStr),
-		pocTagsChecked:   make([]*atomic.Bool, currentRulesVersion),
+		pocTagsChecked:   make([]*atomic.Bool, currentRulesVersion-minPocVersion+1),
 	}
-	for i := 0; i < currentRulesVersion; i++ {
+	for i := 0; i < currentRulesVersion-minPocVersion+1; i++ {
 		handler.pocTagsChecked[i] = new(atomic.Bool)
 		handler.pocTagsChecked[i].Store(false)
 	}
@@ -235,7 +236,7 @@ func (h *ATTCKHandler) loadFromLocal(ctx context.Context, v uint16) ([]byte, err
 	return ioutil.ReadFile(localRulesDirPath + "/holmes-rules.thr")
 }
 
-func (h *ATTCKHandler) parseItems(header cryption.FileHeader, rulesContext []byte) (version RulesVersion, rules map[string]*ruleItem, strictRules map[string]struct{}, afterBytes []byte, err error) {
+func (h *ATTCKHandler) parseItems(header cryption.FileHeader, rulesContext []byte) (version RulesVersion, rules map[string]*ruleItem, strictRules map[string]struct{}, afterBytes []byte, changed bool, err error) {
 	version = RulesVersion{
 		header.Version[0],
 		header.Version[1],
@@ -245,13 +246,14 @@ func (h *ATTCKHandler) parseItems(header cryption.FileHeader, rulesContext []byt
 	err = yaml.Unmarshal(rulesContext, &fDataRules)
 	if err != nil {
 		logging.Get().Warn().Msgf("unmarshal rule fail, err:%s", err.Error())
-		return version, nil, nil, nil, ErrInvalidRuleData
+		return version, nil, nil, nil, false, ErrInvalidRuleData
 	}
 
 	// rules为会触发告警，会由用户控制开关的规parseItems则
 	rules = make(map[string]*ruleItem, len(fDataRules))
 	strictRules = make(map[string]struct{}, len(fDataRules)/3)
 	afterRules := make([]model.RuleFromYaml, 0, len(fDataRules))
+	changed = false
 
 	// 针对不同的规则版本，进行分别的解析
 	switch version.Seg1 {
@@ -259,6 +261,7 @@ func (h *ATTCKHandler) parseItems(header cryption.FileHeader, rulesContext []byt
 	case 1:
 		for _, item := range fDataRules {
 			if IsRule4PocIgnored(item, h.displayedPocTags) {
+				changed = true
 				continue
 			}
 			afterRules = append(afterRules, item)
@@ -299,6 +302,7 @@ func (h *ATTCKHandler) parseItems(header cryption.FileHeader, rulesContext []byt
 			}
 
 			if IsRule4PocIgnored(item, h.displayedPocTags) {
+				changed = true
 				continue
 			}
 			afterRules = append(afterRules, item)
@@ -332,7 +336,7 @@ func (h *ATTCKHandler) parseItems(header cryption.FileHeader, rulesContext []byt
 	if err != nil {
 		logging.Get().Err(err).Msg("marshal rules error")
 	}
-	return version, rules, strictRules, afterBytes, nil
+	return version, rules, strictRules, afterBytes, changed, nil
 }
 
 func (h *ATTCKHandler) loadFromStore(ctx context.Context, v uint16) (*model.ATTCKRuleData, error) {
@@ -445,7 +449,8 @@ func (h *ATTCKHandler) updateConfigs(ctx context.Context, v uint16) error {
 		var version RulesVersion
 		var strictRules map[string]struct{}
 		var afterBytes []byte
-		version, rules, strictRules, afterBytes, err = h.parseItems(header, rulesContext)
+		var changed bool
+		version, rules, strictRules, afterBytes, changed, err = h.parseItems(header, rulesContext)
 		if err != nil {
 			logging.Get().Err(err).Str("data", string(ruleBytes)).Msg("parse items error.")
 			return err
@@ -456,13 +461,19 @@ func (h *ATTCKHandler) updateConfigs(ctx context.Context, v uint16) error {
 				logging.Get().Err(err).Msg("updateDefaultMasksForStricts error")
 			}
 		}
-		afterBytesEncoded, err := holmes.ToThrBytes(afterBytes, header.Version)
-		if err != nil {
-			logging.Get().Err(err).Str("data", string(ruleBytes)).Msg("ToThrBytes error")
-			return err
+		dataBytes := ruleBytes
+		if changed {
+			afterBytesEncoded, err := holmes.ToThrBytes(afterBytes, header.Version)
+			if err != nil {
+				logging.Get().Err(err).Str("data", string(ruleBytes)).Msg("ToThrBytes error")
+				return err
+			} else {
+				dataBytes = afterBytesEncoded
+			}
 		}
+
 		confData := model.ATTCKRuleData{
-			Content: afterBytesEncoded,
+			Content: dataBytes,
 		}
 		confData.ATTCKConfVersion = model.ATTCKConfVersion{
 			Version1:  version.Seg1,
@@ -491,14 +502,15 @@ func (h *ATTCKHandler) updateConfigs(ctx context.Context, v uint16) error {
 		}
 		var afterBytes []byte
 		var version RulesVersion
-		version, rules, _, afterBytes, err = h.parseItems(header, rulesContext)
+		var changed bool
+		version, rules, _, afterBytes, changed, err = h.parseItems(header, rulesContext)
 		if err != nil {
 			logging.Get().Err(err).Msgf("parse items error. data: %s", string(storeConf.Content))
 			return err
 		}
 
 		// On first load when the process starts, filter the latest conf with poc settings. No need to execute if not.
-		if v > 0 && v <= currentRulesVersion && !h.pocTagsChecked[v-1].Load() {
+		if changed && v >= minPocVersion && v <= currentRulesVersion && !h.pocTagsChecked[v-minPocVersion].Load() {
 			afterBytesEncoded, err := holmes.ToThrBytes(afterBytes, header.Version)
 			if err != nil {
 				logging.Get().Err(err).Str("data", string(ruleBytes)).Msg("ToThrBytes error")
@@ -522,7 +534,7 @@ func (h *ATTCKHandler) updateConfigs(ctx context.Context, v uint16) error {
 				logging.Get().Err(err).Msg("store attck conf data error. ")
 			} else {
 				logging.Get().Info().Str("conf version", version.String()).Msg("Successfully store attack conf data from local.")
-				h.pocTagsChecked[v-1].Store(true)
+				h.pocTagsChecked[v-minPocVersion].Store(true)
 			}
 			h.asyncUploadRulesToEventsCenter(afterBytes, version.String())
 		}
@@ -561,7 +573,7 @@ func (h *ATTCKHandler) updateConfigs(ctx context.Context, v uint16) error {
 	h.rules[storeConf.Version1] = vRules
 
 	if v == uint16(1) {
-		// fixme: 增加一个hack逻辑，当version大版本号为1时，批量更新数据库的ivan_assets_clusters.rule_version字段。   原因是 多版本集群环境下，老版集群没有同步规则库版本的逻辑
+		// fixme: 增加一个hack逻辑，当version大版本号为1时，批量更新数据库的ivan_assets_clusters.rule_versin字段。   原因是 多版本集群环境下，老版集群没有同步规则库版本的逻辑
 		go h.updateV1RuleVersion(ctx, fmt.Sprintf("v%d.%d", storeConf.Version1, storeConf.Version2))
 	}
 
@@ -603,15 +615,17 @@ func (h *ATTCKHandler) UpdateConfig(ctx context.Context, username string, data [
 		return nil, err
 	}
 
-	version, rules, strictRules, rulesContext, err := h.parseItems(header, rulesContext)
+	version, rules, strictRules, rulesContext, changed, err := h.parseItems(header, rulesContext)
 	if err != nil {
 		return nil, err
 	}
 	h.flushCache(version.Seg1)
-	data, err = holmes.ToThrBytes(rulesContext, header.Version)
-	if err != nil {
-		logging.Get().Err(err).Str("data", string(rulesContext)).Msg("ToThrBytes error")
-		return nil, err
+	if changed {
+		data, err = holmes.ToThrBytes(rulesContext, header.Version)
+		if err != nil {
+			logging.Get().Err(err).Str("data", string(rulesContext)).Msg("ToThrBytes error")
+			return nil, err
+		} 
 	}
 
 	if version.Seg1 == uint16(1) {
