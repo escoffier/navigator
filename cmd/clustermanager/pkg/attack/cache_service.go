@@ -35,7 +35,7 @@ type config struct {
 type CacheService struct {
 	consoleURL string
 
-	versionVal atomic.Value
+	versionVal atomic.Int64
 
 	dataVal atomic.Value
 
@@ -63,7 +63,7 @@ func (c *CacheService) setVersion(v int64) {
 }
 func (c *CacheService) version() int64 {
 	// 随holmes版本升级
-	return c.versionVal.Load().(int64)
+	return c.versionVal.Load()
 }
 
 func (c *CacheService) setData(d string, version int64) {
@@ -96,7 +96,12 @@ func (c *CacheService) load() error {
 	var respData *model.LatestATTCKRuleInfo
 	err := util.RetryWithBackoff(context.Background(), func() error {
 		var err error
-		respData, err = dal.LoadAttackRules(context.Background(), c.consoleURL, c.version(), c.data().Version, c.config().Version)
+		currentVersion := c.version()
+		if currentVersion == int64(0) {
+			err = errors.New("invalid current rule primary version")
+			return err
+		}
+		respData, err = dal.LoadAttackRules(context.Background(), c.consoleURL, currentVersion, c.data().Version, c.config().Version)
 		return err
 	}, retry.Attempts(3))
 	if err != nil {
