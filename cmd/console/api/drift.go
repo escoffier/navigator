@@ -1094,8 +1094,8 @@ func filterAbnormalInPolicy(policy model.DriftPolicy, signals []*palace.Signal) 
 			continue
 		}
 
-		if filePath, ok := v.Context["filePath"].(string); !ok {
-			logging.GetLogger().Error().Msgf("filePath not found in context:%v", v.Context)
+		if filePath, ok := v.Context["file_path"].(string); !ok {
+			logging.GetLogger().Error().Msgf("file_path not found in context:%v", v.Context)
 			continue
 		} else {
 			tmpRes.FilePath = filePath
