@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 
@@ -14,26 +15,22 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
+	"gitlab.com/piccolo_su/vegeta/pkg/util"
 )
 
 type RegistrySrv struct {
-	RegistrySrv component.RegistrySrvInterface
-	RejectSrv   component.ImageRejectSrv
+	RegistrySrv     component.RegistrySrvInterface
+	ScannerInstance component.ScannerInstanceInfoInterface
+	RejectSrv       component.ImageRejectSrv
 }
 
-func NewRegistrySrv(registrySrv component.RegistrySrvInterface, rejectSrv component.ImageRejectSrv) *RegistrySrv {
-	return &RegistrySrv{RegistrySrv: registrySrv, RejectSrv: rejectSrv}
+func NewRegistrySrv(
+	registrySrv component.RegistrySrvInterface,
+	rejectSrv component.ImageRejectSrv,
+	scannerInstance component.ScannerInstanceInfoInterface) *RegistrySrv {
+	return &RegistrySrv{RegistrySrv: registrySrv, RejectSrv: rejectSrv, ScannerInstance: scannerInstance}
 }
 
-// UpdateRegistry
-// @Summary 更新仓库信息
-// @Title 更新仓库信息
-// @Author guolingkai@tensorsecurity.cn
-// @Description 更新仓库信息
-// @Tags registry
-// @Param id path int true "仓库类型"
-// @Success 200 {object} ApiWithItem{data=ApiItem{}}
-// @Router	/api/v1/register/registry/:id [put]
 func (s *RegistrySrv) UpdateRegistry(ctx *gin.Context) {
 	id, err := strconv.ParseInt(ctx.Param("id"), 10, 64)
 	if err != nil {
@@ -60,14 +57,6 @@ func (s *RegistrySrv) UpdateRegistry(ctx *gin.Context) {
 	response.JSONOK(ctx)
 }
 
-// CreateRegistry
-// @Summary 创建仓库信息
-// @Title 创建仓库信息
-// @Author guolingkai@tensorsecurity.cn
-// @Description 创建仓库信息
-// @Tags registry
-// @Success 200 {object} ApiWithItem{data=ApiItem{}}
-// @Router	/api/v1/register/registry [post]
 func (s *RegistrySrv) CreateRegistry(ctx *gin.Context) {
 	reg := model.Registry{}
 	if err := ctx.BindJSON(&reg); err != nil {
@@ -92,15 +81,6 @@ func (s *RegistrySrv) CreateRegistry(ctx *gin.Context) {
 	}))
 }
 
-// DeleteRegistry
-// @Summary 删除仓库信息
-// @Title 删除仓库信息
-// @Author guolingkai@tensorsecurity.cn
-// @Description 删除仓库信息
-// @Tags registry
-// @Param id path int true "仓库类型"
-// @Success 200 {object} ApiWithItem{data=ApiItem{}}
-// @Router	/api/v1/register/registry/:id [delete]
 func (s *RegistrySrv) DeleteRegistry(ctx *gin.Context) {
 	id, err := strconv.ParseInt(ctx.Param("id"), 10, 64)
 	if err != nil {
@@ -119,15 +99,6 @@ func (s *RegistrySrv) DeleteRegistry(ctx *gin.Context) {
 	}))
 }
 
-// GetRegistryType
-// @Summary 仓库类型列表
-// @Title 仓库类型列表
-// @Author guolingkai@tensorsecurity.cn
-// @Description 仓库类型列表
-// @Tags registry
-// @Param id path int true "仓库类型"
-// @Success 200 {object} ApiWithItem{data=ApiItem{}}
-// @Router	/api/v1/register/reg-type [get]
 func (s *RegistrySrv) GetRegistryType(ctx *gin.Context) {
 
 	ans, err := s.RegistrySrv.GetRegistryType(ctx)
@@ -138,14 +109,6 @@ func (s *RegistrySrv) GetRegistryType(ctx *gin.Context) {
 	response.JSONOK(ctx, response.WithItems(ans))
 }
 
-// @Summary 地域节点信息
-// @Title 地域节点信息
-// @Author liuqiang@tensorsecurity.cn
-// @Description 地域节点信息
-// @Tags registry
-// @Param reg_type query string true "仓库类型"
-// @Success 200 {object} ApiWithItem{data=ApiItem{}}
-// @Router	/api/v1/register/regions [get]
 func (s *RegistrySrv) GetRegions(ctx *gin.Context) {
 	regType := ctx.Query("reg_type")
 	if regType == consts.AliAcrEEVersion {
@@ -225,15 +188,6 @@ func (s *RegistrySrv) GetRegions(ctx *gin.Context) {
 	response.JSONOK(ctx)
 }
 
-// SearchRegistry
-// @Summary 获取仓库列表
-// @Title 获取仓库列表
-// @Author guolingkai@tensorsecurity.cn
-// @Description 获取registry列表信息
-// @Tags registry
-// @Param no_policy query bool true "是否需要配置策略的仓库"
-// @Success 200 {object} ApiWithItem{data=ApiItem{items=[]model.Registry{}}}
-// @Router	/api/v1/register/registries [get]
 func (s *RegistrySrv) SearchRegistry(ctx *gin.Context) {
 	useType, _ := strconv.ParseInt(ctx.Query("usetype"), 10, 64)
 	search := ctx.Query("search")
@@ -256,6 +210,35 @@ func (s *RegistrySrv) SearchRegistry(ctx *gin.Context) {
 	for i := range registries {
 		registries[i].FitHarborVersion()
 	}
+	instances, err := s.ScannerInstance.SearchScannerInfo(ctx)
+	if err != nil {
+		response.JSONError(ctx, err)
+		return
+	}
+	instanceMap := make(map[string]model.ScannerInstanceInfo)
+	for i := range instances {
+		instanceMap[instances[i].ScannerInstance] = instances[i]
+	}
+	for i := range registries {
+		abn := false
+		ins, ok := instanceMap[registries[i].ScannerInstance]
+		if !ok {
+			abn = true
+		}
+
+		if time.Now().Unix()-ins.HeartBeatAt > 5*60 && util.CompareVersion(ins.ScannerVersion, consts.ScannerVersion211) > 0 {
+			abn = true
+
+		}
+		if abn {
+			if GetLanguage(ctx) == consts.LangEN {
+				registries[i].ScannerInstance = ins.ScannerInstance + "(abnormal)"
+			} else {
+				registries[i].ScannerInstance = ins.ScannerInstance + "(异常)"
+			}
+		}
+
+	}
 
 	response.JSONOK(ctx, response.WithItems(registries),
 		response.WithTotalItems(cnt),
@@ -263,15 +246,6 @@ func (s *RegistrySrv) SearchRegistry(ctx *gin.Context) {
 		response.WithStartIndex(filter.Offset))
 }
 
-// GetRegistry
-// @Summary 获取指定仓库的具体信息
-// @Title 获取指定仓库的具体信息
-// @Author guolingkai@tensorsecurity.cn
-// @Description 获取registry具体信息
-// @Tags registry
-// @Param usetype query string true "仓库类型"
-// @Success 200 {object} ApiWithItem{data=ApiItem{item=model.Registry{}}}
-// @Router	/api/v1/register/registry [get]
 func (s *RegistrySrv) GetRegistry(ctx *gin.Context) {
 	id, _ := strconv.ParseInt(ctx.Param("id"), 10, 64)
 
