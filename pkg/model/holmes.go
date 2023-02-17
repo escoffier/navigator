@@ -190,8 +190,10 @@ func GetInfoFromOutput(key, output string) (string, error) {
 	retStr = resultList[1]
 	resultList = strings.Split(retStr, ",")
 	retStr = resultList[0]
-	resultList = strings.Split(retStr, ")")
-	retStr = resultList[0]
+	if strings.Count(retStr, "(") != strings.Count(retStr, ")") {
+		resultList = strings.Split(retStr, ")")
+		retStr = resultList[0]
+	}
 	resultList = strings.Split(retStr, " ")
 	retStr = resultList[0]
 	return retStr, nil
