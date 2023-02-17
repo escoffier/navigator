@@ -73,7 +73,7 @@ func WebAPI(router *gin.Engine,
 	apiScannerSrv := NewScannerAPISrv(scannerSvc, vuluSrv, imageService)
 	apiRejectSrv := NewRejectAPISrv(rejectSvc)
 	apiHarborSrv := NewHarborAPISrv(harborSvc, harborSvc.GetRedisClient())
-	apiRegistrySrv := NewRegistrySrv(registrySrv, rejectSvc)
+	apiRegistrySrv := NewRegistrySrv(registrySrv, rejectSvc, scannerInfo)
 	apiVulnSrv := NewVulnAPISrv(vuluSrv)
 	apiSyncImageSrv := NewSyncImageAPISrv(syncImageSrv, registrySrv)
 	scanResultApi := NewScanResultAPI(imageService, vuluSrv)
