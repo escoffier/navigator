@@ -38,16 +38,16 @@ func (r *SignalReporter) LoadSummary(ctx context.Context, assetsSummary []*Names
 		riskStatsMap[v.ClusterKey] = res
 	}
 
-	return SignalSummary{
+	return EventSummary{
 		riskStatsMap: riskStatsMap,
 	}, nil
 }
 
-type SignalSummary struct {
+type EventSummary struct {
 	riskStatsMap map[string]map[string][]echelper.RiskStatsItem
 }
 
-func (s SignalSummary) ResourceSummary(ctx context.Context, clusterKey, namespace, resourceKind, resourceName string) (map[string]Summary, error) {
+func (s EventSummary) ResourceSummary(ctx context.Context, clusterKey, namespace, resourceKind, resourceName string) (map[string]Summary, error) {
 	cMap, ok := s.riskStatsMap[clusterKey]
 	if !ok {
 		return map[string]Summary{}, nil
@@ -83,6 +83,6 @@ func getSeverityFromSignalSeverity(severity int) Severity {
 	}
 }
 
-func (s SignalSummary) Name() string {
-	return "signal_reporter"
+func (s EventSummary) Name() string {
+	return "event_reporter"
 }

@@ -22,7 +22,7 @@ func (c *SherlockClient) getURL(path string, a ...interface{}) string {
 	case "AddDetectionRule":
 		return c.SherlockHost + "/api/v1/palace/internal/rules"
 	case "RiskStats":
-		return fmt.Sprintf(c.SherlockHost+"/api/v1/palace/internal/risk/stats?clusterKey=%s&createdAt=%d", a...)
+		return fmt.Sprintf(c.SherlockHost+"/api/v1/palace/internal/risk/stats?clusterKey=%s&startAt=%d", a...)
 	}
 
 	return c.SherlockHost
