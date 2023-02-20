@@ -62,7 +62,7 @@ func WriteToExcel(filenamePrefix string, sheets []ExcelMetaData, data ExcelData)
 	start := time.Now().UnixMilli()
 	file := excelize.NewFile()
 	file.Path = filenamePrefix + ".xlsx"
-	logging.Get().Info().Str("excelPath", file.Path).Msg("WriteToExcel")
+	logging.Get().Info().Str("excelPath", file.Path).Msg("WriteToExcel start")
 
 	styleID, err := file.NewStyle(&excelize.Style{Font: &excelize.Font{Color: "#777777"}})
 	if err != nil {
@@ -123,7 +123,7 @@ func WriteToExcel(filenamePrefix string, sheets []ExcelMetaData, data ExcelData)
 	file.DeleteSheet("Sheet1")
 	file.SetActiveSheet(0)
 
-	logging.Get().Info().Int64("cost", time.Now().UnixMilli()-start).Msg("WriteToExcel")
+	logging.Get().Info().Int64("cost", time.Now().UnixMilli()-start).Msg("WriteToExcel end")
 
 	return file, nil
 }

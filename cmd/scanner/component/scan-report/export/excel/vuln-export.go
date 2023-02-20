@@ -185,7 +185,7 @@ func (s *VulnExport) Export(ctx context.Context, filename string, vuln *model.Vu
 			excelData[vulnSheetName] = make([]chan []string, 0)
 		}
 
-		vulnChan := s.ConvertVulnData(GenVulnInfoChan(model.ImageBaseResponse{}, []*model.Vuln{vuln}, nil))
+		vulnChan := s.ConvertVulnData(GenVulnInfoChan(model.ImageBaseResponse{}, []*model.Vuln{vuln}))
 		excelData[vulnSheetName] = append(excelData[vulnSheetName], vulnChan)
 
 		// 加入关联资源的数据

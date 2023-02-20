@@ -119,6 +119,7 @@ func (s *ImageExport) Export(ctx context.Context, task model.ExportTensorTask, e
 
 func (s *ImageExport) GetExcelData(ctx context.Context, imageID int64, vulnCol *atomic.Int32) (map[string]chan []string, error) {
 	// 获取镜像详情
+	logging.Get().Info().Int64("imageID", imageID).Msg("GetExcelData GetImageDetail start")
 	data, err := s.ImageSrv.GetImageCorrelateData(ctx, model.GetImageAssociateDataParam{
 		ImageId:         imageID,
 		VulnEnable:      true,
@@ -137,14 +138,13 @@ func (s *ImageExport) GetExcelData(ctx context.Context, imageID int64, vulnCol *
 		logging.Get().Err(err).Int64("ImageID", imageID).Msg("GetDataAndCreateExcelFile.GetImageDetail")
 		return nil, err
 	}
-	logging.Get().Debug().Int64("imageID", imageID).Msg("GetExcelData GetImageDetail")
 
 	baseImage := data.ToImageBaseResponse()
 
 	res := make(map[string]chan []string)
 	// 写入数据
 	res[GenImageBaseInfoMeta().SheetName] = GenBaseInfoChan(*data)
-	res[GenImageVulnInfoMeta().SheetName] = GenVulnInfoChan(baseImage, data.Vuln, vulnCol)
+	res[GenImageVulnInfoMeta().SheetName] = GenVulnInfoChan(baseImage, data.Vuln)
 	res[GenImageSensitiveFileInfoMeta().SheetName] = GenSensitiveFileChan(baseImage, data.Sensitive)
 	res[GenImageVirusInfoMeta().SheetName] = GenVirusChan(baseImage, data.Virus)
 	res[GenImageWebshellInfoMeta().SheetName] = GenWebShellChan(baseImage, data.Webshell)
@@ -157,6 +157,9 @@ func (s *ImageExport) GetExcelData(ctx context.Context, imageID int64, vulnCol *
 	if !model.ExistFlag(baseImage.Flag, model.FlagBaseImage) {
 		res[GenImageTypeInfoMeta().SheetName] = GenAppOrBaseImageChan(data.BaseImages)
 	}
+	vulnCol.Add(int32(len(data.Vuln)))
+
+	logging.Get().Info().Int64("imageID", imageID).Int("vulnCount", len(data.Vuln)).Msg("GetExcelData GetImageDetail end")
 	return res, nil
 }
 

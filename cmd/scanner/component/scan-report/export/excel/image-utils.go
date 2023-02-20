@@ -8,8 +8,6 @@ import (
 	"strings"
 	"time"
 
-	"go.uber.org/atomic"
-
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scan-report/common"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
@@ -34,7 +32,7 @@ func GenBaseInfoChan(image model.ImageWithCorrelateData) chan []string {
 	return out
 }
 
-func GenVulnInfoChan(baseImage model.ImageBaseResponse, files []*model.Vuln, vulnCol *atomic.Int32) chan []string {
+func GenVulnInfoChan(baseImage model.ImageBaseResponse, vuln []*model.Vuln) chan []string {
 	out := make(chan []string, 1)
 	go func() {
 
@@ -46,13 +44,9 @@ func GenVulnInfoChan(baseImage model.ImageBaseResponse, files []*model.Vuln, vul
 
 		defer close(out)
 
-		for i := range files {
-			vuln := files[i]
-
-			if vulnCol != nil {
-				vulnCol.Add(1)
-			}
-			info := GenVulnInfo(baseImage, *vuln)
+		for i := range vuln {
+			vu := vuln[i]
+			info := GenVulnInfo(baseImage, *vu)
 			out <- info
 		}
 
