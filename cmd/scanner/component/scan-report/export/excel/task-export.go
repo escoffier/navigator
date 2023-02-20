@@ -107,6 +107,8 @@ func (s *ScanTaskExport) GenExcelDataChan(ctx context.Context, task model.Export
 			if err != nil {
 				logging.Get().Err(err).Int64("imageId", imageId).Msg("Export.GetExcelData")
 			} else {
+
+				logging.Get().Info().Int64("imageId", imageId).Msg("Export.GetExcelData")
 				for sheetName, dataChan := range data {
 					if excelData.ExcelData[sheetName] == nil {
 						excelData.ExcelData[sheetName] = make([]chan []string, 0)
@@ -119,6 +121,7 @@ func (s *ScanTaskExport) GenExcelDataChan(ctx context.Context, task model.Export
 				out <- excelData
 				index++
 				vulnCol = atomic.NewInt32(0)
+				logging.Get().Info().Int64("imageId", imageId).Int32("vulnCol", vulnCol.Load()).Msg("Export.GenExcelDataChan send excelData")
 				excelData = common.ExcelDataWithMeta{
 					ExcelData:     make(common.ExcelData),
 					Filename:      fmt.Sprintf("%s_%d", task.GenFilenamePrefix(), index),
