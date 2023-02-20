@@ -118,10 +118,10 @@ func (s *ScanTaskExport) GenExcelDataChan(ctx context.Context, task model.Export
 			}
 
 			if vulnCol.Load() > int32(s.MaxVulnCol) {
+				logging.Get().Info().Str("filename", excelData.Filename).Int32("vulnCol", vulnCol.Load()).Msg("Export.GenExcelDataChan send excelData")
 				out <- excelData
 				index++
 				vulnCol = atomic.NewInt32(0)
-				logging.Get().Info().Int64("imageId", imageId).Int32("vulnCol", vulnCol.Load()).Msg("Export.GenExcelDataChan send excelData")
 				excelData = common.ExcelDataWithMeta{
 					ExcelData:     make(common.ExcelData),
 					Filename:      fmt.Sprintf("%s_%d", task.GenFilenamePrefix(), index),
