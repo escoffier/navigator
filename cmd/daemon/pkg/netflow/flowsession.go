@@ -645,8 +645,6 @@ func (fs *FlowSession) SetEbpfState(enable bool) {
 		//
 		fs.EbpfStat = state.State
 	}
-
-	return
 }
 
 func (fs *FlowSession) GetProcessName(netinfo *daemon.PidAssociateMnt) (*daemon.ProcessInfo, error) {
@@ -939,7 +937,7 @@ func (fs *FlowSession) ProcSessionData(netSession *daemon.NetSessionLink) error 
 		logging.Get().Warn().Err(dstErr).Msgf("query k8s resource failed. %+v", *netSession)
 		return dstErr
 	}
-	
+
 	//get cluster key
 	clusterKey, ok := fs.clusterManager.ClusterKey()
 	if !ok {
