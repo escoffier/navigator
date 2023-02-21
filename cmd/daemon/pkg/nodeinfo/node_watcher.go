@@ -10,7 +10,6 @@ import (
 
 	"github.com/pkg/errors"
 	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
-
 	"gitlab.com/security-rd/go-pkg/logging"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -368,20 +367,17 @@ func (n *NodePodsWatcher) GetPodByUID(uid string) (*TensorPod, error) {
 		return nil, fmt.Errorf("pod not found")
 	}
 	var tensorPod *TensorPod
-	for _, p := range objs {
-		pod := p.(*corev1.Pod)
+	pod := objs[0].(*corev1.Pod)
 
-		containers := []string{}
-		for _, c := range pod.Spec.Containers {
-			containers = append(containers, c.Name)
-		}
-		tensorPod = &TensorPod{
-			ClusterKey: n.clusterKey,
-			Namespace:  pod.Namespace,
-			Name:       pod.Name,
-			Containers: containers,
-		}
-		break
+	containers := []string{}
+	for _, c := range pod.Spec.Containers {
+		containers = append(containers, c.Name)
+	}
+	tensorPod = &TensorPod{
+		ClusterKey: n.clusterKey,
+		Namespace:  pod.Namespace,
+		Name:       pod.Name,
+		Containers: containers,
 	}
 
 	return tensorPod, nil
