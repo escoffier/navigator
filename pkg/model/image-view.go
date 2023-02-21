@@ -565,6 +565,9 @@ func (iws *ImageWithCorrelateData) GetRiskScore() int64 {
 }
 
 func (iws *ImageWithCorrelateData) GetImageOs() string {
+	if iws.ImageBaseResponse.Os != "" {
+		return iws.ImageBaseResponse.Os
+	}
 	image := iws.ImageList
 	imageOs := ftypes.OS{}
 	if image.OS != "" {
@@ -673,7 +676,18 @@ type ImageBaseResponse struct {
 }
 
 func (ir *ImageBaseResponse) GetImageName() string {
-	return fmt.Sprintf("(%s)%s/%s:%s", ir.RegistryName, ir.RegistryUrl, ir.FullRepoName, ir.Tag)
+	imageName := ir.FullRepoName
+
+	if ir.RegistryUrl != "" {
+		imageName = fmt.Sprintf("%s/%s", ir.RegistryUrl, imageName)
+	}
+	if ir.Tag != "" {
+		imageName = fmt.Sprintf("%s:%s", imageName, ir.Tag)
+	}
+	if ir.RegistryName != "" {
+		imageName = fmt.Sprintf("(%s)%s", ir.RegistryName, imageName)
+	}
+	return imageName
 }
 
 func ParseConfigEnv(env []*ImageEnv) string {

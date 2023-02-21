@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"fmt"
+	"math"
 	"net/http"
 
 	"gitlab.com/security-rd/go-pkg/sdk/palace"
@@ -10,6 +11,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/api"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/ci"
+	scanReportService "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scan-report/service"
 	scanwebshell "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scanner-webshell"
 	flag2 "gitlab.com/piccolo_su/vegeta/cmd/scanner/flag"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/service/register"
@@ -78,6 +80,7 @@ func newService(config register.ScannerServiceConfig) (register.ScannerService, 
 	resourceDal := store.NewResourceDao(scannerWrapperDb)
 	trustedImageDal := store.NewScannerOrm(scannerWrapperDb)
 	syncTaskDal := store.NewSyncTaskDao(scannerWrapperDb)
+	exportDal := store.NewExportTaskDao(scannerWrapperDb)
 
 	palaceHandler, err := palace.Init()
 	if err != nil {
@@ -92,6 +95,12 @@ func newService(config register.ScannerServiceConfig) (register.ScannerService, 
 	registrySrv := component.NewRegistrySrv(registryDal, scanConfigDal, syncTaskDal)
 	scanConfigSrv := component.NewScanConfigSrv(scanConfigDal, registryDal, dal, scanTaskDal, scannerInstanceDal)
 	syncSrv := component.NewSyncRepoImage(registryDal, imageDal, scanConfigDal, vulnDal, syncTaskDal)
+
+	exportSrv := scanReportService.NewExportTaskSrv(exportDal, math.MaxInt32/2,
+		store.NewScannerOrm(scannerWrapperDb),
+		imageSvc,
+		nil,
+		vulnDal)
 
 	s := &ScannerAPIService{}
 	s.config.Options = config.Options
@@ -109,6 +118,7 @@ func newService(config register.ScannerServiceConfig) (register.ScannerService, 
 			ci.NewCiComponent(ciDal),
 			component.NewScannerInstanceInfoSrv(store.NewScannerInstanceDao(scannerWrapperDb)),
 			scanwebshell.NewWebshellComponent(webshellDal),
+			exportSrv,
 		),
 	}
 

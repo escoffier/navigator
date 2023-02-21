@@ -11,7 +11,6 @@ import (
 	"gitlab.com/security-rd/go-pkg/logging"
 
 	"gitlab.com/piccolo_su/vegeta/pkg/api/apikey"
-	"gitlab.com/piccolo_su/vegeta/pkg/audit"
 	"gitlab.com/piccolo_su/vegeta/pkg/harbor"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
 )
@@ -99,13 +98,13 @@ func SetupRoutes(
 
 		r.Group(func(r chi.Router) {
 			// normal check
-			r.Use(jwtauth.Verifier(api.tokenAuth), authenticator(api.rdb), jwtAccessCheck(api.rdb))
-			if !httpAuditDisabled {
-				cli, err := es.Get()
-				if err == nil {
-					r.Use(audit.ESAudit(cli))
-				}
-			}
+			// r.Use(jwtauth.Verifier(api.tokenAuth), authenticator(api.rdb), jwtAccessCheck(api.rdb))
+			// if !httpAuditDisabled {
+			// 	cli, err := es.Get()
+			// 	if err == nil {
+			// 		r.Use(audit.ESAudit(cli))
+			// 	}
+			// }
 
 			r.Route("/platform", api.platform()) // platform
 			r.Route("/containerSec", api.containerSec())

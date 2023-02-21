@@ -364,20 +364,26 @@ func (api *api) RedirectToExport() http.HandlerFunc {
 
 		pre := r.URL.String()
 		newUrl := fmt.Sprintf("%s%s", api.exportURL,
-			strings.Replace(pre, "/api/v2/containerSec", "/api/v1", 1))
+			strings.Replace(pre, NormalAPIURLPrefix+"/containerSec", "/api/v1", 1))
+
+		if strings.Contains(pre, OpenAPIURLPrefix) {
+			newUrl = fmt.Sprintf("%s%s", api.exportURL,
+				strings.Replace(pre, OpenAPIURLPrefix+"/containerSec", "/api/v1", 1))
+		}
 
 		u, err := url.Parse(newUrl)
 		if nil != err {
 			RespAndLog(w, r.Context(), NewFieldError(http.StatusBadRequest, fmt.Errorf("count not parse the url:%s,error  %w", pre, err)))
 			return
 		}
+		dialer := net.Dialer{
+			Timeout:   30 * time.Minute,
+			KeepAlive: 10 * time.Second,
+		}
 
 		roundTripper := &http.Transport{
-			Proxy: http.ProxyFromEnvironment,
-			DialContext: (&net.Dialer{
-				Timeout:   30 * time.Minute,
-				KeepAlive: 10 * time.Second,
-			}).DialContext,
+			Proxy:                 http.ProxyFromEnvironment,
+			DialContext:           dialer.DialContext,
 			ForceAttemptHTTP2:     true,
 			MaxIdleConns:          100,
 			IdleConnTimeout:       9 * time.Minute,
@@ -411,12 +417,13 @@ func (api *api) RedirectToExportDownload() http.HandlerFunc {
 			return
 		}
 
+		dialer := net.Dialer{
+			Timeout:   30 * time.Minute,
+			KeepAlive: 10 * time.Second,
+		}
 		roundTripper := &http.Transport{
-			Proxy: http.ProxyFromEnvironment,
-			DialContext: (&net.Dialer{
-				Timeout:   300 * time.Minute,
-				KeepAlive: 10 * time.Second,
-			}).DialContext,
+			Proxy:                 http.ProxyFromEnvironment,
+			DialContext:           dialer.DialContext,
 			ForceAttemptHTTP2:     true,
 			MaxIdleConns:          100,
 			IdleConnTimeout:       9 * time.Minute,

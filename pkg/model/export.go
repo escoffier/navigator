@@ -52,8 +52,9 @@ func (ExportHtmlPrepare) TableName() string {
 }
 
 const (
-	ExportHtmlPrepareRiskOver      = 1
-	ExportHtmlPrepareVulnLastImage = 2
+	ExportHtmlPrepareRiskOver        = 1
+	ExportHtmlPrepareVulnLastImage   = 2
+	ExportHtmlPrepareCicdImageDetail = 3
 )
 
 type ExportTaskImage struct {

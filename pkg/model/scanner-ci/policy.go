@@ -161,6 +161,8 @@ type PolicyResult struct {
 
 	// local scan end time
 	ScanEndTime time.Time
+
+	NeedRemoteReport bool
 }
 
 type VulnWhitelist struct {

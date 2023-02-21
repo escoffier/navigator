@@ -7,11 +7,10 @@ import (
 
 // 单个镜像的扫描报告
 type ImageRiskOverView struct {
-	ImageID           int64                   `json:"imageID"`
-	ImageName         string                  `json:"imageName"`
-	FixSuggestion     []string                `json:"fixSuggestion"`
-	Vulns             VulnDetailSeverityGroup `json:"vulns"`             // 漏洞层级列表
-	VulnSeverityCount VulnSeverityCount       `json:"vulnSeverityCount"` // 漏洞层级分布
+	ImageID           int64             `json:"imageID"`
+	ImageName         string            `json:"imageName"`
+	FixSuggestion     []string          `json:"fixSuggestion"`
+	VulnSeverityCount VulnSeverityCount `json:"vulnSeverityCount"` // 漏洞层级分布
 }
 
 type ImageResponse struct {

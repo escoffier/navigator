@@ -12,7 +12,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 )
 
-func SetupGinRouter(exportSrv service.ExportTaskInterface, ExportHtmlInterface html.ExportHtmlInterface) *gin.Engine {
+func SetupGinRouter(exportSrv service.ExportTaskInterface, exportHtmlDriver map[string]html.ExportHtmlInterface) *gin.Engine {
 
 	router := gin.Default()
 	router.MaxMultipartMemory = 2 << 20
@@ -20,7 +20,8 @@ func SetupGinRouter(exportSrv service.ExportTaskInterface, ExportHtmlInterface h
 	router.Use(gin.Logger(), gin.Recovery(), LangMiddleware)
 
 	exportApiSrv := NewExportApiSrv(exportSrv)
-	exportHtmlApiSrv := NewExportHtmlApiSrv(ExportHtmlInterface)
+
+	exportHtmlApiSrv := NewExportHtmlApiSrv(exportHtmlDriver, exportSrv)
 
 	v1 := router.Group("/api/v1/export/task")
 	{

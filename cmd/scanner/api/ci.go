@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scan-report/service"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/global"
 
 	"github.com/gin-gonic/gin"
@@ -29,10 +30,11 @@ import (
 
 type CiApiSrv struct {
 	Component ci.CiComponent
+	ExportSrv service.ExportTaskInterface
 }
 
-func NewCiSrv(c ci.CiComponent) *CiApiSrv {
-	return &CiApiSrv{Component: c}
+func NewCiSrv(c ci.CiComponent, exportSrv service.ExportTaskInterface) *CiApiSrv {
+	return &CiApiSrv{Component: c, ExportSrv: exportSrv}
 }
 
 func (c *CiApiSrv) GetImageTop5(ctx *gin.Context) {
@@ -371,6 +373,31 @@ func (c *CiApiSrv) SaveResult(ctx *gin.Context) {
 		}
 	}()
 
+	// 导出任务
+	if result.NeedRemoteReport {
+		go func() {
+			fileName := fmt.Sprintf("%s_cicd_%s.zip", result.UUID, model.ExportHtml)
+			task := &model.ExportTensorTask{
+				ExecuteType: consts.ExportCIReport,
+				Parameter:   result.UUID,
+				FilePath:    fileName,
+				Creator:     consts.ExportCIReport,
+				TaskType:    model.ExportHtml,
+			}
+			if err := c.ExportSrv.CreateExportTask(ctx, task); err != nil {
+				logging.Get().Err(err).Str("cicd-uuid", result.UUID).Msg("cicd-report CreateExportTask")
+				return
+			}
+			if err := c.ExportSrv.CreateCiExportData(ctx, task.ID, result); err != nil {
+				logging.Get().Err(err).Int64("taskID", task.ID).Str("cicd-uuid", result.UUID).Msg("cicd-report CreateExportTask")
+				return
+			}
+			updater := map[string]interface{}{"start_at": consts.ExportHtmlReady}
+			if err := c.ExportSrv.UpdateExportTask(ctx, task.ID, updater); err != nil {
+				logging.Get().Err(err).Int64("taskID", task.ID).Str("cicd-uuid", result.UUID).Msg("cicd-report UpdateExportTask")
+			}
+		}()
+	}
 	ctx.JSON(http.StatusOK, nil)
 }
 

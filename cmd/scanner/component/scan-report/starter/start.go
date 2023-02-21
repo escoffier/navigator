@@ -19,14 +19,15 @@ import (
 )
 
 type BackgroundTasks struct {
-	ScanReport         *scanreport.ScanReportSrv
-	ImageExport        *excel.ImageExport
-	ScanTaskExport     *excel.ScanTaskExport
-	AuditExport        *excel.AuditExport
-	ClearFileAndRecord *excel.ClearFileAndRecord
-	VulnExport         *excel.VulnExport
-	ImageSearchSrv     *excel.ImageSearchSrv
-	ImageExportHtml    *html.ExportImageHtmlSrv
+	ScanReport          *scanreport.ScanReportSrv
+	ImageExport         *excel.ImageExport
+	ScanTaskExport      *excel.ScanTaskExport
+	AuditExport         *excel.AuditExport
+	ClearFileAndRecord  *excel.ClearFileAndRecord
+	VulnExport          *excel.VulnExport
+	ImageSearchSrv      *excel.ImageSearchSrv
+	LibImageExportHtml  *html.ExportLibImageHtmlSrv
+	CICDImageExportHtml *html.ExportCiImageHtmlSrv
 }
 
 type Config struct {
@@ -90,17 +91,19 @@ func NewBackgroundTasks(ctx context.Context, config Config) *BackgroundTasks {
 	// 镜像搜索列表导出excel
 	imageSearchSrv := excel.NewImageSearchSrv(scanTaskExportSrv, exportTaskDal, config.FileDir, updateTask, imageSrv)
 	// 镜像扫描报告导出到html
-	imageHtmlSrv := html.NewExportImageHtmlSrv(imageSrv, vulnDal, exportTaskDal, updateTask, config.FileDir, config.VulnClassType)
+	libImageHtmlSrv := html.NewExportLibImageHtmlSrv(imageSrv, vulnDal, exportTaskDal, updateTask, config.FileDir, config.VulnClassType)
+	cicdImageHtmlSrv := html.NewExportCiImageHtmlSrv(imageSrv, vulnDal, exportTaskDal, updateTask, config.FileDir)
 
 	srv := &BackgroundTasks{
-		ScanReport:         scanReportServer,
-		ImageExport:        imageExportSrv,
-		ScanTaskExport:     scanTaskExportSrv,
-		AuditExport:        naviAuditReport,
-		ClearFileAndRecord: clearFile,
-		VulnExport:         vulnExportSrv,
-		ImageSearchSrv:     imageSearchSrv,
-		ImageExportHtml:    imageHtmlSrv,
+		ScanReport:          scanReportServer,
+		ImageExport:         imageExportSrv,
+		ScanTaskExport:      scanTaskExportSrv,
+		AuditExport:         naviAuditReport,
+		ClearFileAndRecord:  clearFile,
+		VulnExport:          vulnExportSrv,
+		ImageSearchSrv:      imageSearchSrv,
+		LibImageExportHtml:  libImageHtmlSrv,
+		CICDImageExportHtml: cicdImageHtmlSrv,
 	}
 	return srv
 }
@@ -188,8 +191,19 @@ func (s *BackgroundTasks) Start(ctx context.Context) {
 		tick := time.NewTicker(time.Second * 10)
 		defer tick.Stop()
 		for {
-			s.ImageExportHtml.Run(ctx)
-			logging.GetLogger().Debug().Msg("finish ImageExportHtml job")
+			s.LibImageExportHtml.Run(ctx)
+			logging.GetLogger().Debug().Msg("finish LibImageExportHtml job")
+			<-tick.C
+		}
+	}()
+
+	// cicd导出html
+	go func() {
+		tick := time.NewTicker(time.Second * 10)
+		defer tick.Stop()
+		for {
+			s.CICDImageExportHtml.Run(ctx)
+			logging.GetLogger().Debug().Msg("finish CICDImageExportHtml job")
 			<-tick.C
 		}
 	}()

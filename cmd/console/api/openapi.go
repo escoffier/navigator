@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/go-chi/chi"
+	param "github.com/oceanicdev/chi-param"
 	"gitlab.com/security-rd/go-pkg/databases"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/openapiauth"
@@ -197,6 +198,11 @@ func openAPIAccessCheck(rdb *databases.RDBInstance) func(http.Handler) http.Hand
 			timeoutCtx, cancel := context.WithTimeout(r.Context(), OpenAPIAuthTimeout)
 			defer cancel()
 			token := r.Header.Get(OpenAPITokenKey)
+			// 如果没有，可能是用jwt传递的
+			if token == "" {
+				token, _ = param.QueryString(r, "jwt")
+			}
+
 			service, ok := openapiauth.GetServiceInstance()
 			if !ok {
 				apperror.RespAndLog(w, r.Context(), ErrServiceNotReady)

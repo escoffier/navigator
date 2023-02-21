@@ -289,25 +289,56 @@ func (s *ExportApiSrv) CreateAuditExportTask(ctx *gin.Context) {
 }
 
 func (s *ExportApiSrv) GetExportTaskDetail(ctx *gin.Context) {
-	id := util.GetInt64FromQuery(ctx, "id")
+	param := service.GetExportTaskParam{
+		ID: util.GetInt64FromQuery(ctx, "id"),
+	}
+	ty := strings.ToLower(strings.TrimSpace(ctx.Query("type")))
+	if ty == consts.ExportCIType {
+		param.UUID = ctx.Query("id")
+	}
 
-	task, err := s.exportSrv.GetExportTask(ctx, id)
+	task, err := s.exportSrv.GetExportTask(ctx, param)
 	if err != nil {
 		response.JSONError(ctx, err)
 		return
 	}
-	response.JSONOK(ctx, response.WithItem(ModelToView(*task, ctx.GetString(consts.LangKey))))
+
+	ans := ModelToView(*task, ctx.GetString(consts.LangKey))
+	if ty == consts.ExportCIType {
+		ans.CiUUID = ctx.Query("id")
+	}
+
+	task.FilePath = GetFilename(task.FilePath)
+
+	urlPath := fmt.Sprintf("/api/v2/files/export/file/%s", GetFilename(task.FilePath))
+
+	encrypted, err := util.AesEncryptCBC([]byte(urlPath), []byte(util.DownloadFileKey))
+	if err != nil {
+		response.JSONError(ctx, err)
+		return
+	}
+	token, err := util.NewJWT(urlPath).GenJWTToken(hex.EncodeToString(encrypted), time.Minute*60)
+
+	if err != nil {
+		response.JSONError(ctx, err)
+		return
+	}
+
+	ans.FilePath = fmt.Sprintf("%s?jwt=%s", urlPath, token)
+
+	response.JSONOK(ctx, response.WithItem(ans))
 }
 
 func (s *ExportApiSrv) GetReportTaskList(ctx *gin.Context) {
-	executeType := ctx.Query("executeType")
-
 	filter := model.GetFilterWithDefaultValue(ctx)
 	filter.SortFiled = "id"
 	filter.SortBy = consts.SortByDesc
-	tasks, cnt, err := s.exportSrv.SearchExportTask(ctx, service.SearchExportTaskParam{
-		ExecuteType: executeType,
-	}, filter)
+
+	needCiReport := util.GetBoolStringFromQuery(ctx, "needCiReport")
+	if needCiReport == "" {
+		needCiReport = consts.FalseString
+	}
+	tasks, cnt, err := s.exportSrv.SearchExportTask(ctx, service.SearchExportTaskParam{NeedCiReport: needCiReport}, filter)
 	if err != nil {
 		response.JSONError(ctx, err)
 		return
@@ -327,9 +358,9 @@ func (s *ExportApiSrv) GetReportTaskList(ctx *gin.Context) {
 
 	// 前端需要知道当前有多少个任务未完成
 	_, notFinished, err := s.exportSrv.SearchExportTask(ctx, service.SearchExportTaskParam{
-		ExecuteType: executeType,
-		Finished:    consts.FalseString,
-		Failure:     consts.FalseString,
+		NeedCiReport: needCiReport,
+		Finished:     consts.FalseString,
+		Failure:      consts.FalseString,
 	}, filter)
 	if err != nil {
 		response.JSONError(ctx, err)
@@ -345,9 +376,15 @@ func (s *ExportApiSrv) GetReportTaskList(ctx *gin.Context) {
 
 func (s *ExportApiSrv) DownLoad(ctx *gin.Context) {
 
-	id := util.GetInt64FromQuery(ctx, "id")
+	param := service.GetExportTaskParam{
+		ID: util.GetInt64FromQuery(ctx, "id"),
+	}
+	ty := strings.ToLower(strings.TrimSpace(ctx.Query("type")))
+	if ty == consts.ExportCIType {
+		param.UUID = ctx.Query("id")
+	}
 
-	task, err := s.exportSrv.GetExportTask(ctx, id)
+	task, err := s.exportSrv.GetExportTask(ctx, param)
 	if err != nil {
 		response.JSONError(ctx, err)
 		return

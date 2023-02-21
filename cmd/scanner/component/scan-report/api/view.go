@@ -9,6 +9,7 @@ import (
 
 type ExportTensorTaskView struct {
 	ID            int64  `json:"id"`            // 任务ID
+	CiUUID        string `json:"ciUUID"`        // ci扫描结果的报告，pipeline的uuid
 	TaskType      string `json:"taskType"`      // 任务类型，周期任务，一次性任务等，暂时不用
 	ExecuteType   string `json:"executeType"`   // 导出类型,根据该名字取确实具体的执行函数
 	Parameter     string `json:"parameter"`     // 执行的参数
