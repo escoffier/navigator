@@ -25,6 +25,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scan-report/export/html"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scan-report/service"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scan-report/starter"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
 )
 
@@ -171,11 +172,20 @@ func main() {
 		store.NewScannerOrm(rdb),
 		imageSrv,
 		rc0,
+		vulnDal,
 	)
 
-	exportHtml := html.NewExportImageHtmlSrv(imageSrv, vulnDal, exportTaskDal, updateTaskDal, fileDir, vct)
+	libImageHtml := html.NewExportLibImageHtmlSrv(imageSrv, vulnDal, exportTaskDal, updateTaskDal, fileDir, vct)
+	cicdImageHtml := html.NewExportCiImageHtmlSrv(imageSrv, vulnDal, exportTaskDal, updateTaskDal, fileDir)
 
-	router := api.SetupGinRouter(exportTask, exportHtml)
+	exportHtmlDriver := make(map[string]html.ExportHtmlInterface)
+
+	exportHtmlDriver[consts.ExportCIReport] = cicdImageHtml
+	exportHtmlDriver[consts.ExportScanResult] = libImageHtml
+	exportHtmlDriver[consts.ExportSingleImage] = libImageHtml
+	exportHtmlDriver[consts.ExportImageSearch] = libImageHtml
+
+	router := api.SetupGinRouter(exportTask, exportHtmlDriver)
 
 	staticEntry := api.GenStaticFileHandlerEntry(fileDir)
 

@@ -2,26 +2,31 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 
 	"github.com/go-redis/redis/v8"
 	"gitlab.com/security-rd/go-pkg/logging"
+	"scm.tensorsecurity.cn/tensorsecurity-rd/trivy/pkg/report"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scan-report/common"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
+	scanner_ci "gitlab.com/piccolo_su/vegeta/pkg/model/scanner-ci"
+	"gitlab.com/piccolo_su/vegeta/pkg/util"
 )
 
 type ExportTaskInterface interface {
 	CreateExportTask(ctx context.Context, data *model.ExportTensorTask) error
 	SearchExportTask(ctx context.Context, param SearchExportTaskParam, filter *model.Filter) ([]model.ExportTensorTask, int64, error)
-	GetExportTask(ctx context.Context, id int64) (*model.ExportTensorTask, error)
+	GetExportTask(ctx context.Context, param GetExportTaskParam) (*model.ExportTensorTask, error)
 	UpdateExportTask(ctx context.Context, id int64, updater map[string]interface{}) error
 	CheckScanTask(ctx context.Context, scanTaskID int64) (*ExportLimit, error)
 	CreateSearchImage(ctx context.Context, taskID int64, param model.ImageListParam) error
 	CreateScanTaskImage(ctx context.Context, taskID int64, scanGroupID int64) error
 	GetTaskSchedule(ctx context.Context, task model.ExportTensorTask) (ExportSchedule, error)
+	CreateCiExportData(ctx context.Context, taskID int64, data scanner_ci.PolicyResult) error // cicd导出报告，也入准备数据
 	common.ImageInterface
 }
 
@@ -31,6 +36,115 @@ type ExportTaskSrv struct {
 	ScanTaskDal             store.ScanTaskDal
 	MaxImageByOneExportTask int64
 	RedisCli                *redis.Client
+	VulnDal                 store.VulnDalInterface
+}
+
+func NewExportTaskSrv(
+	exportDal store.ExportTaskDal,
+	maxImageByOneExportTask int64,
+	scanTaskDal store.ScanTaskDal,
+	ImageSrv common.ImageInterface,
+	redisCli *redis.Client,
+	vulnDal store.VulnDalInterface,
+
+) *ExportTaskSrv {
+	return &ExportTaskSrv{
+		ExportDal:               exportDal,
+		ImageSrv:                ImageSrv,
+		ScanTaskDal:             scanTaskDal,
+		MaxImageByOneExportTask: maxImageByOneExportTask,
+		RedisCli:                redisCli,
+		VulnDal:                 vulnDal,
+	}
+}
+
+func (s *ExportTaskSrv) CreateCiExportData(ctx context.Context, taskID int64, data scanner_ci.PolicyResult) error {
+
+	res := model.ImageWithCorrelateData{
+		ImageBaseResponse: model.ImageBaseResponse{
+			ID:           int64(util.GenerateUUID(data.UUID)),
+			FullRepoName: data.Artifact.ImageName,
+		},
+		Sensitive: make([]*model.ImageSensitiveFile, 0),
+		Vuln:      make([]*model.Vuln, 0),
+	}
+
+	if data.Artifact.Artifact.OS != nil {
+		bys, err := json.Marshal(data.Artifact.Artifact.OS)
+		if err != nil {
+			logging.Get().Err(err).Int64("taskID", taskID).Interface("OS", data.Artifact.Artifact.OS).Msg("CreateCiExportData")
+		} else {
+			res.ImageList.OS = string(bys)
+			res.ImageBaseResponse.Os = res.GetImageOs()
+		}
+	}
+
+	ses := make([]*model.ImageSensitiveFile, 0)
+
+	if data.MatchSensitiveFiles.Match {
+		for i := range data.MatchSensitiveFiles.Files {
+			file := data.MatchSensitiveFiles.Files[i]
+			ses = append(ses, &model.ImageSensitiveFile{Name: file})
+		}
+		for i := range data.MatchSensitiveFiles.DefaultFiles {
+			file := data.MatchSensitiveFiles.DefaultFiles[i]
+			ses = append(ses, &model.ImageSensitiveFile{Name: file})
+		}
+	}
+	res.Sensitive = ses
+	if len(res.Sensitive) > 0 {
+		res.ImageBaseResponse.SecurityIssue = append(res.ImageBaseResponse.SecurityIssue, model.SecurityIssue{Value: model.FlagHasSensitive})
+	}
+
+	vulnUnique := make([]uint64, 0)
+	for i := range data.Vulnerabilities.Results {
+		results := data.Vulnerabilities.Results[i]
+		if results.Class != report.ClassOSPkg {
+			continue
+		}
+		for j := range results.Vulnerabilities {
+			vu := results.Vulnerabilities[j]
+			vulnUnique = append(vulnUnique, util.GenerateUUID64(fmt.Sprintf(consts.UniqueVulnFamat, vu.VulnerabilityID, vu.PkgName, vu.InstalledVersion)))
+		}
+	}
+
+	if len(vulnUnique) > 0 {
+		vuln, _, err := s.VulnDal.SearchVuln(ctx, store.SearchVulnParam{UniqueVulns: vulnUnique}, nil)
+		if err != nil {
+			return err
+		}
+		res.Vuln = vuln
+		if len(vuln) > 0 {
+			res.ImageBaseResponse.SecurityIssue = append(res.ImageBaseResponse.SecurityIssue, model.SecurityIssue{Value: model.FlagHasVuln})
+		}
+		for i := range vuln {
+			if vuln[i].FixedBy != "" && vuln[i].Class == report.ClassOSPkg {
+				res.ImageBaseResponse.ImageAttr.HasFixedVuln = true
+				continue
+			}
+		}
+	}
+	res.ImageBaseResponse.RiskScore = res.GetRiskScore()
+	res.ImageBaseResponse.VulnFixSuggestion = res.GenVulnSuggest()
+	res.ImageBaseResponse.SensitiveFixSuggestion = res.GenSensitiveFileSuggest()
+
+	da := make([]model.ImageWithCorrelateData, 0)
+	da = append(da, res)
+	bys, err := json.Marshal(da)
+	if err != nil {
+		logging.Get().Err(err).Int64("taskID", taskID).Msg("CreateCiExportData,Marshal")
+		return err
+	}
+	prepare := &model.ExportHtmlPrepare{
+		TaskID:   taskID,
+		DataType: model.ExportHtmlPrepareCicdImageDetail,
+		Data:     string(bys),
+	}
+	if err := s.ExportDal.CreateOrUpdateHTMLPrepare(ctx, prepare); err != nil {
+		logging.Get().Err(err).Int64("taskID", taskID).Msg("CreateCiExportData,CreateOrUpdateHTMLPrepare")
+		return err
+	}
+	return nil
 }
 
 func (s *ExportTaskSrv) GetImageCorrelateData(ctx context.Context, param model.GetImageAssociateDataParam) (*model.ImageWithCorrelateData, error) {
@@ -191,12 +305,13 @@ func (s *ExportTaskSrv) CreateExportTask(ctx context.Context, data *model.Export
 }
 
 func (s *ExportTaskSrv) SearchExportTask(ctx context.Context, param SearchExportTaskParam, filter *model.Filter) ([]model.ExportTensorTask, int64, error) {
-	ext := make([]string, 0)
-	if param.ExecuteType != "" {
-		ext = append(ext, param.ExecuteType)
-	}
 	tasks, cnt, err := s.ExportDal.SearchExportTensorTask(ctx,
-		store.SearchExportTensorTask{ExecuteType: ext, Finished: param.Finished, Failure: param.Failure}, filter)
+		store.SearchExportTensorTask{
+			ExecuteType:  param.ExecuteType,
+			Finished:     param.Finished,
+			Failure:      param.Failure,
+			NeedCiReport: param.NeedCiReport,
+		}, filter)
 	if err != nil {
 		logging.Get().Err(err).Msg("SearchExportTask")
 		return nil, 0, err
@@ -204,18 +319,23 @@ func (s *ExportTaskSrv) SearchExportTask(ctx context.Context, param SearchExport
 	return tasks, cnt, nil
 }
 
-func (s *ExportTaskSrv) GetExportTask(ctx context.Context, id int64) (*model.ExportTensorTask, error) {
-	if id <= 0 {
-		return nil, fmt.Errorf("please input id :%d", id)
+func (s *ExportTaskSrv) GetExportTask(ctx context.Context, param GetExportTaskParam) (*model.ExportTensorTask, error) {
+	if param.ID <= 0 && param.UUID == "" {
+		return nil, fmt.Errorf("please input id :%d or uuid:%s", param.ID, param.UUID)
 	}
 
-	tasks, _, err := s.ExportDal.SearchExportTensorTask(ctx, store.SearchExportTensorTask{ID: id}, nil)
+	tasks, _, err := s.ExportDal.SearchExportTensorTask(ctx, store.SearchExportTensorTask{ID: param.ID, Parameter: param.UUID},
+		&model.Filter{
+			SortBy:    consts.SortByDesc,
+			SortFiled: "id",
+			Limit:     1,
+		})
 	if err != nil {
 		logging.Get().Err(err).Msg("GetExportTask")
 		return nil, err
 	}
 	if len(tasks) == 0 {
-		return nil, fmt.Errorf("not find the task taskId is :%d", id)
+		return nil, fmt.Errorf("not find the task taskId is :%d,uuid is:%s", param.ID, param.UUID)
 	}
 
 	return &(tasks[0]), nil
@@ -238,20 +358,4 @@ func (s *ExportTaskSrv) CheckScanTask(ctx context.Context, scanTaskId int64) (*E
 		return nil, err
 	}
 	return &ExportLimit{ImageCount: all, ImageLimit: s.MaxImageByOneExportTask}, nil
-}
-
-func NewExportTaskSrv(
-	exportDal store.ExportTaskDal,
-	maxImageByOneExportTask int64,
-	scanTaskDal store.ScanTaskDal,
-	ImageSrv common.ImageInterface,
-	redisCli *redis.Client,
-) *ExportTaskSrv {
-	return &ExportTaskSrv{
-		ExportDal:               exportDal,
-		ImageSrv:                ImageSrv,
-		ScanTaskDal:             scanTaskDal,
-		MaxImageByOneExportTask: maxImageByOneExportTask,
-		RedisCli:                redisCli,
-	}
 }

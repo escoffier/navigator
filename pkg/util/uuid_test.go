@@ -14,7 +14,6 @@ func TestGenerateUUID(t *testing.T) {
 	convey.Convey("TestGenerateUUID", t, func() {
 		convey.So(GenerateUUID(fmt.Sprintf("%s-%s-%s", "CNNVD-201707-867", "libk5crypto3", "1.12+dfsg-2ubuntu5.1")), convey.ShouldEqual, 490865440)
 	})
-
 }
 
 func TestGenerateUUID64(t *testing.T) {

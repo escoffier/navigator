@@ -6,9 +6,10 @@ import (
 	"strings"
 	"time"
 
+	"gitlab.com/security-rd/go-pkg/databases"
+
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
-	"gitlab.com/security-rd/go-pkg/databases"
 )
 
 type ExportTaskDal interface {
@@ -277,6 +278,9 @@ func (dal *ExportTaskDao) SearchExportTensorTask(ctx context.Context, parma Sear
 
 	if len(parma.ExecuteType) > 0 {
 		db = db.Where("execute_type IN ?", parma.ExecuteType)
+	}
+	if parma.NeedCiReport == consts.FalseString {
+		db = db.Where("execute_type !=?", consts.ExportCIReport)
 	}
 	if parma.ID > 0 {
 		db = db.Where("id = ?", parma.ID)

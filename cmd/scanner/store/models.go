@@ -367,6 +367,7 @@ type SearchExportTensorTask struct {
 	NotIds          []int64
 	ExpirationDate  time.Time
 	ExportHtmlReady string
+	NeedCiReport    string
 }
 
 type SearchExportTaskImageParam struct {
