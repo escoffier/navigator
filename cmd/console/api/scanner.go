@@ -360,9 +360,11 @@ func (api *api) RedirectToScanner(repaleceScannner ...bool) http.HandlerFunc {
 func (api *api) RedirectToExport() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		// /api/v2/containerSec/export/task/list
+		// /openapi/v1/containerSec/export/task/list
 		// /api/v1/export/task/list
 
 		pre := r.URL.String()
+
 		newUrl := fmt.Sprintf("%s%s", api.exportURL,
 			strings.Replace(pre, NormalAPIURLPrefix+"/containerSec", "/api/v1", 1))
 
@@ -370,6 +372,7 @@ func (api *api) RedirectToExport() http.HandlerFunc {
 			newUrl = fmt.Sprintf("%s%s", api.exportURL,
 				strings.Replace(pre, OpenAPIURLPrefix+"/containerSec", "/api/v1", 1))
 		}
+		logging.Get().Debug().Str("newURL", newUrl).Msg("RedirectToExport")
 
 		u, err := url.Parse(newUrl)
 		if nil != err {

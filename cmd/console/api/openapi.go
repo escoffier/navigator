@@ -11,6 +11,7 @@ import (
 	"github.com/go-chi/chi"
 	param "github.com/oceanicdev/chi-param"
 	"gitlab.com/security-rd/go-pkg/databases"
+	"gitlab.com/security-rd/go-pkg/logging"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/openapiauth"
 	"gitlab.com/piccolo_su/vegeta/pkg/apperror"
@@ -199,10 +200,17 @@ func openAPIAccessCheck(rdb *databases.RDBInstance) func(http.Handler) http.Hand
 			defer cancel()
 			token := r.Header.Get(OpenAPITokenKey)
 			// 如果没有，可能是用jwt传递的
+			logging.Get().Debug().Str("token", token).Msg("openAPIAccessCheck")
 			if token == "" {
-				token, _ = param.QueryString(r, "jwt")
+				jwt, err := param.QueryString(r, "jwt")
+				if err != nil || jwt == "" {
+					logging.Get().Err(err).Str("jwt", jwt).Msg("openAPIAccessCheck")
+					apperror.RespAndLog(w, r.Context(), apperror.NewInvalidAuthToken(http.StatusUnauthorized, err))
+					return
+				}
+				token = jwt
 			}
-
+			logging.Get().Debug().Str("token", token).Msg("openAPIAccessCheck")
 			service, ok := openapiauth.GetServiceInstance()
 			if !ok {
 				apperror.RespAndLog(w, r.Context(), ErrServiceNotReady)
