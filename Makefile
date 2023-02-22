@@ -150,13 +150,6 @@ webshell-server: 		## Build cleaner binary
 	#upx --lzma --best dist/webshell-server
 	docker build -t $(REPOPREFIX)/webshell-server:latest -f ./build/webshell-server/Dockerfile .
 
-.PHONY: safe-node-image
-safe-node-image: generate
-	echo "+ $@"
-	go build -v  -o dist/safe-node-image  cmd/scripts/safe-node-image/main.go
-	#upx --lzma --best dist/safe-node-image
-	docker build -t $(REPOPREFIX)/safe-node-image:latest -f ./build/safe-node-image/Dockerfile .
-
 .PHONY: scanner
 scanner: generate		## Build scanner binary
 	@echo "+ $@"
@@ -366,7 +359,7 @@ cluster-proxy: generate
 
 .PHONY: all
 all: drift-prevention-client faulty scanner scarecrow console data holmes daemon  \
-webshell-server webhook cluster-manager kafka-proxy safe-node-image kube-scanner-report platform-report \
+webshell-server webhook cluster-manager kafka-proxy kube-scanner-report platform-report \
 scan_report apiscan-job cluster-proxy
 
 .PHONY: base
@@ -415,7 +408,6 @@ ifeq ($(USERELEASE),true)
 	docker push $(REPOPREFIX)/daemon:$(RELEASEVERSION)
 	docker push $(REPOPREFIX)/waston-redis:$(RELEASEVERSION)
 	docker push $(REPOPREFIX)/webshell-server:$(RELEASEVERSION)
-	docker push $(REPOPREFIX)/safe-node-image:$(RELEASEVERSION)
 	docker push $(REPOPREFIX)/webhook:$(RELEASEVERSION)
 	docker push $(REPOPREFIX)/cluster-manager:$(RELEASEVERSION)
 	docker push $(REPOPREFIX)/kafka-proxy:$(RELEASEVERSION)
@@ -434,7 +426,6 @@ else
 	docker push $(REPOPREFIX)/daemon:latest
 	docker push $(REPOPREFIX)/waston-redis:latest
 	docker push $(REPOPREFIX)/webshell-server:latest
-	docker push $(REPOPREFIX)/safe-node-image:latest
 	docker push $(REPOPREFIX)/webhook:latest
 	docker push $(REPOPREFIX)/cluster-manager:latest
 	docker push $(REPOPREFIX)/kafka-proxy:latest
@@ -456,7 +447,6 @@ rm-local-images:
 	docker rmi $(REPOPREFIX)/daemon:latest
 	docker rmi $(REPOPREFIX)/waston-redis:latest
 	docker rmi $(REPOPREFIX)/webshell-server:latest
-	docker rmi $(REPOPREFIX)/safe-node-image:latest
 	docker rmi $(REPOPREFIX)/webhook:latest
 	docker rmi $(REPOPREFIX)/cluster-manager:latest
 	docker rmi $(REPOPREFIX)/kafka-proxy:latest
@@ -479,7 +469,6 @@ ifeq ($(USERELEASE),true)
 	docker tag $(REPOPREFIX)/image-validator:latest $(REPOPREFIX)/image-validator:$(RELEASEVERSION)
 	docker tag $(REPOPREFIX)/waston-redis:latest $(REPOPREFIX)/waston-redis:$(RELEASEVERSION)
 	docker tag $(REPOPREFIX)/webshell-server:latest $(REPOPREFIX)/webshell-server:$(RELEASEVERSION)
-	docker tag $(REPOPREFIX)/safe-node-image:latest $(REPOPREFIX)/safe-node-image:$(RELEASEVERSION)
 	docker tag $(REPOPREFIX)/webhook:latest $(REPOPREFIX)/webhook:$(RELEASEVERSION)
 	docker tag $(REPOPREFIX)/cluster-manager:latest $(REPOPREFIX)/cluster-manager:$(RELEASEVERSION)
 	docker tag $(REPOPREFIX)/kafka-proxy:latest $(REPOPREFIX)/kafka-proxy:$(RELEASEVERSION)
@@ -497,7 +486,6 @@ else
 	docker tag $(REPOPREFIXOLD)/image-validator:latest $(REPOPREFIX)/image-validator:latest
 	docker tag $(REPOPREFIXOLD)/waston-redis:latest $(REPOPREFIX)/waston-redis:latest
 	docker tag $(REPOPREFIXOLD)/webshell-server:latest $(REPOPREFIX)/webshell-server:latest
-	docker tag $(REPOPREFIXOLD)/safe-node-image:latest $(REPOPREFIX)/safe-node-image:latest
 	docker tag $(REPOPREFIXOLD)/webhook:latest $(REPOPREFIX)/webhook:latest
 	docker tag $(REPOPREFIXOLD)/cluster-manager:latest $(REPOPREFIX)/cluster-manager:latest
 	docker tag $(REPOPREFIXOLD)/kafka-proxy:latest $(REPOPREFIX)/kafka-proxy:latest
@@ -521,7 +509,6 @@ ifeq ($(USERELEASE),true)
 	scanner-cicd -k=dGVuc29yc2VjLWNpY2QtdXNlcg==.qBFMMAvbbm3afG3y42CqKaN7WQe4Q7hiqtg5Jzwen7tWHhZG16P62kvv -c=$(CI_CHECK_CONSOLE) -r=$(CI_CHECK_CACHE_REGISTRY) -t=1000 --insecure=false -i=$(REPOPREFIX)/daemon:$(RELEASEVERSION)
 	#scanner-cicd -k=dGVuc29yc2VjLWNpY2QtdXNlcg==.qBFMMAvbbm3afG3y42CqKaN7WQe4Q7hiqtg5Jzwen7tWHhZG16P62kvv -c=$(CI_CHECK_CONSOLE) -r=$(CI_CHECK_CACHE_REGISTRY) -t=1000 --insecure=false -i=$(REPOPREFIX)/scarecrow:$(RELEASEVERSION)
 	scanner-cicd -k=dGVuc29yc2VjLWNpY2QtdXNlcg==.qBFMMAvbbm3afG3y42CqKaN7WQe4Q7hiqtg5Jzwen7tWHhZG16P62kvv -c=$(CI_CHECK_CONSOLE) -r=$(CI_CHECK_CACHE_REGISTRY) -t=1000 --insecure=false -i=$(REPOPREFIX)/webshell-server:$(RELEASEVERSION)
-	scanner-cicd -k=dGVuc29yc2VjLWNpY2QtdXNlcg==.qBFMMAvbbm3afG3y42CqKaN7WQe4Q7hiqtg5Jzwen7tWHhZG16P62kvv -c=$(CI_CHECK_CONSOLE) -r=$(CI_CHECK_CACHE_REGISTRY) -t=1000 --insecure=false -i=$(REPOPREFIX)/safe-node-image:$(RELEASEVERSION)
 	scanner-cicd -k=dGVuc29yc2VjLWNpY2QtdXNlcg==.qBFMMAvbbm3afG3y42CqKaN7WQe4Q7hiqtg5Jzwen7tWHhZG16P62kvv -c=$(CI_CHECK_CONSOLE) -r=$(CI_CHECK_CACHE_REGISTRY) -t=1000 --insecure=false -i=$(REPOPREFIX)/webhook:$(RELEASEVERSION)
 	scanner-cicd -k=dGVuc29yc2VjLWNpY2QtdXNlcg==.qBFMMAvbbm3afG3y42CqKaN7WQe4Q7hiqtg5Jzwen7tWHhZG16P62kvv -c=$(CI_CHECK_CONSOLE) -r=$(CI_CHECK_CACHE_REGISTRY) -t=1000 --insecure=false -i=$(REPOPREFIX)/cluster-manager:$(RELEASEVERSION)
 	scanner-cicd -k=dGVuc29yc2VjLWNpY2QtdXNlcg==.qBFMMAvbbm3afG3y42CqKaN7WQe4Q7hiqtg5Jzwen7tWHhZG16P62kvv -c=$(CI_CHECK_CONSOLE) -r=$(CI_CHECK_CACHE_REGISTRY) -t=1000 --insecure=false -i=$(REPOPREFIX)/kube-scanner-report:$(RELEASEVERSION)
@@ -539,7 +526,6 @@ else
 	scanner-cicd -k=dGVuc29yc2VjLWNpY2QtdXNlcg==.qBFMMAvbbm3afG3y42CqKaN7WQe4Q7hiqtg5Jzwen7tWHhZG16P62kvv -c=$(CI_CHECK_CONSOLE) -r=$(CI_CHECK_CACHE_REGISTRY) -t=1000 --insecure=false -i=$(REPOPREFIX)/daemon:latest
 	#scanner-cicd -k=dGVuc29yc2VjLWNpY2QtdXNlcg==.qBFMMAvbbm3afG3y42CqKaN7WQe4Q7hiqtg5Jzwen7tWHhZG16P62kvv -c=$(CI_CHECK_CONSOLE) -r=$(CI_CHECK_CACHE_REGISTRY) -t=1000 --insecure=false -i=$(REPOPREFIX)/scarecrow:latest
 	scanner-cicd -k=dGVuc29yc2VjLWNpY2QtdXNlcg==.qBFMMAvbbm3afG3y42CqKaN7WQe4Q7hiqtg5Jzwen7tWHhZG16P62kvv -c=$(CI_CHECK_CONSOLE) -r=$(CI_CHECK_CACHE_REGISTRY) -t=1000 --insecure=false -i=$(REPOPREFIX)/webshell-server:latest
-	scanner-cicd -k=dGVuc29yc2VjLWNpY2QtdXNlcg==.qBFMMAvbbm3afG3y42CqKaN7WQe4Q7hiqtg5Jzwen7tWHhZG16P62kvv -c=$(CI_CHECK_CONSOLE) -r=$(CI_CHECK_CACHE_REGISTRY) -t=1000 --insecure=false -i=$(REPOPREFIX)/safe-node-image:latest
 	scanner-cicd -k=dGVuc29yc2VjLWNpY2QtdXNlcg==.qBFMMAvbbm3afG3y42CqKaN7WQe4Q7hiqtg5Jzwen7tWHhZG16P62kvv -c=$(CI_CHECK_CONSOLE) -r=$(CI_CHECK_CACHE_REGISTRY) -t=1000 --insecure=false -i=$(REPOPREFIX)/webhook:latest
 	scanner-cicd -k=dGVuc29yc2VjLWNpY2QtdXNlcg==.qBFMMAvbbm3afG3y42CqKaN7WQe4Q7hiqtg5Jzwen7tWHhZG16P62kvv -c=$(CI_CHECK_CONSOLE) -r=$(CI_CHECK_CACHE_REGISTRY) -t=1000 --insecure=false -i=$(REPOPREFIX)/cluster-manager:latest
 	scanner-cicd -k=dGVuc29yc2VjLWNpY2QtdXNlcg==.qBFMMAvbbm3afG3y42CqKaN7WQe4Q7hiqtg5Jzwen7tWHhZG16P62kvv -c=$(CI_CHECK_CONSOLE) -r=$(CI_CHECK_CACHE_REGISTRY) -t=1000 --insecure=false -i=$(REPOPREFIX)/kube-scanner-report:latest
