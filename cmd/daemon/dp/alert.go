@@ -95,7 +95,6 @@ func genPalaceSignalParams(arg *EventArg, cPodInfo containerPolicy, category, na
 		"crc32Actual":    arg.crc32Actual,
 		"action":         arg.Action,
 		"filePath":       arg.FilePath,
-		"cluster":        arg.Cluster,
 		"nameSpace":      arg.Namespace,
 		"podName":        arg.PodName,
 		"imageRepoTags":  arg.ImageRepoTags,
