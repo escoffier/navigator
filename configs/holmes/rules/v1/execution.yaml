@@ -269,3 +269,25 @@
     connection=%fd.name,client_ip=%fd.cip,client_port=%fd.cport,server_ip=%fd.sip,server_port=%fd.sport)
   priority: WARNING
   tags: [ATT&CK, network, process, mitre_execution, strict]
+
+- rule: Docker build vulnerability(CVE-2019-13139)
+  hid: exec_12
+  hthreats: 0
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "Ensure your Docker engine is up to date and if possible avoid using remote context’s for builds, especially if supplied by third-parties."
+    zh:
+      key: "处置建议"
+      value: "确保Docker版本是最新的,尽可能避免使用远程环境进行构建，特别是由第三方提供的。"
+  desc: Docker build vulnerability
+  condition: >
+    evt.type=execve and proc.name=docker and
+    (proc.cmdline contains "build" and proc.cmdline contains "git@" and proc.cmdline contains "--upload-pack") and
+    shell_parent_procs
+  output: >
+    Docker build vulnerability (zh_msg=Docker构建漏洞导致代码执行(CVE-2019-13139),rule_type=Execution,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,
+    original_info=user=%user.name user_loginuid=%user.loginuid %container.info
+    shell=%proc.name parent=%proc.pname terminal=%proc.tty container_id=%container.id container_name=%container.name image=%container.image.repository)
+  priority: CRITICAL
+  tags: [ATT&CK, container, shell, mitre_execution]

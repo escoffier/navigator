@@ -95,3 +95,22 @@
     Running visudo in container (zh_msg=容器内运行visudo,rule_type=Execution,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_name=%proc.name,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,container_id=%container.id,container_name=%container.name)
   priority: INFO
   tags: [ATT&CK, filesystem, mitre_privilege_escalation, related]
+
+- rule: Read /proc/self/mem
+  hid: related_06
+  hthreats: 1
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "This activity may indicate an attempt to access sensitive data within the container or from the host system. Investigate the container and the user who initiated this activity. Ensure that the container is running with the least privilege necessary, and restrict access to sensitive data. Consider implementing file integrity monitoring and access controls to prevent unauthorized access to sensitive data."
+    zh:
+      key: "处置建议"
+      value: "此行为可能表明试图在容器内或从主机系统中访问敏感数据。请调查容器及发起此活动的用户。确保容器以最小权限运行，并限制对敏感数据的访问。考虑实施文件完整性监控和访问控制，以防止未经授权的访问敏感数据。"
+  desc: Read /proc/self/mem
+  condition: >
+   evt.type = openat and fd.name=/proc/self/mem and
+   ((shell_parent_procs) or (proc.aname[1] in (shell_binaries)))
+  output: >
+    Read /proc/self/mem (zh_msg=读取/proc/self/mem文件,rule_type=Discovery,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,pod_id=%k8s.pod.id,syscall_name=%syscall.type,container=%container.info,container_id=%container.id,container_name=%container.name,evt.args=%evt.args,fd.name=%fd.name,parent=%proc.pname,gparent=%proc.aname[2],ggparent=%proc.aname[3])
+  priority: INFO
+  tags: [ATT&CK, filesystem, related]
