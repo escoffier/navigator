@@ -43,7 +43,7 @@
     Sensitive file opened for reading by non-trusted program (zh_msg=未受信任的程序试图读取敏感文件,rule_type=Discovery,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid program=%proc.name
     file=%fd.name parent=%proc.pname gparent=%proc.aname[2] ggparent=%proc.aname[3] gggparent=%proc.aname[4] container_id=%container.id container_name=%container.name image=%container.image.repository)
   priority: WARNING
-  tags: [ATT&CK, filesystem, mitre_credential_access, mitre_discovery]
+  tags: [ATT&CK, filesystem, mitre_credential_access, mitre_discovery, triggered]
 
 - rule: View network information in the container
   hid: disc_02
@@ -79,7 +79,8 @@
     (fd.filename in (shell_config_filenames) or
     fd.name in (shell_config_files) or
     fd.directory in (shell_config_directories)) and
-    not proc.name in (shell_binaries)
+    not proc.name in (shell_binaries) and
+    not fd.name contains "history"
   output: >
     a shell configuration file was read by a non-shell program (zh_msg=非shell程序读取shell配置文件,rule_type=Discovery,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid file=%fd.name container_id=%container.id container_name=%container.name image=%container.image.repository)
   priority: WARNING
@@ -259,20 +260,20 @@
   priority: WARNING
   tags: [ATT&CK]
 
-- rule: View history commands in the container
+- rule: View history command file in container
   hid: disc_12
   hthreats: 1
   suggestion:
     en:
       key: "Suggestions"
-      value: "It may be hacker information collection. Please confirm the execution object, use the immune defense training application, limit the user permissions of sensitive files and commands, and prohibit the mounting of sensitive directories and files."
+      value: "Please confirm the reason for viewing the history file and make sure it is not a malicious activity, otherwise it may be a hacker information gathering behavior, please confirm the execution object."
     zh:
       key: "处置建议"
-      value: "可能为黑客信息收集行为，请确认执行对象，使用免疫防御训练应用，限制敏感文件和命令的用户权限，禁止挂载敏感目录和文件。"
-  desc: View history commands in the container
+      value: "请确认查看历史文件的原因，确保其不是恶意活动，否则可能为黑客信息收集行为，请确认执行对象。"
+  desc: This rule detects when a process inside a container accesses the history file.
   condition: >
-    container and proc.cmdline contains "history" and shell_parent_procs
-  output: View login information inside the container (zh_msg=容器内查看历史命令,rule_type=Discovery,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,container_id=%container.id,container_name=%container.name)
+    open_read and container and (fd.name contains ".bash_history" or fd.name contains ".zsh_history") and shell_parent_procs
+  output: View history command file in container (zh_msg=容器内查看历史命令文件,rule_type=Discovery,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,container_id=%container.id,container_name=%container.name)
   priority: WARNING
   tags: [ATT&CK]
 

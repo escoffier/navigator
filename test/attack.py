@@ -67,6 +67,12 @@ if args.cve:
 		os.system('/test/cve/CVE-2022-0185/script.sh')
 	if args.cve == 'cve-2021-4034':
 		os.system('/test/cve/CVE-2021-4034/script.sh')
+	if args.cve == 'cve-2019-13139':
+		os.system('/test/cve/CVE-2019-13139/script.sh')
+	if args.cve == 'cve-2019-14271':
+		os.system('/test/cve/CVE-2019-14271/script.sh')
+	if args.cve == 'cve-2016-5195':
+		os.system('/test/cve/CVE-2016-5195/script.sh')
 	show_results("\033[31m"+"Successfully exploit %s attack\033[0m" % args.cve)
 
 if args.rs:

@@ -439,3 +439,23 @@
     Execute commands through the docker api (zh_msg=通过Docker-api执行命令,rule_type=Privilege_Escalation,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,container=%container.info,container_id=%container.id,container_name=%container.name)
   priority: ALERT
   tags: [ATT&CK, filesystem, mitre_privilege_escalation]
+
+- rule: Docker copy vulnerability leads to container escape(CVE-2019-14271)
+  hid: priv_24
+  hthreats: 1
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "Update Docker version in a timely manner, perform security audit on Docker image to identify vulnerabilities or malicious code, and fix or remove them in a timely manner."
+    zh:
+      key: "处置建议"
+      value: "及时更新Docker版本, 对Docker镜像进行安全审计以识别其中的漏洞或恶意代码，并及时进行修复或清除。"
+  desc: Docker copy vulnerability leads to container escape
+  condition: >
+    evt.type in (unlinkat, rename) and evt.args contains "libnss_" and evt.args contains ".so" and
+    container and
+    shell_parent_procs
+  output: >
+    Docker copy vulnerability leads to container escape (zh_msg=Docker-copy漏洞导致容器逃逸(CVE-2019-14271),rule_type=Privilege_Escalation,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,container=%container.info,container_id=%container.id,container_name=%container.name)
+  priority: CRITICAL
+  tags: [ATT&CK, filesystem, mitre_privilege_escalation]

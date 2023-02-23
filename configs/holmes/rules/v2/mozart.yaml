@@ -173,6 +173,27 @@
       priority: EMERGENCY
       urgency: true
 
+  - name: 'Linux dirty cow vulnerability leads to container escape(CVE-2016-5195)'
+    enabled: true
+    trigger: 'Read sensitive file untrusted'
+    steps:
+      - name: checkRelatedExists
+        params: [ 'Read /proc/self/mem', 10s, trigger.payload.output_map.proc_pid, payload.output_map.proc_pid ]
+      - name: execGenerateSignal
+        params: { zh_msg: Linux脏牛漏洞导致容器逃逸(CVE-2016-5195), rule: 'Linux dirty cow vulnerability leads to container escape(CVE-2016-5195)' }
+      - name: execSendPalace
+        params: ''
+    info:
+      desc:
+        en: 'Linux dirty cow vulnerability leads to container escape(CVE-2016-5195)'
+        zh: 'Linux脏牛漏洞导致容器逃逸(CVE-2016-5195)'
+      suggestion:
+        en: 'Update Linux kernel version in a timely manner, perform security audit on Docker image to identify vulnerabilities or malicious code, and fix or remove them in a timely manner.'
+        zh: '及时更新Linux内核版本, 对Docker镜像进行安全审计以识别其中的漏洞或恶意代码，并及时进行修复或清除。'
+      rule_type: Privilege_Escalation
+      priority: EMERGENCY
+      urgency: true
+
   # - name: 'Brute force hacking detected'
   #   enabled: true
   #   trigger: 'Contact remote server from container'

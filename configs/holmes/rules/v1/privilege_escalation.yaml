@@ -457,3 +457,42 @@
     Execute commands through the docker api (zh_msg=通过Docker-api执行命令,rule_type=Privilege_Escalation,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,container=%container.info,container_id=%container.id,container_name=%container.name)
   priority: ALERT
   tags: [ATT&CK, filesystem, mitre_privilege_escalation]
+  
+- rule: Docker copy vulnerability leads to container escape(CVE-2019-14271)
+  hid: priv_24
+  hthreats: 1
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "Update Docker version in a timely manner, perform security audit on Docker image to identify vulnerabilities or malicious code, and fix or remove them in a timely manner."
+    zh:
+      key: "处置建议"
+      value: "及时更新Docker版本, 对Docker镜像进行安全审计以识别其中的漏洞或恶意代码，并及时进行修复或清除。"
+  desc: Docker copy vulnerability leads to container escape
+  condition: >
+    evt.type in (unlinkat, rename) and evt.args contains "libnss_" and evt.args contains ".so" and
+    container and
+    shell_parent_procs
+  output: >
+    Docker copy vulnerability leads to container escape (zh_msg=Docker-copy漏洞导致容器逃逸(CVE-2019-14271),rule_type=Privilege_Escalation,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,container=%container.info,container_id=%container.id,container_name=%container.name)
+  priority: CRITICAL
+  tags: [ATT&CK, filesystem, mitre_privilege_escalation]
+
+- rule: Linux dirty cow vulnerability leads to container escape(CVE-2016-5195)
+  hid: priv_25
+  hthreats: 1
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "Update Linux kernel version in a timely manner, perform security audit on Docker image to identify vulnerabilities or malicious code, and fix or remove them in a timely manner."
+    zh:
+      key: "处置建议"
+      value: "及时更新Linux内核版本, 对Docker镜像进行安全审计以识别其中的漏洞或恶意代码，并及时进行修复或清除。"
+  desc: Linux dirty cow vulnerability leads to container escape 
+  condition: >
+    evt.type = openat and fd.name=/proc/self/mem and
+    ((shell_parent_procs) or (proc.aname[1] in (shell_binaries)))
+  output: >
+    Linux dirty cow vulnerability leads to container escape (zh_msg=Linux脏牛漏洞导致容器逃逸(CVE-2016-5195),rule_type=Privilege_Escalation,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,pod_id=%k8s.pod.id,syscall_name=%syscall.type,container=%container.info,container_id=%container.id,container_name=%container.name,evt.args=%evt.args,fd.name=%fd.name,parent=%proc.pname,gparent=%proc.aname[2],ggparent=%proc.aname[3])
+  priority: CRITICAL
+  tags: [ATT&CK, filesystem, strict]
