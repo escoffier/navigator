@@ -78,6 +78,15 @@ func (s *ImageSrv) ListImageWithScanInfo(ctx context.Context, param model.ImageL
 
 	logging.Get().Info().Interface("param", param).Msg("ListImageWithScanInfo")
 
+	regs, _, err := s.registryDal.SearchRegistry(ctx, store.SearchRegistryParam{Deleted: consts.FalseString}, nil)
+	if err != nil {
+		logging.Get().Err(err).Msg("SearchImageWithScan.SearchRegistry")
+		return nil, 0, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf(consts.StatusInternalServerErrorMsg))
+	}
+	if len(regs) == 0 {
+		return res, 0, nil
+	}
+
 	projects := make([]store.RegProject, 0)
 	for i := range param.Repos {
 		projects = append(projects, store.RegProject{
@@ -87,6 +96,7 @@ func (s *ImageSrv) ListImageWithScanInfo(ctx context.Context, param model.ImageL
 	}
 
 	daoParam := store.SearchImageParam{
+		RegistryIds:  make([]int64, 0),
 		Projects:     projects,
 		Keyword:      param.Keyword,
 		NodeHostname: param.NodeHostname,
@@ -94,6 +104,10 @@ func (s *ImageSrv) ListImageWithScanInfo(ctx context.Context, param model.ImageL
 		UUIDs:        param.UUIDs,
 		Fields:       param.Fields,
 		StartID:      param.StartID,
+	}
+
+	for i := range regs {
+		daoParam.RegistryIds = append(daoParam.RegistryIds, regs[i].ID)
 	}
 
 	if daoParam.StartID > 0 && filter != nil {
