@@ -1726,7 +1726,7 @@ func (s *ScannerOrm) GetTaskList(ctx context.Context, param SearchTaskParam, fil
 	defer cancelFunc()
 
 	db := s.rdb.Get().WithContext(ctx).Model(model.Task{})
-
+	db = db.Where("group_id > ?", 0)
 	if len(param.Ids) > 0 {
 		db = db.Where("id IN ?", param.Ids)
 	}

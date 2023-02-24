@@ -2799,19 +2799,31 @@ func (s *ConScannerSrv) DetectImageForK8s(ctx context.Context, img *model.ImageL
 }
 
 func (s *ConScannerSrv) GetScanTaskList(ctx context.Context, filter *model.Filter) ([]model.Task, int64, error) {
+	res := make([]model.Task, 0)
 	if filter == nil {
 		filter = &model.Filter{Limit: 10, Offset: 0}
 	}
 	filter.SortFiled = "group_id"
 	filter.SortBy = consts.SortByDesc
-
-	distinctTask, cnt, err := s.dbdal.GetTaskList(ctx, store.SearchTaskParam{DistinctFiled: "group_id"}, filter)
+	// distinct后分页不起作用，在程序中分页
+	distinctTask, cnt, err := s.dbdal.GetTaskList(ctx, store.SearchTaskParam{DistinctFiled: "group_id"}, &model.Filter{
+		SortBy:    consts.SortByDesc,
+		SortFiled: "group_id",
+	})
 	if err != nil {
 		logging.GetLogger().Err(err).Msg("GetScanTaskList GroupTaskByGroupID")
 		return nil, 0, err
 	}
+	// 分页
+	start := int(filter.Offset)
+	end := int(filter.Offset + filter.Limit)
 
-	res := make([]model.Task, 0)
+	if len(distinctTask) <= start {
+		return res, cnt, nil
+	} else {
+		distinctTask = distinctTask[start:util.MinInt(end, len(distinctTask))]
+	}
+
 	// 获取策略名字
 	strategy, _, err := s.scanConfigDal.SearchStrategy(ctx, store.SearchStrategyParam{GetDeleted: true}, nil)
 	if err != nil {
