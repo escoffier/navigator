@@ -2805,11 +2805,7 @@ func (s *ConScannerSrv) GetScanTaskList(ctx context.Context, filter *model.Filte
 	}
 	filter.SortFiled = "group_id"
 	filter.SortBy = consts.SortByDesc
-	// distinct后分页不起作用，在程序中分页
-	distinctTask, cnt, err := s.dbdal.GetTaskList(ctx, store.SearchTaskParam{DistinctFiled: "group_id"}, &model.Filter{
-		SortBy:    consts.SortByDesc,
-		SortFiled: "group_id",
-	})
+	distinctTask, cnt, err := s.dbdal.GetTaskList(ctx, store.SearchTaskParam{DistinctFiled: "group_id"}, filter)
 	if err != nil {
 		logging.GetLogger().Err(err).Msg("GetScanTaskList GroupTaskByGroupID")
 		return nil, 0, err
