@@ -15,20 +15,21 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-func GetImagePrefixAndPostFixFrom(image string) (string, string, bool) {
+// GetImagePrefixAndPostFixFrom returns prefix, image name, tag, ok. harbor.cn/abc/service:latest returns harbor.cn /abc/service latest
+func GetImagePrefixAndPostFixFrom(image string) (string, string, string, bool) {
 	if len(image) == 0 {
-		return "", "", false
+		return "", "", "", false
 	}
-	pos := strings.LastIndexByte(image, ':')
-	if pos <= 0 {
-		return "", "", false
+	tagPos := strings.LastIndexByte(image, ':')
+	if tagPos <= 0 {
+		return "", "", "", false
 	}
-	fullRepoName := image[:pos]
-	pos = strings.LastIndexByte(fullRepoName, '/')
-	if pos <= 0 {
-		return "", "", false
+	fullRepoName := image[:tagPos]
+	fullRepoPos := strings.IndexByte(fullRepoName, '/')
+	if fullRepoPos <= 0 {
+		return "", "", "", false
 	}
-	return image[:pos+1], image[pos+1:], true
+	return image[:fullRepoPos], image[fullRepoPos:tagPos], image[tagPos+1:], true
 }
 
 func getClusterManagerdeploymenetObj(ctx context.Context, kubeClient *pkgassets.Clientset, myResourcePrefix, myNamespace string) (*appsv1.Deployment, error) {
@@ -71,40 +72,41 @@ func GetProductVersionFrom(ctx context.Context, kubeClient *pkgassets.Clientset,
 	}
 	return "", fmt.Errorf("target resource image prefix %s/cluster-manager not found", myNamespace)
 }
-func GetImageRepositoryAndProjectPrefix(ctx context.Context, kubeClient *pkgassets.Clientset, myResourcePrefix, myNamespace string) (string, error) {
+func GetTargetClusterImageSplitInfo(ctx context.Context, kubeClient *pkgassets.Clientset, myResourcePrefix, myNamespace string) (string, string, error) {
 	res, err := getClusterManagerdeploymenetObj(ctx, kubeClient, myResourcePrefix, myNamespace)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 
 	for _, cont := range res.Spec.Template.Spec.Containers {
-		prefix, _, ok := GetImagePrefixAndPostFixFrom(cont.Image)
-		if ok && prefix != "" {
-			return prefix, nil
+		repoLoc, fullRepoName, tag, ok := GetImagePrefixAndPostFixFrom(cont.Image)
+		if ok && repoLoc != "" && fullRepoName != "" {
+			return repoLoc, tag, nil
 		}
 	}
-	return "", fmt.Errorf("target resource image prefix %s/cluster-manager not found", myNamespace)
+	return "", "", fmt.Errorf("target resource image prefix %s/cluster-manager not found", myNamespace)
 }
 
 // ReplaceJobYamlWithTheTargetImageRepos : for sub clusters, the image repos might be different from the yamls which is defined by the image repositories of the main cluster; so get the image repo prefix dynamically.
-func ReplaceJobYamlWithTheTargetImageRepos(ctx context.Context, job *batchV1.Job, kubeClient *pkgassets.Clientset, myResourcePrefix, myNamespace string) {
-	imagePrefix, err := GetImageRepositoryAndProjectPrefix(ctx, kubeClient, myResourcePrefix, myNamespace)
+func ReplaceJobYamlWithTheTargetImageRepos(ctx context.Context, job *batchV1.Job, kubeClient *pkgassets.Clientset, myResourcePrefix, myNamespace string) (string, string, error) {
+	targetRepoURL, targetTag, err := GetTargetClusterImageSplitInfo(ctx, kubeClient, myResourcePrefix, myNamespace)
 	if err != nil {
 		logging.Get().Err(err).Msg("get image repo error")
 	} else {
 		for i := range job.Spec.Template.Spec.Containers {
-			_, postfix, ok := GetImagePrefixAndPostFixFrom(job.Spec.Template.Spec.Containers[i].Image)
-			if ok && len(postfix) > 0 {
-				job.Spec.Template.Spec.Containers[i].Image = imagePrefix + postfix
+			_, fullRepoName, _, ok := GetImagePrefixAndPostFixFrom(job.Spec.Template.Spec.Containers[i].Image)
+			if ok && len(fullRepoName) > 0 {
+				job.Spec.Template.Spec.Containers[i].Image = targetRepoURL + fullRepoName + ":" + targetTag
 				logging.Get().Debug().Str("image", job.Spec.Template.Spec.Containers[i].Image).Msg("right job image")
 			}
 		}
 		for i := range job.Spec.Template.Spec.InitContainers {
-			_, postfix, ok := GetImagePrefixAndPostFixFrom(job.Spec.Template.Spec.InitContainers[i].Image)
-			if ok && len(postfix) > 0 {
-				job.Spec.Template.Spec.InitContainers[i].Image = imagePrefix + postfix
+			_, fullRepoName, _, ok := GetImagePrefixAndPostFixFrom(job.Spec.Template.Spec.InitContainers[i].Image)
+			if ok && len(fullRepoName) > 0 {
+				job.Spec.Template.Spec.InitContainers[i].Image = targetRepoURL + fullRepoName + ":" + targetTag
 				logging.Get().Debug().Str("image", job.Spec.Template.Spec.InitContainers[i].Image).Msg("right job image")
 			}
 		}
 	}
+	return targetRepoURL, targetTag, err
 }
