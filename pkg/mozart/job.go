@@ -42,7 +42,37 @@ func job(iArg interface{}) {
 	Cache.Lock.Lock()
 	// 缓存到全量event
 	if events, ok := Cache.Data[event.Name]; ok {
-		Cache.Data[event.Name] = append(events, jsonEvent)
+		// 按告警时间递增排序
+		k := 0
+		for i := len(events) - 1; i >= 0; i-- {
+			if !event.Time.Before(events[i]["time"].(time.Time)) {
+				k = i + 1
+				break
+			}
+			if i == 0 && event.Time.Before(events[i]["time"].(time.Time)) {
+				k = 0
+				break
+			}
+		}
+		ne := make([]map[string]interface{}, len(events)+1)
+		if k == len(events) {
+			ne = append(events, jsonEvent)
+		} else {
+			for i := 0; i < len(events); i++ {
+				if i != k {
+					j := i
+					if i > k {
+						j = i - 1
+					}
+					ne[i] = events[j]
+				} else {
+					ne[i] = jsonEvent
+				}
+			}
+			ne[len(events)] = events[len(events)-1]
+		}
+
+		Cache.Data[event.Name] = ne
 	} else {
 		Cache.Data[event.Name] = []map[string]interface{}{jsonEvent}
 	}

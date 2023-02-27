@@ -52,6 +52,7 @@ type ConfigMozartStepParamsCheckExpression string
 type ConfigMozartStepParamsCheckValue []interface{}
 type ConfigMozartStepParamsCheckRelatedExists []interface{}
 type ConfigMozartStepParamsCheckRelatedNotExists []interface{}
+type ConfigMozartStepParamsCheckRuleRecentCount []interface{}
 
 type ConfigMozartStepParamsExecExpression string
 type ConfigMozartStepParamsExecGenerateSignal map[string]interface{}
@@ -71,6 +72,14 @@ func (cp ConfigMozartStepParamsCheckRelatedExists) RCode() string {
 
 func (cp ConfigMozartStepParamsCheckRelatedNotExists) RCode() string {
 	return fmt.Sprintf("NotExistsInPeriod(\"%s\", \"%s\", CacheContext(\"event_time\", input.session_id))", cp[0], cp[1])
+}
+
+func (cp ConfigMozartStepParamsCheckRuleRecentCount) RCode() string {
+	return fmt.Sprintf(`RuleRecentCount("%s", "%s", CacheContext("trigger", input.session_id), CacheContext("event_time", input.session_id), %d, "%s", "%s", "%s")`,
+		cp[0], cp[1], cp[2],
+		strings.ReplaceAll(cp[3].(string), `"`, `\"`),
+		strings.ReplaceAll(cp[4].(string), `"`, `\"`),
+		cp[5])
 }
 
 func (cp ConfigMozartStepParamsExecExpression) RCode() string {

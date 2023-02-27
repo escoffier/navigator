@@ -194,44 +194,44 @@
       priority: EMERGENCY
       urgency: true
 
-  # - name: 'Brute force hacking detected'
-  #   enabled: true
-  #   trigger: 'Contact remote server from container'
-  #   steps:
-  #     - name: checkRuleRecentCount
-  #       params: [ 'Contact remote server from container', 10s, 5, '["server_ip", "server_port", "client_ip"]', '[]', 1m ]
-  #     - name: execGenerateSignal
-  #       params: { zh_msg: 检测到正在暴力破解, rule: 'Brute force hacking detected' }
-  #     - name: execSendPalace
-  #       params: ''
-  #   info:
-  #     desc:
-  #       en: 'Brute force hacking detected'
-  #       zh: '检测到正在暴力破解'
-  #     suggestion:
-  #       en: 'There may be brute force cracking behavior, please determine through the process tree whether the command belongs to the normal behavior of known processes, whether it is suggested by malware execution, it is recommended to confirm whether there is a weak password for the service where the port is located and limit the number of wrong login attempts.'
-  #       zh: '可能存在暴力破解行为，请通过进程树判断该命令是否属于已知进程的正常行为，是否由恶意软件执行建议，建议确认端口所在服务是否存在弱口令，限制错误登录尝试次数。'
-  #     rule_type: Exfiltration
-  #     priority: ALERT
-  #     urgency: true
+  - name: 'Brute force hacking detected'
+    enabled: true
+    trigger: 'Contact remote server from container'
+    steps:
+      - name: checkRuleRecentCount
+        params: [ 'Contact remote server from container', 10s, 5, '["server_ip", "server_port", "client_ip"]', '[]', 1m ]
+      - name: execGenerateSignal
+        params: { zh_msg: 检测到正在暴力破解, rule: 'Brute force hacking detected' }
+      - name: execSendPalace
+        params: ''
+    info:
+      desc:
+        en: 'Brute force hacking detected'
+        zh: '检测到正在暴力破解'
+      suggestion:
+        en: 'There may be brute force cracking behavior, please determine through the process tree whether the command belongs to the normal behavior of known processes, whether it is suggested by malware execution, it is recommended to confirm whether there is a weak password for the service where the port is located and limit the number of wrong login attempts.'
+        zh: '可能存在暴力破解行为，请通过进程树判断该命令是否属于已知进程的正常行为，是否由恶意软件执行建议，建议确认端口所在服务是否存在弱口令，限制错误登录尝试次数。'
+      rule_type: Exfiltration
+      priority: ALERT
+      urgency: true
 
-  # - name: 'Scanning ports detected'
-  #   enabled: true
-  #   trigger: 'Contact remote server from container'
-  #   steps:
-  #     - name: checkRuleRecentCount
-  #       params: [ 'Contact remote server from container', 10s, 5, '["server_ip", "client_ip"]', '["server_port"]', 1m ]
-  #     - name: execGenerateSignal
-  #       params: { zh_msg: 检测到正在扫描敏感端口, rule: 'Scanning ports detected' }
-  #     - name: execSendPalace
-  #       params: ''
-  #   info:
-  #     desc:
-  #       en: 'Scanning ports detected'
-  #       zh: '检测到正在扫描敏感端口'
-  #     suggestion:
-  #       en: 'The K8S sensitive port access behavior is detected. Please confirm whether it is legal access in combination with specific commands. If not, it may be used by attackers. Please isolate the pod in time。'
-  #       zh: '检测到k8s敏感端口访问行为,请结合具体命令确认是否为合法访问，如果不是则可能遭到攻击者利用，请及时隔离该pod。'
-  #     rule_type: Exfiltration
-  #     priority: ALERT
-  #     urgency: true
+  - name: 'Scanning ports detected'
+    enabled: true
+    trigger: 'Contact remote server from container'
+    steps:
+      - name: checkRuleRecentCount
+        params: [ 'Contact remote server from container', 10s, 5, '["server_ip", "client_ip"]', '["server_port"]', 1m ]
+      - name: execGenerateSignal
+        params: { zh_msg: 检测到正在扫描敏感端口, rule: 'Scanning ports detected' }
+      - name: execSendPalace
+        params: ''
+    info:
+      desc:
+        en: 'Scanning ports detected'
+        zh: '检测到正在扫描敏感端口'
+      suggestion:
+        en: 'The K8S sensitive port access behavior is detected. Please confirm whether it is legal access in combination with specific commands. If not, it may be used by attackers. Please isolate the pod in time。'
+        zh: '检测到k8s敏感端口访问行为,请结合具体命令确认是否为合法访问，如果不是则可能遭到攻击者利用，请及时隔离该pod。'
+      rule_type: Exfiltration
+      priority: ALERT
+      urgency: true

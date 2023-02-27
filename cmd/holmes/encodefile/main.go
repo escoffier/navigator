@@ -3,14 +3,14 @@ package main
 import (
 	"flag"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"strconv"
 	"strings"
 
+	"gopkg.in/yaml.v2"
+
 	"gitlab.com/piccolo_su/vegeta/pkg/holmes"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
-	"gopkg.in/yaml.v2"
 )
 
 func checkRulesDuplication(rules []model.RuleFromYaml) error {
@@ -129,7 +129,7 @@ func main() {
 }
 
 func readBytesFromDir(dirPath string) []byte {
-	fileInfos, err := ioutil.ReadDir(dirPath)
+	fileInfos, err := os.ReadDir(dirPath)
 	if err != nil {
 		fmt.Println(err)
 		os.Exit(7)
@@ -140,7 +140,7 @@ func readBytesFromDir(dirPath string) []byte {
 		if fileInfo.IsDir() {
 			partFileBytes = readBytesFromDir(dirPath + "/" + fileInfo.Name())
 		} else {
-			partFileBytes, err = ioutil.ReadFile(dirPath + "/" + fileInfo.Name())
+			partFileBytes, err = os.ReadFile(dirPath + "/" + fileInfo.Name())
 			if err != nil {
 				fmt.Println(err)
 				os.Exit(8)

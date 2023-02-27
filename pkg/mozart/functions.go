@@ -1,12 +1,15 @@
 package mozart
 
 import (
+	"context"
 	"errors"
 	"fmt"
+	"gorm.io/gorm/utils"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/go-redis/redis/v8"
 	json "github.com/json-iterator/go"
 	"github.com/open-policy-agent/opa/ast"
 	"github.com/open-policy-agent/opa/rego"
@@ -16,6 +19,10 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 	"gitlab.com/security-rd/go-pkg/logging"
 	"gitlab.com/security-rd/go-pkg/sdk/palace"
+)
+
+const (
+	mozartPathPrefix = "$MOZART_PATH_PREFIX$"
 )
 
 func CacheContext(x rego.BuiltinContext, a, b *ast.Term) (*ast.Term, error) {
@@ -48,15 +55,22 @@ func CacheContext(x rego.BuiltinContext, a, b *ast.Term) (*ast.Term, error) {
 }
 
 func getByPath(m map[string]interface{}, path string) (interface{}, error) {
+	var v interface{}
+	// 这里是对同一个map的成功get做的"缓存"
+	if v, ok := m[mozartPathPrefix+path]; ok {
+		return v, nil
+	}
+	// 下面的迭代中对m进行了修改，所以复制一个om（old m），相同的引用
+	om := m
 	keys := strings.Split(path, ".")
 	var ok bool
-	var v interface{}
 	for i := range keys {
 		v, ok = m[keys[i]]
 		if !ok {
 			return nil, errors.New("no such key: " + keys[i])
 		}
 		if i == len(keys)-1 {
+			om[mozartPathPrefix+path] = v
 			return v, nil
 		} else {
 			m, ok = v.(map[string]interface{})
@@ -107,34 +121,34 @@ func (e *Engine) ExistsInPeriod(x rego.BuiltinContext, as []*ast.Term) (*ast.Ter
 		return ast.BooleanTerm(false), err
 	}
 
+	// 此处为了避免当处理触发信号时，关联信号因各种原因导致后到，所以等待一个关联窗口
+	// 未来可以进行pipeline粒度的重跑，或者理解为延后重新执行。但还不知道哪种方式对性能影响更小，先暂时按等待处理。
 	now := time.Now()
 	tStart := mozartStartTime.Add(-tPeriod)
-	tEnd := mozartStartTime.Add(tPeriod)
-	if !tEnd.Before(now) {
-		delta := tEnd.Sub(time.Now())
-		ticker := time.NewTicker(delta)
-		<-ticker.C
-		ticker.Stop()
-	}
-	events, exists := checkCache(sParam, tStart, tEnd)
-	if exists {
-		sTriggerValue := as[3].Value.String()
-		sTriggerValue = sTriggerValue[1 : len(sTriggerValue)-1]
+	tEnd := now.Add(tPeriod)
+	ticker := time.NewTicker(tPeriod)
+	<-ticker.C
+	ticker.Stop()
 
-		sRelatedPath := as[4].Value.String()
-		for i := range events {
-			iRelatedValue, err := getByPath(events[i], sRelatedPath[1:len(sRelatedPath)-1])
-			if err != nil {
-				continue
-			}
-			sRelatedValue, ok := iRelatedValue.(string)
-			if !ok {
-				continue
-			}
-			if sTriggerValue == sRelatedValue {
-				return ast.BooleanTerm(true), nil
-			}
+	sTriggerValue := as[3].Value.String()
+	sTriggerValue = sTriggerValue[1 : len(sTriggerValue)-1]
+
+	sRelatedPath := as[4].Value.String()
+	check := func(m map[string]interface{}) bool {
+		iRelatedValue, err := getByPath(m, sRelatedPath[1:len(sRelatedPath)-1])
+		if err != nil {
+			return false
 		}
+		sRelatedValue, ok := iRelatedValue.(string)
+		if !ok {
+			return false
+		}
+		return sTriggerValue == sRelatedValue
+	}
+
+	_, exists := checkCache(sParam, tStart, tEnd, check)
+	if exists {
+		return ast.BooleanTerm(true), nil
 	}
 	return ast.BooleanTerm(false), errors.New("no matched cache: " + sParam)
 }
@@ -187,12 +201,179 @@ func (e *Engine) NotExistsInPeriod(x rego.BuiltinContext, a, b, c *ast.Term) (*a
 		<-ticker.C
 		ticker.Stop()
 	}
-	_, exists := checkCache(sParam, tStart, tEnd)
+	_, exists := checkCache(sParam, tStart, tEnd, defaultCheckTrue)
 	if exists {
 		return ast.BooleanTerm(false), nil
 	}
 	return ast.BooleanTerm(true), nil
 
+}
+
+func (e *Engine) RuleRecentCount(x rego.BuiltinContext, as []*ast.Term) (*ast.Term, error) {
+
+	paramA, ok := as[0].Value.(ast.String)
+	if !ok {
+		err := errors.New("RuleRecentCount a not string")
+		logging.Get().Error().Err(err).Interface("a", as[0]).Msg(err.Error())
+		return ast.BooleanTerm(false), err
+	}
+	ruleName := paramA.String()[1 : len(paramA.String())-1]
+
+	paramB, ok := as[1].Value.(ast.String)
+	if !ok {
+		err := errors.New("RuleRecentCount b not string")
+		logging.Get().Error().Err(err).Interface("b", as[1]).Msg(err.Error())
+		return ast.BooleanTerm(false), errors.New("b not string")
+	}
+	sPeriod := paramB.String()[1 : len(paramB.String())-1]
+	tPeriod, err := sDurationToTimeDuration(sPeriod)
+	if err != nil {
+		return ast.BooleanTerm(false), err
+	}
+
+	sTrigger := as[2].Value.String()
+	triggerM := make(map[string]interface{})
+	sTrigger = sTrigger[1 : len(sTrigger)-1]
+	sTrigger = strings.ReplaceAll(sTrigger, "\\\\", "\\")
+	sTrigger = strings.ReplaceAll(sTrigger, "\\\"", "\"")
+	err = json.Unmarshal([]byte(sTrigger), &triggerM)
+	if err != nil {
+		logging.Get().Error().Err(err).Interface("cache trigger", as[2].Value).Msg("invalid cache trigger")
+		return ast.BooleanTerm(false), err
+	}
+
+	sMozartStartTime := as[3].Value.String()
+	mozartStartTime, err := time.Parse(time.RFC3339Nano, sMozartStartTime[1:len(sMozartStartTime)-1])
+	if err != nil {
+		logging.Get().Error().Err(err).Interface("c", as[3].Value).Msg("invalid mozartStartTime")
+		return ast.BooleanTerm(false), err
+	}
+
+	sThreshold := as[4].Value.String()
+	threshold, err := strconv.Atoi(sThreshold)
+	if err != nil {
+		err := errors.New("sThreshold convert int fails")
+		logging.Get().Error().Err(err).Interface("threshold", sThreshold).Msg(err.Error())
+		return ast.BooleanTerm(false), err
+	}
+
+	sSameFields := as[5].Value.String()
+	sSameFields = sSameFields[1 : len(sSameFields)-1]
+	sSameFields = strings.ReplaceAll(sSameFields, `\"`, `"`)
+	sameFields := make([]string, 0)
+	err = json.Unmarshal([]byte(sSameFields), &sameFields)
+	if err != nil {
+		logging.Get().Error().Err(err).Interface("d", as[5].Value).Msg("invalid sameFields")
+		return ast.BooleanTerm(false), err
+	}
+
+	sDiffFields := as[6].Value.String()
+	sDiffFields = sDiffFields[1 : len(sDiffFields)-1]
+	sDiffFields = strings.ReplaceAll(sDiffFields, `\"`, `"`)
+	diffFields := make([]string, 0)
+	err = json.Unmarshal([]byte(sDiffFields), &diffFields)
+	if err != nil {
+		logging.Get().Error().Err(err).Interface("e", as[6].Value).Msg("invalid diffFields")
+		return ast.BooleanTerm(false), err
+	}
+
+	tStart := mozartStartTime.Add(-tPeriod)
+	tEnd := mozartStartTime.Add(time.Second)
+	valueMap := make(map[string]interface{})
+	fields := append(sameFields, diffFields...)
+	cacheHashes := make([]string, 0)
+	for j := range fields {
+		iValue, err := getByPath(triggerM, "payload.output_map."+fields[j])
+		if err != nil {
+			continue
+		}
+		if iValue == "<NA>" {
+			return ast.BooleanTerm(false), nil
+		}
+		valueMap[fields[j]] = iValue
+		if utils.Contains(sameFields, fields[j]) {
+			cacheHashes = append(cacheHashes, fmt.Sprintf("%s:%v", fields[j], iValue))
+		}
+	}
+	check := func(m map[string]interface{}) bool {
+		checkValueOk := true
+		for j := range sameFields {
+			iValue, err := getByPath(m, "payload.output_map."+sameFields[j])
+			if err != nil {
+				checkValueOk = false
+				break
+			}
+			if valueMap[sameFields[j]] != iValue || iValue == "<NA>" {
+				logging.Get().Debug().Str("related_path", sameFields[j]).Interface("trigger value", valueMap[sameFields[j]]).Interface("related value", iValue).Msg("same value not same")
+				checkValueOk = false
+				break
+			}
+		}
+		if !checkValueOk {
+			return false
+		}
+		for j := range diffFields {
+			iValue, err := getByPath(m, "payload.output_map."+diffFields[j])
+			if err != nil {
+				checkValueOk = false
+				break
+			}
+			if valueMap[diffFields[j]] == iValue || iValue == "<NA>" {
+				logging.Get().Debug().Str("related_path", diffFields[j]).Interface("trigger value", valueMap[diffFields[j]]).Interface("related value", iValue).Msg("diff value same")
+				checkValueOk = false
+				break
+			}
+		}
+		return checkValueOk
+	}
+	events, exists := checkCache(ruleName, tStart, tEnd, check)
+
+	count := 0
+	if len(diffFields) != 0 { // 当前event自身，因为字段全相同，无法被计数，默认为1
+		count = 1
+	}
+	if exists && len(sameFields) != 0 {
+		count += len(events)
+	}
+
+	if count < threshold {
+		return ast.BooleanTerm(false), nil
+	}
+
+	ctx := context.Background()
+	result, err := e.deps.redis.Get(ctx, recentCountCacheKey(ruleName, sameFields, diffFields, cacheHashes)).Result()
+	if err != nil && err != redis.Nil {
+		return ast.BooleanTerm(false), nil
+	}
+	if result != "" || err != redis.Nil {
+		logging.Get().Info().Err(err).Str("key", recentCountCacheKey(ruleName, sameFields, diffFields, cacheHashes)).Msg("redis cache already")
+		return ast.BooleanTerm(false), nil
+	}
+
+	param5, ok := as[7].Value.(ast.String)
+	if !ok {
+		err := errors.New("RuleRecentCount f not string")
+		logging.Get().Error().Err(err).Interface("f", as[7]).Msg(err.Error())
+		return ast.BooleanTerm(false), errors.New("f not string")
+	}
+	sCachePeriod := param5.String()[1 : len(param5.String())-1]
+	tCachePeriod, err := sDurationToTimeDuration(sCachePeriod)
+	if err != nil {
+		return ast.BooleanTerm(false), err
+	}
+
+	// setnx 避免并发时的重复触发
+	setResult, err := e.deps.redis.SetNX(ctx, recentCountCacheKey(ruleName, sameFields, diffFields, cacheHashes), true, tCachePeriod).Result()
+	if err != nil {
+		logging.Get().Error().Err(err).Str("key", recentCountCacheKey(ruleName, sameFields, diffFields, cacheHashes)).Msg("redis set error")
+		return ast.BooleanTerm(false), nil
+	}
+
+	return ast.BooleanTerm(setResult), nil
+}
+
+func recentCountCacheKey(ruleName string, sameFields, diffFields, cacheHashes []string) string {
+	return strings.Join(append([]string{ruleName}, append(sameFields, append(diffFields, cacheHashes...)...)...), "$")
 }
 
 func (e *Engine) GenerateAlertSignal(x rego.BuiltinContext, a, b *ast.Term) (*ast.Term, error) {
@@ -377,19 +558,27 @@ func (e *Engine) getOwnerInfo(podName, namespace string) (*nodeinfo.Resource, st
 	return nil, "", false
 }
 
-func checkCache(sParam string, tStart, tEnd time.Time) ([]map[string]interface{}, bool) {
+// 需要注意check函数的实现，内部参数是否会有多协程并发的数据冲突问题
+func checkCache(sParam string, tStart, tEnd time.Time, check func(map[string]interface{}) bool) ([]map[string]interface{}, bool) {
 	Cache.Lock.Lock()
 	items, ok := Cache.Data[sParam]
-	Cache.Lock.Unlock()
+	defer Cache.Lock.Unlock()
 	events := make([]map[string]interface{}, 0)
 	if ok {
-		for i := range items {
+		// event.time倒序查看，先判断时间段，再判断check
+		for i := len(items) - 1; i >= 0; i-- {
 			eventTime, ok := items[i]["time"].(time.Time)
 			if !ok {
 				logging.Get().Error().Err(errors.New("ridiculous, no time in event")).Interface("event", items[i]).Msg("ridiculous, no time in event")
 				continue
 			}
-			if eventTime.Before(tEnd) && eventTime.After(tStart) {
+			if eventTime.After(tEnd) {
+				continue
+			}
+			if eventTime.Before(tStart) {
+				break
+			}
+			if check(items[i]) {
 				events = append(events, items[i])
 			}
 		}
@@ -397,7 +586,6 @@ func checkCache(sParam string, tStart, tEnd time.Time) ([]map[string]interface{}
 			return events, true
 		}
 	}
-
 	return events, false
 }
 
@@ -509,3 +697,5 @@ func getInfoFromOutput(key, output string) (string, error) {
 	retStr = resultList[0]
 	return retStr, nil
 }
+
+func defaultCheckTrue(m map[string]interface{}) bool { return true }

@@ -2,8 +2,13 @@ package mozart
 
 import (
 	"crypto/sha256"
+	"errors"
 	"fmt"
+	"strconv"
 	"strings"
+	"time"
+
+	"gitlab.com/security-rd/go-pkg/logging"
 )
 
 func ConvertOutput2OutputMap(output string) map[string]string {
@@ -85,4 +90,29 @@ func sha256Hash(bs []byte) string {
 	m.Write(bs)
 	sbs := m.Sum(nil)
 	return fmt.Sprintf("%x", sbs)
+}
+
+// input: 1s, 2m, 3h
+func sDurationToTimeDuration(sd string) (time.Duration, error) {
+	var t time.Duration
+	sCacheNum := sd[:len(sd)-1]
+	cacheNum, err := strconv.Atoi(sCacheNum)
+	if err != nil {
+		err := errors.New("sd convert int fails")
+		logging.Get().Error().Err(err).Interface("sDuration", sd).Msg(err.Error())
+		return t, err
+	}
+	switch sd[len(sd)-1] {
+	case 's':
+		t = time.Second * time.Duration(cacheNum)
+	case 'm':
+		t = time.Minute * time.Duration(cacheNum)
+	case 'h':
+		t = time.Hour * time.Duration(cacheNum)
+	default:
+		err = errors.New("invalid duration key")
+		logging.Get().Error().Err(err).Str("sDuration", sd).Msg("invalid duration key")
+		return t, err
+	}
+	return t, nil
 }
