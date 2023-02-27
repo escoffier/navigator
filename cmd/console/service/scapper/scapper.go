@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"io/ioutil"
 	"net/http"
 	"os"
 	"reflect"
@@ -14,6 +13,7 @@ import (
 	"text/template"
 	"time"
 
+	"github.com/hashicorp/go-version"
 	"github.com/pkg/errors"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/assets"
 	"gitlab.com/piccolo_su/vegeta/pkg/apperror"
@@ -305,7 +305,21 @@ func (s *Scapper) RunComplianceCheck(
 			return "", err
 		}
 
-		jobObj, err = s.prepareJobObject(ctx, &check)
+		// 兼容老版本扫描镜像
+		oldVersion := false
+		_, tag, err := k8s.GetTargetClusterImageSplitInfo(ctx, kubeClient, s.myResourceNamePrefix, s.myNamespace)
+		if err != nil {
+			return "", err
+		} else {
+			logging.Get().Debug().Str("imageTag", tag).Msg("scap compatibility")
+
+			if clusterVersion, err := version.NewVersion(tag); err == nil {
+				benchVersion, _ := version.NewVersion("2.13.1")
+				oldVersion = clusterVersion.LessThan(benchVersion)
+			}
+		}
+
+		jobObj, err = s.prepareJobObject(ctx, &check, oldVersion)
 		if err != nil {
 			return "", err
 		}
@@ -553,8 +567,8 @@ FOR:
 	close(scheduledNodesCh)
 }
 
-func (s Scapper) prepareJobObject(ctx context.Context, check *model.Check) (*batchv1.Job, error) {
-	jobObj, err := s.readJobObjFromYamlFile(model.ComplianceCheckType(check.CheckType))
+func (s Scapper) prepareJobObject(ctx context.Context, check *model.Check, oldVersion bool) (*batchv1.Job, error) {
+	jobObj, err := s.readJobObjFromYamlFile(model.ComplianceCheckType(check.CheckType), oldVersion)
 	if err != nil {
 		logging.Get().Error().Err(err).Msg("Can't read job .yaml file")
 		return nil, err
@@ -592,19 +606,22 @@ func (s Scapper) prepareJobObject(ctx context.Context, check *model.Check) (*bat
 	return jobObj, nil
 }
 
-func (s Scapper) readJobObjFromYamlFile(checkType model.ComplianceCheckType) (*batchv1.Job, error) {
+func (s Scapper) readJobObjFromYamlFile(checkType model.ComplianceCheckType, oldVersion bool) (*batchv1.Job, error) {
 	jobYamlPath := ""
 	if checkType == model.ComplianceCheckTargetTypeKube {
 		jobYamlPath = "/jobs/kube-bench/job.yaml"
 	} else if checkType == model.ComplianceCheckTargetTypeDocker {
 		jobYamlPath = "/jobs/cri-bench/job.yaml"
+		if oldVersion {
+			jobYamlPath = "/jobs/docker-bench-security/job.yaml"
+		}
 	} else if checkType == model.ComplianceCheckTargetTypeHost {
 		jobYamlPath = "/jobs/host-bench/job.yaml"
 	} else {
 		return nil, apperror.NewAnError(http.StatusInternalServerError, fmt.Errorf("Unreachable code reached"))
 	}
 
-	jobYaml, err := ioutil.ReadFile(jobYamlPath)
+	jobYaml, err := os.ReadFile(jobYamlPath)
 	if err != nil {
 		return nil, apperror.NewConfigurationError(http.StatusInternalServerError, fmt.Errorf("Can't read job file: %v", err))
 	}
@@ -615,6 +632,14 @@ func (s Scapper) readJobObjFromYamlFile(checkType model.ComplianceCheckType) (*b
 	if err != nil {
 		return nil, apperror.NewConfigurationError(http.StatusInternalServerError, fmt.Errorf("Can't decode job file: %v", err))
 
+	}
+
+	if oldVersion {
+		if checkType == model.ComplianceCheckTargetTypeKube {
+			jobObj.Spec.Template.Spec.Containers[0].Args = []string{"--v=4", "--console"}
+		} else if checkType == model.ComplianceCheckTargetTypeHost {
+			jobObj.Spec.Template.Spec.Containers[0].Args = []string{}
+		}
 	}
 
 	return jobObj, nil
