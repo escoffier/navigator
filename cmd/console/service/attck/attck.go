@@ -5,7 +5,6 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"runtime/debug"
 	"sort"
@@ -222,18 +221,18 @@ func NewATTCKHandler(db *databases.RDBInstance, redisCli *redis.Client, sherlock
 }
 
 func (h *ATTCKHandler) loadFromLocal(ctx context.Context, v uint16) ([]byte, error) {
-	fileInfos, err := ioutil.ReadDir(localRulesDirPath)
+	fileInfos, err := os.ReadDir(localRulesDirPath)
 	if err != nil {
 		logging.Get().Err(err).Str("path", localRulesDirPath).Msg("load from local dir error.")
 		return nil, err
 	}
 	for _, fileInfo := range fileInfos {
 		if !fileInfo.IsDir() && strings.HasPrefix(fileInfo.Name(), fmt.Sprintf("holmes-rules-v%d.", v)) {
-			return ioutil.ReadFile(localRulesDirPath + "/" + fileInfo.Name())
+			return os.ReadFile(localRulesDirPath + "/" + fileInfo.Name())
 		}
 	}
 
-	return ioutil.ReadFile(localRulesDirPath + "/holmes-rules.thr")
+	return nil, errors.New("no local file of such version")
 }
 
 func (h *ATTCKHandler) parseItems(header cryption.FileHeader, rulesContext []byte) (version RulesVersion, rules map[string]*ruleItem, strictRules map[string]struct{}, afterBytes []byte, changed bool, err error) {
@@ -625,7 +624,7 @@ func (h *ATTCKHandler) UpdateConfig(ctx context.Context, username string, data [
 		if err != nil {
 			logging.Get().Err(err).Str("data", string(rulesContext)).Msg("ToThrBytes error")
 			return nil, err
-		} 
+		}
 	}
 
 	if version.Seg1 == uint16(1) {

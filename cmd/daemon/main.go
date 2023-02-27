@@ -14,6 +14,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
 	flag "github.com/spf13/pflag"
+
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/dp"
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/containerassets"
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/degrade"
@@ -27,6 +28,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/mozart"
 	rpcstream "gitlab.com/piccolo_su/vegeta/pkg/streaming"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
+	"gitlab.com/security-rd/go-pkg/cache"
 	"gitlab.com/security-rd/go-pkg/cmap"
 	"gitlab.com/security-rd/go-pkg/logging"
 	"gitlab.com/security-rd/go-pkg/mq"
@@ -323,7 +325,18 @@ func Run(ctx context.Context) error {
 			logging.Get().Info().Msg("Init palace done")
 		}
 
-		mozartEngine, err := mozart.NewMozartEngine(ctx, mozart.SetPalace(&palaceHandler), mozart.SetClusterManager(clusterManager), mozart.SetPrInfo(podResInfo))
+		redisClient, err := cache.NewRedis()
+		if err != nil {
+			logging.Get().Err(err).Msgf("Failed to init redis, %v", err)
+			return errors.Errorf("Failed to init redis, %v", err)
+		}
+
+		mozartEngine, err := mozart.NewMozartEngine(ctx,
+			mozart.SetPalace(&palaceHandler),
+			mozart.SetClusterManager(clusterManager),
+			mozart.SetPrInfo(podResInfo),
+			mozart.SetRedis(redisClient),
+		)
 		if err != nil {
 			logging.Get().Err(err).Msgf("Failed to init mozartEngine, %v", err)
 			return errors.Errorf("Failed to init mozartEngine, %v", err)

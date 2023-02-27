@@ -78,6 +78,23 @@ func (e *Engine) configToRegoQuery(stepName, stepCode string) (regoQuery rego.Pr
 				},
 				e.NotExistsInPeriod),
 		).PrepareForEval(ctx)
+	case "checkRuleRecentCount":
+		regoQuery, err = rego.New(
+			rego.Query(stepCode),
+			rego.Function2(
+				&rego.Function{
+					Name: "CacheContext",
+					Decl: types.NewFunction(types.Args(types.S, types.S), types.A),
+				},
+				CacheContext),
+			rego.FunctionDyn(
+				&rego.Function{
+					Name: "RuleRecentCount",
+					Decl: types.NewFunction(types.Args(types.S, types.S, types.N, types.S, types.N, types.S, types.S, types.S), types.B),
+				},
+				e.RuleRecentCount),
+		).PrepareForEval(ctx)
+
 	case "execGenerateSignal":
 		regoQuery, err = rego.New(
 			rego.Query(stepCode),

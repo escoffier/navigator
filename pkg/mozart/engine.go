@@ -13,6 +13,7 @@ import (
 	"github.com/open-policy-agent/opa/rego"
 	"github.com/panjf2000/ants/v2"
 	"github.com/spf13/viper"
+
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/rtdetect"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
@@ -109,24 +110,26 @@ func asyncClearCache(ctx context.Context) {
 		Cache.Lock.Lock()
 		defer Cache.Lock.Unlock()
 		deleteKs := make([]string, 0)
+		now := time.Now()
 		for k, vs := range Cache.Data {
-			nvs := make([]map[string]interface{}, 0)
-			for i := range vs {
+			j := 0
+			for i := len(vs) - 1; i >= 0; i-- {
 				eventTime, ok := vs[i]["time"].(time.Time)
 				if !ok {
 					logging.Get().Error().Err(errors.New("ridiculous, no time in event")).Interface("event", vs[i]).Msg("ridiculous, no time in event")
 					continue
 				}
-				if time.Now().Sub(eventTime) > time.Second*maxTTL {
-					continue
+				if now.Sub(eventTime) > time.Second*maxTTL {
+					break
 				} else {
-					nvs = append(nvs, vs[i])
+					j = i
 				}
 			}
-			if len(nvs) == 0 {
+			vs = vs[j:]
+			if len(vs) == 0 {
 				deleteKs = append(deleteKs, k)
 			} else {
-				Cache.Data[k] = nvs
+				Cache.Data[k] = vs
 			}
 		}
 		for i := range deleteKs {
@@ -362,6 +365,8 @@ func (e *Engine) configStep2MozartStep(ctx context.Context, configStep model.Con
 		step.Code = ConfigMozartStepParamsCheckValue(configStep.Params.([]interface{})).RCode()
 	case "checkRelatedExists":
 		step.Code = ConfigMozartStepParamsCheckRelatedExists(configStep.Params.([]interface{})).RCode()
+	case "checkRuleRecentCount":
+		step.Code = ConfigMozartStepParamsCheckRuleRecentCount(configStep.Params.([]interface{})).RCode()
 	case "execGenerateSignal":
 		p := configStep.Params.(map[interface{}]interface{})
 		mp := make(map[string]interface{}, len(p))
