@@ -133,13 +133,13 @@ func (c *SherlockClient) RiskStats(ctx context.Context, clusterKey string) (map[
 	logging.GetLogger().Trace().Str("url", url).Str("resp", string(body)).Msg("RiskStats end")
 
 	result := struct {
-		Code    int                        `json:"code"`
-		Message string                     `json:"message"`
-		Data    map[string][]RiskStatsItem `json:"data"`
+		Data struct {
+			Item map[string][]RiskStatsItem `json:"item"`
+		} `json:"data"`
 	}{}
 	if err = json.Unmarshal(body, &result); err != nil {
 		return nil, err
 	}
 
-	return result.Data, nil
+	return result.Data.Item, nil
 }
