@@ -324,6 +324,7 @@ func (api *api) getClusters() http.HandlerFunc {
 		Updater       string `json:"updater"`
 		UpdatedAt     int64  `json:"updatedAt"`
 		RuleVersion   string `json:"ruleVersion"`
+		NodeNumber    int64  `json:"nodeNumber"`
 	}
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx, cancel := context.WithTimeout(r.Context(), 1*time.Second)
@@ -394,7 +395,14 @@ func (api *api) getClusters() http.HandlerFunc {
 			ret[i].UpdatedAt = c.UpdatedAt.Unix()
 			ret[i].Updater = c.Updater
 			ret[i].RuleVersion = c.RuleVersion
+
+			nodeQuery := dal.NodeQuery()
+			nodeQuery.WithCluster(c.Key)
+			nodeQuery.WithStatus(0)
+			nodeNum, _ := resSvc.CountNodes(ctx, nodeQuery)
+			ret[i].NodeNumber = nodeNum
 		}
+
 		response.Ok(w, response.WithItems(ret), response.WithTotalItems(totalCnt))
 	}
 }
