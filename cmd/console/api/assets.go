@@ -261,21 +261,18 @@ func (api *api) getResourcesByImageVuln() http.HandlerFunc {
 
 		vulnName, err := param.QueryString(r, "vulnName")
 		if err != nil {
-			logging.Get().Err(err).Msgf("get vulnName query error")
 			RespAndLog(w, ctx, NewAnError(http.StatusBadRequest, errors.New("no vulnName given in params")))
 			return
 		}
 
 		pkgName, err := param.QueryString(r, "pkgName")
 		if err != nil {
-			logging.Get().Err(err).Msgf("get pkgName query error")
 			RespAndLog(w, ctx, NewAnError(http.StatusBadRequest, errors.New("no pkgName given in params")))
 			return
 		}
 
 		pkgVersion, err := param.QueryString(r, "pkgVersion")
 		if err != nil {
-			logging.Get().Err(err).Msgf("get pkgVersion query error")
 			RespAndLog(w, ctx, NewAnError(http.StatusBadRequest, errors.New("no pkgVersion given in params")))
 			return
 		}
@@ -565,7 +562,6 @@ func (api *api) getNamespaces() http.HandlerFunc {
 		}
 		clusterKey, err := param.QueryString(r, "cluster_key")
 		if err != nil {
-			logging.Get().Err(err).Msg("get cluster_key param error.")
 			clusterKey = ""
 		}
 		query, err := param.QueryString(r, "query")
@@ -648,17 +644,14 @@ func (api *api) countNamespaces() http.HandlerFunc {
 
 		clusterKey, err := param.QueryString(r, "cluster_key")
 		if err != nil {
-			logging.Get().Err(err).Msg("get cluster_key param error.")
 			clusterKey = ""
 		}
 		query, err := param.QueryString(r, "query")
 		if err != nil {
-			logging.Get().Err(err).Msg("get query param error.")
 			query = ""
 		}
 		resSvc, ok := assets.GetResourcesService(ctx)
 		if !ok {
-			logging.Get().Error().Msg("service instance get error")
 			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.New("service instance get error")))
 			return
 		}
@@ -716,7 +709,6 @@ func (api *api) getResourcesInNamespace() http.HandlerFunc {
 		}
 		clusterKey, err := param.QueryString(r, "cluster_key")
 		if err != nil {
-			logging.Get().Info().Msg("cluster_key param is empty.")
 			clusterKey = ""
 		}
 		query, err := param.QueryString(r, "query")
@@ -798,19 +790,16 @@ func (api *api) getResources() http.HandlerFunc {
 		}
 		clusterKey, err := param.QueryString(r, "cluster_key")
 		if err != nil {
-			logging.Get().Info().Msg("cluster_key param is empty.")
 			clusterKey = ""
 		}
 
 		namespace, err := param.QueryString(r, "namespace")
 		if err != nil {
-			logging.Get().Info().Msg("namespace param is empty.")
 			namespace = ""
 		}
 
 		kind, err := param.QueryString(r, "kind")
 		if err != nil {
-			logging.Get().Info().Msg("kind param is empty.")
 			kind = ""
 		}
 
@@ -986,7 +975,6 @@ func (api *api) getResourceContainers() http.HandlerFunc {
 		}
 		clusterKey, err := param.QueryString(r, "cluster_key")
 		if err != nil {
-			logging.Get().Err(err).Msg("get cluster_key param error.")
 			clusterKey = ""
 		}
 		query, err := param.QueryString(r, "query")
@@ -1141,7 +1129,6 @@ func (api *api) countResource() http.HandlerFunc {
 
 		clusterKey, err := param.QueryString(r, "cluster_key")
 		if err != nil {
-			logging.Get().Err(err).Msg("get cluster_key param error.")
 			clusterKey = ""
 		}
 		if clusterKey != "" {
@@ -1150,7 +1137,6 @@ func (api *api) countResource() http.HandlerFunc {
 
 		namespace, err := param.QueryString(r, "namespace")
 		if err != nil {
-			logging.Get().Err(err).Msg("get namespace param error.")
 			namespace = ""
 		}
 		if namespace != "" {
@@ -1181,18 +1167,12 @@ func (api *api) countContainers() http.HandlerFunc {
 
 		queryOpt := dal.ResourceContainersQuery()
 
-		clusterKey, err := param.QueryString(r, "cluster_key")
-		if err != nil {
-			logging.Get().Err(err).Msg("get cluster_key param error.")
-		}
+		clusterKey, _ := param.QueryString(r, "cluster_key")
 		if clusterKey != "" {
 			queryOpt.WithCluster(clusterKey)
 		}
 
-		namespace, err := param.QueryString(r, "namespace")
-		if err != nil {
-			logging.Get().Err(err).Msg("get namespace param error.")
-		}
+		namespace, _ := param.QueryString(r, "namespace")
 		if namespace != "" {
 			queryOpt.WithNamespace(namespace)
 		}
@@ -1243,18 +1223,12 @@ func (api *api) countPods() http.HandlerFunc {
 		}
 		queryOpt := dal.ResourcePodssQuery()
 
-		clusterKey, err := param.QueryString(r, "cluster_key")
-		if err != nil {
-			logging.Get().Err(err).Msg("get cluster_key param error.")
-		}
+		clusterKey, _ := param.QueryString(r, "cluster_key")
 		if clusterKey != "" {
 			queryOpt.WithCluster(clusterKey)
 		}
 
-		namespace, err := param.QueryString(r, "namespace")
-		if err != nil {
-			logging.Get().Err(err).Msg("get namespace param error.")
-		}
+		namespace, _ := param.QueryString(r, "namespace")
 		if namespace != "" {
 			queryOpt.WithNamespace(namespace)
 		}
@@ -1566,10 +1540,7 @@ func (api *api) countImages() http.HandlerFunc {
 			queryOpt.WithCluster(clusterKey)
 		}
 
-		namespace, err := param.QueryString(r, "namespace")
-		if err != nil {
-			logging.Get().Err(err).Msg("get namespace param error.")
-		}
+		namespace, _ := param.QueryString(r, "namespace")
 		if namespace != "" {
 			queryOpt.WithNamespace(namespace)
 		}
@@ -1611,18 +1582,12 @@ func (api *api) getImageInfos() http.HandlerFunc {
 
 		queryOpt := dal.ResourceContainersQuery()
 
-		clusterKey, err := param.QueryString(r, "cluster_key")
-		if err != nil {
-			logging.Get().Err(err).Msg("get cluster_key param error.")
-		}
+		clusterKey, _ := param.QueryString(r, "cluster_key")
 		if clusterKey != "" {
 			queryOpt.WithCluster(clusterKey)
 		}
 
-		namespace, err := param.QueryString(r, "namespace")
-		if err != nil {
-			logging.Get().Err(err).Msg("get namespace param error.")
-		}
+		namespace, _ := param.QueryString(r, "namespace")
 		if namespace != "" {
 			queryOpt.WithNamespace(namespace)
 		}
