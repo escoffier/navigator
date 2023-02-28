@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"strconv"
@@ -407,31 +408,24 @@ func (api *api) getClusters() http.HandlerFunc {
 	}
 }
 
-// @Summary
-// @Description add a cluster https://tensorsecurity.feishu.cn/wiki/wikcnUMvm0NSivY9gDZJIlECSZg#
-// @Produce json
-// @Method PUT
-// @Router /api/v2/platform/assets/cluster
-func (api *api) addNewCluster() http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
-		defer cancel()
+func clusterApiAdaptorProcess(ctx context.Context, w http.ResponseWriter, r *http.Request) {
+	var cluster model.TensorCluster
 
-		var cluster model.TensorCluster
-		err := util.DecodeJSONBody(w, r, &cluster)
-		if err != nil {
-			RespAndLog(w, ctx,
-				NewMalformedRequestError(http.StatusBadRequest,
-					fmt.Errorf("failed to decode json: %w", err)))
-			return
-		}
+	resSvc, ok := assets.GetResourcesService(ctx)
+	if !ok {
+		RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.New("service instance get error")))
+		return
+	}
+	data, err := io.ReadAll(r.Body)
+	if err != nil {
+		RespAndLog(w, ctx,
+			NewAnError(http.StatusInternalServerError, errors.New("err read request body")))
+		return
+	}
 
-		resSvc, ok := assets.GetResourcesService(ctx)
-		if !ok {
-			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.New("service instance get error")))
-			return
-		}
-
+	// process add cluster request
+	err = json.Unmarshal(data, &cluster)
+	if err == nil && cluster.APIServerAddr != "" {
 		clusterManager, ok := k8s.GetClusterManager()
 		if !ok {
 			RespAndLog(w, ctx,
@@ -453,41 +447,20 @@ func (api *api) addNewCluster() http.HandlerFunc {
 			return
 		}
 		response.Ok(w)
+		return
 	}
-}
 
-// @Summary
-// @Description update the info of a cluster https://tensorsecurity.feishu.cn/wiki/wikcnUMvm0NSivY9gDZJIlECSZg#
-// @Produce json
-// @Method POST
-// @Router /api/v2/platform/assets/cluster
-func (api *api) updateClusterInfo() http.HandlerFunc {
-	type req struct {
+	// process update cluster request
+	type UpdateReq struct {
 		ClusterKey  string `json:"cluster_key"`
 		ClusterName string `json:"cluster_name"`
 		Description string `json:"description"`
 		RuleVersion string `json:"rule_version"`
 	}
 
-	return func(w http.ResponseWriter, r *http.Request) {
-		ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
-		defer cancel()
-
-		var request req
-		err := util.DecodeJSONBody(w, r, &request)
-		if err != nil {
-			RespAndLog(w, ctx,
-				NewMalformedRequestError(http.StatusBadRequest,
-					fmt.Errorf("failed to decode json: %w", err)))
-			return
-		}
-
-		resSvc, ok := assets.GetResourcesService(ctx)
-		if !ok {
-			logging.Get().Error().Msg("service instance get error")
-			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.New("service instance get error")))
-			return
-		}
+	var request UpdateReq
+	err = json.Unmarshal(data, &request)
+	if err == nil {
 		err = resSvc.UpdateCluster(ctx, request.ClusterKey, request.ClusterName, request.Description, request.RuleVersion)
 		if err != nil {
 			logging.Get().Err(err).Msgf("update cluster error. data: %v", request)
@@ -495,6 +468,37 @@ func (api *api) updateClusterInfo() http.HandlerFunc {
 			return
 		}
 		response.Ok(w)
+		return
+	}
+
+	RespAndLog(w, ctx, NewMalformedRequestError(http.StatusInternalServerError,
+		fmt.Errorf("failed to decode json: %w", err)))
+}
+
+// @Summary
+// @Description add a cluster https://tensorsecurity.feishu.cn/wiki/wikcnUMvm0NSivY9gDZJIlECSZg#
+// @Produce json
+// @Method POST
+// @Router /api/v2/platform/assets/cluster
+func (api *api) addNewCluster() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+		defer cancel()
+		clusterApiAdaptorProcess(ctx, w, r)
+	}
+}
+
+// @Summary
+// @Description update the info of a cluster https://tensorsecurity.feishu.cn/wiki/wikcnUMvm0NSivY9gDZJIlECSZg#
+// @Produce json
+// @Method PUT
+// @Router /api/v2/platform/assets/cluster
+func (api *api) updateClusterInfo() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+		defer cancel()
+
+		clusterApiAdaptorProcess(ctx, w, r)
 	}
 }
 
