@@ -49,7 +49,7 @@ func ConvertOutput2OutputMap(output string) map[string]string {
 	for i := range data {
 		equalIndex := strings.Index(data[i], "=")
 		if equalIndex == -1 {
-			stack = append(stack, data[i])
+			stack = append(stack, ","+data[i])
 			continue
 		}
 		kv := []string{data[i][:equalIndex], data[i][equalIndex+1:]}
