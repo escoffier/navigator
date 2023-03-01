@@ -25,7 +25,7 @@ func GetImagePrefixAndPostFixFrom(image string) (string, string, string, bool) {
 		return "", "", "", false
 	}
 	fullRepoName := image[:tagPos]
-	fullRepoPos := strings.IndexByte(fullRepoName, '/')
+	fullRepoPos := strings.LastIndexByte(fullRepoName, '/')
 	if fullRepoPos <= 0 {
 		return "", "", "", false
 	}
