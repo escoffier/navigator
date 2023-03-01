@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	"fmt"
 	"sync"
 	"time"
 
@@ -216,35 +215,22 @@ func (m *ClusterManager) AddManagedClusterToKube(ctx context.Context, cluster *m
 func (m *ClusterManager) watchClusterFromKube(informer cache.SharedIndexInformer) {
 	informer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
-			cluster, ok := obj.(*clusterV1.ManagedCluster)
-			if !ok {
-				logging.Get().Err(fmt.Errorf(""))
-				return
-			}
+			cluster := obj.(*clusterV1.ManagedCluster)
 			m.queue.Add(cluster.Name)
 		},
 		UpdateFunc: func(oldObj, newObj interface{}) {
-			oldCluster, ok := oldObj.(*clusterV1.ManagedCluster)
-			if !ok {
-				logging.Get().Err(fmt.Errorf(""))
-				return
-			}
-			newCluster, ok := newObj.(*clusterV1.ManagedCluster)
-			if !ok {
-				logging.Get().Err(fmt.Errorf(""))
-				return
-			}
-			if !bytes.Equal(oldCluster.Spec.ClientConfig, newCluster.Spec.ClientConfig) ||
-				oldCluster.Spec.APIServerAddr != newCluster.Spec.APIServerAddr {
-				m.queue.Add(newCluster.Name)
+			oldCluster := oldObj.(*clusterV1.ManagedCluster)
+			newCluster := newObj.(*clusterV1.ManagedCluster)
+			if oldCluster != nil && newCluster != nil {
+				if !bytes.Equal(oldCluster.Spec.ClientConfig, newCluster.Spec.ClientConfig) ||
+					oldCluster.Spec.APIServerAddr != newCluster.Spec.APIServerAddr {
+					m.queue.Add(newCluster.Name)
+				}
+				logging.Get().Info().Msgf("skip syncing cluster %s", newCluster.Name)
 			}
 		},
 		DeleteFunc: func(obj interface{}) {
-			cluster, ok := obj.(*clusterV1.ManagedCluster)
-			if !ok {
-				logging.Get().Err(fmt.Errorf(""))
-				return
-			}
+			cluster := obj.(*clusterV1.ManagedCluster)
 			m.queue.Add(cluster.Name)
 		},
 	})
@@ -260,7 +246,6 @@ func (m *ClusterManager) watchClusterFromKube(informer cache.SharedIndexInformer
 		for m.processNextCluster() {
 		}
 	}, time.Second, m.stopChan)
-	return
 }
 
 func (m *ClusterManager) processNextCluster() bool {

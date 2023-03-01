@@ -40,7 +40,7 @@ const (
 )
 
 var (
-	myResourcePrefix = "tensorsec"
+	MyResourcePrefix = "tensorsec"
 	usingGrpc        = false
 )
 
@@ -49,7 +49,7 @@ func init() {
 	if len(podName) > 0 {
 		pos := strings.IndexByte(podName, '-')
 		if pos > 0 {
-			myResourcePrefix = podName[:pos]
+			MyResourcePrefix = podName[:pos]
 		}
 	}
 	useGrpc := os.Getenv("USING_GRPC")
@@ -224,9 +224,9 @@ func (c *ClusterAgent) RegisterToHostCluster() {
 func (c *ClusterAgent) registerClusterInfo() error {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
 	defer cancel()
-	version, err := k8s.GetProductVersionFrom(context.Background(), c.HostClient, myResourcePrefix, c.workerNamespace)
+	version, err := k8s.GetProductVersionFrom(context.Background(), c.HostClient, MyResourcePrefix, c.workerNamespace)
 	if err != nil {
-		logging.Get().Err(err).Str("resource_prefix", myResourcePrefix).Str("ns", c.workerNamespace).Msg("get product version error")
+		logging.Get().Err(err).Str("resource_prefix", MyResourcePrefix).Str("ns", c.workerNamespace).Msg("get product version error")
 	}
 	logging.Get().Info().Str("product_version", version).Msg("Get cluster product version")
 
@@ -287,9 +287,9 @@ func (c *ClusterAgent) registerClusterInfo() error {
 func (c *ClusterAgent) grpcRegisterClusterInfo() error {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
 	defer cancel()
-	version, err := k8s.GetProductVersionFrom(context.Background(), c.HostClient, myResourcePrefix, c.workerNamespace)
+	version, err := k8s.GetProductVersionFrom(context.Background(), c.HostClient, MyResourcePrefix, c.workerNamespace)
 	if err != nil {
-		logging.Get().Err(err).Str("resource_prefix", myResourcePrefix).Str("ns", c.workerNamespace).Msg("get product version error")
+		logging.Get().Err(err).Str("resource_prefix", MyResourcePrefix).Str("ns", c.workerNamespace).Msg("get product version error")
 	}
 	logging.Get().Info().Str("product_version", version).Msg("Get cluster product version")
 

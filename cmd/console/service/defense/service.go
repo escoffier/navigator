@@ -179,7 +179,7 @@ func (s *TensorDefenseService) addBaitServiceToKube(ctx context.Context, bait *m
 	}
 	clientset, ok := clusterManager.GetClient(bait.ClusterKey)
 	if !ok {
-		return fmt.Errorf("clientset not available")
+		return fmt.Errorf("clientset of cluster: %s not available", bait.ClusterKey)
 	}
 
 	honeyspotName, err := getHoneyspotName(bait)

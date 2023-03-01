@@ -107,6 +107,11 @@ func NewServer() (*server, error) {
 		ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
 		defer cancel()
 
+		version, err := k8s.GetProductVersionFrom(context.Background(), agent.HostClient, clusterAgent.MyResourcePrefix, s.config.WorkerNamespace)
+		if err != nil {
+			logging.Get().Err(err).Msg("failed to get product version")
+		}
+
 		tensorCluster := &model.TensorCluster{
 			Key:                 agent.CusterID,
 			Name:                agent.Name,
@@ -119,6 +124,7 @@ func NewServer() (*server, error) {
 			ClientKeyData:       string(agent.KubeRestConfig.KeyData),
 			WorkerNamespace:     s.config.WorkerNamespace,
 			Platform:            agent.Platform(),
+			Version:             version,
 		}
 
 		err = dal.AddCluster(ctx, rdb.Get(), tensorCluster)

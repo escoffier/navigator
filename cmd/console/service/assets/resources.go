@@ -21,6 +21,7 @@ import (
 	"google.golang.org/protobuf/reflect/protoreflect"
 
 	"gitlab.com/piccolo_su/vegeta/pkg/dal"
+	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
 	rpcstream "gitlab.com/piccolo_su/vegeta/pkg/streaming"
@@ -668,7 +669,8 @@ func (ch *ClustertHandler) OnCreate(s rpcstream.Stream, reqID string, message pr
 		Status: 0,
 	}
 	logging.Get().Info().Msgf("received cluster: %s", cluster.String())
-	err := dal.AddCluster(ctx, ch.DB.Get(), &model.TensorCluster{
+
+	tCluster := &model.TensorCluster{
 		Key:                 cluster.Key,
 		Name:                cluster.Name,
 		ClusterType:         model.ClusterType(cluster.ClusterType),
@@ -682,11 +684,19 @@ func (ch *ClustertHandler) OnCreate(s rpcstream.Stream, reqID string, message pr
 		Status:              0,
 		Platform:            cluster.Platform,
 		Version:             cluster.Version,
-	})
+	}
+	err := dal.AddCluster(ctx, ch.DB.Get(), tCluster)
 	if err != nil {
 		logging.Get().Err(err).Msgf("add cluster : %s-%s err", cluster.Key, cluster.Name)
 		resp.Status = 1
 		resp.StatusMessage = err.Error()
+	}
+	clusterManager, ok := k8s.GetClusterManager()
+	if ok {
+		clusterManager.UpdateCluster(ctx, tCluster)
+	} else {
+		resp.Status = 1
+		resp.StatusMessage = "failed to get cluster manager"
 	}
 	err = s.SendResponse(reqID, resp)
 	if err != nil {
