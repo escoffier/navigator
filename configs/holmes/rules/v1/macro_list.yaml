@@ -2399,7 +2399,10 @@
   items: [printenv, env, capsh]
 
 - list:  show_information_binaries
-  items: [cat, mount, sed, awk]
+  items: [cat, tac, nl, more, less, head, tail, mount, sed, awk]
+
+- macro: show_information_procs
+  condition: (proc.name in (show_information_binaries))
 
 - list: sensitive_paths
   items: [/proc/self/status, /proc/self/mounts, /proc/net/unix, /etc/hosts, /etc/mtab, /etc/resolv.conf, /proc/1/mountinfo, /.dockerenv, /run/secrets/kubernetes.io/, /proc/1/cgroup, /proc/self/mountinfo]

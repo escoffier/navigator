@@ -199,7 +199,7 @@
     trigger: 'Contact remote server from container'
     steps:
       - name: checkRuleRecentCount
-        params: [ 'Contact remote server from container', 10s, 5, '["server_ip", "server_port", "client_ip"]', '[]', 1m ]
+        params: [ 'Contact remote server from container', 10s, 20, '["server_ip", "server_port", "client_ip"]', '[]', 1m ]
       - name: execGenerateSignal
         params: { zh_msg: 检测到正在暴力破解, rule: 'Brute force hacking detected' }
       - name: execSendPalace
@@ -220,7 +220,7 @@
     trigger: 'Contact remote server from container'
     steps:
       - name: checkRuleRecentCount
-        params: [ 'Contact remote server from container', 10s, 5, '["server_ip", "client_ip"]', '["server_port"]', 1m ]
+        params: [ 'Contact remote server from container', 10s, 10, '["server_ip", "client_ip"]', '["server_port"]', 1m ]
       - name: execGenerateSignal
         params: { zh_msg: 检测到正在扫描敏感端口, rule: 'Scanning ports detected' }
       - name: execSendPalace

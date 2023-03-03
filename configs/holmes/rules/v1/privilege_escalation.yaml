@@ -491,8 +491,30 @@
   desc: Linux dirty cow vulnerability leads to container escape 
   condition: >
     evt.type = openat and fd.name=/proc/self/mem and
-    ((shell_parent_procs) or (proc.aname[1] in (shell_binaries)))
+    ((shell_parent_procs) or (proc.aname[1] in (shell_binaries))) and
+    not show_information_procs
   output: >
     Linux dirty cow vulnerability leads to container escape (zh_msg=Linux脏牛漏洞导致容器逃逸(CVE-2016-5195),rule_type=Privilege_Escalation,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,pod_id=%k8s.pod.id,syscall_name=%syscall.type,container=%container.info,container_id=%container.id,container_name=%container.name,evt.args=%evt.args,fd.name=%fd.name,parent=%proc.pname,gparent=%proc.aname[2],ggparent=%proc.aname[3])
+  priority: CRITICAL
+  tags: [ATT&CK, filesystem, strict]
+
+- rule: Containerd vulnerability leads to container escape(CVE-2020-15257)
+  hid: priv_26
+  hthreats: 1
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "Please keep the Containerd version up to date. Restrict container access to the host and implement additional security controls to prevent malicious users from exploiting the vulnerability."
+    zh:
+      key: "处置建议"
+      value: "请及时更新Containerd版本。限制容器对主机的访问，并实施额外的安全控制，以防止恶意用户利用漏洞。"
+  desc: Containerd vulnerability leads to container escape
+  condition: >
+    evt.type = openat and fd.name=/proc/net/unix and
+    container and
+    shell_parent_procs and
+    not show_information_procs
+  output: >
+    Containerd vulnerability leads to container escape (zh_msg=Containerd漏洞导致容器逃逸(CVE-2020-15257),rule_type=Privilege_Escalation,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,pod_id=%k8s.pod.id,syscall_name=%syscall.type,container=%container.info,container_id=%container.id,container_name=%container.name,evt.args=%evt.args,fd.name=%fd.name,proc.name=%proc.name,parent=%proc.pname,gparent=%proc.aname[2],ggparent=%proc.aname[3])
   priority: CRITICAL
   tags: [ATT&CK, filesystem, strict]
