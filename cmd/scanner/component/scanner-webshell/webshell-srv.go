@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/global"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	scannermodel "gitlab.com/piccolo_su/vegeta/pkg/model/scanner-model"
@@ -150,7 +151,7 @@ func (w *WebshellSrv) GetDetail(ctx *gin.Context, params store.SearchWebshellPar
 }
 
 func (w *WebshellSrv) GetCode(md5 string, uuid uint64) ([]scannermodel.ProblemCode, error) {
-	filePath := filepath.Join("/root/webshell", md5)
+	filePath := filepath.Join(global.ScannerOpts.PvcPath, "webshell", md5)
 	datas := [][]byte{}
 	if util.FileExists(filePath) {
 		data, err := os.ReadFile(filePath)
@@ -223,7 +224,7 @@ func (w *WebshellSrv) GetCode(md5 string, uuid uint64) ([]scannermodel.ProblemCo
 }
 
 func (w *WebshellSrv) IsDownload(md5 string) int {
-	path := filepath.Join("/root/webshell", md5)
+	path := filepath.Join(global.ScannerOpts.PvcPath, "webshell", md5)
 	if util.FileExists(path) {
 		return 1
 	}

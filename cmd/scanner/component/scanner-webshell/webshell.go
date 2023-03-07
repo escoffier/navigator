@@ -12,6 +12,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/global"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
 
 	"gitlab.com/security-rd/go-pkg/logging"
@@ -104,8 +105,8 @@ func (w *WebshellController) Download(ctx *gin.Context) {
 
 func (w *WebshellController) GetFile(ctx *gin.Context) {
 	md5 := ctx.Query("fileMd5")
-	filePath := filepath.Join("/root/webshell", md5)
-	TarPath := filepath.Join("/root/webshell", fmt.Sprintf("%s.tar", md5))
+	filePath := filepath.Join(global.ScannerOpts.PvcPath, "webshell", md5)
+	TarPath := filepath.Join(global.ScannerOpts.PvcPath, "webshell", fmt.Sprintf("%s.tar", md5))
 	res := Tar(filePath, TarPath)
 	switch res.(type) {
 	case error:

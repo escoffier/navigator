@@ -32,6 +32,7 @@ type Config struct {
 type ScannerWebshellService struct {
 	mqReader mq.Reader
 	Num      int
+	PvcPath  string
 	// config      Config
 }
 
@@ -76,7 +77,7 @@ func (s *ScannerWebshellService) saveHandle(ctx context.Context, msg kafka.Messa
 		return err
 	}
 	logging.GetLogger().Info().Msgf("Save kafka file %v", dst.FileMd5)
-	dstPath := filepath.Join("/root/webshell", dst.FileMd5)
+	dstPath := filepath.Join(filepath.Join(s.PvcPath, "webshell"), dst.FileMd5)
 	if s.PathExists(dstPath) {
 		return nil
 	}
@@ -111,7 +112,7 @@ func (s *ScannerWebshellService) DeleteFile() {
 			}
 		}
 		expire := time.Now().Add(time.Hour * time.Duration(day) * 24 * -1).UnixMilli()
-		filepath.Walk("/root/webshell", func(path string, info fs.FileInfo, err error) error {
+		filepath.Walk(filepath.Join(s.PvcPath, "webshell"), func(path string, info fs.FileInfo, err error) error {
 			if info.ModTime().UnixMilli() < expire {
 				err := os.Remove(path)
 				if err != nil {
@@ -145,25 +146,6 @@ func (s *ScannerWebshellService) Start(ctx context.Context) error {
 	go s.DeleteFile()
 	ch := make(chan struct{})
 	s.handleMsg(ch)
-	//if os.Getenv("IS_MAIN_CLUSTER") == "true" {
-	//	go func() {
-	//		defer func() {
-	//			if r := recover(); r != nil {
-	//				logging.GetLogger().Error().Msgf("scanner service panic : %v. stack: %s", r, debug.Stack())
-	//			}
-	//		}()
-	//		//mqFactory := mq.GetClientFactory()
-	//		//mqReader, err := mqFactory.Reader(context.Background())
-	//		//if err != nil {
-	//		//	logging.GetLogger().Err(err).Msg("Init mq error")
-	//		//	return
-	//		//}
-	//		//logging.GetLogger().Info().Msgf("reader Init ok %v", mqReader)
-	//		s.handleMsg(ch)
-	//		//s.SaveWebshell(mqReader)
-	//		//<-ch
-	//	}()
-	//}
 	return nil
 }
 
@@ -189,6 +171,7 @@ func init() {
 
 func newService(config register.ScannerServiceConfig) (register.ScannerService, error) {
 	s := &ScannerWebshellService{}
+	s.PvcPath = config.Options.PvcPath
 	numStr := os.Getenv("WebshellNum")
 	num, err := strconv.Atoi(numStr)
 	if err != nil {

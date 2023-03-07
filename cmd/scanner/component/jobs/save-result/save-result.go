@@ -22,6 +22,7 @@ import (
 	pullImage "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/jobs/pull-image"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/jobs/scan"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/task"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/global"
 	imageCache "gitlab.com/piccolo_su/vegeta/cmd/scanner/service/register/image-cache"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
@@ -42,6 +43,7 @@ type Config struct {
 type ScanResultHandle struct {
 	config   Config
 	MqWriter mq.Writer
+	PvcPath  string
 }
 
 var (
@@ -695,7 +697,7 @@ func (s *ScanResultHandle) PathExists(path string) bool {
 }
 
 func (s *ScanResultHandle) saveWebshell(fileMd5 string, data []byte) error {
-	dstPath := filepath.Join("/root/webshell", fileMd5)
+	dstPath := filepath.Join(s.PvcPath, "webshell", fileMd5)
 	if s.PathExists(dstPath) {
 		return nil
 	}
@@ -722,5 +724,6 @@ func newJob(config jobs.JobConfig) (jobs.Job, error) {
 	i.MqWriter = mqWriter
 	i.config.task = config.Info.Task
 	i.config.subtask = config.Info.SubTask
+	i.PvcPath = global.ScannerOpts.PvcPath
 	return i, nil
 }
