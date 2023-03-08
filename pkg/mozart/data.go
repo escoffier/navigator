@@ -27,7 +27,7 @@ type SignalPayload struct {
 	ClusterKey   string            `json:"cluster_key"`
 	NodeName     string            `json:"node_name"`
 	Output       string            `json:"output"`
-	OutputFields OutputFields      `json:"output_fields"`
+	OutputFields map[string]string `json:"output_fields"`
 	OutputMap    map[string]string `json:"output_map"`
 }
 
