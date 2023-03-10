@@ -151,3 +151,56 @@
     connection=%fd.name,client_ip=%fd.cip,client_port=%fd.cport,server_ip=%fd.sip,server_port=%fd.sport)
   priority: WARNING
   tags: [ATT&CK, network, process, mitre_execution, 4t, xy, qt]
+
+- rule: Container Port Brute
+  hid: poc_8
+  hthreats: 0
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "Please confirm whether the high-frequency request service exists in the environment"
+    zh:
+      key: "处置建议"
+      value: "请确认环境中是否存在该高频请求业务"
+  desc: Suspected violent cracking behavior detected
+  condition: >
+    container and inbound
+    and (fd.sport=22 or fd.sport=3306) 
+    and (proc.pname != "containerd-shim") 
+    and (proc.pname != "pilot-agent")
+  output: >
+    Container Port Brute (zh_msg=检测到疑似暴力破解行为,rule_type=Execution,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,evt.args=%evt.args
+    original_info=user=%user.name user_loginuid=%user.loginuid
+    container_id=%container.id container_name=%container.name image=%container.image.repository:%container.image.tag
+    connection=%fd.name,client_ip=%fd.cip,client_port=%fd.cport,server_ip=%fd.sip,server_port=%fd.sport)
+  priority: WARNING
+  tags: [ATT&CK, network, process, mitre_execution, xy, qt]
+
+- rule: Container process started
+  hid: poc_10
+  hthreats: 1
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "Please confirm that the process starts as expected and whether it is a dangerous application executing inside the container."
+    zh:
+      key: "处置建议"
+      value: "请确认该进程启动是否符合预期，是否为危险应用在容器内执行。"
+  desc: Detects when a process is started within a container
+  condition: >
+    container and spawned_process
+    and proc.name!="" 
+    and proc.name exists 
+    and not proc.name in (shell_binaries)
+    and not shell_parent_procs 
+    and not proc.name in (coreutils_binaries)
+    and not proc.pname in (runc,calico-node,kube-proxy,entrypoint.sh,"<NA>")
+    and not tensorsec_namespace
+    and not user_known_metadata_access
+  output: >
+    Container Port Brute (zh_msg=检测到容器内有非常规进程启动,rule_type=Execution,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,evt.args=%evt.args
+    original_info=user=%user.name user_loginuid=%user.loginuid
+    container_id=%container.id container_name=%container.name image=%container.image.repository:%container.image.tag
+    connection=%fd.name,client_ip=%fd.cip,client_port=%fd.cport,server_ip=%fd.sip,server_port=%fd.sport)
+  priority: INFO
+  tags: [ATT&CK, sp]
