@@ -467,10 +467,16 @@ func (e *Engine) SendSignalToPalace(x rego.BuiltinContext, a *ast.Term) (*ast.Te
 	}
 
 	signalContext, podUID, podName, namespace := generateSignalContext(&signal)
-	containerID, _ := signalContext["container_id"].(string)
+	containerID, _ := signalContext["container.id"].(string)
+	if containerID == "" {
+		containerID, ok = signalContext["container_id"].(string)
+		if !ok || containerID == "<NA>" {
+			containerID = ""
+		}
+	}
 	containerName, _ := signalContext["container.name"].(string)
 	if containerName == "" {
-		containerName, ok = signal.OutputMap["container_name"]
+		containerName, ok = signalContext["container_name"].(string)
 		if !ok || containerName == "<NA>" {
 			containerName = containerID
 		}
@@ -624,13 +630,17 @@ func generateSignalContext(data *SignalPayload) (signalContext map[string]interf
 		delete(data.OutputMap, "proc_name")
 	}
 
-	if podName = data.OutputFields.K8sPodName; podName == "<NA>" {
+	if podName = data.OutputFields["k8s_pod_name"]; podName == "<NA>" || podName == "null" {
 		podName = ""
 	}
-	if namespace = data.OutputFields.K8sNsName; namespace == "<NA>" {
+	if namespace = data.OutputFields["k8s_ns_name"]; namespace == "<NA>" || namespace == "null" {
 		namespace = ""
 	}
-	podUID = data.OutputFields.K8sPodID
+	podUID = data.OutputFields["k8s_pod_id"]
+
+	for k, v := range data.OutputFields {
+		data.OutputMap[k] = v
+	}
 
 	for key, value := range data.OutputMap {
 		if value == "<NA>" {
