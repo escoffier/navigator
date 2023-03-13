@@ -304,13 +304,18 @@ func NewDockerDriver(config container.RuntimeConfig) (container.Runtime, error) 
 	}
 
 	//docker client
-	dockerCli, err := client.NewClientWithOpts(client.FromEnv, client.WithHost(uri))
+	dockerCli, err := client.NewClientWithOpts(client.FromEnv, client.WithHost(uri), client.WithAPIVersionNegotiation())
 	if err != nil {
 		logging.Get().
 			Err(err).
 			Msg("create docker client failed")
 		return nil, err
 	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	dockerCli.NegotiateAPIVersion(ctx)
+
 	d.dockerCli = dockerCli
 
 	return &d, nil
