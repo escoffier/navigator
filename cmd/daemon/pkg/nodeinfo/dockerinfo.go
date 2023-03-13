@@ -58,18 +58,20 @@ func NewDockerInfoManager(clusterKey, hostName, hostIP string, agent *containera
 	}
 
 	//docker client
-	dockerCli, err := client.NewClientWithOpts(client.FromEnv, client.WithHost(uri))
+	dockerCli, err := client.NewClientWithOpts(client.FromEnv, client.WithHost(uri), client.WithAPIVersionNegotiation())
 	if err != nil {
 		return nil, errors.Errorf("docker new client failed, %v", err)
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
 	_, err = dockerCli.Ping(ctx)
 	if err != nil {
 		return nil, errors.Errorf("ping docker server failed, %v", err)
 	}
+
+	dockerCli.NegotiateAPIVersion(ctx)
 
 	rs := DockerInfoManager{
 		dockerCli:     dockerCli,
