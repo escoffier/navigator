@@ -19,6 +19,7 @@
 #include <fcntl.h>
 #include <linux/rtnetlink.h>
 //
+#include "cjson.h"
 #include "netebpf_user.h"
 
 static int ParseNetRawData(char *data, char netdata[6][33])
@@ -243,6 +244,118 @@ int get_default_gateway(DATA_HEAD *data, char *pcBasePath)
 err:
     if(fp) fclose(fp);
     return -1;
+}
+
+char *get_container_info()
+{
+    int ret = 0, i;
+    char *str;
+    DATA_HEAD   data;
+    IF_INFO     *pstIf;
+    LISTEN_PORT *pstLport;
+    DEFAULT_ROUTE *pstDefRoute;
+    cJSON *root = NULL, *subobj, *param;
+    //create json object
+    root = cJSON_CreateObject();
+    if(!root) GOTO_ERROR(err, "create json new object failed!");
+    //put listen port
+    subobj = cJSON_CreateArray();
+    if(!subobj) GOTO_ERROR(err, "create json new array failed!");
+    //get listen port
+    ret = get_listen_port(&data, "");
+    if(ret != 0) LOG_ERROR("get listen port infor failed.");
+    for(i = 0; i < data.length; i++)
+    {
+        pstLport  = (LISTEN_PORT *)data.data;
+        pstLport += i;
+        param = cJSON_CreateObject();
+        if(!param) CONTINUE_ERROR("create json new object failed!");
+        cJSON_AddNumberToObject(param, "port", pstLport->port);
+        cJSON_AddNumberToObject(param, "proto", pstLport->proto);
+        //LOG_PRINT("listen port : %d, proto : %s.", pstLport->port, (pstLport->proto == IPPROTO_TCP) ? "tcp" : "udp");
+        //add to array
+        cJSON_AddItemToArray(subobj, param);
+    }
+    free(data.data);
+    //add to root
+    cJSON_AddItemToObject(root, "container", subobj);
+    //get default gateway
+    ret = get_default_gateway(&data, "");
+    if(ret != 0) LOG_ERROR("get default gateway infor failed.");
+    for(i = 0; i < data.length; i++)
+    {
+        pstDefRoute = (DEFAULT_ROUTE *)data.data;
+        pstDefRoute += i;
+        //LOG_PRINT("default gateway : %s, ifname : %s.", pstDefRoute->gateway, pstDefRoute->ifName);
+        cJSON_AddStringToObject(root, "gateway", pstDefRoute->gateway);
+        break;
+    }
+    free(data.data);
+    //get default gateway
+    ret = get_dev_name(&data, "");
+    if(ret != 0) LOG_ERROR("get dev name infor failed.");
+    for(i = 0; i < data.length; i++)
+    {
+        pstIf = (IF_INFO *)data.data;
+        pstIf += i;
+        //LOG_PRINT("if : %s, ipv4 : %s, ipv6 : %s, mac : %s.", pstIf->ifName, pstIf->ipv4, pstIf->ipv6, pstIf->mac);
+        cJSON_AddStringToObject(root, "dev", pstIf->ifName);
+        cJSON_AddStringToObject(root, "mac", pstIf->mac);
+        if(strlen(pstIf->ipv4) > 0) cJSON_AddStringToObject(root, "ipv4", pstIf->ipv4);
+        if(strlen(pstIf->ipv6) > 0) cJSON_AddStringToObject(root, "ipv6", pstIf->ipv6);
+        break;
+    }
+    free(data.data);
+    //
+    str = cJSON_PrintUnformatted(root);
+    cJSON_Delete(root);
+    
+    return str;
+err:
+    if(root) cJSON_Delete(root);
+
+    return NULL;
+}
+
+char *encode_gateway(DATA_HEAD *data)
+{
+    int i;
+    ROUTE_INFO *pstRtInfo;
+    cJSON *root = NULL, *subobj = NULL;
+    struct in_addr gate;
+    char  *retstr = NULL;
+    char ipv4[INET_ADDRSTRLEN];
+    //check argument
+    if(!data) return NULL;
+    //create json object
+    root = cJSON_CreateArray();
+    if(!root) GOTO_ERROR(err, "create json new object failed!");
+    //list
+    for(i = 0; i < data->length; i++)
+    {
+        subobj = cJSON_CreateObject();
+        if(!subobj) GOTO_ERROR(err, "create json new object failed!");
+        //
+        pstRtInfo = (ROUTE_INFO *)data->data;
+        pstRtInfo += i;
+        gate.s_addr = pstRtInfo->gateWay;
+        memset(ipv4, 0, sizeof(ipv4));
+        sprintf(ipv4, "%s", inet_ntoa(gate));
+        cJSON_AddStringToObject(subobj, "gateway", ipv4);
+        cJSON_AddStringToObject(subobj, "ifName", pstRtInfo->ifName);
+        //add to root
+        cJSON_AddItemToArray(root, subobj);
+    }
+    //
+    retstr = cJSON_PrintUnformatted(root);
+    //
+    free(data->data);
+    if(root != NULL) cJSON_Delete(root);
+    return retstr;
+err:
+    if(data->data) free(data->data);
+    if(root != NULL) cJSON_Delete(root);
+    return NULL;
 }
 
 int get_gateway(DATA_HEAD *data)

@@ -16,6 +16,10 @@
     printf("[WARN] [line:%d] [%s] [setns] " fmt "\n", __LINE__, __FUNCTION__, ##__VA_ARGS__);\
 }
 
+#define LOG_DEBUG(fmt, ...) {\
+    printf("[DEBUG] [line:%d] [%s] [setns] " fmt "\n", __LINE__, __FUNCTION__, ##__VA_ARGS__);\
+}
+
 #define RETURN_ERROR(ret, fmt, ...) {\
     printf("[WARN] [line:%d] [%s] [setns] " fmt "\n", __LINE__, __FUNCTION__, ##__VA_ARGS__);\
     return ret;\
@@ -127,6 +131,8 @@ extern int get_ebpf_state();
 extern int ebpf_start();
 
 //
+extern char *get_container_info();
+extern char *encode_gateway(DATA_HEAD *data);
 extern int get_gateway(DATA_HEAD *data);
 extern int get_sub_process(int pid, char *pcBasePath, int spid[], int *num);
 extern int get_process_starttime(int pid, char *pcBasePath, char *dst);

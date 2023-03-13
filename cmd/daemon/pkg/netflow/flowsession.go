@@ -748,7 +748,7 @@ func (fs *FlowSession) GetContainerProcessName(addrType uint8, res *daemon.K8sRe
 		//status
 		if len(res.ContainerInfo) == 1 {
 			if pInfo.Pid == 0 || len(pInfo.ProcName) == 0 {
-				return nil, errors.Errorf("process info error, ns : %v, pod : %v, tuple : %+v, container : %+v", res.Namespace, res.PodName, *tuple, *pInfo)
+				return nil, errors.Errorf("process info error, ns : %v, pod : %v, netinfo : %+v, container : %+v", res.Namespace, res.PodName, *netInfo, *pInfo)
 			}
 			return pInfo, nil
 		} else {
@@ -927,17 +927,13 @@ func (fs *FlowSession) ProcSessionData(netSession *daemon.NetSessionLink) error 
 		}
 	*/
 	//match pod information
-	src, err := fs.nodePodsInfo.GetResDataByIp(netSession.Origin.SrcIp)
-	if err != nil {
-		logging.Get().Warn().Err(err).Msgf("query k8s resource failed. %+v", *netSession)
-		return err
+	src, srcOk := fs.nodePodsInfo.GetResDataByIp(netSession.Origin.SrcIp)
+	dst, dstOk := fs.nodePodsInfo.GetResDataByIp(netSession.Reply.SrcIp)
+	//源地址和目的地址都没有查询到pod信息时,则丢弃该session
+	if !srcOk && !dstOk {
+		logging.Get().Warn().Msgf("query k8s resource failed. %+v", *netSession)
+		return nil
 	}
-	dst, dstErr := fs.nodePodsInfo.GetResDataByIp(netSession.Reply.SrcIp)
-	if dstErr != nil {
-		logging.Get().Warn().Err(dstErr).Msgf("query k8s resource failed. %+v", *netSession)
-		return dstErr
-	}
-
 	//get cluster key
 	clusterKey, ok := fs.clusterManager.ClusterKey()
 	if !ok {
@@ -981,6 +977,7 @@ func (fs *FlowSession) ProcSessionData(netSession *daemon.NetSessionLink) error 
 	netData.CreateAssocKey(netAddr)
 	//put net flow information
 	var state bool
+	var err error
 	//
 	switch netSession.NlType {
 	case NFCT_T_UPDATE: //update event

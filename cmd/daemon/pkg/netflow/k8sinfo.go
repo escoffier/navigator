@@ -176,23 +176,23 @@ func (n *NodePodsInfo) SaveContainerData(ip, containerId string, container *daem
 	n.resInfos.LoadOrStore(ip, &rsData)
 }
 
-func (n *NodePodsInfo) GetResDataByIp(ip string) (*daemon.K8sResData, error) {
+func (n *NodePodsInfo) GetResDataByIp(ip string) (*daemon.K8sResData, bool) {
 	if len(ip) == 0 {
-		return nil, errors.Errorf("ip address is error")
+		return nil, false
 	}
 
 	v, ok := n.resInfos.Load(ip)
 	if !ok {
-		return nil, errors.Errorf("can not find k8s resource data by %s", ip)
+		return nil, false
 	}
 
-	return v.(*daemon.K8sResData), nil
+	return v.(*daemon.K8sResData), true
 }
 
 func (n *NodePodsInfo) UpdateContainerData(crim nodeinfo.ContainerInfoManager, ip, ns, podName string) error {
-	data, err := n.GetResDataByIp(ip)
-	if err != nil {
-		return errors.Errorf("get pod info by ip failed, ns : %v, pod name : %v, %+v", ns, podName, err)
+	data, ok := n.GetResDataByIp(ip)
+	if !ok {
+		return errors.Errorf("get pod info by ip failed, ns : %v, pod name : %v", ns, podName)
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
