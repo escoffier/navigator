@@ -69,7 +69,7 @@ console: generate 		## Build console binary
 	@echo "+ $@"
 	go build -v \
 		--ldflags "$(LDFLAGS) -X gitlab.com/piccolo_su/vegeta/cmd/console/cmd.Version=$(VERSION)" \
-		-tags $(LICENSE_SECRET) -tags=jsoniter -o dist/console gitlab.com/piccolo_su/vegeta/cmd/console
+		-tags="$(LICENSE_SECRET) jsoniter" -o dist/console gitlab.com/piccolo_su/vegeta/cmd/console
 	#upx --lzma --best dist/console
 
 	go build -v \
