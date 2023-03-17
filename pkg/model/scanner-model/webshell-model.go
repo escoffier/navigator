@@ -14,9 +14,14 @@ const (
 	WebshellSize         = (1 << 20) * 10
 )
 
+const (
+	WebshellLevelCertainly = "certainly"
+	WebshellLevelMaybe     = "maybe"
+)
+
 var LevelToString = map[int]string{
-	1: "maybe",
-	2: "certainly",
+	1: WebshellLevelMaybe,
+	2: WebshellLevelCertainly,
 }
 
 type Webshell struct {

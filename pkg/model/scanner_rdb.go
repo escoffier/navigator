@@ -549,11 +549,11 @@ type RejectPolicy struct {
 	Comment     string   `gorm:"type:varchar(255);" json:"comment"`  // 备注
 	Operator    string   `gorm:"type:varchar(255);" json:"operator"` // 操作员名字
 
-	VulnScore     int64  `json:"vuln_score"`                            // 漏洞按分数阻断(低于多少分后阻断)
-	VulnLevel     string `gorm:"type:varchar(255);" json:"vuln_level"`  // 漏洞按严重级别阻断
-	VulnPolicy    string `gorm:"type:varchar(255);" json:"vuln_policy"` //
-	WebShellScore int64  `json:"web_shell_score"`
-
+	VulnScore            int64                 `json:"vuln_score"`                            // 漏洞按分数阻断(低于多少分后阻断)
+	VulnLevel            string                `gorm:"type:varchar(255);" json:"vuln_level"`  // 漏洞按严重级别阻断
+	VulnPolicy           string                `gorm:"type:varchar(255);" json:"vuln_policy"` //
+	WebShellScore        int64                 `json:"web_shell_score"`
+	WebshellLevel        string                `gorm:"column:webshell_level" json:"webshell_level"`
 	WebShellPolicy       string                `gorm:"type:varchar(255);" json:"web_shell_policy"`
 	SensitiveFilePolicy  string                `gorm:"type:varchar(255);" json:"sensitive_file_policy"`       // 敏感文件规则
 	MaliciousPolicy      string                `gorm:"type:varchar(255);" json:"malicious_policy"`            // 恶意文件规则
