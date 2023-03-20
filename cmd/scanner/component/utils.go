@@ -17,6 +17,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
+	scannermodel "gitlab.com/piccolo_su/vegeta/pkg/model/scanner-model"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 	"gitlab.com/piccolo_su/vegeta/pkg/uuid"
 )
@@ -265,9 +266,11 @@ func checkRejectPolicy(po model.RejectPolicy) error {
 	if po.EnvPolicy != model.RejectPolicyAlarm && po.EnvPolicy != model.RejectPolicyReject && po.EnvPolicy != model.RejectPolicyIgnore {
 		return errors.New("no env policy")
 	}
-
-	if po.WebShellScore > 10 || po.WebShellScore < 4 {
-		return errors.New("webshell阻断分数设置不正确，可选选项包括4、5、6、7、8、9、10共7项")
+	webshellLevels := strings.Split(po.WebshellLevel, ",")
+	for k := range webshellLevels {
+		if webshellLevels[k] != scannermodel.WebshellLevelCertainly && webshellLevels[k] != scannermodel.WebshellLevelMaybe {
+			return errors.New("webshell严重等级设置不正确，有certainly和maybe两项")
+		}
 	}
 
 	if po.BaseImagePolicy != model.RejectPolicyAlarm && po.BaseImagePolicy != model.RejectPolicyReject {
@@ -287,6 +290,7 @@ func rejectPolicyToUpdater(po model.RejectPolicy) map[string]interface{} {
 		"operator":               po.Operator,
 		"vuln_score":             po.VulnScore,
 		"vuln_level":             po.VulnLevel,
+		"webshell_level":         po.WebshellLevel,
 		"web_shell_score":        po.WebShellScore,
 		"web_shell_policy":       po.WebShellPolicy,
 		"sensitive_file_policy":  po.SensitiveFilePolicy,

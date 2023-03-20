@@ -26,6 +26,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	scanreport "gitlab.com/piccolo_su/vegeta/pkg/model/scan-report"
+	scannermodel "gitlab.com/piccolo_su/vegeta/pkg/model/scanner-model"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 )
@@ -2042,13 +2043,13 @@ func (s *ConScannerSrv) checkWebshell(ctx context.Context, scanImage model.ScanI
 
 	webshellFile := make([]string, 0)
 	for i := range scanImage.WebshellInfo {
-		if po.WebShellScore > 0 && scanImage.WebshellInfo[i].WebShellInfo.Score > po.WebShellScore {
-			webshellFile = append(webshellFile, scanImage.WebshellInfo[i].WebShellInfo.FileName)
+		if strings.Contains(po.WebshellLevel, scannermodel.LevelToString[scanImage.WebshellInfo[i].Level]) {
+			webshellFile = append(webshellFile, scanImage.WebshellInfo[i].FileName)
 		}
 	}
 	if len(webshellFile) > 0 {
-		msgZh := fmt.Sprintf("包含webshell文件：%s，高于阻断评分：%d", strings.Join(webshellFile, "，"), po.WebShellScore)
-		msgEN := fmt.Sprintf("include websell file:%s  more than:%d", strings.Join(webshellFile, ","), po.WebShellScore)
+		msgZh := fmt.Sprintf("包含webshell文件：%s，等于阻断等级：%v", strings.Join(webshellFile, "，"), po.WebshellLevel)
+		msgEN := fmt.Sprintf("include websell file:%s level is :%v", strings.Join(webshellFile, ","), po.WebshellLevel)
 		switch po.WebShellPolicy {
 		case model.RejectPolicyAlarm:
 			logging.GetLogger().Info().Msgf(fmt.Sprintf("include webshell than the config, %s, unblocked,just alert", msgEN))
@@ -2059,7 +2060,7 @@ func (s *ConScannerSrv) checkWebshell(ctx context.Context, scanImage model.ScanI
 
 		case model.RejectPolicyReject:
 			safe = false
-			msgLog := fmt.Sprintf("Image:%s/%s:%s  more than:%d", img.Library, img.FullRepoName, img.Tags, po.WebShellScore)
+			msgLog := fmt.Sprintf("Image:%s/%s:%s  Level is :%v", img.Library, img.FullRepoName, img.Tags, po.WebshellLevel)
 			logging.GetLogger().Info().Msgf("include webshell than the config,%s，被阻断", msgLog)
 			records = append(records, ReasonAndDetail{
 				RejectReason: model.RejectReasonWebshellScore,

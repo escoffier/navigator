@@ -9,6 +9,7 @@ import (
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
+	scannermodel "gitlab.com/piccolo_su/vegeta/pkg/model/scanner-model"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 )
 
@@ -24,30 +25,30 @@ type ScanImage struct { // 镜像结果// 加上镜像结果,对应原来的scan
 	VirusScore     float64 `gorm:"column:virus_score" json:"virus_score"`
 	WebshellScore  float64 `gorm:"column:webshell_score" json:"webshell_score"`
 
-	VulnInfo                 []*Vuln                    `gorm:"-" json:"vuln_info"`       //
-	VulnInfoJSON             []byte                     `gorm:"type:MediumBlob" json:"-"` // 漏洞结果汇总，优化之后，这个字段不存保存数据
-	PkgInfoJSON              []byte                     `gorm:"type:MediumBlob" json:"-"` // 软件包信息
-	MaliciousInfoJSON        []byte                     `gorm:"type:MediumBlob" json:"-"` // 恶意文件
-	MaliciousInfo            []Malicious                `gorm:"-" json:"malicious_info"`  // 恶意文件
-	WebshellInfo             []Webshell                 `gorm:"-" json:"webshell_info"`   // webshell
-	WebshellInfoJSON         []byte                     `gorm:"type:MediumBlob" json:"-"` // webshell
-	SensitiveFile            []Sensitive                `gorm:"-" json:"sensitive_file"`
-	SensitiveFileJSON        []byte                     `gorm:"type:MediumBlob" json:"-"` // 敏感文件
-	PerLayerReport           []VulnerabilityLayerReport `gorm:"-" json:"per_layer_report"`
-	PerLayerReportJSON       []byte                     `gorm:"type:MediumBlob" json:"-"` // 层结果汇总
-	LicenseInfo              []LicenseInfo              `gorm:"-" json:"license_info"`
-	LicenseInfoJSON          []byte                     `gorm:"type:MediumBlob" json:"-"`
-	Software                 []Software                 `gorm:"-" json:"software"`
-	SoftwareJSON             []byte                     `gorm:"type:MediumBlob" json:"-"`
-	EnvKeyValue              []EnvKeyValue              `gorm:"-" json:"env_key_value"`
-	EnvJSON                  []byte                     `gorm:"type:MediumBlob" json:"-"`
-	OverallSeverity          string                     `gorm:"type:varchar(255)" json:"overallSeverity"` // 评级
-	OverallSeverityInt       int                        `json:"overallSeverityInt"`                       // 评级int
-	SeverityHistogram        SeverityHistogramInfo      `gorm:"-" json:"severityHistogram"`               // 评级集合
-	SeverityHistogramJSON    []byte                     `gorm:"type:MediumBlob"`
-	ScanEnableCollection     ScanEnableCollection       `gorm:"-" json:"scan_enable_collection"`
-	ScanEnableCollectionJson string                     `gorm:"type:varchar(255);column:scan_enable_collection_json"`
-	HasFixedVuln             int                        `gorm:"column:has_fixed_vuln" json:"has_fixed_vuln"`
+	VulnInfo                 []*Vuln                         `gorm:"-" json:"vuln_info"`       //
+	VulnInfoJSON             []byte                          `gorm:"type:MediumBlob" json:"-"` // 漏洞结果汇总，优化之后，这个字段不存保存数据
+	PkgInfoJSON              []byte                          `gorm:"type:MediumBlob" json:"-"` // 软件包信息
+	MaliciousInfoJSON        []byte                          `gorm:"type:MediumBlob" json:"-"` // 恶意文件
+	MaliciousInfo            []Malicious                     `gorm:"-" json:"malicious_info"`  // 恶意文件
+	WebshellInfo             []scannermodel.WebshellFileInfo `gorm:"-" json:"webshell_info"`   // webshell
+	WebshellInfoJSON         []byte                          `gorm:"type:MediumBlob" json:"-"` // webshell
+	SensitiveFile            []Sensitive                     `gorm:"-" json:"sensitive_file"`
+	SensitiveFileJSON        []byte                          `gorm:"type:MediumBlob" json:"-"` // 敏感文件
+	PerLayerReport           []VulnerabilityLayerReport      `gorm:"-" json:"per_layer_report"`
+	PerLayerReportJSON       []byte                          `gorm:"type:MediumBlob" json:"-"` // 层结果汇总
+	LicenseInfo              []LicenseInfo                   `gorm:"-" json:"license_info"`
+	LicenseInfoJSON          []byte                          `gorm:"type:MediumBlob" json:"-"`
+	Software                 []Software                      `gorm:"-" json:"software"`
+	SoftwareJSON             []byte                          `gorm:"type:MediumBlob" json:"-"`
+	EnvKeyValue              []EnvKeyValue                   `gorm:"-" json:"env_key_value"`
+	EnvJSON                  []byte                          `gorm:"type:MediumBlob" json:"-"`
+	OverallSeverity          string                          `gorm:"type:varchar(255)" json:"overallSeverity"` // 评级
+	OverallSeverityInt       int                             `json:"overallSeverityInt"`                       // 评级int
+	SeverityHistogram        SeverityHistogramInfo           `gorm:"-" json:"severityHistogram"`               // 评级集合
+	SeverityHistogramJSON    []byte                          `gorm:"type:MediumBlob"`
+	ScanEnableCollection     ScanEnableCollection            `gorm:"-" json:"scan_enable_collection"`
+	ScanEnableCollectionJson string                          `gorm:"type:varchar(255);column:scan_enable_collection_json"`
+	HasFixedVuln             int                             `gorm:"column:has_fixed_vuln" json:"has_fixed_vuln"`
 
 	ScanTaskID string `gorm:"type:varchar(255)" json:"scan_task_id"`
 	Status     string `gorm:"type:varchar(255)" json:"status"`  // 扫描状态
@@ -171,11 +172,11 @@ func (si *ScanImage) Deserialize() {
 	}
 	si.MaliciousInfo = maliciousInfo
 
-	webShellInfo := make([]Webshell, 0)
+	webShellInfo := make([]scannermodel.WebshellFileInfo, 0)
 	if len(si.WebshellInfoJSON) > 0 {
 		if err := json.Unmarshal(si.WebshellInfoJSON, &webShellInfo); err != nil {
 			logging.GetLogger().Error().Err(err).Int64("imageID", si.ImageID).Int64("ID", si.ID).Msg("Unmarshal Webshell")
-			webShellInfo = make([]Webshell, 0)
+			webShellInfo = make([]scannermodel.WebshellFileInfo, 0)
 		}
 	}
 	si.WebshellInfo = webShellInfo
