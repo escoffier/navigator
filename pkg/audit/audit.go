@@ -701,8 +701,12 @@ func init() {
 	routeAction.DELETE("/api/v2/platform/sherlock/palace/whitelist", func(params Params) (string, string) {
 		return deleteAction, "删除事件中心白名单{{.}}"
 	})
-	// 事件标记
+	// 事件标记-单条
 	routeAction.POST("/api/v2/platform/sherlock/palace/event/process", func(params Params) (string, string) {
 		return editAction, "编辑事件 {{.}} 的事件标记"
+	})
+	// 事件标记-批量
+	routeAction.POST("/api/v2/platform/sherlock/palace/event/process/query", func(params Params) (string, string) {
+		return editAction, "编辑多条事件标记"
 	})
 }
