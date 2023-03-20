@@ -19,10 +19,10 @@ type ExportTensorTask struct {
 
 	Creator string `json:"creator"` // 任务创建人
 
-	StartAt  int64  `json:"startAt"`  // 任务开始执行时间
-	FinishAt int64  `json:"finishAt"` // 任务执行完成时间
-	ErrMsg   string `json:"errMsg"`   // 错误信息
-
+	StartAt   int64     `json:"startAt"`  // 任务开始执行时间
+	FinishAt  int64     `json:"finishAt"` // 任务执行完成时间
+	ErrMsg    string    `json:"errMsg"`   // 错误信息
+	Lang      string    `json:"lang"`     // 导出的语言
 	CreatedAt time.Time `json:"createdAt"`
 	UpdatedAt time.Time `json:"updatedAt"`
 }

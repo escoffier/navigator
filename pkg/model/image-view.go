@@ -422,7 +422,7 @@ func (iws *ImageWithCorrelateData) AddFilter(filter *Filter) *ImageWithCorrelate
 	return iws
 }
 
-func (iws *ImageWithCorrelateData) GenVulnSuggest() []string {
+func (iws *ImageWithCorrelateData) GenVulnSuggest(lang string) []string {
 	ans := make([]string, 0)
 	if len(iws.Vuln) == 0 {
 		return ans
@@ -444,6 +444,9 @@ func (iws *ImageWithCorrelateData) GenVulnSuggest() []string {
 	install := util.InstallType(split[0])
 
 	pre := "建议在Dockerfile里面使用以下命令升级软件包:"
+	if lang == LangEn {
+		pre = "Recommend to use the following command to upgrade the package in the Dockerfile:"
+	}
 
 	if len(ans) > 0 && install != "" {
 		cmd := fmt.Sprintf("%s %s %s", "RUN", install, strings.Join(ans, " "))
@@ -452,9 +455,12 @@ func (iws *ImageWithCorrelateData) GenVulnSuggest() []string {
 	return ans
 }
 
-func (iws *ImageWithCorrelateData) GenSensitiveFileSuggest() []string {
+func (iws *ImageWithCorrelateData) GenSensitiveFileSuggest(lang string) []string {
 
 	pre := []string{"建议在镜像中移除以下敏感文件，然后重新打包镜像："}
+	if lang == LangEn {
+		pre = []string{"Recommend remove the following sensitive files from the image and repackage the image:"}
+	}
 	res := make([]string, 0)
 	if len(iws.Sensitive) == 0 {
 		return res
@@ -615,8 +621,8 @@ func (iws *ImageWithCorrelateData) ToImageBaseResponse() ImageBaseResponse {
 		Maintained:             !util.ExistBit1(image.Flag, FlagImageNotMaintained),
 		BootUser:               image.GetBootUser(),
 		RiskScore:              iws.GetRiskScore(),
-		VulnFixSuggestion:      iws.GenVulnSuggest(),
-		SensitiveFixSuggestion: iws.GenSensitiveFileSuggest(),
+		VulnFixSuggestion:      iws.GenVulnSuggest(LangZh),
+		SensitiveFixSuggestion: iws.GenSensitiveFileSuggest(LangZh),
 		Project:                image.Project,
 		RegistryID:             image.RegistryID,
 		RegistryUrl:            image.Library,

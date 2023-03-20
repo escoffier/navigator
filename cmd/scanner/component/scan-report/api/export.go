@@ -54,6 +54,7 @@ func (s *ExportApiSrv) CreateImageSearchExportTask(ctx *gin.Context) {
 		Creator:     data.Creator,
 		CreatedAt:   now,
 		TaskType:    data.TaskType,
+		Lang:        util.GetLanguage(ctx),
 	}
 	// 查询导出的镜像数
 	_, cnt, err := s.exportSrv.ListImageWithScanInfo(ctx, data.Parameter, &model.Filter{Limit: 1, Offset: 0})
@@ -125,6 +126,7 @@ func (s *ExportApiSrv) CreateImageExportTask(ctx *gin.Context) {
 		Creator:     data.Creator,
 		CreatedAt:   now,
 		TaskType:    data.TaskType,
+		Lang:        util.GetLanguage(ctx),
 	}
 
 	if err := s.exportSrv.CreateExportTask(ctx, task); err != nil {
@@ -240,6 +242,7 @@ func (s *ExportApiSrv) CreateScanResultExportTask(ctx *gin.Context) {
 		FilePath:    fileName,
 		CreatedAt:   now,
 		TaskType:    data.TaskType,
+		Lang:        util.GetLanguage(ctx),
 	}
 
 	if err := s.exportSrv.CreateExportTask(ctx, task); err != nil {

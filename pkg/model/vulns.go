@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"gitlab.com/security-rd/go-pkg/logging"
+	"scm.tensorsecurity.cn/tensorsecurity-rd/trivy/pkg/report"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
@@ -452,11 +453,11 @@ func GetVulnDefaultOmitFields() []string {
 
 // 漏洞类型
 func (vu *Vuln) GetVulnClass() string {
-	if util.ExistBit1(vu.Flag, VulnFlagClassOSPkg) {
+	if util.ExistBit1(vu.Flag, VulnFlagClassOSPkg) || vu.Class == report.ClassOSPkg {
 		return "系统漏洞"
-	} else if util.ExistBit1(vu.Flag, VulnFlagClassOSPkg) {
+	} else if util.ExistBit1(vu.Flag, VulnFlagClassLangPkg) || vu.Class == report.ClassLangPkg {
 		return "应用漏洞"
-	} else if util.ExistBit1(vu.Flag, VulnFlagClassConfig) {
+	} else if util.ExistBit1(vu.Flag, VulnFlagClassConfig) || vu.Class == report.ClassConfig {
 		return "配置文件漏洞"
 	}
 	return ""
