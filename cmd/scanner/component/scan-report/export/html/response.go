@@ -127,14 +127,14 @@ func ModelToVulnDetail(vuln *model.Vuln) VulnDetail {
 	}
 	vd := VulnDetail{
 		Name:        vuln.Name,
-		Severity:    model.GetSeverityView(vuln.SeverityInt),
+		Severity:    model.GetSeverity(vuln.SeverityInt),
 		FixedBy:     vuln.FixedBy,
 		Description: vuln.Description,
 		SeverityInt: vuln.SeverityInt,
 		PkgName:     vuln.PkgName,
 		PkgVersion:  vuln.PkgVersion,
 		UniqueVuln:  vuln.UniqueVuln,
-		Class:       vuln.GetVulnClass(),
+		Class:       vuln.Class,
 		IsKernel:    util.ExistBit1(vuln.Flag, model.VulnFlagKernel),
 		CNNVDNumber: vuln.CnnvdName,
 	}

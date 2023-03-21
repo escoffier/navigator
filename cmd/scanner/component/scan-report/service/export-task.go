@@ -124,9 +124,6 @@ func (s *ExportTaskSrv) CreateCiExportData(ctx context.Context, taskID int64, da
 			}
 		}
 	}
-	res.ImageBaseResponse.RiskScore = res.GetRiskScore()
-	res.ImageBaseResponse.VulnFixSuggestion = res.GenVulnSuggest()
-	res.ImageBaseResponse.SensitiveFixSuggestion = res.GenSensitiveFileSuggest()
 
 	da := make([]model.ImageWithCorrelateData, 0)
 	da = append(da, res)

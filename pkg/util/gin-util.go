@@ -85,3 +85,11 @@ func GetKeywordFromQuery(ctx *gin.Context, key string) string {
 	word := ctx.Query(key)
 	return strings.TrimSpace(word)
 }
+
+func GetLanguage(ctx *gin.Context) string {
+	if strings.ToLower(ctx.GetHeader("Accept-Language")) == "en" ||
+		strings.ToLower(ctx.GetHeader("accept-language")) == "en" {
+		return "en"
+	}
+	return "ch"
+}

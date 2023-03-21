@@ -371,6 +371,16 @@ func (s *ExportLibImageHtmlSrv) GetImageVuln(ctx context.Context, param GetExpor
 func (s *ExportLibImageHtmlSrv) GetImageRisk(ctx context.Context, taskID, imageID int64) (*ImageRiskOverView, error) {
 	logging.Get().Info().Int64("taskID", taskID).Int64("imageID", imageID).Msg("ExportLibImageHtmlSrv.GetImageRisk start")
 
+	task, _, err := s.ExportTaskDal.SearchExportTensorTask(ctx, store.SearchExportTensorTask{ID: taskID}, nil)
+	if err != nil {
+		logging.Get().Err(err).Int64("taskID", taskID).Int64("imageID", imageID).Msg("GetImages.SearchExportTensorTask")
+		return nil, err
+	}
+	if len(task) == 0 {
+		logging.Get().Info().Int64("taskID", taskID).Int64("imageID", imageID).Msg("GetImages.SearchExportTensorTask not get task")
+		return nil, err
+	}
+
 	// 查漏洞和敏感文件，生成处置建议
 	param := model.GetImageAssociateDataParam{
 		ImageId:               imageID,
@@ -396,8 +406,8 @@ func (s *ExportLibImageHtmlSrv) GetImageRisk(ctx context.Context, taskID, imageI
 		VulnSeverityCount: StatisticsVulnSeverity(data.Vuln),
 		FixSuggestion:     make([]string, 0),
 	}
-	res.FixSuggestion = append(res.FixSuggestion, data.GenVulnSuggest()...)
-	res.FixSuggestion = append(res.FixSuggestion, data.GenSensitiveFileSuggest()...)
+	res.FixSuggestion = append(res.FixSuggestion, data.GenVulnSuggest(task[0].Lang)...)
+	res.FixSuggestion = append(res.FixSuggestion, data.GenSensitiveFileSuggest(task[0].Lang)...)
 
 	_ = s.UpdateTask.IncrRedisFinished(ctx, model.ExportTensorTask{TaskType: model.ExportHtml, ID: taskID})
 	logging.Get().Info().Int64("taskID", taskID).Int64("imageID", imageID).Msg("ExportLibImageHtmlSrv.GetImageRisk finished")
@@ -526,9 +536,11 @@ func (s *ExportLibImageHtmlSrv) createExportHtml(ctx context.Context, task model
 	type body struct {
 		TaskID   int64  `json:"taskID"`
 		FilePath string `json:"filePath"`
+		Lang     string `json:"lang"`
 	}
 	postData := body{
 		TaskID:   task.ID,
+		Lang:     task.Lang,
 		FilePath: s.genFilePath(ctx, task),
 	}
 
