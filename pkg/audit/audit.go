@@ -709,4 +709,12 @@ func init() {
 	routeAction.POST("/api/v2/platform/sherlock/palace/event/process/query", func(params Params) (string, string) {
 		return editAction, "编辑多条事件标记"
 	})
+
+	// 集群管理
+	routeAction.PUT("/api/v2/platform/assets/cluster", func(p Params) (string, string) {
+		return editAction, "修改集群{{.}}"
+	})
+	routeAction.DELETE("/api/v2/platform/assets/cluster/:id", func(p Params) (string, string) {
+		return deleteAction, "删除集群{{.}}"
+	})
 }

@@ -30,11 +30,12 @@ func (api *api) wholeGraphOverrall() http.HandlerFunc {
 		ctx, cancel := context.WithTimeout(r.Context(), time.Second*15)
 		defer cancel()
 
-		cluster, err := param.QueryString(r, "cluster")
-		if err != nil || len(cluster) == 0 {
-			cluster = "default"
+		query := dal.ResourceContainersQuery()
+		cluster, _ := param.QueryString(r, "cluster")
+		if cluster != "" {
+			query.WithCluster(cluster)
 		}
-		query := dal.ResourceContainersQuery().WithCluster(cluster)
+
 		appType, err := param.QueryString(r, "apptype")
 		if err == nil && len(appType) > 0 {
 			if appType == "*" {

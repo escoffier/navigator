@@ -138,6 +138,18 @@ func (rl *TensorResourcesService) CountNamespaces(ctx context.Context, clusterKe
 	return cnt, nil
 }
 
+func (rl *TensorResourcesService) GetNamespacesWithOption(ctx context.Context, query *dal.NamespacesQueryOption, offset, limit int) ([]*model.TensorNamespace, int64, error) {
+	ns, err := dal.GetNamespaceWithOption(ctx, rl.rdb.GetReadDB(), query, offset, limit)
+	if err != nil {
+		return nil, 0, err
+	}
+	cnt, err := dal.CountNamespacesWithOption(ctx, rl.rdb.GetReadDB(), query)
+	if err != nil {
+		return nil, 0, err
+	}
+	return ns, cnt, nil
+}
+
 func (rl *TensorResourcesService) UpdateNamespaces(ctx context.Context, clusterKey, name, alias string, manager []string, authority string) error {
 	err := dal.UpdateNamespace(ctx, rl.rdb.Get(), clusterKey, name, alias, manager, authority)
 	return err
@@ -148,7 +160,7 @@ func (rl *TensorResourcesService) GetResourcePods(ctx context.Context, queryOpti
 	if err != nil {
 		return nil, 0, err
 	}
-	cnt, err := dal.CountPods(ctx, rl.rdb.GetReadDB(), queryOptions, 0, 0)
+	cnt, err := dal.CountPods(ctx, rl.rdb.GetReadDB(), queryOptions, -1, -1)
 	return pods, cnt, err
 }
 

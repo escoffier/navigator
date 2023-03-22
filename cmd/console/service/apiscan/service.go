@@ -221,15 +221,68 @@ func (s *Service) CountApis(ctx context.Context) (int64, error) {
 	return nsCount, err
 }
 
-func (s *Service) ListApis(ctx context.Context, clusterKey, search string, limit, offset int) ([]SingleApiResponse, int64, error) {
+type ApiQueryOption struct {
+	whereEqCondition   map[string]interface{}
+	whereLikeCondition map[string]string
+}
+
+func ApiQuery() *ApiQueryOption {
+	return &ApiQueryOption{
+		whereEqCondition:   make(map[string]interface{}),
+		whereLikeCondition: make(map[string]string),
+	}
+}
+
+func (q *ApiQueryOption) WithFuzzyPath(path string) *ApiQueryOption {
+	q.whereLikeCondition["path"] = path
+	return q
+}
+
+func (q *ApiQueryOption) WithFuzzyContent(content string) *ApiQueryOption {
+	q.whereLikeCondition["content_type"] = content
+	return q
+}
+
+func (q *ApiQueryOption) WithFuzzyNamespace(namespace string) *ApiQueryOption {
+	q.whereLikeCondition["namespace"] = namespace
+	return q
+}
+
+func (q *ApiQueryOption) WithFuzzyResource(resource string) *ApiQueryOption {
+	q.whereLikeCondition["resource"] = resource
+	return q
+}
+
+func (q *ApiQueryOption) WithClusterKey(cluster string) *ApiQueryOption {
+	q.whereEqCondition["cluster"] = cluster
+	return q
+}
+
+func (q *ApiQueryOption) WithMethod(method string) *ApiQueryOption {
+	q.whereEqCondition["method"] = method
+	return q
+}
+
+func getLikeExpr(s string) string {
+	sb := strings.Builder{}
+	sb.WriteByte('%')
+	sb.WriteString(s)
+	sb.WriteByte('%')
+	return sb.String()
+}
+
+func (s *Service) ListApis(ctx context.Context, query *ApiQueryOption, limit, offset int) ([]SingleApiResponse, int64, error) {
 	var tensorApis []model.TensorApi
 	var total int64
 	err := s.db.Get().WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		tx = tx.Model(&model.TensorApi{}).Where("cluster = ?", clusterKey)
-		if len(strings.TrimSpace(search)) != 0 {
-			search = "%" + strings.TrimSpace(search) + "%"
-			tx = tx.Where("path like ? or namespace like ? or resource like ?", search, search, search)
+		tx = tx.Model(&model.TensorApi{})
+		if len(query.whereEqCondition) > 0 {
+			tx = tx.Where(query.whereEqCondition)
 		}
+		for col, q := range query.whereLikeCondition {
+			tx = tx.Where(fmt.Sprintf("%s LIKE ?", col), getLikeExpr(q))
+		}
+
 		err := tx.Count(&total).Error
 		if err != nil {
 			return err
