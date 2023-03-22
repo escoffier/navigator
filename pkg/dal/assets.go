@@ -82,6 +82,25 @@ var (
 	}
 )
 
+type NamespacesQueryOption struct {
+	WhereLikeCondition map[string]string
+}
+
+func NamespaceQuery() *NamespacesQueryOption {
+	return &NamespacesQueryOption{
+		WhereLikeCondition: map[string]string{},
+	}
+}
+
+func (n *NamespacesQueryOption) WithCluster(clusterKey string) *NamespacesQueryOption {
+	n.WhereLikeCondition["cluster_key"] = clusterKey
+	return n
+}
+func (n *NamespacesQueryOption) WithName(ns string) *NamespacesQueryOption {
+	n.WhereLikeCondition["name"] = ns
+	return n
+}
+
 func CountNamespaces(ctx context.Context, rdb *gorm.DB, clusterKey, nameQuery string) (int64, error) {
 	pgCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
 	defer cancel()
@@ -173,6 +192,51 @@ func GetNamespace(ctx context.Context, rdb *gorm.DB, clusterKey, name string) (*
 	return &namespace, nil
 }
 
+func CountNamespacesWithOption(ctx context.Context, rdb *gorm.DB, queryOpt *NamespacesQueryOption) (int64, error) {
+	pgCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	defer cancel()
+
+	var nsCount int64
+	err := util.RetryWithBackoff(pgCtx, func() error {
+		oneCtx, cancel := context.WithTimeout(ctx, 500*time.Millisecond)
+		defer cancel()
+
+		db := rdb.WithContext(oneCtx).Model(&model.TensorNamespace{}).Where("status = ?", 0)
+
+		for column, val := range queryOpt.WhereLikeCondition {
+			rdb = rdb.Where(fmt.Sprintf("%s LIKE ?", column), getLikeExpr(val))
+		}
+
+		return db.Count(&nsCount).Error
+	})
+	if err != nil {
+		return 0, err
+	}
+	return nsCount, nil
+}
+
+func GetNamespaceWithOption(ctx context.Context, rdb *gorm.DB, queryOpt *NamespacesQueryOption, offset, limit int) ([]*model.TensorNamespace, error) {
+	pgCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+
+	var namespaces []*model.TensorNamespace
+	err := util.RetryWithBackoff(pgCtx, func() error {
+		oneCtx, cancel := context.WithTimeout(ctx, 500*time.Millisecond)
+		defer cancel()
+
+		for column, val := range queryOpt.WhereLikeCondition {
+			rdb = rdb.Where(fmt.Sprintf("%s LIKE ?", column), getLikeExpr(val))
+		}
+
+		return rdb.WithContext(oneCtx).Model(&model.TensorNamespace{}).
+			Where("status = ?", 0).Find(&namespaces).Error
+	})
+	if err != nil {
+		return nil, err
+	}
+	return namespaces, nil
+}
+
 type colQuery struct {
 	column string
 	query  string
@@ -183,15 +247,17 @@ type mulColQuery struct {
 	query   string
 }
 type ResourcesQueryOption struct {
-	whereEqCondition map[string]interface{}
-	whereInCondition map[string]interface{}
-	columnQuery      colQuery
+	whereEqCondition   map[string]interface{}
+	whereInCondition   map[string]interface{}
+	WhereLikeCondition map[string]string
+	columnQuery        colQuery
 }
 
 func ResourcesQuery() *ResourcesQueryOption {
 	return &ResourcesQueryOption{
-		whereEqCondition: make(map[string]interface{}, 3),
-		whereInCondition: make(map[string]interface{}, 2),
+		whereEqCondition:   make(map[string]interface{}, 3),
+		whereInCondition:   make(map[string]interface{}, 2),
+		WhereLikeCondition: make(map[string]string),
 	}
 }
 
@@ -226,6 +292,14 @@ func (q *ResourcesQueryOption) WithInConditionCustom(column string, value interf
 }
 func (q *ResourcesQueryOption) WithResourceName(name string) *ResourcesQueryOption {
 	q.whereEqCondition["name"] = name
+	return q
+}
+func (q *ResourcesQueryOption) WithFuzzyName(name string) *ResourcesQueryOption {
+	q.WhereLikeCondition["name"] = name
+	return q
+}
+func (q *ResourcesQueryOption) WithFuzzyNamespace(ns string) *ResourcesQueryOption {
+	q.WhereLikeCondition["namespace"] = ns
 	return q
 }
 func (q *ResourcesQueryOption) WithColumnQuery(column, query string) *ResourcesQueryOption {
@@ -270,6 +344,9 @@ func CountResources(ctx context.Context, rdb *gorm.DB, query *ResourcesQueryOpti
 		if len(query.columnQuery.column) > 0 && len(query.columnQuery.query) > 0 {
 			db = db.Where(fmt.Sprintf("%s LIKE ?", query.columnQuery.column), getLikeExpr(query.columnQuery.query))
 		}
+		for col, q := range query.WhereLikeCondition {
+			db = db.Where(fmt.Sprintf("%s LIKE ?", col), getLikeExpr(q))
+		}
 		return db.Count(&resCount).Error
 	})
 	if err != nil {
@@ -297,6 +374,9 @@ func GetResources(ctx context.Context, rdb *gorm.DB, query *ResourcesQueryOption
 		}
 		if len(query.columnQuery.column) > 0 && len(query.columnQuery.query) > 0 {
 			db = db.Where(fmt.Sprintf("%s LIKE ?", query.columnQuery.column), getLikeExpr(query.columnQuery.query))
+		}
+		for col, q := range query.WhereLikeCondition {
+			db = db.Where(fmt.Sprintf("%s LIKE ?", col), getLikeExpr(q))
 		}
 		if limit > 0 && offset >= 0 {
 			db = db.Offset(offset).Limit(limit)
@@ -906,17 +986,24 @@ func CleanUpPodResourceRelationsInRDB(ctx context.Context, rdb *gorm.DB, ts time
 	})
 }
 
+type TimeRange struct {
+	start time.Time
+	end   time.Time
+}
 type ResPodsQueryOption struct {
-	whereEqCondition map[string]interface{}
-	whereInCondition map[string]interface{}
-	columnQuery      colQuery
-	mulColQuery      mulColQuery
+	whereEqCondition   map[string]interface{}
+	whereInCondition   map[string]interface{}
+	WhereLikeCondition map[string]string
+	columnQuery        colQuery
+	mulColQuery        mulColQuery
+	timeRange          TimeRange
 }
 
 func ResourcePodssQuery() *ResPodsQueryOption {
 	return &ResPodsQueryOption{
-		whereEqCondition: make(map[string]interface{}, 3),
-		whereInCondition: make(map[string]interface{}, 2),
+		whereEqCondition:   make(map[string]interface{}, 3),
+		whereInCondition:   make(map[string]interface{}, 2),
+		WhereLikeCondition: make(map[string]string, 3),
 	}
 }
 
@@ -928,27 +1015,31 @@ func (q *ResPodsQueryOption) GetClusterOption() (string, bool) {
 	return v.(string), ok
 }
 func (q *ResPodsQueryOption) WithCluster(clusterKey string) *ResPodsQueryOption {
-	q.whereEqCondition["cluster_key"] = clusterKey
+	q.WhereLikeCondition["cluster_key"] = clusterKey
 	return q
 }
 func (q *ResPodsQueryOption) WithNodeName(nodeName string) *ResPodsQueryOption {
-	q.whereEqCondition["node_name"] = nodeName
+	q.WhereLikeCondition["node_name"] = nodeName
 	return q
 }
 func (q *ResPodsQueryOption) WithNamespace(ns string) *ResPodsQueryOption {
-	q.whereEqCondition["namespace"] = ns
+	q.WhereLikeCondition["namespace"] = ns
 	return q
 }
 func (q *ResPodsQueryOption) WithResourceKind(kind assets.ResourceKind) *ResPodsQueryOption {
-	q.whereEqCondition["resource_kind"] = kind
+	q.WhereLikeCondition["resource_kind"] = string(kind)
 	return q
 }
 func (q *ResPodsQueryOption) WithResourceName(name string) *ResPodsQueryOption {
-	q.whereEqCondition["resource_name"] = name
+	q.WhereLikeCondition["resource_name"] = name
 	return q
 }
-func (q *ResPodsQueryOption) WithContainerName(cname string) *ResPodsQueryOption {
-	q.whereEqCondition["name"] = cname
+func (q *ResPodsQueryOption) WithName(cname string) *ResPodsQueryOption {
+	q.WhereLikeCondition["pod_name"] = cname
+	return q
+}
+func (q *ResPodsQueryOption) WithPodIP(ip string) *ResPodsQueryOption {
+	q.WhereLikeCondition["pod_ip"] = ip
 	return q
 }
 func (q *ResPodsQueryOption) WithCustom(column string, value interface{}) *ResPodsQueryOption {
@@ -964,10 +1055,14 @@ func (q *ResPodsQueryOption) WithColumnQuery(column, query string) *ResPodsQuery
 	q.columnQuery.query = query
 	return q
 }
-
 func (q *ResPodsQueryOption) WithMulColumnQuery(column []string, query string) *ResPodsQueryOption {
 	q.mulColQuery.columns = column
 	q.mulColQuery.query = query
+	return q
+}
+func (q *ResPodsQueryOption) WithTimeRange(start, end time.Time) *ResPodsQueryOption {
+	q.timeRange.start = start
+	q.timeRange.end = end
 	return q
 }
 
@@ -991,6 +1086,13 @@ func GetResourcePodsList(ctx context.Context, rdb *gorm.DB, queryOptions *ResPod
 				db = db.Where(fmt.Sprintf("%s in ?", column), val)
 			}
 		}
+
+		if len(queryOptions.WhereLikeCondition) > 0 {
+			for column, val := range queryOptions.WhereLikeCondition {
+				db = db.Where(fmt.Sprintf("%s LIKE ?", column), getLikeExpr(val))
+			}
+		}
+
 		if len(queryOptions.columnQuery.column) > 0 && len(queryOptions.columnQuery.query) > 0 {
 			db = db.Where(fmt.Sprintf("%s LIKE ?", queryOptions.columnQuery.column), getLikeExpr(queryOptions.columnQuery.query))
 		}
@@ -1000,6 +1102,14 @@ func GetResourcePodsList(ctx context.Context, rdb *gorm.DB, queryOptions *ResPod
 			db = db.Where(
 				rdb.WithContext(oneCtx).Model(&model.PodResourceRelation{}).Where("pod_name LIKE ?", expr).
 					Or("pod_ip LIKE ?", expr).Or("node_name LIKE ?", expr))
+		}
+
+		if queryOptions.timeRange.start.IsZero() && !queryOptions.timeRange.end.IsZero() {
+			db = db.Where("created_at < ?", queryOptions.timeRange.end)
+		} else if !queryOptions.timeRange.start.IsZero() && queryOptions.timeRange.end.IsZero() {
+			db = db.Where("created_at > ?", queryOptions.timeRange.start)
+		} else if !queryOptions.timeRange.start.IsZero() && !queryOptions.timeRange.end.IsZero() {
+			db = db.Where("created_at > ? and created_at < ?", queryOptions.timeRange.start, queryOptions.timeRange.end)
 		}
 
 		if offset >= 0 && limit >= 0 {
@@ -1044,11 +1154,26 @@ func CountPods(ctx context.Context, rdb *gorm.DB, queryOptions *ResPodsQueryOpti
 			db = db.Where(fmt.Sprintf("%s LIKE ?", queryOptions.columnQuery.column), getLikeExpr(queryOptions.columnQuery.query))
 		}
 
+		if len(queryOptions.WhereLikeCondition) > 0 {
+			for column, val := range queryOptions.WhereLikeCondition {
+				db = db.Where(fmt.Sprintf("%s LIKE ?", column), getLikeExpr(val))
+			}
+		}
+
 		if len(queryOptions.mulColQuery.columns) > 0 && len(queryOptions.mulColQuery.query) > 0 {
 			expr := getLikeExpr(queryOptions.mulColQuery.query)
 			db = db.Where(
 				rdb.WithContext(oneCtx).Model(&model.PodResourceRelation{}).Where("pod_name LIKE ?", expr).Or("pod_ip LIKE ?", expr).Or("node_name LIKE ?", expr))
 		}
+
+		if queryOptions.timeRange.start.IsZero() && !queryOptions.timeRange.end.IsZero() {
+			db = db.Where("created_at < ?", queryOptions.timeRange.end)
+		} else if !queryOptions.timeRange.start.IsZero() && queryOptions.timeRange.end.IsZero() {
+			db = db.Where("created_at > ?", queryOptions.timeRange.start)
+		} else if !queryOptions.timeRange.start.IsZero() && !queryOptions.timeRange.end.IsZero() {
+			db = db.Where("created_at > ? and created_at < ?", queryOptions.timeRange.start, queryOptions.timeRange.end)
+		}
+
 		if offset >= 0 && limit >= 0 {
 			db.Offset(offset).Limit(limit)
 		}
@@ -1384,15 +1509,17 @@ func CleanUpUnUpdatedNodes(ctx context.Context, rdb *gorm.DB, t time.Time, clust
 }
 
 type NodeQueryOption struct {
-	whereEqCondition map[string]interface{}
-	whereInCondition map[string]interface{}
-	columnQuery      colQuery
+	whereEqCondition   map[string]interface{}
+	whereInCondition   map[string]interface{}
+	WhereLikeCondition map[string]string
+	columnQuery        colQuery
 }
 
 func NodeQuery() *NodeQueryOption {
 	return &NodeQueryOption{
-		whereEqCondition: make(map[string]interface{}, 3),
-		whereInCondition: make(map[string]interface{}, 2),
+		whereEqCondition:   make(map[string]interface{}, 3),
+		whereInCondition:   make(map[string]interface{}, 2),
+		WhereLikeCondition: make(map[string]string, 3),
 	}
 }
 
@@ -1419,9 +1546,8 @@ func (q *NodeQueryOption) WithInConditionCustom(column string, value interface{}
 	q.whereInCondition[column] = value
 	return q
 }
-func (q *NodeQueryOption) WithColumnQuery(column, query string) *NodeQueryOption {
-	q.columnQuery.column = column
-	q.columnQuery.query = query
+func (q *NodeQueryOption) WithColumnFuzzyQuery(column, query string) *NodeQueryOption {
+	q.WhereLikeCondition[column] = query
 	return q
 }
 
@@ -1448,7 +1574,9 @@ func GetNodes(ctx context.Context, rdb *gorm.DB, queryOptions *NodeQueryOption, 
 		if len(queryOptions.columnQuery.column) > 0 && len(queryOptions.columnQuery.query) > 0 {
 			db = db.Where(fmt.Sprintf("%s LIKE ?", queryOptions.columnQuery.column), getLikeExpr(queryOptions.columnQuery.query))
 		}
-
+		for column, val := range queryOptions.WhereLikeCondition {
+			db = db.Where(fmt.Sprintf("%s LIKE ?", column), getLikeExpr(val))
+		}
 		if offset >= 0 && limit >= 0 {
 			db.Offset(offset).Limit(limit)
 		}
@@ -1519,7 +1647,9 @@ func CountNodes(ctx context.Context, rdb *gorm.DB, queryOptions *NodeQueryOption
 		if len(queryOptions.columnQuery.column) > 0 && len(queryOptions.columnQuery.query) > 0 {
 			db = db.Where(fmt.Sprintf("%s LIKE ?", queryOptions.columnQuery.column), getLikeExpr(queryOptions.columnQuery.query))
 		}
-
+		for column, val := range queryOptions.WhereLikeCondition {
+			db = db.Where(fmt.Sprintf("%s LIKE ?", column), getLikeExpr(val))
+		}
 		err := db.Count(&count).Error
 		if err == gorm.ErrRecordNotFound {
 			notFound = true

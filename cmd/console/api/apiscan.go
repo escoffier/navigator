@@ -20,7 +20,8 @@ import (
 func (api *api) apiScan() func(chi.Router) {
 	return func(r chi.Router) {
 		r.Get("/apis/count", api.countApis())
-		r.Get("/clusters/{cluster}/apis", api.listApis())
+		r.Get("/apis", api.listAllApis())
+		// r.Get("/clusters/{cluster}/apis", api.listApis())
 		r.Get("/clusters/{cluster}/apis/{apiID}", api.getSingleApi())
 		r.Post("/clusters/{cluster}/apis/{apiID}/report", api.apiScanStoreResult())
 		r.Get("/clusters/{cluster}/apis/{apiID}/report", api.getApiScanResult())
@@ -163,36 +164,36 @@ func (api *api) getApiScanJobStatus() http.HandlerFunc {
 	}
 }
 
-func (api *api) listApis() http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
-		defer cancel()
-		cluster := chi.URLParam(r, "cluster")
-		limit, offset, err := getLimitAndOffset(r)
-		if err != nil {
-			logging.GetLogger().Err(err).Msgf("get limit or offset query error")
-			apperror.RespAndLog(w, ctx, apperror.NewAnError(http.StatusBadRequest, errors.New("no limit or offset given in params")))
-			return
-		}
-		search, err := param.QueryString(r, "search")
-		if err != nil {
-			logging.GetLogger().Err(err).Msgf("get search query error")
-			apperror.RespAndLog(w, ctx, apperror.NewAnError(http.StatusBadRequest, errors.New("no search given in params")))
-			return
-		}
-		service, ok := apiscan.GetService(ctx)
-		if !ok {
-			apperror.RespAndLog(w, ctx, ErrServiceNotReady)
-			return
-		}
-		result, totoalItems, err := service.ListApis(ctx, cluster, search, limit, offset)
-		if err != nil {
-			apperror.RespAndLog(w, ctx, err)
-			return
-		}
-		response.Ok(w, response.WithItems(result), response.WithTotalItems(totoalItems))
-	}
-}
+// func (api *api) listApis() http.HandlerFunc {
+// 	return func(w http.ResponseWriter, r *http.Request) {
+// 		ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+// 		defer cancel()
+// 		cluster := chi.URLParam(r, "cluster")
+// 		limit, offset, err := getLimitAndOffset(r)
+// 		if err != nil {
+// 			logging.GetLogger().Err(err).Msgf("get limit or offset query error")
+// 			apperror.RespAndLog(w, ctx, apperror.NewAnError(http.StatusBadRequest, errors.New("no limit or offset given in params")))
+// 			return
+// 		}
+// 		search, err := param.QueryString(r, "search")
+// 		if err != nil {
+// 			logging.GetLogger().Err(err).Msgf("get search query error")
+// 			apperror.RespAndLog(w, ctx, apperror.NewAnError(http.StatusBadRequest, errors.New("no search given in params")))
+// 			return
+// 		}
+// 		service, ok := apiscan.GetService(ctx)
+// 		if !ok {
+// 			apperror.RespAndLog(w, ctx, ErrServiceNotReady)
+// 			return
+// 		}
+// 		result, totoalItems, err := service.ListApis(ctx, cluster, search, limit, offset)
+// 		if err != nil {
+// 			apperror.RespAndLog(w, ctx, err)
+// 			return
+// 		}
+// 		response.Ok(w, response.WithItems(result), response.WithTotalItems(totoalItems))
+// 	}
+// }
 
 func (api *api) getApiScanResult() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -258,5 +259,56 @@ func (api *api) getSingleApi() http.HandlerFunc {
 		}
 
 		response.Ok(w, response.WithItem(singleApi))
+	}
+}
+
+func (api *api) listAllApis() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+		defer cancel()
+		limit, offset, err := getLimitAndOffset(r)
+		if err != nil {
+			logging.GetLogger().Err(err).Msgf("get limit or offset query error")
+			apperror.RespAndLog(w, ctx, apperror.NewAnError(http.StatusBadRequest, errors.New("no limit or offset given in params")))
+			return
+		}
+
+		clusterKey, _ := param.QueryString(r, "cluster_key")
+		contentType, _ := param.QueryString(r, "content_type")
+		path, _ := param.QueryString(r, "path")
+		method, _ := param.QueryString(r, "method")
+		resource, _ := param.QueryString(r, "resource")
+		namespace, _ := param.QueryString(r, "namespace")
+
+		service, ok := apiscan.GetService(ctx)
+		if !ok {
+			apperror.RespAndLog(w, ctx, ErrServiceNotReady)
+			return
+		}
+		query := apiscan.ApiQuery()
+		if clusterKey != "" {
+			query.WithClusterKey(clusterKey)
+		}
+		if contentType != "" {
+			query.WithFuzzyContent(contentType)
+		}
+		if path != "" {
+			query.WithFuzzyPath(path)
+		}
+		if method != "" {
+			query.WithMethod(method)
+		}
+		if namespace != "" {
+			query.WithFuzzyNamespace(namespace)
+		}
+		if resource != "" {
+			query.WithFuzzyResource(resource)
+		}
+		result, totoalItems, err := service.ListApis(ctx, query, limit, offset)
+		if err != nil {
+			apperror.RespAndLog(w, ctx, err)
+			return
+		}
+		response.Ok(w, response.WithItems(result), response.WithTotalItems(totoalItems))
 	}
 }

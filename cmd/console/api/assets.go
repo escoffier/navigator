@@ -40,6 +40,7 @@ func (api *api) assets() func(chi.Router) {
 		r.Post("/namespace", api.updateNamespace())
 		r.Get("/namespace/{namespace}/kind/{kind}/resources", api.getResourcesInNamespace())
 		r.Get("/resources", api.getResources())
+		r.Get("/resources/fuzz", api.getResourcesFuzzy())
 		r.Post("/resource/userData", api.updateResourceUserData())
 		r.Get("/namespace/{namespace}/kind/{kind}/resource/{resource_name}/containers", api.getResourceContainers())
 		r.Get("/imageinfos", api.getImageInfos())
@@ -73,6 +74,12 @@ func (api *api) assets() func(chi.Router) {
 		r.Get("/resources/types", api.getResourceTypes())
 		r.Get("/cluster/ruleversion", api.getRuleVersion())
 	}
+}
+
+func getNormalizedQueryParam(r *http.Request, key string) string {
+	p, _ := param.QueryString(r, key)
+	p = strings.TrimSpace(p)
+	return p
 }
 
 type countResp struct {
@@ -464,7 +471,11 @@ func clusterApiAdaptorProcess(ctx context.Context, w http.ResponseWriter, r *htt
 			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.New("update cluster error")))
 			return
 		}
-		response.Ok(w)
+		response.Ok(w, response.WithTarget(&response.TargetRef{
+			Name: request.ClusterKey,
+			ID:   "",
+			Link: "/api/v2/platform/assets/cluster",
+		}))
 		return
 	}
 
@@ -544,7 +555,11 @@ func (api *api) deleteCluster() http.HandlerFunc {
 			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, fmt.Errorf("delete cluster error: %v", err)))
 			return
 		}
-		response.Ok(w)
+		response.Ok(w, response.WithTarget(&response.TargetRef{
+			Name: clusterKey,
+			ID:   "",
+			Link: "/api/v2/platform/assets/cluster",
+		}))
 	}
 }
 
@@ -568,17 +583,25 @@ func (api *api) getNamespaces() http.HandlerFunc {
 		if err != nil {
 			clusterKey = ""
 		}
-		query, err := param.QueryString(r, "query")
+		name, err := param.QueryString(r, "name")
 		if err != nil {
-			query = ""
+			name = ""
 		}
+		query := dal.NamespaceQuery()
+		if clusterKey != "" {
+			query.WithCluster(clusterKey)
+		}
+		if name != "" {
+			query.WithName(name)
+		}
+
 		resSvc, ok := assets.GetResourcesService(ctx)
 		if !ok {
 			logging.Get().Error().Msg("service instance get error")
 			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.New("service instance get error")))
 			return
 		}
-		namespaces, totalCnt, err := resSvc.GetNamespaces(ctx, clusterKey, query, offset, limit)
+		namespaces, totalCnt, err := resSvc.GetNamespacesWithOption(ctx, query, offset, limit)
 		if err != nil {
 			logging.Get().Err(err).Msg("getNamespaces error")
 			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, err))
@@ -847,6 +870,103 @@ func (api *api) getResources() http.HandlerFunc {
 	}
 }
 
+func (api *api) getResourcesFuzzy() http.HandlerFunc {
+	type resource struct {
+		Cluster   string   `json:"cluster"`
+		Namespace string   `json:"namespace"`
+		Kind      string   `json:"kind"`
+		Name      string   `json:"name"`
+		UID       string   `json:"uid"`
+		Alias     string   `json:"alias"`
+		Managers  []string `json:"managers"`
+		Authority string   `json:"authority"`
+	}
+	modelToResource := func(rm *model.TensorResource) *resource {
+		r := new(resource)
+		r.Cluster = rm.ClusterKey
+		r.Namespace = rm.Namespace
+		r.Kind = rm.Kind
+		r.Name = rm.Name
+		r.UID = rm.UID
+		r.Alias = rm.Alias
+		r.Managers = rm.Managers
+		r.Authority = rm.Authority
+		return r
+	}
+
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+		defer cancel()
+
+		limit, offset, err := getLimitAndOffset(r)
+		if err != nil {
+			logging.Get().Err(err).Msgf("get limit or offset query error")
+			RespAndLog(w, ctx, NewAnError(http.StatusBadRequest, errors.New("no limit or offset given in params")))
+			return
+		}
+		clusterKey, err := param.QueryString(r, "cluster_key")
+		if err != nil {
+			clusterKey = ""
+		}
+
+		namespace, err := param.QueryString(r, "namespace")
+		if err != nil {
+			namespace = ""
+		}
+
+		kind, err := param.QueryString(r, "kind")
+		if err != nil {
+			kind = ""
+		}
+
+		query, err := param.QueryString(r, "query")
+		if err != nil {
+			query = ""
+		}
+
+		name, err := param.QueryString(r, "name")
+		if err != nil {
+			query = ""
+		}
+
+		resSvc, ok := assets.GetResourcesService(ctx)
+		if !ok {
+			logging.Get().Error().Msg("service instance get error")
+			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.New("service instance get error")))
+			return
+		}
+		rQuery := dal.ResourcesQuery()
+		if clusterKey != "" {
+			rQuery = rQuery.WithCluster(clusterKey)
+		}
+		if namespace != "" {
+			rQuery = rQuery.WithFuzzyNamespace(namespace)
+		}
+		if kind != "" && kind != "_" {
+			rQuery = rQuery.WithResourceKind(assetsPkg.ResourceKind(kind))
+		}
+		if query != "" {
+			rQuery = rQuery.WithColumnQuery("name", query)
+		}
+		if name != "" {
+			rQuery = rQuery.WithFuzzyName(name)
+		}
+		resources, totalCnt, err := resSvc.GetResources(ctx, rQuery, offset, limit)
+		if err != nil {
+			logging.Get().Err(err).Msgf("query: %+v. offset: %d, limit: %d. get resources error", rQuery, offset, limit)
+			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.New("get resources error")))
+			return
+		}
+
+		items := make([]*resource, len(resources))
+		for i, resource := range resources {
+			items[i] = modelToResource(resource)
+		}
+
+		response.Ok(w, response.WithItems(items), response.WithTotalItems(totalCnt), response.WithStartIndex(int64(offset+len(items))))
+	}
+}
+
 func (api *api) updateResourceUserData() http.HandlerFunc {
 	type UserData struct {
 		ClusterKey string   `json:"cluster_key"`
@@ -1060,44 +1180,39 @@ func (api *api) getPods() http.HandlerFunc {
 
 		queryOpt := dal.ResourcePodssQuery()
 
-		clusterKey, err := param.QueryString(r, "cluster_key")
-		if err != nil {
-			clusterKey = ""
-		}
+		clusterKey := getNormalizedQueryParam(r, "cluster_key")
 		if clusterKey != "" {
 			queryOpt.WithCluster(clusterKey)
 		}
 
-		namespace, err := param.QueryString(r, "namespace")
-		if err != nil {
-			namespace = ""
-		}
+		namespace := getNormalizedQueryParam(r, "namespace")
 		if namespace != "" {
 			queryOpt.WithNamespace(namespace)
 		}
 
-		nodeName, err := param.QueryString(r, "node_name")
-		if err != nil {
-			nodeName = ""
-		}
+		nodeName := getNormalizedQueryParam(r, "node_name")
 		if nodeName != "" {
 			queryOpt.WithNodeName(nodeName)
 		}
 
-		resKind, err := param.QueryString(r, "resourceKind")
-		if err != nil {
-			resKind = ""
-		}
+		resKind := getNormalizedQueryParam(r, "resource_kind")
 		if resKind != "" {
 			queryOpt.WithResourceKind(assetsPkg.ResourceKind(resKind))
 		}
 
-		resName, err := param.QueryString(r, "resourceName")
-		if err != nil {
-			resName = ""
-		}
+		resName := getNormalizedQueryParam(r, "resource_name")
 		if resName != "" {
 			queryOpt.WithResourceName(resName)
+		}
+
+		name := getNormalizedQueryParam(r, "name")
+		if name != "" {
+			queryOpt.WithName(name)
+		}
+
+		podIP := getNormalizedQueryParam(r, "pod_ip")
+		if podIP != "" {
+			queryOpt.WithPodIP(podIP)
 		}
 
 		query, err := param.QueryString(r, "query")
@@ -1105,9 +1220,28 @@ func (api *api) getPods() http.HandlerFunc {
 			query = ""
 		}
 		if query != "" {
-			// queryOpt.WithColumnQuery("pod_name", query)
 			queryOpt.WithMulColumnQuery([]string{"pod_name"}, query)
 		}
+
+		var start, end time.Time
+		startTime, _ := param.QueryString(r, "start_time")
+		if startTime != "" {
+			start, err = time.Parse(time.RFC3339, startTime)
+			if err != nil {
+				RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, fmt.Errorf("start time is invalid %v", err)))
+				return
+			}
+		}
+
+		endTime, _ := param.QueryString(r, "end_time")
+		if endTime != "" {
+			end, err = time.Parse(time.RFC3339, endTime)
+			if err != nil {
+				RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, fmt.Errorf("end time is invalid %v", err)))
+				return
+			}
+		}
+		queryOpt.WithTimeRange(start, end)
 
 		resSvc, ok := assets.GetResourcesService(ctx)
 		if !ok {
@@ -1281,14 +1415,12 @@ func (api *api) getNodes() http.HandlerFunc {
 			RespAndLog(w, ctx, NewAnError(http.StatusBadRequest, errors.New("no limit or offset given in params")))
 			return
 		}
-		clusterKey, err := param.QueryString(r, "cluster_key")
-		if err != nil {
-			clusterKey = ""
-		}
-		query, err := param.QueryString(r, "query")
-		if err != nil {
-			query = ""
-		}
+
+		clusterKey, _ := param.QueryString(r, "cluster_key")
+		name, _ := param.QueryString(r, "name")
+		status, _ := param.QueryInt8(r, "status")
+		nodeIP, _ := param.QueryString(r, "ip")
+
 		resSvc, ok := assets.GetResourcesService(ctx)
 		if !ok {
 			logging.Get().Error().Msg("service instance get error")
@@ -1296,10 +1428,16 @@ func (api *api) getNodes() http.HandlerFunc {
 			return
 		}
 		queryOpt := dal.NodeQuery()
-		queryOpt.WithCluster(clusterKey)
-		if query != "" {
-			queryOpt.WithCustom("host_name", query)
+		if clusterKey != "" {
+			queryOpt.WithCluster(clusterKey)
 		}
+		if name != "" {
+			queryOpt.WithColumnFuzzyQuery("host_name", name)
+		}
+		if nodeIP != "" {
+			queryOpt.WithColumnFuzzyQuery("node_ip", nodeIP)
+		}
+		queryOpt.WithStatus(status)
 		nodes, err := resSvc.GetNodes(ctx, queryOpt, offset, limit)
 		if err != nil {
 			logging.Get().Err(err).Msg("getNodes error")
