@@ -49,7 +49,7 @@ const (
 
 const (
 	LangEn = "en"
-	LangZh = "ch"
+	LangZh = "zh"
 )
 
 const (
