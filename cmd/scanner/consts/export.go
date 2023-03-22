@@ -24,7 +24,7 @@ const (
 
 const (
 	LangEN  = "en"
-	LangCH  = "ch"
+	LangCH  = "zh"
 	LangKey = "lang"
 )
 

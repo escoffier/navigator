@@ -91,5 +91,5 @@ func GetLanguage(ctx *gin.Context) string {
 		strings.ToLower(ctx.GetHeader("accept-language")) == "en" {
 		return "en"
 	}
-	return "ch"
+	return "zh"
 }
