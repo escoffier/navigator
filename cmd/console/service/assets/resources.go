@@ -246,6 +246,8 @@ func (rl *TensorResourcesService) GetArguments(r *http.Request) (*ArgumentDetail
 	arg.ResourceName, _ = param.QueryString(r, "res_name")
 	// resource kind
 	arg.ResourceKind, _ = param.QueryString(r, "res_kind")
+	// pod name
+	arg.PodName, _ = param.QueryString(r, "pod_name")
 	// net flow route
 	arg.Route, _ = param.QueryString(r, "route")
 	// day time
@@ -289,6 +291,69 @@ func (rl *TensorResourcesService) GetResourceRelation(arg *ArgumentDetails) ([]P
 			res.ResourceName = netflows[i].DstOwnerName
 			res.ResourceKind = netflows[i].DstKind
 			res.Namespace = netflows[i].DstNamespace
+			res.ClusterID = netflows[i].DstCluster
+		}
+		res.DstPort = netflows[i].DstPort
+		res.CreateAt = netflows[i].CreatedAt
+		res.UpdateAt = netflows[i].UpdatedAt
+
+		key := res.CreateUUID()
+		value, ok := uuid[key]
+		if !ok {
+			res.LinkCount = netflows[i].Bucket.CalculteCurrentCountBucketSum(arg.Day)
+			uuid[key] = &res
+		} else {
+			value.LinkCount += netflows[i].Bucket.CalculteCurrentCountBucketSum(arg.Day)
+			if res.CreateAt.Before(value.CreateAt) {
+				value.CreateAt = res.CreateAt
+			}
+			//
+			if res.UpdateAt.After(value.UpdateAt) {
+				value.UpdateAt = res.UpdateAt
+			}
+		}
+	}
+
+	for _, value := range uuid {
+		resource = append(resource, *value)
+	}
+
+	return resource, nil
+}
+
+func (rl *TensorResourcesService) GetPodRelation(arg *ArgumentDetails) ([]ProcessInfo, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*3)
+	defer cancel()
+
+	var query string
+	if arg.Route == typeIngress {
+		query = "dst_cluster = ? and dst_namespace = ? and dst_owner_name = ? and dst_kind = ? and dst_pod_name = ?"
+	} else {
+		query = "src_cluster = ? and src_namespace = ? and src_owner_name = ? and src_kind = ? and src_pod_name = ?"
+	}
+
+	netflows := make([]pmodel.TensorNetworkFlow, 0)
+
+	err := rl.rdb.GetReadDB().WithContext(ctx).Find(&netflows, query, arg.ClusterKey, arg.Namespace, arg.ResourceName, arg.ResourceKind, arg.PodName).Error
+	if err != nil {
+		return nil, errors.Errorf("find pod info from db failed, %v", err)
+	}
+
+	uuid := make(map[uint32]*ProcessInfo)
+	resource := make([]ProcessInfo, 0)
+	for i := 0; i < len(netflows); i++ {
+		var res ProcessInfo
+		if arg.Route == typeIngress {
+			res.ResourceName = netflows[i].SrcOwnerName
+			res.ResourceKind = netflows[i].SrcKind
+			res.Namespace = netflows[i].SrcNamespace
+			res.PodName = netflows[i].SrcPodName
+			res.ClusterID = netflows[i].SrcCluster
+		} else {
+			res.ResourceName = netflows[i].DstOwnerName
+			res.ResourceKind = netflows[i].DstKind
+			res.Namespace = netflows[i].DstNamespace
+			res.PodName = netflows[i].DstPodName
 			res.ClusterID = netflows[i].DstCluster
 		}
 		res.DstPort = netflows[i].DstPort

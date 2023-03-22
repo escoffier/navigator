@@ -68,6 +68,7 @@ type ArgumentDetails struct {
 	Namespace    string
 	ResourceName string
 	ResourceKind string
+	PodName      string
 	ContainerId  string
 	ProcessName  string
 	Route        string

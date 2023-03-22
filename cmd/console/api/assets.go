@@ -60,6 +60,7 @@ func (api *api) assets() func(chi.Router) {
 
 		r.Get("/container/processlist", api.GetProcessList())
 		r.Get("/resource/netflow/info", api.GetResourceAssociate())
+		r.Get("/pod/netflow/info", api.GetPodAssociate())
 		r.Get("/container/netflow/info", api.GetContainerAssociate())
 		r.Get("/container/process/netflow/info", api.GetProcessAssociate())
 
@@ -1485,6 +1486,36 @@ func (api *api) countNodes() http.HandlerFunc {
 		response.Ok(w, response.WithItem(countResp{totalCnt}))
 	}
 }
+
+func (api *api) GetPodAssociate() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+		defer cancel()
+
+		resSvc, ok := assets.GetResourcesService(ctx)
+		if !ok {
+			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.New("get resource service failed")))
+			return
+		}
+
+		arguments, err := resSvc.GetArguments(r)
+		if err != nil {
+			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, err))
+			return
+		}
+		// print debug log
+		// logging.Get().Info().Msgf("resource argument : %+v", *arguments)
+		// get resource relation
+		res, err := resSvc.GetPodRelation(arguments)
+		if err != nil {
+			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.Errorf("get resource relations failed, %v", err)))
+			return
+		}
+
+		response.Ok(w, response.WithItems(res))
+	}
+}
+
 func (api *api) GetResourceAssociate() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
