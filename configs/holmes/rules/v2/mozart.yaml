@@ -311,12 +311,8 @@
       - name: checkRegexMatch
         params: [ '((25[0-5]|2[0-4]\d|[01]?\d\d?)\.){3}(25[0-5]|2[0-4]\d|[01]?\d\d?)', trigger.payload.output_map.proc_cmdline ]
       - name: defineValue
-        params: { reverse_tool: awk, reverse_tool_zh: awk }       
-    # - enabled: true
-    #   # steps:
-    #   # - name: checkRegexMatch
-    #   #   params: [ '.*socat-owen.*', trigger.payload.output_map.proc_cmdline ]
-    #   # - name: defineValue
-    #   #   params: { reverse_tool: socat, reverse_tool_zh: socat }
+        params: { reverse_tool: awk, reverse_tool_zh: awk }
     - default: true
-
+      steps:
+      - name: checkRelatedExists
+        params: [ 'Generated child process shell after starting the container', 5s, trigger.payload.output_map.proc_pid, payload.output_map.proc_pid ]

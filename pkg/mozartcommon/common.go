@@ -38,7 +38,7 @@ func ExtractValues(ctx context.Context, configStep model.ConfigMozartStep, mozar
 			}
 			for j := range mozartMarco[i].Branches {
 				branchKey := key + "-" + strconv.Itoa(j)
-				if !mozartMarco[i].Branches[j].Enabled {
+				if !mozartMarco[i].Branches[j].Enabled && !mozartMarco[i].Branches[j].Default {
 					continue
 				}
 				for k := range mozartMarco[i].Branches[j].Steps {

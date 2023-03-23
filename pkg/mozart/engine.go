@@ -549,46 +549,45 @@ func (e *Engine) configStep2MozartStep(ctx context.Context, configStep model.Con
 				branchMatrix := make([]StepMore, 0)
 				branchKey := key + "-" + strconv.Itoa(j)
 
-				if mozartMarco[i].Branches[j].Default {
-					branchMatrix = append(branchMatrix, StepMore{Steps: nil, Key: branchKey, Default: BranchDefault{Enabled: true}})
-				} else {
-					for k := range mozartMarco[i].Branches[j].Steps {
-						innerBranchStepMatrix, err = e.configStep2MozartStep(ctx, mozartMarco[i].Branches[j].Steps[k], mozartMarco, values, branchKey)
-						if err != nil {
-							return nil, err
-						}
-						if len(innerBranchStepMatrix) == 0 { // defineValue等无需运行的step
-							continue
-						}
-						if len(innerBranchStepMatrix) == 1 && len(innerBranchStepMatrix[0].Steps) == 1 { // basic simple step
-							if len(branchMatrix) == 0 { // 长度为0，初始化
-								branchMatrix = append(branchMatrix, innerBranchStepMatrix[0])
-							} else { // 已有多个分支，将当前的simple step加入已有的分支尾端
-								for m := range branchMatrix {
-									branchMatrix[m].Steps = append(branchMatrix[m].Steps, innerBranchStepMatrix[0].Steps[0])
-									branchMatrix[m].Key = correctKey(branchMatrix[m].Key, innerBranchStepMatrix[0].Key)
-								}
+				for k := range mozartMarco[i].Branches[j].Steps {
+					innerBranchStepMatrix, err = e.configStep2MozartStep(ctx, mozartMarco[i].Branches[j].Steps[k], mozartMarco, values, branchKey)
+					if err != nil {
+						return nil, err
+					}
+					if len(innerBranchStepMatrix) == 0 { // defineValue等无需运行的step
+						continue
+					}
+					if len(innerBranchStepMatrix) == 1 && len(innerBranchStepMatrix[0].Steps) == 1 { // basic simple step
+						if len(branchMatrix) == 0 { // 长度为0，初始化
+							branchMatrix = append(branchMatrix, innerBranchStepMatrix[0])
+						} else { // 已有多个分支，将当前的simple step加入已有的分支尾端
+							for m := range branchMatrix {
+								branchMatrix[m].Steps = append(branchMatrix[m].Steps, innerBranchStepMatrix[0].Steps[0])
+								branchMatrix[m].Key = correctKey(branchMatrix[m].Key, innerBranchStepMatrix[0].Key)
 							}
-						} else { // embedded branches
-							newStepsTotal := make([]StepMore, 0)
-							if len(branchMatrix) == 0 {
-								newStepsTotal = innerBranchStepMatrix
-							} else {
-								for m := 0; m < len(innerBranchStepMatrix); m++ {
-									nst := make([]StepMore, len(branchMatrix))
-									for n := 0; n < len(branchMatrix); n++ {
-										nst[n].Steps = append(branchMatrix[n].Steps, innerBranchStepMatrix[m].Steps...)
-										nst[n].Key = correctKey(branchMatrix[n].Key, innerBranchStepMatrix[m].Key)
-									}
-									newStepsTotal = append(newStepsTotal, nst...)
-								}
-							}
-							branchMatrix = newStepsTotal
 						}
+					} else { // embedded branches
+						newStepsTotal := make([]StepMore, 0)
+						if len(branchMatrix) == 0 {
+							newStepsTotal = innerBranchStepMatrix
+						} else {
+							for m := 0; m < len(innerBranchStepMatrix); m++ {
+								nst := make([]StepMore, len(branchMatrix))
+								for n := 0; n < len(branchMatrix); n++ {
+									nst[n].Steps = append(branchMatrix[n].Steps, innerBranchStepMatrix[m].Steps...)
+									nst[n].Key = correctKey(branchMatrix[n].Key, innerBranchStepMatrix[m].Key)
+								}
+								newStepsTotal = append(newStepsTotal, nst...)
+							}
+						}
+						branchMatrix = newStepsTotal
 					}
 				}
 				for k := range branchMatrix {
 					branchMatrix[k].Default.ID = branchID
+					if mozartMarco[i].Branches[j].Default {
+						branchMatrix[k].Default.Enabled = true
+					}
 				}
 				stepMatrix = append(stepMatrix, branchMatrix...)
 			}
