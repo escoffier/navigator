@@ -11,8 +11,9 @@
   desc: Contact remote server from container
   condition: >
     evt.type in (connect,sendto,sendmsg)
+    and fd.name contains "->"
     and fd.net != "127.0.0.0/8"
-    and not fd.sport in ("", 53) and fd.sport exists
+    and not fd.sport in ("", 53)
     and fd.name != "" and fd.name exists
     and (shell_parent_procs or proc.aname[2] in (shell_binaries))
     and not proc.name in (known_system_procs_network_activity_binaries)
@@ -21,7 +22,7 @@
     and not user_expected_system_procs_network_activity_conditions and container
     and not tensorsec_namespace
   output: >
-    Contact remote server from container(zh_msg=容器内与远程服务器通信,rule_type=Execution,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,pod_id=%k8s.pod.id,syscall_name=%syscall.type,terminal=%proc.tty,user_uid=%user.uid,container_id=%container.id,container_name=%container.name,parent=%proc.pname,gparent=%proc.aname[2],proc_pgid=%proc.vpgid,fd.num=%fd.num,fd.type=%fd.type,connection=%fd.name,client_ip=%fd.cip,client_port=%fd.cport,server_ip=%fd.sip,server_port=%fd.sport,proc_name=%proc.name parent=%proc.pname gparent=%proc.aname[2] ggparent=%proc.aname[3] gggparent=%proc.aname[4])
+    Contact remote server from container(zh_msg=容器内与远程服务器通信,rule_type=Execution,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,pod_id=%k8s.pod.id,syscall_name=%syscall.type,terminal=%proc.tty,user_uid=%user.uid,container_id=%container.id,container_name=%container.name,parent=%proc.pname,gparent=%proc.aname[2],proc_pgid=%proc.vpgid,fd.num=%fd.num,fd.type=%fd.type,connection=%fd.name,client_ip=%fd.cip,client_port=%fd.cport,server_ip=%fd.sip,server_port=%fd.sport,proc_name=%proc.name,parent=%proc.pname,gparent=%proc.aname[2],ggparent=%proc.aname[3],gggparent=%proc.aname[4])
   priority: INFO
   tags: [ATT&CK, filesystem, mitre_privilege_escalation, related, triggered]
 
@@ -116,3 +117,24 @@
     Read /proc/self/mem (zh_msg=读取/proc/self/mem文件,rule_type=Discovery,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,pod_id=%k8s.pod.id,syscall_name=%syscall.type,container=%container.info,container_id=%container.id,container_name=%container.name,evt.args=%evt.args,fd.name=%fd.name,parent=%proc.pname,gparent=%proc.aname[2],ggparent=%proc.aname[3])
   priority: INFO
   tags: [ATT&CK, filesystem, related]
+
+- rule: Created remote connection through awk in container
+  hid: related_07
+  hthreats: 1
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "If the container is intruded, we need to isolate the container, get the remote ip address of the attacker, and check other attacks to confirm the security of the cluster."
+    zh:
+      key: "处置建议"
+      value: "容器遭到入侵，需隔离该容器，获取攻击者远程ip地址，同时排查其他攻击行为，确认集群安全。"
+  desc: awk Program runs inside container that allows remote code execution(Risk of Reverse Shell exploit)
+  condition: >
+    evt.type=connect and not evt.res contains "ECONNREFUSED" and evt.arg.res!=0 and container and not ignore_proc_args and proc.name contains "awk" and proc.cmdline contains "/inet/tcp/" and shell_parent_procs
+  output: >
+    awk runs inside container that allows remote code execution (zh_msg=容器内通过awk建立远程连接,rule_type=Execution,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,evt.args=%evt.args
+    original_info=user=%user.name user_loginuid=%user.loginuid
+    container_id=%container.id container_name=%container.name image=%container.image.repository:%container.image.tag
+    connection=%fd.name,client_ip=%fd.cip,client_port=%fd.cport,server_ip=%fd.sip,server_port=%fd.sport)
+  priority: ALERT
+  tags: [ATT&CK, network, process, mitre_execution, related]

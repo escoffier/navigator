@@ -94,6 +94,22 @@ func (e *Engine) configToRegoQuery(stepName, stepCode string) (regoQuery rego.Pr
 				},
 				e.RuleRecentCount),
 		).PrepareForEval(ctx)
+	case "checkRegexMatch":
+		regoQuery, err = rego.New(
+			rego.Query(stepCode),
+			rego.Function2(
+				&rego.Function{
+					Name: "CacheContext",
+					Decl: types.NewFunction(types.Args(types.S, types.S), types.A),
+				},
+				CacheContext),
+			rego.Function2(
+				&rego.Function{
+					Name: "CheckRegexMatch",
+					Decl: types.NewFunction(types.Args(types.S, types.S), types.B),
+				},
+				e.CheckRegexMatch),
+		).PrepareForEval(ctx)
 
 	case "execGenerateSignal":
 		regoQuery, err = rego.New(

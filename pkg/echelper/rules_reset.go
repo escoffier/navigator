@@ -10,6 +10,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/lang"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
+	"gitlab.com/piccolo_su/vegeta/pkg/mozartcommon"
 	"gitlab.com/piccolo_su/vegeta/pkg/rtdetect"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 	"gitlab.com/security-rd/go-pkg/pb"
@@ -27,6 +28,15 @@ func SendRulesToEventCenter(ctx context.Context, cli *SherlockClient, rulesData 
 	err := yaml.Unmarshal(rulesData, &fDataRules)
 	if err != nil {
 		return err
+	}
+
+	var mozartMarco []model.ConfigMozartMarco
+	for i := range fDataRules {
+		if len(fDataRules[i].MozartMarco) == 0 {
+			continue
+		}
+		mozartMarco = fDataRules[i].MozartMarco
+		break
 	}
 
 	var rules = make(map[string][]*pb.DetectionRule, 3)
@@ -65,6 +75,7 @@ func SendRulesToEventCenter(ctx context.Context, cli *SherlockClient, rulesData 
 			for i := range item.Mozart {
 				category = "ATT&CK"
 				categoryZh = "ATT&CK"
+				values := map[string]interface{}{"0": map[string]interface{}{}}
 				for j := range item.Mozart[i].Steps {
 					if item.Mozart[i].Steps[j].Name == "execGenerateSignal" {
 						params, _ := item.Mozart[i].Steps[j].Params.(map[interface{}]interface{})
@@ -74,31 +85,64 @@ func SendRulesToEventCenter(ctx context.Context, cli *SherlockClient, rulesData 
 							}
 						}
 					}
+					innerValues, err := mozartcommon.ExtractValues(context.Background(), item.Mozart[i].Steps[j], mozartMarco, "0")
+					if err != nil {
+						return err
+					}
+					for ik, iv := range innerValues {
+						values["0"].(map[string]interface{})[ik] = iv
+					}
 				}
-				descriptionEn = item.Mozart[i].Info.Desc.En
-				descriptionZh = item.Mozart[i].Info.Desc.Zh
-				priority = item.Mozart[i].Info.Priority
-				ruleType = item.Mozart[i].Info.RuleType
-				ruleTypeZh = model.TranslateRuleType(ruleType)
-				if item.Mozart[i].Info.Urgency {
-					hthreats = 1
-				}
-				suggestion = map[string]*model.KV{
-					"en": {
-						Key:   "Suggestions",
-						Value: item.Mozart[i].Info.Suggestion.En,
-					},
-					"zh": {
-						Key:   "处置建议",
-						Value: item.Mozart[i].Info.Suggestion.Zh,
-					},
-				}
-				// 增加mozart规则
 				if ruleName == "" {
 					continue
 				}
-				rule = generateRule(category, categoryZh, ruleName, descriptionEn, descriptionZh, priority, ruleType, ruleTypeZh, hid, hthreats, suggestion)
-				rules[rule.Category] = append(rules[rule.Category], rule)
+				flatValues := mozartcommon.FlatValues(values)
+				if len(flatValues) == 0 {
+					flatValues = []map[string]interface{}{{}} // 无变量赋值，使用空配置
+				}
+				for j := range flatValues {
+					iDescZh, err := mozartcommon.TemplateFormat(item.Mozart[i].Info.Desc.Zh, flatValues[j])
+					if err != nil {
+						return err
+					}
+					iDescEn, err := mozartcommon.TemplateFormat(item.Mozart[i].Info.Desc.En, flatValues[j])
+					if err != nil {
+						return err
+					}
+					iRuleEnName, err := mozartcommon.TemplateFormat(ruleName, flatValues[j])
+					if err != nil {
+						return err
+					}
+					iSuggestionZh, err := mozartcommon.TemplateFormat(item.Mozart[i].Info.Suggestion.Zh, flatValues[j])
+					if err != nil {
+						return err
+					}
+					iSuggestionEn, err := mozartcommon.TemplateFormat(item.Mozart[i].Info.Suggestion.En, flatValues[j])
+					if err != nil {
+						return err
+					}
+
+					priority = item.Mozart[i].Info.Priority
+					ruleType = item.Mozart[i].Info.RuleType
+					ruleTypeZh = model.TranslateRuleType(ruleType)
+					if item.Mozart[i].Info.Urgency {
+						hthreats = 1
+					}
+					suggestion = map[string]*model.KV{
+						"en": {
+							Key:   "Suggestions",
+							Value: iSuggestionEn.(string),
+						},
+						"zh": {
+							Key:   "处置建议",
+							Value: iSuggestionZh.(string),
+						},
+					}
+					// 增加mozart规则
+					rule = generateRule(category, categoryZh, iRuleEnName.(string), iDescEn.(string), iDescZh.(string), priority, ruleType, ruleTypeZh, hid, hthreats, suggestion)
+					rules[rule.Category] = append(rules[rule.Category], rule)
+				}
+
 			}
 			continue
 		}
@@ -167,16 +211,19 @@ func generateRule(category, categoryZh, name, description, descriptionZh, priori
 			"description": {
 				ValueHash: map[string]string{
 					string(lang.LanguageZH): descriptionZh,
+					string(lang.LanguageEN): description,
 				},
 			},
 			"module": {
 				ValueHash: map[string]string{
 					string(lang.LanguageZH): moduleZh,
+					string(lang.LanguageEN): module,
 				},
 			},
 			"category": {
 				ValueHash: map[string]string{
 					string(lang.LanguageZH): categoryZh,
+					string(lang.LanguageEN): category,
 				},
 			},
 		},

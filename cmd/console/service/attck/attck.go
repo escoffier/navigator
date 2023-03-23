@@ -17,17 +17,19 @@ import (
 	"github.com/go-redis/redis/v8"
 	"github.com/go-redsync/redsync/v4"
 	"github.com/go-redsync/redsync/v4/redis/goredis/v8"
+	"gopkg.in/yaml.v2"
+
 	"gitlab.com/piccolo_su/vegeta/pkg/dal"
 	"gitlab.com/piccolo_su/vegeta/pkg/echelper"
 	"gitlab.com/piccolo_su/vegeta/pkg/holmes"
 	"gitlab.com/piccolo_su/vegeta/pkg/lang"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
+	"gitlab.com/piccolo_su/vegeta/pkg/mozartcommon"
 	"gitlab.com/piccolo_su/vegeta/pkg/rtdetect"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 	"gitlab.com/security-rd/go-pkg/cryption"
 	"gitlab.com/security-rd/go-pkg/databases"
 	"gitlab.com/security-rd/go-pkg/logging"
-	"gopkg.in/yaml.v2"
 )
 
 const (
@@ -150,10 +152,18 @@ func parseFalcoRule(item model.RuleFromYaml) (isStrict bool, target ruleItem, er
 	}, nil
 }
 
-func parseMozartRule(configMozart model.ConfigMozart) (bool, ruleItem, error) {
+type mozartRuleItem struct {
+	isStrict bool
+	rule     ruleItem
+}
+
+func parseMozartRule(configMozart model.ConfigMozart, mozartMarco []model.ConfigMozartMarco) ([]mozartRuleItem, error) {
+	mozartRules := make([]mozartRuleItem, 0)
 	isStrict := !configMozart.Enabled
+	values := map[string]interface{}{"0": map[string]interface{}{}}
 	ruleEnName := ""
 	for j := range configMozart.Steps {
+		// 理论上，一个mozart规则，即使有多个分支，也应该只有一个 execGenerateSignal，只不过会通过参数赋值产生多个最终规则
 		if configMozart.Steps[j].Name == "execGenerateSignal" {
 			params, _ := configMozart.Steps[j].Params.(map[interface{}]interface{})
 			for k, v := range params {
@@ -162,33 +172,63 @@ func parseMozartRule(configMozart model.ConfigMozart) (bool, ruleItem, error) {
 				}
 			}
 		}
+		innerValues, err := mozartcommon.ExtractValues(context.Background(), configMozart.Steps[j], mozartMarco, "0")
+		if err != nil {
+			return nil, err
+		}
+		for ik, iv := range innerValues {
+			values["0"].(map[string]interface{})[ik] = iv
+		}
 	}
+	flatValues := mozartcommon.FlatValues(values)
 	if ruleEnName == "" {
 		err := errors.New("no invalid rule en name")
 		logging.Get().Error().Err(err).Msg("no invalid rule en name")
-		return isStrict, ruleItem{}, err
+		return nil, err
 	}
-	hthreats := 0
-	if configMozart.Info.Urgency {
-		hthreats = 1
+	if len(flatValues) == 0 {
+		flatValues = []map[string]interface{}{{}} // 无变量赋值，使用空配置
 	}
-	tsAdapter := make(map[string]map[string]string, 2)
-	tsAdapter[string(lang.LanguageZH)] = make(map[string]string, 2)
-	tsAdapter[string(lang.LanguageZH)][typeKey] = model.TranslateRuleType(configMozart.Info.RuleType)
-	tsAdapter[string(lang.LanguageZH)][descriptionKey] = configMozart.Info.Desc.Zh
-	tsAdapter[string(lang.LanguageEN)] = make(map[string]string, 2)
-	tsAdapter[string(lang.LanguageEN)][typeKey] = configMozart.Info.RuleType
-	tsAdapter[string(lang.LanguageEN)][descriptionKey] = configMozart.Info.Desc.En
+	for i := range flatValues {
+		iDescZh, err := mozartcommon.TemplateFormat(configMozart.Info.Desc.Zh, flatValues[i])
+		if err != nil {
+			return nil, err
+		}
+		iDescEn, err := mozartcommon.TemplateFormat(configMozart.Info.Desc.En, flatValues[i])
+		if err != nil {
+			return nil, err
+		}
+		iRuleEnName, err := mozartcommon.TemplateFormat(ruleEnName, flatValues[i])
+		if err != nil {
+			return nil, err
+		}
+		hthreats := 0
+		if configMozart.Info.Urgency {
+			hthreats = 1
+		}
+		tsAdapter := make(map[string]map[string]string, 2)
+		tsAdapter[string(lang.LanguageZH)] = make(map[string]string, 2)
+		tsAdapter[string(lang.LanguageZH)][typeKey] = model.TranslateRuleType(configMozart.Info.RuleType)
+		tsAdapter[string(lang.LanguageZH)][descriptionKey] = iDescZh.(string)
+		tsAdapter[string(lang.LanguageEN)] = make(map[string]string, 2)
+		tsAdapter[string(lang.LanguageEN)][typeKey] = configMozart.Info.RuleType
+		tsAdapter[string(lang.LanguageEN)][descriptionKey] = iDescEn.(string)
 
-	return isStrict, ruleItem{
-		name:        ruleEnName,
-		description: configMozart.Info.Desc.En,
-		severity:    model.Str2SeverityNum(configMozart.Info.Priority),
-		hthreats:    uint8(hthreats),
-		ruleType:    strings.ReplaceAll(configMozart.Info.RuleType, "_", " "),
-		adapter:     tsAdapter,
-		category:    "ATT&CK",
-	}, nil
+		mozartRules = append(mozartRules, mozartRuleItem{
+			isStrict: isStrict,
+			rule: ruleItem{
+				name:        iRuleEnName.(string),
+				description: configMozart.Info.Desc.En,
+				severity:    model.Str2SeverityNum(configMozart.Info.Priority),
+				hthreats:    uint8(hthreats),
+				ruleType:    strings.ReplaceAll(configMozart.Info.RuleType, "_", " "),
+				adapter:     tsAdapter,
+				category:    "ATT&CK",
+			},
+		})
+	}
+
+	return mozartRules, nil
 }
 
 func NewATTCKHandler(db *databases.RDBInstance, redisCli *redis.Client, sherlockClient *echelper.SherlockClient) (*ATTCKHandler, error) {
@@ -281,18 +321,29 @@ func (h *ATTCKHandler) parseItems(header cryption.FileHeader, rulesContext []byt
 
 	// falco + mozart
 	case 2:
+
+		var mozartMarco []model.ConfigMozartMarco
+		for i := range fDataRules {
+			if len(fDataRules[i].MozartMarco) == 0 {
+				continue
+			}
+			mozartMarco = fDataRules[i].MozartMarco
+			break
+		}
 		for _, item := range fDataRules {
 			// 处理mozart规则
 			if len(item.Mozart) != 0 {
 				for i := range item.Mozart {
-					isStrict, rule, err := parseMozartRule(item.Mozart[i])
+					mozartRuleItems, err := parseMozartRule(item.Mozart[i], mozartMarco)
 					if err != nil {
 						logging.Get().Err(err).Interface("item", item.Mozart).Msg("Parse mozart error")
 						continue
 					}
-					rules[rule.name] = &rule
-					if isStrict {
-						strictRules[rule.name] = struct{}{}
+					for j := range mozartRuleItems {
+						rules[mozartRuleItems[j].rule.name] = &mozartRuleItems[j].rule
+						if mozartRuleItems[j].isStrict {
+							strictRules[mozartRuleItems[j].rule.name] = struct{}{}
+						}
 					}
 				}
 				// mozart规则列表下，没有正常的falco规则，跳过

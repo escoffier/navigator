@@ -121,7 +121,7 @@
   priority: ALERT
   tags: [ATT&CK, network, process, mitre_execution]
 
-- rule: Reverse shell through awk
+- rule: Reverse shell through socket and dup
   hid: exec_05
   hthreats: 1
   suggestion:
@@ -131,36 +131,18 @@
     zh:
       key: "处置建议"
       value: "容器遭到入侵，需隔离该容器，获取攻击者远程ip地址，同时排查其他攻击行为，确认集群安全。"
-  desc: awk Program runs inside container that allows remote code execution(Risk of Reverse Shell exploit)
-  condition: >
-    evt.type=connect and not evt.res contains "ECONNREFUSED" and evt.arg.res!=0 and container and not ignore_proc_args and proc.name contains "awk" and proc.cmdline contains "/inet/tcp/" and shell_parent_procs
-  output: >
-    awk runs inside container that allows remote code execution (zh_msg=黑客在容器内通过awk反弹shell),rule_type=Execution,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,evt.args=%evt.args
-    original_info=user=%user.name user_loginuid=%user.loginuid
-    container_id=%container.id container_name=%container.name image=%container.image.repository:%container.image.tag
-    connection=%fd.name,client_ip=%fd.cip,client_port=%fd.cport,server_ip=%fd.sip,server_port=%fd.sport)
-  priority: ALERT
-  tags: [ATT&CK, network, process, mitre_execution]
-
-- rule: Reverse shell through socket and dup
-  hid: exec_06
-  hthreats: 1
-  suggestion:
-    en:
-      key: "Suggestions"
-      value: "If the container is intruded, we need to isolate the container, get the remote ip address of the attacker, and check other attacks to confirm the security of the cluster."
-    zh:
-      key: "处置建议"
-      value: "容器遭到入侵，需隔离该容器，获取攻击者远程ip地址，同时排查其他攻击行为，确认集群安全。"
   desc: Reverse shell through socket and dup
-  condition: evt.type=dup and container and fd.num in (0, 1, 2) and fd.type in ("ipv4", "ipv6") and not k8s.pod.name contains "98166d" and not k8s.pod.name contains "42cca6" and shell_parent_procs
+  condition: >
+    evt.type in (dup, dup2) and 
+    container and fd.num in (0, 1, 2) and fd.type in ("ipv4", "ipv6", "pipe") and fd.name contains "->" and
+    not k8s.pod.name contains "98166d" and not k8s.pod.name contains "42cca6" and shell_parent_procs
   output: >
     Reverse shell through socket and dup (zh_msg=黑客在容器内通过socket和dup反弹shell,rule_type=Execution,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name %container.info process=%proc.name parent=%proc.pname terminal=%proc.tty container_id=%container.id container_name=%container.name image=%container.image.repository fd_name=%fd.name fd.num=%fd.num fd.type=%fd.type connection=%fd.name,client_ip=%fd.cip,client_port=%fd.cport,server_ip=%fd.sip,server_port=%fd.sport)
   priority: ALERT
-  tags: [ATT&CK, container, shell, mitre_execution]
+  tags: [ATT&CK, container, shell, mitre_execution, related]
 
 - rule: Running k8s malicious tools in the container
-  hid: exec_07
+  hid: exec_06
   hthreats: 0
   suggestion:
     en:
@@ -190,7 +172,7 @@
   tags: [ATT&CK, container, shell, mitre_execution, strict]
 
 - rule: Connecting to a remote server through redis client in container
-  hid: exec_08
+  hid: exec_07
   hthreats: 0
   suggestion:
     en:
@@ -208,7 +190,7 @@
   tags: [ATT&CK, container, shell, mitre_execution, triggered]
 
 - rule: Run the tool for scanning ports
-  hid: exec_10
+  hid: exec_08
   hthreats: 0
   suggestion:
     en:
@@ -226,7 +208,7 @@
   tags: [ATT&CK, network, mitre_remote_service]
 
 - rule: Run the tool for brute-force cracking
-  hid: exec_11
+  hid: exec_09
   hthreats: 0
   suggestion:
     en:
@@ -244,7 +226,7 @@
   tags: [ATT&CK, network, mitre_remote_service]  
 
 - rule: Docker build vulnerability(CVE-2019-13139)
-  hid: exec_12
+  hid: exec_10
   hthreats: 0
   suggestion:
     en:

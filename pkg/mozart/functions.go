@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"gorm.io/gorm/utils"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -13,6 +13,7 @@ import (
 	json "github.com/json-iterator/go"
 	"github.com/open-policy-agent/opa/ast"
 	"github.com/open-policy-agent/opa/rego"
+	"gorm.io/gorm/utils"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/nodeinfo" // todo: 去掉依赖
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
@@ -26,12 +27,12 @@ const (
 )
 
 func CacheContext(x rego.BuiltinContext, a, b *ast.Term) (*ast.Term, error) {
-	Cache.Lock.Lock()
-	defer Cache.Lock.Unlock()
+	cache.Lock.Lock()
+	defer cache.Lock.Unlock()
 	sa := a.Value.String()
 	sb := b.Value.String()
 	sb = sb[1 : len(sb)-1]
-	v, err := getByPath(Cache.Sessions[sb], sa[1:len(sa)-1])
+	v, err := getByPath(cache.Sessions[sb], sa[1:len(sa)-1])
 	if err != nil {
 		return ast.NullTerm(), err
 	}
@@ -372,6 +373,33 @@ func (e *Engine) RuleRecentCount(x rego.BuiltinContext, as []*ast.Term) (*ast.Te
 	return ast.BooleanTerm(setResult), nil
 }
 
+func (e *Engine) CheckRegexMatch(x rego.BuiltinContext, a, b *ast.Term) (*ast.Term, error) {
+	paramA, ok := a.Value.(ast.String)
+	if !ok {
+		err := errors.New("a not string")
+		logging.Get().Error().Err(err).Interface("a", a).Msg(err.Error())
+		return ast.BooleanTerm(false), err
+	}
+	pattern := paramA.String()[1 : len(paramA.String())-1]
+	pattern = strings.ReplaceAll(pattern, "\\\\", "\\")
+
+	paramB, ok := b.Value.(ast.String)
+	if !ok {
+		err := errors.New("b not string")
+		logging.Get().Error().Err(err).Interface("b", b).Msg(err.Error())
+		return ast.BooleanTerm(false), err
+	}
+	key := paramB.String()[1 : len(paramB.String())-1]
+
+	matched, err := regexp.Match(pattern, []byte(key))
+	if err != nil {
+		logging.Get().Error().Err(err).Str("pattern", pattern).Str("key", key).Msg(err.Error())
+		return ast.BooleanTerm(false), err
+	}
+
+	return ast.BooleanTerm(matched), nil
+}
+
 func recentCountCacheKey(ruleName string, sameFields, diffFields, cacheHashes []string) string {
 	return strings.Join(append([]string{ruleName}, append(sameFields, append(diffFields, cacheHashes...)...)...), "$")
 }
@@ -408,6 +436,10 @@ func (e *Engine) GenerateAlertSignal(x rego.BuiltinContext, a, b *ast.Term) (*as
 			continue
 		}
 		tSignal.Output = strings.Replace(tSignal.Output, triggerValue, v, -1)
+
+		tSignal.OutputMap[k] = v
+
+		tSignal.OutputFields[k] = v
 	}
 
 	alertSignal := SignalPayload{
@@ -566,9 +598,9 @@ func (e *Engine) getOwnerInfo(podName, namespace string) (*nodeinfo.Resource, st
 
 // 需要注意check函数的实现，内部参数是否会有多协程并发的数据冲突问题
 func checkCache(sParam string, tStart, tEnd time.Time, check func(map[string]interface{}) bool) ([]map[string]interface{}, bool) {
-	Cache.Lock.Lock()
-	items, ok := Cache.Data[sParam]
-	defer Cache.Lock.Unlock()
+	cache.Lock.Lock()
+	items, ok := cache.Data[sParam]
+	defer cache.Lock.Unlock()
 	events := make([]map[string]interface{}, 0)
 	if ok {
 		// event.time倒序查看，先判断时间段，再判断check

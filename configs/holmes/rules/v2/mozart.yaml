@@ -41,52 +41,6 @@
       priority: WARNING
       urgency: true
 
-  - name: 'Reverse shell through telnet'
-    enabled: true
-    trigger: 'Generated child process shell after starting the container'
-    steps:
-      - name: checkRelatedExists
-        params: [ 'Running telnet in container', 1s, trigger.payload.output_map.proc_pgid, payload.output_map.proc_pgid ]
-      - name: checkRelatedExists
-        params: [ 'Contact remote server from container', 1s, trigger.payload.output_map.proc_pgid, payload.output_map.proc_pgid ]
-      - name: execGenerateSignal
-        params: { zh_msg: 黑客在容器内通过telnet反弹shell, rule: 'Reverse shell through telnet' }
-      - name: execSendPalace
-        params: ''
-    info:
-      desc:
-        en: 'Telnet Program runs inside container that allows remote code execution(Risk of Reverse Shell exploit)'
-        zh: '黑客在容器内通过telnet反弹shell'
-      suggestion:
-        en: 'If the container is intruded, we need to isolate the container, get the remote ip address of the attacker, and check other attacks to confirm the security of the cluster.'
-        zh: '容器遭到入侵，需隔离该容器，获取攻击者远程ip地址，同时排查其他攻击行为，确认集群安全。'
-      rule_type: Execution
-      priority: EMERGENCY
-      urgency: true
-
-  - name: 'Reverse shell through ruby'
-    enabled: true
-    trigger: 'Generated child process shell after starting the container'
-    steps:
-      - name: checkRelatedExists
-        params: [ 'Created remote connection through ruby in container', 5s, trigger.payload.output_map.proc_pgid, payload.output_map.proc_pgid ]
-      - name: checkRelatedExists
-        params: [ 'Contact remote server from container', 5s, trigger.payload.output_map.proc_pgid, payload.output_map.proc_pgid ]
-      - name: execGenerateSignal
-        params: { zh_msg: 黑客在容器内通过ruby反弹shell, rule: 'Reverse shell through ruby' }
-      - name: execSendPalace
-        params: ''
-    info:
-      desc:
-        en: 'Ruby Program runs inside container that allows remote code execution(Risk of Reverse Shell exploit)'
-        zh: '黑客在容器内通过ruby反弹shell'
-      suggestion:
-        en: 'If the container is intruded, we need to isolate the container, get the remote ip address of the attacker, and check other attacks to confirm the security of the cluster.'
-        zh: '容器遭到入侵，需隔离该容器，获取攻击者远程ip地址，同时排查其他攻击行为，确认集群安全。'
-      rule_type: Execution
-      priority: EMERGENCY
-      urgency: true
-
   - name: 'Connecting to a remote server through redis client in container'
     enabled: true
     trigger: 'Connecting to a remote server through redis client in container'
@@ -235,3 +189,134 @@
       rule_type: Exfiltration
       priority: ALERT
       urgency: true
+
+  # - name: 'Reverse shell through telnet'
+  #   enabled: true
+  #   trigger: 'Generated child process shell after starting the container'
+  #   steps:
+  #     - name: checkRelatedExists
+  #       params: [ 'Running telnet in container', 1s, trigger.payload.output_map.proc_pgid, payload.output_map.proc_pgid ]
+  #     - name: checkRelatedExists
+  #       params: [ 'Contact remote server from container', 1s, trigger.payload.output_map.proc_pgid, payload.output_map.proc_pgid ]
+  #     - name: execGenerateSignal
+  #       params: { zh_msg: 黑客在容器内通过telnet反弹shell, rule: 'Reverse shell through telnet' }
+  #     - name: execSendPalace
+  #       params: ''
+  #   info:
+  #     desc:
+  #       en: 'Telnet Program runs inside container that allows remote code execution(Risk of Reverse Shell exploit)'
+  #       zh: '黑客在容器内通过telnet反弹shell'
+  #     suggestion:
+  #       en: 'If the container is intruded, we need to isolate the container, get the remote ip address of the attacker, and check other attacks to confirm the security of the cluster.'
+  #       zh: '容器遭到入侵，需隔离该容器，获取攻击者远程ip地址，同时排查其他攻击行为，确认集群安全。'
+  #     rule_type: Execution
+  #     priority: EMERGENCY
+  #     urgency: true
+
+  # - name: 'Reverse shell through ruby'
+  #   enabled: true
+  #   trigger: 'Generated child process shell after starting the container'
+  #   steps:
+  #     - name: checkRelatedExists
+  #       params: [ 'Created remote connection through ruby in container', 5s, trigger.payload.output_map.proc_pgid, payload.output_map.proc_pgid ]
+  #     - name: checkRelatedExists
+  #       params: [ 'Contact remote server from container', 5s, trigger.payload.output_map.proc_pgid, payload.output_map.proc_pgid ]
+  #     - name: execGenerateSignal
+  #       params: { zh_msg: 黑客在容器内通过ruby反弹shell, rule: 'Reverse shell through ruby' }
+  #     - name: execSendPalace
+  #       params: ''
+  #   info:
+  #     desc:
+  #       en: 'Ruby Program runs inside container that allows remote code execution(Risk of Reverse Shell exploit)'
+  #       zh: '黑客在容器内通过ruby反弹shell'
+  #     suggestion:
+  #       en: 'If the container is intruded, we need to isolate the container, get the remote ip address of the attacker, and check other attacks to confirm the security of the cluster.'
+  #       zh: '容器遭到入侵，需隔离该容器，获取攻击者远程ip地址，同时排查其他攻击行为，确认集群安全。'
+  #     rule_type: Execution
+  #     priority: EMERGENCY
+  #     urgency: true
+
+  - name: 'Reverse shell'
+    enabled: true
+    trigger: 'Contact remote server from container'
+    steps:
+      - name: branches
+        params: MARCO::regexReverseShell
+      - name: execGenerateSignal
+        params: { rule: 'Reverse shell through {reverse_tool: socket and dup}' }
+      - name: execSendPalace
+        params: ''
+    info:
+      name: 'Reverse shell through {reverse_tool: socket and dup}'
+      desc:
+        en: 'Reverse shell through {reverse_tool: socket and dup}'
+        zh: '通过{reverse_tool_zh: socket 和 dup}反弹shell'
+      suggestion:
+        en: 'If the container is intruded, we need to isolate the container, get the remote ip address of the attacker, and check other attacks to confirm the security of the cluster.'
+        zh: '容器遭到入侵，需隔离该容器，获取攻击者远程ip地址，同时排查其他攻击行为，确认集群安全。'
+      rule_type: Exfiltration
+      priority: ALERT
+      urgency: true
+
+- mozart_marco:
+  - key: regexReverseShell
+    type: branches
+    branches:
+    - enabled: true
+      steps:
+      - name: checkRelatedExists
+        params: [ 'Reverse shell through socket and dup', 5s, trigger.payload.output_map.proc_pid, payload.output_map.proc_pid ]
+      - name: checkValue
+        params: [ trigger.payload.output_map.proc_name, bash ]
+      - name: defineValue
+        params: { reverse_tool: bash, reverse_tool_zh: bash }
+    - enabled: true
+      steps:
+      - name: checkRelatedExists
+        params: [ 'Reverse shell through socket and dup', 5s, trigger.payload.output_map.proc_pid, payload.output_map.proc_pid ]
+      - name: checkRegexMatch
+        params: [ '^python.*', trigger.payload.output_map.proc_name ]
+      - name: checkRegexMatch
+        params: [ '((25[0-5]|2[0-4]\d|[01]?\d\d?)\.){3}(25[0-5]|2[0-4]\d|[01]?\d\d?)', trigger.payload.output_map.proc_cmdline ]
+      - name: defineValue
+        params: { reverse_tool: python, reverse_tool_zh: python }
+    - enabled: true
+      steps:
+      - name: checkRelatedExists
+        params: [ 'Generated child process shell after starting the container', 5s, trigger.payload.output_map.proc_pgid, payload.output_map.proc_pgid ]
+      - name: checkExpression
+        params: 'some i; CacheContext("trigger.payload.output_map.proc_name", input.session_id)==["nc", "nc.traditional"][i]'
+      - name: defineValue
+        params: { reverse_tool: nc, reverse_tool_zh: nc }
+    - enabled: true
+      steps:
+      - name: checkRelatedExists
+        params: [ 'Running telnet in container', 1s, trigger.payload.output_map.proc_pgid, payload.output_map.proc_pgid ]
+      - name: checkRegexMatch
+        params: [ '((25[0-5]|2[0-4]\d|[01]?\d\d?)\.){3}(25[0-5]|2[0-4]\d|[01]?\d\d?)', trigger.payload.output_map.proc_cmdline ]
+      - name: defineValue
+        params: { reverse_tool: telnet, reverse_tool_zh: telnet }
+    - enabled: true
+      steps:
+      - name: checkRelatedExists
+        params: [ 'Created remote connection through ruby in container', 5s, trigger.payload.output_map.proc_pgid, payload.output_map.proc_pgid ]
+      - name: checkRegexMatch
+        params: [ '((25[0-5]|2[0-4]\d|[01]?\d\d?)\.){3}(25[0-5]|2[0-4]\d|[01]?\d\d?)', trigger.payload.output_map.proc_cmdline ]
+      - name: defineValue
+        params: { reverse_tool: ruby, reverse_tool_zh: ruby }
+    - enabled: true
+      steps:
+      - name: checkRelatedExists
+        params: [ 'Created remote connection through awk in container', 5s, trigger.payload.output_map.proc_pid, payload.output_map.proc_pid ]
+      - name: checkRegexMatch
+        params: [ '((25[0-5]|2[0-4]\d|[01]?\d\d?)\.){3}(25[0-5]|2[0-4]\d|[01]?\d\d?)', trigger.payload.output_map.proc_cmdline ]
+      - name: defineValue
+        params: { reverse_tool: awk, reverse_tool_zh: awk }       
+    # - enabled: true
+    #   # steps:
+    #   # - name: checkRegexMatch
+    #   #   params: [ '.*socat-owen.*', trigger.payload.output_map.proc_cmdline ]
+    #   # - name: defineValue
+    #   #   params: { reverse_tool: socat, reverse_tool_zh: socat }
+    - default: true
+

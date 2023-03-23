@@ -26,11 +26,24 @@ type ConfigMozart struct {
 	Info    ConfigMozartInfo   `yaml:"info"`
 }
 
+type ConfigMozartMarcoBranches struct {
+	Enabled bool               `yaml:"enabled"`
+	Steps   []ConfigMozartStep `yaml:"steps"`
+	Default bool               `yaml:"default"`
+}
+
+type ConfigMozartMarco struct {
+	Key      string                      `yaml:"key"`
+	Type     string                      `yaml:"type"`
+	Branches []ConfigMozartMarcoBranches `yaml:"branches"`
+}
+
 type OriginConfig struct {
-	Rule     string         `yaml:"rule"`
-	Priority string         `yaml:"priority"`
-	Mozart   []ConfigMozart `yaml:"mozart,omitempty"`
-	Tags     []string       `yaml:"tags"`
+	Rule        string              `yaml:"rule"`
+	Priority    string              `yaml:"priority"`
+	Mozart      []ConfigMozart      `yaml:"mozart,omitempty"`
+	MozartMarco []ConfigMozartMarco `yaml:"mozart_marco,omitempty"`
+	Tags        []string            `yaml:"tags"`
 }
 
 type OriginConfigs struct {

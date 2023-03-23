@@ -90,6 +90,15 @@ func ContainsString(s []string, e string) bool {
 	return false
 }
 
+func ContainsInt(s []int, e int) bool {
+	for _, a := range s {
+		if a == e {
+			return true
+		}
+	}
+	return false
+}
+
 func RemoveScoredNotScoredFrom(thing string) string {
 	thing = strings.ReplaceAll(thing, " (Not Scored)", "")
 	thing = strings.ReplaceAll(thing, " ( Not Scored)", "")
