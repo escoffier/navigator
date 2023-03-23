@@ -129,7 +129,8 @@ type RuleFromYaml struct {
 	RequiredEngineVersion int            `yaml:"required_engine_version,omitempty"`
 	Source                string         `yaml:"source,omitempty"`
 
-	Mozart []ConfigMozart `yaml:"mozart,omitempty"`
+	Mozart      []ConfigMozart      `yaml:"mozart,omitempty"`
+	MozartMarco []ConfigMozartMarco `yaml:"mozart_marco,omitempty"`
 }
 
 func (r *RuleFromYaml) Enabled() bool {

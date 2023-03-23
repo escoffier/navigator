@@ -11,8 +11,8 @@ import (
 	"gitlab.com/security-rd/go-pkg/logging"
 )
 
-func ConvertOutput2OutputMap(output string) map[string]string {
-	m := make(map[string]string)
+func ConvertOutput2OutputMap(output string, outputFields map[string]string) map[string]interface{} {
+	m := make(map[string]interface{})
 	quoteStart := strings.Index(output, "(")
 	quoteCount := 0
 	quoteEnd := strings.LastIndex(output, ")")
@@ -33,7 +33,7 @@ func ConvertOutput2OutputMap(output string) map[string]string {
 	if quoteCount != 0 || quoteCount == len(output) {
 		return m
 	}
-	if quoteStart == -1 || quoteEnd == -1 || quoteStart+1 >= quoteEnd || quoteEnd+2 > len(output) {
+	if quoteStart == -1 || quoteEnd == -1 || quoteStart+1 >= quoteEnd {
 		return m
 	}
 	timeEnd := strings.LastIndex(output[:quoteStart], ":")
@@ -58,9 +58,9 @@ func ConvertOutput2OutputMap(output string) map[string]string {
 			if !((kv[0][j] >= 48 && kv[0][j] <= 57) || (kv[0][j] >= 65 && kv[0][j] <= 90) || (kv[0][j] >= 97 && kv[0][j] <= 122)) &&
 				(kv[0][j] != '_' && kv[0][j] != '-' && kv[0][j] != '.') {
 				for k := range stack {
-					m[lastKey] = m[lastKey] + stack[k]
+					m[lastKey] = m[lastKey].(string) + stack[k]
 				}
-				m[lastKey] = m[lastKey] + data[i]
+				m[lastKey] = m[lastKey].(string) + data[i]
 				stack = make([]string, 0)
 				needContinue = true
 				break
@@ -75,11 +75,21 @@ func ConvertOutput2OutputMap(output string) map[string]string {
 				value = value + stack[k]
 			}
 			stack = make([]string, 0)
-			m[lastKey] = m[lastKey] + value
+			m[lastKey] = m[lastKey].(string) + value
 		}
 
 		m[kv[0]] = kv[1]
 		lastKey = kv[0]
+	}
+
+	m = convertKeyDotToUnderScore(m)
+	ofi := make(map[string]interface{})
+	for k, v := range outputFields {
+		ofi[k] = v
+	}
+	ofi = convertKeyDotToUnderScore(ofi)
+	for k, v := range ofi {
+		m[k] = v
 	}
 
 	return m
@@ -115,4 +125,20 @@ func sDurationToTimeDuration(sd string) (time.Duration, error) {
 		return t, err
 	}
 	return t, nil
+}
+
+func convertKeyDotToUnderScore(m map[string]interface{}) map[string]interface{} {
+	nm := make(map[string]interface{}, len(m))
+	for k, v := range m {
+		nk := strings.ReplaceAll(k, ".", "_")
+		if mv, ok := v.(map[string]interface{}); ok { // 暂未考虑其他的map类型
+			v = convertKeyDotToUnderScore(mv)
+		}
+		nm[nk] = v
+	}
+	return nm
+}
+
+func convertSpaceToUnderScore(s string) string {
+	return strings.ReplaceAll(s, " ", "_")
 }

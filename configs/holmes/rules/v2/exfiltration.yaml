@@ -21,7 +21,7 @@
     Known system binary sent/received network traffic
     (zh_msg=网络流量中包含系统二进制，可能从外部下载/上载应用,rule_type=Exfiltration,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid connection=%fd.name container_id=%container.id container_name=%container.name image=%container.image.repository)
   priority: NOTICE
-  tags: [ATT&CK, network, mitre_exfiltration]
+  tags: [ATT&CK, network, mitre_exfiltration, strict]
 
 - rule: Interpreted procs inbound network activity
   hid: exf_02

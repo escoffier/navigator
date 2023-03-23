@@ -7,6 +7,10 @@ import (
 	"time"
 )
 
+const (
+	marcoPrefix = "MARCO::"
+)
+
 type Event struct {
 	Name    string                 `json:"name"` // 唯一标识
 	Payload map[string]interface{} `json:"payload"`
@@ -48,33 +52,34 @@ type OutputFields struct {
 	ProcPgid    string `json:"proc_pgid"`
 }
 
-type ConfigMozartStepParamsCheckExpression string
-type ConfigMozartStepParamsCheckValue []interface{}
-type ConfigMozartStepParamsCheckRelatedExists []interface{}
-type ConfigMozartStepParamsCheckRelatedNotExists []interface{}
-type ConfigMozartStepParamsCheckRuleRecentCount []interface{}
+type configMozartStepParamsCheckExpression string
+type configMozartStepParamsCheckValue []interface{}
+type configMozartStepParamsCheckRelatedExists []interface{}
+type configMozartStepParamsCheckRelatedNotExists []interface{}
+type configMozartStepParamsCheckRuleRecentCount []interface{}
+type configMozartStepParamsCheckRegexMatch []interface{}
 
-type ConfigMozartStepParamsExecExpression string
-type ConfigMozartStepParamsExecGenerateSignal map[string]interface{}
-type ConfigMozartStepParamsExecSendPalace string
+type configMozartStepParamsExecExpression string
+type configMozartStepParamsExecGenerateSignal map[string]interface{}
+type configMozartStepParamsExecSendPalace string
 
-func (cp ConfigMozartStepParamsCheckExpression) RCode() string {
+func (cp configMozartStepParamsCheckExpression) rCode() string {
 	return string(cp)
 }
 
-func (cp ConfigMozartStepParamsCheckValue) RCode() string {
+func (cp configMozartStepParamsCheckValue) rCode() string {
 	return fmt.Sprintf("CacheContext(\"%s\", input.session_id) == \"%s\"", cp[0], cp[1])
 }
 
-func (cp ConfigMozartStepParamsCheckRelatedExists) RCode() string {
+func (cp configMozartStepParamsCheckRelatedExists) rCode() string {
 	return fmt.Sprintf("ExistsInPeriod(\"%s\", \"%s\", CacheContext(\"event_time\", input.session_id), CacheContext(\"%s\", input.session_id), \"%s\")", cp[0], cp[1], cp[2], cp[3])
 }
 
-func (cp ConfigMozartStepParamsCheckRelatedNotExists) RCode() string {
+func (cp configMozartStepParamsCheckRelatedNotExists) rCode() string {
 	return fmt.Sprintf("NotExistsInPeriod(\"%s\", \"%s\", CacheContext(\"event_time\", input.session_id))", cp[0], cp[1])
 }
 
-func (cp ConfigMozartStepParamsCheckRuleRecentCount) RCode() string {
+func (cp configMozartStepParamsCheckRuleRecentCount) rCode() string {
 	return fmt.Sprintf(`RuleRecentCount("%s", "%s", CacheContext("trigger", input.session_id), CacheContext("event_time", input.session_id), %d, "%s", "%s", "%s")`,
 		cp[0], cp[1], cp[2],
 		strings.ReplaceAll(cp[3].(string), `"`, `\"`),
@@ -82,11 +87,15 @@ func (cp ConfigMozartStepParamsCheckRuleRecentCount) RCode() string {
 		cp[5])
 }
 
-func (cp ConfigMozartStepParamsExecExpression) RCode() string {
+func (cp configMozartStepParamsCheckRegexMatch) rCode() string {
+	return fmt.Sprintf(`CheckRegexMatch("%s", CacheContext("%s", input.session_id))`, strings.ReplaceAll(cp[0].(string), `\`, `\\`), cp[1])
+}
+
+func (cp configMozartStepParamsExecExpression) rCode() string {
 	return string(cp)
 }
 
-func (cp ConfigMozartStepParamsExecGenerateSignal) RCode() string {
+func (cp configMozartStepParamsExecGenerateSignal) rCode() string {
 	s := ""
 	valueTemplate := "\"%s\":\"%s\""
 	varTemplate := "\"%s\":%s"
@@ -106,34 +115,18 @@ func (cp ConfigMozartStepParamsExecGenerateSignal) RCode() string {
 	return fmt.Sprintf("signal := generateAlertSignal(CacheContext(\"trigger.payload\", input.session_id), {%s})", s)
 }
 
-func (cp ConfigMozartStepParamsExecSendPalace) RCode() string {
+func (cp configMozartStepParamsExecSendPalace) rCode() string {
 	return "sendSignalToPalace(CacheContext(\"signal\", input.session_id))"
 }
 
 type ConfigMozartStepParams interface {
-	RCode() string
+	rCode() string
 }
 
-type CacheStruct struct {
+type cacheStruct struct {
 	Lock     sync.Mutex
 	Data     map[string][]map[string]interface{}
 	Sessions map[string]map[string]interface{}
 }
 
-var Cache CacheStruct
-
-func ConvertDotKeyToUnderScore(m map[string]interface{}) map[string]interface{} {
-	nm := make(map[string]interface{}, len(m))
-	for k, v := range m {
-		nk := strings.ReplaceAll(k, ".", "_")
-		if mv, ok := v.(map[string]interface{}); ok {
-			v = ConvertDotKeyToUnderScore(mv)
-		}
-		nm[nk] = v
-	}
-	return nm
-}
-
-func convertSpaceToUnderScore(s string) string {
-	return strings.ReplaceAll(s, " ", "_")
-}
+var cache cacheStruct

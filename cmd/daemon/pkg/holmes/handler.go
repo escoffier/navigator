@@ -3,12 +3,10 @@ package holmes
 import (
 	"context"
 	"errors"
-	"fmt"
 	"math/rand"
 	"os"
 	"runtime/debug"
 	"strconv"
-	"strings"
 	"sync/atomic"
 	"time"
 
@@ -19,7 +17,6 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/mozart"
-	"gitlab.com/piccolo_su/vegeta/pkg/util"
 	"gitlab.com/security-rd/go-pkg/logging"
 	"gitlab.com/security-rd/go-pkg/pb"
 	"gitlab.com/security-rd/go-pkg/sdk/palace"
@@ -427,11 +424,11 @@ func (ec *EngineStreamHandler) handle(ctx context.Context, e eventItem) error {
 	_ = json.Unmarshal(bd, &md)
 	md["cluster_key"] = e.clusterKey
 	md["node_name"] = myNodeName
-	md["output_map"] = mozart.ConvertOutput2OutputMap(e.data.Output)
+	md["output_map"] = mozart.ConvertOutput2OutputMap(e.data.Output, e.data.OutputFields)
 	md["version1"] = currentEngineLargeVersion
 	err := ec.mozart.Run(mozart.Event{
 		Name:    e.data.Rule,
-		Payload: mozart.ConvertDotKeyToUnderScore(md),
+		Payload: md,
 		Time:    e.data.Time.AsTime(),
 	})
 
@@ -440,85 +437,4 @@ func (ec *EngineStreamHandler) handle(ctx context.Context, e eventItem) error {
 		return err
 	}
 	return nil
-}
-
-func generateSignalContext(data *outputs.Response) (signalContext map[string]interface{}, podUID, podName, namespace string) {
-	signalContext = map[string]interface{}{}
-
-	ppid, err := model.GetInfoFromOutput("proc_ppid=", data.Output)
-	if err != nil {
-		ppid = ""
-	}
-	procPname, err := model.GetInfoFromOutput("proc_pname=", data.Output)
-	if err == nil {
-		if len(ppid) > 0 {
-			signalContext[model.FieldParentProcessName] = procPname + fmt.Sprintf("(%s)", ppid)
-			delete(data.OutputFields, model.FieldParentProcessName)
-		}
-	}
-
-	command, err := model.GetInfoFromOutput("proc_cmdline=", data.Output)
-	if err != nil {
-		command = ""
-	}
-	pid, err := model.GetInfoFromOutput("proc_pid=", data.Output)
-	if err != nil {
-		pid = ""
-	}
-	if command != "" && pid != "" {
-		signalContext[model.FieldProcessName] = strings.Split(command, " ")[0] + fmt.Sprintf("(%s)", pid)
-		delete(data.OutputFields, model.FieldProcessName)
-	}
-
-	if podName = data.OutputFields[model.FieldK8sPodName]; podName == "<NA>" {
-		podName = ""
-	}
-	if namespace = data.OutputFields[model.FieldK8sNsName]; namespace == "<NA>" {
-		namespace = ""
-	}
-	podUID = data.OutputFields[model.FieldPodUID]
-
-	for key, value := range data.OutputFields {
-		if value == "<NA>" {
-			value = ""
-		}
-
-		if util.ContainsString(filteredOutFields, key) {
-			continue
-		}
-
-		signalContext[key] = value
-
-		if value == "" {
-			switch key {
-			case model.FieldProcessPid:
-				if pid != "" {
-					signalContext[model.FieldProcessPid] = pid
-				}
-			case model.FieldParentProcessPid:
-				if ppid != "" {
-					signalContext[model.FieldParentProcessPid] = ppid
-				}
-			case model.FieldCmdline:
-				if len(command) > 0 {
-					signalContext[model.FieldCmdline] = command
-				}
-			case "user":
-				user, _ := model.GetInfoFromOutput("user=", data.Output)
-				if len(user) > 0 {
-					signalContext["user"] = user
-				}
-			case model.FieldSyscallType:
-				if syscall, _ := model.GetInfoFromOutput("syscall_name=", data.Output); len(syscall) > 0 {
-					signalContext[model.FieldSyscallType] = syscall
-				}
-			}
-		}
-	}
-
-	// if data.Hostname != "" {
-	// 	signalContext["nodeName"] = data.Hostname
-	// }
-
-	return signalContext, podUID, podName, namespace
 }
