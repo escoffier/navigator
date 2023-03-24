@@ -137,6 +137,11 @@ func (n *NodePodsWatcher) GetContainerType() (string, error) {
 		return DockerType, nil
 	}
 
+	ok = strings.Contains(containerType, "runtime")
+	if ok {
+		return DockerType, nil
+	}
+
 	ok = strings.Contains(containerType, "cri-o")
 	if ok {
 		return CrioType, nil
