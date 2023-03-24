@@ -1996,7 +1996,7 @@ type RawContainersQueryOption struct {
 	whereInCondition      map[string]interface{}
 	columnQuery           colQuery
 	columnQueries         []colMultiQuery
-	//mulColQuery           mulColQuery
+	prefixColumnQuery     colQuery
 }
 
 func RawContainersQuery() *RawContainersQueryOption {
@@ -2065,6 +2065,12 @@ func (q *RawContainersQueryOption) WithColumnMultiQuery(column string, query []s
 	return q
 }
 
+func (q *RawContainersQueryOption) WithPrefixColumnQuery(column, query string) *RawContainersQueryOption {
+	q.prefixColumnQuery.column = column
+	q.prefixColumnQuery.query = query
+	return q
+}
+
 func CountRawContainer(ctx context.Context, rdb *gorm.DB, queryOptions *RawContainersQueryOption) (int64, error) {
 	ctx, cancel := context.WithTimeout(ctx, 6000*time.Millisecond)
 	defer cancel()
@@ -2094,6 +2100,9 @@ func CountRawContainer(ctx context.Context, rdb *gorm.DB, queryOptions *RawConta
 		}
 		if len(queryOptions.columnQuery.column) > 0 && len(queryOptions.columnQuery.query) > 0 {
 			db = db.Where(fmt.Sprintf("%s LIKE ?", queryOptions.columnQuery.column), getLikeExpr(queryOptions.columnQuery.query))
+		}
+		if len(queryOptions.prefixColumnQuery.column) > 0 && len(queryOptions.prefixColumnQuery.query) > 0 {
+			db = db.Where(fmt.Sprintf("%s LIKE ?", queryOptions.prefixColumnQuery.column), fmt.Sprintf("%s%%", queryOptions.prefixColumnQuery.query))
 		}
 		if len(queryOptions.columnQueries) > 0 {
 			for _, c := range queryOptions.columnQueries {
@@ -2146,6 +2155,9 @@ func GetRawContainers(ctx context.Context, rdb *gorm.DB, queryOptions *RawContai
 		}
 		if len(queryOptions.columnQuery.column) > 0 && len(queryOptions.columnQuery.query) > 0 {
 			db = db.Where(fmt.Sprintf("%s LIKE ?", queryOptions.columnQuery.column), getLikeExpr(queryOptions.columnQuery.query))
+		}
+		if len(queryOptions.prefixColumnQuery.column) > 0 && len(queryOptions.prefixColumnQuery.query) > 0 {
+			db = db.Where(fmt.Sprintf("%s LIKE ?", queryOptions.prefixColumnQuery.column), fmt.Sprintf("%s%%", queryOptions.prefixColumnQuery.query))
 		}
 		if len(queryOptions.columnQueries) > 0 {
 			for _, c := range queryOptions.columnQueries {
