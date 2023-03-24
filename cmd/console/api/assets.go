@@ -2050,9 +2050,16 @@ func (api *api) getRawContainer() http.HandlerFunc {
 		if clusterKey != "" {
 			query = query.WithCluster(clusterKey)
 		}
-
 		if containerID != "" {
-			query = query.WithID(containerID)
+			contaierLen := len(containerID)
+			if contaierLen < 64 {
+				query = query.WithPrefixColumnQuery("id", containerID)
+			} else if contaierLen == 64 {
+				query = query.WithID(containerID)
+			} else {
+				RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.New("invalid container id")))
+				return
+			}
 		}
 		query.WithInConditionCustom("status", assetsPkg.All)
 		containers, err := resSvc.GetRawContainer(ctx, query, -1, -1)
