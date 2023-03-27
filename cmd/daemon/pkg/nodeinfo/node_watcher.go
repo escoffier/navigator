@@ -169,7 +169,7 @@ func (n *NodePodsWatcher) getFinalResourceOfPod(ctx context.Context, pod *corev1
 		return pod.GetName(), kind
 	}
 
-	tctx, cancel := context.WithTimeout(ctx, 500*time.Millisecond)
+	tctx, cancel := context.WithTimeout(ctx, 1*time.Second)
 	defer cancel()
 
 	switch owner.Kind {
