@@ -11,7 +11,7 @@ import (
 	"gitlab.com/security-rd/go-pkg/logging"
 )
 
-func ConvertOutput2OutputMap(output string, outputFields map[string]string) map[string]interface{} {
+func ConvertOutput2OutputMap(output string, outputFields map[string]interface{}) map[string]interface{} {
 	m := make(map[string]interface{})
 	quoteStart := strings.Index(output, "(")
 	quoteCount := 0
@@ -82,13 +82,8 @@ func ConvertOutput2OutputMap(output string, outputFields map[string]string) map[
 		lastKey = kv[0]
 	}
 
-	m = convertKeyDotToUnderScore(m)
-	ofi := make(map[string]interface{})
+	m = ConvertKeyDotToUnderScore(m)
 	for k, v := range outputFields {
-		ofi[k] = v
-	}
-	ofi = convertKeyDotToUnderScore(ofi)
-	for k, v := range ofi {
 		m[k] = v
 	}
 
@@ -127,18 +122,14 @@ func sDurationToTimeDuration(sd string) (time.Duration, error) {
 	return t, nil
 }
 
-func convertKeyDotToUnderScore(m map[string]interface{}) map[string]interface{} {
+func ConvertKeyDotToUnderScore(m map[string]interface{}) map[string]interface{} {
 	nm := make(map[string]interface{}, len(m))
 	for k, v := range m {
 		nk := strings.ReplaceAll(k, ".", "_")
 		if mv, ok := v.(map[string]interface{}); ok { // 暂未考虑其他的map类型
-			v = convertKeyDotToUnderScore(mv)
+			v = ConvertKeyDotToUnderScore(mv)
 		}
 		nm[nk] = v
 	}
 	return nm
-}
-
-func convertSpaceToUnderScore(s string) string {
-	return strings.ReplaceAll(s, " ", "_")
 }

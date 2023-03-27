@@ -424,7 +424,12 @@ func (ec *EngineStreamHandler) handle(ctx context.Context, e eventItem) error {
 	_ = json.Unmarshal(bd, &md)
 	md["cluster_key"] = e.clusterKey
 	md["node_name"] = myNodeName
-	md["output_map"] = mozart.ConvertOutput2OutputMap(e.data.Output, e.data.OutputFields)
+	md = mozart.ConvertKeyDotToUnderScore(md)
+	outputFields, ok := md["output_fields"].(map[string]interface{})
+	if !ok {
+		outputFields = map[string]interface{}{}
+	}
+	md["output_map"] = mozart.ConvertOutput2OutputMap(e.data.Output, outputFields)
 	md["version1"] = currentEngineLargeVersion
 	err := ec.mozart.Run(mozart.Event{
 		Name:    e.data.Rule,
