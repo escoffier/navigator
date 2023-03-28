@@ -84,20 +84,30 @@ var (
 
 type NamespacesQueryOption struct {
 	WhereLikeCondition map[string]string
+	whereEqCondition   map[string]interface{}
 }
 
 func NamespaceQuery() *NamespacesQueryOption {
 	return &NamespacesQueryOption{
 		WhereLikeCondition: map[string]string{},
+		whereEqCondition:   map[string]interface{}{},
 	}
 }
 
-func (n *NamespacesQueryOption) WithCluster(clusterKey string) *NamespacesQueryOption {
+func (n *NamespacesQueryOption) WithFuzzyCluster(clusterKey string) *NamespacesQueryOption {
 	n.WhereLikeCondition["cluster_key"] = clusterKey
 	return n
 }
-func (n *NamespacesQueryOption) WithName(ns string) *NamespacesQueryOption {
+func (n *NamespacesQueryOption) WithFuzzyName(ns string) *NamespacesQueryOption {
 	n.WhereLikeCondition["name"] = ns
+	return n
+}
+func (n *NamespacesQueryOption) WithCluster(clusterKey string) *NamespacesQueryOption {
+	n.whereEqCondition["cluster_key"] = clusterKey
+	return n
+}
+func (n *NamespacesQueryOption) WithName(ns string) *NamespacesQueryOption {
+	n.whereEqCondition["name"] = ns
 	return n
 }
 
@@ -203,8 +213,11 @@ func CountNamespacesWithOption(ctx context.Context, rdb *gorm.DB, queryOpt *Name
 
 		db := rdb.WithContext(oneCtx).Model(&model.TensorNamespace{}).Where("status = ?", 0)
 
+		if len(queryOpt.whereEqCondition) > 0 {
+			db = db.Where(queryOpt.whereEqCondition)
+		}
 		for column, val := range queryOpt.WhereLikeCondition {
-			rdb = rdb.Where(fmt.Sprintf("%s LIKE ?", column), getLikeExpr(val))
+			db = db.Where(fmt.Sprintf("%s LIKE ?", column), getLikeExpr(val))
 		}
 
 		return db.Count(&nsCount).Error
@@ -224,6 +237,9 @@ func GetNamespaceWithOption(ctx context.Context, rdb *gorm.DB, queryOpt *Namespa
 		oneCtx, cancel := context.WithTimeout(ctx, 500*time.Millisecond)
 		defer cancel()
 
+		if len(queryOpt.whereEqCondition) > 0 {
+			rdb = rdb.Where(queryOpt.whereEqCondition)
+		}
 		for column, val := range queryOpt.WhereLikeCondition {
 			rdb = rdb.Where(fmt.Sprintf("%s LIKE ?", column), getLikeExpr(val))
 		}
@@ -1014,32 +1030,60 @@ func (q *ResPodsQueryOption) GetClusterOption() (string, bool) {
 	}
 	return v.(string), ok
 }
-func (q *ResPodsQueryOption) WithCluster(clusterKey string) *ResPodsQueryOption {
+func (q *ResPodsQueryOption) WithFuzzyCluster(clusterKey string) *ResPodsQueryOption {
 	q.WhereLikeCondition["cluster_key"] = clusterKey
 	return q
 }
-func (q *ResPodsQueryOption) WithNodeName(nodeName string) *ResPodsQueryOption {
+func (q *ResPodsQueryOption) WithFuzzyNodeName(nodeName string) *ResPodsQueryOption {
 	q.WhereLikeCondition["node_name"] = nodeName
 	return q
 }
-func (q *ResPodsQueryOption) WithNamespace(ns string) *ResPodsQueryOption {
+func (q *ResPodsQueryOption) WithFuzzyNamespace(ns string) *ResPodsQueryOption {
 	q.WhereLikeCondition["namespace"] = ns
 	return q
 }
-func (q *ResPodsQueryOption) WithResourceKind(kind assets.ResourceKind) *ResPodsQueryOption {
+func (q *ResPodsQueryOption) WithFuzzyResourceKind(kind assets.ResourceKind) *ResPodsQueryOption {
 	q.WhereLikeCondition["resource_kind"] = string(kind)
 	return q
 }
-func (q *ResPodsQueryOption) WithResourceName(name string) *ResPodsQueryOption {
+func (q *ResPodsQueryOption) WithFuzzyResourceName(name string) *ResPodsQueryOption {
 	q.WhereLikeCondition["resource_name"] = name
 	return q
 }
-func (q *ResPodsQueryOption) WithName(cname string) *ResPodsQueryOption {
+func (q *ResPodsQueryOption) WithFuzzyName(cname string) *ResPodsQueryOption {
 	q.WhereLikeCondition["pod_name"] = cname
 	return q
 }
-func (q *ResPodsQueryOption) WithPodIP(ip string) *ResPodsQueryOption {
+func (q *ResPodsQueryOption) WithFuzzyPodIP(ip string) *ResPodsQueryOption {
 	q.WhereLikeCondition["pod_ip"] = ip
+	return q
+}
+func (q *ResPodsQueryOption) WithCluster(clusterKey string) *ResPodsQueryOption {
+	q.whereEqCondition["cluster_key"] = clusterKey
+	return q
+}
+func (q *ResPodsQueryOption) WithNamespace(ns string) *ResPodsQueryOption {
+	q.whereEqCondition["namespace"] = ns
+	return q
+}
+func (q *ResPodsQueryOption) WithName(cname string) *ResPodsQueryOption {
+	q.whereEqCondition["pod_name"] = cname
+	return q
+}
+func (q *ResPodsQueryOption) WithResourceKind(kind assets.ResourceKind) *ResPodsQueryOption {
+	q.whereEqCondition["resource_kind"] = string(kind)
+	return q
+}
+func (q *ResPodsQueryOption) WithResourceName(name string) *ResPodsQueryOption {
+	q.whereEqCondition["resource_name"] = name
+	return q
+}
+func (q *ResPodsQueryOption) WithNodeName(nodeName string) *ResPodsQueryOption {
+	q.whereEqCondition["node_name"] = nodeName
+	return q
+}
+func (q *ResPodsQueryOption) WithPodIP(ip string) *ResPodsQueryOption {
+	q.whereEqCondition["pod_ip"] = ip
 	return q
 }
 func (q *ResPodsQueryOption) WithCustom(column string, value interface{}) *ResPodsQueryOption {
@@ -1544,6 +1588,10 @@ func (q *NodeQueryOption) WithStatus(status int8) *NodeQueryOption {
 }
 func (q *NodeQueryOption) WithInConditionCustom(column string, value interface{}) *NodeQueryOption {
 	q.whereInCondition[column] = value
+	return q
+}
+func (q *NodeQueryOption) WithNodeName(name string) *NodeQueryOption {
+	q.whereEqCondition["host_name"] = name
 	return q
 }
 func (q *NodeQueryOption) WithColumnFuzzyQuery(column, query string) *NodeQueryOption {
