@@ -74,11 +74,23 @@ func (api *api) assets() func(chi.Router) {
 		r.Get("/rawContainer/{containerID}", api.getRawContainer())
 		r.Get("/resources/types", api.getResourceTypes())
 		r.Get("/cluster/ruleversion", api.getRuleVersion())
+
+		r.Get("/cluster/{cluster_key}/namespaces/{name}", api.getNamespace())
+		r.Get("/cluster/{cluster_key}/namespace/{namespace}/kind/{kind}/resources/{name}", api.getResource())
+		r.Get("/cluster/{cluster_key}/namespace/{namespace}/pods/{name}", api.getPod())
+		r.Get("/cluster/{cluster_key}/nodes/{name}", api.getNode())
+
 	}
 }
 
 func getNormalizedQueryParam(r *http.Request, key string) string {
 	p, _ := param.QueryString(r, key)
+	p = strings.TrimSpace(p)
+	return p
+}
+
+func getNormalizedURLParam(r *http.Request, key string) string {
+	p := chi.URLParam(r, key)
 	p = strings.TrimSpace(p)
 	return p
 }
@@ -590,10 +602,10 @@ func (api *api) getNamespaces() http.HandlerFunc {
 		}
 		query := dal.NamespaceQuery()
 		if clusterKey != "" {
-			query.WithCluster(clusterKey)
+			query.WithFuzzyCluster(clusterKey)
 		}
 		if name != "" {
-			query.WithName(name)
+			query.WithFuzzyName(name)
 		}
 
 		resSvc, ok := assets.GetResourcesService(ctx)
@@ -1208,7 +1220,7 @@ func (api *api) getPods() http.HandlerFunc {
 
 		name := getNormalizedQueryParam(r, "name")
 		if name != "" {
-			queryOpt.WithName(name)
+			queryOpt.WithFuzzyName(name)
 		}
 
 		podIP := getNormalizedQueryParam(r, "pod_ip")
@@ -2062,13 +2074,25 @@ func (api *api) getRawContainer() http.HandlerFunc {
 			}
 		}
 		query.WithInConditionCustom("status", assetsPkg.All)
-		containers, err := resSvc.GetRawContainer(ctx, query, -1, -1)
-		if err != nil || len(containers) == 0 {
+		containers, err := resSvc.GetRawContainer(ctx, query, 0, 1)
+		if err != nil {
 			logging.Get().Err(err).Msgf("get raw container error, got number %d", len(containers))
 			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, err))
 			return
 		}
 
+		var container *model.TensorRawContainer
+		if len(containers) > 0 {
+			container = containers[0]
+		}
+		response.Ok(w, func(ev *response.HTTPEnvelope) {
+			data, err := json.Marshal(container)
+			if err != nil {
+				ev.EnvelopeError = fmt.Sprintf("Failed to marshal item to json: %v", err)
+			} else {
+				ev.Data.Item = data
+			}
+		})
 		response.Ok(w, response.WithItem(containers[0]))
 	}
 }
@@ -2134,5 +2158,226 @@ func (api *api) getRuleVersion() http.HandlerFunc {
 			return
 		}
 		response.Ok(w, response.WithItems(ruleVersions), response.WithTotalItems(cnt))
+	}
+}
+
+// @Summary
+// @Description get detail of namespace in given cluster
+// @Produce json
+// @Method GET
+// @Router /api/v2/platform/assets/cluster/{cluster_key}/namespaces/{name}
+func (api *api) getNamespace() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+		defer cancel()
+
+		clusterKey := getNormalizedURLParam(r, "cluster_key")
+		name := getNormalizedURLParam(r, "name")
+
+		if clusterKey == "" || name == "" {
+			RespAndLog(w, ctx, NewAnError(http.StatusBadRequest, errors.New("invalid cluster or name for namespace")))
+			return
+		}
+
+		query := dal.NamespaceQuery()
+		query.WithCluster(clusterKey)
+		query.WithName(name)
+		resSvc, ok := assets.GetResourcesService(ctx)
+		if !ok {
+			logging.Get().Error().Msg("service instance get error")
+			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.New("service instance get error")))
+			return
+		}
+		namespaces, _, err := resSvc.GetNamespacesWithOption(ctx, query, 0, 1)
+		if err != nil {
+			logging.Get().Err(err).Msg("getNamespaces error")
+			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, err))
+			return
+		}
+		var ns *model.TensorNamespace
+		if len(namespaces) > 0 {
+			ns = namespaces[0]
+		}
+		response.Ok(w, func(ev *response.HTTPEnvelope) {
+			data, err := json.Marshal(ns)
+			if err != nil {
+				ev.EnvelopeError = fmt.Sprintf("Failed to marshal item to json: %v", err)
+			} else {
+				ev.Data.Item = data
+			}
+		})
+	}
+}
+
+// @Summary
+// @Description get detail of one resource(workload)
+// @Produce json
+// @Method GET
+// @Router /api/v2/platform/assets/cluster/{cluster_key}/namespace/{namespace}/kind/{kind}/resources/{name}
+func (api *api) getResource() http.HandlerFunc {
+	type resource struct {
+		Cluster   string   `json:"cluster"`
+		Namespace string   `json:"namespace"`
+		Kind      string   `json:"kind"`
+		Name      string   `json:"name"`
+		UID       string   `json:"uid"`
+		Alias     string   `json:"alias"`
+		Managers  []string `json:"managers"`
+		Authority string   `json:"authority"`
+	}
+	modelToResource := func(rm *model.TensorResource) *resource {
+		r := new(resource)
+		r.Cluster = rm.ClusterKey
+		r.Namespace = rm.Namespace
+		r.Kind = rm.Kind
+		r.Name = rm.Name
+		r.UID = rm.UID
+		r.Alias = rm.Alias
+		r.Managers = rm.Managers
+		r.Authority = rm.Authority
+		return r
+	}
+
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+		defer cancel()
+
+		clusterKey := getNormalizedURLParam(r, "cluster_key")
+		namespace := getNormalizedURLParam(r, "namespace")
+		kind := getNormalizedURLParam(r, "kind")
+		name := getNormalizedURLParam(r, "name")
+		if clusterKey == "" || namespace == "" || kind == "" || name == "" {
+			RespAndLog(w, ctx, NewAnError(http.StatusNotFound, errors.New("invalid params for resource")))
+			return
+		}
+
+		resSvc, ok := assets.GetResourcesService(ctx)
+		if !ok {
+			logging.Get().Error().Msg("service instance get error")
+			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.New("service instance get error")))
+			return
+		}
+		rQuery := dal.ResourcesQuery()
+		rQuery = rQuery.WithCluster(clusterKey)
+		rQuery = rQuery.WithNamespace(namespace)
+		rQuery = rQuery.WithResourceKind(assetsPkg.ResourceKind(kind))
+		rQuery = rQuery.WithResourceName(name)
+
+		resources, _, err := resSvc.GetResources(ctx, rQuery, 0, 1)
+		if err != nil {
+			logging.Get().Err(err).Msgf("query: %+v. offset: %d, limit: %d. get resources error", rQuery, 0, 1)
+			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.New("get resources error")))
+			return
+		}
+
+		var item *resource
+		if len(resources) > 0 {
+			item = modelToResource(resources[0])
+		}
+		response.Ok(w, func(ev *response.HTTPEnvelope) {
+			data, err := json.Marshal(item)
+			if err != nil {
+				ev.EnvelopeError = fmt.Sprintf("Failed to marshal item to json: %v", err)
+			} else {
+				ev.Data.Item = data
+			}
+		})
+	}
+}
+
+// @Summary
+// @Description get detail of one pod
+// @Produce json
+// @Method GET
+// @Router /api/v2/platform/assets/cluster/{cluster_key}/namespace/{namespace}/pods/{name}
+func (api *api) getPod() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+
+		queryOpt := dal.ResourcePodssQuery()
+		clusterKey := getNormalizedURLParam(r, "cluster_key")
+		namespace := getNormalizedURLParam(r, "namespace")
+		name := getNormalizedURLParam(r, "name")
+		if clusterKey == "" || namespace == "" || name == "" {
+			RespAndLog(w, ctx, NewAnError(http.StatusBadRequest, errors.New("invalid params for pod")))
+			return
+		}
+
+		queryOpt.WithCluster(clusterKey)
+		queryOpt.WithNamespace(namespace)
+		queryOpt.WithName(name)
+
+		resSvc, ok := assets.GetResourcesService(ctx)
+		if !ok {
+			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.New("get resource service err")))
+			return
+		}
+
+		pods, _, err := resSvc.GetResourcePods(ctx, queryOpt, 0, 1)
+		if err != nil {
+			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, fmt.Errorf("get resource pod err: %v", err)))
+			return
+		}
+		var pod *model.PodResourceRelation
+		if len(pods) > 0 {
+			pod = pods[0]
+		}
+		response.Ok(w, func(ev *response.HTTPEnvelope) {
+			data, err := json.Marshal(pod)
+			if err != nil {
+				ev.EnvelopeError = fmt.Sprintf("Failed to marshal item to json: %v", err)
+			} else {
+				ev.Data.Item = data
+			}
+		})
+	}
+}
+
+// @Summary
+// @Description get detail of one node
+// @Produce json
+// @Method GET
+// @Router /api/v2/platform/assets/cluster/{cluster_key}/nodes/{name}
+func (api *api) getNode() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+		defer cancel()
+
+		clusterKey := chi.URLParam(r, "cluster_key")
+		name := chi.URLParam(r, "name")
+		if clusterKey == "" || name == "" {
+			RespAndLog(w, ctx, NewAnError(http.StatusBadRequest, errors.New("service instance get error")))
+			return
+		}
+
+		resSvc, ok := assets.GetResourcesService(ctx)
+		if !ok {
+			logging.Get().Error().Msg("service instance get error")
+			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.New("service instance get error")))
+			return
+		}
+		queryOpt := dal.NodeQuery()
+		queryOpt.WithCluster(clusterKey)
+		queryOpt.WithNodeName(name)
+
+		nodes, err := resSvc.GetNodes(ctx, queryOpt, 0, 1)
+		if err != nil {
+			logging.Get().Err(err).Msg("getNodes error")
+			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, err))
+			return
+		}
+		var node *model.TensorNode
+		if len(nodes) > 0 {
+			node = nodes[0]
+		}
+		response.Ok(w, func(ev *response.HTTPEnvelope) {
+			data, err := json.Marshal(node)
+			if err != nil {
+				ev.EnvelopeError = fmt.Sprintf("Failed to marshal item to json: %v", err)
+			} else {
+				ev.Data.Item = data
+			}
+		})
 	}
 }
