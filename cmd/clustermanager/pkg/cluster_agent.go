@@ -74,6 +74,7 @@ type ClusterAgent struct {
 	CusterID              string
 	Name                  string
 	KubeRestConfig        *k8s.InfoForRestConfig
+	KubeProxyRestConfig   *k8s.InfoForRestConfig
 	externalApiServerAddr string
 	apiServerAddr         string
 	Description           string
@@ -98,6 +99,8 @@ const (
 	ApiServerCaFile   = "/etc/secrets/cluster-admin/ca.crt"
 	ApiServerCertFile = "/etc/secrets/cluster-admin/tls.crt"
 	ApiServerKeyFile  = "/etc/secrets/cluster-admin/tls.key"
+
+	ProxyCertPath = "/etc/secrets/proxy-client/"
 )
 
 func NewClusterAgent(config *config.Config) *ClusterAgent {
@@ -152,14 +155,14 @@ func (c *ClusterAgent) Init() error {
 	if err != nil {
 		return err
 	}
-
 	c.httpClient = client
 
+	clusterConfig, err := rest.InClusterConfig()
+	if err != nil {
+		return err
+	}
+
 	if c.apiServerAddr == "" {
-		clusterConfig, err := rest.InClusterConfig()
-		if err != nil {
-			return err
-		}
 		c.apiServerAddr = clusterConfig.Host
 	}
 
@@ -183,11 +186,18 @@ func (c *ClusterAgent) Init() error {
 	}
 	c.KubeRestConfig = restConfig
 
-	kubeConfig, err := rest.InClusterConfig()
-	if err != nil {
-		return err
+	proxyCertData, err := loadCertsFromFile(ProxyCertPath)
+	if err == nil {
+		c.KubeProxyRestConfig = &k8s.InfoForRestConfig{
+			CAData:   proxyCertData.caData,
+			CertData: proxyCertData.certData,
+			KeyData:  proxyCertData.keyData,
+		}
+	} else {
+		logging.Get().Err(err).Msg("failed to load proxy cert")
 	}
-	c.HostClient, err = assets.NewForConfig(kubeConfig)
+
+	c.HostClient, err = assets.NewForConfig(clusterConfig)
 	if err != nil {
 		return err
 	}
@@ -230,16 +240,21 @@ func (c *ClusterAgent) registerClusterInfo() error {
 	}
 	logging.Get().Info().Str("product_version", version).Msg("Get cluster product version")
 
+	kubeConfig := c.KubeRestConfig
+	//using api server proxy
+	if c.KubeProxyRestConfig != nil {
+		kubeConfig = c.KubeProxyRestConfig
+	}
 	cluster := &model.TensorCluster{
 		Key:                 c.CusterID,
 		Name:                c.Name,
 		ClusterType:         c.ClusterType,
 		Description:         c.Description,
 		APIServerAddr:       c.externalApiServerAddr,
-		CertificateAuthData: string(c.KubeRestConfig.CAData),
-		SecretToken:         string(c.KubeRestConfig.Token),
-		ClientCertData:      string(c.KubeRestConfig.CertData),
-		ClientKeyData:       string(c.KubeRestConfig.KeyData),
+		CertificateAuthData: string(kubeConfig.CAData),
+		SecretToken:         string(kubeConfig.Token),
+		ClientCertData:      string(kubeConfig.CertData),
+		ClientKeyData:       string(kubeConfig.KeyData),
 		WorkerNamespace:     c.workerNamespace,
 		Status:              0,
 		Platform:            c.platform,
@@ -293,16 +308,22 @@ func (c *ClusterAgent) grpcRegisterClusterInfo() error {
 	}
 	logging.Get().Info().Str("product_version", version).Msg("Get cluster product version")
 
+	kubeConfig := c.KubeRestConfig
+	//using api server proxy
+	if c.KubeProxyRestConfig != nil {
+		kubeConfig = c.KubeProxyRestConfig
+	}
+
 	cluster := &pb.ClusterRegister{
 		Key:                 c.CusterID,
 		Name:                c.Name,
 		ClusterType:         string(c.ClusterType),
 		Description:         c.Description,
 		APIServerAddr:       c.externalApiServerAddr,
-		CertificateAuthData: string(c.KubeRestConfig.CAData),
-		SecretToken:         string(c.KubeRestConfig.Token),
-		ClientCertData:      string(c.KubeRestConfig.CertData),
-		ClientKeyData:       string(c.KubeRestConfig.KeyData),
+		CertificateAuthData: string(kubeConfig.CAData),
+		SecretToken:         string(kubeConfig.Token),
+		ClientCertData:      string(kubeConfig.CertData),
+		ClientKeyData:       string(kubeConfig.KeyData),
 		WorkerNamespace:     c.workerNamespace,
 		Status:              0,
 		Platform:            c.platform,
@@ -448,6 +469,38 @@ func loadCertsData() (*CertsData, error) {
 	}
 
 	logging.Get().Info().Msgf("ca: %s", string(caData))
+	return &CertsData{
+		keyData:  keyData,
+		certData: certData,
+		caData:   caData,
+	}, nil
+}
+
+func loadCertsFromFile(path string) (*CertsData, error) {
+	certData, err := os.ReadFile(path + "tls.crt")
+	if err != nil {
+		return nil, err
+	}
+	keyData, err := os.ReadFile(path + "tls.key")
+	if err != nil {
+		return nil, err
+	}
+
+	logging.Get().Info().Msgf("proxy cert: %s", string(certData))
+	logging.Get().Info().Msgf("proxy key: %s", string(keyData))
+	var caData []byte
+	var caFile string = path + "ca.crt"
+	if _, err = certutil.NewPool(caFile); err != nil {
+		logging.Get().Err(err).Msg("load proxy root ca file err")
+		return nil, err
+	}
+
+	caData, err = os.ReadFile(caFile)
+	if err != nil {
+		return nil, err
+	}
+
+	logging.Get().Info().Msgf("proxy ca: %s", string(caData))
 	return &CertsData{
 		keyData:  keyData,
 		certData: certData,
