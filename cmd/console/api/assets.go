@@ -2066,11 +2066,8 @@ func (api *api) getRawContainer() http.HandlerFunc {
 			contaierLen := len(containerID)
 			if contaierLen < 64 {
 				query = query.WithPrefixColumnQuery("id", containerID)
-			} else if contaierLen == 64 {
-				query = query.WithID(containerID)
 			} else {
-				RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.New("invalid container id")))
-				return
+				query = query.WithID(containerID)
 			}
 		}
 		query.WithInConditionCustom("status", assetsPkg.All)
@@ -2093,7 +2090,6 @@ func (api *api) getRawContainer() http.HandlerFunc {
 				ev.Data.Item = data
 			}
 		})
-		response.Ok(w, response.WithItem(containers[0]))
 	}
 }
 
