@@ -12,7 +12,6 @@ import (
 	"github.com/gin-gonic/gin"
 	json "github.com/json-iterator/go"
 	param "github.com/oceanicdev/chi-param"
-	"k8s.io/client-go/rest"
 
 	clusterAgent "gitlab.com/piccolo_su/vegeta/cmd/clustermanager/pkg"
 	"gitlab.com/piccolo_su/vegeta/cmd/clustermanager/pkg/attack"
@@ -32,33 +31,21 @@ type ClusterServer struct {
 	config             *config.Config
 	clusterManager     *k8s.ClusterManager
 	attackCacheService *attack.CacheService
+	agent              *clusterAgent.ClusterAgent
 }
 
 func (cs *ClusterServer) SetClusterManager(cm *k8s.ClusterManager) {
 	cs.clusterManager = cm
 }
 func (cs *ClusterServer) handleClusterQuery(c *gin.Context) {
-	kubeConfig, err := rest.InClusterConfig()
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, err.Error())
-		return
-	}
-
 	clusterInfo := &TensorCluster{
-		Key:         cs.ClusterID,
-		Name:        cs.config.Name,
-		ConsoleURL:  getConsoleURLPrefix(cs.config.MasterAddr),
-		Description: "",
-		Status:      0,
-		K8SRestConfig: &k8s.InfoForRestConfig{
-			CertData:      kubeConfig.CertData,
-			KeyData:       kubeConfig.KeyData,
-			CAData:        kubeConfig.CAData,
-			Token:         []byte(kubeConfig.BearerToken),
-			APIServerAddr: kubeConfig.Host,
-		},
+		Key:           cs.ClusterID,
+		Name:          cs.config.Name,
+		ConsoleURL:    getConsoleURLPrefix(cs.config.MasterAddr),
+		Description:   "",
+		Status:        0,
+		K8SRestConfig: cs.agent.KubeRestConfig,
 	}
-
 	c.JSON(http.StatusOK, clusterInfo)
 }
 
@@ -158,6 +145,7 @@ func NewHTTPServer(agent *clusterAgent.ClusterAgent, config *config.Config) (*Cl
 		Name:               config.Name,
 		config:             config,
 		attackCacheService: attack.NewCacheService(config.MasterAddr, agent),
+		agent:              agent,
 	}
 
 	r := gin.Default()
