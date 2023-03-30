@@ -60,6 +60,7 @@ type configMozartStepParamsCheckRuleRecentCount []interface{}
 type configMozartStepParamsCheckRegexMatch []interface{}
 
 type configMozartStepParamsExecExpression string
+type configMozartStepParamsExecDefineValue map[string]interface{}
 type configMozartStepParamsExecGenerateSignal map[string]interface{}
 type configMozartStepParamsExecSendPalace string
 
@@ -88,16 +89,32 @@ func (cp configMozartStepParamsCheckRuleRecentCount) rCode() string {
 }
 
 func (cp configMozartStepParamsCheckRegexMatch) rCode() string {
-	return fmt.Sprintf(`CheckRegexMatch("%s", CacheContext("%s", input.session_id))`, strings.ReplaceAll(cp[0].(string), `\`, `\\`), cp[1])
+	return fmt.Sprintf("CheckRegexMatch(`%s`, CacheContext(`%s`, input.session_id))", cp[0].(string), cp[1].(string))
 }
 
 func (cp configMozartStepParamsExecExpression) rCode() string {
 	return string(cp)
 }
 
+func (cp configMozartStepParamsExecDefineValue) rCode() string {
+	s := ""
+	valueTemplate := "%s=\"%v\";"
+	varTemplate := "%s=makeValue(\"%s\", input.session_id);"
+	for k, v := range cp {
+		template := valueTemplate
+		sv, sok := v.(string)
+		if sok && strings.Contains(sv, ".") { // fixme: 类似小数点或其他的特殊情况，暂不考虑
+			template = varTemplate
+		}
+		s += fmt.Sprintf(template, k, v)
+	}
+	s = s[:len(s)-1]
+	return s
+}
+
 func (cp configMozartStepParamsExecGenerateSignal) rCode() string {
 	s := ""
-	valueTemplate := "\"%s\":\"%s\""
+	valueTemplate := "\"%s\":\"%v\""
 	varTemplate := "\"%s\":%s"
 	for k, v := range cp {
 		template := valueTemplate
@@ -112,7 +129,7 @@ func (cp configMozartStepParamsExecGenerateSignal) rCode() string {
 		}
 		s += fmt.Sprintf(template, k, v)
 	}
-	return fmt.Sprintf("signal := generateAlertSignal(CacheContext(\"trigger.payload\", input.session_id), {%s})", s)
+	return fmt.Sprintf("signal := generateAlertSignal(CacheContext(\"trigger.payload\", input.session_id), {%s}, input.session_id)", s)
 }
 
 func (cp configMozartStepParamsExecSendPalace) rCode() string {

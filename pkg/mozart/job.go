@@ -5,7 +5,6 @@ import (
 	"math/rand"
 	"strconv"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	json "github.com/json-iterator/go"
@@ -53,27 +52,25 @@ func job(iArg interface{}) {
 	}
 
 	for k := range rules.rulesWithDefault {
+		someBranchSucceed := false
 		defaultRuleIndex := -1
-		var succeedCount atomic.Int64
-		wg := sync.WaitGroup{}
+		for j := range rules.rulesWithDefault[k] {
+			if rules.rulesWithDefault[k][j].Default.Enabled != nil && *rules.rulesWithDefault[k][j].Default.Enabled {
+				defaultRuleIndex = j
+				break
+			}
+		}
 		for j := range rules.rulesWithDefault[k] {
 			if !rules.rulesWithDefault[k][j].Enabled {
 				continue
 			}
-			if rules.rulesWithDefault[k][j].Default.Enabled {
-				defaultRuleIndex = j
-				continue
+			// 暂时做成串行，后面考虑用配置字段支持串行或并行的配置
+			if runSteps(event, rules.rulesWithDefault[k][j], jsonEvent) > 0 {
+				someBranchSucceed = true
+				break
 			}
-
-			wg.Add(1)
-			go func(n int) {
-				defer wg.Done()
-				succeed := runSteps(event, rules.rulesWithDefault[k][n], jsonEvent)
-				succeedCount.Add(succeed)
-			}(j)
 		}
-		wg.Wait()
-		if succeedCount.Load() == 0 && defaultRuleIndex != -1 {
+		if !someBranchSucceed && defaultRuleIndex != -1 {
 			// 其他分支全部失败，执行default分支
 			runSteps(event, rules.rulesWithDefault[k][defaultRuleIndex], jsonEvent)
 		}
@@ -149,18 +146,23 @@ func check(regoQ rego.PreparedEvalQuery, sessionID string) (bool, error) {
 		return false, nil
 	}
 
-	// Do something with result.
-	_, ok := rs[0].Expressions[0].Value.([]interface{})
+	// cache expressions
+	// expression.value 的第一项，约定为check的结果，bool类型
+	// expression.value 的第二项，约定为返回数据，需要cache到session
+	// 如果value不是list，则应该为check的结果，bool类型
+	result, ok := rs[0].Expressions[0].Value.([]interface{})
 	if ok {
-		//checkResult, _ = result[0].(bool)
-		//sc, _ := result[1].(string)
-		//appendC := make(map[string]interface{})
-		//_ = json.Unmarshal([]byte(sc), &appendC)
-		//cache.Lock.Lock()
-		//for k, v := range appendC {
-		//	cache.Sessions[w.SessionID][k] = v
-		//}
-		//cache.Lock.Unlock()
+		checkResult, _ = result[0].(bool)
+		sc, _ := result[1].(string)
+		if len(sc) != 0 {
+			appendC := make(map[string]interface{})
+			_ = json.Unmarshal([]byte(sc), &appendC)
+			cache.Lock.Lock()
+			for k, v := range appendC {
+				cache.Sessions[sessionID][k] = v
+			}
+			cache.Lock.Unlock()
+		}
 	} else {
 		checkResult = rs[0].Expressions[0].Value.(bool)
 	}

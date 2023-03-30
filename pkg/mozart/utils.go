@@ -133,3 +133,7 @@ func ConvertKeyDotToUnderScore(m map[string]interface{}) map[string]interface{} 
 	}
 	return nm
 }
+
+func convertSpaceToUnderScore(s string) string {
+	return strings.ReplaceAll(s, " ", "_")
+}

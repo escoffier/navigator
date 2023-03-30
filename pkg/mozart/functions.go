@@ -4,11 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"regexp"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/dlclark/regexp2"
 	"github.com/go-redis/redis/v8"
 	json "github.com/json-iterator/go"
 	"github.com/open-policy-agent/opa/ast"
@@ -17,6 +17,7 @@ import (
 
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/nodeinfo" // todo: 去掉依赖
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
+	"gitlab.com/piccolo_su/vegeta/pkg/mozartcommon"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 	"gitlab.com/security-rd/go-pkg/logging"
 	"gitlab.com/security-rd/go-pkg/sdk/palace"
@@ -88,7 +89,7 @@ func (e *Engine) ExistsInPeriod(x rego.BuiltinContext, as []*ast.Term) (*ast.Ter
 	if !ok {
 		err := errors.New("a not string")
 		logging.Get().Error().Err(err).Interface("a", as[0]).Msg(err.Error())
-		return ast.BooleanTerm(false), err
+		return ast.ArrayTerm(ast.BooleanTerm(false), ast.StringTerm("")), err
 	}
 	sParam := param.String()[1 : len(param.String())-1]
 
@@ -96,7 +97,7 @@ func (e *Engine) ExistsInPeriod(x rego.BuiltinContext, as []*ast.Term) (*ast.Ter
 	if !ok {
 		err := errors.New("b not string")
 		logging.Get().Error().Err(err).Interface("b", as[1]).Msg(err.Error())
-		return ast.BooleanTerm(false), errors.New("b not string")
+		return ast.ArrayTerm(ast.BooleanTerm(false), ast.StringTerm("")), errors.New("b not string")
 	}
 	sPeriod := period.String()[1 : len(period.String())-1]
 	var tPeriod time.Duration
@@ -105,7 +106,7 @@ func (e *Engine) ExistsInPeriod(x rego.BuiltinContext, as []*ast.Term) (*ast.Ter
 	if err != nil {
 		err := errors.New("sPeriod convert int fails")
 		logging.Get().Error().Err(err).Interface("period", period.String()).Msg(err.Error())
-		return ast.BooleanTerm(false), err
+		return ast.ArrayTerm(ast.BooleanTerm(false), ast.StringTerm("")), err
 	}
 	switch sPeriod[len(sPeriod)-1] {
 	case 's':
@@ -119,7 +120,7 @@ func (e *Engine) ExistsInPeriod(x rego.BuiltinContext, as []*ast.Term) (*ast.Ter
 	mozartStartTime, err := time.Parse(time.RFC3339, sMozartStartTime[1:len(sMozartStartTime)-1])
 	if err != nil {
 		logging.Get().Error().Err(err).Interface("c", as[2].Value).Msg("invalid mozartStartTime")
-		return ast.BooleanTerm(false), err
+		return ast.ArrayTerm(ast.BooleanTerm(false), ast.StringTerm("")), err
 	}
 
 	// 此处为了避免当处理触发信号时，关联信号因各种原因导致后到，所以等待一个关联窗口
@@ -147,11 +148,15 @@ func (e *Engine) ExistsInPeriod(x rego.BuiltinContext, as []*ast.Term) (*ast.Ter
 		return sTriggerValue == sRelatedValue
 	}
 
-	_, exists := checkCache(sParam, tStart, tEnd, check)
+	events, exists := checkCache(sParam, tStart, tEnd, check)
 	if exists {
-		return ast.BooleanTerm(true), nil
+		relateds := map[string]interface{}{
+			convertSpaceToUnderScore(sParam): events,
+		}
+		br, _ := json.Marshal(relateds)
+		return ast.ArrayTerm(ast.BooleanTerm(true), ast.StringTerm(string(br))), nil
 	}
-	return ast.BooleanTerm(false), errors.New("no matched cache: " + sParam)
+	return ast.ArrayTerm(ast.BooleanTerm(false), ast.StringTerm("")), errors.New("no matched cache: " + sParam)
 }
 
 func (e *Engine) NotExistsInPeriod(x rego.BuiltinContext, a, b, c *ast.Term) (*ast.Term, error) {
@@ -381,7 +386,6 @@ func (e *Engine) CheckRegexMatch(x rego.BuiltinContext, a, b *ast.Term) (*ast.Te
 		return ast.BooleanTerm(false), err
 	}
 	pattern := paramA.String()[1 : len(paramA.String())-1]
-	pattern = strings.ReplaceAll(pattern, "\\\\", "\\")
 
 	paramB, ok := b.Value.(ast.String)
 	if !ok {
@@ -391,7 +395,15 @@ func (e *Engine) CheckRegexMatch(x rego.BuiltinContext, a, b *ast.Term) (*ast.Te
 	}
 	key := paramB.String()[1 : len(paramB.String())-1]
 
-	matched, err := regexp.Match(pattern, []byte(key))
+	pattern = strings.ReplaceAll(strings.ReplaceAll(pattern, `\\`, `\`), `\"`, `"`)
+	//key = strings.ReplaceAll(strings.ReplaceAll(key, `\\`, `\`), `\"`, `"`)
+
+	re, err := regexp2.Compile(pattern, 0)
+	if err != nil {
+		logging.Get().Error().Err(err).Str("pattern", pattern).Str("key", key).Msg(err.Error())
+		return ast.BooleanTerm(false), err
+	}
+	matched, err := re.MatchString(key)
 	if err != nil {
 		logging.Get().Error().Err(err).Str("pattern", pattern).Str("key", key).Msg(err.Error())
 		return ast.BooleanTerm(false), err
@@ -404,7 +416,7 @@ func recentCountCacheKey(ruleName string, sameFields, diffFields, cacheHashes []
 	return strings.Join(append([]string{ruleName}, append(sameFields, append(diffFields, cacheHashes...)...)...), "$")
 }
 
-func (e *Engine) GenerateAlertSignal(x rego.BuiltinContext, a, b *ast.Term) (*ast.Term, error) {
+func (e *Engine) GenerateAlertSignal(x rego.BuiltinContext, a, b, c *ast.Term) (*ast.Term, error) {
 
 	tPayload := a.Value.String()
 	tPayload = tPayload[1 : len(tPayload)-1]
@@ -423,19 +435,35 @@ func (e *Engine) GenerateAlertSignal(x rego.BuiltinContext, a, b *ast.Term) (*as
 		return nil, err
 	}
 
+	sessionID := c.Value.String()
+	sessionID = sessionID[1 : len(sessionID)-1]
+
 	rule, ok := m["rule"]
 	if !ok {
 		return nil, errors.New("invalid params, missing rule")
 	}
-	delete(m, "rule")
-	delete(m, "priority")
 
 	for k, v := range m {
-		triggerValue, e := getInfoFromOutput(fmt.Sprintf("%s=", k), tSignal.Output)
-		if e != nil {
+		cache.Lock.Lock()
+		sessionM := cache.Sessions[sessionID]
+		cache.Lock.Unlock()
+		iv, err := mozartcommon.TemplateFormat(v, sessionM)
+		if err != nil {
+			logging.Get().Error().Err(err).Str("v", v).Msg("value template fails")
+			continue
+		} else {
+			v = fmt.Sprintf("%v", iv)
+		}
+		m[k] = v
+		if k == "rule" {
+			rule = v
 			continue
 		}
-		tSignal.Output = strings.Replace(tSignal.Output, triggerValue, v, -1)
+
+		triggerValue, e := getInfoFromOutput(fmt.Sprintf("%s=", k), tSignal.Output)
+		if e == nil {
+			tSignal.Output = strings.Replace(tSignal.Output, triggerValue, v, -1)
+		}
 
 		tSignal.OutputMap[k] = v
 
@@ -670,10 +698,6 @@ func generateSignalContext(data *SignalPayload) (signalContext map[string]interf
 	}
 	podUID = data.OutputFields["k8s_pod_id"]
 
-	for k, v := range data.OutputFields {
-		data.OutputMap[k] = v
-	}
-
 	for key, value := range data.OutputMap {
 		if value == "<NA>" {
 			value = ""
@@ -738,6 +762,43 @@ func getInfoFromOutput(key, output string) (string, error) {
 	resultList = strings.Split(retStr, " ")
 	retStr = resultList[0]
 	return retStr, nil
+}
+
+func makeValue(x rego.BuiltinContext, a, b *ast.Term) (*ast.Term, error) {
+	v := a.Value.String()
+	v = v[1 : len(v)-1]
+
+	sessionID := b.Value.String()
+	sessionID = sessionID[1 : len(sessionID)-1]
+	if paths := strings.Split(v, "."); len(paths) > 1 {
+		cache.Lock.Lock()
+		sessionM := cache.Sessions[sessionID]
+		cache.Lock.Unlock()
+		vs, err := getByPath(sessionM, paths[0])
+		if err != nil {
+			logging.Get().Error().Err(err).Str("v", v).Msg("value path not exists in session")
+			return ast.NullTerm(), err
+		}
+		vsm := make([]map[string]interface{}, 0)
+		bvs, _ := json.Marshal(vs)
+		err = json.Unmarshal(bvs, &vsm)
+		if err != nil {
+			logging.Get().Error().Err(err).Str("v", v).Interface("vs", vs).Msg("values not []map[string]interface{}")
+			return ast.NullTerm(), err
+		}
+		if len(vsm) == 0 {
+			logging.Get().Error().Err(err).Str("v", v).Interface("vs", vs).Msg("values empty")
+			return ast.NullTerm(), errors.New("values empty")
+		}
+		value, err := getByPath(vsm[0], strings.Join(paths[1:], "."))
+		if err != nil {
+			logging.Get().Error().Err(err).Str("v", v).Msg("value path not exists in session." + paths[0])
+			return ast.NullTerm(), err
+		}
+		v = fmt.Sprintf("%v", value)
+	}
+
+	return ast.StringTerm(v), nil
 }
 
 func defaultCheckTrue(m map[string]interface{}) bool { return true }

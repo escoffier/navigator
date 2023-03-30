@@ -111,6 +111,16 @@ func (e *Engine) configToRegoQuery(stepName, stepCode string) (regoQuery rego.Pr
 				e.CheckRegexMatch),
 		).PrepareForEval(ctx)
 
+	case "execDefineValue":
+		regoQuery, err = rego.New(
+			rego.Query(stepCode),
+			rego.Function2(
+				&rego.Function{
+					Name: "makeValue",
+					Decl: types.NewFunction(types.Args(types.S, types.S), types.A),
+				},
+				makeValue),
+		).PrepareForEval(ctx)
 	case "execGenerateSignal":
 		regoQuery, err = rego.New(
 			rego.Query(stepCode),
@@ -120,10 +130,10 @@ func (e *Engine) configToRegoQuery(stepName, stepCode string) (regoQuery rego.Pr
 					Decl: types.NewFunction(types.Args(types.S, types.S), types.A),
 				},
 				CacheContext),
-			rego.Function2(
+			rego.Function3(
 				&rego.Function{
 					Name: "generateAlertSignal",
-					Decl: types.NewFunction(types.Args(types.A, types.A), types.A),
+					Decl: types.NewFunction(types.Args(types.A, types.A, types.S), types.A),
 				},
 				e.GenerateAlertSignal),
 		).PrepareForEval(ctx)

@@ -95,6 +95,7 @@ require github.com/go-ldap/ldap/v3 v3.4.1
 require (
 	github.com/afex/hystrix-go v0.0.0-20180502004556-fa1af6a1f4f5
 	github.com/ahmetb/go-linq/v3 v3.2.0
+	github.com/dlclark/regexp2 v1.8.1
 	github.com/elastic/go-libaudit/v2 v2.2.0
 	github.com/ghodss/yaml v1.0.0
 	github.com/gin-contrib/pprof v1.4.0
