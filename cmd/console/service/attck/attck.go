@@ -188,6 +188,8 @@ func parseMozartRule(configMozart model.ConfigMozart, mozartMarco []model.Config
 	}
 	if len(flatValues) == 0 {
 		flatValues = []map[string]interface{}{{}} // 无变量赋值，使用空配置
+	} else if mozartcommon.CheckDefaultFormatValue(ruleEnName) { // 存在默认值
+		flatValues = append(flatValues, map[string]interface{}{})
 	}
 	for i := range flatValues {
 		iDescZh, err := mozartcommon.TemplateFormat(configMozart.Info.Desc.Zh, flatValues[i])

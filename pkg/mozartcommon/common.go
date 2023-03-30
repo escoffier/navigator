@@ -101,6 +101,7 @@ func TemplateFormat(format interface{}, values map[string]interface{}) (interfac
 }
 
 func templateFormatString(format string, values map[string]interface{}) (string, error) {
+	var err error
 	re := regexp.MustCompile(`{[^{"]*?:[^{"]*?}`)
 	results := re.FindAllString(format, -1)
 	defaultMap := make(map[string]interface{})
@@ -119,6 +120,9 @@ func templateFormatString(format string, values map[string]interface{}) (string,
 	afterFormat := strings.NewReplacer(args...).Replace(format)
 	defaultRe := regexp.MustCompile(`{[^{]*?}`)
 	afterResults := defaultRe.FindAllString(afterFormat, -1)
+	if len(defaultMap) == 0 && len(afterResults) != 0 {
+		return afterFormat, errors.New("some key has no value")
+	}
 	if len(afterResults) != 0 {
 		ar2 := make([]string, 0)
 		for i := range afterResults {
@@ -130,15 +134,17 @@ func templateFormatString(format string, values map[string]interface{}) (string,
 		for i := range ar2 {
 			k := ar2[i][1 : len(ar2[i])-1]
 			if _, ok := defaultMap[k]; !ok {
-				err := errors.New("some key has no value")
+				// 使用默认值仍然无法format全部变量，记录error。并将剩下的变量format完成。
+				err = errors.New("some key has no value")
 				logging.Get().Error().Err(err).Interface("key", k).Interface("default values", defaultMap).Msg("some key has no value")
-				return afterFormat, err
+				//return afterFormat, err
 			}
 		}
 		if len(ar2) != 0 && len(defaultMap) != 0 {
-			return templateFormatString(afterFormat, defaultMap)
+			afterFormat, _ = templateFormatString(afterFormat, defaultMap)
+			return afterFormat, err
 		} else {
-			return afterFormat, nil
+			return afterFormat, err
 		}
 	} else {
 		return afterFormat, nil
@@ -191,4 +197,10 @@ func CheckKey(key string) bool {
 		key = strings.ReplaceAll(key, invalidElems[i], "")
 	}
 	return len(key) == 0
+}
+
+func CheckDefaultFormatValue(s string) bool {
+	re := regexp.MustCompile(`{[^{"]*?:[^{"]*?}`)
+	results := re.FindAllString(s, -1)
+	return len(results) != 0
 }

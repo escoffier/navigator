@@ -429,7 +429,7 @@ func (ec *EngineStreamHandler) handle(ctx context.Context, e eventItem) error {
 	if !ok {
 		outputFields = map[string]interface{}{}
 	}
-	md["output_map"] = mozart.ConvertOutput2OutputMap(e.data.Output, outputFields)
+	md["output_map"] = outputFields
 	md["version1"] = currentEngineLargeVersion
 	err := ec.mozart.Run(mozart.Event{
 		Name:    e.data.Rule,

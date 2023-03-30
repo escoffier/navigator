@@ -216,7 +216,7 @@ func (e *Engine) UpdateRules(operation int, version string, rules []Rule) error 
 			m := make(map[string][]Rule)
 			defaultM := make(map[string]struct{})
 			for i := range v {
-				if v[i].Default.Enabled {
+				if v[i].Default.Enabled != nil {
 					defaultM[v[i].Default.ID] = struct{}{}
 				}
 				if rs, ok := m[v[i].Default.ID]; ok {
@@ -225,6 +225,7 @@ func (e *Engine) UpdateRules(operation int, version string, rules []Rule) error 
 					m[v[i].Default.ID] = []Rule{v[i]}
 				}
 			}
+
 			otherRules := make([]Rule, 0)
 			for j := range m {
 				if _, ok := defaultM[j]; !ok {
@@ -468,7 +469,8 @@ func convertValuesByKey(format string, key string, values map[string]interface{}
 	for k := len(keyValues) - 1; k >= 0; k-- {
 		iFormat, err = mozartcommon.TemplateFormat(iFormat, keyValues[k])
 		if err != nil {
-			return "", err
+			// 由于可能存在运行过程中的format，所以此处对于未完成的参数保持开放态度。。
+			continue
 		}
 	}
 
@@ -476,12 +478,21 @@ func convertValuesByKey(format string, key string, values map[string]interface{}
 }
 
 type BranchDefault struct {
-	Enabled bool   `json:"enabled"`
+	Enabled *bool  `json:"enabled"`
 	ID      string `json:"id"`
 }
 
 func defaultOR(a, b BranchDefault) BranchDefault {
-	if b.Enabled {
+	if b.Enabled != nil && a.Enabled == nil {
+		return b
+	}
+	if b.Enabled == nil && a.Enabled != nil {
+		return a
+	}
+	if b.Enabled == nil && a.Enabled == nil {
+		return a
+	}
+	if *b.Enabled {
 		return b
 	} else {
 		return a
@@ -521,6 +532,14 @@ func (e *Engine) configStep2MozartStep(ctx context.Context, configStep model.Con
 		stepMatrix = []StepMore{{Steps: []Step{simpleStep(configMozartStepParamsCheckRuleRecentCount(configStep.Params.([]interface{})).rCode(), configStep)}, Key: key}}
 	case "checkRegexMatch":
 		stepMatrix = []StepMore{{Steps: []Step{simpleStep(configMozartStepParamsCheckRegexMatch(configStep.Params.([]interface{})).rCode(), configStep)}, Key: key}}
+	case "execDefineValue":
+		p := configStep.Params.(map[interface{}]interface{})
+		mp := make(map[string]interface{}, len(p))
+		for k, v := range p {
+			mp[k.(string)] = v
+		}
+		configStep.Params = mp
+		stepMatrix = []StepMore{{Steps: []Step{simpleStep(configMozartStepParamsExecDefineValue(mp).rCode(), configStep)}, Key: key}}
 	case "execGenerateSignal":
 		p := configStep.Params.(map[interface{}]interface{})
 		mp := make(map[string]interface{}, len(p))
@@ -586,7 +605,11 @@ func (e *Engine) configStep2MozartStep(ctx context.Context, configStep model.Con
 				for k := range branchMatrix {
 					branchMatrix[k].Default.ID = branchID
 					if mozartMarco[i].Branches[j].Default {
-						branchMatrix[k].Default.Enabled = true
+						_true := true
+						branchMatrix[k].Default.Enabled = &_true
+					} else {
+						_false := false
+						branchMatrix[k].Default.Enabled = &_false
 					}
 				}
 				stepMatrix = append(stepMatrix, branchMatrix...)

@@ -99,6 +99,8 @@ func SendRulesToEventCenter(ctx context.Context, cli *SherlockClient, rulesData 
 				flatValues := mozartcommon.FlatValues(values)
 				if len(flatValues) == 0 {
 					flatValues = []map[string]interface{}{{}} // 无变量赋值，使用空配置
+				} else if mozartcommon.CheckDefaultFormatValue(ruleName) { // 存在默认值
+					flatValues = append(flatValues, map[string]interface{}{})
 				}
 				for j := range flatValues {
 					iDescZh, err := mozartcommon.TemplateFormat(item.Mozart[i].Info.Desc.Zh, flatValues[j])

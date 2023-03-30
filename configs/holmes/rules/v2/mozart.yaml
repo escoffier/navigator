@@ -1,318 +1,285 @@
 - mozart:
-  - name: 'Using vim_suid to execute commands for linux privilege escalation'
-    enabled: true
-    trigger: 'Generated child process shell after starting the container'
-    steps:
-      - name: checkRelatedExists
-        params: [ 'Running vim in container', 1s, trigger.payload.output_map.proc_pid, payload.output_map.proc_pid ]
-      - name: execGenerateSignal
-        params: { zh_msg: 尝试利用vim_suid执行命令提权, rule: 'Using vim_suid to execute commands for linux privilege escalation' }
-      - name: execSendPalace
-        params: ''
-    info:
-      desc:
-        en: 'Using vim_suid to execute commands for linux privilege escalation'
-        zh: '尝试利用vim_suid执行命令提权'
-      suggestion:
-        en: 'Use the Immune Defence training application to restrict user permissions on sensitive files and commands.'
-        zh: '请排查容器内vim命令是否被授予s权限，从而被黑客尝试利用提权，可尝试采用微隔离和免疫防御阻止风险进一步扩散。'
-      rule_type: Privilege_Escalation
-      priority: EMERGENCY
-      urgency: true
+    - name: 'Using vim_suid to execute commands for linux privilege escalation'
+      enabled: true
+      trigger: 'Generated child process shell after starting the container'
+      steps:
+        - name: checkRelatedExists
+          params: [ 'Running vim in container', 1s, trigger.payload.output_map.proc_pid, payload.output_map.proc_pid ]
+        - name: execGenerateSignal
+          params: { zh_msg: 尝试利用vim_suid执行命令提权, rule: 'Using vim_suid to execute commands for linux privilege escalation' }
+        - name: execSendPalace
+          params: ''
+      info:
+        desc:
+          en: 'Using vim_suid to execute commands for linux privilege escalation'
+          zh: '尝试利用vim_suid执行命令提权'
+        suggestion:
+          en: 'Use the Immune Defence training application to restrict user permissions on sensitive files and commands.'
+          zh: '请排查容器内vim命令是否被授予s权限，从而被黑客尝试利用提权，可尝试采用微隔离和免疫防御阻止风险进一步扩散。'
+        rule_type: Privilege_Escalation
+        priority: EMERGENCY
+        urgency: true
 
-  - name: 'Using vim to run commands'
-    enabled: true
-    trigger: 'Generated child process shell after starting the container'
-    steps:
-      - name: checkRelatedExists
-        params: [ 'Running vim in container', 1s, trigger.payload.output_map.proc_ppid, payload.output_map.proc_pid ]
-      - name: execGenerateSignal
-        params: { zh_msg: 通过vim执行命令, rule: 'Using vim to run commands' }
-      - name: execSendPalace
-        params: ''
-    info:
-      desc:
-        en: 'Using vim to run commands'
-        zh: '通过vim执行命令'
-      suggestion:
-        en: 'Use the Immune Defence training application to restrict user permissions on sensitive files and commands.'
-        zh: '使用免疫防御训练应用，限制敏感文件和命令的用户权限。'
-      rule_type: Execution
-      priority: WARNING
-      urgency: true
+    - name: 'Using vim to run commands'
+      enabled: true
+      trigger: 'Generated child process shell after starting the container'
+      steps:
+        - name: checkRelatedExists
+          params: [ 'Running vim in container', 1s, trigger.payload.output_map.proc_ppid, payload.output_map.proc_pid ]
+        - name: execDefineValue
+          params: { aa: Running_vim_in_container.payload.output_map.proc_cmdline, bb: 12345 }
+        - name: execGenerateSignal
+          params: { proc_cmdline: '{aa}', rule: 'Using vim to run commands, {bb: default_b}' }
+        - name: execSendPalace
+          params: ''
+      info:
+        desc:
+          en: 'Using vim to run commands'
+          zh: '通过vim执行命令'
+        suggestion:
+          en: 'Use the Immune Defence training application to restrict user permissions on sensitive files and commands.'
+          zh: '使用免疫防御训练应用，限制敏感文件和命令的用户权限。'
+        rule_type: Execution
+        priority: WARNING
+        urgency: true
 
-  - name: 'Connecting to a remote server through redis client in container'
-    enabled: true
-    trigger: 'Connecting to a remote server through redis client in container'
-    steps:
-      - name: checkRelatedExists
-        params: [ 'Contact remote server from container', 1s, trigger.payload.output_map.proc_pid, payload.output_map.proc_pid ]
-      - name: execGenerateSignal
-        params: { zh_msg: 容器内通过redis客户端连接远程服务器, rule: 'Connecting to a remote server through redis client in container' }
-      - name: execSendPalace
-        params: ''
-    info:
-      desc:
-        en: 'Connecting to a remote server through redis client in container'
-        zh: '容器内通过redis客户端连接远程服务器'
-      suggestion:
-        en: 'Please use the process tree to determine whether the command is executed by malware, confirm whether the redis connection is a normal business connection, and investigate the reason for the connection.'
-        zh: '请通过进程树判断该命令是否由恶意软件执行，确认该redis连接是否为业务正常连接，排查出现该连接原因。'
-      rule_type: Execution
-      priority: WARNING
-      urgency: true
+    - name: 'Connecting to a remote server through redis client in container'
+      enabled: true
+      trigger: 'Connecting to a remote server through redis client in container'
+      steps:
+        - name: checkRelatedExists
+          params: [ 'Contact remote server from container', 1s, trigger.payload.output_map.proc_pid, payload.output_map.proc_pid ]
+        - name: execGenerateSignal
+          params: { zh_msg: 容器内通过redis客户端连接远程服务器, rule: 'Connecting to a remote server through redis client in container' }
+        - name: execSendPalace
+          params: ''
+      info:
+        desc:
+          en: 'Connecting to a remote server through redis client in container'
+          zh: '容器内通过redis客户端连接远程服务器'
+        suggestion:
+          en: 'Please use the process tree to determine whether the command is executed by malware, confirm whether the redis connection is a normal business connection, and investigate the reason for the connection.'
+          zh: '请通过进程树判断该命令是否由恶意软件执行，确认该redis连接是否为业务正常连接，排查出现该连接原因。'
+        rule_type: Execution
+        priority: WARNING
+        urgency: true
 
-  - name: 'Execute commands through webshell'
-    enabled: true
-    trigger: 'Execute commands through webshell'
-    steps:
-      - name: checkRelatedExists
-        params: [ 'Generated child process shell after starting the container', 1s, trigger.payload.output_map.proc_name, payload.output_map.proc_pname ]
-      - name: checkValue
-        params: [ trigger.payload.output_map.proc_name, java ]
-      - name: execGenerateSignal
-        params: { zh_msg: 通过向Tomcat上传webshell并执行命令, rule: 'Execute commands through webshell' }
-      - name: execSendPalace
-        params: ''
-    info:
-      desc:
-        en: 'Execute commands through webshell'
-        zh: '通过向Tomcat上传webshell并执行命令'
-      suggestion:
-        en: 'Use the Immune Defence training application to restrict user permissions on sensitive files and commands.'
-        zh: '建议排查是否有攻击者已获取内部容器权限，同时使用免疫防御限制攻击者进行进一步攻击。'
-      rule_type: Execution
-      priority: EMERGENCY
-      urgency: true
+    - name: 'Execute commands through webshell'
+      enabled: true
+      trigger: 'Execute commands through webshell'
+      steps:
+        - name: checkRelatedExists
+          params: [ 'Generated child process shell after starting the container', 1s, trigger.payload.output_map.proc_name, payload.output_map.proc_pname ]
+        - name: checkValue
+          params: [ trigger.payload.output_map.proc_name, java ]
+        - name: execGenerateSignal
+          params: { zh_msg: 通过向Tomcat上传webshell并执行命令, rule: 'Execute commands through webshell' }
+        - name: execSendPalace
+          params: ''
+      info:
+        desc:
+          en: 'Execute commands through webshell'
+          zh: '通过向Tomcat上传webshell并执行命令'
+        suggestion:
+          en: 'Use the Immune Defence training application to restrict user permissions on sensitive files and commands.'
+          zh: '建议排查是否有攻击者已获取内部容器权限，同时使用免疫防御限制攻击者进行进一步攻击。'
+        rule_type: Execution
+        priority: EMERGENCY
+        urgency: true
 
-  - name: 'Using vim_suid to modify sensitive file for linux privilege escalation'
-    enabled: true
-    trigger: 'Linux Privilege Escalation by modifying sensitive files with suid binaries'
-    steps:
-      - name: checkRelatedExists
-        params: [ 'Running vim in container', 10s, trigger.payload.output_map.proc_pid, payload.output_map.proc_pid ]
-      - name: execGenerateSignal
-        params: { zh_msg: 尝试利用vim_suid修改敏感文件提权, rule: 'Using vim_suid to modify sensitive file for linux privilege escalation' }
-      - name: execSendPalace
-        params: ''
-    info:
-      desc:
-        en: 'Using vim_suid to modify sensitive file for linux privilege escalation'
-        zh: '尝试利用vim_suid修改敏感文件提权'
-      suggestion:
-        en: 'Please check whether the vim command in the container has been granted s permission, so that hackers try to use it to improve their rights. You can try to use micro isolation and immune defense to prevent the risk from spreading further.'
-        zh: '容器可能已遭到入侵，可使用免疫防御训练应用，限制敏感文件和命令的用户权限。'
-      rule_type: Privilege_Escalation
-      priority: EMERGENCY
-      urgency: true
+    - name: 'Using vim_suid to modify sensitive file for linux privilege escalation'
+      enabled: true
+      trigger: 'Linux Privilege Escalation by modifying sensitive files with suid binaries'
+      steps:
+        - name: checkRelatedExists
+          params: [ 'Running vim in container', 10s, trigger.payload.output_map.proc_pid, payload.output_map.proc_pid ]
+        - name: execGenerateSignal
+          params: { zh_msg: 尝试利用vim_suid修改敏感文件提权, rule: 'Using vim_suid to modify sensitive file for linux privilege escalation' }
+        - name: execSendPalace
+          params: ''
+      info:
+        desc:
+          en: 'Using vim_suid to modify sensitive file for linux privilege escalation'
+          zh: '尝试利用vim_suid修改敏感文件提权'
+        suggestion:
+          en: 'Please check whether the vim command in the container has been granted s permission, so that hackers try to use it to improve their rights. You can try to use micro isolation and immune defense to prevent the risk from spreading further.'
+          zh: '容器可能已遭到入侵，可使用免疫防御训练应用，限制敏感文件和命令的用户权限。'
+        rule_type: Privilege_Escalation
+        priority: EMERGENCY
+        urgency: true
 
-  - name: 'Using visudo to modify sensitive file for linux privilege escalation'
-    enabled: true
-    trigger: 'Write to /etc/sudoers'
-    steps:
-      - name: checkRelatedExists
-        params: [ 'Running visudo in container', 10s, trigger.payload.output_map.proc_pid, payload.output_map.proc_pid ]
-      - name: execGenerateSignal
-        params: { zh_msg: 尝试利用visudo修改敏感文件提权, rule: 'Using visudo to modify sensitive file for linux privilege escalation' }
-      - name: execSendPalace
-        params: ''
-    info:
-      desc:
-        en: 'Using visudo to modify sensitive file for linux privilege escalation'
-        zh: '尝试利用visudo修改敏感文件提权'
-      suggestion:
-        en: 'Please check whether the vim command in the container has been granted s permission, so that hackers try to use it to improve their rights. You can try to use micro isolation and immune defense to prevent the risk from spreading further.'
-        zh: '容器可能已遭到入侵，可使用免疫防御训练应用，限制敏感文件和命令的用户权限。'
-      rule_type: Privilege_Escalation
-      priority: EMERGENCY
-      urgency: true
+    - name: 'Using visudo to modify sensitive file for linux privilege escalation'
+      enabled: true
+      trigger: 'Write to /etc/sudoers'
+      steps:
+        - name: checkRelatedExists
+          params: [ 'Running visudo in container', 10s, trigger.payload.output_map.proc_pid, payload.output_map.proc_pid ]
+        - name: execGenerateSignal
+          params: { zh_msg: 尝试利用visudo修改敏感文件提权, rule: 'Using visudo to modify sensitive file for linux privilege escalation' }
+        - name: execSendPalace
+          params: ''
+      info:
+        desc:
+          en: 'Using visudo to modify sensitive file for linux privilege escalation'
+          zh: '尝试利用visudo修改敏感文件提权'
+        suggestion:
+          en: 'Please check whether the vim command in the container has been granted s permission, so that hackers try to use it to improve their rights. You can try to use micro isolation and immune defense to prevent the risk from spreading further.'
+          zh: '容器可能已遭到入侵，可使用免疫防御训练应用，限制敏感文件和命令的用户权限。'
+        rule_type: Privilege_Escalation
+        priority: EMERGENCY
+        urgency: true
 
-  - name: 'Linux dirty cow vulnerability leads to container escape(CVE-2016-5195)'
-    enabled: true
-    trigger: 'Read sensitive file untrusted'
-    steps:
-      - name: checkRelatedExists
-        params: [ 'Read /proc/self/mem', 10s, trigger.payload.output_map.proc_pid, payload.output_map.proc_pid ]
-      - name: execGenerateSignal
-        params: { zh_msg: Linux脏牛漏洞导致容器逃逸(CVE-2016-5195), rule: 'Linux dirty cow vulnerability leads to container escape(CVE-2016-5195)' }
-      - name: execSendPalace
-        params: ''
-    info:
-      desc:
-        en: 'Linux dirty cow vulnerability leads to container escape(CVE-2016-5195)'
-        zh: 'Linux脏牛漏洞导致容器逃逸(CVE-2016-5195)'
-      suggestion:
-        en: 'Update Linux kernel version in a timely manner, perform security audit on Docker image to identify vulnerabilities or malicious code, and fix or remove them in a timely manner.'
-        zh: '及时更新Linux内核版本, 对Docker镜像进行安全审计以识别其中的漏洞或恶意代码，并及时进行修复或清除。'
-      rule_type: Privilege_Escalation
-      priority: EMERGENCY
-      urgency: true
+    - name: 'Linux dirty cow vulnerability leads to container escape(CVE-2016-5195)'
+      enabled: true
+      trigger: 'Read sensitive file untrusted'
+      steps:
+        - name: checkRelatedExists
+          params: [ 'Read /proc/self/mem', 10s, trigger.payload.output_map.proc_pid, payload.output_map.proc_pid ]
+        - name: execGenerateSignal
+          params: { zh_msg: Linux脏牛漏洞导致容器逃逸(CVE-2016-5195), rule: 'Linux dirty cow vulnerability leads to container escape(CVE-2016-5195)' }
+        - name: execSendPalace
+          params: ''
+      info:
+        desc:
+          en: 'Linux dirty cow vulnerability leads to container escape(CVE-2016-5195)'
+          zh: 'Linux脏牛漏洞导致容器逃逸(CVE-2016-5195)'
+        suggestion:
+          en: 'Update Linux kernel version in a timely manner, perform security audit on Docker image to identify vulnerabilities or malicious code, and fix or remove them in a timely manner.'
+          zh: '及时更新Linux内核版本, 对Docker镜像进行安全审计以识别其中的漏洞或恶意代码，并及时进行修复或清除。'
+        rule_type: Privilege_Escalation
+        priority: EMERGENCY
+        urgency: true
 
-  - name: 'Brute force hacking detected'
-    enabled: true
-    trigger: 'Contact remote server from container'
-    steps:
-      - name: checkRuleRecentCount
-        params: [ 'Contact remote server from container', 10s, 20, '["server_ip", "server_port", "client_ip"]', '[]', 1m ]
-      - name: execGenerateSignal
-        params: { zh_msg: 检测到正在暴力破解, rule: 'Brute force hacking detected' }
-      - name: execSendPalace
-        params: ''
-    info:
-      desc:
-        en: 'Brute force hacking detected'
-        zh: '检测到正在暴力破解'
-      suggestion:
-        en: 'There may be brute force cracking behavior, please determine through the process tree whether the command belongs to the normal behavior of known processes, whether it is suggested by malware execution, it is recommended to confirm whether there is a weak password for the service where the port is located and limit the number of wrong login attempts.'
-        zh: '可能存在暴力破解行为，请通过进程树判断该命令是否属于已知进程的正常行为，是否由恶意软件执行建议，建议确认端口所在服务是否存在弱口令，限制错误登录尝试次数。'
-      rule_type: Exfiltration
-      priority: ALERT
-      urgency: true
+    - name: 'Brute force hacking detected'
+      enabled: true
+      trigger: 'Contact remote server from container'
+      steps:
+        - name: checkRuleRecentCount
+          params: [ 'Contact remote server from container', 10s, 20, '["server_ip", "server_port", "client_ip"]', '[]', 1m ]
+        - name: execGenerateSignal
+          params: { zh_msg: 检测到正在暴力破解, rule: 'Brute force hacking detected' }
+        - name: execSendPalace
+          params: ''
+      info:
+        desc:
+          en: 'Brute force hacking detected'
+          zh: '检测到正在暴力破解'
+        suggestion:
+          en: 'There may be brute force cracking behavior, please determine through the process tree whether the command belongs to the normal behavior of known processes, whether it is suggested by malware execution, it is recommended to confirm whether there is a weak password for the service where the port is located and limit the number of wrong login attempts.'
+          zh: '可能存在暴力破解行为，请通过进程树判断该命令是否属于已知进程的正常行为，是否由恶意软件执行建议，建议确认端口所在服务是否存在弱口令，限制错误登录尝试次数。'
+        rule_type: Exfiltration
+        priority: ALERT
+        urgency: true
 
-  - name: 'Scanning ports detected'
-    enabled: true
-    trigger: 'Contact remote server from container'
-    steps:
-      - name: checkRuleRecentCount
-        params: [ 'Contact remote server from container', 10s, 10, '["server_ip", "client_ip"]', '["server_port"]', 1m ]
-      - name: execGenerateSignal
-        params: { zh_msg: 检测到正在扫描敏感端口, rule: 'Scanning ports detected' }
-      - name: execSendPalace
-        params: ''
-    info:
-      desc:
-        en: 'Scanning ports detected'
-        zh: '检测到正在扫描敏感端口'
-      suggestion:
-        en: 'The K8S sensitive port access behavior is detected. Please confirm whether it is legal access in combination with specific commands. If not, it may be used by attackers. Please isolate the pod in time。'
-        zh: '检测到k8s敏感端口访问行为,请结合具体命令确认是否为合法访问，如果不是则可能遭到攻击者利用，请及时隔离该pod。'
-      rule_type: Exfiltration
-      priority: ALERT
-      urgency: true
+    - name: 'Scanning ports detected'
+      enabled: true
+      trigger: 'Contact remote server from container'
+      steps:
+        - name: checkRuleRecentCount
+          params: [ 'Contact remote server from container', 10s, 10, '["server_ip", "client_ip"]', '["server_port"]', 1m ]
+        - name: execGenerateSignal
+          params: { zh_msg: 检测到正在扫描敏感端口, rule: 'Scanning ports detected' }
+        - name: execSendPalace
+          params: ''
+      info:
+        desc:
+          en: 'Scanning ports detected'
+          zh: '检测到正在扫描敏感端口'
+        suggestion:
+          en: 'The K8S sensitive port access behavior is detected. Please confirm whether it is legal access in combination with specific commands. If not, it may be used by attackers. Please isolate the pod in time。'
+          zh: '检测到k8s敏感端口访问行为,请结合具体命令确认是否为合法访问，如果不是则可能遭到攻击者利用，请及时隔离该pod。'
+        rule_type: Exfiltration
+        priority: ALERT
+        urgency: true
 
-  # - name: 'Reverse shell through telnet'
-  #   enabled: true
-  #   trigger: 'Generated child process shell after starting the container'
-  #   steps:
-  #     - name: checkRelatedExists
-  #       params: [ 'Running telnet in container', 1s, trigger.payload.output_map.proc_pgid, payload.output_map.proc_pgid ]
-  #     - name: checkRelatedExists
-  #       params: [ 'Contact remote server from container', 1s, trigger.payload.output_map.proc_pgid, payload.output_map.proc_pgid ]
-  #     - name: execGenerateSignal
-  #       params: { zh_msg: 黑客在容器内通过telnet反弹shell, rule: 'Reverse shell through telnet' }
-  #     - name: execSendPalace
-  #       params: ''
-  #   info:
-  #     desc:
-  #       en: 'Telnet Program runs inside container that allows remote code execution(Risk of Reverse Shell exploit)'
-  #       zh: '黑客在容器内通过telnet反弹shell'
-  #     suggestion:
-  #       en: 'If the container is intruded, we need to isolate the container, get the remote ip address of the attacker, and check other attacks to confirm the security of the cluster.'
-  #       zh: '容器遭到入侵，需隔离该容器，获取攻击者远程ip地址，同时排查其他攻击行为，确认集群安全。'
-  #     rule_type: Execution
-  #     priority: EMERGENCY
-  #     urgency: true
-
-  # - name: 'Reverse shell through ruby'
-  #   enabled: true
-  #   trigger: 'Generated child process shell after starting the container'
-  #   steps:
-  #     - name: checkRelatedExists
-  #       params: [ 'Created remote connection through ruby in container', 5s, trigger.payload.output_map.proc_pgid, payload.output_map.proc_pgid ]
-  #     - name: checkRelatedExists
-  #       params: [ 'Contact remote server from container', 5s, trigger.payload.output_map.proc_pgid, payload.output_map.proc_pgid ]
-  #     - name: execGenerateSignal
-  #       params: { zh_msg: 黑客在容器内通过ruby反弹shell, rule: 'Reverse shell through ruby' }
-  #     - name: execSendPalace
-  #       params: ''
-  #   info:
-  #     desc:
-  #       en: 'Ruby Program runs inside container that allows remote code execution(Risk of Reverse Shell exploit)'
-  #       zh: '黑客在容器内通过ruby反弹shell'
-  #     suggestion:
-  #       en: 'If the container is intruded, we need to isolate the container, get the remote ip address of the attacker, and check other attacks to confirm the security of the cluster.'
-  #       zh: '容器遭到入侵，需隔离该容器，获取攻击者远程ip地址，同时排查其他攻击行为，确认集群安全。'
-  #     rule_type: Execution
-  #     priority: EMERGENCY
-  #     urgency: true
-
-  - name: 'Reverse shell'
-    enabled: true
-    trigger: 'Contact remote server from container'
-    steps:
-      - name: branches
-        params: MARCO::regexReverseShell
-      - name: execGenerateSignal
-        params: { rule: 'Reverse shell through {reverse_tool: socket and dup}' }
-      - name: execSendPalace
-        params: ''
-    info:
-      name: 'Reverse shell through {reverse_tool: socket and dup}'
-      desc:
-        en: 'Reverse shell through {reverse_tool: socket and dup}'
-        zh: '通过{reverse_tool_zh: socket 和 dup}反弹shell'
-      suggestion:
-        en: 'If the container is intruded, we need to isolate the container, get the remote ip address of the attacker, and check other attacks to confirm the security of the cluster.'
-        zh: '容器遭到入侵，需隔离该容器，获取攻击者远程ip地址，同时排查其他攻击行为，确认集群安全。'
-      rule_type: Exfiltration
-      priority: ALERT
-      urgency: true
+    - name: 'Reverse shell'
+      enabled: true
+      trigger: 'Contact remote server from container'
+      steps:
+        - name: checkRegexMatch
+          params: [ '(\w*sh)|(os.getenv)|([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])(\.([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])){3}', trigger.payload.output_map.proc_cmdline ]
+        - name: branches
+          params: MARCO::regexReverseShell
+        - name: execGenerateSignal
+          params: { rule: 'Reverse shell through {reverse_tool: socket and dup owen 2}', proc_cmdline: '{aa}' }
+        - name: execSendPalace
+          params: ''
+      info:
+        name: 'Reverse shell through {reverse_tool: socket and dup owen 2}'
+        desc:
+          en: 'Reverse shell through {reverse_tool: socket and dup owen 2}'
+          zh: '通过{reverse_tool_zh: socket 和 dup owen}反弹shell'
+        suggestion:
+          en: 'If the container is intruded, we need to isolate the container, get the remote ip address of the attacker, and check other attacks to confirm the security of the cluster.'
+          zh: '容器遭到入侵，需隔离该容器，获取攻击者远程ip地址，同时排查其他攻击行为，确认集群安全。'
+        rule_type: Exfiltration
+        priority: ALERT
+        urgency: true
 
 - mozart_marco:
-  - key: regexReverseShell
-    type: branches
-    branches:
-    - enabled: true
-      steps:
-      - name: checkRelatedExists
-        params: [ 'Reverse shell through socket and dup', 5s, trigger.payload.output_map.proc_pid, payload.output_map.proc_pid ]
-      - name: checkValue
-        params: [ trigger.payload.output_map.proc_name, bash ]
-      - name: defineValue
-        params: { reverse_tool: bash, reverse_tool_zh: bash }
-    - enabled: true
-      steps:
-      - name: checkRelatedExists
-        params: [ 'Reverse shell through socket and dup', 5s, trigger.payload.output_map.proc_pid, payload.output_map.proc_pid ]
-      - name: checkRegexMatch
-        params: [ '^python.*', trigger.payload.output_map.proc_name ]
-      - name: checkRegexMatch
-        params: [ '((25[0-5]|2[0-4]\d|[01]?\d\d?)\.){3}(25[0-5]|2[0-4]\d|[01]?\d\d?)', trigger.payload.output_map.proc_cmdline ]
-      - name: defineValue
-        params: { reverse_tool: python, reverse_tool_zh: python }
-    - enabled: true
-      steps:
-      - name: checkRelatedExists
-        params: [ 'Generated child process shell after starting the container', 5s, trigger.payload.output_map.proc_pgid, payload.output_map.proc_pgid ]
-      - name: checkExpression
-        params: 'some i; CacheContext("trigger.payload.output_map.proc_name", input.session_id)==["nc", "nc.traditional"][i]'
-      - name: defineValue
-        params: { reverse_tool: nc, reverse_tool_zh: nc }
-    - enabled: true
-      steps:
-      - name: checkRelatedExists
-        params: [ 'Running telnet in container', 1s, trigger.payload.output_map.proc_pgid, payload.output_map.proc_pgid ]
-      - name: checkRegexMatch
-        params: [ '((25[0-5]|2[0-4]\d|[01]?\d\d?)\.){3}(25[0-5]|2[0-4]\d|[01]?\d\d?)', trigger.payload.output_map.proc_cmdline ]
-      - name: defineValue
-        params: { reverse_tool: telnet, reverse_tool_zh: telnet }
-    - enabled: true
-      steps:
-      - name: checkRelatedExists
-        params: [ 'Created remote connection through ruby in container', 5s, trigger.payload.output_map.proc_pgid, payload.output_map.proc_pgid ]
-      - name: checkRegexMatch
-        params: [ '((25[0-5]|2[0-4]\d|[01]?\d\d?)\.){3}(25[0-5]|2[0-4]\d|[01]?\d\d?)', trigger.payload.output_map.proc_cmdline ]
-      - name: defineValue
-        params: { reverse_tool: ruby, reverse_tool_zh: ruby }
-    - enabled: true
-      steps:
-      - name: checkRelatedExists
-        params: [ 'Created remote connection through awk in container', 5s, trigger.payload.output_map.proc_pid, payload.output_map.proc_pid ]
-      - name: checkRegexMatch
-        params: [ '((25[0-5]|2[0-4]\d|[01]?\d\d?)\.){3}(25[0-5]|2[0-4]\d|[01]?\d\d?)', trigger.payload.output_map.proc_cmdline ]
-      - name: defineValue
-        params: { reverse_tool: awk, reverse_tool_zh: awk }
-    - default: true
-      steps:
-      - name: checkRelatedExists
-        params: [ 'Generated child process shell after starting the container', 5s, trigger.payload.output_map.proc_pid, payload.output_map.proc_pid ]
+    - key: regexReverseShell
+      type: branches
+      branches:
+        - enabled: true
+          steps:
+            - name: checkExpression
+              params: 'some i; CacheContext("trigger.payload.output_map.proc_name", input.session_id)==["ash", "bash1", "csh", "ksh", "sh", "tcsh", "zsh", "dash"][i]'
+            - name: defineValue
+              params: { reverse_tool: "shell binaries", reverse_tool_zh: "shell二进制文件cccccc" }
+        - enabled: true
+          steps:
+            - name: checkExpression
+              params: 'some i; CacheContext("trigger.payload.output_map.proc_name", input.session_id)==["nc", "nc.traditional", "ncat", "busybox"][i]'
+            - name: defineValue
+              params: { reverse_tool: nc, reverse_tool_zh: nc }
+        - enabled: true
+          steps:
+            - name: checkRegexMatch
+              params: [ '(?=.*\.socket\(\)|.*socket\(socket\.AF_INET,socket\.SOCK_STREAM\))(?=.*\.connect\()', trigger.payload.output_map.proc_cmdline ]
+            - name: defineValue
+              params: { reverse_tool: python, reverse_tool_zh: python }
+        - enabled: true
+          steps:
+            - name: checkRelatedExists
+              params: [ 'Running telnet in container', 1s, trigger.payload.output_map.proc_vpgid, payload.output_map.proc_vpgid ]
+            - name: defineValue
+              params: { reverse_tool: telnet, reverse_tool_zh: telnet }
+            - name: execDefineValue
+              params: { aa: Running_telnet_in_container.payload.output_map.proc_cmdline }
+        - enabled: true
+          steps:
+            # - name: checkRegexMatch
+            #   params: [ '(?=.*-rsocket -e)(?=.*TCPSocket\.new\()', trigger.payload.output_map.proc_cmdline ]
+            - name: checkRelatedExists
+              params: [ 'Created remote connection through ruby in container', 5s, trigger.payload.output_map.proc_vpgid, payload.output_map.proc_vpgid ]
+            - name: defineValue
+              params: { reverse_tool: ruby, reverse_tool_zh: ruby }
+        - enabled: true
+          steps:
+            - name: checkRelatedExists
+              params: [ 'Created remote connection through awk in container', 5s, trigger.payload.output_map.proc_pid, payload.output_map.proc_pid ]
+            - name: defineValue
+              params: { reverse_tool: awk, reverse_tool_zh: awk }
+        - enabled: true
+          steps:
+            - name: checkRelatedExists
+              params: [ 'Reverse shell through socket and dup', 5s, trigger.payload.output_map.proc_vpgid, payload.output_map.proc_vpgid ]
+            - name: execDefineValue
+              params: { aa: Reverse_shell_through_socket_and_dup.payload.output_map.fd_name }
+        - enabled: true
+          steps:
+            - name: checkRelatedExists
+              params: [ 'Generated child process shell after starting the container', 5s, trigger.payload.output_map.proc_vpgid, payload.output_map.proc_vpgid ]
+            - name: execDefineValue
+              params: { aa: Generated_child_process_shell_after_starting_the_container.payload.output_map.fd_name }
+        - default: false
+#          steps:
+#            - name: checkExpression
+#              params: 'some i; CacheContext("trigger.payload.output_map.proc_name", input.session_id)==["ash", "bash", "csh", "ksh", "sh", "tcsh", "zsh", "dash"][i]'
+#            - name: defineValue
+#              params: { reverse_tool: "shell binaries", reverse_tool_zh: "shell二进制文件1111" }
+              # steps:
+              # - name: checkExpression
+              # params: 'some i; CacheContext("trigger.payload.output_map.proc_name", input.session_id)==["ash", "bash", "csh", "ksh", "sh", "tcsh", "zsh", "dash"][i]'
+              # - name: defineValue
+              # params: { reverse_tool: "shell binaries", reverse_tool_zh: "shell二进制文件22222" }
