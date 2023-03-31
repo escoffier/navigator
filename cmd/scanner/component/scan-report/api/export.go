@@ -63,7 +63,7 @@ func (s *ExportApiSrv) CreateImageSearchExportTask(ctx *gin.Context) {
 		return
 	}
 	if cnt == 0 {
-		response.JSONError(ctx, response.NewHttpError(http.StatusBadRequest, fmt.Errorf("没有可导出的镜像")))
+		response.JSONError(ctx, response.NewHttpError(http.StatusBadRequest, fmt.Errorf("no images to export")))
 		return
 	}
 
@@ -83,8 +83,8 @@ func (s *ExportApiSrv) CreateImageSearchExportTask(ctx *gin.Context) {
 			}
 		}()
 	}
-
-	response.JSONOK(ctx, response.WithItem(ResponseMsg{Msg: "创建导出任务成功", TaskID: task.ID, FilePath: task.FilePath}))
+	response.JSONOK(ctx, response.WithItem(
+		GenResponseMsg(ctx, task.ID, task.FilePath)))
 }
 
 func (s *ExportApiSrv) CreateImageExportTask(ctx *gin.Context) {
@@ -144,8 +144,8 @@ func (s *ExportApiSrv) CreateImageExportTask(ctx *gin.Context) {
 			}
 		}()
 	}
-
-	response.JSONOK(ctx, response.WithItem(ResponseMsg{Msg: "创建导出任务成功", TaskID: task.ID, FilePath: task.FilePath}))
+	response.JSONOK(ctx, response.WithItem(
+		GenResponseMsg(ctx, task.ID, task.FilePath)))
 }
 
 func (s *ExportApiSrv) CreateVulnExportTask(ctx *gin.Context) {
@@ -191,7 +191,8 @@ func (s *ExportApiSrv) CreateVulnExportTask(ctx *gin.Context) {
 		response.JSONError(ctx, err)
 		return
 	}
-	response.JSONOK(ctx, response.WithItem(ResponseMsg{Msg: "创建导出任务成功", TaskID: task.ID, FilePath: task.FilePath}))
+	response.JSONOK(ctx, response.WithItem(
+		GenResponseMsg(ctx, task.ID, task.FilePath)))
 }
 
 func (s *ExportApiSrv) CheckScanTask(ctx *gin.Context) {
@@ -261,8 +262,8 @@ func (s *ExportApiSrv) CreateScanResultExportTask(ctx *gin.Context) {
 		}()
 
 	}
-
-	response.JSONOK(ctx, response.WithItem(ResponseMsg{Msg: "创建导出任务成功", TaskID: task.ID, FilePath: task.FilePath}))
+	response.JSONOK(ctx, response.WithItem(
+		GenResponseMsg(ctx, task.ID, task.FilePath)))
 }
 
 func (s *ExportApiSrv) CreateAuditExportTask(ctx *gin.Context) {
@@ -288,7 +289,8 @@ func (s *ExportApiSrv) CreateAuditExportTask(ctx *gin.Context) {
 		response.JSONError(ctx, err)
 		return
 	}
-	response.JSONOK(ctx, response.WithItem(ResponseMsg{Msg: "创建导出任务成功", TaskID: task.ID, FilePath: task.FilePath}))
+	response.JSONOK(ctx, response.WithItem(
+		GenResponseMsg(ctx, task.ID, task.FilePath)))
 }
 
 func (s *ExportApiSrv) GetExportTaskDetail(ctx *gin.Context) {
@@ -413,6 +415,19 @@ func (s *ExportApiSrv) DownLoad(ctx *gin.Context) {
 	response.JSONOK(ctx, response.WithItem(DownloadResponse{URL: url}))
 
 	return
+}
+
+func GenResponseMsg(ctx *gin.Context, taskID int64, filepath string) ResponseMsg {
+	msg := ResponseMsg{
+		Msg:      "创建导出任务成功",
+		TaskID:   taskID,
+		FilePath: filepath,
+	}
+
+	if util.GetLanguage(ctx) == model.LangEn {
+		msg.Msg = "created successfully"
+	}
+	return msg
 }
 
 type ResponseMsg struct {
