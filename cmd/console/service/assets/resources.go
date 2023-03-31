@@ -315,6 +315,9 @@ func (rl *TensorResourcesService) GetResourceRelation(arg *ArgumentDetails) ([]P
 	}
 
 	for _, value := range uuid {
+		if value.LinkCount == 0 {
+			continue
+		}
 		resource = append(resource, *value)
 	}
 
@@ -378,6 +381,9 @@ func (rl *TensorResourcesService) GetPodRelation(arg *ArgumentDetails) ([]Proces
 	}
 
 	for _, value := range uuid {
+		if value.LinkCount == 0 {
+			continue
+		}
 		resource = append(resource, *value)
 	}
 
@@ -445,6 +451,9 @@ func (rl *TensorResourcesService) GetContainerRelation(arg *ArgumentDetails) ([]
 	}
 
 	for _, value := range uuid {
+		if value.LinkCount == 0 {
+			continue
+		}
 		resource = append(resource, *value)
 	}
 
@@ -514,6 +523,9 @@ func (rl *TensorResourcesService) GetProcessRelation(arg *ArgumentDetails) ([]Pr
 	}
 
 	for _, value := range uuid {
+		if value.LinkCount == 0 {
+			continue
+		}
 		resource = append(resource, *value)
 	}
 
