@@ -625,7 +625,7 @@ func (h *ATTCKHandler) updateConfigs(ctx context.Context, v uint16) error {
 	h.rules[storeConf.Version1] = vRules
 
 	if v == uint16(1) {
-		// fixme: 增加一个hack逻辑，当version大版本号为1时，批量更新数据库的ivan_assets_clusters.rule_versin字段。   原因是 多版本集群环境下，老版集群没有同步规则库版本的逻辑
+		// fixme: 增加一个hack逻辑，当version大版本号为1时，批量更新数据库的ivan_assets_clusters.rule_version字段。   原因是 多版本集群环境下，老版集群没有同步规则库版本的逻辑
 		go h.updateV1RuleVersion(ctx, fmt.Sprintf("v%d.%d", storeConf.Version1, storeConf.Version2))
 	}
 
@@ -934,9 +934,25 @@ func (h *ATTCKHandler) GetATTCKVersionList(ctx context.Context) []*model.ATTCKCo
 	h.cacheLock.RLock()
 	defer h.cacheLock.RUnlock()
 	versions := make([]*model.ATTCKConfVersion, 0)
+	clusters := make([]model.TensorCluster, 0)
+	err := h.db.Get().WithContext(ctx).Model(new(model.TensorCluster)).Find(&clusters).Error
+	if err != nil {
+		logging.Get().Error().Err(err).Msg("query ivan_assets_clusters fails")
+		return versions
+	}
+	clustersMap := make(map[string]struct{})
+	for i := range clusters {
+		clustersMap[clusters[i].RuleVersion] = struct{}{}
+	}
 	for i := range h.rules {
+		if _, ok := clustersMap[h.rules[i].currentVersion.VString()]; !ok {
+			continue
+		}
 		versions = append(versions, h.rules[i].currentVersion)
 	}
+	sort.Slice(versions, func(i, j int) bool {
+		return versions[i].Version1 > versions[j].Version1
+	})
 	return versions
 }
 
