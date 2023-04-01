@@ -15,14 +15,14 @@
     and fd.net != "127.0.0.0/8"
     and not fd.sport in ("", 53)
     and fd.name != "" and fd.name exists
-    and (shell_parent_procs or proc.aname[2] in (shell_binaries))
+    and shell_family_procs
     and not proc.name in (known_system_procs_network_activity_binaries)
     and not proc.pname in (known_system_procs_network_activity_binaries)
     and not login_doing_dns_lookup
     and not user_expected_system_procs_network_activity_conditions and container
     and not tensorsec_namespace
   output: >
-    Contact remote server from container(zh_msg=容器内与远程服务器通信,rule_type=Execution,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,pod_id=%k8s.pod.id,syscall_name=%syscall.type,terminal=%proc.tty,user_uid=%user.uid,container_id=%container.id,container_name=%container.name,parent=%proc.pname,gparent=%proc.aname[2],proc_pgid=%proc.vpgid,fd.num=%fd.num,fd.type=%fd.type,connection=%fd.name,client_ip=%fd.cip,client_port=%fd.cport,server_ip=%fd.sip,server_port=%fd.sport,proc_name=%proc.name,parent=%proc.pname,gparent=%proc.aname[2],ggparent=%proc.aname[3],gggparent=%proc.aname[4])
+    Contact remote server from container(zh_msg=容器内与远程服务器通信,rule_type=Execution,pod_id=%k8s.pod.id,syscall_name=%syscall.type,terminal=%proc.tty,user_uid=%user.uid,container_id=%container.id,container_name=%container.name,fd.num=%fd.num,fd.type=%fd.type,connection=%fd.name,client_ip=%fd.cip,client_port=%fd.cport,server_ip=%fd.sip,server_port=%fd.sport,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pgid=%proc.vpgid,proc_name=%proc.name,parent=%proc.pname,%proc.aname[0],%proc.aname[1],gparent=%proc.aname[2],ggparent=%proc.aname[3],gggparent=%proc.aname[4])
   priority: INFO
   tags: [ATT&CK, filesystem, mitre_privilege_escalation, related, triggered]
 
@@ -61,7 +61,7 @@
     Running telnet in container (zh_msg=容器内运行telnet,rule_type=Execution,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_name=%proc.name,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,container_id=%container.id,container_name=%container.name,proc_pgid=%proc.vpgid)
   priority: INFO
   tags: [ATT&CK, filesystem, mitre_privilege_escalation, related]
-
+ 
 - rule: Created remote connection through ruby in container
   hid: related_04
   hthreats: 0
