@@ -195,7 +195,11 @@
       key: "处置建议"
       value: "容器遭到入侵，需隔离该容器，获取攻击者远程ip地址，同时排查其他攻击行为，确认集群安全。"
   desc: Reverse shell through socket and dup
-  condition: evt.type=dup and container and fd.num in (0, 1, 2) and fd.type in ("ipv4", "ipv6") and not k8s.pod.name contains "98166d" and not k8s.pod.name contains "42cca6" and shell_parent_procs
+  condition: >
+    evt.type in (dup, dup2) and
+    fd.num in (0, 1, 2) and fd.type in ("ipv4", "ipv6", "pipe") and fd.name contains "->" and
+    container and (shell_parent_procs or shell_procs) and
+    not k8s.pod.name contains "98166d" and not k8s.pod.name contains "42cca6"
   output: >
     Reverse shell through socket and dup (zh_msg=黑客在容器内通过socket和dup反弹shell,rule_type=Execution,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name %container.info process=%proc.name parent=%proc.pname terminal=%proc.tty container_id=%container.id container_name=%container.name image=%container.image.repository fd_name=%fd.name fd.num=%fd.num fd.type=%fd.type connection=%fd.name,client_ip=%fd.cip,client_port=%fd.cport,server_ip=%fd.sip,server_port=%fd.sport)
   priority: ALERT

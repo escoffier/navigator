@@ -100,29 +100,8 @@
   priority: WARNING
   tags: [ATT&CK, container, shell, mitre_execution]
 
-- rule: Netcat Remote Code Execution in Container
-  hid: exec_04
-  hthreats: 1
-  suggestion:
-    en:
-      key: "Suggestions"
-      value: "Confirm whether the container has been invaded. If it is not for special reasons, immediately remove the hacker tool, isolate the container, investigate other attacks, and confirm the cluster security"
-    zh:
-      key: "处置建议"
-      value: "确认容器是否遭到入侵，如果非特殊原因则立即清除该黑客工具，并隔离该容器，同时排查其他攻击行为，确认集群安全。"
-  desc: Netcat Program runs inside container that allows remote code execution(Risk of Reverse Shell exploit)
-  condition: >
-    spawned_process and container and
-    (((proc.name = "nc" or proc.name = "nc.openbsd") and (proc.args contains "-e" or proc.args contains "-c")) or
-    (proc.name = "ncat" and (proc.args contains "--sh-exec" or proc.args contains "--exec" or proc.args contains "-e " or proc.args contains "-c " or proc.args contains "--lua-exec"))) and
-    not (k8s.pod.name contains "-kafka-zookeeper-" or tensorsec_namespace or ignore_proc_args)
-  output: >
-     Netcat runs inside container that allows remote code execution (zh_msg=容器里通过黑客工具netcat执行远程命令,rule_type=Execution,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid,container_id=%container.id,container_name=%container.name,image=%container.image.repository:%container.image.tag)
-  priority: ALERT
-  tags: [ATT&CK, network, process, mitre_execution]
-
 - rule: Reverse shell through socket and dup
-  hid: exec_05
+  hid: exec_04
   hthreats: 1
   suggestion:
     en:
@@ -133,16 +112,17 @@
       value: "容器遭到入侵，需隔离该容器，获取攻击者远程ip地址，同时排查其他攻击行为，确认集群安全。"
   desc: Reverse shell through socket and dup
   condition: >
-    evt.type in (dup, dup2) and 
-    container and fd.num in (0, 1, 2) and fd.type in ("ipv4", "ipv6", "pipe") and fd.name contains "->" and
-    not k8s.pod.name contains "98166d" and not k8s.pod.name contains "42cca6" and shell_parent_procs
+    evt.type in (dup, dup2) and
+    fd.num in (0, 1, 2) and fd.type in ("ipv4", "ipv6", "pipe") and fd.name contains "->" and
+    container and (shell_parent_procs or shell_procs) and
+    not k8s.pod.name contains "98166d" and not k8s.pod.name contains "42cca6"
   output: >
-    Reverse shell through socket and dup (zh_msg=黑客在容器内通过socket和dup反弹shell,rule_type=Execution,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name %container.info process=%proc.name parent=%proc.pname terminal=%proc.tty container_id=%container.id container_name=%container.name image=%container.image.repository fd_name=%fd.name fd.num=%fd.num fd.type=%fd.type connection=%fd.name,client_ip=%fd.cip,client_port=%fd.cport,server_ip=%fd.sip,server_port=%fd.sport)
+    Reverse shell through socket and dup (zh_msg=黑客在容器内通过socket和dup反弹shell,rule_type=Execution,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name %container.info process=%proc.name parent=%proc.pname terminal=%proc.tty container_id=%container.id container_name=%container.name image=%container.image.repository fd_name=%fd.name fd.num=%fd.num fd.type=%fd.type connection=%fd.name,client_ip=%fd.cip,client_port=%fd.cport,server_ip=%fd.sip,server_port=%fd.sport,proc_vpgid=%proc.vpgid)
   priority: ALERT
   tags: [ATT&CK, container, shell, mitre_execution, related]
 
 - rule: Running k8s malicious tools in the container
-  hid: exec_06
+  hid: exec_05
   hthreats: 0
   suggestion:
     en:
@@ -172,7 +152,7 @@
   tags: [ATT&CK, container, shell, mitre_execution, strict]
 
 - rule: Connecting to a remote server through redis client in container
-  hid: exec_07
+  hid: exec_06
   hthreats: 0
   suggestion:
     en:
@@ -190,7 +170,7 @@
   tags: [ATT&CK, container, shell, mitre_execution, triggered]
 
 - rule: Run the tool for scanning ports
-  hid: exec_08
+  hid: exec_07
   hthreats: 0
   suggestion:
     en:
@@ -208,7 +188,7 @@
   tags: [ATT&CK, network, mitre_remote_service]
 
 - rule: Run the tool for brute-force cracking
-  hid: exec_09
+  hid: exec_08
   hthreats: 0
   suggestion:
     en:
@@ -226,7 +206,7 @@
   tags: [ATT&CK, network, mitre_remote_service]  
 
 - rule: Docker build vulnerability(CVE-2019-13139)
-  hid: exec_10
+  hid: exec_09
   hthreats: 0
   suggestion:
     en:

@@ -272,7 +272,9 @@
       value: "请确认查看历史文件的原因，确保其不是恶意活动，否则可能为黑客信息收集行为，请确认执行对象。"
   desc: This rule detects when a process inside a container accesses the history file.
   condition: >
-    open_read and container and (fd.name contains ".bash_history" or fd.name contains ".zsh_history") and shell_parent_procs
+    open_read and (fd.name contains ".bash_history" or fd.name contains ".zsh_history") and
+    container and
+    shell_parent_procs and not shell_procs
   output: View history command file in container (zh_msg=容器内查看历史命令文件,rule_type=Discovery,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,container_id=%container.id,container_name=%container.name)
   priority: WARNING
   tags: [ATT&CK]
