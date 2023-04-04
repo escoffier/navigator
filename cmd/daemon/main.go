@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"gitlab.com/piccolo_su/vegeta/cmd/daemon/rscan"
 	"math/rand"
 	"os"
 	"runtime/debug"
@@ -399,6 +400,32 @@ func Run(ctx context.Context) error {
 		}()
 	} else {
 		logging.Get().Warn().Msg("not enable auto inject")
+	}
+
+	// start runtime scan
+	rsEnabled := os.Getenv("RSCAN_ENABLED")
+	if rsEnabled == "1" {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			defer func() {
+				if r := recover(); r != nil {
+					logging.Get().Error().Msgf("runtime scan panic: %v.stack:%s", r, debug.Stack())
+				}
+			}()
+
+			rsScanner, err := rscan.NewRuntimeScanner(
+				rscan.WithPodResInfo(podResInfo),
+				rscan.WithNodePodResInfo(podWatcher),
+				rscan.WithClusterInfoManager(clusterManager))
+			if err != nil {
+				logging.Get().Err(err).Msg("failed to create runtime scanner")
+				return
+			}
+			if err = rsScanner.Run(); err != nil {
+				logging.Get().Err(err).Msg("runtime scanner run err")
+			}
+		}()
 	}
 
 	wg.Wait()

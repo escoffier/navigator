@@ -3,6 +3,7 @@ package docker
 import (
 	"archive/tar"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"path/filepath"
@@ -57,17 +58,8 @@ func (d *dockerDriver) GetContainerMeta(containerID string) (container.Container
 	cm.ID = c.ID
 	cm.Name = strings.TrimPrefix(c.Name, "/")
 	cm.State = c.State.Status
-
-	labels := c.Config.Labels
-	for k, v := range labels {
-		if k == "io.kubernetes.pod.uid" {
-			cm.PodUID = v
-			break
-		}
-	}
-	if cm.PodUID == "" {
-		return *cm, fmt.Errorf("get container's pod uid failed, pod uid : %v", cm.PodUID)
-	}
+	cm.GraphDriver = c.GraphDriver
+	cm.Labels = c.Config.Labels
 
 	// inspect image info
 	image, _, err := d.dockerCli.ImageInspectWithRaw(ctx, c.Image)
@@ -94,9 +86,19 @@ func (d *dockerDriver) GetContainerMeta(containerID string) (container.Container
 		tmpDigests[ds] = 1
 		cm.ImageDigest = append(cm.ImageDigest, ds)
 	}
-
 	cm.ImageRepoTags = image.RepoTags
 
+	// get pod id
+	labels := c.Config.Labels
+	for k, v := range labels {
+		if k == "io.kubernetes.pod.uid" {
+			cm.PodUID = v
+			break
+		}
+	}
+	if cm.PodUID == "" {
+		return *cm, container.ErrNotFoundPodID
+	}
 	return *cm, nil
 }
 
@@ -119,7 +121,7 @@ func (d *dockerDriver) MonitorEvent(cb container.EventCallback) error {
 			logging.Get().Debug().Interface("msg", m).Msg("receive docker event")
 
 			ev, err := d.transformEvent(&m)
-			if err != nil {
+			if err != nil && !errors.Is(err, container.ErrNotFoundPodID) {
 				logging.Get().Err(err).Msg("transform docker event msg failed")
 			} else {
 				cb(ev)
@@ -328,10 +330,12 @@ func (d *dockerDriver) transformEvent(ev *events.Message) (*container.EventMessa
 		Time:  ev.Time,
 	}
 	containerInfo, err := d.GetContainerMeta(ev.ID)
-	if err != nil {
-		return nil, fmt.Errorf("get container info failed:%v", err)
-	}
+	// 有可能返回空的containerInfo,仍然保存，外部根据err自己处理
 	msg.ContainerInfo = containerInfo
+	if err != nil {
+		logging.Get().Err(err).Msg("docker driver failed to get container meta")
+		return msg, err
+	}
 
 	return msg, nil
 }

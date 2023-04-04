@@ -40,6 +40,8 @@ all:
   - cp ~/.docker/kubectl /bin/
   - cp ~/.docker/xray ./
   - chmod +755 /bin/kubectl
+  - mkdir avira/
+  - cp ~/.docker/savapi-sdk-linux64.tgz avira/
   script:
   - USEMIRROR=true FETCHTAG=latest make all
   - make pushimages
@@ -128,6 +130,8 @@ holmes:
   - cp ~/.docker/config-ci ~/.kube/config
   - cp ~/.docker/kubectl /bin/
   - chmod +755 /bin/kubectl
+  - mkdir avira/
+  - cp ~/.docker/savapi-sdk-linux64.tgz avira/
   script:
   - USEMIRROR=true FETCHTAG=latest make daemon holmes
   - docker push harbor.tensorsecurity.com/tensorsecurity/daemon:ci
@@ -160,6 +164,8 @@ scanner:
   - cp ~/.docker/config-ci ~/.kube/config
   - cp ~/.docker/kubectl /bin/
   - chmod +755 /bin/kubectl
+  - mkdir avira/
+  - cp ~/.docker/savapi-sdk-linux64.tgz avira/
   script:
   - go test -v -cover ./cmd/scanner/...
   - USEMIRROR=true make scanner
@@ -225,34 +231,6 @@ webhook:
     - cmd/webhook/**/*
     - build/webhook/**/*
     - configs/webhook/**/*
-webshell-server:
-  stage: build
-  resource_group: webshell-server
-  tags:
-  - k8s
-  before_script:
-  - git merge origin/master
-  - git config --global --add url."git@gitlab.com:".insteadOf "https://gitlab.com/"
-  - git config --global --add url."ssh://git@10.99.201.85/".insteadOf "http://scm.tensorsecurity.cn/"
-  - sed -i 's#RELEASEVERSION?=v0.0.1#RELEASEVERSION?=ci#g' Makefile
-  - sed -i "s#latest#ci#g" Makefile
-  - sed -i "s#DOCKER_REGISTRY=$(REPOPREFIX)#DOCKER_REGISTRY=harbor.tensorsecurity.com/tensorsecurity#g"
-    Makefile
-  - sed -i "s#REPOPREFIX?=localhost:32000#REPOPREFIX?=harbor.tensorsecurity.com/tensorsecurity#g"
-    Makefile
-  - mkdir ~/.kube/
-  - cp ~/.docker/config-ci ~/.kube/config
-  - cp ~/.docker/kubectl /bin/
-  - chmod +755 /bin/kubectl
-  script:
-  - USEMIRROR=true make webshell-server
-  - docker push harbor.tensorsecurity.com/tensorsecurity/webshell-server:ci
-  - kubectl delete pod -l app.kubernetes.io/name=webshell-server -n tensorsec
-  rules:
-  - changes:
-    - cmd/webshell-server/**/*
-    - build/webshell-server/**/*
-    - configs/webshell-server/**/*
 api-test:
   image: harbor.tensorsecurity.com/library/openjdk:17.0.1
   stage: test
