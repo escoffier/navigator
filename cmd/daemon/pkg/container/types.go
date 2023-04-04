@@ -2,8 +2,14 @@ package container
 
 import (
 	"fmt"
+	"os"
+	"strings"
 
 	"github.com/docker/docker/api/types"
+)
+
+var (
+	defaultDockerSocket string = "unix:///host/var/run/docker.sock"
 )
 
 type EventMessage struct {
@@ -32,7 +38,18 @@ type ContainerMeta struct {
 	// eg:[library/nginx:1.20,dev/nginx:1.20]
 	ImageRepoTags []string
 
-	PodUID string
+	PodUID      string
+	GraphDriver types.GraphDriverData // storage layer info
+	Labels      map[string]string     // List of labels set to this container
+}
+
+func (c *ContainerMeta) PodNamespace() string {
+	for k, v := range c.Labels {
+		if k == "io.kubernetes.pod.namespace" {
+			return v
+		}
+	}
+	return ""
 }
 
 type EventCallback func(*EventMessage)
@@ -75,4 +92,35 @@ func Open(cfg RuntimeConfig) (Runtime, error) {
 		return nil, fmt.Errorf("unknown Driver %q (forgotten configuration or import?)", cfg.Type)
 	}
 	return driver(cfg)
+}
+
+func CreateRuntimeCli() (Runtime, error) {
+	var rt Runtime
+	var err error
+	dockerHost := os.Getenv("DOCKER_SOCKET_ADDR")
+	if dockerHost == "" {
+		dockerHost = defaultDockerSocket
+	}
+	if isUnixSockFile(dockerHost) {
+		rt, err = Open(RuntimeConfig{Type: "docker"})
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		// todo: support containerd or cri-o unix socket
+		return nil, fmt.Errorf("not valid runtime socket")
+	}
+	return rt, nil
+}
+
+func isUnixSockFile(filename string) bool {
+	if strings.HasPrefix(filename, "unix://") {
+		filename = filename[len("unix://"):]
+	}
+
+	info, err := os.Stat(filename)
+	if err != nil {
+		return false
+	}
+	return (info.Mode() & os.ModeSocket) != 0
 }
