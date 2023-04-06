@@ -17,6 +17,7 @@ import (
 
 	dockerarchive "github.com/docker/docker/pkg/archive"
 	"github.com/rs/zerolog"
+	aviraCli "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/avira"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 )
@@ -46,14 +47,44 @@ func (m *MaliciousScan) ScanLayer(ctx context.Context, digest string, layerPath 
 		return []model.VirusInfo{}, nil
 
 	}
+	var virusInfos []model.VirusInfo
+	if os.Getenv("SCAN_VIRUS") == "avira" {
+		virusInfos, err = m.aviraScan(ctx, tmpDir, digestNum)
+		if err != nil {
+			return []model.VirusInfo{}, fmt.Errorf("Avira Error %w", err)
+		}
+	} else {
+		virusInfos, err = m.clamavScan(ctx, tmpDir, digestNum)
+		if err != nil {
+			return []model.VirusInfo{}, fmt.Errorf("Clamscan Error %w", err)
+		}
 
-	virusInfos, err := m.clamavScan(ctx, tmpDir, digestNum)
-	if err != nil {
-		return []model.VirusInfo{}, fmt.Errorf("Clamscan Error %w", err)
+		if len(virusInfos) != 0 {
+			zerolog.Ctx(ctx).Info().Str("Filename:", virusInfos[0].FileName).Str("Virusname:", virusInfos[0].VirusName).Str("FilePath", virusInfos[0].FilePath).Msg("The digest scan result")
+		}
 	}
+	return virusInfos, nil
+}
 
-	if len(virusInfos) != 0 {
-		zerolog.Ctx(ctx).Info().Str("Filename:", virusInfos[0].FileName).Str("Virusname:", virusInfos[0].VirusName).Str("FilePath", virusInfos[0].FilePath).Msg("The digest scan result")
+func (m *MaliciousScan) aviraScan(ctx context.Context, scanPath string, digestNum string) ([]model.VirusInfo, error) {
+	logging.GetLogger().Info().Str("scanPath", scanPath).Msg("aviraScan")
+	result, err := aviraCli.ScanDir(scanPath)
+	if err != nil {
+		return []model.VirusInfo{}, err
+	}
+	virusInfos := []model.VirusInfo{}
+	for path, virus := range result {
+		virusName := make(map[string]struct{})
+		for _, v := range virus {
+			if _, ok := virusName[v]; !ok {
+				virusName[v] = struct{}{}
+				virusInfos = append(virusInfos, model.VirusInfo{
+					FileName:  filepath.Base(path),
+					VirusName: v,
+					FilePath:  strings.Replace(path, scanPath, "", 1),
+				})
+			}
+		}
 	}
 
 	return virusInfos, nil
@@ -326,20 +357,26 @@ func (m *MaliciousScan) parseLayerTar(tarFileName string, dst string) (uint64, e
 		perm := header.FileInfo().Mode().Perm()
 		f := perm & os.FileMode(73)
 
-		// 判断文件是否是可执行文件或者webshell后缀的文件
-		if uint32(f) == uint32(73) {
-			// 这里这样写防止ioutil.ReadAll读取所有的内容
-			file, _ := m.createFile(filepath.Join(dst, header.Name))
-			_, err := io.Copy(file, tarReader)
-			if err != nil {
-				logging.GetLogger().Err(err).Msg("virusScan io.Copy error")
+		//判断是否需要扫描所有类型文件
+		if os.Getenv("SCAN_ALL") == "" {
+			// 判断文件是否是可执行文件或者webshell后缀的文件
+			if uint32(f) != uint32(73) {
+				continue
 			}
-			err = os.Chmod(filepath.Join(dst, header.Name), 0666)
-			if err != nil {
-				logging.GetLogger().Err(err).Msg("virusScan os.Chmod error")
-			}
-			count++
 		}
+
+		// 这里这样写防止ioutil.ReadAll读取所有的内容
+		file, _ := m.createFile(filepath.Join(dst, header.Name))
+		_, err = io.Copy(file, tarReader)
+		if err != nil {
+			logging.GetLogger().Err(err).Msg("virusScan io.Copy error")
+		}
+		err = os.Chmod(filepath.Join(dst, header.Name), 0666)
+		if err != nil {
+			logging.GetLogger().Err(err).Msg("virusScan os.Chmod error")
+		}
+		count++
+
 	}
 	return count, nil
 }

@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/cmd"
+
 	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/dequeue"
 	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/jobs/pull-image"
 	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/jobs/save-result"
@@ -18,6 +19,7 @@ import (
 	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry/support/hw-swr-en"
 	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry/support/jfrog"
 	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/service/register/api"
+	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/service/register/avira"
 	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/service/register/cronjob"
 	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/service/register/image-cache"
 	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/service/register/image-sync"
