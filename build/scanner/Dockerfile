@@ -22,6 +22,16 @@ RUN sed -i "s!archive.ubuntu.com/!mirrors.aliyun.com/!g" /etc/apt/sources.list \
     && mkdir /opt/webshell \
     && tar xvf /opt/hm-linux.tgz -C /opt/webshell/
 
+ADD avira/savapi-sdk-linux64.tgz /usr/local
+
+RUN mkdir /etc/savapi && mkdir /var/log/savapi && mkdir /run/savapi
+
+# RUN wget --http-user=admin --http-password='@&yZ3LetJ!FBA#PQ' http://file.tensorsecurity.com/savapi-sdk-linux64.tgz \
+#     && tar -xf savapi-sdk-linux64.tgz \
+#     && rm savapi-sdk-linux64.tgz && mv savapi-sdk-linux64 /usr/local/savapi-sdk-linux64 && mkdir /etc/savapi && mkdir /var/log/savapi
+
+ADD configs/scanner/savapi.conf /etc/savapi/savapi.conf
+
 ADD dist/scanner /
 ADD configs/scanner /configs/scanner/
 ADD configs/scanner/entrypoint.sh /entrypoint.sh
