@@ -195,7 +195,7 @@
     trigger: 'Contact remote server from container'
     steps:
       - name: checkRegexMatch
-        params: [ '(\w*sh)|(java)|([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])(\.([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])){3}', trigger.payload.output_map.proc_cmdline ]   
+        params: [ '(((2(5[0-5]|[0-4]\d))|[0-1]?\d{1,2})(\.((2(5[0-5]|[0-4]\d))|[0-1]?\d{1,2})){3})|(\w*sh)|(java)|(^[a-zA-Z0-9._]*$)', trigger.payload.output_map.proc_cmdline ]
       - name: branches
         params: MARCO::regexReverseShell
       - name: execGenerateSignal
@@ -203,10 +203,10 @@
       - name: execSendPalace
         params: ''
     info:
-      name: 'Reverse shell through {reverse_tool: socket and dup}'
+      name: 'Reverse shell through {reverse_tool: socket and dup} in container'
       desc:
-        en: 'Reverse shell through {reverse_tool: socket and dup}'
-        zh: '通过{reverse_tool_zh: socket和dup}反弹shell'
+        en: 'Reverse shell through {reverse_tool: socket and dup} in container'
+        zh: '容器内通过{reverse_tool_zh: socket和dup}反弹shell'
       suggestion:
         en: 'If the container is intruded, we need to isolate the container, get the remote ip address of the attacker, and check other attacks to confirm the security of the cluster.'
         zh: '容器遭到入侵，需隔离该容器，获取攻击者远程ip地址，同时排查其他攻击行为，确认集群安全。'
@@ -218,6 +218,18 @@
   - key: regexReverseShell
     type: branches
     branches:
+    - enabled: true
+      steps:
+      - name: checkRelatedExists
+        params: [ 'Generated java child process shell after starting the container', 5s, trigger.payload.output_map.proc_vpgid, payload.output_map.proc_vpgid ]
+      - name: defineValue
+        params: { reverse_tool: java, reverse_tool_zh: java }
+    - enabled: true
+      steps:
+      - name: checkRelatedExists
+        params: [ 'Generated go child process shell after starting the container', 5s, trigger.payload.output_map.proc_vpgid, payload.output_map.proc_vpgid ]
+      - name: defineValue
+        params: { reverse_tool: go, reverse_tool_zh: go }
     - enabled: true
       steps:
       - name: checkExpression
@@ -268,6 +280,18 @@
         params: [ '^perl.*-e.*[sS]ocket.*open\(', trigger.payload.output_map.proc_cmdline ]
       - name: defineValue
         params: { reverse_tool: perl, reverse_tool_zh: perl }
+    - enabled: true
+      steps:
+      - name: checkRegexMatch
+        params: [ 'lua(?:\d+(?:\.\d+)?)?\s+-e+\s+.*require\(.*socket', trigger.payload.output_map.proc_cmdline ]
+      - name: defineValue
+        params: { reverse_tool: lua, reverse_tool_zh: lua }
+    - enabled: true
+      steps:
+      - name: checkRegexMatch
+        params: [ 'socat\s+TCP:(((2(5[0-5]|[0-4]\d))|[0-1]?\d{1,2})(\.((2(5[0-5]|[0-4]\d))|[0-1]?\d{1,2})){3}):\d+\s+EXEC:[^\s]+sh', trigger.payload.output_map.proc_cmdline ]
+      - name: defineValue
+        params: { reverse_tool: socat, reverse_tool_zh: socat }
     - enabled: true
       steps:
       - name: checkRelatedExists
