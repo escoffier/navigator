@@ -323,18 +323,24 @@ func (rs *RuntimeScanner) handleInotifyEvent() error {
 					}
 				}
 			} else if event.Mask&inotify.InOpen == inotify.InOpen {
-				logging.Get().Debug().Str("file", event.Name).Msg("open")
+				logging.Get().Debug().Str("file", filename).Msg("open")
 			} else if event.Mask&inotify.InModify == inotify.InModify {
-				logging.Get().Debug().Str("file", event.Name).Msg("modify")
+				logging.Get().Debug().Str("file", filename).Msg("modify")
 			} else if event.Mask&inotify.InDelete == inotify.InDelete {
-				logging.Get().Debug().Str("file", event.Name).Msg("delete")
+				logging.Get().Debug().Str("file", filename).Msg("delete")
 			} else if event.Mask&inotify.InIgnored == inotify.InIgnored {
 				// when container deleted,all storage path will be deleted,and watches will be auto removed too.
-				// auto remove watches will generate ignore event. we ignore these events
-				logging.Get().Debug().Str("file", event.Name).Msg("ignore")
+				// auto remove or manual remove some directory will generate ignore event.
+				// the inode of the removed directory will become invalid, we need to remove this from inotify instance
+				logging.Get().Debug().Str("file", filename).Msg("ignore")
+				if err := rs.watcher.RemoveWatch(filename); err != nil {
+					logging.Get().Err(err).Str("file", filename).Msg("failed to remove watch")
+				} else {
+					logging.Get().Debug().Str("file", filename).Msg("remove watch ok")
+				}
 			} else if event.Mask&inotify.InUnmount == inotify.InUnmount {
 				// rm container would trigger unmount
-				logging.Get().Debug().Str("file", event.Name).Msg("unmount")
+				logging.Get().Debug().Str("file", filename).Msg("unmount")
 			}
 		case err := <-rs.watcher.Error:
 			logging.Get().Err(err).Msgf("watcher error")
