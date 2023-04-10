@@ -112,12 +112,12 @@ func (n *NamespacesQueryOption) WithName(ns string) *NamespacesQueryOption {
 }
 
 func CountNamespaces(ctx context.Context, rdb *gorm.DB, clusterKey, nameQuery string) (int64, error) {
-	pgCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	pgCtx, cancel := context.WithTimeout(ctx, 9*time.Second)
 	defer cancel()
 
 	var nsCount int64
 	err := util.RetryWithBackoff(pgCtx, func() error {
-		oneCtx, cancel := context.WithTimeout(ctx, 500*time.Millisecond)
+		oneCtx, cancel := context.WithTimeout(ctx, 4*time.Second)
 		defer cancel()
 
 		db := rdb.WithContext(oneCtx).Model(&model.TensorNamespace{}).Where("status = ?", 0)
@@ -340,12 +340,12 @@ func getLikeExpr(s string) string {
 }
 
 func CountResources(ctx context.Context, rdb *gorm.DB, query *ResourcesQueryOption) (int64, error) {
-	pgCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	pgCtx, cancel := context.WithTimeout(ctx, 9*time.Second)
 	defer cancel()
 
 	var resCount int64
 	err := util.RetryWithBackoff(pgCtx, func() error {
-		oneCtx, cancel := context.WithTimeout(ctx, 500*time.Millisecond)
+		oneCtx, cancel := context.WithTimeout(ctx, 4*time.Second)
 		defer cancel()
 
 		db := rdb.WithContext(oneCtx).Model(&model.TensorResource{}).Where("status = ?", 0)
@@ -472,12 +472,12 @@ func (q *ResContainersQueryOption) WithColumnQuery(column, query string) *ResCon
 }
 
 func CountResourceContainers(ctx context.Context, rdb *gorm.DB, query *ResContainersQueryOption) (int64, error) {
-	pgCtx, cancel := context.WithTimeout(ctx, 4*time.Second)
+	pgCtx, cancel := context.WithTimeout(ctx, 9*time.Second)
 	defer cancel()
 
 	var cntNum int64
 	err := util.RetryWithBackoff(pgCtx, func() error {
-		oneCtx, cancel := context.WithTimeout(ctx, 1000*time.Millisecond)
+		oneCtx, cancel := context.WithTimeout(ctx, 4*time.Second)
 		defer cancel()
 
 		db := rdb.WithContext(oneCtx).Model(&model.TensorContainer{}).Where("status = ?", 0)
@@ -1177,12 +1177,12 @@ func GetResourcePodsList(ctx context.Context, rdb *gorm.DB, queryOptions *ResPod
 }
 
 func CountPods(ctx context.Context, rdb *gorm.DB, queryOptions *ResPodsQueryOption, offset, limit int) (int64, error) {
-	ctx, cancel := context.WithTimeout(ctx, 1000*time.Millisecond)
+	ctx, cancel := context.WithTimeout(ctx, 9*time.Second)
 	defer cancel()
 
 	var cntNum int64
 	err := util.RetryWithBackoff(ctx, func() error {
-		oneCtx, oneCancel := context.WithTimeout(ctx, 300*time.Millisecond)
+		oneCtx, oneCancel := context.WithTimeout(ctx, 4*time.Second)
 		defer oneCancel()
 
 		db := rdb.WithContext(oneCtx).Model(&model.PodResourceRelation{}).Where("status = ?", 0)
@@ -1673,13 +1673,13 @@ func GetNodesHostAndOS(ctx context.Context, rdb *gorm.DB) ([]*model.TensorNode, 
 }
 
 func CountNodes(ctx context.Context, rdb *gorm.DB, queryOptions *NodeQueryOption) (int64, error) {
-	rctx, cancel := context.WithTimeout(ctx, 2000*time.Millisecond)
+	rctx, cancel := context.WithTimeout(ctx, 9*time.Second)
 	defer cancel()
 
 	var count int64
 	notFound := false
 	err := util.RetryWithBackoff(rctx, func() error {
-		oneCtx, oneCancel := context.WithTimeout(rctx, 500*time.Millisecond)
+		oneCtx, oneCancel := context.WithTimeout(rctx, 4*time.Second)
 		defer oneCancel()
 
 		db := rdb.WithContext(oneCtx).Model(&model.TensorNode{})
@@ -2120,12 +2120,12 @@ func (q *RawContainersQueryOption) WithPrefixColumnQuery(column, query string) *
 }
 
 func CountRawContainer(ctx context.Context, rdb *gorm.DB, queryOptions *RawContainersQueryOption) (int64, error) {
-	ctx, cancel := context.WithTimeout(ctx, 6000*time.Millisecond)
+	ctx, cancel := context.WithTimeout(ctx, 9*time.Second)
 	defer cancel()
 
 	var cntNum int64
 	err := util.RetryWithBackoff(ctx, func() error {
-		oneCtx, oneCancel := context.WithTimeout(ctx, 2000*time.Millisecond)
+		oneCtx, oneCancel := context.WithTimeout(ctx, 4*time.Second)
 		defer oneCancel()
 
 		var db *gorm.DB
