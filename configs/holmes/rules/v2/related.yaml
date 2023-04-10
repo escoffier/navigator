@@ -18,6 +18,7 @@
     and shell_family_procs
     and not proc.name in (known_system_procs_network_activity_binaries)
     and not proc.pname in (known_system_procs_network_activity_binaries)
+    and not (package_mgmt_procs or package_mgmt_ancestor_procs)
     and not login_doing_dns_lookup
     and not user_expected_system_procs_network_activity_conditions and container
     and not tensorsec_namespace
@@ -138,3 +139,43 @@
     connection=%fd.name,client_ip=%fd.cip,client_port=%fd.cport,server_ip=%fd.sip,server_port=%fd.sport)
   priority: ALERT
   tags: [ATT&CK, network, process, mitre_execution, related]
+
+- rule: Generated java child process shell after starting the container
+  hid: related_08
+  hthreats: 0
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands."
+    zh:
+      key: "处置建议"
+      value: "使用免疫防御训练应用，限制敏感文件和命令的用户权限。"
+  desc: Generated java child process shell after starting the container
+  condition: >
+   spawned_process and evt.res!=ENOENT and
+   container and not container_entrypoint and
+   shell_procs and proc.aname = java
+  output: >
+    Generated java child process shell after starting the container(zh_msg=启动容器后生成java子进程shell,rule_type=Execution,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_name=%proc.name,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,evt.arg.exe=%evt.arg.exe,terminal=%proc.tty,user_uid=%user.uid,container_id=%container.id,container_name=%container.name,parent=%proc.pname,gparent=%proc.aname[2],ggparent=%proc.aname[3],aname[4]=%proc.aname[4],aname[5]=%proc.aname[5],aname[6]=%proc.aname[6],aname[7]=%proc.aname[7],proc_pgid=%proc.vpgid)
+  priority: WARNING
+  tags: [ATT&CK, filesystem, mitre_privilege_escalation, related, triggered]
+
+- rule: Generated go child process shell after starting the container
+  hid: related_09
+  hthreats: 0
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands."
+    zh:
+      key: "处置建议"
+      value: "使用免疫防御训练应用，限制敏感文件和命令的用户权限。"
+  desc: Generated go child process shell after starting the container
+  condition: >
+   spawned_process and evt.res!=ENOENT and
+   container and not container_entrypoint and
+   shell_procs and proc.aname = go
+  output: >
+    Generated go child process shell after starting the container(zh_msg=启动容器后生成go子进程shell,rule_type=Execution,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_name=%proc.name,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,evt.arg.exe=%evt.arg.exe,terminal=%proc.tty,user_uid=%user.uid,container_id=%container.id,container_name=%container.name,parent=%proc.pname,gparent=%proc.aname[2],ggparent=%proc.aname[3],aname[4]=%proc.aname[4],aname[5]=%proc.aname[5],aname[6]=%proc.aname[6],aname[7]=%proc.aname[7],proc_pgid=%proc.vpgid)
+  priority: WARNING
+  tags: [ATT&CK, filesystem, mitre_privilege_escalation, related, triggered]
