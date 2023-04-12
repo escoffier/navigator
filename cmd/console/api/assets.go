@@ -80,6 +80,11 @@ func (api *api) assets() func(chi.Router) {
 		r.Get("/cluster/{cluster_key}/namespace/{namespace}/pods/{name}", api.getPod())
 		r.Get("/cluster/{cluster_key}/nodes/{name}", api.getNode())
 
+		r.Get("/applications", api.getApplications())
+		r.Get("/applications/count", api.countApplications())
+		r.Get("/applications/types", api.getApplicationTypes())
+		r.Get("/applications/versions", api.getApplicationVersions())
+		r.Get("/applications/targets", api.getApplicationTargets())
 	}
 }
 
@@ -2375,5 +2380,177 @@ func (api *api) getNode() http.HandlerFunc {
 				ev.Data.Item = data
 			}
 		})
+	}
+}
+
+func (api *api) getApplications() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+		defer cancel()
+
+		limit, offset, err := getLimitAndOffset(r)
+		if err != nil {
+			logging.Get().Err(err).Msgf("get limit or offset query error")
+			RespAndLog(w, ctx, NewAnError(http.StatusBadRequest, errors.New("no limit or offset given in params")))
+			return
+		}
+		appType, _ := param.QueryString(r, "app_type")
+		if appType == "" {
+			RespAndLog(w, ctx, NewAnError(http.StatusBadRequest, errors.New("invalid app type param")))
+			return
+		}
+
+		clusterKey, _ := param.QueryString(r, "cluster_key")
+		targetName, _ := param.QueryString(r, "app_target")
+		version, _ := param.QueryString(r, "app_version")
+		resName, _ := param.QueryString(r, "resource_name")
+
+		query := dal.AppQuery()
+		query.WithAppType(appType)
+		if clusterKey != "" {
+			query.WithCluster(clusterKey)
+		}
+		if targetName != "" {
+			query.WithApaTargetName(targetName)
+		}
+		if version != "" {
+			query.WithAppTargetVer(version)
+		}
+		if resName != "" {
+			query.WithFuzzyResourceName(resName)
+		}
+
+		resSvc, ok := assets.GetResourcesService(ctx)
+		if !ok {
+			logging.Get().Error().Msg("service instance get error")
+			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.New("service instance get error")))
+			return
+		}
+
+		apps, totalCnt, err := resSvc.GetAppWithType(ctx, query, offset, limit)
+		if err != nil {
+			logging.Get().Err(err).Msg("count raw container error")
+			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, err))
+			return
+		}
+		response.Ok(w, response.WithItems(apps),
+			response.WithTotalItems(totalCnt),
+			response.WithStartIndex(int64(offset+len(apps))),
+		)
+	}
+}
+
+func (api *api) countApplications() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+
+		appType, _ := param.QueryString(r, "app_type")
+		if appType == "" {
+			RespAndLog(w, ctx, NewAnError(http.StatusBadRequest, errors.New("invalid app type param")))
+			return
+		}
+
+		clusterKey, _ := param.QueryString(r, "cluster_key")
+		targetName, _ := param.QueryString(r, "app_target")
+		version, _ := param.QueryString(r, "app_version")
+		resName, _ := param.QueryString(r, "resource_name")
+
+		query := dal.AppQuery()
+		query.WithAppType(appType)
+		if clusterKey != "" {
+			query.WithCluster(clusterKey)
+		}
+		if targetName != "" {
+			query.WithApaTargetName(targetName)
+		}
+		if version != "" {
+			query.WithAppTargetVer(version)
+		}
+		if resName != "" {
+			query.WithFuzzyResourceName(resName)
+		}
+
+		resSvc, ok := assets.GetResourcesService(ctx)
+		if !ok {
+			logging.Get().Error().Msg("service instance get error")
+			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.New("service instance get error")))
+			return
+		}
+
+		totalCnt, err := resSvc.CountAppWithType(ctx, query)
+		if err != nil {
+			logging.Get().Err(err).Msg("count raw container error")
+			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, err))
+			return
+		}
+		response.Ok(w, response.WithItem(&countResp{Count: totalCnt}))
+	}
+}
+
+func (api *api) getApplicationTypes() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+
+		clusterKey, _ := param.QueryString(r, "cluster_key")
+		resSvc, ok := assets.GetResourcesService(ctx)
+		if !ok {
+			logging.Get().Error().Msg("service instance get error")
+			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.New("service instance get error")))
+			return
+		}
+		appTypes, err := resSvc.GetAppTypes(ctx, clusterKey)
+		if err != nil {
+			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, fmt.Errorf(" get app types error: %v", err)))
+			return
+		}
+		response.Ok(w, response.WithItems(appTypes), response.WithTotalItems(int64(len(appTypes))))
+	}
+}
+
+func (api *api) getApplicationVersions() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+
+		clusterKey, _ := param.QueryString(r, "cluster_key")
+		appType, _ := param.QueryString(r, "app_type")
+
+		resSvc, ok := assets.GetResourcesService(ctx)
+		if !ok {
+			logging.Get().Error().Msg("service instance get error")
+			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.New("service instance get error")))
+			return
+		}
+		appVersions, err := resSvc.GetAppVersions(ctx, clusterKey, appType)
+		if err != nil {
+			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, fmt.Errorf(" get app versions error: %v", err)))
+			return
+		}
+		response.Ok(w, response.WithItems(appVersions), response.WithTotalItems(int64(len(appVersions))))
+	}
+}
+
+func (api *api) getApplicationTargets() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+
+		clusterKey, _ := param.QueryString(r, "cluster_key")
+		appType, _ := param.QueryString(r, "app_type")
+
+		resSvc, ok := assets.GetResourcesService(ctx)
+		if !ok {
+			logging.Get().Error().Msg("service instance get error")
+			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.New("service instance get error")))
+			return
+		}
+		appTargets, err := resSvc.GetAppTargets(ctx, clusterKey, appType)
+		if err != nil {
+			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, fmt.Errorf(" get app versions error: %v", err)))
+			return
+		}
+		response.Ok(w, response.WithItems(appTargets), response.WithTotalItems(int64(len(appTargets))))
 	}
 }

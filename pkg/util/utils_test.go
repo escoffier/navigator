@@ -2,6 +2,7 @@ package util
 
 import (
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
@@ -163,4 +164,50 @@ func TestJoinInt64Slice(t *testing.T) {
 		convey.So(JoinInt64Slice([]int64{}, ","), convey.ShouldEqual, "")
 		convey.So(JoinInt64Slice([]int64{1, 2, 3}, ","), convey.ShouldEqual, "1,2,3")
 	})
+}
+
+func TestDeDupArray(t *testing.T) {
+	type ResourceApp struct {
+		ID               uint32
+		ClusterKey       string  `json:"clusterKey,omitempty"`
+		Namespace        string  `json:"namespace,omitempty"`
+		ResourceName     string  `json:"resourceName,omitempty"`
+		AppType          *string `json:"appType,omitempty"`
+		AppTargetName    *string `json:"appTargetName,omitempty"`
+		AppTargetVersion *string `json:"appTargetVersion,omitempty"`
+	}
+
+	slice1 := []*ResourceApp{
+		{
+			ClusterKey:   "key1",
+			Namespace:    "ns1",
+			ResourceName: "res1",
+		},
+		{
+			ClusterKey:   "key2",
+			Namespace:    "ns1",
+			ResourceName: "res1",
+		},
+		{
+			ClusterKey:   "key1",
+			Namespace:    "ns1",
+			ResourceName: "res1",
+		},
+		{
+			ClusterKey:   "key1",
+			Namespace:    "ns2",
+			ResourceName: "res1",
+		},
+		{
+			ClusterKey:   "key1",
+			Namespace:    "ns2",
+			ResourceName: "res1",
+		},
+	}
+	slice11 := DeDupArray(slice1, func(t *ResourceApp) string {
+		return fmt.Sprintf("%s/%s/%s", t.ClusterKey, t.Namespace, t.ResourceName)
+	})
+	if len(slice11) != 3 {
+		t.Errorf("DeDupArray() = %v, want %v", len(slice11), 3)
+	}
 }

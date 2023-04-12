@@ -244,6 +244,10 @@ func GetNamespaceWithOption(ctx context.Context, rdb *gorm.DB, queryOpt *Namespa
 			rdb = rdb.Where(fmt.Sprintf("%s LIKE ?", column), getLikeExpr(val))
 		}
 
+		if limit > 0 && offset >= 0 {
+			rdb = rdb.Offset(offset).Limit(limit)
+		}
+
 		return rdb.WithContext(oneCtx).Model(&model.TensorNamespace{}).
 			Where("status = ?", 0).Find(&namespaces).Error
 	})
@@ -2388,4 +2392,99 @@ func CountRuleVersions(ctx context.Context, rdb *gorm.DB) (int64, error) {
 		return err
 	})
 	return count, err
+}
+
+type AppQueryOption struct {
+	whereEqCondition      map[string]interface{}
+	whereNotNullCondition map[string]struct{}
+	whereLikeCondition    map[string]string
+}
+
+func AppQuery() *AppQueryOption {
+	return &AppQueryOption{
+		whereEqCondition:      make(map[string]interface{}, 3),
+		whereNotNullCondition: make(map[string]struct{}, 2),
+		whereLikeCondition:    make(map[string]string),
+	}
+}
+
+func (q *AppQueryOption) WithAppType(appType string) *AppQueryOption {
+	q.whereEqCondition["app_type"] = appType
+	return q
+}
+
+func (q *AppQueryOption) WithApaTargetName(targetName string) *AppQueryOption {
+	q.whereEqCondition["app_target_name"] = targetName
+	return q
+}
+
+func (q *AppQueryOption) WithAppTargetVer(version string) *AppQueryOption {
+	q.whereEqCondition["app_target_version"] = version
+	return q
+}
+
+func (q *AppQueryOption) WithCluster(cluster_key string) *AppQueryOption {
+	q.whereEqCondition["cluster_key"] = cluster_key
+	return q
+}
+
+func (q *AppQueryOption) WithFuzzyResourceName(resName string) *AppQueryOption {
+	q.whereLikeCondition["resource_name"] = resName
+	return q
+}
+
+func GetResourceApp(ctx context.Context, rdb *gorm.DB, query *AppQueryOption, offset, limit int) (apps []*model.ResourceApp, err error) {
+	pgCtx, cancel := context.WithTimeout(ctx, 6*time.Second)
+	defer cancel()
+
+	err = util.RetryWithBackoff(pgCtx, func() error {
+		oneCtx, cancel := context.WithTimeout(ctx, 2000*time.Millisecond)
+		defer cancel()
+
+		db := rdb.WithContext(oneCtx).Model(&model.ResourceApp{}).Where("status = ?", 0)
+		// Distinct("cluster_key", "namespace", "resource_name", "app_target_name", "app_target_version")
+		if len(query.whereEqCondition) > 0 {
+			db = db.Where(query.whereEqCondition)
+		}
+		if len(query.whereLikeCondition) > 0 {
+			for column, val := range query.whereLikeCondition {
+				db = db.Where(fmt.Sprintf("%s LIKE ?", column), getLikeExpr(val))
+			}
+		}
+		if limit > 0 && offset >= 0 {
+			db = db.Offset(offset).Limit(limit)
+		}
+		return db.Find(&apps).Error
+	})
+	if err != nil {
+		return nil, err
+	}
+	return apps, nil
+}
+
+func CountResourceApp(ctx context.Context, rdb *gorm.DB, query *AppQueryOption) (int64, error) {
+	pgCtx, cancel := context.WithTimeout(ctx, 6*time.Second)
+	defer cancel()
+
+	var count int64
+	err := util.RetryWithBackoff(pgCtx, func() error {
+		oneCtx, cancel := context.WithTimeout(ctx, 2000*time.Millisecond)
+		defer cancel()
+
+		db := rdb.WithContext(oneCtx).Model(&model.ResourceApp{}).Where("status = ?", 0)
+		// Distinct("cluster_key", "namespace", "resource_name", "app_target_name", "app_target_version")
+		if len(query.whereEqCondition) > 0 {
+			db = db.Where(query.whereEqCondition)
+		}
+		if len(query.whereLikeCondition) > 0 {
+			for column, val := range query.whereLikeCondition {
+				db = db.Where(fmt.Sprintf("%s LIKE ?", column), getLikeExpr(val))
+			}
+		}
+		return db.Count(&count).Error
+	})
+	if err != nil {
+		return count, err
+	}
+	return count, nil
 }
