@@ -222,6 +222,18 @@ func DeDuplicationStringSlice(va []string) []string {
 	return ans
 }
 
+func DeDupArray[T any](va []T, keyFunc func(t T) string) []T {
+	exit := make(map[string]struct{})
+	ans := make([]T, 0, len(va))
+	for i := range va {
+		if _, ok := exit[keyFunc(va[i])]; !ok {
+			ans = append(ans, va[i])
+			exit[keyFunc(va[i])] = struct{}{}
+		}
+	}
+	return ans
+}
+
 func Uint64SliceToStringSlice(value []uint64) []string {
 	res := make([]string, len(value))
 	for i := range value {

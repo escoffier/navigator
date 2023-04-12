@@ -3,9 +3,10 @@ package model
 import (
 	"database/sql/driver"
 	"errors"
-	"github.com/google/go-containerregistry/pkg/name"
 	"strings"
 	"time"
+
+	"github.com/google/go-containerregistry/pkg/name"
 
 	json "github.com/json-iterator/go"
 	corev1 "k8s.io/api/core/v1"
@@ -646,4 +647,18 @@ type TensorRawContainer struct {
 
 func (rc TensorRawContainer) TableName() string {
 	return "ivan_assets_raw_containers"
+}
+
+type ResourceApp struct {
+	ID               uint32
+	ClusterKey       string  `json:"clusterKey,omitempty"`
+	Namespace        string  `json:"namespace,omitempty"`
+	ResourceName     string  `json:"resourceName,omitempty"`
+	AppType          *string `json:"appType,omitempty"`
+	AppTargetName    *string `json:"appTargetName,omitempty"`
+	AppTargetVersion *string `json:"appTargetVersion,omitempty"`
+}
+
+func (rc ResourceApp) TableName() string {
+	return "ivan_assets_containers"
 }

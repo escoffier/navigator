@@ -12,6 +12,7 @@ import (
 	"time"
 
 	param "github.com/oceanicdev/chi-param"
+	"gorm.io/gorm"
 
 	"github.com/pkg/errors"
 	"gitlab.com/security-rd/go-pkg/databases"
@@ -797,4 +798,98 @@ func (ch *ClustertHandler) OnRead(s rpcstream.Stream, reqID string, message prot
 func (ch *ClustertHandler) OnUpdate(s rpcstream.Stream, reqID string, message protoreflect.ProtoMessage) {
 }
 func (ch *ClustertHandler) OnDelete(s rpcstream.Stream, reqID string, message protoreflect.ProtoMessage) {
+}
+
+func (rl *TensorResourcesService) GetAppWithType(ctx context.Context, queryOptions *dal.AppQueryOption, offset, limit int) ([]*model.ResourceApp, int64, error) {
+	apps, err := dal.GetResourceApp(ctx, rl.rdb.GetReadDB(), queryOptions, offset, limit)
+	if err != nil {
+		return nil, -1, err
+	}
+
+	cnt, err := dal.CountResourceApp(ctx, rl.rdb.GetReadDB(), queryOptions)
+	if err != nil {
+		return nil, -1, err
+	}
+
+	return apps, cnt, nil
+}
+
+func (rl *TensorResourcesService) CountAppWithType(ctx context.Context, queryOptions *dal.AppQueryOption) (int64, error) {
+	return dal.CountResourceApp(ctx, rl.rdb.GetReadDB(), queryOptions)
+}
+
+func (rl *TensorResourcesService) GetAppTypes(ctx context.Context, clusterKey string) ([]string, error) {
+	db := rl.rdb.GetReadDB().WithContext(ctx)
+	results := []*model.TensorContainer{}
+	if clusterKey != "" {
+		db = db.Where("cluster_key = ?", clusterKey)
+	}
+	err := db.Distinct("app_type").Find(&results).Error
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, nil
+		}
+		return nil, err
+	}
+
+	appTypes := []string{}
+	for _, r := range results {
+		if r.AppType != nil {
+			appTypes = append(appTypes, *r.AppType)
+		}
+
+	}
+	return appTypes, nil
+}
+
+func (rl *TensorResourcesService) GetAppVersions(ctx context.Context, clusterKey, appType string) ([]string, error) {
+	db := rl.rdb.GetReadDB().WithContext(ctx)
+	results := []*model.TensorContainer{}
+	if clusterKey != "" {
+		db = db.Where("cluster_key = ?", clusterKey)
+	}
+	if appType != "" {
+		db = db.Where("app_type = ?", appType)
+	}
+	err := db.Distinct("app_target_version").Find(&results).Error
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, nil
+		}
+		return nil, err
+	}
+
+	appVers := []string{}
+	for _, r := range results {
+		if r.AppTargetVersion != nil {
+			appVers = append(appVers, *r.AppTargetVersion)
+		}
+	}
+	return appVers, nil
+}
+
+func (rl *TensorResourcesService) GetAppTargets(ctx context.Context, clusterKey, appType string) ([]string, error) {
+	db := rl.rdb.GetReadDB().WithContext(ctx)
+	results := []*model.TensorContainer{}
+	if clusterKey != "" {
+		db = db.Where("cluster_key = ?", clusterKey)
+	}
+	if appType != "" {
+		db = db.Where("app_type = ?", appType)
+	}
+	err := db.Distinct("app_target_name").Find(&results).Error
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, nil
+		}
+		return nil, err
+	}
+
+	appTargets := []string{}
+	for _, r := range results {
+		if r.AppTargetName != nil {
+			appTargets = append(appTargets, *r.AppTargetName)
+		}
+	}
+	return appTargets, nil
 }
