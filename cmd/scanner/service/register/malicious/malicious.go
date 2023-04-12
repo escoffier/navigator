@@ -2,6 +2,7 @@ package malicious
 
 import (
 	"context"
+	"os"
 	"os/exec"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/service/register"
@@ -36,9 +37,11 @@ func (m *MaliceService) Stop(ctx context.Context) error {
 }
 
 func init() {
-	err := register.Register(serviceName, newService)
-	if err != nil {
-		logging.GetLogger().Err(err).Str("serviceName", serviceName).Msg("int service err")
+	if os.Getenv("SCAN_VIRUS") != "avira" {
+		err := register.Register(serviceName, newService)
+		if err != nil {
+			logging.GetLogger().Err(err).Str("serviceName", serviceName).Msg("int service err")
+		}
 	}
 }
 
