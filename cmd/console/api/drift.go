@@ -856,6 +856,13 @@ func (api *api) driftCreateBatchPolicy() http.HandlerFunc {
 					fmt.Errorf("failed to decode json: %w", err)))
 			return
 		}
+		if len(reqData.Data) == 0 {
+			logging.GetLogger().Warn().Msg("data is empty")
+			apperror.RespAndLog(w, ctx,
+				apperror.NewDriftPolicyCreateNullError(http.StatusBadRequest,
+					fmt.Errorf("data is empty")))
+			return
+		}
 
 		policyItems := reqData.Data
 		driSvc, ok := drift.GetDriftService(ctx)

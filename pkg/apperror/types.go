@@ -1460,3 +1460,15 @@ func NewDriftGlobalWhitelistTimestampError(httpCode int, err error, suberrors ..
 		},
 	}
 }
+
+func NewDriftPolicyCreateNullError(httpCode int, err error, suberrors ...Suberror) error {
+	return AddBaitServiceError{
+		detailedError{
+			err:       err,
+			English:   "Please select a resource",
+			Chinese:   "请选择资源",
+			HTTPCode:  httpCode,
+			Suberrors: suberrors,
+		},
+	}
+}
