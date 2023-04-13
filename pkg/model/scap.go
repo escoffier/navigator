@@ -37,7 +37,7 @@ type CfgScan struct {
 }
 
 type ScanResult struct {
-	ID            uint32                  `gorm:"column:id"`
+	ID            uint64                  `gorm:"column:id"`
 	TaskID        string                  `gorm:"type:varchar(255);column:task_id"`
 	CheckType     ComplianceCheckType     `gorm:"type:varchar(255);column:check_type"`
 	NodeName      string                  `gorm:"type:varchar(255);column:node_name"`
