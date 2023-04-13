@@ -15,8 +15,8 @@ import (
 	param "github.com/oceanicdev/chi-param"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/naviaudit"
 	"gitlab.com/piccolo_su/vegeta/pkg/apperror"
-	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
+	"gitlab.com/security-rd/go-pkg/logging"
 )
 
 func (api *api) naviAudit() func(chi.Router) {
@@ -54,6 +54,10 @@ func (api *api) getNaviAuditLog() http.HandlerFunc {
 		if err != nil {
 			endTimestamp = 0
 		}
+		if startTimestamp > 0 && endTimestamp == 0 {
+			endTimestamp = time.Now().UnixMilli()
+			logging.Get().Info().Msgf("endTimestamp: %d", endTimestamp)
+		}
 
 		if startTimestamp > endTimestamp || startTimestamp < 0 {
 			apperror.RespAndLog(w, ctx, apperror.NewInvalidArgError(http.StatusBadRequest, fmt.Errorf("invalid time range")))
@@ -69,10 +73,10 @@ func (api *api) getNaviAuditLog() http.HandlerFunc {
 		var filter map[string]string
 		filterStr, err := param.QueryString(r, "filter")
 		if err == nil && filterStr != "" {
-			logging.GetLogger().Debug().Msgf("filter:%s", filterStr)
+			logging.Get().Debug().Msgf("filter:%s", filterStr)
 			err = json.Unmarshal([]byte(filterStr), &filter)
 			if err != nil {
-				logging.GetLogger().Warn().Msgf("invalid filter:%s", filterStr)
+				logging.Get().Warn().Msgf("invalid filter:%s", filterStr)
 				apperror.RespAndLog(w, ctx, apperror.NewInvalidArgError(http.StatusBadRequest, err))
 				return
 			}
