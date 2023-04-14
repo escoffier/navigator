@@ -481,9 +481,11 @@ func (c *CiPolicy) TransToPolicyAPI() CiPolicyAPI {
 	res.SensitiveFilePolicy = c.SensitiveFilePolicy
 	res.SensitiveWhitelist = c.SensitiveWhitelist
 	res.SensitiveRuleMode = c.SensitiveRuleMode
-	err = json.Unmarshal(c.VulnWhitelist, &res.VulnWhitelist)
-	if err != nil {
-		logging.GetLogger().Err(err).Msgf("marshal vulnWhitelist error")
+	if len(c.VulnWhitelist) != 0 {
+		err = json.Unmarshal(c.VulnWhitelist, &res.VulnWhitelist)
+		if err != nil {
+			logging.GetLogger().Err(err).Msgf("marshal vulnWhitelist error")
+		}
 	}
 	return res
 }
