@@ -3,6 +3,7 @@ package dal
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	json "github.com/json-iterator/go"
 	"github.com/olivere/elastic/v7"
@@ -73,7 +74,11 @@ func QueryProcessingRecord(ctx context.Context, esCli *elastic.Client, index str
 	}
 	for k, v := range arg.Filter {
 		if k != "" && v != "" {
-			queries = append(queries, elastic.NewMatchQuery(k, v))
+			if k == "object" {
+				queries = append(queries, elastic.NewWildcardQuery("object.keyword", fmt.Sprintf("*@%s", v)))
+			} else {
+				queries = append(queries, elastic.NewMatchQuery(k, v))
+			}
 		}
 	}
 	if arg.ID != "" {
