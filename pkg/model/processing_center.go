@@ -78,6 +78,7 @@ type ProcessingRecordDisplay struct {
 }
 
 type QueryProcessingRecordArg struct {
+	ID             string
 	Filter         map[string]string
 	StartTimestamp int64
 	EndTimestamp   int64

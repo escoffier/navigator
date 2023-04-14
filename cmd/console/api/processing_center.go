@@ -162,22 +162,22 @@ func (api *api) getProcessingRecords() http.HandlerFunc {
 			return
 		}
 		id, err := param.QueryString(r, "id")
-		// query by id
-		if err == nil && len(id) > 0 {
-			record, err := service.GetProcessingRecordByID(ctx, id)
-			if err != nil && err != processingcenter.ErrRecordNotFound {
-				apperror.RespAndLog(w, ctx, err)
-				return
-			}
-
-			if record != nil {
-				response.Ok(w, response.WithApiVersion(processingCenterAPIVersion), response.WithItems([]*item{convert(record)}), response.WithTotalItems(1))
-				return
-			}
-
-			response.Ok(w, response.WithApiVersion(processingCenterAPIVersion))
-			return
-		}
+		//// query by id
+		//if err == nil && len(id) > 0 {
+		//	record, err := service.GetProcessingRecordByID(ctx, id)
+		//	if err != nil && err != processingcenter.ErrRecordNotFound {
+		//		apperror.RespAndLog(w, ctx, err)
+		//		return
+		//	}
+		//
+		//	if record != nil {
+		//		response.Ok(w, response.WithApiVersion(processingCenterAPIVersion), response.WithItems([]*item{convert(record)}), response.WithTotalItems(1))
+		//		return
+		//	}
+		//
+		//	response.Ok(w, response.WithApiVersion(processingCenterAPIVersion))
+		//	return
+		//}
 		offset, err := param.QueryUint(r, "offset")
 		if err != nil {
 			offset = 0
@@ -206,7 +206,7 @@ func (api *api) getProcessingRecords() http.HandlerFunc {
 
 		endTimestamp, err := param.QueryInt64(r, "endTimestamp")
 		if err != nil {
-			endTimestamp = 0
+			endTimestamp = time.Now().UnixMilli()
 		}
 
 		if startTimestamp > endTimestamp || startTimestamp < 0 {
@@ -227,6 +227,7 @@ func (api *api) getProcessingRecords() http.HandlerFunc {
 		}
 
 		total, records, err := service.GetProcessingRecord(ctx, &model.QueryProcessingRecordArg{
+			ID:             id,
 			Filter:         filter,
 			StartTimestamp: startTimestamp,
 			EndTimestamp:   endTimestamp,
