@@ -6,8 +6,10 @@ import (
 
 	json "github.com/json-iterator/go"
 	"github.com/olivere/elastic/v7"
-	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gorm.io/gorm"
+
+	"gitlab.com/piccolo_su/vegeta/pkg/model"
+	"gitlab.com/security-rd/go-pkg/logging"
 )
 
 func SaveProcessingAction(ctx context.Context, db *gorm.DB, action *model.ProcessingAction) error {
@@ -74,14 +76,20 @@ func QueryProcessingRecord(ctx context.Context, esCli *elastic.Client, index str
 			queries = append(queries, elastic.NewMatchQuery(k, v))
 		}
 	}
+	if arg.ID != "" {
+		queries = append(queries, elastic.NewTermQuery("_id", arg.ID))
+	}
 
 	total, err := esCli.Count(index).Query(elastic.NewBoolQuery().Must(queries...)).Do(ctx)
 	if err != nil {
 		return 0, nil, err
 	}
 
+	boolQuery := elastic.NewBoolQuery().Must(queries...)
+	src, _ := boolQuery.Source()
+	logging.Get().Debug().Interface("src", src.(map[string]interface{})).Msg("es query")
 	rsp, err := esCli.Search(index).Sort("updatedAt", false).
-		Query(elastic.NewBoolQuery().Must(queries...)).
+		Query(boolQuery).
 		Size(arg.Limit).
 		From(arg.Offset).Do(ctx)
 	if err != nil {
