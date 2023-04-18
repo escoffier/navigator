@@ -9,9 +9,11 @@ mkdir -p inject/tensor
 #     docker build -f ubuntu/Dockerfile.ubuntu -t drift-prevention-ubuntu:build \
 #         --build-arg MIRROR="$1" .
 # fi
-if [ "$(uname -m)"=="aarch64" ]; then
+if [ "$(uname -m)" == "aarch64" ]; then
+    echo "Building for ARM64"
     docker build -f arm64/Dockerfile.ubuntu -t drift-prevention:build .
 else
+    echo "Building for x86_64"
     docker build -f rhel/Dockerfile.rhel -t drift-prevention:build .
 fi
 
