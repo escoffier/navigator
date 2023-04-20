@@ -17,10 +17,9 @@ RUN sed -i "s!archive.ubuntu.com/!mirrors.aliyun.com/!g" /etc/apt/sources.list \
     && apt-get install -y  docker-ce-cli \
     && apt-get full-upgrade -y \
     && apt-get clean \
-    && rm -rf /var/lib/apt/lists/* \
-    && wget -O /opt/hm-linux.tgz http://dl.shellpub.com/hm/latest/hm-linux-amd64.tgz?version=1.7.0 \
-    && mkdir /opt/webshell \
-    && tar xvf /opt/hm-linux.tgz -C /opt/webshell/
+    && rm -rf /var/lib/apt/lists/*
+
+ADD hm/hm-linux.tgz /opt/webshell/
 
 ADD avira/savapi-sdk-linux64.tgz /usr/local
 
