@@ -564,9 +564,6 @@ func (iws *ImageWithCorrelateData) GetRiskScore() int64 {
 		CalculateSensitiveScore(iws.Sensitive) +
 		util.MinInt64(CalculateWebshellScore(iws.Webshell)+CalculateVirusScore(iws.Virus), MaxWebshellAndVirusScore))
 
-	if ExistFlag(iws.ImageList.Flag, FlagImageNotScan) && riskScore == 100 {
-		riskScore = 0
-	}
 	return riskScore
 }
 
