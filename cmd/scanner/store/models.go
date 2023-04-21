@@ -418,6 +418,7 @@ type ScannerInstanceInfoDaoParam struct {
 type SearchWebshellParam struct {
 	ImageID     int64
 	UUIDS       []uint64
+	UTarget     []uint64
 	Search      string
 	Md5         string
 	LayerDigest string

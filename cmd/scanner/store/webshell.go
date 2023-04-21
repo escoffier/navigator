@@ -105,6 +105,7 @@ func (w *WebshellDao) CreateWebshellImage(ctx context.Context, imageID int64, we
 	defer cancelFunc()
 	for _, v := range webshells {
 		if _, ok := mp[v.UniqueID]; ok {
+			isCreate[v.UniqueID] = struct{}{}
 			continue
 		}
 		if _, ok := isCreate[v.UniqueID]; ok {
@@ -125,6 +126,17 @@ func (w *WebshellDao) CreateWebshellImage(ctx context.Context, imageID int64, we
 			return err
 		}
 		isCreate[v.UniqueID] = struct{}{}
+	}
+	notCreate := []uint64{}
+	for _, v := range inTable {
+		if _, ok := isCreate[v.UniqueTarget]; !ok {
+			notCreate = append(notCreate, v.UniqueID)
+		}
+	}
+	err = w.DeleteWebshellImage(ctx, SearchWebshellParam{UUIDS: notCreate})
+	if err != nil {
+		logging.GetLogger().Err(err).Msgf("delete old WebshellImage error")
+		return err
 	}
 	return nil
 }
@@ -208,11 +220,12 @@ func (w *WebshellDao) SearchWebshellImage(ctx context.Context, params SearchWebs
 	db = db.Where("security_issue = ?", model.FlagHasWebshell)
 	if params.ImageID != 0 {
 		db = db.Where("image_id = ?", params.ImageID)
-		db = db.Select("unique_target")
+	}
+	if len(params.UTarget) > 0 {
+		db = db.Where("unique_target in ?", params.UUIDS)
 	}
 	if len(params.UUIDS) > 0 {
-		db = db.Where("unique_target in ?", params.UUIDS)
-		db = db.Select("image_id")
+		db = db.Where("unique_id in ?", params.UUIDS)
 	}
 	res := []model.ScanIssueToImageWebshell{}
 	var cnt int64
@@ -228,6 +241,19 @@ func (w *WebshellDao) SearchWebshellImage(ctx context.Context, params SearchWebs
 		return nil, 0, err
 	}
 	return res, cnt, err
+}
+
+func (w *WebshellDao) DeleteWebshellImage(ctx context.Context, params SearchWebshellParam) error {
+	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*10)
+	defer cancelFunc()
+	db := w.rdb.Get().WithContext(ctx).Model(model.ScanIssueToImageWebshell{})
+	db = db.Where("security_issue = ?", model.FlagHasWebshell)
+	var err error
+	if len(params.UUIDS) > 0 {
+		db = db.Where("unique_id in ?", params.UUIDS)
+		err = db.Delete(&model.ScanIssueToImageWebshell{}).Error
+	}
+	return err
 }
 
 func (w *WebshellDao) SearchRegistry(ctx context.Context, images []int64) ([]scannermodel.WebshellImage, error) {
