@@ -130,7 +130,7 @@ func (w *WebshellSrv) GetDetail(ctx *gin.Context, params store.SearchWebshellPar
 		uuids = append(uuids, ws[k].UniqueID)
 	}
 	logging.Get().Info().Msgf("uuid = %v,file_md5=%s", uuids, webshells[0].FileMd5)
-	webshellImages, _, err := w.dal.SearchWebshellImage(ctx, store.SearchWebshellParam{UUIDS: uuids}, filter)
+	webshellImages, _, err := w.dal.SearchWebshellImage(ctx, store.SearchWebshellParam{UTarget: uuids}, filter)
 	mp := make(map[int64]struct{}, 0)
 	for k := range webshellImages {
 		mp[webshellImages[k].ImageID] = struct{}{}
