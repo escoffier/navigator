@@ -145,7 +145,6 @@ func InvalidTokenError(httpCode int, err error, suberrors ...Suberror) error {
 }
 
 func NewCaptchaError(httpCode int, err error, suberrors ...Suberror) error {
-
 	return AnError{
 		detailedError{
 			err:       err,
@@ -181,12 +180,24 @@ func NewLoginError(httpCode int, err error, suberrors ...Suberror) error {
 	}
 }
 
+func NewAccountLockError(httpCode int, err error, suberrors ...Suberror) error {
+	return AnError{
+		detailedError{
+			err:       err,
+			English:   "the account is locked",
+			Chinese:   "账号已锁定，请联系管理员重置密码",
+			HTTPCode:  httpCode,
+			Suberrors: suberrors,
+		},
+	}
+}
+
 func NewAccountBanError(httpCode int, err error, suberrors ...Suberror) error {
 	return AnError{
 		detailedError{
 			err:       err,
 			English:   "the account is banned",
-			Chinese:   "账户已被锁定，请联系管理员",
+			Chinese:   "账号已停用，请联系管理员",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
 		},
@@ -343,7 +354,19 @@ func NewPasswordNotMatchError(httpCode int, err error, suberrors ...Suberror) er
 		detailedError{
 			err:       err,
 			English:   "Password not match",
-			Chinese:   "密码不匹配",
+			Chinese:   "旧密码错误，请重新输入",
+			HTTPCode:  httpCode,
+			Suberrors: suberrors,
+		},
+	}
+}
+
+func NewPasswordSameWithOldError(httpCode int, err error, suberrors ...Suberror) error {
+	return MalformedRequestError{
+		detailedError{
+			err:       err,
+			English:   "new password same with old password",
+			Chinese:   "新密码不能与旧密码相同，请重新输入",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
 		},
@@ -769,12 +792,25 @@ func UserExistError(httpCode int, err error, suberrors ...Suberror) error {
 		},
 	}
 }
+
 func UserNotExistError(httpCode int, err error, suberrors ...Suberror) error {
 	return AnError{
 		detailedError{
 			err:       err,
 			English:   "User not exist",
 			Chinese:   "用户不存在",
+			HTTPCode:  httpCode,
+			Suberrors: suberrors,
+		},
+	}
+}
+
+func UserNameTooLongError(httpCode int, err error, suberrors ...Suberror) error {
+	return AnError{
+		detailedError{
+			err:       err,
+			English:   "User name is longer than 50",
+			Chinese:   "用户名超过50字符，请重试",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
 		},

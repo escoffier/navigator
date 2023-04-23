@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/base64"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -67,58 +66,6 @@ func (api *api) createCaptcha() http.HandlerFunc {
 
 		result.Skip = !service.IsBreakerClosed()
 		response.Ok(w, response.WithApiVersion(accountAPIVersion), response.WithItem(result))
-	}
-}
-
-// Deprecated, this will be removed in a later release
-// createCaptcha API has returned the image together
-func (api *api) getCaptchaImage() http.HandlerFunc {
-	type reqCaptcha struct {
-		CaptchaID string `json:"captchaID"`
-		Reload    bool   `json:"reloadCaptcha"`
-	}
-
-	return func(w http.ResponseWriter, r *http.Request) {
-		rc := reqCaptcha{}
-		err := json.NewDecoder(r.Body).Decode(&rc)
-		if err != nil {
-			apperror.RespAndLog(w, r.Context(),
-				apperror.NewMalformedRequestError(http.StatusBadRequest,
-					fmt.Errorf("failed to decode json: %w", err)))
-			return
-		}
-
-		if rc.CaptchaID == "" {
-			apperror.RespAndLog(w, r.Context(),
-				apperror.NewMalformedRequestError(http.StatusBadRequest,
-					fmt.Errorf("captchaID error")))
-			return
-		}
-
-		service, ok := captcha.GetService()
-		if !ok {
-			apperror.RespAndLog(w, r.Context(), ErrServiceNotReady)
-			return
-		}
-
-		if rc.Reload {
-			if !service.Reload(rc.CaptchaID) {
-				apperror.RespAndLog(w, r.Context(),
-					apperror.NewMalformedRequestError(http.StatusBadRequest,
-						fmt.Errorf("captchaID error")))
-				return
-			}
-		}
-
-		err = service.WriteImage(w, rc.CaptchaID)
-		if err != nil {
-			apperror.RespAndLog(w, r.Context(),
-				apperror.NewMalformedRequestError(http.StatusBadRequest,
-					fmt.Errorf("failed to get captcha, err:%s", err)))
-			return
-		}
-
-		response.Ok(w, response.WithApiVersion(accountAPIVersion))
 	}
 }
 

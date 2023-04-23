@@ -15,7 +15,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// GetImagePrefixAndPostFixFrom returns prefix, image name, tag, ok. harbor.cn/abc/service:latest returns harbor.cn /abc/service latest
+// GetImagePrefixAndPostFixFrom returns prefix, image name, tag, ok. harbor.cn/abc/service:latest returns harbor.cn/abc /service latest
 func GetImagePrefixAndPostFixFrom(image string) (string, string, string, bool) {
 	if len(image) == 0 {
 		return "", "", "", false

@@ -12,20 +12,20 @@ import (
 	"strconv"
 	"time"
 
+	"gorm.io/gorm"
+
+	"gitlab.com/piccolo_su/vegeta/cmd/console/service/captcha"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/license"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/session"
-
-	param "github.com/oceanicdev/chi-param"
-	"gitlab.com/piccolo_su/vegeta/cmd/console/service/captcha"
 	"gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	"gitlab.com/piccolo_su/vegeta/pkg/dal"
+	"gitlab.com/piccolo_su/vegeta/pkg/env"
 	"gitlab.com/piccolo_su/vegeta/pkg/ldap"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/radius"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 	"gitlab.com/security-rd/go-pkg/logging"
-	"gorm.io/gorm"
 )
 
 const (
@@ -58,8 +58,13 @@ func (api *api) UpdateLdapConf() http.HandlerFunc {
 			return
 		}
 
-		var conf model.LdapServerConf
-		err := util.DecodeJSONBody(w, r, &conf)
+		type request struct {
+			Conf      model.LdapServerConf  `json:"conf"`
+			GroupList []model.LdapGroupItem `json:"groupList"`
+		}
+
+		var req request
+		err := util.DecodeJSONBody(w, r, &req)
 		if err != nil {
 			apperror.RespAndLog(w, ctx,
 				apperror.NewMalformedRequestError(http.StatusBadRequest,
@@ -67,19 +72,52 @@ func (api *api) UpdateLdapConf() http.HandlerFunc {
 			return
 		}
 
-		if err = conf.Check(); err != nil {
+		if err = req.Conf.Check(); err != nil {
 			apperror.RespAndLog(w, ctx,
 				apperror.NewCommonError(http.StatusBadRequest, err, "配置参数无效", "invalid config"))
 			return
 		}
 
-		err = dal.SetConfig(ctx, api.rdb.Get(), model.LdapConfKey, conf.Encode())
+		err = dal.SetConfig(ctx, api.rdb.Get(), model.LdapConfKey, req.Conf.Encode())
 		if err != nil {
 			apperror.RespAndLog(w, ctx, err)
 			return
 		}
 
-		response.Ok(w, response.WithApiVersion(accountAPIVersion), response.WithItem(conf))
+		// 由于这个表的记录量应该特别小而且操作频率特别低，直接清空重写。
+		err = api.truncateLdapGroup(ctx)
+		if err != nil {
+			apperror.RespAndLog(w, ctx, err)
+			return
+		}
+		ldapGroupDisplays := make([]*model.LdapGroupDisplay, len(req.GroupList))
+		for i := range req.GroupList {
+			group, modules, err := api.createLdapGroup(ctx, &req.GroupList[i])
+			if err != nil {
+				if err == CheckLdapGroupInterError {
+					apperror.RespAndLog(w, ctx, apperror.NewInvalidArgError(http.StatusBadRequest, err))
+					return
+				}
+				apperror.RespAndLog(w, ctx, err)
+				return
+			}
+			ldapGroupDisplays = append(ldapGroupDisplays, &model.LdapGroupDisplay{
+				ID:      group.ID,
+				Name:    group.Name,
+				Role:    group.Role,
+				Modules: modules,
+			})
+		}
+
+		type resp struct {
+			Conf      *model.LdapServerConf     `json:"conf"`
+			GroupList []*model.LdapGroupDisplay `json:"groupList"`
+		}
+
+		response.Ok(w, response.WithApiVersion(accountAPIVersion), response.WithItem(resp{
+			Conf:      &req.Conf,
+			GroupList: ldapGroupDisplays,
+		}))
 	}
 }
 
@@ -93,7 +131,21 @@ func (api *api) GetLdapConf() http.HandlerFunc {
 			return
 		}
 
-		response.Ok(w, response.WithApiVersion(accountAPIVersion), response.WithItem(*conf))
+		groupDisplay, _, err := api.getLdapGroupList(ctx)
+		if err != nil {
+			apperror.RespAndLog(w, ctx, err)
+			return
+		}
+
+		type resp struct {
+			Conf      *model.LdapServerConf     `json:"conf"`
+			GroupList []*model.LdapGroupDisplay `json:"groupList"`
+		}
+
+		response.Ok(w, response.WithApiVersion(accountAPIVersion), response.WithItem(resp{
+			Conf:      conf,
+			GroupList: groupDisplay,
+		}))
 	}
 }
 
@@ -284,7 +336,9 @@ func (api *api) getRadiusConf(ctx context.Context) (*model.RadiusServerConf, err
 
 func (api *api) GetLoginOption() http.HandlerFunc {
 	type rsp struct {
-		Options []string `json:"options"`
+		Options        []string `json:"options"`
+		CycleChangePwd bool     `json:"cycleChangePwd"`
+		EmailEnabled   bool     `json:"emailEnabled"`
 	}
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx, cancel := context.WithTimeout(r.Context(), defaultAccountTimeout)
@@ -311,7 +365,27 @@ func (api *api) GetLoginOption() http.HandlerFunc {
 			options = []string{LoginTypeNormal, LoginTypeLdap, LoginTypeRadius}
 		}
 
-		response.Ok(w, response.WithApiVersion(accountAPIVersion), response.WithItem(rsp{Options: options}))
+		cycleChangePwd := false
+		conf, err := dal.GetConfig(ctx, api.rdb.GetReadDB(), model.ConfLogin)
+		if err != nil {
+			if err != gorm.ErrRecordNotFound {
+				apperror.RespAndLog(w, ctx, err)
+				return
+			}
+		} else {
+			result := loginConfigInfo{}
+			if err = json.Unmarshal(conf.Config, &result); err != nil {
+				apperror.RespAndLog(w, ctx, err)
+				return
+			}
+			cycleChangePwd = result.CycleChangePwd
+		}
+
+		response.Ok(w, response.WithApiVersion(accountAPIVersion), response.WithItem(rsp{
+			Options:        options,
+			CycleChangePwd: cycleChangePwd,
+			EmailEnabled:   env.GetEmailCheck(),
+		}))
 	}
 }
 
@@ -656,7 +730,7 @@ func (api *api) makeUserSessionByGroup(ctx context.Context, username, group stri
 	user := &model.UserSession{
 		Username: username,
 		External: true,
-		Checked:  true,
+		Status:   model.UserStatusNormal,
 		ModuleID: convertModule(ldapGroup.Modules),
 		Role:     ldapGroup.Role,
 	}
@@ -684,69 +758,60 @@ func (api *api) GetLdapGroupList() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx, cancel := context.WithTimeout(r.Context(), defaultAccountTimeout)
 		defer cancel()
-		offset, err := param.QueryUint(r, "offset")
-		if err != nil {
-			offset = 0
-		}
 
-		limit, err := param.QueryUint(r, "limit")
-		if err != nil {
-			limit = defaultLdapGroupBatchSize
-		}
-		if limit > maxLdapGroupBatchSize {
-			limit = maxLdapGroupBatchSize
-		}
-
-		count, err := dal.GetLdapGroupCount(ctx, api.rdb.GetReadDB())
+		groupDisplay, count, err := api.getLdapGroupList(ctx)
 		if err != nil {
 			apperror.RespAndLog(w, ctx, err)
 			return
-		}
-
-		groups, err := dal.GetLdapGroupList(ctx, api.rdb.GetReadDB(), int(offset), int(limit))
-		if err != nil {
-			apperror.RespAndLog(w, ctx, err)
-			return
-		}
-
-		moduleIDs := model.GetModuleIDByGroups(groups)
-		modules, err := dal.GetModules(ctx, api.rdb.GetReadDB(), moduleIDs)
-		if err != nil {
-			apperror.RespAndLog(w, ctx, err)
-			return
-		}
-
-		moduleHash := make(map[int]*model.ModuleGroup)
-		for _, module := range modules {
-			moduleHash[module.Id] = module
-		}
-
-		var groupDisplay = make([]*model.LdapGroupDisplay, len(groups))
-		for i := range groupDisplay {
-			groupDisplay[i] = &model.LdapGroupDisplay{
-				ID:   groups[i].ID,
-				Role: groups[i].Role,
-				Name: groups[i].Name,
-			}
-			groupModuleIDs := model.GetModuleIDByGroup(groups[i])
-			groupDisplay[i].Modules = make([]*model.ModuleGroup, 0, len(groupModuleIDs))
-			for _, id := range groupModuleIDs {
-				if module := moduleHash[id]; module != nil {
-					groupDisplay[i].Modules = append(groupDisplay[i].Modules, module)
-				}
-			}
 		}
 
 		response.Ok(w, response.WithApiVersion(accountAPIVersion), response.WithItems(groupDisplay), response.WithTotalItems(count))
 	}
 }
 
-func (api *api) CreateLdapGroup() http.HandlerFunc {
-	type req struct {
-		Name    string `json:"name"`
-		Role    string `json:"role"`
-		Modules []int  `json:"modules"`
+func (api *api) getLdapGroupList(ctx context.Context) ([]*model.LdapGroupDisplay, int64, error) {
+	var groupDisplay []*model.LdapGroupDisplay
+	count, err := dal.GetLdapGroupCount(ctx, api.rdb.GetReadDB())
+	if err != nil {
+		return groupDisplay, count, err
 	}
+
+	groups, err := dal.GetLdapGroupList(ctx, api.rdb.GetReadDB(), 0, 0)
+	if err != nil {
+		return groupDisplay, count, err
+	}
+
+	moduleIDs := model.GetModuleIDByGroups(groups)
+	modules, err := dal.GetModules(ctx, api.rdb.GetReadDB(), moduleIDs)
+	if err != nil {
+		return groupDisplay, count, err
+	}
+
+	moduleHash := make(map[int]*model.ModuleGroup)
+	for _, module := range modules {
+		moduleHash[module.Id] = module
+	}
+
+	groupDisplay = make([]*model.LdapGroupDisplay, len(groups))
+	for i := range groupDisplay {
+		groupDisplay[i] = &model.LdapGroupDisplay{
+			ID:   groups[i].ID,
+			Role: groups[i].Role,
+			Name: groups[i].Name,
+		}
+		groupModuleIDs := model.GetModuleIDByGroup(groups[i])
+		groupDisplay[i].Modules = make([]*model.ModuleGroup, 0, len(groupModuleIDs))
+		for _, id := range groupModuleIDs {
+			if module := moduleHash[id]; module != nil {
+				groupDisplay[i].Modules = append(groupDisplay[i].Modules, module)
+			}
+		}
+	}
+
+	return groupDisplay, count, nil
+}
+
+func (api *api) CreateLdapGroup() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx, cancel := context.WithTimeout(r.Context(), defaultAccountTimeout)
 		defer cancel()
@@ -757,7 +822,7 @@ func (api *api) CreateLdapGroup() http.HandlerFunc {
 			return
 		}
 
-		var cliReq req
+		var cliReq model.LdapGroupItem
 		err := util.DecodeJSONBody(w, r, &cliReq)
 		if err != nil {
 			apperror.RespAndLog(w, ctx,
@@ -766,29 +831,10 @@ func (api *api) CreateLdapGroup() http.HandlerFunc {
 			return
 		}
 
-		cliReq.Modules = util.FilterDuplicateIntArray(cliReq.Modules)
-		modules, err := api.checkLdapGroup(ctx, cliReq.Name, cliReq.Role, cliReq.Modules)
+		group, modules, err := api.createLdapGroup(ctx, &cliReq)
 		if err != nil {
 			if err == CheckLdapGroupInterError {
-				apperror.RespAndLog(w, ctx, err)
-				return
-			}
-			apperror.RespAndLog(w, ctx, apperror.NewInvalidArgError(http.StatusBadRequest, err))
-			return
-		}
-
-		modulesJSONBytes, _ := json.Marshal(cliReq.Modules)
-		group := &model.LdapGroup{
-			Name:    cliReq.Name,
-			Role:    cliReq.Role,
-			Modules: string(modulesJSONBytes),
-		}
-
-		err = dal.CreateLdapGroup(ctx, api.rdb.Get(), group)
-		if err != nil {
-			if util.IsPostgresDuplicateError(err) {
-				apperror.RespAndLog(w, ctx,
-					apperror.NewCommonError(http.StatusBadRequest, fmt.Errorf("duplicate name:%s", cliReq.Name), "组名已被占用", "group name occupied"))
+				apperror.RespAndLog(w, ctx, apperror.NewInvalidArgError(http.StatusBadRequest, err))
 				return
 			}
 			apperror.RespAndLog(w, ctx, err)
@@ -806,6 +852,31 @@ func (api *api) CreateLdapGroup() http.HandlerFunc {
 			Link: "",
 		}))
 	}
+}
+
+func (api *api) createLdapGroup(ctx context.Context, item *model.LdapGroupItem) (*model.LdapGroup, []*model.ModuleGroup, error) {
+	var group *model.LdapGroup
+
+	item.Modules = util.FilterDuplicateIntArray(item.Modules)
+	modules, err := api.checkLdapGroup(ctx, item.Name, item.Role, item.Modules)
+	if err != nil {
+		return group, modules, err
+	}
+
+	modulesJSONBytes, _ := json.Marshal(item.Modules)
+	group = &model.LdapGroup{
+		Name:    item.Name,
+		Role:    item.Role,
+		Modules: string(modulesJSONBytes),
+	}
+
+	err = dal.CreateLdapGroup(ctx, api.rdb.Get(), group)
+
+	return group, modules, err
+}
+
+func (api *api) truncateLdapGroup(ctx context.Context) error {
+	return dal.TruncateLdapGroup(ctx, api.rdb.Get())
 }
 
 func (api *api) UpdateLdapGroup() http.HandlerFunc {

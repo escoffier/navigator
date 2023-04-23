@@ -8,6 +8,8 @@ const (
 	ConfLicense                  = "conf-license"
 	ConfDriftPoliciesVersionKey  = "drift.policies.versionstamp"
 	ConfDriftWhitelistVersionKey = "drift.whitelist.versionstamp"
+	ConfIdpLogin                 = "conf.idp.login"
+	ConfLogin                    = "conf.login"
 )
 
 type TensorConfig struct {

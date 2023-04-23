@@ -39,11 +39,7 @@ func GetConfig(ctx context.Context, rdb *gorm.DB, key string) (*model.TensorConf
 }
 
 func NewConfig(ctx context.Context, key string, val []byte, utime time.Time) *model.TensorConfig {
-	user, ok := model.GetSessionFromContext(ctx)
-	userName := ""
-	if ok {
-		userName = user.Username
-	}
+	userName := model.GetUsernameFromContext(ctx)
 	c := model.TensorConfig{
 		Key:       key,
 		Config:    val,

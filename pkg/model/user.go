@@ -27,11 +27,17 @@ func (u Url) TableName() string {
 }
 
 const (
-	RoleSuperAdmin  = "super-admin"
-	RoleAdmin       = "admin"
-	RoleNormal      = "normal"
+	RoleSuperAdmin = "super-admin"
+	RoleAdmin      = "admin"
+	RoleNormal     = "normal"
+
 	UserSuperAdmin  = "SeedAdmin"
 	DefaultPassword = "ksJ@12MczH"
+
+	UserStatusNormal   = 1 // "normal"
+	UserStatusInactive = 2 // "inactive"
+	UserStatusLock     = 3 // "lock"
+	UserStatusDisabled = 4 // "disabled"
 )
 
 type User struct {
@@ -39,37 +45,36 @@ type User struct {
 	UserName               string        `gorm:"index:username,unique;column:username" json:"userName"` // index
 	Pwd                    string        `json:"-" bson:"pwd"`
 	Salt                   string        `gorm:"column:salt" json:"-"`
-	Rule                   string        `gorm:"column:rule" json:"rule"` // typo; role
+	Role                   string        `gorm:"column:rule" json:"rule"` // typo; role
 	ModuleID               string        `gorm:"column:module_id" json:"-"`
 	ModuleGroup            []ModuleGroup `gorm:"-" json:"module_group"`
-	External               bool          `gorm:"-" json:"-"`
-	Checked                bool          `json:"checked"`
 	CreatedAt              int64         `json:"create_at"`
-	BanStatus              int32         `json:"ban_status" gorm:"column:ban_status"`
 	LoginSecretKey         string        `gorm:"column:login_secret_key" json:"-"`
 	LoginSecretKeyExpireAt int64         `gorm:"column:login_secret_key_expire_at" json:"-"`
 	Token                  string        `gorm:"column:token; type:text" json:"-"`
 	TokenExpireAt          int64         `gorm:"column:token_expire_at" json:"-"`
+	Platform               string        `gorm:"column:platform" json:"platform"`
+	Status                 int           `gorm:"column:status" json:"status"`
+	MustChangePwd          bool          `gorm:"column:must_change_pwd" json:"mustChangePwd"`      // 该用户是否必须修改密码
+	LastChangePwdAt        int64         `gorm:"column:last_change_pwd_at" json:"lastChangePwdAt"` // 上次修改密码的时间
 }
 
 func (u *User) GenerateSession(external bool) *UserSession {
 	return &UserSession{
-		Username:  u.UserName,
-		Role:      u.Rule,
-		ModuleID:  u.ModuleID,
-		Checked:   u.Checked,
-		BanStatus: u.BanStatus,
-		External:  external,
+		Username: u.UserName,
+		Role:     u.Role,
+		ModuleID: u.ModuleID,
+		Status:   u.Status,
+		External: external,
 	}
 }
 
 type UserSession struct {
-	Username  string `json:"username"`
-	Role      string `json:"role"`
-	ModuleID  string `json:"moduleID"`
-	Checked   bool   `json:"checked"`
-	BanStatus int32  `json:"banStatus"`
-	External  bool   `json:"external"`
+	Username string `json:"username"`
+	Role     string `json:"role"`
+	ModuleID string `json:"moduleID"`
+	External bool   `json:"external"`
+	Status   int    `json:"status"`
 }
 
 func (u User) TableName() string {

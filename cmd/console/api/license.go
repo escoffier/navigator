@@ -16,7 +16,6 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
 	"gorm.io/gorm"
-	"gorm.io/gorm/clause"
 	"gorm.io/gorm/logger"
 )
 
@@ -105,18 +104,7 @@ func (a *api) licenseRegister() http.HandlerFunc {
 		// 保存license到mysql
 		err = a.rdb.Get().Transaction(func(tx *gorm.DB) error {
 			tx.Logger = tx.Logger.LogMode(logger.Silent)
-			err = tx.WithContext(ctx).Clauses(clause.OnConflict{
-				Columns:   []clause.Column{{Name: "k"}},
-				DoUpdates: clause.AssignmentColumns([]string{"config", "updater", "updated_at"}),
-			}).Create(&model.TensorConfig{
-				Key:       model.ConfLicense,
-				Config:    []byte(req.LicenseCode),
-				Creator:   model.GetUsernameFromContext(ctx),
-				Updater:   model.GetUsernameFromContext(ctx),
-				CreatedAt: time.Now(),
-				UpdatedAt: time.Now(),
-				Status:    0,
-			}).Error
+			err = dal.SetConfig(ctx, tx, model.ConfLicense, []byte(req.LicenseCode))
 			if err != nil {
 				return err
 			}

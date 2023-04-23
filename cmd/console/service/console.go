@@ -22,6 +22,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/defense"
 	drvSvc "gitlab.com/piccolo_su/vegeta/cmd/console/service/drift"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/hunter"
+	"gitlab.com/piccolo_su/vegeta/cmd/console/service/idp"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/immune"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/k8saudit"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/license"
@@ -239,6 +240,11 @@ func NewConsole(
 		logging.Get().Err(ntErr).Msg("ERROR: session service init error")
 		mainCancel()
 		return nil, err
+	}
+
+	err = idp.InitIdpLogin(rdb, redisClient)
+	if err != nil {
+		logging.Get().Err(err).Msg("ERROR: thirdLogin service init error")
 	}
 
 	err = apiscan.Init(rdb)
