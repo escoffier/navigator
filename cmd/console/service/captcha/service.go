@@ -151,10 +151,6 @@ func (s *Service) IsBreakerClosed() bool {
 	return s.breaker.State() == gobreaker.StateClosed
 }
 
-func (s *Service) Reload(id string) bool {
-	return captcha.Reload(id)
-}
-
 func (s *Service) WriteImage(w io.Writer, id string) error {
 	return captcha.WriteImage(w, id, s.conf.CaptchaWidth, s.conf.CaptchaHeight)
 }

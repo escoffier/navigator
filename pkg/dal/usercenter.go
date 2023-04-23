@@ -53,7 +53,10 @@ func UpdateUserPwd(ctx context.Context, rdb *gorm.DB, userName string, pwd strin
 		return err
 	}
 
-	err = rdb.WithContext(pgCtx).Model(&model.User{}).Where("username = ? ", userName).Update("pwd", fmt.Sprintf("%x", md5.Sum([]byte(pwd+u.Salt)))).Error
+	err = rdb.WithContext(pgCtx).Model(&model.User{}).
+		Where("username = ? ", userName).
+		Updates(map[string]interface{}{"pwd": fmt.Sprintf("%x", md5.Sum([]byte(pwd+u.Salt))), "must_change_pwd": false, "last_change_pwd_at": time.Now().UnixMilli()}).
+		Error
 
 	if err != nil {
 		return errors.New("UpdateUserPwd() -> mongodb.Collection().UpdateOne() err : " + err.Error())
@@ -61,18 +64,35 @@ func UpdateUserPwd(ctx context.Context, rdb *gorm.DB, userName string, pwd strin
 	return nil
 }
 
-func SelectUserAll(ctx context.Context, rdb *gorm.DB, limit, offset int) (int64, []model.User, error) {
+func SelectUserAll(ctx context.Context, rdb *gorm.DB, keyword string, roles []string, statuses []int, modules []string, limit, offset int) (int64, []model.User, error) {
 	var user []model.User
 	var count int64
 
 	pgCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
 	defer cancel()
-	var err = rdb.WithContext(pgCtx).Where("username != ?", model.UserSuperAdmin).Model(&model.User{}).Count(&count).Error
+
+	db := rdb.WithContext(pgCtx).Where("username != ?", model.UserSuperAdmin)
+	if keyword != "" {
+		db = db.Where("username LIKE ?", "%"+keyword+"%")
+	}
+	if len(roles) != 0 {
+		db = db.Where("rule IN ?", roles)
+	}
+	if len(statuses) != 0 {
+		db = db.Where("status IN ?", statuses)
+	}
+	if len(modules) != 0 {
+		for i := range modules {
+			db = db.Where("module_id like ?", `%"`+modules[i]+`"%`)
+		}
+	}
+
+	var err = db.Model(&model.User{}).Count(&count).Error
 	if err != nil {
 		return 0, nil, err
 	}
 
-	p := rdb.WithContext(pgCtx).Where("username != ?", model.UserSuperAdmin).Limit(limit).Offset(offset).Order("id")
+	p := db.Limit(limit).Offset(offset).Order("id DESC")
 	err = p.Where("username != ?", model.UserSuperAdmin).Find(&user).Error
 	if err != nil {
 		return count, user, err
@@ -140,19 +160,14 @@ func GetAccessUrl(db *gorm.DB, moduleID string) ([]string, error) {
 	return strURL, nil
 }
 
-func SetAccountBanStatus(ctx context.Context, rdb *gorm.DB, userName string, banStatus bool) error {
-	bStatus := 0
-	if banStatus {
-		bStatus = 1
-	}
-
+func SetAccountStatus(ctx context.Context, rdb *gorm.DB, userName string, status int) error {
 	pgCtx, cancel := context.WithTimeout(ctx, 1*time.Second)
 	defer cancel()
 	var innerErr error
 	err := util.RetryWithBackoff(pgCtx, func() error {
 		oneCtx, oneCancel := context.WithTimeout(pgCtx, 300*time.Millisecond)
 		defer oneCancel()
-		innerErr = rdb.WithContext(oneCtx).Model(&model.User{}).Where("username = ?", userName).Update("ban_status", bStatus).Error
+		innerErr = rdb.WithContext(oneCtx).Model(&model.User{}).Where("username = ?", userName).Update("status", status).Error
 		if innerErr == gorm.ErrRecordNotFound {
 			return nil
 		}
@@ -186,11 +201,11 @@ func GetAllModules(ctx context.Context, db *gorm.DB) ([]*model.ModuleGroup, erro
 }
 
 func SelectUser(ctx context.Context, rdb *gorm.DB, userName string) (bool, *model.User, error) {
-
 	queryUser := model.User{}
 
 	pgCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
 	defer cancel()
+
 	err := rdb.WithContext(pgCtx).Model(&queryUser).Where("username = ?", userName).First(&queryUser).Error
 	if err == gorm.ErrRecordNotFound {
 		return false, nil, nil
@@ -201,12 +216,20 @@ func SelectUser(ctx context.Context, rdb *gorm.DB, userName string) (bool, *mode
 	return true, &queryUser, nil
 }
 
-func InsertUser(ctx context.Context, rdb *gorm.DB, userName, role string, moduleID []string) (err error) {
+func InsertUser(ctx context.Context, rdb *gorm.DB, userName, role string, moduleID []string, mustChangePwd bool) (err error) {
 	data, err := json.Marshal(moduleID)
 	if err != nil {
 		return err
 	}
-	user := model.User{UserName: userName, Checked: false, CreatedAt: time.Now().Unix(), Rule: role, ModuleID: string(data), Salt: RandStringBytesMaskImprSrcUnsafe(8)}
+	user := model.User{
+		UserName:      userName,
+		Salt:          RandStringBytesMaskImprSrcUnsafe(8),
+		Role:          role,
+		ModuleID:      string(data),
+		CreatedAt:     time.Now().Unix(),
+		Status:        model.UserStatusInactive,
+		MustChangePwd: mustChangePwd,
+	}
 
 	pgCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
 	defer cancel()
@@ -215,7 +238,7 @@ func InsertUser(ctx context.Context, rdb *gorm.DB, userName, role string, module
 
 func UpdateUser(ctx context.Context, rdb *gorm.DB, userName, role string, moduleID []string) (err error) {
 	data, _ := json.Marshal(moduleID)
-	user := model.User{Rule: role, ModuleID: string(data)}
+	user := model.User{Role: role, ModuleID: string(data)}
 
 	pgCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
 	defer cancel()
@@ -272,24 +295,27 @@ func CheckHashCode(ctx context.Context, db *gorm.DB, hashCode string) (string, b
 	return queryEmail.UserName, true
 }
 
-func ActiveUser(ctx context.Context, db *gorm.DB, userName, pwd string) error {
+func ActiveUser(ctx context.Context, db *gorm.DB, userName, pwd string, mustChangePwd bool) (*model.User, error) {
 	pgCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
 	exists, u, err := SelectUser(pgCtx, db, userName)
 	if err != nil {
-		return err
+		return u, err
 	}
 
 	if !exists {
-		return fmt.Errorf("user not exists")
+		return u, fmt.Errorf("user not exists")
 	}
 
 	hashPwd := fmt.Sprintf("%x", md5.Sum([]byte(pwd+u.Salt)))
 	authToken := util.GenerateUUIDHex()
 
-	return db.Transaction(func(tx *gorm.DB) error {
-		if _err := tx.WithContext(pgCtx).Model(model.User{}).Where("username = ? ", userName).Updates(model.User{Checked: true, Pwd: hashPwd}).Error; _err != nil {
+	err = db.Transaction(func(tx *gorm.DB) error {
+		if _err := tx.WithContext(pgCtx).Model(u).
+			Where("username = ? ", userName).
+			Updates(map[string]interface{}{"status": model.UserStatusNormal, "pwd": hashPwd, "must_change_pwd": mustChangePwd, "last_change_pwd_at": time.Now().UnixMilli()}).
+			Error; _err != nil {
 			return _err
 		}
 
@@ -299,12 +325,21 @@ func ActiveUser(ctx context.Context, db *gorm.DB, userName, pwd string) error {
 
 		return SaveAuthToken(ctx, tx, userName, authToken)
 	})
+
+	return u, err
 }
 
 func GetModules(ctx context.Context, db *gorm.DB, moduleIDs []int) ([]*model.ModuleGroup, error) {
 	var result []*model.ModuleGroup
 	var err = db.WithContext(ctx).Where("id in (?)", moduleIDs).Find(&result).Error
 	return result, err
+}
+
+func UpdateUserStatus(ctx context.Context, db *gorm.DB, username string, status int) error {
+	return db.WithContext(ctx).Model(&model.User{}).Where("username = ?", username).
+		UpdateColumns(map[string]interface{}{
+			"status": status,
+		}).Error
 }
 
 func UpdateUserToken(ctx context.Context, db *gorm.DB, username, tokenStr string, expireAt int64) error {
@@ -344,7 +379,7 @@ func CreateSuperAdmin(ctx context.Context, db *gorm.DB, pwd string) error {
 	if err == gorm.ErrRecordNotFound {
 		salt := RandStringBytesMaskImprSrcUnsafe(8)
 		hashPwd := fmt.Sprintf("%x", md5.Sum([]byte(pwd+salt)))
-		user := model.User{UserName: model.UserSuperAdmin, Checked: true, CreatedAt: time.Now().Unix(), Rule: model.RoleSuperAdmin, Salt: salt, Pwd: hashPwd}
+		user := model.User{UserName: model.UserSuperAdmin, Status: model.UserStatusNormal, CreatedAt: time.Now().Unix(), Role: model.RoleSuperAdmin, Salt: salt, Pwd: hashPwd}
 		authToken := util.GenerateUUIDHex()
 		err = db.Transaction(func(tx *gorm.DB) error {
 			if _err := tx.WithContext(ctx).Create(&user).Error; _err != nil {

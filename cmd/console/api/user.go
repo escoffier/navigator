@@ -2,15 +2,23 @@ package api
 
 import (
 	"context"
+	"crypto/md5"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
+	"os"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/go-chi/jwtauth"
+	param "github.com/oceanicdev/chi-param"
+	"gorm.io/gorm"
+
+	"gitlab.com/piccolo_su/vegeta/cmd/console/service/idp"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/session"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/usercenter"
 	"gitlab.com/piccolo_su/vegeta/pkg/apperror"
@@ -21,7 +29,6 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 	"gitlab.com/security-rd/go-pkg/logging"
-	"gorm.io/gorm"
 )
 
 var (
@@ -64,144 +71,102 @@ func (api *api) verifyAuthorization(ctx context.Context) error {
 		return ErrNoAccess
 	}
 }
-func getFromModel(m *model.TensorConfig) (usercenter.LimiterConfig, error) {
-	var lc usercenter.LimiterConfig
-	if m == nil {
-		return lc, nil
-	}
-	err := json.Unmarshal(m.Config, &lc)
-	if err != nil {
-		return lc, err
-	}
-	return lc, nil
-}
-func (api *api) readConfig() http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		config, err := dal.GetConfig(r.Context(), api.rdb.GetReadDB(), usercenter.ConfigKey)
-		if err != nil && err != gorm.ErrRecordNotFound {
-			RespAndLog(w, r.Context(),
-				NewAnError(http.StatusInternalServerError,
-					fmt.Errorf("failed to read posgre: %w", err)))
-			return
 
-		}
-		c, err := getFromModel(config)
-		if err != nil {
-			RespAndLog(w, r.Context(),
-				NewAnError(http.StatusInternalServerError,
-					fmt.Errorf("failed to decode conf: %w", err)))
-			return
+type loginConfigInfo struct {
+	FirstLoginChangePwd bool  `json:"firstLoginChangePwd"` // 首次登录修改密码
+	ResetLoginChangePwd bool  `json:"resetLoginChangePwd"` // 管理员重置密码后首次修改密码
+	CycleChangePwd      bool  `json:"cycleChangePwd"`      // 周期更换密码
+	CycleDay            int   `json:"cycleDay"`            // 最小1天
+	RateLimitEnable     bool  `json:"rateLimitEnable"`     // enable  账号锁定机制
+	RateLimitThreshold  int32 `json:"rateLimitThreshold"`  // 最小1天
+}
 
+func (api *api) getLoginConfig() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(r.Context(), defaultAccountTimeout)
+		defer cancel()
+
+		conf, err := dal.GetConfig(ctx, api.rdb.GetReadDB(), model.ConfLogin)
+		if err != nil {
+			if err != gorm.ErrRecordNotFound {
+				RespAndLog(w, ctx, apperror.NewAnError(http.StatusInternalServerError,
+					fmt.Errorf("get config failed: %w", err)))
+				return
+			}
+
+			response.Ok(w, response.WithItem(&loginConfigInfo{
+				FirstLoginChangePwd: false,
+				ResetLoginChangePwd: false,
+				CycleChangePwd:      false,
+				CycleDay:            90,
+				RateLimitEnable:     false,
+				RateLimitThreshold:  5,
+			}))
+			return
 		}
-		response.Ok(w, response.WithItem(c))
+
+		result := loginConfigInfo{}
+		if err = json.Unmarshal(conf.Config, &result); err != nil {
+			RespAndLog(w, ctx, apperror.NewAnError(http.StatusInternalServerError,
+				fmt.Errorf("json.Unmarshal: %w", err)))
+			return
+		}
+
+		response.Ok(w, response.WithItem(&result))
 	}
 }
-func (api *api) setConfig() http.HandlerFunc {
-	type configStatus struct {
-		Success int32 `json:"success"`
-	}
+
+func (api *api) updateLoginConfig() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if authErr := api.verifyAuthorization(r.Context()); authErr != nil {
-			RespAndLog(w, r.Context(),
-				NewNoAccess(http.StatusForbidden,
-					fmt.Errorf("no acess: %w", authErr)))
-			return
-		}
-		rq := usercenter.LimiterConfig{}
-		err := json.NewDecoder(r.Body).Decode(&rq)
+		ctx, cancel := context.WithTimeout(r.Context(), defaultAccountTimeout)
+		defer cancel()
+
+		defer r.Body.Close()
+		body, err := io.ReadAll(r.Body)
 		if err != nil {
-			RespAndLog(w, r.Context(),
-				NewMalformedRequestError(http.StatusBadRequest,
-					fmt.Errorf("failed to decode json: %w", err)))
+			RespAndLog(w, ctx, NewMalformedRequestError(http.StatusBadRequest,
+				fmt.Errorf("failed to decode json: %w", err)))
+		}
+
+		req := loginConfigInfo{}
+		if err = json.Unmarshal(body, &req); err != nil {
+			RespAndLog(w, ctx, NewMalformedRequestError(http.StatusBadRequest,
+				fmt.Errorf("failed to decode json: %w", err)))
 			return
 		}
-		configBytes, err := json.Marshal(&rq)
+
+		if (req.CycleChangePwd && (req.CycleDay < 1 || req.CycleDay > 9999)) ||
+			(req.RateLimitEnable && (req.RateLimitThreshold < 1 || req.RateLimitThreshold > 9999)) {
+			RespAndLog(w, ctx, NewInvalidArgError(http.StatusBadRequest,
+				fmt.Errorf("params error: %v", req)))
+			return
+		}
+
+		err = api.rdb.Get().Transaction(func(tx *gorm.DB) error {
+			if req.RateLimitEnable {
+				usercenter.GetLimiter(r.Context()).UpdateThreshold(req.RateLimitThreshold)
+				usercenter.GetLimiter(r.Context()).UpdateEnable(req.RateLimitEnable)
+			}
+
+			err = dal.SetConfig(ctx, tx, model.ConfLogin, body)
+			if err != nil {
+				return apperror.NewAnError(http.StatusInternalServerError,
+					fmt.Errorf("set config failed: %w", err))
+			}
+
+			return nil
+		})
+
 		if err != nil {
-			RespAndLog(w, r.Context(),
-				NewMalformedRequestError(http.StatusInternalServerError,
-					fmt.Errorf("failed to encode json: %w", err)))
+			RespAndLog(w, ctx, err)
 			return
 		}
-		err = dal.SetConfig(r.Context(), api.rdb.Get(), usercenter.ConfigKey, configBytes)
-		if err != nil {
-			RespAndLog(w, r.Context(),
-				NewAnError(http.StatusInternalServerError,
-					fmt.Errorf("failed to write posgre: %w", err)))
-			return
-		}
-		usercenter.GetLimiter(r.Context()).UpdateThreshold(rq.RateLimitThreshold)
-		usercenter.GetLimiter(r.Context()).UpdateTimeWindow(rq.RateLimitWindowSecs)
-		usercenter.GetLimiter(r.Context()).UpdateEnable(rq.RateLimitEnable)
-		response.Ok(w, response.WithItem(configStatus{
-			Success: 1,
+
+		response.Ok(w, response.WithTarget(&response.TargetRef{
+			Name: model.GetUsernameFromContext(ctx),
+			ID:   "",
+			Link: "",
 		}))
-	}
-}
-
-func (api *api) userBan() http.HandlerFunc {
-	type banReq struct {
-		User string `json:"user"`
-	}
-	type BanStatus struct {
-		BanStatus int32 `json:"banStatus"`
-	}
-	return func(w http.ResponseWriter, r *http.Request) {
-		if authErr := api.verifyAuthorization(r.Context()); authErr != nil {
-			RespAndLog(w, r.Context(),
-				NewNoAccess(http.StatusForbidden,
-					fmt.Errorf("no acess: %w", authErr)))
-			return
-		}
-
-		rq := banReq{}
-		err := json.NewDecoder(r.Body).Decode(&rq)
-		if err != nil {
-			RespAndLog(w, r.Context(),
-				NewMalformedRequestError(http.StatusBadRequest,
-					fmt.Errorf("failed to decode json: %w", err)))
-			return
-		}
-		err = dal.SetAccountBanStatus(r.Context(), api.rdb.Get(), rq.User, true)
-		if err != nil {
-			RespAndLog(w, r.Context(),
-				NewAnError(http.StatusInternalServerError,
-					fmt.Errorf("failed to update posgre: %w", err)))
-			return
-		}
-		response.Ok(w, response.WithItem(BanStatus{BanStatus: 1}))
-	}
-}
-func (api *api) userUnban() http.HandlerFunc {
-	type unbanReq struct {
-		User string `json:"user"`
-	}
-	type BanStatus struct {
-		BanStatus int32 `json:"banStatus"`
-	}
-	return func(w http.ResponseWriter, r *http.Request) {
-		rq := unbanReq{}
-		err := json.NewDecoder(r.Body).Decode(&rq)
-		if err != nil {
-			RespAndLog(w, r.Context(),
-				NewMalformedRequestError(http.StatusBadRequest,
-					fmt.Errorf("failed to decode json: %w", err)))
-			return
-		}
-
-		if authErr := api.verifyAuthorization(r.Context()); authErr != nil {
-			RespAndLog(w, r.Context(),
-				NewNoAccess(http.StatusForbidden,
-					fmt.Errorf("no acess: %w", authErr)))
-			return
-		}
-		err = dal.SetAccountBanStatus(r.Context(), api.rdb.Get(), rq.User, false)
-		if err != nil {
-			RespAndLog(w, r.Context(),
-				NewAnError(http.StatusInternalServerError,
-					fmt.Errorf("failed to update posgre: %w", err)))
-			return
-		}
-		response.Ok(w, response.WithItem(BanStatus{BanStatus: 0}))
 	}
 }
 
@@ -272,6 +237,13 @@ func (api *api) resetPassword() http.HandlerFunc {
 			return
 		}
 
+		if rq.OldPwd == rq.Pwd {
+			RespAndLog(w, ctx,
+				NewPasswordSameWithOldError(http.StatusBadRequest,
+					fmt.Errorf("unexpected request: new password same with old password")))
+			return
+		}
+
 		// checked, err := checkPwdFormat(rq.Pwd)
 		// if !checked {
 		// 	RespAndLog(w, r.Context(),
@@ -319,6 +291,229 @@ func (api *api) resetPassword() http.HandlerFunc {
 	}
 }
 
+func (api *api) userEnable() http.HandlerFunc {
+	type userEnableReq struct {
+		Username string `json:"username"`
+		Enable   bool   `json:"enable"`
+	}
+
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(r.Context(), defaultAccountTimeout)
+		defer cancel()
+
+		user, ok := model.GetSessionFromContext(ctx)
+		if !ok || (user.Role != model.RoleSuperAdmin && user.Role != model.RoleAdmin) {
+			apperror.RespAndLog(w, ctx,
+				apperror.NewNoAccess(http.StatusForbidden,
+					fmt.Errorf("no access, role: %s", user.Role)))
+			return
+		}
+
+		req := userEnableReq{}
+		err := json.NewDecoder(r.Body).Decode(&req)
+		if err != nil {
+			RespAndLog(w, ctx,
+				NewMalformedRequestError(http.StatusBadRequest,
+					fmt.Errorf("failed to decode json: %w", err)))
+			return
+		}
+
+		if req.Username == "" {
+			RespAndLog(w, ctx,
+				NewMalformedRequestError(http.StatusBadRequest,
+					fmt.Errorf("params illegal")))
+			return
+		}
+
+		status := model.UserStatusNormal
+		oldStatus := model.UserStatusDisabled
+		if !req.Enable {
+			status = model.UserStatusDisabled
+			oldStatus = model.UserStatusNormal
+		}
+		err = api.rdb.Get().WithContext(ctx).Model(&model.User{}).
+			Where("username = ? AND status = ?", req.Username, oldStatus).
+			UpdateColumn("status", status).Error
+		if err != nil {
+			RespAndLog(w, ctx,
+				NewMongoError(http.StatusInternalServerError,
+					fmt.Errorf("database err: %w", err)))
+		}
+
+		response.Ok(w, response.WithTarget(&response.TargetRef{
+			Name: fmt.Sprintf("%s/%v", req.Username, req.Enable),
+			ID:   "",
+			Link: "",
+		}))
+	}
+}
+
+func (api *api) deleteUser() http.HandlerFunc {
+	type deleteUserReq struct {
+		Username string `json:"username"`
+	}
+
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(r.Context(), defaultAccountTimeout)
+		defer cancel()
+
+		user, ok := model.GetSessionFromContext(ctx)
+		if !ok || (user.Role != model.RoleSuperAdmin && user.Role != model.RoleAdmin) {
+			apperror.RespAndLog(w, ctx,
+				apperror.NewNoAccess(http.StatusForbidden,
+					fmt.Errorf("no access, role: %s", user.Role)))
+			return
+		}
+
+		req := deleteUserReq{}
+		err := json.NewDecoder(r.Body).Decode(&req)
+		if err != nil {
+			RespAndLog(w, ctx,
+				NewMalformedRequestError(http.StatusBadRequest,
+					fmt.Errorf("failed to decode json: %w", err)))
+			return
+		}
+
+		if req.Username == "" {
+			RespAndLog(w, ctx,
+				NewMalformedRequestError(http.StatusBadRequest,
+					fmt.Errorf("params illegal")))
+			return
+		}
+
+		if req.Username == user.Username {
+			RespAndLog(w, ctx, NewCommonError(http.StatusBadRequest,
+				errors.New("delete failed. the user cannot delete itself"),
+				"删除失败，不允许用户删除自身", "delete failed. the user cannot delete itself"))
+			return
+		}
+
+		err = api.rdb.Get().WithContext(ctx).
+			Where("username = ?", req.Username).
+			Delete(&model.User{}).Error
+
+		if err != nil {
+			RespAndLog(w, ctx,
+				NewMongoError(http.StatusInternalServerError,
+					fmt.Errorf("database err: %w", err)))
+		}
+
+		response.Ok(w, response.WithTarget(&response.TargetRef{
+			Name: req.Username,
+			ID:   "",
+			Link: "",
+		}))
+	}
+}
+
+func (api *api) adminResetPwd() http.HandlerFunc {
+	type adminResetPwdReq struct {
+		Username string `json:"username"`
+		Password string `json:"password"`
+	}
+
+	type adminResetPwdResp struct {
+		Password string `json:"password"`
+	}
+
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(r.Context(), defaultAccountTimeout)
+		defer cancel()
+
+		user, ok := model.GetSessionFromContext(ctx)
+		if !ok || user.Role != model.RoleSuperAdmin {
+			apperror.RespAndLog(w, ctx,
+				apperror.NewNoAccess(http.StatusForbidden,
+					fmt.Errorf("no access, role: %s", user.Role)))
+			return
+		}
+
+		req := adminResetPwdReq{}
+		err := json.NewDecoder(r.Body).Decode(&req)
+		if err != nil {
+			RespAndLog(w, ctx,
+				NewMalformedRequestError(http.StatusBadRequest,
+					fmt.Errorf("failed to decode json: %w", err)))
+			return
+		}
+
+		if req.Username == "" || req.Password == "" {
+			RespAndLog(w, ctx,
+				NewMalformedRequestError(http.StatusBadRequest,
+					fmt.Errorf("params illegal")))
+			return
+		}
+
+		found, u, err := dal.SelectUser(ctx, api.rdb.GetReadDB(), req.Username)
+		if err != nil {
+			RespAndLog(w, ctx,
+				NewMongoError(http.StatusInternalServerError,
+					fmt.Errorf("database err: %w", err)))
+			return
+		}
+		if !found {
+			RespAndLog(w, ctx, UserNotExistError(http.StatusBadRequest, nil))
+			return
+		}
+
+		ok, _, _ = dal.GetUserByPassword(ctx, api.rdb.GetReadDB(), user.Username, req.Password)
+		if !ok {
+			RespAndLog(w, ctx, NewCommonError(http.StatusBadRequest,
+				errors.New("password error, authentication failed"),
+				"密码错误，身份验证失败", "password error, authentication failed"))
+			return
+		}
+
+		pwd, _ := util.RandPassword(16)
+		updated := map[string]interface{}{
+			"pwd":                fmt.Sprintf("%x", md5.Sum([]byte(pwd+u.Salt))),
+			"last_change_pwd_at": time.Now().UnixMilli(),
+		}
+		// 自动解除账号锁定状态
+		if u.Status == model.UserStatusLock {
+			updated["status"] = model.UserStatusNormal
+		}
+
+		// 管理员重置密码后是否需要修改密码
+		conf, err := dal.GetConfig(ctx, api.rdb.GetReadDB(), model.ConfLogin)
+		if err != nil {
+			if err != gorm.ErrRecordNotFound {
+				logging.Get().Error().Err(err).Msg("")
+				RespAndLog(w, ctx, err)
+				return
+			}
+		} else {
+			loginConf := loginConfigInfo{}
+			if err = json.Unmarshal(conf.Config, &loginConf); err != nil {
+				logging.Get().Error().Err(err).Msg("")
+				RespAndLog(w, ctx, err)
+				return
+			}
+			if loginConf.ResetLoginChangePwd {
+				updated["must_change_pwd"] = true
+			}
+		}
+
+		err = api.rdb.Get().WithContext(ctx).Model(&model.User{}).
+			Where("username = ? ", req.Username).
+			UpdateColumns(updated).Error
+		if err != nil {
+			RespAndLog(w, ctx,
+				NewMongoError(http.StatusInternalServerError,
+					fmt.Errorf("database err: %w", err)))
+			return
+		}
+
+		response.Ok(w, response.WithItem(&adminResetPwdResp{
+			Password: pwd,
+		}), response.WithTarget(&response.TargetRef{
+			Name: req.Username,
+			ID:   "",
+			Link: "",
+		}))
+	}
+}
+
 func (api *api) userList() http.HandlerFunc {
 
 	type UserListResponse struct {
@@ -331,8 +526,32 @@ func (api *api) userList() http.HandlerFunc {
 		defer cancel()
 
 		offset, limit := api.getOffsetAndLimit(r)
+		keyword, err := param.QueryString(r, "keyword")
+		role, err := param.QueryString(r, "role")
+		roles := strings.Split(role, ",")
+		if len(role) == 0 {
+			roles = []string{}
+		}
+		status, err := param.QueryString(r, "status")
+		statusesStr := strings.Split(status, ",")
+		if len(status) == 0 {
+			statusesStr = []string{}
+		}
+		statuses := make([]int, 0)
+		for i := range statusesStr {
+			s, err := strconv.Atoi(statusesStr[i])
+			if err != nil {
+				continue
+			}
+			statuses = append(statuses, s)
+		}
+		moduleGroup, err := param.QueryString(r, "module_group")
+		modules := strings.Split(moduleGroup, ",")
+		if len(moduleGroup) == 0 {
+			modules = []string{}
+		}
 
-		docNum, userList, err := dal.SelectUserAll(ctx, api.rdb.GetReadDB(), limit, offset)
+		docNum, userList, err := dal.SelectUserAll(ctx, api.rdb.GetReadDB(), keyword, roles, statuses, modules, limit, offset)
 		if err != nil {
 			RespAndLog(w, ctx,
 				NewMalformedRequestError(http.StatusInternalServerError,
@@ -407,7 +626,14 @@ func (api *api) addUser() http.HandlerFunc {
 
 		req.UserName = strings.TrimSpace(req.UserName)
 
-		if req.UserName == "" || len(req.UserName) > 32 || (req.RoleName != model.RoleAdmin && req.RoleName != model.RoleNormal) {
+		if len(req.UserName) > 50 {
+			RespAndLog(w, r.Context(),
+				UserNameTooLongError(http.StatusBadRequest,
+					fmt.Errorf("username too long")))
+			return
+		}
+
+		if req.UserName == "" || (req.RoleName != model.RoleAdmin && req.RoleName != model.RoleNormal) {
 			RespAndLog(w, r.Context(),
 				NewMalformedRequestError(http.StatusBadRequest,
 					fmt.Errorf("username or role error")))
@@ -438,8 +664,25 @@ func (api *api) addUser() http.HandlerFunc {
 			return
 		}
 
+		// 首次登录是否需要修改密码
+		loginConf := loginConfigInfo{}
+		conf, err := dal.GetConfig(ctx, api.rdb.GetReadDB(), model.ConfLogin)
+		if err != nil {
+			if err != gorm.ErrRecordNotFound {
+				logging.Get().Error().Err(err).Msg("")
+				RespAndLog(w, ctx, err)
+				return
+			}
+		} else {
+			if err = json.Unmarshal(conf.Config, &loginConf); err != nil {
+				logging.Get().Error().Err(err).Msg("")
+				RespAndLog(w, ctx, err)
+				return
+			}
+		}
+
 		err = api.rdb.Get().Transaction(func(tx *gorm.DB) error {
-			innerErr := dal.InsertUser(ctx, tx, req.UserName, req.RoleName, req.ModuleID)
+			innerErr := dal.InsertUser(ctx, tx, req.UserName, req.RoleName, req.ModuleID, loginConf.FirstLoginChangePwd)
 			if innerErr != nil {
 				if util.IsPostgresDuplicateError(innerErr) {
 					return ErrUserAlreadyExists
@@ -460,7 +703,8 @@ func (api *api) addUser() http.HandlerFunc {
 				return nil
 			}
 
-			return dal.ActiveUser(ctx, tx, req.UserName, model.DefaultPassword)
+			_, innerErr = dal.ActiveUser(ctx, tx, req.UserName, model.DefaultPassword, loginConf.FirstLoginChangePwd)
+			return innerErr
 		})
 
 		if err != nil {
@@ -534,7 +778,7 @@ func (api *api) editUser() http.HandlerFunc {
 				UserNotExistError(http.StatusBadRequest, fmt.Errorf("user name already exist:%+v", err)))
 			return
 		}
-		if queryUser.Rule == model.RoleAdmin && cliReq.RoleName == model.RoleNormal {
+		if queryUser.Role == model.RoleAdmin && cliReq.RoleName == model.RoleNormal {
 			RespAndLog(w, r.Context(),
 				NewNoAccess(http.StatusForbidden,
 					fmt.Errorf("access invalid")))
@@ -632,5 +876,132 @@ func (a *api) superAdminInit() http.HandlerFunc {
 		}
 
 		response.Ok(w)
+	}
+}
+
+// updateIdpConfig update/set idp login config
+func (a *api) updateIdpConfig() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(r.Context(), defaultAccountTimeout)
+		defer cancel()
+
+		defer r.Body.Close()
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			RespAndLog(w, ctx, NewMalformedRequestError(http.StatusBadRequest,
+				fmt.Errorf("failed to decode json: %w", err)))
+		}
+
+		req := idp.LoginConfig{}
+		if err := json.Unmarshal(body, &req); err != nil {
+			RespAndLog(w, ctx,
+				NewMalformedRequestError(http.StatusBadRequest,
+					fmt.Errorf("failed to decode json: %w", err)))
+			return
+		}
+
+		if req.Enabled && (req.DiscoveryEndpoint == "" || req.ClientSecret == "" || req.ClientID == "") {
+			RespAndLog(w, r.Context(),
+				NewInvalidArgError(http.StatusBadRequest, fmt.Errorf("params error: %v", req)))
+			return
+		}
+
+		// 默认一些参数
+		if req.Platform = os.Getenv(idp.EnvIdpPlatform); req.Platform == "" {
+			req.Platform = idp.DxPlatform
+		}
+		req.IdpProvider = idp.ProviderOIDC
+		req.Scopes = "openid+profile+email"
+		body, _ = json.Marshal(req)
+		if err != nil {
+			RespAndLog(w, r.Context(), err)
+			return
+		}
+
+		err = a.rdb.Get().Transaction(func(tx *gorm.DB) error {
+			if req.Enabled {
+				if err = idp.NewProviderAndRegister(&req, a.redisClient); err != nil {
+					return apperror.NewCommonError(http.StatusBadRequest,
+						fmt.Errorf("update idp config error: %w", err),
+						"服务器地址不合法", "server url illegal")
+				}
+			}
+
+			if err = dal.SetConfig(ctx, tx, model.ConfIdpLogin, body); err != nil {
+				return apperror.NewAnError(http.StatusInternalServerError,
+					fmt.Errorf("set config failed: %w", err))
+			}
+
+			return nil
+		})
+		if err != nil {
+			apperror.RespAndLog(w, r.Context(), err)
+			return
+		}
+
+		response.Ok(w, response.WithTarget(&response.TargetRef{
+			Name: model.GetUsernameFromContext(ctx),
+			ID:   "",
+			Link: "",
+		}))
+	}
+}
+
+func (a *api) getIdpConfig() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(r.Context(), defaultAccountTimeout)
+		defer cancel()
+
+		conf, err := dal.GetConfig(ctx, a.rdb.GetReadDB(), model.ConfIdpLogin)
+		if err != nil {
+			if err == gorm.ErrRecordNotFound {
+				moduleGroup, err := dal.GetAdminModuleGroup(ctx, a.rdb.GetReadDB())
+				if err != nil {
+					RespAndLog(w, ctx, err)
+					return
+				}
+
+				response.Ok(w, response.WithItem(idp.LoginConfig{
+					Enabled:           false,
+					DefaultAuth:       moduleGroup,
+					PermissionMapping: []idp.SsoPermissionMappingItem{},
+				}))
+				return
+			}
+		}
+
+		resp := idp.LoginConfig{}
+		if err = json.Unmarshal(conf.Config, &resp); err != nil {
+			apperror.RespAndLog(w, r.Context(),
+				apperror.NewAnError(http.StatusInternalServerError, fmt.Errorf("unmarshal json failed: %w", err)))
+			return
+		}
+
+		modules, err := dal.GetAllModules(ctx, a.rdb.GetReadDB())
+		if err != nil {
+			RespAndLog(w, ctx, err)
+			return
+		}
+
+		modulesSet := map[int]*model.ModuleGroup{}
+		for i, v := range modules {
+			modulesSet[v.Id] = modules[i]
+		}
+
+		for i, v := range resp.DefaultAuth {
+			if m, ok := modulesSet[v.Id]; ok {
+				resp.DefaultAuth[i] = *m
+			}
+		}
+
+		for i, p := range resp.PermissionMapping {
+			for j, v := range p.Auth {
+				if m, ok := modulesSet[v.Id]; ok {
+					resp.PermissionMapping[i].Auth[j] = *m
+				}
+			}
+		}
+
+		response.Ok(w, response.WithItem(resp))
 	}
 }

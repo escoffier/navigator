@@ -13,6 +13,13 @@ const (
 	LdapModeStartTLS = "StartTLS"
 )
 
+type LdapGroupItem struct {
+	ID      int    `json:"id"`
+	Name    string `json:"name"`
+	Role    string `json:"role"`
+	Modules []int  `json:"modules"`
+}
+
 type LdapServerConf struct {
 	Enable             bool   `json:"enable"`
 	Addr               string `json:"addr"`

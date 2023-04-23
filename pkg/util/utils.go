@@ -5,11 +5,13 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"math/rand"
 	"net/http"
 	"os"
 	"reflect"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/golang/gddo/httputil/header"
 	"github.com/google/go-containerregistry/pkg/name"
@@ -314,4 +316,38 @@ func MkdirIfNotExist(path string, remove bool) error {
 		return os.Mkdir(path, os.ModePerm)
 	}
 	return err
+}
+
+func RandPassword(passwordLength int) (string, error) {
+	rand.Seed(time.Now().UnixNano())
+
+	// 密码长度
+	if passwordLength < 6 {
+		return "", fmt.Errorf("passwordLength less than 6")
+	}
+
+	// 可用于密码的字符集，包含大写字母、小写字母、数字和特殊字符
+	characters := "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*()_+-="
+
+	// 特殊字符集
+	specialCharacters := "!@#$%^&*()_+-="
+
+	// 生成随机字节数组
+	randomBytes := make([]byte, passwordLength-1)
+	if _, err := rand.Read(randomBytes); err != nil {
+		return "", err
+	}
+
+	// 使用 characters 中的字符生成密码
+	password := ""
+	for i := 0; i < passwordLength-1; i++ {
+		password += string(characters[int(randomBytes[i])%len(characters)])
+	}
+
+	// 随机插入一个特殊字符
+	specialChar := string(specialCharacters[rand.Intn(len(specialCharacters))])
+	specialIdx := rand.Intn(passwordLength)
+	password = password[:specialIdx] + specialChar + password[specialIdx:]
+
+	return password, nil
 }

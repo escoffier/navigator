@@ -14,18 +14,15 @@ import (
 	"strings"
 	"time"
 
-	param "github.com/oceanicdev/chi-param"
-	"gitlab.com/security-rd/go-pkg/databases"
-
-	"gitlab.com/piccolo_su/vegeta/cmd/console/service/license"
-	"gitlab.com/piccolo_su/vegeta/pkg/util"
-
 	"github.com/dgrijalva/jwt-go"
 	"github.com/go-chi/jwtauth"
-	"gitlab.com/security-rd/go-pkg/logging"
+	param "github.com/oceanicdev/chi-param"
 	"gopkg.in/gomail.v2"
+	"gorm.io/gorm"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/captcha"
+	"gitlab.com/piccolo_su/vegeta/cmd/console/service/idp"
+	"gitlab.com/piccolo_su/vegeta/cmd/console/service/license"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/session"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/usercenter"
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
@@ -33,6 +30,9 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/env"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
+	"gitlab.com/piccolo_su/vegeta/pkg/util"
+	"gitlab.com/security-rd/go-pkg/databases"
+	"gitlab.com/security-rd/go-pkg/logging"
 )
 
 type getLoginSecretResp struct {
@@ -119,13 +119,22 @@ func (api *api) loginBodyDecrypt(ctx context.Context, r io.ReadCloser) ([]byte, 
 
 // LoginResponse is the response of the login API
 type LoginResponse struct {
-	CurrentAuthority string         `json:"currentAuthority"`
-	Status           string         `json:"status"`
-	Type             string         `json:"type"`
-	Token            string         `json:"token"`
-	Role             string         `json:"role"`
-	ChallengeState   string         `json:"challengeState"`
-	LicenseStatus    license.Status `json:"licenseStatus"`
+	CurrentAuthority  string         `json:"currentAuthority"`
+	Status            string         `json:"status"`
+	Type              string         `json:"type"`
+	Token             string         `json:"token"`
+	Role              string         `json:"role"`
+	Platform          string         `json:"platform"`
+	ChallengeState    string         `json:"challengeState"`
+	LicenseStatus     license.Status `json:"licenseStatus"`
+	CycleChangePwdDay int            `json:"cycleChangePwdDay"`
+	MustChangePwd     bool           `json:"mustChangePwd"`
+	ChangePwdHashCode string         `json:"changePwdHashCode"`
+}
+
+type DXLoginResponse struct {
+	LoginResponse
+	IDToken string `json:"IDToken"`
 }
 
 func (api *api) login() http.HandlerFunc {
@@ -179,38 +188,106 @@ func (api *api) login() http.HandlerFunc {
 			return
 		}
 
-		ok, findUser, err := dal.GetUserByPassword(ctx, api.rdb.GetReadDB(), creds.Username, creds.Password)
+		passwordOk, findUser, err := dal.GetUserByPassword(ctx, api.rdb.GetReadDB(), creds.Username, creds.Password)
 		if err != nil {
 			RespAndLog(w, r.Context(),
 				LoginError(http.StatusInternalServerError,
 					fmt.Errorf("error when checking login credentials in database: %w", err)))
 			return
 		}
-		if !ok {
-			limiter := usercenter.GetLimiter(ctx)
-			banning := limiter.LoginFailToReachLimit(ctx, creds.Username)
-			if banning {
+		userRole := ""
+		if !passwordOk {
+			// 用username查询user
+			nameOk, userByName, err := dal.SelectUser(ctx, api.rdb.GetReadDB(), creds.Username)
+			if err != nil {
 				RespAndLog(w, r.Context(),
-					NewAccountBanError(http.StatusPreconditionFailed,
-						fmt.Errorf("the account %s is banned", creds.Username)))
+					LoginError(http.StatusInternalServerError,
+						fmt.Errorf("error when checking login credentials in database: %w", err)))
+				return
+			}
+			if !nameOk {
+				RespAndLog(w, r.Context(),
+					LoginError(http.StatusInternalServerError,
+						fmt.Errorf("invalid user name")))
+				return
+			}
+			userRole = userByName.Role
+		} else {
+			userRole = findUser.Role
+		}
+		cycleChangePwdDay := 0
+		// super-admin 只返回密码不对
+		if userRole == model.RoleSuperAdmin {
+			if !passwordOk {
+				RespAndLog(w, r.Context(),
+					LoginError(http.StatusPreconditionFailed,
+						fmt.Errorf("user and password not match")))
+				return
+			}
+		} else { // 非super-admin的检查逻辑
+			loginConf, err := getLoginConf(ctx, api.rdb)
+			if err != nil {
+				RespAndLog(w, r.Context(),
+					LoginError(http.StatusInternalServerError,
+						fmt.Errorf("query login conf fails")))
+				return
+			}
+			// 多次输错密码检查
+			limiter := usercenter.GetLimiter(ctx)
+			if !passwordOk {
+				if loginConf.RateLimitEnable {
+					locking := limiter.LoginFailToReachLimit(ctx, creds.Username)
+					if locking {
+						RespAndLog(w, r.Context(),
+							NewAccountLockError(http.StatusPreconditionFailed,
+								fmt.Errorf("the account %s is banned", creds.Username)))
+						return
+					}
+				}
+				RespAndLog(w, r.Context(),
+					LoginError(http.StatusPreconditionFailed,
+						fmt.Errorf("user and password not match")))
+				return
+			}
+			limiter.LoginSuccessClean(findUser.UserName)
+
+			// 周期修改密码检查
+			// 获取周期修改密码时间
+			if loginConf.CycleChangePwd {
+				cycleChangePwdDay, err = getCycleChangePwdDay(ctx, api.rdb, loginConf, findUser)
+				if err != nil {
+					RespAndLog(w, ctx, err)
+					return
+				}
+			}
+
+			// 账户状态检查
+			if err = checkUserStatus(findUser.UserName, findUser.Status); err != nil {
+				RespAndLog(w, ctx, err)
 				return
 			}
 
-			RespAndLog(w, r.Context(),
-				LoginError(http.StatusPreconditionFailed,
-					fmt.Errorf("user and password not match")))
-			return
-		}
-
-		if findUser.BanStatus == 1 {
-			RespAndLog(w, r.Context(),
-				NewAccountBanError(http.StatusPreconditionFailed,
-					fmt.Errorf("the account %s is banned", creds.Username)))
-			return
+			// 是否需要立即修改密码（首次登录）
+			if findUser.MustChangePwd {
+				emailHashCode := dal.RandStringBytesMaskImprSrcUnsafe(64)
+				innerErr := dal.InsertEmail(ctx, api.rdb.Get(), findUser.UserName, emailHashCode)
+				if innerErr != nil {
+					RespAndLog(w, ctx, innerErr)
+					return
+				}
+				response.Ok(w, response.WithItem(LoginResponse{
+					CurrentAuthority:  findUser.UserName,
+					Role:              findUser.Role,
+					CycleChangePwdDay: cycleChangePwdDay,
+					MustChangePwd:     true,
+					ChangePwdHashCode: emailHashCode,
+				}))
+				return
+			}
 		}
 
 		// issue JWT Token
-		tokenString, err := api.issueJWTToken(ctx, findUser.UserName, findUser.Rule, r.UserAgent(), false)
+		tokenString, err := api.issueJWTToken(ctx, findUser.UserName, findUser.Role, r.UserAgent(), false)
 		if err != nil {
 			RespAndLog(w, r.Context(),
 				LoginError(http.StatusInternalServerError,
@@ -229,18 +306,259 @@ func (api *api) login() http.HandlerFunc {
 		}
 
 		response.Ok(w, response.WithItem(LoginResponse{
-			CurrentAuthority: findUser.UserName,
-			Status:           "ok",
-			Type:             AccountTypeNormal,
-			Token:            tokenString,
-			Role:             findUser.Rule,
-			LicenseStatus:    license.ValidateLicense(false),
+			CurrentAuthority:  findUser.UserName,
+			Status:            "ok",
+			Type:              AccountTypeNormal,
+			Token:             tokenString,
+			Role:              findUser.Role,
+			Platform:          findUser.Platform,
+			LicenseStatus:     license.ValidateLicense(false),
+			CycleChangePwdDay: cycleChangePwdDay,
 		}), response.WithTarget(&response.TargetRef{
 			Name: creds.Username,
 			ID:   "",
 			Link: "",
 		}))
 	}
+}
+
+func getLoginConf(ctx context.Context, rdb *databases.RDBInstance) (loginConfigInfo, error) {
+	loginConf := loginConfigInfo{}
+	dbConf, err := dal.GetConfig(ctx, rdb.GetReadDB(), model.ConfLogin)
+	if err != nil {
+		if err != gorm.ErrRecordNotFound {
+			return loginConf, err
+		}
+	} else {
+		if err = json.Unmarshal(dbConf.Config, &loginConf); err != nil {
+			return loginConf, err
+		}
+	}
+	return loginConf, nil
+}
+
+func getCycleChangePwdDay(ctx context.Context, rdb *databases.RDBInstance, loginConf loginConfigInfo, findUser *model.User) (int, error) {
+	seconds := time.Now().Sub(time.UnixMilli(findUser.LastChangePwdAt)).Seconds()
+	if int(seconds) > loginConf.CycleDay*86400 {
+		// 锁定账号
+		findUser.Status = model.UserStatusLock
+		err := dal.UpdateUserStatus(ctx, rdb.Get(), findUser.UserName, findUser.Status)
+		if err != nil {
+			logging.Get().Error().Err(err).Msg("")
+			return 0, err
+		}
+	} else {
+		return loginConf.CycleDay - int(seconds/86400), nil
+	}
+	return 0, nil
+}
+
+func (api *api) getIdpLoginUrl() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(r.Context(), defaultAccountTimeout)
+		defer cancel()
+
+		platform := r.URL.Query().Get("platform")
+		if platform == "" {
+			RespAndLog(w, ctx, NewMalformedRequestError(http.StatusBadRequest,
+				fmt.Errorf("missing params 'platform'")))
+			return
+		}
+
+		p, err := idp.GetProvider(platform)
+		if err != nil {
+			RespAndLog(w, ctx,
+				NewMalformedRequestError(http.StatusBadRequest,
+					fmt.Errorf("platform unsupport %w", err)))
+			return
+		}
+
+		url, err := p.GetAuthUrl()
+		if err != nil {
+			RespAndLog(w, r.Context(),
+				NewAnError(http.StatusInternalServerError,
+					fmt.Errorf("p.GetAuthUrl error %w", err)))
+			return
+		}
+
+		response.Ok(w, response.WithItem(map[string]string{"url": url}))
+	}
+}
+
+func (api *api) idpLogin() http.HandlerFunc {
+	type idpLoginReq struct {
+		Platform string          `json:"platform"`
+		Payload  json.RawMessage `json:"payload"`
+	}
+
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(r.Context(), defaultAccountTimeout)
+		defer cancel()
+
+		req := idpLoginReq{}
+		err := json.NewDecoder(r.Body).Decode(&req)
+		if err != nil {
+			RespAndLog(w, r.Context(),
+				NewMalformedRequestError(http.StatusBadRequest,
+					fmt.Errorf("failed to decode json: %w", err)))
+			return
+		}
+
+		if req.Platform == "" {
+			RespAndLog(w, ctx,
+				NewMalformedRequestError(http.StatusBadRequest,
+					fmt.Errorf("missing field 'platform' or 'username'")))
+			return
+		}
+
+		p, err := idp.GetProvider(req.Platform)
+		if err != nil {
+			RespAndLog(w, ctx,
+				NewMalformedRequestError(http.StatusBadRequest,
+					fmt.Errorf("platform unsupport")))
+			return
+		}
+
+		idpInfo, err := p.GetUserInfo(ctx, req.Payload)
+		if err != nil {
+			RespAndLog(w, r.Context(),
+				NewAnError(http.StatusInternalServerError, fmt.Errorf("p.GetUserInfo error %w", err)))
+			return
+		}
+
+		user := &model.User{}
+		err = api.rdb.GetReadDB().Where("username = ?", idpInfo.Username).First(user).Error
+		if err != nil && err != gorm.ErrRecordNotFound {
+			RespAndLog(w, r.Context(),
+				NewAnError(http.StatusInternalServerError, fmt.Errorf("db query error: %w", err)))
+			return
+		}
+
+		// 新用户第一次登录
+		if err == gorm.ErrRecordNotFound || user.Platform != req.Platform {
+			// 如果有重复的账号，追加一个prefix
+			prefix := err == nil && user.Platform != req.Platform
+			user, err = createUserByIdp(ctx, api.rdb, req.Platform, idpInfo, prefix)
+			if err != nil {
+				RespAndLog(w, r.Context(), err)
+				return
+			}
+		}
+
+		// 判定账号是否被停用
+		if err = checkUserStatus(user.UserName, user.Status); err != nil {
+			RespAndLog(w, r.Context(), err)
+			return
+		}
+
+		// issue JWT Token
+		tokenString, err := api.issueJWTToken(ctx, user.UserName, user.Role, r.UserAgent(), false)
+		if err != nil {
+			RespAndLog(w, r.Context(),
+				LoginError(http.StatusInternalServerError,
+					fmt.Errorf("issue jwt token failed %w", err)))
+			return
+		}
+
+		sessionService, ok := session.GetService()
+		if !ok {
+			RespAndLog(w, ctx, ErrServiceNotReady)
+			return
+		}
+
+		if err = sessionService.SaveUserSession(ctx, user.GenerateSession(false)); err != nil {
+			logging.Get().Warn().Err(err).Msgf("login save user session fail")
+		}
+
+		response.Ok(w, response.WithItem(DXLoginResponse{
+			LoginResponse: LoginResponse{
+				CurrentAuthority: user.UserName,
+				Status:           "ok",
+				Type:             AccountTypeNormal,
+				Token:            tokenString,
+				Role:             user.Role,
+				Platform:         user.Platform,
+				LicenseStatus:    license.ValidateLicense(false),
+			},
+			IDToken: idpInfo.IDToken,
+		}), response.WithTarget(&response.TargetRef{
+			Name: user.UserName,
+			ID:   "",
+			Link: "",
+		}))
+	}
+}
+
+func createUserByIdp(ctx context.Context, rdb *databases.RDBInstance, platform string, thirdInfo *idp.IdpUserInfo, prefix bool) (*model.User, error) {
+	conf, err := dal.GetConfig(ctx, rdb.GetReadDB(), model.ConfIdpLogin)
+	if err != nil {
+		return nil, NewAnError(http.StatusInternalServerError, fmt.Errorf("db query error: %w", err))
+	}
+
+	idpConf := idp.LoginConfig{}
+	if err = json.Unmarshal(conf.Config, &idpConf); err != nil {
+		return nil, NewAnError(http.StatusInternalServerError, fmt.Errorf("json unmarshal error: %w", err))
+	}
+
+	// 默认权限
+	moduleIDs := make([]string, 0)
+	for _, auth := range idpConf.DefaultAuth {
+		moduleIDs = append(moduleIDs, strconv.Itoa(auth.Id))
+	}
+	if thirdInfo.Role != "" {
+		moduleSet := map[int]string{}
+		for _, permission := range idpConf.PermissionMapping {
+			if permission.RoleName != thirdInfo.Role {
+				continue
+			}
+
+			for _, auth := range permission.Auth {
+				moduleSet[auth.Id] = strconv.Itoa(auth.Id)
+			}
+		}
+
+		if len(moduleSet) > 0 {
+			moduleIDs = make([]string, 0)
+			for _, v := range moduleSet {
+				moduleIDs = append(moduleIDs, v)
+			}
+		}
+	}
+	moduleID, _ := json.Marshal(moduleIDs)
+
+	username := thirdInfo.Username
+	if prefix {
+		username = string(platform) + "." + username
+	}
+	// 默认生成一个账号
+	user := model.User{
+		UserName:  username,
+		Role:      model.RoleNormal,
+		ModuleID:  string(moduleID),
+		Platform:  platform,
+		CreatedAt: time.Now().UnixMilli(),
+		Status:    model.UserStatusNormal,
+	}
+	if err = rdb.Get().Create(&user).Error; err != nil {
+		return nil, NewAnError(http.StatusInternalServerError, fmt.Errorf("create new accpount error: %w", err))
+	}
+
+	return &user, nil
+}
+
+func checkUserStatus(username string, status int) error {
+	if status == model.UserStatusInactive {
+		return AccountUnActive(http.StatusForbidden,
+			fmt.Errorf("account is not activated"))
+	} else if status == model.UserStatusLock {
+		return NewAccountLockError(http.StatusPreconditionFailed,
+			fmt.Errorf("the account %s is locked", username))
+	} else if status != model.UserStatusNormal {
+		return NewAccountBanError(http.StatusPreconditionFailed,
+			fmt.Errorf("the account %s is banned", username))
+	}
+
+	return nil
 }
 
 type resp struct {
@@ -307,15 +625,62 @@ func (api *api) activeUser() http.HandlerFunc {
 		}
 
 		// active user
-		err = dal.ActiveUser(r.Context(), api.rdb.Get(), username, ru.Pwd)
+		user, err := dal.ActiveUser(r.Context(), api.rdb.Get(), username, ru.Pwd, false)
 		if err != nil {
 			RespAndLog(w, r.Context(),
 				NewMalformedRequestError(http.StatusBadRequest, fmt.Errorf("database error:%+v", err)))
 			return
 		}
 
-		response.Ok(w, response.WithItem(resp{
-			Status: fmt.Sprintf("%v", "OK"),
+		// issue JWT Token
+		tokenString, err := api.issueJWTToken(r.Context(), user.UserName, user.Role, r.UserAgent(), false)
+		if err != nil {
+			RespAndLog(w, r.Context(),
+				LoginError(http.StatusInternalServerError,
+					fmt.Errorf("issue jwt token failed %w", err)))
+			return
+		}
+
+		sessionService, ok := session.GetService()
+		if !ok {
+			RespAndLog(w, r.Context(), ErrServiceNotReady)
+			return
+		}
+
+		if err = sessionService.SaveUserSession(r.Context(), user.GenerateSession(false)); err != nil {
+			logging.Get().Warn().Err(err).Msgf("login save user session fail")
+		}
+
+		// 获取周期修改密码时间
+		loginConf, err := getLoginConf(r.Context(), api.rdb)
+		if err != nil {
+			RespAndLog(w, r.Context(),
+				LoginError(http.StatusInternalServerError,
+					fmt.Errorf("query login conf fails")))
+			return
+		}
+		cycleChangePwdDay := 0
+		if loginConf.CycleChangePwd {
+			cycleChangePwdDay, err = getCycleChangePwdDay(r.Context(), api.rdb, loginConf, user)
+			if err != nil {
+				RespAndLog(w, r.Context(), err)
+				return
+			}
+		}
+
+		response.Ok(w, response.WithItem(LoginResponse{
+			CurrentAuthority:  user.UserName,
+			Status:            "ok",
+			Type:              AccountTypeNormal,
+			Token:             tokenString,
+			Role:              user.Role,
+			Platform:          user.Platform,
+			LicenseStatus:     license.ValidateLicense(false),
+			CycleChangePwdDay: cycleChangePwdDay,
+		}), response.WithTarget(&response.TargetRef{
+			Name: user.UserName,
+			ID:   "",
+			Link: "",
 		}))
 	}
 }
@@ -607,10 +972,8 @@ func jwtAccessCheck(db *databases.RDBInstance) func(http.Handler) http.Handler {
 				logging.Get().Err(err).Msgf("refresh session fail")
 			}
 
-			if !userSession.Checked {
-				RespAndLog(w, r.Context(),
-					AccountUnActive(http.StatusForbidden,
-						fmt.Errorf("account is not activated")))
+			if err = checkUserStatus(username, userSession.Status); err != nil {
+				RespAndLog(w, r.Context(), err)
 				return
 			}
 

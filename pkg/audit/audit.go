@@ -175,6 +175,8 @@ func (e *LogEntry) Write(status, bytes int, header http.Header, elapsed time.Dur
 			e.auditEvt.MetaData = make(map[string]interface{})
 		}
 		e.auditEvt.MetaData["objName"] = objName
+	} else {
+		return
 	}
 	if len(header) > 0 {
 		resp.Header = headerLogField(header)
@@ -642,11 +644,26 @@ func init() {
 	routeAction.POST("/api/v2/usercenter/resetPassword", func(params Params) (string, string) {
 		return editAction, "编辑密码"
 	})
+	routeAction.POST("/api/v2/usercenter/enable", func(params Params) (string, string) {
+		return eAnddAction, "{{.}}"
+	})
+	routeAction.POST("/api/v2/usercenter/admin/resetpwd", func(params Params) (string, string) {
+		return editAction, "重置{{.}}密码"
+	})
+	routeAction.DELETE("/api/v2/usercenter/delete", func(params Params) (string, string) {
+		return deleteAction, "删除用户{{.}}"
+	})
 	routeAction.POST("/api/v2/usercenter/config/ldap", func(params Params) (string, string) {
-		return editAction, "编辑Ldap配置"
+		return editAction, "编辑 Ldap配置"
 	})
 	routeAction.POST("/api/v2/usercenter/config/radius", func(params Params) (string, string) {
-		return editAction, "编辑radius配置"
+		return editAction, "编辑 Radius配置"
+	})
+	routeAction.POST("/api/v2/usercenter/config/idp", func(params Params) (string, string) {
+		return editAction, "编辑 SSO配置"
+	})
+	routeAction.POST("/api/v2/usercenter/config/login", func(params Params) (string, string) {
+		return editAction, "编辑 登录配置"
 	})
 	routeAction.POST("/api/v2/usercenter/ldapGroup", func(params Params) (string, string) {
 		return editAction, "新增Ldap组{{.}}"
@@ -669,7 +686,6 @@ func init() {
 	routeAction.PUT("/api/v2/containerSec/scanner/vulns/updata", func(params Params) (string, string) {
 		return uploadAction, "上传漏洞库更新包"
 	})
-
 	// 偏移防御
 	routeAction.POST("/api/v2/platform/drift/policy/create", func(params Params) (string, string) {
 		return createAction, "新增偏移防御策略{{.}}"

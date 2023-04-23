@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"gitlab.com/piccolo_su/vegeta/pkg/assets"
+	"gitlab.com/piccolo_su/vegeta/pkg/dal"
 	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
@@ -65,13 +66,12 @@ func Init(rdb *databases.RDBInstance) error {
 		db: rdb.GetReadDB().Session(&gorm.Session{Logger: logger.Discard}),
 	}
 
-	licenseConf := model.TensorConfig{}
-	err = manager.db.Where("k = ?", model.ConfLicense).First(&licenseConf).Error
+	licenseConf, err := dal.GetConfig(context.Background(), manager.db, model.ConfLicense)
 	if err != nil && err != gorm.ErrRecordNotFound {
 		return err
 	}
 
-	if len(licenseConf.Config) > 0 {
+	if licenseConf != nil && len(licenseConf.Config) > 0 {
 		if manager.currentInfo, err = manager.verifier.decode(string(licenseConf.Config)); err != nil {
 			logging.Get().Error().Err(err).Msg("decode license error")
 		}

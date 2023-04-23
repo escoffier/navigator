@@ -16,6 +16,10 @@ func DeleteLdapGroup(ctx context.Context, db *gorm.DB, id int32) error {
 	return db.WithContext(ctx).Delete(&model.LdapGroup{}, id).Error
 }
 
+func TruncateLdapGroup(ctx context.Context, db *gorm.DB) error {
+	return db.WithContext(ctx).Session(&gorm.Session{AllowGlobalUpdate: true}).Delete(&model.LdapGroup{}).Error
+}
+
 func UpdateLdapGroup(ctx context.Context, db *gorm.DB, group *model.LdapGroup) error {
 	return db.WithContext(ctx).Select("*").Updates(group).Error
 }
@@ -40,7 +44,8 @@ func CheckLdapGroupExists(ctx context.Context, db *gorm.DB, id int32) (bool, err
 
 func GetLdapGroupList(ctx context.Context, db *gorm.DB, offset, limit int) ([]*model.LdapGroup, error) {
 	var groups []*model.LdapGroup
-	var err = db.WithContext(ctx).Order("id").Offset(offset).Limit(limit).Find(&groups).Error
+	//var err = db.WithContext(ctx).Order("id").Offset(offset).Limit(limit).Find(&groups).Error fixme: 为了保持页面效果统一，此处暂时查询全部
+	var err = db.WithContext(ctx).Order("id").Find(&groups).Error
 	return groups, err
 }
 

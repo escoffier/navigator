@@ -62,17 +62,8 @@ func (a *api) validToken(rdb *databases.RDBInstance) http.HandlerFunc {
 			return
 		}
 
-		if user.BanStatus == 1 {
-			apperror.RespAndLog(w, r.Context(),
-				apperror.NewAccountBanError(http.StatusPreconditionFailed,
-					fmt.Errorf("the account %s is banned", username)))
-			return
-		}
-
-		if !user.Checked {
-			apperror.RespAndLog(w, r.Context(),
-				apperror.AccountUnActive(http.StatusForbidden,
-					fmt.Errorf("account is not activated")))
+		if err = checkUserStatus(username, user.Status); err != nil {
+			apperror.RespAndLog(w, r.Context(), err)
 			return
 		}
 
@@ -163,17 +154,8 @@ func (api *api) newOpenAPIToken() http.HandlerFunc {
 			return
 		}
 
-		if user.BanStatus == 1 {
-			apperror.RespAndLog(w, r.Context(),
-				apperror.NewAccountBanError(http.StatusPreconditionFailed,
-					fmt.Errorf("the account %s is banned", user.UserName)))
-			return
-		}
-
-		if !user.Checked {
-			apperror.RespAndLog(w, r.Context(),
-				apperror.AccountUnActive(http.StatusForbidden,
-					fmt.Errorf("account is not activated")))
+		if err = checkUserStatus(user.UserName, user.Status); err != nil {
+			apperror.RespAndLog(w, r.Context(), err)
 			return
 		}
 
@@ -239,17 +221,8 @@ func openAPIAccessCheck(rdb *databases.RDBInstance) func(http.Handler) http.Hand
 				return
 			}
 
-			if user.BanStatus == 1 {
-				apperror.RespAndLog(w, r.Context(),
-					apperror.NewAccountBanError(http.StatusPreconditionFailed,
-						fmt.Errorf("the account %s is banned", username)))
-				return
-			}
-
-			if !user.Checked {
-				apperror.RespAndLog(w, r.Context(),
-					apperror.AccountUnActive(http.StatusForbidden,
-						fmt.Errorf("account is not activated")))
+			if err = checkUserStatus(username, user.Status); err != nil {
+				apperror.RespAndLog(w, r.Context(), err)
 				return
 			}
 

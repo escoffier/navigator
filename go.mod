@@ -99,6 +99,7 @@ require (
 	github.com/elastic/go-libaudit/v2 v2.2.0
 	github.com/ghodss/yaml v1.0.0
 	github.com/gin-contrib/pprof v1.4.0
+	github.com/go-redis/redismock/v8 v8.11.5
 	github.com/go-redsync/redsync/v4 v4.7.1
 	github.com/go-sql-driver/mysql v1.7.0
 	github.com/go-task/slim-sprig v0.0.0-20210107165309-348f09dbbbc0
@@ -124,6 +125,7 @@ require (
 	k8s.io/klog/v2 v2.60.1
 	k8s.io/kubernetes v1.24.0
 	layeh.com/radius v0.0.0-20210819152912-ad72663a72ab
+	moul.io/http2curl v1.0.0
 	scm.tensorsecurity.cn/tensorsecurity-rd/api v0.2.2
 )
 

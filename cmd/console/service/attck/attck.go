@@ -546,7 +546,7 @@ func (h *ATTCKHandler) updateConfigs(ctx context.Context, v uint16) error {
 
 		h.asyncUploadRulesToEventsCenter(afterBytes, version.String())
 	} else { // use storage
-		logging.Get().Info().Uints16("storage version", header.Version[:]).Msg("Initialize with stored rules.")
+		logging.Get().Info().Str("storage version", storeConf.VString()).Msg("Initialize with stored rules.")
 		header, rulesContext, _, err := cryption.ReadRulesData(storeConf.Content)
 		if err != nil {
 			logging.Get().Err(err).Str("data", string(storeConf.Content)).Msg("decode rule data fail")

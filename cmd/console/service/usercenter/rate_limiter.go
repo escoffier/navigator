@@ -3,19 +3,15 @@ package usercenter
 import (
 	"context"
 	"encoding/json"
-	"runtime/debug"
 	"sync"
 	"sync/atomic"
 	"time"
 
 	"gitlab.com/piccolo_su/vegeta/pkg/dal"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
+	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/security-rd/go-pkg/databases"
 	"gorm.io/gorm"
-)
-
-const (
-	ConfigKey = "usercenter_loginfailconf"
 )
 
 var (
@@ -38,27 +34,19 @@ type LoginRateLimiter struct {
 }
 
 type LimiterConfig struct {
-	RateLimitWindowSecs int64 `json:"rateLimitWindowSecs"`
-	RateLimitThreshold  int32 `json:"rateLimitThreshold"`
-	RateLimitEnable     int32 `json:"rateLimitEnable"`
+	RateLimitThreshold int32 `json:"rateLimitThreshold"`
+	RateLimitEnable    bool  `json:"rateLimitEnable"`
 }
 
-func (l *LimiterConfig) SetEnable(enable int32) {
-	atomic.StoreInt32(&l.RateLimitEnable, enable)
+func (l *LimiterConfig) SetEnable(enable bool) {
+	l.RateLimitEnable = enable
 }
-func (l *LimiterConfig) GetEnable() int32 {
-	return atomic.LoadInt32(&l.RateLimitEnable)
-}
-func (l *LimiterConfig) SetWindowSec(sec int64) {
-	atomic.StoreInt64(&l.RateLimitWindowSecs, sec)
+func (l *LimiterConfig) GetEnable() bool {
+	return l.RateLimitEnable
 }
 
 func (l *LimiterConfig) SetThreshold(t int32) {
 	atomic.StoreInt32(&l.RateLimitThreshold, t)
-}
-
-func (l *LimiterConfig) windowSec(sec int64) int64 {
-	return atomic.LoadInt64(&l.RateLimitWindowSecs)
 }
 
 func (l *LimiterConfig) getThreshold() int32 {
@@ -70,12 +58,11 @@ func newLoginRateLimiter(rdb *databases.RDBInstance) *LoginRateLimiter {
 	config, err := readConfigs(rdb)
 	if err != nil {
 		logging.GetLogger().Err(err).Msg("read configs error")
-		config.RateLimitEnable = 0
+		config.RateLimitEnable = false
 	}
 	l.config = config
 	l.rdb = rdb
 	l.counts = new(sync.Map)
-	l.asyncLoop()
 
 	return l
 }
@@ -84,13 +71,13 @@ func readConfigs(rdb *databases.RDBInstance) (LimiterConfig, error) {
 	var config LimiterConfig
 	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
 	defer cancel()
-	conf, err := dal.GetConfig(ctx, rdb.GetReadDB(), ConfigKey)
+	conf, err := dal.GetConfig(ctx, rdb.GetReadDB(), model.ConfLogin)
 	if err != nil && err != gorm.ErrRecordNotFound {
 		logging.GetLogger().Err(err).Msg("read configs from postgre error")
 		return config, err
 	} else if conf == nil || err == gorm.ErrRecordNotFound {
 		return LimiterConfig{
-			RateLimitEnable: 0,
+			RateLimitEnable: false,
 		}, nil
 	}
 	err = json.Unmarshal(conf.Config, &config)
@@ -98,6 +85,7 @@ func readConfigs(rdb *databases.RDBInstance) (LimiterConfig, error) {
 		logging.GetLogger().Err(err).Msgf("read configs unmarshal error, conf: %s. data: %+v", string(conf.Config), conf)
 		return config, err
 	}
+
 	return config, nil
 }
 
@@ -121,13 +109,10 @@ func newFailStatus() *failStatus {
 	}
 }
 
-func (l *LoginRateLimiter) UpdateTimeWindow(secs int64) {
-	l.config.SetWindowSec(secs)
-}
 func (l *LoginRateLimiter) UpdateThreshold(t int32) {
 	l.config.SetThreshold(t)
 }
-func (l *LoginRateLimiter) UpdateEnable(enable int32) {
+func (l *LoginRateLimiter) UpdateEnable(enable bool) {
 	l.config.SetEnable(enable)
 }
 
@@ -137,7 +122,7 @@ func (l *LoginRateLimiter) getOrCreateStatus(_ context.Context, userName string)
 }
 
 func (l *LoginRateLimiter) LoginFailToReachLimit(ctx context.Context, userName string) bool {
-	if l.config.GetEnable() == 0 {
+	if !l.config.GetEnable() {
 		return false
 	}
 
@@ -145,7 +130,7 @@ func (l *LoginRateLimiter) LoginFailToReachLimit(ctx context.Context, userName s
 	status.Incr()
 
 	if status.Count() >= l.config.getThreshold() {
-		err := dal.SetAccountBanStatus(ctx, l.rdb.Get(), userName, true)
+		err := dal.SetAccountStatus(ctx, l.rdb.Get(), userName, model.UserStatusLock)
 		if err != nil {
 			logging.GetLogger().Err(err).Msgf("banning user %s error", userName)
 		}
@@ -154,41 +139,6 @@ func (l *LoginRateLimiter) LoginFailToReachLimit(ctx context.Context, userName s
 	return false
 }
 
-func (l *LoginRateLimiter) clean(now time.Time) {
-	defer func() {
-		if r := recover(); r != nil {
-			logging.GetLogger().Error().Msgf("Panic: %v. Stack: %s", r, string(debug.Stack()))
-		}
-	}()
-
-	toDelete := make([]string, 0, 2)
-	l.counts.Range(func(key, value interface{}) bool {
-		ct := value.(*failStatus)
-		if ct != nil {
-			if now.Sub(ct.createdAt) > time.Duration(l.config.RateLimitWindowSecs)*time.Second {
-				toDelete = append(toDelete, key.(string))
-			}
-		}
-		return true
-	})
-	for _, userName := range toDelete {
-		l.counts.Delete(userName)
-	}
-}
-
-func (l *LoginRateLimiter) asyncLoop() {
-	go func() {
-		defer func() {
-			if r := recover(); r != nil {
-				logging.GetLogger().Error().Msgf("Panic: %v. Stack: %s", r, string(debug.Stack()))
-			}
-		}()
-
-		ticker := time.NewTicker(1 * time.Minute)
-		defer ticker.Stop()
-
-		for now := range ticker.C {
-			l.clean(now)
-		}
-	}()
+func (l *LoginRateLimiter) LoginSuccessClean(userName string) {
+	l.counts.Delete(userName)
 }
