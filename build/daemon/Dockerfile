@@ -16,6 +16,7 @@ COPY bin/ns-mnt /
 COPY ./configs/daemon/supervisord.conf /etc/
 COPY ./configs/daemon/*.o /
 COPY ./configs/drift-prevention/inject /
+COPY ./configs/daemon/cis /cis
 
 ## avira
 ADD avira/savapi-sdk-linux64.tgz /usr/local

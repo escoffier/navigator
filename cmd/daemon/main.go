@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"gitlab.com/piccolo_su/vegeta/cmd/daemon/rscan"
 	"math/rand"
 	"os"
 	"runtime/debug"
@@ -12,10 +11,13 @@ import (
 	"sync"
 	"time"
 
+	"gitlab.com/piccolo_su/vegeta/cmd/daemon/rscan"
+
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
 	flag "github.com/spf13/pflag"
 
+	"gitlab.com/piccolo_su/vegeta/cmd/daemon/cis"
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/dp"
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/containerassets"
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/degrade"
@@ -427,6 +429,30 @@ func Run(ctx context.Context) error {
 			}
 		}()
 	}
+
+	// start cis checker
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		defer func() {
+			if r := recover(); r != nil {
+				logging.Get().Error().Msgf("cis checker panic: %v.stack:%s", r, debug.Stack())
+			}
+		}()
+		cisChecker, err := cis.NewCisController(
+			cis.WithPodResInfo(podResInfo),
+			cis.WithNodePodResInfo(podWatcher),
+			cis.WithClusterInfoManager(clusterManager),
+		)
+		if err != nil {
+			logging.Get().Err(err).Msg("new cis checker failed")
+			return
+		}
+		if err = cisChecker.Start(ctx); err != nil {
+			logging.Get().Err(err).Msg("cis checker start failed")
+		}
+	}()
 
 	wg.Wait()
 	return err

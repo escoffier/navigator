@@ -1,0 +1,21 @@
+keys:
+  - nginx-config-file
+  - nginx-bin-path
+  - nginx-etc-path
+  - nginx-log-path
+
+nginx-bin-path:
+  dirs:
+    - /usr/sbin/nginx
+
+nginx-config-file:
+  dirs:
+    - /etc/nginx/nginx.conf
+
+nginx-etc-path:
+  dirs:
+    - /etc/nginx
+
+nginx-log-path:
+  dirs:
+    - /var/log/nginx

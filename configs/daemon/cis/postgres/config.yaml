@@ -1,0 +1,19 @@
+keys:
+  - postgres-config-file
+  - postgres-config-path
+  - postgres-config-name
+
+postgres-config-file:
+  dirs:
+    - "%s/main/postgresql.conf"
+
+postgres-config-path:
+  dirs:
+    - /etc/postgresql
+    - /opt/bitnami/postgresql
+    - /usr/share/postgresql
+
+postgres-config-name:
+  - postgresql.conf
+  - postgresql.conf.default
+  - postgresql.conf.sample

@@ -104,6 +104,7 @@ require (
 	github.com/go-sql-driver/mysql v1.7.0
 	github.com/go-task/slim-sprig v0.0.0-20210107165309-348f09dbbbc0
 	github.com/gobwas/glob v0.2.3
+	github.com/golang/glog v1.0.0
 	github.com/golang/protobuf v1.5.2
 	github.com/gorilla/handlers v1.4.2
 	github.com/imroc/req/v3 v3.23.0
