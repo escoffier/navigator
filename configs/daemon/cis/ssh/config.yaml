@@ -1,0 +1,6 @@
+keys:
+  - sshd-config-file
+
+sshd-config-file:
+  dirs:
+    - /etc/ssh/sshd_config

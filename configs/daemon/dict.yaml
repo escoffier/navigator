@@ -1,0 +1,126 @@
+- en: Ensure PasswordAuthentication is set to no
+  zh: 确保PasswordAuthentication设置为no
+- en: Ensure PermitRootLogin is set to no
+  zh: 确保PermitRootLogin设置为no
+- en: Ensure PubkeyAuthentication is set to yes
+  zh: 确保PubkeyAuthentication设置为yes
+- en: Ensure ChallengeResponseAuthentication is set to no
+  zh: 确保ChallengeResponseAuthentication设置为no
+- en: Ensure SSH Protocol is set to version 2
+  zh: 确保SSH协议设置为版本2
+- en: Ensure ClientAliveInterval is set to a reasonable value (e.g. 300 seconds)
+  zh: 确保ClientAliveInterval设置为合理的值（例如300秒）
+- en: Ensure ClientAliveCountMax is set to a reasonable value (e.g. 0 or 3)
+  zh: 确保ClientAliveCountMax设置为合理的值（例如0或3）
+- en: Ensure SSH log level is set to VERBOSE or more restrictive
+  zh: 确保SSH日志级别设置为VERBOSE或更严格
+- en: Ensure SSH banner is set
+  zh: 确保设置了SSH标志
+- en: Ensure only approved SSH users can access the system
+  zh: 确保只有经过批准的SSH用户才能访问系统
+- en: Ensure SSH login is allowed only from specific IP addresses or subnets
+  zh: 确保只允许从特定IP地址或子网进行SSH登录
+- en: Ensure SSH X11 forwarding is disabled
+  zh: 确保SSH X11转发已禁用
+- en: Ensure SSH MaxAuthTries is set to a reasonable value (e.g. 4 or less)
+  zh: 确保SSH MaxAuthTries设置为合理的值（例如4或更小）
+- en: Ensure SSH IgnoreRhosts is enabled
+  zh: 确保已启用SSH IgnoreRosts
+- en: Ensure SSH HostbasedAuthentication is disabled
+  zh: 确保SSH HostbasedAuthentication已禁用
+- en: Ensure set a password for Redis authentication
+  zh: 确保为Redis身份验证设置密码
+- en: Ensure protected-mode is enabled
+  zh: 确保已启用保护模式
+- en: Ensure disable keys commands
+  zh: 确保禁用按键命令
+- en: Ensure disable FLUSHALL commands
+  zh: 确保禁用FLUSHALL命令
+- en: Ensure disable FLUSHDB commands
+  zh: 确保禁用FLUSHDB命令
+- en: Ensure disable CONFIG commands
+  zh: 确保禁用CONFIG命令
+- en: Ensure disable DEBUG commands
+  zh: 确保禁用DEBUG命令
+- en: Ensure disable SHUTDOWN commands
+  zh: 确保禁用SHUTDOWN命令
+- en: Ensure nginx is running as a non-privileged user
+  zh: 确保nginx以非特权用户身份运行
+- en: Ensure nginx configuration files are owned by root
+  zh: 确保nginx配置文件归root所有
+- en: Ensure HTTPS is used for Nginx communication
+  zh: 确保HTTPS用于Nginx通信
+- en: Ensure secure SSL/TLS protocols are used
+  zh: 确保使用安全的SSL/TLS协议
+- en: Ensure only allowed HTTP methods are used
+  zh: 确保只使用允许的HTTP方法
+- en: Ensure secure headers are set
+  zh: 确保设置了安全的标头
+- en: Ensure appropriate permissions and ownership on nginx configuration files
+  zh: 确保对nginx配置文件拥有适当的权限和所有权
+- en: Ensure appropriate permissions and ownership on nginx log files
+  zh: 确保对nginx日志文件拥有适当的权限和所有权
+- en: Ensure only necessary Nginx modules are loaded
+  zh: 确保只加载必要的Nginx模块
+- en: Ensure access to Nginx configuration files is restricted
+  zh: 确保对Nginx配置文件的访问受到限制
+- en: Ensure Nginx logs are rotated and retained
+  zh: 确保nginx日志被轮换和保留
+- en: Ensure PostgreSQL is running as a non-root user
+  zh: 确保PostgreSQL以非root用户身份运行
+- en: Ensure PostgreSQL is configured to listen on localhost
+  zh: 确保PostgreSQL配置为侦听本地主机
+- en: Ensure PostgreSQL is configured to use SSL/TLS
+  zh: 确保PostgreSQL配置为使用SSL/TLS
+- en: Ensure PostgreSQL is configured to use password authentication
+  zh: 确保PostgreSQL配置为使用密码身份验证
+- en: Ensure PostgreSQL is configured to generate audit logs
+  zh: 确保PostgreSQL配置为生成审核日志
+- en: Ensure PostgreSQL audit logs are configured with appropriate retention
+  zh: 确保PostgreSQL审核日志配置有适当的保留
+- en: Ensure PostgreSQL is configured to use secure TLS settings
+  zh: 确保PostgreSQL配置为使用安全TLS设置
+- en: Ensure PostgreSQL is configured to use secure authentication settings
+  zh: 确保PostgreSQL配置为使用安全身份验证设置
+- en: Ensure PostgreSQL backups are encrypted
+  zh: 确保PostgreSQL备份已加密
+- en: Ensure PostgreSQL backups are stored securely
+  zh: 确保PostgreSQL备份安全存储
+- en: Ensure only required PostgreSQL extensions are installed
+  zh: 确保只安装了所需的PostgreSQL扩展
+- en: Ensure bind to localhost
+  zh: 确保绑定到本地主机
+- en: Ensure TLS is enabled
+  zh: 确保TLS已启用
+- en: Ensure tls-cert-file is set
+  zh: 确保已设置tls证书文件
+- en: Ensure tls-key-file is set
+  zh: 确保已设置tls密钥文件
+- en: Ensure tls-ca-cert-file is set
+  zh: 确保已设置tls-ca证书文件
+- en: Ensure tls-auth-clients is set to yes
+  zh: 确保tls auth client设置为yes
+- en: Ensure  maxclients is set to 10000 or less
+  zh: 确保maxclient设置为10000或更低
+- en: Ensure maxmemory is set to 512MB or less
+  zh: 确保最大内存设置为512MB或更低
+- en: Ensure timeout is set to 300 or less
+  zh: 确保超时设置为300或更低
+- en: Ensure loglevel is set to notice
+  zh: 确保将loglevel设置为notice
+- en: Ensure logfile is set to <redis.log>
+  zh: 确保日志文件设置为＜redis.log＞
+- en: Ensure lua-time-limit is set to 5000 or less
+  zh: 确保lua时限设置为5000或以下
+- en: Ensure PostgreSQL is configured to use secure TLS protocols
+  zh: 确保PostgreSQL配置为使用安全TLS协议
+- en: Ensure PostgreSQL is configured to use a valid SSL CA certificate
+  zh: 确保PostgreSQL配置为使用有效的SSL CA证书
+- en: Ensure PostgreSQL is configured to use a valid SSL server certificate
+  zh: 确保PostgreSQL配置为使用有效的SSL服务器证书
+- en: Ensure PostgreSQL is configured to use a valid SSL key
+  zh: 确保PostgreSQL配置为使用有效的SSL密钥
+- en: Ensure PostgreSQL is configured to use a valid SSL certificate revocation list
+  zh: 确保PostgreSQL配置为使用有效的SSL证书吊销列表
+- en: Ensure bind is set
+  zh: 确保已设置绑定

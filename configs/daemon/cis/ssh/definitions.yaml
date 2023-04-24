@@ -1,0 +1,174 @@
+---
+controls:
+version: "1.0"
+id: 0
+text: "CIS Benchmark for SSH"
+groups:
+  - id: 1
+    text: "Authentication Configuration"
+    checks:
+      - id: 1.1
+        text: "Ensure PasswordAuthentication is set to no"
+        audit: "grep -iE '^PasswordAuthentication\\s+no' $sshd_config_file"
+        tests:
+          test_items:
+            - flag: "PasswordAuthentication no"
+              set: true
+        remediation: "sed -i 's/^PasswordAuthentication.*/PasswordAuthentication no/' $sshd_config_file"
+        scored: true
+      - id: 1.2
+        text: "Ensure PermitRootLogin is set to no"
+        audit: "grep -iE '^PermitRootLogin\\s+no' $sshd_config_file"
+        tests:
+          test_items:
+            - flag: "PermitRootLogin no"
+              set: true
+        remediation: "sed -i 's/^PermitRootLogin.*/PermitRootLogin no/' $sshd_config_file"
+        scored: true
+      - id: 1.3
+        text: "Ensure PubkeyAuthentication is set to yes"
+        audit: "grep -iE '^PubkeyAuthentication\\s+yes' $sshd_config_file"
+        tests:
+          test_items:
+            - flag: "PubkeyAuthentication yes"
+              set: true
+        remediation: "sed -i 's/^PubkeyAuthentication.*/PubkeyAuthentication yes/' $sshd_config_file"
+        scored: true
+      - id: 1.4
+        text: "Ensure ChallengeResponseAuthentication is set to no"
+        audit: "grep -iE '^ChallengeResponseAuthentication\\s+no' $sshd_config_file"
+        tests:
+          test_items:
+            - flag: "ChallengeResponseAuthentication no"
+              set: true
+        remediation: "sed -i 's/^ChallengeResponseAuthentication.*/ChallengeResponseAuthentication no/' $sshd_config_file"
+        scored: true
+
+  - id: 2
+    text: "SSH Protocol Configuration"
+    checks:
+      - id: 2.1
+        text: "Ensure SSH Protocol is set to version 2"
+        audit: "grep -iE '^Protocol\\s+2' $sshd_config_file"
+        tests:
+          test_items:
+            - flag: "Protocol 2"
+              set: true
+        remediation: "sed -i 's/^Protocol.*/Protocol 2/' $sshd_config_file"
+        scored: true
+
+  - id: 3
+    text: "SSH Idle Timeout Configuration"
+    checks:
+      - id: 3.1
+        text: "Ensure ClientAliveInterval is set to a reasonable value (e.g. 300 seconds)"
+        audit: "grep -iE '^ClientAliveInterval\\s+[1-9][0-9]*' $sshd_config_file"
+        tests:
+          test_items:
+            - flag: "ClientAliveInterval"
+              compare:
+                op: gte
+                value: "300"
+        remediation: "sed -i 's/^ClientAliveInterval.*/ClientAliveInterval 300/' $sshd_config_file"
+        scored: true
+      - id: 3.2
+        text: "Ensure ClientAliveCountMax is set to a reasonable value (e.g. 0 or 3)"
+        audit: "grep -iE '^ClientAliveCountMax\\s+[0-3]' $sshd_config_file"
+        tests:
+          test_items:
+            - flag: "ClientAliveCountMax"
+              compare:
+                op: gte
+                value: "0"
+        remediation: "sed -i 's/^ClientAliveCountMax.*/ClientAliveCountMax 3/' $sshd_config_file"
+        scored: true
+
+  - id: 4
+    text: "SSH Logging Configuration"
+    checks:
+      - id: 4.1
+        text: "Ensure SSH log level is set to VERBOSE or more restrictive"
+        audit: "grep -iE '^LogLevel VERBOSE' $sshd_config_file"
+        tests:
+          test_items:
+            - flag: "LogLevel"
+              set: true
+        remediation: "sed -i 's/^LogLevel.*/LogLevel VERBOSE/' $sshd_config_file"
+        scored: true
+
+  - id: 5
+    text: "SSH Banner Configuration"
+    checks:
+      - id: 5.1
+        text: "Ensure SSH banner is set"
+        audit: "grep -iE '^Banner' $sshd_config_file"
+        tests:
+          test_items:
+            - flag: "Banner"
+              set: true
+        remediation: "add Banner configuration to $sshd_config_file"
+        scored: true
+
+  - id: 6
+    text: "SSH Access Configuration"
+    checks:
+      - id: 6.1
+        text: "Ensure only approved SSH users can access the system"
+        audit: "grep -iE '^AllowUsers' $sshd_config_file"
+        tests:
+          test_items:
+            - flag: "AllowUsers"
+              set: true
+        remediation: "echo 'AllowUsers <username1> <username2>' >> $sshd_config_file"
+        scored: true
+      - id: 6.2
+        text: "Ensure SSH login is allowed only from specific IP addresses or subnets"
+        audit: "grep -iE '^AllowTcpForwarding\\s+no' $sshd_config_file"
+        tests:
+          test_items:
+            - flag: "AllowTcpForwarding no"
+              set: true
+        remediation: "sed -i 's/^AllowTcpForwarding.*/AllowTcpForwarding no/' $sshd_config_file"
+        scored: true
+      - id: 6.3
+        text: "Ensure SSH X11 forwarding is disabled"
+        audit: "grep -iE '^X11Forwarding\\s+no' $sshd_config_file"
+        tests:
+          test_items:
+            - flag: "X11Forwarding no"
+              set: true
+        remediation: "sed -i 's/^X11Forwarding.*/X11Forwarding no/' $sshd_config_file"
+        scored: true
+
+  - id: 7
+    text: "SSH Security Configuration"
+    checks:
+    - id: 7.1
+      text: "Ensure SSH MaxAuthTries is set to a reasonable value (e.g. 4 or less)"
+      audit: "grep -iE '^MaxAuthTries\\s+[1-4]' $sshd_config_file"
+      tests:
+        test_items:
+          - flag: "MaxAuthTries"
+            compare:
+              op: lte
+              value: "4"
+      remediation: "sed -i 's/^MaxAuthTries.*/MaxAuthTries 4/' $sshd_config_file"
+      scored: true
+    - id: 7.2
+      text: "Ensure SSH IgnoreRhosts is enabled"
+      audit: "grep -iE '^IgnoreRhosts\\s+yes' $sshd_config_file"
+      tests:
+        test_items:
+          - flag: "IgnoreRhosts yes"
+            set: true
+      remediation: "sed -i 's/^IgnoreRhosts.*/IgnoreRhosts yes/' $sshd_config_file"
+      scored: true
+    - id: 7.3
+      text: "Ensure SSH HostbasedAuthentication is disabled"
+      audit: "grep -iE '^HostbasedAuthentication\\s+no' $sshd_config_file"
+      tests:
+        test_items:
+          - flag: "HostbasedAuthentication no"
+            set: true
+      remediation: "sed -i 's/^HostbasedAuthentication.*/HostbasedAuthentication no/' $sshd_config_file"
+      scored: true

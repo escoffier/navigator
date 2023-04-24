@@ -1,0 +1,170 @@
+---
+controls:
+version: "1.0"
+id: 0
+text: "CIS Benchmark for postgresql"
+groups:
+  - id: 1
+    text: "General Configuration"
+    checks:
+      - id: 1.1
+        text: "Ensure PostgreSQL is running as a non-root user"
+        audit: "grep '^user\\s*=' $postgresql_config_file"
+        tests:
+          bin_op: and
+          test_items:
+            - flag: "user"
+              set: true
+            - flag: "root"
+              set: false
+        remediation: "sed -i \"s/^user.*/user = 'postgres'/\" $postgresql_config_file"
+        scored: true
+      - id: 1.2
+        text: "Ensure PostgreSQL is configured to listen on localhost"
+        audit: "grep '^listen_addresses' $postgresql_config_file"
+        tests:
+          bin_op: and
+          test_items:
+            - flag: "listen_addresses"
+              set: true
+            - flag: "listen_addresses = '*'"
+              set: false
+        remediation: "sed -i \"s/^listen_addresses.*/listen_addresses = 'localhost'/\" $postgresql_config_file"
+        scored: true
+
+  - id: 2
+    text: "Authentication and Authorization"
+    checks:
+      - id: 2.1
+        text: "Ensure PostgreSQL is configured to use SSL/TLS"
+        audit: "grep '^ssl\\s*=' $postgresql_config_file"
+        tests:
+          test_items:
+            - flag: "on"
+              set: true
+        remediation: "sed -i \"s/^ssl.*/ssl = on/\" $postgresql_config_file"
+        scored: true
+      - id: 2.2
+        text: "Ensure PostgreSQL is configured to use password authentication"
+        audit: "grep '^password_encryption\\s*=' $postgresql_config_file"
+        tests:
+          test_items:
+            - flag: "on"
+              set: true
+        remediation: "sed -i \"s/^password_encryption.*/password_encryption = on/\" $postgresql_config_file "
+        scored: true
+
+  - id: 3
+    text: "Logging and Auditing"
+    checks:
+      - id: 3.1
+        text: "Ensure PostgreSQL is configured to generate audit logs"
+        audit: "grep '^log_destination\\s*=\\s*syslog' $postgresql_config_file"
+        tests:
+          test_items:
+            - flag: "syslog"
+              set: true
+        remediation: "sed -i \"s/^log_destination.*/log_destination = 'syslog'/\" $postgresql_config_file"
+        scored: true
+      - id: 3.2
+        text: "Ensure PostgreSQL audit logs are configured with appropriate retention"
+        audit: "grep '^audit.*' $postgresql_config_file | grep -E '(none|off)'"
+        tests:
+          test_items:
+            - flag: ""
+              set: true
+        remediation: "sed -i 's/^audit.*/audit = off/' $postgresql_config_file"
+        scored: true
+
+  - id: 4
+    text: "Secure TCP/IP Connections with SSL"
+    checks:
+      - id: 4.1
+        text: "Ensure PostgreSQL is configured to use secure TLS settings"
+        audit: "grep '^ssl_ciphers\\s*=' $postgresql_config_file"
+        tests:
+          test_items:
+            - flag: "ssl_ciphers"
+              set: true
+        remediation: "sed -i \"s/^ssl_ciphers.*/ssl_ciphers = 'HIGH:MEDIUM:LOW:TLSv1'\" $postgresql_config_file"
+        scored: true
+      - id: 4.2
+        text: "Ensure PostgreSQL is configured to use secure TLS protocols"
+        audit: "grep '^ssl_min_protocol_version\\s*=' $postgresql_config_file"
+        tests:
+          test_items:
+            - flag: "ssl_min_protocol_version = 'TLSv1.3' "
+              set: true
+        remediation: "sed -i \"s/^ssl_min_protocol_version.*/ssl_min_protocol_version = 'TLSv1.3'\" $postgresql_config_file"
+        scored: true
+      - id: 4.3
+        text: "Ensure PostgreSQL is configured to use a valid SSL CA certificate"
+        audit: "grep '^ssl_ca_file\\s*=' $postgresql_config_file"
+        tests:
+          test_items:
+            - flag: "ssl_ca_file"
+              set: true
+        remediation: "sed -i \"s/^ssl_ca_file.*/ssl_ca_file = '<path_to_file>'\" $postgresql_config_file"
+        scored: true
+      - id: 4.4
+        text: "Ensure PostgreSQL is configured to use a valid SSL server certificate"
+        audit: "grep '^ssl_cert_file\\s*=' $postgresql_config_file"
+        tests:
+          test_items:
+            - flag: "ssl_cert_file"
+              set: true
+        remediation: "sed -i \"s/^ssl_cert_file.*/ssl_cert_file = '<path_to_file>'\" $postgresql_config_file"
+        scored: true
+      - id: 4.5
+        text: "Ensure PostgreSQL is configured to use a valid SSL key"
+        audit: "grep '^ssl_key_file\\s*=' $postgresql_config_file"
+        tests:
+          test_items:
+            - flag: "ssl_key_file"
+              set: true
+        remediation: "sed -i \"s/^ssl_key_file.*/ssl_key_file = '<path_to_file>'\" $postgresql_config_file"
+        scored: true
+      - id: 4.6
+        text: "Ensure PostgreSQL is configured to use a valid SSL certificate revocation list"
+        audit: "grep '^ssl_crl_file\\s*=' $postgresql_config_file"
+        tests:
+          test_items:
+            - flag: "ssl_crl_file"
+              set: true
+        remediation: "sed -i \"s/^ssl_crl_file.*/ssl_crl_file = '<path_to_file>'\" $postgresql_config_file"
+        scored: true
+      - id: 4.7
+        text: "Ensure PostgreSQL is configured to use secure authentication settings"
+        audit: "grep '^ssl_prefer_server_ciphers\\s*=' $postgresql_config_file"
+        tests:
+          test_items:
+            - flag: "off"
+              set: false
+        remediation: "sed -i \"s/^ssl_prefer_server_ciphers.*/ssl_prefer_server_ciphers = on/\" $postgresql_config_file"
+
+  - id: 5
+    text: "Backup and Recovery"
+    checks:
+      - id: 5.1
+        text: "Ensure PostgreSQL backups are stored securely"
+        audit: "grep '^data_directory\\s*=' $postgresql_config_file"
+        tests:
+          test_items:
+            - flag: "data_directory"
+              set: true
+        remediation: "sed -i \"s/^data_directory.*/data_directory = '<secure_directory_path>'/\" $postgresql_config_file"
+        scored: true
+
+  - id: 6
+    text: "PostgreSQL Extensions"
+    checks:
+      - id: 6.1
+        text: "Ensure only required PostgreSQL extensions are installed"
+        audit: "psql -c '\\dx' | grep -E -v '^(pg_crypto|pg_stat_statements)'"
+        type: "manual"
+        tests:
+          test_items:
+            - flag: ""
+              set: false
+        remediation: "psql -c 'DROP EXTENSION <extension_name>'"
+        scored: true

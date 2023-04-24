@@ -1,0 +1,214 @@
+---
+controls:
+version: "1.0"
+id: 0
+text: "CIS Benchmark for redis"
+groups:
+  - id: 1
+    text: "authentication Configuration"
+    checks:
+      - id: 1.1
+        text: "Ensure set a password for Redis authentication"
+        audit: "grep -vE '^[[:space:]]*#|^$' $redis_config_file | grep requirepass"
+        tests:
+          test_items:
+            - flag: "requirepass"
+              set: true
+        remediation: "echo 'requirepass $redis_password' >> $redis_config_file"
+        scored: true
+
+      - id: 1.2
+        text: "Ensure protected-mode is enabled"
+        audit: "grep -vE '^[[:space:]]*#|^$' $redis_config_file | grep -E 'protected-mode yes'"
+        tests:
+          test_items:
+            - flag: "protected-mode yes"
+              set: true
+        remediation: "echo 'protected-mode yes' >> $redis_config_file"
+        scored: true
+      - id: 1.3
+        text: "Ensure bind is set"
+        audit: "grep -vE '^[[:space:]]*#|^$' $redis_config_file | grep -E 'bind'"
+        tests:
+          test_items:
+            - flag: "bind"
+              set: true
+        remediation: "echo 'bind 127.0.0.1' >> $redis_config_file"
+        scored: true
+      - id: 1.4
+        text: "Ensure TLS is enabled"
+        audit: "grep -vE '^[[:space:]]*#|^$' $redis_config_file | grep -E 'tls-port'"
+        tests:
+          test_items:
+            - flag: "tls-port"
+              set: true
+        remediation: "echo 'tls-port 6379' >> $redis_config_file"
+        scored: true
+      - id: 1.5
+        text: "Ensure tls-cert-file is set"
+        audit: "grep -vE '^[[:space:]]*#|^$' $redis_config_file | grep -E 'tls-cert-file'"
+        tests:
+          test_items:
+            - flag: "tls-cert-file"
+              set: true
+        remediation: "echo 'tls-cert-file /etc/redis/redis.crt' >> $redis_config_file"
+        scored: true
+      - id: 1.6
+        text: "Ensure tls-key-file is set"
+        audit: "grep -vE '^[[:space:]]*#|^$' $redis_config_file | grep -E 'tls-key-file'"
+        tests:
+          test_items:
+            - flag: "tls-key-file"
+              set: true
+        remediation: "echo 'tls-key-file /etc/redis/redis.key' >> $redis_config_file"
+        scored: true
+      - id: 1.7
+        text: "Ensure tls-ca-cert-file is set"
+        audit: "grep -vE '^[[:space:]]*#|^$' $redis_config_file | grep -E 'tls-ca-cert-file'"
+        tests:
+          test_items:
+            - flag: "tls-ca-cert-file"
+              set: true
+        remediation: "echo 'tls-ca-cert-file /etc/redis/ca.crt' >> $redis_config_file"
+        scored: true
+      - id: 1.8
+        text: "Ensure tls-auth-clients is set to yes"
+        audit: "grep -vE '^[[:space:]]*#|^$' $redis_config_file | grep -E 'tls-auth-clients'"
+        tests:
+          test_items:
+            - flag: "yes"
+              set: true
+        remediation: "echo 'tls-auth-clients yes' >> $redis_config_file"
+        scored: true
+
+  - id: 2
+    text: "dangerous commands Configuration"
+    checks:
+      - id: 2.1
+        text: "Ensure disable keys commands"
+        audit: "grep -vE '^[[:space:]]*#|^$' $redis_config_file | grep -iE 'rename-command KEYS'"
+        type: ""
+        tests:
+          test_items:
+            - flag: "rename-command KEYS"
+              set: true
+        remediation: "echo 'rename-command KEYS \"\"' >> $redis_config_file"
+        scored: true
+
+      - id: 2.2
+        text: "Ensure disable FLUSHALL commands"
+        audit: "grep -vE '^[[:space:]]*#|^$' $redis_config_file | grep -iE 'rename-command FLUSHALL'"
+        type: ""
+        tests:
+          test_items:
+            - flag: "rename-command FLUSHALL"
+              set: true
+        remediation: "echo 'rename-command FLUSHALL \"\"' >> $redis_config_file"
+        scored: true
+
+      - id: 2.3
+        text: "Ensure disable FLUSHDB commands"
+        audit: "grep -vE '^[[:space:]]*#|^$' $redis_config_file | grep -iE 'rename-command FLUSHDB'"
+        type: ""
+        tests:
+          test_items:
+            - flag: "rename-command FLUSHDB"
+              set: true
+            - flag: "rename-"
+        remediation: "echo 'rename-command FLUSHDB \"\"' >> $redis_config_file"
+        scored: true
+
+      - id: 2.4
+        text: "Ensure disable CONFIG commands"
+        audit: "grep -vE '^[[:space:]]*#|^$' $redis_config_file | grep -iE 'rename-command CONFIG'"
+        type: ""
+        tests:
+          test_items:
+            - flag: "rename-command CONFIG"
+              set: true
+        remediation: "echo 'rename-command CONFIG \"\"' >> $redis_config_file"
+        scored: true
+
+
+      - id: 2.5
+        text: "Ensure disable DEBUG commands"
+        audit: "grep -vE '^[[:space:]]*#|^$' $redis_config_file | grep -iE 'rename-command DEBUG'"
+        type: ""
+        tests:
+          test_items:
+            - flag: "rename-command DEBUG"
+              set: true
+        remediation: "echo 'rename-command DEBUG \"\"' >> $redis_config_file"
+        scored: true
+
+      - id: 2.6
+        text: "Ensure disable SHUTDOWN commands"
+        audit: "grep -vE '^[[:space:]]*#|^$' $redis_config_file | grep -iE 'rename-command SHUTDOWN'"
+        type: ""
+        tests:
+          test_items:
+            - flag: "rename-command SHUTDOWN"
+              set: true
+        remediation: "echo 'rename-command SHUTDOWN \"\"' >> $redis_config_file"
+        scored: true
+  - id: 3
+    text: "General Configuration"
+    checks:
+      - id: 3.1
+        text: "Ensure  maxclients is set to 10000 or less"
+        audit: "grep -vE '^[[:space:]]*#|^$' $redis_config_file | grep -E 'maxclients'"
+        tests:
+          test_items:
+            - flag: "maxclients"
+              compare:
+                op: lt
+                value: "10000"
+        remediation: "echo 'maxclients 10000' >> $redis_config_file"
+        scored: true
+      - id: 3.2
+        text: "Ensure maxmemory is set to 512MB or less"
+        type: "manual"
+        audit: "grep -vE '^[[:space:]]*#|^$' $redis_config_file | grep -E 'maxmemory'"
+        tests:
+          test_items:
+            - flag: "maxmemory"
+        remediation: "echo 'maxmemory <limit_size>' >> $redis_config_file"
+        scored: true
+      - id: 3.3
+        text: "Ensure timeout is set to 300 or less"
+        audit: "grep -vE '^[[:space:]]*#|^$' $redis_config_file | grep -E 'timeout'"
+        tests:
+          test_items:
+            - flag: "timeout"
+              compare:
+                op: lt
+                value: "300"
+        remediation: "echo 'timeout 300' >> $redis_config_file"
+      - id: 3.4
+        text: "Ensure loglevel is set to notice"
+        audit: "grep -vE '^[[:space:]]*#|^$' $redis_config_file | grep -E 'loglevel'"
+        tests:
+          test_items:
+            - flag: "notice"
+              set: true
+        remediation: "echo 'loglevel notice' >> $redis_config_file"
+        scored: true
+      - id: 3.5
+        text: "Ensure logfile is set to <redis.log>"
+        audit: "grep -vE '^[[:space:]]*#|^$' $redis_config_file | grep -E 'logfile'"
+        tests:
+          test_items:
+            - flag: "logfile"
+              set: true
+        remediation: "echo 'logfile <redis.log>' >> $redis_config_file"
+        scored: true
+      - id: 3.6
+        text: "Ensure lua-time-limit is set to 5000 or less"
+        audit: "grep -vE '^[[:space:]]*#|^$' $redis_config_file | grep -E 'lua-time-limit'"
+        tests:
+          test_items:
+            - flag: "lua-time-limit"
+              compare:
+                op: lt
+                value: "5000"
+        remediation: "echo 'lua-time-limit 5000' >> $redis_config_file"

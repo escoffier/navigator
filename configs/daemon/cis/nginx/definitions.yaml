@@ -1,0 +1,155 @@
+controls:
+version: "1.0"
+id: 0
+text: "CIS Benchmark for Nginx"
+groups:
+  - id: 1
+    text: "General Configuration"
+    checks:
+      - id: 1.1
+        text: "Ensure nginx is running as a non-privileged user"
+        audit: "grep -r 'user .*;'  $nginx_etc_path | awk -F:  '{print $2}'"
+        tests:
+          test_items:
+            - flag: "root"
+              set: false
+        remediation: "sed -i 's/user .*;/user nonprivilegeduser;/' $nginx_config_file"
+        scored: true
+      - id: 1.2
+        text: "Ensure nginx configuration files are owned by root"
+        audit: "find  $nginx_etc_path -type f ! -user root"
+        tests:
+          test_items:
+            - flag: "/etc"
+              set: false
+        remediation: "chown root:root $nginx_config_file"
+        scored: true
+  - id: 2
+    text: "Secure Communication"
+    checks:
+      - id: 2.1
+        text: "Ensure HTTPS is used for Nginx communication"
+        audit: "grep -r '^listen.*443.*ssl'  $nginx_etc_path"
+        tests:
+          test_items:
+            - flag: "listen"
+              set: true
+        remediation: "echo 'listen 443 ssl;' >> $nginx_config_file"
+        scored: true
+      - id: 2.2
+        text: "Ensure secure SSL/TLS protocols are used"
+        audit: "grep -r 'ssl_protocols'  $nginx_etc_path"
+        tests:
+          bin_op: and
+          test_items:
+            - flag: "ssl_protocols"
+              set: true
+            - flag: "TLSv1"
+              set: false
+            - flag: "TLSv1.1"
+              set: false
+        remediation: "sed -i 's/ssl_protocols.*;/ssl_protocols TLSv1.2 TLSv1.3;/' $nginx_config_file"
+        scored: true
+  - id: 3
+    text: "nginx Configuration"
+    checks:
+      - id: 3.1
+        text: "Ensure only allowed HTTP methods are used"
+        audit: "grep -iE '^(GET|POST|HEAD|OPTIONS)' $nginx_config_file"
+        type: "manual"
+        remediation: "only allowed HTTP methods are used"
+        scored: true
+      - id: 3.2
+        text: "Ensure secure headers are set"
+        audit: "grep -iE 'add_header\\s+X-XSS-Protection' $nginx_config_file && grep -iE 'add_header\\s+X-Content-Type-Options' $nginx_config_file && grep -iE 'add_header\\s+X-Frame-Options' $nginx_config_file && grep -iE 'add_header\\s+Strict-Transport-Security' $nginx_config_file"
+        tests:
+          test_items:
+            - flag: "add_header X-XSS-Protection"
+              set: true
+            - flag: "add_header X-Content-Type-Options"
+              set: true
+            - flag: "add_header X-Frame-Options"
+              set: true
+            - flag: "add_header Strict-Transport-Security"
+              set: true
+        remediation: "sed -i '/server {/a add_header X-XSS-Protection \"1; mode=block\";\nadd_header X-Content-Type-Options \"nosniff\";\nadd_header X-Frame-Options \"SAMEORIGIN\";\nadd_header Strict-Transport-Security \"max-age=31536000; includeSubDomains; preload\";' $nginx_config_file"
+        scored: true
+  - id: 4
+    text: "File System Configuration"
+    checks:
+      - id: 4.1
+        text: "Ensure appropriate permissions and ownership on nginx configuration files"
+        audit: "find  $nginx_etc_path -type f -name '*.conf' -exec stat -c '%A %U %G' {} +"
+        tests:
+          bin_op: and
+          test_items:
+            - flag: "-rw------- root root"
+              set: true
+            - flag: "-rw-rw----"
+              set: false
+            - flag: "-rw-r--r--"
+              set: false
+            - flag: "-rw-rw-r--"
+              set: false
+            - flag: "-rw-rw-rw-"
+              set: false
+            - flag: "rwx"
+              set: false
+        remediation: "find  $nginx_etc_path -type f -name '*.conf' -exec chmod 600 {} + && find  $nginx_etc_path -type f -name '*.conf' -exec chown root:root {} +"
+        scored: true
+      - id: 4.2
+        text: "Ensure appropriate permissions and ownership on nginx log files"
+        audit: "find  $nginx_log_path -type f -exec stat -c '%A %U %G' {} +"
+        tests:
+          bin_op: and
+          test_items:
+            # - flag: "-rw-r-----"
+            #   set: true
+            # - flag: "root"
+            #   set: true
+            - flag: "-rw-rw----"
+              set: false
+            - flag: "-rw-r--r--"
+              set: false
+            - flag: "-rw-rw-r--"
+              set: false
+            - flag: "-rw-rw-rw-"
+              set: false
+            - flag: "rwx"
+              set: false
+        remediation: "find  $nginx_log_path -type f -exec chmod 640 {} + && find  $nginx_log_path -type f -exec chown root:adm {} +"
+        scored: true
+  - id: 5
+    text: "Access Control"
+    checks:
+      - id: 5.1
+        text: "Ensure only necessary Nginx modules are loaded"
+        audit: "grep -r 'load_module'  $nginx_etc_path | grep -vE '(http_perl|http_lua|http_js|http_image_filter|http_xslt|http_geoip|http_gunzip|http_auth_request_module)'"
+        type: "manual"
+        tests:
+          test_items:
+            - flag: ""
+              set: true
+        remediation: "sed -i '/load_module/s/[^ ]*$/;/g' $nginx_config_file && echo 'load_module /path/to/module.so;' >> $nginx_config_file"
+        scored: true
+      - id: 5.2
+        text: "Ensure access to Nginx configuration files is restricted"
+        audit: "find  $nginx_etc_path -type f -name '*.conf' -perm /o+r"
+        tests:
+          test_items:
+            - flag: "-perm /o+r"
+              set: false
+        remediation: "chmod o-r $nginx_config_file"
+        scored: true
+  - id: 6
+    text: "Logging and Auditing"
+    checks:
+      - id: 6.1
+        text: "Ensure Nginx logs are rotated and retained"
+        audit: "grep -r 'access_log'  $nginx_etc_path "
+        tests:
+          test_items:
+            - flag: "access_log"
+              set: true
+        remediation: "sed -i 's/access_log .*;/access_log \\/var\\/log\\/nginx\\/access.log combined;/' $nginx_config_file && logrotate -s /var/lib/logrotate/logrotate.status -f /etc/logrotate.d/nginx"
+        scored: true

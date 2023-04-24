@@ -1,0 +1,4 @@
+redis-config-file:
+  dirs:
+    - /redis-master/redis.conf
+    - /etc/redis/redis.conf
