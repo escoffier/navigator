@@ -46,6 +46,7 @@ type IdpUserInfo struct {
 }
 
 type Provider interface {
+	Enabled() bool
 	GetAuthUrl() (string, error)
 	GetUserInfo(ctx context.Context, raw json.RawMessage) (*IdpUserInfo, error)
 	Logout(ctx context.Context, username string) error
@@ -73,10 +74,6 @@ func InitIdpLogin(rdb *databases.RDBInstance, redisClient *redis.Client) error {
 		return err
 	}
 
-	if !idpConf.Enabled {
-		return nil
-	}
-
 	return NewProviderAndRegister(&idpConf, redisClient)
 }
 
@@ -85,7 +82,7 @@ func NewProviderAndRegister(idpConf *LoginConfig, redisClient *redis.Client) err
 	switch idpConf.IdpProvider {
 	case ProviderOIDC:
 		var err error
-		p, err = NewOidcProvider(idpConf.DiscoveryEndpoint, idpConf.ClientID, idpConf.ClientSecret, idpConf.Scopes, redisClient)
+		p, err = NewOidcProvider(idpConf.DiscoveryEndpoint, idpConf.ClientID, idpConf.ClientSecret, idpConf.Scopes, idpConf.Enabled, redisClient)
 		if err != nil {
 			return err
 		}

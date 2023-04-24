@@ -16,6 +16,7 @@ import (
 
 // OidcProvider daocloud dx平台
 type OidcProvider struct {
+	enabled               bool
 	discoveryEndpoint     string
 	clientID              string
 	secretKey             string
@@ -40,7 +41,7 @@ type discoveryConf struct {
 	TokenIntrospectionEndpoint       string   `json:"token_introspection_endpoint"`
 }
 
-func NewOidcProvider(discoveryEndpoint, clientID, secretKey, scopes string, redisClient *redis.Client) (*OidcProvider, error) {
+func NewOidcProvider(discoveryEndpoint, clientID, secretKey, scopes string, enabled bool, redisClient *redis.Client) (*OidcProvider, error) {
 	if clientID == "" || secretKey == "" {
 		return nil, fmt.Errorf("clientID or secretKey is empty")
 	}
@@ -49,6 +50,7 @@ func NewOidcProvider(discoveryEndpoint, clientID, secretKey, scopes string, redi
 	}
 
 	p := &OidcProvider{
+		enabled:           enabled,
 		discoveryEndpoint: discoveryEndpoint,
 		clientID:          clientID,
 		secretKey:         secretKey,
@@ -82,6 +84,10 @@ func NewOidcProvider(discoveryEndpoint, clientID, secretKey, scopes string, redi
 
 func (p OidcProvider) GetAuthUrl() (string, error) {
 	return fmt.Sprintf("%s?response_type=code&client_id=%s&scope=%s", p.authorizationEndpoint, p.clientID, p.scopes), nil
+}
+
+func (p OidcProvider) Enabled() bool {
+	return p.enabled
 }
 
 type getUserInfoPayload struct {
