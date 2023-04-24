@@ -919,12 +919,10 @@ func (a *api) updateIdpConfig() http.HandlerFunc {
 		}
 
 		err = a.rdb.Get().Transaction(func(tx *gorm.DB) error {
-			if req.Enabled {
-				if err = idp.NewProviderAndRegister(&req, a.redisClient); err != nil {
-					return apperror.NewCommonError(http.StatusBadRequest,
-						fmt.Errorf("update idp config error: %w", err),
-						"服务器地址不合法", "server url illegal")
-				}
+			if err = idp.NewProviderAndRegister(&req, a.redisClient); err != nil {
+				return apperror.NewCommonError(http.StatusBadRequest,
+					fmt.Errorf("update idp config error: %w", err),
+					"更新idp配置错误", "update idp config error")
 			}
 
 			if err = dal.SetConfig(ctx, tx, model.ConfIdpLogin, body); err != nil {

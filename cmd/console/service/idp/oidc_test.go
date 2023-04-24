@@ -59,7 +59,7 @@ func TestOidcProvider(t *testing.T) {
 	redisMock.ExpectGet(getRedisKey("fake")).SetVal(string(tokenBody))
 
 	// test new
-	p, err := NewOidcProvider("https://fake.com", "fake", "fake", "", redisClient)
+	p, err := NewOidcProvider("https://fake.com", "fake", "fake", "", true, redisClient)
 	assert.NoError(t, err)
 
 	payload := getUserInfoPayload{

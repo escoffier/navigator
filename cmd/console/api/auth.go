@@ -372,6 +372,12 @@ func (api *api) getIdpLoginUrl() http.HandlerFunc {
 					fmt.Errorf("platform unsupport %w", err)))
 			return
 		}
+		if !p.Enabled() {
+			RespAndLog(w, r.Context(),
+				NewSSONotEnabledError(http.StatusBadRequest,
+					fmt.Errorf("platform not enable")))
+			return
+		}
 
 		url, err := p.GetAuthUrl()
 		if err != nil {
@@ -416,6 +422,12 @@ func (api *api) idpLogin() http.HandlerFunc {
 			RespAndLog(w, ctx,
 				NewMalformedRequestError(http.StatusBadRequest,
 					fmt.Errorf("platform unsupport")))
+			return
+		}
+		if !p.Enabled() {
+			RespAndLog(w, r.Context(),
+				NewSSONotEnabledError(http.StatusBadRequest,
+					fmt.Errorf("platform not enable")))
 			return
 		}
 
@@ -547,6 +559,9 @@ func createUserByIdp(ctx context.Context, rdb *databases.RDBInstance, platform s
 }
 
 func checkUserStatus(username string, status int) error {
+	if username == model.UserSuperAdmin {
+		return nil
+	}
 	if status == model.UserStatusInactive {
 		return AccountUnActive(http.StatusForbidden,
 			fmt.Errorf("account is not activated"))
