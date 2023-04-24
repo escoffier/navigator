@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"gitlab.com/tensorsecurity-rd/themis/pkg/check"
+	"gitlab.com/piccolo_su/vegeta/cmd/daemon/cis/pkg/check"
 )
 
 func parseControlsJsonFile(filepath string) ([]*check.Controls, error) {

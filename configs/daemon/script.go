@@ -153,16 +153,16 @@ func newRule(Name, remediation, component string) Rule {
 			Value: remediation,
 		},
 	}
-	ruleType := KVHashT{
-		En: KVT{
-			Key:   "ruleType",
-			Value: Name,
-		},
-		Zh: KVT{
-			Key:   "规则类型",
-			Value: GlobalDict[Name],
-		},
-	}
+	// ruleType := KVHashT{
+	// 	En: KVT{
+	// 		Key:   "ruleType",
+	// 		Value: Name,
+	// 	},
+	// 	Zh: KVT{
+	// 		Key:   "规则类型",
+	// 		Value: GlobalDict[Name],
+	// 	},
+	// }
 
 	highRisk := KVHashT{
 		En: KVT{
@@ -175,7 +175,8 @@ func newRule(Name, remediation, component string) Rule {
 		},
 	}
 	var customKVs []CustomKV
-	customKVs = append(customKVs, CustomKV{KVHash: s}, CustomKV{KVHash: ruleType}, CustomKV{KVHash: highRisk})
+	customKVs = append(customKVs, CustomKV{KVHash: s},
+		CustomKV{KVHash: highRisk})
 
 	mulL := MultiLanguageT{
 		Category: ValueHashT{
