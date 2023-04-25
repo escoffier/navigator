@@ -358,7 +358,7 @@ func (m *MaliciousScan) parseLayerTar(tarFileName string, dst string) (uint64, e
 		f := perm & os.FileMode(73)
 
 		//判断是否需要扫描所有类型文件
-		if os.Getenv("SCAN_ALL") == "" {
+		if os.Getenv("SCAN_ALL") != "true" {
 			// 判断文件是否是可执行文件或者webshell后缀的文件
 			if uint32(f) != uint32(73) {
 				continue

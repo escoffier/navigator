@@ -34,7 +34,7 @@ type proto struct {
 func initProto(path, productId string) (*proto, error) {
 	protoCli := &proto{}
 	pathList := strings.Split(path, ":")
-	if len(pathList) != 2 {
+	if len(pathList) < 2 {
 		return nil, fmt.Errorf("path format error")
 	}
 
