@@ -1520,3 +1520,15 @@ func NewSSONotEnabledError(httpCode int, err error, suberrors ...Suberror) error
 		},
 	}
 }
+
+func NewSSONotEnabledError(httpCode int, err error, suberrors ...Suberror) error {
+	return AddBaitServiceError{
+		detailedError{
+			err:       err,
+			English:   "sso config not enabled",
+			Chinese:   "sso配置未开启",
+			HTTPCode:  httpCode,
+			Suberrors: suberrors,
+		},
+	}
+}

@@ -282,6 +282,14 @@ func GetUserByPassword(ctx context.Context, db *gorm.DB, userName, pwd string) (
 	}
 }
 
+func UpdateUserPasswordToNow(ctx context.Context, db *gorm.DB) error {
+	//must_change_pwd <> 1 and status = 1 and platform = ''
+	return db.WithContext(ctx).Model(&model.User{}).Where("must_change_pwd <> 1 AND status = ? AND platform = ''", model.UserStatusNormal).
+		UpdateColumns(map[string]interface{}{
+			"last_change_pwd_at": time.Now().UnixMilli(),
+		}).Error
+}
+
 func CheckHashCode(ctx context.Context, db *gorm.DB, hashCode string) (string, bool) {
 	queryEmail := model.Email{}
 

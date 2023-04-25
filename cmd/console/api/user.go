@@ -154,6 +154,15 @@ func (api *api) updateLoginConfig() http.HandlerFunc {
 					fmt.Errorf("set config failed: %w", err))
 			}
 
+			// 开启【周期更换登录密码】功能，重置所有用户的上次修改密码时间
+			if req.CycleChangePwd {
+				err = dal.UpdateUserPasswordToNow(ctx, api.rdb.Get())
+				if err != nil {
+					return apperror.NewAnError(http.StatusInternalServerError,
+						fmt.Errorf("reset password failed: %w", err))
+				}
+			}
+
 			return nil
 		})
 
