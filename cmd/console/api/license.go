@@ -9,14 +9,16 @@ import (
 
 	"github.com/go-chi/chi"
 	"github.com/go-chi/jwtauth"
+	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
+
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/license"
 	"gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	"gitlab.com/piccolo_su/vegeta/pkg/dal"
+	"gitlab.com/piccolo_su/vegeta/pkg/lang"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
-	"gorm.io/gorm"
-	"gorm.io/gorm/logger"
 )
 
 const defaultLicenseTimeout = time.Second * 5
@@ -140,10 +142,10 @@ func (a *api) getLicenseInfo() http.HandlerFunc {
 		result := licenseInfoResp{}
 		if info := license.GetLicenseInfo(); info != nil {
 			result.SerialNo = info.SerialNo
-			result.LicenseType = info.LicenseType
+			result.LicenseType = licenseTypeByLang(r.Context(), info.LicenseType)
 			result.ExpireAt = info.ExpireAt
 			result.NodeLimit = info.NodeLimit
-			result.Module = info.Module
+			result.Module = moduleByLang(r.Context(), info.Module)
 			result.RemainDays = int64(time.Until(time.Unix(info.ExpireAt, 0)).Hours() / 24)
 			result.Status = license.ValidateLicense(false)
 
@@ -157,6 +159,38 @@ func (a *api) getLicenseInfo() http.HandlerFunc {
 
 		response.Ok(w, response.WithItem(result))
 	}
+}
+
+func moduleByLang(ctx context.Context, module string) string {
+	switch lang.Language(ctx) {
+	case lang.LanguageZH:
+		switch module {
+		case model.ModuleZHContainerSecurity:
+			return model.ModuleZHContainerSecurity
+		}
+	case lang.LanguageEN:
+		switch module {
+		case model.ModuleZHContainerSecurity:
+			return model.ModuleContainerSecurity
+		}
+	}
+	return module
+}
+
+func licenseTypeByLang(ctx context.Context, type_ string) string {
+	switch lang.Language(ctx) {
+	case lang.LanguageZH:
+		switch type_ {
+		case model.LicenseTypeZHDelivery:
+			return model.LicenseTypeZHDelivery
+		}
+	case lang.LanguageEN:
+		switch type_ {
+		case model.LicenseTypeZHDelivery:
+			return model.LicenseTypeDelivery
+		}
+	}
+	return type_
 }
 
 func licenseVerify(next http.Handler) http.Handler {
