@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"gitlab.com/piccolo_su/vegeta/pkg/echelper"
+	"gitlab.com/piccolo_su/vegeta/pkg/util"
 )
 
 type SignalReporter struct {
@@ -33,6 +34,18 @@ func (r *SignalReporter) LoadSummary(ctx context.Context, assetsSummary []*Names
 		res, err := r.sherlockCli.RiskStats(ctx, v.ClusterKey)
 		if err != nil {
 			return nil, err
+		}
+
+		// 过滤掉部分事件类型：镜像安全、CIS扫描
+		for k, riskStatsItems := range res {
+			filteredRiskStatsItems := make([]echelper.RiskStatsItem, 0)
+			for i := range riskStatsItems {
+				if util.ContainsString([]string{"imageSecurity", "CIS/Nginx", "CIS/Postgres", "CIS/Redis", "CIS/SSH"}, riskStatsItems[i].EnKey) {
+					continue
+				}
+				filteredRiskStatsItems = append(filteredRiskStatsItems, riskStatsItems[i])
+			}
+			res[k] = filteredRiskStatsItems
 		}
 
 		riskStatsMap[v.ClusterKey] = res

@@ -1,6 +1,22 @@
 package model
 
 const (
+	ModuleContainerSecurity   = "ContainerSecurity"
+	ModuleZHContainerSecurity = "容器安全"
+
+	RuleCategoryATTCK  = "ATT&CK"
+	RuleCategoryWatson = "Watson"
+
+	RuleCategoryZHATTCK  = "ATT&CK"
+	RuleCategoryZHWatson = "主动防御"
+
+	LicenseTypePOC        = "POC"
+	LicenseTypeZHPOC      = "POC"
+	LicenseTypeDelivery   = "Delivery"
+	LicenseTypeZHDelivery = "交付"
+)
+
+const (
 	RejectPolicyIgnore = "ignore" // 忽略
 	RejectPolicyAlarm  = "alarm"  // 报警
 	RejectPolicyReject = "reject" // 阻断

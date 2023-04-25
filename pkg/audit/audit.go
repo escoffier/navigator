@@ -636,10 +636,10 @@ func init() {
 		return deleteAction, "删除数据"
 	})
 	routeAction.POST("/api/v2/usercenter/addUser", func(params Params) (string, string) {
-		return createAction, "新增用户"
+		return createAction, "新增用户 {{.}}"
 	})
 	routeAction.POST("/api/v2/usercenter/editUser", func(params Params) (string, string) {
-		return editAction, "编辑用户"
+		return editAction, "编辑用户 {{.}}"
 	})
 	routeAction.POST("/api/v2/usercenter/resetPassword", func(params Params) (string, string) {
 		return editAction, "编辑密码"
@@ -651,7 +651,7 @@ func init() {
 		return editAction, "重置{{.}}密码"
 	})
 	routeAction.DELETE("/api/v2/usercenter/delete", func(params Params) (string, string) {
-		return deleteAction, "删除用户{{.}}"
+		return deleteAction, "删除用户 {{.}}"
 	})
 	routeAction.POST("/api/v2/usercenter/config/ldap", func(params Params) (string, string) {
 		return editAction, "编辑 Ldap配置"

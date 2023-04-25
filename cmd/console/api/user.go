@@ -732,7 +732,11 @@ func (api *api) addUser() http.HandlerFunc {
 			return
 		}
 
-		response.Ok(w, response.WithItem(resp{Status: "OK"}))
+		response.Ok(w, response.WithItem(resp{Status: "OK"}), response.WithTarget(&response.TargetRef{
+			Name: req.UserName,
+			ID:   "",
+			Link: "",
+		}))
 	}
 }
 
@@ -820,7 +824,11 @@ func (api *api) editUser() http.HandlerFunc {
 			logging.Get().Warn().Err(err)
 		}
 
-		response.Ok(w, response.WithItem(resp{Status: "OK"}))
+		response.Ok(w, response.WithItem(resp{Status: "OK"}), response.WithTarget(&response.TargetRef{
+			Name: cliReq.UserName,
+			ID:   "",
+			Link: "",
+		}))
 	}
 }
 
