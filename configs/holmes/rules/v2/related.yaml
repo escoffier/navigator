@@ -1,3 +1,4 @@
+##attck_rule_type=related
 - rule: Contact remote server from container
   hid: related_01
   hthreats: 0

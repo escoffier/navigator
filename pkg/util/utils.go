@@ -351,3 +351,15 @@ func RandPassword(passwordLength int) (string, error) {
 
 	return password, nil
 }
+
+func ListDeduplicate[T comparable](list []T) []T {
+	newList := make([]T, 0, len(list))
+	vset := make(map[T]struct{}, len(list))
+	for _, v := range list {
+		if _, exist := vset[v]; !exist {
+			newList = append(newList, v)
+			vset[v] = struct{}{}
+		}
+	}
+	return newList
+}

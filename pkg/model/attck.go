@@ -1,10 +1,13 @@
 package model
 
 import (
+	"database/sql/driver"
 	"errors"
 	"fmt"
 	"strings"
 	"time"
+
+	json "github.com/json-iterator/go"
 )
 
 type MessageEventType string
@@ -47,8 +50,9 @@ const (
 )
 
 type ATTCKRuleData struct {
-	ID      uint32 `gorm:"primaryKey;autoIncrement;column:id"`
-	Content []byte `gorm:"column:content"`
+	ID               uint32 `gorm:"primaryKey;autoIncrement;column:id"`
+	Content          []byte `gorm:"column:content"`
+	CconfigIDversion uint64 `gorm:"column:cconfig_idversion"`
 	ATTCKConfVersion
 }
 
@@ -64,6 +68,7 @@ func (v ATTCKConfVersion) VString() string {
 }
 
 func (ATTCKRuleData) TableName() string {
+	// TODO FIXME
 	return "ivan_platform_attck_rule_datas"
 }
 
@@ -221,4 +226,43 @@ func TranslateRuleType(in string) string {
 		return "横向移动"
 	}
 	return retStr
+}
+
+type CconfigStatus int
+
+const (
+	StatusOK      CconfigStatus = 0
+	StatusDeleted CconfigStatus = -1
+	StatusPending CconfigStatus = 1
+	StatusExpired CconfigStatus = 2
+)
+
+type AttckCustomConfig struct {
+	ID           uint64        `gorm:"column:id"`
+	RuleKey      string        `gorm:"column:rule_key"`
+	RuleCategory string        `gorm:"column:rule_category"`
+	CconfigKey   string        `gorm:"column:cconfig_key"`
+	CconfigValue string        `gorm:"column:cconfig_value"`
+	Creator      string        `gorm:"column:creator"`
+	CreatedAt    int64         `gorm:"column:created_at"`
+	Updater      string        `gorm:"column:updater"`
+	UpdatedAt    int64         `gorm:"column:updated_at"`
+	Status       CconfigStatus `gorm:"column:status"` // status: 0 status: -1 deleted status: 1 pending
+}
+
+func (r AttckCustomConfig) TableName() string {
+	return "ivan_platform_attck_custom_configs"
+}
+
+type HolaJSON map[string]string
+
+func (ev *HolaJSON) Scan(value interface{}) error {
+	b, ok := value.([]byte)
+	if !ok {
+		return TypeAssertErr
+	}
+	return json.Unmarshal(b, &ev)
+}
+func (ev HolaJSON) Value() (driver.Value, error) {
+	return json.Marshal(ev)
 }

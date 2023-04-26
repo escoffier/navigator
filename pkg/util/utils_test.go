@@ -1,14 +1,15 @@
 package util
 
 import (
-	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"testing"
 
 	"github.com/gin-gonic/gin"
+	json "github.com/json-iterator/go"
 	"github.com/smartystreets/goconvey/convey"
 )
 
@@ -209,5 +210,29 @@ func TestDeDupArray(t *testing.T) {
 	})
 	if len(slice11) != 3 {
 		t.Errorf("DeDupArray() = %v, want %v", len(slice11), 3)
+	}
+}
+
+func TestListDeduplicate(t *testing.T) {
+	type args struct {
+		list []string
+	}
+	tests := []struct {
+		name string
+		args args
+		want []string
+	}{
+		{
+			name: "1",
+			args: args{list: []string{"1", "2", "1", "3", "1", "4"}},
+			want: []string{"1", "2", "3", "4"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := ListDeduplicate(tt.args.list); !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("ListDeduplicate() = %v, want %v", got, tt.want)
+			}
+		})
 	}
 }

@@ -1,3 +1,4 @@
+##attck_rule_type=trigger
 - rule: Generated child process shell after starting the container
   hid: trigger_01
   hthreats: 0

@@ -214,13 +214,13 @@ func GetBaitServices(ctx context.Context, rdb *gorm.DB, queryOptions *BaitsQuery
 			}
 		}
 		if len(queryOptions.columnQuery.column) > 0 && len(queryOptions.columnQuery.query) > 0 {
-			db = db.Where(fmt.Sprintf("%s ILIKE ?", queryOptions.columnQuery.column), getLikeExpr(queryOptions.columnQuery.query))
+			db = db.Where(fmt.Sprintf("LOWER(%s) LIKE LOWER(?)", queryOptions.columnQuery.column), GetLikeExpr(queryOptions.columnQuery.query))
 		}
 
 		if len(queryOptions.multicolumnQuery) > 0 {
 			subDb := rdb.WithContext(oneCtx).Model(&model.BaitService{})
 			for col, query := range queryOptions.multicolumnQuery {
-				expr := getLikeExpr(query)
+				expr := GetLikeExpr(query)
 				subDb.Where(fmt.Sprintf("%s LIKE ?", col), expr)
 			}
 			db.Where(subDb)
@@ -267,7 +267,7 @@ func GetBaitService(ctx context.Context, rdb *gorm.DB, queryOptions *BaitsQueryO
 			}
 		}
 		if len(queryOptions.columnQuery.column) > 0 && len(queryOptions.columnQuery.query) > 0 {
-			db = db.Where(fmt.Sprintf("%s ILIKE ?", queryOptions.columnQuery.column), getLikeExpr(queryOptions.columnQuery.query))
+			db = db.Where(fmt.Sprintf("LOWER(%s) LIKE LOWER(?)", queryOptions.columnQuery.column), GetLikeExpr(queryOptions.columnQuery.query))
 		}
 
 		err := db.First(baitService).Error
@@ -324,13 +324,13 @@ func CountBaitServices(ctx context.Context, rdb *gorm.DB, queryOptions *BaitsQue
 			}
 		}
 		if len(queryOptions.columnQuery.column) > 0 && len(queryOptions.columnQuery.query) > 0 {
-			db = db.Where(fmt.Sprintf("%s ILIKE ?", queryOptions.columnQuery.column), getLikeExpr(queryOptions.columnQuery.query))
+			db = db.Where(fmt.Sprintf("LOWER(%s) LIKE LOWER(?)", queryOptions.columnQuery.column), GetLikeExpr(queryOptions.columnQuery.query))
 		}
 		if len(queryOptions.multicolumnQuery) > 0 {
 			subDb := rdb.WithContext(oneCtx).Model(&model.BaitService{})
 			for col, query := range queryOptions.multicolumnQuery {
-				expr := getLikeExpr(query)
-				subDb.Where(fmt.Sprintf("%s LIKE ?", col), expr)
+				expr := GetLikeExpr(query)
+				subDb.Where(fmt.Sprintf("LOWER(%s) LIKE LOWER(?)", col), expr)
 			}
 			db.Where(subDb)
 		}

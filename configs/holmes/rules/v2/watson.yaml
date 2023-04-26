@@ -1,4 +1,4 @@
-##Watson
+##attck_rule_type=Watson
 - rule: Unauthorized access to Tomcat-Web in Redis
   hid: hp_01
   category: Watson
@@ -7,7 +7,7 @@
   suggestion:
     en:
       key: "Suggestions"
-      value: "It is recommended to check whether an attacker has obtained internal container permissions, and use immune defense to restrict attackers from further attacks"
+      value: "It is recommended toq check whether an attacker has obtained internal container permissions, and use immune defense to restrict attackers from further attacks"
     zh:
       key: "处置建议"
       value: "建议排查是否有攻击者已获取内部容器权限，同时使用免疫防御限制攻击者进行进一步攻击。"

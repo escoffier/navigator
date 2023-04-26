@@ -1,3 +1,5 @@
+##mozart
+
 - mozart:
   - name: 'Using vim_suid to execute commands for linux privilege escalation'
     enabled: true

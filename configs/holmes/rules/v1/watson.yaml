@@ -1,4 +1,4 @@
-##Watson
+##attck_rule_type=Watson
 - rule: Unauthorized access to Tomcat-Web in Redis
   hid: hp_01
   category: Watson

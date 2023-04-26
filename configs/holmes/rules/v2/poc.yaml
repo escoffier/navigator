@@ -1,4 +1,4 @@
-##POC
+##attck_rule_type=POC
 - rule: Suspected to create webshell file
   hid: poc_1
   hthreats: 0

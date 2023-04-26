@@ -38,6 +38,284 @@ func (api *api) ATTCK() func(router chi.Router) {
 		r.Put("/conf", api.updateATTCKConf())
 		r.Get("/ruleList", api.getATTCKRuleList())
 		r.Post("/ruleSwitch", api.updateRuleSwitch())
+		r.Get("/customInitConfig", api.getCustomInitConfig())
+		r.Get("/customConfigs/configs", api.getCustomConfigs())
+		r.Put("/customConfigs/configs/edit", api.editCustomConfigs())
+		r.Put("/customConfigs/configs/append", api.addCustomConfigs())
+		r.Delete("/customConfigs/config/{id}", api.deleteCustomConfig())
+	}
+}
+
+func (api *api) getCustomInitConfig() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(r.Context(), defaultConfigTimeout)
+		defer cancel()
+		service, ok := attck.GetServiceInstance()
+		if !ok {
+			apperror.RespAndLog(w, ctx, ErrServiceNotReady)
+			return
+		}
+
+		lang := r.Header.Get("Accept-Language")
+		if lang == "" {
+			lang = "zh"
+		}
+
+		iconfs, err := service.GetCustomInitConfig(ctx, lang)
+		if err != nil {
+			apperror.RespAndLog(w, ctx, apperror.NewAnError(http.StatusInternalServerError,
+				fmt.Errorf("get error %v", err)))
+			return
+		}
+
+		response.Ok(w, response.WithItems(iconfs),
+			response.WithTotalItems(int64(len(iconfs))))
+	}
+}
+
+func (api *api) getCustomConfigs() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(r.Context(), defaultConfigTimeout)
+		defer cancel()
+		service, ok := attck.GetServiceInstance()
+		if !ok {
+			apperror.RespAndLog(w, ctx, ErrServiceNotReady)
+			return
+		}
+
+		queryOpt := attck.CustomConfigsQueryOption{}
+
+		lang := r.Header.Get("Accept-Language")
+		if lang == "" {
+			lang = "zh"
+		}
+
+		ruleKey, paramErr := param.QueryString(r, "rule")
+		if paramErr == nil && len(ruleKey) > 0 {
+			queryOpt.RuleKey = ruleKey
+		} else if paramErr != nil && paramErr != param.ErrInvalidParam {
+			logging.Get().Warn().Err(paramErr).Msg("fail to parse rule")
+		}
+
+		ruleCategories, paramErr := param.QueryString(r, "ruleCategory")
+		if paramErr == nil && len(ruleCategories) > 0 {
+			queryOpt.RuleCategories = strings.Split(ruleCategories, ",")
+		} else if paramErr != nil && paramErr != param.ErrInvalidParam {
+			logging.Get().Warn().Err(paramErr).Msg("fail to parse ruleCategory")
+		}
+
+		id, paramErr := param.QueryUint64(r, "id")
+		if paramErr == nil && id > 0 {
+			queryOpt.ID = id
+		} else if paramErr != nil && paramErr != param.ErrInvalidParam {
+			logging.Get().Warn().Err(paramErr).Msg("fail to parse id")
+		}
+
+		customKeys, paramErr := param.QueryString(r, "customKey")
+		if paramErr == nil && len(customKeys) > 0 {
+			queryOpt.CconfigKeys = strings.Split(customKeys, ",")
+		} else if paramErr != nil && paramErr != param.ErrInvalidParam {
+			logging.Get().Warn().Err(paramErr).Msg("fail to parse customKey")
+		}
+
+		offset, paramErr := param.QueryInt(r, "offset")
+		if paramErr != nil || offset < 0 {
+			apperror.RespAndLog(w, ctx, apperror.NewMalformedRequestError(http.StatusBadRequest,
+				fmt.Errorf("illegal offset %v", paramErr)))
+			return
+		}
+		limit, paramErr := param.QueryInt(r, "limit")
+		if paramErr != nil || limit < 0 {
+			apperror.RespAndLog(w, ctx, apperror.NewMalformedRequestError(http.StatusBadRequest,
+				fmt.Errorf("illegal limit %v", paramErr)))
+			return
+		}
+
+		query, paramErr := param.QueryString(r, "query")
+		if paramErr == nil || len(query) > 0 {
+			queryOpt.Query = query
+		} else if paramErr != nil && paramErr != param.ErrInvalidParam {
+			logging.Get().Warn().Err(paramErr).Msg("fail to parse customKey")
+		}
+		queryOpt.Statuses = []model.CconfigStatus{model.StatusOK, model.StatusPending, model.StatusExpired}
+
+		configs, totalCnt, err := service.GetCustomConfigs(ctx, queryOpt, limit, offset, lang)
+		if err != nil {
+			apperror.RespAndLog(w, ctx, apperror.NewAnError(http.StatusInternalServerError,
+				fmt.Errorf("get error %v", err)))
+			return
+		}
+
+		response.Ok(w, response.WithItems(configs),
+			response.WithStartIndex(int64(offset)),
+			response.WithItemsPerPage(int64(limit)),
+			response.WithTotalItems(int64(totalCnt)))
+	}
+}
+
+func (api *api) editCustomConfigs() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(r.Context(), defaultConfigTimeout)
+		defer cancel()
+		service, ok := attck.GetServiceInstance()
+		if !ok {
+			apperror.RespAndLog(w, ctx, ErrServiceNotReady)
+			return
+		}
+
+		lang := r.Header.Get("Accept-Language")
+		if lang == "" {
+			lang = "zh"
+		}
+		var cconfigsList []*attck.CconfigUpdateItem
+		jerr := util.DecodeJSONBody(w, r, &cconfigsList)
+		if jerr != nil {
+			apperror.RespAndLog(w, ctx, apperror.NewMalformedRequestError(http.StatusBadRequest,
+				fmt.Errorf("parse body error %v", jerr)))
+			return
+		}
+
+		err := service.BatchEditCustomConfigs(ctx, cconfigsList)
+		if err != nil {
+			apperror.RespAndLog(w, ctx, apperror.NewAnError(http.StatusInternalServerError,
+				fmt.Errorf("get error %v", err)))
+			return
+		}
+		b := strings.Builder{}
+		for i, c := range cconfigsList {
+			b.WriteByte('"')
+			if len(c.RuleKey) > 0 {
+				rinfo, exist := service.GetRuleInfo(ctx, c.RuleKey)
+				if exist && rinfo != nil {
+					b.WriteString(rinfo.Name[lang])
+				} else {
+					b.WriteString(c.RuleKey)
+				}
+			} else if c.ID > 0 {
+				opt := attck.CustomConfigsQueryOption{
+					ID: c.ID,
+				}
+				list, _, err := service.GetCustomConfigs(ctx, opt, 1, 0, "zh")
+				if err == nil && len(list) == 1 {
+					b.WriteString(list[0].Rule.Name)
+				} else if err != nil {
+					logging.Get().Warn().Err(err).Msg("get rule error")
+					b.WriteString(strconv.FormatUint(c.ID, 10))
+				} else {
+					b.WriteString(strconv.FormatUint(c.ID, 10))
+				}
+			}
+
+			b.WriteByte('"')
+			if i < len(cconfigsList)-1 {
+				b.WriteString(", ")
+			}
+		}
+		response.Ok(w, response.WithTarget(&response.TargetRef{ID: fmt.Sprintf("%d", 0), Name: b.String()}))
+	}
+}
+
+func (api *api) addCustomConfigs() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(r.Context(), defaultConfigTimeout)
+		defer cancel()
+		service, ok := attck.GetServiceInstance()
+		if !ok {
+			apperror.RespAndLog(w, ctx, ErrServiceNotReady)
+			return
+		}
+
+		lang := r.Header.Get("Accept-Language")
+		if lang == "" {
+			lang = "zh"
+		}
+		var cconfigsList []*attck.CconfigUpdateItem
+		jerr := util.DecodeJSONBody(w, r, &cconfigsList)
+		if jerr != nil {
+			apperror.RespAndLog(w, ctx, apperror.NewMalformedRequestError(http.StatusBadRequest,
+				fmt.Errorf("parse body error %v", jerr)))
+			return
+		}
+
+		err := service.BatchAddCustomConfigs(ctx, cconfigsList)
+		if err != nil {
+			apperror.RespAndLog(w, ctx, apperror.NewAnError(http.StatusInternalServerError,
+				fmt.Errorf("get error %v", err)))
+			return
+		}
+
+		b := strings.Builder{}
+		for i, c := range cconfigsList {
+			b.WriteByte('"')
+			if len(c.RuleKey) > 0 {
+				rinfo, exist := service.GetRuleInfo(ctx, c.RuleKey)
+				if exist && rinfo != nil {
+					b.WriteString(rinfo.Name[lang])
+				} else {
+					b.WriteString(c.RuleKey)
+				}
+			} else if c.ID > 0 {
+				opt := attck.CustomConfigsQueryOption{
+					ID: c.ID,
+				}
+				list, _, err := service.GetCustomConfigs(ctx, opt, 1, 0, "zh")
+				if err == nil && len(list) == 1 {
+					b.WriteString(list[0].Rule.Name)
+				} else if err != nil {
+					logging.Get().Warn().Err(err).Msg("get rule error")
+					b.WriteString(strconv.FormatUint(c.ID, 10))
+				} else {
+					b.WriteString(strconv.FormatUint(c.ID, 10))
+				}
+			}
+			b.WriteByte('"')
+			if i < len(cconfigsList)-1 {
+				b.WriteString(", ")
+			}
+		}
+
+		response.Ok(w, response.WithTarget(&response.TargetRef{ID: fmt.Sprintf("%d", 0), Name: b.String()}))
+	}
+}
+
+func (api *api) deleteCustomConfig() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(r.Context(), defaultConfigTimeout)
+		defer cancel()
+		service, ok := attck.GetServiceInstance()
+		if !ok {
+			apperror.RespAndLog(w, ctx, ErrServiceNotReady)
+			return
+		}
+		idStr := chi.URLParam(r, "id")
+		if idStr == "" {
+			apperror.RespAndLog(w, ctx, apperror.NewMalformedRequestError(http.StatusBadRequest,
+				fmt.Errorf("nil id")))
+			return
+		}
+		id, perr := strconv.ParseUint(idStr, 10, 64)
+		if perr != nil {
+			apperror.RespAndLog(w, ctx, apperror.NewMalformedRequestError(http.StatusBadRequest,
+				fmt.Errorf("id parse error: %v. input: %s", perr, idStr)))
+			return
+		}
+		err := service.UpdateCustomConfigStatus(ctx, id, model.StatusDeleted)
+		if err != nil {
+			apperror.RespAndLog(w, ctx, apperror.NewAnError(http.StatusInternalServerError,
+				fmt.Errorf("get error %v", err)))
+			return
+		}
+		opt := attck.CustomConfigsQueryOption{
+			ID: id,
+		}
+		list, _, err := service.GetCustomConfigs(ctx, opt, 1, 0, "zh")
+		ruleName := "unknown"
+		if err == nil && len(list) == 1 {
+			ruleName = list[0].Rule.Name
+		} else if err != nil {
+			logging.Get().Warn().Err(err).Msg("get rule error")
+		}
+		response.Ok(w, response.WithTarget(&response.TargetRef{ID: fmt.Sprintf("%d", 0), Name: fmt.Sprintf("\"%s\"", ruleName)}))
 	}
 }
 

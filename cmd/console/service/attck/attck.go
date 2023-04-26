@@ -17,11 +17,9 @@ import (
 	"github.com/go-redis/redis/v8"
 	"github.com/go-redsync/redsync/v4"
 	"github.com/go-redsync/redsync/v4/redis/goredis/v8"
-	"gopkg.in/yaml.v2"
-
+	json "github.com/json-iterator/go"
 	"gitlab.com/piccolo_su/vegeta/pkg/dal"
 	"gitlab.com/piccolo_su/vegeta/pkg/echelper"
-	"gitlab.com/piccolo_su/vegeta/pkg/holmes"
 	"gitlab.com/piccolo_su/vegeta/pkg/lang"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/mozartcommon"
@@ -30,6 +28,8 @@ import (
 	"gitlab.com/security-rd/go-pkg/cryption"
 	"gitlab.com/security-rd/go-pkg/databases"
 	"gitlab.com/security-rd/go-pkg/logging"
+	"gopkg.in/yaml.v2"
+	"gorm.io/gorm"
 )
 
 const (
@@ -52,6 +52,7 @@ type ATTCKHandler struct {
 	rs               *redsync.Redsync
 	displayedPocTags map[string]struct{}
 	pocTagsChecked   []*atomic.Bool
+	rulesStorePtr    *atomic.Pointer[RulesStore]
 }
 
 type attckRules struct {
@@ -242,6 +243,7 @@ func NewATTCKHandler(db *databases.RDBInstance, redisCli *redis.Client, sherlock
 		rs:               redsync.New(goredis.NewPool(redisCli)),
 		displayedPocTags: ReadFromConfig(displayedPocTagsStr),
 		pocTagsChecked:   make([]*atomic.Bool, currentRulesVersion-minPocVersion+1),
+		rulesStorePtr:    new(atomic.Pointer[RulesStore]),
 	}
 	for i := 0; i < currentRulesVersion-minPocVersion+1; i++ {
 		handler.pocTagsChecked[i] = new(atomic.Bool)
@@ -252,7 +254,7 @@ func NewATTCKHandler(db *databases.RDBInstance, redisCli *redis.Client, sherlock
 	defer cancel()
 
 	for i := 1; i <= currentRulesVersion; i++ {
-		err := handler.updateConfigs(ctx, uint16(i))
+		err := handler.updateConfigs(ctx, uint16(i), false)
 		if err != nil {
 			return nil, err
 		}
@@ -277,7 +279,15 @@ func (h *ATTCKHandler) loadFromLocal(ctx context.Context, v uint16) ([]byte, err
 	return nil, errors.New("no local file of such version")
 }
 
-func (h *ATTCKHandler) parseItems(header cryption.FileHeader, rulesContext []byte) (version RulesVersion, rules map[string]*ruleItem, strictRules map[string]struct{}, afterBytes []byte, changed bool, err error) {
+func (h *ATTCKHandler) GetRuleInfo(ctx context.Context, ruleKey string) (*HolmesRule, bool) {
+	infoStore := h.rulesStorePtr.Load()
+	if infoStore == nil {
+		logging.Get().Warn().Msg("info store is nil")
+		return nil, false
+	}
+	return infoStore.GetRule(ctx, ruleKey)
+}
+func (h *ATTCKHandler) parseItems(header cryption.FileHeader, rulesContext []byte) (version RulesVersion, rules map[string]*ruleItem, strictRules map[string]struct{}, err error) {
 	version = RulesVersion{
 		header.Version[0],
 		header.Version[1],
@@ -286,27 +296,19 @@ func (h *ATTCKHandler) parseItems(header cryption.FileHeader, rulesContext []byt
 	var fDataRules []model.RuleFromYaml
 	err = yaml.Unmarshal(rulesContext, &fDataRules)
 	if err != nil {
-		logging.Get().Warn().Msgf("unmarshal rule fail, err:%s", err.Error())
-		return version, nil, nil, nil, false, ErrInvalidRuleData
+		logging.Get().Err(err).Msg("unmarshal rule fail")
+		return version, nil, nil, ErrInvalidRuleData
 	}
 
 	// rules为会触发告警，会由用户控制开关的规parseItems则
 	rules = make(map[string]*ruleItem, len(fDataRules))
 	strictRules = make(map[string]struct{}, len(fDataRules)/3)
-	afterRules := make([]model.RuleFromYaml, 0, len(fDataRules))
-	changed = false
 
 	// 针对不同的规则版本，进行分别的解析
 	switch version.Seg1 {
 	// falco
 	case 1:
 		for _, item := range fDataRules {
-			if IsRule4PocIgnored(item, h.displayedPocTags) {
-				changed = true
-				continue
-			}
-			afterRules = append(afterRules, item)
-
 			isStrict, rule, err := parseFalcoRule(item)
 			if err == ErrNotFalcoRuleElement {
 				continue
@@ -349,15 +351,8 @@ func (h *ATTCKHandler) parseItems(header cryption.FileHeader, rulesContext []byt
 					}
 				}
 				// mozart规则列表下，没有正常的falco规则，跳过
-				afterRules = append(afterRules, item)
 				continue
 			}
-
-			if IsRule4PocIgnored(item, h.displayedPocTags) {
-				changed = true
-				continue
-			}
-			afterRules = append(afterRules, item)
 
 			// 只是关联规则，不应展示，跳过
 			if !util.ContainsString(item.Tags, "triggered") && util.ContainsString(item.Tags, "related") {
@@ -384,11 +379,7 @@ func (h *ATTCKHandler) parseItems(header cryption.FileHeader, rulesContext []byt
 		}
 	}
 
-	afterBytes, err = yaml.Marshal(afterRules)
-	if err != nil {
-		logging.Get().Err(err).Msg("marshal rules error")
-	}
-	return version, rules, strictRules, afterBytes, changed, nil
+	return version, rules, strictRules, nil
 }
 
 func (h *ATTCKHandler) loadFromStore(ctx context.Context, v uint16) (*model.ATTCKRuleData, error) {
@@ -463,6 +454,300 @@ func compareVersion(latestConf *model.ATTCKRuleData, toCompareHeader cryption.Fi
 	}
 }
 
+type MultiLang map[string]string
+
+type RuleInfo struct {
+	Key         string `json:"key"`
+	Name        string `json:"name"`
+	Description string `json:"description"`
+	Category    string `json:"category"`
+	CategoryKey string `json:"categoryKey"`
+	Module      string `json:"module"`
+	Severity    int    `json:"severity"`
+	Hthreats    int    `json:"hthreats"`
+}
+type InitConfig struct {
+	Rule          RuleInfo      `json:"rule"`
+	CustomSetting CustomSetting `json:"customSetting"`
+	Effect        string        `json:"effect"`
+}
+
+func (h *ATTCKHandler) initCconfigs(ctx context.Context, iconfs []*CconfigInitConfig, store *RulesStore) error {
+	for _, iconf := range iconfs {
+		for _, steps := range iconf.RulesAppliedSteps {
+			if len(steps) == 0 {
+				logging.Get().Warn().Msg("steps exception")
+				continue
+			}
+			r, exist := store.GetRule(ctx, steps[0])
+
+			rcat := ""
+			if exist {
+				rcat = r.Category[string(lang.LanguageEN)]
+			}
+
+			m := model.AttckCustomConfig{
+				RuleKey:      steps[0],
+				RuleCategory: rcat,
+				CconfigKey:   iconf.Key,
+				CconfigValue: "",
+				Creator:      "system",
+				CreatedAt:    time.Now().Unix(),
+				Updater:      "system",
+				UpdatedAt:    time.Now().Unix(),
+				Status:       model.StatusDeleted,
+			}
+			_, err := dal.CreateCustomConfig(context.Background(), h.db.Get(), &m)
+			if err != nil {
+				logging.Get().Err(err).Interface("data", m).Msg("create error")
+				return err
+			}
+		}
+
+	}
+	return nil
+}
+
+func (h *ATTCKHandler) GetCustomInitConfig(ctx context.Context, language string) ([]*InitConfig, error) {
+	store := h.rulesStorePtr.Load()
+	if store == nil {
+		logging.Get().Warn().Msg("no store")
+		return nil, nil
+	}
+	initConfigs := store.GetCconfigInitConfigs()
+	iconfs := make([]*InitConfig, 0, len(initConfigs))
+	for _, initConfig := range initConfigs {
+		for _, steps := range initConfig.RulesAppliedSteps {
+			if len(steps) == 0 {
+				continue
+			}
+			iconf := new(InitConfig)
+			iconf.CustomSetting.Key = initConfig.Key
+			iconf.CustomSetting.Name = initConfig.Name[language]
+			iconf.CustomSetting.Type = initConfig.Type
+			iconf.Rule.Key = steps[0]
+			rinfo, exist := store.GetRule(ctx, steps[0])
+			if !exist {
+				logging.Get().Error().Str("ruleKey", steps[0]).Msg("cannot find the rule from store")
+				continue
+			}
+			iconf.Rule.Category = rinfo.Category[language]
+			iconf.Rule.CategoryKey = rinfo.Category[string(lang.LanguageEN)]
+			iconf.Rule.Name = rinfo.Name[language]
+			iconf.Rule.Description = rinfo.Description[language]
+			iconf.Rule.Hthreats = int(rinfo.Hthreats)
+			iconf.Rule.Severity = int(rinfo.Severity)
+			iconf.Rule.Module = "ATT&CK"
+			iconf.Effect = initConfig.Effect[language]
+
+			iconfs = append(iconfs, iconf)
+		}
+
+	}
+	return iconfs, nil
+}
+
+type CustomConfigsQueryOption struct {
+	RuleKey        string
+	Query          string
+	RuleCategories []string
+	ID             uint64
+	CconfigKeys    []string
+	Statuses       []model.CconfigStatus
+}
+
+type CustomConfigItem struct {
+	ID            uint64        `json:"id"`
+	Rule          RuleInfo      `json:"rule"`
+	CustomSetting CustomSetting `json:"customSetting"`
+	Effect        string        `json:"effect"`
+	Updater       string        `json:"updater"`
+	UpdatedAt     int64         `json:"updatedAt"`
+}
+
+func (h *ATTCKHandler) GetCustomConfigs(ctx context.Context, query CustomConfigsQueryOption, limit, offset int, lang string) ([]CustomConfigItem, int, error) {
+	var queryFunc dal.QueryBuilderFunc
+	if len(query.Query) > 0 {
+		var candidatedRuleKeys []string
+		store := h.rulesStorePtr.Load()
+		if store != nil {
+			rules, err := store.ISearch(ctx, query.Query)
+			if err == nil {
+				candidatedRuleKeys = make([]string, len(rules))
+				for i, r := range rules {
+					candidatedRuleKeys[i] = r.Key
+				}
+			} else {
+				logging.Get().Err(err).Str("query", query.Query).Msg("rule names isearch error")
+			}
+		} else {
+			logging.Get().Warn().Str("query", query.Query).Msg("no store")
+		}
+		queryFunc = func(db *gorm.DB) *gorm.DB {
+			db = db.Order("updated_at DESC")
+			if len(candidatedRuleKeys) > 0 {
+				return db.Where("rule_key in ? OR LOWER(cconfig_value) LIKE LOWER(?)", candidatedRuleKeys, dal.GetLikeExpr(query.Query))
+			}
+			return db.Where("LOWER(cconfig_value) LIKE LOWER(?)", dal.GetLikeExpr(query.Query))
+		}
+	} else {
+		queryFunc = func(db *gorm.DB) *gorm.DB {
+			return db.Order("updated_at DESC")
+		}
+	}
+	dalQuery := dal.NewCustomConfigsOption()
+	if len(query.RuleKey) > 0 {
+		dalQuery.WithEqual("rule_key", query.RuleKey)
+	}
+	if len(query.RuleCategories) > 0 {
+		dalQuery.WithIn("rule_category", query.RuleCategories)
+	}
+	if query.ID > 0 {
+		dalQuery.WithEqual("id", query.ID)
+	}
+	if len(query.CconfigKeys) > 0 {
+		dalQuery.WithIn("cconfig_key", query.CconfigKeys)
+	}
+	if len(query.Statuses) > 0 {
+		dalQuery.WithIn("status", query.Statuses)
+	}
+
+	list, err := dal.GetCustomConfigs(ctx, h.db.GetReadDB(), dalQuery, queryFunc, limit, offset)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	retList := make([]CustomConfigItem, len(list))
+	for i, dbItem := range list {
+		retList[i].ID = dbItem.ID
+		retList[i].CustomSetting.Key = dbItem.CconfigKey
+		var valueList []string
+		if len(dbItem.CconfigValue) > 0 {
+			err := json.Unmarshal([]byte(dbItem.CconfigValue), &valueList)
+			if err != nil {
+				logging.Get().Err(err).Any("item", dbItem).Msg("unmarshal error")
+				return nil, 0, err
+			}
+		}
+		retList[i].CustomSetting.Value = valueList
+		retList[i].UpdatedAt = dbItem.UpdatedAt
+		retList[i].Updater = dbItem.Updater
+
+		retList[i].Rule.Key = dbItem.RuleKey
+		store := h.rulesStorePtr.Load()
+		if store != nil {
+			rinfo, exist := store.GetRule(context.Background(), dbItem.RuleKey)
+			if exist {
+				retList[i].Rule.Description = rinfo.Description[lang]
+				retList[i].Rule.Name = rinfo.Name[lang]
+				retList[i].Rule.Category = rinfo.Category[lang]
+				retList[i].Rule.Module = "ATT&CK"
+				retList[i].Rule.Hthreats = int(rinfo.Hthreats)
+				retList[i].Rule.Severity = int(rinfo.Severity)
+			} else {
+				logging.Get().Warn().Str("rkey", dbItem.RuleKey).Msg("cannot find the rule")
+			}
+
+			found := false
+			for _, iconf := range store.GetCconfigInitConfigs() {
+				if iconf.Key == dbItem.CconfigKey {
+					found = true
+					retList[i].CustomSetting.Name = iconf.Name[lang]
+					retList[i].CustomSetting.Type = iconf.Type
+					retList[i].Effect = iconf.Effect[lang]
+				}
+			}
+			if !found {
+				logging.Get().Warn().Str("ckey", dbItem.CconfigKey).Msg("cannot find the initConfig")
+			}
+		} else {
+			logging.Get().Warn().Msg("no store")
+		}
+	}
+
+	cnt, err := dal.CountCustomConfigs(ctx, h.db.GetReadDB(), dalQuery, queryFunc)
+	if err != nil {
+		return nil, 0, err
+	}
+	return retList, cnt, nil
+}
+
+type CconfigUpdateItem struct {
+	ID            uint64        `json:"id,omitempty"`
+	RuleKey       string        `json:"ruleKey,omitempty"`
+	CustomSetting CustomSetting `json:"customSetting"`
+}
+type CustomSetting struct {
+	Key   string   `json:"key"`
+	Value []string `json:"value"`
+	Type  string   `json:"type,omitempty"`
+	Name  string   `json:"name,omitempty"`
+}
+
+func (h *ATTCKHandler) BatchAddCustomConfigs(ctx context.Context, data []*CconfigUpdateItem) error {
+	tctx, cancel := context.WithTimeout(ctx, 6*time.Second)
+	defer cancel()
+	for _, item := range data {
+		merr := dal.ModifyCustomConfigValues(tctx, h.db.Get(), item.RuleKey, item.CustomSetting.Key, func(ctx context.Context, oldValue string) (newValue string, err error) {
+			var list []string
+			if oldValue == "" {
+				list = item.CustomSetting.Value
+			} else {
+				jerr := json.Unmarshal([]byte(oldValue), &list)
+				if jerr != nil {
+					logging.Get().Err(jerr).Msg("json unmarshal err")
+				} else {
+					list = append(list, item.CustomSetting.Value...)
+				}
+			}
+			list = util.ListDeduplicate(list)
+
+			listBytes, err := json.Marshal(list)
+			if err != nil {
+				return "", err
+			}
+			return string(listBytes), nil
+		})
+		if merr != nil {
+			logging.Get().Err(merr).Uint64("id", item.ID).Strs("updates", item.CustomSetting.Value).Msg("modify error")
+			return merr
+		}
+	}
+	return nil
+}
+
+func (h *ATTCKHandler) UpdateCustomConfigStatus(ctx context.Context, id uint64, status model.CconfigStatus) error {
+	return dal.SetCustomConfigStatus(ctx, h.db.Get(), id, status)
+}
+
+func (h *ATTCKHandler) BatchEditCustomConfigs(ctx context.Context, data []*CconfigUpdateItem) error {
+	tctx, cancel := context.WithTimeout(ctx, 6*time.Second)
+	defer cancel()
+	for _, item := range data {
+		if item.ID == 0 && item.RuleKey == "" {
+			logging.Get().Error().Interface("item", item).Msg("error item with no id and rulekey")
+			return errors.New("illegal argument")
+		}
+		item.CustomSetting.Value = util.ListDeduplicate(item.CustomSetting.Value)
+		dbytes, err := json.Marshal(item.CustomSetting.Value)
+		if err != nil {
+			logging.Get().Err(err).Msg("marshal err")
+		}
+		queryOpt := dal.NewCustomConfigsOption()
+		if item.ID > 0 {
+			queryOpt.WithEqual("id", item.ID)
+		} else if item.RuleKey != "" {
+			queryOpt.WithEqual("rule_key", item.RuleKey)
+		}
+		err = dal.UpdateCustomConfig(tctx, h.db.Get(), queryOpt, map[string]any{"cconfig_value": string(dbytes), "status": model.StatusPending})
+		if err != nil {
+			logging.Get().Err(err).Uint64("id", item.ID).Strs("updates", item.CustomSetting.Value).Msg("update config err")
+			return err
+		}
+	}
+	return nil
+}
+
 func (h *ATTCKHandler) updateDefaultMasksForStricts(ctx context.Context, strictRules map[string]struct{}, v uint16) error {
 	// don't check musk version must not be set. update them anyway.
 	// version, err := dal.LoadATTCKRuleMaskVersion(ctx, h.db.Get())
@@ -482,94 +767,51 @@ func (h *ATTCKHandler) updateDefaultMasksForStricts(ctx context.Context, strictR
 	return dal.UpdateRuleMask(ctx, h.db.Get(), addMusks, nil, v)
 }
 
-func (h *ATTCKHandler) updateConfigs(ctx context.Context, v uint16) error {
+func (h *ATTCKHandler) updateConfigs(ctx context.Context, v uint16, isRefreshing bool) error {
 	var rules map[string]*ruleItem
-	storeConf, err := h.loadFromStore(ctx, v)
-	if err != nil && err != dal.ErrATTCKConfDataNotFound {
-		logging.Get().Err(err).Msg("loadFromStore error.")
-		return err
+	storeConf, dbErr := h.loadFromStore(ctx, v)
+	if dbErr != nil && dbErr != dal.ErrATTCKConfDataNotFound {
+		logging.Get().Err(dbErr).Msg("loadFromStore error.")
+		return dbErr
 	}
-	ruleBytes, err := h.loadFromLocal(ctx, v)
-	if err != nil {
-		logging.Get().Err(err).Msg("loadFromLocal error.")
-		return err
-	}
-	header, rulesContext, _, err := cryption.ReadRulesData(ruleBytes)
-
-	if err == dal.ErrATTCKConfDataNotFound || compareVersion(storeConf, header) { // use local
-		logging.Get().Info().Uints16("local version", header.Version[:]).Msg("Initialize with local rules.")
-		var version RulesVersion
-		var strictRules map[string]struct{}
-		var afterBytes []byte
-		var changed bool
-		version, rules, strictRules, afterBytes, changed, err = h.parseItems(header, rulesContext)
+	loaded := false
+	if !isRefreshing {
+		ruleBytes, err := h.loadFromLocal(ctx, v)
 		if err != nil {
-			logging.Get().Err(err).Str("data", string(ruleBytes)).Msg("parse items error.")
+			logging.Get().Err(err).Msg("loadFromLocal error.")
 			return err
 		}
+		header, rulesContext, _, err := cryption.ReadRulesData(ruleBytes)
 
-		if len(strictRules) > 0 {
-			if err := h.updateDefaultMasksForStricts(ctx, strictRules, version.Seg1); err != nil {
-				logging.Get().Err(err).Msg("updateDefaultMasksForStricts error")
+		if dbErr == dal.ErrATTCKConfDataNotFound || compareVersion(storeConf, header) { // use local
+			logging.Get().Info().Uints16("local version", header.Version[:]).Msg("Initialize with local rules.")
+			var version RulesVersion
+			var strictRules map[string]struct{}
+
+			// customized configs process
+			if header.Version[0] >= 2 {
+				customed, custerr := h.rulesCustomedProcess(rulesContext)
+				if custerr == nil {
+					rulesContext = customed
+				} else {
+					logging.Get().Err(custerr).Msg("customized process rules error")
+				}
 			}
-		}
-		dataBytes := ruleBytes
-		if changed {
-			afterBytesEncoded, err := holmes.ToThrBytes(afterBytes, header.Version)
+
+			version, rules, strictRules, err = h.parseItems(header, rulesContext)
 			if err != nil {
-				logging.Get().Err(err).Str("data", string(ruleBytes)).Msg("ToThrBytes error")
-				return err
-			} else {
-				dataBytes = afterBytesEncoded
-			}
-		}
-
-		confData := model.ATTCKRuleData{
-			Content: dataBytes,
-		}
-		confData.ATTCKConfVersion = model.ATTCKConfVersion{
-			Version1:  version.Seg1,
-			Version2:  version.Seg2,
-			Username:  "system",
-			CreatedAt: time.Now(),
-		}
-		err = util.RetryWithBackoff(ctx, func() error {
-			var err error
-			storeConf, err = dal.SaveATTCKConfData(ctx, h.db.Get(), &confData, nil, version.Seg1)
-			return err
-		}, retry.Attempts(3))
-		if err != nil {
-			logging.Get().Err(err).Msg("store attck conf data error. ")
-		} else {
-			logging.Get().Info().Str("conf version", version.String()).Msg("Successfully store attack conf data from local.")
-		}
-
-		h.asyncUploadRulesToEventsCenter(afterBytes, version.String())
-	} else { // use storage
-		logging.Get().Info().Str("storage version", storeConf.VString()).Msg("Initialize with stored rules.")
-		header, rulesContext, _, err := cryption.ReadRulesData(storeConf.Content)
-		if err != nil {
-			logging.Get().Err(err).Str("data", string(storeConf.Content)).Msg("decode rule data fail")
-			return err
-		}
-		var afterBytes []byte
-		var version RulesVersion
-		var changed bool
-		version, rules, _, afterBytes, changed, err = h.parseItems(header, rulesContext)
-		if err != nil {
-			logging.Get().Err(err).Msgf("parse items error. data: %s", string(storeConf.Content))
-			return err
-		}
-
-		// On first load when the process starts, filter the latest conf with poc settings. No need to execute if not.
-		if changed && v >= minPocVersion && v <= currentRulesVersion && !h.pocTagsChecked[v-minPocVersion].Load() {
-			afterBytesEncoded, err := holmes.ToThrBytes(afterBytes, header.Version)
-			if err != nil {
-				logging.Get().Err(err).Str("data", string(ruleBytes)).Msg("ToThrBytes error")
+				logging.Get().Err(err).Str("data", string(ruleBytes)).Msg("parse items error.")
 				return err
 			}
+
+			if len(strictRules) > 0 {
+				if err := h.updateDefaultMasksForStricts(ctx, strictRules, version.Seg1); err != nil {
+					logging.Get().Err(err).Msg("updateDefaultMasksForStricts error")
+				}
+			}
+
 			confData := model.ATTCKRuleData{
-				Content: afterBytesEncoded,
+				Content: ruleBytes,
 			}
 			confData.ATTCKConfVersion = model.ATTCKConfVersion{
 				Version1:  version.Seg1,
@@ -586,11 +828,34 @@ func (h *ATTCKHandler) updateConfigs(ctx context.Context, v uint16) error {
 				logging.Get().Err(err).Msg("store attck conf data error. ")
 			} else {
 				logging.Get().Info().Str("conf version", version.String()).Msg("Successfully store attack conf data from local.")
-				h.pocTagsChecked[v-minPocVersion].Store(true)
 			}
-			h.asyncUploadRulesToEventsCenter(afterBytes, version.String())
-		}
 
+			h.asyncUploadRulesToEventsCenter(rulesContext, version.String())
+			loaded = true
+		}
+	}
+
+	if !loaded { // use storage
+		logging.Get().Info().Str("storage version", storeConf.VString()).Msg("Initialize with stored rules.")
+		header, rulesContext, _, err := cryption.ReadRulesData(storeConf.Content)
+		if err != nil {
+			logging.Get().Err(err).Str("data", string(storeConf.Content)).Msg("decode rule data fail")
+			return err
+		}
+		// customized configs process
+		if !isRefreshing && header.Version[0] >= 2 {
+			customed, custerr := h.rulesCustomedProcess(rulesContext)
+			if custerr == nil {
+				rulesContext = customed
+			} else {
+				logging.Get().Err(custerr).Msg("customized process rules error")
+			}
+		}
+		_, rules, _, err = h.parseItems(header, rulesContext)
+		if err != nil {
+			logging.Get().Err(err).Msgf("parse items error. data: %s", string(storeConf.Content))
+			return err
+		}
 	}
 
 	onlineOffset, err := dal.LoadATTCKRuleMaskVersion(ctx, h.db.Get(), storeConf.Version1)
@@ -653,6 +918,21 @@ func (h *ATTCKHandler) releaseLock(mutex *redsync.Mutex) {
 	}
 }
 
+func (h *ATTCKHandler) rulesCustomedProcess(rulesContext []byte) ([]byte, error) {
+	_, infoStore, err := ProcessorBuilder(context.Background(), rulesContext)
+	if err != nil {
+		logging.Get().Err(err).Msg("processor build error")
+	} else {
+		h.rulesStorePtr.Store(infoStore)
+		ierr := h.initCconfigs(context.Background(), infoStore.GetCconfigInitConfigs(), infoStore)
+		if ierr != nil {
+			logging.Get().Err(ierr).Msg("init cconfigs error")
+		}
+		logging.Get().Info().Int("rules num", len(infoStore.rmap)).Int("conf num", len(infoStore.configsInit)).Msg("processor build OK")
+	}
+	return rulesContext, nil
+}
+
 func (h *ATTCKHandler) UpdateConfig(ctx context.Context, username string, data []byte) (*model.ATTCKRuleData, error) {
 	mutex := h.rs.NewMutex(attckLockKey)
 	if err := h.obtainLock(ctx, mutex); err != nil {
@@ -667,18 +947,21 @@ func (h *ATTCKHandler) UpdateConfig(ctx context.Context, username string, data [
 		return nil, err
 	}
 
-	version, rules, strictRules, rulesContext, changed, err := h.parseItems(header, rulesContext)
+	// customized configs process
+	if header.Version[0] >= 2 {
+		customed, custerr := h.rulesCustomedProcess(rulesContext)
+		if custerr == nil {
+			rulesContext = customed
+		} else {
+			logging.Get().Err(custerr).Msg("customized process rules error")
+		}
+	}
+
+	version, rules, strictRules, err := h.parseItems(header, rulesContext)
 	if err != nil {
 		return nil, err
 	}
 	h.flushCache(version.Seg1)
-	if changed {
-		data, err = holmes.ToThrBytes(rulesContext, header.Version)
-		if err != nil {
-			logging.Get().Err(err).Str("data", string(rulesContext)).Msg("ToThrBytes error")
-			return nil, err
-		}
-	}
 
 	if version.Seg1 == uint16(1) {
 		// fixme: 增加一个hack逻辑，当version大版本号为1时，批量更新数据库的ivan_assets_clusters.rule_version字段。   原因是 多版本集群环境下，老版集群没有同步规则库版本的逻辑
@@ -1025,7 +1308,7 @@ func (h *ATTCKHandler) flushCache(v uint16) {
 		logging.Get().Info().Msgf(
 			"baseOffset:%d, onlineOffset:%d, latestOffset:%d, latestOnlineOffset:%d",
 			vRules.baseOffset, vRules.onlineOffset, latestOffset, latestOnlineOffset)
-		if err = h.updateConfigs(ctx, v); err != nil {
+		if err = h.updateConfigs(ctx, v, true); err != nil {
 			logging.Get().Err(err).Msg("load fail")
 		}
 	}
