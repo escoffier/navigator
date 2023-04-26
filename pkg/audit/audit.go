@@ -14,11 +14,10 @@ import (
 	"github.com/go-chi/chi/middleware"
 	v7 "github.com/olivere/elastic/v7"
 	"github.com/rs/zerolog"
-	"k8s.io/apimachinery/pkg/util/wait"
-
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
+	"k8s.io/apimachinery/pkg/util/wait"
 )
 
 const JWTKeyUsername = "user_name"
@@ -391,6 +390,15 @@ func init() {
 	routeAction.POST("/api/v2/containerSec/ATTCK/ruleSwitch", func(params Params) (string, string) {
 		return "启用/停用", "启/停用检测规则"
 	})
+	routeAction.PUT("/api/v2/containerSec/ATTCK/customConfigs/configs/append", func(params Params) (string, string) {
+		return createAction, createAction + "规则{{.}}的自定义条件"
+	})
+	routeAction.PUT("/api/v2/containerSec/ATTCK/customConfigs/configs/edit", func(params Params) (string, string) {
+		return editAction, editAction + "规则{{.}}的自定义条件"
+	})
+	routeAction.DELETE("/api/v2/containerSec/ATTCK/customConfigs/config/:id", func(params Params) (string, string) {
+		return deleteAction, deleteAction + "规则{{.}}的自定义条件"
+	})
 
 	// 微隔离
 	routeAction.PUT("/api/v2/microseg/clusters/:clusterKey/resourceTag/infras", func(params Params) (string, string) {
@@ -399,6 +407,7 @@ func init() {
 	routeAction.PUT("/api/v2/microseg/clusters/:clusterKey/resourceTag/gateways", func(params Params) (string, string) {
 		return editAction, "编辑资源配置"
 	})
+
 	routeAction.POST("/api/v2/microseg/clusters/:clusterKey/namespaces/:namespace/kinds/:kind/resources/:resource/policy", func(params Params) (string, string) {
 		return editAction, "编辑资源{{.}}的隔离策略"
 	})

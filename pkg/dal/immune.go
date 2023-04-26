@@ -72,7 +72,7 @@ func ListImmunePolicies(ctx context.Context, rdb *gorm.DB, opt *ImmunePoliciesQu
 		}
 	}
 	if len(opt.columnQuery.column) > 0 && len(opt.columnQuery.query) > 0 {
-		db = db.Where(fmt.Sprintf("%s ILIKE ?", opt.columnQuery.column), getLikeExpr(opt.columnQuery.query))
+		db = db.Where(fmt.Sprintf("LOWER(%s) LIKE LOWER(?)", opt.columnQuery.column), GetLikeExpr(opt.columnQuery.query))
 	}
 	err := db.Where("status != ?", 1).Order("updated_at DESC").Find(&policies).Error
 	return policies, err
@@ -93,7 +93,7 @@ func CountImmunePolicies(ctx context.Context, rdb *gorm.DB, opt *ImmunePoliciesQ
 		}
 	}
 	if len(opt.columnQuery.column) > 0 && len(opt.columnQuery.query) > 0 {
-		db = db.Where(fmt.Sprintf("%s ILIKE ?", opt.columnQuery.column), getLikeExpr(opt.columnQuery.query))
+		db = db.Where(fmt.Sprintf("LOWER(%s) LIKE LOWER(?)", opt.columnQuery.column), GetLikeExpr(opt.columnQuery.query))
 	}
 	err := db.Count(&count).Error
 	return count, err

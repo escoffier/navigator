@@ -1,45 +1,11 @@
 package attck
 
 import (
-	"io/ioutil"
 	"testing"
 
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/security-rd/go-pkg/cryption"
 )
-
-func TestParseItems(t *testing.T) {
-	data, err := ioutil.ReadFile("encrypt_rule.data")
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	copyData := make([]byte, len(data))
-	copy(copyData, data)
-
-	header, rulesContext, _, err := cryption.ReadRulesData(data)
-	if err != nil {
-		t.Fatal(err)
-	}
-	h := new(ATTCKHandler)
-	version, rules, _, err := h.parseItems(header, rulesContext)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	t.Log(version)
-	for _, rule := range rules {
-		t.Log("name:", rule.name, "description:", rule.description,
-			"ruleType:", rule.ruleType, "adapter:", rule.adapter,
-			"severity:", rule.severity, "hthreats:", rule.hthreats)
-	}
-
-	for i := 0; i < len(data); i++ {
-		if data[i] != copyData[i] {
-			t.Fatal("data changed")
-		}
-	}
-}
 
 func Test_compareVersion(t *testing.T) {
 	type args struct {

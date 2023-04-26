@@ -151,8 +151,7 @@
 #   tags: [container, process]
 
 
-
-#macro_list
+##macros_lists
 - macro: open_write
   condition: evt.type in (open,openat,openat2) and evt.is_open_write=true and fd.typechar='f' and fd.num>=0
 
@@ -2209,7 +2208,7 @@
     5555, 5556, 5588, 5730, 6099, 6666, 7777,
     7778, 8000, 8001, 8008, 8080, 8118, 8333,
     8888, 8899, 9332, 9999, 14433, 14444,
-    45560, 45700
+    45560, 45700, 80, 443
   ]
 
 - list: miner_domains

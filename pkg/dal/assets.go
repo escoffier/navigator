@@ -126,7 +126,7 @@ func CountNamespaces(ctx context.Context, rdb *gorm.DB, clusterKey, nameQuery st
 			db.Where("cluster_key = ?", clusterKey)
 		}
 		if nameQuery != "" {
-			db = db.Where("name LIKE ?", getLikeExpr(nameQuery))
+			db = db.Where("name LIKE ?", GetLikeExpr(nameQuery))
 		}
 
 		return db.Count(&nsCount).Error
@@ -174,7 +174,7 @@ func GetNamespacesByCluster(ctx context.Context, rdb *gorm.DB, clusterKey, nameQ
 			db = db.Offset(offset).Limit(limit)
 		}
 		if nameQuery != "" {
-			db = db.Where("name LIKE ?", getLikeExpr(nameQuery))
+			db = db.Where("name LIKE ?", GetLikeExpr(nameQuery))
 		}
 		return db.Order("id ASC").Find(&namespaces).Error
 	})
@@ -217,7 +217,7 @@ func CountNamespacesWithOption(ctx context.Context, rdb *gorm.DB, queryOpt *Name
 			db = db.Where(queryOpt.whereEqCondition)
 		}
 		for column, val := range queryOpt.WhereLikeCondition {
-			db = db.Where(fmt.Sprintf("%s LIKE ?", column), getLikeExpr(val))
+			db = db.Where(fmt.Sprintf("%s LIKE ?", column), GetLikeExpr(val))
 		}
 
 		return db.Count(&nsCount).Error
@@ -241,7 +241,7 @@ func GetNamespaceWithOption(ctx context.Context, rdb *gorm.DB, queryOpt *Namespa
 			rdb = rdb.Where(queryOpt.whereEqCondition)
 		}
 		for column, val := range queryOpt.WhereLikeCondition {
-			rdb = rdb.Where(fmt.Sprintf("%s LIKE ?", column), getLikeExpr(val))
+			rdb = rdb.Where(fmt.Sprintf("%s LIKE ?", column), GetLikeExpr(val))
 		}
 
 		if limit > 0 && offset >= 0 {
@@ -335,7 +335,7 @@ type ResourceKey struct {
 	ResourceName string
 }
 
-func getLikeExpr(s string) string {
+func GetLikeExpr(s string) string {
 	sb := strings.Builder{}
 	sb.WriteByte('%')
 	sb.WriteString(s)
@@ -362,10 +362,10 @@ func CountResources(ctx context.Context, rdb *gorm.DB, query *ResourcesQueryOpti
 			}
 		}
 		if len(query.columnQuery.column) > 0 && len(query.columnQuery.query) > 0 {
-			db = db.Where(fmt.Sprintf("%s LIKE ?", query.columnQuery.column), getLikeExpr(query.columnQuery.query))
+			db = db.Where(fmt.Sprintf("%s LIKE ?", query.columnQuery.column), GetLikeExpr(query.columnQuery.query))
 		}
 		for col, q := range query.WhereLikeCondition {
-			db = db.Where(fmt.Sprintf("%s LIKE ?", col), getLikeExpr(q))
+			db = db.Where(fmt.Sprintf("%s LIKE ?", col), GetLikeExpr(q))
 		}
 		return db.Count(&resCount).Error
 	})
@@ -393,10 +393,10 @@ func GetResources(ctx context.Context, rdb *gorm.DB, query *ResourcesQueryOption
 			}
 		}
 		if len(query.columnQuery.column) > 0 && len(query.columnQuery.query) > 0 {
-			db = db.Where(fmt.Sprintf("%s LIKE ?", query.columnQuery.column), getLikeExpr(query.columnQuery.query))
+			db = db.Where(fmt.Sprintf("LOWER(%s) LIKE LOWER(?)", query.columnQuery.column), GetLikeExpr(query.columnQuery.query))
 		}
 		for col, q := range query.WhereLikeCondition {
-			db = db.Where(fmt.Sprintf("%s LIKE ?", col), getLikeExpr(q))
+			db = db.Where(fmt.Sprintf("LOWER(%s) LIKE LOWER(?)", col), GetLikeExpr(q))
 		}
 		if limit > 0 && offset >= 0 {
 			db = db.Offset(offset).Limit(limit)
@@ -499,7 +499,7 @@ func CountResourceContainers(ctx context.Context, rdb *gorm.DB, query *ResContai
 			}
 		}
 		if len(query.columnQuery.column) > 0 && len(query.columnQuery.query) > 0 {
-			db = db.Where(fmt.Sprintf("%s LIKE ?", query.columnQuery.column), getLikeExpr(query.columnQuery.query))
+			db = db.Where(fmt.Sprintf("%s LIKE ?", query.columnQuery.column), GetLikeExpr(query.columnQuery.query))
 		}
 		return db.Count(&cntNum).Error
 	})
@@ -531,7 +531,7 @@ func GetResourceContainers(ctx context.Context, rdb *gorm.DB, query *ResContaine
 			}
 		}
 		if len(query.columnQuery.column) > 0 && len(query.columnQuery.query) > 0 {
-			db = db.Where(fmt.Sprintf("%s LIKE ?", query.columnQuery.column), getLikeExpr(query.columnQuery.query))
+			db = db.Where(fmt.Sprintf("%s LIKE ?", query.columnQuery.column), GetLikeExpr(query.columnQuery.query))
 		}
 		if limit > 0 && offset >= 0 {
 			db = db.Offset(offset).Limit(limit)
@@ -1137,16 +1137,16 @@ func GetResourcePodsList(ctx context.Context, rdb *gorm.DB, queryOptions *ResPod
 
 		if len(queryOptions.WhereLikeCondition) > 0 {
 			for column, val := range queryOptions.WhereLikeCondition {
-				db = db.Where(fmt.Sprintf("%s LIKE ?", column), getLikeExpr(val))
+				db = db.Where(fmt.Sprintf("%s LIKE ?", column), GetLikeExpr(val))
 			}
 		}
 
 		if len(queryOptions.columnQuery.column) > 0 && len(queryOptions.columnQuery.query) > 0 {
-			db = db.Where(fmt.Sprintf("%s LIKE ?", queryOptions.columnQuery.column), getLikeExpr(queryOptions.columnQuery.query))
+			db = db.Where(fmt.Sprintf("%s LIKE ?", queryOptions.columnQuery.column), GetLikeExpr(queryOptions.columnQuery.query))
 		}
 
 		if len(queryOptions.mulColQuery.columns) > 0 && len(queryOptions.mulColQuery.query) > 0 {
-			expr := getLikeExpr(queryOptions.mulColQuery.query)
+			expr := GetLikeExpr(queryOptions.mulColQuery.query)
 			db = db.Where(
 				rdb.WithContext(oneCtx).Model(&model.PodResourceRelation{}).Where("pod_name LIKE ?", expr).
 					Or("pod_ip LIKE ?", expr).Or("node_name LIKE ?", expr))
@@ -1199,17 +1199,17 @@ func CountPods(ctx context.Context, rdb *gorm.DB, queryOptions *ResPodsQueryOpti
 			}
 		}
 		if len(queryOptions.columnQuery.column) > 0 && len(queryOptions.columnQuery.query) > 0 {
-			db = db.Where(fmt.Sprintf("%s LIKE ?", queryOptions.columnQuery.column), getLikeExpr(queryOptions.columnQuery.query))
+			db = db.Where(fmt.Sprintf("%s LIKE ?", queryOptions.columnQuery.column), GetLikeExpr(queryOptions.columnQuery.query))
 		}
 
 		if len(queryOptions.WhereLikeCondition) > 0 {
 			for column, val := range queryOptions.WhereLikeCondition {
-				db = db.Where(fmt.Sprintf("%s LIKE ?", column), getLikeExpr(val))
+				db = db.Where(fmt.Sprintf("%s LIKE ?", column), GetLikeExpr(val))
 			}
 		}
 
 		if len(queryOptions.mulColQuery.columns) > 0 && len(queryOptions.mulColQuery.query) > 0 {
-			expr := getLikeExpr(queryOptions.mulColQuery.query)
+			expr := GetLikeExpr(queryOptions.mulColQuery.query)
 			db = db.Where(
 				rdb.WithContext(oneCtx).Model(&model.PodResourceRelation{}).Where("pod_name LIKE ?", expr).Or("pod_ip LIKE ?", expr).Or("node_name LIKE ?", expr))
 		}
@@ -1297,7 +1297,7 @@ func GetClusters(ctx context.Context, rdb *gorm.DB, query *ClusterQueryOption, o
 		}
 		if len(query.WhereLikeCondition) > 0 {
 			for column, val := range query.WhereLikeCondition {
-				rdb = rdb.Where(fmt.Sprintf("%s LIKE ?", column), getLikeExpr(val))
+				rdb = rdb.Where(fmt.Sprintf("%s LIKE ?", column), GetLikeExpr(val))
 			}
 		}
 
@@ -1323,7 +1323,7 @@ func CountClusters(ctx context.Context, rdb *gorm.DB, query *ClusterQueryOption)
 		}
 		if len(query.WhereLikeCondition) > 0 {
 			for column, val := range query.WhereLikeCondition {
-				rdb = rdb.Where(fmt.Sprintf("%s LIKE ?", column), getLikeExpr(val))
+				rdb = rdb.Where(fmt.Sprintf("%s LIKE ?", column), GetLikeExpr(val))
 			}
 		}
 		return rdb.WithContext(oneCtx).Model(&model.TensorCluster{}).Where("status = ?", 0).Count(&totalCnt).Error
@@ -1624,10 +1624,10 @@ func GetNodes(ctx context.Context, rdb *gorm.DB, queryOptions *NodeQueryOption, 
 			}
 		}
 		if len(queryOptions.columnQuery.column) > 0 && len(queryOptions.columnQuery.query) > 0 {
-			db = db.Where(fmt.Sprintf("%s LIKE ?", queryOptions.columnQuery.column), getLikeExpr(queryOptions.columnQuery.query))
+			db = db.Where(fmt.Sprintf("%s LIKE ?", queryOptions.columnQuery.column), GetLikeExpr(queryOptions.columnQuery.query))
 		}
 		for column, val := range queryOptions.WhereLikeCondition {
-			db = db.Where(fmt.Sprintf("%s LIKE ?", column), getLikeExpr(val))
+			db = db.Where(fmt.Sprintf("%s LIKE ?", column), GetLikeExpr(val))
 		}
 		if offset >= 0 && limit >= 0 {
 			db.Offset(offset).Limit(limit)
@@ -1697,10 +1697,10 @@ func CountNodes(ctx context.Context, rdb *gorm.DB, queryOptions *NodeQueryOption
 			}
 		}
 		if len(queryOptions.columnQuery.column) > 0 && len(queryOptions.columnQuery.query) > 0 {
-			db = db.Where(fmt.Sprintf("%s LIKE ?", queryOptions.columnQuery.column), getLikeExpr(queryOptions.columnQuery.query))
+			db = db.Where(fmt.Sprintf("%s LIKE ?", queryOptions.columnQuery.column), GetLikeExpr(queryOptions.columnQuery.query))
 		}
 		for column, val := range queryOptions.WhereLikeCondition {
-			db = db.Where(fmt.Sprintf("%s LIKE ?", column), getLikeExpr(val))
+			db = db.Where(fmt.Sprintf("%s LIKE ?", column), GetLikeExpr(val))
 		}
 		err := db.Count(&count).Error
 		if err == gorm.ErrRecordNotFound {
@@ -1784,7 +1784,7 @@ func CountContainer(ctx context.Context, rdb *gorm.DB, query *ResContainersQuery
 			}
 		}
 		if len(query.columnQuery.column) > 0 && len(query.columnQuery.query) > 0 {
-			db = db.Where(fmt.Sprintf("%s LIKE ?", query.columnQuery.column), getLikeExpr(query.columnQuery.query))
+			db = db.Where(fmt.Sprintf("%s LIKE ?", query.columnQuery.column), GetLikeExpr(query.columnQuery.query))
 		}
 		err := db.Distinct("image").Count(&count).Error
 		if err == gorm.ErrRecordNotFound {
@@ -1825,7 +1825,7 @@ func GetResourceContainersUnique(ctx context.Context, rdb *gorm.DB, query *ResCo
 			}
 		}
 		if len(query.columnQuery.column) > 0 && len(query.columnQuery.query) > 0 {
-			db = db.Where(fmt.Sprintf("%s LIKE ?", query.columnQuery.column), getLikeExpr(query.columnQuery.query))
+			db = db.Where(fmt.Sprintf("%s LIKE ?", query.columnQuery.column), GetLikeExpr(query.columnQuery.query))
 		}
 		if limit > 0 && offset >= 0 {
 			db = db.Offset(offset).Limit(limit)
@@ -1859,7 +1859,7 @@ func GetContainerRelation(ctx context.Context, rdb *gorm.DB, query *ResContainer
 			}
 		}
 		if len(query.columnQuery.column) > 0 && len(query.columnQuery.query) > 0 {
-			rdb = rdb.Where(fmt.Sprintf("%s LIKE ?", query.columnQuery.column), getLikeExpr(query.columnQuery.query))
+			rdb = rdb.Where(fmt.Sprintf("%s LIKE ?", query.columnQuery.column), GetLikeExpr(query.columnQuery.query))
 		}
 		if offsetID >= 0 {
 			rdb = rdb.Where("time_stamp >= ?", offsetID)
@@ -1892,7 +1892,7 @@ func CountContainerRelation(ctx context.Context, rdb *gorm.DB, query *ResContain
 			}
 		}
 		if len(query.columnQuery.column) > 0 && len(query.columnQuery.query) > 0 {
-			rdb = rdb.Where(fmt.Sprintf("%s LIKE ?", query.columnQuery.column), getLikeExpr(query.columnQuery.query))
+			rdb = rdb.Where(fmt.Sprintf("%s LIKE ?", query.columnQuery.column), GetLikeExpr(query.columnQuery.query))
 		}
 		return rdb.WithContext(ctx).Model(&model.TensorContainerRelation{}).Count(&totalCnt).Error
 	})
@@ -2151,7 +2151,7 @@ func CountRawContainer(ctx context.Context, rdb *gorm.DB, queryOptions *RawConta
 			}
 		}
 		if len(queryOptions.columnQuery.column) > 0 && len(queryOptions.columnQuery.query) > 0 {
-			db = db.Where(fmt.Sprintf("%s LIKE ?", queryOptions.columnQuery.column), getLikeExpr(queryOptions.columnQuery.query))
+			db = db.Where(fmt.Sprintf("%s LIKE ?", queryOptions.columnQuery.column), GetLikeExpr(queryOptions.columnQuery.query))
 		}
 		if len(queryOptions.prefixColumnQuery.column) > 0 && len(queryOptions.prefixColumnQuery.query) > 0 {
 			db = db.Where(fmt.Sprintf("%s LIKE ?", queryOptions.prefixColumnQuery.column), fmt.Sprintf("%s%%", queryOptions.prefixColumnQuery.query))
@@ -2160,12 +2160,12 @@ func CountRawContainer(ctx context.Context, rdb *gorm.DB, queryOptions *RawConta
 			for _, c := range queryOptions.columnQueries {
 				if len(c.query) > 0 {
 					if len(c.query) == 1 {
-						db = db.Where(fmt.Sprintf("%s LIKE ?", c.column), getLikeExpr(c.query[0]))
+						db = db.Where(fmt.Sprintf("%s LIKE ?", c.column), GetLikeExpr(c.query[0]))
 						continue
 					}
-					subQuery := rdb.WithContext(oneCtx).Model(&model.TensorRawContainer{}).Where(fmt.Sprintf("%s LIKE ?", c.column), getLikeExpr(c.query[0]))
+					subQuery := rdb.WithContext(oneCtx).Model(&model.TensorRawContainer{}).Where(fmt.Sprintf("%s LIKE ?", c.column), GetLikeExpr(c.query[0]))
 					for _, q := range c.query[1:] {
-						subQuery = subQuery.Or(fmt.Sprintf("%s LIKE ?", c.column), getLikeExpr(q))
+						subQuery = subQuery.Or(fmt.Sprintf("%s LIKE ?", c.column), GetLikeExpr(q))
 					}
 					db = db.Where(subQuery)
 				}
@@ -2206,7 +2206,7 @@ func GetRawContainers(ctx context.Context, rdb *gorm.DB, queryOptions *RawContai
 			}
 		}
 		if len(queryOptions.columnQuery.column) > 0 && len(queryOptions.columnQuery.query) > 0 {
-			db = db.Where(fmt.Sprintf("%s LIKE ?", queryOptions.columnQuery.column), getLikeExpr(queryOptions.columnQuery.query))
+			db = db.Where(fmt.Sprintf("%s LIKE ?", queryOptions.columnQuery.column), GetLikeExpr(queryOptions.columnQuery.query))
 		}
 		if len(queryOptions.prefixColumnQuery.column) > 0 && len(queryOptions.prefixColumnQuery.query) > 0 {
 			db = db.Where(fmt.Sprintf("%s LIKE ?", queryOptions.prefixColumnQuery.column), fmt.Sprintf("%s%%", queryOptions.prefixColumnQuery.query))
@@ -2215,12 +2215,12 @@ func GetRawContainers(ctx context.Context, rdb *gorm.DB, queryOptions *RawContai
 			for _, c := range queryOptions.columnQueries {
 				if len(c.query) > 0 {
 					if len(c.query) == 1 {
-						db = db.Where(fmt.Sprintf("%s LIKE ?", c.column), getLikeExpr(c.query[0]))
+						db = db.Where(fmt.Sprintf("%s LIKE ?", c.column), GetLikeExpr(c.query[0]))
 						continue
 					}
-					subQuery := rdb.WithContext(oneCtx).Model(&model.TensorRawContainer{}).Where(fmt.Sprintf("%s LIKE ?", c.column), getLikeExpr(c.query[0]))
+					subQuery := rdb.WithContext(oneCtx).Model(&model.TensorRawContainer{}).Where(fmt.Sprintf("%s LIKE ?", c.column), GetLikeExpr(c.query[0]))
 					for _, q := range c.query[1:] {
-						subQuery = subQuery.Or(fmt.Sprintf("%s LIKE ?", c.column), getLikeExpr(q))
+						subQuery = subQuery.Or(fmt.Sprintf("%s LIKE ?", c.column), GetLikeExpr(q))
 					}
 					db = db.Where(subQuery)
 				}
@@ -2448,7 +2448,7 @@ func GetResourceApp(ctx context.Context, rdb *gorm.DB, query *AppQueryOption, of
 		}
 		if len(query.whereLikeCondition) > 0 {
 			for column, val := range query.whereLikeCondition {
-				db = db.Where(fmt.Sprintf("%s LIKE ?", column), getLikeExpr(val))
+				db = db.Where(fmt.Sprintf("%s LIKE ?", column), GetLikeExpr(val))
 			}
 		}
 		if limit > 0 && offset >= 0 {
@@ -2478,7 +2478,7 @@ func CountResourceApp(ctx context.Context, rdb *gorm.DB, query *AppQueryOption) 
 		}
 		if len(query.whereLikeCondition) > 0 {
 			for column, val := range query.whereLikeCondition {
-				db = db.Where(fmt.Sprintf("%s LIKE ?", column), getLikeExpr(val))
+				db = db.Where(fmt.Sprintf("%s LIKE ?", column), GetLikeExpr(val))
 			}
 		}
 		return db.Count(&count).Error

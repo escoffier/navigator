@@ -1,4 +1,4 @@
-##Rules that might be used
+##ignored Rules that might be used
 #- rule: Write below root
 #  desc: an attempt to write to any file directly below / or /root
 #  condition: >
@@ -152,7 +152,7 @@
 
 
 
-#macro_list
+##macros_lists
 - macro: open_write
   condition: evt.type in (open,openat,openat2) and evt.is_open_write=true and fd.typechar='f' and fd.num>=0
 
