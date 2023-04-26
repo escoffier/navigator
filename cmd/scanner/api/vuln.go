@@ -4,17 +4,17 @@ import (
 	"fmt"
 	"math"
 	"net/http"
-	"os"
 	"sort"
 	"strings"
 
 	"github.com/gin-gonic/gin"
+	"scm.tensorsecurity.cn/tensorsecurity-rd/trivy/pkg/report"
+
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
-	"scm.tensorsecurity.cn/tensorsecurity-rd/trivy/pkg/report"
 )
 
 type VulnAPISrv struct {
@@ -503,11 +503,6 @@ func convertVuln(vuln *model.Vuln) VulnResponse {
 		res.Class = report.ClassOSPkg
 	} else if util.ExistBit1(vuln.Flag, model.VulnFlagClassLangPkg) || vuln.Class == report.ClassLangPkg {
 		res.Class = report.ClassLangPkg
-	}
-	kernelVuln := os.Getenv("IDENTITY_KERNEL_VULN")
-	// 提供开关临时关闭内核漏洞的判断
-	if kernelVuln == consts.FalseString {
-		res.KernelVuln = false
 	}
 	return res
 }

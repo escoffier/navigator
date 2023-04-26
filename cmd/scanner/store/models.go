@@ -315,6 +315,7 @@ type SearchVulnParam struct {
 	SeverityInt     []int64
 	JustReturnCount bool
 	NotReturnCount  bool
+	IdentityKernel  string
 	StartID         int64
 	ClassType       []string
 	LayerSearch     *model.LayerSearch

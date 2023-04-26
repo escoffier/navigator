@@ -157,7 +157,9 @@ func (s *ImageExport) GetExcelData(ctx context.Context, imageID int64, vulnCol *
 	if !model.ExistFlag(baseImage.Flag, model.FlagBaseImage) {
 		res[GenImageTypeInfoMeta().SheetName] = GenAppOrBaseImageChan(data.BaseImages)
 	}
-	vulnCol.Add(int32(len(data.Vuln)))
+	if vulnCol != nil {
+		vulnCol.Add(int32(len(data.Vuln)))
+	}
 
 	logging.Get().Info().Int64("imageID", imageID).Int("vulnCount", len(data.Vuln)).Msg("GetExcelData GetImageDetail end")
 	return res, nil

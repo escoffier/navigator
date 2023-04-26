@@ -290,7 +290,8 @@ func (s *ExportCiImageHtmlSrv) GetImageVuln(ctx context.Context, param GetExport
 		}
 	}
 
-	logging.Get().Info().Int64("taskID", param.TaskID).Int("severity", param.Severity).Int64("imageID", param.ImageID).Msg("ExportCiImageHtmlSrv.GetImageVuln finished")
+	logging.Get().Info().Int64("taskID", param.TaskID).Int("severity", param.Severity).Int64("imageID", param.ImageID).Int("vulnCnt", len(res.Vulns)).
+		Msg("ExportCiImageHtmlSrv.GetImageVuln finished")
 	return res, nil
 }
 
