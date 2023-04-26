@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"gitlab.com/security-rd/go-pkg/logging"
 	"scm.tensorsecurity.cn/tensorsecurity-rd/trivy/pkg/report"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
@@ -194,11 +195,13 @@ func ConvertVuln(imageID int64, trivyRes report.Report) ([]*model.Vuln, []*model
 
 		for j := range trivyRes.Results[i].Packages {
 			pkg := trivyRes.Results[i].Packages[j]
+			logging.Get().Debug().Interface("pkg", pkg).Msg("VulnFlagKernel")
 			for k := range vus {
 				// 是否内核漏洞
-				if vus[k].PkgName == pkg.Name && vus[k].PkgVersion == pkg.Version && IsKernelPkg(pkg) {
-					vus[i].Flag = util.SetBit1(vus[i].Flag, model.VulnFlagKernel)
+				if vus[k].PkgName == pkg.Name && (vus[k].PkgVersion == pkg.Version || vus[k].PkgVersion == pkg.Version+"-"+pkg.Release) && IsKernelPkg(pkg) {
+					vus[k].Flag = util.SetBit1(vus[k].Flag, model.VulnFlagKernel)
 				}
+
 			}
 		}
 

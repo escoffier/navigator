@@ -107,7 +107,6 @@ func (s *ScanTaskExport) GenExcelDataChan(ctx context.Context, task model.Export
 			if err != nil {
 				logging.Get().Err(err).Int64("imageId", imageId).Msg("Export.GetExcelData")
 			} else {
-
 				logging.Get().Info().Int64("imageId", imageId).Msg("Export.GetExcelData")
 				for sheetName, dataChan := range data {
 					if excelData.ExcelData[sheetName] == nil {

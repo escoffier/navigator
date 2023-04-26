@@ -23,13 +23,14 @@ import (
 
 // 镜像列表搜索的安全报告
 type ExportLibImageHtmlSrv struct {
-	ImageSrv      common.ImageInterface
-	VulnDal       store.VulnDalInterface
-	ExportTaskDal store.ExportTaskDal
-	UpdateTask    common.UpdateExportTask
-	KoaAddr       string // 生成html的内部服务接口
-	FileDir       string // 文件存放的绝对路径
-	VulnClassType []string
+	ImageSrv       common.ImageInterface
+	VulnDal        store.VulnDalInterface
+	ExportTaskDal  store.ExportTaskDal
+	UpdateTask     common.UpdateExportTask
+	KoaAddr        string // 生成html的内部服务接口
+	FileDir        string // 文件存放的绝对路径
+	VulnClassType  []string
+	IdentityKernel string
 }
 
 func NewExportLibImageHtmlSrv(
@@ -40,14 +41,16 @@ func NewExportLibImageHtmlSrv(
 	fileDir string,
 	vulnClassType []string,
 ) *ExportLibImageHtmlSrv {
+
 	return &ExportLibImageHtmlSrv{
-		ImageSrv:      imageSrv,
-		VulnDal:       vulnDal,
-		ExportTaskDal: exportTaskDal,
-		UpdateTask:    updateTask,
-		FileDir:       fileDir,
-		KoaAddr:       consts.KoaAddr,
-		VulnClassType: vulnClassType,
+		ImageSrv:       imageSrv,
+		VulnDal:        vulnDal,
+		ExportTaskDal:  exportTaskDal,
+		UpdateTask:     updateTask,
+		FileDir:        fileDir,
+		KoaAddr:        consts.KoaAddr,
+		VulnClassType:  vulnClassType,
+		IdentityKernel: os.Getenv("IDENTITY_KERNEL_VULN"),
 	}
 }
 
@@ -128,11 +131,14 @@ func (s *ExportLibImageHtmlSrv) GetImages(ctx context.Context, taskID int64, sta
 			}
 
 			// 中移环境只统计系统漏洞,所以需要单独查询
-			vulns, _, err := s.VulnDal.SearchVuln(ctx, store.SearchVulnParam{
+			vulnParam := store.SearchVulnParam{
 				ClassType:      s.VulnClassType,
 				NotReturnCount: true,
-				ImageIds:       []int64{taskImages[i].ImageID}},
-				&model.Filter{SortFiled: "id", SortBy: consts.SortByAsc})
+				ImageIds:       []int64{taskImages[i].ImageID},
+				IdentityKernel: s.IdentityKernel,
+			}
+
+			vulns, _, err := s.VulnDal.SearchVuln(ctx, vulnParam, &model.Filter{SortFiled: "id", SortBy: consts.SortByAsc})
 			if err != nil {
 				logging.Get().Err(err).Int64("taskID", taskID).Int64("imageID", taskImages[i].ImageID).Msg("GetImageVuln SearchVuln")
 				return nil, err
@@ -182,6 +188,7 @@ func (s *ExportLibImageHtmlSrv) GetRiskOverView(ctx context.Context, taskID int6
 	if err := json.Unmarshal([]byte(overView[0].Data), risk); err != nil {
 		return nil, fmt.Errorf("GetRiskOverView:%d error: %s", taskID, err.Error())
 	}
+	logging.Get().Info().Int64("taskID", taskID).Interface("riskOverView", risk).Msg("ExportLibImageHtmlSrv.GetRiskOverView finished")
 
 	return risk, nil
 }
@@ -253,7 +260,7 @@ func (s *ExportLibImageHtmlSrv) GetExportVuln(ctx context.Context, param GetExpo
 	if param.TaskID <= 0 {
 		return nil, fmt.Errorf("GetExportVuln not get taskID:%d", param.TaskID)
 	}
-	logging.Get().Info().Int64("taskID", param.TaskID).Int("severity", param.Severity).
+	logging.Get().Debug().Int64("taskID", param.TaskID).Int("severity", param.Severity).
 		Str("canFixed", param.CanFixed).Int64("startID", param.StartID).Msg("ExportLibImageHtmlSrv.GetExportVuln start")
 
 	res := &VulnWithImageResponse{
@@ -286,6 +293,7 @@ func (s *ExportLibImageHtmlSrv) GetExportVuln(ctx context.Context, param GetExpo
 			UniqueVulns:    uniqueVulns,
 			ClassType:      s.VulnClassType,
 			NotReturnCount: true,
+			IdentityKernel: s.IdentityKernel,
 		}, nil)
 		if err != nil {
 			logging.Get().Err(err).Int64("taskID", param.TaskID).Msg("ExportLibImageHtmlSrv GetExportVuln SearchExportTaskImage")
@@ -301,7 +309,7 @@ func (s *ExportLibImageHtmlSrv) GetExportVuln(ctx context.Context, param GetExpo
 	}
 
 	logging.Get().Info().Int64("taskID", param.TaskID).Int("severity", param.Severity).
-		Str("canFixed", param.CanFixed).Int("vulns", len(res.Vulns)).
+		Str("canFixed", param.CanFixed).Int("vulnCnt", len(res.Vulns)).
 		Int64("startID", param.StartID).Bool("isEnd", res.End).Msg("ExportLibImageHtmlSrv.GetExportVuln finished")
 	return res, nil
 }
@@ -315,7 +323,7 @@ func (s *ExportLibImageHtmlSrv) GetImageVuln(ctx context.Context, param GetExpor
 	if param.ImageID <= 0 {
 		return nil, fmt.Errorf("GetExportVuln not get imageID:%d", param.ImageID)
 	}
-	logging.Get().Info().Int64("taskID", param.TaskID).Int64("imageID", param.ImageID).Int("severity", param.Severity).
+	logging.Get().Debug().Int64("taskID", param.TaskID).Int64("imageID", param.ImageID).Int("severity", param.Severity).
 		Msg("ExportLibImageHtmlSrv.GetImageVuln start")
 	res := &VulnWithImageResponse{
 		ImageID: param.ImageID,
@@ -323,11 +331,17 @@ func (s *ExportLibImageHtmlSrv) GetImageVuln(ctx context.Context, param GetExpor
 	}
 	count := 0
 	// 获取镜像的漏洞统计信息信息
-	vulns, _, err := s.VulnDal.SearchVuln(ctx, store.SearchVulnParam{StartID: param.StartID,
+
+	vulnParam := store.SearchVulnParam{
+		StartID:        param.StartID,
 		ClassType:      s.VulnClassType,
 		NotReturnCount: true,
-		ImageIds:       []int64{param.ImageID}, SeverityInt: []int64{int64(param.Severity)}},
-		&model.Filter{SortFiled: "id", SortBy: consts.SortByAsc})
+		ImageIds:       []int64{param.ImageID},
+		SeverityInt:    []int64{int64(param.Severity)},
+		IdentityKernel: s.IdentityKernel,
+	}
+
+	vulns, _, err := s.VulnDal.SearchVuln(ctx, vulnParam, &model.Filter{SortFiled: "id", SortBy: consts.SortByAsc})
 	if err != nil {
 		logging.Get().Err(err).Int64("taskID", param.TaskID).Int64("imageID", param.ImageID).Msg("GetImageVuln SearchVuln")
 		return nil, err
@@ -363,7 +377,8 @@ func (s *ExportLibImageHtmlSrv) GetImageVuln(ctx context.Context, param GetExpor
 		}
 	}
 
-	logging.Get().Info().Int64("taskID", param.StartID).Int("severity", param.Severity).Int64("startID", param.StartID).Msg("ExportLibImageHtmlSrv.GetImageVuln finished")
+	logging.Get().Info().Int64("taskID", param.TaskID).Int("severity", param.Severity).Int64("startID", param.StartID).Str("canFixed", param.CanFixed).
+		Int("vulnCnt", len(res.Vulns)).Bool("isEnd", res.End).Msg("ExportLibImageHtmlSrv.GetImageVuln finished")
 	return res, nil
 }
 
@@ -393,7 +408,10 @@ func (s *ExportLibImageHtmlSrv) GetImageRisk(ctx context.Context, taskID, imageI
 		logging.Get().Err(err).Int64("taskID", taskID).Int64("imageID", imageID).Msg("ExportLibImageHtmlSrv GetImageRisk SearchScanImage")
 		return nil, err
 	}
-	vuln, _, err := s.VulnDal.SearchVuln(ctx, store.SearchVulnParam{ImageIds: []int64{imageID}, ClassType: s.VulnClassType, NotReturnCount: true}, nil)
+
+	vulnParam := store.SearchVulnParam{ImageIds: []int64{imageID}, ClassType: s.VulnClassType, NotReturnCount: true, IdentityKernel: s.IdentityKernel}
+
+	vuln, _, err := s.VulnDal.SearchVuln(ctx, vulnParam, nil)
 	if err != nil {
 		logging.Get().Err(err).Int64("taskID", taskID).Int64("imageID", imageID).Msg("ExportLibImageHtmlSrv GetImageRisk SearchVuln")
 		return nil, err
@@ -410,7 +428,7 @@ func (s *ExportLibImageHtmlSrv) GetImageRisk(ctx context.Context, taskID, imageI
 	res.FixSuggestion = append(res.FixSuggestion, data.GenSensitiveFileSuggest(task[0].Lang)...)
 
 	_ = s.UpdateTask.IncrRedisFinished(ctx, model.ExportTensorTask{TaskType: model.ExportHtml, ID: taskID})
-	logging.Get().Info().Int64("taskID", taskID).Int64("imageID", imageID).Msg("ExportLibImageHtmlSrv.GetImageRisk finished")
+	logging.Get().Info().Int64("taskID", taskID).Int64("imageID", imageID).Interface("imageRisk", res).Msg("ExportLibImageHtmlSrv.GetImageRisk finished")
 	return res, nil
 }
 
@@ -627,6 +645,7 @@ func (s *ExportLibImageHtmlSrv) createVulnImage(ctx context.Context, taskID int6
 				ClassType:      s.VulnClassType,
 				OmitFields:     new(model.Vuln).DefaultOmitField(),
 				NotReturnCount: true,
+				IdentityKernel: s.IdentityKernel,
 				ImageIds:       []int64{exportImages[i].ImageID}}, nil)
 			if err != nil {
 				logging.Get().Err(err).Int64("taskID", taskID).

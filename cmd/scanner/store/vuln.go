@@ -6,11 +6,13 @@ import (
 	"strings"
 	"time"
 
+	"gitlab.com/security-rd/go-pkg/databases"
+	"gorm.io/gorm"
+
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
-	"gitlab.com/security-rd/go-pkg/databases"
-	"gorm.io/gorm"
+	"gitlab.com/piccolo_su/vegeta/pkg/util"
 )
 
 type VulnDalInterface interface {
@@ -120,7 +122,9 @@ func (v *VulnDao) SearchVuln(ctx context.Context, param SearchVulnParam, filter 
 	if param.Where != "" {
 		db = db.Where(param.Where)
 	}
-
+	if param.IdentityKernel == consts.FalseString {
+		db = db.Where("flag & ? = 0 ", util.SetBit1(0, model.VulnFlagKernel))
+	}
 	if param.OnlineImageVuln == consts.TrueString {
 		defer func() {
 			_ = db.Exec(consts.DropOnlineImageTempTableSql).Error
