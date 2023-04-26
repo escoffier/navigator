@@ -91,7 +91,7 @@ func (w *WebshellDao) CreateWebshellImage(ctx context.Context, imageID int64, we
 		webshells[k].UniqueID = webshells[k].GenUniqueVuln()
 		nowIds = append(nowIds, webshells[k].UniqueID)
 	}
-	inTable, _, err := w.SearchWebshellImage(ctx, SearchWebshellParam{UUIDS: nowIds}, model.Filter{})
+	inTable, _, err := w.SearchWebshellImage(ctx, SearchWebshellParam{UTarget: nowIds, ImageID: imageID}, model.Filter{})
 	if err != nil {
 		logging.GetLogger().Err(err).Msgf("search Webshell error")
 		return err
@@ -222,7 +222,7 @@ func (w *WebshellDao) SearchWebshellImage(ctx context.Context, params SearchWebs
 		db = db.Where("image_id = ?", params.ImageID)
 	}
 	if len(params.UTarget) > 0 {
-		db = db.Where("unique_target in ?", params.UUIDS)
+		db = db.Where("unique_target in ?", params.UTarget)
 	}
 	if len(params.UUIDS) > 0 {
 		db = db.Where("unique_id in ?", params.UUIDS)
