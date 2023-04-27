@@ -11,7 +11,7 @@ import (
 const (
 	AlertCategory         = "CIS"
 	AlertRuleName         = "CIS benchmark"
-	AlertCategoryTemplate = "CIS/%s"
+	AlertCategoryTemplate = "%s conf detect"
 )
 
 type Alert struct {
@@ -84,9 +84,9 @@ func (a *Alert) genPalaceSignalParams(arg *EventArg, category, name model.AlertK
 		"container.name": arg.ContainerName,
 		"nameSpace":      arg.Namespace,
 		"podName":        arg.PodName,
-		"checkResult":         arg.State,
-		"runCommand"	: arg.RunCommand,
-		"commandOutput"	: arg.CommandOutput,
+		"checkResult":    arg.State,
+		"runCommand":     arg.RunCommand,
+		"commandOutput":  arg.CommandOutput,
 	}
 
 	return ruleKey, scopes, signalContext
