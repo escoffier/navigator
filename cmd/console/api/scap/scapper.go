@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"math"
 	"time"
 
 	"github.com/shopspring/decimal"
@@ -177,9 +178,14 @@ func (h *host) FillScanNodeRecord(record *model.ScanNodeRecord) {
 	record.Warn = h.Controls.Warn
 	record.Info = h.Controls.Info
 	record.Fail = h.Controls.Fail
-	record.PassRate = decimal.NewFromFloat(
-		float64(record.Pass+record.Warn+record.Info) /
-			float64(record.Pass+record.Warn+record.Info+record.Fail))
+
+	passRate := float64(record.Pass+record.Warn+record.Info) /
+		float64(record.Pass+record.Warn+record.Info+record.Fail)
+	if math.NaN() != passRate {
+		record.PassRate = decimal.NewFromFloat(passRate)
+	} else {
+		record.PassRate = decimal.Zero
+	}
 }
 
 // Controls holds all controls to check for master nodes.
