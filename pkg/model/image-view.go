@@ -754,6 +754,7 @@ func CalculateSensitiveScore(ses []*ImageSensitiveFile) int64 {
 }
 
 func CalculateVulnScore(vulns []*Vuln) int64 {
+
 	constMapScore := map[string]int64{
 		SeverityCRITICALString: 25,
 		SeverityHIGHString:     20,
@@ -761,48 +762,21 @@ func CalculateVulnScore(vulns []*Vuln) int64 {
 		SeverityLOWString:      10,
 		SeverityUNKNOWNString:  5,
 	}
-
-	getScore := func(severity string, num int64) int64 {
-		if num == 0 {
-			return 0
-		}
-		return util.MinInt64(constMapScore[severity]*num, constMapScore[severity])
-	}
-	ret := GenSeverityHistogram(vulns)
 	var score int64
-
-	score += getScore(SeverityCRITICALString, ret.NumCritical)
-	score += getScore(SeverityHIGHString, ret.NumHigh)
-	score += getScore(SeverityMEDIUMString, ret.NumMedium)
-	score += getScore(SeverityLOWString, ret.NumLow)
-	score += getScore(SeverityUNKNOWNString, ret.NumUnknown)
+	exit := make(map[string]int64)
+	for _, vuln := range vulns {
+		sv := strings.ToUpper(vuln.Severity)
+		exit[sv] = constMapScore[sv]
+	}
+	for _, v := range exit {
+		score += v
+	}
 
 	if score > MaxVulnScore {
 		return MaxVulnScore
 	}
 
 	return score
-}
-
-func GenSeverityHistogram(vulns []*Vuln) SeverityHistogramInfo {
-	ret := SeverityHistogramInfo{}
-
-	for _, vuln := range vulns {
-		switch vuln.Severity {
-		case consts.SeverityCRITICALString:
-			ret.NumCritical++
-		case consts.SeverityHIGHString:
-			ret.NumHigh++
-		case consts.SeverityMEDIUMString:
-			ret.NumMedium++
-		case consts.SeverityLOWString:
-			ret.NumLow++
-		case consts.SeverityUNKNOWNString:
-			ret.NumUnknown++
-		}
-	}
-
-	return ret
 }
 
 type ImageContainerResources struct {
