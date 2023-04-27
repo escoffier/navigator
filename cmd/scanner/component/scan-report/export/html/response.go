@@ -150,6 +150,9 @@ func ModelToVulnDetail(vuln *model.Vuln) VulnDetail {
 	if len(vuln.Link) > 0 {
 		vd.Link = vuln.Link[0]
 	}
+	if vd.FixedBy == "" {
+		vd.FixSuggestion = ""
+	}
 
 	return vd
 }

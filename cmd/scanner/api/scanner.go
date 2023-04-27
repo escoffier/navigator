@@ -164,6 +164,9 @@ func (s *Scanner) ScannedByVulnDetails(ctx *gin.Context) {
 		res.VulninfoApi.Cnvd = vuln.Metadata.CNVDs
 		res.VulninfoApi.CNNVDs = vuln.Metadata.CNNVDs
 	}
+	if res.VulninfoApi.Fixedby == "" {
+		res.VulninfoApi.CNNVDs.FixSuggestion = ""
+	}
 
 	response.JSONOK(ctx, response.WithItem(res))
 }
