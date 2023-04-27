@@ -7,6 +7,7 @@ import (
 
 	"github.com/go-redis/redis/v8"
 	json "github.com/json-iterator/go"
+
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
@@ -62,12 +63,13 @@ func (ir *ImageVulnsReporter) LoadImageRiskLevels(ctx context.Context, images []
 			logging.GetLogger().WithContext(ctx).Errorf(err, "failed to get. ")
 			continue
 		}
-		var isum model.ImageVulnsSumData
+		var isum model.ImageSeverityScore
 		err = json.Unmarshal([]byte(res), &isum)
 		if err != nil {
 			logging.GetLogger().WithContext(ctx).Errorf(err, "failed to get. ")
 			continue
 		}
+		logging.GetLogger().Info().Interface("data", isum).Msg("UpdateRiskCacheEntry")
 		isumRes := getSeverityFrom(isum)
 		isumm, ok := imageSums[cmd.image]
 		if !ok {
@@ -79,20 +81,21 @@ func (ir *ImageVulnsReporter) LoadImageRiskLevels(ctx context.Context, images []
 	return imageSums, nil
 }
 
-func getSeverityFrom(isum model.ImageVulnsSumData) ResSumm {
+func getSeverityFrom(isum model.ImageSeverityScore) ResSumm {
+
 	res := ResSumm{}
-	if isum.CriticalNum > 0 {
+	if isum.RiskScore <= 60 {
 		res.severity = SeverityCritical
-	} else if isum.HighNum > 0 {
+	} else if isum.RiskScore > 60 && isum.RiskScore < 80 {
 		res.severity = SeverityHigh
-	} else if isum.MediumNum > 0 {
+	} else if isum.RiskScore > 80 && isum.RiskScore < 95 {
 		res.severity = SeverityMedium
-	} else if isum.LowNum > 0 {
-		res.severity = SeverityLow
-	} else {
+	} else if isum.RiskScore == 100 {
 		res.severity = SeverityUnknown
+	} else {
+		res.severity = SeverityLow
 	}
-	res.statsCount = isum.CriticalNum + isum.HighNum
+	// res.statsCount = isum.CriticalNum + isum.HighNum
 	return res
 }
 
