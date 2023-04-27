@@ -253,6 +253,7 @@ func (s *ScanResultHandle) logPostgresScanImageResult(ctx context.Context, scanD
 		logging.GetLogger().Err(err).Int64("imageID", tmpScanImage.ImageID).Msg("save scan result UpdateImageFlag")
 		return err
 	}
+
 	return nil
 }
 
@@ -475,12 +476,12 @@ func (s *ScanResultHandle) Run(ctx context.Context, param jobs.Param) (jobs.Arti
 			imageScanVulnResult = trivyReport
 		}
 	}
-	if imageName != "" {
-		if err := scanResultSaveSrv.UpdateRiskCacheEntry(ctx, fmt.Sprintf("riskexp-image-virus-%s", imageName),
-			model.SeverityHistogramInfo{NumCritical: int64(len(scanDetails.MaliciousDetails))}); err != nil {
-			logging.GetLogger().Err(err).Msg("UpdateRiskCacheEntry")
-		}
-	}
+	// if imageName != "" {
+	// 	if err := scanResultSaveSrv.UpdateRiskCacheEntry(ctx, fmt.Sprintf("riskexp-image-virus-%s", imageName),
+	// 		model.SeverityHistogramInfo{NumCritical: int64(len(scanDetails.MaliciousDetails))}); err != nil {
+	// 		logging.GetLogger().Err(err).Msg("UpdateRiskCacheEntry")
+	// 	}
+	// }
 
 	// 保存漏洞
 	if imageScanVulnResult != nil {
@@ -503,12 +504,6 @@ func (s *ScanResultHandle) Run(ctx context.Context, param jobs.Param) (jobs.Arti
 		// 更新os信息
 		if err := scanResultSaveSrv.UpdateImageOs(ctx, imageScanVulnResult.Metadata.OS, s.config.subtask.Image.ID); err != nil {
 			logging.GetLogger().Err(err).Msg("updateImageOs")
-		}
-		// 把漏洞统计写入redis，风险探索使用
-		if imageName != "" {
-			if err := scanResultSaveSrv.UpdateRiskCacheEntry(ctx, fmt.Sprintf("riskexp-image-vulns-%s", imageName), scanResultSaveSrv.GenSeverityHistogram(ctx, vulns)); err != nil {
-				logging.GetLogger().Err(err).Int64("imageID", imageID).Msg("UpdateRiskCacheEntry")
-			}
 		}
 
 		// 漏洞层级信息（原来的逻辑，暂时不删除）
@@ -624,6 +619,14 @@ func (s *ScanResultHandle) Run(ctx context.Context, param jobs.Param) (jobs.Arti
 
 	// 先写漏洞表和漏洞关联表，再写入ivan_scanner_scan_images和ivan_scanner_images_list表，防止镜像已打上有漏洞的标记，确查不出漏洞的情况
 	err = s.logPostgresScanImageResult(ctx, &scanDetails, s.config.subtask.Image.ID)
+
+	// 把漏洞统计写入redis，风险探索使用
+	if imageName != "" {
+		if err := scanResultSaveSrv.UpdateRiskCacheEntry(ctx, fmt.Sprintf("riskexp-image-vulns-%s", imageName), model.ImageSeverityScore{
+			RiskScore: int64(scanDetails.VulnScore + math.Min(40, scanDetails.MaliciousScore+scanDetails.WebShellScore) + scanDetails.SensitiveScore)}); err != nil {
+			logging.GetLogger().Err(err).Int64("imageID", imageID).Msg("UpdateRiskCacheEntry")
+		}
+	}
 
 	s.logPostgresWebFrame(ctx, param)
 

@@ -141,22 +141,16 @@ func (sv *ScanResultSave) UpdateImageOs(ctx context.Context, os *ftypes.OS, imag
 	return nil
 }
 
-func (sv *ScanResultSave) UpdateRiskCacheEntry(ctx context.Context, key string, severityHist model.SeverityHistogramInfo) error {
-
+func (sv *ScanResultSave) UpdateRiskCacheEntry(ctx context.Context, key string, da model.ImageSeverityScore) error {
 	data := model.ImageRiskOverRedis{
-		Key: key,
-		Data: model.ImageRiskOver{
-			CriticalNum: severityHist.NumCritical,
-			HighNum:     severityHist.NumHigh,
-			MediumNum:   severityHist.NumMedium,
-			LowNum:      severityHist.NumLow,
-			UnknownNum:  severityHist.NumUnknown,
-		},
+		Key:  key,
+		Data: da,
 	}
 	if err := sv.SetRedisData(ctx, data); err != nil {
 		logging.Get().Err(err).Msg("updateRiskVulnCacheEntry SetRedisData")
 		return err
 	}
+	logging.Get().Info().Interface("data", da).Msg("UpdateRiskCacheEntry")
 	return nil
 }
 

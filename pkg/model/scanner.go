@@ -222,6 +222,10 @@ type ImageVulnsSumData struct {
 	UnknownNum  int64 `json:"unknown_num"`
 }
 
+type ImageSeverityScore struct {
+	RiskScore int64 `json:"riskScore"`
+}
+
 type ImageRiskOver struct {
 	CriticalNum int64 `json:"critical_num"` // 只需写入这个字段，含有病毒的文件数量。
 	HighNum     int64 `json:"high_num"`
@@ -231,17 +235,17 @@ type ImageRiskOver struct {
 }
 
 type ImageRiskOverRedis struct {
-	Data ImageRiskOver `json:"data"`
-	Key  string        `json:"Key"`
+	Data ImageSeverityScore `json:"data"`
+	Key  string             `json:"Key"`
 }
 
 func (ir *ImageRiskOverRedis) Valid() bool {
-	if ir.Key == "" {
-		return false
-	}
-	if ir.Data.LowNum <= 0 && ir.Data.UnknownNum <= 0 && ir.Data.MediumNum <= 0 && ir.Data.HighNum <= 0 && ir.Data.CriticalNum <= 0 {
-		return false
-	}
+	// if ir.Key == "" {
+	// 	return false
+	// }
+	// if ir.Data.LowNum <= 0 && ir.Data.UnknownNum <= 0 && ir.Data.MediumNum <= 0 && ir.Data.HighNum <= 0 && ir.Data.CriticalNum <= 0 {
+	// 	return false
+	// }
 	return true
 }
 
