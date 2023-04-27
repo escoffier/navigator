@@ -37,7 +37,7 @@ func Init(scannerURL string, redisCli *redis.Client, sherlockClient *echelper.Sh
 		}
 		// add more reporters here
 		singleton.reporters = append(singleton.reporters, NewImageVulnsReporter(redisCli))
-		singleton.reporters = append(singleton.reporters, NewSignalReporter(sherlockClient))
+		singleton.reporters = append(singleton.reporters, NewEventReporter(sherlockClient))
 	})
 	return nil
 }
@@ -145,7 +145,7 @@ func (s *Service) WholeSummary(ctx context.Context, queryOpt *dal.ResContainersQ
 	if err != nil {
 		return nil, err
 	}
-	//TODO: may be removed later
+	// TODO: may be removed later
 	appType := queryOpt.WhereEqCondition["app_type"]
 	if appType == apptypeWeb {
 		delete(queryOpt.WhereEqCondition, "app_type")
