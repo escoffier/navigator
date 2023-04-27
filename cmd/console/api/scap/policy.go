@@ -237,7 +237,7 @@ func (a *ApiServer) PolicyDetail(w http.ResponseWriter, r *http.Request) {
 			Name:      policy.Name,
 			Operator:  policy.Operator,
 			CreatedAt: policy.CreatedAt.UnixMilli(),
-			UpdatedAt: policy.CreatedAt.UnixMilli(),
+			UpdatedAt: policy.UpdatedAt.UnixMilli(),
 			Comment:   policy.Comment,
 			IsDefault: policy.IsDefault,
 		},

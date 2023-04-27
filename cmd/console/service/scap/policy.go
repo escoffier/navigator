@@ -165,6 +165,8 @@ func (s *Service) PolicyDetail(ctx context.Context, policyId uint) (*model.ScapP
 	if !policy.IsDefault {
 		checks = make([]model.PolicyDetailInfo, 0, len(policy.RuleIds))
 		db = db.Where("id IN ?", policy.RuleIds)
+	} else if policy.Type == "host" {
+		db = db.Where("id >= 1000")
 	}
 
 	if err := db.Find(&checks).Error; err != nil {

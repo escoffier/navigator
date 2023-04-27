@@ -999,7 +999,8 @@ func jwtAccessCheck(db *databases.RDBInstance) func(http.Handler) http.Handler {
 				r.URL.Path == "/api/v2/platform/sherlock/palace/event/stats" ||
 				r.URL.Path == "/api/v2/platform/sherlock/hola/rules" ||
 				r.URL.Path == "/api/v2/containerSec/scanner/images/list" ||
-				r.URL.Path == "/api/v2/containerSec/scanner/images/detail/riskInfo" {
+				r.URL.Path == "/api/v2/containerSec/scanner/images/detail/riskInfo" ||
+				r.URL.Path == "/api/v2/platform/sherlock/palace/attck/matrix" {
 				next.ServeHTTP(w, r.WithContext(ctx))
 				return
 			}
