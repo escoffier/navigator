@@ -766,7 +766,7 @@ func CalculateVulnScore(vulns []*Vuln) int64 {
 		if num == 0 {
 			return 0
 		}
-		return util.MaxInt64(constMapScore[severity]*num, constMapScore[severity])
+		return util.MinInt64(constMapScore[severity]*num, constMapScore[severity])
 	}
 	ret := GenSeverityHistogram(vulns)
 	var score int64

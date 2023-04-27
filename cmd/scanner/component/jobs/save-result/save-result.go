@@ -623,7 +623,7 @@ func (s *ScanResultHandle) Run(ctx context.Context, param jobs.Param) (jobs.Arti
 	// 把漏洞统计写入redis，风险探索使用
 	if imageName != "" {
 		if err := scanResultSaveSrv.UpdateRiskCacheEntry(ctx, fmt.Sprintf("riskexp-image-vulns-%s", imageName), model.ImageSeverityScore{
-			RiskScore: int64(scanDetails.VulnScore + math.Min(40, scanDetails.MaliciousScore+scanDetails.WebShellScore) + scanDetails.SensitiveScore)}); err != nil {
+			RiskScore: 100 - (int64(scanDetails.VulnScore + math.Min(40, scanDetails.MaliciousScore+scanDetails.WebShellScore) + scanDetails.SensitiveScore))}); err != nil {
 			logging.GetLogger().Err(err).Int64("imageID", imageID).Msg("UpdateRiskCacheEntry")
 		}
 	}
