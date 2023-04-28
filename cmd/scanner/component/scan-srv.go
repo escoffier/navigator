@@ -2910,13 +2910,28 @@ func (s *ConScannerSrv) UpdateScanTaskStatus(ctx context.Context, groupID int64,
 		return fmt.Errorf("invailed status enum: %d", status)
 	}
 
-	taskIds, err := s.dbdal.UpdateTaskStatus(ctx, groupID, status)
+	distinctTask, _, err := s.dbdal.GetTaskList(ctx, store.SearchTaskParam{GroupID: groupID}, nil)
 	if err != nil {
-		logging.GetLogger().Err(err).
-			Int64("groupID", groupID).
-			Uint8("status", status).
-			Msg("update task status err")
-		return errors.Wrapf(err, "更新任务%d的状态为%d失败", groupID, status)
+		logging.GetLogger().Err(err).Msg("UpdateScanTaskStatus GetTaskList")
+		return err
+	}
+	taskIds := make([]int64, 0)
+	for i := range distinctTask {
+		if !StatusCanUpdate(int64(distinctTask[i].Status), int64(status)) {
+			logging.GetLogger().Info().Int64("taskID", distinctTask[i].ID).Int("preStatus", distinctTask[i].Status).
+				Uint8("nowStatus", status).Msg("UpdateScanTaskStatus not update")
+			continue
+		}
+		taskIds = append(taskIds, distinctTask[i].ID)
+		_, err := s.dbdal.UpdateTaskStatus(ctx, distinctTask[i].ID, status)
+		if err != nil {
+			logging.GetLogger().Err(err).
+				Int64("taskID", distinctTask[i].ID).
+				Int64("groupID", groupID).
+				Uint8("status", status).
+				Msg("update task status err")
+			return errors.Wrapf(err, "更新任务%d的状态为%d失败", groupID, status)
+		}
 	}
 
 	if status == consts.Terminate {
@@ -3424,4 +3439,20 @@ func DuplicateSensitive(data []model.Sensitive) []model.Sensitive {
 		}
 	}
 	return after
+}
+
+func StatusCanUpdate(pre, now int64) bool {
+	if now == consts.Terminate || now == consts.Pause {
+		if util.ExistInInt64Slice([]int64{consts.Terminate, consts.End}, pre) {
+			return false
+		}
+		return true
+	}
+	if now == consts.Pending {
+		if util.ExistInInt64Slice([]int64{consts.Terminate, consts.End, consts.InProgress}, pre) {
+			return false
+		}
+		return true
+	}
+	return true
 }
