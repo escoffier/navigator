@@ -8,6 +8,7 @@ import (
 	"math/rand"
 	"net/http"
 	"os"
+	"path"
 	"strings"
 	"sync"
 	"time"
@@ -591,6 +592,19 @@ func (s *ScapService) GetScanResultToFile(task *model.ExportTask) error {
 	file := xlsx.NewFile()
 	// save data
 	defer func() {
+		dir := path.Dir(task.FileName)
+		isExist, err := os.Stat(dir)
+		if isExist == nil {
+			if err != nil {
+				logging.Get().Warn().Msgf("os.Stat(dir) failed %v", err)
+			}
+
+			if err = os.MkdirAll(dir, os.ModePerm); err != nil {
+				logging.Get().Error().Msgf("os.Mkdir(dir, os.ModePerm) failed %v", err)
+				return
+			}
+		}
+
 		err = file.Save(task.FileName)
 		if err != nil {
 			logging.Get().Error().Msgf("save xlsx file failed, %v", err)
