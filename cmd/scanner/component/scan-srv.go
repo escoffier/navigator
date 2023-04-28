@@ -2806,24 +2806,25 @@ func (s *ConScannerSrv) GetScanTaskList(ctx context.Context, filter *model.Filte
 	}
 	filter.SortFiled = "group_id"
 	filter.SortBy = consts.SortByDesc
-	// distinct后分页不起作用，在程序中分页
 	distinctTask, cnt, err := s.dbdal.GetTaskList(ctx, store.SearchTaskParam{DistinctFiled: "group_id"}, &model.Filter{
 		SortBy:    consts.SortByDesc,
 		SortFiled: "group_id",
+		Limit:     filter.Limit,
+		Offset:    filter.Offset,
 	})
 	if err != nil {
 		logging.GetLogger().Err(err).Msg("GetScanTaskList GroupTaskByGroupID")
 		return nil, 0, err
 	}
-	// 分页
-	start := int(filter.Offset)
-	end := int(filter.Offset + filter.Limit)
-
-	if len(distinctTask) <= start {
-		return res, cnt, nil
-	} else {
-		distinctTask = distinctTask[start:util.MinInt(end, len(distinctTask))]
-	}
+	// // 分页
+	// start := int(filter.Offset)
+	// end := int(filter.Offset + filter.Limit)
+	//
+	// if len(distinctTask) <= start {
+	// 	return res, cnt, nil
+	// } else {
+	// 	distinctTask = distinctTask[start:util.MinInt(end, len(distinctTask))]
+	// }
 
 	// 获取策略名字
 	strategy, _, err := s.scanConfigDal.SearchStrategy(ctx, store.SearchStrategyParam{GetDeleted: true}, nil)
@@ -3373,30 +3374,23 @@ func GetErrMsgEnu(errNo int) string {
 }
 
 func GetTaskStatus(list []model.Task) int {
-
-	// 任务组里面的任务全部完成--状态为完成；全部任务为等待中--状态为等待中；全部任务为暂停或终止--状态为暂停或者终止；其他情况为执行中
-	// 然后按位统计全部任务情况
-	// 完成+已终止 = 已终止
-	var status uint64
-
+	end := true
 	for i := range list {
-		status = util.SetBit1(status, uint64(list[i].Status))
+		switch list[i].Status {
+		case consts.Pause:
+			return consts.Pause
+		case consts.Terminate:
+			return consts.Terminate
+		case consts.InProgress:
+			return consts.InProgress
+		case consts.Pending:
+			end = false
+		}
 	}
-
-	switch status {
-
-	case uint64(1 << consts.End):
+	if end {
 		return consts.End
-	case uint64(1 << consts.Pause):
-		return consts.Pause
-	case uint64(1 << consts.Terminate), util.SetBit1(util.SetBit1(0, consts.End), consts.Terminate):
-		return consts.Terminate
-	case uint64(1 << consts.Pending):
-		return consts.Pending
-
-	default:
-		return consts.InProgress
 	}
+	return consts.Pending
 }
 
 func GetScanTime(list []model.Task) (*time.Time, *time.Time) {
