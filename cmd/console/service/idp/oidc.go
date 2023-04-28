@@ -42,7 +42,7 @@ type discoveryConf struct {
 }
 
 func NewOidcProvider(discoveryEndpoint, clientID, secretKey, scopes string, enabled bool, redisClient *redis.Client) (*OidcProvider, error) {
-	if clientID == "" || secretKey == "" {
+	if enabled && (clientID == "" || secretKey == "") {
 		return nil, fmt.Errorf("clientID or secretKey is empty")
 	}
 	if scopes == "" {
