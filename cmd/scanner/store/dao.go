@@ -10,16 +10,17 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
+	"gitlab.com/security-rd/go-pkg/databases"
+	"go.mongodb.org/mongo-driver/bson/primitive"
+	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
+
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/global"
 	"gitlab.com/piccolo_su/vegeta/pkg/harbor"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
-	"gitlab.com/security-rd/go-pkg/databases"
-	"go.mongodb.org/mongo-driver/bson/primitive"
-	"gorm.io/gorm"
-	"gorm.io/gorm/clause"
 )
 
 type ScannerDalInterface interface {
@@ -1678,7 +1679,7 @@ func (s *ScannerOrm) CreateTasks(ctx context.Context, tasks ...model.Task) error
 	return s.rdb.Get().Model(model.Task{}).CreateInBatches(tasks, 100).Error
 }
 
-func (s *ScannerOrm) UpdateTaskStatus(ctx context.Context, groupID int64, status uint8) ([]int64, error) {
+func (s *ScannerOrm) UpdateTaskStatus(ctx context.Context, taskID int64, status uint8) ([]int64, error) {
 	data := make([]model.Task, 0)
 	begin := s.rdb.Get().WithContext(ctx).Begin()
 	var err error
@@ -1689,7 +1690,7 @@ func (s *ScannerOrm) UpdateTaskStatus(ctx context.Context, groupID int64, status
 		}
 	}()
 
-	err = begin.Model(data).Clauses(clause.Locking{Strength: "UPDATE"}).Where("group_id = ?", groupID).Find(&data).Error
+	err = begin.Model(data).Clauses(clause.Locking{Strength: "UPDATE"}).Where("id = ?", taskID).Find(&data).Error
 	if err != nil {
 		return nil, err
 	}
@@ -1699,7 +1700,7 @@ func (s *ScannerOrm) UpdateTaskStatus(ctx context.Context, groupID int64, status
 		if err = StatusCheck(uint8(data[i].Status), status); err == nil {
 			taskIds = append(taskIds, data[i].ID)
 		} else {
-			logging.GetLogger().Info().Int64("taskID", data[i].ID).Int64("groupID", groupID).Msg("UpdateTaskStatus StatusCheck")
+			logging.GetLogger().Info().Int64("taskID", data[i].ID).Int64("taskID", taskID).Msg("UpdateTaskStatus StatusCheck")
 		}
 	}
 	if len(taskIds) == 0 {
