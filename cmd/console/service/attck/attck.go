@@ -120,6 +120,7 @@ func parseFalcoRule(item model.RuleFromYaml) (isStrict bool, target ruleItem, er
 		ruleType = "Other"
 	}
 	ruleTypeZh := model.TranslateRuleType(ruleType)
+	ruleTypeEn := model.TranslateENRuleType(ruleType)
 	descZh := ""
 	zhMsg, err := model.GetInfoFromOutput("zh_msg=", item.Output)
 	if err != nil {
@@ -137,7 +138,7 @@ func parseFalcoRule(item model.RuleFromYaml) (isStrict bool, target ruleItem, er
 	tsAdapter[string(lang.LanguageZH)][typeKey] = ruleTypeZh
 	tsAdapter[string(lang.LanguageZH)][descriptionKey] = descZh
 	tsAdapter[string(lang.LanguageEN)] = make(map[string]string, 2)
-	tsAdapter[string(lang.LanguageEN)][typeKey] = ruleType
+	tsAdapter[string(lang.LanguageEN)][typeKey] = ruleTypeEn
 	tsAdapter[string(lang.LanguageEN)][descriptionKey] = item.Desc
 
 	// for the prevention of ambiguity, we have "_" instead of " "(space). This is for the recovery
@@ -214,7 +215,7 @@ func parseMozartRule(configMozart model.ConfigMozart, mozartMarco []model.Config
 		tsAdapter[string(lang.LanguageZH)][typeKey] = model.TranslateRuleType(configMozart.Info.RuleType)
 		tsAdapter[string(lang.LanguageZH)][descriptionKey] = iDescZh.(string)
 		tsAdapter[string(lang.LanguageEN)] = make(map[string]string, 2)
-		tsAdapter[string(lang.LanguageEN)][typeKey] = configMozart.Info.RuleType
+		tsAdapter[string(lang.LanguageEN)][typeKey] = model.TranslateENRuleType(configMozart.Info.RuleType)
 		tsAdapter[string(lang.LanguageEN)][descriptionKey] = iDescEn.(string)
 
 		mozartRules = append(mozartRules, mozartRuleItem{

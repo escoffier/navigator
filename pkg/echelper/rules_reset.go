@@ -65,6 +65,7 @@ func SendRulesToEventCenter(ctx context.Context, cli *SherlockClient, rulesData 
 		var priority string
 		var ruleType string
 		var ruleTypeZh string
+		var ruleTypeEn string
 		var hid string
 		var hthreats uint8
 		var suggestion map[string]*model.KV
@@ -127,6 +128,7 @@ func SendRulesToEventCenter(ctx context.Context, cli *SherlockClient, rulesData 
 					priority = item.Mozart[i].Info.Priority
 					ruleType = item.Mozart[i].Info.RuleType
 					ruleTypeZh = model.TranslateRuleType(ruleType)
+					ruleTypeEn = model.TranslateENRuleType(ruleType)
 					if item.Mozart[i].Info.Urgency {
 						hthreats = 1
 					}
@@ -141,7 +143,7 @@ func SendRulesToEventCenter(ctx context.Context, cli *SherlockClient, rulesData 
 						},
 					}
 					// 增加mozart规则
-					rule = generateRule(category, categoryZh, iRuleEnName.(string), iDescEn.(string), iDescZh.(string), priority, ruleType, ruleTypeZh, hid, hthreats, suggestion)
+					rule = generateRule(category, categoryZh, iRuleEnName.(string), iDescEn.(string), iDescZh.(string), priority, ruleTypeEn, ruleTypeZh, hid, hthreats, suggestion)
 					rules[rule.Category] = append(rules[rule.Category], rule)
 				}
 
@@ -154,6 +156,7 @@ func SendRulesToEventCenter(ctx context.Context, cli *SherlockClient, rulesData 
 			ruleType = "Other"
 		}
 		ruleTypeZh = model.TranslateRuleType(ruleType)
+		ruleTypeEn = model.TranslateENRuleType(ruleType)
 		descriptionZh = ""
 		zhMsg, err := model.GetInfoFromOutput("zh_msg=", item.Output)
 		if err != nil {
@@ -175,7 +178,7 @@ func SendRulesToEventCenter(ctx context.Context, cli *SherlockClient, rulesData 
 		suggestion = item.Suggestion
 		hthreats = item.Hthreats
 
-		rule = generateRule(category, categoryZh, ruleName, descriptionEn, descriptionZh, priority, ruleType, ruleTypeZh, hid, hthreats, suggestion)
+		rule = generateRule(category, categoryZh, ruleName, descriptionEn, descriptionZh, priority, ruleTypeEn, ruleTypeZh, hid, hthreats, suggestion)
 		rules[rule.Category] = append(rules[rule.Category], rule)
 	}
 
@@ -189,7 +192,7 @@ func SendRulesToEventCenter(ctx context.Context, cli *SherlockClient, rulesData 
 	return nil
 }
 
-func generateRule(category, categoryZh, name, description, descriptionZh, priority, ruleType, ruleTypeZh, hid string, hthreats uint8, suggestion map[string]*model.KV) *pb.DetectionRule {
+func generateRule(category, categoryZh, name, description, descriptionZh, priority, ruleTypeEn, ruleTypeZh, hid string, hthreats uint8, suggestion map[string]*model.KV) *pb.DetectionRule {
 	var rule = &pb.DetectionRule{
 		Module:      module,
 		Category:    category,
@@ -199,7 +202,7 @@ func generateRule(category, categoryZh, name, description, descriptionZh, priori
 		CustomKV: []*pb.MultiLanguageKV{
 			{
 				KVHash: map[string]*pb.KV{
-					string(lang.LanguageEN): {Key: "ruleType", Value: ruleType},
+					string(lang.LanguageEN): {Key: "ruleType", Value: ruleTypeEn},
 					string(lang.LanguageZH): {Key: "规则类型", Value: ruleTypeZh},
 				},
 			},
