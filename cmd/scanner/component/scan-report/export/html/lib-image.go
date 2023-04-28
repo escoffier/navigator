@@ -199,8 +199,8 @@ func (s *ExportLibImageHtmlSrv) GetVirus(ctx context.Context, taskID int64) ([]V
 	var startID int64
 	res := make([]VirusInfo, 0)
 
-	virusMap := make(map[int64]*model.ImageVirus)
-	virusToImage := make(map[int64][]string)
+	virusMap := make(map[uint64]*model.ImageVirus)
+	virusToImage := make(map[uint64][]string)
 	// 查镜像信息 批量查询
 	for {
 		// 分批获取镜像
@@ -225,11 +225,12 @@ func (s *ExportLibImageHtmlSrv) GetVirus(ctx context.Context, taskID int64) ([]V
 			for k := range image.Virus {
 
 				vir := image.Virus[k]
-				virusMap[vir.ID] = vir
-				if virusToImage[vir.ID] == nil {
-					virusToImage[vir.ID] = make([]string, 0)
+				vir.UniqueID = vir.GenUniqueID()
+				virusMap[vir.UniqueID] = vir
+				if virusToImage[vir.UniqueID] == nil {
+					virusToImage[vir.UniqueID] = make([]string, 0)
 				}
-				virusToImage[vir.ID] = append(virusToImage[vir.ID], image.ImageBaseResponse.GetImageName())
+				virusToImage[vir.UniqueID] = append(virusToImage[vir.UniqueID], image.ImageBaseResponse.GetImageName())
 			}
 		}
 	}
