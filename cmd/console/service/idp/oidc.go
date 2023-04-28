@@ -58,27 +58,30 @@ func NewOidcProvider(discoveryEndpoint, clientID, secretKey, scopes string, enab
 		scopes:            scopes,
 	}
 
-	body, err := requestWithData(http.MethodGet, discoveryEndpoint, nil, nil)
-	if err != nil {
-		return nil, err
+	if enabled {
+		body, err := requestWithData(http.MethodGet, discoveryEndpoint, nil, nil)
+		if err != nil {
+			return nil, err
+		}
+
+		conf := discoveryConf{}
+		if err = json.Unmarshal(body, &conf); err != nil {
+			return nil, err
+		}
+
+		if conf.AuthorizationEndpoint == "" ||
+			conf.TokenEndpoint == "" ||
+			conf.UserinfoEndpoint == "" {
+			return nil, fmt.Errorf("oidc provider metadata url params error: %v", conf)
+		}
+
+		p.authorizationEndpoint = conf.AuthorizationEndpoint
+		p.tokenEndpoint = conf.TokenEndpoint
+		p.userinfoEndpoint = conf.UserinfoEndpoint
+		p.endSessionEndpoint = conf.EndSessionEndpoint
+		p.issuer = conf.Issuer
 	}
 
-	conf := discoveryConf{}
-	if err = json.Unmarshal(body, &conf); err != nil {
-		return nil, err
-	}
-
-	if conf.AuthorizationEndpoint == "" ||
-		conf.TokenEndpoint == "" ||
-		conf.UserinfoEndpoint == "" {
-		return nil, fmt.Errorf("oidc provider metadata url params error: %v", conf)
-	}
-
-	p.authorizationEndpoint = conf.AuthorizationEndpoint
-	p.tokenEndpoint = conf.TokenEndpoint
-	p.userinfoEndpoint = conf.UserinfoEndpoint
-	p.endSessionEndpoint = conf.EndSessionEndpoint
-	p.issuer = conf.Issuer
 	return p, nil
 }
 
@@ -132,7 +135,6 @@ func (p OidcProvider) GetUserInfo(ctx context.Context, raw json.RawMessage) (*Id
 	auth := p.clientID + ":" + p.secretKey
 	headers["Authorization"] = "Basic " + base64.StdEncoding.EncodeToString([]byte(auth))
 
-	//return nil, errors.New("owen")
 	tokenBody, err := requestWithData(http.MethodPost, p.tokenEndpoint, headers, strings.NewReader(body))
 	if err != nil {
 		return nil, err
