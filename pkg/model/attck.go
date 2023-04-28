@@ -228,6 +228,29 @@ func TranslateRuleType(in string) string {
 	return retStr
 }
 
+func TranslateENRuleType(in string) string {
+	retStr := in
+	switch in {
+	case "Execution":
+		return "Execution"
+	case "Privilege_Escalation":
+		return "Privilege Escalation"
+	case "Persistence":
+		return "Persistence"
+	case "Discovery":
+		return "Discovery"
+	case "Credential_Access":
+		return "Credential Access"
+	case "Defense_Evasion":
+		return "Defense Evasion"
+	case "Exfiltration":
+		return "Exfiltration"
+	case "Lateral_Movement":
+		return "Lateral Movement"
+	}
+	return retStr
+}
+
 type CconfigStatus int
 
 const (
