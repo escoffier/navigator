@@ -513,9 +513,8 @@ func (s *ScanResultHandle) Run(ctx context.Context, param jobs.Param) (jobs.Arti
 			}
 			layerMp[vulnImages[i].LayerDigest].Vulns = append(layerMp[vulnImages[i].LayerDigest].Vulns, vulnImages[i].UniqueVuln)
 		}
-
 		// scanImage数据，以供保存（原来的逻辑，暂时不删除）
-		scanDetails.VulnScore = scanResultSaveSrv.GenVulnScore(ctx, vulns)
+		scanDetails.VulnScore = float64(model.CalculateVulnScore(vulns))
 		scanDetails.SeverityHistogram = scanResultSaveSrv.GenSeverityHistogram(ctx, vulns)
 	}
 
