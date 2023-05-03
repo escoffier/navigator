@@ -10,7 +10,6 @@ import (
 	"sort"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/avast/retry-go"
@@ -20,6 +19,7 @@ import (
 	json "github.com/json-iterator/go"
 	"gitlab.com/piccolo_su/vegeta/pkg/dal"
 	"gitlab.com/piccolo_su/vegeta/pkg/echelper"
+	"gitlab.com/piccolo_su/vegeta/pkg/holmes"
 	"gitlab.com/piccolo_su/vegeta/pkg/lang"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/mozartcommon"
@@ -32,10 +32,17 @@ import (
 	"gorm.io/gorm"
 )
 
+type updateConfigTrigger uint8
+
 const (
 	currentRulesVersion = 2
 	minPocVersion       = 2
 	localRulesDirPath   = "/rules"
+
+	updateTriggerInit                 updateConfigTrigger = 0
+	updateTriggerCustomConfigsPending updateConfigTrigger = 1
+	updateTriggerRulesUpdated         updateConfigTrigger = 2
+	updateTriggerSwitchUpdated        updateConfigTrigger = 3
 )
 
 var (
@@ -46,13 +53,12 @@ var (
 type ATTCKHandler struct {
 	db             *databases.RDBInstance
 	sherlockClient *echelper.SherlockClient
+	rulesManager   *RulesManager
+	isPOCEnabled   bool
 
-	cacheLock        sync.RWMutex
-	rules            map[uint16]*attckRules
-	rs               *redsync.Redsync
-	displayedPocTags map[string]struct{}
-	pocTagsChecked   []*atomic.Bool
-	rulesStorePtr    *atomic.Pointer[RulesStore]
+	cacheLock sync.RWMutex
+	rules     map[uint16]*attckRules
+	rs        *redsync.Redsync
 }
 
 type attckRules struct {
@@ -60,8 +66,8 @@ type attckRules struct {
 	items          map[string]*ruleItem
 	sortedItems    []*ruleItem
 	cacheLock      sync.RWMutex
-	baseOffset     uint32
-	onlineOffset   uint32
+	baseOffset     uint64
+	onlineOffset   uint64
 }
 
 type ruleItem struct {
@@ -235,27 +241,47 @@ func parseMozartRule(configMozart model.ConfigMozart, mozartMarco []model.Config
 	return mozartRules, nil
 }
 
-func NewATTCKHandler(db *databases.RDBInstance, redisCli *redis.Client, sherlockClient *echelper.SherlockClient) (*ATTCKHandler, error) {
-	displayedPocTagsStr := os.Getenv("DP_TAGS")
-	handler := &ATTCKHandler{
-		db:               db,
-		sherlockClient:   sherlockClient,
-		rules:            make(map[uint16]*attckRules, 0),
-		rs:               redsync.New(goredis.NewPool(redisCli)),
-		displayedPocTags: ReadFromConfig(displayedPocTagsStr),
-		pocTagsChecked:   make([]*atomic.Bool, currentRulesVersion-minPocVersion+1),
-		rulesStorePtr:    new(atomic.Pointer[RulesStore]),
+func encode(ctx context.Context, before RawData) ([]byte, error) {
+	encodedBytes, err := holmes.ToThrBytes(before.Data, before.Version)
+	if err != nil {
+		return nil, err
 	}
-	for i := 0; i < currentRulesVersion-minPocVersion+1; i++ {
-		handler.pocTagsChecked[i] = new(atomic.Bool)
-		handler.pocTagsChecked[i].Store(false)
+	dst := make([]byte, base64.StdEncoding.EncodedLen(len(encodedBytes)))
+	base64.StdEncoding.Encode(dst, encodedBytes)
+	return dst, nil
+}
+func decode(ctx context.Context, before []byte) (RawData, error) {
+	header, decoded, _, err := cryption.ReadRulesData(before)
+	if err != nil {
+		return RawData{}, err
+	}
+	return RawData{
+		Data:    decoded,
+		Version: header.Version,
+	}, nil
+}
+
+func NewATTCKHandler(db *databases.RDBInstance, redisCli *redis.Client, sherlockClient *echelper.SherlockClient) (*ATTCKHandler, error) {
+	builder := NewManagerBuilder(db)
+	builder.SetEncoder(encode)
+	if ipErr := builder.InitPlugins(); ipErr != nil {
+		logging.Get().Err(ipErr).Msg("init plugins error")
+		return nil, ipErr
+	}
+	handler := &ATTCKHandler{
+		db:             db,
+		sherlockClient: sherlockClient,
+		rulesManager:   builder.Build(),
+		rules:          make(map[uint16]*attckRules, 0),
+		rs:             redsync.New(goredis.NewPool(redisCli)),
+		isPOCEnabled:   len(os.Getenv(EnvKeyDPTags)) > 0,
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 
 	for i := 1; i <= currentRulesVersion; i++ {
-		err := handler.updateConfigs(ctx, uint16(i), false)
+		err := handler.updateConfigs(ctx, uint16(i), updateTriggerInit)
 		if err != nil {
 			return nil, err
 		}
@@ -281,12 +307,7 @@ func (h *ATTCKHandler) loadFromLocal(ctx context.Context, v uint16) ([]byte, err
 }
 
 func (h *ATTCKHandler) GetRuleInfo(ctx context.Context, ruleKey string) (*HolmesRule, bool) {
-	infoStore := h.rulesStorePtr.Load()
-	if infoStore == nil {
-		logging.Get().Warn().Msg("info store is nil")
-		return nil, false
-	}
-	return infoStore.GetRule(ctx, ruleKey)
+	return h.rulesManager.getRule(ctx, ruleKey)
 }
 func (h *ATTCKHandler) parseItems(header cryption.FileHeader, rulesContext []byte) (version RulesVersion, rules map[string]*ruleItem, strictRules map[string]struct{}, err error) {
 	version = RulesVersion{
@@ -473,49 +494,11 @@ type InitConfig struct {
 	Effect        string        `json:"effect"`
 }
 
-func (h *ATTCKHandler) initCconfigs(ctx context.Context, iconfs []*CconfigInitConfig, store *RulesStore) error {
-	for _, iconf := range iconfs {
-		for _, steps := range iconf.RulesAppliedSteps {
-			if len(steps) == 0 {
-				logging.Get().Warn().Msg("steps exception")
-				continue
-			}
-			r, exist := store.GetRule(ctx, steps[0])
-
-			rcat := ""
-			if exist {
-				rcat = r.Category[string(lang.LanguageEN)]
-			}
-
-			m := model.AttckCustomConfig{
-				RuleKey:      steps[0],
-				RuleCategory: rcat,
-				CconfigKey:   iconf.Key,
-				CconfigValue: "",
-				Creator:      "system",
-				CreatedAt:    time.Now().Unix(),
-				Updater:      "system",
-				UpdatedAt:    time.Now().Unix(),
-				Status:       model.StatusDeleted,
-			}
-			_, err := dal.CreateCustomConfig(context.Background(), h.db.Get(), &m)
-			if err != nil {
-				logging.Get().Err(err).Interface("data", m).Msg("create error")
-				return err
-			}
-		}
-
-	}
-	return nil
-}
-
 func (h *ATTCKHandler) GetCustomInitConfig(ctx context.Context, language string) ([]*InitConfig, error) {
-	store := h.rulesStorePtr.Load()
-	if store == nil {
-		logging.Get().Warn().Msg("no store")
-		return nil, nil
+	initConfigs, exist := h.rulesManager.getCustomInitConfigs(ctx)
+	if !exist {
+		return nil, errors.New("init configs not exist")
 	}
-	initConfigs := store.GetCconfigInitConfigs()
 	iconfs := make([]*InitConfig, 0, len(initConfigs))
 	for _, initConfig := range initConfigs {
 		for _, steps := range initConfig.RulesAppliedSteps {
@@ -527,7 +510,7 @@ func (h *ATTCKHandler) GetCustomInitConfig(ctx context.Context, language string)
 			iconf.CustomSetting.Name = initConfig.Name[language]
 			iconf.CustomSetting.Type = initConfig.Type
 			iconf.Rule.Key = steps[0]
-			rinfo, exist := store.GetRule(ctx, steps[0])
+			rinfo, exist := h.GetRuleInfo(ctx, steps[0])
 			if !exist {
 				logging.Get().Error().Str("ruleKey", steps[0]).Msg("cannot find the rule from store")
 				continue
@@ -570,8 +553,8 @@ func (h *ATTCKHandler) GetCustomConfigs(ctx context.Context, query CustomConfigs
 	var queryFunc dal.QueryBuilderFunc
 	if len(query.Query) > 0 {
 		var candidatedRuleKeys []string
-		store := h.rulesStorePtr.Load()
-		if store != nil {
+		store, exist := h.rulesManager.getStore(ctx)
+		if exist && store != nil {
 			rules, err := store.ISearch(ctx, query.Query)
 			if err == nil {
 				candidatedRuleKeys = make([]string, len(rules))
@@ -635,8 +618,8 @@ func (h *ATTCKHandler) GetCustomConfigs(ctx context.Context, query CustomConfigs
 		retList[i].Updater = dbItem.Updater
 
 		retList[i].Rule.Key = dbItem.RuleKey
-		store := h.rulesStorePtr.Load()
-		if store != nil {
+		store, exist := h.rulesManager.getStore(ctx)
+		if exist && store != nil {
 			rinfo, exist := store.GetRule(context.Background(), dbItem.RuleKey)
 			if exist {
 				retList[i].Rule.Description = rinfo.Description[lang]
@@ -718,7 +701,9 @@ func (h *ATTCKHandler) BatchAddCustomConfigs(ctx context.Context, data []*Cconfi
 }
 
 func (h *ATTCKHandler) UpdateCustomConfigStatus(ctx context.Context, id uint64, status model.CconfigStatus) error {
-	return dal.SetCustomConfigStatus(ctx, h.db.Get(), id, status)
+	opt := dal.NewCustomConfigsOption()
+	opt.WithEqual("id", id)
+	return dal.SetCustomConfigStatus(ctx, h.db.Get(), opt, status)
 }
 
 func (h *ATTCKHandler) BatchEditCustomConfigs(ctx context.Context, data []*CconfigUpdateItem) error {
@@ -768,7 +753,7 @@ func (h *ATTCKHandler) updateDefaultMasksForStricts(ctx context.Context, strictR
 	return dal.UpdateRuleMask(ctx, h.db.Get(), addMusks, nil, v)
 }
 
-func (h *ATTCKHandler) updateConfigs(ctx context.Context, v uint16, isRefreshing bool) error {
+func (h *ATTCKHandler) updateConfigs(ctx context.Context, v uint16, trigger updateConfigTrigger) error {
 	var rules map[string]*ruleItem
 	storeConf, dbErr := h.loadFromStore(ctx, v)
 	if dbErr != nil && dbErr != dal.ErrATTCKConfDataNotFound {
@@ -776,7 +761,7 @@ func (h *ATTCKHandler) updateConfigs(ctx context.Context, v uint16, isRefreshing
 		return dbErr
 	}
 	loaded := false
-	if !isRefreshing {
+	if trigger == updateTriggerInit {
 		ruleBytes, err := h.loadFromLocal(ctx, v)
 		if err != nil {
 			logging.Get().Err(err).Msg("loadFromLocal error.")
@@ -787,13 +772,16 @@ func (h *ATTCKHandler) updateConfigs(ctx context.Context, v uint16, isRefreshing
 		if dbErr == dal.ErrATTCKConfDataNotFound || compareVersion(storeConf, header) { // use local
 			logging.Get().Info().Uints16("local version", header.Version[:]).Msg("Initialize with local rules.")
 			var version RulesVersion
+			var ccVersion uint64
 			var strictRules map[string]struct{}
 
 			// customized configs process
 			if header.Version[0] >= 2 {
-				customed, custerr := h.rulesCustomedProcess(rulesContext)
+				logging.Get().Info().Msg("Try to update data by custom configs and plugins")
+				customed, ccv, custerr := h.rulesManager.UpdateRules(context.Background(), rulesContext, header.Version)
 				if custerr == nil {
-					rulesContext = customed
+					rulesContext = customed.Data
+					ccVersion = ccv
 				} else {
 					logging.Get().Err(custerr).Msg("customized process rules error")
 				}
@@ -812,7 +800,8 @@ func (h *ATTCKHandler) updateConfigs(ctx context.Context, v uint16, isRefreshing
 			}
 
 			confData := model.ATTCKRuleData{
-				Content: ruleBytes,
+				Content:          ruleBytes,
+				CconfigIDversion: ccVersion,
 			}
 			confData.ATTCKConfVersion = model.ATTCKConfVersion{
 				Version1:  version.Seg1,
@@ -828,7 +817,7 @@ func (h *ATTCKHandler) updateConfigs(ctx context.Context, v uint16, isRefreshing
 			if err != nil {
 				logging.Get().Err(err).Msg("store attck conf data error. ")
 			} else {
-				logging.Get().Info().Str("conf version", version.String()).Msg("Successfully store attack conf data from local.")
+				logging.Get().Info().Str("conf version", version.String()).Uint64("id", storeConf.ID).Msg("Successfully store attack conf data from local.")
 			}
 
 			h.asyncUploadRulesToEventsCenter(rulesContext, version.String())
@@ -837,17 +826,32 @@ func (h *ATTCKHandler) updateConfigs(ctx context.Context, v uint16, isRefreshing
 	}
 
 	if !loaded { // use storage
-		logging.Get().Info().Str("storage version", storeConf.VString()).Msg("Initialize with stored rules.")
 		header, rulesContext, _, err := cryption.ReadRulesData(storeConf.Content)
+		logging.Get().Info().Str("storage version", storeConf.VString()).Uint16("version1", header.Version[0]).Uint16("version2", header.Version[1]).Msg("Initialize with stored rules.")
 		if err != nil {
 			logging.Get().Err(err).Str("data", string(storeConf.Content)).Msg("decode rule data fail")
 			return err
 		}
 		// customized configs process
-		if !isRefreshing && header.Version[0] >= 2 {
-			customed, custerr := h.rulesCustomedProcess(rulesContext)
+		if header.Version[0] >= 2 {
+			logging.Get().Info().Msg("Try to update data by custom configs and plugins")
+			ctx := context.Background()
+			customed, ccVersion, custerr := h.rulesManager.UpdateRules(ctx, rulesContext, header.Version)
 			if custerr == nil {
-				rulesContext = customed
+				rulesContext = customed.Data
+
+				// if it's refreshing or it's initing but the new ccVersion is different from the previous version, we update the data offset to trigger the updates of rules
+				if trigger == updateTriggerCustomConfigsPending || trigger == updateTriggerRulesUpdated || (trigger == updateTriggerInit && (h.isPOCEnabled || ccVersion != storeConf.CconfigIDversion)) {
+					logging.Get().Info().Uint8("trigger", uint8(trigger)).Bool("isPOCEnabled", h.isPOCEnabled).Uint64("dataID", storeConf.ID).Uint64("cconf version", ccVersion).Msg("try to start update rules offset to push")
+					ierr := dal.IncreaseATTCKDataIDAndSetConfigVersion(ctx, h.db.Get(), storeConf.ID, ccVersion)
+					if ierr != nil {
+						logging.Get().Err(ierr).Uint64("dataID", storeConf.ID).Uint64("cconf version", ccVersion).Msg("increase and update ccversion error")
+					} else {
+						storeConf.ID++
+						storeConf.CconfigIDversion = ccVersion
+					}
+				}
+
 			} else {
 				logging.Get().Err(custerr).Msg("customized process rules error")
 			}
@@ -919,21 +923,6 @@ func (h *ATTCKHandler) releaseLock(mutex *redsync.Mutex) {
 	}
 }
 
-func (h *ATTCKHandler) rulesCustomedProcess(rulesContext []byte) ([]byte, error) {
-	_, infoStore, err := ProcessorBuilder(context.Background(), rulesContext)
-	if err != nil {
-		logging.Get().Err(err).Msg("processor build error")
-	} else {
-		h.rulesStorePtr.Store(infoStore)
-		ierr := h.initCconfigs(context.Background(), infoStore.GetCconfigInitConfigs(), infoStore)
-		if ierr != nil {
-			logging.Get().Err(ierr).Msg("init cconfigs error")
-		}
-		logging.Get().Info().Int("rules num", len(infoStore.rmap)).Int("conf num", len(infoStore.configsInit)).Msg("processor build OK")
-	}
-	return rulesContext, nil
-}
-
 func (h *ATTCKHandler) UpdateConfig(ctx context.Context, username string, data []byte) (*model.ATTCKRuleData, error) {
 	mutex := h.rs.NewMutex(attckLockKey)
 	if err := h.obtainLock(ctx, mutex); err != nil {
@@ -948,11 +937,14 @@ func (h *ATTCKHandler) UpdateConfig(ctx context.Context, username string, data [
 		return nil, err
 	}
 
+	var ccVersion uint64
 	// customized configs process
 	if header.Version[0] >= 2 {
-		customed, custerr := h.rulesCustomedProcess(rulesContext)
+		logging.Get().Info().Msg("Try to update data by custom configs and plugins")
+		customed, ccv, custerr := h.rulesManager.UpdateRules(context.Background(), rulesContext, header.Version)
 		if custerr == nil {
-			rulesContext = customed
+			rulesContext = customed.Data
+			ccVersion = ccv
 		} else {
 			logging.Get().Err(custerr).Msg("customized process rules error")
 		}
@@ -1002,6 +994,7 @@ func (h *ATTCKHandler) UpdateConfig(ctx context.Context, username string, data [
 	}
 	attackRuleData := &model.ATTCKRuleData{
 		ATTCKConfVersion: confVersion,
+		CconfigIDversion: ccVersion,
 		Content:          data,
 	}
 
@@ -1032,7 +1025,7 @@ func (h *ATTCKHandler) UpdateConfig(ctx context.Context, username string, data [
 	return attackRuleData, nil
 }
 
-func (h *ATTCKHandler) updateRulesByVersion(rules map[string]*ruleItem, baseOffset, onlineOffset uint32, version model.ATTCKConfVersion) {
+func (h *ATTCKHandler) updateRulesByVersion(rules map[string]*ruleItem, baseOffset, onlineOffset uint64, version model.ATTCKConfVersion) {
 	vRules, ok := h.rules[version.Version1]
 	if !ok {
 		vRules = new(attckRules)
@@ -1240,7 +1233,7 @@ func (h *ATTCKHandler) GetATTCKVersionList(ctx context.Context) []*model.ATTCKCo
 	return versions
 }
 
-func (h *ATTCKHandler) GetATTCKConfData(ctx context.Context, reqBaseOffset, reqOnlineOffset uint32, v uint16) (*model.LatestATTCKRuleInfo, error) {
+func (h *ATTCKHandler) GetATTCKConfData(ctx context.Context, reqBaseOffset, reqOnlineOffset uint64, v uint16) (*model.LatestATTCKRuleInfo, error) {
 	h.cacheLock.RLock()
 	defer h.cacheLock.RUnlock()
 	vRules, ok := h.rules[v]
@@ -1255,13 +1248,25 @@ func (h *ATTCKHandler) GetATTCKConfData(ctx context.Context, reqBaseOffset, reqO
 		LatestSettingVersion: int64(latestOnlineOffset),
 	}
 	if latestBaseOffset > reqBaseOffset {
-		data, err := dal.LoadATTCKConfDataByVersion1(ctx, h.db.GetReadDB(), v)
-		if err != nil {
-			return nil, err
+		got := false
+		if v == 2 {
+			outputBytes, ok := h.rulesManager.GetOutputBytes()
+			if ok {
+				info.DataChanged = true
+				info.Data = string(outputBytes)
+				got = true
+			}
+		}
+		if !got {
+			data, err := dal.LoadATTCKConfDataByVersion1(ctx, h.db.GetReadDB(), v)
+			if err != nil {
+				return nil, err
+			}
+
+			info.DataChanged = true
+			info.Data = base64.StdEncoding.EncodeToString(data.Content)
 		}
 
-		info.DataChanged = true
-		info.Data = base64.StdEncoding.EncodeToString(data.Content)
 	}
 
 	if latestOnlineOffset > reqOnlineOffset {
@@ -1276,7 +1281,7 @@ func (h *ATTCKHandler) GetATTCKConfData(ctx context.Context, reqBaseOffset, reqO
 }
 
 const (
-	flushInterval = time.Second * 10
+	flushInterval = time.Second * 60
 )
 
 func (h *ATTCKHandler) asyncLoop() {
@@ -1296,6 +1301,12 @@ func (h *ATTCKHandler) asyncLoop() {
 }
 
 func (h *ATTCKHandler) flushCache(v uint16) {
+	defer func() {
+		if r := recover(); r != nil {
+			logging.Get().Error().Msgf("Panic : %v. stack: %s", r, debug.Stack())
+		}
+	}()
+
 	ctx, cancel := context.WithTimeout(context.Background(), flushInterval)
 	defer cancel()
 	latestOffset, latestOnlineOffset, err := h.getLatestVersion(ctx, v)
@@ -1304,18 +1315,42 @@ func (h *ATTCKHandler) flushCache(v uint16) {
 		return
 	}
 
+	pendingReload := false
+	if v >= 2 {
+		var cerr error
+		pendingReload, cerr = h.rulesManager.CheckCustomConfigsPending(ctx)
+		if cerr != nil {
+			logging.Get().Err(cerr).Msg("CheckCustomConfigsPending error")
+		}
+	}
+
 	vRules, _ := h.rules[v]
-	if latestOffset > vRules.baseOffset || latestOnlineOffset > vRules.onlineOffset {
-		logging.Get().Info().Msgf(
-			"baseOffset:%d, onlineOffset:%d, latestOffset:%d, latestOnlineOffset:%d",
+	if pendingReload {
+		logging.Get().Info().Bool("pendingCConfigsToReload", pendingReload).Msgf(
+			"updateTriggerCustomConfigsPending baseOffset:%d, onlineOffset:%d, latestOffset:%d, latestOnlineOffset:%d",
 			vRules.baseOffset, vRules.onlineOffset, latestOffset, latestOnlineOffset)
-		if err = h.updateConfigs(ctx, v, true); err != nil {
-			logging.Get().Err(err).Msg("load fail")
+		if err = h.updateConfigs(ctx, v, updateTriggerCustomConfigsPending); err != nil {
+			logging.Get().Err(err).Msg("load fail when updateTriggerCustomConfigsPending")
+		}
+	} else if latestOffset > vRules.baseOffset {
+		logging.Get().Info().Bool("pendingCConfigsToReload", pendingReload).Msgf(
+			"updateTriggerRulesUpdated baseOffset:%d, onlineOffset:%d, latestOffset:%d, latestOnlineOffset:%d",
+			vRules.baseOffset, vRules.onlineOffset, latestOffset, latestOnlineOffset)
+		if err = h.updateConfigs(ctx, v, updateTriggerRulesUpdated); err != nil {
+			logging.Get().Err(err).Msg("load fail when updateTriggerRulesUpdated")
+		}
+	} else if latestOnlineOffset > vRules.onlineOffset {
+		logging.Get().Info().Bool("pendingCConfigsToReload", pendingReload).Msgf(
+			"updateTriggerSwitchUpdated baseOffset:%d, onlineOffset:%d, latestOffset:%d, latestOnlineOffset:%d",
+			vRules.baseOffset, vRules.onlineOffset, latestOffset, latestOnlineOffset)
+
+		if err = h.updateConfigs(ctx, v, updateTriggerSwitchUpdated); err != nil {
+			logging.Get().Err(err).Msg("load fail when updateTriggerSwitchUpdated")
 		}
 	}
 }
 
-func (h *ATTCKHandler) getLatestVersion(ctx context.Context, v uint16) (uint32, uint32, error) {
+func (h *ATTCKHandler) getLatestVersion(ctx context.Context, v uint16) (uint64, uint64, error) {
 	h.cacheLock.RLock()
 	defer h.cacheLock.RUnlock()
 	latestOffset, err := dal.LoadATTCKConfVersion(ctx, h.db.GetReadDB(), v)

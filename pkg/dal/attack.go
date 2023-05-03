@@ -91,8 +91,17 @@ type attackResp struct {
 	} `json:"data"`
 }
 
+func IncreaseATTCKDataIDAndSetConfigVersion(ctx context.Context, db *gorm.DB, id uint64, ccVersion uint64) error {
+	tctx, cancel := context.WithTimeout(ctx, 1200*time.Millisecond)
+	defer cancel()
+	return db.WithContext(tctx).Model(&model.ATTCKRuleData{}).Where("version1 = ?", 2).Where("id = ?", id).Updates(map[string]any{
+		"id":                gorm.Expr("id + ?", 1),
+		"cconfig_idversion": ccVersion,
+	}).Error
+
+}
 func LoadATTCKConfDataByVersion1(ctx context.Context, db *gorm.DB, v uint16) (*model.ATTCKRuleData, error) {
-	tctx, cancel := context.WithTimeout(ctx, 500*time.Millisecond)
+	tctx, cancel := context.WithTimeout(ctx, 1000*time.Millisecond)
 	defer cancel()
 
 	var data model.ATTCKRuleData
@@ -125,7 +134,7 @@ func LoadATTCKConfData(ctx context.Context, db *gorm.DB) (*model.ATTCKRuleData, 
 	return &data, nil
 }
 
-func LoadATTCKConfVersion(ctx context.Context, db *gorm.DB, v uint16) (uint32, error) {
+func LoadATTCKConfVersion(ctx context.Context, db *gorm.DB, v uint16) (uint64, error) {
 	var data model.ATTCKRuleData
 	var err = db.WithContext(ctx).Select("id").Where("version1 = ?", v).Order("id desc").Limit(1).Find(&data).Error
 	return data.ID, err
@@ -153,7 +162,7 @@ func SaveATTCKConfData(ctx context.Context, db *gorm.DB, data *model.ATTCKRuleDa
 	return data, err
 }
 
-func LoadATTCKRuleMaskVersion(ctx context.Context, db *gorm.DB, v uint16) (version uint32, err error) {
+func LoadATTCKRuleMaskVersion(ctx context.Context, db *gorm.DB, v uint16) (version uint64, err error) {
 	var record model.ATTCKRuleMaskVersion
 	err = db.WithContext(ctx).Where("version1 = ?", v).Find(&record).Error
 	return record.Version, err
@@ -392,7 +401,7 @@ func UpdateCustomConfig(ctx context.Context, db *gorm.DB, query *CustomConfigsOp
 	return db.Updates(data).Error
 }
 
-func SetCustomConfigStatus(ctx context.Context, db *gorm.DB, id uint64, status model.CconfigStatus) error {
+func SetCustomConfigStatus(ctx context.Context, db *gorm.DB, query *CustomConfigsOption, status model.CconfigStatus) error {
 	if db == nil {
 		return errors.New("illegal arguments")
 	}
@@ -401,12 +410,27 @@ func SetCustomConfigStatus(ctx context.Context, db *gorm.DB, id uint64, status m
 	defer cancel()
 
 	data := make(map[string]interface{}, 3)
-	data["updated_at"] = time.Now().Unix()
 	updater := model.GetUsernameFromContext(ctx)
-	data["updater"] = updater
+	if updater != "" {
+		data["updater"] = updater
+		data["updated_at"] = time.Now().Unix()
+	}
 	data["status"] = status
 	if status == model.StatusDeleted {
 		data["cconfig_value"] = ""
 	}
-	return db.WithContext(tctx).Model(&model.AttckCustomConfig{}).Where("id = ?", id).Updates(data).Error
+
+	db = db.WithContext(tctx).Model(&model.AttckCustomConfig{})
+	if len(query.whereEqCondition) > 0 {
+		db = db.Where(query.whereEqCondition)
+	}
+	if len(query.whereInCondition) > 0 {
+		for column, val := range query.whereInCondition {
+			db = db.Where(fmt.Sprintf("%s in ?", column), val)
+		}
+	}
+	for col, q := range query.WhereLikeCondition {
+		db = db.Where(fmt.Sprintf("%s LIKE ?", col), GetLikeExpr(q))
+	}
+	return db.Updates(data).Error
 }

@@ -334,11 +334,11 @@ func (api *api) getATTCKLatestData() http.HandlerFunc {
 			// 老版本的holmes和cluster-manager不会传该参数，默认版本号为 1
 			version1 = 1
 		}
-		curDataVersion, err := param.QueryUint32(r, "curDataVersion")
+		curDataVersion, err := param.QueryUint64(r, "curDataVersion")
 		if err != nil {
 			curDataVersion = 0
 		}
-		curSettingVersion, err := param.QueryUint32(r, "curSettingVersion")
+		curSettingVersion, err := param.QueryUint64(r, "curSettingVersion")
 		if err != nil {
 			curSettingVersion = 0
 		}
