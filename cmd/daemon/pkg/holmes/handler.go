@@ -41,7 +41,15 @@ var (
 		model.FieldEvtTime,
 	}
 	engineGrpcPath string
+	debugMode      bool
 )
+
+func init() {
+	dm := os.Getenv("DEBUG_MODE")
+	if dm == "1" || dm == "true" {
+		debugMode = true
+	}
+}
 
 type EngineStreamConfig struct {
 	CtrlServerUrl  string
@@ -320,14 +328,16 @@ func (ec *EngineStreamHandler) engineReloads(ctx context.Context) error {
 	sversion := ec.getCurrentRulesVersion()
 	reloadReq := new(pb.ReloadRequest)
 	if rulesInfo.LatestDataVersion > ec.getCurrentRulesVersion() && rulesInfo.DataChanged {
-		// TODO DEBUG remove
-		dec, err := base64.StdEncoding.DecodeString(rulesInfo.Data)
-		if err == nil {
-			header, rulesContext, _, _ := cryption.ReadRulesData(dec)
-			logging.Get().Info().Uints16("version", header.Version[:]).Msg("DEBUG updated rules")
-			ec.saveToDir(rulesContext, 9999999)
+		if debugMode {
+			// DEBUG start
+			dec, err := base64.StdEncoding.DecodeString(rulesInfo.Data)
+			if err == nil {
+				header, rulesContext, _, _ := cryption.ReadRulesData(dec)
+				logging.Get().Info().Uints16("version", header.Version[:]).Msg("DEBUG updated rules")
+				ec.saveToDir(rulesContext, 9999999)
+			}
+			// DEBUG end
 		}
-		// DEBUG end
 
 		if err := ec.saveToDir([]byte(rulesInfo.Data), rulesInfo.LatestDataVersion); err == nil {
 			rulesChanged = true
