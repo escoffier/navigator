@@ -13,6 +13,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/security-rd/go-pkg/databases"
 	"gitlab.com/security-rd/go-pkg/logging"
+	"gorm.io/gorm"
 )
 
 const (
@@ -103,7 +104,15 @@ type RulesManager struct {
 	plugins []ProcessPlugin
 	db      *databases.RDBInstance
 
-	rulesSession *atomic.Pointer[sessionInfo]
+	rulesSession   *atomic.Pointer[sessionInfo]
+	lastCheckStamp int64
+}
+
+func (m *RulesManager) getLastCheckStamp() int64 {
+	return atomic.LoadInt64(&m.lastCheckStamp)
+}
+func (m *RulesManager) setLastCheckStamp(s int64) {
+	atomic.StoreInt64(&m.lastCheckStamp, s)
 }
 
 func (m *RulesManager) GetRulesTmp() ([]*model.RuleFromYaml, error) {
@@ -208,10 +217,16 @@ func (m *RulesManager) updateCustomConfigsStatus(ctx context.Context) error {
 	return dal.SetCustomConfigStatus(ctx, m.db.Get(), opt, model.StatusOK)
 }
 
-func (m *RulesManager) CheckCustomConfigsPending(ctx context.Context) (bool, error) {
+func (m *RulesManager) CheckCustomConfigsUpdates(ctx context.Context) (bool, error) {
+	nowStamp := time.Now().Unix()
 	opt := dal.NewCustomConfigsOption()
-	opt.WithEqual("status", model.StatusPending)
-	count, err := dal.CountCustomConfigs(ctx, m.db.GetReadDB(), opt, nil)
+	opt.WithIn("status", []model.CconfigStatus{model.StatusPending, model.StatusDeleted})
+	count, err := dal.CountCustomConfigs(ctx, m.db.GetReadDB(), opt, func(db *gorm.DB) *gorm.DB {
+		return db.Where("updated_at >= ?", m.getLastCheckStamp())
+	})
+	if err == nil {
+		m.setLastCheckStamp(nowStamp)
+	}
 	return count > 0, err
 }
 

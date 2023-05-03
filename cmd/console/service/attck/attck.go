@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"math/rand"
 	"os"
 	"runtime/debug"
 	"sort"
@@ -1315,32 +1316,35 @@ func (h *ATTCKHandler) flushCache(v uint16) {
 		return
 	}
 
-	pendingReload := false
+	pendingUpdates := false
 	if v >= 2 {
 		var cerr error
-		pendingReload, cerr = h.rulesManager.CheckCustomConfigsPending(ctx)
+		pendingUpdates, cerr = h.rulesManager.CheckCustomConfigsUpdates(ctx)
 		if cerr != nil {
 			logging.Get().Err(cerr).Msg("CheckCustomConfigsPending error")
+		}
+		if !pendingUpdates && rand.Float64() < 0.2 {
+			pendingUpdates = true
 		}
 	}
 
 	vRules, _ := h.rules[v]
-	if pendingReload {
-		logging.Get().Info().Bool("pendingCConfigsToReload", pendingReload).Msgf(
+	if pendingUpdates {
+		logging.Get().Info().Bool("pendingCConfigsToReload", pendingUpdates).Msgf(
 			"updateTriggerCustomConfigsPending baseOffset:%d, onlineOffset:%d, latestOffset:%d, latestOnlineOffset:%d",
 			vRules.baseOffset, vRules.onlineOffset, latestOffset, latestOnlineOffset)
 		if err = h.updateConfigs(ctx, v, updateTriggerCustomConfigsPending); err != nil {
 			logging.Get().Err(err).Msg("load fail when updateTriggerCustomConfigsPending")
 		}
 	} else if latestOffset > vRules.baseOffset {
-		logging.Get().Info().Bool("pendingCConfigsToReload", pendingReload).Msgf(
+		logging.Get().Info().Bool("pendingCConfigsToReload", pendingUpdates).Msgf(
 			"updateTriggerRulesUpdated baseOffset:%d, onlineOffset:%d, latestOffset:%d, latestOnlineOffset:%d",
 			vRules.baseOffset, vRules.onlineOffset, latestOffset, latestOnlineOffset)
 		if err = h.updateConfigs(ctx, v, updateTriggerRulesUpdated); err != nil {
 			logging.Get().Err(err).Msg("load fail when updateTriggerRulesUpdated")
 		}
 	} else if latestOnlineOffset > vRules.onlineOffset {
-		logging.Get().Info().Bool("pendingCConfigsToReload", pendingReload).Msgf(
+		logging.Get().Info().Bool("pendingCConfigsToReload", pendingUpdates).Msgf(
 			"updateTriggerSwitchUpdated baseOffset:%d, onlineOffset:%d, latestOffset:%d, latestOnlineOffset:%d",
 			vRules.baseOffset, vRules.onlineOffset, latestOffset, latestOnlineOffset)
 
