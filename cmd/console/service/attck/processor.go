@@ -125,8 +125,8 @@ type PluginSession interface {
 
 type PluginContext struct {
 	rules    []*RawRule
-	macros   map[string]*Macro
-	lists    map[string]*List
+	macros   []*Macro
+	lists    []*List
 	rulesTmp []model.RuleFromYaml
 
 	configs []*CconfigInitConfig
@@ -146,12 +146,20 @@ func (c *PluginContext) GetRuleTmp(ctx context.Context, ruleKey string) (model.R
 	return model.RuleFromYaml{}, false
 }
 func (c *PluginContext) GetMacro(ctx context.Context, macro string) (*Macro, bool) {
-	m, exist := c.macros[macro]
-	return m, exist && m.Macro != ""
+	for _, m := range c.macros {
+		if m.Macro == macro {
+			return m, true
+		}
+	}
+	return nil, false
 }
 func (c *PluginContext) GetList(ctx context.Context, list string) (*List, bool) {
-	l, exist := c.lists[list]
-	return l, exist && l.List != ""
+	for _, l := range c.lists {
+		if l.List == list {
+			return l, true
+		}
+	}
+	return nil, false
 }
 func (c *PluginContext) GetCustomConfigs(ctx context.Context) ([]*CconfigInitConfig, bool) {
 	return c.configs, true
@@ -177,25 +185,25 @@ func (p *Processor) AddPlugin(pp ProcessPlugin) error {
 	return nil
 }
 
-func macroListParse(macroListsFile string) (map[string]*Macro, map[string]*List, error) {
+func macroListParse(macroListsFile string) ([]*Macro, []*List, error) {
 	mlTmp := make([]mlTmp, 0, 50)
 	err := yaml.Unmarshal([]byte(macroListsFile), &mlTmp)
 	if err != nil {
 		return nil, nil, err
 	}
-	macros := make(map[string]*Macro, len(mlTmp)*2/3)
-	lists := make(map[string]*List, len(mlTmp)*2/3)
+	macros := make([]*Macro, 0, len(mlTmp)*2/3)
+	lists := make([]*List, 0, len(mlTmp)*2/3)
 	for _, item := range mlTmp {
 		if len(item.Macro) > 0 {
-			macros[item.Macro] = &Macro{
+			macros = append(macros, &Macro{
 				Macro:     item.Macro,
 				Condition: item.Condition,
-			}
+			})
 		} else if len(item.List) > 0 {
-			lists[item.List] = &List{
+			lists = append(lists, &List{
 				List:  item.List,
 				Items: item.Items,
-			}
+			})
 		}
 	}
 	return macros, lists, nil
@@ -228,8 +236,8 @@ func (p *Processor) Process(ctx context.Context) ([]byte, PluginContext, error) 
 		psessions = append(psessions, ps)
 	}
 
-	newLists := make(map[string]*List, len(pctx.lists))
-	for key, list := range pctx.lists {
+	newLists := make([]*List, 0, len(pctx.lists))
+	for _, list := range pctx.lists {
 		for _, ps := range psessions {
 			newList, changed, pperr := ps.ProcessList(ctx, *list)
 			if pperr != nil {
@@ -253,14 +261,13 @@ func (p *Processor) Process(ctx context.Context) ([]byte, PluginContext, error) 
 			}
 		}
 		if list != nil {
-			list.List = key
-			newLists[key] = list
+			newLists = append(newLists, list)
 		}
 	}
 	pctx.lists = newLists
 
-	newMacros := make(map[string]*Macro, len(pctx.macros))
-	for key, macro := range pctx.macros {
+	newMacros := make([]*Macro, 0, len(pctx.macros))
+	for _, macro := range pctx.macros {
 		for _, ps := range psessions {
 			newMacro, changed, pperr := ps.ProcessMacro(ctx, *macro)
 			if pperr != nil {
@@ -277,8 +284,7 @@ func (p *Processor) Process(ctx context.Context) ([]byte, PluginContext, error) 
 			}
 		}
 		if macro != nil {
-			macro.Macro = key
-			newMacros[key] = macro
+			newMacros = append(newMacros, macro)
 		}
 	}
 	pctx.macros = newMacros
@@ -310,7 +316,7 @@ func (p *Processor) Process(ctx context.Context) ([]byte, PluginContext, error) 
 		for i := 0; i < 1000; i++ {
 			nextList, more := ps.NextList(ctx)
 			if nextList != nil {
-				pctx.lists[nextList.List] = nextList
+				pctx.lists = append(pctx.lists, nextList)
 			}
 			if !more {
 				break
@@ -319,7 +325,7 @@ func (p *Processor) Process(ctx context.Context) ([]byte, PluginContext, error) 
 		for i := 0; i < 1000; i++ {
 			nextMacro, more := ps.NextMacro(ctx)
 			if nextMacro != nil {
-				pctx.macros[nextMacro.Macro] = nextMacro
+				pctx.macros = append(pctx.macros, nextMacro)
 			}
 			if !more {
 				break
@@ -344,21 +350,13 @@ func (p *Processor) Process(ctx context.Context) ([]byte, PluginContext, error) 
 	}
 	outputBui.Write(rbytes)
 
-	macrosList := make([]*Macro, 0, len(pctx.macros))
-	for _, m := range pctx.macros {
-		macrosList = append(macrosList, m)
-	}
-	mbytes, err := yaml.Marshal(macrosList)
+	mbytes, err := yaml.Marshal(pctx.macros)
 	if err != nil {
 		return nil, pctx, err
 	}
 	outputBui.Write(mbytes)
 
-	listArr := make([]*List, 0, len(pctx.lists))
-	for _, l := range pctx.lists {
-		listArr = append(listArr, l)
-	}
-	lbytes, err := yaml.Marshal(listArr)
+	lbytes, err := yaml.Marshal(pctx.lists)
 	if err != nil {
 		return nil, pctx, err
 	}
