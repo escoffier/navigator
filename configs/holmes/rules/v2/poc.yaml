@@ -174,7 +174,7 @@
     container_id=%container.id container_name=%container.name image=%container.image.repository:%container.image.tag
     connection=%fd.name,client_ip=%fd.cip,client_port=%fd.cport,server_ip=%fd.sip,server_port=%fd.sport)
   priority: WARNING
-  tags: [ATT&CK, network, process, mitre_execution, xy, qt]
+  tags: [ATT&CK, network, process, mitre_execution, 4t, xy, qt]
 
 - rule: Container process started
   hid: poc_10
@@ -203,4 +203,4 @@
     container_id=%container.id container_name=%container.name image=%container.image.repository:%container.image.tag
     connection=%fd.name,client_ip=%fd.cip,client_port=%fd.cport,server_ip=%fd.sip,server_port=%fd.sport)
   priority: INFO
-  tags: [ATT&CK, sp]
+  tags: [ATT&CK, sp, 4t]

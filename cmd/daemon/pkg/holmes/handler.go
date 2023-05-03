@@ -2,6 +2,7 @@ package holmes
 
 import (
 	"context"
+	"encoding/base64"
 	"errors"
 	"math/rand"
 	"os"
@@ -17,6 +18,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/mozart"
+	"gitlab.com/security-rd/go-pkg/cryption"
 	"gitlab.com/security-rd/go-pkg/logging"
 	"gitlab.com/security-rd/go-pkg/pb"
 	"gitlab.com/security-rd/go-pkg/sdk/palace"
@@ -318,6 +320,15 @@ func (ec *EngineStreamHandler) engineReloads(ctx context.Context) error {
 	sversion := ec.getCurrentRulesVersion()
 	reloadReq := new(pb.ReloadRequest)
 	if rulesInfo.LatestDataVersion > ec.getCurrentRulesVersion() && rulesInfo.DataChanged {
+		// TODO DEBUG remove
+		dec, err := base64.StdEncoding.DecodeString(rulesInfo.Data)
+		if err == nil {
+			header, rulesContext, _, _ := cryption.ReadRulesData(dec)
+			logging.Get().Info().Uints16("version", header.Version[:]).Msg("DEBUG updated rules")
+			ec.saveToDir(rulesContext, 9999999)
+		}
+		// DEBUG end
+
 		if err := ec.saveToDir([]byte(rulesInfo.Data), rulesInfo.LatestDataVersion); err == nil {
 			rulesChanged = true
 			sversion = rulesInfo.LatestDataVersion

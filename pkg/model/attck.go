@@ -50,7 +50,7 @@ const (
 )
 
 type ATTCKRuleData struct {
-	ID               uint32 `gorm:"primaryKey;autoIncrement;column:id"`
+	ID               uint64 `gorm:"primaryKey;autoIncrement;column:id"`
 	Content          []byte `gorm:"column:content"`
 	CconfigIDversion uint64 `gorm:"column:cconfig_idversion"`
 	ATTCKConfVersion
@@ -84,7 +84,7 @@ func (ATTCKRuleMask) TableName() string {
 
 type ATTCKRuleMaskVersion struct {
 	Version1 string `gorm:"column:version1"`
-	Version  uint32 `gorm:"column:version"`
+	Version  uint64 `gorm:"column:version"`
 }
 
 func (ATTCKRuleMaskVersion) TableName() string {

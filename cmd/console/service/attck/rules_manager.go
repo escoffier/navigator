@@ -1,222 +1,280 @@
 package attck
 
 import (
-	"bytes"
 	"context"
-	"strings"
+	"errors"
+	"os"
+	"sync/atomic"
+	"time"
 
+	json "github.com/json-iterator/go"
+	"gitlab.com/piccolo_su/vegeta/pkg/dal"
 	"gitlab.com/piccolo_su/vegeta/pkg/lang"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
-	"gitlab.com/piccolo_su/vegeta/pkg/rtdetect"
-	"gitlab.com/piccolo_su/vegeta/pkg/util"
+	"gitlab.com/security-rd/go-pkg/databases"
 	"gitlab.com/security-rd/go-pkg/logging"
-	"gopkg.in/yaml.v2"
 )
 
 const (
-	headerKeyCconfigInit = "custom_config_inits"
-	headerKeyAttck       = "attck_rule_type="
-	headerKeyMacroList   = "macros_lists"
-	headerKeyMozart      = "mozart"
+	ctxKeyConfigValues = "CTX_CCONFIG_DATA"
 )
 
-type HolmesRule struct {
-	Key         string
-	Name        model.HolaJSON
-	Description model.HolaJSON
-	Category    model.HolaJSON
-	Severity    uint8
-	Hthreats    uint8
-	Disabled    bool
-	Tags        []string
+var (
+	ErrEmptyValue = errors.New("values not set")
+)
 
-	rawLines   []string
-	isInternal bool
-}
+type ManagerBuilder struct {
+	encoder Encoder
+	plugins []ProcessPlugin
 
-type RulesStore struct {
-	rules       []*HolmesRule
-	rmap        map[string]*HolmesRule
-	configsInit []*CconfigInitConfig
+	db *databases.RDBInstance
 }
+type RawData struct {
+	Data    []byte
+	Version [2]uint16
+}
+type Encoder func(ctx context.Context, before RawData) ([]byte, error)
 
-func (s *RulesStore) GetCconfigInitConfigs() []*CconfigInitConfig {
-	return s.configsInit
-}
-func (s *RulesStore) ISearch(ctx context.Context, kw string) ([]*HolmesRule, error) {
-	candidates := make([]*HolmesRule, 0, 3)
-	for _, r := range s.rules {
-		if r.isInternal {
-			continue
-		}
-		for lang, target := range r.Name {
-			if lang == "en" {
-				if strings.Contains(strings.ToLower(target), strings.ToLower(kw)) {
-					candidates = append(candidates, r)
-					break
-				}
-			} else if strings.Contains(target, kw) {
-				candidates = append(candidates, r)
-				break
-			}
-		}
-	}
-	return candidates, nil
-}
-
-func (s *RulesStore) GetRule(ctx context.Context, ruleKey string) (*HolmesRule, bool) {
-	r, exist := s.rmap[ruleKey]
-	return r, exist
-}
-
-func (s *RulesStore) addRule(r *HolmesRule) {
-	s.rules = append(s.rules, r)
-	s.rmap[r.Key] = r
-}
-func (s *RulesStore) setCconfigInit(init []*CconfigInitConfig) {
-	s.configsInit = init
-}
-
-func newStore() *RulesStore {
-	return &RulesStore{
-		rules: make([]*HolmesRule, 0, 110),
-		rmap:  make(map[string]*HolmesRule, 110),
+func NewManagerBuilder(db *databases.RDBInstance) *ManagerBuilder {
+	return &ManagerBuilder{
+		db: db,
 	}
 }
 
-type CconfigInitConfig struct {
-	Key               string         `yaml:"key"`
-	Name              model.HolaJSON `yaml:"name"`
-	Effect            model.HolaJSON `yaml:"effect"`
-	Type              string         `yaml:"type"`
-	RulesAppliedSteps [][]string     `yaml:"rulesAppliedSteps"`
-}
-
-type Macro struct {
-	Macro     string `yaml:"macro"`
-	Condition string `yaml:"condition"`
-}
-type List struct {
-	List  string `yaml:"list"`
-	Items []any  `yaml:"items"`
-}
-
-type ProcessPlugin interface {
-	ProcessRule(ctx context.Context, lines []string, pctx PluginContext) (after []string, changed bool, err error) // There could be changes on the rules format. We don't use yaml to parse.
-	ProcessMacro(ctx context.Context, m Macro, pctx PluginContext) (after *Macro, changed bool, err error)
-	ProcessList(ctx context.Context, l List, pctx PluginContext) (after *List, changed bool, err error)
-	NextRule(ctx context.Context, pctx PluginContext) (after []string, changed bool, err error)
-	NextMacro(ctx context.Context, pctx PluginContext) (after *Macro, changed bool, err error)
-	NextList(ctx context.Context, pctx PluginContext) (after *List, changed bool, err error)
-}
-
-type PluginContext struct {
-}
-
-func (c PluginContext) GetRule(ctx context.Context, ruleKey string) (*HolmesRule, bool) {
-	return nil, false
-}
-func (c PluginContext) GetMacro(ctx context.Context, macro string) (*Macro, bool) {
-	return nil, false
-}
-func (c PluginContext) GetList(ctx context.Context, list string) (*Macro, bool) {
-	return nil, false
-}
-
-type RulesProcessor struct {
-}
-
-func ProcessorBuilder(ctx context.Context, decodedRaw []byte) (*RulesProcessor, *RulesStore, error) {
-	decoded := string(decodedRaw)
-
-	seperatedFiles := strings.Split(decoded, "##")
-
-	rulesFile := new(bytes.Buffer)
-	macroListsFile := new(strings.Builder)
-	mozartsFile := new(strings.Builder)
-	cconfigInitsFile := new(bytes.Buffer)
-
-	for _, filestr := range seperatedFiles {
-		if strings.Index(filestr, headerKeyAttck) == 0 {
-			brPos := strings.IndexRune(filestr, '\n')
-			if brPos > 0 {
-				filestr = filestr[brPos:]
-			}
-			rulesFile.WriteString(filestr)
-		} else if strings.Index(filestr, headerKeyMacroList) == 0 {
-			brPos := strings.IndexRune(filestr, '\n')
-			if brPos > 0 {
-				filestr = filestr[brPos:]
-			}
-			macroListsFile.WriteString(filestr)
-		} else if strings.Index(filestr, headerKeyCconfigInit) == 0 {
-			brPos := strings.IndexRune(filestr, '\n')
-			if brPos > 0 {
-				filestr = filestr[brPos:]
-			}
-			cconfigInitsFile.WriteString(filestr)
-		} else if strings.Index(filestr, headerKeyMozart) == 0 {
-			brPos := strings.IndexRune(filestr, '\n')
-			if brPos > 0 {
-				filestr = filestr[brPos:]
-			}
-			mozartsFile.WriteString(filestr)
-		}
+func (b *ManagerBuilder) getCustomConfigs(ctx context.Context) ([]CconfigItem, error) {
+	v := ctx.Value(ctxKeyConfigValues)
+	if v == nil {
+		return nil, ErrEmptyValue
 	}
+	switch vt := v.(type) {
+	case error:
+		logging.Get().Err(vt).Msg("get custom configs error")
+		return nil, vt
+	case []*model.AttckCustomConfig:
+		ret := make([]CconfigItem, len(vt))
+		for i, c := range vt {
+			ret[i].CconfigKey = c.CconfigKey
+			ret[i].RuleKey = c.RuleKey
+			var vals []string
+			jerr := json.Unmarshal([]byte(c.CconfigValue), &vals)
+			if jerr != nil {
+				logging.Get().Err(jerr).Str("v", c.CconfigValue).Msg("json unmarshal error")
+				continue
+			}
+			ret[i].Values = vals
+		}
+		return ret, nil
+	default:
+		return nil, ErrEmptyValue
+	}
+}
+func (b *ManagerBuilder) InitPlugins() error {
+	pocPlugin := newPocSwitchPluginWithGiven(os.Getenv(EnvKeyDPTags))
 
-	store := newStore()
-	initConfigs := make([]*CconfigInitConfig, 0, 10)
-	err := yaml.Unmarshal(cconfigInitsFile.Bytes(), &initConfigs)
+	b.plugins = append(b.plugins, pocPlugin)
+
+	ccPlugin := NewCustomConfigPlugin(b.getCustomConfigs)
+	b.plugins = append(b.plugins, ccPlugin)
+
+	return nil
+}
+
+func (m *ManagerBuilder) SetEncoder(enc Encoder) {
+	m.encoder = enc
+}
+func (m *ManagerBuilder) Build() *RulesManager {
+	return &RulesManager{
+		encoder:      m.encoder,
+		plugins:      m.plugins,
+		db:           m.db,
+		rulesSession: new(atomic.Pointer[sessionInfo]),
+	}
+}
+
+type sessionInfo struct {
+	rulesStore  *RulesStore
+	processor   *Processor
+	pctx        PluginContext
+	outputBytes []byte
+	version     [2]uint16
+}
+type RulesManager struct {
+	encoder Encoder
+	plugins []ProcessPlugin
+	db      *databases.RDBInstance
+
+	rulesSession *atomic.Pointer[sessionInfo]
+}
+
+func (m *RulesManager) GetRulesTmp() ([]*model.RuleFromYaml, error) {
+	return nil, nil
+}
+
+func (m *RulesManager) GetOutputBytes() ([]byte, bool) {
+	rs := m.rulesSession.Load()
+	if rs == nil {
+		return nil, false
+	}
+	return rs.outputBytes, true
+}
+
+func (m *RulesManager) initCconfigs(ctx context.Context, iconfs []*CconfigInitConfig, store *RulesStore) error {
+	for _, iconf := range iconfs {
+		for _, steps := range iconf.RulesAppliedSteps {
+			if len(steps) == 0 {
+				logging.Get().Warn().Msg("steps exception")
+				continue
+			}
+			r, exist := store.GetRule(ctx, steps[0])
+
+			rcat := ""
+			if exist {
+				rcat = r.Category[string(lang.LanguageEN)]
+			}
+
+			cc := model.AttckCustomConfig{
+				RuleKey:      steps[0],
+				RuleCategory: rcat,
+				CconfigKey:   iconf.Key,
+				CconfigValue: "",
+				Creator:      "system",
+				CreatedAt:    time.Now().Unix(),
+				Updater:      "system",
+				UpdatedAt:    time.Now().Unix(),
+				Status:       model.StatusDeleted,
+			}
+			_, err := dal.CreateCustomConfig(context.Background(), m.db.Get(), &cc)
+			if err != nil {
+				logging.Get().Err(err).Interface("data", m).Msg("create error")
+				return err
+			}
+		}
+
+	}
+	return nil
+}
+
+func (m *RulesManager) getStore(ctx context.Context) (*RulesStore, bool) {
+	rs := m.rulesSession.Load()
+	if rs == nil {
+		return nil, false
+	}
+	return rs.rulesStore, true
+}
+func (m *RulesManager) getCustomInitConfigs(ctx context.Context) ([]*CconfigInitConfig, bool) {
+	rs := m.rulesSession.Load()
+	if rs == nil {
+		return nil, false
+	}
+	return rs.rulesStore.GetCconfigInitConfigs(), true
+}
+
+func (m *RulesManager) getRule(ctx context.Context, ruleKey string) (*HolmesRule, bool) {
+	if len(ruleKey) == 0 {
+		return nil, false
+	}
+	rs := m.rulesSession.Load()
+	if rs == nil {
+		return nil, false
+	}
+	return rs.rulesStore.GetRule(ctx, ruleKey)
+}
+
+func loadCustomConfigs(ctx context.Context, db *databases.RDBInstance) ([]*model.AttckCustomConfig, error) {
+	qopt := dal.NewCustomConfigsOption()
+	qopt.WithIn("status", []model.CconfigStatus{model.StatusOK, model.StatusPending})
+
+	count, err := dal.CountCustomConfigs(ctx, db.GetReadDB(), qopt, nil)
 	if err != nil {
-		logging.Get().Err(err).Str("raw", cconfigInitsFile.String()).Msg("unmarshal init configs error")
-		return nil, nil, err
+		logging.Get().Err(err).Msg("get custom configs count error")
+		return nil, err
 	}
-	store.setCconfigInit(initConfigs)
+	configs := make([]*model.AttckCustomConfig, 0, count)
+	for page := 0; len(configs) < count; page++ {
 
-	rulesRaw := make([]model.RuleFromYaml, 0, 120)
-	err = yaml.Unmarshal(rulesFile.Bytes(), &rulesRaw)
+		pageConfigs, perr := dal.GetCustomConfigs(ctx, db.GetReadDB(), qopt, nil, 50, page*50)
+		if perr != nil {
+			logging.Get().Err(perr).Int("page", page).Msg("get custom configs error")
+			return nil, perr
+		}
+		configs = append(configs, pageConfigs...)
+	}
+	return configs, nil
+}
+
+func (m *RulesManager) updateCustomConfigsStatus(ctx context.Context) error {
+	opt := dal.NewCustomConfigsOption()
+	opt.WithEqual("status", model.StatusPending)
+	return dal.SetCustomConfigStatus(ctx, m.db.Get(), opt, model.StatusOK)
+}
+
+func (m *RulesManager) CheckCustomConfigsPending(ctx context.Context) (bool, error) {
+	opt := dal.NewCustomConfigsOption()
+	opt.WithEqual("status", model.StatusPending)
+	count, err := dal.CountCustomConfigs(ctx, m.db.GetReadDB(), opt, nil)
+	return count > 0, err
+}
+
+func (m *RulesManager) UpdateRules(ctx context.Context, rawData []byte, version [2]uint16) (output RawData, ccVersion uint64, err error) {
+	var raw RawData
+	raw.Data = rawData
+	raw.Version = version
+
+	configs, err := loadCustomConfigs(ctx, m.db)
 	if err != nil {
-		logging.Get().Err(err).Msg("unmarshal rules error")
-		return nil, nil, err
+		logging.Get().Err(err).Msg("load custom configs error")
+		return RawData{}, 0, err
 	}
-	for _, r := range rulesRaw {
-		_, ritem, pferr := parseFalcoRule(r)
-		if pferr != nil {
-			logging.Get().Err(pferr).Interface("rule", r).Msg("parse falco rule error")
+	ccUpdatedLatest := int64(0)
+	for _, c := range configs {
+		if c.Status == model.StatusDeleted {
 			continue
 		}
-		if ritem.name == "" {
-			continue
+		if c.UpdatedAt > ccUpdatedLatest {
+			ccUpdatedLatest = c.UpdatedAt
 		}
-		// 只是关联规则，不应展示，，是内部规则
-		isInternal := false
-		if !util.ContainsString(r.Tags, "triggered") && util.ContainsString(r.Tags, "related") {
-			isInternal = true
-		}
-		// 触发规则严重级别较低，不应展示，是内部规则
-		if util.ContainsString(r.Tags, "triggered") && !rtdetect.ComparePriority(r.Priority, "ERROR") {
-			isInternal = true
-		}
-		store.addRule(&HolmesRule{
-			Key: ritem.name,
-			Name: model.HolaJSON{
-				string(lang.LanguageZH): ritem.adapter[string(lang.LanguageZH)][descriptionKey],
-				string(lang.LanguageEN): ritem.name,
-			},
-			Description: model.HolaJSON{
-				string(lang.LanguageZH): ritem.adapter[string(lang.LanguageZH)][descriptionKey],
-				string(lang.LanguageEN): ritem.adapter[string(lang.LanguageEN)][descriptionKey],
-			},
-			Category: model.HolaJSON{
-				string(lang.LanguageZH): ritem.adapter[string(lang.LanguageZH)][typeKey],
-				string(lang.LanguageEN): ritem.adapter[string(lang.LanguageEN)][typeKey],
-			},
-			Severity:   ritem.severity,
-			Hthreats:   ritem.hthreats,
-			Tags:       r.Tags,
-			isInternal: isInternal,
-		})
 	}
-	// TODO processor
-	return nil, store, nil
+	ctx = context.WithValue(ctx, ctxKeyConfigValues, configs)
+
+	processor, infoStore, err := ProcessorBuilder(ctx, raw.Data)
+	if err != nil {
+		logging.Get().Err(err).Msg("processor build error")
+		return RawData{}, 0, err
+	}
+	for _, p := range m.plugins {
+		processor.AddPlugin(p)
+	}
+
+	ierr := m.initCconfigs(ctx, infoStore.GetCconfigInitConfigs(), infoStore)
+	if ierr != nil {
+		logging.Get().Err(ierr).Msg("init cconfigs error")
+	}
+	logging.Get().Info().Int("rules num", len(infoStore.rmap)).Int("conf num", len(infoStore.configsInit)).Msg("processor build OK")
+
+	ruleBytes, pctx, procErr := processor.Process(ctx)
+	if procErr != nil {
+		logging.Get().Err(procErr).Msg("process error")
+		return RawData{}, 0, procErr
+	}
+	raw.Data = ruleBytes
+
+	after, eerr := m.encoder(ctx, raw)
+	if eerr != nil {
+		logging.Get().Err(eerr).Msg("encode error")
+		return RawData{}, 0, eerr
+	}
+
+	newSession := sessionInfo{
+		rulesStore:  infoStore,
+		processor:   processor,
+		pctx:        pctx,
+		outputBytes: after,
+		version:     raw.Version,
+	}
+	m.rulesSession.Store(&newSession)
+
+	if err := m.updateCustomConfigsStatus(ctx); err != nil {
+		logging.Get().Err(err).Msg("update custom configs status error")
+	}
+	return raw, uint64(ccUpdatedLatest), nil
 }
