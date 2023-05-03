@@ -13,7 +13,6 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/security-rd/go-pkg/databases"
 	"gitlab.com/security-rd/go-pkg/logging"
-	"gorm.io/gorm"
 )
 
 const (
@@ -211,22 +210,22 @@ func loadCustomConfigs(ctx context.Context, db *databases.RDBInstance) ([]*model
 	return configs, nil
 }
 
-func (m *RulesManager) updateCustomConfigsStatus(ctx context.Context) error {
+func (m *RulesManager) updateCustomConfigsStatusToOK(ctx context.Context) error {
 	opt := dal.NewCustomConfigsOption()
 	opt.WithEqual("status", model.StatusPending)
 	return dal.SetCustomConfigStatus(ctx, m.db.Get(), opt, model.StatusOK)
 }
+func (m *RulesManager) updateCustomConfigsStatusToDeleted(ctx context.Context) error {
+	opt := dal.NewCustomConfigsOption()
+	opt.WithEqual("status", model.StatusToDelete)
+	return dal.SetCustomConfigStatus(ctx, m.db.Get(), opt, model.StatusDeleted)
+}
 
 func (m *RulesManager) CheckCustomConfigsUpdates(ctx context.Context) (bool, error) {
-	nowStamp := time.Now().Unix()
 	opt := dal.NewCustomConfigsOption()
-	opt.WithIn("status", []model.CconfigStatus{model.StatusPending, model.StatusDeleted})
-	count, err := dal.CountCustomConfigs(ctx, m.db.GetReadDB(), opt, func(db *gorm.DB) *gorm.DB {
-		return db.Where("updated_at >= ?", m.getLastCheckStamp())
-	})
-	if err == nil {
-		m.setLastCheckStamp(nowStamp)
-	}
+	opt.WithIn("status", []model.CconfigStatus{model.StatusPending, model.StatusToDelete})
+
+	count, err := dal.CountCustomConfigs(ctx, m.db.GetReadDB(), opt, nil)
 	return count > 0, err
 }
 
@@ -242,9 +241,6 @@ func (m *RulesManager) UpdateRules(ctx context.Context, rawData []byte, version 
 	}
 	ccUpdatedLatest := int64(0)
 	for _, c := range configs {
-		if c.Status == model.StatusDeleted {
-			continue
-		}
 		if c.UpdatedAt > ccUpdatedLatest {
 			ccUpdatedLatest = c.UpdatedAt
 		}
@@ -288,8 +284,11 @@ func (m *RulesManager) UpdateRules(ctx context.Context, rawData []byte, version 
 	}
 	m.rulesSession.Store(&newSession)
 
-	if err := m.updateCustomConfigsStatus(ctx); err != nil {
-		logging.Get().Err(err).Msg("update custom configs status error")
+	if err := m.updateCustomConfigsStatusToOK(ctx); err != nil {
+		logging.Get().Err(err).Msg("update custom configs status to ok error")
+	}
+	if err := m.updateCustomConfigsStatusToDeleted(ctx); err != nil {
+		logging.Get().Err(err).Msg("update custom configs status to deleted error")
 	}
 	return raw, uint64(ccUpdatedLatest), nil
 }

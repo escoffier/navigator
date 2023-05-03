@@ -416,7 +416,7 @@ func SetCustomConfigStatus(ctx context.Context, db *gorm.DB, query *CustomConfig
 		data["updated_at"] = time.Now().Unix()
 	}
 	data["status"] = status
-	if status == model.StatusDeleted {
+	if status == model.StatusDeleted || status == model.StatusToDelete {
 		data["cconfig_value"] = ""
 	}
 

@@ -254,10 +254,11 @@ func TranslateENRuleType(in string) string {
 type CconfigStatus int
 
 const (
-	StatusOK      CconfigStatus = 0
-	StatusDeleted CconfigStatus = -1
-	StatusPending CconfigStatus = 1
-	StatusExpired CconfigStatus = 2
+	StatusOK       CconfigStatus = 0
+	StatusDeleted  CconfigStatus = -1
+	StatusToDelete CconfigStatus = -2
+	StatusPending  CconfigStatus = 1
+	StatusExpired  CconfigStatus = 2
 )
 
 type AttckCustomConfig struct {

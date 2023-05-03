@@ -5,7 +5,6 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
-	"math/rand"
 	"os"
 	"runtime/debug"
 	"sort"
@@ -1323,7 +1322,7 @@ func (h *ATTCKHandler) flushCache(v uint16) {
 		if cerr != nil {
 			logging.Get().Err(cerr).Msg("CheckCustomConfigsPending error")
 		}
-		if !pendingUpdates && rand.Float64() < 0.2 {
+		if !pendingUpdates {
 			pendingUpdates = true
 		}
 	}

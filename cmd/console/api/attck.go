@@ -137,7 +137,7 @@ func (api *api) getCustomConfigs() http.HandlerFunc {
 		} else if paramErr != nil && paramErr != param.ErrInvalidParam {
 			logging.Get().Warn().Err(paramErr).Msg("fail to parse customKey")
 		}
-		queryOpt.Statuses = []model.CconfigStatus{model.StatusOK, model.StatusPending, model.StatusExpired}
+		queryOpt.Statuses = []model.CconfigStatus{model.StatusOK, model.StatusPending}
 
 		configs, totalCnt, err := service.GetCustomConfigs(ctx, queryOpt, limit, offset, lang)
 		if err != nil {
@@ -299,7 +299,7 @@ func (api *api) deleteCustomConfig() http.HandlerFunc {
 				fmt.Errorf("id parse error: %v. input: %s", perr, idStr)))
 			return
 		}
-		err := service.UpdateCustomConfigStatus(ctx, id, model.StatusDeleted)
+		err := service.UpdateCustomConfigStatus(ctx, id, model.StatusToDelete)
 		if err != nil {
 			apperror.RespAndLog(w, ctx, apperror.NewAnError(http.StatusInternalServerError,
 				fmt.Errorf("get error %v", err)))
