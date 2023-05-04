@@ -1322,9 +1322,6 @@ func (h *ATTCKHandler) flushCache(v uint16) {
 		if cerr != nil {
 			logging.Get().Err(cerr).Msg("CheckCustomConfigsPending error")
 		}
-		if !pendingUpdates {
-			pendingUpdates = true
-		}
 	}
 
 	vRules, _ := h.rules[v]
