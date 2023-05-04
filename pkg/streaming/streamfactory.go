@@ -15,6 +15,7 @@ import (
 	"github.com/google/uuid"
 	"gitlab.com/piccolo_su/vegeta/pkg/streaming/pb"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/connectivity"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/protobuf/reflect/protoreflect"
 	"google.golang.org/protobuf/types/known/anypb"
@@ -94,6 +95,7 @@ type messageStreamServer struct {
 type messageStreamClient struct {
 	remoteAddress string
 	pbClient      pb.ClusterServiceClient
+	reConnect     bool
 	messageStream
 }
 
@@ -284,6 +286,7 @@ func (f *streamFactory) Client(remoteAddress string) MessageStream {
 			hanlders:   make(map[string]MessageHandler, 0),
 			noderKey:   f.NodeKey,
 		},
+		reConnect: false,
 	}
 }
 
@@ -300,6 +303,14 @@ func (c *messageStreamClient) Start() {
 	stopChan := make(chan struct{})
 	go func() {
 		wait.PollImmediateUntil(time.Second*5, func() (done bool, err error) {
+			if c.reConnect {
+				conn.Connect()
+				if conn.GetState() != connectivity.Ready {
+					logging.Get().Error().Msgf("failed to establish connction to %s", c.remoteAddress)
+					return false, nil
+				}
+				logging.Get().Info().Msgf("reconnect to %s", c.remoteAddress)
+			}
 			stream, err := c.pbClient.SendMessage(context.Background())
 			if err != nil {
 				logging.Get().Err(err).Msg("calling grpc server err")
@@ -324,6 +335,7 @@ func (c *messageStreamClient) Start() {
 			}, false)
 			cs.Dispatch()
 			logging.Get().Info().Msg("connection lost, will try to reconnect")
+			c.reConnect = true
 			c.streamLock.Lock()
 			cs.Clean()
 			delete(c.streams, defaultNodeKey)
