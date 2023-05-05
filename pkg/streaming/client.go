@@ -27,6 +27,9 @@ func (s *messageStream) CreateHoneySpot(ctx context.Context, nodeKey string, hon
 		return nil, fmt.Errorf("invalid message type: %s", resp.ProtoReflect().Descriptor().FullName())
 	}
 	logging.Get().Info().Msgf("response: %s", r.String())
+	if r.Status == 1 {
+		return r, fmt.Errorf("%s", r.StatusMessage)
+	}
 	return r, nil
 }
 
@@ -54,6 +57,9 @@ func (s *messageStream) DeleteHoneySpot(ctx context.Context, nodeKey, namespace,
 		return fmt.Errorf("invalid message type: %s", resp.ProtoReflect().Descriptor().FullName())
 	}
 	logging.Get().Info().Msgf("response: %s", r.String())
+	if r.Status == 1 {
+		return fmt.Errorf("%s", r.StatusMessage)
+	}
 	return nil
 }
 
