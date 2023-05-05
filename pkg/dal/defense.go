@@ -303,6 +303,20 @@ func DeleteBaitServiceById(ctx context.Context, rdb *gorm.DB, id uint32) error {
 	return err
 }
 
+func DeleteBaitService(ctx context.Context, rdb *gorm.DB, id uint32, fn func(ctx context.Context) error) error {
+	dbCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+
+	return rdb.Transaction(func(db *gorm.DB) error {
+
+		err := db.WithContext(dbCtx).Model(&model.BaitService{}).Where("status = ?", 0).
+			Delete(&model.BaitService{}, "id = ?", id).Error
+		if err != nil {
+			return err
+		}
+		return fn(dbCtx)
+	})
+}
 func CountBaitServices(ctx context.Context, rdb *gorm.DB, queryOptions *BaitsQueryOption) (int64, error) {
 	dbCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
@@ -367,16 +381,18 @@ func UpsertBaitService(ctx context.Context, rdb *gorm.DB, bait *model.BaitServic
 	return nil
 }
 
-func InsertBaitService(ctx context.Context, rdb *gorm.DB, bait *model.BaitService) error {
+func InsertBaitService(ctx context.Context, rdb *gorm.DB, bait *model.BaitService, fn func(ctx context.Context) error) error {
 	oneCtx, oneCancel := context.WithTimeout(ctx, 750*time.Millisecond)
 	defer oneCancel()
 
-	logging.GetLogger().Info().Msgf("upsert bait service %+v", bait)
-	err := rdb.WithContext(oneCtx).Model(&model.BaitService{}).Create(bait).Error
-	if err != nil {
-		return err
-	}
-	return nil
+	return rdb.Transaction(func(tx *gorm.DB) error {
+		logging.GetLogger().Debug().Msgf("upsert bait service %+v", bait)
+		err := tx.WithContext(oneCtx).Model(&model.BaitService{}).Create(bait).Error
+		if err != nil {
+			return err
+		}
+		return fn(oneCtx)
+	})
 }
 
 func UpdateBaitServiceAlert(ctx context.Context, rdb *gorm.DB, id uint32, haveAlerts bool) error {

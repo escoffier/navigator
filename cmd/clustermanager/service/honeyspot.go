@@ -9,6 +9,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/streaming/pb"
 	"gitlab.com/security-rd/go-pkg/logging"
 	"google.golang.org/protobuf/reflect/protoreflect"
+	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	v1 "scm.tensorsecurity.cn/tensorsecurity-rd/api/pkg/apis/defense/v1"
 )
@@ -84,10 +85,10 @@ func (mf *HoneypotHandler) OnDelete(s rpcstream.Stream, reqID string, msg protor
 	resp := &pb.HoneySpotResp{
 		Name:          req.Name,
 		Status:        0,
-		StatusMessage: "create successfully",
+		StatusMessage: "delete successfully",
 	}
 	err := mf.KubeClient.TensorClientset.DefenseV1().Honeypots(req.Namespace).Delete(ctx, req.Name, metav1.DeleteOptions{})
-	if err != nil {
+	if err != nil && !errors.IsNotFound(err) {
 		resp.Status = 1
 		resp.StatusMessage = err.Error()
 	}

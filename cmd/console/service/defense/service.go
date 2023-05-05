@@ -24,6 +24,7 @@ import (
 	pkgelastic "gitlab.com/security-rd/go-pkg/elastic"
 	"gitlab.com/security-rd/go-pkg/httputil"
 	"gitlab.com/security-rd/go-pkg/logging"
+	k8serr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -99,26 +100,14 @@ func (s *TensorDefenseService) AddBaitService(ctx context.Context, bait *model.B
 	}
 
 	bait.Prefix = image.EventPrefix
-	if usingGrpc {
-		err = s.addBaitService(ctx, bait, image.Ports, registry, image.EventPrefix)
-	} else {
-		err = s.addBaitServiceToKube(ctx, bait, image.Ports, registry, image.EventPrefix)
-	}
-
-	if err != nil {
-		return err
-	}
-	err = dal.InsertBaitService(ctx, s.rdb.Get(), bait)
-	if err != nil {
-		baitName, _ := getHoneyspotName(bait)
+	err = dal.InsertBaitService(ctx, s.rdb.Get(), bait, func(ctx context.Context) error {
 		if usingGrpc {
-			s.deleteBaitService(ctx, bait.ClusterKey, bait.Namespace, baitName)
+			return s.addBaitService(ctx, bait, image.Ports, registry, image.EventPrefix)
 		} else {
-			s.deleteBaitServiceFromKube(ctx, bait.ClusterKey, bait.Namespace, baitName)
+			return s.addBaitServiceToKube(ctx, bait, image.Ports, registry, image.EventPrefix)
 		}
-		return err
-	}
-	return nil
+	})
+	return err
 }
 
 func (s *TensorDefenseService) GetBaitService(ctx context.Context, option *dal.BaitsQueryOption) (*model.BaitService, error) {
@@ -155,16 +144,14 @@ func (s *TensorDefenseService) DeleteBaitService(ctx context.Context, id uint32)
 	if err != nil {
 		return err
 	}
-	if usingGrpc {
-		s.deleteBaitService(ctx, baitService.ClusterKey, baitService.Namespace, baitName)
-	} else {
-		err = s.deleteBaitServiceFromKube(ctx, baitService.ClusterKey, baitService.Namespace, baitName)
-	}
 
-	if err != nil {
-		return err
-	}
-	return dal.DeleteBaitServiceById(ctx, s.rdb.Get(), id)
+	return dal.DeleteBaitService(ctx, s.rdb.Get(), id, func(ctx context.Context) error {
+		if usingGrpc {
+			return s.deleteBaitService(ctx, baitService.ClusterKey, baitService.Namespace, baitName)
+		} else {
+			return s.deleteBaitServiceFromKube(ctx, baitService.ClusterKey, baitService.Namespace, baitName)
+		}
+	})
 }
 
 func (s *TensorDefenseService) UpdateBaitService(ctx context.Context, bait *model.BaitService) error {
@@ -317,6 +304,10 @@ func (s *TensorDefenseService) deleteBaitServiceFromKube(ctx context.Context, cl
 	}
 
 	err := clientset.TensorClientset.DefenseV1().Honeypots(namespace).Delete(ctx, name, metav1.DeleteOptions{})
+	if k8serr.IsNotFound(err) {
+		logging.Get().Warn().Msgf("%v", err)
+		return nil
+	}
 	return err
 }
 
