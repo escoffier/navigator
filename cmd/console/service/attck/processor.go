@@ -361,6 +361,8 @@ func (p *Processor) Process(ctx context.Context) ([]byte, PluginContext, error) 
 		return nil, pctx, err
 	}
 	outputBui.Write(lbytes)
+	outputBui.WriteByte('\n')
+	outputBui.Write(p.mozartFile)
 
 	outputBytes := outputBui.Bytes()
 
