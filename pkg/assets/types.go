@@ -42,6 +42,29 @@ const (
 	All
 )
 
+func GetRawContainerStatus(status int) string {
+	switch status {
+	case Running:
+		return "Running"
+	case Created:
+		return "Created"
+	case Restarting:
+		return "Restarted"
+	case Removing:
+		return "Moving"
+	case Paused:
+		return "Paused"
+	case Exited:
+		return "Exited"
+	case Dead:
+		return "Dead"
+	case All:
+		return "All"
+	default:
+		return ""
+	}
+}
+
 type ConvertFunc func(cluster string, wl interface{}) *TensorResource
 
 var TensorResourceFuncs = map[ResourceKind]ConvertFunc{

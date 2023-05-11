@@ -13,6 +13,7 @@ import (
 	"gitlab.com/security-rd/go-pkg/databases"
 	"gitlab.com/security-rd/go-pkg/logging"
 	"gitlab.com/security-rd/go-pkg/mq"
+	"gitlab.com/security-rd/go-pkg/redisearch"
 )
 
 var (
@@ -33,6 +34,7 @@ func init() {
 // Watcher singleton
 func Watcher(rdb *databases.RDBInstance,
 	redisCli *redis.Client,
+	searchClient *redisearch.Client,
 	scannerURL string,
 	reader mq.Reader,
 	topic, groupID string,
@@ -43,7 +45,7 @@ func Watcher(rdb *databases.RDBInstance,
 	initOnce.Do(func() {
 		logging.Get().Info().Msgf("Init assets.Watcher: stack = %s", debug.Stack())
 		wInstance = pkgassets.NewWatcher(reader, topic, groupID)
-		wInstance.AddCallback(newPodResourcesService(redisCli, rdb))
+		wInstance.AddCallback(newPodResourcesService(redisCli, rdb, searchClient))
 		wInstance.AddCallback(microseg.NewResourcesListener(rdb))
 		if !disableKubeMonitor {
 			kbm, err := kubemonitor.NewService()
@@ -56,9 +58,9 @@ func Watcher(rdb *databases.RDBInstance,
 			logging.Get().Warn().Msg("Kube Monitor is disabled according to the enviroment var")
 		}
 
-		wInstance.AddCallback(newResourcesWatcher(rdb, scannerURL))
+		wInstance.AddCallback(newResourcesWatcher(rdb, scannerURL, searchClient))
 		wInstance.AddCallback(newHoneyspotService(rdb))
-		wInstance.AddCallback(newRawContainerWatcher(rdb))
+		wInstance.AddCallback(newRawContainerWatcher(rdb, searchClient))
 
 		exportContainers := os.Getenv("EXPORT_CONTAINERS")
 		if exportContainers == "true" {

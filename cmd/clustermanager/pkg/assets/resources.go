@@ -4,10 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"gorm.io/gorm"
 	"runtime/debug"
 	"sync"
 	"time"
+
+	rs "github.com/March-deng/godisearch/redisearch"
+	"gitlab.com/security-rd/go-pkg/redisearch"
+	"gorm.io/gorm"
 
 	"gitlab.com/piccolo_su/vegeta/pkg/assets"
 	"gitlab.com/piccolo_su/vegeta/pkg/dal"
@@ -16,6 +19,50 @@ import (
 	"gitlab.com/security-rd/go-pkg/databases"
 	corev1 "k8s.io/api/core/v1"
 )
+
+var AssetIndices = []*redisearch.RedisIndexSchema{
+	{
+		Name: "resource",
+		Schema: rs.NewSchema(rs.DefaultOptions).
+			AddField(rs.NewTagField("name")).
+			AddField(rs.NewSortableNumericField("id")).
+			AddField(rs.NewTagField("cluster_key")).
+			AddField(rs.NewTagField("namespace")).
+			AddField(rs.NewNumericField("updated_at")).
+			AddField(rs.NewTagField("kind")),
+		Definition: rs.NewIndexDefinition().AddPrefix("resource:"),
+	},
+	{
+		Name: "pod",
+		Schema: rs.NewSchema(rs.DefaultOptions).
+			AddField(rs.NewSortableNumericField("id")).
+			AddField(rs.NewTagField("pod_name")).
+			AddField(rs.NewTagField("cluster_key")).
+			AddField(rs.NewTagField("node_name")).
+			AddField(rs.NewTagField("resource_kind")).
+			AddField(rs.NewTagField("resource_name")).
+			AddField(rs.NewTagField("namespace")).
+			AddField(rs.NewTagField("pod_ip")).
+			AddField(rs.NewSortableNumericField("updated_at")).
+			AddField(rs.NewSortableNumericField("created_at")),
+		Definition: rs.NewIndexDefinition().AddPrefix("pod:"),
+	},
+	{
+		Name: "rawContainer",
+		Schema: rs.NewSchema(rs.DefaultOptions).
+			AddField(rs.NewTagFieldOptions("id", rs.TagFieldOptions{Sortable: true})).
+			AddField(rs.NewTagField("status")).
+			AddField(rs.NewTagField("k8s_managed")).
+			AddField(rs.NewTagField("node_name")).
+			AddField(rs.NewTagField("namespace")).
+			AddField(rs.NewTagField("pod_name")).
+			AddField(rs.NewTagField("name")).
+			AddField(rs.NewTagField("resource_name")).
+			AddField(rs.NewTagField("cluster_key")).
+			AddField(rs.NewSortableNumericField("updated_at")),
+		Definition: rs.NewIndexDefinition().AddPrefix("rawContainer:"),
+	},
+}
 
 const (
 	watcherName   = "tensor_resources_listener"
@@ -29,17 +76,21 @@ type ResourcesWatcher struct {
 
 	clusterListeners map[string]*ResourcesClusterListener
 	clMux            sync.RWMutex
+
+	// redisearch clients
+	redisearchClis *redisearch.Client
 }
 
-func newResourcesWatcher(rdb *databases.RDBInstance, scannerURL string) *ResourcesWatcher {
+func newResourcesWatcher(rdb *databases.RDBInstance, scannerURL string, redisearchClis *redisearch.Client) *ResourcesWatcher {
 	return &ResourcesWatcher{
 		rdb:              rdb,
 		scannerURL:       scannerURL,
 		clusterListeners: make(map[string]*ResourcesClusterListener, 5),
+		redisearchClis:   redisearchClis,
 	}
 }
 
-//BeforeWatchNewCluster called before watch events
+// BeforeWatchNewCluster called before watch events
 func (rl *ResourcesWatcher) BeforeWatchNewCluster(_ context.Context, clusterName string, _ time.Duration) assets.ClusterCallback {
 	cl := newResourcesClusterListener(rl)
 	rl.addClusterListener(clusterName, cl)
@@ -62,6 +113,27 @@ func (rl *ResourcesWatcher) addClusterListener(clusterKey string, l *ResourcesCl
 	defer rl.clMux.Unlock()
 
 	rl.clusterListeners[clusterKey] = l
+}
+
+// call enableRedisSearch before mustGetRedisSearchClient
+func (rl *ResourcesWatcher) mustGetRedisSearchClient(modelType string) *rs.Client {
+	c, err := rl.redisearchClis.GetIndexClient(modelType)
+	if err != nil {
+		panic(err)
+	}
+
+	return c
+}
+
+func (rl *ResourcesWatcher) enableRedisSearch(modelType string) bool {
+	if rl.redisearchClis != nil {
+		c, err := rl.redisearchClis.GetIndexClient(modelType)
+		if err != nil {
+			return false
+		}
+		return c != nil
+	}
+	return false
 }
 
 type resourceEvent struct {
@@ -200,13 +272,21 @@ func (cl *ResourcesClusterListener) doOnResource(ctx context.Context, resEvent r
 			if assets.ShouldResourceBeFiltered(resEvent.newResource) {
 				return nil
 			}
-			_, err := dal.UpsertResource(ctx, cl.parent.rdb.Get(), resEvent.newResource, resEvent.updateTime)
-			if err != nil {
-				logging.GetLogger().Err(err).Msgf("upsert resource error. resource: %+v. action: %v", resEvent.newResource, resEvent.action)
+			var upsertErr error
+
+			if cl.parent.enableRedisSearch("resource") {
+				_, upsertErr = dal.UpsertResourceWithRedis(ctx, cl.parent.rdb.Get(), cl.parent.mustGetRedisSearchClient("resource"), resEvent.newResource, resEvent.updateTime)
+			} else {
+				_, upsertErr = dal.UpsertResource(ctx, cl.parent.rdb.Get(), resEvent.newResource, resEvent.updateTime)
+			}
+
+			if upsertErr != nil {
+				logging.GetLogger().Err(upsertErr).Msgf("upsert resource error. resource: %+v. action: %v", resEvent.newResource, resEvent.action)
 				// will periodically retry to write
 				cl.sendToRetry(resEvent)
-				return err
+				return upsertErr
 			}
+
 		case assets.Namespaces2Watch:
 			if resEvent.newNamespace == nil {
 				return errors.New("newNamespace is nil")
@@ -242,13 +322,20 @@ func (cl *ResourcesClusterListener) doOnResource(ctx context.Context, resEvent r
 				return nil
 			}
 			logging.GetLogger().Info().Msgf("delete resource %s/%s/%s", resEvent.newResource.Kind, resEvent.newResource.Namespace, resEvent.newResource.Name)
-			err := dal.SoftDeleteResource(ctx, cl.parent.rdb.Get(), resEvent.newResource, resEvent.updateTime)
-			if err != nil {
-				logging.GetLogger().Err(err).Msgf("delete resource error. resource: %+v. action: %v", resEvent.newResource, resEvent.action)
+			var deleteErr error
+			if cl.parent.enableRedisSearch("resource") {
+				deleteErr = dal.SoftDeleteResourceWithRedis(ctx, cl.parent.rdb.Get(), cl.parent.mustGetRedisSearchClient("resource"), resEvent.newResource, resEvent.updateTime)
+			} else {
+				deleteErr = dal.SoftDeleteResource(ctx, cl.parent.rdb.Get(), resEvent.newResource, resEvent.updateTime)
+			}
+
+			if deleteErr != nil {
+				logging.GetLogger().Err(deleteErr).Msgf("delete resource error. resource: %+v. action: %v", resEvent.newResource, resEvent.action)
 				// will periodically retry to write
 				cl.sendToRetry(resEvent)
-				return err
+				return deleteErr
 			}
+
 		case assets.Namespaces2Watch:
 			if resEvent.newNamespace == nil {
 				return errors.New("oldNamespace is nil")
@@ -391,9 +478,17 @@ func (cl *ResourcesClusterListener) AfterDataSynced(ctx context.Context, dataSyn
 	if err != nil {
 		logging.GetLogger().Err(err).Msgf("CleanUpUnUpdatedResourceContainers error. refreshTime: %v", cl.refreshTime)
 	}
-	err = dal.CleanUpUnUpdatedResources(ctx, cl.parent.rdb.Get(), cl.refreshTime, clusterKey)
-	if err != nil {
-		logging.GetLogger().Err(err).Msgf("CleanUpUnUpdatedResources error. refreshTime: %v", cl.refreshTime)
+
+	if cl.parent.enableRedisSearch("resource") {
+		err = dal.CleanUpUnUpdatedResourcesWithRedis(ctx, cl.parent.rdb.Get(), cl.parent.mustGetRedisSearchClient("resource"), cl.refreshTime, clusterKey)
+		if err != nil {
+			logging.GetLogger().Err(err).Msgf("CleanUpUnUpdatedResources error. refreshTime: %v", cl.refreshTime)
+		}
+	} else {
+		err = dal.CleanUpUnUpdatedResources(ctx, cl.parent.rdb.Get(), cl.refreshTime, clusterKey)
+		if err != nil {
+			logging.GetLogger().Err(err).Msgf("CleanUpUnUpdatedResources error. refreshTime: %v", cl.refreshTime)
+		}
 	}
 
 	err = dal.CleanUpUnUpdatedNamespaces(ctx, cl.parent.rdb.Get(), cl.refreshTime, clusterKey)

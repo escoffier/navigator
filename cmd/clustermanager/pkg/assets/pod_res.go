@@ -10,12 +10,14 @@ import (
 	"sync/atomic"
 	"time"
 
+	rs "github.com/March-deng/godisearch/redisearch"
 	"github.com/go-redis/redis/v8"
 	"gitlab.com/piccolo_su/vegeta/pkg/assets"
 	"gitlab.com/piccolo_su/vegeta/pkg/dal"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 	"gitlab.com/security-rd/go-pkg/databases"
 	"gitlab.com/security-rd/go-pkg/logging"
+	"gitlab.com/security-rd/go-pkg/redisearch"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -23,10 +25,12 @@ import (
 
 type PodResourcesService struct {
 	//sync.RWMutex
-	rdb      *databases.RDBInstance
-	redisCli *redis.Client
+	rdb *databases.RDBInstance
+	// redisCli *redis.Client
 	//clusterCallbacks map[string]*PodResourcesClusterCallback
 	syncedClusters map[string]struct{}
+	// redisearch clients
+	redisearchClis *redisearch.Client
 }
 
 type podEvent struct {
@@ -53,12 +57,13 @@ func (cb *PodResourcesClusterCallback) OnRawContainer(container *assets.TensorRa
 	return nil
 }
 
-func newPodResourcesService(redisCli *redis.Client, rdb *databases.RDBInstance) *PodResourcesService {
+func newPodResourcesService(redisCli *redis.Client, rdb *databases.RDBInstance, redisearchClis *redisearch.Client) *PodResourcesService {
 	return &PodResourcesService{
-		redisCli: redisCli,
-		rdb:      rdb,
+		// redisCli: redisCli,
+		rdb: rdb,
 		//clusterCallbacks: make(map[string]*PodResourcesClusterCallback, 2),
 		syncedClusters: make(map[string]struct{}),
+		redisearchClis: redisearchClis,
 	}
 }
 
@@ -67,6 +72,27 @@ func (cb *PodResourcesService) WatchedTypes() map[assets.WatchedType]struct{} {
 		assets.Pods2Watch:            {},
 		assets.TensorResources2Watch: {},
 	}
+}
+
+// call enableRedisSearch before mustGetRedisSearchClient
+func (rl *PodResourcesService) mustGetRedisSearchClient(modelType string) *rs.Client {
+	c, err := rl.redisearchClis.GetIndexClient(modelType)
+	if err != nil {
+		panic(err)
+	}
+
+	return c
+}
+
+func (rl *PodResourcesService) enableRedisSearch(modelType string) bool {
+	if rl.redisearchClis != nil {
+		c, err := rl.redisearchClis.GetIndexClient(modelType)
+		if err != nil {
+			return false
+		}
+		return c != nil
+	}
+	return false
 }
 
 type syncSignal struct {
@@ -178,14 +204,24 @@ func (cb *PodResourcesClusterCallback) doOnPodEvent(ctx context.Context, e podEv
 
 	switch e.action {
 	case assets.ActionDelete:
-		rerr := dal.DeletePodResourceRelationInRDB(tctx, cb.parent.rdb.Get(), e.pod.Cluster, e.pod.Namespace, e.pod.Name)
-		if rerr != nil {
-			logging.Get().Err(rerr).Msg("delete pod resource rel in rdb error")
+		var deleteErr error
+		if cb.parent.enableRedisSearch("pod") {
+			deleteErr = dal.DeletePodResourceRelationWithRedis(tctx, cb.parent.rdb.Get(), cb.parent.mustGetRedisSearchClient("pod"), e.pod.Cluster, e.pod.Namespace, e.pod.Name)
+		} else {
+			deleteErr = dal.DeletePodResourceRelationInRDB(tctx, cb.parent.rdb.Get(), e.pod.Cluster, e.pod.Namespace, e.pod.Name)
+		}
+		if deleteErr != nil {
+			logging.Get().Err(deleteErr).Msg("delete pod resource rel in rdb error")
 		}
 	case assets.ActionUpdate, assets.ActionAdd:
-		rerr := dal.UpsertPodResourceRelationInRDB(tctx, cb.parent.rdb.Get(), e.pod.Pod, e.pod.Owner.Name, e.pod.Owner.Kind, e.pod.Cluster, e.updateTime)
-		if rerr != nil {
-			logging.Get().Err(rerr).Msg("upsert pod resource rel in rdb error")
+		var upsertErr error
+		if cb.parent.enableRedisSearch("pod") {
+			upsertErr = dal.UpsertPodResourceRelationWithRedis(tctx, cb.parent.rdb.Get(), cb.parent.mustGetRedisSearchClient("pod"), e.pod.Pod, e.pod.Owner.Name, e.pod.Owner.Kind, e.pod.Cluster, e.updateTime)
+		} else {
+			upsertErr = dal.UpsertPodResourceRelationInRDB(tctx, cb.parent.rdb.Get(), e.pod.Pod, e.pod.Owner.Name, e.pod.Owner.Kind, e.pod.Cluster, e.updateTime)
+		}
+		if upsertErr != nil {
+			logging.Get().Err(upsertErr).Msg("upsert pod resource rel in rdb error")
 		}
 	}
 	return nil
@@ -291,7 +327,11 @@ func (cb *PodResourcesClusterCallback) AfterDataSynced(ctx context.Context, data
 }
 
 func (cb *PodResourcesClusterCallback) removeInactiveData(ctx context.Context, clusterKey string) error {
-	return dal.CleanUpPodResourceRelationsInRDB(ctx, cb.parent.rdb.Get(), cb.refreshTime(), clusterKey)
+	if cb.parent.enableRedisSearch("pod") {
+		return dal.CleanUpPodResourceRelationWithRedis(ctx, cb.parent.rdb.Get(), cb.parent.mustGetRedisSearchClient("pod"), cb.refreshTime(), clusterKey)
+	} else {
+		return dal.CleanUpPodResourceRelationsInRDB(ctx, cb.parent.rdb.Get(), cb.refreshTime(), clusterKey)
+	}
 }
 
 func (cb *PodResourcesClusterCallback) OnHoneyspot(honeyspot *assets.TensorHoneySpot, action assets.Action) error {

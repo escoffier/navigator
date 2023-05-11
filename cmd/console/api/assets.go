@@ -40,6 +40,7 @@ func (api *api) assets() func(chi.Router) {
 		r.Post("/namespace", api.updateNamespace())
 		r.Get("/namespace/{namespace}/kind/{kind}/resources", api.getResourcesInNamespace())
 		r.Get("/resources", api.getResources())
+		// TODO: support redis search
 		r.Get("/resources/fuzz", api.getResourcesFuzzy())
 		r.Post("/resource/userData", api.updateResourceUserData())
 		r.Get("/namespace/{namespace}/kind/{kind}/resource/{resource_name}/containers", api.getResourceContainers())
@@ -47,6 +48,7 @@ func (api *api) assets() func(chi.Router) {
 		r.Get("/imageProblems", api.getImageProblems())
 		r.Get("/resources/byImage", api.getResourcesByImage())
 		r.Get("/resources/byImageVulns", api.getResourcesByImageVuln())
+		// TODO: support redis search
 		r.Get("/pods", api.getPods())
 
 		r.Get("/resources/count", api.countResource())
@@ -68,7 +70,7 @@ func (api *api) assets() func(chi.Router) {
 		if exportContainers == "true" {
 			r.Get("/containers", api.getContainers())
 		}
-
+		// TODO: support redis search
 		r.Get("/rawContainers", api.getRawContainers())
 		r.Get("/rawContainers/count", api.countRawContainers())
 		r.Get("/rawContainer/{containerID}", api.getRawContainer())
@@ -888,6 +890,100 @@ func (api *api) getResources() http.HandlerFunc {
 	}
 }
 
+type GetResourceFuzzy struct {
+	Limit      int    `in:"query" name:"limit"`
+	Offset     int    `in:"query" name:"offset"`
+	ClusterKey string `in:"query" name:"cluster_key"`
+	Namespace  string `in:"query" name:"namespace"`
+	Kind       string `in:"query" name:"kind"`
+	Query      string `in:"query" name:"query"`
+	Name       string `in:"query" name:"name"`
+	UseRedis   bool   `in:"-"`
+}
+
+func (req *GetResourceFuzzy) Render(r *http.Request) error {
+	limit, offset, err := getLimitAndOffset(r)
+	if err != nil {
+		return err
+	}
+	clusterKey, err := param.QueryString(r, "cluster_key")
+	if err != nil {
+		clusterKey = ""
+	}
+
+	namespace, err := param.QueryString(r, "namespace")
+	if err != nil {
+		namespace = ""
+	}
+
+	kind, err := param.QueryString(r, "kind")
+	if err != nil {
+		kind = ""
+	}
+
+	query, err := param.QueryString(r, "query")
+	if err != nil {
+		query = ""
+	}
+
+	name, err := param.QueryString(r, "name")
+	if err != nil {
+		query = ""
+	}
+	req.Limit = limit
+	req.Offset = offset
+	req.ClusterKey = clusterKey
+	req.Namespace = namespace
+	req.Name = name
+	req.Kind = kind
+	req.Query = query
+	return nil
+}
+
+func (req *GetResourceFuzzy) Execute(ctx context.Context) ([]*model.TensorResource, int64, error) {
+	resSvc, ok := assets.GetResourcesService(ctx)
+	if !ok {
+		return nil, 0, NewAnError(http.StatusInternalServerError, errors.New("service instance get error"))
+	}
+
+	rQuery := dal.ResourcesQuery()
+	if req.ClusterKey != "" {
+		rQuery = rQuery.WithCluster(req.ClusterKey)
+	}
+	if req.Namespace != "" {
+		rQuery = rQuery.WithFuzzyNamespace(req.Namespace)
+	}
+	if req.Kind != "" && req.Kind != "_" {
+		rQuery = rQuery.WithResourceKind(assetsPkg.ResourceKind(req.Kind))
+	}
+	if req.Query != "" {
+		rQuery = rQuery.WithColumnQuery("name", req.Query)
+	}
+	if req.Name != "" {
+		rQuery = rQuery.WithFuzzyName(req.Name)
+	}
+
+	var (
+		resources []*model.TensorResource
+		totalCnt  int64
+		err       error
+	)
+
+	if req.UseRedis {
+		resources, totalCnt, err = resSvc.GetResourceWithRedis(ctx, rQuery, req.Offset, req.Limit)
+	} else {
+		resources, totalCnt, err = resSvc.GetResources(ctx, rQuery, req.Offset, req.Limit)
+
+	}
+
+	if err != nil {
+		logging.Get().Err(err).Msgf("query: %+v. offset: %d, limit: %d. get resources error", rQuery, req.Offset, req.Limit)
+		return nil, 0, err
+	}
+
+	return resources, totalCnt, nil
+}
+
 func (api *api) getResourcesFuzzy() http.HandlerFunc {
 	type resource struct {
 		Cluster   string   `json:"cluster"`
@@ -911,77 +1007,26 @@ func (api *api) getResourcesFuzzy() http.HandlerFunc {
 		r.Authority = rm.Authority
 		return r
 	}
-
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
 		defer cancel()
 
-		limit, offset, err := getLimitAndOffset(r)
-		if err != nil {
-			logging.Get().Err(err).Msgf("get limit or offset query error")
-			RespAndLog(w, ctx, NewAnError(http.StatusBadRequest, errors.New("no limit or offset given in params")))
+		req := &GetResourceFuzzy{UseRedis: true}
+		if err := req.Render(r); err != nil {
+			RespAndLog(w, ctx, NewAnError(http.StatusBadRequest, errors.New("render req body failed")))
 			return
 		}
-		clusterKey, err := param.QueryString(r, "cluster_key")
+		resources, totalCnt, err := req.Execute(ctx)
 		if err != nil {
-			clusterKey = ""
-		}
-
-		namespace, err := param.QueryString(r, "namespace")
-		if err != nil {
-			namespace = ""
-		}
-
-		kind, err := param.QueryString(r, "kind")
-		if err != nil {
-			kind = ""
-		}
-
-		query, err := param.QueryString(r, "query")
-		if err != nil {
-			query = ""
-		}
-
-		name, err := param.QueryString(r, "name")
-		if err != nil {
-			query = ""
-		}
-
-		resSvc, ok := assets.GetResourcesService(ctx)
-		if !ok {
-			logging.Get().Error().Msg("service instance get error")
-			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.New("service instance get error")))
+			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, err))
 			return
 		}
-		rQuery := dal.ResourcesQuery()
-		if clusterKey != "" {
-			rQuery = rQuery.WithCluster(clusterKey)
-		}
-		if namespace != "" {
-			rQuery = rQuery.WithFuzzyNamespace(namespace)
-		}
-		if kind != "" && kind != "_" {
-			rQuery = rQuery.WithResourceKind(assetsPkg.ResourceKind(kind))
-		}
-		if query != "" {
-			rQuery = rQuery.WithColumnQuery("name", query)
-		}
-		if name != "" {
-			rQuery = rQuery.WithFuzzyName(name)
-		}
-		resources, totalCnt, err := resSvc.GetResources(ctx, rQuery, offset, limit)
-		if err != nil {
-			logging.Get().Err(err).Msgf("query: %+v. offset: %d, limit: %d. get resources error", rQuery, offset, limit)
-			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.New("get resources error")))
-			return
-		}
-
 		items := make([]*resource, len(resources))
 		for i, resource := range resources {
 			items[i] = modelToResource(resource)
 		}
 
-		response.Ok(w, response.WithItems(items), response.WithTotalItems(totalCnt), response.WithStartIndex(int64(offset+len(items))))
+		response.Ok(w, response.WithItems(items), response.WithTotalItems(totalCnt), response.WithStartIndex(int64(req.Offset+len(items))))
 	}
 }
 
@@ -1179,6 +1224,113 @@ func (api *api) getResourceContainers() http.HandlerFunc {
 	}
 }
 
+type GetPods struct {
+	Limit        int       `in:"query" name:"limit"`
+	Offset       int       `in:"query" name:"offset"`
+	ClusterKey   string    `in:"query" name:"cluster_key"`
+	Namespace    string    `in:"query" name:"namespace"`
+	NodeName     string    `in:"query" name:"node_name"`
+	ResourceKind string    `in:"query" name:"resource_kind"`
+	ResourceName string    `in:"query" name:"resource_name"`
+	Name         string    `in:"query" name:"name"`
+	PodIP        string    `in:"query" name:"pod_ip"`
+	Query        string    `in:"query" name:"query"`
+	StartTime    time.Time `in:"query" name:"start_time"`
+	EndTime      time.Time `in:"query" name:"end_time"`
+	UseRedis     bool      `in:"-"`
+}
+
+func (req *GetPods) Render(r *http.Request) error {
+	limit, offset, err := getLimitAndOffset(r)
+	if err != nil {
+		return err
+	}
+	req.Limit = limit
+	req.Offset = offset
+	req.ClusterKey = getNormalizedQueryParam(r, "cluster_key")
+	req.Namespace = getNormalizedQueryParam(r, "namespace")
+	req.NodeName = getNormalizedQueryParam(r, "node_name")
+	req.ResourceKind = getNormalizedQueryParam(r, "resource_kind")
+	req.ResourceName = getNormalizedQueryParam(r, "resource_name")
+	req.Name = getNormalizedQueryParam(r, "name")
+	req.PodIP = getNormalizedQueryParam(r, "pod_ip")
+	req.Query, _ = param.QueryString(r, "query")
+
+	var start, end time.Time
+	startTime, _ := param.QueryString(r, "start_time")
+	if startTime != "" {
+		start, err = time.Parse(time.RFC3339, startTime)
+		if err != nil {
+			return err
+		}
+	}
+	req.StartTime = start
+
+	endTime, _ := param.QueryString(r, "end_time")
+	if endTime != "" {
+		end, err = time.Parse(time.RFC3339, endTime)
+		if err != nil {
+			return err
+		}
+	}
+
+	req.EndTime = end
+	return nil
+}
+
+func (req *GetPods) Execute(ctx context.Context) ([]*model.PodResourceRelation, int64, error) {
+	queryOpt := dal.ResourcePodssQuery()
+	if req.ClusterKey != "" {
+		queryOpt.WithCluster(req.ClusterKey)
+	}
+	if req.Namespace != "" {
+		queryOpt.WithFuzzyNamespace(req.Namespace)
+	}
+	if req.NodeName != "" {
+		queryOpt.WithNodeName(req.NodeName)
+	}
+	if req.ResourceKind != "" {
+		queryOpt.WithResourceKind(assetsPkg.ResourceKind(req.ResourceKind))
+	}
+	if req.ResourceName != "" {
+		queryOpt.WithFuzzyResourceName(req.ResourceName)
+	}
+	if req.Name != "" {
+		queryOpt.WithFuzzyName(req.Name)
+	}
+	if req.PodIP != "" {
+		queryOpt.WithFuzzyPodIP(req.PodIP)
+	}
+
+	if req.Query != "" {
+		queryOpt.WithMulColumnQuery([]string{"pod_name"}, req.Query)
+	}
+	queryOpt.WithTimeRange(req.StartTime, req.EndTime)
+
+	resSvc, ok := assets.GetResourcesService(ctx)
+	if !ok {
+		return nil, 0, NewAnError(http.StatusInternalServerError, errors.New("get resource service err"))
+	}
+
+	var (
+		pods []*model.PodResourceRelation
+		cnt  int64
+		err  error
+	)
+
+	if req.UseRedis {
+		pods, cnt, err = resSvc.GetResourcePodsWithRedis(ctx, queryOpt, req.Offset, req.Limit)
+	} else {
+		pods, cnt, err = resSvc.GetResourcePods(ctx, queryOpt, req.Offset, req.Limit)
+	}
+
+	if err != nil {
+		return nil, 0, NewAnError(http.StatusInternalServerError, fmt.Errorf("get resource pod err: %v", err))
+	}
+	return pods, cnt, nil
+
+}
+
 // @Summary
 // @Description get the list of pods with options
 // @Produce json
@@ -1189,85 +1341,14 @@ func (api *api) getPods() http.HandlerFunc {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 
-		limit, offset, err := getLimitAndOffset(r)
+		req := &GetPods{UseRedis: true}
+		err := req.Render(r)
 		if err != nil {
-			logging.Get().Err(err).Msgf("get limit or offset query error")
-			RespAndLog(w, ctx, NewAnError(http.StatusBadRequest, errors.New("no limit or offset given in params")))
+			logging.Get().Err(err).Msgf("render GetPods body failed")
+			RespAndLog(w, ctx, NewAnError(http.StatusBadRequest, err))
 			return
 		}
-
-		queryOpt := dal.ResourcePodssQuery()
-
-		clusterKey := getNormalizedQueryParam(r, "cluster_key")
-		if clusterKey != "" {
-			queryOpt.WithCluster(clusterKey)
-		}
-
-		namespace := getNormalizedQueryParam(r, "namespace")
-		if namespace != "" {
-			queryOpt.WithNamespace(namespace)
-		}
-
-		nodeName := getNormalizedQueryParam(r, "node_name")
-		if nodeName != "" {
-			queryOpt.WithNodeName(nodeName)
-		}
-
-		resKind := getNormalizedQueryParam(r, "resource_kind")
-		if resKind != "" {
-			queryOpt.WithResourceKind(assetsPkg.ResourceKind(resKind))
-		}
-
-		resName := getNormalizedQueryParam(r, "resource_name")
-		if resName != "" {
-			queryOpt.WithResourceName(resName)
-		}
-
-		name := getNormalizedQueryParam(r, "name")
-		if name != "" {
-			queryOpt.WithFuzzyName(name)
-		}
-
-		podIP := getNormalizedQueryParam(r, "pod_ip")
-		if podIP != "" {
-			queryOpt.WithPodIP(podIP)
-		}
-
-		query, err := param.QueryString(r, "query")
-		if err != nil {
-			query = ""
-		}
-		if query != "" {
-			queryOpt.WithMulColumnQuery([]string{"pod_name"}, query)
-		}
-
-		var start, end time.Time
-		startTime, _ := param.QueryString(r, "start_time")
-		if startTime != "" {
-			start, err = time.Parse(time.RFC3339, startTime)
-			if err != nil {
-				RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, fmt.Errorf("start time is invalid %v", err)))
-				return
-			}
-		}
-
-		endTime, _ := param.QueryString(r, "end_time")
-		if endTime != "" {
-			end, err = time.Parse(time.RFC3339, endTime)
-			if err != nil {
-				RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, fmt.Errorf("end time is invalid %v", err)))
-				return
-			}
-		}
-		queryOpt.WithTimeRange(start, end)
-
-		resSvc, ok := assets.GetResourcesService(ctx)
-		if !ok {
-			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.New("get resource service err")))
-			return
-		}
-
-		pods, cnt, err := resSvc.GetResourcePods(ctx, queryOpt, offset, limit)
+		pods, cnt, err := req.Execute(ctx)
 		if err != nil {
 			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, fmt.Errorf("get resource pod err: %v", err)))
 			return
@@ -1970,76 +2051,111 @@ func (api *api) getResourceTypes() http.HandlerFunc {
 	}
 }
 
+type GetRawContainers struct {
+	Limit          int      `in:"query" name:"limit"`
+	Offset         int      `in:"query" name:"offset"`
+	ClusterKey     string   `in:"query" name:"cluster_key"`
+	NodeNames      []string `in:"query" name:"node_name"`
+	Namespaces     []string `in:"query" name:"namespace"`
+	PodNames       []string `in:"query" name:"pod_name"`
+	ContainerNames []string `in:"query" name:"container_name"`
+	K8sManaged     *bool    `in:"query" name:"k8s_managed"`
+	Status         []int    `in:"query" name:"status"`
+	ResourceNames  []string `in:"query" name:"resource_name"`
+	UseRedis       bool     `in:"-"`
+}
+
+func (req *GetRawContainers) Render(r *http.Request) error {
+	limit, offset, err := getLimitAndOffset(r)
+	if err != nil {
+		return errors.New("no limit or offset given in params")
+	}
+	req.Limit = limit
+	req.Offset = offset
+
+	req.ClusterKey, _ = param.QueryString(r, "cluster_key")
+	req.NodeNames, _ = param.QueryStringArray(r, "node_name")
+	req.Namespaces, _ = param.QueryStringArray(r, "namespace")
+	req.PodNames, _ = param.QueryStringArray(r, "pod_name")
+	req.ContainerNames, _ = param.QueryStringArray(r, "container_name")
+	isK8sManaged, err := param.QueryBool(r, "k8s_managed")
+	if err == nil {
+		req.K8sManaged = &isK8sManaged
+	}
+	req.Status, _ = param.QueryIntArray(r, "status")
+	req.ResourceNames, _ = param.QueryStringArray(r, "resource_name")
+	return nil
+}
+
+func (req *GetRawContainers) Execute(ctx context.Context) ([]*model.TensorRawContainer, int64, error) {
+	query := dal.RawContainersQuery()
+	if req.K8sManaged != nil {
+		query.WithK8sManaged(*req.K8sManaged)
+	}
+	if len(req.Status) > 0 {
+		query.WithInConditionCustom("status", req.Status)
+	}
+	if req.ClusterKey != "" {
+		query = query.WithCluster(req.ClusterKey)
+	}
+	if len(req.NodeNames) != 0 {
+		query = query.WithColumnMultiQuery("node_name", req.NodeNames)
+	}
+	if len(req.Namespaces) != 0 {
+		query = query.WithColumnMultiQuery("namespace", req.Namespaces)
+	}
+	if len(req.PodNames) != 0 {
+		query = query.WithColumnMultiQuery("pod_name", req.PodNames)
+	}
+	if len(req.ContainerNames) != 0 {
+		query = query.WithColumnMultiQuery("name", req.ContainerNames)
+	}
+	if len(req.ResourceNames) != 0 {
+		query = query.WithColumnMultiQuery("resource_name", req.ResourceNames)
+	}
+
+	resSvc, ok := assets.GetResourcesService(ctx)
+	if !ok {
+		return nil, 0, errors.New("service instance get error")
+	}
+
+	var (
+		containers []*model.TensorRawContainer
+		totalCnt   int64
+		err        error
+	)
+
+	if req.UseRedis {
+		containers, totalCnt, err = resSvc.ListRawContainerWithRedis(ctx, query, req.Offset, req.Limit)
+	} else {
+		containers, totalCnt, err = resSvc.ListRawContainer(ctx, query, req.Offset, req.Limit)
+	}
+
+	return containers, totalCnt, err
+}
+
 func (api *api) getRawContainers() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 
-		query := dal.RawContainersQuery()
+		req := &GetRawContainers{UseRedis: true}
 
-		limit, offset, err := getLimitAndOffset(r)
+		err := req.Render(r)
 		if err != nil {
-			logging.Get().Err(err).Msgf("get limit or offset query error")
-			RespAndLog(w, ctx, NewAnError(http.StatusBadRequest, errors.New("no limit or offset given in params")))
+			RespAndLog(w, ctx, NewAnError(http.StatusBadRequest, err))
 			return
 		}
-		clusterKey, _ := param.QueryString(r, "cluster_key")
-		nodeNames, _ := param.QueryStringArray(r, "node_name")
-		namespaces, _ := param.QueryStringArray(r, "namespace")
-		podNames, _ := param.QueryStringArray(r, "pod_name")
-		containerNames, _ := param.QueryStringArray(r, "container_name")
-
-		isK8sManaged, err := param.QueryBool(r, "k8s_managed")
-		if err == nil {
-			query.WithK8sManaged(isK8sManaged)
-		}
-		status, _ := param.QueryInt32Array(r, "status")
-		if len(status) > 0 {
-			query.WithInConditionCustom("status", status)
-		}
-		resourceNames, _ := param.QueryStringArray(r, "resource_name")
-
-		resSvc, ok := assets.GetResourcesService(ctx)
-		if !ok {
-			logging.Get().Error().Msg("service instance get error")
-			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.New("service instance get error")))
-			return
-		}
-
-		if clusterKey != "" {
-			query = query.WithCluster(clusterKey)
-		}
-		if len(nodeNames) != 0 {
-			query = query.WithColumnMultiQuery("node_name", nodeNames)
-		}
-		if len(namespaces) != 0 {
-			query = query.WithColumnMultiQuery("namespace", namespaces)
-		}
-		if len(podNames) != 0 {
-			query = query.WithColumnMultiQuery("pod_name", podNames)
-		}
-		if len(containerNames) != 0 {
-			query = query.WithColumnMultiQuery("name", containerNames)
-		}
-		if len(resourceNames) != 0 {
-			query = query.WithColumnMultiQuery("resource_name", resourceNames)
-		}
-
-		containers, err := resSvc.GetRawContainer(ctx, query, offset, limit)
+		containers, totalCnt, err := req.Execute(ctx)
 		if err != nil {
 			logging.Get().Err(err).Msg("get raw container error")
 			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, err))
 			return
 		}
-		totalCnt, err := resSvc.CountRawContainer(ctx, query)
-		if err != nil {
-			logging.Get().Err(err).Msg("count raw container error")
-			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, err))
-			return
-		}
+
 		response.Ok(w, response.WithItems(containers),
 			response.WithTotalItems(totalCnt),
-			response.WithStartIndex(int64(offset+len(containers))),
+			response.WithStartIndex(int64(req.Offset+len(containers))),
 		)
 	}
 }

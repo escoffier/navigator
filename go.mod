@@ -93,6 +93,7 @@ require (
 require github.com/go-ldap/ldap/v3 v3.4.1
 
 require (
+	github.com/March-deng/godisearch v0.0.0-20230423070928-762a9cdf1eb3
 	github.com/afex/hystrix-go v0.0.0-20180502004556-fa1af6a1f4f5
 	github.com/ahmetb/go-linq/v3 v3.2.0
 	github.com/dlclark/regexp2 v1.8.1
@@ -168,6 +169,7 @@ require (
 	github.com/gobuffalo/here v0.6.0 // indirect
 	github.com/goccy/go-json v0.10.2 // indirect
 	github.com/godbus/dbus/v5 v5.0.6 // indirect
+	github.com/gomodule/redigo v1.8.9 // indirect
 	github.com/google/gnostic v0.5.7-v3refs // indirect
 	github.com/google/go-intervals v0.0.2 // indirect
 	github.com/googleapis/enterprise-certificate-proxy v0.2.3 // indirect
@@ -433,7 +435,7 @@ require (
 	github.com/sergi/go-diff v1.1.0 // indirect
 	github.com/smartystreets/assertions v1.2.0 // indirect
 	github.com/spf13/afero v1.8.2 // indirect
-	github.com/spf13/cast v1.4.1 // indirect
+	github.com/spf13/cast v1.4.1
 	github.com/spf13/jwalterweatherman v1.1.0 // indirect
 	github.com/stretchr/objx v0.5.0 // indirect
 	github.com/subosito/gotenv v1.2.0 // indirect
@@ -482,7 +484,7 @@ require (
 replace (
 	github.com/containers/podman/v3 => scm.tensorsecurity.cn/tensorsecurity-rd/podman/v3 v3.4.6-20220425170000
 	github.com/opencontainers/image-spec => github.com/opencontainers/image-spec v1.0.2-0.20210819154149-5ad6f50d6283
-	gitlab.com/security-rd/go-pkg => scm.tensorsecurity.cn/tensorsecurity-rd/go-pkg v0.2.65
+	gitlab.com/security-rd/go-pkg => scm.tensorsecurity.cn/tensorsecurity-rd/go-pkg v0.2.67-0.20230506075603-8db05af9db69
 	k8s.io/api => k8s.io/kubernetes/staging/src/k8s.io/api v0.0.0-20220503133649-4ce5a8954017
 	k8s.io/apiextensions-apiserver => k8s.io/kubernetes/staging/src/k8s.io/apiextensions-apiserver v0.0.0-20220503133649-4ce5a8954017
 	k8s.io/apimachinery => k8s.io/kubernetes/staging/src/k8s.io/apimachinery v0.0.0-20220503133649-4ce5a8954017
