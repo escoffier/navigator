@@ -19,6 +19,7 @@ import (
 	"gitlab.com/security-rd/go-pkg/httputil"
 	"gitlab.com/security-rd/go-pkg/logging"
 	pmodel "gitlab.com/security-rd/go-pkg/model"
+	"gitlab.com/security-rd/go-pkg/redisearch"
 	"google.golang.org/protobuf/reflect/protoreflect"
 
 	"gitlab.com/piccolo_su/vegeta/pkg/dal"
@@ -41,9 +42,10 @@ var (
 	rlOnce   sync.Once
 )
 
-func InitResourcesService(rdb *databases.RDBInstance, scannerURL string) error {
+// TODO:直接传入rsearchClient，在查询时判断rsearchClient实例是否为nil不是一种好的方式，如有必要，考虑将dal的操作抽象为接口
+func InitResourcesService(rdb *databases.RDBInstance, rsearchClient *redisearch.Client, scannerURL string) error {
 	rlOnce.Do(func() {
-		instance = newTensorResourcesService(rdb, scannerURL)
+		instance = newTensorResourcesService(rdb, rsearchClient, scannerURL)
 	})
 	return nil
 }
@@ -53,14 +55,16 @@ func GetResourcesService(_ context.Context) (*TensorResourcesService, bool) {
 }
 
 type TensorResourcesService struct {
-	rdb        *databases.RDBInstance
-	scannerURL string
+	rdb           *databases.RDBInstance
+	rsearchClient *redisearch.Client
+	scannerURL    string
 }
 
-func newTensorResourcesService(rdb *databases.RDBInstance, scannerURL string) *TensorResourcesService {
+func newTensorResourcesService(rdb *databases.RDBInstance, rsearchClient *redisearch.Client, scannerURL string) *TensorResourcesService {
 	return &TensorResourcesService{
-		rdb:        rdb,
-		scannerURL: scannerURL,
+		rdb:           rdb,
+		rsearchClient: rsearchClient,
+		scannerURL:    scannerURL,
 	}
 }
 
@@ -100,6 +104,29 @@ func (rl *TensorResourcesService) GetResources(ctx context.Context, queryOptions
 		return nil, 0, err
 	}
 	resCnt, err := dal.CountResources(ctx, rl.rdb.GetReadDB(), queryOptions)
+	if err != nil {
+		return nil, 0, err
+	}
+	return resources, resCnt, nil
+}
+
+// GetResourceWithRedis will send query to redis only if redisearch client is ready and queryOptions meet with redisearch.
+func (rl *TensorResourcesService) GetResourceWithRedis(ctx context.Context, queryOptions *dal.ResourcesQueryOption, offset, limit int) ([]*model.TensorResource, int64, error) {
+	if rl.rsearchClient == nil {
+		return rl.GetResources(ctx, queryOptions, offset, limit)
+	}
+
+	ic, err := rl.rsearchClient.GetIndexClient("resource")
+	if err != nil {
+		return nil, 0, err
+	}
+
+	resources, err := dal.GetResourcesWithRedis(ctx, rl.rdb.GetReadDB(), ic, queryOptions, offset, limit)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	resCnt, err := dal.CountResourcesWithRedis(ctx, rl.rdb.GetReadDB(), ic, queryOptions)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -156,17 +183,43 @@ func (rl *TensorResourcesService) UpdateNamespaces(ctx context.Context, clusterK
 	return err
 }
 
+func (rl *TensorResourcesService) GetResourcePodsWithRedis(ctx context.Context, queryOptions *dal.ResPodsQueryOption, offset, limit int) ([]*model.PodResourceRelation, int64, error) {
+	if rl.rsearchClient == nil {
+		return rl.GetResourcePods(ctx, queryOptions, offset, limit)
+	}
+
+	ic, err := rl.rsearchClient.GetIndexClient("pod")
+	if err != nil {
+		return nil, 0, err
+	}
+
+	cnt, err := dal.CountPodsWithRedis(ctx, rl.rdb.GetReadDB(), ic, queryOptions)
+
+	if err != nil {
+		return nil, 0, err
+	}
+
+	if cnt == 0 {
+		return nil, 0, err
+	}
+
+	pods, err := dal.GetResourcePodListWithRedis(ctx, rl.rdb.GetReadDB(), ic, queryOptions, offset, limit)
+
+	return pods, cnt, err
+
+}
+
 func (rl *TensorResourcesService) GetResourcePods(ctx context.Context, queryOptions *dal.ResPodsQueryOption, offset, limit int) ([]*model.PodResourceRelation, int64, error) {
 	pods, err := dal.GetResourcePodsList(ctx, rl.rdb.GetReadDB(), queryOptions, offset, limit)
 	if err != nil {
 		return nil, 0, err
 	}
-	cnt, err := dal.CountPods(ctx, rl.rdb.GetReadDB(), queryOptions, -1, -1)
+	cnt, err := dal.CountPods(ctx, rl.rdb.GetReadDB(), queryOptions)
 	return pods, cnt, err
 }
 
 func (rl *TensorResourcesService) CountPods(ctx context.Context, queryOptions *dal.ResPodsQueryOption) (int64, error) {
-	cnt, err := dal.CountPods(ctx, rl.rdb.GetReadDB(), queryOptions, 0, -1)
+	cnt, err := dal.CountPods(ctx, rl.rdb.GetReadDB(), queryOptions)
 	if err != nil {
 		return 0, err
 	}
@@ -727,6 +780,41 @@ func (rl *TensorResourcesService) GetRawContainer(ctx context.Context, queryOpti
 
 func (rl *TensorResourcesService) CountRawContainer(ctx context.Context, queryOptions *dal.RawContainersQueryOption) (int64, error) {
 	return dal.CountRawContainer(ctx, rl.rdb.GetReadDB(), queryOptions)
+}
+
+func (rl *TensorResourcesService) ListRawContainer(ctx context.Context, queryOptions *dal.RawContainersQueryOption, offset, limit int) ([]*model.TensorRawContainer, int64, error) {
+	cnt, err := rl.CountRawContainer(ctx, queryOptions)
+	if err != nil {
+		return nil, 0, err
+	}
+	containers, err := rl.GetRawContainer(ctx, queryOptions, offset, limit)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	return containers, cnt, nil
+}
+
+func (rl *TensorResourcesService) ListRawContainerWithRedis(ctx context.Context, queryOptions *dal.RawContainersQueryOption, offset, limit int) ([]*model.TensorRawContainer, int64, error) {
+	if rl.rsearchClient == nil {
+		return rl.ListRawContainer(ctx, queryOptions, offset, limit)
+	}
+	ic, err := rl.rsearchClient.GetIndexClient("rawContainer")
+	if err != nil {
+		return nil, 0, err
+	}
+
+	cnt, err := dal.CountRawContainerWithRedis(ctx, rl.rdb.GetReadDB(), ic, queryOptions)
+	if err != nil {
+		return nil, 0, err
+	}
+	containers, err := dal.GetRawContainersWithRedis(ctx, rl.rdb.GetReadDB(), ic, queryOptions, offset, limit)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	return containers, cnt, nil
+
 }
 
 func (rl *TensorResourcesService) GetRuleVersions(ctx context.Context, offset, limit int) ([]string, int64, error) {

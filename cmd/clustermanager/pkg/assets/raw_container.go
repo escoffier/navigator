@@ -4,14 +4,17 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
+
+	rs "github.com/March-deng/godisearch/redisearch"
 	"gitlab.com/piccolo_su/vegeta/pkg/assets"
 	"gitlab.com/piccolo_su/vegeta/pkg/dal"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 	"gitlab.com/security-rd/go-pkg/databases"
 	"gitlab.com/security-rd/go-pkg/logging"
+	"gitlab.com/security-rd/go-pkg/redisearch"
 	corev1 "k8s.io/api/core/v1"
-	"time"
 )
 
 var _ assets.Callback = (*RawContainerWatcher)(nil)
@@ -19,6 +22,8 @@ var _ assets.ClusterCallback = (*RawContainerCallBack)(nil)
 
 type RawContainerWatcher struct {
 	rdb *databases.RDBInstance
+	// redisearch clients
+	redisearchClis *redisearch.Client
 }
 
 type containerEvent struct {
@@ -27,9 +32,10 @@ type containerEvent struct {
 	updateTime time.Time
 }
 
-func newRawContainerWatcher(rdb *databases.RDBInstance) *RawContainerWatcher {
+func newRawContainerWatcher(rdb *databases.RDBInstance, redisearchClis *redisearch.Client) *RawContainerWatcher {
 	return &RawContainerWatcher{
-		rdb: rdb,
+		rdb:            rdb,
+		redisearchClis: redisearchClis,
 	}
 }
 
@@ -48,6 +54,27 @@ func (r *RawContainerWatcher) WatchedTypes() map[assets.WatchedType]struct{} {
 
 func (r *RawContainerWatcher) Name() string {
 	return "RawContainerWatcher"
+}
+
+// call enableRedisSearch before mustGetRedisSearchClient
+func (rl *RawContainerWatcher) mustGetRedisSearchClient(modelType string) *rs.Client {
+	c, err := rl.redisearchClis.GetIndexClient(modelType)
+	if err != nil {
+		panic(err)
+	}
+
+	return c
+}
+
+func (rl *RawContainerWatcher) enableRedisSearch(modelType string) bool {
+	if rl.redisearchClis != nil {
+		c, err := rl.redisearchClis.GetIndexClient(modelType)
+		if err != nil {
+			return false
+		}
+		return c != nil
+	}
+	return false
 }
 
 type RawContainerCallBack struct {
@@ -79,16 +106,32 @@ func (cb *RawContainerCallBack) doOnRawContainerEvent(ctx context.Context, e con
 	tctx, cancel := context.WithTimeout(ctx, 8000*time.Millisecond)
 	defer cancel()
 
+	useRedis := cb.parent.enableRedisSearch("rawContainer")
+
+	logging.Get().Info().Msgf("process raw container event, action: %d, container: %s,name: %s, resource: %s/%s, useRedis: %t", e.action, e.container.ContainerID, e.container.Name, e.container.ResourceKind, e.container.ResourceName, useRedis)
+
 	switch e.action {
 	case assets.ActionDelete:
-		rerr := dal.DeleteRawContainer(tctx, cb.parent.rdb.Get(), e.container.ClusterKey, e.container.ContainerID)
-		if rerr != nil {
-			logging.Get().Err(rerr).Msg("delete raw container rel in rdb error")
+		var deleteErr error
+		if useRedis {
+			deleteErr = dal.DeleteRawContainerWithRedis(tctx, cb.parent.rdb.Get(), cb.parent.mustGetRedisSearchClient("rawContainer"), e.container.ClusterKey, e.container.ContainerID)
+		} else {
+			deleteErr = dal.DeleteRawContainer(tctx, cb.parent.rdb.Get(), e.container.ClusterKey, e.container.ContainerID)
+		}
+		if deleteErr != nil {
+			logging.Get().Err(deleteErr).Msg("delete raw container rel in rdb error")
 		}
 	case assets.ActionUpdate, assets.ActionAdd:
-		rerr := dal.UpsertRawContainers(tctx, cb.parent.rdb.Get(), (*model.TensorRawContainer)(e.container))
-		if rerr != nil {
-			logging.Get().Err(rerr).Msg("upsert raw container rel in rdb error")
+
+		var upsertErr error
+		if useRedis {
+			upsertErr = dal.UpsertRawContainerWithRedis(tctx, cb.parent.rdb.Get(), cb.parent.mustGetRedisSearchClient("rawContainer"), (*model.TensorRawContainer)(e.container))
+		} else {
+			upsertErr = dal.UpsertRawContainers(tctx, cb.parent.rdb.Get(), (*model.TensorRawContainer)(e.container))
+		}
+
+		if upsertErr != nil {
+			logging.Get().Err(upsertErr).Msg("upsert raw container rel in rdb error")
 		}
 	}
 	return nil
@@ -96,7 +139,11 @@ func (cb *RawContainerCallBack) doOnRawContainerEvent(ctx context.Context, e con
 
 func (cb *RawContainerCallBack) removeInactiveData(ctx context.Context, sync *assets.TensorSync) error {
 	logging.Get().Info().Msgf("remove Inactive container: %+v", sync)
-	return dal.CleanUpRawContainer(ctx, cb.parent.rdb.Get(), sync.SyncTime, sync.Cluster, sync.NodeName)
+	if cb.parent.enableRedisSearch("rawContainer") {
+		return dal.CleanUpRawContainerWithRedis(ctx, cb.parent.rdb.Get(), cb.parent.mustGetRedisSearchClient("rawContainer"), sync.SyncTime, sync.Cluster, sync.NodeName)
+	} else {
+		return dal.CleanUpRawContainer(ctx, cb.parent.rdb.Get(), sync.SyncTime, sync.Cluster, sync.NodeName)
+	}
 }
 
 func (cb *RawContainerCallBack) OnTensorResourceEvent(*assets.TensorResource, *assets.TensorResource, assets.Action) error {

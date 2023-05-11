@@ -4,10 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
+	"github.com/March-deng/godisearch/redisearch"
 	json "github.com/json-iterator/go"
+	"github.com/spf13/cast"
 	"gitlab.com/piccolo_su/vegeta/pkg/assets"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
@@ -79,6 +82,39 @@ var (
 		"updated_at",
 		"status",
 		"ready",
+	}
+	OnDupUpdatedColsForRawContainer = []string{
+		"updated_at",
+		"status",
+		"name",
+		"pod_name",
+		"namespace",
+		"cluster_key",
+		"resource_kind",
+		"resource_name",
+		"image_id",
+		"image_name",
+		"environment",
+		"volume_mounts",
+		"reserved_cpu",
+		"reserved_memory",
+		"pid",
+		"k8s_managed",
+		"node_ip",
+		"node_name",
+		"cmd",
+		"image_digest",
+		"process_number",
+		"processes",
+		"ports",
+		"image_size",
+		"image_created",
+		"user",
+		"ip",
+		"ipv6",
+		"gateway",
+		"mac",
+		"network_mode",
 	}
 )
 
@@ -328,6 +364,57 @@ func (q *ResourcesQueryOption) WithColumnQuery(column, query string) *ResourcesQ
 	return q
 }
 
+func (q *ResourcesQueryOption) OkForRedis() bool {
+	if q.columnQuery.column != "" {
+		return false
+	}
+	if len(q.WhereLikeCondition) == 0 {
+		return false
+	}
+	if len(q.whereInCondition) != 0 {
+		return false
+	}
+
+	for k := range q.whereEqCondition {
+		if k != "id" && k != "kind" && k != "cluster_key" {
+			return false
+		}
+	}
+
+	for k := range q.WhereLikeCondition {
+		if k != "name" && k != "namespace" {
+			return false
+		}
+	}
+
+	return true
+}
+
+func (q *ResourcesQueryOption) RedisRawQuery() string {
+	rawQuery := &strings.Builder{}
+
+	if !q.OkForRedis() {
+		return ""
+	}
+
+	v, ok := q.whereEqCondition["kind"]
+	if ok {
+		rawQuery.WriteString(fmt.Sprintf(` @kind:{%s}`, v))
+	}
+	v, ok = q.whereEqCondition["cluster_key"]
+	if ok {
+		rawQuery.WriteString(fmt.Sprintf(` @cluster_key:{%s}`, redisearch.EscapeTextFileString(cast.ToString(v))))
+	}
+	v, ok = q.whereEqCondition["id"]
+	if ok {
+		rawQuery.WriteString(fmt.Sprintf(" @id:[%d %d]", cast.ToUint32(v), cast.ToUint32(v)))
+	}
+	for field, value := range q.WhereLikeCondition {
+		rawQuery.WriteString(fmt.Sprintf(" @%s:{*%s*}", field, redisearch.EscapeTextFileString(value)))
+	}
+	return rawQuery.String()
+}
+
 type ResourceKey struct {
 	ClusterKey   string
 	Namespace    string
@@ -352,27 +439,72 @@ func CountResources(ctx context.Context, rdb *gorm.DB, query *ResourcesQueryOpti
 		oneCtx, cancel := context.WithTimeout(ctx, 4*time.Second)
 		defer cancel()
 
-		db := rdb.WithContext(oneCtx).Model(&model.TensorResource{}).Where("status = ?", 0)
-		if len(query.whereEqCondition) > 0 {
-			db = db.Where(query.whereEqCondition)
-		}
-		if len(query.whereInCondition) > 0 {
-			for column, val := range query.whereInCondition {
-				db = db.Where(fmt.Sprintf("%s in ?", column), val)
-			}
-		}
-		if len(query.columnQuery.column) > 0 && len(query.columnQuery.query) > 0 {
-			db = db.Where(fmt.Sprintf("%s LIKE ?", query.columnQuery.column), GetLikeExpr(query.columnQuery.query))
-		}
-		for col, q := range query.WhereLikeCondition {
-			db = db.Where(fmt.Sprintf("%s LIKE ?", col), GetLikeExpr(q))
-		}
-		return db.Count(&resCount).Error
+		var countErr error
+
+		resCount, countErr = countResourcesFromDB(oneCtx, rdb, query)
+		return countErr
 	})
+
 	if err != nil {
 		return 0, err
 	}
 	return resCount, nil
+}
+
+func countResourcesFromDB(ctx context.Context, rdb *gorm.DB, query *ResourcesQueryOption) (int64, error) {
+	var resCount int64
+	db := rdb.WithContext(ctx).Model(&model.TensorResource{}).Where("status = ?", 0)
+	if len(query.whereEqCondition) > 0 {
+		db = db.Where(query.whereEqCondition)
+	}
+	if len(query.whereInCondition) > 0 {
+		for column, val := range query.whereInCondition {
+			db = db.Where(fmt.Sprintf("%s in ?", column), val)
+		}
+	}
+	if len(query.columnQuery.column) > 0 && len(query.columnQuery.query) > 0 {
+		db = db.Where(fmt.Sprintf("%s LIKE ?", query.columnQuery.column), GetLikeExpr(query.columnQuery.query))
+	}
+	for col, q := range query.WhereLikeCondition {
+		db = db.Where(fmt.Sprintf("%s LIKE ?", col), GetLikeExpr(q))
+	}
+	err := db.Count(&resCount).Error
+	return resCount, err
+}
+
+func countResourceFromRedis(ctx context.Context, client *redisearch.Client, query *ResourcesQueryOption) (int64, error) {
+
+	rawQuery := query.RedisRawQuery()
+
+	q := redisearch.NewQuery(rawQuery).SetReturnFields("id").Limit(0, 0)
+
+	_, total, err := client.Search(ctx, q)
+	if err != nil {
+		return 0, err
+	}
+
+	return int64(total), nil
+}
+
+func CountResourcesWithRedis(ctx context.Context, rdb *gorm.DB, redisClient *redisearch.Client, query *ResourcesQueryOption) (int64, error) {
+	pgCtx, cancel := context.WithTimeout(ctx, 9*time.Second)
+	defer cancel()
+
+	var resCount int64
+
+	err := util.RetryWithBackoff(pgCtx, func() error {
+		oneCtx, cancel := context.WithTimeout(ctx, 4*time.Second)
+		defer cancel()
+		var countErr error
+		if query.OkForRedis() {
+			resCount, countErr = countResourceFromRedis(oneCtx, redisClient, query)
+		} else {
+			resCount, countErr = countResourcesFromDB(oneCtx, rdb, query)
+		}
+		return countErr
+	})
+
+	return resCount, err
 }
 
 func GetResources(ctx context.Context, rdb *gorm.DB, query *ResourcesQueryOption, offset, limit int) (resources []*model.TensorResource, err error) {
@@ -382,32 +514,95 @@ func GetResources(ctx context.Context, rdb *gorm.DB, query *ResourcesQueryOption
 	err = util.RetryWithBackoff(pgCtx, func() error {
 		oneCtx, cancel := context.WithTimeout(ctx, 1500*time.Millisecond)
 		defer cancel()
+		var queryErr error
+		resources, queryErr = getResourcesFromDB(oneCtx, rdb, query, offset, limit)
 
-		db := rdb.WithContext(oneCtx).Model(&model.TensorResource{}).Where("status = ?", 0)
-		if len(query.whereEqCondition) > 0 {
-			db = db.Where(query.whereEqCondition)
-		}
-		if len(query.whereInCondition) > 0 {
-			for column, val := range query.whereInCondition {
-				db = db.Where(fmt.Sprintf("%s in ?", column), val)
-			}
-		}
-		if len(query.columnQuery.column) > 0 && len(query.columnQuery.query) > 0 {
-			db = db.Where(fmt.Sprintf("LOWER(%s) LIKE LOWER(?)", query.columnQuery.column), GetLikeExpr(query.columnQuery.query))
-		}
-		for col, q := range query.WhereLikeCondition {
-			db = db.Where(fmt.Sprintf("LOWER(%s) LIKE LOWER(?)", col), GetLikeExpr(q))
-		}
-		if limit > 0 && offset >= 0 {
-			db = db.Offset(offset).Limit(limit)
-		}
-
-		return db.Order("id ASC").Find(&resources).Error
+		return queryErr
 	})
 	if err != nil {
 		return nil, err
 	}
 	return resources, nil
+}
+
+func getResourcesFromDB(ctx context.Context, rdb *gorm.DB, query *ResourcesQueryOption, offset, limit int) (resources []*model.TensorResource, err error) {
+	db := rdb.WithContext(ctx).Model(&model.TensorResource{}).Where("status = ?", 0)
+	if len(query.whereEqCondition) > 0 {
+		db = db.Where(query.whereEqCondition)
+	}
+	if len(query.whereInCondition) > 0 {
+		for column, val := range query.whereInCondition {
+			db = db.Where(fmt.Sprintf("%s in ?", column), val)
+		}
+	}
+	if len(query.columnQuery.column) > 0 && len(query.columnQuery.query) > 0 {
+		db = db.Where(fmt.Sprintf("%s LIKE ?", query.columnQuery.column), GetLikeExpr(query.columnQuery.query))
+	}
+	for col, q := range query.WhereLikeCondition {
+		db = db.Where(fmt.Sprintf("%s LIKE ?", col), GetLikeExpr(q))
+	}
+	if limit > 0 && offset >= 0 {
+		db = db.Offset(offset).Limit(limit)
+	}
+
+	err = db.Order("id ASC").Find(&resources).Error
+
+	return
+}
+
+func getResourcesIDFromRedis(ctx context.Context, client *redisearch.Client, query *ResourcesQueryOption, offset, limit int) ([]uint32, int64, error) {
+	rawQuery := query.RedisRawQuery()
+
+	fmt.Println(rawQuery)
+
+	q := redisearch.NewQuery(rawQuery).SetReturnFields("id").SetSortBy("id", true).Limit(offset, limit)
+
+	result, total, err := client.Search(ctx, q)
+	if err != nil {
+		return nil, 0, err
+	}
+	ids := make([]uint32, 0, len(result))
+
+	for _, doc := range result {
+		ids = append(ids, cast.ToUint32(doc.Properties["id"]))
+	}
+	return ids, cast.ToInt64(total), nil
+}
+
+func GetResourcesWithRedis(ctx context.Context, rdb *gorm.DB, redisClient *redisearch.Client, query *ResourcesQueryOption, offset, limit int) ([]*model.TensorResource, error) {
+	pgCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+
+	resources := make([]*model.TensorResource, 0)
+
+	err := util.RetryWithBackoff(pgCtx, func() error {
+		oneCtx, cancel := context.WithTimeout(ctx, 1500*time.Millisecond)
+		defer cancel()
+
+		// declare var here to avoid shadow
+		var (
+			queryErr error
+			ids      []uint32
+		)
+		if query.OkForRedis() {
+			ids, _, queryErr = getResourcesIDFromRedis(oneCtx, redisClient, query, offset, limit)
+			if queryErr != nil {
+				return queryErr
+			}
+			if len(ids) == 0 {
+				return nil
+			}
+			resources, queryErr = getResourcesFromDB(oneCtx, rdb, &ResourcesQueryOption{
+				whereInCondition: map[string]interface{}{"id": ids},
+			}, -1, -1)
+		} else {
+			resources, queryErr = getResourcesFromDB(oneCtx, rdb, query, offset, limit)
+		}
+
+		return queryErr
+	})
+
+	return resources, err
 }
 
 type ResContainersQueryOption struct {
@@ -577,6 +772,29 @@ func SoftDeleteResource(ctx context.Context, rdb *gorm.DB, resource *assets.Tens
 		return doSoftDeleteResourceContainers(ctx, db, resource, updateTime)
 	})
 }
+
+func SoftDeleteResourceWithRedis(ctx context.Context, rdb *gorm.DB, redisClient *redisearch.Client, resource *assets.TensorResource, updateTime time.Time) error {
+
+	uuid := GetResourceUUID(resource.Cluster, resource.Namespace, string(resource.Kind), resource.Name)
+
+	ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	defer cancel()
+
+	return rdb.WithContext(ctx).Transaction(func(db *gorm.DB) error {
+		err := doSoftDeleteResource(ctx, db, uuid, updateTime)
+		if err != nil {
+			return err
+		}
+
+		err = redisClient.DeleteDoc(ctx, fmt.Sprintf("resource:%d", uuid))
+		if err != nil {
+			return err
+		}
+		// delete releted containers
+		return doSoftDeleteResourceContainers(ctx, db, resource, updateTime)
+	})
+}
+
 func newModelFromTensorResource(resource *assets.TensorResource, updateTime time.Time) *model.TensorResource {
 	m := new(model.TensorResource)
 	m.ID = GetResourceUUID(resource.Cluster, resource.Namespace, string(resource.Kind), resource.Name)
@@ -638,6 +856,29 @@ func doUpsertResource(ctx context.Context, rdb *gorm.DB, resourceModel *model.Te
 	}).Create(resourceModel).Error
 }
 
+func doUpsertResourceRedis(ctx context.Context, client *redisearch.Client, resource *model.TensorResource, updateTime time.Time) error {
+	docID := fmt.Sprintf("resource:%d", resource.ID)
+
+	doc := redisearch.NewDocument(docID, 1).
+		Set("id", resource.ID).
+		Set("name", resource.Name).
+		Set("namespace", resource.Namespace).
+		Set("cluster_key", resource.ClusterKey).
+		Set("kind", resource.Kind).
+		Set("updated_at", updateTime.UnixMilli())
+
+	return upsertRedisDocument(ctx, client, doc)
+}
+
+func upsertRedisDocument(ctx context.Context, client *redisearch.Client, doc redisearch.Document) error {
+	err := client.DeleteDoc(ctx, doc.Id)
+	if err != nil {
+		return err
+	}
+
+	return client.AddDoc(ctx, doc)
+}
+
 // UpsertResource will update tensor_resources and also tensor_containers using transactions. One fail will cause the whole update rollback.
 func UpsertResource(ctx context.Context, rdb *gorm.DB, resource *assets.TensorResource, updateTime time.Time) (*model.TensorResource, error) {
 	resourceModel := newModelFromTensorResource(resource, updateTime)
@@ -655,6 +896,28 @@ func UpsertResource(ctx context.Context, rdb *gorm.DB, resource *assets.TensorRe
 	})
 
 	return resourceModel, err
+}
+
+func UpsertResourceWithRedis(ctx context.Context, rdb *gorm.DB, redisClient *redisearch.Client, resource *assets.TensorResource, updateTime time.Time) (*model.TensorResource, error) {
+	resourceModel := newModelFromTensorResource(resource, updateTime)
+
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+
+	err := rdb.WithContext(ctx).Transaction(func(db *gorm.DB) error {
+		err := doUpsertResource(ctx, db, resourceModel, updateTime)
+		if err != nil {
+			return err
+		}
+		_, err = doUpsertResourceContainers(ctx, db, resource, updateTime)
+		if err != nil {
+			return err
+		}
+		return doUpsertResourceRedis(ctx, redisClient, resourceModel, updateTime)
+	})
+
+	return resourceModel, err
+
 }
 
 func UpdateResourceUserData(ctx context.Context, rdb *gorm.DB, resource *model.TensorResource) error {
@@ -714,7 +977,7 @@ func fromContainerToModel(ctx context.Context, rdb *gorm.DB, container corev1.Co
 			}
 		}
 
-		//TODO: may be removed later
+		// TODO: may be removed later
 		webFrameScan, err := GetFramework(ctx, rdb, contModel.ImageUUID)
 		if err == nil && webFrameScan != nil {
 			var infos []model.WebFrameInfo
@@ -808,6 +1071,51 @@ func CleanUpUnUpdatedResources(ctx context.Context, rdb *gorm.DB, ts time.Time, 
 			"updated_at": ts,
 		}).Error
 	})
+}
+
+func CleanUpUnUpdatedResourcesWithRedis(ctx context.Context, rdb *gorm.DB, redisClient *redisearch.Client, ts time.Time, clusterKey string) error {
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+
+	return util.RetryWithBackoff(ctx, func() error {
+		oneCtx, cancel := context.WithTimeout(ctx, 1500*time.Millisecond)
+		defer cancel()
+
+		err := rdb.WithContext(oneCtx).Model(&model.TensorResource{}).Where("updated_at < ? AND status = ? AND cluster_key = ?", ts, 0, clusterKey).Updates(map[string]interface{}{
+			"status":     1,
+			"updated_at": ts,
+		}).Error
+		if err != nil {
+			return err
+		}
+
+		return cleanUpResourcesFromRedis(oneCtx, redisClient, ts, clusterKey)
+	})
+}
+
+// FIXME: 这个清理函数使用秒级时间戳是否会有问题
+func cleanUpResourcesFromRedis(ctx context.Context, redisClient *redisearch.Client, ts time.Time, clusterKey string) error {
+	updatedAt := ts.UnixMilli()
+	rawQuery := fmt.Sprintf("@cluster_key:{%s} @updated_at:[-inf (%d]", redisearch.EscapeTextFileString(clusterKey), updatedAt)
+
+	query := redisearch.NewQuery(rawQuery).SetReturnFields("id")
+
+	result, _, err := redisClient.Search(ctx, query)
+	if err != nil {
+		return err
+	}
+
+	if len(result) == 0 {
+		return nil
+	}
+
+	keys := make([]string, 0, len(result))
+
+	for _, doc := range result {
+		keys = append(keys, doc.Id)
+	}
+
+	return redisClient.DeleteDoc(ctx, keys...)
 }
 
 func CleanUpUnUpdatedResourceContainers(ctx context.Context, rdb *gorm.DB, ts time.Time, clusterKey string) error {
@@ -907,32 +1215,32 @@ func CleanUpUnUpdatedNamespaces(ctx context.Context, rdb *gorm.DB, ts time.Time,
 	})
 }
 
-func getRedisKeyForPodResRelByName(clusterKey, namespace, podName string) string {
-	return fmt.Sprintf("podname-res-rel:%s/%s/%s", clusterKey, namespace, podName)
-}
-func getRedisKeyForPodResRelByPodIP(clusterKey, podIP string) string {
-	return fmt.Sprintf("podip-res-rel:%s/%s", clusterKey, podIP)
-}
-func getRedisKeyForPodResRelByUID(clusterKey, podUID string) string {
-	return fmt.Sprintf("poduid-res-rel:%s/%s", clusterKey, podUID)
-}
-func getRedisKeyForResourceControlled(clusterKey, namespace, kind, name string) string {
-	return fmt.Sprintf("res-controlled:%s/%s/%s/%s", clusterKey, namespace, kind, name)
-}
+// func getRedisKeyForPodResRelByName(clusterKey, namespace, podName string) string {
+// 	return fmt.Sprintf("podname-res-rel:%s/%s/%s", clusterKey, namespace, podName)
+// }
+// func getRedisKeyForPodResRelByPodIP(clusterKey, podIP string) string {
+// 	return fmt.Sprintf("podip-res-rel:%s/%s", clusterKey, podIP)
+// }
+// func getRedisKeyForPodResRelByUID(clusterKey, podUID string) string {
+// 	return fmt.Sprintf("poduid-res-rel:%s/%s", clusterKey, podUID)
+// }
+// func getRedisKeyForResourceControlled(clusterKey, namespace, kind, name string) string {
+// 	return fmt.Sprintf("res-controlled:%s/%s/%s/%s", clusterKey, namespace, kind, name)
+// }
 
-type prqKind string
+// type prqKind string
 
-const (
-	podIP   prqKind = "podIP"
-	podUID  prqKind = "podUID"
-	podName prqKind = "podName"
-)
+// const (
+// 	podIP   prqKind = "podIP"
+// 	podUID  prqKind = "podUID"
+// 	podName prqKind = "podName"
+// )
 
 func GetPodInfoFromK8sClient(ctx context.Context, k8sCli *kubernetes.Clientset, namespace, podName string) (*corev1.Pod, error) {
 	return k8sCli.CoreV1().Pods(namespace).Get(ctx, podName, metav1.GetOptions{})
 }
 
-func UpsertPodResourceRelationInRDB(ctx context.Context, rdb *gorm.DB, pod *corev1.Pod, resourceName, resKind, clusterKey string, updateTime time.Time) error {
+func newPodResourceRelationFromPod(pod *corev1.Pod, resourceName, resKind, clusterKey string, updateTime time.Time) *model.PodResourceRelation {
 	podContainerInfos := &model.PodContainerInfos{
 		InitContainerInfo: nil,
 		ContainerInfo:     nil,
@@ -951,7 +1259,7 @@ func UpsertPodResourceRelationInRDB(ctx context.Context, rdb *gorm.DB, pod *core
 		})
 	}
 
-	rel := model.PodResourceRelation{
+	rel := &model.PodResourceRelation{
 		ClusterKey:        clusterKey,
 		Namespace:         pod.GetNamespace(),
 		PodName:           pod.GetName(),
@@ -967,6 +1275,11 @@ func UpsertPodResourceRelationInRDB(ctx context.Context, rdb *gorm.DB, pod *core
 	rel.UpdatedAt = updateTime
 	rel.ID = util.GenerateUUID(clusterKey, rel.Namespace, rel.ResourceKind, rel.ResourceName, rel.PodUID)
 
+	return rel
+}
+
+func UpsertPodResourceRelationInRDB(ctx context.Context, rdb *gorm.DB, pod *corev1.Pod, resourceName, resKind, clusterKey string, updateTime time.Time) error {
+	rel := newPodResourceRelationFromPod(pod, resourceName, resKind, clusterKey, updateTime)
 	rCtx, cancel := context.WithTimeout(ctx, 5000*time.Millisecond)
 	defer cancel()
 	return util.RetryWithBackoff(rCtx, func() error {
@@ -976,6 +1289,43 @@ func UpsertPodResourceRelationInRDB(ctx context.Context, rdb *gorm.DB, pod *core
 			Columns:   []clause.Column{{Name: "id"}},
 			DoUpdates: clause.AssignmentColumns(onDupUpdatedColsForPodResRel),
 		}).Create(&rel).Error
+	})
+}
+
+// TODO: implementation.
+func UpsertPodResourceRelationWithRedis(ctx context.Context, rdb *gorm.DB, redisClient *redisearch.Client, pod *corev1.Pod, resourceName, resKind, clusterKey string, updateTime time.Time) error {
+	rel := newPodResourceRelationFromPod(pod, resourceName, resKind, clusterKey, updateTime)
+	rCtx, cancel := context.WithTimeout(ctx, 5000*time.Millisecond)
+	defer cancel()
+	return util.RetryWithBackoff(rCtx, func() error {
+
+		oneCtx, oneCancel := context.WithTimeout(rCtx, 1000*time.Millisecond)
+		defer oneCancel()
+		return rdb.WithContext(oneCtx).Transaction(func(tx *gorm.DB) error {
+			err := tx.Model(&rel).Clauses(clause.OnConflict{
+				Columns:   []clause.Column{{Name: "id"}},
+				DoUpdates: clause.AssignmentColumns(onDupUpdatedColsForPodResRel),
+			}).Create(&rel).Error
+
+			if err != nil {
+				return err
+			}
+
+			docID := fmt.Sprintf("pod:%d", rel.ID)
+
+			doc := redisearch.NewDocument(docID, 1).
+				Set("id", rel.ID).
+				Set("pod_name", rel.PodName).
+				Set("cluster_key", rel.ClusterKey).
+				Set("node_name", rel.NodeName).
+				Set("resource_kind", rel.ResourceKind).
+				Set("resource_name", rel.ResourceName).
+				Set("namespace", rel.Namespace).
+				Set("pod_ip", rel.PodIP).
+				Set("updated_at", rel.UpdatedAt.UnixMilli()).
+				Set("created_at", rel.CreatedAt.UnixMilli())
+			return upsertRedisDocument(oneCtx, redisClient, doc)
+		})
 	})
 }
 
@@ -996,6 +1346,47 @@ func DeletePodResourceRelationInRDB(ctx context.Context, rdb *gorm.DB, clusterKe
 	})
 }
 
+// TODO: implementation
+func DeletePodResourceRelationWithRedis(ctx context.Context, rdb *gorm.DB, redisClient *redisearch.Client, clusterKey, namespace, name string) error {
+	rCtx, cancel := context.WithTimeout(ctx, 2500*time.Millisecond)
+	defer cancel()
+	return util.RetryWithBackoff(rCtx, func() error {
+		oneCtx, oneCancel := context.WithTimeout(rCtx, 500*time.Millisecond)
+		defer oneCancel()
+
+		return rdb.WithContext(oneCtx).Transaction(func(tx *gorm.DB) error {
+			err := tx.Where("cluster_key = ? AND namespace = ? AND pod_name= ?", clusterKey, namespace, name).Delete(&model.PodResourceRelation{}).Error
+
+			if err != nil && err != gorm.ErrRecordNotFound {
+				return err
+			}
+			// search for doc
+			query := fmt.Sprintf("@cluster_key:{%s} @namespace:{%s} @pod_name:{%s}", redisearch.EscapeTextFileString(clusterKey), redisearch.EscapeTextFileString(namespace), redisearch.EscapeTextFileString(name))
+			_, total, err := redisClient.Search(oneCtx, redisearch.NewQuery(query).Limit(0, 0))
+			if err != nil {
+				return err
+			}
+
+			result, _, err := redisClient.Search(oneCtx, redisearch.NewQuery(query).Limit(0, total).SetReturnFields("id"))
+			if err != nil {
+				return err
+			}
+
+			keys := make([]string, 0, len(result))
+
+			for _, doc := range result {
+				keys = append(keys, doc.Id)
+			}
+
+			if len(keys) != 0 {
+				return redisClient.DeleteDoc(oneCtx, keys...)
+			}
+
+			return nil
+		})
+	})
+}
+
 func CleanUpPodResourceRelationsInRDB(ctx context.Context, rdb *gorm.DB, ts time.Time, clusterKey string) error {
 	rCtx, cancel := context.WithTimeout(ctx, 15000*time.Millisecond)
 	defer cancel()
@@ -1003,6 +1394,44 @@ func CleanUpPodResourceRelationsInRDB(ctx context.Context, rdb *gorm.DB, ts time
 		oneCtx, oneCancel := context.WithTimeout(rCtx, 5000*time.Millisecond)
 		defer oneCancel()
 		return rdb.WithContext(oneCtx).Where("updated_at < ? AND cluster_key = ?", ts, clusterKey).Delete(&model.PodResourceRelation{}).Error
+	})
+}
+
+// TODO: implementation
+func CleanUpPodResourceRelationWithRedis(ctx context.Context, rdb *gorm.DB, redisClient *redisearch.Client, ts time.Time, clusterKey string) error {
+	rCtx, cancel := context.WithTimeout(ctx, 15000*time.Millisecond)
+	defer cancel()
+	rawQuery := fmt.Sprintf("@updated_at:[-inf (%d] @cluster_key:{%s}", ts.UnixMilli(), redisearch.EscapeTextFileString(clusterKey))
+
+	return util.RetryWithBackoff(rCtx, func() error {
+		oneCtx, oneCancel := context.WithTimeout(rCtx, 5000*time.Millisecond)
+		defer oneCancel()
+		_, total, err := redisClient.Search(oneCtx, redisearch.NewQuery(rawQuery).Limit(0, 0))
+		if err != nil {
+			return err
+		}
+
+		result, _, err := redisClient.Search(oneCtx, redisearch.NewQuery(rawQuery).Limit(0, total).SetReturnFields("id"))
+		if err != nil {
+			return err
+		}
+		keys := make([]string, 0, len(result))
+
+		for _, doc := range result {
+			keys = append(keys, doc.Id)
+		}
+
+		return rdb.WithContext(oneCtx).Transaction(func(tx *gorm.DB) error {
+			err := rdb.Where("updated_at < ? AND cluster_key = ?", ts, clusterKey).Delete(&model.PodResourceRelation{}).Error
+			if err != nil {
+				return err
+			}
+			if len(keys) != 0 {
+				return redisClient.DeleteDoc(oneCtx, keys...)
+			}
+			return nil
+
+		})
 	})
 }
 
@@ -1114,6 +1543,169 @@ func (q *ResPodsQueryOption) WithTimeRange(start, end time.Time) *ResPodsQueryOp
 	return q
 }
 
+// 精确匹配: cluster_key, resource_kind,
+// 模糊匹配: pod_name, pod_ip, node_name, resource_name, namespace
+// 范围匹配：created_at
+func (q *ResPodsQueryOption) OkForRedis() bool {
+	if len(q.whereInCondition) != 0 {
+		return false
+	}
+
+	allowFields := map[string]struct{}{
+		"pod_name":      {},
+		"node_name":     {},
+		"resource_name": {},
+		"namespace":     {},
+		"pod_ip":        {},
+	}
+
+	likeFields := make([]string, 0)
+	if q.columnQuery.column != "" {
+		likeFields = append(likeFields, q.columnQuery.column)
+	}
+
+	likeFields = append(likeFields, q.mulColQuery.columns...)
+
+	for f := range q.WhereLikeCondition {
+		likeFields = append(likeFields, f)
+	}
+	// 没有like查询不需要使用redis
+	if len(likeFields) == 0 {
+		return false
+	}
+
+	for _, f := range likeFields {
+		_, ok := allowFields[f]
+		if !ok {
+			return false
+		}
+	}
+
+	for f := range q.whereEqCondition {
+		if f != "cluster_key" && f != "resource_kind" && f != "namespace" {
+			return false
+		}
+	}
+
+	return true
+}
+
+// TODO: 如何处理mulColQuery的情况
+func (q *ResPodsQueryOption) RedisRawQuery() string {
+	if !q.OkForRedis() {
+		return ""
+	}
+
+	builder := &strings.Builder{}
+
+	if v, ok := q.whereEqCondition["cluster_key"]; ok {
+		builder.WriteString(fmt.Sprintf("@cluster_key:{%s}", redisearch.EscapeTextFileString(cast.ToString(v))))
+	}
+
+	if v, ok := q.whereEqCondition["kind"]; ok {
+		builder.WriteString(fmt.Sprintf("@kind:{%s}", v))
+	}
+
+	if v, ok := q.whereEqCondition["namespace"]; ok {
+		builder.WriteString(fmt.Sprintf("@namespace:{%s} ", redisearch.EscapeTextFileString(cast.ToString(v))))
+	}
+
+	if !q.timeRange.start.IsZero() || !q.timeRange.end.IsZero() {
+		start := "-inf"
+		end := "+inf"
+
+		if !q.timeRange.start.IsZero() {
+			start = fmt.Sprintf("(%d", q.timeRange.start.UnixMilli())
+		}
+
+		if !q.timeRange.end.IsZero() {
+			end = fmt.Sprintf("(%d", q.timeRange.end.UnixMilli())
+		}
+
+		builder.WriteString(fmt.Sprintf("@created_at:[%s %s]", start, end))
+	}
+
+	likeFields := make(map[string]string)
+
+	for f, v := range q.WhereLikeCondition {
+		likeFields[f] = v
+	}
+
+	if q.columnQuery.column != "" && q.columnQuery.query != "" {
+		likeFields[q.columnQuery.column] = q.columnQuery.query
+	}
+
+	for f, v := range likeFields {
+		builder.WriteString(fmt.Sprintf("@%s:{*%s*}", f, redisearch.EscapeTextFileString(v)))
+	}
+
+	return builder.String()
+}
+
+// TODO: implementation.
+func GetResourcePodListWithRedis(ctx context.Context, rdb *gorm.DB, redisClient *redisearch.Client, queryOptions *ResPodsQueryOption, offset, limit int) ([]*model.PodResourceRelation, error) {
+	if !queryOptions.OkForRedis() {
+		return GetResourcePodsList(ctx, rdb, queryOptions, offset, limit)
+	}
+
+	rctx, cancel := context.WithTimeout(ctx, 2000*time.Millisecond)
+	defer cancel()
+
+	rawQuery := queryOptions.RedisRawQuery()
+
+	query := redisearch.NewQuery(rawQuery).Limit(offset, limit).SetReturnFields("id").SetSortBy("id", true)
+
+	var (
+		rels     []*model.PodResourceRelation
+		queryErr error
+	)
+
+	err := util.RetryWithBackoff(rctx, func() error {
+		oneCtx, oneCancel := context.WithTimeout(rctx, 500*time.Millisecond)
+		defer oneCancel()
+
+		result, _, err := redisClient.Search(oneCtx, query)
+
+		if err != nil {
+			return err
+		}
+
+		ids := make([]uint32, 0, len(result))
+
+		for _, doc := range result {
+			ids = append(ids, cast.ToUint32(doc.Properties["id"]))
+		}
+
+		if len(ids) == 0 {
+			return nil
+		}
+
+		rels, queryErr = getResourcePodByIds(oneCtx, rdb, ids)
+
+		return queryErr
+	})
+
+	return rels, err
+}
+
+func getResourcePodByIds(ctx context.Context, rdb *gorm.DB, ids []uint32) ([]*model.PodResourceRelation, error) {
+	if len(ids) == 0 {
+		return nil, nil
+	}
+	var rels []*model.PodResourceRelation
+
+	db := rdb.WithContext(ctx).Model(&model.PodResourceRelation{}).Where("status = ?", 0)
+
+	if len(ids) != 0 {
+		db = db.Where("id in ?", ids).Order("id ASC")
+	}
+
+	err := db.Find(&rels).Error
+
+	return rels, err
+}
+
+// FIXME: 这个函数没有order by
 func GetResourcePodsList(ctx context.Context, rdb *gorm.DB, queryOptions *ResPodsQueryOption, offset, limit int) ([]*model.PodResourceRelation, error) {
 	rctx, cancel := context.WithTimeout(ctx, 2000*time.Millisecond)
 	defer cancel()
@@ -1160,8 +1752,10 @@ func GetResourcePodsList(ctx context.Context, rdb *gorm.DB, queryOptions *ResPod
 			db = db.Where("created_at > ? and created_at < ?", queryOptions.timeRange.start, queryOptions.timeRange.end)
 		}
 
+		db = db.Order("id ASC")
+
 		if offset >= 0 && limit >= 0 {
-			db.Offset(offset).Limit(limit)
+			db = db.Offset(offset).Limit(limit)
 		}
 
 		err := db.Find(&rels).Error
@@ -1180,7 +1774,38 @@ func GetResourcePodsList(ctx context.Context, rdb *gorm.DB, queryOptions *ResPod
 	return rels, nil
 }
 
-func CountPods(ctx context.Context, rdb *gorm.DB, queryOptions *ResPodsQueryOption, offset, limit int) (int64, error) {
+// TODO: implementation
+func CountPodsWithRedis(ctx context.Context, rdb *gorm.DB, redisClient *redisearch.Client, queryOptions *ResPodsQueryOption) (int64, error) {
+
+	if !queryOptions.OkForRedis() {
+		return CountPods(ctx, rdb, queryOptions)
+	}
+
+	ctx, cancel := context.WithTimeout(ctx, 9*time.Second)
+	defer cancel()
+
+	var cnt int64
+
+	query := redisearch.NewQuery(queryOptions.RedisRawQuery()).Limit(0, 0)
+
+	err := util.RetryWithBackoff(ctx, func() error {
+		oneCtx, oneCancel := context.WithTimeout(ctx, 4*time.Second)
+		defer oneCancel()
+
+		_, total, err := redisClient.Search(oneCtx, query)
+
+		if err != nil {
+			return err
+		}
+
+		cnt = int64(total)
+
+		return nil
+	})
+	return cnt, err
+}
+
+func CountPods(ctx context.Context, rdb *gorm.DB, queryOptions *ResPodsQueryOption) (int64, error) {
 	ctx, cancel := context.WithTimeout(ctx, 9*time.Second)
 	defer cancel()
 
@@ -1220,10 +1845,6 @@ func CountPods(ctx context.Context, rdb *gorm.DB, queryOptions *ResPodsQueryOpti
 			db = db.Where("created_at > ?", queryOptions.timeRange.start)
 		} else if !queryOptions.timeRange.start.IsZero() && !queryOptions.timeRange.end.IsZero() {
 			db = db.Where("created_at > ? and created_at < ?", queryOptions.timeRange.start, queryOptions.timeRange.end)
-		}
-
-		if offset >= 0 && limit >= 0 {
-			db.Offset(offset).Limit(limit)
 		}
 
 		return db.Count(&cntNum).Error
@@ -2123,6 +2744,143 @@ func (q *RawContainersQueryOption) WithPrefixColumnQuery(column, query string) *
 	return q
 }
 
+// 精确匹配：status, k8s_managed, cluster_key
+// 模糊匹配：node_name, namespace, pod_name, name, resource_name
+// 范围匹配：updated_at
+func (q *RawContainersQueryOption) OkForRedis() bool {
+	if len(q.whereInCondition) > 1 {
+		return false
+	}
+	if len(q.whereInCondition) == 1 {
+		if _, ok := q.whereInCondition["status"]; !ok {
+			return false
+		}
+	}
+	for f := range q.whereEqCondition {
+		if f != "status" && f != "k8s_managed" && f != "node_name" && f != "namespace" && f != "pod_name" && f != "name" && f != "resource_name" && f != "cluster_key" {
+			return false
+		}
+	}
+	likeFileds := make([]string, 0)
+	if q.columnQuery.column != "" {
+		likeFileds = append(likeFileds, q.columnQuery.column)
+	}
+	if q.prefixColumnQuery.column != "" {
+		likeFileds = append(likeFileds, q.prefixColumnQuery.column)
+	}
+
+	for _, column := range q.columnQueries {
+		if column.column != "" {
+			likeFileds = append(likeFileds, column.column)
+		}
+	}
+
+	if len(likeFileds) == 0 {
+		return false
+	}
+
+	for _, field := range likeFileds {
+		if field != "node_name" && field != "namespace" && field != "pod_name" && field != "name" && field != "resource_name" {
+			return false
+		}
+	}
+
+	return true
+}
+
+func (q *RawContainersQueryOption) RedisRawQuery() string {
+	if !q.OkForRedis() {
+		return ""
+	}
+
+	builder := &strings.Builder{}
+	status := make([]string, 0)
+
+	// 状态
+	v, ok := q.whereInCondition["status"]
+	if ok {
+		for _, s := range cast.ToIntSlice(v) {
+			if s == assets.All {
+				status = []string{}
+				break
+			}
+			status = append(status, assets.GetRawContainerStatus(s))
+		}
+	}
+
+	for f, v := range q.whereEqCondition {
+		if f == "status" && cast.ToInt(v) < assets.Exited {
+			status = append(status, assets.GetRawContainerStatus(cast.ToInt(v)))
+			continue
+		}
+		vv := cast.ToString(v)
+		if vv != "" {
+			builder.WriteString(fmt.Sprintf("@%s:{%s} ", f, redisearch.EscapeTextFileString(vv)))
+		}
+	}
+
+	if len(status) != 0 {
+		builder.WriteString("@status:{")
+		for i, s := range status {
+			builder.WriteString(s)
+			if i+1 != len(status) {
+				builder.WriteByte('|')
+			}
+		}
+		builder.WriteByte('}')
+	}
+
+	if q.columnQuery.column != "" && q.columnQuery.query != "" {
+		builder.WriteString(fmt.Sprintf("@%s:{*%s*} ", q.columnQuery.column, redisearch.EscapeTextFileString(q.columnQuery.query)))
+	}
+
+	if q.prefixColumnQuery.column != "" && q.prefixColumnQuery.query != "" {
+		builder.WriteString(fmt.Sprintf("@%s:{%s*} ", q.columnQuery.column, redisearch.EscapeTextFileString(q.columnQuery.query)))
+	}
+
+	for _, c := range q.columnQueries {
+		if len(c.query) > 0 {
+			builder.WriteString(fmt.Sprintf("@%s:{", c.column))
+			for i, v := range c.query {
+				builder.WriteString(fmt.Sprintf("*%s*", v))
+				if i+1 != len(c.query) {
+					builder.WriteByte('|')
+				}
+			}
+			builder.WriteRune('}')
+		}
+	}
+
+	return builder.String()
+}
+
+// TODO: implementation.
+func CountRawContainerWithRedis(ctx context.Context, rdb *gorm.DB, redisClient *redisearch.Client, queryOptions *RawContainersQueryOption) (int64, error) {
+	if !queryOptions.OkForRedis() {
+		return CountRawContainer(ctx, rdb, queryOptions)
+	}
+	ctx, cancel := context.WithTimeout(ctx, 9*time.Second)
+	defer cancel()
+
+	rawQuery := queryOptions.RedisRawQuery()
+
+	var cntNum int64
+
+	err := util.RetryWithBackoff(ctx, func() error {
+		oneCtx, oneCancel := context.WithTimeout(ctx, 4*time.Second)
+		defer oneCancel()
+		_, total, err := redisClient.Search(oneCtx, redisearch.NewQuery(rawQuery).Limit(0, 0))
+		if err != nil {
+			return err
+		}
+
+		cntNum = int64(total)
+		return nil
+	})
+
+	return cntNum, err
+}
+
 func CountRawContainer(ctx context.Context, rdb *gorm.DB, queryOptions *RawContainersQueryOption) (int64, error) {
 	ctx, cancel := context.WithTimeout(ctx, 9*time.Second)
 	defer cancel()
@@ -2177,6 +2935,51 @@ func CountRawContainer(ctx context.Context, rdb *gorm.DB, queryOptions *RawConta
 	return cntNum, err
 }
 
+// TODO: implementation
+func GetRawContainersWithRedis(ctx context.Context, rdb *gorm.DB, redisClient *redisearch.Client, queryOptions *RawContainersQueryOption, offset int, limit int) ([]*model.TensorRawContainer, error) {
+	if !queryOptions.OkForRedis() {
+		return GetRawContainers(ctx, rdb, queryOptions, offset, limit)
+	}
+	var containers []*model.TensorRawContainer
+	rawQuery := queryOptions.RedisRawQuery()
+
+	rCtx, cancel := context.WithTimeout(ctx, 6000*time.Millisecond)
+	defer cancel()
+
+	err := util.RetryWithBackoff(rCtx, func() error {
+		oneCtx, oneCancel := context.WithTimeout(rCtx, 2000*time.Millisecond)
+		defer oneCancel()
+
+		result, _, err := redisClient.Search(oneCtx,
+			redisearch.NewQuery(rawQuery).
+				Limit(offset, limit).
+				SetReturnFields("id").
+				SetSortBy("id", true),
+		)
+
+		if err != nil {
+			return err
+		}
+
+		containerIDs := make([]string, 0, len(result))
+
+		for _, doc := range result {
+			containerIDs = append(containerIDs, cast.ToString(doc.Properties["id"]))
+		}
+		if len(containerIDs) == 0 {
+			return nil
+		}
+
+		return rdb.WithContext(oneCtx).
+			Model(&model.TensorRawContainer{}).
+			Where("id in ?", containerIDs).
+			Order("id ASC").
+			Find(&containers).Error
+	})
+
+	return containers, err
+}
+
 func GetRawContainers(ctx context.Context, rdb *gorm.DB, queryOptions *RawContainersQueryOption, offset int, limit int) ([]*model.TensorRawContainer, error) {
 	rCtx, cancel := context.WithTimeout(ctx, 6000*time.Millisecond)
 	defer cancel()
@@ -2211,21 +3014,21 @@ func GetRawContainers(ctx context.Context, rdb *gorm.DB, queryOptions *RawContai
 		if len(queryOptions.prefixColumnQuery.column) > 0 && len(queryOptions.prefixColumnQuery.query) > 0 {
 			db = db.Where(fmt.Sprintf("%s LIKE ?", queryOptions.prefixColumnQuery.column), fmt.Sprintf("%s%%", queryOptions.prefixColumnQuery.query))
 		}
-		if len(queryOptions.columnQueries) > 0 {
-			for _, c := range queryOptions.columnQueries {
-				if len(c.query) > 0 {
-					if len(c.query) == 1 {
-						db = db.Where(fmt.Sprintf("%s LIKE ?", c.column), GetLikeExpr(c.query[0]))
-						continue
-					}
-					subQuery := rdb.WithContext(oneCtx).Model(&model.TensorRawContainer{}).Where(fmt.Sprintf("%s LIKE ?", c.column), GetLikeExpr(c.query[0]))
-					for _, q := range c.query[1:] {
-						subQuery = subQuery.Or(fmt.Sprintf("%s LIKE ?", c.column), GetLikeExpr(q))
-					}
-					db = db.Where(subQuery)
+
+		for _, c := range queryOptions.columnQueries {
+			if len(c.query) > 0 {
+				if len(c.query) == 1 {
+					db = db.Where(fmt.Sprintf("%s LIKE ?", c.column), GetLikeExpr(c.query[0]))
+					continue
 				}
+				subQuery := rdb.WithContext(oneCtx).Model(&model.TensorRawContainer{}).Where(fmt.Sprintf("%s LIKE ?", c.column), GetLikeExpr(c.query[0]))
+				for _, q := range c.query[1:] {
+					subQuery = subQuery.Or(fmt.Sprintf("%s LIKE ?", c.column), GetLikeExpr(q))
+				}
+				db = db.Where(subQuery)
 			}
 		}
+
 		if offset >= 0 && limit >= 0 {
 			db.Offset(offset).Limit(limit)
 		}
@@ -2246,46 +3049,70 @@ func GetRawContainers(ctx context.Context, rdb *gorm.DB, queryOptions *RawContai
 	return containers, nil
 }
 
+// TODO: implementation
+func UpsertRawContainerWithRedis(ctx context.Context, rdb *gorm.DB, redisClient *redisearch.Client, container *model.TensorRawContainer) error {
+	rCtx, cancel := context.WithTimeout(ctx, 15000*time.Millisecond)
+	defer cancel()
+
+	logging.GetLogger().Info().Msgf("on triggering upsert raw container to db and redis, container: %s", container.ContainerID)
+
+	doc := redisearch.NewDocument(fmt.Sprintf("rawContainer:%s", container.ContainerID), 1).
+		Set("id", container.ContainerID).
+		Set("status", assets.GetRawContainerStatus(int(container.Status))).
+		Set("cluster_key", container.ClusterKey).
+		Set("k8s_managed", strconv.FormatBool(container.K8sManaged)).
+		Set("node_name", container.NodeName).
+		Set("namespace", container.Namespace).
+		Set("pod_name", container.PodName).
+		Set("name", container.Name).
+		Set("resource_name", container.ResourceName).
+		Set("updated_at", container.UpdatedAt.UnixMilli())
+
+	return rdb.WithContext(rCtx).Transaction(func(tx *gorm.DB) error {
+		err := tx.Model(&model.TensorRawContainer{}).Clauses(clause.OnConflict{
+			Columns:   []clause.Column{{Name: "id"}},
+			DoUpdates: clause.AssignmentColumns(OnDupUpdatedColsForRawContainer),
+		}).Create(container).Error
+
+		if err != nil {
+			return err
+		}
+		if container.Status >= assets.Exited {
+			logging.GetLogger().Info().Msgf("container status %d, delete rawContainer: %s from redis", container.ContainerID, doc.Id)
+			return redisClient.DeleteDoc(rCtx, doc.Id)
+		} else {
+			logging.GetLogger().Info().Msgf("upsert rawContainer: %s to redis", doc.Id)
+			return redisClient.AddDoc(rCtx, doc)
+		}
+	})
+}
+
 func UpsertRawContainers(ctx context.Context, rdb *gorm.DB, container *model.TensorRawContainer) error {
 	rCtx, cancel := context.WithTimeout(ctx, 15000*time.Millisecond)
 	defer cancel()
 
 	return rdb.WithContext(rCtx).Model(&model.TensorRawContainer{}).Clauses(clause.OnConflict{
-		Columns: []clause.Column{{Name: "id"}},
-		DoUpdates: clause.AssignmentColumns([]string{
-			"updated_at",
-			"status",
-			"name",
-			"pod_name",
-			"namespace",
-			"cluster_key",
-			"resource_kind",
-			"resource_name",
-			"image_id",
-			"image_name",
-			"environment",
-			"volume_mounts",
-			"reserved_cpu",
-			"reserved_memory",
-			"pid",
-			"k8s_managed",
-			"node_ip",
-			"node_name",
-			"cmd",
-			"image_digest",
-			"process_number",
-			"processes",
-			"ports",
-			"image_size",
-			"image_created",
-			"user",
-			"ip",
-			"ipv6",
-			"gateway",
-			"mac",
-			"network_mode",
-		}),
+		Columns:   []clause.Column{{Name: "id"}},
+		DoUpdates: clause.AssignmentColumns(OnDupUpdatedColsForRawContainer),
 	}).Create(container).Error
+}
+
+// TODO: implementation.
+func DeleteRawContainerWithRedis(ctx context.Context, rdb *gorm.DB, redisClient *redisearch.Client, clusterKey, id string) error {
+	rCtx, cancel := context.WithTimeout(ctx, 2500*time.Millisecond)
+	defer cancel()
+
+	return rdb.WithContext(rCtx).Transaction(func(tx *gorm.DB) error {
+		err := tx.Model(&model.TensorRawContainer{}).Where("cluster_key = ? and id = ?", clusterKey, id).Updates(map[string]interface{}{
+			"status":     assets.Exited,
+			"updated_at": time.Now(),
+		}).Error
+
+		if err != nil {
+			return err
+		}
+		return redisClient.DeleteDoc(rCtx, fmt.Sprintf("rawContainer:%s", id))
+	})
 }
 
 func DeleteRawContainer(ctx context.Context, rdb *gorm.DB, clusterKey, id string) error {
@@ -2298,6 +3125,57 @@ func DeleteRawContainer(ctx context.Context, rdb *gorm.DB, clusterKey, id string
 	}).Error
 }
 
+// TODO: implementation
+func CleanUpRawContainerWithRedis(ctx context.Context, rdb *gorm.DB, redisClient *redisearch.Client, ts time.Time, clusterKey, nodeName string) error {
+	rCtx, cancel := context.WithTimeout(ctx, 5000*time.Millisecond)
+	defer cancel()
+
+	rawQuery := fmt.Sprintf("@cluster_key:{%s} @node_name:{%s} @updated_at:[-inf (%d]", redisearch.EscapeTextFileString(clusterKey), redisearch.EscapeTextFileString(nodeName), ts.UnixMilli())
+
+	return util.RetryWithBackoff(rCtx, func() error {
+
+		oneCtx, oneCacel := context.WithTimeout(rCtx, 2000*time.Millisecond)
+		defer oneCacel()
+
+		_, total, err := redisClient.Search(oneCtx, redisearch.NewQuery(rawQuery).Limit(0, 0))
+		if err != nil {
+			return err
+		}
+
+		result, _, err := redisClient.Search(oneCtx, redisearch.NewQuery(rawQuery).Limit(0, total).SetReturnFields("id"))
+		if err != nil {
+			return err
+		}
+
+		keys := make([]string, 0, len(result))
+
+		for _, doc := range result {
+			keys = append(keys, cast.ToString(doc.Properties["id"]))
+		}
+
+		err = rdb.WithContext(oneCtx).Transaction(func(tx *gorm.DB) error {
+			dbErr := tx.Model(&model.TensorRawContainer{}).
+				Where("cluster_key = ? and node_name = ? and updated_at < ?", clusterKey, nodeName, ts).Updates(map[string]interface{}{
+				"status":     assets.Exited,
+				"updated_at": time.Now(),
+			}).Error
+			if dbErr != nil {
+				return err
+			}
+
+			if len(keys) != 0 {
+				logging.GetLogger().Info().Msgf("delete raw container from redis: %v", keys)
+				return redisClient.DeleteDoc(oneCtx, keys...)
+			}
+			return nil
+		})
+
+		return err
+
+	})
+}
+
+// clean up from redis
 func CleanUpRawContainer(ctx context.Context, rdb *gorm.DB, ts time.Time, clusterKey, nodeName string) error {
 	rCtx, cancel := context.WithTimeout(ctx, 2500*time.Millisecond)
 	defer cancel()

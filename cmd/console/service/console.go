@@ -54,6 +54,7 @@ import (
 	"gitlab.com/security-rd/go-pkg/elastic"
 	"gitlab.com/security-rd/go-pkg/logging"
 	"gitlab.com/security-rd/go-pkg/mq"
+	"gitlab.com/security-rd/go-pkg/redisearch"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -168,7 +169,20 @@ func NewConsole(
 		logging.Get().Err(drErr).Msg("ERROR: InitDriftService init error")
 	}
 
-	rlErr := assetsSvc.InitResourcesService(rdb, scannerURL)
+	var redisearchClient *redisearch.Client
+
+	if os.Getenv("USE_REDISEARCH") == "true" {
+		redisearchClient, err = redisearch.NewClient()
+		if err != nil {
+			return nil, err
+		}
+		err = redisearchClient.RegisterClient(context.Background(), "pod", "resource", "rawContainer")
+		if err != nil {
+			return nil, err
+		}
+
+	}
+	rlErr := assetsSvc.InitResourcesService(rdb, redisearchClient, scannerURL)
 	if rlErr != nil {
 		logging.Get().Err(rlErr).Msg("ERROR: InitResourcesService init error")
 	}

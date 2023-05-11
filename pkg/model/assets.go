@@ -612,7 +612,7 @@ type TensorRawContainer struct {
 	UpdatedAt      time.Time        `json:"updatedAt" gorm:"column:updated_at"`
 	Status         int32            `json:"status" gorm:"column:status;type:smallint"`
 	ContainerID    string           `json:"id" gorm:"column:id;type:bigint;primaryKey"`
-	NetworkMode    string           `json:"networkMode" gorm:"column:network_mode""`
+	NetworkMode    string           `json:"networkMode" gorm:"column:network_mode"`
 	IP             string           `json:"ip" gorm:"column:ip"`
 	IPV6           string           `json:"ipv6" gorm:"column:ipv6"`
 	Gateway        string           `json:"gateway" gorm:"column:gateway"`
