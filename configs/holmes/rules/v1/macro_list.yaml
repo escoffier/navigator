@@ -246,6 +246,12 @@
 - macro: shell_parent_procs
   condition: proc.pname in (shell_binaries)
 
+- macro: shell_family_procs
+  condition: >
+    shell_procs or
+    shell_parent_procs or
+    proc.aname=bash
+
 - macro: remote_server_subnet
   condition: >
     fd.name contains '->' and not (
