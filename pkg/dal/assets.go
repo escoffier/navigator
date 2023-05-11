@@ -2211,6 +2211,10 @@ func (q *NodeQueryOption) WithStatus(status int8) *NodeQueryOption {
 	q.whereEqCondition["status"] = status
 	return q
 }
+func (q *NodeQueryOption) WithReady(status int8) *NodeQueryOption {
+	q.whereEqCondition["ready"] = status
+	return q
+}
 func (q *NodeQueryOption) WithInConditionCustom(column string, value interface{}) *NodeQueryOption {
 	q.whereInCondition[column] = value
 	return q

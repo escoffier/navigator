@@ -1517,7 +1517,6 @@ func (api *api) getNodes() http.HandlerFunc {
 
 		clusterKey, _ := param.QueryString(r, "cluster_key")
 		name, _ := param.QueryString(r, "name")
-		status, _ := param.QueryInt8(r, "status")
 		nodeIP, _ := param.QueryString(r, "ip")
 
 		resSvc, ok := assets.GetResourcesService(ctx)
@@ -1536,7 +1535,22 @@ func (api *api) getNodes() http.HandlerFunc {
 		if nodeIP != "" {
 			queryOpt.WithColumnFuzzyQuery("node_ip", nodeIP)
 		}
-		queryOpt.WithStatus(status)
+		status, err := param.QueryInt8(r, "status")
+		if err == nil {
+			switch status {
+			case 0:
+				queryOpt.WithStatus(0)
+				queryOpt.WithReady(1)
+			case 1:
+				queryOpt.WithStatus(1)
+			case 2:
+				queryOpt.WithStatus(0)
+				queryOpt.WithReady(0)
+			default:
+				logging.Get().Warn().Msgf("invalid status %d", status)
+			}
+		}
+
 		nodes, err := resSvc.GetNodes(ctx, queryOpt, offset, limit)
 		if err != nil {
 			logging.Get().Err(err).Msg("getNodes error")
