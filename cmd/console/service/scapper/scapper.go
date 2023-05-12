@@ -61,7 +61,7 @@ type EnvironmentInfo struct {
 }
 
 func getPrefixOfName(name string) string {
-	pos := strings.IndexByte(name, '-')
+	pos := strings.Index(name, "-console")
 	if pos >= 0 {
 		return name[:pos]
 	}

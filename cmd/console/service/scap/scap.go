@@ -240,8 +240,7 @@ func (s *Service) StateSyncDaemon() {
 						// 如果超时，则删除对应k8s的job
 						err = s.deleteK8sJobs(newCtx, his)
 						if err != nil {
-							logging.Get().
-								Err(err).
+							logging.Get().Warn().Err(err).
 								Str("func", "scap StateSyncDaemon").
 								Str("check task id", his.TaskID).
 								Msg("delete k8s jobs failed")
