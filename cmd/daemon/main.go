@@ -431,28 +431,30 @@ func Run(ctx context.Context) error {
 	}
 
 	// start cis checker
-
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		defer func() {
-			if r := recover(); r != nil {
-				logging.Get().Error().Msgf("cis checker panic: %v.stack:%s", r, debug.Stack())
+	cisEnabled := os.Getenv("CIS_ENABLED")
+	if cisEnabled == "1" {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			defer func() {
+				if r := recover(); r != nil {
+					logging.Get().Error().Msgf("cis checker panic: %v.stack:%s", r, debug.Stack())
+				}
+			}()
+			cisChecker, err := cis.NewCisController(
+				cis.WithPodResInfo(podResInfo),
+				cis.WithNodePodResInfo(podWatcher),
+				cis.WithClusterInfoManager(clusterManager),
+			)
+			if err != nil {
+				logging.Get().Err(err).Msg("new cis checker failed")
+				return
+			}
+			if err = cisChecker.Start(ctx); err != nil {
+				logging.Get().Err(err).Msg("cis checker start failed")
 			}
 		}()
-		cisChecker, err := cis.NewCisController(
-			cis.WithPodResInfo(podResInfo),
-			cis.WithNodePodResInfo(podWatcher),
-			cis.WithClusterInfoManager(clusterManager),
-		)
-		if err != nil {
-			logging.Get().Err(err).Msg("new cis checker failed")
-			return
-		}
-		if err = cisChecker.Start(ctx); err != nil {
-			logging.Get().Err(err).Msg("cis checker start failed")
-		}
-	}()
+	}
 
 	wg.Wait()
 	return err
