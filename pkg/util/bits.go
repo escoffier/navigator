@@ -3,6 +3,8 @@ package util
 import (
 	"strconv"
 	"strings"
+
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 )
 
 // value从右到左的第flag位设置成0
@@ -76,6 +78,10 @@ func MinInt64(data ...int64) int64 {
 // 除此之外返回 0。
 // 版本号格式是：2.11.1-amd ，可能有字母，所以只取 - 之前的比较
 func CompareVersion(version1 string, version2 string) int {
+	// 本地prod 环境中会使用 latest 版本号
+	if version1 == consts.ScannerVersionLatest {
+		return 1
+	}
 	split3 := strings.Split(version1, "-")
 	if len(split3) > 0 {
 		version1 = split3[0]
