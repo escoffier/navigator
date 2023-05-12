@@ -280,7 +280,7 @@ func getVulnWhetherAutoTrigger(attr map[string]string) string {
 
 // 所需权限级别
 func getVulnRequiredPermissionLevel(attr map[string]string) string {
-	return attr["AC"]
+	return attr["PR"]
 }
 
 // 攻击复杂度
@@ -300,7 +300,7 @@ func getVulnTamperingRisk(attr map[string]string) string {
 
 // 造成 DoS 风险
 func getVulnDosRisk(attr map[string]string) string {
-	return attr["PR"]
+	return attr["I"]
 }
 
 // 权限范围扩大
