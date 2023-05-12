@@ -374,14 +374,14 @@ func GenImageBaseInfo(data model.ImageWithCorrelateData) []string {
 		im.Tag,
 		im.Size,
 		im.Os,
-		FormatTime(data.ImageList.CreatedAt.UnixMilli(), consts.ExportTimeFormat),
+		FormatTime(im.LastSyncAt, consts.ExportTimeFormat),
 		IsBaseImage(im.Flag),
 	}
 	if util.ExistBit1(im.Flag, model.FlagImageNotMaintained) {
 		info[10] = fmt.Sprintf("%s(%s)", im.Os, "此操作系统已经不再维护，可能导致漏洞扫描结果不准确，建议尽快升级")
 	}
 	suggest := append([]string{}, im.VulnFixSuggestion...)
-	suggest = append([]string{}, im.SensitiveFixSuggestion...)
+	suggest = append(suggest, im.SensitiveFixSuggestion...)
 	info = append(info, strings.Join(suggest, "\n"))
 
 	return info
