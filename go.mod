@@ -86,7 +86,7 @@ require (
 	k8s.io/apiserver v0.20.15
 	k8s.io/client-go v0.20.15
 	scm.tensorsecurity.cn/tensorsecurity-rd/cloudwalker v0.0.5
-	scm.tensorsecurity.cn/tensorsecurity-rd/falcosider v0.2.24
+	scm.tensorsecurity.cn/tensorsecurity-rd/falcosider v0.2.25
 	scm.tensorsecurity.cn/tensorsecurity-rd/trivy v0.19.3-0.20221223094108-043b8936a019
 )
 
@@ -118,7 +118,7 @@ require (
 	github.com/sony/gobreaker v0.5.0
 	github.com/xuri/excelize/v2 v2.6.0
 	gitlab.com/security-rd/go-pkg v0.2.65
-	go.uber.org/atomic v1.10.0
+	go.uber.org/atomic v1.11.0
 	gomodules.xyz/jsonpatch/v3 v3.0.1
 	google.golang.org/protobuf v1.30.0
 	gorm.io/driver/sqlite v1.4.3
