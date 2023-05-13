@@ -779,7 +779,12 @@ func (s *Scapper) dbAddJobStatusInProgress(ctx context.Context, check *model.Che
 }
 
 func (s *Scapper) CreateJobName(checkId, checkType, targetNodeName string) string {
-	return fmt.Sprintf("%s-%s-bench-%s", checkId[:8], checkType, util.MD5Hex(targetNodeName))
+	jobName := fmt.Sprintf("%s-%s-bench-%s", checkId[:8], checkType, targetNodeName)
+	// NOTICE: the length of k8s label cannot be larger than 63 characters
+	if len(jobName) >= 63 {
+		jobName = fmt.Sprintf("%s-%s-bench-%s", checkId[:8], checkType, util.MD5Hex(targetNodeName))
+	}
+	return jobName
 }
 
 func (s *Scapper) dbJobStatusUpdate(state model.ScanState, check *model.Check, nodeName, msg string, timeEpochSecs int64) error {
