@@ -2433,7 +2433,7 @@
     k8s.pod.name contains "588ee1")
 
 - macro: tensorsec_namespace
-  condition: k8s.ns.name = tensorsec
+  condition: k8s.ns.name = tensorsec and not k8s.pod.name contains "faulty"
 
 #Common k8s ports for penetration testing
 # kube-apiserver: 6443, 8080
