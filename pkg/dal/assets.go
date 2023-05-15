@@ -776,7 +776,6 @@ func SoftDeleteResource(ctx context.Context, rdb *gorm.DB, resource *assets.Tens
 func SoftDeleteResourceWithRedis(ctx context.Context, rdb *gorm.DB, redisClient *redisearch.Client, resource *assets.TensorResource, updateTime time.Time) error {
 
 	uuid := GetResourceUUID(resource.Cluster, resource.Namespace, string(resource.Kind), resource.Name)
-
 	ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
 	defer cancel()
 
@@ -786,10 +785,30 @@ func SoftDeleteResourceWithRedis(ctx context.Context, rdb *gorm.DB, redisClient 
 			return err
 		}
 
-		err = redisClient.DeleteDoc(ctx, fmt.Sprintf("resource:%d", uuid))
-		if err != nil {
+		doc, err := redisClient.GetDoc(ctx, fmt.Sprintf("resource:%d", uuid))
+		if err != nil && err != redisearch.ErrDocNotFound {
 			return err
 		}
+
+		if doc != nil {
+			err = redisClient.DeleteDoc(ctx, fmt.Sprintf("resource:%d", uuid))
+			if err != nil {
+				return err
+			}
+			images := make([]uint32, 0)
+
+			for _, image := range strings.Split(cast.ToString(doc.Properties["images"]), ",") {
+				images = append(images, cast.ToUint32(image))
+			}
+
+			logging.GetLogger().Info().Msgf("delete resource %d container images: %v", uuid, images)
+			// 删除镜像信息
+			err = deleteResourceImages(ctx, redisClient, uuid, images)
+			if err != nil {
+				return err
+			}
+		}
+
 		// delete releted containers
 		return doSoftDeleteResourceContainers(ctx, db, resource, updateTime)
 	})
@@ -856,20 +875,6 @@ func doUpsertResource(ctx context.Context, rdb *gorm.DB, resourceModel *model.Te
 	}).Create(resourceModel).Error
 }
 
-func doUpsertResourceRedis(ctx context.Context, client *redisearch.Client, resource *model.TensorResource, updateTime time.Time) error {
-	docID := fmt.Sprintf("resource:%d", resource.ID)
-
-	doc := redisearch.NewDocument(docID, 1).
-		Set("id", resource.ID).
-		Set("name", resource.Name).
-		Set("namespace", resource.Namespace).
-		Set("cluster_key", resource.ClusterKey).
-		Set("kind", resource.Kind).
-		Set("updated_at", updateTime.UnixMilli())
-
-	return upsertRedisDocument(ctx, client, doc)
-}
-
 func upsertRedisDocument(ctx context.Context, client *redisearch.Client, doc redisearch.Document) error {
 	err := client.DeleteDoc(ctx, doc.Id)
 	if err != nil {
@@ -905,19 +910,147 @@ func UpsertResourceWithRedis(ctx context.Context, rdb *gorm.DB, redisClient *red
 	defer cancel()
 
 	err := rdb.WithContext(ctx).Transaction(func(db *gorm.DB) error {
-		err := doUpsertResource(ctx, db, resourceModel, updateTime)
+		containers, err := doUpsertResourceContainers(ctx, db, resource, updateTime)
 		if err != nil {
 			return err
 		}
-		_, err = doUpsertResourceContainers(ctx, db, resource, updateTime)
+		err = doUpsertResource(ctx, db, resourceModel, updateTime)
 		if err != nil {
 			return err
 		}
-		return doUpsertResourceRedis(ctx, redisClient, resourceModel, updateTime)
+
+		images := make([]uint32, 0)
+
+		for _, container := range containers {
+			images = append(images, container.ImageUUID)
+		}
+
+		return doUpsertResourceRedis(ctx, redisClient, resourceModel, images, updateTime)
 	})
 
 	return resourceModel, err
+}
 
+func doUpsertResourceRedis(ctx context.Context, client *redisearch.Client, resource *model.TensorResource, images []uint32, updateTime time.Time) error {
+
+	if err := upsertResourceImages(ctx, client, resource.ID, images); err != nil {
+		return err
+	}
+
+	var imageS []string
+
+	for _, image := range images {
+		imageS = append(imageS, cast.ToString(image))
+	}
+
+	docID := fmt.Sprintf("resource:%d", resource.ID)
+
+	doc := redisearch.NewDocument(docID, 1).
+		Set("id", resource.ID).
+		Set("name", resource.Name).
+		Set("namespace", resource.Namespace).
+		Set("cluster_key", resource.ClusterKey).
+		Set("kind", resource.Kind).
+		Set("updated_at", updateTime.UnixMilli()).
+		Set("images", strings.Join(imageS, ","))
+
+	return upsertRedisDocument(ctx, client, doc)
+}
+
+func upsertResourceImages(ctx context.Context, redisClient *redisearch.Client, resourceID uint32, images []uint32) error {
+	doc, err := redisClient.GetDoc(ctx, fmt.Sprintf("resource:%d", resourceID))
+	if err != nil && err != redisearch.ErrDocNotFound {
+		return err
+	}
+	oldImages := make([]uint32, 0)
+
+	if doc != nil {
+		oldImageList := strings.Split(cast.ToString(doc.Properties["images"]), ",")
+		for _, oldImage := range oldImageList {
+			oldImages = append(oldImages, cast.ToUint32(oldImage))
+		}
+	}
+
+	var (
+		deleteImage []uint32
+		addImage    []uint32
+	)
+
+	// 不会很多，双层匹配
+	for _, old := range oldImages {
+		var match bool
+
+		for _, new := range images {
+			if old == new {
+				match = true
+			}
+		}
+		if !match {
+			deleteImage = append(deleteImage, old)
+		}
+	}
+
+	for _, new := range images {
+		var match bool
+		for _, old := range oldImages {
+			if old == new {
+				match = true
+			}
+		}
+		if !match {
+			addImage = append(addImage, new)
+		}
+	}
+
+	if err = addResourceImages(ctx, redisClient, resourceID, addImage); err != nil {
+		return err
+	}
+
+	if err = deleteResourceImages(ctx, redisClient, resourceID, deleteImage); err != nil {
+		return err
+	}
+	return nil
+}
+
+func addResourceImages(ctx context.Context, redisClient *redisearch.Client, resourceID uint32, images []uint32) error {
+	if len(images) == 0 {
+		return nil
+	}
+	conn, err := redisClient.GetConn(ctx)
+	if err != nil {
+		return err
+	}
+	defer conn.Close()
+	args := make([]interface{}, 0)
+	args = append(args, "container_images")
+
+	for _, image := range images {
+		args = append(args, image, fmt.Sprintf("%d/%d", resourceID, image))
+	}
+
+	_, err = conn.Do("ZADD", args...)
+
+	return err
+}
+
+func deleteResourceImages(ctx context.Context, redisClient *redisearch.Client, resourceID uint32, images []uint32) error {
+	if len(images) == 0 {
+		return nil
+	}
+	conn, err := redisClient.GetConn(ctx)
+	if err != nil {
+		return err
+	}
+	defer conn.Close()
+	args := make([]interface{}, 0)
+	args = append(args, "container_images")
+
+	for _, image := range images {
+		args = append(args, fmt.Sprintf("%d/%d", resourceID, image))
+	}
+
+	_, err = conn.Do("ZREM", args...)
+	return err
 }
 
 func UpdateResourceUserData(ctx context.Context, rdb *gorm.DB, resource *model.TensorResource) error {
@@ -1093,12 +1226,11 @@ func CleanUpUnUpdatedResourcesWithRedis(ctx context.Context, rdb *gorm.DB, redis
 	})
 }
 
-// FIXME: 这个清理函数使用秒级时间戳是否会有问题
 func cleanUpResourcesFromRedis(ctx context.Context, redisClient *redisearch.Client, ts time.Time, clusterKey string) error {
 	updatedAt := ts.UnixMilli()
 	rawQuery := fmt.Sprintf("@cluster_key:{%s} @updated_at:[-inf (%d]", redisearch.EscapeTextFileString(clusterKey), updatedAt)
 
-	query := redisearch.NewQuery(rawQuery).SetReturnFields("id")
+	query := redisearch.NewQuery(rawQuery).SetReturnFields("id", "images")
 
 	result, _, err := redisClient.Search(ctx, query)
 	if err != nil {
@@ -1110,12 +1242,29 @@ func cleanUpResourcesFromRedis(ctx context.Context, redisClient *redisearch.Clie
 	}
 
 	keys := make([]string, 0, len(result))
+	imageKeys := make([]interface{}, 0)
+	imageKeys = append(imageKeys, "container_images")
 
 	for _, doc := range result {
 		keys = append(keys, doc.Id)
+		for _, image := range strings.Split(cast.ToString(doc.Properties["images"]), ",") {
+			imageKeys = append(imageKeys, fmt.Sprintf("%s/%s", doc.Properties["id"], image))
+		}
 	}
 
-	return redisClient.DeleteDoc(ctx, keys...)
+	err = redisClient.DeleteDoc(ctx, keys...)
+	if err != nil {
+		return err
+	}
+
+	conn, err := redisClient.GetConn(ctx)
+	if err != nil {
+		return err
+	}
+	defer conn.Close()
+
+	_, err = conn.Do("ZREM", imageKeys...)
+	return err
 }
 
 func CleanUpUnUpdatedResourceContainers(ctx context.Context, rdb *gorm.DB, ts time.Time, clusterKey string) error {
@@ -1292,7 +1441,6 @@ func UpsertPodResourceRelationInRDB(ctx context.Context, rdb *gorm.DB, pod *core
 	})
 }
 
-// TODO: implementation.
 func UpsertPodResourceRelationWithRedis(ctx context.Context, rdb *gorm.DB, redisClient *redisearch.Client, pod *corev1.Pod, resourceName, resKind, clusterKey string, updateTime time.Time) error {
 	rel := newPodResourceRelationFromPod(pod, resourceName, resKind, clusterKey, updateTime)
 	rCtx, cancel := context.WithTimeout(ctx, 5000*time.Millisecond)
@@ -1346,7 +1494,6 @@ func DeletePodResourceRelationInRDB(ctx context.Context, rdb *gorm.DB, clusterKe
 	})
 }
 
-// TODO: implementation
 func DeletePodResourceRelationWithRedis(ctx context.Context, rdb *gorm.DB, redisClient *redisearch.Client, clusterKey, namespace, name string) error {
 	rCtx, cancel := context.WithTimeout(ctx, 2500*time.Millisecond)
 	defer cancel()
@@ -1397,7 +1544,6 @@ func CleanUpPodResourceRelationsInRDB(ctx context.Context, rdb *gorm.DB, ts time
 	})
 }
 
-// TODO: implementation
 func CleanUpPodResourceRelationWithRedis(ctx context.Context, rdb *gorm.DB, redisClient *redisearch.Client, ts time.Time, clusterKey string) error {
 	rCtx, cancel := context.WithTimeout(ctx, 15000*time.Millisecond)
 	defer cancel()
@@ -1590,7 +1736,6 @@ func (q *ResPodsQueryOption) OkForRedis() bool {
 	return true
 }
 
-// TODO: 如何处理mulColQuery的情况
 func (q *ResPodsQueryOption) RedisRawQuery() string {
 	if !q.OkForRedis() {
 		return ""
@@ -1642,7 +1787,6 @@ func (q *ResPodsQueryOption) RedisRawQuery() string {
 	return builder.String()
 }
 
-// TODO: implementation.
 func GetResourcePodListWithRedis(ctx context.Context, rdb *gorm.DB, redisClient *redisearch.Client, queryOptions *ResPodsQueryOption, offset, limit int) ([]*model.PodResourceRelation, error) {
 	if !queryOptions.OkForRedis() {
 		return GetResourcePodsList(ctx, rdb, queryOptions, offset, limit)
@@ -1774,7 +1918,6 @@ func GetResourcePodsList(ctx context.Context, rdb *gorm.DB, queryOptions *ResPod
 	return rels, nil
 }
 
-// TODO: implementation
 func CountPodsWithRedis(ctx context.Context, rdb *gorm.DB, redisClient *redisearch.Client, queryOptions *ResPodsQueryOption) (int64, error) {
 
 	if !queryOptions.OkForRedis() {
@@ -2858,7 +3001,6 @@ func (q *RawContainersQueryOption) RedisRawQuery() string {
 	return builder.String()
 }
 
-// TODO: implementation.
 func CountRawContainerWithRedis(ctx context.Context, rdb *gorm.DB, redisClient *redisearch.Client, queryOptions *RawContainersQueryOption) (int64, error) {
 	if !queryOptions.OkForRedis() {
 		return CountRawContainer(ctx, rdb, queryOptions)
@@ -2939,7 +3081,6 @@ func CountRawContainer(ctx context.Context, rdb *gorm.DB, queryOptions *RawConta
 	return cntNum, err
 }
 
-// TODO: implementation
 func GetRawContainersWithRedis(ctx context.Context, rdb *gorm.DB, redisClient *redisearch.Client, queryOptions *RawContainersQueryOption, offset int, limit int) ([]*model.TensorRawContainer, error) {
 	if !queryOptions.OkForRedis() {
 		return GetRawContainers(ctx, rdb, queryOptions, offset, limit)
@@ -3053,7 +3194,6 @@ func GetRawContainers(ctx context.Context, rdb *gorm.DB, queryOptions *RawContai
 	return containers, nil
 }
 
-// TODO: implementation
 func UpsertRawContainerWithRedis(ctx context.Context, rdb *gorm.DB, redisClient *redisearch.Client, container *model.TensorRawContainer) error {
 	rCtx, cancel := context.WithTimeout(ctx, 15000*time.Millisecond)
 	defer cancel()
@@ -3101,7 +3241,6 @@ func UpsertRawContainers(ctx context.Context, rdb *gorm.DB, container *model.Ten
 	}).Create(container).Error
 }
 
-// TODO: implementation.
 func DeleteRawContainerWithRedis(ctx context.Context, rdb *gorm.DB, redisClient *redisearch.Client, clusterKey, id string) error {
 	rCtx, cancel := context.WithTimeout(ctx, 2500*time.Millisecond)
 	defer cancel()
@@ -3129,7 +3268,6 @@ func DeleteRawContainer(ctx context.Context, rdb *gorm.DB, clusterKey, id string
 	}).Error
 }
 
-// TODO: implementation
 func CleanUpRawContainerWithRedis(ctx context.Context, rdb *gorm.DB, redisClient *redisearch.Client, ts time.Time, clusterKey, nodeName string) error {
 	rCtx, cancel := context.WithTimeout(ctx, 5000*time.Millisecond)
 	defer cancel()

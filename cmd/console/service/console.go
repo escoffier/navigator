@@ -171,7 +171,7 @@ func NewConsole(
 
 	var redisearchClient *redisearch.Client
 
-	if os.Getenv("USE_REDISEARCH") == "true" {
+	if os.Getenv("USE_REDISEARCH") != "false" {
 		redisearchClient, err = redisearch.NewClient()
 		if err != nil {
 			return nil, err
