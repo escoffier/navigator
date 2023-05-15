@@ -241,8 +241,8 @@ func GenWebShellInfo(image model.ImageBaseResponse, file scannermodel.Webshell) 
 
 	name, path := file.FileName, ""
 	if len(split) > 1 {
-		name = strings.Join(split[:len(split)-1], "/")
-		path = split[len(split)-1]
+		path = strings.Join(split[:len(split)-1], "/")
+		name = split[len(split)-1]
 	}
 
 	level := "确定"
