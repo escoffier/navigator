@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/google/go-containerregistry/pkg/name"
+	"gitlab.com/piccolo_su/vegeta/pkg/util"
 
 	json "github.com/json-iterator/go"
 	corev1 "k8s.io/api/core/v1"
@@ -221,6 +222,24 @@ type TensorResource struct {
 
 func (TensorResource) TableName() string {
 	return "ivan_assets_resources"
+}
+
+func (r *TensorResource) Images() []uint32 {
+	if r.PodTemplate == nil {
+		return nil
+	}
+
+	images := make([]uint32, 0)
+
+	for _, initCon := range r.PodTemplate.InitContainers {
+		images = append(images, util.GenerateUUID(initCon.Image))
+	}
+
+	for _, con := range r.PodTemplate.Containers {
+		images = append(images, util.GenerateUUID(con.Image))
+	}
+
+	return images
 }
 
 type ContainerPorts []corev1.ContainerPort

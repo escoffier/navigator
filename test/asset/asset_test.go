@@ -5,6 +5,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+<<<<<<< HEAD
+	"strconv"
+	"strings"
+=======
+>>>>>>> master
 	"testing"
 	"time"
 
@@ -559,17 +564,27 @@ func TestRawContainerFuzzyOnLocal02(t *testing.T) {
 }
 
 func TestAllRawContainer(t *testing.T) {
+<<<<<<< HEAD
+	db := setupDB()
+	rClient := setupRedis()
+
+=======
 	db := setupRDBClient()
 	rClient := setupRedis()
 
 	err := assets.InitResourcesService(db, rClient, "")
 	panicOnError(err)
 
+>>>>>>> master
 	dbContainer := make([]*model.TensorRawContainer, 0)
 
 	dbSet := make(map[string]struct{})
 
+<<<<<<< HEAD
+	err := db.Model(&model.TensorRawContainer{}).Where("status < 5 ").Find(&dbContainer).Error
+=======
 	err = db.Get().Model(&model.TensorRawContainer{}).Where("status <5 ").Find(&dbContainer).Error
+>>>>>>> master
 	if err != nil {
 		panic(err)
 	}
@@ -583,17 +598,28 @@ func TestAllRawContainer(t *testing.T) {
 
 	// raw := fmt.Sprintf("@node_name:{cluster02*}")
 
+<<<<<<< HEAD
+	docs, total, err := ic.Search(context.Background(), rsearch.NewQuery("@status:{Running}").Limit(0, 10000))
+	panicOnError(err)
+
+	fmt.Println(len(dbContainer), total, len(docs))
+
+=======
 	docs, total, err := ic.Search(context.Background(), rsearch.NewQuery("@node_name:{cluster02*}").Limit(0, 10000))
 	panicOnError(err)
 
+>>>>>>> master
 	redisSet := make(map[string]struct{})
 
 	for _, doc := range docs {
 		redisSet[cast.ToString(doc.Properties["id"])] = struct{}{}
 	}
 
+<<<<<<< HEAD
+=======
 	fmt.Println(len(dbContainer), total)
 
+>>>>>>> master
 	fmt.Println("+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++")
 	fmt.Println("presented in redis, but not in db")
 
@@ -673,7 +699,11 @@ func TestDiffRawContainer(t *testing.T) {
 
 }
 
+<<<<<<< HEAD
+func TestSyncResourceToRedis(t *testing.T) {
+=======
 func TestSyncToRedis(t *testing.T) {
+>>>>>>> master
 	db := setupDB()
 	rClient := setupRedis()
 
@@ -704,6 +734,10 @@ func TestSyncToRedis(t *testing.T) {
 	}
 
 	minID = resources[0].ID
+<<<<<<< HEAD
+	fmt.Println(total, minID)
+=======
+>>>>>>> master
 
 	ctx := context.Background()
 	cursor = minID - 1
@@ -711,34 +745,215 @@ func TestSyncToRedis(t *testing.T) {
 	for finished < total {
 		resources = resources[:0]
 
+<<<<<<< HEAD
+		err = db.Model(m).Where("status = ? ", 0).Where("id > ?", cursor).Limit(10).Order("id asc").Find(&resources).Error
+		panicOnError(err)
+
+		for _, resource := range resources {
+			imageList := make([]string, 0)
+			for _, image := range resource.Images() {
+				imageList = append(imageList, cast.ToString(image))
+			}
+
+=======
 		err = db.Model(m).Where("status = ? ", 0).Where("id between (?, ?)", cursor, cursor+1000).Find(&resources).Error
 		panicOnError(err)
 
 		var curCount int64
 
 		for _, resource := range resources {
+>>>>>>> master
 			doc := rsearch.NewDocument(fmt.Sprintf("resource:%d", resource.ID), 1).
 				Set("id", resource.ID).
 				Set("name", resource.Name).
 				Set("namespace", resource.Namespace).
 				Set("cluster_key", resource.ClusterKey).
 				Set("kind", resource.Kind).
+<<<<<<< HEAD
+				Set("updated_at", resource.UpdatedAt.UnixMilli()).
+				Set("images", strings.Join(imageList, ","))
+=======
 				Set("updated_at", resource.UpdatedAt.UnixMilli())
+>>>>>>> master
 
 			err = ic.AddDoc(ctx, doc)
 			if err != nil {
 				panic(fmt.Sprintf("err occured when insert to %d resource to redis, err: %v", resource.ID, err))
 			}
-
-			curCount++
+<<<<<<< HEAD
+			if err != nil {
+				panic(fmt.Sprintf("err occured when add %d resource images to redis, err: %v", resource.ID, err))
+			}
+			cursor = resource.ID
+			finished++
 		}
-		finished += curCount
+
+		fmt.Println("next cursor: ", cursor)
 
 		fmt.Printf("finished: %d, total: %d, %d/%d, percentage: %.2f \n", finished, total, finished, total, float64(finished)/float64(total))
 	}
 
 }
 
+func TestSyncPodToRedis(t *testing.T) {
+	db := setupDB()
+	rClient := setupRedis()
+
+	ic, err := rClient.GetIndexClient("pod")
+	panicOnError(err)
+
+	var (
+		minID    uint32
+		cursor   uint32
+		total    int64
+		finished int64
+	)
+
+	m := &model.PodResourceRelation{}
+
+	// 首选查询出总数
+	err = db.Model(m).Where("status = ? ", 0).Count(&total).Error
+	panicOnError(err)
+
+	pods := make([]*model.PodResourceRelation, 0)
+
+	// 查询最小的id
+	err = db.Model(m).Where("status = ?", 0).Order("id asc").Limit(1).Find(&pods).Error
+	panicOnError(err)
+
+	if len(pods) == 0 {
+		panic("no resources found")
+	}
+
+	minID = pods[0].ID
+	fmt.Println(total, minID)
+
+	ctx := context.Background()
+	cursor = minID - 1
+
+	for finished < total {
+		pods = pods[:0]
+
+		err = db.Model(m).Where("status = ? ", 0).Where("id > ?", cursor).Limit(10).Order("id asc").Find(&pods).Error
+		panicOnError(err)
+
+		for _, rel := range pods {
+			docID := fmt.Sprintf("pod:%d", rel.ID)
+
+			doc := rsearch.NewDocument(docID, 1).
+				Set("id", rel.ID).
+				Set("pod_name", rel.PodName).
+				Set("cluster_key", rel.ClusterKey).
+				Set("node_name", rel.NodeName).
+				Set("resource_kind", rel.ResourceKind).
+				Set("resource_name", rel.ResourceName).
+				Set("namespace", rel.Namespace).
+				Set("pod_ip", rel.PodIP).
+				Set("updated_at", rel.UpdatedAt.UnixMilli()).
+				Set("created_at", rel.CreatedAt.UnixMilli())
+
+			err = ic.AddDoc(ctx, doc)
+			if err != nil {
+				panic(fmt.Sprintf("err occured when insert to %d pod to redis, err: %v", rel.ID, err))
+			}
+			cursor = rel.ID
+			finished++
+		}
+
+		fmt.Println("next cursor: ", cursor)
+=======
+
+			curCount++
+		}
+		finished += curCount
+>>>>>>> master
+
+		fmt.Printf("finished: %d, total: %d, %d/%d, percentage: %.2f \n", finished, total, finished, total, float64(finished)/float64(total))
+	}
+
+}
+
+<<<<<<< HEAD
+func TestSyncRawContainerToRedis(t *testing.T) {
+	db := setupDB()
+	rClient := setupRedis()
+
+	ic, err := rClient.GetIndexClient("rawContainer")
+	panicOnError(err)
+
+	var (
+		minID    string
+		cursor   string
+		total    int64
+		finished int64
+	)
+
+	m := &model.TensorRawContainer{}
+
+	// 首选查询出总数
+	err = db.Model(m).Where("status < ? ", 5).Count(&total).Error
+	panicOnError(err)
+
+	containers := make([]*model.TensorRawContainer, 0)
+
+	// 查询最小的id
+	err = db.Model(m).Where("status < ?", 5).Order("id asc").Limit(1).Find(&containers).Error
+	panicOnError(err)
+
+	if len(containers) == 0 {
+		panic("no resources found")
+	}
+
+	minID = containers[0].ContainerID
+	fmt.Println(total, minID)
+
+	var include = true
+	cursor = minID
+
+	ctx := context.Background()
+
+	for finished < total {
+		containers = containers[:0]
+
+		if include {
+			err = db.Model(m).Where("status < ?", 5).Where("id >= ?", cursor).Limit(10).Order("id asc").Find(&containers).Error
+
+		} else {
+			err = db.Model(m).Where("status < ? ", 5).Where("id > ?", cursor).Limit(10).Order("id asc").Find(&containers).Error
+
+		}
+
+		panicOnError(err)
+
+		for _, container := range containers {
+			doc := rsearch.NewDocument(fmt.Sprintf("rawContainer:%s", container.ContainerID), 1).
+				Set("id", container.ContainerID).
+				Set("status", ppassets.GetRawContainerStatus(int(container.Status))).
+				Set("cluster_key", container.ClusterKey).
+				Set("k8s_managed", strconv.FormatBool(container.K8sManaged)).
+				Set("node_name", container.NodeName).
+				Set("namespace", container.Namespace).
+				Set("pod_name", container.PodName).
+				Set("name", container.Name).
+				Set("resource_name", container.ResourceName).
+				Set("updated_at", container.UpdatedAt.UnixMilli())
+
+			err = ic.AddDoc(ctx, doc)
+			if err != nil {
+				panic(fmt.Sprintf("err occured when insert to %s raw container to redis, err: %v", container.ContainerID, err))
+			}
+			cursor = container.ContainerID
+			finished++
+		}
+
+		include = false
+
+		fmt.Println("next cursor: ", cursor)
+
+		fmt.Printf("finished: %d, total: %d, %d/%d, percentage: %.2f \n", finished, total, finished, total, float64(finished)/float64(total))
+	}
+
+=======
 func TestPodFuzzyQuery(t *testing.T) {
 	db := setupRDBClient()
 	rClient := setupRedis()
@@ -758,4 +973,5 @@ func TestPodFuzzyQuery(t *testing.T) {
 	_, total, err := request.Execute(context.Background())
 	panicOnError(err)
 	fmt.Println(total)
+>>>>>>> master
 }

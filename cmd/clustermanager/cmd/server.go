@@ -157,28 +157,6 @@ func NewServer() (*server, error) {
 		if scannerURL == "" {
 			scannerURL = "http://tensorsec-scanner:8888"
 		}
-		// Redis DB client
-		redisClient, err := cache.NewRedis()
-		if err != nil {
-			return nil, err
-		}
-
-		var searchClient *redisearch.Client
-
-		if os.Getenv("USE_REDISEARCH") == "true" {
-			searchClient, err = redisearch.NewClient()
-			if err != nil {
-				return nil, err
-			}
-			for _, index := range assets.AssetIndices {
-				err = searchClient.CreateIndex(context.Background(), index)
-				if err != nil {
-					return nil, err
-				}
-			}
-
-		}
-
 		mqReader, err := mq.GetClientFactory().Reader(context.Background())
 		if err != nil {
 			return nil, err
@@ -192,6 +170,21 @@ func NewServer() (*server, error) {
 		if kafkaGroupID == "" {
 			kafkaTopic = defaultGroupID
 		}
+		// Redis DB client
+		redisClient, err := cache.NewRedis()
+		if err != nil {
+			return nil, err
+		}
+
+		var searchClient *redisearch.Client
+
+		if os.Getenv("USE_REDISEARCH") != "false" {
+			searchClient, err = redisearch.NewClient()
+			if err != nil {
+				return nil, err
+			}
+		}
+
 		w, err := assets.Watcher(rdb, redisClient, searchClient, scannerURL, mqReader, kafkaTopic, kafkaGroupID)
 		if err != nil {
 			return nil, err
