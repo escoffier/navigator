@@ -5,11 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-<<<<<<< HEAD
 	"strconv"
 	"strings"
-=======
->>>>>>> master
 	"testing"
 	"time"
 
@@ -564,27 +561,14 @@ func TestRawContainerFuzzyOnLocal02(t *testing.T) {
 }
 
 func TestAllRawContainer(t *testing.T) {
-<<<<<<< HEAD
 	db := setupDB()
 	rClient := setupRedis()
 
-=======
-	db := setupRDBClient()
-	rClient := setupRedis()
-
-	err := assets.InitResourcesService(db, rClient, "")
-	panicOnError(err)
-
->>>>>>> master
 	dbContainer := make([]*model.TensorRawContainer, 0)
 
 	dbSet := make(map[string]struct{})
 
-<<<<<<< HEAD
 	err := db.Model(&model.TensorRawContainer{}).Where("status < 5 ").Find(&dbContainer).Error
-=======
-	err = db.Get().Model(&model.TensorRawContainer{}).Where("status <5 ").Find(&dbContainer).Error
->>>>>>> master
 	if err != nil {
 		panic(err)
 	}
@@ -598,28 +582,17 @@ func TestAllRawContainer(t *testing.T) {
 
 	// raw := fmt.Sprintf("@node_name:{cluster02*}")
 
-<<<<<<< HEAD
 	docs, total, err := ic.Search(context.Background(), rsearch.NewQuery("@status:{Running}").Limit(0, 10000))
 	panicOnError(err)
 
 	fmt.Println(len(dbContainer), total, len(docs))
 
-=======
-	docs, total, err := ic.Search(context.Background(), rsearch.NewQuery("@node_name:{cluster02*}").Limit(0, 10000))
-	panicOnError(err)
-
->>>>>>> master
 	redisSet := make(map[string]struct{})
 
 	for _, doc := range docs {
 		redisSet[cast.ToString(doc.Properties["id"])] = struct{}{}
 	}
 
-<<<<<<< HEAD
-=======
-	fmt.Println(len(dbContainer), total)
-
->>>>>>> master
 	fmt.Println("+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++")
 	fmt.Println("presented in redis, but not in db")
 
@@ -699,11 +672,7 @@ func TestDiffRawContainer(t *testing.T) {
 
 }
 
-<<<<<<< HEAD
 func TestSyncResourceToRedis(t *testing.T) {
-=======
-func TestSyncToRedis(t *testing.T) {
->>>>>>> master
 	db := setupDB()
 	rClient := setupRedis()
 
@@ -734,10 +703,7 @@ func TestSyncToRedis(t *testing.T) {
 	}
 
 	minID = resources[0].ID
-<<<<<<< HEAD
 	fmt.Println(total, minID)
-=======
->>>>>>> master
 
 	ctx := context.Background()
 	cursor = minID - 1
@@ -745,7 +711,6 @@ func TestSyncToRedis(t *testing.T) {
 	for finished < total {
 		resources = resources[:0]
 
-<<<<<<< HEAD
 		err = db.Model(m).Where("status = ? ", 0).Where("id > ?", cursor).Limit(10).Order("id asc").Find(&resources).Error
 		panicOnError(err)
 
@@ -755,32 +720,19 @@ func TestSyncToRedis(t *testing.T) {
 				imageList = append(imageList, cast.ToString(image))
 			}
 
-=======
-		err = db.Model(m).Where("status = ? ", 0).Where("id between (?, ?)", cursor, cursor+1000).Find(&resources).Error
-		panicOnError(err)
-
-		var curCount int64
-
-		for _, resource := range resources {
->>>>>>> master
 			doc := rsearch.NewDocument(fmt.Sprintf("resource:%d", resource.ID), 1).
 				Set("id", resource.ID).
 				Set("name", resource.Name).
 				Set("namespace", resource.Namespace).
 				Set("cluster_key", resource.ClusterKey).
 				Set("kind", resource.Kind).
-<<<<<<< HEAD
 				Set("updated_at", resource.UpdatedAt.UnixMilli()).
 				Set("images", strings.Join(imageList, ","))
-=======
-				Set("updated_at", resource.UpdatedAt.UnixMilli())
->>>>>>> master
 
 			err = ic.AddDoc(ctx, doc)
 			if err != nil {
 				panic(fmt.Sprintf("err occured when insert to %d resource to redis, err: %v", resource.ID, err))
 			}
-<<<<<<< HEAD
 			if err != nil {
 				panic(fmt.Sprintf("err occured when add %d resource images to redis, err: %v", resource.ID, err))
 			}
@@ -861,19 +813,12 @@ func TestSyncPodToRedis(t *testing.T) {
 		}
 
 		fmt.Println("next cursor: ", cursor)
-=======
-
-			curCount++
-		}
-		finished += curCount
->>>>>>> master
 
 		fmt.Printf("finished: %d, total: %d, %d/%d, percentage: %.2f \n", finished, total, finished, total, float64(finished)/float64(total))
 	}
 
 }
 
-<<<<<<< HEAD
 func TestSyncRawContainerToRedis(t *testing.T) {
 	db := setupDB()
 	rClient := setupRedis()
@@ -953,25 +898,4 @@ func TestSyncRawContainerToRedis(t *testing.T) {
 		fmt.Printf("finished: %d, total: %d, %d/%d, percentage: %.2f \n", finished, total, finished, total, float64(finished)/float64(total))
 	}
 
-=======
-func TestPodFuzzyQuery(t *testing.T) {
-	db := setupRDBClient()
-	rClient := setupRedis()
-
-	err := assets.InitResourcesService(db, rClient, "")
-	panicOnError(err)
-
-	var request = &api.GetPods{
-		ClusterKey:   "f815c6f8-8264-46a0-a273-c039de27492d",
-		ResourceName: "kube",
-		PodIP:        "135",
-		Limit:        10,
-		Offset:       0,
-		UseRedis:     true,
-	}
-
-	_, total, err := request.Execute(context.Background())
-	panicOnError(err)
-	fmt.Println(total)
->>>>>>> master
 }

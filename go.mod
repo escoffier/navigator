@@ -117,7 +117,7 @@ require (
 	github.com/shopspring/decimal v1.2.0
 	github.com/sony/gobreaker v0.5.0
 	github.com/xuri/excelize/v2 v2.6.0
-	gitlab.com/security-rd/go-pkg v0.2.65
+	gitlab.com/security-rd/go-pkg v0.2.67
 	go.uber.org/atomic v1.11.0
 	gomodules.xyz/jsonpatch/v3 v3.0.1
 	google.golang.org/protobuf v1.30.0
@@ -482,7 +482,7 @@ require (
 replace (
 	github.com/containers/podman/v3 => scm.tensorsecurity.cn/tensorsecurity-rd/podman/v3 v3.4.6-20220425170000
 	github.com/opencontainers/image-spec => github.com/opencontainers/image-spec v1.0.2-0.20210819154149-5ad6f50d6283
-	gitlab.com/security-rd/go-pkg => scm.tensorsecurity.cn/tensorsecurity-rd/go-pkg v0.2.67-0.20230512031045-36051b280ca7
+	gitlab.com/security-rd/go-pkg => scm.tensorsecurity.cn/tensorsecurity-rd/go-pkg v0.2.67
 	k8s.io/api => k8s.io/kubernetes/staging/src/k8s.io/api v0.0.0-20220503133649-4ce5a8954017
 	k8s.io/apiextensions-apiserver => k8s.io/kubernetes/staging/src/k8s.io/apiextensions-apiserver v0.0.0-20220503133649-4ce5a8954017
 	k8s.io/apimachinery => k8s.io/kubernetes/staging/src/k8s.io/apimachinery v0.0.0-20220503133649-4ce5a8954017
