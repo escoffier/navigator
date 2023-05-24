@@ -25,7 +25,7 @@ require (
 	github.com/go-chi/jwtauth v4.0.4+incompatible
 	github.com/go-openapi/spec v0.19.9 // indirect
 	github.com/go-openapi/swag v0.19.14 // indirect
-	github.com/go-playground/validator/v10 v10.13.0 // indirect
+	github.com/go-playground/validator/v10 v10.14.0 // indirect
 	github.com/go-redis/redis/v8 v8.11.5
 	github.com/gofrs/uuid v4.3.1+incompatible // indirect
 	github.com/golang-migrate/migrate/v4 v4.14.1
@@ -58,7 +58,7 @@ require (
 	github.com/spf13/cobra v1.6.0
 	github.com/spf13/pflag v1.0.5
 	github.com/spf13/viper v1.11.0
-	github.com/stretchr/testify v1.8.2
+	github.com/stretchr/testify v1.8.3
 	github.com/swaggo/swag v1.6.7
 	github.com/tealeg/xlsx v1.0.5
 	github.com/tevino/abool v0.0.0-20170917061928-9b9efcf221b5
@@ -86,7 +86,7 @@ require (
 	k8s.io/apiserver v0.20.15
 	k8s.io/client-go v0.20.15
 	scm.tensorsecurity.cn/tensorsecurity-rd/cloudwalker v0.0.5
-	scm.tensorsecurity.cn/tensorsecurity-rd/falcosider v0.2.32
+	scm.tensorsecurity.cn/tensorsecurity-rd/falcosider v0.2.45
 	scm.tensorsecurity.cn/tensorsecurity-rd/trivy v0.19.3-0.20221223094108-043b8936a019
 )
 
@@ -117,7 +117,7 @@ require (
 	github.com/shopspring/decimal v1.2.0
 	github.com/sony/gobreaker v0.5.0
 	github.com/xuri/excelize/v2 v2.6.0
-	gitlab.com/security-rd/go-pkg v0.2.67
+	gitlab.com/security-rd/go-pkg v0.2.68
 	go.uber.org/atomic v1.11.0
 	gomodules.xyz/jsonpatch/v3 v3.0.1
 	google.golang.org/protobuf v1.30.0
@@ -142,7 +142,7 @@ require (
 	github.com/armon/go-metrics v0.3.11 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/blang/semver v3.5.1+incompatible // indirect
-	github.com/bytedance/sonic v1.8.8 // indirect
+	github.com/bytedance/sonic v1.8.10 // indirect
 	github.com/cheekybits/genny v1.0.0 // indirect
 	github.com/chenzhuoyu/base64x v0.0.0-20221115062448-fe3a3abad311 // indirect
 	github.com/chzyer/readline v0.0.0-20180603132655-2972be24d48e // indirect
@@ -164,6 +164,7 @@ require (
 	github.com/eapache/go-resiliency v1.3.0 // indirect
 	github.com/eapache/go-xerial-snappy v0.0.0-20230111030713-bf00bc1b83b6 // indirect
 	github.com/eapache/queue v1.1.0 // indirect
+	github.com/gabriel-vasile/mimetype v1.4.2 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-ole/go-ole v1.2.6 // indirect
 	github.com/gobuffalo/here v0.6.0 // indirect
@@ -222,7 +223,7 @@ require (
 	github.com/opencontainers/runtime-tools v0.9.0 // indirect
 	github.com/opencontainers/selinux v1.10.0 // indirect
 	github.com/ostreedev/ostree-go v0.0.0-20190702140239-759a8c1ac913 // indirect
-	github.com/pelletier/go-toml/v2 v2.0.7 // indirect
+	github.com/pelletier/go-toml/v2 v2.0.8 // indirect
 	github.com/power-devops/perfstat v0.0.0-20210106213030-5aafc221ea8c // indirect
 	github.com/prometheus/client_golang v1.12.1 // indirect
 	github.com/prometheus/client_model v0.2.0 // indirect
@@ -273,7 +274,7 @@ require (
 	github.com/gogo/protobuf v1.3.2
 	github.com/smartystreets/goconvey v1.6.4
 	go.uber.org/multierr v1.9.0 // indirect
-	gorm.io/driver/mysql v1.5.0
+	gorm.io/driver/mysql v1.5.1
 	gorm.io/plugin/soft_delete v1.2.0
 )
 
@@ -403,7 +404,7 @@ require (
 	github.com/mailru/easyjson v0.7.7 // indirect
 	github.com/masahiro331/go-mvn-version v0.0.0-20210429150710-d3157d602a08 // indirect
 	github.com/matryer/is v1.4.0 // indirect
-	github.com/mattn/go-isatty v0.0.18 // indirect
+	github.com/mattn/go-isatty v0.0.19 // indirect
 	github.com/mattn/go-runewidth v0.0.13 // indirect
 	github.com/mdlayher/netlink v1.7.2 // indirect
 	github.com/mdlayher/socket v0.4.1 // indirect
@@ -482,7 +483,7 @@ require (
 replace (
 	github.com/containers/podman/v3 => scm.tensorsecurity.cn/tensorsecurity-rd/podman/v3 v3.4.6-20220425170000
 	github.com/opencontainers/image-spec => github.com/opencontainers/image-spec v1.0.2-0.20210819154149-5ad6f50d6283
-	gitlab.com/security-rd/go-pkg => scm.tensorsecurity.cn/tensorsecurity-rd/go-pkg v0.2.67
+	gitlab.com/security-rd/go-pkg => scm.tensorsecurity.cn/tensorsecurity-rd/go-pkg v0.2.68
 	k8s.io/api => k8s.io/kubernetes/staging/src/k8s.io/api v0.0.0-20220503133649-4ce5a8954017
 	k8s.io/apiextensions-apiserver => k8s.io/kubernetes/staging/src/k8s.io/apiextensions-apiserver v0.0.0-20220503133649-4ce5a8954017
 	k8s.io/apimachinery => k8s.io/kubernetes/staging/src/k8s.io/apimachinery v0.0.0-20220503133649-4ce5a8954017

@@ -284,6 +284,9 @@ endif
 .PHONY: holmes
 holmes:     ## Build holmes docker
 	@echo "+ $@"
+	go build -v \
+		--ldflags "$(LDFLAGS) -X gitlab.com/piccolo_su/vegeta/cmd/holmes/starter/cmd.Version=$(VERSION)" \
+		-o dist/holmes-starter gitlab.com/piccolo_su/vegeta/cmd/holmes/starter
 ifeq ($(UNAME_M),x86_64)
 	docker build -t $(REPOPREFIX)/holmes:latest -f ./build/holmes/Dockerfile \
 		--build-arg REPO=$(REPOPREFIX) --build-arg TAG=$(FETCHTAG) --build-arg MIRROR=mirrors.aliyun.com \

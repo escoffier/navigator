@@ -138,6 +138,7 @@ RUN curl -L -o binutils_2.30-22_${TARGETARCH}.deb https://download.falco.org/dep
 
 # RUN apt-get update -y && apt --fix-broken install -y && apt-get install supervisor -y
 
+COPY ./dist/holmes-starter /
 COPY ./configs/holmes/supervisord.conf /etc/
 COPY ./configs/holmes/docker-entrypoint.sh /
 COPY ./configs/holmes/holmes /
