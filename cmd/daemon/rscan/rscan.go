@@ -230,6 +230,11 @@ func (rs *RuntimeScanner) Run() error {
 	// start avira daemon
 	wg.Add(1)
 	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				logging.Get().Error().Msgf("panic : %v. stack: %s", r, debug.Stack())
+			}
+		}()
 		defer wg.Done()
 		savServer, err := avira.NewSavServer()
 		if err != nil {
@@ -244,6 +249,11 @@ func (rs *RuntimeScanner) Run() error {
 	// monitor runtime event
 	wg.Add(1)
 	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				logging.Get().Error().Msgf("panic : %v. stack: %s", r, debug.Stack())
+			}
+		}()
 		defer wg.Done()
 		logging.Get().Info().Msg("runtime scanner start monitoring runtime event")
 		err := rs.rt.MonitorEvent(rs.runtimeEventCallback)
@@ -255,6 +265,11 @@ func (rs *RuntimeScanner) Run() error {
 	// handle inotify event
 	wg.Add(1)
 	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				logging.Get().Error().Msgf("panic : %v. stack: %s", r, debug.Stack())
+			}
+		}()
 		defer wg.Done()
 		logging.Get().Info().Msg("runtime scanner start handling inotify event")
 		_ = rs.handleInotifyEvent()
@@ -284,10 +299,12 @@ func (rs *RuntimeScanner) ContainerByInotifyFile(filename string) (*container.Co
 
 func (rs *RuntimeScanner) handleInotifyEvent() error {
 	defer func() {
+		rs.Lock()
 		err := rs.watcher.Close()
 		if err != nil {
 			logging.Get().Err(err).Msg("failed to close watcher")
 		}
+		rs.Unlock()
 	}()
 
 	// Start listening for events.
@@ -333,11 +350,13 @@ func (rs *RuntimeScanner) handleInotifyEvent() error {
 				// auto remove or manual remove some directory will generate ignore event.
 				// the inode of the removed directory will become invalid, we need to remove this from inotify instance
 				logging.Get().Debug().Str("file", filename).Msg("ignore")
+				rs.Lock()
 				if err := rs.watcher.RemoveWatch(filename); err != nil {
 					logging.Get().Err(err).Str("file", filename).Msg("failed to remove watch")
 				} else {
 					logging.Get().Debug().Str("file", filename).Msg("remove watch ok")
 				}
+				rs.Unlock()
 			} else if event.Mask&inotify.InUnmount == inotify.InUnmount {
 				// rm container would trigger unmount
 				logging.Get().Debug().Str("file", filename).Msg("unmount")
@@ -357,12 +376,14 @@ func (rs *RuntimeScanner) AddWatchDir(rootPath string) error {
 				return nil
 			}
 			if dirEntry.IsDir() {
+				rs.Lock()
 				if err := rs.watcher.AddWatch(path, inotify.InCloseWrite|inotify.InCreate); err != nil {
 					rs.stats.WatchErrCnt++
 					logging.Get().Err(err).Str("path", path).Msg("failed to add dir to watch list")
 				} else {
 					rs.stats.WatchOkCnt++
 				}
+				rs.Unlock()
 			}
 			return nil
 		})
