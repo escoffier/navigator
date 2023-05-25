@@ -7,8 +7,6 @@ RUN sed -i "s!archive.ubuntu.com/!mirrors.aliyun.com/!g" /etc/apt/sources.list \
     && apt-get install -y clamav wget \
     && sed -i "s|ReceiveTimeout 30|ReceiveTimeout 300|" /etc/clamav/freshclam.conf \
     && sed -i "s|MaxAttempts 5|MaxAttempts 3|" /etc/clamav/freshclam.conf \
-    && sed -i "s|DatabaseMirro.*|DatabaseMirror db.cn.clamav.net|" /etc/clamav/freshclam.conf \
-    && freshclam \
     && apt-get install -y clamav-daemon \
     && update-rc.d clamav-daemon defaults 99 \
     && apt-get install -y apt-transport-https ca-certificates curl gnupg-agent software-properties-common iptables \

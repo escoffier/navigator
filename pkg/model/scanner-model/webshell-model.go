@@ -77,9 +77,9 @@ type TblS struct {
 }
 
 type WebshellMalicous struct {
-	Name   string `json:"name"`
-	Offset int64  `json:"offset"`
-	Data   string `json:"data"`
+	Name   string `json:"Name"`
+	Offset int64  `json:"Offset"`
+	Data   string `json:"Data"`
 	LineNo int64  `json:"line_no"`
 }
 
