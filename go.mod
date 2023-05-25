@@ -86,7 +86,7 @@ require (
 	k8s.io/apiserver v0.20.15
 	k8s.io/client-go v0.20.15
 	scm.tensorsecurity.cn/tensorsecurity-rd/cloudwalker v0.0.5
-	scm.tensorsecurity.cn/tensorsecurity-rd/falcosider v0.2.46
+	scm.tensorsecurity.cn/tensorsecurity-rd/falcosider v0.2.47
 	scm.tensorsecurity.cn/tensorsecurity-rd/trivy v0.19.3-0.20221223094108-043b8936a019
 )
 
@@ -105,6 +105,7 @@ require (
 	github.com/go-sql-driver/mysql v1.7.1
 	github.com/go-task/slim-sprig v0.0.0-20210107165309-348f09dbbbc0
 	github.com/gobwas/glob v0.2.3
+	github.com/goccy/go-json v0.10.2
 	github.com/golang/protobuf v1.5.3
 	github.com/gorilla/handlers v1.4.2
 	github.com/imroc/req/v3 v3.23.0
@@ -168,7 +169,6 @@ require (
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-ole/go-ole v1.2.6 // indirect
 	github.com/gobuffalo/here v0.6.0 // indirect
-	github.com/goccy/go-json v0.10.2 // indirect
 	github.com/godbus/dbus/v5 v5.0.6 // indirect
 	github.com/gomodule/redigo v1.8.9 // indirect
 	github.com/google/gnostic v0.5.7-v3refs // indirect
