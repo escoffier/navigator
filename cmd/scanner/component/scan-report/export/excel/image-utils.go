@@ -1,6 +1,7 @@
 package excel
 
 import (
+	"encoding/base64"
 	"fmt"
 	"math"
 	"os"
@@ -8,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/goccy/go-json"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scan-report/common"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
@@ -249,7 +251,30 @@ func GenWebShellInfo(image model.ImageBaseResponse, file scannermodel.Webshell) 
 	if file.Level == "maybe" {
 		level = "疑似"
 	}
-	info := []string{getImageName(image), image.RegistryUrl, name, path, level, file.MaliciousData}
+	dataStr := file.MaliciousData
+	maliciousData := []scannermodel.WebshellMalicous{}
+	err := json.Unmarshal([]byte(file.MaliciousData), &maliciousData)
+	if err != nil {
+		logging.GetLogger().Warn().Msgf("unmarshal maliciousData error")
+	} else {
+		for k := range maliciousData {
+			if !strings.Contains(maliciousData[k].Name, "ssdeep") {
+				deByte, err := base64.StdEncoding.DecodeString(maliciousData[k].Data)
+				if err != nil {
+					logging.GetLogger().Warn().Msgf("decode %v error", maliciousData[k].Data)
+				} else {
+					maliciousData[k].Data = string(deByte)
+				}
+			}
+		}
+		tmpStr, err := json.Marshal(maliciousData)
+		if err != nil {
+			logging.GetLogger().Warn().Msgf("Marshal %v error", maliciousData)
+		} else {
+			dataStr = string(tmpStr)
+		}
+	}
+	info := []string{getImageName(image), image.RegistryUrl, name, path, level, dataStr}
 	return info
 }
 
