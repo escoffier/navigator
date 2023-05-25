@@ -366,8 +366,11 @@ func (ec *EngineStreamHandler) engineReloads(ctx context.Context) error {
 		err := ec.doReloadingMozart(context.Background(), reloadReq, []byte(rulesInfo.Data), rulesChanged, configsChanged)
 		if err != nil {
 			logging.Get().Err(err).Str("sversion", reloadReq.StaticVersion).Msg("reload error")
-			if manager.IsEngineStartError(err) {
+			isInvalid, _ := manager.IsVersionInvalidError(err)
+			if manager.IsEngineStartError(err) || isInvalid {
+				// all though the version is invalid, we set the version to prevent continuously load the whole rules data before we update a valid version
 				ec.setCurrentRulesVersion(sversion)
+				ec.setRulesConfig(sconfigs.rulesConfig, sconfigs.version)
 				logging.Get().Err(err).Str("sversion", reloadReq.StaticVersion).Msg("set the rules version when the static rules version is invalid")
 			}
 			return err
