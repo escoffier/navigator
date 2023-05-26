@@ -38,6 +38,7 @@ type RuntimeScanner struct {
 	pri               *nodeinfo.PodResInfo      // pod info interface
 	npw               *nodeinfo.NodePodsWatcher // node info
 	cim               *k8s.ClusterInfoManager   // get cluster info
+	maxUserWatches    int64
 }
 
 type WatchStats struct {
@@ -397,13 +398,14 @@ func (rs *RuntimeScanner) AddWatchDir(rootPath string) error {
 }
 
 func (rs *RuntimeScanner) configInotifyMaxUserWatches() error {
-	cmd := exec.Command("sysctl", "fs.inotify.max_user_watches=124983")
+	param := fmt.Sprintf("fs.inotify.max_user_watches=%d", rs.maxUserWatches)
+	cmd := exec.Command("sysctl", param)
 	err := cmd.Run()
 	if err != nil {
-		logging.Get().Warn().Str("msg", err.Error()).Msg("failed to change fs.inotify.max_user_watches, may not watch many directory")
+		logging.Get().Warn().Str("msg", err.Error()).Str("maxWatches", param).Msg("failed to change fs.inotify.max_user_watches, may not watch many directory")
 		return err
 	}
-	logging.Get().Info().Msg("config fs.inotify.max_user_watches ok")
+	logging.Get().Info().Str("maxWatches", param).Msg("config fs.inotify.max_user_watches ok")
 	return nil
 }
 
@@ -516,6 +518,7 @@ func NewRuntimeScanner(opts ...OptionFunc) (*RuntimeScanner, error) {
 	r := &RuntimeScanner{
 		containerRootPath: make(map[string]*container.ContainerMeta),
 		fileQueue:         util.NewQueue(),
+		maxUserWatches:    DefaultMaxUserWatches,
 	}
 
 	for _, option := range opts {
