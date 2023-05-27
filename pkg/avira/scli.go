@@ -268,6 +268,14 @@ func (s *SavClient) send(data []byte) error {
 	}
 	return nil
 }
+func (s *SavClient) Close() error {
+	err := s.send([]byte("QUIT"))
+	if err != nil {
+		// not quit.close anyway
+		logging.Get().Err(err).Msg("failed to send quit msg to sav server")
+	}
+	return s.conn.Close()
+}
 
 func NewSavClient(serverAddr string) (*SavClient, error) {
 	s := &SavClient{
