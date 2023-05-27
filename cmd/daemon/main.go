@@ -420,7 +420,8 @@ func Run(ctx context.Context) error {
 				rscan.WithPodResInfo(podResInfo),
 				rscan.WithNodePodResInfo(podWatcher),
 				rscan.WithClusterInfoManager(clusterManager),
-				rscan.WithMaxUserWatches(rscan.DefaultMaxUserWatches))
+				rscan.WithMaxUserWatches(rscan.DefaultMaxUserWatches),
+				rscan.WithConcurrentScanNum(rscan.DefaultConcurrentScanNum))
 			if err != nil {
 				logging.Get().Err(err).Msg("failed to create runtime scanner")
 				return

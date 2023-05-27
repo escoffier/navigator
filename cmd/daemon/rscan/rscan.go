@@ -1,6 +1,7 @@
 package rscan
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"github.com/containers/podman/v3/cmd/podman/utils"
@@ -15,6 +16,8 @@ import (
 	"gitlab.com/security-rd/go-pkg/logging"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/utils/inotify"
+
+	"golang.org/x/sync/semaphore"
 	"k8s.io/utils/strings/slices"
 	"os"
 	"os/exec"
@@ -23,6 +26,10 @@ import (
 	"strings"
 	"sync"
 	"time"
+)
+
+const (
+	ImageScopeEnv = "RSCAN_IMAGE_SCOPE"
 )
 
 type RuntimeScanner struct {
@@ -39,6 +46,7 @@ type RuntimeScanner struct {
 	npw               *nodeinfo.NodePodsWatcher // node info
 	cim               *k8s.ClusterInfoManager   // get cluster info
 	maxUserWatches    int64
+	concurrentScanNum int64
 }
 
 type WatchStats struct {
@@ -76,12 +84,29 @@ func (rs *RuntimeScanner) shouldExcludeWatch(meta container.ContainerMeta) bool 
 	return slices.Contains(rs.excludeNamespace, meta.PodNamespace())
 }
 
+func (rs *RuntimeScanner) shouldWatchByImageName(meta container.ContainerMeta) bool {
+	value := os.Getenv(ImageScopeEnv)
+	if len(value) == 0 {
+		return true
+	}
+	for _, v := range meta.ImageRepoTags {
+		if strings.Contains(v, value) {
+			return true
+		}
+	}
+	return false
+}
+
 func (rs *RuntimeScanner) removeWatchContainers(containers []container.ContainerMeta) error {
 	var retErr error
 	for _, meta := range containers {
 		// check if in exclude names
 		if rs.shouldExcludeWatch(meta) {
 			logging.Get().Debug().Str("container", meta.Name).Msg("killed container in exclude ns,ignore removing watch")
+			continue
+		}
+		if !rs.shouldWatchByImageName(meta) {
+			logging.Get().Debug().Str("container", meta.Name).Msg("killed container not match image rule,ignore removing watch")
 			continue
 		}
 
@@ -108,7 +133,12 @@ func (rs *RuntimeScanner) watchContainers(containers []container.ContainerMeta) 
 	for k, meta := range containers {
 		// check if in exclude names
 		if rs.shouldExcludeWatch(meta) {
-			logging.Get().Debug().Str("container", meta.Name).Msg("exclude watch by ns")
+			logging.Get().Info().Str("container", meta.Name).Msg("exclude watch by ns")
+			continue
+		}
+
+		if !rs.shouldWatchByImageName(meta) {
+			logging.Get().Info().Str("container", meta.Name).Msg("exclude watch by image name rule")
 			continue
 		}
 
@@ -174,7 +204,7 @@ func (rs *RuntimeScanner) runtimeEventCallback(message *container.EventMessage) 
 			if err := rs.watchContainers([]container.ContainerMeta{msg.ContainerInfo}); err != nil {
 				logging.Get().Err(err).Str("container", msg.ContainerInfo.Name).Msg("failed to watch")
 			} else {
-				logging.Get().Info().Str("container", msg.ContainerInfo.Name).Msg("watch ok")
+				logging.Get().Info().Str("container", msg.ContainerInfo.Name).Msg("watch end")
 			}
 		}(message)
 	} else if message.Event == "kill" {
@@ -478,39 +508,72 @@ func (rs *RuntimeScanner) sendAlert(malware []avira.Malware, cf ContainerFile) e
 }
 
 func (rs *RuntimeScanner) ScanFile() {
+
+	logging.Get().Debug().Int64("concurrentScanNum", rs.concurrentScanNum).Msg("read to scan file")
+
+	limit := semaphore.NewWeighted(rs.concurrentScanNum)
+
 	rs.fileQueue.Consume(func(item interface{}) {
-		switch typed := item.(type) {
-		case ContainerFile:
-			cf := item.(ContainerFile)
-
-			infoLog := func() *zerolog.Event {
-				return logging.Get().Info().Str("container", cf.Name).Str("file", cf.filenameInHost)
-			}
-			errLog := func(err error) *zerolog.Event {
-				return logging.Get().Err(err).Str("container", cf.Name).Str("file", cf.filenameInHost)
-			}
-
-			res, err := rs.savClient.ScanFile(cf.filenameInHost)
-			if err != nil {
-				errLog(err).Msg("failed to scan")
-				break
-			}
-
-			// send msg
-			if len(res) > 0 {
-				infoLog().Int("malwareCnt", len(res)).Msg("found malware")
-				if err := rs.sendAlert(res, cf); err != nil {
-					errLog(err).Msg("failed to send to event center")
-				} else {
-					infoLog().Msg("send to event center ok")
-				}
-			} else {
-				infoLog().Msg("scan ok,not found malware")
-			}
-
-		default:
-			logging.Get().Error().Msgf("file queue element type err.%v", typed)
+		if err := limit.Acquire(context.Background(), 1); err != nil {
+			logging.Get().Err(err).Msg("failed to acquire semaphore")
+			return
 		}
+
+		go func() {
+			defer func() {
+				if r := recover(); r != nil {
+					logging.Get().Error().Msgf("Panic: %v. Stack: %s", r, debug.Stack())
+				}
+			}()
+			defer limit.Release(1)
+
+			switch typed := item.(type) {
+			case ContainerFile:
+				cf := item.(ContainerFile)
+
+				infoLog := func() *zerolog.Event {
+					return logging.Get().Info().Str("container", cf.Name).Str("file", cf.filenameInHost)
+				}
+				errLog := func(err error) *zerolog.Event {
+					return logging.Get().Err(err).Str("container", cf.Name).Str("file", cf.filenameInHost)
+				}
+
+				// create tmp sav client
+				scli, err := avira.NewSavClient(fmt.Sprintf("tcp:127.0.0.1:%d", avira.DefaultSavApiListenAddr))
+				if err != nil {
+					errLog(err).Msg("failed to create sav clint")
+					return
+				}
+				defer func() {
+					if err := scli.Close(); err != nil {
+						errLog(err).Msg("failed to close sav client")
+					}
+				}()
+
+				// scan file
+				res, err := scli.ScanFile(cf.filenameInHost)
+				if err != nil {
+					errLog(err).Msg("failed to scan")
+					return
+				}
+
+				// send msg
+				if len(res) > 0 {
+					infoLog().Int("malwareCnt", len(res)).Msg("found malware")
+					if err := rs.sendAlert(res, cf); err != nil {
+						errLog(err).Msg("failed to send to event center")
+					} else {
+						infoLog().Msg("send to event center ok")
+					}
+				} else {
+					infoLog().Msg("scan ok,not found malware")
+				}
+
+			default:
+				logging.Get().Error().Msgf("file queue element type err.%v", typed)
+			}
+		}()
+
 	})
 }
 
@@ -519,6 +582,7 @@ func NewRuntimeScanner(opts ...OptionFunc) (*RuntimeScanner, error) {
 		containerRootPath: make(map[string]*container.ContainerMeta),
 		fileQueue:         util.NewQueue(),
 		maxUserWatches:    DefaultMaxUserWatches,
+		concurrentScanNum: DefaultConcurrentScanNum,
 	}
 
 	for _, option := range opts {

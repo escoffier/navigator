@@ -9,7 +9,8 @@ import (
 )
 
 const (
-	DefaultMaxUserWatches = 1249830
+	DefaultMaxUserWatches    = 1249830
+	DefaultConcurrentScanNum = 10
 )
 
 type OptionFunc func(rs *RuntimeScanner)
@@ -46,6 +47,22 @@ func WithMaxUserWatches(maxUserWatches int64) OptionFunc {
 			} else {
 				logging.Get().Debug().Int64("maxWatches", maxUserWatches).Msg("set max watches to env")
 				rs.maxUserWatches = int64(watchNum)
+			}
+		}
+	}
+}
+
+func WithConcurrentScanNum(num int64) OptionFunc {
+	return func(rs *RuntimeScanner) {
+		value := os.Getenv("RSCAN_CONCURRENT_SCAN_NUM")
+		if len(value) == 0 {
+			rs.concurrentScanNum = num
+		} else {
+			tmpNum, err := strconv.Atoi(value)
+			if err != nil {
+				rs.concurrentScanNum = num
+			} else {
+				rs.concurrentScanNum = int64(tmpNum)
 			}
 		}
 	}
