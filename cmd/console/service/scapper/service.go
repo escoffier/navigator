@@ -391,35 +391,35 @@ func (s *ScapService) GetPolicyInfo(ctx context.Context, policyId string, checkT
 	return &policy, nil
 }
 
-func (s *ScapService) GetNodeRecordAutoVariate(ctx context.Context, checkId, checkType string) (map[string]map[string]string, error) {
-	nodeAutoVar := make(map[string]map[string]string)
-
-	if checkType != "kube" {
-		return nodeAutoVar, nil
-	}
-
-	var nodeRecord []model.ScanNodeRecord
-	err := s.rdb.GetReadDB().WithContext(ctx).Find(&nodeRecord, "task_id = ?", checkId).Error
-	if err != nil {
-		return nodeAutoVar, errors.Errorf("can not find node scan information, checkId : %s", checkId)
-	}
-
-	for _, node := range nodeRecord {
-		autoVar := make(map[string]string)
-		err = json.Unmarshal(node.AutoVariate, &autoVar)
-		if err != nil {
-			logging.Get().Error().Msgf("json unmarshal AutoVariate failed, %v.", err)
-			continue
-		}
-		nodeAutoVar[node.NodeName] = autoVar
-	}
-
-	if len(nodeAutoVar) == 0 {
-		return nodeAutoVar, errors.Errorf("can not get node auto variate data")
-	}
-
-	return nodeAutoVar, nil
-}
+// func (s *ScapService) GetNodeRecordAutoVariate(ctx context.Context, checkId, checkType string) (map[string]map[string]string, error) {
+// 	nodeAutoVar := make(map[string]map[string]string)
+//
+// 	if checkType != "kube" {
+// 		return nodeAutoVar, nil
+// 	}
+//
+// 	var nodeRecord []model.ScanNodeRecord
+// 	err := s.rdb.GetReadDB().WithContext(ctx).Find(&nodeRecord, "task_id = ?", checkId).Error
+// 	if err != nil {
+// 		return nodeAutoVar, errors.Errorf("can not find node scan information, checkId : %s", checkId)
+// 	}
+//
+// 	for _, node := range nodeRecord {
+// 		autoVar := make(map[string]string)
+// 		err = json.Unmarshal(node.AutoVariate, &autoVar)
+// 		if err != nil {
+// 			logging.Get().Error().Msgf("json unmarshal AutoVariate failed, %v.", err)
+// 			continue
+// 		}
+// 		nodeAutoVar[node.NodeName] = autoVar
+// 	}
+//
+// 	if len(nodeAutoVar) == 0 {
+// 		return nodeAutoVar, errors.Errorf("can not get node auto variate data")
+// 	}
+//
+// 	return nodeAutoVar, nil
+// }
 
 func (s *ScapService) ReplaceAutoVariate(src string, autoVar map[string]string) string {
 	dst := src
