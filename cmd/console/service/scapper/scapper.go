@@ -585,6 +585,30 @@ func (s Scapper) prepareJobObject(ctx context.Context, check *model.Check, oldVe
 
 	// 默认策略时直接不设置
 	if policy.IsDefault {
+		// 陆金所默认策略只扫描这些合规项
+		if os.Getenv("SCAP_LJS_ENABLED") == "true" {
+			checks := make([]string, 0)
+			if model.ComplianceCheckType(policy.Type) == model.ComplianceCheckTargetTypeDocker {
+				checks = []string{
+					"1.2.3", "1.2.4", "1.2.5", "1.2.6", "1.2.8", "1.2.9", "1.2.10", "1.2.11", "1.2.12",
+					"2.3", "2.5", "2.6", "2.12", "2.13", "2.14",
+					"3.1", "3.2", "3.3", "3.4", "3.5", "3.6", "3.9", "3.10", "3.11", "3.12", "3.13", "3.14", "3.15", "3.16", "3.17", "3.18", "3.19", "3.20", "3.21", "3.22",
+					"5.5", "5.6", "5.7", "5.10", "5.11", "5.12", "5.19", "5.29",
+				}
+			} else if model.ComplianceCheckType(policy.Type) == model.ComplianceCheckTargetTypeKube {
+				checks = []string{
+					"1.1.1", "1.1.2", "1.1.3", "1.1.5", "1.1.6", "1.1.7", "1.1.8", "1.1.9", "1.1.10", "1.1.11", "1.1.13", "1.1.14", "1.1.15", "1.1.16", "1.1.17", "1.1.18", "1.1.19", "1.1.20", "1.1.21",
+					"1.2.1", "1.2.2", "1.2.3", "1.2.4", "1.2.5", "1.2.6", "1.2.7", "1.2.8", "1.2.9", "1.2.11", "1.2.17", "1.2.18", "1.2.19", "1.2.20", "1.2.22", "1.2.26", "1.2.27", "1.2.28", "1.2.29", "1.2.30", "1.2.31", "1.2.32",
+					"1.3.1", "1.3.2", "1.3.3", "1.3.4", "1.3.5", "1.4.1",
+					"2.1", "2.2", "2.4", "2.5", "2.6",
+					"4.1.5", "4.1.7", "4.2.1", "4.2.2", "4.2.3", "4.2.5", "4.2.7", "4.2.9", "4.2.10",
+				}
+			}
+
+			if len(checks) > 0 {
+				jobObj.Spec.Template.Spec.Containers[0].Args = append(jobObj.Spec.Template.Spec.Containers[0].Args, "--check="+strings.Join(checks, ","))
+			}
+		}
 		return jobObj, nil
 	}
 

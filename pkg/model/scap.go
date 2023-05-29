@@ -86,7 +86,7 @@ type ScanNodeRecord struct {
 	Message     string          `gorm:"type:varchar(255);column:message"`
 	CreatedAt   int64           `gorm:"column:created_at"`
 	FinishedAt  int64           `gorm:"column:finished_at"`
-	AutoVariate datatypes.JSON  `gorm:"type:text;column:auto_variate"`
+	AutoVariate datatypes.JSON  `gorm:"type:json;column:auto_variate"`
 	Pass        int             `gorm:"column:pass"`
 	Fail        int             `gorm:"column:fail"`
 	Warn        int             `gorm:"column:warn"`
