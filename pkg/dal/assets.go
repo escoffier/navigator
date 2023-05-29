@@ -2989,16 +2989,16 @@ func (q *RawContainersQueryOption) RedisRawQuery() string {
 		if len(c.query) > 0 {
 			builder.WriteString(fmt.Sprintf("@%s:{", c.column))
 			for i, v := range c.query {
-				builder.WriteString(fmt.Sprintf("*%s*", v))
+				builder.WriteString(fmt.Sprintf("*%s*", redisearch.EscapeTextFileString(v)))
 				if i+1 != len(c.query) {
 					builder.WriteByte('|')
 				}
 			}
-			builder.WriteRune('}')
+			//builder.WriteRune('}')
+			builder.WriteString("} ")
 		}
 	}
-
-	return builder.String()
+	return strings.TrimSpace(builder.String())
 }
 
 func CountRawContainerWithRedis(ctx context.Context, rdb *gorm.DB, redisClient *redisearch.Client, queryOptions *RawContainersQueryOption) (int64, error) {
@@ -3009,7 +3009,6 @@ func CountRawContainerWithRedis(ctx context.Context, rdb *gorm.DB, redisClient *
 	defer cancel()
 
 	rawQuery := queryOptions.RedisRawQuery()
-
 	var cntNum int64
 
 	err := util.RetryWithBackoff(ctx, func() error {
