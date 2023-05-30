@@ -424,6 +424,7 @@ int IpEqual(char *buf, char *ip)
 
 int ParseNetRawData(char *data, char netdata[6][48])
 {
+    uint64_t count = 0;
     int ret, i = 0, index = 0;
     char *str, *p, tmp[1024] = {0};
     if(data == NULL) return -2;
@@ -434,6 +435,7 @@ int ParseNetRawData(char *data, char netdata[6][48])
     str = strtok(tmp, " ");
     while(str)
     {
+        if((++count % 100) == 0) usleep(10);
         switch(i++)
         {
             case 1:
@@ -528,6 +530,7 @@ int MatchInode(char *inode, int pidNums, int pids[], int *pid)
 int GetProcessWithTcp(PidAssMnt *mnt, int pidNums, int pids[], char files[][256], ProcessData *pstProcData)
 {
     FILE *fp;
+    uint64_t count = 0;
     char buf[1024], netdata[6][48];
     char *localIp, *inode;
     int localPort, state, i, lineNum, pid = 0, ret = -1;
@@ -545,6 +548,9 @@ int GetProcessWithTcp(PidAssMnt *mnt, int pidNums, int pids[], char files[][256]
         lineNum = 0;
         while (!feof(fp))
         {
+            //sleep
+            if((++count % 100) == 0) usleep(10);
+            //init buffer
             memset(buf, 0, sizeof(buf));
             fgets(buf, sizeof(buf) - 1, fp);
             if(((lineNum++) == 0) || (strlen(buf) < 64)) continue;
@@ -591,8 +597,9 @@ int GetProcessWithTcp(PidAssMnt *mnt, int pidNums, int pids[], char files[][256]
 int GetProcessWithUdp(PidAssMnt *mnt, int pidNums, int pids[], char files[][256], ProcessData *pstProcData)
 {
     FILE *fp;
-    char buf[1024], netdata[6][48];
     char *inode;
+    uint64_t count = 0;
+    char buf[1024], netdata[6][48];
     int localPort, state, i, lineNum, pid = 0, ret = -1;
     if((!pstProcData) || (!mnt)) return -2;
     //set default value
@@ -606,6 +613,9 @@ int GetProcessWithUdp(PidAssMnt *mnt, int pidNums, int pids[], char files[][256]
         lineNum = 0;
         while (!feof(fp))
         {
+            //sleep
+            if((++count % 100) == 0) usleep(10);
+            //init buffer
             memset(buf, 0, sizeof(buf));
             fgets(buf, sizeof(buf) - 1, fp);
             if(((lineNum++) == 0) || (strlen(buf) < 64)) continue;
@@ -855,6 +865,7 @@ int main(int argc, char *argv[])
     //accept client request
     while (1)
     {
+        usleep(10);
         nfds = epoll_wait(epfd, events, 20, -1);
         for(i = 0; i < nfds; i++)
         {
