@@ -3267,6 +3267,45 @@ func DeleteRawContainer(ctx context.Context, rdb *gorm.DB, clusterKey, id string
 	}).Error
 }
 
+func DeleteRawContainerSyncReason(ctx context.Context, rdb *gorm.DB, clusterKey, namespace, id string) error {
+	rCtx, cancel := context.WithTimeout(ctx, 2500*time.Millisecond)
+	defer cancel()
+	query := model.TensorResource{}
+	db := rdb.Model(&model.TensorResource{}).WithContext(rCtx)
+	db = db.Where("cluster_key = ? and namespace = ? and reason like ?", clusterKey, namespace, "%"+id+"%")
+	err := db.First(&query).Error
+	if err != nil {
+		return err
+	}
+	var reasonList []model.ReasonItem
+	err = json.Unmarshal([]byte(query.Reason), &reasonList)
+	if err != nil {
+		return err
+	}
+	var runningList []model.ReasonItem
+	for _, v := range reasonList {
+		if v.ID != id {
+			continue
+		}
+		runningList = append(runningList, v)
+	}
+	reasonBytes, err := json.Marshal(runningList)
+	if err != nil {
+		return err
+	}
+
+	tmpData := model.TensorResource{Reason: string(reasonBytes[:])}
+	tmpData.IsSupportDrift = true
+	for _, v := range runningList {
+		tmpData.IsSupportDrift = tmpData.IsSupportDrift && v.IsSupportDrift
+		if !tmpData.IsSupportDrift {
+			break
+		}
+	}
+	err = db.Select("reason", "is_support_drift").Updates(&tmpData).Error
+	return err
+}
+
 func CleanUpRawContainerWithRedis(ctx context.Context, rdb *gorm.DB, redisClient *redisearch.Client, ts time.Time, clusterKey, nodeName string) error {
 	rCtx, cancel := context.WithTimeout(ctx, 5000*time.Millisecond)
 	defer cancel()

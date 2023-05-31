@@ -63,5 +63,9 @@ func (dsw *DriftSupportWatcher) Start(stopCh <-chan struct{}) {
 }
 
 func updateReasonSupportInfo(ctx context.Context, db *databases.RDBInstance, data model.DriftSupportInfo) error {
+	if data.ScannerStatus > 0 {
+		return dal.UpdateResourceScannerStatus(ctx, db.Get(), data)
+	}
+	time.Sleep(time.Second * 3)
 	return dal.UpdateResourceSupportInfo(ctx, db.Get(), data)
 }

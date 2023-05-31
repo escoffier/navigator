@@ -238,3 +238,9 @@ type DriftImageWhitelistKafka struct {
 	RepoTags   []string             `json:"repo_tags"`
 	Whitelists []DriftWhitelistFile `json:"whitelists"`
 }
+
+type ReasonItem struct {
+	ID             string `json:id`
+	OS             string `json:os`
+	IsSupportDrift bool   `json:"is_support_drift"`
+}

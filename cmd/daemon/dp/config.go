@@ -73,7 +73,7 @@ const (
 	internalApiKey = "dGVuc29yc2VjLWNpY2QtdXNlcg==.qBFMMAvbbm3afG3y42CqKaN7WQe4Q7hiqtg5Jzwen7tWHhZG16P62kvv"
 )
 
-func (cm *ConfigManager) syncPolicy(ctx context.Context) error {
+func (cm *ConfigManager) syncPolicy(ctx context.Context, ij *Injector) error {
 	defer func() {
 		if r := recover(); r != nil {
 			logging.Get().Error().Str("stack", string(debug.Stack())).Msgf("panic: %v", r)
@@ -140,6 +140,7 @@ func (cm *ConfigManager) syncPolicy(ctx context.Context) error {
 		})
 		logging.Get().Info().Int64("new_version", newVersion).Int64("old_version", prevVersion).Msg("Policies updated successfully")
 	}
+	ij.UpdateContainerDriftSwitch(cm.policies().Policies)
 
 	newWhitelist := make(map[string]int64, len(driftResp.Data.Whitelist.Whitelist))
 	nowTimestamp := time.Now().UnixMilli()
@@ -174,6 +175,8 @@ func (cm *ConfigManager) syncPolicy(ctx context.Context) error {
 	return nil
 }
 
+
+
 func (cm *ConfigManager) GetPolicyByResourceUUID(uuid uint32) (model.DriftPolicy, bool) {
 	policy, ok := cm.policies().Policies[uuid]
 	logging.Get().Info().Msgf("uuid:%v, policy:%+v", uuid, policy)
@@ -181,11 +184,11 @@ func (cm *ConfigManager) GetPolicyByResourceUUID(uuid uint32) (model.DriftPolicy
 	return policy, ok
 }
 
-func (cm *ConfigManager) Start() error {
+func (cm *ConfigManager) Start(ij *Injector) error {
 	logging.Get().Info().Msg("config manager start")
 
 	for {
-		err := cm.syncPolicy(context.Background())
+		err := cm.syncPolicy(context.Background(), ij)
 		if err != nil {
 			logging.Get().Error().Err(err).Msgf("SyncPolicy error")
 			time.Sleep(time.Second * 20)
@@ -408,7 +411,7 @@ func (cm *ConfigManager) SetWhiteListReady(imageDigest string) error {
 
 func (cm *ConfigManager) GetWhiteListState(imageDigest string) (WhiteListScannerState, bool) {
 	cm.imageCountLock.Lock()
-	cm.imageCountLock.Unlock()
+	defer cm.imageCountLock.Unlock()
 	if _, ok := cm.imageUsedCount[imageDigest]; !ok {
 		return WhiteListNotReady, ok
 	}
