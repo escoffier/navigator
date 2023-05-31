@@ -2,12 +2,13 @@ package dal
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strconv"
-	"strings"
 	"time"
 
+	"gitlab.com/piccolo_su/vegeta/pkg/assets"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 	"gitlab.com/security-rd/go-pkg/logging"
@@ -570,39 +571,79 @@ func UpdateResourceSupportInfo(ctx context.Context, rdb *gorm.DB, originData mod
 	if err != nil {
 		return err
 	}
-	separator := ","
-	tmpData := model.TensorResource{Reason: ""}
-	if !originData.IsSupportDrift {
-		exist := false
-		for _, v := range strings.Split(query.Reason, separator) {
-			if v == originData.OSTarget {
-				exist = true
-				break
-			}
+
+	// deal reason
+	var reasonList []model.ReasonItem
+	err = json.Unmarshal([]byte(query.Reason), &reasonList)
+	if err != nil {
+		logging.Get().Err(err).Msgf("unmarshal reason failed, reason: %s", query.Reason)
+	}
+	var runningList []model.ReasonItem
+	for _, v := range reasonList {
+		// find raw container by id
+		res := model.TensorRawContainer{}
+		err := rdb.Model(&model.TensorRawContainer{}).WithContext(ctx).
+			Where("id = ?", v.ID).Find(&res).Error
+
+		if err != nil {
+			logging.Get().Err(err).Msgf("get raw container by id %s failed", v.ID)
+			continue
 		}
-		if exist {
-			tmpData.Reason = query.Reason
-		} else {
-			if query.Reason == "" {
-				tmpData.Reason = originData.OSTarget
-			} else {
-				tmpData.Reason = strings.Join([]string{query.Reason, originData.OSTarget}, ",")
-			}
+		if res.Status < assets.Exited {
+			runningList = append(runningList, v)
 		}
 	}
-	tmpData.IsSupportDrift = query.IsSupportDrift && originData.IsSupportDrift
-	if originData.ScannerStatus > 0 {
-		tmpData.ScannerStatus = originData.ScannerStatus
-		err = db.Select("scanner_status").Updates(&tmpData).Error
-	} else {
-		err = db.
-			Select("reason", "is_support_drift").Updates(&tmpData).
-			Error
-	}
+	runningList = append(runningList, model.ReasonItem{
+		ID:             originData.ContainerID,
+		OS:             originData.OSTarget,
+		IsSupportDrift: originData.IsSupportDrift,
+	})
+	reasonBytes, err := json.Marshal(runningList)
 	if err != nil {
 		return err
 	}
-	return nil
+
+	tmpData := model.TensorResource{Reason: string(reasonBytes[:])}
+	tmpData.IsSupportDrift = true
+	for _, v := range runningList {
+		tmpData.IsSupportDrift = tmpData.IsSupportDrift && v.IsSupportDrift
+		if !tmpData.IsSupportDrift {
+			break
+		}
+	}
+	err = db.Select("reason", "is_support_drift").Updates(&tmpData).Error
+	logging.Get().Info().Msgf("update resource support info success, %v", tmpData)
+	return err
+}
+
+func UpdateResourceScannerStatus(ctx context.Context, rdb *gorm.DB, originData model.DriftSupportInfo) error {
+	ctx, cancel := context.WithTimeout(ctx, time.Second*10)
+	defer cancel()
+
+	db := rdb.Model(&model.TensorResource{}).WithContext(ctx)
+	db = db.Where("cluster_key = ? AND namespace = ? AND kind = ? AND name = ?",
+		originData.Cluster,
+		originData.Namespace,
+		originData.ResourceKind,
+		originData.ResourceName,
+	)
+
+	query := model.TensorResource{}
+	var len int64
+	db.Count(&len)
+	if len != 1 {
+		return errors.New("not found")
+	}
+	err := db.Find(&query).Error
+	if err != nil {
+		return err
+	}
+	tmpData := query
+	if originData.ScannerStatus > 0 {
+		tmpData.ScannerStatus = originData.ScannerStatus
+		err = db.Select("scanner_status").Updates(&tmpData).Error
+	}
+	return err
 }
 
 func InsertImageWhitelist(ctx context.Context, rdb *gorm.DB, imageWhitelist []model.DriftImageWhitelist) error {

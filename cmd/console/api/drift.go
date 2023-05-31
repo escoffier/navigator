@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -65,6 +66,35 @@ func isPath(path string) bool {
 
 }
 
+func reasonStr2OSList(reasonStr string) (string, error) {
+	var osList string
+	var reasonList []model.ReasonItem
+	err := json.Unmarshal([]byte(reasonStr), &reasonList)
+	if err != nil {
+		// adapt old version reason
+		return reasonStr, err
+	}
+	osMap := make(map[string]struct{})
+	for _, reason := range reasonList {
+		if _, ok := osMap[reason.OS]; ok {
+			continue
+		}
+		if reason.IsSupportDrift {
+			continue
+		}
+		if len(osList) > 0 {
+
+			osList = strings.Join([]string{osList, reason.OS}, ",")
+		} else {
+			osList = reason.OS
+		}
+		osMap[reason.OS] = struct{}{}
+	}
+
+	return osList, nil
+
+}
+
 func getSpecialNameSpaces() map[string]struct{} {
 
 	workerNs := os.Getenv("MY_POD_NAMESPACE")
@@ -103,12 +133,16 @@ func (api *api) driftResources() http.HandlerFunc {
 	}
 	modelToResource := func(rm *model.TensorResource) resource {
 		r := resource{}
+		reasonOS, err := reasonStr2OSList(rm.Reason)
+		if err != nil {
+			logging.GetLogger().Err(err).Msg("get resource reason os list failed")
+		}
 		r.Cluster = rm.ClusterKey
 		r.Namespace = rm.Namespace
 		r.Kind = rm.Kind
 		r.Name = rm.Name
 		r.IsSupportDrift = rm.IsSupportDrift
-		r.Reason = rm.Reason
+		r.Reason = reasonOS
 		r.IsExist = 0
 		r.ScannerStatus = rm.ScannerStatus
 		return r

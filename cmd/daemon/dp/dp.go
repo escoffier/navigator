@@ -59,7 +59,7 @@ func (d *DriftAssurance) Start(ctx context.Context) error {
 				logging.Get().Error().Msgf("config manager panic: %v.stack:%s", r, debug.Stack())
 			}
 		}()
-		_ = d.config.Start()
+		_ = d.config.Start(d.injector)
 		logging.Get().Error().Msg("config manager exit")
 	}()
 
@@ -141,6 +141,13 @@ func NewDriftAssurance(podWatcher *nodeinfo.NodePodsWatcher, podResInfo *nodeinf
 	}
 	d.rt = rt
 
+	// init Injector
+	d.injector, err = NewInjector(podWatcher, podResInfo, mqWriter)
+	if err != nil {
+		logging.Get().Err(err).Msg("create injector failed")
+		return nil, err
+	}
+
 	cm, err := NewConfigManger(consoleAddr, clusterKey)
 	if err != nil {
 		logging.Get().Err(err).Msg("create config manager failed")
@@ -163,13 +170,6 @@ func NewDriftAssurance(podWatcher *nodeinfo.NodePodsWatcher, podResInfo *nodeinf
 	d.subscriber = s
 
 	d.podResInfo = podResInfo
-
-	// init Injector
-	d.injector, err = NewInjector(podWatcher, podResInfo, mqWriter)
-	if err != nil {
-		logging.Get().Err(err).Msg("create injector failed")
-		return nil, err
-	}
 
 	d.wc = whitelist.NewWhitelistHandler(rt, mqWriter)
 

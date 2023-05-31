@@ -8,15 +8,18 @@ import (
 	"io"
 	"io/ioutil"
 	"os"
+	"os/exec"
 	"path"
 	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/container"
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/degrade"
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/nodeinfo"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
+	"gitlab.com/piccolo_su/vegeta/pkg/util"
 	"gitlab.com/security-rd/go-pkg/logging"
 	"gitlab.com/security-rd/go-pkg/mq"
 
@@ -27,20 +30,24 @@ import (
 
 const (
 	// excludeImage = "daemon"
-	containerIDFilePathTemplate = "/host/proc/%d/root/.container_id"
-	containerBasePathTemplate   = "/host/proc/%d/root"
-	supportOSConfigFilePath     = "/etc/support-os/support-os.conf"
+	containerIDFilePathTemplate      = "/host/proc/%d/root/.container_id"
+	containerBasePathTemplate        = "/host/proc/%d/root"
+	containerETCLDConfigPathTemplate = "/host/proc/%d/root/etc/ld.so.preload"
+	supportOSConfigFilePath          = "/etc/support-os/support-os.conf"
+	hostLDConfigPathTemplate         = "/host/var/lib/tensor/mnt/containers/%s/ld.so.preload"
 )
 
 type Injector struct {
-	mountInfo           mountinfo.Info
-	subRoot             string
-	subPath             string
-	npw                 *nodeinfo.NodePodsWatcher
-	podResInfo          *nodeinfo.PodResInfo
-	write               mq.Writer
-	excludeNamespace    []string
-	containerCommandSeq [][]string
+	mountInfo        mountinfo.Info
+	subRoot          string
+	subPath          string
+	npw              *nodeinfo.NodePodsWatcher
+	podResInfo       *nodeinfo.PodResInfo
+	write            mq.Writer
+	excludeNamespace []string
+	// containerCommandSeq [][]string
+	resourceSyncLock     *sync.Mutex
+	resourceContainerMap map[uint32][]string
 }
 
 var (
@@ -49,10 +56,9 @@ var (
 
 var (
 	HostTensorPath              = path.Join(degrade.DriftPath, "mnt")
-	HostEtcPreloadPath          = path.Join(degrade.DriftPath, "ld.so.preload")
+	HostEtcPreloadPathPrefix    = path.Join(degrade.DriftPath, "mnt/containers")
 	procPrefix                  = "/host/proc/"
 	ContainerTensorPath         = "/.tensor"
-	injectSoName                = "dp.so"
 	containerTmpMnt             = "/tmpmnt"
 	containerEtcPreloadPath     = "/etc/ld.so.preload"
 	blockDevPath                = "/dev/tensor"
@@ -87,6 +93,82 @@ var (
 	}
 )
 
+func enableDriftByContainerID(containerID string) error {
+	configPath := fmt.Sprintf(hostLDConfigPathTemplate, containerID)
+	// cmd := exec.Command("sed", "-i", "'s/^#\\/.tensor\\/dp.so/\\/.tensor\\/dp.so/'", configPath)
+	// The "sed" command cannot be used, sed will generate a new file(inode num change), run "strace sed -i '1,100d' test_file" show detail
+	f, err := os.Open(configPath)
+	if err != nil {
+		logging.Get().Error().Msgf("Failed to open ld.so.preload %v", err)
+		return err
+	}
+	defer f.Close()
+	buf := bufio.NewReader(f)
+	result := ""
+	for {
+		line, _, c := buf.ReadLine()
+		if c == io.EOF {
+			break
+		}
+		if strings.Contains(string(line), "#/.tensor/dp.so") {
+			result += strings.Replace(string(line), "#/.tensor/dp.so", "/.tensor/dp.so", 1) + "\n"
+			continue
+		}
+		result += string(line) + "\n"
+	}
+
+	fw, err := os.OpenFile(configPath, os.O_WRONLY|os.O_TRUNC, 0755)
+	if err != nil {
+		logging.Get().Error().Msgf("Failed to open ld.so.preload %v", err)
+		return err
+	}
+	w := bufio.NewWriter(fw)
+	_, err = w.WriteString(result)
+	if err != nil {
+		logging.Get().Error().Msgf("Failed to write ld.so.preload %v", err)
+		return err
+	}
+	err = w.Flush()
+	return err
+}
+
+func disableDriftByContainerID(containerID string) error {
+	configPath := fmt.Sprintf(hostLDConfigPathTemplate, containerID)
+	f, err := os.Open(configPath)
+	if err != nil {
+		logging.Get().Error().Msgf("Failed to open ld.so.preload %v", err)
+		return err
+	}
+	defer f.Close()
+	buf := bufio.NewReader(f)
+	result := ""
+	for {
+		line, _, c := buf.ReadLine()
+		if c == io.EOF {
+			break
+		}
+		if strings.Contains(string(line), "/.tensor/dp.so") && !strings.Contains(string(line), "#/.tensor/dp.so") {
+			result += strings.Replace(string(line), "/.tensor/dp.so", "#/.tensor/dp.so", 1) + "\n"
+			continue
+		}
+		result += string(line) + "\n"
+	}
+
+	fw, err := os.OpenFile(configPath, os.O_WRONLY|os.O_TRUNC, 0755)
+	if err != nil {
+		logging.Get().Error().Msgf("Failed to open ld.so.preload %v", err)
+		return err
+	}
+	w := bufio.NewWriter(fw)
+	_, err = w.WriteString(result)
+	if err != nil {
+		logging.Get().Error().Msgf("Failed to write ld.so.preload %v", err)
+		return err
+	}
+	err = w.Flush()
+	return err
+}
+
 func copyFile(src, dst string) error {
 	sFile, err := os.Open(src)
 	if err != nil {
@@ -107,18 +189,22 @@ func copyFile(src, dst string) error {
 	return err
 }
 
-func (ij *Injector) prepareFiles() error {
+func prepareFiles() error {
 	if _, err := os.Stat(HostTensorPath); err != nil {
 		os.Mkdir(HostTensorPath, os.FileMode(0755))
 	}
 
-	err := copyFile("/tensor/ld.so.preload", HostEtcPreloadPath)
-	if err != nil {
-		logging.Get().Error().Msgf("Failed to copy ld.so.preload %v", err)
-		return err
+	if _, err := os.Stat(HostEtcPreloadPathPrefix); err != nil {
+		os.Mkdir(HostEtcPreloadPathPrefix, os.FileMode(0755))
 	}
 
-	err = copyFile("/tensor/dp.so", HostTensorPath+"/dp.so")
+	// err := copyFile("/tensor/ld.so.preload", HostEtcPreloadPathPrefix)
+	// if err != nil {
+	// 	logging.Get().Error().Msgf("Failed to copy ld.so.preload %v", err)
+	// 	return err
+	// }
+
+	err := copyFile("/tensor/dp.so", HostTensorPath+"/dp.so")
 	if err != nil {
 		logging.Get().Error().Msgf("Failed to copy dp.so %v", err)
 		return err
@@ -126,8 +212,9 @@ func (ij *Injector) prepareFiles() error {
 	return nil
 }
 
-func (ij *Injector) initCommandSeq() error {
+func (ij *Injector) initCommandSeq(containerID string) [][]string {
 	tensorDir := containerTmpMnt + ij.subRoot + ij.subPath
+	logging.Get().Info().Msgf("tensorDir: %s", tensorDir)
 	tmpCommandSeq := [][]string{
 		{"touch", logOutputPath},
 		{"chmod", "777", logOutputPath},
@@ -136,12 +223,11 @@ func (ij *Injector) initCommandSeq() error {
 		{"mkdir", ContainerTensorPath},
 		{"mount", "-o", "bind", tensorDir, ContainerTensorPath},
 		{"touch", containerEtcPreloadPath},
-		{"mount", "-o", "bind,ro", containerTmpMnt + ij.subRoot + "/ld.so.preload", containerEtcPreloadPath},
+		{"mount", "-o", "bind,ro", tensorDir + "/containers/" + containerID + "/ld.so.preload", containerEtcPreloadPath},
 		{"umount", containerTmpMnt},
 		{"rmdir", containerTmpMnt},
 	}
-	ij.containerCommandSeq = tmpCommandSeq
-	return nil
+	return tmpCommandSeq
 }
 
 func getExcludeNamespaces() []string {
@@ -171,7 +257,7 @@ func getExcludeNamespaces() []string {
 func NewInjector(npw *nodeinfo.NodePodsWatcher, podResInfo *nodeinfo.PodResInfo, write mq.Writer) (*Injector, error) {
 	ij := &Injector{}
 
-	err := ij.prepareFiles()
+	err := prepareFiles()
 	if err != nil {
 		logging.Get().Error().Msgf("Failed to prepare files %v", err)
 		return nil, err
@@ -183,12 +269,12 @@ func NewInjector(npw *nodeinfo.NodePodsWatcher, podResInfo *nodeinfo.PodResInfo,
 		return nil, err
 	}
 
-	err = ij.initCommandSeq()
-
 	ij.npw = npw
 	ij.podResInfo = podResInfo
 	ij.excludeNamespace = getExcludeNamespaces()
 	ij.write = write
+	ij.resourceContainerMap = make(map[uint32][]string)
+	ij.resourceSyncLock = new(sync.Mutex)
 	return ij, err
 }
 
@@ -214,6 +300,7 @@ func (ij *Injector) getDev(path string) error {
 	ij.subPath = strings.TrimPrefix(path, ij.mountInfo.Mountpoint)
 	initOSTargetsList(supportOSConfigFilePath)
 	logging.Get().Info().Msgf("support os targets: %v", supportOSTargets)
+	logging.Get().Info().Msgf("mount info: %#v", ij)
 
 	return nil
 }
@@ -246,6 +333,74 @@ func (ij *Injector) putContainerID2File(pid int, cid string) error {
 	path := fmt.Sprintf(containerIDFilePathTemplate, pid)
 	logging.Get().Trace().Msgf("put container id %s to %s", cid, path)
 	return ioutil.WriteFile(path, []byte(cid), 0644)
+}
+
+func prepareLDPreloadConfig(containerID string, pid int) error {
+	configDir := HostEtcPreloadPathPrefix + "/" + containerID
+	if _, err := os.Stat(configDir); err != nil {
+		os.Mkdir(configDir, os.FileMode(0755))
+	}
+
+	err := copyFile("/tensor/ld.so.preload", configDir+"/ld.so.preload")
+	if err != nil {
+		logging.Get().Error().Msgf("Failed to copy ld.so.preload %v", err)
+		defer os.RemoveAll(configDir)
+		return err
+	}
+
+	etcConfigPath := fmt.Sprintf(containerETCLDConfigPathTemplate, pid)
+	cmd := exec.Command("cat", etcConfigPath, ">>", configDir+"/ld.so.preload")
+	err = cmd.Run()
+	if err != nil {
+		logging.Get().Warn().Msgf("Failed to merge ld.so.preload %v", err)
+	}
+
+	return nil
+}
+
+func (ij *Injector) GetContainersFromResourceMap(resourceUUID uint32) []string {
+	if _, ok := ij.resourceContainerMap[resourceUUID]; !ok {
+		ij.resourceContainerMap[resourceUUID] = make([]string, 0)
+	}
+	return ij.resourceContainerMap[resourceUUID]
+}
+
+func (ij *Injector) PutContainersToResourceMap(resourceUUID uint32, containers []string) {
+	ij.resourceSyncLock.Lock()
+	defer ij.resourceSyncLock.Unlock()
+	ij.resourceContainerMap[resourceUUID] = containers
+}
+
+func (ij *Injector) RemoveContainersFromResourceMap(resourceUUID uint32) {
+	ij.resourceSyncLock.Lock()
+	defer ij.resourceSyncLock.Unlock()
+	delete(ij.resourceContainerMap, resourceUUID)
+}
+
+func (ij *Injector) UpdateContainerDriftSwitch(policies map[uint32]model.DriftPolicy) error {
+	// for  _, policy := range policies{
+	// 	uuid := util.GenerateUUID(policy.ClusterKey, policy.Namespace, policy.ResourceKind, policy.Resource)
+	// }
+	logging.Get().Debug().Msgf("Update drift switch %+v", policies)
+	for uuid, policy := range policies {
+		containers := ij.GetContainersFromResourceMap(uuid)
+		if policy.Enable == 1 {
+			for _, containerID := range containers {
+				err := enableDriftByContainerID(containerID)
+				if err != nil {
+					logging.Get().Warn().Msgf("Failed to enable drift for container %s", containerID)
+				}
+			}
+		} else {
+			for _, containerID := range containers {
+				err := disableDriftByContainerID(containerID)
+				if err != nil {
+					logging.Get().Warn().Msgf("Failed to disable drift for container %s", containerID)
+				}
+			}
+		}
+	}
+	return nil
 }
 
 func (ij *Injector) DoInject(cm container.ContainerMeta) (bool, error) {
@@ -310,6 +465,11 @@ func (ij *Injector) DoInject(cm container.ContainerMeta) (bool, error) {
 		return false, err
 	}
 
+	resourceUUID := util.GenerateUUID(supportInfo.Cluster, supportInfo.Namespace, supportInfo.ResourceKind, supportInfo.ResourceName)
+	existContainers := ij.GetContainersFromResourceMap(resourceUUID)
+	existContainers = append(existContainers, cm.ID)
+	ij.PutContainersToResourceMap(resourceUUID, existContainers)
+
 	// check if injected
 	injected, err := IsInjected(cm.ProcessID)
 	if err != nil {
@@ -338,7 +498,14 @@ func (ij *Injector) DoInject(cm container.ContainerMeta) (bool, error) {
 		logging.Get().Warn().Int("ProcessID", cm.ProcessID).Str("containerID", cm.ID).Msg(err.Error())
 	}
 
-	for index, cmd := range ij.containerCommandSeq {
+	err = prepareLDPreloadConfig(cm.ID, cm.ProcessID)
+	if err != nil {
+		logging.Get().Err(err).Int("ProcessID", cm.ProcessID).Str("containerID", cm.ID).Msg("prepare ld preload config failed")
+	}
+
+	commandSeq := ij.initCommandSeq(cm.ID)
+
+	for index, cmd := range commandSeq {
 		if len(cmd) == 0 {
 			break
 		}

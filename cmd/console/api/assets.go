@@ -732,6 +732,10 @@ func (api *api) getResourcesInNamespace() http.HandlerFunc {
 	}
 	modelToResource := func(rm *model.TensorResource) *resource {
 		r := new(resource)
+		reasonOS, err := reasonStr2OSList(rm.Reason)
+		if err != nil {
+			logging.Get().Err(err).Msg("get resource reason os list failed")
+		}
 		r.Cluster = rm.ClusterKey
 		r.Namespace = rm.Namespace
 		r.Kind = rm.Kind
@@ -741,7 +745,7 @@ func (api *api) getResourcesInNamespace() http.HandlerFunc {
 		r.Managers = rm.Managers
 		r.Authority = rm.Authority
 		r.IsSupportDrift = rm.IsSupportDrift
-		r.Reason = rm.Reason
+		r.Reason = reasonOS
 		return r
 	}
 	return func(w http.ResponseWriter, r *http.Request) {
