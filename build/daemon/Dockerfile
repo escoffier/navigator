@@ -6,10 +6,16 @@ RUN sed -i "s!archive.ubuntu.com/!mirrors.aliyun.com/!g" /etc/apt/sources.list \
     && sed -i "s!ports.ubuntu.com/!mirrors.aliyun.com/!g" /etc/apt/sources.list \
     && export DEBIAN_FRONTEND=noninteractive \
     && apt-get update \
-    && apt-get install supervisor libdevmapper-dev libgpgme-dev -y libglib2.0-dev -y \
+    && DEBIAN_FRONTEND=noninteractive apt install -y --no-install-recommends \
+    supervisor libdevmapper-dev libgpgme-dev libglib2.0-dev \
+    language-pack-zh-han* \
     && apt-get full-upgrade -y \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
+
+ENV LANG=zh_CN.UTF-8
+ENV LANGUAGE=zh_CN:zh
+ENV LC_ALL=zh_CN.UTF-8
 
 COPY bin/daemon /
 COPY bin/ns-mnt /
