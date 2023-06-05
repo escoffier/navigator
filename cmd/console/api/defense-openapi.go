@@ -4,6 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
+	"time"
+
 	"github.com/go-chi/chi"
 	param "github.com/oceanicdev/chi-param"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/defense"
@@ -13,8 +16,6 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
-	"net/http"
-	"time"
 )
 
 func (api *api) defenseOpenApi() func(chi.Router) {
@@ -167,13 +168,17 @@ func (api *api) getBaitImagesOpenApi() http.HandlerFunc {
 			limit = maxBaitImageNum
 		}
 
+		lang := r.Header.Get("Accept-Language")
+		if lang == "" {
+			lang = "zh"
+		}
 		defenseSvc, ok := defense.GetDefenseService(ctx)
 		if !ok {
 			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.New("get bait service failed")))
 			return
 		}
 
-		baitImages, err := defenseSvc.GetBaitImages(ctx, offset, limit)
+		baitImages, err := defenseSvc.GetBaitImages(ctx, offset, limit, lang)
 		if err != nil {
 			logging.GetLogger().Err(err).Msg("GetBaitImages error")
 			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, err))
@@ -211,12 +216,16 @@ func (api *api) getBaitImageOpenApi() http.HandlerFunc {
 			RespAndLog(w, ctx, NewAnError(http.StatusBadRequest, errors.New("no bait image id in params")))
 			return
 		}
+		lang := r.Header.Get("Accept-Language")
+		if lang == "" {
+			lang = "zh"
+		}
 		defenseSvc, ok := defense.GetDefenseService(ctx)
 		if !ok {
 			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.New("get bait service failed")))
 			return
 		}
-		baitImage, err := defenseSvc.GetBaitImageByID(ctx, id)
+		baitImage, err := defenseSvc.GetBaitImageByID(ctx, id, lang)
 		if err != nil {
 			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, err))
 			return
