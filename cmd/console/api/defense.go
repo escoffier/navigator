@@ -106,6 +106,11 @@ func (api *api) getBaitServices() http.HandlerFunc {
 			status = ""
 		}
 
+		lang := r.Header.Get("Accept-Language")
+		if lang == "" {
+			lang = "zh"
+		}
+
 		defenseSvc, ok := defense.GetDefenseService(ctx)
 		if !ok {
 			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.New("get bait service failed")))
@@ -113,6 +118,7 @@ func (api *api) getBaitServices() http.HandlerFunc {
 		}
 
 		queryOpt := dal.BaitsQuery()
+		queryOpt.WithLang(lang)
 		if clusterKey != "" {
 			queryOpt = queryOpt.WithCluster(clusterKey)
 		}
@@ -137,7 +143,7 @@ func (api *api) getBaitServices() http.HandlerFunc {
 
 		baitServices, err := defenseSvc.GetBaitServices(ctx, queryOpt, limit, offset)
 		if err != nil {
-			logging.GetLogger().Err(err).Msg("GetBaitImages error")
+			logging.GetLogger().Err(err).Msg("GetBaitServices error")
 			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, err))
 			return
 		}
@@ -337,7 +343,11 @@ func (api *api) getBaitImages() http.HandlerFunc {
 			return
 		}
 
-		baitImages, err := defenseSvc.GetBaitImages(ctx, offset, limit)
+		lang := r.Header.Get("Accept-Language")
+		if lang == "" {
+			lang = "zh"
+		}
+		baitImages, err := defenseSvc.GetBaitImages(ctx, offset, limit, lang)
 		if err != nil {
 			logging.GetLogger().Err(err).Msg("GetBaitImages error")
 			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, err))
@@ -384,12 +394,17 @@ func (api *api) getBaitImage() http.HandlerFunc {
 			RespAndLog(w, ctx, NewAnError(http.StatusBadRequest, errors.New("no bait image id in params")))
 			return
 		}
+		lang := r.Header.Get("Accept-Language")
+		if lang == "" {
+			lang = "zh"
+		}
+
 		defenseSvc, ok := defense.GetDefenseService(ctx)
 		if !ok {
 			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.New("get bait service failed")))
 			return
 		}
-		baitImage, err := defenseSvc.GetBaitImageByID(ctx, id)
+		baitImage, err := defenseSvc.GetBaitImageByID(ctx, id, lang)
 		if err != nil {
 			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, err))
 			return

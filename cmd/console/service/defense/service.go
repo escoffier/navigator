@@ -85,7 +85,7 @@ func GetDefenseService(_ context.Context) (*TensorDefenseService, bool) {
 }
 
 func (s *TensorDefenseService) AddBaitService(ctx context.Context, bait *model.BaitService) error {
-	image, err := dal.GetBaitImageById(ctx, s.rdb.Get(), bait.BaitId)
+	image, err := dal.GetBaitImageById(ctx, s.rdb.Get(), bait.BaitId, "zh")
 	if err != nil {
 		logging.Get().Err(err).Msg("get image failed")
 		return err
@@ -255,6 +255,7 @@ func (s *TensorDefenseService) addBaitService(ctx context.Context, bait *model.B
 	})
 	if err != nil {
 		logging.Get().Err(err).Msg("create honeyspot err")
+		return err
 	} else {
 		logging.Get().Info().Msgf("create honeyspot reponse: %s", resp.String())
 	}
@@ -373,8 +374,8 @@ func (s *TensorDefenseService) CountBaitServices(ctx context.Context, option *da
 	return cnt, nil
 }
 
-func (s *TensorDefenseService) GetBaitImages(ctx context.Context, offset, limit int) ([]*model.BaitImages, error) {
-	baitImages, err := dal.GetBaitImages(ctx, s.rdb.GetReadDB(), offset, limit)
+func (s *TensorDefenseService) GetBaitImages(ctx context.Context, offset, limit int, lang string) ([]*model.BaitImages, error) {
+	baitImages, err := dal.GetBaitImages(ctx, s.rdb.GetReadDB(), offset, limit, lang)
 	if err != nil {
 		return nil, err
 	}
@@ -389,8 +390,8 @@ func (s *TensorDefenseService) CountBaitImages(ctx context.Context) (int64, erro
 	return cnt, nil
 }
 
-func (s *TensorDefenseService) GetBaitImageByID(ctx context.Context, id uint32) (*model.BaitImages, error) {
-	baitImages, err := dal.GetBaitImageById(ctx, s.rdb.GetReadDB(), id)
+func (s *TensorDefenseService) GetBaitImageByID(ctx context.Context, id uint32, lang string) (*model.BaitImages, error) {
+	baitImages, err := dal.GetBaitImageById(ctx, s.rdb.GetReadDB(), id, lang)
 	if err != nil {
 		return nil, err
 	}

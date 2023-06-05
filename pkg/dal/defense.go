@@ -24,6 +24,7 @@ type BaitsQueryOption struct {
 	columnQuery      colQuery
 	multicolumnQuery map[string]string
 	baitIds          []uint32
+	lang             string
 }
 
 func BaitsQuery() *BaitsQueryOption {
@@ -90,6 +91,11 @@ func (q *BaitsQueryOption) WithBaitIds(ids []uint32) *BaitsQueryOption {
 	return q
 }
 
+func (q *BaitsQueryOption) WithLang(lang string) *BaitsQueryOption {
+	q.lang = lang
+	return q
+}
+
 func (q *BaitsQueryOption) GetClusterOption() (string, bool) {
 	v, ok := q.whereEqCondition["cluster_key"]
 	return v.(string), ok
@@ -105,13 +111,17 @@ func (q *BaitsQueryOption) GetName() (string, bool) {
 	return v.(string), ok
 }
 
+func (q *BaitsQueryOption) GetLang() string {
+	return q.lang
+}
+
 type BaitImagesQueryOption struct {
 	whereEqCondition map[string]interface{}
 	whereInCondition map[string]interface{}
 	columnQuery      colQuery
 }
 
-func GetBaitImages(ctx context.Context, rdb *gorm.DB, offset, limit int) ([]*model.BaitImages, error) {
+func GetBaitImages(ctx context.Context, rdb *gorm.DB, offset, limit int, lang string) ([]*model.BaitImages, error) {
 	dbCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
 
@@ -121,8 +131,19 @@ func GetBaitImages(ctx context.Context, rdb *gorm.DB, offset, limit int) ([]*mod
 		oneCtx, cancel := context.WithTimeout(ctx, 800*time.Millisecond)
 		defer cancel()
 
-		err := rdb.WithContext(oneCtx).Model(&model.BaitImages{}).Where("status = ?", 0).
-			Offset(offset).Limit(limit).Find(&baitImages).Error
+		var err error
+		if lang == "zh" {
+			err = rdb.WithContext(oneCtx).Model(&model.BaitImages{}).
+				Where("status = ?", 0).
+				Offset(offset).Limit(limit).Find(&baitImages).Error
+		} else {
+			err = rdb.WithContext(oneCtx).Model(&model.BaitImages{}).
+				Select("ivan_bait_images.id", "ivan_bait_images.name", "ivan_bait_image_description.bait_name", "ivan_bait_image_description.vulnerability",
+					"ivan_bait_images.event_prefix", "ivan_bait_image_description.description").
+				Joins("LEFT JOIN ivan_bait_image_description ON ivan_bait_images.id = ivan_bait_image_description.id AND ivan_bait_image_description.lang = ?", lang).
+				Where("status = ?", 0).
+				Offset(offset).Limit(limit).Find(&baitImages).Error
+		}
 		if err == gorm.ErrRecordNotFound {
 			notFound = true
 			return nil
@@ -139,7 +160,7 @@ func GetBaitImages(ctx context.Context, rdb *gorm.DB, offset, limit int) ([]*mod
 	return baitImages, nil
 }
 
-func GetBaitImageById(ctx context.Context, rdb *gorm.DB, id uint32) (*model.BaitImages, error) {
+func GetBaitImageById(ctx context.Context, rdb *gorm.DB, id uint32, lang string) (*model.BaitImages, error) {
 	dbCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
 
@@ -149,7 +170,16 @@ func GetBaitImageById(ctx context.Context, rdb *gorm.DB, id uint32) (*model.Bait
 		oneCtx, cancel := context.WithTimeout(ctx, 800*time.Millisecond)
 		defer cancel()
 
-		err := rdb.WithContext(oneCtx).Model(&model.BaitImages{}).Where("status = ? AND id = ?", 0, id).First(&baitImage).Error
+		var err error
+		if lang == "zh" {
+			err = rdb.WithContext(oneCtx).Model(&model.BaitImages{}).
+				Select("ivan_bait_images.id", "ivan_bait_images.name", "ivan_bait_images.ports", "ivan_bait_image_description.bait_name", "ivan_bait_image_description.vulnerability",
+					"ivan_bait_images.event_prefix", "ivan_bait_image_description.description").
+				Joins("LEFT JOIN ivan_bait_image_description ON ivan_bait_images.id = ivan_bait_image_description.id AND ivan_bait_image_description.lang = ?", lang).
+				Where("status = ? AND ivan_bait_images.id = ?", 0, id).First(&baitImage).Error
+		} else {
+			err = rdb.WithContext(oneCtx).Model(&model.BaitImages{}).Where("status = ? AND id = ?", 0, id).First(&baitImage).Error
+		}
 		if err == gorm.ErrRecordNotFound {
 			notFound = true
 			return nil
@@ -203,7 +233,22 @@ func GetBaitServices(ctx context.Context, rdb *gorm.DB, queryOptions *BaitsQuery
 		oneCtx, cancel := context.WithTimeout(ctx, 800*time.Millisecond)
 		defer cancel()
 
-		db := rdb.WithContext(oneCtx).Model(&model.BaitService{}).Where("status = ?", 0).Order("created_at desc")
+		lang := queryOptions.GetLang()
+		if lang == "" {
+			lang = "zh"
+		}
+
+		var db *gorm.DB
+		if lang == "zh" {
+			db = rdb.WithContext(oneCtx).Model(&model.BaitService{}).Where("status = ?", 0).Order("created_at desc")
+		} else {
+			db = rdb.WithContext(oneCtx).
+				Select(`ivan_bait_services.id, created_at, updated_at, status, name, namespace, cluster_key, resource_name, prefix,
+				ivan_bait_image_description.bait_name, bait_id, image,registry_id, workload_status, have_alerts, replica, outbound_off`).
+				Joins("LEFT JOIN ivan_bait_image_description ON ivan_bait_services.bait_id = ivan_bait_image_description.id AND ivan_bait_image_description.lang = ?", lang).
+				Where("status = ?", 0).Order("created_at desc")
+		}
+
 		if len(queryOptions.whereEqCondition) > 0 {
 			db.Where(queryOptions.whereEqCondition)
 		}
