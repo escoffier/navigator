@@ -50,6 +50,7 @@ func (api *api) assets() func(chi.Router) {
 		r.Get("/resources/byImageVulns", api.getResourcesByImageVuln())
 		// TODO: support redis search
 		r.Get("/pods", api.getPods())
+		r.Get("/podsByOwner", api.getPodsByOwner())
 
 		r.Get("/resources/count", api.countResource())
 		r.Get("/containers/count", api.countContainers())
@@ -1355,6 +1356,86 @@ func (api *api) getPods() http.HandlerFunc {
 		pods, cnt, err := req.Execute(ctx)
 		if err != nil {
 			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, fmt.Errorf("get resource pod err: %v", err)))
+			return
+		}
+		response.Ok(w, response.WithItems(pods), response.WithTotalItems(cnt))
+	}
+}
+
+type GetPodsByOwner struct {
+	Limit        int    `in:"query" name:"limit"`
+	Offset       int    `in:"query" name:"offset"`
+	ClusterKey   string `in:"query" name:"cluster_key"`
+	Namespace    string `in:"query" name:"namespace"`
+	ResourceKind string `in:"query" name:"resource_kind"`
+	ResourceName string `in:"query" name:"resource_name"`
+	Query        string `in:"query" name:"query"`
+	UseRedis     bool   `in:"-"`
+}
+
+func (req *GetPodsByOwner) Render(r *http.Request) error {
+	limit, offset, err := getLimitAndOffset(r)
+	if err != nil {
+		return err
+	}
+	req.Limit = limit
+	req.Offset = offset
+	req.ClusterKey = getNormalizedQueryParam(r, "cluster_key")
+	req.Namespace = getNormalizedQueryParam(r, "namespace")
+	req.ResourceKind = getNormalizedQueryParam(r, "resource_kind")
+	req.ResourceName = getNormalizedQueryParam(r, "resource_name")
+	req.Query, _ = param.QueryString(r, "query")
+	return nil
+}
+func (req *GetPodsByOwner) Execute(ctx context.Context) ([]*model.PodResourceRelation, int64, error) {
+	query := dal.ResourcePodssQuery()
+	if req.ClusterKey != "" {
+		query.WithCluster(req.ClusterKey)
+	}
+	if req.Namespace != "" {
+		query.WithNamespace(req.Namespace)
+	}
+	if req.ResourceKind != "" {
+		query.WithResourceKind(assetsPkg.ResourceKind(req.ResourceKind))
+	}
+	if req.ResourceName != "" {
+		query.WithResourceName(req.ResourceName)
+	}
+	if req.Query != "" {
+		query.WithMulColumnQuery([]string{"pod_name"}, req.Query)
+	}
+	resSvc, ok := assets.GetResourcesService(ctx)
+	if !ok {
+		return nil, 0, NewAnError(http.StatusInternalServerError, errors.New("get resource service err"))
+	}
+	var (
+		pods []*model.PodResourceRelation
+		cnt  int64
+		err  error
+	)
+	if req.UseRedis {
+		pods, cnt, err = resSvc.GetResourcePodsWithRedis(ctx, query, req.Offset, req.Limit)
+	} else {
+		pods, cnt, err = resSvc.GetResourcePods(ctx, query, req.Offset, req.Limit)
+	}
+
+	return pods, cnt, err
+}
+
+func (api *api) getPodsByOwner() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancelFunc := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancelFunc()
+		req := &GetPodsByOwner{UseRedis: true}
+		err := req.Render(r)
+		if err != nil {
+			logging.Get().Err(err).Msgf("render GetPodsByOwner body failed")
+			RespAndLog(w, ctx, NewAnError(http.StatusBadRequest, err))
+			return
+		}
+		pods, cnt, err := req.Execute(ctx)
+		if err != nil {
+			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, fmt.Errorf("get resource pod by owner err: %v", err)))
 			return
 		}
 		response.Ok(w, response.WithItems(pods), response.WithTotalItems(cnt))
