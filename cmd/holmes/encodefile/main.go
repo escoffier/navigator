@@ -1,19 +1,47 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"os"
 	"strconv"
 	"strings"
 
-	"gopkg.in/yaml.v2"
-
 	"gitlab.com/piccolo_su/vegeta/pkg/holmes"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
+	gpModel "gitlab.com/security-rd/go-pkg/model"
+	gpMozart "gitlab.com/security-rd/go-pkg/mozart"
+	"gopkg.in/yaml.v2"
 )
 
-func checkRulesDuplication(rules []model.RuleFromYaml) error {
+func checkRulesDuplication(rules []gpModel.UserRuleYaml) error {
+	ruleMap := make(map[string]struct{}, len(rules))
+	listMap := make(map[string]struct{}, len(rules))
+	macroMap := make(map[string]struct{}, len(rules))
+	for _, rule := range rules {
+		if rule.Name != "" {
+			if _, ok := ruleMap[rule.Name]; ok {
+				return fmt.Errorf("duplicate rule name: %s", rule.Name)
+			}
+			ruleMap[rule.Name] = struct{}{}
+		} else if rule.Macro != "" {
+			if _, ok := macroMap[rule.Macro]; ok {
+				return fmt.Errorf("duplicate macro name: %s", rule.Macro)
+			}
+			macroMap[rule.Macro] = struct{}{}
+		} else if rule.List != "" {
+			if _, ok := listMap[rule.List]; ok {
+				return fmt.Errorf("duplicate list name: %s", rule.List)
+			}
+			listMap[rule.List] = struct{}{}
+		}
+
+	}
+	return nil
+}
+
+func checkRulesDuplicationV1V2(rules []model.RuleFromYaml) error {
 	ruleMap := make(map[string]struct{}, len(rules))
 	listMap := make(map[string]struct{}, len(rules))
 	macroMap := make(map[string]struct{}, len(rules))
@@ -39,13 +67,72 @@ func checkRulesDuplication(rules []model.RuleFromYaml) error {
 	return nil
 }
 
+func checkMarcoDefineOrder(userRules []gpModel.UserRuleYaml) error {
+	usage := make(map[string]string)
+	marcos := make([]gpModel.UserRuleYaml, 0)
+	for i := range userRules {
+		if gpMozart.IsURMarco(userRules[i]) {
+			marcos = append(marcos, userRules[i])
+		}
+	}
+	for i := range marcos {
+		// build
+		if marcos[i].Macro != "" {
+			items := strings.Split(marcos[i].Condition, " ")
+			for j := range items {
+				if _, ok := usage[strings.TrimSpace(items[j])]; !ok {
+					usage[strings.TrimSpace(items[j])] = marcos[i].Condition
+				}
+			}
+		}
+		if marcos[i].List != " " {
+			for j := range marcos[i].Items {
+				if _, ok := usage[strings.TrimSpace(marcos[i].Items[j])]; !ok {
+					usage[strings.TrimSpace(marcos[i].Items[j])] = fmt.Sprintf("[%s]", strings.Join(marcos[i].Items, ", "))
+				}
+			}
+		}
+		// check
+		if marcos[i].Macro != "" {
+			if o, ok := usage[strings.TrimSpace(marcos[i].Macro)]; ok {
+				return fmt.Errorf("use marco before define. marco: %s, use: %s", marcos[i].Macro, o)
+			}
+		}
+		if marcos[i].List != "" {
+			if o, ok := usage[strings.TrimSpace(marcos[i].List)]; ok {
+				return fmt.Errorf("use marco before define. marco: %s, use: %s", marcos[i].List, o)
+			}
+		}
+	}
+	return nil
+}
+
 func checkRulesFile(in []byte) error {
+	var userRules []gpModel.UserRuleYaml
+	err := yaml.Unmarshal(in, &userRules)
+	if err != nil {
+		return err
+	}
+	err = checkRulesDuplication(userRules)
+	if err != nil {
+		return err
+	}
+
+	err = checkMarcoDefineOrder(userRules)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func checkRulesFileV1V2(in []byte) error {
 	var rulesContext []model.RuleFromYaml
 	err := yaml.Unmarshal(in, &rulesContext)
 	if err != nil {
 		return err
 	}
-	err = checkRulesDuplication(rulesContext)
+	err = checkRulesDuplicationV1V2(rulesContext)
 	if err != nil {
 		return err
 	}
@@ -78,6 +165,27 @@ func main() {
 		"Version for pack rulesfile, `1.0` is an example.")
 	flag.Parse()
 
+	ctx := context.Background()
+
+	versionList := strings.Split(*version, ".")
+	if len(versionList) != 2 {
+		fmt.Printf("version number parse error. input: %s", *version)
+		os.Exit(5)
+	}
+	versionNum := [2]uint16{0, 0}
+	tmpInt, err := strconv.ParseUint(versionList[0], 10, 16)
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(6)
+	}
+	versionNum[0] = uint16(tmpInt)
+	tmpInt, err = strconv.ParseUint(versionList[1], 10, 16)
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(7)
+	}
+	versionNum[1] = uint16(tmpInt)
+
 	fp, err := os.Create(*outputRulesFilename)
 	if err != nil {
 		fmt.Printf("\033[1;37;41m%s\033[0m\n", err)
@@ -85,70 +193,83 @@ func main() {
 	}
 	defer fp.Close()
 
-	fileBytes := readBytesFromDir(*inputRulesDirName)
+	fileBytes, cconfigBytes := readBytesFromDir(*inputRulesDirName)
+	var finalBytes []byte
 
-	if err = checkRulesFile(fileBytes); err != nil {
-		fmt.Printf("\033[1;37;41m%s\033[0m\n", err)
-		fp.Close()
-		os.Exit(2)
-	}
-	versionList := strings.Split(*version, ".")
-	if len(versionList) != 2 {
-		fmt.Printf("version number parse error. input: %s", *version)
-		fp.Close()
-		os.Exit(3)
-	}
-	versionNum := [2]uint16{0, 0}
-	tmpInt, err := strconv.ParseUint(versionList[0], 10, 16)
-	if err != nil {
-		fmt.Println(err)
-		fp.Close()
-		os.Exit(4)
-	}
-	versionNum[0] = uint16(tmpInt)
-	tmpInt, err = strconv.ParseUint(versionList[1], 10, 16)
-	if err != nil {
-		fmt.Println(err)
-		fp.Close()
-		os.Exit(5)
-	}
-	versionNum[1] = uint16(tmpInt)
+	if versionNum[0] > 2 {
+		userRules, _, err := mozart2UserRule(ctx, fileBytes)
+		if err != nil {
+			fmt.Printf("\033[1;37;41m%s\033[0m\n", err)
+			fp.Close()
+			os.Exit(2)
+		}
+		finalBytes, err = yaml.Marshal(userRules)
+		if err != nil {
+			fmt.Printf("\033[1;37;41m%s\033[0m\n", err)
+			fp.Close()
+			os.Exit(3)
+		}
 
-	thrBytes, err := holmes.ToThrBytes(fileBytes, versionNum)
+		if err = checkRulesFile(finalBytes); err != nil {
+			fmt.Printf("\033[1;37;41m%s\033[0m\n", err)
+			fp.Close()
+			os.Exit(41)
+		}
+	} else {
+		finalBytes = fileBytes
+		if err = checkRulesFileV1V2(finalBytes); err != nil {
+			fmt.Printf("\033[1;37;41m%s\033[0m\n", err)
+			fp.Close()
+			os.Exit(42)
+		}
+	}
+
+	finalBytes = append(finalBytes, '\n')
+	finalBytes = append(finalBytes, cconfigBytes...)
+
+	thrBytes, err := holmes.ToThrBytes(finalBytes, versionNum)
 	if err != nil {
 		fmt.Println(err)
 		fp.Close()
-		os.Exit(6)
+		os.Exit(8)
 	}
 	err = writeOutputFile(fp, thrBytes)
 	if err != nil {
 		fmt.Println(err)
 		fp.Close()
-		os.Exit(6)
+		os.Exit(9)
 	}
 }
 
-func readBytesFromDir(dirPath string) []byte {
+func readBytesFromDir(dirPath string) ([]byte, []byte) {
 	fileInfos, err := os.ReadDir(dirPath)
 	if err != nil {
 		fmt.Println(err)
-		os.Exit(7)
+		os.Exit(10)
 	}
-	fileBytes := make([]byte, 0, 50)
-	partFileBytes := make([]byte, 0, 50)
+	fileBytes := make([]byte, 0, 10000)
+	partFileBytes := make([]byte, 0)
+	cconfigBytes := make([]byte, 0)
 	for _, fileInfo := range fileInfos {
 		if fileInfo.IsDir() {
-			partFileBytes = readBytesFromDir(dirPath + "/" + fileInfo.Name())
+			continue
+		} else if strings.Index(fileInfo.Name(), "custom_configs") >= 0 { // exclude custom_configs.yaml
+			cconfigBytes, err = os.ReadFile(dirPath + "/" + fileInfo.Name())
+			if err != nil {
+				fmt.Println(err)
+				os.Exit(11)
+			}
+
 		} else {
 			partFileBytes, err = os.ReadFile(dirPath + "/" + fileInfo.Name())
 			if err != nil {
 				fmt.Println(err)
-				os.Exit(8)
+				os.Exit(11)
 			}
 		}
 		fileBytes = append(fileBytes, append([]byte("\n\n"), partFileBytes...)...)
 		partFileBytes = make([]byte, 0, 50)
 	}
 
-	return fileBytes
+	return fileBytes, cconfigBytes
 }

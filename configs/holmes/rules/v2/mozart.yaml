@@ -87,19 +87,19 @@
       priority: EMERGENCY
       urgency: true
 
-  - name: 'Using vim_suid to modify sensitive file for linux privilege escalation'
+  - name: 'Using vim_suid to modify sensitive files for linux privilege escalation'
     enabled: true
     trigger: 'Linux Privilege Escalation by modifying sensitive files with suid binaries'
     steps:
       - name: checkRelatedExists
         params: [ 'Running vim in container', 10s, trigger.payload.output_map.proc_pid, payload.output_map.proc_pid ]
       - name: execGenerateSignal
-        params: { zh_msg: 尝试利用vim_suid修改敏感文件提权, rule: 'Using vim_suid to modify sensitive file for linux privilege escalation' }
+        params: { zh_msg: 尝试利用vim_suid修改敏感文件提权, rule: 'Using vim_suid to modify sensitive files for linux privilege escalation' }
       - name: execSendPalace
         params: ''
     info:
       desc:
-        en: 'Using vim_suid to modify sensitive file for linux privilege escalation'
+        en: 'Using vim_suid to modify sensitive files for linux privilege escalation'
         zh: '尝试利用vim_suid修改敏感文件提权'
       suggestion:
         en: 'Please check whether the vim command in the container has been granted s permission, so that hackers try to use it to improve their rights. You can try to use micro isolation and immune defense to prevent the risk from spreading further.'
@@ -212,7 +212,7 @@
       suggestion:
         en: 'If the container is intruded, we need to isolate the container, get the remote ip address of the attacker, and check other attacks to confirm the security of the cluster.'
         zh: '容器遭到入侵，需隔离该容器，获取攻击者远程ip地址，同时排查其他攻击行为，确认集群安全。'
-      rule_type: Exfiltration
+      rule_type: Execution
       priority: ALERT
       urgency: true
 

@@ -249,7 +249,7 @@
   condition: >
     shell_procs or
     shell_parent_procs or
-    proc.aname=bash
+    proc.aname in (shell_binaries)
 
 - macro: remote_server_subnet
   condition: >

@@ -15,18 +15,18 @@ import (
 	json "github.com/json-iterator/go"
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/nodeinfo"
 	"gitlab.com/piccolo_su/vegeta/pkg/dal"
+	"gitlab.com/piccolo_su/vegeta/pkg/holmes"
 	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/mozart"
+	"gitlab.com/piccolo_su/vegeta/pkg/util"
 	"gitlab.com/security-rd/go-pkg/cryption"
 	"gitlab.com/security-rd/go-pkg/logging"
+	gpModel "gitlab.com/security-rd/go-pkg/model"
 	"gitlab.com/security-rd/go-pkg/pb"
 	"gitlab.com/security-rd/go-pkg/sdk/palace"
+	"gopkg.in/yaml.v2"
 	"scm.tensorsecurity.cn/tensorsecurity-rd/falcosider/manager"
-)
-
-const (
-	currentEngineLargeVersion = 2 // 随holmes版本升级
 )
 
 var (
@@ -90,6 +90,12 @@ func (c *EngineStreamConfig) WithMyNamespace(ns string) *EngineStreamConfig {
 	return c
 }
 
+type ruleData struct {
+	decodedUserData  []byte
+	decodedFalcoData []byte
+	falcoMozartMap   map[string][]string
+}
+
 type EngineStreamHandler struct {
 	config EngineStreamConfig // immutable
 
@@ -102,6 +108,8 @@ type EngineStreamHandler struct {
 
 	currentRulesVersion int64
 	currentConfigVal    *atomic.Pointer[ruleConfig]
+
+	ruleData ruleData
 }
 
 type ruleConfig struct {
@@ -188,113 +196,139 @@ func (ec *EngineStreamHandler) asyncLoad() {
 	}()
 }
 
-func (ec *EngineStreamHandler) doReloadingMozart(ctx context.Context, reloadReq *pb.ReloadRequest, rulesBytes []byte, rulesChanged, configChanged bool) error {
-	newV := reloadReq.StaticVersion + ";" + reloadReq.SConfigVersion
-	disabledFalcoM := make(map[string]*pb.RuleConfig)
-	rules := make([]mozart.Rule, 0, 150)
+func falcoForMozart(falcoMozartMap map[string][]string, mozartRule string) (string, bool) {
+	for k, v := range falcoMozartMap {
+		if util.ContainsString(v, mozartRule) {
+			return k, true
+		}
+	}
+	return "", false
+}
+
+func (ec *EngineStreamHandler) doReloadingMozart(ctx context.Context, reloadReq *pb.ReloadRequest, decodedFalcoData, decodedUserData []byte, falcoMozartMap map[string][]string, rulesChanged, configChanged bool) error {
+	ec.ruleData.decodedUserData = decodedUserData
+	ec.ruleData.decodedFalcoData = decodedFalcoData
+	ec.ruleData.falcoMozartMap = falcoMozartMap
+
 	var err error
 
+	userClosedRules := make([]string, len(reloadReq.SRuleConfigs))
+	for i := range reloadReq.SRuleConfigs {
+		if reloadReq.SRuleConfigs[i].Disabled {
+			userClosedRules[i] = reloadReq.SRuleConfigs[i].RuleKey
+		}
+	}
+	userClosedRulesMap := mozart.BuildUserClosedRulesMap(userClosedRules)
+
+	falcoRules := make([]model.FalcoYaml, 0)
+	err = yaml.Unmarshal(decodedFalcoData, &falcoRules)
+	if err != nil {
+		return err
+	}
+
+	userYamlRules := make([]gpModel.UserRuleYaml, 0)
+	err = yaml.Unmarshal(decodedUserData, &userYamlRules)
+	if err != nil {
+		return err
+	}
+
+	newV := reloadReq.StaticVersion + ";" + reloadReq.SConfigVersion
+	disabledFalco := make([]*pb.RuleConfig, 0)
+	userRules := make([]mozart.Rule, 0, 150)
+	mozartUsersMap := make(map[string][]mozart.Rule)
+
 	if rulesChanged {
-		_, decodedRuleBytes, err := manager.DoRulesDecode(rulesBytes)
-		if err != nil {
-			logging.Get().Error().Err(err).Str("version", reloadReq.StaticVersion).Msg("rules data mozart decode fails")
-			return err
+		// 规则数据变化，重新load规则
+		for i := range userYamlRules {
+			for j := range userYamlRules[i].MozartParts {
+				userRules = append(userRules, mozart.Rule{
+					Key:      userYamlRules[i].Key,
+					Name:     userYamlRules[i].Name,
+					Enabled:  userYamlRules[i].Enabled,
+					Trigger:  userYamlRules[i].MozartParts[j].Trigger,
+					Relateds: userYamlRules[i].MozartParts[j].Relateds,
+					Steps:    userYamlRules[i].MozartParts[j].Steps,
+					Type:     userYamlRules[i].MozartParts[j].Type,
+					Default:  userYamlRules[i].MozartParts[j].Default,
+				})
+			}
 		}
-		// todo: 配置修改的时候也应该改
-		rules, err = ec.mozart.LoadFromRuleBytes(ctx, decodedRuleBytes)
-		if err != nil {
-			logging.Get().Error().Err(err).Str("version", reloadReq.StaticVersion).Msg("rules data mozart loads fails")
-			return err
-		}
-
-		dM, err := extractDisabledRulesFromRules(ctx, decodedRuleBytes)
-		if err != nil {
-			logging.Get().Error().Err(err).Str("version", reloadReq.StaticVersion).Msg("extractDisabledRulesFromRules from ruleBytes fails")
-			return err
-		}
-		for k := range dM {
-			disabledFalcoM[k] = &pb.RuleConfig{Disabled: true, RuleKey: k}
-		}
-
-		err = ec.mozart.UpdateRules(mozart.RuleUpdateOperationAdd, newV, rules)
-		if err != nil {
-			logging.Get().Error().Err(err).Msg("update mozart rules fails")
-			return err
+	} else if configChanged {
+		// 规则数据没有变，只是配置变化：读现有规则，如果没有现有规则，则报错
+		var ok bool
+		userRules, ok = ec.mozart.GetActiveRules()
+		if !ok {
+			logging.Get().Warn().Err(err).Str("active version", ec.mozart.GetActiveRulesVersion()).Msg("mozart GetActiveRules fails")
+			return errors.New("get active rules failed")
 		}
 	}
-
-	if configChanged {
-		enabledFalcoM := make(map[string]struct{})
-		disabledMozartM := make(map[string]struct{})
-		for _, ruleConf := range reloadReq.SRuleConfigs {
-			if ruleConf.Disabled {
-				disabledMozartM[ruleConf.RuleKey] = struct{}{}
-			}
-		}
-
-		// 数据没有变，读现有规则，如果没有现有规则，则报错
-		if !rulesChanged {
-			var ok bool
-			rules, ok = ec.mozart.GetActiveRules()
-			if !ok {
-				logging.Get().Warn().Err(err).Str("active version", ec.mozart.GetActiveRulesVersion()).Msg("mozart GetActiveRules fails")
-				return errors.New("get active rules failed")
-			}
-		}
-		// 获得开启的falco规则
-		for i := range rules {
-			if _, ok := disabledMozartM[rules[i].Name]; !ok {
-				for k := range rules[i].Steps {
-					if rules[i].Steps[k].Name != "checkRelatedExists" {
-						continue
-					}
-					if params, ok := rules[i].Steps[k].OriginParams.([]string); ok {
-						enabledFalcoM[params[0]] = struct{}{}
-					}
-				}
-			}
-		}
-		// 获得关闭的falco规则
-		// 操作mozart规则的开关
-		for i := range rules {
-			if _, ok := disabledMozartM[rules[i].Name]; ok {
-				rules[i].Enabled = false
-				if rules[i].Type == "basic" {
-					disabledFalcoM[rules[i].Name] = &pb.RuleConfig{RuleKey: rules[i].Name, Disabled: true}
-				}
-				for k := range rules[i].Steps {
-					if rules[i].Steps[k].Name != "checkRelatedExists" {
-						continue
-					}
-					if params, ok := rules[i].Steps[k].OriginParams.([]string); ok {
-						if _, ok := enabledFalcoM[params[0]]; !ok {
-							disabledFalcoM[params[0]] = &pb.RuleConfig{RuleKey: params[0], Disabled: true}
-						}
-					}
-				}
+	if configChanged { // 配置发生变化，修改userRule的开关
+		for i := range userRules {
+			if _, ok := userClosedRulesMap[userRules[i].Name]; ok {
+				userRules[i].Enabled = false
 			} else {
-				rules[i].Enabled = true
+				userRules[i].Enabled = true
 			}
-		}
-		err = ec.mozart.UpdateRules(mozart.RuleUpdateOperationAdd, newV, rules)
-		if err != nil {
-			logging.Get().Error().Err(err).Msg("update mozart rules fails")
-			return err
 		}
 	}
 
-	ruleConfigs := make([]*pb.RuleConfig, 0, len(disabledFalcoM))
-	for _, v := range disabledFalcoM {
-		ruleConfigs = append(ruleConfigs, v)
+	if err = ec.mozart.FillUpRegoPreQueries(ctx, userRules); err != nil {
+		logging.Get().Error().Err(err).Msg("FillUpRegoPreQueries fails")
 	}
-	reloadReq.SRuleConfigs = ruleConfigs
+
+	for i := range userRules {
+		if rs, ok := mozartUsersMap[userRules[i].Key]; ok {
+			mozartUsersMap[userRules[i].Key] = append(rs, userRules[i])
+		} else {
+			mozartUsersMap[userRules[i].Key] = []mozart.Rule{userRules[i]}
+		}
+	}
+
+	mozartBranches := mozart.BuildMozartBranches(userRules)
+	reverseUserRelateds := mozart.BuildReverseUserRelateds(userRules)
+
+	mozartMap := make(map[string]gpModel.MozartYaml)
+	for i := range userYamlRules {
+		for j := range userYamlRules[i].MozartYamls {
+			mozartMap[userYamlRules[i].MozartYamls[j].Key] = userYamlRules[i].MozartYamls[j]
+		}
+	}
+
+	userMap := make(map[string]mozart.Rule)
+	for i := range userRules {
+		userMap[userRules[i].Name] = userRules[i]
+	}
+
+	// 判断falco是否应该关闭
+	for i := range falcoRules {
+		// 跳过marco
+		if falcoRules[i].Macro != "" || falcoRules[i].List != "" {
+			continue
+		}
+		disabled, err := mozart.CheckFalcoDisabled(falcoRules[i], mozartMap, falcoMozartMap, mozartBranches, mozartUsersMap, reverseUserRelateds, userClosedRulesMap)
+		if err != nil {
+			logging.Get().Error().Err(err).Msg("CheckFalcoDisabled fails")
+			continue
+		}
+		if disabled {
+			disabledFalco = append(disabledFalco, &pb.RuleConfig{RuleKey: falcoRules[i].Rule, Disabled: true})
+		}
+	}
+
+	err = ec.mozart.UpdateRules(mozart.RuleUpdateOperationAdd, newV, userRules, falcoMozartMap)
+	if err != nil {
+		logging.Get().Error().Err(err).Msg("update mozart rules fails")
+		return err
+	}
+
+	reloadReq.SRuleConfigs = disabledFalco
 
 	// 同步更新engine，并等待结果
 	err = ec.engineManager.ReloadEngine(context.Background(), reloadReq)
 	if err != nil {
 		logging.Get().Err(err).Str("sversion", reloadReq.StaticVersion).Msg("reload error")
 
-		merr := ec.mozart.UpdateRules(mozart.RuleUpdateOperationDel, newV, nil)
+		merr := ec.mozart.UpdateRules(mozart.RuleUpdateOperationDel, newV, nil, nil)
 		if merr != nil {
 			logging.Get().Error().Err(merr).Msg("update mozart rules fails")
 			return merr
@@ -302,7 +336,7 @@ func (ec *EngineStreamHandler) doReloadingMozart(ctx context.Context, reloadReq 
 		return err
 	} else {
 		logging.Get().Info().Str("sversion", reloadReq.StaticVersion).Msg("reload ok")
-		err = ec.mozart.UpdateRules(mozart.RuleUpdateOperationDel, ec.mozart.GetActiveRulesVersion(), nil)
+		err = ec.mozart.UpdateRules(mozart.RuleUpdateOperationDel, ec.mozart.GetActiveRulesVersion(), nil, nil)
 		if err != nil {
 			logging.Get().Error().Err(err).Msg("update mozart rules fails")
 			return err
@@ -320,50 +354,85 @@ func (ec *EngineStreamHandler) engineReloads(ctx context.Context) error {
 		}
 	}()
 
-	rulesInfo, err := dal.LoadAttackRules(context.Background(), ec.config.CtrlServerUrl, currentEngineLargeVersion, ec.getCurrentRulesVersion(), ec.currentConfigVal.Load().version)
+	rulesInfo, err := dal.LoadAttackRules(ctx, ec.config.CtrlServerUrl, model.CurrentEngineLargeVersion, ec.getCurrentRulesVersion(), ec.currentConfigVal.Load().version)
 	if err != nil {
+		logging.Get().Error().Err(err).Msg("LoadAttackRules fails")
 		return err
 	}
 	rulesChanged, configsChanged := false, false
 	sversion := ec.getCurrentRulesVersion()
 	reloadReq := new(pb.ReloadRequest)
+	var header cryption.FileHeader
+	var decodedUserData []byte             // 未aes加密、未base64编码 的 mozart规则
+	var decodedFalcoData []byte            // 未aes加密、未base64编码 的 falco规则
+	var falcoMozartMap map[string][]string // falco rule 和 mozart rules 的映射。key为falco rule.Name, value为对应的mozart []rule.Key
+	sconfigs := ec.currentConfigVal.Load() // 当前的规则开关和版本号，刚启动时为空；规则settings变化时，会下发最新的规则开关
+
 	if rulesInfo.LatestDataVersion > ec.getCurrentRulesVersion() && rulesInfo.DataChanged {
+		rulesChanged = true
+		header, decodedUserData, err = manager.DoRulesDecode([]byte(rulesInfo.Data))
+		if err != nil {
+			logging.Get().Error().Err(err).Msg("rules data mozart decode fails")
+			return err
+		}
 		if debugMode {
 			// DEBUG start
-			dec, err := base64.StdEncoding.DecodeString(rulesInfo.Data)
-			if err == nil {
-				header, rulesContext, _, _ := cryption.ReadRulesData(dec)
-				logging.Get().Info().Uints16("version", header.Version[:]).Msg("DEBUG updated rules")
-				ec.saveToDir(rulesContext, 9999999)
-			}
+			logging.Get().Info().Uints16("version", header.Version[:]).Msg("DEBUG updated mozart rules")
+			ec.saveToDir(decodedUserData, 888888)
 			// DEBUG end
 		}
-
-		if err := ec.saveToDir([]byte(rulesInfo.Data), rulesInfo.LatestDataVersion); err == nil {
-			rulesChanged = true
+		decodedFalcoData, falcoMozartMap, err = mozart.UserRule2Falco(decodedUserData)
+		if err != nil {
+			logging.Get().Error().Err(err).Msg("UserRule2Falco converts fails")
+			return err
+		}
+		if debugMode {
+			// DEBUG start
+			logging.Get().Info().Uints16("version", header.Version[:]).Msg("DEBUG updated mozart rules")
+			ec.saveToDir(decodedUserData, 888888)
+			// DEBUG end
+		}
+		encodedFalcoData, err := holmes.ToThrBytes(decodedFalcoData, header.Version)
+		if err != nil {
+			logging.Get().Error().Err(err).Msg("ToThrBytes encode fails")
+			return err
+		}
+		base64FalcoData := base64.StdEncoding.EncodeToString(encodedFalcoData)
+		if err := ec.saveToDir([]byte(base64FalcoData), rulesInfo.LatestDataVersion); err == nil {
 			sversion = rulesInfo.LatestDataVersion
 		} else {
 			return err
 		}
+		if debugMode {
+			// DEBUG start
+			logging.Get().Info().Uints16("version", header.Version[:]).Msg("DEBUG updated falco rules")
+			ec.saveToDir(decodedFalcoData, 9999999)
+			// DEBUG end
+		}
+
+	} else {
+		decodedUserData = ec.ruleData.decodedUserData
+		decodedFalcoData = ec.ruleData.decodedFalcoData
+		falcoMozartMap = ec.ruleData.falcoMozartMap
 	}
 
-	sconfigs := ec.currentConfigVal.Load()
-	reloadReq.StaticVersion = strconv.FormatInt(sversion, 10)
 	if rulesInfo.LatestSettingVersion > ec.currentConfigVal.Load().version && rulesInfo.SettingChanged {
+		configsChanged = true
 		configsArr := toConfigsArr(rulesInfo)
 		sconfigs = &ruleConfig{
 			rulesConfig: configsArr,
 			version:     rulesInfo.LatestSettingVersion,
 		}
-		configsChanged = true
 	}
+
+	reloadReq.StaticVersion = strconv.FormatInt(sversion, 10)
 	reloadReq.SRuleConfigs = sconfigs.rulesConfig
 	reloadReq.SConfigVersion = strconv.FormatInt(sconfigs.version, 10)
 	logging.Get().Info().Int64("currRulesVersion", ec.getCurrentRulesVersion()).Int64("newRulesVersion", rulesInfo.LatestDataVersion).
 		Int64("currConfigVersion", ec.currentConfigVal.Load().version).Int64("newConfigVersion", rulesInfo.LatestSettingVersion).Msg("Recieve new rules data")
 
 	if rulesChanged || configsChanged {
-		err := ec.doReloadingMozart(context.Background(), reloadReq, []byte(rulesInfo.Data), rulesChanged, configsChanged)
+		err := ec.doReloadingMozart(ctx, reloadReq, decodedFalcoData, decodedUserData, falcoMozartMap, rulesChanged, configsChanged)
 		if err != nil {
 			logging.Get().Err(err).Str("sversion", reloadReq.StaticVersion).Msg("reload error")
 			isInvalid, _ := manager.IsVersionInvalidError(err)
@@ -454,7 +523,7 @@ func (ec *EngineStreamHandler) handle(ctx context.Context, e eventItem) error {
 		outputFields = map[string]interface{}{}
 	}
 	md["output_map"] = outputFields
-	md["version1"] = currentEngineLargeVersion
+	md["version1"] = model.CurrentEngineLargeVersion
 	err := ec.mozart.Run(mozart.Event{
 		Name:    e.data.Rule,
 		Payload: md,

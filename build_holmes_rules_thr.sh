@@ -13,3 +13,9 @@ V1=$(git log --merges | grep "into 'master'" | wc -l)
 V=$(printf "%s.%s" $V0 $V1)
 echo HOLMES RULES THR VERSION: $V
 ./dist/holmes-rules-pack --input configs/holmes/rules/v2 --output ./dist/holmes-rules-v$V.thr --version "$V"
+
+V0=3
+V1=$(git log --merges | grep "into 'master'" | wc -l)
+V=$(printf "%s.%s" $V0 $V1)
+echo HOLMES RULES THR VERSION: $V
+./dist/holmes-rules-pack --input configs/holmes/rules/v3 --output ./dist/holmes-rules-v$V.thr --version "$V"

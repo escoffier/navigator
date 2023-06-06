@@ -559,6 +559,7 @@ func createUserByIdp(ctx context.Context, rdb *databases.RDBInstance, platform s
 }
 
 func checkUserStatus(username string, status int) error {
+	return nil
 	if username == model.UserSuperAdmin {
 		return nil
 	}

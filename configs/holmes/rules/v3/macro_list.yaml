@@ -1,5 +1,5 @@
-##ignored Rules that might be used
-#- rule: Write below root
+##Rules that might be used
+#- key: Write below root
 #  desc: an attempt to write to any file directly below / or /root
 #  condition: >
 #    root_dir and evt.dir = < and open_write
@@ -24,17 +24,17 @@
 #    and not known_root_conditions
 #    and not user_known_write_root_conditions
 #    and not user_known_write_below_root_activities
-#  output: "File below / or /root opened for writing (zh_msg=在根目录下写;尝试直接在below/or/root写入任何文件,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid parent=%proc.pname file=%fd.name program=%proc.name container_id=%container.id container_name=%container.name image=%container.image.repository)"
+#  output: "File below / or /root opened for writing (zh_msg=在根目录下写;尝试直接在below/or/root写入任何文件,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name user_loginuid=%user.loginuid parent=%proc.pname file=%fd.name program=%proc.name container_id=%container.id container_name=%container.name image=%container.image.repository)"
 #  priority: ERROR
 #  tags: [filesystem, mitre_persistence]
 
 # With the current restriction on system calls handled by falco
 # (e.g. excluding read/write/sendto/recvfrom/etc, this rule won't
 # trigger).
-# - rule: Ssh error in syslog
+# - key: Ssh error in syslog
 #   desc: any ssh errors (failed logins, disconnects, ...) sent to syslog
 #   condition: syslog and ssh_error_message and evt.dir = <
-#   output: "sshd sent error message to syslog (zh_msg=syslog中的Ssh错误;发送到syslog的任何Ssh错误,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=error=%evt.buffer)"
+#   output: "sshd sent error message to syslog (zh_msg=syslog中的Ssh错误;发送到syslog的任何Ssh错误,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,error=%evt.buffer)"
 #   priority: WARNING
 
 # # How to test:
@@ -44,7 +44,7 @@
 # kubectl run --generator=run-pod/v1 -n default -i --tty busybox --image=busybox --rm -- wget google.com -O /var/google.html
 # # Check logs running
 
-# - rule: Network Connection outside Local Subnet
+# - key: Network Connection outside Local Subnet
 #   desc: Detect traffic to image outside local subnet.
 #   condition: >
 #     enabled_rule_network_only_subnet and
@@ -54,7 +54,7 @@
 #     k8s.ns.name in (namespace_scope_network_only_subnet)
 #   output: >
 #     Network connection outside local subnet
-#     (zh_msg=本地子网外部的网络连接;检查流量以在本地子网外部镜像,syscalla_name=%syscall.type,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=connection=%fd.name user=%user.name user_loginuid=%user.loginuid container_id=%container.id
+#     (zh_msg=本地子网外部的网络连接;检查流量以在本地子网外部镜像,syscalla_name=%syscall.type,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,connection=%fd.name user=%user.name user_loginuid=%user.loginuid container_id=%container.id
 #      image=%container.image.repository namespace=%k8s.ns.name
 #      fd.rip.name=%fd.rip.name fd.lip.name=%fd.lip.name fd.cip.name=%fd.cip.name fd.sip.name=%fd.sip.name)
 #   priority: WARNING
@@ -71,7 +71,7 @@
 # # Visit the Nginx service and port, should not fire.
 # # Change rule to different port, then different process name, and test again that it fires.
 
-# - rule: Outbound or Inbound Traffic not to Authorized Server Process and Port
+# - key: Outbound or Inbound Traffic not to Authorized Server Process and Port
 #   desc: Detect traffic that is not to authorized server process and port.
 #   condition: >
 #     allowed_port and
@@ -82,19 +82,19 @@
 #     not fd.sport in (authorized_server_port)
 #   output: >
 #     Network connection outside authorized port and binary
-#     (zh_msg=出站或入站流量不流向授权服务器的进程和端口;检测不属于授权服务器进程和端口的流量,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=connection=%fd.name user=%user.name user_loginuid=%user.loginuid container_id=%container.id
+#     (zh_msg=出站或入站流量不流向授权服务器的进程和端口;检测不属于授权服务器进程和端口的流量,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,connection=%fd.name user=%user.name user_loginuid=%user.loginuid container_id=%container.id
 #     image=%container.image.repository)
 #   priority: WARNING
 #   tags: [network]
 
-# - rule: Redirect STDOUT/STDIN to Network Connection in Container
+# - key: Redirect STDOUT/STDIN to Network Connection in Container
 #   desc: Detect redirecting stdout/stdin to network connection in container (potential reverse shell).
 #   condition: evt.type=dup and evt.dir=> and container and fd.num in (0, 1, 2) and fd.type in ("ipv4", "ipv6") and not user_known_stand_streams_redirect_activities
 #   output: >
-#     Redirect stdout/stdin to network connection (zh_msg=将标准输出/标准输入重定向到容器中的网络连接;检测标准输出/标准输入重定向容器中的网络连接,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid %container.info process=%proc.name parent=%proc.pname terminal=%proc.tty container_id=%container.id container_name=%container.name image=%container.image.repository fd_name=%fd.name fd.num=%fd.num fd.type=%fd.type fd.sip=%fd.sip)
+#     Redirect stdout/stdin to network connection (zh_msg=将标准输出/标准输入重定向到容器中的网络连接;检测标准输出/标准输入重定向容器中的网络连接,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name user_loginuid=%user.loginuid %container.info process=%proc.name parent=%proc.pname terminal=%proc.tty container_id=%container.id container_name=%container.name image=%container.image.repository fd_name=%fd.name fd.num=%fd.num fd.type=%fd.type fd.sip=%fd.sip)
 #   priority: WARNING
 
-# - rule: Container Drift Detected (chmod)
+# - key: Container Drift Detected (chmod)
 #   desc: New executable created in a container due to chmod
 #   condition: >
 #     chmod and
@@ -107,13 +107,13 @@
 #     ((evt.arg.mode contains "S_IXUSR") or
 #     (evt.arg.mode contains "S_IXGRP") or
 #     (evt.arg.mode contains "S_IXOTH"))
-#   output: Drift detected (chmod), new executable created in a container (zh_msg=检测到容器漂移(chmod）;由于chmod在容器中创建了新可执行文件,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid filename=%evt.arg.filename name=%evt.arg.name mode=%evt.arg.mode event=%evt.type)
+#   output: Drift detected (chmod), new executable created in a container (zh_msg=检测到容器漂移(chmod）;由于chmod在容器中创建了新可执行文件,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name user_loginuid=%user.loginuid filename=%evt.arg.filename name=%evt.arg.name mode=%evt.arg.mode event=%evt.type)
 #   priority: ERROR
 
 # ****************************************************************************
 # * "Container Drift Detected (open+create)" requires FALCO_ENGINE_VERSION 6 *
 # ****************************************************************************
-# - rule: Container Drift Detected (open+create)
+# - key: Container Drift Detected (open+create)
 #   desc: New executable created in a container due to open+create
 #   condition: >
 #     evt.type in (open,openat,creat) and
@@ -123,33 +123,32 @@
 #     not runc_writing_var_lib_docker and
 #     not user_known_container_drift_activities and
 #     evt.rawres>=0
-#   output: Drift detected (open+create), new executable created in a container (zh_msg=检测到容器漂移(open+create）;由于open+create在容器中创建了新可执行文件,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid filename=%evt.arg.filename name=%evt.arg.name mode=%evt.arg.mode event=%evt.type)
+#   output: Drift detected (open+create), new executable created in a container (zh_msg=检测到容器漂移(open+create）;由于open+create在容器中创建了新可执行文件,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name user_loginuid=%user.loginuid filename=%evt.arg.filename name=%evt.arg.name mode=%evt.arg.mode event=%evt.type)
 #   priority: ERROR
 
-# - rule: Outbound Connection to C2 Servers
+# - key: Outbound Connection to C2 Servers
 #   desc: Detect outbound connection to command & control servers
 #   condition: outbound and fd.sip in (c2_server_ip_list)
-#   output: Outbound connection to C2 server (zh_msg=与C2服务器的出站连接;检测命令与控制服务器的出站连接,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=connection=%fd.name user=%user.name user_loginuid=%user.loginuid container_id=%container.id container_name=%container.name image=%container.image.repository)
+#   output: Outbound connection to C2 server (zh_msg=与C2服务器的出站连接;检测命令与控制服务器的出站连接,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,connection=%fd.name user=%user.name user_loginuid=%user.loginuid container_id=%container.id container_name=%container.name image=%container.image.repository)
 #   priority: WARNING
 #   tags: [network]
 
-# - rule: Linux Kernel Module Injection Detected
+# - key: Linux Kernel Module Injection Detected
 #   desc: Detect kernel module was injected (from container).
 #   condition: spawned_process and container and proc.name=insmod and not proc.args in (white_listed_modules)
-#   output: Linux Kernel Module injection using insmod detected (zh_msg=检测到Linux内核模块注入;检测注入的内核模块(从容器中),proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid parent_process=%proc.pname module=%proc.args)
+#   output: Linux Kernel Module injection using insmod detected (zh_msg=检测到Linux内核模块注入;检测注入的内核模块(从容器中),proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name user_loginuid=%user.loginuid parent_process=%proc.pname module=%proc.args)
 #   priority: WARNING
 #   tags: [process]
 
 # # The rule is disabled by default and should be enabled when non-root container policy has been applied.
 # # Note the rule will not work as expected when usernamespace is applied, e.g. userns-remap is enabled.
-# - rule: Container Run as Root User
+# - key: Container Run as Root User
 #   desc: Detected container running as root user
 #   condition: spawned_process and container and proc.vpid=1 and user.uid=0 and not user_known_run_as_root_container
 #   enabled: false
-#   output: Container launched with root user privilege (zh_msg=容器以根用户身份运行;检测到以根用户身份运行的容器,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=uid=%user.uid container_id=%container.id container_name=%container.name image=%container.image.repository:%container.image.tag)
+#   output: Container launched with root user privilege (zh_msg=容器以根用户身份运行;检测到以根用户身份运行的容器,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,uid=%user.uid container_id=%container.id container_name=%container.name image=%container.image.repository,image_tag=%container.image.tag)
 #   priority: INFO
 #   tags: [container, process]
-
 
 
 ##macros_lists
@@ -2209,7 +2208,7 @@
     5555, 5556, 5588, 5730, 6099, 6666, 7777,
     7778, 8000, 8001, 8008, 8080, 8118, 8333,
     8888, 8899, 9332, 9999, 14433, 14444,
-    45560, 45700
+    45560, 45700, 80, 443
   ]
 
 - list: miner_domains
@@ -2434,7 +2433,7 @@
     k8s.pod.name contains "588ee1")
 
 - macro: tensorsec_namespace
-  condition: k8s.ns.name = tensorsec
+  condition: k8s.ns.name = tensorsec and not k8s.pod.name contains "faulty"
 
 #Common k8s ports for penetration testing
 # kube-apiserver: 6443, 8080
@@ -2492,3 +2491,135 @@
   condition: >
     (fd.sport in (database_ports) or
     fd.sport in (vulnerable_ports))
+
+#related_rules
+- key: Contact remote server from container
+  hid: related_01
+  condition: >
+    evt.type in (connect,sendto,sendmsg)
+    and fd.name contains "->"
+    and fd.net != "127.0.0.0/8"
+    and not fd.sport in ("", 53)
+    and fd.name != "" and fd.name exists
+    and shell_family_procs
+    and not proc.name in (known_system_procs_network_activity_binaries)
+    and not proc.pname in (known_system_procs_network_activity_binaries)
+    and not (package_mgmt_procs or package_mgmt_ancestor_procs)
+    and not login_doing_dns_lookup
+    and not user_expected_system_procs_network_activity_conditions and container
+    and not tensorsec_namespace
+  output: >
+    pod_id=%k8s.pod.id,syscall_name=%syscall.type,terminal=%proc.tty,user_uid=%user.uid,container_id=%container.id,container_name=%container.name,fd.num=%fd.num,fd.type=%fd.type,connection=%fd.name,client_ip=%fd.cip,client_port=%fd.cport,server_ip=%fd.sip,server_port=%fd.sport,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pgid=%proc.vpgid,proc_name=%proc.name,parent=%proc.pname,proc.aname=%proc.aname[0],proc.aname=%proc.aname[1],gparent=%proc.aname[2],ggparent=%proc.aname[3],gggparent=%proc.aname[4]
+  info:
+    name:
+      en: "Contact remote server from container"
+    tags: [ATT&CK, filesystem, mitre_privilege_escalation, related]
+
+- key: Running vim in container
+  hid: related_02
+  condition: >
+    open_read and evt.arg.name = "/usr/share/vim/vimrc" and container and shell_parent_procs
+  output: >
+    proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_name=%proc.name,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,container_id=%container.id,container_name=%container.name
+  info:
+    name:
+      en: "Running vim in container"
+    tags: [ATT&CK, filesystem, mitre_privilege_escalation, related]
+
+- key: Running telnet in container
+  hid: related_03
+  condition: >
+    ((evt.type=openat and evt.arg.name contains ".telnetrc") or (evt.type=write and evt.arg.data contains "telnet: Unable to connect") or (evt.type=recvfrom and proc.name contains "telnet" and container and not ignore_proc_args)) and container
+  output: >
+    proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_name=%proc.name,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,container_id=%container.id,container_name=%container.name,proc_pgid=%proc.vpgid
+  info:
+    name:
+      en: "Running telnet in container"
+    tags: [ATT&CK, filesystem, mitre_privilege_escalation, related]
+ 
+- key: Created remote connection through ruby in container
+  hid: related_04
+  condition: >
+    evt.type=openat and (evt.arg.name contains "/lib64/libruby.so" or evt.arg.name contains "/usr/share/rubygems-integration/all/specifications") and
+    evt.res!=ENOENT and proc.cmdline contains "TCPSocket" and container
+  output: >
+    proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_name=%proc.name,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,container_id=%container.id,container_name=%container.name,proc_pgid=%proc.vpgid
+  info:
+    name:
+      en: "Created remote connection through ruby in container"
+    tags: [ATT&CK, filesystem, mitre_privilege_escalation, related]
+
+- key: Running visudo in container
+  hid: related_05
+  condition: >
+    ((spawned_process and proc.name = visudo) or (open_write and evt.arg.data contains visudo)) and container
+  output: >
+    proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_name=%proc.name,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,container_id=%container.id,container_name=%container.name
+  info:
+    name:
+      en: "Running visudo in container"
+    tags: [ATT&CK, filesystem, mitre_privilege_escalation, related]
+
+- key: Created remote connection through awk in container
+  hid: related_06
+  condition: >
+    evt.type=connect and not evt.res contains "ECONNREFUSED" and evt.arg.res!=0 and container and not ignore_proc_args and proc.name contains "awk" and proc.cmdline contains "/inet/tcp/" and shell_parent_procs
+  output: >
+    proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,evt.args=%evt.args,user=%user.name,user_loginuid=%user.loginuid,container_id=%container.id,container_name=%container.name,image=%container.image.repository,image_tag=%container.image.tag,connection=%fd.name,client_ip=%fd.cip,client_port=%fd.cport,server_ip=%fd.sip,server_port=%fd.sport
+  info:
+    name:
+      en: "Created remote connection through awk in container"
+    tags: [ATT&CK, network, process, mitre_execution, related]
+
+- key: Generated java child process shell after starting the container
+  hid: related_07
+  condition: >
+   spawned_process and evt.res!=ENOENT and
+   container and not container_entrypoint and
+   shell_procs and proc.aname = java
+  output: >
+    proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_name=%proc.name,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,evt.arg.exe=%evt.arg.exe,terminal=%proc.tty,user_uid=%user.uid,container_id=%container.id,container_name=%container.name,parent=%proc.pname,gparent=%proc.aname[2],ggparent=%proc.aname[3],aname[4]=%proc.aname[4],aname[5]=%proc.aname[5],aname[6]=%proc.aname[6],aname[7]=%proc.aname[7],proc_pgid=%proc.vpgid
+  info:
+    name:
+      en: "Generated java child process shell after starting the container"
+    tags: [ATT&CK, filesystem, mitre_privilege_escalation, related]
+
+- key: Generated go child process shell after starting the container
+  hid: related_08
+  condition: >
+   spawned_process and evt.res!=ENOENT and
+   container and not container_entrypoint and
+   shell_procs and proc.aname = go
+  output: >
+    proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_name=%proc.name,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,evt.arg.exe=%evt.arg.exe,terminal=%proc.tty,user_uid=%user.uid,container_id=%container.id,container_name=%container.name,parent=%proc.pname,gparent=%proc.aname[2],ggparent=%proc.aname[3],aname[4]=%proc.aname[4],aname[5]=%proc.aname[5],aname[6]=%proc.aname[6],aname[7]=%proc.aname[7],proc_pgid=%proc.vpgid
+  info:
+    name:
+      en: "Generated go child process shell after starting the container"
+    tags: [ATT&CK, filesystem, mitre_privilege_escalation, related]
+
+- key: Generated child process shell after starting the container
+  hid: related_09
+  condition: >
+    spawned_process and evt.res!=ENOENT and
+    container and not container_entrypoint and
+    shell_procs
+  output: >
+    proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_name=%proc.name,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,evt.arg.exe=%evt.arg.exe,terminal=%proc.tty,user_uid=%user.uid,container_id=%container.id,container_name=%container.name,parent=%proc.pname,gparent=%proc.aname[2],ggparent=%proc.aname[3],aname[4]=%proc.aname[4],aname[5]=%proc.aname[5],aname[6]=%proc.aname[6],aname[7]=%proc.aname[7],proc_pgid=%proc.vpgid
+  info:
+    name:
+      en: "Generated child process shell after starting the container"
+    tags: [ATT&CK, filesystem, mitre_privilege_escalation, related]
+
+- key: Calling the dup system call in container
+  hid: related_10
+  condition: >
+    evt.type in (dup, dup2) and
+    fd.num in (0, 1, 2) and fd.type in ("ipv4", "ipv6", "pipe") and fd.name contains "->" and
+    container and shell_family_procs and
+    not k8s.pod.name contains "98166d" and not k8s.pod.name contains "42cca6"
+  output: >
+    proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,container.info=%container.info,process=%proc.name,parent=%proc.pname,terminal=%proc.tty,container_id=%container.id,container_name=%container.name,image=%container.image.repository,fd_name=%fd.name,fd.num=%fd.num,fd.type=%fd.type,connection=%fd.name,client_ip=%fd.cip,client_port=%fd.cport,server_ip=%fd.sip,server_port=%fd.sport,proc_vpgid=%proc.vpgid
+  info:
+    name:
+      en: "Calling the dup system call in container"
+    tags: [ATT&CK, container, shell, mitre_execution, related]

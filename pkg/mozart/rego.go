@@ -46,6 +46,16 @@ func (e *Engine) configToRegoQuery(stepName, stepCode string) (regoQuery rego.Pr
 				},
 				CacheContext),
 		).PrepareForEval(ctx)
+	case "checkValueInList":
+		regoQuery, err = rego.New(
+			rego.Query(stepCode),
+			rego.Function2(
+				&rego.Function{
+					Name: "CacheContext",
+					Decl: types.NewFunction(types.Args(types.S, types.S), types.A),
+				},
+				CacheContext),
+		).PrepareForEval(ctx)
 	case "checkRelatedExists":
 		regoQuery, err = rego.New(
 			rego.Query(stepCode),
@@ -58,7 +68,7 @@ func (e *Engine) configToRegoQuery(stepName, stepCode string) (regoQuery rego.Pr
 			rego.FunctionDyn(
 				&rego.Function{
 					Name: "ExistsInPeriod",
-					Decl: types.NewFunction(types.Args(types.S, types.S, types.S, types.A, types.S), types.B),
+					Decl: types.NewFunction(types.Args(types.S, types.S, types.S, types.A, types.S, types.S), types.B),
 				},
 				e.ExistsInPeriod),
 		).PrepareForEval(ctx)

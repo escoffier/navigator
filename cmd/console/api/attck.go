@@ -187,7 +187,7 @@ func (api *api) editCustomConfigs() http.HandlerFunc {
 			if len(c.RuleKey) > 0 {
 				rinfo, exist := service.GetRuleInfo(ctx, c.RuleKey)
 				if exist && rinfo != nil {
-					b.WriteString(rinfo.Name[lang])
+					b.WriteString(attck.GetFromHola(rinfo.Info.Name, lang))
 				} else {
 					b.WriteString(c.RuleKey)
 				}
@@ -250,7 +250,7 @@ func (api *api) addCustomConfigs() http.HandlerFunc {
 			if len(c.RuleKey) > 0 {
 				rinfo, exist := service.GetRuleInfo(ctx, c.RuleKey)
 				if exist && rinfo != nil {
-					b.WriteString(rinfo.Name[lang])
+					b.WriteString(attck.GetFromHola(rinfo.Info.Name, lang))
 				} else {
 					b.WriteString(c.RuleKey)
 				}
@@ -321,6 +321,7 @@ func (api *api) deleteCustomConfig() http.HandlerFunc {
 
 func (api *api) getATTCKLatestData() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+
 		ctx, cancel := context.WithTimeout(r.Context(), defaultConfigTimeout)
 		defer cancel()
 		service, ok := attck.GetServiceInstance()

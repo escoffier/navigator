@@ -35,7 +35,7 @@
   rulesAppliedSteps:
   - - Write below monitored dir
     - monitored_dir
-
+##custom_config_inits END
 
 
 

@@ -4,12 +4,14 @@ import (
 	"context"
 	"os"
 
-	"gitlab.com/piccolo_su/vegeta/pkg/model"
+	"gitlab.com/piccolo_su/vegeta/pkg/holmes"
+	"gitlab.com/security-rd/go-pkg/model"
 )
 
 const (
 	EnvKeyDPTags = "DP_TAGS"
 )
+
 type PocSwitchPlugin struct {
 	enabledTags map[string]struct{}
 }
@@ -45,12 +47,13 @@ type PocSwitchSession struct {
 func (s PocSwitchSession) Name() string {
 	return "poc_switch"
 }
-func (s PocSwitchSession) ProcessRule(ctx context.Context, r RawRule) (after *RawRule, changed bool, err error) {
-	return nil, false, nil
-}
-func (s PocSwitchSession) TmpProcessRule(ctx context.Context, r model.RuleFromYaml) (after *model.RuleFromYaml, changed bool, err error) {
+func (s PocSwitchSession) ProcessRule(ctx context.Context, r model.UserRuleYaml) (after *model.UserRuleYaml, changed bool, err error) {
+	if r.Condition == "" {
+		return nil, false, nil
+	}
+
 	isPOC := false
-	for _, tag := range r.Tags {
+	for _, tag := range r.Info.Tags {
 		if tag == "4t" {
 			isPOC = true
 			break
@@ -62,29 +65,26 @@ func (s PocSwitchSession) TmpProcessRule(ctx context.Context, r model.RuleFromYa
 	if len(s.p.enabledTags) == 0 {
 		return nil, true, nil
 	}
-	for _, tag := range r.Tags {
+	for _, tag := range r.Info.Tags {
 		if _, exist := s.p.enabledTags[tag]; exist {
 			return nil, false, nil
 		}
 	}
 	return nil, true, nil
 }
-func (s PocSwitchSession) ProcessMacro(ctx context.Context, m Macro) (after *Macro, changed bool, err error) {
+func (s PocSwitchSession) ProcessMacro(ctx context.Context, m holmes.Macro) (after *holmes.Macro, changed bool, err error) {
 	return nil, false, nil
 }
-func (s PocSwitchSession) ProcessList(ctx context.Context, l List) (after *List, changed bool, err error) {
+func (s PocSwitchSession) ProcessList(ctx context.Context, l holmes.List) (after *holmes.List, changed bool, err error) {
 	return nil, false, nil
 }
-func (s PocSwitchSession) NextRule(ctx context.Context) (r *RawRule, more bool) {
+func (s PocSwitchSession) NextRule(ctx context.Context) (r *model.UserRuleYaml, more bool) {
 	return nil, false
 }
-func (s PocSwitchSession) NextRuleTmp(ctx context.Context) (r *model.RuleFromYaml, more bool) {
+func (s PocSwitchSession) NextMacro(ctx context.Context) (after *holmes.Macro, more bool) {
 	return nil, false
 }
-func (s PocSwitchSession) NextMacro(ctx context.Context) (after *Macro, more bool) {
-	return nil, false
-}
-func (s PocSwitchSession) NextList(ctx context.Context) (after *List, more bool) {
+func (s PocSwitchSession) NextList(ctx context.Context) (after *holmes.List, more bool) {
 	return nil, false
 }
 
@@ -155,16 +155,13 @@ type CustomConfigSession struct {
 func (s CustomConfigSession) Name() string {
 	return s.p.Name()
 }
-func (s CustomConfigSession) ProcessRule(ctx context.Context, r RawRule) (after *RawRule, changed bool, err error) {
+func (s CustomConfigSession) ProcessRule(ctx context.Context, r model.UserRuleYaml) (after *model.UserRuleYaml, changed bool, err error) {
 	return nil, false, nil
 }
-func (s CustomConfigSession) TmpProcessRule(ctx context.Context, r model.RuleFromYaml) (after *model.RuleFromYaml, changed bool, err error) {
+func (s CustomConfigSession) ProcessMacro(ctx context.Context, m holmes.Macro) (after *holmes.Macro, changed bool, err error) {
 	return nil, false, nil
 }
-func (s CustomConfigSession) ProcessMacro(ctx context.Context, m Macro) (after *Macro, changed bool, err error) {
-	return nil, false, nil
-}
-func (s CustomConfigSession) ProcessList(ctx context.Context, l List) (after *List, changed bool, err error) {
+func (s CustomConfigSession) ProcessList(ctx context.Context, l holmes.List) (after *holmes.List, changed bool, err error) {
 	for _, lconfig := range s.customConfigs {
 		if lconfig.cconfig.CconfigKey == l.List {
 			for _, item := range lconfig.cconfig.Values {
@@ -187,15 +184,12 @@ func (s CustomConfigSession) ProcessList(ctx context.Context, l List) (after *Li
 	}
 	return nil, false, nil
 }
-func (s CustomConfigSession) NextRule(ctx context.Context) (r *RawRule, more bool) {
+func (s CustomConfigSession) NextRule(ctx context.Context) (r *model.UserRuleYaml, more bool) {
 	return nil, false
 }
-func (s CustomConfigSession) NextRuleTmp(ctx context.Context) (r *model.RuleFromYaml, more bool) {
+func (s CustomConfigSession) NextMacro(ctx context.Context) (after *holmes.Macro, more bool) {
 	return nil, false
 }
-func (s CustomConfigSession) NextMacro(ctx context.Context) (after *Macro, more bool) {
-	return nil, false
-}
-func (s CustomConfigSession) NextList(ctx context.Context) (after *List, more bool) {
+func (s CustomConfigSession) NextList(ctx context.Context) (after *holmes.List, more bool) {
 	return nil, false
 }

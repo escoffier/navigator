@@ -1,8 +1,6 @@
 package mozart
 
 import (
-	"fmt"
-	"strings"
 	"sync"
 	"time"
 )
@@ -50,94 +48,6 @@ type OutputFields struct {
 	SyscallType string `json:"syscall_type"`
 	FdName      string `json:"fd_name"`
 	ProcPgid    string `json:"proc_pgid"`
-}
-
-type configMozartStepParamsCheckExpression string
-type configMozartStepParamsCheckValue []interface{}
-type configMozartStepParamsCheckRelatedExists []interface{}
-type configMozartStepParamsCheckRelatedNotExists []interface{}
-type configMozartStepParamsCheckRuleRecentCount []interface{}
-type configMozartStepParamsCheckRegexMatch []interface{}
-
-type configMozartStepParamsExecExpression string
-type configMozartStepParamsExecDefineValue map[string]interface{}
-type configMozartStepParamsExecGenerateSignal map[string]interface{}
-type configMozartStepParamsExecSendPalace string
-
-func (cp configMozartStepParamsCheckExpression) rCode() string {
-	return string(cp)
-}
-
-func (cp configMozartStepParamsCheckValue) rCode() string {
-	return fmt.Sprintf("CacheContext(\"%s\", input.session_id) == \"%s\"", cp[0], cp[1])
-}
-
-func (cp configMozartStepParamsCheckRelatedExists) rCode() string {
-	return fmt.Sprintf("ExistsInPeriod(\"%s\", \"%s\", CacheContext(\"event_time\", input.session_id), CacheContext(\"%s\", input.session_id), \"%s\")", cp[0], cp[1], cp[2], cp[3])
-}
-
-func (cp configMozartStepParamsCheckRelatedNotExists) rCode() string {
-	return fmt.Sprintf("NotExistsInPeriod(\"%s\", \"%s\", CacheContext(\"event_time\", input.session_id))", cp[0], cp[1])
-}
-
-func (cp configMozartStepParamsCheckRuleRecentCount) rCode() string {
-	return fmt.Sprintf(`RuleRecentCount("%s", "%s", CacheContext("trigger", input.session_id), CacheContext("event_time", input.session_id), %d, "%s", "%s", "%s")`,
-		cp[0], cp[1], cp[2],
-		strings.ReplaceAll(cp[3].(string), `"`, `\"`),
-		strings.ReplaceAll(cp[4].(string), `"`, `\"`),
-		cp[5])
-}
-
-func (cp configMozartStepParamsCheckRegexMatch) rCode() string {
-	return fmt.Sprintf("CheckRegexMatch(`%s`, CacheContext(`%s`, input.session_id))", cp[0].(string), cp[1].(string))
-}
-
-func (cp configMozartStepParamsExecExpression) rCode() string {
-	return string(cp)
-}
-
-func (cp configMozartStepParamsExecDefineValue) rCode() string {
-	s := ""
-	valueTemplate := "%s=\"%v\";"
-	varTemplate := "%s=makeValue(\"%s\", input.session_id);"
-	for k, v := range cp {
-		template := valueTemplate
-		sv, sok := v.(string)
-		if sok && strings.Contains(sv, ".") { // fixme: 类似小数点或其他的特殊情况，暂不考虑
-			template = varTemplate
-		}
-		s += fmt.Sprintf(template, k, v)
-	}
-	s = s[:len(s)-1]
-	return s
-}
-
-func (cp configMozartStepParamsExecGenerateSignal) rCode() string {
-	s := ""
-	valueTemplate := "\"%s\":\"%v\""
-	varTemplate := "\"%s\":%s"
-	for k, v := range cp {
-		template := valueTemplate
-		if s != "" {
-			s += ","
-		}
-		sv, sok := v.(string)
-		if sok && strings.HasPrefix(sv, "input.") {
-			template = varTemplate
-			// todo: 处理从trigger中取值的情况
-			//v = strings.ReplaceAll(sv, "input.", "CacheContext(\"") + "\")"
-		}
-		s += fmt.Sprintf(template, k, v)
-	}
-	return fmt.Sprintf("signal := generateAlertSignal(CacheContext(\"trigger.payload\", input.session_id), {%s}, input.session_id)", s)
-}
-
-func (cp configMozartStepParamsExecSendPalace) rCode() string {
-	return "sendSignalToPalace(CacheContext(\"signal\", input.session_id))"
-}
-
-type ConfigMozartStepParams interface {
-	rCode() string
 }
 
 type cacheStruct struct {

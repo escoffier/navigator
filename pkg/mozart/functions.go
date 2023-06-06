@@ -127,10 +127,16 @@ func (e *Engine) ExistsInPeriod(x rego.BuiltinContext, as []*ast.Term) (*ast.Ter
 	// 未来可以进行pipeline粒度的重跑，或者理解为延后重新执行。但还不知道哪种方式对性能影响更小，先暂时按等待处理。
 	now := time.Now()
 	tStart := mozartStartTime.Add(-tPeriod)
-	tEnd := now.Add(tPeriod)
-	ticker := time.NewTicker(tPeriod)
-	<-ticker.C
-	ticker.Stop()
+	tEnd := mozartStartTime.Add(tPeriod)
+	if tEnd.After(now) {
+		//	cache session status
+		sSessionID := as[5].Value.String()
+		//fmt.Println("debug status: sSessionID: ", sSessionID)
+		sSessionID = sSessionID[1 : len(sSessionID)-1]
+		cacheSessionStatus(sSessionID, map[string]interface{}{"next_time": tEnd.Format(time.RFC3339)})
+		//fmt.Println("debug status: next_time: ", tEnd.Format(time.RFC3339))
+		return ast.ArrayTerm(ast.BooleanTerm(false), ast.StringTerm("")), nil
+	}
 
 	sTriggerValue := as[3].Value.String()
 	sTriggerValue = sTriggerValue[1 : len(sTriggerValue)-1]
@@ -301,6 +307,17 @@ func (e *Engine) RuleRecentCount(x rego.BuiltinContext, as []*ast.Term) (*ast.Te
 			cacheHashes = append(cacheHashes, fmt.Sprintf("%s:%v", fields[j], iValue))
 		}
 	}
+
+	ctx := context.Background()
+	result, err := e.deps.redis.Get(ctx, recentCountCacheKey(ruleName, sameFields, diffFields, cacheHashes)).Result()
+	if err != nil && err != redis.Nil {
+		return ast.BooleanTerm(false), nil
+	}
+	if result != "" || err != redis.Nil {
+		logging.Get().Info().Err(err).Str("key", recentCountCacheKey(ruleName, sameFields, diffFields, cacheHashes)).Msg("redis cache already")
+		return ast.BooleanTerm(false), nil
+	}
+
 	check := func(m map[string]interface{}) bool {
 		checkValueOk := true
 		for j := range sameFields {
@@ -346,16 +363,6 @@ func (e *Engine) RuleRecentCount(x rego.BuiltinContext, as []*ast.Term) (*ast.Te
 		return ast.BooleanTerm(false), nil
 	}
 
-	ctx := context.Background()
-	result, err := e.deps.redis.Get(ctx, recentCountCacheKey(ruleName, sameFields, diffFields, cacheHashes)).Result()
-	if err != nil && err != redis.Nil {
-		return ast.BooleanTerm(false), nil
-	}
-	if result != "" || err != redis.Nil {
-		logging.Get().Info().Err(err).Str("key", recentCountCacheKey(ruleName, sameFields, diffFields, cacheHashes)).Msg("redis cache already")
-		return ast.BooleanTerm(false), nil
-	}
-
 	param5, ok := as[7].Value.(ast.String)
 	if !ok {
 		err := errors.New("RuleRecentCount f not string")
@@ -395,6 +402,18 @@ func (e *Engine) CheckRegexMatch(x rego.BuiltinContext, a, b *ast.Term) (*ast.Te
 	}
 	key := paramB.String()[1 : len(paramB.String())-1]
 
+	ctx := context.Background()
+	cacheKey := regexCacheKey(pattern, key)
+	result, err := e.deps.redis.Get(ctx, cacheKey).Result()
+	fmt.Println("redis get: ", result, err, result == "1")
+	if err != nil && err != redis.Nil {
+		logging.Get().Error().Err(err).Str("key", cacheKey).Msg("redis get regexCache fails")
+		return ast.BooleanTerm(false), err
+	}
+	if err == nil {
+		return ast.BooleanTerm(result == "1"), nil
+	}
+
 	pattern = strings.ReplaceAll(strings.ReplaceAll(pattern, `\\`, `\`), `\"`, `"`)
 	//key = strings.ReplaceAll(strings.ReplaceAll(key, `\\`, `\`), `\"`, `"`)
 
@@ -409,11 +428,20 @@ func (e *Engine) CheckRegexMatch(x rego.BuiltinContext, a, b *ast.Term) (*ast.Te
 		return ast.BooleanTerm(false), err
 	}
 
+	result, err = e.deps.redis.Set(ctx, cacheKey, matched, time.Second*60).Result()
+	if err != nil {
+		logging.Get().Error().Err(err).Str("pattern", pattern).Str("key", key).Str("result", result).Bool("matched", matched).Msg(err.Error())
+	}
+
 	return ast.BooleanTerm(matched), nil
 }
 
 func recentCountCacheKey(ruleName string, sameFields, diffFields, cacheHashes []string) string {
 	return strings.Join(append([]string{ruleName}, append(sameFields, append(diffFields, cacheHashes...)...)...), "$")
+}
+
+func regexCacheKey(pattern, key string) string {
+	return fmt.Sprintf("pattern:%s$key:%s", pattern, key)
 }
 
 func (e *Engine) GenerateAlertSignal(x rego.BuiltinContext, a, b, c *ast.Term) (*ast.Term, error) {
@@ -424,6 +452,9 @@ func (e *Engine) GenerateAlertSignal(x rego.BuiltinContext, a, b, c *ast.Term) (
 	tPayload = strings.ReplaceAll(tPayload, "\\\"", "\"")
 	tSignal := SignalPayload{}
 	err := json.Unmarshal([]byte(tPayload), &tSignal)
+
+	//btom, _ := json.Marshal(tSignal.OutputMap)
+	//fmt.Println("GenerateAlertSignal OutputMap: ", string(btom))
 
 	if err != nil {
 		return nil, err
@@ -469,6 +500,11 @@ func (e *Engine) GenerateAlertSignal(x rego.BuiltinContext, a, b, c *ast.Term) (
 
 		tSignal.OutputFields[k] = v
 	}
+
+	//bm, _ := json.Marshal(m)
+	//fmt.Println("GenerateAlertSignal m: ", string(bm))
+	//btom2, _ := json.Marshal(tSignal.OutputMap)
+	//fmt.Println("GenerateAlertSignal OutputMap 2: ", string(btom2))
 
 	alertSignal := SignalPayload{
 		Version1:     tSignal.Version1,
@@ -670,22 +706,20 @@ func generateSignalContext(data *SignalPayload) (signalContext map[string]interf
 		"rule_type",
 	}
 
+	for key, value := range data.OutputMap {
+		if value == "<NA>" {
+			data.OutputMap[key] = ""
+		}
+	}
 	signalContext = map[string]interface{}{}
 
 	ppid := data.OutputMap["proc_ppid"]
-
-	procPname, ok := data.OutputMap["proc_pname"]
-	if ok {
-		signalContext["proc.pname"] = procPname
-		delete(data.OutputMap, model.FieldParentProcessName)
-		delete(data.OutputMap, "proc_pname")
-	}
 
 	command := data.OutputMap["proc_cmdline"]
 
 	pid := data.OutputMap["proc_pid"]
 	if command != "" {
-		signalContext["proc.name"] = strings.Split(command, " ")[0]
+		signalContext["proc_name"] = strings.Split(command, " ")[0]
 		delete(data.OutputMap, model.FieldProcessName)
 		delete(data.OutputMap, "proc_name")
 	}
@@ -699,10 +733,6 @@ func generateSignalContext(data *SignalPayload) (signalContext map[string]interf
 	podUID = data.OutputFields["k8s_pod_id"]
 
 	for key, value := range data.OutputMap {
-		if value == "<NA>" {
-			value = ""
-		}
-
 		if util.ContainsString(filteredOutFields, key) || strings.HasPrefix(key, "output_origin_") {
 			continue
 		}

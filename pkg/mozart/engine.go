@@ -3,6 +3,7 @@ package mozart
 import (
 	"context"
 	"errors"
+	"fmt"
 	"math/rand"
 	"os"
 	"strconv"
@@ -12,13 +13,9 @@ import (
 
 	"github.com/open-policy-agent/opa/rego"
 	"github.com/panjf2000/ants/v2"
-	"gopkg.in/yaml.v2"
 
-	"gitlab.com/piccolo_su/vegeta/pkg/model"
-	"gitlab.com/piccolo_su/vegeta/pkg/mozartcommon"
-	"gitlab.com/piccolo_su/vegeta/pkg/rtdetect"
-	"gitlab.com/piccolo_su/vegeta/pkg/util"
 	"gitlab.com/security-rd/go-pkg/logging"
+	gpModel "gitlab.com/security-rd/go-pkg/model"
 )
 
 const (
@@ -36,6 +33,10 @@ type Trigger struct {
 	Event map[string]interface{} `json:"event"`
 }
 
+type Related struct {
+	RuleName string `json:"rule_name"`
+}
+
 type Step struct {
 	Type         string `json:"type"`
 	Name         string `json:"name"`
@@ -45,22 +46,30 @@ type Step struct {
 }
 
 type Rule struct {
-	Name    string        `json:"name"`
-	Enabled bool          `json:"enabled"`
-	Trigger Trigger       `json:"trigger"`
-	Steps   []Step        `json:"steps"`
-	Type    string        `json:"type"`
-	Default BranchDefault `json:"default"`
+	Key      string                `json:"key"` // 原始mozart规则定义的key
+	Name     string                `json:"name"`
+	Enabled  bool                  `json:"enabled"`
+	Trigger  gpModel.Trigger       `json:"trigger"`  // 触发条件
+	Relateds []gpModel.Related     `json:"relateds"` // 关联条件
+	Steps    []gpModel.Step        `json:"steps"`
+	Type     string                `json:"type"`
+	Default  gpModel.BranchDefault `json:"default"`
+}
+
+type rulesWithDefault struct {
+	rules   []Rule // 所有该default分支相关的规则，默认串行执行。
+	runType string // branches_serial - 串行，branches_parallel - 并行
 }
 
 type RulesNew struct {
-	rulesWithDefault map[string][]Rule
-	otherRules       []Rule
+	rulesWithDefault map[string]rulesWithDefault // 有default分支的规则，key位defaultID
+	otherRules       []Rule                      // 其他不需要default分支的规则，当前为并行执行
 }
 
 type Engine struct {
-	rules              map[string][]Rule              // 第一层key为rule的版本
-	rulesNew           map[string]map[string]RulesNew // 第一层key为rule的版本
+	rules              map[string][]Rule              // 第一层key为rule的版本，value为该版本的rules列表
+	rulesNew           map[string]map[string]RulesNew // 第一层key为rule的版本，第二层key为trigger，value为RulesNew结构
+	falcoMozartMap     map[string]map[string][]string // 第一层key为rule的版本，第二次key为falco key，value为mozart keys
 	rulesLock          sync.RWMutex                   // rules有读写需求
 	activeRulesVersion string
 
@@ -95,13 +104,18 @@ func NewMozartEngine(ctx context.Context, options ...option) (*Engine, error) {
 	go asyncClearCache(ctx)
 
 	e := &Engine{
-		rules:    make(map[string][]Rule),
-		rulesNew: make(map[string]map[string]RulesNew),
-		pool:     pool,
-		deps:     do,
+		rules:          make(map[string][]Rule),
+		rulesNew:       make(map[string]map[string]RulesNew),
+		falcoMozartMap: make(map[string]map[string][]string),
+		pool:           pool,
+		deps:           do,
 	}
 
 	regoPreQueries.init()
+
+	RequestCache.init()
+
+	initHangupQueue(e)
 
 	rand.Seed(time.Now().UnixMilli())
 
@@ -165,7 +179,7 @@ func asyncClearCache(ctx context.Context) {
 	}
 }
 
-func (e *Engine) UpdateRules(operation int, version string, rules []Rule) error {
+func (e *Engine) UpdateRules(operation int, version string, rules []Rule, falcoMozartMap map[string][]string) error {
 	e.rulesLock.Lock()
 	defer e.rulesLock.Unlock()
 
@@ -174,6 +188,7 @@ func (e *Engine) UpdateRules(operation int, version string, rules []Rule) error 
 		if len(version) == 0 {
 			return nil
 		}
+
 		if len(e.rules) <= 1 {
 			err := errors.New("try to delete only one version rules")
 			logging.Get().Error().Err(err).Str("version", version).Msg("try to delete only one version rules")
@@ -189,6 +204,17 @@ func (e *Engine) UpdateRules(operation int, version string, rules []Rule) error 
 			logging.Get().Error().Err(errors.New("no such old version rulesNew")).Str("version", version).Msg("no such old version rulesNew")
 		} else {
 			delete(e.rulesNew, version)
+		}
+
+		if len(e.falcoMozartMap) <= 1 {
+			err := errors.New("try to delete only one version falcoMozartMap")
+			logging.Get().Error().Err(err).Str("version", version).Msg("try to delete only one version falcoMozartMap")
+			return err
+		}
+		if _, ok := e.falcoMozartMap[version]; !ok {
+			logging.Get().Error().Err(errors.New("no such old version falcoMozartMap")).Str("version", version).Msg("no such old version falcoMozartMap")
+		} else {
+			delete(e.falcoMozartMap, version)
 		}
 
 	}
@@ -213,23 +239,30 @@ func (e *Engine) UpdateRules(operation int, version string, rules []Rule) error 
 
 		rulesNew := make(map[string]RulesNew)
 		for k, v := range rulesMap {
-			m := make(map[string][]Rule)
+			m := make(map[string]rulesWithDefault)
+
 			defaultM := make(map[string]struct{})
 			for i := range v {
 				if v[i].Default.Enabled != nil {
 					defaultM[v[i].Default.ID] = struct{}{}
 				}
 				if rs, ok := m[v[i].Default.ID]; ok {
-					m[v[i].Default.ID] = append(rs, v[i])
+					m[v[i].Default.ID] = rulesWithDefault{
+						rules:   append(rs.rules, v[i]),
+						runType: rs.runType,
+					}
 				} else {
-					m[v[i].Default.ID] = []Rule{v[i]}
+					m[v[i].Default.ID] = rulesWithDefault{
+						rules:   []Rule{v[i]},
+						runType: v[i].Default.RunType,
+					}
 				}
 			}
 
 			otherRules := make([]Rule, 0)
 			for j := range m {
 				if _, ok := defaultM[j]; !ok {
-					otherRules = append(otherRules, m[j]...)
+					otherRules = append(otherRules, m[j].rules...)
 					delete(m, j)
 
 				}
@@ -240,162 +273,12 @@ func (e *Engine) UpdateRules(operation int, version string, rules []Rule) error 
 			}
 		}
 		e.rulesNew[version] = rulesNew
+
+		e.falcoMozartMap[version] = falcoMozartMap
 	}
 
 	return nil
 
-}
-
-func (e *Engine) LoadFromRuleBytes(ctx context.Context, ruleBytes []byte) ([]Rule, error) {
-	data := make([]model.OriginConfig, 0)
-	rules := make([]Rule, 0)
-	err := yaml.Unmarshal(ruleBytes, &data)
-	if err != nil {
-		return nil, err
-	}
-
-	// mozart
-	var mozartConfig []model.ConfigMozart
-	var mozartMarco []model.ConfigMozartMarco
-	for i := range data {
-		if len(data[i].MozartMarco) == 0 {
-			continue
-		}
-		mozartMarco = data[i].MozartMarco
-		break
-	}
-
-	for i := range data {
-		if len(data[i].Mozart) == 0 {
-			continue
-		}
-		mozartConfig = data[i].Mozart
-		for j := range data[i].Mozart {
-			// 没有配置mozart steps，跳过
-			if len(data[i].Mozart[j].Steps) == 0 {
-				continue
-			}
-			if data[i].Mozart[j].Name == "" || data[i].Mozart[j].Trigger == "" {
-				logging.Get().Warn().Str("trigger", data[i].Mozart[j].Trigger).Str("name", data[i].Mozart[j].Name).Msg("invalid rule key")
-				continue
-			}
-
-			values := map[string]interface{}{"0": map[string]interface{}{}}
-			for k := range data[i].Mozart[j].Steps {
-				innerValues, err := mozartcommon.ExtractValues(ctx, data[i].Mozart[j].Steps[k], mozartMarco, "0")
-				if err != nil {
-					return nil, err
-				}
-				for ik, iv := range innerValues {
-					values["0"].(map[string]interface{})[ik] = iv
-				}
-			}
-
-			stepsTotal := make([]StepMore, 0)
-			var stepsMatrix []StepMore
-			for k := range data[i].Mozart[j].Steps {
-				stepsMatrix, err = e.configStep2MozartStep(ctx, data[i].Mozart[j].Steps[k], mozartMarco, values, "0")
-				if err != nil {
-					return nil, err
-				}
-				if len(stepsMatrix) == 0 {
-					continue
-				}
-				newStepsTotal := make([]StepMore, 0)
-				if len(stepsTotal) == 0 {
-					newStepsTotal = stepsMatrix
-				} else {
-					for m := 0; m < len(stepsMatrix); m++ {
-						nst := make([]StepMore, len(stepsTotal))
-						for n := 0; n < len(stepsTotal); n++ {
-							nst[n].Steps = append(stepsTotal[n].Steps, stepsMatrix[m].Steps...)
-							nst[n].Key = correctKey(stepsTotal[n].Key, stepsMatrix[m].Key)
-							nst[n].Default = defaultOR(stepsTotal[n].Default, stepsMatrix[m].Default) // todo: 分支嵌套分支，有问题
-						}
-						newStepsTotal = append(newStepsTotal, nst...)
-					}
-				}
-				stepsTotal = newStepsTotal
-			}
-
-			for ii := range stepsTotal {
-				for jj := range stepsTotal[ii].Steps {
-					if stepsTotal[ii].Steps[jj].Name == "checkRegexMatch" { // 正则里有太多语法，和我们的替换赋值有冲突
-						continue
-					}
-					stepsTotal[ii].Steps[jj].Code, err = convertValuesByKey(stepsTotal[ii].Steps[jj].Code, stepsTotal[ii].Key, values)
-					if err != nil {
-						continue
-					}
-				}
-				desc, err := convertValuesByKey(data[i].Mozart[j].Info.Desc.En, stepsTotal[ii].Key, values)
-				if err != nil {
-					continue
-				}
-
-				rule := Rule{
-					Name:    desc,
-					Enabled: data[i].Mozart[j].Enabled,
-					Trigger: Trigger{Event: map[string]interface{}{
-						"name": data[i].Mozart[j].Trigger,
-					}},
-					Steps:   stepsTotal[ii].Steps,
-					Type:    "mozart",
-					Default: stepsTotal[ii].Default,
-				}
-				rules = append(rules, rule)
-			}
-
-		}
-		break
-	}
-
-	// 非mozart
-	for i := range data {
-		if len(data[i].Mozart) != 0 || data[i].Rule == "" {
-			continue
-		}
-
-		// 纯关联规则，跳过
-		if util.ContainsString(data[i].Tags, "related") && !util.ContainsString(data[i].Tags, "triggered") {
-			continue
-		}
-
-		// 不是关联也不是触发，普通falco规则，追加mozart基础规则
-		if !util.ContainsString(data[i].Tags, "related") && !util.ContainsString(data[i].Tags, "triggered") {
-			steps := e.makeupBasicSteps(ctx, data[i].Rule)
-			rules = append(rules, Rule{
-				Name:    data[i].Rule,
-				Enabled: true,
-				Trigger: Trigger{Event: map[string]interface{}{
-					"name": data[i].Rule,
-				}},
-				Steps: steps,
-				Type:  "basic",
-			})
-		}
-
-		// 如果触发信号为高危，则追加一条fallback规则（当没有任何关联信号时，直接上报触发信号）
-		if util.ContainsString(data[i].Tags, "triggered") && rtdetect.ComparePriority(data[i].Priority, "ERROR") {
-			steps := e.makeupFallbackSteps(ctx, data[i].Rule, mozartConfig)
-			rules = append(rules, Rule{
-				Name:    data[i].Rule,
-				Enabled: true,
-				Trigger: Trigger{Event: map[string]interface{}{
-					"name": data[i].Rule,
-				}},
-				Steps: steps,
-				Type:  "fallback",
-			})
-		}
-		continue
-	}
-
-	err = e.fillUpRegoPreQueries(ctx, rules)
-	if err != nil {
-		return rules, err
-	}
-	return rules, nil
 }
 
 type RegoPreQueries struct {
@@ -419,320 +302,33 @@ func (rpq *RegoPreQueries) get(key string) (*rego.PreparedEvalQuery, error) {
 	return query, nil
 }
 
-func (e *Engine) fillUpRegoPreQueries(ctx context.Context, rules []Rule) error {
+func (e *Engine) FillUpRegoPreQueries(ctx context.Context, rules []Rule) error {
 	regoPreQueries.lock.Lock()
 	defer regoPreQueries.lock.Unlock()
 
 	for k := range rules {
+		ruleRego := make(map[string]*rego.PreparedEvalQuery)
+		continueToNextRule := false
 		for j := range rules[k].Steps {
 			step := rules[k].Steps[j]
+			logging.Get().Debug().Str("name", step.Name).Str("code", step.Code).Msg("MOZART_DEBUG - build regoQeury")
 			r, err := e.configToRegoQuery(step.Name, step.Code)
 			if err != nil {
-				logging.Get().Error().Err(err).Msg("invalid step for rego prepare")
-				return err
+				// 有step不支持的时候，跳过该规则，继续加载后续的规则
+				logging.Get().Error().Err(err).Str("name", step.Name).Str("code", step.Code).Msg("invalid step for rego prepare")
+				continueToNextRule = true
+				break
 			}
-			regoPreQueries.queries[step.Code] = &r
+			ruleRego[step.Code] = &r
+		}
+		if continueToNextRule {
+			continue
+		}
+		for code, regoQeury := range ruleRego {
+			regoPreQueries.queries[code] = regoQeury
 		}
 	}
 	return nil
-}
-
-func convertValuesByKey(format string, key string, values map[string]interface{}) (string, error) {
-	var err error
-	var ok bool
-
-	keyElems := strings.Split(key, "-")
-	keys := make([]string, len(keyElems))
-	for i := range keyElems {
-		keys[i] = strings.Join(keyElems[:i+1], "-")
-	}
-
-	originVs := values
-	keyValues := make([]map[string]interface{}, 0)
-	for j := range keys {
-		vs := make(map[string]interface{})
-		originVs, ok = originVs[keys[j]].(map[string]interface{})
-		if !ok {
-			break
-		}
-		for k, v := range originVs {
-			if mozartcommon.CheckKey(k) {
-				continue
-			}
-			vs[k] = v
-		}
-		keyValues = append(keyValues, vs)
-	}
-
-	var iFormat interface{}
-	iFormat = format
-	for k := len(keyValues) - 1; k >= 0; k-- {
-		iFormat, err = mozartcommon.TemplateFormat(iFormat, keyValues[k])
-		if err != nil {
-			// 由于可能存在运行过程中的format，所以此处对于未完成的参数保持开放态度。。
-			continue
-		}
-	}
-
-	return iFormat.(string), nil
-}
-
-type BranchDefault struct {
-	Enabled *bool  `json:"enabled"`
-	ID      string `json:"id"`
-}
-
-func defaultOR(a, b BranchDefault) BranchDefault {
-	if b.Enabled != nil && a.Enabled == nil {
-		return b
-	}
-	if b.Enabled == nil && a.Enabled != nil {
-		return a
-	}
-	if b.Enabled == nil && a.Enabled == nil {
-		return a
-	}
-	if *b.Enabled {
-		return b
-	} else {
-		return a
-	}
-}
-
-type StepMore struct {
-	Steps   []Step
-	Key     string
-	Default BranchDefault
-}
-
-func correctKey(k1, k2 string) string {
-	if len(k1) > len(k2) {
-		return k1
-	}
-	return k2
-}
-
-func (e *Engine) configStep2MozartStep(ctx context.Context, configStep model.ConfigMozartStep, mozartMarco []model.ConfigMozartMarco, values map[string]interface{}, key string) ([]StepMore, error) {
-	var stepMatrix []StepMore
-	var err error
-
-	switch configStep.Name {
-	// 纯表达式
-	case "checkExpression":
-		stepMatrix = []StepMore{{Steps: []Step{simpleStep(configMozartStepParamsCheckExpression(configStep.Params.(string)).rCode(), configStep)}, Key: key}}
-	case "execExpression":
-		stepMatrix = []StepMore{{Steps: []Step{simpleStep(configMozartStepParamsExecExpression(configStep.Params.(string)).rCode(), configStep)}, Key: key}}
-
-	// 内置函数
-	case "checkValue":
-		stepMatrix = []StepMore{{Steps: []Step{simpleStep(configMozartStepParamsCheckValue(configStep.Params.([]interface{})).rCode(), configStep)}, Key: key}}
-	case "checkRelatedExists":
-		stepMatrix = []StepMore{{Steps: []Step{simpleStep(configMozartStepParamsCheckRelatedExists(configStep.Params.([]interface{})).rCode(), configStep)}, Key: key}}
-	case "checkRuleRecentCount":
-		stepMatrix = []StepMore{{Steps: []Step{simpleStep(configMozartStepParamsCheckRuleRecentCount(configStep.Params.([]interface{})).rCode(), configStep)}, Key: key}}
-	case "checkRegexMatch":
-		stepMatrix = []StepMore{{Steps: []Step{simpleStep(configMozartStepParamsCheckRegexMatch(configStep.Params.([]interface{})).rCode(), configStep)}, Key: key}}
-	case "execDefineValue":
-		p := configStep.Params.(map[interface{}]interface{})
-		mp := make(map[string]interface{}, len(p))
-		for k, v := range p {
-			mp[k.(string)] = v
-		}
-		configStep.Params = mp
-		stepMatrix = []StepMore{{Steps: []Step{simpleStep(configMozartStepParamsExecDefineValue(mp).rCode(), configStep)}, Key: key}}
-	case "execGenerateSignal":
-		p := configStep.Params.(map[interface{}]interface{})
-		mp := make(map[string]interface{}, len(p))
-		for k, v := range p {
-			mp[k.(string)] = v
-		}
-		configStep.Params = mp
-		stepMatrix = []StepMore{{Steps: []Step{simpleStep(configMozartStepParamsExecGenerateSignal(mp).rCode(), configStep)}, Key: key}}
-	case "execSendPalace":
-		stepMatrix = []StepMore{{Steps: []Step{simpleStep(configMozartStepParamsExecSendPalace(configStep.Params.(string)).rCode(), configStep)}, Key: key}}
-
-	case "branches":
-		var innerBranchStepMatrix []StepMore
-		branchName := strings.TrimPrefix(configStep.Params.(string), marcoPrefix)
-		branchID := branchName + strconv.Itoa(rand.Intn(99999999999))
-		foundBranchMarco := false
-		for i := range mozartMarco {
-			if mozartMarco[i].Key != branchName {
-				continue
-			}
-			foundBranchMarco = true
-			for j := range mozartMarco[i].Branches {
-				if !mozartMarco[i].Branches[j].Enabled && !mozartMarco[i].Branches[j].Default {
-					continue
-				}
-				branchMatrix := make([]StepMore, 0)
-				branchKey := key + "-" + strconv.Itoa(j)
-
-				for k := range mozartMarco[i].Branches[j].Steps {
-					innerBranchStepMatrix, err = e.configStep2MozartStep(ctx, mozartMarco[i].Branches[j].Steps[k], mozartMarco, values, branchKey)
-					if err != nil {
-						return nil, err
-					}
-					if len(innerBranchStepMatrix) == 0 { // defineValue等无需运行的step
-						continue
-					}
-					if len(innerBranchStepMatrix) == 1 && len(innerBranchStepMatrix[0].Steps) == 1 { // basic simple step
-						if len(branchMatrix) == 0 { // 长度为0，初始化
-							branchMatrix = append(branchMatrix, innerBranchStepMatrix[0])
-						} else { // 已有多个分支，将当前的simple step加入已有的分支尾端
-							for m := range branchMatrix {
-								branchMatrix[m].Steps = append(branchMatrix[m].Steps, innerBranchStepMatrix[0].Steps[0])
-								branchMatrix[m].Key = correctKey(branchMatrix[m].Key, innerBranchStepMatrix[0].Key)
-							}
-						}
-					} else { // embedded branches
-						newStepsTotal := make([]StepMore, 0)
-						if len(branchMatrix) == 0 {
-							newStepsTotal = innerBranchStepMatrix
-						} else {
-							for m := 0; m < len(innerBranchStepMatrix); m++ {
-								nst := make([]StepMore, len(branchMatrix))
-								for n := 0; n < len(branchMatrix); n++ {
-									nst[n].Steps = append(branchMatrix[n].Steps, innerBranchStepMatrix[m].Steps...)
-									nst[n].Key = correctKey(branchMatrix[n].Key, innerBranchStepMatrix[m].Key)
-								}
-								newStepsTotal = append(newStepsTotal, nst...)
-							}
-						}
-						branchMatrix = newStepsTotal
-					}
-				}
-				for k := range branchMatrix {
-					branchMatrix[k].Default.ID = branchID
-					if mozartMarco[i].Branches[j].Default {
-						_true := true
-						branchMatrix[k].Default.Enabled = &_true
-					} else {
-						_false := false
-						branchMatrix[k].Default.Enabled = &_false
-					}
-				}
-				stepMatrix = append(stepMatrix, branchMatrix...)
-			}
-		}
-		if !foundBranchMarco {
-			return stepMatrix, errors.New("no valid branch marco: " + branchName)
-		}
-	case "defineValue":
-		p := configStep.Params.(map[interface{}]interface{})
-		for k, v := range p {
-			values[k.(string)] = v
-		}
-	default:
-		err = errors.New("no match step name")
-		logging.Get().Error().Err(err).Str("stepName", configStep.Name).Msg("no match step name")
-		return stepMatrix, err
-	}
-
-	return stepMatrix, nil
-}
-
-func simpleStep(code string, config model.ConfigMozartStep) Step {
-	step := Step{Code: code}
-	step.Name = config.Name
-	if step.Name == "branches" {
-		step.Type = "branches"
-	} else if strings.HasPrefix(step.Name, "check") {
-		step.Type = "check"
-	} else {
-		step.Type = "exec"
-	}
-	step.OriginParams = config.Params
-	return step
-}
-
-func (e *Engine) makeupFallbackSteps(ctx context.Context, rule string, configMozartList []model.ConfigMozart) []Step {
-	var err error
-	steps := make([]Step, 0)
-	relatedMap := make(map[interface{}]struct{})
-	// checkRelatedNotExists
-	for i := range configMozartList {
-		if configMozartList[i].Trigger != rule {
-			continue
-		}
-		for j := range configMozartList[i].Steps {
-			if configMozartList[i].Steps[j].Name == "checkRelatedExists" {
-				if _, ok := relatedMap[configMozartList[i].Steps[j].Params.([]interface{})[0]]; ok {
-					continue
-				}
-				step := Step{}
-				step.Name = "checkRelatedNotExists"
-				step.Type = "check"
-				step.OriginParams = configMozartList[i].Steps[j].Params
-				step.Code = configMozartStepParamsCheckRelatedNotExists(configMozartList[i].Steps[j].Params.([]interface{})).rCode()
-				if err != nil {
-					continue
-				}
-				relatedMap[configMozartList[i].Steps[j].Params.([]interface{})[0]] = struct{}{}
-				steps = append(steps, step)
-			}
-		}
-	}
-
-	// execGenerateSignal
-	step := Step{}
-	mp := make(map[string]interface{})
-	mp["rule"] = rule
-	step.Code = configMozartStepParamsExecGenerateSignal(mp).rCode()
-	if err != nil {
-		logging.Get().Error().Err(err).Str("code", step.Code).Msg("prepareExecGenerateSignal fails")
-		return steps
-	}
-	step.Name = "execGenerateSignal"
-	step.Type = "exec"
-	step.OriginParams = mp
-	steps = append(steps, step)
-
-	// execSendPalace
-	step = Step{}
-	step.Code = configMozartStepParamsExecSendPalace("").rCode()
-	if err != nil {
-		logging.Get().Error().Err(err).Str("code", step.Code).Msg("prepareExecSendPalace fails")
-		return steps
-	}
-	step.Name = "execSendPalace"
-	step.Type = "exec"
-	step.OriginParams = mp
-	steps = append(steps, step)
-
-	return steps
-}
-
-func (e *Engine) makeupBasicSteps(ctx context.Context, rule string) []Step {
-	var err error
-	steps := make([]Step, 0)
-	// execGenerateSignal
-	step := Step{}
-	mp := make(map[string]interface{})
-	mp["rule"] = rule
-	step.Code = configMozartStepParamsExecGenerateSignal(mp).rCode()
-	if err != nil {
-		logging.Get().Error().Err(err).Str("code", step.Code).Msg("prepareExecGenerateSignal fails")
-		return steps
-	}
-	step.Name = "execGenerateSignal"
-	step.Type = "exec"
-	step.OriginParams = mp
-	steps = append(steps, step)
-
-	// execSendPalace
-	step = Step{}
-	step.Code = configMozartStepParamsExecSendPalace("").rCode()
-	if err != nil {
-		logging.Get().Error().Err(err).Str("code", step.Code).Msg("prepareExecSendPalace fails")
-		return steps
-	}
-	step.Name = "execSendPalace"
-	step.Type = "exec"
-	step.OriginParams = ""
-	steps = append(steps, step)
-
-	return steps
 }
 
 func (e *Engine) SetActiveRulesVersion(v string) {
@@ -758,11 +354,77 @@ func (e *Engine) Rules(v, key string) (RulesNew, bool) {
 }
 
 func (e *Engine) Run(event Event) error {
+	logging.Get().Debug().Int("pool free", e.pool.Free()).Int("pool running", e.pool.Running()).Int("pool waiting", e.pool.Waiting()).Msg("MOZART_DEBUG - pool")
+	logging.Get().Debug().Str("input falco", event.Name).Msg("MOZART_DEBUG - input falco")
+
+	if ok := checkSimilar(event); ok {
+		logging.Get().Debug().Str("input falco", event.Name).Msg("MOZART_DEBUG - omit similar falco")
+		return nil
+	}
+
 	if e.pool.Free() == 0 { // todo: 可以考虑和 pool.waiting() 一起做控制
 		err := errors.New("exhausted mozart pool")
 		logging.Get().Error().Err(err).Int("pool_size", e.pool.Cap()).Msg("exhausted mozart pool")
 		return err
 	}
-	err := e.pool.Invoke(jobArgs{Event: event, e: e})
+
+	falcoMozartMap, ok := e.falcoMozartMap[e.GetActiveRulesVersion()]
+	if !ok {
+		err := fmt.Errorf("no such falcoMozartMap version: %s", e.GetActiveRulesVersion())
+		logging.Get().Error().Err(err).Msg("")
+		return err
+	}
+
+	mozartRules, ok := falcoMozartMap[event.Name]
+	if !ok {
+		err := fmt.Errorf("no such falco rule: %s", event.Name)
+		logging.Get().Error().Err(err).Msg("")
+		return err
+	}
+	logging.Get().Debug().Str("input mozart", strings.Join(mozartRules, " | ")).Msg("MOZART_DEBUG - input mozart")
+
+	wg := sync.WaitGroup{}
+	var err error
+	for i := range mozartRules {
+		event.Name = mozartRules[i]
+		wg.Add(1)
+		go func(newEvent Event) {
+			defer wg.Done()
+			ie := e.runMozart(newEvent)
+			if ie != nil {
+				logging.Get().Error().Err(ie).Msg("mozart run fails")
+				err = fmt.Errorf("%w", ie)
+			}
+		}(event)
+	}
+	wg.Wait()
+
 	return err
+}
+
+func (e *Engine) runMozart(event Event) error {
+	logging.Get().Debug().Str("active version", e.GetActiveRulesVersion()).Str("event name", event.Name).Msg("MOZART_DEBUG - job")
+
+	event.Time = event.Time.Local()
+
+	jsonEvent := map[string]interface{}{
+		"name":    event.Name,
+		"time":    event.Time,
+		"payload": event.Payload,
+	}
+
+	err := cacheGlobal(event, jsonEvent)
+	if err != nil {
+		logging.Get().Error().Err(err).Interface("event", event).Msg("cacheGlobal event fails")
+		return err
+	}
+
+	rules, ok := e.Rules(e.GetActiveRulesVersion(), event.Name)
+	if !ok {
+		logging.Get().Debug().Str("active version", e.GetActiveRulesVersion()).Str("event name", event.Name).Msg("MOZART_DEBUG - no active rule")
+		return nil
+	}
+
+	return e.pool.Invoke(jobArgs{Event: event, Rules: rules, JsonEvent: jsonEvent, SessionStatus: map[string]interface{}{}})
+
 }

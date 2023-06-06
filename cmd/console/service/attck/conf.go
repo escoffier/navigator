@@ -2,8 +2,6 @@ package attck
 
 import (
 	"strings"
-
-	"gitlab.com/piccolo_su/vegeta/pkg/model"
 )
 
 const (
@@ -19,10 +17,10 @@ func ReadFromConfig(origin string) map[string]struct{} {
 	return tagsMap
 }
 
-func IsRule4PocIgnored(rule model.RuleFromYaml, displayedTags map[string]struct{}) bool {
+func IsRule4PocIgnored(ruleTags []string, displayedTags map[string]struct{}) bool {
 	// 规则tag配置4t，为跳过的前提
 	is4Poc := false
-	for _, tag := range rule.Tags {
+	for _, tag := range ruleTags {
 		if tag == DefaultEliminatedTag {
 			is4Poc = true
 			break
@@ -40,7 +38,7 @@ func IsRule4PocIgnored(rule model.RuleFromYaml, displayedTags map[string]struct{
 	}
 
 	// 规则的tag在DP的tag中，表示这个规则要展示，不能跳过
-	for _, tag := range rule.Tags {
+	for _, tag := range ruleTags {
 		if _, ok := displayedTags[tag]; ok {
 			return false
 		}

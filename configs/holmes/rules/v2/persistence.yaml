@@ -22,7 +22,7 @@
   priority: WARNING
   tags: [ATT&CK, file, mitre_persistence, strict]
 
-- rule: run user mgmt binaries
+- rule: Run user mgmt binaries
   hid: pers_02
   hthreats: 0
   suggestion:
@@ -52,11 +52,11 @@
     not chage_list and
     not user_known_user_management_activities
   output: >
-    run user mgmt binaries (zh_msg=运行管理用户、密码或权限的命令,rule_type=Persistence,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid parent=%proc.pname gparent=%proc.aname[2] ggparent=%proc.aname[3] gggparent=%proc.aname[4] container_id=%container.id,container_name=%container.name)
+    Run user mgmt binaries (zh_msg=运行管理用户、密码或权限的命令,rule_type=Persistence,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid parent=%proc.pname gparent=%proc.aname[2] ggparent=%proc.aname[3] gggparent=%proc.aname[4] container_id=%container.id,container_name=%container.name)
   priority: WARNING
   tags: [ATT&CK, host, users, mitre_persistence]
 
-- rule: Launch Package Management Process in Container
+- rule: Package management process launched in container
   hid: pers_03
   hthreats: 0
   suggestion:
@@ -82,7 +82,7 @@
   priority: NOTICE
   tags: [ATT&CK, process, mitre_persistence]
 
-- rule: Update Package Repository
+- rule: Update package repository
   hid: pers_04
   hthreats: 0
   suggestion:
@@ -102,7 +102,7 @@
     and not user_known_update_package_registry
     and shell_parent_procs
   output: >
-    Repository files get updated (zh_msg=发现更新软件源,rule_type=Persistence,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,
+    Repository files get updated (zh_msg=更新软件源,rule_type=Persistence,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,
     original_info=user=%user.name user_loginuid=%user.loginuid file=%fd.name newpath=%evt.arg.newpath container_id=%container.id container_name=%container.name image=%container.image.repository)
   priority: WARNING
   tags: [ATT&CK, filesystem, mitre_persistence]
@@ -150,7 +150,7 @@
   priority: WARNING
   tags: [ATT&CK, process, mitre_persistence]
 
-- rule: Modify Shell Configuration File
+- rule: Modify shell configuration file
   hid: pers_07
   hthreats: 1
   suggestion:
@@ -216,7 +216,7 @@
 #  priority: WARNING
 #  tags: [ATT&CK, filesystem, mitre_persistence]
 
-- rule: Create Hidden Files or Directories
+- rule: Create hidden files or directories
   hid: pers_10
   hthreats: 0
   suggestion:
@@ -253,7 +253,7 @@
   desc: an attempt to write to any file below a set of binary directories
   condition: >
     evt.dir = < and open_write and monitored_dir
-    and shell_parent_procs
+    and shell_family_procs
     and not package_mgmt_procs
     and not coreos_write_ssh_dir
     and not exe_running_docker_save
@@ -309,7 +309,7 @@
   desc: an attempt to modify any file below a set of binary directories.
   condition: bin_dir_rename and modify and not package_mgmt_procs and not exe_running_docker_save and not user_known_modify_bin_dir_activities
   output: >
-    File below known binary directory renamed/removed (zh_msg=二进制文件目录下文件被重命名,rule_type=Persistence,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,
+    File below known binary directory renamed/removed (zh_msg=修改二进制目录下的文件,rule_type=Persistence,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,
     original_info=user=%user.name user_loginuid=%user.loginuid
     operation=%evt.type file=%fd.name %evt.args container_id=%container.id container_name=%container.name image=%container.image.repository)
   priority: ERROR
@@ -333,7 +333,7 @@
     and not user_known_mkdir_bin_dir_activities
     and not exe_running_docker_save
   output: >
-    Directory below known binary directory created (zh_msg=尝试在二进制文件路径下创建目录,rule_type=Persistence,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,
+    Directory below known binary directory created (zh_msg=在二进制文件路径下创建目录,rule_type=Persistence,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,
     original_info=user=%user.name user_loginuid=%user.loginuid
     directory=%evt.arg.path container_id=%container.id container_name=%container.name image=%container.image.repository)
   priority: ERROR

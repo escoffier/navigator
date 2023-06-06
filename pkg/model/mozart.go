@@ -1,13 +1,18 @@
 package model
 
+const (
+	CurrentEngineLargeVersion = 3 // 随holmes版本升级
+)
+
 type ConfigMozartStep struct {
-	Name   string      `yaml:"name"`
-	Params interface{} `yaml:"params"`
+	Name     string      `yaml:"name"`
+	Params   interface{} `yaml:"params"`
+	Optional bool        `yaml:"optional"`
 }
 
 type ConfigMozartInfoLang struct {
-	En string `yaml:"en"`
 	Zh string `yaml:"zh"`
+	En string `yaml:"en"`
 }
 
 type ConfigMozartInfo struct {
@@ -16,6 +21,16 @@ type ConfigMozartInfo struct {
 	RuleType   string               `yaml:"rule_type"`
 	Priority   string               `yaml:"priority"`
 	Urgency    bool                 `yaml:"urgency"`
+}
+
+type ConfigMozartInfoV3 struct {
+	Name       ConfigMozartInfoLang `yaml:"name"`
+	Desc       ConfigMozartInfoLang `yaml:"desc"`
+	Suggestion ConfigMozartInfoLang `yaml:"suggestion"`
+	RuleType   string               `yaml:"rule_type"`
+	Priority   string               `yaml:"priority"`
+	Urgency    bool                 `yaml:"urgency"`
+	Tags       []string             `yaml:"tags"`
 }
 
 type ConfigMozart struct {
@@ -27,9 +42,9 @@ type ConfigMozart struct {
 }
 
 type ConfigMozartMarcoBranches struct {
-	Enabled bool               `yaml:"enabled"`
-	Steps   []ConfigMozartStep `yaml:"steps"`
-	Default bool               `yaml:"default"`
+	Disabled bool               `yaml:"disabled"`
+	Steps    []ConfigMozartStep `yaml:"steps"`
+	Default  bool               `yaml:"default"`
 }
 
 type ConfigMozartMarco struct {
@@ -48,4 +63,38 @@ type OriginConfig struct {
 
 type OriginConfigs struct {
 	Config []OriginConfig `yaml:"config"`
+}
+
+type MozartYaml struct {
+	// rule
+	Key       string             `yaml:"key"`
+	Disabled  bool               `yaml:"disabled"`
+	Hid       string             `yaml:"hid"`
+	Condition string             `yaml:"condition"`
+	Output    string             `yaml:"output,omitempty"`
+	Steps     []ConfigMozartStep `yaml:"steps"`
+	Info      ConfigMozartInfoV3 `yaml:"info"`
+
+	// marco+
+	Macro string   `yaml:"macro,omitempty"`
+	List  string   `yaml:"list,omitempty"`
+	Items []string `yaml:"items"`
+
+	// mozart marco+
+	Type     string                      `yaml:"type"`
+	Branches []ConfigMozartMarcoBranches `yaml:"branches"`
+}
+
+type FalcoYaml struct {
+	Rule      string   `yaml:"rule,omitempty"`
+	Condition string   `yaml:"condition"`
+	Desc      string   `yaml:"desc,omitempty"`
+	Output    string   `yaml:"output,omitempty"`
+	Priority  string   `yaml:"priority,omitempty"`
+	Tags      []string `yaml:"tags,omitempty"`
+
+	Macro string `yaml:"macro,omitempty"`
+
+	List  string   `yaml:"list,omitempty"`
+	Items []string `yaml:"items"`
 }

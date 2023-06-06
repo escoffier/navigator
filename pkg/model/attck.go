@@ -117,7 +117,7 @@ type LatestATTCKRuleInfo struct {
 
 type RuleFromYaml struct {
 	Rule                  string         `yaml:"rule,omitempty"`
-	Hthreats              uint8          `yaml:"hthreats,omitempty"`
+	HThreats              uint8          `yaml:"hthreats,omitempty"`
 	HID                   string         `yaml:"hid,omitempty"`
 	Priority              string         `yaml:"priority,omitempty"`
 	Desc                  string         `yaml:"desc,omitempty"`
@@ -184,6 +184,8 @@ var (
 	ErrKeyNotFound = errors.New("key not found")
 )
 
+// GetInfoFromOutput
+// 为兼容可能更新的旧版规则，保留该方法
 func GetInfoFromOutput(key, output string) (string, error) {
 	if key == "" || output == "" {
 		return "", ErrKeyNotFound

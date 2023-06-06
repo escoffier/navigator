@@ -4,22 +4,36 @@ package mozartcommon
 
 import (
 	"context"
+	"crypto/md5"
+	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
+	gpModel "gitlab.com/security-rd/go-pkg/model"
+	"reflect"
 	"regexp"
 	"strconv"
 	"strings"
 
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
+	"gitlab.com/piccolo_su/vegeta/pkg/util"
 	"gitlab.com/security-rd/go-pkg/logging"
 )
 
 const (
 	marcoPrefix = "MARCO::"
+
+	marcoTypeBranchSerial   = "branches_serial"
+	marcoTypeBranchParallel = "branches_parallel"
 )
 
-func ExtractValues(ctx context.Context, configStep model.ConfigMozartStep, mozartMarco []model.ConfigMozartMarco, key string) (map[string]interface{}, error) {
+var (
+	marcoTypes = []string{marcoTypeBranchSerial, marcoTypeBranchParallel}
+)
+
+func ExtractValues(ctx context.Context, configStep model.ConfigMozartStep, mozartMarco []model.MozartYaml, key string) (map[string]interface{}, map[string]interface{}, error) {
 	values := map[string]interface{}{}
+	switches := map[string]interface{}{}
 	switch configStep.Name {
 	case "defineValue":
 		p := configStep.Params.(map[interface{}]interface{})
@@ -38,27 +52,43 @@ func ExtractValues(ctx context.Context, configStep model.ConfigMozartStep, mozar
 			}
 			for j := range mozartMarco[i].Branches {
 				branchKey := key + "-" + strconv.Itoa(j)
-				if !mozartMarco[i].Branches[j].Enabled && !mozartMarco[i].Branches[j].Default {
-					continue
-				}
+				//if !mozartMarco[i].Branches[j].Enabled && !mozartMarco[i].Branches[j].Default {
+				//	continue
+				//}
 				for k := range mozartMarco[i].Branches[j].Steps {
-					branchStepValues, err := ExtractValues(ctx, mozartMarco[i].Branches[j].Steps[k], mozartMarco, branchKey)
+					branchStepValues, branchStepSwitches, err := ExtractValues(ctx, mozartMarco[i].Branches[j].Steps[k], mozartMarco, branchKey)
 					if err != nil {
 						continue
 					}
-					for ik, iv := range branchStepValues {
-						if m, ok := values[branchKey].(map[string]interface{}); !ok {
-							values[branchKey] = map[string]interface{}{ik: iv}
-						} else {
-							m[ik] = iv
-							values[branchKey] = m
+					if len(branchStepValues) == 0 {
+						values[branchKey] = map[string]interface{}{}
+					} else {
+						for ik, iv := range branchStepValues {
+							if m, ok := values[branchKey].(map[string]interface{}); !ok {
+								values[branchKey] = map[string]interface{}{ik: iv}
+							} else {
+								m[ik] = iv
+								values[branchKey] = m
+							}
+						}
+					}
+					if len(branchStepSwitches) == 0 {
+						switches[branchKey] = map[string]interface{}{"enabled": !mozartMarco[i].Branches[j].Disabled}
+					} else {
+						for ik, iv := range branchStepSwitches {
+							if m, ok := switches[branchKey].(map[string]interface{}); !ok {
+								switches[branchKey] = map[string]interface{}{ik: iv}
+							} else {
+								m[ik] = iv
+								switches[branchKey] = m
+							}
 						}
 					}
 				}
 			}
 		}
 	}
-	return values, nil
+	return values, switches, nil
 }
 
 func TemplateFormat(format interface{}, values map[string]interface{}) (interface{}, error) {
@@ -151,6 +181,39 @@ func templateFormatString(format string, values map[string]interface{}) (string,
 	}
 }
 
+func Flatten(m map[string]interface{}) []map[string]interface{} {
+	var res []map[string]interface{}
+	rm := make(map[string]interface{})
+	for k, v := range m {
+		if reflect.TypeOf(v).Kind() == reflect.Map {
+			for _, val := range Flatten(v.(map[string]interface{})) {
+				res = append(res, val)
+			}
+		} else {
+			rm[k] = v
+		}
+	}
+	if len(rm) != 0 {
+		res = append(res, rm)
+	}
+
+	resultMap := make(map[string]struct{})
+	newResult := make([]map[string]interface{}, 0)
+	for i := range res {
+		br, _ := json.Marshal(res[i])
+		m := md5.New()
+		m.Write(br)
+		hash := hex.EncodeToString(m.Sum(nil))
+		if _, ok := resultMap[hash]; ok {
+			continue
+		}
+		resultMap[hash] = struct{}{}
+		newResult = append(newResult, res[i])
+	}
+
+	return newResult
+}
+
 func FlatValues(values map[string]interface{}) []map[string]interface{} {
 	flag := false
 	moreValues := make([]map[string]interface{}, 0)
@@ -188,7 +251,22 @@ func FlatValues(values map[string]interface{}) []map[string]interface{} {
 		}
 		result = moreValues
 	}
-	return result
+
+	resultMap := make(map[string]struct{})
+	newResult := make([]map[string]interface{}, 0)
+	for i := range result {
+		br, _ := json.Marshal(result[i])
+		m := md5.New()
+		m.Write(br)
+		hash := hex.EncodeToString(m.Sum(nil))
+		if _, ok := resultMap[hash]; ok {
+			continue
+		}
+		resultMap[hash] = struct{}{}
+		newResult = append(newResult, result[i])
+	}
+
+	return newResult
 }
 
 func CheckKey(key string) bool {
@@ -203,4 +281,62 @@ func CheckDefaultFormatValue(s string) bool {
 	re := regexp.MustCompile(`{[^{"]*?:[^{"]*?}`)
 	results := re.FindAllString(s, -1)
 	return len(results) != 0
+}
+
+func IsMozartMarco(my model.MozartYaml) bool {
+	return util.ContainsString(marcoTypes, my.Type)
+}
+
+func IsMozartMarco2(my gpModel.MozartYaml) bool {
+	return util.ContainsString(marcoTypes, my.Type)
+}
+
+func IsMarco(my model.MozartYaml) bool {
+	return my.Macro != "" || my.List != ""
+}
+
+func IsMarco2(my gpModel.MozartYaml) bool {
+	return my.Macro != "" || my.List != ""
+}
+
+func IsMozartRule(my model.MozartYaml) bool {
+	// todo: 这里要不要加 ！related
+	return !IsMozartMarco(my) && !IsMarco(my) && !util.ContainsString(my.Info.Tags, "related")
+}
+
+func IsMozartRelatedRule(my gpModel.MozartYaml) bool {
+	return !IsMozartMarco2(my) && !IsMarco2(my) && util.ContainsString(my.Info.Tags, "related")
+}
+
+func VersionSeg1(vs string) int {
+	re := regexp.MustCompile(`^v(\d+)(\.)(\d+)$`)
+	match := re.FindStringSubmatch(vs)
+	if len(match) != 4 {
+		return 1
+	}
+	seg1, err := strconv.Atoi(match[1])
+	if err != nil {
+		return 1
+	}
+	return seg1
+}
+
+func CategoryFromTags(tags []string) (string, string) {
+	for i := range tags {
+		if tags[i] == model.RuleCategoryATTCK {
+			return model.RuleCategoryATTCK, model.RuleCategoryZHATTCK
+		}
+		if tags[i] == model.RuleCategoryWatson {
+			return model.RuleCategoryWatson, model.RuleCategoryZHWatson
+		}
+	}
+	return "", ""
+}
+
+func MozartMarcoV2ToV3(olds []model.ConfigMozartMarco) []model.MozartYaml {
+	news := make([]model.MozartYaml, len(olds))
+	for i := range olds {
+		news[i] = model.MozartYaml{Key: olds[i].Key, Type: olds[i].Type, Branches: olds[i].Branches}
+	}
+	return news
 }

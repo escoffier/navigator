@@ -91,10 +91,10 @@ type attackResp struct {
 	} `json:"data"`
 }
 
-func IncreaseATTCKDataIDAndSetConfigVersion(ctx context.Context, db *gorm.DB, id uint64, ccVersion uint64) error {
+func IncreaseATTCKDataIDAndSetConfigVersion(ctx context.Context, db *gorm.DB, version1 uint16, id uint64, ccVersion uint64) error {
 	tctx, cancel := context.WithTimeout(ctx, 1200*time.Millisecond)
 	defer cancel()
-	return db.WithContext(tctx).Model(&model.ATTCKRuleData{}).Where("version1 = ?", 2).Where("id = ?", id).Updates(map[string]any{
+	return db.WithContext(tctx).Model(&model.ATTCKRuleData{}).Where("version1 = ?", version1).Where("id = ?", id).Updates(map[string]any{
 		"id":                gorm.Expr("id + ?", 1),
 		"cconfig_idversion": ccVersion,
 	}).Error
