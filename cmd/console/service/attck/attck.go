@@ -573,6 +573,7 @@ func (h *ATTCKHandler) GetCustomInitConfig(ctx context.Context, language string)
 			iconf.CustomSetting.Key = initConfig.Key
 			iconf.CustomSetting.Name = initConfig.Name[language]
 			iconf.CustomSetting.Type = initConfig.Type
+			iconf.CustomSetting.Prompt = initConfig.Prompt[language]
 			iconf.Rule.Key = steps[0]
 			rinfo, exist := h.GetRuleInfo(ctx, steps[0])
 			if !exist {
@@ -740,10 +741,11 @@ type CconfigUpdateItem struct {
 	CustomSetting CustomSetting `json:"customSetting"`
 }
 type CustomSetting struct {
-	Key   string   `json:"key"`
-	Value []string `json:"value"`
-	Type  string   `json:"type,omitempty"`
-	Name  string   `json:"name,omitempty"`
+	Key    string   `json:"key"`
+	Value  []string `json:"value"`
+	Type   string   `json:"type,omitempty"`
+	Name   string   `json:"name,omitempty"`
+	Prompt string   `json:"prompt,omitempty"`
 }
 
 func (h *ATTCKHandler) BatchAddCustomConfigs(ctx context.Context, data []*CconfigUpdateItem) error {
