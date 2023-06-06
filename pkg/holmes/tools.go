@@ -37,6 +37,7 @@ type CconfigInitConfig struct {
 	Key               string         `yaml:"key"`
 	Name              model.HolaJSON `yaml:"name"`
 	Effect            model.HolaJSON `yaml:"effect"`
+	Prompt            model.HolaJSON `yaml:"prompt"`
 	Type              string         `yaml:"type"`
 	RulesAppliedSteps [][]string     `yaml:"rulesAppliedSteps"`
 }
