@@ -5,42 +5,37 @@ import (
 	"context"
 	"strings"
 
-	"gitlab.com/piccolo_su/vegeta/pkg/lang"
-	"gitlab.com/piccolo_su/vegeta/pkg/model"
-	"gitlab.com/piccolo_su/vegeta/pkg/rtdetect"
+	"gitlab.com/piccolo_su/vegeta/pkg/holmes"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 	"gitlab.com/security-rd/go-pkg/logging"
+	gmodel "gitlab.com/security-rd/go-pkg/model"
+	"gitlab.com/security-rd/go-pkg/mozart"
 	"gopkg.in/yaml.v2"
 )
 
-const (
-	headerKeyCconfigInit = "custom_config_inits"
-	headerKeyAttck       = "attck_rule_type="
-	headerKeyMacroList   = "macros_lists"
-	headerKeyMozart      = "mozart"
-)
-
 type HolmesRule struct {
-	Key         string
-	Name        model.HolaJSON
-	Description model.HolaJSON
-	Category    model.HolaJSON
-	Severity    uint8
-	Hthreats    uint8
-	Disabled    bool
-	Tags        []string
-
-	rawLines   []string
+	gmodel.UserRuleYaml
 	isInternal bool
+}
+
+func GetFromHola(m gmodel.ConfigMozartInfoLang, lang string) string {
+	switch lang {
+	case "en":
+		return m.En
+	case "zh":
+		return m.Zh
+	default:
+		return m.Zh
+	}
 }
 
 type RulesStore struct {
 	rules       []*HolmesRule
 	rmap        map[string]*HolmesRule
-	configsInit []*CconfigInitConfig
+	configsInit []*holmes.CconfigInitConfig
 }
 
-func (s *RulesStore) GetCconfigInitConfigs() []*CconfigInitConfig {
+func (s *RulesStore) GetCconfigInitConfigs() []*holmes.CconfigInitConfig {
 	return s.configsInit
 }
 func (s *RulesStore) ISearch(ctx context.Context, kw string) ([]*HolmesRule, error) {
@@ -49,16 +44,14 @@ func (s *RulesStore) ISearch(ctx context.Context, kw string) ([]*HolmesRule, err
 		if r.isInternal {
 			continue
 		}
-		for lang, target := range r.Name {
-			if lang == "en" {
-				if strings.Contains(strings.ToLower(target), strings.ToLower(kw)) {
-					candidates = append(candidates, r)
-					break
-				}
-			} else if strings.Contains(target, kw) {
-				candidates = append(candidates, r)
-				break
-			}
+
+		if strings.Contains(strings.ToLower(r.Info.Name.En), strings.ToLower(kw)) {
+			candidates = append(candidates, r)
+			break
+		}
+		if strings.Contains(r.Info.Name.Zh, kw) {
+			candidates = append(candidates, r)
+			break
 		}
 	}
 	return candidates, nil
@@ -73,7 +66,7 @@ func (s *RulesStore) addRule(r *HolmesRule) {
 	s.rules = append(s.rules, r)
 	s.rmap[r.Key] = r
 }
-func (s *RulesStore) setCconfigInit(init []*CconfigInitConfig) {
+func (s *RulesStore) setCconfigInit(init []*holmes.CconfigInitConfig) {
 	s.configsInit = init
 }
 
@@ -82,23 +75,6 @@ func newStore() *RulesStore {
 		rules: make([]*HolmesRule, 0, 110),
 		rmap:  make(map[string]*HolmesRule, 110),
 	}
-}
-
-type CconfigInitConfig struct {
-	Key               string         `yaml:"key"`
-	Name              model.HolaJSON `yaml:"name"`
-	Effect            model.HolaJSON `yaml:"effect"`
-	Type              string         `yaml:"type"`
-	RulesAppliedSteps [][]string     `yaml:"rulesAppliedSteps"`
-}
-
-type Macro struct {
-	Macro     string `yaml:"macro"`
-	Condition string `yaml:"condition"`
-}
-type List struct {
-	List  string `yaml:"list"`
-	Items []any  `yaml:"items"`
 }
 
 type mlTmp struct {
@@ -113,39 +89,31 @@ type ProcessPlugin interface {
 }
 type PluginSession interface {
 	Name() string
-	ProcessRule(ctx context.Context, r RawRule) (after *RawRule, changed bool, err error)                          // There could be changes on the rules format. We don't use yaml to parse.
-	TmpProcessRule(ctx context.Context, r model.RuleFromYaml) (after *model.RuleFromYaml, changed bool, err error) // tmp for simplicity
-	ProcessMacro(ctx context.Context, m Macro) (after *Macro, changed bool, err error)
-	ProcessList(ctx context.Context, l List) (after *List, changed bool, err error)
-	NextRule(ctx context.Context) (r *RawRule, more bool)
-	NextRuleTmp(ctx context.Context) (r *model.RuleFromYaml, more bool)
-	NextMacro(ctx context.Context) (after *Macro, more bool)
-	NextList(ctx context.Context) (after *List, more bool)
+	ProcessRule(ctx context.Context, r gmodel.UserRuleYaml) (after *gmodel.UserRuleYaml, changed bool, err error) // There could be changes on the rules format. We don't use yaml to parse.
+	ProcessMacro(ctx context.Context, m holmes.Macro) (after *holmes.Macro, changed bool, err error)
+	ProcessList(ctx context.Context, l holmes.List) (after *holmes.List, changed bool, err error)
+	NextRule(ctx context.Context) (r *gmodel.UserRuleYaml, more bool)
+	NextMacro(ctx context.Context) (after *holmes.Macro, more bool)
+	NextList(ctx context.Context) (after *holmes.List, more bool)
 }
 
 type PluginContext struct {
-	rules    []*RawRule
-	macros   []*Macro
-	lists    []*List
-	rulesTmp []model.RuleFromYaml
+	macros []*holmes.Macro
+	lists  []*holmes.List
+	rules  []*gmodel.UserRuleYaml
 
-	configs []*CconfigInitConfig
+	configs []*holmes.CconfigInitConfig
 }
 
-func (c *PluginContext) GetRule(ctx context.Context, ruleKey string) (*HolmesRule, bool) {
-	// TODO not used now
-	return nil, false
-}
-func (c *PluginContext) GetRuleTmp(ctx context.Context, ruleKey string) (model.RuleFromYaml, bool) {
-	// TMP
-	for _, r := range c.rulesTmp {
-		if r.Rule == ruleKey {
+func (c *PluginContext) GetRule(ctx context.Context, ruleKey string) (*gmodel.UserRuleYaml, bool) {
+	for _, r := range c.rules {
+		if r.Key == ruleKey {
 			return r, true
 		}
 	}
-	return model.RuleFromYaml{}, false
+	return nil, false
 }
-func (c *PluginContext) GetMacro(ctx context.Context, macro string) (*Macro, bool) {
+func (c *PluginContext) GetMacro(ctx context.Context, macro string) (*holmes.Macro, bool) {
 	for _, m := range c.macros {
 		if m.Macro == macro {
 			return m, true
@@ -153,7 +121,7 @@ func (c *PluginContext) GetMacro(ctx context.Context, macro string) (*Macro, boo
 	}
 	return nil, false
 }
-func (c *PluginContext) GetList(ctx context.Context, list string) (*List, bool) {
+func (c *PluginContext) GetList(ctx context.Context, list string) (*holmes.List, bool) {
 	for _, l := range c.lists {
 		if l.List == list {
 			return l, true
@@ -161,7 +129,7 @@ func (c *PluginContext) GetList(ctx context.Context, list string) (*List, bool) 
 	}
 	return nil, false
 }
-func (c *PluginContext) GetCustomConfigs(ctx context.Context) ([]*CconfigInitConfig, bool) {
+func (c *PluginContext) GetCustomConfigs(ctx context.Context) ([]*holmes.CconfigInitConfig, bool) {
 	return c.configs, true
 }
 
@@ -173,11 +141,7 @@ type Processor struct {
 	plugins []ProcessPlugin
 
 	// original
-	rulesFile      string
-	rulesTmp       []model.RuleFromYaml
-	macroListsFile string
-	mozartFile     []byte
-	configs        []*CconfigInitConfig
+	parsed holmes.ItemsParsed
 }
 
 func (p *Processor) AddPlugin(pp ProcessPlugin) error {
@@ -185,45 +149,12 @@ func (p *Processor) AddPlugin(pp ProcessPlugin) error {
 	return nil
 }
 
-func macroListParse(macroListsFile string) ([]*Macro, []*List, error) {
-	mlTmp := make([]mlTmp, 0, 50)
-	err := yaml.Unmarshal([]byte(macroListsFile), &mlTmp)
-	if err != nil {
-		return nil, nil, err
-	}
-	macros := make([]*Macro, 0, len(mlTmp)*2/3)
-	lists := make([]*List, 0, len(mlTmp)*2/3)
-	for _, item := range mlTmp {
-		if len(item.Macro) > 0 {
-			macros = append(macros, &Macro{
-				Macro:     item.Macro,
-				Condition: item.Condition,
-			})
-		} else if len(item.List) > 0 {
-			lists = append(lists, &List{
-				List:  item.List,
-				Items: item.Items,
-			})
-		}
-	}
-	return macros, lists, nil
-}
-
-func rulesParse(rulesFile string) ([]RawRule, error) {
-	// TODO no need to implement, wait @liuwenyuan to merge Mozart
-	return nil, nil
-}
-
 func (p *Processor) Process(ctx context.Context) ([]byte, PluginContext, error) {
-	macros, lists, err := macroListParse(p.macroListsFile)
-	if err != nil {
-		return nil, PluginContext{}, err
-	}
 	pctx := PluginContext{
-		macros:   macros,
-		lists:    lists,
-		configs:  p.configs,
-		rulesTmp: p.rulesTmp,
+		macros:  p.parsed.Macros,
+		lists:   p.parsed.Lists,
+		configs: p.parsed.CustomConfigInits,
+		rules:   p.parsed.Rules,
 	}
 
 	psessions := make([]PluginSession, 0, len(p.plugins))
@@ -236,7 +167,7 @@ func (p *Processor) Process(ctx context.Context) ([]byte, PluginContext, error) 
 		psessions = append(psessions, ps)
 	}
 
-	newLists := make([]*List, 0, len(pctx.lists))
+	newLists := make([]*holmes.List, 0, len(pctx.lists))
 	for _, list := range pctx.lists {
 		for _, ps := range psessions {
 			newList, changed, pperr := ps.ProcessList(ctx, *list)
@@ -249,7 +180,7 @@ func (p *Processor) Process(ctx context.Context) ([]byte, PluginContext, error) 
 					list = newList
 					sb := strings.Builder{}
 					for _, item := range newList.Items {
-						sb.WriteString(item.(string))
+						sb.WriteString(item)
 						sb.WriteByte(',')
 					}
 					logging.Get().Info().Str("plugin", ps.Name()).Str("items", sb.String()).Msg("plugin process list done")
@@ -266,7 +197,7 @@ func (p *Processor) Process(ctx context.Context) ([]byte, PluginContext, error) 
 	}
 	pctx.lists = newLists
 
-	newMacros := make([]*Macro, 0, len(pctx.macros))
+	newMacros := make([]*holmes.Macro, 0, len(pctx.macros))
 	for _, macro := range pctx.macros {
 		for _, ps := range psessions {
 			newMacro, changed, pperr := ps.ProcessMacro(ctx, *macro)
@@ -289,28 +220,28 @@ func (p *Processor) Process(ctx context.Context) ([]byte, PluginContext, error) 
 	}
 	pctx.macros = newMacros
 
-	newRules := make([]model.RuleFromYaml, 0, len(pctx.rulesTmp))
-	for i, _ := range pctx.rulesTmp {
+	newRules := make([]*gmodel.UserRuleYaml, 0, len(pctx.rules))
+	for _, rule := range pctx.rules {
 		for _, ps := range psessions {
-			newRule, changed, pperr := ps.TmpProcessRule(ctx, p.rulesTmp[i])
+			newRule, changed, pperr := ps.ProcessRule(ctx, *rule)
 			if pperr != nil {
-				logging.Get().Err(pperr).Str("plugin", ps.Name()).Str("rule", p.rulesTmp[i].Rule).Msg("plugin process rule error")
+				logging.Get().Err(pperr).Str("plugin", ps.Name()).Str("rule", rule.Key).Msg("plugin process rule error")
 				continue
 			} else if changed {
-				logging.Get().Info().Str("plugin", ps.Name()).Str("rkey", p.rulesTmp[i].Rule).Msg("plugin process rule done")
+				logging.Get().Info().Str("plugin", ps.Name()).Str("rkey", rule.Key).Msg("plugin process rule done")
 				if newRule != nil {
-					p.rulesTmp[i] = *newRule
+					rule = newRule
 				} else {
-					p.rulesTmp[i] = model.RuleFromYaml{}
+					rule = nil
 					break
 				}
 			}
 		}
-		if pctx.rulesTmp[i].Rule != "" {
-			newRules = append(newRules, pctx.rulesTmp[i])
+		if rule != nil {
+			newRules = append(newRules, rule)
 		}
 	}
-	pctx.rulesTmp = newRules
+	pctx.rules = newRules
 
 	for _, ps := range psessions {
 		for i := 0; i < 1000; i++ {
@@ -333,9 +264,9 @@ func (p *Processor) Process(ctx context.Context) ([]byte, PluginContext, error) 
 		}
 
 		for i := 0; i < 1000; i++ {
-			nextRule, more := ps.NextRuleTmp(ctx)
+			nextRule, more := ps.NextRule(ctx)
 			if nextRule != nil {
-				pctx.rulesTmp = append(pctx.rulesTmp, *nextRule)
+				pctx.rules = append(pctx.rules, nextRule)
 			}
 			if !more {
 				break
@@ -344,7 +275,7 @@ func (p *Processor) Process(ctx context.Context) ([]byte, PluginContext, error) 
 	}
 
 	outputBui := bytes.Buffer{}
-	rbytes, err := yaml.Marshal(pctx.rulesTmp)
+	rbytes, err := yaml.Marshal(pctx.rules)
 	if err != nil {
 		return nil, pctx, err
 	}
@@ -362,112 +293,43 @@ func (p *Processor) Process(ctx context.Context) ([]byte, PluginContext, error) 
 	}
 	outputBui.Write(lbytes)
 
-	outputBui.WriteByte('\n')
-	outputBui.Write(p.mozartFile)
-
 	outputBytes := outputBui.Bytes()
 
 	return outputBytes, pctx, nil
 }
 
 func ProcessorBuilder(ctx context.Context, decodedRaw []byte) (*Processor, *RulesStore, error) {
-	decoded := string(decodedRaw)
-
-	seperatedFiles := strings.Split(decoded, "##")
-
-	rulesFile := new(bytes.Buffer)
-	macroListsFile := new(strings.Builder)
-	mozartsFile := new(strings.Builder)
-	cconfigInitsFile := new(bytes.Buffer)
-
-	for _, filestr := range seperatedFiles {
-		if strings.Index(filestr, headerKeyAttck) == 0 {
-			brPos := strings.IndexRune(filestr, '\n')
-			if brPos > 0 {
-				filestr = filestr[brPos:]
-			}
-			rulesFile.WriteString(filestr)
-		} else if strings.Index(filestr, headerKeyMacroList) == 0 {
-			brPos := strings.IndexRune(filestr, '\n')
-			if brPos > 0 {
-				filestr = filestr[brPos:]
-			}
-			macroListsFile.WriteString(filestr)
-		} else if strings.Index(filestr, headerKeyCconfigInit) == 0 {
-			brPos := strings.IndexRune(filestr, '\n')
-			if brPos > 0 {
-				filestr = filestr[brPos:]
-			}
-			cconfigInitsFile.WriteString(filestr)
-		} else if strings.Index(filestr, headerKeyMozart) == 0 {
-			brPos := strings.IndexRune(filestr, '\n')
-			if brPos > 0 {
-				filestr = filestr[brPos:]
-			}
-			mozartsFile.WriteString(filestr)
-		}
+	parsed, err := holmes.ParseHolmesFile(decodedRaw)
+	if err != nil {
+		logging.Get().Err(err).Msg("parse holmes file error")
+		return nil, nil, err
 	}
 
 	store := newStore()
-	initConfigs := make([]*CconfigInitConfig, 0, 10)
-	err := yaml.Unmarshal(cconfigInitsFile.Bytes(), &initConfigs)
-	if err != nil {
-		logging.Get().Err(err).Str("raw", cconfigInitsFile.String()).Msg("unmarshal init configs error")
-		return nil, nil, err
-	}
-	store.setCconfigInit(initConfigs)
+	store.setCconfigInit(parsed.CustomConfigInits)
 
-	rulesRaw := make([]model.RuleFromYaml, 0, 120)
-	err = yaml.Unmarshal(rulesFile.Bytes(), &rulesRaw)
-	if err != nil {
-		logging.Get().Err(err).Msg("unmarshal rules error")
-		return nil, nil, err
-	}
-	for _, r := range rulesRaw {
-		_, ritem, pferr := parseFalcoRule(r)
-		if pferr != nil {
-			logging.Get().Err(pferr).Interface("rule", r).Msg("parse falco rule error")
+	for _, r := range parsed.Rules {
+		if r.Key == "" {
 			continue
 		}
-		if ritem.name == "" {
+		if r.Condition == "" || mozart.IsURMozartMarco(*r) { // filter out mozart branch item
 			continue
 		}
-		// 只是关联规则，不应展示，，是内部规则
 		isInternal := false
-		if !util.ContainsString(r.Tags, "triggered") && util.ContainsString(r.Tags, "related") {
+		// 只是关联规则，不应展示，，是内部规则
+		if util.ContainsString(r.Info.Tags, "related") {
 			isInternal = true
 		}
-		// 触发规则严重级别较低，不应展示，是内部规则
-		if util.ContainsString(r.Tags, "triggered") && !rtdetect.ComparePriority(r.Priority, "ERROR") {
-			isInternal = true
-		}
-		store.addRule(&HolmesRule{
-			Key: ritem.name,
-			Name: model.HolaJSON{
-				string(lang.LanguageZH): ritem.adapter[string(lang.LanguageZH)][descriptionKey],
-				string(lang.LanguageEN): ritem.name,
-			},
-			Description: model.HolaJSON{
-				string(lang.LanguageZH): ritem.adapter[string(lang.LanguageZH)][descriptionKey],
-				string(lang.LanguageEN): ritem.adapter[string(lang.LanguageEN)][descriptionKey],
-			},
-			Category: model.HolaJSON{
-				string(lang.LanguageZH): ritem.adapter[string(lang.LanguageZH)][typeKey],
-				string(lang.LanguageEN): ritem.adapter[string(lang.LanguageEN)][typeKey],
-			},
-			Severity:   ritem.severity,
-			Hthreats:   ritem.hthreats,
-			Tags:       r.Tags,
+
+		ruleItem := HolmesRule{
 			isInternal: isInternal,
-		})
+		}
+		ruleItem.UserRuleYaml = *r
+		store.addRule(&ruleItem)
 	}
 	proc := &Processor{
-		plugins:        make([]ProcessPlugin, 0, 5),
-		rulesFile:      rulesFile.String(),
-		rulesTmp:       rulesRaw,
-		macroListsFile: macroListsFile.String(),
-		mozartFile:     []byte(mozartsFile.String()),
-		configs:        initConfigs,
+		plugins: make([]ProcessPlugin, 0, 5),
+		parsed:  parsed,
 	}
 	return proc, store, nil
 }

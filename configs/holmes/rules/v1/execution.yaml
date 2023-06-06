@@ -21,7 +21,7 @@
     and not user_known_db_spawned_processes
     and not tensorsec_namespace
   output: >
-    Database-related program spawned process other than itself (zh_msg=SQL注入攻击后续利用：数据库服务生成非自身进程，可能存在提权行为,rule_type=Execution,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,
+    Database-related program spawned process other than itself (zh_msg=数据库服务生成非自身进程,rule_type=Execution,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,
     original_info=user=%user.name user_loginuid=%user.loginuid parent=%proc.pname
     container_id=%container.id container_name=%container.name image=%container.image.repository)
   priority: ERROR
@@ -69,7 +69,7 @@
     and not run_by_appdynamics
     and not user_shell_container_exclusions
   output: >
-    Shell spawned by untrusted binary (zh_msg=未受信任的二进制文件产生shell，可能存在黑客工具引入 ,rule_type=Execution,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type, webshell_name=%fd.name
+    Shell spawned by untrusted binary (zh_msg=未受信任的二进制文件产生shell ,rule_type=Execution,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type, webshell_name=%fd.name
     original_info=user=%user.name user_loginuid=%user.loginuid shell=%proc.name parent=%proc.pname
     gparent=%proc.aname[2] ggparent=%proc.aname[3]
     aname[4]=%proc.aname[4] aname[5]=%proc.aname[5] aname[6]=%proc.aname[6] aname[7]=%proc.aname[7] container_id=%container.id container_name=%container.name image=%container.image.repository)
@@ -135,7 +135,7 @@
   condition: >
     evt.type=recvfrom and proc.name contains "telnet" and container and not ignore_proc_args and remote_server_subnet and shell_parent_procs
   output: >
-    Telnet runs inside container that allows remote code execution (zh_msg=黑客在容器内通过telnet反弹shell),rule_type=Execution,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_name=%proc.name,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,
+    Telnet runs inside container that allows remote code execution (zh_msg=容器内通过telnet反弹shell),rule_type=Execution,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_name=%proc.name,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,
     original_info=user=%user.name user_loginuid=%user.loginuid
     container_id=%container.id container_name=%container.name image=%container.image.repository:%container.image.tag
     connection=%fd.name,client_ip=%fd.cip,client_port=%fd.cport,server_ip=%fd.sip,server_port=%fd.sport)
@@ -156,7 +156,7 @@
   condition: >
     evt.type=socket and evt.res!=ENOENT and (proc.pname contains "ruby" or proc.name contains "ruby") and proc.cmdline contains "TCPSocket" and container and shell_parent_procs
   output: >
-    Ruby runs inside container that allows remote code execution (zh_msg=黑客在容器内通过ruby反弹shell),rule_type=Execution,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,
+    Ruby runs inside container that allows remote code execution (zh_msg=容器内通过ruby反弹shell),rule_type=Execution,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,
     original_info=user=%user.name user_loginuid=%user.loginuid
     container_id=%container.id container_name=%container.name image=%container.image.repository:%container.image.tag
     connection=%fd.name,client_ip=%fd.cip,client_port=%fd.cport,server_ip=%fd.sip,server_port=%fd.sport)
@@ -177,7 +177,7 @@
   condition: >
     evt.type=connect and not evt.res contains "ECONNREFUSED" and evt.arg.res!=0 and container and not ignore_proc_args and proc.name contains "awk" and proc.cmdline contains "/inet/tcp/" and shell_parent_procs
   output: >
-    awk runs inside container that allows remote code execution (zh_msg=黑客在容器内通过awk反弹shell),rule_type=Execution,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,evt.args=%evt.args
+    awk runs inside container that allows remote code execution (zh_msg=容器内通过awk反弹shell),rule_type=Execution,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,evt.args=%evt.args
     original_info=user=%user.name user_loginuid=%user.loginuid
     container_id=%container.id container_name=%container.name image=%container.image.repository:%container.image.tag
     connection=%fd.name,client_ip=%fd.cip,client_port=%fd.cport,server_ip=%fd.sip,server_port=%fd.sport)
@@ -201,7 +201,7 @@
     container and shell_family_procs and
     not k8s.pod.name contains "98166d" and not k8s.pod.name contains "42cca6"
   output: >
-    Reverse shell through socket and dup (zh_msg=黑客在容器内通过socket和dup反弹shell,rule_type=Execution,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name %container.info process=%proc.name parent=%proc.pname terminal=%proc.tty container_id=%container.id container_name=%container.name image=%container.image.repository fd_name=%fd.name fd.num=%fd.num fd.type=%fd.type connection=%fd.name,client_ip=%fd.cip,client_port=%fd.cport,server_ip=%fd.sip,server_port=%fd.sport)
+    Reverse shell through socket and dup (zh_msg=容器内通过socket和dup反弹shell,rule_type=Execution,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name %container.info process=%proc.name parent=%proc.pname terminal=%proc.tty container_id=%container.id container_name=%container.name image=%container.image.repository fd_name=%fd.name fd.num=%fd.num fd.type=%fd.type connection=%fd.name,client_ip=%fd.cip,client_port=%fd.cport,server_ip=%fd.sip,server_port=%fd.sport)
   priority: ALERT
   tags: [ATT&CK, container, shell, mitre_execution]
 
@@ -229,7 +229,7 @@
      proc.cmdline contains "kubiscan"
       )
   output: >
-    Running malicious tools in the container (zh_msg=容器内运行恶意工具,rule_type=Execution,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,
+    Running malicious tools in the container (zh_msg=容器内运行k8s恶意工具,rule_type=Execution,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,
     original_info=user=%user.name user_loginuid=%user.loginuid %container.info
     shell=%proc.name parent=%proc.pname terminal=%proc.tty container_id=%container.id container_name=%container.name image=%container.image.repository)
   priority: WARNING
@@ -253,29 +253,8 @@
   priority: WARNING
   tags: [ATT&CK, container, shell, mitre_execution, strict]
 
-- rule: Suspected sending data through tunnel
-  hid: exec_11
-  hthreats: 0
-  suggestion:
-    en:
-      key: "Suggestions"
-      value: "Please determine through the process tree whether the command belongs to the normal behavior of known processes, whether it is an operation and maintenance operation, if it is triggered by the system probe, please use the whitelist plus white corresponding container, otherwise please investigate the specific reasons and isolate the container."
-    zh:
-      key: "处置建议"
-      value: "请通过进程树判断该命令是否属于已知进程的正常行为，是否为运维操作，如果为系统探针触发请采用白名单加白对应容器，否则请排查具体原因并隔离该容器。"
-  desc: Suspected hacker transmits data through tunnel in container
-  condition: >
-    evt.type=socket and container and (proc.name=ping and proc.cmdline contains "-p") or proc.name=nslookup or (proc.name=curl and proc.cmdline contains "-d")  and shell_parent_procs
-  output: >
-    Suspected hacker transmits data through tunnel in container (zh_msg=疑似黑客在容器内通过隧道传输数据),rule_type=Execution,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,evt.args=%evt.args
-    original_info=user=%user.name user_loginuid=%user.loginuid
-    container_id=%container.id container_name=%container.name image=%container.image.repository:%container.image.tag
-    connection=%fd.name,client_ip=%fd.cip,client_port=%fd.cport,server_ip=%fd.sip,server_port=%fd.sport)
-  priority: WARNING
-  tags: [ATT&CK, network, process, mitre_execution, strict]
-
 - rule: Docker build vulnerability(CVE-2019-13139)
-  hid: exec_12
+  hid: exec_11
   hthreats: 0
   suggestion:
     en:

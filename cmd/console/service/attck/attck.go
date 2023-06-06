@@ -21,6 +21,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/echelper"
 	"gitlab.com/piccolo_su/vegeta/pkg/holmes"
 	"gitlab.com/piccolo_su/vegeta/pkg/lang"
+	langpkg "gitlab.com/piccolo_su/vegeta/pkg/lang"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/mozartcommon"
 	"gitlab.com/piccolo_su/vegeta/pkg/rtdetect"
@@ -28,6 +29,8 @@ import (
 	"gitlab.com/security-rd/go-pkg/cryption"
 	"gitlab.com/security-rd/go-pkg/databases"
 	"gitlab.com/security-rd/go-pkg/logging"
+	gpModel "gitlab.com/security-rd/go-pkg/model"
+	gpMozart "gitlab.com/security-rd/go-pkg/mozart"
 	"gopkg.in/yaml.v2"
 	"gorm.io/gorm"
 )
@@ -35,9 +38,7 @@ import (
 type updateConfigTrigger uint8
 
 const (
-	currentRulesVersion = 2
-	minPocVersion       = 2
-	localRulesDirPath   = "/rules"
+	localRulesDirPath = "/rules"
 
 	updateTriggerInit                 updateConfigTrigger = 0
 	updateTriggerCustomConfigsPending updateConfigTrigger = 1
@@ -153,7 +154,7 @@ func parseFalcoRule(item model.RuleFromYaml) (isStrict bool, target ruleItem, er
 		name:        item.Rule,
 		description: item.Desc,
 		severity:    model.Str2SeverityNum(item.Priority),
-		hthreats:    item.Hthreats,
+		hthreats:    item.HThreats,
 		ruleType:    ruleType,
 		adapter:     tsAdapter,
 		category:    item.Category,
@@ -180,7 +181,7 @@ func parseMozartRule(configMozart model.ConfigMozart, mozartMarco []model.Config
 				}
 			}
 		}
-		innerValues, err := mozartcommon.ExtractValues(context.Background(), configMozart.Steps[j], mozartMarco, "0")
+		innerValues, _, err := mozartcommon.ExtractValues(context.Background(), configMozart.Steps[j], mozartcommon.MozartMarcoV2ToV3(mozartMarco), "0")
 		if err != nil {
 			return nil, err
 		}
@@ -280,7 +281,7 @@ func NewATTCKHandler(db *databases.RDBInstance, redisCli *redis.Client, sherlock
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 
-	for i := 1; i <= currentRulesVersion; i++ {
+	for i := 1; i <= model.CurrentEngineLargeVersion; i++ {
 		err := handler.updateConfigs(ctx, uint16(i), updateTriggerInit)
 		if err != nil {
 			return nil, err
@@ -304,6 +305,66 @@ func (h *ATTCKHandler) loadFromLocal(ctx context.Context, v uint16) ([]byte, err
 	}
 
 	return nil, errors.New("no local file of such version")
+}
+
+func (h *ATTCKHandler) parseItemsV3(header cryption.FileHeader, rulesContext []byte) (version RulesVersion, rules map[string]*ruleItem, strictRules map[string]struct{}, err error) {
+	version = RulesVersion{
+		header.Version[0],
+		header.Version[1],
+	}
+
+	var fDataRules []gpModel.UserRuleYaml
+	err = yaml.Unmarshal(rulesContext, &fDataRules)
+	if err != nil {
+		logging.Get().Warn().Msgf("unmarshal rule fail, err:%s", err.Error())
+		return version, nil, nil, ErrInvalidRuleData
+	}
+
+	strictRules = make(map[string]struct{}, len(fDataRules)/3)
+
+	rules = make(map[string]*ruleItem, len(fDataRules))
+
+	for i := range fDataRules {
+
+		if fDataRules[i].Type == "mozart_rule" { // mozart rule
+			item := makeRuleItemForUserRule(fDataRules[i])
+			rules[fDataRules[i].Name] = &item
+			if item.disabled {
+				strictRules[item.name] = struct{}{}
+			}
+		}
+	}
+
+	return version, rules, strictRules, nil
+}
+
+func makeRuleItemForUserRule(userRule gpModel.UserRuleYaml) ruleItem {
+	hThreats := 0
+	if userRule.Info.Urgency {
+		hThreats = 1
+	}
+	tsAdapter := make(map[string]map[string]string, 2)
+	tsAdapter[string(lang.LanguageZH)] = make(map[string]string, 2)
+	tsAdapter[string(lang.LanguageZH)][typeKey] = model.TranslateRuleType(userRule.Info.RuleType)
+	tsAdapter[string(lang.LanguageZH)][descriptionKey] = userRule.Info.Desc.Zh
+	tsAdapter[string(lang.LanguageEN)] = make(map[string]string, 2)
+	tsAdapter[string(lang.LanguageEN)][typeKey] = userRule.Info.RuleType
+	tsAdapter[string(lang.LanguageEN)][descriptionKey] = userRule.Info.Desc.En
+
+	category := model.RuleCategoryATTCK
+	if util.ContainsString(userRule.Info.Tags, model.RuleCategoryWatson) {
+		category = model.RuleCategoryWatson
+	}
+	return ruleItem{
+		disabled:    !userRule.Enabled,
+		name:        userRule.Name,
+		description: userRule.Info.Desc.En,
+		severity:    model.Str2SeverityNum(userRule.Info.Priority),
+		hthreats:    uint8(hThreats),
+		ruleType:    strings.ReplaceAll(userRule.Info.RuleType, "_", " "),
+		adapter:     tsAdapter,
+		category:    category,
+	}
 }
 
 func (h *ATTCKHandler) GetRuleInfo(ctx context.Context, ruleKey string) (*HolmesRule, bool) {
@@ -442,8 +503,11 @@ func (h *ATTCKHandler) asyncUploadRulesToEventsCenter(ruleBytes []byte, version 
 				err := util.RetryWithBackoff(tctx, func() error {
 					oneCtx, cancel := context.WithTimeout(tctx, 5*time.Second)
 					defer cancel()
-
-					return echelper.SendRulesToEventCenter(oneCtx, h.sherlockClient, ruleBytes, version)
+					if vSeg1 := gpMozart.VersionSeg1(version); vSeg1 > 2 {
+						return echelper.SendRulesToEventCenterV3(oneCtx, h.sherlockClient, ruleBytes, version)
+					} else {
+						return echelper.SendRulesToEventCenter(oneCtx, h.sherlockClient, ruleBytes, version)
+					}
 				})
 				if err != nil {
 					logging.Get().Err(err).Str("conf version", version).Msg("send to events center error.")
@@ -515,12 +579,16 @@ func (h *ATTCKHandler) GetCustomInitConfig(ctx context.Context, language string)
 				logging.Get().Error().Str("ruleKey", steps[0]).Msg("cannot find the rule from store")
 				continue
 			}
-			iconf.Rule.Category = rinfo.Category[language]
-			iconf.Rule.CategoryKey = rinfo.Category[string(lang.LanguageEN)]
-			iconf.Rule.Name = rinfo.Name[language]
-			iconf.Rule.Description = rinfo.Description[language]
-			iconf.Rule.Hthreats = int(rinfo.Hthreats)
-			iconf.Rule.Severity = int(rinfo.Severity)
+			if language == "zh" {
+				iconf.Rule.Category = model.TranslateRuleType(rinfo.Info.RuleType)
+			} else {
+				iconf.Rule.Category = rinfo.Info.RuleType
+			}
+			iconf.Rule.CategoryKey = rinfo.Info.RuleType
+			iconf.Rule.Name = GetFromHola(rinfo.Info.Name, language)
+			iconf.Rule.Description = GetFromHola(rinfo.Info.Desc, language)
+			iconf.Rule.Hthreats = fromBoolToInt(rinfo.Info.Urgency)
+			iconf.Rule.Severity = int(model.Str2SeverityNum(rinfo.Info.Priority))
 			iconf.Rule.Module = "ATT&CK"
 			iconf.Effect = initConfig.Effect[language]
 
@@ -549,6 +617,12 @@ type CustomConfigItem struct {
 	UpdatedAt     int64         `json:"updatedAt"`
 }
 
+func fromBoolToInt(b bool) int {
+	if b {
+		return 1
+	}
+	return 0
+}
 func (h *ATTCKHandler) GetCustomConfigs(ctx context.Context, query CustomConfigsQueryOption, limit, offset int, lang string) ([]CustomConfigItem, int, error) {
 	var queryFunc dal.QueryBuilderFunc
 	if len(query.Query) > 0 {
@@ -622,12 +696,16 @@ func (h *ATTCKHandler) GetCustomConfigs(ctx context.Context, query CustomConfigs
 		if exist && store != nil {
 			rinfo, exist := store.GetRule(context.Background(), dbItem.RuleKey)
 			if exist {
-				retList[i].Rule.Description = rinfo.Description[lang]
-				retList[i].Rule.Name = rinfo.Name[lang]
-				retList[i].Rule.Category = rinfo.Category[lang]
+				retList[i].Rule.Description = GetFromHola(rinfo.Info.Desc, lang)
+				retList[i].Rule.Name = GetFromHola(rinfo.Info.Name, lang)
+				if lang == string(langpkg.LanguageEN) {
+					retList[i].Rule.Category = rinfo.Info.RuleType
+				} else if lang == string(langpkg.LanguageZH) {
+					retList[i].Rule.Category = model.TranslateRuleType(rinfo.Info.RuleType)
+				}
 				retList[i].Rule.Module = "ATT&CK"
-				retList[i].Rule.Hthreats = int(rinfo.Hthreats)
-				retList[i].Rule.Severity = int(rinfo.Severity)
+				retList[i].Rule.Hthreats = fromBoolToInt(rinfo.Info.Urgency)
+				retList[i].Rule.Severity = int(model.Str2SeverityNum(rinfo.Info.Priority))
 			} else {
 				logging.Get().Warn().Str("rkey", dbItem.RuleKey).Msg("cannot find the rule")
 			}
@@ -776,7 +854,7 @@ func (h *ATTCKHandler) updateConfigs(ctx context.Context, v uint16, trigger upda
 			var strictRules map[string]struct{}
 
 			// customized configs process
-			if header.Version[0] >= 2 {
+			if header.Version[0] >= 3 {
 				logging.Get().Info().Msg("Try to update data by custom configs and plugins")
 				customed, ccv, custerr := h.rulesManager.UpdateRules(context.Background(), rulesContext, header.Version)
 				if custerr == nil {
@@ -787,7 +865,11 @@ func (h *ATTCKHandler) updateConfigs(ctx context.Context, v uint16, trigger upda
 				}
 			}
 
-			version, rules, strictRules, err = h.parseItems(header, rulesContext)
+			if header.Version[0] > 2 {
+				version, rules, strictRules, err = h.parseItemsV3(header, rulesContext)
+			} else {
+				version, rules, strictRules, err = h.parseItems(header, rulesContext)
+			}
 			if err != nil {
 				logging.Get().Err(err).Str("data", string(ruleBytes)).Msg("parse items error.")
 				return err
@@ -833,7 +915,7 @@ func (h *ATTCKHandler) updateConfigs(ctx context.Context, v uint16, trigger upda
 			return err
 		}
 		// customized configs process
-		if header.Version[0] >= 2 {
+		if header.Version[0] >= 3 {
 			logging.Get().Info().Msg("Try to update data by custom configs and plugins")
 			ctx := context.Background()
 			customed, ccVersion, custerr := h.rulesManager.UpdateRules(ctx, rulesContext, header.Version)
@@ -843,7 +925,7 @@ func (h *ATTCKHandler) updateConfigs(ctx context.Context, v uint16, trigger upda
 				// if it's refreshing or it's initing but the new ccVersion is different from the previous version, we update the data offset to trigger the updates of rules
 				if trigger == updateTriggerCustomConfigsPending || trigger == updateTriggerRulesUpdated || (trigger == updateTriggerInit && (h.isPOCEnabled || ccVersion != storeConf.CconfigIDversion)) {
 					logging.Get().Info().Uint8("trigger", uint8(trigger)).Bool("isPOCEnabled", h.isPOCEnabled).Uint64("dataID", storeConf.ID).Uint64("cconf version", ccVersion).Msg("try to start update rules offset to push")
-					ierr := dal.IncreaseATTCKDataIDAndSetConfigVersion(ctx, h.db.Get(), storeConf.ID, ccVersion)
+					ierr := dal.IncreaseATTCKDataIDAndSetConfigVersion(ctx, h.db.Get(), header.Version[0], storeConf.ID, ccVersion)
 					if ierr != nil {
 						logging.Get().Err(ierr).Uint64("dataID", storeConf.ID).Uint64("cconf version", ccVersion).Msg("increase and update ccversion error")
 					} else {
@@ -856,7 +938,11 @@ func (h *ATTCKHandler) updateConfigs(ctx context.Context, v uint16, trigger upda
 				logging.Get().Err(custerr).Msg("customized process rules error")
 			}
 		}
-		_, rules, _, err = h.parseItems(header, rulesContext)
+		if header.Version[0] > 2 {
+			_, rules, _, err = h.parseItemsV3(header, rulesContext)
+		} else {
+			_, rules, _, err = h.parseItems(header, rulesContext)
+		}
 		if err != nil {
 			logging.Get().Err(err).Msgf("parse items error. data: %s", string(storeConf.Content))
 			return err
@@ -939,8 +1025,7 @@ func (h *ATTCKHandler) UpdateConfig(ctx context.Context, username string, data [
 
 	var ccVersion uint64
 	// customized configs process
-	if header.Version[0] >= 2 {
-		logging.Get().Info().Msg("Try to update data by custom configs and plugins")
+	if header.Version[0] >= 3 {
 		customed, ccv, custerr := h.rulesManager.UpdateRules(context.Background(), rulesContext, header.Version)
 		if custerr == nil {
 			rulesContext = customed.Data
@@ -950,7 +1035,14 @@ func (h *ATTCKHandler) UpdateConfig(ctx context.Context, username string, data [
 		}
 	}
 
-	version, rules, strictRules, err := h.parseItems(header, rulesContext)
+	var version RulesVersion
+	var rules map[string]*ruleItem
+	var strictRules map[string]struct{}
+	if header.Version[0] > 2 {
+		version, rules, strictRules, err = h.parseItemsV3(header, rulesContext)
+	} else {
+		version, rules, strictRules, err = h.parseItems(header, rulesContext)
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -970,8 +1062,11 @@ func (h *ATTCKHandler) UpdateConfig(ctx context.Context, username string, data [
 	h.cacheLock.Lock()
 	defer h.cacheLock.Unlock()
 	var deprecatedRuleMasks []string
+
 	vRules, ok := h.rules[version.Seg1]
+	var currentRulesOnlineOffset uint64
 	if ok {
+		currentRulesOnlineOffset = vRules.onlineOffset
 		for _, rule := range vRules.items {
 			if rule.disabled && rules[rule.name] != nil {
 				// set disabled
@@ -1013,10 +1108,11 @@ func (h *ATTCKHandler) UpdateConfig(ctx context.Context, username string, data [
 		return nil, err
 	}
 
-	onlineOffset := vRules.onlineOffset
+	onlineOffset := currentRulesOnlineOffset
 	if len(deprecatedRuleMasks) > 0 {
 		onlineOffset++
 	}
+
 	h.updateRulesByVersion(rules, storedRuleData.ID, onlineOffset, confVersion)
 
 	logging.Get().WithContext(ctx).Infof("decoding done. try to update to events center")
@@ -1034,15 +1130,22 @@ func (h *ATTCKHandler) updateRulesByVersion(rules map[string]*ruleItem, baseOffs
 	vRules.onlineOffset = onlineOffset
 	vRules.currentVersion = &version
 	vRules.items = rules
-	vRules.sortedItems = make([]*ruleItem, 0, len(rules))
-	for _, rule := range rules {
-		vRules.sortedItems = append(vRules.sortedItems, rule)
-	}
-	sort.Slice(vRules.sortedItems, func(i, j int) bool {
-		return compare(vRules.sortedItems[i], vRules.sortedItems[j])
-	})
+	vRules.sortedItems = makeSortedItems(rules)
 
 	h.rules[version.Version1] = vRules
+}
+
+func makeSortedItems(rules map[string]*ruleItem) []*ruleItem {
+	sortedItems := make([]*ruleItem, len(rules))
+	i := 0
+	for _, rule := range rules {
+		sortedItems[i] = rule
+		i++
+	}
+	sort.Slice(sortedItems, func(i, j int) bool {
+		return compare(sortedItems[i], sortedItems[j])
+	})
+	return sortedItems
 }
 
 type GetRuleListArg struct {
@@ -1065,6 +1168,7 @@ func (h *ATTCKHandler) GetRuleList(_ context.Context, arg *GetRuleListArg, v uin
 	if !ok {
 		return total, nil, ErrInvalidRulesVersion1
 	}
+
 	for _, rule := range vRules.sortedItems {
 		if (arg.Query == "" || checkRuleMatchQuery(rule, arg.Query, arg.Lang)) &&
 			(len(arg.SeverityFilter) == 0 || checkSeverityFilter(rule, arg.SeverityFilter)) &&
@@ -1149,6 +1253,7 @@ func (h *ATTCKHandler) UpdateRuleSettings(ctx context.Context, settings []*model
 		for _, setting := range settings {
 			vRules.items[setting.Name].disabled = !setting.Enabled
 		}
+		vRules.sortedItems = makeSortedItems(vRules.items)
 		vRules.onlineOffset++
 	}
 	h.rules[v] = vRules
@@ -1249,7 +1354,7 @@ func (h *ATTCKHandler) GetATTCKConfData(ctx context.Context, reqBaseOffset, reqO
 	}
 	if latestBaseOffset > reqBaseOffset {
 		got := false
-		if v == 2 {
+		if v >= 3 {
 			outputBytes, ok := h.rulesManager.GetOutputBytes()
 			if ok {
 				info.DataChanged = true
@@ -1294,7 +1399,7 @@ func (h *ATTCKHandler) asyncLoop() {
 	ticker := time.NewTicker(flushInterval)
 	defer ticker.Stop()
 	for range ticker.C {
-		for i := 1; i <= currentRulesVersion; i++ {
+		for i := 1; i <= model.CurrentEngineLargeVersion; i++ {
 			h.flushCache(uint16(i))
 		}
 	}
@@ -1316,7 +1421,7 @@ func (h *ATTCKHandler) flushCache(v uint16) {
 	}
 
 	pendingUpdates := false
-	if v >= 2 {
+	if v >= 3 {
 		var cerr error
 		pendingUpdates, cerr = h.rulesManager.CheckCustomConfigsUpdates(ctx)
 		if cerr != nil {

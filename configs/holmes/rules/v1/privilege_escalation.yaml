@@ -17,7 +17,7 @@
     and not user_privileged_containers
     and not tensorsec_namespace
   output: >
-    Privileged container started (zh_msg=特权容器启动,rule_type=Privilege_Escalation,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid %container.info image=%container.image.repository:%container.image.tag,container_id=%container.id,container_name=%container.name)
+    Privileged container started (zh_msg=启动特权容器,rule_type=Privilege_Escalation,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid %container.info image=%container.image.repository:%container.image.tag,container_id=%container.id,container_name=%container.name)
   priority: INFO
   tags: [ATT&CK, container, cis, mitre_privilege_escalation, mitre_lateral_movement, strict]
 
@@ -90,7 +90,7 @@
     and not exe_running_docker_save
     and not user_known_set_setuid_or_setgid_bit_conditions
   output: >
-    Setuid or setgid bit is set via chmod (zh_msg=通过chmod修改文件访问权限,rule_type=Privilege_Escalation,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=fd=%evt.arg.fd filename=%evt.arg.filename mode=%evt.arg.mode user=%user.name user_loginuid=%user.loginuid process=%proc.name
+    Setuid or setgid bit is set via chmod (zh_msg=设置Setuid或Setgid位,rule_type=Privilege_Escalation,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=fd=%evt.arg.fd filename=%evt.arg.filename mode=%evt.arg.mode user=%user.name user_loginuid=%user.loginuid process=%proc.name
     container_id=%container.id container_name=%container.name image=%container.image.repository:%container.image.tag)
   priority: WARNING
   tags: [ATT&CK, process, mitre_persistence]
@@ -150,7 +150,7 @@
   condition: >
     open_write and container and fd.name contains /sys/kernel/core_pattern
   output: >
-    container escape to access host system (zh_msg=容器内通过procfs逃逸,rule_type=Privilege_Escalation,fd_name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,container_id=%container.id,container_name=%container.name)
+    container escape to access host system (zh_msg=容器内挂载procfs目录逃逸,rule_type=Privilege_Escalation,fd_name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,container_id=%container.id,container_name=%container.name)
   priority: ALERT
   tags: [ATT&CK]
 
@@ -186,7 +186,7 @@
   condition: >
    evt.type=mount and evt.arg.type = "cgroup" and container and user.uid=0
   output: >
-    container escape to access host system (zh_msg=容器内挂载cgroup逃逸,rule_type=Privilege_Escalation,fd_name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,container_id=%container.id,container_name=%container.name)
+    container escape to access host system (zh_msg=特权容器挂载cgroup逃逸,rule_type=Privilege_Escalation,fd_name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,container_id=%container.id,container_name=%container.name)
   priority: ALERT
   tags: [ATT&CK]
 
@@ -206,7 +206,7 @@
   desc: Linux sudo Privilege_Escalation
   condition: (evt.type=execve and container and proc.name in (sensitive_cmd))
   output: >
-    Linux sudo Privilege_Escalation (zh_msg=CVE-2021-3156(Linux sudo 权限提升),rule_type=Privilege_Escalation,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,container_id=%container.id,container_name=%container.name)
+    Linux sudo Privilege_Escalation (zh_msg=CVE-2021-3156(sudo权限提升),rule_type=Privilege_Escalation,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,container_id=%container.id,container_name=%container.name)
   priority: ALERT
   tags: [ATT&CK]
 
@@ -232,9 +232,9 @@
     and not proc.cmdline = "runc:[1:CHILD] init"
     and not proc.cmdline contains "kube-bench "
     and not proc.cmdline contains "scanner "
-    and shell_parent_procs
+    and shell_family_procs
   output: >
-    %fd.name is open to write by process (zh_msg=CVE-2019-5736修改容器入口,rule_type=Privilege_Escalation,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=%proc.name %proc.exeline,container_id=%container.id,container_name=%container.name)
+    %fd.name is open to write by process (zh_msg=CVE-2019-5736(runc逃逸漏洞),rule_type=Privilege_Escalation,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=%proc.name %proc.exeline,container_id=%container.id,container_name=%container.name)
   priority: ALERT
   tags: [ATT&CK]
 
@@ -271,7 +271,7 @@
   condition: >
     evt.type = unshare and proc.name=unshare and proc.args contains r and not proc.args contains "mount" and container
   output: >
-    in Linux Kernel Can Allow Container Escape in Kubernetes Linux (zh_msg=CVE-2022-0185：Linux_kernel_bug可实现Kubernetes容器逃逸,rule_type=Privilege_Escalation,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name container=%container.info container_id=%container.id,container_name=%container.name)
+    in Linux Kernel Can Allow Container Escape in Kubernetes Linux (zh_msg=CVE-2022-0185(Linux_kernel_bug可导致Kubernetes容器逃逸),rule_type=Privilege_Escalation,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name container=%container.info container_id=%container.id,container_name=%container.name)
   priority: ALERT
   tags: [ATT&CK, filesystem, mitre_privilege_escalation]
 
@@ -289,7 +289,7 @@
   condition: >
     spawned_process and user.uid != 0 and proc.name=pkexec and proc.args = ''
   output: >
-    Polkit Local Privilege Escalation Vulnerability (zh_msg=CVE-2021-4034：Polkit本地提权漏洞,rule_type=Privilege_Escalation,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,container=%container.info,container_id=%container.id,container_name=%container.name)
+    Polkit Local Privilege Escalation Vulnerability (zh_msg=CVE-2021-4034(Polkit本地提权漏洞),rule_type=Privilege_Escalation,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,container=%container.info,container_id=%container.id,container_name=%container.name)
   priority: ALERT
   tags: [ATT&CK, filesystem, mitre_privilege_escalation]
 
@@ -491,7 +491,7 @@
   desc: Linux dirty cow vulnerability leads to container escape 
   condition: >
     evt.type = openat and fd.name=/proc/self/mem and
-    ((shell_parent_procs) or (proc.aname[1] in (shell_binaries))) and
+    shell_family_procs and
     not show_information_procs
   output: >
     Linux dirty cow vulnerability leads to container escape (zh_msg=Linux脏牛漏洞导致容器逃逸(CVE-2016-5195),rule_type=Privilege_Escalation,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,pod_id=%k8s.pod.id,syscall_name=%syscall.type,container=%container.info,container_id=%container.id,container_name=%container.name,evt.args=%evt.args,fd.name=%fd.name,parent=%proc.pname,gparent=%proc.aname[2],ggparent=%proc.aname[3])

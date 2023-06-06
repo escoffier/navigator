@@ -1,0 +1,62 @@
+package mozart
+
+import (
+	"gitlab.com/security-rd/go-pkg/logging"
+	"time"
+)
+
+var sessionHangupQueue chan work
+
+type work struct {
+	Event         Event
+	Rules         RulesNew
+	JsonEvent     map[string]interface{}
+	SessionStatus map[string]interface{}
+	NextTime      time.Time
+}
+
+func initHangupQueue(e *Engine) {
+	sessionHangupQueue = make(chan work, 1000)
+	var w work
+	var tempW *work
+
+	go func() {
+		var err error
+		ticker := time.NewTicker(time.Millisecond * 500)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ticker.C:
+				breakT := false
+				now := time.Now()
+				for {
+					if tempW != nil {
+						w = *tempW
+						tempW = nil
+					} else {
+						w = <-sessionHangupQueue
+					}
+					if w.NextTime.Before(now) {
+						//fmt.Println("debug status: rerun: ", w.Event.Name, w.SessionStatus, w.NextTime, now, w.NextTime.Format(time.RFC3339))
+						err = e.pool.Invoke(jobArgs{
+							Event:         w.Event,
+							Rules:         w.Rules,
+							JsonEvent:     w.JsonEvent,
+							SessionStatus: w.SessionStatus,
+						})
+						if err != nil {
+							logging.Get().Error().Err(err).Interface("event", w.Event).Interface("session status", w.SessionStatus).Msg("send work to pool fails")
+						}
+					} else {
+						tempW = &w
+						breakT = true
+						break
+					}
+				}
+				if breakT {
+					break
+				}
+			}
+		}
+	}()
+}

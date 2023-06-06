@@ -32,13 +32,14 @@ func readBytesFromDir(dirPath string) []byte {
 	return fileBytes
 }
 func TestProcessorBuilder(t *testing.T) {
-	bytes := readBytesFromDir("./../../../../configs/holmes/rules/v2")
-	processor, _, err := ProcessorBuilder(context.Background(), bytes)
+	bytes := readBytesFromDir("./../../../../configs/holmes/rules/v3")
+	processor, store, err := ProcessorBuilder(context.Background(), bytes)
 	if err != nil {
 		t.Errorf("error: %v", err)
 		return
 	}
 
+	fmt.Println(len(store.configsInit), len(store.rules))
 	pocPlugin := newPocSwitchPluginWithGiven("qt")
 	ccPlugin := NewCustomConfigPlugin(func(ctx context.Context) ([]CconfigItem, error) {
 		return []CconfigItem{
@@ -69,14 +70,14 @@ func TestProcessorBuilder(t *testing.T) {
 		return
 	}
 	qtExist := false
-	if len(pctx.rulesTmp) == 0 {
+	if len(pctx.rules) == 0 {
 		t.Errorf("error empty")
 	}
-	for _, r := range pctx.rulesTmp {
-		t.Logf("%s", r.Rule)
-		if r.Rule == "Container process started" {
+	for _, r := range pctx.rules {
+		t.Logf("%s", r.Key)
+		if r.Key == "Container process started" {
 			t.Error("error: Container process started")
-		} else if r.Rule == "Suspected malicious script execution" {
+		} else if r.Key == "Suspected malicious script execution" {
 			qtExist = true
 		}
 	}
@@ -84,8 +85,8 @@ func TestProcessorBuilder(t *testing.T) {
 		t.Error("error: Suspected malicious script execution no exist")
 	}
 
-	for k, l := range pctx.lists {
-		if k == "miner_domains" {
+	for _, l := range pctx.lists {
+		if l.List == "miner_domains" {
 			found := false
 			for _, v := range l.Items {
 				if v == "/etc/hello" {
@@ -96,7 +97,7 @@ func TestProcessorBuilder(t *testing.T) {
 			if !found {
 				t.Error("error not found for miner")
 			}
-		} else if k == "sensitive_paths" {
+		} else if l.List == "sensitive_paths" {
 			found := false
 			for _, v := range l.Items {
 				if v == "/etc/world" {

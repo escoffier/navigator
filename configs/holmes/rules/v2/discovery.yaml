@@ -130,7 +130,7 @@
     not user_known_contact_k8s_api_server_activities and 
     shell_parent_procs
   output: >
-    Unexpected connection to K8s API Server from container (zh_msg=尝试从容器内连接到ApiServer,rule_type=Discovery,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=%container.info image=%container.image.repository:%container.image.tag connection=%fd.name,container_id=%container.id,container_name=%container.name)
+    Unexpected connection to K8s API Server from container (zh_msg=容器内访问K8S-API-Server,rule_type=Discovery,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=%container.info image=%container.image.repository:%container.image.tag connection=%fd.name,container_id=%container.id,container_name=%container.name)
   priority: NOTICE
   tags: [ATT&CK, network, k8s, container, mitre_discovery]
 
@@ -170,7 +170,7 @@
   condition: >
     open_read and container and fd.name startswith "/proc/" and fd.name contains "pid_max" and evt.arg.flags = O_RDONLY and shell_parent_procs and not k8s.pod.name contains "holmes" and not k8s.pod.name contains "calico" and not k8s.pod.name contains "node-exporter" and not k8s.pod.name contains "console" and not k8s.pod.name contains "51c1c6" and not k8s.pod.name contains "prometheus"
   output: >
-    View process information in the container (zh_msg=容器内查看进程信息,rule_type=Execution,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,
+    View process information in the container (zh_msg=容器内查看进程信息,rule_type=Discovery,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,
     original_info=user=%user.name user_loginuid=%user.loginuid %container.info
     shell=%proc.name parent=%proc.pname terminal=%proc.tty container_id=%container.id container_name=%container.name image=%container.image.repository)
   priority: INFO
@@ -239,7 +239,7 @@
     evt.arg.data contains "awk"
     )
     and shell_parent_procs
-  output: Find files with suid privilege by non-root users (zh_msg=非root用户查找含有suid权限的文件,fd_name=%fd.name,rule_type=Discovery,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,container_id=%container.id,container_name=%container.name)
+  output: Find files with suid privilege by non-root users (zh_msg=非root用户查找具有suid权限的文件,fd_name=%fd.name,rule_type=Discovery,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,container_id=%container.id,container_name=%container.name)
   priority: WARNING
   tags: [ATT&CK]
 
@@ -316,6 +316,6 @@
     not ignore_proc_args and
     shell_parent_procs
   output: >
-    Unexpected connection to K8s DNS Server from container (zh_msg=尝试从容器内连接到k8s_DNS_Server,rule_type=Discovery,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=%container.info image=%container.image.repository:%container.image.tag connection=%fd.name,container_id=%container.id,container_name=%container.name)
+    Unexpected connection to K8s DNS Server from container (zh_msg=容器内与K8S-DNS服务器通信,rule_type=Discovery,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=%container.info image=%container.image.repository:%container.image.tag connection=%fd.name,container_id=%container.id,container_name=%container.name)
   priority: WARNING
   tags: [ATT&CK, network, k8s, container, mitre_discovery, strict]

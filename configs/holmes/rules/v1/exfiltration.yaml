@@ -19,7 +19,7 @@
     and container
   output: >
     Known system binary sent/received network traffic
-    (zh_msg=网络流量中包含系统二进制，可能从外部下载/上载应用,rule_type=Exfiltration,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid connection=%fd.name container_id=%container.id container_name=%container.name image=%container.image.repository)
+    (zh_msg=网络流量中包含系统二进制,rule_type=Exfiltration,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid connection=%fd.name container_id=%container.id container_name=%container.name image=%container.image.repository)
   priority: NOTICE
   tags: [ATT&CK, network, mitre_exfiltration]
 
@@ -39,7 +39,7 @@
      and interpreted_procs)
   output: >
     Interpreted program received/listened for network traffic
-    (zh_msg=发现有入站流量,rule_type=Exfiltration,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid connection=%fd.name container_id=%container.id container_name=%container.name image=%container.image.repository)
+    (zh_msg=入站流量中包含解释型二进制,rule_type=Exfiltration,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid connection=%fd.name container_id=%container.id container_name=%container.name image=%container.image.repository)
   priority: NOTICE
   tags: [ATT&CK, network, mitre_exfiltration]
 
@@ -59,7 +59,7 @@
      and interpreted_procs)
   output: >
     Interpreted program performed outgoing network connection
-    (zh_msg=发现有出站流量,rule_type=Exfiltration,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid connection=%fd.name container_id=%container.id container_name=%container.name image=%container.image.repository)
+    (zh_msg=出站流量中包含解释型二进制,rule_type=Exfiltration,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid connection=%fd.name container_id=%container.id container_name=%container.name image=%container.image.repository)
   priority: NOTICE
   tags: [ATT&CK, network, mitre_exfiltration]
 
@@ -79,7 +79,7 @@
     ((fd.sip in (allowed_outbound_destination_ipaddrs)) or
      (fd.snet in (allowed_outbound_destination_networks)) or
      (fd.sip.name in (allowed_outbound_destination_domains)))
-  output: Disallowed outbound connection destination (zh_msg=检测到在允许的ips、网络或域名之外的对外流量,rule_type=Exfiltration,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=connection=%fd.name user=%user.name user_loginuid=%user.loginuid container_id=%container.id container_name=%container.name image=%container.image.repository)
+  output: Disallowed outbound connection destination (zh_msg=出站流量中包含未知目的地址,rule_type=Exfiltration,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=connection=%fd.name user=%user.name user_loginuid=%user.loginuid container_id=%container.id container_name=%container.name image=%container.image.repository)
   priority: INFO
   tags: [ATT&CK, network]
 
@@ -156,7 +156,7 @@
       value: "请通过进程树判断该命令是否属于已知进程的正常行为，是否由恶意软件执行，使用免疫防御训练应用，使用微隔离阻拦流量，限制敏感文件和命令的用户权限。"
   desc: Detect attempts to use K8s NodePorts from a container
   condition: (inbound_outbound) and fd.sport >= 30000 and fd.sport <= 32767 and container and not nodeport_containers
-  output: Unexpected K8s NodePort Connection (zh_msg=检测到从容器内发出与NodePort建立连接尝试,rule_type=Exfiltration,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=connection=%fd.name container_id=%container.id container_name=%container.name image=%container.image.repository)
+  output: Unexpected K8s NodePort Connection (zh_msg=未知的K8s-NodePort连接,rule_type=Exfiltration,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=connection=%fd.name container_id=%container.id container_name=%container.name image=%container.image.repository)
   priority: NOTICE
   tags: [ATT&CK, network, k8s, container, mitre_port_knocking]
 
@@ -177,7 +177,7 @@
     and remote_file_copy_procs
     and not user_known_remote_file_copy_activities
   output: >
-    Remote file copy tool launched in container (zh_msg=在容器中启动远程文件复制工具,rule_type=Exfiltration,,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid parent_process=%proc.pname
+    Remote file copy tool launched in container (zh_msg=容器内运行远程文件复制工具,rule_type=Exfiltration,,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid parent_process=%proc.pname
     container_id=%container.id container_name=%container.name image=%container.image.repository:%container.image.tag)
   priority: ALERT
   tags: [ATT&CK, network, process, mitre_lateral_movement, mitre_exfiltration]
@@ -214,7 +214,7 @@
   condition: >
     spawned_process and container and network_tool_procs and shell_parent_procs and not ignore_proc_args and not user_known_network_tool_activities and not proc.cmdline contains "-w 2 localhost 2181" and not tensorsec_namespace
   output: >
-    Network tool launched in container (zh_msg=在容器中启动可疑的网络工具,rule_type=Exfiltration,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid parent_process=%proc.pname
+    Network tool launched in container (zh_msg=容器内运行可疑网络工具,rule_type=Exfiltration,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid parent_process=%proc.pname
     container_id=%container.id container_name=%container.name image=%container.image.repository:%container.image.tag)
   priority: NOTICE
   tags: [ATT&CK, network, process, mitre_discovery, mitre_exfiltration]
@@ -233,7 +233,7 @@
   condition: net_miner_pool and not trusted_images_query_miner_domain_dns
 #  enabled: false
   output: >
-    Outbound connection to IP/Port flagged by cryptoioc.ch (zh_msg=与cryptoioc.ch公开的IP/端口的连接，可能存在挖矿行为,rule_type=Exfiltration,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,connection=%fd.name,client_ip=%fd.cip,client_port=%fd.cport,server_ip=%fd.sip,server_port=%fd.sport,domain_name=%fd.sip.name,container=%container.info,image=%container.image.repository,container_id=%container.id,container_name=%container.name)
+    Outbound connection to IP/Port flagged by cryptoioc.ch (zh_msg=检测到连接到常见挖矿池端口的出站连接,rule_type=Exfiltration,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,connection=%fd.name,client_ip=%fd.cip,client_port=%fd.cport,server_ip=%fd.sip,server_port=%fd.sport,domain_name=%fd.sip.name,container=%container.info,image=%container.image.repository,container_id=%container.id,container_name=%container.name)
   priority: ALERT
   tags: [ATT&CK, network, mitre_execution, strict]
 
@@ -250,7 +250,7 @@
   desc: Miners typically specify the mining pool to connect to with a URI that begins with 'stratum+tcp'
   condition: spawned_process and (proc.cmdline contains "stratum+tcp" or proc.cmdline contains "stratum2+tcp" or proc.cmdline contains "stratum+ssl" or proc.cmdline contains "stratum2+ssl")
   output: >
-    Possible miner running (zh_msg=可能存在挖矿程序正在挖矿,rule_type=Exfiltration,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=container=%container.info image=%container.image.repository,container_id=%container.id,container_name=%container.name)
+    Possible miner running (zh_msg=检测到使用Stratum协议的挖矿程序,rule_type=Exfiltration,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=container=%container.info image=%container.image.repository,container_id=%container.id,container_name=%container.name)
   priority: ALERT
   tags: [ATT&CK, process, mitre_execution]
 
@@ -267,7 +267,7 @@
   desc: Detect new packet socket at the device driver (OSI Layer 2) level in a container. Packet socket could be used for ARP Spoofing and Privilege_Escalation(CVE-2020-14386) by attacker.
   condition: evt.type=socket and (evt.arg[0]=AF_PACKET or evt.arg[0]=17) and consider_packet_socket_communication and container and not proc.name in (user_known_packet_socket_binaries)
   output: >
-    Packet socket was created in a container (zh_msg=CVE-2020-14386(在容器中创建的数据包套接字),rule_type=Exfiltration,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid socket_info=%evt.args container_id=%container.id container_name=%container.name image=%container.image.repository:%container.image.tag)
+    Packet socket was created in a container (zh_msg=CVE-2020-14386(容器内创建Packet-socket),rule_type=Exfiltration,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid socket_info=%evt.args container_id=%container.id container_name=%container.name image=%container.image.repository:%container.image.tag)
   priority: NOTICE
   tags: [ATT&CK, network, mitre_discovery]
 
@@ -357,6 +357,6 @@
   condition: >
     easy_outbound and not proc.name in (<NA>, kubectl) and fd.sport in (k8s_ports) and shell_parent_procs
   output: >
-    Scanning ports detected (zh_msg=检测到访问k8s组件敏感端口,rule_type=Exfiltration,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,connection=%fd.name,client_ip=%fd.cip,client_port=%fd.cport,server_ip=%fd.sip,server_port=%fd.sport user=%user.name user_loginuid=%user.loginuid container_id=%container.id container_name=%container.name image=%container.image.repository)
+    Scanning ports detected (zh_msg=检测到访问k8s组件端口,rule_type=Exfiltration,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,connection=%fd.name,client_ip=%fd.cip,client_port=%fd.cport,server_ip=%fd.sip,server_port=%fd.sport user=%user.name user_loginuid=%user.loginuid container_id=%container.id container_name=%container.name image=%container.image.repository)
   priority: ALERT
   tags: [ATT&CK, network, mitre_remote_service]

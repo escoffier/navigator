@@ -9,7 +9,7 @@ import (
 
 	json "github.com/json-iterator/go"
 	"gitlab.com/piccolo_su/vegeta/pkg/dal"
-	"gitlab.com/piccolo_su/vegeta/pkg/lang"
+	"gitlab.com/piccolo_su/vegeta/pkg/holmes"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/security-rd/go-pkg/databases"
 	"gitlab.com/security-rd/go-pkg/logging"
@@ -114,10 +114,6 @@ func (m *RulesManager) setLastCheckStamp(s int64) {
 	atomic.StoreInt64(&m.lastCheckStamp, s)
 }
 
-func (m *RulesManager) GetRulesTmp() ([]*model.RuleFromYaml, error) {
-	return nil, nil
-}
-
 func (m *RulesManager) GetOutputBytes() ([]byte, bool) {
 	rs := m.rulesSession.Load()
 	if rs == nil {
@@ -126,7 +122,7 @@ func (m *RulesManager) GetOutputBytes() ([]byte, bool) {
 	return rs.outputBytes, true
 }
 
-func (m *RulesManager) initCconfigs(ctx context.Context, iconfs []*CconfigInitConfig, store *RulesStore) error {
+func (m *RulesManager) initConfigs(ctx context.Context, iconfs []*holmes.CconfigInitConfig, store *RulesStore) error {
 	for _, iconf := range iconfs {
 		for _, steps := range iconf.RulesAppliedSteps {
 			if len(steps) == 0 {
@@ -137,7 +133,7 @@ func (m *RulesManager) initCconfigs(ctx context.Context, iconfs []*CconfigInitCo
 
 			rcat := ""
 			if exist {
-				rcat = r.Category[string(lang.LanguageEN)]
+				rcat = r.Info.RuleType
 			}
 
 			cc := model.AttckCustomConfig{
@@ -169,7 +165,7 @@ func (m *RulesManager) getStore(ctx context.Context) (*RulesStore, bool) {
 	}
 	return rs.rulesStore, true
 }
-func (m *RulesManager) getCustomInitConfigs(ctx context.Context) ([]*CconfigInitConfig, bool) {
+func (m *RulesManager) getCustomInitConfigs(ctx context.Context) ([]*holmes.CconfigInitConfig, bool) {
 	rs := m.rulesSession.Load()
 	if rs == nil {
 		return nil, false
@@ -256,11 +252,11 @@ func (m *RulesManager) UpdateRules(ctx context.Context, rawData []byte, version 
 		processor.AddPlugin(p)
 	}
 
-	ierr := m.initCconfigs(ctx, infoStore.GetCconfigInitConfigs(), infoStore)
+	ierr := m.initConfigs(ctx, infoStore.GetCconfigInitConfigs(), infoStore)
 	if ierr != nil {
 		logging.Get().Err(ierr).Msg("init cconfigs error")
 	}
-	logging.Get().Info().Int("rules num", len(infoStore.rmap)).Int("conf num", len(infoStore.configsInit)).Msg("processor build OK")
+	logging.Get().Info().Int("rules num", len(infoStore.rmap)).Int("list num", len(processor.parsed.Lists)).Int("macro num", len(processor.parsed.Macros)).Int("conf num", len(infoStore.configsInit)).Msg("processor build OK")
 
 	ruleBytes, pctx, procErr := processor.Process(ctx)
 	if procErr != nil {

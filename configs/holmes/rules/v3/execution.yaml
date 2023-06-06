@@ -1,0 +1,222 @@
+##attck_rule_type=Execution
+- key: DB program spawned process
+  hid: exec_01
+  condition: >
+    proc.pname in (db_server_binaries)
+    and spawned_process
+    and shell_parent_procs
+    and not proc.name in (db_server_binaries)
+    and not postgres_running_wal_e
+    and not user_known_db_spawned_processes
+    and not tensorsec_namespace
+  output: >
+    proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,user_loginuid=%user.loginuid,parent=%proc.pname,container_id=%container.id,container_name=%container.name,image=%container.image.repository
+  info:
+    name:
+      en: "DB program spawned process"
+      zh: "数据库服务生成非自身进程"
+    desc:
+      en: "a database-server related program spawned a new process other than itself. This shouldn't occur and is a follow on from some SQL injection attacks."
+      zh: "数据库服务生成非自身进程，可能存在提权行为"
+    suggestion:
+      en: "Please confirm whether it is the normal behavior of the process, otherwise it is recommended to check whether the database is under injection attack, there is the phenomenon of executing system commands through the database, you can use immune defense to block the further behavior of hackers."
+      zh: "请确认是否属于进程的正常行为，否则建议排查数据库是否遭到注入攻击，存在通过数据库执行系统命令现象，可使用免疫防御阻断黑客进一步行为。"
+    rule_type: Execution
+    priority: ERROR
+    urgency: true
+    tags: [ATT&CK, process, database, mitre_execution]
+
+- key: Run shell untrusted
+  hid: exec_02
+  condition: >
+    spawned_process
+    and shell_procs
+    and proc.pname exists
+    and protected_shell_spawner
+    and not proc.pname in (shell_binaries, gitlab_binaries, cron_binaries, user_known_shell_spawn_binaries,
+                           needrestart_binaries,
+                           mesos_shell_binaries,
+                           erl_child_setup, exechealthz,
+                           PM2, PassengerWatchd, c_rehash, svlogd, logrotate, hhvm, serf,
+                           lb-controller, nvidia-installe, runsv, statsite, erlexec, calico-node,
+                           "puma reactor")
+    and not proc.cmdline in (known_shell_spawn_cmdlines)
+    and not proc.aname in (unicorn_launche)
+    and not consul_running_net_scripts
+    and not consul_running_alert_checks
+    and not nginx_starting_nginx
+    and not nginx_running_aws_s3_cp
+    and not run_by_package_mgmt_binaries
+    and not serf_script
+    and not check_process_status
+    and not run_by_foreman
+    and not python_mesos_marathon_scripting
+    and not splunk_running_forwarder
+    and not postgres_running_wal_e
+    and not redis_running_prepost_scripts
+    and not rabbitmq_running_scripts
+    and not rabbitmqctl_running_scripts
+    and not run_by_appdynamics
+    and not user_shell_container_exclusions
+  output: >
+    proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,webshell_name=%fd.name,user=%user.name,user_loginuid=%user.loginuid,shell=%proc.name,parent=%proc.pname,gparent=%proc.aname[2],ggparent=%proc.aname[3],aname[4]=%proc.aname[4],aname[5]=%proc.aname[5],aname[6]=%proc.aname[6],aname[7]=%proc.aname[7],container_id=%container.id,container_name=%container.name,image=%container.image.repository
+  info:
+    name:
+      en: "Run shell untrusted"
+      zh: "未受信任的二进制文件产生shell"
+    desc:
+      en: "an attempt to spawn a shell below a non-shell application. Specific applications are monitored."
+      zh: "未受信任的二进制文件产生shell，可能存在提权行为"
+    suggestion:
+      en: "Please confirm whether it is the normal behavior of the process, otherwise it is recommended to check whether the database is under injection attack, there is the phenomenon of executing system commands through the database, you can use immune defense to block the further behavior of hackers."
+      zh: "请确认是否属于进程的正常行为，是否执行了恶意命令，确认该二进制文件是否存在安全漏洞，可使用免疫防御训练应用，阻拦新的或被修改的可执行文件，限制执行命令的用户和接收对象。"
+    rule_type: Execution
+    priority: WARNING
+    urgency: true
+    tags: [ATT&CK, shell, mitre_execution]
+
+- key: Terminal shell in container
+  hid: exec_03
+  condition: >
+    spawned_process and container
+    and shell_procs and proc.tty != 0
+    and container_entrypoint
+    and not user_expected_terminal_shell_in_container_conditions
+    and not tensorsec_namespace
+  output: >
+    proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,user_loginuid=%user.loginuid,container.info=%container.info,shell=%proc.name,parent=%proc.pname,terminal=%proc.tty,container_id=%container.id,container_name=%container.name,image=%container.image.repository
+  info:
+    name:
+      en: "Terminal shell in container"
+      zh: "通过entrypoint/exec的shell进入容器"
+    desc:
+      en: "a shell was used as the entrypoint/exec point into a container with an attached terminal. This shouldn't occur and is a follow on from some SQL injection attacks."
+      zh: "通过entrypoint/exec的shell进入容器，可能存在提权行为"
+    suggestion:
+      en: "Please confirm whether it is the normal behavior of the process, otherwise it is recommended to check whether the database is under injection attack, there is the phenomenon of executing system commands through the database, you can use immune defense to block the further behavior of hackers."
+      zh: "请确认是否属于进程的正常行为，否则建议排查数据库是否遭到注入攻击，存在通过数据库执行系统命令现象，可使用免疫防御阻断黑客进一步行为。"
+    rule_type: Execution
+    priority: WARNING
+    urgency: true
+    tags: [ATT&CK, container, shell, mitre_execution]
+
+- key: Running k8s malicious tools in the container
+  disable: true
+  hid: exec_04
+  condition: >
+    evt.type = execve and container and
+    shell_parent_procs and 
+    (not tensorsec_namespace) and
+    (proc.cmdline contains "cdk eva" or
+     proc.cmdline contains "k0otkit" or
+     proc.cmdline contains "kubesploit" or
+     proc.cmdline contains "red-kube" or
+     proc.cmdline contains "kubestriker" or
+     proc.cmdline contains "kube-hunter" or
+     proc.cmdline contains "kubiscan"
+      )
+  output: >
+    proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,user_loginuid=%user.loginuid,container.info=%container.info,shell=%proc.name,parent=%proc.pname,terminal=%proc.tty,container_id=%container.id,container_name=%container.name,image=%container.image.repository
+  info:
+    name:
+      en: "Running k8s malicious tools in the container"
+      zh: "容器内运行k8s恶意工具"
+    desc:
+      en: "Running k8s malicious tools in the container."
+      zh: "容器内运行k8s恶意工具"
+    suggestion:
+      en: "Please confirm whether the container has been invaded. You can use the immune defense training application to block new or modified executables, and limit the users and recipients who execute commands."
+      zh: "请确认容器是否遭到入侵，可使用免疫防御训练应用，阻拦新的或被修改的可执行文件，限制执行命令的用户和接收对象。"
+    rule_type: Execution
+    priority: WARNING
+    urgency: true
+    tags: [ATT&CK, container, shell, mitre_execution]
+
+- key: Connecting to a remote server through redis client in container
+  hid: exec_05
+  condition: >
+    evt.type=openat and container and evt.arg.name contains ".rediscli_history" and proc.cmdline  contains " -h " and not proc.cmdline contains "localhost" and not proc.cmdline contains "127.0.0.1" and not k8s.pod.name contains "51c1c6"
+  output: >
+    proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,user_loginuid=%user.loginuid,parent=%proc.pname,terminal=%proc.tty,container_id=%container.id,container_name=%container.name,image=%container.image.repository
+  steps:
+    - name: checkRelatedExists
+      params: [ 'Contact remote server from container', 1s, trigger.payload.output_map.proc_pid, payload.output_map.proc_pid ]
+  info:
+    name:
+      en: "Connecting to a remote server through redis client in container"
+      zh: "容器内通过redis客户端连接远程服务器"
+    desc:
+      en: "Connecting to a remote server through redis client in container."
+      zh: "容器内通过redis客户端连接远程服务器"
+    suggestion:
+      en: "Please use the process tree to determine whether the command is executed by malware, confirm whether the redis connection is a normal business connection, and investigate the reason for the connection."
+      zh: "请通过进程树判断该命令是否由恶意软件执行，确认该redis连接是否为业务正常连接，排查出现该连接原因。"
+    rule_type: Execution
+    priority: WARNING
+    urgency: true
+    tags: [ATT&CK, container, shell, mitre_execution]
+
+- key: Run the tool for scanning ports
+  hid: exec_06
+  condition: >
+    spawned_process and proc.name in (scan_ports_tool_binaries)
+  output: >
+    proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,connection=%fd.name,client_ip=%fd.cip,client_port=%fd.cport,server_ip=%fd.sip,server_port=%fd.sport,user=%user.name,user_loginuid=%user.loginuid,container_id=%container.id,container_name=%container.name,image=%container.image.repository
+  info:
+    name:
+      en: "Run the tool for scanning ports"
+      zh: "运行端口扫描工具"
+    desc:
+      en: "Run the tool for scanning ports."
+      zh: "运行端口扫描工具"
+    suggestion:
+      en: "There may be port scanning behavior, it is recommended to confirm whether there is a vulnerability in the service where the port is located."
+      zh: "可能存在敏感端口扫描行为，建议确认端口所在服务是否存在漏洞。"
+    rule_type: Execution
+    priority: ALERT
+    urgency: true
+    tags: [ATT&CK, network, mitre_remote_service]
+
+- key: Run the tool for brute-force cracking
+  hid: exec_07
+  condition: >
+    spawned_process and proc.name in (brute_force_binaries)
+  output: >
+    proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,connection=%fd.name,client_ip=%fd.cip,client_port=%fd.cport,server_ip=%fd.sip,server_port=%fd.sport,user=%user.name,user_loginuid=%user.loginuid,container_id=%container.id,container_name=%container.name,image=%container.image.repository
+  info:
+    name:
+      en: "Run the tool for brute-force cracking"
+      zh: "运行暴力破解工具"
+    desc:
+      en: "Run the tool for brute-force cracking."
+      zh: "运行暴力破解工具"
+    suggestion:
+      en: "There may be brute force cracking, it is recommended to confirm whether there is a weak password in the service where the port is located."
+      zh: "可能存在暴力破解行为，建议确认端口所在服务是否存在弱口令。"
+    rule_type: Execution
+    priority: ALERT
+    urgency: true
+    tags: [ATT&CK, network, mitre_remote_service]
+
+- key: Docker build vulnerability(CVE-2019-13139)
+  hid: exec_08
+  condition: >
+    evt.type=execve and proc.name=docker and
+    (proc.cmdline contains "build" and proc.cmdline contains "git@" and proc.cmdline contains "--upload-pack") and
+    shell_parent_procs
+  output: >
+    proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,user_loginuid=%user.loginuid,container.info=%container.info,shell=%proc.name,parent=%proc.pname,terminal=%proc.tty,container_id=%container.id,container_name=%container.name,image=%container.image.repository
+  info:
+    name:
+      en: "Docker build vulnerability(CVE-2019-13139)"
+      zh: "Docker构建漏洞导致代码执行(CVE-2019-13139)"
+    desc:
+      en: "Docker build vulnerability(CVE-2019-13139)."
+      zh: "Docker构建漏洞导致代码执行(CVE-2019-13139)"
+    suggestion:
+      en: "Ensure your Docker engine is up to date and if possible avoid using remote context’s for builds, especially if supplied by third-parties."
+      zh: "确保Docker版本是最新的,尽可能避免使用远程环境进行构建，特别是由第三方提供的。"
+    rule_type: Execution
+    priority: CRITICAL
+    urgency: true
+    tags: [ATT&CK, container, shell, mitre_execution]

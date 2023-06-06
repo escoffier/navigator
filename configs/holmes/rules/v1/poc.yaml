@@ -45,12 +45,13 @@
   condition: >
     (inbound_outbound) and proc.cmdline contains "dnslog"
   output: >
-    Try ssh connection in host (zh_msg=疑似通过dnslog等方式进行带外探测,rule_type=Exfiltration,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,connection=%fd.name,client_ip=%fd.cip,client_port=%fd.cport,server_ip=%fd.sip,server_port=%fd.sport user=%user.name user_loginuid=%user.loginuid container_id=%container.id container_name=%container.name image=%container.image.repository)
+    Suspected of out-of-band detection through dnslog and other methods (zh_msg=疑似通过dnslog等方式进行带外探测,rule_type=Exfiltration,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,connection=%fd.name,client_ip=%fd.cip,client_port=%fd.cport,server_ip=%fd.sip,server_port=%fd.sport user=%user.name user_loginuid=%user.loginuid container_id=%container.id container_name=%container.name image=%container.image.repository)
   priority: WARNING
   tags: [ATT&CK, network, mitre_remote_service, 4t, xy]
 
 
 - rule: Suspected sending data through tunnel
+  disable: true
   hid: poc_3
   hthreats: 0
   suggestion:
@@ -69,7 +70,7 @@
     container_id=%container.id container_name=%container.name image=%container.image.repository:%container.image.tag
     connection=%fd.name,client_ip=%fd.cip,client_port=%fd.cport,server_ip=%fd.sip,server_port=%fd.sport)
   priority: WARNING
-  tags: [ATT&CK, network, process, mitre_execution, strict, 4t, xy]
+  tags: [ATT&CK, network, process, mitre_execution, 4t, xy]
 
 - rule: Network scanning through interpreted language
   hid: poc_4

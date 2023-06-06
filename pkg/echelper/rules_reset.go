@@ -3,9 +3,6 @@ package echelper
 import (
 	"context"
 	"strings"
-	"time"
-
-	"gopkg.in/yaml.v2"
 
 	"gitlab.com/piccolo_su/vegeta/pkg/lang"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
@@ -13,17 +10,80 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/mozartcommon"
 	"gitlab.com/piccolo_su/vegeta/pkg/rtdetect"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
+	gpModel "gitlab.com/security-rd/go-pkg/model"
 	"gitlab.com/security-rd/go-pkg/pb"
+	"gopkg.in/yaml.v2"
 )
 
 const (
-	internalAttributePrefix = "__internal__"
-	timeout                 = time.Second * 5
-	module                  = "ContainerSecurity"
-	moduleZh                = "容器安全"
+	module   = "ContainerSecurity"
+	moduleZh = "容器安全"
 )
 
+func SendRulesToEventCenterV3(ctx context.Context, cli *SherlockClient, rulesData []byte, version string) error {
+
+	var rules = make(map[string][]*pb.DetectionRule, 3)
+
+	// v3.x版本基于mozart规则，重新定义了规则yaml
+	var fDataRules []gpModel.UserRuleYaml
+	err := yaml.Unmarshal(rulesData, &fDataRules)
+	if err != nil {
+		return err
+	}
+
+	for i := range fDataRules {
+
+		if fDataRules[i].Type == "mozart_rule" { // mozart rule
+			var hThreats uint8
+			var suggestion map[string]*model.KV
+			var rule *pb.DetectionRule
+
+			ruleEnName := fDataRules[i].Info.Name.En
+			if ruleEnName == "" {
+				continue
+			}
+			ruleZhName := fDataRules[i].Info.Name.Zh
+
+			category, categoryZh := mozartcommon.CategoryFromTags(fDataRules[i].Info.Tags)
+			descriptionZh := fDataRules[i].Info.Desc.Zh
+			descriptionEn := fDataRules[i].Info.Desc.En
+
+			priority := fDataRules[i].Info.Priority
+			ruleType := fDataRules[i].Info.RuleType
+			ruleTypeZh := model.TranslateRuleType(ruleType)
+			if fDataRules[i].Info.Urgency {
+				hThreats = 1
+			}
+			suggestion = map[string]*model.KV{
+				"en": {
+					Key:   "Suggestions",
+					Value: fDataRules[i].Info.Suggestion.En,
+				},
+				"zh": {
+					Key:   "处置建议",
+					Value: fDataRules[i].Info.Suggestion.Zh,
+				},
+			}
+			// 增加mozart规则
+			rule = generateRule(category, categoryZh, ruleEnName, ruleZhName, descriptionEn, descriptionZh, priority, ruleType, ruleTypeZh, "", hThreats, suggestion)
+			rules[rule.Category] = append(rules[rule.Category], rule)
+		}
+	}
+
+	for category, cRules := range rules {
+		err := cli.ResetCategoryRules(ctx, category, cRules, version)
+		if err != nil {
+			logging.GetLogger().Err(err).Msgf("reset category %s rules error", category)
+			return err
+		}
+	}
+	return nil
+}
+
 func SendRulesToEventCenter(ctx context.Context, cli *SherlockClient, rulesData []byte, version string) error {
+
+	var rules = make(map[string][]*pb.DetectionRule, 3)
+
 	var fDataRules []model.RuleFromYaml
 	err := yaml.Unmarshal(rulesData, &fDataRules)
 	if err != nil {
@@ -39,7 +99,6 @@ func SendRulesToEventCenter(ctx context.Context, cli *SherlockClient, rulesData 
 		break
 	}
 
-	var rules = make(map[string][]*pb.DetectionRule, 3)
 	for _, item := range fDataRules {
 		if (len(item.Rule) == 0 || len(item.Priority) == 0) && len(item.Mozart) == 0 {
 			continue
@@ -67,7 +126,7 @@ func SendRulesToEventCenter(ctx context.Context, cli *SherlockClient, rulesData 
 		var ruleTypeZh string
 		var ruleTypeEn string
 		var hid string
-		var hthreats uint8
+		var hThreats uint8
 		var suggestion map[string]*model.KV
 
 		var rule *pb.DetectionRule
@@ -86,7 +145,7 @@ func SendRulesToEventCenter(ctx context.Context, cli *SherlockClient, rulesData 
 							}
 						}
 					}
-					innerValues, err := mozartcommon.ExtractValues(context.Background(), item.Mozart[i].Steps[j], mozartMarco, "0")
+					innerValues, _, err := mozartcommon.ExtractValues(context.Background(), item.Mozart[i].Steps[j], mozartcommon.MozartMarcoV2ToV3(mozartMarco), "0")
 					if err != nil {
 						return err
 					}
@@ -116,6 +175,7 @@ func SendRulesToEventCenter(ctx context.Context, cli *SherlockClient, rulesData 
 					if err != nil {
 						return err
 					}
+					ruleZhName := iDescZh
 					iSuggestionZh, err := mozartcommon.TemplateFormat(item.Mozart[i].Info.Suggestion.Zh, flatValues[j])
 					if err != nil {
 						return err
@@ -130,7 +190,7 @@ func SendRulesToEventCenter(ctx context.Context, cli *SherlockClient, rulesData 
 					ruleTypeZh = model.TranslateRuleType(ruleType)
 					ruleTypeEn = model.TranslateENRuleType(ruleType)
 					if item.Mozart[i].Info.Urgency {
-						hthreats = 1
+						hThreats = 1
 					}
 					suggestion = map[string]*model.KV{
 						"en": {
@@ -143,7 +203,7 @@ func SendRulesToEventCenter(ctx context.Context, cli *SherlockClient, rulesData 
 						},
 					}
 					// 增加mozart规则
-					rule = generateRule(category, categoryZh, iRuleEnName.(string), iDescEn.(string), iDescZh.(string), priority, ruleTypeEn, ruleTypeZh, hid, hthreats, suggestion)
+					rule = generateRule(category, categoryZh, iRuleEnName.(string), ruleZhName.(string), iDescEn.(string), iDescZh.(string), priority, ruleTypeEn, ruleTypeZh, hid, hThreats, suggestion)
 					rules[rule.Category] = append(rules[rule.Category], rule)
 				}
 
@@ -176,9 +236,9 @@ func SendRulesToEventCenter(ctx context.Context, cli *SherlockClient, rulesData 
 		priority = item.Priority
 		hid = item.HID
 		suggestion = item.Suggestion
-		hthreats = item.Hthreats
+		hThreats = item.HThreats
 
-		rule = generateRule(category, categoryZh, ruleName, descriptionEn, descriptionZh, priority, ruleTypeEn, ruleTypeZh, hid, hthreats, suggestion)
+		rule = generateRule(category, categoryZh, ruleName, descriptionZh, descriptionEn, descriptionZh, priority, ruleTypeEn, ruleTypeZh, hid, hThreats, suggestion)
 		rules[rule.Category] = append(rules[rule.Category], rule)
 	}
 
@@ -192,7 +252,7 @@ func SendRulesToEventCenter(ctx context.Context, cli *SherlockClient, rulesData 
 	return nil
 }
 
-func generateRule(category, categoryZh, name, description, descriptionZh, priority, ruleTypeEn, ruleTypeZh, hid string, hthreats uint8, suggestion map[string]*model.KV) *pb.DetectionRule {
+func generateRule(category, categoryZh, name, ruleZhName, description, descriptionZh, priority, ruleTypeEn, ruleTypeZh, hid string, hthreats uint8, suggestion map[string]*model.KV) *pb.DetectionRule {
 	var rule = &pb.DetectionRule{
 		Module:      module,
 		Category:    category,
@@ -213,6 +273,12 @@ func generateRule(category, categoryZh, name, description, descriptionZh, priori
 			//},
 		},
 		MultiLanguage: map[string]*pb.MultiLanguageValue{
+			"name": {
+				ValueHash: map[string]string{
+					string(lang.LanguageZH): ruleZhName,
+					string(lang.LanguageEN): name,
+				},
+			},
 			"description": {
 				ValueHash: map[string]string{
 					string(lang.LanguageZH): descriptionZh,

@@ -1,0 +1,93 @@
+##mozart_branches
+- key: reverseShell
+  type: branches_serial
+  branches:
+  - steps:
+    - name: checkRelatedExists
+      params: [ 'Generated java child process shell after starting the container', 5s, trigger.payload.output_map.proc_vpgid, payload.output_map.proc_vpgid ]
+    - name: defineValue
+      params: { reverse_tool: java, reverse_tool_zh: java }
+  - steps:
+    - name: checkRelatedExists
+      params: [ 'Generated go child process shell after starting the container', 5s, trigger.payload.output_map.proc_vpgid, payload.output_map.proc_vpgid ]
+    - name: defineValue
+      params: { reverse_tool: go, reverse_tool_zh: go }
+  - steps:
+    - name: checkExpression
+      params: 'some i; CacheContext("trigger.payload.output_map.proc_name", input.session_id)==["ash", "bash", "csh", "ksh", "sh", "tcsh", "zsh", "dash"][i]'
+    - name: defineValue
+      params: { reverse_tool: "shell binaries", reverse_tool_zh: "shell二进制文件" }
+  - steps:
+    - name: checkExpression
+      params: 'some i; CacheContext("trigger.payload.output_map.proc_name", input.session_id)==["nc", "nc.traditional", "ncat", "nc.openbsd", "busybox"][i]'
+    - name: defineValue
+      params: { reverse_tool: nc, reverse_tool_zh: nc }
+  - steps:
+    - name: checkRegexMatch
+      params: [ '(?=.*\.socket\(\)|.*socket\(socket\.AF_INET,socket\.SOCK_STREAM\))(?=.*\.connect\()', trigger.payload.output_map.proc_cmdline ]
+    - name: defineValue
+      params: { reverse_tool: python, reverse_tool_zh: python }
+  - steps:
+    - name: checkRelatedExists
+      params: [ 'Running telnet in container', 1s, trigger.payload.output_map.proc_vpgid, payload.output_map.proc_vpgid ]
+    - name: defineValue
+      params: { reverse_tool: telnet, reverse_tool_zh: telnet }
+  - steps:
+    - name: checkRegexMatch
+      params: [ "(?=.*-rsocket -e)(?=.*TCPSocket\\.new\\()", trigger.payload.output_map.proc_cmdline ]
+    - name: checkRelatedExists
+      params: [ 'Created remote connection through ruby in container', 5s, trigger.payload.output_map.proc_vpgid, payload.output_map.proc_vpgid ]
+    - name: defineValue
+      params: { reverse_tool: ruby, reverse_tool_zh: ruby }
+  - steps:
+    - name: checkRelatedExists
+      params: [ 'Created remote connection through awk in container', 5s, trigger.payload.output_map.proc_pid, payload.output_map.proc_pid ]
+    - name: defineValue
+      params: { reverse_tool: awk, reverse_tool_zh: awk }
+  - steps:
+    - name: checkRegexMatch
+      params: [ '^php(?:\d+(?:\.\d+)?)?\s+-r\s+.*fsockopen\(', trigger.payload.output_map.proc_cmdline ]
+    - name: defineValue
+      params: { reverse_tool: php, reverse_tool_zh: php }
+  - steps:
+    - name: checkRegexMatch
+      params: [ '^perl.*-e.*[sS]ocket.*open\(', trigger.payload.output_map.proc_cmdline ]
+    - name: defineValue
+      params: { reverse_tool: perl, reverse_tool_zh: perl }
+  - steps:
+    - name: checkRegexMatch
+      params: [ 'lua(?:\d+(?:\.\d+)?)?\s+-e+\s+.*require\(.*socket', trigger.payload.output_map.proc_cmdline ]
+    - name: defineValue
+      params: { reverse_tool: lua, reverse_tool_zh: lua }
+  - steps:
+    - name: checkRegexMatch
+      params: [ 'socat\s+TCP:(((2(5[0-5]|[0-4]\d))|[0-1]?\d{1,2})(\.((2(5[0-5]|[0-4]\d))|[0-1]?\d{1,2})){3}):\d+\s+EXEC:[^\s]+sh', trigger.payload.output_map.proc_cmdline ]
+    - name: defineValue
+      params: { reverse_tool: socat, reverse_tool_zh: socat }
+  - steps:
+    - name: checkRelatedExists
+      params: [ 'Calling the dup system call in container', 5s, trigger.payload.output_map.proc_vpgid, payload.output_map.proc_vpgid ]
+  - steps:
+    - name: checkRelatedExists
+      params: [ 'Generated child process shell after starting the container', 5s, trigger.payload.output_map.proc_vpgid, payload.output_map.proc_vpgid ]
+  - default: false
+
+- key: vimPrivilegeEscalation
+  type: branches_serial
+  branches:
+  - steps:
+    - name: checkRelatedExists
+      params: [ 'Generated child process shell after starting the container', 5s, trigger.payload.output_map.proc_pid, payload.output_map.proc_pid ]
+    - name: defineValue
+      params: { method: 'vim_suid to execute commands', method_zh: 'vim_suid执行命令' }
+  - steps:
+    - name: checkRelatedExists
+      params: [ 'Generated child process shell after starting the container', 1s, trigger.payload.output_map.proc_pid, payload.output_map.proc_ppid]
+    - name: defineValue
+      params: { method: 'vim to run commands', method_zh: 'vim执行命令' }
+  - steps:
+    - name: checkRelatedExists
+      params: [Linux Privilege Escalation by modifying sensitive files with suid binaries, 10s, trigger.payload.output_map.proc_pid, payload.output_map.proc_pid]
+    - name: defineValue
+      params: { method: 'vim_suid to modify sensitive files', method_zh: 'vim_suid修改敏感文件' }
+  - default: false

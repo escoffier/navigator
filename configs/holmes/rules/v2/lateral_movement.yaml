@@ -19,7 +19,7 @@
     and not user_sensitive_mount_containers
     and not tensorsec_namespace
   output: >
-    Container with sensitive mount started (zh_msg=挂载敏感路径容器启动,rule_type=Lateral_Movement,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid %container.info image=%container.image.repository:%container.image.tag mounts=%container.mounts,container_id=%container.id,container_name=%container.name)
+    Container with sensitive mount started (zh_msg=启动挂载敏感路径容器,rule_type=Lateral_Movement,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid %container.info image=%container.image.repository:%container.image.tag mounts=%container.mounts,container_id=%container.id,container_name=%container.name)
   priority: INFO
   tags: [ATT&CK, container, cis, mitre_lateral_movement, strict]
 
@@ -58,7 +58,7 @@
     and not (tensorsec_namespace and k8s.pod.name contains "holmes")
     and not proc.cmdline contains 'ns-mnt'
   output: >
-    Namespace change (setns) by unexpected program (zh_msg=更改线程命名空间;通过调用setns尝试更改程序/线程的命名空间,rule_type=Lateral_Movement,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid and shell_parent_procs
+    Namespace change (setns) by unexpected program (zh_msg=更改线程命名空间,rule_type=Lateral_Movement,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid and shell_parent_procs
     parent=%proc.pname %container.info container_id=%container.id container_name=%container.name image=%container.image.repository:%container.image.tag)
   priority: NOTICE
   tags: [ATT&CK, process, mitre_privilege_escalation, mitre_lateral_movement]
@@ -94,6 +94,6 @@
     Detect the initial process started by a container that is not in a list of allowed containers.
   condition: container_started and container and not allowed_containers
   output: >
-    Container started and not in allowed list (zh_msg=检测到在不允许列表中的容器启动,rule_type=Lateral_Movement,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid %container.info image=%container.image.repository:%container.image.tag)
+    Container started and not in allowed list (zh_msg=启动黑名单中的容器,rule_type=Lateral_Movement,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid %container.info image=%container.image.repository:%container.image.tag)
   priority: WARNING
   tags: [ATT&CK, container, mitre_lateral_movement,container_id=%container.id,container_name=%container.name]
