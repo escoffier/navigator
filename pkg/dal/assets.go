@@ -1053,6 +1053,42 @@ func deleteResourceImages(ctx context.Context, redisClient *redisearch.Client, r
 	return err
 }
 
+// container_images  rawContainerUUID ： imageUUID
+func addResourceImageByRawContainer(ctx context.Context, redisClient *redisearch.Client, rawContainerUUID uint32, imageUUID uint32) error {
+	if rawContainerUUID == 0 || imageUUID == 0 {
+		return nil
+	}
+	conn, err := redisClient.GetConn(ctx)
+	if err != nil {
+		return err
+	}
+	defer conn.Close()
+	args := make([]interface{}, 0)
+	args = append(args, "container_images")
+	args = append(args, imageUUID, fmt.Sprintf("%d", rawContainerUUID))
+
+	_, err = conn.Do("ZADD", args...)
+
+	return err
+}
+func deleteResourceImageByRawContainer(ctx context.Context, redisClient *redisearch.Client, rawContainerUUID uint32) error {
+	if rawContainerUUID == 0 {
+		return nil
+	}
+	conn, err := redisClient.GetConn(ctx)
+	if err != nil {
+		return err
+	}
+	defer conn.Close()
+	args := make([]interface{}, 0)
+	args = append(args, "container_images")
+
+	args = append(args, fmt.Sprintf("%d", rawContainerUUID))
+
+	_, err = conn.Do("ZREM", args...)
+	return err
+}
+
 func UpdateResourceUserData(ctx context.Context, rdb *gorm.DB, resource *model.TensorResource) error {
 	oneCtx, oneCancel := context.WithTimeout(ctx, 750*time.Millisecond)
 	defer oneCancel()
@@ -3211,6 +3247,9 @@ func UpsertRawContainerWithRedis(ctx context.Context, rdb *gorm.DB, redisClient 
 		Set("resource_name", container.ResourceName).
 		Set("updated_at", container.UpdatedAt.UnixMilli())
 
+	containerUUId := util.GenerateUUID(container.ContainerID)
+	imageUUid := util.GenerateUUID(container.ImageName) // 对应 cotainer表中的image
+
 	return rdb.WithContext(rCtx).Transaction(func(tx *gorm.DB) error {
 		err := tx.Model(&model.TensorRawContainer{}).Clauses(clause.OnConflict{
 			Columns:   []clause.Column{{Name: "id"}},
@@ -3222,9 +3261,17 @@ func UpsertRawContainerWithRedis(ctx context.Context, rdb *gorm.DB, redisClient 
 		}
 		if container.Status >= assets.Exited {
 			logging.GetLogger().Info().Msgf("container status %d, delete rawContainer: %s from redis", container.ContainerID, doc.Id)
+			err = deleteResourceImageByRawContainer(rCtx, redisClient, containerUUId)
+			if err != nil {
+				return err
+			}
 			return redisClient.DeleteDoc(rCtx, doc.Id)
 		} else {
 			logging.GetLogger().Info().Msgf("upsert rawContainer: %s to redis", doc.Id)
+			err = addResourceImageByRawContainer(rCtx, redisClient, containerUUId, imageUUid)
+			if err != nil {
+				return err
+			}
 			return redisClient.AddDoc(rCtx, doc)
 		}
 	})
@@ -3250,6 +3297,10 @@ func DeleteRawContainerWithRedis(ctx context.Context, rdb *gorm.DB, redisClient 
 			"updated_at": time.Now(),
 		}).Error
 
+		if err != nil {
+			return err
+		}
+		err = deleteResourceImageByRawContainer(rCtx, redisClient, util.GenerateUUID(id))
 		if err != nil {
 			return err
 		}
