@@ -14,6 +14,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
+	"gitlab.com/piccolo_su/vegeta/pkg/model/imagesec"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
 )
 
@@ -121,12 +122,12 @@ func (s *ScanConfigSrv) AddTaskByStrategy(ctx context.Context) error {
 		}
 
 		// 再加节点镜像
-		if config.NodeImageConfig != nil && config.NodeImageConfig.ScanCycleEnable {
-			if err := s.addNodeScanTask(ctx, config); err != nil {
-				logging.GetLogger().Err(err).Msg("AddTaskByStrategy,addNodeScanTask failure")
-				continue
-			}
-		}
+		// if config.NodeImageConfig != nil && config.NodeImageConfig.ScanCycleEnable {
+		// 	if err := s.addNodeScanTask(ctx, config); err != nil {
+		// 		logging.GetLogger().Err(err).Msg("AddTaskByStrategy,addNodeScanTask failure")
+		// 		continue
+		// 	}
+		// }
 		ticker.Reset(time.Second * consts.CheckTaskInterval)
 	}
 }
@@ -358,7 +359,7 @@ func (s *ScanConfigSrv) verifyStrategyID(ctx context.Context, ids []int64) error
 	return nil
 }
 
-func (s *ScanConfigSrv) getAllImageIds(ctx context.Context, daoParam store.SearchImageParam) ([]int64, error) {
+func (s *ScanConfigSrv) getAllImageIds(ctx context.Context, daoParam imagesec.SearchImageParam) ([]int64, error) {
 	imgIds := make([]int64, 0)
 	var startId int64
 	filter := &model.Filter{
@@ -433,7 +434,7 @@ func (s *ScanConfigSrv) addLibraryScanTask(ctx context.Context, config model.Sca
 			return nil
 		}
 		// 查找所有的镜像增加任务
-		daoParam := store.SearchImageParam{RegistryIds: libs}
+		daoParam := imagesec.SearchImageParam{RegistryIds: libs}
 		imgIds, err := s.getAllImageIds(ctx, daoParam)
 		if err != nil {
 			logging.GetLogger().Info().Msg("addLibraryScanTask getAllImageIds")
@@ -445,48 +446,12 @@ func (s *ScanConfigSrv) addLibraryScanTask(ctx context.Context, config model.Sca
 			Scope:       consts.FullScan,
 			TriggerType: consts.ScheduleTrigger,
 			StrategyID:  config.LibraryImageConfig.StrategyID,
-			Operator:    fmt.Sprintf("%s(scanner-%s)", consts.CycleTriggerOperator, scannerInstance[0].ClusterName),
+			Operator:    fmt.Sprintf("%s(scanner-%s)", imagesec.CycleTriggerOperatorZH, scannerInstance[0].ClusterName),
 		}); err != nil {
 			logging.GetLogger().Err(err).Msg("AddTaskByStrategy add scan task failed")
 			return err
 		}
 		logging.GetLogger().Info().Msgf("AddTaskByStrategy addLibraryScanTask add scan task success:%d", len(imgIds))
-	}
-	return nil
-}
-
-func (s *ScanConfigSrv) addNodeScanTask(ctx context.Context, config model.ScanConfig) error {
-	add, err := config.IsTimeToAddTask(model.NodeBuffRegistry, consts.CheckTaskInterval)
-	if err != nil {
-		logging.GetLogger().Info().Msg("AddTaskByStrategy,not fond scan config")
-		return err
-	}
-	if add {
-		daoParm := store.SearchImageParam{}
-		if !config.NodeImageConfig.ScanAll {
-			daoParm.NodeHostnames = config.NodeImageConfig.NodeHostnames
-		}
-		if len(daoParm.NodeHostnames) == 0 {
-			logging.GetLogger().Info().Msg("not configured scan node")
-		}
-
-		// 查找所有的镜像增加任务
-		imgIds, err := s.getAllImageIds(ctx, daoParm)
-		if err != nil {
-			return err
-		}
-		// 增加扫描任务
-		ts := task.NewTaskSrv()
-		if err := ts.GenerateScanTask(ctx, imgIds, task.UpdateTaskInfo{
-			Scope:       consts.SingleScan,
-			TriggerType: consts.ScheduleTrigger,
-			StrategyID:  config.NodeImageConfig.StrategyID,
-			Operator:    consts.CycleTriggerOperator,
-		}); err != nil {
-			logging.GetLogger().Err(err).Msg("AddTaskByStrategy add  scan task failed")
-			return err
-		}
-		logging.GetLogger().Info().Msgf("AddTaskByStrategy addNodeScanTask add scan task success:%d", len(imgIds))
 	}
 	return nil
 }

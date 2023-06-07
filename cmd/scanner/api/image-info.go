@@ -2,24 +2,26 @@ package api
 
 import (
 	"fmt"
+	"net/http"
 	"strconv"
 	"strings"
 
 	"github.com/gin-gonic/gin"
 	"gitlab.com/security-rd/go-pkg/logging"
 
-	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component"
+	imagesecSrv "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/imagemeta"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
+	imagesecModel "gitlab.com/piccolo_su/vegeta/pkg/model/imagesec"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 )
 
 type ImageInfoAPI struct {
-	ImageSrv component.ImageSrvInterface
+	ImageSrv map[string]imagesecSrv.ImageService // Key:ImageFromType
 }
 
 func NewImageInfoAPI(
-	imageSrv component.ImageSrvInterface,
+	imageSrv map[string]imagesecSrv.ImageService,
 ) *ImageInfoAPI {
 	return &ImageInfoAPI{ImageSrv: imageSrv}
 }
@@ -31,10 +33,11 @@ func (s *ImageInfoAPI) ListBaseToAppImage(ctx *gin.Context) {
 	keyword := util.GetKeywordFromQuery(ctx, "keyword")
 	filter := model.GetFilter(ctx)
 
-	data, err := s.ImageSrv.GetImageCorrelateData(ctx, model.GetImageAssociateDataParam{
+	data, err := s.getImageSrv(ctx).GetImageCorrelateData(ctx, imagesecModel.GetImageAssociateDataParam{
+		ImageFromType:   imagesecModel.ImageFromRegistry,
 		ImageId:         imageID,
 		BaseImageEnable: true,
-		ScanResultSearchParam: model.ScanResultSearchParam{
+		ScanResultSearchParam: imagesecModel.ScanResultSearchParam{
 			ImageID: imageID,
 			Keyword: keyword,
 		},
@@ -57,10 +60,11 @@ func (s *ImageInfoAPI) ListAppToBaseImage(ctx *gin.Context) {
 	keyword := util.GetKeywordFromQuery(ctx, "keyword")
 	filter := model.GetFilter(ctx)
 
-	data, err := s.ImageSrv.GetImageCorrelateData(ctx, model.GetImageAssociateDataParam{
+	data, err := s.getImageSrv(ctx).GetImageCorrelateData(ctx, imagesecModel.GetImageAssociateDataParam{
+		ImageFromType:  imagesecModel.ImageFromRegistry,
 		ImageId:        imageID,
 		AppImageEnable: true,
-		ScanResultSearchParam: model.ScanResultSearchParam{
+		ScanResultSearchParam: imagesecModel.ScanResultSearchParam{
 			ImageID: imageID,
 			Keyword: keyword,
 		},
@@ -83,11 +87,13 @@ func (s *ImageInfoAPI) ListBaseImage(ctx *gin.Context) {
 	// filter.SortFiled = "full_repo_name"
 	// filter.SortBy = "asc"
 	keyword := ctx.Query("search")
-	images, cnt, err := s.ImageSrv.ListImageWithScanInfo(ctx,
-		model.ImageListParam{
-			Keyword:   keyword,
-			ImageAttr: model.ImageAttrParam{ImageType: model.BaseImageTypeString},
-		}, filter)
+	images, cnt, err := s.getImageSrv(ctx).ListImageWithScanInfo(ctx,
+		imagesecModel.ImageListParam{
+			ImageFromType: imagesecModel.ImageFromRegistry, // 只有仓库镜像有这个功能
+			ImageKeyword:  keyword,
+			ImageAttr:     imagesecModel.ImageAttrParam{ImageType: model.BaseImageTypeString},
+			Filter:        filter,
+		})
 	if err != nil {
 		response.JSONError(ctx, err)
 		return
@@ -101,20 +107,19 @@ func (s *ImageInfoAPI) ListBaseImage(ctx *gin.Context) {
 }
 
 func (s *ImageInfoAPI) DeleteBaseImage(ctx *gin.Context) {
-	imageID, err := strconv.ParseInt(ctx.Param("imageID"), 10, 64)
-	if err != nil {
-		response.JSONError(ctx, err)
-		return
-	}
-	data, err := s.ImageSrv.GetImageCorrelateData(ctx, model.GetImageAssociateDataParam{ImageId: imageID})
+	imageID := util.GetInt64FromQuery(ctx, "imageID")
+	data, err := s.getImageSrv(ctx).GetImageCorrelateData(ctx, imagesecModel.GetImageAssociateDataParam{ImageId: imageID, ImageFromType: imagesecModel.ImageFromRegistry})
 
 	if err != nil {
 		response.JSONError(ctx, err)
 		return
 	}
 	updater := map[string]interface{}{"flag": util.SetBit0(data.ImageBaseResponse.Flag, model.FlagBaseImage)}
-
-	err = s.ImageSrv.UpdateImage(ctx, fmt.Sprintf("id = %d", imageID), updater)
+	param := imagesecModel.UpdateImageParam{
+		ID:      imageID,
+		Updater: updater,
+	}
+	err = s.getImageSrv(ctx).UpdateImage(ctx, param)
 	if err != nil {
 		response.JSONError(ctx, err)
 		return
@@ -139,15 +144,26 @@ func (s *ImageInfoAPI) CreateBaseImage(ctx *gin.Context) {
 	if len(body.ImageIds) == 0 {
 		return
 	}
-	images, _, err := s.ImageSrv.ListImageWithScanInfo(ctx, model.ImageListParam{ImageIds: body.ImageIds}, nil)
+	images, _, err := s.getImageSrv(ctx).ListImageWithScanInfo(ctx, imagesecModel.ImageListParam{ImageIds: body.ImageIds,
+		ImageFromType: imagesecModel.ImageFromRegistry})
 	if err != nil {
 		response.JSONError(ctx, err)
 		return
 	}
 	names := make([]string, 0)
+
+	if err != nil {
+		response.JSONError(ctx, err)
+		return
+	}
+
 	for i := range images {
 		updater := map[string]interface{}{"flag": util.SetBit1(images[i].Flag, model.FlagBaseImage)}
-		err = s.ImageSrv.UpdateImage(ctx, fmt.Sprintf("id = %d", images[i].ID), updater)
+		param := imagesecModel.UpdateImageParam{
+			ID:      images[i].ID,
+			Updater: updater,
+		}
+		err = s.getImageSrv(ctx).UpdateImage(ctx, param)
 		if err != nil {
 			logging.Get().Err(err).Int64("imageID", images[i].ID).Msg("UpdateImage")
 			continue
@@ -159,4 +175,64 @@ func (s *ImageInfoAPI) CreateBaseImage(ctx *gin.Context) {
 		Name: strings.Join(names, ","),
 		Link: "api/v2/containerSec/scanner/images/bases",
 	}))
+}
+
+func (s *ImageInfoAPI) SearchImageWithScan(ctx *gin.Context) {
+	body := imagesecModel.ImageListParam{}
+	if err := ctx.BindJSON(&body); err != nil {
+		response.JSONError(ctx, response.NewHttpError(http.StatusBadRequest, err))
+		return
+	}
+	body.ImageFromType = util.GetKeywordFromQuery(ctx, "imageFromType")
+
+	body.Filter = model.GetFilterWithDefaultValue(ctx)
+
+	images, cnt, err := s.getImageSrv(ctx).ListImageWithScanInfo(ctx, body)
+	if err != nil {
+		response.JSONError(ctx, response.SearchErr(err))
+		return
+	}
+	for i := range images {
+		images[i].SensitiveFixSuggestion = nil
+		images[i].VulnFixSuggestion = nil
+		images[i].RiskPolicy = nil
+		images[i].TotalPolicy = nil
+	}
+
+	response.JSONOK(ctx, response.WithItems(images),
+		response.WithTotalItems(cnt),
+		response.WithItemsPerPage(body.Filter.Limit),
+		response.WithStartIndex(body.Filter.Offset))
+}
+
+func (s *ImageInfoAPI) GetRegistryProject(ctx *gin.Context) {
+	regID, _ := strconv.ParseInt(ctx.Query("regID"), 10, 64)
+	nodeID, _ := strconv.ParseInt(ctx.Query("nodeID"), 10, 64)
+	projectKeyword := ctx.Query("projectKeyword")
+
+	repos, err := s.getImageSrv(ctx).SearchProject(ctx, imagesecModel.SearchProjectParam{
+		RegID:   regID,
+		NodeID:  nodeID,
+		Keyword: projectKeyword,
+	})
+	if err != nil {
+		response.JSONError(ctx, err)
+		return
+	}
+
+	response.JSONOK(ctx, response.WithItems(repos),
+		response.WithTotalItems(int64(len(repos))))
+}
+
+func (s *ImageInfoAPI) getImageSrv(ctx *gin.Context) imagesecSrv.ImageService {
+	imageFromType := util.GetKeywordFromQuery(ctx, "imageFromType")
+	if imageFromType == "" {
+		imageFromType = imagesecModel.ImageFromRegistry
+	}
+	if err := imagesecModel.ImageFromType(imageFromType).Check(); err != nil {
+		logging.Get().Error().Msg("not get imageFromType")
+		imageFromType = imagesecModel.ImageFromRegistry
+	}
+
+	return s.ImageSrv[imageFromType]
 }

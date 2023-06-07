@@ -4,11 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"sync"
-
 	"github.com/aquasecurity/trivy-db/pkg/db"
 	"gitlab.com/security-rd/go-pkg/logging"
-	"scm.tensorsecurity.cn/tensorsecurity-rd/fanal/analyzer"
 	"scm.tensorsecurity.cn/tensorsecurity-rd/fanal/cache"
 	ftypes "scm.tensorsecurity.cn/tensorsecurity-rd/fanal/types"
 	"scm.tensorsecurity.cn/tensorsecurity-rd/trivy/pkg/commands/artifact"
@@ -39,9 +36,9 @@ type runner struct {
 
 type runnerOption func(*runner)
 
-var (
-	dbInitOnce sync.Once
-)
+//var (
+//	dbInitOnce sync.Once
+//)
 
 func NewRunner(cliOption artifact.Option, opts ...runnerOption) (Runner, error) {
 	r := &runner{}
@@ -57,23 +54,24 @@ func NewRunner(cliOption artifact.Option, opts ...runnerOption) (Runner, error) 
 		return nil, fmt.Errorf("logger error: %v", err)
 	}
 
-	dbInitOnce.Do(func() {
-		if err = r.initDB(cliOption); err != nil {
-			logging.Get().Err(err).Msg("init vuln db err")
-		}
-	})
+	// scanner will init db
+	//dbInitOnce.Do(func() {
+	//	if err = r.initDB(cliOption); err != nil {
+	//		logging.Get().Err(err).Msg("init vuln db err")
+	//	}
+	//})
 
 	return r, err
 }
 
 func (r *runner) ScanFilesystem(ctx context.Context, opt artifact.Option, artifactDetail ftypes.ArtifactDetail) (report.Report, error) {
-	logging.Get().Debug().Msg("start match vuln")
+	logging.Get().Debug().Interface("opt", opt).Msg("start match vuln")
 
 	// Disable the individual package scanning
-	opt.DisabledAnalyzers = append(opt.DisabledAnalyzers, analyzer.TypeIndividualPkgs...)
+	//opt.DisabledAnalyzers = append(opt.DisabledAnalyzers, analyzer.TypeIndividualPkgs...)
 
 	// detect vuln
-	target := "wade23/deploy:deploytest"
+	target := " " // only use in report
 	detector := ospkg.Detector{}
 	scanner := NewScanner(nil, detector)
 
@@ -89,9 +87,9 @@ func (r *runner) ScanFilesystem(ctx context.Context, opt artifact.Option, artifa
 		return report.Report{}, err
 	}
 
-	logging.Get().Debug().Msgf("os:%+v", *os)
+	//logging.Get().Debug().Msgf("os:%+v", *os)
 	//logging.Get().Debugf("vulns:%+v", vulns)
-	logging.Get().Debug().Msgf("vulns num:%+v", len(vulns[0].Vulnerabilities))
+	//logging.Get().Debug().Msgf("vulns num:%+v", len(vulns[0].Vulnerabilities))
 
 	return report.Report{
 		SchemaVersion: report.SchemaVersion,

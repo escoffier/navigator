@@ -5,6 +5,7 @@ import (
 	"io/fs"
 	"net"
 	"path/filepath"
+	"sync"
 
 	// "runtime/debug"
 	"strconv"
@@ -19,6 +20,7 @@ var (
 	socketAddr = "unix:/run/savapi/savapi.sock"
 	// socketAddr = "tcp:127.0.0.1:9999"
 	productId = "14359"
+	scanLock  sync.RWMutex // 扫描时加读锁更新时加写锁，有写锁请求时暂时阻塞读锁请求
 )
 
 const (
@@ -207,6 +209,8 @@ func getScanFiles(path string, sc *scanner) error {
 }
 
 func ScanDir(path string) (map[string][]string, error) {
+	scanLock.RLock()
+	defer scanLock.RUnlock()
 	scannerCli, err := NewAClient()
 	if err != nil {
 		return nil, err

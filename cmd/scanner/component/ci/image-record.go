@@ -280,7 +280,7 @@ func (im *ImageManager) GetImageDetail(ctx context.Context, id int64) (scanner_c
 		}
 	}
 	res := scanner_ci.ImageRecordDetail{
-		OS:             record.OS,
+		OSString:       record.OS,
 		PipelineName:   record.PipelineName,
 		Status:         ModeToString[record.Mode],
 		Questions:      strings.Join(quesions, ","),

@@ -10,18 +10,15 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"runtime/debug"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/boltdb/bolt"
-	"github.com/gin-gonic/gin"
 	"github.com/imroc/req/v3"
 	json "github.com/json-iterator/go"
 	"github.com/yeka/zip"
-	scanvuln "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/bolt-vuln"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/task"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/vuln-updata/register"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
@@ -29,8 +26,8 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
-	"gitlab.com/piccolo_su/vegeta/pkg/response"
-	"gitlab.com/piccolo_su/vegeta/pkg/util"
+	imagesecModel "gitlab.com/piccolo_su/vegeta/pkg/model/imagesec"
+	scannermodel "gitlab.com/piccolo_su/vegeta/pkg/model/scanner-model"
 	"gitlab.com/security-rd/go-pkg/httputil"
 )
 
@@ -43,12 +40,8 @@ type UpdataService struct {
 	WantsToOfflineUpdata bool
 	Cond                 *sync.Cond
 	VolumePath           string
-	Ch                   chan string
-}
-
-type VersionResp struct {
-	Version string
-	MD5     string
+	Ch                   chan scannermodel.UpdateResult
+	IsOld                bool
 }
 
 var (
@@ -118,7 +111,7 @@ func (srv *UpdataService) AutoScanAll(ctx context.Context, fromType int64, opera
 
 	imgIds := make([]int64, 0)
 
-	imgs, _, err := imageDal.SearchImage(ctx, store.SearchImageParam{RegistryIds: registryIds, Fields: []string{"id"}}, nil)
+	imgs, _, err := imageDal.SearchImage(ctx, imagesecModel.SearchImageParam{RegistryIds: registryIds, Fields: []string{"id"}}, nil)
 	if err != nil {
 		logging.GetLogger().Err(err).Msg("query images error")
 		return err
@@ -185,6 +178,28 @@ func CheckDb(dbPath string, bucketName string, opts bolt.Options) error {
 	return err
 }
 
+func (srv *UpdataService) UpdateDB(path string) error {
+	dbPath := filepath.Join(path, "trivy.db")
+	osCMD := exec.Command("cp", "-f", dbPath, filepath.Join(srv.VolumePath, "trivy.db"))
+	err := osCMD.Run()
+	logging.GetLogger().Debug().Msgf("Update trivy.db cmd run %v", os.Args)
+	if err != nil {
+		logging.GetLogger().Err(err).Msgf("malicious trivyDB error %v", os.Args)
+		return err
+	}
+	return nil
+}
+
+func (srv *UpdataService) UpdataVulnVersion(ver scannermodel.VulnDBVersion) error {
+	verByte, err := json.Marshal(ver)
+	if err != nil {
+		logging.GetLogger().Err(err).Msgf("marshal version struct failed")
+		return err
+	}
+	ioutil.WriteFile(filepath.Join(srv.VolumePath, "version"), verByte, 0644)
+	return nil
+}
+
 func (srv *UpdataService) GenerateDir(volumePath string) (string, error) {
 	tmpDir, err := ioutil.TempDir("/root/", "")
 	if err != nil {
@@ -197,173 +212,19 @@ func (srv *UpdataService) GenerateDir(volumePath string) (string, error) {
 		return "", err
 	}
 	logging.GetLogger().Info().Str("dbPath", fp).Msg("generate dir")
-	resVersion := srv.ReadVersion("trivy")
-	dbPath := filepath.Join(srv.VolumePath, "last_trivy.db")
-	if resVersion == "offline" {
-		dbPath = filepath.Join(srv.VolumePath, "offline", "init_trivy.db")
+	dbPath := ""
+	if srv.IsOld {
+		dbPath = filepath.Join(volumePath, "init_trivy.db")
+	} else {
+		dbPath = filepath.Join(volumePath, "trivy.db")
 	}
 	osCMD := exec.Command("cp", "-f", dbPath, filepath.Join(fp, "/trivy.db"))
 	err = osCMD.Run()
 	if err != nil {
-		logging.GetLogger().Err(err).Msgf(" CP  err :%v", err)
+		logging.GetLogger().Err(err).Msgf(" CP  err :%v %v", err, osCMD.Args)
 		return "", err
 	}
 	return tmpDir, nil
-}
-
-func (srv *UpdataService) InitUpdateSvc() {
-	for {
-		if srv.CheckList() {
-			break
-		} else {
-			time.Sleep(time.Second * 10)
-		}
-	}
-	if FileExists(srv.VolumePath + "last_custom.db") {
-		srv.cpDB(srv.VolumePath, srv.VolumePath, "last_custom.db", "init_custom.db")
-		srv.cpDB(srv.VolumePath, srv.VolumePath, "custom_version", "custom_init_version")
-	} else {
-		srv.cpDB(srv.VolumePath, srv.VolumePath, "init_custom.db", "last_custom.db")
-		srv.cpDB(srv.VolumePath, srv.VolumePath, "custom_init_version", "custom_version")
-	}
-
-	if FileExists(srv.VolumePath + "last_trivy.db") {
-		srv.cpDB(srv.VolumePath, srv.VolumePath, "last_trivy.db", "init_trivy.db")
-		srv.cpDB(srv.VolumePath, srv.VolumePath, "trivy_version", "trivy_init_version")
-	} else {
-		srv.cpDB(srv.VolumePath, srv.VolumePath, "init_trivy.db", "last_trivy.db")
-		srv.cpDB(srv.VolumePath, srv.VolumePath, "trivy_init_version", "trivy_version")
-	}
-	fp := filepath.Join(srv.VolumePath, "init_db", "db")
-	err := os.MkdirAll(fp, 0777)
-	if err != nil {
-		logging.GetLogger().Err(err).Msg("mkdir err")
-		return
-	}
-	res := srv.ReadVersion("trivy")
-	if res != "offline" {
-		srv.cpDB(fp+"/", srv.VolumePath, "last_trivy.db", "trivy.db")
-	} else {
-		srv.cpDB(fp+"/", filepath.Join(srv.VolumePath, "offline"), "init_trivy.db", "trivy.db")
-	}
-}
-
-func (srv *UpdataService) Run(offline bool, volumePath string, ch chan<- string) {
-	var options bolt.Options
-	options.Timeout = time.Second * 5
-	// 如果不存在更新后版本，初始化一份last版本（避免bolt锁）
-	logging.GetLogger().Info().Msg("IN Run")
-	if !offline {
-		var db *bolt.DB
-		var err error
-
-		// srv.VulnUpdatas, _ = NewVulnUpdata(context.Background(), "/configs/scanner/updata.yaml")
-		srv.VulnUpdatas = GetRegisterUpdater()
-		registers := []register.Registry{}
-		ticker := time.NewTicker(time.Hour * 6)
-		defer ticker.Stop()
-		for {
-			res := srv.ReadVersion("custom")
-			if res == "offline" {
-				srv.cpDB(srv.VolumePath, filepath.Join(srv.VolumePath, "offline"), "init_custom.db", "init_custom.db")
-			}
-			logging.GetLogger().Info().Msg("open init DB")
-			db, err = bolt.Open(filepath.Join(volumePath, "init_custom.db"), 0600, &options)
-			if err != nil {
-				logging.GetLogger().Err(err).Msgf("Bolt Open Error %v", err)
-				time.Sleep(time.Duration(100) * time.Second)
-				continue
-			}
-			logging.GetLogger().Info().Msg("DB is ok")
-			for k := range srv.VulnUpdatas {
-				r := srv.VulnUpdatas[k].GetRegister(db, volumePath)
-				registers = append(registers, r)
-			}
-
-			var wgg sync.WaitGroup
-			for k := range registers {
-				wgg.Add(1)
-				go registers[k].Updata(&wgg)
-			}
-			wgg.Wait()
-			db.Close()
-			srv.WriteVersion()
-			srv.cpDB(volumePath, volumePath, "init_custom.db", "last_custom.db") // 更新的是init_custom.db
-			srv.cpDB(volumePath, volumePath, "last_trivy.db", "init_trivy.db")   // 需要读取的是init_trivy.db
-			srv.cpDB(srv.VolumePath, srv.VolumePath, "trivy_version", "trivy_init_version")
-			srv.cpDB(srv.VolumePath, srv.VolumePath, "custom_version", "custom_init_version")
-			// srv.cpDB(volumePath, "/configs/scanner-vuln-updata/", "trivy_version", "trivy_version")
-
-			filePath, err := srv.GenerateDir(volumePath)
-			if err != nil {
-				logging.GetLogger().Err(err).Msgf("GenerateDir err:%v", err)
-				ch <- "err"
-			} else {
-				ch <- filePath
-			}
-			// err = srv.AutoScanAll(context.Background(), 1, "漏洞库更新触发")
-			// if err != nil {
-			// 	logging.GetLogger().Err(err).Msgf("vuln-updata ticker scanALL failed")
-			// }
-			<-ticker.C
-		}
-	}
-	close(ch)
-	// wg.Wait()
-}
-
-func (srv *UpdataService) ReadVersion(name string) string {
-	res := "last"
-	if strings.Contains(name, "trivy") {
-		offlineVersion := ""
-		trivyVersion := ""
-		if FileExists(filepath.Join(srv.VolumePath, "trivy_version")) {
-			trivyVersionBytes, err := os.ReadFile(filepath.Join(srv.VolumePath, "trivy_version"))
-			if err != nil {
-				logging.GetLogger().Err(err).Msgf("Open now Trivy version Error")
-			} else {
-				trivyVersion = string(trivyVersionBytes)
-				res = "last"
-			}
-		}
-		if FileExists(filepath.Join(srv.VolumePath, "offline", "trivy_init_version")) {
-			offlineVersionBytes, err := os.ReadFile(filepath.Join(srv.VolumePath, "offline", "trivy_init_version"))
-			if err != nil {
-				logging.GetLogger().Err(err).Msgf("Open Offline Trivy version Error")
-			} else {
-				offlineVersion = string(offlineVersionBytes)
-			}
-		}
-		if !CompareVersion("trivy", trivyVersion, offlineVersion) {
-			res = "offline"
-		}
-	} else if strings.Contains(name, "custom") {
-		offlineVersion := "2006-01-02 15:04:05"
-		CustomVersion := ""
-		if util.FileExists(filepath.Join(srv.VolumePath, "custom_version")) {
-			CustomVersionBytes, err := os.ReadFile(filepath.Join(srv.VolumePath, "custom_version"))
-			if err != nil {
-				logging.GetLogger().Err(err).Msgf("Open now Custom version Error")
-				CustomVersion = "2006-01-02 15:04:05"
-			} else {
-				CustomVersion = string(CustomVersionBytes)
-				res = "last"
-			}
-		}
-		if util.FileExists(filepath.Join(srv.VolumePath, "offline", "custom_init_version")) {
-			CustomVersionBytes, err := os.ReadFile(filepath.Join(srv.VolumePath, "offline", "custom_init_version"))
-			if err != nil {
-				logging.GetLogger().Err(err).Msgf("Open Offline Custom version Error")
-			} else {
-				offlineVersion = string(CustomVersionBytes)
-			}
-		}
-		if !CompareVersion("custom", CustomVersion, offlineVersion) {
-			res = "offline"
-		}
-	}
-	logging.GetLogger().Info().Msgf("Download res :%v", res)
-	return res
 }
 
 func (srv *UpdataService) WriteVersion() {
@@ -383,12 +244,12 @@ type ClusterKey struct {
 	Name string `json:"name"`
 }
 
-func (srv *UpdataService) GetVulnDBVersion(ctx context.Context, getVersionURL string) (string, error) {
+func (srv *UpdataService) GetVulnDBVersion(ctx context.Context, getVersionURL string) (scannermodel.ScannerDBVersion, error) {
 
 	type Res struct {
 		Data struct {
 			Item struct {
-				TiDbVersion string `json:"ti_db_version"`
+				TiDbVersion scannermodel.ScannerDBVersion `json:"ti_db_version"`
 			} `json:"item"`
 		} `json:"data"`
 	}
@@ -397,7 +258,7 @@ func (srv *UpdataService) GetVulnDBVersion(ctx context.Context, getVersionURL st
 	defer cancel()
 	request, err := http.NewRequestWithContext(timeoutCtx, http.MethodGet, getVersionURL, nil)
 	if err != nil {
-		return "", err
+		return scannermodel.ScannerDBVersion{}, err
 	}
 	request.Header.Set("Content-Type", "application/json; charset=utf-8")
 	request.Header.Set(consts.ScannerUser, consts.InternalApiKey)
@@ -405,19 +266,19 @@ func (srv *UpdataService) GetVulnDBVersion(ctx context.Context, getVersionURL st
 	resp, err := httputil.DefaultClient.Do(request)
 	if err != nil {
 		logging.GetLogger().Err(err).Str("url", getVersionURL).Msg("GetVulnDBVersion")
-		return "", err
+		return scannermodel.ScannerDBVersion{}, err
 	}
 	defer resp.Body.Close()
 
 	content, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return "", err
+		return scannermodel.ScannerDBVersion{}, err
 	}
 	res := Res{}
 
 	if err := json.Unmarshal(content, &res); err != nil {
 		logging.GetLogger().Err(err).Str("url", getVersionURL).Str("content", string(content)).Msg("GetVulnDBVersion.Unmarshal")
-		return "", err
+		return scannermodel.ScannerDBVersion{}, err
 	}
 
 	return res.Data.Item.TiDbVersion, nil
@@ -435,7 +296,7 @@ func (srv *UpdataService) UploadVulnDb(ctx context.Context) error {
 		uploadURL = "http://localhost" + global.ScannerOpts.HTTPListenAddr
 	}
 
-	uploadURL = fmt.Sprintf("%s%s", uploadURL, "/api/v1/vulns/updata")
+	uploadURL = fmt.Sprintf("%s%s", uploadURL, "/api/v1/db/updata")
 
 	logging.GetLogger().Info().Str("url", uploadURL).Msg("TrivyServer UploadVulnDb ")
 
@@ -526,11 +387,11 @@ func ZipFile(files []VulnDBfile) ([]byte, error) {
 	return b.Bytes(), nil
 }
 
-func GetUpdataService() *UpdataService {
+func GetVulnUpdataService() *UpdataService {
 	return scannerVulnUpdata
 }
 
-func NewUpdataService(volumePath string, ch chan string) *UpdataService {
+func NewUpdataService(volumePath string, ch chan scannermodel.UpdateResult) *UpdataService {
 	once.Do(func() {
 		m := sync.Mutex{}
 		c := sync.NewCond(&m)
@@ -540,68 +401,6 @@ func NewUpdataService(volumePath string, ch chan string) *UpdataService {
 		scannerVulnUpdata.Ch = ch
 	})
 	return scannerVulnUpdata
-}
-
-// func (srv *UpdataService) SetUpRouter() *gin.Engine {
-// 	router := gin.Default()
-// 	router.Use(gin.Logger(), gin.Recovery())
-// 	//router.Static("/download", "/tmp/download")
-// 	router.GET("/download/:name", srv.fileServer)
-// 	router.GET("/query/version/:name", srv.queryVersion)
-// 	router.PUT("/VulnDb", srv.UploadOffline)
-// 	return router
-// }
-
-func UploadOffline(c *gin.Context) {
-	logging.GetLogger().Info().Msgf("IN UploadOffline")
-
-	header, err := c.FormFile("file")
-	if err != nil {
-		logging.GetLogger().Err(err).Msgf("ParseMultipartForm fail")
-		response.JSONError(c, fmt.Errorf("解析MultipartForm失败"))
-		return
-	}
-	err = c.SaveUploadedFile(header, filepath.Join(scannerVulnUpdata.VolumePath, "down.zip"))
-	if err != nil {
-		logging.GetLogger().Err(err).Msgf("Save file fail")
-		response.JSONError(c, fmt.Errorf("存储离线包失败"))
-		return
-	}
-	err = Unzip(filepath.Join(scannerVulnUpdata.VolumePath, "down.zip"), filepath.Join(scannerVulnUpdata.VolumePath, "offline/"))
-	if err != nil {
-		// os.Remove(filepath.Join(srv.VolumePath, "down.zip"))
-		logging.GetLogger().Err(err).Msgf("unzip error :%v", err)
-		response.JSONError(c, fmt.Errorf("存储离线包失败"))
-		return
-	}
-	filePath, err := scannerVulnUpdata.GenerateDir(scannerVulnUpdata.VolumePath)
-	if err != nil {
-		logging.GetLogger().Err(err).Msgf("gennerate Dir err:%v", err)
-		response.JSONError(c, fmt.Errorf("更新流程失败"))
-		return
-	}
-	scannerVulnUpdata.Ch <- filePath
-	vuln := scanvuln.GetSingleBoltVuln()
-	err = vuln.InitDB()
-	if err != nil {
-		logging.GetLogger().Err(err).Msgf("init db err :%v", err)
-		response.JSONError(c, fmt.Errorf("更新漏洞库成功，中文库失败"))
-		return
-	}
-	go func() {
-		defer func() {
-			if r := recover(); r != nil {
-				logging.GetLogger().Error().Msgf("Panic: %v. Stack: %s", r, debug.Stack())
-			}
-		}()
-		err = scannerVulnUpdata.AutoScanAll(c, model.UserRegistry, "离线更新成功后自动触发")
-		if err != nil {
-			logging.GetLogger().Err(err).Msgf("scanall error :%v", err)
-			// response.JSONError(c, fmt.Errorf("更新漏洞库成功，触发全量扫描失败"))
-			return
-		}
-	}()
-	response.JSONOK(c)
 }
 
 func NewVulnUpdata(ctx context.Context, configPath string) ([]VulnUpdata, error) {
@@ -652,6 +451,26 @@ func (srv *UpdataService) CheckList() bool {
 	return true
 }
 
+// pass is tanzhen2020scanner
+func Zip(zipName string, filePath string, objType string) error {
+	var cmd *exec.Cmd
+	if objType == scannermodel.TrivyDB {
+		cmd = exec.Command("zip", "-P", "tanzhen2020scanner", zipName, "-r", scannermodel.TrivyDB)
+	} else if objType == scannermodel.ClamavDB {
+		cmd = exec.Command("zip", "-P", "tanzhen2020scanner", zipName, "-r", scannermodel.ClamavDBPath)
+	} else if objType == scannermodel.AviraDB {
+		cmd = exec.Command("zip", "-P", "tanzhen2020scanner", zipName, "-r", scannermodel.AviraDBPath)
+	}
+	cmd.Dir = filePath
+	err := cmd.Run()
+	if err != nil {
+		logging.GetLogger().Err(err).Msgf("zip file error %v %v", zipName, cmd.Args)
+		return err
+	}
+	return nil
+}
+
+// pass is tanzhen2020scanner
 func Unzip(zipFile string, destDir string) error {
 	zipReader, err := zip.OpenReader(zipFile)
 	if err != nil {

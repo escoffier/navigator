@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -14,16 +15,17 @@ import (
 	"strings"
 	"time"
 
-	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scan-report/service"
-	"gitlab.com/piccolo_su/vegeta/cmd/scanner/global"
-
 	"github.com/gin-gonic/gin"
 	"gitlab.com/security-rd/go-pkg/logging"
+
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scan-report/service"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/global"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/ci"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	scanner_ci "gitlab.com/piccolo_su/vegeta/pkg/model/scanner-ci"
+	scannermodel "gitlab.com/piccolo_su/vegeta/pkg/model/scanner-model"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 )
@@ -85,6 +87,21 @@ func (c *CiApiSrv) GetImageDetail(ctx *gin.Context) {
 		response.JSONError(ctx, err)
 		return
 	}
+	// 统一OS
+	ios := map[string]interface{}{
+		"maintained": true,
+		"name":       "",
+		"family":     "",
+	}
+	if res.OSString != "" {
+		split := strings.Split(res.OSString, ":")
+		if len(split) >= 2 {
+			ios["name"] = split[1]
+			ios["family"] = split[0]
+		}
+	}
+	res.OS = ios
+
 	inWhitelist, err := c.Component.WM.MatchWhiteList(ctx, res.ImageName)
 	if err != nil {
 		logging.Get().Err(err).Msgf("GetImageDetail error ")
@@ -318,16 +335,14 @@ func (c *CiApiSrv) TiDbVersion(ctx *gin.Context) {
 	}
 
 	var versionFile string
-	updatePath := filepath.Join(global.ScannerOpts.PvcPath, "offline")
-	if dirExist(updatePath) {
-		versionFile = filepath.Join(updatePath, "trivy_init_version")
-	} else {
-		versionFile = filepath.Join(global.ScannerOpts.PvcPath, "trivy_init_version")
+	updatePath := filepath.Join(global.ScannerOpts.PvcPath, scannermodel.UnzipPath, scannermodel.VulnVersionPath)
+	if !dirExist(updatePath) {
+		versionFile = filepath.Join(global.ScannerOpts.PvcPath, scannermodel.VulnVersionPath)
 	}
 
 	// open db version file
 	type rsp struct {
-		TiDBVersion string `json:"ti_db_version"`
+		TiDBVersion scannermodel.ScannerDBVersion `json:"ti_db_version"`
 	}
 	data, err := ioutil.ReadFile(versionFile)
 	if err != nil {
@@ -335,8 +350,14 @@ func (c *CiApiSrv) TiDbVersion(ctx *gin.Context) {
 		response.JSONError(ctx, err)
 		return
 	}
-	versionContent := strings.TrimSpace(string(data))
-	logging.Get().Debug().Str("version", versionContent).Msg("ti db version")
+	versionContent := scannermodel.ScannerDBVersion{}
+	err = json.Unmarshal(data, &versionContent)
+	if err != nil {
+		logging.Get().Err(err).Msg("marshal version file failed")
+		response.JSONError(ctx, err)
+		return
+	}
+	logging.Get().Debug().Msgf("ti db version %v", versionContent)
 
 	response.JSONOK(ctx, response.WithItem(rsp{
 		TiDBVersion: versionContent,

@@ -10,8 +10,8 @@ import (
 	math "math"
 	math_bits "math/bits"
 
-	proto "github.com/golang/protobuf/proto"
 	_ "github.com/gogo/protobuf/gogoproto"
+	proto "github.com/golang/protobuf/proto"
 )
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -3457,7 +3457,7 @@ func (m *Vuln) Unmarshal(dAtA []byte) error {
 			iNdEx = postIndex
 		case 3:
 			if wireType != 0 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Level", wireType)
+				return fmt.Errorf("proto: wrong wireType = %d for field RiskLevel", wireType)
 			}
 			m.Level = 0
 			for shift := uint(0); ; shift += 7 {

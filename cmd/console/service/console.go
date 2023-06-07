@@ -23,6 +23,7 @@ import (
 	drvSvc "gitlab.com/piccolo_su/vegeta/cmd/console/service/drift"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/hunter"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/idp"
+	"gitlab.com/piccolo_su/vegeta/cmd/console/service/imagesec"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/immune"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/k8saudit"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/license"
@@ -307,10 +308,17 @@ func NewConsole(
 	}
 
 	stream := rpcstream.NewStreamFactory(rpcstream.WithClusterKey("main")).Server("tcp", ":19090")
-	stream.AddHandler(&pb.ClusterRegister{}, &assetsSvc.ClustertHandler{
+	_ = stream.AddHandler(&pb.ClusterRegister{}, &assetsSvc.ClustertHandler{
 		DB: rdb,
 	})
-	stream.Start()
+	_ = stream.AddHandler(&pb.ImageSecReq{}, &imagesec.StreamHandler{
+		ServerStream: stream,
+	})
+	err = stream.Start()
+	if err != nil {
+		// log but not exit
+		logging.Get().Err(err).Msg("failed to start grpc server")
+	}
 
 	err = defense.InitDefenseService(rdb, es, scannerURL, stream)
 	if err != nil {

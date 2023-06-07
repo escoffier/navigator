@@ -55,15 +55,11 @@ const (
 )
 
 const CheckTaskInterval = 60 * 1 // 检查是否加扫描任务的时间间隔，单位：秒
-const SubTaskMaxRetryCount = 3   // 一次任务的最大重试次数
+const DefaultMaxRetryCount = 3   // 默认的最大重试次数
+const DefaultSlaveDelay = 15     // 默认主从延迟:15s
 
 const SubTaskBatchInsertCount = 200
 
-const (
-	CicdOperator         = "CICD触发扫描"
-	CycleTriggerOperator = "周期触发扫描"
-	SyncTriggerOperator  = "镜像同步触发扫描"
-)
 const (
 	ErrScanPullImage      = iota + 1 // "拉取镜像出错"
 	ErrScanTrivy                     // "扫描镜像出错"
@@ -80,4 +76,8 @@ const (
 const (
 	IsSyncingImage  = true  // 正在同步
 	NotSyncingImage = false // 没在同步
+)
+
+const (
+	DetectAtHour = 3 // 每天03点的时候加检测任务
 )

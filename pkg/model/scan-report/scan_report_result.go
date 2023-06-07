@@ -11,7 +11,7 @@ import (
 
 type ScanReportResultBuilder struct {
 	result      *ScanReportResult
-	vulns       map[string]*ImageVuln // VulnerabilityID+PkgName+InstalledVersion
+	vulns       map[string]*ImageVuln // VulnerabilityID+PkgName+Version
 	viri        map[string]*Virus     // Name
 	contentType TensorScanReportContentType
 }

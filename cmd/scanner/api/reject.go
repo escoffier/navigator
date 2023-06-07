@@ -66,7 +66,7 @@ func (r *RejectAPI) ListRejectRecord(ctx *gin.Context) {
 			rjr = append(rjr, i)
 		}
 	}
-	rjr = util.DeDuplicationInt64Slice(rjr)
+	rjr = util.DuplicateInt64Slice(rjr)
 	var flag uint64
 	for _, rj := range rjr {
 		flag = 1<<rj + flag
@@ -76,7 +76,7 @@ func (r *RejectAPI) ListRejectRecord(ctx *gin.Context) {
 	if filter.SortFiled == "" {
 		filter.SortFiled = "reject_at"
 	}
-	filter = filter.SetDefault()
+	filter.SetMaxLimit(consts.DefaultLimit)
 
 	rgs, cnt, err := r.Srv.ListRejectRecord(ctx, search, libraries, flag, filter)
 	if err != nil {
@@ -460,8 +460,7 @@ func (r *RejectAPI) RSAUpdate(ctx *gin.Context) {
 // @Router	/api/v1/imagereject/trustedImages/rsa [get]
 func (r *RejectAPI) RSAList(ctx *gin.Context) {
 	filter := model.GetFilterWithDefaultValue(ctx)
-	filter.AddSortCreatedAt()
-	filter = filter.AddSortDesc()
+	filter = filter.SetSortCreatedAt().SetSortDesc()
 
 	result, count, err := r.Srv.RSAList(ctx, component.RSAListParam{}, filter)
 	if err != nil {
@@ -478,7 +477,7 @@ func (r *RejectAPI) RSAList(ctx *gin.Context) {
 // @Author liuyang@tensorsecurity.cn
 // @Description 判断是否为可信镜像
 // @Tags image-reject
-// @Param object body model.IsTrustedImagesReq true "请求参数" // todo
+// @Param object body model.IsTrustedImagesReq true "请求参数"
 // @Success 200 {object} response.HTTPEnvelope{Data: model.ImageRsa}
 // @Router	/api/v1/imagereject/trustedImages/rsa/:id [get]
 func (r *RejectAPI) RSADetail(ctx *gin.Context) {

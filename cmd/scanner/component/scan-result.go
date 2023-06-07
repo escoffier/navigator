@@ -123,7 +123,7 @@ func (s ScanResultSearchParam) ToStoreParam() store.SearchImageScanResultParam {
 	}
 
 	if s.AbnormalSoft == consts.TrueString {
-		param.Flag = util.SetBit1(param.Flag, model.FlagHasSoftware)
+		param.Flag = util.SetBit1(param.Flag, model.FlagHasExceptPKG)
 	}
 	return param
 }

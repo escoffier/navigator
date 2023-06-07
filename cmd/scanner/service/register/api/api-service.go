@@ -11,12 +11,19 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/api"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/ci"
+	dbManage "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/db-manage"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/detect"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/imagemeta"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/imagescan"
+	imagesecSrv "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/imagesec"
 	scanReportService "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scan-report/service"
 	scanwebshell "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scanner-webshell"
 	flag2 "gitlab.com/piccolo_su/vegeta/cmd/scanner/flag"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/service/register"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
+	imagesecStore "gitlab.com/piccolo_su/vegeta/cmd/scanner/store/imagesec"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
+	imagesecModel "gitlab.com/piccolo_su/vegeta/pkg/model/imagesec"
 )
 
 const (
@@ -77,11 +84,22 @@ func newService(config register.ScannerServiceConfig) (register.ScannerService, 
 	scannerInstanceDal := store.NewScannerInstanceDao(scannerWrapperDb)
 	scanTaskDal := store.NewScannerOrm(scannerWrapperDb)
 	imageDal := store.NewScannerOrm(scannerWrapperDb)
+	nodeImageDal := imagesecStore.NewImageMetaDao(scannerWrapperDb, nil)
+	nodeReportDal := imagesecStore.NewNodeReportDao(scannerWrapperDb)
+	policyDal := imagesecStore.NewDetectPolicyDao(scannerWrapperDb)
+	detectTaskDal := imagesecStore.NewDetectTaskDao(scannerWrapperDb)
+	detectResultDal := imagesecStore.NewImageDetectResultDao(scannerWrapperDb)
+	nodeScanTaskDal := imagesecStore.NewScanTaskDao(scannerWrapperDb)
+
+	nodeScanResultDal := imagesecStore.NewScanResultDao(scannerWrapperDb)
+	sensitiveRuleDal := imagesecStore.NewSensitiveRuleDao(scannerWrapperDb)
+	scannerConfigDal := imagesecStore.NewScannerConfigDao(scannerWrapperDb)
+
 	resourceDal := store.NewResourceDao(scannerWrapperDb)
 	trustedImageDal := store.NewScannerOrm(scannerWrapperDb)
 	syncTaskDal := store.NewSyncTaskDao(scannerWrapperDb)
 	exportDal := store.NewExportTaskDao(scannerWrapperDb)
-
+	versionDal := store.NewVersionDao(scannerWrapperDb)
 	palaceHandler, err := palace.Init()
 	if err != nil {
 		logging.GetLogger().Error().Err(err).Msgf("Failed to init palaceHandler, %v", err)
@@ -89,18 +107,45 @@ func newService(config register.ScannerServiceConfig) (register.ScannerService, 
 	}
 
 	scannerSvc := component.NewConScannerSrv(dal, registryDal, scanTaskDal, scanConfigDal, vulnDal, webshellDal, &palaceHandler)
-	imageSvc := component.NewImageSrv(imageDal, registryDal, scanTaskDal, vulnDal, scanResultDal, webshellDal, trustedImageDal, resourceDal, scannerInstanceDal)
+	libImageSvc := component.NewLibImageSrv(imageDal, registryDal, scanTaskDal, vulnDal, scanResultDal,
+		webshellDal, trustedImageDal, resourceDal, scannerInstanceDal)
+
+	nodeImageSvc := imagemeta.NewNodeImageSrv(nodeImageDal, registryDal, nodeScanResultDal,
+		resourceDal, nodeReportDal, policyDal, detectResultDal, trustedImageDal, scannerConfigDal, nodeScanTaskDal)
+	nodeVulnSrv := imagesecSrv.NewVulnSrv(nodeScanResultDal)
+	webshellSrv := imagesecSrv.NewWebshellSrv(nodeScanResultDal)
 	rejectSvc := component.NewImageRejectSrc(dal)
 	harborSvc := component.NewHarborSrc(dal, rc)
 	registrySrv := component.NewRegistrySrv(registryDal, scanConfigDal, syncTaskDal)
 	scanConfigSrv := component.NewScanConfigSrv(scanConfigDal, registryDal, dal, scanTaskDal, scannerInstanceDal)
 	syncSrv := component.NewSyncRepoImage(registryDal, imageDal, scanConfigDal, vulnDal, syncTaskDal)
+	versionSrv := dbManage.NewDBManageSrv(versionDal)
 
-	exportSrv := scanReportService.NewExportTaskSrv(exportDal, math.MaxInt32/2,
+	imageSvcMap := map[string]imagemeta.ImageService{
+		imagesecModel.ImageFromRegistry: libImageSvc,
+		imagesecModel.ImageFromNode:     nodeImageSvc,
+	}
+	detectTaskSrv := detect.NewImageDetectTaskSrv(nodeImageSvc, detectTaskDal, policyDal)
+	policySrv := imagesecSrv.NewPolicySrv(policyDal, detectTaskSrv, sensitiveRuleDal)
+
+	scanTaskSrv := imagescan.NewScanTaskSrv(nodeScanTaskDal, nodeImageSvc, scannerConfigDal)
+
+	scanImageConfigSrv := imagesecSrv.NewScannerConfigSrv(scannerConfigDal)
+	sensitiveRuleSrv := imagesecSrv.NewSensitiveRuleSrv(sensitiveRuleDal, scanTaskSrv, scanImageConfigSrv)
+
+	nodeScanTaskSrv := imagescan.NewScanTaskSrv(nodeScanTaskDal, nodeImageSvc, scannerConfigDal)
+	nodeInfoSrv := imagesecSrv.NewNodeReportSrv(nodeReportDal)
+
+	exportSrv := scanReportService.NewExportTaskSrv(
+		exportDal,
+		math.MaxInt32/2,
 		store.NewScannerOrm(scannerWrapperDb),
-		imageSvc,
+		libImageSvc,
+		nodeImageSvc,
+		nodeScanTaskSrv,
 		nil,
-		vulnDal)
+		vulnDal,
+	)
 
 	s := &ScannerAPIService{}
 	s.config.Options = config.Options
@@ -108,7 +153,7 @@ func newService(config register.ScannerServiceConfig) (register.ScannerService, 
 		Addr: s.config.Options.HTTPListenAddr,
 		Handler: api.SetupGinRouter(
 			scannerSvc,
-			imageSvc,
+			imageSvcMap,
 			rejectSvc,
 			harborSvc,
 			registrySrv,
@@ -119,6 +164,14 @@ func newService(config register.ScannerServiceConfig) (register.ScannerService, 
 			component.NewScannerInstanceInfoSrv(store.NewScannerInstanceDao(scannerWrapperDb)),
 			scanwebshell.NewWebshellComponent(webshellDal),
 			exportSrv,
+			versionSrv,
+			policySrv,
+			scanTaskSrv,
+			sensitiveRuleSrv,
+			scanImageConfigSrv,
+			nodeVulnSrv,
+			webshellSrv,
+			nodeInfoSrv,
 		),
 	}
 

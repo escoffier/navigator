@@ -12,8 +12,10 @@ import (
 	"gitlab.com/security-rd/go-pkg/logging"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scan-report/service"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scan-report/types"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
+	"gitlab.com/piccolo_su/vegeta/pkg/model/imagesec"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 )
@@ -29,15 +31,18 @@ func NewExportApiSrv(exportSrv service.ExportTaskInterface) *ExportApiSrv {
 func (s *ExportApiSrv) CreateImageSearchExportTask(ctx *gin.Context) {
 
 	type ExportTensorTask struct {
-		Parameter model.ImageListParam `json:"parameter"`
-		Creator   string               `json:"creator"` // 任务创建人
-		TaskType  string               `json:"taskType"`
+		Parameter imagesec.ImageListParam `json:"parameter"`
+		Creator   string                  `json:"creator"` // 任务创建人
+		TaskType  string                  `json:"taskType"`
 	}
 
 	data := &ExportTensorTask{}
 	if err := ctx.BindJSON(data); err != nil {
 		response.JSONError(ctx, err)
 		return
+	}
+	if data.Parameter.ImageFromType == "" {
+		data.Parameter.ImageFromType = util.GetKeywordFromQuery(ctx, "imageFromType")
 	}
 
 	bys, err := json.Marshal(data.Parameter)
@@ -46,9 +51,9 @@ func (s *ExportApiSrv) CreateImageSearchExportTask(ctx *gin.Context) {
 		return
 	}
 	now := time.Now()
-	fileName := fmt.Sprintf("%d_image_search_%s.zip", now.Unix(), data.TaskType)
+	fileName := fmt.Sprintf("%d_image_search_%s.zip", now.UnixMilli(), data.TaskType)
 	task := &model.ExportTensorTask{
-		ExecuteType: consts.ExportImageSearch,
+		ExecuteType: consts.ExportLibImageSearch,
 		Parameter:   string(bys),
 		FilePath:    fileName,
 		Creator:     data.Creator,
@@ -56,8 +61,13 @@ func (s *ExportApiSrv) CreateImageSearchExportTask(ctx *gin.Context) {
 		TaskType:    data.TaskType,
 		Lang:        util.GetLanguage(ctx),
 	}
+
+	if data.Parameter.ImageFromType == imagesec.ImageFromNode {
+		task.ExecuteType = consts.ExportNodeImageSearch
+	}
+	data.Parameter.Filter = &model.Filter{Limit: 1, Offset: 0}
 	// 查询导出的镜像数
-	_, cnt, err := s.exportSrv.ListImageWithScanInfo(ctx, data.Parameter, &model.Filter{Limit: 1, Offset: 0})
+	_, cnt, err := s.exportSrv.ListImageWithScanInfo(ctx, data.Parameter)
 	if err != nil {
 		response.JSONError(ctx, err)
 		return
@@ -71,6 +81,7 @@ func (s *ExportApiSrv) CreateImageSearchExportTask(ctx *gin.Context) {
 		response.JSONError(ctx, err)
 		return
 	}
+	// todo(liuqianli) 糟糕的做法，这部分逻辑应该把在service 层
 	if data.TaskType == model.ExportHtml {
 		go func() {
 			if err := s.exportSrv.CreateSearchImage(ctx, task.ID, data.Parameter); err != nil {
@@ -89,16 +100,10 @@ func (s *ExportApiSrv) CreateImageSearchExportTask(ctx *gin.Context) {
 
 func (s *ExportApiSrv) CreateImageExportTask(ctx *gin.Context) {
 
-	type ImageExport struct {
-		ImageID      int64  `json:"imageID"`
-		FullRepoName string `json:"fullRepoName"`
-		Tag          string `json:"tag"`
-		Library      string `json:"library"`
-	}
 	type ExportTensorTask struct {
-		Parameter ImageExport `json:"parameter"`
-		Creator   string      `json:"creator"` // 任务创建人
-		TaskType  string      `json:"taskType"`
+		Parameter types.SingeImageExportParam `json:"parameter"`
+		Creator   string                      `json:"creator"` // 任务创建人
+		TaskType  string                      `json:"taskType"`
 	}
 
 	data := &ExportTensorTask{}
@@ -116,6 +121,7 @@ func (s *ExportApiSrv) CreateImageExportTask(ctx *gin.Context) {
 		response.JSONError(ctx, err)
 		return
 	}
+
 	now := time.Now()
 	fileName := fmt.Sprintf("%s_%s_%s_%d.zip", strings.ReplaceAll(data.Parameter.FullRepoName, "/", "_"),
 		data.Parameter.Tag, data.TaskType, now.Unix())
@@ -135,7 +141,9 @@ func (s *ExportApiSrv) CreateImageExportTask(ctx *gin.Context) {
 	}
 	if data.TaskType == model.ExportHtml {
 		go func() {
-			if err := s.exportSrv.CreateSearchImage(ctx, task.ID, model.ImageListParam{ImageIds: []int64{data.Parameter.ImageID}}); err != nil {
+			if err := s.exportSrv.CreateSearchImage(ctx, task.ID, imagesec.ImageListParam{
+				ImageIds: []int64{data.Parameter.ImageID}, ImageFromType: data.Parameter.ImageFromType,
+			}); err != nil {
 				logging.Get().Err(err).Int64("taskID", task.ID).Msg("CreateSearchImage")
 			}
 			updater := map[string]interface{}{"start_at": consts.ExportHtmlReady}
@@ -208,14 +216,11 @@ func (s *ExportApiSrv) CheckScanTask(ctx *gin.Context) {
 }
 
 func (s *ExportApiSrv) CreateScanResultExportTask(ctx *gin.Context) {
-	type TaskExport struct {
-		ScanTaskID   int64  `json:"scanTaskId"`
-		TaskCreateAt string `json:"taskCreateAt"`
-	}
+
 	type ExportTensorTask struct {
-		Parameter TaskExport `json:"parameter"`
-		Creator   string     `json:"creator"`  // 任务创建人
-		TaskType  string     `json:"taskType"` // 是html还是excel
+		Parameter types.ScanTaskExportParam `json:"parameter"`
+		Creator   string                    `json:"creator"`  // 任务创建人
+		TaskType  string                    `json:"taskType"` // 是html还是excel
 	}
 
 	data := &ExportTensorTask{}
@@ -228,6 +233,10 @@ func (s *ExportApiSrv) CreateScanResultExportTask(ctx *gin.Context) {
 		response.JSONError(ctx, fmt.Errorf("no task id"))
 		return
 	}
+	if data.Parameter.ImageFromType == "" {
+		data.Parameter.ImageFromType = util.GetKeywordFromQuery(ctx, "imageFromType")
+	}
+
 	bys, err := json.Marshal(data.Parameter)
 	if err != nil {
 		response.JSONError(ctx, err)
@@ -237,13 +246,16 @@ func (s *ExportApiSrv) CreateScanResultExportTask(ctx *gin.Context) {
 
 	fileName := fmt.Sprintf("%s_scan_result_export_%s_%d.zip", strings.ReplaceAll(data.Parameter.TaskCreateAt, " ", "T"), data.TaskType, now.Unix())
 	task := &model.ExportTensorTask{
-		ExecuteType: consts.ExportScanResult,
+		ExecuteType: consts.ExportLibTask,
 		Parameter:   string(bys),
 		Creator:     data.Creator,
 		FilePath:    fileName,
 		CreatedAt:   now,
 		TaskType:    data.TaskType,
 		Lang:        util.GetLanguage(ctx),
+	}
+	if data.Parameter.ImageFromType == imagesec.ImageFromNode {
+		task.ExecuteType = consts.ExportNodeTask
 	}
 
 	if err := s.exportSrv.CreateExportTask(ctx, task); err != nil {
@@ -252,8 +264,14 @@ func (s *ExportApiSrv) CreateScanResultExportTask(ctx *gin.Context) {
 	}
 	if data.TaskType == model.ExportHtml {
 		go func() {
-			if err := s.exportSrv.CreateScanTaskImage(ctx, task.ID, data.Parameter.ScanTaskID); err != nil {
-				logging.Get().Err(err).Int64("taskID", task.ID).Msg("CreateSearchImage")
+			if data.Parameter.ImageFromType == imagesec.ImageFromNode {
+				if err := s.exportSrv.CreateLibScanTaskImage(ctx, task.ID, data.Parameter.ScanTaskID); err != nil {
+					logging.Get().Err(err).Int64("taskID", task.ID).Msg("CreateSearchImage")
+				}
+			} else {
+				if err := s.exportSrv.CreateLibScanTaskImage(ctx, task.ID, data.Parameter.ScanTaskID); err != nil {
+					logging.Get().Err(err).Int64("taskID", task.ID).Msg("CreateSearchImage")
+				}
 			}
 			updater := map[string]interface{}{"start_at": consts.ExportHtmlReady}
 			if err := s.exportSrv.UpdateExportTask(ctx, task.ID, updater); err != nil {
@@ -294,7 +312,7 @@ func (s *ExportApiSrv) CreateAuditExportTask(ctx *gin.Context) {
 }
 
 func (s *ExportApiSrv) GetExportTaskDetail(ctx *gin.Context) {
-	param := service.GetExportTaskParam{
+	param := types.GetExportTaskParam{
 		ID: util.GetInt64FromQuery(ctx, "id"),
 	}
 	ty := strings.ToLower(strings.TrimSpace(ctx.Query("type")))
@@ -343,7 +361,7 @@ func (s *ExportApiSrv) GetReportTaskList(ctx *gin.Context) {
 	if needCiReport == "" {
 		needCiReport = consts.FalseString
 	}
-	tasks, cnt, err := s.exportSrv.SearchExportTask(ctx, service.SearchExportTaskParam{NeedCiReport: needCiReport}, filter)
+	tasks, cnt, err := s.exportSrv.SearchExportTask(ctx, types.SearchExportTaskParam{NeedCiReport: needCiReport}, filter)
 	if err != nil {
 		response.JSONError(ctx, err)
 		return
@@ -362,7 +380,7 @@ func (s *ExportApiSrv) GetReportTaskList(ctx *gin.Context) {
 	}
 
 	// 前端需要知道当前有多少个任务未完成
-	_, notFinished, err := s.exportSrv.SearchExportTask(ctx, service.SearchExportTaskParam{
+	_, notFinished, err := s.exportSrv.SearchExportTask(ctx, types.SearchExportTaskParam{
 		NeedCiReport: needCiReport,
 		Finished:     consts.FalseString,
 		Failure:      consts.FalseString,
@@ -381,7 +399,7 @@ func (s *ExportApiSrv) GetReportTaskList(ctx *gin.Context) {
 
 func (s *ExportApiSrv) DownLoad(ctx *gin.Context) {
 
-	param := service.GetExportTaskParam{
+	param := types.GetExportTaskParam{
 		ID: util.GetInt64FromQuery(ctx, "id"),
 	}
 	ty := strings.ToLower(strings.TrimSpace(ctx.Query("type")))

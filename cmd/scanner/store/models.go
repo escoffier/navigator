@@ -9,48 +9,15 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 )
 
-type SearchImageParam struct {
-	Libraries         []string
-	InIds             []int64
-	NotInIds          []int64
-	Keyword           string // full_repo_name和tag字段的模糊匹配
-	Digests           []string
-	FullRepoName      string // 这里是精确匹配
-	Tag               string
-	StartID           int64    // 取大于该ID的数据
-	JustGetAppImage   bool     // 只取app image
-	RepoKeyword       string   // full_repo_name的模糊匹配
-	TagKeyword        string   // tag的模糊匹配
-	Fields            []string // 只想要的字端
-	OmitFields        []string // 不想要的字端
-	LayersPrefix      string
-	RegistryIds       []int64 // 仓库Id列表
-	NodeHostnames     []string
-	JustCount         bool
-	UUIDs             []uint32
-	SecurityIssueFlag uint64
-	AttrFlag          uint64
-	ScanStatusFlag    uint64
-	Where             string
-	UniqueImage       uint64
-	Projects          []RegProject
-	NodeHostname      string
-	NotCount          bool
-	AttrIntersection  string // 属性交集还是并集 and or
-	IssueIntersection string // 安全问题交集还是并集 and or
-	OnlineImage       string // 在线离线查询
-	TrustedImage      string // 可信息镜像的查询
-}
-
 type GetSubTaskListWithImageParam struct {
 	TaskIds []int64
 	Status  []int64
 }
 
-func (sp *SearchImageParam) GetDefaultOmitFields() []string {
-	omit := []string{"config_json", "manifest_v1_json", "manifest_v2_json"}
-	return omit
-}
+// func (sp *imagesec.SearchImageParam) GetDefaultOmitFields() []string {
+// 	omit := []string{"config_json", "manifest_v1_json", "manifest_v2_json"}
+// 	return omit
+// }
 
 type GroupVulnSeverityParma struct {
 	ImageId int64
@@ -134,7 +101,7 @@ type SearchRegistryParam struct {
 }
 
 func (s *SearchRegistryParam) Compatible() {
-	s.RegType = util.DeDuplicationStringSlice(s.RegType)
+	s.RegType = util.DuplicateStringSlice(s.RegType)
 	for i := range s.RegType {
 		if s.RegType[i] == consts.HarborVersion {
 			s.RegType = append(s.RegType, consts.HarborV2Version, consts.HarborV1Version)
@@ -315,9 +282,10 @@ type SearchVulnParam struct {
 	SeverityInt     []int64
 	JustReturnCount bool
 	NotReturnCount  bool
-	IdentityKernel  string
+	NeedKernelVuln  string
 	StartID         int64
 	ClassType       []string
+	NeedKernel      string
 	LayerSearch     *model.LayerSearch
 	OnlineImageVuln string
 }
@@ -381,7 +349,7 @@ type SearchHtmlVulnImageParam struct {
 	TaskID      int64
 	UniqueVulns []uint64
 	CanFixed    string
-	Severity    int
+	Severity    int64
 	Fields      []string
 	StartID     int64
 }
@@ -394,13 +362,6 @@ type GroupImageVuln struct {
 
 type RSAListParam struct {
 	Name string
-}
-
-type RegProject struct {
-	RegistryID int64  `json:"registryID"`
-	Project    string `json:"project"`
-	Name       string `json:"name"`
-	Key        string `json:"key"`
 }
 
 type GroupRegistryRepoParam struct {

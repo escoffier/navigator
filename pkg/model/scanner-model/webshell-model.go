@@ -111,8 +111,9 @@ type WebshellResult struct {
 }
 
 type WebshellSaveInfo struct {
-	FileMd5 string `json:"fileMd5"`
-	Data    []byte `json:"data"`
+	FileMd5  string `json:"fileMd5"`
+	Data     []byte `json:"data"`
+	Filename string `json:"-"`
 }
 
 func (w *WebshellFileInfo) TransToWebshell() Webshell {

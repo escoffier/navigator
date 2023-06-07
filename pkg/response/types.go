@@ -65,6 +65,7 @@ type HTTPError struct {
 	Code    int            `json:"code"`
 	Message string         `json:"message"`
 	Errors  []HTTPSubError `json:"errors"`
+	I18Err  I18Err         `json:"i18Err"`
 }
 
 func (h *HTTPError) Error() string {

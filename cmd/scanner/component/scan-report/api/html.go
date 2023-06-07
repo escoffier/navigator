@@ -5,16 +5,17 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scan-report/export/html"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scan-report/service"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scan-report/types"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
+	"gitlab.com/piccolo_su/vegeta/pkg/model/imagesec"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 )
 
 type ExportHtmlApiSrv struct {
-	ExportHtmlDriver map[string]html.ExportHtmlInterface
+	ExportHtmlDriver map[string]types.ExportHtmlInterface
 	ExportSrv        service.ExportTaskInterface
 }
 
@@ -69,7 +70,7 @@ func (s *ExportHtmlApiSrv) GetImageVulns(ctx *gin.Context) {
 	startID := util.GetInt64FromQuery(ctx, "startID")
 	imageID := util.GetInt64FromQuery(ctx, "imageID")
 
-	severity := model.GetSeverityInt(ctx.Query("severity"))
+	severity := imagesec.GetSeverityInt(ctx.Query("severity"))
 	if severity <= model.SeverityNegligibleInt || severity > model.SeverityCriticalInt {
 		response.JSONError(ctx, fmt.Errorf("no severity"))
 		return
@@ -79,7 +80,7 @@ func (s *ExportHtmlApiSrv) GetImageVulns(ctx *gin.Context) {
 		response.JSONError(ctx, err)
 		return
 	}
-	res, err := driver.GetImageVuln(ctx, html.GetExportVulnParam{
+	res, err := driver.GetImageVuln(ctx, types.GetExportVulnParam{
 		TaskID:   taskID,
 		ImageID:  imageID,
 		Severity: severity,
@@ -97,8 +98,8 @@ func (s *ExportHtmlApiSrv) GetExportVulns(ctx *gin.Context) {
 	startID := util.GetInt64FromQuery(ctx, "startID")
 	limit := util.GetInt64FromQuery(ctx, "limit")
 
-	severity := model.GetSeverityInt(ctx.Query("severity"))
-	if severity <= model.SeverityNegligibleInt || severity > model.SeverityCriticalInt {
+	severity := imagesec.GetSeverityInt(ctx.Query("severity"))
+	if severity <= 0 || severity > imagesec.SeverityCriticalInt {
 		response.JSONError(ctx, fmt.Errorf("no severity"))
 		return
 	}
@@ -115,7 +116,7 @@ func (s *ExportHtmlApiSrv) GetExportVulns(ctx *gin.Context) {
 		response.JSONError(ctx, err)
 		return
 	}
-	res, err := driver.GetExportVuln(ctx, html.GetExportVulnParam{
+	res, err := driver.GetExportVuln(ctx, types.GetExportVulnParam{
 		TaskID:   taskID,
 		Severity: severity,
 		CanFixed: canFixed,
@@ -160,8 +161,8 @@ func (s *ExportHtmlApiSrv) GetImageRisk(ctx *gin.Context) {
 	response.JSONOK(ctx, response.WithItem(imageRisk))
 }
 
-func (s *ExportHtmlApiSrv) GetExportHtmlDriver(ctx *gin.Context, taskID int64) (html.ExportHtmlInterface, error) {
-	task, err := s.ExportSrv.GetExportTask(ctx, service.GetExportTaskParam{ID: taskID})
+func (s *ExportHtmlApiSrv) GetExportHtmlDriver(ctx *gin.Context, taskID int64) (types.ExportHtmlInterface, error) {
+	task, err := s.ExportSrv.GetExportTask(ctx, types.GetExportTaskParam{ID: taskID})
 	if err != nil {
 		return nil, err
 	}
@@ -175,7 +176,7 @@ func (s *ExportHtmlApiSrv) GetExportHtmlDriver(ctx *gin.Context, taskID int64) (
 	return dir, nil
 }
 
-func NewExportHtmlApiSrv(exportHtmlDriver map[string]html.ExportHtmlInterface,
+func NewExportHtmlApiSrv(exportHtmlDriver map[string]types.ExportHtmlInterface,
 	exportSrv service.ExportTaskInterface) *ExportHtmlApiSrv {
 	return &ExportHtmlApiSrv{ExportHtmlDriver: exportHtmlDriver, ExportSrv: exportSrv}
 }

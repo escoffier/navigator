@@ -24,33 +24,53 @@ type Filter struct {
 	Limit  int64 `json:"limit"`
 }
 
-func (f *Filter) AddSortCreatedAt() {
-	f.SortFiled = "created_at"
+func (f *Filter) SetSortCreatedAt() *Filter {
+	af := f.DeepCopy()
+	af.SortFiled = "created_at"
+	return af
 }
 
-func (f *Filter) AddSortDesc() *Filter {
-	f.SortBy = consts.SortByDesc
-	return f
+func (f *Filter) SetSortDesc() *Filter {
+	af := f.DeepCopy()
+	af.SortBy = consts.SortByDesc
+	return af
 }
 
-func (f *Filter) AddSortAsc() *Filter {
-	f.SortBy = consts.SortByAsc
-	return f
+func (f *Filter) SetSortAsc() *Filter {
+	af := f.DeepCopy()
+	af.SortBy = consts.SortByAsc
+	return af
 }
 
-func (f *Filter) AddSortFiledByID() *Filter {
-	f.SortFiled = "id"
-	return f
+func (f *Filter) SetSortFiledByID() *Filter {
+	return f.DeepCopy().SetSortFiled("id")
 }
 
-func (f *Filter) AddLimit(limit int64) *Filter {
-	f.Limit = limit
-	return f
+func (f *Filter) SetLimit(limit int64) *Filter {
+	af := f.DeepCopy()
+	af.Limit = limit
+	return af
 }
 
-func (f *Filter) AddOffset(offset int64) *Filter {
-	f.Offset = offset
-	return f
+func (f *Filter) SetMaxLimit(limit int64) *Filter {
+	af := f.DeepCopy()
+
+	if af.Limit > limit || af.Limit <= 0 {
+		af.Limit = limit
+	}
+	return af
+}
+
+func (f *Filter) SetOffset(offset int64) *Filter {
+	af := f.DeepCopy()
+	af.Offset = offset
+	return af
+}
+
+func (f *Filter) SetSortFiled(sortFiled string) *Filter {
+	af := f.DeepCopy()
+	af.SortFiled = sortFiled
+	return af
 }
 
 func EmptyFilter() *Filter {
@@ -72,7 +92,6 @@ func GetFilter(ctx *gin.Context) *Filter {
 
 	filter := &Filter{Offset: offset, Limit: limit, SortBy: sortBy, SortFiled: sortFiled}
 	filter.OrderByColumns = make([]clause.OrderByColumn, 0)
-	filter = filter.SetDefault()
 	return filter
 }
 
@@ -81,12 +100,6 @@ func GetFilterWithDefaultValue(ctx *gin.Context) *Filter {
 	limit, _ := strconv.ParseInt(ctx.Query("limit"), 10, 64)
 	sortBy := ctx.Query("sort_by")
 	sortFiled := ctx.Query("sort_filed")
-	if limit > consts.DefaultLimit || limit <= 0 {
-		limit = consts.DefaultLimit
-	}
-	if offset <= 0 {
-		offset = consts.DefaultOffset
-	}
 
 	filter := &Filter{Offset: offset, Limit: limit, SortBy: sortBy, SortFiled: sortFiled}
 	filter.OrderByColumns = make([]clause.OrderByColumn, 0)
@@ -101,11 +114,6 @@ func EmptyFilterForTotalQuery() *Filter {
 		SortBy:    "desc",
 		SortFiled: "id",
 	}
-}
-
-func (f *Filter) SetSortFiled(sortFiled string) *Filter {
-	f.SortFiled = sortFiled
-	return f
 }
 
 func (f *Filter) SetDefault() *Filter {
@@ -131,7 +139,7 @@ func (f *Filter) SetDefault() *Filter {
 		f.Offset = 0 // 取第一页
 	}
 	if f.Limit <= 0 {
-		f.Limit = math.MaxInt32 // 没传就表示取全部，这里赋一个最大值
+		f.Limit = 10 // 不传就返一条数据，尽早发现问题
 	}
 	return f
 }

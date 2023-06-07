@@ -17,14 +17,14 @@ func GetInt64SliceFromQuery(ctx *gin.Context, key string) []int64 {
 		for i := range split {
 			parseInt, err := strconv.ParseInt(split[i], 10, 64)
 			if err != nil {
-				logging.GetLogger().Err(err).Msgf("get %s param", key)
+				logging.GetLogger().Err(err).Str("param", split[i]).Msgf("get %s param", key)
 				continue
 			}
 			values = append(values, parseInt)
 		}
 	}
 
-	return DeDuplicationInt64Slice(values)
+	return DuplicateInt64Slice(values)
 }
 
 func GetStringSliceFromQuery(ctx *gin.Context, key string) []string {
@@ -36,7 +36,7 @@ func GetStringSliceFromQuery(ctx *gin.Context, key string) []string {
 			res = append(res, split[i])
 		}
 	}
-	return DeDuplicationStringSlice(res)
+	return DuplicateStringSlice(res)
 }
 
 // 从gin的query中取值后解析成int64,如果没有传或解析出错，都是返回0
@@ -45,6 +45,20 @@ func GetInt64FromQuery(ctx *gin.Context, key string) int64 {
 	keyStr := ctx.Query(key)
 	if keyStr != "" {
 		parseInt, err := strconv.ParseInt(keyStr, 10, 64)
+		if err != nil {
+			logging.GetLogger().Err(err).Msgf("get %s param", key)
+		}
+		value = parseInt
+	}
+	return value
+}
+
+// 从gin的query中取值后解析成uint64,如果没有传或解析出错，都是返回0
+func GetUint64FromQuery(ctx *gin.Context, key string) uint64 {
+	var value uint64
+	keyStr := ctx.Query(key)
+	if keyStr != "" {
+		parseInt, err := strconv.ParseUint(keyStr, 10, 64)
 		if err != nil {
 			logging.GetLogger().Err(err).Msgf("get %s param", key)
 		}

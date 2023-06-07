@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/global"
+	imagesecModel "gitlab.com/piccolo_su/vegeta/pkg/model/imagesec"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
@@ -121,9 +122,9 @@ func (s *RegistrySrv) DeleteRegistry(ctx context.Context, id int64) error {
 		}()
 
 		var startID int64
-		filter := model.EmptyFilter().AddLimit(consts.DefaultLimit).AddSortAsc().AddSortFiledByID()
+		filter := model.EmptyFilter().SetLimit(consts.DefaultLimit).SetSortAsc().SetSortFiledByID()
 		for {
-			images, _, err := s.imageDal.SearchImage(ctx, store.SearchImageParam{RegistryIds: []int64{regID},
+			images, _, err := s.imageDal.SearchImage(ctx, imagesecModel.SearchImageParam{RegistryIds: []int64{regID},
 				Fields: []string{"id"}, StartID: startID}, filter)
 			if err != nil {
 				logging.GetLogger().Err(err).Int64("regID", regID).Msg("after DeleteRegistry delete image")

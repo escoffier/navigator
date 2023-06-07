@@ -1,0 +1,242 @@
+package imagesec
+
+import (
+	"encoding/base64"
+	"encoding/json"
+	"fmt"
+	"sort"
+	"strings"
+
+	"gitlab.com/security-rd/go-pkg/logging"
+
+	"gitlab.com/piccolo_su/vegeta/pkg/util"
+)
+
+type Webshell struct {
+	ID          int64  `gorm:"primaryKey" json:"id"`
+	UniqueID    uint64 `gorm:"column:unique_id" json:"uniqueID,string"`
+	Filename    string `gorm:"column:filename" json:"filename"`
+	Size        int64  `gorm:"column:size" json:"size"` // 单位：B
+	MD5         string `gorm:"column:md5" json:"md5"`
+	FileMod     string `gorm:"column:file_mod" json:"fileMod"` // drwxr-xr-x@ 28 liuqianli  staff
+	Code        string `gorm:"column:code" json:"code"`
+	RiskLevel   string `gorm:"column:risk_level" json:"riskLevel"`
+	Description string `gorm:"column:description" json:"description"` // 描述。如php一句话木马
+	Version     uint64 `gorm:"column:version" json:"version"`
+
+	CreatedAt int64 `gorm:"autoCreateTime:milli;column:created_at" json:"createdAt"`
+	UpdatedAt int64 `gorm:"autoUpdateTime:milli;column:updated_at" json:"updatedAt"`
+}
+
+type WebshellToImage struct {
+	ID            int64  `gorm:"primaryKey" json:"id"`
+	UniqueID      uint64 `gorm:"column:unique_id" json:"uniqueID,string"` // 数据库的中唯一建，去重效率高
+	UniqueTarget  uint64 `gorm:"column:unique_target" json:"uniqueTarget,string"`
+	ImageUniqueID uint64 `gorm:"column:image_unique_id" json:"imageUniqueID,string"`
+	LayerDigest   string `gorm:"column:layer_digest" json:"layerDigest"`
+	CreatedAt     int64  `gorm:"autoCreateTime:milli;column:created_at" json:"createdAt"` // milliseconds
+	UpdatedAt     int64  `gorm:"autoUpdateTime:milli;column:updated_at" json:"updatedAt"` // milliseconds
+}
+
+type WebshellView struct {
+	ID          int64          `json:"id"`
+	UniqueID    uint64         `json:"uniqueID,string"`
+	Filename    string         `json:"filename"`
+	Filepath    string         `json:"filepath"`
+	FileType    string         `json:"filetype"`
+	Size        string         `json:"size"`
+	MD5         string         `json:"md5"`
+	Mod         Mod            `json:"mod"`
+	Code        []WebshellCode `json:"code"`
+	RiskLevel   string         `json:"riskLevel"`
+	Description string         `json:"description"` // 描述。如php一句话木马
+	Version     uint64         `json:"version"`
+	CreatedAt   int64          `json:"createdAt"`
+	UpdatedAt   int64          `json:"updatedAt"`
+
+	PolicyDetect PolicyDetect `json:"policyDetect"` // 对各个策略的检测结果
+}
+
+func (vi *WebshellView) CodeContent() string {
+	if bys, err := json.Marshal(vi.Code); err == nil {
+		return string(bys)
+	}
+	return ""
+}
+
+type WebshellContent struct {
+	Line    string   `json:"line"`
+	Problem []string `json:"problem"`
+}
+
+type Mod struct {
+	User  string `json:"user"`
+	Group string `json:"group"`
+	Perm  string `json:"perm"`
+}
+
+func (vi *Webshell) Serialize() {
+	vi.RiskLevel = strings.ToLower(vi.RiskLevel)
+}
+
+func (vi *Webshell) ToWebshellView() *WebshellView {
+	after := WebshellView{
+		ID:          vi.ID,
+		UniqueID:    vi.UniqueID,
+		Filename:    vi.Filename,
+		Version:     vi.Version,
+		MD5:         vi.MD5,
+		Code:        make([]WebshellCode, 0),
+		RiskLevel:   strings.ToLower(vi.RiskLevel),
+		Description: vi.Description,
+		CreatedAt:   vi.CreatedAt,
+		UpdatedAt:   vi.UpdatedAt,
+	}
+
+	split := strings.Split(vi.Filename, "/")
+	if len(split) > 1 {
+		after.Filename = split[len(split)-1]
+		after.Filepath = strings.Join(split[:len(split)-1], "/")
+	}
+	if after.Filepath != "" {
+		after.Filepath = after.Filepath + "/"
+	}
+
+	split3 := strings.Split(vi.Filename, ".")
+	if len(split3) >= 2 {
+		after.FileType = split3[len(split3)-1]
+	}
+
+	split2 := strings.Split(vi.FileMod, " ")
+	// sample: drwxr-xr-x@ liuqianli  staff
+	if len(split2) >= 3 {
+		after.Mod.Perm = split2[0]
+		after.Mod.User = split2[1]
+		after.Mod.Group = split2[2]
+	}
+
+	hm := make([]hMWebshellCode, 0)
+	if vi.Code != "" {
+		if err := json.Unmarshal([]byte(vi.Code), &hm); err != nil {
+			logging.Get().Err(err).Msg("parse webshell code")
+			hm = make([]hMWebshellCode, 0)
+		}
+	}
+	for i := range hm {
+		af := WebshellCode{
+			Name:   hm[i].Name,
+			Offset: hm[i].Offset,
+			Data:   ParseWebshellCode(hm[i].Data),
+			LineNo: hm[i].LineNo,
+		}
+		af.Parsed = af.Data != hm[i].Data
+		after.Code = append(after.Code, af)
+	}
+
+	sort.Sort(WebshellCodes(after.Code))
+	after.Size = util.ParseByteSize(vi.Size)
+	return &after
+}
+
+func (vi *Webshell) Deserialize() {
+
+}
+
+func ParseWebshellCode(pre string) string {
+	if strings.Contains(pre, HMWebshellSalt) {
+		return pre
+	}
+	after, err := base64.StdEncoding.DecodeString(pre)
+	if err != nil {
+		logging.Get().Info().Str("pre", pre).Msg("decode base64 error")
+		return pre
+	}
+	return string(after)
+}
+
+func (vi *Webshell) Check() error {
+	if vi == nil {
+		return fmt.Errorf("model is nil")
+	}
+	if vi.Filename == "" {
+		return fmt.Errorf("not get Filename")
+	}
+	if vi.UniqueID == 0 {
+		vi.UniqueID = vi.GenUniqueID()
+	}
+	if vi.UniqueID <= 0 {
+		return fmt.Errorf("not get uniqueID")
+	}
+	return nil
+}
+
+// 盒马 webshell 扫描的原始数据解析
+type hMWebshellCode struct {
+	Name   string `json:"Name"`
+	Offset int64  `json:"Offset"`
+	Data   string `json:"Data"`
+	LineNo int64  `json:"line_no"`
+}
+
+type WebshellCode struct {
+	Name   string `json:"name"`
+	Offset int64  `json:"offset"`
+	Data   string `json:"data"`
+	LineNo int64  `json:"lineNo"`
+	Parsed bool   `json:"parsed"` // 河马加密，是否能解析，不对解析的数据不能返回给前端
+}
+
+type WebshellCodes []WebshellCode
+
+func (vi WebshellCodes) Len() int {
+	return len(vi)
+}
+
+func (vi WebshellCodes) Less(i, j int) bool {
+	return vi[i].Offset < vi[j].Offset
+}
+
+func (vi WebshellCodes) Swap(i, j int) {
+	vi[i], vi[j] = vi[j], vi[i]
+}
+
+func (vi *Webshell) Same(after *Webshell) bool {
+	vi.UniqueID = vi.GenUniqueID()
+	after.UniqueID = after.GenUniqueID()
+	return vi.UniqueID == after.UniqueID
+}
+
+func (vi *Webshell) GenUniqueID() uint64 {
+	key := fmt.Sprintf(UniqueWebshellFormat, vi.MD5, vi.Filename)
+	return util.GenerateUUID64(key)
+}
+
+func (vi *Webshell) TableName() string {
+	return "ivan_scan_image_webshell"
+}
+
+func (vi *WebshellToImage) GenUniqueID() uint64 {
+	if vi.UniqueID > 0 {
+		return vi.UniqueID
+	}
+	key := fmt.Sprintf("%d-%d-%s", vi.ImageUniqueID, vi.UniqueTarget, vi.LayerDigest)
+	uid := util.GenerateUUID64(key)
+	vi.UniqueID = uid
+	return uid
+}
+
+func (vi *WebshellToImage) Same(after *WebshellToImage) bool {
+	if vi.LayerDigest != after.LayerDigest || vi.ImageUniqueID != after.ImageUniqueID ||
+		vi.UniqueTarget != after.UniqueTarget {
+		return false
+	}
+	return true
+}
+
+func (vi *WebshellToImage) TableName() string {
+	// 由于仓库镜像，节点镜像，CI镜像的数据结构一致，但是数据量较大，所以要做分表处理
+	if vi == nil {
+		return ""
+	}
+	return "ivan_image_webshell_issue"
+}

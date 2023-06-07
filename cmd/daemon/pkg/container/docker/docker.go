@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/docker/docker/api/types/image"
 	"io"
 	"path/filepath"
 
@@ -178,6 +179,15 @@ func (d *dockerDriver) GetImageInspect(imageID string) (types.ImageInspect, erro
 		return types.ImageInspect{}, fmt.Errorf("get image inspect failed, %v", err)
 	}
 	return image, nil
+}
+func (d *dockerDriver) ImageHistory(imageID string) ([]image.HistoryResponseItem, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), dockerRequestTimeout*time.Second)
+	defer cancel()
+	history, err := d.dockerCli.ImageHistory(ctx, imageID)
+	if err != nil {
+		return []image.HistoryResponseItem{}, fmt.Errorf("failed to get image history, %v", err)
+	}
+	return history, nil
 }
 
 func (d *dockerDriver) GetContainerInspect(containerID string) (types.ContainerJSON, error) {

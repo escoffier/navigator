@@ -13,6 +13,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
+	imagesecModel "gitlab.com/piccolo_su/vegeta/pkg/model/imagesec"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 )
@@ -32,7 +33,7 @@ func (s *VulnAPISrv) GetImageVulns(ctx *gin.Context) {
 	imageID := util.GetInt64FromQuery(ctx, "imageID")
 
 	if imageID <= 0 {
-		response.JSONError(ctx, response.NewHttpError(http.StatusBadRequest, fmt.Errorf("not get imageID")))
+		response.JSONError(ctx, fmt.Errorf("not get imageID"))
 		return
 	}
 
@@ -82,7 +83,7 @@ func (s *VulnAPISrv) GetImageVulns(ctx *gin.Context) {
 		for i := range layers {
 			uniqueVulns = append(uniqueVulns, layers[i].VulnInfo...)
 		}
-		param.UniqueVulns = util.DeDuplicationUint64Slice(uniqueVulns)
+		param.UniqueVulns = util.DuplicateUint64Slice(uniqueVulns)
 
 		/* 2.12之后应该使用这种方式查询,等扫描重构之后再使用
 		param.LayerSearch = &model.LayerSearch{
@@ -93,7 +94,7 @@ func (s *VulnAPISrv) GetImageVulns(ctx *gin.Context) {
 		*/
 	}
 	vulns, _, err := s.VulnSrv.SearchVulns(ctx, param,
-		model.EmptyFilterForTotalQuery().SetSortFiled("severity_int").AddSortDesc())
+		model.EmptyFilterForTotalQuery().SetSortFiled("severity_int").SetSortDesc())
 	if err != nil {
 		response.JSONError(ctx, err)
 		return
@@ -133,7 +134,7 @@ func (s *VulnAPISrv) GetImageVulns(ctx *gin.Context) {
 		response.WithStartIndex(filter.Offset))
 }
 
-// 获取镜像漏洞-软件视角
+// 获取镜像漏洞-软件视角(仓库镜像)
 func (s *VulnAPISrv) GetImageVulnPkg(ctx *gin.Context) {
 	imageID := util.GetInt64FromQuery(ctx, "imageID")
 	if imageID <= 0 {
@@ -176,25 +177,22 @@ func (s *VulnAPISrv) GetImageVulnPkg(ctx *gin.Context) {
 			pkgMap[key] = VulnPKG{
 				PkgName:          vulns[i].PkgName,
 				PkgVersion:       vulns[i].PkgVersion,
-				SeverityOverview: make([]model.SeverityGroup, 0),
+				SeverityOverview: make([]imagesecModel.SeverityGroup, 0),
 				Vulns:            make([]VulnResponse, 0),
 				Target:           vulns[i].Target,
 			}
 		}
 		sf := pkgMap[key]
-		sf.Vulns = vulns
-		sf.SeverityOverview = addSeverityGroup(sf.SeverityOverview, vulns[i].SeverityInt)
+		sf.SeverityOverview = imagesecModel.AddSeverityGroup(sf.SeverityOverview, vulns[i].SeverityInt)
 		pkgMap[key] = sf
 	}
 	// 按层级排序一下,便于前端展示
 	for _, v := range pkgMap {
-		sort.Sort(SeverityGroups(v.SeverityOverview))
-		sort.Sort(VulnLists(v.Vulns))
+		sort.Sort(imagesecModel.SeverityGroups(v.SeverityOverview))
 	}
 	res := make([]VulnPKG, 0)
 	for _, vp := range pkgMap {
 		vp.SortScore = vp.GetSortScore()
-		vp.UniqueID = vp.GenUniqueVuln()
 		vp.Vulns = make([]VulnResponse, 0)
 		res = append(res, vp)
 	}
@@ -260,18 +258,18 @@ func (s *VulnAPISrv) GetImageVulnLanguage(ctx *gin.Context) {
 			languageMap[key] = &VulnLanguage{
 				LanguageName:     vulns[i].Language,
 				LanguagePath:     vulns[i].Target,
-				SeverityOverview: make([]model.SeverityGroup, 0),
+				SeverityOverview: make([]imagesecModel.SeverityGroup, 0),
 				Vulns:            make([]VulnResponse, 0),
 			}
 		}
 		sf := languageMap[key]
 		sf.Vulns = append(sf.Vulns, convertVuln(vulns[i]))
-		sf.SeverityOverview = addSeverityGroup(sf.SeverityOverview, vulns[i].SeverityInt)
+		sf.SeverityOverview = imagesecModel.AddSeverityGroup(sf.SeverityOverview, vulns[i].SeverityInt)
 		languageMap[key] = sf
 	}
 	// 按层级排序一下,便于前端展示
 	for _, v := range languageMap {
-		sort.Sort(SeverityGroups(v.SeverityOverview))
+		sort.Sort(imagesecModel.SeverityGroups(v.SeverityOverview))
 		sort.Sort(VulnLists(v.Vulns))
 	}
 	res := make([]*VulnLanguage, 0)
@@ -337,7 +335,7 @@ func (s *VulnAPISrv) GetImageVulnGoBinary(ctx *gin.Context) {
 		index := strings.LastIndex(vulns[i].Target, "/")
 
 		vulnGO := VulnGobinary{
-			SeverityOverview: make([]model.SeverityGroup, 0),
+			SeverityOverview: make([]imagesecModel.SeverityGroup, 0),
 			Vulns:            make([]VulnResponse, 0),
 		}
 		if index == -1 {
@@ -355,12 +353,12 @@ func (s *VulnAPISrv) GetImageVulnGoBinary(ctx *gin.Context) {
 		}
 		sf := gobinaryMap[key]
 		sf.Vulns = append(sf.Vulns, convertVuln(vulns[i]))
-		sf.SeverityOverview = addSeverityGroup(sf.SeverityOverview, vulns[i].SeverityInt)
+		sf.SeverityOverview = imagesecModel.AddSeverityGroup(sf.SeverityOverview, vulns[i].SeverityInt)
 		gobinaryMap[key] = sf
 	}
 	// 按层级排序一下,便于前端展示
 	for _, v := range gobinaryMap {
-		sort.Sort(SeverityGroups(v.SeverityOverview))
+		sort.Sort(imagesecModel.SeverityGroups(v.SeverityOverview))
 		sort.Sort(VulnLists(v.Vulns))
 	}
 	res := make([]*VulnGobinary, 0)
@@ -431,12 +429,12 @@ func (s *VulnAPISrv) GetImageVulnFrame(ctx *gin.Context) {
 		}
 		sf := frameMap[vulns[i].Frame]
 		sf.Vulns = append(sf.Vulns, convertVuln(vulns[i]))
-		sf.SeverityOverview = addSeverityGroup(sf.SeverityOverview, vulns[i].SeverityInt)
+		sf.SeverityOverview = imagesecModel.AddSeverityGroup(sf.SeverityOverview, vulns[i].SeverityInt)
 		frameMap[vulns[i].Frame] = sf
 	}
 	// 按层级排序一下,便于前端展示
 	for _, v := range frameMap {
-		sort.Sort(SeverityGroups(v.SeverityOverview))
+		sort.Sort(imagesecModel.SeverityGroups(v.SeverityOverview))
 		sort.Sort(VulnLists(v.Vulns))
 	}
 	res := make([]*VulnFrame, 0)
@@ -461,14 +459,14 @@ func (s *VulnAPISrv) GetImageVulnFrame(ctx *gin.Context) {
 		response.WithStartIndex(filter.Offset))
 }
 
-func (v *VulnAPISrv) SetVulnToRedis(ctx *gin.Context) {
+func (s *VulnAPISrv) SetVulnToRedis(ctx *gin.Context) {
 	data := model.ImageRiskOverRedis{}
 	if err := ctx.BindJSON(&data); err != nil {
 		response.JSONError(ctx, response.NewHttpError(http.StatusInternalServerError, err))
 		return
 	}
 
-	if err := v.VulnSrv.SetImageRiskToRedis(ctx, data); err != nil {
+	if err := s.VulnSrv.SetImageRiskToRedis(ctx, data); err != nil {
 		response.JSONError(ctx, response.NewHttpError(http.StatusInternalServerError, err))
 		return
 	}
@@ -486,7 +484,7 @@ func convertVuln(vuln *model.Vuln) VulnResponse {
 		SeverityInt: vuln.SeverityInt,
 		Severity:    vuln.Severity,
 		FixedBy:     vuln.FixedBy,
-		UniqueVuln:  vuln.UniqueVuln,
+		UniqueID:    vuln.UniqueVuln,
 		Language:    vuln.Language,
 		PkgName:     vuln.PkgName,
 		PkgVersion:  vuln.PkgVersion,
@@ -495,6 +493,7 @@ func convertVuln(vuln *model.Vuln) VulnResponse {
 		CnnvdName:   vuln.CnnvdName,
 		Class:       vuln.Class,
 		KernelVuln:  util.ExistBit1(vuln.Flag, model.VulnFlagKernel),
+		Attr:        vuln.Attr,
 	}
 	if vuln.Attr != nil {
 		res.AttackPath = vuln.Attr["AV"]
@@ -507,22 +506,55 @@ func convertVuln(vuln *model.Vuln) VulnResponse {
 	return res
 }
 
+func convertNodeVulnView(vuln *imagesecModel.VulnView) VulnResponse {
+	if vuln == nil {
+		return VulnResponse{}
+	}
+	res := VulnResponse{
+		ID:             vuln.ID,
+		Name:           vuln.Name,
+		SeverityInt:    vuln.SeverityInt,
+		Severity:       vuln.Severity,
+		FixedBy:        vuln.FixedVersion,
+		UniqueID:       vuln.UniqueID,
+		PkgUniqueID:    vuln.PkgUniqueID,
+		Language:       vuln.Language,
+		PkgName:        vuln.PkgName,
+		PkgVersion:     vuln.PkgVersion,
+		Target:         vuln.Target,
+		Frame:          vuln.Frame,
+		CnnvdName:      vuln.CnnvdName,
+		Class:          vuln.Class,
+		ClassView:      vuln.ClassView,
+		KernelVuln:     vuln.KernelVuln,
+		AttackPath:     vuln.AttackPath,
+		AttackPathView: vuln.AttackPathView,
+		PolicyDetect:   vuln.PolicyDetect,
+	}
+	return res
+}
+
 type VulnResponse struct {
-	ID          int64  `json:"id"`
-	Name        string `json:"name"`      // 形如CVE-2021-28831
-	CnnvdName   string `json:"cnnvdName"` // CNNVD
-	SeverityInt int    `json:"severityInt"`
-	Severity    string `json:"severity"`
-	PkgName     string `json:"pkgName"`    // 软件包来源
-	PkgVersion  string `json:"pkgVersion"` // 软件包版本
-	FixedBy     string `json:"fixedBy"`    // 修复建议
-	UniqueVuln  uint64 `json:"uniqueVuln,string"`
-	Language    string `json:"language"`   // 把编程语言
-	AttackPath  string `json:"attackPath"` // 攻击路径
-	Target      string ` json:"target"`    // 制品路径
-	Class       string `json:"class"`      // 代表是系统包还是语言包 os-pkgs
-	Frame       string `json:"frame"`      // 开发框架筛选
-	KernelVuln  bool   `json:"kernelVuln"` // 是否是内核漏洞
+	ID             int64                      `json:"id"`
+	Name           string                     `json:"name"`      // 形如CVE-2021-28831
+	CnnvdName      string                     `json:"cnnvdName"` // CNNVD
+	SeverityInt    int64                      `json:"severityInt"`
+	Severity       string                     `json:"severity"`
+	PkgName        string                     `json:"pkgName"`    // 软件包来源
+	PkgVersion     string                     `json:"pkgVersion"` // 软件包版本
+	FixedBy        string                     `json:"fixedBy"`    // 修复建议
+	UniqueID       uint64                     `json:"uniqueID,string"`
+	PkgUniqueID    uint64                     `json:"pkgUniqueID,string"`
+	Language       string                     `json:"language"`       // 把编程语言
+	AttackPath     string                     `json:"attackPath"`     // 攻击路径
+	AttackPathView string                     `json:"attackPathView"` // 攻击路径
+	Target         string                     `json:"target"`         // 制品路径
+	Class          string                     `json:"class"`          // 代表是系统包还是语言包 os-pkgs
+	ClassView      string                     `json:"classView"`
+	Frame          string                     `json:"frame"`      // 开发框架筛选
+	KernelVuln     bool                       `json:"kernelVuln"` // 是否是内核漏洞
+	Attr           map[string]string          `json:"attr"`
+	PolicyDetect   imagesecModel.PolicyDetect `json:"policyDetect"` // 对各个策略的检测结果
 }
 
 type VulnLists []VulnResponse
@@ -540,22 +572,21 @@ func (vl VulnLists) Swap(i, j int) {
 }
 
 type VulnPKG struct {
-	PkgName          string                `json:"pkgName"`
-	PkgVersion       string                `json:"pkgVersion"`
-	UniqueID         uint64                `json:"uniqueID,string"`
-	SeverityOverview []model.SeverityGroup `json:"severityOverview"`
-	Vulns            []VulnResponse        `json:"vulns"`
-	License          string                `json:"license"` // 软件的开源协议
-	Target           string                `json:"target"`
-	AbnormalSoft     bool                  `json:"abnormalSoft"`
-	AbnormalLicense  bool                  `json:"abnormalLicense"`
-	SortScore        int64                 `json:"sortScore"`
+	PkgName          string                        `json:"pkgName"`
+	PkgVersion       string                        `json:"pkgVersion"`
+	UniqueID         uint64                        `json:"uniqueID,string"`
+	SeverityOverview []imagesecModel.SeverityGroup `json:"severityOverview"`
+	Vulns            []VulnResponse                `json:"vulns"`
+	License          []string                      `json:"license"` // 软件的开源协议
+	Target           string                        `json:"target"`
+	SortScore        int64                         `json:"sortScore"`
+	PolicyDetect     imagesecModel.PolicyDetect    `json:"policyDetect"`
 }
 
 type ImageRiskStatic struct {
-	ImageBaseResponse model.ImageBaseResponse     `json:"imageBaseResponse"`
-	Issue             model.SecurityIssueOverview `json:"issue"`
-	SeverityOverview  []model.SeverityGroup       `json:"severityOverview"`
+	ImageBaseResponse imagesecModel.ImageBaseResponse `json:"imageBaseResponse"`
+	Issue             model.SecurityIssueOverview     `json:"issue"`
+	SeverityOverview  []imagesecModel.SeverityGroup   `json:"severityOverview"`
 }
 
 // 为了排序方便，一般情况下，单个镜像单个级别的漏洞不会超过1000个
@@ -565,7 +596,7 @@ func (vp VulnPKG) GetSortScore() int64 {
 		if vp.SeverityOverview[i].SeverityInt <= 0 {
 			continue
 		}
-		level := int64(math.Pow10((vp.SeverityOverview[i].SeverityInt - 1) * 3))
+		level := int64(math.Pow10((int(vp.SeverityOverview[i].SeverityInt - 1)) * 3))
 		score += level * vp.SeverityOverview[i].Count
 	}
 	return score
@@ -592,12 +623,12 @@ func (vf VulnPKGs) Swap(i, j int) {
 }
 
 type VulnLanguage struct {
-	LanguageName     string                `json:"languageName"`
-	LanguagePath     string                `json:"languagePath"`
-	SeverityOverview []model.SeverityGroup `json:"severityOverview"`
-	Vulns            []VulnResponse        `json:"vulns"`
-	Target           string                `json:"target"`
-	SortScore        int64                 `json:"sortScore"`
+	LanguageName     string                        `json:"languageName"`
+	LanguagePath     string                        `json:"languagePath"`
+	SeverityOverview []imagesecModel.SeverityGroup `json:"severityOverview"`
+	Vulns            []VulnResponse                `json:"vulns"`
+	Target           string                        `json:"target"`
+	SortScore        int64                         `json:"sortScore"`
 }
 
 func (vp VulnLanguage) GetSortScore() int64 {
@@ -606,7 +637,7 @@ func (vp VulnLanguage) GetSortScore() int64 {
 		if vp.SeverityOverview[i].SeverityInt <= 0 {
 			continue
 		}
-		level := int64(math.Pow10((vp.SeverityOverview[i].SeverityInt - 1) * 3))
+		level := int64(math.Pow10((int(vp.SeverityOverview[i].SeverityInt - 1)) * 3))
 		score += level * vp.SeverityOverview[i].Count
 	}
 	return score
@@ -619,7 +650,7 @@ func (vf VulnLanguages) Len() int {
 }
 
 func (vf VulnLanguages) Less(i, j int) bool {
-	return vf[i].SortScore > vf[i].SortScore
+	return vf[i].SortScore > vf[j].SortScore
 }
 
 func (vf VulnLanguages) Swap(i, j int) {
@@ -627,11 +658,11 @@ func (vf VulnLanguages) Swap(i, j int) {
 }
 
 type VulnGobinary struct {
-	GoName           string                `json:"goName"`
-	GoPath           string                `json:"goPath"`
-	SeverityOverview []model.SeverityGroup `json:"severityOverview"`
-	Vulns            []VulnResponse        `json:"vulns"`
-	SortScore        int64                 `json:"sortScore"`
+	GoName           string                        `json:"goName"`
+	GoPath           string                        `json:"goPath"`
+	SeverityOverview []imagesecModel.SeverityGroup `json:"severityOverview"`
+	Vulns            []VulnResponse                `json:"vulns"`
+	SortScore        int64                         `json:"sortScore"`
 }
 
 func (vp VulnGobinary) GetSortScore() int64 {
@@ -640,7 +671,7 @@ func (vp VulnGobinary) GetSortScore() int64 {
 		if vp.SeverityOverview[i].SeverityInt <= 0 {
 			continue
 		}
-		level := int64(math.Pow10((vp.SeverityOverview[i].SeverityInt - 1) * 3))
+		level := int64(math.Pow10((int(vp.SeverityOverview[i].SeverityInt - 1)) * 3))
 		score += level * vp.SeverityOverview[i].Count
 	}
 	return score
@@ -653,7 +684,7 @@ func (vf VulnGobinaries) Len() int {
 }
 
 func (vf VulnGobinaries) Less(i, j int) bool {
-	return vf[i].SortScore > vf[i].SortScore
+	return vf[i].SortScore > vf[j].SortScore
 }
 
 func (vf VulnGobinaries) Swap(i, j int) {
@@ -661,10 +692,10 @@ func (vf VulnGobinaries) Swap(i, j int) {
 }
 
 type VulnFrame struct {
-	Frame            string                `json:"frame"`
-	SeverityOverview []model.SeverityGroup `json:"severityOverview"`
-	Vulns            []VulnResponse        `json:"vulns"`
-	SortScore        int64                 `json:"sortScore"`
+	Frame            string                        `json:"frame"`
+	SeverityOverview []imagesecModel.SeverityGroup `json:"severityOverview"`
+	Vulns            []VulnResponse                `json:"vulns"`
+	SortScore        int64                         `json:"sortScore"`
 }
 
 func (vp VulnFrame) GetSortScore() int64 {
@@ -673,7 +704,7 @@ func (vp VulnFrame) GetSortScore() int64 {
 		if vp.SeverityOverview[i].SeverityInt <= 0 {
 			continue
 		}
-		level := int64(math.Pow10((vp.SeverityOverview[i].SeverityInt - 1) * 3))
+		level := int64(math.Pow10((int(vp.SeverityOverview[i].SeverityInt - 1)) * 3))
 		score += level * vp.SeverityOverview[i].Count
 	}
 	return score
@@ -686,48 +717,9 @@ func (vf VulnFrames) Len() int {
 }
 
 func (vf VulnFrames) Less(i, j int) bool {
-	return vf[i].SortScore > vf[i].SortScore
+	return vf[i].SortScore > vf[j].SortScore
 }
 
 func (vf VulnFrames) Swap(i, j int) {
 	vf[i], vf[j] = vf[j], vf[i]
-}
-
-type SeverityGroups []model.SeverityGroup
-
-func (sgs SeverityGroups) Len() int {
-	return len(sgs)
-}
-
-func (sgs SeverityGroups) Less(i, j int) bool {
-	if sgs[i].SeverityInt > sgs[j].SeverityInt {
-		return true
-	} else if sgs[i].SeverityInt < sgs[j].SeverityInt {
-		return false
-	} else if sgs[i].SeverityInt == sgs[j].SeverityInt {
-		return sgs[i].Count > sgs[j].Count
-	}
-	return true
-}
-
-func (sgs SeverityGroups) Swap(i, j int) {
-	sgs[i], sgs[j] = sgs[j], sgs[i]
-}
-
-func addSeverityGroup(sgs []model.SeverityGroup, severityInt int) []model.SeverityGroup {
-	needAdd := true
-	for i := range sgs {
-		if sgs[i].SeverityInt == severityInt {
-			needAdd = false
-			sgs[i].Count++
-		}
-	}
-	if needAdd {
-		sgs = append(sgs, model.SeverityGroup{
-			SeverityInt: severityInt,
-			Count:       1,
-			Severity:    model.GetSeverity(severityInt),
-		})
-	}
-	return sgs
 }

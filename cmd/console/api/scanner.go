@@ -47,7 +47,7 @@ func (api *api) scanner() func(chi.Router) {
 		r.Get("/images/existenceCount", api.RedirectToScanner())
 		r.Get("/images/bin/whitelist", api.RedirectToScanner())
 		r.Post("/images/bin/whitelist", api.RedirectToScanner())
-		r.Get("/layers/images/{imageId}/layers/{layerDigest}/info", api.RedirectToScanner())
+		// r.Get("/layers/images/{imageId}/layers/{layerDigest}/info", api.RedirectToScanner())
 
 		r.Get("/vulns/detail", api.RedirectToScanner())
 		r.Get("/vulns/statistic", api.RedirectToScanner())
@@ -169,6 +169,11 @@ func (api *api) scanner() func(chi.Router) {
 		r.Get("/images/detail/sensitiveFile", api.RedirectToScanner())
 		r.Get("/images/detail/software", api.RedirectToScanner())
 		r.Post("/images/detail/riskInfo", api.RedirectToScanner())
+
+		r.Put("/db/update", api.RedirectToScanner())
+		r.Put("/db/update/malicious", api.RedirectToScanner())
+		r.Get("/db/version", api.RedirectToScanner())
+		r.Get("/db/history", api.RedirectToScanner())
 	}
 }
 

@@ -490,8 +490,7 @@ func main() {
 	util.InitPprofMontitor()
 	err := Run(mainCtx)
 	if err != nil {
-		logging.Get().Error().Msgf("net init failed, %v.", err)
-		mainCancel()
+		logging.Get().Err(err).Msg("failed to run daemon.")
 		os.Exit(1)
 	}
 }

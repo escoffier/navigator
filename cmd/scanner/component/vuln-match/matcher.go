@@ -3,6 +3,7 @@ package vulnmatch
 import (
 	"context"
 	"fmt"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component"
 	"gitlab.com/security-rd/go-pkg/logging"
 	"os"
 	ftypes "scm.tensorsecurity.cn/tensorsecurity-rd/fanal/types"
@@ -17,6 +18,12 @@ type Matcher struct {
 }
 
 func (m *Matcher) MatchVulnerability(artifactDetail ftypes.ArtifactDetail) error {
+	trivyServer := component.MustGetTrivyServer()
+	trivyServer.Trivy.RLock()
+	defer trivyServer.Trivy.RUnlock()
+
+	logging.Get().Debug().Msg("get trivy server ok")
+
 	rp, err := m.runner.ScanFilesystem(context.Background(), m.option, artifactDetail)
 	if err != nil {
 		logging.Get().Err(err).Msg("scan vulnerability filed")
@@ -76,10 +83,14 @@ func (m *Matcher) DumpResult(outfile string) error {
 	return nil
 }
 
-func NewMatcher() (*Matcher, error) {
-	m := &Matcher{}
+func NewMatcher(opts ...MatcherOption) (*Matcher, error) {
+	// default option
 	opt := InitOption()
+	m := &Matcher{}
 	m.option = opt
+	for _, o := range opts {
+		o(m)
+	}
 
 	r, err := NewRunner(opt)
 	if err != nil {

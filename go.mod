@@ -4,7 +4,6 @@ go 1.19
 
 require (
 	github.com/PuerkitoBio/goquery v1.8.0
-	github.com/agnivade/levenshtein v1.1.1
 	github.com/alecthomas/template v0.0.0-20190718012654-fb15b899a751
 	github.com/avast/retry-go v3.0.0+incompatible
 	github.com/badoux/checkmail v1.2.1
@@ -15,7 +14,6 @@ require (
 	github.com/docker/docker v20.10.24+incompatible
 	github.com/elazarl/goproxy v0.0.0-20220901064549-fbd10ff4f5a1 // indirect
 	github.com/emicklei/go-restful v2.16.0+incompatible
-	github.com/facebookarchive/freeport v0.0.0-20150612182905-d4adf43b75b9
 	github.com/falcosecurity/client-go v0.5.1
 	github.com/fatih/color v1.13.0
 	github.com/florianl/go-conntrack v0.4.0 //conntrack
@@ -87,7 +85,7 @@ require (
 	k8s.io/client-go v0.20.15
 	scm.tensorsecurity.cn/tensorsecurity-rd/cloudwalker v0.0.5
 	scm.tensorsecurity.cn/tensorsecurity-rd/falcosider v0.2.59
-	scm.tensorsecurity.cn/tensorsecurity-rd/trivy v0.19.3-0.20221223094108-043b8936a019
+	scm.tensorsecurity.cn/tensorsecurity-rd/trivy v0.19.3-0.20230601104328-6b56bbcd6507
 )
 
 require github.com/go-ldap/ldap/v3 v3.4.1
@@ -95,9 +93,11 @@ require github.com/go-ldap/ldap/v3 v3.4.1
 require (
 	github.com/March-deng/godisearch v0.0.0-20230510033050-3ae5e895e766
 	github.com/afex/hystrix-go v0.0.0-20180502004556-fa1af6a1f4f5
+	github.com/agnivade/levenshtein v1.1.1
 	github.com/ahmetb/go-linq/v3 v3.2.0
 	github.com/dlclark/regexp2 v1.8.1
 	github.com/elastic/go-libaudit/v2 v2.2.0
+	github.com/facebookarchive/freeport v0.0.0-20150612182905-d4adf43b75b9
 	github.com/ghodss/yaml v1.0.0
 	github.com/gin-contrib/pprof v1.4.0
 	github.com/go-redis/redismock/v8 v8.11.5
@@ -115,6 +115,7 @@ require (
 	github.com/rookie-ninja/rk-entry v1.0.11
 	github.com/rookie-ninja/rk-gin v1.2.22
 	github.com/segmentio/kafka-go v0.4.40
+	github.com/shirou/gopsutil/v3 v3.22.12
 	github.com/shopspring/decimal v1.2.0
 	github.com/sony/gobreaker v0.5.0
 	github.com/xuri/excelize/v2 v2.6.0
@@ -137,6 +138,8 @@ require (
 	cloud.google.com/go/iam v0.13.0 // indirect
 	github.com/Azure/go-ansiterm v0.0.0-20210617225240-d185dfc1b5a1 // indirect
 	github.com/Azure/go-autorest/autorest/date v0.3.0 // indirect
+	github.com/CyrusF/go-bayesian v0.0.0-20180928040635-c6aa877814bd // indirect
+	github.com/CyrusF/libsvm-go v0.0.0-20180928035651-2210b124fd3d // indirect
 	github.com/Shopify/sarama v1.38.1 // indirect
 	github.com/acarl005/stripansi v0.0.0-20180116102854-5a71ef0e047d // indirect
 	github.com/andres-erbsen/clock v0.0.0-20160526145045-9e14626cd129 // indirect
@@ -165,6 +168,7 @@ require (
 	github.com/eapache/go-xerial-snappy v0.0.0-20230111030713-bf00bc1b83b6 // indirect
 	github.com/eapache/queue v1.1.0 // indirect
 	github.com/gabriel-vasile/mimetype v1.4.2 // indirect
+	github.com/glaslos/ssdeep v0.3.1 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-ole/go-ole v1.2.6 // indirect
 	github.com/gobuffalo/here v0.6.0 // indirect
@@ -178,6 +182,7 @@ require (
 	github.com/gorilla/mux v1.8.0 // indirect
 	github.com/gorilla/schema v1.2.0 // indirect
 	github.com/grantae/certinfo v0.0.0-20170412194111-59d56a35515b // indirect
+	github.com/grd/stat v0.0.0-20130623202159-138af3fd5012 // indirect
 	github.com/hako/durafmt v0.0.0-20200710122514-c0fb7b4da026 // indirect
 	github.com/hashicorp/consul/api v1.12.0 // indirect
 	github.com/hashicorp/go-hclog v1.2.0 // indirect
@@ -232,7 +237,6 @@ require (
 	github.com/rookie-ninja/rk-logger v1.2.10 // indirect
 	github.com/rookie-ninja/rk-query v1.2.10 // indirect
 	github.com/rs/xid v1.4.0 // indirect
-	github.com/shirou/gopsutil/v3 v3.22.12 // indirect
 	github.com/sony/sonyflake v1.0.0 // indirect
 	github.com/stefanberger/go-pkcs11uri v0.0.0-20201008174630-78d3cae3a980 // indirect
 	github.com/syndtr/gocapability v0.0.0-20200815063812-42c35b437635 // indirect
@@ -292,8 +296,6 @@ require (
 	github.com/Azure/go-autorest/tracing v0.6.0 // indirect
 	github.com/Azure/go-ntlmssp v0.0.0-20211209120228-48547f28849e // indirect
 	github.com/BurntSushi/toml v1.0.0 // indirect
-	github.com/CyrusF/go-bayesian v0.0.0-20180928040635-c6aa877814bd // indirect
-	github.com/CyrusF/libsvm-go v0.0.0-20180928035651-2210b124fd3d // indirect
 	github.com/DATA-DOG/go-sqlmock v1.5.0
 	github.com/GoogleCloudPlatform/docker-credential-gcr v1.5.0 // indirect
 	github.com/KyleBanks/depth v1.2.1 // indirect
@@ -346,7 +348,6 @@ require (
 	github.com/docker/libtrust v0.0.0-20160708172513-aabc10ec26b7 // indirect
 	github.com/emirpasic/gods v1.12.0 // indirect
 	github.com/gin-contrib/sse v0.1.0 // indirect
-	github.com/glaslos/ssdeep v0.3.1 // indirect
 	github.com/go-asn1-ber/asn1-ber v1.5.3 // indirect
 	github.com/go-git/gcfg v1.5.0 // indirect
 	github.com/go-git/go-billy/v5 v5.3.1 // indirect
@@ -367,7 +368,6 @@ require (
 	github.com/google/wire v0.4.0 // indirect
 	github.com/googleapis/gax-go/v2 v2.7.1 // indirect
 	github.com/gopherjs/gopherjs v0.0.0-20200217142428-fce0ec30dd00 // indirect
-	github.com/grd/stat v0.0.0-20130623202159-138af3fd5012 // indirect
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.15.0 // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect
 	github.com/hashicorp/go-cleanhttp v0.5.2 // indirect

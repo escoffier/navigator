@@ -3,6 +3,7 @@ package scanner_ci
 import (
 	"encoding/json"
 	"fmt"
+	"gitlab.com/piccolo_su/vegeta/pkg/types/imagesec"
 	"sort"
 	"strings"
 	"time"
@@ -98,7 +99,7 @@ type VulnWhiteListResult struct {
 // Pattern sensitive file match pattern
 type Pattern struct {
 	Description string `json:"description"` // rule description,like:"Environment configuration file"
-	SecretType  string `json:"secret_type"` // match mod: Filename ,FileContent, FileExt
+	SecretType  string `json:"secret_type"` // match mod: Filename ,Content, FileExt
 	Value       string `json:"value"`       // regexp,like: *.rsa
 }
 
@@ -163,6 +164,12 @@ type PolicyResult struct {
 	ScanEndTime time.Time
 
 	NeedRemoteReport bool
+
+	// malware result
+	MalwareResults imagesec.MalwareResults
+
+	// webshell result
+	WebshellResults imagesec.WebshellResults
 }
 
 type VulnWhitelist struct {

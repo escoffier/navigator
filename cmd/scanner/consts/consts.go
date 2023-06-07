@@ -101,14 +101,18 @@ const (
 
 var ErrNotNodeImage = fmt.Errorf("not find node info")
 
-const SpecialImageTypeK8s = "k8s"
+const (
+	SpecialImageTypeK8s  = "k8s"
+	DefaultVulnTopNImage = 5
+	MaxVulnTopNImage     = 20
+	DefaultBathSize      = 500 // 批量取数据时，默认每次取的条数
+	DefaultLimit         = 200
+	DefaultOffset        = 0
+	DefaultPerPage       = 10
 
-const DefaultVulnTopNImage = 5
-const MaxVulnTopNImage = 20
-const DefaultBathSize = 500 // 批量取数据时，默认每次取的条数
-const DefaultLimit = 200
-const DefaultOffset = 0
-const DefaultCreateInBatches = 50
+	DefaultMaxRetry        = 5
+	DefaultCreateInBatches = 50
+)
 
 const (
 	SortByDesc = "desc"

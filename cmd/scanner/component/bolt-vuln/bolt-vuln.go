@@ -19,6 +19,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/vuln-updata/cnnvd"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/vuln-updata/cnvd"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
+	scannermodel "gitlab.com/piccolo_su/vegeta/pkg/model/scanner-model"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 )
 
@@ -56,13 +57,13 @@ func CheckList(pvcPath string) bool {
 }
 
 func NewScannerVuln(pvcPath string) *BoltVuln {
-	for {
-		if CheckList(pvcPath) {
-			break
-		} else {
-			time.Sleep(time.Second * 10)
-		}
-	}
+	// for {
+	// 	if CheckList(pvcPath) {
+	// 		break
+	// 	} else {
+	// 		time.Sleep(time.Second * 10)
+	// 	}
+	// }
 	once.Do(func() {
 		boltVuln = &BoltVuln{}
 		boltVuln.PvcPath = pvcPath
@@ -89,7 +90,7 @@ func (s *BoltVuln) GetDBPath() (string, error) {
 
 func (s *BoltVuln) TickerRun() error {
 	preDir := s.dbPath
-	err := s.InitDB()
+	err := s.InitDB(s.PvcPath)
 	if err != nil {
 		if s.customDB == nil {
 			var options bolt.Options
@@ -160,15 +161,28 @@ func (s *BoltVuln) ReadVersion(name string) string {
 	return res
 }
 
-func (s *BoltVuln) getVulnPath() string {
-	version := s.ReadVersion("custom")
-	if version == "last" {
-		return filepath.Join(s.PvcPath, "last_custom.db")
+func (s *BoltVuln) UpdateDB(path string) error {
+	dbPath := filepath.Join(path, "custom.db")
+	osCMD := exec.Command("cp", "-f", dbPath, filepath.Join(s.PvcPath, "custom.db"))
+	err := osCMD.Run()
+	fmt.Println(osCMD.Args)
+	if err != nil {
+		return err
 	}
-	return filepath.Join(s.PvcPath, "offline", "init_custom.db")
+	return nil
 }
 
-func (s *BoltVuln) InitDB() error {
+func (s *BoltVuln) UpdataVersion(ver scannermodel.VulnDBVersion) error {
+	verByte, err := json.Marshal(ver)
+	if err != nil {
+		logging.GetLogger().Err(err).Msgf("marshal version struct failed")
+		return err
+	}
+	ioutil.WriteFile(filepath.Join(s.PvcPath, "version"), verByte, 0644)
+	return nil
+}
+
+func (s *BoltVuln) InitDB(path string) error {
 	s.lock.Lock()
 	defer s.lock.Unlock()
 
@@ -177,7 +191,7 @@ func (s *BoltVuln) InitDB() error {
 		return err
 	}
 	fp := filepath.Join(tmpDir, "custom.db")
-	lastDbPath := s.getVulnPath()
+	lastDbPath := filepath.Join(path, "custom.db")
 	osCMD := exec.Command("cp", "-f", lastDbPath, fp)
 	err = osCMD.Run()
 	fmt.Println(lastDbPath)
@@ -224,7 +238,7 @@ func (s *BoltVuln) Run() {
 	}
 	ctx := context.Background()
 	err := util.RetryWithBackoff(ctx, func() error {
-		err := s.InitDB()
+		err := s.InitDB(s.PvcPath)
 		if err != nil {
 			logging.GetLogger().Err(err).Msg("Init Db failed,try restart")
 		}

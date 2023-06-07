@@ -12,15 +12,17 @@ import (
 
 	apimodel "gitlab.com/piccolo_su/vegeta/cmd/scanner/api/model"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component"
+	imagesecSrv "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/imagemeta"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/task"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
+	"gitlab.com/piccolo_su/vegeta/pkg/model/imagesec"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 )
 
 type ImageOpenAPISvc struct {
-	ImageSrv      component.ImageSrvInterface
+	ImageSrv      imagesecSrv.ImageService
 	ScannerSrv    component.ScannerSrv
 	RegistrySrv   component.RegistrySrvInterface
 	ScanConfigSrv component.ScanConfigSrvInterface
@@ -30,7 +32,7 @@ func NewScannerOpenAPISrv(
 	srv component.ScannerSrv,
 	registrySrv component.RegistrySrvInterface,
 	scanConfigSrv component.ScanConfigSrvInterface,
-	imageSrv component.ImageSrvInterface,
+	imageSrv imagesecSrv.ImageService,
 ) *ImageOpenAPISvc {
 	return &ImageOpenAPISvc{
 		ScannerSrv:    srv,
@@ -66,9 +68,9 @@ func (s *ImageOpenAPISvc) ListImages(ctx *gin.Context) {
 		NodeHostname: nodeHostname,
 	}
 	fromTypeString := ctx.Query("fromType")
-	if fromTypeString == model.ImageFromNode {
+	if fromTypeString == imagesec.ImageFromNode {
 		param.FromType = model.NodeBuffRegistry
-	} else if fromTypeString == model.ImageFromRegistry {
+	} else if fromTypeString == imagesec.ImageFromRegistry {
 		param.FromType = model.UserRegistry
 	}
 
@@ -106,9 +108,9 @@ func (s *ImageOpenAPISvc) ListImages(ctx *gin.Context) {
 			im.SecurityIssue = append(im.SecurityIssue, images[i].Questions[j].ID)
 		}
 		if images[i].FromType == model.NodeBuffRegistry {
-			im.FromType = model.ImageFromNode
+			im.FromType = imagesec.ImageFromNode
 		} else if images[i].FromType == model.UserRegistry {
-			im.FromType = model.ImageFromRegistry
+			im.FromType = imagesec.ImageFromRegistry
 		}
 
 		res = append(res, im)
@@ -122,14 +124,14 @@ func (s *ImageOpenAPISvc) ListImages(ctx *gin.Context) {
 
 // open-api镜像列表
 func (s *ImageOpenAPISvc) SearchImages(ctx *gin.Context) {
-	body := model.ImageListParam{}
+	body := imagesec.ImageListParam{}
 	if err := ctx.BindJSON(&body); err != nil {
 		response.JSONError(ctx, response.NewHttpError(http.StatusBadRequest, err))
 		return
 	}
-	filter := model.GetFilterWithDefaultValue(ctx)
+	body.Filter = model.GetFilterWithDefaultValue(ctx)
 
-	images, cnt, err := s.ImageSrv.ListImageWithScanInfo(ctx, body, filter)
+	images, cnt, err := s.ImageSrv.ListImageWithScanInfo(ctx, body)
 	if err != nil {
 		response.JSONError(ctx, err)
 		return
@@ -137,17 +139,17 @@ func (s *ImageOpenAPISvc) SearchImages(ctx *gin.Context) {
 
 	response.JSONOK(ctx, response.WithItems(images),
 		response.WithTotalItems(cnt),
-		response.WithItemsPerPage(filter.Limit),
-		response.WithStartIndex(filter.Offset))
+		response.WithItemsPerPage(body.Filter.Limit),
+		response.WithStartIndex(body.Filter.Offset))
 }
 
 func (s *ImageOpenAPISvc) GetRegistryProject(ctx *gin.Context) {
 	regID, _ := strconv.ParseInt(ctx.Query("regID"), 10, 64)
 	projectKeyword := ctx.Query("projectKeyword")
 
-	repos, err := s.ImageSrv.GetRegistryProject(ctx, component.GetRegistryProjectParam{
-		RegID:          regID,
-		ProjectKeyword: projectKeyword,
+	repos, err := s.ImageSrv.SearchProject(ctx, imagesec.SearchProjectParam{
+		RegID:   regID,
+		Keyword: projectKeyword,
 	})
 	if err != nil {
 		response.JSONError(ctx, err)
@@ -167,9 +169,9 @@ func (s *ImageOpenAPISvc) ImageStatistic(ctx *gin.Context) {
 	}
 	fromType := model.UserRegistry
 
-	if fromTypeString == model.ImageFromNode {
+	if fromTypeString == imagesec.ImageFromNode {
 		fromType = model.NodeBuffRegistry
-	} else if fromTypeString == model.ImageFromRegistry {
+	} else if fromTypeString == imagesec.ImageFromRegistry {
 		fromType = model.UserRegistry
 	}
 
@@ -273,9 +275,9 @@ func (s *ImageOpenAPISvc) GetImageDetails(ctx *gin.Context) {
 		res.RegistryURL = img.Registry.Url
 	}
 	if img.FromType == model.UserRegistry {
-		res.FromType = model.ImageFromRegistry
+		res.FromType = imagesec.ImageFromRegistry
 	} else if img.FromType == model.NodeBuffRegistry {
-		res.FromType = model.ImageFromRegistry
+		res.FromType = imagesec.ImageFromRegistry
 	}
 
 	for i := range img.ImageScanEnv {
@@ -296,9 +298,6 @@ func (s *ImageOpenAPISvc) GetImageDetails(ctx *gin.Context) {
 	}
 	if model.ExistFlag(img.Flag, model.FlagHasFixedVuln) {
 		res.ImageAttr.HasFixedVuln = true
-	}
-	if model.ExistFlag(img.Flag, model.FlagReinforced) {
-		res.ImageAttr.Reinforced = true
 	}
 	res.ImageAttr.Trusted = img.Trusted
 
@@ -362,7 +361,7 @@ func (s *ImageOpenAPISvc) ListImgLayersByImageName(ctx *gin.Context) {
 			Digest:        images[i].ImageDigest,
 			CreatedAt:     images[i].Created.Unix(),
 			CreatedBy:     images[i].CreatedBy,
-			Vulns:         util.DeDuplicationStringSlice(images[i].Vulus),
+			Vulns:         util.DuplicateStringSlice(images[i].Vulus),
 			Viruses:       images[i].Malicious,
 			SensitiveFile: images[i].SensitiveFiles,
 			WebshellInfo:  images[i].WebshellInfo,
@@ -373,7 +372,7 @@ func (s *ImageOpenAPISvc) ListImgLayersByImageName(ctx *gin.Context) {
 }
 
 func (s *ImageOpenAPISvc) CreateScanImageTask(ctx *gin.Context) {
-	body := model.ImageListParam{}
+	body := imagesec.ImageListParam{}
 
 	if err := ctx.BindJSON(&body); err != nil {
 		response.JSONError(ctx, response.NewHttpError(http.StatusBadRequest, err))
@@ -434,7 +433,7 @@ func (s *ImageOpenAPISvc) CreateScanTask(ctx *gin.Context) {
 		return
 	}
 
-	if t.FromType != model.ImageFromNode && t.FromType != model.ImageFromRegistry {
+	if t.FromType != imagesec.ImageFromNode && t.FromType != imagesec.ImageFromRegistry {
 		response.JSONError(ctx, response.NewHttpError(http.StatusNotAcceptable, fmt.Errorf("fromType incorrect")))
 		return
 	}
@@ -452,9 +451,9 @@ func (s *ImageOpenAPISvc) CreateScanTask(ctx *gin.Context) {
 	if t.HasFixedVuln == consts.HasFixedvulnString {
 		search.HasFixedVulu = consts.HasFixedvulnString
 	}
-	if t.FromType == model.ImageFromRegistry {
+	if t.FromType == imagesec.ImageFromRegistry {
 		search.FromType = model.UserRegistry
-	} else if t.FromType == model.ImageFromNode {
+	} else if t.FromType == imagesec.ImageFromNode {
 		search.FromType = model.NodeBuffRegistry
 	}
 

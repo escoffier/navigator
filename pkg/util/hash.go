@@ -2,8 +2,13 @@ package util
 
 import (
 	"crypto"
+	"crypto/md5"
 	"encoding/hex"
 	"fmt"
+	"io"
+	"os"
+
+	"gitlab.com/security-rd/go-pkg/logging"
 )
 
 func MD5(str string) []byte {
@@ -53,4 +58,20 @@ func HashHex(h crypto.Hash, str string) (string, error) {
 	}
 
 	return hex.EncodeToString(hashed), nil
+}
+
+func Md5FromFile(path string) (string, error) {
+	fs, err := os.Open(path)
+	if err != nil {
+		logging.Get().Err(err).Msg("open path error")
+		return "", err
+	}
+	originMd5 := md5.New()
+	_, err = io.Copy(originMd5, fs)
+	if err != nil {
+		logging.Get().Err(err).Msg("get file hash error")
+		return "", err
+	}
+	originMd5Str := hex.EncodeToString(originMd5.Sum(nil))
+	return originMd5Str, nil
 }

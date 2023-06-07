@@ -12,11 +12,12 @@ import (
 
 	"gitlab.com/security-rd/go-pkg/logging"
 
-	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/engine"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/pre-init"
 	flag2 "gitlab.com/piccolo_su/vegeta/cmd/scanner/flag"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/service/register"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
+	imagesecStore "gitlab.com/piccolo_su/vegeta/cmd/scanner/store/imagesec"
 	"gitlab.com/piccolo_su/vegeta/pkg/lifecycle"
 	"gitlab.com/piccolo_su/vegeta/pkg/uuid"
 )
@@ -95,7 +96,10 @@ func NewScanner(opts *flag2.ScannerOpts) (*Scanner, error) {
 	vulnDal := store.GetSingeVulnDao()
 
 	scanConfigDAl := store.NewScanConfigDao(store.GetScannerWrapperDb())
-	dbInit := component.NewInitScanner(regDal, imageDal, scanConfigDAl, vulnDal)
+	nodeConfigDal := imagesecStore.NewScannerConfigDao(store.GetScannerWrapperDb())
+	nodeDetectPolicyDal := imagesecStore.NewDetectPolicyDao(store.GetScannerWrapperDb())
+	sensitiveRuleDal := imagesecStore.NewSensitiveRuleDao(store.GetScannerWrapperDb())
+	dbInit := preinit.NewInitScanner(regDal, imageDal, scanConfigDAl, vulnDal, nodeConfigDal, nodeDetectPolicyDal, sensitiveRuleDal)
 
 	// scannerInstance := os.Getenv("ScannerInstance")
 	// if scannerInstance == "" {
@@ -132,6 +136,7 @@ func (s *Scanner) Run() func() {
 	s.StartServices()
 
 	// start flow engine
+	// 为啥会写在这里，糟糕的写法
 	go func() {
 		config := engine.SeqEngineConfig{
 			DeqType:       "db-dequeue",
@@ -186,8 +191,9 @@ func (s *Scanner) StartServices() {
 			err := s.servicesList[serviceName].Start(context.Background())
 			if err != nil {
 				logging.Get().Err(err).Str("serviceName", serviceName).Msg("scanner service run err")
+				return
 			}
-			logging.Get().Info().Str("serviceName", serviceName).Msg("scanner service alreadey start")
+			logging.Get().Info().Str("serviceName", serviceName).Msg("scanner service start end")
 		}(name)
 	}
 

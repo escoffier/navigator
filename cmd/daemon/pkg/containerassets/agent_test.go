@@ -1,6 +1,7 @@
 package containerassets
 
 import (
+	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/utils"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"reflect"
 	"testing"
@@ -47,7 +48,7 @@ func Test_mergeVolumeMounts(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := mergeVolumeMounts(tt.args.kubeMounts, tt.args.dockerMounts); !reflect.DeepEqual(got, tt.want) {
+			if got := utils.MergeVolumeMounts(tt.args.kubeMounts, tt.args.dockerMounts); !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("mergeVolumeMounts() = %v, want %v", got, tt.want)
 			}
 		})

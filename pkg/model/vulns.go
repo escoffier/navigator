@@ -45,7 +45,7 @@ func GetVulnLanguageMap() map[string]string {
 	return LanguageMap
 }
 
-func GetSeverityInt(level string) int {
+func GetSeverityInt(level string) int64 {
 	switch strings.ToUpper(level) {
 	case SeverityCritical:
 		return SeverityCriticalInt
@@ -92,7 +92,7 @@ const (
 	VulnFlagHasFixed     = 4 // 可修复
 )
 
-func GetSeverity(level int) string {
+func GetSeverity(level int64) string {
 	switch level {
 	case SeverityCriticalInt:
 		return SeverityCritical
@@ -300,7 +300,6 @@ func (vu *Vuln) Serialize() {
 			vu.Frame = "fastjson"
 		}
 	}
-
 }
 
 func (vu *Vuln) Deserialize() {
@@ -346,7 +345,7 @@ func (vu *Vuln) Deserialize() {
 		for i := range split {
 			attr := strings.Split(split[i], ":")
 			if len(attr) >= 2 && vulnAttr[attr[0]] != nil {
-				vu.Attr[attr[0]] = vulnAttr[attr[0]][attr[1]]
+				vu.Attr[attr[0]] = attr[1]
 				vu.CvssMap[attr[0]] = vulnPosAttr[attr[0]][attr[1]]
 			}
 		}
@@ -405,7 +404,7 @@ type Vuln struct {
 	Link         []string      `gorm:"-" json:"link"`                         // 参考链接
 	LinkJSON     []byte        `gorm:"column:link_json" json:"-"`
 	Severity     string        `gorm:"column:severity" json:"severity"` // 威胁等级
-	SeverityInt  int           `gorm:"column:severity_int" json:"severity_int"`
+	SeverityInt  int64         `gorm:"column:severity_int" json:"severity_int"`
 	Metadata     *VulnMatedata `gorm:"-" json:"metadata"`
 	MetadataJSON []byte        `gorm:"column:metadata_json" json:"-"`         // 元数据
 	PkgName      string        `gorm:"column:pkg_name" json:"pkg_name"`       // 软件包来源
@@ -460,7 +459,7 @@ func GetVulnDefaultOmitFields() []string {
 }
 
 // 漏洞类型
-func (vu *Vuln) GetVulnClass() string {
+func (vu *Vuln) GetVulnClassView() string {
 	if util.ExistBit1(vu.Flag, VulnFlagClassOSPkg) || vu.Class == report.ClassOSPkg {
 		return "系统漏洞"
 	} else if util.ExistBit1(vu.Flag, VulnFlagClassLangPkg) || vu.Class == report.ClassLangPkg {

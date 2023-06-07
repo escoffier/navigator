@@ -10,6 +10,7 @@ import (
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
+	"gitlab.com/piccolo_su/vegeta/pkg/model/imagesec"
 )
 
 type ExportTaskDal interface {
@@ -22,6 +23,7 @@ type ExportTaskDal interface {
 	DeleteExportTaskImage(ctx context.Context, taskID int64) error
 	SearchExportTaskImage(ctx context.Context, param SearchExportTaskImageParam, filter *model.Filter) ([]model.ExportTaskImage, error)
 	GetExportImageRelatedVuln(ctx context.Context, uniqueVuln uint64, taskID int64) ([]model.ExportTaskImage, error)
+	GetExportNodeImageRelatedVuln(ctx context.Context, uniqueVuln uint64, taskId int64) ([]model.ExportTaskImage, error)
 	SearchHtmlPrepare(ctx context.Context, taskID int64, dataType int8) ([]model.ExportHtmlPrepare, error)
 	CreateOrUpdateHTMLPrepare(ctx context.Context, data *model.ExportHtmlPrepare) error
 
@@ -31,7 +33,6 @@ type ExportTaskDal interface {
 	CreateExportIdempotent(ctx context.Context, id int64) (bool, error)
 	DeleteExportIdempotent(ctx context.Context, dataName string, dataID int64) error
 }
-
 type ExportTaskDao struct {
 	db *databases.RDBInstance
 }
@@ -140,6 +141,29 @@ func (dal *ExportTaskDao) GetExportImageRelatedVuln(ctx context.Context, uniqueV
 
 	db = db.Select("task_id", fmt.Sprintf("%s.image_id", exportTable), "image_name")
 	db.Joins(fmt.Sprintf("JOIN %s  where  %s.image_id = %s.image_id and %s.unique_vuln = %d and %s.task_id = %d",
+		vulnTable, exportTable, vulnTable, vulnTable, uniqueVuln, exportTable, taskId))
+
+	res := make([]model.ExportTaskImage, 0)
+	if err := db.Find(&res).Error; err != nil {
+		return nil, err
+	}
+	return res, nil
+}
+
+// 查出这个漏洞关联的本次任务查找出来的镜像
+func (dal *ExportTaskDao) GetExportNodeImageRelatedVuln(ctx context.Context, uniqueVuln uint64, taskId int64) ([]model.ExportTaskImage, error) {
+	if uniqueVuln <= 0 || taskId <= 0 {
+		return nil, fmt.Errorf("no taskID or uniqueVuln")
+	}
+	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*20)
+	defer cancelFunc()
+	vulnTable := new(imagesec.VulnToImage).TableName()
+	exportTable := model.ExportTaskImage{}.TableName()
+
+	db := dal.db.Get().WithContext(ctx).Model(new(model.ExportTaskImage))
+
+	db = db.Select("task_id", fmt.Sprintf("%s.image_unique_id", exportTable), "image_name")
+	db.Joins(fmt.Sprintf("JOIN %s  where  %s.image_unique_id = %s.image_unique_id and %s.unique_target = %d and %s.task_id = %d",
 		vulnTable, exportTable, vulnTable, vulnTable, uniqueVuln, exportTable, taskId))
 
 	res := make([]model.ExportTaskImage, 0)
