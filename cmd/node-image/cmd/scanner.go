@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"context"
-	"gitlab.com/piccolo_su/vegeta/cmd/daemon/global"
 	"gitlab.com/piccolo_su/vegeta/cmd/node-image/config"
 	"gitlab.com/piccolo_su/vegeta/cmd/node-image/services"
 	_ "gitlab.com/piccolo_su/vegeta/cmd/node-image/services/all"
@@ -11,8 +10,8 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 	"gitlab.com/security-rd/go-pkg/logging"
 	"os"
-	"path/filepath"
 	"runtime/debug"
+	"time"
 )
 
 type Scanner struct {
@@ -22,17 +21,10 @@ type Scanner struct {
 
 // checkEnabled for debug,enabled node image scan by a local file
 func (s *Scanner) checkEnabled() bool {
-	enabledEnv := os.Getenv("NODE_IMAGE_ENABLED_BY_FILE")
+	enabledEnv := os.Getenv("NODE_IMAGE_ENABLED")
 	if enabledEnv == "true" {
-		enabledFileName := filepath.Join("/host", global.WorkingDir, "node-image-enabled")
-		if util.FileExists(enabledFileName) {
-			return true
-		}
-	} else {
-		// default enabled
 		return true
 	}
-
 	return false
 }
 
@@ -40,8 +32,6 @@ func (s *Scanner) Run() func() {
 
 	if s.checkEnabled() {
 		logging.Get().Info().Msg("node image enabled,starting")
-
-		// todo:copy all db file to working dir
 
 		// load last synced node image config
 		nc, err := config.LoadNodeImageConfigFromFile(config.GetDefaultNodeImageConfigFilePath())
@@ -71,6 +61,10 @@ func (s *Scanner) Run() func() {
 		}
 	} else {
 		logging.Get().Warn().Msg("node Image disabled")
+		// dry run
+		for {
+			time.Sleep(99999 * time.Second)
+		}
 	}
 
 	return func() {
