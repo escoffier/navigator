@@ -190,7 +190,7 @@ node-image:  ## Build node-image binary
 ifeq ($(USEMIRROR),true)
 	@echo "node-image will use mirror"
 	CGO_ENABLED=1 go build -v -o dist/node-image cmd/node-image/main.go
-	#upx --lzma --best bin/daemon
+	#upx --lzma --best dist/node-image
 	docker build -f build/node-image/Dockerfile -t $(REPOPREFIX)/node-image:latest \
         --build-arg GOPROXY=https://goproxy.cn --build-arg MIRROR=mirrors.aliyun.com .
 else
@@ -372,7 +372,7 @@ cluster-proxy: generate
 .PHONY: all
 all: drift-prevention-client faulty scanner scarecrow console data holmes daemon  \
 webhook cluster-manager kafka-proxy kube-scanner-report platform-report \
-scan_report apiscan-job cluster-proxy
+scan_report apiscan-job cluster-proxy node-image
 
 .PHONY: base
 base: scanner-base faulty-base data-base drift-prevention-client-base holmes-base security-profiles-loader-base
@@ -427,6 +427,7 @@ ifeq ($(USERELEASE),true)
 	docker push $(REPOPREFIX)/scan-report:$(RELEASEVERSION)
 	docker push $(REPOPREFIX)/apiscan-job:$(RELEASEVERSION)
 	docker push $(REPOPREFIX)/cluster-proxy:$(RELEASEVERSION)
+	docker push $(REPOPREFIX)/node-image:$(RELEASEVERSION)
 else
 	@echo "push all images latest"
 	docker push $(REPOPREFIX)/console:latest
@@ -444,6 +445,7 @@ else
 	docker push $(REPOPREFIX)/scan-report:latest
 	docker push $(REPOPREFIX)/apiscan-job:latest
 	docker push $(REPOPREFIX)/cluster-proxy:latest
+	docker push $(REPOPREFIX)/node-image:latest
 endif
 
 .PHONY: rm-local-images
@@ -464,6 +466,7 @@ rm-local-images:
 	docker rmi $(REPOPREFIX)/apiscan-job:latest
 	docker rmi $(REPOPREFIX)/platform-report:latest
 	docker rmi $(REPOPREFIX)/cluster-proxy:latest
+	docker rmi $(REPOPREFIX)/node-image:latest
 
 .PHONY: retag
 retag:
