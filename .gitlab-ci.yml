@@ -40,6 +40,7 @@ all:
   - cp ~/.docker/kubectl /bin/
   - cp ~/.docker/xray ./
   - chmod +755 /bin/kubectl
+  - cp ~/.docker/irene ./configs/node-image/
   - mkdir avira/
   - cp ~/.docker/savapi-sdk-linux64.tgz avira/
   - mkdir clamav/
