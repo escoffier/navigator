@@ -32,7 +32,7 @@ func (s *SyncImageAPISrv) StartSync(ctx *gin.Context) {
 		return
 	}
 	if param.RegistryID <= 0 {
-		response.JSONError(ctx, fmt.Errorf("not get RegistryID:%d", param.RegistryID))
+		response.JSONError(ctx, fmt.Errorf("not get RegID:%d", param.RegistryID))
 		return
 	}
 

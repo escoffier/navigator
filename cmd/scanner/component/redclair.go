@@ -1186,7 +1186,7 @@ func (rcSvc *RedClairService) logVulnTable(ctx context.Context, scanTask model.S
 		// metadata.CNVDs = v.CNVDs
 		// metadata.CNNVDs = v.CNNVDs
 		vuln.MetadataJSON, err = json.Marshal(metadata)
-		vuln.SeverityInt = redclair.SeverityToInt(v.Severity)
+		// vuln.SeverityInt = redclair.SeverityToInt(v.Severity)
 		if err != nil {
 			continue
 		}

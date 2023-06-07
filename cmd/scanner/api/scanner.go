@@ -14,9 +14,11 @@ import (
 
 	apimodel "gitlab.com/piccolo_su/vegeta/cmd/scanner/api/model"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component"
+	imagesecSrv "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/imagemeta"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/task"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
+	"gitlab.com/piccolo_su/vegeta/pkg/model/imagesec"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 )
@@ -26,7 +28,7 @@ type Scanner struct {
 	VulnSrv       component.VulnServiceInterface
 	RegistrySrv   component.RegistrySrvInterface
 	ScanConfigSrv component.ScanConfigSrvInterface
-	ImageSrv      component.ImageSrvInterface
+	ImageSrv      imagesecSrv.ImageService
 }
 
 // TickOnlineScan
@@ -286,7 +288,7 @@ func (s *Scanner) GetImageHistogram(ctx *gin.Context) {
 // @Success 200 {object} ApiWithItem{data{}}
 // @Router	/api/v1/tasks/task [post]
 func (s *Scanner) CreateScanImageTask(ctx *gin.Context) {
-	body := model.ImageListParam{}
+	body := imagesec.ImageListParam{}
 
 	if err := ctx.BindJSON(&body); err != nil {
 		response.JSONError(ctx, response.NewHttpError(http.StatusBadRequest, err))
@@ -351,14 +353,14 @@ func (s *Scanner) StartScanOne(ctx *gin.Context) {
 }
 
 func (s *Scanner) SearchImageWithScan(ctx *gin.Context) {
-	body := model.ImageListParam{}
+	body := imagesec.ImageListParam{}
 	if err := ctx.BindJSON(&body); err != nil {
 		response.JSONError(ctx, response.NewHttpError(http.StatusBadRequest, err))
 		return
 	}
-	filter := model.GetFilterWithDefaultValue(ctx)
+	body.Filter = model.GetFilterWithDefaultValue(ctx)
 
-	images, cnt, err := s.ImageSrv.ListImageWithScanInfo(ctx, body, filter)
+	images, cnt, err := s.ImageSrv.ListImageWithScanInfo(ctx, body)
 	if err != nil {
 		response.JSONError(ctx, err)
 		return
@@ -370,17 +372,17 @@ func (s *Scanner) SearchImageWithScan(ctx *gin.Context) {
 
 	response.JSONOK(ctx, response.WithItems(images),
 		response.WithTotalItems(cnt),
-		response.WithItemsPerPage(filter.Limit),
-		response.WithStartIndex(filter.Offset))
+		response.WithItemsPerPage(body.Filter.Limit),
+		response.WithStartIndex(body.Filter.Offset))
 }
 
 func (s *Scanner) GetRegistryProject(ctx *gin.Context) {
 	regID, _ := strconv.ParseInt(ctx.Query("regID"), 10, 64)
 	projectKeyword := ctx.Query("projectKeyword")
 
-	repos, err := s.ImageSrv.GetRegistryProject(ctx, component.GetRegistryProjectParam{
-		RegID:          regID,
-		ProjectKeyword: projectKeyword,
+	repos, err := s.ImageSrv.SearchProject(ctx, imagesec.SearchProjectParam{
+		RegID:   regID,
+		Keyword: projectKeyword,
 	})
 	if err != nil {
 		response.JSONError(ctx, err)
@@ -769,36 +771,10 @@ func (s *Scanner) ListImgLayers(ctx *gin.Context) {
 	response.JSONOK(ctx, response.WithItems(images))
 }
 
-// ImgLayerInfo 镜像的回溯信息
-// @Summary ImgLayerInfo
-// @Title 镜像的回溯信息
-// @Author liuqiang@tensorsecurity.cn
-// @Description 获取镜像各层级的信息
-// @Tags scan image
-// @Param layerDigest query string true "layerDigest"
-// @Success 200 {object} ApiWithItem{data=ApiItem{items=model.ScanLayer}}
-// @Router	/api/v1/layers/:layerDigest/layers [get]
-func (s *Scanner) ImgLayerInfo(ctx *gin.Context) {
-	imageID, err := strconv.ParseInt(ctx.Param("imageId"), 10, 64)
-	if err != nil {
-		response.JSONError(ctx, fmt.Errorf("not fond imageID"))
-		return
-	}
-
-	layerDigest := ctx.Param("layerDigest")
-
-	info, err := s.Srv.ImgLayerInfo(ctx, imageID, layerDigest, nil)
-	if err != nil {
-		response.JSONError(ctx, err)
-		return
-	}
-	response.JSONOK(ctx, response.WithItem(*info))
-}
-
 func NewScannerAPISrv(
 	srv component.ScannerSrv,
 	vulnSrv component.VulnServiceInterface,
-	imageSrv component.ImageSrvInterface) *Scanner {
+	imageSrv imagesecSrv.ImageService) *Scanner {
 	return &Scanner{
 		Srv:      srv,
 		VulnSrv:  vulnSrv,
@@ -963,7 +939,7 @@ func (s *Scanner) GetScanSubTaskList(ctx *gin.Context) {
 			HeartBeat:  data[i].HeartBeat,
 			RetryCount: data[i].RetryCount,
 			// 这里为了兼容 subtask表的status是从0开始，ivan_scanner_image_list表中的flag是从11位开始
-			Status:       model.GetSubTaskScanStatusString(data[i].Status + 11),
+			Status:       imagesec.GetSubTaskScanStatusString(data[i].Status + 11),
 			FullRepoName: data[i].FullRepoName,
 			Tag:          data[i].Tag,
 			Library:      data[i].Library,

@@ -437,7 +437,7 @@ func (c *Controller) logPostgresVuln(ctx context.Context, result scanner_ci.Poli
 					Description: trivyVuln.Description,
 					Link:        trivyVuln.References,
 					Severity:    trivyVuln.Severity,
-					SeverityInt: model.GetSeverityInt(trivyVuln.Severity),
+					SeverityInt: int(model.GetSeverityInt(trivyVuln.Severity)),
 					Metadata:    &tmpMate,
 					PkgName:     trivyVuln.PkgName,
 					PkgVersion:  trivyVuln.InstalledVersion,

@@ -124,12 +124,6 @@ type SeverityCount struct {
 	Unknown  int64 `json:"unknown"`
 }
 
-type SeverityGroup struct {
-	SeverityInt int    `gorm:"column:severity_int" json:"severityInt"`
-	Severity    string `gorm:"column:severity" json:"severity"`
-	Count       int64  `gorm:"column:cnt"  json:"count"`
-}
-
 type ImageSeverityCount struct {
 	ImageID  int64         `json:"image_id"`
 	Severity SeverityCount `json:"severity"`
@@ -259,7 +253,7 @@ type ImageVirusSumData struct {
 
 type PerLayerMaliciousResult struct {
 	LayerDigest string
-	VirusInfos  []VirusInfo
+	VirusInfos  []*VirusInfo
 }
 
 type PerLayerSensitiveResult struct {

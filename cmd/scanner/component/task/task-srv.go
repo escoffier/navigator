@@ -13,6 +13,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
+	"gitlab.com/piccolo_su/vegeta/pkg/model/imagesec"
 )
 
 type UpdateTaskInfo struct {
@@ -92,7 +93,7 @@ func (t *TaskSrv) GenerateScanTask(ctx context.Context, imageIds []int64, info U
 
 		batch := imageIds[start:end]
 
-		images, _, err := t.imageDal.SearchImage(ctx, store.SearchImageParam{
+		images, _, err := t.imageDal.SearchImage(ctx, imagesec.SearchImageParam{
 			InIds:      batch,
 			OmitFields: []string{"config_json", "manifest_v1_json", "manifest_v2_json"},
 		}, nil)
@@ -288,7 +289,7 @@ func (t *TaskSrv) GetPendingSubTasksByTaskID(ctx context.Context, taskID int64) 
 		imageID := v.ImageID
 
 		// get image info
-		images, _, err := scannerGormDb.SearchImage(ctx, store.SearchImageParam{InIds: []int64{imageID}}, nil)
+		images, _, err := scannerGormDb.SearchImage(ctx, imagesec.SearchImageParam{InIds: []int64{imageID}}, nil)
 		if err != nil {
 			// set subtask err
 			_ = t.SetSubTaskFailed(v.ID, consts.ErrScanGetImage, fmt.Sprintf("get image info failed.%v", err))
@@ -437,8 +438,6 @@ func (t *TaskSrv) SetSubTaskSuccess(id int64) error {
 	updater := map[string]interface{}{
 		"status":      consts.ImageScanSuccess,
 		"finished_at": &tmpTime,
-		"err_msg":     "",
-		"err_no":      0,
 	}
 	err := store.GetScannerOrmDb().UpdateSubTasksInfo(context.Background(), store.SearchSubTaskParam{Ids: []int64{id}}, updater)
 	if err != nil {
@@ -452,12 +451,9 @@ func (t *TaskSrv) SetSubTaskInProgress(id int64) error {
 	now := time.Now()
 
 	updater := map[string]interface{}{
-		"status":      consts.ImageScanInProgress,
-		"finished_at": &now,
-		"started_at":  &now,
-		"heart_beat":  &now,
-		"err_msg":     "",
-		"err_no":      0,
+		"status":     consts.ImageScanInProgress,
+		"started_at": &now,
+		"heart_beat": &now,
 	}
 
 	err := store.GetScannerOrmDb().UpdateSubTasksInfo(context.Background(), store.SearchSubTaskParam{Ids: []int64{id}}, updater)
@@ -646,7 +642,7 @@ func (t *TaskSrv) GetProgressingSubTasks(taskIds []int64) ([]SubTask, error) {
 	search := store.SearchSubTaskParam{
 		TaskIds:            taskIds,
 		Statuses:           []int{consts.ImageScanInProgress},
-		LessThanRetryCount: consts.SubTaskMaxRetryCount,
+		LessThanRetryCount: consts.DefaultMaxRetryCount,
 	}
 	sts, _, err := store.GetScannerOrmDb().GetSubTasks(context.Background(), search, &model.Filter{SortFiled: "created_at", SortBy: consts.SortByDesc})
 	if err != nil {
@@ -698,7 +694,7 @@ func (t *TaskSrv) AddSubTaskRetryCount(subTasks []SubTask) error {
 	}
 	moreThanIds := make([]int64, 0)
 	for i := range tasks {
-		if tasks[i].RetryCount >= consts.SubTaskMaxRetryCount {
+		if tasks[i].RetryCount >= consts.DefaultMaxRetryCount {
 			moreThanIds = append(moreThanIds, tasks[i].ID)
 		}
 	}

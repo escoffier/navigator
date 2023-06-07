@@ -4,11 +4,9 @@ ARG TAG=latest
 RUN sed -i "s!archive.ubuntu.com/!mirrors.aliyun.com/!g" /etc/apt/sources.list \
     && sed -i "s!ports.ubuntu.com/!mirrors.aliyun.com/!g" /etc/apt/sources.list \
     && apt-get update -y \
-    && apt-get install -y clamav wget \
-    && sed -i "s|ReceiveTimeout 30|ReceiveTimeout 300|" /etc/clamav/freshclam.conf \
-    && sed -i "s|MaxAttempts 5|MaxAttempts 3|" /etc/clamav/freshclam.conf \
-    && apt-get install -y clamav-daemon \
-    && update-rc.d clamav-daemon defaults 99 \
+    && apt-get full-upgrade -y \
+    && apt-get install -y wget \
+    && apt-get install -y libclamav-dev zip unzip \
     && apt-get install -y apt-transport-https ca-certificates curl gnupg-agent software-properties-common iptables \
     && curl -fsSL https://mirrors.ustc.edu.cn/docker-ce/linux/ubuntu/gpg | apt-key add - \
     && add-apt-repository "deb [arch=$(dpkg --print-architecture)] https://mirrors.ustc.edu.cn/docker-ce/linux/ubuntu $(lsb_release -cs) stable" \
@@ -21,6 +19,7 @@ ADD hm/hm-linux.tgz /opt/webshell/
 
 ADD avira/savapi-sdk-linux64.tgz /usr/local
 
+ADD  clamav/clamav.tgz /var/lib/
 RUN mkdir /etc/savapi && mkdir /var/log/savapi && mkdir /run/savapi
 
 # RUN wget --http-user=admin --http-password='@&yZ3LetJ!FBA#PQ' http://file.tensorsecurity.com/savapi-sdk-linux64.tgz \

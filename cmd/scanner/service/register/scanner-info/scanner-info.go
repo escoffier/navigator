@@ -74,7 +74,7 @@ func init() {
 	if err != nil {
 		logging.GetLogger().Err(err).Str("serviceName", serviceName).Msg("int service err")
 	}
-	logging.GetLogger().Info().Msg("image-sync register success")
+	logging.GetLogger().Info().Str("serviceName", serviceName).Msg("register success")
 }
 
 func newService(config register.ScannerServiceConfig) (register.ScannerService, error) {

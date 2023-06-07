@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/imagemeta"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/service/register"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
@@ -22,7 +23,7 @@ type Config struct {
 
 type ImageSync struct {
 	syncImage component.SyncImageInterface
-	imageSrv  component.ImageSrvInterface
+	imageSrv  imagemeta.ImageService
 }
 
 func (i *ImageSync) Start(ctx context.Context) error {
@@ -125,7 +126,7 @@ func (i *ImageSync) Start(ctx context.Context) error {
 				logging.GetLogger().Error().Msg("DeleteMoreRetryCount recover")
 			}
 		}()
-		_ = i.imageSrv.ContinueUpdateImage(ctx)
+		_ = i.imageSrv.ContinueUpdateDeleteImage(ctx)
 	}()
 
 	return nil
@@ -159,7 +160,7 @@ func newService(config register.ScannerServiceConfig) (register.ScannerService, 
 
 	scannerInstanceInfoDal := store.NewScannerInstanceDao(scannerWrapperDb)
 
-	imageSrv := component.NewImageSrv(imageDal, registryDal, scanTaskDal, vulnDal, scanResultDal, webshellDal, trustedImageDal, resourceDal, scannerInstanceInfoDal)
+	imageSrv := component.NewLibImageSrv(imageDal, registryDal, scanTaskDal, vulnDal, scanResultDal, webshellDal, trustedImageDal, resourceDal, scannerInstanceInfoDal)
 	syncSrv := component.NewSyncRepoImage(registryDal, imageDal, scanConfigDal, vulnDal, syncTaskDal)
 
 	p := &ImageSync{

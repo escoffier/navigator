@@ -5,12 +5,16 @@ import (
 )
 
 const (
-	ExportScanResult   string = "ExportScanTask"
-	ExportVuln         string = "ExportVuln"
-	AuditExeType       string = "ExportNaviAudit"
-	ExportSingleImage  string = "ExportImage"
-	ExportImageSearch  string = "ExportImageSearch"
-	ExportCIReport     string = "ExportCIReport"
+	ExportVuln   string = "ExportVuln"
+	AuditExeType string = "ExportNaviAudit"
+
+	ExportSingleImage     string = "ExportImage"
+	ExportLibImageSearch  string = "ExportImageSearch"
+	ExportNodeImageSearch string = "ExportNodeImageSearch"
+	ExportNodeTask        string = "ExportNodeImageTask"
+	ExportCIReport        string = "ExportCIReport"
+	ExportLibTask         string = "ExportScanTask"
+
 	ExportImageViewCH  string = "镜像报告"
 	AuditExeTypeViewCH string = "审计日志"
 	ExportVulnViewCH   string = "漏洞报告"
@@ -31,7 +35,7 @@ const (
 func GetExportTypeView(exportType string, lang string) string {
 	if strings.ToLower(lang) == LangCH {
 		switch exportType {
-		case ExportSingleImage, ExportScanResult, ExportImageSearch, ExportCIReport:
+		case ExportSingleImage, ExportLibImageSearch, ExportCIReport, ExportNodeImageSearch, ExportNodeTask, ExportLibTask:
 			return ExportImageViewCH
 		case ExportVuln:
 			return ExportVulnViewCH
@@ -42,7 +46,7 @@ func GetExportTypeView(exportType string, lang string) string {
 
 	if strings.ToLower(lang) == LangEN {
 		switch exportType {
-		case ExportSingleImage, ExportScanResult, ExportImageSearch:
+		case ExportSingleImage, ExportLibImageSearch, ExportCIReport, ExportNodeImageSearch, ExportNodeTask, ExportLibTask:
 			return ExportImageViewEN
 		case ExportVuln:
 			return ExportVulnViewEN

@@ -7,6 +7,7 @@ import (
 	"time"
 
 	json "github.com/json-iterator/go"
+
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 )
 
@@ -26,7 +27,7 @@ type ScanConfig struct {
 	DeletedAt int       `gorm:"deleted_at" json:"deleted_at"`
 }
 
-func (ScanConfig) TableName() string {
+func (*ScanConfig) TableName() string {
 	return "ivan_scanner_scan_config"
 }
 
@@ -85,7 +86,7 @@ type Software struct {
 	Version         string `json:"version"`
 	License         string `json:"license"`
 	AbnormalSoft    bool   `json:"abnormalSoft"`
-	AbnormalLicense bool   `json:"AbnormalLicense"`
+	AbnormalLicense bool   `json:"ExceptionLicense"`
 	LayerDigest     string `json:"layerDigest"`
 }
 

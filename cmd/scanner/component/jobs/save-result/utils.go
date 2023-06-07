@@ -88,7 +88,7 @@ func ConvertSoftware(imageID int64, data []model.Software) ([]*model.ImageSoftwa
 			iss.Flag = util.SetBit1(iss.Flag, model.FlagHasExceptLicense)
 		}
 		if data[i].AbnormalSoft {
-			iss.Flag = util.SetBit1(iss.Flag, model.FlagHasSoftware)
+			iss.Flag = util.SetBit1(iss.Flag, model.FlagHasExceptPKG)
 		}
 
 		issue = append(issue, iss)
@@ -168,6 +168,7 @@ func ConvertVuln(imageID int64, trivyRes report.Report) ([]*model.Vuln, []*model
 						CVSSv3Vector: cvss.V3Vector,
 					},
 				}
+				break
 			}
 
 			switch string(trivyRes.Results[i].Class) {

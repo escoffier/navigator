@@ -7,31 +7,25 @@ import (
 	"gitlab.com/security-rd/go-pkg/databases"
 
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
+	"gitlab.com/piccolo_su/vegeta/pkg/model/imagesec"
+	"gitlab.com/piccolo_su/vegeta/pkg/util"
 )
 
-type PodResourceRelationDal interface {
-	Search(ctx context.Context, nameSpace, clusterKey, podName string) ([]model.PodResourceRelation, error)
-}
-
-type PodResourceRelationDao struct {
-	db *databases.RDBInstance
-}
-
-func (s *PodResourceRelationDao) Search(ctx context.Context, nameSpace, clusterKey, podName string) ([]model.PodResourceRelation, error) {
+func (dal *ResourceDao) SearchCluster(ctx context.Context, clusterKey string) (*model.TensorCluster, error) {
 	timeoutCtx, cancelFunc := context.WithTimeout(ctx, 10*time.Second)
 	defer cancelFunc()
-	res := make([]model.PodResourceRelation, 0)
-	err := s.db.Get().WithContext(timeoutCtx).Model(new(model.PodResourceRelation)).
-		Where("namespace = ? AND cluster_key = ? AND pod_name = ? ", nameSpace, clusterKey, podName).Find(&res).Error
-	return res, err
-}
+	var cluster model.TensorCluster
+	if err := dal.db.Get().WithContext(timeoutCtx).Model(new(model.TensorCluster)).
+		Where("id = ?", clusterKey).First(&cluster).Error; err != nil {
+		return nil, err
+	}
 
-func NewPodResourceRelationDao(db *databases.RDBInstance) *PodResourceRelationDao {
-	return &PodResourceRelationDao{db: db}
+	return &cluster, nil
 }
 
 type ResourceDal interface {
-	SearchResources(ctx context.Context, imageUUID []uint32) ([]*model.ImageContainerResources, error)
+	SearchCluster(ctx context.Context, clusterKey string) (*model.TensorCluster, error)
+	SearchResources(ctx context.Context, imageUUID []uint32) ([]*imagesec.ImageContainerResources, error)
 }
 
 type ResourceDao struct {
@@ -51,12 +45,19 @@ type TensorResources struct {
 	ClusterName  string
 }
 
-func (dal *ResourceDao) SearchResources(ctx context.Context, imageUUID []uint32) ([]*model.ImageContainerResources, error) {
+func (dal *ResourceDao) SearchResources(ctx context.Context, imageUUID []uint32) ([]*imagesec.ImageContainerResources, error) {
+
 	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*10)
 	defer cancelFunc()
+	imageUUID = util.DuplicateUint32Slice(imageUUID)
+	res := make([]model.TensorContainer, 0)
+	if len(imageUUID) == 0 {
+		return make([]*imagesec.ImageContainerResources, 0), nil
+	}
+
 	db := dal.db.Get().WithContext(ctx)
 	db = db.Model(new(model.TensorContainer)).Where("image_uuid IN ? ", imageUUID).Where("status = 0")
-	res := make([]model.TensorContainer, 0)
+
 	if err := db.Find(&res).Error; err != nil {
 		return nil, err
 	}
@@ -68,9 +69,9 @@ func (dal *ResourceDao) SearchResources(ctx context.Context, imageUUID []uint32)
 		return nil, err
 	}
 	// 数据不多，两层循环
-	ans := make([]*model.ImageContainerResources, len(res))
+	ans := make([]*imagesec.ImageContainerResources, len(res))
 	for i := range ans {
-		ans[i] = &model.ImageContainerResources{
+		ans[i] = &imagesec.ImageContainerResources{
 			ImageUUID:    res[i].ImageUUID,
 			Name:         res[i].Name,
 			ResourceName: res[i].ResourceName,

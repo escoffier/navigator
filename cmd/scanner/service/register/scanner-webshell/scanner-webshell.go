@@ -95,33 +95,34 @@ func (s *ScannerWebshellService) saveHandle(ctx context.Context, msg kafka.Messa
 }
 
 func (s *ScannerWebshellService) DeleteFile() {
-
-	ticker := time.NewTicker(1 * time.Hour)
-	defer ticker.Stop()
-
-	for range ticker.C {
-		var day int64
-		day = 30
-		str := os.Getenv("WEBSHELL_DELETE")
-		if str != "" {
-			tmp, err := strconv.ParseInt(str, 10, 64)
-			if err != nil {
-				logging.GetLogger().Err(err).Msgf("WEBSHELL_DELETE str IS ERROR")
-			} else {
-				day = tmp
-			}
-		}
-		expire := time.Now().Add(time.Hour * time.Duration(day) * 24 * -1).UnixMilli()
-		filepath.Walk(filepath.Join(s.PvcPath, "webshell"), func(path string, info fs.FileInfo, err error) error {
-			if info.ModTime().UnixMilli() < expire {
-				err := os.Remove(path)
+	isMain := os.Getenv("IS_MAIN_CLUSTER")
+	if isMain == "true" {
+		ticker := time.NewTicker(1 * time.Hour)
+		defer ticker.Stop()
+		for range ticker.C {
+			var day int64
+			day = 30
+			str := os.Getenv("WEBSHELL_DELETE")
+			if str != "" {
+				tmp, err := strconv.ParseInt(str, 10, 64)
 				if err != nil {
-					logging.GetLogger().Err(err).Msgf("remove error")
+					logging.GetLogger().Err(err).Msgf("WEBSHELL_DELETE str IS ERROR")
+				} else {
+					day = tmp
 				}
-				logging.GetLogger().Info().Msgf("remove webshell file %v", info.Name())
 			}
-			return nil
-		})
+			expire := time.Now().Add(time.Hour * time.Duration(day) * 24 * -1).UnixMilli()
+			filepath.Walk(filepath.Join(s.PvcPath, "webshell"), func(path string, info fs.FileInfo, err error) error {
+				if info.ModTime().UnixMilli() < expire {
+					err := os.Remove(path)
+					if err != nil {
+						logging.GetLogger().Err(err).Msgf("remove error")
+					}
+					logging.GetLogger().Info().Msgf("remove webshell file %v", info.Name())
+				}
+				return nil
+			})
+		}
 	}
 }
 

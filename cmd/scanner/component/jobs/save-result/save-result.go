@@ -27,6 +27,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
+	"gitlab.com/piccolo_su/vegeta/pkg/model/imagesec"
 	scannermodel "gitlab.com/piccolo_su/vegeta/pkg/model/scanner-model"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 )
@@ -50,7 +51,7 @@ var (
 	webshellNineToTen  = 40.0
 	webshellSixToEight = 30.0
 	webshellFourToFive = 20.0
-	maxVulnscore       = 50.0
+	maxVulnScore       = 50.0
 )
 
 func GenSensitiveScore(num int64) float64 {
@@ -102,7 +103,7 @@ func (s *ScanResultHandle) arrangeMalicious(maliciousResult []model.PerLayerMali
 		imageMaliciousLen += len(v.VirusInfos)
 		for _, virus := range v.VirusInfos {
 			singleMalicous := model.Malicious{}
-			singleMalicous.VirusInfo = virus
+			singleMalicous.VirusInfo = *virus
 			tmpMalicious = append(tmpMalicious, singleMalicous)
 		}
 		if len(v.VirusInfos) != 0 {
@@ -260,7 +261,7 @@ func (s *ScanResultHandle) logPostgresScanImageResult(ctx context.Context, scanD
 func (s *ScanResultHandle) UpdateImageFlag(ctx context.Context, imageID int64, scan *model.ScanImage) error {
 	imageDal := store.GetScannerOrmDb()
 
-	image, _, err := imageDal.SearchImage(ctx, store.SearchImageParam{InIds: []int64{imageID}, Fields: []string{"id", "flag"}}, nil)
+	image, _, err := imageDal.SearchImage(ctx, imagesec.SearchImageParam{InIds: []int64{imageID}, Fields: []string{"id", "flag"}}, nil)
 	if err != nil {
 		return err
 	}
@@ -514,7 +515,7 @@ func (s *ScanResultHandle) Run(ctx context.Context, param jobs.Param) (jobs.Arti
 			layerMp[vulnImages[i].LayerDigest].Vulns = append(layerMp[vulnImages[i].LayerDigest].Vulns, vulnImages[i].UniqueVuln)
 		}
 		// scanImage数据，以供保存（原来的逻辑，暂时不删除）
-		scanDetails.VulnScore = float64(model.CalculateVulnScore(vulns))
+		scanDetails.VulnScore = float64(imagesec.CalculateVulnScore(imagesec.ConvertVuln(vulns)))
 		scanDetails.SeverityHistogram = scanResultSaveSrv.GenSeverityHistogram(ctx, vulns)
 	}
 
@@ -680,11 +681,12 @@ func (s *ScanResultHandle) createFile(name string) (*os.File, error) {
 }
 
 func init() {
-	logging.GetLogger().Info().Msgf("want to register job :%v", JobName)
 	err := jobs.Register(JobName, newJob)
 	if err != nil {
 		logging.GetLogger().Err(err).Str("jobName", JobName).Msg("init job err")
+		return
 	}
+	logging.GetLogger().Info().Str("jobName", JobName).Msg("registry service")
 }
 
 func (s *ScanResultHandle) PathExists(path string) bool {

@@ -7,12 +7,14 @@ import (
 
 	"github.com/rs/zerolog"
 	"github.com/spf13/cobra"
+	"gitlab.com/security-rd/go-pkg/logging"
+
 	flag2 "gitlab.com/piccolo_su/vegeta/cmd/scanner/flag"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/global"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/service"
 	"gitlab.com/piccolo_su/vegeta/pkg/flag"
 	"gitlab.com/piccolo_su/vegeta/pkg/lifecycle"
-	"gitlab.com/security-rd/go-pkg/logging"
+	scannermodel "gitlab.com/piccolo_su/vegeta/pkg/model/scanner-model"
 )
 
 // rootCmd represents the base command when called without any subcommands
@@ -29,7 +31,7 @@ var rootCmd = &cobra.Command{
 		if ScannerRunOpts.LogLevel == "debug" {
 			logging.Get().Logger = logging.Get().Logger.Level(zerolog.DebugLevel)
 		}
-		
+
 		logLevel := zerolog.InfoLevel
 		logLevelStr := os.Getenv("LOGGING_LEVEL")
 		if logLevelStr != "" {
@@ -48,6 +50,16 @@ var rootCmd = &cobra.Command{
 		global.ScannerInstance = scanner.ScannerInstance
 		global.ClusterName = scanner.ClusterName
 		global.ClusterKey = scanner.ClusterKey
+		global.PVCPath = ScannerRunOpts.PvcPath
+		vv := scannermodel.ScannerDBVersion{
+			VulnVersion: scannermodel.VulnDBVersion{
+				TrivyVersion:    scannermodel.DBMateData{Version: "123"},
+				CustomDBVersion: scannermodel.DBMateData{Version: "345"},
+			},
+		}
+
+		global.VulnDBVersion = &vv
+
 		logging.Get().Info().
 			Str("version", Version).
 			Str("ScannerInstance", global.ScannerInstance).

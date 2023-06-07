@@ -107,9 +107,9 @@ func (si *ScanImage) GenImageFlag(preFlag uint64) uint64 {
 	}
 
 	if len(si.Software) > 0 {
-		preFlag = util.SetBit1(preFlag, FlagHasSoftware)
+		preFlag = util.SetBit1(preFlag, FlagHasExceptPKG)
 	} else {
-		preFlag = util.SetBit0(preFlag, FlagHasSoftware)
+		preFlag = util.SetBit0(preFlag, FlagHasExceptPKG)
 	}
 
 	if len(si.LicenseInfo) > 0 {

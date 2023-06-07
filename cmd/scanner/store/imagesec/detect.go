@@ -1,0 +1,261 @@
+package imagesec
+
+import (
+	"context"
+	"strings"
+	"time"
+
+	"gitlab.com/security-rd/go-pkg/databases"
+
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
+	"gitlab.com/piccolo_su/vegeta/pkg/model"
+	imagesecModel "gitlab.com/piccolo_su/vegeta/pkg/model/imagesec"
+)
+
+type ImageDetectResultDal interface {
+	SearchDetectResult(ctx context.Context, param imagesecModel.SearchDetectResultParam) ([]*imagesecModel.ImageDetectResult, error)
+	CreateDetectResult(ctx context.Context, param imagesecModel.CreateDetectResultParam) error
+	DeleteDetectResult(ctx context.Context, param imagesecModel.SearchDetectResultParam) error
+	SearchDetectBrief(ctx context.Context, param imagesecModel.SearchDetectBriefParam) ([]*imagesecModel.ImageDetectBrief, error)
+	CreateDetectBrief(ctx context.Context, data *imagesecModel.ImageDetectBrief) error
+	DeleteDetectBrief(ctx context.Context, param imagesecModel.SearchDetectBriefParam) error
+}
+
+type ImageDetectResultDao struct {
+	db *databases.RDBInstance
+}
+
+func NewImageDetectResultDao(db *databases.RDBInstance) *ImageDetectResultDao {
+	return &ImageDetectResultDao{db: db}
+}
+
+func (dal *ImageDetectResultDao) CreateDetectResult(ctx context.Context, param imagesecModel.CreateDetectResultParam) error {
+	if err := param.Check(); err != nil {
+		return err
+	}
+
+	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*100) // 大批量写入，时间会久些
+	defer cancelFunc()
+
+	mo := &imagesecModel.ImageDetectResult{DetectType: param.DetectType}
+	tableName := mo.TableName()
+
+	dbPre, createData, deleteData := make([]*imagesecModel.ImageDetectResult, 0), make([]*imagesecModel.ImageDetectResult, 0), make([]int64, 0)
+
+	if err := dal.db.Get().WithContext(ctx).Table(tableName).Where("image_unique_id = ?", param.ImageUniqueID).Where("policy_id = ?", param.PolicyID).
+		Find(&dbPre).Error; err != nil {
+		return err
+	}
+
+	// find need delete data
+	for i := range dbPre {
+		needDelete := true
+		for j := range param.Data {
+			if dbPre[i].Same(param.Data[j]) {
+				needDelete = false
+				break
+			}
+		}
+		if needDelete {
+			deleteData = append(deleteData, dbPre[i].ID)
+		}
+	}
+	// find need create
+	for i := range param.Data {
+		needCreate := true
+		for j := range dbPre {
+			if param.Data[i].Same(dbPre[j]) {
+				needCreate = false
+				break
+			}
+		}
+		if needCreate {
+			createData = append(createData, param.Data[i])
+		}
+	}
+
+	if len(deleteData) > 0 {
+		if err := dal.db.Get().WithContext(ctx).Table(tableName).Where("id IN  ? ", deleteData).
+			Delete(&imagesecModel.ImageDetectResult{}).Error; err != nil {
+			return err
+		}
+	}
+	for i := range createData {
+		da := createData[i]
+		if err := dal.db.Get().WithContext(ctx).Table(tableName).Create(da).Error; err != nil {
+			if strings.Contains(err.Error(), consts.DuplicateKey) {
+				continue
+			} else {
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+
+func (dal *ImageDetectResultDao) SearchDetectResult(ctx context.Context, param imagesecModel.SearchDetectResultParam) (
+	[]*imagesecModel.ImageDetectResult, error) {
+	cancelCtx, cancelFunc := context.WithTimeout(ctx, time.Second*3)
+	defer cancelFunc()
+
+	if err := param.Check(); err != nil {
+		return nil, err
+	}
+	m := imagesecModel.ImageDetectResult{DetectType: param.DetectType}
+	db := dal.db.Get().WithContext(cancelCtx).Table(m.TableName())
+	if param.ImageUniqueID > 0 {
+		db = db.Where("image_unique_id = ?", param.ImageUniqueID)
+	}
+	if len(param.PolicyIds) > 0 {
+		db = db.Where("policy_id IN ?", param.PolicyIds)
+	}
+	if param.StartID > 0 {
+		db = db.Where("id > ?", param.StartID)
+	}
+	if len(param.Fields) > 0 {
+		db = db.Select(param.Fields)
+	}
+	db = model.AddFilter(db, param.Filter)
+	res := make([]*imagesecModel.ImageDetectResult, 0)
+	err := db.Find(&res).Error
+
+	return res, err
+}
+
+func (dal *ImageDetectResultDao) SearchDetectBrief(ctx context.Context, param imagesecModel.SearchDetectBriefParam) (
+	[]*imagesecModel.ImageDetectBrief, error) {
+	cancelCtx, cancelFunc := context.WithTimeout(ctx, time.Second*3)
+	defer cancelFunc()
+	if err := param.Check(); err != nil {
+		return nil, err
+	}
+
+	m := imagesecModel.ImageDetectBrief{}
+	db := dal.db.Get().WithContext(cancelCtx).Table(m.TableName())
+	if param.ImageUniqueID > 0 {
+		db = db.Where("image_unique_id = ?", param.ImageUniqueID)
+	}
+	if param.NotPolicyID > 0 {
+		db = db.Where("policy_id != ?", param.NotPolicyID)
+	}
+	if param.PolicyID > 0 {
+		db = db.Where("policy_id = ?", param.PolicyID)
+	}
+	if len(param.PolicyIds) > 0 {
+		db = db.Where("policy_id IN ?", param.PolicyIds)
+	}
+
+	if param.LastID > 0 {
+		db = db.Where("id > ?", param.LastID)
+	}
+	if len(param.Fields) > 0 {
+		db = db.Select(param.Fields)
+	}
+	db = model.AddFilter(db, param.Filter)
+
+	res := make([]*imagesecModel.ImageDetectBrief, 0)
+	if err := db.Find(&res).Error; err != nil {
+		return nil, err
+	}
+	for i := range res {
+		res[i].Deserialize()
+	}
+
+	return res, nil
+}
+
+func (dal *ImageDetectResultDao) CreateDetectBrief(ctx context.Context, data *imagesecModel.ImageDetectBrief) error {
+	if err := data.Check(); err != nil {
+		return err
+	}
+	data.Serialize()
+
+	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*100) // 大批量写入，时间会久些
+	defer cancelFunc()
+
+	mo := &imagesecModel.ImageDetectBrief{}
+	tableName := mo.TableName()
+
+	brief, err := dal.SearchDetectBrief(ctx, imagesecModel.SearchDetectBriefParam{
+		ImageUniqueID: data.ImageUniqueID,
+		PolicyID:      data.PolicyID,
+	})
+
+	if err != nil {
+		return err
+	}
+	deleteData := make([]int64, 0)
+	createData := make([]*imagesecModel.ImageDetectBrief, 0)
+	if len(brief) > 0 && !data.Same(brief[0]) {
+		deleteData = append(deleteData, brief[0].ID)
+	}
+	if len(brief) == 0 || !data.Same(brief[0]) {
+		createData = append(createData, data)
+	}
+
+	if len(deleteData) > 0 {
+		if err := dal.db.Get().WithContext(ctx).Table(tableName).Where("id IN  ? ", deleteData).
+			Delete(&imagesecModel.ImageDetectBrief{}).Error; err != nil {
+			return err
+		}
+	}
+	for i := range createData {
+		da := createData[i]
+		if err := dal.db.Get().WithContext(ctx).Table(tableName).Create(da).Error; err != nil {
+			if strings.Contains(err.Error(), consts.DuplicateKey) {
+				continue
+			} else {
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+
+func (dal *ImageDetectResultDao) DeleteDetectResult(ctx context.Context, param imagesecModel.SearchDetectResultParam) error {
+
+	cancelCtx, cancelFunc := context.WithTimeout(ctx, time.Second*3)
+	defer cancelFunc()
+	if err := param.Check(); err != nil {
+		return err
+	}
+	m := imagesecModel.ImageDetectResult{DetectType: param.DetectType}
+	db := dal.db.Get().WithContext(cancelCtx).Table(m.TableName())
+	if param.ImageUniqueID > 0 {
+		db = db.Where("image_unique_id = ?", param.ImageUniqueID)
+	}
+	if len(param.PolicyIds) > 0 {
+		db = db.Where("policy_id IN ?", param.PolicyIds)
+	}
+	if len(param.Ids) > 0 {
+		db = db.Where("id IN ?", param.Ids)
+	}
+	return db.Delete(&m).Error
+}
+
+func (dal *ImageDetectResultDao) DeleteDetectBrief(ctx context.Context, param imagesecModel.SearchDetectBriefParam) error {
+
+	cancelCtx, cancelFunc := context.WithTimeout(ctx, time.Second*3)
+	defer cancelFunc()
+	if err := param.Check(); err != nil {
+		return err
+	}
+
+	m := imagesecModel.ImageDetectBrief{}
+	db := dal.db.Get().WithContext(cancelCtx).Table(m.TableName())
+	if param.ImageUniqueID > 0 {
+		db = db.Where("image_unique_id = ?", param.ImageUniqueID)
+	}
+	if param.NotPolicyID > 0 {
+		db = db.Where("policy_id != ?", param.NotPolicyID)
+	}
+	if param.PolicyID > 0 {
+		db = db.Where("policy_id = ?", param.PolicyID)
+	}
+	if len(param.Ids) > 0 {
+		db = db.Where("id IN ?", param.Ids)
+	}
+	return db.Delete(&m).Error
+}

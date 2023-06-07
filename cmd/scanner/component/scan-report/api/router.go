@@ -7,12 +7,12 @@ import (
 	"github.com/gin-gonic/gin"
 	rkentry "github.com/rookie-ninja/rk-entry/entry"
 
-	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scan-report/export/html"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scan-report/service"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scan-report/types"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 )
 
-func SetupGinRouter(exportSrv service.ExportTaskInterface, exportHtmlDriver map[string]html.ExportHtmlInterface) *gin.Engine {
+func SetupGinRouter(exportSrv service.ExportTaskInterface, exportHtmlDriver map[string]types.ExportHtmlInterface) *gin.Engine {
 
 	router := gin.Default()
 	router.MaxMultipartMemory = 2 << 20

@@ -11,6 +11,7 @@ import (
 	"scm.tensorsecurity.cn/tensorsecurity-rd/trivy/pkg/scanner/local"
 	"scm.tensorsecurity.cn/tensorsecurity-rd/trivy/pkg/types"
 	"sort"
+	"strings"
 	"time"
 )
 
@@ -99,6 +100,13 @@ func (s Scanner) scanOSPkgs(target string, detail ftypes.ArtifactDetail, options
 		return nil, false, fmt.Errorf("failed to scan OS packages: %w", err)
 	} else if result == nil {
 		return nil, eosl, nil
+	}
+
+	if options.ListAllPackages {
+		sort.Slice(pkgs, func(i, j int) bool {
+			return strings.Compare(pkgs[i].Name, pkgs[j].Name) <= 0
+		})
+		result.Packages = pkgs
 	}
 
 	return result, eosl, nil

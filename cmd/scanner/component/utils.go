@@ -519,5 +519,5 @@ func (s GroupImageVulns) GetMaxSeverityInt() string {
 			maxSeverity = s[i].SeverityInt
 		}
 	}
-	return model.GetSeverity(int(maxSeverity))
+	return model.GetSeverity(maxSeverity)
 }

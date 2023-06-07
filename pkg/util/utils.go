@@ -8,7 +8,9 @@ import (
 	"math/rand"
 	"net/http"
 	"os"
+	"path/filepath"
 	"reflect"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -17,6 +19,8 @@ import (
 	"github.com/google/go-containerregistry/pkg/name"
 	json "github.com/json-iterator/go"
 	"github.com/shopspring/decimal"
+	"github.com/yeka/zip"
+
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 )
 
@@ -86,6 +90,15 @@ func AppendIfMissing(s []string, i string) []string {
 func ContainsString(s []string, e string) bool {
 	for _, a := range s {
 		if a == e {
+			return true
+		}
+	}
+	return false
+}
+
+func ContainsLowerString(s []string, e string) bool {
+	for _, a := range s {
+		if strings.ToLower(a) == strings.ToLower(e) {
 			return true
 		}
 	}
@@ -188,7 +201,33 @@ func ImageUUID(image string) uint32 {
 	return GenerateUUID(im)
 }
 
-func DeDuplicationInt64Slice(va []int64) []int64 {
+type Int64s []int64
+
+func (vi Int64s) Len() int {
+	return len(vi)
+}
+
+func (vi Int64s) Less(i, j int) bool {
+	return vi[i] < vi[j]
+}
+
+func (vi Int64s) Swap(i, j int) {
+	vi[i], vi[j] = vi[j], vi[i]
+}
+
+func SortInt64Slice(data []int64) []int64 {
+	sort.Sort(Int64s(data))
+	return data
+}
+
+func TripSpaceSlice(data []string) []string {
+	for i := range data {
+		data[i] = strings.TrimSpace(data[i])
+	}
+	return data
+}
+
+func DuplicateInt64Slice(va []int64) []int64 {
 	exit := make(map[int64]struct{})
 	ans := make([]int64, 0, len(va))
 	for i := range va {
@@ -200,7 +239,7 @@ func DeDuplicationInt64Slice(va []int64) []int64 {
 	return ans
 }
 
-func DeDuplicationUint64Slice(va []uint64) []uint64 {
+func DuplicateUint64Slice(va []uint64) []uint64 {
 	exit := make(map[uint64]struct{})
 	ans := make([]uint64, 0, len(va))
 	for i := range va {
@@ -212,7 +251,19 @@ func DeDuplicationUint64Slice(va []uint64) []uint64 {
 	return ans
 }
 
-func DeDuplicationStringSlice(va []string) []string {
+func DuplicateUint32Slice(va []uint32) []uint32 {
+	exit := make(map[uint32]struct{})
+	ans := make([]uint32, 0, len(va))
+	for i := range va {
+		if _, ok := exit[va[i]]; !ok {
+			ans = append(ans, va[i])
+			exit[va[i]] = struct{}{}
+		}
+	}
+	return ans
+}
+
+func DuplicateStringSlice(va []string) []string {
 	exit := make(map[string]struct{})
 	ans := make([]string, 0, len(va))
 	for i := range va {
@@ -268,15 +319,6 @@ func JoinInt64Slice(data []int64, join string) string {
 	return strings.Join(res, join)
 }
 
-func ByteToMB(b int) string {
-	if b <= 0 {
-		return ""
-	}
-	mb := float64(b) / (1024 * 1024)
-	f, _ := decimal.NewFromFloat(mb).Round(2).Float64()
-	return ToString(f) + "MB"
-}
-
 func ToString(value interface{}) string {
 	return fmt.Sprintf("%v", value)
 }
@@ -313,7 +355,7 @@ func MkdirIfNotExist(path string, remove bool) error {
 		}
 	}
 	if os.IsNotExist(err) {
-		return os.Mkdir(path, os.ModePerm)
+		return os.MkdirAll(path, os.ModePerm)
 	}
 	return err
 }
@@ -362,4 +404,118 @@ func ListDeduplicate[T comparable](list []T) []T {
 		}
 	}
 	return newList
+}
+
+// Unzip decompress zip file to directory
+func Unzip(zipFile, destDir, passwd string) error {
+	zipReader, err := zip.OpenReader(zipFile)
+	if err != nil {
+		return err
+	}
+	defer zipReader.Close()
+
+	for _, f := range zipReader.File {
+		if f.IsEncrypted() {
+			f.SetPassword(passwd)
+		}
+		fpath := filepath.Join(destDir, f.Name)
+		if f.FileInfo().IsDir() {
+			err = os.MkdirAll(fpath, os.ModePerm)
+			if err != nil {
+				return err
+			}
+		} else {
+			if err = os.MkdirAll(filepath.Dir(fpath), os.ModePerm); err != nil {
+				return err
+			}
+
+			inFile, err := f.Open()
+			if err != nil {
+				return err
+			}
+
+			outFile, err := os.OpenFile(fpath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, f.Mode())
+			if err != nil {
+				inFile.Close()
+				return err
+			}
+
+			_, err = io.Copy(outFile, inFile)
+			inFile.Close()
+			outFile.Close()
+			if err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+// CopyFile copies the file content from scr to dst
+func CopyFile(src, dst string) (int64, error) {
+	sourceFileStat, err := os.Stat(src)
+	if err != nil {
+		return 0, fmt.Errorf("file (%s) stat error: %w", src, err)
+	}
+
+	if !sourceFileStat.Mode().IsRegular() {
+		return 0, fmt.Errorf("%s is not a regular file", src)
+	}
+
+	source, err := os.Open(src)
+	if err != nil {
+		return 0, err
+	}
+	defer source.Close()
+
+	destination, err := os.Create(dst)
+	if err != nil {
+		return 0, err
+	}
+	defer destination.Close()
+	n, err := io.Copy(destination, source)
+	return n, err
+}
+
+const (
+	defaultGrpcTimeout = 600
+)
+
+func ImageSecGrpcTimeOut() int64 {
+	t := os.Getenv("IMAGE_SEC_GRPC_TIME_OUT")
+	if len(t) == 0 {
+		return defaultGrpcTimeout
+	}
+	val, err := strconv.Atoi(t)
+	if err != nil {
+		return defaultGrpcTimeout
+	}
+	return int64(val)
+}
+
+func ParseByteSize(b int64) string {
+	if b <= 0 {
+		return ""
+	}
+	if b <= 1024 {
+		return ToString(b) + "B"
+	}
+
+	if b <= 1024*1024 {
+		mbs, _ := decimal.NewFromFloat(float64(b) / (1024)).Round(2).Float64()
+		return ToString(mbs) + "KB"
+	}
+	if b <= 1024*1024*1024 {
+		mbs, _ := decimal.NewFromFloat(float64(b) / (1024 * 1024)).Round(2).Float64()
+		return ToString(mbs) + "M"
+	}
+	mbs, _ := decimal.NewFromFloat(float64(b) / (1024 * 1024 * 1024)).Round(2).Float64()
+	return ToString(mbs) + "G"
+}
+
+func GetTimeUnixMilli(ti *time.Time) int64 {
+	if ti == nil || ti.IsZero() {
+		return 0
+	}
+	return ti.UnixMilli()
 }

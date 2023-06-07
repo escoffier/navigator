@@ -15,25 +15,25 @@ import (
 
 func TestDeDuplicationInt64Slice(t *testing.T) {
 	convey.Convey("Test de duplication ", t, func() {
-		convey.So(len(DeDuplicationInt64Slice([]int64{1, 2, 3, 2, 3, 1})), convey.ShouldEqual, 3)
+		convey.So(len(DuplicateInt64Slice([]int64{1, 2, 3, 2, 3, 1})), convey.ShouldEqual, 3)
 	})
 	convey.Convey("Test empty ", t, func() {
-		convey.So(len(DeDuplicationInt64Slice([]int64{})), convey.ShouldEqual, 0)
+		convey.So(len(DuplicateInt64Slice([]int64{})), convey.ShouldEqual, 0)
 	})
 	convey.Convey("Test nil ", t, func() {
-		convey.So(DeDuplicationInt64Slice(nil), convey.ShouldNotBeNil)
+		convey.So(DuplicateInt64Slice(nil), convey.ShouldNotBeNil)
 	})
 }
 
 func TestDeDuplicationUint64Slice(t *testing.T) {
 	convey.Convey("Test de duplication ", t, func() {
-		convey.So(DeDuplicationUint64Slice([]uint64{1, 2, 2, 3, 2, 3, 1}), convey.ShouldResemble, []uint64{1, 2, 3})
+		convey.So(DuplicateUint64Slice([]uint64{1, 2, 2, 3, 2, 3, 1}), convey.ShouldResemble, []uint64{1, 2, 3})
 	})
 	convey.Convey("Test empty ", t, func() {
-		convey.So(DeDuplicationUint64Slice([]uint64{}), convey.ShouldResemble, []uint64{})
+		convey.So(DuplicateUint64Slice([]uint64{}), convey.ShouldResemble, []uint64{})
 	})
 	convey.Convey("Test nil ", t, func() {
-		convey.So(DeDuplicationUint64Slice(nil), convey.ShouldNotBeNil)
+		convey.So(DuplicateUint64Slice(nil), convey.ShouldNotBeNil)
 	})
 }
 
@@ -64,18 +64,18 @@ func TestUint64SliceToStringSlice(t *testing.T) {
 }
 
 func TestDeDuplicationStringSlice(t *testing.T) {
-	convey.Convey("DeDuplicationStringSlice ", t, func() {
-		convey.So(len(DeDuplicationStringSlice([]string{})), convey.ShouldEqual, 0)
+	convey.Convey("DuplicateStringSlice ", t, func() {
+		convey.So(len(DuplicateStringSlice([]string{})), convey.ShouldEqual, 0)
 	})
-	convey.Convey("DeDuplicationStringSlice ", t, func() {
-		convey.So(len(DeDuplicationStringSlice([]string{""})), convey.ShouldEqual, 1)
+	convey.Convey("DuplicateStringSlice ", t, func() {
+		convey.So(len(DuplicateStringSlice([]string{""})), convey.ShouldEqual, 1)
 	})
 
-	convey.Convey("DeDuplicationStringSlice ", t, func() {
-		convey.So(len(DeDuplicationStringSlice([]string{"", "hello"})), convey.ShouldEqual, 2)
+	convey.Convey("DuplicateStringSlice ", t, func() {
+		convey.So(len(DuplicateStringSlice([]string{"", "hello"})), convey.ShouldEqual, 2)
 	})
-	convey.Convey("DeDuplicationStringSlice ", t, func() {
-		convey.So(len(DeDuplicationStringSlice([]string{"", "hello", "hello"})), convey.ShouldEqual, 2)
+	convey.Convey("DuplicateStringSlice ", t, func() {
+		convey.So(len(DuplicateStringSlice([]string{"", "hello", "hello"})), convey.ShouldEqual, 2)
 	})
 }
 

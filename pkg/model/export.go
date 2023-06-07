@@ -11,20 +11,18 @@ import (
 
 // 数据导出任务
 type ExportTensorTask struct {
-	ID          int64  `json:"id"`          // 任务ID
-	TaskType    string `json:"taskType"`    // 任务类型，Html或excel
-	ExecuteType string `json:"executeType"` // 导出类型,根据该名字取确定具体执行函数
-	Parameter   string `json:"parameter"`   // 执行的参数
-	FilePath    string `json:"filePath"`    // 文件的绝对路径
-
-	Creator string `json:"creator"` // 任务创建人
-
-	StartAt   int64     `json:"startAt"`  // 任务开始执行时间
-	FinishAt  int64     `json:"finishAt"` // 任务执行完成时间
-	ErrMsg    string    `json:"errMsg"`   // 错误信息
-	Lang      string    `json:"lang"`     // 导出的语言
-	CreatedAt time.Time `json:"createdAt"`
-	UpdatedAt time.Time `json:"updatedAt"`
+	ID          int64     `gorm:"column:id" json:"id"`                    // 任务ID
+	TaskType    string    `gorm:"column:task_type" json:"taskType"`       // 任务类型，Html或excel
+	ExecuteType string    `gorm:"column:execute_type" json:"executeType"` // 导出类型,根据该名字取确定具体执行函数
+	Parameter   string    `gorm:"column:parameter" json:"parameter"`      // 执行的参数
+	FilePath    string    `gorm:"column:file_path" json:"filePath"`       // 文件的绝对路径
+	Creator     string    `gorm:"column:creator" json:"creator"`          // 任务创建人
+	StartAt     int64     `gorm:"column:start_at" json:"startAt"`         // 任务开始执行时间
+	FinishAt    int64     `gorm:"column:finish_at" json:"finishAt"`       // 任务执行完成时间
+	ErrMsg      string    `gorm:"column:err_msg" json:"errMsg"`           // 错误信息
+	Lang        string    `gorm:"column:lang" json:"lang"`                // 导出的语言
+	CreatedAt   time.Time `gorm:"column:created_at" json:"createdAt"`
+	UpdatedAt   time.Time `gorm:"column:updated_at" json:"updatedAt"`
 }
 
 func (s *ExportTensorTask) GenRedisAllKey() string {
@@ -58,10 +56,11 @@ const (
 )
 
 type ExportTaskImage struct {
-	ID        int64  `gorm:"id"  json:"id"`
-	TaskID    int64  `gorm:"task_id" json:"taskID"`
-	ImageID   int64  `gorm:"column:image_id" json:"imageID"`
-	ImageName string `gorm:"column:image_name" json:"imageName"`
+	ID            int64  `gorm:"id"  json:"id"`
+	TaskID        int64  `gorm:"task_id" json:"taskID"`
+	ImageID       int64  `gorm:"column:image_id" json:"imageID"`
+	ImageUniqueID uint64 `gorm:"column:image_unique_id" json:"imageUniqueID"`
+	ImageName     string `gorm:"column:image_name" json:"imageName"`
 }
 
 func (ExportTaskImage) TableName() string {
@@ -72,7 +71,7 @@ type ExportVulnImage struct {
 	ID         int64    `gorm:"column:id" json:"id"`
 	TaskID     int64    `gorm:"column:task_id" json:"taskID"`
 	UniqueVuln uint64   `gorm:"column:unique_vuln" json:"uniqueVuln,string"`
-	Severity   int      `gorm:"column:severity" json:"severity"`
+	Severity   int64    `gorm:"column:severity" json:"severity"`
 	CanFixed   bool     `gorm:"column:can_fixed" json:"canFixed"`
 	ImagesJson string   `gorm:"column:images" json:"-"`
 	Images     []string `gorm:"-" json:"images"`

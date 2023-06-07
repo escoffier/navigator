@@ -42,6 +42,8 @@ all:
   - chmod +755 /bin/kubectl
   - mkdir avira/
   - cp ~/.docker/savapi-sdk-linux64.tgz avira/
+  - mkdir clamav/
+  - cp ~/.docker/clamav.tgz clamav/
   - mkdir hm/
   - cp ~/.docker/hm-linux.tgz hm/
   script:
@@ -168,10 +170,11 @@ scanner:
   - chmod +755 /bin/kubectl
   - mkdir avira/
   - cp ~/.docker/savapi-sdk-linux64.tgz avira/
+  - mkdir clamav/
+  - cp ~/.docker/clamav.tgz clamav/
   - mkdir hm/
   - cp ~/.docker/hm-linux.tgz hm/
   script:
-  - go test -v -cover ./cmd/scanner/...
   - USEMIRROR=true make scanner
   - docker push harbor.tensorsecurity.com/tensorsecurity/scanner:ci
   - kubectl delete pod -l app.kubernetes.io/component=scanner -n tensorsec

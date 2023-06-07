@@ -221,12 +221,25 @@ func JSONError(ctx *gin.Context, err error, opts ...ResponseErrorOptionFunc) {
 	}
 
 	logging.Get().Err(err).Str("stack", string(debug.Stack())).Msg("JSON error")
+
 	data.Error.Message = err.Error()
+
 	httpCode := http.StatusBadRequest
 	if err2, ok := err.(*HTTPError); ok {
-		httpCode = err2.Code
+		if err2 != nil {
+			httpCode = err2.Code
+			data.Error.Message = err2.Error()
+			data.Error.Errors = err2.Errors
+		}
+	}
+
+	if err3, ok := err.(I18Err); ok {
+		httpCode = int(err3.Code)
 		data.Error.Code = httpCode
-		data.Error.Errors = err2.Errors
+		data.Error.I18Err = err3
+		if err3.getErr(ctx) != nil {
+			data.Error.Message = err3.getErr(ctx).Error()
+		}
 	}
 
 	ctx.JSON(httpCode, data)

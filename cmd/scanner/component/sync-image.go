@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/global"
+	"gitlab.com/piccolo_su/vegeta/pkg/model/imagesec"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/task"
@@ -81,7 +82,8 @@ func (s *SyncRepoImage) CreateSyncTask(ctx context.Context, param CreateSyncTask
 
 func (s *SyncRepoImage) GetSyncStatus(ctx context.Context) ([]*ResponseGetSyncStatus, error) {
 
-	registries, _, err := s.registryDal.SearchRegistry(ctx, store.SearchRegistryParam{Deleted: consts.FalseString, UseTypes: []int64{model.UserRegistry, model.NodeBuffRegistry}}, nil)
+	registries, _, err := s.registryDal.SearchRegistry(ctx, store.SearchRegistryParam{Deleted: consts.FalseString,
+		UseTypes: []int64{model.UserRegistry, model.NodeBuffRegistry}}, nil)
 	if err != nil {
 		logging.GetLogger().Err(err).Msg("GetSyncStatus")
 		return nil, err
@@ -313,7 +315,7 @@ func (s *SyncRepoImage) clearUpImageAfterDeleteRegistry(ctx context.Context) err
 		regID := registries[i].ID
 		var startID int64
 		for {
-			image, _, err := s.imageDal.SearchImage(ctx, store.SearchImageParam{StartID: startID, Fields: []string{"id"}, RegistryIds: []int64{regID}},
+			image, _, err := s.imageDal.SearchImage(ctx, imagesec.SearchImageParam{StartID: startID, Fields: []string{"id"}, RegistryIds: []int64{regID}},
 				&model.Filter{Limit: consts.DefaultLimit, SortFiled: "id", SortBy: consts.SortByAsc})
 			if err != nil {
 				return err
@@ -507,7 +509,7 @@ func (s *SyncRepoImage) startSyncIncrementallyImage(ctx context.Context, regID i
 
 func (s *SyncRepoImage) searchDeletedImage(ctx context.Context, lastFullSyncAt int64, registryID int64) ([]int64, error) {
 	// 找出已删除的镜像
-	image, _, err := s.imageDal.SearchImage(ctx, store.SearchImageParam{Where: fmt.Sprintf("registry_id = %d AND last_full_sync_at < %d", registryID, lastFullSyncAt), Fields: []string{"id", "last_full_sync_at"}}, nil)
+	image, _, err := s.imageDal.SearchImage(ctx, imagesec.SearchImageParam{Where: fmt.Sprintf("registry_id = %d AND last_full_sync_at < %d", registryID, lastFullSyncAt), Fields: []string{"id", "last_full_sync_at"}}, nil)
 	if err != nil {
 		logging.GetLogger().Err(err).Msg("SearchImage")
 		return nil, err
@@ -559,7 +561,7 @@ func (s *SyncRepoImage) transImageToImageList(ctx context.Context, image registr
 	}
 	img.Deserialize()
 	if img.ConfigFile != nil {
-		if img.ConfigFile.Config.User == "" || strings.Contains(img.ConfigFile.Config.User, "root") {
+		if img.ConfigFile.Config.User == "" || strings.Contains(img.ConfigFile.Config.User, consts.BootRootUser) {
 			img.PrivilegedBoot = consts.PrivilegedBootImage
 		}
 		for _, v := range img.ConfigFile.History {
@@ -618,7 +620,7 @@ func (s *SyncRepoImage) createImageExtender(ctx context.Context, image registry.
 	}
 	// 先查一下
 	img.UniqueImage = img.GenUniqueImage()
-	searchImage, _, err := s.imageDal.SearchImage(ctx, store.SearchImageParam{UniqueImage: img.UniqueImage,
+	searchImage, _, err := s.imageDal.SearchImage(ctx, imagesec.SearchImageParam{UniqueId: img.UniqueImage,
 		OmitFields: []string{"config_json", "manifest_v1_json", "manifest_v2_json"}}, nil)
 	if err != nil {
 		logging.GetLogger().Err(err).Msg("SyncAllImage.InsertImageList")
@@ -633,7 +635,7 @@ func (s *SyncRepoImage) createImageExtender(ctx context.Context, image registry.
 		}
 		res.Added = append(res.Added, &img)
 
-		logging.GetLogger().Debug().Int64("RegistryID", img.RegistryID).
+		logging.GetLogger().Debug().Int64("RegID", img.RegistryID).
 			Int64("FromType", img.FromType).
 			Str("Library", img.Library).
 			Str("FullRepoName", img.FullRepoName).
@@ -656,7 +658,7 @@ func (s *SyncRepoImage) createImageExtender(ctx context.Context, image registry.
 				logging.GetLogger().Err(err).Msg("SyncAllImage.InsertImageList,UpdateImageType")
 				return nil, err
 			}
-			logging.GetLogger().Debug().Int64("RegistryID", img.RegistryID).
+			logging.GetLogger().Debug().Int64("RegID", img.RegistryID).
 				Int64("FromType", img.FromType).
 				Str("Library", img.Library).
 				Str("FullRepoName", img.FullRepoName).
@@ -672,7 +674,7 @@ func (s *SyncRepoImage) createImageExtender(ctx context.Context, image registry.
 				return nil, err
 			}
 
-			logging.GetLogger().Debug().Int64("RegistryID", img.RegistryID).
+			logging.GetLogger().Debug().Int64("RegID", img.RegistryID).
 				Int64("FromType", img.FromType).
 				Str("Library", img.Library).
 				Str("FullRepoName", img.FullRepoName).
@@ -780,13 +782,13 @@ func (s *SyncRepoImage) addScanTask(ctx context.Context, res *registry.ListImage
 				imgIds = append(imgIds, res.Added[i].ID)
 			}
 		}
-		imgIds = util.DeDuplicationInt64Slice(imgIds)
+		imgIds = util.DuplicateInt64Slice(imgIds)
 		if len(imgIds) > 0 {
 			logging.GetLogger().Info().Int("ImageIds", len(imgIds)).Msg("addScanTask send node image scan tasks")
 			ts := task.NewTaskSrv()
 			if err := ts.GenerateScanTask(ctx, imgIds, task.UpdateTaskInfo{Scope: consts.FullScan,
 				TriggerType: consts.ImageSyncTrigger,
-				Operator:    consts.SyncTriggerOperator,
+				Operator:    imagesec.SyncTriggerOperatorZH,
 				StrategyID:  config.NodeImageConfig.StrategyID}); err != nil {
 				logging.GetLogger().Err(err).Msg("addScanTask add scan task failed")
 				return err
@@ -801,13 +803,13 @@ func (s *SyncRepoImage) addScanTask(ctx context.Context, res *registry.ListImage
 				imgIds = append(imgIds, res.Added[i].ID)
 			}
 		}
-		imgIds = util.DeDuplicationInt64Slice(imgIds)
+		imgIds = util.DuplicateInt64Slice(imgIds)
 		if len(imgIds) > 0 {
 			logging.GetLogger().Info().Int("ImageIds", len(imgIds)).Msg("addScanTask send library image scan tasks")
 			ts := task.NewTaskSrv()
 			if err := ts.GenerateScanTask(ctx, imgIds, task.UpdateTaskInfo{
 				Scope:       consts.FullScan,
-				Operator:    consts.SyncTriggerOperator,
+				Operator:    imagesec.SyncTriggerOperatorZH,
 				TriggerType: consts.ImageSyncTrigger,
 				StrategyID:  config.LibraryImageConfig.StrategyID,
 			}); err != nil {

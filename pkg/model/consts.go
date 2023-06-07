@@ -24,6 +24,7 @@ const (
 	RejectPolicyBaseModel = "base" // 基本模式
 	RejectPolicySafeModel = "safe" // 安全模式
 )
+
 const (
 	RejectReasonVulnScore            = 1  // 漏洞评分低于设置值
 	RejectReasonHasSensitiveFile     = 2  // 存在敏感文件
@@ -84,6 +85,12 @@ const (
 	NodeBuffRegistryString  = "node"     // 表示节点镜像所使用的仓库
 	UserRegistryString      = "registry" // 表示同步仓库
 
+)
+
+const (
+	NodeImageTopic           = "node_image_asset"
+	NodeImageScanResultTopic = "node_image_scan_result"
+	NodeImageGroup           = "node-image-group"
 )
 
 var reasonZHMap = map[int64]string{

@@ -10,6 +10,7 @@ import (
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
+	"gitlab.com/piccolo_su/vegeta/pkg/model/imagesec"
 	scannermodel "gitlab.com/piccolo_su/vegeta/pkg/model/scanner-model"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 )
@@ -36,14 +37,14 @@ type ImageScanResultDal interface {
 
 	SearchScanSoftwareToImage(ctx context.Context, imageID int64) ([]*model.ScanSoftwareToImage, error)
 
-	SearchScanImage(ctx context.Context, param model.ScanResultSearchParam) (*model.ImageWithCorrelateData, error)
+	SearchScanImage(ctx context.Context, param imagesec.ScanResultSearchParam) (*imagesec.ImageWithCorrelateData, error)
 }
 
 type ImageScanResultDao struct {
 	rdb *databases.RDBInstance
 }
 
-func (dal *ImageScanResultDao) SearchScanImage(ctx context.Context, param model.ScanResultSearchParam) (*model.ImageWithCorrelateData, error) {
+func (dal *ImageScanResultDao) SearchScanImage(ctx context.Context, param imagesec.ScanResultSearchParam) (*imagesec.ImageWithCorrelateData, error) {
 
 	if param.ImageID <= 0 {
 		return nil, fmt.Errorf("not get imageID")
@@ -51,7 +52,7 @@ func (dal *ImageScanResultDao) SearchScanImage(ctx context.Context, param model.
 
 	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*3)
 	defer cancelFunc()
-	imageData := &model.ImageWithCorrelateData{}
+	imageData := &imagesec.ImageWithCorrelateData{}
 
 	virus := make([]*model.ImageVirus, 0)
 	sensitive := make([]*model.ImageSensitiveFile, 0)
@@ -133,7 +134,7 @@ func (dal *ImageScanResultDao) SearchScanImage(ctx context.Context, param model.
 		}
 		// env
 		for i := range layer.EnvKeyValue {
-			if param.AbnormalEnv == consts.TrueString && layer.EnvKeyValue[i].IsAbnormal != consts.EnvIsAbnormal {
+			if param.ExceptionEnv == consts.TrueString && layer.EnvKeyValue[i].IsAbnormal != consts.EnvIsAbnormal {
 				continue
 			}
 			// env 统一大写
@@ -149,9 +150,11 @@ func (dal *ImageScanResultDao) SearchScanImage(ctx context.Context, param model.
 		}
 
 		for i := range layer.LicenseInfo {
-			license = append(license, layer.LicenseInfo[i].Name)
+			if layer.LicenseInfo[i].Name != "" {
+				license = append(license, layer.LicenseInfo[i].Name)
+			}
 		}
-		param.LicenseSearch = util.DeDuplicationStringSlice(license)
+		param.LicenseSearch = util.DuplicateStringSlice(license)
 
 		// abnormal software
 		softExit := make(map[string]bool)
@@ -164,7 +167,7 @@ func (dal *ImageScanResultDao) SearchScanImage(ctx context.Context, param model.
 				soft = append(soft, &model.ImageSoftware{
 					Name:    layer.Software[i].Name,
 					Version: layer.Software[i].Version,
-					Flag:    util.SetBit1(0, model.FlagHasSoftware),
+					Flag:    util.SetBit1(0, model.FlagHasExceptPKG),
 				})
 			}
 		}
@@ -177,7 +180,7 @@ func (dal *ImageScanResultDao) SearchScanImage(ctx context.Context, param model.
 	imageData.VirusCnt = int64(len(imageData.Virus))
 	imageData.Env = DuplicateEnv(envs)
 	imageData.EnvCnt = int64(len(imageData.Env))
-	imageData.License = util.DeDuplicationStringSlice(license)
+	imageData.License = util.DuplicateStringSlice(license)
 	imageData.Software = DuplicateSoft(soft)
 	imageData.SoftwareCnt = int64(len(imageData.Software))
 

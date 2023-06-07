@@ -122,9 +122,12 @@ func (v *VulnDao) SearchVuln(ctx context.Context, param SearchVulnParam, filter 
 	if param.Where != "" {
 		db = db.Where(param.Where)
 	}
-	if param.IdentityKernel == consts.FalseString {
-		db = db.Where("flag & ? = 0 ", util.SetBit1(0, model.VulnFlagKernel))
+
+	if param.NeedKernel == consts.FalseString {
+		flag := util.SetBit1(0, model.VulnFlagKernel)
+		db = db.Where("flag & ? = 0", flag, flag)
 	}
+
 	if param.OnlineImageVuln == consts.TrueString {
 		defer func() {
 			_ = db.Exec(consts.DropOnlineImageTempTableSql).Error
@@ -303,7 +306,7 @@ func (v *VulnDao) CreateVuln(ctx context.Context, data []*model.Vuln) error {
 
 		if len(vulns) > 0 {
 			if vulns[0].CheckSum == vuln.CheckSum {
-				logging.GetLogger().Info().Uint64("UniqueVuln", vuln.UniqueVuln).Uint64("CheckSum", vuln.CheckSum).Msg("CreateVuln not change")
+				logging.GetLogger().Debug().Uint64("UniqueVuln", vuln.UniqueVuln).Uint64("CheckSum", vuln.CheckSum).Msg("CreateVuln not change")
 			} else {
 				if err := v.UpdateVuln(ctx, fmt.Sprintf("id = %d", vulns[0].ID), nil, vuln); err != nil {
 					logging.GetLogger().Err(err).Uint64("UniqueVuln", vuln.UniqueVuln).Int64("ID", vulns[0].ID).Msg("CreateVuln")

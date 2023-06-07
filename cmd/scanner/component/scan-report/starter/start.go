@@ -2,32 +2,38 @@ package starter
 
 import (
 	"context"
+	"runtime/debug"
 	"time"
 
 	"github.com/go-redis/redis/v8"
 	"gitlab.com/security-rd/go-pkg/elastic"
+	"gitlab.com/security-rd/go-pkg/logging"
 
 	"gitlab.com/security-rd/go-pkg/databases"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component"
-	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scan-report/common"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/imagemeta"
+	imagesecSrv "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/imagesec"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scan-report/export/common"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scan-report/export/excel"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scan-report/export/html"
 	scanreport "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scan-report/scan-report"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
-	"gitlab.com/piccolo_su/vegeta/pkg/logging"
+	imagesecStore "gitlab.com/piccolo_su/vegeta/cmd/scanner/store/imagesec"
 )
 
 type BackgroundTasks struct {
-	ScanReport          *scanreport.ScanReportSrv
-	ImageExport         *excel.ImageExport
-	ScanTaskExport      *excel.ScanTaskExport
-	AuditExport         *excel.AuditExport
-	ClearFileAndRecord  *excel.ClearFileAndRecord
-	VulnExport          *excel.VulnExport
-	ImageSearchSrv      *excel.ImageSearchSrv
-	LibImageExportHtml  *html.ExportLibImageHtmlSrv
-	CICDImageExportHtml *html.ExportCiImageHtmlSrv
+	ScanReport                 *scanreport.ScanReportSrv
+	LibScanTaskExportExcel     *excel.LibImageScanTaskExport
+	NodeScanTaskExportExcel    *excel.NodeImageScanTaskExport
+	AuditExport                *excel.AuditExport
+	ClearFileAndRecord         *common.ClearFileAndRecord
+	VulnExportExcel            *excel.VulnExport
+	LibImageSearchExportExcel  *excel.LibImageSearchExportExcel
+	NodeImageSearchExportExcel *excel.NodeImageSearchExportExcel
+	LibImageExportHtml         *html.ExportLibImageHtmlSrv
+	NodeImageExportHtml        *html.ExportNodeImageHtmlSrv
+	CICDImageExportHtml        *html.ExportCiImageHtmlSrv
 }
 
 type Config struct {
@@ -61,7 +67,6 @@ func NewBackgroundTasks(ctx context.Context, config Config) *BackgroundTasks {
 
 	exportTaskDal := store.NewExportTaskDao(config.Rdb)
 	scanTaskDal := store.NewScannerOrm(config.Rdb)
-	imageDal := store.NewScannerOrm(config.Rdb)
 	resourceDal := store.NewResourceDao(config.Rdb)
 	trustedImageDal := store.NewScannerOrm(config.Rdb)
 	registryDal := store.NewRegistryDao(config.Rdb)
@@ -69,41 +74,62 @@ func NewBackgroundTasks(ctx context.Context, config Config) *BackgroundTasks {
 	scanResultDal := store.NewImageScanResultDao(config.Rdb)
 	idempotentDal := store.NewIdempotentDao(config.Rdb)
 	webshellDal := store.NewWebsehllDao(config.Rdb)
+	scannerInstanceDal := store.NewScannerInstanceDao(config.Rdb)
+	libImageDal := store.NewScannerOrm(config.Rdb)
+	nodeImageDal := imagesecStore.NewImageMetaDao(config.Rdb, nil)
+	nodeReportDal := imagesecStore.NewNodeReportDao(config.Rdb)
+	policyDal := imagesecStore.NewDetectPolicyDao(config.Rdb)
+	detectResultDal := imagesecStore.NewImageDetectResultDao(config.Rdb)
+	nodeScanTaskDal := imagesecStore.NewScanTaskDao(config.Rdb)
+	nodeScanResultDal := imagesecStore.NewScanResultDao(config.Rdb)
+	scannerConfigDal := imagesecStore.NewScannerConfigDao(config.Rdb)
 
-	scannerInstanceInfoDal := store.NewScannerInstanceDao(config.Rdb)
-
-	imageSrv := component.NewImageSrv(imageDal, registryDal, scanTaskDal, vulnDal, scanResultDal,
-		webshellDal, trustedImageDal, resourceDal, scannerInstanceInfoDal)
 	updateTask := common.NewUpdateTaskSrv(store.NewExportTaskDao(config.Rdb), config.RedisCli)
 
+	libImageSvc := component.NewLibImageSrv(libImageDal, registryDal, scanTaskDal, vulnDal, scanResultDal,
+		webshellDal, trustedImageDal, resourceDal, scannerInstanceDal)
+
+	nodeImageSvc := imagemeta.NewNodeImageSrv(nodeImageDal, registryDal, nodeScanResultDal,
+		resourceDal, nodeReportDal, policyDal, detectResultDal, trustedImageDal,
+		scannerConfigDal, nodeScanTaskDal)
+
+	imageExportSrv := common.NewExcelExportSrv(exportTaskDal, libImageSvc, nodeImageSvc, config.FileDir,
+		updateTask, config.MaxVulnCol)
+
 	// 镜像导出excel
-	imageExportSrv := excel.NewImageExport(exportTaskDal, imageSrv, config.FileDir, updateTask)
 
 	// 扫描任务导出excel
-	scanTaskExportSrv := excel.NewScanTaskExport(imageExportSrv, exportTaskDal, scanTaskDal, config.FileDir, updateTask, config.MaxVulnCol)
+	libScanTaskExportSrv := excel.NewLibScanTaskExport(imageExportSrv, scanTaskDal, updateTask)
+	nodeScanTaskExportSrv := excel.NewNodeImageScanTaskExport(imageExportSrv, nodeScanTaskDal, updateTask)
 	// 导出漏洞
-	vulnExportSrv := excel.NewVulnExport(exportTaskDal, config.FileDir, vulnDal, imageSrv, updateTask)
+	vulnExportSrv := excel.NewVulnExport(exportTaskDal, config.FileDir, vulnDal, libImageSvc, updateTask)
 	// 清理文件
-	clearFile := excel.NewClearFile(config.FileDir, config.Expiration, exportTaskDal, idempotentDal)
+	clearFile := common.NewClearFile(config.FileDir, config.Expiration, exportTaskDal, idempotentDal)
+	nodeImageScanResultDal := imagesecStore.NewScanResultDao(config.Rdb)
 
 	naviAuditReport := excel.NewAuditExport(exportTaskDal, config.Internal, config.FileDir, config.Es, "navi-audit-")
+	vulnSrv := imagesecSrv.NewVulnSrv(nodeImageScanResultDal)
 
 	// 镜像搜索列表导出excel
-	imageSearchSrv := excel.NewImageSearchSrv(scanTaskExportSrv, exportTaskDal, config.FileDir, updateTask, imageSrv)
+	libImageSearchExportExcel := excel.NewLibImageSearchExportExcel(imageExportSrv, updateTask, libImageSvc)
+	nodeimageSearchExportExcel := excel.NewNodeImageSearchExportExcel(imageExportSrv, updateTask, nodeImageSvc)
 	// 镜像扫描报告导出到html
-	libImageHtmlSrv := html.NewExportLibImageHtmlSrv(imageSrv, vulnDal, exportTaskDal, updateTask, config.FileDir, config.VulnClassType)
-	cicdImageHtmlSrv := html.NewExportCiImageHtmlSrv(imageSrv, vulnDal, exportTaskDal, updateTask, config.FileDir)
+	libImageHtmlSrv := html.NewExportLibImageHtmlSrv(libImageSvc, vulnDal, exportTaskDal, updateTask, config.FileDir, config.VulnClassType)
+	nodeImageHtmlSrv := html.NewExportNodeImageHtmlSrv(nodeImageSvc, exportTaskDal, updateTask, vulnSrv, config.FileDir, config.VulnClassType)
+	cicdImageHtmlSrv := html.NewExportCiImageHtmlSrv(libImageSvc, vulnDal, exportTaskDal, updateTask, config.FileDir)
 
 	srv := &BackgroundTasks{
-		ScanReport:          scanReportServer,
-		ImageExport:         imageExportSrv,
-		ScanTaskExport:      scanTaskExportSrv,
-		AuditExport:         naviAuditReport,
-		ClearFileAndRecord:  clearFile,
-		VulnExport:          vulnExportSrv,
-		ImageSearchSrv:      imageSearchSrv,
-		LibImageExportHtml:  libImageHtmlSrv,
-		CICDImageExportHtml: cicdImageHtmlSrv,
+		ScanReport:                 scanReportServer,
+		LibScanTaskExportExcel:     libScanTaskExportSrv,
+		NodeScanTaskExportExcel:    nodeScanTaskExportSrv,
+		AuditExport:                naviAuditReport,
+		ClearFileAndRecord:         clearFile,
+		VulnExportExcel:            vulnExportSrv,
+		LibImageSearchExportExcel:  libImageSearchExportExcel,
+		NodeImageSearchExportExcel: nodeimageSearchExportExcel,
+		LibImageExportHtml:         libImageHtmlSrv,
+		NodeImageExportHtml:        nodeImageHtmlSrv,
+		CICDImageExportHtml:        cicdImageHtmlSrv,
 	}
 	return srv
 }
@@ -111,99 +137,109 @@ func NewBackgroundTasks(ctx context.Context, config Config) *BackgroundTasks {
 func (s *BackgroundTasks) Start(ctx context.Context) {
 	// 导出风险探索中的镜像报告
 	go func() {
+
+		defer func() {
+			if r := recover(); r != nil {
+				logging.Get().Error().Str("stack", string(debug.Stack())).Msg("ScanReport")
+			}
+		}()
+
 		tick := time.NewTicker(time.Second * 10)
 		defer tick.Stop()
 		for {
 			s.ScanReport.Run(ctx)
-			logging.GetLogger().Info().Msg("finish ScanReport job")
+			logging.Get().Debug().Msg("finish ScanReport job")
 			<-tick.C
 		}
 	}()
 
-	// 镜像扫描数据导出excel
-	go func() {
-		tick := time.NewTicker(time.Second * 10)
-		defer tick.Stop()
-		for {
-			s.ImageExport.Run(ctx)
-			logging.GetLogger().Info().Msg("finish ImageExport job")
-			<-tick.C
-		}
-	}()
-
-	// 扫描任务中镜像扫描数据导出excel
-	go func() {
-		tick := time.NewTicker(time.Second * 10)
-		defer tick.Stop()
-		for {
-			s.ScanTaskExport.Run(ctx)
-			logging.GetLogger().Info().Msg("finish ScanTaskExport job")
-			<-tick.C
-		}
-	}()
+	s.LibScanTaskExportExcel.Run(ctx)
+	s.NodeScanTaskExportExcel.Run(ctx)
+	s.LibImageSearchExportExcel.Run(ctx)
+	s.NodeImageSearchExportExcel.Run(ctx)
+	s.ClearFileAndRecord.Run(ctx)
 
 	// 导出漏洞数据
 	go func() {
-		tick := time.NewTicker(time.Second * 10)
-		defer tick.Stop()
-		for {
-			s.VulnExport.Run(ctx)
-			logging.GetLogger().Debug().Msg("finish VulnExport job")
-			<-tick.C
-		}
-	}()
+		defer func() {
+			if r := recover(); r != nil {
+				logging.Get().Error().Str("stack", string(debug.Stack())).Msg("ScanReport")
+			}
+		}()
 
-	// 对搜索结果导出excel
-	go func() {
 		tick := time.NewTicker(time.Second * 10)
 		defer tick.Stop()
 		for {
-			s.ImageSearchSrv.Run(ctx)
-			logging.GetLogger().Debug().Msg("finish ImageSearchSrv job")
+			s.VulnExportExcel.Run(ctx)
+			logging.Get().Debug().Msg("finish VulnExportExcel job")
 			<-tick.C
 		}
 	}()
 
 	// 审计日志数据导出excel
 	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				logging.Get().Error().Str("stack", string(debug.Stack())).Msg("ScanReport")
+			}
+		}()
+
 		tick := time.NewTicker(time.Second * 10)
 		defer tick.Stop()
 		for {
 			s.AuditExport.Run(ctx)
-			logging.GetLogger().Debug().Msg("finish AuditExport job")
-			<-tick.C
-		}
-	}()
-
-	// 删除过期文件及记录
-	go func() {
-		tick := time.NewTicker(time.Minute * 30)
-		defer tick.Stop()
-		for {
-			s.ClearFileAndRecord.Run(ctx)
-			logging.GetLogger().Debug().Msg("finish ClearFileAndRecord job")
+			logging.Get().Debug().Msg("finish AuditExport job")
 			<-tick.C
 		}
 	}()
 
 	// 镜像扫描报告导出html
 	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				logging.Get().Error().Str("stack", string(debug.Stack())).Msg("ScanReport")
+			}
+		}()
+
 		tick := time.NewTicker(time.Second * 10)
 		defer tick.Stop()
 		for {
 			s.LibImageExportHtml.Run(ctx)
-			logging.GetLogger().Debug().Msg("finish LibImageExportHtml job")
+			logging.Get().Debug().Msg("finish LibImageExportHtml job")
 			<-tick.C
 		}
 	}()
 
 	// cicd导出html
 	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				logging.Get().Error().Str("stack", string(debug.Stack())).Msg("ScanReport")
+			}
+		}()
+
 		tick := time.NewTicker(time.Second * 10)
 		defer tick.Stop()
 		for {
 			s.CICDImageExportHtml.Run(ctx)
-			logging.GetLogger().Debug().Msg("finish CICDImageExportHtml job")
+			logging.Get().Debug().Msg("finish CICDImageExportHtml job")
+			<-tick.C
+		}
+	}()
+
+	// 镜像扫描报告导出html
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				logging.Get().Error().Str("stack", string(debug.Stack())).Msg("ScanReport")
+			}
+		}()
+
+		tick := time.NewTicker(time.Second * 10)
+		defer tick.Stop()
+		for {
+			s.NodeImageExportHtml.Run(ctx)
+			logging.Get().Debug().Msg("finish NodeImageExportHtml job")
 			<-tick.C
 		}
 	}()

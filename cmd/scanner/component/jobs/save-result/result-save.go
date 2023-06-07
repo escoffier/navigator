@@ -15,6 +15,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
+	"gitlab.com/piccolo_su/vegeta/pkg/model/imagesec"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 )
 
@@ -87,7 +88,7 @@ func (sv *ScanResultSave) UpdateImageOs(ctx context.Context, os *ftypes.OS, imag
 	}
 	update := map[string]interface{}{"os": string(bys)}
 	// pkg/detector/ospkg/ubuntu/ubuntu.go
-	image, _, err := sv.ImageDal.SearchImage(ctx, store.SearchImageParam{InIds: []int64{imageID}, Fields: []string{"id", "flag"}}, nil)
+	image, _, err := sv.ImageDal.SearchImage(ctx, imagesec.SearchImageParam{InIds: []int64{imageID}, Fields: []string{"id", "flag"}}, nil)
 	if err != nil {
 		return err
 	}

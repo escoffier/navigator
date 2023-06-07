@@ -105,7 +105,7 @@ func (sl *ScanLayer) Deserialize() {
 			}
 		}
 	}
-	sl.VulnInfo = util.DeDuplicationUint64Slice(vuln)
+	sl.VulnInfo = util.DuplicateUint64Slice(vuln)
 
 	malic := make([]Malicious, 0)
 	if len(sl.MaliciousInfoJSON) > 0 {
@@ -137,7 +137,7 @@ func (sl *ScanLayer) Deserialize() {
 
 func (sl *ScanLayer) Serialize() {
 	if len(sl.VulnInfo) > 0 {
-		sl.VulnInfo = util.DeDuplicationUint64Slice(sl.VulnInfo)
+		sl.VulnInfo = util.DuplicateUint64Slice(sl.VulnInfo)
 		if bys, err := json.Marshal(sl.VulnInfo); err != nil {
 			logging.GetLogger().Err(err).Msg("ScanLayer.Serialize")
 		} else {
@@ -516,7 +516,7 @@ func (RejectRecord) TableName() string {
 func (rr *RejectRecord) GenReasonFlag() uint64 {
 	res := GetRejectReason(LangZh)
 	var flag uint64
-	rr.RejectReason = util.DeDuplicationInt64Slice(rr.RejectReason)
+	rr.RejectReason = util.DuplicateInt64Slice(rr.RejectReason)
 	for _, r := range rr.RejectReason {
 		if _, ok := res[r]; ok {
 			flag = 1<<r + flag

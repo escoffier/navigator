@@ -25,6 +25,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/dal"
 	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
+	"gitlab.com/piccolo_su/vegeta/pkg/model/imagesec"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
 	rpcstream "gitlab.com/piccolo_su/vegeta/pkg/streaming"
 	"gitlab.com/piccolo_su/vegeta/pkg/streaming/pb"
@@ -689,7 +690,7 @@ func (rl *TensorResourcesService) GetImageInfos(ctx context.Context, queryOption
 	return images, nil
 }
 
-func (rl *TensorResourcesService) GetImages(ctx context.Context, queryOptions *dal.ResContainersQueryOption, offset, limit int) ([]model.ImageBaseResponse, error) {
+func (rl *TensorResourcesService) GetImages(ctx context.Context, queryOptions *dal.ResContainersQueryOption, offset, limit int) ([]imagesec.ImageBaseResponse, error) {
 	containers, err := dal.GetResourceContainersUnique(ctx, rl.rdb.GetReadDB(), queryOptions, offset, limit)
 	if err != nil {
 		return nil, err
@@ -697,7 +698,7 @@ func (rl *TensorResourcesService) GetImages(ctx context.Context, queryOptions *d
 	return rl.getImageFromScanner(ctx, containers)
 }
 
-func (rl *TensorResourcesService) getImageFromScanner(ctx context.Context, tcs []*model.TensorContainer) ([]model.ImageBaseResponse, error) {
+func (rl *TensorResourcesService) getImageFromScanner(ctx context.Context, tcs []*model.TensorContainer) ([]imagesec.ImageBaseResponse, error) {
 	uuids := make([]uint32, 0)
 	for _, c := range tcs {
 		if uuid := util.ImageUUID(c.Image); uuid > 0 {
@@ -710,7 +711,7 @@ func (rl *TensorResourcesService) getImageFromScanner(ctx context.Context, tcs [
 
 	url := fmt.Sprintf("%s%s", rl.scannerURL, ImageListPath)
 
-	bodyParam := model.ImageListParam{UUIDs: uuids}
+	bodyParam := imagesec.ImageListParam{UUIDs: uuids}
 
 	bys, err := json.Marshal(bodyParam)
 
@@ -725,7 +726,7 @@ func (rl *TensorResourcesService) getImageFromScanner(ctx context.Context, tcs [
 		logging.Get().Err(err).Msg("create request failed")
 		return nil, err
 	}
-	var images []model.ImageBaseResponse
+	var images []imagesec.ImageBaseResponse
 	err = util.HTTPRequest(ctx, httputil.DefaultClient, req, func(resp *http.Response, err error) error {
 		if err != nil {
 			return err
@@ -766,7 +767,7 @@ func (rl *TensorResourcesService) getImageFromScanner(ctx context.Context, tcs [
 	return images, nil
 }
 
-func (rl *TensorResourcesService) GetContainer(ctx context.Context, queryOptions *dal.ResContainersQueryOption, offset, limit int) ([]model.ImageBaseResponse, error) {
+func (rl *TensorResourcesService) GetContainer(ctx context.Context, queryOptions *dal.ResContainersQueryOption, offset, limit int) ([]imagesec.ImageBaseResponse, error) {
 	containers, err := dal.GetResourceContainersUnique(ctx, rl.rdb.GetReadDB(), queryOptions, offset, limit)
 	if err != nil {
 		return nil, err

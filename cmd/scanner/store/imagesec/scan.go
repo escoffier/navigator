@@ -1,0 +1,795 @@
+package imagesec
+
+import (
+	"context"
+	"fmt"
+	"strings"
+	"time"
+
+	"gitlab.com/security-rd/go-pkg/databases"
+	"gorm.io/gorm"
+
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
+	"gitlab.com/piccolo_su/vegeta/pkg/model"
+	imagesecModel "gitlab.com/piccolo_su/vegeta/pkg/model/imagesec"
+	"gitlab.com/piccolo_su/vegeta/pkg/util"
+)
+
+// 镜像扫描结果
+type ScanResultDal interface {
+	// 病毒
+	CreateMalware(ctx context.Context, data []*imagesecModel.Malware) error
+	SearchMalware(ctx context.Context, param imagesecModel.ScanResultSearchParam) ([]*imagesecModel.Malware, int64, error)
+	// webshell
+	CreateWebshell(ctx context.Context, data []*imagesecModel.Webshell) error
+	SearchWebshell(ctx context.Context, param imagesecModel.ScanResultSearchParam) ([]*imagesecModel.Webshell, int64, error)
+	// 敏感文件
+	CreateSensitive(ctx context.Context, data []*imagesecModel.SensitiveFile) error
+	SearchSensitive(ctx context.Context, param imagesecModel.ScanResultSearchParam) ([]*imagesecModel.SensitiveFile, int64, error)
+	// 软件包
+	CreatePkg(ctx context.Context, data []*imagesecModel.Pkg) error
+	SearchPkg(ctx context.Context, param imagesecModel.ScanResultSearchParam) ([]*imagesecModel.Pkg, int64, error)
+	// 环境变量
+	CreateImageEnv(ctx context.Context, imageID uint64, data []*imagesecModel.ImageEnv) error
+	SearchImageEnv(ctx context.Context, param imagesecModel.ScanResultSearchParam) ([]*imagesecModel.ImageEnv, int64, error)
+	// 漏洞
+	CreateVuln(ctx context.Context, data []*imagesecModel.Vuln) error
+	SearchVuln(ctx context.Context, param imagesecModel.ApiSearchVulnParam) ([]*imagesecModel.Vuln, int64, error)
+}
+
+type ScanResultDao struct {
+	db *databases.RDBInstance
+}
+
+func NewScanResultDao(db *databases.RDBInstance) *ScanResultDao {
+	return &ScanResultDao{db: db}
+}
+
+func (dal *ScanResultDao) CreateMalware(ctx context.Context, data []*imagesecModel.Malware) error {
+	for i := range data {
+		if err := data[i].Check(); err != nil {
+			return err
+		}
+	}
+
+	uniqueIds := make([]uint64, 0)
+	for i := range data {
+		uniqueIds = append(uniqueIds, data[i].UniqueID)
+	}
+	if len(data) == 0 || len(uniqueIds) == 0 {
+		return nil
+	}
+	tableName := data[0].TableName()
+
+	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*1000)
+	defer cancelFunc()
+
+	dbPre, _, err := dal.SearchMalware(ctx, imagesecModel.ScanResultSearchParam{UniqueIds: uniqueIds})
+	if err != nil {
+		return err
+	}
+
+	createData := make([]*imagesecModel.Malware, 0)
+	deleteData := make([]int64, 0)
+
+	// find need delete data
+	for i := range dbPre {
+		needDelete := true
+		for j := range data {
+			if dbPre[i].Same(data[j]) {
+				needDelete = false
+				break
+			}
+		}
+		if needDelete {
+			deleteData = append(deleteData, dbPre[i].ID)
+		}
+	}
+	// find need create
+	for i := range data {
+		needCreate := true
+		for j := range dbPre {
+			if data[i].Same(dbPre[j]) {
+				needCreate = false
+				break
+			}
+		}
+		if needCreate {
+			createData = append(createData, data[i])
+		}
+	}
+
+	if len(deleteData) > 0 {
+		if err := dal.db.Get().WithContext(ctx).Table(tableName).Where("id IN  ? ", deleteData).
+			Delete(&model.ImageVirus{}).Error; err != nil {
+			return err
+		}
+	}
+	for i := range createData {
+		da := createData[i]
+		if err := dal.db.Get().WithContext(ctx).Table(tableName).Create(da).Error; err != nil {
+			if strings.Contains(err.Error(), consts.DuplicateKey) {
+				continue
+			} else {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func (dal *ScanResultDao) SearchMalware(ctx context.Context, param imagesecModel.ScanResultSearchParam) ([]*imagesecModel.Malware, int64, error) {
+	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*10)
+	defer cancelFunc()
+
+	scanModel, issueModel := &imagesecModel.Malware{}, &imagesecModel.MalwareToImage{}
+	scanTableName, issueTableName := scanModel.TableName(), issueModel.TableName()
+
+	db := dal.db.Get().WithContext(ctx).Table(scanTableName)
+	if len(param.UniqueIds) > 0 {
+		db = db.Where("unique_id IN ?", param.UniqueIds)
+	}
+
+	if param.Keyword != "" {
+		db = db.Where("filename LIKE ? OR filepath LIKE ? OR name LIKE ? ",
+			fmt.Sprintf("%%%s%%", param.Keyword), fmt.Sprintf("%%%s%%", param.Keyword),
+			fmt.Sprintf("%%%s%%", param.Keyword))
+	}
+	// 查单个镜像
+	if param.ImageUniqueID > 0 {
+		sub := dal.db.Get().WithContext(ctx).Table(issueTableName).
+			Select("distinct unique_target").Where("image_unique_id = ?", param.ImageUniqueID)
+		// 查镜像的层级
+		if param.LayerDigest != "" {
+			sub = sub.Where("layer_digest = ?", param.LayerDigest)
+		}
+
+		db = db.Where("unique_id IN ( ? )", sub)
+	}
+	res := make([]*imagesecModel.Malware, 0)
+	var cnt int64
+	if err := db.Count(&cnt).Error; err != nil {
+		return nil, 0, err
+	}
+	db = model.AddFilter(db, param.Filter)
+
+	if err := db.Find(&res).Error; err != nil {
+		return nil, 0, err
+	}
+	for i := range res {
+		res[i].Deserialize()
+	}
+	return res, cnt, nil
+}
+
+func (dal *ScanResultDao) CreateWebshell(ctx context.Context, data []*imagesecModel.Webshell) error {
+	for i := range data {
+		if err := data[i].Check(); err != nil {
+			return err
+		}
+		data[i].Serialize()
+	}
+
+	uniqueIds := make([]uint64, 0)
+	for i := range data {
+		uniqueIds = append(uniqueIds, data[i].UniqueID)
+	}
+	if len(data) == 0 || len(uniqueIds) == 0 {
+		return nil
+	}
+	tableName := data[0].TableName()
+
+	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*1000)
+	defer cancelFunc()
+
+	dbPre, _, err := dal.SearchWebshell(ctx, imagesecModel.ScanResultSearchParam{UniqueIds: uniqueIds})
+	if err != nil {
+		return err
+	}
+
+	createData := make([]*imagesecModel.Webshell, 0)
+	deleteData := make([]int64, 0)
+
+	// find need delete data
+	for i := range dbPre {
+		needDelete := true
+		for j := range data {
+			if dbPre[i].Same(data[j]) {
+				needDelete = false
+				break
+			}
+		}
+		if needDelete {
+			deleteData = append(deleteData, dbPre[i].ID)
+		}
+	}
+	// find need create
+	for i := range data {
+		needCreate := true
+		for j := range dbPre {
+			if data[i].Same(dbPre[j]) {
+				needCreate = false
+				break
+			}
+		}
+		if needCreate {
+			createData = append(createData, data[i])
+		}
+	}
+
+	if len(deleteData) > 0 {
+		if err := dal.db.Get().WithContext(ctx).Table(tableName).Where("id IN  ? ", deleteData).
+			Delete(&model.ImageVirus{}).Error; err != nil {
+			return err
+		}
+	}
+	for i := range createData {
+		da := createData[i]
+		if err := dal.db.Get().WithContext(ctx).Table(tableName).Create(da).Error; err != nil {
+			if strings.Contains(err.Error(), consts.DuplicateKey) {
+				continue
+			} else {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func (dal *ScanResultDao) SearchWebshell(ctx context.Context, param imagesecModel.ScanResultSearchParam) ([]*imagesecModel.Webshell, int64, error) {
+	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*10)
+	defer cancelFunc()
+
+	scanModel, issueModel := &imagesecModel.Webshell{}, &imagesecModel.WebshellToImage{}
+	scanTableName, issueTableName := scanModel.TableName(), issueModel.TableName()
+
+	db := dal.db.Get().WithContext(ctx).Table(scanTableName)
+	if len(param.UniqueIds) > 0 {
+		db = db.Where("unique_id IN ?", param.UniqueIds)
+	}
+
+	if param.Keyword != "" {
+		db = db.Where("filename LIKE ? ", fmt.Sprintf("%%%s%%", param.Keyword))
+	}
+	if len(param.WebshellRiskLevel) > 0 {
+		db = db.Where("risk_level IN ?", param.WebshellRiskLevel)
+	}
+	// 查单个镜像
+	if param.ImageUniqueID > 0 {
+		sub := dal.db.Get().WithContext(ctx).Table(issueTableName).
+			Select("distinct unique_target").Where("image_unique_id = ?", param.ImageUniqueID)
+		// 查镜像的层级
+		if param.LayerDigest != "" {
+			sub = sub.Where("layer_digest = ?", param.LayerDigest)
+		}
+
+		db = db.Where("unique_id IN ( ? )", sub)
+	}
+	res := make([]*imagesecModel.Webshell, 0)
+	var cnt int64
+	if err := db.Count(&cnt).Error; err != nil {
+		return nil, 0, err
+	}
+	db = model.AddFilter(db, param.Filter)
+
+	if err := db.Find(&res).Error; err != nil {
+		return nil, 0, err
+	}
+	return res, cnt, nil
+}
+
+func (dal *ScanResultDao) CreateSensitive(ctx context.Context, data []*imagesecModel.SensitiveFile) error {
+	for i := range data {
+		if err := data[i].Check(); err != nil {
+			return err
+		}
+	}
+
+	uniqueIds := make([]uint64, 0)
+	for i := range data {
+		uniqueIds = append(uniqueIds, data[i].UniqueID)
+	}
+	if len(data) == 0 || len(uniqueIds) == 0 {
+		return nil
+	}
+	tableName := data[0].TableName()
+
+	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*1000)
+	defer cancelFunc()
+
+	dbPre, _, err := dal.SearchSensitive(ctx, imagesecModel.ScanResultSearchParam{UniqueIds: uniqueIds})
+	if err != nil {
+		return err
+	}
+
+	createData := make([]*imagesecModel.SensitiveFile, 0)
+	deleteData := make([]int64, 0)
+
+	// find need delete data
+	for i := range dbPre {
+		needDelete := true
+		for j := range data {
+			if dbPre[i].Same(data[j]) {
+				needDelete = false
+				break
+			}
+		}
+		if needDelete {
+			deleteData = append(deleteData, dbPre[i].ID)
+		}
+	}
+	// find need create
+	for i := range data {
+		needCreate := true
+		for j := range dbPre {
+			if data[i].Same(dbPre[j]) {
+				needCreate = false
+				break
+			}
+		}
+		if needCreate {
+			createData = append(createData, data[i])
+		}
+	}
+
+	if len(deleteData) > 0 {
+		if err := dal.db.Get().WithContext(ctx).Table(tableName).Where("id IN  ? ", deleteData).
+			Delete(&model.Sensitive{}).Error; err != nil {
+			return err
+		}
+	}
+	for i := range createData {
+		da := createData[i]
+		if err := dal.db.Get().WithContext(ctx).Table(tableName).Create(da).Error; err != nil {
+			if strings.Contains(err.Error(), consts.DuplicateKey) {
+				continue
+			} else {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func (dal *ScanResultDao) SearchSensitive(ctx context.Context, param imagesecModel.ScanResultSearchParam) ([]*imagesecModel.SensitiveFile, int64, error) {
+	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*10)
+	defer cancelFunc()
+
+	scanModel, issueModel := &imagesecModel.SensitiveFile{}, &imagesecModel.SensitiveToImage{}
+	scanTableName, issueTableName := scanModel.TableName(), issueModel.TableName()
+
+	db := dal.db.Get().WithContext(ctx).Table(scanTableName)
+	if len(param.UniqueIds) > 0 {
+		db = db.Where("unique_id IN ?", param.UniqueIds)
+	}
+
+	if param.Keyword != "" {
+		db = db.Where("name LIKE ? ", fmt.Sprintf("%%%s%%", param.Keyword))
+	}
+	// 查单个镜像
+	if param.ImageUniqueID > 0 {
+		sub := dal.db.Get().WithContext(ctx).Table(issueTableName).
+			Select("distinct unique_target").Where("image_unique_id = ?", param.ImageUniqueID)
+		// 查镜像的层级
+		if param.LayerDigest != "" {
+			sub = sub.Where("layer_digest = ?", param.LayerDigest)
+		}
+
+		db = db.Where("unique_id IN ( ? )", sub)
+	}
+	res := make([]*imagesecModel.SensitiveFile, 0)
+	var cnt int64
+	if err := db.Count(&cnt).Error; err != nil {
+		return nil, 0, err
+	}
+	db = model.AddFilter(db, param.Filter)
+
+	if err := db.Find(&res).Error; err != nil {
+		return nil, 0, err
+	}
+	return res, cnt, nil
+}
+
+func (dal *ScanResultDao) CreatePkg(ctx context.Context, data []*imagesecModel.Pkg) error {
+	for i := range data {
+		data[i].Serialize()
+		if err := data[i].Check(); err != nil {
+			return err
+		}
+	}
+
+	uniqueIds := make([]uint64, 0)
+	for i := range data {
+		uniqueIds = append(uniqueIds, data[i].UniqueID)
+	}
+	if len(data) == 0 || len(uniqueIds) == 0 {
+		return nil
+	}
+	tableName := data[0].TableName()
+
+	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*1000)
+	defer cancelFunc()
+
+	dbPre, _, err := dal.SearchPkg(ctx, imagesecModel.ScanResultSearchParam{UniqueIds: uniqueIds})
+	if err != nil {
+		return err
+	}
+
+	createData := make([]*imagesecModel.Pkg, 0)
+	deleteData := make([]int64, 0)
+
+	// find need delete data
+	for i := range dbPre {
+		needDelete := true
+		for j := range data {
+			if dbPre[i].Same(data[j]) {
+				needDelete = false
+				break
+			}
+		}
+		if needDelete {
+			deleteData = append(deleteData, dbPre[i].ID)
+		}
+	}
+	// find need create
+	for i := range data {
+		needCreate := true
+		for j := range dbPre {
+			if data[i].Same(dbPre[j]) {
+				needCreate = false
+				break
+			}
+		}
+		if needCreate {
+			createData = append(createData, data[i])
+		}
+	}
+
+	if len(deleteData) > 0 {
+		if err := dal.db.Get().WithContext(ctx).Table(tableName).Where("id IN  ? ", deleteData).
+			Delete(&imagesecModel.Pkg{}).Error; err != nil {
+			return err
+		}
+	}
+	for i := range createData {
+		da := createData[i]
+		if err := dal.db.Get().WithContext(ctx).Table(tableName).Create(da).Error; err != nil {
+			if strings.Contains(err.Error(), consts.DuplicateKey) {
+				continue
+			} else {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func (dal *ScanResultDao) SearchPkg(ctx context.Context, param imagesecModel.ScanResultSearchParam) ([]*imagesecModel.Pkg, int64, error) {
+	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*10)
+	defer cancelFunc()
+
+	scanModel, issueModel := &imagesecModel.Pkg{}, &imagesecModel.PkgToImage{}
+	scanTableName, issueTableName := scanModel.TableName(), issueModel.TableName()
+
+	db := dal.db.Get().WithContext(ctx).Table(scanTableName)
+	if len(param.UniqueIds) > 0 {
+		db = db.Where("unique_id IN ?", param.UniqueIds)
+	}
+
+	if param.ExceptionPkg == consts.TrueString {
+
+	}
+	if param.Keyword != "" {
+		db = db.Where("name LIKE ? OR version LIKE ? ", fmt.Sprintf("%%%s%%", param.Keyword),
+			fmt.Sprintf("%%%s%%", param.Keyword))
+	}
+	// 查单个镜像
+	if param.ImageUniqueID > 0 {
+		sub := dal.db.Get().WithContext(ctx).Table(issueTableName).
+			Select("distinct unique_target").Where("image_unique_id = ?", param.ImageUniqueID)
+		// 查镜像的层级
+		if param.LayerDigest != "" {
+			sub = sub.Where("layer_digest = ?", param.LayerDigest)
+		}
+
+		db = db.Where("unique_id IN ( ? )", sub)
+	}
+	res := make([]*imagesecModel.Pkg, 0)
+	var cnt int64
+	if err := db.Count(&cnt).Error; err != nil {
+		return nil, 0, err
+	}
+	db = model.AddFilter(db, param.Filter)
+
+	if err := db.Find(&res).Error; err != nil {
+		return nil, 0, err
+	}
+	for i := range res {
+		res[i].Deserialize()
+	}
+	return res, cnt, nil
+}
+
+func (dal *ScanResultDao) CreateImageEnv(ctx context.Context, imageID uint64, data []*imagesecModel.ImageEnv) error {
+	if len(data) == 0 {
+		return nil
+	}
+	for i := range data {
+		if err := data[i].Check(); err != nil {
+			return err
+		}
+	}
+
+	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*20)
+	defer cancelFunc()
+	tableName := data[0].TableName()
+	dbPre := make([]*imagesecModel.ImageEnv, 0)
+	if err := dal.db.Get().Table(tableName).Where("image_unique_id = ?", imageID).Find(&dbPre).Error; err != nil {
+		return err
+	}
+
+	createData := make([]*imagesecModel.ImageEnv, 0)
+	deleteData := make([]int64, 0)
+
+	// find need delete data
+	for i := range dbPre {
+		needDelete := true
+		for j := range data {
+			if dbPre[i].Same(data[j]) {
+				needDelete = false
+				break
+			}
+		}
+		if needDelete {
+			deleteData = append(deleteData, dbPre[i].ID)
+		}
+	}
+	// find need create
+	for i := range data {
+		needCreate := true
+		for j := range dbPre {
+			if data[i].Same(dbPre[j]) {
+				needCreate = false
+				break
+			}
+		}
+		if needCreate {
+			createData = append(createData, data[i])
+		}
+	}
+
+	if len(deleteData) > 0 {
+		if err := dal.db.Get().WithContext(ctx).Table(tableName).Where("id IN  ? ", deleteData).Delete(&model.ImageEnv{}).Error; err != nil {
+			return err
+		}
+	}
+	for i := range createData {
+		if err := dal.db.Get().WithContext(ctx).Table(tableName).Create(createData[i]).Error; err != nil {
+			if strings.Contains(err.Error(), consts.DuplicateKey) {
+				continue
+			} else {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func (dal *ScanResultDao) SearchImageEnv(ctx context.Context, param imagesecModel.ScanResultSearchParam) ([]*imagesecModel.ImageEnv, int64, error) {
+
+	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*10)
+	defer cancelFunc()
+	m := &imagesecModel.ImageEnv{}
+	tableName := m.TableName()
+
+	db := dal.db.Get().WithContext(ctx).Table(tableName)
+
+	if len(param.UniqueIds) > 0 {
+		db = db.Where("unique_id IN ?", param.UniqueIds)
+	}
+	if param.Keyword != "" {
+		db = db.Where("`key` LIKE ? OR `value` LIKE ? ",
+			fmt.Sprintf("%%%s%%", param.Keyword), fmt.Sprintf("%%%s%%", param.Keyword))
+	}
+
+	// 查单个镜像
+	if param.ImageUniqueID > 0 {
+		db = db.Where("image_unique_id = ?", param.ImageUniqueID)
+	}
+
+	res := make([]*imagesecModel.ImageEnv, 0)
+	var cnt int64
+	if err := db.Count(&cnt).Error; err != nil {
+		return nil, 0, err
+	}
+	db = model.AddFilter(db, param.Filter)
+
+	if err := db.Find(&res).Error; err != nil {
+		return nil, 0, err
+	}
+	return res, cnt, nil
+}
+
+func (dal *ScanResultDao) CreateVuln(ctx context.Context, data []*imagesecModel.Vuln) error {
+
+	uniqueIds := make([]uint64, 0)
+	for i := range data {
+		data[i].UniqueID = data[i].GenUniqueID()
+		uniqueIds = append(uniqueIds, data[i].UniqueID)
+		data[i].Serialize()
+	}
+	if len(data) == 0 || len(uniqueIds) == 0 {
+		return nil
+	}
+	tableName := data[0].TableName()
+
+	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*1000)
+	defer cancelFunc()
+
+	dbPre, _, err := dal.SearchVuln(ctx, imagesecModel.ApiSearchVulnParam{VulnUniqueIds: uniqueIds})
+	if err != nil {
+		return err
+	}
+
+	createData := make([]*imagesecModel.Vuln, 0)
+	deleteData := make([]int64, 0)
+
+	// find need delete data
+	for i := range dbPre {
+		needDelete := true
+		for j := range data {
+			if dbPre[i].Same(data[j]) {
+				needDelete = false
+				break
+			}
+		}
+		if needDelete {
+			deleteData = append(deleteData, dbPre[i].ID)
+		}
+	}
+	// find need create
+	for i := range data {
+		needCreate := true
+		for j := range dbPre {
+			if data[i].Same(dbPre[j]) {
+				needCreate = false
+				break
+			}
+		}
+		if needCreate {
+			createData = append(createData, data[i])
+		}
+	}
+
+	if len(deleteData) > 0 {
+		if err := dal.db.Get().WithContext(ctx).Table(tableName).Where("id IN  ? ", deleteData).
+			Delete(&model.Sensitive{}).Error; err != nil {
+			return err
+		}
+	}
+	for i := range createData {
+		da := createData[i]
+		if err := dal.db.Get().WithContext(ctx).Table(tableName).Create(da).Error; err != nil {
+			if strings.Contains(err.Error(), consts.DuplicateKey) {
+				continue
+			} else {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func (dal *ScanResultDao) SearchVuln(ctx context.Context, param imagesecModel.ApiSearchVulnParam) ([]*imagesecModel.Vuln, int64, error) {
+	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*30)
+	defer cancelFunc()
+
+	db := dal.db.Get().WithContext(ctx).Table(new(imagesecModel.Vuln).TableName())
+
+	if len(param.VulnUniqueIds) > 0 {
+		db = db.Where("unique_id IN  ?", param.VulnUniqueIds)
+	}
+	if param.VulnUniqueID > 0 {
+		db = db.Where("unique_id =?", param.VulnUniqueID)
+	}
+	if param.VulnId > 0 {
+		db = db.Where("id = ? ", param.VulnId)
+	}
+	if len(param.Fields) > 0 {
+		db = db.Select(param.Fields)
+	}
+	if len(param.OmitFields) > 0 {
+		db = db.Omit(param.OmitFields...)
+	}
+
+	if param.OnlineImageVuln == consts.TrueString {
+		// 暂时不用，后期整合时再加
+	}
+
+	if len(param.VulnIds) > 0 {
+		db = db.Where("id IN ?", param.VulnIds)
+	}
+	if param.NeedKernel == consts.FalseString {
+		flag := util.SetBit1(0, imagesecModel.VulnFlagKernelPkg)
+		db = db.Where("flag & ? = 0", flag)
+	}
+	if len(param.ClassType) > 0 {
+		db = db.Where("`class` IN ?", param.ClassType)
+	}
+	if param.StartID > 0 {
+		db = db.Where("id > ?", param.StartID)
+	}
+	if param.ImageUniqueID > 0 {
+		itv := &imagesecModel.VulnToImage{}
+		vulnToImageTableName := itv.TableName()
+		sub := dal.db.Get().WithContext(ctx).Table(vulnToImageTableName).Select("distinct unique_target").
+			Where("image_unique_id =  ?", param.ImageUniqueID)
+		if param.ImageLayerDigest != "" {
+			sub = sub.Where("layer_digest = ?", param.ImageLayerDigest)
+		}
+
+		db = db.Where("unique_id IN (?)", sub)
+	}
+	if param.PkgUniqueID > 0 {
+		db = db.Where("pkg_unique_id = ?", param.PkgUniqueID)
+	}
+	if param.PkgName != "" {
+		db = db.Where("pkg_name = ?", param.PkgName)
+	}
+	if param.PkgVersion != "" {
+		db = db.Where("pkg_version = ?", param.PkgVersion)
+	}
+	if param.CanFixed == consts.TrueString || param.CanFixed == consts.YesString {
+		db = db.Where("fixed_version != ''")
+	}
+	if param.CanFixed == consts.FalseString || param.CanFixed == consts.NoString {
+		db = db.Where("fixed_version = ''")
+	}
+	if param.PkgKeyword != "" {
+		db = db.Where("pkg_name LIKE ? OR pkg_version LIKE ? ",
+			fmt.Sprintf("%%%s%%", param.PkgKeyword), fmt.Sprintf("%%%s%%", param.PkgKeyword))
+	}
+	if param.FrameKeyword != "" {
+		db = db.Where("frame LIKE ? ", fmt.Sprintf("%%%s%%", param.FrameKeyword))
+	}
+	if param.LanguageKeyword != "" {
+		db = db.Where("language LIKE ? ", fmt.Sprintf("%%%s%%", param.LanguageKeyword))
+	}
+	if param.VulnTargetKeyword != "" {
+		db = db.Where("target LIKE ? ", fmt.Sprintf("%%%s%%", param.VulnTargetKeyword))
+	}
+	if param.VulnKeyword != "" {
+		db = db.Where("name LIKE ? OR cnnvd_name LIKE ? ", fmt.Sprintf("%%%s%%", param.VulnKeyword),
+			fmt.Sprintf("%%%s%%", param.VulnKeyword))
+	}
+	if len(param.SeverityInt) > 0 {
+		db = db.Where("severity IN  ? ", param.SeverityInt)
+	}
+
+	res := make([]*imagesecModel.Vuln, 0)
+	var cnt int64
+	if !param.NotReturnCount {
+		db2 := db.Session(&gorm.Session{})
+		// https://cloud.tencent.com/developer/article/1658068
+		// 一般来说，mysql优化了count(*),count(*)也是性能更好的方式，但是我们环境中count(*)会耗时5s以上，用count(unique_vuln)到是很快，
+		// 没有找到具体原因，后面需要持续关注
+
+		if err := db2.Select("count(unique_id) as cnt").Find(&cnt).Error; err != nil {
+			return nil, 0, err
+		}
+	}
+
+	if param.JustReturnCount {
+		return nil, cnt, nil
+	}
+
+	db = model.AddFilter(db, param.Filter)
+	if err := db.Find(&res).Error; err != nil {
+		return nil, 0, err
+	}
+
+	for i := range res {
+		res[i].Deserialize()
+	}
+	return res, cnt, nil
+}

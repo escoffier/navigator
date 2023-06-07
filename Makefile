@@ -142,14 +142,6 @@ else
     --build-arg REPO=$(REPOPREFIX) -f ./build/scanner/baseimage-dockerfile .
 endif
 
-.PHONY: webshell-server
-webshell-server: 		## Build cleaner binary
-	@echo "+ $@"
-	CGO_ENABLED=1 CGO_LDFLAGS=-no-pie go build -v \
-		-o dist/webshell-server cmd/webshell-server/cmd/main.go
-	#upx --lzma --best dist/webshell-server
-	docker build -t $(REPOPREFIX)/webshell-server:latest -f ./build/webshell-server/Dockerfile .
-
 .PHONY: scanner
 scanner: generate		## Build scanner binary
 	@echo "+ $@"
@@ -191,6 +183,23 @@ else
 	#upx --lzma --best bin/daemon
 	docker build -f build/daemon/Dockerfile -t $(REPOPREFIX)/daemon:latest .
 endif
+
+.PHONY: node-image 
+node-image:  ## Build node-image binary
+	@echo "+ $@"
+ifeq ($(USEMIRROR),true)
+	@echo "node-image will use mirror"
+	CGO_ENABLED=1 go build -v -o dist/node-image cmd/node-image/main.go
+	#upx --lzma --best bin/daemon
+	docker build -f build/node-image/Dockerfile -t $(REPOPREFIX)/node-image:latest \
+        --build-arg GOPROXY=https://goproxy.cn --build-arg MIRROR=mirrors.aliyun.com .
+else
+	@echo "node-image will not use mirror"
+	go build -v -o dist/node-image cmd/node-image/main.go
+	#upx --lzma --best bin/daemon
+	docker build -f build/node-image/Dockerfile -t $(REPOPREFIX)/node-image:latest .
+endif
+
 
 
 .PHONY: scarecrow
@@ -341,7 +350,7 @@ kafka-proxy: generate
 .PHONY: scan_report
 scan_report: 		## Build cleaner binary
 	@echo "+ $@"
-	GOOS=linux GOARCH=amd64 go build -trimpath -v \
+	CGO_ENABLED=1 GOOS=linux GOARCH=amd64 go build -trimpath -v \
 		-o dist/scan_report cmd/scanner/bin/scan-report/main.go
 	#upx --lzma --best dist/scan_report
 	docker build -t $(REPOPREFIX)/scan-report:latest -f ./build/scan_report/Dockerfile .
@@ -362,7 +371,7 @@ cluster-proxy: generate
 
 .PHONY: all
 all: drift-prevention-client faulty scanner scarecrow console data holmes daemon  \
-webshell-server webhook cluster-manager kafka-proxy kube-scanner-report platform-report \
+webhook cluster-manager kafka-proxy kube-scanner-report platform-report \
 scan_report apiscan-job cluster-proxy
 
 .PHONY: base
@@ -410,7 +419,6 @@ ifeq ($(USERELEASE),true)
 	docker push $(REPOPREFIX)/holmes:$(RELEASEVERSION)
 	docker push $(REPOPREFIX)/daemon:$(RELEASEVERSION)
 	docker push $(REPOPREFIX)/waston-redis:$(RELEASEVERSION)
-	docker push $(REPOPREFIX)/webshell-server:$(RELEASEVERSION)
 	docker push $(REPOPREFIX)/webhook:$(RELEASEVERSION)
 	docker push $(REPOPREFIX)/cluster-manager:$(RELEASEVERSION)
 	docker push $(REPOPREFIX)/kafka-proxy:$(RELEASEVERSION)
@@ -428,7 +436,6 @@ else
 	docker push $(REPOPREFIX)/holmes:latest
 	docker push $(REPOPREFIX)/daemon:latest
 	docker push $(REPOPREFIX)/waston-redis:latest
-	docker push $(REPOPREFIX)/webshell-server:latest
 	docker push $(REPOPREFIX)/webhook:latest
 	docker push $(REPOPREFIX)/cluster-manager:latest
 	docker push $(REPOPREFIX)/kafka-proxy:latest
@@ -449,7 +456,6 @@ rm-local-images:
 	docker rmi $(REPOPREFIX)/holmes:latest
 	docker rmi $(REPOPREFIX)/daemon:latest
 	docker rmi $(REPOPREFIX)/waston-redis:latest
-	docker rmi $(REPOPREFIX)/webshell-server:latest
 	docker rmi $(REPOPREFIX)/webhook:latest
 	docker rmi $(REPOPREFIX)/cluster-manager:latest
 	docker rmi $(REPOPREFIX)/kafka-proxy:latest

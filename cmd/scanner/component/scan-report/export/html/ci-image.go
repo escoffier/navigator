@@ -13,28 +13,29 @@ import (
 
 	"gitlab.com/security-rd/go-pkg/logging"
 
-	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scan-report/common"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scan-report/types"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
+	"gitlab.com/piccolo_su/vegeta/pkg/model/imagesec"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 )
 
 // 镜像列表搜索的安全报告
 type ExportCiImageHtmlSrv struct {
-	ImageSrv      common.ImageInterface
+	ImageSrv      types.ImageSrvInterface
 	VulnDal       store.VulnDalInterface
 	ExportTaskDal store.ExportTaskDal
-	UpdateTask    common.UpdateExportTask
+	UpdateTask    types.UpdateExportTask
 	KoaAddr       string // 生成html的内部服务接口
 	FileDir       string // 文件存放的绝对路径
 }
 
 func NewExportCiImageHtmlSrv(
-	imageSrv common.ImageInterface,
+	imageSrv types.ImageSrvInterface,
 	vulnDal store.VulnDalInterface,
 	exportTaskDal store.ExportTaskDal,
-	updateTask common.UpdateExportTask,
+	updateTask types.UpdateExportTask,
 	fileDir string,
 ) *ExportCiImageHtmlSrv {
 	return &ExportCiImageHtmlSrv{
@@ -48,9 +49,9 @@ func NewExportCiImageHtmlSrv(
 }
 
 // 获取镜像ID和Name用于生成目录
-func (s *ExportCiImageHtmlSrv) GetImageIdNames(ctx context.Context, taskID int64) (*ImageIDNameWithTask, error) {
+func (s *ExportCiImageHtmlSrv) GetImageIdNames(ctx context.Context, taskID int64) (*types.ImageIDNameWithTask, error) {
 	logging.Get().Info().Int64("taskID", taskID).Msg("ExportCiImageHtmlSrv.GetImageIdNames start")
-	res := &ImageIDNameWithTask{TaskId: taskID, Images: make([]ImageIDName, 0)}
+	res := &types.ImageIDNameWithTask{TaskId: taskID, Images: make([]types.ImageIDName, 0)}
 
 	data, err := s.ExportTaskDal.SearchHtmlPrepare(ctx, taskID, model.ExportHtmlPrepareCicdImageDetail)
 	if err != nil {
@@ -61,7 +62,7 @@ func (s *ExportCiImageHtmlSrv) GetImageIdNames(ctx context.Context, taskID int64
 		logging.Get().Err(err).Int64("taskID", taskID).Msg("GetImages.SearchHtmlPrepare not find data")
 		return res, err
 	}
-	taskImages := make([]model.ImageWithCorrelateData, 0)
+	taskImages := make([]imagesec.ImageWithCorrelateData2, 0)
 
 	if err := json.Unmarshal([]byte(data[0].Data), &taskImages); err != nil {
 		logging.Get().Err(err).Int64("taskID", taskID).Msg("GetImages.SearchExportTaskImage")
@@ -69,7 +70,7 @@ func (s *ExportCiImageHtmlSrv) GetImageIdNames(ctx context.Context, taskID int64
 	}
 
 	for i := range taskImages {
-		res.Images = append(res.Images, ImageIDName{ImageID: taskImages[i].ImageBaseResponse.ID,
+		res.Images = append(res.Images, types.ImageIDName{ImageID: taskImages[i].ImageBaseResponse.ID,
 			ImageName: taskImages[i].ImageBaseResponse.GetImageName()})
 	}
 
@@ -78,11 +79,11 @@ func (s *ExportCiImageHtmlSrv) GetImageIdNames(ctx context.Context, taskID int64
 }
 
 // 镜像信息列表,cicd一次扫描任务的镜像不会太多，不用分批取
-func (s *ExportCiImageHtmlSrv) GetImages(ctx context.Context, taskID int64, starID int64) (*ImageResponse, error) {
+func (s *ExportCiImageHtmlSrv) GetImages(ctx context.Context, taskID int64, starID int64) (*types.ImageResponse, error) {
 	logging.Get().Info().Int64("taskID", taskID).Int64("startId", starID).Msg("ExportCiImageHtmlSrv.GetImages")
 
-	res := &ImageResponse{
-		Images: make([]Image, 0),
+	res := &types.ImageResponse{
+		Images: make([]types.Image, 0),
 		End:    true,
 	}
 
@@ -96,7 +97,7 @@ func (s *ExportCiImageHtmlSrv) GetImages(ctx context.Context, taskID int64, star
 		return res, nil
 	}
 
-	taskImages := make([]model.ImageWithCorrelateData, 0)
+	taskImages := make([]imagesec.ImageWithCorrelateData2, 0)
 
 	if err := json.Unmarshal([]byte(data[0].Data), &taskImages); err != nil {
 		logging.Get().Err(err).Int64("taskID", taskID).Int64("startID", starID).Msg("GetImages.SearchExportTaskImage")
@@ -105,11 +106,11 @@ func (s *ExportCiImageHtmlSrv) GetImages(ctx context.Context, taskID int64, star
 
 	for i := range taskImages {
 		baseImage := taskImages[i].ImageBaseResponse
-		im := Image{
+		im := types.Image{
 			ImageID:     baseImage.ID,
 			ImageName:   baseImage.GetImageName(),
-			FixedVuln:   VulnSeverityCount{},
-			UnFixedVuln: VulnSeverityCount{},
+			FixedVuln:   types.VulnSeverityCount{},
+			UnFixedVuln: types.VulnSeverityCount{},
 			RiskScore:   baseImage.RiskScore,
 			Flag:        baseImage.Flag,
 		}
@@ -124,8 +125,8 @@ func (s *ExportCiImageHtmlSrv) GetImages(ctx context.Context, taskID int64, star
 }
 
 // 风险总览
-func (s *ExportCiImageHtmlSrv) GetRiskOverView(ctx context.Context, taskID int64) (*RiskOverView, error) {
-	risk := &RiskOverView{}
+func (s *ExportCiImageHtmlSrv) GetRiskOverView(ctx context.Context, taskID int64) (*types.RiskOverView, error) {
+	risk := &types.RiskOverView{}
 	data, err := s.ExportTaskDal.SearchHtmlPrepare(ctx, taskID, model.ExportHtmlPrepareCicdImageDetail)
 	if err != nil {
 		logging.Get().Err(err).Int64("taskID", taskID).Msg("ExportCiImageHtmlSrv.GetRiskOverView.SearchHtmlPrepare")
@@ -136,14 +137,14 @@ func (s *ExportCiImageHtmlSrv) GetRiskOverView(ctx context.Context, taskID int64
 		return risk, nil
 	}
 
-	taskImages := make([]model.ImageWithCorrelateData, 0)
+	taskImages := make([]imagesec.ImageWithCorrelateData2, 0)
 
 	if err := json.Unmarshal([]byte(data[0].Data), &taskImages); err != nil {
 		logging.Get().Err(err).Int64("taskID", taskID).Msg("ExportCiImageHtmlSrv.GetRiskOverView.SearchExportTaskImage")
 		return nil, err
 	}
 
-	images := make([]*model.ImageBaseResponse, 0)
+	images := make([]*imagesec.ImageBaseResponse, 0)
 	imageNames := make([]string, 0)
 	for i := range taskImages {
 		images = append(images, &(taskImages[i].ImageBaseResponse))
@@ -158,7 +159,7 @@ func (s *ExportCiImageHtmlSrv) GetRiskOverView(ctx context.Context, taskID int64
 			risk.StatisticsVulnSeverity(model.ExportVulnImage{
 				TaskID:   taskID,
 				Severity: vu.SeverityInt,
-				CanFixed: vu.FixedBy != "",
+				CanFixed: vu.FixedVersion != "",
 				Images:   imageNames,
 			})
 		}
@@ -168,24 +169,25 @@ func (s *ExportCiImageHtmlSrv) GetRiskOverView(ctx context.Context, taskID int64
 }
 
 // 病毒列表
-func (s *ExportCiImageHtmlSrv) GetVirus(ctx context.Context, taskID int64) ([]VirusInfo, error) {
+func (s *ExportCiImageHtmlSrv) GetVirus(ctx context.Context, taskID int64) ([]types.VirusInfo, error) {
 	logging.Get().Info().Int64("taskID", taskID).Msg("ExportCiImageHtmlSrv.GetVirus start")
-	res := make([]VirusInfo, 0)
+	res := make([]types.VirusInfo, 0)
 	return res, nil
 }
 
 // 按层取漏洞信息 canFixed:"true"，取可修复的，"false"取不可修复的，""表示取全部
 // 首页信息，所有漏洞
-func (s *ExportCiImageHtmlSrv) GetExportVuln(ctx context.Context, param GetExportVulnParam) (*VulnWithImageResponse, error) {
+func (s *ExportCiImageHtmlSrv) GetExportVuln(ctx context.Context, param types.GetExportVulnParam) (
+	*types.VulnWithImageResponse, error) {
 	if param.TaskID <= 0 {
 		return nil, fmt.Errorf("GetExportVuln not get taskID:%d", param.TaskID)
 	}
 
-	logging.Get().Info().Int64("taskID", param.TaskID).Int64("imageID", param.ImageID).Int("severity", param.Severity).
+	logging.Get().Info().Int64("taskID", param.TaskID).Int64("imageID", param.ImageID).Int64("severity", param.Severity).
 		Msg("ExportCiImageHtmlSrv.GetImageVuln start")
 
-	res := &VulnWithImageResponse{
-		Vulns: make([]VulnWithImage, 0),
+	res := &types.VulnWithImageResponse{
+		Vulns: make([]types.VulnWithImage, 0),
 		End:   true,
 	}
 
@@ -200,7 +202,7 @@ func (s *ExportCiImageHtmlSrv) GetExportVuln(ctx context.Context, param GetExpor
 		return res, nil
 	}
 
-	taskImages := make([]model.ImageWithCorrelateData, 0)
+	taskImages := make([]imagesec.ImageWithCorrelateData2, 0)
 
 	if err := json.Unmarshal([]byte(data[0].Data), &taskImages); err != nil {
 		logging.Get().Err(err).Int64("taskID", param.TaskID).Msg("GetImages.SearchExportTaskImage")
@@ -219,35 +221,36 @@ func (s *ExportCiImageHtmlSrv) GetExportVuln(ctx context.Context, param GetExpor
 			if vu.SeverityInt != param.Severity {
 				continue
 			}
-			if (param.CanFixed == consts.TrueString && vu.FixedBy == "") || (param.CanFixed == consts.FalseString && vu.FixedBy != "") {
+			if (param.CanFixed == consts.TrueString && vu.FixedVersion == "") || (param.CanFixed == consts.FalseString && vu.FixedVersion != "") {
 				continue
 			}
-			res.Vulns = append(res.Vulns, VulnWithImage{
+			res.Vulns = append(res.Vulns, types.VulnWithImage{
 				Images:     imageNames,
-				VulnDetail: ModelToVulnDetail(taskImages[i].Vuln[j]),
+				VulnDetail: types.ModelToVulnDetail(taskImages[i].Vuln[j]),
 			})
 		}
 	}
 
-	logging.Get().Info().Int64("taskID", param.TaskID).Int("severity", param.Severity).Str("canFixed", param.CanFixed).
+	logging.Get().Info().Int64("taskID", param.TaskID).Int64("severity", param.Severity).Str("canFixed", param.CanFixed).
 		Int("vulns", len(res.Vulns)).Bool("isEnd", res.End).Msg("ExportCiImageHtmlSrv.GetExportVuln finished")
 	return res, nil
 }
 
 // 按层级获取镜像的漏洞信息
 // 单个镜像
-func (s *ExportCiImageHtmlSrv) GetImageVuln(ctx context.Context, param GetExportVulnParam) (*VulnWithImageResponse, error) {
+func (s *ExportCiImageHtmlSrv) GetImageVuln(ctx context.Context, param types.GetExportVulnParam) (
+	*types.VulnWithImageResponse, error) {
 	if param.TaskID <= 0 {
 		return nil, fmt.Errorf("GetExportVuln not get taskID:%d", param.TaskID)
 	}
 	if param.ImageID <= 0 {
 		return nil, fmt.Errorf("GetExportVuln not get imageID:%d", param.ImageID)
 	}
-	logging.Get().Info().Int64("taskID", param.TaskID).Int64("imageID", param.ImageID).Int("severity", param.Severity).
+	logging.Get().Info().Int64("taskID", param.TaskID).Int64("imageID", param.ImageID).Int64("severity", param.Severity).
 		Msg("ExportLibImageHtmlSrv.GetImageVuln start")
 
-	res := &VulnWithImageResponse{
-		Vulns: make([]VulnWithImage, 0),
+	res := &types.VulnWithImageResponse{
+		Vulns: make([]types.VulnWithImage, 0),
 		End:   true,
 	}
 
@@ -261,7 +264,7 @@ func (s *ExportCiImageHtmlSrv) GetImageVuln(ctx context.Context, param GetExport
 		return res, nil
 	}
 
-	taskImages := make([]model.ImageWithCorrelateData, 0)
+	taskImages := make([]imagesec.ImageWithCorrelateData2, 0)
 
 	if err := json.Unmarshal([]byte(data[0].Data), &taskImages); err != nil {
 		logging.Get().Err(err).Int64("taskID", param.TaskID).Msg("GetImages.SearchExportTaskImage")
@@ -283,20 +286,20 @@ func (s *ExportCiImageHtmlSrv) GetImageVuln(ctx context.Context, param GetExport
 			if vu.SeverityInt != param.Severity {
 				continue
 			}
-			res.Vulns = append(res.Vulns, VulnWithImage{
+			res.Vulns = append(res.Vulns, types.VulnWithImage{
 				Images:     imageNames,
-				VulnDetail: ModelToVulnDetail(taskImages[i].Vuln[j]),
+				VulnDetail: types.ModelToVulnDetail(taskImages[i].Vuln[j]),
 			})
 		}
 	}
 
-	logging.Get().Info().Int64("taskID", param.TaskID).Int("severity", param.Severity).Int64("imageID", param.ImageID).Int("vulnCnt", len(res.Vulns)).
-		Msg("ExportCiImageHtmlSrv.GetImageVuln finished")
+	logging.Get().Info().Int64("taskID", param.TaskID).Int64("severity", param.Severity).Int64("imageID", param.ImageID).
+		Int("vulnCnt", len(res.Vulns)).Msg("ExportCiImageHtmlSrv.GetImageVuln finished")
 	return res, nil
 }
 
 // 单个镜像风险报告
-func (s *ExportCiImageHtmlSrv) GetImageRisk(ctx context.Context, taskID, imageID int64) (*ImageRiskOverView, error) {
+func (s *ExportCiImageHtmlSrv) GetImageRisk(ctx context.Context, taskID, imageID int64) (*types.ImageRiskOverView, error) {
 	logging.Get().Info().Int64("taskID", taskID).Int64("imageID", imageID).Msg("ExportCiImageHtmlSrv.GetImageRisk start")
 
 	task, _, err := s.ExportTaskDal.SearchExportTensorTask(ctx, store.SearchExportTensorTask{ID: taskID}, nil)
@@ -309,11 +312,10 @@ func (s *ExportCiImageHtmlSrv) GetImageRisk(ctx context.Context, taskID, imageID
 		return nil, err
 	}
 
-	res := &ImageRiskOverView{
+	res := &types.ImageRiskOverView{
 		ImageID:           imageID,
 		ImageName:         "",
-		VulnSeverityCount: VulnSeverityCount{},
-		FixSuggestion:     make([]string, 0),
+		VulnSeverityCount: types.VulnSeverityCount{},
 	}
 	data, err := s.ExportTaskDal.SearchHtmlPrepare(ctx, taskID, model.ExportHtmlPrepareCicdImageDetail)
 	if err != nil {
@@ -325,7 +327,7 @@ func (s *ExportCiImageHtmlSrv) GetImageRisk(ctx context.Context, taskID, imageID
 		return res, nil
 	}
 
-	taskImages := make([]model.ImageWithCorrelateData, 0)
+	taskImages := make([]imagesec.ImageWithCorrelateData2, 0)
 
 	if err := json.Unmarshal([]byte(data[0].Data), &taskImages); err != nil {
 		logging.Get().Err(err).Int64("taskID", taskID).Int64("imageID", imageID).Msg("GetImages.SearchExportTaskImage")
@@ -335,9 +337,9 @@ func (s *ExportCiImageHtmlSrv) GetImageRisk(ctx context.Context, taskID, imageID
 		im := taskImages[i]
 		if im.ImageBaseResponse.ID == imageID {
 			res.ImageName = im.ImageBaseResponse.GetImageName()
-			res.FixSuggestion = append(res.FixSuggestion, im.GenVulnSuggest(task[0].Lang)...)
-			res.FixSuggestion = append(res.FixSuggestion, im.GenSensitiveFileSuggest(task[0].Lang)...)
-			res.VulnSeverityCount = StatisticsVulnSeverity(taskImages[i].Vuln)
+			res.VulnFixSuggestion = im.GenVulnSuggest()
+			res.SensitiveFixSuggestion = im.GenSensitiveFileSuggest()
+			res.VulnSeverityCount = types.StatisticsVulnSeverity(taskImages[i].Vuln)
 		}
 	}
 
@@ -346,7 +348,7 @@ func (s *ExportCiImageHtmlSrv) GetImageRisk(ctx context.Context, taskID, imageID
 }
 
 // 查询当前导出服务的状态
-func (s *ExportCiImageHtmlSrv) getKoaStatus(ctx context.Context, taskID int64) (*KoaResponse, error) {
+func (s *ExportCiImageHtmlSrv) getKoaStatus(ctx context.Context, taskID int64) (*types.KoaResponse, error) {
 
 	url := fmt.Sprintf("%s/api/v1/middle/statusHtml?taskID=%d", s.KoaAddr, taskID)
 	logging.Get().Info().Int64("taskID", taskID).Str("url", url).Msg("ExportCiImageHtmlSrv.getKoaStatus start")
@@ -362,7 +364,7 @@ func (s *ExportCiImageHtmlSrv) getKoaStatus(ctx context.Context, taskID int64) (
 	if rsp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("unexpected status code in updatenodes: %d", rsp.StatusCode)
 	}
-	response := &KoaResponse{}
+	response := &types.KoaResponse{}
 	if err := json.NewDecoder(rsp.Body).Decode(response); err != nil {
 		return nil, err
 	}
@@ -424,7 +426,7 @@ func (s *ExportCiImageHtmlSrv) createExportHtml(ctx context.Context, task model.
 		return fmt.Errorf("unexpected status code in updatenodes: %d", rsp.StatusCode)
 	}
 
-	response := KoaResponse{}
+	response := types.KoaResponse{}
 
 	if err := json.NewDecoder(rsp.Body).Decode(&response); err != nil {
 		return err
@@ -432,7 +434,8 @@ func (s *ExportCiImageHtmlSrv) createExportHtml(ctx context.Context, task model.
 	if response.Code != consts.KoaCodeSuccess {
 		return fmt.Errorf("export html task create failed:%s,taskID:%d", response.Msg, task.ID)
 	}
-	logging.Get().Info().Int64("taskID", task.ID).Str("url", url).Str("filePath", postData.FilePath).Msg("ExportCiImageHtmlSrv.createExportHtml finished")
+	logging.Get().Info().Int64("taskID", task.ID).Str("url", url).Str("filePath", postData.FilePath).
+		Msg("ExportCiImageHtmlSrv.createExportHtml finished")
 	return nil
 }
 
@@ -461,15 +464,15 @@ func (s *ExportCiImageHtmlSrv) Run(ctx context.Context) {
 	}
 	task := tasks[0]
 	// 支持横向扩展
-	created, err := s.ExportTaskDal.CreateExportIdempotent(ctx, task.ID)
-	if err != nil {
-		logging.Get().Err(err).Str("TaskType", model.ExportHtml).Msg("ExportCiImageHtmlSrv CreateExportIdempotent")
-		return
-	}
-	if !created {
-		logging.Get().Info().Str("TaskType", model.ExportHtml).Msg("ExportCiImageHtmlSrv task running other pod ")
-		return
-	}
+	// created, err := s.ExportTaskDal.CreateExportIdempotent(ctx, task.ID)
+	// if err != nil {
+	// 	logging.Get().Err(err).Str("TaskType", model.ExportHtml).Msg("ExportCiImageHtmlSrv CreateExportIdempotent")
+	// 	return
+	// }
+	// if !created {
+	// 	logging.Get().Info().Str("TaskType", model.ExportHtml).Msg("ExportCiImageHtmlSrv task running other pod ")
+	// 	return
+	// }
 
 	if err := s.UpdateTask.Start(ctx, task.ID); err != nil {
 		logging.Get().Err(err).Int64("taskID", task.ID).Str("filePath", task.FilePath).Msg("ExportCiImageHtmlSrv export html Start")
@@ -548,9 +551,9 @@ func (s *ExportCiImageHtmlSrv) Run(ctx context.Context) {
 			logging.Get().Info().Int64("taskID", task.ID).Msg("export html execute failure")
 			if len(status.Data.FailedMsg) == 0 {
 				if status.Msg != "" {
-					status.Data.FailedMsg = []FailedMsg{{Message: status.Msg}}
+					status.Data.FailedMsg = []types.FailedMsg{{Message: status.Msg}}
 				}
-				status.Data.FailedMsg = []FailedMsg{{Message: "未知错误"}}
+				status.Data.FailedMsg = []types.FailedMsg{{Message: "未知错误"}}
 			}
 			errMsg := status.Data.FailedMsg[len(status.Data.FailedMsg)-1].Message
 

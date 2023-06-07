@@ -25,6 +25,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/compress"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
+	"gitlab.com/piccolo_su/vegeta/pkg/model/imagesec"
 	scanreport "gitlab.com/piccolo_su/vegeta/pkg/model/scan-report"
 	scannermodel "gitlab.com/piccolo_su/vegeta/pkg/model/scanner-model"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
@@ -60,10 +61,7 @@ func (sp *SearchImageWithScanParam) genFlag() uint64 {
 	if sp.HasFixedVulu == consts.HasFixedvulnString {
 		flag = 1<<model.FlagHasFixedVuln + flag
 	}
-	if sp.IsReinforce == consts.IsReinforceImageString {
-		flag = 1<<model.FlagReinforced + flag
-	}
-	split := util.DeDuplicationStringSlice(strings.Split(sp.Kind, ","))
+	split := util.DuplicateStringSlice(strings.Split(sp.Kind, ","))
 	kinds := make([]int64, 0)
 
 	for _, f := range split {
@@ -73,7 +71,7 @@ func (sp *SearchImageWithScanParam) genFlag() uint64 {
 		}
 		kinds = append(kinds, ff)
 	}
-	kinds = util.DeDuplicationInt64Slice(kinds)
+	kinds = util.DuplicateInt64Slice(kinds)
 	for _, kind := range kinds {
 		for _, imageFlag := range model.GetAllFlag() {
 			if uint64(kind) == imageFlag {
@@ -149,7 +147,6 @@ type ConScannerSrv struct {
 	scanConfigDal store.ScanConfigDal
 	webshellDal   store.WebshellDal
 	palaceHandler *palace.Palace
-	ImageSrv      ImageSrvInterface
 }
 
 type ImageOverviewRes struct {
@@ -169,7 +166,7 @@ func (s *ConScannerSrv) ImageOverview(ctx context.Context, uuids []uint32) ([]Im
 		return res, nil
 	}
 	// 查出有扫描结果的镜像
-	images, _, err := s.dbdal.SearchImage(ctx, store.SearchImageParam{UUIDs: uuids}, nil)
+	images, _, err := s.dbdal.SearchImage(ctx, imagesec.SearchImageParam{UUIDs: uuids}, nil)
 	if err != nil {
 		logging.GetLogger().Err(err).Msg("SearchImages.SearchImage")
 		return nil, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf(consts.StatusInternalServerErrorMsg))
@@ -259,11 +256,11 @@ func (s *ConScannerSrv) SearchImages(ctx context.Context, param SearchImageParam
 		registryIds = append(registryIds, registries[i].ID)
 	}
 
-	images, cnt, err := s.dbdal.SearchImage(ctx, store.SearchImageParam{
+	images, cnt, err := s.dbdal.SearchImage(ctx, imagesec.SearchImageParam{
 		InIds:        param.ImageIds,
 		Tag:          param.Tags,
 		FullRepoName: param.FullRepoName,
-		Keyword:      param.Search,
+		ImageKeyword: param.Search,
 		RegistryIds:  registryIds,
 		UUIDs:        param.UUIDs,
 		Fields:       param.Fields,
@@ -335,7 +332,7 @@ func (s *ConScannerSrv) GetStrategyForEnv(ctx context.Context, envName string) (
 
 // 获取应用镜像的基础镜像列表
 func (s *ConScannerSrv) ListBaseImageOfApp(ctx context.Context, imageID int64, keyword string, filter *model.Filter) ([]model.ImageList, int64, error) {
-	images, _, err := s.dbdal.SearchImage(ctx, store.SearchImageParam{InIds: []int64{imageID}}, nil)
+	images, _, err := s.dbdal.SearchImage(ctx, imagesec.SearchImageParam{InIds: []int64{imageID}}, nil)
 	if err != nil {
 		logging.GetLogger().Err(err).Msg("ListBaseImageOfApp")
 		return nil, 0, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf("获取基础镜像出错"))
@@ -358,7 +355,7 @@ func (s *ConScannerSrv) ListBaseImageOfApp(ctx context.Context, imageID int64, k
 		registryIds = append(registryIds, noDeleteRegistries[i].ID)
 	}
 
-	baseImages, _, err := s.dbdal.SearchImage(ctx, store.SearchImageParam{AttrFlag: util.SetBit1(0, model.FlagBaseImage), Keyword: keyword, RegistryIds: registryIds}, nil)
+	baseImages, _, err := s.dbdal.SearchImage(ctx, imagesec.SearchImageParam{ImageAttrFlag: util.SetBit1(0, model.FlagBaseImage), ImageKeyword: keyword, RegistryIds: registryIds}, nil)
 	if err != nil {
 		logging.GetLogger().Err(err).Msg("ListBaseImageOfApp")
 		return nil, 0, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf("获取基础镜像出错"))
@@ -418,7 +415,7 @@ func (s *ConScannerSrv) UpdateImageType(ctx context.Context, imageIds []int64, i
 		return fmt.Errorf("请指定更新的ID")
 	}
 
-	ims, _, err := s.dbdal.SearchImage(ctx, store.SearchImageParam{InIds: imageIds, OmitFields: []string{"config_json", "manifest_v1_json", "manifest_v2_json"}}, nil)
+	ims, _, err := s.dbdal.SearchImage(ctx, imagesec.SearchImageParam{InIds: imageIds, OmitFields: []string{"config_json", "manifest_v1_json", "manifest_v2_json"}}, nil)
 	if err != nil {
 		return response.NewHttpError(http.StatusInternalServerError, errors.New("查询要更新镜像出错"))
 	}
@@ -502,7 +499,7 @@ func (s *ConScannerSrv) K8sDeployDetect(ctx context.Context, containerInfo []mod
 			continue
 		}
 
-		imgs, _, err := s.dbdal.SearchImage(ctx, store.SearchImageParam{
+		imgs, _, err := s.dbdal.SearchImage(ctx, imagesec.SearchImageParam{
 			Libraries:    []string{tmpImage.Library, "https://" + tmpImage.Library, "http://" + tmpImage.Library},
 			Tag:          tmpImage.Tags,
 			FullRepoName: tmpImage.FullRepoName,
@@ -651,7 +648,7 @@ func (s *ConScannerSrv) K8sOnlineMonitor(ctx context.Context, containerInfo []mo
 
 func (s *ConScannerSrv) ScanOneForCICDResult(ctx context.Context, req *model.ScanOneCICDResultRequest) (*model.ScanOneForCICDResponse, error) {
 
-	img, _, err := s.dbdal.SearchImage(ctx, store.SearchImageParam{InIds: []int64{req.ImageID}}, nil)
+	img, _, err := s.dbdal.SearchImage(ctx, imagesec.SearchImageParam{InIds: []int64{req.ImageID}}, nil)
 	if err != nil {
 		logging.GetLogger().Err(err).Msg("CICD ScanOneForCICDResult search image")
 		return nil, err
@@ -793,7 +790,7 @@ func (s *ConScannerSrv) ScanOneForCICD(ctx context.Context, req *model.ScanOneFo
 	if err != nil {
 		logging.GetLogger().Err(err).Msg("ScanOneForCICD.unmarshal config json error")
 	} else {
-		if config.Config.User == "" || strings.Contains(config.Config.User, "root") {
+		if config.Config.User == "" || strings.Contains(config.Config.User, consts.BootRootUser) {
 			img.PrivilegedBoot = consts.PrivilegedBootImage
 		}
 		for _, v := range config.History {
@@ -814,17 +811,17 @@ func (s *ConScannerSrv) ScanOneForCICD(ctx context.Context, req *model.ScanOneFo
 	var scanStrategyID int64
 	libs, _, err := s.dbdal.SearchRegistry(ctx, store.SearchRegistryParam{LibraryURL: lib}, nil)
 	if err == nil && len(libs) > 0 {
-		config, _, err := s.scanConfigDal.SearchScanConfig(ctx, store.SearchScanConfigParam{}, nil)
+		cfg, _, err := s.scanConfigDal.SearchScanConfig(ctx, store.SearchScanConfigParam{}, nil)
 		if err != nil {
 			logging.GetLogger().Err(err).Msg("CICD SearchScanConfig")
-		} else if len(config) > 0 {
-			if config[0].LibraryImageConfig != nil {
-				if config[0].LibraryImageConfig.ScanAll {
-					scanStrategyID = config[0].LibraryImageConfig.StrategyID
+		} else if len(cfg) > 0 {
+			if cfg[0].LibraryImageConfig != nil {
+				if cfg[0].LibraryImageConfig.ScanAll {
+					scanStrategyID = cfg[0].LibraryImageConfig.StrategyID
 				}
-				for i := range config[0].LibraryImageConfig.Libraries {
-					if config[0].LibraryImageConfig.Libraries[i] == libs[0].ID {
-						scanStrategyID = config[0].LibraryImageConfig.StrategyID
+				for i := range cfg[0].LibraryImageConfig.Libraries {
+					if cfg[0].LibraryImageConfig.Libraries[i] == libs[0].ID {
+						scanStrategyID = cfg[0].LibraryImageConfig.StrategyID
 						continue
 					}
 				}
@@ -838,7 +835,7 @@ func (s *ConScannerSrv) ScanOneForCICD(ctx context.Context, req *model.ScanOneFo
 		Scope:       consts.SingleScan,
 		TriggerType: consts.CiCdTrigger,
 		StrategyID:  scanStrategyID,
-		Operator:    consts.CicdOperator,
+		Operator:    imagesec.CicdOperatorZH,
 	}); err != nil {
 		logging.GetLogger().Err(err).Msgf("CICD TickScanOne failure, imag Id:" + strconv.Itoa(int(createdImage.ID)))
 		return nil, fmt.Errorf("issuing scan command error:%s", err.Error())
@@ -901,7 +898,7 @@ func (s *ConScannerSrv) GetOnlineVulnTopN(ctx context.Context, topN int64) ([]mo
 			ImageID: topNImage[i].ImageID,
 		}
 	}
-	images, _, err := s.dbdal.SearchImage(ctx, store.SearchImageParam{InIds: imageIds,
+	images, _, err := s.dbdal.SearchImage(ctx, imagesec.SearchImageParam{InIds: imageIds,
 		OmitFields: []string{"config_json", "manifest_v1_json", "manifest_v2_json"}}, nil)
 	if err != nil {
 		logging.GetLogger().Err(err).Msg("GetOnlineVulnTopN")
@@ -994,7 +991,7 @@ func (s *ConScannerSrv) ImgLayerInfo(ctx context.Context, imageID int64, layerDi
 // ListImgLayers List  all layers  information  with  this image. order by created time
 func (s *ConScannerSrv) ListImgLayers(ctx context.Context, imaID int64, filter *model.Filter) ([]model.ReportImgBackInfo, error) {
 	// step1 get image info
-	imgs, _, err := s.dbdal.SearchImage(ctx, store.SearchImageParam{InIds: []int64{imaID}}, nil)
+	imgs, _, err := s.dbdal.SearchImage(ctx, imagesec.SearchImageParam{InIds: []int64{imaID}}, nil)
 	if err != nil {
 		logging.GetLogger().Err(err).Msgf("ReportImgBackInfo.SearchImage")
 		return nil, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf(consts.StatusInternalServerErrorMsg))
@@ -1133,7 +1130,7 @@ func (s *ConScannerSrv) GetImageDetail(ctx context.Context, imgID int64) (*model
 		registryIds = append(registryIds, noDeleteRegistries[i].ID)
 	}
 
-	imgs, _, err := s.dbdal.SearchImage(ctx, store.SearchImageParam{InIds: []int64{imgID}, RegistryIds: registryIds}, nil)
+	imgs, _, err := s.dbdal.SearchImage(ctx, imagesec.SearchImageParam{InIds: []int64{imgID}, RegistryIds: registryIds}, nil)
 	if err != nil {
 		logging.GetLogger().Err(err).Msg("GetImageDetail.SearchImage ")
 		return nil, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf(consts.StatusInternalServerErrorMsg))
@@ -1355,7 +1352,7 @@ func (s *ConScannerSrv) GetImageOverView(ctx context.Context, fromType int64) (*
 		if model.ExistFlag(groups[i].Flag, model.FlagHasExceptEnv) {
 			overView.Sum.Envs += groups[i].Count
 		}
-		if model.ExistFlag(groups[i].Flag, model.FlagHasSoftware) {
+		if model.ExistFlag(groups[i].Flag, model.FlagHasExceptPKG) {
 			overView.Sum.Software += groups[i].Count
 		}
 		if model.ExistFlag(groups[i].Flag, model.FlagHasExceptLicense) {
@@ -1389,7 +1386,7 @@ func (s *ConScannerSrv) GetImageOverView(ctx context.Context, fromType int64) (*
 		if model.ExistFlag(onlinGroups[i].Flag, model.FlagHasExceptEnv) {
 			overView.Online.Envs += onlinGroups[i].Count
 		}
-		if model.ExistFlag(onlinGroups[i].Flag, model.FlagHasSoftware) {
+		if model.ExistFlag(onlinGroups[i].Flag, model.FlagHasExceptPKG) {
 			overView.Online.Software += onlinGroups[i].Count
 		}
 		if model.ExistFlag(onlinGroups[i].Flag, model.FlagHasExceptLicense) {
@@ -1420,10 +1417,9 @@ func (s *ConScannerSrv) SearchImageWithScan(ctx context.Context, param SearchIma
 		registryIds = util.GetIntersectionSetForInt64(registryIds, param.RegistryIds)
 	}
 
-	daoParam := store.SearchImageParam{
+	daoParam := imagesec.SearchImageParam{
 		RegistryIds:  registryIds,
-		Keyword:      param.SearchWord,
-		NodeHostname: param.NodeHostname,
+		ImageKeyword: param.SearchWord,
 		OmitFields:   []string{"config_json", "manifest_v1_json", "manifest_v2_json"},
 		UUIDs:        param.UUIDs,
 	}
@@ -1497,8 +1493,8 @@ func (s *ConScannerSrv) SearchImageWithScan(ctx context.Context, param SearchIma
 			return make([]*model.ImageResponse, 0), 0, nil
 		}
 	}
-	daoParam.InIds = util.DeDuplicationInt64Slice(inIds)
-	daoParam.NotInIds = util.DeDuplicationInt64Slice(notInIds)
+	daoParam.InIds = util.DuplicateInt64Slice(inIds)
+	daoParam.NotInIds = util.DuplicateInt64Slice(notInIds)
 
 	logging.GetLogger().Info().Interface("daoparam", daoParam).Msg("SearchImageWithScan.SearchImage")
 
@@ -1606,9 +1602,6 @@ func (s *ConScannerSrv) SearchImageWithScan(ctx context.Context, param SearchIma
 		if model.ExistFlag(res[i].Flag, model.FlagBaseImage) {
 			res[i].ImageType = model.BaseImageType
 		}
-		if model.ExistFlag(res[i].Flag, model.FlagReinforced) {
-			res[i].IsReinforce = consts.IsReinforceImage
-		}
 		if model.ExistFlag(res[i].Flag, model.FlagPrivilegedBoot) {
 			res[i].Questions = append(res[i].Questions, model.QuestionInfo{ID: model.FlagPrivilegedBoot})
 		}
@@ -1638,7 +1631,7 @@ func (s *ConScannerSrv) SearchImageWithScan(ctx context.Context, param SearchIma
 func (s *ConScannerSrv) filterScanStatus(ctx context.Context, status []int64) ([]int64, error) {
 	// 先查全部镜像数据
 	inIds := make([]int64, 0)
-	image, _, err := s.dbdal.SearchImage(ctx, store.SearchImageParam{Fields: []string{"id"}}, nil)
+	image, _, err := s.dbdal.SearchImage(ctx, imagesec.SearchImageParam{Fields: []string{"id"}}, nil)
 	if err != nil {
 		return inIds, err
 	}
@@ -2060,7 +2053,7 @@ func (s *ConScannerSrv) checkWebshell(ctx context.Context, scanImage model.ScanI
 
 		case model.RejectPolicyReject:
 			safe = false
-			msgLog := fmt.Sprintf("Image:%s/%s:%s  Level is :%v", img.Library, img.FullRepoName, img.Tags, po.WebshellLevel)
+			msgLog := fmt.Sprintf("Image:%s/%s:%s  RiskLevel is :%v", img.Library, img.FullRepoName, img.Tags, po.WebshellLevel)
 			logging.GetLogger().Info().Msgf("include webshell than the config,%s，被阻断", msgLog)
 			records = append(records, ReasonAndDetail{
 				RejectReason: model.RejectReasonWebshellScore,
@@ -2189,7 +2182,7 @@ func (s *ConScannerSrv) checkImageExist(ctx context.Context, usePattern string, 
 		registryIds = append(registryIds, noDeleteRegistries[i].ID)
 	}
 	// 通过library+fullreponame+tag的方式去查询
-	img1, _, err := s.dbdal.SearchImage(ctx, store.SearchImageParam{
+	img1, _, err := s.dbdal.SearchImage(ctx, imagesec.SearchImageParam{
 		Libraries:    []string{img.Library, "https://" + img.Library, "http://" + img.Library},
 		FullRepoName: img.FullRepoName,
 		Tag:          img.Tags,
@@ -2671,7 +2664,7 @@ func (s *ConScannerSrv) DetectImageForK8s(ctx context.Context, img *model.ImageL
 	msgs := make([]model.KVHashs, 0)
 	safe := true
 
-	imgs, _, err := s.dbdal.SearchImage(ctx, store.SearchImageParam{InIds: []int64{img.ID}}, nil)
+	imgs, _, err := s.dbdal.SearchImage(ctx, imagesec.SearchImageParam{InIds: []int64{img.ID}}, nil)
 	if err != nil {
 		logging.GetLogger().Err(err).Msgf("K8sDeployDetect,find the img :%d,error", img.ID)
 		return false, records, msgs, err
@@ -3295,7 +3288,7 @@ func (s *ConScannerSrv) checkEnv(ctx context.Context, scanImage model.ScanImage,
 	return safe, records, msgs
 }
 
-func getSeverityCount(groups []model.SeverityGroup) model.SeverityCount {
+func getSeverityCount(groups []imagesec.SeverityGroup) model.SeverityCount {
 	res := model.SeverityCount{}
 	for i := range groups {
 		switch groups[i].SeverityInt {

@@ -2,6 +2,7 @@ package scanner_ci
 
 import (
 	"github.com/docker/docker/api/types/image"
+
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/vuln-updata/cnnvd"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/vuln-updata/cnvd"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
@@ -51,8 +52,8 @@ type PkgList struct {
 }
 
 type Whitelist struct {
-	Image string //name
-	Time  string //endtime
+	Image string // name
+	Time  string // endtime
 }
 
 type WhitelistParams struct {
@@ -104,10 +105,10 @@ func (ion ImageOverviewNodes) Swap(i, j int) {
 }
 
 type ImageFilter struct {
-	Image         string //imageName
-	Kind          []int  //question
+	Image         string // imageName
+	Kind          []int  // question
 	TaskName      string //
-	Status        []int  //normal,alarm,reject
+	Status        []int  // normal,alarm,reject
 	StartTime     int64
 	EndTime       int64
 	Limit         int
@@ -116,13 +117,13 @@ type ImageFilter struct {
 }
 
 type ImageParams struct {
-	Image         string //imageName
-	Kind          string //question
+	Image         string // imageName
+	Kind          string // question
 	TaskName      string //
-	Status        string //normal,alarm,reject
+	Status        string // normal,alarm,reject
 	StartTime     int64
 	EndTime       int64
-	KindAttribute string //and,or
+	KindAttribute string // and,or
 	Limit         int
 	Offset        int
 }
@@ -147,7 +148,8 @@ type ImageRemediation struct {
 type ImageRecordDetail struct {
 	ID                int64                       `gorm:"primaryKey"`
 	ImageName         string                      `gorm:"type:varchar(255);" json:"image_name"`
-	OS                string                      `gorm:"type:varchar(64);column:os" json:"os"`
+	OSString          string                      `gorm:"type:varchar(64);column:os" json:"osString"`
+	OS                map[string]interface{}      `gorm:"-" json:"os"` // 临时处理
 	PipelineName      string                      `gorm:"type:varchar(255);" json:"pipeline_name"`
 	SensitiveFile     SensitiveFileDetail         `json:"sensitive_file"`
 	SeverityHistogram model.SeverityHistogramInfo `gorm:"-" json:"severityHistogram"` // 评级集合

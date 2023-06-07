@@ -2,10 +2,8 @@ package container
 
 import (
 	"fmt"
-	"os"
-	"strings"
-
 	"github.com/docker/docker/api/types"
+	"github.com/docker/docker/api/types/image"
 )
 
 var (
@@ -62,6 +60,7 @@ type Runtime interface {
 	ListImages() ([]types.ImageSummary, error)
 	GetContainerInspect(containerID string) (types.ContainerJSON, error)
 	GetImageInspect(imageID string) (types.ImageInspect, error)
+	ImageHistory(imageID string) ([]image.HistoryResponseItem, error)
 	RuntimeInfo() (types.Info, error)
 	SaveImage(imageID, fullPath string) (string, error)
 }
@@ -92,35 +91,4 @@ func Open(cfg RuntimeConfig) (Runtime, error) {
 		return nil, fmt.Errorf("unknown Driver %q (forgotten configuration or import?)", cfg.Type)
 	}
 	return driver(cfg)
-}
-
-func CreateRuntimeCli() (Runtime, error) {
-	var rt Runtime
-	var err error
-	dockerHost := os.Getenv("DOCKER_SOCKET_ADDR")
-	if dockerHost == "" {
-		dockerHost = defaultDockerSocket
-	}
-	if isUnixSockFile(dockerHost) {
-		rt, err = Open(RuntimeConfig{Type: "docker"})
-		if err != nil {
-			return nil, err
-		}
-	} else {
-		// todo: support containerd or cri-o unix socket
-		return nil, fmt.Errorf("not valid runtime socket")
-	}
-	return rt, nil
-}
-
-func isUnixSockFile(filename string) bool {
-	if strings.HasPrefix(filename, "unix://") {
-		filename = filename[len("unix://"):]
-	}
-
-	info, err := os.Stat(filename)
-	if err != nil {
-		return false
-	}
-	return (info.Mode() & os.ModeSocket) != 0
 }

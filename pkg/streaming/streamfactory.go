@@ -10,16 +10,18 @@ import (
 	"sync"
 	"time"
 
+	"google.golang.org/grpc/connectivity"
+
 	"gitlab.com/security-rd/go-pkg/logging"
 
 	"github.com/google/uuid"
-	"gitlab.com/piccolo_su/vegeta/pkg/streaming/pb"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/connectivity"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/protobuf/reflect/protoreflect"
 	"google.golang.org/protobuf/types/known/anypb"
 	"k8s.io/apimachinery/pkg/util/wait"
+
+	"gitlab.com/piccolo_su/vegeta/pkg/streaming/pb"
 )
 
 type StreamFactoryOption func(*streamFactory) *streamFactory
@@ -66,7 +68,7 @@ const defaultNodeKey = "default"
 
 type MessageStream interface {
 	MessageStreamClient
-	Start()
+	Start() error
 	AddHandler(msg protoreflect.ProtoMessage, handler MessageHandler) error
 	AddHandlerFunc(msg protoreflect.ProtoMessage, f ProcessFunc) error
 	Response(stream Stream, reqUUID string, resp protoreflect.ProtoMessage) error
@@ -81,8 +83,9 @@ type messageStream struct {
 	streams    map[string]Stream
 	processors map[string]ProcessFunc
 	hanlders   map[string]MessageHandler
+	KeyToLabel map[string]string
 	noderKey   string
-
+	Label      string
 	streamLock sync.Mutex
 }
 
@@ -101,6 +104,7 @@ type messageStreamClient struct {
 
 type streamFactory struct {
 	NodeKey string
+	Label   string
 }
 
 func WithPodNameKey() StreamFactoryOption {
@@ -115,6 +119,13 @@ func WithPodNameKey() StreamFactoryOption {
 func WithClusterKey(clusterKey string) StreamFactoryOption {
 	return func(sf *streamFactory) *streamFactory {
 		sf.NodeKey = clusterKey
+		return sf
+	}
+}
+
+func WithLabel(label string) StreamFactoryOption {
+	return func(sf *streamFactory) *streamFactory {
+		sf.Label = label
 		return sf
 	}
 }
@@ -140,6 +151,14 @@ func (s *messageStreamServer) SendMessage(stream pb.ClusterService_SendMessageSe
 
 	logging.Get().Info().Msgf("new stream from : %s established", in.NodeKey)
 	rs := NewServerStream(stream)
+	s.streamLock.Lock()
+	if _, ok := s.streams[in.NodeKey]; ok {
+		logging.Get().Info().Msgf("NodeKey:%v is exist will retry", in.NodeKey)
+		s.streamLock.Unlock()
+		return nil
+	} else {
+		s.streamLock.Unlock()
+	}
 
 	s.streamLock.Lock()
 	s.streams[in.NodeKey] = rs
@@ -157,9 +176,10 @@ func (s *messageStreamServer) SendMessage(stream pb.ClusterService_SendMessageSe
 	rs.Dispatch()
 
 	logging.Get().Info().Msgf("lost stream: %s", in.NodeKey)
+	s.streamLock.Lock()
 	rs.Clean()
 	delete(s.streams, in.NodeKey)
-
+	s.streamLock.Unlock()
 	return nil
 }
 
@@ -171,7 +191,9 @@ func (f *streamFactory) Server(network string, address string) MessageStream {
 			streams:    make(map[string]Stream, 0),
 			processors: make(map[string]ProcessFunc, 0),
 			hanlders:   make(map[string]MessageHandler, 0),
+			KeyToLabel: make(map[string]string, 0),
 			noderKey:   f.NodeKey,
+			Label:      f.Label,
 		},
 	}
 }
@@ -219,22 +241,32 @@ func (s *messageStream) Request(ctx context.Context, nodeKey string, msgType pb.
 		NodeKey:     s.noderKey,
 		Payload:     payload,
 	}
-
 	stream := s.streams[nodeKey]
 	if stream == nil {
 		return nil, fmt.Errorf("not found stream: %s", nodeKey)
 	}
 	stream.AddSession(r.ReqUUID)
-	logging.Get().Info().Msgf("sending message: %s", r.String())
+	defer stream.DelSession(r.ReqUUID)
+	logging.Get().Debug().Str("reqID", r.ReqUUID).Msg("stream add session end")
+
 	err = stream.Send(r)
 	if err != nil {
+		logging.Get().Err(err).Str("reqID", r.ReqUUID).Msg("stream send err")
 		return nil, err
 	}
+
+	logging.Get().Debug().Str("reqID", r.ReqUUID).Bool("ack", ack).Msg("stream send end,wait rsp")
 	if ack {
 		select {
 		case resp := <-stream.Response(r.ReqUUID):
+			// 当client收到server端的eof，dispatch退出时会清理session,这里返回的resp为nil
+			if resp == nil {
+				logging.Get().Error().Str("reqID", r.ReqUUID).Msg("recv nil resp")
+				return nil, fmt.Errorf("reqID %v,recv nil resp. maybe session has been clear", r.ReqUUID)
+			}
 			return resp, nil
 		case <-ctx.Done():
+			logging.Get().Error().Str("reqID", r.ReqUUID).Msg("context timeout")
 			return nil, ctx.Err()
 		}
 	}
@@ -267,36 +299,47 @@ func (s *messageStream) Response(stream Stream, reqUUID string, resp protoreflec
 	return stream.Send(req)
 }
 
-func (s *messageStreamServer) Start() {
+func (s *messageStreamServer) Start() error {
+	xx := 1024 * 1024 * 1024
+	var options = []grpc.ServerOption{
+		grpc.MaxRecvMsgSize(xx),
+		grpc.MaxSendMsgSize(xx),
+	}
 	lis, err := net.Listen(s.network, s.address)
 	if err != nil {
 		panic(err)
 	}
-	srv := grpc.NewServer()
+	srv := grpc.NewServer(options...)
 	pb.RegisterClusterServiceServer(srv, s)
 	go srv.Serve(lis)
+	return nil
 }
 
 func (f *streamFactory) Client(remoteAddress string) MessageStream {
+	logging.Get().Info().Str("remoteAddress", remoteAddress).Msg("Client")
 	return &messageStreamClient{
 		remoteAddress: remoteAddress,
 		messageStream: messageStream{
 			streams:    make(map[string]Stream, 0),
 			processors: make(map[string]ProcessFunc, 3),
 			hanlders:   make(map[string]MessageHandler, 0),
+			KeyToLabel: make(map[string]string, 0),
 			noderKey:   f.NodeKey,
+			Label:      f.Label,
 		},
 		reConnect: false,
 	}
 }
 
-func (c *messageStreamClient) Start() {
-	opts := []grpc.DialOption{grpc.WithTransportCredentials(insecure.NewCredentials())}
+func (c *messageStreamClient) Start() error {
+	maxSize := 1024 * 1024 * 1024
+	opts := []grpc.DialOption{grpc.WithTransportCredentials(insecure.NewCredentials()),
+		grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(maxSize), grpc.MaxCallSendMsgSize(maxSize))}
 
 	conn, err := grpc.Dial(c.remoteAddress, opts...)
 	if err != nil {
 		logging.Get().Err(err).Msg("dial peer err")
-		return
+		return err
 	}
 	c.pbClient = pb.NewClusterServiceClient(conn)
 
@@ -311,38 +354,58 @@ func (c *messageStreamClient) Start() {
 				}
 				logging.Get().Info().Msgf("reconnect to %s", c.remoteAddress)
 			}
+			logging.Get().Info().Msg("stream client try connect")
+			if c.reConnect {
+				conn.Connect()
+				if conn.GetState() != connectivity.Ready {
+					logging.Get().Error().Msgf("failed to establish connection to %s", c.remoteAddress)
+					return false, nil
+				}
+				logging.Get().Info().Msgf("reconnect to %s", c.remoteAddress)
+			}
+
 			stream, err := c.pbClient.SendMessage(context.Background())
 			if err != nil {
 				logging.Get().Err(err).Msg("calling grpc server err")
 				return false, nil
 			}
+			logging.Get().Info().Msg("client stream connected")
+
 			cs := NewClientStream(stream)
 
 			go cs.Run(stopChan)
 
+			// add handler
 			c.streamLock.Lock()
 			c.streams[defaultNodeKey] = cs
 			for name, fun := range c.processors {
-				c.streams[defaultNodeKey].AddHandlerFunc(name, fun)
+				_ = c.streams[defaultNodeKey].AddHandlerFunc(name, fun)
 			}
 			for name, handler := range c.hanlders {
-				c.streams[defaultNodeKey].AddHandler(name, handler)
+				_ = c.streams[defaultNodeKey].AddHandler(name, handler)
 			}
 			c.streamLock.Unlock()
+			logging.Get().Debug().Msg("add stream handler end")
 
-			c.Request(context.Background(), defaultNodeKey, pb.MessageType_CREATE, &pb.Register{
+			// register
+			_, _ = c.Request(context.Background(), defaultNodeKey, pb.MessageType_CREATE, &pb.Register{
 				NodeKey: defaultNodeKey,
 			}, false)
-			cs.Dispatch()
+			logging.Get().Debug().Msg("client register ok")
+
+			_ = cs.Dispatch()
 			logging.Get().Info().Msg("connection lost, will try to reconnect")
 			c.reConnect = true
+
+			// clean all session and close chan
 			c.streamLock.Lock()
 			cs.Clean()
+			cs.DelAllSession()
 			delete(c.streams, defaultNodeKey)
 			c.streamLock.Unlock()
 
 			return false, nil
 		}, stopChan)
 	}()
-
+	return nil
 }

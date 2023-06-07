@@ -2,6 +2,7 @@ package scanvuln
 
 import (
 	"context"
+	"path/filepath"
 
 	scanVuln "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/bolt-vuln"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/service/register"
@@ -38,6 +39,6 @@ func init() {
 
 func newService(config register.ScannerServiceConfig) (register.ScannerService, error) {
 	s := &ScannerVulnService{}
-	s.scannerVuln = scanVuln.NewScannerVuln(config.Options.PvcPath)
+	s.scannerVuln = scanVuln.NewScannerVuln(filepath.Join(config.Options.PvcPath, "trivy"))
 	return s, nil
 }

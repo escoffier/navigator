@@ -69,7 +69,7 @@ func setupChiRouter(
 }
 
 func checkChangeTimeout(URI string) bool {
-	checkList := []string{"/files", "ci/tidb/assets", "vulns/updata"}
+	checkList := []string{"/files", "ci/tidb/assets", "db/update"}
 	for k := range checkList {
 		if strings.Contains(URI, checkList[k]) {
 			return true

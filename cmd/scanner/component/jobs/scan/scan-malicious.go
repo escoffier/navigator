@@ -77,7 +77,7 @@ func (e *ExecutorScanMalicious) Scan(ctx context.Context, param Param) (Artifact
 						if v.VirusInfo.FileName != "" {
 							v.VirusInfo.FileName = strings.TrimLeft(v.VirusInfo.FileName, " ")
 						}
-						tmpvirus.VirusInfos = append(tmpvirus.VirusInfos, v.VirusInfo)
+						tmpvirus.VirusInfos = append(tmpvirus.VirusInfos, &v.VirusInfo)
 					}
 					if len(tmpvirus.VirusInfos) != 0 {
 						virus = append(virus, tmpvirus)
@@ -118,7 +118,7 @@ func init() {
 }
 func newScanMalicious(config ExecutorConfig) (Executor, error) { // Open时调用
 	e := &ExecutorScanMalicious{
-		MaliciousScan: component.MaliciousScan{},
+		// MaliciousScan: component.MaliciousScan{MaliciousSrv: malicious.GetMaliciousServer()},
 	}
 
 	return e, nil

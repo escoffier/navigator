@@ -1,0 +1,36 @@
+syntax = "proto3";
+package pb;
+option go_package = "./;pb";
+
+enum ImageSecReqType {
+  NodeImageScan = 0;
+  TiDBUpdate = 1;
+  ClamavDBUpdate = 2;
+  SyncResult = 3;
+  SyncConfig = 4;
+  AviraDBUpdate=5;
+}
+
+enum ImageSecDstType{
+  SubScanner = 0;
+  Console=1;
+  ClusterManager = 2;
+  MainScanner=3;
+}
+
+message ImageSecReq {
+  ImageSecReqType  ImageSecReqType = 1;
+  ImageSecDstType ImageSecDstType = 2;
+  string ImageSecDstPath=3;
+  string ClusterKey = 4;
+  string RequestID = 5;
+  repeated string NodeName =6;
+  bytes Payload = 7;
+}
+
+message ImageSecResp {
+  string StatusMessage = 1;
+  int32  Status = 2;
+  repeated string ErrNode = 3;
+}
+

@@ -12,7 +12,7 @@ import (
 
 type ScanConfigDal interface {
 	CreateStrategy(ctx context.Context, data *model.ScanStrategy) error
-	SearchStrategy(ctx context.Context, parm SearchStrategyParam, filter *model.Filter) ([]model.ScanStrategy, int64, error)
+	SearchStrategy(ctx context.Context, param SearchStrategyParam, filter *model.Filter) ([]model.ScanStrategy, int64, error)
 	CreateScanConfig(ctx context.Context, data *model.ScanConfig) error
 	SearchScanConfig(ctx context.Context, param SearchScanConfigParam, filter *model.Filter) ([]model.ScanConfig, int64, error)
 	UpdateStrategy(ctx context.Context, param SearchStrategyParam, updater map[string]interface{}) error

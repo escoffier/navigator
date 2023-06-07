@@ -13,106 +13,25 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 )
 
-func GetImageFlag() []int64 {
-	flgs := []int64{FlagBaseImage, FlagReinforced, FlagPrivilegedBoot}
-	return flgs
-}
-
-func GetScanFlag() []uint64 {
-	flgs := []uint64{FlagHasVuln, FlagHasMalicious, FlagHasSensitive,
-		FlagHasWebshell, FlagHasSoftware, FlagHasExceptEnv, FlagHasExceptLicense, FlagHasFixedVuln,
-	}
-	return flgs
-}
-
-func GetScanStatusFlag() []uint64 {
-	flags := []uint64{
-		FlagImageScanUnknown,
-		FlagImageScanPending,
-		FlagImageScanInProgress,
-		FlagImageScanSuccess,
-		FlagImageScanFailed,
-		FlagImageNotScan,
-	}
-	return flags
-}
-
-func GetAllFlag() []uint64 {
-	flags := []uint64{FlagHasVuln, FlagHasMalicious, FlagHasSensitive,
-		FlagHasWebshell, FlagHasSoftware, FlagHasExceptEnv,
-		FlagPrivilegedBoot, FlagHasExceptLicense, FlagHasFixedVuln,
-		FlagReinforced, FlagBaseImage}
-	return flags
-}
-
-// 镜像表中Flag
 const (
-	FlagHasVuln          = 0
-	FlagHasMalicious     = 1
-	FlagHasSensitive     = 2
-	FlagHasWebshell      = 3
-	FlagHasSoftware      = 4
-	FlagHasExceptEnv     = 5
-	FlagPrivilegedBoot   = 6
-	FlagHasExceptLicense = 7
-	FlagHasFixedVuln     = 8
-	FlagReinforced       = 9 // 已加固
-	FlagBaseImage        = 10
+	BaseImageType              = 1
+	AppImageType               = 0
+	BaseImageTypeString        = "base"
+	AppImageTypeString         = "app"
+	AndString                  = "and"
+	OrString                   = "or"
+	TrueString                 = "true"
+	FalseString                = "false"
+	TrustedString              = "trusted"
+	UnTrustedString            = "untrusted"
+	HasFixedVulnString         = "hasFixedVuln"
+	ImageHasSuggestionString   = "imageHasSuggestion"
+	NodeImageNotLibImageString = "nodeImageNotLibImage"
 
-	// 扫描状态的flag
-	FlagImageScanUnknown    = 11
-	FlagImageScanPending    = 12
-	FlagImageScanInProgress = 13
-	FlagImageScanSuccess    = 14
-	FlagImageScanFailed     = 15
-	FlagImageNotScan        = 16
-	FlagImageNotMaintained  = 17 // os不再维护
-	FlagImageTrusted        = 18 // 可信息镜像
-
-	JobNotScan string = "not_scan"
+	ImageSafeString   = "safe"    // 镜像的安全状态：安全
+	ImageUnsafeString = "unsafe"  // 镜像的安全状态:风险
+	ImageSafeUnknown  = "unknown" // 镜像的安全状态:未知
 )
-
-const (
-	ImageFromRegistry = "registry"
-	ImageFromNode     = "node"
-	ImageFromCICD     = "cicd"
-
-	BaseImageType       = 1
-	AppImageType        = 0
-	BaseImageTypeString = "base"
-	AppImageTypeString  = "app"
-	AndString           = "and"
-	OrString            = "or"
-	TrueString          = "true"
-	FalseString         = "false"
-	TrustedString       = "trusted"
-	UnTrustedString     = "untrusted"
-	HasFixedVulnString  = "hasFixedVuln"
-	ReinforcedString    = "reinforced"
-)
-
-func GetSecurityIssueLabel(flag int64) string {
-	switch flag {
-	case FlagHasVuln:
-		return "漏洞"
-	case FlagHasSensitive:
-		return "敏感文件"
-	case FlagHasWebshell:
-		return "WebShell"
-	case FlagHasSoftware:
-		return "不合规软件"
-	case FlagHasExceptEnv:
-		return "异常环境变量"
-	case FlagPrivilegedBoot:
-		return "root用户启动"
-	case FlagHasExceptLicense:
-		return "不允许的开源许可"
-	case FlagHasMalicious:
-		return "恶意文件"
-	default:
-		return ""
-	}
-}
 
 type ImageInfo struct {
 	ID           int64  `json:"id"`
@@ -238,6 +157,7 @@ type OverView struct {
 	OnlineTotal int64                 `json:"onlineTotal"`
 	Sum         SecurityIssueOverview `json:"sum"`
 	Online      SecurityIssueOverview `json:"online"`
+	DetectRisk  SecurityIssueOverview `json:"detectRisk"`
 }
 
 type SecurityIssueOverview struct {
@@ -307,23 +227,6 @@ type ImageList struct {
 	Trusted              bool      `gorm:"-"  json:"trusted"`
 	VulnFixSuggestion    []string  `gorm:"-" json:"vulnFixSuggestion"`
 	SentiveFixSuggestion []string  `gorm:"-" json:"sentiveFixSuggestion"`
-}
-
-func (im *ImageList) ToImageBaseResponse() ImageBaseResponse {
-	ans := ImageBaseResponse{
-		ID:           im.ID,
-		Digest:       im.Digest,
-		ImageAttr:    ImageAttrResponse{},
-		UUID:         im.ImageUUID,
-		FullRepoName: im.FullRepoName,
-		Tag:          im.Tags,
-		Size:         util.ByteToMB(im.Size),
-		Os:           im.OS,
-		Flag:         im.Flag,
-		RegistryID:   im.RegistryID,
-		Project:      im.Project,
-	}
-	return ans
 }
 
 func (im *ImageList) GetBootUser() string {
@@ -514,23 +417,13 @@ func (im *ImageList) GetLayerString() string {
 
 func (im *ImageList) GenImageFlag() {
 	flag := im.Flag
-	rein, boot := false, false
+	boot := false
 
 	if im.ConfigFile != nil {
 		if im.ConfigFile.Config.User == "" || strings.Contains(im.ConfigFile.Config.User, "root") {
 			flag = util.SetBit1(flag, FlagPrivilegedBoot)
 			boot = true
 		}
-		for _, v := range im.ConfigFile.History {
-			if strings.Contains(v.CreatedBy, "/tmp/file-checker") {
-				flag = util.SetBit1(flag, FlagReinforced)
-				rein = true
-				break
-			}
-		}
-	}
-	if !rein {
-		flag = util.SetBit0(flag, FlagReinforced)
 	}
 	if !boot {
 		flag = util.SetBit0(flag, FlagPrivilegedBoot)

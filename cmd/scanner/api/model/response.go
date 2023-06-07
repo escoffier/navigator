@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
+	imagesecModel "gitlab.com/piccolo_su/vegeta/pkg/model/imagesec"
 	scannermodel "gitlab.com/piccolo_su/vegeta/pkg/model/scanner-model"
 )
 
@@ -38,19 +39,19 @@ type Vuln struct {
 }
 
 type ImageDetail struct {
-	ID            int64                   `json:"id"`
-	Digest        string                  `json:"digest"`
-	FromType      string                  `json:"fromType"`
-	Image         string                  `json:"image"`
-	RegistryURL   string                  `json:"registryUrl"`
-	SensitiveFile []string                `json:"sensitiveFile"`
-	Viruses       []model.VirusFileInfo   `json:"viruses"`
-	Envs          []SummaryEnv            `json:"envs"`
-	Webshell      []scannermodel.Webshell `json:"webshell"`
-	NodeHostname  string                  `json:"nodeHostname"`
-	NodeIP        string                  `json:"nodeIp"`
-	Size          int                     `json:"size"`
-	ImageAttr     model.ImageAttrResponse `json:"imageAttr"`
+	ID            int64                           `json:"id"`
+	Digest        string                          `json:"digest"`
+	FromType      string                          `json:"fromType"`
+	Image         string                          `json:"image"`
+	RegistryURL   string                          `json:"registryUrl"`
+	SensitiveFile []string                        `json:"sensitiveFile"`
+	Viruses       []model.VirusFileInfo           `json:"viruses"`
+	Envs          []SummaryEnv                    `json:"envs"`
+	Webshell      []scannermodel.Webshell         `json:"webshell"`
+	NodeHostname  string                          `json:"nodeHostname"`
+	NodeIP        string                          `json:"nodeIp"`
+	Size          int                             `json:"size"`
+	ImageAttr     imagesecModel.ImageAttrResponse `json:"imageAttr"`
 }
 
 type ImageListResponse struct {
@@ -125,7 +126,8 @@ type SubTask struct {
 }
 
 type ImageSensitiveFile struct {
-	ID   int64  `json:"id"`
-	Name string `json:"name"`
-	Path string `json:"path"`
+	ID           int64                      `json:"id"`
+	Name         string                     `json:"name"`
+	Path         string                     `json:"path"`
+	PolicyDetect imagesecModel.PolicyDetect `gorm:"-" json:"policyDetect"` // 对各个策略的检测结果
 }

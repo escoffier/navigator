@@ -11,26 +11,28 @@ import (
 	"github.com/xuri/excelize/v2"
 	"gitlab.com/security-rd/go-pkg/logging"
 
-	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scan-report/common"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scan-report/export/common"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scan-report/types"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
+	"gitlab.com/piccolo_su/vegeta/pkg/model/imagesec"
 )
 
 type VulnExport struct {
 	ExportTaskDal store.ExportTaskDal
 	FileDir       string // 文件存储的决对路径
-	ImageSrv      common.ImageInterface
+	ImageSrv      types.ImageSrvInterface
 	VulnDal       store.VulnDalInterface
-	UpdateTask    common.UpdateExportTask
+	UpdateTask    types.UpdateExportTask
 }
 
 func NewVulnExport(
 	exportTaskDal store.ExportTaskDal,
 	fileDir string, // 文件存储的决对路径
 	vulnDal store.VulnDalInterface,
-	imageSrv common.ImageInterface,
-	updateTask common.UpdateExportTask,
+	imageSrv types.ImageSrvInterface,
+	updateTask types.UpdateExportTask,
 ) *VulnExport {
 	return &VulnExport{
 		ExportTaskDal: exportTaskDal,
@@ -64,14 +66,14 @@ func (s *VulnExport) Run(ctx context.Context) {
 
 	for i := range tasks {
 		// 支持横向扩展
-		created, err := s.ExportTaskDal.CreateExportIdempotent(ctx, tasks[i].ID)
-		if err != nil {
-			logging.Get().Err(err).Str("TaskType", model.ExportHtml).Msg("VulnExport CreateExportIdempotent")
-			return
-		}
-		if !created {
-			continue
-		}
+		// created, err := s.ExportTaskDal.CreateExportIdempotent(ctx, tasks[i].ID)
+		// if err != nil {
+		// 	logging.Get().Err(err).Str("TaskType", model.ExportHtml).Msg("VulnExportExcel CreateExportIdempotent")
+		// 	return
+		// }
+		// if !created {
+		// 	continue
+		// }
 
 		if err := s.UpdateTask.Start(ctx, tasks[i].ID); err != nil {
 			logging.Get().Err(err).Int64("taskID", tasks[i].ID).Msg("Run.Start")
@@ -119,10 +121,10 @@ func (s *VulnExport) worker(ctx context.Context, task model.ExportTensorTask) er
 		return err
 	}
 
-	resources := make([]*model.ImageWithCorrelateData, 0)
+	resources := make([]*imagesec.ImageWithCorrelateData2, 0)
 	if len(vulnImage) > 0 {
 		for i := range vulnImage {
-			data, err := s.ImageSrv.GetImageCorrelateData(ctx, model.GetImageAssociateDataParam{ImageId: vulnImage[i].ImageId, ContainerEnable: true})
+			data, err := s.ImageSrv.GetImageCorrelateData(ctx, imagesec.GetImageAssociateDataParam{ImageId: vulnImage[i].ImageId, ContainerEnable: true})
 			if err != nil {
 				logging.Get().Err(err).Int64("taskID", task.ID).Int64("imageID", vulnImage[i].ImageId).Msg("GetImageCorrelateData")
 				continue
@@ -133,7 +135,7 @@ func (s *VulnExport) worker(ctx context.Context, task model.ExportTensorTask) er
 
 	fileName := fmt.Sprintf("%s_%d", vulns[0].Name, time.Now().Unix())
 
-	excelChan := s.Export(ctx, fileName, vulns[0], resources)
+	excelChan := s.Export(ctx, fileName, imagesec.ConvertVuln(vulns)[0], resources)
 
 	if err := s.ZipAndSave(ctx, fileName, excelChan); err != nil {
 		logging.Get().Err(err).Int64("taskID", task.ID).Msg("ZipAndSave")
@@ -163,14 +165,14 @@ func (s *VulnExport) ZipAndSave(ctx context.Context, filename string, files chan
 	return nil
 }
 
-func (s *VulnExport) Export(ctx context.Context, filename string, vuln *model.Vuln, imageContainers []*model.ImageWithCorrelateData) chan *excelize.File {
+func (s *VulnExport) Export(ctx context.Context, filename string, vuln *imagesec.VulnView, imageContainers []*imagesec.ImageWithCorrelateData2) chan *excelize.File {
 	out := make(chan *excelize.File, 1)
 
 	go func() {
 
 		defer func() {
 			if r := recover(); r != nil {
-				logging.Get().Error().Str("stack", string(debug.Stack())).Msg("VulnExport")
+				logging.Get().Error().Str("stack", string(debug.Stack())).Msg("VulnExportExcel")
 			}
 		}()
 
@@ -179,13 +181,13 @@ func (s *VulnExport) Export(ctx context.Context, filename string, vuln *model.Vu
 		logging.Get().Info().Str("vuln", vuln.Name).Msg("Export Vuln start")
 		excelData := make(map[string][]chan []string)
 		// 加入漏洞数据
-		vulnSheetName := GenImageVulnInfoMeta().SheetName
-		resourceSheetName := GenImageResourcesInfoMeta().SheetName
+		vulnSheetName := common.GenImageVulnInfoMeta().SheetName
+		resourceSheetName := common.GenImageResourcesInfoMeta().SheetName
 		if excelData[vulnSheetName] == nil {
 			excelData[vulnSheetName] = make([]chan []string, 0)
 		}
 
-		vulnChan := s.ConvertVulnData(GenVulnInfoChan(model.ImageBaseResponse{}, []*model.Vuln{vuln}))
+		vulnChan := s.ConvertVulnData(common.GenVulnInfoChan(imagesec.ImageBaseResponse{}, []*imagesec.VulnView{vuln}))
 		excelData[vulnSheetName] = append(excelData[vulnSheetName], vulnChan)
 
 		// 加入关联资源的数据
@@ -198,10 +200,10 @@ func (s *VulnExport) Export(ctx context.Context, filename string, vuln *model.Vu
 				continue
 			}
 			excelData[resourceSheetName] = append(excelData[resourceSheetName],
-				s.ConvertResourceData(GenImageResourceChan(ic.ToImageBaseResponse(), ic.Container)))
+				s.ConvertResourceData(common.GenImageResourceChan(ic.ToImageBaseResponse(), ic.Container)))
 		}
 
-		sheets := GetVulnSheetInfo()
+		sheets := common.GetVulnSheetInfo()
 		excelFile, err := common.WriteToExcel(filename, sheets, excelData)
 		if err != nil {
 			logging.Get().Err(err).Msg("Export.WriteToExcel")
@@ -220,7 +222,7 @@ func (s *VulnExport) ConvertVulnData(res chan []string) chan []string {
 	go func(value chan []string) {
 		defer func() {
 			if r := recover(); r != nil {
-				logging.Get().Error().Str("stack", string(debug.Stack())).Msg("VulnExport")
+				logging.Get().Error().Str("stack", string(debug.Stack())).Msg("VulnExportExcel")
 			}
 		}()
 
@@ -241,7 +243,7 @@ func (s *VulnExport) ConvertResourceData(res chan []string) chan []string {
 
 		defer func() {
 			if r := recover(); r != nil {
-				logging.Get().Error().Str("stack", string(debug.Stack())).Msg("VulnExport")
+				logging.Get().Error().Str("stack", string(debug.Stack())).Msg("VulnExportExcel")
 			}
 		}()
 		defer close(out)
@@ -260,13 +262,13 @@ func (s *VulnExport) ConvertData(res map[string]chan []string) map[string]chan [
 
 	for key, value := range res {
 
-		if key == GenImageVulnInfoMeta().SheetName {
+		if key == common.GenImageVulnInfoMeta().SheetName {
 			out := make(chan []string, 1)
 			go func(value chan []string) {
 
 				defer func() {
 					if r := recover(); r != nil {
-						logging.Get().Error().Str("stack", string(debug.Stack())).Msg("VulnExport")
+						logging.Get().Error().Str("stack", string(debug.Stack())).Msg("VulnExportExcel")
 					}
 				}()
 
@@ -278,12 +280,12 @@ func (s *VulnExport) ConvertData(res map[string]chan []string) map[string]chan [
 				}
 			}(value)
 			ans[key] = out
-		} else if key == GenImageResourcesInfoMeta().SheetName {
+		} else if key == common.GenImageResourcesInfoMeta().SheetName {
 			out := make(chan []string, 1)
 			go func(value chan []string) {
 				defer func() {
 					if r := recover(); r != nil {
-						logging.Get().Error().Str("stack", string(debug.Stack())).Msg("VulnExport")
+						logging.Get().Error().Str("stack", string(debug.Stack())).Msg("VulnExportExcel")
 					}
 				}()
 

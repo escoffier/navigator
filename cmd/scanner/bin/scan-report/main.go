@@ -20,13 +20,18 @@ import (
 	"scm.tensorsecurity.cn/tensorsecurity-rd/trivy/pkg/report"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/imagemeta"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/imagescan"
+	imagesecSrv "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/imagesec"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scan-report/api"
-	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scan-report/common"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scan-report/export/common"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scan-report/export/html"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scan-report/service"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scan-report/starter"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scan-report/types"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
+	imagesecStore "gitlab.com/piccolo_su/vegeta/cmd/scanner/store/imagesec"
 )
 
 var (
@@ -124,6 +129,7 @@ func main() {
 	}
 
 	config := starter.Config{
+		MaxVulnCol:              maxVulnCol,
 		Internal:                internal,
 		BatchSize:               batchSize,
 		EmailHost:               emailHost,
@@ -131,17 +137,19 @@ func main() {
 		EmailUser:               emailUser,
 		EmailPasswd:             emailPasswd,
 		FileDir:                 fileDir,
-		Rdb:                     rdb,
-		MaxVulnCol:              maxVulnCol,
 		ParallelTaskNum:         parallelTaskNum,
 		Expiration:              expiration,
+		Rdb:                     rdb,
 		Es:                      es,
 		MaxImageByOneExportTask: maxImageByOneExportTask,
 		RedisCli:                rc0,
+		IncludeCNNVDVuln:        false,
+		IncludeRHSAVuln:         false,
 		VulnClassType:           vct,
 	}
 
-	logging.Get().Info().Int64("MaxVulnCol", config.MaxVulnCol).Int64("MaxImageByOneExportTask", config.MaxImageByOneExportTask).Msg("config")
+	logging.Get().Info().Int64("MaxVulnCol", config.MaxVulnCol).Int64("MaxImageByOneExportTask",
+		config.MaxImageByOneExportTask).Msg("config")
 	// 起后台协程服务
 	backgroundSrv := starter.NewBackgroundTasks(context.Background(), config)
 	backgroundSrv.Start(context.Background())
@@ -163,27 +171,48 @@ func main() {
 		os.Exit(1)
 	}
 
-	imageSrv := component.NewImageSrv(imageDal, registryDal, scanTaskDal, vulnDal,
+	nodeScanResultDal := imagesecStore.NewScanResultDao(config.Rdb)
+	nodeImageDal := imagesecStore.NewImageMetaDao(config.Rdb, nil)
+
+	policyDal := imagesecStore.NewDetectPolicyDao(config.Rdb)
+	detectResultDal := imagesecStore.NewImageDetectResultDao(config.Rdb)
+	nodeReportDal := imagesecStore.NewNodeReportDao(config.Rdb)
+	scannerConfigDal := imagesecStore.NewScannerConfigDao(config.Rdb)
+	nodeTaskDal := imagesecStore.NewScanTaskDao(config.Rdb)
+	nodeScanTaskDal := imagesecStore.NewScanTaskDao(config.Rdb)
+
+	nodeImageSrv := imagemeta.NewNodeImageSrv(nodeImageDal, registryDal, nodeScanResultDal,
+		resourceDal, nodeReportDal, policyDal, detectResultDal, trustedImageDal, scannerConfigDal, nodeTaskDal)
+
+	libImageSrv := component.NewLibImageSrv(imageDal, registryDal, scanTaskDal, vulnDal,
 		scanResultDal, webshellDal, trustedImageDal, resourceDal, scannerInstanceInfoDal)
+	nodeVulnSrv := imagesecSrv.NewVulnSrv(nodeScanResultDal)
+
+	nodeScanTaskSrv := imagescan.NewScanTaskSrv(nodeScanTaskDal, nodeImageSrv, scannerConfigDal)
 
 	exportTask := service.NewExportTaskSrv(
 		store.NewExportTaskDao(rdb),
 		maxImageByOneExportTask,
 		store.NewScannerOrm(rdb),
-		imageSrv,
+		libImageSrv,
+		nodeImageSrv,
+		nodeScanTaskSrv,
 		rc0,
 		vulnDal,
 	)
 
-	libImageHtml := html.NewExportLibImageHtmlSrv(imageSrv, vulnDal, exportTaskDal, updateTaskDal, fileDir, vct)
-	cicdImageHtml := html.NewExportCiImageHtmlSrv(imageSrv, vulnDal, exportTaskDal, updateTaskDal, fileDir)
+	libImageHtml := html.NewExportLibImageHtmlSrv(libImageSrv, vulnDal, exportTaskDal, updateTaskDal, fileDir, vct)
+	nodeImageHtml := html.NewExportNodeImageHtmlSrv(nodeImageSrv, exportTaskDal, updateTaskDal, nodeVulnSrv, fileDir, vct)
 
-	exportHtmlDriver := make(map[string]html.ExportHtmlInterface)
+	cicdImageHtml := html.NewExportCiImageHtmlSrv(libImageSrv, vulnDal, exportTaskDal, updateTaskDal, fileDir)
+
+	exportHtmlDriver := make(map[string]types.ExportHtmlInterface)
 
 	exportHtmlDriver[consts.ExportCIReport] = cicdImageHtml
-	exportHtmlDriver[consts.ExportScanResult] = libImageHtml
+	exportHtmlDriver[consts.ExportLibTask] = libImageHtml
 	exportHtmlDriver[consts.ExportSingleImage] = libImageHtml
-	exportHtmlDriver[consts.ExportImageSearch] = libImageHtml
+	exportHtmlDriver[consts.ExportLibImageSearch] = libImageHtml
+	exportHtmlDriver[consts.ExportNodeImageSearch] = nodeImageHtml
 
 	router := api.SetupGinRouter(exportTask, exportHtmlDriver)
 

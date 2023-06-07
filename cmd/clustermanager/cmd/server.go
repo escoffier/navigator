@@ -10,9 +10,6 @@ import (
 	json "github.com/json-iterator/go"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
-	"k8s.io/client-go/informers"
-	"k8s.io/klog/v2"
-
 	clusterAgent "gitlab.com/piccolo_su/vegeta/cmd/clustermanager/pkg"
 	"gitlab.com/piccolo_su/vegeta/cmd/clustermanager/pkg/assets"
 	"gitlab.com/piccolo_su/vegeta/cmd/clustermanager/pkg/clusterserver"
@@ -30,6 +27,8 @@ import (
 	"gitlab.com/security-rd/go-pkg/logging"
 	"gitlab.com/security-rd/go-pkg/mq"
 	"gitlab.com/security-rd/go-pkg/redisearch"
+	"k8s.io/client-go/informers"
+	"k8s.io/klog/v2"
 	"scm.tensorsecurity.cn/tensorsecurity-rd/api/pkg/generated/informers/externalversions"
 )
 
@@ -66,11 +65,18 @@ func NewServer() (*server, error) {
 		return nil, err
 	}
 
+	inClusterStream := rpcstream.NewStreamFactory(rpcstream.WithPodNameKey()).Server("tcp", ":19090")
+	_ = inClusterStream.Start()
+
 	stream := rpcstream.NewStreamFactory(rpcstream.WithClusterKey(agent.CusterID)).Client(s.config.MasterGrpcAddr)
-	stream.AddHandler(&pb.HoneySpotReq{}, &service.HoneypotHandler{
+	_ = stream.AddHandler(&pb.HoneySpotReq{}, &service.HoneypotHandler{
 		KubeClient: agent.GetHostClient(),
 	})
-	stream.Start()
+	_ = stream.AddHandler(&pb.ImageSecReq{}, &service.ImageSecHandler{
+		ServerStream: inClusterStream,
+		ClusterKey:   agent.CusterID,
+	})
+	_ = stream.Start()
 
 	agent.Stream = stream
 
@@ -196,9 +202,6 @@ func NewServer() (*server, error) {
 
 	}
 
-	inClusterStream := rpcstream.NewStreamFactory(rpcstream.WithPodNameKey()).Server("tcp", ":19090")
-	inClusterStream.Start()
-
 	factory.Start(stopChan)
 	tensorFactory.Start(stopChan)
 
@@ -219,7 +222,7 @@ func (s *server) Run() error {
 	}
 
 	go s.httpserver.Run()
-
+	logging.Get().Info().Msg("clusterManage server run")
 	return <-errChn
 }
 

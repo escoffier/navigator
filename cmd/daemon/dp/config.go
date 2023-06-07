@@ -18,9 +18,10 @@ import (
 	"time"
 
 	json "github.com/json-iterator/go"
+	"gitlab.com/security-rd/go-pkg/logging"
+
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/dp/whitelist"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
-	"gitlab.com/security-rd/go-pkg/logging"
 )
 
 func init() {
@@ -94,10 +95,10 @@ func (cm *ConfigManager) syncPolicy(ctx context.Context, ij *Injector) error {
 		logging.Get().Err(err).Msgf("init requset error", url)
 		return err
 	}
-	//http header
+	// http header
 	req.Header.Set("X-Tensorsec-cicd-key", internalApiKey)
 	req.Header.Set("Content-Type", "application/json")
-	//http request
+	// http request
 	resp, err := cm.client.Do(req)
 	if err != nil {
 		logging.Get().Error().Err(err).Msgf("request url:%v error", url)
@@ -436,11 +437,11 @@ func NewConfigManger(consoleAddr, clusterKey string) (*ConfigManager, error) {
 		syncLock:     new(sync.Mutex),
 	}
 
-	//http transport
+	// http transport
 	tr := &http.Transport{
 		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
 	}
-	//http client
+	// http client
 	cm.client = &http.Client{Transport: tr}
 	cm.execWhiteList = make(map[string]map[string]string)
 	cm.imageUsedCount = make(map[string]*imageUsedItem)

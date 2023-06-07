@@ -21,7 +21,7 @@ type VulnUpdateService struct { // nolint
 }
 
 func (s *VulnUpdateService) VulnUpdateFn() {
-	err := vulnUpdata.GetUpdataService().AutoScanAll(context.Background(), 1, "漏洞库每日1点定时触发")
+	err := vulnUpdata.GetVulnUpdataService().AutoScanAll(context.Background(), 1, "漏洞库每日1点定时触发")
 	logging.GetLogger().Err(err).Msg("VulnDb auto Updata error")
 }
 

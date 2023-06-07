@@ -11,8 +11,11 @@ import (
 )
 
 const (
-	Severities = "UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL"
+	Severities       = "UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL"
+	DefaultCachePath = "/root/alldb/node"
 )
+
+type MatcherOption func(m *Matcher)
 
 func InitOption() artifact.Option {
 	// init report display severity
@@ -37,6 +40,9 @@ func InitOption() artifact.Option {
 		DBOption: option.DBOption{
 			SkipDBUpdate: false,
 		},
+		ImageOption: option.ImageOption{
+			ListAllPkgs: true,
+		},
 	}
 	return opt
 }
@@ -51,4 +57,12 @@ func splitSeverity(severity string) []dbTypes.Severity {
 		severities = append(severities, severity)
 	}
 	return severities
+}
+
+func WithCachePath(cachePath string) MatcherOption {
+	return func(m *Matcher) {
+		if len(cachePath) > 0 {
+			m.option.CacheDir = cachePath
+		}
+	}
 }
