@@ -39,8 +39,8 @@ const (
 	FlagImageHasUnknownVun          = 28
 	FlagImageHasLowVuln             = 29
 	FlagImageHasMediumVuln          = 30
-	FlagImageHasCriticalVuln        = 31 // 镜像存在高危漏洞
-	FlagImageHasHighVuln            = 32
+	FlagImageHasHighVuln            = 31
+	FlagImageHasCriticalVuln        = 32 // 镜像存在高危漏洞
 	FlagHasPasswdEnv                = 33
 	JobNotScan               string = "not_scan"
 )

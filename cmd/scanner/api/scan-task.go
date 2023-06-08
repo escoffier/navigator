@@ -122,7 +122,7 @@ func (s *ScanTaskAPI) SearchScanTask(ctx *gin.Context) {
 		Started:         util.GetKeywordFromQuery(ctx, "started"),
 		ScanStatusStr:   util.GetStringSliceFromQuery(ctx, "statusStr"),
 		NodeNameKeyword: util.GetKeywordFromQuery(ctx, "nodeNameKeyword"),
-		Filter:          model.GetFilter(ctx).SetMaxLimit(10).SetSortDesc().SetSortFiledByID(),
+		Filter:          model.GetFilter(ctx).SetMaxLimit(consts.DefaultLimit).SetSortDesc().SetSortFiledByID(),
 	}
 	param.Filter = param.Filter.SetSortDesc().SetSortFiled("id")
 	tasks, cnt, err := s.scanTaskSrv.SearchScanTask(ctx, param)

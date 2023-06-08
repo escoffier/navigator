@@ -248,12 +248,12 @@ var regTypeNameKey map[string]LabelValue
 func GetRegType() map[string]LabelValue {
 	if regTypeNameKey == nil {
 		regTypeNameKey = make(map[string]LabelValue)
-		regTypeNameKey[consts.AliAcrVersion] = LabelValue{Value: consts.AliAcrVersion, Label: "阿里云 ACR 个人版"}
-		regTypeNameKey[consts.AliAcrEEVersion] = LabelValue{Value: consts.AliAcrEEVersion, Label: "阿里云 ACR 企业版"}
+		regTypeNameKey[consts.AliAcrVersion] = LabelValue{Value: consts.AliAcrVersion, Label: "阿里云 ACR 个人版 (公有云)"}
+		regTypeNameKey[consts.AliAcrEEVersion] = LabelValue{Value: consts.AliAcrEEVersion, Label: "阿里云 ACR 企业版 (公有云)"}
 		regTypeNameKey[consts.DockerRegistryV2Version] = LabelValue{Value: consts.DockerRegistryV2Version, Label: "Docker Registry (v2)"}
 		regTypeNameKey[consts.HarborVersion] = LabelValue{Value: consts.HarborVersion, Label: "Harbor"}
-		regTypeNameKey[consts.HaiWeiSwrVersion] = LabelValue{Value: consts.HaiWeiSwrVersion, Label: "华为云 SWR 个人版"}
-		regTypeNameKey[consts.HaiWeiSwrENVersion] = LabelValue{Value: consts.HaiWeiSwrENVersion, Label: "华为云 SWR 企业版"}
+		regTypeNameKey[consts.HaiWeiSwrVersion] = LabelValue{Value: consts.HaiWeiSwrVersion, Label: "华为云 SWR 个人版 (公有云)"}
+		regTypeNameKey[consts.HaiWeiSwrENVersion] = LabelValue{Value: consts.HaiWeiSwrENVersion, Label: "华为云 SWR 企业版 (公有云)"}
 		regTypeNameKey[consts.JfrogVersion] = LabelValue{Value: consts.JfrogVersion, Label: "JFrog Artifactory"}
 	}
 	return regTypeNameKey
