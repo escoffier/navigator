@@ -172,13 +172,13 @@ func GetBaitImageById(ctx context.Context, rdb *gorm.DB, id uint32, lang string)
 
 		var err error
 		if lang == "zh" {
+			err = rdb.WithContext(oneCtx).Model(&model.BaitImages{}).Where("status = ? AND id = ?", 0, id).First(&baitImage).Error
+		} else {
 			err = rdb.WithContext(oneCtx).Model(&model.BaitImages{}).
 				Select("ivan_bait_images.id", "ivan_bait_images.name", "ivan_bait_images.ports", "ivan_bait_image_description.bait_name", "ivan_bait_image_description.vulnerability",
 					"ivan_bait_images.event_prefix", "ivan_bait_image_description.description").
 				Joins("LEFT JOIN ivan_bait_image_description ON ivan_bait_images.id = ivan_bait_image_description.id AND ivan_bait_image_description.lang = ?", lang).
 				Where("status = ? AND ivan_bait_images.id = ?", 0, id).First(&baitImage).Error
-		} else {
-			err = rdb.WithContext(oneCtx).Model(&model.BaitImages{}).Where("status = ? AND id = ?", 0, id).First(&baitImage).Error
 		}
 		if err == gorm.ErrRecordNotFound {
 			notFound = true
