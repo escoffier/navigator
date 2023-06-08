@@ -76,9 +76,9 @@ if args.cve:
 	show_results("\033[31m"+"Successfully exploit %s attack\033[0m" % args.cve)
 
 if args.rs:
-	os.system('/test/rerverse_shell/RS-NC/script.sh')
-	os.system('/test/rerverse_shell/RS-SOCKET_AND_DUP2/script.sh')
-	show_results("\033[31m"+"Successfully exploit all reverse shelll attacks\033[0m")
+	os.system('/test/reverse_shell/nc/script.sh')
+	os.system('/test/reverse_shell/python/script.sh')
+	show_results("\033[31m"+"Successfully exploit all reverse shell attacks\033[0m")
 
 if args.cm:
 	for domain in http_miner_domains:
