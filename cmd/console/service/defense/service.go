@@ -100,6 +100,7 @@ func (s *TensorDefenseService) AddBaitService(ctx context.Context, bait *model.B
 	}
 
 	bait.Prefix = image.EventPrefix
+	bait.BaitName = image.BaitName
 	err = dal.InsertBaitService(ctx, s.rdb.Get(), bait, func(ctx context.Context) error {
 		if usingGrpc {
 			return s.addBaitService(ctx, bait, image.Ports, registry, image.EventPrefix)
