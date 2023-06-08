@@ -66,9 +66,16 @@ func (s *NodeImageReport) ReceiveNodeReport(ctx context.Context) error {
 
 	ch := make(chan struct{})
 
-	go func() { _ = s.handleMsg(ch) }()
+	go func() {
+		if r := recover(); r != nil {
+			logging.Get().Error().Stack().Msg("NodeImageReport")
+		}
+		if err := s.handleMsg(ch); err != nil {
+			logging.Get().Err(err).Msg("NodeImageReport finished")
+		}
+	}()
 
-	logging.Get().Error().Msg("NodeImageReport receive kafka started successfully")
+	logging.Get().Info().Msg("NodeImageReport receive kafka started end")
 
 	return nil
 }
@@ -196,5 +203,7 @@ func (s *NodeImageReport) handleMsg(stopCh <-chan struct{}) error {
 	}
 	logging.Get().Info().Msg("sub message queue ok")
 	<-stopCh
-	return fmt.Errorf("quit msg handler")
+	logging.Get().Info().Msg("sub message queue end")
+
+	return fmt.Errorf("quit message handler")
 }
