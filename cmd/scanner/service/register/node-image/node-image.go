@@ -2,6 +2,7 @@ package nodeimage
 
 import (
 	"context"
+	"os"
 
 	"gitlab.com/security-rd/go-pkg/logging"
 	"gitlab.com/security-rd/go-pkg/mq"
@@ -31,6 +32,14 @@ type NodeImage struct {
 }
 
 func (n *NodeImage) Start(ctx context.Context) error {
+
+	if os.Getenv("IS_MAIN_CLUSTER") != consts.TrueString {
+		logging.Get().Info().Msg("NodeImage not in main cluster ")
+		return nil
+	}
+
+	logging.Get().Info().Msg("NodeImage in  main cluster")
+
 	if err := n.nodeImageReportService.ReceiveNodeReport(ctx); err != nil {
 		logging.Get().Err(err).Msg("nodeImageReportService.ReceiveNodeReport")
 	}

@@ -81,6 +81,13 @@ func NewDetector(
 
 func (s *Detector) Start(ctx context.Context) {
 
+	if os.Getenv("IS_MAIN_CLUSTER") != consts.TrueString {
+		logging.Get().Info().Msg("Detector not in main cluster ")
+		return
+	}
+
+	logging.Get().Info().Msg("Detector in  main cluster")
+
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
