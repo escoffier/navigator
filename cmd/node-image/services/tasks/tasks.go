@@ -345,10 +345,11 @@ func (m *Manager) scanImage(t imagesec.ScanSubTask) error {
 	// run scan
 	err = runCmdFunc()
 	if err != nil {
+		// not return, need send result
 		errLog(err).Msg("failed to scan image")
-		return err
+	} else {
+		infoLog().Msg("success to scan image")
 	}
-	infoLog().Msg("success to scan image")
 
 	// sync result
 	err = m.syncResult(t)
