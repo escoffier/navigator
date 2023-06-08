@@ -66,7 +66,7 @@ func (d *DBManageSrv) GetVersion(ctx *gin.Context) {
 }
 
 func (d *DBManageSrv) GetHistory(ctx *gin.Context) {
-	search := ctx.Query("search")
+	search := ctx.Query("version")
 	dbType := ctx.Query("dbType")
 	res, err := d.Srv.GetHistory(ctx, search, dbType)
 	if err != nil {
