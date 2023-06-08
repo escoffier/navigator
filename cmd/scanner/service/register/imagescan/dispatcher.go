@@ -2,6 +2,7 @@ package imagescan
 
 import (
 	"context"
+	"os"
 
 	"gitlab.com/security-rd/go-pkg/logging"
 
@@ -9,6 +10,7 @@ import (
 	dispatcherSrv "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/imagescan"
 	nodetask "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/imagescan/dequeuers/node-task"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/imagescan/types"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/service/register"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
 
@@ -25,6 +27,14 @@ type Dispatcher struct {
 }
 
 func (s *Dispatcher) Start(ctx context.Context) error {
+
+	if os.Getenv("IS_MAIN_CLUSTER") != consts.TrueString {
+		logging.Get().Info().Msg("Dispatcher not in main cluster ")
+		return nil
+	}
+
+	logging.Get().Info().Msg("Dispatcher in main cluster")
+
 	if err := s.DispatcherSrv.PublishSubtask(ctx); err != nil {
 		logging.Get().Err(err).Str("serviceName", serviceName).Msg("Start")
 		return err

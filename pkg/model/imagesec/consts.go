@@ -209,7 +209,7 @@ const (
 	TaskFailedReasonTimeout         = "timeout"        // 超时
 	TaskFailedReasonSaveData        = "saveData"       // 保存数据出错
 	TaskFailedReasonScanner         = "scanFailed"     // 扫描出器
-	TaskFailedReasonSendNode        = "sendToNode"     // 未发送到扫描节点
+	TaskFailedReasonSendNode        = "notSendToNode"  // 未发送到扫描节点
 	TaskFailedReasonNotFindImage    = "notFindImage"   // 未找到对应的镜像
 	TaskFailedReasonNotFindNodeInfo = "notFindNode"    // 未找到对应的节点
 	TaskFailedTerminated            = "taskTerminated" // 任务已被终止
