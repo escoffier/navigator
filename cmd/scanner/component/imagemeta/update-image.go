@@ -60,14 +60,14 @@ func (s *ImageUpdateSrv) ContinueUpdateAndCleanImage(ctx context.Context) error 
 				logging.Get().Error().Msg("ContinueUpdateAndCleanImage recover")
 			}
 		}()
-		ticker := time.NewTicker(time.Minute * 5)
+		ticker := time.NewTicker(time.Minute * 20)
 		defer ticker.Stop()
 		for {
 			<-ticker.C
 			_ = s.updateOnlineImage(ctx)
 			_ = s.updateImageInLibOrNot(ctx)
 			// _ = s.updateTrustedImage(ctx)
-			ticker.Reset(time.Minute * 5)
+			ticker.Reset(time.Minute * 20)
 		}
 	}()
 
@@ -493,6 +493,7 @@ func (s *ImageUpdateSrv) updateImageInLibOrNot(ctx context.Context) error {
 	}
 
 	logging.Get().Info().Msg("updateImageInLibOrNot in->not succeed")
+
 	return nil
 }
 
