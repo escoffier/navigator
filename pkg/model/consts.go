@@ -89,8 +89,9 @@ const (
 
 const (
 	NodeImageTopic           = "node_image_asset"
+	NodeImageGroup           = "node_image_asset_group"
 	NodeImageScanResultTopic = "node_image_scan_result"
-	NodeImageGroup           = "node-image-group"
+	NodeImageScanResultGroup = "node_image_scan_result_group"
 )
 
 var reasonZHMap = map[int64]string{

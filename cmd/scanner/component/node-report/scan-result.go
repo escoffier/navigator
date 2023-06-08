@@ -681,7 +681,15 @@ func (s *ScanResultReportSrv) ReceiveNodeReport(ctx context.Context) error {
 	logging.Get().Info().Msg("ScanResultReportSrv scanner in main cluster,ready to handle kafka msg")
 
 	ch := make(chan struct{})
-	go func() { _ = s.ReceiveMsg(ch) }()
+	go func() {
+		if r := recover(); r != nil {
+			logging.Get().Error().Stack().Msg("ScanResultReportSrv")
+		}
+
+		if err := s.ReceiveMsg(ch); err != nil {
+			logging.Get().Err(err).Msg("ScanResultReportSrv")
+		}
+	}()
 
 	logging.Get().Error().Msg("ScanResultReportSrv receive kafka started successfully")
 
@@ -709,14 +717,16 @@ func (s *ScanResultReportSrv) ReceiveImageScanResult(ctx context.Context, msg ka
 }
 
 func (s *ScanResultReportSrv) ReceiveMsg(stopCh <-chan struct{}) error {
-	err := s.mqReader.Subscribe(model.NodeImageScanResultTopic, model.NodeImageGroup, s.ReceiveImageScanResult)
+	err := s.mqReader.Subscribe(model.NodeImageScanResultTopic, model.NodeImageScanResultGroup, s.ReceiveImageScanResult)
 	if err != nil {
 		logging.Get().Err(err).Msg("failed to sub message queue")
 		return err
 	}
 	logging.Get().Info().Msg("sub message queue ok")
 	<-stopCh
-	return fmt.Errorf("quit msg handler")
+	logging.Get().Info().Msg("sub message queue end")
+
+	return fmt.Errorf("quit message handler")
 }
 
 func (s *ScanResultReportSrv) AddDetailVuln(ctx context.Context, vuln *imagesecModel.Vuln) {
