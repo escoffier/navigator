@@ -335,8 +335,8 @@ func (c *CiApiSrv) TiDbVersion(ctx *gin.Context) {
 	}
 
 	var versionFile string
-	updatePath := filepath.Join(global.ScannerOpts.PvcPath, scannermodel.UnzipPath, scannermodel.VulnVersionPath)
-	if !dirExist(updatePath) {
+	versionFile = filepath.Join(global.ScannerOpts.PvcPath, scannermodel.UnzipPath, scannermodel.VulnVersionPath)
+	if !dirExist(versionFile) {
 		versionFile = filepath.Join(global.ScannerOpts.PvcPath, scannermodel.VulnVersionPath)
 	}
 
