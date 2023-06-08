@@ -122,6 +122,10 @@ func (api *DetectAPI) SearchPolicy(ctx *gin.Context) {
 		ans = append(ans, defaultP)
 	}
 	for i := range polices {
+		if polices[i].Scope.AllCluster {
+			polices[i].Scope.ClusterName = make([]string, 0)
+		}
+
 		if polices[i].IsDefault {
 			continue
 		}
