@@ -81,7 +81,8 @@ func (s *TaskDispatcher) PublishSubtaskHelper(ctx context.Context, subTaskChan c
 
 		if err := s.sendScanSubtask(ctx, req); err != nil {
 			logging.Get().Err(err).Str("msgID", req.RequestID).Int64("taskID", subtask.TaskID).
-				Int64("subtaskID", subtask.SubTaskID).Msg("Dispatcher failed to publish task by grpc stream")
+				Int64("subtaskID", subtask.SubTaskID).Interface("image", subtask.ImageMeta).
+				Msg("Dispatcher failed to publish task by grpc stream")
 			up := types.UpdateSubTask{SubtaskID: subtask.SubTaskID, Err: err, Status: imagesecModel.TaskStatusFailed,
 				Reason: imagesecModel.TaskFailedReasonSendNode}
 			go func() { upChan <- up }()
