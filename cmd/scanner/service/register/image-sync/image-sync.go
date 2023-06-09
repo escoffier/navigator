@@ -2,8 +2,6 @@ package imagesync
 
 import (
 	"context"
-	"os"
-	"strconv"
 	"time"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component"
@@ -87,35 +85,6 @@ func (i *ImageSync) Start(ctx context.Context) error {
 				continue
 			}
 			logging.GetLogger().Info().Msg("SyncAddImage start success")
-		}
-	}()
-
-	// 定期删除重试超限
-	go func() {
-		defer func() {
-			if err := recover(); err != nil {
-				logging.GetLogger().Error().Msg("DeleteMoreRetryCount recover")
-			}
-		}()
-
-		maxRetryCountStr := os.Getenv("SYNC_IMAGE_RETRY_MAX_COUNT")
-		maxRetryCount, err := strconv.ParseInt(maxRetryCountStr, 10, 64)
-		if err != nil || maxRetryCount <= 0 {
-			maxRetryCount = consts.SyncImageMaxCountDefault
-		}
-
-		ticker := time.NewTicker(time.Minute * 5)
-		defer ticker.Stop()
-		for {
-			<-ticker.C
-			logging.GetLogger().Info().Msg("start DeleteMoreRetryCount")
-
-			err := i.syncImage.DeleteMoreRetryCount(context.Background(), maxRetryCount)
-			if err != nil {
-				logging.GetLogger().Err(err).Msg("DeleteMoreRetryCount service end")
-			} else {
-				logging.GetLogger().Info().Msg("DeleteMoreRetryCount start success")
-			}
 		}
 	}()
 

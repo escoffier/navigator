@@ -98,27 +98,27 @@ func (s *NodeImageSrv) ListImageWithScanInfo(ctx context.Context, param imagesec
 		param.Filter.Offset = 0
 	}
 
-	daoParam.OrFlag += param.SafeAttrFlag
-	daoParam.OrFlag += param.OnlineFlag
+	daoParam.OrFlag |= param.SafeAttrFlag
+	daoParam.OrFlag |= param.OnlineFlag
 
 	if param.AttrIntersection == model.AndString {
-		daoParam.AndFlag += param.ImageAttrFlag
+		daoParam.AndFlag |= param.ImageAttrFlag
 	}
 	if param.IssueIntersection == model.AndString {
-		daoParam.AndFlag += param.SecurityIssueFlag
+		daoParam.AndFlag |= param.SecurityIssueFlag
 	}
 	if param.VulnStaticIntersection == model.AndString {
-		daoParam.AndFlag += param.VulnStaticFlag
+		daoParam.AndFlag |= param.VulnStaticFlag
 	}
 
 	if param.AttrIntersection == model.OrString {
-		daoParam.OrFlag += param.ImageAttrFlag
+		daoParam.OrFlag |= param.ImageAttrFlag
 	}
 	if param.IssueIntersection == model.OrString {
-		daoParam.OrFlag += param.SecurityIssueFlag
+		daoParam.OrFlag |= param.SecurityIssueFlag
 	}
 	if param.VulnStaticIntersection == model.OrString {
-		daoParam.OrFlag += param.VulnStaticFlag
+		daoParam.OrFlag |= param.VulnStaticFlag
 	}
 
 	daoParam.Fields = []string{"id", "unique_id"}

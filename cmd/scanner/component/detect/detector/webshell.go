@@ -43,7 +43,7 @@ func CheckImageWebshell(ctx context.Context, data *imagesecModel.ImageWithCorrel
 			(ws.RiskLevel == imagesecModel.WebshellRiskLevelMaybe && maybe) {
 			ans = append(ans, &imagesecModel.ImageDetectResult{
 				DetectType:    imagesecModel.DetectTypeWebshellRule,
-				Flag:          util.SetBit1(0, imagesecModel.FlagDetectException),
+				Flag:          util.SetBit1(util.SetBit1(0, imagesecModel.FlagDetectException), imagesecModel.FlagDetectInBlack),
 				UniqueTarget:  data.Webshell[i].UniqueID,
 				ImageUniqueID: data.Image.UniqueID,
 				PolicyID:      policy.ID,

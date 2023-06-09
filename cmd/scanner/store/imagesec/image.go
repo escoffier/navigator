@@ -173,7 +173,7 @@ func (dal *ImageMetaDao) SearchImage(ctx context.Context, param imagesec.NodeIma
 	}
 
 	if len(param.Digests) > 0 {
-		db = db.Where("digest IN   ?  ", param.Digests)
+		db = db.Where("digest IN ?  ", param.Digests)
 	}
 
 	if param.WebshellMD5 != "" {

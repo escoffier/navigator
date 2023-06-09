@@ -18,13 +18,14 @@ func CheckImageVuln(ctx context.Context, data *imagesecModel.ImageWithCorrelateD
 	black := policy.Vuln.Black
 	vulns := data.Vuln
 	for i := range vulns {
+		var flag uint64
 		if policy.Vuln.IgnoreUnfixed && vulns[i].FixedVersion == "" ||
 			policy.Vuln.IgnoreKernelVuln && util.ExistBit1(vulns[i].Flag, imagesecModel.VulnFlagKernelPkg) ||
 			policy.Vuln.IgnoreLangVuln && util.ExistBit1(vulns[i].Flag, imagesecModel.VulnFlagClassLangPkg) {
 			continue
 		}
 
-		whiteAdd := false
+		whiteAdd, blackAdd := false, false
 		for _, wh := range white {
 			if vulns[i].Name == wh.VulnID {
 				whiteAdd = true
@@ -37,17 +38,9 @@ func CheckImageVuln(ctx context.Context, data *imagesecModel.ImageWithCorrelateD
 			}
 		}
 		if whiteAdd {
-			ans = append(ans, &imagesecModel.ImageDetectResult{
-				DetectType:    imagesecModel.DetectTypeVulnRule,
-				Flag:          util.SetBit1(0, imagesecModel.FlagDetectInWhite),
-				UniqueTarget:  vulns[i].UniqueID,
-				ImageUniqueID: data.Image.UniqueID,
-				PolicyID:      policy.ID,
-			})
-			continue
+			flag = util.SetBit1(flag, imagesecModel.FlagDetectInWhite)
 		}
 
-		blackAdd := false
 		for _, wh := range black {
 			if vulns[i].Name == wh.VulnID {
 				blackAdd = true
@@ -59,21 +52,20 @@ func CheckImageVuln(ctx context.Context, data *imagesecModel.ImageWithCorrelateD
 				}
 			}
 		}
-		if blackAdd {
-			ans = append(ans, &imagesecModel.ImageDetectResult{
-				DetectType:    imagesecModel.DetectTypeVulnRule,
-				Flag:          util.SetBit1(util.SetBit1(0, imagesecModel.FlagDetectInBlack), imagesecModel.FlagDetectException),
-				UniqueTarget:  vulns[i].UniqueID,
-				ImageUniqueID: data.Image.UniqueID,
-				PolicyID:      policy.ID,
-			})
+
+		if !util.ExistBit1(flag, imagesecModel.FlagDetectInWhite) && blackAdd {
+			flag = util.SetBit1(util.SetBit1(flag, imagesecModel.FlagDetectInBlack), imagesecModel.FlagDetectException)
 		}
 
-		if policy.Vuln.Severity != "" && imagesecModel.GetSeverityInt(strings.ToUpper(policy.Vuln.Severity)) <= vulns[i].SeverityInt {
+		if !util.ExistBit1(flag, imagesecModel.FlagDetectInWhite) && (policy.Vuln.Severity != "" &&
+			imagesecModel.GetSeverityInt(strings.ToUpper(policy.Vuln.Severity)) <= vulns[i].SeverityInt) {
+			flag = util.SetBit1(util.SetBit1(flag, imagesecModel.GetVulnSeverityDetectFlag(vulns[i].SeverityInt)),
+				imagesecModel.FlagDetectException)
+		}
+		if flag > 0 {
 			ans = append(ans, &imagesecModel.ImageDetectResult{
-				DetectType: imagesecModel.DetectTypeVulnRule,
-				Flag: util.SetBit1(util.SetBit1(0, imagesecModel.GetVulnSeverityDetectFlag(vulns[i].SeverityInt)),
-					imagesecModel.FlagDetectException),
+				DetectType:    imagesecModel.DetectTypeVulnRule,
+				Flag:          flag,
 				UniqueTarget:  vulns[i].UniqueID,
 				ImageUniqueID: data.Image.UniqueID,
 				PolicyID:      policy.ID,

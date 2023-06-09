@@ -17,27 +17,23 @@ func CheckImageEnv(ctx context.Context, data *imagesecModel.ImageWithCorrelateDa
 	}
 	for i := range data.Env {
 		v := data.Env[i]
-		if policy.Env.CheckPassword {
-			if ContainPassword(v.Key, v.Value) {
-				ans = append(ans, &imagesecModel.ImageDetectResult{
-
-					DetectType:    imagesecModel.DetectTypeEnvRule,
-					Flag:          util.SetBit1(0, imagesecModel.FlagDetectEnvHasPasswd),
-					UniqueTarget:  v.UniqueID,
-					ImageUniqueID: data.Image.UniqueID,
-					PolicyID:      policy.ID,
-				})
-			}
+		var flag uint64
+		if ContainPassword(v.Key, v.Value) {
+			flag = util.SetBit1(flag, imagesecModel.FlagDetectEnvHasPasswd)
+		}
+		if policy.Env.CheckPassword && ContainPassword(v.Key, v.Value) {
+			flag = util.SetBit1(flag, imagesecModel.FlagDetectException)
 		}
 		if util.ExistInStringSlice(policy.Env.Black, v.Key) {
-			ans = append(ans, &imagesecModel.ImageDetectResult{
-				DetectType:    imagesecModel.DetectTypeEnvRule,
-				Flag:          util.SetBit1(util.SetBit1(0, imagesecModel.FlagDetectInBlack), imagesecModel.FlagDetectException),
-				UniqueTarget:  v.UniqueID,
-				ImageUniqueID: data.Image.UniqueID,
-				PolicyID:      policy.ID,
-			})
+			flag = util.SetBit1(util.SetBit1(flag, imagesecModel.FlagDetectInBlack), imagesecModel.FlagDetectException)
 		}
+		ans = append(ans, &imagesecModel.ImageDetectResult{
+			DetectType:    imagesecModel.DetectTypeEnvRule,
+			Flag:          flag,
+			UniqueTarget:  v.UniqueID,
+			ImageUniqueID: data.Image.UniqueID,
+			PolicyID:      policy.ID,
+		})
 	}
 	return ans
 }

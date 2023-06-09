@@ -18,19 +18,25 @@ func CheckImageLicense(ctx context.Context, data *imagesecModel.ImageWithCorrela
 
 	for i := range data.Pkg {
 		licenses := data.Pkg[i].License
+		var flag uint64
+
 		for j := range black {
 			for k := range licenses {
 				if licenses[k] == black[j] {
-					ans = append(ans, &imagesecModel.ImageDetectResult{
-						DetectType: imagesecModel.DetectTypePkgLicenseRule,
-						Flag: util.SetBit1(util.SetBit1(0, imagesecModel.FlagDetectInBlack),
-							imagesecModel.FlagDetectException),
-						UniqueTarget:  data.Pkg[i].UniqueID,
-						ImageUniqueID: data.Image.UniqueID,
-						PolicyID:      policy.ID,
-					})
+					flag = util.SetBit1(util.SetBit1(flag, imagesecModel.FlagDetectInBlack),
+						imagesecModel.FlagDetectException)
 				}
 			}
+		}
+
+		if flag > 0 {
+			ans = append(ans, &imagesecModel.ImageDetectResult{
+				DetectType:    imagesecModel.DetectTypePkgLicenseRule,
+				Flag:          flag,
+				UniqueTarget:  data.Pkg[i].UniqueID,
+				ImageUniqueID: data.Image.UniqueID,
+				PolicyID:      policy.ID,
+			})
 		}
 	}
 	return ans
