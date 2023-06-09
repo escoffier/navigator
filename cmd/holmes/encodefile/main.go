@@ -213,14 +213,14 @@ func main() {
 		if err = checkRulesFile(finalBytes); err != nil {
 			fmt.Printf("\033[1;37;41m%s\033[0m\n", err)
 			fp.Close()
-			os.Exit(41)
+			os.Exit(4)
 		}
 	} else {
 		finalBytes = fileBytes
 		if err = checkRulesFileV1V2(finalBytes); err != nil {
 			fmt.Printf("\033[1;37;41m%s\033[0m\n", err)
 			fp.Close()
-			os.Exit(42)
+			os.Exit(14)
 		}
 	}
 
@@ -241,6 +241,9 @@ func main() {
 	}
 }
 
+// 1. 从路径中读取文件数据
+// 2. 找到自定义规则，并分别返回
+// 3. 将自定义规则相关的规则，放到规则包最前面。（优先级最高）
 func readBytesFromDir(dirPath string) ([]byte, []byte) {
 	fileInfos, err := os.ReadDir(dirPath)
 	if err != nil {
@@ -249,12 +252,12 @@ func readBytesFromDir(dirPath string) ([]byte, []byte) {
 	}
 	fileBytes := make([]byte, 0, 10000)
 	partFileBytes := make([]byte, 0)
-	cconfigBytes := make([]byte, 0)
+	cConfigBytes := make([]byte, 0)
 	for _, fileInfo := range fileInfos {
 		if fileInfo.IsDir() {
 			continue
 		} else if strings.Index(fileInfo.Name(), "custom_configs") >= 0 { // exclude custom_configs.yaml
-			cconfigBytes, err = os.ReadFile(dirPath + "/" + fileInfo.Name())
+			cConfigBytes, err = os.ReadFile(dirPath + "/" + fileInfo.Name())
 			if err != nil {
 				fmt.Println(err)
 				os.Exit(11)
@@ -264,12 +267,58 @@ func readBytesFromDir(dirPath string) ([]byte, []byte) {
 			partFileBytes, err = os.ReadFile(dirPath + "/" + fileInfo.Name())
 			if err != nil {
 				fmt.Println(err)
-				os.Exit(11)
+				os.Exit(12)
 			}
 		}
 		fileBytes = append(fileBytes, append([]byte("\n\n"), partFileBytes...)...)
 		partFileBytes = make([]byte, 0, 50)
 	}
 
-	return fileBytes, cconfigBytes
+	// 获取自定义规则的规则名称
+	cConfigRuleNames := []string{}
+	sCConfig := string(cConfigBytes)
+	sCParts := strings.Split(sCConfig, "rulesAppliedSteps:\n")
+	if len(sCParts) == 1 { // 没有自定义规则，直接返回
+		return fileBytes, cConfigBytes
+	}
+	sCParts = sCParts[1:]
+	for i := range sCParts {
+		sLines := strings.Split(sCParts[i], "\n")
+		line := strings.TrimSpace(strings.ReplaceAll(sLines[0], "-", ""))
+		if line != "" {
+			cConfigRuleNames = append(cConfigRuleNames, line)
+		}
+	}
+
+	// 调整自定义规则，放到最前面
+	sFile := string(fileBytes)
+	sParts := strings.Split(sFile, "\n-")
+	if len(sParts) == 1 {
+		fmt.Println("no rules?")
+		os.Exit(13)
+	}
+	firstTitle := sParts[0]
+	sNewCConfig := ""
+	sNewOther := "" + firstTitle
+	sParts = sParts[1:]
+	for i := range sParts {
+		sLines := strings.Split(sParts[i], "\n")
+		if len(sLines) == 1 {
+			continue
+		}
+		meetCConfig := false
+		for j := range cConfigRuleNames {
+			if strings.Index(sLines[0], cConfigRuleNames[j]) != -1 {
+				sNewCConfig += "\n-" + sParts[i]
+				meetCConfig = true
+				break
+			}
+		}
+		if !meetCConfig {
+			sNewOther += "\n-" + sParts[i]
+		}
+	}
+	fileBytes = []byte(sNewCConfig + sNewOther)
+
+	return fileBytes, cConfigBytes
 }
