@@ -7,8 +7,8 @@
     zh: 可检测对应域名的挖矿连接
     en: It could detect connections from the miner to the given domains
   type: list
+  # rulesAppliedSteps规范: the first item must be a rule; the others must be macros
   rulesAppliedSteps:
-  # the first must be a rule; the others must be macros
   - - Detect outbound connections to common miner pool ports
     - net_miner_pool
     - minerpool_other
