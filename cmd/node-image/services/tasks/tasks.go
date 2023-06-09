@@ -305,7 +305,7 @@ func (m *Manager) scanImage(t imagesec.ScanSubTask) error {
 	cmdStr := m.makeScanCmd(imageName, t.SubTaskID)
 	debugLog().Str("cmd", cmdStr).Msg("make cmd")
 
-	cmd := exec.Command("sh", "-c", cmdStr)
+	cmd := exec.Command("/bin/sh", "-c", cmdStr)
 	if m.runConfig.ScanConfig.RealTimeLog {
 		var stdBuffer bytes.Buffer
 		mw := io.MultiWriter(os.Stdout, &stdBuffer) // real time output
@@ -314,7 +314,7 @@ func (m *Manager) scanImage(t imagesec.ScanSubTask) error {
 	}
 	err := cmd.Start()
 	if err != nil {
-		errLog(err).Msg("failed to scan")
+		errLog(err).Msg("failed to start cmd")
 		return err
 	}
 
