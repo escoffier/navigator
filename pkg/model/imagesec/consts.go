@@ -50,8 +50,8 @@ const (
 	UniquePkgFormat       = "%s-%s-%s-%s"
 	UniqueEnvFormat       = "%d-%s-%s-%s"
 	UniqueWebshellFormat  = "%s-%s"
-	UniqueLibImageFormat  = "%d-%s-%s-%s-%s"    // RegID+Repo+Tag+Digest
-	UniqueNodeImageFormat = "%d-%s-%s-%s-%s-%s" // NodeID+Repo+Tag+Digest+ImageID
+	UniqueLibImageFormat  = "%d-%s-%s-%s"    // RegID+ImageName+Digest+ImageFromType
+	UniqueNodeImageFormat = "%d-%s-%s-%s-%s" // NodeID+ImageName+Digest+ImageID+ImageFromType
 )
 
 const (

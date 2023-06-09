@@ -148,11 +148,10 @@ func (dal *ScanTaskDao) SearchScanTask(ctx context.Context, param imagesecModel.
 		db = db.Where("status NOT IN ?", param.NotScanStatus)
 	}
 	if param.NodeNameKeyword != "" {
-		sub1 := dal.db.Get().WithContext(ctx).Table(new(imagesecModel.NodeInfo).TableName()).Select("unique_id").
-			Where("hostname LIKE ?", fmt.Sprintf("%%%s%%", param.NodeNameKeyword))
-		sub2 := dal.db.Get().WithContext(ctx).Table(new(imagesecModel.ImageScanSubTask).TableName()).
-			Select("distinct task_id").Where("node_unique_id in (?)", sub1)
-		db = db.Where("id IN (?)", sub2)
+		sub := dal.db.Get().WithContext(ctx).Table(new(imagesecModel.ImageScanSubTask).TableName()).Select("distinct task_id").
+			Where("node_host_name like ? OR image_name like ? ", fmt.Sprintf("%%%s%%", param.NodeNameKeyword),
+				fmt.Sprintf("%%%s%%", param.NodeNameKeyword))
+		db = db.Where("id IN (?)", sub)
 	}
 
 	var cnt int64
@@ -249,10 +248,10 @@ func (dal *ScanTaskDao) SearchScanSubtask(ctx context.Context, param imagesecMod
 		db = db.Where("node_unique_id = ?", param.NodeUniqueID)
 	}
 	if param.NodeNameKeyword != "" {
-		sub1 := dal.db.Get().WithContext(ctx).Table(new(imagesecModel.NodeInfo).TableName()).Select("unique_id").
-			Where("hostname LIKE ?", fmt.Sprintf("%%%s%%", param.NodeNameKeyword))
-		db = db.Where("node_unique_id IN (?)", sub1)
+		db = db.Where("node_host_name like ? OR image_name like ? ", fmt.Sprintf("%%%s%%", param.NodeNameKeyword),
+			fmt.Sprintf("%%%s%%", param.NodeNameKeyword))
 	}
+
 	if param.Where != "" {
 		db = db.Where(param.Where)
 	}
