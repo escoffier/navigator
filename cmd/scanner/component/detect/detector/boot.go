@@ -17,7 +17,6 @@ func CheckImageUser(ctx context.Context, data *imagesecModel.ImageWithCorrelateD
 	}
 	if data.Image.User == consts.BootRootUser || data.Image.User == "" {
 		ans = append(ans, &imagesecModel.ImageDetectResult{
-			ID:            0,
 			DetectType:    imagesecModel.DetectTypeRootRule,
 			Flag:          util.SetBit1(0, imagesecModel.FlagDetectException),
 			ImageUniqueID: data.Image.UniqueID,

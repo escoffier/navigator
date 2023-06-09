@@ -21,6 +21,7 @@ func CheckImageSensitive(ctx context.Context, data *imagesecModel.ImageWithCorre
 	white := policy.Sensitive.White
 	black := policy.Sensitive.Black
 	whiteReg := make([]*regexp.Regexp, 0)
+	blackReg := make([]*regexp.Regexp, 0)
 
 	for i := range white {
 		compile, err := regexp.Compile(white[i])
@@ -30,8 +31,6 @@ func CheckImageSensitive(ctx context.Context, data *imagesecModel.ImageWithCorre
 		}
 		whiteReg = append(whiteReg, compile)
 	}
-
-	blackReg := make([]*regexp.Regexp, 0)
 
 	for i := range black {
 		compile, err := regexp.Compile(black[i])
@@ -44,36 +43,33 @@ func CheckImageSensitive(ctx context.Context, data *imagesecModel.ImageWithCorre
 
 	for i := range sess {
 		ses := sess[i]
-		inWhite := false
+		var flag uint64
 		for j := range whiteReg {
 			wh := whiteReg[j]
 			if wh.FindString(ses.Name) != "" {
-				inWhite = true
-				ans = append(ans, &imagesecModel.ImageDetectResult{
-					DetectType:    imagesecModel.DetectTypeSensRule,
-					Flag:          util.SetBit1(0, imagesecModel.FlagDetectInWhite),
-					UniqueTarget:  ses.UniqueID,
-					ImageUniqueID: data.Image.UniqueID,
-					PolicyID:      policy.ID,
-				})
+				flag = util.SetBit1(flag, imagesecModel.FlagDetectInWhite)
 			}
 		}
-		// 白名单的优先级最高
-		if !inWhite {
+
+		if !util.ExistBit1(flag, imagesecModel.FlagDetectInWhite) {
 			for j := range blackReg {
-				wh := blackReg[j]
-				findString := wh.FindString(ses.Name)
-				if findString != "" {
-					ans = append(ans, &imagesecModel.ImageDetectResult{
-						DetectType:    imagesecModel.DetectTypeSensRule,
-						Flag:          util.SetBit1(util.SetBit1(0, imagesecModel.FlagDetectInBlack), imagesecModel.FlagDetectException),
-						UniqueTarget:  ses.UniqueID,
-						ImageUniqueID: data.Image.UniqueID,
-						PolicyID:      policy.ID,
-					})
+				bl := blackReg[j]
+				if bl.FindString(ses.Name) != "" {
+					flag = util.SetBit1(util.SetBit1(flag, imagesecModel.FlagDetectInBlack), imagesecModel.FlagDetectException)
 				}
 			}
 		}
+
+		if flag > 0 {
+			ans = append(ans, &imagesecModel.ImageDetectResult{
+				DetectType:    imagesecModel.DetectTypeSensRule,
+				Flag:          flag,
+				UniqueTarget:  ses.UniqueID,
+				ImageUniqueID: data.Image.UniqueID,
+				PolicyID:      policy.ID,
+			})
+		}
+
 	}
 
 	return ans

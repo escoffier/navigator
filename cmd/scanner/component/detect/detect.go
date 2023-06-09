@@ -410,7 +410,7 @@ func (s *Detector) ContinueUpdateImage(ctx context.Context) {
 	for up := range s.updateImageChan {
 		// 解决主从同步
 		if time.Now().UnixMilli()-up.CreateAt < consts.DefaultSlaveDelay {
-			time.Sleep(consts.DefaultSlaveDelay * time.Second)
+			time.Sleep(consts.DefaultSlaveDelay * time.Millisecond)
 		}
 
 		brief, err := s.detectResultDal.SearchDetectBrief(ctx, imagesecModel.SearchDetectBriefParam{
@@ -433,7 +433,7 @@ func (s *Detector) ContinueUpdateImage(ctx context.Context) {
 			logging.Get().Info().Uint64("ImageUniqueID", up.ImageUniqueID).Msg("Detector UpdateImage SearchImage not find image")
 			continue
 		}
-		flag := imagesecModel.ImageDetectBriefResult(brief).ImageSafeFlag(image[0].Flag)
+		flag := imagesecModel.ImageDetectBriefResult(brief).AddImageSafeFlag(image[0].Flag)
 
 		envs, err := s.detectResultDal.SearchDetectResult(ctx, imagesecModel.SearchDetectResultParam{
 			ImageUniqueID: image[0].UniqueID,
@@ -448,9 +448,6 @@ func (s *Detector) ContinueUpdateImage(ctx context.Context) {
 		for i := range envs {
 			if util.ExistBit1(envs[i].Flag, imagesecModel.FlagDetectException) {
 				flag = util.SetBit1(flag, model.FlagHasExceptEnv)
-			}
-			if util.ExistBit1(envs[i].Flag, imagesecModel.FlagDetectEnvHasPasswd) {
-				flag = util.SetBit1(flag, model.FlagHasPasswdEnv)
 			}
 		}
 

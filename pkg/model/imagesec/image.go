@@ -21,7 +21,7 @@ type Image struct {
 	Host          string                `gorm:"column:host" json:"host"`
 	Repo          string                `gorm:"column:repo" json:"repo"`
 	Tag           string                `gorm:"column:tag" json:"tag"`
-	ImageName     string                `gorm:"image_name" json:"imageName"` // 主要用于搜索
+	ImageName     string                `gorm:"column:image_name" json:"imageName"` // 主要用于搜索
 	Digest        string                `gorm:"column:digest" json:"digest"`
 	OS            types.OS              `gorm:"-" json:"os"` // 为啥不用 ImageOS :为了兼容老数据,返回数据为啥要定义新结构体:因为 trivy 的Eosl 可能不序列化
 	OSJson        string                `gorm:"column:os" json:"-"`
@@ -119,7 +119,7 @@ func (vi *Image) GenDefaultFlag() uint64 {
 	flag = util.SetBit1(flag, model.FlagNodeImageNotInLib)
 	flag = util.SetBit1(flag, model.FlagAppImage)
 
-	if vi.User == "root" || vi.User == "" {
+	if vi.User == BootRootUser || vi.User == "" {
 		flag = util.SetBit1(flag, model.FlagPrivilegedBoot)
 	}
 	vi.Flag = flag

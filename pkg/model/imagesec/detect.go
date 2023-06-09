@@ -236,13 +236,15 @@ func (vi *ImageDetectBrief) Serialize() {
 
 type ImageDetectBriefResult []*ImageDetectBrief
 
-func (vi ImageDetectBriefResult) ImageSafeFlag(flag uint64) uint64 {
-	// 判断是否是safe
+func (vi ImageDetectBriefResult) AddImageSafeFlag(preFlag uint64) uint64 {
 	if len(vi) == 0 {
-		flag = util.SetBit0(util.SetBit0(util.SetBit1(flag, model.FlagImageSafeUnknown), model.FlagImageSafe),
+		preFlag = util.SetBit0(util.SetBit0(util.SetBit1(preFlag, model.FlagImageSafe), model.FlagImageSafeUnknown),
 			model.FlagImageUnsafe)
+		return preFlag
 	}
+
 	safe := true
+
 	for i := range vi {
 		if util.ExistBit1(vi[i].Flag, FlagDetectException) {
 			safe = false
@@ -250,11 +252,11 @@ func (vi ImageDetectBriefResult) ImageSafeFlag(flag uint64) uint64 {
 		}
 	}
 	if safe {
-		flag = util.SetBit0(util.SetBit0(util.SetBit1(flag, model.FlagImageSafe), model.FlagImageUnsafe),
+		preFlag = util.SetBit0(util.SetBit0(util.SetBit1(preFlag, model.FlagImageSafe), model.FlagImageUnsafe),
 			model.FlagImageSafeUnknown)
 	} else {
-		flag = util.SetBit0(util.SetBit0(util.SetBit1(flag, model.FlagImageUnsafe), model.FlagImageSafe),
+		preFlag = util.SetBit0(util.SetBit0(util.SetBit1(preFlag, model.FlagImageUnsafe), model.FlagImageSafe),
 			model.FlagImageSafeUnknown)
 	}
-	return flag
+	return preFlag
 }
