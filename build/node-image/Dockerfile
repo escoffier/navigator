@@ -8,7 +8,7 @@ RUN sed -i "s!archive.ubuntu.com/!mirrors.aliyun.com/!g" /etc/apt/sources.list \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
-#ENV PATH="${PATH}:/var/lib/tensor"
+ENV PATH="${PATH}:/var/lib/tensor"
 
 # 病毒扫描支持中文文件名
 ENV LANG=zh_CN.UTF-8
