@@ -33,6 +33,7 @@ type QueryNaviAuditLogOpt struct {
 	EndTimestamp   int64
 	Limit          int
 	Asc            bool
+	Lang           string
 }
 
 type Resp struct {
@@ -113,14 +114,26 @@ func (s *Service) GetAuditLog(ctx context.Context, opt *QueryNaviAuditLogOpt) ([
 			logging.Get().Err(err).Msg("parse k8s audit log fail")
 			continue
 		}
-		result = append(result, &Resp{
+		r := &Resp{
 			ID:        item.Id,
 			Time:      record.Timestamp,
 			UserName:  record.User.Name,
 			Ip:        record.HttpRequest.RemoteIP,
 			Operation: record.Verb,
 			Detail:    record.Detail,
-		})
+		}
+		if opt.Lang == "zh" {
+			r.Operation = record.Verb
+			r.Detail = record.Detail
+		} else {
+			data, ok := record.MetaData[opt.Lang]
+			if ok {
+				eninfo := data.(map[string]interface{})
+				r.Operation = eninfo["verb"].(string)
+				r.Detail = eninfo["detail"].(string)
+			}
+		}
+		result = append(result, r)
 	}
 
 	return result, nil
