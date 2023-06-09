@@ -13,9 +13,8 @@
   condition: >
     evt.type in (connect,sendto,sendmsg)
     and fd.name contains "->"
-    and fd.net != "127.0.0.0/8"
     and not fd.sport in ("", 53)
-    and fd.name != "" and fd.name exists
+    and fd.name != "" and fd.name exists and fd.type in ("ipv4", "ipv6")
     and shell_family_procs
     and not proc.name in (known_system_procs_network_activity_binaries)
     and not proc.pname in (known_system_procs_network_activity_binaries)

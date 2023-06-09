@@ -13,7 +13,7 @@
   condition: >
    spawned_process and evt.res!=ENOENT and
    container and not container_entrypoint and
-   shell_procs
+   shell_procs and not proc.cmdline contains "vimglob"
   output: >
     Generated child process shell after starting the container(zh_msg=启动容器后生成子进程shell,rule_type=Execution,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_name=%proc.name,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,evt.arg.exe=%evt.arg.exe,terminal=%proc.tty,user_uid=%user.uid,container_id=%container.id,container_name=%container.name,parent=%proc.pname,gparent=%proc.aname[2],ggparent=%proc.aname[3],aname[4]=%proc.aname[4],aname[5]=%proc.aname[5],aname[6]=%proc.aname[6],aname[7]=%proc.aname[7],proc_pgid=%proc.vpgid)
   priority: WARNING

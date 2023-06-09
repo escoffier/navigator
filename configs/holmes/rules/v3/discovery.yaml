@@ -337,31 +337,3 @@
     priority: WARNING
     urgency: true
     tags: [ATT&CK]
-
-- key: Contact K8S DNS Server From Container
-  disable: true
-  hid: disc_14
-  condition: >
-    evt.type=connect and evt.dir=< and
-    (fd.typechar=4 or fd.typechar=6) and
-    container and
-    not k8s_containers and
-    k8s_dns_server and
-    not ignore_proc_args and
-    shell_parent_procs
-  output: >
-    proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,container_info=%container.info,image=%container.image.repository,image_tag=%container.image.tag,connection=%fd.name,container_id=%container.id,container_name=%container.name
-  info:
-    name:
-      en: "Contact K8S DNS Server From Container"
-      zh: "容器内与K8S-DNS服务器通信"
-    desc:
-      en: "Contact K8S DNS Server From Container"
-      zh: "容器内与K8S-DNS服务器通信"
-    suggestion:
-      en: "This behavior may be that hackers use malicious tools to communicate with K8s DNS to obtain sensitive information. Please check whether this behavior is expected, or immediately isolate the container."
-      zh: "该行为可能是黑客使用恶意工具与K8s-DNS通信进而获取敏感信息，请排查该行为是否为预期内操作，否则请立即对该容器进行隔离。"
-    rule_type: Discovery
-    priority: WARNING
-    urgency: true
-    tags: [ATT&CK, network, k8s, container, mitre_discovery]
