@@ -28,9 +28,19 @@ const (
 	enableAction  = "启用"
 	disableAction = "停用"
 	eAnddAction   = "启用/停用"
-	importAction  = "导出"
+	exportAction  = "导出"
 	uploadAction  = "上传"
 	processAction = "发起处置"
+
+	editActionEN    = "modify"
+	createActionEN  = "create"
+	deleteActionEN  = "delete"
+	enableActionEN  = "enable"
+	disableActionEN = "disable"
+	eAnddActionEN   = "enable/disable"
+	importActionEN  = "import"
+	uploadActionEN  = "upload"
+	processActionEN = "process"
 )
 
 var routeAction *Router
@@ -46,7 +56,8 @@ type Store interface {
 func RequestLogger(store Store, queue *util.Queue) func(next http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		fn := func(w http.ResponseWriter, r *http.Request) {
-			verb, detail, ok := getVerb(r)
+			rMap, ok := getVerb(r)
+			// verb, detail, ok := getVerb(r)
 			if !ok {
 				next.ServeHTTP(w, r)
 				return
@@ -64,6 +75,9 @@ func RequestLogger(store Store, queue *util.Queue) func(next http.Handler) http.
 				if !needAudit(ww) {
 					return
 				}
+				verb := rMap["zh"]["verb"]
+				detail := rMap["zh"]["detail"].(string)
+				detailEN := rMap["en"]["detail"].(string)
 				data := map[string]interface{}{
 					"verb":   verb,
 					"detail": detail,
@@ -79,6 +93,7 @@ func RequestLogger(store Store, queue *util.Queue) func(next http.Handler) http.
 						objName := getObjectName(respBody)
 						data["objName"] = objName
 						detail, _ = generateDetail(detail, objName)
+						detailEN, _ = generateDetail(detailEN, objName)
 						data["detail"] = detail
 					}
 				} else {
@@ -89,10 +104,17 @@ func RequestLogger(store Store, queue *util.Queue) func(next http.Handler) http.
 						if err == nil {
 							data["objName"] = targetRef.Name
 							detail, _ = generateDetail(detail, targetRef.Name)
+							detailEN, _ = generateDetail(detailEN, targetRef.Name)
 							data["detail"] = detail
 						}
 					}
 				}
+
+				verbEN := rMap["en"]["verb"]
+				data["metaData"] = map[string]interface{}{
+					"en": map[string]interface{}{"verb": verbEN, "detail": detailEN},
+				}
+
 				entry.Write(ww.Status(), ww.BytesWritten(), ww.Header(), time.Since(t1), data)
 			}()
 
@@ -166,8 +188,17 @@ func (e *LogEntry) Write(status, bytes int, header http.Header, elapsed time.Dur
 	if ok {
 		resp.Body = string(body.([]byte))
 	}
-	verb, _ := extraData["verb"]
-	detail, _ := extraData["detail"]
+
+	e.auditEvt.MetaData = make(map[string]interface{})
+	verb := extraData["verb"]
+	detail := extraData["detail"]
+	metaData, ok := extraData["metaData"].(map[string]interface{})
+	if ok {
+		for k, v := range metaData {
+			e.auditEvt.MetaData[k] = v
+		}
+	}
+
 	objName, ok := extraData["objName"]
 	if ok && objName != nil {
 		if e.auditEvt.MetaData == nil {
@@ -204,14 +235,14 @@ func (e *LogEntry) Write(status, bytes int, header http.Header, elapsed time.Dur
 func (e *LogEntry) Panic(v interface{}, stack []byte) {
 }
 
-func getVerb(r *http.Request) (string, string, bool) {
+func getVerb(r *http.Request) (map[string]map[string]interface{}, bool) {
 	path := r.URL.Path
 	fn, params, _ := routeAction.Lookup(r.Method, path)
 	if fn != nil {
-		r1, r2 := fn(params)
-		return r1, r2, true
+		result := fn(params)
+		return result, true
 	}
-	return "", "", false
+	return nil, false
 }
 
 func requestLogFields(r *http.Request) *model.NaviAuditEvent {
@@ -326,420 +357,1390 @@ func getObjectName(body []byte) string {
 
 func needAudit(w middleware.WrapResponseWriter) bool {
 	status := w.Status()
-	if status < 400 {
-		return true
-	}
-	return false
+	return status < 400
 }
 
 func init() {
 	routeAction = newRouter()
 	// 平台报告
-	routeAction.POST("/api/v2/platform/report/template", func(params Params) (string, string) {
-		return createAction, "新增平台报告{{.}}"
+	routeAction.POST("/api/v2/platform/report/template", func(params Params) map[string]map[string]interface{} {
+		return map[string]map[string]interface{}{
+			"zh": {
+				"verb":   createAction,
+				"detail": "新增平台报告{{.}}"},
+			"en": {createActionEN: "Add platform report{{.}}"},
+		}
+
+		// return createAction, "新增平台报告{{.}}"
 	})
-	routeAction.PUT("/api/v2/platform/report/template", func(params Params) (string, string) {
-		return editAction, "编辑平台报告{{.}}"
+	routeAction.PUT("/api/v2/platform/report/template", func(p Params) map[string]map[string]interface{} {
+		return map[string]map[string]interface{}{
+			"zh": {
+				"verb":   editAction,
+				"detail": "编辑平台报告{{.}}",
+			},
+			"en": {
+				"verb":   editActionEN,
+				"detail": "Edit platform report {{.}}",
+			},
+		}
 	})
-	routeAction.DELETE("/api/v2/platform/report/template", func(params Params) (string, string) {
-		return deleteAction, "删除平台报告{{.}}"
+	routeAction.DELETE("/api/v2/platform/report/template", func(p Params) map[string]map[string]interface{} {
+		return map[string]map[string]interface{}{
+			"zh": {
+				"verb":   deleteAction,
+				"detail": "删除平台报告{{.}}",
+			},
+			"en": {
+				"verb":   deleteActionEN,
+				"detail": "Delete platform report {{.}}",
+			},
+		}
 	})
-	routeAction.GET("/api/v2/platform/report/recordDetail", func(params Params) (string, string) {
-		return importAction, "导出平台报告{{.}}"
+	routeAction.GET("/api/v2/platform/report/recordDetail", func(p Params) map[string]map[string]interface{} {
+		return map[string]map[string]interface{}{
+			"zh": {
+				"verb":   exportAction,
+				"detail": "导出平台报告{{.}}",
+			},
+			"en": {
+				"verb":   importActionEN,
+				"detail": "Import platform report {{.}}",
+			},
+		}
 	})
 
 	// 主动防御
-	routeAction.POST("/api/v2/containerSec/watson/baitService", func(params Params) (string, string) {
-		return editAction, "编辑诱捕服务{{.}}"
+	routeAction.POST("/api/v2/containerSec/watson/baitService", func(p Params) map[string]map[string]interface{} {
+		return map[string]map[string]interface{}{
+			"zh": {
+				"verb":   editAction,
+				"detail": "编辑诱捕服务{{.}}",
+			},
+			"en": {
+				"verb":   editActionEN,
+				"detail": "Edit bait service {{.}}",
+			},
+		}
 	})
-	routeAction.PUT("/api/v2/containerSec/watson/baitService", func(params Params) (string, string) {
-		return createAction, "新增诱捕服务{{.}}"
+	routeAction.PUT("/api/v2/containerSec/watson/baitService", func(p Params) map[string]map[string]interface{} {
+		return map[string]map[string]interface{}{
+			"zh": {
+				"verb":   createAction,
+				"detail": "新增诱捕服务{{.}}",
+			},
+			"en": {
+				"verb":   createActionEN,
+				"detail": "Add bait service {{.}}",
+			},
+		}
 	})
-	routeAction.DELETE("/api/v2/containerSec/watson/baitService", func(params Params) (string, string) {
-		return deleteAction, "删除诱捕服务{{.}}"
+	routeAction.DELETE("/api/v2/containerSec/watson/baitService", func(p Params) map[string]map[string]interface{} {
+		return map[string]map[string]interface{}{
+			"zh": {
+				"verb":   deleteAction,
+				"detail": "删除诱捕服务{{.}}",
+			},
+			"en": {
+				"verb":   deleteActionEN,
+				"detail": "Delete bait service {{.}}",
+			},
+		}
 	})
 
 	// 用户登录
-	routeAction.POST("/api/v2/usercenter/login", func(params Params) (string, string) {
-		return "登录", "登录"
+	routeAction.POST("/api/v2/usercenter/login", func(p Params) map[string]map[string]interface{} {
+		return map[string]map[string]interface{}{
+			"zh": {
+				"verb":   "登录",
+				"detail": "登录",
+			},
+			"en": {
+				"verb":   "login",
+				"detail": "login",
+			},
+		}
 	})
 
 	// 资产发现
-	routeAction.POST("/api/v2/platform/assets/namespace", func(params Params) (string, string) {
-		return editAction, "编辑命名空间{{.}}"
+	routeAction.POST("/api/v2/platform/assets/namespace", func(p Params) map[string]map[string]interface{} {
+		return map[string]map[string]interface{}{
+			"zh": {
+				"verb":   editAction,
+				"detail": "编辑命名空间{{.}}",
+			},
+			"en": {
+				"verb":   editActionEN,
+				"detail": "Edit namespace {{.}}",
+			},
+		}
 	})
-	routeAction.POST("/api/v2/platform/assets/resource/userData", func(params Params) (string, string) {
-		return editAction, "编辑资源{{.}}"
+	routeAction.POST("/api/v2/platform/assets/resource/userData", func(p Params) map[string]map[string]interface{} {
+		return map[string]map[string]interface{}{
+			"zh": {
+				"verb":   editAction,
+				"detail": "编辑资源{{.}}",
+			},
+			"en": {
+				"verb":   editActionEN,
+				"detail": "Edit resource {{.}}",
+			},
+		}
+		// return editAction, "编辑资源{{.}}"
 	})
 
 	// 事件中心
-	routeAction.POST("/api/v2/platform/processingCenter/record", func(params Params) (string, string) {
-		return processAction, "对Pod: {{.}}发起处置"
+	routeAction.POST("/api/v2/platform/processingCenter/record", func(p Params) map[string]map[string]interface{} {
+		return map[string]map[string]interface{}{
+			"zh": {
+				"verb":   processAction,
+				"detail": "对Pod: {{.}}发起处置",
+			},
+			"en": {
+				"verb":   processActionEN,
+				"detail": "Process pod {{.}}",
+			},
+		}
 	})
-	routeAction.POST("/api/v2/platform/processingCenter/record/action", func(params Params) (string, string) {
-		return processAction, "对Pod: {{.}}发起处置"
+	routeAction.POST("/api/v2/platform/processingCenter/record/action", func(p Params) map[string]map[string]interface{} {
+		return map[string]map[string]interface{}{
+			"zh": {
+				"verb":   processAction,
+				"detail": "对Pod: {{.}}发起处置",
+			},
+			"en": {
+				"verb":   processActionEN,
+				"detail": "Process pod {{.}}",
+			},
+		}
 	})
-	routeAction.POST("/api/v2/platform/eventsCenter/config", func(params Params) (string, string) {
-		return editAction, "编辑通知配置"
+	routeAction.POST("/api/v2/platform/eventsCenter/config", func(p Params) map[string]map[string]interface{} {
+		return map[string]map[string]interface{}{
+			"zh": {
+				"verb":   editAction,
+				"detail": "编辑通知配置",
+			},
+			"en": {
+				"verb":   editActionEN,
+				"detail": "Edit configuration of notification",
+			},
+		}
 	})
-	routeAction.POST("/api/v2/platform/eventsCenter/config/syslog", func(params Params) (string, string) {
-		return editAction, "编辑Syslog导出"
+	routeAction.POST("/api/v2/platform/eventsCenter/config/syslog", func(p Params) map[string]map[string]interface{} {
+		return map[string]map[string]interface{}{
+			"zh": {
+				"verb":   editAction,
+				"detail": "编辑Syslog导出",
+			},
+			"en": {
+				"verb":   editActionEN,
+				"detail": "Edit Syslog configuration for importing",
+			},
+		}
 	})
 
 	// ATT&CK
-	routeAction.POST("/api/v2/containerSec/ATTCK/ruleSwitch", func(params Params) (string, string) {
-		return "启用/停用", "启/停用检测规则"
+	routeAction.POST("/api/v2/containerSec/ATTCK/ruleSwitch", func(p Params) map[string]map[string]interface{} {
+		return map[string]map[string]interface{}{
+			"zh": {
+				"verb":   eAnddAction,
+				"detail": "启/停用检测规则",
+			},
+			"en": {
+				"verb":   eAnddActionEN,
+				"detail": "Enable/Disable detecting rules",
+			},
+		}
 	})
-	routeAction.PUT("/api/v2/containerSec/ATTCK/customConfigs/configs/append", func(params Params) (string, string) {
-		return createAction, createAction + "规则{{.}}的自定义条件"
+	routeAction.PUT("/api/v2/containerSec/ATTCK/customConfigs/configs/append", func(p Params) map[string]map[string]interface{} {
+		return map[string]map[string]interface{}{
+			"zh": {
+				"verb":   createAction,
+				"detail": createAction + "规则{{.}}的自定义条件",
+			},
+			"en": {
+				"verb":   createActionEN,
+				"detail": "Create custom rule {{.}}",
+			},
+		}
 	})
-	routeAction.PUT("/api/v2/containerSec/ATTCK/customConfigs/configs/edit", func(params Params) (string, string) {
-		return editAction, editAction + "规则{{.}}的自定义条件"
+	routeAction.PUT("/api/v2/containerSec/ATTCK/customConfigs/configs/edit", func(p Params) map[string]map[string]interface{} {
+		return map[string]map[string]interface{}{
+			"zh": {
+				"verb":   editAction,
+				"detail": editAction + "规则{{.}}的自定义条件",
+			},
+			"en": {
+				"verb":   editActionEN,
+				"detail": "Edit custom rule {{.}}",
+			},
+		}
 	})
-	routeAction.DELETE("/api/v2/containerSec/ATTCK/customConfigs/config/:id", func(params Params) (string, string) {
-		return deleteAction, deleteAction + "规则{{.}}的自定义条件"
+	routeAction.DELETE("/api/v2/containerSec/ATTCK/customConfigs/config/:id", func(p Params) map[string]map[string]interface{} {
+		return map[string]map[string]interface{}{
+			"zh": {
+				"verb":   deleteAction,
+				"detail": deleteAction + "规则{{.}}的自定义条件",
+			},
+			"en": {
+				"verb":   deleteActionEN,
+				"detail": "Edit custom rule {{.}}",
+			},
+		}
 	})
 
 	// 微隔离
-	routeAction.PUT("/api/v2/microseg/clusters/:clusterKey/resourceTag/infras", func(params Params) (string, string) {
-		return editAction, "编辑资源配置"
+	routeAction.PUT("/api/v2/microseg/clusters/:clusterKey/resourceTag/infras", func(p Params) map[string]map[string]interface{} {
+		return map[string]map[string]interface{}{
+			"zh": {
+				"verb":   editAction,
+				"detail": "编辑资源配置",
+			},
+			"en": {
+				"verb":   editActionEN,
+				"detail": "Edit configuration of resources",
+			},
+		}
 	})
-	routeAction.PUT("/api/v2/microseg/clusters/:clusterKey/resourceTag/gateways", func(params Params) (string, string) {
-		return editAction, "编辑资源配置"
+	routeAction.PUT("/api/v2/microseg/clusters/:clusterKey/resourceTag/gateways", func(p Params) map[string]map[string]interface{} {
+		return map[string]map[string]interface{}{
+			"zh": {
+				"verb":   editAction,
+				"detail": "编辑资源配置",
+			},
+			"en": {
+				"verb":   editActionEN,
+				"detail": "Edit configuration of resources",
+			},
+		}
 	})
 
-	routeAction.POST("/api/v2/microseg/clusters/:clusterKey/namespaces/:namespace/kinds/:kind/resources/:resource/policy", func(params Params) (string, string) {
-		return editAction, "编辑资源{{.}}的隔离策略"
+	routeAction.POST("/api/v2/microseg/clusters/:clusterKey/namespaces/:namespace/kinds/:kind/resources/:resource/policy", func(p Params) map[string]map[string]interface{} {
+		return map[string]map[string]interface{}{
+			"zh": {
+				"verb":   editAction,
+				"detail": "编辑资源{{.}}的隔离策略",
+			},
+			"en": {
+				"verb":   editActionEN,
+				"detail": "Edit policy rule of resource {{.}}",
+			},
+		}
 	})
-	routeAction.PUT("/api/v2/microseg/clusters/:clusterKey/namespaces/:namespace/kinds/:kind/resources/:resource/policy/enabling", func(params Params) (string, string) {
-		return "启用/停用", "启/停用资源{{.}}的隔离策略"
+	routeAction.PUT("/api/v2/microseg/clusters/:clusterKey/namespaces/:namespace/kinds/:kind/resources/:resource/policy/enabling", func(p Params) map[string]map[string]interface{} {
+		return map[string]map[string]interface{}{
+			"zh": {
+				"verb":   eAnddAction,
+				"detail": "启/停用资源{{.}}的隔离策略",
+			},
+			"en": {
+				"verb":   eAnddActionEN,
+				"detail": "enable/disable policy rule of resource {{.}}",
+			},
+		}
+
 	})
-	routeAction.POST("/api/v2/microseg/clusters/:clusterKey/namespaces/:namespace/segments/:segment/policy", func(params Params) (string, string) {
-		return editAction, "编辑资源组{{.}}的隔离策略"
+	routeAction.POST("/api/v2/microseg/clusters/:clusterKey/namespaces/:namespace/segments/:segment/policy", func(p Params) map[string]map[string]interface{} {
+		return map[string]map[string]interface{}{
+			"zh": {
+				"verb":   editAction,
+				"detail": "编辑资源组{{.}}的隔离策略",
+			},
+			"en": {
+				"verb":   editActionEN,
+				"detail": "Edit policy rule of resource group {{.}}",
+			},
+		}
 	})
-	routeAction.POST("/api/v2/microseg/clusters/:clusterKey/namespaces/:namespace/segments", func(params Params) (string, string) {
-		return createAction, "新增资源组{{.}}"
+	routeAction.POST("/api/v2/microseg/clusters/:clusterKey/namespaces/:namespace/segments", func(p Params) map[string]map[string]interface{} {
+		return map[string]map[string]interface{}{
+			"zh": {
+				"verb":   createAction,
+				"detail": "新增资源组{{.}}",
+			},
+			"en": {
+				"verb":   createActionEN,
+				"detail": "Create new resource group {{.}}",
+			},
+		}
 	})
-	routeAction.PUT("/api/v2/microseg/clusters/:clusterKey/namespaces/:namespace/segments/:segment", func(params Params) (string, string) {
-		return editAction, "编辑资源组{{.}}"
+	routeAction.PUT("/api/v2/microseg/clusters/:clusterKey/namespaces/:namespace/segments/:segment", func(p Params) map[string]map[string]interface{} {
+		return map[string]map[string]interface{}{
+			"zh": {
+				"verb":   editAction,
+				"detail": "编辑资源组{{.}}",
+			},
+			"en": {
+				"verb":   editActionEN,
+				"detail": "Edit resource group {{.}}",
+			},
+		}
 	})
-	routeAction.DELETE("/api/v2/microseg/clusters/:clusterKey/namespaces/:namespace/segments/:segment", func(params Params) (string, string) {
-		return deleteAction, "删除资源组{{.}}"
+	routeAction.DELETE("/api/v2/microseg/clusters/:clusterKey/namespaces/:namespace/segments/:segment", func(p Params) map[string]map[string]interface{} {
+		return map[string]map[string]interface{}{
+			"zh": {
+				"verb":   deleteAction,
+				"detail": "删除资源组{{.}}",
+			},
+			"en": {
+				"verb":   deleteActionEN,
+				"detail": "Delete resource group {{.}}",
+			},
+		}
 	})
-	routeAction.PUT("/api/v2/microseg/clusters/:clusterKey/namespaces/:namespace/segments/:segment/policy/enabling", func(params Params) (string, string) {
-		return "启用/停用", "启/停用资源组{{.}}策略"
+	routeAction.PUT("/api/v2/microseg/clusters/:clusterKey/namespaces/:namespace/segments/:segment/policy/enabling", func(p Params) map[string]map[string]interface{} {
+		return map[string]map[string]interface{}{
+			"zh": {
+				"verb":   eAnddAction,
+				"detail": "启/停用资源组{{.}}的隔离策略",
+			},
+			"en": {
+				"verb":   eAnddActionEN,
+				"detail": "Enable/Disable policy rule of resource group {{.}}",
+			},
+		}
 	})
-	routeAction.POST("/api/v2/microseg/clusters/:clusterKey/nsgrps", func(params Params) (string, string) {
-		return createAction, "新增命名空间组{{.}}"
+	routeAction.POST("/api/v2/microseg/clusters/:clusterKey/nsgrps", func(p Params) map[string]map[string]interface{} {
+		return map[string]map[string]interface{}{
+			"zh": {
+				"verb":   createAction,
+				"detail": "新增命名空间组{{.}}",
+			},
+			"en": {
+				"verb":   createActionEN,
+				"detail": "Create new namespace group {{.}}",
+			},
+		}
 	})
-	routeAction.PUT("/api/v2/microseg/clusters/:clusterKey/nsgrps/:nsgrp", func(params Params) (string, string) {
-		return editAction, "编辑命名空间组{{.}}"
+	routeAction.PUT("/api/v2/microseg/clusters/:clusterKey/nsgrps/:nsgrp", func(p Params) map[string]map[string]interface{} {
+		return map[string]map[string]interface{}{
+			"zh": {
+				"verb":   editAction,
+				"detail": "编辑命名空间组{{.}}",
+			},
+			"en": {
+				"verb":   editActionEN,
+				"detail": "Edit namespace group {{.}}",
+			},
+		}
 	})
-	routeAction.DELETE("/api/v2/microseg/clusters/:clusterKey/nsgrps/:nsgrp", func(params Params) (string, string) {
-		return deleteAction, "删除命名空间组{{.}}"
+	routeAction.DELETE("/api/v2/microseg/clusters/:clusterKey/nsgrps/:nsgrp", func(p Params) map[string]map[string]interface{} {
+		return map[string]map[string]interface{}{
+			"zh": {
+				"verb":   deleteAction,
+				"detail": "删除命名空间组{{.}}",
+			},
+			"en": {
+				"verb":   deleteActionEN,
+				"detail": "Delete namespace group {{.}}",
+			},
+		}
 	})
-	routeAction.PUT("/api/v2/microseg/clusters/:clusterKey/nsgrps/:nsgrp/policy/enabling", func(params Params) (string, string) {
-		return "启用/停用", "启/停用命名空间组{{.}}策略"
+	routeAction.PUT("/api/v2/microseg/clusters/:clusterKey/nsgrps/:nsgrp/policy/enabling", func(p Params) map[string]map[string]interface{} {
+		return map[string]map[string]interface{}{
+			"zh": {
+				"verb":   eAnddAction,
+				"detail": "启/停用命名空间组{{.}}的隔离策略",
+			},
+			"en": {
+				"verb":   eAnddActionEN,
+				"detail": "enable/disable policy rule of namespace group {{.}}",
+			},
+		}
 	})
-	routeAction.POST("/api/v2/microseg/clusters/:clusterKey/tenants", func(params Params) (string, string) {
-		return createAction, "新增租户{{.}}"
+	routeAction.POST("/api/v2/microseg/clusters/:clusterKey/tenants", func(p Params) map[string]map[string]interface{} {
+		return map[string]map[string]interface{}{
+			"zh": {
+				"verb":   createAction,
+				"detail": "新增租户{{.}}",
+			},
+			"en": {
+				"verb":   createActionEN,
+				"detail": "Create new tenant {{.}}",
+			},
+		}
 	})
-	routeAction.PUT("/api/v2/microseg/clusters/:clusterKey/tenants/:tenant", func(params Params) (string, string) {
-		return editAction, "编辑租户{{.}}"
+	routeAction.PUT("/api/v2/microseg/clusters/:clusterKey/tenants/:tenant", func(p Params) map[string]map[string]interface{} {
+		return map[string]map[string]interface{}{
+			"zh": {
+				"verb":   editAction,
+				"detail": "编辑租户{{.}}",
+			},
+			"en": {
+				"verb":   editActionEN,
+				"detail": "Create tenant {{.}}",
+			},
+		}
 	})
-	routeAction.DELETE("/api/v2/microseg/clusters/:clusterKey/tenants/:tenant", func(params Params) (string, string) {
-		return deleteAction, "删除租户{{.}}"
+	routeAction.DELETE("/api/v2/microseg/clusters/:clusterKey/tenants/:tenant", func(p Params) map[string]map[string]interface{} {
+		return map[string]map[string]interface{}{
+			"zh": {
+				"verb":   deleteAction,
+				"detail": "删除租户{{.}}",
+			},
+			"en": {
+				"verb":   deleteActionEN,
+				"detail": "Delete tenant {{.}}",
+			},
+		}
 	})
-	routeAction.PUT("/api/v2/microseg/clusters/:clusterKey/tenants/:tenant/policy/enabling", func(params Params) (string, string) {
-		return "启用/停用", "启停租户{{.}}策略"
+	routeAction.PUT("/api/v2/microseg/clusters/:clusterKey/tenants/:tenant/policy/enabling", func(p Params) map[string]map[string]interface{} {
+		return map[string]map[string]interface{}{
+			"zh": {
+				"verb":   eAnddAction,
+				"detail": "启/停用租户{{.}}的隔离策略",
+			},
+			"en": {
+				"verb":   eAnddActionEN,
+				"detail": "enable/disable policy rule of tenant {{.}}",
+			},
+		}
 	})
-	routeAction.POST("/api/v2/microseg/clusters/:clusterKey/logicclusters", func(params Params) (string, string) {
-		return createAction, "新增逻辑集群{{.}}"
+	routeAction.POST("/api/v2/microseg/clusters/:clusterKey/logicclusters", func(p Params) map[string]map[string]interface{} {
+		return map[string]map[string]interface{}{
+			"zh": {
+				"verb":   createAction,
+				"detail": "新增逻辑集群{{.}}",
+			},
+			"en": {
+				"verb":   createActionEN,
+				"detail": "Create new logic cluster {{.}}",
+			},
+		}
 	})
-	routeAction.PUT("/api/v2/microseg/clusters/:clusterKey/logicclusters/:logiccluster", func(params Params) (string, string) {
-		return editAction, "编辑逻辑集群{{.}}"
+	routeAction.PUT("/api/v2/microseg/clusters/:clusterKey/logicclusters/:logiccluster", func(p Params) map[string]map[string]interface{} {
+		return map[string]map[string]interface{}{
+			"zh": {
+				"verb":   editAction,
+				"detail": "编辑逻辑集群{{.}}",
+			},
+			"en": {
+				"verb":   editActionEN,
+				"detail": "Edit logic cluster {{.}}",
+			},
+		}
 	})
-	routeAction.DELETE("/api/v2/microseg/clusters/:clusterKey/logicclusters/:logiccluster", func(params Params) (string, string) {
-		return deleteAction, "删除逻辑集群{{.}}"
+	routeAction.DELETE("/api/v2/microseg/clusters/:clusterKey/logicclusters/:logiccluster", func(p Params) map[string]map[string]interface{} {
+		return map[string]map[string]interface{}{
+			"zh": {
+				"verb":   deleteAction,
+				"detail": "删除逻辑集群{{.}}",
+			},
+			"en": {
+				"verb":   deleteActionEN,
+				"detail": "Delete logic cluster {{.}}",
+			},
+		}
 	})
 
 	// 镜像安全
-	routeAction.POST("/api/v2/containerSec/scanner/scan-config/strategy", func(params Params) (string, string) {
-		return createAction, "新增扫描策略{{.}}"
+	routeAction.POST("/api/v2/containerSec/scanner/scan-config/strategy", func(p Params) map[string]map[string]interface{} {
+		return map[string]map[string]interface{}{
+			"zh": {
+				"verb":   createAction,
+				"detail": "新增扫描策略{{.}}",
+			},
+			"en": {
+				"verb":   createActionEN,
+				"detail": "Create new scanning policy {{.}}",
+			},
+		}
 	})
-	routeAction.PUT("/api/v2/containerSec/scanner/scan-config/strategy/:strategyID", func(params Params) (string, string) {
-		return editAction, "编辑扫描策略{{.}}"
+	routeAction.PUT("/api/v2/containerSec/scanner/scan-config/strategy/:strategyID", func(p Params) map[string]map[string]interface{} {
+		return map[string]map[string]interface{}{
+			"zh": {
+				"verb":   editAction,
+				"detail": "编辑扫描策略{{.}}",
+			},
+			"en": {
+				"verb":   editActionEN,
+				"detail": "Edit scanning policy {{.}}",
+			},
+		}
 	})
-	routeAction.DELETE("/api/v2/containerSec/scanner/scan-config/strategy/:strategyID", func(params Params) (string, string) {
-		return deleteAction, "删除扫描策略{{.}}"
-	})
-
-	routeAction.POST("/api/v2/containerSec/scanner/imagereject/trustedImages/rsa", func(params Params) (string, string) {
-		return createAction, "新增密钥{{.}}"
-	})
-	routeAction.PUT("/api/v2/containerSec/scanner/imagereject/trustedImages/rsa/:id", func(params Params) (string, string) {
-		return editAction, "编辑密钥{{.}}"
-	})
-	routeAction.DELETE("/api/v2/containerSec/scanner/imagereject/trustedImages/rsa/:id", func(params Params) (string, string) {
-		return deleteAction, "删除密钥{{.}}"
-	})
-
-	routeAction.PUT("/api/v2/containerSec/scanner/scan-config/config/:scanConfigID", func(params Params) (string, string) {
-		return editAction, "编辑扫描配置"
-	})
-
-	routeAction.POST("/api/v2/containerSec/scanner/scan-report", func(params Params) (string, string) {
-		return createAction, "新增镜像扫描报告{{.}}"
-	})
-	routeAction.PUT("/api/v2/containerSec/scanner/scan-report/:id", func(params Params) (string, string) {
-		return editAction, "编辑镜像扫描报告{{.}}"
-	})
-	routeAction.DELETE("/api/v2/containerSec/scanner/scan-report/:id", func(params Params) (string, string) {
-		return deleteAction, "删除镜像扫描报告{{.}}"
-	})
-
-	routeAction.POST("/api/v2/containerSec/scanner/register/registry", func(params Params) (string, string) {
-		return createAction, "新增镜像仓库{{.}}"
-	})
-	routeAction.PUT("/api/v2/containerSec/scanner/register/registry/:id", func(params Params) (string, string) {
-		return editAction, "编辑镜像仓库{{.}}"
-	})
-	routeAction.DELETE("/api/v2/containerSec/scanner/register/registry/:id", func(params Params) (string, string) {
-		return deleteAction, "删除镜像仓库{{.}}"
+	routeAction.DELETE("/api/v2/containerSec/scanner/scan-config/strategy/:strategyID", func(p Params) map[string]map[string]interface{} {
+		return map[string]map[string]interface{}{
+			"zh": {
+				"verb":   deleteAction,
+				"detail": "删除扫描策略{{.}}",
+			},
+			"en": {
+				"verb":   deleteActionEN,
+				"detail": "Delete scanning policy {{.}}",
+			},
+		}
 	})
 
-	routeAction.POST("/api/v2/containerSec/scanner/images/bases", func(params Params) (string, string) {
-		return createAction, "新增基础镜像{{.}}至基础镜像列表"
+	routeAction.POST("/api/v2/containerSec/scanner/imagereject/trustedImages/rsa", func(p Params) map[string]map[string]interface{} {
+		return map[string]map[string]interface{}{
+			"zh": {
+				"verb":   createAction,
+				"detail": "新增密钥{{.}}",
+			},
+			"en": {
+				"verb":   createActionEN,
+				"detail": "Create new secret key {{.}}",
+			},
+		}
 	})
-	routeAction.DELETE("/api/v2/containerSec/scanner/images/bases/:id", func(params Params) (string, string) {
-		return deleteAction, "删除基础镜像{{.}}出基础镜像列表"
+	routeAction.PUT("/api/v2/containerSec/scanner/imagereject/trustedImages/rsa/:id", func(p Params) map[string]map[string]interface{} {
+		return map[string]map[string]interface{}{
+			"zh": {
+				"verb":   editAction,
+				"detail": "编辑密钥{{.}}",
+			},
+			"en": {
+				"verb":   editActionEN,
+				"detail": "Edit secret key {{.}}",
+			},
+		}
 	})
-
-	routeAction.POST("/api/v2/containerSec/scanner/tasks/image", func(params Params) (string, string) {
-		return createAction, "新增镜像扫描任务"
-	})
-
-	routeAction.POST("/api/v2/containerSec/scanner/imagereject/whitelist", func(params Params) (string, string) {
-		return createAction, "新增镜像{{.}}至阻断白名单"
-	})
-	routeAction.DELETE("/api/v2/containerSec/scanner/imagereject/whitelist/:id", func(params Params) (string, string) {
-		return deleteAction, "删除镜像{{.}}出阻断白名单"
-	})
-
-	routeAction.PUT("/api/v2/containerSec/scanner/imagereject/policy/global", func(params Params) (string, string) {
-		return editAction, "编辑阻断节点配置"
-	})
-
-	routeAction.POST("/api/v2/containerSec/scanner/imagereject/policy/single", func(params Params) (string, string) {
-		return createAction, "新增阻断策略{{.}}"
-	})
-	routeAction.PUT("/api/v2/containerSec/scanner/imagereject/policy/single/:id", func(params Params) (string, string) {
-		return editAction, "编辑阻断策略{{.}}"
-	})
-	routeAction.DELETE("/api/v2/containerSec/scanner/imagereject/policy/single/:id", func(params Params) (string, string) {
-		return deleteAction, "删除阻断策略{{.}}"
-	})
-	routeAction.PUT("/api/v2/containerSec/scanner/tasks/:id/status", func(params Params) (string, string) {
-		return editAction, "编辑镜像扫描任务"
-	})
-
-	routeAction.POST("/api/v2/containerSec/scanner/ci/policy", func(params Params) (string, string) {
-		return createAction, "新增CI策略{{.}}"
+	routeAction.DELETE("/api/v2/containerSec/scanner/imagereject/trustedImages/rsa/:id", func(p Params) map[string]map[string]interface{} {
+		return map[string]map[string]interface{}{
+			"zh": {
+				"verb":   deleteAction,
+				"detail": "删除密钥{{.}}",
+			},
+			"en": {
+				"verb":   deleteActionEN,
+				"detail": "Delete secret key {{.}}",
+			},
+		}
 	})
 
-	routeAction.PUT("/api/v2/containerSec/scanner/ci/policy", func(params Params) (string, string) {
-		return editAction, "编辑CI策略{{.}}"
+	routeAction.PUT("/api/v2/containerSec/scanner/scan-config/config/:scanConfigID", func(p Params) map[string]map[string]interface{} {
+		return map[string]map[string]interface{}{
+			"zh": {
+				"verb":   editAction,
+				"detail": "编辑扫描配置",
+			},
+			"en": {
+				"verb":   editActionEN,
+				"detail": "Edit configuration of scanning",
+			},
+		}
 	})
 
-	routeAction.DELETE("/api/v2/containerSec/scanner/ci/policy", func(params Params) (string, string) {
-		return deleteAction, "删除CI策略{{.}}"
+	routeAction.POST("/api/v2/containerSec/scanner/scan-report", func(p Params) map[string]map[string]interface{} {
+		return map[string]map[string]interface{}{
+			"zh": {
+				"verb":   createAction,
+				"detail": "新增镜像扫描报告{{.}}",
+			},
+			"en": {
+				"verb":   createActionEN,
+				"detail": "Create new scanning report {{.}}",
+			},
+		}
+	})
+	routeAction.PUT("/api/v2/containerSec/scanner/scan-report/:id", func(p Params) map[string]map[string]interface{} {
+		return map[string]map[string]interface{}{
+			"zh": {
+				"verb":   editAction,
+				"detail": "编辑镜像扫描报告{{.}}",
+			},
+			"en": {
+				"verb":   editActionEN,
+				"detail": "Edit new scanning report {{.}}",
+			},
+		}
+	})
+	routeAction.DELETE("/api/v2/containerSec/scanner/scan-report/:id", func(p Params) map[string]map[string]interface{} {
+		return map[string]map[string]interface{}{
+			"zh": {
+				"verb":   deleteAction,
+				"detail": "删除镜像扫描报告{{.}}",
+			},
+			"en": {
+				"verb":   deleteActionEN,
+				"detail": "Delete new scanning report {{.}}",
+			},
+		}
 	})
 
-	routeAction.POST("/api/v2/containerSec/scanner/ci/whitelists", func(params Params) (string, string) {
-		return createAction, "新增CI白名单{{.}}"
+	routeAction.POST("/api/v2/containerSec/scanner/register/registry", func(p Params) map[string]map[string]interface{} {
+		return map[string]map[string]interface{}{
+			"zh": {
+				"verb":   createAction,
+				"detail": "新增镜像仓库{{.}}",
+			},
+			"en": {
+				"verb":   createActionEN,
+				"detail": "Create new image repository {{.}}",
+			},
+		}
+	})
+	routeAction.PUT("/api/v2/containerSec/scanner/register/registry/:id", func(p Params) map[string]map[string]interface{} {
+		return map[string]map[string]interface{}{
+			"zh": {
+				"verb":   editAction,
+				"detail": "新增镜像仓库{{.}}",
+			},
+			"en": {
+				"verb":   editActionEN,
+				"detail": "Edit image repository {{.}}",
+			},
+		}
+	})
+	routeAction.DELETE("/api/v2/containerSec/scanner/register/registry/:id", func(p Params) map[string]map[string]interface{} {
+		return map[string]map[string]interface{}{
+			"zh": {
+				"verb":   deleteAction,
+				"detail": "删除镜像仓库{{.}}",
+			},
+			"en": {
+				"verb":   deleteActionEN,
+				"detail": "Delete new image repository {{.}}",
+			},
+		}
 	})
 
-	routeAction.PUT("/api/v2/containerSec/scanner/ci/whitelists", func(params Params) (string, string) {
-		return editAction, "编辑CI白名单{{.}}"
+	routeAction.POST("/api/v2/containerSec/scanner/images/bases", func(p Params) map[string]map[string]interface{} {
+		return map[string]map[string]interface{}{
+			"zh": {
+				"verb":   createAction,
+				"detail": "新增基础镜像{{.}}至基础镜像列表",
+			},
+			"en": {
+				"verb":   createActionEN,
+				"detail": "adding base-image {{.}} to base-imgage list",
+			},
+		}
+	})
+	routeAction.DELETE("/api/v2/containerSec/scanner/images/bases/:id", func(p Params) map[string]map[string]interface{} {
+		return map[string]map[string]interface{}{
+			"zh": {
+				"verb":   deleteAction,
+				"detail": "删除基础镜像{{.}}出基础镜像列表",
+			},
+			"en": {
+				"verb":   deleteActionEN,
+				"detail": "Delete base-image {{.}} from base-imgage list",
+			},
+		}
 	})
 
-	routeAction.DELETE("/api/v2/containerSec/scanner/ci/whitelist", func(params Params) (string, string) {
-		return deleteAction, "删除CI白名单{{.}}"
+	routeAction.POST("/api/v2/containerSec/scanner/tasks/image", func(p Params) map[string]map[string]interface{} {
+		return map[string]map[string]interface{}{
+			"zh": {
+				"verb":   createAction,
+				"detail": "新增镜像扫描任务",
+			},
+			"en": {
+				"verb":   createActionEN,
+				"detail": "adding image scanning task",
+			},
+		}
 	})
 
-	routeAction.PUT("/api/v2/containerSec/scanner/ci/webhook", func(params Params) (string, string) {
-		return editAction, "编辑CIWebhook{{.}}"
+	routeAction.POST("/api/v2/containerSec/scanner/imagereject/whitelist", func(p Params) map[string]map[string]interface{} {
+		return map[string]map[string]interface{}{
+			"zh": {
+				"verb":   createAction,
+				"detail": "新增镜像{{.}}至阻断白名单",
+			},
+			"en": {
+				"verb":   createActionEN,
+				"detail": "Add image {{.}} to whitelist",
+			},
+		}
+	})
+	routeAction.DELETE("/api/v2/containerSec/scanner/imagereject/whitelist/:id", func(p Params) map[string]map[string]interface{} {
+		return map[string]map[string]interface{}{
+			"zh": {
+				"verb":   deleteAction,
+				"detail": "删除镜像{{.}}出阻断白名单",
+			},
+			"en": {
+				"verb":   deleteActionEN,
+				"detail": "Delete image {{.}} from whitelist",
+			},
+		}
+	})
+
+	routeAction.PUT("/api/v2/containerSec/scanner/imagereject/policy/global", func(p Params) map[string]map[string]interface{} {
+		return map[string]map[string]interface{}{
+			"zh": {
+				"verb":   editAction,
+				"detail": "编辑阻断节点配置",
+			},
+			"en": {
+				"verb":   editActionEN,
+				"detail": "Edit blocking node configuration",
+			},
+		}
+	})
+
+	routeAction.POST("/api/v2/containerSec/scanner/imagereject/policy/single", func(p Params) map[string]map[string]interface{} {
+		return map[string]map[string]interface{}{
+			"zh": {
+				"verb":   createAction,
+				"detail": "新增阻断策略{{.}}",
+			},
+			"en": {
+				"verb":   createActionEN,
+				"detail": "Add blocking policy {{.}}",
+			},
+		}
+	})
+	routeAction.PUT("/api/v2/containerSec/scanner/imagereject/policy/single/:id", func(p Params) map[string]map[string]interface{} {
+		return map[string]map[string]interface{}{
+			"zh": {
+				"verb":   editAction,
+				"detail": "编辑阻断策略{{.}}",
+			},
+			"en": {
+				"verb":   editActionEN,
+				"detail": "Edit blocking policy {{.}}",
+			},
+		}
+	})
+	routeAction.DELETE("/api/v2/containerSec/scanner/imagereject/policy/single/:id", func(p Params) map[string]map[string]interface{} {
+		return map[string]map[string]interface{}{
+			"zh": {
+				"verb":   deleteAction,
+				"detail": "删除阻断策略{{.}}",
+			},
+			"en": {
+				"verb":   deleteActionEN,
+				"detail": "Delete blocking policy {{.}}",
+			},
+		}
+	})
+	routeAction.PUT("/api/v2/containerSec/scanner/tasks/:id/status", func(p Params) map[string]map[string]interface{} {
+		return map[string]map[string]interface{}{
+			"zh": {
+				"verb":   editAction,
+				"detail": "编辑镜像扫描任务",
+			},
+			"en": {
+				"verb":   editActionEN,
+				"detail": "Edit task of image scanning",
+			},
+		}
+	})
+
+	routeAction.POST("/api/v2/containerSec/scanner/ci/policy", func(p Params) map[string]map[string]interface{} {
+		return map[string]map[string]interface{}{
+			"zh": {
+				"verb":   createAction,
+				"detail": "新增CI策略{{.}}",
+			},
+			"en": {
+				"verb":   createActionEN,
+				"detail": "Add CI policy {{.}}",
+			},
+		}
+	})
+
+	routeAction.PUT("/api/v2/containerSec/scanner/ci/policy", func(p Params) map[string]map[string]interface{} {
+		return map[string]map[string]interface{}{
+			"zh": {
+				"verb":   editAction,
+				"detail": "新增CI策略{{.}}",
+			},
+			"en": {
+				"verb":   editActionEN,
+				"detail": "Edit CI policy {{.}}",
+			},
+		}
+	})
+
+	routeAction.DELETE("/api/v2/containerSec/scanner/ci/policy", func(p Params) map[string]map[string]interface{} {
+		return map[string]map[string]interface{}{
+			"zh": {
+				"verb":   deleteAction,
+				"detail": "删除CI策略{{.}}",
+			},
+			"en": {
+				"verb":   deleteActionEN,
+				"detail": "Delete CI policy {{.}}",
+			},
+		}
+	})
+
+	routeAction.POST("/api/v2/containerSec/scanner/ci/whitelists", func(p Params) map[string]map[string]interface{} {
+		return map[string]map[string]interface{}{
+			"zh": {
+				"verb":   createAction,
+				"detail": "新增CI白名单{{.}}",
+			},
+			"en": {
+				"verb":   createActionEN,
+				"detail": "Add CI whitelist {{.}}",
+			},
+		}
+	})
+
+	routeAction.PUT("/api/v2/containerSec/scanner/ci/whitelists", func(p Params) map[string]map[string]interface{} {
+		return map[string]map[string]interface{}{
+			"zh": {
+				"verb":   editAction,
+				"detail": "编辑CI白名单{{.}}",
+			},
+			"en": {
+				"verb":   editActionEN,
+				"detail": "Edit CI whitelist {{.}}",
+			},
+		}
+	})
+
+	routeAction.DELETE("/api/v2/containerSec/scanner/ci/whitelist", func(p Params) map[string]map[string]interface{} {
+		return map[string]map[string]interface{}{
+			"zh": {
+				"verb":   deleteAction,
+				"detail": "编辑CI白名单{{.}}",
+			},
+			"en": {
+				"verb":   deleteActionEN,
+				"detail": "Edit CI whitelist {{.}}",
+			},
+		}
+	})
+
+	routeAction.PUT("/api/v2/containerSec/scanner/ci/webhook", func(p Params) map[string]map[string]interface{} {
+		return map[string]map[string]interface{}{
+			"zh": {
+				"verb":   editAction,
+				"detail": "编辑CIWebhook{{.}}",
+			},
+			"en": {
+				"verb":   editActionEN,
+				"detail": "Edit CI Webhook {{.}}",
+			},
+		}
 	})
 
 	// 合规检测
-	routeAction.POST("/api/v2/containerSec/scap/v2/:scapType/cronjob", func(params Params) (string, string) {
-		scapType := model.ComplianceCheckType(params.ByName("scapType"))
+	routeAction.POST("/api/v2/containerSec/scap/v2/:scapType/cronjob", func(p Params) map[string]map[string]interface{} {
+		scapType := model.ComplianceCheckType(p.ByName("scapType"))
 		checkTypeName := ""
+		checkTypeNameEN := ""
 		switch scapType {
 		case model.ComplianceCheckTargetTypeKube:
 			checkTypeName = "编排软件"
+			checkTypeNameEN = "Orchestration software"
 		case model.ComplianceCheckTargetTypeDocker:
 			checkTypeName = "Docker"
+			checkTypeNameEN = "Docker"
 		case model.ComplianceCheckTargetTypeHost:
 			checkTypeName = "主机"
+			checkTypeNameEN = "Host"
 		}
-		return editAction, "编辑 " + checkTypeName + " 扫描配置"
+
+		return map[string]map[string]interface{}{
+			"zh": {
+				"verb":   editAction,
+				"detail": fmt.Sprintf("编辑%s扫描配置", checkTypeName),
+			},
+			"en": {
+				"verb":   editActionEN,
+				"detail": fmt.Sprintf("Edit %s scanning configuration", checkTypeNameEN),
+			},
+		}
 	})
 
-	routeAction.POST("/api/v2/containerSec/scap/v2/:scapType/job", func(params Params) (string, string) {
-		checkType := model.ComplianceCheckType(params.ByName("scapType"))
+	routeAction.POST("/api/v2/containerSec/scap/v2/:scapType/job", func(p Params) map[string]map[string]interface{} {
+		checkType := model.ComplianceCheckType(p.ByName("scapType"))
 		var checkTypeName string
+		var checkTypeNameEN string
 		switch checkType {
 		case model.ComplianceCheckTargetTypeKube:
 			checkTypeName = "编排软件"
+			checkTypeNameEN = "Orchestration software"
 		case model.ComplianceCheckTargetTypeDocker:
 			checkTypeName = "Docker"
+			checkTypeNameEN = "Docker"
 		case model.ComplianceCheckTargetTypeHost:
 			checkTypeName = "主机"
+			checkTypeNameEN = "Host"
 		}
-		return createAction, "新增" + checkTypeName + "合规扫描任务"
+		return map[string]map[string]interface{}{
+			"zh": {
+				"verb":   createAction,
+				"detail": fmt.Sprintf("新增%s合规扫描任务", checkTypeName),
+			},
+			"en": {
+				"verb":   createActionEN,
+				"detail": fmt.Sprintf("Create %s compliance scanning task", checkTypeNameEN),
+			},
+		}
 	})
 
-	routeAction.GET("/api/v2/containerSec/scap/:checkID/getfile", func(params Params) (string, string) {
-		return importAction, "导出扫描结果"
+	routeAction.GET("/api/v2/containerSec/scap/:checkID/getfile", func(p Params) map[string]map[string]interface{} {
+		return map[string]map[string]interface{}{
+			"zh": {
+				"verb":   exportAction,
+				"detail": "导出扫描结果",
+			},
+			"en": {
+				"verb":   importActionEN,
+				"detail": "Import scanning results",
+			},
+		}
 	})
 
-	routeAction.POST("/api/v2/containerSec/scap/v2/:scapType/policy", func(params Params) (string, string) {
-		scapType := model.ComplianceCheckType(params.ByName("scapType"))
+	routeAction.POST("/api/v2/containerSec/scap/v2/:scapType/policy", func(p Params) map[string]map[string]interface{} {
+		scapType := model.ComplianceCheckType(p.ByName("scapType"))
 		scapTypeName := ""
+		scapTypeNameEN := ""
 		switch scapType {
 		case model.ComplianceCheckTargetTypeKube:
 			scapTypeName = "kubernetes"
+			scapTypeNameEN = "kubernetes"
 		case model.ComplianceCheckTargetTypeDocker:
 			scapTypeName = "Docker"
+			scapTypeNameEN = "Docker"
 		case model.ComplianceCheckTargetTypeHost:
 			scapTypeName = "主机"
+			scapTypeName = "Host"
 		}
-		return createAction, "新增 " + scapTypeName + " 扫描策略{{.}}"
+		return map[string]map[string]interface{}{
+			"zh": {
+				"verb":   createAction,
+				"detail": fmt.Sprintf("新增%s扫描策略{{.}}", scapTypeName),
+			},
+			"en": {
+				"verb":   createActionEN,
+				"detail": fmt.Sprintf("Create %s scanning policy {{.}}", scapTypeNameEN),
+			},
+		}
 	})
 
-	routeAction.DELETE("/api/v2/containerSec/scap/v2/:scapType/policy/:id", func(params Params) (string, string) {
-		scapType := model.ComplianceCheckType(params.ByName("scapType"))
+	routeAction.DELETE("/api/v2/containerSec/scap/v2/:scapType/policy/:id", func(p Params) map[string]map[string]interface{} {
+		scapType := model.ComplianceCheckType(p.ByName("scapType"))
 		scapTypeName := ""
+		scapTypeNameEN := ""
 		switch scapType {
 		case model.ComplianceCheckTargetTypeKube:
 			scapTypeName = "kubernetes"
+			scapTypeNameEN = "kubernetes"
 		case model.ComplianceCheckTargetTypeDocker:
 			scapTypeName = "Docker"
+			scapTypeNameEN = "Docker"
+
 		case model.ComplianceCheckTargetTypeHost:
 			scapTypeName = "主机"
+			scapTypeNameEN = "Host"
 		}
-		return deleteAction, "删除 " + scapTypeName + " 扫描策略{{.}}"
+		return map[string]map[string]interface{}{
+			"zh": {
+				"verb":   deleteAction,
+				"detail": fmt.Sprintf("新增%s扫描策略{{.}}", scapTypeName),
+			},
+			"en": {
+				"verb":   deleteActionEN,
+				"detail": fmt.Sprintf("Delete %s scanning policy {{.}}", scapTypeNameEN),
+			},
+		}
 	})
 
 	// 集群安全
-	routeAction.POST("/api/v2/platform/hunter/scan", func(params Params) (string, string) {
-		return createAction, "新增集群安全扫描任务"
+	routeAction.POST("/api/v2/platform/hunter/scan", func(p Params) map[string]map[string]interface{} {
+		return map[string]map[string]interface{}{
+			"zh": {
+				"verb":   createAction,
+				"detail": "新增集群安全扫描任务",
+			},
+			"en": {
+				"verb":   createActionEN,
+				"detail": "Add cluster security scan task",
+			},
+		}
 	})
 
 	// 管理中心
-	routeAction.POST("/api/v2/platform/data/ttl", func(params Params) (string, string) {
-		return editAction, "编辑数据管理"
+	routeAction.POST("/api/v2/platform/data/ttl", func(p Params) map[string]map[string]interface{} {
+		return map[string]map[string]interface{}{
+			"zh": {
+				"verb":   editAction,
+				"detail": "编辑数据管理",
+			},
+			"en": {
+				"verb":   editActionEN,
+				"detail": "Edit data manager",
+			},
+		}
 	})
-	routeAction.POST("/api/v2/platform/data/gc", func(params Params) (string, string) {
-		return deleteAction, "删除数据"
+	routeAction.POST("/api/v2/platform/data/gc", func(p Params) map[string]map[string]interface{} {
+		return map[string]map[string]interface{}{
+			"zh": {
+				"verb":   editAction,
+				"detail": "删除数据",
+			},
+			"en": {
+				"verb":   editActionEN,
+				"detail": "Deleted data",
+			},
+		}
 	})
-	routeAction.POST("/api/v2/usercenter/addUser", func(params Params) (string, string) {
-		return createAction, "新增用户 {{.}}"
+	routeAction.POST("/api/v2/usercenter/addUser", func(p Params) map[string]map[string]interface{} {
+		return map[string]map[string]interface{}{
+			"zh": {
+				"verb":   createAction,
+				"detail": "新增用户{{.}}",
+			},
+			"en": {
+				"verb":   createActionEN,
+				"detail": "Add user {{.}}",
+			},
+		}
 	})
-	routeAction.POST("/api/v2/usercenter/editUser", func(params Params) (string, string) {
-		return editAction, "编辑用户 {{.}}"
+	routeAction.POST("/api/v2/usercenter/editUser", func(p Params) map[string]map[string]interface{} {
+		return map[string]map[string]interface{}{
+			"zh": {
+				"verb":   editAction,
+				"detail": "编辑用户{{.}}",
+			},
+			"en": {
+				"verb":   editActionEN,
+				"detail": "Edit user {{.}}",
+			},
+		}
 	})
-	routeAction.POST("/api/v2/usercenter/resetPassword", func(params Params) (string, string) {
-		return editAction, "编辑密码"
+	routeAction.POST("/api/v2/usercenter/resetPassword", func(p Params) map[string]map[string]interface{} {
+		return map[string]map[string]interface{}{
+			"zh": {
+				"verb":   editAction,
+				"detail": "编辑密码",
+			},
+			"en": {
+				"verb":   editActionEN,
+				"detail": "Edit password",
+			},
+		}
 	})
-	routeAction.POST("/api/v2/usercenter/enable", func(params Params) (string, string) {
-		return eAnddAction, "{{.}}"
+	routeAction.POST("/api/v2/usercenter/enable", func(p Params) map[string]map[string]interface{} {
+		return map[string]map[string]interface{}{
+			"zh": {
+				"verb":   eAnddAction,
+				"detail": "{{.}}",
+			},
+			"en": {
+				"verb":   eAnddActionEN,
+				"detail": "{{.}}",
+			},
+		}
 	})
-	routeAction.POST("/api/v2/usercenter/admin/resetpwd", func(params Params) (string, string) {
-		return editAction, "重置{{.}}密码"
+	routeAction.POST("/api/v2/usercenter/admin/resetpwd", func(p Params) map[string]map[string]interface{} {
+		return map[string]map[string]interface{}{
+			"zh": {
+				"verb":   editAction,
+				"detail": "重置{{.}}密码",
+			},
+			"en": {
+				"verb":   editActionEN,
+				"detail": "Reset password {{.}}",
+			},
+		}
 	})
-	routeAction.DELETE("/api/v2/usercenter/delete", func(params Params) (string, string) {
-		return deleteAction, "删除用户 {{.}}"
+	routeAction.DELETE("/api/v2/usercenter/delete", func(p Params) map[string]map[string]interface{} {
+		return map[string]map[string]interface{}{
+			"zh": {
+				"verb":   deleteAction,
+				"detail": "删除用户{{.}}",
+			},
+			"en": {
+				"verb":   deleteActionEN,
+				"detail": "Deleted user {{.}}",
+			},
+		}
 	})
-	routeAction.POST("/api/v2/usercenter/config/ldap", func(params Params) (string, string) {
-		return editAction, "编辑 Ldap配置"
+	routeAction.POST("/api/v2/usercenter/config/ldap", func(p Params) map[string]map[string]interface{} {
+		return map[string]map[string]interface{}{
+			"zh": {
+				"verb":   editAction,
+				"detail": "编辑Ldap配置",
+			},
+			"en": {
+				"verb":   editActionEN,
+				"detail": "Edit Ldap configuration",
+			},
+		}
 	})
-	routeAction.POST("/api/v2/usercenter/config/radius", func(params Params) (string, string) {
-		return editAction, "编辑 Radius配置"
+	routeAction.POST("/api/v2/usercenter/config/radius", func(p Params) map[string]map[string]interface{} {
+		return map[string]map[string]interface{}{
+			"zh": {
+				"verb":   editAction,
+				"detail": "编辑Radius配置",
+			},
+			"en": {
+				"verb":   editActionEN,
+				"detail": "Edit Radius configuration",
+			},
+		}
 	})
-	routeAction.POST("/api/v2/usercenter/config/idp", func(params Params) (string, string) {
-		return editAction, "编辑 SSO配置"
+	routeAction.POST("/api/v2/usercenter/config/idp", func(p Params) map[string]map[string]interface{} {
+		return map[string]map[string]interface{}{
+			"zh": {
+				"verb":   editAction,
+				"detail": "编辑SSO配置",
+			},
+			"en": {
+				"verb":   editActionEN,
+				"detail": "Edit SSO configuration",
+			},
+		}
 	})
-	routeAction.POST("/api/v2/usercenter/config/login", func(params Params) (string, string) {
-		return editAction, "编辑 登录配置"
+	routeAction.POST("/api/v2/usercenter/config/login", func(p Params) map[string]map[string]interface{} {
+		return map[string]map[string]interface{}{
+			"zh": {
+				"verb":   editAction,
+				"detail": "编辑登录配置",
+			},
+			"en": {
+				"verb":   editActionEN,
+				"detail": "Edit login configuration",
+			},
+		}
 	})
-	routeAction.POST("/api/v2/usercenter/ldapGroup", func(params Params) (string, string) {
-		return editAction, "新增Ldap组{{.}}"
+	routeAction.POST("/api/v2/usercenter/ldapGroup", func(p Params) map[string]map[string]interface{} {
+		return map[string]map[string]interface{}{
+			"zh": {
+				"verb":   createAction,
+				"detail": "新增Ldap组{{.}}",
+			},
+			"en": {
+				"verb":   createActionEN,
+				"detail": "Add Ldap group {{.}}",
+			},
+		}
 	})
-	routeAction.PUT("/api/v2/usercenter/ldapGroup", func(params Params) (string, string) {
-		return editAction, "编辑Ldap组{{.}}"
+	routeAction.PUT("/api/v2/usercenter/ldapGroup", func(p Params) map[string]map[string]interface{} {
+		return map[string]map[string]interface{}{
+			"zh": {
+				"verb":   editAction,
+				"detail": "编辑Ldap组{{.}}",
+			},
+			"en": {
+				"verb":   editActionEN,
+				"detail": "Edit Ldap group {{.}}",
+			},
+		}
 	})
-	routeAction.DELETE("/api/v2/usercenter/ldapGroup", func(params Params) (string, string) {
-		return editAction, "删除Ldap组{{.}}"
+	routeAction.DELETE("/api/v2/usercenter/ldapGroup", func(p Params) map[string]map[string]interface{} {
+		return map[string]map[string]interface{}{
+			"zh": {
+				"verb":   deleteAction,
+				"detail": "删除Ldap组{{.}}",
+			},
+			"en": {
+				"verb":   deleteActionEN,
+				"detail": "Delete Ldap group {{.}}",
+			},
+		}
 	})
-	routeAction.PUT("/api/v2/platform/assets/clusters", func(params Params) (string, string) {
-		return editAction, "编辑集群"
+	routeAction.PUT("/api/v2/platform/assets/clusters", func(p Params) map[string]map[string]interface{} {
+		return map[string]map[string]interface{}{
+			"zh": {
+				"verb":   editAction,
+				"detail": "编辑集群",
+			},
+			"en": {
+				"verb":   editActionEN,
+				"detail": "Edit cluster",
+			},
+		}
 	})
-	routeAction.PUT("/api/v2/containerSec/ATTCK/conf", func(params Params) (string, string) {
-		return uploadAction, "上传离线规则包"
+	routeAction.PUT("/api/v2/containerSec/ATTCK/conf", func(p Params) map[string]map[string]interface{} {
+		return map[string]map[string]interface{}{
+			"zh": {
+				"verb":   uploadAction,
+				"detail": "上传离线规则包",
+			},
+			"en": {
+				"verb":   uploadActionEN,
+				"detail": "Upload offline rules package",
+			},
+		}
 	})
-	routeAction.PUT("/api/v1/vulns/updata", func(params Params) (string, string) {
-		return uploadAction, "上传漏洞库更新包"
+	routeAction.PUT("/api/v1/vulns/updata", func(p Params) map[string]map[string]interface{} {
+		return map[string]map[string]interface{}{
+			"zh": {
+				"verb":   uploadAction,
+				"detail": "上传漏洞库更新包",
+			},
+			"en": {
+				"verb":   uploadActionEN,
+				"detail": "Upload the update package of the vulnerability package",
+			},
+		}
 	})
-	routeAction.PUT("/api/v2/containerSec/scanner/vulns/updata", func(params Params) (string, string) {
-		return uploadAction, "上传漏洞库更新包"
+	routeAction.PUT("/api/v2/containerSec/scanner/vulns/updata", func(p Params) map[string]map[string]interface{} {
+		return map[string]map[string]interface{}{
+			"zh": {
+				"verb":   uploadAction,
+				"detail": "上传漏洞库更新包",
+			},
+			"en": {
+				"verb":   uploadActionEN,
+				"detail": "Upload the update package of the vulnerability package",
+			},
+		}
 	})
 	// 偏移防御
-	routeAction.POST("/api/v2/platform/drift/policy/create", func(params Params) (string, string) {
-		return createAction, "新增偏移防御策略{{.}}"
+	routeAction.POST("/api/v2/platform/drift/policy/create", func(p Params) map[string]map[string]interface{} {
+		return map[string]map[string]interface{}{
+			"zh": {
+				"verb":   createAction,
+				"detail": "新增偏移防御策略{{.}}",
+			},
+			"en": {
+				"verb":   createActionEN,
+				"detail": "Add drift defense strategy{{.}}",
+			},
+		}
 	})
-	routeAction.POST("/api/v2/platform/drift/policy/update", func(params Params) (string, string) {
-		return editAction, "编辑偏移防御策略{{.}}"
+	routeAction.POST("/api/v2/platform/drift/policy/update", func(p Params) map[string]map[string]interface{} {
+		return map[string]map[string]interface{}{
+			"zh": {
+				"verb":   createAction,
+				"detail": "编辑偏移防御策略{{.}}",
+			},
+			"en": {
+				"verb":   createActionEN,
+				"detail": "Edit drift defense strategy{{.}}",
+			},
+		}
 	})
-	routeAction.POST("/api/v2/platform/drift/policy/delete", func(params Params) (string, string) {
-		return deleteAction, "删除偏移防御策略{{.}}"
+	routeAction.POST("/api/v2/platform/drift/policy/delete", func(p Params) map[string]map[string]interface{} {
+		return map[string]map[string]interface{}{
+			"zh": {
+				"verb":   createAction,
+				"detail": "删除偏移防御策略{{.}}",
+			},
+			"en": {
+				"verb":   createActionEN,
+				"detail": "Delete drift defense strategy{{.}}",
+			},
+		}
 	})
-	routeAction.POST("/api/v2/platform/drift/whitelist", func(params Params) (string, string) {
-		return createAction, "新增偏移防御白名单{{.}}"
+	routeAction.POST("/api/v2/platform/drift/whitelist", func(p Params) map[string]map[string]interface{} {
+		return map[string]map[string]interface{}{
+			"zh": {
+				"verb":   createAction,
+				"detail": "新增偏移防御白名单{{.}}",
+			},
+			"en": {
+				"verb":   createActionEN,
+				"detail": "Add drift defense whitelist{{.}}",
+			},
+		}
 	})
-	routeAction.PUT("/api/v2/platform/drift/whitelist/:whitelistID", func(params Params) (string, string) {
-		return editAction, "编辑偏移防御白名单{{.}}"
+	routeAction.PUT("/api/v2/platform/drift/whitelist/:whitelistID", func(p Params) map[string]map[string]interface{} {
+		return map[string]map[string]interface{}{
+			"zh": {
+				"verb":   editAction,
+				"detail": "编辑偏移防御白名单{{.}}",
+			},
+			"en": {
+				"verb":   editActionEN,
+				"detail": "Edit drift defense whitelist{{.}}",
+			},
+		}
 	})
-	routeAction.DELETE("/api/v2/platform/drift/whitelist/:whitelistID", func(params Params) (string, string) {
-		return deleteAction, "删除偏移防御白名单{{.}}"
+	routeAction.DELETE("/api/v2/platform/drift/whitelist/:whitelistID", func(p Params) map[string]map[string]interface{} {
+		return map[string]map[string]interface{}{
+			"zh": {
+				"verb":   deleteAction,
+				"detail": "删除偏移防御白名单{{.}}",
+			},
+			"en": {
+				"verb":   deleteActionEN,
+				"detail": "Delete drift defense whitelist{{.}}",
+			},
+		}
 	})
 
-	// 事件中心
-	// 白名单
-	routeAction.POST("/api/v2/platform/sherlock/palace/whitelist", func(params Params) (string, string) {
-		return createAction, "新增事件中心白名单{{.}}"
+	// 	// 事件中心
+	// 	// 白名单
+	routeAction.POST("/api/v2/platform/sherlock/palace/whitelist", func(p Params) map[string]map[string]interface{} {
+		return map[string]map[string]interface{}{
+			"zh": {
+				"verb":   createAction,
+				"detail": "新增事件中心白名单{{.}}",
+			},
+			"en": {
+				"verb":   createActionEN,
+				"detail": "Add event center whitelist{{.}}",
+			},
+		}
 	})
-	routeAction.PUT("/api/v2/platform/sherlock/palace/whitelist", func(params Params) (string, string) {
-		return editAction, "修改事件中心白名单{{.}}"
+	routeAction.PUT("/api/v2/platform/sherlock/palace/whitelist", func(p Params) map[string]map[string]interface{} {
+		return map[string]map[string]interface{}{
+			"zh": {
+				"verb":   editAction,
+				"detail": "修改事件中心白名单{{.}}",
+			},
+			"en": {
+				"verb":   editActionEN,
+				"detail": "Edit event center whitelist{{.}}",
+			},
+		}
 	})
-	routeAction.DELETE("/api/v2/platform/sherlock/palace/whitelist", func(params Params) (string, string) {
-		return deleteAction, "删除事件中心白名单{{.}}"
+	routeAction.DELETE("/api/v2/platform/sherlock/palace/whitelist", func(p Params) map[string]map[string]interface{} {
+		return map[string]map[string]interface{}{
+			"zh": {
+				"verb":   deleteAction,
+				"detail": "删除事件中心白名单{{.}}",
+			},
+			"en": {
+				"verb":   deleteActionEN,
+				"detail": "Delete event center whitelist{{.}}",
+			},
+		}
 	})
 	// 事件标记-单条
-	routeAction.POST("/api/v2/platform/sherlock/palace/event/process", func(params Params) (string, string) {
-		return editAction, "编辑事件 {{.}} 的事件标记"
+	routeAction.POST("/api/v2/platform/sherlock/palace/event/process", func(p Params) map[string]map[string]interface{} {
+		return map[string]map[string]interface{}{
+			"zh": {
+				"verb":   editAction,
+				"detail": "编辑事件{{.}}的事件标记",
+			},
+			"en": {
+				"verb":   editActionEN,
+				"detail": "Edit event tag for event {{.}}",
+			},
+		}
 	})
 	// 事件标记-批量
-	routeAction.POST("/api/v2/platform/sherlock/palace/event/process/query", func(params Params) (string, string) {
-		return editAction, "编辑多条事件标记"
+	routeAction.POST("/api/v2/platform/sherlock/palace/event/process/query", func(p Params) map[string]map[string]interface{} {
+		return map[string]map[string]interface{}{
+			"zh": {
+				"verb":   editAction,
+				"detail": "编辑多条事件标记",
+			},
+			"en": {
+				"verb":   editActionEN,
+				"detail": "Edit multiple event tag",
+			},
+		}
 	})
 
 	// 集群管理
-	routeAction.PUT("/api/v2/platform/assets/cluster", func(p Params) (string, string) {
-		return editAction, "修改集群{{.}}"
+	routeAction.PUT("/api/v2/platform/assets/cluster", func(p Params) map[string]map[string]interface{} {
+		return map[string]map[string]interface{}{
+			"zh": {
+				"verb":   editAction,
+				"detail": "修改集群{{.}}",
+			},
+			"en": {
+				"verb":   editActionEN,
+				"detail": "Edit cluster {{.}}",
+			},
+		}
 	})
-	routeAction.DELETE("/api/v2/platform/assets/cluster/:id", func(p Params) (string, string) {
-		return deleteAction, "删除集群{{.}}"
+
+	routeAction.DELETE("/api/v2/platform/assets/cluster/:id", func(p Params) map[string]map[string]interface{} {
+		return map[string]map[string]interface{}{
+			"zh": {
+				"verb":   deleteAction,
+				"detail": "删除集群{{.}}",
+			},
+			"en": {
+				"verb":   deleteActionEN,
+				"detail": "Delete cluster {{.}}",
+			},
+		}
 	})
 }

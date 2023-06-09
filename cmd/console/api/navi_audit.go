@@ -82,6 +82,11 @@ func (api *api) getNaviAuditLog() http.HandlerFunc {
 			}
 		}
 
+		lang := r.Header.Get("Accept-Language")
+		if lang == "" {
+			lang = "zh"
+		}
+
 		service, ok := naviaudit.GetService()
 		if !ok {
 			apperror.RespAndLog(w, ctx, ErrServiceNotReady)
@@ -95,6 +100,7 @@ func (api *api) getNaviAuditLog() http.HandlerFunc {
 			EndTimestamp:   endTimestamp,
 			Limit:          int(limit),
 			Asc:            sortOrder == "asc",
+			Lang:           lang,
 		})
 		if err != nil {
 			apperror.RespAndLog(w, ctx, err)

@@ -10,7 +10,7 @@ import (
 	"unicode/utf8"
 )
 
-type Handle func(Params) (string, string)
+type Handle func(Params) map[string]map[string]interface{}
 
 func min(a, b int) int {
 	if a <= b {
