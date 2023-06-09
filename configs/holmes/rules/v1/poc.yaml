@@ -178,7 +178,7 @@
   tags: [ATT&CK, network, process, mitre_execution, 4t, xy, qt]
 
 - rule: Container process started
-  hid: poc_10
+  hid: poc_9
   hthreats: 1
   suggestion:
     en:
@@ -205,3 +205,27 @@
     connection=%fd.name,client_ip=%fd.cip,client_port=%fd.cport,server_ip=%fd.sip,server_port=%fd.sport)
   priority: INFO
   tags: [ATT&CK, sp, 4t]
+
+- rule: Contact K8S DNS Server From Container
+  hid: poc_10
+  hthreats: 0
+  suggestion:
+    en:
+      key: "Suggestions"
+      value: "This behavior may be that hackers use malicious tools to communicate with K8s DNS to obtain sensitive information. Please check whether this behavior is expected, or immediately isolate the container."
+    zh:
+      key: "处置建议"
+      value: "该行为可能是黑客使用恶意工具与K8s-DNS通信进而获取敏感信息，请排查该行为是否为预期内操作，否则请立即对该容器进行隔离。"
+  desc: Detect attempts to contact the K8S DNS Server from a container
+  condition: >
+    evt.type=connect and evt.dir=< and
+    (fd.typechar=4 or fd.typechar=6) and
+    container and
+    not k8s_containers and
+    k8s_dns_server and
+    not ignore_proc_args and
+    shell_parent_procs
+  output: >
+    Unexpected connection to K8s DNS Server from container (zh_msg=容器内与K8S-DNS服务器通信,rule_type=Discovery,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=%container.info image=%container.image.repository:%container.image.tag connection=%fd.name,container_id=%container.id,container_name=%container.name)
+  priority: WARNING
+  tags: [ATT&CK, network, k8s, container, mitre_discovery, strict, 4t]
