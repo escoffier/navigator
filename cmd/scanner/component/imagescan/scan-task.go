@@ -209,11 +209,13 @@ func (s *ScanTaskSrv) AddScanTaskByConfig(ctx context.Context) error {
 			<-ticker.C
 			config, err := s.scannerConfigDal.GetScanImageConfig(ctx, imagesecModel.ConfigTypeNodeScanImage)
 			if err != nil {
-				logging.Get().Err(err).Str("configType", imagesecModel.ConfigTypeNodeScanImage).Msg("GetScanImageConfig")
+				logging.Get().Err(err).Str("configType", imagesecModel.ConfigTypeNodeScanImage).
+					Msg("AddScanTaskByConfig GetScanImageConfig")
 				continue
 			}
 
 			add := config.NodeImageConfig.IsTimeToAddTask(imagesecModel.ScanCycleCheckInternal)
+			logging.Get().Info().Bool("addScanTask", add).Msg("AddScanTaskByConfig")
 			if !add {
 				continue
 			}
@@ -232,9 +234,10 @@ func (s *ScanTaskSrv) AddScanTaskByConfig(ctx context.Context) error {
 				Creator:       imagesecModel.ScanTaskOperatorCycle,
 			}
 			if err := s.CreateImageScanTask(ctx, param, taskInfo); err != nil {
-				logging.Get().Err(err).Msg("CreateImageScanTask")
+				logging.Get().Err(err).Msg("AddScanTaskByConfig CreateImageScanTask")
 				continue
 			}
+			logging.Get().Info().Str("scanType", imagesecModel.CycleTrigger).Msg("AddScanTaskByConfig CreateImageScanTask succeed")
 		}
 	}()
 

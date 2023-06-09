@@ -223,7 +223,7 @@ func GetTaskReason(reason, lang string) string {
 		taskReasonZH = map[string]string{
 			TaskFailedReasonTimeout:         "超时",
 			TaskFailedReasonSaveData:        "保存数据出错",
-			TaskFailedReasonScanner:         "扫描出器",
+			TaskFailedReasonScanner:         "扫描出错",
 			TaskFailedReasonSendNode:        "未发送到扫描节点",
 			TaskFailedReasonNotFindImage:    "未找到对应镜像",
 			TaskFailedReasonNotFindNodeInfo: "未找到对应节点",

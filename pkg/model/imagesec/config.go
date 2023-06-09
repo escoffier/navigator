@@ -183,14 +183,14 @@ func (vi *ScanCycle) Check() error {
 }
 
 func (vi *NodeImageConfig) IsTimeToAddTask(checkInter time.Duration) bool {
-	logging.Get().Info().Msgf("AddTaskByStrategy config: %+v", vi)
+	logging.Get().Debug().Msgf("AddTaskByStrategy config: %+v", vi)
 	now := time.Now().UTC().Add(time.Hour * 8)
 	add := false
 	nowW := now.Weekday()
 	nowDay := now.Day()
 
-	logging.Get().Info().Msgf("AddTaskByStrategy,now weekday:%d ,%+v", nowW, vi.ScanCycle.Weekday)
 	if vi.ScanCycle.CycleType == CycleTypeWeekday {
+		logging.Get().Info().Msgf("AddTaskByStrategy,now weekday:%d ,%+v", nowW, vi.ScanCycle.Weekday)
 		for i := range vi.ScanCycle.Weekday {
 			if vi.ScanCycle.Weekday[i] == int64(nowW) {
 				add = true
@@ -209,6 +209,7 @@ func (vi *NodeImageConfig) IsTimeToAddTask(checkInter time.Duration) bool {
 		}
 	}
 	if vi.ScanCycle.CycleType == CycleTypeDay {
+		logging.Get().Info().Msgf("AddTaskByStrategy,every day")
 		add = true
 	}
 	if add {
@@ -218,6 +219,7 @@ func (vi *NodeImageConfig) IsTimeToAddTask(checkInter time.Duration) bool {
 		logging.Get().Info().Msgf("AddTaskByStrategy,next:%s,now:%s", next.String(), now.String())
 
 		if next.Sub(now) <= checkInter && next.Sub(now) >= 0 {
+			logging.Get().Info().Bool("addTask", true).Msgf("AddTaskByStrategy it is time to add scan task")
 			return true
 		}
 	}
