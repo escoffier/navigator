@@ -80,8 +80,7 @@ func (vi *Image) Deserialize() {
 }
 
 func (vi *Image) Serialize() {
-	vi.UniqueID = vi.GenUniqueID()
-	vi.ImageUUID = vi.GenUUID()
+
 	vi.Flag = vi.GenDefaultFlag()
 
 	if byt, err := json.Marshal(vi.Layer); err == nil {
@@ -91,7 +90,7 @@ func (vi *Image) Serialize() {
 	if bys, err := json.Marshal(vi.OS); err == nil {
 		vi.OSJson = string(bys)
 	}
-	if vi.User == "root" || vi.User == "" {
+	if vi.User == BootRootUser || vi.User == "" {
 		vi.Flag = util.SetBit1(vi.Flag, model.FlagPrivilegedBoot)
 	}
 	if strings.Contains(vi.Host, DockerHost) {
@@ -99,6 +98,9 @@ func (vi *Image) Serialize() {
 		vi.Repo = strings.Replace(vi.Repo, "library/", "", 1)
 	}
 	vi.ImageName = vi.GetImageName()
+
+	vi.UniqueID = vi.GenUniqueID()
+	vi.ImageUUID = vi.GenUUID()
 }
 
 func (vi *Image) DeepCopy() *Image {
@@ -144,6 +146,9 @@ func (vi *Image) Check() error {
 	if err := ImageFromType(vi.ImageFromType).Check(); err != nil {
 		return err
 	}
+	if vi.ImageName == "" {
+		vi.ImageName = vi.GetImageName()
+	}
 	if vi.Repo == "" {
 		return fmt.Errorf("image not get Repo")
 	}
@@ -176,9 +181,9 @@ func (vi *Image) GenUniqueID() uint64 {
 	case ImageFromCI:
 		return 0 // ci
 	case ImageFromRegistry:
-		return util.GenerateUUID64(fmt.Sprintf(UniqueLibImageFormat, vi.RegID, vi.Repo, vi.Tag, vi.Digest, vi.ImageFromType))
+		return util.GenerateUUID64(fmt.Sprintf(UniqueLibImageFormat, vi.RegID, vi.ImageName, vi.Digest, vi.ImageFromType))
 	case ImageFromNode:
-		return util.GenerateUUID64(fmt.Sprintf(UniqueNodeImageFormat, vi.NodeID, vi.Repo, vi.Tag, vi.Digest, vi.ImageID, vi.ImageFromType))
+		return util.GenerateUUID64(fmt.Sprintf(UniqueNodeImageFormat, vi.NodeID, vi.ImageName, vi.Digest, vi.ImageID, vi.ImageFromType))
 	}
 	return 0
 }

@@ -196,7 +196,7 @@ func ImageMateToModel(data imagesecTypes.NodeReport) ([]*imagesecModel.Image, *i
 		}
 		split := strings.Split(image.Os, ":")
 		if len(split) >= 2 {
-			im.OS = types.OS{Family: split[0], Name: split[1], Eosl: true}
+			im.OS = types.OS{Family: split[0], Name: split[1], Eosl: false} // Eosl 表示不再维护
 		}
 
 		// 对于重复构建的相同名的镜像，前一次的镜像只有ID，没有repoTags,但是可以通过这个ID运行起容器
