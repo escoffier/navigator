@@ -93,7 +93,7 @@ func (s *ScanTaskAPI) SearchScanSubtask(ctx *gin.Context) {
 		Started:         util.GetKeywordFromQuery(ctx, "started"),
 		ScanStatusStr:   util.GetStringSliceFromQuery(ctx, "statusStr"),
 		NodeNameKeyword: util.GetKeywordFromQuery(ctx, "nodeNameKeyword"),
-		Filter:          model.GetFilter(ctx).SetMaxLimit(consts.DefaultLimit).SetSortFiled("status").SetSortDesc(),
+		Filter:          model.GetFilter(ctx).SetMaxLimit(consts.DefaultLimit).SetSortFiled("id").SetSortDesc(),
 	}
 	param.SearchSubtask = true
 	subtasks, cnt, err := s.scanTaskSrv.SearchScanSubtask(ctx, param)
