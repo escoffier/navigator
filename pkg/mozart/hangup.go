@@ -37,7 +37,6 @@ func initHangupQueue(e *Engine) {
 						w = <-sessionHangupQueue
 					}
 					if w.NextTime.Before(now) {
-						//fmt.Println("debug status: rerun: ", w.Event.Name, w.SessionStatus, w.NextTime, now, w.NextTime.Format(time.RFC3339))
 						err = e.pool.Invoke(jobArgs{
 							Event:         w.Event,
 							Rules:         w.Rules,
