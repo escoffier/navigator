@@ -79,5 +79,5 @@ const (
 )
 
 const (
-	DetectAtHour = 3 // 每天03点的时候加检测任务
+	DetectAtHour = 18 // 每天03点的时候加检测任务(服务器中用的是 utc 时间)
 )

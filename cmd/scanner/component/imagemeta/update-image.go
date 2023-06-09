@@ -414,7 +414,7 @@ func (s *ImageUpdateSrv) updateImageInLibOrNot(ctx context.Context) error {
 				continue
 			}
 
-			flag := util.SetBit1(util.SetBit1(nodeImage[i].Flag, model.FlagNodeImageInLib), model.FlagNodeImageNotInLib)
+			flag := util.SetBit0(util.SetBit1(nodeImage[i].Flag, model.FlagNodeImageInLib), model.FlagNodeImageNotInLib)
 			if nodeImage[i].Flag == flag {
 				continue
 			}
@@ -474,7 +474,7 @@ func (s *ImageUpdateSrv) updateImageInLibOrNot(ctx context.Context) error {
 			if inMap[nodeImage[i].Digest] {
 				continue
 			}
-			flag := util.SetBit1(util.SetBit1(nodeImage[i].Flag, model.FlagNodeImageNotInLib), model.FlagNodeImageInLib)
+			flag := util.SetBit0(util.SetBit1(nodeImage[i].Flag, model.FlagNodeImageNotInLib), model.FlagNodeImageInLib)
 			if nodeImage[i].Flag == flag {
 				continue
 			}
