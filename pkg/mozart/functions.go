@@ -131,10 +131,8 @@ func (e *Engine) ExistsInPeriod(x rego.BuiltinContext, as []*ast.Term) (*ast.Ter
 	if tEnd.After(now) {
 		//	cache session status
 		sSessionID := as[5].Value.String()
-		//fmt.Println("debug status: sSessionID: ", sSessionID)
 		sSessionID = sSessionID[1 : len(sSessionID)-1]
 		cacheSessionStatus(sSessionID, map[string]interface{}{"next_time": tEnd.Format(time.RFC3339)})
-		//fmt.Println("debug status: next_time: ", tEnd.Format(time.RFC3339))
 		return ast.ArrayTerm(ast.BooleanTerm(false), ast.StringTerm("")), nil
 	}
 
@@ -405,7 +403,6 @@ func (e *Engine) CheckRegexMatch(x rego.BuiltinContext, a, b *ast.Term) (*ast.Te
 	ctx := context.Background()
 	cacheKey := regexCacheKey(pattern, key)
 	result, err := e.deps.redis.Get(ctx, cacheKey).Result()
-	fmt.Println("redis get: ", result, err, result == "1")
 	if err != nil && err != redis.Nil {
 		logging.Get().Error().Err(err).Str("key", cacheKey).Msg("redis get regexCache fails")
 		return ast.BooleanTerm(false), err
@@ -453,9 +450,6 @@ func (e *Engine) GenerateAlertSignal(x rego.BuiltinContext, a, b, c *ast.Term) (
 	tSignal := SignalPayload{}
 	err := json.Unmarshal([]byte(tPayload), &tSignal)
 
-	//btom, _ := json.Marshal(tSignal.OutputMap)
-	//fmt.Println("GenerateAlertSignal OutputMap: ", string(btom))
-
 	if err != nil {
 		return nil, err
 	}
@@ -500,11 +494,6 @@ func (e *Engine) GenerateAlertSignal(x rego.BuiltinContext, a, b, c *ast.Term) (
 
 		tSignal.OutputFields[k] = v
 	}
-
-	//bm, _ := json.Marshal(m)
-	//fmt.Println("GenerateAlertSignal m: ", string(bm))
-	//btom2, _ := json.Marshal(tSignal.OutputMap)
-	//fmt.Println("GenerateAlertSignal OutputMap 2: ", string(btom2))
 
 	alertSignal := SignalPayload{
 		Version1:     tSignal.Version1,

@@ -372,10 +372,12 @@ func getEventCmdline(payload SignalPayload) string {
 }
 
 type requestMozart struct {
-	name    string
-	scope   string
-	cmdline string
-	time    time.Time
+	name      string
+	scope     string
+	cmdline   string
+	time      time.Time
+	threshold int
+	count     int
 }
 
 type requestCache struct {
@@ -432,15 +434,27 @@ func checkSimilar(event Event) bool {
 	// 检查缓存
 	if cacheEvent, ok := RequestCache.get(event.Name); ok && cacheEvent.scope == scope && cacheEvent.cmdline == cmdline {
 		if event.Time.Sub(cacheEvent.time) < time.Millisecond*100 {
-			return true
+			if cacheEvent.count+1 >= cacheEvent.threshold {
+				// 更新缓存的计数
+				cacheEvent.threshold *= 2
+				cacheEvent.count += 1
+				RequestCache.set(event.Name, cacheEvent)
+				return false
+			} else {
+				cacheEvent.count += 1
+				RequestCache.set(event.Name, cacheEvent)
+				return true
+			}
 		}
 	}
-	// 更新缓存
+	// 更新缓存成新event
 	req := requestMozart{
-		name:    event.Name,
-		scope:   scope,
-		cmdline: cmdline,
-		time:    event.Time,
+		name:      event.Name,
+		scope:     scope,
+		cmdline:   cmdline,
+		time:      event.Time,
+		threshold: 2,
+		count:     1,
 	}
 	RequestCache.set(event.Name, req)
 	return false
