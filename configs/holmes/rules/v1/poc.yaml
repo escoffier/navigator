@@ -29,7 +29,7 @@
     suspected to create webshell file (zh_msg=疑似创建webshell文件,rule_type=Persistence,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,
     original_info=user=%user.name user_loginuid=%user.loginuid file=%fd.name container_id=%container.id container_name=%container.name image=%container.image.repository)
   priority: WARNING
-  tags: [ATT&CK, filesystem, mitre_persistence, 4t, qt, xy]
+  tags: [ATT&CK, filesystem, mitre_persistence, strict, 4t, qt, xy]
 
 - rule: Suspected of out-of-band detection through dnslog and other methods
   hid: poc_2
@@ -47,7 +47,7 @@
   output: >
     Suspected of out-of-band detection through dnslog and other methods (zh_msg=疑似通过dnslog等方式进行带外探测,rule_type=Exfiltration,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,connection=%fd.name,client_ip=%fd.cip,client_port=%fd.cport,server_ip=%fd.sip,server_port=%fd.sport user=%user.name user_loginuid=%user.loginuid container_id=%container.id container_name=%container.name image=%container.image.repository)
   priority: WARNING
-  tags: [ATT&CK, network, mitre_remote_service, 4t, xy]
+  tags: [ATT&CK, network, mitre_remote_service, strict, 4t, xy]
 
 
 - rule: Suspected sending data through tunnel
@@ -70,7 +70,7 @@
     container_id=%container.id container_name=%container.name image=%container.image.repository:%container.image.tag
     connection=%fd.name,client_ip=%fd.cip,client_port=%fd.cport,server_ip=%fd.sip,server_port=%fd.sport)
   priority: WARNING
-  tags: [ATT&CK, network, process, mitre_execution, 4t, xy]
+  tags: [ATT&CK, network, process, mitre_execution, strict, 4t, xy]
 
 - rule: Network scanning through interpreted language
   hid: poc_4
@@ -88,7 +88,7 @@
   output: >
     Interpretative language detected scanning network (zh_msg=通过解释型语言探测网络,rule_type=Exfiltration,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,original_info=user=%user.name user_loginuid=%user.loginuid connection=%fd.name container_id=%container.id container_name=%container.name image=%container.image.repository)
   priority: WARNING
-  tags: [ATT&CK, 4t, xy, qt]
+  tags: [ATT&CK, strict, 4t, xy, qt]
 
 - rule: Reverse shell through channel
   hid: poc_5
@@ -109,7 +109,7 @@
     container_id=%container.id container_name=%container.name image=%container.image.repository:%container.image.tag
     connection=%fd.name,client_ip=%fd.cip,client_port=%fd.cport,server_ip=%fd.sip,server_port=%fd.sport)
   priority: ALERT
-  tags: [ATT&CK, network, process, mitre_execution, 4t, xy]
+  tags: [ATT&CK, network, process, mitre_execution, strict, 4t, xy]
 
 - rule: Mount directory detected in container
   hid: poc_6
@@ -130,7 +130,7 @@
     container_id=%container.id container_name=%container.name image=%container.image.repository:%container.image.tag
     connection=%fd.name,client_ip=%fd.cip,client_port=%fd.cport,server_ip=%fd.sip,server_port=%fd.sport)
   priority: WARNING
-  tags: [ATT&CK, network, process, mitre_execution, 4t, xy]
+  tags: [ATT&CK, network, process, mitre_execution, strict, 4t, xy]
 
 - rule: Suspected malicious script execution
   hid: poc_7
@@ -151,7 +151,7 @@
     container_id=%container.id container_name=%container.name image=%container.image.repository:%container.image.tag
     connection=%fd.name,client_ip=%fd.cip,client_port=%fd.cport,server_ip=%fd.sip,server_port=%fd.sport)
   priority: WARNING
-  tags: [ATT&CK, network, process, mitre_execution, 4t, xy, qt]
+  tags: [ATT&CK, network, process, mitre_execution, strict, 4t, xy, qt]
 
 - rule: Container Port Brute
   hid: poc_8
@@ -175,7 +175,7 @@
     container_id=%container.id container_name=%container.name image=%container.image.repository:%container.image.tag
     connection=%fd.name,client_ip=%fd.cip,client_port=%fd.cport,server_ip=%fd.sip,server_port=%fd.sport)
   priority: WARNING
-  tags: [ATT&CK, network, process, mitre_execution, 4t, xy, qt]
+  tags: [ATT&CK, network, process, mitre_execution, strict, 4t, xy, qt]
 
 - rule: Container process started
   hid: poc_9
@@ -204,7 +204,7 @@
     container_id=%container.id container_name=%container.name image=%container.image.repository:%container.image.tag
     connection=%fd.name,client_ip=%fd.cip,client_port=%fd.cport,server_ip=%fd.sip,server_port=%fd.sport)
   priority: INFO
-  tags: [ATT&CK, sp, 4t]
+  tags: [ATT&CK, strict, sp, 4t]
 
 - rule: Contact K8S DNS Server From Container
   hid: poc_10
