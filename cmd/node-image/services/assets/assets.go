@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	imagesec2 "gitlab.com/piccolo_su/vegeta/pkg/model/imagesec"
+	"regexp"
 	"runtime/debug"
 	"sync"
 	"time"
@@ -125,6 +126,24 @@ func (m *Manager) handleNotifyEvent() {
 	}
 }
 
+func (m *Manager) shouldExcludeImage(imageName []string) bool {
+	for _, n := range imageName {
+		// filter by regexp
+		for _, v := range m.initConfig.ReportConfig.ExcludeImage {
+			reg, err := regexp.Compile(v)
+			if err != nil {
+				logging.Get().Err(err).Msg("invalid report exclude image rule,please check config file")
+				continue
+			}
+			match := reg.FindString(n)
+			if len(match) > 0 {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 func (m *Manager) Run() error {
 	logging.Get().Info().Msg("node image asset service starting")
 
@@ -161,6 +180,16 @@ func (m *Manager) Run() error {
 
 		// fetch image detail
 		for _, v := range imgs {
+			// filter by repo tag
+			if m.shouldExcludeImage(v.RepoTags) {
+				logging.Get().Info().Interface("repoTags", v.RepoTags).Msg("repo tag match report exclude rule,not reported")
+				continue
+			}
+			// filter by digest.some image with digest curlimages/curl@sha256:5a2a25d9 while have empty repo tags.
+			if m.shouldExcludeImage(v.RepoDigests) {
+				logging.Get().Info().Interface("repoDigests", v.RepoDigests).Msg("digest match report exclude rule,not reported")
+				continue
+			}
 
 			// fill node sys info
 			report := &imagesec.NodeReport{}

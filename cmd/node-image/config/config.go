@@ -14,6 +14,7 @@ const (
 	defaultMountPrefix              = "/host"
 	defaultReportInterval           = 600
 	defaultMqTimeout                = 5
+	defaultExcludeImageScope        = "tensorsec.*"
 	defaultAviraSavServerListenPort = 9200
 	defaultAviraSavClientNum        = 10
 	defaultNodeImageConfigFile      = "node-image-config.json"
@@ -67,8 +68,9 @@ type DeepScanConfig struct {
 }
 
 type ReportConfig struct {
-	Interval  int64 `mapstructure:"interval"`
-	MqTimeout int64 `mapstructure:"mq_timeout"`
+	Interval     int64    `mapstructure:"interval"`
+	MqTimeout    int64    `mapstructure:"mq_timeout"`
+	ExcludeImage []string `mapstructure:"exclude_image"`
 }
 
 type AviraConfig struct {
@@ -100,8 +102,9 @@ func NewDefaultConfig() *Config {
 			DeeperDebug: false,
 		},
 		ReportConfig: ReportConfig{
-			Interval:  defaultReportInterval,
-			MqTimeout: defaultMqTimeout,
+			Interval:     defaultReportInterval,
+			MqTimeout:    defaultMqTimeout,
+			ExcludeImage: []string{defaultExcludeImageScope},
 		},
 		AviraConfig: AviraConfig{
 			ListenPort: defaultAviraSavServerListenPort,
