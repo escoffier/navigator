@@ -129,7 +129,7 @@ func newService(config register.ScannerServiceConfig) (register.ScannerService, 
 	versionDal := imagesecStore.NewScanVersionDao(scannerWrapperDb)
 	detectTaskSrv := detect.NewImageDetectTaskSrv(nodeImageSvc, detectTaskDal, policyDal)
 
-	scanTaskSrv := imagescan.NewScanTaskSrv(nodeScanTaskDal, nodeImageSvc, scannerConfigDal)
+	scanTaskSrv := imagescan.NewScanTaskSrv(nodeScanTaskDal, detectTaskDal, nodeImageSvc, scannerConfigDal)
 
 	nodeImageReportSrv := nodereport.NewNodeImageReport(nodeImageDal, nodeReportDal, scanResultDal, mqReader, configDal, scanTaskSrv)
 	nodeInfoSrv := imagesecSrv.NewNodeReportSrv(nodeReportDal)

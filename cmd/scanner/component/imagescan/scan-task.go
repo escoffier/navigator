@@ -28,17 +28,20 @@ type ScanTaskService interface {
 
 type ScanTaskSrv struct {
 	taskDal          imagesecStore.ScanTaskDal
+	detectDal        imagesecStore.DetectTaskDal
 	imageSrv         types.ImageService
 	scannerConfigDal imagesecStore.ScanImageConfigDal
 }
 
 func NewScanTaskSrv(
 	taskDal imagesecStore.ScanTaskDal,
+	detectDal imagesecStore.DetectTaskDal,
 	imageSrv types.ImageService,
 	scannerConfigDal imagesecStore.ScanImageConfigDal,
 ) *ScanTaskSrv {
 	s := &ScanTaskSrv{
 		taskDal:          taskDal,
+		detectDal:        detectDal,
 		imageSrv:         imageSrv,
 		scannerConfigDal: scannerConfigDal,
 	}
@@ -270,6 +273,35 @@ func (s *ScanTaskSrv) ContinueUpdateTaskAndSubtask(ctx context.Context) error {
 		}
 	}()
 
+	return nil
+}
+
+func (s *ScanTaskSrv) DeleteDetectTask(ctc context.Context, subtaskIds []int64) error {
+	param := imagesecModel.SearchTaskParam{
+		Priority:       imagesecModel.DetectPriorityScan,
+		ScanStatus:     []int64{imagesecModel.TaskStatusPending},
+		ScanSubtaskIds: subtaskIds,
+	}
+	task, _, err := s.detectDal.SearchDetectTask(ctc, param)
+	if err != nil {
+		logging.Get().Err(err).Msg("DeleteDetectTask")
+		return err
+	}
+	taskIds := make([]int64, 0)
+	for i := range task {
+		taskIds = append(taskIds, task[i].ID)
+	}
+	if len(taskIds) == 0 {
+		return nil
+	}
+	if err := s.detectDal.DeleteDetectTask(ctc, imagesecModel.SearchTaskParam{TaskIds: taskIds}); err != nil {
+		logging.Get().Err(err).Msg("DeleteDetectTask")
+		return err
+	}
+	if err := s.detectDal.DeleteDetectSubtask(ctc, imagesecModel.SearchTaskParam{TaskIds: taskIds}); err != nil {
+		logging.Get().Err(err).Msg("DeleteDetectSubtask")
+		return err
+	}
 	return nil
 }
 
@@ -545,7 +577,9 @@ func (s *ScanTaskSrv) UpdateSubTaskPause(ctx context.Context, taskID int64) erro
 			break
 		}
 		startId = subtask[len(subtask)-1].ID
+		subtaskIds := make([]int64, 0)
 		for i := range subtask {
+			subtaskIds = append(subtaskIds, subtask[i].ID)
 			if subtask[i].Status >= imagesecModel.TaskStatusTerminate {
 				continue
 			}
@@ -559,6 +593,9 @@ func (s *ScanTaskSrv) UpdateSubTaskPause(ctx context.Context, taskID int64) erro
 				continue
 			}
 		}
+		// 删除检测任务
+		_ = s.DeleteDetectTask(ctx, subtaskIds)
+
 	}
 	return nil
 }
@@ -594,7 +631,9 @@ func (s *ScanTaskSrv) UpdateSubTaskPending(ctx context.Context, taskID int64) er
 			break
 		}
 		startId = subtask[len(subtask)-1].ID
+		subtaskIds := make([]int64, 0)
 		for i := range subtask {
+			subtaskIds = append(subtaskIds, subtask[i].ID)
 			if subtask[i].Status >= imagesecModel.TaskStatusTerminate {
 				continue
 			}
@@ -608,6 +647,7 @@ func (s *ScanTaskSrv) UpdateSubTaskPending(ctx context.Context, taskID int64) er
 				continue
 			}
 		}
+		_ = s.DeleteDetectTask(ctx, subtaskIds)
 	}
 	return nil
 }
@@ -637,7 +677,9 @@ func (s *ScanTaskSrv) UpdateSubTaskTerminate(ctx context.Context, taskID int64) 
 			break
 		}
 		startId = subtask[len(subtask)-1].ID
+		subtaskIds := make([]int64, 0)
 		for i := range subtask {
+			subtaskIds = append(subtaskIds, subtask[i].ID)
 			if subtask[i].Status >= imagesecModel.TaskStatusTerminate {
 				continue
 			}
@@ -662,6 +704,7 @@ func (s *ScanTaskSrv) UpdateSubTaskTerminate(ctx context.Context, taskID int64) 
 				continue
 			}
 		}
+		_ = s.DeleteDetectTask(ctx, subtaskIds)
 	}
 	return nil
 }

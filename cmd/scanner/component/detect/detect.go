@@ -195,14 +195,13 @@ func (s *Detector) DetectImage(ctx context.Context) {
 
 			_ = s.updateScanSubtask(ctx, task.ScanSubTaskID, imagesecModel.TaskStatusDetectFinished)
 
-			go func() {
-				s.updateImageChan <- UpdateImage{
-					SubtaskID:     subtask.ID,
-					ImageUniqueID: imageData.Image.UniqueID,
-					ImageFromType: imageData.Image.ImageFromType,
-					CreateAt:      time.Now().UnixMilli(),
-				}
-			}()
+			up := UpdateImage{
+				SubtaskID:     subtask.ID,
+				ImageUniqueID: imageData.Image.UniqueID,
+				ImageFromType: imageData.Image.ImageFromType,
+				CreateAt:      time.Now().UnixMilli(),
+			}
+			go func() { s.updateImageChan <- up }()
 
 			_ = s.UpdateSubTask(ctx, subtask.ID, getEndUpdater(nil))
 
@@ -281,9 +280,9 @@ func (s *Detector) GenTaskChan(ctx context.Context) chan *imagesecModel.ImageDet
 				continue
 			}
 
+			logging.Get().Info().Int64("startID", startID).Int("taskCnt", len(tasks)).Msg("Detector SearchDetectTask")
 			if len(tasks) == 0 {
 				ticker.Reset(10 * time.Second)
-				logging.Get().Info().Int64("startID", startID).Msg("Detector SearchDetectTask has no task")
 				startID = 0
 				continue
 			}
@@ -411,11 +410,12 @@ func (s *Detector) UpdateDetectTaskFinished(ctx context.Context) error {
 
 func (s *Detector) ContinueUpdateImage(ctx context.Context) {
 	for up := range s.updateImageChan {
-		// 解决主从同步
 		logging.Get().Debug().Uint64("imageUniqueID", up.ImageUniqueID).Msg("Detector UpdateImage get a image")
-		if time.Now().UnixMilli()-up.CreateAt < consts.DefaultSlaveDelay {
-			time.Sleep(consts.DefaultSlaveDelay * time.Millisecond)
-		}
+
+		// 解决主从同步(现在是强制主库)
+		// if time.Now().UnixMilli()-up.CreateAt < consts.DefaultSlaveDelay {
+		// 	time.Sleep(consts.DefaultSlaveDelay * time.Millisecond)
+		// }
 		brief, err := s.detectResultDal.SearchDetectBrief(ctx, imagesecModel.SearchDetectBriefParam{
 			ImageUniqueID: up.ImageUniqueID,
 		})

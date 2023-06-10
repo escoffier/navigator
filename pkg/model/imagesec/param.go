@@ -361,6 +361,7 @@ func (vi UpdateTaskParam) Check() error {
 type SearchTaskParam struct {
 	SubtaskID        int64
 	TaskID           int64
+	TaskIds          []int64
 	StartID          int64
 	ImageUniqueID    uint64
 	JustCount        bool
@@ -376,10 +377,12 @@ type SearchTaskParam struct {
 	NodeClusterKey   string
 	NodeNameKeyword  string
 	NodeUniqueID     uint64
+	Priority         int64
+	ScanSubtaskIds   []int64
 	Where            string
-	Filter           *model.Filter
 	Fields           []string // 只想要的字端
-	SearchSubtask    bool
+	IsSearchSubtask  bool
+	Filter           *model.Filter
 }
 
 func (vi *SearchTaskParam) Serialize() {
@@ -389,11 +392,11 @@ func (vi *SearchTaskParam) Serialize() {
 			vi.ScanStatus = append(vi.ScanStatus, TaskStatusSendFinished, TaskStatusScanFinished)
 		}
 		if vi.ScanStatusStr[i] == TaskStatusPendingStr {
-			if vi.SearchSubtask {
+			if vi.IsSearchSubtask {
 				vi.ScanStatus = append(vi.ScanStatus, TaskStatusPause)
 			}
 		}
-		if vi.ScanStatusStr[i] == TaskStatusFailedStr && vi.SearchSubtask {
+		if vi.ScanStatusStr[i] == TaskStatusFailedStr && vi.IsSearchSubtask {
 			vi.ScanStatus = append(vi.ScanStatus, TaskStatusTerminate)
 		}
 	}
@@ -404,12 +407,12 @@ func (vi *SearchTaskParam) Serialize() {
 			vi.NotScanStatus = append(vi.NotScanStatus, TaskStatusSendFinished, TaskStatusScanFinished)
 		}
 		if vi.NotScanStatusStr[i] == TaskStatusPendingStr {
-			if vi.SearchSubtask {
+			if vi.IsSearchSubtask {
 				vi.NotScanStatus = append(vi.NotScanStatus, TaskStatusPause)
 			}
 		}
 
-		if vi.NotScanStatusStr[i] == TaskStatusFailedStr && vi.SearchSubtask {
+		if vi.NotScanStatusStr[i] == TaskStatusFailedStr && vi.IsSearchSubtask {
 			vi.NotScanStatus = append(vi.ScanStatus, TaskStatusTerminate)
 		}
 	}

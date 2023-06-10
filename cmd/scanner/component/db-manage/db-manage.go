@@ -535,7 +535,8 @@ func (v *DBManage) generateScanTask() error {
 	nodeImageSvc := imagemeta.NewNodeImageSrv(nodeImageDal, registryDal, nodeScanResultDal,
 		resourceDal, nodeReportDal, policyDal,
 		detectResultDal, trustedImageDal, scannerConfigDal, nodeScanTaskDal)
-	scanTaskSrv := imagescan.NewScanTaskSrv(nodeScanTaskDal, nodeImageSvc, scannerConfigDal)
+	detectTaskDal := imagesecStore.NewDetectTaskDao(scannerWrapperDb)
+	scanTaskSrv := imagescan.NewScanTaskSrv(nodeScanTaskDal, detectTaskDal, nodeImageSvc, scannerConfigDal)
 	param := imagesecModel.ImageListParam{
 		ImageFromType: imagesecModel.ImageFromNode,
 	}
