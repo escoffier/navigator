@@ -1,13 +1,14 @@
 package api
 
 import (
-	"fmt"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
 
 	imagesecSrv "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/imagescan"
+	scani18 "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scan-i18"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
+	"gitlab.com/piccolo_su/vegeta/pkg/i18"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	imagesecModel "gitlab.com/piccolo_su/vegeta/pkg/model/imagesec"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
@@ -43,7 +44,7 @@ func (s *ScanTaskAPI) CreateImageScanTask(ctx *gin.Context) {
 	}
 
 	if err := s.scanTaskSrv.CreateImageScanTask(ctx, body, taskInfo); err != nil {
-		response.JSONError(ctx, response.CreateErr(err))
+		response.JSONError(ctx, i18.CreateErr(err))
 		return
 	}
 	response.JSONOK(ctx, response.WithTarget(&response.TargetRef{
@@ -57,18 +58,18 @@ func (s *ScanTaskAPI) UpdateScanTaskStatus(ctx *gin.Context) {
 
 	body := imagesecModel.ImageScanTask{}
 	if err := ctx.BindJSON(&body); err != nil {
-		response.JSONError(ctx, response.NewHttpError(http.StatusBadRequest, err))
+		response.JSONError(ctx, scani18.ParameterErr(nil))
 		return
 	}
 	body.Status = imagesecModel.ScanStatusStrToInt(body.StatusStr)
 
 	if body.Status < imagesecModel.TaskStatusPending || body.Status > imagesecModel.TaskStatusFailed {
-		response.JSONError(ctx, fmt.Errorf("not get scan status"))
+		response.JSONError(ctx, i18.CreateI18BadReqErr("任务状态参数不正确", "task status parameter is incorrect"))
 		return
 	}
 
 	if err := s.scanTaskSrv.UpdateScanTaskStatus(ctx, taskID, body.StatusStr); err != nil {
-		response.JSONError(ctx, response.UpdateErr(err))
+		response.JSONError(ctx, scani18.UpdateScanTask(err))
 		return
 	}
 	response.JSONOK(ctx)
@@ -77,7 +78,7 @@ func (s *ScanTaskAPI) UpdateScanTaskStatus(ctx *gin.Context) {
 func (s *ScanTaskAPI) RescheduleScanSubtask(ctx *gin.Context) {
 	subtaskID := util.GetInt64FromQuery(ctx, "id")
 	if err := s.scanTaskSrv.RescheduleScanSubtask(ctx, subtaskID); err != nil {
-		response.JSONError(ctx, response.UpdateErr(err))
+		response.JSONError(ctx, scani18.UpdateScanSubtask(err))
 		return
 	}
 	response.JSONOK(ctx)
@@ -98,7 +99,7 @@ func (s *ScanTaskAPI) SearchScanSubtask(ctx *gin.Context) {
 	param.SearchSubtask = true
 	subtasks, cnt, err := s.scanTaskSrv.SearchScanSubtask(ctx, param)
 	if err != nil {
-		response.JSONError(ctx, response.SearchErr(err))
+		response.JSONError(ctx, i18.SearchErr(err))
 		return
 	}
 
@@ -127,7 +128,7 @@ func (s *ScanTaskAPI) SearchScanTask(ctx *gin.Context) {
 	param.Filter = param.Filter.SetSortDesc().SetSortFiled("id")
 	tasks, cnt, err := s.scanTaskSrv.SearchScanTask(ctx, param)
 	if err != nil {
-		response.JSONError(ctx, response.SearchErr(err))
+		response.JSONError(ctx, i18.SearchErr(err))
 		return
 	}
 

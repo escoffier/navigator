@@ -29,6 +29,7 @@ type SearchDetectResultParam struct {
 
 func (vi SearchDetectResultParam) Check() error {
 	if vi.ImageUniqueID <= 0 && len(vi.PolicyIds) == 0 && len(vi.Ids) == 0 {
+
 		return fmt.Errorf("not get ImageID or PolicyID or ID")
 	}
 	if vi.DetectType == "" {

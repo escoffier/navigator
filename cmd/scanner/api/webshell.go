@@ -8,6 +8,8 @@ import (
 	"github.com/gin-gonic/gin"
 
 	imagesecSrv "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/imagesec"
+	scani18 "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scan-i18"
+	"gitlab.com/piccolo_su/vegeta/pkg/i18"
 	imagesecModel "gitlab.com/piccolo_su/vegeta/pkg/model/imagesec"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
@@ -82,11 +84,11 @@ func (s *WebshellAPIService) GetWebshellDetail(ctx *gin.Context) {
 
 	data, _, err := s.WebshellService.SearchWebshell(ctx, imagesecModel.ScanResultSearchParam{UniqueIds: []uint64{webshellUniqueID}})
 	if err != nil {
-		response.JSONError(ctx, err)
+		response.JSONError(ctx, i18.SearchErr(err))
 		return
 	}
 	if len(data) == 0 {
-		response.JSONError(ctx, fmt.Errorf("not find webshell:%d", webshellUniqueID))
+		response.JSONError(ctx, scani18.NotGetWebshell())
 		return
 	}
 	response.JSONOK(ctx, response.WithItem(*(data[0])))

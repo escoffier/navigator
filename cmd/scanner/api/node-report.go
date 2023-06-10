@@ -5,6 +5,7 @@ import (
 
 	imagesecSrv "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/imagesec"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
+	"gitlab.com/piccolo_su/vegeta/pkg/i18"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	imagesecModel "gitlab.com/piccolo_su/vegeta/pkg/model/imagesec"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
@@ -27,7 +28,7 @@ func (s *NodeReportAPISrv) SearchNode(ctx *gin.Context) {
 
 	node, cnt, err := s.nodeSrv.SearchNode(ctx, param)
 	if err != nil {
-		response.JSONError(ctx, response.SearchErr(err))
+		response.JSONError(ctx, i18.SearchErr(err))
 		return
 	}
 	response.JSONOK(ctx, response.WithItems(node),

@@ -11,6 +11,7 @@ import (
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
+	"gitlab.com/piccolo_su/vegeta/pkg/i18"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
@@ -34,7 +35,7 @@ func (r *RejectAPI) Overview(ctx *gin.Context) {
 	graph := ctx.Query("graph")
 	overview, err := r.Srv.GetOverview(ctx, graph)
 	if err != nil {
-		response.JSONError(ctx, err)
+		response.JSONError(ctx, i18.SearchErr(err))
 		return
 	}
 	response.JSONOK(ctx, response.WithItem(*overview))

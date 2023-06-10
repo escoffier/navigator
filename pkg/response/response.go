@@ -9,6 +9,8 @@ import (
 	"github.com/gin-gonic/gin"
 	json "github.com/json-iterator/go"
 	"gitlab.com/security-rd/go-pkg/logging"
+
+	"gitlab.com/piccolo_su/vegeta/pkg/i18"
 )
 
 type ResponseErrorOptionFunc func(ev *HTTPEnvelope)
@@ -233,12 +235,21 @@ func JSONError(ctx *gin.Context, err error, opts ...ResponseErrorOptionFunc) {
 		}
 	}
 
-	if err3, ok := err.(I18Err); ok {
+	if err3, ok := err.(i18.ErrI18); ok {
 		httpCode = int(err3.Code)
 		data.Error.Code = httpCode
 		data.Error.I18Err = err3
-		if err3.getErr(ctx) != nil {
-			data.Error.Message = err3.getErr(ctx).Error()
+		if err3.GetGinErr(ctx) != nil {
+			data.Error.Message = err3.GetGinErr(ctx).Error()
+		}
+	}
+
+	if err3, ok := err.(*i18.ErrI18); ok {
+		httpCode = int(err3.Code)
+		data.Error.Code = httpCode
+		data.Error.I18Err = *err3
+		if err3.GetGinErr(ctx) != nil {
+			data.Error.Message = err3.GetGinErr(ctx).Error()
 		}
 	}
 
