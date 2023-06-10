@@ -115,11 +115,22 @@ type NodeImageDalParam struct {
 	Fields        []string // 只想要的字端
 	OmitFields    []string // 不想要的字端
 	UUIDs         []uint32
-	AndFlag       uint64
-	OrFlag        uint64
 	UniqueIds     []uint64
 	UniqueId      uint64
 	WebshellMD5   string
+
+	SecurityIssueFlag uint64 // 安全问题: 前端传字符串
+	ImageAttrFlag     uint64 //
+	SafeAttrFlag      uint64
+	VulnStaticFlag    uint64 // 镜像漏洞统计
+	OnlineFlag        uint64
+
+	AttrIntersection       string // 属性交集还是并集 and or
+	IssueIntersection      string // 安全问题交集还是并集 and or
+	VulnStaticIntersection string // 漏洞统计交集还是并集 and or
+
+	AndFlag uint64
+	OrFlag  uint64
 
 	ImageID       int64
 	ClusterKey    []string // 集群搜索
@@ -357,7 +368,7 @@ type SearchTaskParam struct {
 	PolicyID         int64
 	Finished         string
 	Started          string
-	ScanType         []int64 // 扫描类型
+	ScanType         []string // 扫描类型
 	ScanStatus       []int64
 	ScanStatusStr    []string
 	NotScanStatus    []int64

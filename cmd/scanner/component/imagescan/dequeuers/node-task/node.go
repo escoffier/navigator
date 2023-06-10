@@ -98,7 +98,7 @@ func (s *NodeImageQueue) GenTaskChan(ctx context.Context) chan *imagesecModel.Im
 			task, inCnt, err := s.nodeScanTaskDal.SearchScanTask(ctx, imagesecModel.SearchTaskParam{
 				// 这里一定要把TaskStatusSendFinished这个状态加上，因为前端可以重新扫描
 				ScanStatus: []int64{imagesecModel.TaskStatusInprogress, imagesecModel.TaskStatusSendFinished},
-				Filter:     &model.Filter{Limit: 1},
+				Filter:     &model.Filter{Limit: s.maxInprogressTask, SortFiled: "created_at", SortBy: consts.SortByAsc},
 			})
 			if err != nil {
 				ticker.Reset(time.Second * 20)
@@ -106,11 +106,12 @@ func (s *NodeImageQueue) GenTaskChan(ctx context.Context) chan *imagesecModel.Im
 				continue
 			}
 			logging.Get().Info().Int64("inCnt", inCnt).Msg("NodeImageQueue SearchScanTask inprogress")
-			if inCnt >= s.maxInprogressTask {
-				ticker.Reset(time.Second * 20)
-				logging.Get().Info().Int64("inprogressCount", inCnt).Msg("NodeImageQueue has inprogress scan task")
-				continue
-			}
+
+			// if inCnt >= s.maxInprogressTask {
+			// 	ticker.Reset(time.Second * 20)
+			// 	logging.Get().Info().Int64("inprogressCount", inCnt).Msg("NodeImageQueue has inprogress scan task")
+			// 	continue
+			// }
 
 			if len(task) == 0 || inCnt < s.maxInprogressTask {
 				pending, pendCnt, err := s.nodeScanTaskDal.SearchScanTask(ctx, imagesecModel.SearchTaskParam{
@@ -245,8 +246,8 @@ func (s *NodeImageQueue) SearchSubtaskAndSendToChan(ctx context.Context, task *i
 			logging.Get().Info().Int64("subtask", subtask[j].ID).Int64("taskID", subtask[j].TaskID).
 				Str("nodeName", subtask[j].NodeHostname).Msg("NodeImageQueue get subtask and send to chan")
 
-			up := types.UpdateSubTask{SubtaskID: subtask[j].ID, Status: imagesecModel.TaskStatusInprogress, CreatedAt: time.Now().Unix()}
-			go func() { s.updateSubtaskChan <- up }()
+			// up := types.UpdateSubTask{SubtaskID: subtask[j].ID, Status: imagesecModel.TaskStatusInprogress, CreatedAt: time.Now().Unix()}
+			// go func() { s.updateSubtaskChan <- up }()
 		}
 	}
 

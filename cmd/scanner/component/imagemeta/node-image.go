@@ -80,45 +80,30 @@ func (s *NodeImageSrv) ListImageWithScanInfo(ctx context.Context, param imagesec
 	logging.Get().Debug().Interface("param", param).Msg("ListImageWithScanInfo")
 
 	daoParam := imagesecModel.NodeImageDalParam{
-		ImageFromType: param.ImageFromType,
-		Projects:      param.Repos,
-		ImageKeyword:  param.ImageKeyword,
-		NodeKeyword:   param.NodeKeyword,
-		UUIDs:         param.UUIDs,
-		UniqueIds:     param.UniqueIds,
-		Fields:        param.Fields,
-		StartID:       param.StartID,
-		ClusterKey:    param.ClusterKey,
-		InIds:         param.ImageIds,
-		WebshellMD5:   param.WebshellMD5,
-		Filter:        param.Filter,
+		ImageFromType:          param.ImageFromType,
+		InIds:                  param.ImageIds,
+		ImageKeyword:           param.ImageKeyword,
+		Projects:               param.Repos,
+		NodeKeyword:            param.NodeKeyword,
+		StartID:                param.StartID,
+		Fields:                 param.Fields,
+		UUIDs:                  param.UUIDs,
+		UniqueIds:              param.UniqueIds,
+		WebshellMD5:            param.WebshellMD5,
+		SecurityIssueFlag:      param.SecurityIssueFlag,
+		ImageAttrFlag:          param.ImageAttrFlag,
+		SafeAttrFlag:           param.SafeAttrFlag,
+		VulnStaticFlag:         param.VulnStaticFlag,
+		OnlineFlag:             param.OnlineFlag,
+		AttrIntersection:       param.AttrIntersection,
+		IssueIntersection:      param.IssueIntersection,
+		VulnStaticIntersection: param.VulnStaticIntersection,
+		ClusterKey:             param.ClusterKey,
+		Filter:                 param.Filter,
 	}
 
 	if daoParam.StartID > 0 && param.Filter != nil {
 		param.Filter.Offset = 0
-	}
-
-	daoParam.OrFlag |= param.SafeAttrFlag
-	daoParam.OrFlag |= param.OnlineFlag
-
-	if param.AttrIntersection == model.AndString {
-		daoParam.AndFlag |= param.ImageAttrFlag
-	}
-	if param.IssueIntersection == model.AndString {
-		daoParam.AndFlag |= param.SecurityIssueFlag
-	}
-	if param.VulnStaticIntersection == model.AndString {
-		daoParam.AndFlag |= param.VulnStaticFlag
-	}
-
-	if param.AttrIntersection == model.OrString {
-		daoParam.OrFlag |= param.ImageAttrFlag
-	}
-	if param.IssueIntersection == model.OrString {
-		daoParam.OrFlag |= param.SecurityIssueFlag
-	}
-	if param.VulnStaticIntersection == model.OrString {
-		daoParam.OrFlag |= param.VulnStaticFlag
 	}
 
 	daoParam.Fields = []string{"id", "unique_id"}
