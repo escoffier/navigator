@@ -16,10 +16,10 @@ import (
 
 // 安全策略
 type SecurityPolicyService interface {
-	CreatePolicy(ctx context.Context, data *imagesecModel.SecurityPolicy) *i18.ErrI18
-	UpdatePolicy(ctx context.Context, id int64, data *imagesecModel.SecurityPolicy) *i18.ErrI18
-	SearchPolicy(ctx context.Context, param imagesecModel.SearchSecurityPolicyParam) ([]*imagesecModel.SecurityPolicy, int64, *i18.ErrI18)
-	DeletePolicy(ctx context.Context, id int64) *i18.ErrI18
+	CreatePolicy(ctx context.Context, data *imagesecModel.SecurityPolicy) error
+	UpdatePolicy(ctx context.Context, id int64, data *imagesecModel.SecurityPolicy) error
+	SearchPolicy(ctx context.Context, param imagesecModel.SearchSecurityPolicyParam) ([]*imagesecModel.SecurityPolicy, int64, error)
+	DeletePolicy(ctx context.Context, id int64) error
 }
 
 type SecurityPolicySrv struct {
@@ -40,7 +40,7 @@ func NewPolicySrv(
 	}
 }
 
-func (s *SecurityPolicySrv) CreatePolicy(ctx context.Context, data *imagesecModel.SecurityPolicy) *i18.ErrI18 {
+func (s *SecurityPolicySrv) CreatePolicy(ctx context.Context, data *imagesecModel.SecurityPolicy) error {
 	data.Serialize()
 	if err := data.Check(); err != nil {
 		return err
@@ -65,7 +65,7 @@ func (s *SecurityPolicySrv) CreatePolicy(ctx context.Context, data *imagesecMode
 	return nil
 }
 
-func (s *SecurityPolicySrv) UpdatePolicy(ctx context.Context, id int64, data *imagesecModel.SecurityPolicy) *i18.ErrI18 {
+func (s *SecurityPolicySrv) UpdatePolicy(ctx context.Context, id int64, data *imagesecModel.SecurityPolicy) error {
 
 	data.Serialize()
 
@@ -99,7 +99,7 @@ func (s *SecurityPolicySrv) UpdatePolicy(ctx context.Context, id int64, data *im
 
 // 数据库中对默认策略：name=default,产品要求搜索：『默认策略』也能搜索出结果
 func (s *SecurityPolicySrv) SearchPolicy(ctx context.Context, param imagesecModel.SearchSecurityPolicyParam) (
-	[]*imagesecModel.SecurityPolicy, int64, *i18.ErrI18) {
+	[]*imagesecModel.SecurityPolicy, int64, error) {
 
 	keyword := param.Keyword
 
@@ -155,7 +155,7 @@ func (s *SecurityPolicySrv) SearchPolicy(ctx context.Context, param imagesecMode
 	return ans, cnt, nil
 }
 
-func (s *SecurityPolicySrv) DeletePolicy(ctx context.Context, id int64) *i18.ErrI18 {
+func (s *SecurityPolicySrv) DeletePolicy(ctx context.Context, id int64) error {
 	err := s.policyDal.UpdateDetectPolicy(ctx, imagesecModel.UpdateSecurityPolicyParam{
 		ID:      id,
 		Updater: map[string]interface{}{"deleted_at": time.Now().UnixMilli()},

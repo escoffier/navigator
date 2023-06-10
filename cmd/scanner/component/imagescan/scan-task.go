@@ -17,11 +17,11 @@ import (
 )
 
 type ScanTaskService interface {
-	CreateImageScanTask(ctx context.Context, imageSearchParam imagesecModel.ImageListParam, taskInfo imagesecModel.ImageScanTask) *i18.ErrI18
-	UpdateScanTaskStatus(ctx context.Context, taskID int64, status string) *i18.ErrI18
-	SearchScanTask(ctx context.Context, param imagesecModel.SearchTaskParam) ([]*imagesecModel.ImageScanTask, int64, *i18.ErrI18)
-	SearchScanSubtask(ctx context.Context, param imagesecModel.SearchTaskParam) ([]*imagesecModel.ImageScanSubTask, int64, *i18.ErrI18)
-	RescheduleScanSubtask(ctx context.Context, subtaskID int64) *i18.ErrI18
+	CreateImageScanTask(ctx context.Context, imageSearchParam imagesecModel.ImageListParam, taskInfo imagesecModel.ImageScanTask) error
+	UpdateScanTaskStatus(ctx context.Context, taskID int64, status string) error
+	SearchScanTask(ctx context.Context, param imagesecModel.SearchTaskParam) ([]*imagesecModel.ImageScanTask, int64, error)
+	SearchScanSubtask(ctx context.Context, param imagesecModel.SearchTaskParam) ([]*imagesecModel.ImageScanSubTask, int64, error)
+	RescheduleScanSubtask(ctx context.Context, subtaskID int64) error
 	AddScanTaskByConfig(ctx context.Context) error
 	ContinueUpdateTaskAndSubtask(ctx context.Context) error
 }
@@ -46,7 +46,7 @@ func NewScanTaskSrv(
 }
 
 func (s *ScanTaskSrv) CreateImageScanTask(ctx context.Context, imageSearchParam imagesecModel.ImageListParam,
-	taskInfo imagesecModel.ImageScanTask) *i18.ErrI18 {
+	taskInfo imagesecModel.ImageScanTask) error {
 	imageSearchParam.Deserialize()
 	if err := imageSearchParam.Check(); err != nil {
 		return err
@@ -78,7 +78,7 @@ func (s *ScanTaskSrv) CreateImageScanTask(ctx context.Context, imageSearchParam 
 	return nil
 }
 
-func (s *ScanTaskSrv) UpdateScanTaskStatus(ctx context.Context, taskID int64, status string) *i18.ErrI18 {
+func (s *ScanTaskSrv) UpdateScanTaskStatus(ctx context.Context, taskID int64, status string) error {
 	if taskID <= 0 {
 		return scani18.NotGetScanTaskID()
 	}
@@ -109,7 +109,7 @@ func (s *ScanTaskSrv) UpdateScanTaskStatus(ctx context.Context, taskID int64, st
 }
 
 func (s *ScanTaskSrv) SearchScanTask(ctx context.Context, param imagesecModel.SearchTaskParam) (
-	[]*imagesecModel.ImageScanTask, int64, *i18.ErrI18) {
+	[]*imagesecModel.ImageScanTask, int64, error) {
 	tasks, cnt, err := s.taskDal.SearchScanTask(ctx, param)
 	if err != nil {
 		logging.Get().Err(err).Interface("param", param).Msg("SearchScanTask")
@@ -129,7 +129,7 @@ func (s *ScanTaskSrv) SearchScanTask(ctx context.Context, param imagesecModel.Se
 }
 
 func (s *ScanTaskSrv) SearchScanSubtask(ctx context.Context, param imagesecModel.SearchTaskParam) (
-	[]*imagesecModel.ImageScanSubTask, int64, *i18.ErrI18) {
+	[]*imagesecModel.ImageScanSubTask, int64, error) {
 
 	if param.TaskID <= 0 {
 		return nil, 0, scani18.NotGetScanTaskID()
@@ -144,7 +144,7 @@ func (s *ScanTaskSrv) SearchScanSubtask(ctx context.Context, param imagesecModel
 	return tasks, cnt, nil
 }
 
-func (s *ScanTaskSrv) RescheduleScanSubtask(ctx context.Context, subtaskID int64) *i18.ErrI18 {
+func (s *ScanTaskSrv) RescheduleScanSubtask(ctx context.Context, subtaskID int64) error {
 	if subtaskID <= 0 {
 		return scani18.NotGetScanSubtaskID()
 	}
@@ -459,7 +459,7 @@ func (s *ScanTaskSrv) UpdateSubtaskTimeout(ctx context.Context) error {
 	return nil
 }
 
-func (s *ScanTaskSrv) UpdateTaskPause(ctx context.Context, taskID int64) *i18.ErrI18 {
+func (s *ScanTaskSrv) UpdateTaskPause(ctx context.Context, taskID int64) error {
 	updater := map[string]interface{}{
 		"status":     imagesecModel.TaskStatusPause,
 		"status_str": imagesecModel.ScanStatusToStr(imagesecModel.TaskStatusPause),
@@ -477,7 +477,7 @@ func (s *ScanTaskSrv) UpdateTaskPause(ctx context.Context, taskID int64) *i18.Er
 	return nil
 }
 
-func (s *ScanTaskSrv) UpdateTaskPending(ctx context.Context, taskID int64) *i18.ErrI18 {
+func (s *ScanTaskSrv) UpdateTaskPending(ctx context.Context, taskID int64) error {
 	updater := map[string]interface{}{
 		"status":     imagesecModel.TaskStatusPending,
 		"status_str": imagesecModel.ScanStatusToStr(imagesecModel.TaskStatusPending),
@@ -495,7 +495,7 @@ func (s *ScanTaskSrv) UpdateTaskPending(ctx context.Context, taskID int64) *i18.
 	return nil
 }
 
-func (s *ScanTaskSrv) UpdateTaskTerminate(ctx context.Context, taskID int64) *i18.ErrI18 {
+func (s *ScanTaskSrv) UpdateTaskTerminate(ctx context.Context, taskID int64) error {
 	updater := map[string]interface{}{
 		"status":      imagesecModel.TaskStatusTerminate,
 		"status_str":  imagesecModel.ScanStatusToStr(imagesecModel.TaskStatusTerminate),

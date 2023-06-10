@@ -54,9 +54,9 @@ const (
 	ManualTrigger
 )
 
-const CheckTaskInterval = 60 * 1    // 检查是否加扫描任务的时间间隔，单位：秒
-const DefaultMaxRetryCount = 3      // 默认的最大重试次数
-const DefaultSlaveDelay = 5 * 10000 // 默认主从延迟:5s
+const CheckTaskInterval = 60 * 1   // 检查是否加扫描任务的时间间隔，单位：秒
+const DefaultMaxRetryCount = 3     // 默认的最大重试次数
+const DefaultSlaveDelay = 5 * 1000 // 默认主从延迟:5s
 
 const SubTaskBatchInsertCount = 200
 

@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"gitlab.com/security-rd/go-pkg/logging"
+
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 )
@@ -236,13 +238,7 @@ func (vi *ImageDetectBrief) Serialize() {
 
 type ImageDetectBriefResult []*ImageDetectBrief
 
-func (vi ImageDetectBriefResult) AddImageSafeFlag(preFlag uint64) uint64 {
-	if len(vi) == 0 {
-		preFlag = util.SetBit0(util.SetBit0(util.SetBit1(preFlag, model.FlagImageSafe), model.FlagImageSafeUnknown),
-			model.FlagImageUnsafe)
-		return preFlag
-	}
-
+func AddImageSafeFlag(vi []*ImageDetectBrief, preFlag uint64) uint64 {
 	safe := true
 
 	for i := range vi {
@@ -252,11 +248,10 @@ func (vi ImageDetectBriefResult) AddImageSafeFlag(preFlag uint64) uint64 {
 		}
 	}
 	if safe {
-		preFlag = util.SetBit0(util.SetBit0(util.SetBit1(preFlag, model.FlagImageSafe), model.FlagImageUnsafe),
-			model.FlagImageSafeUnknown)
+		preFlag = util.SetBit0(util.SetBit0(util.SetBit1(preFlag, model.FlagImageSafe), model.FlagImageUnsafe), model.FlagImageSafeUnknown)
 	} else {
-		preFlag = util.SetBit0(util.SetBit0(util.SetBit1(preFlag, model.FlagImageUnsafe), model.FlagImageSafe),
-			model.FlagImageSafeUnknown)
+		preFlag = util.SetBit0(util.SetBit0(util.SetBit1(preFlag, model.FlagImageUnsafe), model.FlagImageSafe), model.FlagImageSafeUnknown)
 	}
+	logging.Get().Debug().Bool("safe", safe).Msg("AddImageSafeFlag")
 	return preFlag
 }

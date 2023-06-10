@@ -8,22 +8,21 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/imagescan"
 	scani18 "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scan-i18"
 	imagesecStore "gitlab.com/piccolo_su/vegeta/cmd/scanner/store/imagesec"
-	"gitlab.com/piccolo_su/vegeta/pkg/i18"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	imagesecModel "gitlab.com/piccolo_su/vegeta/pkg/model/imagesec"
 )
 
 type SensitiveRuleService interface {
-	CreateSensitiveRule(ctx context.Context, data *imagesecModel.SensitiveRule) *i18.ErrI18
-	SearchSensitiveRule(ctx context.Context, filter *model.Filter) ([]*imagesecModel.SensitiveRule, *i18.ErrI18)
-	UpdateSensitiveRule(ctx context.Context, id int64, updater map[string]interface{}) *i18.ErrI18
-	DeleteSensitiveRule(ctx context.Context, id int64) *i18.ErrI18
+	CreateSensitiveRule(ctx context.Context, data *imagesecModel.SensitiveRule) error
+	SearchSensitiveRule(ctx context.Context, filter *model.Filter) ([]*imagesecModel.SensitiveRule, error)
+	UpdateSensitiveRule(ctx context.Context, id int64, updater map[string]interface{}) error
+	DeleteSensitiveRule(ctx context.Context, id int64) error
 }
 
 type ScanImageConfigService interface {
-	CreateScanImageConfig(ctx context.Context, data *imagesecModel.ScanImageConfig) *i18.ErrI18
-	GetScanImageConfig(ctx context.Context, configType string) (*imagesecModel.ScanImageConfig, *i18.ErrI18)
-	UpdateScanImageConfig(ctx context.Context, id int64, data *imagesecModel.ScanImageConfig) *i18.ErrI18
+	CreateScanImageConfig(ctx context.Context, data *imagesecModel.ScanImageConfig) error
+	GetScanImageConfig(ctx context.Context, configType string) (*imagesecModel.ScanImageConfig, error)
+	UpdateScanImageConfig(ctx context.Context, id int64, data *imagesecModel.ScanImageConfig) error
 }
 
 type SensitiveRuleSrv struct {
@@ -40,7 +39,7 @@ func NewSensitiveRuleSrv(
 	return &SensitiveRuleSrv{sensitiveRuleDal: sensitiveRuleDal, scanTaskSrv: scanTaskService, scannerConfigSrv: scannerConfigSrv}
 }
 
-func (s *SensitiveRuleSrv) CreateSensitiveRule(ctx context.Context, data *imagesecModel.SensitiveRule) *i18.ErrI18 {
+func (s *SensitiveRuleSrv) CreateSensitiveRule(ctx context.Context, data *imagesecModel.SensitiveRule) error {
 	err := s.sensitiveRuleDal.CreateSensitiveRule(ctx, data)
 	if err != nil {
 		logging.Get().Err(err).Interface("data", data).Msg("CreateSensitiveRule")
@@ -53,7 +52,7 @@ func (s *SensitiveRuleSrv) CreateSensitiveRule(ctx context.Context, data *images
 	return nil
 }
 
-func (s *SensitiveRuleSrv) SearchSensitiveRule(ctx context.Context, filter *model.Filter) ([]*imagesecModel.SensitiveRule, *i18.ErrI18) {
+func (s *SensitiveRuleSrv) SearchSensitiveRule(ctx context.Context, filter *model.Filter) ([]*imagesecModel.SensitiveRule, error) {
 	data, err := s.sensitiveRuleDal.SearchSensitiveRule(ctx, filter)
 	if err != nil {
 		logging.Get().Err(err).Msg("SearchSensitiveRule")
@@ -62,7 +61,7 @@ func (s *SensitiveRuleSrv) SearchSensitiveRule(ctx context.Context, filter *mode
 	return data, nil
 }
 
-func (s *SensitiveRuleSrv) UpdateSensitiveRule(ctx context.Context, id int64, updater map[string]interface{}) *i18.ErrI18 {
+func (s *SensitiveRuleSrv) UpdateSensitiveRule(ctx context.Context, id int64, updater map[string]interface{}) error {
 	err := s.sensitiveRuleDal.UpdateSensitiveRule(ctx, id, updater)
 	if err != nil {
 		logging.Get().Err(err).Int64("id", id).Interface("updater", updater).Msg("UpdateSensitiveRule")
@@ -76,7 +75,7 @@ func (s *SensitiveRuleSrv) UpdateSensitiveRule(ctx context.Context, id int64, up
 	return nil
 }
 
-func (s *SensitiveRuleSrv) DeleteSensitiveRule(ctx context.Context, id int64) *i18.ErrI18 {
+func (s *SensitiveRuleSrv) DeleteSensitiveRule(ctx context.Context, id int64) error {
 	err := s.sensitiveRuleDal.DeleteSensitiveRule(ctx, id)
 	if err != nil {
 		logging.Get().Err(err).Int64("id", id).Msg("DeleteSensitiveRule")
@@ -118,7 +117,7 @@ type ScanImageConfigSrv struct {
 	configDal imagesecStore.ScanImageConfigDal
 }
 
-func (s *ScanImageConfigSrv) CreateScanImageConfig(ctx context.Context, data *imagesecModel.ScanImageConfig) *i18.ErrI18 {
+func (s *ScanImageConfigSrv) CreateScanImageConfig(ctx context.Context, data *imagesecModel.ScanImageConfig) error {
 	if err := s.configDal.CreateScanImageConfig(ctx, data); err != nil {
 		logging.Get().Err(err).Interface("data", data).Msg("CreateScanImageConfig")
 		return scani18.CreateScanImageConfig(err)
@@ -126,7 +125,7 @@ func (s *ScanImageConfigSrv) CreateScanImageConfig(ctx context.Context, data *im
 	return nil
 }
 
-func (s *ScanImageConfigSrv) GetScanImageConfig(ctx context.Context, configType string) (*imagesecModel.ScanImageConfig, *i18.ErrI18) {
+func (s *ScanImageConfigSrv) GetScanImageConfig(ctx context.Context, configType string) (*imagesecModel.ScanImageConfig, error) {
 	data, err := s.configDal.GetScanImageConfig(ctx, configType)
 
 	if err != nil {
@@ -136,7 +135,7 @@ func (s *ScanImageConfigSrv) GetScanImageConfig(ctx context.Context, configType 
 	return data, nil
 }
 
-func (s *ScanImageConfigSrv) UpdateScanImageConfig(ctx context.Context, id int64, data *imagesecModel.ScanImageConfig) *i18.ErrI18 {
+func (s *ScanImageConfigSrv) UpdateScanImageConfig(ctx context.Context, id int64, data *imagesecModel.ScanImageConfig) error {
 	if err := s.configDal.UpdateScanImageConfig(ctx, id, data); err != nil {
 		logging.Get().Err(err).Interface("data", data).Msg("UpdateScanImageConfig")
 		return scani18.UpdateScanImageConfig(err)
