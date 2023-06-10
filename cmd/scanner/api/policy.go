@@ -91,6 +91,10 @@ func (api *DetectAPI) GetPolicyDetail(ctx *gin.Context) {
 		response.JSONError(ctx, fmt.Errorf("not get policy:%d", id))
 		return
 	}
+
+	if polices[0].Scope.AllCluster {
+		polices[0].Scope.ClusterName = make([]string, 0)
+	}
 	response.JSONOK(ctx, response.WithItem(polices[0]))
 }
 

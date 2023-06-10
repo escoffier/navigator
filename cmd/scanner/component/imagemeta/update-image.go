@@ -388,7 +388,7 @@ func (s *ImageUpdateSrv) updateImageInLibOrNot(ctx context.Context) error {
 			break
 		}
 		logging.Get().Info().Int("libImages", len(libImages)).Int64("startID", startID).
-			Msg("updateImageInLibOrNot get lib image")
+			Msg("updateImageInLibOrNot get lib image ")
 
 		if len(libImages) == 0 {
 			break
@@ -402,22 +402,21 @@ func (s *ImageUpdateSrv) updateImageInLibOrNot(ctx context.Context) error {
 
 		nodeImage, _, err := s.imageDal.SearchImage(ctx, imagesecModel.NodeImageDalParam{
 			Digests: digests,
-			Fields:  []string{"id", "flag", "digest"},
+			Fields:  []string{"id", "flag", "digest", "image_name"},
 		})
 		if err != nil {
-			logging.Get().Err(err).Msg("updateImageInLibOrNot get node image")
+			logging.Get().Err(err).Msg("updateImageInLibOrNot get lib image after get node image")
 			return err
 		}
 
-		for i := range nodeImage {
-			if util.ExistBit1(nodeImage[i].Flag, model.FlagNodeImageInLib) {
-				continue
-			}
+		logging.Get().Info().Int("libImage", len(libImages)).Int("nodeImage", len(nodeImage)).
+			Msg("updateImageInLibOrNot get lib image after get node image")
 
-			flag := util.SetBit0(util.SetBit1(nodeImage[i].Flag, model.FlagNodeImageInLib), model.FlagNodeImageNotInLib)
-			if nodeImage[i].Flag == flag {
+		for i := range nodeImage {
+			if util.ExistBit1(nodeImage[i].Flag, model.FlagNodeImageInLib) && !util.ExistBit1(nodeImage[i].Flag, model.FlagNodeImageNotInLib) {
 				continue
 			}
+			flag := util.SetBit0(util.SetBit1(nodeImage[i].Flag, model.FlagNodeImageInLib), model.FlagNodeImageNotInLib)
 
 			updater := map[string]interface{}{"flag": flag}
 
@@ -429,8 +428,10 @@ func (s *ImageUpdateSrv) updateImageInLibOrNot(ctx context.Context) error {
 				logging.Get().Err(err).Int64("imageID", nodeImage[i].ID).Msg("updateImageInLibOrNot update node image in lib")
 				return err
 			}
+
+			logging.Get().Debug().Str("nodeImage", nodeImage[i].ImageName).Msg("updateImageInLibOrNot update Inlib")
 		}
-		logging.Get().Info().Int("nodeImage", len(nodeImage)).Msg("updateImageInLibOrNot update in lib image")
+		logging.Get().Info().Int("nodeImage", len(nodeImage)).Msg("updateImageInLibOrNot update node image inLib")
 	}
 	logging.Get().Info().Int64("startLibID", startID).Msg("updateImageInLibOrNot notINLib->inLib succeed")
 
@@ -448,7 +449,8 @@ func (s *ImageUpdateSrv) updateImageInLibOrNot(ctx context.Context) error {
 			logging.Get().Err(err).Msg("updateImageInLibOrNot SearchImage node image")
 			return err
 		}
-		logging.Get().Info().Int("nodeImage", len(nodeImage)).Int64("startID", startID).Msg("updateImageInLibOrNot find in lib image")
+		logging.Get().Info().Int("nodeImage", len(nodeImage)).Int64("startID", startID).
+			Msg("updateImageInLibOrNot find InLib node image")
 
 		if len(nodeImage) == 0 {
 			break
@@ -468,16 +470,13 @@ func (s *ImageUpdateSrv) updateImageInLibOrNot(ctx context.Context) error {
 		for i := range libImage {
 			inMap[libImage[i].Digest] = true
 		}
-		logging.Get().Debug().Int("libImage", len(libImage)).Msg("updateImageInLibOrNot find in lib image")
+		logging.Get().Info().Int("libImage", len(libImage)).Int("digests", len(digests)).Msg("updateImageInLibOrNot find lib image")
 
 		for i := range nodeImage {
 			if inMap[nodeImage[i].Digest] {
 				continue
 			}
 			flag := util.SetBit0(util.SetBit1(nodeImage[i].Flag, model.FlagNodeImageNotInLib), model.FlagNodeImageInLib)
-			if nodeImage[i].Flag == flag {
-				continue
-			}
 
 			updater := map[string]interface{}{"flag": flag}
 
@@ -489,7 +488,7 @@ func (s *ImageUpdateSrv) updateImageInLibOrNot(ctx context.Context) error {
 				return err
 			}
 		}
-		logging.Get().Info().Int("nodeImage", len(nodeImage)).Msg("updateImageInLibOrNot update not in lib")
+		logging.Get().Info().Int("nodeImage", len(nodeImage)).Msg("updateImageInLibOrNot update node image  notInLib")
 	}
 
 	logging.Get().Info().Msg("updateImageInLibOrNot in->not succeed")

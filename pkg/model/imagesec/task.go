@@ -179,9 +179,6 @@ func (vi *ImageScanTask) Deserialize() {
 }
 
 func (vi *ImageScanTask) ToApiView() {
-	if vi.Status == TaskStatusNotReady {
-		vi.StatusStr = TaskStatusPendingStr
-	}
 	if vi.Status == TaskStatusSendFinished || vi.Status == TaskStatusScanFinished {
 		vi.StatusStr = TaskStatusInprogressStr
 	}
