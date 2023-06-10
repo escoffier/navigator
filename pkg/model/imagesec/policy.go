@@ -416,3 +416,8 @@ func (vi *PolicyScope) Check() *i18.ErrI18 {
 	}
 	return nil
 }
+
+const (
+	DefaultPolicyNameZH = "默认安全策略"
+	DefaultPolicyNameEN = "default policy"
+)

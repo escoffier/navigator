@@ -160,7 +160,7 @@ func (s *InitScanner) createNodeDefaultDetectConfig(ctx context.Context) error {
 	}
 
 	nodeDetectConfig := imagesecModel.SecurityPolicy{
-		Name:      "default policy",
+		Name:      imagesecModel.DefaultPolicyNameEN,
 		IsDefault: true,
 		Scope: imagesecModel.PolicyScope{
 			ImageFromType: imagesecModel.ImageFromNode,

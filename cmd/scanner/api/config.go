@@ -2,6 +2,7 @@ package api
 
 import (
 	"fmt"
+	"strconv"
 
 	"github.com/gin-gonic/gin"
 
@@ -119,5 +120,5 @@ func (s *ConfigAPISrv) UpdateScanImageConfig(ctx *gin.Context) {
 		response.JSONError(ctx, i18.UpdateErr(err))
 		return
 	}
-	response.JSONOK(ctx)
+	response.JSONOK(ctx, response.WithTarget(&response.TargetRef{ID: strconv.Itoa(int(id))}))
 }

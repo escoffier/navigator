@@ -27,9 +27,10 @@ const (
 )
 
 const (
-	LangEN  = "en"
-	LangCH  = "zh"
-	LangKey = "lang"
+	LangEN        = "en"
+	LangCH        = "zh"
+	LangKey       = "lang"
+	PolicyDefault = "default"
 )
 
 func GetExportTypeView(exportType string, lang string) string {
