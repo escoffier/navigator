@@ -10,6 +10,8 @@ import (
 	"gitlab.com/security-rd/go-pkg/logging"
 
 	imagesecSrv "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/imagemeta"
+	scani18 "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scan-i18"
+	"gitlab.com/piccolo_su/vegeta/pkg/i18"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	imagesecModel "gitlab.com/piccolo_su/vegeta/pkg/model/imagesec"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
@@ -44,7 +46,7 @@ func (s *ImageInfoAPI) ListBaseToAppImage(ctx *gin.Context) {
 		Filter: filter,
 	})
 	if err != nil {
-		response.JSONError(ctx, err)
+		response.JSONError(ctx, scani18.SearchImage(err))
 		return
 	}
 
@@ -71,7 +73,7 @@ func (s *ImageInfoAPI) ListAppToBaseImage(ctx *gin.Context) {
 		Filter: filter,
 	})
 	if err != nil {
-		response.JSONError(ctx, err)
+		response.JSONError(ctx, scani18.SearchImage(err))
 		return
 	}
 
@@ -95,7 +97,7 @@ func (s *ImageInfoAPI) ListBaseImage(ctx *gin.Context) {
 			Filter:        filter,
 		})
 	if err != nil {
-		response.JSONError(ctx, err)
+		response.JSONError(ctx, scani18.SearchImage(err))
 		return
 	}
 
@@ -111,7 +113,7 @@ func (s *ImageInfoAPI) DeleteBaseImage(ctx *gin.Context) {
 	data, err := s.getImageSrv(ctx).GetImageCorrelateData(ctx, imagesecModel.GetImageAssociateDataParam{ImageId: imageID, ImageFromType: imagesecModel.ImageFromRegistry})
 
 	if err != nil {
-		response.JSONError(ctx, err)
+		response.JSONError(ctx, scani18.SearchImage(err))
 		return
 	}
 	updater := map[string]interface{}{"flag": util.SetBit0(data.ImageBaseResponse.Flag, model.FlagBaseImage)}
@@ -121,7 +123,7 @@ func (s *ImageInfoAPI) DeleteBaseImage(ctx *gin.Context) {
 	}
 	err = s.getImageSrv(ctx).UpdateImage(ctx, param)
 	if err != nil {
-		response.JSONError(ctx, err)
+		response.JSONError(ctx, scani18.DeleteBaseImage(err))
 		return
 	}
 
@@ -153,7 +155,7 @@ func (s *ImageInfoAPI) CreateBaseImage(ctx *gin.Context) {
 	names := make([]string, 0)
 
 	if err != nil {
-		response.JSONError(ctx, err)
+		response.JSONError(ctx, scani18.SearchImage(err))
 		return
 	}
 
@@ -189,7 +191,7 @@ func (s *ImageInfoAPI) SearchImageWithScan(ctx *gin.Context) {
 
 	images, cnt, err := s.getImageSrv(ctx).ListImageWithScanInfo(ctx, body)
 	if err != nil {
-		response.JSONError(ctx, response.SearchErr(err))
+		response.JSONError(ctx, scani18.SearchImage(err))
 		return
 	}
 	for i := range images {
@@ -216,7 +218,7 @@ func (s *ImageInfoAPI) GetRegistryProject(ctx *gin.Context) {
 		Keyword: projectKeyword,
 	})
 	if err != nil {
-		response.JSONError(ctx, err)
+		response.JSONError(ctx, i18.SearchErr(err))
 		return
 	}
 

@@ -4,6 +4,8 @@ import (
 	"fmt"
 
 	json "github.com/json-iterator/go"
+
+	"gitlab.com/piccolo_su/vegeta/pkg/i18"
 )
 
 // Implements modified Google JSON styleguide
@@ -65,7 +67,7 @@ type HTTPError struct {
 	Code    int            `json:"code"`
 	Message string         `json:"message"`
 	Errors  []HTTPSubError `json:"errors"`
-	I18Err  I18Err         `json:"i18Err"`
+	I18Err  i18.ErrI18     `json:"i18Err"`
 }
 
 func (h *HTTPError) Error() string {

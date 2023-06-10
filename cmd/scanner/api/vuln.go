@@ -11,6 +11,7 @@ import (
 	"scm.tensorsecurity.cn/tensorsecurity-rd/trivy/pkg/report"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component"
+	scani18 "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scan-i18"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	imagesecModel "gitlab.com/piccolo_su/vegeta/pkg/model/imagesec"
@@ -96,7 +97,7 @@ func (s *VulnAPISrv) GetImageVulns(ctx *gin.Context) {
 	vulns, _, err := s.VulnSrv.SearchVulns(ctx, param,
 		model.EmptyFilterForTotalQuery().SetSortFiled("severity_int").SetSortDesc())
 	if err != nil {
-		response.JSONError(ctx, err)
+		response.JSONError(ctx, scani18.GetImageInfo(err))
 		return
 	}
 
@@ -161,7 +162,7 @@ func (s *VulnAPISrv) GetImageVulnPkg(ctx *gin.Context) {
 	}
 	preVulns, _, err := s.VulnSrv.SearchVulns(ctx, param, model.EmptyFilterForTotalQuery())
 	if err != nil {
-		response.JSONError(ctx, err)
+		response.JSONError(ctx, scani18.GetImageInfo(err))
 		return
 	}
 	vulns := make([]VulnResponse, 0)
@@ -243,7 +244,7 @@ func (s *VulnAPISrv) GetImageVulnLanguage(ctx *gin.Context) {
 
 	vulns, _, err := s.VulnSrv.SearchVulns(ctx, param, model.EmptyFilterForTotalQuery())
 	if err != nil {
-		response.JSONError(ctx, err)
+		response.JSONError(ctx, scani18.GetImageInfo(err))
 		return
 	}
 	// 整理数据
@@ -322,7 +323,7 @@ func (s *VulnAPISrv) GetImageVulnGoBinary(ctx *gin.Context) {
 
 	vulns, _, err := s.VulnSrv.SearchVulns(ctx, param, model.EmptyFilterForTotalQuery())
 	if err != nil {
-		response.JSONError(ctx, err)
+		response.JSONError(ctx, scani18.GetImageInfo(err))
 		return
 	}
 	// 整理数据
@@ -411,7 +412,7 @@ func (s *VulnAPISrv) GetImageVulnFrame(ctx *gin.Context) {
 	}
 	vulns, _, err := s.VulnSrv.SearchVulns(ctx, param, model.EmptyFilterForTotalQuery())
 	if err != nil {
-		response.JSONError(ctx, err)
+		response.JSONError(ctx, scani18.GetImageInfo(err))
 		return
 	}
 	// 整理数据

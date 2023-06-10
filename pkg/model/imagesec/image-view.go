@@ -10,6 +10,7 @@ import (
 	"gitlab.com/security-rd/go-pkg/logging"
 	"scm.tensorsecurity.cn/tensorsecurity-rd/trivy/pkg/report"
 
+	"gitlab.com/piccolo_su/vegeta/pkg/i18"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 )
@@ -64,12 +65,12 @@ type ImageListParam struct {
 	Filter *model.Filter
 }
 
-func (sp *ImageListParam) Check() error {
+func (sp *ImageListParam) Check() *i18.ErrI18 {
 	if sp == nil {
-		return fmt.Errorf("not get model")
+		return i18.CreateI18BadReqErr("程序出错", "not get model")
 	}
 	if err := ImageFromType(sp.ImageFromType).Check(); err != nil {
-		return err
+		return i18.CreateI18BadReqErr("未获取到镜像类型", "not get image from type")
 	}
 	return nil
 }
@@ -1056,10 +1057,10 @@ func (iws *ImageWithCorrelateData2) ToImageBaseResponse() ImageBaseResponse {
 		baseResponse.RegistryUrl = iws.Registry.Url
 		baseResponse.RegistryID = iws.Registry.ID
 	}
-	if baseResponse.LastSyncAt < time.Now().UnixMilli()/100 {
+	if baseResponse.LastSyncAt < time.Now().UnixMilli()/100 && baseResponse.LastSyncAt > 0 {
 		baseResponse.LastSyncAt = baseResponse.LastSyncAt * 1000 // 2.11.1之前用的是秒，2.11.1之后统一用的毫秒，中移部分集群还没有升级2.11.2
 	}
-	if baseResponse.LastSyncAt <= 0 {
+	if baseResponse.LastSyncAt <= 0 && iws.Registry != nil {
 		baseResponse.LastSyncAt = iws.Registry.LastSyncAt
 	}
 	// 扫描状态
@@ -1090,9 +1091,6 @@ func (iws *ImageWithCorrelateData2) ToImageBaseResponse() ImageBaseResponse {
 		baseResponse.Safe = model.ImageSafeUnknown
 	}
 
-	if baseResponse.LastSyncAt <= 0 {
-		baseResponse.LastSyncAt = iws.Image.Heartbeat
-	}
 	for i := range iws.RiskPolicy {
 		baseResponse.RiskPolicyName = append(baseResponse.RiskPolicyName, iws.RiskPolicy[i].Name)
 	}

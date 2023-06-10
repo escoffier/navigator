@@ -10,6 +10,7 @@ import (
 
 	"gitlab.com/security-rd/go-pkg/logging"
 
+	"gitlab.com/piccolo_su/vegeta/pkg/i18"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 )
 
@@ -22,9 +23,9 @@ type ScanImageConfig struct {
 	UpdatedAt       int64            `gorm:"autoUpdateTime:milli;column:updated_at" json:"updatedAt"` // milliseconds
 }
 
-func (vi *ScanImageConfig) Check() error {
+func (vi *ScanImageConfig) Check() *i18.ErrI18 {
 	if vi.ConfigType == "" {
-		return fmt.Errorf("not get configType")
+		return i18.CreateI18BadReqErr("没有获取到配置类型", "not get configType")
 	}
 	if vi.NodeImageConfig != nil {
 		if err := vi.NodeImageConfig.Check(); err != nil {
@@ -136,47 +137,47 @@ func (vi *ScanCycle) Serialize() {
 	vi.Mouth = util.SortInt64Slice(util.DuplicateInt64Slice(vi.Mouth))
 }
 
-func (vi *ScanCycle) Check() error {
+func (vi *ScanCycle) Check() *i18.ErrI18 {
 	if err := checkTime(vi.ScanTime); err != nil {
-		return err
+		return i18.CreateI18BadReqErr("周期扫描时间不正确", "cycle scan time is incorrect")
 	}
 
 	split := strings.Split(vi.ScanTime, ":")
 	if len(split) < 2 {
-		return fmt.Errorf("not get scanTime")
+		return i18.CreateI18BadReqErr("周期扫描时间不正确", "cycle scan time is incorrect")
 	}
 	h, err := strconv.Atoi(split[0])
 	if err != nil {
-		return fmt.Errorf("scanTime incorrect:%s", vi.ScanTime)
+		return i18.CreateI18BadReqErr("周期扫描时间不正确", "cycle scan time is incorrect")
 	}
 	m, err := strconv.Atoi(split[1])
 	if err != nil {
-		return fmt.Errorf("scanTime incorrect:%s", vi.ScanTime)
+		return i18.CreateI18BadReqErr("周期扫描时间不正确", "cycle scan time is incorrect")
 	}
 
 	vi.ScanTimeHour = int64(h)
 	vi.ScanTimeMinute = int64(m)
 
 	if vi.ScanTimeHour > 24 || vi.ScanTimeHour < 0 {
-		return fmt.Errorf("scan time incorrect:%s", vi.ScanTime)
+		return i18.CreateI18BadReqErr("周期扫描时间不正确", "cycle scan time is incorrect")
 	}
 
 	if vi.ScanTimeMinute > 60 || vi.ScanTimeMinute < 0 {
-		return fmt.Errorf("scan time incorrect:%s", vi.ScanTime)
+		return i18.CreateI18BadReqErr("周期扫描时间不正确", "cycle scan time is incorrect")
 	}
 	for i := range vi.Day {
 		if vi.Day[i] <= 0 || vi.Day[i] > 31 {
-			return fmt.Errorf("scan day incorect")
+			return i18.CreateI18BadReqErr("周期扫描时间不正确", "cycle scan time is incorrect")
 		}
 	}
 
 	for i := range vi.Weekday {
 		if vi.Weekday[i] < 0 || vi.Weekday[i] > 6 {
-			return fmt.Errorf("scan weekday incorrect")
+			return i18.CreateI18BadReqErr("周期扫描时间不正确", "cycle scan time is incorrect")
 		}
 	}
 	if !util.ExistInStringSlice([]string{CycleTypeWeekday, CycleTypeDay, CycleTypeMonth}, vi.CycleType) {
-		return fmt.Errorf("scan type incorect")
+		return i18.CreateI18BadReqErr("周期扫描类型不正确", "cycle scan type is incorrect")
 	}
 
 	return nil
@@ -248,18 +249,18 @@ func checkTime(ti string) error {
 	return nil
 }
 
-func (vi *NodeImageConfig) Check() error {
+func (vi *NodeImageConfig) Check() *i18.ErrI18 {
 	if vi.ScanCycle.CycleType == "" {
-		return fmt.Errorf("not get cycle type")
+		return i18.CreateI18BadReqErr("未获取周期扫描类型", "not get cycle type")
 	}
 	if vi.SyncInterval < 10 {
-		return fmt.Errorf("sync interval cannot less than 10 minutes")
+		return i18.CreateI18BadReqErr("镜像同步间隔不得低10分钟", "sync interval cannot less than 10 minutes")
 	}
 	if vi.ScanTimeout < 1 {
-		return fmt.Errorf("image scan timeout cannot setting less than 1 minute")
+		return i18.CreateI18BadReqErr("镜像扫描超时时间不得低1分钟", "image scan timeout cannot setting less than 1 minute")
 	}
 	if vi.ClearInterval < 1 {
-		return fmt.Errorf("image cleanup interval cannot less than 1 day")
+		return i18.CreateI18BadReqErr("镜像清理时间间隔不得低1天", "image cleanup interval cannot less than 1 day")
 	}
 	if err := vi.ScanCycle.Check(); err != nil {
 		return err
@@ -294,27 +295,25 @@ func (vi *SensitiveRule) TableName() string {
 	return "ivan_scan_sensitive_rule"
 }
 
-func (vi *SensitiveRule) Check() error {
+func (vi *SensitiveRule) Check() *i18.ErrI18 {
 	if vi == nil {
-		return fmt.Errorf("model is nil")
+		return i18.CreateI18BadReqErr("程序出错", "not get model")
 	}
 	if vi.Value == "" {
-		return fmt.Errorf("not get Value")
+		return i18.CreateI18BadReqErr("未获取到敏感文件名", "not get sensitive rule value")
 	}
 	if vi.RuleType == "" {
 		vi.RuleType = SensitiveRuleTypeFilename
 	}
-	if vi.Creator == "" && vi.Updater == "" {
-		return fmt.Errorf("not get creator")
-	}
 	if vi.Creator != "" && vi.Updater == "" {
 		vi.Updater = vi.Creator
 	}
-	if vi.Updater == "" {
-		return fmt.Errorf("not get Updater")
+	if vi.Creator == "" && vi.Updater == "" {
+		return i18.CreateI18BadReqErr("未获取到创建人或更新人", "not get creator or updater")
 	}
+
 	if _, err := regexp.Compile(vi.Value); err != nil {
-		return fmt.Errorf(" Sensitive file rules are not correct regular expressions")
+		return i18.CreateI18BadReqErr("敏感文件名不是正确的正则表达式", "sensitive file rules are not correct regular expressions")
 	}
 
 	return nil

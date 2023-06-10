@@ -12,7 +12,9 @@ import (
 	apimodel "gitlab.com/piccolo_su/vegeta/cmd/scanner/api/model"
 	imageMetaSrv "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/imagemeta"
 	imagesecSrv "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/imagesec"
+	scani18 "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scan-i18"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
+	"gitlab.com/piccolo_su/vegeta/pkg/i18"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	imagesecModel "gitlab.com/piccolo_su/vegeta/pkg/model/imagesec"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
@@ -75,7 +77,7 @@ func (s *ScanResultAPI) SearchVirus(ctx *gin.Context) {
 		Filter:                filter,
 	})
 	if err != nil {
-		response.JSONError(ctx, err)
+		response.JSONError(ctx, scani18.GetImageInfo(err))
 		return
 	}
 
@@ -99,7 +101,7 @@ func (s *ScanResultAPI) SearchSensitive(ctx *gin.Context) {
 		Filter:                filter,
 	})
 	if err != nil {
-		response.JSONError(ctx, err)
+		response.JSONError(ctx, scani18.GetImageInfo(err))
 		return
 	}
 
@@ -141,7 +143,7 @@ func (s *ScanResultAPI) SearchEnv(ctx *gin.Context) {
 		Filter:                filter,
 	})
 	if err != nil {
-		response.JSONError(ctx, err)
+		response.JSONError(ctx, scani18.GetImageInfo(err))
 		return
 	}
 
@@ -168,7 +170,7 @@ func (s *ScanResultAPI) SearchSoftware(ctx *gin.Context) {
 		Filter:                model.EmptyFilterForTotalQuery(),
 	})
 	if err != nil {
-		response.JSONError(ctx, err)
+		response.JSONError(ctx, scani18.GetImageInfo(err))
 		return
 	}
 
@@ -271,7 +273,7 @@ func (s *ScanResultAPI) ImageBaseDetail(ctx *gin.Context) {
 	})
 
 	if err != nil {
-		response.JSONError(ctx, err)
+		response.JSONError(ctx, scani18.GetImageInfo(err))
 		return
 	}
 
@@ -284,7 +286,7 @@ func (s *ScanResultAPI) ImageLayers(ctx *gin.Context) {
 	param := GetScanResultSearchParamFromCtx(ctx)
 
 	if err := imagesecModel.ImageFromType(param.ImageFromType).Check(); err != nil {
-		response.JSONError(ctx, err)
+		response.JSONError(ctx, i18.SearchErr(err))
 		return
 	}
 
@@ -302,7 +304,7 @@ func (s *ScanResultAPI) ImageLayers(ctx *gin.Context) {
 	})
 
 	if err != nil {
-		response.JSONError(ctx, err)
+		response.JSONError(ctx, i18.SearchErr(err))
 		return
 	}
 	baseImage := data.ToImageBaseResponse()
@@ -336,7 +338,7 @@ func (s *ScanResultAPI) ImageIssueStatistic(ctx *gin.Context) {
 
 	data, err := s.getImageSrv(ctx).GetImageCorrelateData(ctx, assParam)
 	if err != nil {
-		response.JSONError(ctx, err)
+		response.JSONError(ctx, scani18.GetImageInfo(err))
 		return
 	}
 	if param.ImageFromType == imagesecModel.ImageFromRegistry {
@@ -365,7 +367,7 @@ func (s *ScanResultAPI) GetImageRiskInfo(ctx *gin.Context) {
 
 	images, _, err := s.getImageSrv(ctx).ListImageWithScanInfo(ctx, body)
 	if err != nil {
-		response.JSONError(ctx, err)
+		response.JSONError(ctx, scani18.GetImageInfo(err))
 		return
 	}
 
@@ -424,7 +426,7 @@ func (s *ScanResultAPI) GetImageLayer(ctx *gin.Context) {
 	})
 
 	if err != nil {
-		response.JSONError(ctx, err)
+		response.JSONError(ctx, scani18.SearchImageLayer(err))
 		return
 	}
 	response.JSONOK(ctx, response.WithItems(image.Image.Layer))
@@ -456,7 +458,7 @@ func (s *ScanResultAPI) GetImageVulns(ctx *gin.Context) {
 		SearchVulnParam:       vulnParam,
 	})
 	if err != nil {
-		response.JSONError(ctx, err)
+		response.JSONError(ctx, scani18.GetImageInfo(err))
 		return
 	}
 
@@ -524,7 +526,7 @@ func (s *ScanResultAPI) GetImageVulnPkg(ctx *gin.Context) {
 		SearchVulnParam:       vulnParam,
 	})
 	if err != nil {
-		response.JSONError(ctx, err)
+		response.JSONError(ctx, scani18.GetImageInfo(err))
 		return
 	}
 
@@ -616,7 +618,7 @@ func (s *ScanResultAPI) GetImageVulnLanguage(ctx *gin.Context) {
 		SearchVulnParam:       vulnParam,
 	})
 	if err != nil {
-		response.JSONError(ctx, err)
+		response.JSONError(ctx, scani18.GetImageInfo(err))
 		return
 	}
 	// 整理数据
@@ -694,7 +696,7 @@ func (s *ScanResultAPI) GetImageVulnGoBinary(ctx *gin.Context) {
 		Filter:                nil,
 	})
 	if err != nil {
-		response.JSONError(ctx, err)
+		response.JSONError(ctx, scani18.GetImageInfo(err))
 		return
 	}
 	vulns := data.Vuln
@@ -782,7 +784,7 @@ func (s *ScanResultAPI) GetImageVulnFrame(ctx *gin.Context) {
 		Filter:                nil,
 	})
 	if err != nil {
-		response.JSONError(ctx, err)
+		response.JSONError(ctx, scani18.GetImageInfo(err))
 		return
 	}
 	vulns := data.Vuln
@@ -847,7 +849,7 @@ func (s *ScanResultAPI) GetImageWebshell(ctx *gin.Context) {
 		Filter:                filter,
 	})
 	if err != nil {
-		response.JSONError(ctx, err)
+		response.JSONError(ctx, scani18.GetImageInfo(err))
 		return
 	}
 	for i := range data.Webshell {
@@ -868,7 +870,7 @@ func (s *ScanResultAPI) GetVulnDetail(ctx *gin.Context) {
 	}
 	vuln, _, err := s.NodeVulnSrv.SearchVuln(ctx, vulnParam)
 	if err != nil {
-		response.JSONError(ctx, err)
+		response.JSONError(ctx, i18.SearchErr(err))
 		return
 	}
 	if len(vuln) == 0 {

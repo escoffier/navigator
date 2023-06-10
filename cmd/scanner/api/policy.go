@@ -6,7 +6,9 @@ import (
 	"github.com/gin-gonic/gin"
 
 	imagesecSrv "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/imagesec"
+	scani18 "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scan-i18"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
+	"gitlab.com/piccolo_su/vegeta/pkg/i18"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	imagesecModel "gitlab.com/piccolo_su/vegeta/pkg/model/imagesec"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
@@ -26,12 +28,12 @@ func NewDetectAPI(
 func (api *DetectAPI) CreatePolicy(ctx *gin.Context) {
 	data := imagesecModel.SecurityPolicy{}
 	if err := ctx.BindJSON(&data); err != nil {
-		response.JSONError(ctx, response.CreateErr(err))
+		response.JSONError(ctx, i18.CreateErr(err))
 		return
 	}
 	data.IsDefault = false
 	if err := api.policySrv.CreatePolicy(ctx, &data); err != nil {
-		response.JSONError(ctx, response.CreateErr(err))
+		response.JSONError(ctx, i18.CreateErr(err))
 		return
 	}
 	response.JSONOK(ctx)
@@ -50,7 +52,7 @@ func (api *DetectAPI) UpdatePolicy(ctx *gin.Context) {
 	}
 
 	if err := api.policySrv.UpdatePolicy(ctx, id, &data); err != nil {
-		response.JSONError(ctx, response.UpdateErr(err))
+		response.JSONError(ctx, scani18.UpdatePolicy(err))
 		return
 	}
 	response.JSONOK(ctx)
@@ -64,7 +66,7 @@ func (api *DetectAPI) DeletePolicy(ctx *gin.Context) {
 	}
 
 	if err := api.policySrv.DeletePolicy(ctx, id); err != nil {
-		response.JSONError(ctx, response.DeleteErr(err))
+		response.JSONError(ctx, scani18.DeletePolicy(err))
 		return
 	}
 	response.JSONOK(ctx)
@@ -84,7 +86,7 @@ func (api *DetectAPI) GetPolicyDetail(ctx *gin.Context) {
 		Deleted:  consts.FalseString,
 	})
 	if err != nil {
-		response.JSONError(ctx, response.SearchErr(err))
+		response.JSONError(ctx, scani18.GetPolicy(err))
 		return
 	}
 	if len(polices) == 0 {
@@ -111,7 +113,7 @@ func (api *DetectAPI) SearchPolicy(ctx *gin.Context) {
 
 	polices, cnt, err := api.policySrv.SearchPolicy(ctx, param2)
 	if err != nil {
-		response.JSONError(ctx, response.SearchErr(err))
+		response.JSONError(ctx, scani18.SearchPolicy(err))
 		return
 	}
 	var defaultP *imagesecModel.SecurityPolicy

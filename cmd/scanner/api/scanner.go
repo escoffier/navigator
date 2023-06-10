@@ -15,8 +15,10 @@ import (
 	apimodel "gitlab.com/piccolo_su/vegeta/cmd/scanner/api/model"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component"
 	imagesecSrv "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/imagemeta"
+	scani18 "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scan-i18"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/task"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
+	"gitlab.com/piccolo_su/vegeta/pkg/i18"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/model/imagesec"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
@@ -107,7 +109,7 @@ func (s *Scanner) ListImageInfoFromVuln(ctx *gin.Context) {
 
 	res, err := s.Srv.GetImagesFromVuln(ctx, uniqueVuln)
 	if err != nil {
-		response.JSONError(ctx, err)
+		response.JSONError(ctx, scani18.SearchImage(err))
 		return
 	}
 	response.JSONOK(ctx, response.WithItems(res))
@@ -132,18 +134,18 @@ func (s *Scanner) ScannedByVulnDetails(ctx *gin.Context) {
 	} else {
 		uniqueVuln, err = strconv.ParseUint(uniqueVulnStr, 64, 10)
 		if err != nil {
-			response.JSONError(ctx, fmt.Errorf("not get uniqueVuln"))
+			response.JSONError(ctx, scani18.NotGetVulnID())
 			return
 		}
 	}
 
 	vulns, _, err := s.VulnSrv.SearchVulns(ctx, model.SearchVulnParam{UniqueVulns: []uint64{uniqueVuln}}, nil)
 	if err != nil {
-		response.JSONError(ctx, err)
+		response.JSONError(ctx, scani18.SearchVuln(err))
 		return
 	}
 	if len(vulns) == 0 {
-		response.JSONError(ctx, response.NewHttpError(http.StatusBadRequest, fmt.Errorf("not fond vuln")))
+		response.JSONError(ctx, scani18.NotGetVuln())
 		return
 	}
 	// 数据转换，兼容前端
@@ -201,7 +203,7 @@ func (s *Scanner) SearchOnlineImageVulns(ctx *gin.Context) {
 	}
 	vulns, cnt, err := s.VulnSrv.SearchVulns(ctx, model.SearchVulnParam{OnlineImageVuln: consts.TrueString, VulnKeyword: search}, filter)
 	if err != nil {
-		response.JSONError(ctx, err)
+		response.JSONError(ctx, scani18.SearchVuln(err))
 		return
 	}
 
@@ -625,7 +627,7 @@ func (s *Scanner) SearchImages(ctx *gin.Context) {
 
 	images, cnt, err := s.Srv.SearchImages(ctx, param, filter)
 	if err != nil {
-		response.JSONError(ctx, err)
+		response.JSONError(ctx, i18.SearchErr(err))
 		return
 	}
 
@@ -682,7 +684,7 @@ func (s *Scanner) VerifyExistence(ctx *gin.Context) {
 
 	images, _, err := s.Srv.SearchImages(ctx, param, filter)
 	if err != nil {
-		response.JSONError(ctx, err)
+		response.JSONError(ctx, i18.SearchErr(err))
 		return
 	}
 	res := make(map[uint32]bool)
@@ -721,7 +723,7 @@ func (s *Scanner) ExistenceCount(ctx *gin.Context) {
 
 	images, _, err := s.Srv.SearchImages(ctx, param, filter)
 	if err != nil {
-		response.JSONError(ctx, err)
+		response.JSONError(ctx, i18.SearchErr(err))
 		return
 	}
 	res := make(map[uint32]bool)
@@ -765,7 +767,7 @@ func (s *Scanner) ListImgLayers(ctx *gin.Context) {
 
 	images, err := s.Srv.ListImgLayers(ctx, imageID, nil)
 	if err != nil {
-		response.JSONError(ctx, err)
+		response.JSONError(ctx, scani18.SearchImageLayer(err))
 		return
 	}
 	response.JSONOK(ctx, response.WithItems(images))
@@ -799,7 +801,7 @@ func (s *Scanner) QueryEnvInStrategy(ctx *gin.Context) {
 	}
 	res, err := s.Srv.GetStrategyForEnv(ctx, envName)
 	if err != nil {
-		response.JSONError(ctx, err)
+		response.JSONError(ctx, i18.SearchErr(err))
 		return
 	}
 	response.JSONOK(ctx, response.WithItems(res))
@@ -827,13 +829,13 @@ func (s *Scanner) SetEnvToStrategy(ctx *gin.Context) {
 		policyIds = append(policyIds, tmpID)
 	}
 	if len(policyIds) == 0 {
-		response.JSONError(ctx, fmt.Errorf("has not policyID parse success"))
+		response.JSONError(ctx, scani18.NotConfigID())
 		return
 	}
 
 	err := s.Srv.SetEnvToStrategy(ctx, envName, policyIds)
 	if err != nil {
-		response.JSONError(ctx, err)
+		response.JSONError(ctx, i18.UpdateErr(err))
 		return
 	}
 	response.JSONOK(ctx, response.WithTarget(&response.TargetRef{

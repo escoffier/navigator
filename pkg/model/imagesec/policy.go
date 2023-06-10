@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"gitlab.com/piccolo_su/vegeta/pkg/i18"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 )
 
@@ -222,22 +223,22 @@ func (vi *SecurityPolicy) TableName() string {
 	return "ivan_image_detect_policy"
 }
 
-func (vi *SecurityPolicy) Check() error {
+func (vi *SecurityPolicy) Check() *i18.ErrI18 {
 	if vi == nil {
-		return fmt.Errorf("not get model")
+		return i18.CreateI18BadReqErr("程序出错", "not get model")
 	}
 	if vi.Name == "" {
-		return fmt.Errorf("not get Name")
+		return i18.CreateI18BadReqErr("未获取到策略名", "not get policy name")
 	}
 	if len([]rune(vi.Name)) > 50 {
-		return fmt.Errorf("name not more than 50")
+		return i18.CreateI18BadReqErr("策略名限定50个字符", "name more than 50")
 	}
 	if vi.Creator == "" && vi.Updater == "" {
-		return fmt.Errorf("not get Creator or Updater")
+		return i18.CreateI18BadReqErr("未获取到创建人或更新人", "not get creator or updater")
 	}
 
 	if len([]rune(vi.Comment)) > 150 {
-		return fmt.Errorf("comment more than 150")
+		return i18.CreateI18BadReqErr("备注限定150个字符", "comment more than 150")
 	}
 	if err := vi.Scope.Check(); err != nil {
 		return err
@@ -246,13 +247,13 @@ func (vi *SecurityPolicy) Check() error {
 		return err
 	}
 	if vi.License.Enable && len(vi.License.Black) == 0 {
-		return fmt.Errorf("not get balck license")
+		return i18.CreateI18BadReqErr("未获取到需要检测的开源协议", "not get exception license")
 	}
 	if vi.Sensitive.Enable && (len(vi.Sensitive.Black) == 0 && !vi.Sensitive.AllBlack) && (!vi.Sensitive.AllWhite && len(vi.Sensitive.White) == 0) {
-		return fmt.Errorf("not get sensitive")
+		return i18.CreateI18BadReqErr("未获取到需要检测的敏感文件", "not get exception sensitive file")
 	}
 	if vi.Pkg.Enable && len(vi.Pkg.Black) == 0 {
-		return fmt.Errorf("not get pkg")
+		return i18.CreateI18BadReqErr("未获取到需要检测的软件", "not get exception pkg")
 	}
 
 	return nil
@@ -271,13 +272,13 @@ type WebshellDetectRule struct {
 	White     []string `json:"white"`
 }
 
-func (vi *WebshellDetectRule) Check() error {
+func (vi *WebshellDetectRule) Check() *i18.ErrI18 {
 	if vi.Enable && len(vi.RiskLevel) == 0 {
-		return fmt.Errorf("not get webshell risk level")
+		return i18.CreateI18BadReqErr("未获取到 webshell 风险层级", "not get webshell risk level")
 	}
 	for i := range vi.RiskLevel {
 		if !util.ExistInStringSlice([]string{WebshellRiskLevelCertain, WebshellRiskLevelMaybe}, vi.RiskLevel[i]) {
-			return fmt.Errorf("webshell riskleve incorrect")
+			return i18.CreateI18BadReqErr("webshell 风险层级不正确", "webshell risk leve incorrect")
 		}
 	}
 	return nil
@@ -396,20 +397,20 @@ type PolicyScope struct {
 	ClusterName   []string `json:"clusterName"`
 }
 
-func (vi *PolicyScope) Check() error {
+func (vi *PolicyScope) Check() *i18.ErrI18 {
 	if vi.ImageRegexp == "" && (len(vi.ClusterKey) == 0 && !vi.AllCluster) {
-		return fmt.Errorf("please give policy scope")
+		return i18.CreateI18BadReqErr("未获取到策略适用范围", "not get policy scope")
 	}
 	if vi.ImageRegexp != "" {
 		if _, err := regexp.Compile(vi.ImageRegexp); err != nil {
-			return fmt.Errorf("PolicyScope image scopy regexp fail")
+			return i18.CreateI18BadReqErr("镜像正则表达出错", "image scope regexp fail")
 		}
 	}
 	if vi.ImageFromType == "" {
-		return fmt.Errorf("PolicyScope not get ImageFromType")
+		return i18.CreateI18BadReqErr("not get ImageFromType", "not get ImageFromType")
 	}
 	if vi.ScopeType == "" {
-		return fmt.Errorf("PolicyScope not get scope type")
+		return i18.CreateI18BadReqErr("未获取到周期类型", "not get scope type")
 	}
 	return nil
 }

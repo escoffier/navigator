@@ -3,6 +3,7 @@ package types
 import (
 	"context"
 
+	"gitlab.com/piccolo_su/vegeta/pkg/i18"
 	imagesecModel "gitlab.com/piccolo_su/vegeta/pkg/model/imagesec"
 )
 
@@ -24,7 +25,7 @@ type ExportHtmlInterface interface {
 }
 
 type ScanTaskService interface {
-	SearchScanSubtask(ctx context.Context, param imagesecModel.SearchTaskParam) ([]*imagesecModel.ImageScanSubTask, int64, error)
+	SearchScanSubtask(ctx context.Context, param imagesecModel.SearchTaskParam) ([]*imagesecModel.ImageScanSubTask, int64, *i18.ErrI18)
 }
 
 type GetExportVulnParam struct {

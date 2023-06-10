@@ -8,18 +8,20 @@ import (
 	"gitlab.com/security-rd/go-pkg/logging"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/detect"
+	scani18 "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scan-i18"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	imagesecStore "gitlab.com/piccolo_su/vegeta/cmd/scanner/store/imagesec"
+	"gitlab.com/piccolo_su/vegeta/pkg/i18"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	imagesecModel "gitlab.com/piccolo_su/vegeta/pkg/model/imagesec"
 )
 
 // 安全策略
 type SecurityPolicyService interface {
-	CreatePolicy(ctx context.Context, data *imagesecModel.SecurityPolicy) error
-	UpdatePolicy(ctx context.Context, id int64, data *imagesecModel.SecurityPolicy) error
-	SearchPolicy(ctx context.Context, param imagesecModel.SearchSecurityPolicyParam) ([]*imagesecModel.SecurityPolicy, int64, error)
-	DeletePolicy(ctx context.Context, id int64) error
+	CreatePolicy(ctx context.Context, data *imagesecModel.SecurityPolicy) *i18.ErrI18
+	UpdatePolicy(ctx context.Context, id int64, data *imagesecModel.SecurityPolicy) *i18.ErrI18
+	SearchPolicy(ctx context.Context, param imagesecModel.SearchSecurityPolicyParam) ([]*imagesecModel.SecurityPolicy, int64, *i18.ErrI18)
+	DeletePolicy(ctx context.Context, id int64) *i18.ErrI18
 }
 
 type SecurityPolicySrv struct {
@@ -40,14 +42,14 @@ func NewPolicySrv(
 	}
 }
 
-func (s *SecurityPolicySrv) CreatePolicy(ctx context.Context, data *imagesecModel.SecurityPolicy) error {
+func (s *SecurityPolicySrv) CreatePolicy(ctx context.Context, data *imagesecModel.SecurityPolicy) *i18.ErrI18 {
 	data.Serialize()
 	if err := data.Check(); err != nil {
 		return err
 	}
 	if err := s.policyDal.CreateDetectPolicy(ctx, data); err != nil {
 		logging.Get().Err(err).Interface("data", data).Msg("CreateDetectPolicy")
-		return err
+		return scani18.CreatePolicy(err)
 	}
 
 	logging.Get().Info().Int64("policyID", data.ID).Msg("CreateDetectPolicy succeed")
@@ -65,7 +67,7 @@ func (s *SecurityPolicySrv) CreatePolicy(ctx context.Context, data *imagesecMode
 	return nil
 }
 
-func (s *SecurityPolicySrv) UpdatePolicy(ctx context.Context, id int64, data *imagesecModel.SecurityPolicy) error {
+func (s *SecurityPolicySrv) UpdatePolicy(ctx context.Context, id int64, data *imagesecModel.SecurityPolicy) *i18.ErrI18 {
 
 	data.Serialize()
 
@@ -79,7 +81,7 @@ func (s *SecurityPolicySrv) UpdatePolicy(ctx context.Context, id int64, data *im
 	})
 	if err != nil {
 		logging.Get().Err(err).Interface("data", data).Int64("policyID", id).Msg("UpdateDetectPolicy")
-		return err
+		return scani18.UpdatePolicy(err)
 	}
 
 	// 加检测任务
@@ -113,7 +115,7 @@ func changePoliceName(ctx context.Context, po []*imagesecModel.SecurityPolicy) [
 
 // 数据库中对默认策略：name=default,产品要求搜索：『默认策略』也能搜索出结果
 func (s *SecurityPolicySrv) SearchPolicy(ctx context.Context, param imagesecModel.SearchSecurityPolicyParam) (
-	[]*imagesecModel.SecurityPolicy, int64, error) {
+	[]*imagesecModel.SecurityPolicy, int64, *i18.ErrI18) {
 
 	keyword := param.Keyword
 
@@ -125,7 +127,7 @@ func (s *SecurityPolicySrv) SearchPolicy(ctx context.Context, param imagesecMode
 	policy, cnt, err := s.policyDal.SearchDetectPolicy(ctx, param)
 	if err != nil {
 		logging.Get().Err(err).Interface("param", param).Msg("SearchDetectPolicy")
-		return nil, 0, err
+		return nil, 0, scani18.SearchPolicy(err)
 	}
 	policy = changePoliceName(ctx, policy)
 
@@ -153,7 +155,7 @@ func (s *SecurityPolicySrv) SearchPolicy(ctx context.Context, param imagesecMode
 			rule, err := s.sensitiveRuleDal.SearchSensitiveRule(ctx, nil)
 			if err != nil {
 				logging.Get().Err(err).Int64("policyID", ans[i].ID).Msg("SearchDetectPolicy SearchSensitiveRule")
-				return nil, 0, err
+				return nil, 0, i18.SearchErr(err)
 			}
 			sesRule := make([]string, 0)
 			for j := range rule {
@@ -171,14 +173,14 @@ func (s *SecurityPolicySrv) SearchPolicy(ctx context.Context, param imagesecMode
 	return ans, cnt, nil
 }
 
-func (s *SecurityPolicySrv) DeletePolicy(ctx context.Context, id int64) error {
+func (s *SecurityPolicySrv) DeletePolicy(ctx context.Context, id int64) *i18.ErrI18 {
 	err := s.policyDal.UpdateDetectPolicy(ctx, imagesecModel.UpdateSecurityPolicyParam{
 		ID:      id,
 		Updater: map[string]interface{}{"deleted_at": time.Now().UnixMilli()},
 	})
 	if err != nil {
 		logging.Get().Err(err).Int64("policyID", id).Msg("DeleteDetectPolicy")
-		return err
+		return scani18.DeletePolicy(err)
 	}
 	return nil
 }

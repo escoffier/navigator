@@ -5,6 +5,7 @@ import (
 
 	"gitlab.com/security-rd/go-pkg/logging"
 
+	scani18 "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scan-i18"
 	imagesecStore "gitlab.com/piccolo_su/vegeta/cmd/scanner/store/imagesec"
 	imagesecModel "gitlab.com/piccolo_su/vegeta/pkg/model/imagesec"
 )
@@ -26,7 +27,7 @@ func (s *NodeReportSrv) SearchNode(ctx context.Context, param imagesecModel.Sear
 	nods, cnt, err := s.nodeInfoDal.SearchNodeInfo(ctx, param)
 	if err != nil {
 		logging.Get().Err(err).Interface("param", param).Msg("SearchNode")
-		return nil, 0, err
+		return nil, 0, scani18.SearchNode(err)
 	}
 
 	return nods, cnt, nil

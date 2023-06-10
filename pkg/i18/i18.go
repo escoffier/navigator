@@ -1,4 +1,4 @@
-package response
+package i18
 
 import (
 	"fmt"
@@ -15,18 +15,30 @@ const (
 	LangEN       = "en"
 )
 
-type I18Err struct {
-	Code int64  `json:"code"`
-	Msg  string `json:"msg"`
+type ErrI18 struct {
+	Code int64 `json:"code"`
+	Err  error
 	Ch   string `json:"ch"`
 	En   string `json:"en"`
 }
 
-func (vi I18Err) Error() string {
-	return vi.Msg
+func CreateI18BadReqErr(ch, en string) *ErrI18 {
+	return &ErrI18{
+		Code: http.StatusBadRequest,
+		Ch:   ch,
+		En:   en,
+		Err:  fmt.Errorf(en),
+	}
 }
 
-func (vi I18Err) getErr(ctx *gin.Context) error {
+func (vi ErrI18) Error() string {
+	if vi.Err != nil {
+		return vi.Err.Error()
+	}
+	return ""
+}
+
+func (vi ErrI18) GetGinErr(ctx *gin.Context) error {
 	lang := util.GetLanguage(ctx)
 	if lang == LangEN {
 		return fmt.Errorf(vi.En)
@@ -34,13 +46,26 @@ func (vi I18Err) getErr(ctx *gin.Context) error {
 	return fmt.Errorf(vi.Ch)
 }
 
-func SearchErr(err error) I18Err {
-	vi := I18Err{}
+func assertion(err error) (*ErrI18, bool) {
+	if e1, ok := err.(*ErrI18); ok {
+		return e1, true
+	}
+	if e1, ok := err.(ErrI18); ok {
+		return &e1, true
+	}
+	return nil, false
+}
+
+func SearchErr(err error) *ErrI18 {
+	if e, ok := assertion(err); ok {
+		return e
+	}
+
+	vi := &ErrI18{Err: err}
 
 	if err == nil {
 		return vi
 	}
-	vi.Msg = err.Error()
 	vi.Code = http.StatusBadRequest
 
 	vi.Ch = fmt.Sprintf("查询出错")
@@ -49,12 +74,14 @@ func SearchErr(err error) I18Err {
 	return vi
 }
 
-func UpdateErr(err error) I18Err {
-	vi := I18Err{}
+func UpdateErr(err error) *ErrI18 {
+	if e, ok := assertion(err); ok {
+		return e
+	}
+	vi := &ErrI18{Err: err}
 	if err == nil {
 		return vi
 	}
-	vi.Msg = err.Error()
 	vi.Code = http.StatusBadRequest
 	vi.Ch = fmt.Sprintf("更新出错")
 	vi.En = fmt.Sprintf("update error")
@@ -62,12 +89,14 @@ func UpdateErr(err error) I18Err {
 	return vi
 }
 
-func DeleteErr(err error) I18Err {
-	vi := I18Err{}
+func DeleteErr(err error) *ErrI18 {
+	if e, ok := assertion(err); ok {
+		return e
+	}
+	vi := &ErrI18{Err: err}
 	if err == nil {
 		return vi
 	}
-	vi.Msg = err.Error()
 	vi.Code = http.StatusBadRequest
 	vi.Ch = fmt.Sprintf("删除出错")
 	vi.En = fmt.Sprintf("delete error")
@@ -75,14 +104,16 @@ func DeleteErr(err error) I18Err {
 	return vi
 }
 
-func CreateErr(err error) I18Err {
-	vi := I18Err{}
+func CreateErr(err error) *ErrI18 {
+	if e, ok := assertion(err); ok {
+		return e
+	}
+	vi := &ErrI18{Err: err}
 
 	if err == nil {
-		return vi
+		return nil
 	}
 	vi.Code = http.StatusBadRequest
-	vi.Msg = err.Error()
 	if strings.Contains(err.Error(), DuplicateKey) {
 		vi.Ch = fmt.Sprintf("已存在同名资源")
 		vi.En = fmt.Sprintf("the name already exists")
