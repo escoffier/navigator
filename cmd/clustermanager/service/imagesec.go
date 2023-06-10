@@ -86,7 +86,7 @@ func (i *ImageSecHandler) OnCreate(s rpcstream.Stream, reqID string, message pro
 		}
 	}
 
-	if len(req.NodeName) > 0 {
+	if len(req.NodeName) > 0 && req.ImageSecReqType != pb.ImageSecReqType_TiDBUpdate {
 		for _, v := range req.NodeName {
 			streamNodeKey := fmt.Sprintf("%s-node-image", v)
 			err := publishFunc(streamNodeKey, pb.MessageType_CREATE, req)
