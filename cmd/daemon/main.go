@@ -12,11 +12,9 @@ import (
 	"time"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/rscan"
-
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
 	flag "github.com/spf13/pflag"
-
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/cis"
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/dp"
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/containerassets"
