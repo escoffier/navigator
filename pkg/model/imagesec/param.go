@@ -377,7 +377,6 @@ func (vi *SearchTaskParam) Serialize() {
 			vi.ScanStatus = append(vi.ScanStatus, TaskStatusSendFinished, TaskStatusScanFinished)
 		}
 		if vi.ScanStatusStr[i] == TaskStatusPendingStr {
-			vi.ScanStatus = append(vi.ScanStatus, TaskStatusNotReady)
 			if vi.SearchSubtask {
 				vi.ScanStatus = append(vi.ScanStatus, TaskStatusPause)
 			}
@@ -393,7 +392,6 @@ func (vi *SearchTaskParam) Serialize() {
 			vi.NotScanStatus = append(vi.NotScanStatus, TaskStatusSendFinished, TaskStatusScanFinished)
 		}
 		if vi.NotScanStatusStr[i] == TaskStatusPendingStr {
-			vi.NotScanStatus = append(vi.NotScanStatus, TaskStatusNotReady)
 			if vi.SearchSubtask {
 				vi.NotScanStatus = append(vi.NotScanStatus, TaskStatusPause)
 			}

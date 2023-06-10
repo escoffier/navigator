@@ -89,6 +89,9 @@ func (s *ScanTaskSrv) UpdateScanTaskStatus(ctx context.Context, taskID int64, st
 	if len(task) == 0 {
 		return fmt.Errorf("not find task:%d", taskID)
 	}
+	if task[0].Status == imagesecModel.TaskStatusNotReady {
+		return fmt.Errorf("task not ready :%d,can updater", taskID)
+	}
 	switch status {
 
 	case imagesecModel.TaskStatusPauseStr:

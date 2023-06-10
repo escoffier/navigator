@@ -369,7 +369,7 @@ func GenImageBaseInfo(data imagesecModel.ImageWithCorrelateData2) []string {
 		im.Tag,
 		im.Size,
 		im.GetOSView(),
-		FormatTime(data.Image.CreatedAt, consts.ExportTimeFormat),
+		FormatTime(data.Image.Heartbeat, consts.ExportTimeFormat),
 		IsBaseImage(im.Flag),
 	}
 	if util.ExistBit1(im.Flag, model.FlagImageNotMaintained) {
