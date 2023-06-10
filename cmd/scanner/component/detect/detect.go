@@ -13,7 +13,6 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/detect/detector"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	imagesecStore "gitlab.com/piccolo_su/vegeta/cmd/scanner/store/imagesec"
-	"gitlab.com/piccolo_su/vegeta/pkg/i18"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	imagesecModel "gitlab.com/piccolo_su/vegeta/pkg/model/imagesec"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
@@ -45,7 +44,7 @@ type GetImageWithCorrelateData interface {
 }
 
 type SecurityPolicySrv interface {
-	SearchPolicy(ctx context.Context, param imagesecModel.SearchSecurityPolicyParam) ([]*imagesecModel.SecurityPolicy, int64, *i18.ErrI18)
+	SearchPolicy(ctx context.Context, param imagesecModel.SearchSecurityPolicyParam) ([]*imagesecModel.SecurityPolicy, int64, error)
 }
 
 func NewDetector(
@@ -124,6 +123,8 @@ func (s *Detector) Start(ctx context.Context) {
 }
 
 func (s *Detector) DetectImage(ctx context.Context) {
+	defer close(s.updateImageChan)
+
 	taskChan := s.GenTaskChan(ctx)
 
 	for task := range taskChan {
@@ -158,7 +159,8 @@ func (s *Detector) DetectImage(ctx context.Context) {
 			if err != nil {
 				_ = s.updateScanSubtask(ctx, task.ScanSubTaskID, imagesecModel.TaskStatusDetectFinished)
 				_ = s.UpdateSubTask(ctx, subtask.ID, getEndUpdater(err))
-				logging.Get().Err(err).Uint64("ImageUniqueID", subtask.ImageUniqueID).Msg("Detector SearchPolicy")
+				logging.Get().Err(err).Uint64("ImageUniqueID", subtask.ImageUniqueID).Ints64("policyIds", subtask.PolicyIds).
+					Msg("Detector SearchPolicy")
 				continue
 			}
 
@@ -410,10 +412,10 @@ func (s *Detector) UpdateDetectTaskFinished(ctx context.Context) error {
 func (s *Detector) ContinueUpdateImage(ctx context.Context) {
 	for up := range s.updateImageChan {
 		// 解决主从同步
+		logging.Get().Debug().Uint64("imageUniqueID", up.ImageUniqueID).Msg("Detector UpdateImage get a image")
 		if time.Now().UnixMilli()-up.CreateAt < consts.DefaultSlaveDelay {
 			time.Sleep(consts.DefaultSlaveDelay * time.Millisecond)
 		}
-
 		brief, err := s.detectResultDal.SearchDetectBrief(ctx, imagesecModel.SearchDetectBriefParam{
 			ImageUniqueID: up.ImageUniqueID,
 		})
@@ -434,7 +436,7 @@ func (s *Detector) ContinueUpdateImage(ctx context.Context) {
 			logging.Get().Info().Uint64("ImageUniqueID", up.ImageUniqueID).Msg("Detector UpdateImage SearchImage not find image")
 			continue
 		}
-		flag := imagesecModel.ImageDetectBriefResult(brief).AddImageSafeFlag(image[0].Flag)
+		flag := imagesecModel.AddImageSafeFlag(brief, image[0].Flag)
 
 		envs, err := s.detectResultDal.SearchDetectResult(ctx, imagesecModel.SearchDetectResultParam{
 			ImageUniqueID: image[0].UniqueID,
@@ -485,6 +487,7 @@ func (s *Detector) ContinueUpdateImage(ctx context.Context) {
 		}
 
 		if image[0].Flag != flag {
+			logging.Get().Info().Uint64("imageUniqueID", up.ImageUniqueID).Msg("Detector UpdateImage")
 			updater := map[string]interface{}{"flag": flag}
 			if err := s.imageDal.UpdateImage(ctx, imagesecModel.UpdateImageParam{
 				UniqueID: up.ImageUniqueID,
@@ -494,6 +497,7 @@ func (s *Detector) ContinueUpdateImage(ctx context.Context) {
 				continue
 			}
 		}
+		logging.Get().Info().Uint64("imageUniqueID", up.ImageUniqueID).Uint64("flag", flag).Msg("Detector UpdateImage finished")
 	}
 }
 

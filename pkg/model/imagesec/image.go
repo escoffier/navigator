@@ -81,7 +81,9 @@ func (vi *Image) Deserialize() {
 
 func (vi *Image) Serialize() {
 
-	vi.Flag = vi.GenDefaultFlag()
+	if vi.Flag <= 0 {
+		vi.Flag = vi.GenDefaultFlag()
+	}
 
 	if byt, err := json.Marshal(vi.Layer); err == nil {
 		vi.LayerJSON = string(byt)

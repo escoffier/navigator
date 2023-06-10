@@ -975,7 +975,7 @@ func init() {
 		return map[string]map[string]interface{}{
 			"zh": {
 				"verb":   editAction,
-				"detail": "新增镜像仓库{{.}}",
+				"detail": "更新镜像仓库{{.}}",
 			},
 			"en": {
 				"verb":   editActionEN,
@@ -1839,7 +1839,7 @@ func init() {
 	})
 
 	// 导出
-	routeAction.POST("api/v2/containerSec/export/task/imageSearch", func(p Params) map[string]map[string]interface{} {
+	routeAction.POST("/api/v2/containerSec/export/task/imageSearch", func(p Params) map[string]map[string]interface{} {
 		return map[string]map[string]interface{}{
 			"zh": {
 				"verb":   createAction,
@@ -1853,7 +1853,7 @@ func init() {
 	})
 
 	// 导出
-	routeAction.POST("api/v2/containerSec/export/task/image", func(p Params) map[string]map[string]interface{} {
+	routeAction.POST("/api/v2/containerSec/export/task/image", func(p Params) map[string]map[string]interface{} {
 		return map[string]map[string]interface{}{
 			"zh": {
 				"verb":   createAction,
@@ -1867,7 +1867,7 @@ func init() {
 	})
 
 	// 导出
-	routeAction.POST("api/v2/containerSec/export/task/scanTask", func(p Params) map[string]map[string]interface{} {
+	routeAction.POST("/api/v2/containerSec/export/task/scanTask", func(p Params) map[string]map[string]interface{} {
 		return map[string]map[string]interface{}{
 			"zh": {
 				"verb":   createAction,

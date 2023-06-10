@@ -218,8 +218,7 @@ func (vi *NodeImageConfig) IsTimeToAddTask(checkInter time.Duration) bool {
 		next := time.Date(year, month, day, int(vi.ScanCycle.ScanTimeHour), int(vi.ScanCycle.ScanTimeMinute), 0, 0, time.UTC)
 
 		logging.Get().Info().Msgf("AddTaskByStrategy,next:%s,now:%s", next.String(), now.String())
-
-		if next.Sub(now) <= checkInter && next.Sub(now) >= 0 {
+		if now.Sub(next) <= checkInter && now.Sub(next) > 0 {
 			logging.Get().Info().Bool("addTask", true).Msgf("AddTaskByStrategy it is time to add scan task")
 			return true
 		}

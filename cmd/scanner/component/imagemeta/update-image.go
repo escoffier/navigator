@@ -675,7 +675,7 @@ func (s *ImageUpdateSrv) updateImageSafeFlag(ctx context.Context) error {
 				logging.Get().Err(err).Int64("imageID", images[i].ID).Msg("SearchDetectBrief")
 				return err
 			}
-			flag := imagesecModel.ImageDetectBriefResult(brief).AddImageSafeFlag(images[0].Flag)
+			flag := imagesecModel.AddImageSafeFlag(brief, images[0].Flag)
 			if images[0].Flag == flag {
 				continue
 			}

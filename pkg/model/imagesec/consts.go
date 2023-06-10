@@ -303,30 +303,16 @@ const (
 	AcceptLanguage = "Accept-Language"
 )
 
+// 新需求:空
 func GetScanTaskCreator(cr, lang string) string {
 	zh := map[string]string{
-		VulnDbUpdateTrigger: VulnDbUpdateTriggerZH,
-		CycleTrigger:        CycleTriggerOperatorZH,
-		ImageSyncTrigger:    SyncTriggerOperatorZH,
+		VulnDbUpdateTrigger: "",
+		CycleTrigger:        "",
+		ImageSyncTrigger:    "",
 	}
-	en := map[string]string{
-		VulnDbUpdateTrigger: VulnDbUpdateTriggerEN,
-		CycleTrigger:        CycleTriggerOperatorEN,
-		ImageSyncTrigger:    SyncTriggerOperatorEN,
+	if _, ok := zh[cr]; ok {
+		return ""
 	}
 
-	if lang == model.LangZh {
-		if zh[cr] != "" {
-			return zh[cr]
-		}
-		return cr
-	}
-
-	if lang == model.LangEn {
-		if en[cr] != "" {
-			return en[cr]
-		}
-		return cr
-	}
 	return cr
 }
