@@ -6,6 +6,8 @@ log_level: debug
 report:
   # 发送kafka超时设置
   mq_timeout: 5
+  # 镜像白名单.正则匹配命中的镜像将不会上报
+  exclude_image: [ "tensorsecurity/*", "idss" ]
 
 # 扫描任务配置
 task:
