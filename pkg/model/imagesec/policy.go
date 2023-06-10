@@ -74,6 +74,8 @@ func (vi *SecurityPolicy) ToSecurityPolicyBrief() *SecurityPolicyBrief {
 
 func (vi *SecurityPolicy) Serialize() {
 	vi.StripSpace()
+	vi.Name = strings.TrimSpace(vi.Name)
+	vi.Comment = strings.TrimSpace(vi.Comment)
 
 	if vi.Updater == "" && vi.Creator != "" {
 		vi.Updater = vi.Creator

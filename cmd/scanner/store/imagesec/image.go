@@ -146,11 +146,39 @@ func (dal *ImageMetaDao) SearchImage(ctx context.Context, param imagesec.NodeIma
 	if param.ImageID > 0 {
 		db = db.Where("id =  ?", param.ImageID)
 	}
-	if param.AndFlag > 0 {
-		db = db.Where("flag &  ? = ?", param.AndFlag, param.AndFlag)
+	// 以下这种方式可以保证不会出错，但总感觉有优化的地方，值的思考
+	if param.SafeAttrFlag > 0 { // 只有取并集这一项目
+		db = db.Where("flag &  ? > 0", param.SafeAttrFlag)
 	}
-	if param.OrFlag > 0 {
-		db = db.Where("flag &  ? > 0 ", param.OrFlag)
+	if param.OnlineFlag > 0 { // 只有取并集这一项目
+		db = db.Where("flag &  ? > 0", param.OnlineFlag)
+	}
+
+	// 属性
+	if param.ImageAttrFlag > 0 {
+		if param.AttrIntersection == model.OrString {
+			db = db.Where("flag &  ? > 0", param.ImageAttrFlag)
+		} else {
+			db = db.Where("flag &  ? = ?", param.ImageAttrFlag, param.ImageAttrFlag)
+		}
+	}
+
+	// 漏洞统计
+	if param.VulnStaticFlag > 0 {
+		if param.VulnStaticIntersection == model.OrString {
+			db = db.Where("flag &  ? > 0", param.VulnStaticFlag)
+		} else {
+			db = db.Where("flag &  ? = ?", param.VulnStaticFlag, param.VulnStaticFlag)
+		}
+	}
+
+	// 安全问题
+	if param.SecurityIssueFlag > 0 {
+		if param.IssueIntersection == model.OrString {
+			db = db.Where("flag &  ? > 0", param.SecurityIssueFlag)
+		} else {
+			db = db.Where("flag &  ? = ?", param.SecurityIssueFlag, param.SecurityIssueFlag)
+		}
 	}
 
 	// 节点名搜索

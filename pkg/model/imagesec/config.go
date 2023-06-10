@@ -296,6 +296,7 @@ func (vi *SensitiveRule) TableName() string {
 }
 
 func (vi *SensitiveRule) Check() *i18.ErrI18 {
+	vi.Value = strings.TrimSpace(vi.Value)
 	if vi == nil {
 		return i18.CreateI18BadReqErr("程序出错", "not get model")
 	}
