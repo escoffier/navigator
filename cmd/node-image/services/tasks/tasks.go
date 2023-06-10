@@ -254,7 +254,7 @@ func (m *Manager) syncResult(t imagesec.ScanSubTask) error {
 		scanResult.Msg = "ok"
 	} else {
 		scanResult.StatusStr = imagesecModel.TaskStatusFailedStr
-		scanResult.Msg = "err"
+		scanResult.Msg = tmpRes.ExistMsg
 	}
 	logging.Get().Debug().
 		Int64("subTaskID", t.SubTaskID).
@@ -277,6 +277,37 @@ func (m *Manager) syncResult(t imagesec.ScanSubTask) error {
 		return err
 	}
 
+	return nil
+}
+
+func (m *Manager) checkResultFile(err error, t imagesec.ScanSubTask) error {
+	resultFile := m.scanOutputFile(t.SubTaskID)
+	if util.FileExists(resultFile) {
+		return nil
+	}
+
+	// run irene cmd failed,not output file,we make a fake result file here
+	logging.Get().Debug().Int64("subTaskID", t.SubTaskID).Msg("make a fake result file because irene run err.")
+
+	exitCode := scanner_ci.CiPolicyResultCodeException
+	if exitErr, ok := err.(*exec.ExitError); ok {
+		exitCode = exitErr.ExitCode()
+	}
+	tmpRes := scanner_ci.PolicyResult{
+		ExistMsg: err.Error(),
+		ExitCode: exitCode,
+	}
+	data, err := json.Marshal(&tmpRes)
+	if err != nil {
+		logging.Get().Err(err).Int64("subTaskID", t.SubTaskID).Msg("failed to make a fake result file")
+		return err
+	}
+	err = os.WriteFile(resultFile, data, os.ModePerm)
+	if err != nil {
+		logging.Get().Err(err).Int64("subTaskID", t.SubTaskID).Msg("failed to write fake result file")
+		return err
+	}
+	logging.Get().Debug().Int64("subTaskID", t.SubTaskID).Msg("make fake result file ok")
 	return nil
 }
 
@@ -347,6 +378,8 @@ func (m *Manager) scanImage(t imagesec.ScanSubTask) error {
 	if err != nil {
 		// not return, need send result
 		errLog(err).Msg("failed to scan image")
+		// check result file
+		_ = m.checkResultFile(err, t)
 	} else {
 		infoLog().Msg("success to scan image")
 	}
