@@ -109,7 +109,13 @@ func (s *ImageInfoAPI) ListBaseImage(ctx *gin.Context) {
 }
 
 func (s *ImageInfoAPI) DeleteBaseImage(ctx *gin.Context) {
-	imageID := util.GetInt64FromQuery(ctx, "imageID")
+
+	imageID, err := strconv.ParseInt(ctx.Param("imageID"), 10, 64)
+	if err != nil || imageID <= 0 {
+		response.JSONError(ctx, scani18.NotGetImageID())
+		return
+	}
+
 	data, err := s.getImageSrv(ctx).GetImageCorrelateData(ctx, imagesecModel.GetImageAssociateDataParam{ImageId: imageID, ImageFromType: imagesecModel.ImageFromRegistry})
 
 	if err != nil {

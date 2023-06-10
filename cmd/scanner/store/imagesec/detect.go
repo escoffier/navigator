@@ -160,6 +160,7 @@ func (dal *ImageDetectResultDao) SearchDetectBrief(ctx context.Context, param im
 	}
 	for i := range res {
 		res[i].Deserialize()
+		res[i].Policy.ChangePolicyName(ctx)
 	}
 
 	return res, nil

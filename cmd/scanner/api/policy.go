@@ -101,7 +101,6 @@ func (api *DetectAPI) GetPolicyDetail(ctx *gin.Context) {
 		response.JSONError(ctx, fmt.Errorf("not get policy ID"))
 		return
 	}
-	ctx.Set(consts.AcceptLanguage, util.GetLanguage(ctx))
 
 	polices, _, err := api.policySrv.SearchPolicy(ctx, imagesecModel.SearchSecurityPolicyParam{
 		Ids:      []int64{id},
@@ -131,8 +130,6 @@ func (api *DetectAPI) SearchPolicy(ctx *gin.Context) {
 		Keyword: param.Keyword,
 		Deleted: consts.FalseString,
 	}
-
-	ctx.Set(consts.AcceptLanguage, util.GetLanguage(ctx))
 
 	polices, cnt, err := api.policySrv.SearchPolicy(ctx, param2)
 	if err != nil {

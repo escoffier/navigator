@@ -125,7 +125,7 @@ func (v *VulnDao) SearchVuln(ctx context.Context, param SearchVulnParam, filter 
 
 	if param.NeedKernel == consts.FalseString {
 		flag := util.SetBit1(0, model.VulnFlagKernel)
-		db = db.Where("flag & ? = 0", flag, flag)
+		db = db.Where("flag & ? = 0", flag)
 	}
 
 	if param.OnlineImageVuln == consts.TrueString {

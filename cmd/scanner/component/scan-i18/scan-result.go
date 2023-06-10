@@ -20,9 +20,5 @@ func ParameterErr(err error) *i18.ErrI18 {
 		return e1
 	}
 
-	if e1, ok := err.(i18.ErrI18); ok {
-		return &e1
-	}
-
 	return i18.CreateI18BadReqErr("参数不正确", "parameter is incorrect")
 }

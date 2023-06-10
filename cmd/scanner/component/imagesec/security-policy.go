@@ -9,10 +9,8 @@ import (
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/detect"
 	scani18 "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scan-i18"
-	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	imagesecStore "gitlab.com/piccolo_su/vegeta/cmd/scanner/store/imagesec"
 	"gitlab.com/piccolo_su/vegeta/pkg/i18"
-	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	imagesecModel "gitlab.com/piccolo_su/vegeta/pkg/model/imagesec"
 )
 
@@ -99,20 +97,6 @@ func (s *SecurityPolicySrv) UpdatePolicy(ctx context.Context, id int64, data *im
 	return nil
 }
 
-func changePoliceName(ctx context.Context, po []*imagesecModel.SecurityPolicy) []*imagesecModel.SecurityPolicy {
-
-	la, ok := ctx.Value(consts.AcceptLanguage).(string)
-
-	if ok && la == model.LangZh {
-		for i := range po {
-			if po[i].IsDefault {
-				po[i].Name = "默认安全策略"
-			}
-		}
-	}
-	return po
-}
-
 // 数据库中对默认策略：name=default,产品要求搜索：『默认策略』也能搜索出结果
 func (s *SecurityPolicySrv) SearchPolicy(ctx context.Context, param imagesecModel.SearchSecurityPolicyParam) (
 	[]*imagesecModel.SecurityPolicy, int64, *i18.ErrI18) {
@@ -129,8 +113,6 @@ func (s *SecurityPolicySrv) SearchPolicy(ctx context.Context, param imagesecMode
 		logging.Get().Err(err).Interface("param", param).Msg("SearchDetectPolicy")
 		return nil, 0, scani18.SearchPolicy(err)
 	}
-	policy = changePoliceName(ctx, policy)
-
 	ans := make([]*imagesecModel.SecurityPolicy, 0)
 	for i := range policy {
 		add := false

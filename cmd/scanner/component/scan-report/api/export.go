@@ -95,7 +95,9 @@ func (s *ExportApiSrv) CreateImageSearchExportTask(ctx *gin.Context) {
 		}()
 	}
 	response.JSONOK(ctx, response.WithItem(
-		GenResponseMsg(ctx, task.ID, task.FilePath)))
+		GenResponseMsg(ctx, task.ID, task.FilePath)),
+		response.WithTarget(&response.TargetRef{}),
+		response.WithTarget(&response.TargetRef{}))
 }
 
 func (s *ExportApiSrv) CreateImageExportTask(ctx *gin.Context) {
@@ -153,7 +155,8 @@ func (s *ExportApiSrv) CreateImageExportTask(ctx *gin.Context) {
 		}()
 	}
 	response.JSONOK(ctx, response.WithItem(
-		GenResponseMsg(ctx, task.ID, task.FilePath)))
+		GenResponseMsg(ctx, task.ID, task.FilePath)),
+		response.WithTarget(&response.TargetRef{}))
 }
 
 func (s *ExportApiSrv) CreateVulnExportTask(ctx *gin.Context) {
@@ -200,7 +203,8 @@ func (s *ExportApiSrv) CreateVulnExportTask(ctx *gin.Context) {
 		return
 	}
 	response.JSONOK(ctx, response.WithItem(
-		GenResponseMsg(ctx, task.ID, task.FilePath)))
+		GenResponseMsg(ctx, task.ID, task.FilePath)),
+		response.WithTarget(&response.TargetRef{}))
 }
 
 func (s *ExportApiSrv) CheckScanTask(ctx *gin.Context) {
@@ -281,7 +285,8 @@ func (s *ExportApiSrv) CreateScanResultExportTask(ctx *gin.Context) {
 
 	}
 	response.JSONOK(ctx, response.WithItem(
-		GenResponseMsg(ctx, task.ID, task.FilePath)))
+		GenResponseMsg(ctx, task.ID, task.FilePath)),
+		response.WithTarget(&response.TargetRef{}))
 }
 
 func (s *ExportApiSrv) CreateAuditExportTask(ctx *gin.Context) {

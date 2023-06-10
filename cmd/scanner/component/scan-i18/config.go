@@ -14,10 +14,6 @@ func CreateSensitiveRule(err error) *i18.ErrI18 {
 		return e1
 	}
 
-	if e1, ok := err.(i18.ErrI18); ok {
-		return &e1
-	}
-
 	vi := &i18.ErrI18{
 		Code: http.StatusBadRequest,
 		Err:  err,
@@ -38,10 +34,6 @@ func SearchSensitiveRule(err error) *i18.ErrI18 {
 		return e1
 	}
 
-	if e1, ok := err.(i18.ErrI18); ok {
-		return &e1
-	}
-
 	return &i18.ErrI18{
 		Code: http.StatusBadRequest,
 		Err:  err,
@@ -55,9 +47,6 @@ func UpdateSensitiveRule(err error) *i18.ErrI18 {
 		return e1
 	}
 
-	if e1, ok := err.(i18.ErrI18); ok {
-		return &e1
-	}
 	return &i18.ErrI18{
 		Code: http.StatusBadRequest,
 		Err:  err,
@@ -71,9 +60,6 @@ func DeleteSensitiveRule(err error) *i18.ErrI18 {
 		return e1
 	}
 
-	if e1, ok := err.(i18.ErrI18); ok {
-		return &e1
-	}
 	return &i18.ErrI18{
 		Code: http.StatusBadRequest,
 		Err:  err,
@@ -85,10 +71,6 @@ func DeleteSensitiveRule(err error) *i18.ErrI18 {
 func CreateScanImageConfig(err error) *i18.ErrI18 {
 	if e1, ok := err.(*i18.ErrI18); ok {
 		return e1
-	}
-
-	if e1, ok := err.(i18.ErrI18); ok {
-		return &e1
 	}
 
 	vi := &i18.ErrI18{
@@ -112,9 +94,6 @@ func UpdateScanImageConfig(err error) *i18.ErrI18 {
 		return e1
 	}
 
-	if e1, ok := err.(i18.ErrI18); ok {
-		return &e1
-	}
 	return &i18.ErrI18{
 		Code: http.StatusBadRequest,
 		Err:  err,
@@ -128,9 +107,6 @@ func GetScanImageConfig(err error) *i18.ErrI18 {
 		return e1
 	}
 
-	if e1, ok := err.(i18.ErrI18); ok {
-		return &e1
-	}
 	return &i18.ErrI18{
 		Code: http.StatusBadRequest,
 		Err:  err,

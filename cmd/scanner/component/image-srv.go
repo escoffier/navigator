@@ -487,7 +487,9 @@ func (s *LibImageSrv) ListBaseImageOfApp(ctx context.Context, param imagesec.Ima
 	baseImages, _, err := s.imageDal.SearchImage(ctx, imagesec.SearchImageParam{
 		AttrIntersection: consts.AndString,
 		ImageAttrFlag:    util.SetBit1(0, model.FlagBaseImage),
-		ImageKeyword:     param.ImageKeyword},
+		ImageKeyword:     param.ImageKeyword,
+		Fields:           []string{"id", "flag"},
+	},
 		model.EmptyFilterForTotalQuery())
 	if err != nil {
 		logging.Get().Err(err).Ints64("imageIds", param.ImageIds).Msg("ListBaseImageOfApp")

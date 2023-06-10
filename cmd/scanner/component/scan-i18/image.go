@@ -28,9 +28,6 @@ func SearchImage(err error) *i18.ErrI18 {
 		return e1
 	}
 
-	if e1, ok := err.(i18.ErrI18); ok {
-		return &e1
-	}
 	return &i18.ErrI18{
 		Code: http.StatusBadRequest,
 		Err:  err,
@@ -44,9 +41,6 @@ func GetImageInfo(err error) *i18.ErrI18 {
 		return e1
 	}
 
-	if e1, ok := err.(i18.ErrI18); ok {
-		return &e1
-	}
 	return &i18.ErrI18{
 		Code: http.StatusBadRequest,
 		Err:  err,
@@ -60,9 +54,6 @@ func SearchImageLayer(err error) *i18.ErrI18 {
 		return e1
 	}
 
-	if e1, ok := err.(i18.ErrI18); ok {
-		return &e1
-	}
 	return &i18.ErrI18{
 		Code: http.StatusBadRequest,
 		Err:  err,
@@ -76,9 +67,6 @@ func UpdateImage(err error) *i18.ErrI18 {
 		return e1
 	}
 
-	if e1, ok := err.(i18.ErrI18); ok {
-		return &e1
-	}
 	return &i18.ErrI18{
 		Code: http.StatusBadRequest,
 		Err:  err,
@@ -92,9 +80,6 @@ func DeleteBaseImage(err error) *i18.ErrI18 {
 		return e1
 	}
 
-	if e1, ok := err.(i18.ErrI18); ok {
-		return &e1
-	}
 	return &i18.ErrI18{
 		Code: http.StatusBadRequest,
 		Err:  err,
@@ -108,9 +93,6 @@ func SearchNode(err error) *i18.ErrI18 {
 		return e1
 	}
 
-	if e1, ok := err.(i18.ErrI18); ok {
-		return &e1
-	}
 	return &i18.ErrI18{
 		Code: http.StatusBadRequest,
 		Err:  err,

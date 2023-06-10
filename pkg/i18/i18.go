@@ -16,8 +16,8 @@ const (
 )
 
 type ErrI18 struct {
-	Code int64 `json:"code"`
-	Err  error
+	Code int64  `json:"code"`
+	Err  error  `json:"err"`
 	Ch   string `json:"ch"`
 	En   string `json:"en"`
 }
@@ -31,14 +31,21 @@ func CreateI18BadReqErr(ch, en string) *ErrI18 {
 	}
 }
 
-func (vi ErrI18) Error() string {
+func (vi *ErrI18) Error() string {
+	if vi == nil {
+		return ""
+	}
 	if vi.Err != nil {
 		return vi.Err.Error()
 	}
 	return ""
 }
 
-func (vi ErrI18) GetGinErr(ctx *gin.Context) error {
+func (vi *ErrI18) GetGinErr(ctx *gin.Context) error {
+	if vi == nil {
+		return nil
+	}
+
 	lang := util.GetLanguage(ctx)
 	if lang == LangEN {
 		return fmt.Errorf(vi.En)
@@ -47,11 +54,8 @@ func (vi ErrI18) GetGinErr(ctx *gin.Context) error {
 }
 
 func assertion(err error) (*ErrI18, bool) {
-	if e1, ok := err.(*ErrI18); ok {
+	if e1, ok := err.(*ErrI18); ok && e1 != nil {
 		return e1, true
-	}
-	if e1, ok := err.(ErrI18); ok {
-		return &e1, true
 	}
 	return nil, false
 }

@@ -1,6 +1,7 @@
 package imagesec
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"regexp"
@@ -8,6 +9,7 @@ import (
 	"time"
 
 	"gitlab.com/piccolo_su/vegeta/pkg/i18"
+	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 )
 
@@ -122,6 +124,19 @@ func (vi *SecurityPolicy) Serialize() {
 	vi.Pkg.Black = PkgPattens(vi.Pkg.Black).Deduplicate()
 	bys, _ = json.Marshal(vi.Pkg)
 	vi.PkgJSON = string(bys)
+}
+
+func (vi *SecurityPolicy) ChangePolicyName(ctx context.Context) *SecurityPolicy {
+
+	la, ok := ctx.Value(AcceptLanguage).(string)
+
+	if ok && la == model.LangEn {
+		return vi
+	}
+	if vi.IsDefault {
+		vi.Name = DefaultPolicyNameZH
+	}
+	return vi
 }
 
 func (vi *SecurityPolicy) StripSpace() {

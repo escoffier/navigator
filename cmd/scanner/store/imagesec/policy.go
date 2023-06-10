@@ -135,6 +135,7 @@ func (dal *DetectPolicyDao) SearchDetectPolicy(ctx context.Context, param images
 	}
 	for i := range res {
 		res[i].Deserialize(clusterMap)
+		res[i].ChangePolicyName(ctx)
 	}
 
 	return res, cnt, err
