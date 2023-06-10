@@ -60,6 +60,14 @@ func GetPolicy(err error) *i18.ErrI18 {
 	}
 }
 
+func NotGetPolicyID() *i18.ErrI18 {
+	return &i18.ErrI18{
+		Code: http.StatusBadRequest,
+		Ch:   "未获取到策略ID",
+		En:   "not get policy ID",
+	}
+}
+
 func SearchPolicy(err error) *i18.ErrI18 {
 	if e1, ok := err.(*i18.ErrI18); ok {
 		return e1

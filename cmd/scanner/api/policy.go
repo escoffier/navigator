@@ -2,6 +2,7 @@ package api
 
 import (
 	"fmt"
+	"strconv"
 
 	"github.com/gin-gonic/gin"
 
@@ -36,7 +37,7 @@ func (api *DetectAPI) CreatePolicy(ctx *gin.Context) {
 		response.JSONError(ctx, i18.CreateErr(err))
 		return
 	}
-	response.JSONOK(ctx)
+	response.JSONOK(ctx, response.WithTarget(&response.TargetRef{ID: strconv.Itoa(int(data.ID)), Name: data.Name}))
 }
 
 func (api *DetectAPI) UpdatePolicy(ctx *gin.Context) {
@@ -47,7 +48,18 @@ func (api *DetectAPI) UpdatePolicy(ctx *gin.Context) {
 	}
 	data := imagesecModel.SecurityPolicy{}
 	if err := ctx.BindJSON(&data); err != nil {
-		response.JSONError(ctx, err)
+		response.JSONError(ctx, scani18.ParameterErr(nil))
+		return
+	}
+
+	policy, _, errI18 := api.policySrv.SearchPolicy(ctx, imagesecModel.SearchSecurityPolicyParam{Ids: []int64{id}})
+
+	if errI18 != nil {
+		response.JSONError(ctx, errI18)
+		return
+	}
+	if len(policy) == 0 {
+		response.JSONError(ctx, scani18.GetPolicy(nil))
 		return
 	}
 
@@ -55,13 +67,24 @@ func (api *DetectAPI) UpdatePolicy(ctx *gin.Context) {
 		response.JSONError(ctx, scani18.UpdatePolicy(err))
 		return
 	}
-	response.JSONOK(ctx)
+	response.JSONOK(ctx, response.WithTarget(&response.TargetRef{ID: strconv.Itoa(int(policy[0].ID)), Name: policy[0].Name}))
 }
 
 func (api *DetectAPI) DeletePolicy(ctx *gin.Context) {
 	id := util.GetInt64FromQuery(ctx, "id")
 	if id <= 0 {
-		response.JSONError(ctx, fmt.Errorf("not get policy ID"))
+		response.JSONError(ctx, scani18.NotGetPolicyID())
+		return
+	}
+
+	policy, _, errI18 := api.policySrv.SearchPolicy(ctx, imagesecModel.SearchSecurityPolicyParam{Ids: []int64{id}})
+
+	if errI18 != nil {
+		response.JSONError(ctx, errI18)
+		return
+	}
+	if len(policy) == 0 {
+		response.JSONError(ctx, scani18.GetPolicy(nil))
 		return
 	}
 
@@ -69,7 +92,7 @@ func (api *DetectAPI) DeletePolicy(ctx *gin.Context) {
 		response.JSONError(ctx, scani18.DeletePolicy(err))
 		return
 	}
-	response.JSONOK(ctx)
+	response.JSONOK(ctx, response.WithTarget(&response.TargetRef{ID: strconv.Itoa(int(policy[0].ID)), Name: policy[0].Name}))
 }
 
 func (api *DetectAPI) GetPolicyDetail(ctx *gin.Context) {
@@ -90,12 +113,12 @@ func (api *DetectAPI) GetPolicyDetail(ctx *gin.Context) {
 		return
 	}
 	if len(polices) == 0 {
-		response.JSONError(ctx, fmt.Errorf("not get policy:%d", id))
+		response.JSONError(ctx, scani18.GetPolicy(err))
 		return
 	}
 
 	if polices[0].Scope.AllCluster {
-		polices[0].Scope.ClusterName = make([]string, 0)
+		polices[0].Scope.ClusterKey = make([]string, 0)
 	}
 	response.JSONOK(ctx, response.WithItem(polices[0]))
 }
@@ -129,7 +152,7 @@ func (api *DetectAPI) SearchPolicy(ctx *gin.Context) {
 	}
 	for i := range polices {
 		if polices[i].Scope.AllCluster {
-			polices[i].Scope.ClusterName = make([]string, 0)
+			polices[i].Scope.ClusterKey = make([]string, 0)
 		}
 
 		if polices[i].IsDefault {

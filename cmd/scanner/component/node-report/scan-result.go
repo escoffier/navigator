@@ -514,7 +514,7 @@ func (s *ScanResultReportSrv) AddDetectTask(ctx context.Context) error {
 			}
 			// 防止主从延迟
 			if time.Now().Unix()-task.CreatedAt < consts.DefaultSlaveDelay {
-				time.Sleep(time.Second * consts.DefaultSlaveDelay)
+				time.Sleep(time.Millisecond * consts.DefaultSlaveDelay)
 			}
 			imageSearchParam := imagesecModel.ImageListParam{ImageIds: []int64{task.ImageID}, ImageFromType: task.ImageFromType}
 

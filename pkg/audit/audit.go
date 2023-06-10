@@ -14,10 +14,11 @@ import (
 	"github.com/go-chi/chi/middleware"
 	v7 "github.com/olivere/elastic/v7"
 	"github.com/rs/zerolog"
+	"k8s.io/apimachinery/pkg/util/wait"
+
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
-	"k8s.io/apimachinery/pkg/util/wait"
 )
 
 const JWTKeyUsername = "user_name"
@@ -1740,6 +1741,99 @@ func init() {
 			"en": {
 				"verb":   deleteActionEN,
 				"detail": "Delete cluster {{.}}",
+			},
+		}
+	})
+
+	// 节点镜像
+	// 扫描任务
+	routeAction.POST("/api/v2/platform/nodeImage/scanTask/image/scan/task", func(p Params) map[string]map[string]interface{} {
+		return map[string]map[string]interface{}{
+			"zh": {
+				"verb":   createAction,
+				"detail": "创建扫描任务",
+			},
+			"en": {
+				"verb":   createActionEN,
+				"detail": "create scan task",
+			},
+		}
+	})
+
+	routeAction.PUT("/api/v2/platform/nodeImage/scanTask/image/scan/task/status", func(p Params) map[string]map[string]interface{} {
+		return map[string]map[string]interface{}{
+			"zh": {
+				"verb":   editAction,
+				"detail": "更新扫描任务状态:{{.}}",
+			},
+			"en": {
+				"verb":   editActionEN,
+				"detail": "update scan task status {{.}}",
+			},
+		}
+	})
+
+	routeAction.PUT("/api/v2/platform/nodeImage/scanTask/image/scan/subtask/reschedule", func(p Params) map[string]map[string]interface{} {
+		return map[string]map[string]interface{}{
+			"zh": {
+				"verb":   editAction,
+				"detail": "重新调度子任务:{{.}}",
+			},
+			"en": {
+				"verb":   editActionEN,
+				"detail": "reschedule scan task: {{.}}",
+			},
+		}
+	})
+
+	routeAction.PUT("/api/v2/platform/nodeImage/config/scan/image", func(p Params) map[string]map[string]interface{} {
+		return map[string]map[string]interface{}{
+			"zh": {
+				"verb":   editAction,
+				"detail": "更新节点镜像配",
+			},
+			"en": {
+				"verb":   editActionEN,
+				"detail": "update node image config",
+			},
+		}
+	})
+
+	routeAction.PUT("/api/v2/platform/nodeImage/security/detect/policy", func(p Params) map[string]map[string]interface{} {
+		return map[string]map[string]interface{}{
+			"zh": {
+				"verb":   editAction,
+				"detail": "更新安全策略:{{.}}",
+			},
+			"en": {
+				"verb":   editActionEN,
+				"detail": "update node image config {{.}}",
+			},
+		}
+	})
+
+	routeAction.POST("/api/v2/platform/nodeImage/security/detect/policy", func(p Params) map[string]map[string]interface{} {
+		return map[string]map[string]interface{}{
+			"zh": {
+				"verb":   createActionEN,
+				"detail": "新建安全策略 {{.}}",
+			},
+			"en": {
+				"verb":   createActionEN,
+				"detail": "create detect policy {{.}}",
+			},
+		}
+	})
+
+	routeAction.DELETE("/api/v2/platform/nodeImage/security/detect/policy", func(p Params) map[string]map[string]interface{} {
+		return map[string]map[string]interface{}{
+			"zh": {
+				"verb":   deleteAction,
+				"detail": "删除安全策略 {{.}}",
+			},
+			"en": {
+				"verb":   deleteActionEN,
+				"detail": "delete detect policy {{.}}",
 			},
 		}
 	})

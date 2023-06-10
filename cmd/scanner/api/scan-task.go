@@ -2,6 +2,7 @@ package api
 
 import (
 	"net/http"
+	"strconv"
 
 	"github.com/gin-gonic/gin"
 
@@ -47,10 +48,8 @@ func (s *ScanTaskAPI) CreateImageScanTask(ctx *gin.Context) {
 		response.JSONError(ctx, i18.CreateErr(err))
 		return
 	}
-	response.JSONOK(ctx, response.WithTarget(&response.TargetRef{
-		Name: "CreateImageScanTask",
-		Link: "api/v2/containerSec/scanner/tasks/CreateScanImageTask",
-	}))
+
+	response.JSONOK(ctx, response.WithTarget(&response.TargetRef{Name: "CreateImageScanTask"}))
 }
 
 func (s *ScanTaskAPI) UpdateScanTaskStatus(ctx *gin.Context) {
@@ -72,7 +71,8 @@ func (s *ScanTaskAPI) UpdateScanTaskStatus(ctx *gin.Context) {
 		response.JSONError(ctx, scani18.UpdateScanTask(err))
 		return
 	}
-	response.JSONOK(ctx)
+
+	response.JSONOK(ctx, response.WithTarget(&response.TargetRef{ID: strconv.Itoa(int(taskID)), Name: strconv.Itoa(int(taskID))}))
 }
 
 func (s *ScanTaskAPI) RescheduleScanSubtask(ctx *gin.Context) {
@@ -81,7 +81,8 @@ func (s *ScanTaskAPI) RescheduleScanSubtask(ctx *gin.Context) {
 		response.JSONError(ctx, scani18.UpdateScanSubtask(err))
 		return
 	}
-	response.JSONOK(ctx)
+
+	response.JSONOK(ctx, response.WithTarget(&response.TargetRef{ID: strconv.Itoa(int(subtaskID)), Name: strconv.Itoa(int(subtaskID))}))
 }
 
 func (s *ScanTaskAPI) SearchScanSubtask(ctx *gin.Context) {
