@@ -1751,11 +1751,11 @@ func init() {
 		return map[string]map[string]interface{}{
 			"zh": {
 				"verb":   createAction,
-				"detail": "创建扫描任务",
+				"detail": "新增节点镜像扫描任务",
 			},
 			"en": {
 				"verb":   createActionEN,
-				"detail": "create scan task",
+				"detail": "create node image scan task",
 			},
 		}
 	})
@@ -1764,11 +1764,11 @@ func init() {
 		return map[string]map[string]interface{}{
 			"zh": {
 				"verb":   editAction,
-				"detail": "更新扫描任务状态:{{.}}",
+				"detail": "更新节点镜像扫描任务",
 			},
 			"en": {
 				"verb":   editActionEN,
-				"detail": "update scan task status {{.}}",
+				"detail": "update node image scan task status",
 			},
 		}
 	})
@@ -1777,11 +1777,11 @@ func init() {
 		return map[string]map[string]interface{}{
 			"zh": {
 				"verb":   editAction,
-				"detail": "重新调度子任务:{{.}}",
+				"detail": "更新节点镜像扫描任务",
 			},
 			"en": {
 				"verb":   editActionEN,
-				"detail": "reschedule scan task: {{.}}",
+				"detail": "update node image scan task status",
 			},
 		}
 	})
@@ -1790,11 +1790,11 @@ func init() {
 		return map[string]map[string]interface{}{
 			"zh": {
 				"verb":   editAction,
-				"detail": "更新节点镜像配",
+				"detail": "编辑节点镜像配置",
 			},
 			"en": {
 				"verb":   editActionEN,
-				"detail": "update node image config",
+				"detail": "edit node image config",
 			},
 		}
 	})
@@ -1803,11 +1803,11 @@ func init() {
 		return map[string]map[string]interface{}{
 			"zh": {
 				"verb":   editAction,
-				"detail": "更新安全策略:{{.}}",
+				"detail": "更新节点镜像安全策略:{{.}}",
 			},
 			"en": {
 				"verb":   editActionEN,
-				"detail": "update node image config {{.}}",
+				"detail": "update node image security policy {{.}}",
 			},
 		}
 	})
@@ -1815,12 +1815,12 @@ func init() {
 	routeAction.POST("/api/v2/platform/nodeImage/security/detect/policy", func(p Params) map[string]map[string]interface{} {
 		return map[string]map[string]interface{}{
 			"zh": {
-				"verb":   createActionEN,
-				"detail": "新建安全策略 {{.}}",
+				"verb":   createAction,
+				"detail": "新增节点镜像安全策略 {{.}}",
 			},
 			"en": {
 				"verb":   createActionEN,
-				"detail": "create detect policy {{.}}",
+				"detail": "create node image security policy {{.}}",
 			},
 		}
 	})
@@ -1829,12 +1829,55 @@ func init() {
 		return map[string]map[string]interface{}{
 			"zh": {
 				"verb":   deleteAction,
-				"detail": "删除安全策略 {{.}}",
+				"detail": "删除节点镜像安全策略 {{.}}",
 			},
 			"en": {
 				"verb":   deleteActionEN,
-				"detail": "delete detect policy {{.}}",
+				"detail": "delete node image security policy {{.}}",
 			},
 		}
 	})
+
+	// 导出
+	routeAction.POST("api/v2/containerSec/export/task/imageSearch", func(p Params) map[string]map[string]interface{} {
+		return map[string]map[string]interface{}{
+			"zh": {
+				"verb":   createAction,
+				"detail": "导出镜像报告",
+			},
+			"en": {
+				"verb":   createActionEN,
+				"detail": "export the image report",
+			},
+		}
+	})
+
+	// 导出
+	routeAction.POST("api/v2/containerSec/export/task/image", func(p Params) map[string]map[string]interface{} {
+		return map[string]map[string]interface{}{
+			"zh": {
+				"verb":   createAction,
+				"detail": "导出镜像报告",
+			},
+			"en": {
+				"verb":   createActionEN,
+				"detail": "export the image report",
+			},
+		}
+	})
+
+	// 导出
+	routeAction.POST("api/v2/containerSec/export/task/scanTask", func(p Params) map[string]map[string]interface{} {
+		return map[string]map[string]interface{}{
+			"zh": {
+				"verb":   createAction,
+				"detail": "导出镜像报告",
+			},
+			"en": {
+				"verb":   createActionEN,
+				"detail": "export the image report",
+			},
+		}
+	})
+
 }

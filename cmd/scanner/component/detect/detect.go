@@ -288,11 +288,11 @@ func (s *Detector) GenTaskChan(ctx context.Context) chan *imagesecModel.ImageDet
 
 			notScanTaskCnt := 0
 			for i := range tasks {
-				startID = tasks[i].ID
 				if tasks[i].Priority != imagesecModel.DetectPriorityScan {
 					notScanTaskCnt++
 				}
 				if notScanTaskCnt > consts.DefaultSendSubtaskBatchSize {
+					startID = 0
 					break
 				}
 				out <- tasks[i]

@@ -223,8 +223,9 @@ func JSONError(ctx *gin.Context, err error, opts ...ResponseErrorOptionFunc) {
 	}
 
 	logging.Get().Err(err).Str("stack", string(debug.Stack())).Msg("JSON error")
-
-	data.Error.Message = err.Error()
+	if err != nil {
+		data.Error.Message = err.Error()
+	}
 
 	httpCode := http.StatusBadRequest
 	if err2, ok := err.(*HTTPError); ok {
@@ -235,16 +236,7 @@ func JSONError(ctx *gin.Context, err error, opts ...ResponseErrorOptionFunc) {
 		}
 	}
 
-	if err3, ok := err.(i18.ErrI18); ok {
-		httpCode = int(err3.Code)
-		data.Error.Code = httpCode
-		data.Error.I18Err = err3
-		if err3.GetGinErr(ctx) != nil {
-			data.Error.Message = err3.GetGinErr(ctx).Error()
-		}
-	}
-
-	if err3, ok := err.(*i18.ErrI18); ok {
+	if err3, ok := err.(*i18.ErrI18); ok && err3 != nil {
 		httpCode = int(err3.Code)
 		data.Error.Code = httpCode
 		data.Error.I18Err = *err3

@@ -14,10 +14,6 @@ func UpdatePolicy(err error) *i18.ErrI18 {
 		return e1
 	}
 
-	if e1, ok := err.(i18.ErrI18); ok {
-		return &e1
-	}
-
 	return &i18.ErrI18{
 		Code: http.StatusBadRequest,
 		Err:  err,
@@ -31,10 +27,6 @@ func DeletePolicy(err error) *i18.ErrI18 {
 		return e1
 	}
 
-	if e1, ok := err.(i18.ErrI18); ok {
-		return &e1
-	}
-
 	return &i18.ErrI18{
 		Code: http.StatusBadRequest,
 		Err:  err,
@@ -46,10 +38,6 @@ func DeletePolicy(err error) *i18.ErrI18 {
 func GetPolicy(err error) *i18.ErrI18 {
 	if e1, ok := err.(*i18.ErrI18); ok {
 		return e1
-	}
-
-	if e1, ok := err.(i18.ErrI18); ok {
-		return &e1
 	}
 
 	return &i18.ErrI18{
@@ -73,10 +61,6 @@ func SearchPolicy(err error) *i18.ErrI18 {
 		return e1
 	}
 
-	if e1, ok := err.(i18.ErrI18); ok {
-		return &e1
-	}
-
 	return &i18.ErrI18{
 		Code: http.StatusBadRequest,
 		Err:  err,
@@ -88,10 +72,6 @@ func SearchPolicy(err error) *i18.ErrI18 {
 func CreatePolicy(err error) *i18.ErrI18 {
 	if e1, ok := err.(*i18.ErrI18); ok {
 		return e1
-	}
-
-	if e1, ok := err.(i18.ErrI18); ok {
-		return &e1
 	}
 
 	vi := &i18.ErrI18{

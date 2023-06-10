@@ -299,6 +299,10 @@ const (
 	VulnDbUpdateTriggerEN  = "vuln db update"
 )
 
+const (
+	AcceptLanguage = "Accept-Language"
+)
+
 func GetScanTaskCreator(cr, lang string) string {
 	zh := map[string]string{
 		VulnDbUpdateTrigger: VulnDbUpdateTriggerZH,

@@ -43,9 +43,6 @@ func CreateScanTask(err error) *i18.ErrI18 {
 		return e1
 	}
 
-	if e1, ok := err.(i18.ErrI18); ok {
-		return &e1
-	}
 	return &i18.ErrI18{
 		Code: http.StatusBadRequest,
 		Err:  err,
@@ -59,9 +56,6 @@ func SearchScanTask(err error) *i18.ErrI18 {
 		return e1
 	}
 
-	if e1, ok := err.(i18.ErrI18); ok {
-		return &e1
-	}
 	return &i18.ErrI18{
 		Code: http.StatusBadRequest,
 		Err:  err,
@@ -75,9 +69,6 @@ func SearchScanSubtask(err error) *i18.ErrI18 {
 		return e1
 	}
 
-	if e1, ok := err.(i18.ErrI18); ok {
-		return &e1
-	}
 	return &i18.ErrI18{
 		Code: http.StatusBadRequest,
 		Err:  err,
@@ -91,9 +82,6 @@ func UpdateScanTask(err error) *i18.ErrI18 {
 		return e1
 	}
 
-	if e1, ok := err.(i18.ErrI18); ok {
-		return &e1
-	}
 	return &i18.ErrI18{
 		Code: http.StatusBadRequest,
 		Err:  err,
@@ -107,9 +95,6 @@ func UpdateScanSubtask(err error) *i18.ErrI18 {
 		return e1
 	}
 
-	if e1, ok := err.(i18.ErrI18); ok {
-		return &e1
-	}
 	return &i18.ErrI18{
 		Code: http.StatusBadRequest,
 		Err:  err,
