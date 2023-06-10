@@ -84,7 +84,7 @@ require (
 	k8s.io/apiserver v0.20.15
 	k8s.io/client-go v0.20.15
 	scm.tensorsecurity.cn/tensorsecurity-rd/cloudwalker v0.0.5
-	scm.tensorsecurity.cn/tensorsecurity-rd/falcosider v0.2.61
+	scm.tensorsecurity.cn/tensorsecurity-rd/falcosider v0.2.62
 	scm.tensorsecurity.cn/tensorsecurity-rd/trivy v0.19.3-0.20230601104328-6b56bbcd6507
 )
 
