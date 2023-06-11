@@ -2,6 +2,7 @@ package scanner_ci
 
 import (
 	"context"
+	"strings"
 	"time"
 )
 
@@ -43,7 +44,7 @@ type WebhookRecord struct {
 func (vi *WebhookRecord) ChangErrMsg(ctx context.Context) {
 	lang, ok := ctx.Value(AcceptLanguage).(string)
 	if ok && lang == "en" {
-		switch vi.ErrMsg {
+		switch strings.TrimSpace(vi.ErrMsg) {
 		case "请求失败":
 			vi.ErrMsg = "request failed"
 		case "请求返回代码错误 405":

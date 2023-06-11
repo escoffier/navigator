@@ -10,4 +10,5 @@ const (
 	DefaultSendSubtaskBatchSize = 5
 	MaxRetryCnt                 = 10
 	AcceptLanguage              = "Accept-Language"
+	MillisecondPerDay           = 24 * 60 * 60 * 1000
 )

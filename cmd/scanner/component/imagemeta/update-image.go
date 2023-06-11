@@ -245,7 +245,7 @@ func (s *ImageUpdateSrv) deleteOverdueImage(ctx context.Context) error {
 		return err
 	}
 
-	sub := time.Now().UnixMilli() - config.NodeImageConfig.ClearInterval*24*60*60*1000*1000 // 数据库:milliseconds
+	sub := time.Now().UnixMilli() - config.NodeImageConfig.ClearInterval*consts.MillisecondPerDay // 数据库:milliseconds
 
 	images, _, err := s.imageDal.SearchImage(ctx, imagesecModel.NodeImageDalParam{LessHeartbeat: sub,
 		Fields: []string{"id"}})
