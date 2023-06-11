@@ -31,6 +31,7 @@ type BackgroundTasks struct {
 	VulnExportExcel            *excel.VulnExport
 	LibImageSearchExportExcel  *excel.LibImageSearchExportExcel
 	NodeImageSearchExportExcel *excel.NodeImageSearchExportExcel
+	SingeImageExportExcel      *excel.SingeImageExportExcel
 	LibImageExportHtml         *html.ExportLibImageHtmlSrv
 	NodeImageExportHtml        *html.ExportNodeImageHtmlSrv
 	CICDImageExportHtml        *html.ExportCiImageHtmlSrv
@@ -113,6 +114,7 @@ func NewBackgroundTasks(ctx context.Context, config Config) *BackgroundTasks {
 	// 镜像搜索列表导出excel
 	libImageSearchExportExcel := excel.NewLibImageSearchExportExcel(imageExportSrv, updateTask, libImageSvc)
 	nodeimageSearchExportExcel := excel.NewNodeImageSearchExportExcel(imageExportSrv, updateTask, nodeImageSvc)
+	singeImageExport := excel.NewSingeImageExport(imageExportSrv)
 	// 镜像扫描报告导出到html
 	libImageHtmlSrv := html.NewExportLibImageHtmlSrv(libImageSvc, vulnDal, exportTaskDal, updateTask, config.FileDir, config.VulnClassType)
 	nodeImageHtmlSrv := html.NewExportNodeImageHtmlSrv(nodeImageSvc, exportTaskDal, updateTask, vulnSrv, config.FileDir, config.VulnClassType)
@@ -127,6 +129,7 @@ func NewBackgroundTasks(ctx context.Context, config Config) *BackgroundTasks {
 		VulnExportExcel:            vulnExportSrv,
 		LibImageSearchExportExcel:  libImageSearchExportExcel,
 		NodeImageSearchExportExcel: nodeimageSearchExportExcel,
+		SingeImageExportExcel:      singeImageExport,
 		LibImageExportHtml:         libImageHtmlSrv,
 		NodeImageExportHtml:        nodeImageHtmlSrv,
 		CICDImageExportHtml:        cicdImageHtmlSrv,
@@ -157,6 +160,7 @@ func (s *BackgroundTasks) Start(ctx context.Context) {
 	s.NodeScanTaskExportExcel.Run(ctx)
 	s.LibImageSearchExportExcel.Run(ctx)
 	s.NodeImageSearchExportExcel.Run(ctx)
+	s.SingeImageExportExcel.Run(ctx)
 	s.ClearFileAndRecord.Run(ctx)
 
 	// 导出漏洞数据
