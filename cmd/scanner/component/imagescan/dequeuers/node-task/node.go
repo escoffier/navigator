@@ -107,16 +107,10 @@ func (s *NodeImageQueue) GenTaskChan(ctx context.Context) chan *imagesecModel.Im
 			}
 			logging.Get().Info().Int64("inCnt", inCnt).Msg("NodeImageQueue SearchScanTask inprogress")
 
-			// if inCnt >= s.maxInprogressTask {
-			// 	ticker.Reset(time.Second * 20)
-			// 	logging.Get().Info().Int64("inprogressCount", inCnt).Msg("NodeImageQueue has inprogress scan task")
-			// 	continue
-			// }
-
 			if len(task) == 0 || inCnt < s.maxInprogressTask {
 				pending, pendCnt, err := s.nodeScanTaskDal.SearchScanTask(ctx, imagesecModel.SearchTaskParam{
 					ScanStatus: []int64{imagesecModel.TaskStatusPending},
-					Filter:     &model.Filter{Limit: 1, SortFiled: "status", SortBy: consts.SortByDesc},
+					Filter:     &model.Filter{Limit: s.maxInprogressTask - inCnt, SortFiled: "status", SortBy: consts.SortByDesc},
 				})
 				if err != nil {
 					logging.Get().Err(err).Msg("NodeImageQueue SearchScanTask find inprogress scan task")
@@ -126,15 +120,16 @@ func (s *NodeImageQueue) GenTaskChan(ctx context.Context) chan *imagesecModel.Im
 
 				task = append(task, pending...)
 			}
-
-			if len(task) == 0 {
-				ticker.Reset(time.Second * 20)
-				logging.Get().Info().Msg("NodeImageQueue SearchScanTask not find scan task")
-				continue
-			}
+			logging.Get().Info().Int("taskCnt", len(task)).Msg("NodeImageQueue SearchScanTask scan task")
 			for i := range task {
 				out <- task[i]
 			}
+
+			if len(task) < int(s.maxInprogressTask) {
+				ticker.Reset(time.Second * 20)
+				continue
+			}
+
 			ticker.Reset(time.Second * 2)
 		}
 	}()

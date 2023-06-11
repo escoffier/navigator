@@ -97,7 +97,7 @@ func (s *ScanTaskAPI) SearchScanSubtask(ctx *gin.Context) {
 		NodeNameKeyword: util.GetKeywordFromQuery(ctx, "nodeNameKeyword"),
 		Filter:          model.GetFilter(ctx).SetMaxLimit(consts.DefaultLimit).SetSortFiled("id").SetSortDesc(),
 	}
-	param.SearchSubtask = true
+	param.IsSearchSubtask = true
 	subtasks, cnt, err := s.scanTaskSrv.SearchScanSubtask(ctx, param)
 	if err != nil {
 		response.JSONError(ctx, i18.SearchErr(err))

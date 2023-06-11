@@ -128,12 +128,10 @@ func newService(config register.ScannerServiceConfig) (register.ScannerService, 
 	detectTaskSrv := detect.NewImageDetectTaskSrv(nodeImageSvc, detectTaskDal, policyDal)
 	policySrv := imagesecSrv.NewPolicySrv(policyDal, detectTaskSrv, sensitiveRuleDal)
 
-	scanTaskSrv := imagescan.NewScanTaskSrv(nodeScanTaskDal, nodeImageSvc, scannerConfigDal)
-
+	nodeScanTaskSrv := imagescan.NewScanTaskSrv(nodeScanTaskDal, detectTaskDal, nodeImageSvc, scannerConfigDal)
 	scanImageConfigSrv := imagesecSrv.NewScannerConfigSrv(scannerConfigDal)
-	sensitiveRuleSrv := imagesecSrv.NewSensitiveRuleSrv(sensitiveRuleDal, scanTaskSrv, scanImageConfigSrv)
+	sensitiveRuleSrv := imagesecSrv.NewSensitiveRuleSrv(sensitiveRuleDal, nodeScanTaskSrv, scanImageConfigSrv)
 
-	nodeScanTaskSrv := imagescan.NewScanTaskSrv(nodeScanTaskDal, nodeImageSvc, scannerConfigDal)
 	nodeInfoSrv := imagesecSrv.NewNodeReportSrv(nodeReportDal)
 
 	exportSrv := scanReportService.NewExportTaskSrv(
@@ -166,7 +164,7 @@ func newService(config register.ScannerServiceConfig) (register.ScannerService, 
 			exportSrv,
 			versionSrv,
 			policySrv,
-			scanTaskSrv,
+			nodeScanTaskSrv,
 			sensitiveRuleSrv,
 			scanImageConfigSrv,
 			nodeVulnSrv,

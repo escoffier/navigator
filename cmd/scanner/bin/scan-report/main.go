@@ -176,6 +176,7 @@ func main() {
 
 	policyDal := imagesecStore.NewDetectPolicyDao(config.Rdb)
 	detectResultDal := imagesecStore.NewImageDetectResultDao(config.Rdb)
+	detectTaskDal := imagesecStore.NewDetectTaskDao(config.Rdb)
 	nodeReportDal := imagesecStore.NewNodeReportDao(config.Rdb)
 	scannerConfigDal := imagesecStore.NewScannerConfigDao(config.Rdb)
 	nodeTaskDal := imagesecStore.NewScanTaskDao(config.Rdb)
@@ -188,7 +189,7 @@ func main() {
 		scanResultDal, webshellDal, trustedImageDal, resourceDal, scannerInstanceInfoDal)
 	nodeVulnSrv := imagesecSrv.NewVulnSrv(nodeScanResultDal)
 
-	nodeScanTaskSrv := imagescan.NewScanTaskSrv(nodeScanTaskDal, nodeImageSrv, scannerConfigDal)
+	nodeScanTaskSrv := imagescan.NewScanTaskSrv(nodeScanTaskDal, detectTaskDal, nodeImageSrv, scannerConfigDal)
 
 	exportTask := service.NewExportTaskSrv(
 		store.NewExportTaskDao(rdb),

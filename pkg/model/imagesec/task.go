@@ -9,11 +9,11 @@ type ImageDetectTask struct {
 	ID            int64  `gorm:"primaryKey" json:"id"`
 	ImageFromType string `gorm:"column:image_from_type" json:"imageFromType"` // 用做列表筛选
 	Priority      int64  `gorm:"column:priority" json:"priority"`             // 优先级
-	ScanSubTaskID int64  `gorm:"scan_sub_task_id" json:"scanSubTaskID"`
+	ScanSubTaskID int64  `gorm:"column:scan_sub_task_id" json:"scanSubTaskID"`
 	Status        int64  `gorm:"column:status" json:"status"`
 	StatusStr     string `gorm:"column:status_str" json:"statusStr"` // 任务状态
-	StartedAt     int64  `json:"startedAt" gorm:"column:started_at"`
-	FinishedAt    int64  `json:"finishedAt" gorm:"column:finished_at"`
+	StartedAt     int64  `gorm:"column:started_at" json:"startedAt"`
+	FinishedAt    int64  `gorm:"column:finished_at" json:"finishedAt"`
 	Updater       string `gorm:"column:updater" json:"updater"` // 最近一次更新人
 	Creator       string `gorm:"column:creator" json:"creator"` // 创建人
 
