@@ -180,8 +180,6 @@ func (s *NodeImageReport) AddScanTask(ctx context.Context, newImages []*imagesec
 			ImageFromType: imagesecModel.ImageFromNode,
 			ScanType:      imagesecModel.ImageSyncTrigger,
 			Status:        imagesecModel.TaskStatusPending,
-			Updater:       imagesecModel.ScanTaskOperatorSync,
-			Creator:       imagesecModel.ScanTaskOperatorSync,
 		}
 
 		param := imagesecModel.ImageListParam{ImageIds: newImageIds, ImageFromType: imagesecModel.ImageFromNode}

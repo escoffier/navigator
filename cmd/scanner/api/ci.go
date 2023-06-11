@@ -753,6 +753,11 @@ func (c *CiApiSrv) GetWebhookRecords(ctx *gin.Context) {
 		response.JSONError(ctx, fmt.Errorf("GetWebhookRecords error"))
 		return
 	}
+
+	for i := range res {
+		res[i].ChangErrMsg(ctx)
+	}
+
 	response.JSONOK(ctx, response.WithItems(res), response.WithTotalItems(cnt))
 }
 
