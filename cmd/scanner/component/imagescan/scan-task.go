@@ -239,8 +239,6 @@ func (s *ScanTaskSrv) AddScanTaskByConfig(ctx context.Context) error {
 				ImageFromType: imagesecModel.ImageFromNode,
 				ScanType:      imagesecModel.CycleTrigger,
 				Status:        imagesecModel.TaskStatusPending,
-				Updater:       imagesecModel.ScanTaskOperatorCycle,
-				Creator:       imagesecModel.ScanTaskOperatorCycle,
 			}
 			if err := s.CreateImageScanTask(ctx, param, taskInfo); err != nil {
 				logging.Get().Err(err).Msg("AddScanTaskByConfig CreateImageScanTask")

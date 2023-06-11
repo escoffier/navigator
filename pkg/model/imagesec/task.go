@@ -185,8 +185,8 @@ func (vi *ImageScanTask) ToApiView() {
 }
 
 func (vi *ImageScanTask) ChangeCreator(lan string) {
-	vi.Creator = GetScanTaskCreator(vi.Creator, lan)
-	vi.Updater = GetScanTaskCreator(vi.Updater, lan)
+	vi.Creator = GetScanTaskCreator(vi.ScanType)
+	vi.Updater = GetScanTaskCreator(vi.ScanType)
 }
 
 func (vi *ImageScanTask) Serialize() {

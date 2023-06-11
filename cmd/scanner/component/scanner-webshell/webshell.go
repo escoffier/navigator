@@ -82,6 +82,7 @@ func (w *WebshellController) GetWebshellDetail(ctx *gin.Context) {
 		response.JSONError(ctx, fmt.Errorf("get webshell detail error uuid %d", uuid))
 		return
 	}
+	webshell.ChangeFileMode()
 	response.JSONOK(ctx, response.WithItem(webshell))
 }
 

@@ -1180,6 +1180,15 @@ func (s *ScannerOrm) SearchImage(ctx context.Context, param imagesec.SearchImage
 		return nil, cnt, nil
 	}
 
+	if filter != nil && filter.Offset >= consts.DefaultLimit {
+		db2 := db.Session(&gorm.Session{})
+		db2 = db2.Offset(int(filter.Offset)).Limit(1)
+		db2 = db2.Select("id")
+
+		db = db.Where("id >= ( ? )", db2)
+		filter = filter.SetOffset(0)
+	}
+
 	db = model.AddFilter(db, filter)
 
 	res := make([]model.ImageList, 0)

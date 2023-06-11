@@ -102,8 +102,6 @@ func (s *SensitiveRuleSrv) AddScanTask(ctx context.Context, param imagesecModel.
 	taskInfo := imagesecModel.ImageScanTask{
 		ImageFromType: imagesecModel.ImageFromNode,
 		ScanType:      imagesecModel.SensitiveUpdateTrigger,
-		Updater:       imagesecModel.ScanTaskSensitiveFlush,
-		Creator:       imagesecModel.ScanTaskSensitiveFlush,
 		Status:        imagesecModel.TaskStatusPending,
 	}
 	if err := s.scanTaskSrv.CreateImageScanTask(ctx, param, taskInfo); err != nil {

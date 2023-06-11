@@ -223,6 +223,15 @@ func (dal *ImageMetaDao) SearchImage(ctx context.Context, param imagesec.NodeIma
 		db = db.Where("heartbeat < ?", param.LessHeartbeat)
 	}
 
+	if param.Filter != nil && param.Filter.Offset >= consts.DefaultLimit {
+		db2 := db.Session(&gorm.Session{})
+		db2 = db2.Offset(int(param.Filter.Offset)).Limit(1)
+		db2 = db2.Select("id")
+
+		db = db.Where("id >= ( ? )", db2)
+		param.Filter = param.Filter.SetOffset(0)
+	}
+
 	db = model.AddFilter(db, param.Filter)
 
 	res := make([]*imagesec.Image, 0)

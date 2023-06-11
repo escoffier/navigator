@@ -1,6 +1,7 @@
 package scanner_ci
 
 import (
+	"context"
 	"time"
 )
 
@@ -39,6 +40,22 @@ type WebhookRecord struct {
 	ErrMsg    string    `gorm:"type:varchar(255);column:err_msg" json:"err_msg"`
 }
 
+func (vi *WebhookRecord) ChangErrMsg(ctx context.Context) {
+	lang, ok := ctx.Value(AcceptLanguage).(string)
+	if ok && lang == "en" {
+		switch vi.ErrMsg {
+		case "请求失败":
+			vi.ErrMsg = "request failed"
+		case "请求返回代码错误 405":
+			vi.ErrMsg = "request return error code: 405"
+		case "结果集解析错误":
+			vi.ErrMsg = "parse param failed"
+		case "请求生成错误":
+			vi.ErrMsg = "generate request failed"
+		}
+	}
+}
+
 func (WebhookRecord) TableName() string {
 	return "ivan_ci_webhook_record"
 }
@@ -51,3 +68,7 @@ type WebHookBody struct {
 	Os        string
 	Pkg       []PkgList
 }
+
+const (
+	AcceptLanguage = "Accept-Language"
+)

@@ -304,11 +304,13 @@ const (
 )
 
 // 新需求:空
-func GetScanTaskCreator(cr, lang string) string {
+func GetScanTaskCreator(cr string) string {
 	zh := map[string]string{
-		VulnDbUpdateTrigger: "",
-		CycleTrigger:        "",
-		ImageSyncTrigger:    "",
+		MalwareDataUpdateTrigger: "",
+		SensitiveUpdateTrigger:   "",
+		VulnDbUpdateTrigger:      "",
+		CycleTrigger:             "",
+		ImageSyncTrigger:         "",
 	}
 	if _, ok := zh[cr]; ok {
 		return ""

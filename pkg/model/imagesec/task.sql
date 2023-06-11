@@ -20,8 +20,8 @@ create table if not exists ivan_image_detect_task
     updated_at       bigint unsigned not null default 0,
 
     primary key (id),
-    index idx_task_priority (priority,`status`),
-    index idx_task_status (`status`, priority)
+    index idx_task_priority (priority, `status`, scan_sub_task_id),
+    index idx_task_status (`status`, priority, scan_sub_task_id)
 );
 
 create table if not exists ivan_image_detect_subtask

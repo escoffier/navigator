@@ -2,6 +2,7 @@ package scannermodel
 
 import (
 	"fmt"
+	"strings"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
@@ -151,6 +152,11 @@ type WebshellDetail struct {
 	Suggestion string          `json:"suggestion"`
 	Code       []WebshellCode  `json:"code"`
 	Images     []WebshellImage `json:"images"`
+}
+
+func (w *WebshellDetail) ChangeFileMode() {
+	w.FileMode = strings.ReplaceAll(w.FileMode, "用户名", "user")
+	w.FileMode = strings.ReplaceAll(w.FileMode, "用户组名", "group")
 }
 
 type WebshellImage struct {
