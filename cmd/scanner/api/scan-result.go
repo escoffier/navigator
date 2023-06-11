@@ -854,6 +854,7 @@ func (s *ScanResultAPI) GetImageWebshell(ctx *gin.Context) {
 	}
 	for i := range data.Webshell {
 		data.Webshell[i].Code = make([]imagesecModel.WebshellCode, 0)
+		data.Webshell[i].AdaptI18(ctx)
 	}
 	response.JSONOK(ctx, response.WithItems(data.Webshell),
 		response.WithTotalItems(data.WebshellCnt),

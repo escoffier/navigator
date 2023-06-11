@@ -91,5 +91,8 @@ func (s *WebshellAPIService) GetWebshellDetail(ctx *gin.Context) {
 		response.JSONError(ctx, scani18.NotGetWebshell())
 		return
 	}
-	response.JSONOK(ctx, response.WithItem(*(data[0])))
+	wh := data[0]
+	wh.AdaptI18(ctx)
+
+	response.JSONOK(ctx, response.WithItem(*wh))
 }
