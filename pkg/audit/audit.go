@@ -1595,11 +1595,11 @@ func init() {
 	routeAction.POST("/api/v2/platform/drift/policy/update", func(p Params) map[string]map[string]interface{} {
 		return map[string]map[string]interface{}{
 			"zh": {
-				"verb":   createAction,
+				"verb":   editAction,
 				"detail": "编辑偏移防御策略{{.}}",
 			},
 			"en": {
-				"verb":   createActionEN,
+				"verb":   editActionEN,
 				"detail": "Edit drift defense strategy{{.}}",
 			},
 		}
@@ -1607,11 +1607,11 @@ func init() {
 	routeAction.POST("/api/v2/platform/drift/policy/delete", func(p Params) map[string]map[string]interface{} {
 		return map[string]map[string]interface{}{
 			"zh": {
-				"verb":   createAction,
+				"verb":   deleteAction,
 				"detail": "删除偏移防御策略{{.}}",
 			},
 			"en": {
-				"verb":   createActionEN,
+				"verb":   deleteActionEN,
 				"detail": "Delete drift defense strategy{{.}}",
 			},
 		}
@@ -1649,6 +1649,30 @@ func init() {
 			"en": {
 				"verb":   deleteActionEN,
 				"detail": "Delete drift defense whitelist{{.}}",
+			},
+		}
+	})
+	routeAction.POST("/api/v2/platform/drift/policy/batch/create", func(p Params) map[string]map[string]interface{} {
+		return map[string]map[string]interface{}{
+			"zh": {
+				"verb":   createAction,
+				"detail": "批量新增偏移防御策略{{.}}",
+			},
+			"en": {
+				"verb":   createActionEN,
+				"detail": "Batch create drift defense strategy{{.}}",
+			},
+		}
+	})
+	routeAction.PUT("/api/v2/platform/drift/policy/batch/update", func(p Params) map[string]map[string]interface{} {
+		return map[string]map[string]interface{}{
+			"zh": {
+				"verb":   editAction,
+				"detail": "批量编辑偏移防御策略{{.}}",
+			},
+			"en": {
+				"verb":   editActionEN,
+				"detail": "Batch edit drift defense strategy{{.}}",
 			},
 		}
 	})
