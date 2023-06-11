@@ -1,6 +1,7 @@
 package scannermodel
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
@@ -154,9 +155,19 @@ type WebshellDetail struct {
 	Images     []WebshellImage `json:"images"`
 }
 
-func (w *WebshellDetail) ChangeFileMode() {
-	w.FileMode = strings.ReplaceAll(w.FileMode, "用户名", "user")
-	w.FileMode = strings.ReplaceAll(w.FileMode, "用户组名", "group")
+const (
+	AcceptLanguage = "Accept-Language"
+)
+
+func (w *WebshellDetail) AdaptI18(ctx context.Context) {
+	lang, ok := ctx.Value(AcceptLanguage).(string)
+	logging.GetLogger().Debug().Str("Lang", lang).Bool("OK", ok).Msg("WebshellDetailAdaptI18")
+	if ok && lang == "en" {
+		w.FileMode = strings.ReplaceAll(w.FileMode, "用户名", "user")
+		w.FileMode = strings.ReplaceAll(w.FileMode, "用户组名", "group")
+		w.Detail = WebshellRiskEN(strings.TrimSpace(w.Detail))
+		w.Suggestion = WebshellRecommendEN(strings.TrimSpace(w.Suggestion))
+	}
 }
 
 type WebshellImage struct {
