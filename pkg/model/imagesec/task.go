@@ -182,11 +182,22 @@ func (vi *ImageScanTask) ToApiView() {
 	if vi.Status == TaskStatusSendFinished || vi.Status == TaskStatusScanFinished {
 		vi.StatusStr = TaskStatusInprogressStr
 	}
+	vi.ChangeTaskCreator()
 }
 
-func (vi *ImageScanTask) ChangeCreator(lan string) {
-	vi.Creator = GetScanTaskCreator(vi.ScanType)
-	vi.Updater = GetScanTaskCreator(vi.ScanType)
+// 新需求:空
+func (vi *ImageScanTask) ChangeTaskCreator() {
+	zh := map[string]string{
+		MalwareDataUpdateTrigger: "",
+		SensitiveUpdateTrigger:   "",
+		VulnDbUpdateTrigger:      "",
+		CycleTrigger:             "",
+		ImageSyncTrigger:         "",
+	}
+	if _, ok := zh[vi.ScanType]; ok {
+		vi.Updater = ""
+		vi.Creator = ""
+	}
 }
 
 func (vi *ImageScanTask) Serialize() {

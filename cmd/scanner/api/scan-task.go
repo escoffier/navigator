@@ -134,10 +134,8 @@ func (s *ScanTaskAPI) SearchScanTask(ctx *gin.Context) {
 		return
 	}
 
-	lang := util.GetLanguage(ctx)
 	for i := range tasks {
 		tasks[i].ToApiView()
-		tasks[i].ChangeCreator(lang)
 	}
 
 	response.JSONOK(ctx, response.WithItems(tasks),
