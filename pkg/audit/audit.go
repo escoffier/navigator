@@ -33,15 +33,15 @@ const (
 	uploadAction  = "上传"
 	processAction = "发起处置"
 
-	editActionEN    = "modify"
-	createActionEN  = "create"
-	deleteActionEN  = "delete"
-	enableActionEN  = "enable"
-	disableActionEN = "disable"
-	eAnddActionEN   = "enable/disable"
-	importActionEN  = "import"
-	uploadActionEN  = "upload"
-	processActionEN = "process"
+	editActionEN    = "Edit"
+	createActionEN  = "Create"
+	deleteActionEN  = "Delete"
+	enableActionEN  = "Enable"
+	disableActionEN = "Disable"
+	eAnddActionEN   = "Enable/Disable"
+	importActionEN  = "Import"
+	uploadActionEN  = "Upload"
+	processActionEN = "Process"
 )
 
 var routeAction *Router
@@ -457,8 +457,8 @@ func init() {
 				"detail": "登录",
 			},
 			"en": {
-				"verb":   "login",
-				"detail": "login",
+				"verb":   "Login",
+				"detail": "Login",
 			},
 		}
 	})
@@ -636,7 +636,7 @@ func init() {
 			},
 			"en": {
 				"verb":   eAnddActionEN,
-				"detail": "enable/disable policy rule of resource {{.}}",
+				"detail": "Enable/Disable policy rule of resource {{.}}",
 			},
 		}
 
@@ -745,7 +745,7 @@ func init() {
 			},
 			"en": {
 				"verb":   eAnddActionEN,
-				"detail": "enable/disable policy rule of namespace group {{.}}",
+				"detail": "Enable/Disable policy rule of namespace group {{.}}",
 			},
 		}
 	})
@@ -793,7 +793,7 @@ func init() {
 			},
 			"en": {
 				"verb":   eAnddActionEN,
-				"detail": "enable/disable policy rule of tenant {{.}}",
+				"detail": "Enable/Disable policy rule of tenant {{.}}",
 			},
 		}
 	})
@@ -1004,7 +1004,7 @@ func init() {
 			},
 			"en": {
 				"verb":   createActionEN,
-				"detail": "adding base-image {{.}} to base-imgage list",
+				"detail": "Add base-image {{.}} to base-imgage list",
 			},
 		}
 	})
@@ -1029,7 +1029,7 @@ func init() {
 			},
 			"en": {
 				"verb":   createActionEN,
-				"detail": "adding image scanning task",
+				"detail": "Add image scanning task",
 			},
 		}
 	})
@@ -1779,7 +1779,7 @@ func init() {
 			},
 			"en": {
 				"verb":   createActionEN,
-				"detail": "create node image scan task",
+				"detail": "Create node image scan task",
 			},
 		}
 	})
@@ -1792,7 +1792,7 @@ func init() {
 			},
 			"en": {
 				"verb":   editActionEN,
-				"detail": "update node image scan task status",
+				"detail": "Update node image scan task status",
 			},
 		}
 	})
@@ -1805,7 +1805,7 @@ func init() {
 			},
 			"en": {
 				"verb":   editActionEN,
-				"detail": "update node image scan task status",
+				"detail": "Update node image scan task status",
 			},
 		}
 	})
@@ -1818,7 +1818,7 @@ func init() {
 			},
 			"en": {
 				"verb":   editActionEN,
-				"detail": "edit node image config",
+				"detail": "Edit node image config",
 			},
 		}
 	})
@@ -1831,7 +1831,7 @@ func init() {
 			},
 			"en": {
 				"verb":   editActionEN,
-				"detail": "update node image security policy {{.}}",
+				"detail": "Update node image security policy {{.}}",
 			},
 		}
 	})
@@ -1844,7 +1844,7 @@ func init() {
 			},
 			"en": {
 				"verb":   createActionEN,
-				"detail": "create node image security policy {{.}}",
+				"detail": "Create node image security policy {{.}}",
 			},
 		}
 	})
@@ -1857,7 +1857,7 @@ func init() {
 			},
 			"en": {
 				"verb":   deleteActionEN,
-				"detail": "delete node image security policy {{.}}",
+				"detail": "Delete node image security policy {{.}}",
 			},
 		}
 	})
@@ -1871,7 +1871,7 @@ func init() {
 			},
 			"en": {
 				"verb":   createActionEN,
-				"detail": "export the image report",
+				"detail": "Export the image report",
 			},
 		}
 	})
@@ -1885,7 +1885,7 @@ func init() {
 			},
 			"en": {
 				"verb":   createActionEN,
-				"detail": "export the image report",
+				"detail": "Export the image report",
 			},
 		}
 	})
@@ -1899,7 +1899,7 @@ func init() {
 			},
 			"en": {
 				"verb":   createActionEN,
-				"detail": "export the image report",
+				"detail": "Export the image report",
 			},
 		}
 	})

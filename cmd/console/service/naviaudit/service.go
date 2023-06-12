@@ -19,6 +19,17 @@ var (
 	instance              *Service
 	rlOnce                sync.Once
 	ErrESDocumentNotFound = errors.New("es document not found")
+	// verbLangDic           = map[string]string{
+	// 	"编辑":    "Edit",
+	// 	"新增":    "Create",
+	// 	"删除":    "Delete",
+	// 	"启用":    "Enable",
+	// 	"停用":    "Disable",
+	// 	"启用/停用": "Enable/Disable",
+	// 	"导出":    "Import",
+	// 	"上传":    "Upload",
+	// 	"发起处置":  "Process",
+	// }
 )
 
 type Service struct {
@@ -78,7 +89,12 @@ func (s *Service) GetAuditLog(ctx context.Context, opt *QueryNaviAuditLogOpt) ([
 	for k, v := range opt.Filter {
 		if k != "" && v != "" {
 			if k == "Verb" {
-				queries = append(queries, elastic.NewMatchQuery(k, v))
+				if opt.Lang == "zh" {
+					queries = append(queries, elastic.NewMatchQuery(k, v))
+				} else {
+					queryKey := fmt.Sprintf("MetaData.%s.verb", opt.Lang)
+					queries = append(queries, elastic.NewMatchQuery(queryKey, v))
+				}
 				continue
 			}
 			if k == "User.Name" {
