@@ -123,7 +123,7 @@ type ScannerSrv interface {
 
 	ScanReportCreate(ctx context.Context, data *scanreport.TensorScanReportTasks) (uint, error)
 	ScanReportUpdate(ctx context.Context, data *scanreport.TensorScanReportTasks) error
-	ScanReportList(ctx context.Context, keyword string, limit, offset int, _type []uint8) ([]scanreport.TensorScanReportTasks, int64, error)
+	ScanReportList(ctx context.Context, keyword string, limit, offset int, stype string) ([]scanreport.TensorScanReportTasks, int64, error)
 	ScanReportDetail(ctx context.Context, id uint) (*scanreport.TensorScanReportTasks, error)
 	ScanReportDelete(ctx context.Context, id uint) error
 	ScanReportFiles(ctx context.Context, id uint, limit, offset int) ([]scanreport.TensorScanReportSubTasks, int64, error)
@@ -3035,7 +3035,18 @@ func (s *ConScannerSrv) ScanReportUpdate(ctx context.Context, data *scanreport.T
 	return nil
 }
 
-func (s *ConScannerSrv) ScanReportList(ctx context.Context, keyword string, limit, offset int, _type []uint8) ([]scanreport.TensorScanReportTasks, int64, error) {
+func (s *ConScannerSrv) ScanReportList(ctx context.Context, keyword string, limit, offset int, stype string) ([]scanreport.TensorScanReportTasks, int64, error) {
+	arr := strings.Split(stype, ",")
+	_type := make([]uint8, 0)
+	for _, v := range arr {
+		n, err := strconv.Atoi(v)
+		if err != nil {
+			logging.GetLogger().Err(err).Str("type", stype).Msg("scan report list type param err, invalid int")
+			continue
+		}
+		_type = append(_type, uint8(n))
+	}
+
 	data, count, err := s.dbdal.List(ctx, keyword, limit, offset, _type)
 	if err != nil {
 		logging.GetLogger().Err(err).Msgf("获取扫描报告列表失败，keyword:%s, limit:%d, offset:%d", keyword, limit, offset)
