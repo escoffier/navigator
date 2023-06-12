@@ -8,11 +8,10 @@ import (
 
 // 单个镜像的扫描报告
 type ImageRiskOverView struct {
-	ImageID                int64             `json:"imageID"`
-	ImageName              string            `json:"imageName"`
-	VulnFixSuggestion      []string          `json:"vulnFixSuggestion"`
-	SensitiveFixSuggestion []string          `json:"sensitiveFixSuggestion"`
-	VulnSeverityCount      VulnSeverityCount `json:"vulnSeverityCount"` // 漏洞层级分布
+	ImageID           int64                   `json:"imageID"`
+	ImageName         string                  `json:"imageName"`
+	Suggests          []imagesec.ImageSuggest `json:"suggests"`
+	VulnSeverityCount VulnSeverityCount       `json:"vulnSeverityCount"` // 漏洞层级分布
 }
 
 type ImageResponse struct {

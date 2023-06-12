@@ -416,8 +416,10 @@ func (s *ExportNodeImageHtmlSrv) GetImageRisk(ctx context.Context, taskID, image
 		VulnSeverityCount: types.StatisticsVulnSeverity(data.Vuln),
 	}
 
-	res.VulnFixSuggestion = data.GenVulnSuggest()
-	res.SensitiveFixSuggestion = data.GenSensitiveFileSuggest()
+	ctx = context.WithValue(ctx, imagesecModel.AcceptLanguage, task[0].Lang)
+	im := data.ToImageBaseResponse()
+	im.AdaptI18(ctx)
+	res.Suggests = im.Suggests
 
 	_ = s.UpdateTask.IncrRedisFinished(ctx, taskID)
 	logging.Get().Info().Int64("taskID", taskID).Int64("imageID", imageID).Msg("ExportNodeImageHtmlSrv.GetImageRisk finished")

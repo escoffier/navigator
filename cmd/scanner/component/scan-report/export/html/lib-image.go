@@ -437,14 +437,17 @@ func (s *ExportLibImageHtmlSrv) GetImageRisk(ctx context.Context, taskID, imageI
 	}
 	data.Vuln = imagesec.ConvertVuln(vuln)
 
+	im := data.ToImageBaseResponse()
+	ctx = context.WithValue(ctx, imagesec.AcceptLanguage, task[0].Lang)
+	im.AdaptI18(ctx)
+
 	res := &types.ImageRiskOverView{
-		ImageID:           data.ImageBaseResponse.ID,
-		ImageName:         data.ImageBaseResponse.GetImageName(),
+		ImageID:           im.ID,
+		ImageName:         im.GetImageName(),
 		VulnSeverityCount: types.StatisticsVulnSeverity(data.Vuln),
 	}
 
-	res.VulnFixSuggestion = data.GenVulnSuggest()
-	res.SensitiveFixSuggestion = data.GenSensitiveFileSuggest()
+	res.Suggests = data.GenSuggest()
 
 	_ = s.UpdateTask.IncrRedisFinished(ctx, taskID)
 	logging.Get().Info().Int64("taskID", taskID).Int64("imageID", imageID).Interface("imageRisk", res).

@@ -333,12 +333,16 @@ func (s *ExportCiImageHtmlSrv) GetImageRisk(ctx context.Context, taskID, imageID
 		logging.Get().Err(err).Int64("taskID", taskID).Int64("imageID", imageID).Msg("GetImages.SearchExportTaskImage")
 		return nil, err
 	}
+
+	ctx = context.WithValue(ctx, model.AcceptLanguage, task[0].Lang)
+
 	for i := range taskImages {
-		im := taskImages[i]
-		if im.ImageBaseResponse.ID == imageID {
-			res.ImageName = im.ImageBaseResponse.GetImageName()
-			res.VulnFixSuggestion = im.GenVulnSuggest()
-			res.SensitiveFixSuggestion = im.GenSensitiveFileSuggest()
+		im := taskImages[i].ToImageBaseResponse()
+		im.AdaptI18(ctx)
+
+		if im.ID == imageID {
+			res.ImageName = im.GetImageName()
+			res.Suggests = im.Suggests
 			res.VulnSeverityCount = types.StatisticsVulnSeverity(taskImages[i].Vuln)
 		}
 	}

@@ -368,8 +368,7 @@ func (s *Scanner) SearchImageWithScan(ctx *gin.Context) {
 		return
 	}
 	for i := range images {
-		images[i].SensitiveFixSuggestion = nil
-		images[i].VulnFixSuggestion = nil
+		images[i].Suggests = nil
 	}
 
 	response.JSONOK(ctx, response.WithItems(images),

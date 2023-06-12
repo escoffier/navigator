@@ -1,6 +1,7 @@
 package imagesec
 
 import (
+	"context"
 	"fmt"
 	"sort"
 	"strconv"
@@ -771,8 +772,33 @@ func (iws *ImageWithCorrelateData2) AddFilter(filter *model.Filter) *ImageWithCo
 	return iws
 }
 
-func (iws *ImageWithCorrelateData2) GenVulnSuggest(addPre ...bool) []string {
-	pre := "建议在Dockerfile里面使用以下命令升级软件包:"
+func (iws *ImageWithCorrelateData2) GenSuggest() []ImageSuggest {
+	res := make([]ImageSuggest, 0)
+
+	vu := iws.GenVulnSuggest()
+	if len(vu.Data) > 0 {
+		res = append(res, vu)
+	}
+
+	we := iws.GenWebshellSuggest()
+	if len(we.Data) > 0 {
+		res = append(res, vu)
+	}
+
+	ma := iws.GenMalwareSuggest()
+	if len(ma.Data) > 0 {
+		res = append(res, ma)
+	}
+
+	se := iws.GenSensitiveFileSuggest()
+	if len(se.Data) > 0 {
+		res = append(res, se)
+	}
+
+	return res
+}
+
+func (iws *ImageWithCorrelateData2) GenVulnSuggest() ImageSuggest {
 	pkg := make([]string, 0)
 	for i := range iws.Vuln {
 		vu := iws.Vuln[i]
@@ -791,16 +817,28 @@ func (iws *ImageWithCorrelateData2) GenVulnSuggest(addPre ...bool) []string {
 		suggest = append(suggest, cmd)
 	}
 
-	if len(addPre) > 0 && addPre[0] {
-		return append([]string{pre}, suggest...)
-	}
-
-	return suggest
+	return ImageSuggest{Data: suggest, Title: VulnSuggestTitle}
 }
 
-func (iws *ImageWithCorrelateData2) GenSensitiveFileSuggest(addPre ...bool) []string {
+const (
+	VulnSuggestTitle     = "建议在Dockerfile里面使用以下命令升级软件包:"
+	MalwareSuggestTitle  = "建议删除木马病毒文件并排查文件来源："
+	WebshellSuggestTitle = "建议删除相关后门并排查文件来源："
+	SensSuggestTitle     = "建议在镜像中移除以下敏感文件，然后重新打包镜像："
+)
 
-	pre := "建议在镜像中移除以下敏感文件，然后重新打包镜像："
+func SuggestTile() map[string]string {
+	en := map[string]string{
+		VulnSuggestTitle:     "it is recommended to use following command in  Dockerfile to upgrade the package:",
+		MalwareSuggestTitle:  "it is recommended to delete the Trojan virus files and investigate the source of the files:",
+		WebshellSuggestTitle: "it is recommended to delete related backdoors and investigate the source of the files:",
+		SensSuggestTitle:     "it is recommended to remove the following sensitive files from the image, and then repackage the image",
+	}
+	return en
+}
+
+func (iws *ImageWithCorrelateData2) GenSensitiveFileSuggest() ImageSuggest {
+
 	files := make([]string, 0)
 
 	for i := range iws.Sensitive {
@@ -815,11 +853,27 @@ func (iws *ImageWithCorrelateData2) GenSensitiveFileSuggest(addPre ...bool) []st
 		files = append(files, file.Name)
 	}
 	files = util.DuplicateStringSlice(files)
+	return ImageSuggest{Data: files, Title: SensSuggestTitle}
+}
 
-	if len(addPre) > 0 && addPre[0] {
-		return append([]string{pre}, files...)
+func (iws *ImageWithCorrelateData2) GenWebshellSuggest() ImageSuggest {
+	files := make([]string, 0)
+
+	for i := range iws.Webshell {
+		files = append(files, iws.Webshell[i].Filepath+iws.Webshell[i].Filename)
 	}
-	return files
+	files = util.DuplicateStringSlice(files)
+	return ImageSuggest{Data: files, Title: WebshellSuggestTitle}
+}
+
+func (iws *ImageWithCorrelateData2) GenMalwareSuggest() ImageSuggest {
+	files := make([]string, 0)
+
+	for i := range iws.Malware {
+		files = append(files, iws.Malware[i].Filepath+iws.Malware[i].Filename)
+	}
+	files = util.DuplicateStringSlice(files)
+	return ImageSuggest{Data: files, Title: MalwareSuggestTitle}
 }
 
 func (iws *ImageWithCorrelateData2) GetImageAttr() ImageAttrResponse {
@@ -1021,31 +1075,30 @@ func (iws *ImageWithCorrelateData2) ToImageBaseResponse() ImageBaseResponse {
 	image := iws.Image
 
 	baseResponse := ImageBaseResponse{
-		ID:                     image.ID,
-		UniqueID:               image.UniqueID,
-		ImageFromType:          image.ImageFromType,
-		Digest:                 image.Digest,
-		SecurityIssue:          iws.GetSecurityIssue(),
-		ImageAttr:              iws.GetImageAttr(),
-		UUID:                   image.ImageUUID,
-		FullRepoName:           image.Repo,
-		Tag:                    image.Tag,
-		Size:                   util.ParseByteSize(image.Size),
-		Os:                     iws.GetImageOs(),
-		Flag:                   image.Flag,
-		BootUser:               image.User,
-		RiskScore:              iws.GetRiskScore(),
-		VulnFixSuggestion:      iws.GenVulnSuggest(),
-		SensitiveFixSuggestion: iws.GenSensitiveFileSuggest(),
-		VulnSeverityOverview:   iws.GenVulnSeverityOverview(),
-		RegistryID:             image.RegID,
-		RegistryUrl:            image.Host,
-		Project:                image.Project,
-		RiskPolicy:             iws.RiskPolicy,
-		LastSyncAt:             image.Heartbeat,
-		TotalPolicy:            iws.TotalPolicy,
-		VulnStatic:             iws.StaticVuln(),
-		RiskPolicyName:         make([]string, 0),
+		ID:                   image.ID,
+		UniqueID:             image.UniqueID,
+		ImageFromType:        image.ImageFromType,
+		Digest:               image.Digest,
+		SecurityIssue:        iws.GetSecurityIssue(),
+		ImageAttr:            iws.GetImageAttr(),
+		UUID:                 image.ImageUUID,
+		FullRepoName:         image.Repo,
+		Tag:                  image.Tag,
+		Size:                 util.ParseByteSize(image.Size),
+		Os:                   iws.GetImageOs(),
+		Flag:                 image.Flag,
+		BootUser:             image.User,
+		RiskScore:            iws.GetRiskScore(),
+		Suggests:             iws.GenSuggest(),
+		VulnSeverityOverview: iws.GenVulnSeverityOverview(),
+		RegistryID:           image.RegID,
+		RegistryUrl:          image.Host,
+		Project:              image.Project,
+		RiskPolicy:           iws.RiskPolicy,
+		LastSyncAt:           image.Heartbeat,
+		TotalPolicy:          iws.TotalPolicy,
+		VulnStatic:           iws.StaticVuln(),
+		RiskPolicyName:       make([]string, 0),
 	}
 	if baseResponse.BootUser == "" {
 		baseResponse.BootUser = BootRootUser
@@ -1187,31 +1240,30 @@ type ImageOS struct {
 }
 
 type ImageBaseResponse struct {
-	ID                     int64                `json:"id"`
-	ImageFromType          string               `json:"imageFromType"`
-	UniqueID               uint64               `json:"uniqueID,string"`
-	Digest                 string               `json:"digest"`
-	Online                 bool                 `json:"online"`        // 在线 "true",离线："false"
-	SecurityIssue          []SecurityIssueLabel `json:"securityIssue"` // 安全问题
-	ImageAttr              ImageAttrResponse    `json:"imageAttr"`     // 镜像属性
-	UUID                   uint32               `json:"uuid"`          // 镜像uuid
-	FullRepoName           string               `json:"fullRepoName"`
-	Tag                    string               `json:"tag"`
-	Size                   string               `json:"size"`
-	Os                     ImageOS              `json:"os"`
-	Flag                   uint64               `json:"flag,string"`
-	LastSyncAt             int64                `json:"lastSyncAt"` // 上次同步时间(单位：毫秒)
-	BootUser               string               `json:"bootUser"`   // 启动用户
-	RiskScore              int64                `json:"riskScore"`
-	VulnFixSuggestion      []string             `json:"vulnFixSuggestion"`
-	SensitiveFixSuggestion []string             `json:"sensitiveFixSuggestion"`
-	ScanStatus             string               `json:"scanStatus"`
-	LastScanAt             int64                `json:"lastScanAt"` // 扫描完成时间戳(单位毫秒)
-	RegistryID             int64                `json:"registryId"`
-	RegistryName           string               `json:"registryName"`
-	RegistryUrl            string               `json:"registryUrl"`
-	Project                string               `json:"project"`
-	VulnSeverityOverview   []SeverityGroup      `json:"vulnSeverityOverview"` // 漏洞统计
+	ID                   int64                `json:"id"`
+	ImageFromType        string               `json:"imageFromType"`
+	UniqueID             uint64               `json:"uniqueID,string"`
+	Digest               string               `json:"digest"`
+	Online               bool                 `json:"online"`        // 在线 "true",离线："false"
+	SecurityIssue        []SecurityIssueLabel `json:"securityIssue"` // 安全问题
+	ImageAttr            ImageAttrResponse    `json:"imageAttr"`     // 镜像属性
+	UUID                 uint32               `json:"uuid"`          // 镜像uuid
+	FullRepoName         string               `json:"fullRepoName"`
+	Tag                  string               `json:"tag"`
+	Size                 string               `json:"size"`
+	Os                   ImageOS              `json:"os"`
+	Flag                 uint64               `json:"flag,string"`
+	LastSyncAt           int64                `json:"lastSyncAt"` // 上次同步时间(单位：毫秒)
+	BootUser             string               `json:"bootUser"`   // 启动用户
+	RiskScore            int64                `json:"riskScore"`
+	Suggests             []ImageSuggest       `json:"suggests"`
+	ScanStatus           string               `json:"scanStatus"`
+	LastScanAt           int64                `json:"lastScanAt"` // 扫描完成时间戳(单位毫秒)
+	RegistryID           int64                `json:"registryId"`
+	RegistryName         string               `json:"registryName"`
+	RegistryUrl          string               `json:"registryUrl"`
+	Project              string               `json:"project"`
+	VulnSeverityOverview []SeverityGroup      `json:"vulnSeverityOverview"` // 漏洞统计
 
 	// 节点镜像新增
 	NodeHostname    string                  `json:"nodeHostname"`
@@ -1223,6 +1275,28 @@ type ImageBaseResponse struct {
 	RiskPolicy      []*SecurityPolicy       `json:"riskPolicy"`     // 镜像的风险来源
 	TotalPolicy     []*SecurityPolicy       `json:"totalPolicy"`    // 已使用的安全策略
 	Safe            string                  `json:"safe"`           // 镜像安全状态
+}
+
+func (vi *ImageBaseResponse) AdaptI18(ctx context.Context) {
+	lang, ok := ctx.Value(AcceptLanguage).(string)
+	if ok && lang == model.LangEn {
+		for i := range vi.Suggests {
+			vi.Suggests[i].Title = SuggestTile()[vi.Suggests[i].Title]
+		}
+	}
+}
+
+func (vi *ImageBaseResponse) SuggestsString() string {
+	res := make([]string, 0)
+	for i := range vi.Suggests {
+		if len(vi.Suggests[i].Data) == 0 {
+			continue
+		}
+		res = append(res, vi.Suggests[i].Title)
+		res = append(res, vi.Suggests[i].Data...)
+	}
+
+	return strings.Join(res, "\n")
 }
 
 func (vi *ImageBaseResponse) GetOSView() string {

@@ -278,6 +278,7 @@ func (s *ScanResultAPI) ImageBaseDetail(ctx *gin.Context) {
 	}
 
 	ans := data.ToImageBaseResponse()
+	ans.AdaptI18(ctx)
 
 	response.JSONOK(ctx, response.WithItem(ans))
 }
@@ -410,8 +411,7 @@ func (s *ScanResultAPI) GetImageRiskInfo(ctx *gin.Context) {
 		}
 		sort.Sort(imagesecModel.SeverityGroups(risk.SeverityOverview))
 		// 减少无用数据的返回
-		risk.ImageBaseResponse.VulnFixSuggestion = nil
-		risk.ImageBaseResponse.SensitiveFixSuggestion = nil
+		risk.ImageBaseResponse.Suggests = nil
 		ans = append(ans, risk)
 	}
 	response.JSONOK(ctx, response.WithItems(ans))

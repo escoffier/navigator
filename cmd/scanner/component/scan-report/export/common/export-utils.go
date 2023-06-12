@@ -376,9 +376,7 @@ func GenImageBaseInfo(data imagesecModel.ImageWithCorrelateData2) []string {
 		info[10] = fmt.Sprintf("%s(%s)", im.Os, "此操作系统已经不再维护，可能导致漏洞扫描结果不准确，建议尽快升级")
 	}
 
-	suggest := append([]string{}, data.GenVulnSuggest(true)...)
-	suggest = append([]string{}, data.GenSensitiveFileSuggest(true)...)
-	info = append(info, strings.Join(suggest, "\n"))
+	info = append(info, im.SuggestsString())
 
 	return info
 }
