@@ -393,9 +393,12 @@ func (s *ExportNodeImageHtmlSrv) GetImageRisk(ctx context.Context, taskID, image
 
 	// 查漏洞和敏感文件，生成处置建议
 	param := imagesecModel.GetImageAssociateDataParam{
+		ImageFromType:         imagesecModel.ImageFromNode,
 		ImageId:               imageID,
 		VulnEnable:            true, // 漏洞单独查询
+		MalwareEnable:         true,
 		SensitiveEnable:       true,
+		WebshellEnable:        true,
 		ScanResultSearchParam: imagesecModel.ScanResultSearchParam{OmitFields: model.GetVulnDefaultOmitFields()},
 		SearchVulnParam: imagesecModel.ApiSearchVulnParam{
 			ImageFromType: imagesecModel.ImageFromNode,
@@ -403,6 +406,7 @@ func (s *ExportNodeImageHtmlSrv) GetImageRisk(ctx context.Context, taskID, image
 			ClassType:     s.VulnClassType,
 			Filter:        model.EmptyFilterForTotalQuery(),
 		},
+		Filter: nil,
 	}
 	data, err := s.NodeImageSrv.GetImageCorrelateData(ctx, param)
 	if err != nil {
