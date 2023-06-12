@@ -780,14 +780,14 @@ func (iws *ImageWithCorrelateData2) GenSuggest() []ImageSuggest {
 		res = append(res, vu)
 	}
 
-	we := iws.GenWebshellSuggest()
-	if len(we.Data) > 0 {
-		res = append(res, we)
-	}
-
 	ma := iws.GenMalwareSuggest()
 	if len(ma.Data) > 0 {
 		res = append(res, ma)
+	}
+
+	we := iws.GenWebshellSuggest()
+	if len(we.Data) > 0 {
+		res = append(res, we)
 	}
 
 	se := iws.GenSensitiveFileSuggest()
