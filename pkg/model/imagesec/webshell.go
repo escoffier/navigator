@@ -140,10 +140,16 @@ func (vi *Webshell) ToWebshellView() *WebshellView {
 	after.Size = util.ParseByteSize(vi.Size)
 	split4 := strings.Split(vi.Description, "-")
 	if len(split4) > 0 {
-		after.RiskLevel = split4[0]
+		after.RiskDetail = split4[0]
 	}
 	if len(split4) > 1 {
 		after.Recommend = split4[1]
+	}
+	if after.Recommend == "" {
+		after.Recommend = "建议清理"
+	}
+	if after.RiskDetail == "" {
+		after.RiskDetail = "webshell"
 	}
 
 	return &after
@@ -155,6 +161,7 @@ func (vi *WebshellView) AdaptI18(ctx context.Context) {
 		vi.RiskDetail = WebshellRiskEN(strings.TrimSpace(vi.RiskDetail))
 		vi.Recommend = WebshellRecommendEN(strings.TrimSpace(vi.Recommend))
 	}
+
 }
 
 func (vi *Webshell) Deserialize() {
