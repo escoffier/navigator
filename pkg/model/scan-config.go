@@ -1,6 +1,7 @@
 package model
 
 import (
+	"context"
 	"fmt"
 	"strconv"
 	"strings"
@@ -71,13 +72,21 @@ type ScanStrategy struct {
 	DeletedAt int       `gorm:"deleted_at" json:"deleted_at"`
 }
 
+func (vi *ScanStrategy) AdaptI18(ctx context.Context) {
+	lang, ok := ctx.Value(AcceptLanguage).(string)
+	if ok && lang == "en" && vi.IsDefault {
+		vi.Name = DefaultScanPolicyEN
+		vi.Operator = DefaultCreatorEN
+	}
+}
+
 type SensitiveFileScan struct {
 	Description string `json:"description"`
 	SecretType  string `json:"secret_type"`
 	Value       string `json:"value"`
 }
 
-func (s *ScanStrategy) TableName() string {
+func (vi *ScanStrategy) TableName() string {
 	return "ivan_scanner_scan_strategies"
 }
 
@@ -228,11 +237,11 @@ func (s *Software) Check() error {
 	return nil
 }
 
-func (s *ScanStrategy) Serialize() {
-	if len(s.SensitiveFile) > 0 {
+func (vi *ScanStrategy) Serialize() {
+	if len(vi.SensitiveFile) > 0 {
 		ses := make([]SensitiveFileScan, 0)
-		for i := range s.SensitiveFile {
-			sen := s.SensitiveFile[i]
+		for i := range vi.SensitiveFile {
+			sen := vi.SensitiveFile[i]
 			sen.Value = strings.TrimSpace(sen.Value)
 			if sen.Value != "" {
 				ses = append(ses, sen)
@@ -245,38 +254,38 @@ func (s *ScanStrategy) Serialize() {
 			}
 		}
 
-		s.SensitiveFile = ses
+		vi.SensitiveFile = ses
 		if len(ses) > 0 {
-			if bys, err := json.Marshal(s.SensitiveFile); err == nil {
-				s.SensitiveFileJson = string(bys)
+			if bys, err := json.Marshal(vi.SensitiveFile); err == nil {
+				vi.SensitiveFileJson = string(bys)
 			} else {
 				logging.GetLogger().Error().Err(err)
 			}
 		}
 	}
-	if len(s.Envs) > 0 {
-		s.Envs = DeDuplicateString(s.Envs)
+	if len(vi.Envs) > 0 {
+		vi.Envs = DeDuplicateString(vi.Envs)
 
-		if bys, err := json.Marshal(s.Envs); err == nil {
-			s.EnvsJson = string(bys)
+		if bys, err := json.Marshal(vi.Envs); err == nil {
+			vi.EnvsJson = string(bys)
 		} else {
 			logging.GetLogger().Error().Err(err)
 		}
 	}
-	if len(s.OpenLicense) > 0 {
-		s.OpenLicense = DeDuplicateString(s.OpenLicense)
-		if bys, err := json.Marshal(s.OpenLicense); err == nil {
-			s.OpenLicenseJson = string(bys)
+	if len(vi.OpenLicense) > 0 {
+		vi.OpenLicense = DeDuplicateString(vi.OpenLicense)
+		if bys, err := json.Marshal(vi.OpenLicense); err == nil {
+			vi.OpenLicenseJson = string(bys)
 		} else {
 			logging.GetLogger().Error().Err(err)
 		}
 	}
 
-	if len(s.Software) > 0 {
+	if len(vi.Software) > 0 {
 		ans := make([]Software, 0)
 		exit := make(map[string]bool)
-		for i := range s.Software {
-			sfo := s.Software[i]
+		for i := range vi.Software {
+			sfo := vi.Software[i]
 			sfo.AbnormalSoft = true
 			sfo.Name = strings.TrimSpace(sfo.Name)
 			sfo.Version = strings.TrimSpace(sfo.Version)
@@ -288,119 +297,119 @@ func (s *ScanStrategy) Serialize() {
 				ans = append(ans, sfo)
 			}
 		}
-		s.Software = ans
-		if bys, err := json.Marshal(s.Software); err == nil {
-			s.SoftwareJson = string(bys)
+		vi.Software = ans
+		if bys, err := json.Marshal(vi.Software); err == nil {
+			vi.SoftwareJson = string(bys)
 		} else {
 			logging.GetLogger().Error().Err(err)
 		}
 	}
 }
 
-func (s *ScanStrategy) ToUpdater() map[string]interface{} {
+func (vi *ScanStrategy) ToUpdater() map[string]interface{} {
 	updater := map[string]interface{}{
-		"name":                s.Name,
-		"operator":            s.Operator,
-		"is_default":          s.IsDefault,
-		"sensitive_file":      s.SensitiveFileJson,
-		"envs":                s.EnvsJson,
-		"open_license":        s.OpenLicenseJson,
-		"software":            s.SoftwareJson,
-		"describe":            s.Describe,
-		"envs_enable":         s.EnvsEnable,
-		"software_enable":     s.SoftwareEnable,
-		"open_license_enable": s.OpenLicenseEnable,
-		"sensitive_enable":    s.SensitiveEnable,
-		"webshell_enable":     s.WebshellEnable,
-		"vul_enable":          s.VulEnable,
-		"malicious_enable":    s.MaliciousEnable,
+		"name":                vi.Name,
+		"operator":            vi.Operator,
+		"is_default":          vi.IsDefault,
+		"sensitive_file":      vi.SensitiveFileJson,
+		"envs":                vi.EnvsJson,
+		"open_license":        vi.OpenLicenseJson,
+		"software":            vi.SoftwareJson,
+		"describe":            vi.Describe,
+		"envs_enable":         vi.EnvsEnable,
+		"software_enable":     vi.SoftwareEnable,
+		"open_license_enable": vi.OpenLicenseEnable,
+		"sensitive_enable":    vi.SensitiveEnable,
+		"webshell_enable":     vi.WebshellEnable,
+		"vul_enable":          vi.VulEnable,
+		"malicious_enable":    vi.MaliciousEnable,
 	}
 	return updater
 }
 
-func (s *ScanStrategy) Deserialize() {
+func (vi *ScanStrategy) Deserialize() {
 	st := make([]SensitiveFileScan, 0)
-	if len(s.SensitiveFileJson) > 0 {
-		if err := json.Unmarshal([]byte(s.SensitiveFileJson), &st); err != nil {
+	if len(vi.SensitiveFileJson) > 0 {
+		if err := json.Unmarshal([]byte(vi.SensitiveFileJson), &st); err != nil {
 			logging.GetLogger().Error().Err(err)
 			st = make([]SensitiveFileScan, 0)
 		}
 	}
-	s.SensitiveFile = st
+	vi.SensitiveFile = st
 
 	envs := make([]string, 0)
-	if len(s.EnvsJson) > 0 {
-		if err := json.Unmarshal([]byte(s.EnvsJson), &envs); err != nil {
+	if len(vi.EnvsJson) > 0 {
+		if err := json.Unmarshal([]byte(vi.EnvsJson), &envs); err != nil {
 			logging.GetLogger().Error().Err(err)
 			envs = make([]string, 0)
 		}
 	}
-	s.Envs = envs
+	vi.Envs = envs
 
 	ops := make([]string, 0)
-	if len(s.OpenLicenseJson) > 0 {
-		if err := json.Unmarshal([]byte(s.OpenLicenseJson), &ops); err != nil {
+	if len(vi.OpenLicenseJson) > 0 {
+		if err := json.Unmarshal([]byte(vi.OpenLicenseJson), &ops); err != nil {
 			logging.GetLogger().Error().Err(err)
 			ops = make([]string, 0)
 		}
 	}
-	s.OpenLicense = ops
+	vi.OpenLicense = ops
 
 	sfs := make([]Software, 0)
-	if len(s.SoftwareJson) > 0 {
-		if err := json.Unmarshal([]byte(s.SoftwareJson), &sfs); err != nil {
+	if len(vi.SoftwareJson) > 0 {
+		if err := json.Unmarshal([]byte(vi.SoftwareJson), &sfs); err != nil {
 			logging.GetLogger().Error().Err(err)
 			sfs = make([]Software, 0)
 		}
 	}
-	s.Software = sfs
+	vi.Software = sfs
 
 }
 
-func (s *ScanStrategy) Check() error {
-	if len([]rune(s.Name)) > 50 || s.Name == "" {
+func (vi *ScanStrategy) Check() error {
+	if len([]rune(vi.Name)) > 50 || vi.Name == "" {
 		return fmt.Errorf("策略名不超过50个字符且不为空")
 	}
-	if len([]rune(s.Describe)) > 200 {
+	if len([]rune(vi.Describe)) > 200 {
 		return fmt.Errorf("策略描述不超过200个字符")
 	}
 
-	for i := range s.OpenLicense {
+	for i := range vi.OpenLicense {
 		flag := false
 		for j := range OpenLicense {
-			if s.OpenLicense[i] == OpenLicense[j] {
+			if vi.OpenLicense[i] == OpenLicense[j] {
 				flag = true
 			}
 		}
 		if !flag {
-			return fmt.Errorf("open license:%s is not allowed", s.OpenLicense[i])
+			return fmt.Errorf("open license:%s is not allowed", vi.OpenLicense[i])
 		}
 	}
-	for i := range s.Software {
-		if s.Software[i].Name == "" || s.Software[i].Version == "" {
+	for i := range vi.Software {
+		if vi.Software[i].Name == "" || vi.Software[i].Version == "" {
 			return fmt.Errorf("software name or version can not be empty")
 		}
 	}
 	// 敏感文件类型赋默认值
-	for i := range s.SensitiveFile {
-		if s.SensitiveFile[i].SecretType == "" {
-			s.SensitiveFile[i].SecretType = "Filename"
+	for i := range vi.SensitiveFile {
+		if vi.SensitiveFile[i].SecretType == "" {
+			vi.SensitiveFile[i].SecretType = "Filename"
 		}
 	}
 
 	return nil
 }
 
-func (s *ScanStrategy) SetDefault() {
+func (vi *ScanStrategy) SetDefault() {
 	// 2.11版本后默认全部扫描
-	s.EnvsEnable = true
-	s.SoftwareEnable = true
-	s.OpenLicenseEnable = true
-	s.SensitiveEnable = true
+	vi.EnvsEnable = true
+	vi.SoftwareEnable = true
+	vi.OpenLicenseEnable = true
+	vi.SensitiveEnable = true
 	// 漏洞，恶义文件,webshell现阶段默认都扫描，前端还没有选项目
-	s.VulEnable = true
-	s.WebshellEnable = true
-	s.MaliciousEnable = true
+	vi.VulEnable = true
+	vi.WebshellEnable = true
+	vi.MaliciousEnable = true
 }
 
 // IsTimeToAddTask 是否到增加任务的时间
