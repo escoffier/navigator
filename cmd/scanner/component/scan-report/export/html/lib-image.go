@@ -417,6 +417,8 @@ func (s *ExportLibImageHtmlSrv) GetImageRisk(ctx context.Context, taskID, imageI
 		ImageId:               imageID,
 		VulnEnable:            false, // 漏洞单独查询
 		SensitiveEnable:       true,
+		WebshellEnable:        true,
+		MalwareEnable:         true,
 		ScanResultSearchParam: imagesec.ScanResultSearchParam{OmitFields: model.GetVulnDefaultOmitFields()},
 	}
 	data, err := s.LibImageSrv.GetImageCorrelateData(ctx, param)
