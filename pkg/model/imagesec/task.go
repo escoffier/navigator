@@ -159,13 +159,12 @@ func (vi *ImageScanTask) Check() error {
 	if vi.ScanType == "" {
 		return fmt.Errorf("not get ScanType")
 	}
-	if vi.Creator == "" || vi.Updater == "" {
-		return fmt.Errorf("not get Creator or Updater")
-	}
 	if vi.Updater == "" {
 		vi.Updater = vi.Creator
 	}
-
+	if vi.ScanType == ManualTrigger && (vi.Creator == "" && vi.Updater == "") {
+		return fmt.Errorf("not get Creator or Updater")
+	}
 	return nil
 }
 
