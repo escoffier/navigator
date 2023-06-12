@@ -347,17 +347,17 @@ func WebshellRecommendEN(rec string) string {
 	if recommend == nil {
 		recommend = map[string]string{
 			"建议清理":            "recommend clean",
-			"建议人工确认":          "manual confirmation is recommend",
-			"建议进行人工确认":        "manual confirmation is recommend",
+			"建议人工确认":          "recommend manual verification",
+			"建议进行人工确认":        "recommend manual verification",
 			"具有执行命令的操作，请检查文件": "has an action to execute the command, check the file",
 			"检查确认后删除相关代码":     "Delete the relevant code after checking and confirming",
 			"$$利用方式2":         "recommend clean",
 			"建议删除":            "recommend clean",
-			"JSP后门，建议清理":      "manual confirmation is recommend",
-			"ASPX后门，建议清理":     "manual confirmation is recommend",
-			"PHP后门，建议清理":      "manual confirmation is recommend",
-			"asp后门，建议清理":      "manual confirmation is recommend",
-			"建议人工鉴定":          "recommend clean",
+			"JSP后门，建议清理":      "recommend clean",
+			"ASPX后门，建议清理":     "recommend clean",
+			"PHP后门，建议清理":      "recommend clean",
+			"asp后门，建议清理":      "recommend clean",
+			"建议人工鉴定":          "recommend manual verification",
 		}
 	}
 	ans := recommend[rec]
