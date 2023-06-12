@@ -1283,6 +1283,21 @@ func (vi *ImageBaseResponse) AdaptI18(ctx context.Context) {
 		for i := range vi.Suggests {
 			vi.Suggests[i].Title = SuggestTile()[vi.Suggests[i].Title]
 		}
+		for i := range vi.RiskPolicyName {
+			if vi.RiskPolicyName[i] == DefaultPolicyNameZH {
+				vi.RiskPolicyName[i] = DefaultPolicyNameEN
+			}
+		}
+		for i := range vi.TotalPolicy {
+			if vi.TotalPolicy[i].IsDefault {
+				vi.TotalPolicy[i].Name = DefaultPolicyNameEN
+			}
+		}
+		for i := range vi.RiskPolicy {
+			if vi.RiskPolicy[i].IsDefault {
+				vi.RiskPolicy[i].Name = DefaultPolicyNameEN
+			}
+		}
 	}
 }
 
