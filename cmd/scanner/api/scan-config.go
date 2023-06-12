@@ -137,6 +137,10 @@ func (sc *ScanConfigAPISrv) ListStrategy(ctx *gin.Context) {
 		return
 	}
 
+	for i := range strategies {
+		strategies[i].AdaptI18(ctx)
+	}
+
 	response.JSONOK(ctx, response.WithItems(strategies),
 		response.WithTotalItems(cnt),
 		response.WithItemsPerPage(filter.Limit),
@@ -170,6 +174,8 @@ func (sc *ScanConfigAPISrv) GetStrategy(ctx *gin.Context) {
 		response.JSONError(ctx, response.NewHttpError(http.StatusGone, fmt.Errorf("策略已删除")))
 		return
 	}
+
+	strategies[0].AdaptI18(ctx)
 
 	response.JSONOK(ctx, response.WithItem(strategies[0]))
 }

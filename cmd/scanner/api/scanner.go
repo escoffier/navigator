@@ -887,6 +887,7 @@ func (s *Scanner) GetScanTaskList(ctx *gin.Context) {
 	for i := range data {
 		data[i].ID, data[i].GroupID = data[i].GroupID, data[i].ID
 		data[i].ChangeTaskCreator()
+		data[i].AdaptI18(ctx)
 	}
 
 	response.JSONOK(ctx,

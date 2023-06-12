@@ -1,6 +1,7 @@
 package model
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"regexp"
@@ -668,6 +669,21 @@ func (vi *Task) ChangeTaskCreator() {
 	}
 	if _, ok := zh[vi.Trigger]; ok {
 		vi.Operator = ""
+	}
+}
+
+const (
+	AcceptLanguage      = "Accept-Language"
+	DefaultScanPolicyZH = "默认扫描策略"
+	DefaultScanPolicyEN = "Default Policy"
+	DefaultCreatorEN    = "System"
+)
+
+// 新需求:空
+func (vi *Task) AdaptI18(ctx context.Context) {
+	lang, ok := ctx.Value(AcceptLanguage).(string)
+	if ok && lang == "en" && vi.ScanStrategyName == DefaultScanPolicyZH {
+		vi.ScanStrategyName = DefaultScanPolicyEN
 	}
 }
 
