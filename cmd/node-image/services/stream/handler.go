@@ -117,6 +117,7 @@ func (i *Handler) updateConfig(s rpcstream.Stream, reqID string, payload []byte)
 		NodeImageConfig: toUpdateConfig,
 	})
 	if err != nil {
+		// just log,still send recv ok response
 		logging.Get().Err(err).Msg("failed to add broadcast server")
 	}
 

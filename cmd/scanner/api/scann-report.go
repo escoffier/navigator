@@ -50,13 +50,13 @@ func (s *Scanner) ScanReportCrate(ctx *gin.Context) {
 // @Param offset query integer true "limit"
 // @Param limit query integer true "offset"
 // @Param key_word query string true "搜索关键字"
-// @Param type query []uint8 true "报告类型：1:周报，2:月报，3:自定义"
+// @Param type query string true "报告类型：1:周报，2:月报，3:自定义"
 // @Success 200 {object} ApiWithItem{}
 // @Router	/api/v1/scan-report [get]
 func (s *Scanner) ScanReportList(ctx *gin.Context) {
 	type query struct {
-		KeyWord string  `json:"key_word" form:"key_word" query:"key_word"`
-		Type    []uint8 `json:"type" form:"type" query:"type"`
+		KeyWord string `json:"key_word" form:"key_word" query:"key_word"`
+		Type    string `json:"type" form:"type" query:"type"`
 		model.PageParams
 	}
 
