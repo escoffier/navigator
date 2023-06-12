@@ -195,7 +195,7 @@ func (s *ScanResultReportSrv) UpdateImage(ctx context.Context, imageID int64, da
 
 	baseImage := data.ToImageBaseResponse()
 
-	if len(baseImage.SensitiveFixSuggestion) > 0 || len(baseImage.VulnFixSuggestion) > 0 {
+	if len(baseImage.Suggests) > 0 {
 		flag = util.SetBit1(flag, model.FlagImageHasFixSuggest)
 	} else {
 		flag = util.SetBit0(flag, model.FlagImageHasFixSuggest)

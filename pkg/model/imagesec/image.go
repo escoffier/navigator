@@ -228,3 +228,8 @@ type SecurityIssueStatic struct {
 	License        int64 `json:"license"`
 	PrivilegedBoot int64 `json:"privilegedBoot"`
 }
+
+type ImageSuggest struct {
+	Title string   `json:"title"`
+	Data  []string `json:"data"`
+}

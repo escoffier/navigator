@@ -138,7 +138,7 @@ func (s *Detector) DetectImage(ctx context.Context) {
 		subtaskChan := s.GenSubtaskChan(ctx, task)
 
 		for subtask := range subtaskChan {
-			logging.Get().Debug().Int64("taskID", task.ID).Interface("subtask", subtaskChan).
+			logging.Get().Debug().Int64("taskID", task.ID).Interface("subtask", subtask).
 				Msg("Detector get subtask")
 
 			_ = s.UpdateSubTask(ctx, subtask.ID, getStartUpdater())

@@ -201,8 +201,7 @@ func (s *ImageInfoAPI) SearchImageWithScan(ctx *gin.Context) {
 		return
 	}
 	for i := range images {
-		images[i].SensitiveFixSuggestion = nil
-		images[i].VulnFixSuggestion = nil
+		images[i].Suggests = nil
 		images[i].RiskPolicy = nil
 		images[i].TotalPolicy = nil
 	}
