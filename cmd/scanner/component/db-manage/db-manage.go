@@ -3,6 +3,8 @@ package dbManage
 import (
 	"context"
 	"fmt"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/task"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"mime/multipart"
 	"os"
 	"path/filepath"
@@ -451,6 +453,32 @@ func (v *DBManage) UpdateVulnDB(ctx *gin.Context, header *multipart.FileHeader, 
 		}
 		_ = v.generateScanTask()
 	}()
+
+	go func() {
+		if r := recover(); r != nil {
+			logging.Get().Error().Msgf("addLibScanTask panic: %v. Stack: %s", r, debug.Stack())
+		}
+		_ = v.addLibScanTask()
+	}()
+
+	return nil
+}
+
+func (v *DBManage) addLibScanTask() error {
+	if os.Getenv("IS_MAIN_CLUSTER") != consts.TrueString {
+		logging.Get().Info().Msg("AddTaskByStrategy DBManage add scan task not in main cluster")
+		return nil
+	}
+	// 增加扫描任务
+	ts := task.NewTaskSrv()
+	if err := ts.GenerateScanTask(context.Background(), nil, task.UpdateTaskInfo{
+		Scope:       consts.FullScan,
+		TriggerType: consts.VulDataUpdateTrigger,
+	}); err != nil {
+		logging.Get().Err(err).Msg("AddTaskByStrategy DBManage add scan task failed")
+		return err
+	}
+	logging.Get().Info().Msgf("AddTaskByStrategy DBManage add scan task success")
 	return nil
 }
 

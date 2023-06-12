@@ -48,7 +48,28 @@ func NewTaskSrv() *TaskSrv {
 func (t *TaskSrv) GenerateScanTask(ctx context.Context, imageIds []int64, info UpdateTaskInfo) error {
 	logging.GetLogger().Info().Int("imageLength", len(imageIds)).Msg("GenerateScanTask")
 	if len(imageIds) == 0 {
-		return fmt.Errorf("not find image")
+		// 查全部镜像
+		imageIds = make([]int64, 0)
+		var startID int64
+		for {
+			images, _, err := t.imageDal.SearchImage(ctx, imagesec.SearchImageParam{
+				StartID:    startID,
+				Fields:     []string{"id"},
+				OmitFields: []string{"config_json"},
+			}, model.EmptyFilter().SetSortAsc().SetLimit(consts.DefaultBathSize).SetSortFiledByID(),
+			)
+			if err != nil {
+				logging.GetLogger().Err(err).Msg("GenerateScanTask.SearchImage")
+				return err
+			}
+			if len(images) == 0 {
+				break
+			}
+			startID = images[len(images)-1].ID
+			for i := range images {
+				imageIds = append(imageIds, images[i].ID)
+			}
+		}
 	}
 
 	strategyID := info.StrategyID
