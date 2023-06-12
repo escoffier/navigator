@@ -657,6 +657,20 @@ func (Task) TableName() string {
 	return "ivan_scanner_scan_task"
 }
 
+// 新需求:空
+func (vi *Task) ChangeTaskCreator() {
+	zh := map[int]string{
+		consts.CiCdTrigger:            "",
+		consts.VulDataUpdateTrigger:   "",
+		consts.VirusDataUpdateTrigger: "",
+		consts.ScheduleTrigger:        "",
+		consts.ImageSyncTrigger:       "",
+	}
+	if _, ok := zh[vi.Trigger]; ok {
+		vi.Operator = ""
+	}
+}
+
 type SubTask struct {
 	ID         int64      `json:"id"`
 	TaskID     int64      `gorm:"column:task_id;index:task_id_idx" json:"task_id"`
