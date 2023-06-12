@@ -369,7 +369,9 @@ func init() {
 			"zh": {
 				"verb":   createAction,
 				"detail": "新增平台报告{{.}}"},
-			"en": {createActionEN: "Add platform report{{.}}"},
+			"en": {
+				"verb":   createActionEN,
+				"detail": "Add platform report{{.}}"},
 		}
 
 		// return createAction, "新增平台报告{{.}}"
