@@ -886,6 +886,7 @@ func (s *Scanner) GetScanTaskList(ctx *gin.Context) {
 	// 多集群适配，为了前端少改动，把groupID和ID对换
 	for i := range data {
 		data[i].ID, data[i].GroupID = data[i].GroupID, data[i].ID
+		data[i].ChangeTaskCreator()
 	}
 
 	response.JSONOK(ctx,
