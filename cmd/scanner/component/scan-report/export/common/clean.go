@@ -12,7 +12,6 @@ import (
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
-	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	imagesecModel "gitlab.com/piccolo_su/vegeta/pkg/model/imagesec"
 )
 
@@ -96,10 +95,10 @@ func (s *ClearFileAndRecord) Clean(ctx context.Context) {
 		if err := s.ExportTaskDal.DeleteExportTensorTask(ctx, tasks[i].ID); err != nil {
 			logging.Get().Err(err).Int64("taskID", tasks[i].ID).Msg("DeleteExportTensorTask")
 		}
-		if err := s.IdempotentDal.DeleteIdempotent(ctx, store.SearchIdempotentParam{
-			TableId: tasks[i].ID, TableNAME: new(model.ExportTensorTask).TableName()}); err != nil {
-			logging.Get().Err(err).Int64("taskID", tasks[i].ID).Msg("DeleteIdempotent")
-		}
+		//if err := s.IdempotentDal.DeleteIdempotent(ctx, store.SearchIdempotentParam{
+		//	TableId: tasks[i].ID, TableNAME: new(model.ExportTensorTask).TableName()}); err != nil {
+		//	logging.Get().Err(err).Int64("taskID", tasks[i].ID).Msg("DeleteIdempotent")
+		//}
 	}
 
 	tasks2, _, err := s.ExportTaskDal.SearchExportTensorTask(ctx, store.SearchExportTensorTask{Finished: consts.FalseString}, nil)
@@ -110,8 +109,8 @@ func (s *ClearFileAndRecord) Clean(ctx context.Context) {
 	for i := range tasks2 {
 		if tasks2[i].StartAt > 0 && time.Now().Unix()-tasks2[i].StartAt > 4*60*60 { // 设置一个较大的值
 			updater := map[string]interface{}{
-				"finished": time.Now().Unix(),
-				"err_msg":  imagesecModel.TaskFailedReasonTimeout,
+				"finish_at": time.Now().Unix(),
+				"err_msg":   imagesecModel.TaskFailedReasonTimeout,
 			}
 
 			if err := s.ExportTaskDal.UpdateExportTensorTask(ctx, fmt.Sprintf("id = %d", tasks2[i].ID),

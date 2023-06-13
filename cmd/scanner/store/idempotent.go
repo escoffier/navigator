@@ -29,7 +29,7 @@ func (dal *IdempotentDao) DeleteIdempotent(ctx context.Context, param SearchIdem
 	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*10)
 	defer cancelFunc()
 	db := dal.db.Get().WithContext(ctx).Model(&model.Idempotent{})
-	db = db.Where("table_id = ?", param.TableId)
+	db = db.Where("data_id = ?", param.TableId)
 	db = db.Where("table_name = ?", param.TableNAME)
 	err := db.Delete(&model.Idempotent{}).Error
 	return err
