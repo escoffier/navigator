@@ -832,7 +832,7 @@ func SuggestTile() map[string]string {
 		VulnSuggestTitle:     "it is recommended to use following command in  Dockerfile to upgrade the package:",
 		MalwareSuggestTitle:  "it is recommended to delete the Trojan virus files and investigate the source of the files:",
 		WebshellSuggestTitle: "it is recommended to delete related backdoors and investigate the source of the files:",
-		SensSuggestTitle:     "it is recommended to remove the following sensitive files from the image, and then repackage the image",
+		SensSuggestTitle:     "it is recommended to remove the following sensitive files from the image, and then repackage the image:",
 	}
 	return en
 }
