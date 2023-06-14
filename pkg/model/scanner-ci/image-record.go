@@ -25,7 +25,7 @@ type VulnList struct {
 	PkgName     string `json:"pkgName"`    // 软件包来源
 	PkgVersion  string `json:"pkgVersion"` // 软件包版本
 	FixedBy     string `json:"fixedBy"`    // 修复建议
-	UniqueVuln  uint64 `json:"uniqueVuln,string"`
+	UniqueID    uint64 `json:"uniqueID,string"`
 	Language    string `json:"language"` // 把编程语言
 	Class       string `json:"class"`
 	Match       int
@@ -222,7 +222,7 @@ type CountServerity struct {
 }
 type VulnDetailInfo struct {
 	ID          int64                       `json:"id"`
-	UniqueVuln  uint64                      `json:"uniqueVuln,string"` // uint64在前端传
+	UniqueID    uint64                      `json:"uniqueID,string"` // uint64在前端传
 	Name        string                      `json:"name"`
 	Severity    string                      `json:"severity"`
 	Pkgname     string                      `json:"pkgname"`

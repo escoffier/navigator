@@ -422,9 +422,7 @@ func (s *ExportCiImageHtmlSrv) createExportHtml(ctx context.Context, task model.
 		}
 	}
 
-	defer func() {
-		_ = rsp.Body.Close()
-	}()
+	defer func() { _ = rsp.Body.Close() }()
 
 	if rsp.StatusCode != http.StatusOK {
 		return fmt.Errorf("unexpected status code in updatenodes: %d", rsp.StatusCode)

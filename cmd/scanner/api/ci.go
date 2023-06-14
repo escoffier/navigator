@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	scani18 "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scan-i18"
 	"io/ioutil"
 	"net/http"
 	"os"
@@ -65,12 +66,8 @@ func (c *CiApiSrv) GetSensitives(ctx *gin.Context) {
 	offset := c.GetParseInt(ctx, "offset")
 	imageID := c.GetParseInt(ctx, "image_id")
 	search := ctx.Query("keyword")
-	matchPolicy := ctx.Query("match_policy")
-	match := false
-	if matchPolicy == "true" {
-		match = true
-	}
-	res, cnt, err := c.Component.IM.GetSensitives(ctx, int(limit), int(offset), imageID, search, match)
+	matchPolicy := util.GetBoolStringFromQuery(ctx, "match_policy")
+	res, cnt, err := c.Component.IM.GetSensitives(ctx, int(limit), int(offset), imageID, search, matchPolicy == consts.TrueString)
 	if err != nil {
 		logging.Get().Err(err).Msgf("get sensitive error")
 		response.JSONError(ctx, fmt.Errorf("get sensitive error"))
@@ -563,35 +560,18 @@ func (c *CiApiSrv) GetRecordPkgs(ctx *gin.Context) {
 }
 
 func (c *CiApiSrv) GetVulnDetail(ctx *gin.Context) {
-	var (
-		uniqueVuln uint64
-		err        error
-	)
+	//var (
+	//	uniqueVuln uint64
+	//	err        error
+	//)
 
-	uniqueVulnStr := ctx.Query("uniqueVuln")
-	logging.Get().Debug().Str("uniqueVulnStr", uniqueVulnStr).Msg("recv get vuln req")
-	if uniqueVulnStr == "" {
-		vulnName := ctx.Query("vulnName")
-		pkgName := ctx.Query("pkgName")
-		pkgVersion := ctx.Query("pkgVersion")
-		logging.Get().Debug().Str("vuln", vulnName).Str("pkgName", pkgName).Str("pkgVersion", pkgVersion).Msg("recv get vuln req")
-
-		if vulnName == "" || pkgName == "" || pkgVersion == "" {
-			response.JSONError(ctx, fmt.Errorf("vulnName,pkgName,pkgVersion must not empty"))
-			return
-		}
-		uniqueVuln = util.GenerateUUID64(fmt.Sprintf(consts.UniqueVulnFamat, vulnName, pkgName, pkgVersion))
-	} else {
-		uniqueVuln, err = strconv.ParseUint(uniqueVulnStr, 10, 64)
-		if err != nil {
-			logging.Get().Err(err).Msg("parse uniq vuln err")
-			response.JSONError(ctx, fmt.Errorf("not get uniqueVuln"))
-			return
-		}
+	uniqueID := util.GetUint64FromQuery(ctx, "uniqueID")
+	if uniqueID <= 0 {
+		response.JSONError(ctx, scani18.NotGetVulnID())
+		return
 	}
-	logging.Get().Debug().Uint64("uniqVuln", uniqueVuln).Msg("get vuln hash")
 
-	vulns, _, _, err := c.Component.IM.SearchVulns(ctx, scanner_ci.SearchVulnParam{UniqueVulns: []uint64{uniqueVuln}}, nil)
+	vulns, _, _, err := c.Component.IM.SearchVulns(ctx, scanner_ci.SearchVulnParam{UniqueVulns: []uint64{uniqueID}}, nil)
 	if err != nil {
 		response.JSONError(ctx, err)
 		return
@@ -606,7 +586,7 @@ func (c *CiApiSrv) GetVulnDetail(ctx *gin.Context) {
 	res := scanner_ci.VulnDetail{
 		VulninfoApi: scanner_ci.VulnDetailInfo{
 			ID:          vuln.ID,
-			UniqueVuln:  vuln.UniqueVuln,
+			UniqueID:    vuln.UniqueVuln,
 			Name:        vuln.Name,
 			Severity:    vuln.Severity,
 			Pkgname:     vuln.PkgName,
@@ -620,6 +600,9 @@ func (c *CiApiSrv) GetVulnDetail(ctx *gin.Context) {
 		res.VulninfoApi.Cvss = vuln.Metadata.CVSS
 		res.VulninfoApi.Cnvd = vuln.Metadata.CNVDs
 		res.VulninfoApi.CNNVDs = vuln.Metadata.CNNVDs
+		if util.GetLanguage(ctx) == model.LangZh && len(vuln.Metadata.CNVDs) > 0 {
+			res.VulninfoApi.Description = vuln.Metadata.CNVDs[0].Description
+		}
 	}
 
 	response.JSONOK(ctx, response.WithItem(res))
@@ -639,11 +622,8 @@ func (c *CiApiSrv) GetRecordVulns(ctx *gin.Context) {
 	severityInts := make([]int64, 0)
 	class := util.GetStringSliceFromQuery(ctx, "class")
 	severityStr := ctx.Query("severity")
-	matchPolicy := ctx.Query("match_policy")
-	match := false
-	if matchPolicy != "" {
-		match = true
-	}
+
+	matchPolicy := util.GetBoolStringFromQuery(ctx, "match_policy")
 	if severityStr != "" {
 		severityStrs := strings.Split(severityStr, ",")
 		for _, severity := range severityStrs {
@@ -670,7 +650,7 @@ func (c *CiApiSrv) GetRecordVulns(ctx *gin.Context) {
 		CanFixed:    canFixed,
 		SeverityInt: severityInts,
 		Class:       class,
-		MatchPolicy: match,
+		MatchPolicy: matchPolicy == consts.TrueString,
 	}
 	vulns, levels, cnt, err := c.Component.IM.SearchVulns(ctx, param, filter)
 	if err != nil {
@@ -686,7 +666,7 @@ func (c *CiApiSrv) GetRecordVulns(ctx *gin.Context) {
 			SeverityInt: vulns[i].SeverityInt,
 			Severity:    vulns[i].Severity,
 			FixedBy:     vulns[i].FixedBy,
-			UniqueVuln:  vulns[i].UniqueVuln,
+			UniqueID:    vulns[i].UniqueVuln,
 			Language:    vulns[i].Language,
 			PkgName:     vulns[i].PkgName,
 			PkgVersion:  vulns[i].PkgVersion,

@@ -23,6 +23,7 @@ type ImageUpdateSrv struct {
 	registryDal     store.RegistryDal
 	policyDal       imagesecStore.DetectPolicyDal
 	detectResultDal imagesecStore.ImageDetectResultDal
+	detectTaskDal   imagesecStore.DetectTaskDal
 	trustedDal      store.TrustedImageDal
 	configDal       imagesecStore.ScanImageConfigDal
 	nodeTaskDal     imagesecStore.ScanTaskDal
@@ -34,6 +35,7 @@ func NewImageUpdateSrv(
 	registryDal store.RegistryDal,
 	policyDal imagesecStore.DetectPolicyDal,
 	detectResultDal imagesecStore.ImageDetectResultDal,
+	detectTaskDal imagesecStore.DetectTaskDal,
 	trustedDal store.TrustedImageDal,
 	configDal imagesecStore.ScanImageConfigDal,
 	nodeTaskDal imagesecStore.ScanTaskDal,
@@ -44,6 +46,7 @@ func NewImageUpdateSrv(
 		registryDal:     registryDal,
 		policyDal:       policyDal,
 		detectResultDal: detectResultDal,
+		detectTaskDal:   detectTaskDal,
 		trustedDal:      trustedDal,
 		configDal:       configDal,
 		nodeTaskDal:     nodeTaskDal,
@@ -248,7 +251,7 @@ func (s *ImageUpdateSrv) deleteOverdueImage(ctx context.Context) error {
 	sub := time.Now().UnixMilli() - config.NodeImageConfig.ClearInterval*consts.MillisecondPerDay // 数据库:milliseconds
 
 	images, _, err := s.imageDal.SearchImage(ctx, imagesecModel.NodeImageDalParam{LessHeartbeat: sub,
-		Fields: []string{"id"}})
+		Fields: []string{"id", "unique_id"}})
 	if err != nil {
 		logging.Get().Err(err).Msg("deleteOverdueImage SearchImage")
 		return err
@@ -258,7 +261,12 @@ func (s *ImageUpdateSrv) deleteOverdueImage(ctx context.Context) error {
 	for i := range images {
 		if err := s.imageDal.DeleteImage(ctx, images[i].ImageFromType, images[i].ID); err != nil {
 			logging.Get().Err(err).Int64("imageID", images[i].ID).Msg("deleteOverdueImage DeleteImage")
-			return err
+			continue
+		}
+		// 删除检测任务
+		if err := s.detectTaskDal.DeleteDetectSubtask(ctx, imagesecModel.SearchTaskParam{ImageUniqueID: images[i].UniqueID}); err != nil {
+			logging.Get().Err(err).Uint64("ImageUniqueID", images[i].UniqueID).Msg("deleteOverdueImage DeleteDetectSubtask")
+			continue
 		}
 	}
 	logging.Get().Info().Int("images", len(images)).Msg("deleteOverdueImage find overdue image and deleted")

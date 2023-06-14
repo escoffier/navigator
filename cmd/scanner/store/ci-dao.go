@@ -470,6 +470,9 @@ func (c *CiDao) SearchVuln(ctx context.Context, param scanner_ci.SearchVulnParm,
 			return nil, model.SeverityHistogramInfo{}, 0, err
 		}
 		var list []uint64
+		if len(ciVulnImages) == 0 {
+			return make([]*scanner_ci.CiVulns, 0), model.SeverityHistogramInfo{}, 0, err
+		}
 		for k := range ciVulnImages {
 			list = append(list, ciVulnImages[k].UniqueVuln)
 		}

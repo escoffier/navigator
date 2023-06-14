@@ -333,6 +333,9 @@ func (dal *DetectTaskDao) DeleteDetectSubtask(ctx context.Context, param imagese
 	if len(param.TaskIds) > 0 {
 		db = db.Where("task_id IN ?", param.TaskIds)
 	}
+	if param.ImageUniqueID > 0 {
+		db = db.Where("image_unique_id = ?", param.ImageUniqueID)
+	}
 	if param.TaskID > 0 {
 		db = db.Where("id = ?", param.TaskID)
 	}
