@@ -77,6 +77,8 @@ var (
 		"kube_proxy_version",
 		"architecture",
 		"os_image",
+		// "volumes",
+		// "container_images",
 		"updated_at",
 		"status",
 		"ready",
@@ -800,6 +802,11 @@ func SoftDeleteResourceWithRedis(ctx context.Context, rdb *gorm.DB, redisClient 
 			}
 
 			logging.GetLogger().Info().Msgf("delete resource %d container images: %v", uuid, images)
+			// 删除镜像信息
+			err = deleteResourceImages(ctx, redisClient, uuid, images)
+			if err != nil {
+				return err
+			}
 		}
 
 		// delete releted containers
@@ -926,6 +933,10 @@ func UpsertResourceWithRedis(ctx context.Context, rdb *gorm.DB, redisClient *red
 
 func doUpsertResourceRedis(ctx context.Context, client *redisearch.Client, resource *model.TensorResource, images []uint32, updateTime time.Time) error {
 
+	if err := upsertResourceImages(ctx, client, resource.ID, images); err != nil {
+		return err
+	}
+
 	var imageS []string
 
 	for _, image := range images {
@@ -944,6 +955,102 @@ func doUpsertResourceRedis(ctx context.Context, client *redisearch.Client, resou
 		Set("images", strings.Join(imageS, ","))
 
 	return upsertRedisDocument(ctx, client, doc)
+}
+
+func upsertResourceImages(ctx context.Context, redisClient *redisearch.Client, resourceID uint32, images []uint32) error {
+	doc, err := redisClient.GetDoc(ctx, fmt.Sprintf("resource:%d", resourceID))
+	if err != nil && err != redisearch.ErrDocNotFound {
+		return err
+	}
+	oldImages := make([]uint32, 0)
+
+	if doc != nil {
+		oldImageList := strings.Split(cast.ToString(doc.Properties["images"]), ",")
+		for _, oldImage := range oldImageList {
+			oldImages = append(oldImages, cast.ToUint32(oldImage))
+		}
+	}
+
+	var (
+		deleteImage []uint32
+		addImage    []uint32
+	)
+
+	// 不会很多，双层匹配
+	for _, old := range oldImages {
+		var match bool
+
+		for _, new := range images {
+			if old == new {
+				match = true
+			}
+		}
+		if !match {
+			deleteImage = append(deleteImage, old)
+		}
+	}
+
+	for _, new := range images {
+		var match bool
+		for _, old := range oldImages {
+			if old == new {
+				match = true
+			}
+		}
+		if !match {
+			addImage = append(addImage, new)
+		}
+	}
+
+	if err = addResourceImages(ctx, redisClient, resourceID, addImage); err != nil {
+		return err
+	}
+
+	if err = deleteResourceImages(ctx, redisClient, resourceID, deleteImage); err != nil {
+		return err
+	}
+	return nil
+}
+
+func addResourceImages(ctx context.Context, redisClient *redisearch.Client, resourceID uint32, images []uint32) error {
+	if len(images) == 0 {
+		return nil
+	}
+	conn, err := redisClient.GetConn(ctx)
+	if err != nil {
+		return err
+	}
+	defer conn.Close()
+	args := make([]interface{}, 0)
+	args = append(args, "container_images")
+
+	for _, image := range images {
+		args = append(args, image, fmt.Sprintf("%d/%d", resourceID, image))
+	}
+
+	_, err = conn.Do("ZADD", args...)
+
+	return err
+}
+
+func deleteResourceImages(ctx context.Context, redisClient *redisearch.Client, resourceID uint32, images []uint32) error {
+	if len(images) == 0 {
+		return nil
+	}
+	conn, err := redisClient.GetConn(ctx)
+	if err != nil {
+		return err
+	}
+	defer conn.Close()
+	args := make([]interface{}, 0)
+	args = append(args, "container_images")
+
+	for _, image := range images {
+		args = append(args, fmt.Sprintf("%d/%d", resourceID, image))
+	}
+
+	_, err = conn.Do("ZREM", args...)
+	return err
 }
 
 // container_images  rawContainerUUID ： imageUUID
@@ -3141,7 +3248,7 @@ func UpsertRawContainerWithRedis(ctx context.Context, rdb *gorm.DB, redisClient 
 		Set("updated_at", container.UpdatedAt.UnixMilli())
 
 	containerUUId := util.GenerateUUID(container.ContainerID)
-	imageUUid := GetImageUUID(container.ImageName, container.ImageDigest)
+	imageUUid := util.GenerateUUID(container.ImageName) // 对应 cotainer表中的image
 
 	return rdb.WithContext(rCtx).Transaction(func(tx *gorm.DB) error {
 		err := tx.Model(&model.TensorRawContainer{}).Clauses(clause.OnConflict{
@@ -3168,12 +3275,6 @@ func UpsertRawContainerWithRedis(ctx context.Context, rdb *gorm.DB, redisClient 
 			return redisClient.AddDoc(rCtx, doc)
 		}
 	})
-}
-
-// imageuuid 计算方式：(imageName@imageDigest)
-func GetImageUUID(imageName string, imageDigest string) uint32 {
-	key := fmt.Sprintf("%s@%s", imageName, imageDigest)
-	return util.GenerateUUID(key)
 }
 
 func UpsertRawContainers(ctx context.Context, rdb *gorm.DB, container *model.TensorRawContainer) error {
