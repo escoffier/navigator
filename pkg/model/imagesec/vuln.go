@@ -385,6 +385,9 @@ func (vi *Vuln) GenVulnView() *VulnView {
 	if vv.FixedVersion == "" {
 		vv.CnnvdFixSuggestion = ""
 	}
+	if vv.Description == "" {
+		vv.Description = vi.DescriptionEn
+	}
 
 	return &vv
 }
