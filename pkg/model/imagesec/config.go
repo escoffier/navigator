@@ -185,6 +185,11 @@ func (vi *ScanCycle) Check() *i18.ErrI18 {
 
 func (vi *NodeImageConfig) IsTimeToAddTask(checkInter time.Duration) bool {
 	logging.Get().Debug().Msgf("AddTaskByStrategy config: %+v", vi)
+	if !vi.ScanCycle.Enable {
+		logging.Get().Debug().Msg("IsTimeToAddTask cycle scan not enable")
+		return false
+	}
+
 	now := time.Now().UTC().Add(time.Hour * 8)
 	add := false
 	nowW := now.Weekday()

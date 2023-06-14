@@ -345,7 +345,7 @@ func (s *ScanResultReportSrv) CreatePkgVuln(ctx context.Context, data imagesecTy
 				PkgName:          vul.PkgName,
 				PkgVersion:       vul.InstalledVersion,
 				PkgType:          res.Type,
-				Description:      vul.Description,
+				DescriptionEn:    vul.Description,
 				References:       vul.References,
 				Class:            string(res.Class),
 				CVSS:             make(map[string]imagesecModel.Cvss),
@@ -771,6 +771,7 @@ func (s *ScanResultReportSrv) AddDetailVuln(ctx context.Context, vuln *imagesecM
 	}
 	if len(cnvdData) > 0 {
 		vuln.CnvdTitle = cnvdData[0].Title
+		vuln.DescriptionZh = cnvdData[0].Description
 	}
 	logging.Get().Debug().Str("vulnID", vuln.Name).Msg("ScanResultReportSrv AddDetailVuln")
 }

@@ -117,29 +117,13 @@ func (s *Scanner) ListImageInfoFromVuln(ctx *gin.Context) {
 
 func (s *Scanner) ScannedByVulnDetails(ctx *gin.Context) {
 
-	uniqueVulnStr := ctx.Query("uniqueVuln")
-	var (
-		uniqueVuln uint64
-		err        error
-	)
-	if uniqueVulnStr == "" {
-		vulnName := util.GetKeywordFromQuery(ctx, "vulnName")
-		pkgName := util.GetKeywordFromQuery(ctx, "pkgName")
-		pkgVersion := util.GetKeywordFromQuery(ctx, "pkgVersion")
-		if vulnName == "" || pkgName == "" || pkgVersion == "" {
-			response.JSONError(ctx, fmt.Errorf("vulnName,pkgName,pkgVersion must not empty"))
-			return
-		}
-		uniqueVuln = util.GenerateUUID64(fmt.Sprintf(consts.UniqueVulnFamat, vulnName, pkgName, pkgVersion))
-	} else {
-		uniqueVuln, err = strconv.ParseUint(uniqueVulnStr, 64, 10)
-		if err != nil {
-			response.JSONError(ctx, scani18.NotGetVulnID())
-			return
-		}
+	uniqueID := util.GetUint64FromQuery(ctx, "uniqueID")
+	if uniqueID <= 0 {
+		response.JSONError(ctx, scani18.NotGetVulnID())
+		return
 	}
 
-	vulns, _, err := s.VulnSrv.SearchVulns(ctx, model.SearchVulnParam{UniqueVulns: []uint64{uniqueVuln}}, nil)
+	vulns, _, err := s.VulnSrv.SearchVulns(ctx, model.SearchVulnParam{UniqueVulns: []uint64{uniqueID}}, nil)
 	if err != nil {
 		response.JSONError(ctx, scani18.SearchVuln(err))
 		return
@@ -154,7 +138,7 @@ func (s *Scanner) ScannedByVulnDetails(ctx *gin.Context) {
 		VulninfoApi: model.VulnDetailInfo{
 			CvssMap:     vuln.CvssMap,
 			ID:          vuln.ID,
-			UniqueVuln:  vuln.UniqueVuln,
+			UniqueID:    vuln.UniqueVuln,
 			Name:        vuln.Name,
 			Severity:    vuln.Severity,
 			Pkgname:     vuln.PkgName,
@@ -167,6 +151,10 @@ func (s *Scanner) ScannedByVulnDetails(ctx *gin.Context) {
 		res.VulninfoApi.Cvss = vuln.Metadata.CVSS
 		res.VulninfoApi.Cnvd = vuln.Metadata.CNVDs
 		res.VulninfoApi.CNNVDs = vuln.Metadata.CNNVDs
+		if util.GetLanguage(ctx) == model.LangZh && len(vuln.Metadata.CNVDs) > 0 {
+			res.VulninfoApi.Description = vuln.Metadata.CNVDs[0].Description
+		}
+
 	}
 	if res.VulninfoApi.Fixedby == "" {
 		res.VulninfoApi.CNNVDs.FixSuggestion = ""

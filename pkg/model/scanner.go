@@ -152,7 +152,7 @@ type VulnOverview struct {
 
 type VulnDetailInfo struct {
 	ID          int64                   `json:"id"`
-	UniqueVuln  uint64                  `json:"uniqueVuln,string"` // uint64在前端传
+	UniqueID    uint64                  `json:"uniqueID,string"` // uint64在前端传
 	Name        string                  `json:"name"`
 	Severity    string                  `json:"severity"`
 	Pkgname     string                  `json:"pkgname"`

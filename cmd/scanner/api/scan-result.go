@@ -879,6 +879,8 @@ func (s *ScanResultAPI) GetVulnDetail(ctx *gin.Context) {
 		return
 	}
 
+	vuln[0].AdaptI18(ctx)
+
 	response.JSONOK(ctx, response.WithItem(vuln[0]))
 }
 

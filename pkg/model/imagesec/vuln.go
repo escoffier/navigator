@@ -1,6 +1,7 @@
 package imagesec
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -179,9 +180,10 @@ type Vuln struct {
 	PkgVersion         string          `gorm:"column:pkg_version" json:"pkg_version"` // 软件包版本
 	CnnvdName          string          `gorm:"column:cnnvd_name" json:"cnnvdName"`
 	CnnvdFixSuggestion string          `gorm:"column:cnnvd_fix_suggestion" json:"cnnvd_fix_suggestion"`
-	PkgType            string          `gorm:"column:pkg_type" json:"pkgType"`        // 发行版名字：alpine，redhat,对应原 vuln 表中的 namespace  trivy 结构中的Type
-	Description        string          `gorm:"column:description" json:"description"` // 描述
-	References         []string        `gorm:"-" json:"references"`                   // 参考链接
+	PkgType            string          `gorm:"column:pkg_type" json:"pkgType"`             // 发行版名字：alpine，redhat,对应原 vuln 表中的 namespace  trivy 结构中的Type
+	DescriptionEn      string          `gorm:"column:description_en" json:"descriptionEn"` // 描述
+	DescriptionZh      string          `gorm:"column:description_zh" json:"descriptionZh"` // 描述
+	References         []string        `gorm:"-" json:"references"`                        // 参考链接
 	ReferencesJSON     string          `gorm:"column:references" json:"-"`
 	Class              string          `gorm:"class" json:"class"` // 漏洞类型
 	CVSSJSON           string          `gorm:"column:cvss" json:"-"`
@@ -341,7 +343,9 @@ func (vi *Vuln) GenVulnView() *VulnView {
 		PkgVersion:         vi.PkgVersion,
 		CnnvdName:          vi.CnnvdName,
 		PkgRelease:         vi.PkgType,
-		Description:        vi.Description,
+		Description:        vi.DescriptionZh, // default zh
+		DescriptionZh:      vi.DescriptionZh,
+		DescriptionEn:      vi.DescriptionEn,
 		References:         vi.References,
 		CweIds:             vi.CweIds,
 		Title:              vi.Title,
@@ -403,6 +407,8 @@ type VulnView struct {
 	CnnvdName          string            `json:"cnnvdName"`
 	PkgRelease         string            `json:"pkgRelease"`  // 发行版名字：alpine，redhat等
 	Description        string            `json:"description"` // 描述
+	DescriptionEn      string            `json:"-"`           // 描述
+	DescriptionZh      string            `json:"-"`           // 描述
 	References         []string          `json:"references"`  // 参考链接
 	CweIds             []string          `json:"cweIds"`
 	Title              string            `json:"title"`
@@ -433,4 +439,11 @@ type VulnView struct {
 	UpdatedAt int64 `json:"updatedAt"` // milliseconds
 
 	PolicyDetect PolicyDetect `json:"policyDetect"` // 对各个策略的检测结果
+}
+
+func (vi *VulnView) AdaptI18(ctx context.Context) {
+	lang, ok := ctx.Value(AcceptLanguage).(string)
+	if ok && lang == model.LangEn {
+		vi.Description = vi.DescriptionEn
+	}
 }
