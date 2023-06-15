@@ -46,7 +46,7 @@ var rootCmd = &cobra.Command{
 			}
 		}
 		logging.Get().SetLevel(logLevel)
-		
+
 		logging.Get().Info().
 			Str("version", Version).
 			Msg("starting Console")
@@ -124,8 +124,17 @@ func init() {
 	loggingOptions = logging.NewLoggingOptions()
 	loggingOptions.AddFlags(rootCmd.Flags())
 
+	rdbLogLevelStr := os.Getenv("RDB_LOGGING_LEVEL")
+	rdbLogLevel := int(logger.Error)
+	if len(rdbLogLevelStr) > 0 {
+		var parseErr error
+		rdbLogLevel, parseErr = strconv.Atoi(rdbLogLevelStr)
+		if parseErr != nil {
+			rdbLogLevel = int(logger.Error)
+		}
+	}
 	rdbOptions = databases.NewRDBOptions(
-		databases.SetDefaultRdbLogLevel(logger.Info),
+		databases.SetDefaultRdbLogLevel(logger.LogLevel(rdbLogLevel)),
 		databases.SetDefaultRdbHost("192.168.3.10"),
 		databases.SetDefaultRdbReadonlyHost("192.168.3.10"),
 		databases.SetDefaultRdbPort(30036),
