@@ -126,11 +126,12 @@ func newService(config register.ScannerServiceConfig) (register.ScannerService, 
 	resourceDal := store.NewResourceDao(scannerWrapperDb)
 	trustedImageDal := store.NewScannerOrm(scannerWrapperDb)
 	syncTaskDal := store.NewSyncTaskDao(scannerWrapperDb)
+	syncRetryImageDal := store.NewSyncRetryImageDao(scannerWrapperDb)
 
 	scannerInstanceInfoDal := store.NewScannerInstanceDao(scannerWrapperDb)
 
 	imageSrv := component.NewLibImageSrv(imageDal, registryDal, scanTaskDal, vulnDal, scanResultDal, webshellDal, trustedImageDal, resourceDal, scannerInstanceInfoDal)
-	syncSrv := component.NewSyncRepoImage(registryDal, imageDal, scanConfigDal, vulnDal, syncTaskDal)
+	syncSrv := component.NewSyncRepoImage(registryDal, imageDal, syncRetryImageDal, scanConfigDal, vulnDal, syncTaskDal)
 
 	p := &ImageSync{
 		syncImage: syncSrv,

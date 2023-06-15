@@ -94,7 +94,7 @@ func newService(config register.ScannerServiceConfig) (register.ScannerService, 
 	nodeScanResultDal := imagesecStore.NewScanResultDao(scannerWrapperDb)
 	sensitiveRuleDal := imagesecStore.NewSensitiveRuleDao(scannerWrapperDb)
 	scannerConfigDal := imagesecStore.NewScannerConfigDao(scannerWrapperDb)
-
+	syncRetryImageDal := store.NewSyncRetryImageDao(scannerWrapperDb)
 	resourceDal := store.NewResourceDao(scannerWrapperDb)
 	trustedImageDal := store.NewScannerOrm(scannerWrapperDb)
 	syncTaskDal := store.NewSyncTaskDao(scannerWrapperDb)
@@ -118,7 +118,7 @@ func newService(config register.ScannerServiceConfig) (register.ScannerService, 
 	harborSvc := component.NewHarborSrc(dal, rc)
 	registrySrv := component.NewRegistrySrv(registryDal, scanConfigDal, syncTaskDal)
 	scanConfigSrv := component.NewScanConfigSrv(scanConfigDal, registryDal, dal, scanTaskDal, scannerInstanceDal)
-	syncSrv := component.NewSyncRepoImage(registryDal, imageDal, scanConfigDal, vulnDal, syncTaskDal)
+	syncSrv := component.NewSyncRepoImage(registryDal, imageDal, syncRetryImageDal, scanConfigDal, vulnDal, syncTaskDal)
 	versionSrv := dbManage.NewDBManageSrv(versionDal)
 
 	imageSvcMap := map[string]imagemeta.ImageService{

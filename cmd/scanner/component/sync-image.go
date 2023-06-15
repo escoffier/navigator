@@ -44,19 +44,21 @@ type SyncRepoImage struct {
 func NewSyncRepoImage(
 	registryDal store.RegistryDal,
 	imageDal store.ScannerDalInterface,
+	syncRetryImageDal store.SyncRetryImageDal,
 	scanConfigDal store.ScanConfigDal,
 	vulnDal store.VulnDalInterface,
 	syncTaskDal store.SyncTaskDal,
 ) *SyncRepoImage {
 	return &SyncRepoImage{
-		registryDal:     registryDal,
-		imageDal:        imageDal,
-		vulnDal:         vulnDal,
-		scanConfigDal:   scanConfigDal,
-		syncAllImageMap: sync.Map{},
-		syncAddImageMap: sync.Map{},
-		syncTaskDal:     syncTaskDal,
-		mutex:           &sync.RWMutex{},
+		registryDal:       registryDal,
+		imageDal:          imageDal,
+		vulnDal:           vulnDal,
+		scanConfigDal:     scanConfigDal,
+		syncRetryImageDal: syncRetryImageDal,
+		syncAllImageMap:   sync.Map{},
+		syncAddImageMap:   sync.Map{},
+		syncTaskDal:       syncTaskDal,
+		mutex:             &sync.RWMutex{},
 	}
 }
 

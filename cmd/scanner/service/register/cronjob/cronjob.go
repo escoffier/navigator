@@ -54,8 +54,8 @@ func (s *Service) Start(ctx context.Context) error {
 	vulnDal := store.NewVulnDao(scannerWrapperDb)
 	syncTaskDal := store.NewSyncTaskDao(scannerWrapperDb)
 	imageDal := store.NewScannerOrm(scannerWrapperDb)
-
-	syncSrv := component.NewSyncRepoImage(registryDal, imageDal, scanConfigDal, vulnDal, syncTaskDal)
+	syncRetryImageDal := store.NewSyncRetryImageDao(scannerWrapperDb)
+	syncSrv := component.NewSyncRepoImage(registryDal, imageDal, syncRetryImageDal, scanConfigDal, vulnDal, syncTaskDal)
 
 	syncAllImage := os.Getenv("SyncAllImage") // 使用一个环境变量，方便测试
 	if syncAllImage == "" {
