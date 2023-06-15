@@ -312,7 +312,7 @@ func (e *Engine) RuleRecentCount(x rego.BuiltinContext, as []*ast.Term) (*ast.Te
 		return ast.BooleanTerm(false), nil
 	}
 	if result != "" || err != redis.Nil {
-		logging.Get().Info().Err(err).Str("key", recentCountCacheKey(ruleName, sameFields, diffFields, cacheHashes)).Msg("redis cache already")
+		logging.Get().Debug().Err(err).Str("key", recentCountCacheKey(ruleName, sameFields, diffFields, cacheHashes)).Msg("redis cache already")
 		return ast.BooleanTerm(false), nil
 	}
 
@@ -636,7 +636,7 @@ func (e *Engine) SendSignalToPalace(x rego.BuiltinContext, a *ast.Term) (*ast.Te
 	}
 
 	err = e.deps.palace.SendSignal(ruleKey, scopes, signalContext)
-	logging.Get().Info().Err(err).Str("rule", ruleKey.Name).Msg("send signal to palace")
+	logging.Get().Debug().Err(err).Str("rule", ruleKey.Name).Msg("send signal to palace")
 	return ast.NullTerm(), err
 }
 
