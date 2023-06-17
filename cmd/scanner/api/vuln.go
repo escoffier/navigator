@@ -32,6 +32,10 @@ func (s *VulnAPISrv) GetImageVulns(ctx *gin.Context) {
 
 	vulnKeyword := util.GetKeywordFromQuery(ctx, "keyword")
 	imageID := util.GetInt64FromQuery(ctx, "imageID")
+	if imageID <= 0 {
+		imageID = util.GetInt64FromQuery(ctx, "id")
+	}
+	vulnParam := GetSearchVulnParamFromCtx(ctx)
 
 	if imageID <= 0 {
 		response.JSONError(ctx, fmt.Errorf("not get imageID"))
@@ -61,13 +65,16 @@ func (s *VulnAPISrv) GetImageVulns(ctx *gin.Context) {
 
 	filter := model.GetFilter(ctx)
 	param := model.SearchVulnParam{
-		VulnKeyword: vulnKeyword,
-		ImageIds:    []int64{imageID},
-		PkgName:     pkgName,
-		PkgVersion:  pkgVersion,
-		Sources:     sources,
-		CanFixed:    canFixed,
-		SeverityInt: severityInt,
+		VulnKeyword:     vulnKeyword,
+		ImageIds:        []int64{imageID},
+		PkgName:         pkgName,
+		PkgVersion:      pkgVersion,
+		Sources:         sources,
+		CanFixed:        canFixed,
+		SeverityInt:     severityInt,
+		TargetKeyword:   vulnParam.TargetKeyword,
+		LanguageKeyword: vulnParam.LanguageKeyword,
+		FrameKeyword:    vulnParam.FrameKeyword,
 	}
 	// 查层级
 	layerDigest := ctx.Query("layerDigest")
@@ -139,6 +146,9 @@ func (s *VulnAPISrv) GetImageVulns(ctx *gin.Context) {
 func (s *VulnAPISrv) GetImageVulnPkg(ctx *gin.Context) {
 	imageID := util.GetInt64FromQuery(ctx, "imageID")
 	if imageID <= 0 {
+		imageID = util.GetInt64FromQuery(ctx, "id")
+	}
+	if imageID <= 0 {
 		response.JSONError(ctx, response.NewHttpError(http.StatusBadRequest, fmt.Errorf("not get imageID")))
 		return
 	}
@@ -175,15 +185,17 @@ func (s *VulnAPISrv) GetImageVulnPkg(ctx *gin.Context) {
 	for i := range vulns {
 		key := fmt.Sprintf("%s|%s", vulns[i].PkgName, vulns[i].PkgVersion)
 		if _, ok := pkgMap[key]; !ok {
-			pkgMap[key] = VulnPKG{
+			pk := VulnPKG{
 				PkgName:          vulns[i].PkgName,
 				PkgVersion:       vulns[i].PkgVersion,
 				SeverityOverview: make([]imagesecModel.SeverityGroup, 0),
 				Vulns:            make([]VulnResponse, 0),
 				Target:           vulns[i].Target,
 			}
+			pkgMap[key] = pk
 		}
 		sf := pkgMap[key]
+		// sf.Vulns = append(sf.Vulns, vulns[i])
 		sf.SeverityOverview = imagesecModel.AddSeverityGroup(sf.SeverityOverview, vulns[i].SeverityInt)
 		pkgMap[key] = sf
 	}
@@ -194,7 +206,6 @@ func (s *VulnAPISrv) GetImageVulnPkg(ctx *gin.Context) {
 	res := make([]VulnPKG, 0)
 	for _, vp := range pkgMap {
 		vp.SortScore = vp.GetSortScore()
-		vp.Vulns = make([]VulnResponse, 0)
 		res = append(res, vp)
 	}
 
@@ -219,6 +230,9 @@ func (s *VulnAPISrv) GetImageVulnPkg(ctx *gin.Context) {
 func (s *VulnAPISrv) GetImageVulnLanguage(ctx *gin.Context) {
 
 	imageID := util.GetInt64FromQuery(ctx, "imageID")
+	if imageID <= 0 {
+		imageID = util.GetInt64FromQuery(ctx, "id")
+	}
 	if imageID <= 0 {
 		response.JSONError(ctx, response.NewHttpError(http.StatusBadRequest, fmt.Errorf("not get imageID")))
 		return
@@ -264,7 +278,7 @@ func (s *VulnAPISrv) GetImageVulnLanguage(ctx *gin.Context) {
 			}
 		}
 		sf := languageMap[key]
-		sf.Vulns = append(sf.Vulns, convertVuln(vulns[i]))
+		// sf.Vulns = append(sf.Vulns, convertVuln(vulns[i]))
 		sf.SeverityOverview = imagesecModel.AddSeverityGroup(sf.SeverityOverview, vulns[i].SeverityInt)
 		languageMap[key] = sf
 	}
@@ -276,7 +290,6 @@ func (s *VulnAPISrv) GetImageVulnLanguage(ctx *gin.Context) {
 	res := make([]*VulnLanguage, 0)
 	for _, vp := range languageMap {
 		vp.SortScore = vp.GetSortScore()
-		vp.Vulns = make([]VulnResponse, 0)
 		res = append(res, vp)
 	}
 	cnt := int64(len(res))
@@ -299,16 +312,28 @@ func (s *VulnAPISrv) GetImageVulnLanguage(ctx *gin.Context) {
 func (s *VulnAPISrv) GetImageVulnGoBinary(ctx *gin.Context) {
 	imageID := util.GetInt64FromQuery(ctx, "imageID")
 	if imageID <= 0 {
+		imageID = util.GetInt64FromQuery(ctx, "id")
+	}
+	goName := util.GetKeywordFromQuery(ctx, "goName")
+	goPath := util.GetKeywordFromQuery(ctx, "goPath")
+
+	if imageID <= 0 {
 		response.JSONError(ctx, response.NewHttpError(http.StatusBadRequest, fmt.Errorf("not get imageID")))
 		return
 	}
+	target := goName
+	if goPath != "/" && goName != "" {
+		target = target + "/" + goPath
+	}
 
-	targetKeyword := util.GetKeywordFromQuery(ctx, "keyword")
+	pkgKeyword := util.GetKeywordFromQuery(ctx, "keyword")
 	filter := model.GetFilter(ctx)
 
 	param := model.SearchVulnParam{
-		PkgKeyword: targetKeyword,
-		ImageIds:   []int64{imageID},
+		LanguageKeyword: consts.VulnLanguageGO,
+		TargetKeyword:   target,
+		PkgKeyword:      pkgKeyword,
+		ImageIds:        []int64{imageID},
 	}
 
 	// 查层级
@@ -365,7 +390,6 @@ func (s *VulnAPISrv) GetImageVulnGoBinary(ctx *gin.Context) {
 	res := make([]*VulnGobinary, 0)
 	for _, vp := range gobinaryMap {
 		vp.SortScore = vp.GetSortScore()
-		vp.Vulns = make([]VulnResponse, 0)
 		res = append(res, vp)
 	}
 	sort.Sort(VulnGobinaries(res))
@@ -388,6 +412,10 @@ func (s *VulnAPISrv) GetImageVulnGoBinary(ctx *gin.Context) {
 func (s *VulnAPISrv) GetImageVulnFrame(ctx *gin.Context) {
 
 	imageID := util.GetInt64FromQuery(ctx, "imageID")
+
+	if imageID <= 0 {
+		imageID = util.GetInt64FromQuery(ctx, "id")
+	}
 	if imageID <= 0 {
 		response.JSONError(ctx, response.NewHttpError(http.StatusBadRequest, fmt.Errorf("not get imageID")))
 		return
@@ -441,7 +469,6 @@ func (s *VulnAPISrv) GetImageVulnFrame(ctx *gin.Context) {
 	res := make([]*VulnFrame, 0)
 	for _, vp := range frameMap {
 		vp.SortScore = vp.GetSortScore()
-		vp.Vulns = make([]VulnResponse, 0)
 		res = append(res, vp)
 	}
 	sort.Sort(VulnFrames(res))
