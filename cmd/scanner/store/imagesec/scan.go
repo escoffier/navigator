@@ -755,8 +755,8 @@ func (dal *ScanResultDao) SearchVuln(ctx context.Context, param imagesecModel.Ap
 	if param.LanguageKeyword != "" {
 		db = db.Where("language LIKE ? ", fmt.Sprintf("%%%s%%", param.LanguageKeyword))
 	}
-	if param.VulnTargetKeyword != "" {
-		db = db.Where("target LIKE ? ", fmt.Sprintf("%%%s%%", param.VulnTargetKeyword))
+	if param.TargetKeyword != "" {
+		db = db.Where("target LIKE ? ", fmt.Sprintf("%%%s%%", param.TargetKeyword))
 	}
 	if param.VulnKeyword != "" {
 		db = db.Where("name LIKE ? OR cnnvd_name LIKE ? ", fmt.Sprintf("%%%s%%", param.VulnKeyword),

@@ -104,7 +104,7 @@ func (s *NodeImageReport) handleAsset(ctx context.Context, msg kafka.Message) er
 		return err
 	}
 
-	logging.Get().Info().Int("images", len(images)).Int("envs", len(envs)).Msg("NodeImageReport ImageMateToModel")
+	logging.Get().Debug().Int("images", len(images)).Int("envs", len(envs)).Msg("NodeImageReport ImageMateToModel")
 
 	if err = s.nodeReportDal.CreateNodeInfo(ctx, node); err != nil {
 		logging.Get().Err(err).Interface("node", node).Msg("NodeImageReport CreateNodeInfo")

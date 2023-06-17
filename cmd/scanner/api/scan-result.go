@@ -58,6 +58,12 @@ func GetScanResultSearchParamFromCtx(ctx *gin.Context) imagesecModel.ScanResultS
 	if param.ImageFromType == "" {
 		param.ImageFromType = imagesecModel.ImageFromRegistry
 	}
+	if param.ImageID <= 0 {
+		param.ImageID = util.GetInt64FromQuery(ctx, "id")
+	}
+	if param.ImageUniqueID <= 0 {
+		param.ImageUniqueID = util.GetUint64FromQuery(ctx, "uniqueID")
+	}
 
 	return param
 }
@@ -560,7 +566,7 @@ func (s *ScanResultAPI) GetImageVulnPkg(ctx *gin.Context) {
 		if !ok {
 			continue
 		}
-		sf.Vulns = append(sf.Vulns, convertNodeVulnView(data.Vuln[i]))
+		// sf.Vulns = append(sf.Vulns, convertNodeVulnView(data.Vuln[i]))
 		sf.SeverityOverview = imagesecModel.AddSeverityGroup(sf.SeverityOverview, vu.SeverityInt)
 		pkgMap[sf.UniqueID] = sf
 	}
@@ -571,7 +577,6 @@ func (s *ScanResultAPI) GetImageVulnPkg(ctx *gin.Context) {
 	res := make([]VulnPKG, 0)
 	for _, vp := range pkgMap {
 		vp.SortScore = vp.GetSortScore()
-		vp.Vulns = make([]VulnResponse, 0) // 精简数据
 		res = append(res, vp)
 	}
 
@@ -599,14 +604,7 @@ func (s *ScanResultAPI) GetImageVulnLanguage(ctx *gin.Context) {
 
 	filter := param.Filter.DeepCopy()
 	param.Filter = param.Filter.SetLimit(0).SetOffset(0)
-
-	vulnParam := imagesecModel.ApiSearchVulnParam{
-		ImageFromType:    param.ImageFromType,
-		LanguageKeyword:  param.Keyword,
-		ImageID:          param.ImageID,
-		ImageUniqueID:    param.ImageUniqueID,
-		ImageLayerDigest: util.GetKeywordFromQuery(ctx, "layerDigest"),
-	}
+	vulnParam := GetSearchVulnParamFromCtx(ctx)
 
 	data, err := s.getImageSrv(ctx).GetImageCorrelateData(ctx, imagesecModel.GetImageAssociateDataParam{
 		ImageFromType:         param.ImageFromType,
@@ -639,7 +637,7 @@ func (s *ScanResultAPI) GetImageVulnLanguage(ctx *gin.Context) {
 			}
 		}
 		sf := languageMap[key]
-		sf.Vulns = append(sf.Vulns, convertNodeVulnView(vulns[i]))
+		// sf.Vulns = append(sf.Vulns, convertNodeVulnView(vulns[i]))
 		sf.SeverityOverview = imagesecModel.AddSeverityGroup(sf.SeverityOverview, vulns[i].SeverityInt)
 		languageMap[key] = sf
 	}
@@ -651,7 +649,6 @@ func (s *ScanResultAPI) GetImageVulnLanguage(ctx *gin.Context) {
 	res := make([]*VulnLanguage, 0)
 	for _, vp := range languageMap {
 		vp.SortScore = vp.GetSortScore()
-		vp.Vulns = make([]VulnResponse, 0)
 		res = append(res, vp)
 	}
 	cnt := int64(len(res))
@@ -677,13 +674,7 @@ func (s *ScanResultAPI) GetImageVulnGoBinary(ctx *gin.Context) {
 	filter := param.Filter.DeepCopy()
 	param.Filter = param.Filter.SetLimit(0).SetOffset(0)
 
-	vulnParam := imagesecModel.ApiSearchVulnParam{
-		ImageFromType:    param.ImageFromType,
-		PkgKeyword:       param.Keyword,
-		ImageID:          param.ImageID,
-		ImageUniqueID:    param.ImageUniqueID,
-		ImageLayerDigest: util.GetKeywordFromQuery(ctx, "layerDigest"),
-	}
+	vulnParam := GetSearchVulnParamFromCtx(ctx)
 
 	data, err := s.getImageSrv(ctx).GetImageCorrelateData(ctx, imagesecModel.GetImageAssociateDataParam{
 		ImageFromType:         param.ImageFromType,
@@ -739,7 +730,6 @@ func (s *ScanResultAPI) GetImageVulnGoBinary(ctx *gin.Context) {
 	res := make([]*VulnGobinary, 0)
 	for _, vp := range gobinaryMap {
 		vp.SortScore = vp.GetSortScore()
-		vp.Vulns = make([]VulnResponse, 0)
 		res = append(res, vp)
 	}
 	sort.Sort(VulnGobinaries(res))
@@ -814,7 +804,6 @@ func (s *ScanResultAPI) GetImageVulnFrame(ctx *gin.Context) {
 	res := make([]*VulnFrame, 0)
 	for _, vp := range frameMap {
 		vp.SortScore = vp.GetSortScore()
-		vp.Vulns = make([]VulnResponse, 0)
 		res = append(res, vp)
 	}
 	sort.Sort(VulnFrames(res))
@@ -915,8 +904,9 @@ func GetSearchVulnParamFromCtx(ctx *gin.Context) imagesecModel.ApiSearchVulnPara
 		VulnId:           util.GetInt64FromQuery(ctx, "id"),
 		PkgKeyword:       util.GetKeywordFromQuery(ctx, "pkgKeyword"),
 		LanguageKeyword:  util.GetKeywordFromQuery(ctx, "languageKeyword"),
+		TargetKeyword:    util.GetKeywordFromQuery(ctx, "targetKeyword"),
 		VulnKeyword:      util.GetKeywordFromQuery(ctx, "keyword"),
-		FrameKeyword:     util.GetKeywordFromQuery(ctx, "frameKeyword"),
+		FrameKeyword:     util.GetKeywordFromQuery(ctx, "frame"),
 		PkgUniqueID:      util.GetUint64FromQuery(ctx, "pkgUniqueID"),
 		VulnUniqueID:     util.GetUint64FromQuery(ctx, "uniqueID"),
 		ImageID:          util.GetInt64FromQuery(ctx, "imageID"),
@@ -941,6 +931,25 @@ func GetSearchVulnParamFromCtx(ctx *gin.Context) imagesecModel.ApiSearchVulnPara
 	if param.PkgUniqueID > 0 {
 		param.PkgName = ""
 		param.PkgVersion = ""
+	}
+
+	goName := util.GetKeywordFromQuery(ctx, "goName")
+	goPath := util.GetKeywordFromQuery(ctx, "goPath")
+
+	if goPath != "/" && goPath != "" {
+		goName = goName + "/" + goPath
+	}
+	if goName != "" {
+		param.TargetKeyword = goName
+		param.LanguageKeyword = consts.VulnLanguageGO
+	}
+	languageName := util.GetKeywordFromQuery(ctx, "languageName")
+	languagePath := util.GetKeywordFromQuery(ctx, "languagePath")
+	if languageName != "" {
+		param.LanguageKeyword = languageName
+	}
+	if languagePath != "" {
+		param.TargetKeyword = languagePath
 	}
 
 	return param

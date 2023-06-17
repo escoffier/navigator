@@ -463,36 +463,36 @@ type SearchScanVersionParam struct {
 
 // 以前的代码中，关于漏洞的搜索条件的struct还有其他几处，后期统一整合到这个结构体中
 type ApiSearchVulnParam struct {
-	ImageFromType     string
-	PkgKeyword        string
-	LanguageKeyword   string
-	VulnTargetKeyword string
-	FrameKeyword      string
-	VulnKeyword       string // 漏洞名搜索
-	VulnUniqueIds     []uint64
-	Fields            []string
-	OmitFields        []string
-	PkgUniqueID       uint64 // 软件ID
-	VulnUniqueID      uint64 // 漏洞ID
-	ImageID           int64
-	ImageUniqueID     uint64   // 镜像ID
-	ImageLayerDigest  string   // 镜像层级
-	PkgName           string   // 软件包来源
-	PkgVersion        string   // 软件包版本
-	CanFixed          string   // 是否可修复筛选
-	SeverityInt       []int64  // 漏洞级别筛选
-	SeverityStr       []string // 漏洞级别筛选
-	AttackPath        []string
-	VulnClass         []string
-	NeedKernel        string
-	VulnIds           []int64
-	VulnId            int64
-	ClassType         []string
-	StartID           int64
-	Filter            *model.Filter
-	OnlineImageVuln   string
-	JustReturnCount   bool
-	NotReturnCount    bool
+	ImageFromType    string
+	PkgKeyword       string
+	LanguageKeyword  string
+	TargetKeyword    string
+	FrameKeyword     string
+	VulnKeyword      string // 漏洞名搜索
+	VulnUniqueIds    []uint64
+	Fields           []string
+	OmitFields       []string
+	PkgUniqueID      uint64 // 软件ID
+	VulnUniqueID     uint64 // 漏洞ID
+	ImageID          int64
+	ImageUniqueID    uint64   // 镜像ID
+	ImageLayerDigest string   // 镜像层级
+	PkgName          string   // 软件包来源
+	PkgVersion       string   // 软件包版本
+	CanFixed         string   // 是否可修复筛选
+	SeverityInt      []int64  // 漏洞级别筛选
+	SeverityStr      []string // 漏洞级别筛选
+	AttackPath       []string
+	VulnClass        []string
+	NeedKernel       string
+	VulnIds          []int64
+	VulnId           int64
+	ClassType        []string
+	StartID          int64
+	Filter           *model.Filter
+	OnlineImageVuln  string
+	JustReturnCount  bool
+	NotReturnCount   bool
 }
 
 type DaoSearchVulnParam struct {
@@ -534,7 +534,7 @@ func (vi ApiSearchVulnParam) ToDaoSearchVulnParam() DaoSearchVulnParam {
 		ImageFromType:     vi.ImageFromType,
 		PkgKeyword:        vi.PkgKeyword,
 		LanguageKeyword:   vi.LanguageKeyword,
-		VulnTargetKeyword: vi.VulnTargetKeyword,
+		VulnTargetKeyword: vi.TargetKeyword,
 		FrameKeyword:      vi.FrameKeyword,
 		VulnKeyword:       vi.VulnKeyword,
 		VulnUniqueIds:     vi.VulnUniqueIds,

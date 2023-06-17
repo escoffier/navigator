@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/malicious"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
@@ -116,9 +117,10 @@ func init() {
 		logging.GetLogger().Err(err).Str("executorName", executorScanMaliciousName).Msg("int executor err")
 	}
 }
+
 func newScanMalicious(config ExecutorConfig) (Executor, error) { // Open时调用
 	e := &ExecutorScanMalicious{
-		// MaliciousScan: component.MaliciousScan{MaliciousSrv: malicious.GetMaliciousServer()},
+		MaliciousScan: component.MaliciousScan{MaliciousSrv: malicious.GetMaliciousServer()},
 	}
 
 	return e, nil
