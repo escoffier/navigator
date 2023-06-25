@@ -7,21 +7,27 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"math/rand"
 	"net/http"
 	"os"
 	"runtime/debug"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
 
 	json "github.com/json-iterator/go"
-	"gitlab.com/security-rd/go-pkg/logging"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/dp/whitelist"
+	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
+	"gitlab.com/piccolo_su/vegeta/pkg/util"
+	"gitlab.com/security-rd/go-pkg/logging"
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/apimachinery/pkg/watch"
 )
 
 func init() {
@@ -44,6 +50,7 @@ type imageUsedItem struct {
 type ConfigManager struct {
 	clusterKey     string
 	consoleAddr    string
+	clusterMgr     *k8s.ClusterInfoManager
 	lock           *sync.Mutex
 	syncLock       *sync.Mutex
 	policiesPtr    *atomic.Pointer[model.DaemonDriftPolicies]
@@ -112,7 +119,7 @@ func (cm *ConfigManager) syncPolicy(ctx context.Context, ij *Injector) error {
 		logging.Get().Err(err).Msgf("request status code error:%v", resp.StatusCode)
 		return fmt.Errorf("rsp code err:%d", resp.StatusCode)
 	}
-	data, err := ioutil.ReadAll(resp.Body)
+	data, err := io.ReadAll(resp.Body)
 	if err != nil {
 		logging.Get().Err(err).Msgf("read scanner req body error")
 		return err
@@ -176,8 +183,6 @@ func (cm *ConfigManager) syncPolicy(ctx context.Context, ij *Injector) error {
 	return nil
 }
 
-
-
 func (cm *ConfigManager) GetPolicyByResourceUUID(uuid uint32) (model.DriftPolicy, bool) {
 	policy, ok := cm.policies().Policies[uuid]
 	logging.Get().Info().Msgf("uuid:%v, policy:%+v", uuid, policy)
@@ -185,20 +190,177 @@ func (cm *ConfigManager) GetPolicyByResourceUUID(uuid uint32) (model.DriftPolicy
 	return policy, ok
 }
 
+func (cm *ConfigManager) updateFromConfigMap(ctx context.Context, configMap *corev1.ConfigMap, ij *Injector) error {
+	logging.Get().Info().Msg("update config map")
+
+	cm.syncLock.Lock()
+	defer cm.syncLock.Unlock()
+
+	if configMap.Name == model.PoliciesConfigMapName {
+		policies := make(map[uint32]model.DriftPolicy, len(configMap.Data))
+		for _, v := range configMap.Data {
+
+			values := strings.Split(v, "/")
+			if len(values) != len(strings.Split(model.PolicyConfigMapValueTemplate, "/")) {
+				logging.Get().Error().Msg("policy configmap value template error")
+				continue
+			}
+			clusterKey, namespace, kind, name, enable, mode := values[0], values[1], values[2], values[3], values[4], values[5]
+			// enable to int
+			enableInt, err := strconv.Atoi(enable)
+			if err != nil {
+				logging.Get().Error().Err(err).Msgf("strconv enable:%v error", enable)
+				continue
+			}
+			uuid := util.GenerateUUID(clusterKey, namespace, kind, name)
+			policies[uuid] = model.DriftPolicy{
+				ResourceUUID: uuid,
+				ClusterKey:   clusterKey,
+				Namespace:    namespace,
+				ResourceKind: kind,
+				Resource:     name,
+				Enable:       enableInt,
+				Mode:         mode,
+			}
+		}
+		cm.setPolicies(&model.DaemonDriftPolicies{
+			Policies:     policies,
+			VersionStamp: 0,
+		})
+		ij.UpdateContainerDriftSwitch(cm.policies().Policies)
+	} else if configMap.Name == model.WhitelistConfigMapName {
+		newWhitelist := make(map[string]int64, len(configMap.Data))
+		nowTimestamp := time.Now().UnixMilli()
+		for _, v := range configMap.Data {
+			values := strings.Split(v, "/")
+			if len(values) != len(strings.Split(model.WhitelistConfigMapValueTemplate, "/")) {
+				logging.Get().Error().Msg("whitelist configmap value template error")
+				continue
+			}
+			path, expireAt, isForever := values[0], values[1], values[2]
+			logging.Get().Info().Msgf("path:%v, expireAt:%v, isForever:%v", path, expireAt, isForever)
+			expireAtInt, err := strconv.ParseInt(expireAt, 10, 64)
+			if err != nil {
+				logging.Get().Error().Err(err).Msgf("strconv expireAt:%v error", expireAt)
+				continue
+			}
+			if nowTimestamp < expireAtInt {
+				newWhitelist[path] = expireAtInt
+			} else if isForever == "true" {
+				newWhitelist[path] = int64(^uint64(0) >> 1)
+			}
+		}
+		logging.Get().Info().Msgf("newWhitelist:%+v", newWhitelist)
+		cm.setWhitelist(&model.DaemonDriftWhitelist{
+			Whitelist:    newWhitelist,
+			VersionStamp: 0,
+		})
+	} else {
+		logging.Get().Error().Msg("unknown configmap added")
+	}
+
+	return nil
+}
+
 func (cm *ConfigManager) Start(ij *Injector) error {
 	logging.Get().Info().Msg("config manager start")
 
-	for {
-		err := cm.syncPolicy(context.Background(), ij)
-		if err != nil {
-			logging.Get().Error().Err(err).Msgf("SyncPolicy error")
-			time.Sleep(time.Second * 20)
-			continue
-		}
-		defaultTime := 10
-		intervalTime := int64(defaultTime) + rand.Int63n(6)
-		time.Sleep(time.Second * time.Duration(intervalTime))
+	namespace := os.Getenv("MY_POD_NAMESPACE")
+	if namespace == "" {
+		namespace = "tensorsec"
 	}
+
+	softName := os.Getenv("SOFT_NAME")
+	if softName == "" {
+		softName = "tensorsec"
+	}
+
+	consoleDeploymentName := fmt.Sprintf("%s-console", softName)
+	if os.Getenv("TENSORSEC_CONSOLE_DEPLOYMENT_NAME") != "" {
+		consoleDeploymentName = os.Getenv("TENSORSEC_CONSOLE_DEPLOYMENT_NAME")
+	}
+
+	// Wait for the Deployment to be ready
+	err := wait.PollImmediate(time.Second, 5*time.Minute, func() (bool, error) {
+		deployment, err := cm.clusterMgr.HostClient.AppsV1().Deployments(namespace).Get(context.Background(), consoleDeploymentName, metav1.GetOptions{})
+		if err != nil {
+			return false, err
+		}
+		return deployment.Status.ReadyReplicas > 0, nil
+	})
+	if err != nil {
+		logging.Get().Error().Err(err).Msg("wait for console deployment error")
+		return err
+	}
+
+	// Wait for the drift configmap init
+	time.Sleep(5 * time.Second)
+
+	// Start the initial timer
+	outTime := time.Minute * 20
+	timer := time.NewTimer(outTime)
+
+	watcher, err := cm.clusterMgr.HostClient.CoreV1().ConfigMaps(namespace).Watch(context.Background(), metav1.ListOptions{
+		// FieldSelector: "metadata.name=drift-config",
+		LabelSelector: model.DriftConfigMapLabel,
+	})
+	if err != nil {
+		logging.Get().Error().Err(err).Msg("watch configmap error")
+		return err
+	}
+
+	logging.Get().Info().Str("namespace", namespace).Msg("watch configmap start")
+	for {
+		select {
+		case event, ok := <-watcher.ResultChan():
+			if !ok {
+				logging.Get().Warn().Msg("Result channel closed, restarting the watch process")
+				watcher.Stop()
+				watcher, err = cm.clusterMgr.HostClient.CoreV1().ConfigMaps(namespace).Watch(context.Background(), metav1.ListOptions{
+					LabelSelector: model.DriftConfigMapLabel,
+				})
+				if err != nil {
+					logging.Get().Error().Err(err).Msg("watch configmap error")
+				}
+				timer.Reset(outTime)
+				continue
+			}
+			switch event.Type {
+			case watch.Added:
+				//ConfigMap added: &ConfigMap{ObjectMeta:{drift-policies  tensorsec  17d742a7-ea1b-4108-a604-533fb280a843 95767605 0 2023-06-21 08:17:55 +0000 UTC <nil> <nil> map[app:drift-configMap] map[] [] []  [{console Update v1 2023-06-21 08:17:55 +0000 UTC FieldsV1 {"f:data":{".":{},"f:policy-16":{}},"f:metadata":{"f:labels":{".":{},"f:app":{}}}} }]},Data:map[string]string{policy-16: 494c5054-4b9b-4944-8452-84b8893c21b7/del/Deployment/test/0/alert,},BinaryData:map[string][]byte{},Immutable:nil,}
+				configMap := event.Object.(*corev1.ConfigMap)
+				logging.Get().Info().Msgf("ConfigMap added: %v\n", configMap.Data)
+				err = cm.updateFromConfigMap(context.Background(), configMap, ij)
+				if err != nil {
+					logging.Get().Error().Err(err).Msg("update from configmap error")
+				}
+			case watch.Modified:
+				configMap := event.Object.(*corev1.ConfigMap)
+				logging.Get().Info().Msgf("ConfigMap updated: %+v\n", configMap)
+				err = cm.updateFromConfigMap(context.Background(), configMap, ij)
+				if err != nil {
+					logging.Get().Error().Err(err).Msg("update from configmap error")
+				}
+			case watch.Deleted:
+				configMap := event.Object.(*corev1.ConfigMap)
+				logging.Get().Info().Msgf("ConfigMap deleted: %+v\n", configMap)
+			case watch.Error:
+				configMap := event.Object.(*corev1.ConfigMap)
+				logging.Get().Error().Msgf("ConfigMap error: %+v\n", configMap)
+			}
+		case <-timer.C:
+			logging.Get().Warn().Msg("Timeout reached, restarting the watch process")
+			watcher.Stop()
+			watcher, err = cm.clusterMgr.HostClient.CoreV1().ConfigMaps(namespace).Watch(context.Background(), metav1.ListOptions{
+				LabelSelector: model.DriftConfigMapLabel,
+			})
+			if err != nil {
+				logging.Get().Error().Err(err).Msg("watch configmap error")
+			}
+		}
+
+	}
+	return nil
 }
 
 func (cm *ConfigManager) IsImageDigestsExist(imageDigests []string) (string, bool) {
@@ -424,13 +586,14 @@ func (cm *ConfigManager) IsInGlobalWhitelist(path string) bool {
 	if !ok {
 		return false
 	}
-	return expiredAt == 0 || time.Now().UnixMilli() <= expiredAt
+	return time.Now().UnixMilli() <= expiredAt
 }
 
-func NewConfigManger(consoleAddr, clusterKey string) (*ConfigManager, error) {
+func NewConfigManger(consoleAddr, clusterKey string, clusterManager *k8s.ClusterInfoManager) (*ConfigManager, error) {
 	cm := &ConfigManager{
 		clusterKey:   clusterKey,
 		consoleAddr:  consoleAddr,
+		clusterMgr:   clusterManager,
 		policiesPtr:  new(atomic.Pointer[model.DaemonDriftPolicies]),
 		whitelistPtr: new(atomic.Pointer[model.DaemonDriftWhitelist]),
 		lock:         new(sync.Mutex),

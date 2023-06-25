@@ -84,6 +84,7 @@ var (
 		"centos-7",
 		"rhel-8.5",
 		"rhel-8.4",
+		"rhel-7.9",
 		"rhel-6.5",
 		"photon-4.0",
 		"photon-3.0",

@@ -78,16 +78,16 @@ func (o *Overlay2) walkDir(imageDir []string) analyzer.ExecFiles {
 			continue
 		}
 
-		// check cache
-		if fs2.GetImageFsCache().HitCache(v, whiteList) {
-			logging.Get().Trace().Str("imagePath", v).Msg("hit cache")
-			continue
-		}
+		// // check cache
+		// if fs2.GetImageFsCache().HitCache(v, whiteList) {
+		// 	logging.Get().Trace().Str("imagePath", v).Msg("hit cache")
+		// 	continue
+		// }
 
 		ListDirContentsNew(v, v, whiteList)
 
-		// add to cache
-		fs2.GetImageFsCache().CacheResult(v, whiteList)
+		// // add to cache
+		// fs2.GetImageFsCache().CacheResult(v, whiteList)
 	}
 
 	return whiteList

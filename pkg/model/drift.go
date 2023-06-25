@@ -6,6 +6,16 @@ import (
 	v1 "k8s.io/api/core/v1"
 )
 
+const (
+	PoliciesConfigMapName           = "drift-policies"
+	WhitelistConfigMapName          = "drift-whitelist"
+	PolicyConfigMapKeyTemplate      = "policy-%d"
+	PolicyConfigMapValueTemplate    = "%s/%s/%s/%s/%d/%s" //ClusterKey,Namespace,ResourceKind,Resource,Enable,Mode
+	WhitelistConfigMapKeyTemplate   = "whitelist-%d"
+	WhitelistConfigMapValueTemplate = "%s/%d/%t"
+	DriftConfigMapLabel             = "app=drift-cm"
+)
+
 type DriftPolicyCreate struct {
 	ClusterKey   string `json:"cluster_key"`
 	Namespace    string `json:"namespace"`

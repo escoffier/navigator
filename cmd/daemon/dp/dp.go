@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/dp/whitelist/analyzer"
+	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 
 	"github.com/docker/docker/api/types"
@@ -35,6 +36,7 @@ type DriftAssurance struct {
 	injector   *Injector
 	judge      *ExecJudge
 	subscriber *Subscriber
+
 	podResInfo *nodeinfo.PodResInfo
 	rt         container.Runtime
 	wc         *whitelist.WhitelistCount
@@ -131,7 +133,14 @@ func (d *DriftAssurance) Start(ctx context.Context) error {
 	return nil
 }
 
-func NewDriftAssurance(podWatcher *nodeinfo.NodePodsWatcher, podResInfo *nodeinfo.PodResInfo, mqWriter mq.Writer, consoleAddr, clusterName, clusterKey string, palaceHandler *palace.Palace) (*DriftAssurance, error) {
+func NewDriftAssurance(podWatcher *nodeinfo.NodePodsWatcher,
+	podResInfo *nodeinfo.PodResInfo,
+	mqWriter mq.Writer,
+	consoleAddr, clusterName,
+	clusterKey string,
+	palaceHandler *palace.Palace,
+	clusterManager *k8s.ClusterInfoManager,
+) (*DriftAssurance, error) {
 	d := &DriftAssurance{}
 
 	rt, err := CreateRuntimeCli()
@@ -148,14 +157,16 @@ func NewDriftAssurance(podWatcher *nodeinfo.NodePodsWatcher, podResInfo *nodeinf
 		return nil, err
 	}
 
-	cm, err := NewConfigManger(consoleAddr, clusterKey)
+	cm, err := NewConfigManger(consoleAddr, clusterKey, clusterManager)
 	if err != nil {
 		logging.Get().Err(err).Msg("create config manager failed")
 		return nil, fmt.Errorf("create config manager failed:%v", err)
 	}
 	d.config = cm
 
-	j, err := NewExecJudge("", cm, rt, podWatcher, podResInfo, mqWriter, clusterName, palaceHandler)
+	j, err := NewExecJudge("", cm, rt,
+		podWatcher, podResInfo, mqWriter,
+		clusterName, palaceHandler)
 	if err != nil {
 		logging.Get().Err(err).Msg("create exec judge failed")
 		return nil, fmt.Errorf("create exec judge failed:%v", err)

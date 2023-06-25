@@ -1039,7 +1039,7 @@ func (api *api) driftUpdateBatchPolicy() http.HandlerFunc {
 			apperror.RespAndLog(w, ctx, apperror.NewAnError(http.StatusInternalServerError, errors.New("service instance get error")))
 			return
 		}
-		errs := driSvc.UpdatePolicies(ctx, reqData.Data)
+		_, errs := driSvc.UpdatePolicies(ctx, reqData.Data)
 		if len(errs) > 0 {
 			retErrs := make([]apperror.Suberror, 0)
 			for _, err := range errs {

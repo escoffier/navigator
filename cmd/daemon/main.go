@@ -429,7 +429,8 @@ func Run(ctx context.Context) error {
 			logging.Get().Info().Msg("Init palace done")
 		}
 
-		dpService, err := dp.NewDriftAssurance(podWatcher, podResInfo, mqWriter, consoleAddr, clusterName, clusterKey, &palaceHandler)
+		dpService, err := dp.NewDriftAssurance(podWatcher, podResInfo, mqWriter, consoleAddr,
+			clusterName, clusterKey, &palaceHandler, clusterManager)
 		if err != nil {
 			logging.Get().Err(err).Msg("new drift assurance service failed")
 			return err
