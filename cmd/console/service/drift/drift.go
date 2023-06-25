@@ -4,8 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"runtime/debug"
 	"strconv"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -16,6 +18,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/assets"
 	assetsPkg "gitlab.com/piccolo_su/vegeta/pkg/assets"
 	"gitlab.com/piccolo_su/vegeta/pkg/dal"
+	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/security-rd/go-pkg/databases"
 	"gitlab.com/security-rd/go-pkg/elastic"
@@ -23,6 +26,8 @@ import (
 	"gitlab.com/security-rd/go-pkg/mq"
 	"gitlab.com/security-rd/go-pkg/sdk/palace"
 	"gorm.io/gorm"
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 var (
@@ -30,6 +35,11 @@ var (
 	instance              *TensorDriftService
 	rlOnce                sync.Once
 	ErrESDocumentNotFound = errors.New("es document not found")
+)
+
+const (
+	policyConfigMapSize    = 5e3
+	whitelistConfigMapSize = 5e3
 )
 
 func InitDriftService(rdb *databases.RDBInstance, es *elastic.ESClient, mqReader mq.Reader) error {
@@ -59,6 +69,8 @@ func GetDriftService(_ context.Context) (*TensorDriftService, bool) {
 type TensorDriftService struct {
 	rdb *databases.RDBInstance
 	es  *elastic.ESClient
+
+	configMapLock sync.Mutex
 
 	policiesPtr  *atomic.Pointer[model.PoliciesData]
 	whitelistPtr *atomic.Pointer[model.WhitelistData]
@@ -243,7 +255,7 @@ func (rl *TensorDriftService) asyncLoop() {
 		ticker := time.NewTicker(10 * time.Second)
 		defer ticker.Stop()
 
-		for _ = range ticker.C {
+		for range ticker.C {
 			rl.loadPolicies()
 			rl.loadWhiteList()
 		}
@@ -260,19 +272,56 @@ func newDriftService(rdb *databases.RDBInstance, es *elastic.ESClient) *TensorDr
 	}
 	s.loadPolicies()
 	s.loadWhiteList()
+	s.initConfigMap()
 	s.asyncLoop()
 	return s
 }
 
 func (rl *TensorDriftService) CreateGlobalWhitelist(ctx context.Context, whitelist model.DriftGlobalWhitelistItem) (uint64, error) {
-	return dal.CreateDriftGlobalWhiteList(ctx, rl.rdb.Get(), whitelist)
+	id, err := dal.CreateDriftGlobalWhiteList(ctx, rl.rdb.Get(), whitelist)
+	if err != nil {
+		return 0, err
+	}
+	createItem := model.DriftGlobalWhitelistItem{
+		ID:        id,
+		Path:      whitelist.Path,
+		ExpireAt:  whitelist.ExpireAt,
+		IsForever: whitelist.IsForever,
+	}
+	err = rl.whitelistConfigMapUpdate(ctx, model.WhitelistData{
+		Whitelist: []model.DriftGlobalWhitelistItem{createItem},
+	})
+	if err != nil {
+		logging.Get().Err(err).Msg("update whitelist config map error")
+	}
+	return id, err
 }
 
 func (rl *TensorDriftService) UpdateGlobalWhitelist(ctx context.Context, whitelist model.DriftGlobalWhitelistItem) (model.DriftGlobalWhitelistItem, error) {
-	return dal.UpdateDriftGlobalWhiteList(ctx, rl.rdb.Get(), whitelist)
+	updateWhitelist, err := dal.UpdateDriftGlobalWhiteList(ctx, rl.rdb.Get(), whitelist)
+	if err != nil {
+		return model.DriftGlobalWhitelistItem{}, err
+	}
+	err = rl.whitelistConfigMapUpdate(ctx, model.WhitelistData{
+		Whitelist: []model.DriftGlobalWhitelistItem{updateWhitelist},
+	})
+	if err != nil {
+		logging.Get().Err(err).Msg("update whitelist config map error")
+	}
+	return updateWhitelist, err
 }
 func (rl *TensorDriftService) DelGlobalWhitelist(ctx context.Context, whitelistID uint64) (model.DriftGlobalWhitelistItem, error) {
-	return dal.DelDriftGlobalWhiteList(ctx, rl.rdb.Get(), whitelistID)
+	deleteWhitelist, err := dal.DelDriftGlobalWhiteList(ctx, rl.rdb.Get(), whitelistID)
+	if err != nil {
+		return model.DriftGlobalWhitelistItem{}, err
+	}
+	err = rl.whitelistConfigMapDelete(ctx, model.WhitelistData{
+		Whitelist: []model.DriftGlobalWhitelistItem{deleteWhitelist},
+	})
+	if err != nil {
+		logging.Get().Err(err).Msg("update whitelist config map error")
+	}
+	return deleteWhitelist, err
 }
 
 func (rl *TensorDriftService) ListGlobalWhitelist(ctx context.Context, limit, offset int, path, searchStr string, startTime, endTime int64) ([]model.DriftGlobalWhitelistItem, int64, error) {
@@ -305,7 +354,17 @@ func (rl *TensorDriftService) GetAllGlobalWhitelist(ctx context.Context) (model.
 }
 
 func (rl *TensorDriftService) CreatePolicies(ctx context.Context, policies []model.DriftPolicy) ([]model.DriftPolicy, error) {
-	return dal.CreateDriftPolicies(ctx, rl.rdb.Get(), policies)
+	insertPolicies, err := dal.CreateDriftPolicies(ctx, rl.rdb.Get(), policies)
+	if err != nil {
+		return nil, err
+	}
+	err = rl.driftConfigMapUpdate(ctx, model.PoliciesData{
+		Policies: insertPolicies,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return insertPolicies, nil
 }
 
 func (rl *TensorDriftService) CreatePolicy(ctx context.Context, policy model.DriftPolicy) (int64, error) {
@@ -350,15 +409,43 @@ func (rl *TensorDriftService) DeletePolicy(ctx context.Context, policyID int64) 
 		logging.Get().Err(err).Int64("policyID", policyID).Msg("failed to delete policy")
 		return policy, err
 	}
+	err = rl.driftConfigMapDelete(ctx, model.PoliciesData{
+		Policies: []model.DriftPolicy{policy},
+	})
+	if err != nil {
+		logging.Get().Err(err).Int64("policyID", policyID).Msg("failed to delete policy from configmap")
+	}
+
 	return policy, nil
 }
 
 func (rl *TensorDriftService) UpdatePolicy(ctx context.Context, policy model.DriftPolicyUpdate) (model.DriftPolicy, error) {
-	return dal.UpdateDriftPolicy(ctx, rl.rdb.Get(), policy)
+	oldPolicy, err := dal.UpdateDriftPolicy(ctx, rl.rdb.Get(), policy)
+	if err != nil {
+		return oldPolicy, err
+	}
+	updatePolicy := oldPolicy
+	updatePolicy.Enable = policy.Enable
+	updatePolicy.Mode = policy.Mode
+
+	err = rl.driftConfigMapUpdate(ctx, model.PoliciesData{
+		Policies: []model.DriftPolicy{updatePolicy},
+	})
+	if err != nil {
+		logging.Get().Err(err).Int64("policyID", policy.PolicyID).Msg("failed to update policy from configmap")
+	}
+	return oldPolicy, nil
 }
 
-func (rl *TensorDriftService) UpdatePolicies(ctx context.Context, policies []model.DriftPolicyUpdate) []error {
-	return dal.UpdateDriftPolicies(ctx, rl.rdb.Get(), policies)
+func (rl *TensorDriftService) UpdatePolicies(ctx context.Context, policies []model.DriftPolicyUpdate) ([]model.DriftPolicy, []error) {
+	updatePolicies, errs := dal.UpdateDriftPolicies(ctx, rl.rdb.Get(), policies)
+	err := rl.driftConfigMapUpdate(ctx, model.PoliciesData{
+		Policies: updatePolicies,
+	})
+	if err != nil {
+		errs = append(errs, err)
+	}
+	return updatePolicies, errs
 }
 
 func (rl *TensorDriftService) ListPolicy(ctx context.Context, limit int, offset int, clusterKey string, resourceType, namespaces, enable, mode []string, search string) ([]model.DriftPolicy, int64, error) {
@@ -482,4 +569,338 @@ func parseSignal(item *es.SearchHit) (*palace.Signal, error) {
 
 func (rl *TensorDriftService) GetDefaultWhitelist(ctx context.Context, offset, limit int, tags []string, searchStr string) ([]model.DriftImageWhitelist, int64, error) {
 	return dal.GetDefaultWhitelistByImageTags(ctx, rl.rdb.GetReadDB(), offset, limit, tags, searchStr)
+}
+
+func (rl *TensorDriftService) driftConfigMapUpdate(ctx context.Context, policyData model.PoliciesData) error {
+	namespace := os.Getenv("MY_POD_NAMESPACE")
+	if namespace == "" {
+		namespace = "tensorsec"
+	}
+
+	logging.Get().Debug().Interface("policyData", policyData).Msg("update drift config map")
+
+	clusterManager, ok := k8s.GetClusterManager()
+	if !ok {
+		return errors.New("get cluster manager error")
+	}
+
+	cli := clusterManager.HostClient
+	// lock drift-config configmap
+	rl.configMapLock.Lock()
+	defer rl.configMapLock.Unlock()
+	updateMap := make(map[string]string)
+	for _, policy := range policyData.Policies {
+		updateMap[fmt.Sprintf(model.PolicyConfigMapKeyTemplate, policy.ID)] = fmt.Sprintf(model.PolicyConfigMapValueTemplate, policy.ClusterKey, policy.Namespace, policy.ResourceKind, policy.Resource, policy.Enable, policy.Mode)
+	}
+	if len(updateMap) > policyConfigMapSize {
+		return errors.New("policy config map size is too large")
+	}
+
+	currentConfigMap, err := cli.CoreV1().ConfigMaps(namespace).Get(ctx, model.PoliciesConfigMapName, metav1.GetOptions{})
+	if err != nil || currentConfigMap == nil {
+		logging.Get().Warn().Msg("get drift config map error")
+		configmap := &corev1.ConfigMap{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      model.PoliciesConfigMapName,
+				Namespace: namespace,
+				Labels: map[string]string{
+					strings.Split(model.DriftConfigMapLabel, "=")[0]: strings.Split(model.DriftConfigMapLabel, "=")[1],
+				},
+			},
+			Data: updateMap,
+		}
+		_, err = cli.CoreV1().ConfigMaps(namespace).Create(ctx, configmap, metav1.CreateOptions{})
+		if err != nil {
+			logging.Get().Err(err).Str("cm:", fmt.Sprintf("%+v", configmap)).Msg("create drift config map error")
+			return err
+		}
+
+	} else {
+		if len(currentConfigMap.Data)+len(updateMap) > policyConfigMapSize {
+			return errors.New("policy config map size is too large")
+		}
+		if currentConfigMap.Data == nil {
+			currentConfigMap.Data = make(map[string]string, len(updateMap))
+		}
+		for key, value := range updateMap {
+			currentConfigMap.Data[key] = value
+		}
+		_, err = cli.CoreV1().ConfigMaps(namespace).Update(ctx, currentConfigMap, metav1.UpdateOptions{})
+		if err != nil {
+			logging.Get().Err(err).Str("cm:", fmt.Sprintf("%+v", currentConfigMap)).Msg("update drift config map error")
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (rl *TensorDriftService) driftConfigMapDelete(ctx context.Context, policyData model.PoliciesData) error {
+	namespace := os.Getenv("MY_POD_NAMESPACE")
+	if namespace == "" {
+		namespace = "tensorsec"
+	}
+	logging.Get().Debug().Interface("policyData", policyData).Msg("delete drift config map")
+	deleteKeys := make([]string, 0, len(policyData.Policies))
+	for _, policy := range policyData.Policies {
+		deleteKeys = append(deleteKeys, fmt.Sprintf(model.PolicyConfigMapKeyTemplate, policy.ID))
+	}
+
+	clusterManager, ok := k8s.GetClusterManager()
+	if !ok {
+		return errors.New("get cluster manager error")
+	}
+	cli := clusterManager.HostClient
+	// lock drift-config configmap
+	rl.configMapLock.Lock()
+	defer rl.configMapLock.Unlock()
+
+	currentConfigMap, err := cli.CoreV1().ConfigMaps(namespace).Get(ctx, model.PoliciesConfigMapName, metav1.GetOptions{})
+	if err != nil {
+		logging.Get().Warn().Msg("get drift config map error")
+		return err
+	}
+
+	for _, key := range deleteKeys {
+		if _, ok := currentConfigMap.Data[key]; ok {
+			delete(currentConfigMap.Data, key)
+			_, err = cli.CoreV1().ConfigMaps(namespace).Update(ctx, currentConfigMap, metav1.UpdateOptions{})
+			if err != nil {
+				logging.Get().Err(err).Str("cm:", fmt.Sprintf("%+v", currentConfigMap)).Msg("update drift config map error")
+				return err
+			}
+		} else {
+			logging.Get().Warn().Str("key", key).Msg("delete drift config map key not exist")
+		}
+	}
+
+	return nil
+}
+
+func (rl *TensorDriftService) driftConfigMapReset(ctx context.Context, policyData model.PoliciesData) error {
+	namespace := os.Getenv("MY_POD_NAMESPACE")
+	if namespace == "" {
+		namespace = "tensorsec"
+	}
+
+	clusterManager, ok := k8s.GetClusterManager()
+	if !ok {
+		return errors.New("get cluster manager error")
+	}
+	cli := clusterManager.HostClient
+	// lock drift-config configmap
+	rl.configMapLock.Lock()
+	defer rl.configMapLock.Unlock()
+
+	// delete drift config map
+	err := cli.CoreV1().ConfigMaps(namespace).Delete(ctx, model.PoliciesConfigMapName, metav1.DeleteOptions{})
+	if err != nil {
+		logging.Get().Warn().Msgf("delete drift config map error %v", err)
+	}
+
+	addMap := make(map[string]string)
+	for _, policy := range policyData.Policies {
+		addMap[fmt.Sprintf(model.PolicyConfigMapKeyTemplate, policy.ID)] = fmt.Sprintf(model.PolicyConfigMapValueTemplate, policy.ClusterKey, policy.Namespace, policy.ResourceKind, policy.Resource, policy.Enable, policy.Mode)
+	}
+	if len(addMap) > policyConfigMapSize {
+		return errors.New("policy config map size is too large")
+	}
+
+	// create drift config map
+	configmap := &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      model.PoliciesConfigMapName,
+			Namespace: namespace,
+			Labels: map[string]string{
+				strings.Split(model.DriftConfigMapLabel, "=")[0]: strings.Split(model.DriftConfigMapLabel, "=")[1],
+			},
+		},
+		Data: addMap,
+	}
+	_, err = cli.CoreV1().ConfigMaps(namespace).Create(ctx, configmap, metav1.CreateOptions{})
+	if err != nil {
+		logging.Get().Err(err).Str("cm:", fmt.Sprintf("%+v", configmap)).Msg("create drift config map error")
+		return err
+	}
+
+	return nil
+}
+
+func (rl *TensorDriftService) whitelistConfigMapUpdate(ctx context.Context, whitelistData model.WhitelistData) error {
+	namespace := os.Getenv("MY_POD_NAMESPACE")
+	if namespace == "" {
+		namespace = "tensorsec"
+	}
+	logging.Get().Debug().Interface("whitelistData", whitelistData).Msg("update whitelist config map")
+
+	clusterManager, ok := k8s.GetClusterManager()
+	if !ok {
+		return errors.New("get cluster manager error")
+	}
+	cli := clusterManager.HostClient
+	// lock drift-config configmap
+	rl.configMapLock.Lock()
+	defer rl.configMapLock.Unlock()
+
+	updateMap := make(map[string]string)
+	for _, whitelist := range whitelistData.Whitelist {
+		updateMap[fmt.Sprintf(model.WhitelistConfigMapKeyTemplate, whitelist.ID)] = fmt.Sprintf(model.WhitelistConfigMapValueTemplate,
+			whitelist.Path, whitelist.ExpireAt, whitelist.IsForever)
+	}
+
+	if len(updateMap) > whitelistConfigMapSize {
+		return errors.New("whitelist config map size is too large")
+	}
+
+	currentConfigMap, err := cli.CoreV1().ConfigMaps(namespace).Get(ctx, model.WhitelistConfigMapName, metav1.GetOptions{})
+	if err != nil {
+		logging.Get().Warn().Msg("get whitelist config map error")
+		configmap := &corev1.ConfigMap{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      model.WhitelistConfigMapName,
+				Namespace: namespace,
+				Labels: map[string]string{
+					strings.Split(model.DriftConfigMapLabel, "=")[0]: strings.Split(model.DriftConfigMapLabel, "=")[1],
+				},
+			},
+			Data: updateMap,
+		}
+		_, err = cli.CoreV1().ConfigMaps(namespace).Create(ctx, configmap, metav1.CreateOptions{})
+		if err != nil {
+			logging.Get().Err(err).Str("cm:", fmt.Sprintf("%+v", configmap)).Msg("create whitelist config map error")
+			return err
+		}
+
+	} else {
+		if len(currentConfigMap.Data)+len(updateMap) > whitelistConfigMapSize {
+			return errors.New("whitelist config map size is too large")
+		}
+		if currentConfigMap.Data == nil {
+			currentConfigMap.Data = make(map[string]string, len(updateMap))
+		}
+		for key, value := range updateMap {
+			currentConfigMap.Data[key] = value
+		}
+		_, err = cli.CoreV1().ConfigMaps(namespace).Update(ctx, currentConfigMap, metav1.UpdateOptions{})
+		if err != nil {
+			logging.Get().Err(err).Str("cm:", fmt.Sprintf("%+v", currentConfigMap)).Msg("update whitelist config map error")
+			return err
+		}
+	}
+	return nil
+}
+
+func (rl *TensorDriftService) whitelistConfigMapDelete(ctx context.Context, whitelistData model.WhitelistData) error {
+	namespace := os.Getenv("MY_POD_NAMESPACE")
+	if namespace == "" {
+		namespace = "tensorsec"
+	}
+
+	logging.Get().Debug().Interface("whitelistData", whitelistData).Msg("delete whitelist config map")
+
+	deleteKeys := make([]string, len(whitelistData.Whitelist))
+	for _, whitelist := range whitelistData.Whitelist {
+		deleteKeys = append(deleteKeys, fmt.Sprintf(model.WhitelistConfigMapKeyTemplate, whitelist.ID))
+	}
+
+	clusterManager, ok := k8s.GetClusterManager()
+	if !ok {
+		return errors.New("get cluster manager error")
+	}
+	cli := clusterManager.HostClient
+	// lock drift-config configmap
+	rl.configMapLock.Lock()
+	defer rl.configMapLock.Unlock()
+
+	currentConfigMap, err := cli.CoreV1().ConfigMaps(namespace).Get(ctx, model.WhitelistConfigMapName, metav1.GetOptions{})
+	if err != nil {
+		logging.Get().Warn().Msg("get whitelist config map error")
+		return err
+	}
+
+	for _, key := range deleteKeys {
+		if _, ok := currentConfigMap.Data[key]; ok {
+			delete(currentConfigMap.Data, key)
+			_, err = cli.CoreV1().ConfigMaps(namespace).Update(ctx, currentConfigMap, metav1.UpdateOptions{})
+			if err != nil {
+				logging.Get().Err(err).Str("cm:", fmt.Sprintf("%+v", currentConfigMap)).Msg("update whitelist config map error")
+				return err
+			}
+		} else {
+			logging.Get().Warn().Str("key", key).Msg("delete whitelist config map key not exist")
+		}
+	}
+	return nil
+}
+
+func (rl *TensorDriftService) whitelistConfigMapReset(ctx context.Context, whitelistData model.WhitelistData) error {
+	namespace := os.Getenv("MY_POD_NAMESPACE")
+	if namespace == "" {
+		namespace = "tensorsec"
+	}
+
+	clusterManager, ok := k8s.GetClusterManager()
+	if !ok {
+		return errors.New("get cluster manager error")
+	}
+	cli := clusterManager.HostClient
+	// lock drift-config configmap
+	rl.configMapLock.Lock()
+	defer rl.configMapLock.Unlock()
+
+	// delete drift config map
+	err := cli.CoreV1().ConfigMaps(namespace).Delete(ctx, model.WhitelistConfigMapName, metav1.DeleteOptions{})
+	if err != nil {
+		logging.Get().Warn().Msgf("delete whitelist config map error %v", err)
+	}
+
+	updateMap := make(map[string]string)
+	for _, whitelist := range whitelistData.Whitelist {
+		updateMap[fmt.Sprintf(model.WhitelistConfigMapKeyTemplate, whitelist.ID)] = fmt.Sprintf(model.WhitelistConfigMapValueTemplate,
+			whitelist.Path, whitelist.ExpireAt, whitelist.IsForever)
+	}
+	if len(updateMap) > whitelistConfigMapSize {
+		return errors.New("whitelist config map size is too large")
+	}
+
+	// create drift config map
+	configmap := &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      model.WhitelistConfigMapName,
+			Namespace: namespace,
+			Labels: map[string]string{
+				strings.Split(model.DriftConfigMapLabel, "=")[0]: strings.Split(model.DriftConfigMapLabel, "=")[1],
+			},
+		},
+		Data: updateMap,
+	}
+	_, err = cli.CoreV1().ConfigMaps(namespace).Create(ctx, configmap, metav1.CreateOptions{})
+	if err != nil {
+		logging.Get().Err(err).Str("cm:", fmt.Sprintf("%+v", configmap)).Msg("create whitelist config map error")
+		return err
+	}
+
+	return nil
+}
+
+func (rl *TensorDriftService) initConfigMap() {
+	policyData, err := rl.GetAllPolicies(context.Background(), "")
+	if err != nil {
+		logging.Get().Err(err).Msg("get all policies error")
+	}
+
+	err = rl.driftConfigMapReset(context.Background(), policyData)
+	if err != nil {
+		logging.Get().Err(err).Msg("drift config map reset error")
+	}
+
+	whitelistData, err := rl.GetAllGlobalWhitelist(context.Background())
+	if err != nil {
+		logging.Get().Err(err).Msg("get all whitelists error")
+	}
+
+	err = rl.whitelistConfigMapReset(context.Background(), whitelistData)
+	if err != nil {
+		logging.Get().Err(err).Msg("whitelist config map reset error")
+	}
 }

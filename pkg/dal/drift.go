@@ -28,6 +28,7 @@ func updateDriftVersionStamp(tx *gorm.DB, config *model.TensorConfig) error {
 		}),
 	}).Create(config).Error
 }
+
 func CreateDriftGlobalWhiteList(ctx context.Context, rdb *gorm.DB, whitelist model.DriftGlobalWhitelistItem) (uint64, error) {
 	whitelist.ID = util.GenerateUUID64(whitelist.Path)
 	if whitelist.UpdatedAt == 0 {
@@ -309,10 +310,11 @@ func DeleteDriftPolicy(ctx context.Context, rdb *gorm.DB, policyID int64) error 
 	return err
 }
 
-func UpdateDriftPolicies(ctx context.Context, rdb *gorm.DB, policies []model.DriftPolicyUpdate) []error {
+func UpdateDriftPolicies(ctx context.Context, rdb *gorm.DB, policies []model.DriftPolicyUpdate) ([]model.DriftPolicy, []error) {
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 	query := model.DriftPolicy{}
+	updatePolices := make([]model.DriftPolicy, 0, len(policies))
 	errs := make([]error, 0)
 	for index, policy := range policies {
 		err := rdb.Model(&model.DriftPolicy{}).WithContext(ctx).Where("id = ?", policy.PolicyID).Find(&query).Error
@@ -332,6 +334,8 @@ func UpdateDriftPolicies(ctx context.Context, rdb *gorm.DB, policies []model.Dri
 			errs = append(errs, fmt.Errorf("update policy %d failed: %v", policy.PolicyID, err))
 			continue
 		}
+		logging.Get().Info().Str("tmpPolicy:", fmt.Sprintf("%+v", tmpPolicy)).Msg("update policy success")
+		updatePolices = append(updatePolices, tmpPolicy)
 		if index == len(policies)-1 {
 			err = rdb.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 				versionStamp := strconv.FormatInt(tmpPolicy.UpdatedAt.UnixMilli(), 10)
@@ -352,7 +356,7 @@ func UpdateDriftPolicies(ctx context.Context, rdb *gorm.DB, policies []model.Dri
 		}
 	}
 
-	return errs
+	return updatePolices, errs
 }
 
 func UpdateDriftPolicy(ctx context.Context, rdb *gorm.DB, policy model.DriftPolicyUpdate) (model.DriftPolicy, error) {

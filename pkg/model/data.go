@@ -17,7 +17,7 @@ const (
 	DataTypeCold       = "cold"
 )
 
-//StorageView ...
+// StorageView ...
 type StorageView struct {
 	Total int64 `json:"total"`
 	Used  int64 `json:"used"`
@@ -27,7 +27,7 @@ func (s *StorageView) String() string {
 	return fmt.Sprintf("total:%dMB, used:%dMB", s.Total/1024/1024, s.Used/1024/1024)
 }
 
-//GCTask ...
+// GCTask ...
 type GCTask struct {
 	ID         int32     `gorm:"primaryKey; autoIncrement; column:id" json:"-"`
 	Hash       string    `gorm:"column:hash; unique" json:"id"`

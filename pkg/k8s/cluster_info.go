@@ -14,8 +14,8 @@ import (
 	"github.com/pkg/errors"
 	"gitlab.com/piccolo_su/vegeta/pkg/assets"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
-	"gitlab.com/security-rd/go-pkg/logging"
 	"gitlab.com/security-rd/go-pkg/httputil"
+	"gitlab.com/security-rd/go-pkg/logging"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/informers"
 	configmaplister "k8s.io/client-go/listers/core/v1"
@@ -42,6 +42,7 @@ type TensorCluster struct {
 type ClusterInfoManager struct {
 	cinfoVal      atomic.Value
 	host          string
+	HostClient    *assets.Clientset
 	lister        configmaplister.ConfigMapLister
 	hasSynced     func() bool
 	workNamespace string
@@ -61,6 +62,7 @@ func NewClusterInfoManager(cmHost string) *ClusterInfoManager {
 
 	m := &ClusterInfoManager{
 		host:          cmHost,
+		HostClient:    clientset,
 		workNamespace: workNamespace,
 		lister:        factory.Core().V1().ConfigMaps().Lister(),
 		hasSynced:     factory.Core().V1().ConfigMaps().Informer().HasSynced,

@@ -165,10 +165,6 @@ func NewConsole(
 		logging.Get().Err(err).Msg("init mq reader error")
 		panic(err)
 	}
-	drErr := drvSvc.InitDriftService(rdb, es, mqReader)
-	if drErr != nil {
-		logging.Get().Err(drErr).Msg("ERROR: InitDriftService init error")
-	}
 
 	var redisearchClient *redisearch.Client
 
@@ -305,6 +301,11 @@ func NewConsole(
 	})
 	if err != nil {
 		logging.Get().Err(err).Msg("init process center error")
+	}
+
+	drErr := drvSvc.InitDriftService(rdb, es, mqReader)
+	if drErr != nil {
+		logging.Get().Err(drErr).Msg("ERROR: InitDriftService init error")
 	}
 
 	stream := rpcstream.NewStreamFactory(rpcstream.WithClusterKey("main")).Server("tcp", ":19090")
