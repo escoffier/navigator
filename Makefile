@@ -17,6 +17,7 @@ RELEASEVERSION?=v0.0.1
 FETCHTAG?=latest
 
 LICENSE_SECRET?=sit
+BIN_DIR = $(shell pwd)/bin/
 
 .PHONY: help
 help:
@@ -173,6 +174,7 @@ ifeq ($(USEMIRROR),true)
 	@echo "daemon will use mirror"
 	CGO_ENABLED=1 go build -v -o bin/daemon  cmd/daemon/main.go
 	gcc -o bin/ns-mnt  cmd/daemon/setns/cjson.c cmd/daemon/setns/setmnt.c cmd/daemon/setns/net_info.c cmd/daemon/setns/netebpf_user.c cmd/daemon/setns/bpf.c cmd/daemon/setns/bpf_load.c -lelf -lpthread
+	make -C cmd/daemon/net-policy BIN_DIR=$(BIN_DIR)
 	#upx --lzma --best bin/daemon
 	docker build -f build/daemon/Dockerfile -t $(REPOPREFIX)/daemon:latest \
         --build-arg GOPROXY=https://goproxy.cn --build-arg MIRROR=mirrors.aliyun.com .
@@ -180,6 +182,7 @@ else
 	@echo "daemon will not use mirror"
 	go build -v -o bin/daemon  cmd/daemon/main.go
 	gcc -o bin/ns-mnt  cmd/daemon/setns/cjson.c cmd/daemon/setns/setmnt.c cmd/daemon/setns/net_info.c cmd/daemon/setns/netebpf_user.c cmd/daemon/setns/bpf.c cmd/daemon/setns/bpf_load.c -lelf -lpthread
+	make -C cmd/daemon/net-policy BIN_DIR=$(BIN_DIR)
 	#upx --lzma --best bin/daemon
 	docker build -f build/daemon/Dockerfile -t $(REPOPREFIX)/daemon:latest .
 endif

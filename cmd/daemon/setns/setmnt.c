@@ -847,6 +847,8 @@ int main(int argc, char *argv[])
     //create socket
     zListenFd = socket(PF_UNIX, SOCK_STREAM, 0);
     if(zListenFd <= 0) GOTO_ERROR(err, "create unix socket failed! %s.", strerror(errno));
+    //noblack
+    
     //socket address
     svrAddr.sun_family = AF_UNIX;
     strcpy(svrAddr.sun_path, DAEMON_UNIX);

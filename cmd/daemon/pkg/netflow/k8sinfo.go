@@ -2,11 +2,15 @@ package netflow
 
 import (
 	"context"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"fmt"
+	"hash/fnv"
 	"sync"
 	"time"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
 	"github.com/pkg/errors"
+	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/microseg"
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/nodeinfo"
 	"gitlab.com/piccolo_su/vegeta/pkg/daemon"
 	"gitlab.com/security-rd/go-pkg/logging"
@@ -19,14 +23,16 @@ const (
 )
 
 type NodePodsInfo struct {
-	resInfos *sync.Map // map[string]*daemon.K8sResData
-	k8sCli   *kubernetes.Clientset
+	resInfos  *sync.Map // map[string]*daemon.K8sResData
+	k8sCli    *kubernetes.Clientset
+	policyCli microseg.PolicyClient
 }
 
-func NewNodePodInfo(k8sCli *kubernetes.Clientset) *NodePodsInfo {
+func NewNodePodInfo(k8sCli *kubernetes.Clientset, policyCli microseg.PolicyClient) *NodePodsInfo {
 	info := &NodePodsInfo{
-		resInfos: new(sync.Map),
-		k8sCli:   k8sCli,
+		resInfos:  new(sync.Map),
+		k8sCli:    k8sCli,
+		policyCli: policyCli,
 	}
 
 	return info
@@ -98,6 +104,21 @@ func (n *NodePodsInfo) OnDelete(oldPod *nodeinfo.PodEvent) {
 		}
 		n.DeleteResData(podIp.IP)
 	}
+	if len(oldPod.Pod.Status.PodIPs) > 0 {
+		ip := oldPod.Pod.Status.PodIPs[0]
+		if value, exist := n.resInfos.Load(ip); exist {
+			resData := value.(*daemon.K8sResData)
+			for _, c := range resData.ContainerInfo {
+				err := n.policyCli.DeleteContaier(c.ContainerPid, podID(oldPod.Pod))
+				if err != nil {
+					logging.Get().Warn().Msgf("container %s (pid: %d) to dp err: %v",
+						c.ContainerName, c.ContainerPid, err)
+					continue
+				}
+				break
+			}
+		}
+	}
 }
 
 func (n *NodePodsInfo) OnUpdate(oldPod, newPod *nodeinfo.PodEvent, containerInfo nodeinfo.ContainerInfoManager) {
@@ -137,6 +158,16 @@ func (n *NodePodsInfo) savePodData(podEvt *nodeinfo.PodEvent, containerInfo node
 		return
 	}
 
+	logging.Get().Info().Msgf("to dp %d", len(rsData.ContainerInfo))
+
+	for _, c := range rsData.ContainerInfo {
+		err := n.policyCli.AddContainer(c.ContainerPid, podID(podEvt.Pod))
+		if err != nil {
+			logging.Get().Warn().Msgf("container %s (pid: %d) to dp err: %v",
+				c.ContainerName, c.ContainerPid, err)
+		}
+		break
+	}
 	res := podEvt.FinalOwnerResource(context.Background())
 	rsData.OwnerName = res.Name
 	rsData.Kind = res.Kind
@@ -154,7 +185,6 @@ func (n *NodePodsInfo) DeleteResData(ip string) {
 	if len(ip) == 0 {
 		return
 	}
-
 	n.resInfos.Delete(ip)
 }
 
@@ -210,4 +240,11 @@ func (n *NodePodsInfo) UpdateContainerData(crim nodeinfo.ContainerInfoManager, i
 
 	logging.Get().Debug().Msgf("update container id success, ns : %v, pod name : %v.", ns, podName)
 	return nil
+}
+
+func podID(pod *corev1.Pod) uint64 {
+	str := fmt.Sprintf("%s/%s", pod.Namespace, pod.Name)
+	h := fnv.New64a()
+	h.Write([]byte(str))
+	return h.Sum64()
 }

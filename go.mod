@@ -128,8 +128,8 @@ require (
 	k8s.io/klog/v2 v2.60.1
 	k8s.io/kubernetes v1.24.0
 	layeh.com/radius v0.0.0-20210819152912-ad72663a72ab
-	moul.io/http2curl v1.0.0
-	scm.tensorsecurity.cn/tensorsecurity-rd/api v0.2.2
+    moul.io/http2curl v1.0.0
+	scm.tensorsecurity.cn/tensorsecurity-rd/api v0.2.3-0.20230330065923-c906c36c4c0d
 )
 
 require (
