@@ -7,7 +7,7 @@ RUN sed -i "s!archive.ubuntu.com/!mirrors.aliyun.com/!g" /etc/apt/sources.list \
     && export DEBIAN_FRONTEND=noninteractive \
     && apt-get update \
     && DEBIAN_FRONTEND=noninteractive apt install -y --no-install-recommends \
-    supervisor libdevmapper-dev libgpgme-dev libglib2.0-dev \
+    supervisor libdevmapper-dev libgpgme-dev libglib2.0-dev iptables \
     language-pack-zh-han* \
     && apt-get full-upgrade -y \
     && apt-get clean \
@@ -19,6 +19,7 @@ ENV LC_ALL=zh_CN.UTF-8
 
 COPY bin/daemon /
 COPY bin/ns-mnt /
+COPY bin/net-rule /
 COPY ./configs/daemon/supervisord.conf /etc/
 COPY ./configs/daemon/*.o /
 COPY ./configs/drift-prevention/inject /

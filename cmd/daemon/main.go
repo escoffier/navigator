@@ -20,6 +20,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/containerassets"
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/degrade"
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/holmes"
+	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/microseg"
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/netflow"
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/nodeinfo"
 	"gitlab.com/piccolo_su/vegeta/pkg/assets"
@@ -34,6 +35,8 @@ import (
 	"gitlab.com/security-rd/go-pkg/logging"
 	"gitlab.com/security-rd/go-pkg/mq"
 	"gitlab.com/security-rd/go-pkg/sdk/palace"
+	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"scm.tensorsecurity.cn/tensorsecurity-rd/api/pkg/generated/informers/externalversions"
 )
 
 var loggingOptions *logging.Options
@@ -59,7 +62,7 @@ func initEventStreams(udsAddr, nodeName, myNamespace, ctrlURL, ruleDirPath strin
 	return handler, nil
 }
 
-func initNodeInfos(hostName, hostIP, clusterKey, myNamespace string) (nodeinfo.ContainerInfoManager, *netflow.NodePodsInfo, *nodeinfo.PodResInfo, *nodeinfo.NodePodsWatcher, error) {
+func initNodeInfos(hostName, hostIP, clusterKey, myNamespace string, policyCli microseg.PolicyClient) (nodeinfo.ContainerInfoManager, *netflow.NodePodsInfo, *nodeinfo.PodResInfo, *nodeinfo.NodePodsWatcher, error) {
 	nodePods := nodeinfo.NewNodePodsWatcher(hostName, clusterKey)
 	k8sCli, err := nodePods.Build().InitK8sClient()
 	if err != nil {
@@ -81,12 +84,12 @@ func initNodeInfos(hostName, hostIP, clusterKey, myNamespace string) (nodeinfo.C
 
 	agent := containerassets.NewAgent(mqWriter)
 	podResInfo := nodeinfo.NewPodResInfo(agent, clusterKey)
-	k8sInfo := netflow.NewNodePodInfo(k8sCli)
+	k8sInfo := netflow.NewNodePodInfo(k8sCli, policyCli)
 
 	var containerInfo nodeinfo.ContainerInfoManager
 	switch containerType {
 	case nodeinfo.DockerType:
-		containerInfo, err = nodeinfo.NewDockerInfoManager(clusterKey, hostName, hostIP, agent)
+		containerInfo, err = nodeinfo.NewDockerInfoManager(clusterKey, hostName, hostIP, agent, policyCli)
 		if err != nil {
 			return nil, nil, nil, nil, errors.Errorf("Failed to initialize docker info manager, %v", err)
 		}
@@ -114,6 +117,11 @@ func initNodeInfos(hostName, hostIP, clusterKey, myNamespace string) (nodeinfo.C
 			if !ok {
 				return
 			}
+			// err := policyCli.AddContainer(container.Pid)
+			// if err != nil {
+			// 	logging.Get().Warn().Msgf("container %s (pid: %s) to dp err: %v",
+			// 		container.ContainerID, container.Pid, err)
+			// }
 			if (!container.K8sManaged) && (container.IP != "" || container.IPV6 != "") {
 				ip := container.IP
 				if container.IPV6 != "" {
@@ -135,6 +143,11 @@ func initNodeInfos(hostName, hostIP, clusterKey, myNamespace string) (nodeinfo.C
 			if !ok {
 				return
 			}
+			// err := policyCli.AddContainer(container.Pid)
+			// if err != nil {
+			// 	logging.Get().Warn().Msgf("container %s (pid: %s) to dp err: %v",
+			// 		container.ContainerID, container.Pid, err)
+			// }
 			if (!container.K8sManaged) && (container.IP != "" || container.IPV6 != "") {
 				ip := container.IP
 				if container.IPV6 != "" {
@@ -155,6 +168,12 @@ func initNodeInfos(hostName, hostIP, clusterKey, myNamespace string) (nodeinfo.C
 			if !ok {
 				return
 			}
+
+			// err := policyCli.DeleteContaier(container.Pid)
+			// if err != nil {
+			// 	logging.Get().Warn().Msgf("container %s (pid: %s) to dp err: %v",
+			// 		container.ContainerID, container.Pid, err)
+			// }
 			if (!container.K8sManaged) && (container.IP != "" || container.IPV6 != "") {
 				ip := container.IP
 				if container.IPV6 != "" {
@@ -288,7 +307,17 @@ func Run(ctx context.Context) error {
 		nodeinfo.ExportRawContainer = false
 	}
 
-	containerInfo, k8sInfo, podResInfo, podWatcher, err := initNodeInfos(hostName, hostIP, clusterKey, myNamespace)
+	policyClient, err := microseg.NewPolicyClient("/var/run/zero-trust.sock")
+	if err != nil {
+		return err
+	}
+
+	policyEventClient, err := microseg.NewPolicyClient("/var/run/zero-trust-post.sock")
+	if err != nil {
+		return err
+	}
+
+	containerInfo, k8sInfo, podResInfo, podWatcher, err := initNodeInfos(hostName, hostIP, clusterKey, myNamespace, policyClient)
 	if err != nil {
 		return err
 	}
@@ -303,6 +332,28 @@ func Run(ctx context.Context) error {
 
 	//free resource
 	defer flow.Close()
+
+	kubeConfig, err := k8s.KubeConfig()
+	if err != nil {
+		return nil
+	}
+	clientset, err := assets.NewForConfig(kubeConfig)
+	if err != nil {
+		return nil
+	}
+
+	tensorFactory := externalversions.NewSharedInformerFactoryWithOptions(clientset.TensorClientset, 10*time.Hour, externalversions.WithTweakListOptions(func(lo *v1.ListOptions) {
+		lo.LabelSelector = fmt.Sprintf("kubernetes.io/node-name=%s", hostName)
+	}))
+	ruleController := microseg.NewRuleGroupController(clientset.TensorClientset, tensorFactory, policyClient, hostName)
+	stopChan := make(chan struct{})
+	go ruleController.Run(stopChan)
+
+	tensorFactory.Start(stopChan)
+	tensorFactory.WaitForCacheSync(stopChan)
+
+	eventProcessor := microseg.NewEventProcessor(policyEventClient)
+	go eventProcessor.Run()
 
 	wg.Add(1)
 	go func() {
@@ -457,6 +508,7 @@ func Run(ctx context.Context) error {
 	}
 
 	wg.Wait()
+
 	return err
 }
 
