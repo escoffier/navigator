@@ -5,12 +5,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"reflect"
+	"strconv"
 	"time"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/clustermanager/pkg/microseg/types"
 	"gitlab.com/security-rd/go-pkg/logging"
 	corev1 "k8s.io/api/core/v1"
-	discovery1 "k8s.io/api/discovery/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
@@ -21,6 +21,7 @@ import (
 	"k8s.io/client-go/informers"
 	listerv1 "k8s.io/client-go/listers/core/v1"
 	dislisterv1 "k8s.io/client-go/listers/discovery/v1"
+	dislisterv1beta1 "k8s.io/client-go/listers/discovery/v1beta1"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
 	"k8s.io/klog/v2"
@@ -42,13 +43,14 @@ type NetworkPolicyController struct {
 	serviceInformer       cache.SharedIndexInformer
 	clusterGroupInformer  cache.SharedIndexInformer
 
-	policyLister        v1alpha1.MicrosegClusterNetworkPolicyLister
-	podLister           listerv1.PodLister
-	namespaceLister     listerv1.NamespaceLister
-	serviceLister       listerv1.ServiceLister
-	endpointsliceLister dislisterv1.EndpointSliceLister
-	clusterGroupLister  v1alpha1.MicrosegClusterGroupLister
-	ruleGroupLister     v1alpha1.NetworkPolicyRuleGroupLister
+	policyLister               v1alpha1.MicrosegClusterNetworkPolicyLister
+	podLister                  listerv1.PodLister
+	namespaceLister            listerv1.NamespaceLister
+	serviceLister              listerv1.ServiceLister
+	endpointsliceLister        dislisterv1.EndpointSliceLister
+	endpointsliceListerv1beta1 dislisterv1beta1.EndpointSliceLister
+	clusterGroupLister         v1alpha1.MicrosegClusterGroupLister
+	ruleGroupLister            v1alpha1.NetworkPolicyRuleGroupLister
 
 	podSynced           cache.InformerSynced
 	namepaceSynced      cache.InformerSynced
@@ -446,19 +448,35 @@ func (npc *NetworkPolicyController) addService(obj interface{}) {
 		"kubernetes.io/service-name":             service.Name,
 		"endpointslice.kubernetes.io/managed-by": "endpointslice-controller.k8s.io",
 	}).AsSelectorPreValidated()
-	endpointSlices, err := npc.endpointsliceLister.EndpointSlices(service.Namespace).List(esLabelSelector)
-	if err != nil {
-		return
-	}
-
-	if len(endpointSlices) == 0 {
-		return
-	}
 
 	var podNamespace, podName string
-	for _, ep := range endpointSlices[0].Endpoints {
-		if ep.TargetRef.Kind == "Pod" {
-			podNamespace, podName = ep.TargetRef.Namespace, ep.TargetRef.Name
+	if npc.endpointsliceLister != nil {
+		endpointSlices, err := npc.endpointsliceLister.EndpointSlices(service.Namespace).List(esLabelSelector)
+		if err != nil {
+			return
+		}
+
+		if len(endpointSlices) == 0 {
+			return
+		}
+		for _, ep := range endpointSlices[0].Endpoints {
+			if ep.TargetRef.Kind == "Pod" {
+				podNamespace, podName = ep.TargetRef.Namespace, ep.TargetRef.Name
+			}
+		}
+	} else {
+		endpointSlices, err := npc.endpointsliceListerv1beta1.EndpointSlices(service.Namespace).List(esLabelSelector)
+		if err != nil {
+			return
+		}
+
+		if len(endpointSlices) == 0 {
+			return
+		}
+		for _, ep := range endpointSlices[0].Endpoints {
+			if ep.TargetRef.Kind == "Pod" {
+				podNamespace, podName = ep.TargetRef.Namespace, ep.TargetRef.Name
+			}
 		}
 	}
 	pod, err := npc.podLister.Pods(podNamespace).Get(podName)
@@ -480,33 +498,6 @@ func (npc *NetworkPolicyController) updateService(oldObj, newObj interface{}) {
 func (npc *NetworkPolicyController) deleteService(obj interface{}) {
 }
 
-func (npc *NetworkPolicyController) addEndpointSlice(obj interface{}) {
-	endpointSlices := obj.(*discovery1.EndpointSlice)
-	var podNamespace, podName string
-	for _, ep := range endpointSlices.Endpoints {
-		if ep.TargetRef.Kind == "Pod" {
-			podNamespace, podName = ep.TargetRef.Namespace, ep.TargetRef.Name
-			pod, err := npc.podLister.Pods(podNamespace).Get(podName)
-			if err != nil {
-				return
-			}
-			npc.addPod(pod)
-		}
-	}
-}
-
-func (npc *NetworkPolicyController) updateEndpointSlice(oldObj, newObj interface{}) {
-	newSvc := newObj.(*discovery1.EndpointSlice)
-	// oldSvc := oldObj.(*discovery1.EndpointSlice)
-	// if reflect.DeepEqual(newSvc.Spec, oldSvc.Spec) {
-	// 	return
-	// }
-	npc.addService(newSvc)
-}
-
-func (npc *NetworkPolicyController) deleteEndpointSlice(obj interface{}) {
-}
-
 func NewNetworkPolicyController(clientset *versioned.Clientset, factory informers.SharedInformerFactory, crdFactory externalversions.SharedInformerFactory) *NetworkPolicyController {
 	policyInfomer := crdFactory.Microsegmentation().V1alpha1().MicrosegClusterNetworkPolicies().Informer()
 
@@ -518,7 +509,6 @@ func NewNetworkPolicyController(clientset *versioned.Clientset, factory informer
 		namespaceInformer:    factory.Core().V1().Namespaces().Informer(),
 		serviceInformer:      factory.Core().V1().Services().Informer(),
 		serviceLister:        factory.Core().V1().Services().Lister(),
-		endpointsliceLister:  factory.Discovery().V1().EndpointSlices().Lister(),
 		policyLister:         crdFactory.Microsegmentation().V1alpha1().MicrosegClusterNetworkPolicies().Lister(),
 		clusterGroupLister:   crdFactory.Microsegmentation().V1alpha1().MicrosegClusterGroups().Lister(),
 		ruleGroupLister:      crdFactory.Microsegmentation().V1alpha1().NetworkPolicyRuleGroups().Lister(),
@@ -538,6 +528,22 @@ func NewNetworkPolicyController(clientset *versioned.Clientset, factory informer
 		UpdateFunc: controller.updateClusterPolicy,
 		DeleteFunc: controller.deleteClusterPolicy,
 	}, time.Hour*8)
+
+	ver, err := clientset.DiscoveryClient.ServerVersion()
+	if err != nil {
+		logging.Get().Err(err).Msg("faild to get kubenetes version")
+		return nil
+	}
+	v, err := strconv.Atoi(ver.Minor)
+	if err != nil {
+		logging.Get().Err(err).Msgf("invalid kube version %s", ver.String())
+		return nil
+	}
+	if v < 21 {
+		controller.endpointsliceListerv1beta1 = factory.Discovery().V1beta1().EndpointSlices().Lister()
+	} else {
+		controller.endpointsliceLister = factory.Discovery().V1().EndpointSlices().Lister()
+	}
 
 	policyInfomer.AddIndexers(cache.Indexers{"pod-label-index": podLabelIndexFunc})
 
