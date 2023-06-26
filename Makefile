@@ -34,14 +34,8 @@ dev:				## Check your dev tools
 	@command -v npm || echo "npm: not found, check https://nodejs.org/en/dotelewnload/"
 	@test -e .git/hooks/pre-commit || echo "pre-commit hook is not installed: pre-commit install"
 
-.PHONY: generate
-generate:
-	@echo "+ $@"
-	cd cmd/console; go generate; cd -
-	cd cmd/scanner; go generate; cd -
-
 .PHONY: test
-test: generate			## Run golint, staticcheck, and go test for all the sub-directories
+test:			## Run golint, staticcheck, and go test for all the sub-directories
 	@echo "+ $@"
 	go mod tidy
 	# @if [ "$$(command -v revive)" ]; then \
@@ -64,7 +58,7 @@ clean:				## Clean all artifacts
 	rm -fr dist
 
 .PHONY: console
-console: generate 		## Build console binary
+console: 		## Build console binary
 	# This target depends on scap-jobs, but for optimisation, if we want to build only console, they won't be built.
 	# To build all targets, use make all.
 	@echo "+ $@"
@@ -95,7 +89,7 @@ else
 endif
 
 .PHONY: data
-data: generate 		## Build cleaner binary
+data:  		## Build cleaner binary
 	@echo "+ $@"
 	CGO_ENABLED=0 go build -v \
 		-o dist/cleaner gitlab.com/piccolo_su/vegeta/cmd/data/tool/main
@@ -103,7 +97,7 @@ data: generate 		## Build cleaner binary
 	docker build -t $(REPOPREFIX)/cleaner:latest --build-arg REPO=$(REPOPREFIX) -f ./build/data/Dockerfile  --build-arg MIRROR=mirrors.aliyun.com .
 
 .PHONY: kube-scanner-report
-kube-scanner-report: generate
+kube-scanner-report: 
 	@echo "+ $@"
 	CGO_ENABLED=0 go build -v \
     		-o dist/kube-scanner-report gitlab.com/piccolo_su/vegeta/cmd/kube-scanner-report
@@ -111,7 +105,7 @@ kube-scanner-report: generate
 	docker build -t $(REPOPREFIX)/kube-scanner-report:latest --build-arg REPO=$(REPOPREFIX) -f ./build/kube-scanner-report/Dockerfile .
 
 .PHONY: platform-report
-platform-report: generate
+platform-report: 
 	@echo "+ $@"
 	CGO_ENABLED=0 go build -v \
     		-o dist/platform-report gitlab.com/piccolo_su/vegeta/cmd/platform-report
@@ -119,7 +113,7 @@ platform-report: generate
 	docker build -t $(REPOPREFIX)/platform-report:latest --build-arg REPO=$(REPOPREFIX) -f ./build/platform-report/Dockerfile .
 
 .PHONY: immune-test
-immune-test: generate
+immune-test:
 	@echo "+ $@"
 	mkdir -p dist
 	echo "initial" > dist/immune-test-1.txt
@@ -144,7 +138,7 @@ else
 endif
 
 .PHONY: scanner
-scanner: generate		## Build scanner binary
+scanner:		## Build scanner binary
 	@echo "+ $@"
 	CGO_ENABLED=1	go build -v \
 		--ldflags "$(LDFLAGS) -X gitlab.com/piccolo_su/vegeta/cmd/scanner/cmd.Version=$(VERSION)" \
@@ -254,7 +248,7 @@ go-audit:     ## Build go-audit docker
 .PHONY: security-profiles-manager
 security-profiles-manager:	## Build security-profiles-manager binary
 	@echo "+ $@"
-	cd cmd/security-profiles-manager; go generate; cd -
+	cd cmd/security-profiles-manager; cd -
 	go build -v \
 		--ldflags "$(LDFLAGS) -X gitlab.com/piccolo_su/vegeta/cmd/security-profiles-manager/cmd.Version=$(VERSION)" \
 		-o dist/security-profiles-manager gitlab.com/piccolo_su/vegeta/cmd/security-profiles-manager
@@ -311,7 +305,7 @@ endif
 
 
 .PHONY: migrate
-migrate: generate		## Build migrage binary
+migrate:		## Build migrage binary
 	@echo "+ $@"
 	go build -v \
 		--ldflags "$(LDFLAGS)" \
@@ -319,7 +313,7 @@ migrate: generate		## Build migrage binary
 	#upx --lzma --best dist/migrate
 
 .PHONY: image-validate
-image-validate: generate
+image-validate:
 	@echo "build image-validate"
 	go build -v \
 		-o dist/image-validator gitlab.com/piccolo_su/vegeta/cmd/image-validate
@@ -327,7 +321,7 @@ image-validate: generate
 	docker build -t $(REPOPREFIX)/image-validator:latest -f ./build/image-validate/Dockerfile .
 
 .PHONY: webhook
-webhook: generate
+webhook:
 	@echo "build webhook"
 	go build -v \
 		-tags=jsoniter -o dist/webhook gitlab.com/piccolo_su/vegeta/cmd/webhook
@@ -335,7 +329,7 @@ webhook: generate
 	docker build -t $(REPOPREFIX)/webhook:latest -f ./build/webhook/Dockerfile .
 
 .PHONY: cluster-manager
-cluster-manager: generate
+cluster-manager:
 	@echo "build cluster-manager"
 	go build -v \
 		-tags=jsoniter -o dist/cluster-manager gitlab.com/piccolo_su/vegeta/cmd/clustermanager
@@ -343,7 +337,7 @@ cluster-manager: generate
 	docker build -t $(REPOPREFIX)/cluster-manager:latest -f ./build/cluster-manager/Dockerfile .
 
 .PHONY: kafka-proxy
-kafka-proxy: generate
+kafka-proxy:
 	@echo "build kafka-proxy"
 	go build -v \
 		-o dist/kafka-proxy gitlab.com/piccolo_su/vegeta/cmd/kafkaproxy
@@ -359,7 +353,7 @@ scan_report: 		## Build cleaner binary
 	docker build -t $(REPOPREFIX)/scan-report:latest -f ./build/scan_report/Dockerfile .
 
 .PHONY: apiscan-job
-apiscan-job: generate
+apiscan-job:
 	@echo "build apiscan-job"
 	go build -v \
 		-o dist/apiscan gitlab.com/piccolo_su/vegeta/cmd/apiscan-job
@@ -367,7 +361,7 @@ apiscan-job: generate
 	docker build -t $(REPOPREFIX)/apiscan-job:latest -f ./build/apiscan-job/Dockerfile .
 
 .PHONY: cluster-proxy
-cluster-proxy: generate
+cluster-proxy:
 	@echo "build cluster proxy"
 	cp ./build/cluster-proxy/bootstrap.yaml ./bootstrap.yaml
 	docker build -t $(REPOPREFIX)/cluster-proxy:latest -f ./build/cluster-proxy/Dockerfile .
