@@ -121,6 +121,7 @@ require (
 	github.com/xuri/excelize/v2 v2.6.0
 	gitlab.com/security-rd/go-pkg v0.2.69
 	go.uber.org/atomic v1.11.0
+	golang.org/x/exp v0.0.0-20230522175609-2e198f4a06a1
 	gomodules.xyz/jsonpatch/v3 v3.0.1
 	google.golang.org/protobuf v1.30.0
 	gorm.io/driver/sqlite v1.4.3
@@ -128,8 +129,8 @@ require (
 	k8s.io/klog/v2 v2.60.1
 	k8s.io/kubernetes v1.24.0
 	layeh.com/radius v0.0.0-20210819152912-ad72663a72ab
-    moul.io/http2curl v1.0.0
-	scm.tensorsecurity.cn/tensorsecurity-rd/api v0.2.3-0.20230330065923-c906c36c4c0d
+	moul.io/http2curl v1.0.0
+	scm.tensorsecurity.cn/tensorsecurity-rd/api v0.2.3
 )
 
 require (
@@ -167,6 +168,7 @@ require (
 	github.com/eapache/go-resiliency v1.3.0 // indirect
 	github.com/eapache/go-xerial-snappy v0.0.0-20230111030713-bf00bc1b83b6 // indirect
 	github.com/eapache/queue v1.1.0 // indirect
+	github.com/evanphx/json-patch v4.12.0+incompatible // indirect
 	github.com/gabriel-vasile/mimetype v1.4.2 // indirect
 	github.com/glaslos/ssdeep v0.3.1 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
@@ -263,7 +265,6 @@ require (
 	go.opentelemetry.io/otel/trace v1.5.0 // indirect
 	go.uber.org/ratelimit v0.2.0 // indirect
 	golang.org/x/arch v0.3.0 // indirect
-	golang.org/x/exp v0.0.0-20230522175609-2e198f4a06a1 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20230525234020-1aefcd67740a // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20230530153820-e85fd2cbaebc // indirect
 	gopkg.in/fsnotify.v1 v1.4.7 // indirect
@@ -338,7 +339,7 @@ require (
 	github.com/containerd/typeurl v1.0.2 // indirect
 	github.com/containers/podman/v3 v3.4.6-20220425170000
 	github.com/cpuguy83/go-md2man/v2 v2.0.2 // indirect
-	github.com/davecgh/go-spew v1.1.1 // indirect
+	github.com/davecgh/go-spew v1.1.1
 	github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f // indirect
 	github.com/dimchansky/utfbom v1.1.1 // indirect
 	github.com/docker/cli v20.10.17+incompatible // indirect

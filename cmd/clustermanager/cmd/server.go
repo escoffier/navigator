@@ -15,6 +15,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/clustermanager/pkg/clusterserver"
 	conf "gitlab.com/piccolo_su/vegeta/cmd/clustermanager/pkg/config"
 	"gitlab.com/piccolo_su/vegeta/cmd/clustermanager/pkg/drift"
+	"gitlab.com/piccolo_su/vegeta/cmd/clustermanager/pkg/microseg"
 	"gitlab.com/piccolo_su/vegeta/cmd/clustermanager/service"
 	assets2 "gitlab.com/piccolo_su/vegeta/pkg/assets"
 	"gitlab.com/piccolo_su/vegeta/pkg/dal"
@@ -99,6 +100,8 @@ func NewServer() (*server, error) {
 		return nil, err
 	}
 	go assets.NewAssetsController(factory, tensorFactory, mqWriter, agent.CusterID, "kube-resources", s.config.PoolInfo).Run(stopChan)
+
+	go microseg.NewNetworkPolicyController(agent.GetHostClient().TensorClientset, factory, tensorFactory).Run(stopChan)
 
 	if s.config.ClusterType == model.HostCluster {
 		rdb, err := databases.NewRDBWithMySQLByEnv(context.Background())
@@ -207,9 +210,6 @@ func NewServer() (*server, error) {
 
 	factory.WaitForCacheSync(stopChan)
 	tensorFactory.WaitForCacheSync(stopChan)
-	if err != nil {
-		logging.Get().Err(err).Msg("update cluster ruleVersion err")
-	}
 
 	return s, nil
 }
