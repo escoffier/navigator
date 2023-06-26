@@ -77,6 +77,67 @@ message ClusterRegister {
     int32  Status = 13;
 }
 
+message IPBlock {
+    string CIDR = 1;
+}
+
+message NamespacedName {
+    string Name = 1;
+    string Namespace = 2;
+}
+
+message NetworkPolicyPort {
+    string Protocol = 1;
+    string Port = 2; 
+    int32 EndPort = 3;
+}
+
+message PolicyRule {
+    string Action = 1;
+    string Protocol = 2;
+    repeated NetworkPolicyPort Ports = 3;
+    repeated NetworkPolicyPeer From = 4;
+    repeated NetworkPolicyPeer To = 5;
+    string Name = 6;
+    bool EnableLogging = 7;
+}
+
+message NetworkPolicyPeer {
+    IPBlock IPBlock = 1;
+    LabelSelector PodSelector = 2;
+    LabelSelector NamespaceSelector = 3;
+    string Group = 4;
+    NamespacedName ServiceAccount = 5;
+    string FQDN = 6;
+    LabelSelector NodeSelector = 7;
+}
+
+message LabelSelector {
+    map<string, string> MatchLabels = 1;
+}
+
+message ClusterNetworkPolicy {
+    string name  = 1;
+    int32 Priority = 2;
+    LabelSelector PodSelector = 3;
+    LabelSelector NamespaceSelector = 4;
+    string Group = 5;
+    NamespacedName ServiceAccount = 6;
+    repeated PolicyRule Ingress = 7;
+    repeated PolicyRule Egress = 8; 
+}
+
+message NetworkPolicy {
+    string name = 1;
+    string namespace = 2;
+    int32 Priority = 3;
+    LabelSelector PodSelector = 4;
+    string Group = 5;
+    NamespacedName ServiceAccount = 6;
+    repeated PolicyRule Ingress = 7;
+    repeated PolicyRule Egress = 8; 
+}
+
 service ClusterService {
      rpc SendMessage(stream ClusterMessage) returns(stream ClusterMessage);
 }

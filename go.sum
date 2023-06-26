@@ -3749,8 +3749,8 @@ rsc.io/binaryregexp v0.2.0/go.mod h1:qTv7/COck+e2FymRvadv62gMdZztPaShugOCi3I+8D8
 rsc.io/pdf v0.1.1/go.mod h1:n8OzWcQ6Sp37PL01nO98y4iUCRdTGarVfzxY20ICaU4=
 rsc.io/quote/v3 v3.1.0/go.mod h1:yEA65RcK8LyAZtP9Kv3t0HmxON59tX3rD+tICJqUlj0=
 rsc.io/sampler v1.3.0/go.mod h1:T1hPZKmBbMNahiBKFy5HrXp6adAjACjK9JXDnKaTXpA=
-scm.tensorsecurity.cn/tensorsecurity-rd/api v0.2.3-0.20230330065923-c906c36c4c0d h1:1pxdKTO+SqbEQYWxUUz2FP28hz3EoOZKEfs/pZRAoQM=
-scm.tensorsecurity.cn/tensorsecurity-rd/api v0.2.3-0.20230330065923-c906c36c4c0d/go.mod h1:SiluSXAbRvpUW57ZzxYPZsmhCwtk8iNokkeGSb+r4MQ=
+scm.tensorsecurity.cn/tensorsecurity-rd/api v0.2.3 h1:QvOI0a/o7Uz+TrgrtzfneL79759/D0d5Z+cxn9Wm/qo=
+scm.tensorsecurity.cn/tensorsecurity-rd/api v0.2.3/go.mod h1:SiluSXAbRvpUW57ZzxYPZsmhCwtk8iNokkeGSb+r4MQ=
 scm.tensorsecurity.cn/tensorsecurity-rd/cloudwalker v0.0.5 h1:WQE20asHHBgKonWksiIE+Qh3zaRIMdy8e3yZWgb1oqU=
 scm.tensorsecurity.cn/tensorsecurity-rd/cloudwalker v0.0.5/go.mod h1:vDsqw0i9Urt3k5euCjY+ISnhaCHh8iaCK4Cd2+N1ItU=
 scm.tensorsecurity.cn/tensorsecurity-rd/falcosider v0.2.62 h1:3tqB4K7ELTVj/uUSY0/zNPiXXB65IQKvgeC1CTRYfBo=
