@@ -609,6 +609,7 @@ type ResContainersQueryOption struct {
 	WhereEqCondition      map[string]interface{}
 	whereNotNullCondition map[string]struct{}
 	whereInCondition      map[string]interface{}
+	whereGtCondition      map[string]interface{} // 大于条件
 	columnQuery           colQuery
 }
 
@@ -617,6 +618,7 @@ func ResourceContainersQuery() *ResContainersQueryOption {
 		WhereEqCondition:      make(map[string]interface{}, 3),
 		whereInCondition:      make(map[string]interface{}, 2),
 		whereNotNullCondition: make(map[string]struct{}, 2),
+		whereGtCondition:      make(map[string]interface{}, 1),
 	}
 }
 
@@ -656,6 +658,10 @@ func (q *ResContainersQueryOption) WithContainerName(cname string) *ResContainer
 	q.WhereEqCondition["name"] = cname
 	return q
 }
+func (q *ResContainersQueryOption) WithLastContainerId(containerId uint32) *ResContainersQueryOption {
+	q.whereGtCondition["id"] = containerId
+	return q
+}
 func (q *ResContainersQueryOption) WithCustom(column string, value interface{}) *ResContainersQueryOption {
 	q.WhereEqCondition[column] = value
 	return q
@@ -693,6 +699,11 @@ func CountResourceContainers(ctx context.Context, rdb *gorm.DB, query *ResContai
 				db = db.Where(fmt.Sprintf("%s IS NOT NULL", column))
 			}
 		}
+		if len(query.whereGtCondition) > 0 {
+			for k, v := range query.whereGtCondition {
+				db = db.Where(fmt.Sprintf("%s > ?", k), v)
+			}
+		}
 		if len(query.columnQuery.column) > 0 && len(query.columnQuery.query) > 0 {
 			db = db.Where(fmt.Sprintf("%s LIKE ?", query.columnQuery.column), GetLikeExpr(query.columnQuery.query))
 		}
@@ -723,6 +734,11 @@ func GetResourceContainers(ctx context.Context, rdb *gorm.DB, query *ResContaine
 		if len(query.whereNotNullCondition) > 0 {
 			for column := range query.whereNotNullCondition {
 				db = db.Where(fmt.Sprintf("%s IS NOT NULL", column))
+			}
+		}
+		if len(query.whereGtCondition) > 0 {
+			for k, v := range query.whereGtCondition {
+				db = db.Where(fmt.Sprintf("%s > ?", k), v)
 			}
 		}
 		if len(query.columnQuery.column) > 0 && len(query.columnQuery.query) > 0 {
