@@ -137,8 +137,8 @@ type Service struct {
 
 func (s *Service) WholeSummary(ctx context.Context, queryOpt *dal.ResContainersQueryOption) ([]*NamespaceSummary, error) {
 	resSvc, _ := assetsSvc.GetResourcesService(ctx)
-	totalCount := maxCount
-	offset := 0
+	remainCount := maxCount    //待查询数量
+	var lastContainerId uint32 //上条记录的id
 	failCnt := 0
 
 	frameInfos, err := resSvc.GetFrameworks(ctx)
@@ -152,21 +152,25 @@ func (s *Service) WholeSummary(ctx context.Context, queryOpt *dal.ResContainersQ
 	}
 
 	nsMap := make(map[string]*NamespaceSummary, 10)
-	for offset < totalCount {
-		containers, tcount, err := resSvc.GetResourceContainers(ctx, queryOpt, offset, limit)
+	for remainCount > 0 {
+		if lastContainerId != 0 {
+			queryOpt.WithLastContainerId(lastContainerId)
+		}
+		containers, tcount, err := resSvc.GetResourceContainers(ctx, queryOpt, 0, limit)
 		if err != nil {
-			logging.Get().Err(err).Msgf("query resource containers error. opt: %+v offset: %d limit: %d", queryOpt, offset, limit)
+			logging.Get().Err(err).Msgf("query resource containers error. opt: %+v lastContainerId: %d limit: %d", queryOpt, lastContainerId, limit)
 			failCnt++
 			if failCnt == 3 {
-				offset += limit
+				remainCount -= limit
 				failCnt = 0
 			}
 			continue
 		}
 		failCnt = 0
-		totalCount = int(tcount)
-		offset += len(containers)
-
+		remainCount = int(tcount) - len(containers)
+		if len(containers) > 0 {
+			lastContainerId = containers[len(containers)-1].ID
+		}
 		for _, container := range containers {
 			if appType == apptypeWeb {
 				// not web application
