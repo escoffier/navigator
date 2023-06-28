@@ -14,7 +14,8 @@ extern "C" {
 #include "libnetfilter_conntrack/libnetfilter_conntrack.h"
 #include "libnetfilter_queue/libnetfilter_queue.h"
 
-#define DEBUG_LOG 1
+int gzLogLevel = 0;
+#define POLICY_LOG_LEVEL "POLICY_LOG_LEVEL"
 
 #define LOG_E(fmt, ...) {\
     fprintf(stderr, "[ERROR] [line:%d] [%s] [policy] " fmt "\n", __LINE__, __FUNCTION__, ##__VA_ARGS__);\
@@ -24,24 +25,16 @@ extern "C" {
     fprintf(stderr, "[INFO] [line:%d] [%s] [policy] " fmt "\n", __LINE__, __FUNCTION__, ##__VA_ARGS__);\
 }
 
-#if DEBUG_LOG
-#define LOG_D(fmt, ...) {\
-    fprintf(stderr, "[DEBUG] [line:%d] [%s] [policy] " fmt "\n", __LINE__, __FUNCTION__, ##__VA_ARGS__);\
-}
-/*
-#define LOG_V(fmt, ...) {\
-    fprintf(stderr, "[VERBOSE] [line:%d] [%s] [policy] " fmt "\n", __LINE__, __FUNCTION__, ##__VA_ARGS__);\
-}
-*/
-#define LOG_V(fmt, ...) ((void)0);
-
-#else
-#define LOG_D(fmt, ...) ((void)0);
-#define LOG_V(fmt, ...) ((void)0);
-#endif
-
 #define LOG_W(fmt, ...) {\
     fprintf(stderr, "[WARN] [line:%d] [%s] [policy] " fmt "\n", __LINE__, __FUNCTION__, ##__VA_ARGS__);\
+}
+
+#define LOG_D(fmt, ...) {\
+    if(gzLogLevel > 0) fprintf(stderr, "[DEBUG] [line:%d] [%s] [policy] " fmt "\n", __LINE__, __FUNCTION__, ##__VA_ARGS__);\
+}
+
+#define LOG_V(fmt, ...) {\
+    if(gzLogLevel > 1) fprintf(stderr, "[VERBOSE] [line:%d] [%s] [policy] " fmt "\n", __LINE__, __FUNCTION__, ##__VA_ARGS__);\
 }
 
 #define RETURN_ERROR(ret, fmt, ...) {\

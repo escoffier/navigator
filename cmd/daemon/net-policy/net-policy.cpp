@@ -43,7 +43,7 @@ static map<string, map<string, FLOW_DIR>*> NetPolicyKey;
 
 void PrintPolicyData(RULE_DETAIL &r, RULE_PORT &stPort)
 {
-    if(DEBUG_LOG) {
+    if(gzLogLevel > 0) {
         fprintf(stderr, "[policy] name : %s, dir : %d, action : %d, priority : %d, proto : %d, ip : %s <--> %s port : %d ~ %d\n",
             r.policyKey.c_str(), r.direction, r.action, r.priority, r.proto, r.srcIp.c_str(), r.dstIp.c_str(), stPort.port, stPort.endPort);
     }
@@ -52,7 +52,7 @@ void PrintPolicyData(RULE_DETAIL &r, RULE_PORT &stPort)
 std::string PrintPortsData(std::vector<RULE_PORT> &ports)
 {
     std::string value = "";
-    if(DEBUG_LOG) 
+    if(gzLogLevel > 0) 
     {
         for(int p = 0; p < (int)ports.size(); p++)
         {
@@ -194,7 +194,6 @@ static int CreatePolicyRuleKey(FIVE_TUPLE &tuple, FLOW_DIR dir, vector<string> &
                     srcaddr.push_back(tuple.srcAddr);
                     dstaddr.push_back("0.0.0.0");
                     dstaddr.push_back(ipv4CidrToIp(tuple.dstAddr, *iter));
-                    //if(tuple.dstPort == 80) LOG_I("dst addr : %s", ipv4CidrToIp(tuple.dstAddr, *iter).c_str());
                     break;
                 default:
                     return -1;
@@ -314,8 +313,8 @@ static NET_POLICY_RULE MatchNetPolicyRule(FIVE_TUPLE &tuple, FLOW_DIR dir, strin
         it = ruleQue->find(ruleKeys.at(i).c_str());
         if(it == ruleQue->end()) continue;
         //print debug log
-        LOG_D("match %s rule key, key : %s, tuple proto : %d, dst port : %d, vPorts size : %d, %s.", 
-            (dir == DIR_INGRESS) ? "ingress" : "egress", ruleKeys.at(i).c_str(), tuple.proto, tuple.dstPort, (int)it->second.vPorts.size(), PrintPortsData(it->second.vPorts).c_str());
+        LOG_D("i : %d, match %s rule key, key : %s, tuple proto : %d, dst port : %d, vPorts size : %d, %s.", 
+            i, (dir == DIR_INGRESS) ? "ingress" : "egress", ruleKeys.at(i).c_str(), tuple.proto, tuple.dstPort, (int)it->second.vPorts.size(), PrintPortsData(it->second.vPorts).c_str());
         //protocol
         if(!((it->second.proto == 0) || (tuple.proto == it->second.proto))) break;
         /*set match false*/
@@ -1264,7 +1263,7 @@ rsp:
     //data len
     length = strlen(result);
     //print debug log
-    //LOG_I("rsp data : %s.", result);
+    LOG_V("rsp data : %s.", result);
     //send response data
     ret = write(fd, result, length);
     //judge response result
@@ -1295,6 +1294,8 @@ int ProcAcceptEvent(int32_t zRcvEvFd, int32_t fd, void *ptr)
         if(zClientFd != gClientFd) close(gClientFd);
         LOG_W("close old globe fd, old fd : %d, new fd : %d.", gClientFd, zClientFd);
     }
+    /*print debug log*/
+    LOG_I("accept new unix socket link, fd : %d, log level : %d", zClientFd, gzLogLevel);
     /*save fd*/
     gClientFd = zClientFd;
     //noblock
@@ -1376,6 +1377,7 @@ err:
 
 int main(int argc, char *argv[])
 {
+    char *pcLogLevel = NULL;
     struct sockaddr_un svrAddr;
     struct epoll_event ev, events[20];
     int zListenFd = 0, epfd = 0, zLinkFd;
@@ -1383,6 +1385,9 @@ int main(int argc, char *argv[])
     RCV_EPOLL_CB unixEvent, postEvent, *pstCbEv;
     //print start log
     LOG_I("policy process start......");
+    /*get log level env*/
+    pcLogLevel = getenv(POLICY_LOG_LEVEL);
+    if(pcLogLevel) gzLogLevel = atoi(pcLogLevel);
     //open local net ns
     OpenLocalNetNs();
     /*init cidr*/
