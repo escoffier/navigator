@@ -17,6 +17,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/clustermanager/pkg/drift"
 	"gitlab.com/piccolo_su/vegeta/cmd/clustermanager/pkg/microseg"
 	"gitlab.com/piccolo_su/vegeta/cmd/clustermanager/service"
+	"gitlab.com/piccolo_su/vegeta/cmd/console/service/scapper"
 	assets2 "gitlab.com/piccolo_su/vegeta/pkg/assets"
 	"gitlab.com/piccolo_su/vegeta/pkg/dal"
 	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
@@ -77,6 +78,7 @@ func NewServer() (*server, error) {
 		ServerStream: inClusterStream,
 		ClusterKey:   agent.CusterID,
 	})
+	_ = stream.AddHandler(&pb.ComplianceScanReq{}, &scapper.ProxyHandler{ServerStream: inClusterStream})
 	_ = stream.Start()
 
 	agent.Stream = stream

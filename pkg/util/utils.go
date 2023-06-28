@@ -519,3 +519,7 @@ func GetTimeUnixMilli(ti *time.Time) int64 {
 	}
 	return ti.UnixMilli()
 }
+
+func IsEmpty(str string) bool {
+	return strings.TrimSpace(str) == ""
+}

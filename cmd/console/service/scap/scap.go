@@ -93,7 +93,7 @@ func (s *Service) Scap(ctx context.Context, scapType string, clusterKey, usernam
 
 	_, err := s.scap.RunComplianceCheck(clusterKey, model.ComplianceCheckType(scapType), username, clusterId, policyId, checkUUID)
 	if err != nil {
-		logging.Get().Err(err).Msgf("运行检查失败, type: %d, clusterKey: %s, username: %s", scapType, clusterKey, username)
+		logging.Get().Err(err).Msgf("运行检查失败, type: %s, clusterKey: %s, username: %s", scapType, clusterKey, username)
 	}
 }
 
@@ -208,6 +208,20 @@ func (s *Service) StateSyncDaemon() {
 					// 如果已经过期了，则把所有对应的job都删除了，然后把 inprogress 的任务都设置为失败，原因：timeout
 					// 如果还没有过期，则获取所有的job，判断状态，如果都是成功，则把任务设置为成功, 并且把数据库还处于 inprogress 状态的置为失败
 					if time.Now().Add(-1*timeout).Unix() <= his.CreatedAt {
+						if his.ScheduleType != "job" {
+							var count int64
+							err = s.rdb.GetReadDB().Model(&model.ScanNodeRecord{}).
+								Where("task_id = ? AND `state` = ?", his.TaskID, model.ScanStateInProgress).
+								Count(&count).Error
+							if err != nil {
+								logging.Get().Warn().Err(err).Msg("")
+								return err
+							}
+							if count > 0 {
+								return nil
+							}
+						}
+
 						jobList, err := s.getK8sJobsList(ctx, his)
 
 						if err != nil {
@@ -237,17 +251,19 @@ func (s *Service) StateSyncDaemon() {
 						// 如果所有job的成功了，则需要把数据库中还在运行的任务都改为失败
 						reason = "executing failed"
 					} else {
-						// 如果超时，则删除对应k8s的job
-						err = s.deleteK8sJobs(newCtx, his)
-						if err != nil {
-							logging.Get().Warn().Err(err).
-								Str("func", "scap StateSyncDaemon").
-								Str("check task id", his.TaskID).
-								Msg("delete k8s jobs failed")
-							// return error will cause it to retryfor the next time. retry for the following specific reasons.
-							if k8sErrors.IsServiceUnavailable(err) || k8sErrors.IsTimeout(err) || k8sErrors.IsServerTimeout(err) || k8sErrors.IsInternalError(err) ||
-								k8sErrors.IsUnexpectedServerError(err) {
-								return err
+						if his.ScheduleType == "job" {
+							// 如果超时，则删除对应k8s的job
+							err = s.deleteK8sJobs(newCtx, his)
+							if err != nil {
+								logging.Get().Warn().Err(err).
+									Str("func", "scap StateSyncDaemon").
+									Str("check task id", his.TaskID).
+									Msg("delete k8s jobs failed")
+								// return error will cause it to retryfor the next time. retry for the following specific reasons.
+								if k8sErrors.IsServiceUnavailable(err) || k8sErrors.IsTimeout(err) || k8sErrors.IsServerTimeout(err) || k8sErrors.IsInternalError(err) ||
+									k8sErrors.IsUnexpectedServerError(err) {
+									return err
+								}
 							}
 						}
 

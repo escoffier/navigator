@@ -1,0 +1,2835 @@
+---
+controls:
+version: "cis-ubuntu-18"
+id: 0
+text: ""
+groups:
+  - id: 1.1
+    text: "Filesystem Configuration"
+    checks:
+      - id: 1.1.1.1
+        text: "Ensure mounting of cramfs filesystems is disabled"
+        audit: "modprobe -n -v cramfs"
+        tests:
+          test_items:
+            - flag: "install /bin/true"
+        type: ""
+        scored: true
+
+      - id: 1.1.1.2
+        text: "Ensure mounting of freevxfs filesystems is disabled"
+        audit: "modprobe -n -v freevxfs | grep -E '(freevxfs|install)'"
+        tests:
+          test_items:
+            - flag: "install /bin/true"
+        type: ""
+        scored: true
+
+      - id: 1.1.1.3
+        text: "Ensure mounting of jffs2 filesystems is disabled"
+        audit: "modprobe -n -v jffs2 | grep -E '(jffs2|install)'"
+        tests:
+          test_items:
+            - flag: "install /bin/true"
+        type: ""
+        scored: true
+
+      - id: 1.1.1.4
+        text: "Ensure mounting of hfs filesystems is disabled"
+        audit: "modprobe -n -v hfs | grep -E '(hfs|install)'"
+        tests:
+          test_items:
+            - flag: "install /bin/true"
+        type: ""
+        scored: true
+
+      - id: 1.1.1.5
+        text: "Ensure mounting of hfsplus filesystems is disabled"
+        audit: "modprobe -n -v hfsplus | grep -E '(hfsplus|install)'"
+        tests:
+          test_items:
+            - flag: "install /bin/true"
+        type: ""
+        scored: true
+
+      - id: 1.1.1.6
+        text: "Ensure mounting of udf filesystems is disabled"
+        audit: "modprobe -n -v udf | grep -E '(udf|install)'"
+        tests:
+          test_items:
+            - flag: "install /bin/true"
+        type: ""
+        scored: true
+
+      - id: 1.1.2
+        text: "Ensure /tmp is configured"
+        audit: "cat /proc/1/mounts | grep -E '\\s+/tmp\\s+'"
+        tests:
+          bin_op: and
+          test_items:
+            - flag: "/tmp"
+            - flag: "tmpfs"
+        type: ""
+        scored: true
+
+      - id: 1.1.3
+        text: "Ensure nodev option set on /tmp partition"
+        audit: "cat /proc/1/mounts | grep -E '\\s+/tmp\\s+' | grep -Ev '\\bnoexec\\b'"
+        tests:
+          test_items:
+            - flag: ""
+              compare:
+                op: eq
+                value: ""
+        type: ""
+        scored: true
+
+      - id: 1.1.4
+        text: "Ensure nosuid option set on /tmp partition"
+        audit: "cat /proc/1/mounts | grep -E '\\s+/tmp\\s+' | grep -Ev '\\bnodev\\b'"
+        tests:
+          test_items:
+            - flag: ""
+              compare:
+                op: eq
+                value: ""
+        type: ""
+        scored: true
+
+      - id: 1.1.5
+        text: "Ensure noexec option set on /tmp partition"
+        audit: "cat /proc/1/mounts | grep -E '\\s+/tmp\\s+' | grep -Ev '\\bnosuid\\b'"
+        tests:
+          test_items:
+            - flag: ""
+              compare:
+                op: eq
+                value: ""
+        type: ""
+        scored: true
+
+      - id: 1.1.6
+        text: "Ensure /dev/shm is configured"
+        audit: |
+          output1=$(grep -E '\s/dev/shm\s' /etc/fstab)
+          if [ "$output1" = "" ]; then
+              echo "FAILED"
+          else
+              output2=$(findmnt -n /dev/shm)
+              echo $output1$output2
+          fi
+        use_multiple_values: true
+        tests:
+          bin_op: and
+          test_items:
+            - flag: "/dev/shm"
+            - flag: "tmpfs"
+        type: ""
+        scored: true
+
+      - id: 1.1.7
+        text: "Ensure nodev option set on /dev/shm partition"
+        audit: "findmnt -n /dev/shm | grep -Ev '\bnodev\b'"
+        tests:
+          test_items:
+            - flag: ""
+              compare:
+                op: eq
+                value: ""
+        type: ""
+        scored: true
+
+      - id: 1.1.8
+        text: "Ensure nosuid option set on /dev/shm partition"
+        audit: "findmnt -n /dev/shm | grep -Ev '\bnosuid\b'"
+        tests:
+          test_items:
+            - flag: ""
+              compare:
+                op: eq
+                value: ""
+        type: ""
+        scored: true
+
+      - id: 1.1.9
+        text: "Ensure noexec option set on /dev/shm partition"
+        audit: "findmnt -n /dev/shm | grep -Ev '\bnoexec\b'"
+        tests:
+          test_items:
+            - flag: ""
+              compare:
+                op: eq
+                value: ""
+        type: ""
+        scored: true
+
+      - id: 1.1.10
+        text: "Ensure separate partition exists for /var"
+        audit: "cat /proc/1/mounts | grep -E '\\s+/var\\s+'"
+        tests:
+          test_items:
+            - flag: "/var"
+        type: ""
+        scored: true
+
+      - id: 1.1.11
+        text: "Ensure separate partition exists for /var/tmp"
+        audit: "findmnt /var/tmp"
+        tests:
+          test_items:
+            - flag: "/var/tmp"
+        type: ""
+        scored: true
+
+      - id: 1.1.12
+        text: "Ensure /var/tmp partition includes the nodev option"
+        audit: "findmnt -n /var/tmp | grep -Ev '\bnodev\b'"
+        tests:
+          test_items:
+            - flag: ""
+              compare:
+                op: eq
+                value: ""
+        type: ""
+        scored: true
+
+      - id: 1.1.13
+        text: "Ensure /var/tmp partition includes the nosuid option"
+        audit: "findmnt -n /var/tmp | grep -Ev '\bnosuid\b'"
+        tests:
+          test_items:
+            - flag: ""
+              compare:
+                op: eq
+                value: ""
+        type: ""
+        scored: true
+
+      - id: 1.1.14
+        text: "Ensure /var/tmp partition includes the noexec option"
+        audit: "findmnt -n /var/tmp | grep -Ev '\bnoexec\b'"
+        tests:
+          test_items:
+            - flag: ""
+              compare:
+                op: eq
+                value: ""
+        type: ""
+        scored: true
+
+      - id: 1.1.15
+        text: "Ensure separate partition exists for /var/log"
+        audit: "findmnt /var/log"
+        tests:
+          test_items:
+            - flag: "/var/log"
+        type: ""
+        scored: true
+
+      - id: 1.1.16
+        text: "Ensure separate partition exists for /var/log/audit"
+        audit: "findmnt /var/log/audit"
+        tests:
+          test_items:
+            - flag: "/var/log/audit"
+        type: ""
+        scored: true
+
+      - id: 1.1.17
+        text: "Ensure separate partition exists for /home"
+        audit: "cat /proc/1/mounts | grep -E '\\s+/home\\s+'"
+        tests:
+          test_items:
+            - flag: "/home"
+        type: ""
+        scored: true
+
+      - id: 1.1.18
+        text: "Ensure /home partition includes the nodev option"
+        audit: "findmnt /home | grep -Ev '\bnodev\b'"
+        tests:
+          test_items:
+            - flag: ""
+              compare:
+                op: eq
+                value: ""
+        type: ""
+        scored: true
+
+      - id: 1.1.19
+        text: "Ensure nodev option set on removable media partitions"
+        audit: "mount"
+        type: "manual"
+        scored: false
+
+      - id: 1.1.20
+        text: "Ensure nosuid option set on removable media partitions"
+        audit: "mount"
+        type: "manual"
+        scored: false
+
+      - id: 1.1.21
+        text: "Ensure noexec option set on removable media partitions"
+        audit: "mount"
+        type: "manual"
+        scored: false
+
+      - id: 1.1.22
+        text: "Ensure sticky bit is set on all world-writable directories"
+        audit: "df --local -P 2> /dev/null | awk '{if (NR!=1) print $6}' | xargs -I '{}' find '{}' -xdev -type d \\( -perm -0002 -a ! -perm -1000 \\) 2>/dev/null"
+        tests:
+          test_items:
+            - flag: ""
+              compare:
+                op: eq
+                value: ""
+        type: "manual"
+        scored: true
+
+      - id: 1.1.23
+        text: Disable Automounting
+        audit: |
+          systemctl is-enabled autofs 
+          dpkg -s autofs
+        tests:
+          bin_op: or
+          test_items:
+            - flag: "disabled"
+            - flag: "package `autofs` is not installed"
+        type: ""
+        scored: true
+
+      - id: 1.1.24
+        text: "Disable USB Storage"
+        audit: "modprobe -n -v usb-storage"
+        tests:
+          test_items:
+            - flag: ""
+              compare:
+                op: eq
+                value: "install /bin/true"
+        type: ""
+        scored: true
+
+  - id: 1.2
+    text: "Configure Software Updates"
+    checks:
+      - id: 1.2.1
+        text: "Ensure package manager repositories are configured"
+        audit: "apt-cache policy"
+        type: "manual"
+        scored: false
+
+      - id: 1.2.2
+        text: "Ensure GPG keys are configured"
+        audit: "apt-key list"
+        type: "manual"
+        scored: true
+
+  - id: 1.3
+    text: "Filesystem Integrity Checking"
+    checks:
+      - id: 1.3.1
+        text: "Ensure AIDE is installed"
+        audit: |
+          dpkg -s aide | grep -E '(Status:|not installed)'
+          dpkg -s aide-common'
+        tests:
+          bin_op: and
+          test_items:
+            - flag: "Status: install ok installed"
+            - flag: "package `aide-common` is not installed"
+              set: false
+        type: ""
+        scored: true
+
+      - id: 1.3.2
+        text: "Ensure filesystem integrity is regularly checked"
+        audit: "grep -Ers '^([^#]+\\s+)?(\\/usr\\/s?bin\\/|^\\s*)aide(\\.wrapper)?\\s(--?\\S+\\s)*(- -(check|update)|\\$AIDEARGS)\\b' /etc/cron.* /etc/crontab /var/spool/cron/"
+        tests:
+          test_items:
+            - flag: "aide --check"
+        type: ""
+        scored: true
+
+  - id: 1.4
+    text: "Secure Boot Settings"
+    checks:
+      - id: 1.4.1
+        text: "Ensure permissions on bootloader config are not overridden"
+        audit: "grep -E '^\\s*chmod\\s+[0-7][0-7][0-7]\\s+\\$\\{grub_cfg\\}\\.new' -A 1 -B1 /usr/sbin/grub-mkconfig"
+        tests:
+          test_items:
+            - flag: |
+                if [ "x${grub_cfg}" != "x" ]; then
+                  chmod 400 ${grub_cfg}.new || true
+                fi
+        type: ""
+        scored: true
+
+      - id: 1.4.2
+        text: "Ensure bootloader password is set"
+        audit: |
+          grep "^set superusers" /boot/grub/grub.cfg
+          grep "^password" /boot/grub/grub.cfg
+        tests:
+          bin_op: and
+          test_items:
+            - flag: "set superusers="
+            - flag: "password_pbkdf2"
+        type: ""
+        scored: true
+
+      - id: 1.4.3
+        text: "Ensure permissions on bootloader config are configured"
+        audit: "stat -c %a/Uid:%U/%uGid:%G/%g /boot/grub/grub.cfg"
+        tests:
+          test_items:
+            - flag: "400/Uid:root/0Gid:root/0"
+        type: ""
+        scored: true
+
+      - id: 1.4.4
+        text: "Ensure authentication required for single user mode"
+        audit: "grep -Eq '^root:\\$[0-9]' /etc/shadow || echo \"root is locked\""
+        tests:
+          test_items:
+            - flag: ""
+              compare:
+                op: eq
+                value: ""
+        type: ""
+        scored: true
+
+  - id: 1.5
+    text: "Additional Process Hardening"
+    checks:
+      - id: 1.5.1
+        text: "Ensure XD/NX support is enabled"
+        audit: "journalctl | grep 'protection: active'"
+        tests:
+          test_items:
+            - flag: "kernel: NX (Execute Disable) protection: active"
+        type: ""
+        scored: false
+
+      - id: 1.5.2
+        text: "Ensure address space layout randomization (ASLR) is enabled"
+        audit: "sysctl kernel.randomize_va_space"
+        tests:
+          test_items:
+            - flag: "kernel.randomize_va_space"
+              compare:
+                op: eq
+                value: "2"
+        type: ""
+        scored: true
+
+      - id: 1.5.3
+        text: "Ensure prelink is not installed"
+        audit: "dpkg -s prelink | grep -E '(Status:|not installed)'"
+        tests:
+          test_items:
+            - flag: "dpkg-query: package 'prelink' is not installed and no information is available"
+        type: ""
+        scored: true
+
+      - id: 1.5.4
+        text: "Ensure core dumps are restricted"
+        audit: |
+          grep -Es '^(\*|\s).*hard.*core.*(\s+#.*)?$' /etc/security/limits.conf /etc/security/limits.d/*
+          sysctl fs.suid_dumpable
+          grep "fs.suid_dumpable" /etc/sysctl.conf /etc/sysctl.d/*
+        tests:
+          bin_op: and
+          test_items:
+            - flag: "hard core 0"
+            - flag: "fs.suid_dumpable = 0"
+        type: ""
+        scored: true
+
+  - id: 1.6
+    text: "Mandatory Access Control"
+    checks:
+      - id: 1.6.1.1
+        text: "Ensure AppArmor is installed"
+        audit: "dpkg -s apparmor | grep -E '(Status:|not installed)'"
+        tests:
+          test_items:
+            - flag: "Status: install ok installed"
+        type: ""
+        scored: false
+
+      - id: 1.6.1.2
+        text: "Ensure AppArmor is enabled in the bootloader configuration"
+        audit: |
+          grep "^\s*linux" /boot/grub/grub.cfg | grep -v "apparmor=1"
+          grep "^\s*linux" /boot/grub/grub.cfg | grep -v "security=apparmor"
+        tests:
+          test_items:
+            - flag: ""
+              compare:
+                op: eq
+                value: ""
+        type: ""
+        scored: true
+
+      - id: 1.6.1.3
+        text: "Ensure all AppArmor Profiles are in enforce or complain mode"
+        audit: |
+          apparmor_status | grep profiles
+          apparmor_status | grep processes
+        type: "manual"
+        scored: false
+
+      - id: 1.6.1.4
+        text: "Ensure all AppArmor Profiles are enforcing"
+        audit: |
+          apparmor_status | grep profiles
+          apparmor_status | grep processes
+        tests:
+          test_items:
+            - flag: "0 profiles are in complain mode"
+        type: ""
+        scored: false
+
+  - id: 1.7
+    text: "Command Line Warning Banners"
+    checks:
+      - id: 1.7.1
+        text: "Ensure message of the day is configured properly"
+        audit: "grep -E -i \"(\\\\v|\\\\r|\\\\m|\\\\s|$(grep '^ID=' /etc/os-release | cut -d= -f2 | sed -e 's/\"//g'))\" /etc/motd"
+        tests:
+          test_items:
+            - flag: ""
+              compare:
+                op: eq
+                value: ""
+        type: ""
+        scored: true
+
+      - id: 1.7.2
+        text: "Ensure permissions on /etc/issue.net are configured "
+        audit: "stat -c %a/Uid:%U/%uGid:%G/%g /etc/issue.net"
+        tests:
+          test_items:
+            - flag: "644/Uid:root/0Gid:root/0"
+        type: ""
+        scored: true
+
+      - id: 1.7.3
+        text: "Ensure permissions on /etc/issue are configured"
+        audit: "stat -c %a/Uid:%U/%uGid:%G/%g /etc/issue"
+        tests:
+          test_items:
+            - flag: "644/Uid:root/0Gid:root/0"
+        type: ""
+        scored: true
+
+      - id: 1.7.4
+        text: "Ensure permissions on /etc/motd are configured"
+        audit: "stat -c %a/Uid:%U/%uGid:%G/%g /etc/motd"
+        tests:
+          test_items:
+            - flag: "644/Uid:root/0Gid:root/0"
+        type: ""
+        scored: true
+
+      - id: 1.7.5
+        text: "Ensure remote login warning banner is configured properly"
+        audit: "grep -E -i \"(\\\\v|\\\\r|\\\\m|\\\\s|$(grep '^ID=' /etc/os-release | cut -d= -f2 | sed -e 's/\"//g'))\" /etc/issue.net"
+        tests:
+          test_items:
+            - flag: ""
+              compare:
+                op: eq
+                value: ""
+        type: ""
+        scored: true
+
+      - id: 1.7.6
+        text: "Ensure local login warning banner is configured properly"
+        audit: "grep -E -i \"(\\\\v|\\\\r|\\\\m|\\\\s|$(grep '^ID=' /etc/os-release | cut -d= -f2 | sed -e 's/\"//g'))\" /etc/issue"
+        tests:
+          test_items:
+            - flag: ""
+              compare:
+                op: eq
+                value: ""
+        type: ""
+        scored: true
+
+  - id: 1.8
+    text: "GNOME Display Manager"
+    checks:
+      - id: 1.8.1
+        text: "Ensure GNOME Display Manager is removed"
+        audit: "dpkg -s gdm3 | grep -E '(Status:|not installed)'"
+        tests:
+          test_items:
+            - flag: "dpkg-query: package 'gdm3' is not installed and no information is available"
+        type: "skip"
+        scored: true
+
+      - id: 1.8.2
+        text: "Ensure GDM login banner is configured"
+        audit: "cat /etc/gdm3/greeter.dconf-defaults"
+        type: "skip"
+        scored: false
+
+      - id: 1.8.3
+        text: "Ensure last logged in user display is disabled"
+        audit: "grep -E '^\\s*disable-user-list\\s*=\\s*true\\b'"
+        tests:
+          test_items:
+            - flag: "disable-user-list=true"
+        type: "skip"
+        scored: true
+
+      - id: 1.8.4
+        text: "Ensure XDCMP is not enabled"
+        audit: "grep -Eis '^\\s*Enable\\s*=\\s*true' /etc/gdm/custom.conf"
+        tests:
+          test_items:
+            - flag: ""
+              compare:
+                op: eq
+                value: ""
+        type: "skip"
+        scored: true
+
+  - id: 1.9
+    text: ""
+    checks:
+      - id: 1.9
+        text: "Ensure updates, patches, and additional security software are installed"
+        audit: "apt -s upgrade"
+        type: "manual"
+        scored: false
+
+  - id: 2.1
+    text: "Special Purpose Services"
+    checks:
+      - id: 2.1.1.1
+        text: "Ensure time synchronization is in use"
+        audit: "dpkg -s chrony ntp"
+        tests:
+          bin_op: and
+          test_items:
+            - flag: "dpkg-query: package 'chrony' is not installed and no information is available"
+              set: false
+            - flag: "dpkg-query: package 'ntp' is not installed and no information is available"
+              set: false
+        type: ""
+        scored: true
+
+      - id: 2.1.1.2
+        text: "Ensure systemd-timesyncd is configured"
+        audit: "dpkg -s chrony ntp"
+        tests:
+          bin_op: and
+          test_items:
+            - flag: "dpkg-query: package 'chrony' is not installed and no information is available"
+              set: false
+            - flag: "dpkg-query: package 'ntp' is not installed and no information is available"
+              set: false
+        type: "manual"
+        scored: false
+
+      - id: 2.1.1.3
+        text: "Ensure chrony is configured"
+        audit: |
+          dpkg -s ntp | grep -E '(Status:|not installed)'
+          systemctl is-enabled systemd-timesyncd
+          grep -E "^(server|pool)" /etc/chrony/chrony.conf
+          ps -ef | grep chronyd
+        tests:
+          bin_op: and
+          test_items:
+            - flag: "dpkg-query: package 'ntp' is not installed and no information is available"
+            - flag: "masked"
+            - flag: "server "
+            - flag: "_chrony"
+        type: ""
+        scored: false
+
+      - id: 2.1.1.4
+        text: "Ensure ntp is configured"
+        audit: |
+          dpkg -s chrony | grep -E '(Status:|not installed)'
+          systemctl is-enabled systemd-timesyncd
+          grep "^restrict" /etc/ntp.conf
+          grep -E "^(server|pool)" /etc/ntp.conf
+          grep "RUNASUSER=ntp" /etc/init.d/ntp
+        tests:
+          bin_op: and
+          test_items:
+            - flag: "dpkg-query: package 'chrony' is not installed and no information is available"
+            - flag: "masked"
+            - flag: "restrict -4 default kod nomodify notrap nopeer noquery"
+            - flag: "restrict -6 default kod nomodify notrap nopeer noquery"
+            - flag: "server "
+            - flag: "RUNASUSER=ntp"
+        type: ""
+        scored: false
+
+      - id: 2.1.2
+        text: "Ensure X Window System is not installed "
+        audit: "dpkg -l xserver-xorg*"
+        tests:
+          test_items:
+            - flag: "dpkg-query: no packages found matching xserver-xorg*"
+        type: ""
+        scored: true
+
+      - id: 2.1.3
+        text: "Ensure Avahi Server is not installed"
+        audit: "dpkg -s avahi-daemon | grep -E '(Status:|not installed)'"
+        tests:
+          test_items:
+            - flag: "dpkg-query: package 'avahi-daemon' is not installed and no information is available"
+        type: ""
+        scored: true
+
+      - id: 2.1.4
+        text: "Ensure CUPS is not installed"
+        audit: "dpkg -s cups | grep -E '(Status:|not installed)'"
+        tests:
+          test_items:
+            - flag: "dpkg-query: package 'cups' is not installed and no information is available"
+        type: ""
+        scored: true
+
+      - id: 2.1.5
+        text: "Ensure DHCP Server is not installed"
+        audit: "dpkg -s isc-dhcp-server | grep -E '(Status:|not installed)'"
+        tests:
+          test_items:
+            - flag: "dpkg-query: package 'isc-dhcp-server' is not installed and no information is available"
+        type: ""
+        scored: true
+
+      - id: 2.1.6
+        text: "Ensure LDAP server is not installed"
+        audit: "dpkg -s slapd | grep -E '(Status:|not installed)'"
+        tests:
+          test_items:
+            - flag: "dpkg-query: package 'slapd' is not installed and no information is available"
+        type: ""
+        scored: true
+
+      - id: 2.1.7
+        text: "Ensure NFS is not installed"
+        audit: "dpkg -s nfs-kernel-server | grep -E '(Status:|not installed)'"
+        tests:
+          test_items:
+            - flag: "dpkg-query: package 'nfs-kernel-server' is not installed and no information is available"
+        type: ""
+        scored: true
+
+      - id: 2.1.8
+        text: "Ensure DNS Server is not installed"
+        audit: "dpkg -s bind9 | grep -E '(Status:|not installed)'"
+        tests:
+          test_items:
+            - flag: "dpkg-query: package 'bind9' is not installed and no information is available"
+        type: ""
+        scored: true
+
+      - id: 2.1.9
+        text: "Ensure FTP Server is not installed"
+        audit: "dpkg -s vsftpd | grep -E '(Status:|not installed)'"
+        tests:
+          test_items:
+            - flag: "dpkg-query: package 'vsftpd' is not installed and no information is available"
+        type: ""
+        scored: true
+
+      - id: 2.1.10
+        text: "Ensure HTTP server is not installed"
+        audit: "dpkg -s apache2 | grep -E '(Status:|not installed)'"
+        tests:
+          test_items:
+            - flag: "dpkg-query: package 'apache2' is not installed and no information is available"
+        type: ""
+        scored: true
+
+      - id: 2.1.11
+        text: "Ensure IMAP and POP3 server is not installed"
+        audit: "dpkg -s dovecot-imapd dovecot-pop3d | grep -E '(Status:|not installed)'"
+        tests:
+          bin_op: and
+          test_items:
+            - flag: "dpkg-query: package 'dovecot-imapd' is not installed and no information is available"
+            - flag: "dpkg-query: package 'dovecot-pop3d' is not installed and no information is available"
+        type: ""
+        scored: true
+
+      - id: 2.1.12
+        text: "Ensure Samba is not installed"
+        audit: "dpkg -s samba | grep -E '(Status:|not installed)'"
+        tests:
+          test_items:
+            - flag: "dpkg-query: package 'samba' is not installed and no information is available"
+        type: ""
+        scored: true
+
+      - id: 2.1.13
+        text: "Ensure HTTP Proxy Server is not installed"
+        audit: "dpkg -s squid | grep -E '(Status:|not installed)'"
+        tests:
+          test_items:
+            - flag: "dpkg-query: package 'squid' is not installed and no information is available"
+        type: ""
+        scored: true
+
+      - id: 2.1.14
+        text: "Ensure SNMP Server is not installed"
+        audit: "dpkg -s snmpd | grep -E '(Status:|not installed)'"
+        tests:
+          test_items:
+            - flag: "dpkg-query: package 'snmpd' is not installed and no information is available"
+        type: ""
+        scored: true
+
+      - id: 2.1.15
+        text: "Ensure mail transfer agent is configured for local-only mode"
+        audit: "ss -lntu | grep -E ':25\\s' | grep -E -v '\\s(127.0.0.1|\\[?::1\\]?):25\\s'"
+        tests:
+          test_items:
+            - flag: ""
+              compare:
+                op: eq
+                value: ""
+        type: ""
+        scored: true
+
+      - id: 2.1.16
+        text: "Ensure rsync service is not installed"
+        audit: "dpkg -s rsync | grep -E '(Status:|not installed)'"
+        tests:
+          test_items:
+            - flag: "dpkg-query: package 'rsync' is not installed and no information is available"
+        type: ""
+        scored: true
+
+      - id: 2.1.17
+        text: "Ensure NIS server is not installed"
+        audit: "dpkg -s nis | grep -E '(Status:|not installed)'"
+        tests:
+          test_items:
+            - flag: "dpkg-query: package 'nis' is not installed and no information is available"
+        type: ""
+        scored: true
+
+  - id: 2.2
+    test: "Service Clients"
+    checks:
+      - id: 2.2.1
+        text: "Ensure NIS Client is not installed"
+        audit: "dpkg -s nis | grep -E '(Status:|not installed)'"
+        tests:
+          test_items:
+            - flag: "dpkg-query: package 'nis' is not installed and no information is available"
+        type: ""
+        scored: true
+
+      - id: 2.2.2
+        text: "Ensure rsh client is not installed"
+        audit: "dpkg -s rsh-client | grep -E '(Status:|not installed)'"
+        tests:
+          test_items:
+            - flag: "dpkg-query: package 'rsh-client' is not installed and no information is available"
+        type: ""
+        scored: true
+
+      - id: 2.2.3
+        text: "Ensure talk client is not installed"
+        audit: "dpkg -s talk | grep -E '(Status:|not installed)'"
+        tests:
+          test_items:
+            - flag: "dpkg-query: package 'talk' is not installed and no information is available"
+        type: ""
+        scored: true
+
+      - id: 2.2.4
+        text: "Ensure telnet client is not installed"
+        audit: "dpkg -s telnet | grep -E '(Status:|not installed)'"
+        tests:
+          test_items:
+            - flag: "dpkg-query: package 'telnet' is not installed and no information is available"
+        type: ""
+        scored: true
+
+      - id: 2.2.5
+        text: "Ensure LDAP client is not installed"
+        audit: "dpkg -s ldap-utils | grep -E '(Status:|not installed)'"
+        tests:
+          test_items:
+            - flag: "dpkg-query: package 'ldap-utils' is not installed and no information is available"
+        type: ""
+        scored: true
+
+      - id: 2.2.6
+        text: "Ensure RPC is not installed"
+        audit: "dpkg -s rpcbind | grep -E '(Status:|not installed)'"
+        tests:
+          test_items:
+            - flag: "dpkg-query: package 'rpcbind' is not installed and no information is available"
+        type: ""
+        scored: true
+
+  - id: 2.3
+    test: ""
+    checks:
+      - id: 2.3
+        text: "Ensure nonessential services are removed or masked"
+        audit: "lsof -i -P -n | grep -v \"(ESTABLISHED)\""
+        type: "manual"
+        scored: false
+
+  - id: 3.1
+    test: "Disable unused network protocols and devices"
+    checks:
+      - id: 3.1.1
+        text: "Disable IPv6"
+        audit: "grep \"^\\s*linux\" /boot/grub2/grub.cfg | grep -v ipv6.disable=1"
+        type: "manual"
+        scored: true
+
+      - id: 3.1.2
+        text: "Ensure wireless interfaces are disabled"
+        audit: |
+          #!/bin/bash
+          if command -v nmcli >/dev/null 2>&1 ; then
+            nmcli radio all | grep -Eq '\s*\S+\s+disabled\s+\S+\s+disabled\b' && echo "Wireless is not enabled" || nmcli radio all
+          elif [ -n "$(find /sys/class/net/*/ -type d -name wireless)" ]; then
+            t=0
+            drivers=$(for driverdir in $(find /sys/class/net/*/ -type d -name wireless | xargs -0 dirname); do basename "$(readlink -f "$driverdir"/device/driver)";done | sort -u)
+            for dm in $drivers; do
+              if grep -Eq "^\s*install\s+$dm\s+/bin/(true|false)" /etc/modprobe.d/*.conf; then
+                  /bin/true
+              else
+                echo "$dm is not disabled"
+                t=1
+              fi 
+            done
+            [[ $t -eq 0 ]] && echo "Wireless is not enabled"
+          else
+            echo "Wireless is not enabled"
+          fi
+        tests:
+          test_items:
+            - flag: "Wireless is not enabled"
+        type: ""
+        scored: true
+
+  - id: 3.2
+    test: "Network Parameters (Host Only)"
+    checks:
+      - id: 3.2.1
+        text: "Ensure packet redirect sending is disabled"
+        audit: |
+          sysctl net.ipv4.conf.all.send_redirects
+          sysctl net.ipv4.conf.default.send_redirects
+          grep -E "^\s*net\.ipv4\.conf\.all\.send_redirects" /etc/sysctl.conf /etc/sysctl.d/*
+          grep -E "^\s*net\.ipv4\.conf\.default\.send_redirects" /etc/sysctl.conf /etc/sysctl.d/*
+        tests:
+          bin_op: and
+          test_items:
+            - flag: "net.ipv4.conf.all.send_redirects"
+              compare:
+                op: eq
+                value: "0"
+            - flag: "net.ipv4.conf.default.send_redirects"
+              compare:
+                op: eq
+                value: "0"
+        type: ""
+        scored: true
+
+      - id: 3.2.2
+        text: "Ensure IP forwarding is disabled"
+        audit: "sysctl net.ipv4.ip_forward"
+        tests:
+          test_items:
+            - flag: "net.ipv4.ip_forward"
+              compare:
+                op: eq
+                value: "0"
+        type: ""
+        scored: true
+
+  - id: 3.3
+    test: "Network Parameters (Host and Router)"
+    checks:
+      - id: 3.3.1
+        text: "Ensure source routed packets are not accepted"
+        audit: |
+          sysctl net.ipv4.conf.all.accept_source_route
+          sysctl net.ipv4.conf.default.accept_source_route
+        tests:
+          bin_op: and
+          test_items:
+            - flag: "net.ipv4.conf.all.accept_source_route"
+              compare:
+                op: eq
+                value: "0"
+            - flag: "net.ipv4.conf.default.accept_source_route"
+              compare:
+                op: eq
+                value: "0"
+        type: ""
+        scored: true
+
+      - id: 3.3.2
+        text: "Ensure ICMP redirects are not accepted"
+        audit: |
+          sysctl net.ipv4.conf.all.accept_redirects
+          sysctl net.ipv4.conf.default.accept_redirects
+        tests:
+          bin_op: and
+          test_items:
+            - flag: "net.ipv4.conf.all.accept_redirects"
+              compare:
+                op: eq
+                value: "0"
+            - flag: "net.ipv4.conf.default.accept_redirects"
+              compare:
+                op: eq
+                value: "0"
+        type: ""
+        scored: true
+
+      - id: 3.3.3
+        text: "Ensure secure ICMP redirects are not accepted"
+        audit: |
+          sysctl net.ipv4.conf.all.secure_redirects
+          sysctl net.ipv4.conf.default.secure_redirects
+        tests:
+          bin_op: and
+          test_items:
+            - flag: "net.ipv4.conf.all.secure_redirects"
+              compare:
+                op: eq
+                value: "0"
+            - flag: "net.ipv4.conf.default.secure_redirects"
+              compare:
+                op: eq
+                value: "0"
+        type: ""
+        scored: true
+
+      - id: 3.3.4
+        text: "Ensure suspicious packets are logged"
+        audit: |
+          sysctl net.ipv4.conf.all.log_martians
+          sysctl net.ipv4.conf.default.log_martians
+        tests:
+          bin_op: and
+          test_items:
+            - flag: "net.ipv4.conf.all.log_martians"
+              compare:
+                op: eq
+                value: "1"
+            - flag: "net.ipv4.conf.default.log_martians"
+              compare:
+                op: eq
+                value: "1"
+        type: ""
+        scored: true
+
+      - id: 3.3.5
+        text: "Ensure broadcast ICMP requests are ignored"
+        audit: sysctl net.ipv4.icmp_echo_ignore_broadcasts
+        tests:
+          test_items:
+            - flag: "net.ipv4.icmp_echo_ignore_broadcasts"
+              compare:
+                op: eq
+                value: "1"
+        type: ""
+        scored: true
+
+      - id: 3.3.6
+        text: "Ensure bogus ICMP responses are ignored"
+        audit: sysctl net.ipv4.icmp_ignore_bogus_error_responses
+        tests:
+          test_items:
+            - flag: "net.ipv4.icmp_ignore_bogus_error_responses"
+              compare:
+                op: eq
+                value: "1"
+        type: ""
+        scored: true
+
+      - id: 3.3.7
+        text: "Ensure Reverse Path Filtering is enabled"
+        audit: |
+          sysctl net.ipv4.conf.all.rp_filter
+          sysctl net.ipv4.conf.default.rp_filter
+        tests:
+          bin_op: and
+          test_items:
+            - flag: "net.ipv4.conf.all.rp_filter"
+              compare:
+                op: eq
+                value: "1"
+            - flag: "net.ipv4.conf.default.rp_filter"
+              compare:
+                op: eq
+                value: "1"
+        type: ""
+        scored: true
+
+      - id: 3.3.8
+        text: "Ensure TCP SYN Cookies is enabled"
+        audit: sysctl net.ipv4.tcp_syncookies
+        tests:
+          test_items:
+            - flag: "net.ipv4.tcp_syncookies"
+              compare:
+                op: eq
+                value: "1"
+        type: ""
+        scored: true
+
+      - id: 3.3.9
+        text: "Ensure IPv6 router advertisements are not accepted"
+        audit: |
+          sysctl net.ipv6.conf.all.accept_ra
+          sysctl net.ipv6.conf.default.accept_ra
+        tests:
+          bin_op: and
+          test_items:
+            - flag: "net.ipv6.conf.all.accept_ra"
+              compare:
+                op: eq
+                value: "0"
+            - flag: "net.ipv6.conf.default.accept_ra"
+              compare:
+                op: eq
+                value: "0"
+        type: ""
+        scored: false
+
+  - id: 3.4
+    test: "Uncommon Network Protocols"
+    checks:
+      - id: 3.4.1
+        text: "Ensure DCCP is disabled"
+        audit: "modprobe -n -v dccp"
+        tests:
+          test_items:
+            - flag: "install /bin/true"
+        type: ""
+        scored: true
+
+      - id: 3.4.2
+        text: "Ensure SCTP is disabled"
+        audit: "modprobe -n -v sctp | grep -E '(sctp|install)'"
+        tests:
+          test_items:
+            - flag: "install /bin/true"
+        type: ""
+        scored: true
+
+      - id: 3.4.3
+        text: "Ensure RDS is disabled"
+        audit: "modprobe -n -v rds"
+        tests:
+          test_items:
+            - flag: "install /bin/true"
+        type: ""
+        scored: true
+
+      - id: 3.4.4
+        text: "Ensure TIPC is disabled"
+        audit: "modprobe -n -v tipc | grep -E '(tipc|install)'"
+        tests:
+          test_items:
+            - flag: "install /bin/true"
+        type: ""
+        scored: true
+
+  - id: 3.5
+    test: "Firewall Configuration"
+    checks:
+      - id: 3.5.1.1
+        text: "Ensure ufw is installed"
+        audit: "dpkg -s ufw | grep 'Status: install'"
+        tests:
+          test_items:
+            - flag: "Status: install ok installed"
+        type: ""
+        scored: true
+
+      - id: 3.5.1.2
+        text: "Ensure iptables-persistent is not installed with ufw"
+        audit: "dpkg-query -s iptables-persistent"
+        tests:
+          test_items:
+            - flag: "package 'iptables-persistent' is not installed and no information is available"
+        type: ""
+        scored: true
+
+      - id: 3.5.1.3
+        text: "Ensure ufw service is enabled"
+        audit: |
+          systemctl is-enabled ufw
+          ufw status | grep Status
+        tests:
+          bin_op: and
+          test_items:
+            - flag: "enabled"
+            - flag: "Status: active"
+        type: ""
+        scored: true
+
+      - id: 3.5.1.4
+        text: "Ensure ufw loopback traffic is configured"
+        audit: "ufw status verbose"
+        type: "manual"
+        scored: false
+
+      - id: 3.5.1.5
+        text: "Ensure ufw outbound connections are configured"
+        audit: "ufw status numbered"
+        type: "manual"
+        scored: false
+
+      - id: 3.5.1.6
+        text: "Ensure ufw firewall rules exist for all open ports"
+        audit: "ss -4tuln"
+        type: "manual"
+        scored: false
+
+      - id: 3.5.1.7
+        text: "Ensure ufw default deny firewall policy"
+        audit: "ufw status verbose"
+        type: "manual"
+        scored: false
+
+      - id: 3.5.2.1
+        text: "Ensure nftables is installed"
+        audit: "dpkg-query -s nftables | grep 'Status: install ok installed'"
+        tests:
+          test_items:
+            - flag: "Status: install ok installed"
+        type: ""
+        scored: true
+
+      - id: 3.5.2.2
+        text: "Ensure ufw is uninstalled or disabled with nftables"
+        audit: |
+          dpkg-query -s ufw | grep 'Status: install ok installed'
+          ufw status
+        tests:
+          bin_op: and
+          test_items:
+            - flag: "package 'ufw' is not installed and no information is available"
+            - flag: "Status: inactive"
+        type: ""
+        scored: true
+
+      - id: 3.5.2.3
+        text: "Ensure iptables are flushed with nftables"
+        audit: "iptables -L"
+        type: "manual"
+        scored: false
+
+      - id: 3.5.2.4
+        text: "Ensure an nftables table exists"
+        audit: 'nft list tables'
+        tests:
+          test_items:
+            - flag: "table"
+        type: ""
+        scored: true
+
+      - id: 3.5.2.5
+        text: "Ensure nftables base chains exist"
+        audit: |
+          nft list ruleset | grep 'hook input'
+          nft list ruleset | grep 'hook forward'
+          nft list ruleset | grep 'hook output'
+        tests:
+          bin_op: and
+          test_items:
+            - flag: "type filter hook input priority"
+            - flag: "type filter hook forward priority"
+            - flag: "type filter hook output priority"
+        type: ""
+        scored: true
+
+      - id: 3.5.2.6
+        text: "Ensure nftables loopback traffic is configured"
+        audit: |
+          nft list ruleset | awk '/hook input/,/}/' | grep 'iif "lo" accept'
+          nft list ruleset | awk '/hook input/,/}/' | grep 'ip saddr'
+        tests:
+          bin_op: and
+          test_items:
+            - flag: 'iif "lo" accept'
+            - flag: "ip saddr"
+        type: ""
+        scored: true
+
+      - id: 3.5.2.7
+        text: "Ensure nftables outbound and established connections are configured"
+        audit: ""
+        type: "manual"
+        scored: true
+
+      - id: 3.5.2.8
+        text: "Ensure nftables default deny firewall policy"
+        audit: |
+          nft list ruleset | grep 'hook input'
+          nft list ruleset | grep 'hook forward'
+          nft list ruleset | grep 'hook output'
+        tests:
+          bin_op: and
+          test_items:
+            - flag: "type filter hook input priority 0; policy drop;"
+            - flag: "type filter hook forward priority 0; policy drop;"
+            - flag: "type filter hook output priority 0; policy drop;"
+        type: ""
+        scored: false
+
+      - id: 3.5.2.9
+        text: "Ensure nftables service is enabled"
+        audit: "systemctl is-enabled nftables"
+        tests:
+          test_items:
+            - flag: "enabled"
+        type: ""
+        scored: true
+
+      - id: 3.5.2.10
+        text: "Ensure nftables rules are permanent"
+        audit: |
+          [ -n "$(grep -E '^\s*include' /etc/nftables.conf)" ] && awk '/hook input/,/}/' $(awk '$1 ~ /^\s*include/ { gsub("\"","",$2);print $2 }' /etc/nftables.conf)
+        type: "manual"
+        scored: false
+
+      - id: 3.5.3.1.1
+        text: "Ensure iptables packages are installed"
+        audit: "apt list iptables iptables-persistent | grep installed"
+        tests:
+          bin_op: and
+          test_items:
+            - flag: "iptables-persistent/"
+            - flag: "iptables/"
+        type: ""
+        scored: true
+
+      - id: 3.5.3.1.2
+        text: "Ensure nftables is not installed with iptables"
+        audit: "dpkg -s nftables"
+        tests:
+          test_items:
+            - flag: "dpkg-query: package 'nftables' is not installed"
+        type: ""
+        scored: true
+
+      - id: 3.5.3.1.3
+        text: "Ensure ufw is uninstalled or disabled with iptables"
+        audit: |
+          dpkg-query -s ufw
+          ufw status
+          systemctl is-enabled ufw
+        tests:
+          bin_op: or
+          test_items:
+            - flag: "package 'ufw' is not installed and no information is available"
+            - flag: "Status: inactive"
+            - flag: "masked"
+        type: ""
+        scored: true
+
+      - id: 3.5.3.2.1
+        text: "Ensure iptables default deny firewall policy"
+        audit: "iptables -L"
+        tests:
+          bin_op: and
+          test_items:
+            - flag: "Chain INPUT (policy DROP)"
+            - flag: "Chain FORWARD (policy DROP)"
+            - flag: "Chain OUTPUT (policy DROP)"
+        type: ""
+        scored: true
+
+      - id: 3.5.3.2.2
+        text: "Ensure iptables loopback traffic is configured"
+        audit: "iptables -L INPUT -v -n"
+        type: "manual"
+        scored: false
+
+      - id: 3.5.3.2.3
+        text: "Ensure iptables outbound and established connections are configured"
+        audit: 'iptables -L -v -n'
+        type: "manual"
+        scored: true
+
+      - id: 3.5.3.2.4
+        text: "Ensure iptables firewall rules exist for all open ports"
+        audit: "ss -4tuln"
+        type: "manual"
+        scored: false
+
+      - id: 3.5.3.3.1
+        text: "Ensure ip6tables default deny firewall policy"
+        audit: "ip6tables -L"
+        tests:
+          bin_op: and
+          test_items:
+            - flag: "Chain INPUT (policy DROP)"
+            - flag: "Chain FORWARD (policy DROP)"
+            - flag: "Chain OUTPUT (policy DROP)"
+        type: ""
+        scored: true
+
+      - id: 3.5.3.3.2
+        text: "Ensure ip6tables loopback traffic is configured"
+        audit: "ip6tables -L INPUT -v -n"
+        type: "manual"
+        scored: true
+
+      - id: 3.5.3.3.3
+        text: "Ensure ip6tables outbound and established connections are configured"
+        audit: "ip6tables -L -v -n"
+        type: "manual"
+        scored: true
+
+      - id: 3.5.3.3.4
+        text: "Ensure ip6tables firewall rules exist for all open ports"
+        audit: "ss -6tuln"
+        type: "manual"
+        scored: true
+
+  - id: 4.1
+    text: "Configure System Accounting (auditd)"
+    checks:
+      - id: 4.1.1.1
+        text: "Ensure auditd is installed"
+        audit: "dpkg -s auditd audispd-plugins | grep -E '(Status:|not installed)'"
+        tests:
+          bin_op: and
+          test_items:
+            - flag: "Status: install ok installed"
+            - flag: "dpkg-query: package 'auditd' is not installed and no information is available"
+              set: false
+            - flag: "dpkg-query: package 'audispd-plugins' is not installed and no information is available"
+              set: false
+        type: ""
+        scored: true
+
+      - id: 4.1.1.2
+        text: "Ensure auditd service is enabled"
+        audit: "systemctl is-enabled auditd"
+        tests:
+          test_items:
+            - flag: "enabled"
+        type: ""
+        scored: true
+
+      - id: 4.1.1.3
+        text: "Ensure auditing for processes that start prior to auditd is enabled"
+        audit: "grep \"^\\s*linux\" /boot/grub/grub.cfg | grep -v \"audit=1\""
+        tests:
+          test_items:
+            - flag: ""
+              compare:
+                op: eq
+                value: ""
+        type: ""
+        scored: true
+
+      - id: 4.1.1.4
+        text: "Ensure audit_backlog_limit is sufficient"
+        audit: "grep \"^\\s*linux\" /boot/grub/grub.cfg | grep -v \"audit_backlog_limit=\""
+        tests:
+          test_items:
+            - flag: ""
+              compare:
+                op: eq
+                value: ""
+        type: ""
+        scored: true
+
+      - id: 4.1.2.1
+        text: "Ensure audit log storage size is configured"
+        audit: "grep max_log_file /etc/audit/auditd.conf"
+        tests:
+          test_items:
+            - flag: "max_log_file"
+        type: ""
+        scored: true
+
+      - id: 4.1.2.2
+        text: "Ensure audit logs are not automatically deleted"
+        audit: "grep max_log_file_action /etc/audit/auditd.conf"
+        tests:
+          test_items:
+            - flag: "max_log_file_action"
+              compare:
+                op: eq
+                value: "keep_logs"
+        type: ""
+        scored: true
+
+      - id: 4.1.2.3
+        text: "Ensure system is disabled when audit logs are full"
+        audit: |
+          grep space_left_action /etc/audit/auditd.conf
+          grep action_mail_acct /etc/audit/auditd.conf
+          grep admin_space_left_action /etc/audit/auditd.conf
+        tests:
+          bin_op: and
+          test_items:
+            - flag: "space_left_action"
+              compare:
+                op: eq
+                value: "email"
+            - flag: "action_mail_acct"
+              compare:
+                op: eq
+                value: "root"
+            - flag: "admin_space_left_action"
+              compare:
+                op: eq
+                value: "halt"
+        type: ""
+        scored: true
+
+      - id: 4.1.3
+        text: "Ensure events that modify date and time information are collected"
+        audit: |
+          grep time-change /etc/audit/rules.d/*.rules
+          auditctl -l | grep time-change
+        tests:
+          bin_op: and
+          test_items:
+            - flag: "-a always,exit -F arch=b64 -S adjtimex -S settimeofday -k time-change"
+            - flag: "-a always,exit -F arch=b32 -S adjtimex -S settimeofday -S stime -k time-change"
+            - flag: "-a always,exit -F arch=b64 -S clock_settime -k time-change"
+            - flag: "-a always,exit -F arch=b32 -S clock_settime -k time-change"
+            - flag: "-w /etc/localtime -p wa -k time-change"
+        type: ""
+        scored: true
+
+      - id: 4.1.4
+        text: "Ensure events that modify user/group information are collected"
+        audit: "grep identity /etc/audit/rules.d/*.rules"
+        tests:
+          bin_op: and
+          test_items:
+            - flag: "-w /etc/group -p wa -k identity"
+            - flag: "-w /etc/passwd -p wa -k identity"
+            - flag: "-w /etc/gshadow -p wa -k identity"
+            - flag: "-w /etc/shadow -p wa -k identity"
+            - flag: "-w /etc/security/opasswd -p wa -k identity"
+        type: ""
+        scored: true
+
+      - id: 4.1.5
+        text: "Ensure events that modify the system's network environment are collected"
+        audit: "grep system-locale /etc/audit/rules.d/*.rules"
+        tests:
+          bin_op: and
+          test_items:
+            - flag: "-a always,exit -F arch=b64 -S sethostname -S setdomainname -k system-locale"
+            - flag: "-a always,exit -F arch=b32 -S sethostname -S setdomainname -k system-locale"
+            - flag: "-w /etc/issue -p wa -k system-locale"
+            - flag: "-w /etc/issue.net -p wa -k system-locale"
+            - flag: "-w /etc/hosts -p wa -k system-locale"
+            - flag: "-w /etc/sysconfig/network -p wa -k system-locale"
+        type: ""
+        scored: true
+
+      - id: 4.1.6
+        text: "Ensure events that modify the system's Mandatory Access Controls are collected"
+        audit: "grep MAC-policy /etc/audit/rules.d/*.rules"
+        tests:
+          bin_op: and
+          test_items:
+            - flag: "-w /etc/selinux/ -p wa -k MAC-policy"
+            - flag: "-w /usr/share/selinux/ -p wa -k MAC-policy"
+        type: ""
+        scored: true
+
+      - id: 4.1.7
+        text: "Ensure login and logout events are collected"
+        audit: "grep logins /etc/audit/rules.d/*.rules"
+        tests:
+          bin_op: and
+          test_items:
+            - flag: "-w /var/log/faillog -p wa -k logins"
+            - flag: "-w /var/log/lastlog -p wa -k logins"
+            - flag: "-w /var/log/tallylog -p wa -k logins"
+        type: ""
+        scored: true
+
+      - id: 4.1.8
+        text: "Ensure session initiation information is collected"
+        audit: "grep -E '(session|logins)' /etc/audit/rules.d/*.rules"
+        tests:
+          test_items:
+            - flag: "-w /var/run/utmp -p wa -k session"
+            - flag: "-w /var/log/wtmp -p wa -k logins"
+            - flag: "-w /var/log/btmp -p wa -k logins"
+        type: ""
+        scored: true
+
+      - id: 4.1.9
+        text: "Ensure discretionary access control permission modification events are collected"
+        audit: "grep perm_mod /etc/audit/rules.d/*.rules"
+        tests:
+          bin_op: and
+          test_items:
+            - flag: "-a always,exit -F arch=b64 -S chmod -S fchmod -S fchmodat -F auid>=500 -F auid!=4294967295 -k perm_mod"
+            - flag: "-a always,exit -F arch=b32 -S chmod -S fchmod -S fchmodat -F auid>=500 -F auid!=4294967295 -k perm_mod"
+            - flag: "-a always,exit -F arch=b64 -S chown -S fchown -S fchownat -S lchown -F auid>=500 -F auid!=4294967295 -k perm_mod"
+            - flag: "-a always,exit -F arch=b32 -S chown -S fchown -S fchownat -S lchown -F auid>=500 -F auid!=4294967295 -k perm_mod"
+            - flag: "-a always,exit -F arch=b64 -S setxattr -S lsetxattr -S fsetxattr -S removexattr -S lremovexattr -S fremovexattr -F auid>=500 -F auid!=4294967295 -k perm_mod"
+            - flag: "-a always,exit -F arch=b32 -S setxattr -S lsetxattr -S fsetxattr -S removexattr -S lremovexattr -S fremovexattr -F auid>=500 -F auid!=4294967295 -k perm_mod"
+        type: ""
+        scored: true
+
+      - id: 4.1.10
+        text: "Ensure unsuccessful unauthorized file access attempts are collected"
+        audit: "grep access /etc/audit/rules.d/*.rules"
+        tests:
+          bin_op: and
+          test_items:
+            - flag: "-a always,exit -F arch=b64 -S creat -S open -S openat -S truncate -S ftruncate -F exit=-EACCES -F auid>=500 -F auid!=4294967295 -k access"
+            - flag: "-a always,exit -F arch=b32 -S creat -S open -S openat -S truncate -S ftruncate -F exit=-EACCES -F auid>=500 -F auid!=4294967295 -k access"
+            - flag: "-a always,exit -F arch=b64 -S creat -S open -S openat -S truncate -S ftruncate -F exit=-EPERM -F auid>=500 -F auid!=4294967295 -k access"
+            - flag: "-a always,exit -F arch=b32 -S creat -S open -S openat -S truncate -S ftruncate -F exit=-EPERM -F auid>=500 -F auid!=4294967295 -k access"
+        type: ""
+        scored: true
+
+      - id: 4.1.11
+        text: "Ensure use of privileged commands is collected"
+        audit: "find <partition> -xdev \\( -perm -4000 -o -perm -2000 \\) -type f | awk '{print \"-a always,exit -F path=\" $1 \" -F perm=x -F auid>='\"$(awk '/^\\s*UID_MIN/{print $2}' /etc/login.defs)\"' -F auid!=4294967295 \ -k privileged\" }' "
+        type: "manual"
+        scored: false
+
+      - id: 4.1.12
+        text: "Ensure successful file system mounts are collected"
+        audit: "grep mounts /etc/audit/rules.d/*.rules"
+        tests:
+          bin_op: and
+          test_items:
+            - flag: "-a always,exit -F arch=b64 -S mount -F auid>=500 -F auid!=4294967295 -k mounts"
+            - flag: "-a always,exit -F arch=b32 -S mount -F auid>=500 -F auid!=4294967295 -k mounts"
+        type: ""
+        scored: true
+
+      - id: 4.1.13
+        text: "Ensure file deletion events by users are collected"
+        audit: "grep delete /etc/audit/rules.d/*.rules"
+        tests:
+          bin_op: and
+          test_items:
+            - flag: "-a always,exit -F arch=b64 -S unlink -S unlinkat -S rename -S renameat -F auid>=500 -F auid!=4294967295 -k delete"
+            - flag: "-a always,exit -F arch=b32 -S unlink -S unlinkat -S rename -S renameat -F auid>=500 -F auid!=4294967295 -k delete"
+        type: ""
+        scored: true
+
+      - id: 4.1.14
+        text: "Ensure changes to system administration scope (sudoers) is collected"
+        audit: "grep scope /etc/audit/rules.d/*.rules"
+        tests:
+          bin_op: and
+          test_items:
+            - flag: "-w /etc/sudoers -p wa -k scope"
+            - flag: "-w /etc/sudoers.d/ -p wa -k scope"
+        type: ""
+        scored: true
+
+      - id: 4.1.15
+        text: "Ensure system administrator command executions (sudo) are collected"
+        audit: "grep actions /etc/audit/rules.d/*.rules"
+        tests:
+          bin_op: and
+          test_items:
+            - flag: "-a exit,always -F arch=b64 -C euid!=uid -F euid=0 -Fauid>=1000 -F auid!=4294967295 -S execve -k action"
+            - flag: "-a exit,always -F arch=b32 -C euid!=uid -F euid=0 -Fauid>=1000 -F auid!=4294967295 -S execve -k actions"
+        type: ""
+        scored: true
+
+      - id: 4.1.16
+        text: "Ensure kernel module loading and unloading is collected"
+        audit: "grep modules /etc/audit/rules.d/*.rules"
+        tests:
+          bin_op: and
+          test_items:
+            - flag: "-w /sbin/insmod -p x -k modules"
+            - flag: "-w /sbin/rmmod -p x -k modules"
+            - flag: "-w /sbin/modprobe -p x -k modules"
+            - flag: "-a always,exit -F arch=b64 -S init_module -S delete_module -k modules"
+        type: ""
+        scored: true
+
+      - id: 4.1.17
+        text: "Ensure the audit configuration is immutable"
+        audit: "grep \"^\\s*[^#]\" /etc/audit/rules.d/*.rules | tail -1"
+        tests:
+          test_items:
+            - flag: "-e 2"
+        type: ""
+        scored: true
+
+  - id: 4.2
+    text: "Configure Logging"
+    checks:
+      - id: 4.2.1.1
+        text: "Ensure rsyslog is installed"
+        audit: "dpkg-query -s rsyslog | grep 'Status: install ok installed'"
+        tests:
+          test_items:
+            - flag: "Status: install ok installed"
+        type: ""
+        scored: true
+
+      - id: 4.2.1.2
+        text: "Ensure rsyslog Service is enabled and running"
+        audit: "systemctl is-enabled rsyslog"
+        tests:
+          test_items:
+            - flag: "enabled"
+        type: ""
+        scored: true
+
+      - id: 4.2.1.3
+        text: "Ensure logging is configured"
+        audit: "ls -l /var/log/"
+        type: "manual"
+        scored: true
+
+      - id: 4.2.1.4
+        text: "Ensure rsyslog default file permissions configured"
+        audit: "grep ^\\$FileCreateMode /etc/rsyslog.conf /etc/rsyslog.d/*.conf"
+        tests:
+          test_items:
+            - flag: "FileCreateMode"
+              compare:
+                op: bitmask
+                value: "0640"
+        type: ""
+        scored: true
+
+      - id: 4.2.1.5
+        text: "Ensure rsyslog is configured to send logs to a remote log host"
+        audit: "grep -E '^\\s*([^#]+\\s+)?action\\(([^#]+\\s+)?\\btarget=\"?[^#\"]+\\\"?\b' /etc/rsyslog.conf /etc/rsyslog.d/*.conf"
+        type: "manual"
+        scored: false
+
+      - id: 4.2.1.6
+        text: "Ensure remote rsyslog messages are only accepted on designated log hosts"
+        audit: ""
+        type: "manual"
+        scored: false
+
+      - id: 4.2.2.1
+        text: "Ensure journald is configured to send logs to rsyslog"
+        audit: "grep -E ^\\s*ForwardToSyslog /etc/systemd/journald.conf"
+        tests:
+          test_items:
+            - flag: "ForwardToSyslog=yes"
+        type: ""
+        scored: false
+
+      - id: 4.2.2.2
+        text: "Ensure journald is configured to compress large log files"
+        audit: "grep -E ^\\s*Compress /etc/systemd/journald.conf"
+        tests:
+          test_items:
+            - flag: "Compress=yes"
+        type: ""
+        scored: false
+
+      - id: 4.2.2.3
+        text: "Ensure journald is configured to write logfiles to persistent disk"
+        audit: "grep -E ^\\s*Storage /etc/systemd/journald.conf"
+        tests:
+          test_items:
+            - flag: "Storage=persistent"
+        type: ""
+        scored: false
+
+      - id: 4.2.3
+        text: "Ensure permissions on all logfiles are configured"
+        audit: "find /var/log -type f -perm /g+wx,o+rwx -exec ls -l {} \\;"
+        tests:
+          test_items:
+            - flag: ""
+              compare:
+                op: eq
+                value: ""
+        type: ""
+        scored: true
+
+  - id: 4.3
+    text: ""
+    checks:
+      - id: 4.3
+        text: "Ensure logrotate is configured"
+        audit: "cat /etc/logrotate.conf; cat /etc/logrotate.d/* ;"
+        type: "manual"
+        scored: true
+
+  - id: 4.4
+    text: ""
+    checks:
+      - id: 4.4
+        text: "Ensure logrotate assigns appropriate permissions"
+        audit: "grep -Es \"^\\s*create\\s+\\S+\" /etc/logrotate.conf /etc/logrotate.d/* | grep - E -v \"\\s(0)?[0-6][04]0\\s\""
+        tests:
+          test_items:
+            - flag: ""
+              compare:
+                op: eq
+                value: ""
+        type: ""
+        scored: true
+
+  - id: 5.1
+    text: "Configure time-based job schedulers"
+    checks:
+      - id: 5.1.1
+        text: "Ensure cron daemon is enabled and running"
+        audit: "systemctl is-enabled cron"
+        tests:
+          test_items:
+            - flag: "enabled"
+        type: ""
+        scored: true
+
+      - id: 5.1.2
+        text: "Ensure permissions on /etc/crontab are configured"
+        audit: "stat -c %a/Uid:%U/%uGid:%G/%g /etc/crontab"
+        tests:
+          test_items:
+            - flag: "600/Uid:root/0Gid:root/0"
+        type: ""
+        scored: true
+
+      - id: 5.1.3
+        text: "Ensure permissions on /etc/cron.hourly are configured"
+        audit: "stat -c %a/Uid:%U/%uGid:%G/%g /etc/cron.hourly"
+        tests:
+          test_items:
+            - flag: "700/Uid:root/0Gid:root/0"
+        type: ""
+        scored: true
+
+      - id: 5.1.4
+        text: "Ensure permissions on /etc/cron.daily are configured"
+        audit: "stat -c %a/Uid:%U/%uGid:%G/%g /etc/cron.daily"
+        tests:
+          test_items:
+            - flag: "700/Uid:root/0Gid:root/0"
+        type: ""
+        scored: true
+
+      - id: 5.1.5
+        text: "Ensure permissions on /etc/cron.weekly are configured"
+        audit: "stat -c %a/Uid:%U/%uGid:%G/%g /etc/cron.weekly"
+        tests:
+          test_items:
+            - flag: "700/Uid:root/0Gid:root/0"
+        type: ""
+        scored: true
+
+      - id: 5.1.6
+        text: "Ensure permissions on /etc/cron.monthly are configured"
+        audit: "stat -c %a/Uid:%U/%uGid:%G/%g /etc/cron.monthly"
+        tests:
+          test_items:
+            - flag: "700/Uid:root/0Gid:root/0"
+        type: ""
+        scored: true
+
+      - id: 5.1.7
+        text: "Ensure permissions on /etc/cron.d are configured"
+        audit: "stat -c %a/Uid:%U/%uGid:%G/%g /etc/cron.d"
+        tests:
+          test_items:
+            - flag: "700/Uid:root/0Gid:root/0"
+        type: ""
+        scored: true
+
+      - id: 5.1.8
+        text: "Ensure cron is restricted to authorized users"
+        audit: "stat -c %a/Uid:%U/%uGid:%G/%g /etc/cron.deny"
+        tests:
+          test_items:
+            - flag: "/etc/cron.deny"
+              set: false
+        type: ""
+        scored: true
+
+      - id: 5.1.9
+        text: "Ensure at is restricted to authorized users"
+        audit: "stat -c %a/Uid:%U/%uGid:%G/%g /etc/at.deny"
+        tests:
+          test_items:
+            - flag: "/etc/at.deny"
+              set: false
+        type: ""
+        scored: true
+
+  - id: 5.2
+    text: "Configure sudo"
+    checks:
+      - id: 5.2.1
+        text: "Ensure sudo is installed"
+        audit: |
+          dpkg -s sudo | grep 'Status: install ok installed'
+          dpkg -s sudo-ldap | grep 'Status: install ok installed'
+        tests:
+          test_items:
+            - flag: "Status: install ok installed"
+        type: ""
+        scored: true
+
+      - id: 5.2.2
+        text: "Ensure sudo commands use pty"
+        audit: "grep -Ei '^\\s*Defaults\\s+([^#]\\S+,\\s*)?use_pty\\b' /etc/sudoers /etc/sudoers.d/*"
+        tests:
+          test_items:
+            - flag: "Defaults use_pty"
+        type: ""
+        scored: true
+
+      - id: 5.2.3
+        text: "Ensure sudo log file exists"
+        audit: "grep -Ei '^\\s*Defaults\\s+([^#;]+,\\s*)?logfile\\s*=\\s*(\")?[^#;]+(\")?' /etc/sudoers /etc/sudoers.d/*"
+        tests:
+          test_items:
+            - flag: "Defaults logfile="
+        type: ""
+        scored: true
+
+  - id: 5.3
+    text: "Configure SSH Server"
+    checks:
+      - id: 5.3.1
+        text: "Ensure permissions on /etc/ssh/sshd_config are configured"
+        audit: "stat -c %a/Uid:%U/%uGid:%G/%g /etc/ssh/sshd_config"
+        tests:
+          test_items:
+            - flag: "600/Uid:root/0Gid:root/0"
+        type: ""
+        scored: true
+
+      - id: 5.3.2
+        text: "Ensure permissions on SSH private host key files are configured"
+        audit: "find /etc/ssh -xdev -type f -name 'ssh_host_*_key' -exec stat -c \"%N permissions=%a Uid:%U/%u Gid:%G/%g\" {} \\;"
+        use_multiple_values: true
+        tests:
+          bin_op: and
+          test_items:
+            - flag: "Uid:root/0 Gid:root/0"
+            - flag: "permissions"
+              compare:
+                op: bitmask
+                value: "600"
+        type: ""
+        scored: true
+
+      - id: 5.3.3
+        text: "Ensure permissions on SSH public host key files are configured"
+        audit: "find /etc/ssh -xdev -type f -name 'ssh_host_*_key.pub' -exec stat -c \"%N permissions=%a Uid:%U/%u Gid:%G/%g\" {} \\;"
+        use_multiple_values: true
+        tests:
+          bin_op: and
+          test_items:
+            - flag: "Uid:root/0 Gid:root/0"
+            - flag: "permissions"
+              compare:
+                op: bitmask
+                value: "600"
+        type: ""
+        scored: true
+
+        references: [ ]
+      - id: 5.3.4
+        text: "Ensure SSH access is limited"
+        audit: "sshd -T | grep -e allowusers -e allowgroups -e denyusers -e denygroups"
+        tests:
+          bin_op: and
+          test_items:
+            - flag: ""
+              compare:
+                op: regex
+                value: "[aA]llow[uU]sers"
+            - flag: ""
+              compare:
+                op: regex
+                value: "[aA]llow[gG]roups"
+            - flag: ""
+              compare:
+                op: regex
+                value: "[dD]eny[uU]sers"
+            - flag: ""
+              compare:
+                op: regex
+                value: "[dD]eny[gG]roups"
+        type: ""
+        scored: true
+
+      - id: 5.3.5
+        text: "Ensure SSH LogLevel is appropriate"
+        audit: "sshd -T -C user=root -C host=\"$(hostname)\" -C addr=\"$(grep $(hostname) /etc/hosts | awk '{print $1}')\" | grep loglevel"
+        tests:
+          bin_op: or
+          test_items:
+            - flag: "loglevel VERBOSE"
+            - flag: "loglevel INFO"
+        type: ""
+        scored: true
+
+      - id: 5.3.6
+        text: "Ensure SSH X11 forwarding is disabled"
+        audit: "grep -Ei '^\\s*x11forwarding\\s+yes' /etc/ssh/sshd_config"
+        tests:
+          bin_op: or
+          test_items:
+            - flag: "X11Forwarding no"
+            - flag: "x11forwarding no"
+            - flag: ""
+              compare:
+                op: eq
+                value: ""
+        type: ""
+        scored: true
+
+      - id: 5.3.7
+        text: "Ensure SSH MaxAuthTries is set to 4 or less"
+        audit: "sshd -T -C user=root -C host=\"$(hostname)\" -C addr=\"$(grep $(hostname) /etc/hosts | awk '{print $1}')\" | grep maxauthtries"
+        tests:
+          test_items:
+            - flag: "maxauthtries"
+              compare:
+                op: lte
+                value: "4"
+        type: ""
+        scored: true
+
+      - id: 5.3.8
+        text: "Ensure SSH IgnoreRhosts is enabled"
+        audit: "sshd -T -C user=root -C host=\"$(hostname)\" -C addr=\"$(grep $(hostname) /etc/hosts | awk '{print $1}')\" | grep ignorerhosts"
+        tests:
+          test_items:
+            - flag: "ignorerhosts yes"
+        type: ""
+        scored: true
+
+      - id: 5.3.9
+        text: "Ensure SSH HostbasedAuthentication is disabled"
+        audit: "sshd -T -C user=root -C host=\"$(hostname)\" -C addr=\"$(grep $(hostname) /etc/hosts | awk '{print $1}')\" | grep hostbasedauthentication"
+        tests:
+          test_items:
+            - flag: "hostbasedauthentication no"
+        type: ""
+        scored: true
+
+      - id: 5.3.10
+        text: "Ensure SSH root login is disabled"
+        audit: "sshd -T -C user=root -C host=\"$(hostname)\" -C addr=\"$(grep $(hostname) /etc/hosts | awk '{print $1}')\" | grep permitrootlogin"
+        tests:
+          test_items:
+            - flag: "permitrootlogin no"
+        type: ""
+        scored: true
+
+      - id: 5.3.11
+        text: "Ensure SSH PermitEmptyPasswords is disabled"
+        audit: "sshd -T -C user=root -C host=\"$(hostname)\" -C addr=\"$(grep $(hostname) /etc/hosts | awk '{print $1}')\" | grep permitemptypasswords"
+        tests:
+          test_items:
+            - flag: "permitemptypasswords no"
+        type: ""
+        scored: true
+
+      - id: 5.3.12
+        text: "Ensure SSH PermitUserEnvironment is disabled"
+        audit: "sshd -T -C user=root -C host=\"$(hostname)\" -C addr=\"$(grep $(hostname) /etc/hosts | awk '{print $1}')\" | grep permituserenvironment"
+        tests:
+          test_items:
+            - flag: "permituserenvironment no"
+        type: ""
+        scored: true
+
+      - id: 5.3.13
+        text: "Ensure only strong Ciphers are used"
+        audit: "sshd -T -C user=root -C host=\"$(hostname)\" -C addr=\"$(grep $(hostname) /etc/hosts | awk '{print $1}')\" | grep -Ei '^\\s*ciphers\\s+([^#]+,)?(3des-cbc|aes128-cbc|aes192-cbc|aes256-cbc|arcfour|arcfour128|arcfour256|blowfish- cbc|cast128-cbc|rijndael-cbc@lysator.liu.se)\b'"
+        tests:
+          test_items:
+            - flag: ""
+              compare:
+                op: eq
+                value: ""
+        type: ""
+        scored: true
+
+      - id: 5.3.14
+        text: "Ensure only strong MAC algorithms are used"
+        audit: "sshd -T -C user=root -C host=\"$(hostname)\" -C addr=\"$(grep $(hostname) /etc/hosts | awk '{print $1}')\" | grep -Ei '^\\s*macs\\s+([^#]+,)?(hmac- md5|hmac-md5-96|hmac-ripemd160|hmac-sha1|hmac-sha1-96|umac-64@openssh\\.com|hmac-md5-etm@openssh\\.com|hmac-md5-96-etm@openssh\\.com|hmac- ripemd160-etm@openssh\\.com|hmac-sha1-etm@openssh\\.com|hmac-sha1-96-etm@openssh\\.com|umac-64-etm@openssh\\.com|umac-128-etm@openssh\\.com)\\b'"
+        tests:
+          test_items:
+            - flag: ""
+              compare:
+                op: eq
+                value: ""
+        type: ""
+        scored: true
+
+      - id: 5.3.15
+        text: "Ensure only strong Key Exchange algorithms are used"
+        audit: "sshd -T -C user=root -C host=\"$(hostname)\" -C addr=\"$(grep $(hostname) /etc/hosts | awk '{print $1}')\" | grep -Ei '^\\s*kexalgorithms\\s+([^#]+,)?(diffie-hellman-group1-sha1|diffie-hellman-group14-sha1|diffie-hellman-group-exchange-sha1)\\b'"
+        tests:
+          test_items:
+            - flag: ""
+              compare:
+                op: eq
+                value: ""
+        type: ""
+        scored: true
+
+      - id: 5.3.16
+        text: "Ensure SSH Idle Timeout Interval is configured"
+        audit: "sshd -T -C user=root -C host=\"$(hostname)\" -C addr=\"$(grep $(hostname) /etc/hosts | awk '{print $1}')\" | grep clientaliveinterval"
+        tests:
+          bin_op: and
+          test_items:
+            - flag: "clientaliveinterval"
+              compare:
+                op: lte
+                value: "900"
+            - flag: "clientaliveinterval"
+              compare:
+                op: gte
+                value: "1"
+        type: ""
+        scored: true
+
+      - id: 5.3.17
+        text: "Ensure SSH LoginGraceTime is set to one minute or less"
+        audit: "sshd -T -C user=root -C host=\"$(hostname)\" -C addr=\"$(grep $(hostname) /etc/hosts | awk '{print $1}')\" | grep logingracetime"
+        tests:
+          bin_op: and
+          test_items:
+            - flag: "logingracetime"
+              compare:
+                op: lte
+                value: "60"
+            - flag: "logingracetime"
+              compare:
+                op: gte
+                value: "1"
+        type: ""
+        scored: true
+
+      - id: 5.3.18
+        text: "Ensure SSH warning banner is configured"
+        audit: "sshd -T -C user=root -C host=\"$(hostname)\" -C addr=\"$(grep $(hostname) /etc/hosts | awk '{print $1}')\" | grep banner"
+        tests:
+          test_items:
+            - flag: "banner /etc/issue.net"
+        type: ""
+        scored: true
+
+      - id: 5.3.19
+        text: "Ensure SSH PAM is enabled"
+        audit: "sshd -T -C user=root -C host=\"$(hostname)\" -C addr=\"$(grep $(hostname) /etc/hosts | awk '{print $1}')\" | grep -i usepam"
+        tests:
+          test_items:
+            - flag: "usepam yes"
+        type: ""
+        scored: true
+
+      - id: 5.3.20
+        text: "Ensure SSH AllowTcpForwarding is disabled"
+        audit: "sshd -T -C user=root -C host=\"$(hostname)\" -C addr=\"$(grep $(hostname) /etc/hosts | awk '{print $1}')\" | grep -i allowtcpforwarding"
+        tests:
+          test_items:
+            - flag: "allowtcpforwarding no"
+        type: ""
+        scored: true
+
+      - id: 5.3.21
+        text: "Ensure SSH MaxStartups is configured"
+        audit: "sshd -T -C user=root -C host=\"$(hostname)\" -C addr=\"$(grep $(hostname) /etc/hosts | awk '{print $1}')\" | grep -i maxstartups"
+        tests:
+          test_items:
+            - flag: "maxstartups 10:30:60"
+        type: ""
+        scored: true
+
+      - id: 5.3.22
+        text: "Ensure SSH MaxSessions is limited"
+        audit: "sshd -T -C user=root -C host=\"$(hostname)\" -C addr=\"$(grep $(hostname) /etc/hosts | awk '{print $1}')\" | grep -i maxsessions"
+        tests:
+          test_items:
+            - flag: "maxsessions 10"
+        type: ""
+        scored: true
+
+  - id: 5.4
+    text: "Configure PAM"
+    checks:
+      - id: 5.4.1
+        text: "Ensure password creation requirements are configured"
+        audit: "grep '^\\s*minlen\\s*' /etc/security/pwquality.conf; grep -E '^\\s*[duol]credit\\s*' /etc/security/pwquality.conf"
+        tests:
+          bin_op: and
+          test_items:
+            - flag: "minlen"
+              compare:
+                op: gte
+                value: "14"
+            - flag: "dcredit"
+              compare:
+                op: eq
+                value: "-1"
+            - flag: "ucredit"
+              compare:
+                op: eq
+                value: "-1"
+            - flag: "ocredit"
+              compare:
+                op: eq
+                value: "-1"
+            - flag: "lcredit"
+              compare:
+                op: eq
+                value: "-1"
+        type: ""
+        scored: true
+
+      - id: 5.4.2
+        text: "Ensure lockout for failed password attempts is configured"
+        audit: "grep \"pam_tally2\" /etc/pam.d/common-auth"
+        tests:
+          test_items:
+            - flag: "auth required pam_tally2.so onerr=fail audit silent deny=5 unlock_time=900"
+        scored: true
+
+      - id: 5.4.3
+        text: "Ensure password reuse is limited"
+        audit: "grep -P '^\\s*password\\s+(sufficient|requisite|required)\\s+pam_unix\\.so\\s+([^#]+\\s+)*remember=([5-9]|[1-9][0-9]+)\\b' /etc/pam.d/system-auth /etc/pam.d/password-auth"
+        tests:
+          test_items:
+            - flag: "remember=5"
+        type: ""
+        scored: true
+
+      - id: 5.4.4
+        text: "Ensure password hashing algorithm is SHA-512"
+        audit: "grep -P '^\\h*password\\h+(sufficient|requisite|required)\\h+pam_unix\\.so\\h+([^#\\n\\r]+)?sha512(\\h+.*)?$' /etc/pam.d/system-auth /etc/pam.d/password-auth"
+        tests:
+          test_items:
+            - flag: "sha512"
+        type: ""
+        scored: true
+
+  - id: 5.5
+    text: "User Accounts and Environment"
+    checks:
+      - id: 5.5.1.1
+        text: "Ensure minimum days between password changes is configured"
+        audit: "grep ^\\s*PASS_MIN_DAYS /etc/login.defs"
+        tests:
+          test_items:
+            - flag: "PASS_MIN_DAYS"
+              compare:
+                op: gte
+                value: "1"
+        type: ""
+        scored: true
+
+      - id: 5.5.1.2
+        text: "Ensure password expiration is 365 days or less"
+        audit: "grep ^\\s*PASS_MAX_DAYS /etc/login.defs"
+        tests:
+          test_items:
+            - flag: "PASS_MAX_DAYS"
+              compare:
+                op: lte
+                value: "365"
+        type: ""
+        scored: true
+
+      - id: 5.5.1.3
+        text: "Ensure password expiration warning days is 7 or more"
+        audit: "grep ^\\s*PASS_WARN_AGE /etc/login.defs"
+        tests:
+          test_items:
+            - flag: "PASS_WARN_AGE"
+              compare:
+                op: gte
+                value: "7"
+        type: ""
+        scored: true
+
+      - id: 5.5.1.4
+        text: "Ensure inactive password lock is 30 days or less"
+        audit: "useradd -D | grep INACTIVE"
+        tests:
+          test_items:
+            - flag: "INACTIVE"
+              compare:
+                op: lte
+                value: "30"
+        type: ""
+        scored: true
+
+      - id: 5.5.1.5
+        text: "Ensure all users last password change date is in the past"
+        audit: |
+          awk -F : '/^[^:]+:[^!*]/{print $1}' /etc/shadow | while read -r usr; do [ "$(date --date="$(chage --list "$usr" | grep '^Last password change' | cut - d: -f2)" +%s)" -gt "$(date "+%s")" ] && echo "user: $usr password change date: $(chage --list "$usr" | grep '^Last password change' | cut -d: -f2)"; done
+        tests:
+          test_items:
+            - flag: ""
+              compare:
+                op: eq
+                value: ""
+        type: ""
+        scored: true
+
+      - id: 5.5.2
+        text: "Ensure system accounts are secured"
+        audit: |
+          awk -F: '$1!~/(root|sync|shutdown|halt|^\+)/ && $3<'"$(awk '/^\s*UID_MIN/{print $2}' /etc/login.defs)"' && $7!~/((\/usr)?\/sbin\/nologin)/ && $7!~/(\/bin)?\/false/ {print}' /etc/passwd
+          awk -F: '($1!~/(root|^\+)/ && $3<'"$(awk '/^\s*UID_MIN/{print $2}' /etc/login.defs)"') {print $1}' /etc/passwd | xargs -I '{}' passwd -S '{}' | awk '($2!~/LK?/) {print $1}'
+        tests:
+          test_items:
+            - flag: ""
+              compare:
+                op: eq
+                value: ""
+        type: ""
+        scored: true
+
+      - id: 5.5.3
+        text: "Ensure default group for the root account is GID 0"
+        audit: "grep \"^root:\" /etc/passwd | cut -f4 -d:"
+        tests:
+          test_items:
+            - flag: "0"
+        type: ""
+        scored: true
+
+      - id: 5.5.4
+        text: "Ensure default user umask is 027 or more restrictive"
+        audit: ""
+        type: "manual"
+        scored: false
+
+      - id: 5.5.5
+        text: "Ensure default user shell timeout is 900 seconds or less"
+        audit: ""
+        type: "manual"
+        scored: true
+
+  - id: 5.6
+    text: ""
+    checks:
+      - id: "5.6"
+        text: "Ensure root login is restricted to system console"
+        audit: "cat /etc/securetty"
+        type: "manual"
+        scored: true
+
+  - id: 5.7
+    text: ""
+    checks:
+      - id: "5.7"
+        text: "Ensure access to the su command is restricted"
+        audit: "grep -Pi '^\\h*auth\\h+(?:required|requisite)\\h+pam_wheel\\.so\\h+(?:[^#\\n\\r]+\\h+)?((?!\\2) (use_uid\\b|group=\\H+\\b))\\h+(?:[^#\\n\\r]+\\h+)?((?!\\1)(use_uid\\b|group=\\H+\\b))(\\h+.*)?$' /etc/pam.d/su"
+        tests:
+          test_items:
+            - flag: "auth required pam_wheel.so use_uid group="
+        type: ""
+        scored: true
+
+  - id: 6.1
+    text: "System File Permissions"
+    checks:
+      - id: 6.1.1
+        text: "Audit system file permissions"
+        audit: "rpm -Va --nomtime --nosize --nomd5 --nolinkto > <filename> | grep -vw c"
+        type: "manual"
+        scored: false
+
+      - id: 6.1.2
+        text: "Ensure permissions on /etc/passwd are configured"
+        audit: "stat -c %a/Uid:%U/%uGid:%G/%g /etc/passwd"
+        tests:
+          test_items:
+            - flag: "644/Uid:root/0Gid:root/0"
+        type: ""
+        scored: true
+
+      - id: 6.1.3
+        text: "Ensure permissions on /etc/passwd- are configured"
+        audit: 'stat -c "Uid:%U/%u Gid:%G/%g permissions=%a" /etc/passwd-'
+        tests:
+          bin_op: and
+          test_items:
+            - flag: "Uid:root/0 Gid:root/0"
+            - flag: "permissions"
+              compare:
+                op: bitmask
+                value: "644"
+        type: ""
+        scored: true
+
+      - id: 6.1.4
+        text: "Ensure permissions on /etc/group are configured"
+        audit: 'stat -c "Uid:%U/%u Gid:%G/%g permissions=%a" /etc/group'
+        tests:
+          test_items:
+            - flag: "Uid:root/0 Gid:root/0 permissions=644"
+        type: ""
+        scored: true
+
+      - id: 6.1.5
+        text: "Ensure permissions on /etc/group- are configured"
+        audit: 'stat -c "Uid:%U/%u Gid:%G/%g permissions=%a" /etc/group-'
+        tests:
+          bin_op: and
+          test_items:
+            - flag: "Uid:root/0 Gid:root/0"
+            - flag: "permissions"
+              compare:
+                op: bitmask
+                value: "644"
+        type: ""
+        scored: true
+
+      - id: 6.1.6
+        text: "Ensure permissions on /etc/shadow are configured"
+        audit: 'stat -c "Uid:%U/%u Gid:%G permissions=%a" /etc/shadow'
+        tests:
+          bin_op: and
+          test_items:
+            - flag: "Uid:root/0"
+            - flag: "Gid:root/0"
+              compare:
+                op: regex
+                value: "shadow|root"
+            - flag: "permissions"
+              compare:
+                op: bitmask
+                value: "000"
+        type: ""
+        scored: true
+
+      - id: 6.1.7
+        text: "Ensure permissions on /etc/shadow- are configured"
+        audit: 'stat -c "Uid:%U/%u Gid:%G permissions=%a" /etc/shadow-'
+        tests:
+          bin_op: and
+          test_items:
+            - flag: "Uid:root/0"
+            - flag: "Gid"
+              compare:
+                op: regex
+                value: "shadow|root"
+            - flag: "permissions"
+              compare:
+                op: bitmask
+                value: "000"
+        type: ""
+        scored: true
+
+      - id: 6.1.8
+        text: "Ensure permissions on /etc/gshadow are configured"
+        audit: 'stat -c "Uid:%U/%u Gid:%G permissions=%a" /etc/gshadow'
+        tests:
+          bin_op: and
+          test_items:
+            - flag: "Uid:root/0"
+            - flag: "Gid"
+              compare:
+                op: regex
+                value: "shadow|root"
+            - flag: "permissions"
+              compare:
+                op: bitmask
+                value: "000"
+        type: ""
+        scored: true
+
+      - id: 6.1.9
+        text: "Ensure permissions on /etc/gshadow- are configured"
+        audit: 'stat -c "Uid:%U/%u Gid:%G permissions=%a" /etc/gshadow-'
+        tests:
+          bin_op: and
+          test_items:
+            - flag: "Uid:root/0"
+            - flag: "Gid"
+              compare:
+                op: regex
+                value: "shadow|root"
+            - flag: "permissions"
+              compare:
+                op: bitmask
+                value: "000"
+        type: ""
+        scored: true
+
+      - id: 6.1.10
+        text: "Ensure no world writable files exist"
+        audit: "df --local -P | awk '{if (NR!=1) print $6}' | xargs -I '{}' find '{}' -xdev -type f -perm -0002 | head -n 100"
+        tests:
+          test_items:
+            - flag: ""
+              compare:
+                op: eq
+                value: ""
+        type: ""
+        scored: true
+
+      - id: 6.1.11
+        text: "Ensure no unowned files or directories exist"
+        audit: "df --local -P | awk {'if (NR!=1) print $6'} | xargs -I '{}' find '{}' -xdev -nouser | head -n 100"
+        tests:
+          test_items:
+            - flag: ""
+              compare:
+                op: eq
+                value: ""
+        type: ""
+        scored: true
+
+      - id: 6.1.12
+        text: "Ensure no ungrouped files or directories exist"
+        audit: "df --local -P | awk {'if (NR!=1) print $6'} | xargs -I '{}' find '{}' -xdev -nogroup | head -n 100"
+        tests:
+          test_items:
+            - flag: ""
+              compare:
+                op: eq
+                value: ""
+        type: ""
+        scored: true
+
+      - id: 6.1.13
+        text: "Audit SUID executables"
+        audit: ""
+        type: "manual"
+        scored: false
+
+      - id: 6.1.14
+        text: "Audit SGID executables"
+        audit: "df --local -P | awk {'if (NR!=1) print $6'} | xargs -I '{}' find '{}' -xdev -type f -perm -2000 | head -n 100"
+        tests:
+          test_items:
+            - flag: ""
+              compare:
+                op: eq
+                value: ""
+        type: "manual"
+        scored: true
+
+  - id: 6.2
+    text: "User and Group Settings"
+    checks:
+      - id: 6.2.1
+        text: "Ensure accounts in /etc/passwd use shadowed passwords"
+        audit: "awk -F: '($2 != \"x\" ) { print $1 \" is not set to shadowed passwords \"}' /etc/passwd"
+        tests:
+          test_items:
+            - flag: ""
+              compare:
+                op: eq
+                value: ""
+        type: ""
+        scored: true
+
+      - id: 6.2.2
+        text: "Ensure /etc/shadow password fields are not empty"
+        audit: "awk -F: '($2 == \"\" ) { print $1 \" does not have a password \"}' /etc/shadow"
+        tests:
+          test_items:
+            - flag: ""
+              compare:
+                op: eq
+                value: ""
+        type: ""
+        scored: true
+
+      - id: 6.2.3
+        text: "Ensure all groups in /etc/passwd exist in /etc/group"
+        audit: |
+          #!/bin/bash
+          for i in $(cut -s -d: -f4 /etc/passwd | sort -u ); do 
+            grep -q -P "^.*?:[^:]*:$i:" /etc/group
+            if [ $? -ne 0 ]; then
+              echo "Group $i is referenced by /etc/passwd but does not exist in /etc/group"
+            fi
+          done
+        tests:
+          test_items:
+            - flag: ""
+              compare:
+                op: eq
+                value: ""
+        type: ""
+        scored: true
+
+      - id: 6.2.4
+        text: "Ensure all users' home directories exist"
+        audit: |
+          #!/bin/bash
+          awk -F: '($1!~/(halt|sync|shutdown|nfsnobody)/ && $7!~/^(\/usr)?\/sbin\/nologin(\/)?$/ && $7!~/(\/usr)?\/bin\/false(\/)?$/) { print $1 " " $6 }' /etc/passwd | while read -r user dir; do
+            if [ ! -d "$dir" ]; then
+              echo "User: \"$user\" home directory: \"$dir\" does not exist."
+            fi
+          done
+        tests:
+          test_items:
+            - flag: ""
+              compare:
+                op: eq
+                value: ""
+        type: ""
+        scored: true
+
+      - id: 6.2.5
+        text: "Ensure users own their home directories"
+        audit: |
+          #!/bin/bash
+          awk -F: '($1!~/(halt|sync|shutdown)/ && $7!~/^(\/usr)?\/sbin\/nologin(\/)?$/ && $7!~/(\/usr)?\/bin\/false(\/)?$/) { print $1 " " $6 }' | while read -r user dir; do
+            if [ ! -d "$dir" ]; then
+              echo "User: \"$user\" home directory: \"$dir\" does not exist."
+            else
+              owner=$(stat -L -c "%U" "$dir")
+              if [ "$owner" != "$user" ]; then
+                echo "User: \"$user\" home directory: \"$dir\" is owned by \"$owner\"" 
+              fi
+            fi 
+          done
+        tests:
+          test_items:
+            - flag: ""
+              compare:
+                op: eq
+                value: ""
+        type: ""
+        scored: true
+
+      - id: 6.2.6
+        text: "Ensure users' home directories permissions are 750 or more restrictive"
+        audit: |
+          #!/bin/bash
+          awk -F: '($1!~/(halt|sync|shutdown)/ && $7!~/^(\/usr)?\/sbin\/nologin(\/)?$/ && $7!~/(\/usr)?\/bin\/false(\/)?$/) {print $1 " " $6}' /etc/passwd | while read -r user dir; do
+            if [ ! -d "$dir" ]; then
+              echo "User: \"$user\" home directory: \"$dir\" doesn't exist"
+            else
+              dirperm=$(stat -L -c "%A" "$dir")
+              if [ "$(echo "$dirperm" | cut -c6)" != "-" ] || [ "$(echo "$dirperm" | cut -c8)" != "-" ] || [ "$(echo "$dirperm" | cut -c9)" != "-" ] || [ "$(echo "$dirperm" | cut -c10)" != "-" ]; then
+                echo "User: \"$user\" home directory: \"$dir\" has permissions: \"$(stat -L -c "%a" "$dir")\""
+              fi
+            fi
+          done
+        tests:
+          test_items:
+            - flag: ""
+              compare:
+                op: eq
+                value: ""
+        type: ""
+        scored: true
+
+      - id: 6.2.7
+        text: "Ensure users' dot files are not group or world writable"
+        audit: |
+          #!/bin/bash
+          awk -F: '($1!~/(halt|sync|shutdown|nfsnobody)/ && $7!~/^(\/usr)?\/sbin\/nologin(\/)?$/ && $7!~/(\/usr)?\/bin\/false(\/)?$/) { print $1 " " $6 }' /etc/passwd | while read -r user dir; do
+             if [ -d "$dir" ]; then
+                for file in "$dir"/.*; do
+                  if [ ! -h "$file" ] && [ -f "$file" ]; then
+                    fileperm=$(stat -L -c "%A" "$file")
+                    if [ "$(echo "$fileperm" | cut -c6)" != "-" ] || [ "$(echo "$fileperm" | cut -c9)" != "-" ]; then
+                      echo "User: \"$user\" file: \"$file\" has permissions:\"$fileperm\""
+                    fi
+                  fi 
+                done
+            fi 
+          done
+        tests:
+          test_items:
+            - flag: ""
+              compare:
+                op: eq
+                value: ""
+        type: ""
+        scored: true
+
+      - id: 6.2.8
+        text: "Ensure no users have .netrc files"
+        audit: |
+          #!/bin/bash
+          awk -F: '($1!~/(halt|sync|shutdown)/ && $7!~/^(\/usr)?\/sbin\/nologin(\/)?$/ && $7!~/(\/usr)?\/bin\/false(\/)?$/) { print $1 " " $6 }' /etc/passwd | while read -r user dir; do
+            if [ -d "$dir" ]; then
+              file="$dir/.netrc"
+              if [ ! -h "$file" ] && [ -f "$file" ]; then
+                if stat -L -c "%A" "$file" | cut -c4-10 | grep -Eq '[^-]+'; then echo "FAILED: User: \"$user\" file: \"$file\" exists with permissions: \"$(stat -L -c "%a" "$file")\", remove file or excessive permissions"
+                else
+                  echo "WARNING: User: \"$user\" file: \"$file\" exists with permissions: \"$(stat -L -c "%a" "$file")\", remove file unless required"
+                fi
+              fi
+            fi
+          done
+        type: "manual"
+        scored: true
+
+      - id: 6.2.9
+        text: "Ensure no users have .forward files"
+        audit: |
+          #!/bin/bash
+          awk -F: '($1!~/(root|halt|sync|shutdown)/ && $7!~/^(\/usr)?\/sbin\/nologin(\/)?$/ && $7!~/(\/usr)?\/bin\/false(\/)?$/) { print $1 " " $6 }' /etc/passwd | while read -r user dir; do
+            if [ -d "$dir" ]; then
+              file="$dir/.forward"
+              if [ ! -h "$file" ] && [ -f "$file" ]; then
+                echo "User: \"$user\" file: \"$file\" exists"
+              fi
+            fi
+          done
+        tests:
+          test_items:
+            - flag: ""
+              compare:
+                op: eq
+                value: ""
+        type: ""
+        scored: true
+
+      - id: 6.2.10
+        text: "Ensure no users have .rhosts files"
+        audit: |
+          #!/bin/bash
+          awk -F: '($1!~/(root|halt|sync|shutdown|nfsnobody)/ && $7!~/^(\/usr)?\/sbin\/nologin(\/)?$/ && $7!~/(\/usr)?\/bin\/false(\/)?$/) { print $1 " " $6 }' /etc/passwd | while read -r user dir; do
+            if [ -d "$dir" ]; then
+              file="$dir/.rhosts"
+              if [ ! -h "$file" ] && [ -f "$file" ]; then
+                echo "User: \"$user\" file: \"$file\" exists" 
+              fi
+            fi 
+          done
+        tests:
+          test_items:
+            - flag: ""
+              compare:
+                op: eq
+                value: ""
+        type: ""
+        scored: true
+
+      - id: 6.2.11
+        text: "Ensure root is the only UID 0 account"
+        audit: "awk -F: '($3 == 0) { print $1 }' /etc/passwd"
+        tests:
+          test_items:
+            - flag: "root"
+        type: ""
+        scored: true
+
+      - id: 6.2.12
+        text: "Ensure root PATH Integrity"
+        audit: |
+          #!/bin/bash
+          RPCV="$(sudo -Hiu root env | grep '^PATH' | cut -d= -f2)"
+          echo "$RPCV" | grep -q "::" && echo "root's path contains a empty directory (::)"
+          echo "$RPCV" | grep -q ":$" && echo "root's path contains a trailing (:)"
+          for x in $(echo "$RPCV" | tr ":" " "); do
+            if [ -d "$x" ]; then
+              ls -ldH "$x" | awk '$9 == "." {print "PATH contains current working directory (.)"} $3 != "root" {print $9, "is not owned by root"} substr($1,6,1) != "-" {print $9, "is group writable"} substr($1,9,1) != "-" {print $9, "is world writable"}'
+             else
+                echo "$x is not a directory"
+            fi
+          done
+        tests:
+          test_items:
+            - flag: ""
+              compare:
+                op: eq
+                value: ""
+        type: ""
+        scored: true
+
+      - id: 6.2.13
+        text: "Ensure no duplicate UIDs exist"
+        audit: |
+          #!/bin/bash
+          cut -f3 -d":" /etc/passwd | sort -n | uniq -c | while read x ; do 
+            [ -z "$x" ] && break
+            set - $x
+            if [ $1 -gt 1 ]; then
+              users=$(awk -F: '($3 == n) { print $1 }' n=$2 /etc/passwd | xargs)
+              echo "Duplicate UID ($2): $users"
+            fi
+          done
+        tests:
+          test_items:
+            - flag: ""
+              compare:
+                op: eq
+                value: ""
+        type: ""
+        scored: true
+
+      - id: 6.2.14
+        text: "Ensure no duplicate GIDs exist"
+        audit: |
+          #!/bin/bash
+          cut -d: -f3 /etc/group | sort | uniq -d | while read x ; do 
+            echo "Duplicate GID ($x) in /etc/group"
+          done
+        tests:
+          test_items:
+            - flag: ""
+              compare:
+                op: eq
+                value: ""
+        type: ""
+        scored: true
+
+      - id: 6.2.15
+        text: "Ensure no duplicate user names exist"
+        audit: |
+          #!/bin/bash
+          cut -d: -f1 /etc/passwd | sort | uniq -d | while read x; do 
+            echo "Duplicate login name ${x} in /etc/passwd"
+          done
+        tests:
+          test_items:
+            - flag: ""
+              compare:
+                op: eq
+                value: ""
+        type: ""
+        scored: true
+
+      - id: 6.2.16
+        text: "Ensure no duplicate group names exist"
+        audit: |
+          #!/bin/bash
+          cut -d: -f1 /etc/group | sort | uniq -d | while read -r x; do 
+            echo "Duplicate group name ${x} in /etc/group"
+          done
+        tests:
+          test_items:
+            - flag: ""
+              compare:
+                op: eq
+                value: ""
+        type: ""
+        scored: true

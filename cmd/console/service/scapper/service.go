@@ -16,6 +16,7 @@ import (
 	"github.com/ahmetb/go-linq/v3"
 	"github.com/go-redis/redis/v8"
 	"github.com/pkg/errors"
+	"github.com/segmentio/kafka-go"
 	"github.com/shopspring/decimal"
 	"github.com/tealeg/xlsx"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/assets"
@@ -24,11 +25,15 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/flag"
 	"gitlab.com/piccolo_su/vegeta/pkg/lang"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
+	rpcstream "gitlab.com/piccolo_su/vegeta/pkg/streaming"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
+	"gitlab.com/security-rd/go-pkg/cis/outputter"
 	"gitlab.com/security-rd/go-pkg/databases"
 	"gitlab.com/security-rd/go-pkg/logging"
+	"gitlab.com/security-rd/go-pkg/mq"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
+	"gorm.io/gorm/logger"
 )
 
 var (
@@ -49,6 +54,8 @@ func Init(mainCtx context.Context,
 	scapOpts *flag.ScapOpts,
 	redisClient *redis.Client,
 	rdb *databases.RDBInstance,
+	stream rpcstream.MessageStream,
+	mqReader mq.Reader,
 ) error {
 	if redisClient == nil {
 		return errors.New("illegal argument")
@@ -59,10 +66,34 @@ func Init(mainCtx context.Context,
 		if err != nil {
 			return
 		}
-		scapperInstance = newScapper(envInfo, scapOpts, svcInstance, rdb)
-
+		scapperInstance = newScapper(envInfo, scapOpts, svcInstance, rdb, stream)
+		err = mqReader.Subscribe(
+			outputter.KafkaTopicIvanCompliance,
+			"compliance",
+			handleComplianceScanResult(rdb),
+		)
 	})
 	return err
+}
+
+func handleComplianceScanResult(rdb *databases.RDBInstance) func(ctx context.Context, m kafka.Message) error {
+	return func(ctx context.Context, m kafka.Message) error {
+		var data RecvScanResultReq
+		err := json.Unmarshal(m.Value, &data)
+		if err != nil {
+			logging.Get().Err(err).Msg("compliance scan json decode fail")
+			return err
+		}
+
+		// 处理合规扫描返回的结果
+		err = RecvScanResults(ctx, rdb.Get(), &data)
+		if err != nil {
+			logging.Get().Err(err).Msg("failed to handle compliance scan result")
+			return err
+		}
+
+		return err
+	}
 }
 
 func GetScapper(ctx context.Context) (*Scapper, bool) {
@@ -121,12 +152,12 @@ func (s *ScapService) PolicyInit(policyCounts int32) error {
 		}
 
 		// 批量插入，如果主键冲突，则update
-		err = s.rdb.Get().
-			WithContext(ctx).
-			Clauses(clause.OnConflict{
-				Columns:   []clause.Column{{Name: "id"}},
-				UpdateAll: true,
-			}).
+		db := s.rdb.Get().WithContext(ctx)
+		db.Logger = db.Logger.LogMode(logger.Silent)
+		err = db.Clauses(clause.OnConflict{
+			Columns:   []clause.Column{{Name: "id"}},
+			UpdateAll: true,
+		}).
 			Table(tbname).
 			CreateInBatches(policies, 30).
 			Error
@@ -389,51 +420,6 @@ func (s *ScapService) GetPolicyInfo(ctx context.Context, policyId string, checkT
 	}
 
 	return &policy, nil
-}
-
-// func (s *ScapService) GetNodeRecordAutoVariate(ctx context.Context, checkId, checkType string) (map[string]map[string]string, error) {
-// 	nodeAutoVar := make(map[string]map[string]string)
-//
-// 	if checkType != "kube" {
-// 		return nodeAutoVar, nil
-// 	}
-//
-// 	var nodeRecord []model.ScanNodeRecord
-// 	err := s.rdb.GetReadDB().WithContext(ctx).Find(&nodeRecord, "task_id = ?", checkId).Error
-// 	if err != nil {
-// 		return nodeAutoVar, errors.Errorf("can not find node scan information, checkId : %s", checkId)
-// 	}
-//
-// 	for _, node := range nodeRecord {
-// 		autoVar := make(map[string]string)
-// 		err = json.Unmarshal(node.AutoVariate, &autoVar)
-// 		if err != nil {
-// 			logging.Get().Error().Msgf("json unmarshal AutoVariate failed, %v.", err)
-// 			continue
-// 		}
-// 		nodeAutoVar[node.NodeName] = autoVar
-// 	}
-//
-// 	if len(nodeAutoVar) == 0 {
-// 		return nodeAutoVar, errors.Errorf("can not get node auto variate data")
-// 	}
-//
-// 	return nodeAutoVar, nil
-// }
-
-func (s *ScapService) ReplaceAutoVariate(src string, autoVar map[string]string) string {
-	dst := src
-
-	for key, value := range autoVar {
-		f := strings.Fields(value)
-		if len(f) > 1 {
-			value = "'" + value + "'"
-		}
-
-		dst = strings.ReplaceAll(dst, key, value)
-	}
-
-	return dst
 }
 
 func (s *ScapService) FindBreakdownEntries(ctx context.Context, taskID string, checkType model.ComplianceCheckType, section, udbcp, policyID, checkStatus string) ([]*model.CheckBreakdown, error) {
@@ -704,7 +690,6 @@ func (s *ScapService) AddScapScanResults(ctx context.Context, rs []*model.ScanRe
 		}
 
 		// 因为kube的还要接受 auto_variate 数据，所以在 auto_variate 那里设置状态为成功。
-		// Todo: 我认为两个请求能合并到一起
 		if rs[0].CheckType == model.ComplianceCheckTargetTypeKube {
 			return nil
 		}

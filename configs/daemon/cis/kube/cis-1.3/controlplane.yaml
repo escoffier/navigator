@@ -1,0 +1,51 @@
+---
+  controls:
+  version: "cis-1.3"
+  id: 3
+  text_en: "Control Plane Configure"
+  text_zh: "控制平面配置"
+  type: "controlplane"
+  groups:
+    - id: 3.1
+      text_en: "Authentication and Authorization"
+      text_zh: "认证与授权"
+      checks:
+        - id: 3.1.1
+          text_en: "Client certificate authentication should not be used for users (Manual)"
+          text_zh: "用户不应使用客户端证书身份验证（手动）"
+          type: "manual"
+          remediation_en: |
+            Alternative mechanisms provided by Kubernetes such as the use of OIDC should be
+            implemented in place of client certificates.
+          remediation_zh: |
+            Kubernetes提供的替代机制（如使用OIDC）应该代替客户机证书来实现。
+          scored: false
+
+    - id: 3.2
+      text_en: "Logging"
+      text_zh: "登录"
+      checks:
+        - id: 3.2.1
+          text_en: "Ensure that a minimal audit policy is created (Manual)"
+          text_zh: "确保创建了最小授权策略（手动）"
+          audit: "/bin/ps -ef | grep $apiserverbin | grep -v grep"
+          tests:
+            test_items:
+              - flag: "--audit-policy-file"
+                set: true
+          remediation_en: |
+            Create an audit policy file for your cluster.
+          remediation_zh: |
+            为集群创建审核策略文件。
+          scored: false
+
+        - id: 3.2.2
+          text_en: "Ensure that the audit policy covers key security concerns (Manual)"
+          text_zh: "确保审核策略涵盖关键安全问题（手动）"
+          type: "manual"
+          remediation_en: |
+            Consider modification of the audit policy in use on the cluster to include these items, at a
+            minimum.
+          remediation_zh: |
+            考虑修改集群上正在使用的审核策略，以至少包括这些项。
+          scored: false

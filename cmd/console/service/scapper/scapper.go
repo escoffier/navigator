@@ -18,9 +18,12 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/assets"
 	"gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	pkgassets "gitlab.com/piccolo_su/vegeta/pkg/assets"
+	"gitlab.com/piccolo_su/vegeta/pkg/dal"
 	"gitlab.com/piccolo_su/vegeta/pkg/flag"
 	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
+	rpcstream "gitlab.com/piccolo_su/vegeta/pkg/streaming"
+	"gitlab.com/piccolo_su/vegeta/pkg/streaming/pb"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 	"gitlab.com/security-rd/go-pkg/databases"
 	"gitlab.com/security-rd/go-pkg/logging"
@@ -42,6 +45,7 @@ type Scapper struct {
 	ClusterAddr          string
 	rdb                  *databases.RDBInstance
 	ScapService          *ScapService
+	stream               rpcstream.MessageStream
 }
 
 const (
@@ -73,6 +77,7 @@ func newScapper(
 	scapOpts *flag.ScapOpts,
 	scapService *ScapService,
 	rdb *databases.RDBInstance,
+	stream rpcstream.MessageStream,
 ) *Scapper {
 	if len(envInfo.MyNamespace) == 0 {
 		envInfo.MyNamespace = "tensorsec"
@@ -91,6 +96,7 @@ func newScapper(
 		ScapService:          scapService,
 		rdb:                  rdb,
 		ClusterAddr:          scapOpts.ClusterAddr,
+		stream:               stream,
 	}
 
 	return s
@@ -158,7 +164,7 @@ func (s *Scapper) InitCheckUnFinishedJobs(ctx context.Context) error {
 	defer cancel()
 
 	var scanHistory []model.ScanHistory
-	err := s.rdb.Get().WithContext(tCtx).Where("finished_at = 0").Find(&scanHistory).Error
+	err := s.rdb.Get().WithContext(tCtx).Where("finished_at = 0 AND schedule_type='job'").Find(&scanHistory).Error
 	if err != nil {
 		return errors.Errorf("get scan history list failed, %v", err)
 	}
@@ -210,9 +216,10 @@ func (s *Scapper) checkTargetTypeTasksStillInProgress(ctx context.Context, check
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			logging.Get().Info().Msgf("check target type no tasks still in progress: checkType:%s, clusterId: %s", checkType, clusterID)
+		} else {
+			logging.Get().Error().Err(err).
+				Msgf("check target type tasks still in progress error: checkType:%s, clusterId: %s", checkType, clusterID)
 		}
-
-		logging.Get().Err(err).Msgf("check target type tasks still in progress error: checkType:%s, clusterId: %s", checkType, clusterID)
 		return false
 	}
 	// task id
@@ -252,126 +259,236 @@ func (s *Scapper) RunComplianceCheck(
 		PolicyID:  policyID,
 	}
 
-	var cluster = new(model.TensorCluster)
-	var nodes []corev1.Node
-	var kubeClient *pkgassets.Clientset
-	var jobObj *batchv1.Job
-
-	// 用个闭包接收错误，用来记录 失败 状态
-	uuid, err := func() (string, error) {
-
-		// get namespaces
-		resSvc, ok := assets.GetResourcesService(ctx)
-		if !ok {
-			return "", apperror.NewResourceNotFoundError(http.StatusInternalServerError, errors.Errorf("get resource failed"))
-		}
-		cluster = resSvc.GetClusterByKey(ctx, clusterID)
-		if cluster == nil {
-			return "", apperror.NewClusterDoesntExistError(http.StatusInternalServerError, errors.Errorf("get cluster failed clusterId : %v", clusterID))
-		}
-		namespace := cluster.WorkerNamespace
-		if namespace == "" {
-			return "", apperror.NewClusterError(http.StatusInternalServerError, errors.Errorf("get namespaces failed with run compliance check"))
-		}
-
-		check.Namespace = namespace
-
-		if err := s.syncJobState(ctx, string(checkType), clusterID); err != nil {
-			return "", err
-		}
-
-		if s.checkTargetTypeTasksStillInProgress(ctx, string(checkType), clusterID) {
-			return "", apperror.NewCheckAlreadyInProgressError(http.StatusInternalServerError, errors.Errorf("currently there are tasks still running"))
-		}
-
-		// get cluster manager
-		clusterManager, ok := k8s.GetClusterManager()
-		if !ok {
-			return "", apperror.NewKubernetesError(http.StatusInternalServerError, fmt.Errorf("get cluster manager failed"))
-		}
-		// get k8s client
-		kubeClient, ok = clusterManager.GetClient(clusterID)
-		if !ok {
-			return "", apperror.NewKubernetesError(http.StatusInternalServerError, fmt.Errorf("get k8s client failed, cluster id: %s", clusterID))
-		}
-
-		err := s.garbageCollectHistoricalJobs(ctx, kubeClient, checkType, namespace)
-		if err != nil {
-			return "", apperror.NewKubernetesError(http.StatusInternalServerError, fmt.Errorf("Failed to garbage collect historical jobs: %v", err))
-		}
-
-		clusterInfo, err := s.getCluster(ctx, clusterInfoID)
-		if err != nil {
-			return "", err
-		}
-
-		// 兼容老版本扫描镜像
-		oldVersion := false
-		_, tag, err := k8s.GetTargetClusterImageSplitInfo(ctx, kubeClient, s.myResourceNamePrefix, s.myNamespace)
-		if err != nil {
-			return "", err
-		} else {
-			logging.Get().Debug().Str("imageTag", tag).Msg("scap compatibility")
-
-			if clusterVersion, err := version.NewVersion(tag); err == nil {
-				benchVersion, _ := version.NewVersion("2.13.1")
-				oldVersion = clusterVersion.LessThan(benchVersion)
-			}
-		}
-
-		jobObj, err = s.prepareJobObject(ctx, &check, oldVersion)
-		if err != nil {
-			return "", err
-		}
-
-		s.modifyJob(checkType, jobObj, cluster)
-
-		nodes, err = s.getNodes(ctx, kubeClient, clusterInfo)
-		if err != nil {
-			return "", apperror.NewKubernetesError(http.StatusInternalServerError, fmt.Errorf("Can't list nodes in this cluster: %v", err))
-		}
-
-		// schedule jobs
-		logging.Get().Info().
-			Str("check-type", check.CheckType).Str("check-cluster", check.ClusterID).Str("check-uuid", check.CheckUUID).
-			Str("namespace", check.Namespace).Str("operator", check.Operator).
-			Int("node-items-num", len(nodes)).Msg("Scheduling SCAP check jobs")
-
-		for i := range nodes {
-			// TODO: resilience. We should save a task to mongo so that in case of Console crash we can restart the check?
-			// or do we not care about this since this is a rare operation?
-			err := s.dbAddJobStatusInProgress(ctx, &check, &nodes[i])
-			if err != nil {
-				logging.Get().Err(err).Msgf("set node %s for check task %+v error", nodes[i].Name, check)
-				continue
-			}
-		}
-
-		return checkUUID, nil
-	}()
-
-	if err != nil {
-		logging.Get().Err(err).Msg("start job error")
-	}
-
 	// create scan history
 	scanHistory := model.ScanHistory{
-		TaskID:      check.CheckUUID,
-		Operator:    check.Operator,
-		CheckType:   check.CheckType,
-		CreatedAt:   time.Now().Unix(),
-		ClusterKey:  check.ClusterID,
-		ClusterName: cluster.Name,
-		PolicyID:    policyID,
+		TaskID:     check.CheckUUID,
+		Operator:   check.Operator,
+		CheckType:  check.CheckType,
+		CreatedAt:  time.Now().Unix(),
+		ClusterKey: check.ClusterID,
+		PolicyID:   policyID,
 	}
 
+	// get cluster manager
+	clusterManager, ok := k8s.GetClusterManager()
+	if !ok {
+		return "", apperror.NewKubernetesError(http.StatusInternalServerError, fmt.Errorf("get cluster manager failed"))
+	}
+	// get k8s client
+	kubeClient, ok := clusterManager.GetClient(clusterID)
+	if !ok {
+		return "", apperror.NewKubernetesError(http.StatusInternalServerError, fmt.Errorf("get k8s client failed, cluster id: %s", clusterID))
+	}
+
+	// 默认设置集群版本为2.18.0
+	var clusterVersion, _ = version.NewVersion("2.18.0")
+	_, tag, err := k8s.GetTargetClusterImageSplitInfo(ctx, kubeClient, s.myResourceNamePrefix, s.myNamespace)
 	if err != nil {
-		scanHistory.State = model.ScanStateFailed
-		scanHistory.FinishedAt = scanHistory.CreatedAt
+		logging.Get().Warn().Err(err).Msg("k8s.GetTargetClusterImageSplitInfo failed")
 	} else {
-		scanHistory.State = model.ScanStateInProgress
-		// async context is rooted in application context
-		go s.asyncScheduleAndManageJobs(kubeClient, &check, jobObj, nodes, cluster.Name)
+		if tagVersion, err := version.NewVersion(tag); err != nil {
+			logging.Get().Warn().Err(err).Str("imageTag", tag).Msg("parse cluster version failed")
+		} else {
+			clusterVersion = tagVersion
+		}
+	}
+
+	logging.Get().Info().Str("clusterID", clusterID).
+		Msgf("the cluster version of this compliance scan is %s", clusterVersion.String())
+
+	// 设置环境变量 SCAP_JOB_ENABLED=true 将使用原有job方式扫描
+	// 默认调度到daemon扫描
+	// 需要集群版本再2.18以上才支持daemon扫描
+	daemonScanBenchVersion, _ := version.NewVersion("2.18.0")
+	if os.Getenv("SCAP_JOB_ENABLED") != "true" &&
+		clusterVersion.GreaterThanOrEqual(daemonScanBenchVersion) {
+		var cluster *model.TensorCluster
+		err := func() error {
+			clusterInfo, err := s.getCluster(ctx, clusterInfoID)
+			if err != nil {
+				return err
+			}
+
+			cluster = dal.GetClustersByKey(ctx, s.rdb.GetReadDB(), clusterInfo.ClusterKey)
+			if cluster == nil {
+				return fmt.Errorf("scap get cluster info failed")
+			}
+
+			if s.checkTargetTypeTasksStillInProgress(ctx, string(checkType), clusterID) {
+				return fmt.Errorf("currently there are tasks still running")
+			}
+
+			db := s.rdb.Get().WithContext(ctx).Model(&model.TensorNode{}).
+				Select("host_name").Where("status=0")
+			if !clusterInfo.IsAllNodes {
+				db = db.Where("id IN ?", clusterInfo.ClusterNodeIds)
+			}
+
+			var nodes []string
+			if err = db.Find(&nodes).Error; err != nil {
+				return apperror.NewAnError(http.StatusInternalServerError,
+					fmt.Errorf("can't list nodes name in this cluster from db: %v", err))
+			}
+
+			var checks []string
+			checks, err = getCheckIds(ctx, s.rdb, policyID)
+			if err != nil {
+				return err
+			}
+
+			if checkType == model.ComplianceCheckTargetTypeDocker {
+				checkType = model.ComplianceCheckTargetTypeCRI
+			}
+
+			for _, name := range nodes {
+				req := pb.ComplianceScanReq{
+					ClusterKey: clusterID,
+					NodeName:   name,
+					RequestID:  checkUUID,
+					CheckIds:   checks,
+					CheckType:  string(checkType),
+				}
+
+				var resp *pb.CommonReponse
+				status := model.ScanStateInProgress
+
+				resp, err = s.stream.PushComplianceScan(ctx, clusterID, &req)
+				if err != nil {
+					status = model.ScanStateFailed
+					logging.Get().Error().Err(err).Msg("PushComplianceScan error")
+				} else {
+					logging.Get().Debug().Msgf("PushComplianceScan resp: %v", resp)
+				}
+
+				message := ""
+				if resp.Status != 0 {
+					status = model.ScanStateFailed
+					message = resp.StatusMessage
+				}
+
+				check.NodeName = name
+				err = s.dbAddDaemonStatusInProgress(ctx, &check, status, message, "daemon")
+				if err != nil {
+					logging.Get().Err(err).Msgf("set node %s daemon for check task %+v error", name, check)
+				}
+			}
+
+			return nil
+		}()
+
+		scanHistory.ClusterName = cluster.Name
+		scanHistory.ScheduleType = "daemon"
+
+		if err != nil {
+			logging.Get().Warn().Err(err).Msg("")
+
+			scanHistory.State = model.ScanStateFailed
+			scanHistory.FinishedAt = scanHistory.CreatedAt
+		} else {
+			scanHistory.State = model.ScanStateInProgress
+		}
+
+	} else {
+		var cluster = new(model.TensorCluster)
+		var nodes []corev1.Node
+		var jobObj *batchv1.Job
+
+		// 用个闭包接收错误，用来记录 失败 状态
+		_, err := func() (string, error) {
+			// get namespaces
+			resSvc, ok := assets.GetResourcesService(ctx)
+			if !ok {
+				return "", apperror.NewResourceNotFoundError(http.StatusInternalServerError, errors.Errorf("get resource failed"))
+			}
+			cluster = resSvc.GetClusterByKey(ctx, clusterID)
+			if cluster == nil {
+				return "", apperror.NewClusterDoesntExistError(http.StatusInternalServerError, errors.Errorf("get cluster failed clusterId : %v", clusterID))
+			}
+			namespace := cluster.WorkerNamespace
+			if namespace == "" {
+				return "", apperror.NewClusterError(http.StatusInternalServerError, errors.Errorf("get namespaces failed with run compliance check"))
+			}
+
+			check.Namespace = namespace
+
+			if err := s.syncJobState(ctx, string(checkType), clusterID); err != nil {
+				return "", err
+			}
+
+			if s.checkTargetTypeTasksStillInProgress(ctx, string(checkType), clusterID) {
+				return "", apperror.NewCheckAlreadyInProgressError(http.StatusInternalServerError, errors.Errorf("currently there are tasks still running"))
+			}
+
+			// get cluster manager
+			// clusterManager, ok := k8s.GetClusterManager()
+			// if !ok {
+			// 	return "", apperror.NewKubernetesError(http.StatusInternalServerError, fmt.Errorf("get cluster manager failed"))
+			// }
+			// // get k8s client
+			// kubeClient, ok = clusterManager.GetClient(clusterID)
+			// if !ok {
+			// 	return "", apperror.NewKubernetesError(http.StatusInternalServerError, fmt.Errorf("get k8s client failed, cluster id: %s", clusterID))
+			// }
+
+			err := s.garbageCollectHistoricalJobs(ctx, kubeClient, checkType, namespace)
+			if err != nil {
+				return "", apperror.NewKubernetesError(http.StatusInternalServerError, fmt.Errorf("Failed to garbage collect historical jobs: %v", err))
+			}
+
+			clusterInfo, err := s.getCluster(ctx, clusterInfoID)
+			if err != nil {
+				return "", err
+			}
+
+			// 兼容老版本扫描镜像
+			benchVersion, _ := version.NewVersion("2.13.1")
+
+			jobObj, err = s.prepareJobObject(ctx, &check, clusterVersion.LessThan(benchVersion))
+			if err != nil {
+				return "", err
+			}
+
+			s.modifyJob(checkType, jobObj, cluster)
+
+			nodes, err = s.getNodes(ctx, kubeClient, clusterInfo)
+			if err != nil {
+				return "", apperror.NewKubernetesError(http.StatusInternalServerError, fmt.Errorf("Can't list nodes in this cluster: %v", err))
+			}
+
+			// schedule jobs
+			logging.Get().Info().
+				Str("check-type", check.CheckType).Str("check-cluster", check.ClusterID).Str("check-uuid", check.CheckUUID).
+				Str("namespace", check.Namespace).Str("operator", check.Operator).
+				Int("node-items-num", len(nodes)).Msg("Scheduling SCAP check jobs")
+
+			for i := range nodes {
+				// TODO: resilience. We should save a task to mongo so that in case of Console crash we can restart the check?
+				// or do we not care about this since this is a rare operation?
+				err = s.dbAddJobStatusInProgress(ctx, &check, &nodes[i])
+				if err != nil {
+					logging.Get().Err(err).Msgf("set node %s for check task %+v error", nodes[i].Name, check)
+					continue
+				}
+			}
+
+			return checkUUID, nil
+		}()
+
+		if err != nil {
+			logging.Get().Err(err).Msg("start job error")
+		}
+
+		scanHistory.ClusterName = cluster.Name
+		scanHistory.ScheduleType = "job"
+
+		if err != nil {
+			scanHistory.State = model.ScanStateFailed
+			scanHistory.FinishedAt = scanHistory.CreatedAt
+		} else {
+			scanHistory.State = model.ScanStateInProgress
+			// async context is rooted in application context
+			go s.asyncScheduleAndManageJobs(kubeClient, &check, jobObj, nodes, cluster.Name)
+		}
 	}
 
 	err = s.rdb.Get().WithContext(ctx).Create(scanHistory).Error
@@ -379,7 +496,7 @@ func (s *Scapper) RunComplianceCheck(
 		logging.Get().Err(err).Msgf("create scan history failed, operator : %v, checkType : %v, task id : %v.", check.Operator, check.CheckType, scanHistory.TaskID)
 	}
 
-	return uuid, nil
+	return checkUUID, nil
 }
 
 func (s *Scapper) RunExportFileTask(task *model.ExportTask) {
@@ -567,6 +684,49 @@ FOR:
 	close(scheduledNodesCh)
 }
 
+func getCheckIds(ctx context.Context, db *databases.RDBInstance, policyId uint) ([]string, error) {
+	var policy model.ScapPolicy
+	var checkIds []string
+	if err := db.Get().WithContext(ctx).Unscoped().First(&policy, policyId).Error; err != nil {
+		return nil, err
+	}
+
+	if policy.IsDefault {
+		// 陆金所默认策略只扫描这些合规项
+		if os.Getenv("SCAP_LJS_ENABLED") == "true" {
+			if model.ComplianceCheckType(policy.Type) == model.ComplianceCheckTargetTypeDocker {
+				checkIds = []string{
+					"1.2.3", "1.2.4", "1.2.5", "1.2.6", "1.2.8", "1.2.9", "1.2.10", "1.2.11", "1.2.12",
+					"2.3", "2.5", "2.6", "2.12", "2.13", "2.14",
+					"3.1", "3.2", "3.3", "3.4", "3.5", "3.6", "3.9", "3.10", "3.11", "3.12", "3.13", "3.14", "3.15", "3.16", "3.17", "3.18", "3.19", "3.20", "3.21", "3.22",
+					"5.5", "5.6", "5.7", "5.10", "5.11", "5.12", "5.19", "5.29",
+				}
+			} else if model.ComplianceCheckType(policy.Type) == model.ComplianceCheckTargetTypeKube {
+				checkIds = []string{
+					"1.1.1", "1.1.2", "1.1.3", "1.1.5", "1.1.6", "1.1.7", "1.1.8", "1.1.9", "1.1.10", "1.1.11", "1.1.13", "1.1.14", "1.1.15", "1.1.16", "1.1.17", "1.1.18", "1.1.19", "1.1.20", "1.1.21",
+					"1.2.1", "1.2.2", "1.2.3", "1.2.4", "1.2.5", "1.2.6", "1.2.7", "1.2.8", "1.2.9", "1.2.11", "1.2.17", "1.2.18", "1.2.19", "1.2.20", "1.2.22", "1.2.26", "1.2.27", "1.2.28", "1.2.29", "1.2.30", "1.2.31", "1.2.32",
+					"1.3.1", "1.3.2", "1.3.3", "1.3.4", "1.3.5", "1.4.1",
+					"2.1", "2.2", "2.4", "2.5", "2.6",
+					"4.1.5", "4.1.7", "4.2.1", "4.2.2", "4.2.3", "4.2.5", "4.2.7", "4.2.9", "4.2.10",
+				}
+			}
+		}
+	} else {
+		var rules []model.PolicyDetailInfo
+		err := db.Get().WithContext(ctx).Model(&model.PolicyDetailInfo{}).
+			Where("id IN ?", policy.RuleIds).Find(&rules).Error
+		if err != nil {
+			return nil, err
+		}
+
+		for _, v := range rules {
+			checkIds = append(checkIds, v.PolicyId)
+		}
+	}
+
+	return checkIds, nil
+}
+
 func (s Scapper) prepareJobObject(ctx context.Context, check *model.Check, oldVersion bool) (*batchv1.Job, error) {
 	jobObj, err := s.readJobObjFromYamlFile(model.ComplianceCheckType(check.CheckType), oldVersion)
 	if err != nil {
@@ -578,54 +738,14 @@ func (s Scapper) prepareJobObject(ctx context.Context, check *model.Check, oldVe
 		return jobObj, nil
 	}
 
-	var policy model.ScapPolicy
-	if err := s.rdb.Get().WithContext(ctx).Unscoped().First(&policy, check.PolicyID).Error; err != nil {
-		return nil, err
-	}
-
-	// 默认策略时直接不设置
-	if policy.IsDefault {
-		// 陆金所默认策略只扫描这些合规项
-		if os.Getenv("SCAP_LJS_ENABLED") == "true" {
-			checks := make([]string, 0)
-			if model.ComplianceCheckType(policy.Type) == model.ComplianceCheckTargetTypeDocker {
-				checks = []string{
-					"1.2.3", "1.2.4", "1.2.5", "1.2.6", "1.2.8", "1.2.9", "1.2.10", "1.2.11", "1.2.12",
-					"2.3", "2.5", "2.6", "2.12", "2.13", "2.14",
-					"3.1", "3.2", "3.3", "3.4", "3.5", "3.6", "3.9", "3.10", "3.11", "3.12", "3.13", "3.14", "3.15", "3.16", "3.17", "3.18", "3.19", "3.20", "3.21", "3.22",
-					"5.5", "5.6", "5.7", "5.10", "5.11", "5.12", "5.19", "5.29",
-				}
-			} else if model.ComplianceCheckType(policy.Type) == model.ComplianceCheckTargetTypeKube {
-				checks = []string{
-					"1.1.1", "1.1.2", "1.1.3", "1.1.5", "1.1.6", "1.1.7", "1.1.8", "1.1.9", "1.1.10", "1.1.11", "1.1.13", "1.1.14", "1.1.15", "1.1.16", "1.1.17", "1.1.18", "1.1.19", "1.1.20", "1.1.21",
-					"1.2.1", "1.2.2", "1.2.3", "1.2.4", "1.2.5", "1.2.6", "1.2.7", "1.2.8", "1.2.9", "1.2.11", "1.2.17", "1.2.18", "1.2.19", "1.2.20", "1.2.22", "1.2.26", "1.2.27", "1.2.28", "1.2.29", "1.2.30", "1.2.31", "1.2.32",
-					"1.3.1", "1.3.2", "1.3.3", "1.3.4", "1.3.5", "1.4.1",
-					"2.1", "2.2", "2.4", "2.5", "2.6",
-					"4.1.5", "4.1.7", "4.2.1", "4.2.2", "4.2.3", "4.2.5", "4.2.7", "4.2.9", "4.2.10",
-				}
-			}
-
-			if len(checks) > 0 {
-				jobObj.Spec.Template.Spec.Containers[0].Args = append(jobObj.Spec.Template.Spec.Containers[0].Args, "--check="+strings.Join(checks, ","))
-			}
-		}
-		return jobObj, nil
-	}
-
-	var rules []model.PolicyDetailInfo
-	err = s.rdb.Get().WithContext(ctx).Model(&model.PolicyDetailInfo{}).
-		Where("check_type = ?", check.CheckType).
-		Where("id IN ?", policy.RuleIds).Find(&rules).Error
+	checks, err := getCheckIds(ctx, s.rdb, check.PolicyID)
 	if err != nil {
 		return nil, err
 	}
 
-	var r = make([]string, 0, len(rules))
-	for _, v := range rules {
-		r = append(r, v.PolicyId)
+	if len(checks) > 0 {
+		jobObj.Spec.Template.Spec.Containers[0].Args = append(jobObj.Spec.Template.Spec.Containers[0].Args, "--check="+strings.Join(checks, ","))
 	}
-
-	jobObj.Spec.Template.Spec.Containers[0].Args = append(jobObj.Spec.Template.Spec.Containers[0].Args, "--check="+strings.Join(r, ","))
 
 	return jobObj, nil
 }
@@ -782,17 +902,47 @@ func (s *Scapper) dbAddJobStatusInProgress(ctx context.Context, check *model.Che
 	}
 
 	task := model.ScanNodeRecord{
-		TaskID:     check.CheckUUID,
-		CheckType:  check.CheckType,
-		ClusterKey: check.ClusterID,
-		Operator:   check.Operator,
-		NodeName:   targetNode.Name,
-		Namespace:  check.Namespace,
-		JobName:    jobName,
-		State:      status,
-		CreatedAt:  createAt,
-		FinishedAt: finishedAt,
-		Message:    message,
+		TaskID:       check.CheckUUID,
+		CheckType:    check.CheckType,
+		ClusterKey:   check.ClusterID,
+		Operator:     check.Operator,
+		NodeName:     targetNode.Name,
+		Namespace:    check.Namespace,
+		JobName:      jobName,
+		State:        status,
+		CreatedAt:    createAt,
+		FinishedAt:   finishedAt,
+		Message:      message,
+		ScheduleType: "job",
+	}
+
+	err := s.rdb.Get().WithContext(ctx).Create(&task).Error
+	if err != nil {
+		return errors.Errorf("create scan task failed, %v", err)
+	}
+	return nil
+}
+
+func (s *Scapper) dbAddDaemonStatusInProgress(ctx context.Context, check *model.Check, status model.ScanState, message, scheduleType string) error {
+	createAt := time.Now().Unix()
+	var finishedAt int64
+	if status == model.ScanStateFailed {
+		finishedAt = createAt
+	}
+
+	task := model.ScanNodeRecord{
+		TaskID:       check.CheckUUID,
+		CheckType:    check.CheckType,
+		ClusterKey:   check.ClusterID,
+		Operator:     check.Operator,
+		NodeName:     check.NodeName,
+		Namespace:    check.Namespace,
+		JobName:      "",
+		State:        status,
+		CreatedAt:    createAt,
+		FinishedAt:   finishedAt,
+		Message:      message,
+		ScheduleType: scheduleType,
 	}
 
 	err := s.rdb.Get().WithContext(ctx).Create(&task).Error

@@ -1,4 +1,4 @@
-package scap
+package scapper
 
 import (
 	"context"
@@ -8,13 +8,23 @@ import (
 	"time"
 
 	"github.com/shopspring/decimal"
-	"gitlab.com/piccolo_su/vegeta/cmd/console/service/scapper"
 	"gitlab.com/piccolo_su/vegeta/pkg/lang"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
+	"gitlab.com/security-rd/go-pkg/cis/check"
 	"gitlab.com/security-rd/go-pkg/logging"
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
 )
+
+type RecvScanResultReq struct {
+	Status     int                       `json:"status"`
+	Message    string                    `json:"message"`
+	CheckType  model.ComplianceCheckType `json:"checkType"`
+	TaskID     string                    `json:"taskID"`
+	Hostname   string                    `json:"hostname"`
+	ClusterKey string                    `json:"clusterKey"`
+	Payload    json.RawMessage           `json:"payload"`
+}
 
 type ScanDecoder interface {
 	Decode(payload json.RawMessage) error
@@ -23,9 +33,9 @@ type ScanDecoder interface {
 }
 
 type kube struct {
-	AutoVariate datatypes.JSON `json:"autoVariate"`
-	Controls    []*Controls    `json:"controls"`
-	Totals      Summary        `json:"totals"`
+	AutoVariate datatypes.JSON    `json:"autoVariate"`
+	Controls    []*check.Controls `json:"controls"`
+	Totals      check.Summary     `json:"totals"`
 }
 
 func (k *kube) Decode(payload json.RawMessage) error {
@@ -34,7 +44,7 @@ func (k *kube) Decode(payload json.RawMessage) error {
 
 func (k *kube) BuildResult(taskId, hostname, clusterKey string) []*model.ScanResult {
 	ctx := context.Background()
-	svc, _ := scapper.GetService(ctx)
+	svc, _ := GetService(ctx)
 	checkType := model.ComplianceCheckTargetTypeKube
 	items := make([]*model.ScanResult, 0)
 
@@ -71,14 +81,18 @@ func (k *kube) FillScanNodeRecord(record *model.ScanNodeRecord) {
 	record.Warn = k.Totals.Warn
 	record.Info = k.Totals.Info
 	record.Fail = k.Totals.Fail
-	record.PassRate = decimal.NewFromFloat(
-		float64(record.Pass+record.Warn+record.Info) /
-			float64(record.Pass+record.Warn+record.Info+record.Fail))
+
+	passRate := float64(record.Pass+record.Warn+record.Info) /
+		float64(record.Pass+record.Warn+record.Info+record.Fail)
+	if !math.IsNaN(passRate) {
+		record.PassRate = decimal.NewFromFloat(passRate)
+	} else {
+		record.PassRate = decimal.Zero
+	}
 }
 
 type cri struct {
-	AutoVariate datatypes.JSON `json:"autoVariate"`
-	Controls    *Controls      `json:"control"`
+	Controls *check.Controls `json:"control"`
 }
 
 func (c *cri) Decode(payload json.RawMessage) error {
@@ -87,7 +101,7 @@ func (c *cri) Decode(payload json.RawMessage) error {
 
 func (c *cri) BuildResult(taskId, hostname, clusterKey string) []*model.ScanResult {
 	ctx := context.Background()
-	svc, _ := scapper.GetService(ctx)
+	svc, _ := GetService(ctx)
 	checkType := model.ComplianceCheckTargetTypeDocker
 	items := make([]*model.ScanResult, 0)
 
@@ -122,19 +136,22 @@ func (c *cri) BuildResult(taskId, hostname, clusterKey string) []*model.ScanResu
 }
 
 func (c *cri) FillScanNodeRecord(record *model.ScanNodeRecord) {
-	record.AutoVariate = c.AutoVariate
 	record.Pass = c.Controls.Pass
 	record.Warn = c.Controls.Warn
 	record.Info = c.Controls.Info
 	record.Fail = c.Controls.Fail
-	record.PassRate = decimal.NewFromFloat(
-		float64(record.Pass+record.Warn+record.Info) /
-			float64(record.Pass+record.Warn+record.Info+record.Fail))
+
+	passRate := float64(record.Pass+record.Warn+record.Info) /
+		float64(record.Pass+record.Warn+record.Info+record.Fail)
+	if !math.IsNaN(passRate) {
+		record.PassRate = decimal.NewFromFloat(passRate)
+	} else {
+		record.PassRate = decimal.Zero
+	}
 }
 
 type host struct {
-	AutoVariate datatypes.JSON `json:"autoVariate"`
-	Controls    *Controls      `json:"control"`
+	Controls *check.Controls `json:"control"`
 }
 
 func (h *host) Decode(payload json.RawMessage) error {
@@ -143,7 +160,7 @@ func (h *host) Decode(payload json.RawMessage) error {
 
 func (h *host) BuildResult(taskId, hostname, clusterKey string) []*model.ScanResult {
 	ctx := context.Background()
-	svc, _ := scapper.GetService(ctx)
+	svc, _ := GetService(ctx)
 	checkType := model.ComplianceCheckTargetTypeHost
 	items := make([]*model.ScanResult, 0)
 
@@ -173,7 +190,6 @@ func (h *host) BuildResult(taskId, hostname, clusterKey string) []*model.ScanRes
 }
 
 func (h *host) FillScanNodeRecord(record *model.ScanNodeRecord) {
-	record.AutoVariate = h.AutoVariate
 	record.Pass = h.Controls.Pass
 	record.Warn = h.Controls.Warn
 	record.Info = h.Controls.Info
@@ -181,108 +197,78 @@ func (h *host) FillScanNodeRecord(record *model.ScanNodeRecord) {
 
 	passRate := float64(record.Pass+record.Warn+record.Info) /
 		float64(record.Pass+record.Warn+record.Info+record.Fail)
-	if math.NaN() != passRate {
+	if !math.IsNaN(passRate) {
 		record.PassRate = decimal.NewFromFloat(passRate)
 	} else {
 		record.PassRate = decimal.Zero
 	}
 }
 
-// Controls holds all controls to check for master nodes.
-type Controls struct {
-	ID              string   `yaml:"id" json:"id"`
-	Version         string   `json:"version"`
-	DetectedVersion string   `json:"detected_version,omitempty"`
-	Text            string   `json:"text"`
-	Type            string   `json:"node_type"`
-	Groups          []*Group `json:"tests"`
-	Summary
-}
+func RecvScanResults(ctx context.Context, db *gorm.DB, req *RecvScanResultReq) error {
+	// logging.Get().Debug().RawJSON("payload", req.Payload).Msg("RecvScanResults")
 
-// Group is a collection of similar checks.
-type Group struct {
-	ID     string   `yaml:"id" json:"section"`
-	Type   string   `yaml:"type" json:"type"`
-	Pass   int      `json:"pass"`
-	Fail   int      `json:"fail"`
-	Warn   int      `json:"warn"`
-	Info   int      `json:"info"`
-	Text   string   `json:"desc"`
-	Checks []*Check `json:"results"`
-}
-
-// Check contains information about a recommendation in the
-// CIS Kubernetes document.
-type Check struct {
-	ID          string `json:"test_number"`
-	Text        string `json:"test_desc"`
-	State       string `json:"status"`
-	ActualValue string `json:"actual_value"`
-	Reason      string `json:"reason,omitempty"`
-}
-
-// Summary is a summary of the results of control checks run.
-type Summary struct {
-	Pass int `json:"total_pass"`
-	Fail int `json:"total_fail"`
-	Warn int `json:"total_warn"`
-	Info int `json:"total_info"`
-}
-
-func CallbackScanResults(ctx context.Context, db *gorm.DB, checkType model.ComplianceCheckType, taskId, hostname, clusterKey string, payload json.RawMessage) error {
-	logging.Get().Debug().RawJSON("payload", payload).Msg("CallbackScanResults")
-
-	logging.Get().Info().Str("taskId", taskId).
-		Str("nodeName", hostname).
-		Str("checkType", string(checkType)).
+	logging.Get().Info().Str("taskId", req.TaskID).
+		Str("nodeName", req.Hostname).
+		Str("checkType", string(req.CheckType)).
 		Msgf("add scap scan result")
 
 	// --
-	scanRecord := &model.ScanNodeRecord{
-		State:      model.ScanStateCompleted,
-		FinishedAt: time.Now().Unix(),
-		Message:    "success",
-	}
+	var (
+		scanRecord = &model.ScanNodeRecord{
+			FinishedAt: time.Now().Unix(),
+		}
+		items []*model.ScanResult
+	)
 
-	var scanDecoder ScanDecoder
-	switch checkType {
-	case model.ComplianceCheckTargetTypeKube:
-		scanDecoder = &kube{}
-	case model.ComplianceCheckTargetTypeCRI:
-		scanDecoder = &cri{}
-	case model.ComplianceCheckTargetTypeHost:
-		scanDecoder = &host{}
-	default:
-		return fmt.Errorf("暂时还不支持的类型: %s", checkType)
-	}
+	if req.Status != 0 { // failed
+		scanRecord.State = model.ScanStateFailed
+		scanRecord.Message = req.Message
+	} else {
+		scanRecord.State = model.ScanStateCompleted
+		scanRecord.Message = "success"
 
-	if err := scanDecoder.Decode(payload); err != nil {
-		logging.Get().Error().Err(err).Str("checkType", string(checkType)).Msg("scanDecoder.Decode failed")
-		return err
-	}
+		var scanDecoder ScanDecoder
+		switch req.CheckType {
+		case model.ComplianceCheckTargetTypeKube:
+			scanDecoder = &kube{}
+		case model.ComplianceCheckTargetTypeCRI:
+			scanDecoder = &cri{}
+		case model.ComplianceCheckTargetTypeHost:
+			scanDecoder = &host{}
+		default:
+			return fmt.Errorf("暂时还不支持的类型: %s", req.CheckType)
+		}
 
-	items := scanDecoder.BuildResult(taskId, hostname, clusterKey)
-	scanDecoder.FillScanNodeRecord(scanRecord)
+		if err := scanDecoder.Decode(req.Payload); err != nil {
+			logging.Get().Error().Err(err).Str("checkType", string(req.CheckType)).Msg("scanDecoder.Decode failed")
+			return err
+		}
+
+		items = scanDecoder.BuildResult(req.TaskID, req.Hostname, req.ClusterKey)
+		scanDecoder.FillScanNodeRecord(scanRecord)
+	}
 
 	err := db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		err := tx.Model(&model.ScanResult{}).CreateInBatches(items, 100).Error
-		if err != nil {
-			return err
+		if len(items) > 0 {
+			err := tx.Model(&model.ScanResult{}).CreateInBatches(items, 100).Error
+			if err != nil {
+				return err
+			}
 		}
 
 		// 收到扫描结果将对应任务设置为完成
 		return tx.Model(scanRecord).
 			Select("state", "finished_at", "message", "auto_variate", "pass", "warn", "info", "fail", "pass_rate").
 			Where("state = ?", model.ScanStateInProgress).
-			Where("node_name = ? and task_id = ?", hostname, taskId).
+			Where("node_name = ? and task_id = ?", req.Hostname, req.TaskID).
 			Updates(scanRecord).Error
 	})
 
 	if err != nil {
-		logging.Get().Err(err).Str("taskId", taskId).
-			Str("nodeName", hostname).
-			Str("checkType", string(checkType)).
-			Msg("添加 扫描结果 数据失败")
+		logging.Get().Err(err).Str("taskId", req.TaskID).
+			Str("nodeName", req.Hostname).
+			Str("checkType", string(req.CheckType)).
+			Msg("接受 扫描结果 数据失败")
 	}
 
 	return err

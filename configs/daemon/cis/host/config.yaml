@@ -1,0 +1,15 @@
+## Controls Files.
+# These are YAML files that hold all the details for running checks.
+# In here you can set all parameter substitution for host-bench
+
+chroot: /host
+
+# cis version mapping
+centos:
+  default_cis_version: "cis-centos-7"
+  version_mapping:
+    "cis-centos-7": ">= 7.0"
+ubuntu:
+  default_cis_version: "cis-centos-7"
+  version_mapping:
+#    "cis-ubuntu-18": ">= 18.0"
