@@ -11,13 +11,11 @@ import (
 	"sync"
 	"time"
 
-	cr "github.com/robfig/cron/v3"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/apiscan"
 	assetsSvc "gitlab.com/piccolo_su/vegeta/cmd/console/service/assets"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/attck"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/captcha"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/containers"
-	"gitlab.com/piccolo_su/vegeta/cmd/console/service/cron"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/data"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/defense"
 	drvSvc "gitlab.com/piccolo_su/vegeta/cmd/console/service/drift"
@@ -189,23 +187,6 @@ func NewConsole(
 		logging.Get().Err(ucErr).Msg("ERROR: usercenter limiter init error")
 	}
 
-	// scap service
-	err = sp.Init(mainCtx, sp.EnvironmentInfo{
-		MyNamespace: myNamespace,
-		MyPodName:   myPodName,
-	}, scapOpts, redisClient, rdb)
-	if err != nil {
-		logging.Get().Err(err).Msg("ERROR: scapService  init error")
-	}
-
-	// cron service
-	c := cr.New()
-	c.Start()
-	err = cron.Init(c, rdb)
-	if err != nil {
-		logging.Get().Err(err).Msg("ERROR: cronService  init error")
-	}
-
 	reErr := riskexplorer.Init(scannerURL, redisClient, sherlockClient)
 	if reErr != nil {
 		logging.Get().Err(reErr).Msg("ERROR: riskexplorerService init error")
@@ -321,6 +302,15 @@ func NewConsole(
 		logging.Get().Err(err).Msg("failed to start grpc server")
 	}
 
+	// scap service
+	err = sp.Init(mainCtx, sp.EnvironmentInfo{
+		MyNamespace: myNamespace,
+		MyPodName:   myPodName,
+	}, scapOpts, redisClient, rdb, stream, mqReader)
+	if err != nil {
+		logging.Get().Err(err).Msg("ERROR: scapService  init error")
+	}
+
 	err = defense.InitDefenseService(rdb, es, scannerURL, stream)
 	if err != nil {
 		logging.Get().Err(err).Msg("ERROR: bait service init error")
@@ -424,11 +414,11 @@ func (c *Console) Run() func() {
 		logging.Get().Err(err).Msg("When check admin data in postgres")
 	}
 
-	cronService, _ := cron.Get(ctx)
-	err = cronService.StartCrons(ctx)
-	if err != nil {
-		logging.Get().Error().Err(err).Msg("When starting cron jobs")
-	}
+	// cronService, _ := cron.Get(ctx)
+	// err = cronService.StartCrons(ctx)
+	// if err != nil {
+	// 	logging.Get().Error().Err(err).Msg("When starting cron jobs")
+	// }
 
 	scapper, _ := scapper.GetScapper(ctx)
 	err = scapper.InitCheckUnFinishedJobs(ctx)

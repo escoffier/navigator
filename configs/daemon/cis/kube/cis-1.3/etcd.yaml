@@ -1,0 +1,119 @@
+---
+controls:
+version: "cis-1.3"
+id: 2
+text: "Etcd Node Configuration"
+type: "etcd"
+groups:
+  - id: 2
+    text: "Etcd Node Configuration Files"
+    checks:
+      - id: 2.1
+        text: "Ensure that the --cert-file and --key-file arguments are set as appropriate"
+        audit: "/bin/ps -ef | /bin/grep $etcdbin | /bin/grep -v grep"
+        tests:
+          bin_op: and
+          test_items:
+            - flag: "--cert-file"
+              env: "ETCD_CERT_FILE"
+            - flag: "--key-file"
+              env: "ETCD_KEY_FILE"
+        scored: true
+
+      - id: 2.2
+        text: "Ensure that the --client-cert-auth argument is set to true"
+        audit: "/bin/ps -ef | /bin/grep $etcdbin | /bin/grep -v grep"
+        tests:
+          test_items:
+            - flag: "--client-cert-auth"
+              env: "ETCD_CLIENT_CERT_AUTH"
+              compare:
+                op: eq
+                value: true
+        scored: true
+
+      - id: 2.3
+        text_en: "Ensure that the --auto-tls argument is not set to true (Automated)"
+        text_zh: "确保--auto-tls参数未设置为true（自动）"
+        audit: "/bin/ps -ef | /bin/grep $etcdbin | /bin/grep -v grep"
+        tests:
+          bin_op: or
+          test_items:
+            - flag: "--auto-tls"
+              env: "ETCD_AUTO_TLS"
+              set: false
+            - flag: "--auto-tls"
+              env: "ETCD_AUTO_TLS"
+              compare:
+                op: eq
+                value: false
+        remediation_en: |
+          Edit the etcd pod specification file $etcdconf on the master
+          node and either remove the --auto-tls parameter or set it to false.
+            --auto-tls=false
+        remediation_zh: |
+          在master节点上编辑etcd pod规范文件$etcdconf，并删除--auto-tls参数或将其设置为false。
+            --auto-tls=false
+        scored: true
+
+      - id: 2.4
+        text: "Ensure that the --peer-cert-file and --peer-key-file arguments are set as appropriate"
+        audit: "/bin/ps -ef | /bin/grep $etcdbin | /bin/grep -v grep"
+        tests:
+          bin_op: and
+          test_items:
+            - flag: "--peer-cert-file"
+              env: "ETCD_PEER_CERT_FILE"
+            - flag: "--peer-key-file"
+              env: "ETCD_PEER_KEY_FILE"
+        scored: true
+
+      - id: 2.5
+        text: "Ensure that the --peer-client-cert-auth argument is set to true"
+        audit: "/bin/ps -ef | /bin/grep $etcdbin | /bin/grep -v grep"
+        tests:
+          test_items:
+            - flag: "--peer-client-cert-auth"
+              env: "ETCD_PEER_CLIENT_CERT_AUTH"
+              compare:
+                op: eq
+                value: true
+        scored: true
+
+      - id: 2.6
+        text: "Ensure that the --peer-auto-tls argument is not set to true"
+        audit: "/bin/ps -ef | /bin/grep $etcdbin | /bin/grep -v grep"
+        tests:
+          bin_op: or
+          test_items:
+            - flag: "--peer-auto-tls"
+              env: "ETCD_PEER_AUTO_TLS"
+              set: false
+            - flag: "--peer-auto-tls"
+              env: "ETCD_PEER_AUTO_TLS"
+              compare:
+                op: eq
+                value: false
+        scored: true
+
+      - id: 2.7
+        text_en: "Ensure that a unique Certificate Authority is used for etcd (Manual)"
+        text_zh: "确保etcd使用唯一的证书授权（手动）"
+        audit: "/bin/ps -ef | /bin/grep $etcdbin | /bin/grep -v grep"
+        tests:
+          test_items:
+            - flag: "--trusted-ca-file"
+              env: "ETCD_TRUSTED_CA_FILE"
+        remediation_en: |
+          [Manual test]
+          Follow the etcd documentation and create a dedicated certificate authority setup for the
+          etcd service.
+          Then, edit the etcd pod specification file $etcdconf on the
+          master node and set the below parameter.
+          --trusted-ca-file=</path/to/ca-file>
+        remediation_zh: |
+          [手动测试]
+          遵循etcd文档，为etcd服务创建专用的证书授权设置。
+          然后，在主节点上编辑etcd pod规范文件$etcdconf并设置以下参数。
+          --trusted-ca-file=</path/to/ca-file>
+        scored: false

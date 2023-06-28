@@ -37,7 +37,6 @@ func SetupRoutes(
 	harborClient *harbor.HarborRESTClient,
 	es *elastic.ESClient,
 	httpAuditDisabled bool,
-
 ) {
 	logging.Get().Debug().Msg("setting up routes...")
 

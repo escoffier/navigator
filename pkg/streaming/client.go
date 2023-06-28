@@ -24,6 +24,9 @@ type MessageStreamClient interface {
 
 	// ScannerPushImageSecMsg scanner push msg to console
 	ScannerPushImageSecMsg(ctx context.Context, imageSecReq *pb.ImageSecReq) (*pb.ImageSecResp, error)
+
+	// PushComplianceScan 发起合规扫描
+	PushComplianceScan(ctx context.Context, nodeKey string, req *pb.ComplianceScanReq) (*pb.CommonReponse, error)
 }
 
 func (s *messageStream) UpdateVulnDB(ctx context.Context, nodeKey string, vulnReq *pb.ImageSecReq) (*pb.ImageSecResp, error) {
@@ -177,6 +180,22 @@ func (s *messageStream) ScannerPushImageSecMsg(ctx context.Context, imageSecReq 
 		return nil, err
 	}
 	logging.Get().Debug().Str("rsp", r.String()).Msg("recv image sec rsp end")
+
+	return r, nil
+}
+
+func (s *messageStream) PushComplianceScan(ctx context.Context, nodeKey string, req *pb.ComplianceScanReq) (*pb.CommonReponse, error) {
+	resp, err := s.Request(ctx, nodeKey, pb.MessageType_CREATE, req, true)
+	if err != nil {
+		logging.Get().Err(err).Msg("failed to push compliance scan msg")
+		return nil, err
+	}
+	r, ok := resp.(*pb.CommonReponse)
+	if !ok {
+		logging.Get().Error().Msg("recv invalid rsp msg")
+		return nil, err
+	}
+	logging.Get().Debug().Str("resp", r.String()).Msg("recv compliance scan rsp end")
 
 	return r, nil
 }

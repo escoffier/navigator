@@ -1,0 +1,12 @@
+syntax = "proto3";
+package pb;
+option go_package = "./;pb";
+
+
+message complianceScanReq {
+    string clusterKey = 1;
+    string nodeName = 2;
+    string requestID = 3;
+    repeated string checkIds = 4;
+    string checkType = 5;
+}

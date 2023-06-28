@@ -11,10 +11,10 @@ import (
 	"sync"
 	"time"
 
-	"gitlab.com/piccolo_su/vegeta/cmd/daemon/rscan"
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
 	flag "github.com/spf13/pflag"
+	"gitlab.com/piccolo_su/vegeta/cmd/console/service/scapper"
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/cis"
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/dp"
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/containerassets"
@@ -23,12 +23,14 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/microseg"
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/netflow"
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/nodeinfo"
+	"gitlab.com/piccolo_su/vegeta/cmd/daemon/rscan"
 	"gitlab.com/piccolo_su/vegeta/pkg/assets"
 	"gitlab.com/piccolo_su/vegeta/pkg/daemon"
 	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/mozart"
 	rpcstream "gitlab.com/piccolo_su/vegeta/pkg/streaming"
+	"gitlab.com/piccolo_su/vegeta/pkg/streaming/pb"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 	"gitlab.com/security-rd/go-pkg/cache"
 	"gitlab.com/security-rd/go-pkg/cmap"
@@ -242,9 +244,9 @@ func Run(ctx context.Context) error {
 	logging.Get().Info().Msg("start initing")
 
 	wg := sync.WaitGroup{}
-	//get local env
+	// get local env
 	hostName, hostIP := GetEnvInfo()
-	//get rt uds addr
+	// get rt uds addr
 	rtUdsAddr := os.Getenv("RTDETECT_UDS_ADDR")
 	if rtUdsAddr == "" {
 		logging.Get().Warn().Msg("env RTDETECT_UDS_ADDR not found")
@@ -258,7 +260,7 @@ func Run(ctx context.Context) error {
 		logging.Get().Warn().Msg("env CLUSTER_MANAGER_URL not found")
 		return errors.Errorf("get cluster address failed.")
 	}
-	//get console address
+	// get console address
 	var consoleAddr, addrStr string
 	clusterType := os.Getenv("IS_MAIN_CLUSTER")
 	if clusterType == "true" {
@@ -278,9 +280,6 @@ func Run(ctx context.Context) error {
 		return errors.Errorf("get cluster grpc address failed.")
 	}
 
-	rpcStream := rpcstream.NewStreamFactory(rpcstream.WithPodNameKey()).Client(clusterGrpcAddr)
-	rpcStream.Start()
-
 	mqFactory := mq.GetClientFactory()
 	mqWriter, err := mqFactory.Writer(context.Background())
 	if err != nil {
@@ -288,6 +287,11 @@ func Run(ctx context.Context) error {
 	} else {
 		logging.Get().Info().Msg("Init mq done")
 	}
+
+	nodeKey := fmt.Sprintf("%s-daemon", os.Getenv("MY_NODE_NAME"))
+	rpcStream := rpcstream.NewStreamFactory(rpcstream.WithClusterKey(nodeKey)).Client(clusterGrpcAddr)
+	_ = rpcStream.AddHandler(&pb.ComplianceScanReq{}, &scapper.ScanHandler{Writer: mqWriter})
+	rpcStream.Start()
 
 	clusterManager := k8s.NewClusterInfoManager(clusterAddr)
 	clusterKey, ok := clusterManager.ClusterKey()
@@ -323,14 +327,14 @@ func Run(ctx context.Context) error {
 	}
 	logging.Get().Info().Msg("Init NodeInfo done")
 
-	//new flow session
+	// new flow session
 	flow, err := netflow.NewFlowSession(k8sInfo, containerInfo, clusterManager, consoleAddr)
 	if err != nil {
 		return fmt.Errorf("Failed to initialize flow session, %w", err)
 	}
 	logging.Get().Info().Msg("Init netflows done")
 
-	//free resource
+	// free resource
 	defer flow.Close()
 
 	kubeConfig, err := k8s.KubeConfig()

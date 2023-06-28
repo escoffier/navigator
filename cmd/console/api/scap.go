@@ -12,7 +12,6 @@ import (
 	"github.com/go-chi/chi"
 	param "github.com/oceanicdev/chi-param"
 	"github.com/pkg/errors"
-	uuid "github.com/satori/go.uuid"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/api/scap"
 	scapservice "gitlab.com/piccolo_su/vegeta/cmd/console/service/scap"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/scapper"
@@ -29,7 +28,6 @@ const defaultScapTimeout = time.Second * 5
 
 func (api *api) scap() func(chi.Router) {
 	return func(r chi.Router) {
-		// r.Post("/{checkType}/{clusterKey}", api.scapCheck())
 		r.Get("/{checkType}/breakdown/{checkID}/{policyNumber}/details", api.getPolicyDetails())
 		r.Get("/{checkType}/{clusterKey}/suggest", api.findSuggest())
 		r.Get("/{checkType}/{clusterKey}/overview", api.getScapScanOverview())
@@ -40,10 +38,6 @@ func (api *api) scap() func(chi.Router) {
 		r.Get("/{checkType}/{nodeName}/{checkID}/details", api.getNodeCheckDetails())
 		r.Get("/{checkType}/{clusterKey}/scan/node/detail/list", api.findScanNodeDetailList())
 
-		// r.Get("/{checkType}/{clusterKey}/history", api.getCheckHistory())
-		// r.Post("/harborScan", api.harborScan())
-		// r.Get("/{checkType}/{clusterKey}/cron", api.getCron())
-		// r.Put("/{checkType}/{clusterKey}/cron", api.putCron())
 		r.Get("/{checkType}/{checkID}/exportfile", api.exportFile())
 		r.Get("/{checkID}/getfile", api.getFile())
 
@@ -54,8 +48,8 @@ func (api *api) scap() func(chi.Router) {
 
 func (api *api) scapInternal() func(chi.Router) {
 	return func(r chi.Router) {
-		r.Put("/scanResults", api.addScanResults())
-		r.Post("/nodeRecordVariate", api.updateRecordVariate())
+		r.Put("/scanResults", api.addScanResults())             // 已经废弃，应该移除
+		r.Post("/nodeRecordVariate", api.updateRecordVariate()) // 已经废弃，应该移除
 		r.Post("/scanCallback", api.scanCallback())
 	}
 }
@@ -107,15 +101,15 @@ func (a *api) findScanNodeDetailList() http.HandlerFunc {
 		Info        int `json:"info"`
 		Fail        int `json:"fail"`
 		Compliances []*struct {
-			PolicyNumber string                             `json:"policyNumber" gorm:"column:policy_id"`
-			PolicyId     uint                               `json:"policyId" gorm:"-"`
-			Section      string                             `json:"section"`
-			Description  string                             `json:"description"`
-			TestStatus   model.ScapScanResultStateType      `json:"testStatus"`
-			TestResult   string                             `json:"testResult"`
-			UDBCP        string                             `json:"udbcp"`
-			ExtraDetail  *model.PolicyDetailInfoExtraDetail `json:"extraDetail"`
-		} `json:"compliances"`
+			PolicyNumber string                            `json:"policyNumber" gorm:"column:policy_id"`
+			PolicyId     uint                              `json:"policyId" gorm:"-"`
+			Section      string                            `json:"section"`
+			Description  string                            `json:"description"`
+			TestStatus   model.ScapScanResultStateType     `json:"testStatus"`
+			TestResult   string                            `json:"testResult"`
+			UDBCP        string                            `json:"udbcp"`
+			ExtraDetail  model.PolicyDetailInfoExtraDetail `json:"extraDetail"  gorm:"-"`
+		} `json:"compliances" gorm:"-"`
 	}
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx, cancel := context.WithTimeout(r.Context(), defaultScapTimeout)
@@ -201,10 +195,10 @@ func (a *api) findScanNodeDetailList() http.HandlerFunc {
 					result.Compliances[i].ExtraDetail.Impact = policy.PolicyDetailInfoExtraDetail.ImpactEn
 					result.Compliances[i].ExtraDetail.DefaultValue = policy.PolicyDetailInfoExtraDetail.DefaultValueEn
 				} else {
-					result.Compliances[i].ExtraDetail = &policy.PolicyDetailInfoExtraDetail.PolicyDetailInfoExtraDetail
+					result.Compliances[i].ExtraDetail = policy.PolicyDetailInfoExtraDetail.PolicyDetailInfoExtraDetail
 				}
 			} else {
-				result.Compliances[i].ExtraDetail = &model.PolicyDetailInfoExtraDetail{
+				result.Compliances[i].ExtraDetail = model.PolicyDetailInfoExtraDetail{
 					Description: policy.DetailZh,
 					Rationale:   policy.TitleZh,
 					Audit:       policy.Audit,
@@ -224,64 +218,6 @@ func (a *api) findScanNodeDetailList() http.HandlerFunc {
 			response.WithCustomField("info", result.Info),
 			response.WithCustomField("warn", result.Warn),
 			response.WithCustomField("fail", result.Fail))
-	}
-}
-
-// @Summary Get scap history
-// @Description Get scap history
-// @ID v1-scap-history
-// @Produce json
-// @Param checkType path string true "kube/docker/host"
-// @Param checkID query string false "checkID"
-// @Param clusterKey query string false "clusterKey"
-// @Param offset query int false "from offset"
-// @Param limit query int false "returned data limit"
-// @Param sortOrder query string false "asc/desc"
-// @Param sortBy query string false "createdAt/finishedAt/checkID/clusterKey/numSuccessful/numFailed/numError/numWaiting/numInconclusive"
-// @Router /api/v1/scap/{checkType}/history [get]
-func (api *api) getCheckHistory() http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		ctx, cancel := context.WithTimeout(r.Context(), time.Second*60)
-		defer cancel()
-
-		clusterKey := chi.URLParam(r, "clusterKey")
-		if clusterKey == "" {
-			RespAndLog(w, ctx, NewFieldError(http.StatusBadRequest, fmt.Errorf("Couldn't read ClusterID")))
-			return
-		}
-
-		checkType := model.ComplianceCheckType(chi.URLParam(r, "checkType"))
-		if checkType == "" {
-			RespAndLog(w, ctx, NewFieldError(http.StatusBadRequest, fmt.Errorf("checkType param missing"), Suberror{Location: "checkType", Message: ""}))
-			return
-		}
-
-		if !checkType.IsValid() {
-			RespAndLog(w, ctx, NewFieldError(http.StatusBadRequest, fmt.Errorf("invalid checkType param value (allowed: kube/docker/host)")))
-			return
-		}
-
-		sortBy := "created_at"
-		sortOrder, err := api.sortOrderFromQuery(r, "desc")
-		if err != nil {
-			RespAndLog(w, r.Context(), err)
-			return
-		}
-
-		offset, limit := api.getOffsetAndLimit(r)
-		scapService, _ := scapper.GetService(ctx)
-
-		items, docNum, err := scapService.GetCheckHistory(ctx, offset, limit, clusterKey, string(checkType), sortBy, sortOrder)
-		if err != nil {
-			RespAndLog(w, ctx, NewMongoError(http.StatusInternalServerError, fmt.Errorf("Couldn't get host history entries: %w", err)))
-			return
-		}
-
-		response.Ok(w,
-			response.WithItems(items),
-			response.WithTotalItems(docNum),
-			response.WithItemsPerPage(int64(limit)),
-			response.WithStartIndex(int64(offset)))
 	}
 }
 
@@ -714,63 +650,6 @@ func (api *api) getPolicyDetails() http.HandlerFunc {
 	}
 }
 
-// @Summary Run compliance check on specified cluster
-// @Description Run compliance check on specified cluster
-// @Produce json
-// @Param checkType path string true "kube/docker/host"
-// @Param clusterKey path string true "cluster ID"
-// @Router /api/v1/scap/{checkType}/{clusterKey} [post]
-func (api *api) scapCheck() http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		ctx, cancel := context.WithTimeout(r.Context(), time.Second*60)
-		defer cancel()
-
-		clusterKey := chi.URLParam(r, "clusterKey")
-		if clusterKey == "" {
-			RespAndLog(w, ctx, NewFieldError(http.StatusBadRequest, fmt.Errorf("Couldn't read ClusterID")))
-			return
-		}
-
-		checkType := model.ComplianceCheckType(chi.URLParam(r, "checkType"))
-		if checkType == "" {
-			RespAndLog(w, ctx, NewFieldError(http.StatusBadRequest, fmt.Errorf("checkType param missing"), Suberror{Location: "checkType", Message: ""}))
-			return
-		}
-
-		if !checkType.IsValid() {
-			RespAndLog(w, ctx, NewFieldError(http.StatusBadRequest, fmt.Errorf("invalid checkType param value (allowed: kube/docker/host)")))
-			return
-		}
-
-		api.scapCheckHandler(ctx, w, checkType, clusterKey, model.GetUsernameFromContext(r.Context()))
-	}
-}
-
-// @Router /api/v1/scap/harborScan [post]
-func (api *api) harborScan() http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		ctx, cancel := context.WithTimeout(r.Context(), time.Second*30)
-		defer cancel()
-
-		scapper, _ := scapper.GetScapper(ctx)
-		checkUUID, err := scapper.RunHarborCheck(ctx, api.harborClient)
-		if err != nil {
-			RespAndLog(w, ctx, fmt.Errorf("Failed to run compliance check: %w", err))
-			return
-		}
-
-		type resp struct {
-			CheckUUID string `json:"checkUUID"`
-		}
-
-		response.Ok(w, response.WithItem(resp{
-			CheckUUID: checkUUID.String(),
-		}))
-
-	}
-
-}
-
 // @Router /{checkType}/exportfile  {get}
 func (api *api) exportFile() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -954,19 +833,11 @@ func (api *api) updateRecordVariate() http.HandlerFunc {
 }
 
 func (api *api) scanCallback() http.HandlerFunc {
-	type scanCallbackReq struct {
-		CheckType  model.ComplianceCheckType `json:"checkType"`
-		TaskId     string                    `json:"taskId"`
-		Hostname   string                    `json:"hostname"`
-		ClusterKey string                    `json:"clusterKey"`
-		Payload    json.RawMessage           `json:"payload"`
-	}
-
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx, cancel := context.WithTimeout(r.Context(), defaultScapTimeout)
 		defer cancel()
 
-		req := scanCallbackReq{}
+		req := scapper.RecvScanResultReq{}
 		err := util.DecodeJSONBody(w, r, &req)
 		if err != nil {
 			RespAndLog(w, ctx, NewMalformedRequestError(http.StatusBadRequest,
@@ -974,37 +845,8 @@ func (api *api) scanCallback() http.HandlerFunc {
 			return
 		}
 
-		err = scap.CallbackScanResults(ctx, api.rdb.Get(), req.CheckType, req.TaskId, req.Hostname, req.ClusterKey, req.Payload)
+		err = scapper.RecvScanResults(ctx, api.rdb.Get(), &req)
 
 		response.Ok(w)
 	}
-}
-
-/* 下面是抽离出一些函数逻辑，用于和openapi共用*/
-func (api *api) scapCheckHandler(ctx context.Context, w http.ResponseWriter, checkType model.ComplianceCheckType, clusterKey, username string) {
-	// check scanning task
-	scapService, _ := scapper.GetService(ctx)
-	taskExist, err := scapService.CheckScanningTask(ctx, string(checkType), clusterKey)
-	if err != nil {
-		RespAndLog(w, ctx, fmt.Errorf("check scann task failed, %w", err))
-		return
-	} else if taskExist {
-		RespAndLog(w, ctx, fmt.Errorf("task already exist"))
-		return
-	}
-
-	scapper, _ := scapper.GetScapper(ctx)
-	checkUUID, err := scapper.RunComplianceCheck(clusterKey, checkType, username, 0, 0, uuid.NewV4().String())
-	if err != nil {
-		RespAndLog(w, ctx, fmt.Errorf("Failed to run compliance check: %w", err))
-		return
-	}
-
-	type resp struct {
-		CheckId string `json:"checkId"`
-	}
-
-	response.Ok(w, response.WithItem(resp{
-		CheckId: checkUUID,
-	}))
 }

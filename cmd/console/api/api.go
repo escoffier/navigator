@@ -29,8 +29,7 @@ type api struct {
 	sherlockURL  string
 	redisClient  *redis.Client
 	harborClient *harbor.HarborRESTClient
-	// ecCli             pb.EventsCenterBizServiceClient
-	esCli *elastic.ESClient
+	esCli        *elastic.ESClient
 
 	// For managing state in Harbor plugin API
 	abortAnyNewScansBool int32
@@ -48,10 +47,8 @@ func newAPI(
 	webhookURL string,
 	redisClient *redis.Client,
 	harborClient *harbor.HarborRESTClient,
-	// ecCli pb.EventsCenterBizServiceClient,
 	esCli *elastic.ESClient,
 	httpAuditDisabled bool,
-
 ) *api {
 	whUrl, err := url.Parse(webhookURL)
 	if err != nil {
@@ -60,16 +57,15 @@ func newAPI(
 	}
 
 	return &api{
-		tokenAuth:    tokenAuth,
-		rdb:          rdb,
-		scannerURL:   scannerURL,
-		exportURL:    exportURL,
-		sherlockURL:  sherlockURL,
-		microsegURL:  microsegURL,
-		webhookURL:   whUrl,
-		redisClient:  redisClient,
-		harborClient: harborClient,
-		// ecCli:             ecCli,
+		tokenAuth:         tokenAuth,
+		rdb:               rdb,
+		scannerURL:        scannerURL,
+		exportURL:         exportURL,
+		sherlockURL:       sherlockURL,
+		microsegURL:       microsegURL,
+		webhookURL:        whUrl,
+		redisClient:       redisClient,
+		harborClient:      harborClient,
 		esCli:             esCli,
 		httpAuditDisabled: httpAuditDisabled,
 	}
