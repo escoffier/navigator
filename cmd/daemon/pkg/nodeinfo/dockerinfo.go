@@ -306,18 +306,26 @@ func (d *DockerInfoManager) processEvents(ctx context.Context, container *model.
 
 		var volumeMounts []model.Mounts
 		var ports []model.Port
-		for _, c := range pod.Spec.Containers {
-			for _, m := range c.VolumeMounts {
-				volumeMounts = append(volumeMounts, model.Mounts{
-					MountPath:   m.MountPath,
-					SubPath:     m.SubPath,
-					SubPathExpr: m.SubPathExpr,
-				})
-			}
-			for _, p := range c.Ports {
-				ports = append(ports, model.Port{Name: p.Name, ContainerPort: p.ContainerPort})
+		/*list containers*/
+		if pod.Spec.Containers != nil {
+			for _, c := range pod.Spec.Containers {
+				if c.VolumeMounts != nil {
+					for _, m := range c.VolumeMounts {
+						volumeMounts = append(volumeMounts, model.Mounts{
+							MountPath:   m.MountPath,
+							SubPath:     m.SubPath,
+							SubPathExpr: m.SubPathExpr,
+						})
+					}
+				}
+				if c.Ports != nil {
+					for _, p := range c.Ports {
+						ports = append(ports, model.Port{Name: p.Name, ContainerPort: p.ContainerPort})
+					}
+				}
 			}
 		}
+
 		container.IP = pod.Status.PodIP
 		container.Ports = utils.MergeContainerPorts(ports, container.Ports, pod.Status.PodIP)
 		container.VolumeMounts = utils.MergeVolumeMounts(volumeMounts, container.VolumeMounts)
