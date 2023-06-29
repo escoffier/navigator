@@ -319,7 +319,7 @@ func (s *Scapper) RunComplianceCheck(
 			}
 
 			db := s.rdb.Get().WithContext(ctx).Model(&model.TensorNode{}).
-				Select("host_name AND cluster_key = ?", clusterID).Where("status=0")
+				Select("host_name").Where("status=0 AND cluster_key = ?", clusterID)
 			if !clusterInfo.IsAllNodes {
 				db = db.Where("id IN ?", clusterInfo.ClusterNodeIds)
 			}
