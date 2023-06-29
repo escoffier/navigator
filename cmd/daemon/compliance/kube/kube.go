@@ -40,6 +40,7 @@ type KubeOption func(*kubeOptions)
 
 func CheckList(checkList []string) KubeOption {
 	return func(o *kubeOptions) {
+		logging.Get().Debug().Strs("checkList", checkList).Msg("CheckList options set")
 		o.FilterOpts.CheckList = checkList
 	}
 }
@@ -118,6 +119,8 @@ func (k *Kube) InitConfig() error {
 			return cmd
 		}
 	}
+
+	logging.Get().Debug().Str("chroot", k.chroot).Msg("")
 
 	return nil
 }
