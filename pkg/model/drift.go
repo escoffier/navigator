@@ -12,7 +12,7 @@ const (
 	PolicyConfigMapKeyTemplate      = "policy-%d"
 	PolicyConfigMapValueTemplate    = "%s/%s/%s/%s/%d/%s" //ClusterKey,Namespace,ResourceKind,Resource,Enable,Mode
 	WhitelistConfigMapKeyTemplate   = "whitelist-%d"
-	WhitelistConfigMapValueTemplate = "%s/%d/%t"
+	WhitelistConfigMapValueTemplate = "%s:%d:%t"
 	DriftConfigMapLabel             = "app=drift-cm"
 )
 

@@ -232,8 +232,8 @@ func (cm *ConfigManager) updateFromConfigMap(ctx context.Context, configMap *cor
 		newWhitelist := make(map[string]int64, len(configMap.Data))
 		nowTimestamp := time.Now().UnixMilli()
 		for _, v := range configMap.Data {
-			values := strings.Split(v, "/")
-			if len(values) != len(strings.Split(model.WhitelistConfigMapValueTemplate, "/")) {
+			values := strings.Split(v, ":")
+			if len(values) != len(strings.Split(model.WhitelistConfigMapValueTemplate, ":")) {
 				logging.Get().Error().Msg("whitelist configmap value template error")
 				continue
 			}
