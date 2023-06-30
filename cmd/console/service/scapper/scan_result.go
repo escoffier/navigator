@@ -52,8 +52,8 @@ func (k *kube) BuildResult(taskId, hostname, clusterKey string) []*model.ScanRes
 		for _, grooup := range control.Groups {
 			for _, check := range grooup.Checks {
 				// 避免数据过长，无法写入db
-				if len(check.ActualValue) > 5000 {
-					check.ActualValue = check.ActualValue[:5000]
+				if len([]rune(check.ActualValue)) > 5000 {
+					check.ActualValue = string([]rune(check.ActualValue)[:5000])
 				}
 
 				tmp := &model.ScanResult{
@@ -113,8 +113,8 @@ func (c *cri) BuildResult(taskId, hostname, clusterKey string) []*model.ScanResu
 	for _, grooup := range c.Controls.Groups {
 		for _, check := range grooup.Checks {
 			// 避免数据过长，无法写入db
-			if len(check.ActualValue) > 5000 {
-				check.ActualValue = check.ActualValue[:5000]
+			if len([]rune(check.ActualValue)) > 5000 {
+				check.ActualValue = string([]rune(check.ActualValue)[:5000])
 			}
 
 			tmp := &model.ScanResult{
@@ -172,8 +172,8 @@ func (h *host) BuildResult(taskId, hostname, clusterKey string) []*model.ScanRes
 	for _, grooup := range h.Controls.Groups {
 		for _, check := range grooup.Checks {
 			// 避免数据过长，无法写入db
-			if len(check.ActualValue) > 5000 {
-				check.ActualValue = check.ActualValue[:5000]
+			if len([]rune(check.ActualValue)) > 5000 {
+				check.ActualValue = string([]rune(check.ActualValue)[:5000])
 			}
 
 			tmp := &model.ScanResult{
@@ -262,11 +262,13 @@ func RecvScanResults(ctx context.Context, db *gorm.DB, req *RecvScanResultReq) e
 		if len(items) > 0 {
 			err := tx.Model(&model.ScanResult{}).CreateInBatches(items, 100).Error
 			if err != nil {
-				return err
+				logging.Get().Error().Err(err).Msgf("%+v", items)
+				scanRecord.State = model.ScanStateFailed
+				scanRecord.Message = err.Error()
 			}
 		}
 
-		// 收到扫描结果将对应任务设置为完成
+		// 收到扫描结果将对应的节点设置为完成
 		return tx.Model(scanRecord).
 			Select("state", "finished_at", "message", "auto_variate", "pass", "warn", "info", "fail", "pass_rate").
 			Where("state = ?", model.ScanStateInProgress).
