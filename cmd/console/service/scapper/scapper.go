@@ -217,7 +217,7 @@ func (s *Scapper) checkTargetTypeTasksStillInProgress(ctx context.Context, check
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			logging.Get().Info().Msgf("check target type no tasks still in progress: checkType:%s, clusterId: %s", checkType, clusterID)
 		} else {
-			logging.Get().Error().Err(err).
+			logging.Get().Warn().Err(err).
 				Msgf("check target type tasks still in progress error: checkType:%s, clusterId: %s", checkType, clusterID)
 		}
 		return false

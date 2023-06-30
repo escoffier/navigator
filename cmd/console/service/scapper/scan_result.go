@@ -51,6 +51,7 @@ func (k *kube) BuildResult(taskId, hostname, clusterKey string) []*model.ScanRes
 	for _, control := range k.Controls {
 		for _, grooup := range control.Groups {
 			for _, check := range grooup.Checks {
+				// 避免数据过长，无法写入db
 				if len(check.ActualValue) > 5000 {
 					check.ActualValue = check.ActualValue[:5000]
 				}
@@ -112,8 +113,8 @@ func (c *cri) BuildResult(taskId, hostname, clusterKey string) []*model.ScanResu
 	for _, grooup := range c.Controls.Groups {
 		for _, check := range grooup.Checks {
 			// 避免数据过长，无法写入db
-			if len(check.ActualValue) > 65535 {
-				check.ActualValue = check.ActualValue[:65535]
+			if len(check.ActualValue) > 5000 {
+				check.ActualValue = check.ActualValue[:5000]
 			}
 
 			tmp := &model.ScanResult{
@@ -170,6 +171,11 @@ func (h *host) BuildResult(taskId, hostname, clusterKey string) []*model.ScanRes
 
 	for _, grooup := range h.Controls.Groups {
 		for _, check := range grooup.Checks {
+			// 避免数据过长，无法写入db
+			if len(check.ActualValue) > 5000 {
+				check.ActualValue = check.ActualValue[:5000]
+			}
+
 			tmp := &model.ScanResult{
 				TaskID:      taskId,
 				CheckType:   checkType,
