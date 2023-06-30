@@ -311,14 +311,23 @@ func Run(ctx context.Context) error {
 		nodeinfo.ExportRawContainer = false
 	}
 
-	policyClient, err := microseg.NewPolicyClient("/var/run/zero-trust.sock")
-	if err != nil {
-		return err
+	var microsegv2 = false
+	microsegEnv := os.Getenv("MICROSEGV2")
+	if microsegEnv == "true" {
+		microsegv2 = true
 	}
+	var policyClient, policyEventClient microseg.PolicyClient
 
-	policyEventClient, err := microseg.NewPolicyClient("/var/run/zero-trust-post.sock")
-	if err != nil {
-		return err
+	if microsegv2 {
+		policyClient, err = microseg.NewPolicyClient("/var/run/zero-trust.sock")
+		if err != nil {
+			return err
+		}
+
+		policyEventClient, err = microseg.NewPolicyClient("/var/run/zero-trust-post.sock")
+		if err != nil {
+			return err
+		}
 	}
 
 	containerInfo, k8sInfo, podResInfo, podWatcher, err := initNodeInfos(hostName, hostIP, clusterKey, myNamespace, policyClient)
@@ -346,18 +355,20 @@ func Run(ctx context.Context) error {
 		return nil
 	}
 
-	tensorFactory := externalversions.NewSharedInformerFactoryWithOptions(clientset.TensorClientset, 10*time.Hour, externalversions.WithTweakListOptions(func(lo *v1.ListOptions) {
-		lo.LabelSelector = fmt.Sprintf("kubernetes.io/node-name=%s", hostName)
-	}))
-	ruleController := microseg.NewRuleGroupController(clientset.TensorClientset, tensorFactory, policyClient, hostName)
-	stopChan := make(chan struct{})
-	go ruleController.Run(stopChan)
+	if microsegv2 {
+		tensorFactory := externalversions.NewSharedInformerFactoryWithOptions(clientset.TensorClientset, 10*time.Hour, externalversions.WithTweakListOptions(func(lo *v1.ListOptions) {
+			lo.LabelSelector = fmt.Sprintf("kubernetes.io/node-name=%s", hostName)
+		}))
+		ruleController := microseg.NewRuleGroupController(clientset.TensorClientset, tensorFactory, policyClient, hostName)
+		stopChan := make(chan struct{})
+		go ruleController.Run(stopChan)
 
-	tensorFactory.Start(stopChan)
-	tensorFactory.WaitForCacheSync(stopChan)
+		tensorFactory.Start(stopChan)
+		tensorFactory.WaitForCacheSync(stopChan)
 
-	eventProcessor := microseg.NewEventProcessor(policyEventClient)
-	go eventProcessor.Run()
+		eventProcessor := microseg.NewEventProcessor(policyEventClient)
+		go eventProcessor.Run()
+	}
 
 	wg.Add(1)
 	go func() {
