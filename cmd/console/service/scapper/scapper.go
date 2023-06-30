@@ -280,8 +280,8 @@ func (s *Scapper) RunComplianceCheck(
 		return "", apperror.NewKubernetesError(http.StatusInternalServerError, fmt.Errorf("get k8s client failed, cluster id: %s", clusterID))
 	}
 
-	// 默认设置集群版本为2.18.0
-	var clusterVersion, _ = version.NewVersion("2.18.0")
+	// 如果无法解析集群版本，使用默认设置集群版本为2.17.1
+	var clusterVersion, _ = version.NewVersion("2.17.1")
 	_, tag, err := k8s.GetTargetClusterImageSplitInfo(ctx, kubeClient, s.myResourceNamePrefix, s.myNamespace)
 	if err != nil {
 		logging.Get().Warn().Err(err).Msg("k8s.GetTargetClusterImageSplitInfo failed")
@@ -299,7 +299,7 @@ func (s *Scapper) RunComplianceCheck(
 	// 设置环境变量 SCAP_JOB_ENABLED=true 将使用原有job方式扫描
 	// 默认调度到daemon扫描
 	// 需要集群版本再2.18以上才支持daemon扫描
-	daemonScanBenchVersion, _ := version.NewVersion("2.18.0")
+	daemonScanBenchVersion, _ := version.NewVersion("2.17.1")
 	if os.Getenv("SCAP_JOB_ENABLED") != "true" &&
 		clusterVersion.GreaterThanOrEqual(daemonScanBenchVersion) {
 		var cluster *model.TensorCluster
@@ -349,18 +349,21 @@ func (s *Scapper) RunComplianceCheck(
 					CheckType:  string(checkType),
 				}
 
-				var resp *pb.CommonReponse
-				status := model.ScanStateInProgress
+				var (
+					resp    *pb.CommonReponse
+					status  = model.ScanStateInProgress
+					message = ""
+				)
 
 				resp, err = s.stream.PushComplianceScan(ctx, clusterID, &req)
 				if err != nil {
 					status = model.ScanStateFailed
+					message = err.Error()
 					logging.Get().Error().Err(err).Msg("PushComplianceScan error")
 				} else {
 					logging.Get().Debug().Msgf("PushComplianceScan resp: %v", resp)
 				}
 
-				message := ""
 				if resp != nil && resp.Status != 0 {
 					status = model.ScanStateFailed
 					message = resp.StatusMessage
