@@ -51,6 +51,10 @@ func (k *kube) BuildResult(taskId, hostname, clusterKey string) []*model.ScanRes
 	for _, control := range k.Controls {
 		for _, grooup := range control.Groups {
 			for _, check := range grooup.Checks {
+				if len(check.ActualValue) > 5000 {
+					check.ActualValue = check.ActualValue[:5000]
+				}
+
 				tmp := &model.ScanResult{
 					TaskID:      taskId,
 					CheckType:   checkType,

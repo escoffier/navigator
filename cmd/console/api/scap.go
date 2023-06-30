@@ -48,8 +48,8 @@ func (api *api) scap() func(chi.Router) {
 
 func (api *api) scapInternal() func(chi.Router) {
 	return func(r chi.Router) {
-		r.Put("/scanResults", api.addScanResults())             // 已经废弃，应该移除
-		r.Post("/nodeRecordVariate", api.updateRecordVariate()) // 已经废弃，应该移除
+		r.Put("/scanResults", api.addScanResults())             // 已经废弃，应该移除(中移子集群升级后)
+		r.Post("/nodeRecordVariate", api.updateRecordVariate()) // 已经废弃，应该移除(中移子集群升级后)
 		r.Post("/scanCallback", api.scanCallback())
 	}
 }
