@@ -50,6 +50,7 @@ type server struct {
 }
 
 var ServerConfig = &conf.Config{}
+var microsegv2 = false
 
 func NewServer() (*server, error) {
 	s := &server{
@@ -103,7 +104,9 @@ func NewServer() (*server, error) {
 	}
 	go assets.NewAssetsController(factory, tensorFactory, mqWriter, agent.CusterID, "kube-resources", s.config.PoolInfo).Run(stopChan)
 
-	go microseg.NewNetworkPolicyController(agent.GetHostClient().TensorClientset, factory, tensorFactory).Run(stopChan)
+	if microsegv2 {
+		go microseg.NewNetworkPolicyController(agent.GetHostClient().TensorClientset, factory, tensorFactory).Run(stopChan)
+	}
 
 	if s.config.ClusterType == model.HostCluster {
 		rdb, err := databases.NewRDBWithMySQLByEnv(context.Background())
@@ -276,6 +279,10 @@ func (s *server) loadConfig() {
 		}
 		s.config.PoolInfo = poolInfo
 		logging.Get().Info().Msgf("poolInfo: %v", poolInfo)
+	}
+	microsegEnv := os.Getenv("MICROSEGV2")
+	if microsegEnv == "true" {
+		microsegv2 = true
 	}
 }
 

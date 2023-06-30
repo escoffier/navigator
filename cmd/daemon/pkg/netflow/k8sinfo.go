@@ -104,7 +104,7 @@ func (n *NodePodsInfo) OnDelete(oldPod *nodeinfo.PodEvent) {
 		}
 		n.DeleteResData(podIp.IP)
 	}
-	if len(oldPod.Pod.Status.PodIPs) > 0 {
+	if len(oldPod.Pod.Status.PodIPs) > 0 && n.policyCli != nil {
 		ip := oldPod.Pod.Status.PodIPs[0]
 		if value, exist := n.resInfos.Load(ip); exist {
 			resData := value.(*daemon.K8sResData)
@@ -158,15 +158,17 @@ func (n *NodePodsInfo) savePodData(podEvt *nodeinfo.PodEvent, containerInfo node
 		return
 	}
 
-	logging.Get().Info().Msgf("to dp %d", len(rsData.ContainerInfo))
+	if n.policyCli != nil {
+		logging.Get().Info().Msgf("to dp %d", len(rsData.ContainerInfo))
 
-	for _, c := range rsData.ContainerInfo {
-		err := n.policyCli.AddContainer(c.ContainerPid, podID(podEvt.Pod))
-		if err != nil {
-			logging.Get().Warn().Msgf("container %s (pid: %d) to dp err: %v",
-				c.ContainerName, c.ContainerPid, err)
+		for _, c := range rsData.ContainerInfo {
+			err := n.policyCli.AddContainer(c.ContainerPid, podID(podEvt.Pod))
+			if err != nil {
+				logging.Get().Warn().Msgf("container %s (pid: %d) to dp err: %v",
+					c.ContainerName, c.ContainerPid, err)
+			}
+			break
 		}
-		break
 	}
 	res := podEvt.FinalOwnerResource(context.Background())
 	rsData.OwnerName = res.Name
