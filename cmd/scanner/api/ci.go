@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	scani18 "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scan-i18"
 	"io/ioutil"
 	"net/http"
 	"os"
@@ -15,6 +14,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	scani18 "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scan-i18"
 
 	"github.com/gin-gonic/gin"
 	"gitlab.com/security-rd/go-pkg/logging"
@@ -560,10 +561,10 @@ func (c *CiApiSrv) GetRecordPkgs(ctx *gin.Context) {
 }
 
 func (c *CiApiSrv) GetVulnDetail(ctx *gin.Context) {
-	//var (
+	// var (
 	//	uniqueVuln uint64
 	//	err        error
-	//)
+	// )
 
 	uniqueID := util.GetUint64FromQuery(ctx, "uniqueID")
 	if uniqueID <= 0 {

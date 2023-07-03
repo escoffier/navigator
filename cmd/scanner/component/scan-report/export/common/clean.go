@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"runtime/debug"
+	"strconv"
 	"strings"
 	"time"
 
@@ -16,10 +17,11 @@ import (
 )
 
 type ClearFileAndRecord struct {
-	FileDir       string
-	Expiration    int64 // 多少天前过期
-	ExportTaskDal store.ExportTaskDal
-	IdempotentDal store.IdempotentDal
+	FileDir                 string
+	Expiration              int64 // 多少天前过期
+	ExportTaskDal           store.ExportTaskDal
+	IdempotentDal           store.IdempotentDal
+	ExportTaskTimeoutSecond int64
 }
 
 func NewClearFile(
@@ -28,12 +30,20 @@ func NewClearFile(
 	exportTaskDal store.ExportTaskDal,
 	idempotentDal store.IdempotentDal,
 ) *ClearFileAndRecord {
-	return &ClearFileAndRecord{
+	s := &ClearFileAndRecord{
 		FileDir:       fileDir,
 		Expiration:    expiration,
 		ExportTaskDal: exportTaskDal,
 		IdempotentDal: idempotentDal,
 	}
+
+	getenv, err := strconv.Atoi(os.Getenv("TASK_TIMEOUT_SECOND"))
+	if err == nil && getenv > 0 {
+		s.ExportTaskTimeoutSecond = int64(getenv)
+	} else {
+		s.ExportTaskTimeoutSecond = 4 * 60 * 60 // 4个小时
+	}
+	return s
 }
 
 func (s *ClearFileAndRecord) Run(ctx context.Context) {
@@ -95,10 +105,10 @@ func (s *ClearFileAndRecord) Clean(ctx context.Context) {
 		if err := s.ExportTaskDal.DeleteExportTensorTask(ctx, tasks[i].ID); err != nil {
 			logging.Get().Err(err).Int64("taskID", tasks[i].ID).Msg("DeleteExportTensorTask")
 		}
-		//if err := s.IdempotentDal.DeleteIdempotent(ctx, store.SearchIdempotentParam{
+		// if err := s.IdempotentDal.DeleteIdempotent(ctx, store.SearchIdempotentParam{
 		//	TableId: tasks[i].ID, TableNAME: new(model.ExportTensorTask).TableName()}); err != nil {
 		//	logging.Get().Err(err).Int64("taskID", tasks[i].ID).Msg("DeleteIdempotent")
-		//}
+		// }
 	}
 
 	tasks2, _, err := s.ExportTaskDal.SearchExportTensorTask(ctx, store.SearchExportTensorTask{Finished: consts.FalseString}, nil)
@@ -107,7 +117,8 @@ func (s *ClearFileAndRecord) Clean(ctx context.Context) {
 		return
 	}
 	for i := range tasks2 {
-		if tasks2[i].StartAt > 0 && time.Now().Unix()-tasks2[i].StartAt > 4*60*60 { // 设置一个较大的值
+		if tasks2[i].StartAt > 0 && tasks2[i].StartAt != consts.ExportHtmlReady &&
+			time.Now().Unix()-tasks2[i].StartAt > s.ExportTaskTimeoutSecond {
 			updater := map[string]interface{}{
 				"finish_at": time.Now().Unix(),
 				"err_msg":   imagesecModel.TaskFailedReasonTimeout,
