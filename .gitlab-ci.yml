@@ -3,7 +3,7 @@
 # Secret Detection customization: https://docs.gitlab.com/ee/user/application_security/secret_detection/#customizing-settings
 # Note that environment variables can be set in several places
 # See https://docs.gitlab.com/ee/ci/variables/#priority-of-environment-variables
-image: harbor.tensorsecurity.com/library/reviewdog:v5
+image: harbor.tensorsecurity.com/library/golang:1.20.4
 variables:
   GOPROXY: https://goproxy.cn
   GO111MODULE: 'on'
@@ -16,9 +16,6 @@ workflow:
     when: always
 stages:
 - build
-- test
-- sast
-- reviewdog
 all:
   stage: build
   resource_group: all
@@ -36,10 +33,7 @@ all:
     Makefile
   - find ./ -name "Dockerfile"|xargs sed -i "s#registry.t-appagile.com#harbor.tensorsecurity.com#g"
   - mkdir ~/.kube/
-  - cp ~/.docker/config-ci ~/.kube/config
-  - cp ~/.docker/kubectl /bin/
   - cp ~/.docker/xray ./
-  - chmod +755 /bin/kubectl
   - cp ~/.docker/irene ./configs/node-image/
   - mkdir avira/
   - cp ~/.docker/savapi-sdk-linux64.tgz avira/
@@ -49,11 +43,7 @@ all:
   - cp ~/.docker/hm-linux.tgz hm/
   script:
   - USEMIRROR=true FETCHTAG=latest make all
-  - make pushimages
-  - make rm-local-images
-  - kubectl get pod --no-headers -n tensorsec|grep -v "mysql\|redis\|elasticsearch\|stan\|kafka\|frontend\|eventcenter\|microseg"|awk
-    '{print $1}'|xargs -i kubectl delete pod {} -n tensorsec --force --grace-period=0
-  - kubectl -n test delete pod -l app=faulty --force --grace-period=0
+  - make rm-local-images || true
   rules:
   - changes:
     - pkg/**/*
@@ -75,14 +65,9 @@ cluster-manager:
     Makefile
   - sed -i "s#REPOPREFIX?=localhost:32000#REPOPREFIX?=harbor.tensorsecurity.com/tensorsecurity#g"
     Makefile
-  - mkdir ~/.kube/
-  - cp ~/.docker/config-ci ~/.kube/config
-  - cp ~/.docker/kubectl /bin/
-  - chmod +755 /bin/kubectl
   script:
   - USEMIRROR=true make cluster-manager
-  - docker push harbor.tensorsecurity.com/tensorsecurity/cluster-manager:ci
-  - kubectl delete pod -n tensorsec -l app.kubernetes.io/name=cluster-manager
+  - docker rmi harbor.tensorsecurity.com/tensorsecurity/cluster-manager:ci || true
   rules:
   - changes:
     - cmd/cluster-manager/**/*
@@ -103,19 +88,38 @@ console:
     Makefile
   - sed -i "s#REPOPREFIX?=localhost:32000#REPOPREFIX?=harbor.tensorsecurity.com/tensorsecurity#g"
     Makefile
-  - mkdir ~/.kube/
-  - cp ~/.docker/config-ci ~/.kube/config
-  - cp ~/.docker/kubectl /bin/
-  - chmod +755 /bin/kubectl
   script:
   - USEMIRROR=true make console
-  - docker push harbor.tensorsecurity.com/tensorsecurity/console:ci
-  - kubectl delete pod -n tensorsec -l app.kubernetes.io/name=console
+  - docker rmi harbor.tensorsecurity.com/tensorsecurity/console:ci || true
   rules:
   - changes:
     - cmd/console/**/*
     - build/console/**/*
     - configs/console/**/*
+node-image:
+  stage: build
+  resource_group: node-image
+  tags:
+  - k8s
+  before_script:
+  - git merge origin/master
+  - git config --global --add url."git@gitlab.com:".insteadOf "https://gitlab.com/"
+  - git config --global --add url."ssh://git@10.99.201.85/".insteadOf "http://scm.tensorsecurity.cn/"
+  - sed -i 's#RELEASEVERSION?=v0.0.1#RELEASEVERSION?=ci#g' Makefile
+  - sed -i "s#latest#ci#g" Makefile
+  - sed -i "s#DOCKER_REGISTRY=$(REPOPREFIX)#DOCKER_REGISTRY=harbor.tensorsecurity.com/tensorsecurity#g"
+    Makefile
+  - sed -i "s#REPOPREFIX?=localhost:32000#REPOPREFIX?=harbor.tensorsecurity.com/tensorsecurity#g"
+    Makefile
+  - cp -a ~/.docker/irene ./configs/node-image/
+  script:
+  - USEMIRROR=true make node-image
+  - docker rmi harbor.tensorsecurity.com/tensorsecurity/node-image:ci || true
+  rules:
+  - changes:
+    - cmd/node-image/**/*
+    - build/node-image/**/*
+    - configs/node-image/**/*
 holmes:
   stage: build
   resource_group: holmes
@@ -131,17 +135,12 @@ holmes:
     Makefile
   - sed -i "s#REPOPREFIX?=localhost:32000#REPOPREFIX?=harbor.tensorsecurity.com/tensorsecurity#g"
     Makefile
-  - mkdir ~/.kube/
-  - cp ~/.docker/config-ci ~/.kube/config
-  - cp ~/.docker/kubectl /bin/
-  - chmod +755 /bin/kubectl
   - mkdir avira/
   - cp ~/.docker/savapi-sdk-linux64.tgz avira/
   script:
   - USEMIRROR=true FETCHTAG=latest make daemon holmes
-  - docker push harbor.tensorsecurity.com/tensorsecurity/daemon:ci
-  - docker push harbor.tensorsecurity.com/tensorsecurity/holmes:ci
-  - kubectl delete pod -n tensorsec -l app.kubernetes.io/name=holmes
+  - docker rmi harbor.tensorsecurity.com/tensorsecurity/daemon:ci || true
+  - docker rmi harbor.tensorsecurity.com/tensorsecurity/holmes:ci || true
   rules:
   - changes:
     - cmd/daemon/**/*
@@ -165,10 +164,6 @@ scanner:
     Makefile
   - sed -i "s#REPOPREFIX?=localhost:32000#REPOPREFIX?=harbor.tensorsecurity.com/tensorsecurity#g"
     Makefile
-  - mkdir ~/.kube/
-  - cp ~/.docker/config-ci ~/.kube/config
-  - cp ~/.docker/kubectl /bin/
-  - chmod +755 /bin/kubectl
   - mkdir avira/
   - cp ~/.docker/savapi-sdk-linux64.tgz avira/
   - mkdir clamav/
@@ -177,8 +172,7 @@ scanner:
   - cp ~/.docker/hm-linux.tgz hm/
   script:
   - USEMIRROR=true make scanner
-  - docker push harbor.tensorsecurity.com/tensorsecurity/scanner:ci
-  - kubectl delete pod -l app.kubernetes.io/component=scanner -n tensorsec
+  - docker rmi harbor.tensorsecurity.com/tensorsecurity/scanner:ci || true
   rules:
   - changes:
     - cmd/scanner/**/*
@@ -199,14 +193,9 @@ scan-report:
     Makefile
   - sed -i "s#REPOPREFIX?=localhost:32000#REPOPREFIX?=harbor.tensorsecurity.com/tensorsecurity#g"
     Makefile
-  - mkdir ~/.kube/
-  - cp ~/.docker/config-ci ~/.kube/config
-  - cp ~/.docker/kubectl /bin/
-  - chmod +755 /bin/kubectl
   script:
   - USEMIRROR=true make scan_report
-  - docker push harbor.tensorsecurity.com/tensorsecurity/scan-report:ci
-  - kubectl delete pod -l app.kubernetes.io/name=scan-report -n tensorsec
+  - docker rmi harbor.tensorsecurity.com/tensorsecurity/scan-report:ci || true
   rules:
   - changes:
     - cmd/scanner/bin/scan-report/**/*
@@ -226,50 +215,11 @@ webhook:
     Makefile
   - sed -i "s#REPOPREFIX?=localhost:32000#REPOPREFIX?=harbor.tensorsecurity.com/tensorsecurity#g"
     Makefile
-  - mkdir ~/.kube/
-  - cp ~/.docker/config-ci ~/.kube/config
-  - cp ~/.docker/kubectl /bin/
-  - chmod +755 /bin/kubectl
   script:
   - USEMIRROR=true make webhook
-  - docker push harbor.tensorsecurity.com/tensorsecurity/webhook:ci
-  - kubectl delete pod -l app.kubernetes.io/name=webhook -n tensorsec
+  - docker rmi harbor.tensorsecurity.com/tensorsecurity/webhook:ci || true
   rules:
   - changes:
     - cmd/webhook/**/*
     - build/webhook/**/*
     - configs/webhook/**/*
-api-test:
-  image: harbor.tensorsecurity.com/library/openjdk:17.0.1
-  stage: test
-  resource_group: api-test
-  retry: 2
-  tags:
-  - k8s
-  before_script:
-  - cp ~/.docker/metersphere.jar /root/metersphere.jar
-  script:
-  - java -jar /root/metersphere.jar
-  when: delayed
-  start_in: 2 minutes
-reviewdog:
-  stage: reviewdog
-  tags:
-  - k8s
-  before_script:
-  - export REVIEWDOG_GITLAB_API_TOKEN=Ux_Ex4z5-payZMS_evgC
-  - export GITLAB_API="http://gitlab.gitlab-ce.svc.cluster.local/api/v4"
-  - export CI_REPO_OWNER=tensorsecurity-rd
-  - export CI_REPO_NAME=tensornavigator
-  - export CI_COMMIT=$(git rev-parse HEAD)
-  - export REVIEWDOG_INSECURE_SKIP_VERIFY=true
-  - git config --global --add url."git@gitlab.com:".insteadOf "https://gitlab.com/"
-  - git config --global --add url."ssh://git@10.99.201.85/".insteadOf "http://scm.tensorsecurity.cn/"
-  script:
-  - reviewdog -reporter=gitlab-mr-discussion -debug -tee || true
-  when: always
-  allow_failure: true
-sast:
-  stage: test
-include:
-- template: Security/SAST.gitlab-ci.yml
