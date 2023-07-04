@@ -35,6 +35,7 @@ func init() {
 	err := register.Register(serviceName, newService)
 	if err != nil {
 		logging.Get().Err(err).Str("serviceName", serviceName).Msg("int service err")
+		return
 	}
 	logging.Get().Info().Str("serviceName", serviceName).Msg("register success")
 }
@@ -69,7 +70,8 @@ func newService(config register.ScannerServiceConfig) (register.ScannerService, 
 	detectTaskSrv := detect.NewImageDetectTaskSrv(nodeImageSvc, detectTaskDal, policyDal)
 
 	p := &ImageDetect{
-		detectSrv: detect.NewDetector(imagePolicySrv, detectResultDal, nodeScanTaskDal, detectTaskDal, imageDataSrv, imagePolicyChecker, nodeImageDal, detectTaskSrv),
+		detectSrv: detect.NewDetector(imagePolicySrv, detectResultDal, nodeScanTaskDal, detectTaskDal,
+			imageDataSrv, imagePolicyChecker, nodeImageDal, detectTaskSrv),
 	}
 
 	return p, nil

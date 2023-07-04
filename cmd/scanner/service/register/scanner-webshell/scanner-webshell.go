@@ -15,11 +15,12 @@ import (
 	"time"
 
 	"github.com/segmentio/kafka-go"
+	"gitlab.com/security-rd/go-pkg/logging"
+	"gitlab.com/security-rd/go-pkg/mq"
+
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/service/register"
-	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	scannermodel "gitlab.com/piccolo_su/vegeta/pkg/model/scanner-model"
-	"gitlab.com/security-rd/go-pkg/mq"
 )
 
 const (
@@ -33,7 +34,6 @@ type ScannerWebshellService struct {
 	mqReader mq.Reader
 	Num      int
 	PvcPath  string
-	// config      Config
 }
 
 func (s *ScannerWebshellService) CreateHmBack(n int) {
@@ -42,7 +42,7 @@ func (s *ScannerWebshellService) CreateHmBack(n int) {
 		cmd := exec.Command("cp", "-r", consts.WebshellDir, str)
 		err := cmd.Run()
 		if err != nil {
-			panic(fmt.Sprintf("create hm back error %v", err))
+			logging.Get().Err(err).Msg("CreateHmBack error")
 		}
 	}
 }
@@ -53,7 +53,7 @@ func (s *ScannerWebshellService) DeleteHmBack(n int) {
 		cmd := exec.Command("rm", "-rf", str)
 		err := cmd.Run()
 		if err != nil {
-			panic(fmt.Sprintf("delete hm back error %v", err))
+			logging.Get().Err(err).Msg("DeleteHmBack error")
 		}
 	}
 }
@@ -73,22 +73,22 @@ func (s *ScannerWebshellService) saveHandle(ctx context.Context, msg kafka.Messa
 	var dst scannermodel.WebshellSaveInfo
 	err := json.Unmarshal(msg.Value, &dst)
 	if err != nil {
-		logging.GetLogger().Err(err).Msg("failed to unmarshal webShell msg")
+		logging.Get().Err(err).Msg("failed to unmarshal webShell msg")
 		return err
 	}
-	logging.GetLogger().Info().Msgf("Save kafka file %v", dst.FileMd5)
+	logging.Get().Info().Msgf("Save kafka file %v", dst.FileMd5)
 	dstPath := filepath.Join(filepath.Join(s.PvcPath, "webshell"), dst.FileMd5)
 	if s.PathExists(dstPath) {
 		return nil
 	}
 	tmpFs, err := s.createFile(dstPath)
 	if err != nil {
-		logging.GetLogger().Err(err).Msg("create webshell file error")
+		logging.Get().Err(err).Msg("create webshell file error")
 		return err
 	}
 	_, err = io.Copy(tmpFs, bytes.NewReader(dst.Data))
 	if err != nil {
-		logging.GetLogger().Err(err).Msg("copy webshell file error")
+		logging.Get().Err(err).Msg("copy webshell file error")
 		return err
 	}
 	return nil
@@ -96,32 +96,39 @@ func (s *ScannerWebshellService) saveHandle(ctx context.Context, msg kafka.Messa
 
 func (s *ScannerWebshellService) DeleteFile() {
 	isMain := os.Getenv("IS_MAIN_CLUSTER")
-	if isMain == "true" {
-		ticker := time.NewTicker(1 * time.Hour)
-		defer ticker.Stop()
-		for range ticker.C {
-			var day int64
-			day = 30
-			str := os.Getenv("WEBSHELL_DELETE")
-			if str != "" {
-				tmp, err := strconv.ParseInt(str, 10, 64)
-				if err != nil {
-					logging.GetLogger().Err(err).Msgf("WEBSHELL_DELETE str IS ERROR")
-				} else {
-					day = tmp
-				}
+	if isMain != consts.TrueString {
+		logging.Get().Info().Msg("not in main cluster")
+		return
+	}
+	ticker := time.NewTicker(1 * time.Hour)
+	defer ticker.Stop()
+	for {
+		<-ticker.C
+		var day int64 = 30
+		tmp, err := strconv.ParseInt(os.Getenv("WEBSHELL_DELETE"), 10, 64)
+		if err == nil && tmp > 0 {
+			day = tmp
+		} else {
+			logging.Get().Err(err).Str("env", os.Getenv("WEBSHELL_DELETE")).Msgf("parse WEBSHELL_DELETE env")
+		}
+		expire := time.Now().Add(time.Hour * time.Duration(day) * 24 * -1).UnixMilli()
+		err = filepath.Walk(filepath.Join(s.PvcPath, "webshell"), func(path string, info fs.FileInfo, err error) error {
+			if err != nil {
+				logging.Get().Err(err).Msg("scan webshell file")
+				return err
 			}
-			expire := time.Now().Add(time.Hour * time.Duration(day) * 24 * -1).UnixMilli()
-			filepath.Walk(filepath.Join(s.PvcPath, "webshell"), func(path string, info fs.FileInfo, err error) error {
-				if info.ModTime().UnixMilli() < expire {
-					err := os.Remove(path)
-					if err != nil {
-						logging.GetLogger().Err(err).Msgf("remove error")
-					}
-					logging.GetLogger().Info().Msgf("remove webshell file %v", info.Name())
+			if info != nil && info.ModTime().UnixMilli() < expire {
+				err = os.Remove(path)
+				if err != nil {
+					logging.Get().Err(err).Msg("remove error")
+					return err
 				}
-				return nil
-			})
+				logging.Get().Info().Str("filename", info.Name()).Msg("remove webshell file")
+			}
+			return nil
+		})
+		if err != nil {
+			logging.Get().Err(err).Msg("remove webshell walk")
 		}
 	}
 }
@@ -129,22 +136,35 @@ func (s *ScannerWebshellService) DeleteFile() {
 func (s *ScannerWebshellService) SaveWebshell(mqReader mq.Reader) {
 	err := mqReader.Subscribe(scannermodel.WebshellKafkaTopic, scannermodel.WebshellKafkaGroupID, s.saveHandle)
 	if err != nil {
-		logging.GetLogger().Err(err).Msg("webshell init mq consumer error")
-	}
-	logging.GetLogger().Info().Msg("Subscribe ok")
-}
-func (s *ScannerWebshellService) handleMsg(stopCh <-chan struct{}) {
-	err := s.mqReader.Subscribe(scannermodel.WebshellKafkaTopic, scannermodel.WebshellKafkaGroupID, s.saveHandle)
-	if err != nil {
-		logging.GetLogger().Err(err).Msg("reader subscribe error")
+		logging.Get().Err(err).Msg("webshell init mq consumer error")
 		return
 	}
-	logging.GetLogger().Info().Msg("Subscribe ok")
+	logging.Get().Info().Msg("Subscribe ok")
+}
+
+func (s *ScannerWebshellService) handleMsg(stopCh <-chan struct{}) {
+	isMain := os.Getenv("IS_MAIN_CLUSTER")
+	if isMain != consts.TrueString {
+		logging.Get().Info().Msg("not in main cluster")
+		return
+	}
+	err := s.mqReader.Subscribe(scannermodel.WebshellKafkaTopic, scannermodel.WebshellKafkaGroupID, s.saveHandle)
+	if err != nil {
+		logging.Get().Err(err).Msg("reader subscribe error")
+		return
+	}
+	logging.Get().Info().Msg("Subscribe ok")
 	<-stopCh
 }
+
 func (s *ScannerWebshellService) Start(ctx context.Context) error {
 	s.CreateHmBack(s.Num)
-	go s.DeleteFile()
+	go func() {
+		if r := recover(); r != nil {
+			logging.Get().Error().Stack().Msg("ScannerWebshellService DeleteFile panic")
+		}
+		s.DeleteFile()
+	}()
 	ch := make(chan struct{})
 	s.handleMsg(ch)
 	return nil
@@ -166,8 +186,9 @@ func (s *ScannerWebshellService) Stop(ctx context.Context) error {
 func init() {
 	err := register.Register(serviceName, newService)
 	if err != nil {
-		logging.GetLogger().Err(err).Str("serviceName", serviceName).Msg("int service err")
+		logging.Get().Err(err).Str("serviceName", serviceName).Msg("int service err")
 	}
+	logging.Get().Info().Str("serviceName", serviceName).Msg("register success")
 }
 
 func newService(config register.ScannerServiceConfig) (register.ScannerService, error) {
@@ -177,14 +198,14 @@ func newService(config register.ScannerServiceConfig) (register.ScannerService, 
 	num, err := strconv.Atoi(numStr)
 	if err != nil {
 		s.Num = 5
-		logging.GetLogger().Warn().Msgf("failed to get websehllNum env,set worker num to default value")
+		logging.Get().Warn().Msgf("failed to get websehllNum env,set worker num to default value")
 	} else {
 		s.Num = num
 	}
 
 	mqReader, err := mq.GetClientFactory().Reader(context.Background())
 	if err != nil {
-		logging.GetLogger().Err(err).Msg("Init mq error")
+		logging.Get().Err(err).Msg("Init mq error")
 		return nil, err
 	}
 	s.mqReader = mqReader
