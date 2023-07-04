@@ -291,44 +291,44 @@ func (d *DockerInfoManager) buildContainerDetail(containerID string) (*model.Ten
 // processEvents  process container events
 func (d *DockerInfoManager) processEvents(ctx context.Context, container *model.TensorRawContainer, action string) {
 	if container.K8sManaged && container.ResourceName == "" && !isDeleteEvent(action) {
-		logging.Get().Debug().Str("raw-container", "process event").Msgf("get pod owner of %s/%s/%s",
-			container.Namespace, container.PodName, container.Name)
-		resName, resKind, err := d.store.GetPodOwner(container.Namespace, container.PodName)
-		if err != nil {
-			logging.Get().Warn().Err(err).Msg("get pod owner err")
-		}
-		container.ResourceName = resName
-		container.ResourceKind = resKind
-		pod, err := d.store.GetPod(container.Namespace, container.PodName)
-		if err != nil {
-			logging.Get().Warn().Err(err).Msgf("get pod:%s/%s err", container.Namespace, container.Name)
-		}
-
-		var volumeMounts []model.Mounts
-		var ports []model.Port
-		/*list containers*/
-		if pod.Spec.Containers != nil {
-			for _, c := range pod.Spec.Containers {
-				if c.VolumeMounts != nil {
-					for _, m := range c.VolumeMounts {
-						volumeMounts = append(volumeMounts, model.Mounts{
-							MountPath:   m.MountPath,
-							SubPath:     m.SubPath,
-							SubPathExpr: m.SubPathExpr,
-						})
-					}
-				}
-				if c.Ports != nil {
-					for _, p := range c.Ports {
-						ports = append(ports, model.Port{Name: p.Name, ContainerPort: p.ContainerPort})
-					}
-				}
+		func() {
+			logging.Get().Debug().Str("raw-container", "process event").Msgf("get pod owner of %s/%s/%s",
+				container.Namespace, container.PodName, container.Name)
+			resName, resKind, err := d.store.GetPodOwner(container.Namespace, container.PodName)
+			if err != nil {
+				logging.Get().Warn().Err(err).Msg("get pod owner err")
+				return
 			}
-		}
+			container.ResourceName = resName
+			container.ResourceKind = resKind
+			pod, err := d.store.GetPod(container.Namespace, container.PodName)
+			if err != nil {
+				logging.Get().Warn().Err(err).Msgf("get pod:%s/%s err", container.Namespace, container.Name)
+				return
+			}
 
-		container.IP = pod.Status.PodIP
-		container.Ports = utils.MergeContainerPorts(ports, container.Ports, pod.Status.PodIP)
-		container.VolumeMounts = utils.MergeVolumeMounts(volumeMounts, container.VolumeMounts)
+			var volumeMounts []model.Mounts
+			var ports []model.Port
+			/*list containers*/
+			for _, c := range pod.Spec.Containers {
+				for _, m := range c.VolumeMounts {
+					volumeMounts = append(volumeMounts, model.Mounts{
+						MountPath:   m.MountPath,
+						SubPath:     m.SubPath,
+						SubPathExpr: m.SubPathExpr,
+					})
+				}
+
+				for _, p := range c.Ports {
+					ports = append(ports, model.Port{Name: p.Name, ContainerPort: p.ContainerPort})
+				}
+
+			}
+
+			container.IP = pod.Status.PodIP
+			container.Ports = utils.MergeContainerPorts(ports, container.Ports, pod.Status.PodIP)
+			container.VolumeMounts = utils.MergeVolumeMounts(volumeMounts, container.VolumeMounts)
+		}()
 	}
 	logging.Get().Debug().Msgf("raw-container - process container [%s:%s:%d] event: %s",
 		container.ContainerID, container.Name, container.Status, action)
