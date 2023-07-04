@@ -1,0 +1,14 @@
+{
+    "name": "tensornavigator build-tools",
+    "image": "golang:1.20.5",
+    "privileged": true,
+    "remoteEnv": {
+      "BUILD_WITH_CONTAINER":"0"
+    },
+    "features": {
+    },
+    "extensions": [
+      "golang.Go"
+    ]
+  }
+  
