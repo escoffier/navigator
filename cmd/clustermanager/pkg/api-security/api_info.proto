@@ -1,0 +1,19 @@
+syntax = "proto3";
+
+package security;
+
+option go_package = "./security";
+
+message ApiInfo {
+    string clusterKey = 1;
+    string namespace = 2;
+    string podName = 3;
+    string remoteIp = 4;
+    int32  remotePort = 5;
+    string path = 6;
+    string method = 7;
+    string contentType = 8;
+    string scheme = 9;
+    string ownerName = 10;
+    string ownerKind = 11;
+}

@@ -4,8 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"gitlab.com/piccolo_su/vegeta/pkg/logging"
+
 	"gitlab.com/security-rd/go-pkg/databases"
+	"gitlab.com/security-rd/go-pkg/logging"
 	corev1 "k8s.io/api/core/v1"
 )
 
@@ -55,12 +56,12 @@ type MutatingConfig struct {
 func (m *mutatorChain) AddMutator(mutator interface{}) {
 	vp, isPod := mutator.(PodMutator)
 	if isPod {
-		logging.GetLogger().Info().Msgf("add pod mutator: %s", vp.Name())
+		logging.Get().Info().Msgf("add pod mutator: %s", vp.Name())
 		m.podMutators = append(m.podMutators, vp)
 	}
 	nsMu, isNs := mutator.(NamespaceMutator)
 	if isNs {
-		logging.GetLogger().Info().Msgf("add namespace mutator: %s", nsMu.Name())
+		logging.Get().Info().Msgf("add namespace mutator: %s", nsMu.Name())
 		m.nsMutators = append(m.nsMutators, nsMu)
 	}
 }
@@ -75,14 +76,14 @@ func (m *mutatorChain) Mutate(ctx context.Context, parameters *MutatorParameters
 	case "Pod":
 		pod := &corev1.Pod{}
 		if err := json.Unmarshal(rawObj, pod); err != nil {
-			logging.GetLogger().Err(err).Msg("failed to Unmarshal pod")
+			logging.Get().Err(err).Msg("failed to Unmarshal pod")
 			return nil, nil
 		}
 		patch, err = m.mutatePod(ctx, parameters, pod)
 	case "ConfigMap":
 		cm := &corev1.ConfigMap{}
 		if err := json.Unmarshal(rawObj, cm); err != nil {
-			logging.GetLogger().Err(err).Msg("failed to Unmarshal configmap")
+			logging.Get().Err(err).Msg("failed to Unmarshal configmap")
 			return nil, nil
 		}
 		patch = m.mutateConfigMap(ctx, parameters, cm)
@@ -94,7 +95,7 @@ func (m *mutatorChain) Mutate(ctx context.Context, parameters *MutatorParameters
 	//	}
 	//	patch = m.mutateNamespace(ctx, parameters, ns)
 	default:
-		logging.GetLogger().Err(errors.New("unsupported resource kind")).Msg(parameters.Kind)
+		logging.Get().Err(errors.New("unsupported resource kind")).Msg(parameters.Kind)
 	}
 	return patch, err
 }
@@ -104,9 +105,10 @@ func (m *mutatorChain) mutatePod(ctx context.Context, parameters *MutatorParamet
 	var err error
 	for _, m := range m.podMutators {
 		if m.PreMutate(ctx, pod, parameters) {
-			logging.GetLogger().Debug().Msgf("mutatePod by %s", m.Name())
+			logging.Get().Debug().Msgf("mutate Pod by %s", m.Name())
 			p, err := m.Mutate(ctx, parameters, pod)
 			if err != nil {
+				logging.Get().Warn().Msgf("mutate err: %v", err)
 				return nil, err
 			}
 			patches = append(patches, p...)
@@ -114,10 +116,10 @@ func (m *mutatorChain) mutatePod(ctx context.Context, parameters *MutatorParamet
 	}
 	patchData, err := json.Marshal(patches)
 	if err != nil {
-		logging.GetLogger().Err(err).Msg("failed to marshal patches")
+		logging.Get().Err(err).Msg("failed to marshal patches")
 		return nil, nil
 	}
-	logging.GetLogger().Info().Msg(string(patchData))
+	logging.Get().Info().Msg(string(patchData))
 	return patchData, nil
 }
 
@@ -129,10 +131,10 @@ func (m *mutatorChain) mutateConfigMap(ctx context.Context, parameters *MutatorP
 	}
 	patchData, err := json.Marshal(patches)
 	if err != nil {
-		logging.GetLogger().Err(err).Msg("failed to marshal patches")
+		logging.Get().Err(err).Msg("failed to marshal patches")
 		return nil
 	}
-	logging.GetLogger().Info().Msg(string(patchData))
+	logging.Get().Info().Msg(string(patchData))
 	return patchData
 }
 
@@ -147,17 +149,17 @@ func (m *mutatorChain) mutateNamespace(ctx context.Context, parameters *MutatorP
 	}
 	patchData, err := json.Marshal(patches)
 	if err != nil {
-		logging.GetLogger().Err(err).Msg("failed to marshal patches")
+		logging.Get().Err(err).Msg("failed to marshal patches")
 		return nil, nil
 	}
-	logging.GetLogger().Info().Msg(string(patchData))
+	logging.Get().Info().Msg(string(patchData))
 	return patchData, nil
 }
 
 func (m *mutatorChain) needMutating(resource *MutatorParameters) bool {
 	for _, ns := range m.config.IgnoredNameSpaces {
 		if resource.Namespace == ns {
-			logging.GetLogger().Debug().Msgf("ignored mutating for resource %s in namespace %s", resource.Kind, ns)
+			logging.Get().Debug().Msgf("ignored mutating for resource %s in namespace %s", resource.Kind, ns)
 			return true
 		}
 	}

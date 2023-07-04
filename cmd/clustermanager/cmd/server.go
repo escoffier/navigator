@@ -11,6 +11,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 	clusterAgent "gitlab.com/piccolo_su/vegeta/cmd/clustermanager/pkg"
+	apisecurity "gitlab.com/piccolo_su/vegeta/cmd/clustermanager/pkg/api-security"
 	"gitlab.com/piccolo_su/vegeta/cmd/clustermanager/pkg/assets"
 	"gitlab.com/piccolo_su/vegeta/cmd/clustermanager/pkg/clusterserver"
 	conf "gitlab.com/piccolo_su/vegeta/cmd/clustermanager/pkg/config"
@@ -208,6 +209,8 @@ func NewServer() (*server, error) {
 		driftWatcher := drift.NewDriftSupport(rdb, mqReader, model.SubjectOfDriftSupportEvent, "group-support-info")
 		go driftWatcher.Start(stopChan)
 
+		apiWatcher := apisecurity.NewWatcher(mqReader, "security-api", "api-security", rdb)
+		go apiWatcher.Run(stopChan)
 	}
 
 	factory.Start(stopChan)
