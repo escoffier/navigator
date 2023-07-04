@@ -62,6 +62,8 @@ func DefaultProxyConfig() *ProxyConfig {
 	}
 }
 
+var _ processors.PodMutator = &Injector{}
+
 type Injector struct {
 	params *InjectionParameters
 	rdb    *gorm.DB
@@ -87,11 +89,11 @@ func (in *Injector) Init(webHookConfig *processors.WebHookConfig) error {
 	return nil
 }
 
-func (in *Injector) Mutate(ctx context.Context, parameters *processors.MutatorParameters, pod *corev1.Pod) []*processors.Patch {
+func (in *Injector) Mutate(ctx context.Context, parameters *processors.MutatorParameters, pod *corev1.Pod) ([]*processors.Patch, error) {
 	originalPodSpec, err := json.Marshal(pod)
 	if err != nil {
 		logging.GetLogger().Err(err).Msg("marshal pod to json")
-		return nil
+		return nil, err
 	}
 
 	ownerName, ownerKind := in.getPodOwner(ctx, pod, parameters)
@@ -107,26 +109,26 @@ func (in *Injector) Mutate(ctx context.Context, parameters *processors.MutatorPa
 	buf, err := parseTemplate(in.params.Template, data)
 	if err != nil {
 		logging.GetLogger().Warn().Msg("parse template err")
-		return nil
+		return nil, err
 	}
 
 	templateJSON, err := yaml.YAMLToJSON(buf.Bytes())
 	if err != nil {
 		logging.GetLogger().Err(err).Msg("yaml to json")
-		return nil
+		return nil, err
 	}
 
 	newPod, err := applyOverlay(pod, templateJSON)
 	if err != nil {
 		logging.GetLogger().Err(err).Msg("apply overlay")
-		return nil
+		return nil, err
 	}
 
 	patches := make([]*processors.Patch, 0)
 	p, err := createPatch(newPod, originalPodSpec)
 	if err != nil {
 		logging.GetLogger().Err(err).Msg("create pods path")
-		return patches
+		return patches, nil
 	}
 	for _, v := range p {
 		patches = append(patches, &processors.Patch{
@@ -137,7 +139,7 @@ func (in *Injector) Mutate(ctx context.Context, parameters *processors.MutatorPa
 	}
 
 	logPatches(patches)
-	return patches
+	return patches, nil
 }
 
 func (in *Injector) PreMutate(ctx context.Context, pod *corev1.Pod, parameters *processors.MutatorParameters) bool {
