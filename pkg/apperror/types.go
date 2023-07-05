@@ -95,6 +95,18 @@ type AddBaitServiceError struct{ detailedError }
 // return NewMongoError(err, http.StatusInternalServerError)
 // return NewMongoError(fmt.Errorf("Some error occurred: %w", err), http.StatusInternalServerError)
 // return NewMongoError(fmt.Errorf("Some error occurred: %w", err), http.StatusInternalServerError, Suberror{"loc", "msg"}, Suberror{"loc2", "msg2"})
+func NewAnErrorWithErrMsg(httpCode int, err error, suberrors ...Suberror) error {
+	return AnError{
+		detailedError{
+			err:       err,
+			English:   err.Error(),
+			Chinese:   err.Error(),
+			HTTPCode:  httpCode,
+			Suberrors: suberrors,
+		},
+	}
+}
+
 func NewAnError(httpCode int, err error, suberrors ...Suberror) error {
 	return AnError{
 		detailedError{

@@ -140,20 +140,16 @@ func LoadATTCKConfVersion(ctx context.Context, db *gorm.DB, v uint16) (uint64, e
 	return data.ID, err
 }
 
-func SaveATTCKConfData(ctx context.Context, db *gorm.DB, data *model.ATTCKRuleData, deprecatedRuleMasks []string, v uint16) (d *model.ATTCKRuleData, err error) {
+func SaveATTCKConfData(ctx context.Context, db *gorm.DB, data *model.ATTCKRuleData, openedRules, closedRules, deprecatedRules []string, v uint16, updater string) (d *model.ATTCKRuleData, err error) {
 	err = db.Transaction(func(tx *gorm.DB) error {
 		if _err := tx.WithContext(ctx).Create(data).Error; _err != nil {
 			return _err
 		}
-
-		if len(deprecatedRuleMasks) > 0 {
-			if _err := tx.WithContext(ctx).Exec("delete from ivan_platform_attck_rule_masks where name in (?) and version1 = ?", deprecatedRuleMasks, v).Error; _err != nil {
-				return _err
-			}
-
-			if _err := updateRuleMaskVersion(ctx, tx, v); _err != nil {
-				return _err
-			}
+		if _err := RenewRuleSwitches(ctx, db, openedRules, closedRules, deprecatedRules, v, updater); _err != nil {
+			return _err
+		}
+		if _err := updateRuleMaskVersion(ctx, tx, v); _err != nil {
+			return _err
 		}
 
 		return nil
@@ -199,18 +195,88 @@ func LoadATTCKConfVersions(ctx context.Context, db *gorm.DB, offset, limit int, 
 	return total, records, err
 }
 
-func UpdateRuleMask(ctx context.Context, db *gorm.DB, addMasks []*model.ATTCKRuleMask, deletedMasks []string, v uint16) (err error) {
+func FindRuleSwitches(ctx context.Context, db *gorm.DB, v uint16) ([]model.RuleSwitch, error) {
+	ruleSwitches := make([]model.RuleSwitch, 0)
+	err := db.WithContext(ctx).Model(&model.RuleSwitch{}).Where("version1 = ?", v).Find(&ruleSwitches).Error
+	return ruleSwitches, err
+}
+
+func UpdateRuleSwitches(ctx context.Context, db *gorm.DB, opened []model.RuleSwitch, closed []model.RuleSwitch, v uint16) error {
+
 	return db.Transaction(func(tx *gorm.DB) error {
-		if _err := tx.WithContext(ctx).Exec("delete from ivan_platform_attck_rule_masks where name in (?) and version1 = ?", deletedMasks, v).Error; _err != nil {
-			return _err
+		// 没有记录就新增，有记录就更新
+		if e := tx.WithContext(ctx).Clauses(clause.OnConflict{
+			Columns:   []clause.Column{{Name: "version1"}, {Name: "name"}},
+			UpdateAll: true,
+		}).CreateInBatches(append(opened, closed...), 100).Error; e != nil {
+			return e
 		}
 
-		if _err := tx.WithContext(ctx).CreateInBatches(addMasks, 100).Error; _err != nil {
-			return _err
-		}
-
+		// 更新规则开关版本号
 		return updateRuleMaskVersion(ctx, tx, v)
 	})
+}
+
+func RemoveRuleSwitches(ctx context.Context, db *gorm.DB, removed []string, v uint16) error {
+	return db.WithContext(ctx).Where("version1 = ? AND name in ?", v, removed).Delete(&model.RuleSwitch{}).Error
+}
+
+func RenewRuleSwitches(ctx context.Context, db *gorm.DB, openedRules, closedRules, deprecatedRules []string, v uint16, updater string) error {
+	if len(deprecatedRules) > 0 {
+		if _err := RemoveRuleSwitches(ctx, db, deprecatedRules, v); _err != nil {
+			return _err
+		}
+	}
+	if len(openedRules) > 0 || len(closedRules) > 0 {
+		openedSwitches := make([]model.RuleSwitch, 0)
+		closedSwitches := make([]model.RuleSwitch, 0)
+		if openedRules != nil {
+			for i := range openedRules {
+				openedSwitches = append(openedSwitches, model.RuleSwitch{
+					Version1:  int(v),
+					Name:      openedRules[i],
+					Switch:    true,
+					Updater:   updater,
+					UpdatedAt: time.Now().UnixMilli(),
+				})
+			}
+		}
+		if openedRules != nil {
+			for i := range closedRules {
+				closedSwitches = append(closedSwitches, model.RuleSwitch{
+					Version1:  int(v),
+					Name:      closedRules[i],
+					Switch:    false,
+					Updater:   updater,
+					UpdatedAt: time.Now().UnixMilli(),
+				})
+			}
+		}
+		if _err := UpdateRuleSwitches(ctx, db, openedSwitches, closedSwitches, v); _err != nil {
+			return _err
+		}
+	}
+	return nil
+}
+
+func CreateRuleTemplateApplyHistory(ctx context.Context, db *gorm.DB, v uint16, template model.RuleTemplate, creator string) error {
+	history := model.RuleTemplateApplyHistory{
+		Version1:           int(v),
+		TemplateID:         template.ID,
+		TemplateName:       template.Name,
+		RuleTemplateConfig: template.Config,
+		Creator:            creator,
+		CreatedAt:          time.Now().UnixMilli(),
+	}
+	return db.WithContext(ctx).Create(&history).Error
+}
+
+// FindRuleTemplateApplyHistory
+// 暂时不添加任何查询参数
+func FindRuleTemplateApplyHistory(ctx context.Context, db *gorm.DB, v int) ([]model.RuleTemplateApplyHistory, error) {
+	histories := make([]model.RuleTemplateApplyHistory, 0)
+	err := db.WithContext(ctx).Where("version1 = ?", v).Find(&histories).Error
+	return histories, err
 }
 
 func updateRuleMaskVersion(ctx context.Context, db *gorm.DB, v uint16) (err error) {

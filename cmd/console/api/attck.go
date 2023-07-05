@@ -38,11 +38,18 @@ func (api *api) ATTCK() func(router chi.Router) {
 		r.Put("/conf", api.updateATTCKConf())
 		r.Get("/ruleList", api.getATTCKRuleList())
 		r.Post("/ruleSwitch", api.updateRuleSwitch())
+		// 自定义规则
 		r.Get("/customInitConfig", api.getCustomInitConfig())
 		r.Get("/customConfigs/configs", api.getCustomConfigs())
 		r.Put("/customConfigs/configs/edit", api.editCustomConfigs())
 		r.Put("/customConfigs/configs/append", api.addCustomConfigs())
 		r.Delete("/customConfigs/config/{id}", api.deleteCustomConfig())
+		// 规则模板
+		r.Get("/ruleTemplates", api.getRuleTemplates())
+		r.Post("/ruleTemplates", api.createRuleTemplates())
+		r.Post("/ruleTemplates/apply", api.applyRuleTemplates())
+		r.Post("/ruleTemplates/delete", api.deleteRuleTemplates())
+		r.Post("/ruleTemplates/rules", api.getRuleTemplatesRules())
 	}
 }
 
@@ -389,7 +396,7 @@ func (api *api) updateATTCKConf() http.HandlerFunc {
 		}
 
 		logging.Get().Debug().Msgf("filename:%s", header.Filename)
-		item, err := service.UpdateConfig(ctx, username, data)
+		item, err := service.UpdateConfig(ctx, username, data, model.GetUsernameFromContext(r.Context()))
 		if err != nil {
 			if err == attck.ErrInvalidRuleData {
 				apperror.RespAndLog(w, ctx,
@@ -528,7 +535,7 @@ func (api *api) updateRuleSwitch() http.HandlerFunc {
 			return
 		}
 
-		switches, err := service.UpdateRuleSettings(ctx, items.Items, items.Version1)
+		switches, err := service.UpdateRuleSettings(ctx, items.Items, items.Version1, model.GetUsernameFromContext(r.Context()))
 		if err != nil {
 			if err == dal.ErrRuleNotExists {
 				apperror.RespAndLog(w, ctx,

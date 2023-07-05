@@ -69,25 +69,10 @@ func TestSaveATTCKConfData(t *testing.T) {
 			Username:  "testUsername",
 			CreatedAt: time.Now(),
 		},
-	}, []string{"testDelete1", "testDelete2"}, 0)
+	}, nil, nil, []string{"testDelete1", "testDelete2"}, 0, "")
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	t.Log(baseOffset)
-}
-
-func TestUpdateRuleMask(t *testing.T) {
-	initDB(t)
-	var err = UpdateRuleMask(context.TODO(), db, []*model.ATTCKRuleMask{
-		{
-			Name: "add1",
-		},
-		{
-			Name: "add2",
-		},
-	}, []string{"del1", "del2"}, 0)
-	if err != nil {
-		t.Fatal(err)
-	}
 }

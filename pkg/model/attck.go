@@ -4,6 +4,7 @@ import (
 	"database/sql/driver"
 	"errors"
 	"fmt"
+	"gitlab.com/security-rd/go-pkg/logging"
 	"strings"
 	"time"
 
@@ -291,4 +292,81 @@ func (ev *HolaJSON) Scan(value interface{}) error {
 }
 func (ev HolaJSON) Value() (driver.Value, error) {
 	return json.Marshal(ev)
+}
+
+type RuleTemplateConfig struct {
+	Type   string   `json:"type"`
+	Opened []string `json:"opened"`
+}
+
+func (t *RuleTemplateConfig) Scan(value interface{}) error {
+	bytes, ok := value.([]byte)
+	if !ok {
+		return fmt.Errorf("gorm.Scan failed to assert RuleTemplateConfig: %v", value)
+	}
+
+	result := RuleTemplateConfig{}
+	if len(bytes) == 0 {
+		bytes = []byte("{}")
+	}
+	err := json.Unmarshal(bytes, &result)
+	*t = result
+	return err
+}
+
+func (t RuleTemplateConfig) Value() (driver.Value, error) {
+	bt := make([]byte, 0)
+	bt, err := json.Marshal(t)
+	if err != nil {
+		logging.Get().Error().Err(err).Interface("t", t).Msg("gorm.Value marshal RuleTemplateConfig fails")
+		return bt, err
+	}
+	return bt, nil
+}
+
+type RuleTemplate struct {
+	ID          int32              `json:"id"`
+	Version1    int                `json:"version1"`
+	Name        string             `json:"name"`
+	Description string             `json:"description"`
+	Creator     string             `json:"creator"`
+	CreatedAt   int64              `gorm:"autoCreateTime:milli" json:"created_at"`
+	Builtin     bool               `json:"builtin"`
+	Config      RuleTemplateConfig `json:"config"`
+}
+
+type RuleTemplateRule struct {
+	RuleType string `json:"rule_type"`
+	Name     string `json:"name"`
+	Key      string `json:"key"`
+	Severity int    `json:"severity"`
+	Urgency  bool   `json:"urgency"`
+	Switch   bool   `json:"switch"`
+}
+
+type RuleSwitch struct {
+	ID        uint   `gorm:"primary_key" column:"id" json:"id"`
+	Version1  int    `column:"version1" json:"version1"`
+	Name      string `column:"name" json:"name"`
+	Switch    bool   `column:"switch" json:"switch"`
+	Updater   string `column:"updater" json:"updater"`
+	UpdatedAt int64  `gorm:"autoUpdateTime:milli" column:"updated_at" json:"updated_at"`
+}
+
+func (r RuleSwitch) TableName() string {
+	return "ivan_rule_switches"
+}
+
+type RuleTemplateApplyHistory struct {
+	ID                 uint               `gorm:"primary_key" column:"id" json:"id"`
+	Version1           int                `column:"version1" json:"version1"`
+	TemplateID         int32              `column:"template_id" json:"template_id"`
+	TemplateName       string             `column:"template_name" json:"template_name"`
+	RuleTemplateConfig RuleTemplateConfig `column:"rule_template_config" json:"rule_template_config"`
+	Creator            string             `column:"creator" json:"creator"`
+	CreatedAt          int64              `gorm:"autoCreateTime:milli" column:"created_at" json:"created_at"`
+}
+
+func (r RuleTemplateApplyHistory) TableName() string {
+	return "ivan_rule_template_apply_history"
 }

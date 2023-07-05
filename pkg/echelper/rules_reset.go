@@ -11,7 +11,6 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/rtdetect"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 	gpModel "gitlab.com/security-rd/go-pkg/model"
-	"gitlab.com/security-rd/go-pkg/pb"
 	"gopkg.in/yaml.v2"
 )
 
@@ -22,7 +21,7 @@ const (
 
 func SendRulesToEventCenterV3(ctx context.Context, cli *SherlockClient, rulesData []byte, version string) error {
 
-	var rules = make(map[string][]*pb.DetectionRule, 3)
+	var rules = make(map[string][]*PalaceRule, 3)
 
 	// v3.x版本基于mozart规则，重新定义了规则yaml
 	var fDataRules []gpModel.UserRuleYaml
@@ -35,8 +34,7 @@ func SendRulesToEventCenterV3(ctx context.Context, cli *SherlockClient, rulesDat
 
 		if fDataRules[i].Type == "mozart_rule" { // mozart rule
 			var hThreats uint8
-			var suggestion map[string]*model.KV
-			var rule *pb.DetectionRule
+			var rule *PalaceRule
 
 			ruleEnName := fDataRules[i].Info.Name.En
 			if ruleEnName == "" {
@@ -54,18 +52,11 @@ func SendRulesToEventCenterV3(ctx context.Context, cli *SherlockClient, rulesDat
 			if fDataRules[i].Info.Urgency {
 				hThreats = 1
 			}
-			suggestion = map[string]*model.KV{
-				"en": {
-					Key:   "Suggestions",
-					Value: fDataRules[i].Info.Suggestion.En,
-				},
-				"zh": {
-					Key:   "处置建议",
-					Value: fDataRules[i].Info.Suggestion.Zh,
-				},
-			}
+			suggestionZh := fDataRules[i].Info.Suggestion.Zh
+			suggestionEn := fDataRules[i].Info.Suggestion.En
+			tags := Tags(fDataRules[i].Info.Tags)
 			// 增加mozart规则
-			rule = generateRule(category, categoryZh, ruleEnName, ruleZhName, descriptionEn, descriptionZh, priority, ruleType, ruleTypeZh, "", hThreats, suggestion)
+			rule = generateRule(category, categoryZh, ruleEnName, ruleZhName, descriptionEn, descriptionZh, priority, ruleType, ruleTypeZh, "", hThreats, suggestionEn, suggestionZh, tags)
 			rules[rule.Category] = append(rules[rule.Category], rule)
 		}
 	}
@@ -82,7 +73,7 @@ func SendRulesToEventCenterV3(ctx context.Context, cli *SherlockClient, rulesDat
 
 func SendRulesToEventCenter(ctx context.Context, cli *SherlockClient, rulesData []byte, version string) error {
 
-	var rules = make(map[string][]*pb.DetectionRule, 3)
+	var rules = make(map[string][]*PalaceRule, 3)
 
 	var fDataRules []model.RuleFromYaml
 	err := yaml.Unmarshal(rulesData, &fDataRules)
@@ -127,9 +118,8 @@ func SendRulesToEventCenter(ctx context.Context, cli *SherlockClient, rulesData 
 		var ruleTypeEn string
 		var hid string
 		var hThreats uint8
-		var suggestion map[string]*model.KV
 
-		var rule *pb.DetectionRule
+		var rule *PalaceRule
 
 		if len(item.Mozart) != 0 {
 			for i := range item.Mozart {
@@ -192,18 +182,9 @@ func SendRulesToEventCenter(ctx context.Context, cli *SherlockClient, rulesData 
 					if item.Mozart[i].Info.Urgency {
 						hThreats = 1
 					}
-					suggestion = map[string]*model.KV{
-						"en": {
-							Key:   "Suggestions",
-							Value: iSuggestionEn.(string),
-						},
-						"zh": {
-							Key:   "处置建议",
-							Value: iSuggestionZh.(string),
-						},
-					}
+					tags := Tags(item.Tags)
 					// 增加mozart规则
-					rule = generateRule(category, categoryZh, iRuleEnName.(string), ruleZhName.(string), iDescEn.(string), iDescZh.(string), priority, ruleTypeEn, ruleTypeZh, hid, hThreats, suggestion)
+					rule = generateRule(category, categoryZh, iRuleEnName.(string), ruleZhName.(string), iDescEn.(string), iDescZh.(string), priority, ruleTypeEn, ruleTypeZh, hid, hThreats, iSuggestionEn.(string), iSuggestionZh.(string), tags)
 					rules[rule.Category] = append(rules[rule.Category], rule)
 				}
 
@@ -235,10 +216,20 @@ func SendRulesToEventCenter(ctx context.Context, cli *SherlockClient, rulesData 
 		descriptionEn = item.Desc
 		priority = item.Priority
 		hid = item.HID
-		suggestion = item.Suggestion
+		suggestionEnV := ""
+		suggestionEn, ok := item.Suggestion["en"]
+		if ok {
+			suggestionEnV = suggestionEn.Value
+		}
+		suggestionZhV := ""
+		suggestionZh, ok := item.Suggestion["zh"]
+		if ok {
+			suggestionZhV = suggestionZh.Value
+		}
 		hThreats = item.HThreats
+		tags := Tags(item.Tags)
 
-		rule = generateRule(category, categoryZh, ruleName, descriptionZh, descriptionEn, descriptionZh, priority, ruleTypeEn, ruleTypeZh, hid, hThreats, suggestion)
+		rule = generateRule(category, categoryZh, ruleName, descriptionZh, descriptionEn, descriptionZh, priority, ruleTypeEn, ruleTypeZh, hid, hThreats, suggestionEnV, suggestionZhV, tags)
 		rules[rule.Category] = append(rules[rule.Category], rule)
 	}
 
@@ -252,76 +243,63 @@ func SendRulesToEventCenter(ctx context.Context, cli *SherlockClient, rulesData 
 	return nil
 }
 
-func generateRule(category, categoryZh, name, ruleZhName, description, descriptionZh, priority, ruleTypeEn, ruleTypeZh, hid string, hthreats uint8, suggestion map[string]*model.KV) *pb.DetectionRule {
-	var rule = &pb.DetectionRule{
+func generateRule(category, categoryZh, name, ruleZhName, description, descriptionZh, priority, ruleTypeEn, ruleTypeZh, hid string, hthreats uint8, suggestion, suggestionZh string, tags Tags) *PalaceRule {
+	var rule = &PalaceRule{
 		Module:      module,
 		Category:    category,
 		Name:        name,
 		Description: description,
-		Severity:    uint32(model.Str2SeverityNum(priority)),
-		CustomKV: []*pb.MultiLanguageKV{
+		Severity:    int(model.Str2SeverityNum(priority)),
+		CustomKV: CustomKV{
 			{
-				KVHash: map[string]*pb.KV{
-					string(lang.LanguageEN): {Key: "ruleType", Value: ruleTypeEn},
-					string(lang.LanguageZH): {Key: "规则类型", Value: ruleTypeZh},
+				KVHash: KVHash{
+					EN: KV{Key: "ruleType", Value: ruleTypeEn},
+					ZH: KV{Key: "规则类型", Value: ruleTypeZh},
 				},
 			},
-			//{
-			//	KVHash: map[string]*pb.KV{
-			//		string(lang.LanguageEN): {Key: internalAttributePrefix + "hid", Value: hid},
-			//	},
-			//},
 		},
-		MultiLanguage: map[string]*pb.MultiLanguageValue{
+		MultiLanguage: MultiLanguage{
 			"name": {
-				ValueHash: map[string]string{
-					string(lang.LanguageZH): ruleZhName,
-					string(lang.LanguageEN): name,
+				ValueHash: ValueHash{
+					ZH: ruleZhName,
+					EN: name,
 				},
 			},
 			"description": {
-				ValueHash: map[string]string{
-					string(lang.LanguageZH): descriptionZh,
-					string(lang.LanguageEN): description,
+				ValueHash: ValueHash{
+					ZH: descriptionZh,
+					EN: description,
 				},
 			},
 			"module": {
-				ValueHash: map[string]string{
-					string(lang.LanguageZH): moduleZh,
-					string(lang.LanguageEN): module,
+				ValueHash: ValueHash{
+					ZH: moduleZh,
+					EN: module,
 				},
 			},
 			"category": {
-				ValueHash: map[string]string{
-					string(lang.LanguageZH): categoryZh,
-					string(lang.LanguageEN): category,
+				ValueHash: ValueHash{
+					ZH: categoryZh,
+					EN: category,
 				},
 			},
 		},
+		Tags: tags,
 	}
 
-	if len(suggestion) > 0 {
-		var kvHash = make(map[string]*pb.KV, len(suggestion))
-		for l, v := range suggestion {
-			if l == "" || v == nil {
-				continue
-			}
-			kvHash[l] = &pb.KV{
-				Key:   v.Key,
-				Value: v.Value,
-			}
-		}
-		if len(kvHash) > 0 {
-			rule.CustomKV = append(rule.CustomKV, &pb.MultiLanguageKV{
-				KVHash: kvHash,
-			})
-		}
+	if suggestion != "" && suggestionZh != "" {
+		rule.CustomKV = append(rule.CustomKV, KVH{
+			KVHash: KVHash{
+				EN: KV{Key: "Suggestions", Value: suggestion},
+				ZH: KV{Key: "处置建议", Value: suggestionZh},
+			},
+		})
 	}
 
-	rule.CustomKV = append(rule.CustomKV, &pb.MultiLanguageKV{
-		KVHash: map[string]*pb.KV{
-			string(lang.LanguageEN): {Key: EnHthreatsKey, Value: getHthreatsValue(hthreats, lang.LanguageEN)},
-			string(lang.LanguageZH): {Key: ZhHthreatsKey, Value: getHthreatsValue(hthreats, lang.LanguageZH)},
+	rule.CustomKV = append(rule.CustomKV, KVH{
+		KVHash: KVHash{
+			EN: KV{Key: EnHthreatsKey, Value: getHthreatsValue(hthreats, lang.LanguageEN)},
+			ZH: KV{Key: ZhHthreatsKey, Value: getHthreatsValue(hthreats, lang.LanguageZH)},
 		},
 	})
 
