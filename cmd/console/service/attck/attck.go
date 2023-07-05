@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"os"
 	"runtime/debug"
 	"sort"
@@ -814,23 +815,18 @@ func (h *ATTCKHandler) BatchEditCustomConfigs(ctx context.Context, data []*Cconf
 	return nil
 }
 
-func (h *ATTCKHandler) updateDefaultMasksForStricts(ctx context.Context, strictRules map[string]struct{}, v uint16) error {
-	// don't check musk version must not be set. update them anyway.
-	// version, err := dal.LoadATTCKRuleMaskVersion(ctx, h.db.Get())
-	// if err == nil && version > 0 {
-	// 	return nil
-	// }
-	// if err != gorm.ErrRecordNotFound {
-	// 	return err
-	// }
-	addMusks := make([]*model.ATTCKRuleMask, 0, len(strictRules))
+func (h *ATTCKHandler) updateDefaultMasksForStricts(ctx context.Context, strictRules map[string]struct{}, v uint16, updater string) error {
+	closedRules := make([]model.RuleSwitch, len(strictRules))
 	for ruleName := range strictRules {
-		addMusks = append(addMusks, &model.ATTCKRuleMask{
-			Version1: v,
-			Name:     ruleName,
+		closedRules = append(closedRules, model.RuleSwitch{
+			Version1:  int(v),
+			Name:      ruleName,
+			Switch:    false,
+			Updater:   updater,
+			UpdatedAt: time.Now().UnixMilli(),
 		})
 	}
-	return dal.UpdateRuleMask(ctx, h.db.Get(), addMusks, nil, v)
+	return dal.UpdateRuleSwitches(ctx, h.db.Get(), []model.RuleSwitch{}, closedRules, v)
 }
 
 func (h *ATTCKHandler) updateConfigs(ctx context.Context, v uint16, trigger updateConfigTrigger) error {
@@ -878,7 +874,7 @@ func (h *ATTCKHandler) updateConfigs(ctx context.Context, v uint16, trigger upda
 			}
 
 			if len(strictRules) > 0 {
-				if err := h.updateDefaultMasksForStricts(ctx, strictRules, version.Seg1); err != nil {
+				if err := h.updateDefaultMasksForStricts(ctx, strictRules, version.Seg1, "system"); err != nil {
 					logging.Get().Err(err).Msg("updateDefaultMasksForStricts error")
 				}
 			}
@@ -895,7 +891,7 @@ func (h *ATTCKHandler) updateConfigs(ctx context.Context, v uint16, trigger upda
 			}
 			err = util.RetryWithBackoff(ctx, func() error {
 				var err error
-				storeConf, err = dal.SaveATTCKConfData(ctx, h.db.Get(), &confData, nil, version.Seg1)
+				storeConf, err = dal.SaveATTCKConfData(ctx, h.db.Get(), &confData, nil, nil, nil, version.Seg1, "system")
 				return err
 			}, retry.Attempts(3))
 			if err != nil {
@@ -957,9 +953,40 @@ func (h *ATTCKHandler) updateConfigs(ctx context.Context, v uint16, trigger upda
 		return err
 	}
 
-	ruleMasks, err := dal.LoadATTCKRuleMasks(ctx, h.db.Get(), storeConf.Version1)
+	oldRuleSwitches, err := dal.FindRuleSwitches(ctx, h.db.Get(), v)
 	if err != nil {
-		logging.Get().Err(err).Msg("LoadATTCKRuleMasks err.")
+		logging.Get().Err(err).Msg("FindRuleSwitches err.")
+		return err
+	}
+	oldRSMap := make(map[string]model.RuleSwitch)
+	deprecatedRules := make([]string, 0)
+	newOpenedRules := make([]string, 0)
+	newClosedRules := make([]string, 0)
+	for i := range oldRuleSwitches {
+		if !oldRuleSwitches[i].Switch && rules[oldRuleSwitches[i].Name] != nil {
+			// set disabled
+			rules[oldRuleSwitches[i].Name].disabled = true
+		}
+
+		if _, ok := rules[oldRuleSwitches[i].Name]; !ok {
+			// deprecated ruleMasks
+			deprecatedRules = append(deprecatedRules, oldRuleSwitches[i].Name)
+		}
+		oldRSMap[oldRuleSwitches[i].Name] = oldRuleSwitches[i]
+	}
+	for _, newRule := range rules {
+		if _, ok := oldRSMap[newRule.name]; !ok {
+			if newRule.disabled {
+				newClosedRules = append(newClosedRules, newRule.name)
+			} else {
+				newOpenedRules = append(newOpenedRules, newRule.name)
+			}
+		}
+	}
+
+	err = dal.RenewRuleSwitches(ctx, h.db.Get(), newOpenedRules, newClosedRules, deprecatedRules, v, "system")
+	if err != nil {
+		logging.Get().Err(err).Msg("RenewRuleSwitches err.")
 		return err
 	}
 
@@ -972,19 +999,32 @@ func (h *ATTCKHandler) updateConfigs(ctx context.Context, v uint16, trigger upda
 		Username:  storeConf.Username,
 		CreatedAt: storeConf.CreatedAt,
 	})
-
 	logging.Get().Info().Msgf("baseOffset:%d, onlineOffset:%d", h.rules[storeConf.Version1].baseOffset, h.rules[storeConf.Version1].onlineOffset)
-	vRules, _ := h.rules[storeConf.Version1]
-	for _, mask := range ruleMasks {
-		if item, ok := vRules.items[mask.Name]; ok && item != nil {
-			vRules.items[mask.Name].disabled = true
-		}
-	}
-	h.rules[storeConf.Version1] = vRules
 
 	if v == uint16(1) {
 		// fixme: 增加一个hack逻辑，当version大版本号为1时，批量更新数据库的ivan_assets_clusters.rule_version字段。   原因是 多版本集群环境下，老版集群没有同步规则库版本的逻辑
 		go h.updateV1RuleVersion(ctx, fmt.Sprintf("v%d.%d", storeConf.Version1, storeConf.Version2))
+	}
+
+	// 模板初始化逻辑，如果没有应用过模板，说明系统初次部署上线，则默认使用标准模板
+	histories, err := dal.FindRuleTemplateApplyHistory(ctx, h.db.Get(), int(v))
+	if err == nil && len(histories) == 0 {
+		templates, err := h.sherlockClient.GetRuleTemplates(ctx, int(v), nil, nil, consts.LangEN)
+		if err != nil {
+			logging.Get().Error().Err(err).Int("version1", int(v)).Msg("GetRuleTemplates fails")
+			return err
+		}
+		for j := range templates {
+			if templates[j].Name != "standard" {
+				continue
+			}
+			err = h.ApplyRuleTemplates(ctx, templates[j].Version1, int(templates[j].ID), consts.LangEN, "system")
+			if err != nil {
+				logging.Get().Error().Err(err).Int("version1", int(v)).Int("template_id", int(templates[j].ID)).Msg("ApplyRuleTemplates fails")
+				continue
+			}
+			break
+		}
 	}
 
 	return nil
@@ -1011,7 +1051,7 @@ func (h *ATTCKHandler) releaseLock(mutex *redsync.Mutex) {
 	}
 }
 
-func (h *ATTCKHandler) UpdateConfig(ctx context.Context, username string, data []byte) (*model.ATTCKRuleData, error) {
+func (h *ATTCKHandler) UpdateConfig(ctx context.Context, username string, data []byte, updater string) (*model.ATTCKRuleData, error) {
 	mutex := h.rs.NewMutex(attckLockKey)
 	if err := h.obtainLock(ctx, mutex); err != nil {
 		return nil, err
@@ -1056,14 +1096,16 @@ func (h *ATTCKHandler) UpdateConfig(ctx context.Context, username string, data [
 	}
 
 	if len(strictRules) > 0 {
-		if err := h.updateDefaultMasksForStricts(ctx, strictRules, version.Seg1); err != nil {
+		if err := h.updateDefaultMasksForStricts(ctx, strictRules, version.Seg1, updater); err != nil {
 			logging.Get().Err(err).Msg("updateDefaultMasksForStricts error")
 		}
 	}
 
 	h.cacheLock.Lock()
 	defer h.cacheLock.Unlock()
-	var deprecatedRuleMasks []string
+	var deprecatedRules []string
+	var newOpenedRules []string
+	var newClosedRules []string
 
 	vRules, ok := h.rules[version.Seg1]
 	var currentRulesOnlineOffset uint64
@@ -1075,9 +1117,18 @@ func (h *ATTCKHandler) UpdateConfig(ctx context.Context, username string, data [
 				rules[rule.name].disabled = true
 			}
 
-			if _, ok := rules[rule.name]; !ok && rule.disabled {
+			if _, ok := rules[rule.name]; !ok {
 				// deprecated ruleMasks
-				deprecatedRuleMasks = append(deprecatedRuleMasks, rule.name)
+				deprecatedRules = append(deprecatedRules, rule.name)
+			}
+		}
+		for _, newRule := range rules {
+			if _, ok := vRules.items[newRule.name]; !ok {
+				if newRule.disabled {
+					newClosedRules = append(newClosedRules, newRule.name)
+				} else {
+					newOpenedRules = append(newOpenedRules, newRule.name)
+				}
 			}
 		}
 	}
@@ -1099,19 +1150,14 @@ func (h *ATTCKHandler) UpdateConfig(ctx context.Context, username string, data [
 	if err != nil && err != dal.ErrATTCKConfDataNotFound {
 		return nil, err
 	}
-	// temporarily remove the restriction of versions(must larger than the previous) for manual updates.
-	// if storeConf != nil && !compareVersion(storeConf, header) {
-	// 	logging.Get().Warn().Uints16("given version", header.Version[:]).Str("latest version", storeConf.Version).Msg("The given version is not upper than the latest version. skip updating.")
-	// 	return nil, ErrVersionNotUpper
-	// }
 
-	storedRuleData, err := dal.SaveATTCKConfData(ctx, h.db.Get(), attackRuleData, deprecatedRuleMasks, version.Seg1)
+	storedRuleData, err := dal.SaveATTCKConfData(ctx, h.db.Get(), attackRuleData, newOpenedRules, newClosedRules, deprecatedRules, version.Seg1, updater)
 	if err != nil {
 		return nil, err
 	}
 
 	onlineOffset := currentRulesOnlineOffset
-	if len(deprecatedRuleMasks) > 0 {
+	if len(deprecatedRules) > 0 || len(strictRules) > 0 {
 		onlineOffset++
 	}
 
@@ -1204,7 +1250,7 @@ func convertRuleItem(item *ruleItem, lang string) *model.ATTCKRuleDisplay {
 	}
 }
 
-func (h *ATTCKHandler) UpdateRuleSettings(ctx context.Context, settings []*model.ATTCKRuleSwitch, v uint16) ([]*model.ATTCKRuleSwitch, error) {
+func (h *ATTCKHandler) UpdateRuleSettings(ctx context.Context, settings []*model.ATTCKRuleSwitch, v uint16, updater string) ([]*model.ATTCKRuleSwitch, error) {
 	mutex := h.rs.NewMutex(attckLockKey)
 	if err := h.obtainLock(ctx, mutex); err != nil {
 		return nil, err
@@ -1215,8 +1261,8 @@ func (h *ATTCKHandler) UpdateRuleSettings(ctx context.Context, settings []*model
 	h.cacheLock.Lock()
 	defer h.cacheLock.Unlock()
 
-	deletedMasks := make(map[string]struct{}, len(settings))
-	addMasks := make(map[string]struct{}, len(settings))
+	openedRules := make([]model.RuleSwitch, 0)
+	closedRules := make([]model.RuleSwitch, 0)
 
 	vRules, ok := h.rules[v]
 	if !ok {
@@ -1233,23 +1279,26 @@ func (h *ATTCKHandler) UpdateRuleSettings(ctx context.Context, settings []*model
 		}
 
 		if setting.Enabled {
-			deletedMasks[setting.Name] = struct{}{}
+			openedRules = append(openedRules, model.RuleSwitch{
+				Version1:  int(v),
+				Name:      setting.Name,
+				Switch:    true,
+				Updater:   updater,
+				UpdatedAt: time.Now().UnixMilli(),
+			})
 		} else {
-			addMasks[setting.Name] = struct{}{}
+			closedRules = append(closedRules, model.RuleSwitch{
+				Version1:  int(v),
+				Name:      setting.Name,
+				Switch:    false,
+				Updater:   updater,
+				UpdatedAt: time.Now().UnixMilli(),
+			})
 		}
 	}
 
-	newMasks := util.StringSetToArray(addMasks)
-	var masks = make([]*model.ATTCKRuleMask, 0, len(newMasks))
-	for _, mask := range newMasks {
-		masks = append(masks, &model.ATTCKRuleMask{
-			Version1: v,
-			Name:     mask,
-		})
-	}
-
-	if len(deletedMasks) > 0 || len(addMasks) > 0 {
-		if err := dal.UpdateRuleMask(ctx, h.db.Get(), masks, util.StringSetToArray(deletedMasks), v); err != nil {
+	if len(openedRules) > 0 || len(closedRules) > 0 {
+		if err := dal.UpdateRuleSwitches(ctx, h.db.Get(), openedRules, closedRules, v); err != nil {
 			return nil, err
 		}
 		for _, setting := range settings {
