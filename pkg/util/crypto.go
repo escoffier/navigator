@@ -5,6 +5,7 @@ import (
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/des"
+	"errors"
 	"fmt"
 )
 
@@ -69,6 +70,11 @@ func AesDecryptCBC(encrypted []byte, key []byte) ([]byte, error) {
 	blockSize := block.BlockSize()                              // 获取秘钥块的长度
 	blockMode := cipher.NewCBCDecrypter(block, key[:blockSize]) // 加密模式
 	decrypted := make([]byte, len(encrypted))                   // 创建数组
-	blockMode.CryptBlocks(decrypted, encrypted)                 // 解密
-	return PKCS5UnPadding(decrypted)                            // 去除补全码
+
+	if len(encrypted)%blockMode.BlockSize() != 0 {
+		return nil, errors.New("input not full blocks")
+	}
+	blockMode.CryptBlocks(decrypted, encrypted) // 解密
+
+	return PKCS5UnPadding(decrypted) // 去除补全码
 }
