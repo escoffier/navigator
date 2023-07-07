@@ -82,7 +82,7 @@ func (a *api) licenseRegister() http.HandlerFunc {
 	type licenseRegisterReq struct {
 		LicenseCode string `json:"licenseCode"`
 	}
-
+	//
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx, cancel := context.WithTimeout(r.Context(), defaultLicenseTimeout)
 		defer cancel()
@@ -102,7 +102,6 @@ func (a *api) licenseRegister() http.HandlerFunc {
 					fmt.Errorf("missing field 'licenseCode'")))
 			return
 		}
-
 		// 保存license到mysql
 		err = a.rdb.Get().Transaction(func(tx *gorm.DB) error {
 			tx.Logger = tx.Logger.LogMode(logger.Silent)
