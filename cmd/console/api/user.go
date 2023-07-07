@@ -513,6 +513,9 @@ func (api *api) adminResetPwd() http.HandlerFunc {
 			return
 		}
 
+		limiter := usercenter.GetLimiter(ctx)
+		limiter.LoginSuccessClean(req.Username)
+
 		response.Ok(w, response.WithItem(&adminResetPwdResp{
 			Password: pwd,
 		}), response.WithTarget(&response.TargetRef{
