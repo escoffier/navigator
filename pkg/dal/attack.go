@@ -195,9 +195,9 @@ func LoadATTCKConfVersions(ctx context.Context, db *gorm.DB, offset, limit int, 
 	return total, records, err
 }
 
-func FindRuleSwitches(ctx context.Context, db *gorm.DB, v uint16) ([]model.RuleSwitch, error) {
+func FindRuleSwitches(ctx context.Context, db *gorm.DB, condition map[string]interface{}) ([]model.RuleSwitch, error) {
 	ruleSwitches := make([]model.RuleSwitch, 0)
-	err := db.WithContext(ctx).Model(&model.RuleSwitch{}).Where("version1 = ?", v).Find(&ruleSwitches).Error
+	err := db.WithContext(ctx).Model(&model.RuleSwitch{}).Where(condition).Find(&ruleSwitches).Error
 	return ruleSwitches, err
 }
 
@@ -241,7 +241,7 @@ func RenewRuleSwitches(ctx context.Context, db *gorm.DB, openedRules, closedRule
 				})
 			}
 		}
-		if openedRules != nil {
+		if closedRules != nil {
 			for i := range closedRules {
 				closedSwitches = append(closedSwitches, model.RuleSwitch{
 					Version1:  int(v),
