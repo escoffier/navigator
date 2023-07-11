@@ -32,7 +32,7 @@ type ExcelExportService interface {
 
 type GenImageChanFunc func(ctx context.Context, task model.ExportTensorTask) chan imagesecModel.Image
 
-type ConvertDataFunc func(res map[string]chan []string) map[string]chan []string
+type ConvertDataFunc func(res map[SheetName]chan []string, lang string) map[SheetName]chan []string
 
 type SingeImageExportParam struct {
 	ImageFromType string `json:"imageFromType"`
@@ -54,8 +54,8 @@ type ImageSrvInterface interface {
 }
 
 type ExcelMeta struct {
-	SheetName string
-	FileName  string
+	SheetName SheetName
+	Filename  string
 	Header    []string
 }
 
@@ -64,11 +64,17 @@ type ExcelMetaDataOption func(data *ExcelMeta)
 // key：excel sheet name
 // value：`chan []string`：表示一个sheet的数据流(一个镜像或一个漏洞的数据)
 // 为啥使用：[] chan []string ，因为要导出多个镜像
-type ExcelExportImageData map[string][]chan []string
+type ExcelExportImageData map[SheetName][]chan []string
 
 type ExcelDataWithMeta struct {
 	ExcelExportImageData ExcelExportImageData
 	Filepath             string
 	ExcelMeta            []ExcelMeta
 	ExportTask           model.ExportTensorTask
+}
+
+type SheetName string
+
+func (vi SheetName) String() string {
+	return string(vi)
 }

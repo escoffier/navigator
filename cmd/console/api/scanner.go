@@ -174,6 +174,8 @@ func (api *api) scanner() func(chi.Router) {
 		r.Put("/db/update/malicious", api.RedirectToScanner())
 		r.Get("/db/version", api.RedirectToScanner())
 		r.Get("/db/history", api.RedirectToScanner())
+		// 常量
+		r.Get("/config/view/const", api.RedirectToScanner())
 	}
 }
 

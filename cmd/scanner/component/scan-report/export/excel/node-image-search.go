@@ -7,6 +7,7 @@ import (
 
 	"gitlab.com/security-rd/go-pkg/logging"
 
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scan-report/export/common"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scan-report/types"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
@@ -33,6 +34,10 @@ func NewNodeImageSearchExportExcel(
 		UpdateTask:         updateTask,
 		NodeImageSrv:       nodeImageSrv,
 	}
+}
+
+func (s *NodeImageSearchExportExcel) Run(ctx context.Context) {
+	go s.ExcelExportService.RunExport(ctx, consts.ExportNodeImageSearch, s.GenImageChan, common.ConvertData)
 }
 
 func (s *NodeImageSearchExportExcel) GenImageChan(ctx context.Context, task model.ExportTensorTask) chan imagesecModel.Image {
@@ -88,8 +93,4 @@ func (s *NodeImageSearchExportExcel) GenImageChan(ctx context.Context, task mode
 	}()
 
 	return out
-}
-
-func (s *NodeImageSearchExportExcel) Run(ctx context.Context) {
-	go s.ExcelExportService.RunExport(ctx, consts.ExportNodeImageSearch, s.GenImageChan, nil)
 }

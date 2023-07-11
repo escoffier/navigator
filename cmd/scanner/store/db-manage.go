@@ -6,11 +6,12 @@ import (
 	"fmt"
 	"time"
 
+	"gitlab.com/security-rd/go-pkg/databases"
+	"gorm.io/gorm/clause"
+
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	scannermodel "gitlab.com/piccolo_su/vegeta/pkg/model/scanner-model"
-	"gitlab.com/security-rd/go-pkg/databases"
-	"gorm.io/gorm/clause"
 )
 
 type VersionDal interface {

@@ -14,6 +14,7 @@ import (
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/engine"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/pre-init"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	flag2 "gitlab.com/piccolo_su/vegeta/cmd/scanner/flag"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/service/register"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
@@ -39,6 +40,10 @@ type ClusterKey struct {
 }
 
 func GetCluster(ctx context.Context) (ClusterKey, error) {
+	if os.Getenv("LOCAL_DEBUG") == consts.TrueString {
+		return ClusterKey{}, nil
+	}
+
 	clusterURL := os.Getenv("CLUSTER_MANAGER_URL")
 	if clusterURL == "" {
 		return ClusterKey{}, fmt.Errorf("not get CLUSTER_MANAGER_URL")
@@ -100,12 +105,6 @@ func NewScanner(opts *flag2.ScannerOpts) (*Scanner, error) {
 	nodeDetectPolicyDal := imagesecStore.NewDetectPolicyDao(store.GetScannerWrapperDb())
 	sensitiveRuleDal := imagesecStore.NewSensitiveRuleDao(store.GetScannerWrapperDb())
 	dbInit := preinit.NewInitScanner(regDal, imageDal, scanConfigDAl, vulnDal, nodeConfigDal, nodeDetectPolicyDal, sensitiveRuleDal)
-
-	// scannerInstance := os.Getenv("ScannerInstance")
-	// if scannerInstance == "" {
-	// 	scannerInstance = fmt.Sprintf("scan-%s", cluster.Key)
-	// }
-	// logging.Get().Info().Str("scannerInstance", scannerInstance).Msg("NewScanner")
 
 	scanner := &Scanner{
 		PodID:           uuid.GenerateRandomID(),

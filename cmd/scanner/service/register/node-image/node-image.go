@@ -126,7 +126,7 @@ func newService(config register.ScannerServiceConfig) (register.ScannerService, 
 	nodeUpdateImageSvc := imageMetaSrv.NewImageUpdateSrv(nodeImageDal, registryDal, policyDal,
 		detectResultDal, detectTaskDal, trustedImageDal, scannerConfigDal, nodeScanTaskDal, libImageDal)
 
-	versionDal := imagesecStore.NewScanVersionDao(scannerWrapperDb)
+	versionDal := imagesecStore.NewScanDbMetaDao(scannerWrapperDb)
 	detectTaskSrv := detect.NewImageDetectTaskSrv(nodeImageSvc, detectTaskDal, policyDal)
 
 	scanTaskSrv := imagescan.NewScanTaskSrv(nodeScanTaskDal, detectTaskDal, nodeImageSvc, scannerConfigDal)

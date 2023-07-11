@@ -306,13 +306,16 @@ func (vi *SearchIssueToImageParam) Check() error {
 }
 
 type UpdateImageParam struct {
-	ID       int64
-	UniqueID uint64
-	Updater  map[string]interface{}
+	ID        int64
+	UniqueID  uint64
+	UniqueIds []uint64
+
+	Updater map[string]interface{}
+	Where   string
 }
 
 func (vi UpdateImageParam) Check() error {
-	if vi.ID <= 0 && vi.UniqueID <= 0 {
+	if vi.ID <= 0 && vi.UniqueID <= 0 && len(vi.UniqueIds) == 0 {
 		return fmt.Errorf("not get ID or UniqueID")
 	}
 	if len(vi.Updater) == 0 {
@@ -458,6 +461,7 @@ type SearchScanVersionParam struct {
 	ID       int64
 	Enable   string
 	Keyword  string
+	DBType   string
 	Filter   *model.Filter
 }
 
@@ -567,5 +571,14 @@ type SearchNodeInfoParam struct {
 	Ids       []int64
 	UniqueIds []uint64
 	Keyword   string
+	Filter    *model.Filter
+}
+
+type SearchSensitiveRuleParam struct {
+	RuleType  string
+	IsDefault string
+	Enable    string
+	Default   string
+	Filed     []string
 	Filter    *model.Filter
 }

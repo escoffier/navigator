@@ -7,7 +7,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	imagesecSrv "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/imagesec"
+	imagesecSrv "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/imagescan"
 	scani18 "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scan-i18"
 	"gitlab.com/piccolo_su/vegeta/pkg/i18"
 	imagesecModel "gitlab.com/piccolo_su/vegeta/pkg/model/imagesec"

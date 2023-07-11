@@ -6,14 +6,15 @@ import (
 	"path/filepath"
 	"time"
 
-	vulnupdata "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/vuln-updata"
-	scannermodel "gitlab.com/piccolo_su/vegeta/pkg/model/scanner-model"
-	rpcstream "gitlab.com/piccolo_su/vegeta/pkg/streaming"
-	"gitlab.com/piccolo_su/vegeta/pkg/streaming/pb"
 	"gitlab.com/security-rd/go-pkg/databases"
 	"gitlab.com/security-rd/go-pkg/logging"
 	"gitlab.com/security-rd/go-pkg/mq"
 	"google.golang.org/protobuf/reflect/protoreflect"
+
+	vulnupdata "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/vuln-updata"
+	scannermodel "gitlab.com/piccolo_su/vegeta/pkg/model/scanner-model"
+	rpcstream "gitlab.com/piccolo_su/vegeta/pkg/streaming"
+	"gitlab.com/piccolo_su/vegeta/pkg/streaming/pb"
 )
 
 type GrpcHandler struct {
@@ -54,7 +55,7 @@ func (g *GrpcHandler) OnUpdate(s rpcstream.Stream, reqID string, message protore
 		vulnReq.UpdateDB(s, reqID, req)
 	}
 
-	//rspFunc(reqID, 0, "ok")
+	// rspFunc(reqID, 0, "ok")
 
 }
 
@@ -160,7 +161,10 @@ func (vuln *UpdateReq) UpdateClamavDB(s rpcstream.Stream, req *pb.ImageSecReq, u
 		logging.Get().Err(err).Msg("Marshal sqlData error")
 		return
 	}
-	scannermodel.SubScannerSendToKafka(writer, scannermodel.SubScannerToMainSql{DalName: "version", Data: sqlByte, Action: scannermodel.SubSqlUpdate, Params: objType})
+	if err := scannermodel.SubScannerSendToKafka(writer, scannermodel.SubScannerToMainSql{DalName: "version", Data: sqlByte,
+		Action: scannermodel.SubSqlUpdate, Params: objType}); err != nil {
+		logging.Get().Err(err).Msg("SubScannerSendToKafka")
+	}
 }
 
 func (vuln *UpdateReq) UpdateVulnDB(s rpcstream.Stream, req *pb.ImageSecReq, upSrv *vulnupdata.UpdateVersionSrv) {

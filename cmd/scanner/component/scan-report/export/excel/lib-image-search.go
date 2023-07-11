@@ -7,6 +7,7 @@ import (
 
 	"gitlab.com/security-rd/go-pkg/logging"
 
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scan-report/export/common"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scan-report/types"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
@@ -90,5 +91,5 @@ func (s *LibImageSearchExportExcel) GenImageChan(ctx context.Context, task model
 }
 
 func (s *LibImageSearchExportExcel) Run(ctx context.Context) {
-	go s.ExcelExportService.RunExport(ctx, consts.ExportLibImageSearch, s.GenImageChan, nil)
+	go s.ExcelExportService.RunExport(ctx, consts.ExportLibImageSearch, s.GenImageChan, common.ConvertData)
 }

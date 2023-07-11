@@ -2,14 +2,15 @@ package avira
 
 import (
 	"fmt"
-	"github.com/hashicorp/go-multierror"
-	"gitlab.com/security-rd/go-pkg/logging"
-	"k8s.io/apimachinery/pkg/util/wait"
 	"net"
 	"os"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/hashicorp/go-multierror"
+	"gitlab.com/security-rd/go-pkg/logging"
+	"k8s.io/apimachinery/pkg/util/wait"
 )
 
 const (
@@ -49,7 +50,7 @@ func (s *SavClient) ScanFile(filePath string) ([]Malware, error) {
 		return res, err
 	}
 
-	logging.Get().Info().Str("file", filePath).Msg("scan end")
+	logging.Get().Info().Str("file", filePath).Int("malwareCnt", len(res)).Msg("scan end")
 	return res, nil
 }
 
@@ -88,7 +89,7 @@ func (s *SavClient) logDiffByCode(respCode int) error {
 	case SavApiRspCode200, SavApiRspCode210, SavApiRspCode319:
 		// do nothing
 	case SavApiRspCode220:
-		//todo: should reconnect
+		// todo: should reconnect
 		err = fmt.Errorf("connect timeout")
 	case SavApiRspCode350:
 		err = fmt.Errorf("unexpected error")

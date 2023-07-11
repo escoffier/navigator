@@ -412,7 +412,7 @@ func Unzip(zipFile, destDir, passwd string) error {
 	if err != nil {
 		return err
 	}
-	defer zipReader.Close()
+	defer func() { _ = zipReader.Close() }()
 
 	for _, f := range zipReader.File {
 		if f.IsEncrypted() {
@@ -436,13 +436,13 @@ func Unzip(zipFile, destDir, passwd string) error {
 
 			outFile, err := os.OpenFile(fpath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, f.Mode())
 			if err != nil {
-				inFile.Close()
+				_ = inFile.Close()
 				return err
 			}
 
 			_, err = io.Copy(outFile, inFile)
-			inFile.Close()
-			outFile.Close()
+			_ = inFile.Close()
+			_ = outFile.Close()
 			if err != nil {
 				return err
 			}

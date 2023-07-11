@@ -10,6 +10,7 @@ import (
 
 	"gitlab.com/security-rd/go-pkg/logging"
 
+	nodetask "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/imagescan/dequeuers/node-task"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/imagescan/types"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/service/register/stream"
 	imagesecStore "gitlab.com/piccolo_su/vegeta/cmd/scanner/store/imagesec"
@@ -24,18 +25,24 @@ type TaskDispatcherService interface {
 }
 
 type TaskDispatcher struct {
-	streamClient rpcStream.MessageStream
-	taskDal      imagesecStore.ScanTaskDal
-	dequeues     map[string]types.Dequeue
+	streamClient     rpcStream.MessageStream
+	taskDal          imagesecStore.ScanTaskDal
+	nodeImageSrv     types.ImageService
+	nodeInfoDal      imagesecStore.NodeInfoDal
+	sensitiveRuleDal imagesecStore.SensitiveRuleDal
 }
 
 func NewImageScanTaskDispatcher(
 	taskDal imagesecStore.ScanTaskDal,
-	dequeues map[string]types.Dequeue,
+	nodeImageSrv types.ImageService,
+	nodeInfoDal imagesecStore.NodeInfoDal,
+	sensitiveRuleDal imagesecStore.SensitiveRuleDal,
 ) *TaskDispatcher {
 	return &TaskDispatcher{
-		taskDal:  taskDal,
-		dequeues: dequeues,
+		taskDal:          taskDal,
+		nodeImageSrv:     nodeImageSrv,
+		nodeInfoDal:      nodeInfoDal,
+		sensitiveRuleDal: sensitiveRuleDal,
 	}
 }
 
@@ -118,20 +125,29 @@ func (s *TaskDispatcher) PublishSubtask(ctx context.Context) error {
 	// 一定要在这一步执行，不能在新建服务的时候执行，因为 grpc 还没有建立好
 	s.streamClient = stream.MustGetGrpcClient()
 
-	logging.Get().Info().Msg("Dispatcher task dispatcher started")
+	logging.Get().Info().Msg("Dispatcher PublishSubtask task dispatcher started")
 
-	for i := range s.dequeues {
-		go func(dequeue types.Dequeue) {
-			defer func() {
-				if err := recover(); err != nil {
-					logging.Get().Error().Stack().Msg("Dispatcher recover")
-				}
-			}()
-			logging.Get().Info().Str("queueType", dequeue.Type()).Msg("Dispatcher start")
-			subtaskChan := dequeue.GenSubtaskChan(ctx)
-			upSubtaskChan := dequeue.GenUpdateSubtaskChan(ctx)
-			s.PublishSubtaskHelper(ctx, subtaskChan, upSubtaskChan)
-		}(s.dequeues[i])
-	}
+	nodeQueue := nodetask.NewNodeImageQueue(s.taskDal, s.nodeImageSrv, s.nodeInfoDal, s.sensitiveRuleDal)
+
+	go func(dequeue types.Dequeue) {
+		defer func() {
+			if err := recover(); err != nil {
+				logging.Get().Error().Stack().Msg("Dispatcher recover")
+			}
+		}()
+		logging.Get().Info().Str("scanTaskType", imagesecModel.ImageFromNode).Msg("Dispatcher start")
+		subtaskChan := dequeue.GenSubtaskChan(ctx)
+		upSubtaskChan := dequeue.GenUpdateSubtaskChan(ctx)
+		s.PublishSubtaskHelper(ctx, subtaskChan, upSubtaskChan)
+	}(nodeQueue)
+	return nil
+}
+
+// todo(liuqiang)未完成
+func (s *TaskDispatcher) PublishDB(ctx context.Context) error {
+	// 一定要在这一步执行，不能在新建服务的时候执行，因为 grpc 还没有建立好
+	s.streamClient = stream.MustGetGrpcClient()
+	logging.Get().Info().Msg("Dispatcher PublishDB task dispatcher started")
+
 	return nil
 }

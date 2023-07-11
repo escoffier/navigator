@@ -1,6 +1,9 @@
 package imagesec
 
 import (
+	"fmt"
+	"time"
+
 	"scm.tensorsecurity.cn/tensorsecurity-rd/fanal/types"
 	ftypes "scm.tensorsecurity.cn/tensorsecurity-rd/fanal/types"
 )
@@ -37,24 +40,32 @@ type NodeInfo struct {
 
 // NodeReport 节点上报数据，包括节点信息，镜像数据
 type NodeReport struct {
-	UUID       string      `json:"uuid"`       // 每次上报的唯一id，用于和scanner对齐数据
-	NodeInfo   NodeInfo    `json:"nodeInfo"`   // 节点信息
-	Images     []ImageMeta `json:"images"`     // 节点上所有的镜像
-	ReportedAt int64       `json:"reportedAt"` // 上报时间点
+	UUID            string          `json:"uuid"`       // 每次上报的唯一id，用于和scanner对齐数据
+	NodeInfo        NodeInfo        `json:"nodeInfo"`   // 节点信息
+	Images          []ImageMeta     `json:"images"`     // 节点上所有的镜像
+	ReportedAt      int64           `json:"reportedAt"` // 上报时间点
+	ReportDBVersion ReportDBVersion `json:"reportDBVersion"`
 }
 
 // ScanSubTask 扫描任务的子任务，即单个镜像
 type ScanSubTask struct {
-	TaskID     int64     `json:"taskID"`     // 任务id
-	SubTaskID  int64     `json:"subTaskID"`  // 子任务id
-	NodeInfo   NodeInfo  `json:"nodeInfo"`   // 镜像所属节点，用于校验
-	ImageMeta  ImageMeta `json:"imageMeta"`  // 镜像元数据
-	Timeout    int       `json:"timeout"`    // 扫描超时时间
-	Status     int       `json:"status"`     // 子任务状态: 等待（初始），进行中，成功，失败
-	Msg        string    `json:"msg"`        // 失败信息：超时或其他
-	CreatedAt  int64     `json:"createdAt"`  // 子任务创建时间
-	StartedAt  int64     `json:"startedAt"`  // 子任务开始时间
-	FinishedAt int64     `json:"finishedAt"` // 子任务结束时间
+	TaskID         int64     `json:"taskID"`         // 任务id
+	SubTaskID      int64     `json:"subTaskID"`      // 子任务id,因为任务可以重新调度,所以不能使用 SubTaskID 来确认一次唯一的扫描任务
+	NodeInfo       NodeInfo  `json:"nodeInfo"`       // 镜像所属节点，用于校验
+	ImageMeta      ImageMeta `json:"imageMeta"`      // 镜像元数据
+	SensitiveRules []string  `json:"sensitiveRules"` // 扫描所用的敏感文件规则规则（不包含默认敏感文件规则）
+	UniqueID       string    `json:"uuid"`           // 生成方式 taskID+SubtaskID+time.Now().UnixMilli()
+	Timeout        int       `json:"timeout"`        // 扫描超时时间
+	Status         int       `json:"status"`         // 子任务状态: 等待（初始），进行中，成功，失败
+	Msg            string    `json:"msg"`            // 失败信息：超时或其他
+	CreatedAt      int64     `json:"createdAt"`      // 子任务创建时间
+	StartedAt      int64     `json:"startedAt"`      // 子任务开始时间
+	FinishedAt     int64     `json:"finishedAt"`     // 子任务结束时间
+}
+
+func (vi *ScanSubTask) GenUniqueID() string {
+	vi.UniqueID = fmt.Sprintf("%d-%d-%d", vi.TaskID, vi.SubTaskID, time.Now().UnixMilli())
+	return vi.UniqueID
 }
 
 // VulnResult 软件包和漏洞.参考trivy的结果.注意软件包信息从这里提取,即使没有漏洞

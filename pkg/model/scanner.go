@@ -352,9 +352,9 @@ type SummaryEnv struct {
 }
 
 type LicenseInfo struct {
-	Value      string `json:"value"`
-	Descripion string `json:"description"`
-	Name       string `json:"name"`
+	Value       string `json:"value"`
+	Description string `json:"description"`
+	Name        string `json:"name"`
 }
 
 type WebFrameInfo struct {

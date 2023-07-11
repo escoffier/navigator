@@ -17,22 +17,22 @@ type UpdateData struct {
 	Version string
 }
 
-type UpdataService struct {
+type UpdateService struct {
 	DbPath  string
 	Version string
 	PvcPath string
 	PathCh  chan scannermodel.UpdateResult
 }
 
-func NewUpdataService(path string) UpdataService {
-	return UpdataService{
+func NewUpdateService(path string) UpdateService {
+	return UpdateService{
 		DbPath:  path,
 		PvcPath: path,
 		PathCh:  make(chan scannermodel.UpdateResult),
 	}
 }
 
-func (u *UpdataService) GenerateDir(DBpath string) (string, error) {
+func (u *UpdateService) GenerateDir(DBpath string) (string, error) {
 	tmpDir, err := ioutil.TempDir("/root/", "")
 	if err != nil {
 		return "", err
@@ -41,14 +41,14 @@ func (u *UpdataService) GenerateDir(DBpath string) (string, error) {
 	osCMD := exec.Command("cp", "-rf", DBpath, dstPath)
 	err = osCMD.Run()
 	if err != nil {
-		os.Remove(tmpDir)
+		_ = os.Remove(tmpDir)
 		logging.GetLogger().Err(err).Msgf("%s CP  err :%v", u.DbPath, err)
 		return "", err
 	}
 	return dstPath, nil
 }
 
-func (u *UpdataService) UpdateDB(path string) error {
+func (u *UpdateService) UpdateDB(path string) error {
 	dbPath := filepath.Join(path, scannermodel.ClamavDBPath)
 	osCMD := exec.Command("cp", "-rf", dbPath, filepath.Join(u.PvcPath, scannermodel.MaliciousDir))
 	err := osCMD.Run()
@@ -59,7 +59,7 @@ func (u *UpdataService) UpdateDB(path string) error {
 	return nil
 }
 
-func (u *UpdataService) UpdataVersion(ver scannermodel.MaliciousDBVersion) error {
+func (u *UpdateService) UpdateVersion(ver scannermodel.MaliciousDBVersion) error {
 	verByte, err := json.Marshal(ver)
 	if err != nil {
 		logging.GetLogger().Err(err).Msgf("marshal version struct failed")

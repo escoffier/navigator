@@ -4,11 +4,14 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	imagesec2 "gitlab.com/piccolo_su/vegeta/pkg/model/imagesec"
 	"regexp"
 	"runtime/debug"
 	"sync"
 	"time"
+
+	"gitlab.com/piccolo_su/vegeta/cmd/node-image/consts"
+	"gitlab.com/piccolo_su/vegeta/cmd/node-image/services/helper"
+	imagesecModel "gitlab.com/piccolo_su/vegeta/pkg/model/imagesec"
 
 	"github.com/docker/docker/api/types"
 	dockerImage "github.com/docker/docker/api/types/image"
@@ -34,8 +37,8 @@ type Manager struct {
 	runtime         container.Runtime
 	err             error
 	mqWriter        mq.Writer
-	initConfig      config.Config             // init config load from yaml
-	nodeImageConfig imagesec2.NodeImageConfig // dynamic config synced from console
+	initConfig      config.Config                 // init config load from yaml
+	nodeImageConfig imagesecModel.NodeImageConfig // dynamic config synced from console
 	subscribeChan   <-chan interface{}
 }
 
@@ -48,8 +51,8 @@ func init() {
 	}
 }
 
-func (m *Manager) Type() services.ServiceType {
-	return services.TypeServiceImageAsset
+func (m *Manager) Type() consts.ServiceType {
+	return consts.TypeServiceImageAsset
 }
 
 func (m *Manager) getMqTimeout() int64 {
@@ -67,7 +70,7 @@ func (m *Manager) getReportInterval() int64 {
 	return m.nodeImageConfig.SyncInterval * 60
 }
 
-func (m *Manager) PreRun(cfg config.Config, nc imagesec2.NodeImageConfig, bs *util.BroadcastServer) error {
+func (m *Manager) PreRun(cfg config.Config, nc imagesecModel.NodeImageConfig, bs *util.BroadcastServer) error {
 	// copy config
 	m.initConfig = cfg
 	m.nodeImageConfig = nc
@@ -91,14 +94,14 @@ func (m *Manager) PreRun(cfg config.Config, nc imagesec2.NodeImageConfig, bs *ut
 	m.mqWriter = mqWriter
 
 	// subscribe notify
-	m.subscribeChan = bs.Subscribe(string(services.TypeServiceImageAsset))
+	m.subscribeChan = bs.Subscribe(string(consts.TypeServiceImageAsset))
 
 	logging.Get().Info().Msg("image asset manager pre run ok")
 
 	return nil
 }
 
-func (m *Manager) updateNodeImageConfig(cfg imagesec2.NodeImageConfig) {
+func (m *Manager) updateNodeImageConfig(cfg imagesecModel.NodeImageConfig) {
 	m.Lock()
 	defer m.Unlock()
 	m.nodeImageConfig = cfg
@@ -111,7 +114,7 @@ func (m *Manager) handleNotifyEvent() {
 			switch typed := item.(type) {
 			case types2.NotifyEvent:
 				event := item.(types2.NotifyEvent)
-				if event.Type == types2.NotifyEventTypeConfigModified {
+				if event.Type == consts.NotifyEventTypeConfigModified {
 					logging.Get().Debug().Interface("event", event).Msg("recv config modified event,copy")
 
 					// copy node image config
@@ -144,6 +147,102 @@ func (m *Manager) shouldExcludeImage(imageName []string) bool {
 	return false
 }
 
+func (m *Manager) filterImage(images []types.ImageSummary) []types.ImageSummary {
+	ans := make([]types.ImageSummary, 0)
+	for i := range images {
+		image := images[i]
+		if m.shouldExcludeImage(image.RepoTags) {
+			logging.Get().Info().Interface("repoTags", image.RepoTags).Msg("repo tag match report exclude rule,not reported")
+			continue
+		}
+		// filter by digest.some image with digest curlimages/curl@sha256:5a2a25d9 while have empty repo tags.
+		if m.shouldExcludeImage(image.RepoDigests) {
+			logging.Get().Info().Interface("repoDigests", image.RepoDigests).Msg("digest match report exclude rule,not reported")
+			continue
+		}
+		ans = append(ans, image)
+	}
+	return ans
+}
+
+func (m *Manager) SendAsset(ctx context.Context) {
+
+	sysInfo := GetNodeSysInfo()
+	logging.Get().Debug().Str("clusterKey", sysInfo.ClusterKey).Msg("get node sys info")
+
+	ticker := time.NewTicker(time.Duration(m.getReportInterval()) * time.Second)
+	defer ticker.Stop()
+	batchSize := int(m.initConfig.ReportConfig.BatchSize)
+	for {
+		images, err := m.runtime.ListImages()
+		if err != nil {
+			logging.Get().Err(err).Msg("failed to list images")
+			continue
+		}
+		logging.Get().Debug().Int("imageCount", len(images)).Msg("found node images")
+		images = m.filterImage(images)
+		logging.Get().Debug().Int("imageCount", len(images)).Msg("found node images and filter image")
+
+		versionReport := imagesec.ReportDBVersion{AviraDBVersion: helper.GetAviraDBVersion().WorkVersion.Version}
+
+		for i := 0; i < len(images); i = i + batchSize {
+			batch := images[i:util.MinInt(i+batchSize, len(images))]
+			if err := m.sendAssetHelp(context.Background(), batch, sysInfo, versionReport); err != nil {
+				logging.Get().Err(err).Msg("send image to kafka")
+				continue
+			}
+			logging.Get().Info().Msg("send image to kafka succeed")
+		}
+
+		ticker.Reset(time.Duration(m.getReportInterval()) * time.Second)
+		<-ticker.C
+	}
+}
+
+func (m *Manager) sendAssetHelp(ctx context.Context, images []types.ImageSummary, sysInfo *SysInfo, versionReport imagesec.ReportDBVersion) error {
+	report := &imagesec.NodeReport{
+		UUID: util.GenerateUUIDHex(),
+		NodeInfo: imagesec.NodeInfo{
+			ClusterKey: sysInfo.ClusterKey,
+			Ip:         sysInfo.HostIP,
+			HostName:   sysInfo.HostName,
+		},
+		Images:          make([]imagesec.ImageMeta, 0),
+		ReportedAt:      time.Now().UnixMilli(),
+		ReportDBVersion: versionReport,
+	}
+
+	for i := range images {
+		image := images[i]
+		// get image base info
+		detail, err := m.runtime.GetImageInspect(image.ID)
+		if err != nil {
+			logging.Get().Err(err).Interface("repoTags", image.RepoTags).Msg("failed to inspect image")
+			return err
+		}
+
+		// get image layer
+		history, err := m.runtime.ImageHistory(image.ID)
+		if err != nil {
+			logging.Get().Err(err).Interface("repoTags", image.RepoTags).Msg("failed to get image history")
+			return err
+		}
+
+		imageMeta := transformImageInfo(detail, history)
+		report.Images = append(report.Images, imageMeta)
+
+		logging.Get().
+			Info().
+			Str("uuid", report.UUID).
+			Str("imageId", imageMeta.ImageId).
+			Interface("repoTags", imageMeta.RepoTags).
+			Interface("digests", imageMeta.Digests).Msg("node image send image")
+	}
+
+	err := m.SendToMq(ctx, report)
+	return err
+}
+
 func (m *Manager) Run() error {
 	logging.Get().Info().Msg("node image asset service starting")
 
@@ -151,96 +250,27 @@ func (m *Manager) Run() error {
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
-				logging.Get().Error().Msgf("Panic: %v. Stack: %s", r, debug.Stack())
+				logging.Get().Error().Msgf("handleNotifyEvent panic: %v. Stack: %s", r, debug.Stack())
 			}
 		}()
 		m.handleNotifyEvent()
 	}()
 
-	// get node sys info
-	sysInfo := GetNodeSysInfo()
-	logging.Get().Debug().Str("clusterKey", sysInfo.ClusterKey).Msg("get node sys info")
-
-	sendFunc := func(report *imagesec.NodeReport) error {
-		ctx, cancel := context.WithTimeout(context.Background(), time.Duration(m.getMqTimeout())*time.Second)
-		defer cancel()
-		return m.SendToMq(ctx, report)
-	}
-
-	for {
-		time.Sleep(time.Duration(m.getReportInterval()) * time.Second)
-
-		// list all images
-		imgs, err := m.runtime.ListImages()
-		if err != nil {
-			logging.Get().Err(err).Msg("failed to list images")
-			continue
-		}
-		logging.Get().Debug().Int("imageCount", len(imgs)).Msg("found node images")
-
-		// fetch image detail
-		for _, v := range imgs {
-			// filter by repo tag
-			if m.shouldExcludeImage(v.RepoTags) {
-				logging.Get().Info().Interface("repoTags", v.RepoTags).Msg("repo tag match report exclude rule,not reported")
-				continue
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				logging.Get().Error().Msgf("SendImage panic: %v. Stack: %s", r, debug.Stack())
 			}
-			// filter by digest.some image with digest curlimages/curl@sha256:5a2a25d9 while have empty repo tags.
-			if m.shouldExcludeImage(v.RepoDigests) {
-				logging.Get().Info().Interface("repoDigests", v.RepoDigests).Msg("digest match report exclude rule,not reported")
-				continue
-			}
+		}()
+		m.SendAsset(context.Background())
+	}()
 
-			// fill node sys info
-			report := &imagesec.NodeReport{}
-			report.UUID = util.GenerateUUIDHex()
-			report.NodeInfo.ClusterKey = sysInfo.ClusterKey
-			report.NodeInfo.HostName = sysInfo.hostName
-			report.NodeInfo.Ip = sysInfo.hostIP
-
-			// get image base info
-			detail, err := m.runtime.GetImageInspect(v.ID)
-			if err != nil {
-				logging.Get().Err(err).Interface("repoTags", v.RepoTags).Msg("failed to inspect image")
-				continue
-			}
-
-			// get image layer
-			history, err := m.runtime.ImageHistory(v.ID)
-			if err != nil {
-				logging.Get().Err(err).Interface("repoTags", v.RepoTags).Msg("failed to get image history")
-				continue
-			}
-
-			imageMeta := transformImageInfo(detail, history)
-			report.Images = append(report.Images, imageMeta)
-
-			// report one image once a time to avoid too large kafka msg
-			report.ReportedAt = time.Now().Unix()
-			err = sendFunc(report)
-			if err != nil {
-				logging.Get().
-					Err(err).
-					Str("uuid", report.UUID).
-					Str("imageId", imageMeta.ImageId).
-					Interface("repoTags", imageMeta.RepoTags).
-					Interface("digests", imageMeta.Digests).
-					Msg("failed to send node image report to mq")
-			} else {
-				logging.Get().
-					Info().
-					Str("uuid", report.UUID).
-					Str("imageId", imageMeta.ImageId).
-					Interface("repoTags", imageMeta.RepoTags).
-					Interface("digests", imageMeta.Digests).
-					Msg("send node image report ok")
-			}
-		}
-
-	}
+	return nil
 }
 
 func (m *Manager) SendToMq(ctx context.Context, report *imagesec.NodeReport) error {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(m.getMqTimeout())*time.Second)
+	defer cancel()
 	msg, err := json.Marshal(report)
 	if err != nil {
 		return err
@@ -262,6 +292,7 @@ func transformImageInfo(detail types.ImageInspect, history []dockerImage.History
 		RepoTags: detail.RepoTags,
 		Digests:  detail.RepoDigests,
 		Size:     detail.Size,
+		Created:  detail.Created,
 	}
 	if detail.Config != nil {
 		meta.ENVS = detail.Config.Env

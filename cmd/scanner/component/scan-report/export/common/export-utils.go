@@ -6,7 +6,6 @@ import (
 	"bytes"
 	"fmt"
 	"io"
-	"math"
 	"os"
 	"runtime/debug"
 	"strings"
@@ -22,7 +21,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 )
 
-func GenBaseInfoChan(image imagesecModel.ImageWithCorrelateData2) chan []string {
+func GenBaseInfoChan(image imagesecModel.ImageBaseResponse, lang string) chan []string {
 	out := make(chan []string, 1)
 	go func() {
 		defer func() {
@@ -32,13 +31,13 @@ func GenBaseInfoChan(image imagesecModel.ImageWithCorrelateData2) chan []string 
 		}()
 		defer close(out)
 
-		info := GenImageBaseInfo(image)
+		info := GenImageBaseInfo(image, lang)
 		out <- info
 	}()
 	return out
 }
 
-func GenVulnInfoChan(baseImage imagesecModel.ImageBaseResponse, vuln []*imagesecModel.VulnView) chan []string {
+func GenVulnInfoChan(baseImage imagesecModel.ImageBaseResponse, vuln []*imagesecModel.VulnView, lang string) chan []string {
 	out := make(chan []string, 1)
 	go func() {
 
@@ -52,7 +51,7 @@ func GenVulnInfoChan(baseImage imagesecModel.ImageBaseResponse, vuln []*imagesec
 
 		for i := range vuln {
 			vu := vuln[i]
-			info := GenVulnInfo(baseImage, *vu)
+			info := GenVulnInfo(baseImage, *vu, lang)
 			out <- info
 		}
 
@@ -175,13 +174,13 @@ func GenAppOrBaseImageChan(images []*imagesecModel.ImageBaseResponse) chan []str
 	return out
 }
 
-func GenVulnInfo(image imagesecModel.ImageBaseResponse, vuln imagesecModel.VulnView) []string {
+func GenVulnInfo(image imagesecModel.ImageBaseResponse, vuln imagesecModel.VulnView, lang string) []string {
 
 	info := []string{
 		getImageName(image),
 		image.RegistryUrl,
 		vuln.Name,
-		imagesecModel.GetSeverityView(vuln.SeverityInt),
+		imagesecModel.GetSeverityView(vuln.Severity)[lang],
 		vuln.PkgName,
 		vuln.PkgVersion,
 		getVulnIsFixed(vuln.FixedVersion),
@@ -189,19 +188,25 @@ func GenVulnInfo(image imagesecModel.ImageBaseResponse, vuln imagesecModel.VulnV
 		getVulnCvssScore(vuln),
 		vuln.Description,
 		vuln.Target, // 攻击路径
-		getVulnDifficultyAttackingLocation(vuln.Attr),
-		getVulnWhetherAutoTrigger(vuln.Attr),
-		getVulnRequiredPermissionLevel(vuln.Attr),
-		getVulnAttackComplexity(vuln.Attr),
-		getVulnLeakageRisk(vuln.Attr),
-		getVulnTamperingRisk(vuln.Attr),
-		getVulnDosRisk(vuln.Attr),
-		getVulnExpandedScope(vuln.Attr),
+
+		vuln.AttrValueView[imagesecModel.VulnCvssKeyAV],
+		vuln.AttrValueView[imagesecModel.VulnCvssKeyUI],
+		vuln.AttrValueView[imagesecModel.VulnCvssKeyPR],
+		vuln.AttrValueView[imagesecModel.VulnCvssKeyAC],
+		vuln.AttrValueView[imagesecModel.VulnCvssKeyC],
+		vuln.AttrValueView[imagesecModel.VulnCvssKeyA],
+		vuln.AttrValueView[imagesecModel.VulnCvssKeyI],
+		vuln.AttrValueView[imagesecModel.VulnCvssKeyS],
+
 		vuln.CnnvdFixSuggestion,
 		vuln.FixedVersion,
 		getVulnReference(vuln),
 		vuln.ClassView,
 		getVulnIsKernel(vuln),
+	}
+	// 英文环境下，不导出：CnnvdFixSuggestion
+	if lang == model.LangEn {
+		info = append(info[:19], info[20:]...)
 	}
 
 	return info
@@ -266,51 +271,6 @@ func GenBaseOrAppImageInfo(image imagesecModel.ImageBaseResponse) []string {
 	return info
 }
 
-// 攻击路径
-func getVulnDifficultyAttackingLocation(attr map[string]string) string {
-	return imagesecModel.GetVulnAVView("")[attr["AV"]]
-}
-
-// 是否自动化触发
-func getVulnWhetherAutoTrigger(attr map[string]string) string {
-	return imagesecModel.GetVulnUIView(model.LangZh)[attr["UI"]]
-}
-
-// 所需权限级别
-func getVulnRequiredPermissionLevel(attr map[string]string) string {
-	return imagesecModel.GetVulnPrView(model.LangZh)[attr["PR"]]
-}
-
-// 攻击复杂度
-func getVulnAttackComplexity(attr map[string]string) string {
-	return imagesecModel.GetVulnAcView(model.LangZh)[attr["AC"]]
-}
-
-// 信息泄露风险
-func getVulnLeakageRisk(attr map[string]string) string {
-	return imagesecModel.GetVulnCView(model.LangZh)[attr["C"]]
-}
-
-// 信息/系统篡改风险
-func getVulnTamperingRisk(attr map[string]string) string {
-	return imagesecModel.GetVulnAView(model.LangZh)[attr["A"]]
-}
-
-// 造成 DoS 风险
-func getVulnDosRisk(attr map[string]string) string {
-	return imagesecModel.GetVulnIView(model.LangZh)[attr["I"]]
-}
-
-// 权限范围扩大
-func getVulnExpandedScope(attr map[string]string) string {
-	return imagesecModel.GetVulnSView(model.LangZh)[attr["S"]]
-}
-
-// 修复建议
-func getVulnFixSuggestion(vuln imagesecModel.VulnView) string {
-	return ""
-}
-
 // 参考链接
 func getVulnReference(vuln imagesecModel.VulnView) string {
 	if len(vuln.References) > 0 {
@@ -339,13 +299,6 @@ func getVulnCvssScore(vuln imagesecModel.VulnView) string {
 	return ""
 }
 
-func getVulnCnnvdNumber(vuln model.Vuln) string {
-	if vuln.Metadata != nil {
-		return vuln.Metadata.CNNVDs.Number
-	}
-	return ""
-}
-
 func getVulnIsFixed(fixedBy string) string {
 	if fixedBy == "" {
 		return "否"
@@ -353,17 +306,15 @@ func getVulnIsFixed(fixedBy string) string {
 	return "是"
 }
 
-func GenImageBaseInfo(data imagesecModel.ImageWithCorrelateData2) []string {
-
-	im := data.ToImageBaseResponse()
+func GenImageBaseInfo(im imagesecModel.ImageBaseResponse, lang string) []string {
 
 	info := []string{
 		fmt.Sprintf("%s:%s", im.FullRepoName, im.Tag),
 		im.RegistryUrl,
 		util.ToString(im.RiskScore),
-		getImageAttr(im.Flag, im.ImageAttr.Trusted), // 属性
+		strings.Join(im.ImageAttrView, ","),
 		getImageOnline(im.Online),
-		getImageSecurityQuestion(im.Flag),
+		strings.Join(im.SecurityIssueView, ","),
 		FormatTime(im.LastScanAt, consts.ExportTimeFormat),
 		im.Digest,
 		im.Tag,
@@ -373,7 +324,12 @@ func GenImageBaseInfo(data imagesecModel.ImageWithCorrelateData2) []string {
 		IsBaseImage(im.Flag),
 	}
 	if util.ExistBit1(im.Flag, model.FlagImageNotMaintained) {
-		info[10] = fmt.Sprintf("%s(%s)", im.Os, "此操作系统已经不再维护，可能导致漏洞扫描结果不准确，建议尽快升级")
+		if lang == model.LangEn {
+			info[10] = fmt.Sprintf("%s(%s)", im.GetOSView(), "This system is notmaintained, may cause inaccurate vulnerability scan results, "+
+				"it is recommended to upgrade as soon as possible")
+		} else {
+			info[10] = fmt.Sprintf("%s(%s)", im.GetOSView(), "此操作系统已经不再维护，可能导致漏洞扫描结果不准确，建议尽快升级")
+		}
 	}
 
 	info = append(info, im.SuggestsString())
@@ -400,35 +356,6 @@ func IsBaseImage(flag uint64) string {
 
 }
 
-func getImageSecurityQuestion(flag uint64) string {
-	qus := make([]string, 0)
-	if model.ExistFlag(flag, model.FlagHasVuln) {
-		qus = append(qus, "漏洞")
-	}
-	if model.ExistFlag(flag, model.FlagHasMalicious) {
-		qus = append(qus, "恶意文件")
-	}
-	if model.ExistFlag(flag, model.FlagHasSensitive) {
-		qus = append(qus, "敏感文件")
-	}
-	if model.ExistFlag(flag, model.FlagHasWebshell) {
-		qus = append(qus, "WebShell")
-	}
-	if model.ExistFlag(flag, model.FlagHasExceptPKG) {
-		qus = append(qus, "不合规软件")
-	}
-	if model.ExistFlag(flag, model.FlagHasExceptEnv) {
-		qus = append(qus, "异常环境变量")
-	}
-	if model.ExistFlag(flag, model.FlagPrivilegedBoot) {
-		qus = append(qus, "root用户启动")
-	}
-	if model.ExistFlag(flag, model.FlagHasExceptLicense) {
-		qus = append(qus, "不允许开源许可")
-	}
-	return strings.Join(qus, ",")
-}
-
 func getImageOnline(online bool) string {
 	if online {
 		return "在线"
@@ -436,25 +363,8 @@ func getImageOnline(online bool) string {
 	return "离线"
 }
 
-func getImageAttr(flag uint64, trusted bool) string {
-	qus := make([]string, 0)
-	if model.ExistFlag(flag, model.FlagBaseImage) {
-		qus = append(qus, "基础镜像")
-	}
-	if model.ExistFlag(flag, model.FlagHasFixedVuln) {
-		qus = append(qus, "存在可修复漏洞")
-	}
-	if trusted {
-		qus = append(qus, "可信镜像")
-	} else {
-		qus = append(qus, "非可信镜像")
-	}
-
-	return strings.Join(qus, ",")
-}
-
-func GenImageBaseInfoMeta() types.ExcelMeta {
-	data := types.ExcelMeta{
+func GenImageBaseInfoMeta(lang string) types.ExcelMeta {
+	dataZH := types.ExcelMeta{
 		SheetName: "基础信息",
 
 		Header: []string{
@@ -475,24 +385,48 @@ func GenImageBaseInfoMeta() types.ExcelMeta {
 		},
 	}
 
-	return data
+	dataEN := types.ExcelMeta{
+		SheetName: "Base Info",
+
+		Header: []string{
+			"Image Name",
+			"Source Repository",
+			"Points",
+			"Attributes",
+			"Status",
+			"Security Issues",
+			"Last Scan Time",
+			"Image ID",
+			"Tag",
+			"Size",
+			"OS Version",
+			"Synchronization Time",
+			"Whether base image",
+			"Remediation",
+		},
+	}
+	if lang == model.LangEn {
+		return dataEN
+	}
+	return dataZH
 }
 
-func GetImageSheetInfo(executeType string) []types.ExcelMeta {
+func GetImageSheetInfo(task model.ExportTensorTask) []types.ExcelMeta {
 
 	sheets := make([]types.ExcelMeta, 8)
-	sheets[0] = GenImageBaseInfoMeta()
-	sheets[1] = GenImageVulnInfoMeta()
-	sheets[2] = GenImageSensitiveFileInfoMeta()
-	sheets[3] = GenImageVirusInfoMeta()
-	sheets[4] = GenImageWebshellInfoMeta()
-	sheets[5] = GenImageEnvInfoMeta()
-	sheets[6] = GenImageResourcesInfoMeta()
-	sheets[7] = GenImageTypeInfoMeta()
+	sheets[0] = GenImageBaseInfoMeta(task.Lang)
+	sheets[1] = GenImageVulnInfoMeta(task.Lang)
+	sheets[2] = GenImageSensitiveFileInfoMeta(task.Lang)
+	sheets[3] = GenImageVirusInfoMeta(task.Lang)
+	sheets[4] = GenImageWebshellInfoMeta(task.Lang)
+	sheets[5] = GenImageEnvInfoMeta(task.Lang)
+	sheets[6] = GenImageResourcesInfoMeta(task.Lang)
+	sheets[7] = GenImageTypeInfoMeta(task.Lang)
 
-	if executeType == consts.ExportSingleImage {
+	if task.ExecuteType == consts.ExportSingleImage {
 		for i := range sheets {
-			if sheets[i].SheetName != GenImageTypeInfoMeta().SheetName && sheets[i].SheetName != GenImageBaseInfoMeta().SheetName {
+			if sheets[i].SheetName != GenImageTypeInfoMeta(task.Lang).SheetName &&
+				sheets[i].SheetName != GenImageBaseInfoMeta(task.Lang).SheetName {
 				sheets[i].Header = sheets[i].Header[2:]
 			}
 		}
@@ -500,24 +434,24 @@ func GetImageSheetInfo(executeType string) []types.ExcelMeta {
 	return sheets
 }
 
-func GetVulnSheetInfo() []types.ExcelMeta {
+func GetVulnSheetInfo(lang string) []types.ExcelMeta {
 	sheets := make([]types.ExcelMeta, 2)
-	vulnHeader := GenImageVulnInfoMeta().Header[2:]
-	vulnMete := GenImageVulnInfoMeta()
+	vulnHeader := GenImageVulnInfoMeta(lang).Header[2:]
+	vulnMete := GenImageVulnInfoMeta(lang)
 	vulnMete.Header = vulnHeader
 
 	sheets[0] = vulnMete
-	resourcesHeader := GenImageResourcesInfoMeta().Header
+	resourcesHeader := GenImageResourcesInfoMeta(lang).Header
 
 	resourcesHeader = append(resourcesHeader[:1], resourcesHeader[2:]...)
-	resourcesMeta := GenImageResourcesInfoMeta()
+	resourcesMeta := GenImageResourcesInfoMeta(lang)
 	resourcesMeta.Header = resourcesHeader
 	sheets[1] = resourcesMeta
 	return sheets
 }
 
-func GenImageVulnInfoMeta() types.ExcelMeta {
-	data := types.ExcelMeta{
+func GenImageVulnInfoMeta(lang string) types.ExcelMeta {
+	dataZH := types.ExcelMeta{
 		SheetName: "漏洞信息",
 
 		Header: []string{
@@ -532,14 +466,14 @@ func GenImageVulnInfoMeta() types.ExcelMeta {
 			"CVSS3.0评分",
 			"漏洞介绍",
 			"路径",
-			"攻击位置难易",
-			"是否自动化触发",
-			"所需权限级别",
-			"攻击复杂度",
-			"信息泄露风险",
-			"信息/系统篡改风险",
-			"造成DoS风险",
-			"权限范围扩大",
+			imagesecModel.VulnCvssKeyAVViewZH,
+			imagesecModel.VulnCvssKeyUIViewZH,
+			imagesecModel.VulnCvssKeyPRViewZH,
+			imagesecModel.VulnCvssKeyACViewZH,
+			imagesecModel.VulnCvssKeyCViewZH,
+			imagesecModel.VulnCvssKeyAViewZH,
+			imagesecModel.VulnCvssKeyIViewZH,
+			imagesecModel.VulnCvssKeySViewZH,
 			"修复建议",
 			"修复版本",
 			"参考链接",
@@ -547,83 +481,180 @@ func GenImageVulnInfoMeta() types.ExcelMeta {
 			"是否是内核漏洞",
 		},
 	}
-	return data
+
+	dataEN := types.ExcelMeta{
+		SheetName: "Vulnerabilities",
+
+		Header: []string{
+			"Image Name",
+			"Source Repository",
+			"ID",
+			"Severity",
+			"Source",
+			"Version",
+			"Is it fixable",
+			"CNNVD ID",
+			"CVSS3.0 Score",
+			"Info",
+			"Path",
+			imagesecModel.VulnCvssKeyAVViewEN,
+			imagesecModel.VulnCvssKeyUIViewEN,
+			imagesecModel.VulnCvssKeyPRViewEN,
+			imagesecModel.VulnCvssKeyACViewEN,
+			imagesecModel.VulnCvssKeyCViewEN,
+			imagesecModel.VulnCvssKeyAViewEN,
+			imagesecModel.VulnCvssKeyIViewEN,
+			imagesecModel.VulnCvssKeySViewEN,
+			// "Fixed suggestion", // 英文环境下，不导出这个字段，因为这个字段是中文
+			"Fixed Version",
+			"References",
+			"Type",
+			"Kernel Vulnerability",
+		},
+	}
+
+	if lang == model.LangEn {
+		return dataEN
+	}
+	return dataZH
 }
 
-func GenImageSensitiveFileInfoMeta() types.ExcelMeta {
-	data := types.ExcelMeta{
+func GenImageSensitiveFileInfoMeta(lang string) types.ExcelMeta {
+	dataZH := types.ExcelMeta{
 		SheetName: "敏感文件",
 
 		Header: []string{
 			"镜像名称", "来源仓库", "敏感文件名", "文件路径", "文件类型",
 		},
 	}
-	return data
+
+	dataEN := types.ExcelMeta{
+		SheetName: "Sensitive Files",
+
+		Header: []string{
+			"Image Name", "Source Repository", "Name", "Path", "Type",
+		},
+	}
+	if lang == model.LangEn {
+		return dataEN
+	}
+
+	return dataZH
 }
 
-func GenImageVirusInfoMeta() types.ExcelMeta {
-	data := types.ExcelMeta{
+func GenImageVirusInfoMeta(lang string) types.ExcelMeta {
+	dataZH := types.ExcelMeta{
 		SheetName: "恶意文件信息",
 
 		Header: []string{
 			"镜像名称", "来源仓库", "恶意文件名", "文件名", "文件路径",
 		},
 	}
-	return data
+
+	dataEN := types.ExcelMeta{
+		SheetName: "Trojan Virus",
+
+		Header: []string{
+			"Image Name", "Source Repository", "Trojan Virus", "Filename", "Filepath",
+		},
+	}
+	if lang == model.LangEn {
+		return dataEN
+	}
+
+	return dataZH
 }
 
-func GenImageWebshellInfoMeta() types.ExcelMeta {
-	data := types.ExcelMeta{
-		SheetName: "Webshell信息",
+func GenImageWebshellInfoMeta(lang string) types.ExcelMeta {
+	dataZH := types.ExcelMeta{
+		SheetName: "Webshell",
 
 		Header: []string{
 			"镜像名称", "来源仓库", "文件名", "路径", "风险程度", "代码段",
 		},
 	}
-	return data
+
+	dataEN := types.ExcelMeta{
+		SheetName: "Webshell",
+
+		Header: []string{
+			"Image Name", "Source Repository", "Filename", "Filepath", "Risk level", "Code",
+		},
+	}
+	if lang == model.LangEn {
+		return dataEN
+	}
+
+	return dataZH
 }
 
-func GenImageEnvInfoMeta() types.ExcelMeta {
-	data := types.ExcelMeta{
+func GenImageEnvInfoMeta(lang string) types.ExcelMeta {
+	dataZH := types.ExcelMeta{
 		SheetName: "环境变量",
 
 		Header: []string{
 			"镜像名称", "来源仓库", "变量名", "变量值", "属性",
 		},
 	}
-	return data
+
+	dataEN := types.ExcelMeta{
+		SheetName: "Environment Variables",
+
+		Header: []string{
+			"Image Name", "Source Repository", "Variable Name", "Variable Value", "Attribute",
+		},
+	}
+	if lang == model.LangEn {
+		return dataEN
+	}
+
+	return dataZH
 }
 
-func GenImageResourcesInfoMeta() types.ExcelMeta {
-	data := types.ExcelMeta{
+func GenImageResourcesInfoMeta(lang string) types.ExcelMeta {
+	dataZH := types.ExcelMeta{
 		SheetName: "关联容器",
 
 		Header: []string{
 			"镜像名称", "来源仓库", "容器名称", "关联资源", "命名空间", "集群",
 		},
 	}
-	return data
+
+	dataEN := types.ExcelMeta{
+		SheetName: "Associated Resources",
+
+		Header: []string{
+			"Image Name", "Source Repository", "Pod Name", "Associated Resources", "Namespace", "Cluster",
+		},
+	}
+	if lang == model.LangEn {
+		return dataEN
+	}
+
+	return dataZH
 }
 
-func GenImageTypeInfoMeta() types.ExcelMeta {
-	data := types.ExcelMeta{
+func GenImageTypeInfoMeta(lang string) types.ExcelMeta {
+	dataZH := types.ExcelMeta{
 		SheetName: "基础镜像/应用镜像信息",
 
 		Header: []string{
 			"镜像名称", "来源仓库",
 		},
 	}
-	return data
-}
 
-func Min(values ...int64) int64 {
-	var res int64 = math.MaxInt64
-	for i := range values {
-		if values[i] < res {
-			res = values[i]
-		}
+	dataEN := types.ExcelMeta{
+		SheetName: "Base Image/App Image",
+
+		Header: []string{
+			"Image Name", "Source Repository",
+		},
 	}
-	return res
+	if lang == model.LangEn {
+		return dataEN
+	}
+
+	return dataZH
 }
 
 func WriteToExcel(filenamePrefix string, sheets []types.ExcelMeta, data types.ExcelExportImageData) (*excelize.File, error) {
@@ -645,11 +676,11 @@ func WriteToExcel(filenamePrefix string, sheets []types.ExcelMeta, data types.Ex
 
 	for i := range sheets {
 		// 写入数据，用流式方式
-		idx := file.NewSheet(sheets[i].SheetName)
+		idx := file.NewSheet(sheets[i].SheetName.String())
 		file.SetActiveSheet(idx)
 
 		// 先写头数据
-		streamWriter, err := file.NewStreamWriter(sheets[i].SheetName)
+		streamWriter, err := file.NewStreamWriter(sheets[i].SheetName.String())
 		if err != nil {
 			return nil, err
 		}
@@ -791,4 +822,28 @@ func SaveFile(reader io.Reader, filenamePrefix string) error {
 	}
 
 	return nil
+}
+
+func ReplaceToEN(res []string) []string {
+	for i := range res {
+		switch res[i] {
+		case "是":
+			res[i] = "Yes"
+		case "否":
+			res[i] = "No"
+		case "在线":
+			res[i] = "Online"
+		case "离线":
+			res[i] = "Offline"
+		case "异常":
+			res[i] = "Abnormal"
+		case "正常":
+			res[i] = "Normal"
+		case "确定":
+			res[i] = "Certainly"
+		case "疑似":
+			res[i] = "Maybe"
+		}
+	}
+	return res
 }

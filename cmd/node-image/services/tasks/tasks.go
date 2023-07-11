@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"gitlab.com/piccolo_su/vegeta/cmd/node-image/services/types"
 	"io"
 	"os"
 	"os/exec"
@@ -13,6 +12,10 @@ import (
 	"runtime/debug"
 	"strings"
 	"sync"
+
+	"gitlab.com/piccolo_su/vegeta/cmd/node-image/consts"
+	"gitlab.com/piccolo_su/vegeta/cmd/node-image/services/types"
+	"gitlab.com/piccolo_su/vegeta/pkg/model/scanner-ci"
 
 	"github.com/rs/zerolog"
 
@@ -23,15 +26,12 @@ import (
 	"gitlab.com/security-rd/go-pkg/mq"
 	"golang.org/x/sync/semaphore"
 
-	imagesec2 "gitlab.com/piccolo_su/vegeta/pkg/model/imagesec"
-
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/global"
 	"gitlab.com/piccolo_su/vegeta/cmd/node-image/config"
 	"gitlab.com/piccolo_su/vegeta/cmd/node-image/services"
 	"gitlab.com/piccolo_su/vegeta/cmd/node-image/services/helper"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	imagesecModel "gitlab.com/piccolo_su/vegeta/pkg/model/imagesec"
-	scanner_ci "gitlab.com/piccolo_su/vegeta/pkg/model/scanner-ci"
 	"gitlab.com/piccolo_su/vegeta/pkg/types/imagesec"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 )
@@ -44,18 +44,18 @@ const (
 )
 
 type RunningSubTask struct {
-	imagesec.ScanSubTask
+	Subtask    imagesec.ScanSubTask
 	ScannerPID int // irene process id
 }
 
-type Manager struct {
+type ScanTaskManager struct {
 	runningSubTasks     []RunningSubTask // used slice to record running tasks for map would not shrink
 	ireneWorkingDir     string           // irene binary working dir
 	taskQueue           *util.Queue      // scan task
-	lock                sync.RWMutex
+	taskLock            sync.RWMutex
 	mqWriter            mq.Writer
-	runConfig           config.Config             // 运行时配置
-	nodeImageConfig     imagesec2.NodeImageConfig // 扫描时配置，从console同步
+	runtimeConfig       config.Config                 // 运行时配置
+	nodeImageConfig     imagesecModel.NodeImageConfig // 扫描时配置，从console同步
 	nodeImageConfigLock sync.RWMutex
 	scanTaskWg          *sync.WaitGroup
 	dbUpdateWg          *sync.WaitGroup
@@ -63,7 +63,7 @@ type Manager struct {
 }
 
 func init() {
-	err := services.RegisterService(&Manager{
+	err := services.RegisterService(&ScanTaskManager{
 		taskQueue:       helper.TaskQueue,
 		ireneWorkingDir: global.WorkingDir,
 		runningSubTasks: make([]RunningSubTask, 0),
@@ -72,64 +72,64 @@ func init() {
 	})
 	if err != nil {
 		logging.Get().Err(err).Msg("failed to register image task manager service")
-	} else {
-		logging.Get().Info().Msg("register image task manager service ok")
+		return
 	}
+	logging.Get().Info().Msg("register image task manager service ok")
 }
 
-func (m *Manager) addRunningTask(r RunningSubTask) error {
-	m.lock.Lock()
-	defer m.lock.Unlock()
+func (m *ScanTaskManager) addRunningTask(r RunningSubTask) error {
+	m.taskLock.Lock()
+	defer m.taskLock.Unlock()
 	m.runningSubTasks = append(m.runningSubTasks, r)
 	return nil
 }
 
-func (m *Manager) removeRunningTask(r RunningSubTask) error {
-	m.lock.Lock()
-	defer m.lock.Unlock()
+func (m *ScanTaskManager) removeRunningTask(r RunningSubTask) error {
+	m.taskLock.Lock()
+	defer m.taskLock.Unlock()
 	for k, v := range m.runningSubTasks {
-		if v.SubTaskID == r.SubTaskID {
+		if v.Subtask.SubTaskID == r.Subtask.SubTaskID {
 			// remove from slice
 			m.runningSubTasks = append(m.runningSubTasks[:k], m.runningSubTasks[k+1:]...)
 			return nil
 		}
 	}
 
-	return fmt.Errorf("not found subtask %v", r.SubTaskID)
+	return fmt.Errorf("not found subtask %v", r.Subtask.SubTaskID)
 }
 
-func (m *Manager) scanOutputFile(subTaskId int64) string {
-	return fmt.Sprintf("result-%d.json", subTaskId)
+func (m *ScanTaskManager) scanOutputFile(subTask imagesec.ScanSubTask) string {
+	return fmt.Sprintf("result-%s.json", subTask.UniqueID)
 }
 
-func (m *Manager) GetSavServerAddr() string {
-	return fmt.Sprintf("tcp:127.0.0.1:%d", m.runConfig.AviraConfig.ListenPort)
+func (m *ScanTaskManager) GetSavServerAddr() string {
+	return fmt.Sprintf("tcp:127.0.0.1:%d", m.runtimeConfig.AviraConfig.ListenPort)
 }
 
-func (m *Manager) deepScanOption() string {
+func (m *ScanTaskManager) deepScanOption() string {
 	opts := ""
-	for _, v := range m.runConfig.DeepScanConfig.Types {
+	for _, v := range m.runtimeConfig.DeepScanConfig.Types {
 		if v == config.DeepScanTypesAvira {
 			opts = opts + fmt.Sprintf(" --scan-malware %s --malware-server %s --malware-client-num %d",
-				services.ScanMalwareTypeAvira, m.GetSavServerAddr(), m.runConfig.AviraConfig.ClientNum)
+				consts.ScanMalwareTypeAvira, m.GetSavServerAddr(), m.runtimeConfig.AviraConfig.ClientNum)
 			continue
 		}
 		if v == config.DeepScanTypesWebshell {
 			opts = opts + " --scan-webshell tws "
-			if len(m.runConfig.WebshellConfig.IncludeTypes) > 0 {
-				opts = opts + fmt.Sprintf(" --webshell-types %s", strings.Join(m.runConfig.WebshellConfig.IncludeTypes, ","))
+			if len(m.runtimeConfig.WebshellConfig.IncludeTypes) > 0 {
+				opts = opts + fmt.Sprintf(" --webshell-types %s", strings.Join(m.runtimeConfig.WebshellConfig.IncludeTypes, ","))
 			}
 		}
 	}
 	return opts
 }
 
-func (m *Manager) ScanCommOpt() string {
+func (m *ScanTaskManager) ScanCommOpt() string {
 	opts := ""
-	if len(m.runConfig.IreneConfig.LogLevel) > 0 {
-		opts = fmt.Sprintf(" %s --log-level %s ", opts, m.runConfig.IreneConfig.LogLevel)
+	if len(m.runtimeConfig.IreneConfig.LogLevel) > 0 {
+		opts = fmt.Sprintf(" %s --log-level %s ", opts, m.runtimeConfig.IreneConfig.LogLevel)
 	}
-	if m.runConfig.IreneConfig.DeeperDebug {
+	if m.runtimeConfig.IreneConfig.DeeperDebug {
 		opts = fmt.Sprintf(" %s --deeper-debug true ", opts)
 	}
 	// scan os-pkgs,lang-pkgs,disabled iac
@@ -137,7 +137,7 @@ func (m *Manager) ScanCommOpt() string {
 	return opts
 }
 
-func (m *Manager) getTimeOutOpt() int64 {
+func (m *ScanTaskManager) getTimeOutOpt() int64 {
 	m.nodeImageConfigLock.Lock()
 	defer m.nodeImageConfigLock.Unlock()
 	if m.nodeImageConfig.ScanTimeout <= 0 {
@@ -146,22 +146,22 @@ func (m *Manager) getTimeOutOpt() int64 {
 	return m.nodeImageConfig.ScanTimeout * 60
 }
 
-func (m *Manager) shouldDeepScan() bool {
+func (m *ScanTaskManager) shouldDeepScan() bool {
 	m.nodeImageConfigLock.Lock()
 	defer m.nodeImageConfigLock.Unlock()
 	return m.nodeImageConfig.DeepScan
 }
 
-func (m *Manager) makeScanCmd(imageName string, taskId int64) string {
+func (m *ScanTaskManager) makeScanCmd(imageName string, subtask imagesec.ScanSubTask) string {
 	binaryPath := filepath.Join(m.ireneWorkingDir, ireneBinaryName)
-	policyPath := filepath.Join(m.ireneWorkingDir, "policy", defaultIrenePolicyName)
+	policyPath := m.GetPolicyPath(context.Background(), subtask)
 	cachePath := filepath.Join(m.ireneWorkingDir, defaultCacheDir)
 
 	// default scan cmd without malware and webshell opt
 	cmdStr := fmt.Sprintf("%s local-scan %s -i %s --parse-pkgs-only --cache-dir %s --policy-file-name %s "+
 		"--output %s -t %d --mount-prefix %s ",
 		binaryPath, m.ScanCommOpt(), imageName, cachePath, policyPath,
-		m.scanOutputFile(taskId), m.getTimeOutOpt(), m.runConfig.ScanConfig.MountPrefix)
+		m.scanOutputFile(subtask), m.getTimeOutOpt(), m.runtimeConfig.ScanConfig.MountPrefix)
 
 	if m.shouldDeepScan() {
 		cmdStr = fmt.Sprintf("%s %s", cmdStr, m.deepScanOption())
@@ -170,18 +170,19 @@ func (m *Manager) makeScanCmd(imageName string, taskId int64) string {
 	return cmdStr
 }
 
-func (m *Manager) transformWebshellToUpload(res *scanner_ci.PolicyResult) []scannermodel.WebshellSaveInfo {
+func (m *ScanTaskManager) transformWebshellToUpload(res *scanner_ci.PolicyResult) []scannermodel.WebshellSaveInfo {
 	uploadWebshell := make([]scannermodel.WebshellSaveInfo, 0)
 	for _, v := range res.WebshellResults.HmWebshells {
-		saveInfo := scannermodel.WebshellSaveInfo{}
-		saveInfo.FileMd5 = v.MD5
-		saveInfo.Filename = v.Filename
+		saveInfo := scannermodel.WebshellSaveInfo{
+			FileMd5:  v.MD5,
+			Filename: v.Filename,
+		}
 		uploadWebshell = append(uploadWebshell, saveInfo)
 	}
 	return uploadWebshell
 }
 
-func (m *Manager) uploadWebshellFile(res []scannermodel.WebshellSaveInfo) error {
+func (m *ScanTaskManager) uploadWebshellFile(res []scannermodel.WebshellSaveInfo) error {
 	for _, v := range res {
 		data, err := os.ReadFile(v.Filename)
 		if err != nil {
@@ -210,12 +211,13 @@ func (m *Manager) uploadWebshellFile(res []scannermodel.WebshellSaveInfo) error 
 	return nil
 }
 
-func (m *Manager) syncResult(t imagesec.ScanSubTask) error {
-	resultFile := m.scanOutputFile(t.SubTaskID)
+func (m *ScanTaskManager) syncResult(t imagesec.ScanSubTask) error {
+	resultFile := m.scanOutputFile(t)
 	defer func() {
 		// remove file when synced
 		if err := os.Remove(resultFile); err != nil {
-			logging.Get().Err(err).Int64("subTaskID", t.SubTaskID).Str("resultFile", resultFile).Msg("failed to remove file")
+			logging.Get().Err(err).Int64("subTaskID", t.SubTaskID).Str("resultFile", resultFile).
+				Msg("failed to remove file")
 		}
 	}()
 	logging.Get().Debug().Int64("subTaskID", t.SubTaskID).Str("resultFile", resultFile).Msg("start sync result")
@@ -280,8 +282,8 @@ func (m *Manager) syncResult(t imagesec.ScanSubTask) error {
 	return nil
 }
 
-func (m *Manager) checkResultFile(err error, t imagesec.ScanSubTask) error {
-	resultFile := m.scanOutputFile(t.SubTaskID)
+func (m *ScanTaskManager) checkResultFile(err error, t imagesec.ScanSubTask) error {
+	resultFile := m.scanOutputFile(t)
 	if util.FileExists(resultFile) {
 		return nil
 	}
@@ -311,33 +313,36 @@ func (m *Manager) checkResultFile(err error, t imagesec.ScanSubTask) error {
 	return nil
 }
 
-func (m *Manager) scanImage(t imagesec.ScanSubTask) error {
+func (m *ScanTaskManager) scanImage(ctx context.Context, subtask imagesec.ScanSubTask) error {
 	infoLog := func() *zerolog.Event {
-		return logging.Get().Info().Int64("subTaskID", t.SubTaskID)
+		return logging.Get().Info().Int64("subTaskID", subtask.SubTaskID)
 	}
 	errLog := func(err error) *zerolog.Event {
-		return logging.Get().Err(err).Int64("subTaskID", t.SubTaskID)
+		return logging.Get().Err(err).Int64("subTaskID", subtask.SubTaskID)
 	}
 	debugLog := func() *zerolog.Event {
-		return logging.Get().Debug().Int64("subTaskID", t.SubTaskID)
+		return logging.Get().Debug().Int64("subTaskID", subtask.SubTaskID)
 	}
 
 	infoLog().Msg("start scanning")
 
 	imageName := ""
-	if len(t.ImageMeta.RepoTags) == 0 {
+	if len(subtask.ImageMeta.RepoTags) == 0 {
 		// local build image without repo tags,use image id instead
-		imageName = t.ImageMeta.ImageId
+		imageName = subtask.ImageMeta.ImageId
 	} else {
-		// only need a repo tag
-		imageName = t.ImageMeta.RepoTags[0]
+		// only need first repo tag
+		imageName = subtask.ImageMeta.RepoTags[0]
 	}
 
-	cmdStr := m.makeScanCmd(imageName, t.SubTaskID)
+	cmdStr := m.makeScanCmd(imageName, subtask)
+
+	defer func() { _ = m.DeletePolicyPath(ctx, subtask) }()
+
 	debugLog().Str("cmd", cmdStr).Msg("make cmd")
 
 	cmd := exec.Command("/bin/sh", "-c", cmdStr)
-	if m.runConfig.ScanConfig.RealTimeLog {
+	if m.runtimeConfig.ScanConfig.RealTimeLog {
 		var stdBuffer bytes.Buffer
 		mw := io.MultiWriter(os.Stdout, &stdBuffer) // real time output
 		cmd.Stdout = mw
@@ -351,9 +356,9 @@ func (m *Manager) scanImage(t imagesec.ScanSubTask) error {
 
 	// record task and it's process ID
 	r := RunningSubTask{
+		Subtask:    subtask,
 		ScannerPID: cmd.Process.Pid,
 	}
-	r.SubTaskID = t.SubTaskID
 
 	// cmd run wrapper
 	runCmdFunc := func() error {
@@ -379,13 +384,13 @@ func (m *Manager) scanImage(t imagesec.ScanSubTask) error {
 		// not return, need send result
 		errLog(err).Msg("failed to scan image")
 		// check result file
-		_ = m.checkResultFile(err, t)
+		_ = m.checkResultFile(err, subtask)
 	} else {
 		infoLog().Msg("success to scan image")
 	}
 
 	// sync result
-	err = m.syncResult(t)
+	err = m.syncResult(subtask)
 	if err != nil {
 		errLog(err).Msg("failed to send result")
 		return err
@@ -395,11 +400,66 @@ func (m *Manager) scanImage(t imagesec.ScanSubTask) error {
 	return nil
 }
 
-func (m *Manager) Type() services.ServiceType {
-	return services.TypeServiceTaskManager
+func (m *ScanTaskManager) GetPolicyPath(ctx context.Context, subtask imagesec.ScanSubTask) string {
+	defaultFilename := filepath.Join(m.ireneWorkingDir, "policy", defaultIrenePolicyName)
+	if len(subtask.SensitiveRules) == 0 {
+		return defaultFilename
+	}
+
+	content, err := os.ReadFile(defaultFilename)
+	if err != nil {
+		logging.Get().Err(err).Int64("subtaskID", subtask.SubTaskID).Str("UniqueID", subtask.UniqueID).Msg("read default policy")
+		return defaultFilename
+	}
+	policy := scanner_ci.Policy{}
+
+	if err := json.Unmarshal(content, &policy); err != nil {
+		logging.Get().Err(err).Int64("subtaskID", subtask.SubTaskID).Str("UniqueID", subtask.UniqueID).Msg("unmarshal default policy")
+		return defaultFilename
+	}
+	ses := policy.SensitiveFile.DefaultFilePattern
+	for i := range subtask.SensitiveRules {
+		ses = append(ses, scanner_ci.Pattern{Value: subtask.SensitiveRules[i]})
+	}
+	policy.SensitiveFile.DefaultFilePattern = ses
+
+	marshal, err := json.Marshal(policy)
+	if err != nil {
+		logging.Get().Err(err).Int64("subtaskID", subtask.SubTaskID).Str("UniqueID", subtask.UniqueID).
+			Msg("marshal policy")
+		return defaultFilename
+	}
+
+	filename := filepath.Join(m.ireneWorkingDir, "policy", defaultIrenePolicyName+"-"+subtask.UniqueID)
+
+	if err := os.WriteFile(filename, marshal, os.ModePerm); err != nil {
+		logging.Get().Err(err).Int64("subtaskID", subtask.SubTaskID).Str("subtaskUUID", subtask.UniqueID).
+			Msg("write policy")
+		return defaultFilename
+	}
+	logging.Get().Info().Int64("subtaskID", subtask.SubTaskID).Str("subtaskUUID", subtask.UniqueID).
+		Str("policyFilename", filename).Msg("write policy succeed")
+	return filename
 }
 
-func (m *Manager) PreRun(cfg config.Config, nc imagesec2.NodeImageConfig, bs *util.BroadcastServer) error {
+func (m *ScanTaskManager) DeletePolicyPath(ctx context.Context, subtask imagesec.ScanSubTask) error {
+	defaultFilename := filepath.Join(m.ireneWorkingDir, "policy", defaultIrenePolicyName)
+	file := m.GetPolicyPath(ctx, subtask)
+	if file == defaultFilename {
+		return nil
+	}
+	if err := os.Remove(file); err != nil {
+		logging.Get().Err(err).Str("filename", file).Msg("delete policy path")
+		return err
+	}
+	return nil
+}
+
+func (m *ScanTaskManager) Type() consts.ServiceType {
+	return consts.TypeServiceTaskManager
+}
+
+func (m *ScanTaskManager) PreRun(cfg config.Config, nc imagesecModel.NodeImageConfig, bs *util.BroadcastServer) error {
 	// create msg que cli
 	mqWriter, err := mq.GetClientFactory().Writer(context.Background())
 	if err != nil {
@@ -409,20 +469,20 @@ func (m *Manager) PreRun(cfg config.Config, nc imagesec2.NodeImageConfig, bs *ut
 	m.mqWriter = mqWriter
 
 	// copy config
-	m.runConfig = cfg
+	m.runtimeConfig = cfg
 	m.nodeImageConfig = nc
 
-	m.subscribeChan = bs.Subscribe(string(services.TypeServiceTaskManager))
+	m.subscribeChan = bs.Subscribe(string(consts.TypeServiceTaskManager))
 	return nil
 }
 
-func (m *Manager) updateNodeImageConfig(cfg imagesec2.NodeImageConfig) {
+func (m *ScanTaskManager) updateNodeImageConfig(cfg imagesecModel.NodeImageConfig) {
 	m.nodeImageConfigLock.Lock()
 	defer m.nodeImageConfigLock.Unlock()
 	m.nodeImageConfig = cfg
 }
 
-func (m *Manager) handleConfigModifiedEvent() {
+func (m *ScanTaskManager) handleConfigModifiedEvent() {
 	for {
 		logging.Get().Debug().Msg("wait config modified event")
 		select {
@@ -430,7 +490,7 @@ func (m *Manager) handleConfigModifiedEvent() {
 			switch typed := item.(type) {
 			case types.NotifyEvent:
 				event := item.(types.NotifyEvent)
-				if event.Type == types.NotifyEventTypeConfigModified {
+				if event.Type == consts.NotifyEventTypeConfigModified {
 					logging.Get().Debug().Interface("event", event).Msg("recv config modified event")
 					m.updateNodeImageConfig(event.NodeImageConfig)
 					continue
@@ -443,7 +503,7 @@ func (m *Manager) handleConfigModifiedEvent() {
 	}
 }
 
-func (m *Manager) Run() error {
+func (m *ScanTaskManager) Run() error {
 	// handle config modify event
 	go func() {
 		if r := recover(); r != nil {
@@ -453,7 +513,7 @@ func (m *Manager) Run() error {
 	}()
 
 	// do task
-	limit := semaphore.NewWeighted(m.runConfig.TaskConfig.ParallelNum)
+	limit := semaphore.NewWeighted(m.runtimeConfig.TaskConfig.ParallelNum)
 	m.taskQueue.Consume(func(item interface{}) {
 		switch typed := item.(type) {
 		case imagesec.ScanSubTask:
@@ -478,7 +538,7 @@ func (m *Manager) Run() error {
 				defer sp.Release(1)
 				defer m.scanTaskWg.Done()
 
-				_ = m.scanImage(t)
+				_ = m.scanImage(context.Background(), t)
 			}(limit, subTask)
 		default:
 			logging.Get().Error().Msgf("task queue element type err.%v", typed)
@@ -491,7 +551,7 @@ func (m *Manager) Run() error {
 	return fmt.Errorf("node image task service exit")
 }
 
-func (m *Manager) transformResult(result *scanner_ci.PolicyResult) imagesec.ScanResult {
+func (m *ScanTaskManager) transformResult(result *scanner_ci.PolicyResult) imagesec.ScanResult {
 	res := imagesec.ScanResult{}
 	if result.Artifact.Artifact.OS != nil {
 		res.OS = *result.Artifact.Artifact.OS
@@ -547,7 +607,12 @@ func (m *Manager) transformResult(result *scanner_ci.PolicyResult) imagesec.Scan
 
 	// malware
 	res.Malwares = result.MalwareResults
-	res.Malwares.AviraEngineVersion.Hash = helper.GetSavApiBinaryHash()
+	in := helper.GetAviraDBVersion()
+	res.Malwares.AviraEngineVersion = imagesec.AviraEngineVersion{
+		Hash:    in.WorkVersion.Hash,
+		Version: in.WorkVersion.Version,
+		Comment: in.WorkVersion.Comment,
+	}
 
 	// webshell
 	res.Webshells = result.WebshellResults

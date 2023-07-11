@@ -20,7 +20,7 @@ const (
 	DbBytecodeUnsigned = 0x8000
 
 	// recommended db settings
-	DbStdopt = (DbPhishing | DbPhishingUrls | DbBytecode)
+	DbStdOpt = (DbPhishing | DbPhishingUrls | DbBytecode)
 )
 
 // Scanner options

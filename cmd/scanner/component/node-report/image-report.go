@@ -80,7 +80,7 @@ func (s *NodeImageReport) ReceiveNodeReport(ctx context.Context) error {
 	return nil
 }
 
-func (s *NodeImageReport) handleAsset(ctx context.Context, msg kafka.Message) error {
+func (s *NodeImageReport) ReceiveAssetReport(ctx context.Context, msg kafka.Message) error {
 
 	var imageReport imagesecTypes.NodeReport
 	err := json.Unmarshal(msg.Value, &imageReport)
@@ -140,9 +140,11 @@ func (s *NodeImageReport) handleAsset(ctx context.Context, msg kafka.Message) er
 		if _, ok := exit[images[i].UniqueID]; !ok {
 			addImage = append(addImage, images[i])
 		}
-		if err = s.imageDal.CreateImage(ctx, images[i]); err != nil {
-			logging.Get().Err(err).Interface("image", images[i]).Msg("NodeImageReport CreateImage")
-		}
+	}
+
+	if err = s.imageDal.CreateImage(ctx, images); err != nil {
+		logging.Get().Err(err).Interface("image", images).Msg("NodeImageReport CreateImage")
+		return err
 	}
 
 	if err := s.AddScanTask(ctx, addImage); err != nil {
@@ -194,7 +196,7 @@ func (s *NodeImageReport) AddScanTask(ctx context.Context, newImages []*imagesec
 }
 
 func (s *NodeImageReport) handleMsg(stopCh <-chan struct{}) error {
-	err := s.mqReader.Subscribe(model.NodeImageTopic, model.NodeImageGroup, s.handleAsset)
+	err := s.mqReader.Subscribe(model.NodeImageTopic, model.NodeImageGroup, s.ReceiveAssetReport)
 	if err != nil {
 		logging.Get().Err(err).Msg("failed to sub message queue")
 		return err

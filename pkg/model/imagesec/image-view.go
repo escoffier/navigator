@@ -345,6 +345,8 @@ func (sp *ImageListParam) deserialize2() {
 	sp.OnlineFlag = sp.GenOnlineFlag()
 	sp.ImageKeyword = strings.TrimSpace(sp.ImageKeyword)
 	sp.NodeKeyword = strings.TrimSpace(sp.NodeKeyword)
+	// trick 的做法：按 风险-安全-未知这个顺序排序
+	sp.Filter = sp.Filter.SetSortFiled("flag").SetSortDesc()
 }
 
 // 镜像属性
@@ -377,6 +379,7 @@ type GetImageAssociateDataParam struct {
 	DetectResultEnable    bool                  // 查看检测结果
 	ScanResultSearchParam ScanResultSearchParam // 除了漏洞之外其他扫描结果的查询
 	SearchVulnParam       ApiSearchVulnParam    // 漏洞查询
+	DetectParam           DetectResultParam
 
 	Filter *model.Filter
 }
@@ -409,6 +412,11 @@ func (vi *GetImageAssociateDataParam) GetDetectTypes() []string {
 	}
 	ans = append(ans, DetectTypeRootRule)
 	return ans
+}
+
+type DetectResultParam struct {
+	SecurityPolicyIds []int64 `json:"securityPolicyIds"` // 检测策略ID
+	AllPolicy         bool    `json:"allPolicy"`
 }
 
 type ScanResultSearchParam struct {
@@ -555,9 +563,10 @@ func GetSubTaskScanStatusString(status uint8) string {
 }
 
 type SecurityIssueLabel struct {
-	Value int64  `json:"value"` // 安全问题的ID
-	Label string `json:"label"` // 安全问题
-	Info  string `json:"info"`  // 详细信息
+	Value   int64  `json:"value"`   // 安全问题的ID
+	LabelZH string `json:"labelZH"` // 安全问题
+	LabelEN string `json:"labelEN"` // 安全问题:英文
+	Info    string `json:"info"`    // 详细信息
 }
 
 type ImageWithCorrelateData2 struct {
@@ -911,42 +920,60 @@ func (iws *ImageWithCorrelateData2) GetSecurityIssue() []SecurityIssueLabel {
 
 	if util.ExistBit1(imageFlag, model.FlagHasVuln) {
 		securityIssue = append(securityIssue, SecurityIssueLabel{
-			Value: model.FlagHasVuln, Label: model.GetSecurityIssueLabel(model.FlagHasVuln)})
+			Value:   model.FlagHasVuln,
+			LabelZH: model.GetSecurityIssueLabelZH(model.FlagHasVuln),
+			LabelEN: model.GetSecurityIssueLabelEN(model.FlagHasVuln),
+		})
 	}
 	if util.ExistBit1(imageFlag, model.FlagHasSensitive) {
 		securityIssue = append(securityIssue, SecurityIssueLabel{
-			Value: model.FlagHasSensitive, Label: model.GetSecurityIssueLabel(model.FlagHasSensitive)})
+			Value:   model.FlagHasSensitive,
+			LabelZH: model.GetSecurityIssueLabelZH(model.FlagHasSensitive),
+			LabelEN: model.GetSecurityIssueLabelEN(model.FlagHasSensitive),
+		})
 	}
 	if util.ExistBit1(imageFlag, model.FlagHasMalicious) {
 		securityIssue = append(securityIssue, SecurityIssueLabel{
-			Value: model.FlagHasMalicious, Label: model.GetSecurityIssueLabel(model.FlagHasMalicious)})
+			Value:   model.FlagHasMalicious,
+			LabelZH: model.GetSecurityIssueLabelZH(model.FlagHasMalicious),
+			LabelEN: model.GetSecurityIssueLabelEN(model.FlagHasMalicious),
+		})
 	}
 	if util.ExistBit1(imageFlag, model.FlagHasWebshell) {
 		securityIssue = append(securityIssue, SecurityIssueLabel{
-			Value: model.FlagHasWebshell, Label: model.GetSecurityIssueLabel(model.FlagHasWebshell)})
+			Value:   model.FlagHasWebshell,
+			LabelZH: model.GetSecurityIssueLabelZH(model.FlagHasWebshell),
+			LabelEN: model.GetSecurityIssueLabelEN(model.FlagHasWebshell),
+		})
 	}
 	if util.ExistBit1(imageFlag, model.FlagHasExceptEnv) {
 		securityIssue = append(securityIssue, SecurityIssueLabel{
-			Value: model.FlagHasExceptEnv,
-			Label: model.GetSecurityIssueLabel(model.FlagHasExceptEnv),
-			Info:  ParseConfigEnv(iws.Env),
+			Value:   model.FlagHasExceptEnv,
+			LabelZH: model.GetSecurityIssueLabelZH(model.FlagHasExceptEnv),
+			LabelEN: model.GetSecurityIssueLabelEN(model.FlagHasExceptEnv),
+			Info:    ParseConfigEnv(iws.Env),
 		})
 	}
 	if util.ExistBit1(imageFlag, model.FlagHasExceptLicense) {
 		securityIssue = append(securityIssue, SecurityIssueLabel{
-			Value: model.FlagHasExceptLicense,
-			Label: model.GetSecurityIssueLabel(model.FlagHasExceptLicense),
-			Info:  ParseLicense(iws.Pkg)})
+			Value:   model.FlagHasExceptLicense,
+			LabelZH: model.GetSecurityIssueLabelZH(model.FlagHasExceptLicense),
+			LabelEN: model.GetSecurityIssueLabelEN(model.FlagHasExceptLicense),
+			Info:    ParseLicense(iws.Pkg)})
 	}
 	if util.ExistBit1(imageFlag, model.FlagHasExceptPKG) {
 		securityIssue = append(securityIssue, SecurityIssueLabel{
-			Value: model.FlagHasExceptPKG,
-			Label: model.GetSecurityIssueLabel(model.FlagHasExceptPKG),
-			Info:  ParseSoftWare(iws.Pkg)})
+			Value:   model.FlagHasExceptPKG,
+			LabelZH: model.GetSecurityIssueLabelZH(model.FlagHasExceptPKG),
+			LabelEN: model.GetSecurityIssueLabelEN(model.FlagHasExceptPKG),
+			Info:    ParseSoftWare(iws.Pkg)})
 	}
 	if util.ExistBit1(imageFlag, model.FlagPrivilegedBoot) {
 		securityIssue = append(securityIssue,
-			SecurityIssueLabel{Value: model.FlagPrivilegedBoot, Label: model.GetSecurityIssueLabel(model.FlagPrivilegedBoot)})
+			SecurityIssueLabel{
+				Value:   model.FlagPrivilegedBoot,
+				LabelZH: model.GetSecurityIssueLabelZH(model.FlagPrivilegedBoot),
+				LabelEN: model.GetSecurityIssueLabelEN(model.FlagPrivilegedBoot)})
 	}
 
 	return securityIssue
@@ -955,7 +982,8 @@ func (iws *ImageWithCorrelateData2) GetSecurityIssue() []SecurityIssueLabel {
 func (iws *ImageWithCorrelateData2) GetRiskScore() int64 {
 	riskScore := 100 - (CalculateVulnScore(iws.Vuln) +
 		CalculateSensitiveScore(iws.SensitiveCnt) +
-		util.MinInt64(CalculateWebshellScore(iws.WebshellCnt)+CalculateMalwareScore(iws.MalwareCnt), model.MaxWebshellAndVirusScore))
+		util.MinInt64(CalculateWebshellScore(iws.WebshellCnt)+CalculateMalwareScore(iws.MalwareCnt),
+			model.MaxWebshellAndVirusScore))
 
 	if util.ExistBit1(iws.Flag, model.FlagImageNotScan) && riskScore == 100 {
 		riskScore = 0
@@ -1136,6 +1164,7 @@ func (iws *ImageWithCorrelateData2) ToImageBaseResponse() ImageBaseResponse {
 		baseResponse.NodeClusterKey = iws.NodeInfo.ClusterKey
 		baseResponse.NodeUniqueID = iws.NodeInfo.UniqueID
 	}
+
 	if util.ExistBit1(image.Flag, model.FlagImageSafe) {
 		baseResponse.Safe = model.ImageSafeString
 	} else if util.ExistBit1(image.Flag, model.FlagImageUnsafe) {
@@ -1147,7 +1176,26 @@ func (iws *ImageWithCorrelateData2) ToImageBaseResponse() ImageBaseResponse {
 	for i := range iws.RiskPolicy {
 		baseResponse.RiskPolicyName = append(baseResponse.RiskPolicyName, iws.RiskPolicy[i].Name)
 	}
+	baseResponse.SecurityIssueView = baseResponse.GetSecurityIssueViewView(model.LangZh)
+	baseResponse.ImageAttrView = baseResponse.GetImageAttrView(model.LangZh)
+
 	return baseResponse
+}
+
+func (iws *ImageWithCorrelateData2) CheckSafeByPolicy() string {
+
+	if len(iws.DetectResult) == 0 {
+		return model.ImageSafeString
+	}
+	for _, res := range iws.DetectResult {
+		for i := range res {
+			if util.ExistBit1(res[i].Flag, FlagDetectException) {
+				return model.ImageUnsafeString
+			}
+		}
+	}
+
+	return model.ImageSafeString
 }
 
 func (iws *ImageWithCorrelateData2) StaticVuln() ImageVulnSeverityStatic {
@@ -1244,10 +1292,12 @@ type ImageBaseResponse struct {
 	ImageFromType        string               `json:"imageFromType"`
 	UniqueID             uint64               `json:"uniqueID,string"`
 	Digest               string               `json:"digest"`
-	Online               bool                 `json:"online"`        // 在线 "true",离线："false"
-	SecurityIssue        []SecurityIssueLabel `json:"securityIssue"` // 安全问题
-	ImageAttr            ImageAttrResponse    `json:"imageAttr"`     // 镜像属性
-	UUID                 uint32               `json:"uuid"`          // 镜像uuid
+	Online               bool                 `json:"online"`            // 在线 "true",离线："false"
+	SecurityIssue        []SecurityIssueLabel `json:"securityIssue"`     // 安全问题
+	SecurityIssueView    []string             `json:"securityIssueView"` // 安全问题
+	ImageAttr            ImageAttrResponse    `json:"imageAttr"`         // 镜像属性
+	ImageAttrView        []string             `json:"imageAttrView"`     // 镜像属性
+	UUID                 uint32               `json:"uuid"`              // 镜像uuid
 	FullRepoName         string               `json:"fullRepoName"`
 	Tag                  string               `json:"tag"`
 	Size                 string               `json:"size"`
@@ -1278,8 +1328,13 @@ type ImageBaseResponse struct {
 }
 
 func (vi *ImageBaseResponse) AdaptI18(ctx context.Context) {
-	lang, ok := ctx.Value(AcceptLanguage).(string)
-	if ok && lang == model.LangEn {
+	lang := model.LangZh
+
+	if la, ok := ctx.Value(AcceptLanguage).(string); ok && la == model.LangEn {
+		lang = model.LangEn
+	}
+
+	if lang == model.LangEn {
 		for i := range vi.Suggests {
 			vi.Suggests[i].Title = SuggestTile()[vi.Suggests[i].Title]
 		}
@@ -1299,6 +1354,9 @@ func (vi *ImageBaseResponse) AdaptI18(ctx context.Context) {
 			}
 		}
 	}
+
+	vi.SecurityIssueView = vi.GetSecurityIssueViewView(lang)
+	vi.ImageAttrView = vi.GetImageAttrView(lang)
 }
 
 func (vi *ImageBaseResponse) SuggestsString() string {
@@ -1319,6 +1377,78 @@ func (vi *ImageBaseResponse) GetOSView() string {
 		return ""
 	}
 	return vi.Os.Family + ":" + vi.Os.Name
+}
+
+func (vi *ImageBaseResponse) GetImageAttrView(lang string) []string {
+	if lang == "" {
+		lang = model.LangZh
+	}
+	ans := make([]string, 0)
+
+	if vi.ImageAttr.ImageType == model.BaseImageTypeString {
+		if lang == model.LangZh {
+			ans = append(ans, "基础镜像")
+		} else {
+			ans = append(ans, "Base Image")
+		}
+	}
+
+	if vi.ImageAttr.ImageType == model.AppImageTypeString {
+		if lang == model.LangZh {
+			ans = append(ans, "应用镜像")
+		} else {
+			ans = append(ans, "App Image")
+		}
+	}
+
+	if vi.ImageAttr.Trusted {
+		if lang == model.LangZh {
+			ans = append(ans, "可信镜像")
+		} else {
+			ans = append(ans, "Trusted Image")
+		}
+	}
+
+	if !vi.ImageAttr.Trusted {
+		if lang == model.LangZh {
+			ans = append(ans, "非可信镜像")
+		} else {
+			ans = append(ans, "Untrusted Image")
+		}
+	}
+
+	if vi.ImageAttr.ImageHasSuggestion {
+		if lang == model.LangZh {
+			ans = append(ans, "存在修复建议")
+		} else {
+			ans = append(ans, "Has Suggestion")
+		}
+	}
+
+	if vi.ImageAttr.HasFixedVuln {
+		if lang == model.LangZh {
+			ans = append(ans, "存在可修复漏洞")
+		} else {
+			ans = append(ans, "Has Fixed Vulnerability")
+		}
+	}
+
+	return ans
+}
+
+func (vi *ImageBaseResponse) GetSecurityIssueViewView(lang string) []string {
+	ans := make([]string, 0)
+
+	for i := range vi.SecurityIssue {
+		si := vi.SecurityIssue[i]
+		if lang == model.LangEn {
+			ans = append(ans, si.LabelEN)
+		} else {
+			ans = append(ans, si.LabelZH)
+		}
+	}
+
+	return ans
 }
 
 type ImageVulnSeverityStatic struct {

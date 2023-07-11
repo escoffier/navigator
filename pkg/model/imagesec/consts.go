@@ -259,18 +259,9 @@ const (
 	ScanCycleCheckInternal = time.Minute * 5
 )
 
-// task trigger type
 const (
-	VulnDbUpdateTrigger      = "vulnDbUpdate"      // 漏洞库更新触发扫描
-	MalwareDataUpdateTrigger = "malwareDataUpdate" // 病毒库更新触发扫描
-	SensitiveUpdateTrigger   = "sensitiveUpdate"   // 敏感文件规则更新触发扫描
-	CycleTrigger             = "cycle"             // 周期性扫描任务
-	ImageSyncTrigger         = "imageSync"         // 镜像同步触发扫描
-	ManualTrigger            = "manual"            // 手动扫描任务
-)
-
-const (
-	SensitiveRuleTypeFilename = "filename"
+	SensitiveRuleTypeFileContent = "FileContent"
+	SensitiveRuleTypeFilename    = "Filename"
 )
 
 const (
@@ -288,17 +279,12 @@ const (
 )
 
 const (
-	CicdOperatorZH         = "CICD触发扫描"
-	CycleTriggerOperatorZH = "周期触发扫描"
-	SyncTriggerOperatorZH  = "镜像同步触发扫描"
-	VulnDbUpdateTriggerZH  = "漏洞库更新触发扫描"
-
-	CicdOperatorEN         = "cicd"
-	CycleTriggerOperatorEN = "sync image"
-	SyncTriggerOperatorEN  = "cycle"
-	VulnDbUpdateTriggerEN  = "vuln db update"
+	AcceptLanguage = "Accept-Language"
 )
 
 const (
-	AcceptLanguage = "Accept-Language"
+	DBMetaTypeVuln     = "vuln"
+	DBMetaTypeWebshell = "webshell"
+	DBMetaTypeClamav   = "clamav"
+	DBMetaTypeAvira    = "avira"
 )

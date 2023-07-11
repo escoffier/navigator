@@ -96,7 +96,7 @@ func (s *ExcelExportSrv) GenExcelDataChan(ctx context.Context, excelData types.E
 
 			_ = s.UpdateTask.IncrRedisFinished(ctx, excelData.ExportTask.ID)
 
-			data, err := s.GetExcelData(ctx, ima, vulnCol)
+			data, err := s.GetExcelData(ctx, ima, vulnCol, excelData.ExportTask)
 			if err != nil {
 				logging.Get().Err(err).Int64("imageId", ima.ID).Uint64("imageUniqueID", ima.UniqueID).Msg("Export.GetExcelData")
 				continue
@@ -104,7 +104,7 @@ func (s *ExcelExportSrv) GenExcelDataChan(ctx context.Context, excelData types.E
 			logging.Get().Info().Int64("imageId", ima.ID).Uint64("imageUniqueID", ima.UniqueID).Msg("Export.GetExcelData")
 
 			if convertDataFunc != nil {
-				data = convertDataFunc(data)
+				data = convertDataFunc(data, excelData.ExportTask.Lang)
 			}
 
 			for sheetName, dataChan := range data {
@@ -117,7 +117,6 @@ func (s *ExcelExportSrv) GenExcelDataChan(ctx context.Context, excelData types.E
 			if vulnCol.Load() > int32(s.MaxVulnCol) {
 				out <- excelData
 				vulnCol = atomic.NewInt32(0)
-
 				excelData.ExcelExportImageData = make(types.ExcelExportImageData)
 			}
 		}
@@ -161,15 +160,6 @@ func (s *ExcelExportSrv) RunExport(ctx context.Context, executeType string, imag
 	taskChan := s.GenTensorExportTaskChan(ctx, executeType)
 
 	for task := range taskChan {
-		// 支持横向扩展
-		// created, err := s.ExportTaskDal.CreateExportIdempotent(ctx, task.ID)
-		// if err != nil {
-		// 	logging.Get().Err(err).Str("TaskType", model.ExportExcel).Msg("ExcelExportSrv CreateExportIdempotent")
-		// 	continue
-		// }
-		// if !created {
-		// 	continue
-		// }
 
 		if err := s.UpdateTask.Start(ctx, task.ID); err != nil {
 			logging.Get().Err(err).Int64("taskID", task.ID).Msg("Clean Start")
@@ -178,8 +168,8 @@ func (s *ExcelExportSrv) RunExport(ctx context.Context, executeType string, imag
 
 		excelData := types.ExcelDataWithMeta{
 			ExcelExportImageData: make(types.ExcelExportImageData),
-			Filepath:             fmt.Sprintf("%s", task.GenFilenamePrefix()),
-			ExcelMeta:            GetImageSheetInfo(executeType),
+			Filepath:             task.GenFilenamePrefix(),
+			ExcelMeta:            GetImageSheetInfo(task),
 			ExportTask:           task,
 		}
 
@@ -191,8 +181,8 @@ func (s *ExcelExportSrv) RunExport(ctx context.Context, executeType string, imag
 	}
 }
 
-func (s *ExcelExportSrv) GetExcelData(ctx context.Context, image imagesecModel.Image, vulnCol *atomic.Int32) (
-	map[string]chan []string, error) {
+func (s *ExcelExportSrv) GetExcelData(ctx context.Context, image imagesecModel.Image, vulnCol *atomic.Int32, task model.ExportTensorTask) (
+	map[types.SheetName]chan []string, error) {
 	// 获取镜像详情
 	logging.Get().Info().Int64("imageID", image.ID).Uint64("ImageUniqueID", image.UniqueID).
 		Msg("GetExcelData GetImageDetail start")
@@ -220,21 +210,26 @@ func (s *ExcelExportSrv) GetExcelData(ctx context.Context, image imagesecModel.I
 
 	baseImage := data.ToImageBaseResponse()
 
-	res := make(map[string]chan []string)
+	baseImage.AdaptI18(context.WithValue(ctx, model.AcceptLanguage, task.Lang))
+	for i := range data.Vuln {
+		data.Vuln[i].AdaptI18(context.WithValue(ctx, model.AcceptLanguage, task.Lang))
+	}
+
+	res := make(map[types.SheetName]chan []string)
 	// 写入数据
-	res[GenImageBaseInfoMeta().SheetName] = GenBaseInfoChan(*data)
-	res[GenImageVulnInfoMeta().SheetName] = GenVulnInfoChan(baseImage, data.Vuln)
-	res[GenImageSensitiveFileInfoMeta().SheetName] = GenSensitiveFileChan(baseImage, data.Sensitive)
-	res[GenImageVirusInfoMeta().SheetName] = GenMalwareChan(baseImage, data.Malware)
-	res[GenImageWebshellInfoMeta().SheetName] = GenWebShellChan(baseImage, data.Webshell)
-	res[GenImageEnvInfoMeta().SheetName] = GenEnvChan(baseImage, data.Env)
-	res[GenImageResourcesInfoMeta().SheetName] = GenImageResourceChan(baseImage, data.Container)
+	res[GenImageBaseInfoMeta(task.Lang).SheetName] = GenBaseInfoChan(baseImage, task.Lang)
+	res[GenImageVulnInfoMeta(task.Lang).SheetName] = GenVulnInfoChan(baseImage, data.Vuln, task.Lang)
+	res[GenImageSensitiveFileInfoMeta(task.Lang).SheetName] = GenSensitiveFileChan(baseImage, data.Sensitive)
+	res[GenImageVirusInfoMeta(task.Lang).SheetName] = GenMalwareChan(baseImage, data.Malware)
+	res[GenImageWebshellInfoMeta(task.Lang).SheetName] = GenWebShellChan(baseImage, data.Webshell)
+	res[GenImageEnvInfoMeta(task.Lang).SheetName] = GenEnvChan(baseImage, data.Env)
+	res[GenImageResourcesInfoMeta(task.Lang).SheetName] = GenImageResourceChan(baseImage, data.Container)
 
 	if model.ExistFlag(baseImage.Flag, model.FlagBaseImage) {
-		res[GenImageTypeInfoMeta().SheetName] = GenAppOrBaseImageChan(data.AppImages)
+		res[GenImageTypeInfoMeta(task.Lang).SheetName] = GenAppOrBaseImageChan(data.AppImages)
 	}
 	if !model.ExistFlag(baseImage.Flag, model.FlagBaseImage) {
-		res[GenImageTypeInfoMeta().SheetName] = GenAppOrBaseImageChan(data.BaseImages)
+		res[GenImageTypeInfoMeta(task.Lang).SheetName] = GenAppOrBaseImageChan(data.BaseImages)
 	}
 	if vulnCol != nil {
 		vulnCol.Add(int32(len(data.Vuln)))
@@ -335,4 +330,33 @@ func (s *ExcelExportSrv) getImageSrv(ctx context.Context, imageFromType string) 
 		return s.NodeImageSrv
 	}
 	return s.LibImageSrv
+}
+
+func ConvertData(res map[types.SheetName]chan []string, lang string) map[types.SheetName]chan []string {
+
+	if lang == model.LangZh || lang == "" {
+		return res
+	}
+
+	ans := make(map[types.SheetName]chan []string)
+
+	for key, value := range res {
+		out := make(chan []string)
+		go func(key string, value chan []string) {
+			defer func() {
+				if r := recover(); r != nil {
+					logging.Get().Error().Str("stack", string(debug.Stack())).Msg("ImageExport")
+				}
+			}()
+
+			defer close(out)
+
+			for data := range value {
+				data = ReplaceToEN(data)
+				out <- data
+			}
+		}(key.String(), value)
+		ans[key] = out
+	}
+	return ans
 }

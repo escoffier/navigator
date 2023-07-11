@@ -209,7 +209,6 @@ func (s *Service) GetUserSession(ctx context.Context, db *gorm.DB, username stri
 }
 
 func (s *Service) SaveUserSession(ctx context.Context, user *model.UserSession) error {
-	return nil
 	oneCtx, oneCancel := context.WithTimeout(ctx, defaultOneTimeout)
 	defer oneCancel()
 

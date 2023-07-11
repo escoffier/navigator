@@ -182,7 +182,7 @@ type ImageList struct {
 	OS                string                  `gorm:"type:varchar(255);column:os" json:"os"`
 	Size              int                     `gorm:"column:size" json:"size"`
 	Library           string                  `gorm:"type:varchar(255);column:library" json:"library"`
-	ImageUUID         uint32                  `gorm:"column:image_uuid" json:"-"`
+	ImageUUID         uint32                  `gorm:"column:image_uuid" json:"imageUUID"`
 	Questions         []QuestionInfo          `gorm:"-" json:"questions"`
 	ImageScanVuln     ImageScanSummaryResult  `gorm:"-" json:"image_scan_vuln"`
 	ScanStatus        int                     `gorm:"-" json:"scan_status"`
@@ -229,6 +229,13 @@ type ImageList struct {
 	SentiveFixSuggestion []string  `gorm:"-" json:"sentiveFixSuggestion"`
 }
 
+func (im *ImageList) GenImageUUID() uint32 {
+	imageName := im.GetImageName()
+	imageName = strings.ReplaceAll(imageName, "https://", "")
+	imageName = strings.ReplaceAll(imageName, "http://", "")
+	imageName = fmt.Sprintf("%s@%s", imageName, im.Digest)
+	return util.GenerateUUID(imageName)
+}
 func (im *ImageList) GetBootUser() string {
 	user := ""
 	if im.ConfigFile != nil {

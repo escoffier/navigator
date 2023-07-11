@@ -52,31 +52,33 @@ func (s *SingeImageExportExcel) GenImageChan(ctx context.Context, task model.Exp
 }
 
 // 对于单个镜像的导出，不需要镜像名称和仓库来源两列
-func (s *SingeImageExportExcel) ConvertData(res map[string]chan []string) map[string]chan []string {
+func (s *SingeImageExportExcel) ConvertData(res map[types.SheetName]chan []string, lang string) map[types.SheetName]chan []string {
 
-	ans := make(map[string]chan []string)
+	ans := make(map[types.SheetName]chan []string)
 
 	for key, value := range res {
-		if key == common.GenImageTypeInfoMeta().SheetName || key == common.GenImageBaseInfoMeta().SheetName {
-			ans[key] = value
-		} else {
-			out := make(chan []string, 1)
-			go func(value chan []string) {
-				defer func() {
-					if r := recover(); r != nil {
-						logging.Get().Error().Str("stack", string(debug.Stack())).Msg("ImageExport")
-					}
-				}()
-
-				defer close(out)
-
-				for data := range value {
-					data = data[2:]
-					out <- data
+		out := make(chan []string)
+		go func(key string, value chan []string) {
+			defer func() {
+				if r := recover(); r != nil {
+					logging.Get().Error().Str("stack", string(debug.Stack())).Msg("ImageExport")
 				}
-			}(value)
-			ans[key] = out
-		}
+			}()
+
+			defer close(out)
+
+			for data := range value {
+				if lang == model.LangEn {
+					data = common.ReplaceToEN(data)
+				}
+				if common.GenImageTypeInfoMeta(lang).SheetName.String() != key &&
+					common.GenImageBaseInfoMeta(lang).SheetName.String() != key {
+					data = data[2:]
+				}
+				out <- data
+			}
+		}(key.String(), value)
+		ans[key] = out
 	}
 	return ans
 }

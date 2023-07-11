@@ -1,22 +1,9 @@
 package helper
 
 import (
-	"encoding/json"
-	"gitlab.com/piccolo_su/vegeta/cmd/daemon/global"
-	"gitlab.com/piccolo_su/vegeta/pkg/types/imagesec"
-	"gitlab.com/piccolo_su/vegeta/pkg/util"
-	"os"
-	"path/filepath"
 	"sync"
-	"time"
-)
 
-const (
-	VulnDBZipFilePasswd   = "tanzhen2020scanner"
-	VulnDBVersionLayout   = "200601021504"
-	VulnDBVersionFileName = "version"
-	VulnDBNotifyFileName  = "notify-update"
-	AviraDBPath           = "/usr/local/savapi-sdk-linux64/bin"
+	"gitlab.com/piccolo_su/vegeta/pkg/util"
 )
 
 var (
@@ -27,67 +14,68 @@ var (
 )
 
 // GetDownloadDBPath vuln,clamav,avira db file store path. all db files store in host directory
-func GetDownloadDBPath() string {
-	return filepath.Join(global.MountPathInContainer, global.WorkingDir, "db")
-}
+// func GetDownloadDBPath() string {
+// 	return filepath.Join(global.MountPathInContainer, global.WorkingDir, "db")
+// }
 
 // GetDownloadVulnDBPath /host/var/lib/tensor/db/vuln
-func GetDownloadVulnDBPath() string {
-	return filepath.Join(GetDownloadDBPath(), "vuln")
-}
-
+// func GetDownloadVulnDBPath() string {
+// 	return filepath.Join(GetDownloadDBPath(), "vuln")
+// }
+//
 // GetDownloadVulnDBFilePath return db file name in newly downloaded dir(/host/var/lib/tensor/db/vuln/202203141500/trivy/trivy.db)
-func GetDownloadVulnDBFilePath(dir string) string {
-	return filepath.Join(dir, "trivy/trivy.db")
-}
+// func GetDownloadVulnDBFilePath(dir string) string {
+// 	return filepath.Join(dir, "trivy/trivy.db")
+// }
 
-func GetDownloadVulnDBVersionPath(dir string) string {
-	return filepath.Join(dir, "trivy/version")
-}
+// func GetDownloadVulnDBVersionPath(dir string) string {
+// 	return filepath.Join(dir, "trivy/version")
+// }
 
-func GetDownloadVulnDBVersion(dir string) (string, error) {
-	version := &imagesec.OfflineVulnDBVersion{}
-	data, err := os.ReadFile(GetDownloadVulnDBVersionPath(dir))
-	if err != nil {
-		return "", err
-	}
-	err = json.Unmarshal(data, version)
-	if err != nil {
-		return "", err
-	}
-	return version.TrivyVersion.Version, nil
-}
+// func GetDownloadVulnDBVersion(dir string) (string, error) {
+// 	version := &imagesec.OfflineVulnDBVersion{}
+// 	data, err := os.ReadFile(GetDownloadVulnDBVersionPath(dir))
+// 	if err != nil {
+// 		return "", err
+// 	}
+// 	err = json.Unmarshal(data, version)
+// 	if err != nil {
+// 		return "", err
+// 	}
+// 	return version.TrivyVersion.Version, nil
+// }
 
-func GetWorkingVulnDBFilePath() string {
-	return filepath.Join(global.WorkingDir, "cache/db/trivy.db")
-}
+// func GetWorkingVulnDBFilePath() string {
+// 	return filepath.Join(global.WorkingDir, "cache/db/trivy.db")
+// }
 
-func GetWorkingVulnDBVersionFilePath() string {
-	return filepath.Join(global.WorkingDir, "cache/db/version")
-}
+// func GetWorkingVulnDBVersionFilePath() string {
+// 	return filepath.Join(global.WorkingDir, "cache/db/version")
+// }
 
-func GetWorkingVulnDBVersion() (string, error) {
-	version := &imagesec.OfflineVulnDBVersion{}
-	data, err := os.ReadFile(GetWorkingVulnDBVersionFilePath())
-	if err != nil {
-		return "", err
-	}
-	err = json.Unmarshal(data, version)
-	if err != nil {
-		return "", err
-	}
-	return version.TrivyVersion.Version, nil
-}
-
-func IsDBVersionNewer(newVersion, curVersion string) bool {
-	newTime, _ := time.Parse(VulnDBVersionLayout, newVersion)
-	curTime, _ := time.Parse(VulnDBVersionLayout, curVersion)
-
-	return newTime.After(curTime)
-}
+// func GetWorkingVulnDBVersion() (string, error) {
+// 	version := &imagesec.OfflineVulnDBVersion{}
+// 	data, err := os.ReadFile(GetWorkingVulnDBVersionFilePath())
+// 	if err != nil {
+// 		return "", err
+// 	}
+// 	err = json.Unmarshal(data, version)
+// 	if err != nil {
+// 		return "", err
+// 	}
+// 	return version.TrivyVersion.Version, nil
+// }
+//
+// func IsDBVersionNewer(newVersion, curVersion string) bool {
+// 	newTime, _ := time.Parse(consts.VulnDBVersionLayout, newVersion)
+// 	curTime, _ := time.Parse(consts.VulnDBVersionLayout, curVersion)
+//
+// 	return newTime.After(curTime)
+// }
 
 func init() {
 	TaskQueue = util.NewQueue()
 	DBFileUpdateWg = &sync.WaitGroup{}
 	ScanTaskWg = &sync.WaitGroup{}
+	BroadcastServer = util.NewBroadcastServer()
 }

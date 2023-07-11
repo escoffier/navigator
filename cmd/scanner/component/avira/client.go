@@ -5,11 +5,10 @@ import (
 	"io/fs"
 	"net"
 	"path/filepath"
-	"sync"
-
 	// "runtime/debug"
 	"strconv"
 	"strings"
+	"sync"
 
 	// "sync"
 
@@ -179,6 +178,7 @@ func (sc *scanner) Close() error {
 	sc.finish()
 	return nil
 }
+
 func (sc *scanner) finish() error {
 	sc.pCli.send("QUIT")
 	sc.pCli.conn.Close()
@@ -231,27 +231,3 @@ func ScanDir(path string) (map[string][]string, error) {
 	scannerCli.finish()
 	return retMap, nil
 }
-
-// func concurrentScan(dirs []string) {
-// 	var wg sync.WaitGroup
-// 	ch := make(chan struct{}, 10)
-// 	for index, p := range dirs {
-// 		wg.Add(1)
-// 		ch <- struct{}{}
-// 		go func(i int, path string) {
-// 			defer wg.Done()
-// 			defer func() {
-// 				<-ch
-// 			}()
-// 			defer func() {
-// 				if r := recover(); r != nil {
-// 					logging.Get().Error().Msgf("Panic: %v. stack: %s", r, debug.Stack())
-// 				}
-// 			}()
-// 			ScanDir(i, path)
-
-// 		}(index, p)
-
-// 	}
-// 	wg.Wait()
-// }

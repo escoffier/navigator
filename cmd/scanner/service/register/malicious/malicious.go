@@ -92,7 +92,7 @@ func newService(config register.ScannerServiceConfig) (register.ScannerService, 
 	if err != nil {
 		return nil, err
 	}
-	u := malicious.NewUpdataService(config.Options.PvcPath)
+	u := malicious.NewUpdateService(config.Options.PvcPath)
 	m.Updata = u
 	dbPath := avira.DefaultDBPath
 	pvcAvriaPath := filepath.Join(config.Options.PvcPath, scannermodel.AviraDBPath)

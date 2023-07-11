@@ -3,7 +3,7 @@ package cache
 import (
 	"context"
 	"fmt"
-	"gitlab.com/piccolo_su/vegeta/cmd/node-image/services"
+	"gitlab.com/piccolo_su/vegeta/cmd/node-image/consts"
 	"gitlab.com/piccolo_su/vegeta/pkg/types/imagesec"
 	"gitlab.com/security-rd/go-pkg/logging"
 	"sync"
@@ -37,8 +37,8 @@ func GetResultCache() *ImageResultCache {
 	return instance
 }
 
-func (i *ImageResultCache) Type() services.ServiceType {
-	return services.TypeServiceImageResultCache
+func (i *ImageResultCache) Type() consts.ServiceType {
+	return consts.TypeServiceImageResultCache
 }
 
 func (i *ImageResultCache) Run() error {

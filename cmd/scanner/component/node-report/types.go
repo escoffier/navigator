@@ -9,7 +9,6 @@ import (
 type ImageDetectTaskService interface {
 	CreateImageDetectTask(ctx context.Context,
 		imageSearchParam imagesecModel.ImageListParam,
-		policySearchParam imagesecModel.SearchSecurityPolicyParam,
 		taskInfo imagesecModel.ImageDetectTask,
 	) error
 }

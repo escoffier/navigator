@@ -5,10 +5,11 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"gitlab.com/security-rd/go-pkg/logging"
+
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/ci"
 	scanner_ci "gitlab.com/piccolo_su/vegeta/pkg/model/scanner-ci"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
-	"gitlab.com/security-rd/go-pkg/logging"
 )
 
 type MockCiApiSrv struct {
@@ -75,7 +76,7 @@ func (c *MockCiApiSrv) SaveResult(ctx *gin.Context) {
 	}
 	req := ctx.Request
 	req.Header.Get("token")
-	//logging.Get().Trace().Interface("result", result).Msg("get ci result")
+	// logging.Get().Trace().Interface("result", result).Msg("get ci result")
 
 	ctx.JSON(http.StatusOK, nil)
 }

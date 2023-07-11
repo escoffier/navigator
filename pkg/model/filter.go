@@ -145,9 +145,8 @@ func (f *Filter) SetDefault() *Filter {
 }
 
 func (f *Filter) DeepCopy() *Filter {
-
 	if f == nil {
-		return nil
+		return &Filter{}
 	}
 	res := Filter{
 		SortBy:    f.SortBy,

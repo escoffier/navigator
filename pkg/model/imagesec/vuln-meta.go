@@ -4,6 +4,8 @@ import (
 	"strings"
 	"sync"
 
+	"scm.tensorsecurity.cn/tensorsecurity-rd/trivy/pkg/report"
+
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 )
 
@@ -15,12 +17,15 @@ var vulnVectorFlag map[string]map[string]uint64
 var defaultAttr map[string]string
 var languageMap map[string]string
 
+type VulnCVSSPer map[string]string
+
 func GetVulnAVView(lang string) map[string]string {
 	avCH := map[string]string{
 		"N": "网络访问",
 		"L": "本地访问",
 		"P": "物理访问",
 		"A": "相邻网络访问", // https://www.first.org/cvss/calculator/3.1
+		"":  "相邻网络访问",
 	}
 
 	avEn := map[string]string{
@@ -417,6 +422,11 @@ func genCVSSv2Vector(v2Vector string) map[string]string {
 	return ans
 }
 
+type ViewConst struct {
+	ZH []LabelValue `json:"zh"`
+	EN []LabelValue `json:"en"`
+}
+
 type LabelValue struct {
 	Label string `json:"label"`
 	Value string `json:"value"`
@@ -431,4 +441,133 @@ type VuluConstView struct {
 	AttackPath []LabelValue `json:"attackPath"`
 	Class      []LabelValue `json:"class"`
 	Severity   []LabelValue `json:"severity"`
+}
+
+func GetSeverityView(lang string) map[string]string {
+	avEN := map[string]string{
+		SeverityCritical: SeverityCritical,
+		SeverityHigh:     SeverityHigh,
+		SeverityMedium:   SeverityMedium,
+		SeverityLow:      SeverityLow,
+		SeverityUnknown:  SeverityUnknown,
+	}
+
+	avCH := map[string]string{
+		SeverityCritical: SeverityCriticalView,
+		SeverityHigh:     SeverityHighView,
+		SeverityMedium:   SeverityMediumView,
+		SeverityLow:      SeverityLowView,
+		SeverityUnknown:  SeverityUnknownView,
+	}
+	if lang == model.LangEn {
+		return avEN
+	}
+
+	return avCH
+}
+
+// 漏洞类型
+func GetVulnClassView(lang string) map[string]string {
+	avCH := map[string]string{
+		report.ClassOSPkg:   "系统漏洞",
+		report.ClassLangPkg: "应用漏洞",
+		report.ClassConfig:  "配置文件漏洞",
+	}
+
+	avEn := map[string]string{
+		report.ClassOSPkg:   "System FLAW",
+		report.ClassLangPkg: "Application vulnerability",
+		report.ClassConfig:  "Config vulnerability",
+	}
+	if lang == model.LangEn {
+		return avEn
+	}
+
+	return avCH
+}
+
+const (
+	VulnCvssKeyAV = "AV"
+	VulnCvssKeyUI = "UI"
+	VulnCvssKeyAC = "AC"
+	VulnCvssKeyC  = "C"
+	VulnCvssKeyA  = "A"
+	VulnCvssKeyPR = "PR"
+	VulnCvssKeyS  = "S"
+	VulnCvssKeyI  = "I"
+
+	VulnCvssKeyAVViewZH = "攻击位置难易"
+	VulnCvssKeyUIViewZH = "是否自动化触发"
+	VulnCvssKeyACViewZH = "攻击复杂度"
+	VulnCvssKeyCViewZH  = "信息泄露风险"
+	VulnCvssKeyAViewZH  = "信息/系统篡改风险"
+	VulnCvssKeyPRViewZH = "所需权限级别"
+	VulnCvssKeySViewZH  = "权限范围扩大"
+	VulnCvssKeyIViewZH  = "触发dos风险"
+
+	VulnCvssKeyAVViewEN = "Difficult to attack the locations"
+	VulnCvssKeyUIViewEN = "Is triggered automatically"
+	VulnCvssKeyACViewEN = "Attack Complexity"
+	VulnCvssKeyCViewEN  = "Risk of information leakage"
+	VulnCvssKeyAViewEN  = "Information/System tampering"
+	VulnCvssKeyPRViewEN = "Required permission level"
+	VulnCvssKeySViewEN  = "Privilege range expand"
+	VulnCvssKeyIViewEN  = "Risk of DDos"
+)
+
+func GetVulnCvssAttrKeyView(lang string) map[string]string {
+
+	dataZH := map[string]string{
+		VulnCvssKeyAV: VulnCvssKeyAVViewZH,
+		VulnCvssKeyUI: VulnCvssKeyUIViewZH,
+		VulnCvssKeyAC: VulnCvssKeyACViewZH,
+		VulnCvssKeyC:  VulnCvssKeyCViewZH,
+		VulnCvssKeyA:  VulnCvssKeyAViewZH,
+		VulnCvssKeyPR: VulnCvssKeyPRViewZH,
+		VulnCvssKeyS:  VulnCvssKeySViewZH,
+		VulnCvssKeyI:  VulnCvssKeyIViewZH,
+	}
+
+	dataEN := map[string]string{
+		VulnCvssKeyAV: VulnCvssKeyAVViewEN,
+		VulnCvssKeyUI: VulnCvssKeyUIViewEN,
+		VulnCvssKeyAC: VulnCvssKeyACViewEN,
+		VulnCvssKeyC:  VulnCvssKeyCViewEN,
+		VulnCvssKeyA:  VulnCvssKeyAViewEN,
+		VulnCvssKeyPR: VulnCvssKeyPRViewEN,
+		VulnCvssKeyS:  VulnCvssKeySViewEN,
+		VulnCvssKeyI:  VulnCvssKeyIViewEN,
+	}
+	if lang == model.LangEn {
+		return dataEN
+	}
+
+	return dataZH
+}
+
+func GetVulnCvssAttrValueView(lang string, k string) map[string]string {
+	data := map[string]VulnCVSSPer{
+		VulnCvssKeyAV: GetVulnAVView(lang),
+		VulnCvssKeyUI: GetVulnUIView(lang),
+		VulnCvssKeyAC: GetVulnAcView(lang),
+		VulnCvssKeyC:  GetVulnCView(lang),
+		VulnCvssKeyA:  GetVulnAView(lang),
+		VulnCvssKeyPR: GetVulnPrView(lang),
+		VulnCvssKeyS:  GetVulnSView(lang),
+		VulnCvssKeyI:  GetVulnIView(lang),
+	}
+	return data[k]
+}
+
+// 漏洞属性
+func GenVulnCVSSV3AttrView(attr map[string]string, lang string) map[string]string {
+	if lang == "" {
+		lang = model.LangZh
+	}
+	after := make(map[string]string)
+	for k, v := range attr {
+		vv := GetVulnCvssAttrValueView(lang, k)[v]
+		after[k] = vv
+	}
+	return after
 }
