@@ -18,9 +18,10 @@ import (
 )
 
 const (
-	DockerType = "docker"
-	CrioType   = "cri-o"
-	PodmanType = "podman"
+	DockerType     = "docker"
+	CrioType       = "cri-o"
+	PodmanType     = "podman"
+	ContainerdType = "containerd"
 )
 
 const PodUIDIndex = "podUID"
@@ -132,7 +133,7 @@ func (n *NodePodsWatcher) GetContainerType() (string, error) {
 	}
 
 	containerType := node.Status.NodeInfo.ContainerRuntimeVersion
-	ok := strings.Contains(containerType, "docker")
+	ok := strings.Contains(containerType, DockerType)
 	if ok {
 		return DockerType, nil
 	}
@@ -142,17 +143,21 @@ func (n *NodePodsWatcher) GetContainerType() (string, error) {
 		return DockerType, nil
 	}
 
-	ok = strings.Contains(containerType, "cri-o")
+	ok = strings.Contains(containerType, CrioType)
 	if ok {
 		return CrioType, nil
 	}
 
-	ok = strings.Contains(containerType, "podman")
+	ok = strings.Contains(containerType, PodmanType)
 	if ok {
 		return PodmanType, nil
 	}
+	ok = strings.Contains(containerType, ContainerdType)
+	if ok {
+		return ContainerdType, nil
+	}
 
-	return "", errors.Errorf("can not support this container type")
+	return "", errors.Errorf("can not support this container type:" + containerType)
 }
 
 func (n *NodePodsWatcher) getFinalResourceOfPod(ctx context.Context, pod *corev1.Pod) (name string, kind string) {

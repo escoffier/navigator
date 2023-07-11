@@ -94,6 +94,8 @@ require (
 	github.com/afex/hystrix-go v0.0.0-20180502004556-fa1af6a1f4f5
 	github.com/agnivade/levenshtein v1.1.1
 	github.com/ahmetb/go-linq/v3 v3.2.0
+	github.com/containerd/go-cni v1.0.2
+	github.com/containernetworking/plugins v0.9.1
 	github.com/dlclark/regexp2 v1.8.1
 	github.com/elastic/go-libaudit/v2 v2.2.0
 	github.com/facebookarchive/freeport v0.0.0-20150612182905-d4adf43b75b9
@@ -106,6 +108,7 @@ require (
 	github.com/gobwas/glob v0.2.3
 	github.com/goccy/go-json v0.10.2
 	github.com/golang/protobuf v1.5.3
+	github.com/google/cadvisor v0.44.1
 	github.com/gorilla/handlers v1.4.2
 	github.com/imroc/req/v3 v3.35.1
 	github.com/jarcoal/httpmock v1.2.0
@@ -150,8 +153,10 @@ require (
 	github.com/bytedance/sonic v1.9.1 // indirect
 	github.com/chenzhuoyu/base64x v0.0.0-20221115062448-fe3a3abad311 // indirect
 	github.com/chzyer/readline v1.5.1 // indirect
+	github.com/containerd/continuity v0.3.0 // indirect
+	github.com/containerd/fifo v1.0.0 // indirect
+	github.com/containerd/ttrpc v1.1.0 // indirect
 	github.com/containernetworking/cni v0.8.1 // indirect
-	github.com/containernetworking/plugins v0.9.1 // indirect
 	github.com/containers/buildah v1.23.1 // indirect
 	github.com/containers/common v0.44.5 // indirect
 	github.com/containers/image/v5 v5.17.0 // indirect
@@ -164,6 +169,7 @@ require (
 	github.com/cri-o/ocicni v0.2.1-0.20210621164014-d0acc7862283 // indirect
 	github.com/cyphar/filepath-securejoin v0.2.3 // indirect
 	github.com/disiqueira/gotree/v3 v3.0.2 // indirect
+	github.com/docker/go-events v0.0.0-20190806004212-e31b211e4f1c // indirect
 	github.com/docker/go-metrics v0.0.1 // indirect
 	github.com/eapache/go-resiliency v1.3.0 // indirect
 	github.com/eapache/go-xerial-snappy v0.0.0-20230111030713-bf00bc1b83b6 // indirect
@@ -176,6 +182,7 @@ require (
 	github.com/go-ole/go-ole v1.2.6 // indirect
 	github.com/gobuffalo/here v0.6.0 // indirect
 	github.com/godbus/dbus/v5 v5.0.6 // indirect
+	github.com/gogo/googleapis v1.4.0 // indirect
 	github.com/golang/mock v1.6.0 // indirect
 	github.com/gomodule/redigo v1.8.9 // indirect
 	github.com/google/btree v1.0.1 // indirect
@@ -215,6 +222,7 @@ require (
 	github.com/matttproud/golang_protobuf_extensions v1.0.4 // indirect
 	github.com/miekg/pkcs11 v1.0.3 // indirect
 	github.com/mistifyio/go-zfs v2.1.2-0.20190413222219-f784269be439+incompatible // indirect
+	github.com/moby/locker v1.0.1 // indirect
 	github.com/moby/spdystream v0.2.0 // indirect
 	github.com/moby/term v0.0.0-20210619224110-3f7ff695adc6 // indirect
 	github.com/mohae/deepcopy v0.0.0-20170929034955-c48cc78d4826 // indirect
@@ -342,9 +350,9 @@ require (
 	github.com/cespare/xxhash/v2 v2.2.0 // indirect
 	github.com/cheggaaa/pb/v3 v3.0.8 // indirect
 	github.com/containerd/cgroups v1.0.4 // indirect
-	github.com/containerd/containerd v1.5.16 // indirect
+	github.com/containerd/containerd v1.5.16
 	github.com/containerd/stargz-snapshotter/estargz v0.12.1 // indirect
-	github.com/containerd/typeurl v1.0.2 // indirect
+	github.com/containerd/typeurl v1.0.2
 	github.com/containers/podman/v3 v3.4.6-20220425170000
 	github.com/cpuguy83/go-md2man/v2 v2.0.2 // indirect
 	github.com/davecgh/go-spew v1.1.1
@@ -352,7 +360,7 @@ require (
 	github.com/dimchansky/utfbom v1.1.1 // indirect
 	github.com/docker/cli v20.10.17+incompatible // indirect
 	github.com/docker/docker-credential-helpers v0.7.0 // indirect
-	github.com/docker/go-connections v0.4.0 // indirect
+	github.com/docker/go-connections v0.4.0
 	github.com/docker/go-units v0.5.0 // indirect
 	github.com/docker/libtrust v0.0.0-20160708172513-aabc10ec26b7 // indirect
 	github.com/emirpasic/gods v1.12.0 // indirect
@@ -431,7 +439,7 @@ require (
 	github.com/nats-io/nkeys v0.3.0 // indirect
 	github.com/nats-io/nuid v1.0.1 // indirect
 	github.com/open-policy-agent/opa v0.36.1
-	github.com/opencontainers/image-spec v1.1.0-rc2 // indirect
+	github.com/opencontainers/image-spec v1.1.0-rc2
 	github.com/opencontainers/runc v1.1.1 // indirect
 	github.com/owenrumney/go-sarif/v2 v2.1.1 // indirect
 	github.com/owenrumney/squealer v0.2.28 // indirect

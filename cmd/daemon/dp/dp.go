@@ -18,6 +18,7 @@ import (
 	"github.com/docker/docker/api/types"
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/dp/whitelist"
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/container"
+	_ "gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/container/containerd"
 	_ "gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/container/docker"
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/nodeinfo"
 	"gitlab.com/security-rd/go-pkg/logging"
@@ -219,8 +220,14 @@ func CreateRuntimeCli() (container.Runtime, error) {
 		if err != nil {
 			return nil, err
 		}
+	} else if isUnixSockFile(nodeinfo.GetContainerdAddr()) {
+		//containerd
+		rt, err = container.Open(container.RuntimeConfig{Type: "containerd"})
+		if err != nil {
+			return nil, err
+		}
 	} else {
-		// todo: support containerd or cri-o unix socket
+		// todo: support  cri-o unix socket
 		return nil, fmt.Errorf("not valid runtime socket")
 	}
 	return rt, nil

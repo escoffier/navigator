@@ -65,6 +65,10 @@ func GetProcessStartTime() func(int, string) (string, error) {
 		return nil
 	}
 	uptime := time.Now().Unix() - sys.Uptime
+	loc, err := time.LoadLocation("Asia/Shanghai")
+	if err != nil {
+		loc = time.FixedZone("CST", 8*3600) //替换上海时区方式
+	}
 	//get process time
 	return func(pid int, basePath string) (string, error) {
 		path := fmt.Sprintf("%v/proc/%d/stat", basePath, pid)
@@ -80,7 +84,7 @@ func GetProcessStartTime() func(int, string) (string, error) {
 		if err != nil {
 			return "", errors.Errorf("parse %v failed, %+v", fields[21], err)
 		}
-		return time.Unix(uptime+(start/100), 0).Format("2006-01-02 15:04:05"), nil
+		return time.Unix(uptime+(start/100), 0).In(loc).Format("2006-01-02 15:04:05"), nil
 	}
 }
 

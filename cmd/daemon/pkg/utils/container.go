@@ -9,10 +9,11 @@ func MergeVolumeMounts(kubeMounts, dockerMounts []model.Mounts) []model.Mounts {
 	}
 
 	for _, dockerMount := range dockerMounts {
-		
+
 		if kubeMounts != nil {
 			for _, kubeMount := range kubeMounts {
 				if dockerMount.MountPath == kubeMount.MountPath {
+					dockerMount.Name = kubeMount.Name
 					dockerMount.SubPath = kubeMount.SubPath
 					dockerMount.SubPathExpr = kubeMount.SubPathExpr
 					break
@@ -38,6 +39,7 @@ func MergeContainerPorts(kubePorts, dockerPorts []model.Port, containerIP string
 			for _, kubePorts := range kubePorts {
 				if kubePorts.ContainerPort == dockerPort.ContainerPort {
 					dockerPort.Name = kubePorts.Name
+					dockerPort.HostPort = kubePorts.HostPort
 					break
 				}
 			}

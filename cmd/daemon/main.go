@@ -108,6 +108,12 @@ func initNodeInfos(hostName, hostIP, clusterKey, myNamespace string, policyCli m
 			return nil, nil, nil, nil, errors.Errorf("Failed to initialize podman info manager, %v", err)
 		}
 		logging.Get().Info().Msgf("new podman client success!")
+	case nodeinfo.ContainerdType:
+		containerInfo, err = nodeinfo.NewContainerdInfoManager(clusterKey, hostName, hostIP, agent)
+		if err != nil {
+			return nil, nil, nil, nil, errors.Errorf("Failed to initialize containerd info manager, %v", err)
+		}
+		logging.Get().Info().Msgf("new containerd client success!")
 	}
 
 	containerInfo.AddEventHandler(nodeinfo.ContainerEventHandlerFuncs{

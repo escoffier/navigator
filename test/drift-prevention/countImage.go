@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/container"
+	_ "gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/container/containerd"
 	_ "gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/container/docker"
 )
 
