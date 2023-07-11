@@ -405,7 +405,8 @@ func (d *DockerInfoManager) containerFromRaw(containerJson *types.ContainerJSON)
 	}
 
 	processes := getContainerProcessInfo(containerJson.State.Pid)
-	imageName, imageCreated, imageSize := d.getImageInfo(containerJson.Image)
+	//imageName, imageCreated, imageSize := d.getImageInfo(containerJson.Image)
+	imageName, imageDigest, imageCreated, imageSize := d.getImageInfoV2(containerJson.Config.Image, containerJson.Image)
 	return &model.TensorRawContainer{
 		Status:         getContainerStatus(containerJson.State.Status),
 		CreatedAt:      t,
@@ -426,7 +427,7 @@ func (d *DockerInfoManager) containerFromRaw(containerJson *types.ContainerJSON)
 		ImageCreated:   imageCreated,
 		ImageSize:      imageSize,
 		ImageID:        containerJson.Image,
-		ImageDigest:    getImageDigest(containerJson.Config.Image),
+		ImageDigest:    imageDigest,
 		Cmd:            getCommandFromDocker(containerJson),
 		Arguments:      containerJson.Args,
 		VolumeMounts:   volumeMounts,
@@ -507,8 +508,9 @@ func (d *DockerInfoManager) updateContainerDetail(ctx context.Context, container
 	container.VolumeMounts = volumeMounts
 	container.Environment = util.DeIdentificationEnvs(containerJson.Config.Env)
 	container.ImageID = containerJson.Image
-	container.ImageDigest = getImageDigest(containerJson.Config.Image)
-	container.ImageName, container.ImageCreated, container.ImageSize = d.getImageInfo(container.ImageID)
+	//container.ImageDigest = getImageDigest(containerJson.Config.Image)
+	//container.ImageName, container.ImageCreated, container.ImageSize = d.getImageInfo(container.ImageID)
+	container.ImageName, container.ImageDigest, container.ImageCreated, container.ImageSize = d.getImageInfoV2(containerJson.Config.Image, container.ImageID)
 	container.User = containerJson.Config.User
 	container.Ports = getContainerPorts(container.Pid)
 
@@ -551,6 +553,37 @@ func (d *DockerInfoManager) getImageInfo(imageID string) (string, string, int64)
 		}
 	}
 	return names, imageInspect.Created, imageInspect.Size
+}
+
+func (d *DockerInfoManager) getImageInfoV2(imageRef string, imageID string) (imageName string, imageDigest string, createTime string, size int64) {
+	i := strings.LastIndex(imageRef, "@")
+	if i != -1 && i < len(imageRef)-1 {
+		imageDigest = imageRef[i+1:]
+	} else {
+		imageName = imageRef
+	}
+
+	imageInspect, _, err := d.dockerCli.ImageInspectWithRaw(context.Background(), imageID)
+	if err != nil {
+		logging.Get().Err(err).Str("raw-container", "get image name").Msgf("failed to get image [%s] info: %w ", imageID, err)
+	}
+	if imageName == "" {
+		for i, rt := range imageInspect.RepoTags {
+			if i == 0 {
+				imageName = rt
+			} else {
+				imageName = fmt.Sprintf("%s, %s", imageName, rt)
+			}
+		}
+	}
+	if imageDigest == "" && len(imageInspect.RepoDigests) > 0 {
+		i := strings.LastIndex(imageInspect.RepoDigests[0], "@")
+		if i != -1 && i < len(imageInspect.RepoDigests[0])-1 {
+			imageDigest = imageInspect.RepoDigests[0][i+1:]
+		}
+	}
+
+	return imageName, imageDigest, imageInspect.Created, imageInspect.Size
 }
 
 func getImageDigest(image string) string {

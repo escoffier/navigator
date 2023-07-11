@@ -3158,7 +3158,6 @@ func UpsertRawContainerWithRedis(ctx context.Context, rdb *gorm.DB, redisClient 
 
 	containerUUId := util.GenerateUUID(container.ContainerID)
 	imageUUid := GetImageUUID(container.ImageName, container.ImageDigest)
-
 	return rdb.WithContext(rCtx).Transaction(func(tx *gorm.DB) error {
 		err := tx.Model(&model.TensorRawContainer{}).Clauses(clause.OnConflict{
 			Columns:   []clause.Column{{Name: "id"}},
