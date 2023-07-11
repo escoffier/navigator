@@ -26,6 +26,7 @@ func NewAgent(writer mq.Writer) *Agent {
 	return &Agent{mqWriter: writer, cache: newCache(1000)}
 }
 
+// HandlerContainerEvent 调用方：运行时事件;k8s事件
 func (a *Agent) HandlerContainerEvent(ctx context.Context, clusterKey string, action assets.Action, container *model.TensorRawContainer) {
 	if !a.mqReady.Load() {
 		logging.Get().Debug().Str("raw-container", "handle event").Msg("mq is not ready")

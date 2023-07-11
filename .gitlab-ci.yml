@@ -112,6 +112,12 @@ node-image:
   - sed -i "s#REPOPREFIX?=localhost:32000#REPOPREFIX?=harbor.tensorsecurity.com/tensorsecurity#g"
     Makefile
   - cp -a ~/.docker/irene ./configs/node-image/
+  - mkdir avira/
+  - cp ~/.docker/savapi-sdk-linux64.tgz avira/
+  - mkdir clamav/
+  - cp ~/.docker/clamav.tgz clamav/
+  - mkdir hm/
+  - cp ~/.docker/hm-linux.tgz hm/
   script:
   - USEMIRROR=true make node-image
   - docker rmi harbor.tensorsecurity.com/tensorsecurity/node-image:ci || true
