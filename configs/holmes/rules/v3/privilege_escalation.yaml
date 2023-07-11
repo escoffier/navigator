@@ -23,7 +23,7 @@
     rule_type: Privilege_Escalation
     priority: INFO
     urgency: false
-    tags: [ATT&CK, container, cis, mitre_privilege_escalation, mitre_lateral_movement]
+    tags: [ATT&CK, container, cis, mitre_privilege_escalation, mitre_lateral_movement, L1]
 
 - key: Non sudo setuid
   hid: priv_02
@@ -55,7 +55,7 @@
     rule_type: Privilege_Escalation
     priority: NOTICE
     urgency: false
-    tags: [ATT&CK, users, mitre_privilege_escalation]
+    tags: [ATT&CK, users, mitre_privilege_escalation, L2]
 
 - key: System user interactive
   hid: priv_03
@@ -76,7 +76,7 @@
     rule_type: Privilege_Escalation
     priority: ALERT
     urgency: false
-    tags: [ATT&CK, users, mitre_remote_access_tools]
+    tags: [ATT&CK, users, mitre_remote_access_tools, L4]
 
 - key: Set Setuid or Setgid bit
   hid: priv_04
@@ -101,7 +101,7 @@
     rule_type: Privilege_Escalation
     priority: WARNING
     urgency: true
-    tags: [ATT&CK, process, mitre_persistence]
+    tags: [ATT&CK, process, mitre_persistence, L4]
 
 - key: Delete or rename shell history
   hid: priv_05
@@ -126,7 +126,7 @@
     rule_type: Privilege_Escalation
     priority: WARNING
     urgency: true
-    tags: [ATT&CK, process, mitre_defense_evasion]
+    tags: [ATT&CK, process, mitre_defense_evasion, L3]
 
 - key: Escape to access by chroot
   hid: priv_06
@@ -148,7 +148,7 @@
     rule_type: Privilege_Escalation
     priority: ALERT
     urgency: true
-    tags: [ATT&CK]
+    tags: [ATT&CK, L4]
 
 - key: Escape to access rule by procfs
   hid: priv_07
@@ -169,7 +169,7 @@
     rule_type: Privilege_Escalation
     priority: ALERT
     urgency: true
-    tags: [ATT&CK]
+    tags: [ATT&CK, L4]
 
 - key: Escape to access rule by debugfs
   hid: priv_08
@@ -190,7 +190,7 @@
     rule_type: Privilege_Escalation
     priority: ALERT
     urgency: true
-    tags: [ATT&CK]
+    tags: [ATT&CK, L4]
 
 - key: Escape to access rule by cgroup
   hid: priv_09
@@ -211,7 +211,7 @@
     rule_type: Privilege_Escalation
     priority: ALERT
     urgency: true
-    tags: [ATT&CK]
+    tags: [ATT&CK, L4]
 
 - key: CVE-2021-3156(Linux sudo Privilege_Escalation)
   hid: priv_10
@@ -232,7 +232,7 @@
     rule_type: Privilege_Escalation
     priority: ALERT
     urgency: true
-    tags: [ATT&CK]
+    tags: [ATT&CK, L4]
 
 - key: CVE-2019-5736(Modify Container Entrypoint)
   hid: priv_11
@@ -263,7 +263,7 @@
     rule_type: Privilege_Escalation
     priority: ALERT
     urgency: true
-    tags: [ATT&CK]
+    tags: [ATT&CK, L4]
 
 - key: CVE-2019-14287(Sudo Potential bypass of Run as user restrictions)
   hid: priv_12
@@ -285,7 +285,7 @@
     rule_type: Privilege_Escalation
     priority: ALERT
     urgency: true
-    tags: [ATT&CK, filesystem, mitre_privilege_escalation]
+    tags: [ATT&CK, filesystem, mitre_privilege_escalation, L4]
 
 - key: CVE-2022-0185(in Linux Kernel Can Allow Container Escape in Kubernetes Linux)
   hid: priv_13
@@ -306,7 +306,7 @@
     rule_type: Privilege_Escalation
     priority: ALERT
     urgency: true
-    tags: [ATT&CK, filesystem, mitre_privilege_escalation]
+    tags: [ATT&CK, filesystem, mitre_privilege_escalation, L4]
 
 - key: CVE-2021-4034(Polkit Local Privilege Escalation Vulnerability)
   hid: priv_14
@@ -327,7 +327,7 @@
     rule_type: Privilege_Escalation
     priority: ALERT
     urgency: true
-    tags: [ATT&CK, filesystem, mitre_privilege_escalation]
+    tags: [ATT&CK, filesystem, mitre_privilege_escalation, L4]
 
 - key: Linux Privilege Escalation using nmap suid binaries
   hid: priv_15
@@ -348,7 +348,7 @@
     rule_type: Privilege_Escalation
     priority: ALERT
     urgency: true
-    tags: [ATT&CK, filesystem, mitre_privilege_escalation]
+    tags: [ATT&CK, filesystem, mitre_privilege_escalation, L4]
 
 - key: Linux Privilege Escalation using find suid binaries
   hid: priv_16
@@ -360,8 +360,8 @@
   output: >
     proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,container=%container.info,container_id=%container.id,container_name=%container.name
   steps:
-  - name: checkRelatedExists
-    params: [ 'Generated child process shell after starting the container', 10s, trigger.payload.output_map.proc_pid, payload.output_map.proc_ppid ]
+    - name: checkRelatedExists
+      params: [ 'Generated child process shell after starting the container', 10s, trigger.payload.output_map.proc_pid, payload.output_map.proc_ppid ]
   info:
     name:
       en: "Linux Privilege Escalation using find suid binaries"
@@ -375,7 +375,7 @@
     rule_type: Privilege_Escalation
     priority: ALERT
     urgency: true
-    tags: [ATT&CK, filesystem, mitre_privilege_escalation]
+    tags: [ATT&CK, filesystem, mitre_privilege_escalation, L4]
 
 - key: Linux Privilege Escalation using bash suid binaries
   hid: priv_17
@@ -396,7 +396,7 @@
     rule_type: Privilege_Escalation
     priority: ALERT
     urgency: true
-    tags: [ATT&CK, filesystem, mitre_privilege_escalation]
+    tags: [ATT&CK, filesystem, mitre_privilege_escalation, L4]
 
 - key: Linux Privilege Escalation by modifying sensitive files with suid binaries
   hid: priv_18
@@ -417,12 +417,12 @@
     rule_type: Privilege_Escalation
     priority: ALERT
     urgency: true
-    tags: [ATT&CK, filesystem, mitre_privilege_escalation]
+    tags: [ATT&CK, filesystem, mitre_privilege_escalation, L4]
 
 - key: Detect release_agent File Container Escapes
   hid: priv_19
   condition: >
-    open_write and container and fd.name endswith release_agent and user.uid=0 
+    open_write and container and fd.name endswith release_agent and user.uid=0
   output: >
     proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,container=%container.info,container_id=%container.id,container_name=%container.name
   info:
@@ -438,12 +438,14 @@
     rule_type: Privilege_Escalation
     priority: CRITICAL
     urgency: true
-    tags: [ATT&CK, filesystem, mitre_privilege_escalation]
+    tags: [ATT&CK, filesystem, mitre_privilege_escalation, L4]
 
 - key: Connect to docker.sock in container
   hid: priv_20
   condition: >
-    evt.type = connect and evt.args contains "docker.sock" and container and not tensorsec_namespace and shell_parent_procs
+    evt.type = connect and evt.args contains "docker.sock" and container and not tensorsec_namespace and
+    shell_parent_procs and
+    proc.cmdline contains "docker -H unix:"
   output: >
     proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,container=%container.info,container_id=%container.id,container_name=%container.name
   info:
@@ -459,9 +461,10 @@
     rule_type: Privilege_Escalation
     priority: CRITICAL
     urgency: true
-    tags: [ATT&CK, filesystem, mitre_privilege_escalation]
+    tags: [ATT&CK, filesystem, mitre_privilege_escalation, L4]
 
 - key: Try to read the k8s token and bypass RBAC
+  disabled: true
   hid: priv_21
   condition: >
     open_read and fd.name = /var/run/secrets/kubernetes.io/serviceaccount/token and container and shell_parent_procs
@@ -480,31 +483,10 @@
     rule_type: Privilege_Escalation
     priority: WARNING
     urgency: true
-    tags: [ATT&CK, filesystem, mitre_privilege_escalation]
-
-- key: Execute commands through the docker api
-  hid: priv_22
-  condition: >
-    evt.type in (sendto, sendmsg, connect) and fd.sport = 2375 and shell_parent_procs
-  output: >
-    proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,container=%container.info,container_id=%container.id,container_name=%container.name
-  info:
-    name:
-      en: "Execute commands through the docker api"
-      zh: "通过Docker-api执行命令"
-    desc:
-      en: "Execute commands through the docker api"
-      zh: "通过Docker-api执行命令"
-    suggestion:
-      en: "Please use the process tree to determine whether the command is a normal behavior of a known process and whether it is executed by malware, and you can use the immune defense training application to restrict user permissions for sensitive files and commands."
-      zh: "请通过进程树判断该命令是否属于已知进程的正常行为，是否由恶意软件执行，可使用免疫防御训练应用，限制敏感文件和命令的用户权限。"
-    rule_type: Privilege_Escalation
-    priority: ALERT
-    urgency: true
-    tags: [ATT&CK, filesystem, mitre_privilege_escalation]
+    tags: [ATT&CK, filesystem, mitre_privilege_escalation, L2]
 
 - key: Docker copy vulnerability leads to container escape(CVE-2019-14271)
-  hid: priv_24
+  hid: priv_22
   condition: >
     evt.type in (unlinkat, rename) and evt.args contains "libnss_" and evt.args contains ".so" and
     container and
@@ -524,11 +506,11 @@
     rule_type: Privilege_Escalation
     priority: CRITICAL
     urgency: true
-    tags: [ATT&CK, filesystem, mitre_privilege_escalation]
+    tags: [ATT&CK, filesystem, mitre_privilege_escalation, L4]
 
 - key: Containerd vulnerability leads to container escape(CVE-2020-15257)
   disable: true
-  hid: priv_25
+  hid: priv_23
   condition: >
     evt.type = openat and fd.name=/proc/net/unix and
     container and
@@ -549,10 +531,10 @@
     rule_type: Privilege_Escalation
     priority: CRITICAL
     urgency: true
-    tags: [ATT&CK, filesystem]
+    tags: [ATT&CK, filesystem, L4]
 
 - key: Using vim for linux privilege escalation
-  hid: priv_26
+  hid: priv_24
   condition: >
     open_read and evt.arg.name = "/usr/share/vim/vimrc" and container and shell_parent_procs
   output: >
@@ -573,10 +555,10 @@
     rule_type: Privilege_Escalation
     priority: EMERGENCY
     urgency: true
-    tags: [ATT&CK, filesystem, mitre_privilege_escalation]
+    tags: [ATT&CK, filesystem, mitre_privilege_escalation, L4]
 
 - key: Using visudo to modify sensitive file for linux privilege escalation
-  hid: priv_27
+  hid: priv_25
   condition: >
     open_write and fd.name = "/etc/sudoers" and container and shell_parent_procs
   output: >
@@ -597,17 +579,17 @@
     rule_type: Privilege_Escalation
     priority: EMERGENCY
     urgency: true
-    tags: [ATT&CK, filesystem, mitre_privilege_escalation]
+    tags: [ATT&CK, filesystem, mitre_privilege_escalation, L4]
 
 - key: Linux dirty cow vulnerability leads to container escape(CVE-2016-5195)
-  hid: priv_28
+  hid: priv_26
   condition: >
     evt.type = openat and fd.name=/proc/self/mem and shell_family_procs
   output: >
     proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,pod_id=%k8s.pod.id,syscall_name=%syscall.type,container=%container.info,container_id=%container.id,container_name=%container.name,evt.args=%evt.args,fd.name=%fd.name,parent=%proc.pname,gparent=%proc.aname[2],ggparent=%proc.aname[3]
   steps:
     - name: checkRelatedExists
-      params: [Read sensitive file untrusted, 10s, trigger.payload.output_map.proc_pid, payload.output_map.proc_pid]
+      params: [Read /etc/passwd in binaries, 10s, trigger.payload.output_map.proc_pid, payload.output_map.proc_pid]
   info:
     name:
       en: "Linux dirty cow vulnerability leads to container escape(CVE-2016-5195)"
@@ -621,4 +603,4 @@
     rule_type: Privilege_Escalation
     priority: EMERGENCY
     urgency: true
-    tags: [ATT&CK, filesystem, mitre_privilege_escalation]
+    tags: [ATT&CK, filesystem, mitre_privilege_escalation, L4]

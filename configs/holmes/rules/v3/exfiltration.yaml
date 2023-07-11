@@ -13,85 +13,85 @@
   info:
     name:
       en: "System procs network activity"
-      zh: "网络流量中包含系统二进制"
+      zh: "系统二进制发起通信"
     desc:
       en: "any network activity performed by system binaries that are not expected to send or receive any network traffic"
-      zh: "网络流量中包含系统二进制，可能从外部下载/上载应用"
+      zh: "系统二进制发起通信，可能从外部下载/上载应用"
     suggestion:
       en: "Please confirm whether the behavior is the normal behavior of the process and determine whether the server-side ip address is as expected, otherwise you can use the immune defense training container to prevent this type of behavior."
       zh: "请确认该行为是否属于进程的正常行为，判断服务端ip地址是否符合预期，否则可使用免疫防御训练容器，防止该类行为。"
     rule_type: Exfiltration
     priority: NOTICE
     urgency: false
-    tags: [ATT&CK, network, mitre_exfiltration]
+    tags: [ATT&CK, network, mitre_exfiltration, L3]
 
-- key: Interpreted procs inbound network activity
-  hid: exf_02
-  condition: >
-    (inbound and consider_interpreted_inbound
-     and interpreted_procs)
-  output: >
-    proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,user_loginuid=%user.loginuid,connection=%fd.name,container_id=%container.id,container_name=%container.name,image=%container.image.repository
-  info:
-    name:
-      en: "Interpreted procs inbound network activity"
-      zh: "入站流量中包含解释型二进制"
-    desc:
-      en: "any network activity performed by interpreted binaries that are not expected to send or receive any network traffic"
-      zh: "入站流量中包含解释型二进制，可能从外部下载/上传应用"
-    suggestion:
-      en: "Please judge whether the command belongs to the normal behavior of known processes through the process tree, judge whether the server IP address is as expected, confirm whether the traffic is abnormal, and can use micro-isolation to block the traffic."
-      zh: "请通过进程树判断该命令是否属于已知进程的正常行为，判断服务端ip地址是否符合预期，确认该流量是否异常，可使用微隔离阻拦流量。"
-    rule_type: Exfiltration
-    priority: NOTICE
-    urgency: false
-    tags: [ATT&CK, network, mitre_exfiltration]
+# - key: Interpreted procs inbound network activity
+#   hid: exf_02
+#   condition: >
+#     (inbound and consider_interpreted_inbound
+#      and interpreted_procs)
+#   output: >
+#     proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,user_loginuid=%user.loginuid,connection=%fd.name,container_id=%container.id,container_name=%container.name,image=%container.image.repository
+#   info:
+#     name:
+#       en: "Interpreted procs inbound network activity"
+#       zh: "入站流量中包含解释型二进制"
+#     desc:
+#       en: "any network activity performed by interpreted binaries that are not expected to send or receive any network traffic"
+#       zh: "入站流量中包含解释型二进制，可能从外部下载/上传应用"
+#     suggestion:
+#       en: "Please judge whether the command belongs to the normal behavior of known processes through the process tree, judge whether the server IP address is as expected, confirm whether the traffic is abnormal, and can use micro-isolation to block the traffic."
+#       zh: "请通过进程树判断该命令是否属于已知进程的正常行为，判断服务端ip地址是否符合预期，确认该流量是否异常，可使用微隔离阻拦流量。"
+#     rule_type: Exfiltration
+#     priority: NOTICE
+#     urgency: false
+#     tags: [ATT&CK, network, mitre_exfiltration]
 
-- key: Interpreted procs outbound network activity
-  hid: exf_03
-  condition: >
-    (outbound and consider_interpreted_outbound
-     and interpreted_procs)
-  output: >
-    proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,user_loginuid=%user.loginuid,connection=%fd.name,container_id=%container.id,container_name=%container.name,image=%container.image.repository
-  info:
-    name:
-      en: "Interpreted procs outbound network activity"
-      zh: "出站流量中包含解释型二进制"
-    desc:
-      en: "any network activity performed by interpreted binaries that are not expected to send or receive any network traffic"
-      zh: "出站流量中包含解释型二进制，可能从外部下载/上传应用"
-    suggestion:
-      en: "Please judge whether the command belongs to the normal behavior of known processes through the process tree, judge whether the server IP address is as expected, confirm whether the traffic is abnormal, and can use micro-isolation to block the traffic."
-      zh: "请通过进程树判断该命令是否属于已知进程的正常行为，判断服务端ip地址是否符合预期，确认该流量是否异常，可使用微隔离阻拦流量。"
-    rule_type: Exfiltration
-    priority: NOTICE
-    urgency: false
-    tags: [ATT&CK, network, mitre_exfiltration]
+# - key: Interpreted procs outbound network activity
+#   hid: exf_03
+#   condition: >
+#     (outbound and consider_interpreted_outbound
+#      and interpreted_procs)
+#   output: >
+#     proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,user_loginuid=%user.loginuid,connection=%fd.name,container_id=%container.id,container_name=%container.name,image=%container.image.repository
+#   info:
+#     name:
+#       en: "Interpreted procs outbound network activity"
+#       zh: "出站流量中包含解释型二进制"
+#     desc:
+#       en: "any network activity performed by interpreted binaries that are not expected to send or receive any network traffic"
+#       zh: "出站流量中包含解释型二进制，可能从外部下载/上传应用"
+#     suggestion:
+#       en: "Please judge whether the command belongs to the normal behavior of known processes through the process tree, judge whether the server IP address is as expected, confirm whether the traffic is abnormal, and can use micro-isolation to block the traffic."
+#       zh: "请通过进程树判断该命令是否属于已知进程的正常行为，判断服务端ip地址是否符合预期，确认该流量是否异常，可使用微隔离阻拦流量。"
+#     rule_type: Exfiltration
+#     priority: NOTICE
+#     urgency: false
+#     tags: [ATT&CK, network, mitre_exfiltration]
 
-- key: Unexpected outbound connection destination
-  hid: exf_04
-  condition: >
-    consider_all_outbound_conns and outbound and not
-    ((fd.sip in (allowed_outbound_destination_ipaddrs)) or
-     (fd.snet in (allowed_outbound_destination_networks)) or
-     (fd.sip.name in (allowed_outbound_destination_domains)))
-  output: >
-    proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,connection=%fd.name,user=%user.name,user_loginuid=%user.loginuid,container_id=%container.id,container_name=%container.name,image=%container.image.repository
-  info:
-    name:
-      en: "Unexpected outbound connection destination"
-      zh: "出站流量中包含未知目的地址"
-    desc:
-      en: "Detect any outbound connection to a destination outside of an allowed set of ips, networks, or domain names"
-      zh: "检测到出站流量中包含未知目的地址"
-    suggestion:
-      en: "Please judge whether the command belongs to the normal behavior of known processes through the process tree, judge whether the server IP address is as expected, confirm whether the traffic is abnormal, and can use micro-isolation to block the traffic."
-      zh: "请通过进程树判断该命令是否属于已知进程的正常行为，判断服务端ip地址是否符合预期，确认该流量是否异常，可使用微隔离阻拦流量。"
-    rule_type: Exfiltration
-    priority: INFO
-    urgency: false
-    tags: [ATT&CK, network]
+# - key: Unexpected outbound connection destination
+#   hid: exf_04
+#   condition: >
+#     consider_all_outbound_conns and outbound and not
+#     ((fd.sip in (allowed_outbound_destination_ipaddrs)) or
+#      (fd.snet in (allowed_outbound_destination_networks)) or
+#      (fd.sip.name in (allowed_outbound_destination_domains)))
+#   output: >
+#     proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,connection=%fd.name,user=%user.name,user_loginuid=%user.loginuid,container_id=%container.id,container_name=%container.name,image=%container.image.repository
+#   info:
+#     name:
+#       en: "Unexpected outbound connection destination"
+#       zh: "出站流量中包含未知目的地址"
+#     desc:
+#       en: "Detect any outbound connection to a destination outside of an allowed set of ips, networks, or domain names"
+#       zh: "检测到出站流量中包含未知目的地址"
+#     suggestion:
+#       en: "Please judge whether the command belongs to the normal behavior of known processes through the process tree, judge whether the server IP address is as expected, confirm whether the traffic is abnormal, and can use micro-isolation to block the traffic."
+#       zh: "请通过进程树判断该命令是否属于已知进程的正常行为，判断服务端ip地址是否符合预期，确认该流量是否异常，可使用微隔离阻拦流量。"
+#     rule_type: Exfiltration
+#     priority: INFO
+#     urgency: false
+#     tags: [ATT&CK, network]
 
 # On EC2 instances, 169.254.169.254 is a special IP used to fetch
 # metadata about the instance. It may be desirable to prevent access
@@ -115,7 +115,7 @@
     rule_type: Exfiltration
     priority: NOTICE
     urgency: false
-    tags: [ATT&CK, network, aws, container, mitre_discovery]
+    tags: [ATT&CK, network, aws, container, mitre_discovery, L2]
 
 # On GCP, AWS and Azure, 169.254.169.254 is a special IP used to fetch
 # metadata about the instance. The metadata could be used to get credentials by attackers.
@@ -138,7 +138,7 @@
     rule_type: Exfiltration
     priority: NOTICE
     urgency: false
-    tags: [ATT&CK, network, container, mitre_discovery]
+    tags: [ATT&CK, network, container, mitre_discovery, L2]
 
 - key: Program run with disallowed http proxy env
   hid: exf_07
@@ -152,38 +152,38 @@
   info:
     name:
       en: "Program run with disallowed http proxy env"
-      zh: "尝试运行带有不允许的HTTP_PROXY环境变量的程序"
+      zh: "尝试运行含有代理的程序"
     desc:
       en: "Detect attempts to run a program with a disallowed HTTP_PROXY environment variable"
-      zh: "检测到程序运行时设置了不允许的http代理环境变量"
+      zh: "检测到运行了环境变量中存在HTTP_PROXY的程序，可能存在代理行为"
     suggestion:
       en: "Please use the process tree to determine whether the command is a normal behavior of a known process, whether it is executed by malware, use immune defense to train the application, use micro-isolation to block traffic, and restrict user permissions for sensitive files and commands."
       zh: "请通过进程树判断该命令是否属于已知进程的正常行为，是否由恶意软件执行，使用免疫防御训练应用，使用微隔离阻拦流量，限制敏感文件和命令的用户权限。"
     rule_type: Exfiltration
     priority: INFO
     urgency: false
-    tags: [ATT&CK, host, users]
+    tags: [ATT&CK, host, users, L3]
 
-- key: Unexpected K8s NodePort Connection
-  hid: exf_08
-  condition: >
-    (inbound_outbound) and fd.sport >= 30000 and fd.sport <= 32767 and container and not nodeport_containers
-  output: >
-    proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,connection=%fd.name,container.info=%container.info,image=%container.image.repository,image_tag=%container.image.tag,container_id=%container.id,container_name=%container.name
-  info:
-    name:
-      en: "Unexpected K8s NodePort Connection"
-      zh: "未知的K8s-NodePort连接"
-    desc:
-      en: "Detect attempts to use K8s NodePorts from a container"
-      zh: "检测到从容器中连接K8s NodePort"
-    suggestion:
-      en: "Please use the process tree to determine whether the command is a normal behavior of a known process, whether it is executed by malware, use immune defense to train the application, use micro-isolation to block traffic, and restrict user permissions for sensitive files and commands."
-      zh: "请通过进程树判断该命令是否属于已知进程的正常行为，是否由恶意软件执行，使用免疫防御训练应用，使用微隔离阻拦流量，限制敏感文件和命令的用户权限。"
-    rule_type: Exfiltration
-    priority: NOTICE
-    urgency: false
-    tags: [ATT&CK, network, k8s, container, mitre_port_knocking]
+# - key: Unexpected K8s NodePort Connection
+#   hid: exf_08
+#   condition: >
+#     (inbound_outbound) and fd.sport >= 30000 and fd.sport <= 32767 and container and not nodeport_containers
+#   output: >
+#     proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,connection=%fd.name,container.info=%container.info,image=%container.image.repository,image_tag=%container.image.tag,container_id=%container.id,container_name=%container.name
+#   info:
+#     name:
+#       en: "Unexpected K8s NodePort Connection"
+#       zh: "未知的K8s-NodePort连接"
+#     desc:
+#       en: "Detect attempts to use K8s NodePorts from a container"
+#       zh: "检测到从容器中连接K8s NodePort"
+#     suggestion:
+#       en: "Please use the process tree to determine whether the command is a normal behavior of a known process, whether it is executed by malware, use immune defense to train the application, use micro-isolation to block traffic, and restrict user permissions for sensitive files and commands."
+#       zh: "请通过进程树判断该命令是否属于已知进程的正常行为，是否由恶意软件执行，使用免疫防御训练应用，使用微隔离阻拦流量，限制敏感文件和命令的用户权限。"
+#     rule_type: Exfiltration
+#     priority: NOTICE
+#     urgency: false
+#     tags: [ATT&CK, network, k8s, container, mitre_port_knocking]
 
 - key: Launch Remote File Copy Tools in Container
   hid: exf_09
@@ -192,6 +192,7 @@
     and container
     and remote_file_copy_procs
     and not user_known_remote_file_copy_activities
+    and shell_parent_procs
   output: >
     proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,user_loginuid=%user.loginuid,parent_process=%proc.pname,container_id=%container.id,container_name=%container.name,image=%container.image.repository,image_tag=%container.image.tag
   info:
@@ -207,28 +208,28 @@
     rule_type: Exfiltration
     priority: ALERT
     urgency: false
-    tags: [ATT&CK, network, process, mitre_lateral_movement, mitre_exfiltration]
+    tags: [ATT&CK, network, process, mitre_lateral_movement, mitre_exfiltration, L4]
 
-- key: Unexpected UDP Traffic
-  hid: exf_10
-  condition: >
-    (inbound_outbound) and do_unexpected_udp_check and fd.l4proto=udp and not expected_udp_traffic
-  output: >
-    proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,user_loginuid=%user.loginuid,connection=%fd.name,proto=%fd.l4proto,evt=%evt.type,container_id=%container.id,container_name=%container.name,image=%container.image.repository
-  info:
-    name:
-      en: "Unexpected UDP Traffic"
-      zh: "未知的UDP流量"
-    desc:
-      en: "Detect unexpected UDP traffic"
-      zh: "检测到未知的UDP流量"
-    suggestion:
-      en: "Please use the process tree to determine whether the command is a normal behavior of a known process, whether it is executed by malware, use immune defense to train the application, use micro-isolation to block traffic, and restrict user permissions for sensitive files and commands."
-      zh: "请通过进程树判断该命令是否属于已知进程的正常行为，是否由恶意软件执行，使用免疫防御训练应用，使用微隔离阻拦流量，限制敏感文件和命令的用户权限。"
-    rule_type: Exfiltration
-    priority: NOTICE
-    urgency: false
-    tags: [ATT&CK, network, mitre_exfiltration]
+# - key: Unexpected UDP Traffic
+#   hid: exf_10
+#   condition: >
+#     (inbound_outbound) and do_unexpected_udp_check and fd.l4proto=udp and not expected_udp_traffic
+#   output: >
+#     proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,user_loginuid=%user.loginuid,connection=%fd.name,proto=%fd.l4proto,evt=%evt.type,container_id=%container.id,container_name=%container.name,image=%container.image.repository
+#   info:
+#     name:
+#       en: "Unexpected UDP Traffic"
+#       zh: "未知的UDP流量"
+#     desc:
+#       en: "Detect unexpected UDP traffic"
+#       zh: "检测到未知的UDP流量"
+#     suggestion:
+#       en: "Please use the process tree to determine whether the command is a normal behavior of a known process, whether it is executed by malware, use immune defense to train the application, use micro-isolation to block traffic, and restrict user permissions for sensitive files and commands."
+#       zh: "请通过进程树判断该命令是否属于已知进程的正常行为，是否由恶意软件执行，使用免疫防御训练应用，使用微隔离阻拦流量，限制敏感文件和命令的用户权限。"
+#     rule_type: Exfiltration
+#     priority: NOTICE
+#     urgency: false
+#     tags: [ATT&CK, network, mitre_exfiltration]
 
 - key: Launch Suspicious Network Tool in Container
   hid: exf_11
@@ -236,6 +237,9 @@
     spawned_process and container and network_tool_procs and shell_parent_procs and not ignore_proc_args and not user_known_network_tool_activities and not proc.cmdline contains "-w 2 localhost 2181" and not tensorsec_namespace
   output: >
     proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,user_loginuid=%user.loginuid,parent_process=%proc.pname,container_id=%container.id,container_name=%container.name,image=%container.image.repository,image_tag=%container.image.tag
+  steps:
+    - name: checkRegexMatch
+      params: [ '(((2(5[0-5]|[0-4]\d))|[0-1]?\d{1,2})(\.((2(5[0-5]|[0-4]\d))|[0-1]?\d{1,2})){3})', trigger.payload.output_map.proc_cmdline ]
   info:
     name:
       en: "Launch Suspicious Network Tool in Container"
@@ -249,7 +253,7 @@
     rule_type: Exfiltration
     priority: ALERT
     urgency: false
-    tags: [ATT&CK, network, process, mitre_discovery, mitre_exfiltration]
+    tags: [ATT&CK, network, process, mitre_discovery, mitre_exfiltration, L4]
 
 - key: Detect outbound connections to common miner pool ports
   disable: true
@@ -271,7 +275,7 @@
     rule_type: Exfiltration
     priority: ALERT
     urgency: false
-    tags: [ATT&CK, network, mitre_execution]
+    tags: [ATT&CK, network, mitre_execution, L2]
 
 - key: Detect crypto miners using the Stratum protocol
   hid: exf_13
@@ -292,12 +296,14 @@
     rule_type: Exfiltration
     priority: ALERT
     urgency: false
-    tags: [ATT&CK, process, mitre_execution]
+    tags: [ATT&CK, process, mitre_execution, L4]
 
 - key: CVE-2020-14386(Packet socket created in container)
   hid: exf_14
   condition: >
-    evt.type=socket and (evt.arg[0]=AF_PACKET or evt.arg[0]=17) and consider_packet_socket_communication and container and not proc.name in (user_known_packet_socket_binaries)
+    evt.type=socket and (evt.arg[0]=AF_PACKET or evt.arg[0]=17) and
+    consider_packet_socket_communication and container and not proc.name in (user_known_packet_socket_binaries) and
+    shell_parent_procs
   output: >
     proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,user_loginuid=%user.loginuid,socket_info=%evt.args,container_id=%container.id,container_name=%container.name,image=%container.image.repository,image_tag=%container.image.tag
   info:
@@ -313,7 +319,7 @@
     rule_type: Exfiltration
     priority: NOTICE
     urgency: false
-    tags: [ATT&CK, network, mitre_discovery]
+    tags: [ATT&CK, network, mitre_discovery, L4]
 
 - key: Try ssh connection in container
   hid: exf_16
@@ -321,6 +327,9 @@
     (inbound_outbound) and allowed_ssh_hosts and container and shell_parent_procs
   output: >
     connection=%fd.name,client_ip=%fd.cip,client_port=%fd.cport,server_ip=%fd.sip,server_port=%fd.sport,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,container_id=%container.id,container_name=%container.name
+  steps:
+    - name: checkRegexMatch
+      params: [ '(((2(5[0-5]|[0-4]\d))|[0-1]?\d{1,2})(\.((2(5[0-5]|[0-4]\d))|[0-1]?\d{1,2})){3})', trigger.payload.output_map.proc_cmdline ]
   info:
     name:
       en: "Try ssh connection in container"
@@ -334,7 +343,7 @@
     rule_type: Exfiltration
     priority: WARNING
     urgency: false
-    tags: [ATT&CK]
+    tags: [ATT&CK, network, mitre_remote_service, L2]
 
 - key: Try ssh connection in host
   hid: exf_17
@@ -342,6 +351,9 @@
     (inbound_outbound) and allowed_ssh_hosts and not container and not proc.cmdline = "sshd -D" and shell_parent_procs
   output: >
     proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,connection=%fd.name,client_ip=%fd.cip,client_port=%fd.cport,server_ip=%fd.sip,server_port=%fd.sport,user=%user.name,user_loginuid=%user.loginuid,container_id=%container.id,container_name=%container.name,image=%container.image.repository
+  steps:
+    - name: checkRegexMatch
+      params: [ '(((2(5[0-5]|[0-4]\d))|[0-1]?\d{1,2})(\.((2(5[0-5]|[0-4]\d))|[0-1]?\d{1,2})){3})', trigger.payload.output_map.proc_cmdline ]
   info:
     name:
       en: "Try ssh connection in host"
@@ -355,12 +367,39 @@
     rule_type: Exfiltration
     priority: WARNING
     urgency: false
-    tags: [ATT&CK, network, mitre_remote_service]
+    tags: [ATT&CK, network, mitre_remote_service, L2]
 
-- key: Access k8s component ports detected
+- key: Execute commands through the docker api
   hid: exf_18
   condition: >
-    easy_outbound and not proc.name in (<NA>, kubectl) and fd.sport in (k8s_ports) and shell_parent_procs
+    evt.type in (sendto, sendmsg, connect) and fd.sport = 2375 and shell_parent_procs and
+    (proc.name in (system_network_tools) or proc.name = docker )
+  output: >
+    proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,container=%container.info,container_id=%container.id,container_name=%container.name
+  steps:
+    - name: checkRegexMatch
+      params: [ '(((2(5[0-5]|[0-4]\d))|[0-1]?\d{1,2})(\.((2(5[0-5]|[0-4]\d))|[0-1]?\d{1,2})){3})', trigger.payload.output_map.proc_cmdline ]
+  info:
+    name:
+      en: "Execute commands through the docker api"
+      zh: "通过Docker-api执行命令"
+    desc:
+      en: "Execute commands through the docker api"
+      zh: "通过Docker-api执行命令"
+    suggestion:
+      en: "Please use the process tree to determine whether the command is a normal behavior of a known process and whether it is executed by malware, and you can use the immune defense training application to restrict user permissions for sensitive files and commands."
+      zh: "请通过进程树判断该命令是否属于已知进程的正常行为，是否由恶意软件执行，可使用免疫防御训练应用，限制敏感文件和命令的用户权限。"
+    rule_type: Privilege_Escalation
+    priority: ALERT
+    urgency: true
+    tags: [ATT&CK, filesystem, mitre_privilege_escalation, L4]
+
+- key: Access k8s component ports detected
+  hid: exf_19
+  condition: >
+    easy_outbound and proc.name in (system_network_tools) and
+    fd.sport in (k8s_ports) and
+    shell_parent_procs
   output: >
     proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,connection=%fd.name,client_ip=%fd.cip,client_port=%fd.cport,server_ip=%fd.sip,server_port=%fd.sport,user=%user.name,user_loginuid=%user.loginuid,container_id=%container.id,container_name=%container.name,image=%container.image.repository
   info:
@@ -376,43 +415,9 @@
     rule_type: Exfiltration
     priority: WARNING
     urgency: false
-    tags: [ATT&CK, network, mitre_remote_service]
+    tags: [ATT&CK, network, mitre_remote_service, L4]
 
 - key: Brute force hacking detected
-  hid: exf_19
-  condition: >
-    evt.type in (connect,sendto,sendmsg)
-    and fd.name contains "->"
-    and not fd.sport in ("", 53)
-    and fd.name != "" and fd.name exists and fd.type in ("ipv4", "ipv6")
-    and shell_family_procs
-    and not proc.name in (known_system_procs_network_activity_binaries)
-    and not proc.pname in (known_system_procs_network_activity_binaries)
-    and not (package_mgmt_procs or package_mgmt_ancestor_procs)
-    and not login_doing_dns_lookup
-    and not user_expected_system_procs_network_activity_conditions and container
-    and not tensorsec_namespace
-  output: >
-    pod_id=%k8s.pod.id,syscall_name=%syscall.type,terminal=%proc.tty,user_uid=%user.uid,container_id=%container.id,container_name=%container.name,fd.num=%fd.num,fd.type=%fd.type,connection=%fd.name,client_ip=%fd.cip,client_port=%fd.cport,server_ip=%fd.sip,server_port=%fd.sport,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pgid=%proc.vpgid,proc_name=%proc.name,parent=%proc.pname,proc.aname[0]=%proc.aname[0],proc.aname[1]=%proc.aname[1],gparent=%proc.aname[2],ggparent=%proc.aname[3],gggparent=%proc.aname[4]
-  steps:
-    - name: checkRuleRecentCount
-      params: [ 'Brute force hacking detected', 10s, 5, '["fd_sip", "fd_sport", "fd_cip"]', '[]', 1m ]
-  info:
-    name:
-      en: 'Brute force hacking detected'
-      zh: '检测到正在暴力破解'
-    desc:
-      en: 'Brute force hacking detected'
-      zh: '检测到正在暴力破解'
-    suggestion:
-      en: 'There may be brute force cracking behavior, please determine through the process tree whether the command belongs to the normal behavior of known processes, whether it is suggested by malware execution, it is recommended to confirm whether there is a weak password for the service where the port is located and limit the number of wrong login attempts.'
-      zh: '可能存在暴力破解行为，请通过进程树判断该命令是否属于已知进程的正常行为，是否由恶意软件执行建议，建议确认端口所在服务是否存在弱口令，限制错误登录尝试次数。'
-    rule_type: Exfiltration
-    priority: ALERT
-    urgency: true
-    tags: [ATT&CK, network, mitre_remote_service]
-
-- key: Scanning ports detected
   hid: exf_20
   condition: >
     evt.type in (connect,sendto,sendmsg)
@@ -429,25 +434,27 @@
   output: >
     pod_id=%k8s.pod.id,syscall_name=%syscall.type,terminal=%proc.tty,user_uid=%user.uid,container_id=%container.id,container_name=%container.name,fd.num=%fd.num,fd.type=%fd.type,connection=%fd.name,client_ip=%fd.cip,client_port=%fd.cport,server_ip=%fd.sip,server_port=%fd.sport,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pgid=%proc.vpgid,proc_name=%proc.name,parent=%proc.pname,proc.aname[0]=%proc.aname[0],proc.aname[1]=%proc.aname[1],gparent=%proc.aname[2],ggparent=%proc.aname[3],gggparent=%proc.aname[4]
   steps:
+    - name: checkRegexMatch
+      params: [ '(((2(5[0-5]|[0-4]\d))|[0-1]?\d{1,2})(\.((2(5[0-5]|[0-4]\d))|[0-1]?\d{1,2})){3})', trigger.payload.output_map.proc_cmdline ]
     - name: checkRuleRecentCount
-      params: [ 'Scanning ports detected', 10s, 5, '["fd_sip", "fd_cip"]', '["fd_sport"]', 1m ]
+      params: [ 'Brute force hacking detected', 10s, 5, '["fd_sip", "fd_sport", "fd_cip"]', '[]', 1m ]
   info:
     name:
-      en: 'Scanning ports detected'
-      zh: '检测到正在扫描敏感端口'
+      en: 'Brute force hacking detected'
+      zh: '检测到正在暴力破解'
     desc:
-      en: 'Scanning ports detected'
-      zh: '检测到正在扫描敏感端口'
+      en: 'Brute force hacking detected'
+      zh: '检测到正在暴力破解'
     suggestion:
-      en: 'The K8S sensitive port access behavior is detected. Please confirm whether it is legal access in combination with specific commands. If not, it may be used by attackers. Please isolate the pod in time。'
-      zh: '检测到k8s敏感端口访问行为,请结合具体命令确认是否为合法访问，如果不是则可能遭到攻击者利用，请及时隔离该pod。'
+      en: 'There may be brute force cracking behavior, please determine through the process tree whether the command belongs to the normal behavior of known processes, whether it is suggested by malware execution, it is recommended to confirm whether there is a weak password for the service where the port is located and limit the number of wrong login attempts.'
+      zh: '可能存在暴力破解行为，请通过进程树判断该命令是否属于已知进程的正常行为，是否由恶意软件执行建议，建议确认端口所在服务是否存在弱口令，限制错误登录尝试次数。'
     rule_type: Exfiltration
     priority: ALERT
     urgency: true
-    tags: [ATT&CK, network, mitre_remote_service]
+    tags: [ATT&CK, network, mitre_remote_service, L2]
 
-- key: Reverse shell
-  hid: exec_09
+- key: Scanning ports detected
+  hid: exf_21
   condition: >
     evt.type in (connect,sendto,sendmsg)
     and fd.name contains "->"
@@ -464,7 +471,43 @@
     pod_id=%k8s.pod.id,syscall_name=%syscall.type,terminal=%proc.tty,user_uid=%user.uid,container_id=%container.id,container_name=%container.name,fd.num=%fd.num,fd.type=%fd.type,connection=%fd.name,client_ip=%fd.cip,client_port=%fd.cport,server_ip=%fd.sip,server_port=%fd.sport,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pgid=%proc.vpgid,proc_name=%proc.name,parent=%proc.pname,proc.aname[0]=%proc.aname[0],proc.aname[1]=%proc.aname[1],gparent=%proc.aname[2],ggparent=%proc.aname[3],gggparent=%proc.aname[4]
   steps:
     - name: checkRegexMatch
-      params: [ '(((2(5[0-5]|[0-4]\d))|[0-1]?\d{1,2})(\.((2(5[0-5]|[0-4]\d))|[0-1]?\d{1,2})){3})|(\w*sh)|(java)|(^[a-zA-Z0-9._]*$)', trigger.payload.output_map.proc_cmdline ]
+      params: [ '(((2(5[0-5]|[0-4]\d))|[0-1]?\d{1,2})(\.((2(5[0-5]|[0-4]\d))|[0-1]?\d{1,2})){3})', trigger.payload.output_map.proc_cmdline ]
+    - name: checkRuleRecentCount
+      params: [ 'Scanning ports detected', 10s, 5, '["fd_sip", "fd_cip"]', '["fd_sport"]', 1m ]
+  info:
+    name:
+      en: 'Scanning ports detected'
+      zh: '检测到正在扫描敏感端口'
+    desc:
+      en: 'Scanning ports detected'
+      zh: '检测到正在扫描敏感端口'
+    suggestion:
+      en: 'The K8S sensitive port access behavior is detected. Please confirm whether it is legal access in combination with specific commands. If not, it may be used by attackers. Please isolate the pod in time。'
+      zh: '检测到k8s敏感端口访问行为,请结合具体命令确认是否为合法访问，如果不是则可能遭到攻击者利用，请及时隔离该pod。'
+    rule_type: Exfiltration
+    priority: ALERT
+    urgency: true
+    tags: [ATT&CK, network, mitre_remote_service, L2]
+
+- key: Reverse shell
+  hid: exf_22
+  condition: >
+    evt.type in (connect,sendto,sendmsg)
+    and fd.name contains "->"
+    and not fd.sport in ("", 53)
+    and fd.name != "" and fd.name exists and fd.type in ("ipv4", "ipv6")
+    and shell_family_procs
+    and not proc.name in (known_system_procs_network_activity_binaries)
+    and not proc.pname in (known_system_procs_network_activity_binaries)
+    and not (package_mgmt_procs or package_mgmt_ancestor_procs)
+    and not login_doing_dns_lookup
+    and not user_expected_system_procs_network_activity_conditions and container
+    and not tensorsec_namespace
+  output: >
+    pod_id=%k8s.pod.id,syscall_name=%syscall.type,terminal=%proc.tty,user_uid=%user.uid,container_id=%container.id,container_name=%container.name,fd.num=%fd.num,fd.type=%fd.type,connection=%fd.name,client_ip=%fd.cip,client_port=%fd.cport,server_ip=%fd.sip,server_port=%fd.sport,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pgid=%proc.vpgid,proc_name=%proc.name,parent=%proc.pname,proc.aname[0]=%proc.aname[0],proc.aname[1]=%proc.aname[1],gparent=%proc.aname[2],ggparent=%proc.aname[3],gggparent=%proc.aname[4]
+  steps:
+    - name: checkRegexMatch
+      params: [ '(((2(5[0-5]|[0-4]\d))|[0-1]?\d{1,2})(\.((2(5[0-5]|[0-4]\d))|[0-1]?\d{1,2})){3})|(\w*sh)|(^[a-zA-Z0-9._]*$)', trigger.payload.output_map.proc_cmdline ]
     - name: branches
       params: MARCO::reverseShell
   info:
@@ -480,4 +523,4 @@
     rule_type: Execution
     priority: ALERT
     urgency: true
-    tags: [ATT&CK]
+    tags: [ATT&CK, L4]

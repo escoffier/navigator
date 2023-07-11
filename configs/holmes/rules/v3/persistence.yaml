@@ -6,7 +6,8 @@
     ((open_write and cron_dir_action) or
      (spawned_process and proc.name = "crontab")) and
     not consider_all_cron_jobs and container and
-    not user_known_cron_jobs
+    not user_known_cron_jobs and
+    shell_parent_procs
   output: >
     proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,user_loginuid=%user.loginuid,file=%fd.name,container_id=%container.id,container_name=%container.name,image=%container.image.repository,image_tag=%container.image.tag
   info:
@@ -22,7 +23,7 @@
     rule_type: Persistence
     priority: WARNING
     urgency: false
-    tags: [ATT&CK, file, mitre_persistence]
+    tags: [ATT&CK, file, mitre_persistence, L2]
 
 - key: Run user mgmt binaries
   hid: pers_02
@@ -55,7 +56,7 @@
     rule_type: Persistence
     priority: WARNING
     urgency: false
-    tags: [ATT&CK, host, users, mitre_persistence]
+    tags: [ATT&CK, host, users, mitre_persistence, L2]
 
 - key: Package management process launched in container
   hid: pers_03
@@ -83,7 +84,7 @@
     rule_type: Persistence
     priority: NOTICE
     urgency: false
-    tags: [ATT&CK, process, mitre_persistence]
+    tags: [ATT&CK, process, mitre_persistence, L3]
 
 - key: Update package repository
   hid: pers_04
@@ -110,35 +111,35 @@
     rule_type: Persistence
     priority: WARNING
     urgency: false
-    tags: [ATT&CK, filesystem, mitre_persistence]
+    tags: [ATT&CK, filesystem, mitre_persistence, L3]
 
-- key: Write below rpm database
-  hid: pers_05
-  condition: >
-    fd.name startswith /var/lib/rpm and open_write
-    and shell_parent_procs
-    and not rpm_procs
-    and not ansible_running_python
-    and not python_running_chef
-    and not exe_running_docker_save
-    and not amazon_linux_running_python_yum
-    and not user_known_write_rpm_database_activities
-  output: >
-    proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,file=%fd.name,parent=%proc.pname,container_id=%container.id,container_name=%container.name,image=%container.image.repository
-  info:
-    name:
-      en: "Write below rpm database"
-      zh: "写入rpm数据库"
-    desc:
-      en: "an attempt to write to the rpm database by any non-rpm related program"
-      zh: "任何非rpm相关程序尝试写入rpm数据库"
-    suggestion:
-      en: "Please go through the process tree to determine whether the command is a normal behavior of a known process, whether it is executed by malware, and whether the operation is as expected."
-      zh: "请通过进程树判断该命令是否属于已知进程的正常行为，是否由恶意软件执行，确认该操作是否符合预期。"
-    rule_type: Persistence
-    priority: WARNING
-    urgency: false
-    tags: [ATT&CK, filesystem, software_mgmt, mitre_persistence]
+# - key: Write below rpm database
+#   hid: pers_05
+#   condition: >
+#     fd.name startswith /var/lib/rpm and open_write
+#     and shell_parent_procs
+#     and not rpm_procs
+#     and not ansible_running_python
+#     and not python_running_chef
+#     and not exe_running_docker_save
+#     and not amazon_linux_running_python_yum
+#     and not user_known_write_rpm_database_activities
+#   output: >
+#     proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,file=%fd.name,parent=%proc.pname,container_id=%container.id,container_name=%container.name,image=%container.image.repository
+#   info:
+#     name:
+#       en: "Write below rpm database"
+#       zh: "写入rpm数据库"
+#     desc:
+#       en: "an attempt to write to the rpm database by any non-rpm related program"
+#       zh: "任何非rpm相关程序尝试写入rpm数据库"
+#     suggestion:
+#       en: "Please go through the process tree to determine whether the command is a normal behavior of a known process, whether it is executed by malware, and whether the operation is as expected."
+#       zh: "请通过进程树判断该命令是否属于已知进程的正常行为，是否由恶意软件执行，确认该操作是否符合预期。"
+#     rule_type: Persistence
+#     priority: WARNING
+#     urgency: false
+#     tags: [ATT&CK, filesystem, software_mgmt, mitre_persistence]
 
 - key: Remove Bulk Data from Disk
   hid: pers_06
@@ -159,7 +160,7 @@
     rule_type: Persistence
     priority: WARNING
     urgency: true
-    tags: [ATT&CK, process, mitre_persistence]
+    tags: [ATT&CK, process, mitre_persistence, L4]
 
 - key: Modify shell configuration file
   hid: pers_07
@@ -185,7 +186,7 @@
     rule_type: Persistence
     priority: WARNING
     urgency: false
-    tags: [ATT&CK, file, mitre_persistence]
+    tags: [ATT&CK, file, mitre_persistence, L4]
 
 - key: Create files below dev
   hid: pers_08
@@ -211,33 +212,33 @@
     rule_type: Persistence
     priority: INFO
     urgency: false
-    tags: [ATT&CK, filesystem, mitre_persistence]
+    tags: [ATT&CK, filesystem, mitre_persistence, L3]
 
-- key: Create hidden files or directories
-  hid: pers_09
-  condition: >
-    ((modify and evt.arg.newpath contains "/.") or
-     (mkdir and evt.arg.path contains "/.") or
-     (open_write and evt.arg.flags contains "O_CREAT" and fd.name contains "/." and not fd.name pmatch (exclude_hidden_directories))) and
-    consider_hidden_file_creation and
-    not user_known_create_hidden_file_activities
-    and not exe_running_docker_save
-  output: >
-    proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,user_loginuid=%user.loginuid,file=%fd.name,container_id=%container.id,container_name=%container.name,image=%container.image.repository
-  info:
-    name:
-      en: "Create hidden files or directories"
-      zh: "创建隐藏文件或目录"
-    desc:
-      en: "Create hidden files or directories"
-      zh: "创建隐藏文件或目录"
-    suggestion:
-      en: "Please use the process tree to determine whether the command belongs to the normal behavior of known processes, whether it is executed by malware, confirm whether the modification is operated by operation and maintenance personnel, and check whether the file content is safe."
-      zh: "请通过进程树判断该命令是否属于已知进程的正常行为，是否由恶意软件执行，确认该修改是否为运维人员操作，排查文件内容是否安全。"
-    rule_type: Persistence
-    priority: NOTICE
-    urgency: false
-    tags: [ATT&CK, file, mitre_persistence]
+# - key: Create hidden files or directories
+#   hid: pers_09
+#   condition: >
+#     ((modify and evt.arg.newpath contains "/.") or
+#      (mkdir and evt.arg.path contains "/.") or
+#      (open_write and evt.arg.flags contains "O_CREAT" and fd.name contains "/." and not fd.name pmatch (exclude_hidden_directories))) and
+#     consider_hidden_file_creation and
+#     not user_known_create_hidden_file_activities
+#     and not exe_running_docker_save
+#   output: >
+#     proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,user_loginuid=%user.loginuid,file=%fd.name,container_id=%container.id,container_name=%container.name,image=%container.image.repository
+#   info:
+#     name:
+#       en: "Create hidden files or directories"
+#       zh: "创建隐藏文件或目录"
+#     desc:
+#       en: "Create hidden files or directories"
+#       zh: "创建隐藏文件或目录"
+#     suggestion:
+#       en: "Please use the process tree to determine whether the command belongs to the normal behavior of known processes, whether it is executed by malware, confirm whether the modification is operated by operation and maintenance personnel, and check whether the file content is safe."
+#       zh: "请通过进程树判断该命令是否属于已知进程的正常行为，是否由恶意软件执行，确认该修改是否为运维人员操作，排查文件内容是否安全。"
+#     rule_type: Persistence
+#     priority: NOTICE
+#     urgency: false
+#     tags: [ATT&CK, file, mitre_persistence]
 
 - key: Write below monitored dir
   hid: pers_11
@@ -268,13 +269,13 @@
     rule_type: Persistence
     priority: ERROR
     urgency: true
-    tags: [ATT&CK, filesystem, mitre_persistence]
+    tags: [ATT&CK, filesystem, mitre_persistence, L1]
 
 - key: Write below binary dir
   hid: pers_12
   condition: >
     bin_dir and evt.dir = < and open_write
-    and shell_parent_procs
+    and shell_family_procs
     and not package_mgmt_procs
     and not exe_running_docker_save
     and not python_running_get_pip
@@ -295,7 +296,7 @@
     rule_type: Persistence
     priority: WARNING
     urgency: false
-    tags: [ATT&CK, filesystem, mitre_persistence]
+    tags: [ATT&CK, filesystem, mitre_persistence, L3]
 
 - key: Modify binary dirs
   hid: pers_13
@@ -306,45 +307,45 @@
   info:
     name:
       en: "Modify binary dirs"
-      zh: "修改二进制目录下的文件"
+      zh: "移动或删除二进制目录"
     desc:
       en: "an attempt to modify any file below a set of binary directories"
-      zh: "尝试修改二进制目录下的文件"
+      zh: "移动或删除二进制目录"
     suggestion:
       en: "Please use the process tree to determine whether the command belongs to the normal behavior of known processes, whether it is executed by malware, the behavior may be a hacker backdoor residency behavior, please confirm the modified file function, you can use offset defense to block new or modified executable files."
       zh: "请通过进程树判断该命令是否属于已知进程的正常行为，是否由恶意软件执行，该行为可能为黑客后门驻留行为，请确认被修改文件功能，可使用偏移防御阻拦新的或被修改的可执行文件。"
     rule_type: Persistence
     priority: ERROR
     urgency: false
-    tags: [ATT&CK, filesystem, mitre_persistence]
+    tags: [ATT&CK, filesystem, mitre_persistence, L3]
 
-- key: Mkdir binary dirs
-  hid: pers_14
-  condition: >
-    mkdir
-    and bin_dir_mkdir
-    and not package_mgmt_procs
-    and not user_known_mkdir_bin_dir_activities
-    and not exe_running_docker_save
-  output: >
-    proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,user_loginuid=%user.loginuid,directory=%evt.arg.path,container_id=%container.id,container_name=%container.name,image=%container.image.repository
-  info:
-    name:
-      en: "Mkdir binary dirs"
-      zh: "在二进制文件路径下创建目录"
-    desc:
-      en: "an attempt to create a directory below a set of binary directories"
-      zh: "在二进制文件路径下创建目录"
-    suggestion:
-      en: "Please use the process tree to determine whether the command belongs to the normal behavior of known processes, whether it is executed by malware, the behavior may be a hacker backdoor residency behavior, please confirm the modified file function, you can use offset defense to block new or modified executable files."
-      zh: "请通过进程树判断该命令是否属于已知进程的正常行为，是否由恶意软件执行，该行为可能为黑客后门驻留行为，请确认被修改文件功能，可使用偏移防御阻拦新的或被修改的可执行文件。"
-    rule_type: Persistence
-    priority: ERROR
-    urgency: false
-    tags: [ATT&CK, filesystem, mitre_persistence]
+# - key: Mkdir binary dirs
+#   hid: pers_14
+#   condition: >
+#     mkdir
+#     and bin_dir_mkdir
+#     and not package_mgmt_procs
+#     and not user_known_mkdir_bin_dir_activities
+#     and not exe_running_docker_save
+#   output: >
+#     proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,user_loginuid=%user.loginuid,directory=%evt.arg.path,container_id=%container.id,container_name=%container.name,image=%container.image.repository
+#   info:
+#     name:
+#       en: "Mkdir binary dirs"
+#       zh: "在二进制文件路径下创建目录"
+#     desc:
+#       en: "an attempt to create a directory below a set of binary directories"
+#       zh: "在二进制文件路径下创建目录"
+#     suggestion:
+#       en: "Please use the process tree to determine whether the command belongs to the normal behavior of known processes, whether it is executed by malware, the behavior may be a hacker backdoor residency behavior, please confirm the modified file function, you can use offset defense to block new or modified executable files."
+#       zh: "请通过进程树判断该命令是否属于已知进程的正常行为，是否由恶意软件执行，该行为可能为黑客后门驻留行为，请确认被修改文件功能，可使用偏移防御阻拦新的或被修改的可执行文件。"
+#     rule_type: Persistence
+#     priority: ERROR
+#     urgency: false
+#     tags: [ATT&CK, filesystem, mitre_persistence]
 
 - key: Write below etc
-  disabled: true
+  disable: true
   hid: pers_15
   condition: >
     write_etc_common and not (tensorsec_namespace and k8s.pod.name contains "holmes") and shell_parent_procs
@@ -363,4 +364,4 @@
     rule_type: Persistence
     priority: WARNING
     urgency: true
-    tags: [ATT&CK, filesystem, mitre_persistence]
+    tags: [ATT&CK, filesystem, mitre_persistence, L2]

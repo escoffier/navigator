@@ -20,7 +20,7 @@
     rule_type: Privilege_Escalation
     priority: ALERT
     urgency: true
-    tags: [Watson]
+    tags: [Watson, L4]
 
 - key: Upload webshell through the Tomcat-Manager-App
   hid: hp_02
@@ -43,7 +43,7 @@
     rule_type: Privilege_Escalation
     priority: ALERT
     urgency: true
-    tags: [Watson]
+    tags: [Watson, L4]
 
 - key: Execute commands through webshell
   hid: hp_03
@@ -55,9 +55,9 @@
     fd_name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_vpgid=%proc.vpgid,proc_cmdline=%proc.cmdline,proc_name=%proc.name,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,container_id=%container.id,container_name=%container.name,http_request=%evt.args
   steps:
     - name: checkRelatedExists
-      params: [Generated child process shell after starting the container, 1s, trigger.payload.output_map.proc_name, payload.output_map.proc_pname]
+      params: [Generated child process shell after starting the container, 1s, trigger.payload.output_map.proc_name, payload.output_map.proc_pname, L4]
     - name: checkValue
-      params: [trigger.payload.output_map.proc_name, java]
+      params: [trigger.payload.output_map.proc_name, java, L4]
   info:
     name:
       en: "Execute commands through webshell"
@@ -71,14 +71,14 @@
     rule_type: Privilege_Escalation
     priority: ALERT
     urgency: true
-    tags: [Watson]
+    tags: [Watson, L4]
 
 - key: Unauthorized access to Redis-Server
   hid: hp_04
   category: Watson
   categoryZh: 主动防御
   condition: >
-    k8s.pod.name contains "51c1c6" and (inbound_outbound) and fd.sport=6379 
+    k8s.pod.name contains "51c1c6" and (inbound_outbound) and fd.sport=6379
   output: >
     fd_name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,container_id=%container.id,container_name=%container.name
   info:
@@ -94,7 +94,7 @@
     rule_type: Privilege_Escalation
     priority: ALERT
     urgency: true
-    tags: [Watson]
+    tags: [Watson, L4]
 
 - key: Unauthorized access to ElasticSearch
   hid: hp_05
@@ -117,7 +117,7 @@
     rule_type: Privilege_Escalation
     priority: ALERT
     urgency: true
-    tags: [Watson]
+    tags: [Watson, L4]
 
 - key: Execute sensitive commands through ElasticSearch（CVE-2015-1427）
   hid: hp_06
@@ -140,14 +140,14 @@
     rule_type: Privilege_Escalation
     priority: ALERT
     urgency: true
-    tags: [Watson]
+    tags: [Watson, L4]
 
 - key: Unauthorized access to Tomcat-Web
   hid: hp_07
   category: Watson
   categoryZh: 主动防御
   condition: >
-    k8s.pod.name contains "b0f328" and (inbound_outbound) and fd.sport = 8080 
+    k8s.pod.name contains "b0f328" and (inbound_outbound) and fd.sport = 8080
   output: >
     fd_name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,container_id=%container.id,container_name=%container.name
   info:
@@ -163,7 +163,7 @@
     rule_type: Privilege_Escalation
     priority: ALERT
     urgency: true
-    tags: [Watson]
+    tags: [Watson, L4]
 
 - key: Reading local files through Tomcat-AJP-Connector（CVE-2020-1938）
   hid: hp_08
@@ -186,14 +186,14 @@
     rule_type: Privilege_Escalation
     priority: ALERT
     urgency: true
-    tags: [Watson]
+    tags: [Watson, L4]
 
 - key: Unauthorized access to Jenkins
   hid: hp_09
   category: Watson
   categoryZh: 主动防御
   condition: >
-    k8s.pod.name contains "99a7ca" and (inbound_outbound) and fd.sport = 8080 
+    k8s.pod.name contains "99a7ca" and (inbound_outbound) and fd.sport = 8080
   output: >
     fd_name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,container_id=%container.id,container_name=%container.name
   info:
@@ -209,7 +209,7 @@
     rule_type: Privilege_Escalation
     priority: ALERT
     urgency: true
-    tags: [Watson]
+    tags: [Watson, L4]
 
 - key: Execute sensitive commands through Jenkins
   hid: hp_10
@@ -232,7 +232,7 @@
     rule_type: Privilege_Escalation
     priority: ALERT
     urgency: true
-    tags: [Watson]
+    tags: [Watson, L4]
 
 - key: Unauthorized access to Jupyter-Notebook
   hid: hp_11
@@ -255,7 +255,7 @@
     rule_type: Privilege_Escalation
     priority: ALERT
     urgency: true
-    tags: [Watson]
+    tags: [Watson, L4]
 
 - key: Execute sensitive commands through Jupyter-Notebook
   hid: hp_12
@@ -278,7 +278,7 @@
     rule_type: Privilege_Escalation
     priority: ALERT
     urgency: true
-    tags: [Watson]
+    tags: [Watson, L4]
 
 - key: The k8s client is executed in Watson
   hid: hp_13
@@ -301,7 +301,7 @@
     rule_type: Lateral_Movement
     priority: ALERT
     urgency: true
-    tags: [Watson]
+    tags: [Watson, L4]
 
 - key: Unauthorized access to Mysql
   hid: hp_14
@@ -324,14 +324,14 @@
     rule_type: Privilege_Escalation
     priority: ALERT
     urgency: true
-    tags: [Watson]
+    tags: [Watson, L4]
 
 - key: The attacker successfully cracked the weak Mysql password
   hid: hp_15
   category: Watson
   categoryZh: 主动防御
   condition: >
-    k8s.pod.name contains "588ee1" and evt.type=recvfrom and evt.arg.data contains "select" and fd.sport = 3306 
+    k8s.pod.name contains "588ee1" and evt.type=recvfrom and evt.arg.data contains "select" and fd.sport = 3306
   output: >
     fd_name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,container_id=%container.id,container_name=%container.name
   info:
@@ -347,7 +347,7 @@
     rule_type: Privilege_Escalation
     priority: ALERT
     urgency: true
-    tags: [Watson]
+    tags: [Watson, L4]
 
 - key: Unauthorized access to SSH
   hid: hp_16
@@ -370,14 +370,14 @@
     rule_type: Privilege_Escalation
     priority: ALERT
     urgency: true
-    tags: [Watson]
+    tags: [Watson, L4]
 
 - key: The attacker successfully cracked the weak SSH password
   hid: hp_17
   category: Watson
   categoryZh: 主动防御
   condition: >
-    k8s.pod.name contains "98166d" and evt.type=write and evt.arg.data contains "Welcome" 
+    k8s.pod.name contains "98166d" and evt.type=write and evt.arg.data contains "Welcome"
   output: >
     fd_name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,fd.sport=%fd.sport,container_id=%container.id,container_name=%container.name
   info:
@@ -393,7 +393,7 @@
     rule_type: Privilege_Escalation
     priority: ALERT
     urgency: true
-    tags: [Watson]
+    tags: [Watson, L4]
 
 - key: Unauthorized access to vsftpd
   hid: hp_18
@@ -416,7 +416,7 @@
     rule_type: Privilege_Escalation
     priority: ALERT
     urgency: true
-    tags: [Watson]
+    tags: [Watson, L4]
 
 - key: The attacker successfully cracked the weak ftp password
   hid: hp_19
@@ -439,4 +439,4 @@
     rule_type: Privilege_Escalation
     priority: ALERT
     urgency: true
-    tags: [Watson]
+    tags: [Watson, L4]

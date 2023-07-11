@@ -1,5 +1,5 @@
 ##attck_rule_type=Defense_Evasion
-- key: Clear Log Activities
+- key: Modify log activities
   hid: def_01
   condition: >
     open_write and
@@ -13,10 +13,10 @@
     proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,user_loginuid=%user.loginuid,file=%fd.name,container_id=%container.id,container_name=%container.name,image=%container.image.repository
   info:
     name:
-      en: "Clear Log Activities"
+      en: "Modify log activities"
       zh: "日志文件被篡改"
     desc:
-      en: "Detect clearing of critical log files"
+      en: "Modify critical log files"
       zh: "日志文件被篡改"
     suggestion:
       en: "Please go through the process tree to determine whether the command is a normal behavior of a known process and executed by malware, otherwise it may be a hacker removing traces of the attack."
@@ -24,9 +24,9 @@
     rule_type: Defense_Evasion
     priority: WARNING
     urgency: true
-    tags: [ATT&CK, file, mitre_defense_evasion]
+    tags: [ATT&CK, file, mitre_defense_evasion, L1]
 
-- key: Delete Bash History
+- key: Delete bash history
   hid: def_02
   condition: >
     ((spawned_process and proc.name in (shred, rm, mv) and proc.args contains "bash_history") or
@@ -35,7 +35,7 @@
     proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,user_loginuid=%user.loginuid,type=%evt.type,fd_name=%fd.name,name=%evt.arg.name,path=%evt.arg.path,oldpath=%evt.arg.oldpath,container.info=%container.info,container_id=%container.id,container_name=%container.name
   info:
     name:
-      en: "Delete Bash History"
+      en: "Delete bash history"
       zh: "bash历史文件被删除"
     desc:
       en: "Detect bash history deletion"
@@ -46,7 +46,7 @@
     rule_type: Defense_Evasion
     priority: WARNING
     urgency: true
-    tags: [ATT&CK, process, mitre_defense_evasion]
+    tags: [ATT&CK, process, mitre_defense_evasion, L3]
 
 - key: Create Symlink Over Sensitive Files
   hid: def_03
@@ -68,4 +68,4 @@
     rule_type: Defense_Evasion
     priority: ERROR
     urgency: true
-    tags: [ATT&CK, file, mitre_exfiltration]
+    tags: [ATT&CK, file, mitre_exfiltration, L3]

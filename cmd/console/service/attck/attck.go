@@ -815,7 +815,7 @@ func (h *ATTCKHandler) BatchEditCustomConfigs(ctx context.Context, data []*Cconf
 	return nil
 }
 
-func (h *ATTCKHandler) updateDefaultMasksForStricts(ctx context.Context, strictRules map[string]struct{}, v uint16, updater string) error {
+func (h *ATTCKHandler) updateRuleSwitchesForStricts(ctx context.Context, strictRules map[string]struct{}, v uint16, updater string) error {
 	closedRules := make([]model.RuleSwitch, len(strictRules))
 	for ruleName := range strictRules {
 		closedRules = append(closedRules, model.RuleSwitch{
@@ -874,8 +874,8 @@ func (h *ATTCKHandler) updateConfigs(ctx context.Context, v uint16, trigger upda
 			}
 
 			if len(strictRules) > 0 {
-				if err := h.updateDefaultMasksForStricts(ctx, strictRules, version.Seg1, "system"); err != nil {
-					logging.Get().Err(err).Msg("updateDefaultMasksForStricts error")
+				if err := h.updateRuleSwitchesForStricts(ctx, strictRules, version.Seg1, "system"); err != nil {
+					logging.Get().Err(err).Msg("updateRuleSwitchesForStricts error")
 				}
 			}
 
@@ -920,7 +920,7 @@ func (h *ATTCKHandler) updateConfigs(ctx context.Context, v uint16, trigger upda
 			if custerr == nil {
 				rulesContext = customed.Data
 
-				// if it's refreshing or it's initing but the new ccVersion is different from the previous version, we update the data offset to trigger the updates of rules
+				// if it's refreshing or initiating but the new ccVersion is different from the previous version, we update the data offset to trigger the updates of rules
 				if trigger == updateTriggerCustomConfigsPending || trigger == updateTriggerRulesUpdated || (trigger == updateTriggerInit && (h.isPOCEnabled || ccVersion != storeConf.CconfigIDversion)) {
 					logging.Get().Info().Uint8("trigger", uint8(trigger)).Bool("isPOCEnabled", h.isPOCEnabled).Uint64("dataID", storeConf.ID).Uint64("cconf version", ccVersion).Msg("try to start update rules offset to push")
 					ierr := dal.IncreaseATTCKDataIDAndSetConfigVersion(ctx, h.db.Get(), header.Version[0], storeConf.ID, ccVersion)
@@ -953,12 +953,11 @@ func (h *ATTCKHandler) updateConfigs(ctx context.Context, v uint16, trigger upda
 		return err
 	}
 
-	oldRuleSwitches, err := dal.FindRuleSwitches(ctx, h.db.Get(), v)
+	oldRuleSwitches, err := h.findOldSwitches(ctx, v)
 	if err != nil {
-		logging.Get().Err(err).Msg("FindRuleSwitches err.")
+		logging.Get().Err(err).Msg("findOldSwitches err.")
 		return err
 	}
-	oldRSMap := make(map[string]model.RuleSwitch)
 	deprecatedRules := make([]string, 0)
 	newOpenedRules := make([]string, 0)
 	newClosedRules := make([]string, 0)
@@ -967,20 +966,9 @@ func (h *ATTCKHandler) updateConfigs(ctx context.Context, v uint16, trigger upda
 			// set disabled
 			rules[oldRuleSwitches[i].Name].disabled = true
 		}
-
 		if _, ok := rules[oldRuleSwitches[i].Name]; !ok {
-			// deprecated ruleMasks
+			// deprecated rules
 			deprecatedRules = append(deprecatedRules, oldRuleSwitches[i].Name)
-		}
-		oldRSMap[oldRuleSwitches[i].Name] = oldRuleSwitches[i]
-	}
-	for _, newRule := range rules {
-		if _, ok := oldRSMap[newRule.name]; !ok {
-			if newRule.disabled {
-				newClosedRules = append(newClosedRules, newRule.name)
-			} else {
-				newOpenedRules = append(newOpenedRules, newRule.name)
-			}
 		}
 	}
 
@@ -1006,25 +994,9 @@ func (h *ATTCKHandler) updateConfigs(ctx context.Context, v uint16, trigger upda
 		go h.updateV1RuleVersion(ctx, fmt.Sprintf("v%d.%d", storeConf.Version1, storeConf.Version2))
 	}
 
-	// 模板初始化逻辑，如果没有应用过模板，说明系统初次部署上线，则默认使用标准模板
-	histories, err := dal.FindRuleTemplateApplyHistory(ctx, h.db.Get(), int(v))
-	if err == nil && len(histories) == 0 {
-		templates, err := h.sherlockClient.GetRuleTemplates(ctx, int(v), nil, nil, consts.LangEN)
-		if err != nil {
-			logging.Get().Error().Err(err).Int("version1", int(v)).Msg("GetRuleTemplates fails")
-			return err
-		}
-		for j := range templates {
-			if templates[j].Name != "standard" {
-				continue
-			}
-			err = h.ApplyRuleTemplates(ctx, templates[j].Version1, int(templates[j].ID), consts.LangEN, "system")
-			if err != nil {
-				logging.Get().Error().Err(err).Int("version1", int(v)).Int("template_id", int(templates[j].ID)).Msg("ApplyRuleTemplates fails")
-				continue
-			}
-			break
-		}
+	// 模板初始化逻辑
+	if v == uint16(3) {
+		h.applyStandardForInitDeploy(ctx, int(v), rules)
 	}
 
 	return nil
@@ -1096,8 +1068,8 @@ func (h *ATTCKHandler) UpdateConfig(ctx context.Context, username string, data [
 	}
 
 	if len(strictRules) > 0 {
-		if err := h.updateDefaultMasksForStricts(ctx, strictRules, version.Seg1, updater); err != nil {
-			logging.Get().Err(err).Msg("updateDefaultMasksForStricts error")
+		if err := h.updateRuleSwitchesForStricts(ctx, strictRules, version.Seg1, updater); err != nil {
+			logging.Get().Err(err).Msg("updateRuleSwitchesForStricts error")
 		}
 	}
 
@@ -1122,13 +1094,11 @@ func (h *ATTCKHandler) UpdateConfig(ctx context.Context, username string, data [
 				deprecatedRules = append(deprecatedRules, rule.name)
 			}
 		}
-		for _, newRule := range rules {
+		// 新增规则一律关闭
+		for name, newRule := range rules {
 			if _, ok := vRules.items[newRule.name]; !ok {
-				if newRule.disabled {
-					newClosedRules = append(newClosedRules, newRule.name)
-				} else {
-					newOpenedRules = append(newOpenedRules, newRule.name)
-				}
+				newClosedRules = append(newClosedRules, newRule.name)
+				rules[name].disabled = true
 			}
 		}
 	}
@@ -1147,9 +1117,9 @@ func (h *ATTCKHandler) UpdateConfig(ctx context.Context, username string, data [
 	}
 
 	// storeConf, err := h.loadFromStore(ctx)
-	if err != nil && err != dal.ErrATTCKConfDataNotFound {
-		return nil, err
-	}
+	//if err != nil && err != dal.ErrATTCKConfDataNotFound {
+	//	return nil, err
+	//}
 
 	storedRuleData, err := dal.SaveATTCKConfData(ctx, h.db.Get(), attackRuleData, newOpenedRules, newClosedRules, deprecatedRules, version.Seg1, updater)
 	if err != nil {
@@ -1528,5 +1498,112 @@ func (h *ATTCKHandler) updateV1RuleVersion(ctx context.Context, v string) {
 	err := h.db.Get().WithContext(ctx).Model(&model.TensorCluster{}).Where("rule_version = '' or rule_version is NULL or rule_version like 'v1.%'").Updates(map[string]interface{}{"rule_version": v}).Error
 	if err != nil {
 		logging.Get().Error().Err(err).Msg("update ivan_assets_clusters.rule_version fails")
+	}
+}
+
+func (h *ATTCKHandler) findOldSwitches(ctx context.Context, v uint16) ([]model.RuleSwitch, error) {
+	oldRuleSwitches, err := dal.FindRuleSwitches(ctx, h.db.Get(), map[string]interface{}{"version1": v})
+	if err != nil {
+		logging.Get().Err(err).Uint16("version1", v).Msg("FindRuleSwitches err")
+		return oldRuleSwitches, err
+	}
+	// 没有switches，认为是该数据表刚上线，查询旧的rule_mask表
+	if len(oldRuleSwitches) == 0 {
+		maskMap := make(map[string]struct{})
+		masks, err := dal.LoadATTCKRuleMasks(ctx, h.db.GetReadDB(), v)
+		if err != nil {
+			logging.Get().Err(err).Uint16("version1", v).Msg("LoadATTCKRuleMasks err")
+			return oldRuleSwitches, err
+		}
+		ruleSwitches := make([]model.RuleSwitch, 0)
+		for i := range masks {
+			if _, ok := maskMap[masks[i].Name]; ok {
+				continue
+			}
+			maskMap[masks[i].Name] = struct{}{}
+			ruleSwitches = append(ruleSwitches, model.RuleSwitch{
+				Version1: int(v),
+				Name:     masks[i].Name,
+				Switch:   false,
+			})
+		}
+		return ruleSwitches, nil
+	}
+	return oldRuleSwitches, nil
+}
+
+func (h *ATTCKHandler) applyStandardForInitDeploy(ctx context.Context, v int, rules map[string]*ruleItem) {
+	// 如果没有应用过模板，说明该功能初次部署上线，则默认应用标准模板
+	histories, err := dal.FindRuleTemplateApplyHistory(ctx, h.db.Get(), v)
+	if err != nil {
+		logging.Get().Error().Err(err).Int("version1", v).Msg("FindRuleTemplateApplyHistory fails")
+		return
+	}
+	if len(histories) != 0 {
+		return
+	}
+	logging.Get().Info().Int("version1", v).Msg("applyStandardForInitDeploy start")
+	// 先处理当前内存中的rules，避免被apply的逻辑覆盖
+	closedRules := make([]model.RuleSwitch, 0)
+	openedRules := make([]model.RuleSwitch, 0)
+	for name, item := range rules {
+		if item.disabled {
+			closedRules = append(closedRules, model.RuleSwitch{
+				Version1:  v,
+				Name:      name,
+				Switch:    false,
+				Updater:   "system",
+				UpdatedAt: time.Now().UnixMilli(),
+			})
+		} else {
+			openedRules = append(openedRules, model.RuleSwitch{
+				Version1:  v,
+				Name:      name,
+				Switch:    true,
+				Updater:   "system",
+				UpdatedAt: time.Now().UnixMilli(),
+			})
+		}
+	}
+
+	templates, err := h.sherlockClient.GetRuleTemplates(ctx, v, nil, nil, consts.LangEN)
+	if err != nil {
+		logging.Get().Error().Err(err).Int("version1", v).Msg("GetRuleTemplates fails")
+		return
+	}
+	if len(templates) == 0 {
+		logging.Get().Error().Err(err).Int("version1", v).Msg("empty rule fails")
+		return
+	}
+	template := templates[0]
+	for j := range templates {
+		if templates[j].Name == "standard" {
+			template = templates[j]
+			break
+		}
+	}
+	logging.Get().Info().Int("version1", v).Msg("applyStandardForInitDeploy find standard")
+	err = h.ApplyRuleTemplates(ctx, template.Version1, int(template.ID), consts.LangEN, "system")
+	if err != nil {
+		logging.Get().Error().Err(err).Int("version1", v).Int("template_id", int(template.ID)).Msg("ApplyRuleTemplates fails")
+		return
+	}
+	logging.Get().Info().Int("version1", v).Msg("applyStandardForInitDeploy apply template")
+
+	// 如果有老的规则开关数据，说明是老客户的升级部署，这时应该保留客户的原有开关状态
+	var count int64
+	err = h.db.GetReadDB().WithContext(ctx).Model(&model.ATTCKRuleMask{}).Where("version1 = ?", v).Count(&count).Error
+	if err != nil {
+		logging.Get().Error().Err(err).Int("version1", v).Msg("ATTCKRuleMask count fails")
+		return
+	}
+	logging.Get().Info().Int("version1", v).Int64("count", count).Msg("applyStandardForInitDeploy old count")
+	if count > 0 {
+		logging.Get().Info().Int("version1", v).Int("opened", len(openedRules)).Int("closed", len(closedRules)).Msg("applyStandardForInitDeploy update switches")
+		err = dal.UpdateRuleSwitches(ctx, h.db.Get(), openedRules, closedRules, uint16(v))
+		if err != nil {
+			logging.Get().Error().Err(err).Int("version1", v).Msg("UpdateRuleSwitches fails")
+			return
+		}
 	}
 }

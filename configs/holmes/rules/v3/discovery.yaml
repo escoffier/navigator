@@ -2,7 +2,7 @@
 - key: Read sensitive file untrusted
   hid: disc_01
   condition: >
-    sensitive_files and open_read and container
+    (sensitive_files or proc.cmdline contains "/etc/passwd") and open_read and container
     and proc_name_exists
     and shell_parent_procs
     and not proc.name in (user_mgmt_binaries, userexec_binaries, package_mgmt_binaries,
@@ -43,7 +43,7 @@
     rule_type: Discovery
     priority: WARNING
     urgency: true
-    tags: [ATT&CK, filesystem, mitre_credential_access, mitre_discovery]
+    tags: [ATT&CK, filesystem, mitre_credential_access, mitre_discovery, L1]
 
 - key: View network information in the container
   hid: disc_02
@@ -64,7 +64,7 @@
     rule_type: Discovery
     priority: WARNING
     urgency: true
-    tags: [ATT&CK]
+    tags: [ATT&CK, L3]
 
 - key: Read Shell Configuration File
   hid: disc_03
@@ -91,7 +91,7 @@
     rule_type: Discovery
     priority: WARNING
     urgency: true
-    tags: [ATT&CK, file, mitre_discovery]
+    tags: [ATT&CK, file, mitre_discovery, L1]
 
 - key: Read ssh information
   hid: disc_04
@@ -100,7 +100,8 @@
      consider_ssh_reads and
      (user_ssh_directory or fd.name startswith /root/.ssh) and
      not user_known_read_ssh_information_activities and
-     not proc.name in (ssh_binaries))
+     not proc.name in (ssh_binaries)) and
+     shell_parent_procs
   output: >
     proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,user_loginuid=%user.loginuid,file=%fd.name,parent=%proc.pname,container_id=%container.id,container_name=%container.name,image=%container.image.repository
   info:
@@ -116,7 +117,7 @@
     rule_type: Discovery
     priority: ERROR
     urgency: true
-    tags: [ATT&CK, filesystem, mitre_discovery]
+    tags: [ATT&CK, filesystem, mitre_discovery, L1]
 
 - key: Contact K8S API Server From Container
   hid: disc_05
@@ -144,7 +145,7 @@
     rule_type: Discovery
     priority: NOTICE
     urgency: true
-    tags: [ATT&CK, network, k8s, container, mitre_discovery]
+    tags: [ATT&CK, network, k8s, container, mitre_discovery, L4]
 
 - key: Launch Suspicious Network Tool on Host
   hid: disc_06
@@ -153,7 +154,8 @@
     not container and
     consider_network_tools_on_host and
     network_tool_procs and
-    not user_known_network_tool_activities
+    not user_known_network_tool_activities and
+    shell_parent_procs
   output: >
     proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,user_loginuid=%user.loginuid,parent_process=%proc.pname,container_id=%container.id,container_name=%container.name
   info:
@@ -169,13 +171,16 @@
     rule_type: Discovery
     priority: ERROR
     urgency: true
-    tags: [ATT&CK, network, process, mitre_discovery, mitre_exfiltration]
+    tags: [ATT&CK, network, process, mitre_discovery, mitre_exfiltration, L4]
 
 - key: View process information in the container
   disable: true
   hid: disc_07
   condition: >
-    open_read and container and fd.name startswith "/proc/" and fd.name contains "pid_max" and evt.arg.flags = O_RDONLY and shell_parent_procs and not k8s.pod.name contains "holmes" and not k8s.pod.name contains "calico" and not k8s.pod.name contains "node-exporter" and not k8s.pod.name contains "console" and not k8s.pod.name contains "51c1c6" and not k8s.pod.name contains "prometheus"
+    open_read and container and
+    fd.name startswith "/proc/" and fd.name contains "pid_max" and evt.arg.flags = O_RDONLY and
+    shell_parent_procs and
+    not (k8s.pod.name contains "holmes" or k8s.pod.name contains "calico" or k8s.pod.name contains "node-exporter" or k8s.pod.name contains "console" or k8s.pod.name contains "51c1c6" or k8s.pod.name contains "prometheus")
   output: >
     proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,user_loginuid=%user.loginuid,container.info=%container.info,shell=%proc.name,parent=%proc.pname,terminal=%proc.tty,container_id=%container.id,container_name=%container.name,image=%container.image.repository
   info:
@@ -191,12 +196,14 @@
     rule_type: Discovery
     priority: INFO
     urgency: true
-    tags: [ATT&CK, container, shell, mitre_execution]
+    tags: [ATT&CK, container, shell, mitre_execution, L3]
 
 - key: View disk information in the container
   hid: disc_08
   condition: >
-    open_read and container and (proc.cmdline contains "fdisk -l" or (fd.name startswith "/sys/dev/block/" and evt.arg.flags contains O_RDONLY)) and not tensorsec_namespace and shell_parent_procs
+    open_read and container and
+    (proc.cmdline contains "fdisk -l" or (fd.name startswith "/sys/dev/block/" and evt.arg.flags contains O_RDONLY)) and
+    not tensorsec_namespace and shell_parent_procs
   output: >
     fd_name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,container_id=%container.id,container_name=%container.name
   info:
@@ -212,7 +219,7 @@
     rule_type: Discovery
     priority: WARNING
     urgency: true
-    tags: [ATT&CK]
+    tags: [ATT&CK, L4]
 
 - key: Scanning web directories in the container
   hid: disc_09
@@ -237,24 +244,17 @@
     rule_type: Discovery
     priority: WARNING
     urgency: true
-    tags: [ATT&CK]
+    tags: [ATT&CK, L3]
 
 - key: Find files with suid privilege by non-root users
   hid: disc_10
   condition: >
-    evt.type = write and user.uid != 0 and
-    (proc.name = find and proc.cmdline contains "-perm" ) and (
-    evt.arg.data = "/usr/bin/find." or
-    evt.arg.data contains "nmap" or
-    evt.arg.data contains "vim" or
-    evt.arg.data contains "bash" or
-    evt.arg.data contains "less" or
-    evt.arg.data contains "more" or
-    evt.arg.data contains "nano" or
-    evt.arg.data contains "cp" or
-    evt.arg.data contains "awk"
+    spawned_process and 
+    user.uid != 0 and proc.name = find and (
+    (proc.cmdline contains "-perm" and (proc.cmdline contains "4000" or proc.cmdline contains "-u+s")) and
+    (proc.cmdline contains "-print" or proc.cmdline contains "-exec" or proc.cmdline contains "-ls" or proc.cmdline contains "-fls" or proc.cmdline contains "-xargs")
     )
-    and shell_parent_procs
+    and shell_family_procs
   output: >
     fd_name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,container_id=%container.id,container_name=%container.name
   info:
@@ -270,12 +270,16 @@
     rule_type: Discovery
     priority: WARNING
     urgency: true
-    tags: [ATT&CK]
+    tags: [ATT&CK, L4]
 
 - key: View login information in the container
   hid: disc_11
   condition: >
-    open_read and container and (fd.name="/var/log/lastlog" or fd.name="/var/log/wtmp") and not proc.cmdline contains "bash" and not tensorsec_namespace and not k8s.pod.name contains "calico" and shell_parent_procs
+    open_read and container and
+    (fd.name="/var/log/lastlog" or fd.name="/var/log/wtmp") and
+    not shell_procs and
+    not tensorsec_namespace and not k8s.pod.name contains "calico" and
+    shell_parent_procs
   output: >
     fd_name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,container_id=%container.id,container_name=%container.name
   info:
@@ -291,7 +295,7 @@
     rule_type: Discovery
     priority: WARNING
     urgency: true
-    tags: [ATT&CK]
+    tags: [ATT&CK, L1]
 
 - key: View history command file in container
   hid: disc_12
@@ -314,13 +318,15 @@
     rule_type: Discovery
     priority: WARNING
     urgency: true
-    tags: [ATT&CK]
+    tags: [ATT&CK, L1]
 
 - key: Get ApiServer_token through kubectl
   disable: true
   hid: disc_13
   condition: >
-    evt.type = execve and (proc.cmdline contains "kubectl config view" or proc.cmdline contains "kubectl describe secrets") and shell_parent_procs
+    evt.type = execve and
+    (proc.cmdline contains "kubectl config view" or proc.cmdline contains "kubectl describe secrets") and
+    shell_parent_procs
   output: >
     proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,container_id=%container.id,container_name=%container.name
   info:
@@ -336,4 +342,4 @@
     rule_type: Discovery
     priority: WARNING
     urgency: true
-    tags: [ATT&CK]
+    tags: [ATT&CK, L1]
