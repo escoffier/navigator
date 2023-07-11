@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"os"
 	"strings"
 
 	"gitlab.com/security-rd/go-pkg/logging"
@@ -55,18 +54,6 @@ func (vi *Vuln) GenClassView() string {
 		return VulnsClassConfigVuln
 	}
 	return ""
-}
-
-func (vi *Vuln) GenKernelVuln() bool {
-	kernelVuln := os.Getenv("IDENTITY_KERNEL_VULN")
-	// 提供开关临时关闭内核漏洞的判断
-	if kernelVuln == model.FalseString {
-		return false
-	}
-	if util.ExistBit1(vi.Flag, VulnFlagKernelPkg) {
-		return true
-	}
-	return false
 }
 
 func (vi *Vuln) GenAttackPathView() string {
@@ -137,7 +124,7 @@ func GetSeverityInt(level string) int64 {
 	return 0
 }
 
-func GetSeverity(level int64) string {
+func GetSeverityEN(level int64) string {
 	switch level {
 	case SeverityCriticalInt:
 		return SeverityCritical
@@ -154,7 +141,7 @@ func GetSeverity(level int64) string {
 	}
 }
 
-func GetSeverityView(level int64) string {
+func GetSeverityZH(level int64) string {
 	switch level {
 	case SeverityCriticalInt:
 		return SeverityCriticalView
@@ -192,8 +179,8 @@ type Vuln struct {
 	CweIdsJSON         string          `gorm:"column:ced_ids" json:"-"`
 	Title              string          `gorm:"column:title" json:"title"` // 漏洞库的取的 title 英文
 	CnvdTitle          string          `gorm:"column:cnvd_title" json:"cnvdTitle"`
-	PublishDate        int64           `gorm:"column:publish_date" json:"publishDate"`
-	ModificationData   int64           `gorm:"column:modification_data" json:"modificationData"`
+	PublishAt          int64           `gorm:"column:publish_at" json:"publishAt"` // 发步时间
+	ModifyAt           int64           `gorm:"column:modify_at" json:"modifyAt"`   // 修改时间
 	Severity           int64           `gorm:"column:severity" json:"severity"`
 	CheckSum           uint64          `gorm:"column:check_sum" json:"checkSum"`
 	Language           string          `gorm:"column:language" json:"language"` // 把编程语言入库用于搜索 统一存小写，便于搜索
@@ -349,21 +336,21 @@ func (vi *Vuln) GenVulnView() *VulnView {
 		References:         vi.References,
 		CweIds:             vi.CweIds,
 		Title:              vi.Title,
-		PublishDate:        vi.PublishDate,
-		ModificationData:   vi.ModificationData,
+		PublishAt:          vi.PublishAt,
+		ModifyAt:           vi.ModifyAt,
 		CVSSV2Score:        vi.CVSS[CVSSNvd].V2Score, // 当前需求，默认取NVD的评分
 		CVSSV2Vector:       vi.CVSS[CVSSNvd].V2Vector,
 		CVSSV3Score:        vi.CVSS[CVSSNvd].V3Score,
 		CVSSV3Vector:       vi.CVSS[CVSSNvd].V3Vector,
 		SeverityInt:        vi.Severity,
-		Severity:           GetSeverity(vi.Severity),
-		SeverityView:       GetSeverityView(vi.Severity),
+		Severity:           GetSeverityEN(vi.Severity),
+		SeverityView:       GetSeverityZH(vi.Severity),
 		Flag:               vi.Flag,
 		AttackPathView:     vi.GenAttackPathView(),
 		AttackPath:         vi.GenAttackPath(),
 		Class:              vi.Class,
 		ClassView:          vi.GenClassView(),
-		KernelVuln:         vi.GenKernelVuln(),
+		KernelVuln:         util.ExistBit1(vi.Flag, VulnFlagKernelPkg),
 		Language:           vi.Language,
 		Frame:              vi.Frame,
 		FixedVersion:       vi.FixedVersion,
@@ -408,35 +395,37 @@ type VulnView struct {
 	PkgName            string            `json:"pkgName"`
 	PkgVersion         string            `json:"pkgVersion"`
 	CnnvdName          string            `json:"cnnvdName"`
-	PkgRelease         string            `json:"pkgRelease"`  // 发行版名字：alpine，redhat等
-	Description        string            `json:"description"` // 描述
-	DescriptionEn      string            `json:"-"`           // 描述
-	DescriptionZh      string            `json:"-"`           // 描述
-	References         []string          `json:"references"`  // 参考链接
+	PkgRelease         string            `json:"pkgRelease"`    // 发行版名字：alpine，redhat等
+	Description        string            `json:"description"`   // 描述
+	DescriptionEn      string            `json:"descriptionEn"` // 描述:en
+	DescriptionZh      string            `json:"descriptionZh"` // 描述:zh
+	References         []string          `json:"references"`    // 参考链接
 	CweIds             []string          `json:"cweIds"`
 	Title              string            `json:"title"`
-	PublishDate        int64             `json:"publishDate"`
-	ModificationData   int64             `json:"modificationData"`
+	PublishAt          int64             `json:"publishAt"`
+	ModifyAt           int64             `json:"modifyAt"`
 	CVSSV2Score        float64           `json:"cvssV2Score"`
 	CVSSV2Vector       string            `json:"cvssV2Vector"`
 	CVSSV3Score        float64           `json:"cvssV3Score"`
 	CVSSV3Vector       string            `json:"cvssV3Vector"`
 	SeverityInt        int64             `json:"severityInt"`
 	Severity           string            `json:"severity"`
-	SeverityView       string            `json:"severityView"` // 给前端
+	SeverityView       string            `json:"severityView"`
 	Flag               uint64            `json:"flag,string"`
-	AttackPathView     string            `json:"attackPathView"` // 攻击路径
+	AttackPathView     string            `json:"attackPathView"` // 攻击路径:适配中英文
 	AttackPath         string            `json:"attackPath"`     // 攻击路径
 	Class              string            `json:"class"`          // 漏洞类型,trivy解析的数据
-	ClassView          string            `json:"classView"`      // 漏洞类型:文案
+	ClassView          string            `json:"classView"`      // 漏洞类型
 	KernelVuln         bool              `json:"kernelVuln"`     // 是否内核漏洞
 	Language           string            `json:"language"`       // 编程语言
 	Frame              string            `json:"frame"`          // 开发框架
 	FixedVersion       string            `json:"fixedVersion"`
 	Target             string            `json:"target"`
 	CnnvdFixSuggestion string            `json:"cnnvdFixSuggestion"`
-	PosAttr            map[string]string `json:"posAttr"` // 漏洞详情中雷达图的位置数据
-	Attr               map[string]string `json:"attr"`    // 漏洞详情中雷达图的数据,从vector解析出
+	PosAttr            map[string]string `json:"posAttr"`       // 漏洞详情中雷达图的位置数据
+	Attr               map[string]string `json:"attr"`          // 漏洞详情中雷达图的数据,从vector解析出
+	AttrValueView      map[string]string `json:"attrValueView"` // 漏洞详情中雷达图的数据,value 适配中英文
+	AttrKeyView        map[string]string `json:"attrKeyView"`   // 漏洞详情中雷达图的数据,key 适配中英文
 
 	CreatedAt int64 `json:"createdAt"` // milliseconds
 	UpdatedAt int64 `json:"updatedAt"` // milliseconds
@@ -445,8 +434,21 @@ type VulnView struct {
 }
 
 func (vi *VulnView) AdaptI18(ctx context.Context) {
-	lang, ok := ctx.Value(AcceptLanguage).(string)
-	if ok && lang == model.LangEn {
+	lang := model.LangZh
+
+	if lan, ok := ctx.Value(AcceptLanguage).(string); ok && lan == model.LangEn {
+		lang = model.LangEn
+	}
+	vi.SeverityView = GetSeverityView(lang)[strings.ToUpper(vi.Severity)]
+	vi.ClassView = GetVulnClassView(lang)[vi.Class]
+	vi.AttrKeyView = GetVulnCvssAttrKeyView(lang)
+	vi.AttrValueView = GenVulnCVSSV3AttrView(vi.Attr, lang)
+	vi.AttackPathView = vi.AttrValueView[VulnCvssKeyAV]
+
+	if lang == model.LangZh {
+		vi.Description = vi.DescriptionZh
+	}
+	if lang == model.LangEn {
 		vi.Description = vi.DescriptionEn
 	}
 }

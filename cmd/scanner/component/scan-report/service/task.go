@@ -14,7 +14,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	imagesecModel "gitlab.com/piccolo_su/vegeta/pkg/model/imagesec"
-	scanner_ci "gitlab.com/piccolo_su/vegeta/pkg/model/scanner-ci"
+	"gitlab.com/piccolo_su/vegeta/pkg/model/scanner-ci"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 )
 

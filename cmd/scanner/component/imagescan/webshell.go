@@ -1,4 +1,4 @@
-package imagesec
+package imagescan
 
 import (
 	"archive/zip"

@@ -16,7 +16,6 @@ import (
 type ImageDetectTaskService interface {
 	CreateImageDetectTask(ctx context.Context,
 		imageSearchParam imagesecModel.ImageListParam,
-		policySearchParam imagesecModel.SearchSecurityPolicyParam,
 		taskInfo imagesecModel.ImageDetectTask) error
 	DeleteDetectTask(ctx context.Context, param imagesecModel.SearchTaskParam) error
 }
@@ -44,9 +43,9 @@ func NewImageDetectTaskSrv(
 	return srv
 }
 
-func (s *ImageDetectTaskSrv) CreateImageDetectTask(ctx context.Context,
+func (s *ImageDetectTaskSrv) CreateImageDetectTask(
+	ctx context.Context,
 	imageSearchParam imagesecModel.ImageListParam,
-	policySearchParam imagesecModel.SearchSecurityPolicyParam,
 	taskInfo imagesecModel.ImageDetectTask,
 ) error {
 
@@ -66,7 +65,7 @@ func (s *ImageDetectTaskSrv) CreateImageDetectTask(ctx context.Context,
 	}
 
 	go func(taskID int64) {
-		_ = s.CreateDetectSubtask(ctx, task, imageSearchParam, policySearchParam)
+		_ = s.CreateDetectSubtask(ctx, task, imageSearchParam)
 	}(task.ID)
 
 	logging.Get().Info().Int64("taskID", task.ID).Msg("CreateDetectTask succeed")
@@ -100,14 +99,12 @@ func (s *ImageDetectTaskSrv) CreateDetectSubtask(
 	ctx context.Context,
 	task *imagesecModel.ImageDetectTask,
 	imageSearchParam imagesecModel.ImageListParam,
-	policySearchParam imagesecModel.SearchSecurityPolicyParam,
 ) error {
 	var startId int64
-	policySearchParam.Deleted = consts.FalseString
 
-	policy, _, err := s.policyDal.SearchDetectPolicy(ctx, policySearchParam)
+	policy, _, err := s.policyDal.SearchDetectPolicy(ctx, imagesecModel.SearchSecurityPolicyParam{Deleted: consts.FalseString})
 	if err != nil {
-		logging.Get().Err(err).Interface("policySearchParam", policySearchParam).Msg("CreateDetectSubtask SearchDetectPolicy")
+		logging.Get().Err(err).Msg("CreateDetectSubtask SearchDetectPolicy")
 		return err
 	}
 	if len(policy) == 0 {

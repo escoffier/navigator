@@ -26,23 +26,24 @@ const (
 	FlagImageTrusted       = 18 // 可信息镜像
 	FlagImageUnTrusted     = 19 // 不可信息镜像
 
-	FlagImageSafe        = 20 // 镜像的安全状态：安全
-	FlagImageUnsafe      = 21 // 镜像的安全状态:风险
-	FlagImageSafeUnknown = 22 // 镜像的安全状态:未知（默认状态）
-
 	FlagImageOnline        = 23 // 镜像在线
 	FlagImageNotOnline     = 24 // 镜像离线
 	FlagImageHasFixSuggest = 25 // 镜像有可修复建议
 	FlagNodeImageNotInLib  = 26 // 节点镜像不在仓库内
 	FlagNodeImageInLib     = 27 // 节点镜像在仓库内
 
-	FlagImageHasUnknownVun          = 28
-	FlagImageHasLowVuln             = 29
-	FlagImageHasMediumVuln          = 30
-	FlagImageHasHighVuln            = 31
-	FlagImageHasCriticalVuln        = 32 // 镜像存在高危漏洞
-	FlagHasPasswdEnv                = 33
-	JobNotScan               string = "not_scan"
+	FlagImageHasUnknownVun   = 28
+	FlagImageHasLowVuln      = 29
+	FlagImageHasMediumVuln   = 30
+	FlagImageHasHighVuln     = 31
+	FlagImageHasCriticalVuln = 32 // 镜像存在高危漏洞
+
+	// 2.19的需求，需要对镜像安全状态排序
+	FlagImageSafeUnknown = 61 // 镜像的安全状态:未知（默认状态）
+	FlagImageSafe        = 62 // 镜像的安全状态：安全
+	FlagImageUnsafe      = 63 // 镜像的安全状态:风险
+
+	JobNotScan string = "not_scan"
 )
 
 func GetAllFlag() []uint64 {
@@ -51,7 +52,7 @@ func GetAllFlag() []uint64 {
 		FlagPrivilegedBoot, FlagHasExceptLicense, FlagHasFixedVuln, FlagAppImage, FlagBaseImage}
 	return flags
 }
-func GetSecurityIssueLabel(flag int64) string {
+func GetSecurityIssueLabelZH(flag int64) string {
 	switch flag {
 	case FlagHasVuln:
 		return "漏洞"
@@ -69,6 +70,29 @@ func GetSecurityIssueLabel(flag int64) string {
 		return "不允许的开源许可"
 	case FlagHasMalicious:
 		return "恶意文件"
+	default:
+		return ""
+	}
+}
+
+func GetSecurityIssueLabelEN(flag int64) string {
+	switch flag {
+	case FlagHasVuln:
+		return "Vulnerability"
+	case FlagHasSensitive:
+		return "Sensitive files"
+	case FlagHasWebshell:
+		return "WebShell"
+	case FlagHasExceptPKG:
+		return "Non-compliant software"
+	case FlagHasExceptEnv:
+		return "Abnormal environment variables"
+	case FlagPrivilegedBoot:
+		return "Start by non-root user"
+	case FlagHasExceptLicense:
+		return "Prohibited open source license"
+	case FlagHasMalicious:
+		return "Trojan Virus"
 	default:
 		return ""
 	}

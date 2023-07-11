@@ -13,9 +13,22 @@ type NodeInfo struct {
 	IP          string `gorm:"column:ip" json:"ip"`                     // 结点的Ip
 	Hostname    string `gorm:"column:hostname" json:"hostname"`         // 结点的HostName
 	ClusterKey  string `gorm:"column:cluster_key" json:"clusterKey"`
-	ClusterName string `gorm:"-" json:"clusterName"`                                    // 集群名
-	CreatedAt   int64  `gorm:"autoCreateTime:milli;column:created_at" json:"createdAt"` // milliseconds
-	UpdatedAt   int64  `gorm:"autoUpdateTime:milli;column:updated_at" json:"updatedAt"` // milliseconds
+	ClusterName string `gorm:"-" json:"clusterName"` // 集群名
+	// todo（liuqiang）下期做
+	// AviraDB     string `gorm:"avira_db" json:"aviraDB"`
+	// ClamavDB    string `gorm:"clamav_db" json:"clamavDB"`
+	// WebshellDB  string `gorm:"webshell_db" json:"webshellDB"`
+
+	CreatedAt int64 `gorm:"autoCreateTime:milli;column:created_at" json:"createdAt"` // milliseconds
+	UpdatedAt int64 `gorm:"autoUpdateTime:milli;column:updated_at" json:"updatedAt"` // milliseconds
+}
+
+func (vi *NodeInfo) Same(after *NodeInfo) bool {
+	// if vi.UniqueID != after.UniqueID || vi.AviraDB != after.AviraDB || vi.ClamavDB != after.ClamavDB ||
+	// 	vi.WebshellDB != after.WebshellDB {
+	// 	return false
+	// }
+	return vi.UniqueID == after.UniqueID
 }
 
 func (vi *NodeInfo) TableName() string {

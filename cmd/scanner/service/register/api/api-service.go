@@ -112,8 +112,8 @@ func newService(config register.ScannerServiceConfig) (register.ScannerService, 
 
 	nodeImageSvc := imagemeta.NewNodeImageSrv(nodeImageDal, registryDal, nodeScanResultDal,
 		resourceDal, nodeReportDal, policyDal, detectResultDal, trustedImageDal, scannerConfigDal, nodeScanTaskDal)
-	nodeVulnSrv := imagesecSrv.NewVulnSrv(nodeScanResultDal)
-	webshellSrv := imagesecSrv.NewWebshellSrv(nodeScanResultDal)
+	nodeVulnSrv := imagescan.NewVulnSrv(nodeScanResultDal)
+	webshellSrv := imagescan.NewWebshellSrv(nodeScanResultDal)
 	rejectSvc := component.NewImageRejectSrc(dal)
 	harborSvc := component.NewHarborSrc(dal, rc)
 	registrySrv := component.NewRegistrySrv(registryDal, scanConfigDal, syncTaskDal)

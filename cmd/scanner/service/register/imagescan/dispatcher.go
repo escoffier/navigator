@@ -8,8 +8,6 @@ import (
 
 	imagemataSrv "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/imagemeta"
 	dispatcherSrv "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/imagescan"
-	nodetask "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/imagescan/dequeuers/node-task"
-	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/imagescan/types"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/service/register"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
@@ -68,17 +66,13 @@ func newService(config register.ScannerServiceConfig) (register.ScannerService, 
 	resourceDal := store.NewResourceDao(scannerWrapperDb)
 	trustedImageDal := store.NewScannerOrm(scannerWrapperDb)
 	detectResultDal := imagesecStore.NewImageDetectResultDao(scannerWrapperDb)
+	sensitiveRuleDal := imagesecStore.NewSensitiveRuleDao(scannerWrapperDb)
 
 	nodeScanTaskDal := imagesecStore.NewScanTaskDao(scannerWrapperDb)
 	nodeImageSvc := imagemataSrv.NewNodeImageSrv(nodeImageDal, registryDal, nodeScanResultDal,
 		resourceDal, nodeReportDal, policyDal, detectResultDal, trustedImageDal, scannerConfigDal, nodeScanTaskDal)
 
-	nodeQueue := nodetask.NewNodeImageQueue(nodeScanTaskDal, nodeImageSvc, nodeReportDal)
-
-	dequeues := make(map[string]types.Dequeue)
-	dequeues[nodeQueue.Type()] = nodeQueue
-
-	imageTaskDispatcher := dispatcherSrv.NewImageScanTaskDispatcher(nodeScanTaskDal, dequeues)
+	imageTaskDispatcher := dispatcherSrv.NewImageScanTaskDispatcher(nodeScanTaskDal, nodeImageSvc, nodeReportDal, sensitiveRuleDal)
 
 	d := Dispatcher{DispatcherSrv: imageTaskDispatcher}
 

@@ -14,13 +14,14 @@ import (
 	"path/filepath"
 	"sync"
 
+	"gitlab.com/security-rd/go-pkg/mq"
+
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/avira"
 	scanvuln "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/bolt-vuln"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/malicious"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	scannermodel "gitlab.com/piccolo_su/vegeta/pkg/model/scanner-model"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
-	"gitlab.com/security-rd/go-pkg/mq"
 )
 
 type UpdateVersionSrv struct {

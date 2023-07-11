@@ -22,7 +22,7 @@ type ScanData struct {
 type MaliciousServer struct {
 	Cs     *ClamavScanner
 	ch     chan ScanData
-	Updata UpdataService
+	Updata UpdateService
 	Lock   sync.RWMutex
 }
 
@@ -39,7 +39,7 @@ func NewMaliciousServer() (*MaliciousServer, error) {
 			logging.GetLogger().Err(err).Msgf("init clamav engine error")
 			return
 		}
-		singleServer.ch = make(chan ScanData, DefaultTaskNum) //之前多线程是12，可能这个值要调低些
+		singleServer.ch = make(chan ScanData, DefaultTaskNum) // 之前多线程是12，可能这个值要调低些
 	})
 	return &singleServer, nil
 }
@@ -126,6 +126,6 @@ func (m *MaliciousServer) Run() {
 			}
 		}
 		data.Result <- true
-		//TODO 入库
+		// TODO 入库
 	}
 }

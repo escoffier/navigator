@@ -13,7 +13,7 @@ import (
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/imagemeta"
-	imagesecSrv "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/imagesec"
+	imagesecSrv "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/imagescan"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scan-report/export/common"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scan-report/export/excel"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scan-report/export/html"

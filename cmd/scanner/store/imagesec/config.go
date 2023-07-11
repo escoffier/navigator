@@ -8,13 +8,14 @@ import (
 
 	"gitlab.com/security-rd/go-pkg/databases"
 
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	imagesecModel "gitlab.com/piccolo_su/vegeta/pkg/model/imagesec"
 )
 
 type SensitiveRuleDal interface {
 	CreateSensitiveRule(ctx context.Context, data *imagesecModel.SensitiveRule) error
-	SearchSensitiveRule(ctx context.Context, filter *model.Filter) ([]*imagesecModel.SensitiveRule, error)
+	SearchSensitiveRule(ctx context.Context, param imagesecModel.SearchSensitiveRuleParam) ([]*imagesecModel.SensitiveRule, int64, error)
 	UpdateSensitiveRule(ctx context.Context, id int64, updater map[string]interface{}) error
 	DeleteSensitiveRule(ctx context.Context, id int64) error
 }
@@ -37,16 +38,40 @@ func (dal *SensitiveRuleDao) CreateSensitiveRule(ctx context.Context, data *imag
 	return dal.db.Get().WithContext(cancelCtx).Table(data.TableName()).Create(data).Error
 }
 
-func (dal *SensitiveRuleDao) SearchSensitiveRule(ctx context.Context, filter *model.Filter) ([]*imagesecModel.SensitiveRule, error) {
+func (dal *SensitiveRuleDao) SearchSensitiveRule(ctx context.Context, param imagesecModel.SearchSensitiveRuleParam) (
+	[]*imagesecModel.SensitiveRule, int64, error) {
 	cancelCtx, cancelFunc := context.WithTimeout(ctx, time.Second*3)
 	defer cancelFunc()
 	res := make([]*imagesecModel.SensitiveRule, 0)
 
 	db := dal.db.Get().WithContext(cancelCtx).Table(new(imagesecModel.SensitiveRule).TableName())
-	db = model.AddFilter(db, filter)
+	if len(param.Filed) > 0 {
+		db = db.Select(param.Filed)
+	}
+	if param.IsDefault == consts.TrueString {
+		db = db.Where("is_default = ? ", true)
+	} else if param.IsDefault == consts.FalseString {
+		db = db.Where("is_default = ? ", false)
+	}
+
+	if param.Enable == consts.TrueString {
+		db = db.Where("enable = ? ", true)
+	} else if param.Enable == consts.FalseString {
+		db = db.Where("enable = ? ", false)
+	}
+	if param.RuleType != "" {
+		db = db.Where("rule_type = ? ", param.RuleType)
+	}
+
+	var cnt int64
+	if err := db.Count(&cnt).Error; err != nil {
+		return nil, 0, err
+	}
+
+	db = model.AddFilter(db, param.Filter)
 	err := db.Find(&res).Error
 
-	return res, err
+	return res, cnt, err
 }
 
 func (dal *SensitiveRuleDao) UpdateSensitiveRule(ctx context.Context, id int64, updater map[string]interface{}) error {

@@ -90,7 +90,7 @@ func (s *VulnExport) Run(ctx context.Context) {
 }
 
 type VulnExportParma struct {
-	UniqueVuln string `json:"uniqueVuln"`
+	UniqueVuln string `json:"uniqueID"`
 }
 
 // 取一个任务来执行
@@ -134,8 +134,10 @@ func (s *VulnExport) worker(ctx context.Context, task model.ExportTensorTask) er
 	}
 
 	fileName := fmt.Sprintf("%s_%d", vulns[0].Name, time.Now().Unix())
+	vulnData := imagesec.ConvertVuln(vulns)[0]
+	vulnData.AdaptI18(context.WithValue(ctx, model.AcceptLanguage, task.Lang))
 
-	excelChan := s.Export(ctx, fileName, imagesec.ConvertVuln(vulns)[0], resources)
+	excelChan := s.Export(ctx, fileName, vulnData, resources, task)
 
 	if err := s.ZipAndSave(ctx, fileName, excelChan); err != nil {
 		logging.Get().Err(err).Int64("taskID", task.ID).Msg("ZipAndSave")
@@ -165,7 +167,8 @@ func (s *VulnExport) ZipAndSave(ctx context.Context, filename string, files chan
 	return nil
 }
 
-func (s *VulnExport) Export(ctx context.Context, filename string, vuln *imagesec.VulnView, imageContainers []*imagesec.ImageWithCorrelateData2) chan *excelize.File {
+func (s *VulnExport) Export(ctx context.Context, filename string, vuln *imagesec.VulnView,
+	imageContainers []*imagesec.ImageWithCorrelateData2, task model.ExportTensorTask) chan *excelize.File {
 	out := make(chan *excelize.File, 1)
 
 	go func() {
@@ -179,15 +182,18 @@ func (s *VulnExport) Export(ctx context.Context, filename string, vuln *imagesec
 		defer close(out)
 
 		logging.Get().Info().Str("vuln", vuln.Name).Msg("Export Vuln start")
-		excelData := make(map[string][]chan []string)
+		excelData := make(map[types.SheetName][]chan []string)
 		// 加入漏洞数据
-		vulnSheetName := common.GenImageVulnInfoMeta().SheetName
-		resourceSheetName := common.GenImageResourcesInfoMeta().SheetName
+		vulnSheetName := common.GenImageVulnInfoMeta(task.Lang).SheetName
+		resourceSheetName := common.GenImageResourcesInfoMeta(task.Lang).SheetName
 		if excelData[vulnSheetName] == nil {
 			excelData[vulnSheetName] = make([]chan []string, 0)
 		}
 
-		vulnChan := s.ConvertVulnData(common.GenVulnInfoChan(imagesec.ImageBaseResponse{}, []*imagesec.VulnView{vuln}))
+		vuln.AdaptI18(context.WithValue(ctx, model.AcceptLanguage, task.Lang))
+
+		vulnData := common.GenVulnInfoChan(imagesec.ImageBaseResponse{}, []*imagesec.VulnView{vuln}, task.Lang)
+		vulnChan := s.ConvertVulnData(vulnData)
 		excelData[vulnSheetName] = append(excelData[vulnSheetName], vulnChan)
 
 		// 加入关联资源的数据
@@ -203,7 +209,7 @@ func (s *VulnExport) Export(ctx context.Context, filename string, vuln *imagesec
 				s.ConvertResourceData(common.GenImageResourceChan(ic.ToImageBaseResponse(), ic.Container)))
 		}
 
-		sheets := common.GetVulnSheetInfo()
+		sheets := common.GetVulnSheetInfo(task.Lang)
 		excelFile, err := common.WriteToExcel(filename, sheets, excelData)
 		if err != nil {
 			logging.Get().Err(err).Msg("Export.WriteToExcel")
@@ -218,6 +224,7 @@ func (s *VulnExport) Export(ctx context.Context, filename string, vuln *imagesec
 }
 
 func (s *VulnExport) ConvertVulnData(res chan []string) chan []string {
+
 	out := make(chan []string, 1)
 	go func(value chan []string) {
 		defer func() {
@@ -256,13 +263,13 @@ func (s *VulnExport) ConvertResourceData(res chan []string) chan []string {
 	return out
 }
 
-func (s *VulnExport) ConvertData(res map[string]chan []string) map[string]chan []string {
+func (s *VulnExport) ConvertData(res map[types.SheetName]chan []string, task model.ExportTensorTask) map[types.SheetName]chan []string {
 
-	ans := make(map[string]chan []string)
+	ans := make(map[types.SheetName]chan []string)
 
 	for key, value := range res {
 
-		if key == common.GenImageVulnInfoMeta().SheetName {
+		if key == common.GenImageVulnInfoMeta(task.Lang).SheetName {
 			out := make(chan []string, 1)
 			go func(value chan []string) {
 
@@ -280,7 +287,7 @@ func (s *VulnExport) ConvertData(res map[string]chan []string) map[string]chan [
 				}
 			}(value)
 			ans[key] = out
-		} else if key == common.GenImageResourcesInfoMeta().SheetName {
+		} else if key == common.GenImageResourcesInfoMeta(task.Lang).SheetName {
 			out := make(chan []string, 1)
 			go func(value chan []string) {
 				defer func() {

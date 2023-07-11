@@ -55,18 +55,14 @@ func (s *ScanImageConfigSyncSrv) SyncConfig(ctx context.Context) error {
 func (s *ScanImageConfigSyncSrv) syncConfig(ctx context.Context) error {
 	grpcClient := stream.MustGetGrpcClient()
 
-	dbCtx, dbCancel := context.WithTimeout(ctx, 5*time.Second)
-	defer dbCancel()
-	scanImageCfg, err := s.configDal.GetScanImageConfig(dbCtx, imagesecModel.ConfigTypeNodeScanImage)
+	scanImageCfg, err := s.configDal.GetScanImageConfig(ctx, imagesecModel.ConfigTypeNodeScanImage)
 	if err != nil {
 		logging.Get().Err(err).Msg("ScanImageConfigSyncSrv failed to get scan image config")
 		return err
 	}
 
 	// get all cluster nodes
-	nCtx, nCancel := context.WithTimeout(ctx, 5*time.Second)
-	defer nCancel()
-	nodes, _, err := s.nodeInfoSrv.SearchNode(nCtx, imagesecModel.SearchNodeInfoParam{})
+	nodes, _, err := s.nodeInfoSrv.SearchNode(ctx, imagesecModel.SearchNodeInfoParam{})
 	if err != nil {
 		logging.Get().Err(err).Msg("ScanImageConfigSyncSrv failed to get nodes")
 		return err

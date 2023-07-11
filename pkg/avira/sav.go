@@ -3,8 +3,7 @@ package avira
 import (
 	"fmt"
 	"os/exec"
-	"runtime/debug"
-	"sync"
+	"strings"
 	"time"
 
 	"github.com/shirou/gopsutil/v3/process"
@@ -21,146 +20,126 @@ const (
 )
 
 type SavServer struct {
-	listenPort int64
-	notifyChan chan struct{} // 用于外部通知是否停止server
-	endChan    chan struct{} // 通知外部server停止了。
+	ListenPort int64
+	PID        int // 进程执行的 PID
+	ShouldStop bool
 }
 
 type Option func(s *SavServer)
 
 func WithListenPort(port int64) Option {
 	return func(s *SavServer) {
-		s.listenPort = port
+		s.ListenPort = port
 	}
 }
 
-func (s *SavServer) GetListenPort() int64 {
-	return s.listenPort
+func (s *SavServer) generateDaemonArgs() []string {
+	// cmdStr := fmt.Sprintf("%s -N --tcp=%d -C %s --log-file=%s", savApiBin, s.ListenPort, savApiConf, DefaultSavApiLogFile)
+	cmdStr := fmt.Sprintf("-N --tcp=%d -C %s --log-file=%s", s.ListenPort, savApiConf, DefaultSavApiLogFile)
+	return strings.Split(cmdStr, " ")
 }
 
-func (s *SavServer) generateDaemonCmd() string {
-	cmdStr := fmt.Sprintf("%s -N --tcp=%d -C %s --log-file=%s", savApiBin, s.listenPort, savApiConf, DefaultSavApiLogFile)
-	return cmdStr
-}
-
-func (s *SavServer) IsSavServerRunning() (bool, error) {
+func (s *SavServer) IsServerRunning() (bool, error) {
 	processes, err := process.Processes()
 	if err != nil {
 		return false, err
 	}
 	for _, p := range processes {
-		n, err := p.Name()
-		if err != nil {
-			logging.Get().Err(err).Msg("failed to get process name")
-			continue
-		}
-		if n == savApiBinBase {
+		if p.Pid == int32(s.PID) {
 			return true, nil
 		}
 	}
 	return false, nil
 }
 
-func (s *SavServer) KillSavServerProcess() error {
-	processes, err := process.Processes()
+func (s *SavServer) KillServer() error {
+	s.ShouldStop = true
+
+	running, err := s.IsServerRunning()
 	if err != nil {
 		return err
 	}
+	if !running {
+		logging.Get().Info().Msg("avira server not running")
+		return nil
+	}
+
+	processes, err := process.Processes()
+	if err != nil {
+		logging.Get().Info().Int("PID", s.PID).Msg("not find processes")
+		return err
+	}
+	find := false
 	for _, p := range processes {
-		n, err := p.Name()
-		if err != nil {
-			logging.Get().Err(err).Msg("failed to get process name")
-			continue
-		}
-		if n == savApiBinBase {
-			return p.Kill()
+		if p.Pid == int32(s.PID) {
+			find = true
+			logging.Get().Info().Int("PID", s.PID).Msg("find pid and kill")
+			if err := p.Kill(); err != nil {
+				return err
+			}
+			break
 		}
 	}
-	return fmt.Errorf("process not found")
-}
-
-func (s *SavServer) NotifyStop() {
-	s.notifyChan <- struct{}{}
-}
-
-func (s *SavServer) EndChan() chan struct{} {
-	return s.endChan
-}
-
-func (s *SavServer) Run() {
-	daemonCmdStr := s.generateDaemonCmd()
-
-	// 启动server
-	shouldStop := false
-	wg := sync.WaitGroup{}
-	wg.Add(1)
-	go func() {
-		defer func() {
-			if r := recover(); r != nil {
-				logging.Get().Error().Msgf("panic: %v.stack:%s", r, debug.Stack())
-			}
-		}()
-		defer wg.Done()
-		for {
-			cmd := exec.Command("sh", "-c", daemonCmdStr)
-			err := cmd.Start()
-			if err != nil {
-				logging.Get().Err(err).Msg("failed to start sav daemon")
-				time.Sleep(10 * time.Second)
-				continue
-			}
-			logging.Get().Info().Msg("start sav daemon ok")
-
-			err = cmd.Wait()
-			logging.Get().Debug().Bool("stopFlag", shouldStop).Msgf("sav daemon exit,check stop flag.%v", err)
-			if shouldStop {
-				logging.Get().Info().Msg("receive stop signal,server quit and not restart")
-				break
-			}
-
-			// some exception,try restart
-			logging.Get().Err(err).Msg("sav daemon exit,try restart")
+	if !find {
+		return fmt.Errorf("kill avira server but not fond process")
+	}
+	ticker := time.NewTicker(time.Minute)
+	defer ticker.Stop()
+	cnt := 0
+	for cnt < 10 {
+		<-ticker.C
+		if run, err := s.IsServerRunning(); err == nil && run {
+			break
 		}
-	}()
+		logging.Get().Info().Int("PID", s.PID).Msg("avira server not killed")
+		cnt++
+	}
 
-	// 等待stop 信号
-	wg.Add(1)
-	go func() {
-		defer func() {
-			if r := recover(); r != nil {
-				logging.Get().Error().Msgf("panic: %v.stack:%s", r, debug.Stack())
-			}
-		}()
-		defer wg.Done()
+	s.PID = 0
+	return nil
+}
 
-		// wait stop signal
-		signal := <-s.notifyChan
-		shouldStop = true
-		logging.Get().Info().Msgf("receive stop signal,kill sav server.%v", signal)
+func (s *SavServer) StartServer() {
+	ticker := time.NewTicker(time.Second * 30)
+	defer ticker.Stop()
 
-		// kill server process
-		err := s.KillSavServerProcess()
+	for {
+		<-ticker.C
+
+		if s.ShouldStop {
+			break
+		}
+		if s.PID > 0 {
+			logging.Get().Debug().Int("PID", s.PID).Msg("avira server is running")
+			continue
+		}
+		// cmd := exec.Command("sh", "-c", daemonCmdStr)
+		cmd := exec.Command(savApiBin, s.generateDaemonArgs()...)
+		err := cmd.Start()
 		if err != nil {
-			logging.Get().Err(err).Msg("failed to kill sav server")
-			return
+			logging.Get().Err(err).Msg("failed to start avira daemon")
+			continue
 		}
-		// todo: check if killed ok
-		logging.Get().Info().Msg("success to kill sav server")
-	}()
 
-	wg.Wait()
-	s.endChan <- struct{}{}
-	logging.Get().Info().Msg("sav server exit")
+		s.PID = cmd.Process.Pid
+
+		logging.Get().Info().Int("PID", cmd.Process.Pid).Msg("start avira daemon ok")
+		if err = cmd.Wait(); err != nil {
+			logging.Get().Err(err).Int("PID", cmd.Process.Pid).Msg("start avira daemon ok,but not wait")
+		}
+
+		logging.Get().Info().Int("PID", cmd.Process.Pid).Msg("start avira daemon waite end,reset pid=0")
+		s.PID = 0
+	}
 }
 
-func NewSavServer(opts ...Option) (*SavServer, error) {
+func NewSavServer(opts ...Option) *SavServer {
 	s := &SavServer{
-		listenPort: DefaultSavApiListenAddr,
-		notifyChan: make(chan struct{}, 1),
-		endChan:    make(chan struct{}, 1),
+		ListenPort: DefaultSavApiListenAddr,
+		PID:        0,
 	}
 	for _, option := range opts {
 		option(s)
 	}
-	return s, nil
+	return s
 }

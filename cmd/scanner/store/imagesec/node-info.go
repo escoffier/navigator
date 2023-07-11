@@ -35,7 +35,13 @@ func (dal *NodeReportDao) CreateNodeInfo(ctx context.Context, data *imagesec.Nod
 	}
 
 	if len(pre) > 0 {
-		return nil
+		if data.Same(pre[0]) {
+			return nil
+		}
+		if err := dal.db.Get().WithContext(cancelCtx).Table(data.TableName()).
+			Where("unique_id = ?", pre[0].UniqueID).Delete(pre[0]).Error; err != nil {
+			return err
+		}
 	}
 	db := dal.db.Get().WithContext(cancelCtx).Table(data.TableName())
 	if err := db.Create(data).Error; err != nil {

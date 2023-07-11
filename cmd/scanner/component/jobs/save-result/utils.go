@@ -104,7 +104,7 @@ func ConvertSoftware(imageID int64, data []model.Software) ([]*model.ImageSoftwa
 // 		for j := range vir.LicenseInfos {
 // 			viru := &model.ImageLicense{
 // 				Value:       vir.LicenseInfos[j].Value,
-// 				Description: vir.LicenseInfos[j].Descripion,
+// 				Description: vir.LicenseInfos[j].Description,
 // 				Name:        vir.LicenseInfos[j].Name,
 // 			}
 // 			viru.UniqueID = viru.GenUniqueID()

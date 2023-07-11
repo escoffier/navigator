@@ -167,18 +167,18 @@ func (d *dockerDriver) ListRunningContainers() ([]types.Container, error) {
 	if err != nil {
 		return nil, fmt.Errorf("list containers failed, %v", err)
 	}
-	//logging.Get().Debug().Interface("containers", containers).Msg("list containers")
+	// logging.Get().Debug().Interface("containers", containers).Msg("list containers")
 	return containers, nil
 }
 
 func (d *dockerDriver) GetImageInspect(imageID string) (types.ImageInspect, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), dockerRequestTimeout*time.Second)
 	defer cancel()
-	image, _, err := d.dockerCli.ImageInspectWithRaw(ctx, imageID)
+	imageInfo, _, err := d.dockerCli.ImageInspectWithRaw(ctx, imageID)
 	if err != nil {
 		return types.ImageInspect{}, fmt.Errorf("get image inspect failed, %v", err)
 	}
-	return image, nil
+	return imageInfo, nil
 }
 func (d *dockerDriver) ImageHistory(imageID string) ([]image.HistoryResponseItem, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), dockerRequestTimeout*time.Second)
@@ -315,7 +315,7 @@ func NewDockerDriver(config container.RuntimeConfig) (container.Runtime, error) 
 		uri = "unix:///var/run/docker.sock"
 	}
 
-	//docker client
+	// docker client
 	dockerCli, err := client.NewClientWithOpts(client.FromEnv, client.WithHost(uri), client.WithAPIVersionNegotiation())
 	if err != nil {
 		logging.Get().

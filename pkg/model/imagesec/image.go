@@ -51,6 +51,10 @@ func (vi *Image) BootRoot() bool {
 	return vi.User == "" || vi.User == BootRootUser
 }
 
+func (vi *Image) Same(after *Image) bool {
+	return vi.UniqueID == after.UniqueID
+}
+
 func (vi *Image) GetImageName() string {
 	if vi == nil {
 		return ""
@@ -194,6 +198,7 @@ func (vi *Image) GenUUID() uint32 {
 	imageName := vi.GetImageName()
 	imageName = strings.ReplaceAll(imageName, "https://", "")
 	imageName = strings.ReplaceAll(imageName, "http://", "")
+	imageName = fmt.Sprintf("%s@%s", imageName, vi.Digest)
 	return util.GenerateUUID(imageName)
 }
 

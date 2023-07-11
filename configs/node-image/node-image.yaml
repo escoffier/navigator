@@ -8,6 +8,9 @@ report:
   mq_timeout: 5
   # 镜像白名单.正则匹配命中的镜像将不会上报
   exclude_image: [ "tensorsecurity/*", "idss" ]
+  # 单节点每批次发送的镜像数
+  batch_size: 50
+
 
 # 扫描任务配置
 task:
@@ -35,7 +38,7 @@ irene:
 deep_scan:
   # deep-scan时进行哪些类型的扫描。支持以下：avira(小红伞),tws(tensor webshell scan),clamav
   # types: ["avira", "tws", "clamav"]
-  types: ["avira", "tws"]
+  types: [ "avira", "tws" ]
 
 ### 以下为deep scan里各个扫描引擎的配置 ###
 # 小红伞配置
@@ -50,4 +53,4 @@ webshell:
   # 扫描文件类型. 如果为空，则使用默认配置
   # 默认扫描类型为：".php", ".php5", ".php4", ".asp", ".aspx", ".asmx", ".ashx",
   #  ".jsp", ".jspa", ".jspx", ".jspf", ".cer", ".htaccess"
-  include_types: [".php", ".txt"]
+  include_types: [ ".php", ".txt" ]

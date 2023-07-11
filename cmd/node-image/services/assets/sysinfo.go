@@ -1,14 +1,16 @@
 package assets
 
 import (
-	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
-	"gitlab.com/security-rd/go-pkg/logging"
 	"os"
+
+	"gitlab.com/security-rd/go-pkg/logging"
+
+	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
 )
 
 type SysInfo struct {
-	hostName   string
-	hostIP     string
+	HostName   string
+	HostIP     string
 	ClusterKey string
 }
 
@@ -20,14 +22,14 @@ func GetNodeSysInfo() *SysInfo {
 	if hostName == "" {
 		hostName = "Unknown"
 	}
-	s.hostName = hostName
+	s.HostName = hostName
 
 	// node ip
 	hostIP := os.Getenv("MY_HOST_IP")
 	if hostIP == "" {
 		hostIP = "Unknown"
 	}
-	s.hostIP = hostIP
+	s.HostIP = hostIP
 
 	// get cluster key
 	clusterAddr := os.Getenv("CLUSTER_MANAGER_URL")

@@ -19,7 +19,7 @@ import (
 
 // 镜像
 type ImageMetaDal interface {
-	CreateImage(ctx context.Context, data *imagesec.Image) error
+	CreateImage(ctx context.Context, data []*imagesec.Image) error
 	UpdateImage(ctx context.Context, param imagesec.UpdateImageParam) error
 	SearchImage(ctx context.Context, param imagesec.NodeImageDalParam) ([]*imagesec.Image, int64, error)
 	DeleteImage(ctx context.Context, imageFromType string, id int64) error
@@ -44,33 +44,73 @@ func (dal *ImageMetaDao) DeleteImage(ctx context.Context, imageFromType string, 
 	return db.Delete(&m).Error
 }
 
-func (dal *ImageMetaDao) CreateImage(ctx context.Context, data *imagesec.Image) error {
-	data.Serialize()
+func (dal *ImageMetaDao) CreateImage(ctx context.Context, images []*imagesec.Image) error {
 
-	if err := data.Check(); err != nil {
-		return err
+	for i := range images {
+		images[i].Serialize()
 	}
 
-	cancelCtx, cancelFunc := context.WithTimeout(ctx, time.Second*3)
-	defer cancelFunc()
-
-	exit := make([]*imagesec.Image, 0)
-	if err := dal.db.Get().WithContext(cancelCtx).Table(data.TableName()).
-		Where("unique_id = ?", data.UniqueID).Find(&exit).Error; err != nil {
-		return err
-	}
-
-	if len(exit) > 0 {
-		updater := map[string]interface{}{"heartbeat": time.Now().UnixMilli()}
-		if err := dal.db.Get().WithContext(cancelCtx).Table(data.TableName()).
-			Where("unique_id = ?", data.UniqueID).Updates(updater).Error; err != nil {
-			return err
-		}
+	if len(images) == 0 {
 		return nil
 	}
 
-	if err := dal.db.Get().WithContext(cancelCtx).Table(data.TableName()).Create(data).Error; err != nil {
+	tableName := images[0].TableName()
+
+	uniqueIds := make([]uint64, 0)
+	for i := range images {
+		uniqueIds = append(uniqueIds, images[i].GenUniqueID())
+	}
+
+	for i := range images {
+		images[i].Serialize()
+		if err := images[i].Check(); err == nil {
+			uniqueIds = append(uniqueIds, images[i].UniqueID)
+		}
+	}
+
+	dbPre, _, err := dal.SearchImage(ctx, imagesec.NodeImageDalParam{UniqueIds: uniqueIds})
+	if err != nil {
 		return err
+	}
+
+	needUpdate := make([]uint64, 0)
+	createData := make([]*imagesec.Image, 0)
+	for i := range dbPre {
+		needUpdate = append(needUpdate, dbPre[i].UniqueID)
+	}
+
+	// find need create
+	for i := range images {
+		needCreate := true
+		for j := range dbPre {
+			if images[i].Same(dbPre[j]) {
+				needCreate = false
+				break
+			}
+		}
+		if needCreate {
+			createData = append(createData, images[i])
+		}
+	}
+
+	cancelCtx, cancelFunc := context.WithTimeout(ctx, time.Second*100)
+	defer cancelFunc()
+
+	if len(needUpdate) > 0 {
+		updater := map[string]interface{}{"heartbeat": time.Now().UnixMilli()}
+		_ = dal.UpdateImage(ctx, imagesec.UpdateImageParam{
+			UniqueIds: needUpdate,
+			Updater:   updater,
+		})
+	}
+
+	for i := range createData {
+		if err := dal.db.Get().WithContext(cancelCtx).Table(tableName).Create(createData[i]).Error; err != nil {
+			if strings.Contains(err.Error(), consts.DuplicateKey) {
+				continue
+			}
+			return err
+		}
 	}
 	return nil
 }
@@ -91,6 +131,9 @@ func (dal *ImageMetaDao) UpdateImage(ctx context.Context, param imagesec.UpdateI
 	}
 	if param.UniqueID > 0 {
 		db = db.Where("unique_id = ?", param.UniqueID)
+	}
+	if len(param.UniqueIds) > 0 {
+		db = db.Where("unique_id IN ?", param.UniqueIds)
 	}
 	if err := db.Updates(param.Updater).Error; err != nil {
 		return err
@@ -288,7 +331,7 @@ func (dal *ImageMetaDao) SearchProject(ctx context.Context, param imagesec.Searc
 
 func (dal *ImageMetaDao) GetOnlineImageUUID(ctx context.Context, start uint32, limit int64) ([]uint32, error) {
 	if dal.redisCli == nil {
-		return nil, fmt.Errorf("not get ridis client")
+		return nil, fmt.Errorf("not get redis client")
 	}
 	uuids := make([]uint32, 0)
 	opt := &redis.ZRangeBy{

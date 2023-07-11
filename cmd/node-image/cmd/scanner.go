@@ -2,21 +2,22 @@ package cmd
 
 import (
 	"context"
+	"os"
+	"runtime/debug"
+	"time"
+
+	"gitlab.com/security-rd/go-pkg/logging"
+
 	"gitlab.com/piccolo_su/vegeta/cmd/node-image/config"
 	"gitlab.com/piccolo_su/vegeta/cmd/node-image/services"
 	_ "gitlab.com/piccolo_su/vegeta/cmd/node-image/services/all"
 	"gitlab.com/piccolo_su/vegeta/cmd/node-image/services/helper"
-	imagesec2 "gitlab.com/piccolo_su/vegeta/pkg/model/imagesec"
-	"gitlab.com/piccolo_su/vegeta/pkg/util"
-	"gitlab.com/security-rd/go-pkg/logging"
-	"os"
-	"runtime/debug"
-	"time"
+	imagesecModel "gitlab.com/piccolo_su/vegeta/pkg/model/imagesec"
 )
 
 type Scanner struct {
 	config          *config.Config
-	nodeImageConfig *imagesec2.NodeImageConfig
+	nodeImageConfig *imagesecModel.NodeImageConfig
 }
 
 // checkEnabled for debug,enabled node image scan by a local file
@@ -43,8 +44,6 @@ func (s *Scanner) Run() func() {
 			logging.Get().Debug().Interface("nodeImageConfig", s.nodeImageConfig).Msg("load config from file ok")
 		}
 
-		// create broadcast server which will be used for services
-		helper.BroadcastServer = util.NewBroadcastServer()
 		go func() {
 			defer func() {
 				if r := recover(); r != nil {

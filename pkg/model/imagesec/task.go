@@ -3,6 +3,8 @@ package imagesec
 import (
 	"encoding/json"
 	"fmt"
+
+	"gitlab.com/piccolo_su/vegeta/pkg/model"
 )
 
 type ImageDetectTask struct {
@@ -178,7 +180,7 @@ func (vi *ImageScanTask) Deserialize() {
 }
 
 func (vi *ImageScanTask) ToApiView() {
-	if vi.Status == TaskStatusSendFinished || vi.Status == TaskStatusScanFinished {
+	if vi.StatusStr == TaskStatusSendFinishedStr || vi.StatusStr == TaskStatusScanFinishedStr {
 		vi.StatusStr = TaskStatusInprogressStr
 	}
 	vi.ChangeTaskCreator()
@@ -252,13 +254,13 @@ func (vi *ImageScanSubTask) Deserialize() {
 }
 
 func (vi *ImageScanSubTask) ToApiView() {
-	if vi.Status == TaskStatusNotReady || vi.Status == TaskStatusPause {
+	if vi.StatusStr == TaskStatusNotReadyStr || vi.StatusStr == TaskStatusPauseStr {
 		vi.StatusStr = TaskStatusPendingStr
 	}
-	if vi.Status == TaskStatusSendFinished || vi.Status == TaskStatusScanFinished {
+	if vi.StatusStr == TaskStatusSendFinishedStr || vi.StatusStr == TaskStatusScanFinishedStr {
 		vi.StatusStr = TaskStatusInprogressStr
 	}
-	if vi.Status == TaskStatusTerminate {
+	if vi.StatusStr == TaskStatusTerminateStr {
 		vi.StatusStr = TaskStatusFailedStr
 	}
 	if vi.StatusStr == TaskStatusPendingStr {
@@ -268,4 +270,54 @@ func (vi *ImageScanSubTask) ToApiView() {
 	if vi.StatusStr == TaskStatusInprogressStr {
 		vi.FinishedAt = 0
 	}
+}
+
+const (
+	// task trigger type
+	VulnDbUpdateTrigger      = "vulnDbUpdate"      // 漏洞库更新触发扫描
+	MalwareDataUpdateTrigger = "malwareDataUpdate" // 病毒库更新触发扫描
+	SensitiveUpdateTrigger   = "sensitiveUpdate"   // 敏感文件规则更新触发扫描
+	CycleTrigger             = "cycle"             // 周期性扫描任务
+	ImageSyncTrigger         = "imageSync"         // 镜像同步触发扫描
+	ManualTrigger            = "manual"            // 手动扫描任务
+
+	CicdOperatorZH             = "CICD触发扫描"
+	CycleTriggerOperatorZH     = "周期触发扫描"
+	SyncTriggerOperatorZH      = "镜像同步触发扫描"
+	VulnDbUpdateTriggerZH      = "漏洞库更新触发扫描"
+	MalwareDataUpdateTriggerZH = "病毒库更新触发扫描"
+	SensitiveUpdateTriggerZH   = "敏感文件规则更新触发扫描"
+	ManualTriggerZH            = "手动扫描"
+
+	CycleTriggerOperatorEN     = "sync image"
+	SyncTriggerOperatorEN      = "cycle"
+	VulnDbUpdateTriggerEN      = "vuln db update"
+	MalwareDataUpdateTriggerEN = "malware db update"
+	SensitiveUpdateTriggerEN   = "sensitive file rule update"
+	ManualTriggerEN            = "Manual scanning"
+)
+
+func GetTaskTypeView(lang string) map[string]string {
+	avCH := map[string]string{
+		VulnDbUpdateTrigger:      VulnDbUpdateTriggerZH,
+		MalwareDataUpdateTrigger: MalwareDataUpdateTriggerZH,
+		SensitiveUpdateTrigger:   SensitiveUpdateTriggerZH,
+		CycleTrigger:             CycleTriggerOperatorZH,
+		ImageSyncTrigger:         SyncTriggerOperatorZH,
+		ManualTrigger:            ManualTriggerZH,
+	}
+
+	avEn := map[string]string{
+		VulnDbUpdateTrigger:      VulnDbUpdateTriggerEN,
+		MalwareDataUpdateTrigger: MalwareDataUpdateTriggerEN,
+		SensitiveUpdateTrigger:   SensitiveUpdateTriggerEN,
+		CycleTrigger:             CycleTriggerOperatorEN,
+		ImageSyncTrigger:         SyncTriggerOperatorEN,
+		ManualTrigger:            ManualTriggerEN,
+	}
+	if lang == model.LangEn {
+		return avEn
+	}
+
+	return avCH
 }

@@ -11,7 +11,7 @@ import (
 
 	apimodel "gitlab.com/piccolo_su/vegeta/cmd/scanner/api/model"
 	imageMetaSrv "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/imagemeta"
-	imagesecSrv "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/imagesec"
+	imagesecSrv "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/imagescan"
 	scani18 "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scan-i18"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/pkg/i18"
@@ -77,6 +77,7 @@ func (s *ScanResultAPI) SearchVirus(ctx *gin.Context) {
 		ImageFromType:         param.ImageFromType,
 		ImageId:               param.ImageID,
 		ImageUniqueID:         param.ImageUniqueID,
+		DetectParam:           imagesecModel.DetectResultParam{SecurityPolicyIds: param.SecurityPolicyIds},
 		MalwareEnable:         true,
 		DetectResultEnable:    true,
 		ScanResultSearchParam: param,
@@ -101,6 +102,7 @@ func (s *ScanResultAPI) SearchSensitive(ctx *gin.Context) {
 		ImageFromType:         param.ImageFromType,
 		ImageId:               param.ImageID,
 		ImageUniqueID:         param.ImageUniqueID,
+		DetectParam:           imagesecModel.DetectResultParam{SecurityPolicyIds: param.SecurityPolicyIds},
 		SensitiveEnable:       true,
 		DetectResultEnable:    true,
 		ScanResultSearchParam: param,
@@ -146,6 +148,7 @@ func (s *ScanResultAPI) SearchEnv(ctx *gin.Context) {
 		EnvEnable:             true,
 		ScanResultSearchParam: param,
 		DetectResultEnable:    true,
+		DetectParam:           imagesecModel.DetectResultParam{SecurityPolicyIds: param.SecurityPolicyIds},
 		Filter:                filter,
 	})
 	if err != nil {
@@ -173,6 +176,7 @@ func (s *ScanResultAPI) SearchSoftware(ctx *gin.Context) {
 		VulnEnable:            true,
 		LicenseEnable:         true,
 		ScanResultSearchParam: param,
+		DetectParam:           imagesecModel.DetectResultParam{SecurityPolicyIds: param.SecurityPolicyIds},
 		Filter:                model.EmptyFilterForTotalQuery(),
 	})
 	if err != nil {
@@ -275,6 +279,7 @@ func (s *ScanResultAPI) ImageBaseDetail(ctx *gin.Context) {
 		ContainerEnable:    true,
 		RiskPolicyEnable:   true,
 		DetectResultEnable: true,
+		DetectParam:        imagesecModel.DetectResultParam{SecurityPolicyIds: param.SecurityPolicyIds},
 		NodeInfoEnable:     true,
 	})
 
@@ -285,6 +290,7 @@ func (s *ScanResultAPI) ImageBaseDetail(ctx *gin.Context) {
 
 	ans := data.ToImageBaseResponse()
 	ans.AdaptI18(ctx)
+	ans.Safe = data.CheckSafeByPolicy()
 
 	response.JSONOK(ctx, response.WithItem(ans))
 }
@@ -335,6 +341,7 @@ func (s *ScanResultAPI) ImageIssueStatistic(ctx *gin.Context) {
 		RegistryEnable:     true,
 		DetectResultEnable: true,
 		RiskPolicyEnable:   true,
+		DetectParam:        imagesecModel.DetectResultParam{SecurityPolicyIds: param.SecurityPolicyIds},
 		ScanResultSearchParam: imagesecModel.ScanResultSearchParam{
 			SecurityPolicyIds: param.SecurityPolicyIds,
 			ImageID:           param.ImageID,
@@ -461,6 +468,7 @@ func (s *ScanResultAPI) GetImageVulns(ctx *gin.Context) {
 		VulnEnable:            true,
 		DetectResultEnable:    true,
 		ScanResultSearchParam: param,
+		DetectParam:           imagesecModel.DetectResultParam{SecurityPolicyIds: param.SecurityPolicyIds},
 		SearchVulnParam:       vulnParam,
 	})
 	if err != nil {
@@ -470,6 +478,8 @@ func (s *ScanResultAPI) GetImageVulns(ctx *gin.Context) {
 
 	res := make([]VulnResponse, len(data.Vuln))
 	for i := range data.Vuln {
+		data.Vuln[i].AdaptI18(ctx)
+
 		res[i] = convertNodeVulnView(data.Vuln[i])
 	}
 	ans := make([]VulnResponse, 0)
@@ -528,6 +538,7 @@ func (s *ScanResultAPI) GetImageVulnPkg(ctx *gin.Context) {
 		LicenseEnable:         true,
 		PkgEnable:             true,
 		DetectResultEnable:    true,
+		DetectParam:           imagesecModel.DetectResultParam{SecurityPolicyIds: param.SecurityPolicyIds},
 		ScanResultSearchParam: param,
 		SearchVulnParam:       vulnParam,
 	})
@@ -612,6 +623,7 @@ func (s *ScanResultAPI) GetImageVulnLanguage(ctx *gin.Context) {
 		ImageUniqueID:         param.ImageUniqueID,
 		VulnEnable:            true,
 		DetectResultEnable:    true,
+		DetectParam:           imagesecModel.DetectResultParam{SecurityPolicyIds: param.SecurityPolicyIds},
 		ScanResultSearchParam: param,
 		SearchVulnParam:       vulnParam,
 	})
@@ -683,6 +695,7 @@ func (s *ScanResultAPI) GetImageVulnGoBinary(ctx *gin.Context) {
 		VulnEnable:            true,
 		DetectResultEnable:    true,
 		ScanResultSearchParam: param,
+		DetectParam:           imagesecModel.DetectResultParam{SecurityPolicyIds: param.SecurityPolicyIds},
 		SearchVulnParam:       vulnParam,
 		Filter:                nil,
 	})
@@ -769,6 +782,7 @@ func (s *ScanResultAPI) GetImageVulnFrame(ctx *gin.Context) {
 		ImageUniqueID:         param.ImageUniqueID,
 		VulnEnable:            true,
 		DetectResultEnable:    true,
+		DetectParam:           imagesecModel.DetectResultParam{SecurityPolicyIds: param.SecurityPolicyIds},
 		ScanResultSearchParam: param,
 		SearchVulnParam:       vulnParam,
 		Filter:                nil,
@@ -834,6 +848,7 @@ func (s *ScanResultAPI) GetImageWebshell(ctx *gin.Context) {
 		ImageUniqueID:         param.ImageUniqueID,
 		WebshellEnable:        true,
 		DetectResultEnable:    true,
+		DetectParam:           imagesecModel.DetectResultParam{SecurityPolicyIds: param.SecurityPolicyIds},
 		ScanResultSearchParam: param,
 		Filter:                filter,
 	})
@@ -871,18 +886,6 @@ func (s *ScanResultAPI) GetVulnDetail(ctx *gin.Context) {
 	vuln[0].AdaptI18(ctx)
 
 	response.JSONOK(ctx, response.WithItem(vuln[0]))
-}
-
-// 获取镜像漏洞-漏洞视角(只是节点镜像使用)
-func (s *ScanResultAPI) GetVulnView(ctx *gin.Context) {
-	view := s.NodeVulnSrv.GetVulnView(ctx)
-
-	lang := util.GetLanguage(ctx)
-	if lang == model.LangEn {
-		response.JSONOK(ctx, response.WithItem(view.EN))
-		return
-	}
-	response.JSONOK(ctx, response.WithItem(view.ZH))
 }
 
 func (s *ScanResultAPI) getImageSrv(ctx *gin.Context) imageMetaSrv.ImageService {

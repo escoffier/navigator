@@ -46,7 +46,7 @@ func NewClamavScanner() *ClamavScanner {
 
 func (cs *ClamavScanner) InitClEngine() error {
 	eng := (*Engine)(C.cl_engine_new())
-	//if (*C.struct_cl_engine)(eng) == C.NULL {
+	// if (*C.struct_cl_engine)(eng) == C.NULL {
 	if eng == nil {
 		return fmt.Errorf("new cl engine failed")
 	}

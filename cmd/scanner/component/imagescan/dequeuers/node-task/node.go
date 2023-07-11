@@ -23,12 +23,9 @@ type NodeImageQueue struct {
 	nodeImageSrv                types.ImageService
 	updateSubtaskChan           chan types.UpdateSubTask
 	nodeInfoDal                 imagesecStore.NodeInfoDal
+	sensitiveRuleDal            imagesecStore.SensitiveRuleDal
 	maxInprogressTask           int64
 	maxInprogressSubtaskPerNode int64
-}
-
-func (s *NodeImageQueue) Type() string {
-	return imagesecModel.ImageFromNode
 }
 
 func (s *NodeImageQueue) GenUpdateSubtaskChan(ctx context.Context) chan types.UpdateSubTask {
@@ -234,7 +231,8 @@ func (s *NodeImageQueue) SearchSubtaskAndSendToChan(ctx context.Context, task *i
 
 				continue
 			}
-			typesSubTask := modelToType(subtask[j], imageDate.Image, imageDate.NodeInfo)
+
+			typesSubTask := modelToType(subtask[j], imageDate.Image, imageDate.NodeInfo, s.SearchAllSensitiveRule(ctx))
 
 			subtaskChan <- typesSubTask
 
@@ -267,8 +265,26 @@ func (s *NodeImageQueue) UpdateTaskInprogress(ctx context.Context, taskID int64)
 	return nil
 }
 
+func (s *NodeImageQueue) SearchAllSensitiveRule(ctx context.Context) []string {
+	ans := make([]string, 0)
+	rule, _, err := s.sensitiveRuleDal.SearchSensitiveRule(ctx, imagesecModel.SearchSensitiveRuleParam{
+		RuleType:  imagesecModel.SensitiveRuleTypeFilename,
+		Enable:    consts.TrueString,
+		IsDefault: consts.FalseString,
+		Filed:     []string{"id", "value"},
+	})
+	if err != nil {
+		logging.Get().Err(err).Msg("NodeImageQueue SearchAllSensitiveRule")
+		return ans
+	}
+	for i := range rule {
+		ans = append(ans, rule[i].Value)
+	}
+	return ans
+}
+
 func modelToType(subtask *imagesecModel.ImageScanSubTask, image imagesecModel.Image,
-	node *imagesecModel.NodeInfo) imagesecTypes.ScanSubTask {
+	node *imagesecModel.NodeInfo, ses []string) imagesecTypes.ScanSubTask {
 
 	sub := imagesecTypes.ScanSubTask{
 		TaskID:    subtask.TaskID,
@@ -283,7 +299,9 @@ func modelToType(subtask *imagesecModel.ImageScanSubTask, image imagesecModel.Im
 			Digests:  []string{image.Digest},
 			RepoTags: []string{image.GetImageName()},
 		},
+		SensitiveRules: ses,
 	}
+	sub.UniqueID = sub.GenUniqueID()
 	return sub
 }
 
@@ -291,12 +309,14 @@ func NewNodeImageQueue(
 	nodeScanTaskDal imagesecStore.ScanTaskDal,
 	nodeImageSrv types.ImageService,
 	nodeInfoDal imagesecStore.NodeInfoDal,
+	sensitiveRuleDal imagesecStore.SensitiveRuleDal,
 ) *NodeImageQueue {
 	nodeQueue := &NodeImageQueue{
 		nodeScanTaskDal:             nodeScanTaskDal,
 		nodeImageSrv:                nodeImageSrv,
 		updateSubtaskChan:           make(chan types.UpdateSubTask),
 		nodeInfoDal:                 nodeInfoDal,
+		sensitiveRuleDal:            sensitiveRuleDal,
 		maxInprogressTask:           consts.MaxInprogressTask,
 		maxInprogressSubtaskPerNode: consts.MaxInprogressSubtaskPerNode,
 	}

@@ -11,15 +11,15 @@ import (
 
 // simple Concurrency Safe Queue
 type Queue struct {
-	data      *list.List
-	notifChan chan struct{}
+	data       *list.List
+	notifyChan chan struct{}
 	sync.RWMutex
 }
 
 func NewQueue() *Queue {
 	return &Queue{
-		data:      list.New(),
-		notifChan: make(chan struct{}, 1),
+		data:       list.New(),
+		notifyChan: make(chan struct{}, 1),
 	}
 }
 
@@ -32,7 +32,7 @@ func (b *Queue) Len() int {
 
 func (b *Queue) sendNotif() {
 	select {
-	case b.notifChan <- struct{}{}:
+	case b.notifyChan <- struct{}{}:
 	default:
 		return
 	}
@@ -70,7 +70,7 @@ func (b *Queue) Consume(consumeFunc ConsumeFunc) {
 		defer ticker.Stop()
 		for {
 			select {
-			case <-b.notifChan:
+			case <-b.notifyChan:
 				for b.Len() > 0 {
 					item, exist := b.Pop()
 					if exist && item != nil {

@@ -175,10 +175,12 @@ func ImageMateToModel(data imagesecTypes.NodeReport) ([]*imagesecModel.Image, *i
 	map[uint64][]*imagesecModel.ImageEnv) {
 	images := make([]*imagesecModel.Image, 0)
 	envs := make(map[uint64][]*imagesecModel.ImageEnv, 0)
+
 	node := &imagesecModel.NodeInfo{
 		IP:         data.NodeInfo.Ip,
 		Hostname:   data.NodeInfo.HostName,
 		ClusterKey: data.NodeInfo.ClusterKey,
+		// AviraDB:    data.ReportDBVersion.AviraDBVersion, todo(下期功能)
 	}
 
 	node.UniqueID = node.GenUniqueID()

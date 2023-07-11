@@ -1,1 +1,5 @@
-{"deepScan":false,"syncInterval":3,"scanTimeout":3}
+{
+  "deepScan": false,
+  "syncInterval": 10,
+  "scanTimeout": 3
+}

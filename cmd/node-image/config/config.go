@@ -2,10 +2,11 @@ package config
 
 import (
 	"encoding/json"
-	"gitlab.com/piccolo_su/vegeta/cmd/daemon/global"
-	imagesec2 "gitlab.com/piccolo_su/vegeta/pkg/model/imagesec"
 	"os"
 	"path/filepath"
+
+	"gitlab.com/piccolo_su/vegeta/cmd/daemon/global"
+	imagesecModel "gitlab.com/piccolo_su/vegeta/pkg/model/imagesec"
 )
 
 const (
@@ -14,6 +15,7 @@ const (
 	defaultMountPrefix              = "/host"
 	defaultReportInterval           = 600
 	defaultMqTimeout                = 5
+	defaultImageSendBatchSize       = 50
 	defaultExcludeImageScope        = "tensorsec.*"
 	defaultAviraSavServerListenPort = 9200
 	defaultAviraSavClientNum        = 10
@@ -25,8 +27,8 @@ const (
 )
 
 var (
-	globalConfig    *Config                    // config loaded from yaml
-	nodeImageConfig *imagesec2.NodeImageConfig // config sync from console
+	globalConfig    *Config                        // config loaded from yaml
+	nodeImageConfig *imagesecModel.NodeImageConfig // config sync from console
 )
 
 // Config define content int node-image.yaml
@@ -71,6 +73,7 @@ type ReportConfig struct {
 	Interval     int64    `mapstructure:"interval"`
 	MqTimeout    int64    `mapstructure:"mq_timeout"`
 	ExcludeImage []string `mapstructure:"exclude_image"`
+	BatchSize    int64    `mapstructure:"batch_size"`
 }
 
 type AviraConfig struct {
@@ -95,7 +98,7 @@ func NewDefaultConfig() *Config {
 			RealTimeLog: false,
 		},
 		DeepScanConfig: DeepScanConfig{
-			Types: []string{"tws"},
+			Types: []string{"tws", "avira"},
 		},
 		IreneConfig: IreneConfig{
 			LogLevel:    "debug",
@@ -105,6 +108,7 @@ func NewDefaultConfig() *Config {
 			Interval:     defaultReportInterval,
 			MqTimeout:    defaultMqTimeout,
 			ExcludeImage: []string{defaultExcludeImageScope},
+			BatchSize:    defaultImageSendBatchSize,
 		},
 		AviraConfig: AviraConfig{
 			ListenPort: defaultAviraSavServerListenPort,
@@ -118,11 +122,11 @@ func SetGlobalConfig(cfg *Config) {
 	globalConfig = cfg
 }
 
-func GetNodeImageConfig() *imagesec2.NodeImageConfig {
+func GetNodeImageConfig() *imagesecModel.NodeImageConfig {
 	return nodeImageConfig
 }
 
-func UpdateNodeImageConfig(config *imagesec2.NodeImageConfig) {
+func UpdateNodeImageConfig(config *imagesecModel.NodeImageConfig) {
 	nodeImageConfig.DeepScan = config.DeepScan
 	nodeImageConfig.SyncInterval = config.SyncInterval
 	nodeImageConfig.ScanTimeout = config.ScanTimeout
@@ -133,15 +137,14 @@ func FlushNodeImageConfigToFile() error {
 	if err != nil {
 		return err
 	}
-	err = os.WriteFile(GetDefaultNodeImageConfigFilePath(), data, os.ModePerm)
-	if err != nil {
+	if err = os.WriteFile(GetDefaultNodeImageConfigFilePath(), data, os.ModePerm); err != nil {
 		return err
 	}
 	return nil
 }
 
-func NewDefaultNodeImageConfig() *imagesec2.NodeImageConfig {
-	c := &imagesec2.NodeImageConfig{
+func NewDefaultNodeImageConfig() *imagesecModel.NodeImageConfig {
+	c := &imagesecModel.NodeImageConfig{
 		DeepScan:     defaultSwitchDeepScan,
 		SyncInterval: defaultReportInterval,
 		ScanTimeout:  defaultScanTimeout,
@@ -153,8 +156,8 @@ func GetDefaultNodeImageConfigFilePath() string {
 	return filepath.Join(global.WorkingDir, defaultNodeImageConfigFile)
 }
 
-func LoadNodeImageConfigFromFile(cfgFile string) (*imagesec2.NodeImageConfig, error) {
-	nc := &imagesec2.NodeImageConfig{}
+func LoadNodeImageConfigFromFile(cfgFile string) (*imagesecModel.NodeImageConfig, error) {
+	nc := &imagesecModel.NodeImageConfig{}
 	data, err := os.ReadFile(cfgFile)
 	if err != nil {
 		return nil, err

@@ -94,7 +94,7 @@ type NodeImageConfig struct {
 	MalwareFlush   bool      `json:"malwareFlush"`
 	SensitiveFlush bool      `json:"sensitiveFlush"`
 	AutoScanAdded  bool      `json:"autoScanAdded"`
-	DeepScan       bool      `json:"deepScan"`
+	DeepScan       bool      `json:"deepScan"`      // 开启动深度扫描（小红伞病毒扫描）
 	SyncInterval   int64     `json:"syncInterval"`  // 单位分钟
 	ScanTimeout    int64     `json:"scanTimeout"`   // 单个镜像超时设置:单位分钟
 	ClearInterval  int64     `json:"clearInterval"` // 单位：天

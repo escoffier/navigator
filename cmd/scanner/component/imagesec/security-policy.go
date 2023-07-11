@@ -54,8 +54,9 @@ func (s *SecurityPolicySrv) CreatePolicy(ctx context.Context, data *imagesecMode
 	// 加检测任务
 	go func() {
 		imageSearchParam := imagesecModel.ImageListParam{ImageFromType: data.Scope.ImageFromType}
-		if err := s.imageDetectTaskSrv.CreateImageDetectTask(ctx, imageSearchParam, imagesecModel.SearchSecurityPolicyParam{},
-			imagesecModel.ImageDetectTask{Priority: imagesecModel.DetectPriorityPolicyChange}); err != nil {
+		if err := s.imageDetectTaskSrv.CreateImageDetectTask(ctx,
+			imageSearchParam, imagesecModel.ImageDetectTask{Priority: imagesecModel.DetectPriorityPolicyChange},
+		); err != nil {
 			logging.Get().Err(err).Msg("CreateDetectPolicy CreateDetectTask")
 			return
 		}
@@ -86,7 +87,7 @@ func (s *SecurityPolicySrv) UpdatePolicy(ctx context.Context, id int64, data *im
 	go func() {
 		imageSearchParam := imagesecModel.ImageListParam{ImageFromType: data.Scope.ImageFromType}
 		if err := s.imageDetectTaskSrv.CreateImageDetectTask(ctx, imageSearchParam,
-			imagesecModel.SearchSecurityPolicyParam{Ids: []int64{id}}, imagesecModel.ImageDetectTask{Priority: imagesecModel.DetectPriorityPolicyChange},
+			imagesecModel.ImageDetectTask{Priority: imagesecModel.DetectPriorityPolicyChange},
 		); err != nil {
 			logging.Get().Err(err).Msg("UpdateDetectPolicy CreateDetectTask")
 			return
@@ -134,7 +135,7 @@ func (s *SecurityPolicySrv) SearchPolicy(ctx context.Context, param imagesecMode
 
 	for i := range ans {
 		if (ans[i].Sensitive.AllBlack || ans[i].Sensitive.AllWhite) && ans[i].Sensitive.Enable {
-			rule, err := s.sensitiveRuleDal.SearchSensitiveRule(ctx, nil)
+			rule, _, err := s.sensitiveRuleDal.SearchSensitiveRule(ctx, imagesecModel.SearchSensitiveRuleParam{})
 			if err != nil {
 				logging.Get().Err(err).Int64("policyID", ans[i].ID).Msg("SearchDetectPolicy SearchSensitiveRule")
 				return nil, 0, i18.SearchErr(err)

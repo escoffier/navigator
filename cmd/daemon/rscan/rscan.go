@@ -4,21 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/containers/podman/v3/cmd/podman/utils"
-	"github.com/hashicorp/go-multierror"
-	"github.com/rs/zerolog"
-	"gitlab.com/piccolo_su/vegeta/cmd/daemon/global"
-	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/container"
-	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/nodeinfo"
-	"gitlab.com/piccolo_su/vegeta/pkg/avira"
-	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
-	"gitlab.com/piccolo_su/vegeta/pkg/util"
-	"gitlab.com/security-rd/go-pkg/logging"
-	"k8s.io/apimachinery/pkg/util/wait"
-	"k8s.io/utils/inotify"
-
-	"golang.org/x/sync/semaphore"
-	"k8s.io/utils/strings/slices"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -26,6 +11,23 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/containers/podman/v3/cmd/podman/utils"
+	"github.com/hashicorp/go-multierror"
+	"github.com/rs/zerolog"
+	"gitlab.com/security-rd/go-pkg/logging"
+	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/utils/inotify"
+
+	"gitlab.com/piccolo_su/vegeta/cmd/daemon/global"
+	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/container"
+	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/nodeinfo"
+	"gitlab.com/piccolo_su/vegeta/pkg/avira"
+	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
+	"gitlab.com/piccolo_su/vegeta/pkg/util"
+
+	"golang.org/x/sync/semaphore"
+	"k8s.io/utils/strings/slices"
 )
 
 const (
@@ -267,12 +269,9 @@ func (rs *RuntimeScanner) Run() error {
 			}
 		}()
 		defer wg.Done()
-		savServer, err := avira.NewSavServer()
-		if err != nil {
-			logging.Get().Err(err).Msg("failed to create sav server")
-			return
-		}
-		savServer.Run()
+		savServer := avira.NewSavServer()
+		savServer.StartServer()
+		logging.Get().Info().Msg("start avira server succeed")
 	}()
 	// wait until sav client connect ok
 	_ = rs.connectSavServer()

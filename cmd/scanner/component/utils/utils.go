@@ -1,4 +1,4 @@
-package preinit
+package utils
 
 import (
 	"encoding/json"
@@ -17,7 +17,7 @@ func GetSensitiveRuleFromFile(path string) ([]Sensitive, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	data := make([]Sensitive, 0)
 

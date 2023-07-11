@@ -3,20 +3,18 @@ package preinit
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
-	"os"
 	"strings"
 
 	"gitlab.com/security-rd/go-pkg/logging"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/utils"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
 	imagesecStore "gitlab.com/piccolo_su/vegeta/cmd/scanner/store/imagesec"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	imagesecModel "gitlab.com/piccolo_su/vegeta/pkg/model/imagesec"
-	"gitlab.com/piccolo_su/vegeta/pkg/util"
 )
 
 type InitScannerInterface interface {
@@ -145,20 +143,6 @@ func (s *InitScanner) createNodeScanConfig(ctx context.Context) error {
 
 func (s *InitScanner) createNodeDefaultDetectConfig(ctx context.Context) error {
 
-	policies, _, err := s.nodeDetectPolicyDal.SearchDetectPolicy(ctx, imagesecModel.SearchSecurityPolicyParam{
-		NotCount: true,
-		Default:  consts.TrueString,
-		Deleted:  consts.FalseString,
-	})
-	if err != nil {
-		logging.Get().Err(err).Msg("SearchDetectPolicy")
-		return err
-	}
-	if len(policies) > 0 {
-		logging.Get().Err(err).Msg("SearchDetectPolicy has default detect policy")
-		return nil
-	}
-
 	nodeDetectConfig := imagesecModel.SecurityPolicy{
 		Name:      imagesecModel.DefaultPolicyNameEN,
 		IsDefault: true,
@@ -172,18 +156,42 @@ func (s *InitScanner) createNodeDefaultDetectConfig(ctx context.Context) error {
 		Malware:  imagesecModel.MalwareDetectRule{Enable: true},
 		Webshell: imagesecModel.WebshellDetectRule{Enable: true, RiskLevel: []string{imagesecModel.WebshellRiskLevelCertain}},
 		Vuln: imagesecModel.VulnDetectRule{Enable: true, Severity: imagesecModel.SeverityCritical,
-			IgnoreKernelVuln: true, IgnoreLangVuln: true, IgnoreUnfixed: true},
+			IgnoreKernelVuln: false, IgnoreLangVuln: true, IgnoreUnfixed: true},
 		Sensitive:      imagesecModel.SensitiveDetectRule{Enable: true, AllBlack: true},
 		Pkg:            imagesecModel.PkgRule{Enable: false},
 		License:        imagesecModel.LicenseDetectRule{Enable: false},
 		Env:            imagesecModel.EnvDetectRule{Enable: false, CheckPassword: false},
 		RootBootEnable: false,
 	}
+	nodeDetectConfig.Serialize()
+
+	policies, _, err := s.nodeDetectPolicyDal.SearchDetectPolicy(ctx, imagesecModel.SearchSecurityPolicyParam{
+		NotCount: true,
+		Default:  consts.TrueString,
+		Deleted:  consts.FalseString,
+	})
+	if err != nil {
+		logging.Get().Err(err).Msg("SearchDetectPolicy")
+		return err
+	}
+	if len(policies) > 0 {
+		logging.Get().Err(err).Msg("SearchDetectPolicy has default detect policy")
+
+		if err := s.nodeDetectPolicyDal.UpdateDetectPolicy(ctx, imagesecModel.UpdateSecurityPolicyParam{
+			ID:      policies[0].ID,
+			Updater: nodeDetectConfig.ToUpdater(),
+		}); err != nil {
+			logging.Get().Err(err).Msg("UpdateDetectPolicy")
+			return err
+		}
+		return nil
+	}
 
 	if err := s.nodeDetectPolicyDal.CreateDetectPolicy(ctx, &nodeDetectConfig); err != nil {
 		logging.Get().Err(err).Msg("CreateDetectPolicy")
 		return err
 	}
+
 	return nil
 }
 
@@ -211,59 +219,6 @@ func (s *InitScanner) createDefaultScanStrategy(ctx context.Context) error {
 		MaliciousEnable:   true,
 	}
 	return s.scanConfigDal.CreateStrategy(ctx, &data)
-}
-
-func (s *InitScanner) createCicdBufRegistry(ctx context.Context) error {
-	url := os.Getenv("BUF_REGISTRY_URL")
-	username := os.Getenv("BUF_REGISTRY_USER")
-	passwd := os.Getenv("BUF_REGISTRY_PASSWORD")
-	if url == "" || username == "" || passwd == "" {
-		return errors.New("cicd buf registry not setting")
-	}
-	data := model.Registry{
-		Name:           "cicd-buf-registry",
-		RegType:        "registry-v2",
-		Url:            url,
-		Username:       username,
-		PasswordString: passwd,
-		Description:    "cicd中转仓库",
-		UseType:        model.CICDImageRegistry,
-		SyncInterval:   consts.RegistryDefaultSyncInterval,
-	}
-	// 先查一下,可能已经存在
-	registries, _, err := s.regDal.SearchRegistry(ctx, store.SearchRegistryParam{
-		UseType: model.CICDImageRegistry,
-		Deleted: consts.FalseString,
-	}, nil)
-	if err != nil {
-		logging.Get().Err(err).Msg("when initializing the buff registry, query error occurred")
-		return err
-	}
-	if len(registries) == 0 {
-		if _, err = s.regDal.CreateRegistry(ctx, data); err != nil {
-			logging.Get().Err(err).Msg("when initializing the buff registry,create data error")
-			return err
-		}
-	} else {
-		encryPass, err := util.DesEncrypt([]byte(passwd), []byte(consts.EncryptPasswordKey))
-		if err != nil {
-			logging.Get().Err(err).Msg("when initializing the buff registry, the encryption password error occurred")
-			return err
-		}
-
-		updater := map[string]interface{}{
-			"reg_type": "registry-v2",
-			"url":      url,
-			"username": username,
-			"password": encryPass,
-			"use_type": model.CICDImageRegistry,
-		}
-		if err := s.regDal.UpdateRegistry(ctx, store.SearchRegistryParam{ID: registries[0].ID}, updater); err != nil {
-			logging.Get().Err(err).Msg("when initializing the buff registry, the encryption password error occurred")
-			return err
-		}
-	}
-	return nil
 }
 
 func (s *InitScanner) createGlobalPolicy(ctx context.Context) error {
@@ -305,7 +260,7 @@ func (s *InitScanner) createGlobalPolicy(ctx context.Context) error {
 }
 
 func (s *InitScanner) createDefaultSensitiveRule(ctx context.Context) error {
-	preData, err := GetSensitiveRuleFromFile(consts.DefaultSensitiveRulePath)
+	preData, err := utils.GetSensitiveRuleFromFile(consts.DefaultSensitiveRuleENPath)
 	if err != nil {
 		logging.Get().Err(err).Msg("InitScanner createDefaultSensitiveRule")
 		return err

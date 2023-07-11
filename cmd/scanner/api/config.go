@@ -49,14 +49,24 @@ func (s *ConfigAPISrv) SearchSensitiveRule(ctx *gin.Context) {
 	filter := model.GetFilter(ctx)
 	filter.SortFiled = "created_at"
 	filter.SortBy = consts.SortByDesc
+	ruleType := util.GetKeywordFromQuery(ctx, "ruleType")
+	isDefault := util.GetKeywordFromQuery(ctx, "isDefault")
+	enable := util.GetKeywordFromQuery(ctx, "enable")
 
-	rule, err := s.sensitiveRuleService.SearchSensitiveRule(ctx, filter)
+	param := imagesecModel.SearchSensitiveRuleParam{
+		RuleType:  ruleType,
+		IsDefault: isDefault,
+		Enable:    enable,
+		Filter:    filter,
+	}
+
+	rule, cnt, err := s.sensitiveRuleService.SearchSensitiveRule(ctx, param)
 	if err != nil {
 		response.JSONError(ctx, i18.SearchErr(err))
 		return
 	}
 	response.JSONOK(ctx, response.WithItems(rule),
-		response.WithTotalItems(int64(len(rule))))
+		response.WithTotalItems(cnt))
 }
 
 func (s *ConfigAPISrv) UpdateSensitiveRule(ctx *gin.Context) {
@@ -85,6 +95,17 @@ func (s *ConfigAPISrv) DeleteSensitiveRule(ctx *gin.Context) {
 		return
 	}
 	response.JSONOK(ctx)
+}
+
+func (s *ConfigAPISrv) GetConstView(ctx *gin.Context) {
+	constType := util.GetKeywordFromQuery(ctx, "constType")
+	view := s.scanImageConfigService.GetConstView(ctx, constType)
+	lang := util.GetLanguage(ctx)
+	if lang == model.LangEn {
+		response.JSONOK(ctx, response.WithItems(view.EN))
+		return
+	}
+	response.JSONOK(ctx, response.WithItems(view.ZH))
 }
 
 func (s *ConfigAPISrv) GetNodeScanImageConfig(ctx *gin.Context) {

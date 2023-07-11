@@ -1,18 +1,11 @@
 package types
 
 import (
-	imagesec2 "gitlab.com/piccolo_su/vegeta/pkg/model/imagesec"
-)
-
-type NotifyEventType string
-
-const (
-	NotifyEventTypeVulnDBUpdate   NotifyEventType = "vuln-db-update"
-	NotifyEventTypeAviraDBUpdate  NotifyEventType = "avira-db-update"
-	NotifyEventTypeConfigModified NotifyEventType = "config-modified"
+	"gitlab.com/piccolo_su/vegeta/cmd/node-image/consts"
+	imagesecModel "gitlab.com/piccolo_su/vegeta/pkg/model/imagesec"
 )
 
 type NotifyEvent struct {
-	Type            NotifyEventType
-	NodeImageConfig imagesec2.NodeImageConfig
+	Type            consts.NotifyEventType
+	NodeImageConfig imagesecModel.NodeImageConfig
 }

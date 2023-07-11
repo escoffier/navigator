@@ -8,9 +8,10 @@ import (
 	"time"
 
 	"github.com/segmentio/kafka-go"
+	"gitlab.com/security-rd/go-pkg/mq"
+
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
-	"gitlab.com/security-rd/go-pkg/mq"
 )
 
 type SubScannerToMainSql struct {
@@ -79,12 +80,12 @@ type ClamavDBVersion struct {
 	UpdateTime        int64      `gorm:"autoUpdateTime:milli;column:update_time" json:"updateTime"`
 }
 
-func (cdv *ClamavDBVersion) GetVersion() int64 {
+func (vi *ClamavDBVersion) GetVersion() int64 {
 	var nowTime time.Time
 	var err error
-	nowTime, err = time.Parse("200601021504", cdv.ClamavVersion.Version)
+	nowTime, err = time.Parse("200601021504", vi.ClamavVersion.Version)
 	if err != nil {
-		logging.GetLogger().Warn().Msgf("parse time %v error %v", cdv.ClamavVersion.Version)
+		logging.GetLogger().Warn().Msgf("parse time %v error %v", vi.ClamavVersion.Version)
 	}
 	return nowTime.UnixMilli()
 }
@@ -102,25 +103,25 @@ type VulnDBVersion struct {
 	UpdateTime        int64      `gorm:"autoUpdateTime:milli;column:update_time" json:"updateTime"`
 }
 
-func (vdv *VulnDBVersion) GetVersion(objType string) int64 {
+func (vi *VulnDBVersion) GetVersion(objType string) int64 {
 	var nowTime time.Time
 	var err error
 	if objType == TrivyDB {
-		nowTime, err = time.Parse("200601021504", vdv.TrivyVersion.Version)
+		nowTime, err = time.Parse("200601021504", vi.TrivyVersion.Version)
 		if err != nil {
-			logging.GetLogger().Warn().Msgf("parse time %v error %v", vdv.TrivyVersion.Version, err)
+			logging.GetLogger().Warn().Msgf("parse time %v error %v", vi.TrivyVersion.Version, err)
 		}
 	} else {
-		nowTime, err = time.Parse("200601021504", vdv.CustomDBVersion.Version)
+		nowTime, err = time.Parse("200601021504", vi.CustomDBVersion.Version)
 		if err != nil {
-			logging.GetLogger().Warn().Msgf("parse time %v error %v", vdv.CustomDBVersion.Version, err)
+			logging.GetLogger().Warn().Msgf("parse time %v error %v", vi.CustomDBVersion.Version, err)
 		}
 	}
 	return nowTime.UnixMilli()
 }
 
-func (vdv *VulnDBVersion) Same(version VulnDBVersion) bool {
-	if vdv.GetVersion(TrivyDB) == version.GetVersion(TrivyDB) && vdv.GetVersion(CustomDB) == version.GetVersion(CustomDB) {
+func (vi *VulnDBVersion) Same(version VulnDBVersion) bool {
+	if vi.GetVersion(TrivyDB) == version.GetVersion(TrivyDB) && vi.GetVersion(CustomDB) == version.GetVersion(CustomDB) {
 		return true
 	}
 	return false
@@ -131,24 +132,24 @@ type ScannerDBVersion struct {
 	MaliciousVersion MaliciousDBVersion `json:"maliciousVersion"`
 }
 
-func (v *ClamavDBVersion) CompareVersion(nowVer MaliciousDBVersion) bool {
+func (vi *ClamavDBVersion) CompareVersion(nowVer MaliciousDBVersion) bool {
 
-	if v.ClamavVersion.Version < nowVer.Clamav.ClamavVersion.Version {
+	if vi.ClamavVersion.Version < nowVer.Clamav.ClamavVersion.Version {
 		return true
 	}
 
 	return false
 }
 
-func (v *AviraDBVersion) CompareVersion(nowVer MaliciousDBVersion) bool {
-	if v.AvriaVersion.Version < nowVer.Avira.AvriaVersion.Version {
+func (vi *AviraDBVersion) CompareVersion(nowVer MaliciousDBVersion) bool {
+	if vi.AvriaVersion.Version < nowVer.Avira.AvriaVersion.Version {
 		return true
 	}
 	return false
 }
 
-func (v *VulnDBVersion) CompareVersion(nowVer VulnDBVersion) bool {
-	if v.GetVersion(TrivyDB) < nowVer.GetVersion(TrivyDB) || v.GetVersion(CustomDB) < nowVer.GetVersion(CustomDB) {
+func (vi *VulnDBVersion) CompareVersion(nowVer VulnDBVersion) bool {
+	if vi.GetVersion(TrivyDB) < nowVer.GetVersion(TrivyDB) || vi.GetVersion(CustomDB) < nowVer.GetVersion(CustomDB) {
 		return true
 	}
 	return false
@@ -195,13 +196,14 @@ func ReadVulnDBVersion(versionPath string) (VulnDBVersion, error) {
 
 type ScanDBVersion struct {
 	ID              int64           `gorm:"primaryKey" json:"id"`
-	CreatedAt       int64           `gorm:"autoCreateTime:milli;column:created_at" json:"createdAt"` // milliseconds
-	UpdatedAt       int64           `gorm:"autoUpdateTime:milli;column:updated_at" json:"updatedAt"` // milliseconds
-	KeyPath         string          `gorm:"column:key_path;type:varchar(255)" json:"keyPath"`        // if daemon or subscanner clusterkey-hostname streamNodeKey
+	KeyPath         string          `gorm:"column:key_path;type:varchar(255)" json:"keyPath"` // if daemon or subscanner clusterkey-hostname streamNodeKey
 	VulnDBVersion   VulnDBVersion   `gorm:"column:vuln_db_version;type:text;serializer:json" json:"vulnDBVersion"`
 	ClamavDBVersion ClamavDBVersion `gorm:"column:clamav_db_version;type:text;serializer:json" json:"clamavDBVersion"`
 	AviraDBVersion  AviraDBVersion  `gorm:"column:avira_db_version;type:text;serializer:json" json:"aviraDBVersion"`
 	ObjectType      string          `gorm:"column:object_type;type:varchar(255)" json:"objectType"`
+
+	CreatedAt int64 `gorm:"autoCreateTime:milli;column:created_at" json:"createdAt"` // milliseconds
+	UpdatedAt int64 `gorm:"autoUpdateTime:milli;column:updated_at" json:"updatedAt"` // milliseconds
 }
 
 func (s *ScanDBVersion) TableName() string {

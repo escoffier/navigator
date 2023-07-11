@@ -36,6 +36,7 @@ type UpdateImage struct {
 	SubtaskID     int64
 	ImageFromType string
 	CreateAt      int64
+	DetectResult  PolicyDetectResult
 }
 
 type GetImageWithCorrelateData interface {
@@ -128,7 +129,7 @@ func (s *Detector) DetectImage(ctx context.Context) {
 	taskChan := s.GenTaskChan(ctx)
 
 	for task := range taskChan {
-		logging.Get().Info().Int64("taskID", task.ID).Msg("Detector get task")
+		logging.Get().Debug().Int64("taskID", task.ID).Msg("Detector get task")
 
 		if err := s.UpdateTask(ctx, task.ID, getStartUpdater()); err != nil {
 			logging.Get().Err(err).Int64("taskID", task.ID).Msg("Detector UpdateTask")
@@ -142,6 +143,7 @@ func (s *Detector) DetectImage(ctx context.Context) {
 				Msg("Detector get subtask")
 
 			_ = s.UpdateSubTask(ctx, subtask.ID, getStartUpdater())
+			resultAll := make([]PolicyDetectResult, 0)
 
 			imageData, err := s.GetImageData(ctx, subtask.ImageUniqueID)
 			if err != nil {
@@ -166,6 +168,7 @@ func (s *Detector) DetectImage(ctx context.Context) {
 
 			for i := range policy {
 				result := s.checker.Check(ctx, imageData, policy[i])
+				resultAll = append(resultAll, result)
 
 				for dt, data := range result {
 					if err := s.detectResultDal.CreateDetectResult(ctx, imagesecModel.CreateDetectResultParam{
@@ -200,12 +203,13 @@ func (s *Detector) DetectImage(ctx context.Context) {
 				ImageUniqueID: imageData.Image.UniqueID,
 				ImageFromType: imageData.Image.ImageFromType,
 				CreateAt:      time.Now().UnixMilli(),
+				DetectResult:  MergePolicyDetectResult(resultAll),
 			}
 			go func() { s.updateImageChan <- up }()
 
 			_ = s.UpdateSubTask(ctx, subtask.ID, getEndUpdater(nil))
 
-			logging.Get().Info().Int64("taskID", task.ID).Int64("subtaskID", subtask.ID).
+			logging.Get().Debug().Int64("taskID", task.ID).Int64("subtaskID", subtask.ID).
 				Uint64("imageUniqueID", subtask.ImageUniqueID).Str("imageName", imageData.Image.GetImageName()).
 				Msg("Detector finished detect image")
 		}
@@ -433,58 +437,12 @@ func (s *Detector) ContinueUpdateImage(ctx context.Context) {
 			continue
 		}
 		if len(image) == 0 {
-			logging.Get().Info().Uint64("ImageUniqueID", up.ImageUniqueID).Msg("Detector UpdateImage SearchImage not find image")
+			logging.Get().Info().Uint64("ImageUniqueID", up.ImageUniqueID).Msg("Detector SearchImage not find image")
 			continue
 		}
 		flag := imagesecModel.AddImageSafeFlag(brief, image[0].Flag)
 
-		envs, err := s.detectResultDal.SearchDetectResult(ctx, imagesecModel.SearchDetectResultParam{
-			ImageUniqueID: image[0].UniqueID,
-			DetectType:    imagesecModel.DetectTypeEnvRule,
-		})
-		if err != nil {
-			logging.Get().Err(err).Uint64("ImageUniqueID", up.ImageUniqueID).Msg("Detector UpdateImage SearchDetectResult")
-			continue
-		}
-
-		flag = util.SetBit0(flag, model.FlagHasExceptEnv)
-		for i := range envs {
-			if util.ExistBit1(envs[i].Flag, imagesecModel.FlagDetectException) {
-				flag = util.SetBit1(flag, model.FlagHasExceptEnv)
-			}
-		}
-
-		pkg, err := s.detectResultDal.SearchDetectResult(ctx, imagesecModel.SearchDetectResultParam{
-			ImageUniqueID: image[0].UniqueID,
-			DetectType:    imagesecModel.DetectTypePkgVersionRule,
-		})
-		if err != nil {
-			logging.Get().Err(err).Uint64("ImageUniqueID", up.ImageUniqueID).Msg("Detector UpdateImage SearchDetectResult")
-			continue
-		}
-		flag = util.SetBit0(flag, model.FlagHasExceptPKG)
-		for i := range pkg {
-			if util.ExistBit1(envs[i].Flag, imagesecModel.FlagDetectException) {
-				flag = util.SetBit1(flag, model.FlagHasExceptPKG)
-				break
-			}
-		}
-
-		license, err := s.detectResultDal.SearchDetectResult(ctx, imagesecModel.SearchDetectResultParam{
-			ImageUniqueID: image[0].UniqueID,
-			DetectType:    imagesecModel.DetectTypePkgLicenseRule,
-		})
-		if err != nil {
-			logging.Get().Err(err).Uint64("ImageUniqueID", up.ImageUniqueID).Msg("Detector UpdateImage SearchDetectResult")
-			continue
-		}
-		flag = util.SetBit0(flag, model.FlagHasExceptLicense)
-		for i := range license {
-			if util.ExistBit1(envs[i].Flag, imagesecModel.FlagDetectException) {
-				flag = util.SetBit1(flag, model.FlagHasExceptLicense)
-				break
-			}
-		}
+		flag = GenIssueFlag(up.DetectResult, flag)
 
 		if image[0].Flag != flag {
 			logging.Get().Info().Uint64("imageUniqueID", up.ImageUniqueID).Msg("Detector UpdateImage")
@@ -493,11 +451,11 @@ func (s *Detector) ContinueUpdateImage(ctx context.Context) {
 				UniqueID: up.ImageUniqueID,
 				Updater:  updater,
 			}); err != nil {
-				logging.Get().Err(err).Uint64("ImageUniqueID", up.ImageUniqueID).Msg("Detector UpdateImage UpdateImage")
+				logging.Get().Err(err).Uint64("ImageUniqueID", up.ImageUniqueID).Msg("Detector UpdateImage")
 				continue
 			}
 		}
-		logging.Get().Info().Uint64("imageUniqueID", up.ImageUniqueID).Uint64("flag", flag).Msg("Detector UpdateImage finished")
+		logging.Get().Debug().Uint64("imageUniqueID", up.ImageUniqueID).Uint64("flag", flag).Msg("Detector UpdateImage finished")
 	}
 }
 
@@ -508,8 +466,10 @@ func (s *Detector) AddDetectTaskEveryDay(ctx context.Context) error {
 		for {
 			<-ticker.C
 			if int64(time.Now().Hour()) == s.addTaskAtHour {
-				if err := s.imageDetectTaskSrv.CreateImageDetectTask(ctx, imagesecModel.ImageListParam{ImageFromType: imagesecModel.ImageFromNode},
-					imagesecModel.SearchSecurityPolicyParam{}, imagesecModel.ImageDetectTask{Priority: imagesecModel.DetectPriorityCycle}); err != nil {
+				if err := s.imageDetectTaskSrv.CreateImageDetectTask(ctx,
+					imagesecModel.ImageListParam{ImageFromType: imagesecModel.ImageFromNode},
+					imagesecModel.ImageDetectTask{Priority: imagesecModel.DetectPriorityCycle},
+				); err != nil {
 					logging.Get().Err(err).Msg("AddDetectTaskEveryDay")
 				}
 				logging.Get().Info().Msg("AddDetectTaskEveryDay")
@@ -598,9 +558,51 @@ func GetChecker() map[string]Checker {
 	return ruleCheckers
 }
 
+type PolicyDetectResult map[string][]*imagesecModel.ImageDetectResult
+
+func MergePolicyDetectResult(res []PolicyDetectResult) PolicyDetectResult {
+	ans := make(map[string][]*imagesecModel.ImageDetectResult)
+	for i := range res {
+		da := res[i]
+		for k, v := range da {
+			if ans[k] == nil {
+				ans[k] = make([]*imagesecModel.ImageDetectResult, 0)
+			}
+			ans[k] = append(ans[k], v...)
+		}
+	}
+
+	return ans
+}
+
+func check(res PolicyDetectResult, flag uint64, ruleType string, exceptFlag uint64) uint64 {
+	flag = util.SetBit0(flag, model.FlagHasExceptEnv)
+	for i := range res[ruleType] {
+		data := res[ruleType][i]
+		if util.ExistBit1(data.Flag, imagesecModel.FlagDetectException) {
+			flag = util.SetBit1(flag, exceptFlag)
+			break
+		}
+	}
+	return flag
+}
+
+func GenIssueFlag(res PolicyDetectResult, flag uint64) uint64 {
+	flag = check(res, flag, imagesecModel.DetectTypeVulnRule, model.FlagHasVuln)
+	flag = check(res, flag, imagesecModel.DetectTypeSensRule, model.FlagHasSensitive)
+	flag = check(res, flag, imagesecModel.DetectTypeMalwareRule, model.FlagHasMalicious)
+	flag = check(res, flag, imagesecModel.DetectTypePkgVersionRule, model.FlagHasExceptPKG)
+	flag = check(res, flag, imagesecModel.DetectTypePkgLicenseRule, model.FlagHasExceptLicense)
+	flag = check(res, flag, imagesecModel.DetectTypeWebshellRule, model.FlagHasWebshell)
+	flag = check(res, flag, imagesecModel.DetectTypeRootRule, model.FlagPrivilegedBoot)
+	flag = check(res, flag, imagesecModel.DetectTypeEnvRule, model.FlagHasExceptEnv)
+
+	return flag
+}
+
 type ImagePolicyChecker interface {
 	Check(ctx context.Context, data *imagesecModel.ImageWithCorrelateData2,
-		policy *imagesecModel.SecurityPolicy) map[string][]*imagesecModel.ImageDetectResult
+		policy *imagesecModel.SecurityPolicy) PolicyDetectResult
 }
 
 type ImagePolicyCheck struct {
@@ -611,7 +613,7 @@ func NewImagePolicyCheck() *ImagePolicyCheck {
 }
 
 func (s *ImagePolicyCheck) Check(ctx context.Context, data *imagesecModel.ImageWithCorrelateData2,
-	policy *imagesecModel.SecurityPolicy) map[string][]*imagesecModel.ImageDetectResult {
+	policy *imagesecModel.SecurityPolicy) PolicyDetectResult {
 	res := make(map[string][]*imagesecModel.ImageDetectResult)
 	checkers := GetChecker()
 	for ruleType := range checkers {
@@ -623,18 +625,4 @@ func (s *ImagePolicyCheck) Check(ctx context.Context, data *imagesecModel.ImageW
 		res[ruleType] = ruleCheckers[ruleType](ctx, data, policy)
 	}
 	return res
-}
-
-func ImageIsSafe(result map[string][]*imagesecModel.ImageDetectResult) bool {
-	data := imagesecModel.ImageWithCorrelateData2{DetectResult: result}
-	data.AddDetectResult()
-
-	for _, res := range result {
-		for _, ans := range res {
-			if util.ExistBit1(ans.Flag, imagesecModel.FlagDetectException) {
-				return false
-			}
-		}
-	}
-	return true
 }

@@ -3,10 +3,11 @@ package scanner_ci
 import (
 	"encoding/json"
 	"fmt"
-	"gitlab.com/piccolo_su/vegeta/pkg/types/imagesec"
 	"sort"
 	"strings"
 	"time"
+
+	"gitlab.com/piccolo_su/vegeta/pkg/types/imagesec"
 
 	"scm.tensorsecurity.cn/tensorsecurity-rd/trivy/pkg/report"
 	"scm.tensorsecurity.cn/tensorsecurity-rd/trivy/pkg/types"

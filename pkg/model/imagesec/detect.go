@@ -178,7 +178,7 @@ func (vi *ImageDetectResult) ToPolicyDetect() PolicyDetect {
 	return ans
 }
 
-// 按策略对镜像的检测结果
+// 按策略对镜像的检测结果(简略，只是标记是否安全)
 type ImageDetectBrief struct {
 	ID            int64           `gorm:"primaryKey" json:"id"`
 	ImageUniqueID uint64          `gorm:"column:image_unique_id" json:"imageUniqueID,string"`

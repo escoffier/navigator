@@ -205,7 +205,7 @@ func (s *NodeImageSrv) GetImageCorrelateData(ctx context.Context,
 			ans.Registry = &(registry[0])
 		}
 	}
-	// env
+
 	if param.EnvEnable {
 		env, cnt, err := s.scanResultDal.SearchImageEnv(ctx, param.ScanResultSearchParam)
 		if err != nil {
@@ -379,7 +379,11 @@ func (s *NodeImageSrv) GetImageCorrelateData(ctx context.Context,
 		}
 	}
 
-	if param.DetectResultEnable {
+	if param.DetectResultEnable && (len(param.DetectParam.SecurityPolicyIds) > 0 || param.DetectParam.AllPolicy) {
+		if param.DetectParam.AllPolicy {
+			param.DetectParam.SecurityPolicyIds = make([]int64, 0)
+		}
+
 		ans.DetectResult = make(map[string][]*imagesecModel.ImageDetectResult)
 		detectTypes := param.GetDetectTypes()
 		for dt := range detectTypes {

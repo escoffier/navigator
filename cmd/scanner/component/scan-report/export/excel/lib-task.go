@@ -7,6 +7,7 @@ import (
 	json "github.com/json-iterator/go"
 	"gitlab.com/security-rd/go-pkg/logging"
 
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scan-report/export/common"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scan-report/types"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
@@ -30,6 +31,10 @@ func NewLibScanTaskExport(
 		ScanTaskDal:        scanTaskDal,
 		UpdateTask:         updateTask,
 	}
+}
+
+func (s *LibImageScanTaskExport) Run(ctx context.Context) {
+	go s.ExcelExportService.RunExport(ctx, consts.ExportLibTask, s.GenImageChan, common.ConvertData)
 }
 
 func (s *LibImageScanTaskExport) GenImageChan(ctx context.Context, task model.ExportTensorTask) chan imagesecModel.Image {
@@ -96,8 +101,4 @@ func (s *LibImageScanTaskExport) GenImageChan(ctx context.Context, task model.Ex
 	}()
 
 	return out
-}
-
-func (s *LibImageScanTaskExport) Run(ctx context.Context) {
-	go s.ExcelExportService.RunExport(ctx, consts.ExportLibTask, s.GenImageChan, nil)
 }

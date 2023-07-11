@@ -55,11 +55,12 @@ func (api *api) NodeImage() func(chi.Router) {
 		r.Get("/config/scan/sensitive/rule/list", api.NodeImageRedirectToScanner())
 		r.Delete("/config/scan/sensitive/rule", api.NodeImageRedirectToScanner())
 
-		// 扫描任务
+		// 扫描配置
 		r.Get("/config/scan/image", api.NodeImageRedirectToScanner())
+		r.Get("/config/view/const", api.NodeImageRedirectToScanner())
 		r.Put("/config/scan/image", api.NodeImageRedirectToScanner())
 		// 节点列表
-		r.Get("/node/nodeInfo/lit", api.NodeImageRedirectToScanner())
+		r.Get("/node/nodeInfo/list", api.NodeImageRedirectToScanner())
 	}
 }
 

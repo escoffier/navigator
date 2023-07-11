@@ -3,17 +3,20 @@ package stream
 
 import (
 	"fmt"
+	"os"
+	"time"
+
+	"gitlab.com/security-rd/go-pkg/logging"
+	"k8s.io/apimachinery/pkg/util/wait"
+
 	"gitlab.com/piccolo_su/vegeta/cmd/node-image/config"
+	"gitlab.com/piccolo_su/vegeta/cmd/node-image/consts"
 	"gitlab.com/piccolo_su/vegeta/cmd/node-image/services"
 	"gitlab.com/piccolo_su/vegeta/cmd/node-image/services/helper"
 	imagesec2 "gitlab.com/piccolo_su/vegeta/pkg/model/imagesec"
 	rpcstream "gitlab.com/piccolo_su/vegeta/pkg/streaming"
 	"gitlab.com/piccolo_su/vegeta/pkg/streaming/pb"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
-	"gitlab.com/security-rd/go-pkg/logging"
-	"k8s.io/apimachinery/pkg/util/wait"
-	"os"
-	"time"
 )
 
 type RpcStream struct {
@@ -29,8 +32,8 @@ func init() {
 	}
 }
 
-func (r *RpcStream) Type() services.ServiceType {
-	return services.TypeServiceStream
+func (r *RpcStream) Type() consts.ServiceType {
+	return consts.TypeServiceStream
 }
 
 func (r *RpcStream) PreRun(_ config.Config, _ imagesec2.NodeImageConfig, bs *util.BroadcastServer) error {
@@ -39,7 +42,6 @@ func (r *RpcStream) PreRun(_ config.Config, _ imagesec2.NodeImageConfig, bs *uti
 }
 
 func (r *RpcStream) Run() error {
-
 	// connect to grpc server
 	clusterGrpcAddr := os.Getenv("CLUSTER_MANAGER_GRPC_ADDR")
 	if clusterGrpcAddr == "" {

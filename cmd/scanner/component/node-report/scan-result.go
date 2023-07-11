@@ -32,7 +32,7 @@ type ScanResultReportSrv struct {
 	imageDal        imagesecStore.ImageMetaDal
 	scanResultDal   imagesecStore.ScanResultDal
 	issueDal        imagesecStore.ScanIssueDal
-	versionDal      imagesecStore.ScanVersionDal
+	versionDal      imagesecStore.ScanDbMetaDal
 	mqReader        mq.Reader
 	pvcPath         string
 	vulnDBVersion   *scannermodel.VulnDBVersion
@@ -93,6 +93,11 @@ func (s *ScanResultReportSrv) CreateScanResult(ctx context.Context, data imagese
 	// fixme 上面出错,镜像怎么更新
 	_ = s.UpdateImage(ctx, image.ID, correlate)
 
+	logging.Get().Info().Int("malwareCnt", len(correlate.Malware)).Int("pkgCnt", len(correlate.Pkg)).
+		Int("vulnCnt", len(correlate.Vuln)).Int("sensitiveCnt", len(correlate.Sensitive)).
+		Int64("subtaskID", data.SubTaskID).Int64("taskID", data.TaskID).Str("image", image.GetImageName()).
+		Msg("CreateScanResult get scan result")
+
 	go func() {
 		s.detectImageChan <- DetectImageData{
 			ImageID:       image.ID,
@@ -134,29 +139,6 @@ func (s *ScanResultReportSrv) UpdateImage(ctx context.Context, imageID int64, da
 		flag = util.SetBit0(flag, model.FlagImageNotMaintained)
 	}
 
-	if len(data.Sensitive) > 0 {
-		flag = util.SetBit1(flag, model.FlagHasSensitive)
-	} else {
-		flag = util.SetBit0(flag, model.FlagHasSensitive)
-	}
-
-	if len(data.Vuln) > 0 {
-		flag = util.SetBit1(flag, model.FlagHasVuln)
-	} else {
-		flag = util.SetBit0(flag, model.FlagHasVuln)
-	}
-
-	if len(data.Malware) > 0 {
-		flag = util.SetBit1(flag, model.FlagHasMalicious)
-	} else {
-		flag = util.SetBit0(flag, model.FlagHasMalicious)
-	}
-
-	if len(data.Webshell) > 0 {
-		flag = util.SetBit1(flag, model.FlagHasWebshell)
-	} else {
-		flag = util.SetBit0(flag, model.FlagHasWebshell)
-	}
 	fixed := false
 	// 漏洞统计
 	vulnStatic := make(map[int64]bool)
@@ -340,24 +322,24 @@ func (s *ScanResultReportSrv) CreatePkgVuln(ctx context.Context, data imagesecTy
 			vul := res.Vulnerabilities[j]
 
 			vu := &imagesecModel.Vuln{
-				PkgUniqueID:      0,
-				Name:             vul.VulnerabilityID,
-				PkgName:          vul.PkgName,
-				PkgVersion:       vul.InstalledVersion,
-				PkgType:          res.Type,
-				DescriptionEn:    vul.Description,
-				References:       vul.References,
-				Class:            string(res.Class),
-				CVSS:             make(map[string]imagesecModel.Cvss),
-				CweIds:           vul.CweIDs,
-				Title:            vul.Title,
-				PublishDate:      util.GetTimeUnixMilli(vul.PublishedDate),
-				ModificationData: util.GetTimeUnixMilli(vul.LastModifiedDate),
-				Severity:         imagesecModel.GetSeverityInt(strings.ToUpper(vul.Severity)),
-				FixedVersion:     vul.FixedVersion,
-				Target:           strings.TrimSpace(res.Target),
-				CreatedAt:        time.Now().UnixMilli(),
-				UpdatedAt:        time.Now().UnixMilli(),
+				PkgUniqueID:   0,
+				Name:          vul.VulnerabilityID,
+				PkgName:       vul.PkgName,
+				PkgVersion:    vul.InstalledVersion,
+				PkgType:       res.Type,
+				DescriptionEn: vul.Description,
+				References:    vul.References,
+				Class:         string(res.Class),
+				CVSS:          make(map[string]imagesecModel.Cvss),
+				CweIds:        vul.CweIDs,
+				Title:         vul.Title,
+				PublishAt:     util.GetTimeUnixMilli(vul.PublishedDate),
+				ModifyAt:      util.GetTimeUnixMilli(vul.LastModifiedDate),
+				Severity:      imagesecModel.GetSeverityInt(strings.ToUpper(vul.Severity)),
+				FixedVersion:  vul.FixedVersion,
+				Target:        strings.TrimSpace(res.Target),
+				CreatedAt:     time.Now().UnixMilli(),
+				UpdatedAt:     time.Now().UnixMilli(),
 			}
 
 			vu.PkgUniqueID = vu.GenPkgUniqueID(data.OS)
@@ -518,8 +500,9 @@ func (s *ScanResultReportSrv) AddDetectTask(ctx context.Context) error {
 			}
 			imageSearchParam := imagesecModel.ImageListParam{ImageIds: []int64{task.ImageID}, ImageFromType: task.ImageFromType}
 
-			if err := s.imageDetectSrv.CreateImageDetectTask(ctx, imageSearchParam, imagesecModel.SearchSecurityPolicyParam{},
-				imagesecModel.ImageDetectTask{Priority: imagesecModel.DetectPriorityScan, ScanSubTaskID: task.SubtaskID}); err != nil {
+			if err := s.imageDetectSrv.CreateImageDetectTask(ctx, imageSearchParam,
+				imagesecModel.ImageDetectTask{Priority: imagesecModel.DetectPriorityScan, ScanSubTaskID: task.SubtaskID},
+			); err != nil {
 				logging.Get().Err(err).Int64("imageID", task.ImageID).Msg("AddDetectTask")
 				continue
 			}
@@ -534,17 +517,15 @@ func (s *ScanResultReportSrv) CreateMalware(ctx context.Context, data imagesecTy
 	res := make([]*imagesecModel.Malware, 0)
 	issue := make([]*imagesecModel.MalwareToImage, 0)
 
-	aviraV := &imagesecModel.MalwareVersion{
-		EngineVersion: data.Malwares.AviraEngineVersion.Version,
-		EngineComment: data.Malwares.AviraEngineVersion.Comment,
-		Enable:        true,
+	aviraV := &imagesecModel.ScanDbMeta{
+		DBType:    imagesecModel.DBMetaTypeAvira,
+		DBVersion: data.Malwares.AviraDBVersion.Version,
 	}
 	aviraV.UniqueID = aviraV.GenUniqueID()
 
-	clamV := &imagesecModel.MalwareVersion{
-		EngineVersion: data.Malwares.ClamAvEngineVersion.Version,
-		EngineComment: data.Malwares.ClamAvEngineVersion.Comment,
-		Enable:        true,
+	clamV := &imagesecModel.ScanDbMeta{
+		DBType:    imagesecModel.DBMetaTypeClamav,
+		DBVersion: data.Malwares.ClamAvDBVersion.Version,
 	}
 	clamV.UniqueID = aviraV.GenUniqueID()
 
@@ -583,17 +564,19 @@ func (s *ScanResultReportSrv) CreateMalware(ctx context.Context, data imagesecTy
 			})
 		}
 	}
-	if err := clamV.Check(); err == nil {
-		if err := s.versionDal.CreateMalwareVersion(ctx, clamV); err != nil {
-			logging.Get().Err(err).Uint64("ImageUniqueID", imageUniqueID).Msg("ScanResultReportSrv CreateMalwareVersion")
-		}
-	}
 
-	if err := aviraV.Check(); err == nil {
-		if err := s.versionDal.CreateMalwareVersion(ctx, aviraV); err != nil {
-			logging.Get().Err(err).Uint64("ImageUniqueID", imageUniqueID).Msg("ScanResultReportSrv CreateMalwareVersion")
-		}
-	}
+	// todo(liuqianli) 下期功能
+	// if err := clamV.Check(); err == nil {
+	// 	if err := s.versionDal.CreateScanDbMeta(ctx, clamV); err != nil {
+	// 		logging.Get().Err(err).Uint64("ImageUniqueID", imageUniqueID).Msg("ScanResultReportSrv CreateDBVersion")
+	// 	}
+	// }
+	//
+	// if err := aviraV.Check(); err == nil {
+	// 	if err := s.versionDal.CreateScanDbMeta(ctx, aviraV); err != nil {
+	// 		logging.Get().Err(err).Uint64("ImageUniqueID", imageUniqueID).Msg("ScanResultReportSrv CreateDBVersion")
+	// 	}
+	// }
 
 	if err := s.scanResultDal.CreateMalware(ctx, res); err != nil {
 		logging.Get().Err(err).Uint64("ImageUniqueID", imageUniqueID).Msg("ScanResultReportSrv CreateMalware")
@@ -617,11 +600,9 @@ func (s *ScanResultReportSrv) CreateWebshell(ctx context.Context, data imagesecT
 	res2 := make([]*imagesecModel.WebshellView, 0)
 	issue := make([]*imagesecModel.WebshellToImage, 0)
 
-	wv := imagesecModel.WebshellVersion{
-		EngineVersion: data.Webshells.HmEngineVersion.Version,
-		EngineComment: data.Webshells.HmEngineVersion.Comment,
-		EngineHash:    data.Webshells.HmEngineVersion.Hash,
-		Enable:        true,
+	wv := &imagesecModel.ScanDbMeta{
+		DBType:    imagesecModel.DBMetaTypeWebshell,
+		DBVersion: data.Webshells.HmEngineVersion.Version,
 	}
 
 	wv.UniqueID = wv.GenUniqueID()
@@ -647,10 +628,6 @@ func (s *ScanResultReportSrv) CreateWebshell(ctx context.Context, data imagesecT
 			UniqueTarget:  ses.UniqueID,
 			ImageUniqueID: imageUniqueID,
 		})
-	}
-
-	if err := s.versionDal.CreateWebshellVersion(ctx, &wv); err != nil {
-		logging.Get().Debug().Uint64("ImageUniqueID", imageUniqueID).Msg("ScanResultReportSrv CreateWebshellVersion")
 	}
 
 	if err := s.scanResultDal.CreateWebshell(ctx, res1); err != nil {
@@ -781,7 +758,7 @@ func NewScanResultReportSrv(
 	imageDal imagesecStore.ImageMetaDal,
 	scanResultDal imagesecStore.ScanResultDal,
 	issueDal imagesecStore.ScanIssueDal,
-	versionDal imagesecStore.ScanVersionDal,
+	versionDal imagesecStore.ScanDbMetaDal,
 	imageDetectSrv ImageDetectTaskService,
 	mqReader mq.Reader,
 ) *ScanResultReportSrv {

@@ -130,7 +130,7 @@ func ModelToVulnDetail(vuln *imagesec.VulnView) VulnDetail {
 	}
 	vd := VulnDetail{
 		Name:          vuln.Name,
-		Severity:      imagesec.GetSeverity(vuln.SeverityInt),
+		Severity:      imagesec.GetSeverityEN(vuln.SeverityInt),
 		SeverityInt:   vuln.SeverityInt,
 		FixedBy:       vuln.FixedVersion,
 		Description:   vuln.Description,

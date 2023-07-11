@@ -37,9 +37,9 @@ func (m *MaliciousScan) ScanLayer(ctx context.Context, digest string, layerPath 
 	err := os.MkdirAll(tmpDir, 0777)
 	if err != nil {
 		return []*model.VirusInfo{}, err
-		//错误处理
+		// 错误处理
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 	fileMap := make(map[string][]string)
 	fileCount, err := m.parseLayerTar(layerPath, tmpDir, fileMap)
 	if err != nil {

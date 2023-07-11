@@ -524,10 +524,6 @@ func (s *SyncRepoImage) searchDeletedImage(ctx context.Context, lastFullSyncAt i
 }
 
 func (s *SyncRepoImage) transImageToImageList(ctx context.Context, image registry.Image) (model.ImageList, error) {
-	tmpLib := image.RegistryUrl
-	tmpLib = strings.TrimPrefix(tmpLib, "http://") // trimPrefix http or https
-	tmpLib = strings.TrimPrefix(tmpLib, "https://")
-	tmpLib = strings.TrimRight(tmpLib, "/")
 
 	img := model.ImageList{
 		FullRepoName:   image.Repository,
@@ -543,7 +539,6 @@ func (s *SyncRepoImage) transImageToImageList(ctx context.Context, image registr
 		ManifestV2JSON: []byte(image.ManifestV2),
 		ConfigJSON:     []byte(image.ConfigJSON),
 		FromType:       image.FromType,
-		ImageUUID:      util.GenerateUUID(fmt.Sprintf("%s/%s:%s", tmpLib, image.Repository, image.Tag)),
 		LastFullSyncAt: time.Now().UnixMilli(),
 	}
 	if img.FirstPushTime.Unix() <= 0 {
@@ -572,7 +567,7 @@ func (s *SyncRepoImage) transImageToImageList(ctx context.Context, image registr
 			}
 		}
 	}
-
+	img.ImageUUID = img.GenImageUUID()
 	img.Layers = img.GetLayerString()
 	img.CheckSum = img.GenImageCheckSum()
 

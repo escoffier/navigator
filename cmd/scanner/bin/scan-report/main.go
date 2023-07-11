@@ -22,7 +22,6 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/imagemeta"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/imagescan"
-	imagesecSrv "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/imagesec"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scan-report/api"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scan-report/export/common"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scan-report/export/html"
@@ -187,7 +186,7 @@ func main() {
 
 	libImageSrv := component.NewLibImageSrv(imageDal, registryDal, scanTaskDal, vulnDal,
 		scanResultDal, webshellDal, trustedImageDal, resourceDal, scannerInstanceInfoDal)
-	nodeVulnSrv := imagesecSrv.NewVulnSrv(nodeScanResultDal)
+	nodeVulnSrv := imagescan.NewVulnSrv(nodeScanResultDal)
 
 	nodeScanTaskSrv := imagescan.NewScanTaskSrv(nodeScanTaskDal, detectTaskDal, nodeImageSrv, scannerConfigDal)
 

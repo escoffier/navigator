@@ -1,0 +1,712 @@
+[
+  {
+    "description": "Azure 服务配置文件",
+    "secret_type": "Filename",
+    "value": "\\.cscfg$"
+  },
+  {
+    "description": "解密密钥",
+    "secret_type": "FileContent",
+    "value": "CryptDeriveKey"
+  },
+  {
+    "description": "加密密钥",
+    "secret_type": "FileContent",
+    "value": "CryptGenKey"
+  },
+  {
+    "description": "加密密钥",
+    "secret_type": "FileContent",
+    "value": "HMACSHA1"
+  },
+  {
+    "description": "机器密钥",
+    "secret_type": "FileContent",
+    "value": "machinekey"
+  },
+  {
+    "description": "潜在的 MSBuild 发布配置文件",
+    "secret_type": "Filename",
+    "value": "\\.pubxml(\\.user)?$"
+  },
+  {
+    "description": "RDP 文件",
+    "secret_type": "Filename",
+    "value": "\\.rdp$"
+  },
+  {
+    "description": "私有客户端证书",
+    "secret_type": "Filename",
+    "value": "\\.pfx$"
+  },
+  {
+    "description": "潜在的加密密钥包",
+    "secret_type": "Filename",
+    "value": "\\.pkcs12$"
+  },
+  {
+    "description": "潜在的加密密钥包",
+    "secret_type": "Filename",
+    "value": "\\.p12$"
+  },
+  {
+    "description": "潜在的加密密钥包",
+    "secret_type": "Filename",
+    "value": "\\.asc$"
+  },
+  {
+    "description": "可能的公钥",
+    "secret_type": "Filename",
+    "value": "\\.pub$"
+  },
+  {
+    "description": "潜在的 Jenkins 凭据文件",
+    "secret_type": "Filename",
+    "value": "^cred[\\s\\S]*xml"
+  },
+  {
+    "description": "数据库文件",
+    "secret_type": "Filename",
+    "value": "\\.mdf$"
+  },
+  {
+    "description": "数据库文件",
+    "secret_type": "Filename",
+    "value": "\\.sdf$"
+  },
+  {
+    "description": "数据库文件",
+    "secret_type": "Filename",
+    "value": "\\.sql$"
+  },
+  {
+    "description": "数据库文件",
+    "secret_type": "Filename",
+    "value": "\\.sqlite$"
+  },
+  {
+    "description": "MySQL 客户端命令历史记录文件",
+    "secret_type": "Filename",
+    "value": "^[\\s\\S]*mysql_history"
+  },
+  {
+    "description": "PostgreSQL 客户端命令历史记录文件",
+    "secret_type": "Filename",
+    "value": "^[\\s\\S]*psql_history"
+  },
+  {
+    "description": "Ruby On Rails 数据库配置文件",
+    "secret_type": "Filename",
+    "value": "^database[\\s\\S]*.yml"
+  },
+  {
+    "description": "网络流量捕获文件",
+    "secret_type": "Filename",
+    "value": "\\.pcap$"
+  },
+  {
+    "description": "Pidgin 聊天客户端帐户配置文件",
+    "secret_type": "Filename",
+    "value": "accounts[\\s\\S]*.xml"
+  },
+  {
+    "description": "Wordpress 配置文件",
+    "secret_type": "Filename",
+    "value": "wp-config[\\s\\S]*.php"
+  },
+  {
+    "description": "Hexchat/XChat IRC 客户端服务器列表配置文件",
+    "secret_type": "Filename",
+    "value": ".?xchat2[\\s\\S]*.conf"
+  },
+  {
+    "description": "S3cmd 配置文件",
+    "secret_type": "Filename",
+    "value": "\\.s3cfg$"
+  },
+  {
+    "description": "T 命令行 Twitter 客户端配置文件",
+    "secret_type": "Filename",
+    "value": "\\.trc$"
+  },
+  {
+    "description": "OpenVPN 客户端配置文件",
+    "secret_type": "Filename",
+    "value": "\\.ovpn$"
+  },
+  {
+    "description": "Ruby On Rails 秘密令牌配置文件",
+    "secret_type": "Filename",
+    "value": "secret_token"
+  },
+  {
+    "description": "OmniAuth  配置文件",
+    "secret_type": "Filename",
+    "value": "\\.omniauth$"
+  },
+  {
+    "description": "Carrierwave  配置文件",
+    "secret_type": "Filename",
+    "value": "carrierwave"
+  },
+  {
+    "description": "客户端 SSH 配置",
+    "secret_type": "Filename",
+    "value": ".?sssh_config[\\s\\S]*"
+  },
+  {
+    "description": "服务器 SSH 配置",
+    "secret_type": "Filename",
+    "value": ".?sshd_config[\\s\\S]*"
+  },
+  {
+    "description": "KeePass 密码管理器数据库文件",
+    "secret_type": "Filename",
+    "value": "\\.kdb$"
+  },
+  {
+    "description": "包含单词：backup",
+    "secret_type": "Filename",
+    "value": "\\.backup$"
+  },
+  {
+    "description": "Jenkins 通 ssh 发步插件",
+    "secret_type": "Filename",
+    "value": "jenkins.plugins.publish_over_ssh[^ ]*.xml"
+  },
+  {
+    "description": "潜在的媒体配置文件",
+    "secret_type": "Filename",
+    "value": "LocalSettings[^ ]*php"
+  },
+  {
+    "description": "Rubygems 凭证文件",
+    "secret_type": "Filename",
+    "value": "\\A\\.?gem/credentials\\z"
+  },
+  {
+    "description": "SSH文件",
+    "secret_type": "Filename",
+    "value": "\\.ssh$"
+  },
+  {
+    "description": "Github Dev API 密钥",
+    "secret_type": "FileContent",
+    "value": "jekyll_github_token[^ ]*"
+  },
+  {
+    "description": "DHCP 服务器配置",
+    "secret_type": "Filename",
+    "value": "dhcpd[^ ]*.conf"
+  },
+  {
+    "description": "Heroku 环境变量",
+    "secret_type": "FileContent",
+    "value": "heroku config:set"
+  },
+  {
+    "description": "Jupyter 配置文件",
+    "secret_type": "Filename",
+    "value": "jupyter[^ ]*config[^ ]*.json"
+  },
+  {
+    "description": "位锁",
+    "secret_type": "Filename",
+    "value": "\\.bek$"
+  },
+  {
+    "description": "位锁",
+    "secret_type": "Filename",
+    "value": "\\.tpm$"
+  },
+  {
+    "description": "位锁",
+    "secret_type": "Filename",
+    "value": "\\.fve$"
+  },
+  {
+    "description": "Java 密钥存储",
+    "secret_type": "Filename",
+    "value": "\\.jks$"
+  },
+  {
+    "description": "OpenSSL .key、Apple .keychain等",
+    "secret_type": "Filename",
+    "value": "\\.key$"
+  },
+  {
+    "description": "密码保险箱",
+    "secret_type": "Filename",
+    "value": "\\.psafe3$"
+  },
+  {
+    "description": "PKCS15 令牌",
+    "secret_type": "Filename",
+    "value": "\\.p15$"
+  },
+  {
+    "description": "mozilla",
+    "secret_type": "Filename",
+    "value": "cert8.db"
+  },
+  {
+    "description": "sql",
+    "secret_type": "Filename",
+    "value": "connect.inc"
+  },
+  {
+    "description": "dbman",
+    "secret_type": "Filename",
+    "value": "default.pass"
+  },
+  {
+    "description": "apache/nginx",
+    "secret_type": "Filename",
+    "value": "htaccess"
+  },
+  {
+    "description": "openssh",
+    "secret_type": "Filename",
+    "value": "id_dsa"
+  },
+  {
+    "description": "openssh",
+    "secret_type": "Filename",
+    "value": "id_ecdsa"
+  },
+  {
+    "description": "openssh",
+    "secret_type": "Filename",
+    "value": "id_ed25519"
+  },
+  {
+    "description": "openssh",
+    "secret_type": "Filename",
+    "value": "id_rsa"
+  },
+  {
+    "description": "mozilla",
+    "secret_type": "Filename",
+    "value": "key3.db"
+  },
+  {
+    "description": "typo3",
+    "secret_type": "Filename",
+    "value": "localconf"
+  },
+  {
+    "description": "wikimedia",
+    "secret_type": "Filename",
+    "value": "localsettings"
+  },
+  {
+    "description": "~/.netrc",
+    "secret_type": "Filename",
+    "value": "\\.netrc$"
+  },
+  {
+    "description": "libpurple otr 指纹",
+    "secret_type": "Filename",
+    "value": "otr.fingerprints"
+  },
+  {
+    "description": "pgp",
+    "secret_type": "Filename",
+    "value": "pgplog"
+  },
+  {
+    "description": "pgp",
+    "secret_type": "Filename",
+    "value": "pgppolicy.xml"
+  },
+  {
+    "description": "pgp",
+    "secret_type": "Filename",
+    "value": "pgpprefs.xml"
+  },
+  {
+    "description": "gnupg",
+    "secret_type": "Filename",
+    "value": "secring\\.gpg"
+  },
+  {
+    "description": "sftp",
+    "secret_type": "Filename",
+    "value": "sftp-config"
+  },
+  {
+    "description": "freebsd",
+    "secret_type": "Filename",
+    "value": "spwd.bd"
+  },
+  {
+    "description": ".net",
+    "secret_type": "Filename",
+    "value": "users.xml"
+  },
+  {
+    "description": "比特币",
+    "secret_type": "Filename",
+    "value": "wallet.dat"
+  },
+  {
+    "description": "私有 SSH 密钥",
+    "secret_type": "Filename",
+    "value": "\\A.*_rsa\\z"
+  },
+  {
+    "description": "私有 SSH 密钥",
+    "secret_type": "Filename",
+    "value": "\\A.*_dsa\\z"
+  },
+  {
+    "description": "私有 SSH 密钥",
+    "secret_type": "Filename",
+    "value": "\\A.*_ed25519\\z"
+  },
+  {
+    "description": "私有 SSH 密钥",
+    "secret_type": "Filename",
+    "value": "\\A.*_ecdsa\\z"
+  },
+  {
+    "description": "SSH 配置文件",
+    "secret_type": "Filename",
+    "value": "\\.?ssh/config\\z"
+  },
+  {
+    "description": "潜在的加密私钥",
+    "secret_type": "Filename",
+    "value": "\\Akey(pair)?\\z"
+  },
+  {
+    "description": "潜在的加密密钥包",
+    "secret_type": "Filename",
+    "value": ".pkcs12$"
+  },
+  {
+    "description": "潜在的加密密钥包",
+    "secret_type": "Filename",
+    "value": ".pfx$"
+  },
+  {
+    "description": "潜在的加密密钥包",
+    "secret_type": "Filename",
+    "value": ".p12$"
+  },
+  {
+    "description": "潜在的加密密钥包",
+    "secret_type": "Filename",
+    "value": ".asc$"
+  },
+  {
+    "description": "Pidgin OTR 密钥文件",
+    "secret_type": "Filename",
+    "value": ".otr.private_key"
+  },
+  {
+    "description": "Shell 命令历史记录",
+    "secret_type": "Filename",
+    "value": "\\A\\.?(bash_|zsh_|z)?history\\z"
+  },
+  {
+    "description": "MySQL 客户端命令历史记录文件",
+    "secret_type": "Filename",
+    "value": "\\A\\.?mysql_history\\z"
+  },
+  {
+    "description": "PostgreSQL 客户端命令历史记录文件",
+    "secret_type": "Filename",
+    "value": "\\A\\.?psql_history\\z"
+  },
+  {
+    "description": "PostgreSQL 密码文件",
+    "secret_type": "Filename",
+    "value": "\\A\\.?pgpass\\z"
+  },
+  {
+    "description": "Ruby IRB 控制台历史记录文件",
+    "secret_type": "Filename",
+    "value": "\\A\\.?irb_history\\z"
+  },
+  {
+    "description": "Pidgin 聊天软件客户端帐户配置文件",
+    "secret_type": "Filename",
+    "value": "\\.?purple\\/accounts\\.xml\\z"
+  },
+  {
+    "description": "Hexchat/XChat IRC 客户端服务器列表配置文件",
+    "secret_type": "Filename",
+    "value": "\\.?xchat2?\\/servlist_?\\.conf\\z"
+  },
+  {
+    "description": "Irssi IRC 客户端配置文件",
+    "secret_type": "Filename",
+    "value": "\\.?irssi\\/config\\z"
+  },
+  {
+    "description": "网络侦查框架Recon-ng API 密钥数据库",
+    "secret_type": "Filename",
+    "value": "\\.?recon-ng\\/keys\\.db\\z"
+  },
+  {
+    "description": "DBeaver SQL 数据库管理器配置文件",
+    "secret_type": "Filename",
+    "value": "\\A\\.?dbeaver-data-sources.xml\\z"
+  },
+  {
+    "description": "Mutt e-mail 客户端配置文件",
+    "secret_type": "Filename",
+    "value": "\\A\\.?muttrc\\z"
+  },
+  {
+    "description": "S3cmd 配置文件",
+    "secret_type": "Filename",
+    "value": "\\A\\.?s3cfg\\z"
+  },
+  {
+    "description": "AWS CLI 凭证文件",
+    "secret_type": "Filename",
+    "value": "\\.?aws/credentials\\z"
+  },
+  {
+    "description": "T command-line Twitter 客户端配置文件",
+    "secret_type": "Filename",
+    "value": "\\A\\.?trc\\z"
+  },
+  {
+    "description": "OpenVPN 客户端配置文件",
+    "secret_type": "Filename",
+    "value": "\\.ovpn$"
+  },
+  {
+    "description": "Gitrob 配置文件",
+    "secret_type": "Filename",
+    "value": "\\A\\.?gitrobrc\\z"
+  },
+  {
+    "description": "Shell 配置文件",
+    "secret_type": "Filename",
+    "value": "\\A\\.?(bash|zsh)rc\\z"
+  },
+  {
+    "description": "Shell profile 配置文件",
+    "secret_type": "Filename",
+    "value": "\\A\\.?(bash_|zsh_)?profile\\z"
+  },
+  {
+    "description": "Shell command alias 配置文件",
+    "secret_type": "Filename",
+    "value": "\\A\\.?(bash_|zsh_)?aliases\\z"
+  },
+  {
+    "description": "潜在的 Ruby On Rails 数据库配置文件",
+    "secret_type": "Filename",
+    "value": "database.yml"
+  },
+  {
+    "description": "PHP 配置文件",
+    "secret_type": "Filename",
+    "value": "\\A(.*)?config(\\.inc)?\\.php\\z"
+  },
+  {
+    "description": "KeePass 密码管理器数据库文件",
+    "secret_type": "Filename",
+    "value": "\\.kdb$"
+  },
+  {
+    "description": "密码密码管理器数据库文件",
+    "secret_type": "Filename",
+    "value": "\\.agilekeychain$"
+  },
+  {
+    "description": "Apple 钥匙串数据库文件",
+    "secret_type": "Filename",
+    "value": "\\.keychain$"
+  },
+  {
+    "description": "GNOME 密钥环数据库文件",
+    "secret_type": "Filename",
+    "value": "\\Akey(store|ring)\\z"
+  },
+  {
+    "description": "网络流量捕获文件",
+    "secret_type": "Filename",
+    "value": "\\.pcap$"
+  },
+  {
+    "description": "SQL 转储文件",
+    "secret_type": "Filename",
+    "value": "\\Asql(dump)?\\z"
+  },
+  {
+    "description": "GnuCash 数据库文件",
+    "secret_type": "Filename",
+    "value": "\\.gnucash$"
+  },
+  {
+    "description": "Jenkins 通过 SSH 插件文件发布文件",
+    "secret_type": "Filename",
+    "value": "jenkins.plugins.publish_over_ssh.BapSshPublisherPlugin.xml"
+  },
+  {
+    "description": "潜在的 Jenkins 凭据文件",
+    "secret_type": "Filename",
+    "value": "credentials.xml$"
+  },
+  {
+    "description": "Apache htpasswd 文件",
+    "secret_type": "Filename",
+    "value": "\\A\\.?htpasswd\\z"
+  },
+  {
+    "description": "自动登录配置文件",
+    "secret_type": "Filename",
+    "value": "\\A(\\.|_)?netrc\\z"
+  },
+  {
+    "description": "KDE 钱包管理器数据库文件",
+    "secret_type": "Filename",
+    "value": "\\.kwallet$"
+  },
+  {
+    "description": "潜在的媒体配置文件",
+    "secret_type": "Filename",
+    "value": "LocalSettings.php"
+  },
+  {
+    "description": "Tunnelblick VPN 配置文件",
+    "secret_type": "Filename",
+    "value": "\\.tblk$"
+  },
+  {
+    "description": "Rubygems 凭证文件",
+    "secret_type": "Filename",
+    "value": "\\.?gem/credentials\\z"
+  },
+  {
+    "description": "潜在的 MSBuild 发布配置文件",
+    "secret_type": "Filename",
+    "value": "\\A*\\.pubxml(\\.user)?\\z"
+  },
+  {
+    "description": "专业版 MySQL 数据库管理器书签文件",
+    "secret_type": "Filename",
+    "value": "Favorites.plist"
+  },
+  {
+    "description": "Little Snitch 防火墙配置文件",
+    "secret_type": "Filename",
+    "value": "configuration.user.xpl"
+  },
+  {
+    "description": "每日日志文件",
+    "secret_type": "Filename",
+    "value": "\\.dayone$"
+  },
+  {
+    "description": "Tugboat DigitalOcean 管理工具配置",
+    "secret_type": "Filename",
+    "value": "\\A\\.?tugboat\\z"
+  },
+  {
+    "description": "git-credential-store 帮助程序凭据文件",
+    "secret_type": "Filename",
+    "value": "\\A\\.?git-credentials\\z"
+  },
+  {
+    "description": "Git 配置文件",
+    "secret_type": "Filename",
+    "value": "\\A\\.?gitconfig\\z"
+  },
+  {
+    "description": "Chef Knife 配置文件",
+    "secret_type": "Filename",
+    "value": "knife.rb"
+  },
+  {
+    "description": "Chef 私钥",
+    "secret_type": "Filename",
+    "value": "\\.?chef/(.*)\\.pem\\z"
+  },
+  {
+    "description": "cPanel 备份 ProFTPd 凭据文件",
+    "secret_type": "Filename",
+    "value": "proftpdpasswd"
+  },
+  {
+    "description": "Robomongo MongoDB管理器配置文件",
+    "secret_type": "Filename",
+    "value": "robomongo.json"
+  },
+  {
+    "description": "FileZilla FTP 配置文件",
+    "secret_type": "Filename",
+    "value": "filezilla.xml"
+  },
+  {
+    "description": "FileZilla FTP 最近的服务器文件",
+    "secret_type": "Filename",
+    "value": "recentservers.xml"
+  },
+  {
+    "description": "Ventrilo 服务器配置文件",
+    "secret_type": "Filename",
+    "value": "ventrilo_srv.ini"
+  },
+  {
+    "description": "Docker 配置文件",
+    "secret_type": "Filename",
+    "value": "\\A\\.?dockercfg\\z"
+  },
+  {
+    "description": "NPM 配置文件",
+    "secret_type": "Filename",
+    "value": "\\A\\.?npmrc\\z"
+  },
+  {
+    "description": "Terraform 变量配置文件",
+    "secret_type": "Filename",
+    "value": "terraform.tfvars"
+  },
+  {
+    "description": "环境配置文件",
+    "secret_type": "Filename",
+    "value": "\\A\\.?env\\z"
+  },
+  {
+    "description": "秘密",
+    "secret_type": "FileContent",
+    "value": "(\\n[a-z0-9_\\-]+[:;\\|][a-z0-9_\\-]+){10,}"
+  },
+  {
+    "description": "接口密钥",
+    "secret_type": "FileContent",
+    "value": "(api|secret)key\\s*[\\=]+"
+  },
+  {
+    "description": "日历",
+    "secret_type": "FileContent",
+    "value": "BEGIN:VCALENDAR"
+  },
+  {
+    "description": "密钥",
+    "secret_type": "FileContent",
+    "value": "\\s*[a-z0-9\\-_]*secret[key]+\\s*[:=]+\\s*[\"']\\S+[\"']"
+  },
+  {
+    "description": "密码",
+    "secret_type": "FileContent",
+    "value": "^[a-z0-9]+:[a-z0-9]{13}$"
+  },
+  {
+    "description": "秘密查找器",
+    "secret_type": "FileContent",
+    "value": "secret\\s*[\\=]+"
+  },
+  {
+    "description": "authorized_key",
+    "secret_type": "Filename",
+    "value": "authorized_key"
+  }
+]

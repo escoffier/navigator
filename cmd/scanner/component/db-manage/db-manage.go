@@ -3,8 +3,6 @@ package dbManage
 import (
 	"context"
 	"fmt"
-	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/task"
-	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"mime/multipart"
 	"os"
 	"path/filepath"
@@ -13,6 +11,9 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/task"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/imagemeta"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/imagescan"
@@ -182,6 +183,7 @@ func (v *DBManage) UpdateAviraDB(ctx *gin.Context, dbName *string, mata *scanner
 
 	return nil
 }
+
 func (v *DBManage) UpdateMaliciousDB(ctx *gin.Context, header *multipart.FileHeader, updater string, ops string) error {
 	// if v.upSrv.MaliciousLock.TryLock() {
 	// 	defer v.upSrv.MaliciousLock.Unlock()
@@ -207,7 +209,7 @@ func (v *DBManage) UpdateMaliciousDB(ctx *gin.Context, header *multipart.FileHea
 	oldVer := scannermodel.MaliciousDBVersion{}
 	dbName := scannermodel.DefaultDBName
 	defer v.logUpdateHistory(ctx, updater, &dbName, ops, err)
-	// add context
+
 	toDB := scannermodel.ScanDBVersion{KeyPath: scannermodel.MainScannerObject} // scannermodel
 	var reqType pb.ImageSecReqType
 	if ops == scannermodel.ClamavDB {
@@ -235,12 +237,14 @@ func (v *DBManage) UpdateMaliciousDB(ctx *gin.Context, header *multipart.FileHea
 		return fmt.Errorf("ops传参错误")
 	}
 
+	// 这一步是更新镜像中文件所保存的 version 信息
 	err = v.upSrv.UpdateMaliciousVersion(oldVer, ops)
 	if err != nil {
 		logging.Get().Err(err).Msgf("update version to file error")
 		err = fmt.Errorf("更新版本文件失败 %v", err)
 		return err
 	}
+	// 保存数据库
 	err = v.dal.UpdateVersion(ctx, toDB, ops)
 	if err != nil {
 		logging.Get().Err(err).Msgf("update version db error")
@@ -491,7 +495,7 @@ func (v *DBManage) GetDBVersion(ctx *gin.Context, search string) ([]scannermodel
 	if len(ver) < 1 {
 		return nil, fmt.Errorf("未查询到version数据")
 	}
-	res := []scannermodel.VersionResp{}
+	res := make([]scannermodel.VersionResp, 0)
 	trivyResp := scannermodel.VersionResp{CompressVersion: ver[0].VulnDBVersion.ComPressDBVersion,
 		UpdateTime: ver[0].VulnDBVersion.UpdateTime, DBType: scannermodel.TrivyDB}
 	clamavResp := scannermodel.VersionResp{CompressVersion: ver[0].ClamavDBVersion.ComPressDBVersion,
@@ -521,7 +525,7 @@ func (v *DBManage) GetHistory(ctx *gin.Context, search string, dbType string) ([
 		logging.Get().Err(err).Msg("SearchVersionHistory error")
 		return nil, err
 	}
-	res := []scannermodel.HistoryResp{}
+	res := make([]scannermodel.HistoryResp, 0)
 	for k := range his {
 		res = append(res, scannermodel.HistoryResp{CompressVersion: his[k].ComPressDBVersion, UpdateTime: his[k].UpdatedAt,
 			Updater: his[k].Updater, DBType: his[k].DBType})

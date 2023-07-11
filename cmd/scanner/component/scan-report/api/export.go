@@ -161,7 +161,7 @@ func (s *ExportApiSrv) CreateImageExportTask(ctx *gin.Context) {
 func (s *ExportApiSrv) CreateVulnExportTask(ctx *gin.Context) {
 
 	type VulnExportParma struct {
-		UniqueVuln string `json:"uniqueVuln"`
+		UniqueID   string `json:"uniqueID"`
 		Name       string `json:"name"`
 		PkgName    string `json:"pkgName"`
 		PkgVersion string `json:"pkgVersion"`
@@ -176,9 +176,9 @@ func (s *ExportApiSrv) CreateVulnExportTask(ctx *gin.Context) {
 		response.JSONError(ctx, err)
 		return
 	}
-	if data.Parameter.UniqueVuln == "" {
-		response.JSONError(ctx, fmt.Errorf("no UniqueVuln"))
-		return
+	if data.Parameter.UniqueID != "" {
+		vu := data.Parameter
+		data.Parameter.UniqueID = fmt.Sprintf(consts.UniqueVulnFamat, vu.Name, vu.PkgName, vu.PkgVersion)
 	}
 
 	bys, err := json.Marshal(data.Parameter)
@@ -195,6 +195,7 @@ func (s *ExportApiSrv) CreateVulnExportTask(ctx *gin.Context) {
 		Creator:     data.Creator,
 		CreatedAt:   now,
 		TaskType:    model.ExportExcel, // 漏洞只能是导出excel
+		Lang:        util.GetLanguage(ctx),
 	}
 
 	if err := s.exportSrv.CreateExportTask(ctx, task); err != nil {

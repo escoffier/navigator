@@ -8,7 +8,6 @@ import (
 )
 
 type Dequeue interface {
-	Type() string
 	GenSubtaskChan(ctx context.Context) chan imagesecTypes.ScanSubTask
 	GenUpdateSubtaskChan(ctx context.Context) chan UpdateSubTask
 }
