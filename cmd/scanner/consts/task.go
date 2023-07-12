@@ -71,6 +71,7 @@ const (
 	ErrScanInternal                  // "程序内部出错"
 	ErrExceededRetryCount            // "超过重试次数"
 	ErrRegRemoved                    // "仓库已删除"
+	ErrImageExpire                   // 镜像过于老，不扫描
 )
 
 const (
