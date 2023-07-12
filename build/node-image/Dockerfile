@@ -4,7 +4,7 @@ RUN sed -i "s!archive.ubuntu.com/!mirrors.aliyun.com/!g" /etc/apt/sources.list \
     && sed -i "s!ports.ubuntu.com/!mirrors.aliyun.com/!g" /etc/apt/sources.list \
     && apt-get update -y \
     && apt-get full-upgrade -y \
-    && apt-get install -y libclamav-dev iptables language-pack-zh-han* \
+    && apt-get install -y libclamav-dev libgpgme-dev libdevmapper1.02.1 iptables language-pack-zh-han* \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
