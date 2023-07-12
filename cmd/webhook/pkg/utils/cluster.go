@@ -4,13 +4,14 @@ import (
 	"context"
 	"crypto/tls"
 	"encoding/json"
+	"io/ioutil"
+	"net/http"
+	"time"
+
 	"github.com/avast/retry-go"
 	"github.com/sirupsen/logrus"
 	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
-	"io/ioutil"
-	"net/http"
-	"time"
 )
 
 type TensorCluster struct {
@@ -37,6 +38,7 @@ type DockerConfigEntry struct {
 	Username string
 	Password string
 	Email    string
+	Auth     string
 }
 
 func GetClusterInfo(url string) *TensorCluster {

@@ -1,6 +1,7 @@
 package imagetrust
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"testing"
 )
@@ -19,4 +20,13 @@ func TestName(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Log(string(data))
+}
+
+func TestBase64(t *testing.T) {
+	auth := "devops:Hrbr12@Tensor.*#)"
+	encoder := base64.StdEncoding
+	data, err := encoder.DecodeString("ZGV2b3BzOkhyYnIxMkBUZW5zb3IuKiMp")
+	if err != nil || string(data) != auth {
+		t.Fatal(err)
+	}
 }

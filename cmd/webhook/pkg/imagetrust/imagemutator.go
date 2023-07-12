@@ -3,16 +3,18 @@ package imagetrust
 import (
 	"context"
 	"crypto/tls"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
-	"gitlab.com/security-rd/go-pkg/logging"
-	"gopkg.in/yaml.v2"
-	"k8s.io/client-go/kubernetes"
 	"net/http"
 	"net/url"
 	"os"
 	"strings"
+
+	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
+	"gitlab.com/security-rd/go-pkg/logging"
+	"gopkg.in/yaml.v2"
+	"k8s.io/client-go/kubernetes"
 
 	"github.com/pkg/errors"
 	"gitlab.com/piccolo_su/vegeta/cmd/webhook/pkg/processors"
@@ -265,9 +267,27 @@ func (m *Mutator) getSecrets(clusterKey, namespace, image string, kubeSecrets []
 
 		for u, config := range dockerConfig.Auths {
 			if u == imageUrl {
-				return &utils.ImageRepoSecret{
-					User:     config.Username,
-					Password: config.Password,
+				if config.Auth != "" {
+					encoder := base64.StdEncoding
+					data, err := encoder.DecodeString(config.Auth)
+					if err != nil {
+						logging.Get().Warn().Err(err).Msgf("decode docker auth: [%s] err", config.Auth)
+						continue
+					}
+					auth := strings.SplitN(string(data), ":", 2)
+					if len(auth) != 2 {
+						logging.Get().Warn().Msgf("invalid docker auth %s", config.Auth)
+						continue
+					}
+					return &utils.ImageRepoSecret{
+						User:     auth[0],
+						Password: auth[1],
+					}
+				} else {
+					return &utils.ImageRepoSecret{
+						User:     config.Username,
+						Password: config.Password,
+					}
 				}
 			}
 		}
