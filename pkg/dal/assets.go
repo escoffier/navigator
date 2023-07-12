@@ -2840,16 +2840,23 @@ func (q *RawContainersQueryOption) WithPrefixColumnQuery(column, query string) *
 // 模糊匹配：node_name, namespace, pod_name, name, resource_name
 // 范围匹配：updated_at
 func (q *RawContainersQueryOption) OkForRedis() bool {
-	if len(q.whereInCondition) > 1 {
+	if len(q.whereInCondition) != 1 {
 		return false
 	}
-	if len(q.whereInCondition) == 1 {
-		if _, ok := q.whereInCondition["status"]; !ok {
+	// 只允许status<5的查询进入redis
+	list, ok := q.whereInCondition["status"]
+	if !ok {
+		return false
+	}
+	ints := list.([]int)
+	for _, status := range ints {
+		if status >= assets.Exited {
 			return false
 		}
 	}
+
 	for f := range q.whereEqCondition {
-		if f != "status" && f != "k8s_managed" && f != "node_name" && f != "namespace" && f != "pod_name" && f != "name" && f != "resource_name" && f != "cluster_key" {
+		if f != "k8s_managed" && f != "node_name" && f != "namespace" && f != "pod_name" && f != "name" && f != "resource_name" && f != "cluster_key" {
 			return false
 		}
 	}
@@ -2939,8 +2946,7 @@ func (q *RawContainersQueryOption) RedisRawQuery() string {
 					builder.WriteByte('|')
 				}
 			}
-			//builder.WriteRune('}')
-			builder.WriteString("} ")
+			builder.WriteString("}")
 		}
 	}
 	return strings.TrimSpace(builder.String())
@@ -2987,9 +2993,6 @@ func CountRawContainer(ctx context.Context, rdb *gorm.DB, queryOptions *RawConta
 			db = db.Where(queryOptions.whereEqCondition)
 		}
 		status, statusCondition := queryOptions.whereInCondition["status"]
-		if !statusCondition {
-			db = db.Where("status < ?", assets.Exited)
-		}
 		if len(queryOptions.whereInCondition) > 0 {
 			if statusCondition && status == assets.All {
 				delete(queryOptions.whereInCondition, "status")
@@ -3086,9 +3089,6 @@ func GetRawContainers(ctx context.Context, rdb *gorm.DB, queryOptions *RawContai
 			db.Where(queryOptions.whereEqCondition)
 		}
 		status, statusCondition := queryOptions.whereInCondition["status"]
-		if !statusCondition {
-			db = db.Where("status < ?", assets.Exited)
-		}
 		if len(queryOptions.whereInCondition) > 0 {
 			if statusCondition && status == assets.All {
 				delete(queryOptions.whereInCondition, "status")

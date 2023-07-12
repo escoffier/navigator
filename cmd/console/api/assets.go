@@ -2337,6 +2337,8 @@ func (api *api) countRawContainers() http.HandlerFunc {
 		if nodeName != "" {
 			query = query.WithNodeName(nodeName)
 		}
+		//  添加status条件
+		query.WithInConditionCustom("status", []int{assetsPkg.Running, assetsPkg.Created, assetsPkg.Restarting, assetsPkg.Removing, assetsPkg.Paused})
 
 		totalCnt, err := resSvc.CountRawContainer(ctx, query)
 		if err != nil {
