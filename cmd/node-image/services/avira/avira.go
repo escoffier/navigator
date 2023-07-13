@@ -142,8 +142,6 @@ func (s *SavServer) handleConfigModifiedEvent(server *avira.SavServer, event typ
 	}
 
 	if !s.deepScanEnabled() {
-		// 等待所有的任务执行完成
-		s.scanTaskWg.Wait()
 
 		if err := server.KillServer(); err != nil {
 			logging.Get().Err(err).Msg("do not stop avira server")
