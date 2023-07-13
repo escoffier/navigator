@@ -424,7 +424,6 @@ func Run(ctx context.Context) error {
 		}
 
 		go func() {
-			defer wg.Done()
 			defer func() {
 				if r := recover(); r != nil {
 					logging.Get().Error().Msgf("Panic: %v. Stack: %s", r, debug.Stack())
