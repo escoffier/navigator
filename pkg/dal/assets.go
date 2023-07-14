@@ -3295,7 +3295,7 @@ func CleanUpRawContainerWithRedis(ctx context.Context, rdb *gorm.DB, redisClient
 		keys := make([]string, 0, len(result))
 
 		for _, doc := range result {
-			keys = append(keys, cast.ToString(doc.Properties["id"]))
+			keys = append(keys, cast.ToString(doc.Id))
 		}
 
 		err = rdb.WithContext(oneCtx).Transaction(func(tx *gorm.DB) error {

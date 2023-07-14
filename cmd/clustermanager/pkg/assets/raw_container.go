@@ -119,7 +119,7 @@ func (cb *RawContainerCallBack) doOnRawContainerEvent(ctx context.Context, e con
 			deleteErr = dal.DeleteRawContainer(tctx, cb.parent.rdb.Get(), e.container.ClusterKey, e.container.ContainerID)
 		}
 		if deleteErr != nil {
-			logging.Get().Err(deleteErr).Msg("delete raw container rel in rdb error")
+			logging.Get().Err(deleteErr).Msg("delete raw container rel in rdb error,containerId:" + e.container.ContainerID)
 		}
 		deleteErr = dal.DeleteRawContainerSyncReason(tctx, cb.parent.rdb.Get(), e.container.ClusterKey, e.container.Namespace, e.container.ContainerID)
 		if deleteErr != nil {
@@ -136,7 +136,7 @@ func (cb *RawContainerCallBack) doOnRawContainerEvent(ctx context.Context, e con
 		}
 
 		if upsertErr != nil {
-			logging.Get().Err(upsertErr).Msg("upsert raw container rel in rdb error")
+			logging.Get().Err(upsertErr).Msg("upsert raw container rel in rdb error,containerId:" + e.container.ContainerID)
 		}
 	}
 	return nil
