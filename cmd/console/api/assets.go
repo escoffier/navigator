@@ -2302,6 +2302,10 @@ func (api *api) getRawContainer() http.HandlerFunc {
 		if len(containers) > 0 {
 			container = containers[0]
 		}
+		// 不展示podName
+		if container.ResourceKind == "Pod" {
+			container.PodName = "-"
+		}
 		response.Ok(w, func(ev *response.HTTPEnvelope) {
 			data, err := json.Marshal(container)
 			if err != nil {
@@ -2434,14 +2438,15 @@ func (api *api) getNamespace() http.HandlerFunc {
 // @Router /api/v2/platform/assets/cluster/{cluster_key}/namespace/{namespace}/kind/{kind}/resources/{name}
 func (api *api) getResource() http.HandlerFunc {
 	type resource struct {
-		Cluster   string   `json:"cluster"`
-		Namespace string   `json:"namespace"`
-		Kind      string   `json:"kind"`
-		Name      string   `json:"name"`
-		UID       string   `json:"uid"`
-		Alias     string   `json:"alias"`
-		Managers  []string `json:"managers"`
-		Authority string   `json:"authority"`
+		Cluster     string   `json:"cluster"`
+		Namespace   string   `json:"namespace"`
+		Kind        string   `json:"kind"`
+		Name        string   `json:"name"`
+		UID         string   `json:"uid"`
+		Alias       string   `json:"alias"`
+		Managers    []string `json:"managers"`
+		Authority   string   `json:"authority"`
+		CreatedTime string   `json:"createdTime"`
 	}
 	modelToResource := func(rm *model.TensorResource) *resource {
 		r := new(resource)
@@ -2453,6 +2458,7 @@ func (api *api) getResource() http.HandlerFunc {
 		r.Alias = rm.Alias
 		r.Managers = rm.Managers
 		r.Authority = rm.Authority
+		r.CreatedTime = rm.CreatedAt.Format("2006-01-02 15:04:05")
 		return r
 	}
 
