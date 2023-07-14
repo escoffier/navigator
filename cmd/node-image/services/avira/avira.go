@@ -38,10 +38,10 @@ func init() {
 		nodeImageConfigLock: sync.RWMutex{},
 	})
 	if err != nil {
-		logging.Get().Err(err).Msg("failed to register avira avira server service")
+		logging.Get().Err(err).Msg("failed to register avira server service")
 		return
 	}
-	logging.Get().Info().Msg("register avira avira server service ok")
+	logging.Get().Info().Msg("register avira server service ok")
 }
 
 func (s *SavServer) Type() consts.ServiceType {

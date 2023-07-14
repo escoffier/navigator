@@ -192,8 +192,9 @@ func (s *ImageInfoAPI) SearchImageWithScan(ctx *gin.Context) {
 		return
 	}
 	body.ImageFromType = util.GetKeywordFromQuery(ctx, "imageFromType")
-
 	body.Filter = model.GetFilterWithDefaultValue(ctx)
+	// trick 的做法：按 风险-安全-未知这个顺序排序
+	body.Filter = body.Filter.SetSortFiled("flag").SetSortDesc()
 
 	images, cnt, err := s.getImageSrv(ctx).ListImageWithScanInfo(ctx, body)
 	if err != nil {

@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	vulnmatch "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/vuln-match"
+	vulnMatch "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/vuln-match"
 
 	"github.com/boltdb/bolt"
 	"github.com/segmentio/kafka-go"
@@ -22,7 +22,7 @@ import (
 	imagesecStore "gitlab.com/piccolo_su/vegeta/cmd/scanner/store/imagesec"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	imagesecModel "gitlab.com/piccolo_su/vegeta/pkg/model/imagesec"
-	scannermodel "gitlab.com/piccolo_su/vegeta/pkg/model/scanner-model"
+	scannerModel "gitlab.com/piccolo_su/vegeta/pkg/model/scanner-model"
 	imagesecTypes "gitlab.com/piccolo_su/vegeta/pkg/types/imagesec"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 )
@@ -35,7 +35,7 @@ type ScanResultReportSrv struct {
 	versionDal      imagesecStore.ScanDbMetaDal
 	mqReader        mq.Reader
 	pvcPath         string
-	vulnDBVersion   *scannermodel.VulnDBVersion
+	vulnDBVersion   *scannerModel.VulnDBVersion
 	availableBoltDB *BoltDB
 	boltDBChan      chan *BoltDB
 	imageDetectSrv  ImageDetectTaskService
@@ -58,15 +58,17 @@ type BoltDB struct {
 
 func (s *ScanResultReportSrv) matchVuln(res *imagesecTypes.ScanResult) (report.Results, error) {
 	// match vuln by image artifact
-	matcher, err := vulnmatch.NewMatcher(vulnmatch.WithCachePath(vulnmatch.DefaultCachePath))
+	matcher, err := vulnMatch.NewMatcher(vulnMatch.WithCachePath(vulnMatch.DefaultCachePath))
 	if err != nil {
-		logging.Get().Err(err).Int64("subtaskID", res.SubTaskID).Int64("taskID", res.TaskID).Msg("failed to create vuln matcher")
+		logging.Get().Err(err).Int64("subtaskID", res.SubTaskID).Int64("taskID", res.TaskID).
+			Msg("CreateScanResult failed to create vuln matcher")
 		return nil, err
 	}
 
 	err = matcher.MatchVulnerability(res.OriginArtifact)
 	if err != nil {
-		logging.Get().Err(err).Int64("subtaskID", res.SubTaskID).Int64("taskID", res.TaskID).Msg("failed to match vuln")
+		logging.Get().Err(err).Int64("subtaskID", res.SubTaskID).Int64("taskID", res.TaskID).
+			Msg("CreateScanResult failed to match vuln")
 		return nil, err
 	}
 	return matcher.Results(), nil
@@ -76,7 +78,8 @@ func (s *ScanResultReportSrv) CreateScanResult(ctx context.Context, data imagese
 
 	image, err := s.GetImageInfo(ctx, data.TaskID, data.SubTaskID)
 	if err != nil {
-		logging.Get().Err(err).Int64("subtaskID", data.SubTaskID).Int64("taskID", data.TaskID).Msg("GetImageInfo")
+		logging.Get().Err(err).Int64("subtaskID", data.SubTaskID).Int64("taskID", data.TaskID).
+			Msg("CreateScanResult GetImageInfo")
 		return err
 	}
 
@@ -276,6 +279,10 @@ func (s *ScanResultReportSrv) CreatePkgVuln(ctx context.Context, data imagesecTy
 		return err
 	}
 
+	logging.Get().Debug().Interface("matchVulnResult", results).Msg("matchVuln")
+
+	statisticsMathRes(results)
+
 	pkgs := make([]*imagesecModel.Pkg, 0)
 	pkgToImage := make([]*imagesecModel.PkgToImage, 0)
 	vuln := make([]*imagesecModel.Vuln, 0)
@@ -459,8 +466,8 @@ func (s *ScanResultReportSrv) GenBoltDBChan(ctx context.Context) chan *BoltDB {
 				s.availableBoltDB == nil {
 
 				MustMkEmptyDir(filepath.Join(s.pvcPath, consts.NodeVulnDir))
-				// MustCopyFile(filepath.Join(global.PVCPath, scannermodel.TrivyDBPath), filepath.Join(s.pvcPath, consts.NodeTrivyDBPath))
-				MustCopyFile(filepath.Join(global.PVCPath, scannermodel.CustomDBPath), filepath.Join(s.pvcPath, consts.NodeCustomDBPath))
+				// MustCopyFile(filepath.Join(global.PVCPath, scannerModel.TrivyDBPath), filepath.Join(s.pvcPath, consts.NodeTrivyDBPath))
+				MustCopyFile(filepath.Join(global.PVCPath, scannerModel.CustomDBPath), filepath.Join(s.pvcPath, consts.NodeCustomDBPath))
 
 				s.vulnDBVersion = &global.VulnDBVersion.VulnVersion
 
@@ -651,24 +658,24 @@ func (s *ScanResultReportSrv) CreateWebshell(ctx context.Context, data imagesecT
 func (s *ScanResultReportSrv) ReceiveNodeReport(ctx context.Context) error {
 
 	if os.Getenv("IS_MAIN_CLUSTER") != consts.TrueString {
-		logging.Get().Info().Msg("ScanResultReportSrv scanner in slave cluster,ignore handle kafka msg")
+		logging.Get().Info().Msg("CreateScanResult scanner in slave cluster,ignore handle kafka msg")
 		return nil
 	}
 
-	logging.Get().Info().Msg("ScanResultReportSrv scanner in main cluster,ready to handle kafka msg")
+	logging.Get().Info().Msg("CreateScanResult scanner in main cluster,ready to handle kafka msg")
 
 	ch := make(chan struct{})
 	go func() {
 		if r := recover(); r != nil {
-			logging.Get().Error().Stack().Msg("ScanResultReportSrv")
+			logging.Get().Error().Stack().Msg("CreateScanResult")
 		}
 
 		if err := s.ReceiveMsg(ch); err != nil {
-			logging.Get().Err(err).Msg("ScanResultReportSrv")
+			logging.Get().Err(err).Msg("CreateScanResult")
 		}
 	}()
 
-	logging.Get().Error().Msg("ScanResultReportSrv receive kafka started successfully")
+	logging.Get().Error().Msg("CreateScanResult receive kafka started successfully")
 
 	return nil
 }
@@ -677,13 +684,13 @@ func (s *ScanResultReportSrv) ReceiveImageScanResult(ctx context.Context, msg ka
 	var data imagesecTypes.ScanResult
 	err := json.Unmarshal(msg.Value, &data)
 	if err != nil {
-		logging.Get().Err(err).Str("data", string(msg.Value)).Msg("failed to unmarshal scan image result msg")
+		logging.Get().Err(err).Str("data", string(msg.Value)).Msg("CreateScanResult failed to unmarshal scan image result msg")
 		return err
 	}
 
-	logging.Get().Debug().Int64("subtaskID", data.SubTaskID).Interface("data", data).Msg("receive image scan result report")
+	logging.Get().Debug().Int64("subtaskID", data.SubTaskID).Interface("data", data).Msg("CreateScanResult receive image scan result report")
 	logging.Get().Info().Int64("subtaskID", data.SubTaskID).Int64("taskID", data.TaskID).Str("msg", data.Msg).
-		Msg("receive image scan result report")
+		Msg("CreateScanResult receive image scan result report")
 
 	if err := s.CreateScanResult(ctx, data); err != nil {
 		logging.Get().Err(err).Msg("CreateScanResult")
@@ -751,6 +758,16 @@ func (s *ScanResultReportSrv) AddDetailVuln(ctx context.Context, vuln *imagesecM
 		vuln.DescriptionZh = cnvdData[0].Description
 	}
 	logging.Get().Debug().Str("vulnID", vuln.Name).Msg("ScanResultReportSrv AddDetailVuln")
+}
+
+func statisticsMathRes(data report.Results) (int, int) {
+	vulnCnt, pkgCnt := 0, 0
+	for i := range data {
+		pkgCnt += len(data[i].Packages)
+		vulnCnt += len(data[i].Vulnerabilities)
+	}
+	logging.Get().Info().Int("vulnCnt", vulnCnt).Int("pkgCnt", pkgCnt).Msg("mathVuln statisticsMathRes")
+	return vulnCnt, pkgCnt
 }
 
 func NewScanResultReportSrv(
