@@ -50,6 +50,9 @@ func NewScanTaskSrv(
 
 func (s *ScanTaskSrv) CreateImageScanTask(ctx context.Context, imageSearchParam imagesecModel.ImageListParam,
 	taskInfo imagesecModel.ImageScanTask) error {
+
+	taskInfo.ImageListParam = imageSearchParam
+
 	imageSearchParam.Deserialize()
 	if err := imageSearchParam.Check(); err != nil {
 		return err
@@ -708,11 +711,11 @@ func (s *ScanTaskSrv) UpdateSubTaskTerminate(ctx context.Context, taskID int64) 
 }
 
 func (s *ScanTaskSrv) CreateSubtask(ctx context.Context, taskID int64, imageSearchParam imagesecModel.ImageListParam) error {
+
 	var startID int64
+	imageSearchParam.Filter = model.EmptyFilter().SetLimit(consts.DefaultLimit).SetSortAsc().SetSortFiledByID()
 	for {
 		imageSearchParam.StartID = startID
-		imageSearchParam.Filter = model.EmptyFilter().SetLimit(consts.DefaultLimit).SetSortAsc().SetSortFiledByID()
-
 		subtasks := make([]*imagesecModel.ImageScanSubTask, 0)
 		images, _, err := s.imageSrv.ListImageWithScanInfo(ctx, imageSearchParam)
 		if err != nil {

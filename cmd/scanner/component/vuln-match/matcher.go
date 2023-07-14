@@ -3,12 +3,14 @@ package vulnmatch
 import (
 	"context"
 	"fmt"
-	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component"
-	"gitlab.com/security-rd/go-pkg/logging"
 	"os"
+
+	"gitlab.com/security-rd/go-pkg/logging"
 	ftypes "scm.tensorsecurity.cn/tensorsecurity-rd/fanal/types"
 	"scm.tensorsecurity.cn/tensorsecurity-rd/trivy/pkg/commands/artifact"
 	"scm.tensorsecurity.cn/tensorsecurity-rd/trivy/pkg/report"
+
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component"
 )
 
 type Matcher struct {
@@ -38,7 +40,7 @@ func (m *Matcher) MatchVulnerability(artifactDetail ftypes.ArtifactDetail) error
 	}
 
 	m.res = rp
-	logging.Get().Trace().Interface("vulns", m.res).Msg("match result")
+	logging.Get().Debug().Interface("vulns", m.res).Msg("match result")
 
 	return nil
 }

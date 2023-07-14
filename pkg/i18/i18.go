@@ -38,6 +38,12 @@ func (vi *ErrI18) Error() string {
 	if vi.Err != nil {
 		return vi.Err.Error()
 	}
+	if vi.En != "" {
+		return vi.En
+	}
+	if vi.Ch != "" {
+		return vi.Ch
+	}
 	return ""
 }
 

@@ -252,18 +252,17 @@ func (dal *ImageMetaDao) SearchImage(ctx context.Context, param imagesec.NodeIma
 		sub2 := dal.db.Get().WithContext(ctx).Table(new(imagesec.WebshellToImage).TableName()).Select("image_unique_id").Where("unique_target IN ( ? )", sub1)
 		db = db.Where("unique_id IN ( ? )", sub2)
 	}
+	if param.StartID > 0 {
+		db = db.Where("id > ?", param.StartID)
+	}
 
+	if param.LessHeartbeat > 0 {
+		db = db.Where("heartbeat < ?", param.LessHeartbeat)
+	}
 	// 先查总数
 	var cnt int64
 	if err := db.Count(&cnt).Error; err != nil {
 		return nil, 0, err
-	}
-
-	if param.StartID > 0 {
-		db = db.Where("id > ?", param.StartID)
-	}
-	if param.LessHeartbeat > 0 {
-		db = db.Where("heartbeat < ?", param.LessHeartbeat)
 	}
 
 	if param.Filter != nil && param.Filter.Offset >= consts.DefaultLimit {

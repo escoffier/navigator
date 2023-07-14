@@ -345,8 +345,7 @@ func (sp *ImageListParam) deserialize2() {
 	sp.OnlineFlag = sp.GenOnlineFlag()
 	sp.ImageKeyword = strings.TrimSpace(sp.ImageKeyword)
 	sp.NodeKeyword = strings.TrimSpace(sp.NodeKeyword)
-	// trick 的做法：按 风险-安全-未知这个顺序排序
-	sp.Filter = sp.Filter.SetSortFiled("flag").SetSortDesc()
+
 }
 
 // 镜像属性
