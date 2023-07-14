@@ -2,6 +2,7 @@ package mozart
 
 import (
 	"context"
+	"fmt"
 	"math/rand"
 	"strconv"
 	"sync"
@@ -222,10 +223,13 @@ func check(regoQ rego.PreparedEvalQuery, sessionID string) (bool, error) {
 			appendC := make(map[string]interface{})
 			_ = json.Unmarshal([]byte(sc), &appendC)
 			cache.Lock.Lock()
+			defer cache.Lock.Unlock()
+			if _, ok := cache.Sessions[sessionID]; !ok {
+				return false, fmt.Errorf("session expires: %s", sessionID)
+			}
 			for k, v := range appendC {
 				cache.Sessions[sessionID][k] = v
 			}
-			cache.Lock.Unlock()
 		}
 	} else {
 		checkResult = rs[0].Expressions[0].Value.(bool)
@@ -248,6 +252,10 @@ func exec(regoQ rego.PreparedEvalQuery, sessionID string) error {
 	}
 
 	cache.Lock.Lock()
+	defer cache.Lock.Unlock()
+	if _, ok := cache.Sessions[sessionID]; !ok {
+		return fmt.Errorf("session expires: %s", sessionID)
+	}
 	for k, v := range rs[0].Bindings {
 		switch v.(type) {
 		case map[string]interface{}:
@@ -256,7 +264,6 @@ func exec(regoQ rego.PreparedEvalQuery, sessionID string) error {
 			cache.Sessions[sessionID][k] = v
 		}
 	}
-	cache.Lock.Unlock()
 	return nil
 }
 
