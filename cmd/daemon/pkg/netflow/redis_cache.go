@@ -80,6 +80,7 @@ func redisSaveOrUpdate(redisClient *redis.Client, addrType int, netflow *model.T
 		netflow.DstPid = net.DstPid
 		netflow.DstOwnerName = net.DstOwnerName
 		netflow.DstPodName = net.DstPodName
+		netflow.DstPodUid = net.DstPodUid
 		netflow.DstNamespace = net.DstNamespace
 		netflow.DstKind = net.DstKind
 		netflow.DstCluster = net.DstCluster
@@ -90,6 +91,7 @@ func redisSaveOrUpdate(redisClient *redis.Client, addrType int, netflow *model.T
 		netflow.SrcPid = net.SrcPid
 		netflow.SrcOwnerName = net.SrcOwnerName
 		netflow.SrcPodName = net.SrcPodName
+		netflow.SrcPodUid = net.SrcPodUid
 		netflow.SrcNamespace = net.SrcNamespace
 		netflow.SrcKind = net.SrcKind
 		netflow.SrcCluster = net.SrcCluster
