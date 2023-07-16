@@ -948,6 +948,7 @@ func (fs *FlowSession) ProcSessionData(netSession *daemon.NetSessionLink) error 
 		netData.SrcKind = src.Kind
 		netData.SrcNamespace = src.Namespace
 		netData.SrcPodName = src.PodName
+		netData.SrcPodUid = src.PodUid
 		netData.SrcCluster = clusterKey
 	}
 	//get dst resource
@@ -956,6 +957,7 @@ func (fs *FlowSession) ProcSessionData(netSession *daemon.NetSessionLink) error 
 		netData.DstKind = dst.Kind
 		netData.DstNamespace = dst.Namespace
 		netData.DstPodName = dst.PodName
+		netData.DstPodUid = dst.PodUid
 		netData.DstCluster = clusterKey
 	}
 	//dst ip address

@@ -406,12 +406,14 @@ func (rl *TensorResourcesService) GetPodRelation(arg *ArgumentDetails) ([]Proces
 			res.ResourceKind = netflows[i].SrcKind
 			res.Namespace = netflows[i].SrcNamespace
 			res.PodName = netflows[i].SrcPodName
+			res.PodUid = netflows[i].SrcPodUid
 			res.ClusterID = netflows[i].SrcCluster
 		} else {
 			res.ResourceName = netflows[i].DstOwnerName
 			res.ResourceKind = netflows[i].DstKind
 			res.Namespace = netflows[i].DstNamespace
 			res.PodName = netflows[i].DstPodName
+			res.PodUid = netflows[i].DstPodUid
 			res.ClusterID = netflows[i].DstCluster
 		}
 		res.DstPort = netflows[i].DstPort
@@ -474,6 +476,7 @@ func (rl *TensorResourcesService) GetContainerRelation(arg *ArgumentDetails) ([]
 			res.ContainerId = netflows[i].SrcContainerID
 			res.ContainerName = netflows[i].SrcContainerName
 			res.PodName = netflows[i].SrcPodName
+			res.PodUid = netflows[i].SrcPodUid
 			res.ClusterID = netflows[i].SrcCluster
 		} else {
 			res.ResourceName = netflows[i].DstOwnerName
@@ -482,6 +485,7 @@ func (rl *TensorResourcesService) GetContainerRelation(arg *ArgumentDetails) ([]
 			res.ContainerId = netflows[i].DstContainerID
 			res.ContainerName = netflows[i].DstContainerName
 			res.PodName = netflows[i].DstPodName
+			res.PodUid = netflows[i].DstPodUid
 			res.ClusterID = netflows[i].DstCluster
 		}
 		res.DstPort = netflows[i].DstPort
@@ -545,6 +549,7 @@ func (rl *TensorResourcesService) GetProcessRelation(arg *ArgumentDetails) ([]Pr
 			res.ContainerName = netflows[i].SrcContainerName
 			res.ProcessName = netflows[i].SrcProcess
 			res.PodName = netflows[i].SrcPodName
+			res.PodUid = netflows[i].SrcPodUid
 			res.ClusterID = netflows[i].SrcCluster
 		} else {
 			res.ResourceName = netflows[i].DstOwnerName
@@ -554,6 +559,7 @@ func (rl *TensorResourcesService) GetProcessRelation(arg *ArgumentDetails) ([]Pr
 			res.ContainerName = netflows[i].DstContainerName
 			res.ProcessName = netflows[i].DstProcess
 			res.PodName = netflows[i].DstPodName
+			res.PodUid = netflows[i].DstPodUid
 			res.ClusterID = netflows[i].DstCluster
 		}
 		res.DstPort = netflows[i].DstPort
