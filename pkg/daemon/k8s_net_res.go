@@ -37,6 +37,7 @@ type K8sResData struct {
 	Kind          string                    `json:"kind"`
 	Namespace     string                    `json:"namespace"`
 	PodName       string                    `json:"pod_name"`
+	PodUid        string                    `json:"pod_uid"`
 	ContainerInfo map[string]*ContainerData `json:"container_id"` //container ID -> container data
 	ListenPorts   map[string]*ProcessInfo   `json:"listen_ports"` //listen port -> process information
 }

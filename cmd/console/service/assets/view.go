@@ -82,6 +82,7 @@ type ProcessInfo struct {
 	ContainerId   string    `json:"container_id,omitempty"`
 	ContainerName string    `json:"container_name,omitempty"`
 	PodName       string    `json:"pod_name,omitempty"`
+	PodUid        string    `json:"pod_uid,omitempty"`
 	ResourceName  string    `json:"resource_name"`
 	ResourceKind  string    `json:"resource_kind"`
 	Namespace     string    `json:"namespace"`

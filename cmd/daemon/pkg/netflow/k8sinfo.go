@@ -174,6 +174,7 @@ func (n *NodePodsInfo) savePodData(podEvt *nodeinfo.PodEvent, containerInfo node
 	rsData.OwnerName = res.Name
 	rsData.Kind = res.Kind
 	rsData.PodName = podEvt.Pod.Name
+	rsData.PodUid = string(podEvt.Pod.GetUID())
 	rsData.Namespace = podEvt.Pod.Namespace
 	rsData.ListenPorts = make(map[string]*daemon.ProcessInfo, 2)
 
