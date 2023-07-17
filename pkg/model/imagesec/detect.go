@@ -126,6 +126,7 @@ func (vi *PolicyDetect) AddPolicyDetect(uid uint64, ds []*ImageDetectResult) {
 		}
 		// 白名单优先级最高
 		if vi.InWhite || util.ExistBit1(d.Flag, FlagDetectInWhite) {
+			vi.InWhite = true
 			vi.Exception = false
 			vi.InBlack = false
 			vi.PasswdEnv = false
