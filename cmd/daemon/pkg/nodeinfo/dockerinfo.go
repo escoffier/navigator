@@ -59,7 +59,7 @@ func NewDockerInfoManager(clusterKey, hostName, hostIP string, agent *containera
 		uri = "unix:///var/run/docker.sock"
 	}
 
-	//docker client
+	// docker client
 	dockerCli, err := client.NewClientWithOpts(client.FromEnv, client.WithHost(uri), client.WithAPIVersionNegotiation())
 	if err != nil {
 		return nil, errors.Errorf("docker new client failed, %v", err)
@@ -162,12 +162,12 @@ func (d *DockerInfoManager) GetContainerPid(containerID string) (int, string, er
 func (d *DockerInfoManager) ListenEvents(saveData SaveContainerDataFunc) {
 	// https://docs.docker.com/engine/reference/commandline/events/
 	filter := filters.NewArgs(
-		//filters.Arg("event", "create"),
+		// filters.Arg("event", "create"),
 		filters.Arg("event", "start"),
-		//filters.Arg("event", "restart"),
-		//filters.Arg("event", "rename"),
-		//filters.Arg("event", "resize"),
-		//filters.Arg("event", "stop"),
+		// filters.Arg("event", "restart"),
+		// filters.Arg("event", "rename"),
+		// filters.Arg("event", "resize"),
+		// filters.Arg("event", "stop"),
 		filters.Arg("event", "destroy"),
 		filters.Arg("type", "container"),
 	)
@@ -395,6 +395,7 @@ func (d *DockerInfoManager) containerFromRaw(containerJson *types.ContainerJSON)
 	if ok {
 		k8sManaged = true
 	}
+	podUid := containerJson.Config.Labels["io.kubernetes.pod.uid"]
 
 	var err error
 	t := time.Now()
@@ -405,7 +406,7 @@ func (d *DockerInfoManager) containerFromRaw(containerJson *types.ContainerJSON)
 	}
 
 	processes := getContainerProcessInfo(containerJson.State.Pid)
-	//imageName, imageCreated, imageSize := d.getImageInfo(containerJson.Image)
+	// imageName, imageCreated, imageSize := d.getImageInfo(containerJson.Image)
 	imageName, imageDigest, imageCreated, imageSize := d.getImageInfoV2(containerJson.Config.Image, containerJson.Image)
 	return &model.TensorRawContainer{
 		Status:         getContainerStatus(containerJson.State.Status),
@@ -419,6 +420,7 @@ func (d *DockerInfoManager) containerFromRaw(containerJson *types.ContainerJSON)
 		NetworkMode:    getNetworkMode(string(containerJson.HostConfig.NetworkMode)),
 		Name:           strings.TrimPrefix(containerJson.Name, "/"),
 		PodName:        podName,
+		PodUid:         podUid,
 		Namespace:      containerJson.Config.Labels["io.kubernetes.pod.namespace"],
 		ClusterKey:     d.clusterKey,
 		NodeName:       d.hostName,
@@ -450,6 +452,8 @@ func (d *DockerInfoManager) containerFromEvent(message events.Message) *model.Te
 	if ok {
 		k8sManaged = true
 	}
+	podUid := message.Actor.Attributes["io.kubernetes.pod.uid"]
+
 	return &model.TensorRawContainer{
 		CreatedAt:   time.Now(),
 		UpdatedAt:   time.Unix(message.Time, 0),
@@ -457,11 +461,12 @@ func (d *DockerInfoManager) containerFromEvent(message events.Message) *model.Te
 		ContainerID: message.ID,
 		Name:        strings.TrimPrefix(message.Actor.Attributes["name"], "/"),
 		PodName:     podName,
+		PodUid:      podUid,
 		Namespace:   message.Actor.Attributes["io.kubernetes.pod.namespace"],
 		ClusterKey:  d.clusterKey,
 		NodeName:    d.hostName,
 		NodeIP:      d.hostIP,
-		//ImageName:   message.Actor.Attributes["image"],
+		// ImageName:   message.Actor.Attributes["image"],
 		K8sManaged: k8sManaged,
 	}
 }
@@ -508,8 +513,8 @@ func (d *DockerInfoManager) updateContainerDetail(ctx context.Context, container
 	container.VolumeMounts = volumeMounts
 	container.Environment = util.DeIdentificationEnvs(containerJson.Config.Env)
 	container.ImageID = containerJson.Image
-	//container.ImageDigest = getImageDigest(containerJson.Config.Image)
-	//container.ImageName, container.ImageCreated, container.ImageSize = d.getImageInfo(container.ImageID)
+	// container.ImageDigest = getImageDigest(containerJson.Config.Image)
+	// container.ImageName, container.ImageCreated, container.ImageSize = d.getImageInfo(container.ImageID)
 	container.ImageName, container.ImageDigest, container.ImageCreated, container.ImageSize = d.getImageInfoV2(containerJson.Config.Image, container.ImageID)
 	container.User = containerJson.Config.User
 	container.Ports = getContainerPorts(container.Pid)

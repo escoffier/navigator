@@ -638,6 +638,7 @@ type TensorRawContainer struct {
 	Mac            string           `json:"mac" gorm:"column:mac"`
 	Name           string           `json:"name" gorm:"column:name"`
 	PodName        string           `json:"podName" gorm:"column:pod_name"`
+	PodUid         string           `json:"podUid" gorm:"column:pod_uid"`
 	ResourceName   string           `json:"resourceName" gorm:"column:resource_name"`
 	Namespace      string           `json:"namespace" gorm:"column:namespace"`
 	ClusterKey     string           `json:"clusterKey" gorm:"column:cluster_key"`

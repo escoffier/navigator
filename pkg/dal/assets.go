@@ -86,6 +86,7 @@ var (
 		"status",
 		"name",
 		"pod_name",
+		"pod_uid",
 		"namespace",
 		"cluster_key",
 		"resource_kind",
