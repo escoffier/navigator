@@ -114,32 +114,40 @@ const (
 	FlagDetectVulnSeverityKnown    = 9
 )
 
-func (vi *PolicyDetect) AddPolicyDetect(d *ImageDetectResult) {
-	if vi == nil || d == nil {
+func (vi *PolicyDetect) AddPolicyDetect(uid uint64, ds []*ImageDetectResult) {
+	if vi == nil || len(ds) == 0 {
 		return
 	}
 
-	if util.ExistBit1(d.Flag, FlagDetectInWhite) {
-		vi.InWhite = true
+	for i := range ds {
+		d := ds[i]
+		if uid != d.UniqueTarget {
+			continue
+		}
 		// 白名单优先级最高
-		return
-	}
-	if util.ExistBit1(d.Flag, FlagDetectException) {
-		vi.Exception = true
-	}
-	if util.ExistBit1(d.Flag, FlagDetectInBlack) {
-		vi.InBlack = true
-		vi.Exception = true
-	}
-	if util.ExistBit1(d.Flag, FlagDetectEnvHasPasswd) {
-		vi.Exception = true
-		vi.PasswdEnv = true
-	}
-}
+		if vi.InWhite || util.ExistBit1(d.Flag, FlagDetectInWhite) {
+			vi.Exception = false
+			vi.InBlack = false
+			vi.PasswdEnv = false
+			vi.ExceptionLicense = false
+			return
+		}
+		if util.ExistBit1(d.Flag, FlagDetectException) {
+			vi.Exception = true
+		}
+		if util.ExistBit1(d.Flag, FlagDetectInBlack) {
+			vi.InBlack = true
+			vi.Exception = true
+		}
+		if util.ExistBit1(d.Flag, FlagDetectEnvHasPasswd) {
+			vi.Exception = true
+			vi.PasswdEnv = true
+		}
 
-func (vi *PolicyDetect) AddExceptLicence(d *ImageDetectResult) {
-	if util.ExistBit1(d.Flag, FlagDetectException) {
-		vi.ExceptionLicense = true
+		if util.ExistBit1(d.Flag, FlagDetectException) {
+			vi.Exception = true
+			vi.ExceptionLicense = true
+		}
 	}
 }
 

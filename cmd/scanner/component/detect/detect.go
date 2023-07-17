@@ -182,7 +182,6 @@ func (s *Detector) DetectImage(ctx context.Context) {
 						continue
 					}
 				}
-				imageData.DetectResult = result
 
 				if err := s.detectResultDal.CreateDetectBrief(ctx, &imagesecModel.ImageDetectBrief{
 					ImageUniqueID: imageData.Image.UniqueID,
@@ -576,7 +575,7 @@ func MergePolicyDetectResult(res []PolicyDetectResult) PolicyDetectResult {
 }
 
 func check(res PolicyDetectResult, flag uint64, ruleType string, exceptFlag uint64) uint64 {
-	flag = util.SetBit0(flag, model.FlagHasExceptEnv)
+	flag = util.SetBit0(flag, exceptFlag)
 	for i := range res[ruleType] {
 		data := res[ruleType][i]
 		if util.ExistBit1(data.Flag, imagesecModel.FlagDetectException) {

@@ -21,14 +21,6 @@ type ImageEnv struct {
 	PolicyDetect PolicyDetect `gorm:"-" json:"policyDetect"` // 对各个策略的检测结果
 }
 
-func (vi *ImageEnv) AddPolicyDetect(detect []*ImageDetectResult) {
-	for i := range detect {
-		if detect[i].UniqueTarget == vi.UniqueID {
-			vi.PolicyDetect = detect[i].ToPolicyDetect()
-		}
-	}
-}
-
 func (vi *ImageEnv) GenUniqueID() uint64 {
 	key := fmt.Sprintf(UniqueEnvFormat, vi.ImageUniqueID, vi.Key, vi.Value, vi.LayerDigest)
 	uid := util.GenerateUUID64(key)

@@ -1221,62 +1221,27 @@ func (iws *ImageWithCorrelateData2) AddDetectResult() {
 	if len(iws.DetectResult) == 0 {
 		return
 	}
-
-	exit := make(map[string]map[uint64]*ImageDetectResult)
-
-	for detectType, detectResult := range iws.DetectResult {
-		if exit[detectType] == nil {
-			exit[detectType] = make(map[uint64]*ImageDetectResult)
-		}
-		for i := range detectResult {
-			exit[detectType][detectResult[i].UniqueTarget] = detectResult[i]
-		}
-	}
-
 	for i := range iws.Env {
-		ev := iws.Env[i]
-		if d, ok := exit[DetectTypeEnvRule][ev.UniqueID]; ok && d != nil {
-			ev.PolicyDetect.AddPolicyDetect(d)
-		}
+		iws.Env[i].PolicyDetect.AddPolicyDetect(iws.Env[i].UniqueID, iws.DetectResult[DetectTypeEnvRule])
 	}
 
 	for i := range iws.Pkg {
-		ev := iws.Pkg[i]
-		if d, ok := exit[DetectTypePkgVersionRule][ev.UniqueID]; ok && d != nil {
-			ev.PolicyDetect.AddPolicyDetect(d)
-		}
+		iws.Pkg[i].PolicyDetect.AddPolicyDetect(iws.Pkg[i].UniqueID, iws.DetectResult[DetectTypePkgVersionRule])
+		// license
+		iws.Pkg[i].PolicyDetect.AddPolicyDetect(iws.Pkg[i].UniqueID, iws.DetectResult[DetectTypePkgLicenseRule])
 	}
 
-	// license
-	for i := range iws.Pkg {
-		ev := iws.Pkg[i]
-		if d, ok := exit[DetectTypePkgLicenseRule][ev.UniqueID]; ok && d != nil {
-			ev.PolicyDetect.AddExceptLicence(d)
-		}
-	}
 	for i := range iws.Vuln {
-		ev := iws.Vuln[i]
-		if d, ok := exit[DetectTypeVulnRule][ev.UniqueID]; ok && d != nil {
-			ev.PolicyDetect.AddPolicyDetect(d)
-		}
+		iws.Vuln[i].PolicyDetect.AddPolicyDetect(iws.Vuln[i].UniqueID, iws.DetectResult[DetectTypeVulnRule])
 	}
 	for i := range iws.Sensitive {
-		ev := iws.Sensitive[i]
-		if d, ok := exit[DetectTypeSensRule][ev.UniqueID]; ok && d != nil {
-			ev.PolicyDetect.AddPolicyDetect(d)
-		}
+		iws.Sensitive[i].PolicyDetect.AddPolicyDetect(iws.Sensitive[i].UniqueID, iws.DetectResult[DetectTypeSensRule])
 	}
 	for i := range iws.Webshell {
-		ev := iws.Webshell[i]
-		if d, ok := exit[DetectTypeWebshellRule][ev.UniqueID]; ok && d != nil {
-			ev.PolicyDetect.AddPolicyDetect(d)
-		}
+		iws.Webshell[i].PolicyDetect.AddPolicyDetect(iws.Webshell[i].UniqueID, iws.DetectResult[DetectTypeWebshellRule])
 	}
 	for i := range iws.Malware {
-		ev := iws.Malware[i]
-		if d, ok := exit[DetectTypeMalwareRule][ev.UniqueID]; ok && d != nil {
-			ev.PolicyDetect.AddPolicyDetect(d)
-		}
+		iws.Malware[i].PolicyDetect.AddPolicyDetect(iws.Malware[i].UniqueID, iws.DetectResult[DetectTypeMalwareRule])
 	}
 }
 
