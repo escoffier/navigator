@@ -431,6 +431,7 @@ func (d *ContainerdInfoManager) containerFromRaw(ctx context.Context, container 
 	if ok {
 		k8sManaged = true
 	}
+	podUid := info.Labels["io.kubernetes.pod.uid"]
 
 	var (
 		imageId      = info.Image
@@ -469,6 +470,7 @@ func (d *ContainerdInfoManager) containerFromRaw(ctx context.Context, container 
 		NetworkMode:    networkModel,
 		Name:           container.ID(),
 		PodName:        podName,
+		PodUid:         podUid,
 		Namespace:      info.Labels["io.kubernetes.pod.namespace"],
 		ClusterKey:     d.clusterKey,
 		NodeName:       d.hostName,

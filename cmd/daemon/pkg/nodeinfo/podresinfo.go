@@ -54,6 +54,7 @@ func (pr *PodResInfo) OnAdd(newPod *PodEvent, containerInfo ContainerInfoManager
 	pr.agent.HandlerContainerEvent(context.Background(), pr.clusterKey, assets.ActionAdd, &model.TensorRawContainer{
 		Namespace:    newPod.Pod.Namespace,
 		PodName:      newPod.Pod.Name,
+		PodUid:       string(newPod.Pod.UID),
 		ResourceName: owner.Name,
 		ResourceKind: owner.Kind,
 		K8sManaged:   true,
@@ -76,6 +77,7 @@ func (pr *PodResInfo) OnUpdate(oldPod, newPod *PodEvent, containerInfo Container
 				ContainerID:  containerID,
 				Namespace:    newPod.Pod.Namespace,
 				PodName:      newPod.Pod.Name,
+				PodUid:       string(newPod.Pod.UID),
 				ResourceName: owner.Name,
 				ResourceKind: owner.Kind,
 				K8sManaged:   true,
@@ -102,6 +104,7 @@ func (pr *PodResInfo) OnUpdate(oldPod, newPod *PodEvent, containerInfo Container
 	pr.agent.HandlerContainerEvent(context.Background(), pr.clusterKey, assets.ActionUpdate, &model.TensorRawContainer{
 		Namespace:    newPod.Pod.Namespace,
 		PodName:      newPod.Pod.Name,
+		PodUid:       string(newPod.Pod.UID),
 		ResourceName: owner.Name,
 		ResourceKind: owner.Kind,
 		K8sManaged:   true,
