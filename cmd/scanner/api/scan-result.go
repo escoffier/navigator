@@ -427,7 +427,18 @@ func (s *ScanResultAPI) GetImageRiskInfo(ctx *gin.Context) {
 		risk.ImageBaseResponse.Suggests = nil
 		ans = append(ans, risk)
 	}
-	response.JSONOK(ctx, response.WithItems(ans))
+	// 以镜像名去重
+	exit := make(map[string]bool)
+	res := make([]ImageRiskStatic, 0)
+	for i := range ans {
+		in := ans[i].ImageBaseResponse.GetImageName()
+		if !exit[in] {
+			res = append(res, ans[i])
+		}
+		exit[in] = true
+	}
+
+	response.JSONOK(ctx, response.WithItems(res))
 }
 
 func (s *ScanResultAPI) GetImageLayer(ctx *gin.Context) {
