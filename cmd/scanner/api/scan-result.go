@@ -428,10 +428,10 @@ func (s *ScanResultAPI) GetImageRiskInfo(ctx *gin.Context) {
 		ans = append(ans, risk)
 	}
 	// 以镜像名去重
-	exit := make(map[string]bool)
+	exit := make(map[uint32]bool)
 	res := make([]ImageRiskStatic, 0)
 	for i := range ans {
-		in := ans[i].ImageBaseResponse.GetImageName()
+		in := ans[i].ImageBaseResponse.UUID
 		if !exit[in] {
 			res = append(res, ans[i])
 		}
