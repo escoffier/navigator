@@ -386,22 +386,21 @@ func (s *NodeImageSrv) GetImageCorrelateData(ctx context.Context,
 
 		ans.DetectResult = make(map[string][]*imagesecModel.ImageDetectResult)
 		detectTypes := param.GetDetectTypes()
-		for dt := range detectTypes {
+		for id := range detectTypes {
+			dt := detectTypes[id]
 			result, err := s.detectResultDal.SearchDetectResult(ctx, imagesecModel.SearchDetectResultParam{
 				ImageUniqueID: imageUniqueID,
 				PolicyIds:     param.ScanResultSearchParam.SecurityPolicyIds,
-				DetectType:    detectTypes[dt],
+				DetectType:    dt,
 			})
 			if err != nil {
 				logging.Get().Err(err).Msg("SearchImageWithScan.SearchDetectResult")
 				return nil, err
 			}
-			for i := range result {
-				if ans.DetectResult[detectTypes[dt]] == nil {
-					ans.DetectResult[detectTypes[dt]] = make([]*imagesecModel.ImageDetectResult, 0)
-				}
-				ans.DetectResult[detectTypes[dt]] = append(ans.DetectResult[detectTypes[dt]], result[i])
+			if ans.DetectResult[dt] == nil {
+				ans.DetectResult[dt] = make([]*imagesecModel.ImageDetectResult, 0)
 			}
+			ans.DetectResult[dt] = append(ans.DetectResult[dt], result...)
 		}
 	}
 
