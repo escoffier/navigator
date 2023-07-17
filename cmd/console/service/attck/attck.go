@@ -144,9 +144,11 @@ func parseFalcoRule(item model.RuleFromYaml) (isStrict bool, target ruleItem, er
 	tsAdapter := make(map[string]map[string]string, 2)
 	tsAdapter[string(lang.LanguageZH)] = make(map[string]string, 2)
 	tsAdapter[string(lang.LanguageZH)][typeKey] = ruleTypeZh
+	tsAdapter[string(lang.LanguageZH)][nameKey] = descZh
 	tsAdapter[string(lang.LanguageZH)][descriptionKey] = descZh
 	tsAdapter[string(lang.LanguageEN)] = make(map[string]string, 2)
 	tsAdapter[string(lang.LanguageEN)][typeKey] = ruleTypeEn
+	tsAdapter[string(lang.LanguageEN)][nameKey] = item.Rule
 	tsAdapter[string(lang.LanguageEN)][descriptionKey] = item.Desc
 
 	// for the prevention of ambiguity, we have "_" instead of " "(space). This is for the recovery
@@ -172,6 +174,7 @@ func parseMozartRule(configMozart model.ConfigMozart, mozartMarco []model.Config
 	isStrict := !configMozart.Enabled
 	values := map[string]interface{}{"0": map[string]interface{}{}}
 	ruleEnName := ""
+	ruleZhName := ""
 	for j := range configMozart.Steps {
 		// 理论上，一个mozart规则，即使有多个分支，也应该只有一个 execGenerateSignal，只不过会通过参数赋值产生多个最终规则
 		if configMozart.Steps[j].Name == "execGenerateSignal" {
@@ -179,6 +182,9 @@ func parseMozartRule(configMozart model.ConfigMozart, mozartMarco []model.Config
 			for k, v := range params {
 				if k.(string) == "rule" {
 					ruleEnName = v.(string)
+				}
+				if k.(string) == "zh_msg" {
+					ruleZhName = v.(string)
 				}
 			}
 		}
@@ -221,9 +227,11 @@ func parseMozartRule(configMozart model.ConfigMozart, mozartMarco []model.Config
 		tsAdapter := make(map[string]map[string]string, 2)
 		tsAdapter[string(lang.LanguageZH)] = make(map[string]string, 2)
 		tsAdapter[string(lang.LanguageZH)][typeKey] = model.TranslateRuleType(configMozart.Info.RuleType)
+		tsAdapter[string(lang.LanguageZH)][nameKey] = ruleZhName
 		tsAdapter[string(lang.LanguageZH)][descriptionKey] = iDescZh.(string)
 		tsAdapter[string(lang.LanguageEN)] = make(map[string]string, 2)
 		tsAdapter[string(lang.LanguageEN)][typeKey] = model.TranslateENRuleType(configMozart.Info.RuleType)
+		tsAdapter[string(lang.LanguageEN)][nameKey] = ruleEnName
 		tsAdapter[string(lang.LanguageEN)][descriptionKey] = iDescEn.(string)
 
 		mozartRules = append(mozartRules, mozartRuleItem{
@@ -347,9 +355,11 @@ func makeRuleItemForUserRule(userRule gpModel.UserRuleYaml) ruleItem {
 	tsAdapter := make(map[string]map[string]string, 2)
 	tsAdapter[string(lang.LanguageZH)] = make(map[string]string, 2)
 	tsAdapter[string(lang.LanguageZH)][typeKey] = model.TranslateRuleType(userRule.Info.RuleType)
+	tsAdapter[string(lang.LanguageZH)][nameKey] = userRule.Info.Name.Zh
 	tsAdapter[string(lang.LanguageZH)][descriptionKey] = userRule.Info.Desc.Zh
 	tsAdapter[string(lang.LanguageEN)] = make(map[string]string, 2)
 	tsAdapter[string(lang.LanguageEN)][typeKey] = userRule.Info.RuleType
+	tsAdapter[string(lang.LanguageEN)][nameKey] = userRule.Info.Name.En
 	tsAdapter[string(lang.LanguageEN)][descriptionKey] = userRule.Info.Desc.En
 
 	category := model.RuleCategoryATTCK
