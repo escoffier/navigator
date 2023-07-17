@@ -233,9 +233,9 @@ func (im *ImageList) GenImageUUID() uint32 {
 	imageName := im.GetImageName()
 	imageName = strings.ReplaceAll(imageName, "https://", "")
 	imageName = strings.ReplaceAll(imageName, "http://", "")
-	imageName = fmt.Sprintf("%s@%s", imageName, im.Digest)
 	return util.GenerateUUID(imageName)
 }
+
 func (im *ImageList) GetBootUser() string {
 	user := ""
 	if im.ConfigFile != nil {
