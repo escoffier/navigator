@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"fmt"
+	"github.com/google/go-containerregistry/pkg/name"
 	"io"
 	"net/http"
 	"os"
@@ -11,7 +12,6 @@ import (
 	"time"
 
 	"github.com/go-chi/chi"
-	"github.com/google/go-containerregistry/pkg/name"
 	json "github.com/json-iterator/go"
 	param "github.com/oceanicdev/chi-param"
 	"github.com/pkg/errors"
@@ -73,6 +73,7 @@ func (api *api) assets() func(chi.Router) {
 		}
 		// TODO: support redis search
 		r.Get("/rawContainers", api.getRawContainers())
+		r.Get("/rawContainersByPod", api.getRawContainersByPod())
 		r.Get("/rawContainers/count", api.countRawContainers())
 		r.Get("/rawContainer/{containerID}", api.getRawContainer())
 		r.Get("/resources/types", api.getResourceTypes())
@@ -2259,6 +2260,89 @@ func (api *api) getRawContainers() http.HandlerFunc {
 	}
 }
 
+type GetRawContainersByPod struct {
+	ClusterKey   string `in:"query" name:"cluster_key"`
+	Namespace    string `in:"query" name:"namespace"`
+	PodName      string `in:"query" name:"pod_name"`
+	Status       []int  `in:"query" name:"status"`
+	ResourceName string `in:"query" name:"resource_name"`
+	Limit        int    `in:"query" name:"limit"`
+	Offset       int    `in:"query" name:"offset"`
+}
+
+func (req *GetRawContainersByPod) Render(r *http.Request) error {
+	limit, offset, err := getLimitAndOffset(r)
+	if err != nil {
+		return errors.New("no limit or offset given in params")
+	}
+	req.Limit = limit
+	req.Offset = offset
+	req.ClusterKey, _ = param.QueryString(r, "cluster_key")
+	req.Namespace, _ = param.QueryString(r, "namespace")
+	req.PodName, _ = param.QueryString(r, "pod_name")
+	req.Status, _ = param.QueryIntArray(r, "status")
+	req.ResourceName, _ = param.QueryString(r, "resource_name")
+	return nil
+}
+func (req *GetRawContainersByPod) Execute(ctx context.Context) ([]*model.TensorRawContainer, int64, error) {
+	query := dal.RawContainersQuery()
+	if len(req.Status) > 0 {
+		query.WithInConditionCustom("status", req.Status)
+	}
+	if req.ClusterKey != "" {
+		query = query.WithCluster(req.ClusterKey)
+	}
+	if req.Namespace != "" {
+		query = query.WithNamespace(req.Namespace)
+	}
+	if req.PodName != "" {
+		query = query.WithPodName(req.PodName)
+	}
+	if req.ResourceName != "" {
+		query = query.WithResourceName(req.ResourceName)
+	}
+
+	resSvc, ok := assets.GetResourcesService(ctx)
+	if !ok {
+		return nil, 0, errors.New("service instance get error")
+	}
+
+	var (
+		containers []*model.TensorRawContainer
+		totalCnt   int64
+		err        error
+	)
+
+	containers, totalCnt, err = resSvc.ListRawContainer(ctx, query, req.Offset, req.Limit)
+	return containers, totalCnt, err
+}
+
+func (api *api) getRawContainersByPod() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+
+		req := &GetRawContainersByPod{}
+
+		err := req.Render(r)
+		if err != nil {
+			RespAndLog(w, ctx, NewAnError(http.StatusBadRequest, err))
+			return
+		}
+		containers, totalCnt, err := req.Execute(ctx)
+		if err != nil {
+			logging.Get().Err(err).Msg("get raw container error")
+			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, err))
+			return
+		}
+
+		response.Ok(w, response.WithItems(containers),
+			response.WithTotalItems(totalCnt),
+			response.WithStartIndex(int64(req.Offset+len(containers))),
+		)
+	}
+}
+
 func (api *api) getRawContainer() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -2438,15 +2522,15 @@ func (api *api) getNamespace() http.HandlerFunc {
 // @Router /api/v2/platform/assets/cluster/{cluster_key}/namespace/{namespace}/kind/{kind}/resources/{name}
 func (api *api) getResource() http.HandlerFunc {
 	type resource struct {
-		Cluster     string   `json:"cluster"`
-		Namespace   string   `json:"namespace"`
-		Kind        string   `json:"kind"`
-		Name        string   `json:"name"`
-		UID         string   `json:"uid"`
-		Alias       string   `json:"alias"`
-		Managers    []string `json:"managers"`
-		Authority   string   `json:"authority"`
-		CreatedTime string   `json:"createdTime"`
+		Cluster     string    `json:"cluster"`
+		Namespace   string    `json:"namespace"`
+		Kind        string    `json:"kind"`
+		Name        string    `json:"name"`
+		UID         string    `json:"uid"`
+		Alias       string    `json:"alias"`
+		Managers    []string  `json:"managers"`
+		Authority   string    `json:"authority"`
+		CreatedTime time.Time `json:"createdTime"`
 	}
 	modelToResource := func(rm *model.TensorResource) *resource {
 		r := new(resource)
@@ -2458,7 +2542,7 @@ func (api *api) getResource() http.HandlerFunc {
 		r.Alias = rm.Alias
 		r.Managers = rm.Managers
 		r.Authority = rm.Authority
-		r.CreatedTime = rm.CreatedAt.Format("2006-01-02 15:04:05")
+		r.CreatedTime = rm.CreatedAt
 		return r
 	}
 
