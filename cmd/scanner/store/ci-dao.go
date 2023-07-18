@@ -207,7 +207,7 @@ func (c *CiDao) GetImageList(ctx context.Context, params scanner_ci.ImageFilter)
 	if len(params.Kind) != 0 {
 		var flag uint64
 		for i := range params.Kind {
-			flag = util.SetBit1(flag, uint64(params.Kind[i]))
+			flag = util.SetBit1(flag, uint64(params.Kind[i]-1)) // 为啥要减1呢，因为在入库的时候就减了1，
 		}
 
 		if params.KindAttribute == consts.AndString {
