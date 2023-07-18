@@ -2786,6 +2786,10 @@ func (q *RawContainersQueryOption) WithPodName(ns string) *RawContainersQueryOpt
 	q.whereEqCondition["pod_name"] = ns
 	return q
 }
+func (q *RawContainersQueryOption) WithResourceName(ns string) *RawContainersQueryOption {
+	q.whereEqCondition["resource_name"] = ns
+	return q
+}
 
 func (q *RawContainersQueryOption) WithNodeName(ns string) *RawContainersQueryOption {
 	q.whereEqCondition["node_name"] = ns
