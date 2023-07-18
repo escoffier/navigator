@@ -152,7 +152,7 @@ func (r *RejectAPI) CreateWhitelist(ctx *gin.Context) {
 	}
 	res, err := r.Srv.CreateImageWhitelist(ctx, wi.FullRepoName, wi.Library, wi.Tag, wi.Digest)
 	if err != nil {
-		response.JSONError(ctx, err)
+		response.JSONError(ctx, i18.CreateErr(err))
 		return
 	}
 	response.JSONOK(ctx, response.WithItem(*res), response.WithTarget(&response.TargetRef{

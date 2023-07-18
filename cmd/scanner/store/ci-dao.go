@@ -12,6 +12,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	scanner_ci "gitlab.com/piccolo_su/vegeta/pkg/model/scanner-ci"
+	"gitlab.com/piccolo_su/vegeta/pkg/util"
 )
 
 type ScanCiInterface interface {
@@ -204,18 +205,16 @@ func (c *CiDao) GetImageList(ctx context.Context, params scanner_ci.ImageFilter)
 		db = db.Where("image_name like ?", fmt.Sprintf("%%%s%%", params.Image))
 	}
 	if len(params.Kind) != 0 {
-		if params.KindAttribute == "or" {
-			for _, v := range params.Kind {
-				flag := 1 << (v - 1)
-				db = db.Where("flag & ? = ?", flag, flag)
-			}
+		var flag uint64
+		for i := range params.Kind {
+			flag = util.SetBit1(flag, uint64(params.Kind[i]))
 		}
-		if params.KindAttribute == "and" {
-			flag := 0
-			for _, v := range params.Kind {
-				flag += 1 << (v - 1)
-			}
+
+		if params.KindAttribute == consts.AndString {
 			db = db.Where("flag & ? = ?", flag, flag)
+		}
+		if params.KindAttribute == consts.OrString {
+			db = db.Where("flag & ? > 0", flag)
 		}
 	}
 
@@ -224,9 +223,7 @@ func (c *CiDao) GetImageList(ctx context.Context, params scanner_ci.ImageFilter)
 	}
 
 	if len(params.Status) != 0 {
-		for _, v := range params.Status {
-			db = db.Where("mode = ?", v)
-		}
+		db = db.Where("mode IN ?", params.Status)
 	}
 	if params.StartTime != 0 {
 		db = db.Where("started_at >= ?", params.StartTime)
