@@ -134,15 +134,12 @@
 - key: Connecting to a remote server through redis client in container
   hid: exec_05
   condition: >
-    evt.type=openat and container and
-    evt.arg.name contains ".rediscli_history" and
-    proc.cmdline contains " -h " and not proc.cmdline contains "localhost" and not proc.cmdline contains "127.0.0.1" and not k8s.pod.name contains "51c1c6" and
+    evt.type = connect and container and
+    fd.sport = 6379  and
+    proc.cmdline contains "redis-cli -h " and not proc.cmdline contains "localhost" and not proc.cmdline contains "127.0.0.1" and not k8s.pod.name contains "51c1c6" and
     shell_parent_procs
   output: >
     proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,user_loginuid=%user.loginuid,parent=%proc.pname,terminal=%proc.tty,container_id=%container.id,container_name=%container.name,image=%container.image.repository
-  steps:
-    - name: checkRelatedExists
-      params: [ 'Contact remote server from container', 1s, trigger.payload.output_map.proc_pid, payload.output_map.proc_pid ]
   info:
     name:
       en: "Connecting to a remote server through redis client in container"

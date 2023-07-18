@@ -93,31 +93,31 @@
     urgency: true
     tags: [ATT&CK, file, mitre_discovery, L1]
 
-- key: Read ssh information
-  hid: disc_04
-  condition: >
-    ((open_read or open_directory) and
-     consider_ssh_reads and
-     (user_ssh_directory or fd.name startswith /root/.ssh) and
-     not user_known_read_ssh_information_activities and
-     not proc.name in (ssh_binaries)) and
-     shell_parent_procs
-  output: >
-    proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,user_loginuid=%user.loginuid,file=%fd.name,parent=%proc.pname,container_id=%container.id,container_name=%container.name,image=%container.image.repository
-  info:
-    name:
-      en: "Read ssh information"
-      zh: "非ssh用户查看ssh信息"
-    desc:
-      en: "Any attempt to read files below ssh directories by non-ssh programs"
-      zh: "任何非ssh程序试图读取ssh目录下的文件"
-    suggestion:
-      en: "This behavior may be that hackers collect information, can use immune defense training applications, restrict user permissions of sensitive files and commands, and prohibit mounting sensitive directories and files."
-      zh: "该行为可能是黑客进行信息收集，可使用免疫防御训练应用，限制敏感文件和命令的用户权限，禁止挂载敏感目录和文件。"
-    rule_type: Discovery
-    priority: ERROR
-    urgency: true
-    tags: [ATT&CK, filesystem, mitre_discovery, L1]
+# - key: Read ssh information
+#   hid: disc_04
+#   condition: >
+#     ((open_read or open_directory) and
+#      consider_ssh_reads and
+#      (user_ssh_directory or fd.name startswith /root/.ssh) and
+#      not user_known_read_ssh_information_activities and
+#      not proc.name in (ssh_binaries)) and
+#      shell_parent_procs
+#   output: >
+#     proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,user_loginuid=%user.loginuid,file=%fd.name,parent=%proc.pname,container_id=%container.id,container_name=%container.name,image=%container.image.repository
+#   info:
+#     name:
+#       en: "Read ssh information"
+#       zh: "非ssh用户查看ssh信息"
+#     desc:
+#       en: "Any attempt to read files below ssh directories by non-ssh programs"
+#       zh: "任何非ssh程序试图读取ssh目录下的文件"
+#     suggestion:
+#       en: "This behavior may be that hackers collect information, can use immune defense training applications, restrict user permissions of sensitive files and commands, and prohibit mounting sensitive directories and files."
+#       zh: "该行为可能是黑客进行信息收集，可使用免疫防御训练应用，限制敏感文件和命令的用户权限，禁止挂载敏感目录和文件。"
+#     rule_type: Discovery
+#     priority: ERROR
+#     urgency: true
+#     tags: [ATT&CK, filesystem, mitre_discovery, L1]
 
 - key: Contact K8S API Server From Container
   hid: disc_05

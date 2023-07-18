@@ -1,5 +1,5 @@
 ##attck_rule_type=Defense_Evasion
-- rule: Clear Log Activities
+- rule: Modify log activities
   hid: def_01
   hthreats: 0
   suggestion:
@@ -23,7 +23,7 @@
   priority: WARNING
   tags: [ATT&CK, file, mitre_defense_evasion]
 
-- rule: Delete Bash History
+- rule: Delete bash history
   hid: def_02
   hthreats: 1
   suggestion:

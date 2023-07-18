@@ -423,7 +423,7 @@
   ]
 
 - list: sensitive_file_names
-  items: [/etc/shadow, /etc/passwd, /etc/sudoers, /etc/pam.conf, /etc/security/pwquality.conf]
+  items: [/etc/shadow, /etc/sudoers, /etc/pam.conf, /etc/security/pwquality.conf]
 
 - list: sensitive_directory_names
   items: [/, /etc, /etc/, /root, /root/]
@@ -2053,6 +2053,9 @@
 - macro: nodeport_containers
   condition: container
 
+- list: system_network_tools
+  items: [curl, wget, telnet]
+
 - list: network_tool_binaries
   items: [nc, nc.openbsd, ncat, nmap, dig, tcpdump, tshark, ngrep, telnet, mitmproxy, socat, zmap, hydra, masscan, naabu, rustscan, john, medusa, ncrack]
 
@@ -2623,3 +2626,38 @@
     name:
       en: "Calling the dup system call in container"
     tags: [ATT&CK, container, shell, mitre_execution, related]
+
+- key: Read /etc/passwd in binaries
+  hid: related_11
+  condition: >
+    open_read and container and fd.name=/etc/passwd and
+    proc_name_exists and shell_parent_procs and not proc.cmdline icontains "passwd" and
+    not proc.name in (user_mgmt_binaries, userexec_binaries, package_mgmt_binaries,
+     cron_binaries, read_sensitive_file_binaries, shell_binaries, hids_binaries,
+     vpn_binaries, mail_config_binaries, nomachine_binaries, sshkit_script_binaries,
+     in.proftpd, mandb, salt-minion, postgres_mgmt_binaries,
+     google_oslogin_
+     )
+    and not cmp_cp_by_passwd
+    and not ansible_running_python
+    and not proc.cmdline contains /usr/bin/mandb
+    and not run_by_qualys
+    and not run_by_chef
+    and not run_by_google_accounts_daemon
+    and not user_read_sensitive_file_conditions
+    and not perl_running_plesk
+    and not perl_running_updmap
+    and not veritas_driver_script
+    and not perl_running_centrifydc
+    and not runuser_reading_pam
+    and not linux_bench_reading_etc_shadow
+    and not user_known_read_sensitive_files_activities
+    and not user_read_sensitive_file_containers
+    and not runc_writing_passwd
+    and not tensorsec_namespace
+  output: >
+    proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,pod_id=%k8s.pod.id,syscall_name=%syscall.type,container=%container.info,container_id=%container.id,container_name=%container.name,evt.args=%evt.args,fd.name=%fd.name,parent=%proc.pname,gparent=%proc.aname[2],ggparent=%proc.aname[3]
+  info:
+    name:
+      en: "Read /etc/passwd in binaries"
+    tags: [ATT&CK, container, shell, related]

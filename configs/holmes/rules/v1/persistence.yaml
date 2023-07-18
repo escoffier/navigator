@@ -133,7 +133,7 @@
   priority: WARNING
   tags: [ATT&CK, filesystem, software_mgmt, mitre_persistence]
 
-- rule: Remove Bulk Data from Disk
+- rule: Remove bulk data from disk
   hid: pers_06
   hthreats: 1
   suggestion:
@@ -283,7 +283,7 @@
   desc: an attempt to write to any file below a set of binary directories
   condition: >
     bin_dir and evt.dir = < and open_write
-    and shell_parent_procs
+    and shell_family_procs
     and not package_mgmt_procs
     and not exe_running_docker_save
     and not python_running_get_pip
@@ -309,7 +309,7 @@
   desc: an attempt to modify any file below a set of binary directories.
   condition: bin_dir_rename and modify and not package_mgmt_procs and not exe_running_docker_save and not user_known_modify_bin_dir_activities
   output: >
-    File below known binary directory renamed/removed (zh_msg=修改二进制目录下的文件,rule_type=Persistence,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,
+    File below known binary directory renamed/removed (zh_msg=移动或删除二进制目录,rule_type=Persistence,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,
     original_info=user=%user.name user_loginuid=%user.loginuid
     operation=%evt.type file=%fd.name %evt.args container_id=%container.id container_name=%container.name image=%container.image.repository)
   priority: ERROR
