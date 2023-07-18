@@ -55,9 +55,9 @@
     fd_name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_vpgid=%proc.vpgid,proc_cmdline=%proc.cmdline,proc_name=%proc.name,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,container_id=%container.id,container_name=%container.name,http_request=%evt.args
   steps:
     - name: checkRelatedExists
-      params: [Generated child process shell after starting the container, 1s, trigger.payload.output_map.proc_name, payload.output_map.proc_pname, L4]
+      params: [Generated child process shell after starting the container, 1s, trigger.payload.output_map.proc_name, payload.output_map.proc_pname]
     - name: checkValue
-      params: [trigger.payload.output_map.proc_name, java, L4]
+      params: [trigger.payload.output_map.proc_name, java]
   info:
     name:
       en: "Execute commands through webshell"

@@ -141,7 +141,7 @@
 #     urgency: false
 #     tags: [ATT&CK, filesystem, software_mgmt, mitre_persistence]
 
-- key: Remove Bulk Data from Disk
+- key: Remove bulk data from disk
   hid: pers_06
   condition: >
     spawned_process and clear_data_procs and not user_known_remove_data_activities
@@ -197,6 +197,7 @@
     and not fd.name in (allowed_dev_files)
     and not fd.name startswith /dev/tty
     and not user_known_create_files_below_dev_activities
+    and (shell_parent_procs or shell_procs)
   output: >
     proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,user_loginuid=%user.loginuid,file=%fd.name,container_id=%container.id,container_name=%container.name,image=%container.image.repository
   info:
@@ -301,7 +302,8 @@
 - key: Modify binary dirs
   hid: pers_13
   condition: >
-    bin_dir_rename and modify and not package_mgmt_procs and not exe_running_docker_save and not user_known_modify_bin_dir_activities
+    bin_dir_rename and modify and not package_mgmt_procs and not exe_running_docker_save and not user_known_modify_bin_dir_activities and
+    shell_parent_procs
   output: >
     proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,user_loginuid=%user.loginuid,operation=%evt.type,file=%fd.name,evt.args=%evt.args,container_id=%container.id,container_name=%container.name,image=%container.image.repository
   info:
