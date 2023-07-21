@@ -3,9 +3,13 @@ package engine
 import (
 	"context"
 	"fmt"
+	"os"
 	"runtime/debug"
+	"strconv"
 	"sync"
 	"time"
+
+	imagesecModel "gitlab.com/piccolo_su/vegeta/pkg/model/imagesec"
 
 	"golang.org/x/sync/semaphore"
 
@@ -35,6 +39,7 @@ type SeqEngineConfig struct {
 	Interval      int   // interval of dequeue tasks,unit:second
 	MaxTaskNum    int64 // max parallel task num
 	MaxSubTaskNum int64 // max parallel subtask num per task
+	ExpireSec     int64 // PullTime的超时时间
 }
 
 type SequenceEngine struct {
@@ -65,6 +70,12 @@ func NewSequenceEngine(config SeqEngineConfig, loopFunc LoopEngineFunc) Engine {
 
 	ts := task.NewTaskSrv()
 	s.taskSrv = ts
+	expireSec := 0
+	sec, _ := strconv.Atoi(os.Getenv("IMAGE_EXPIRE_SCAN_SECOND"))
+	if sec > 0 {
+		expireSec = sec
+	}
+	s.config.ExpireSec = int64(expireSec)
 
 	return s
 }
@@ -108,7 +119,7 @@ func (s *SequenceEngine) SubTaskHeartBeatFunc() FlowLoopFunc {
 
 func (s *SequenceEngine) Run(ctx context.Context) error {
 	// new dequeuer
-	dequeue, err := dequeue.Open(dequeue.Config{Type: s.config.DeqType})
+	deq, err := dequeue.Open(dequeue.Config{Type: s.config.DeqType})
 	if err != nil {
 		logging.GetLogger().Err(err).Msg("new dequeue err")
 		return err
@@ -124,7 +135,7 @@ func (s *SequenceEngine) Run(ctx context.Context) error {
 		time.Sleep(time.Duration(s.config.Interval) * time.Second)
 
 		// dequeue tasks
-		tasks, err := dequeue.DequeueTasks(context.Background())
+		tasks, err := deq.DequeueTasks(context.Background())
 		if err != nil {
 			logging.GetLogger().Err(err).Msg("dequeue tasks err")
 			continue
@@ -194,6 +205,17 @@ func (s *SequenceEngine) handleFlow(ctx context.Context, flowConf []string, st *
 
 	artifacts := make(jobs.Artifact)
 	taskSrv := task.NewTaskSrv()
+	lists, _, err := orm.SearchImage(ctx, imagesecModel.SearchImageParam{ImageID: st.Image.ID}, nil)
+	if err != nil || len(lists) == 0 {
+		errNo = consts.ErrRegRemoved
+		success = false
+		errMsg = fmt.Sprintf("search image info.%v", err)
+	}
+	if s.config.ExpireSec > 0 && !lists[0].LastPullTime.IsZero() && (time.Now().Unix()-lists[0].LastPullTime.Unix()) > s.config.ExpireSec {
+		errNo = consts.ErrImageExpire
+		success = false
+		errMsg = fmt.Sprintf("image expire")
+	}
 
 	// update subtask status
 	if err := taskSrv.SetSubTaskInProgress(st.ID); err != nil {
@@ -206,52 +228,54 @@ func (s *SequenceEngine) handleFlow(ctx context.Context, flowConf []string, st *
 		logging.GetLogger().Err(err).Int64("ImageId", st.Image.ID).
 			Int64("FlagImageScan", model.FlagImageScanInProgress).Msg("UpdateImageScanStatus")
 	}
-	for _, j := range flowConf {
-		// generate job by name
-		logging.GetLogger().Info().
-			Str("jobName", j).
-			Int64("subtaskId", st.ID).
-			Int64("taskId", t.ID).Msg("start job")
-		config := jobs.JobConfig{
-			Type: j,
-			Info: jobs.JobInfo{
-				SubTask:        *st,
-				CacheServerURL: "",
-				Task:           *t,
-			},
-		}
-		job, err := jobs.Open(config)
-		if err != nil {
-			logging.GetLogger().Err(err).Msg("create job")
-			success = false
-			errNo = consts.ErrScanConfig
-			errMsg = fmt.Sprintf("create job,err:%s", err.Error())
-			break
-		}
-		curArtifact, err := job.Run(ctx, jobs.Param(artifacts))
-		if err != nil {
-			logging.GetLogger().Err(err).Msg("job run failed")
-			perr := pullImageFailed(curArtifact, artifacts)
-			if perr != nil {
-				logging.GetLogger().Err(perr).Msg("pullImageFailed error:") // 只记录，不break，依照原流程下面会记录别的信息同时break
+	if success {
+		for _, j := range flowConf {
+			// generate job by name
+			logging.GetLogger().Info().
+				Str("jobName", j).
+				Int64("subtaskId", st.ID).
+				Int64("taskId", t.ID).Msg("start job")
+			config := jobs.JobConfig{
+				Type: j,
+				Info: jobs.JobInfo{
+					SubTask:        *st,
+					CacheServerURL: "",
+					Task:           *t,
+				},
 			}
-			success = false
-			errNo = getScanErr(j)
-			errMsg = fmt.Sprintf("job run failed,flowconf:%s,error is :%s", j, err.Error())
-			break
+			job, err := jobs.Open(config)
+			if err != nil {
+				logging.GetLogger().Err(err).Msg("create job")
+				success = false
+				errNo = consts.ErrScanConfig
+				errMsg = fmt.Sprintf("create job,err:%s", err.Error())
+				break
+			}
+			curArtifact, err := job.Run(ctx, jobs.Param(artifacts))
+			if err != nil {
+				logging.GetLogger().Err(err).Msg("job run failed")
+				perr := pullImageFailed(curArtifact, artifacts)
+				if perr != nil {
+					logging.GetLogger().Err(perr).Msg("pullImageFailed error:") // 只记录，不break，依照原流程下面会记录别的信息同时break
+				}
+				success = false
+				errNo = getScanErr(j)
+				errMsg = fmt.Sprintf("job run failed,flowconf:%s,error is :%s", j, err.Error())
+				break
+			}
+
+			// merge artifact which will be next job's input parameter
+			component.MergeArtifact(curArtifact, artifacts)
+
+			// update subtask and task heart beat after every job
+			_ = flowFn(st, t)
+
+			logging.GetLogger().Info().
+				Str("jobName", j).
+				Int64("subtaskId", st.ID).
+				Int64("taskId", t.ID).
+				Msg("job success")
 		}
-
-		// merge artifact which will be next job's input parameter
-		component.MergeArtifact(curArtifact, artifacts)
-
-		// update subtask and task heart beat after every job
-		_ = flowFn(st, t)
-
-		logging.GetLogger().Info().
-			Str("jobName", j).
-			Int64("subtaskId", st.ID).
-			Int64("taskId", t.ID).
-			Msg("job success")
 	}
 
 	if !success {

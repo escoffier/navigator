@@ -3372,6 +3372,8 @@ func GetErrMsgEnu(errNo int) string {
 		return "镜像已被清除"
 	case consts.ErrRegRemoved:
 		return "仓库已删除"
+	case consts.ErrImageExpire:
+		return "镜像过于陈旧"
 	default:
 		return "程序内部出错"
 	}
