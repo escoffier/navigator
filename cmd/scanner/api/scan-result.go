@@ -185,7 +185,7 @@ func (s *ScanResultAPI) SearchSoftware(ctx *gin.Context) {
 	}
 
 	preVulns := data.Vuln
-	vulnMap := make(map[string][]VulnResponse)
+	vulnMap := make(map[string][]VulnResponse) // pkg--->[]vuln
 	for i := range preVulns {
 		key := fmt.Sprintf("%s|%s", preVulns[i].PkgName, preVulns[i].PkgVersion)
 		if vulnMap[key] == nil {
