@@ -2,7 +2,6 @@ package api
 
 import (
 	"github.com/go-chi/chi"
-	"github.com/go-chi/jwtauth"
 	"gitlab.com/piccolo_su/vegeta/pkg/audit"
 )
 
@@ -31,11 +30,11 @@ func (api *api) userCenter() func(chi.Router) {
 		r.Post("/activeuser", api.activeUser())
 		r.Post("/superAdminInit", api.superAdminInit())
 		r.Group(func(r chi.Router) {
-			r.Use(jwtauth.Verifier(api.tokenAuth), authenticator(api.rdb), jwtAccessCheck(api.rdb))
+			r.Use(verifier(api.tokenAuth), bypassAuthenticator(api.rdb), authenticator(api.rdb), jwtAccessCheck(api.rdb))
 			r.Post("/logout", api.logout())
 		})
 		r.Group(func(r chi.Router) {
-			r.Use(jwtauth.Verifier(api.tokenAuth), authenticator(api.rdb), jwtAccessCheck(api.rdb))
+			r.Use(verifier(api.tokenAuth), bypassAuthenticator(api.rdb), authenticator(api.rdb), jwtAccessCheck(api.rdb))
 			if !api.httpAuditDisabled {
 				ecCli, err := api.esCli.Get()
 				if err == nil {
@@ -54,6 +53,7 @@ func (api *api) userCenter() func(chi.Router) {
 			r.Put("/config/login", api.updateLoginConfig())
 			r.Get("/openapi/token", api.getOpenAPIToken())
 			r.Get("/userList", api.userList())
+			r.Get("/profile", api.getProfile())
 			r.Get("/userModule", api.userModule())
 			r.Post("/addUser", api.addUser())
 			r.Post("/editUser", api.editUser())

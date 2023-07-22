@@ -98,7 +98,7 @@ func SetupRoutes(
 
 		r.Group(func(r chi.Router) {
 			// normal check
-			r.Use(jwtauth.Verifier(api.tokenAuth), authenticator(api.rdb), jwtAccessCheck(api.rdb))
+			r.Use(verifier(api.tokenAuth), bypassAuthenticator(api.rdb), authenticator(api.rdb), jwtAccessCheck(api.rdb))
 			if !httpAuditDisabled {
 				cli, err := es.Get()
 				if err == nil {

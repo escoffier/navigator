@@ -35,6 +35,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/scapper"
 	sp "gitlab.com/piccolo_su/vegeta/cmd/console/service/scapper"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/session"
+	"gitlab.com/piccolo_su/vegeta/cmd/console/service/user"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/usercenter"
 	"gitlab.com/piccolo_su/vegeta/cmd/data/notifyhandler"
 	"gitlab.com/piccolo_su/vegeta/cmd/platform-report/def"
@@ -253,6 +254,33 @@ func NewConsole(
 		logging.Get().Err(ntErr).Msg("ERROR: platform report service init error")
 	}
 
+	if os.Getenv("TENSOR_CLIENT_PLATFORM") == "ChinaMobile" {
+		// 中移SSO用户关系
+		cmOpt, err := user.GetCMUserOption()
+		if err != nil {
+			logging.Get().Err(err).Msg("ERROR: read ChinaMobile env option error")
+			mainCancel()
+			return nil, err
+		}
+		// 初始化
+		cm, err := user.InitCMUserService(rdb, cmOpt.APIHost, cmOpt.APIKey, cmOpt.AuthKey)
+		if err != nil {
+			logging.Get().Err(err).Msg("ERROR: init ChinaMobile service error")
+			mainCancel()
+			return nil, err
+		}
+
+		// mainCancel will be called on error, so we don't need to call the child cancel
+		cmCtx, _ := context.WithTimeout(mainCtx, 30*time.Second)
+
+		err = cm.StartSubscribeCMUserMsg(cmCtx, cmOpt.PulsarURL)
+		if err != nil {
+			logging.Get().Err(err).Msg("ERROR: sync and handle cm user event error")
+			mainCancel()
+			return nil, err
+		}
+	}
+
 	// init cluster manager
 	kubeConfig, err := k8s.KubeConfig()
 	if err != nil {
@@ -434,6 +462,9 @@ func (c *Console) Run() func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 		if err := c.server.Shutdown(ctx); err != nil {
+			logging.Get().Error().Err(err).Msg("Error in shutting down HTTP server")
+		}
+		if err := c.webHookServer.Shutdown(ctx); err != nil {
 			logging.Get().Error().Err(err).Msg("Error in shutting down HTTP server")
 		}
 		wg.Wait()

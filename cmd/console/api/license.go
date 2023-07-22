@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/go-chi/chi"
-	"github.com/go-chi/jwtauth"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
 
@@ -30,7 +29,7 @@ func (api *api) licenseRouter() func(chi.Router) {
 		r.Post("/register", api.licenseRegister())
 
 		r.Group(func(r chi.Router) {
-			r.Use(jwtauth.Verifier(api.tokenAuth), authenticator(api.rdb), jwtAccessCheck(api.rdb))
+			r.Use(verifier(api.tokenAuth), bypassAuthenticator(api.rdb), authenticator(api.rdb), jwtAccessCheck(api.rdb))
 			r.Get("/info", api.getLicenseInfo())
 		})
 	}
@@ -49,7 +48,7 @@ func (a *api) checkRegisterStatus() http.HandlerFunc {
 
 		result := resp{Register: license.ValidateLicense(false).IsValid()}
 
-		has, err := dal.HasUser(ctx, a.rdb.GetReadDB())
+		has, err := dal.HasSuperadminUser(ctx, a.rdb.GetReadDB())
 		if err != nil {
 			apperror.RespAndLog(w, r.Context(),
 				apperror.NewAnError(http.StatusInternalServerError, err))

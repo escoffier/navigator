@@ -579,6 +579,54 @@ func (api *api) userList() http.HandlerFunc {
 	}
 }
 
+func (api *api) getProfile() http.HandlerFunc {
+	type getProfileResp struct {
+		Username    string              `json:"username"`
+		Role        string              `json:"role"`
+		ModuleGroup []model.ModuleGroup `json:"module_group"`
+		CreatedAt   int64               `json:"create_at"`
+		Platform    string              `json:"platform"`
+		Status      int                 `json:"status"`
+	}
+
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(r.Context(), defaultAccountTimeout)
+		defer cancel()
+		username := model.GetUsernameFromContext(ctx)
+
+		if username == "" {
+			RespAndLog(w, ctx, NewInvalidAuthToken(http.StatusUnauthorized, fmt.Errorf("username is empty")))
+			return
+		}
+
+		has, u, err := dal.SelectUser(ctx, api.rdb.GetReadDB(), username)
+		if err != nil {
+			logging.Get().Error().Err(err).Msg("")
+			RespAndLog(w, ctx, err)
+			return
+		}
+
+		if !has {
+			RespAndLog(w, ctx, NewInvalidAuthToken(http.StatusUnauthorized, fmt.Errorf("username is not found")))
+			return
+		}
+
+		groups, err := dal.GetModuleGroup(ctx, api.rdb.GetReadDB(), u.ModuleID)
+		if err == nil {
+			u.ModuleGroup = append(u.ModuleGroup, groups...)
+		}
+
+		response.Ok(w, response.WithItem(&getProfileResp{
+			Username:    u.UserName,
+			Role:        u.Role,
+			ModuleGroup: groups,
+			CreatedAt:   u.CreatedAt,
+			Platform:    u.Platform,
+			Status:      u.Status,
+		}))
+	}
+}
+
 func (api *api) userModule() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx, cancel := context.WithTimeout(r.Context(), defaultAccountTimeout)
@@ -871,7 +919,7 @@ func (a *api) superAdminInit() http.HandlerFunc {
 			return
 		}
 
-		has, err := dal.HasUser(ctx, a.rdb.GetReadDB())
+		has, err := dal.HasSuperadminUser(ctx, a.rdb.GetReadDB())
 		if err != nil {
 			apperror.RespAndLog(w, r.Context(),
 				apperror.NewAnError(http.StatusInternalServerError, err))
@@ -879,7 +927,7 @@ func (a *api) superAdminInit() http.HandlerFunc {
 		}
 
 		// not found user, it's first login
-		// found user, this interface cannot be called
+		// found super admin user, this interface cannot be called
 		if has {
 			apperror.RespAndLog(w, r.Context(),
 				apperror.NewNoAccess(http.StatusBadRequest,
