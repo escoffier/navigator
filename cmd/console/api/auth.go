@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -24,6 +25,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/idp"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/license"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/session"
+	"gitlab.com/piccolo_su/vegeta/cmd/console/service/user"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/usercenter"
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	"gitlab.com/piccolo_su/vegeta/pkg/dal"
@@ -542,20 +544,23 @@ func createUserByIdp(ctx context.Context, rdb *databases.RDBInstance, platform s
 	if prefix {
 		username = string(platform) + "." + username
 	}
+
 	// 默认生成一个账号
-	user := model.User{
+	u := model.User{
 		UserName:  username,
 		Role:      model.RoleNormal,
 		ModuleID:  string(moduleID),
 		Platform:  platform,
 		CreatedAt: time.Now().UnixMilli(),
 		Status:    model.UserStatusNormal,
-	}
-	if err = rdb.Get().Create(&user).Error; err != nil {
-		return nil, NewAnError(http.StatusInternalServerError, fmt.Errorf("create new accpount error: %w", err))
+		Token:     util.GenerateUUIDHex(),
 	}
 
-	return &user, nil
+	if err = rdb.Get().WithContext(ctx).Create(&u).Error; err != nil {
+		return nil, NewAnError(http.StatusInternalServerError, fmt.Errorf("create a new accpount error from idp: %w", err))
+	}
+
+	return &u, nil
 }
 
 func checkUserStatus(username string, status int) error {
@@ -862,6 +867,11 @@ func authenticator(db *databases.RDBInstance) func(http.Handler) http.Handler {
 			ctx, cancel := context.WithTimeout(r.Context(), accessCheckTimeout)
 			defer cancel()
 
+			if skipNormalAuth(ctx) {
+				next.ServeHTTP(w, r)
+				return
+			}
+
 			token, claims, err := jwtauth.FromContext(ctx)
 			if err != nil {
 				RespAndLog(w, ctx, NewInvalidAuthToken(http.StatusUnauthorized,
@@ -948,6 +958,11 @@ func jwtAccessCheck(db *databases.RDBInstance) func(http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			ctx, cancel := context.WithTimeout(r.Context(), accessCheckTimeout)
 			defer cancel()
+
+			if skipNormalAuth(ctx) {
+				next.ServeHTTP(w, r)
+				return
+			}
 
 			token, claims, err := jwtauth.FromContext(ctx)
 			if err != nil {
@@ -1068,6 +1083,154 @@ func downloadAuth() func(http.Handler) http.Handler {
 			if err != nil || string(decrypted) != r.URL.Path {
 				RespAndLog(w, ctx, InvalidTokenError(http.StatusBadRequest, fmt.Errorf("token invalid or expired")))
 				return
+			}
+
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
+func verifier(ja *jwtauth.JWTAuth) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			var (
+				ctx context.Context
+				err error
+			)
+			cmToken := getCMToken(r)
+
+			if cmToken == "" {
+				ctx, err = verify(ja, r)
+			} else {
+				ctx, err = verifyCM(cmToken, r)
+			}
+
+			if err != nil {
+				RespAndLog(w, ctx, NewInvalidAuthToken(http.StatusUnauthorized,
+					fmt.Errorf("ctx not found the token: %w", err)))
+				return
+			}
+
+			next.ServeHTTP(w, r.WithContext(ctx))
+		})
+	}
+}
+
+var (
+	tokenCtxKey          struct{}
+	skipNormalAuthCtxKey struct{}
+)
+
+type tokenCtxValue struct {
+	// token签发平台
+	IssuePlatform string
+	// token
+	Token *jwt.Token
+}
+
+// normal way
+func verify(ja *jwtauth.JWTAuth, r *http.Request) (context.Context, error) {
+	ctx := r.Context()
+	token, err := jwtauth.VerifyRequest(ja, r, jwtauth.TokenFromHeader, jwtauth.TokenFromCookie, jwtauth.TokenFromQuery)
+	if err != nil {
+		return ctx, err
+	}
+	ctx = jwtauth.NewContext(ctx, token, err)
+
+	ctx = context.WithValue(ctx, &tokenCtxKey, &tokenCtxValue{IssuePlatform: "TensorSecurity", Token: token})
+
+	return ctx, nil
+}
+
+func verifyCM(tokenStr string, r *http.Request) (context.Context, error) {
+	ctx := r.Context()
+	ja, ok := user.GetCMUserAuth(context.Background())
+	if !ok {
+		return ctx, errors.New("ChinaMobile auth not initialated")
+	}
+
+	token, err := jwtauth.VerifyRequest(ja, r, getCMToken)
+	if err != nil {
+		return ctx, err
+	}
+
+	ctx = context.WithValue(ctx, &tokenCtxKey, &tokenCtxValue{IssuePlatform: "ChinaMobile", Token: token})
+
+	return ctx, nil
+}
+
+// 获取中移磐基系统的用户token
+func getCMToken(r *http.Request) string {
+	token := r.Header.Get("ai-jwt-token")
+	if len(token) > 7 && strings.ToUpper(token[0:6]) == "BEARER" {
+		return token[7:]
+	}
+	return token
+}
+
+func shouldUseCM(ctx context.Context) bool {
+	value, ok := ctx.Value(&tokenCtxKey).(*tokenCtxValue)
+	if !ok {
+		return false
+	}
+
+	if value != nil && value.IssuePlatform == "ChinaMobile" {
+		return true
+	}
+	return false
+}
+
+func skipNormalAuth(ctx context.Context) bool {
+	skip, ok := ctx.Value(skipNormalAuthCtxKey).(bool)
+	if !ok {
+		return false
+	}
+
+	return skip
+}
+
+// 旁路验证
+func bypassAuthenticator(rdb *databases.RDBInstance) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			ctx, cancel := context.WithTimeout(r.Context(), accessCheckTimeout)
+			defer cancel()
+
+			if shouldUseCM(ctx) {
+				cm, ok := user.GetCMUserService(ctx)
+
+				if !ok {
+					RespAndLog(w, ctx, NewInvalidAuthToken(http.StatusInternalServerError, errors.New("ChinaMobile service not initialized")))
+					return
+				}
+
+				tokenValue, ok := ctx.Value(&tokenCtxKey).(*tokenCtxValue)
+
+				if !ok {
+					RespAndLog(w, ctx, NewInvalidAuthToken(http.StatusUnauthorized, errors.New("ChinaMobile token not found")))
+					return
+				}
+
+				cmUser, err := cm.Authenticate(ctx, tokenValue.Token)
+				if err != nil {
+					RespAndLog(w, ctx, NewInvalidAuthToken(http.StatusUnauthorized, fmt.Errorf("authorized failed: %v", err)))
+					return
+				}
+
+				// set skip the normal way
+				newCtx := context.WithValue(ctx, skipNormalAuthCtxKey, true)
+
+				// save user info to ctx
+				userSession := &model.UserSession{
+					Username: cmUser.UserName,
+					Role:     cmUser.Role,
+					ModuleID: cmUser.ModuleID,
+					Status:   cmUser.Status,
+					External: true,
+				}
+				newCtx = context.WithValue(newCtx, model.CtxUserSessionKey, userSession)
+
+				r = r.WithContext(newCtx)
 			}
 
 			next.ServeHTTP(w, r)
