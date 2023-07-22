@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -15,6 +16,8 @@ import (
 
 	"github.com/go-chi/chi"
 	param "github.com/oceanicdev/chi-param"
+	"gitlab.com/security-rd/go-pkg/sdk/palace"
+
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/assets"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/drift"
 	"gitlab.com/piccolo_su/vegeta/pkg/apperror"
@@ -25,7 +28,6 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
-	"gitlab.com/security-rd/go-pkg/sdk/palace"
 )
 
 func (api *api) drift() func(chi.Router) {
@@ -462,7 +464,7 @@ func (api *api) driftCreateGlobalWhitelist() http.HandlerFunc {
 		}
 		whitelistItem := model.DriftGlobalWhitelistItem{}
 		err := util.DecodeJSONBody(w, r, &whitelistItem)
-		//TODO: field security check
+		// TODO: field security check
 
 		if err != nil {
 			apperror.RespAndLog(w, ctx,
@@ -1234,7 +1236,8 @@ func (api *api) driftListPolicy() http.HandlerFunc {
 			return
 		}
 
-		policies, count, err := driSvc.ListPolicy(ctx, limit, offset, clusterKey, resources, namespaces, enables, modes, search)
+		// 程序中分页
+		policies, _, err := driSvc.ListPolicy(ctx, math.MaxInt, 0, clusterKey, resources, namespaces, enables, modes, search)
 		if err != nil {
 			logging.GetLogger().Error().Msg("ListPolicy error")
 			apperror.RespAndLog(w, ctx, apperror.NewAnError(http.StatusInternalServerError, errors.New("ListPolicy error")))
@@ -1282,7 +1285,17 @@ func (api *api) driftListPolicy() http.HandlerFunc {
 			tmpResp.AbnormalNum = len(filterAbnormalInPolicy(v, signals))
 			res = append(res, tmpResp)
 		}
-		response.Ok(w, response.WithItems(res), response.WithTotalItems(count))
+		// 程序中分页
+		start := int(offset)
+		end := int(offset + limit)
+		cnt := len(res)
+		if len(res) <= start {
+			res = make([]model.DriftListPolicyResp, 0)
+		} else {
+			res = res[start:util.MinInt(end, len(res))]
+		}
+
+		response.Ok(w, response.WithItems(res), response.WithTotalItems(int64(cnt)))
 	}
 }
 
