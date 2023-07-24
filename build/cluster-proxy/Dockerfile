@@ -1,6 +1,10 @@
 FROM envoyproxy/envoy:v1.22.2
 
-RUN apt-get update -y \
+ARG MIRROR_SOURCE=mirrors.aliyun.com
+
+RUN sed -i "s!archive.ubuntu.com/!${MIRROR_SOURCE}/!g" /etc/apt/sources.list \
+    && sed -i "s!ports.ubuntu.com/!${MIRROR_SOURCE}/!g" /etc/apt/sources.list \
+    && apt-get update -y \
     && apt-get full-upgrade -y \
     && apt-get clean \
     && apt install curl net-tools -y \

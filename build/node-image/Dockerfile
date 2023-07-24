@@ -1,7 +1,10 @@
 FROM ubuntu:22.04
+
+ARG MIRROR_SOURCE=mirrors.aliyun.com
+
 WORKDIR /var/lib/tensor
-RUN sed -i "s!archive.ubuntu.com/!mirrors.aliyun.com/!g" /etc/apt/sources.list \
-    && sed -i "s!ports.ubuntu.com/!mirrors.aliyun.com/!g" /etc/apt/sources.list \
+RUN sed -i "s!archive.ubuntu.com/!${MIRROR_SOURCE}/!g" /etc/apt/sources.list \
+    && sed -i "s!ports.ubuntu.com/!${MIRROR_SOURCE}/!g" /etc/apt/sources.list \
     && apt-get update -y \
     && apt-get full-upgrade -y \
     && apt-get install -y libclamav-dev libgpgme-dev libdevmapper1.02.1 iptables language-pack-zh-han* \

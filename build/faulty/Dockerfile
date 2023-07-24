@@ -1,5 +1,5 @@
 ARG TAG=latest
-ARG REPO=registry.t-appagile.com/tensorsecurity
+ARG REPO=harbor.tensorsecurity.com/tensorsecurity
 FROM ${REPO}/baseimage-faulty:${TAG}
 
 ADD configs/faulty /app

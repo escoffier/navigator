@@ -1,8 +1,9 @@
 FROM ubuntu:20.04
 
-ARG TAG=latest
-RUN sed -i "s!archive.ubuntu.com/!mirrors.aliyun.com/!g" /etc/apt/sources.list \
-    && sed -i "s!ports.ubuntu.com/!mirrors.aliyun.com/!g" /etc/apt/sources.list \
+ARG MIRROR_SOURCE=mirrors.aliyun.com
+
+RUN sed -i "s!archive.ubuntu.com/!${MIRROR_SOURCE}/!g" /etc/apt/sources.list \
+    && sed -i "s!ports.ubuntu.com/!${MIRROR_SOURCE}/!g" /etc/apt/sources.list \
     && apt-get update -y \
     && apt-get full-upgrade -y \
     && apt-get install -y wget \
@@ -19,7 +20,7 @@ ADD hm/hm-linux.tgz /opt/webshell/
 
 ADD avira/savapi-sdk-linux64.tgz /usr/local
 
-ADD  clamav/clamav.tgz /var/lib/
+ADD clamav/clamav.tgz /var/lib/
 RUN mkdir /etc/savapi && mkdir /var/log/savapi && mkdir /run/savapi
 
 # RUN wget --http-user=admin --http-password='@&yZ3LetJ!FBA#PQ' http://file.tensorsecurity.com/savapi-sdk-linux64.tgz \

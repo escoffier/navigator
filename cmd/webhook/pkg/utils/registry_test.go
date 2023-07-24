@@ -16,7 +16,7 @@ func TestGetImageUrl(t *testing.T) {
 	}{
 		{
 			name:    "test-1",
-			args:    args{image: "registry.t-appagile.com/tensorsecurity/tensorsec-daemon:testcn"},
+			args:    args{image: "harbor.tensorsecurity.com/tensorsec-daemon:testcn"},
 			want:    "registry.t-appagile.com",
 			wantErr: false,
 		},

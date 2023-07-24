@@ -1,7 +1,7 @@
 FROM ubuntu:18.04
 
 ARG TARGETARCH
-ARG MIRROR=archive.ubuntu.com
+ARG MIRROR_SOURCE=mirrors.aliyun.com
 ARG TOMCAT_VERSION=8.5.73
 
 ENV PATH="/usr/lib/go-1.10/bin:$PATH"
@@ -10,7 +10,7 @@ ENV JRE_HOME="${JAVA_HOME}/jre"
 ENV CLASSPATH=".:${JAVA_HOME}/lib:${JRE_HOME}/lib"
 ENV PATH=".:/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/lib/go-1.10/bin:${JAVA_HOME}/bin"
 
-RUN sed -i "s!archive.ubuntu.com/!${MIRROR}/!g" /etc/apt/sources.list \
+RUN sed -i "s!archive.ubuntu.com/!${MIRROR_SOURCE}/!g" /etc/apt/sources.list \
     && DEBIAN_FRONTEND=noninteractive apt-get update \
     && DEBIAN_FRONTEND=noninteractive apt-get install -y --fix-missing \
     libpolkit-gobject-1-dev \
