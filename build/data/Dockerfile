@@ -1,6 +1,8 @@
 FROM alpine
-ARG MIRROR=dl-cdn.alpinelinux.org
-RUN sed -i "s/dl-cdn.alpinelinux.org/${MIRROR}/g" /etc/apk/repositories \
+
+ARG MIRROR_SOURCE=mirrors.ustc.edu.cn
+
+RUN sed -i "s/dl-cdn.alpinelinux.org/${MIRROR_SOURCE}/g" /etc/apk/repositories \
     && apk update \
     && apk upgrade \
     && apk add --no-cache mysql-client \

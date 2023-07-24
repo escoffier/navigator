@@ -1,5 +1,5 @@
 ARG TAG=latest
-ARG REPO=registry.t-appagile.com/tensorsecurity
+ARG REPO=harbor.tensorsecurity.com
 
 FROM ${REPO}/holmes-packages:${TAG} AS holmes-packages
 FROM debian:buster
@@ -7,17 +7,18 @@ FROM debian:buster
 COPY --from=holmes-packages /packages/holmes*.deb /tmp/
 
 ARG TARGETARCH
+ARG MIRROR_SOURCE=mirrors.aliyun.com
 
 ARG VERSION_BUCKET=deb
 ENV VERSION_BUCKET=${VERSION_BUCKET}
-ARG MIRROR=deb.debian.org
 
 ENV FALCO_VERSION=${FALCO_VERSION}
 ENV HOST_ROOT /host
 ENV HOME /root
 
-RUN sed -i "s!deb.debian.org/!${MIRROR}/!g" /etc/apt/sources.list \
-    && apt-get update && apt-get full-upgrade -y \
+RUN sed -i "s!deb.debian.org/!${MIRROR_SOURCE}/!g" /etc/apt/sources.list \
+    && apt-get update \
+	&& apt-get full-upgrade -y \
     && apt-get install supervisor libdevmapper-dev libgpgme-dev -y \
     && export DEBIAN_FRONTEND=noninteractive \
     && apt-get install libglib2.0-dev -y \
@@ -25,8 +26,8 @@ RUN sed -i "s!deb.debian.org/!${MIRROR}/!g" /etc/apt/sources.list \
     && rm -rf /var/lib/apt/lists/*
 
 RUN cp /etc/skel/.bashrc /root && cp /etc/skel/.profile /root \
-    && sed -i "s!deb.debian.org/!${MIRROR}/!g" /etc/apt/sources.list \
-    &&apt-get update \
+    && sed -i "s!deb.debian.org/!${MIRROR_SOURCE}/!g" /etc/apt/sources.list \
+    && apt-get update \
 	&& apt-get full-upgrade -y \
 	&& apt-get install -y --no-install-recommends --fix-missing \
 	bash-completion \

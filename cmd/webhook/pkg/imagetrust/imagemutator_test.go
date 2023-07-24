@@ -274,7 +274,7 @@ func Test_getImageDigestFromHarbor(t *testing.T) {
 	}{
 		{
 			name: "test-1",
-			args: args{image: "registry.t-appagile.com/tensorsecurity/tensorsec-operator:latest",
+			args: args{image: "harbor.tensorsecurity.com/tensorsec-operator:latest",
 				secret: &utils.ImageRepoSecret{
 					User:     "admin",
 					Password: "Hrbr12@Tensor.*#)",

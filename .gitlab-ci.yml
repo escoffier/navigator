@@ -10,6 +10,12 @@ variables:
   GOPRIVATE: gitlab.com,scm.tensorsecurity.cn
   CGO_LDFLAGS: "-no-pie"
   HARBORPASSWD: Hrbr12@Tensor.*#)
+  VERSION: ci
+  REPOPREFIX: harbor.tensorsecurity.com/tensorsecurity
+  IMAGE_TAG: ci
+  FETCHTAG: latest
+  LICENSE_SECRET: sit
+  MIRROR_SOURCE: mirrors.tuna.tsinghua.edu.cn
 workflow:
   rules:
   - if: "$CI_MERGE_REQUEST_TARGET_BRANCH_NAME =~ /^master/"
@@ -25,13 +31,11 @@ all:
   - git merge origin/master
   - git config --global --add url."git@gitlab.com:".insteadOf "https://gitlab.com/"
   - git config --global --add url."ssh://git@10.99.201.85/".insteadOf "http://scm.tensorsecurity.cn/"
-  - sed -i 's#RELEASEVERSION?=v0.0.1#RELEASEVERSION?=ci#g' Makefile
-  - sed -i "s#latest#ci#g" Makefile
-  - sed -i "s#DOCKER_REGISTRY=$(REPOPREFIX)#DOCKER_REGISTRY=harbor.tensorsecurity.com/tensorsecurity#g"
-    Makefile
-  - sed -i "s#REPOPREFIX?=localhost:32000#REPOPREFIX?=harbor.tensorsecurity.com/tensorsecurity#g"
-    Makefile
-  - find ./ -name "Dockerfile"|xargs sed -i "s#registry.t-appagile.com#harbor.tensorsecurity.com#g"
+  - |
+    for file in `ls build/*/Dockerfile`; do
+        sed -i '/.*&& apt-get full-upgrade -y.*/ d' ${file}
+        sed -i '/.*&& apk upgrade.*/d' ${file}
+    done
   - mkdir ~/.kube/
   - cp ~/.docker/xray ./
   - cp ~/.docker/irene ./configs/node-image/
@@ -42,7 +46,7 @@ all:
   - mkdir hm/
   - cp ~/.docker/hm-linux.tgz hm/
   script:
-  - USEMIRROR=true FETCHTAG=latest make all
+  - make all
   - make rm-local-images || true
   rules:
   - changes:
@@ -59,14 +63,13 @@ cluster-manager:
   - git merge origin/master
   - git config --global --add url."git@gitlab.com:".insteadOf "https://gitlab.com/"
   - git config --global --add url."ssh://git@10.99.201.85/".insteadOf "http://scm.tensorsecurity.cn/"
-  - sed -i 's#RELEASEVERSION?=v0.0.1#RELEASEVERSION?=ci#g' Makefile
-  - sed -i "s#latest#ci#g" Makefile
-  - sed -i "s#DOCKER_REGISTRY=$(REPOPREFIX)#DOCKER_REGISTRY=harbor.tensorsecurity.com/tensorsecurity#g"
-    Makefile
-  - sed -i "s#REPOPREFIX?=localhost:32000#REPOPREFIX?=harbor.tensorsecurity.com/tensorsecurity#g"
-    Makefile
+  - |
+    for file in `ls build/*/Dockerfile`; do
+        sed -i '/.*&& apt-get full-upgrade -y.*/ d' ${file}
+        sed -i '/.*&& apk upgrade.*/d' ${file}
+    done
   script:
-  - USEMIRROR=true make cluster-manager
+  - make cluster-manager
   - docker rmi harbor.tensorsecurity.com/tensorsecurity/cluster-manager:ci || true
   rules:
   - changes:
@@ -82,14 +85,13 @@ console:
   - git merge origin/master
   - git config --global --add url."git@gitlab.com:".insteadOf "https://gitlab.com/"
   - git config --global --add url."ssh://git@10.99.201.85/".insteadOf "http://scm.tensorsecurity.cn/"
-  - sed -i 's#RELEASEVERSION?=v0.0.1#RELEASEVERSION?=ci#g' Makefile
-  - sed -i "s#latest#ci#g" Makefile
-  - sed -i "s#DOCKER_REGISTRY=$(REPOPREFIX)#DOCKER_REGISTRY=harbor.tensorsecurity.com/tensorsecurity#g"
-    Makefile
-  - sed -i "s#REPOPREFIX?=localhost:32000#REPOPREFIX?=harbor.tensorsecurity.com/tensorsecurity#g"
-    Makefile
+  - |
+    for file in `ls build/*/Dockerfile`; do
+        sed -i '/.*&& apt-get full-upgrade -y.*/ d' ${file}
+        sed -i '/.*&& apk upgrade.*/d' ${file}
+    done
   script:
-  - USEMIRROR=true make console
+  - make console
   - docker rmi harbor.tensorsecurity.com/tensorsecurity/console:ci || true
   rules:
   - changes:
@@ -105,12 +107,11 @@ node-image:
   - git merge origin/master
   - git config --global --add url."git@gitlab.com:".insteadOf "https://gitlab.com/"
   - git config --global --add url."ssh://git@10.99.201.85/".insteadOf "http://scm.tensorsecurity.cn/"
-  - sed -i 's#RELEASEVERSION?=v0.0.1#RELEASEVERSION?=ci#g' Makefile
-  - sed -i "s#latest#ci#g" Makefile
-  - sed -i "s#DOCKER_REGISTRY=$(REPOPREFIX)#DOCKER_REGISTRY=harbor.tensorsecurity.com/tensorsecurity#g"
-    Makefile
-  - sed -i "s#REPOPREFIX?=localhost:32000#REPOPREFIX?=harbor.tensorsecurity.com/tensorsecurity#g"
-    Makefile
+  - |
+    for file in `ls build/*/Dockerfile`; do
+        sed -i '/.*&& apt-get full-upgrade -y.*/ d' ${file}
+        sed -i '/.*&& apk upgrade.*/d' ${file}
+    done
   - cp -a ~/.docker/irene ./configs/node-image/
   - mkdir avira/
   - cp ~/.docker/savapi-sdk-linux64.tgz avira/
@@ -119,7 +120,7 @@ node-image:
   - mkdir hm/
   - cp ~/.docker/hm-linux.tgz hm/
   script:
-  - USEMIRROR=true make node-image
+  - make node-image
   - docker rmi harbor.tensorsecurity.com/tensorsecurity/node-image:ci || true
   rules:
   - changes:
@@ -135,16 +136,15 @@ holmes:
   - git merge origin/master
   - git config --global --add url."git@gitlab.com:".insteadOf "https://gitlab.com/"
   - git config --global --add url."ssh://git@10.99.201.85/".insteadOf "http://scm.tensorsecurity.cn/"
-  - sed -i 's#RELEASEVERSION?=v0.0.1#RELEASEVERSION?=ci#g' Makefile
-  - sed -i "s#latest#ci#g" Makefile
-  - sed -i "s#DOCKER_REGISTRY=$(REPOPREFIX)#DOCKER_REGISTRY=harbor.tensorsecurity.com/tensorsecurity#g"
-    Makefile
-  - sed -i "s#REPOPREFIX?=localhost:32000#REPOPREFIX?=harbor.tensorsecurity.com/tensorsecurity#g"
-    Makefile
+  - |
+    for file in `ls build/*/Dockerfile`; do
+        sed -i '/.*&& apt-get full-upgrade -y.*/ d' ${file}
+        sed -i '/.*&& apk upgrade.*/d' ${file}
+    done
   - mkdir avira/
   - cp ~/.docker/savapi-sdk-linux64.tgz avira/
   script:
-  - USEMIRROR=true FETCHTAG=latest make daemon holmes
+  - make daemon holmes
   - docker rmi harbor.tensorsecurity.com/tensorsecurity/daemon:ci || true
   - docker rmi harbor.tensorsecurity.com/tensorsecurity/holmes:ci || true
   rules:
@@ -164,12 +164,11 @@ scanner:
   - git merge origin/master
   - git config --global --add url."git@gitlab.com:".insteadOf "https://gitlab.com/"
   - git config --global --add url."ssh://git@10.99.201.85/".insteadOf "http://scm.tensorsecurity.cn/"
-  - sed -i 's#RELEASEVERSION?=v0.0.1#RELEASEVERSION?=ci#g' Makefile
-  - sed -i "s#latest#ci#g" Makefile
-  - sed -i "s#DOCKER_REGISTRY=$(REPOPREFIX)#DOCKER_REGISTRY=harbor.tensorsecurity.com/tensorsecurity#g"
-    Makefile
-  - sed -i "s#REPOPREFIX?=localhost:32000#REPOPREFIX?=harbor.tensorsecurity.com/tensorsecurity#g"
-    Makefile
+  - |
+    for file in `ls build/*/Dockerfile`; do
+        sed -i '/.*&& apt-get full-upgrade -y.*/ d' ${file}
+        sed -i '/.*&& apk upgrade.*/d' ${file}
+    done
   - mkdir avira/
   - cp ~/.docker/savapi-sdk-linux64.tgz avira/
   - mkdir clamav/
@@ -177,7 +176,7 @@ scanner:
   - mkdir hm/
   - cp ~/.docker/hm-linux.tgz hm/
   script:
-  - USEMIRROR=true make scanner
+  - make scanner
   - docker rmi harbor.tensorsecurity.com/tensorsecurity/scanner:ci || true
   rules:
   - changes:
@@ -193,14 +192,13 @@ scan-report:
   - git merge origin/master
   - git config --global --add url."git@gitlab.com:".insteadOf "https://gitlab.com/"
   - git config --global --add url."ssh://git@10.99.201.85/".insteadOf "http://scm.tensorsecurity.cn/"
-  - sed -i 's#RELEASEVERSION?=v0.0.1#RELEASEVERSION?=ci#g' Makefile
-  - sed -i "s#latest#ci#g" Makefile
-  - sed -i "s#DOCKER_REGISTRY=$(REPOPREFIX)#DOCKER_REGISTRY=harbor.tensorsecurity.com/tensorsecurity#g"
-    Makefile
-  - sed -i "s#REPOPREFIX?=localhost:32000#REPOPREFIX?=harbor.tensorsecurity.com/tensorsecurity#g"
-    Makefile
+  - |
+    for file in `ls build/*/Dockerfile`; do
+        sed -i '/.*&& apt-get full-upgrade -y.*/ d' ${file}
+        sed -i '/.*&& apk upgrade.*/d' ${file}
+    done
   script:
-  - USEMIRROR=true make scan_report
+  - make scan_report
   - docker rmi harbor.tensorsecurity.com/tensorsecurity/scan-report:ci || true
   rules:
   - changes:
@@ -215,14 +213,13 @@ webhook:
   - git merge origin/master
   - git config --global --add url."git@gitlab.com:".insteadOf "https://gitlab.com/"
   - git config --global --add url."ssh://git@10.99.201.85/".insteadOf "http://scm.tensorsecurity.cn/"
-  - sed -i 's#RELEASEVERSION?=v0.0.1#RELEASEVERSION?=ci#g' Makefile
-  - sed -i "s#latest#ci#g" Makefile
-  - sed -i "s#DOCKER_REGISTRY=$(REPOPREFIX)#DOCKER_REGISTRY=harbor.tensorsecurity.com/tensorsecurity#g"
-    Makefile
-  - sed -i "s#REPOPREFIX?=localhost:32000#REPOPREFIX?=harbor.tensorsecurity.com/tensorsecurity#g"
-    Makefile
+  - |
+    for file in `ls build/*/Dockerfile`; do
+        sed -i '/.*&& apt-get full-upgrade -y.*/ d' ${file}
+        sed -i '/.*&& apk upgrade.*/d' ${file}
+    done
   script:
-  - USEMIRROR=true make webhook
+  - make webhook
   - docker rmi harbor.tensorsecurity.com/tensorsecurity/webhook:ci || true
   rules:
   - changes:

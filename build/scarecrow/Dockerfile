@@ -1,6 +1,9 @@
+ARG REPO=harbor.tensorsecurity.com/tensorsecurity
+ARG TAG=latest
+
 FROM redis:6.2.4 AS redis
 
-FROM registry.t-appagile.com/tensorsecurity/baseimage-scarecrow:latest
+FROM ${REPO}/baseimage-scarecrow:${TAG}
 
 COPY --from=redis /usr/local/bin/redis-server /usr/local/bin/redis-server
 COPY ./configs/scarecrow/run.sh /

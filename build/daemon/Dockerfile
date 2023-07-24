@@ -1,9 +1,11 @@
 FROM ubuntu:20.04
 
+ARG MIRROR_SOURCE=mirrors.aliyun.com
+
 ## 配置国内yum源
 
-RUN sed -i "s!archive.ubuntu.com/!mirrors.aliyun.com/!g" /etc/apt/sources.list \
-    && sed -i "s!ports.ubuntu.com/!mirrors.aliyun.com/!g" /etc/apt/sources.list \
+RUN sed -i "s!archive.ubuntu.com/!${MIRROR_SOURCE}/!g" /etc/apt/sources.list \
+    && sed -i "s!ports.ubuntu.com/!${MIRROR_SOURCE}/!g" /etc/apt/sources.list \
     && export DEBIAN_FRONTEND=noninteractive \
     && apt-get update \
     && DEBIAN_FRONTEND=noninteractive apt install -y --no-install-recommends \

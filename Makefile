@@ -1,5 +1,6 @@
 VERSION = 0.1.0
 
+## 判断操作系统及内核架构
 UNAME_S := $(shell uname -s)
 UNAME_M := $(shell uname -m)
 
@@ -7,60 +8,57 @@ UNAME_M := $(shell uname -m)
 #	LDFLAGS = -extldflags "-static"
 #endif
 
+## 指定镜像仓库地址: "地址:端口/项目"
 REPOPREFIX?=localhost:32000
-REPOPREFIXOLD?=localhost:32000
 
-USEMIRROR?=false
+## 指定镜像tag
+IMAGE_TAG?=v0.0.1
 
-RELEASEVERSION?=v0.0.1
+## 指定国内源
+MIRROR_SOURCE?=mirrors.aliyun.com
 
+## holmes-packages的镜像tag
 FETCHTAG?=latest
 
+## license版本: "sit"/"release"
 LICENSE_SECRET?=sit
+
+## 指定bin目录
 BIN_DIR = $(shell pwd)/bin/
 
 .PHONY: help
 help:
 	@fgrep -h "##" $(MAKEFILE_LIST) | fgrep -v fgrep | sed -e 's/\\$$//' | sed -e 's/##//'
 
-.PHONY: dev
-dev:				## Check your dev tools
-	@echo "+ $@"
-	@command -v pre-commit || echo "pre-commit: not found, pip install pre-commit"
-	@command -v swag || echo "swag: not found, go get -u github.com/swaggo/swag/cmd/swag"
-	@command -v revive || echo "revive: not found, go get -u github.com/mgechev/revive"
-	@command -v golangci-lint || \
-		echo "golangci-lint: not found, check https://github.com/golangci/golangci-lint"
-	@command -v npm || echo "npm: not found, check https://nodejs.org/en/dotelewnload/"
-	@test -e .git/hooks/pre-commit || echo "pre-commit hook is not installed: pre-commit install"
 
-.PHONY: test
-test:			## Run golint, staticcheck, and go test for all the sub-directories
-	@echo "+ $@"
-	go mod tidy
-	# @if [ "$$(command -v revive)" ]; then \
-	# 		echo "revive ./..."; \
-	# 		revive ./...; \
-	# 		test -z "$$(revive ./...)"; \
-	# else \
-	# 		echo "golint -set_exit_status ./..."; \
-	# 		golint -set_exit_status ./...; \
-	# fi
-	# @if [ -x "$$(command -v golangci-lint)" ]; then \
-	# 		echo "golangci-lint run --fix"; \
-	# 		golangci-lint run --fix; \
-	# fi
-	go test $(TAGS) -v -race -cover -count=1 ./...
+.PHONY: apiscan-job
+apiscan-job:
+	@echo "build apiscan-job"
+	go build -v \
+		-o dist/apiscan gitlab.com/piccolo_su/vegeta/cmd/apiscan-job
+	#upx --lzma --best dist/apiscan
+	docker build -t $(REPOPREFIX)/apiscan-job:$(IMAGE_TAG) -f ./build/apiscan-job/Dockerfile .
 
-.PHONY: clean
-clean:				## Clean all artifacts
-	@echo "+ $@"
-	rm -fr dist
+
+.PHONY: cluster-manager
+cluster-manager:
+	@echo "build cluster-manager"
+	go build -v \
+		-tags=jsoniter -o dist/cluster-manager gitlab.com/piccolo_su/vegeta/cmd/clustermanager
+	#upx --lzma --best dist/cluster-manager
+	docker build -t $(REPOPREFIX)/cluster-manager:$(IMAGE_TAG) -f ./build/cluster-manager/Dockerfile .
+
+
+.PHONY: cluster-proxy
+cluster-proxy:
+	@echo "build cluster proxy"
+	cp ./build/cluster-proxy/bootstrap.yaml ./bootstrap.yaml
+	docker build -t $(REPOPREFIX)/cluster-proxy:$(IMAGE_TAG) -f ./build/cluster-proxy/Dockerfile \
+		--build-arg MIRROR_SOURCE=$(MIRROR_SOURCE) .
+
 
 .PHONY: console
 console: 		## Build console binary
-	# This target depends on scap-jobs, but for optimisation, if we want to build only console, they won't be built.
-	# To build all targets, use make all.
 	@echo "+ $@"
 	go build -v \
 		--ldflags "$(LDFLAGS) -X gitlab.com/piccolo_su/vegeta/cmd/console/cmd.Version=$(VERSION)" \
@@ -74,19 +72,21 @@ console: 		## Build console binary
 	# generate the holmes rules thr file with version
 	./build_holmes_rules_thr.sh
 
-	docker build -t $(REPOPREFIX)/console:latest -f ./build/console/Dockerfile .
+	docker build -t $(REPOPREFIX)/console:$(IMAGE_TAG) -f ./build/console/Dockerfile \
+		--build-arg MIRROR_SOURCE=$(MIRROR_SOURCE) .
 
 
-.PHONY: data-base
-data-base: ## Build data base image
+.PHONY: daemon
+daemon: drift-prevention-client ## Build daemon binary
 	@echo "+ $@"
-ifeq ($(USEMIRROR),true)
-	docker build -t $(REPOPREFIX)/baseimage-data:latest \
-    --build-arg MIRROR=mirrors.aliyun.com -f ./build/data/baseimage-dockerfile .
-else
-	docker build -t $(REPOPREFIX)/baseimage-data:latest \
-    -f ./build/data/baseimage-dockerfile .
-endif
+	@echo "daemon will use mirror"
+	CGO_ENABLED=1 go build -v -o bin/daemon  cmd/daemon/main.go
+	gcc -o bin/ns-mnt  cmd/daemon/setns/cjson.c cmd/daemon/setns/setmnt.c cmd/daemon/setns/net_info.c cmd/daemon/setns/netebpf_user.c cmd/daemon/setns/bpf.c cmd/daemon/setns/bpf_load.c -lelf -lpthread
+	make -C cmd/daemon/net-policy BIN_DIR=$(BIN_DIR)
+	#upx --lzma --best bin/daemon
+	docker build -f build/daemon/Dockerfile -t $(REPOPREFIX)/daemon:$(IMAGE_TAG) \
+        --build-arg MIRROR_SOURCE=$(MIRROR_SOURCE) .
+
 
 .PHONY: data
 data:  		## Build cleaner binary
@@ -94,198 +94,39 @@ data:  		## Build cleaner binary
 	CGO_ENABLED=0 go build -v \
 		-o dist/cleaner gitlab.com/piccolo_su/vegeta/cmd/data/tool/main
 	#upx --lzma --best dist/cleaner
-	docker build -t $(REPOPREFIX)/cleaner:latest --build-arg REPO=$(REPOPREFIX) -f ./build/data/Dockerfile  --build-arg MIRROR=mirrors.aliyun.com .
+	docker build -t $(REPOPREFIX)/cleaner:$(IMAGE_TAG) -f ./build/data/Dockerfile \
+		--build-arg MIRROR_SOURCE=$(MIRROR_SOURCE) .
 
-.PHONY: kube-scanner-report
-kube-scanner-report: 
+
+.PHONY: drift-prevention-client
+drift-prevention-client:	## Build drift prevention client binary
 	@echo "+ $@"
-	CGO_ENABLED=0 go build -v \
-    		-o dist/kube-scanner-report gitlab.com/piccolo_su/vegeta/cmd/kube-scanner-report
-	#upx --lzma --best dist/kube-scanner-report
-	docker build -t $(REPOPREFIX)/kube-scanner-report:latest --build-arg REPO=$(REPOPREFIX) -f ./build/kube-scanner-report/Dockerfile .
-
-.PHONY: platform-report
-platform-report: 
-	@echo "+ $@"
-	CGO_ENABLED=0 go build -v \
-    		-o dist/platform-report gitlab.com/piccolo_su/vegeta/cmd/platform-report
-	#upx --lzma --best dist/platform-report
-	docker build -t $(REPOPREFIX)/platform-report:latest --build-arg REPO=$(REPOPREFIX) -f ./build/platform-report/Dockerfile .
-
-.PHONY: immune-test
-immune-test:
-	@echo "+ $@"
-	mkdir -p dist
-	echo "initial" > dist/immune-test-1.txt
-	echo "initial" > dist/immune-test-2.txt
-	chmod 777 dist/immune-test-1.txt
-	chmod 777 dist/immune-test-2.txt
-	CGO_ENABLED=0 go build -v \
-    		-o dist/immune-test gitlab.com/piccolo_su/vegeta/cmd/immune-test
-	#upx --lzma --best dist/immune-test
-	docker build -t $(REPOPREFIX)/immune-test:latest --build-arg REPO=$(REPOPREFIX) -f ./build/immune-test/Dockerfile .
-
-
-.PHONY: scanner-base
-scanner-base: ## Build scanner base image
-	@echo "+ $@"
-ifeq ($(USEMIRROR),true)
-	docker build -t $(REPOPREFIX)/baseimage-scanner:latest --build-arg TAG=$(FETCHTAG) \
-    --build-arg REPO=$(REPOPREFIX) --build-arg MIRROR=mirrors.aliyun.com -f ./build/scanner/baseimage-dockerfile .
-else
-	docker build -t $(REPOPREFIX)/baseimage-scanner:latest --build-arg TAG=$(FETCHTAG) \
-    --build-arg REPO=$(REPOPREFIX) -f ./build/scanner/baseimage-dockerfile .
-endif
-
-.PHONY: scanner
-scanner:		## Build scanner binary
-	@echo "+ $@"
-	CGO_ENABLED=1	go build -v \
-		--ldflags "$(LDFLAGS) -X gitlab.com/piccolo_su/vegeta/cmd/scanner/cmd.Version=$(VERSION)" \
-		-tags=jsoniter -o dist/scanner gitlab.com/piccolo_su/vegeta/cmd/scanner
-	#upx --lzma --best dist/scanner
-	docker build -t $(REPOPREFIX)/scanner:latest --build-arg REPO=$(REPOPREFIX) -f ./build/scanner/Dockerfile .
-
-.PHONY: faulty-base
-faulty-base: ## Build faulty base image
-	@echo "+ $@"
-ifeq ($(UNAME_M),x86_64)
-	docker build -t $(REPOPREFIX)/baseimage-faulty:latest \
-	-f ./build/faulty/baseimage-dockerfile \
-	--build-arg MIRROR=mirrors.aliyun.com \
-	--build-arg TARGETARCH=amd64 .
-else
-	docker build -t $(REPOPREFIX)/baseimage-faulty:latest \
-	-f ./build/faulty/baseimage-dockerfile \
-	--build-arg MIRROR=mirrors.aliyun.com \
-	--build-arg TARGETARCH=arm64 .
-endif
-
-.PHONY: daemon
-daemon: drift-prevention-client ## Build daemon binary
-	@echo "+ $@"
-ifeq ($(USEMIRROR),true)
-	@echo "daemon will use mirror"
-	CGO_ENABLED=1 go build -v -o bin/daemon  cmd/daemon/main.go
-	gcc -o bin/ns-mnt  cmd/daemon/setns/cjson.c cmd/daemon/setns/setmnt.c cmd/daemon/setns/net_info.c cmd/daemon/setns/netebpf_user.c cmd/daemon/setns/bpf.c cmd/daemon/setns/bpf_load.c -lelf -lpthread
-	make -C cmd/daemon/net-policy BIN_DIR=$(BIN_DIR)
-	#upx --lzma --best bin/daemon
-	docker build -f build/daemon/Dockerfile -t $(REPOPREFIX)/daemon:latest \
-        --build-arg GOPROXY=https://goproxy.cn --build-arg MIRROR=mirrors.aliyun.com .
-else
-	@echo "daemon will not use mirror"
-	go build -v -o bin/daemon  cmd/daemon/main.go
-	gcc -o bin/ns-mnt  cmd/daemon/setns/cjson.c cmd/daemon/setns/setmnt.c cmd/daemon/setns/net_info.c cmd/daemon/setns/netebpf_user.c cmd/daemon/setns/bpf.c cmd/daemon/setns/bpf_load.c -lelf -lpthread
-	make -C cmd/daemon/net-policy BIN_DIR=$(BIN_DIR)
-	#upx --lzma --best bin/daemon
-	docker build -f build/daemon/Dockerfile -t $(REPOPREFIX)/daemon:latest .
-endif
-
-.PHONY: node-image 
-node-image:  ## Build node-image binary
-	@echo "+ $@"
-ifeq ($(USEMIRROR),true)
-	@echo "node-image will use mirror"
-	CGO_ENABLED=1 go build -v -o dist/node-image cmd/node-image/main.go
-	#upx --lzma --best dist/node-image
-	docker build -f build/node-image/Dockerfile -t $(REPOPREFIX)/node-image:latest \
-        --build-arg GOPROXY=https://goproxy.cn --build-arg MIRROR=mirrors.aliyun.com .
-else
-	@echo "node-image will not use mirror"
-	go build -v -o dist/node-image cmd/node-image/main.go
-	#upx --lzma --best bin/daemon
-	docker build -f build/node-image/Dockerfile -t $(REPOPREFIX)/node-image:latest .
-endif
-
-
-
-.PHONY: scarecrow
-scarecrow:   ## Build scarecrow docker to test CVEs
-	@echo "+ $@"
-ifeq ($(USEMIRROR),true)
-	@echo "scarecrow will use mirror"
-	docker build -t $(REPOPREFIX)/waston-redis:latest -f ./build/scarecrow/Dockerfile \
-		--build-arg MIRROR=mirrors.aliyun.com --build-arg TAG=$(RELEASEVERSION) .
-else
-	@echo "scarecrow will not use mirror"
-	docker build -t $(REPOPREFIX)/waston-redis:latest -f ./build/scarecrow/Dockerfile \
-		--build-arg TAG=$(RELEASEVERSION) .
-endif
+	cd configs/drift-prevention && ./run.sh mirrors.aliyun.com
 
 
 .PHONY: faulty
 faulty:
 	@echo "+ $@"
-ifeq ($(USEMIRROR),true)
 	@echo "faulty will use mirror"
-	docker build -t $(REPOPREFIX)/faulty:latest -f ./build/faulty/Dockerfile \
-		--build-arg MIRROR=mirrors.aliyun.com --build-arg REPO=$(REPOPREFIX) --build-arg TAG=$(FETCHTAG) .
-else
-	@echo "faulty will not use mirror"
-	docker build -t $(REPOPREFIX)/faulty:latest -f ./build/faulty/Dockerfile --build-arg TAG=$(FETCHTAG) \
-		--build-arg REPO=$(REPOPREFIX) .
-endif
-
-.PHONY: drift-prevention-client
-drift-prevention-client:	## Build drift prevention client binary
-	@echo "+ $@"
-ifeq ($(USEMIRROR),true)
-	(cd configs/drift-prevention && ./run.sh mirrors.aliyun.com)
-else
-	@echo "drift-prevention-client will not use mirror"
-	(cd configs/drift-prevention && ./run.sh)
-endif
-
-.PHONY: go-audit
-go-audit:     ## Build go-audit docker
-	@echo "+ $@"
-	go build -v \
-		--ldflags "$(LDFLAGS) -X gitlab.com/piccolo_su/vegeta/cmd/go-audit/cmd.Version=$(VERSION)" \
-		-o dist/go-audit gitlab.com/piccolo_su/vegeta/cmd/go-audit
-	#upx --lzma --best dist/go-audit
-	docker build -t $(REPOPREFIX)/go-audit:latest -f ./build/go-audit/Dockerfile .
-
-.PHONY: security-profiles-manager
-security-profiles-manager:	## Build security-profiles-manager binary
-	@echo "+ $@"
-	cd cmd/security-profiles-manager; cd -
-	go build -v \
-		--ldflags "$(LDFLAGS) -X gitlab.com/piccolo_su/vegeta/cmd/security-profiles-manager/cmd.Version=$(VERSION)" \
-		-o dist/security-profiles-manager gitlab.com/piccolo_su/vegeta/cmd/security-profiles-manager
-	#upx --lzma --best dist/security-profiles-manager
-	docker build -t $(REPOPREFIX)/security-profiles-manager:latest -f ./build/security-profiles-manager/Dockerfile .
-
-.PHONY: security-profiles-loader-base
-security-profiles-loader-base: ## Build security-profiles-loader base image
-	@echo "+ $@"
-ifeq ($(USEMIRROR),true)
-	docker build -t $(REPOPREFIX)/baseimage-security-profiles-loader:latest \
-    --build-arg MIRROR=mirrors.aliyun.com -f ./build/security-profiles-loader/baseimage-dockerfile .
-else
-	docker build -t $(REPOPREFIX)/baseimage-security-profiles-loader:latest \
-    -f ./build/security-profiles-loader/baseimage-dockerfile .
-endif
-
-.PHONY: security-profiles-loader
-security-profiles-loader:     ## Build security-profiles-loader docker
-	@echo "+ $@"
-	go build -v \
-		--ldflags "$(LDFLAGS) -X gitlab.com/piccolo_su/vegeta/cmd/security-profiles-loader/cmd.Version=$(VERSION)" \
-		-o dist/security-profiles-loader gitlab.com/piccolo_su/vegeta/cmd/security-profiles-loader
-	#upx --lzma --best dist/security-profiles-loader
-	docker build -t $(REPOPREFIX)/security-profiles-loader:latest -f ./build/security-profiles-loader/Dockerfile \
+	docker build -t $(REPOPREFIX)/faulty:$(IMAGE_TAG) -f ./build/faulty/Dockerfile \
 		--build-arg REPO=$(REPOPREFIX) .
 
-.PHONY: holmes-base
-holmes-base: ## Build holmes base image
+
+.PHONY: faulty-base
+faulty-base: ## Build faulty base image
 	@echo "+ $@"
-ifeq ($(USEMIRROR),true)
-	docker build -t $(REPOPREFIX)/baseimage-holmes:latest \
-    --build-arg MIRROR=mirrors.aliyun.com --build-arg REPO=$(REPOPREFIX) --build-arg TAG=$(FETCHTAG) -f  ./build/holmes/baseimage-dockerfile .
+ifeq ($(UNAME_M),x86_64)
+	docker build -t $(REPOPREFIX)/baseimage-faulty:$(IMAGE_TAG) \
+	-f ./build/faulty/baseimage-dockerfile \
+	--build-arg MIRROR_SOURCE=$(MIRROR_SOURCE) \
+	--build-arg TARGETARCH=amd64 .
 else
-	docker build -t $(REPOPREFIX)/baseimage-holmes:latest \
-    --build-arg REPO=$(REPOPREFIX) --build-arg TAG=$(FETCHTAG) -f ./build/holmes/baseimage-dockerfile .
+	docker build -t $(REPOPREFIX)/baseimage-faulty:$(IMAGE_TAG) \
+	-f ./build/faulty/baseimage-dockerfile \
+	--build-arg MIRROR_SOURCE=$(MIRROR_SOURCE) \
+	--build-arg TARGETARCH=arm64 .
 endif
+
 
 .PHONY: holmes
 holmes:     ## Build holmes docker
@@ -294,47 +135,15 @@ holmes:     ## Build holmes docker
 		--ldflags "$(LDFLAGS) -X gitlab.com/piccolo_su/vegeta/cmd/holmes/starter/cmd.Version=$(VERSION)" \
 		-o dist/holmes-starter gitlab.com/piccolo_su/vegeta/cmd/holmes/starter
 ifeq ($(UNAME_M),x86_64)
-	docker build -t $(REPOPREFIX)/holmes:latest -f ./build/holmes/Dockerfile \
-		--build-arg REPO=$(REPOPREFIX) --build-arg TAG=$(FETCHTAG) --build-arg MIRROR=mirrors.aliyun.com \
-		--build-arg TARGETARCH=amd64 .
+	docker build -t $(REPOPREFIX)/holmes:$(IMAGE_TAG) -f ./build/holmes/Dockerfile \
+		--build-arg REPO=$(REPOPREFIX) --build-arg TAG=$(FETCHTAG) \
+		--build-arg MIRROR_SOURCE=$(MIRROR_SOURCE) --build-arg TARGETARCH=amd64 .
 else
-	docker build -t $(REPOPREFIX)/holmes:latest -f ./build/holmes/Dockerfile \
-		--build-arg REPO=$(REPOPREFIX) --build-arg TAG=$(FETCHTAG) --build-arg MIRROR=mirrors.aliyun.com \
-		--build-arg TARGETARCH=arm64 .
+	docker build -t $(REPOPREFIX)/holmes:$(IMAGE_TAG) -f ./build/holmes/Dockerfile \
+		--build-arg REPO=$(REPOPREFIX) --build-arg TAG=$(FETCHTAG) \
+		--build-arg MIRROR_SOURCE=$(MIRROR_SOURCE) --build-arg TARGETARCH=arm64 .
 endif
 
-
-.PHONY: migrate
-migrate:		## Build migrage binary
-	@echo "+ $@"
-	go build -v \
-		--ldflags "$(LDFLAGS)" \
-		-o dist/migrate gitlab.com/piccolo_su/vegeta/cmd/migrate
-	#upx --lzma --best dist/migrate
-
-.PHONY: image-validate
-image-validate:
-	@echo "build image-validate"
-	go build -v \
-		-o dist/image-validator gitlab.com/piccolo_su/vegeta/cmd/image-validate
-	#upx --lzma --best dist/image-validator
-	docker build -t $(REPOPREFIX)/image-validator:latest -f ./build/image-validate/Dockerfile .
-
-.PHONY: webhook
-webhook:
-	@echo "build webhook"
-	go build -v \
-		-tags=jsoniter -o dist/webhook gitlab.com/piccolo_su/vegeta/cmd/webhook
-	#upx --lzma --best dist/webhook
-	docker build -t $(REPOPREFIX)/webhook:latest -f ./build/webhook/Dockerfile .
-
-.PHONY: cluster-manager
-cluster-manager:
-	@echo "build cluster-manager"
-	go build -v \
-		-tags=jsoniter -o dist/cluster-manager gitlab.com/piccolo_su/vegeta/cmd/clustermanager
-	#upx --lzma --best dist/cluster-manager
-	docker build -t $(REPOPREFIX)/cluster-manager:latest -f ./build/cluster-manager/Dockerfile .
 
 .PHONY: kafka-proxy
 kafka-proxy:
@@ -342,7 +151,36 @@ kafka-proxy:
 	go build -v \
 		-o dist/kafka-proxy gitlab.com/piccolo_su/vegeta/cmd/kafkaproxy
 	#upx --lzma --best dist/kafka-proxy
-	docker build -t $(REPOPREFIX)/kafka-proxy:latest -f ./build/kafka-proxy/Dockerfile .
+	docker build -t $(REPOPREFIX)/kafka-proxy:$(IMAGE_TAG) -f ./build/kafka-proxy/Dockerfile .
+
+
+.PHONY: kube-scanner-report
+kube-scanner-report: 
+	@echo "+ $@"
+	CGO_ENABLED=0 go build -v \
+    		-o dist/kube-scanner-report gitlab.com/piccolo_su/vegeta/cmd/kube-scanner-report
+	#upx --lzma --best dist/kube-scanner-report
+	docker build -t $(REPOPREFIX)/kube-scanner-report:$(IMAGE_TAG) -f ./build/kube-scanner-report/Dockerfile .
+
+
+.PHONY: node-image 
+node-image:  ## Build node-image binary
+	@echo "+ $@"
+	@echo "node-image will use mirror"
+	CGO_ENABLED=1 go build -v -o dist/node-image cmd/node-image/main.go
+	#upx --lzma --best dist/node-image
+	docker build -f build/node-image/Dockerfile -t $(REPOPREFIX)/node-image:$(IMAGE_TAG) \
+		--build-arg MIRROR_SOURCE=$(MIRROR_SOURCE) .
+
+
+.PHONY: platform-report
+platform-report: 
+	@echo "+ $@"
+	CGO_ENABLED=0 go build -v \
+    		-o dist/platform-report gitlab.com/piccolo_su/vegeta/cmd/platform-report
+	#upx --lzma --best dist/platform-report
+	docker build -t $(REPOPREFIX)/platform-report:$(IMAGE_TAG) -f ./build/platform-report/Dockerfile .
+
 
 .PHONY: scan_report
 scan_report: 		## Build cleaner binary
@@ -350,196 +188,81 @@ scan_report: 		## Build cleaner binary
 	CGO_ENABLED=1 GOOS=linux GOARCH=amd64 go build -trimpath -v \
 		-o dist/scan_report cmd/scanner/bin/scan-report/main.go
 	#upx --lzma --best dist/scan_report
-	docker build -t $(REPOPREFIX)/scan-report:latest -f ./build/scan_report/Dockerfile .
+	docker build -t $(REPOPREFIX)/scan-report:$(IMAGE_TAG) -f ./build/scan_report/Dockerfile \
+		--build-arg MIRROR_SOURCE=$(MIRROR_SOURCE) .
 
-.PHONY: apiscan-job
-apiscan-job:
-	@echo "build apiscan-job"
+
+.PHONY: scanner
+scanner:		## Build scanner binary
+	@echo "+ $@"
+	CGO_ENABLED=1	go build -v \
+		--ldflags "$(LDFLAGS) -X gitlab.com/piccolo_su/vegeta/cmd/scanner/cmd.Version=$(VERSION)" \
+		-tags=jsoniter -o dist/scanner gitlab.com/piccolo_su/vegeta/cmd/scanner
+	#upx --lzma --best dist/scanner
+	docker build -t $(REPOPREFIX)/scanner:$(IMAGE_TAG) -f ./build/scanner/Dockerfile \
+		--build-arg MIRROR_SOURCE=$(MIRROR_SOURCE) .
+
+
+.PHONY: scarecrow
+scarecrow:   ## Build scarecrow docker to test CVEs
+	@echo "+ $@"
+	@echo "scarecrow will use mirror"
+	docker build -t $(REPOPREFIX)/waston-redis:$(IMAGE_TAG) -f ./build/scarecrow/Dockerfile \
+		--build-arg REPO=$(REPOPREFIX) .
+
+
+.PHONY: webhook
+webhook:
+	@echo "build webhook"
 	go build -v \
-		-o dist/apiscan gitlab.com/piccolo_su/vegeta/cmd/apiscan-job
-	#upx --lzma --best dist/apiscan
-	docker build -t $(REPOPREFIX)/apiscan-job:latest -f ./build/apiscan-job/Dockerfile .
+		-tags=jsoniter -o dist/webhook gitlab.com/piccolo_su/vegeta/cmd/webhook
+	#upx --lzma --best dist/webhook
+	docker build -t $(REPOPREFIX)/webhook:$(IMAGE_TAG) -f ./build/webhook/Dockerfile .
 
-.PHONY: cluster-proxy
-cluster-proxy:
-	@echo "build cluster proxy"
-	cp ./build/cluster-proxy/bootstrap.yaml ./bootstrap.yaml
-	docker build -t $(REPOPREFIX)/cluster-proxy:latest -f ./build/cluster-proxy/Dockerfile .
 
+## Build all images
 .PHONY: all
 all: drift-prevention-client faulty scanner scarecrow console data holmes daemon  \
 webhook cluster-manager kafka-proxy kube-scanner-report platform-report \
 scan_report apiscan-job cluster-proxy node-image
 
-.PHONY: base
-base: scanner-base faulty-base data-base drift-prevention-client-base holmes-base security-profiles-loader-base
-
-.PHONY: deps
-deps: alpine redis elasticsearch mongodb mongo-arbiter mongodb-init postgres-init postgres nats-streaming
-
-.PHONY: pushdeps
-pushdeps:
-	docker push $(REPOPREFIX)/alpine:latest
-	docker push $(REPOPREFIX)/redis:6.2.5-alpine
-	docker push ${REPOPREFIX}/elasticsearch:7.9.1
-	docker push ${REPOPREFIX}/bitnami-shell:10-debian-10-r91
-	docker push $(REPOPREFIX)/minideb:buster
-	docker push $(REPOPREFIX)/postgresql:11.6.0-debian-10-r5
-	docker push $(REPOPREFIX)/nats-streaming:0.21.2
-
-.PHONY: pushbase
-pushbase:
-ifeq ($(USERELEASE),true)
-	@echo "push all base images release"
-	docker push $(REPOPREFIX)/baseimage-faulty:$(RELEASEVERSION)
-	docker push $(REPOPREFIX)/baseimage-holmes:$(RELEASEVERSION)
-	docker push $(REPOPREFIX)/baseimage-scanner:$(RELEASEVERSION)
-	docker push $(REPOPREFIX)/baseimage-data:$(RELEASEVERSION)
-	docker push $(REPOPREFIX)/baseimage-security-profiles-loader:$(RELEASEVERSION)
-else
-	@echo "push all base images latest"
-	docker push $(REPOPREFIX)/baseimage-faulty:latest
-	docker push $(REPOPREFIX)/baseimage-holmes:latest
-	docker push $(REPOPREFIX)/baseimage-scanner:latest
-	docker push $(REPOPREFIX)/baseimage-data:latest
-	docker push $(REPOPREFIX)/baseimage-security-profiles-loader:latest
-endif
 
 .PHONY: pushimages
 pushimages:
-ifeq ($(USERELEASE),true)
 	@echo "push all images release"
-	docker push $(REPOPREFIX)/console:$(RELEASEVERSION)
-	docker push $(REPOPREFIX)/scanner:$(RELEASEVERSION)
-	docker push $(REPOPREFIX)/cleaner:$(RELEASEVERSION)
-	docker push $(REPOPREFIX)/faulty:$(RELEASEVERSION)
-	docker push $(REPOPREFIX)/holmes:$(RELEASEVERSION)
-	docker push $(REPOPREFIX)/daemon:$(RELEASEVERSION)
-	docker push $(REPOPREFIX)/waston-redis:$(RELEASEVERSION)
-	docker push $(REPOPREFIX)/webhook:$(RELEASEVERSION)
-	docker push $(REPOPREFIX)/cluster-manager:$(RELEASEVERSION)
-	docker push $(REPOPREFIX)/kafka-proxy:$(RELEASEVERSION)
-	docker push $(REPOPREFIX)/kube-scanner-report:$(RELEASEVERSION)
-	docker push $(REPOPREFIX)/platform-report:$(RELEASEVERSION)
-	docker push $(REPOPREFIX)/scan-report:$(RELEASEVERSION)
-	docker push $(REPOPREFIX)/apiscan-job:$(RELEASEVERSION)
-	docker push $(REPOPREFIX)/cluster-proxy:$(RELEASEVERSION)
-	docker push $(REPOPREFIX)/node-image:$(RELEASEVERSION)
-else
-	@echo "push all images latest"
-	docker push $(REPOPREFIX)/console:latest
-	docker push $(REPOPREFIX)/scanner:latest
-	docker push $(REPOPREFIX)/cleaner:latest
-	docker push $(REPOPREFIX)/faulty:latest
-	docker push $(REPOPREFIX)/holmes:latest
-	docker push $(REPOPREFIX)/daemon:latest
-	docker push $(REPOPREFIX)/waston-redis:latest
-	docker push $(REPOPREFIX)/webhook:latest
-	docker push $(REPOPREFIX)/cluster-manager:latest
-	docker push $(REPOPREFIX)/kafka-proxy:latest
-	docker push $(REPOPREFIX)/kube-scanner-report:latest
-	docker push $(REPOPREFIX)/platform-report:latest
-	docker push $(REPOPREFIX)/scan-report:latest
-	docker push $(REPOPREFIX)/apiscan-job:latest
-	docker push $(REPOPREFIX)/cluster-proxy:latest
-	docker push $(REPOPREFIX)/node-image:latest
-endif
+	docker push $(REPOPREFIX)/console:$(IMAGE_TAG)
+	docker push $(REPOPREFIX)/scanner:$(IMAGE_TAG)
+	docker push $(REPOPREFIX)/cleaner:$(IMAGE_TAG)
+	docker push $(REPOPREFIX)/faulty:$(IMAGE_TAG)
+	docker push $(REPOPREFIX)/holmes:$(IMAGE_TAG)
+	docker push $(REPOPREFIX)/daemon:$(IMAGE_TAG)
+	docker push $(REPOPREFIX)/waston-redis:$(IMAGE_TAG)
+	docker push $(REPOPREFIX)/webhook:$(IMAGE_TAG)
+	docker push $(REPOPREFIX)/cluster-manager:$(IMAGE_TAG)
+	docker push $(REPOPREFIX)/kafka-proxy:$(IMAGE_TAG)
+	docker push $(REPOPREFIX)/kube-scanner-report:$(IMAGE_TAG)
+	docker push $(REPOPREFIX)/platform-report:$(IMAGE_TAG)
+	docker push $(REPOPREFIX)/scan-report:$(IMAGE_TAG)
+	docker push $(REPOPREFIX)/apiscan-job:$(IMAGE_TAG)
+	docker push $(REPOPREFIX)/cluster-proxy:$(IMAGE_TAG)
+	docker push $(REPOPREFIX)/node-image:$(IMAGE_TAG)
 
 .PHONY: rm-local-images
 rm-local-images:
-	@echo "rm all local images latest"
-	docker rmi $(REPOPREFIX)/console:latest
-	docker rmi $(REPOPREFIX)/scanner:latest
-	docker rmi $(REPOPREFIX)/cleaner:latest
-	docker rmi $(REPOPREFIX)/faulty:latest
-	docker rmi $(REPOPREFIX)/holmes:latest
-	docker rmi $(REPOPREFIX)/daemon:latest
-	docker rmi $(REPOPREFIX)/waston-redis:latest
-	docker rmi $(REPOPREFIX)/webhook:latest
-	docker rmi $(REPOPREFIX)/cluster-manager:latest
-	docker rmi $(REPOPREFIX)/kafka-proxy:latest
-	docker rmi $(REPOPREFIX)/kube-scanner-report:latest
-	docker rmi $(REPOPREFIX)/scan-report:latest
-	docker rmi $(REPOPREFIX)/apiscan-job:latest
-	docker rmi $(REPOPREFIX)/platform-report:latest
-	docker rmi $(REPOPREFIX)/cluster-proxy:latest
-	docker rmi $(REPOPREFIX)/node-image:latest
-
-.PHONY: retag
-retag:
-ifeq ($(USERELEASE),true)
-	@echo "tag all images release"
-	docker tag $(REPOPREFIX)/console:latest $(REPOPREFIX)/console:$(RELEASEVERSION)
-	docker tag $(REPOPREFIX)/scanner:latest $(REPOPREFIX)/scanner:$(RELEASEVERSION)
-	docker tag $(REPOPREFIX)/cleaner:latest $(REPOPREFIX)/cleaner:$(RELEASEVERSION)
-	docker tag $(REPOPREFIX)/faulty:latest $(REPOPREFIX)/faulty:$(RELEASEVERSION)
-	docker tag $(REPOPREFIX)/holmes:latest $(REPOPREFIX)/holmes:$(RELEASEVERSION)
-	docker tag $(REPOPREFIX)/daemon:latest $(REPOPREFIX)/daemon:$(RELEASEVERSION)
-	docker tag $(REPOPREFIX)/image-validator:latest $(REPOPREFIX)/image-validator:$(RELEASEVERSION)
-	docker tag $(REPOPREFIX)/waston-redis:latest $(REPOPREFIX)/waston-redis:$(RELEASEVERSION)
-	docker tag $(REPOPREFIX)/webshell-server:latest $(REPOPREFIX)/webshell-server:$(RELEASEVERSION)
-	docker tag $(REPOPREFIX)/webhook:latest $(REPOPREFIX)/webhook:$(RELEASEVERSION)
-	docker tag $(REPOPREFIX)/cluster-manager:latest $(REPOPREFIX)/cluster-manager:$(RELEASEVERSION)
-	docker tag $(REPOPREFIX)/kafka-proxy:latest $(REPOPREFIX)/kafka-proxy:$(RELEASEVERSION)
-	docker tag $(REPOPREFIX)/kube-scanner-report:latest $(REPOPREFIX)/kube-scanner-report:$(RELEASEVERSION)
-	docker tag $(REPOPREFIX)/apiscan-job:latest $(REPOPREFIX)/apiscan-job:$(RELEASEVERSION)
-	docker tag $(REPOPREFIX)/cluster-proxy:latest $(REPOPREFIX)/cluster-proxy:$(RELEASEVERSION)
-else
-	@echo "tag all images latest"
-	docker tag $(REPOPREFIXOLD)/console:latest $(REPOPREFIX)/console:latest
-	docker tag $(REPOPREFIXOLD)/scanner:latest $(REPOPREFIX)/scanner:latest
-	docker tag $(REPOPREFIXOLD)/cleaner:latest $(REPOPREFIX)/cleaner:latest
-	docker tag $(REPOPREFIXOLD)/faulty:latest $(REPOPREFIX)/faulty:latest
-	docker tag $(REPOPREFIXOLD)/holmes:latest $(REPOPREFIX)/holmes:latest
-	docker tag $(REPOPREFIXOLD)/daemon:latest $(REPOPREFIX)/daemon:latest
-	docker tag $(REPOPREFIXOLD)/image-validator:latest $(REPOPREFIX)/image-validator:latest
-	docker tag $(REPOPREFIXOLD)/waston-redis:latest $(REPOPREFIX)/waston-redis:latest
-	docker tag $(REPOPREFIXOLD)/webshell-server:latest $(REPOPREFIX)/webshell-server:latest
-	docker tag $(REPOPREFIXOLD)/webhook:latest $(REPOPREFIX)/webhook:latest
-	docker tag $(REPOPREFIXOLD)/cluster-manager:latest $(REPOPREFIX)/cluster-manager:latest
-	docker tag $(REPOPREFIXOLD)/kafka-proxy:latest $(REPOPREFIX)/kafka-proxy:latest
-	docker tag $(REPOPREFIXOLD)/kube-scanner-report:latest $(REPOPREFIX)/kube-scanner-report:latest
-	docker tag $(REPOPREFIXOLD)/apiscan-job:latest $(REPOPREFIX)/apiscan-job:latest
-	docker tag $(REPOPREFIXOLD)/cluster-proxy:latest $(REPOPREFIX)/cluster-proxy:latest
-endif
-
-CI_CHECK_CACHE_REGISTRY?=harbor.local.cn
-CI_CHECK_CONSOLE?=https://console.local.cn
-
-.PHONY: ci-check-images
-ci-check-images:
-ifeq ($(USERELEASE),true)
-	@echo "ci check all images release"
-	scanner-cicd -k=dGVuc29yc2VjLWNpY2QtdXNlcg==.qBFMMAvbbm3afG3y42CqKaN7WQe4Q7hiqtg5Jzwen7tWHhZG16P62kvv -c=$(CI_CHECK_CONSOLE) -r=$(CI_CHECK_CACHE_REGISTRY) -t=1000 --insecure=false -i=$(REPOPREFIX)/console:$(RELEASEVERSION)
-	scanner-cicd -k=dGVuc29yc2VjLWNpY2QtdXNlcg==.qBFMMAvbbm3afG3y42CqKaN7WQe4Q7hiqtg5Jzwen7tWHhZG16P62kvv -c=$(CI_CHECK_CONSOLE) -r=$(CI_CHECK_CACHE_REGISTRY) -t=1000 --insecure=false -i=$(REPOPREFIX)/scanner:$(RELEASEVERSION)
-	scanner-cicd -k=dGVuc29yc2VjLWNpY2QtdXNlcg==.qBFMMAvbbm3afG3y42CqKaN7WQe4Q7hiqtg5Jzwen7tWHhZG16P62kvv -c=$(CI_CHECK_CONSOLE) -r=$(CI_CHECK_CACHE_REGISTRY) -t=1000 --insecure=false -i=$(REPOPREFIX)/cleaner:$(RELEASEVERSION)
-	scanner-cicd -k=dGVuc29yc2VjLWNpY2QtdXNlcg==.qBFMMAvbbm3afG3y42CqKaN7WQe4Q7hiqtg5Jzwen7tWHhZG16P62kvv -c=$(CI_CHECK_CONSOLE) -r=$(CI_CHECK_CACHE_REGISTRY) -t=1000 --insecure=false -i=$(REPOPREFIX)/faulty:$(RELEASEVERSION)
-	scanner-cicd -k=dGVuc29yc2VjLWNpY2QtdXNlcg==.qBFMMAvbbm3afG3y42CqKaN7WQe4Q7hiqtg5Jzwen7tWHhZG16P62kvv -c=$(CI_CHECK_CONSOLE) -r=$(CI_CHECK_CACHE_REGISTRY) -t=1000 --insecure=false -i=$(REPOPREFIX)/holmes:$(RELEASEVERSION)
-	scanner-cicd -k=dGVuc29yc2VjLWNpY2QtdXNlcg==.qBFMMAvbbm3afG3y42CqKaN7WQe4Q7hiqtg5Jzwen7tWHhZG16P62kvv -c=$(CI_CHECK_CONSOLE) -r=$(CI_CHECK_CACHE_REGISTRY) -t=1000 --insecure=false -i=$(REPOPREFIX)/daemon:$(RELEASEVERSION)
-	#scanner-cicd -k=dGVuc29yc2VjLWNpY2QtdXNlcg==.qBFMMAvbbm3afG3y42CqKaN7WQe4Q7hiqtg5Jzwen7tWHhZG16P62kvv -c=$(CI_CHECK_CONSOLE) -r=$(CI_CHECK_CACHE_REGISTRY) -t=1000 --insecure=false -i=$(REPOPREFIX)/scarecrow:$(RELEASEVERSION)
-	scanner-cicd -k=dGVuc29yc2VjLWNpY2QtdXNlcg==.qBFMMAvbbm3afG3y42CqKaN7WQe4Q7hiqtg5Jzwen7tWHhZG16P62kvv -c=$(CI_CHECK_CONSOLE) -r=$(CI_CHECK_CACHE_REGISTRY) -t=1000 --insecure=false -i=$(REPOPREFIX)/webshell-server:$(RELEASEVERSION)
-	scanner-cicd -k=dGVuc29yc2VjLWNpY2QtdXNlcg==.qBFMMAvbbm3afG3y42CqKaN7WQe4Q7hiqtg5Jzwen7tWHhZG16P62kvv -c=$(CI_CHECK_CONSOLE) -r=$(CI_CHECK_CACHE_REGISTRY) -t=1000 --insecure=false -i=$(REPOPREFIX)/webhook:$(RELEASEVERSION)
-	scanner-cicd -k=dGVuc29yc2VjLWNpY2QtdXNlcg==.qBFMMAvbbm3afG3y42CqKaN7WQe4Q7hiqtg5Jzwen7tWHhZG16P62kvv -c=$(CI_CHECK_CONSOLE) -r=$(CI_CHECK_CACHE_REGISTRY) -t=1000 --insecure=false -i=$(REPOPREFIX)/cluster-manager:$(RELEASEVERSION)
-	scanner-cicd -k=dGVuc29yc2VjLWNpY2QtdXNlcg==.qBFMMAvbbm3afG3y42CqKaN7WQe4Q7hiqtg5Jzwen7tWHhZG16P62kvv -c=$(CI_CHECK_CONSOLE) -r=$(CI_CHECK_CACHE_REGISTRY) -t=1000 --insecure=false -i=$(REPOPREFIX)/kube-scanner-report:$(RELEASEVERSION)
-	scanner-cicd -k=dGVuc29yc2VjLWNpY2QtdXNlcg==.qBFMMAvbbm3afG3y42CqKaN7WQe4Q7hiqtg5Jzwen7tWHhZG16P62kvv -c=$(CI_CHECK_CONSOLE) -r=$(CI_CHECK_CACHE_REGISTRY) -t=1000 --insecure=false -i=$(REPOPREFIX)/platform-report:$(RELEASEVERSION)
-	scanner-cicd -k=dGVuc29yc2VjLWNpY2QtdXNlcg==.qBFMMAvbbm3afG3y42CqKaN7WQe4Q7hiqtg5Jzwen7tWHhZG16P62kvv -c=$(CI_CHECK_CONSOLE) -r=$(CI_CHECK_CACHE_REGISTRY) -t=1000 --insecure=false -i=$(REPOPREFIX)/scan-report:$(RELEASEVERSION)
-	scanner-cicd -k=dGVuc29yc2VjLWNpY2QtdXNlcg==.qBFMMAvbbm3afG3y42CqKaN7WQe4Q7hiqtg5Jzwen7tWHhZG16P62kvv -c=$(CI_CHECK_CONSOLE) -r=$(CI_CHECK_CACHE_REGISTRY) -t=1000 --insecure=false -i=$(REPOPREFIX)/apiscan-job:$(RELEASEVERSION)
-	scanner-cicd -k=dGVuc29yc2VjLWNpY2QtdXNlcg==.qBFMMAvbbm3afG3y42CqKaN7WQe4Q7hiqtg5Jzwen7tWHhZG16P62kvv -c=$(CI_CHECK_CONSOLE) -r=$(CI_CHECK_CACHE_REGISTRY) -t=1000 --insecure=false -i=$(REPOPREFIX)/cluster-proxy:$(RELEASEVERSION)
-else
-	@echo "ci check all images latest"
-	scanner-cicd -k=dGVuc29yc2VjLWNpY2QtdXNlcg==.qBFMMAvbbm3afG3y42CqKaN7WQe4Q7hiqtg5Jzwen7tWHhZG16P62kvv -c=$(CI_CHECK_CONSOLE) -r=$(CI_CHECK_CACHE_REGISTRY) -t=1000 --insecure=false -i=$(REPOPREFIX)/console:latest
-	scanner-cicd -k=dGVuc29yc2VjLWNpY2QtdXNlcg==.qBFMMAvbbm3afG3y42CqKaN7WQe4Q7hiqtg5Jzwen7tWHhZG16P62kvv -c=$(CI_CHECK_CONSOLE) -r=$(CI_CHECK_CACHE_REGISTRY) -t=1000 --insecure=false -i=$(REPOPREFIX)/scanner:latest
-	scanner-cicd -k=dGVuc29yc2VjLWNpY2QtdXNlcg==.qBFMMAvbbm3afG3y42CqKaN7WQe4Q7hiqtg5Jzwen7tWHhZG16P62kvv -c=$(CI_CHECK_CONSOLE) -r=$(CI_CHECK_CACHE_REGISTRY) -t=1000 --insecure=false -i=$(REPOPREFIX)/cleaner:latest
-	scanner-cicd -k=dGVuc29yc2VjLWNpY2QtdXNlcg==.qBFMMAvbbm3afG3y42CqKaN7WQe4Q7hiqtg5Jzwen7tWHhZG16P62kvv -c=$(CI_CHECK_CONSOLE) -r=$(CI_CHECK_CACHE_REGISTRY) -t=1000 --insecure=false -i=$(REPOPREFIX)/faulty:latest
-	scanner-cicd -k=dGVuc29yc2VjLWNpY2QtdXNlcg==.qBFMMAvbbm3afG3y42CqKaN7WQe4Q7hiqtg5Jzwen7tWHhZG16P62kvv -c=$(CI_CHECK_CONSOLE) -r=$(CI_CHECK_CACHE_REGISTRY) -t=1000 --insecure=false -i=$(REPOPREFIX)/holmes:latest
-	scanner-cicd -k=dGVuc29yc2VjLWNpY2QtdXNlcg==.qBFMMAvbbm3afG3y42CqKaN7WQe4Q7hiqtg5Jzwen7tWHhZG16P62kvv -c=$(CI_CHECK_CONSOLE) -r=$(CI_CHECK_CACHE_REGISTRY) -t=1000 --insecure=false -i=$(REPOPREFIX)/daemon:latest
-	#scanner-cicd -k=dGVuc29yc2VjLWNpY2QtdXNlcg==.qBFMMAvbbm3afG3y42CqKaN7WQe4Q7hiqtg5Jzwen7tWHhZG16P62kvv -c=$(CI_CHECK_CONSOLE) -r=$(CI_CHECK_CACHE_REGISTRY) -t=1000 --insecure=false -i=$(REPOPREFIX)/scarecrow:latest
-	scanner-cicd -k=dGVuc29yc2VjLWNpY2QtdXNlcg==.qBFMMAvbbm3afG3y42CqKaN7WQe4Q7hiqtg5Jzwen7tWHhZG16P62kvv -c=$(CI_CHECK_CONSOLE) -r=$(CI_CHECK_CACHE_REGISTRY) -t=1000 --insecure=false -i=$(REPOPREFIX)/webshell-server:latest
-	scanner-cicd -k=dGVuc29yc2VjLWNpY2QtdXNlcg==.qBFMMAvbbm3afG3y42CqKaN7WQe4Q7hiqtg5Jzwen7tWHhZG16P62kvv -c=$(CI_CHECK_CONSOLE) -r=$(CI_CHECK_CACHE_REGISTRY) -t=1000 --insecure=false -i=$(REPOPREFIX)/webhook:latest
-	scanner-cicd -k=dGVuc29yc2VjLWNpY2QtdXNlcg==.qBFMMAvbbm3afG3y42CqKaN7WQe4Q7hiqtg5Jzwen7tWHhZG16P62kvv -c=$(CI_CHECK_CONSOLE) -r=$(CI_CHECK_CACHE_REGISTRY) -t=1000 --insecure=false -i=$(REPOPREFIX)/cluster-manager:latest
-	scanner-cicd -k=dGVuc29yc2VjLWNpY2QtdXNlcg==.qBFMMAvbbm3afG3y42CqKaN7WQe4Q7hiqtg5Jzwen7tWHhZG16P62kvv -c=$(CI_CHECK_CONSOLE) -r=$(CI_CHECK_CACHE_REGISTRY) -t=1000 --insecure=false -i=$(REPOPREFIX)/kube-scanner-report:latest
-	scanner-cicd -k=dGVuc29yc2VjLWNpY2QtdXNlcg==.qBFMMAvbbm3afG3y42CqKaN7WQe4Q7hiqtg5Jzwen7tWHhZG16P62kvv -c=$(CI_CHECK_CONSOLE) -r=$(CI_CHECK_CACHE_REGISTRY) -t=1000 --insecure=false -i=$(REPOPREFIX)/platform-report:latest
-	scanner-cicd -k=dGVuc29yc2VjLWNpY2QtdXNlcg==.qBFMMAvbbm3afG3y42CqKaN7WQe4Q7hiqtg5Jzwen7tWHhZG16P62kvv -c=$(CI_CHECK_CONSOLE) -r=$(CI_CHECK_CACHE_REGISTRY) -t=1000 --insecure=false -i=$(REPOPREFIX)/scan-report:latest
-	scanner-cicd -k=dGVuc29yc2VjLWNpY2QtdXNlcg==.qBFMMAvbbm3afG3y42CqKaN7WQe4Q7hiqtg5Jzwen7tWHhZG16P62kvv -c=$(CI_CHECK_CONSOLE) -r=$(CI_CHECK_CACHE_REGISTRY) -t=1000 --insecure=false -i=$(REPOPREFIX)/apiscan-job:latest
-	scanner-cicd -k=dGVuc29yc2VjLWNpY2QtdXNlcg==.qBFMMAvbbm3afG3y42CqKaN7WQe4Q7hiqtg5Jzwen7tWHhZG16P62kvv -c=$(CI_CHECK_CONSOLE) -r=$(CI_CHECK_CACHE_REGISTRY) -t=1000 --insecure=false -i=$(REPOPREFIX)/cluster-proxy:latest
-endif
+	@echo "rm all local images $(IMAGE_TAG)"
+	docker rmi $(REPOPREFIX)/console:$(IMAGE_TAG)
+	docker rmi $(REPOPREFIX)/scanner:$(IMAGE_TAG)
+	docker rmi $(REPOPREFIX)/cleaner:$(IMAGE_TAG)
+	docker rmi $(REPOPREFIX)/faulty:$(IMAGE_TAG)
+	docker rmi $(REPOPREFIX)/holmes:$(IMAGE_TAG)
+	docker rmi $(REPOPREFIX)/daemon:$(IMAGE_TAG)
+	docker rmi $(REPOPREFIX)/waston-redis:$(IMAGE_TAG)
+	docker rmi $(REPOPREFIX)/webhook:$(IMAGE_TAG)
+	docker rmi $(REPOPREFIX)/cluster-manager:$(IMAGE_TAG)
+	docker rmi $(REPOPREFIX)/kafka-proxy:$(IMAGE_TAG)
+	docker rmi $(REPOPREFIX)/kube-scanner-report:$(IMAGE_TAG)
+	docker rmi $(REPOPREFIX)/scan-report:$(IMAGE_TAG)
+	docker rmi $(REPOPREFIX)/apiscan-job:$(IMAGE_TAG)
+	docker rmi $(REPOPREFIX)/platform-report:$(IMAGE_TAG)
+	docker rmi $(REPOPREFIX)/cluster-proxy:$(IMAGE_TAG)
+	docker rmi $(REPOPREFIX)/node-image:$(IMAGE_TAG)
