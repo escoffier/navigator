@@ -153,7 +153,7 @@ func (api *api) driftResources() http.HandlerFunc {
 		ctx, cancel := context.WithTimeout(r.Context(), 60*time.Second)
 		defer cancel()
 
-		limit, offset, err := getLimitAndOffset(r)
+		_, offset, err := getLimitAndOffset(r)
 		if err != nil {
 			apperror.RespAndLog(w, ctx, apperror.NewAnError(http.StatusBadRequest, err))
 			return
@@ -188,7 +188,7 @@ func (api *api) driftResources() http.HandlerFunc {
 		query = query.WithCluster(clusterKey)
 		query = query.WithNamespace(namespace)
 
-		resources, _, err := resSvc.GetResources(ctx, query, offset, limit)
+		resources, _, err := resSvc.GetResources(ctx, query, 0, math.MaxInt)
 		if err != nil {
 			logging.GetLogger().Error().Err(err).Msg("get resources fail")
 			apperror.RespAndLog(w, ctx, apperror.NewAnError(http.StatusInternalServerError, errors.New("get resources fail")))
@@ -218,14 +218,27 @@ func (api *api) driftResources() http.HandlerFunc {
 			policyMap[policy.ResourceKind+policy.Resource] = struct{}{}
 		}
 
+		rawContainersUUID, err := runningContainersUUID(ctx, clusterKey, []string{namespace})
+		if err != nil {
+			logging.GetLogger().Error().Err(err).Msg("get containers uuid error")
+		}
+
 		items := []resource{}
 		for _, resource := range resources {
 			if resource.Status != 0 {
 				continue
 			}
+
 			tmpItem := modelToResource(resource)
 			if _, ok := policyMap[resource.Kind+resource.Name]; ok {
 				tmpItem.IsExist = 1
+			}
+
+			uuid := util.GenerateUUID(resource.ClusterKey, resource.Namespace, resource.Kind, resource.Name)
+			if _, ok := rawContainersUUID[uuid]; !ok {
+				tmpItem.IsSupportDrift = false
+				tmpItem.Reason = "noRunningContainers"
+				// continue
 			}
 
 			items = append(items, tmpItem)
@@ -299,6 +312,39 @@ func (api *api) driftPolicyStatsTop() http.HandlerFunc {
 	}
 }
 
+func runningContainersUUID(ctx context.Context, clusterKey string, namespaces []string) (map[uint32]struct{}, error) {
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	req := &GetRawContainers{
+		ClusterKey: clusterKey,
+		Namespaces: namespaces,
+		Status:     []int{0},
+		Offset:     0,
+		Limit:      math.MaxInt,
+		UseRedis:   false,
+	}
+
+	containers, totalCnt, err := req.Execute(ctx)
+	if err != nil {
+		logging.GetLogger().Error().Err(err).Msg("get containers fail")
+		return nil, err
+	}
+
+	containersUUID := make(map[uint32]struct{})
+	for _, container := range containers {
+		uuid := util.GenerateUUID(container.ClusterKey, container.Namespace, container.ResourceKind, container.ResourceName)
+		containersUUID[uuid] = struct{}{}
+	}
+
+	if totalCnt > int64(len(containersUUID)) {
+		logging.GetLogger().Warn().Msg("get containers count not match")
+	}
+
+	return containersUUID, nil
+}
+
 // @Summary get drift support stats
 // @Description get drift support stats
 // @Tags drift
@@ -346,12 +392,23 @@ func (api *api) driftResourceStats() http.HandlerFunc {
 
 		var total int64 = 0
 
+		containersUUID, err := runningContainersUUID(ctx, clusterKey, []string{})
+		if err != nil {
+			logging.GetLogger().Err(err).Msgf("get containers uuid error")
+			apperror.RespAndLog(w, ctx, apperror.NewAnError(http.StatusInternalServerError, errors.New("get containers uuid error")))
+			return
+		}
+
 		for _, res := range allRes {
-			logging.GetLogger().Debug().Interface("res", res).Msg("resource detail")
 			if _, ok := excludeNS[res.Namespace]; ok {
 				continue
 			}
 			if res.TableBase.Status != 0 {
+				continue
+			}
+			uuid := util.GenerateUUID(res.ClusterKey, res.Namespace, res.Kind, res.Name)
+			if _, ok := containersUUID[uuid]; !ok {
+				logging.GetLogger().Debug().Interface("res", res).Msg("resource not running")
 				continue
 			}
 			total += 1
