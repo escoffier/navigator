@@ -253,7 +253,7 @@ func (s *ExportTaskSrv) CreateLibScanTaskImage(ctx context.Context, taskID int64
 		param := store.SearchSubTaskParam{
 			TaskIds:  taskIds,
 			Statuses: []int{consts.ImageScanSuccess},
-			LastID:   startID,
+			StartID:  startID,
 		}
 
 		subtasks, _, err := s.ScanTaskDal.GetSubTasks(ctx, param, filter)

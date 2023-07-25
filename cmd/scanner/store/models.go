@@ -233,10 +233,11 @@ type SearchSubTaskParam struct {
 	Statuses              []int // subtask status
 	LessThanRetryCount    int64
 	GreaterThanRetryCount int64
-	LastID                int64
+	StartID               int64
 	ImageID               int64
 	JustCount             bool // 计计算总数
 	GroupID               int64
+	Fields                []string
 }
 
 type SearchStrategyParam struct {

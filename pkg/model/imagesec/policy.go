@@ -130,8 +130,8 @@ func (vi *SecurityPolicy) ChangePolicyName(ctx context.Context) *SecurityPolicy 
 
 	la, ok := ctx.Value(AcceptLanguage).(string)
 
-	if ok && la == model.LangEn && vi.IsDefault {
-		vi.Name = DefaultPolicyNameEN
+	if ok && la == model.LangZh && vi.IsDefault {
+		vi.Name = DefaultPolicyNameZH
 	}
 	return vi
 }

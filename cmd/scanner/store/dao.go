@@ -1473,25 +1473,26 @@ func (s *ScannerOrm) GetInprogressTaskAndSetStatus(ctx context.Context, maxInpro
 	}
 	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*5)
 	defer cancelFunc()
-	db := s.rdb.Get().WithContext(ctx).Model(&model.Task{})
-	tx := db.Begin()
 
-	var inp int64
-	if err := tx.Where("status = ?", consts.InProgress).Count(&inp).Error; err != nil {
+	inp := make([]model.Task, 0)
+
+	if err := s.rdb.Get().WithContext(ctx).Model(&model.Task{}).Where("status = ?", consts.InProgress).
+		Where("registry_id IN ?", regIds).Limit(int(maxInprogress)).Find(&inp).Error; err != nil {
 		return nil, err
 	}
 
-	if inp >= maxInprogress {
-		return []model.Task{}, nil
+	if len(inp) >= int(maxInprogress) {
+		return inp, nil
 	}
 	ans := make([]model.Task, 0)
 
-	limit := maxInprogress - inp
-	if limit >= dequeNum {
+	limit := maxInprogress - int64(len(inp))
+	if limit >= dequeNum && dequeNum > 0 {
 		limit = dequeNum
 	}
 
-	if err := tx.Where("status = ?", consts.Pending).Where("registry_id IN ?", regIds).Limit(int(limit)).Find(&ans).Error; err != nil {
+	if err := s.rdb.Get().WithContext(ctx).Model(&model.Task{}).Where("status = ?", consts.Pending).
+		Where("registry_id IN ?", regIds).Limit(int(limit)).Find(&ans).Error; err != nil {
 		return nil, err
 	}
 	ids := make([]int64, 0)
@@ -1506,12 +1507,11 @@ func (s *ScannerOrm) GetInprogressTaskAndSetStatus(ctx context.Context, maxInpro
 	updateInfo["status"] = consts.InProgress
 	updateInfo["scanner_id"] = global.ScannerPodID
 
-	if err := tx.Where("id IN ?", ids).Updates(updateInfo).Error; err != nil {
+	if err := s.rdb.Get().WithContext(ctx).Model(&model.Task{}).Where("id IN ?", ids).
+		Where("`finished_at:` is not null").Updates(updateInfo).Error; err != nil {
 		return nil, err
 	}
-	if err := tx.Commit().Error; err != nil {
-		return nil, err
-	}
+
 	return ans, nil
 }
 
@@ -1672,8 +1672,8 @@ func (s *ScannerOrm) GetSubTasks(ctx context.Context, param SearchSubTaskParam, 
 	if param.LessThanRetryCount > 0 {
 		db = db.Where("retry_count < ? ", param.LessThanRetryCount)
 	}
-	if param.LastID > 0 {
-		db = db.Where("id > ? ", param.LastID)
+	if param.StartID > 0 {
+		db = db.Where("id > ? ", param.StartID)
 	}
 	if param.ImageID > 0 {
 		db = db.Where("image_id = ? ", param.ImageID)

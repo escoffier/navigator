@@ -248,8 +248,16 @@ func (vi *ImageDetectBrief) Serialize() {
 type ImageDetectBriefResult []*ImageDetectBrief
 
 func AddImageSafeFlag(vi []*ImageDetectBrief, preFlag uint64) uint64 {
-	safe := true
+	// 能这样判断是有以下两个条件：
+	// 1: 默认检测策略 包括全部集群（也就是包括全部镜像）
+	// 2，默认策略是开启动，且不可以关闭
+	// 如果之后需要有变动，则需要相应的变动
+	if len(vi) == 0 {
+		preFlag = util.SetBit0(util.SetBit0(util.SetBit1(preFlag, model.FlagImageSafeUnknown), model.FlagImageUnsafe), model.FlagImageSafe)
+		return preFlag
+	}
 
+	safe := true
 	for i := range vi {
 		if util.ExistBit1(vi[i].Flag, FlagDetectException) {
 			safe = false

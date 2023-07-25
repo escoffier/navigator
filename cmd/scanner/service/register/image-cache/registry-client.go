@@ -62,8 +62,8 @@ func NewRegistryClient(username, password, repository, url string, skipRegistryT
 }
 
 func (rc *RegistryClient) readManifest(ctx context.Context, version, repository, digest string) ([]byte, error) {
-	//layers := make([]string, 0)
-	//uniqueLayers := make(map[string]bool)
+	// layers := make([]string, 0)
+	// uniqueLayers := make(map[string]bool)
 	if version == "v1" {
 		manifest, err := rc.registryClient.Manifest(repository, digest)
 		if err != nil {
