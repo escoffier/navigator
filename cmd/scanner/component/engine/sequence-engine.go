@@ -29,7 +29,7 @@ import (
 const (
 	DefaultMaxTaskNum    = 2
 	DefaultMaxSubTaskNum = 2
-	DefaultInterval      = 30
+	DefaultInterval      = 10 // 每次任务只会取一批子任务，所以休眠时间设置短一些
 )
 
 type FlowLoopFunc func(st *task.SubTask, t *task.Task) error
@@ -205,19 +205,31 @@ func (s *SequenceEngine) handleFlow(ctx context.Context, flowConf []string, st *
 
 	artifacts := make(jobs.Artifact)
 	taskSrv := task.NewTaskSrv()
-	lists, _, err := orm.SearchImage(ctx, imagesecModel.SearchImageParam{ImageID: st.Image.ID}, nil)
+	lists, _, err := orm.SearchImage(ctx, imagesecModel.SearchImageParam{InIds: []int64{st.Image.ID}}, nil)
 	if err != nil || len(lists) == 0 {
 		errNo = consts.ErrRegRemoved
 		success = false
 		errMsg = fmt.Sprintf("search image info.%v", err)
 	}
-	if s.config.ExpireSec > 0 && !lists[0].LastPullTime.IsZero() && (time.Now().Unix()-lists[0].LastPullTime.Unix()) > s.config.ExpireSec {
+	if s.config.ExpireSec > 0 && len(lists) > 0 && !lists[0].LastPullTime.IsZero() && (time.Now().Unix()-lists[0].LastPullTime.Unix()) > s.config.ExpireSec {
 		errNo = consts.ErrImageExpire
 		success = false
 		errMsg = fmt.Sprintf("image expire")
 	}
-
 	// update subtask status
+	tasks, _, err := store.GetScannerOrmDb().GetSubTasks(ctx, store.SearchSubTaskParam{Ids: []int64{st.ID}}, nil)
+	if err != nil {
+		return err
+	}
+	if len(tasks) == 0 {
+		return fmt.Errorf("not get subtask:%d", st.ID)
+	}
+
+	if tasks[0].Status != consts.ImageScanPending {
+		logging.GetLogger().Info().Int64("subtaskID", st.ID).Msg("subtask not pending skipped")
+		return nil
+	}
+
 	if err := taskSrv.SetSubTaskInProgress(st.ID); err != nil {
 		success = false
 		errMsg = fmt.Sprintf("update subtask status err.%v", err)

@@ -50,7 +50,7 @@ func (d *DbDequeue) DequeueTasks(ctx context.Context) ([]task.Task, error) {
 
 	taskDal := store.GetScannerOrmDb()
 	tasks, err := taskDal.GetInprogressTaskAndSetStatus(ctx, int64(maxTask), int64(d.config.DequeNum), regIds)
-	logging.GetLogger().Info().Interface("tasks", tasks).Msg("DequeueTasks GetInProgressTaskAndSetStatus")
+	logging.GetLogger().Info().Int("taskCnt", len(tasks)).Msg("DequeueTasks GetInProgressTaskAndSetStatus")
 	if err != nil {
 		logging.GetLogger().Err(err).Msg("DequeueTasks GetInProgressTaskAndSetStatus")
 		return nil, err
@@ -83,10 +83,6 @@ func (d *DbDequeue) DequeueTasks(ctx context.Context) ([]task.Task, error) {
 		if err != nil {
 			// set task failed
 			_ = ts.SetTaskFailed(v.ID, fmt.Sprintf("get subtask err:%v", err))
-			continue
-		}
-		if len(subtasks) == 0 {
-			_ = ts.SetTaskFailed(v.ID, "not found valid subtasks")
 			continue
 		}
 

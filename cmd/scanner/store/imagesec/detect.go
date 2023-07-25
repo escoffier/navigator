@@ -463,6 +463,12 @@ func (dal *DetectTaskDao) SearchDetectSubtask(ctx context.Context, param imagese
 	if param.TaskID > 0 {
 		db = db.Where("task_id = ?", param.TaskID)
 	}
+	if len(param.ScanStatus) > 0 {
+		db = db.Where("status IN ?", param.ScanStatus)
+	}
+	if len(param.NotScanStatus) > 0 {
+		db = db.Where("status NOT IN ?", param.NotScanStatus)
+	}
 	if param.Started == consts.TrueString {
 		db = db.Where("started_at > 0 ")
 	} else if param.Started == consts.FalseString {

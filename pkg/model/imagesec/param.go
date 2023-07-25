@@ -86,7 +86,6 @@ type SearchImageParam struct {
 	OnlineFlag             uint64 // 在线 离线
 	UniqueIds              []uint64
 	UniqueId               uint64
-	ImageID                int64
 	Projects               []SearchProjectParam
 	NotCount               bool
 
