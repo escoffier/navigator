@@ -1500,7 +1500,7 @@ func (s *ScannerOrm) GetInprogressTaskAndSetStatus(ctx context.Context, maxInpro
 		ids = append(ids, ans[i].ID)
 	}
 	if len(ids) == 0 {
-		return []model.Task{}, nil
+		return inp, nil
 	}
 	updateInfo := make(map[string]interface{})
 	updateInfo["heart_beat"] = time.Now()
@@ -1508,10 +1508,11 @@ func (s *ScannerOrm) GetInprogressTaskAndSetStatus(ctx context.Context, maxInpro
 	updateInfo["scanner_id"] = global.ScannerPodID
 
 	if err := s.rdb.Get().WithContext(ctx).Model(&model.Task{}).Where("id IN ?", ids).
-		Where("`finished_at:` is not null").Updates(updateInfo).Error; err != nil {
+		Where("`finished_at:` is null").Updates(updateInfo).Error; err != nil {
 		return nil, err
 	}
 
+	inp = append(inp, ans...)
 	return ans, nil
 }
 
@@ -1890,11 +1891,11 @@ func (s *ScannerOrm) UpdateImageScanStatus(ctx context.Context, imageID int64, s
 	}
 
 	image := images[0]
-	logging.GetLogger().Info().Uint64("PreFlag", image.Flag).Uint64("scanStatus", status).Int64("imageID", imageID).Msg("UpdateImageScanStatus")
+	logging.GetLogger().Debug().Uint64("PreFlag", image.Flag).Uint64("scanStatus", status).Int64("imageID", imageID).Msg("UpdateImageScanStatus")
 
 	image.SetScanStatusFlag(status)
 
-	logging.GetLogger().Info().Uint64("AfterFlag", image.Flag).Uint64("scanStatus", status).Int64("imageID", imageID).Msg("UpdateImageScanStatus")
+	logging.GetLogger().Debug().Uint64("AfterFlag", image.Flag).Uint64("scanStatus", status).Int64("imageID", imageID).Msg("UpdateImageScanStatus")
 	// 更新状态
 	updater := map[string]interface{}{"flag": image.Flag}
 	if err := s.rdb.Get().WithContext(ctx).Model(model.ImageList{}).Where("id = ?", imageID).Updates(updater).Error; err != nil {
