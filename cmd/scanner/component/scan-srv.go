@@ -465,7 +465,7 @@ func (s *ConScannerSrv) K8sDeployDetect(ctx context.Context, containerInfo []mod
 		return true
 	}
 
-	var flag bool = true
+	var flag = true
 	msgType := consts.AlertKindK8s
 
 	registryIds := make([]int64, 0)
@@ -2635,7 +2635,7 @@ func (s *ConScannerSrv) CreateSafeReject(ctx context.Context, img model.ImageLis
 
 	notify := model.NotifyContext{
 		ServiceID: fmt.Sprintf("%s/%s:%s(image)", img.Library, img.FullRepoName, img.Tags),
-		CustomKV:  []model.KVHashs{model.KVHashs{KVHash: kv}},
+		CustomKV:  []model.KVHashs{{KVHash: kv}},
 		PodName:   coninfo.NotifyContext.PodName,
 		PodUID:    coninfo.NotifyContext.PodUID,
 		Cluster:   coninfo.NotifyContext.Cluster,
@@ -2943,7 +2943,7 @@ func (s *ConScannerSrv) UpdateScanTaskStatus(ctx context.Context, groupID int64,
 
 			for {
 				subTasks, _, err := s.dbdal.GetSubTasks(ctx, store.SearchSubTaskParam{
-					TaskIds: taskIds, LastID: lastID, Statuses: []int{
+					TaskIds: taskIds, StartID: lastID, Statuses: []int{
 						consts.ImageScanUnknown,
 						consts.ImageScanPending,
 						consts.ImageScanInProgress,

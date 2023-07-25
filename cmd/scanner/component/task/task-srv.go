@@ -293,19 +293,22 @@ func (t *TaskSrv) GetPendingTasks(ctx context.Context, limit int64) ([]Task, err
 
 func (t *TaskSrv) GetPendingSubTasksByTaskID(ctx context.Context, taskID int64) ([]SubTask, error) {
 	scannerGormDb := store.GetScannerOrmDb()
+
+	filter := &model.Filter{SortFiled: "created_at", SortBy: consts.SortByAsc, Limit: consts.DefaultLimit}
+	pendingSubTasks := make([]SubTask, 0)
+
 	stSearch := store.SearchSubTaskParam{
 		TaskIds:  []int64{taskID},
 		Statuses: []int{consts.ImageScanPending},
 	}
-	subtasks, _, err := scannerGormDb.GetSubTasks(ctx, stSearch, &model.Filter{SortFiled: "created_at", SortBy: consts.SortByDesc})
+	subtasks, _, err := scannerGormDb.GetSubTasks(ctx, stSearch, filter)
 	if err != nil {
 		logging.GetLogger().Err(err).
 			Int64("taskId", taskID).
 			Msg("get subtasks failed")
-		return nil, err
+		return pendingSubTasks, err
 	}
 
-	pendingSubTasks := make([]SubTask, 0)
 	for _, v := range subtasks {
 		imageID := v.ImageID
 
@@ -367,7 +370,6 @@ func (t *TaskSrv) GetPendingSubTasksByTaskID(ctx context.Context, taskID int64) 
 		}
 		pendingSubTasks = append(pendingSubTasks, ps)
 	}
-
 	return pendingSubTasks, nil
 }
 

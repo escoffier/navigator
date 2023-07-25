@@ -74,7 +74,7 @@ func (s *LibImageScanTaskExport) GenImageChan(ctx context.Context, task model.Ex
 
 		for {
 			scanTask, cnt, err := s.ScanTaskDal.GetSubTasks(ctx, store.SearchSubTaskParam{
-				TaskIds: taskIds, Statuses: []int{consts.ImageScanSuccess}, LastID: lastID},
+				TaskIds: taskIds, Statuses: []int{consts.ImageScanSuccess}, StartID: lastID},
 				&model.Filter{Limit: consts.DefaultBathSize, SortFiled: "id", SortBy: consts.SortByAsc})
 			if err != nil {
 				logging.Get().Err(err).Int64("taskID", task.ID).Msg("GenImageChan Export.GetSubTasks")

@@ -835,7 +835,7 @@ const (
 	SensSuggestTitle     = "建议在镜像中移除以下敏感文件，然后重新打包镜像："
 )
 
-func SuggestTile() map[string]string {
+func SuggestEnTile() map[string]string {
 	en := map[string]string{
 		VulnSuggestTitle:     "it is recommended to use following command in  Dockerfile to upgrade the package:",
 		MalwareSuggestTitle:  "it is recommended to delete the Trojan virus files and investigate the source of the files:",
@@ -1300,27 +1300,30 @@ func (vi *ImageBaseResponse) AdaptI18(ctx context.Context) {
 
 	if lang == model.LangEn {
 		for i := range vi.Suggests {
-			vi.Suggests[i].Title = SuggestTile()[vi.Suggests[i].Title]
+			vi.Suggests[i].Title = SuggestEnTile()[vi.Suggests[i].Title]
 		}
+	}
+	if lang == model.LangZh {
 		for i := range vi.RiskPolicyName {
-			if vi.RiskPolicyName[i] == DefaultPolicyNameZH {
-				vi.RiskPolicyName[i] = DefaultPolicyNameEN
+			if vi.RiskPolicyName[i] == DefaultPolicyNameEN {
+				vi.RiskPolicyName[i] = DefaultPolicyNameZH
 			}
 		}
 		for i := range vi.TotalPolicy {
 			if vi.TotalPolicy[i].IsDefault {
-				vi.TotalPolicy[i].Name = DefaultPolicyNameEN
+				vi.TotalPolicy[i].Name = DefaultPolicyNameZH
 			}
 		}
 		for i := range vi.RiskPolicy {
 			if vi.RiskPolicy[i].IsDefault {
-				vi.RiskPolicy[i].Name = DefaultPolicyNameEN
+				vi.RiskPolicy[i].Name = DefaultPolicyNameZH
 			}
 		}
 	}
 
 	vi.SecurityIssueView = vi.GetSecurityIssueViewView(lang)
 	vi.ImageAttrView = vi.GetImageAttrView(lang)
+
 }
 
 func (vi *ImageBaseResponse) SuggestsString() string {

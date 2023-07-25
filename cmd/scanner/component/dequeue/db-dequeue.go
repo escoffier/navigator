@@ -61,6 +61,23 @@ func (d *DbDequeue) DequeueTasks(ctx context.Context) ([]task.Task, error) {
 	}
 	ts := task.NewTaskSrv()
 	for _, v := range tasks {
+		orm := store.GetScannerOrmDb()
+		_, cntSub, err := orm.GetSubTasks(ctx, store.SearchSubTaskParam{
+			Ids:       nil,
+			TaskIds:   []int64{v.ID},
+			Statuses:  []int{consts.Pending, consts.InProgress},
+			JustCount: true,
+		}, nil)
+		if err != nil {
+			// set task failed
+			_ = ts.SetTaskFailed(v.ID, fmt.Sprintf("get subtask err:%v", err))
+			continue
+		}
+		if cntSub == 0 {
+			_ = ts.SetTaskEnd(v.ID)
+			continue
+		}
+
 		// get subtasks by task id
 		subtasks, err := ts.GetPendingSubTasksByTaskID(ctx, v.ID)
 		if err != nil {

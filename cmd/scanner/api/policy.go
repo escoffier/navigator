@@ -136,6 +136,7 @@ func (api *DetectAPI) SearchPolicy(ctx *gin.Context) {
 		response.JSONError(ctx, scani18.SearchPolicy(err))
 		return
 	}
+	// 默认策略永远在最前面
 	var defaultP *imagesecModel.SecurityPolicy
 	for i := range polices {
 		if polices[i].IsDefault {
