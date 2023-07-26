@@ -52,6 +52,7 @@ var (
 		"owner_references",
 		"labels",
 		"pod_template",
+		"generation",
 	}
 	onDupUpdatedColsForNamespace = []string{
 		"owner_references",
@@ -831,6 +832,7 @@ func newModelFromTensorResource(resource *assets.TensorResource, updateTime time
 	m.Namespace = resource.Namespace
 	m.ClusterKey = resource.Cluster
 	m.UID = string(resource.UID)
+	m.Generation = resource.Generation
 	m.Kind = string(resource.Kind)
 	if resource.LabelSelector != nil {
 		m.LabelSelector = new(model.LabelSelector)
@@ -958,6 +960,7 @@ func doUpsertResourceRedis(ctx context.Context, client *redisearch.Client, resou
 		Set("cluster_key", resource.ClusterKey).
 		Set("kind", resource.Kind).
 		Set("updated_at", updateTime.UnixMilli()).
+		Set("generation", resource.Generation).
 		Set("images", strings.Join(imageS, ","))
 
 	return upsertRedisDocument(ctx, client, doc)

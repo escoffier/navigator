@@ -29,7 +29,8 @@ var AssetIndices = []*redisearch.RedisIndexSchema{
 			AddField(rs.NewTagField("cluster_key")).
 			AddField(rs.NewTagField("namespace")).
 			AddField(rs.NewNumericField("updated_at")).
-			AddField(rs.NewTagField("kind")),
+			AddField(rs.NewTagField("kind")).
+			AddField(rs.NewNumericField("generation")),
 		Definition: rs.NewIndexDefinition().AddPrefix("resource:"),
 	},
 	{
@@ -150,7 +151,7 @@ type resourceEvent struct {
 }
 type ResourcesClusterListener struct {
 	parent *ResourcesWatcher
-	//clusterKey string
+	// clusterKey string
 	retryQueue *util.Queue
 
 	refreshTime time.Time

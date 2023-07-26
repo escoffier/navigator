@@ -207,6 +207,7 @@ type TensorResource struct {
 	Namespace       string         `gorm:"column:namespace;index:idx_tr_list_q,priority:2"`
 	ClusterKey      string         `gorm:"column:cluster_key;index:idx_tr_list_q,priority:1"`
 	UID             string         `gorm:"column:uid"`
+	Generation      int64          `gorm:"column:generation;type:bigint"`
 	Kind            string         `gorm:"column:kind;index:idx_tr_list_q,priority:3"`
 	LabelSelector   *LabelSelector `gorm:"column:label_selector;type:varchar(256)"`
 	OwnerReferences OwnerRefs      `gorm:"column:owner_references;type:varchar(256)"`
