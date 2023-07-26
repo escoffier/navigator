@@ -185,10 +185,10 @@ func FromCMUser(cm CMUser) (*model.User, error) {
 		Role:     model.RoleAdmin,
 		Platform: CMUserPlatform,
 	}
-	if cm.Status == 1 {
+	if cm.Status == 0 {
 		user.Status = model.UserStatusNormal
 	}
-	if cm.Status == -1 {
+	if cm.Status == 1 {
 		user.Status = model.UserStatusDisabled
 	}
 
