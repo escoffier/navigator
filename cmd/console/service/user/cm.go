@@ -26,6 +26,7 @@ import (
 	"gitlab.com/security-rd/go-pkg/mq"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
+	"moul.io/http2curl"
 )
 
 var (
@@ -44,13 +45,16 @@ var (
 )
 
 const (
+	CMAppidEnvKey     = "CM_APPID"
 	CMAPIHostEnvKey   = "CM_API_HOST"
 	CMAPIKeyEnvKey    = "CM_API_KEY"
 	CMPulsarURLEnvKey = "CM_PULSAR_URL"
 	CMAuthKeyEnvKey   = "CM_AUTH_KEY"
+	CMTopicEnvKey     = "CM_TOPIC"
 )
 
 type CMUserOption struct {
+	Appid string
 	// 门户api地址
 	APIHost string
 	// 门户apikey
@@ -62,6 +66,7 @@ type CMUserOption struct {
 }
 
 func GetCMUserOption() (*CMUserOption, error) {
+	appid := os.Getenv(CMAppidEnvKey)
 	host := os.Getenv(CMAPIHostEnvKey)
 	key := os.Getenv(CMAPIKeyEnvKey)
 	pulsarUrl := os.Getenv(CMPulsarURLEnvKey)
@@ -71,8 +76,8 @@ func GetCMUserOption() (*CMUserOption, error) {
 		return nil, fmt.Errorf("CM_API_HOST not set")
 	}
 
-	if key == "" {
-		return nil, fmt.Errorf("CM_API_KEY not set")
+	if key == "" && appid == "" {
+		return nil, fmt.Errorf("CM_APPID and CM_API_KEY not set")
 	}
 
 	if pulsarUrl == "" {
@@ -84,6 +89,7 @@ func GetCMUserOption() (*CMUserOption, error) {
 	}
 
 	return &CMUserOption{
+		Appid:     appid,
 		APIHost:   host,
 		APIKey:    key,
 		PulsarURL: pulsarUrl,
@@ -94,14 +100,15 @@ func GetCMUserOption() (*CMUserOption, error) {
 type CMUserService struct {
 	host         string
 	apiKey       string
+	appid        string
 	lastSyncTime time.Time
 	rdb          *databases.RDBInstance
 	tokenAuth    *jwtauth.JWTAuth
 }
 
-func InitCMUserService(rdb *databases.RDBInstance, apiHost, apiKey, authKey string) (*CMUserService, error) {
+func InitCMUserService(rdb *databases.RDBInstance, appid, apiHost, apiKey, authKey string) (*CMUserService, error) {
 	once.Do(func() {
-		instance = NewCMUserService(rdb, apiHost, apiKey, authKey)
+		instance = NewCMUserService(rdb, appid, apiHost, apiKey, authKey)
 	})
 
 	cm, ok := GetCMUserService(context.Background())
@@ -113,9 +120,10 @@ func InitCMUserService(rdb *databases.RDBInstance, apiHost, apiKey, authKey stri
 	return cm, nil
 }
 
-func NewCMUserService(rdb *databases.RDBInstance, apiHost, apiKey, authKey string) *CMUserService {
+func NewCMUserService(rdb *databases.RDBInstance, appid, apiHost, apiKey, authKey string) *CMUserService {
 
 	return &CMUserService{
+		appid:     appid,
 		apiKey:    apiKey,
 		host:      apiHost,
 		rdb:       rdb,
@@ -250,6 +258,12 @@ func (s *CMUserService) listUsers(ctx context.Context) (*CMUserList, error) {
 	}
 
 	req.Header.Add("apikey", s.apiKey)
+	req.Header.Add("X-App-Id", s.appid)
+
+	if curlCmd, curlErr := http2curl.GetCurlCommand(req); curlErr == nil {
+		logging.Get().Debug().Str("method", "listUsers").
+			Msgf("HTTP request as curl: cmd=%s", curlCmd)
+	}
 
 	resp, err := cmClient.Do(req)
 	if err != nil {
@@ -291,7 +305,11 @@ func (s *CMUserService) StartSubscribeCMUserMsg(ctx context.Context, pulsarURL s
 		return err
 	}
 
-	return client.SubscribeV2("persistent://central/portal/fouralInfo", "SSO-Security", s.handleCMUserMsg)
+	topic := "persistent://central/portal/fouralInfo"
+	if t := os.Getenv(CMTopicEnvKey); t != "" {
+		topic = t
+	}
+	return client.SubscribeV2(topic, "SSO-Security", s.handleCMUserMsg)
 }
 
 func (s *CMUserService) handleCMUserMsg(ctx context.Context, data []byte) error {
