@@ -263,7 +263,7 @@ func NewConsole(
 			return nil, err
 		}
 		// 初始化
-		cm, err := user.InitCMUserService(rdb, cmOpt.APIHost, cmOpt.APIKey, cmOpt.AuthKey)
+		cm, err := user.InitCMUserService(rdb, cmOpt.Appid, cmOpt.APIHost, cmOpt.APIKey, cmOpt.AuthKey)
 		if err != nil {
 			logging.Get().Err(err).Msg("ERROR: init ChinaMobile service error")
 			mainCancel()

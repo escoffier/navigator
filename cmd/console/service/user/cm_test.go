@@ -227,11 +227,11 @@ func panicOnError(err error) {
 func setupRDB() *databases.RDBInstance {
 	opt := databases.Options{
 		RdbUser:         "ivan",
-		RdbHost:         "192.168.3.20",
+		RdbHost:         "192.168.3.10",
 		RdbPassword:     "Mysql-ha@123",
 		RdbPort:         30036,
 		RdbDbname:       "ivan",
-		RdbReadonlyHost: "192.168.3.20",
+		RdbReadonlyHost: "192.168.3.10",
 	}
 
 	c, err := databases.NewRDBClient(&opt)
@@ -241,7 +241,7 @@ func setupRDB() *databases.RDBInstance {
 }
 
 func TestUpsertAllUsers(t *testing.T) {
-	s := NewCMUserService(setupRDB(), "", "", "")
+	s := NewCMUserService(setupRDB(), "", "", "", "")
 
 	err := s.upsertUsers(context.Background(), cmUserList.Data)
 	panicOnError(err)
@@ -379,7 +379,7 @@ var msgs = []CMUserMsg{
 }
 
 func TestHandleCMUserMsg(t *testing.T) {
-	s := NewCMUserService(setupRDB(), "", "", "")
+	s := NewCMUserService(setupRDB(), "", "", "", "")
 
 	for _, msg := range msgs {
 		data, err := json.Marshal(msg)
@@ -397,7 +397,7 @@ func TestCMUser(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	cm, err := InitCMUserService(setupRDB(), cmOpt.APIHost, cmOpt.APIKey, "")
+	cm, err := InitCMUserService(setupRDB(), cmOpt.Appid, cmOpt.APIHost, cmOpt.APIKey, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -417,6 +417,7 @@ func TestCMUser(t *testing.T) {
 func setupCMOption() {
 	os.Setenv(CMAPIHostEnvKey, "http://localhost:10008")
 	os.Setenv(CMAPIKeyEnvKey, "api_key")
+	os.Setenv(CMAuthKeyEnvKey, "fake")
 	os.Setenv(CMPulsarURLEnvKey, "pulsar://localhost:6650")
 }
 
@@ -511,7 +512,7 @@ func TestOldJWTTokenParse(t *testing.T) {
 }
 
 func TestGetDefaultAuth(t *testing.T) {
-	s := NewCMUserService(setupRDB(), "", "", "")
+	s := NewCMUserService(setupRDB(), "", "", "", "")
 
 	modules, err := s.getDefaultAuth(context.Background())
 	if err != nil {
