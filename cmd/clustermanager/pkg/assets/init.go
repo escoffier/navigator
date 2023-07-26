@@ -26,7 +26,7 @@ import (
 var (
 	initOnce sync.Once
 	initErr  error
-	//wInstance *assets.Watcher
+	// wInstance *assets.Watcher
 	wInstance *pkgassets.Watcher
 
 	disableKubeMonitor = false
@@ -180,6 +180,7 @@ func SyncResourceToRedis(rdb *databases.RDBInstance, redisearchClis *redisearch.
 				Set("namespace", resource.Namespace).
 				Set("cluster_key", resource.ClusterKey).
 				Set("kind", resource.Kind).
+				Set("generation", resource.Generation).
 				Set("updated_at", resource.UpdatedAt.UnixMilli()).
 				Set("images", strings.Join(imageList, ","))
 
