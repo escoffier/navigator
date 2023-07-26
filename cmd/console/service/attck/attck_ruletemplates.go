@@ -81,8 +81,15 @@ func (h *ATTCKHandler) ApplyRuleTemplates(ctx context.Context, version1, id int,
 				UpdatedAt: time.Now().UnixMilli(),
 			})
 		}
-		// 理论上不存在items中不存在的key，因为更新规则的时候同步更新了 h.rules 和 规则模板
-		vRules.items[templateRules[i].Key].disabled = !templateRules[i].Switch
+		// 理论上不存在items中不存在的key，因为更新规则的时候同步更新了 h.rules 和 规则模板。
+		// fixme: 这里有bug，暂时没看出逻辑的问题。先处理panic
+		if vRules.items != nil {
+			if r, ok := vRules.items[templateRules[i].Key]; ok {
+				if r != nil {
+					vRules.items[templateRules[i].Key].disabled = !templateRules[i].Switch
+				}
+			}
+		}
 	}
 	if err := dal.UpdateRuleSwitches(ctx, h.db.Get(), openedRules, closedRules, uint16(version1)); err != nil {
 		return err
