@@ -111,7 +111,7 @@ func WalkSubTasks(ctx context.Context,
 	// SetTaskEnd: will ignore suspended task
 
 	// todo: check if all subtask end,if not (eg: update subtask status failed due to db err),set task failed
-	_ = taskSrv.SetTaskEnd(t.ID)
+	// _ = taskSrv.SetTaskEnd(t.ID)
 
 	return nil
 }
