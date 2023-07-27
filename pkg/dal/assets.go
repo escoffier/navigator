@@ -368,9 +368,7 @@ func (q *ResourcesQueryOption) OkForRedis() bool {
 	if q.columnQuery.column != "" {
 		return false
 	}
-	if len(q.WhereLikeCondition) == 0 {
-		return false
-	}
+
 	if len(q.whereInCondition) != 0 {
 		return false
 	}
@@ -412,7 +410,12 @@ func (q *ResourcesQueryOption) RedisRawQuery() string {
 	for field, value := range q.WhereLikeCondition {
 		rawQuery.WriteString(fmt.Sprintf(" @%s:{*%s*}", field, redisearch.EscapeTextFileString(value)))
 	}
-	return rawQuery.String()
+	query := rawQuery.String()
+	//如果没有条件，就匹配所有
+	if query == "" {
+		query = "*"
+	}
+	return query
 }
 
 type ResourceKey struct {
@@ -658,7 +661,7 @@ func (q *ResContainersQueryOption) WithContainerName(cname string) *ResContainer
 	q.WhereEqCondition["name"] = cname
 	return q
 }
-func (q *ResContainersQueryOption) WithLastContainerId(containerId uint32) *ResContainersQueryOption {
+func (q *ResContainersQueryOption) WithLastContainerId(containerId int64) *ResContainersQueryOption {
 	q.whereGtCondition["id"] = containerId
 	return q
 }
@@ -714,6 +717,63 @@ func CountResourceContainers(ctx context.Context, rdb *gorm.DB, query *ResContai
 	}
 	return cntNum, nil
 }
+
+type ResContainerBase struct {
+	ID               int64  `gorm:"column:id;type:bigint;primaryKey" json:"id,omitempty"`
+	Name             string `gorm:"column:name"`
+	ResourceName     string `gorm:"column:resource_name;index:idx_tc_list_q,priority:4"`
+	Namespace        string `gorm:"column:namespace;index:idx_tc_list_q,priority:2"`
+	ClusterKey       string `gorm:"column:cluster_key;index:idx_tc_list_q,priority:1"`
+	ResourceKind     string `gorm:"column:resource_kind;index:idx_tc_list_q,priority:3"`
+	Image            string `gorm:"column:image"`
+	Type             string `gorm:"column:type"`
+	ImageUUID        uint32 `gorm:"column:image_uuid"`
+	AppType          *string
+	AppTargetName    *string
+	AppTargetVersion *string
+}
+
+func GetResourceContainerBases(ctx context.Context, rdb *gorm.DB, query *ResContainersQueryOption, offset, limit int) (containers []*ResContainerBase, err error) {
+	pgCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+	err = util.RetryWithBackoff(pgCtx, func() error {
+		oneCtx, cancel := context.WithTimeout(ctx, 9000*time.Millisecond)
+		defer cancel()
+
+		db := rdb.WithContext(oneCtx).Model(&model.TensorContainer{}).Where("status = ?", 0)
+		if len(query.WhereEqCondition) > 0 {
+			db = db.Where(query.WhereEqCondition)
+		}
+		if len(query.whereInCondition) > 0 {
+			for column, val := range query.whereInCondition {
+				db = db.Where(fmt.Sprintf("%s in ?", column), val)
+			}
+		}
+		if len(query.whereNotNullCondition) > 0 {
+			for column := range query.whereNotNullCondition {
+				db = db.Where(fmt.Sprintf("%s IS NOT NULL", column))
+			}
+		}
+		if len(query.whereGtCondition) > 0 {
+			for k, v := range query.whereGtCondition {
+				db = db.Where(fmt.Sprintf("%s > ?", k), v)
+			}
+		}
+		if len(query.columnQuery.column) > 0 && len(query.columnQuery.query) > 0 {
+			db = db.Where(fmt.Sprintf("%s LIKE ?", query.columnQuery.column), GetLikeExpr(query.columnQuery.query))
+		}
+		if limit > 0 && offset >= 0 {
+			db = db.Offset(offset).Limit(limit)
+		}
+		//return db.Order("id ASC").Find(&containers).Error
+		return db.Order("id ASC").Scan(&containers).Error
+	})
+	if err != nil {
+		return nil, err
+	}
+	return containers, nil
+}
+
 func GetResourceContainers(ctx context.Context, rdb *gorm.DB, query *ResContainersQueryOption, offset, limit int) (containers []*model.TensorContainer, err error) {
 	pgCtx, cancel := context.WithTimeout(ctx, 6*time.Second)
 	defer cancel()
@@ -3046,8 +3106,7 @@ func (q *RawContainersQueryOption) RedisRawQuery() string {
 					builder.WriteByte('|')
 				}
 			}
-			//builder.WriteRune('}')
-			builder.WriteString("} ")
+			builder.WriteString("}")
 		}
 	}
 	return strings.TrimSpace(builder.String())

@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/go-redis/redis/v8"
 	json "github.com/json-iterator/go"
@@ -137,8 +138,7 @@ type Service struct {
 
 func (s *Service) WholeSummary(ctx context.Context, queryOpt *dal.ResContainersQueryOption) ([]*NamespaceSummary, error) {
 	resSvc, _ := assetsSvc.GetResourcesService(ctx)
-	remainCount := maxCount    //待查询数量
-	var lastContainerId uint32 //上条记录的id
+	var lastContainerId int64 //上条记录的id
 	failCnt := 0
 
 	frameInfos, err := resSvc.GetFrameworks(ctx)
@@ -150,27 +150,31 @@ func (s *Service) WholeSummary(ctx context.Context, queryOpt *dal.ResContainersQ
 	if appType == apptypeWeb {
 		delete(queryOpt.WhereEqCondition, "app_type")
 	}
-
+	begin := time.Now()
+	totalCount := 0
 	nsMap := make(map[string]*NamespaceSummary, 10)
-	for remainCount > 0 {
+	for {
 		if lastContainerId != 0 {
 			queryOpt.WithLastContainerId(lastContainerId)
 		}
-		containers, tcount, err := resSvc.GetResourceContainers(ctx, queryOpt, 0, limit)
+		containers, err := resSvc.GetResourceContainersWithoutCount(ctx, queryOpt, 0, limit*5)
 		if err != nil {
 			logging.Get().Err(err).Msgf("query resource containers error. opt: %+v lastContainerId: %d limit: %d", queryOpt, lastContainerId, limit)
 			failCnt++
 			if failCnt == 3 {
-				remainCount -= limit
-				failCnt = 0
+				break
+			}
+			if errors.Is(err, context.DeadlineExceeded) {
+				break
 			}
 			continue
 		}
-		failCnt = 0
-		remainCount = int(tcount) - len(containers)
-		if len(containers) > 0 {
-			lastContainerId = containers[len(containers)-1].ID
+		if len(containers) == 0 {
+			break
 		}
+		totalCount += len(containers)
+		failCnt = 0
+		lastContainerId = containers[len(containers)-1].ID
 		for _, container := range containers {
 			if appType == apptypeWeb {
 				// not web application
@@ -255,6 +259,8 @@ func (s *Service) WholeSummary(ctx context.Context, queryOpt *dal.ResContainersQ
 			}
 		}
 	}
+	end := time.Now()
+	logging.Get().Error().Msgf("query resource containers  ，totalCount %d, timeCost:%dms ***", totalCount, end.Sub(begin).Milliseconds())
 
 	nsSlice := make([]*NamespaceSummary, len(nsMap))
 	i := 0

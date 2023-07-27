@@ -226,7 +226,13 @@ func (rl *TensorResourcesService) CountPods(ctx context.Context, queryOptions *d
 	}
 	return cnt, nil
 }
-
+func (rl *TensorResourcesService) GetResourceContainersWithoutCount(ctx context.Context, queryOptions *dal.ResContainersQueryOption, offset, limit int) ([]*dal.ResContainerBase, error) {
+	containers, err := dal.GetResourceContainerBases(ctx, rl.rdb.GetReadDB(), queryOptions, offset, limit)
+	if err != nil {
+		return nil, err
+	}
+	return containers, nil
+}
 func (rl *TensorResourcesService) GetResourceContainers(ctx context.Context, queryOptions *dal.ResContainersQueryOption, offset, limit int) ([]*model.TensorContainer, int64, error) {
 	containers, err := dal.GetResourceContainers(ctx, rl.rdb.GetReadDB(), queryOptions, offset, limit)
 	if err != nil {
