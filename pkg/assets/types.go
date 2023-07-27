@@ -514,26 +514,32 @@ func NewResourceFromDeployment(cluster string, wl interface{}) *TensorResource {
 func NewResourceFromCronJob(cluster string, wl interface{}) *TensorResource {
 	ss, ok := wl.(*batchv1beta.CronJob)
 	if !ok {
-		return nil
+		ssv1, ok := wl.(*batchv1.CronJob)
+		if !ok {
+			return nil
+		}
+		return &TensorResource{
+			ObjectMeta:    *ssv1.ObjectMeta.DeepCopy(),
+			Kind:          KindCronJob,
+			Cluster:       cluster,
+			originRef:     ssv1,
+			LabelSelector: ssv1.Spec.JobTemplate.Spec.Selector,
+			PodTemplate:   &ssv1.Spec.JobTemplate.Spec.Template,
+			CreateTime:    ssv1.CreationTimestamp.Time,
+		}
 	}
 	if ss == nil {
 		return nil
 	}
-	res := TensorResource{
-		ObjectMeta: *ss.ObjectMeta.DeepCopy(),
-		Kind:       KindCronJob,
-		Cluster:    cluster,
-		//Namespace:       ss.Namespace,
-		//Name:            ss.Name,
-		//UID:           string(ss.UID),
+	return &TensorResource{
+		ObjectMeta:    *ss.ObjectMeta.DeepCopy(),
+		Kind:          KindCronJob,
+		Cluster:       cluster,
 		originRef:     ss,
 		LabelSelector: ss.Spec.JobTemplate.Spec.Selector,
-		//OwnerReferences: ss.OwnerReferences,
-		//Labels:          ss.Labels,
-		PodTemplate: &ss.Spec.JobTemplate.Spec.Template,
-		CreateTime:  ss.CreationTimestamp.Time,
+		PodTemplate:   &ss.Spec.JobTemplate.Spec.Template,
+		CreateTime:    ss.CreationTimestamp.Time,
 	}
-	return &res
 }
 
 func NewResourceFromJob(cluster string, wl interface{}) *TensorResource {

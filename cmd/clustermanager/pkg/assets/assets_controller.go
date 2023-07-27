@@ -44,6 +44,7 @@ var (
 	ReplicaSetType        = reflect.TypeOf(&appsv1.ReplicaSet{})
 	JobType               = reflect.TypeOf(&batchv1.Job{})
 	CronJobType           = reflect.TypeOf(&v1beta1.CronJob{})
+	CronJobV1Type         = reflect.TypeOf(&batchv1.CronJob{})
 	ReplicaControllerType = reflect.TypeOf(&corev1.ReplicationController{})
 	StatefulSetType       = reflect.TypeOf(&appsv1.StatefulSet{})
 	RoleType              = reflect.TypeOf(&rbacv1.Role{})
@@ -54,37 +55,38 @@ var (
 )
 
 type Controller struct {
-	podLister  corelisters.PodLister
-	dpLister   applisters.DeploymentLister
-	dsLister   applisters.DaemonSetLister
-	jbLister   batchv1lister.JobLister
-	cjbLister  v1beta1lister.CronJobLister
-	rcLister   corelisters.ReplicationControllerLister
-	ssLister   applisters.StatefulSetLister
-	rsLister   applisters.ReplicaSetLister
-	rlLister   rbaclisters.RoleLister
-	crlLister  rbaclisters.ClusterRoleLister
-	nsLister   corelisters.NamespaceLister
-	nodeLister corelisters.NodeLister
-	hpLister   defenselisters.HoneypotLister
-	podSynced  cache.InformerSynced
-	dsSynced   cache.InformerSynced
-	dpSynced   cache.InformerSynced
-	jbSynced   cache.InformerSynced
-	cjbSynced  cache.InformerSynced
-	rcSynced   cache.InformerSynced
-	ssSynced   cache.InformerSynced
-	rsSynced   cache.InformerSynced
-	rlSynced   cache.InformerSynced
-	crlSynced  cache.InformerSynced
-	nsSynced   cache.InformerSynced
-	nodeSynced cache.InformerSynced
-	hpSynced   cache.InformerSynced
-	queue      workqueue.RateLimitingInterface
-	clusterKey string
-	mqWriter   mq.Writer
-	topic      string
-	poolInfo   *pkgassets.PoolInfo
+	podLister   corelisters.PodLister
+	dpLister    applisters.DeploymentLister
+	dsLister    applisters.DaemonSetLister
+	jbLister    batchv1lister.JobLister
+	cjbLister   v1beta1lister.CronJobLister
+	cjbv1Lister batchv1lister.CronJobLister
+	rcLister    corelisters.ReplicationControllerLister
+	ssLister    applisters.StatefulSetLister
+	rsLister    applisters.ReplicaSetLister
+	rlLister    rbaclisters.RoleLister
+	crlLister   rbaclisters.ClusterRoleLister
+	nsLister    corelisters.NamespaceLister
+	nodeLister  corelisters.NodeLister
+	hpLister    defenselisters.HoneypotLister
+	podSynced   cache.InformerSynced
+	dsSynced    cache.InformerSynced
+	dpSynced    cache.InformerSynced
+	jbSynced    cache.InformerSynced
+	cjbSynced   cache.InformerSynced
+	rcSynced    cache.InformerSynced
+	ssSynced    cache.InformerSynced
+	rsSynced    cache.InformerSynced
+	rlSynced    cache.InformerSynced
+	crlSynced   cache.InformerSynced
+	nsSynced    cache.InformerSynced
+	nodeSynced  cache.InformerSynced
+	hpSynced    cache.InformerSynced
+	queue       workqueue.RateLimitingInterface
+	clusterKey  string
+	mqWriter    mq.Writer
+	topic       string
+	poolInfo    *pkgassets.PoolInfo
 
 	dupCache *pkgassets.DuplicationCheckingCache
 }
@@ -94,7 +96,7 @@ type Assets struct {
 	key  string
 }
 
-func NewAssetsController(factory informers.SharedInformerFactory, tensorFactory externalversions.SharedInformerFactory, writer mq.Writer, clusterKey, topic string, poolInfo *pkgassets.PoolInfo) *Controller {
+func NewAssetsController(factory informers.SharedInformerFactory, tensorFactory externalversions.SharedInformerFactory, writer mq.Writer, clusterKey, topic string, poolInfo *pkgassets.PoolInfo, version int) *Controller {
 	ac := &Controller{
 		podLister:  factory.Core().V1().Pods().Lister(),
 		dpLister:   factory.Apps().V1().Deployments().Lister(),
@@ -107,7 +109,6 @@ func NewAssetsController(factory informers.SharedInformerFactory, tensorFactory 
 		nodeLister: factory.Core().V1().Nodes().Lister(),
 		rcLister:   factory.Core().V1().ReplicationControllers().Lister(),
 		jbLister:   factory.Batch().V1().Jobs().Lister(),
-		cjbLister:  factory.Batch().V1beta1().CronJobs().Lister(),
 		hpLister:   tensorFactory.Defense().V1().Honeypots().Lister(),
 		queue:      workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "assets"),
 		clusterKey: clusterKey,
@@ -116,6 +117,26 @@ func NewAssetsController(factory informers.SharedInformerFactory, tensorFactory 
 		poolInfo:   poolInfo,
 		dupCache:   pkgassets.NewDuplicationCheckingCache(3*time.Hour, dupCacheSize),
 	}
+
+	// cronjob is deprecated in v1.21+ unavailable in v1.25+
+	if version >= 21 {
+		ac.cjbv1Lister = factory.Batch().V1().CronJobs().Lister()
+		factory.Batch().V1().CronJobs().Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+			AddFunc:    ac.addCronJob,
+			UpdateFunc: ac.updateCronJob,
+			DeleteFunc: ac.deleteCronJob,
+		})
+		ac.cjbSynced = factory.Batch().V1().CronJobs().Informer().HasSynced
+	} else {
+		ac.cjbLister = factory.Batch().V1beta1().CronJobs().Lister()
+		factory.Batch().V1beta1().CronJobs().Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+			AddFunc:    ac.addCronJob,
+			UpdateFunc: ac.updateCronJob,
+			DeleteFunc: ac.deleteCronJob,
+		})
+		ac.cjbSynced = factory.Batch().V1beta1().CronJobs().Informer().HasSynced
+	}
+
 	tensorFactory.Defense().V1().Honeypots().Lister()
 	// Pods
 	factory.Core().V1().Pods().Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
@@ -196,14 +217,6 @@ func NewAssetsController(factory informers.SharedInformerFactory, tensorFactory 
 		DeleteFunc: ac.deleteJob,
 	})
 	ac.jbSynced = factory.Batch().V1().Jobs().Informer().HasSynced
-
-	// CronJobs
-	factory.Batch().V1beta1().CronJobs().Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
-		AddFunc:    ac.addCronJob,
-		UpdateFunc: ac.updateCronJob,
-		DeleteFunc: ac.deleteCronJob,
-	})
-	ac.cjbSynced = factory.Batch().V1beta1().CronJobs().Informer().HasSynced
 
 	// StatefulSets
 	factory.Apps().V1().StatefulSets().Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
@@ -426,22 +439,33 @@ func (ac *Controller) deleteJob(obj interface{}) {
 }
 
 func (ac *Controller) addCronJob(obj interface{}) {
-	d := obj.(*v1beta1.CronJob)
-	logging.Get().Debug().Msgf("add CronJob %s/%s", d.Namespace, d.Name)
-	ac.enqueue(d)
+	meta, err := meta.Accessor(obj)
+	if err != nil {
+		logging.Get().Error().Msg("invalid CronJob object")
+		return
+	}
+	logging.Get().Debug().Msgf("add CronJob V1 %s/%s", meta.GetNamespace(), meta.GetName())
+	ac.enqueue(obj)
 }
 
 func (ac *Controller) updateCronJob(oldObj, newObject interface{}) {
-	oldR := oldObj.(*v1beta1.CronJob)
-	newR := newObject.(*v1beta1.CronJob)
-	logging.Get().Debug().Msgf("update CronJob %s", oldR.Name)
-	ac.enqueue(newR)
+	meta, err := meta.Accessor(oldObj)
+	if err != nil {
+		logging.Get().Error().Msg("invalid CronJob object")
+		return
+	}
+	logging.Get().Debug().Msgf("update CronJob %s/%s", meta.GetNamespace(), meta.GetName())
+	ac.enqueue(newObject)
 }
 
 func (ac *Controller) deleteCronJob(obj interface{}) {
-	d := obj.(*v1beta1.CronJob)
-	logging.Get().Debug().Msgf("delete CronJob %s/%s", d.Namespace, d.Name)
-	ac.enqueue(d)
+	meta, err := meta.Accessor(obj)
+	if err != nil {
+		logging.Get().Error().Msg("invalid CronJob object")
+		return
+	}
+	logging.Get().Debug().Msgf("delete CronJob %s/%s", meta.GetNamespace(), meta.GetName())
+	ac.enqueue(obj)
 }
 
 func (ac *Controller) addReplicationController(obj interface{}) {
@@ -538,6 +562,10 @@ func (ac *Controller) processNextItem() bool {
 	case CronJobType:
 		err = ac.syncWorkLoad(as.key, pkgassets.KindCronJob, func(namespace, name string) (interface{}, error) {
 			return ac.cjbLister.CronJobs(namespace).Get(name)
+		})
+	case CronJobV1Type:
+		err = ac.syncWorkLoad(as.key, pkgassets.KindCronJob, func(namespace, name string) (interface{}, error) {
+			return ac.cjbv1Lister.CronJobs(namespace).Get(name)
 		})
 	case PodType:
 		err = ac.syncPod(as.key)
