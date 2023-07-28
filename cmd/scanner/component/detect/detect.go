@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"runtime/debug"
-	"strconv"
 	"time"
 
 	"gitlab.com/security-rd/go-pkg/logging"
@@ -19,16 +18,16 @@ import (
 )
 
 type Detector struct {
-	policySrv          SecurityPolicySrv
-	detectResultDal    imagesecStore.ImageDetectResultDal
-	detectTaskDal      imagesecStore.DetectTaskDal
-	scanTaskDal        imagesecStore.ScanTaskDal
-	imageDataSrv       GetImageWithCorrelateData
-	imageDal           imagesecStore.ImageMetaDal
-	checker            ImagePolicyChecker
-	updateImageChan    chan UpdateImage
-	imageDetectTaskSrv ImageDetectTaskService
-	addTaskAtHour      int64
+	policySrv             SecurityPolicySrv
+	detectResultDal       imagesecStore.ImageDetectResultDal
+	detectTaskDal         imagesecStore.DetectTaskDal
+	scanTaskDal           imagesecStore.ScanTaskDal
+	imageDataSrv          GetImageWithCorrelateData
+	imageDal              imagesecStore.ImageMetaDal
+	checker               ImagePolicyChecker
+	updateImageChan       chan UpdateImage
+	imageDetectTaskSrv    ImageDetectTaskService
+	addDetectTaskEveryDay bool
 }
 
 type UpdateImage struct {
@@ -59,22 +58,19 @@ func NewDetector(
 	imageDetectTaskSrv ImageDetectTaskService,
 ) *Detector {
 	s := &Detector{
-		policySrv:          policySrv,
-		detectResultDal:    detectResultDal,
-		detectTaskDal:      detectTaskDal,
-		scanTaskDal:        nodeScanTaskDal,
-		imageDataSrv:       imageDataSrv,
-		checker:            imagePolicyChecker,
-		imageDal:           imageDal,
-		imageDetectTaskSrv: imageDetectTaskSrv,
-		updateImageChan:    make(chan UpdateImage),
-		addTaskAtHour:      consts.DetectAtHour,
+		policySrv:             policySrv,
+		detectResultDal:       detectResultDal,
+		detectTaskDal:         detectTaskDal,
+		scanTaskDal:           nodeScanTaskDal,
+		imageDataSrv:          imageDataSrv,
+		checker:               imagePolicyChecker,
+		imageDal:              imageDal,
+		imageDetectTaskSrv:    imageDetectTaskSrv,
+		updateImageChan:       make(chan UpdateImage),
+		addDetectTaskEveryDay: false,
 	}
-	if os.Getenv("AddTaskAtHour") != "" {
-		h, _ := strconv.ParseInt(os.Getenv("AddTaskAtHour"), 10, 64)
-		if h > 0 && h < 24 {
-			s.addTaskAtHour = h
-		}
+	if os.Getenv("ADD_DETECT_EVERYDAY") == consts.TrueString {
+		s.addDetectTaskEveryDay = true
 	}
 
 	return s
@@ -459,12 +455,16 @@ func (s *Detector) ContinueUpdateImage(ctx context.Context) {
 }
 
 func (s *Detector) AddDetectTaskEveryDay(ctx context.Context) error {
+	if !s.addDetectTaskEveryDay {
+		logging.Get().Info().Msg("do not add detect task everyday")
+		return nil
+	}
 	go func() {
 		ticker := time.NewTicker(time.Hour)
 		defer ticker.Stop()
 		for {
 			<-ticker.C
-			if int64(time.Now().Hour()) == s.addTaskAtHour {
+			if int64(time.Now().Hour()) == consts.DetectAtHour {
 				if err := s.imageDetectTaskSrv.CreateImageDetectTask(ctx,
 					imagesecModel.ImageListParam{ImageFromType: imagesecModel.ImageFromNode},
 					imagesecModel.ImageDetectTask{Priority: imagesecModel.DetectPriorityCycle},
@@ -473,6 +473,7 @@ func (s *Detector) AddDetectTaskEveryDay(ctx context.Context) error {
 				}
 				logging.Get().Info().Msg("AddDetectTaskEveryDay")
 			}
+			ticker.Reset(time.Hour)
 		}
 	}()
 	return nil
