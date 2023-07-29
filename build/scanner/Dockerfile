@@ -34,3 +34,4 @@ ADD configs/scanner /configs/scanner/
 ADD configs/scanner/entrypoint.sh /entrypoint.sh
 
 ENTRYPOINT ["/entrypoint.sh"]
+
