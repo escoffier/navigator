@@ -1,7 +1,7 @@
 package vulnmatch
 
 import (
-	dbTypes "github.com/aquasecurity/trivy-db/pkg/types"
+	dbTypes "scm.tensorsecurity.cn/tensorsecurity-rd/trivy-db/pkg/types"
 	"scm.tensorsecurity.cn/tensorsecurity-rd/trivy/pkg/commands/artifact"
 	"scm.tensorsecurity.cn/tensorsecurity-rd/trivy/pkg/commands/option"
 	"scm.tensorsecurity.cn/tensorsecurity-rd/trivy/pkg/log"
