@@ -84,7 +84,7 @@ require (
 	k8s.io/client-go v0.27.2
 	scm.tensorsecurity.cn/tensorsecurity-rd/cloudwalker v0.0.5
 	scm.tensorsecurity.cn/tensorsecurity-rd/falcosider v0.2.62
-	scm.tensorsecurity.cn/tensorsecurity-rd/trivy v1.0.0
+	scm.tensorsecurity.cn/tensorsecurity-rd/trivy v1.0.1
 )
 
 require github.com/go-ldap/ldap/v3 v3.4.1
@@ -524,7 +524,7 @@ require (
 	gopkg.in/yaml.v3 v3.0.1
 	k8s.io/kube-openapi v0.0.0-20230501164219-8b0f38b5fd1f // indirect
 	k8s.io/utils v0.0.0-20230505201702-9f6742963106
-	scm.tensorsecurity.cn/tensorsecurity-rd/fanal v1.1.1
+	scm.tensorsecurity.cn/tensorsecurity-rd/fanal v1.1.2
 	sigs.k8s.io/structured-merge-diff/v4 v4.2.3 // indirect
 	sigs.k8s.io/yaml v1.3.0 // indirect
 )
