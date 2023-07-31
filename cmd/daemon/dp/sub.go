@@ -111,7 +111,7 @@ func (s *Subscriber) RuntimeEventCallBack(config *ConfigManager, rt container.Ru
 				}
 
 				if !skipScanner {
-					imageInspect, err := rt.GetImageInspect(m.ContainerInfo.ImageID)
+					imageInspect, err := rt.GetImageInspect(m.ContainerInfo.Namespace, m.ContainerInfo.ImageID)
 					if err != nil {
 						logging.Get().
 							Err(err).
@@ -183,7 +183,7 @@ func (s *Subscriber) RuntimeEventCallBack(config *ConfigManager, rt container.Ru
 				}
 
 				// inject container by its process id
-				injected, err := injector.DoInject(m.ContainerInfo)
+				injected, resUUID, err := injector.DoInject(m.ContainerInfo)
 				if err != nil {
 					logging.Get().Err(err).Str("containedID", m.ContainerInfo.ID).Msg("inject err")
 				} else {
@@ -193,7 +193,12 @@ func (s *Subscriber) RuntimeEventCallBack(config *ConfigManager, rt container.Ru
 					for _, v := range m.ContainerInfo.ImageRepoTags {
 						config.AddImageUsed(v)
 					}
+					policies := config.policies().Policies
+					if _, ok := policies[resUUID]; ok {
+						injector.EnableDriftByContainerID(m.ContainerInfo.ID)
+					}
 				}
+
 			}
 		}(message)
 	}

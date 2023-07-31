@@ -10,14 +10,14 @@ import (
 	"math/rand"
 	"net/http"
 	"os"
-	"runtime/debug"
+	// "runtime/debug"
 	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
 
-	json "github.com/json-iterator/go"
+	// json "github.com/json-iterator/go"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/dp/whitelist"
 	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
@@ -77,111 +77,111 @@ func (cm *ConfigManager) setWhitelist(l *model.DaemonDriftWhitelist) {
 	cm.whitelistPtr.Store(l)
 }
 
-const (
-	internalApiKey = "dGVuc29yc2VjLWNpY2QtdXNlcg==.qBFMMAvbbm3afG3y42CqKaN7WQe4Q7hiqtg5Jzwen7tWHhZG16P62kvv"
-)
+// const (
+// 	internalApiKey = "dGVuc29yc2VjLWNpY2QtdXNlcg==.qBFMMAvbbm3afG3y42CqKaN7WQe4Q7hiqtg5Jzwen7tWHhZG16P62kvv"
+// )
 
-func (cm *ConfigManager) syncPolicy(ctx context.Context, ij *Injector) error {
-	defer func() {
-		if r := recover(); r != nil {
-			logging.Get().Error().Str("stack", string(debug.Stack())).Msgf("panic: %v", r)
-		}
-	}()
+// func (cm *ConfigManager) syncPolicy(ctx context.Context, ij *Injector) error {
+// 	defer func() {
+// 		if r := recover(); r != nil {
+// 			logging.Get().Error().Str("stack", string(debug.Stack())).Msgf("panic: %v", r)
+// 		}
+// 	}()
 
-	cm.syncLock.Lock()
-	defer cm.syncLock.Unlock()
+// 	cm.syncLock.Lock()
+// 	defer cm.syncLock.Unlock()
 
-	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
-	defer cancel()
+// 	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+// 	defer cancel()
 
-	url := fmt.Sprintf("%s/api/openapi/drift/policy?cluster_key=%s&policies_version=%d&wlist_version=%d", cm.consoleAddr, cm.clusterKey, cm.policies().VersionStamp, cm.whitelist().VersionStamp)
-	logging.Get().Info().Str("url", url).Msg("sync drift policies")
+// 	url := fmt.Sprintf("%s/api/openapi/drift/policy?cluster_key=%s&policies_version=%d&wlist_version=%d", cm.consoleAddr, cm.clusterKey, cm.policies().VersionStamp, cm.whitelist().VersionStamp)
+// 	logging.Get().Info().Str("url", url).Msg("sync drift policies")
 
-	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
-	if err != nil {
-		logging.Get().Err(err).Msgf("init requset error", url)
-		return err
-	}
-	// http header
-	req.Header.Set("X-Tensorsec-cicd-key", internalApiKey)
-	req.Header.Set("Content-Type", "application/json")
-	// http request
-	resp, err := cm.client.Do(req)
-	if err != nil {
-		logging.Get().Error().Err(err).Msgf("request url:%v error", url)
-		return err
-	}
-	defer func() {
-		_ = resp.Body.Close()
-	}()
+// 	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+// 	if err != nil {
+// 		logging.Get().Err(err).Msgf("init requset error", url)
+// 		return err
+// 	}
+// 	// http header
+// 	req.Header.Set("X-Tensorsec-cicd-key", internalApiKey)
+// 	req.Header.Set("Content-Type", "application/json")
+// 	// http request
+// 	resp, err := cm.client.Do(req)
+// 	if err != nil {
+// 		logging.Get().Error().Err(err).Msgf("request url:%v error", url)
+// 		return err
+// 	}
+// 	defer func() {
+// 		_ = resp.Body.Close()
+// 	}()
 
-	if resp.StatusCode != 200 {
-		logging.Get().Err(err).Msgf("request status code error:%v", resp.StatusCode)
-		return fmt.Errorf("rsp code err:%d", resp.StatusCode)
-	}
-	data, err := io.ReadAll(resp.Body)
-	if err != nil {
-		logging.Get().Err(err).Msgf("read scanner req body error")
-		return err
-	}
+// 	if resp.StatusCode != 200 {
+// 		logging.Get().Err(err).Msgf("request status code error:%v", resp.StatusCode)
+// 		return fmt.Errorf("rsp code err:%d", resp.StatusCode)
+// 	}
+// 	data, err := io.ReadAll(resp.Body)
+// 	if err != nil {
+// 		logging.Get().Err(err).Msgf("read scanner req body error")
+// 		return err
+// 	}
 
-	var driftResp model.DaemonDriftResp
-	err = json.Unmarshal(data, &driftResp)
-	if err != nil {
-		logging.Get().Err(err).Msgf("unmarshal policy error")
-		return err
-	}
+// 	var driftResp model.DaemonDriftResp
+// 	err = json.Unmarshal(data, &driftResp)
+// 	if err != nil {
+// 		logging.Get().Err(err).Msgf("unmarshal policy error")
+// 		return err
+// 	}
 
-	prevVersion := cm.policies().VersionStamp
-	newVersion := driftResp.Data.Policies.VersionStamp
+// 	prevVersion := cm.policies().VersionStamp
+// 	newVersion := driftResp.Data.Policies.VersionStamp
 
-	logging.Get().Trace().Interface("whitelist", driftResp.Data.Whitelist).Interface("policies", driftResp.Data.Policies).Interface("policyItems", driftResp.Data.Items).Int64("new_version", newVersion).Int64("old_version", prevVersion).Msg("Try to update drift policies")
+// 	logging.Get().Trace().Interface("whitelist", driftResp.Data.Whitelist).Interface("policies", driftResp.Data.Policies).Interface("policyItems", driftResp.Data.Items).Int64("new_version", newVersion).Int64("old_version", prevVersion).Msg("Try to update drift policies")
 
-	if newVersion > prevVersion {
-		policies := make(map[uint32]model.DriftPolicy, len(driftResp.Data.Items))
-		for _, v := range driftResp.Data.Items {
-			policies[v.ResourceUUID] = v
-		}
-		cm.setPolicies(&model.DaemonDriftPolicies{
-			Policies:     policies,
-			VersionStamp: newVersion,
-		})
-		logging.Get().Info().Int64("new_version", newVersion).Int64("old_version", prevVersion).Msg("Policies updated successfully")
-	}
-	ij.UpdateContainerDriftSwitch(cm.policies().Policies)
+// 	if newVersion > prevVersion {
+// 		policies := make(map[uint32]model.DriftPolicy, len(driftResp.Data.Items))
+// 		for _, v := range driftResp.Data.Items {
+// 			policies[v.ResourceUUID] = v
+// 		}
+// 		cm.setPolicies(&model.DaemonDriftPolicies{
+// 			Policies:     policies,
+// 			VersionStamp: newVersion,
+// 		})
+// 		logging.Get().Info().Int64("new_version", newVersion).Int64("old_version", prevVersion).Msg("Policies updated successfully")
+// 	}
+// 	ij.UpdateContainerDriftSwitch(cm.policies().Policies)
 
-	newWhitelist := make(map[string]int64, len(driftResp.Data.Whitelist.Whitelist))
-	nowTimestamp := time.Now().UnixMilli()
-	var version int64
-	if driftResp.Data.Whitelist.VersionStamp > cm.whitelist().VersionStamp {
-		for _, v := range driftResp.Data.Whitelist.Whitelist {
-			if nowTimestamp < v.ExpireAt {
-				newWhitelist[v.Path] = v.ExpireAt
-			} else if v.IsForever {
-				newWhitelist[v.Path] = 0
-			}
-		}
-	} else { // if no updates, expire items.
-		for path, expiredAt := range cm.whitelist().Whitelist {
-			if nowTimestamp < expiredAt || expiredAt == 0 {
-				newWhitelist[path] = expiredAt
-			}
-		}
-		logging.Get().Info().Int64("new_version", version).Int64("old_version", cm.whitelist().VersionStamp).Msg("try to expire whitelist with no updates")
-	}
+// 	newWhitelist := make(map[string]int64, len(driftResp.Data.Whitelist.Whitelist))
+// 	nowTimestamp := time.Now().UnixMilli()
+// 	var version int64
+// 	if driftResp.Data.Whitelist.VersionStamp > cm.whitelist().VersionStamp {
+// 		for _, v := range driftResp.Data.Whitelist.Whitelist {
+// 			if nowTimestamp < v.ExpireAt {
+// 				newWhitelist[v.Path] = v.ExpireAt
+// 			} else if v.IsForever {
+// 				newWhitelist[v.Path] = 0
+// 			}
+// 		}
+// 	} else { // if no updates, expire items.
+// 		for path, expiredAt := range cm.whitelist().Whitelist {
+// 			if nowTimestamp < expiredAt || expiredAt == 0 {
+// 				newWhitelist[path] = expiredAt
+// 			}
+// 		}
+// 		logging.Get().Info().Int64("new_version", version).Int64("old_version", cm.whitelist().VersionStamp).Msg("try to expire whitelist with no updates")
+// 	}
 
-	version = driftResp.Data.Whitelist.VersionStamp
-	logging.Get().Info().Int64("new_version", version).Int64("old_version", cm.whitelist().VersionStamp).Msg("try to update whitelist")
+// 	version = driftResp.Data.Whitelist.VersionStamp
+// 	logging.Get().Info().Int64("new_version", version).Int64("old_version", cm.whitelist().VersionStamp).Msg("try to update whitelist")
 
-	oldWlistVersion := cm.whitelist().VersionStamp
-	cm.setWhitelist(&model.DaemonDriftWhitelist{
-		Whitelist:    newWhitelist,
-		VersionStamp: version,
-	})
-	logging.Get().Info().Int64("new_version", version).Int64("old_version", oldWlistVersion).Msg("update whitelist successfully")
+// 	oldWlistVersion := cm.whitelist().VersionStamp
+// 	cm.setWhitelist(&model.DaemonDriftWhitelist{
+// 		Whitelist:    newWhitelist,
+// 		VersionStamp: version,
+// 	})
+// 	logging.Get().Info().Int64("new_version", version).Int64("old_version", oldWlistVersion).Msg("update whitelist successfully")
 
-	return nil
-}
+// 	return nil
+// }
 
 func (cm *ConfigManager) GetPolicyByResourceUUID(uuid uint32) (model.DriftPolicy, bool) {
 	policy, ok := cm.policies().Policies[uuid]

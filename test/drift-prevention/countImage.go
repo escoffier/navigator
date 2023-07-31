@@ -9,6 +9,7 @@ import (
 
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/container"
 	_ "gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/container/containerd"
+	_ "gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/container/crio"
 	_ "gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/container/docker"
 )
 
@@ -85,7 +86,7 @@ func main() {
 
 	runningContainers, err := rt.ListRunningContainers()
 	for _, c := range runningContainers {
-		cm, err := rt.GetContainerMeta(c.ID)
+		cm, err := rt.GetContainerMeta(c.Namespace, c.ID)
 		if err != nil {
 			fmt.Printf("%v\n", err)
 			// continue

@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"path"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -34,7 +35,7 @@ const (
 	containerBasePathTemplate        = "/host/proc/%d/root"
 	containerETCLDConfigPathTemplate = "/host/proc/%d/root/etc/ld.so.preload"
 	supportOSConfigFilePath          = "/etc/support-os/support-os.conf"
-	hostLDConfigPathTemplate         = "/host/var/lib/tensor/mnt/containers/%s/ld.so.preload"
+	hostLDConfigPathTemplate         = "/host/var/lib/tensor/containers/%s/ld.so.preload"
 )
 
 type Injector struct {
@@ -56,7 +57,7 @@ var (
 
 var (
 	HostTensorPath              = path.Join(degrade.DriftPath, "mnt")
-	HostEtcPreloadPathPrefix    = path.Join(degrade.DriftPath, "mnt/containers")
+	HostEtcPreloadPathPrefix    = path.Join(degrade.DriftPath, "containers")
 	procPrefix                  = "/host/proc/"
 	ContainerTensorPath         = "/.tensor"
 	containerTmpMnt             = "/tmpmnt"
@@ -94,7 +95,8 @@ var (
 	}
 )
 
-func enableDriftByContainerID(containerID string) error {
+func (i *Injector) EnableDriftByContainerID(containerID string) error {
+	logging.Get().Debug().Msgf("enable drift for container %s", containerID)
 	configPath := fmt.Sprintf(hostLDConfigPathTemplate, containerID)
 	// cmd := exec.Command("sed", "-i", "'s/^#\\/.tensor\\/dp.so/\\/.tensor\\/dp.so/'", configPath)
 	// The "sed" command cannot be used, sed will generate a new file(inode num change), run "strace sed -i '1,100d' test_file" show detail
@@ -134,6 +136,7 @@ func enableDriftByContainerID(containerID string) error {
 }
 
 func disableDriftByContainerID(containerID string) error {
+	logging.Get().Debug().Msgf("disable drift for container %s", containerID)
 	configPath := fmt.Sprintf(hostLDConfigPathTemplate, containerID)
 	f, err := os.Open(configPath)
 	if err != nil {
@@ -223,8 +226,10 @@ func (ij *Injector) initCommandSeq(containerID string) [][]string {
 		{"mount", blockDevPath, containerTmpMnt},
 		{"mkdir", ContainerTensorPath},
 		{"mount", "-o", "bind", tensorDir, ContainerTensorPath},
+		{"umount", containerEtcPreloadPath},
+		{"rm", containerEtcPreloadPath},
 		{"touch", containerEtcPreloadPath},
-		{"mount", "-o", "bind,ro", tensorDir + "/containers/" + containerID + "/ld.so.preload", containerEtcPreloadPath},
+		{"mount", "-o", "bind,ro", filepath.Dir(tensorDir) + "/containers/" + containerID + "/ld.so.preload", containerEtcPreloadPath},
 		{"umount", containerTmpMnt},
 		{"rmdir", containerTmpMnt},
 	}
@@ -387,7 +392,7 @@ func (ij *Injector) UpdateContainerDriftSwitch(policies map[uint32]model.DriftPo
 		containers := ij.GetContainersFromResourceMap(uuid)
 		if policy.Enable == 1 {
 			for _, containerID := range containers {
-				err := enableDriftByContainerID(containerID)
+				err := ij.EnableDriftByContainerID(containerID)
 				if err != nil {
 					logging.Get().Warn().Msgf("Failed to enable drift for container %s", containerID)
 				}
@@ -404,20 +409,20 @@ func (ij *Injector) UpdateContainerDriftSwitch(policies map[uint32]model.DriftPo
 	return nil
 }
 
-func (ij *Injector) DoInject(cm container.ContainerMeta) (bool, error) {
+func (ij *Injector) DoInject(cm container.ContainerMeta) (bool, uint32, error) {
 	// logging.Get().Info().Msgf("Injecting %d", cm.ProcessID)
 
 	osTarget, err := getOSTarget(cm.ProcessID)
 	if err != nil {
 		logging.Get().Warn().Msgf("Skip inject %d %v", cm.ProcessID, cm.Name)
-		return false, err
+		return false, 0, err
 	}
 
 	isSupport := isSupportOS(osTarget)
 	supportInfo, err := GetContainerPodInfo(cm.PodUID, ij.npw, ij.podResInfo)
 	if err != nil {
 		logging.Get().Err(err).Msg("failed to get container pod info")
-		return false, err
+		return false, 0, err
 	}
 
 	//pause image
@@ -442,13 +447,13 @@ func (ij *Injector) DoInject(cm container.ContainerMeta) (bool, error) {
 
 	if !isSupport {
 		logging.Get().Warn().Interface("containerMeta", cm).Msg("not support os,ignore inject")
-		return false, nil
+		return false, 0, nil
 	}
 
 	// excludeNamespaces
 	if err != nil || supportInfo.Namespace == "" {
 		logging.Get().Error().Msgf("Failed to get container pod info %v", err)
-		return false, err
+		return false, 0, err
 	}
 	for _, v := range ij.excludeNamespace {
 		if v == supportInfo.Namespace {
@@ -456,14 +461,14 @@ func (ij *Injector) DoInject(cm container.ContainerMeta) (bool, error) {
 				Str("containerID", cm.ID).
 				Str("namespace", v).
 				Msg("skip inject,namespace contains exclude namespace")
-			return false, nil
+			return false, 0, nil
 		}
 	}
 
 	err = ij.putContainerID2File(cm.ProcessID, cm.ID)
 	if err != nil {
 		logging.Get().Err(err).Int("ProcessID", cm.ProcessID).Str("containerID", cm.ID).Msg("put container id failed")
-		return false, err
+		return false, 0, err
 	}
 
 	resourceUUID := util.GenerateUUID(supportInfo.Cluster, supportInfo.Namespace, supportInfo.ResourceKind, supportInfo.ResourceName)
@@ -475,11 +480,11 @@ func (ij *Injector) DoInject(cm container.ContainerMeta) (bool, error) {
 	injected, err := IsInjected(cm.ProcessID)
 	if err != nil {
 		logging.Get().Err(err).Str("containerID", cm.ID).Msg("container inject failed")
-		return false, nil
+		return false, 0, nil
 	}
 	if injected {
 		logging.Get().Info().Str("containerID", cm.ID).Msg("container already injected")
-		return true, nil
+		return true, 0, nil
 	}
 
 	// inject
@@ -510,13 +515,13 @@ func (ij *Injector) DoInject(cm container.ContainerMeta) (bool, error) {
 		if len(cmd) == 0 {
 			break
 		}
+		// _, _, err := config.Execute(cmd[0], cmd[1:]...)
 		_, _, err := config.Execute(cmd[0], cmd[1:]...)
-		//outMsg, errMsg, err := config.Execute(cmd[0], cmd[1:]...)
 		if err != nil {
 			// encrypted log msg which contain inject detail
-			//msg := fmt.Sprintf("index:%d,%s,%s,%v", index, stdout, stderr, err)
-			//normalMsg := fmt.Sprintf("index:%d,inject failed.", index)
-			//logging.Get().Err(err).Str("container", cm.ID).Int("PID", cm.ProcessID).Str("outMsg", outMsg).Str("errMsg", errMsg).Msg("inject err detail")
+			// msg := fmt.Sprintf("index:%d,%s,%s,%v", index, outMsg, errMsg, err)
+			// normalMsg := fmt.Sprintf("index:%d,inject failed.", index)
+			// logging.Get().Err(err).Str("container", cm.ID).Int("PID", cm.ProcessID).Str("outMsg", outMsg).Str("errMsg", errMsg).Msg("inject err detail")
 
 			// only log index
 			logging.Get().Err(err).Str("container", cm.ID).Int("PID", cm.ProcessID).Int("index", index).Msg("inject err")
@@ -531,8 +536,9 @@ func (ij *Injector) DoInject(cm container.ContainerMeta) (bool, error) {
 			Str("containerID", cm.ID).
 			Msg("inject err")
 	}
+	isInjectd, err := IsInjected(cm.ProcessID)
 
-	return IsInjected(cm.ProcessID)
+	return isInjectd, resourceUUID, err
 }
 
 func getRHELOSTargetFromFile(path string) (string, error) {

@@ -14,7 +14,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/docker/docker/api/types"
 	"github.com/segmentio/kafka-go"
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/dp/whitelist/analyzer"
 	_ "gitlab.com/piccolo_su/vegeta/cmd/daemon/dp/whitelist/analyzer/all"
@@ -48,20 +47,19 @@ func init() {
 	rand.Seed(time.Now().UnixNano())
 }
 
-func (wc *WhitelistCount) GenerateExecWhiteList(image types.ImageInspect) (imageInfo, error) {
+func (wc *WhitelistCount) GenerateExecWhiteList(image container.ImageInspect) (imageInfo, error) {
 	// FIXME: create a linear issue: try to update data structure to support local built image scanning at lingximo
 	if len(image.RepoDigests) == 0 {
 		logging.Get().Error().Msg("get image digest fail: local built image & no repo digest")
 		return imageInfo{}, errors.New("no image digest given")
 	}
-	arr := strings.Split(image.RepoDigests[0], "@")
-	if len(arr) != 2 {
-		logging.Get().Error().Str("digests: ", strings.Join(image.RepoDigests, ",")).Msg("get image digest fail")
-		return imageInfo{}, fmt.Errorf("image digest format error: %v", image.RepoDigests)
+	repoDigest := image.RepoDigests[0]
+	if strings.Contains(image.RepoDigests[0], "@") {
+		repoDigest = strings.Split(image.RepoDigests[0], "@")[1]
 	}
 
 	// check file cache
-	whiteListFileName := fmt.Sprintf(whiteListBackFileTemplate, arr[1])
+	whiteListFileName := fmt.Sprintf(whiteListBackFileTemplate, repoDigest)
 	if isFile(whiteListFileName) {
 		logging.Get().Trace().Msg("get from file")
 		wl, err := loadWhiteListFromFile(whiteListFileName)

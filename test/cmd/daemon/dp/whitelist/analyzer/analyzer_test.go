@@ -37,12 +37,12 @@ func TestDeviceMapper(t *testing.T) {
 		t.Fatalf("prepare err:%v", err)
 	}
 
-	runtimeCli, err := dp.CreateRuntimeCli()
+	runtimeCli, err := dp.CreateRuntimeCli("docker")
 	if err != nil {
 		t.Fatalf("failed to create runtime cli.%v", err)
 	}
 
-	image, err := runtimeCli.GetImageInspect(testImage)
+	image, err := runtimeCli.GetImageInspect("default", testImage)
 	if err != nil {
 		t.Fatalf("failed to inspect image.%v", err)
 	}

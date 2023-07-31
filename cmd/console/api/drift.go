@@ -486,8 +486,14 @@ func (api *api) driftPolicyImageWhitelist() http.HandlerFunc {
 
 		imageTags := []string{}
 		for _, container := range containers {
-			imageTags = append(imageTags, container.Image)
+			imageTag := container.Image
+			if !strings.Contains(container.Image, ":") {
+				imageTag = container.Image + ":latest"
+			}
+			imageTags = append(imageTags, imageTag)
 		}
+
+		logging.GetLogger().Debug().Interface("imageTags", imageTags).Msg("imageTags")
 
 		whitelist, count, err := driSvc.GetDefaultWhitelist(ctx, offset, limit, imageTags, searchStr)
 		if err != nil {
@@ -1409,34 +1415,41 @@ func (api *api) driftPolicyDetail() http.HandlerFunc {
 		}
 
 		res := []model.DriftPolicyDetailResp{}
-		for _, v := range containers {
-			ids, err := driSvc.GetImageID(ctx, v.ImageUUID)
-			if err != nil {
-				logging.GetLogger().Err(err).Msgf("get image id error %d", v.ImageUUID)
+		for _, tensorC := range containers {
+			if tensorC.Status != 0 {
+				logging.GetLogger().Warn().Msgf("container status is not 0 %d", tensorC.Status)
 				continue
 			}
-			if v.Status != 0 {
-				logging.GetLogger().Warn().Msgf("container status is not 0 %d", v.Status)
+			ids, err := driSvc.GetImageID(ctx, tensorC.ImageUUID)
+			if err != nil {
+				logging.GetLogger().Err(err).Msgf("get image id error %d", tensorC.ImageUUID)
 				continue
 			}
 			tmpResp := model.DriftPolicyDetailResp{}
-			tmpResp.ContainerID = v.ID
-			tmpResp.ContainerName = v.Name
-			tmpResp.Image = v.Image
+			tmpResp.ContainerID = tensorC.ID
+			tmpResp.ContainerName = tensorC.Name
+			tmpResp.Image = tensorC.Image
 			if len(ids) > 0 {
 				tmpResp.ImageID = ids[0]
 			}
 
-			matchStr := fmt.Sprintf("k8s_%s_", v.Name)
-			fullNames := []string{}
-			for _, v := range rawContainers {
-				if matchStr == v.Name[:len(matchStr)] {
-					fullNames = append(fullNames, v.Name)
+			matchStr := fmt.Sprintf("k8s_%s_", tensorC.Name)
+			logging.GetLogger().Debug().Msgf("matchStr:%v", matchStr)
+			fullNames := make(map[string]struct{}, 0)
+			for _, rawC := range rawContainers {
+				logging.GetLogger().Debug().Msgf("rawC.Name:%v", rawC.Name)
+				if strings.HasPrefix(rawC.Name, matchStr) || tensorC.Name == rawC.Name {
+					if _, ok := fullNames[rawC.Name]; !ok {
+						fullNames[rawC.Name] = struct{}{}
+					}
 				}
 			}
-			tmpResp.ContainerFullNames = fullNames
+			for k := range fullNames {
+				tmpResp.ContainerFullNames = append(tmpResp.ContainerFullNames, k)
+			}
 			res = append(res, tmpResp)
 		}
+		logging.GetLogger().Debug().Msgf("res:%v", res)
 		response.Ok(w, response.WithItems(res))
 	}
 }
@@ -1501,7 +1514,7 @@ func (api *api) driftPolicyAbnormal() http.HandlerFunc {
 
 		filePath, err := param.QueryString(r, "file_path")
 		if err != nil {
-			logging.GetLogger().Err(err).Msgf("get file_path error")
+			logging.GetLogger().Warn().Msgf("get file_path fail")
 		}
 
 		driSvc, ok := drift.GetDriftService(ctx)
@@ -1526,7 +1539,7 @@ func (api *api) driftPolicyAbnormal() http.HandlerFunc {
 			return
 		}
 		tmpSignals := []*palace.Signal{}
-
+		logging.GetLogger().Debug().Msgf("signals :%v, len: %v", signals, len(signals))
 		if actionTargets != "" {
 			for _, v := range signals {
 				action, ok := v.Context["action"].(string)
@@ -1541,6 +1554,7 @@ func (api *api) driftPolicyAbnormal() http.HandlerFunc {
 		} else {
 			tmpSignals = signals
 		}
+		logging.GetLogger().Debug().Msgf("tmpSignals :%v, len: %v", tmpSignals, len(tmpSignals))
 
 		res := filterAbnormalInPolicy(policy, tmpSignals)
 		response.Ok(w, response.WithItems(res))

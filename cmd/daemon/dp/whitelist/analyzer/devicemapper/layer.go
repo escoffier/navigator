@@ -1,8 +1,8 @@
 package devicemapper
 
 import (
-	"github.com/docker/docker/api/types"
 	"github.com/opencontainers/go-digest"
+	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/container"
 )
 
 type DiffID digest.Digest
@@ -37,7 +37,7 @@ func createChainIDFromParent(parent ChainID, dgsts ...DiffID) ChainID {
 	return createChainIDFromParent(ChainID(dgst), dgsts[1:]...)
 }
 
-func ApiTypeToRootFS(rootfs types.RootFS) []DiffID {
+func ApiTypeToRootFS(rootfs container.RootFS) []DiffID {
 	var layers []DiffID
 	for _, l := range rootfs.Layers {
 		layers = append(layers, DiffID(l))

@@ -15,10 +15,10 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 
-	"github.com/docker/docker/api/types"
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/dp/whitelist"
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/container"
 	_ "gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/container/containerd"
+	_ "gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/container/crio"
 	_ "gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/container/docker"
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/nodeinfo"
 	"gitlab.com/security-rd/go-pkg/logging"
@@ -97,7 +97,7 @@ func (d *DriftAssurance) Start(ctx context.Context) error {
 		logging.Get().Error().Msg("get running containers fail")
 	}
 	for _, c := range containers {
-		cm, err := d.rt.GetContainerMeta(c.ID)
+		cm, err := d.rt.GetContainerMeta(c.Namespace, c.ID)
 		if err != nil {
 			logging.Get().Error().Msgf("get container meta fail, containerId: %s\n", c.ID)
 		}
@@ -127,6 +127,8 @@ func (d *DriftAssurance) Start(ctx context.Context) error {
 			}
 		}()
 		_ = firstInjectContainer(d.rt, d.injector)
+		time.Sleep(5 * time.Second)
+		d.injector.UpdateContainerDriftSwitch(d.config.policies().Policies)
 	}()
 
 	logging.Get().Debug().Msg("dp service running")
@@ -139,12 +141,13 @@ func NewDriftAssurance(podWatcher *nodeinfo.NodePodsWatcher,
 	mqWriter mq.Writer,
 	consoleAddr, clusterName,
 	clusterKey string,
+	containerType string,
 	palaceHandler *palace.Palace,
 	clusterManager *k8s.ClusterInfoManager,
 ) (*DriftAssurance, error) {
 	d := &DriftAssurance{}
 
-	rt, err := CreateRuntimeCli()
+	rt, err := CreateRuntimeCli(containerType)
 	if err != nil {
 		logging.Get().Err(err).Msg("drift assurance create runtime failed")
 		return nil, err
@@ -208,26 +211,40 @@ func unixSockFileFromAddr(addr string) string {
 	return filename
 }
 
-func CreateRuntimeCli() (container.Runtime, error) {
+func CreateRuntimeCli(containerType string) (container.Runtime, error) {
 	var rt container.Runtime
 	var err error
 	dockerHost := os.Getenv("DOCKER_SOCKET_ADDR")
 	if dockerHost == "" {
 		dockerHost = defaultDockerSocket
 	}
-	if isUnixSockFile(dockerHost) {
-		rt, err = container.Open(container.RuntimeConfig{Type: "docker"})
-		if err != nil {
-			return nil, err
+
+	switch containerType {
+	case nodeinfo.DockerType:
+		if isUnixSockFile(dockerHost) {
+			rt, err = container.Open(container.RuntimeConfig{Type: "docker"})
+			if err != nil {
+				return nil, err
+			}
 		}
-	} else if isUnixSockFile(nodeinfo.GetContainerdAddr()) {
-		//containerd
-		rt, err = container.Open(container.RuntimeConfig{Type: "containerd"})
-		if err != nil {
-			return nil, err
+	case nodeinfo.ContainerdType:
+		if isUnixSockFile(nodeinfo.GetContainerdAddr()) {
+			// containerd
+			rt, err = container.Open(container.RuntimeConfig{Type: "containerd"})
+			if err != nil {
+				return nil, err
+			}
 		}
-	} else {
-		// todo: support  cri-o unix socket
+	case nodeinfo.CrioType:
+		if isUnixSockFile(nodeinfo.GetCRIOdAddr()) {
+			// crio
+			rt, err = container.Open(container.RuntimeConfig{Type: "crio"})
+			if err != nil {
+				return nil, err
+			}
+		}
+	default:
+		// todo
 		return nil, fmt.Errorf("not valid runtime socket")
 	}
 	return rt, nil
@@ -258,7 +275,7 @@ func initRunningContainerImagesWhiteList(rt container.Runtime, config *ConfigMan
 	for _, c := range containers {
 		wg.Add(1)
 		ch <- struct{}{}
-		go func(c types.Container) {
+		go func(c container.Container) {
 			defer wg.Done()
 			defer func() {
 				if r := recover(); r != nil {
@@ -268,7 +285,7 @@ func initRunningContainerImagesWhiteList(rt container.Runtime, config *ConfigMan
 			defer func() {
 				<-ch
 			}()
-			cm, err := rt.GetContainerMeta(c.ID)
+			cm, err := rt.GetContainerMeta(c.Namespace, c.ID)
 			if err != nil {
 				logging.Get().Err(err).Str("containerID", c.ID).Msg("get container meta failed")
 				return
@@ -314,7 +331,7 @@ func initRunningContainerImagesWhiteList(rt container.Runtime, config *ConfigMan
 				}
 			}
 
-			imageInspect, err := rt.GetImageInspect(c.ImageID)
+			imageInspect, err := rt.GetImageInspect(c.Namespace, c.ImageID)
 			if err != nil {
 				logging.Get().Err(err).Str("imageID", c.ImageID).Msg("get image inspect failed")
 				return
@@ -372,12 +389,12 @@ func firstInjectContainer(rt container.Runtime, injector *Injector) error {
 	}
 
 	for _, c := range containers {
-		cm, err := rt.GetContainerMeta(c.ID)
+		cm, err := rt.GetContainerMeta(c.Namespace, c.ID)
 		if err != nil {
 			logging.Get().Err(err).Str("containerID", c.ID).Msg("get container meta failed")
 			continue
 		}
-		injected, err := injector.DoInject(cm)
+		injected, _, err := injector.DoInject(cm)
 		if err != nil {
 			// logging.Get().Err(err).Str("containerID", c.ID).Msg("inject container failed")
 		}

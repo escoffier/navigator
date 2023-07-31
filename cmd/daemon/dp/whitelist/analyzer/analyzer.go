@@ -34,7 +34,7 @@ type Analyzer interface {
 	Require(runtimeInfo types.Info) bool
 
 	// AnalyzeWhiteList get all exec files
-	AnalyzeWhiteList(runtime container.Runtime, runtimeInfo types.Info, image types.ImageInspect) (ExecFiles, error)
+	AnalyzeWhiteList(runtime container.Runtime, runtimeInfo container.RuntimeInfo, image container.ImageInspect) (ExecFiles, error)
 }
 
 // Register used for analyzers
@@ -82,14 +82,20 @@ func OpenAlternate(cfg RegistrableComponentConfig) (Analyzer, error) {
 }
 
 // Analyze generate exec file list, called by others
-func Analyze(runtime container.Runtime, image types.ImageInspect) (ExecFiles, error) {
+func Analyze(runtime container.Runtime, image container.ImageInspect) (ExecFiles, error) {
 	runtimeInfo, err := runtime.RuntimeInfo()
 	if err != nil {
 		logging.Get().Err(err).Msg("failed to get runtime info")
 		return nil, err
 	}
+	logging.Get().Debug().Interface("runtime info", runtimeInfo).Msg("get runtime info")
 
 	modeImageTar := os.Getenv(global.DpScanModeEnv)
+
+	if runtimeInfo.RuntimeType == "containerd" {
+		modeImageTar = global.DpScanModeImageTar
+	}
+
 	if modeImageTar != global.DpScanModeImageTar {
 		// create new analyzer by runtime.Driver
 		a, err := Open(RegistrableComponentConfig{Type: Type(runtimeInfo.Driver)})

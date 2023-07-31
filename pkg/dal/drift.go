@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
 
 	"gitlab.com/piccolo_su/vegeta/pkg/assets"
@@ -689,11 +690,20 @@ func GetDefaultWhitelistByImageTags(ctx context.Context, rdb *gorm.DB, offset, l
 
 	db := rdb.Model(&res).WithContext(ctx)
 
-	if searchStr != "" {
-		db = db.Where("path LIKE ?", "%"+searchStr+"%")
-	}
-	db = db.Where("repo_tag IN (?)", tags)
+	var orConditions []string
+	var args []interface{}
 
+	for _, tag := range tags {
+		orConditions = append(orConditions, "repo_tag LIKE ?")
+		args = append(args, "%"+tag+"%")
+	}
+	query := strings.Join(orConditions, " OR ")
+	if searchStr != "" {
+		// db = db.Where("path LIKE ?", "%"+searchStr+"%")
+		query = fmt.Sprintf("(%s) AND path LIKE ?", query)
+		args = append(args, "%"+searchStr+"%")
+	}
+	db = db.Where(query, args...)
 	var count int64
 	err := db.Count(&count).Error
 	if err != nil {
