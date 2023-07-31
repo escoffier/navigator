@@ -205,7 +205,7 @@ func (d *ContainerdInfoManager) ListenEvents(saveData SaveContainerDataFunc) {
 				if d.mqReady.Load() {
 					nsCtx := namespaces.WithNamespace(currentCtx, m.Namespace)
 					if ExportRawContainer {
-						contain := &model.TensorRawContainer{Namespace: m.Namespace, ContainerID: containerId, Name: containerId, ClusterKey: d.clusterKey, Pid: int(pid)}
+						contain := &model.TensorRawContainer{Namespace: m.Namespace, ContainerID: containerId, ClusterKey: d.clusterKey, Pid: int(pid)}
 						if m.Topic != runtime.TaskDeleteEventTopic {
 							c, err := d.containerdCli.LoadContainer(nsCtx, containerId)
 							if err != nil {
@@ -431,7 +431,6 @@ func (d *ContainerdInfoManager) containerFromRaw(ctx context.Context, container 
 	if ok {
 		k8sManaged = true
 	}
-	podUid := info.Labels["io.kubernetes.pod.uid"]
 
 	var (
 		imageId      = info.Image
@@ -468,9 +467,9 @@ func (d *ContainerdInfoManager) containerFromRaw(ctx context.Context, container 
 		// Gateway:        networkSettings.Gateway,
 		Mac:            networkSettings.MacAddress,
 		NetworkMode:    networkModel,
-		Name:           container.ID(),
+		Name:           info.Labels["io.kubernetes.container.name"],
 		PodName:        podName,
-		PodUid:         podUid,
+		PodUid:         info.Labels["io.kubernetes.pod.uid"],
 		Namespace:      info.Labels["io.kubernetes.pod.namespace"],
 		ClusterKey:     d.clusterKey,
 		NodeName:       d.hostName,
@@ -513,6 +512,7 @@ func (d *ContainerdInfoManager) TryGetNetworkSettings(pid int) (*NetworkSettings
 
 // containerD Status To assets Status
 func (d *ContainerdInfoManager) getContainerStatus(state task.Status) int32 {
+	// github.com/containerd/containerd@v1.5.16/api/types/task/task.pb.go:33
 	switch int32(state) {
 	case 0:
 		return assets.Dead

@@ -84,7 +84,7 @@ func (d *DeviceMapper) Clean() error {
 	return nil
 }
 
-func (d *DeviceMapper) AnalyzeWhiteList(_ container.Runtime, runtimeInfo types.Info, image types.ImageInspect) (analyzer.ExecFiles, error) {
+func (d *DeviceMapper) AnalyzeWhiteList(runtime container.Runtime, runtimeInfo container.RuntimeInfo, image container.ImageInspect) (analyzer.ExecFiles, error) {
 	lock.Lock()
 	defer lock.Unlock()
 
@@ -192,7 +192,7 @@ func (d *DeviceMapper) isDeviceIdConflict(cmdMsg string) bool {
 	return strings.Contains(cmdMsg, deviceIdConflict)
 }
 
-func (d *DeviceMapper) prepare(runtimeInfo types.Info) error {
+func (d *DeviceMapper) prepare(runtimeInfo container.RuntimeInfo) error {
 	// data dir diff by run mode: local or container
 	d.runtimeDataDir = global.RuntimeDataDir(runtimeInfo)
 
@@ -324,7 +324,7 @@ func (d *DeviceMapper) snapMessageToPool(layerDevId int) error {
 // 目前发现基本上所有的image layer被分配的device size都是10GB，不确定devicemapper是怎么分配的(看起来和base device size一致),暂没找到相关文档
 // 而且如果创建的snapshot是其他的大小，可能会导致mount时出现supper block错误.
 // 因此，我们默认创建snapshot大小为10GB,即20971520个扇区(每个扇区为512byte).同时提供环境变量来修改大小,避免出现超过10G大小的镜像
-func (d *DeviceMapper) getSnapSize(image types.ImageInspect) string {
+func (d *DeviceMapper) getSnapSize(image container.ImageInspect) string {
 	num := os.Getenv(global.CustomSnapSectorNumberEnv)
 	if len(num) != 0 {
 		return num
@@ -333,7 +333,7 @@ func (d *DeviceMapper) getSnapSize(image types.ImageInspect) string {
 }
 
 // createSnap actual create snap cmd
-func (d *DeviceMapper) createSnap(image types.ImageInspect) error {
+func (d *DeviceMapper) createSnap(image container.ImageInspect) error {
 	snapSize := d.getSnapSize(image)
 	logging.Get().Debug().Str("snapSize", snapSize).Msg("generate snap size")
 

@@ -199,7 +199,7 @@ func (ej *ExecJudge) doRequest(conn *net.UnixConn, uuid uint64) error {
 		logging.Get().Info().Uint64("uuid", uuid).Str("containerID", containerID).Str("syscall", syscall).Str("filePath", filePath).Str("fileHash", fileHash).Msg("receive msg content")
 
 		// get image info by containerID
-		containMeta, err := ej.rt.GetContainerMeta(containerID)
+		containMeta, err := ej.rt.GetContainerMeta("", containerID)
 		if err != nil {
 			logging.Get().Err(err).Uint64("uuid", uuid).Str("containerID", containerID).Msg("not found container image info")
 			_ = ej.Response(conn, resultPass, containerID, fileHash)

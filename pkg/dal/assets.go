@@ -3394,7 +3394,7 @@ func CleanUpRawContainer(ctx context.Context, rdb *gorm.DB, ts time.Time, cluste
 	defer cancel()
 
 	return rdb.WithContext(rCtx).Model(&model.TensorRawContainer{}).
-		Where("cluster_key = ? and node_name = ? and updated_at < ?", clusterKey, nodeName, ts).Updates(map[string]interface{}{
+		Where("cluster_key = ? and node_name = ? and updated_at < ? and status < 5", clusterKey, nodeName, ts).Updates(map[string]interface{}{
 		"status":     assets.Exited,
 		"updated_at": time.Now(),
 	}).Error

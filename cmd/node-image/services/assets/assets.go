@@ -13,8 +13,6 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/node-image/services/helper"
 	imagesecModel "gitlab.com/piccolo_su/vegeta/pkg/model/imagesec"
 
-	"github.com/docker/docker/api/types"
-	dockerImage "github.com/docker/docker/api/types/image"
 	"github.com/segmentio/kafka-go"
 	"gitlab.com/security-rd/go-pkg/logging"
 	"gitlab.com/security-rd/go-pkg/mq"
@@ -147,8 +145,8 @@ func (m *Manager) shouldExcludeImage(imageName []string) bool {
 	return false
 }
 
-func (m *Manager) filterImage(images []types.ImageSummary) []types.ImageSummary {
-	ans := make([]types.ImageSummary, 0)
+func (m *Manager) filterImage(images []container.ImageSummary) []container.ImageSummary {
+	ans := make([]container.ImageSummary, 0)
 	for i := range images {
 		image := images[i]
 		if m.shouldExcludeImage(image.RepoTags) {
@@ -199,7 +197,7 @@ func (m *Manager) SendAsset(ctx context.Context) {
 	}
 }
 
-func (m *Manager) sendAssetHelp(ctx context.Context, images []types.ImageSummary, sysInfo *SysInfo, versionReport imagesec.ReportDBVersion) error {
+func (m *Manager) sendAssetHelp(ctx context.Context, images []container.ImageSummary, sysInfo *SysInfo, versionReport imagesec.ReportDBVersion) error {
 	report := &imagesec.NodeReport{
 		UUID: util.GenerateUUIDHex(),
 		NodeInfo: imagesec.NodeInfo{
@@ -215,14 +213,14 @@ func (m *Manager) sendAssetHelp(ctx context.Context, images []types.ImageSummary
 	for i := range images {
 		image := images[i]
 		// get image base info
-		detail, err := m.runtime.GetImageInspect(image.ID)
+		detail, err := m.runtime.GetImageInspect(image.Namespace, image.ID)
 		if err != nil {
 			logging.Get().Err(err).Interface("repoTags", image.RepoTags).Msg("failed to inspect image")
 			return err
 		}
 
 		// get image layer
-		history, err := m.runtime.ImageHistory(image.ID)
+		history, err := m.runtime.ImageHistory(image.Namespace, image.ID)
 		if err != nil {
 			logging.Get().Err(err).Interface("repoTags", image.RepoTags).Msg("failed to get image history")
 			return err
@@ -286,7 +284,7 @@ func (m *Manager) SendToMq(ctx context.Context, report *imagesec.NodeReport) err
 	return nil
 }
 
-func transformImageInfo(detail types.ImageInspect, history []dockerImage.HistoryResponseItem) imagesec.ImageMeta {
+func transformImageInfo(detail container.ImageInspect, history []container.HistoryResponseItem) imagesec.ImageMeta {
 	meta := imagesec.ImageMeta{
 		ImageId:  detail.ID,
 		RepoTags: detail.RepoTags,
@@ -294,12 +292,8 @@ func transformImageInfo(detail types.ImageInspect, history []dockerImage.History
 		Size:     detail.Size,
 		Created:  detail.Created,
 	}
-	if detail.Config != nil {
-		meta.ENVS = detail.Config.Env
-		meta.User = detail.Config.User
-	} else {
-		logging.Get().Info().Interface("image", detail).Msg("transformImageInfo config is nil")
-	}
+	meta.ENVS = detail.Env
+	meta.User = detail.User
 
 	for _, v := range history {
 		l := imagesec.Layer{

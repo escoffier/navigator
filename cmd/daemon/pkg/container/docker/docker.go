@@ -2,12 +2,14 @@ package docker
 
 import (
 	"archive/tar"
+	"compress/gzip"
 	"context"
 	"errors"
 	"fmt"
-	"github.com/docker/docker/api/types/image"
 	"io"
 	"path/filepath"
+
+	"github.com/jinzhu/copier"
 
 	// "io"
 	"os"
@@ -41,7 +43,7 @@ type dockerDriver struct {
 	dockerCli  *client.Client
 }
 
-func (d *dockerDriver) GetContainerMeta(containerID string) (container.ContainerMeta, error) {
+func (d *dockerDriver) GetContainerMeta(namespace string, containerID string) (container.ContainerMeta, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), dockerRequestTimeout*time.Second)
 	defer cancel()
 	c, err := d.dockerCli.ContainerInspect(ctx, containerID)
@@ -145,18 +147,23 @@ func (d *dockerDriver) StopMonitorEvent() error {
 }
 
 // ListImages : list all exist images
-func (d *dockerDriver) ListImages() ([]types.ImageSummary, error) {
+func (d *dockerDriver) ListImages() ([]container.ImageSummary, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), dockerRequestTimeout*time.Second)
 	defer cancel()
 	images, err := d.dockerCli.ImageList(ctx, types.ImageListOptions{})
 	if err != nil {
 		return nil, fmt.Errorf("list images failed:%v", err)
 	}
-	return images, nil
+	var imageList []container.ImageSummary
+	err = copier.Copy(&imageList, &images)
+	if err != nil {
+		return nil, fmt.Errorf("transform imageList failed.%v", err)
+	}
+	return imageList, nil
 }
 
 // ListRunningContainers : list all exist containers
-func (d *dockerDriver) ListRunningContainers() ([]types.Container, error) {
+func (d *dockerDriver) ListRunningContainers() ([]container.Container, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), dockerRequestTimeout*time.Second)
 	defer cancel()
 	filter := filters.NewArgs(
@@ -168,52 +175,84 @@ func (d *dockerDriver) ListRunningContainers() ([]types.Container, error) {
 		return nil, fmt.Errorf("list containers failed, %v", err)
 	}
 	// logging.Get().Debug().Interface("containers", containers).Msg("list containers")
-	return containers, nil
+	var result []container.Container
+	err = copier.Copy(&result, &containers)
+	if err != nil {
+		return nil, err
+	}
+	return result, nil
 }
 
-func (d *dockerDriver) GetImageInspect(imageID string) (types.ImageInspect, error) {
+func (d *dockerDriver) GetImageInspect(namespace string, imageID string) (container.ImageInspect, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), dockerRequestTimeout*time.Second)
 	defer cancel()
-	imageInfo, _, err := d.dockerCli.ImageInspectWithRaw(ctx, imageID)
+	image, _, err := d.dockerCli.ImageInspectWithRaw(ctx, imageID)
 	if err != nil {
-		return types.ImageInspect{}, fmt.Errorf("get image inspect failed, %v", err)
+		return container.ImageInspect{}, fmt.Errorf("get image inspect failed, %v", err)
 	}
-	return imageInfo, nil
+	var result container.ImageInspect
+	err = copier.Copy(&result, &image)
+	if err != nil {
+		return container.ImageInspect{}, fmt.Errorf("transform iamgeInspect failed.%v", err)
+	}
+	if image.Config != nil {
+		result.Env = image.Config.Env
+		result.Cmd = image.Config.Cmd
+		result.User = image.Config.User
+	}
+	return result, nil
 }
-func (d *dockerDriver) ImageHistory(imageID string) ([]image.HistoryResponseItem, error) {
+func (d *dockerDriver) ImageHistory(namespace string, imageID string) ([]container.HistoryResponseItem, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), dockerRequestTimeout*time.Second)
 	defer cancel()
 	history, err := d.dockerCli.ImageHistory(ctx, imageID)
 	if err != nil {
-		return []image.HistoryResponseItem{}, fmt.Errorf("failed to get image history, %v", err)
+		return []container.HistoryResponseItem{}, fmt.Errorf("failed to get image history, %v", err)
 	}
-	return history, nil
-}
-
-func (d *dockerDriver) GetContainerInspect(containerID string) (types.ContainerJSON, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), dockerRequestTimeout*time.Second)
-	defer cancel()
-	ci, err := d.dockerCli.ContainerInspect(ctx, containerID)
+	var historyList []container.HistoryResponseItem
+	err = copier.Copy(&historyList, &history)
 	if err != nil {
-		logging.Get().Err(err).Str("containerID", containerID).Msg("inspect container failed")
-		return types.ContainerJSON{}, err
+		return nil, fmt.Errorf("failed to return image history,%v", err)
 	}
-	return ci, nil
+	return historyList, nil
 }
 
-func (d *dockerDriver) RuntimeInfo() (types.Info, error) {
+func (d *dockerDriver) GetContainerInspect(containerID string) (container.ContainerInspect, error) {
+	// ctx, cancel := context.WithTimeout(context.Background(), dockerRequestTimeout*time.Second)
+	// defer cancel()
+	// ci, err := d.dockerCli.ContainerInspect(ctx, containerID)
+	// if err != nil {
+	//	logging.Get().Err(err).Str("containerID", containerID).Msg("inspect container failed")
+	//	return types.ContainerJSON{}, err
+	// }
+	// return ci, nil
+	// todo
+	return container.ContainerInspect{}, nil
+}
+
+func (d *dockerDriver) RuntimeInfo() (container.RuntimeInfo, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), dockerRequestTimeout*time.Second)
 	defer cancel()
 	i, err := d.dockerCli.Info(ctx)
 	if err != nil {
 		logging.Get().Err(err).Msg("failed to get docker info")
-		return types.Info{}, err
+		return container.RuntimeInfo{}, err
 	}
-	return i, nil
+	runtimeInfo := container.RuntimeInfo{
+		RuntimeType: "docker",
+	}
+	err = copier.Copy(&runtimeInfo, &i)
+	if err != nil {
+		logging.Get().Err(err).Msg("failed to return  docker info")
+		return container.RuntimeInfo{}, err
+	}
+	runtimeInfo.RuntimeType = version
+
+	return runtimeInfo, nil
 }
 
 // untar uses a Reader that represents a tar to untar it on the fly to a target folder
-func unTar(imageReader io.ReadCloser, target string) error {
+func UnTar(imageReader io.ReadCloser, target string) error {
 	tarReader := tar.NewReader(imageReader)
 
 	for {
@@ -248,7 +287,61 @@ func unTar(imageReader io.ReadCloser, target string) error {
 	return nil
 }
 
-func (d *dockerDriver) SaveImage(imageID, fullPath string) (string, error) {
+func ExtractGzipFiles(gzipFilePath string, outputDir string) error {
+	gzipFile, err := os.Open(gzipFilePath)
+	if err != nil {
+		return err
+	}
+	defer gzipFile.Close()
+
+	gzipReader, err := gzip.NewReader(gzipFile)
+	if err != nil {
+		return err
+	}
+	defer gzipReader.Close()
+
+	tarReader := tar.NewReader(gzipReader)
+
+	for {
+		fileInfo, err := tarReader.Next()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return err
+		}
+
+		outputPath := filepath.Join(outputDir, fileInfo.Name)
+
+		switch fileInfo.Typeflag {
+		case tar.TypeDir:
+			err = os.MkdirAll(outputPath, os.ModePerm)
+			if err != nil {
+				return err
+			}
+		case tar.TypeReg:
+			err = os.MkdirAll(filepath.Dir(outputPath), os.ModePerm)
+			if err != nil {
+				return err
+			}
+
+			outputFile, err := os.Create(outputPath)
+			if err != nil {
+				return err
+			}
+			defer outputFile.Close()
+
+			_, err = io.Copy(outputFile, tarReader)
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+
+func (d *dockerDriver) SaveImage(namespace, imageID, fullPath string) (string, error) {
 	exportTimeout := exportImageTimeout
 	timeout := os.Getenv(imageTarTimeoutENV)
 	if len(timeout) > 0 {
@@ -267,11 +360,16 @@ func (d *dockerDriver) SaveImage(imageID, fullPath string) (string, error) {
 		logging.Get().Err(err).Msg("")
 		return "", err
 	}
-	if err = unTar(res, fullPath); err != nil {
-		logging.Get().Err(err).Msg("unTar fail")
+	if err = UnTar(res, fullPath); err != nil {
+		logging.Get().Err(err).Msg("UnTar fail")
 		return "", err
 	}
 	return fullPath, err
+}
+
+func (d *dockerDriver) GetImageLayersDir(namespace, imageId string) (layerDirs []string, err error) {
+	// TODO implement me
+	panic("implement me")
 }
 
 func init() {
@@ -339,7 +437,7 @@ func (d *dockerDriver) transformEvent(ev *events.Message) (*container.EventMessa
 		Event: ev.Action,
 		Time:  ev.Time,
 	}
-	containerInfo, err := d.GetContainerMeta(ev.ID)
+	containerInfo, err := d.GetContainerMeta("", ev.ID)
 	// 有可能返回空的containerInfo,仍然保存，外部根据err自己处理
 	msg.ContainerInfo = containerInfo
 	if err != nil {

@@ -181,7 +181,7 @@ func (c *CisController) getRunningContainers() ([]container.ContainerMeta, error
 	}
 	for _, container := range containers {
 		logging.GetLogger().Info().Msgf("container: %v", container)
-		cm, err := c.rt.GetContainerMeta(container.ID)
+		cm, err := c.rt.GetContainerMeta(container.Namespace, container.ID)
 		if err != nil {
 			logging.GetLogger().Error().Err(err).Msg("get container meta fail")
 			continue

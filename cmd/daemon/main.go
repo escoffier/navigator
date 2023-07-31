@@ -64,11 +64,11 @@ func initEventStreams(udsAddr, nodeName, myNamespace, ctrlURL, ruleDirPath strin
 	return handler, nil
 }
 
-func initNodeInfos(hostName, hostIP, clusterKey, myNamespace string, policyCli microseg.PolicyClient) (nodeinfo.ContainerInfoManager, *netflow.NodePodsInfo, *nodeinfo.PodResInfo, *nodeinfo.NodePodsWatcher, error) {
+func initNodeInfos(hostName, hostIP, clusterKey, myNamespace string, policyCli microseg.PolicyClient) (nodeinfo.ContainerInfoManager, *netflow.NodePodsInfo, *nodeinfo.PodResInfo, *nodeinfo.NodePodsWatcher, string, error) {
 	nodePods := nodeinfo.NewNodePodsWatcher(hostName, clusterKey)
 	k8sCli, err := nodePods.Build().InitK8sClient()
 	if err != nil {
-		return nil, nil, nil, nil, errors.Errorf("k8s client init failed, %v", err)
+		return nil, nil, nil, nil, "", errors.Errorf("k8s client init failed, %v", err)
 	}
 
 	cmWatcher := cmap.NewWatcher(k8sCli, myNamespace, "ivan-degradation-controller").AddFunc(degrade.DegradationCmapWatcher).Build()
@@ -76,12 +76,12 @@ func initNodeInfos(hostName, hostIP, clusterKey, myNamespace string, policyCli m
 
 	containerType, err := nodePods.Build().GetContainerType()
 	if err != nil {
-		return nil, nil, nil, nil, errors.Errorf("get k8s node containerRuntimeVersion failed, %v", err)
+		return nil, nil, nil, nil, "", errors.Errorf("get k8s node containerRuntimeVersion failed, %v", err)
 	}
 
 	mqWriter, err := mq.GetClientFactory().Writer(context.Background())
 	if err != nil {
-		return nil, nil, nil, nil, errors.Errorf("get mq writer failed, %v", err)
+		return nil, nil, nil, nil, "", errors.Errorf("get mq writer failed, %v", err)
 	}
 
 	agent := containerassets.NewAgent(mqWriter)
@@ -93,25 +93,25 @@ func initNodeInfos(hostName, hostIP, clusterKey, myNamespace string, policyCli m
 	case nodeinfo.DockerType:
 		containerInfo, err = nodeinfo.NewDockerInfoManager(clusterKey, hostName, hostIP, agent, policyCli)
 		if err != nil {
-			return nil, nil, nil, nil, errors.Errorf("Failed to initialize docker info manager, %v", err)
+			return nil, nil, nil, nil, "", errors.Errorf("Failed to initialize docker info manager, %v", err)
 		}
 		logging.Get().Info().Msgf("new docker client success!")
 	case nodeinfo.CrioType:
-		containerInfo, err = nodeinfo.NewCrioInfoManager()
+		containerInfo, err = nodeinfo.NewCRIOInfoManager(clusterKey, hostName, hostIP, agent)
 		if err != nil {
-			return nil, nil, nil, nil, errors.Errorf("Failed to initialize cri-o info manager, %v", err)
+			return nil, nil, nil, nil, "", errors.Errorf("Failed to initialize cri-o info manager, %v", err)
 		}
 		logging.Get().Info().Msgf("new cri-o client success!")
 	case nodeinfo.PodmanType:
 		containerInfo, err = nodeinfo.NewPodmanInfoManager()
 		if err != nil {
-			return nil, nil, nil, nil, errors.Errorf("Failed to initialize podman info manager, %v", err)
+			return nil, nil, nil, nil, "", errors.Errorf("Failed to initialize podman info manager, %v", err)
 		}
 		logging.Get().Info().Msgf("new podman client success!")
 	case nodeinfo.ContainerdType:
 		containerInfo, err = nodeinfo.NewContainerdInfoManager(clusterKey, hostName, hostIP, agent)
 		if err != nil {
-			return nil, nil, nil, nil, errors.Errorf("Failed to initialize containerd info manager, %v", err)
+			return nil, nil, nil, nil, "", errors.Errorf("Failed to initialize containerd info manager, %v", err)
 		}
 		logging.Get().Info().Msgf("new containerd client success!")
 	}
@@ -197,16 +197,16 @@ func initNodeInfos(hostName, hostIP, clusterKey, myNamespace string, policyCli m
 	podsWatcher := nodePods.AddWatcher(k8sInfo).AddWatcher(podResInfo).Build()
 	err = podsWatcher.Start(context.Background(), containerInfo)
 	if err != nil {
-		return nil, nil, nil, nil, fmt.Errorf("start pods watcher error: %v", err)
+		return nil, nil, nil, nil, "", fmt.Errorf("start pods watcher error: %v", err)
 	}
 
 	containerInfo.SetPodStore(podsWatcher)
 	err = containerInfo.Start()
 	if err != nil {
-		return nil, nil, nil, nil, fmt.Errorf("start dockerInfo listen failed, %v.", err)
+		return nil, nil, nil, nil, "", fmt.Errorf("start dockerInfo listen failed, %v.", err)
 	}
 
-	return containerInfo, k8sInfo, podResInfo, podsWatcher, nil
+	return containerInfo, k8sInfo, podResInfo, podsWatcher, containerType, nil
 }
 
 var runes = []rune{
@@ -336,7 +336,7 @@ func Run(ctx context.Context) error {
 		}
 	}
 
-	containerInfo, k8sInfo, podResInfo, podWatcher, err := initNodeInfos(hostName, hostIP, clusterKey, myNamespace, policyClient)
+	containerInfo, k8sInfo, podResInfo, podWatcher, containerType, err := initNodeInfos(hostName, hostIP, clusterKey, myNamespace, policyClient)
 	if err != nil {
 		return err
 	}
@@ -450,7 +450,7 @@ func Run(ctx context.Context) error {
 		}
 
 		dpService, err := dp.NewDriftAssurance(podWatcher, podResInfo, mqWriter, consoleAddr,
-			clusterName, clusterKey, &palaceHandler, clusterManager)
+			clusterName, clusterKey,containerType, &palaceHandler, clusterManager )
 		if err != nil {
 			logging.Get().Err(err).Msg("new drift assurance service failed")
 			return err

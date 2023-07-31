@@ -1,7 +1,7 @@
 package global
 
 import (
-	"github.com/docker/docker/api/types"
+	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/container"
 	"os"
 	"path/filepath"
 	"strings"
@@ -16,12 +16,12 @@ func GetDpRealWorkingDir() string {
 }
 
 // RuntimeDataDir return data dir,eg./var/lib/docker
-func RuntimeDataDir(runtime types.Info) string {
+func RuntimeDataDir(runtime container.RuntimeInfo) string {
 	mode := os.Getenv(DaemonRunModeEnv)
 	if mode == DaemonRunModeLocal {
-		return runtime.DockerRootDir
+		return runtime.RootDir
 	}
-	return filepath.Join(MountPathInContainer, runtime.DockerRootDir)
+	return filepath.Join(MountPathInContainer, runtime.RootDir)
 }
 
 func GetExcludeNamespaces() []string {

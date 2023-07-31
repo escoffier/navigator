@@ -21,11 +21,11 @@ func TestChainId(t *testing.T) {
 		t.Fatalf("prepare err:%v", err)
 	}
 
-	runtime, err := dp.CreateRuntimeCli()
+	runtime, err := dp.CreateRuntimeCli("docker")
 	if err != nil {
 		t.Fatalf("create runtime err:%v", err)
 	}
-	image, err := runtime.GetImageInspect(testImageName)
+	image, err := runtime.GetImageInspect("default", testImageName)
 	if err != nil {
 		t.Fatalf("inspect image failed")
 	}

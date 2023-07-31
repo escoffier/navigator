@@ -1,9 +1,10 @@
 package container
 
 import (
-	"fmt"
 	"os"
 	"strings"
+
+	"gitlab.com/security-rd/go-pkg/logging"
 )
 
 func isUnixSockFile(filename string) bool {
@@ -28,11 +29,15 @@ func CreateRuntimeCli() (Runtime, error) {
 	if isUnixSockFile(dockerHost) {
 		rt, err = Open(RuntimeConfig{Type: "docker"})
 		if err != nil {
+			logging.Get().Err(err).Str("runtimeType", "docker").Msg("Open runtime")
 			return nil, err
 		}
 	} else {
-		// todo: support containerd or cri-o unix socket
-		return nil, fmt.Errorf("not valid runtime socket")
+		rt, err = Open(RuntimeConfig{Type: "containerd"})
+		if err != nil {
+			logging.Get().Err(err).Str("runtimeType", "containerd").Msg("Open runtime")
+			return nil, err
+		}
 	}
 	return rt, nil
 }

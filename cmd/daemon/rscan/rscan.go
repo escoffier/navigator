@@ -177,7 +177,7 @@ func (rs *RuntimeScanner) watchExistContainers() error {
 
 	metas := make([]container.ContainerMeta, 0)
 	for _, v := range containers {
-		meta, err := rs.rt.GetContainerMeta(v.ID)
+		meta, err := rs.rt.GetContainerMeta(v.Namespace, v.ID)
 		if err != nil && !errors.Is(err, container.ErrNotFoundPodID) {
 			logging.Get().Err(err).Interface("container", v.Names).Msg("failed to get container meta")
 			continue

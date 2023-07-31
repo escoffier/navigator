@@ -46,6 +46,27 @@ func (i *ImageTar) Require(runtimeInfo types.Info) bool {
 	return false
 }
 
+func isGzipFile(filename string) bool {
+	file, err := os.Open(filename)
+	if err != nil {
+		return false
+	}
+	defer file.Close()
+
+	buffer := make([]byte, 2)
+	_, err = io.ReadFull(file, buffer)
+	if err != nil {
+		return false
+	}
+
+	// magic number (1f 8b), ref: https://en.wikipedia.org/wiki/GZIP
+	if buffer[0] == 0x1F && buffer[1] == 0x8B {
+		return true
+	}
+
+	return false
+}
+
 func getImageTarsInPath(dir string) (tarFiles []string) {
 	logging.Get().Debug().Msgf("walk dir %s", dir)
 	dirs, err := ioutil.ReadDir(dir)
@@ -58,13 +79,16 @@ func getImageTarsInPath(dir string) (tarFiles []string) {
 			tmpArr := getImageTarsInPath(filepath.Join(dir, fi.Name()))
 			tarFiles = append(tarFiles, tmpArr...)
 		} else {
+			tarFileName := filepath.Join(dir, fi.Name())
 			ok := strings.HasSuffix(fi.Name(), ".tar")
 			if !ok {
-				logging.Get().Debug().Msgf("%s not image tar,ignore", fi.Name())
-				continue
+				if !isGzipFile(tarFileName) {
+					logging.Get().Debug().Msgf("%s not image tar,ignore", fi.Name())
+					continue
+				}
 			}
+
 			// record tar file
-			tarFileName := filepath.Join(dir, fi.Name())
 			tarFiles = append(tarFiles, tarFileName)
 			logging.Get().Debug().Msgf("found tarfile:%s", tarFileName)
 		}
@@ -132,7 +156,7 @@ func genWhitelistFromLayer(path string, whitelist map[string]string) ([]string, 
 	return opqDirs, nil
 }
 
-func (i *ImageTar) AnalyzeWhiteList(runtime container.Runtime, runtimeInfo types.Info, image types.ImageInspect) (analyzer.ExecFiles, error) {
+func (i *ImageTar) AnalyzeWhiteList(runtime container.Runtime, runtimeInfo container.RuntimeInfo, image container.ImageInspect) (analyzer.ExecFiles, error) {
 	logging.Get().Debug().Interface("image", image.RepoTags).Msgf("start analyze")
 
 	tmpPath := fmt.Sprintf("/tmp/%s", image.ID)
@@ -141,7 +165,8 @@ func (i *ImageTar) AnalyzeWhiteList(runtime container.Runtime, runtimeInfo types
 		logging.Get().Err(err).Msg("mkdir fail")
 		return nil, err
 	}
-	_, err = runtime.SaveImage(strings.TrimPrefix(image.ID, "sha256:"), tmpPath)
+
+	_, err = runtime.SaveImage(image.Namespace, strings.TrimPrefix(image.ID, "sha256:"), tmpPath)
 	if err != nil {
 		logging.Get().Err(err).Msg("")
 		return nil, err

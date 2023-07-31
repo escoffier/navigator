@@ -1,0 +1,3 @@
+*.o
+net-rule
+include/
