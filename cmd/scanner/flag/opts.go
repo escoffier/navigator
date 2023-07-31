@@ -23,6 +23,8 @@ const (
 	pvcPath              = "pvc-path"
 )
 
+var EnableLeaderElection bool
+
 // ScannerOpts the scanner options
 type ScannerOpts struct {
 	HTTPListenAddr       string
@@ -91,6 +93,9 @@ func AddScannerFlags(cmd *cobra.Command) {
 	cmd.Flags().String(imageCacheServerIP, defaultOps.ImageCacheServerIP, "image cache server ip")
 	cmd.Flags().Int(imageCacheServerPort, defaultOps.ImageCacheServerPort, "image cache server port")
 	cmd.Flags().String(pvcPath, defaultOps.PvcPath, "pvc path")
+	cmd.Flags().BoolVar(&EnableLeaderElection, "leader-elect", false,
+		"Enable leader election for console. "+
+			"Enabling this will ensure there is only one active console.")
 
 	for _, flag := range []string{
 		httpListenAddr,
