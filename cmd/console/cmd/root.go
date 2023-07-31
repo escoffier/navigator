@@ -2,6 +2,7 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"strconv"
@@ -10,6 +11,7 @@ import (
 	"github.com/spf13/cobra"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service"
 	"gitlab.com/piccolo_su/vegeta/pkg/flag"
+	"gitlab.com/piccolo_su/vegeta/pkg/leaderelection"
 	"gitlab.com/piccolo_su/vegeta/pkg/lifecycle"
 	"gitlab.com/security-rd/go-pkg/databases"
 	"gitlab.com/security-rd/go-pkg/logging"
@@ -17,8 +19,9 @@ import (
 )
 
 var (
-	loggingOptions *logging.Options
-	rdbOptions     *databases.Options
+	loggingOptions       *logging.Options
+	rdbOptions           *databases.Options
+	enableLeaderElection bool
 )
 
 // rootCmd represents the base command when called without any subcommands
@@ -97,16 +100,34 @@ var rootCmd = &cobra.Command{
 			Str("username", elasticOpts.Username).
 			Msg("Elastic options")
 
-		console, err := service.NewConsole(httpOpts, rdbOpts, scannerOpts, exporterOpts, scapOpts, elasticOpts, rdbOptions)
+		run := func(ctx context.Context) {
+			console, err := service.NewConsole(httpOpts, rdbOpts, scannerOpts, exporterOpts, scapOpts, elasticOpts, rdbOptions)
 
-		if err != nil {
-			return err
+			if err != nil {
+				logging.Get().Err(err)
+				return
+			}
+
+			lifecycle.NewApplication(
+				console,
+			).Run()
 		}
 
-		lifecycle.NewApplication(
-			console,
-		).Run()
+		elect := os.Getenv("ENABLE_LEADER_ELECTION")
+		if elect == "true" {
+			enableLeaderElection = true
+		}
 
+		if enableLeaderElection {
+			elector, err := leaderelection.New(run)
+			if err != nil {
+				return err
+			}
+			elector.Run(context.TODO())
+			return fmt.Errorf("lost lease")
+		}
+
+		run(context.TODO())
 		return nil
 	},
 }
@@ -133,6 +154,10 @@ func init() {
 			rdbLogLevel = int(logger.Error)
 		}
 	}
+	rootCmd.Flags().BoolVar(&enableLeaderElection, "leader-elect", false,
+		"Enable leader election for console. "+
+			"Enabling this will ensure there is only one active console.")
+
 	rdbOptions = databases.NewRDBOptions(
 		databases.SetDefaultRdbLogLevel(logger.LogLevel(rdbLogLevel)),
 		databases.SetDefaultRdbHost("192.168.3.10"),

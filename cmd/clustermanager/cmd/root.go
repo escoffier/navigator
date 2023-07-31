@@ -1,12 +1,14 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"strconv"
 
 	"github.com/rs/zerolog"
 	"github.com/spf13/cobra"
+	"gitlab.com/piccolo_su/vegeta/pkg/leaderelection"
 	"gitlab.com/security-rd/go-pkg/logging"
 )
 
@@ -44,17 +46,35 @@ func NewClusterManagerCommand() *cobra.Command {
 			}
 			logging.Get().SetLevel(logLevel)
 
-			server, err := NewServer()
-			if err != nil {
-				logging.Get().Err(err).Msg("failed to create server")
-				return
+			elect := os.Getenv("ENABLE_LEADER_ELECTION")
+			if elect == "true" {
+				enableLeaderElection = true
 			}
 
-			err = server.Run()
-			if err != nil {
-				logging.Get().Err(err).Msg("error occurred when server running")
+			run := func(context.Context) {
+				server, err := NewServer()
+				if err != nil {
+					logging.Get().Err(err).Msg("failed to create server")
+					return
+				}
+				err = server.Run()
+				if err != nil {
+					logging.Get().Err(err).Msg("error occurred when server running")
+					return
+				}
+			}
+
+			if enableLeaderElection {
+				elector, err := leaderelection.New(run)
+				if err != nil {
+					logging.Get().Err(err).Msg("error occurred when server running")
+					return
+				}
+				elector.Run(context.TODO())
+				logging.Get().Info().Msg("lost lease")
 				return
 			}
+			run(context.TODO())
 		},
 	}
 

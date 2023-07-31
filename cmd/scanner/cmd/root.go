@@ -2,6 +2,8 @@
 package cmd
 
 import (
+	"context"
+	"fmt"
 	"os"
 	"strconv"
 
@@ -13,6 +15,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/global"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/service"
 	"gitlab.com/piccolo_su/vegeta/pkg/flag"
+	"gitlab.com/piccolo_su/vegeta/pkg/leaderelection"
 	"gitlab.com/piccolo_su/vegeta/pkg/lifecycle"
 	scannermodel "gitlab.com/piccolo_su/vegeta/pkg/model/scanner-model"
 )
@@ -66,6 +69,25 @@ var rootCmd = &cobra.Command{
 			Interface("opts", ScannerRunOpts).
 			Interface("ScannerPodID", global.ScannerPodID).
 			Msg("starting scanner")
+
+		elect := os.Getenv("ENABLE_LEADER_ELECTION")
+		if elect == "true" {
+			flag2.EnableLeaderElection = true
+		}
+		if flag2.EnableLeaderElection {
+			elector, err := leaderelection.New(func(ctx context.Context) {
+				lifecycle.NewApplication(
+					scanner,
+				).Run()
+			})
+			if err != nil {
+				logging.Get().Err(err).Msg("error occurred when server running")
+				return err
+			}
+			elector.Run(context.TODO())
+			logging.Get().Info().Msg("lost lease")
+			return fmt.Errorf("lost lease")
+		}
 
 		lifecycle.NewApplication(
 			scanner,

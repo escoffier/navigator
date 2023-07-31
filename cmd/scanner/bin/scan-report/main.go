@@ -31,6 +31,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
 	imagesecStore "gitlab.com/piccolo_su/vegeta/cmd/scanner/store/imagesec"
+	"gitlab.com/piccolo_su/vegeta/pkg/leaderelection"
 )
 
 var (
@@ -67,6 +68,7 @@ func init() {
 }
 
 func main() {
+
 	flag.Parse()
 
 	var err error
@@ -149,6 +151,32 @@ func main() {
 
 	logging.Get().Info().Int64("MaxVulnCol", config.MaxVulnCol).Int64("MaxImageByOneExportTask",
 		config.MaxImageByOneExportTask).Msg("config")
+
+	var enableLeaderElection bool
+	elect := os.Getenv("ENABLE_LEADER_ELECTION")
+	if elect == consts.TrueString {
+		enableLeaderElection = true
+	}
+	if enableLeaderElection {
+		elector, err := leaderelection.New(func(ctx context.Context) {
+			start(config)
+			logging.Get().Info().Msg("start scan report service")
+		})
+		if err != nil {
+			logging.Get().Err(err).Msg("error occurred when server running")
+			return
+		}
+		elector.Run(context.TODO())
+		logging.Get().Info().Msg("lost lease")
+		return
+	}
+
+	start(config)
+}
+
+func start(config starter.Config) {
+	logging.Get().Info().Int64("MaxVulnCol", config.MaxVulnCol).Int64("MaxImageByOneExportTask",
+		config.MaxImageByOneExportTask).Msg("config")
 	// 起后台协程服务
 	backgroundSrv := starter.NewBackgroundTasks(context.Background(), config)
 	backgroundSrv.Start(context.Background())
@@ -164,7 +192,7 @@ func main() {
 	scanResultDal := store.NewImageScanResultDao(config.Rdb)
 	scannerInstanceInfoDal := store.NewScannerInstanceDao(config.Rdb)
 
-	updateTaskDal := common.NewUpdateTaskSrv(exportTaskDal, rc0)
+	updateTaskDal := common.NewUpdateTaskSrv(exportTaskDal, config.RedisCli)
 
 	if err := updateTaskDal.DeleteIdempotent(context.Background()); err != nil {
 		os.Exit(1)
@@ -191,18 +219,18 @@ func main() {
 	nodeScanTaskSrv := imagescan.NewScanTaskSrv(nodeScanTaskDal, detectTaskDal, nodeImageSrv, scannerConfigDal)
 
 	exportTask := service.NewExportTaskSrv(
-		store.NewExportTaskDao(rdb),
+		store.NewExportTaskDao(config.Rdb),
 		maxImageByOneExportTask,
-		store.NewScannerOrm(rdb),
+		store.NewScannerOrm(config.Rdb),
 		libImageSrv,
 		nodeImageSrv,
 		nodeScanTaskSrv,
-		rc0,
+		config.RedisCli,
 		vulnDal,
 	)
 
-	libImageHtml := html.NewExportLibImageHtmlSrv(libImageSrv, vulnDal, exportTaskDal, updateTaskDal, fileDir, vct)
-	nodeImageHtml := html.NewExportNodeImageHtmlSrv(nodeImageSrv, exportTaskDal, updateTaskDal, nodeVulnSrv, fileDir, vct)
+	libImageHtml := html.NewExportLibImageHtmlSrv(libImageSrv, vulnDal, exportTaskDal, updateTaskDal, fileDir, config.VulnClassType)
+	nodeImageHtml := html.NewExportNodeImageHtmlSrv(nodeImageSrv, exportTaskDal, updateTaskDal, nodeVulnSrv, fileDir, config.VulnClassType)
 
 	cicdImageHtml := html.NewExportCiImageHtmlSrv(libImageSrv, vulnDal, exportTaskDal, updateTaskDal, fileDir)
 

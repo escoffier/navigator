@@ -53,6 +53,7 @@ type server struct {
 
 var ServerConfig = &conf.Config{}
 var microsegv2 = false
+var enableLeaderElection bool
 
 func NewServer() (*server, error) {
 	s := &server{
@@ -310,6 +311,9 @@ func AddFlags(fs *pflag.FlagSet, rootCmd *cobra.Command) {
 	fs.BoolVar(&ServerConfig.TLSServer, "tlsServer", false, "Enable tls for server")
 	fs.BoolVar(&ServerConfig.DBLogDebug, "DBDebugLog", false, "Enable database debug log")
 	fs.BoolVar(&ServerConfig.Profile, "profile", true, "Enable profiling via web interface host:port/debug/pprof")
+	fs.BoolVar(&enableLeaderElection, "leader-elect", false,
+		"Enable leader election for console. "+
+			"Enabling this will ensure there is only one active console.")
 }
 
 func init() {
