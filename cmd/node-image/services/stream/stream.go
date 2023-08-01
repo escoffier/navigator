@@ -36,7 +36,7 @@ func (r *RpcStream) Type() consts.ServiceType {
 	return consts.TypeServiceStream
 }
 
-func (r *RpcStream) PreRun(_ config.Config, _ imagesec2.NodeImageConfig, bs *util.BroadcastServer) error {
+func (r *RpcStream) PreRun(_ config.Config, _ imagesec2.ImageScanConfig, bs *util.BroadcastServer) error {
 	r.broadcastServer = bs
 	return nil
 }

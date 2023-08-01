@@ -17,7 +17,7 @@ import (
 
 type Scanner struct {
 	config          *config.Config
-	nodeImageConfig *imagesecModel.NodeImageConfig
+	nodeImageConfig *imagesecModel.ImageScanConfig
 }
 
 // checkEnabled for debug,enabled node image scan by a local file

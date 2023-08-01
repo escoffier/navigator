@@ -20,7 +20,7 @@ const (
 	DbBytecodeUnsigned = 0x8000
 
 	// recommended db settings
-	DbStdOpt = (DbPhishing | DbPhishingUrls | DbBytecode)
+	DbStdOpt = DbPhishing | DbPhishingUrls | DbBytecode
 )
 
 // Scanner options
@@ -54,17 +54,17 @@ const (
 	ScanCollectPerformanceInfo = 0x40000000
 
 	// recommended scan settings
-	ScanStdopt = (ScanArchive | ScanMail | ScanOle2 | ScanPdf | ScanHTML | ScanPe | ScanAlgorithmic | ScanElf | ScanSwf)
+	ScanStdopt = ScanArchive | ScanMail | ScanOle2 | ScanPdf | ScanHTML | ScanPe | ScanAlgorithmic | ScanElf | ScanSwf
 )
 
 /*** scan options ***/
-//struct cl_scan_options {
-//uint32_t general;
-//uint32_t parse;
-//uint32_t heuristic;
-//uint32_t mail;
-//uint32_t dev;
-//};
+// struct cl_scan_options {
+// uint32_t general;
+// uint32_t parse;
+// uint32_t heuristic;
+// uint32_t mail;
+// uint32_t dev;
+// };
 
 /* general */
 const (

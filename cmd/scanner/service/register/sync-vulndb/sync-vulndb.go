@@ -7,11 +7,12 @@ import (
 	"os"
 	"time"
 
+	"gitlab.com/security-rd/go-pkg/logging"
+
+	imagesecStream "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/stream"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/service/register"
-	"gitlab.com/piccolo_su/vegeta/cmd/scanner/service/register/stream"
 	rpcstream "gitlab.com/piccolo_su/vegeta/pkg/streaming"
 	"gitlab.com/piccolo_su/vegeta/pkg/streaming/pb"
-	"gitlab.com/security-rd/go-pkg/logging"
 )
 
 const (
@@ -28,7 +29,7 @@ func (s *Syncer) Start(_ context.Context) error {
 	logging.Get().Info().Msg("sync vulndb started")
 
 	// get grpc client
-	s.streamClient = stream.MustGetGrpcClient()
+	s.streamClient = imagesecStream.MustGetGrpcStream()
 	logging.Get().Debug().Msg("get grpc client ok")
 
 	for {

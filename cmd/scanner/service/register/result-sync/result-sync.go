@@ -3,8 +3,9 @@ package resultsync
 import (
 	"context"
 	"encoding/json"
+
+	imagesecStream "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/stream"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/service/register"
-	"gitlab.com/piccolo_su/vegeta/cmd/scanner/service/register/stream"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/streaming/pb"
 	imageModel "gitlab.com/piccolo_su/vegeta/pkg/types/imagesec"
@@ -19,7 +20,7 @@ type ResultSync struct {
 
 func (r *ResultSync) Start(ctx context.Context) error {
 	// get grpc stream client
-	streamClient := stream.MustGetGrpcClient()
+	streamClient := imagesecStream.MustGetGrpcStream()
 
 	// todo: get all cluster and nodes
 	clusterKeys := make([]string, 0)
@@ -32,7 +33,7 @@ func (r *ResultSync) Start(ctx context.Context) error {
 		nodes = append(nodes, n)
 	}
 
-	//todo: select all scanned node images
+	// todo: select all scanned node images
 	// only use node images scanned result for now
 	scannedResults := make([]imageModel.SyncScannedResult, 0)
 	for k := range scannedResults {

@@ -19,16 +19,15 @@ import (
 	_ "go.uber.org/automaxprocs"
 	"scm.tensorsecurity.cn/tensorsecurity-rd/trivy/pkg/report"
 
-	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/imagemeta"
-	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/imagescan"
-	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scan-report/api"
-	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scan-report/export/common"
-	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scan-report/export/html"
-	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scan-report/service"
-	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scan-report/starter"
-	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scan-report/types"
+	imagescanService "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/imagescan/service"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/scan-report/api"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/scan-report/export/common"
+	html2 "gitlab.com/piccolo_su/vegeta/cmd/scanner/scan-report/export/html"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/scan-report/service"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/scan-report/starter"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/scan-report/types"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
 	imagesecStore "gitlab.com/piccolo_su/vegeta/cmd/scanner/store/imagesec"
 	flag2 "gitlab.com/piccolo_su/vegeta/pkg/flag"
@@ -184,72 +183,77 @@ func start(config starter.Config) {
 	logging.Get().Info().Int64("MaxVulnCol", config.MaxVulnCol).Int64("MaxImageByOneExportTask",
 		config.MaxImageByOneExportTask).Msg("config")
 	// 起后台协程服务
-	backgroundSrv, err := starter.NewBackgroundTasks(context.Background(), config)
-	if err != nil {
-		os.Exit(1)
-	}
+	backgroundSrv := starter.NewBackgroundTasks(context.Background(), config)
 	backgroundSrv.Start(context.Background())
 
-	registryDal := store.NewRegistryDao(config.Rdb)
+	registryDal := imagesecStore.NewRegistryDao(config.Rdb)
 	vulnDal := store.NewVulnDao(config.Rdb)
-	webshellDal := store.NewWebsehllDao(config.Rdb)
-	resourceDal := store.NewResourceDao(config.Rdb)
+	resourceDal := imagesecStore.NewResourceDao(config.Rdb)
 	trustedImageDal := store.NewScannerOrm(config.Rdb)
-	exportTaskDal := store.NewExportTaskDao(config.Rdb)
-	scanTaskDal := store.NewScannerOrm(config.Rdb)
-	imageDal := store.NewScannerOrm(config.Rdb)
-	scanResultDal := store.NewImageScanResultDao(config.Rdb)
-	scannerInstanceInfoDal := store.NewScannerInstanceDao(config.Rdb)
+	exportTaskDal := imagesecStore.NewExportTaskDao(config.Rdb)
+	scannerInstanceInfoDal := imagesecStore.NewScannerInstanceDao(config.Rdb)
 
 	updateTaskDal := common.NewUpdateTaskSrv(exportTaskDal, config.RedisCli)
 
-	if err := updateTaskDal.DeleteIdempotent(context.Background()); err != nil {
-		os.Exit(1)
-	}
-
-	nodeScanResultDal := imagesecStore.NewScanResultDao(config.Rdb)
-	nodeImageDal := imagesecStore.NewImageMetaDao(config.Rdb, nil)
+	scanResultDal := imagesecStore.NewScanResultDao(config.Rdb)
+	imageDal := imagesecStore.NewImageMetaDao(config.Rdb, nil)
+	userDal := imagesecStore.NewUserDao(config.Rdb)
 
 	policyDal := imagesecStore.NewDetectPolicyDao(config.Rdb)
 	detectResultDal := imagesecStore.NewImageDetectResultDao(config.Rdb)
 	detectTaskDal := imagesecStore.NewDetectTaskDao(config.Rdb)
 	nodeReportDal := imagesecStore.NewNodeReportDao(config.Rdb)
-	scannerConfigDal := imagesecStore.NewScannerConfigDao(config.Rdb)
+	scannerConfigDal := imagesecStore.NewScanImageConfigDao(config.Rdb)
 	nodeTaskDal := imagesecStore.NewScanTaskDao(config.Rdb)
-	nodeScanTaskDal := imagesecStore.NewScanTaskDao(config.Rdb)
+	scanTaskDal := imagesecStore.NewScanTaskDao(config.Rdb)
+	deployDal := imagesecStore.NewDeployDao(config.Rdb)
+	preScanTaskDal := imagesecStore.NewScanTaskPreDao(config.Rdb)
 
-	nodeImageSrv := imagemeta.NewNodeImageSrv(nodeImageDal, registryDal, nodeScanResultDal,
-		resourceDal, nodeReportDal, policyDal, detectResultDal, trustedImageDal, scannerConfigDal, nodeTaskDal)
+	imageSrv := imagemeta.NewImageMetaSrv(
+		imageDal,
+		registryDal,
+		scanResultDal,
+		resourceDal,
+		nodeReportDal,
+		policyDal,
+		detectResultDal,
+		trustedImageDal,
+		scannerConfigDal,
+		nodeTaskDal,
+		scannerInstanceInfoDal,
+		deployDal,
+	)
 
-	libImageSrv := component.NewLibImageSrv(imageDal, registryDal, scanTaskDal, vulnDal,
-		scanResultDal, webshellDal, trustedImageDal, resourceDal, scannerInstanceInfoDal)
-	nodeVulnSrv := imagescan.NewVulnSrv(nodeScanResultDal)
+	vulnSrv := imagescanService.NewScanResultSrv(scanResultDal)
 
-	nodeScanTaskSrv := imagescan.NewScanTaskSrv(nodeScanTaskDal, detectTaskDal, nodeImageSrv, scannerConfigDal)
+	scanTaskSrv := imagescanService.NewScanTaskSrv(
+		scanTaskDal,
+		preScanTaskDal,
+		detectTaskDal,
+		imageSrv,
+		imageDal,
+		scannerConfigDal,
+		imageDal,
+		userDal)
 
 	exportTask := service.NewExportTaskSrv(
-		store.NewExportTaskDao(config.Rdb),
-		maxImageByOneExportTask,
-		store.NewScannerOrm(config.Rdb),
-		libImageSrv,
-		nodeImageSrv,
-		nodeScanTaskSrv,
+
+		imagesecStore.NewExportTaskDao(config.Rdb),
+		imageSrv,
+		scanTaskSrv,
 		config.RedisCli,
 		vulnDal,
 	)
 
-	libImageHtml := html.NewExportLibImageHtmlSrv(libImageSrv, vulnDal, exportTaskDal, updateTaskDal, fileDir, config.VulnClassType)
-	nodeImageHtml := html.NewExportNodeImageHtmlSrv(nodeImageSrv, exportTaskDal, updateTaskDal, nodeVulnSrv, fileDir, config.VulnClassType)
+	imageHtmlExport := html2.NewExportImageHtmlSrv(imageSrv, exportTaskDal, updateTaskDal, vulnSrv, fileDir, config.VulnClassType)
 
-	cicdImageHtml := html.NewExportCiImageHtmlSrv(libImageSrv, vulnDal, exportTaskDal, updateTaskDal, fileDir)
+	cicdImageHtml := html2.NewExportCiImageHtmlSrv(exportTaskDal, updateTaskDal, fileDir)
 
 	exportHtmlDriver := make(map[string]types.ExportHtmlInterface)
 
 	exportHtmlDriver[consts.ExportCIReport] = cicdImageHtml
-	exportHtmlDriver[consts.ExportLibTask] = libImageHtml
-	exportHtmlDriver[consts.ExportSingleImage] = libImageHtml
-	exportHtmlDriver[consts.ExportLibImageSearch] = libImageHtml
-	exportHtmlDriver[consts.ExportNodeImageSearch] = nodeImageHtml
+	exportHtmlDriver[consts.ExportScanTask] = imageHtmlExport
+	exportHtmlDriver[consts.ExportImageSearch] = imageHtmlExport
 
 	router := api.SetupGinRouter(exportTask, exportHtmlDriver)
 

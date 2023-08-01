@@ -2,7 +2,10 @@ package component
 
 import (
 	"archive/tar"
+	"bytes"
 	"context"
+	"crypto/md5"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -12,13 +15,19 @@ import (
 	"strings"
 
 	dockerarchive "github.com/docker/docker/pkg/archive"
+	"github.com/segmentio/kafka-go"
+	"gitlab.com/security-rd/go-pkg/mq"
+
+	"gitlab.com/security-rd/go-pkg/logging"
 
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
+	scannermodel "gitlab.com/piccolo_su/vegeta/pkg/model/scanner-model"
 )
 
 type LicenseScan struct {
 	licenseFilenameRegExpMap map[*regexp.Regexp]*model.LicenseInfo
 	licenseFilenameRegExp    *regexp.Regexp
+	MqWriter                 mq.Writer
 }
 
 func (l *LicenseScan) ScanLayer(ctx context.Context, layerPath string) ([]model.LicenseInfo, error) {
@@ -41,7 +50,7 @@ func (l *LicenseScan) parseLayerTar(tarFileName string) ([]model.LicenseInfo, er
 
 	tarReader := tar.NewReader(decompressStreamReader)
 
-	var res []model.LicenseInfo
+	res := make([]model.LicenseInfo, 0)
 
 	for {
 		header, err := tarReader.Next()
@@ -56,46 +65,45 @@ func (l *LicenseScan) parseLayerTar(tarFileName string) ([]model.LicenseInfo, er
 		case tar.TypeDir, tar.TypeLink, tar.TypeSymlink:
 			continue
 		}
-		fileName := header.Name
-		lastIndex := strings.LastIndex(header.Name, "/")
-		if lastIndex != -1 {
-			fileName = header.Name[lastIndex+1:]
-		}
-		if strings.Contains(strings.ToLower(fileName), "license") {
-			content, err := ioutil.ReadAll(tarReader)
+
+		if strings.Contains(strings.ToUpper(header.Name), "LICENSE") {
+			fileByte, err := io.ReadAll(tarReader)
 			if err != nil {
+				logging.Get().Err(err).Msgf("copy from tarReader error")
 				continue
 			}
-			strContent := string(content)
-			if len(content) == 0 {
+			if len(fileByte) == 0 {
 				continue
 			}
-			tmpLincense, ok := l.Find(strContent)
-			// logging.GetLogger().Info().Msgf("headerName:%v tmpLicense:%v", fileName, tmpLincense)
-			if ok {
-				res = append(res, tmpLincense)
+			li := GetLicenseName(fileByte)
+			if li == "" {
+				continue
 			}
+			hash := md5.New()
+			_, _ = io.Copy(hash, bytes.NewBuffer(fileByte))
+			fileMd5 := hex.EncodeToString(hash.Sum(nil))
+
+			lic := model.LicenseInfo{Name: li, Filename: header.Name, MD5: fileMd5, Data: fileByte}
+
+			_ = l.SendKafka(lic)
+
+			res = append(res, lic)
 		}
 	}
 	return res, nil
 }
 
 func (l *LicenseScan) Init() {
-	licenseFilenameRegExpMap := make(map[*regexp.Regexp]*model.LicenseInfo)
 	licenseDescription := []model.LicenseInfo{}
 
 	if err := l.readJSONFile("/configs/scanner/license.json", &licenseDescription); err != nil {
 		return
 	}
 	var licenseFilenameRegExpStrList []string
-	for i, item := range licenseDescription {
-
-		licenseFilenameRegExpMap[regexp.MustCompile(item.Value)] = &licenseDescription[i]
+	for _, item := range licenseDescription {
 		licenseFilenameRegExpStrList = append(licenseFilenameRegExpStrList, item.Value)
-
 	}
 	licenseFilenameRegExp := regexp.MustCompile(strings.Join(licenseFilenameRegExpStrList, "|"))
-	l.licenseFilenameRegExpMap = licenseFilenameRegExpMap
 	l.licenseFilenameRegExp = licenseFilenameRegExp
 }
 
@@ -125,5 +133,66 @@ func (l *LicenseScan) readJSONFile(path string, fieldPtr interface{}) error {
 	if err != nil {
 		return fmt.Errorf("Failed to unmarshal file %s: %w", path, err)
 	}
+	return nil
+}
+
+func GetLicenseName(data []byte) string {
+	con := string(data)
+
+	if strings.Contains(con, "New BSD License") {
+		return "BSD 3-Clause"
+	}
+
+	if strings.Contains(con, "GNU GENERAL PUBLIC LICENSE") {
+		return "GPL"
+	}
+
+	if strings.Contains(con, "BSD 2-Clause") {
+		return "BSD 2-Clause"
+	}
+
+	if strings.Contains(con, "MIT") {
+		return "MIT"
+	}
+
+	if strings.Contains(con, "Mozilla Public License Version") {
+		return "MPT"
+	}
+
+	if strings.Contains(con, "Apache License") {
+		return "Apache License"
+	}
+
+	if strings.Contains(con, "Permission to use, copy, modify") {
+		return "ISC"
+	}
+	return ""
+}
+
+func (l *LicenseScan) SendKafka(saveInfo model.LicenseInfo) error {
+	up := scannermodel.WebshellSaveInfo{
+		FileMd5:  saveInfo.MD5,
+		Data:     saveInfo.Data,
+		Filename: saveInfo.Filename,
+	}
+
+	// if len(up.Data) == 0 {
+	// 	logging.Get().Error().Msg("license file data is empty")
+	// 	return nil
+	// }
+	bys, err := json.Marshal(up)
+	if err != nil {
+		return err
+	}
+
+	err = l.MqWriter.Write(context.Background(), scannermodel.WebshellKafkaTopic, kafka.Message{
+		Key:   []byte(scannermodel.WebshellKafkaKey),
+		Value: bys,
+	})
+	if err != nil {
+		logging.Get().Err(err).Str("filename", saveInfo.Filename).Str("FileMd5", saveInfo.MD5).Msg("license SendKafka")
+		return err
+	}
+	logging.Get().Debug().Int("Data", len(saveInfo.Data)).Str("FileMd5", saveInfo.MD5).Msg("license SendKafka")
 	return nil
 }

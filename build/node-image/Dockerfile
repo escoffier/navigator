@@ -20,6 +20,8 @@ ENV LC_ALL=zh_CN.UTF-8
 
 COPY dist/node-image /var/lib/tensor/
 COPY configs/node-image/irene /var/lib/tensor/
+COPY configs/node-image/node-image.yaml /var/lib/tensor/node-image.yaml
+COPY configs/node-image/node-image-config.json /var/lib/tensor/node-image-config.json
 COPY configs/node-image/policy-node-image /var/lib/tensor/policy/
 COPY configs/node-image/entrypoint.sh /var/lib/tensor/
 

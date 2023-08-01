@@ -10,12 +10,10 @@ const (
 	IACYamlExportType       string = "ExportIACYamls"
 	IACDockerfileExportType string = "ExportIACDockerfiles"
 
-	ExportSingleImage     string = "ExportImage"
-	ExportLibImageSearch  string = "ExportImageSearch"
-	ExportNodeImageSearch string = "ExportNodeImageSearch"
-	ExportNodeTask        string = "ExportNodeImageTask"
-	ExportCIReport        string = "ExportCIReport"
-	ExportLibTask         string = "ExportScanTask"
+	ExportImageSearch string = "ExportImageSearch"
+
+	ExportCIReport string = "ExportCIReport"
+	ExportScanTask string = "ExportScanTask"
 
 	ExportImageViewCH         string = "镜像报告"
 	AuditExeTypeViewCH        string = "审计日志"
@@ -42,7 +40,7 @@ const (
 func GetExportTypeView(exportType string, lang string) string {
 	if strings.ToLower(lang) == LangCH {
 		switch exportType {
-		case ExportSingleImage, ExportLibImageSearch, ExportCIReport, ExportNodeImageSearch, ExportNodeTask, ExportLibTask:
+		case ExportCIReport, ExportScanTask:
 			return ExportImageViewCH
 		case ExportVuln:
 			return ExportVulnViewCH
@@ -57,7 +55,7 @@ func GetExportTypeView(exportType string, lang string) string {
 
 	if strings.ToLower(lang) == LangEN {
 		switch exportType {
-		case ExportSingleImage, ExportLibImageSearch, ExportCIReport, ExportNodeImageSearch, ExportNodeTask, ExportLibTask:
+		case ExportCIReport, ExportScanTask:
 			return ExportImageViewEN
 		case ExportVuln:
 			return ExportVulnViewEN

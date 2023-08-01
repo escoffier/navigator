@@ -12,13 +12,11 @@ import (
 
 	"gitlab.com/security-rd/go-pkg/logging"
 
-	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/engine"
-	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/pre-init"
+	preinit "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/pre-init"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	flag2 "gitlab.com/piccolo_su/vegeta/cmd/scanner/flag"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/service/register"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
-	imagesecStore "gitlab.com/piccolo_su/vegeta/cmd/scanner/store/imagesec"
 	"gitlab.com/piccolo_su/vegeta/pkg/lifecycle"
 	"gitlab.com/piccolo_su/vegeta/pkg/uuid"
 )
@@ -95,16 +93,7 @@ func NewScanner(opts *flag2.ScannerOpts) (*Scanner, error) {
 		return nil, err
 	}
 
-	// init policy etc
-	regDal := store.NewRegistryDao(store.GetScannerWrapperDb())
-	imageDal := store.NewScannerOrm(store.GetScannerWrapperDb())
-	vulnDal := store.GetSingeVulnDao()
-
-	scanConfigDAl := store.NewScanConfigDao(store.GetScannerWrapperDb())
-	nodeConfigDal := imagesecStore.NewScannerConfigDao(store.GetScannerWrapperDb())
-	nodeDetectPolicyDal := imagesecStore.NewDetectPolicyDao(store.GetScannerWrapperDb())
-	sensitiveRuleDal := imagesecStore.NewSensitiveRuleDao(store.GetScannerWrapperDb())
-	dbInit := preinit.NewInitScanner(regDal, imageDal, scanConfigDAl, vulnDal, nodeConfigDal, nodeDetectPolicyDal, sensitiveRuleDal)
+	dbInit := preinit.NewInitScanner(store.GetRDBInstance())
 
 	scanner := &Scanner{
 		PodID:           uuid.GenerateRandomID(),
@@ -115,8 +104,7 @@ func NewScanner(opts *flag2.ScannerOpts) (*Scanner, error) {
 		servicesList:    make(map[string]register.ScannerService),
 	}
 
-	// 上报scanner的信息
-	if err := dbInit.Init(context.Background(), scanner.ScannerInstance); err != nil {
+	if err := dbInit.Init(context.Background()); err != nil {
 		logging.Get().Err(err).Msg("db init policy err")
 		return nil, err
 	}
@@ -133,21 +121,6 @@ func (s *Scanner) Run() func() {
 
 	// start all service
 	s.StartServices()
-
-	// start flow engine
-	// 为啥会写在这里，糟糕的写法
-	go func() {
-		config := engine.SeqEngineConfig{
-			DeqType:       "db-dequeue",
-			MaxTaskNum:    int64(s.options.ParallelTaskNum),
-			MaxSubTaskNum: int64(s.options.ParallelSubTaskNum),
-		}
-		flowEngine := engine.NewSequenceEngine(config, nil)
-		err := flowEngine.Run(context.Background())
-		if err != nil {
-			logging.Get().Err(err).Msg("engine run err")
-		}
-	}()
 
 	return func() {
 

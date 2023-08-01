@@ -12,11 +12,12 @@ import (
 	"strings"
 	"time"
 
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/imagescan/service"
+	imagescanSrv "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/imagescan/service"
+	imagesecStream "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/stream"
+
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/imagemeta"
-	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/imagescan"
 	imagesecSrv "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/imagesec"
-	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/task"
-	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	imagesecStore "gitlab.com/piccolo_su/vegeta/cmd/scanner/store/imagesec"
 	imagesecModel "gitlab.com/piccolo_su/vegeta/pkg/model/imagesec"
 
@@ -25,7 +26,6 @@ import (
 
 	vulnupdata "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/vuln-updata"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/global"
-	"gitlab.com/piccolo_su/vegeta/cmd/scanner/service/register/stream"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	scannermodel "gitlab.com/piccolo_su/vegeta/pkg/model/scanner-model"
@@ -258,12 +258,7 @@ func (v *DBManage) UpdateMaliciousDB(ctx *gin.Context, header *multipart.FileHea
 		err = fmt.Errorf("获取子集群版本列表失败 %v", err)
 		return err
 	}
-	cli, err := stream.GetGrpcClient()
-	if err != nil {
-		logging.Get().Err(err).Msgf("get Grpc client error")
-		err = fmt.Errorf("获取grpc链接失败 %v", err)
-		return err
-	}
+	cli := imagesecStream.MustGetGrpcStream()
 	err = vulnupdata.Zip(scannermodel.PushMaliciousZip, v.upSrv.PvcPath, ops)
 	if err != nil {
 		logging.Get().Err(err).Msgf("zip db error")
@@ -399,12 +394,7 @@ func (v *DBManage) UpdateVulnDB(ctx *gin.Context, header *multipart.FileHeader, 
 		err = fmt.Errorf("获取子集群版本列表失败 %v", err)
 		return err
 	}
-	cli, err := stream.GetGrpcClient()
-	if err != nil {
-		logging.Get().Err(err).Msgf("get Grpc client error")
-		err = fmt.Errorf("获取grpc链接失败 %v", err)
-		return err
-	}
+	cli := imagesecStream.MustGetGrpcStream()
 	err = vulnupdata.Zip(scannermodel.PushVulnZip, v.upSrv.PvcPath, scannermodel.TrivyDB)
 	if err != nil {
 		logging.Get().Err(err).Msgf("zip db error")
@@ -418,10 +408,11 @@ func (v *DBManage) UpdateVulnDB(ctx *gin.Context, header *multipart.FileHeader, 
 		return err
 	}
 	go func() {
-		if r := recover(); r != nil {
-			logging.Get().Error().Msgf("panic: %v. Stack: %s", r, debug.Stack())
-		}
-
+		defer func() {
+			if r := recover(); r != nil {
+				logging.Get().Error().Msgf("panic: %v. Stack: %s", r, debug.Stack())
+			}
+		}()
 		for k := range needUp {
 			if needUp[k].KeyPath == "main" {
 				continue
@@ -452,37 +443,18 @@ func (v *DBManage) UpdateVulnDB(ctx *gin.Context, header *multipart.FileHeader, 
 
 	// create task when vuln updater trigger scan enabled
 	go func() {
-		if r := recover(); r != nil {
-			logging.Get().Error().Msgf("panic: %v. Stack: %s", r, debug.Stack())
+		defer func() {
+			if r := recover(); r != nil {
+				logging.Get().Error().Msgf("panic: %v. Stack: %s", r, debug.Stack())
+			}
+		}()
+		scanSrv := imagescanSrv.MustGetScanTaskSrv()
+		if err := scanSrv.TrigCreateScanTask(ctx, imagesecModel.VulnDbUpdateTrigger); err != nil {
+			logging.Get().Err(err).Str("configType", imagesecModel.VulnDbUpdateTrigger).Msg("TrigCreateScanTask")
+			return
 		}
-		_ = v.generateScanTask()
 	}()
 
-	go func() {
-		if r := recover(); r != nil {
-			logging.Get().Error().Msgf("addLibScanTask panic: %v. Stack: %s", r, debug.Stack())
-		}
-		_ = v.addLibScanTask()
-	}()
-
-	return nil
-}
-
-func (v *DBManage) addLibScanTask() error {
-	if os.Getenv("IS_MAIN_CLUSTER") != consts.TrueString {
-		logging.Get().Info().Msg("AddTaskByStrategy DBManage add scan task not in main cluster")
-		return nil
-	}
-	// 增加扫描任务
-	ts := task.NewTaskSrv()
-	if err := ts.GenerateScanTask(context.Background(), nil, task.UpdateTaskInfo{
-		Scope:       consts.FullScan,
-		TriggerType: consts.VulDataUpdateTrigger,
-	}); err != nil {
-		logging.Get().Err(err).Msg("AddTaskByStrategy DBManage add scan task failed")
-		return err
-	}
-	logging.Get().Info().Msgf("AddTaskByStrategy DBManage add scan task success")
 	return nil
 }
 
@@ -557,8 +529,8 @@ func (v *DBManage) GetHistory(ctx *gin.Context, search string, dbType string) ([
 
 func (v *DBManage) generateScanTask() error {
 	// query scan config
-	scannerWrapperDb := store.GetScannerWrapperDb()
-	scannerConfigDal := imagesecStore.NewScannerConfigDao(scannerWrapperDb)
+	rdbInstance := store.GetRDBInstance()
+	scannerConfigDal := imagesecStore.NewScanImageConfigDao(rdbInstance)
 	scanImageConfigSrv := imagesecSrv.NewScannerConfigSrv(scannerConfigDal)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -568,27 +540,35 @@ func (v *DBManage) generateScanTask() error {
 		return err
 	}
 
-	if !data.NodeImageConfig.VulnFlush {
+	if !data.ImageScanConfig.VulnFlush {
 		logging.Get().Info().Msg("vuln update trigger scan task not enabled")
 		return nil
 	}
 
 	// vuln trigger task enabled,generate scan task
-	nodeScanTaskDal := imagesecStore.NewScanTaskDao(scannerWrapperDb)
-	nodeImageDal := imagesecStore.NewImageMetaDao(scannerWrapperDb, nil)
-	registryDal := store.NewRegistryDao(scannerWrapperDb)
-	resourceDal := store.NewResourceDao(scannerWrapperDb)
-	nodeReportDal := imagesecStore.NewNodeReportDao(scannerWrapperDb)
-	policyDal := imagesecStore.NewDetectPolicyDao(scannerWrapperDb)
-	detectResultDal := imagesecStore.NewImageDetectResultDao(scannerWrapperDb)
-	nodeScanResultDal := imagesecStore.NewScanResultDao(scannerWrapperDb)
-	trustedImageDal := store.NewScannerOrm(scannerWrapperDb)
-	nodeImageSvc := imagemeta.NewNodeImageSrv(nodeImageDal, registryDal, nodeScanResultDal,
+	scanTaskDal := imagesecStore.NewScanTaskDao(rdbInstance)
+	preScanTaskDal := imagesecStore.NewScanTaskPreDao(rdbInstance)
+	imageDal := imagesecStore.NewImageMetaDao(rdbInstance, nil)
+	registryDal := imagesecStore.NewRegistryDao(rdbInstance)
+	instanceDal := imagesecStore.NewScannerInstanceDao(rdbInstance)
+	resourceDal := imagesecStore.NewResourceDao(rdbInstance)
+	nodeReportDal := imagesecStore.NewNodeReportDao(rdbInstance)
+	policyDal := imagesecStore.NewDetectPolicyDao(rdbInstance)
+	detectResultDal := imagesecStore.NewImageDetectResultDao(rdbInstance)
+	scanResultDal := imagesecStore.NewScanResultDao(rdbInstance)
+	trustedImageDal := store.NewScannerOrm(rdbInstance)
+	deployDal := imagesecStore.NewDeployDao(rdbInstance)
+	userDal := imagesecStore.NewUserDao(rdbInstance)
+
+	imageSvc := imagemeta.NewImageMetaSrv(
+		imageDal, registryDal, scanResultDal,
 		resourceDal, nodeReportDal, policyDal,
-		detectResultDal, trustedImageDal, scannerConfigDal, nodeScanTaskDal)
-	detectTaskDal := imagesecStore.NewDetectTaskDao(scannerWrapperDb)
-	scanTaskSrv := imagescan.NewScanTaskSrv(nodeScanTaskDal, detectTaskDal, nodeImageSvc, scannerConfigDal)
-	param := imagesecModel.ImageListParam{
+		detectResultDal, trustedImageDal, scannerConfigDal, scanTaskDal, instanceDal, deployDal,
+	)
+
+	detectTaskDal := imagesecStore.NewDetectTaskDao(rdbInstance)
+	scanTaskSrv := service.NewScanTaskSrv(scanTaskDal, preScanTaskDal, detectTaskDal, imageSvc, imageDal, scannerConfigDal, imageDal, userDal)
+	param := imagesecModel.ImageSearchApiParam{
 		ImageFromType: imagesecModel.ImageFromNode,
 	}
 	taskInfo := imagesecModel.ImageScanTask{

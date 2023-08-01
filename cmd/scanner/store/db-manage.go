@@ -60,7 +60,7 @@ func GetSingeVersionDao() *VersionDao {
 	if singeVersionDao != nil {
 		return singeVersionDao
 	}
-	singeVersionDao = &VersionDao{rdb: GetScannerWrapperDb()}
+	singeVersionDao = &VersionDao{rdb: GetRDBInstance()}
 	return singeVersionDao
 }
 

@@ -5,11 +5,11 @@ import (
 
 	"gitlab.com/security-rd/go-pkg/logging"
 
-	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/imagescan"
-	scani18 "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scan-i18"
-	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/utils"
+	imagescanSrv "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/imagescan/service"
+	scani18 "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scanI18"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	imagesecStore "gitlab.com/piccolo_su/vegeta/cmd/scanner/store/imagesec"
+	scannerUtils "gitlab.com/piccolo_su/vegeta/cmd/scanner/utils"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	imagesecModel "gitlab.com/piccolo_su/vegeta/pkg/model/imagesec"
 )
@@ -30,24 +30,21 @@ type ScanImageConfigService interface {
 
 type SensitiveRuleSrv struct {
 	sensitiveRuleDal imagesecStore.SensitiveRuleDal
-	scanTaskSrv      imagescan.ScanTaskService
 	scannerConfigSrv ScanImageConfigService
 	ZhRule           map[string]string
 }
 
 func NewSensitiveRuleSrv(
 	sensitiveRuleDal imagesecStore.SensitiveRuleDal,
-	scanTaskService imagescan.ScanTaskService,
 	scannerConfigSrv ScanImageConfigService,
 ) *SensitiveRuleSrv {
 	s := &SensitiveRuleSrv{
 		sensitiveRuleDal: sensitiveRuleDal,
-		scanTaskSrv:      scanTaskService,
 		scannerConfigSrv: scannerConfigSrv,
 		ZhRule:           make(map[string]string),
 	}
 
-	file, err := utils.GetSensitiveRuleFromFile(consts.DefaultSensitiveRuleZHPath)
+	file, err := scannerUtils.GetSensitiveRuleFromFile(consts.DefaultSensitiveRuleZHPath)
 	if err == nil {
 		for i := range file {
 			s.ZhRule[file[i].Value] = file[i].Description
@@ -66,7 +63,12 @@ func (s *SensitiveRuleSrv) CreateSensitiveRule(ctx context.Context, data *images
 		return scani18.CreateSensitiveRule(err)
 	}
 	go func() {
-		_ = s.AddScanTask(ctx, imagesecModel.ImageListParam{ImageFromType: imagesecModel.ImageFromNode})
+		defer func() {
+			if r := recover(); r != nil {
+				logging.Get().Error().Msg("CreateSensitiveRule create scan task")
+			}
+		}()
+		_ = s.CreateScanTask(ctx)
 	}()
 
 	return nil
@@ -97,7 +99,12 @@ func (s *SensitiveRuleSrv) UpdateSensitiveRule(ctx context.Context, id int64, up
 	}
 
 	go func() {
-		_ = s.AddScanTask(ctx, imagesecModel.ImageListParam{ImageFromType: imagesecModel.ImageFromNode})
+		defer func() {
+			if r := recover(); r != nil {
+				logging.Get().Error().Msg("CreateSensitiveRule create scan task")
+			}
+		}()
+		_ = s.CreateScanTask(ctx)
 	}()
 
 	return nil
@@ -110,29 +117,20 @@ func (s *SensitiveRuleSrv) DeleteSensitiveRule(ctx context.Context, id int64) er
 		return scani18.DeleteSensitiveRule(err)
 	}
 	go func() {
-		_ = s.AddScanTask(ctx, imagesecModel.ImageListParam{ImageFromType: imagesecModel.ImageFromNode})
+		defer func() {
+			if r := recover(); r != nil {
+				logging.Get().Error().Msg("CreateSensitiveRule create scan task")
+			}
+		}()
+		_ = s.CreateScanTask(ctx)
 	}()
 
 	return nil
 }
 
-func (s *SensitiveRuleSrv) AddScanTask(ctx context.Context, param imagesecModel.ImageListParam) error {
-	config, err := s.scannerConfigSrv.GetScanImageConfig(ctx, imagesecModel.ConfigTypeNodeScanImage)
-	if err != nil {
-		logging.Get().Err(err).Str("configType", imagesecModel.ConfigTypeNodeScanImage).Msg("CreateSensitiveRule GetScanImageConfig")
-		return err
-	}
-	nodeConfig := config.NodeImageConfig
-	if !nodeConfig.SensitiveFlush {
-		return nil
-	}
-
-	taskInfo := imagesecModel.ImageScanTask{
-		ImageFromType: imagesecModel.ImageFromNode,
-		ScanType:      imagesecModel.SensitiveUpdateTrigger,
-		Status:        imagesecModel.TaskStatusPending,
-	}
-	if err := s.scanTaskSrv.CreateImageScanTask(ctx, param, taskInfo); err != nil {
+func (s *SensitiveRuleSrv) CreateScanTask(ctx context.Context) error {
+	scan := imagescanSrv.MustGetScanTaskSrv()
+	if err := scan.TrigCreateScanTask(ctx, imagesecModel.SensitiveUpdateTrigger); err != nil {
 		logging.Get().Err(err).Str("configType", imagesecModel.ConfigTypeNodeScanImage).Msg("CreateSensitiveRule CreateImageScanTask")
 		return err
 	}
@@ -179,23 +177,34 @@ func (s *ScanImageConfigSrv) GetConstView(ctx context.Context, constType string)
 		avEn map[string]string
 		avZH map[string]string
 	)
-
 	switch constType {
 	case consts.ConstViewTypeVulnAttackPath:
 		avEn = imagesecModel.GetVulnAVView(model.LangEn)
 		avZH = imagesecModel.GetVulnAVView(model.LangZh)
-
 	case consts.ConstViewTypeScanTaskType:
 		avEn = imagesecModel.GetTaskTypeView(model.LangEn)
 		avZH = imagesecModel.GetTaskTypeView(model.LangZh)
-
 	case consts.ConstViewTypeVulnClass:
 		avEn = imagesecModel.GetVulnClassView(model.LangEn)
 		avZH = imagesecModel.GetVulnClassView(model.LangZh)
-
 	case consts.ConstViewTypeVulnSeverity:
 		avEn = imagesecModel.GetSeverityView(model.LangEn)
 		avZH = imagesecModel.GetSeverityView(model.LangZh)
+	case consts.ConstViewDetectPolicyScope:
+		avEn = imagesecModel.GetDetectScopeTypeType(model.LangEn)
+		avZH = imagesecModel.GetDetectScopeTypeType(model.LangZh)
+	case consts.ConstViewDetectPolicyType:
+		avEn = imagesecModel.GetDetectPolicyTypeType(model.LangEn)
+		avZH = imagesecModel.GetDetectPolicyTypeType(model.LangZh)
+	case consts.ConstViewImageFromType:
+		avEn = imagesecModel.GetImageFromType(model.LangEn)
+		avZH = imagesecModel.GetImageFromType(model.LangZh)
+	case consts.ConstViewDeployAction:
+		avEn = imagesecModel.GetDeployAction(model.LangEn)
+		avZH = imagesecModel.GetDeployAction(model.LangZh)
+	case consts.ConstViewOpenLicense:
+		avEn = GetOpenSources(model.LangEn)
+		avZH = GetOpenSources(model.LangZh)
 	}
 
 	for k, v := range avEn {
@@ -205,10 +214,29 @@ func (s *ScanImageConfigSrv) GetConstView(ctx context.Context, constType string)
 	for k, v := range avZH {
 		ans.ZH = append(ans.ZH, imagesecModel.LabelValue{Label: v, Value: k})
 	}
+	// 对于漏洞严重级别需要排序
+	if constType == consts.ConstViewTypeVulnSeverity {
+		ans.EN = imagesecModel.GetSeverityView2(model.LangEn)
+		ans.ZH = imagesecModel.GetSeverityView2(model.LangZh)
+	}
 
 	return ans
 }
 
 func NewScannerConfigSrv(configDal imagesecStore.ScanImageConfigDal) *ScanImageConfigSrv {
 	return &ScanImageConfigSrv{configDal: configDal}
+}
+
+func GetOpenSources(lang string) map[string]string {
+	avCH := map[string]string{
+		"GPL":            "GPL",
+		"MIT":            "MIT",
+		"Apache License": "Apache License",
+		"BSD":            "BSD",
+		"MPL":            "MPL",
+		"FreeBSD":        "FreeBSD",
+		"ISC":            "ISC",
+	}
+
+	return avCH
 }

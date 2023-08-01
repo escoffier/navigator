@@ -6,8 +6,8 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	imagesecSrv "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/imagescan"
-	scani18 "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scan-i18"
+	imagesecSrv "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/imagescan/service"
+	scani18 "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scanI18"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/pkg/i18"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
@@ -26,7 +26,7 @@ func NewScanTaskAPI(scanTaskSrv imagesecSrv.ScanTaskService) *ScanTaskAPI {
 
 func (s *ScanTaskAPI) CreateImageScanTask(ctx *gin.Context) {
 
-	body := imagesecModel.ImageListParam{}
+	body := imagesecModel.ImageSearchApiParam{}
 
 	if err := ctx.BindJSON(&body); err != nil {
 		response.JSONError(ctx, response.NewHttpError(http.StatusBadRequest, err))
@@ -39,8 +39,8 @@ func (s *ScanTaskAPI) CreateImageScanTask(ctx *gin.Context) {
 	taskInfo := imagesecModel.ImageScanTask{
 		ImageFromType: body.ImageFromType,
 		ScanType:      imagesecModel.ManualTrigger,
-		Updater:       body.ImageScanTaskInfo.Operator,
-		Creator:       body.ImageScanTaskInfo.Operator,
+		Updater:       body.Creator,
+		Creator:       body.Creator,
 		Status:        imagesecModel.TaskStatusPending,
 	}
 
@@ -95,7 +95,7 @@ func (s *ScanTaskAPI) SearchScanSubtask(ctx *gin.Context) {
 		Started:         util.GetKeywordFromQuery(ctx, "started"),
 		ScanStatusStr:   util.GetStringSliceFromQuery(ctx, "statusStr"),
 		NodeNameKeyword: util.GetKeywordFromQuery(ctx, "nodeNameKeyword"),
-		Filter:          model.GetFilter(ctx).SetMaxLimit(consts.DefaultLimit).SetSortFiled("id").SetSortDesc(),
+		Filter:          model.GetFilter(ctx).SetMaxLimit(consts.DefaultMaxLimit).SetSortFiled("id").SetSortDesc(),
 	}
 	param.IsSearchSubtask = true
 	subtasks, cnt, err := s.scanTaskSrv.SearchScanSubtask(ctx, param)
@@ -125,7 +125,7 @@ func (s *ScanTaskAPI) SearchScanTask(ctx *gin.Context) {
 		ScanStatusStr:   util.GetStringSliceFromQuery(ctx, "statusStr"),
 		NodeNameKeyword: util.GetKeywordFromQuery(ctx, "nodeNameKeyword"),
 		ScanType:        util.GetStringSliceFromQuery(ctx, "scanType"),
-		Filter:          model.GetFilter(ctx).SetMaxLimit(consts.DefaultLimit).SetSortDesc().SetSortFiledByID(),
+		Filter:          model.GetFilter(ctx).SetMaxLimit(consts.DefaultMaxLimit).SetSortDesc().SetSortFiledByID(),
 	}
 	param.Filter = param.Filter.SetSortDesc().SetSortFiled("id")
 	tasks, cnt, err := s.scanTaskSrv.SearchScanTask(ctx, param)

@@ -20,14 +20,14 @@ func (sh *StreamHandler) OnCreate(s rpcstream.Stream, reqID string, message prot
 	msg := message.(*pb.ImageSecReq)
 	logging.Get().Info().Str("reqID", reqID).Str("msgID", msg.RequestID).Msg("received image sec stream msg")
 
+	var retCode int32
 	var rspErr error
-	var rspMsg string
 	forwardMsgFunc := func(req *pb.ImageSecReq) {
 		defer func() {
 			orgResp := &pb.ImageSecResp{}
 			if rspErr != nil {
-				orgResp.Status = 1
-				orgResp.StatusMessage = rspMsg
+				orgResp.Status = retCode
+				orgResp.StatusMessage = rspErr.Error()
 			} else {
 				orgResp.Status = 0
 				orgResp.StatusMessage = "ok"
@@ -43,14 +43,13 @@ func (sh *StreamHandler) OnCreate(s rpcstream.Stream, reqID string, message prot
 		defer cancel()
 		resp, err := sh.ServerStream.PublishImageSecMsgByClusterKey(ctx, req.ClusterKey, req)
 		if err != nil {
-			rspErr = err
-			rspMsg = fmt.Sprintf("failed to publish image sec msg")
+			rspErr = fmt.Errorf("failed to publish image sec msg:%v", err)
 			logging.Get().Err(err).Str("reqID", reqID).Str("msgID", req.RequestID).Msg("failed to publish image sec msg")
 			return
 		}
 		if resp.Status != 0 {
+			retCode = resp.Status
 			rspErr = fmt.Errorf("rsp status err.%v", resp.Status)
-			rspMsg = fmt.Sprintf("rsp status.%v", resp.StatusMessage)
 			logging.Get().Error().Str("status", resp.StatusMessage).Str("reqID", reqID).Str("msgID", req.RequestID).Msg("recv image sec msg response status err")
 		} else {
 			logging.Get().Info().Str("reqID", reqID).Str("msgID", req.RequestID).Msg("publish image sec msg ok")

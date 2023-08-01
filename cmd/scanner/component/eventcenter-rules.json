@@ -1,42 +1,42 @@
 [
   {
-	"name": "CI/CD",
-	"description": "CI/CD Image security",
-	"severity": 5,
-	"customKV": [],
-	"multiLanguageValue": {
-	  "description": {
-		"ValueHash": {
-		  "zh": "CI/CD阶段镜像安全检测"
-		}
-	  }
-	}
+    "name": "CI/CD",
+    "description": "CI/CD Image security",
+    "severity": 5,
+    "customKV": [],
+    "multiLanguageValue": {
+      "description": {
+        "ValueHash": {
+          "zh": "CI/CD阶段镜像安全检测"
+        }
+      }
+    }
   },
   {
-	"name": "K8s",
-	"description": "K8s Image security",
-	"severity": 5,
-	"customKV": [],
-	"multiLanguageValue": {
-	  "description": {
-		"ValueHash": {
-		  "zh": "K8s部署阶段镜像安全检测"
-		}
-	  }
-	}
+    "name": "K8s",
+    "description": "K8s Image security",
+    "severity": 5,
+    "customKV": [],
+    "multiLanguageValue": {
+      "description": {
+        "ValueHash": {
+          "zh": "K8s部署阶段镜像安全检测"
+        }
+      }
+    }
   },
   {
-	"name": "Online",
-	"description": "Online Image security",
-	"severity": 5,
-	"customKV": [],
-	"multiLanguageValue": {
-	  "description": {
-		"ValueHash": {
-		  "zh": "在线镜像安全检测"
-		}
-	  }
-	}
+    "name": "Online",
+    "description": "Online Image security",
+    "severity": 5,
+    "customKV": [],
+    "multiLanguageValue": {
+      "description": {
+        "ValueHash": {
+          "zh": "在线镜像安全检测"
+        }
+      }
+    }
   }
 ]
 

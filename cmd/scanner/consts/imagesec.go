@@ -14,4 +14,24 @@ const (
 	ConstViewTypeScanTaskType   = "scanTaskType"
 	ConstViewTypeVulnClass      = "vulnClass"
 	ConstViewTypeVulnSeverity   = "vulnSeverity"
+	ConstViewDetectPolicyScope  = "detectPolicyScope"
+	ConstViewDetectPolicyType   = "detectPolicyType"
+	ConstViewImageFromType      = "imageFromType"
+	ConstViewDeployAction       = "deployAction"
+	ConstViewOpenLicense        = "openLicense"
+)
+
+const (
+	ClamavName = "clamav"
+	AviraName  = "avira"
+	DBPassword = "tanzhen2020scanner"
+	VersionStr = "version"
+
+	DeployGraphDay30  = "day30"
+	DeployGraphDay7   = "day7"
+	DeployGraphHour24 = "hour24"
+)
+
+const (
+	RiskImageTOPN = 5
 )

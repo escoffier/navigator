@@ -4,12 +4,14 @@ import (
 	"archive/tar"
 	"bytes"
 	"context"
+	"crypto/md5"
+	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"io"
 	"io/fs"
 	"io/ioutil"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -17,16 +19,19 @@ import (
 	"unsafe"
 
 	dockerarchive "github.com/docker/docker/pkg/archive"
-	"github.com/rs/zerolog"
+	"github.com/segmentio/kafka-go"
+	"gitlab.com/security-rd/go-pkg/logging"
+	"gitlab.com/security-rd/go-pkg/mq"
 
 	aviraCli "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/avira"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/malicious"
-	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
+	scannermodel "gitlab.com/piccolo_su/vegeta/pkg/model/scanner-model"
 )
 
 type MaliciousScan struct {
 	MaliciousSrv *malicious.MaliciousServer
+	MqWriter     mq.Writer
 }
 
 func (m *MaliciousScan) ScanLayer(ctx context.Context, digest string, layerPath string) ([]*model.VirusInfo, error) {
@@ -46,7 +51,7 @@ func (m *MaliciousScan) ScanLayer(ctx context.Context, digest string, layerPath 
 		return []*model.VirusInfo{}, fmt.Errorf("Failed to parseLayerTar: %w", err)
 	}
 
-	// logging.GetLogger().Info().Msgf("fileCount :%v ", fileCount)
+	// logging.Get().Info().Msgf("fileCount :%v ", fileCount)
 
 	if fileCount == 0 {
 		return []*model.VirusInfo{}, nil
@@ -65,25 +70,40 @@ func (m *MaliciousScan) ScanLayer(ctx context.Context, digest string, layerPath 
 		}
 	}
 	res := []*model.VirusInfo{}
-	if len(virusInfos) != 0 {
-		for k := range virusInfos {
-			if v, ok := fileMap[virusInfos[k].FileName]; ok {
-				for kk := range v {
-					virus := model.VirusInfo{FileName: virusInfos[k].FileName, FilePath: v[kk], VirusName: virusInfos[k].VirusName}
-					res = append(res, &virus)
-				}
-				if len(virusInfos) != 0 {
-					zerolog.Ctx(ctx).Info().Str("Filename:", virusInfos[0].FileName).Str("Virusname:", virusInfos[0].VirusName).Str("FilePath", virusInfos[0].FilePath).Msg("The digest scan result")
-				}
+
+	for k := range virusInfos {
+		if v, ok := fileMap[virusInfos[k].FileName]; ok {
+			// 读文件
+			fi := filepath.Join(virusInfos[k].FilePath, virusInfos[k].FileName)
+			fileByte, err := os.ReadFile(fi)
+			if err != nil {
+				logging.Get().Err(err).Msgf("read file")
+				continue
 			}
-			return virusInfos, nil
+			if len(fileByte) == 0 {
+				continue
+			}
+			hash := md5.New()
+			_, _ = io.Copy(hash, bytes.NewBuffer(fileByte))
+			fileMd5 := hex.EncodeToString(hash.Sum(nil))
+			saveInfo := scannermodel.WebshellSaveInfo{
+				FileMd5:  fileMd5,
+				Data:     fileByte,
+				Filename: fi,
+			}
+			_ = m.SendKafka(saveInfo)
+
+			for kk := range v {
+				virus := model.VirusInfo{FileName: virusInfos[k].FileName, FilePath: v[kk], VirusName: virusInfos[k].VirusName, Md5: fileMd5}
+				res = append(res, &virus)
+			}
 		}
 	}
 	return res, nil
 }
 
 func (m *MaliciousScan) aviraScan(ctx context.Context, scanPath string, digestNum string) ([]*model.VirusInfo, error) {
-	logging.GetLogger().Info().Str("scanPath", scanPath).Msg("aviraScan")
+	logging.Get().Info().Str("scanPath", scanPath).Msg("aviraScan")
 	result, err := aviraCli.ScanDir(scanPath)
 	if err != nil {
 		return []*model.VirusInfo{}, err
@@ -113,13 +133,16 @@ func (m *MaliciousScan) aviraScan(ctx context.Context, scanPath string, digestNu
 func (m *MaliciousScan) dirScan(ctx context.Context, dstPath string) []*model.VirusInfo {
 	virusInfos := []*model.VirusInfo{}
 	filepath.Walk(dstPath, func(path string, info fs.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
 		// if info.IsDir() {
 		// 	m.dirScan(ctx, path, virusInfos)
 		// }
-		logging.GetLogger().Info().Msgf("scan virus path is %v", path)
+		logging.Get().Info().Msgf("scan virus path is %v", path)
 		res := m.MaliciousSrv.Scan(path)
 		if res != "" {
-			logging.GetLogger().Info().Msgf("malicious scan virusName %v", res)
+			logging.Get().Info().Msgf("malicious scan virusName %v", res)
 			lastIndex := strings.LastIndex(path, "/")
 			filePath := path[:lastIndex]
 			fileName := path[lastIndex+1:]
@@ -135,31 +158,31 @@ func (m *MaliciousScan) virusScan(ctx context.Context, scanPath string) ([]*mode
 	return virusInfos, nil
 }
 
-func (m *MaliciousScan) clamavScan(ctx context.Context, scanPath string, digestNum string) ([]model.VirusInfo, error) {
-
-	clamLogPath := scanPath + ".log"
-	cmd := exec.Command("/usr/bin/clamdscan", "--quiet", "-m", scanPath, "-l", clamLogPath)
-	// logging.GetLogger().Info().Str("scanPath", scanPath).Str("clamLogPath", clamLogPath).Msg("ScanPath")
-	defer os.Remove(clamLogPath)
-	var out bytes.Buffer
-	var stderr bytes.Buffer
-	cmd.Stdout = &out
-	cmd.Stderr = &stderr
-	err := cmd.Run()
-
-	if err != nil {
-		// 扫描到病毒时err返回值为1,所以不能退出,错误时ParseSummrylogs读不到日志文件，会返回空集。
-		errString := fmt.Sprintf("%s", err)
-		if strings.Compare("exit status 1", errString) != 0 {
-			zerolog.Ctx(ctx).Info().Err(err).Str("Out:", out.String()).Str("Stderr:", stderr.String()).Str("ScanPath:", scanPath).Msg("Cla ERROR")
-			return []model.VirusInfo{}, fmt.Errorf("ClamScan Error %w", err)
-		}
-	}
-
-	zerolog.Ctx(ctx).Info().Msg("Clamscan ok")
-	VirusInfos := m.ParseSummrylogs(clamLogPath, scanPath)
-	return VirusInfos, nil
-}
+// func (m *MaliciousScan) clamavScan(ctx context.Context, scanPath string, digestNum string) ([]model.VirusInfo, error) {
+//
+// 	clamLogPath := scanPath + ".log"
+// 	cmd := exec.Command("/usr/bin/clamdscan", "--quiet", "-m", scanPath, "-l", clamLogPath)
+// 	// logging.Get().Info().Str("scanPath", scanPath).Str("clamLogPath", clamLogPath).Msg("ScanPath")
+// 	defer os.Remove(clamLogPath)
+// 	var out bytes.Buffer
+// 	var stderr bytes.Buffer
+// 	cmd.Stdout = &out
+// 	cmd.Stderr = &stderr
+// 	err := cmd.Run()
+//
+// 	if err != nil {
+// 		// 扫描到病毒时err返回值为1,所以不能退出,错误时ParseSummrylogs读不到日志文件，会返回空集。
+// 		errString := fmt.Sprintf("%s", err)
+// 		if strings.Compare("exit status 1", errString) != 0 {
+// 			zerolog.Ctx(ctx).Info().Err(err).Str("Out:", out.String()).Str("Stderr:", stderr.String()).Str("ScanPath:", scanPath).Msg("Cla ERROR")
+// 			return []model.VirusInfo{}, fmt.Errorf("ClamScan Error %w", err)
+// 		}
+// 	}
+//
+// 	zerolog.Ctx(ctx).Info().Msg("Clamscan ok")
+// 	VirusInfos := m.ParseSummrylogs(clamLogPath, scanPath)
+// 	return VirusInfos, nil
+// }
 
 func (m *MaliciousScan) ParseSummrylogs(logPath string, scanPath string) []model.VirusInfo {
 	replaceString := scanPath
@@ -180,7 +203,11 @@ func (m *MaliciousScan) ParseSummrylogs(logPath string, scanPath string) []model
 			lastIndex := strings.LastIndex(tmpResult[0], "/")
 			fileName := tmpResult[0][lastIndex+1:]
 			filePath := tmpResult[0][:lastIndex+1]
-			ClamAvVirus = append(ClamAvVirus, model.VirusInfo{FileName: fileName, FilePath: strings.Replace(filePath, replaceString, "", 1), VirusName: tmpResult[1]})
+			ClamAvVirus = append(ClamAvVirus, model.VirusInfo{
+				FileName:  fileName,
+				FilePath:  strings.Replace(filePath, replaceString, "", 1),
+				VirusName: tmpResult[1],
+			})
 		}
 	}
 	return ClamAvVirus
@@ -216,7 +243,7 @@ func (m *MaliciousScan) ParseLayerTarWebFrame(tarFileName string) ([]model.WebFr
 			continue
 		}
 		if strings.Contains(header.Name, "Gemfile.lock") {
-			// logging.GetLogger().Info().Msg("find Gemfile.lock")
+			// logging.Get().Info().Msg("find Gemfile.lock")
 			content, err := ioutil.ReadAll(tarReader)
 			if err != nil {
 				continue
@@ -237,7 +264,7 @@ func (m *MaliciousScan) ParseLayerTarWebFrame(tarFileName string) ([]model.WebFr
 				tmpInfo.FilePath = header.Name[0 : index+1]
 			}
 			res = append(res, tmpInfo)
-			logging.GetLogger().Info().Msgf("web res %v", res)
+			logging.Get().Info().Msgf("web res %v", res)
 		}
 
 		if strings.Contains(header.Name, "composer.json") {
@@ -353,7 +380,7 @@ func (m *MaliciousScan) FindInComposer(content string) string {
 
 func (m *MaliciousScan) FindInGemfile(content string) string {
 	index := strings.Index(content, "rails (= ")
-	logging.GetLogger().Info().Msgf("index is %v", index)
+	logging.Get().Info().Msgf("index is %v", index)
 	version := ""
 	if index != -1 {
 		if len(content) > index+9 {
@@ -421,11 +448,11 @@ func (m *MaliciousScan) parseLayerTar(tarFileName string, dst string, fileToPath
 		file, _ := m.createFile(filepath.Join(dst, fileName))
 		_, err = io.Copy(file, tarReader)
 		if err != nil {
-			logging.GetLogger().Err(err).Msg("virusScan io.Copy error")
+			logging.Get().Err(err).Msg("virusScan io.Copy error")
 		}
 		err = os.Chmod(filepath.Join(dst, fileName), 0666)
 		if err != nil {
-			logging.GetLogger().Err(err).Msg("virusScan os.Chmod error")
+			logging.Get().Err(err).Msg("virusScan os.Chmod error")
 		}
 		count++
 
@@ -439,4 +466,26 @@ func (m *MaliciousScan) createFile(name string) (*os.File, error) {
 		return nil, err
 	}
 	return os.Create(name)
+}
+
+func (m *MaliciousScan) SendKafka(saveInfo scannermodel.WebshellSaveInfo) error {
+	// if len(saveInfo.Data) == 0 {
+	// 	logging.Get().Error().Msg("MaliciousScan file data is empty")
+	// 	return nil
+	// }
+	bys, err := json.Marshal(saveInfo)
+	if err != nil {
+		return err
+	}
+
+	err = m.MqWriter.Write(context.Background(), scannermodel.WebshellKafkaTopic, kafka.Message{
+		Key:   []byte(scannermodel.WebshellKafkaKey),
+		Value: bys,
+	})
+	if err != nil {
+		logging.Get().Err(err).Str("Filename", saveInfo.Filename).Str("FileMd5", saveInfo.FileMd5).Msg("MaliciousScan SendKafka")
+		return err
+	}
+	logging.Get().Debug().Int("Data", len(saveInfo.Data)).Str("FileMd5", saveInfo.FileMd5).Msg("MaliciousScan SendKafka")
+	return nil
 }

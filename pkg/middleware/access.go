@@ -6,11 +6,12 @@ import (
 	"net/http"
 	"strings"
 
+	"gitlab.com/security-rd/go-pkg/databases"
+	"gitlab.com/security-rd/go-pkg/logging"
+
 	"gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/request"
-	"gitlab.com/security-rd/go-pkg/databases"
-	"gitlab.com/security-rd/go-pkg/logging"
 )
 
 func isReadRequest(r *http.Request) bool {
@@ -22,6 +23,7 @@ func isReadRequest(r *http.Request) bool {
 		r.URL.Path == "/api/v2/containerSec/ATTCK/ruleTemplates/rules" ||
 		r.URL.Path == "/api/v2/platform/sherlock/hola/rules" ||
 		r.URL.Path == "/api/v2/containerSec/scanner/images/list" ||
+		r.URL.Path == "/api/v2/containerSec/scanner/deploy/record" ||
 		r.URL.Path == "/api/v2/containerSec/scanner/images/detail/riskInfo" ||
 		r.URL.Path == "/api/v2/platform/sherlock/palace/attck/matrix" ||
 		r.URL.Path == "/api/v2/platform/nodeImage/images/list" ||

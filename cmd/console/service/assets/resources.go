@@ -741,7 +741,7 @@ func (rl *TensorResourcesService) getImageFromScanner(ctx context.Context, tcs [
 
 	url := fmt.Sprintf("%s%s", rl.scannerURL, ImageListPath)
 
-	bodyParam := imagesec.ImageListParam{UUIDs: uuids}
+	bodyParam := imagesec.ImageSearchApiParam{UUIDs: uuids}
 
 	bys, err := json.Marshal(bodyParam)
 

@@ -139,7 +139,6 @@ func (t *TrivyServer) Scan(ctx context.Context, image string) (*report.Report, e
 }
 
 func (t *TrivyServer) Run(ctx context.Context) error {
-	//go t.Update.Run(false, t.Update.VolumePath, t.Update.Ch)
 	go func() {
 		for path := range t.Update.Ch {
 			logging.GetLogger().Info().Msgf("get ch Path :%v", path)

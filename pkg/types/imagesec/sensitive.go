@@ -8,7 +8,11 @@ type SensitiveFileDBVersion struct {
 }
 
 type SensitiveFile struct {
-	Filename string `json:"filename"` // 敏感文件，全路径
+	Filename      string `json:"filename"` // 敏感文件，全路径
+	Layer         string `json:"layer"`
+	MD5           string `json:"md5"`
+	DescriptionEn string `json:"descriptionEn"`
+	DescriptionZh string `json:"descriptionZh"`
 }
 
 // SensitiveFileResults 敏感文件扫描结果

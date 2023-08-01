@@ -2,6 +2,7 @@ package detector
 
 import (
 	"context"
+	"strings"
 
 	imagesecModel "gitlab.com/piccolo_su/vegeta/pkg/model/imagesec"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
@@ -11,22 +12,61 @@ func CheckImagePkg(ctx context.Context, data *imagesecModel.ImageWithCorrelateDa
 	policy *imagesecModel.SecurityPolicy) []*imagesecModel.ImageDetectResult {
 
 	ans := make([]*imagesecModel.ImageDetectResult, 0)
-	if !policy.Pkg.Enable {
+	if policy == nil || data == nil || data.Image.ID <= 0 || !policy.Enable || len(data.Pkg) == 0 {
 		return ans
 	}
-	black := policy.Pkg.Black
+	pkgBlack := policy.Pkg.Black
+	blackPkgLicense := policy.License.Black
 
 	for i := range data.Pkg {
-		for j := range black {
-			if data.Pkg[i].Name == black[j].Name && data.Pkg[i].Version == black[j].InstallVersion {
-				ans = append(ans, &imagesecModel.ImageDetectResult{
-					DetectType:    imagesecModel.DetectTypePkgVersionRule,
-					Flag:          util.SetBit1(util.SetBit1(0, imagesecModel.FlagDetectInBlack), imagesecModel.FlagDetectException),
-					UniqueTarget:  data.Pkg[i].UniqueID,
-					ImageUniqueID: data.Image.UniqueID,
-					PolicyID:      policy.ID,
-				})
+		var flag uint64
+		if policy.Pkg.Enable {
+			for j := range pkgBlack {
+				if data.Pkg[i].Name == pkgBlack[j].Name && (data.Pkg[i].Version == pkgBlack[j].InstallVersion ||
+					pkgBlack[j].InstallVersion == "") {
+
+					flag = util.SetBit1(flag, imagesecModel.FlagDetectException)
+					flag = util.SetBit1(flag, imagesecModel.FlagDetectInBlack)
+
+					switch policy.Pkg.Action {
+					case imagesecModel.DeployActionBlock:
+						flag = util.SetBit1(flag, imagesecModel.FlagDetectDeployActionBlock)
+					case imagesecModel.DeployActionAlarm:
+						flag = util.SetBit1(flag, imagesecModel.FlagDetectDeployActionAlarm)
+					}
+				}
 			}
+		}
+
+		if policy.PkgLicense.Enable {
+			license := data.Pkg[i].License
+
+			for j := range blackPkgLicense {
+				bl := blackPkgLicense[j]
+				if strings.Contains(license, bl) {
+					flag = util.SetBit1(flag, imagesecModel.FlagDetectException)
+					flag = util.SetBit1(flag, imagesecModel.FlagDetectInBlack)
+					flag = util.SetBit1(flag, imagesecModel.FlagDetectExceptionPkgLicense)
+
+					switch policy.PkgLicense.Action {
+					case imagesecModel.DeployActionBlock:
+						flag = util.SetBit1(flag, imagesecModel.FlagDetectDeployActionBlock)
+					case imagesecModel.DeployActionAlarm:
+						flag = util.SetBit1(flag, imagesecModel.FlagDetectDeployActionAlarm)
+					}
+				}
+			}
+		}
+
+		if flag > 0 {
+			red := &imagesecModel.ImageDetectResult{
+				DetectType:    imagesecModel.DetectTypePkgRule,
+				Flag:          flag,
+				UniqueTarget:  data.Pkg[i].UniqueID,
+				ImageUniqueID: data.Image.UniqueID,
+				PolicyID:      policy.ID,
+			}
+			ans = append(ans, red)
 		}
 	}
 	return ans

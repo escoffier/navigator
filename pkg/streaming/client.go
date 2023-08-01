@@ -4,8 +4,9 @@ import (
 	"context"
 	"fmt"
 
-	"gitlab.com/piccolo_su/vegeta/pkg/streaming/pb"
 	"gitlab.com/security-rd/go-pkg/logging"
+
+	"gitlab.com/piccolo_su/vegeta/pkg/streaming/pb"
 )
 
 type MessageStreamClient interface {
@@ -179,7 +180,7 @@ func (s *messageStream) ScannerPushImageSecMsg(ctx context.Context, imageSecReq 
 		logging.Get().Error().Msg("recv invalid rsp msg")
 		return nil, err
 	}
-	logging.Get().Debug().Str("rsp", r.String()).Msg("recv image sec rsp end")
+	logging.Get().Debug().Str("rsp", r.String()).Msg("rcv image sec rsp end")
 
 	return r, nil
 }

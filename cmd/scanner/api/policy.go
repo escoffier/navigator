@@ -7,7 +7,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	imagesecSrv "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/imagesec"
-	scani18 "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scan-i18"
+	scani18 "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scanI18"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/pkg/i18"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
@@ -63,7 +63,12 @@ func (api *DetectAPI) UpdatePolicy(ctx *gin.Context) {
 		return
 	}
 
-	if err := api.policySrv.UpdatePolicy(ctx, id, &data); err != nil {
+	if err := api.policySrv.UpdatePolicy(ctx, imagesecModel.UpdatePolicyParam{
+		ID:               id,
+		Policy:           data,
+		CreateSnapshot:   true,
+		CreateDetectTask: true,
+	}); err != nil {
 		response.JSONError(ctx, scani18.UpdatePolicy(err))
 		return
 	}
@@ -119,25 +124,49 @@ func (api *DetectAPI) GetPolicyDetail(ctx *gin.Context) {
 	if polices[0].Scope.AllCluster {
 		polices[0].Scope.ClusterKey = make([]string, 0)
 	}
+	polices[0].SetEmptyIfAll()
+
 	response.JSONOK(ctx, response.WithItem(polices[0]))
 }
 
+func (api *DetectAPI) GetPolicySnapshot(ctx *gin.Context) {
+	uniqueID := util.GetUint64FromQuery(ctx, "uniqueID")
+
+	police, err := api.policySrv.GetPolicySnapshot(ctx, uniqueID)
+	if err != nil {
+		response.JSONError(ctx, scani18.GetPolicy(err))
+		return
+	}
+	police.SetEmptyIfAll()
+	response.JSONOK(ctx, response.WithItem(police))
+}
+
 func (api *DetectAPI) SearchPolicy(ctx *gin.Context) {
-	param := GetScanResultSearchParamFromCtx(ctx)
+
 	filter := model.GetFilter(ctx)
+
 	param2 := imagesecModel.SearchSecurityPolicyParam{
-		Filter:  model.GetFilter(ctx).SetSortDesc().SetSortFiled("updated_at").SetLimit(0).SetOffset(0),
-		Keyword: param.Keyword,
-		Deleted: consts.FalseString,
+		Filter:      model.GetFilter(ctx).SetSortDesc().SetSortFiled("updated_at").SetLimit(0).SetOffset(0),
+		Keyword:     util.GetKeywordFromQuery(ctx, "keyword"),
+		Deleted:     consts.FalseString,
+		Enable:      util.GetStringSliceFromQuery(ctx, "enable"),
+		PolicyType:  util.GetKeywordFromQuery(ctx, "policyType"),
+		DeployMod:   util.GetStringSliceFromQuery(ctx, "deployMod"),
+		JustRegName: true,
 	}
 
-	polices, cnt, err := api.policySrv.SearchPolicy(ctx, param2)
+	polices, _, err := api.policySrv.SearchPolicy(ctx, param2)
 	if err != nil {
 		response.JSONError(ctx, scani18.SearchPolicy(err))
 		return
 	}
 	// 默认策略永远在最前面
 	var defaultP *imagesecModel.SecurityPolicy
+
+	for i := range polices {
+		polices[i].SetEmptyIfAll()
+	}
+
 	for i := range polices {
 		if polices[i].IsDefault {
 			defaultP = polices[i]
@@ -149,16 +178,14 @@ func (api *DetectAPI) SearchPolicy(ctx *gin.Context) {
 		ans = append(ans, defaultP)
 	}
 	for i := range polices {
-		if polices[i].Scope.AllCluster {
-			polices[i].Scope.ClusterKey = make([]string, 0)
-		}
-
-		if polices[i].IsDefault {
+		po := polices[i]
+		if po.IsDefault {
 			continue
 		}
-		ans = append(ans, polices[i])
+		ans = append(ans, po)
 	}
 
+	cnt := int64(len(ans))
 	// 程序中分页
 	start := int(filter.Offset)
 	end := int(filter.Offset + filter.Limit)

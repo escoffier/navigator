@@ -178,7 +178,7 @@ func (w *WebhookManager) GetVulnList(result scanner_ci.PolicyResult) []scanner_c
 			}
 		}
 	}
-	for k, _ := range mp {
+	for k := range mp {
 		res = append(res, mp[k])
 	}
 	return res
@@ -203,8 +203,8 @@ func (w *WebhookManager) TriggerWebhook(ctx context.Context, result scanner_ci.P
 	action := ""
 	var alertCode int64
 	var blockCode int64
-	alertCode = (1 << scanner_ci.CiPolicyResultCodeAlert)
-	blockCode = (1 << scanner_ci.CiPolicyResultCodeBlock)
+	alertCode = 1 << scanner_ci.CiPolicyResultCodeAlert
+	blockCode = 1 << scanner_ci.CiPolicyResultCodeBlock
 	if result.PolicyResultCode == scanner_ci.CiPolicyResultCodeAlert && webhook.Flag&resultCode == alertCode {
 		action = scanner_ci.CiActionAlert
 	}

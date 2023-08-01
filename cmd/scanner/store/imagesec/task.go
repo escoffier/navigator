@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"gitlab.com/security-rd/go-pkg/databases"
+	"gitlab.com/security-rd/go-pkg/logging"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
@@ -122,7 +123,7 @@ func (dal *ScanTaskDao) SearchScanTask(ctx context.Context, param imagesecModel.
 	}
 	if param.NodeNameKeyword != "" {
 		sub := dal.db.Get().WithContext(ctx).Table(new(imagesecModel.ImageScanSubTask).TableName()).Select("distinct task_id").
-			Where("node_host_name like ? OR image_name like ? ", fmt.Sprintf("%%%s%%", param.NodeNameKeyword),
+			Where("hostname like ? OR image_name like ? ", fmt.Sprintf("%%%s%%", param.NodeNameKeyword),
 				fmt.Sprintf("%%%s%%", param.NodeNameKeyword))
 		db = db.Where("id IN (?)", sub)
 	}
@@ -144,18 +145,22 @@ func (dal *ScanTaskDao) SearchScanTask(ctx context.Context, param imagesecModel.
 	return res, cnt, nil
 }
 
-func (dal *ScanTaskDao) CreateScanSubtask(ctx context.Context, data []*imagesecModel.ImageScanSubTask) error {
-	for i := range data {
-		data[i].Serialize()
-		if err := data[i].Check(); err != nil {
-			return err
+func (dal *ScanTaskDao) CreateScanSubtask(ctx context.Context, data2 []*imagesecModel.ImageScanSubTask) error {
+	data := make([]*imagesecModel.ImageScanSubTask, 0)
+
+	for i := range data2 {
+		data2[i].Serialize()
+		if err := data2[i].Check(); err != nil {
+			logging.Get().Err(err).Str("module", "imagescan").Msg("CreateScanSubtask")
+			continue
 		}
+		data = append(data, data2[i])
 	}
 
 	cancelCtx, cancelFunc := context.WithTimeout(ctx, time.Second*10)
 	defer cancelFunc()
 	m := &imagesecModel.ImageScanSubTask{}
-	return dal.db.Get().WithContext(cancelCtx).Table(m.TableName()).CreateInBatches(data, consts.DefaultBathSize).Error
+	return dal.db.Get().WithContext(cancelCtx).Table(m.TableName()).CreateInBatches(data, consts.DefaultMaxLimit).Error
 }
 
 func (dal *ScanTaskDao) UpdateScanSubtask(ctx context.Context, param imagesecModel.UpdateTaskParam) error {
@@ -165,7 +170,9 @@ func (dal *ScanTaskDao) UpdateScanSubtask(ctx context.Context, param imagesecMod
 	cancelCtx, cancelFunc := context.WithTimeout(ctx, time.Second*3)
 	defer cancelFunc()
 	db := dal.db.Get().WithContext(cancelCtx).Table(new(imagesecModel.ImageScanSubTask).TableName())
-	db = db.Where("id = ?", param.ID)
+	if param.ID > 0 {
+		db = db.Where("id = ?", param.ID)
+	}
 	if param.Where != "" {
 		db = db.Where(param.Where)
 	}
@@ -213,15 +220,15 @@ func (dal *ScanTaskDao) SearchScanSubtask(ctx context.Context, param imagesecMod
 		db = db.Where("status NOT IN ?", param.NotScanStatus)
 	}
 
-	if param.NodeClusterKey != "" {
-		db = db.Where("node_cluster_key = ?", param.NodeClusterKey)
+	if param.ClusterKey != "" {
+		db = db.Where("cluster_key = ?", param.ClusterKey)
 	}
 
 	if param.NodeUniqueID > 0 {
 		db = db.Where("node_unique_id = ?", param.NodeUniqueID)
 	}
 	if param.NodeNameKeyword != "" {
-		db = db.Where("node_host_name like ? OR image_name like ? ", fmt.Sprintf("%%%s%%", param.NodeNameKeyword),
+		db = db.Where("hostname like ? OR image_name like ? ", fmt.Sprintf("%%%s%%", param.NodeNameKeyword),
 			fmt.Sprintf("%%%s%%", param.NodeNameKeyword))
 	}
 
@@ -296,4 +303,80 @@ func (dal *ScanTaskDao) GroupScanSubtask(ctx context.Context, param imagesecMode
 		}
 	}
 	return ans, nil
+}
+
+// 为了兼容还没有发2.20版本的集群
+type ScanTaskPreDal interface {
+	CreateScanTask(ctx context.Context, data *model.Task) error
+	DeleteScanTask(ctx context.Context, taskID int64) error
+	DeleteScanSubtask(ctx context.Context, subtaskID int64) error
+	CreateScanSubtask(ctx context.Context, data *model.SubTask) error
+	SearchScanSubtask(ctx context.Context, param imagesecModel.SearchTaskParam) ([]*model.SubTask, error)
+}
+
+type ScanTaskPreDao struct {
+	db *databases.RDBInstance
+}
+
+func (dal *ScanTaskPreDao) DeleteScanSubtask(ctx context.Context, subtaskID int64) error {
+	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*10)
+	defer cancelFunc()
+	if err := dal.db.Get().WithContext(ctx).Model(model.SubTask{}).Where("id = ?", subtaskID).Delete(&model.SubTask{ID: subtaskID}).Error; err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (dal *ScanTaskPreDao) CreateScanTask(ctx context.Context, task *model.Task) error {
+	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*10)
+	defer cancelFunc()
+	if err := dal.db.Get().WithContext(ctx).Model(&model.Task{}).Create(&task).Error; err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (dal *ScanTaskPreDao) DeleteScanTask(ctx context.Context, taskID int64) error {
+	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*10)
+	defer cancelFunc()
+	if err := dal.db.Get().WithContext(ctx).Model(&model.Task{}).Where("id = ?", taskID).Delete(&model.Task{ID: taskID}).Error; err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (dal *ScanTaskPreDao) CreateScanSubtask(ctx context.Context, data *model.SubTask) error {
+	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*10)
+	defer cancelFunc()
+	if err := dal.db.Get().WithContext(ctx).Model(&model.SubTask{}).Create(data).Error; err != nil {
+		return err
+	}
+	return nil
+}
+
+func (dal *ScanTaskPreDao) SearchScanSubtask(ctx context.Context, param imagesecModel.SearchTaskParam) ([]*model.SubTask, error) {
+
+	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*10)
+	defer cancelFunc()
+	db := dal.db.Get().WithContext(ctx).Model(&model.SubTask{})
+	if param.TaskID > 0 {
+		db = db.Where("task_id = ?", param.TaskID)
+	}
+	if len(param.ScanStatus) > 0 {
+		db = db.Where("status IN ?", param.ScanStatus)
+	}
+	if param.StartID > 0 {
+		db = db.Where("id > ?", param.StartID)
+	}
+	db = model.AddFilter(db, param.Filter)
+	res := make([]*model.SubTask, 0)
+	err := db.Find(&res).Error
+	return res, err
+}
+
+func NewScanTaskPreDao(db *databases.RDBInstance) *ScanTaskPreDao {
+	return &ScanTaskPreDao{db: db}
 }

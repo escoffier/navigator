@@ -12,28 +12,43 @@ func CheckImageEnv(ctx context.Context, data *imagesecModel.ImageWithCorrelateDa
 	policy *imagesecModel.SecurityPolicy) []*imagesecModel.ImageDetectResult {
 
 	ans := make([]*imagesecModel.ImageDetectResult, 0)
-	if !policy.Env.Enable {
+	if policy == nil || data == nil || data.Image.ID <= 0 || !policy.Enable || !policy.Env.Enable || len(data.Env) == 0 {
 		return ans
 	}
 	for i := range data.Env {
 		v := data.Env[i]
 		var flag uint64
-		if ContainPassword(v.Key, v.Value) {
-			flag = util.SetBit1(flag, imagesecModel.FlagDetectEnvHasPasswd)
-		}
+
 		if policy.Env.CheckPassword && ContainPassword(v.Key, v.Value) {
 			flag = util.SetBit1(flag, imagesecModel.FlagDetectException)
+			flag = util.SetBit1(flag, imagesecModel.FlagDetectEnvHasPasswd)
 		}
+
 		if util.ExistInStringSlice(policy.Env.Black, v.Key) {
-			flag = util.SetBit1(util.SetBit1(flag, imagesecModel.FlagDetectInBlack), imagesecModel.FlagDetectException)
+			flag = util.SetBit1(flag, imagesecModel.FlagDetectException)
+			flag = util.SetBit1(flag, imagesecModel.FlagDetectInBlack)
 		}
-		ans = append(ans, &imagesecModel.ImageDetectResult{
-			DetectType:    imagesecModel.DetectTypeEnvRule,
-			Flag:          flag,
-			UniqueTarget:  v.UniqueID,
-			ImageUniqueID: data.Image.UniqueID,
-			PolicyID:      policy.ID,
-		})
+
+		if util.ExistBit1(flag, imagesecModel.FlagDetectException) {
+			switch policy.Env.Action {
+			case imagesecModel.DeployActionBlock:
+				flag = util.SetBit1(flag, imagesecModel.FlagDetectDeployActionBlock)
+			case imagesecModel.DeployActionAlarm:
+				flag = util.SetBit1(flag, imagesecModel.FlagDetectDeployActionAlarm)
+			}
+		}
+
+		if flag > 0 {
+			red := &imagesecModel.ImageDetectResult{
+				DetectType:    imagesecModel.DetectTypeEnvRule,
+				Flag:          flag,
+				UniqueTarget:  v.UniqueID,
+				ImageUniqueID: data.Image.UniqueID,
+				PolicyID:      policy.ID,
+			}
+
+			ans = append(ans, red)
+		}
 	}
 	return ans
 }

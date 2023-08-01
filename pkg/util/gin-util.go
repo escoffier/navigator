@@ -67,6 +67,32 @@ func GetUint64FromQuery(ctx *gin.Context, key string) uint64 {
 	return value
 }
 
+func GetUint32FromQuery(ctx *gin.Context, key string) uint32 {
+	var value uint32
+	keyStr := ctx.Query(key)
+	if keyStr != "" {
+		parseInt, err := strconv.ParseUint(keyStr, 10, 32)
+		if err != nil {
+			logging.GetLogger().Err(err).Msgf("get %s param", key)
+		}
+		value = uint32(parseInt)
+	}
+	return value
+}
+
+// 从gin的query中取值后解析成uint64,如果没有传或解析出错，都是返回0
+func GetUint32SliceFromQuery(ctx *gin.Context, key string) []uint32 {
+	res := make([]uint32, 0)
+	keyStr := ctx.Query(key)
+	if keyStr != "" {
+		parseInt, err := strconv.ParseUint(keyStr, 10, 32)
+		if err == nil {
+			res = append(res, uint32(parseInt))
+		}
+	}
+	return res
+}
+
 // 从gin的query中取值后解析成y或n, 如果即传了y又传了n，就认为没有传
 func GetYesOrNoFromQuery(ctx *gin.Context, key string) string {
 	split := strings.Split(ctx.Query(key), ",")

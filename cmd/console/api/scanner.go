@@ -20,38 +20,22 @@ import (
 // 转发scanner中的接口
 func (api *api) scanner() func(chi.Router) {
 	return func(r chi.Router) {
-
-		// r.Get("/reportsByImageList", api.RedirectToScanner(true))
-		r.Get("/reportsByImageOverview", api.RedirectToScanner(true))
-		r.Get("/reportsByImageDetails", api.RedirectToScanner(true))
-		// r.Post("/scan", api.scan())
-		// r.Post("/scanone", api.RedirectToScanner(true))
-
-		r.Post("/harbor/scanAllNow", api.RedirectToScanner(true))
 		r.Get("/harbor/scanConfig", api.harborScanConfig())
 		// r.Get("/harbor/scanOneStatus", api.RedirectToScanner(true))
 		r.Post("/harbor/abortScanAll", api.harborAbortScanAll())
-
 		r.Get("/images/{imgDigest}/layers", api.RedirectToScanner())
-		r.Get("/images/bases", api.RedirectToScanner())
-		r.Post("/images/bases", api.RedirectToScanner())
-		r.Post("/images/list", api.RedirectToScanner())
-		r.Get("/images/registryProject", api.RedirectToScanner())
+
 		r.Delete("/images/bases/{imageID}", api.RedirectToScanner())
 		r.Get("/images/app/{imageID}/bases", api.RedirectToScanner())
 		r.Get("/images/base/{imageID}/apps", api.RedirectToScanner())
 		r.Get("/images/env/{envName}", api.RedirectToScanner())
 		r.Put("/images/env/{envName}", api.RedirectToScanner())
-		r.Get("/images/sampleList", api.RedirectToScanner())
+
 		r.Get("/images/verifyExistence", api.RedirectToScanner())
 		r.Get("/images/existenceCount", api.RedirectToScanner())
 		r.Get("/images/bin/whitelist", api.RedirectToScanner())
 		r.Post("/images/bin/whitelist", api.RedirectToScanner())
-		// r.Get("/layers/images/{imageId}/layers/{layerDigest}/info", api.RedirectToScanner())
 
-		r.Get("/vulns/detail", api.RedirectToScanner())
-		r.Get("/vulns/statistic", api.RedirectToScanner())
-		r.Get("/vulns/topNImage", api.RedirectToScanner())
 		r.Get("/vulns/imageHistogram/{imageID}", api.RedirectToScanner())
 		r.Get("/vulns/all", api.RedirectToScanner())
 		r.Get("/vulns/relation", api.RedirectToScanner())
@@ -63,37 +47,22 @@ func (api *api) scanner() func(chi.Router) {
 		r.Get("/vulns/imageVuln/frame", api.RedirectToScanner())
 		r.Post("/vulns/setVulnRisk", api.RedirectToScanner())
 
-		// r.Get("/register/projects/{projectName}", api.RedirectToScanner())
-		r.Get("/register/registries", api.RedirectToScanner())
-		r.Get("/register/registry/{id}", api.RedirectToScanner())
-		r.Put("/register/registry/{id}", api.RedirectToScanner())
-		r.Post("/register/registry", api.RedirectToScanner())
-		r.Delete("/register/registry/{id}", api.RedirectToScanner())
-		r.Get("/register/reg-type", api.RedirectToScanner())
-		r.Get("/register/regions", api.RedirectToScanner())
-
 		r.Get("/imagereject/result/file-checker", api.RedirectToScanner())
-		r.Get("/imagereject/overview", api.RedirectToScanner())
-		r.Get("/imagereject/reasons", api.RedirectToScanner())
 		r.Get("/imagereject/images", api.RedirectToScanner())
 		r.Get("/imagereject/whitelist", api.RedirectToScanner())
 		r.Post("/imagereject/whitelist", api.RedirectToScanner())
 		r.Delete("/imagereject/whitelist/{id}", api.RedirectToScanner())
-
 		r.Get("/imagereject/policy/global", api.RedirectToScanner())
 		r.Put("/imagereject/policy/global", api.RedirectToScanner())
 		r.Post("/imagereject/policy/single", api.RedirectToScanner())
 		r.Get("/imagereject/policy/single", api.RedirectToScanner())
 		r.Put("/imagereject/policy/single/{id}", api.RedirectToScanner())
 		r.Delete("/imagereject/policy/single/{id}", api.RedirectToScanner())
-
 		r.Post("/imagereject/online_moniter", api.RedirectToScanner())
-
 		r.Put("/tasks/{id}/status", api.RedirectToScanner())
 		r.Get("/tasks/{id}/subtasks", api.RedirectToScanner())
 		r.Get("/tasks", api.RedirectToScanner())
 		r.Post("/tasks/image", api.RedirectToScanner())
-
 		r.Put("/scan-config/config/{scanConfigID}", api.RedirectToScanner())
 		r.Get("/scan-config/config/global", api.RedirectToScanner())
 		r.Post("/scan-config/strategy", api.RedirectToScanner())
@@ -104,14 +73,12 @@ func (api *api) scanner() func(chi.Router) {
 		r.Get("/scan-config/strategy/open-sources", api.RedirectToScanner())
 		r.Get("/scan-config/strategy/node-hostnames", api.RedirectToScanner())
 		r.Get("/scan-config/strategy/projects", api.RedirectToScanner())
-
 		r.Get("/imagereject/trustedImages/rsa", api.RedirectToScanner())
 		r.Get("/imagereject/trustedImages/rsa/{id}", api.RedirectToScanner())
 		r.Post("/imagereject/trustedImages/rsa", api.RedirectToScanner())
 		r.Put("/imagereject/trustedImages/rsa/{id}", api.RedirectToScanner())
 		r.Delete("/imagereject/trustedImages/rsa/{id}", api.RedirectToScanner())
 		r.Post("/imagereject/trustedImages/sign", api.RedirectToScanner())
-
 		r.Post("/scan-report", api.RedirectToScanner())
 		r.Delete("/scan-report/{id}", api.RedirectToScanner())
 		r.Get("/scan-report/{id}", api.RedirectToScanner())
@@ -120,12 +87,6 @@ func (api *api) scanner() func(chi.Router) {
 		r.Post("/scan-report/{id}/subtask", api.RedirectToScanner())
 		r.Put("/scan-report/{id}", api.RedirectToScanner())
 		r.Get("/scan-report/{id}/file/{sub_task_id}", api.RedirectToScanner())
-
-		r.Get("/managementCenter/docs", api.RedirectToScanner())
-
-		r.Post("/syncImage/startSync", api.RedirectToScanner())
-		r.Get("/syncImage/syncProgress", api.RedirectToScanner())
-		r.Get("/syncImage/syncStatus", api.RedirectToScanner())
 
 		r.Post("/ci/policy", api.RedirectToScanner())
 		r.Get("/ci/policy", api.RedirectToScanner())
@@ -136,7 +97,6 @@ func (api *api) scanner() func(chi.Router) {
 		r.Get("/ci/image", api.RedirectToScanner())
 		r.Get("/ci/statistic/image", api.RedirectToScanner())
 		r.Get("/ci/statistic/top5", api.RedirectToScanner())
-
 		r.Get("/ci/vulns", api.RedirectToScanner())
 		r.Get("/ci/pkgs", api.RedirectToScanner())
 		r.Get("/ci/whitelist", api.RedirectToScanner())
@@ -153,29 +113,138 @@ func (api *api) scanner() func(chi.Router) {
 		r.Get("/ci/sensitives", api.RedirectToScanner())
 		r.Get("/ci/tidb/version", api.RedirectToScanner())
 		r.Get("/ci/tidb/assets/{fileName}", api.RedirectToScanner())
-
 		r.Get("/webshells/imageWebshell/webshell", api.RedirectToScanner())
 		r.Get("/webshells/imageWebshell/detail", api.RedirectToScanner())
 		r.Get("/webshells/imageWebshell/download", api.RedirectToScanner())
 		r.Post("/webshells/imageWebshell/file", api.RedirectToScanner())
-		r.Get("/scannerInfo/list", api.RedirectToScanner())
-
-		// 镜像详情
-		r.Get("/images/detail/base", api.RedirectToScanner())
-		r.Get("/images/detail/issueStatistic", api.RedirectToScanner())
-		r.Get("/images/detail/env", api.RedirectToScanner())
-		r.Get("/images/detail/webshell", api.RedirectToScanner())
-		r.Get("/images/detail/virus", api.RedirectToScanner())
-		r.Get("/images/detail/sensitiveFile", api.RedirectToScanner())
-		r.Get("/images/detail/software", api.RedirectToScanner())
-		r.Post("/images/detail/riskInfo", api.RedirectToScanner())
 
 		r.Put("/db/update", api.RedirectToScanner())
 		r.Put("/db/update/malicious", api.RedirectToScanner())
 		r.Get("/db/version", api.RedirectToScanner())
 		r.Get("/db/history", api.RedirectToScanner())
-		// 常量
+
+		// 仓库镜像改
+		r.Post("/images/list", api.RedirectToScanner())
+		r.Get("/images/overview", api.RedirectToScanner())
+		r.Get("/images/resource", api.RedirectToScanner())
+		r.Get("/images/related/image", api.RedirectToScanner())
+		r.Get("/images/existenceCount", api.RedirectToScanner())  // 内部使用
+		r.Get("/images/verifyExistence", api.RedirectToScanner()) // 内部使用
+		r.Get("/images/sampleList", api.RedirectToScanner())      // 内部使用
+
+		r.Get("/images/detail/base", api.RedirectToScanner())
+		r.Get("/images/detail/issueStatistic", api.RedirectToScanner())
+		r.Get("/images/detail/issueOverview", api.RedirectToScanner())
+		r.Get("/images/detail/env", api.RedirectToScanner())
+		r.Get("/images/detail/virus", api.RedirectToScanner())
+		r.Get("/images/detail/layers", api.RedirectToScanner())
+		r.Get("/images/detail/sensitiveFile", api.RedirectToScanner())
+		r.Get("/images/detail/software", api.RedirectToScanner())
+		r.Get("/images/detail/vulns/vuln", api.RedirectToScanner())
+		r.Get("/images/detail/vulns/pkg", api.RedirectToScanner())
+		r.Get("/images/detail/vulns/language", api.RedirectToScanner())
+		r.Get("/images/detail/vulns/gobinary", api.RedirectToScanner())
+		r.Get("/images/detail/vulns/frame", api.RedirectToScanner())
+		r.Get("/images/detail/webshell", api.RedirectToScanner())
+		r.Get("/images/vulns/vuln/detail", api.RedirectToScanner())
+		r.Get("/images/vulns/vuln/constView", api.RedirectToScanner())
+		r.Get("/images/webshell/detail", api.RedirectToScanner())
+		r.Get("/images/sensitive/detail", api.RedirectToScanner())
+		r.Get("/images/malware/detail", api.RedirectToScanner())
+		r.Get("/images/webshell/content", api.RedirectToScanner())
+		r.Get("/images/webshell/file", api.RedirectToScanner())
+		r.Get("/images/sensitive/file", api.RedirectToScanner())
+		r.Get("/images/license/file", api.RedirectToScanner())
+		r.Get("/images/malware/file", api.RedirectToScanner())
+		r.Post("/images/detail/riskInfo", api.RedirectToScanner())
+		r.Get("/images/detail/baseImage", api.RedirectToScanner())
+		r.Get("/images/detail/appImage", api.RedirectToScanner())
+		r.Get("/images/detail/license", api.RedirectToScanner())
+		r.Post("/images/baseImage", api.RedirectToScanner())
+		r.Delete("/images/baseImage", api.RedirectToScanner())
+		r.Get("/images/registryProject", api.RedirectToScanner())
+
+		// 漏洞相关
+		r.Get("/vulns/detail", api.RedirectToScanner())
+		r.Get("/vulns/statistic", api.RedirectToScanner())
+		r.Get("/vulns/list", api.RedirectToScanner())
+		r.Get("/vulns/software", api.RedirectToScanner())
+		r.Get("/vulns/topNImage", api.RedirectToScanner())
+		r.Get("/vulns/query", api.RedirectToScanner())
+
+		// 部署上线阻断
+		r.Get("/deploy/reasonTop5", api.RedirectToScanner())
+		r.Get("/deploy/whiteImage", api.RedirectToScanner())
+		r.Post("/deploy/whiteImage", api.RedirectToScanner())
+		r.Put("/deploy/whiteImage", api.RedirectToScanner())
+		r.Delete("/deploy/whiteImage", api.RedirectToScanner())
+		r.Post("/deploy/record", api.RedirectToScanner())
+		r.Get("/deploy/overview", api.RedirectToScanner())
+		r.Get("/deploy/blockTrend", api.RedirectToScanner())
+
+		// 安全策略及镜像检测
+		r.Post("/security/detect/policy", api.RedirectToScanner())
+		r.Delete("/security/detect/policy", api.RedirectToScanner())
+		r.Put("/security/detect/policy", api.RedirectToScanner())
+		r.Get("/security/detect/policy/detail", api.RedirectToScanner())
+		r.Get("/security/detect/policy/snapshot", api.RedirectToScanner())
+		r.Get("/security/detect/policy/list", api.RedirectToScanner())
+
+		// 扫描记录
+		r.Put("/scanTask/image/scan/task/status", api.RedirectToScanner())
+		r.Put("/scanTask/image/scan/subtask/reschedule", api.RedirectToScanner())
+		r.Post("/scanTask/image/scan/task", api.RedirectToScanner())
+		r.Get("/scanTask/image/scan/task/list", api.RedirectToScanner())
+		r.Get("/scanTask/image/scan/subtask/list", api.RedirectToScanner())
+
+		// 敏感文件规则
+		r.Post("/config/scan/sensitive/rule", api.RedirectToScanner())
+		r.Put("/config/scan/sensitive/rule", api.RedirectToScanner())
+		r.Get("/config/scan/sensitive/rule/list", api.RedirectToScanner())
+		r.Delete("/config/scan/sensitive/rule", api.RedirectToScanner())
+		r.Get("/config/scan/license/list", api.RedirectToScanner())
+		r.Get("/config/scan/license/detail", api.RedirectToScanner())
+
+		// 配置
+		r.Get("/config/scan/image", api.RedirectToScanner())
 		r.Get("/config/view/const", api.RedirectToScanner())
+		r.Put("/config/scan/image", api.RedirectToScanner())
+		r.Get("/managementCenter/docs", api.RedirectToScanner())
+
+		// 节点及扫描器
+		r.Get("/node/nodeInfo/list", api.RedirectToScanner())
+		r.Get("/scannerInfo/list", api.RedirectToScanner())
+
+		// 仓库管理及同步
+		r.Post("/syncImage/startSync", api.RedirectToScanner())
+		r.Get("/syncImage/syncProgress", api.RedirectToScanner())
+		r.Get("/syncImage/syncStatus", api.RedirectToScanner())
+		r.Get("/syncImage/registries", api.RedirectToScanner())
+		r.Get("/syncImage/registry", api.RedirectToScanner())
+		r.Put("/syncImage/registry", api.RedirectToScanner())
+		r.Delete("/syncImage/registry", api.RedirectToScanner())
+		r.Post("/syncImage/registry", api.RedirectToScanner())
+		r.Get("/syncImage/regType", api.RedirectToScanner())
+		r.Get("/syncImage/regions", api.RedirectToScanner())
+
+		// 扫描任务
+		r.Post("/task/image", api.RedirectToExport())
+		r.Post("/task/scanTask", api.RedirectToExport())
+		r.Post("/task/vuln", api.RedirectToExport())
+		r.Post("/task/imageSearch", api.RedirectToExport())
+		r.Get("/task/detail", api.RedirectToExport())
+		r.Get("/task/list", api.RedirectToExport())
+		r.Get("/task/download", api.RedirectToExport())
+
+		// 这部分接口是内部使用接口，为了调试方便增加
+		r.Get("/html/images", api.RedirectToExport())
+		r.Get("/html/imageIdNames", api.RedirectToExport())
+		r.Get("/html/riskOverView", api.RedirectToExport())
+		r.Get("/html/imageRisk", api.RedirectToExport())
+		r.Get("/html/imageVulns", api.RedirectToExport())
+		r.Get("/html/exportVulns", api.RedirectToExport())
+		r.Get("/html/imageVirus", api.RedirectToExport())
+
 	}
 }
 
@@ -329,26 +398,13 @@ func (api *api) ForwardScannerOpenApi() http.HandlerFunc {
 
 // RedirectToScanner 转发scanner的请示
 // 参数的意思是是否替换uri中的scanner字段，主要是为了兼容重构前的uri,之后的调用默认不传参数
-func (api *api) RedirectToScanner(repaleceScannner ...bool) http.HandlerFunc {
+func (api *api) RedirectToScanner() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		// /api/v2/containerSec/scanner/reportsByImageOverview
-		// /api/v1/scan/reportsByImageOverview?offset=1
-
 		pre := r.URL.String()
 		var newUrl string
 
-		if !strings.Contains(pre, "openapi") {
-			if len(repaleceScannner) > 0 && repaleceScannner[0] {
-				newUrl = fmt.Sprintf("%s%s", api.scannerURL,
-					strings.Replace(pre, "/api/v2/containerSec/scanner", "/api/v1/scan", 1))
-			} else {
-				newUrl = fmt.Sprintf("%s%s", api.scannerURL,
-					strings.Replace(pre, "/api/v2/containerSec/scanner", "/api/v1", 1))
-			}
-		} else {
-			newUrl = fmt.Sprintf("%s%s", api.scannerURL,
-				strings.Replace(pre, InternalAPIURLPrefix+"/scanner", "/api/v1", 1))
-		}
+		newUrl = fmt.Sprintf("%s%s", api.scannerURL,
+			strings.Replace(pre, "/api/v2/containerSec/scanner", "/api/v1", 1))
 
 		u, err := url.Parse(newUrl)
 		if nil != err {

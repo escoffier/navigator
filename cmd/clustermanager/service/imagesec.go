@@ -2,7 +2,6 @@ package service
 
 import (
 	"context"
-	"strings"
 	"time"
 
 	"github.com/hashicorp/go-multierror"
@@ -56,41 +55,59 @@ func (i *ImageSecHandler) OnCreate(s rpcstream.Stream, reqID string, message pro
 		return
 	}
 
-	var retErr error
-	errNodes := make([]string, 0)
-
-	// publish to node
-	publishFunc := func(nodeKey string, msgType pb.MessageType, req *pb.ImageSecReq) error {
+	// publish func wrapper
+	publishFunc := func(nodeKey string, msgType pb.MessageType, req *pb.ImageSecReq) (int32, error) {
 		ctx, cancel := context.WithTimeout(context.Background(), time.Duration(util.ImageSecGrpcTimeOut())*time.Second)
 		defer cancel()
 
 		resp, err := i.ServerStream.PublishImageSecMsgByNode(ctx, nodeKey, msgType, req)
 		if err != nil {
-			return err
+			return 1, err
 		}
 		if resp.Status != 0 {
-			return fmt.Errorf("rsp status err.%v", resp.Status)
+			return resp.Status, fmt.Errorf("rsp err.%v", resp.StatusMessage)
 		}
-		return nil
+		return 0, nil
 	}
 
-	if strings.Contains(req.ImageSecDstPath, "scanner-grpc") {
+	// forward msg to scanner
+	if i.shouldPublishToScanner(req) {
 		var err error
-		if req.ImageSecReqType == pb.ImageSecReqType_AviraDBUpdate || req.ImageSecReqType == pb.ImageSecReqType_ClamavDBUpdate || req.ImageSecReqType == pb.ImageSecReqType_TiDBUpdate {
-			err = publishFunc(req.ImageSecDstPath, pb.MessageType_UPDATE, req)
+		var ret int32
+		if req.ImageSecReqType == pb.ImageSecReqType_AviraDBUpdate ||
+			req.ImageSecReqType == pb.ImageSecReqType_ClamavDBUpdate ||
+			req.ImageSecReqType == pb.ImageSecReqType_TiDBUpdate {
+			ret, err = publishFunc(util.ScannerClusterManagerGrpcStreamKey(dstClusterKey), pb.MessageType_UPDATE, req)
+		} else {
+			ret, err = publishFunc(util.ScannerClusterManagerGrpcStreamKey(dstClusterKey), pb.MessageType_CREATE, req)
 		}
 		if err != nil {
-			errNodes = append(errNodes, req.ImageSecDstPath)
-			retErr = multierror.Append(retErr, err)
-			logging.Get().Err(err).Str("dstKey", req.ImageSecDstPath).Str("msgID", msgID).Msg("failed to push image sec msg to subScanner")
+			logging.Get().Err(err).
+				Str("reqID", reqID).
+				Str("msgID", msgID).
+				Int32("retCode", ret).
+				Msg("failed to publish image sec msg to scanner")
+			rspAndLogFunc(ret, err.Error(), nil)
+		} else {
+			logging.Get().Info().
+				Str("reqID", reqID).
+				Str("msgID", msgID).
+				Msg("publish image sec msg to scanner ok")
+			rspAndLogFunc(0, "ok", nil)
 		}
+		return
 	}
 
-	if len(req.NodeName) > 0 && req.ImageSecReqType != pb.ImageSecReqType_TiDBUpdate {
+	// publish msg to daemon
+	var retCode int32
+	var retErr error
+	errNodes := make([]string, 0)
+	if len(req.NodeName) > 0 {
 		for _, v := range req.NodeName {
 			streamNodeKey := fmt.Sprintf("%s-node-image", v)
-			err := publishFunc(streamNodeKey, pb.MessageType_CREATE, req)
+			ret, err := publishFunc(streamNodeKey, pb.MessageType_CREATE, req)
 			if err != nil {
+				retCode = ret
 				errNodes = append(errNodes, v)
 				retErr = multierror.Append(retErr, err)
 				logging.Get().Err(err).Str("node", v).Str("msgID", msgID).Msg("failed to push image sec msg to node")
@@ -100,10 +117,16 @@ func (i *ImageSecHandler) OnCreate(s rpcstream.Stream, reqID string, message pro
 		}
 	}
 	if retErr != nil {
-		rspAndLogFunc(1, retErr.Error(), errNodes)
+		rspAndLogFunc(retCode, retErr.Error(), errNodes)
 	} else {
 		rspAndLogFunc(0, "ok", nil)
 	}
+}
+
+func (i *ImageSecHandler) shouldPublishToScanner(req *pb.ImageSecReq) bool {
+	return req.ImageSecReqType == pb.ImageSecReqType_RegistryImageSync ||
+		req.ImageSecReqType == pb.ImageSecReqType_RegistryHealthyCheck ||
+		req.ImageSecReqType == pb.ImageSecReqType_RegistryImageScan
 }
 
 func (i *ImageSecHandler) OnRead(s rpcstream.Stream, reqID string, message protoreflect.ProtoMessage) {

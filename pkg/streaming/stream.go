@@ -1,8 +1,11 @@
 package rpcstream
 
 import (
+	"context"
+	"fmt"
 	"io"
 	"sync"
+	"time"
 
 	"gitlab.com/security-rd/go-pkg/logging"
 	"k8s.io/client-go/tools/cache"
@@ -20,21 +23,29 @@ type Stream interface {
 	Dispatch() error
 	AddHandler(StreammsgName string, handler MessageHandler) error
 	AddHandlerFunc(StreammsgName string, f ProcessFunc) error
-	AddSession(id string)
+	AddSession(id string, ack bool)
 	DelSession(id string)
 	DelAllSession()
 	Send(*pb.ClusterMessage) error
-	Response(reqUUID string) chan protoreflect.ProtoMessage
+	Response(ctx context.Context, reqUUID string) (protoreflect.ProtoMessage, error)
+	// Response(reqUUID string) chan protoreflect.ProtoMessage
 	SendResponse(reqUUID string, resp protoreflect.ProtoMessage) error
 	Run(stopChan chan struct{})
+	Dump() map[string]interface{}
 	Clean()
+}
+
+type Session struct {
+	ack      bool
+	dataCh   chan protoreflect.ProtoMessage
+	creareAt time.Time
 }
 
 type baseStream struct {
 	stopChan    chan struct{}
 	processors  map[string]ProcessFunc
 	handlers    map[string]MessageHandler
-	sessions    map[string]chan protoreflect.ProtoMessage
+	sessions    map[string]*Session
 	queue       cache.Queue
 	sessionLock sync.RWMutex
 	Receiver    ReceiveFunc
@@ -56,8 +67,8 @@ func (s *baseStream) AddHandlerFunc(msgName string, f ProcessFunc) error {
 func (s *baseStream) DelAllSession() {
 	s.sessionLock.Lock()
 	defer s.sessionLock.Unlock()
-	for k, v := range s.sessions {
-		close(v)
+	for k, se := range s.sessions {
+		close(se.dataCh)
 		delete(s.sessions, k)
 	}
 }
@@ -65,31 +76,51 @@ func (s *baseStream) DelAllSession() {
 func (s *baseStream) DelSession(id string) {
 	s.sessionLock.Lock()
 	defer s.sessionLock.Unlock()
-	v, ok := s.sessions[id]
-	if ok {
-		close(v)
-	}
+	// v, ok := s.sessions[id]
+	// if ok {
+	// 	close(v.dataCh)
+	// }
 	delete(s.sessions, id)
 }
 
-func (s *baseStream) AddSession(id string) {
+func (s *baseStream) AddSession(id string, ack bool) {
 	logging.Get().Debug().Str("sessionID", id).Msg("start add session")
 	s.sessionLock.Lock()
 	defer s.sessionLock.Unlock()
-
-	s.sessions[id] = make(chan protoreflect.ProtoMessage)
+	se := &Session{
+		ack:      ack,
+		dataCh:   make(chan protoreflect.ProtoMessage, 1),
+		creareAt: time.Now(),
+	}
+	s.sessions[id] = se
 }
 
 func (s *baseStream) Send(msg *pb.ClusterMessage) error {
 	return s.queue.Add(msg)
 }
 
-func (s *baseStream) Response(reqUUID string) chan protoreflect.ProtoMessage {
+func (s *baseStream) getSession(reqUUID string) (*Session, bool) {
 	s.sessionLock.RLock()
 	defer s.sessionLock.RUnlock()
-	resp := s.sessions[reqUUID]
+	resp, ok := s.sessions[reqUUID]
+	return resp, ok
+}
 
-	return resp
+func (s *baseStream) Response(ctx context.Context, reqUUID string) (protoreflect.ProtoMessage, error) {
+	session, ok := s.getSession(reqUUID)
+	if ok {
+		select {
+		case r := <-session.dataCh:
+			if r == nil {
+				return nil, fmt.Errorf("reqID %v,recv nil resp. session has been removed", reqUUID)
+			}
+			return r, nil
+		case <-ctx.Done():
+			logging.Get().Error().Str("reqID", reqUUID).Msg("context timeout")
+			return nil, ctx.Err()
+		}
+	}
+	return nil, fmt.Errorf("session has expired")
 }
 
 func (s *baseStream) SendResponse(reqUUID string, resp protoreflect.ProtoMessage) error {
@@ -127,13 +158,13 @@ func (s *baseStream) Dispatch() error {
 			return err
 		}
 
-		//logging.Get().Debug().Msgf("received message %s", in.String())
-		logging.Get().Debug().Str("reqID", in.ReqUUID).Msg("received message")
 		m, err := in.Payload.UnmarshalNew()
 		if err != nil {
 			logging.Get().Err(err).Msg("Unmarshal payload err")
 			continue
 		}
+
+		logging.Get().Debug().Str("reqID", in.ReqUUID).Msgf("received message: %s", string(m.ProtoReflect().Descriptor().Name()))
 
 		// process request message
 		fn, ok := s.processors[string(m.ProtoReflect().Descriptor().Name())]
@@ -161,18 +192,24 @@ func (s *baseStream) Dispatch() error {
 			continue
 		}
 
-		//logging.Get().Info().Msgf("resp data is %v", m.ProtoReflect())
-		logging.Get().Debug().Str("reqID", in.ReqUUID).Msg("dispatch deal resp data")
-
 		// process response
-		s.sessionLock.RLock()
-		respChan, ok := s.sessions[in.ReqUUID]
-		if ok {
-			respChan <- m
-		} else {
-			logging.Get().Error().Str("reqID", in.ReqUUID).Msg("not found session")
-		}
-		s.sessionLock.RUnlock()
+		func() {
+			logging.Get().Info().Str("reqID", in.ReqUUID).Msg("dispatch deal resp data")
+			s.sessionLock.RLock()
+			defer s.sessionLock.RUnlock()
+			session, ok := s.sessions[in.ReqUUID]
+			if ok {
+				logging.Get().Info().Str("reqID", in.ReqUUID).
+					Msgf("dispatch receive resp:[ id: %s, create at: %v, ack: %v ]", in.ReqUUID, session.creareAt, session.ack)
+				if session.ack {
+					session.ack = false
+					session.dataCh <- m
+					close(session.dataCh)
+				}
+			} else {
+				logging.Get().Error().Str("reqID", in.ReqUUID).Msg("not found session")
+			}
+		}()
 	}
 }
 
@@ -199,6 +236,22 @@ func (s *baseStream) Clean() {
 	s.queue.Close() // 标记位置位，不涉及重复关闭判断
 }
 
+func (s *baseStream) Dump() map[string]interface{} {
+	s.sessionLock.RLock()
+	defer s.sessionLock.RUnlock()
+	info := make(map[string]interface{})
+	for k, v := range s.sessions {
+		info[k] = struct {
+			Ack      bool
+			CreateAt time.Time
+		}{
+			Ack:      v.ack,
+			CreateAt: v.creareAt,
+		}
+	}
+	return info
+}
+
 type serverStream struct {
 	stream pb.ClusterService_SendMessageServer
 	baseStream
@@ -211,7 +264,7 @@ func NewServerStream(stream pb.ClusterService_SendMessageServer) Stream {
 			stopChan:   make(chan struct{}),
 			processors: make(map[string]ProcessFunc, 0),
 			handlers:   make(map[string]MessageHandler, 0),
-			sessions:   make(map[string]chan protoreflect.ProtoMessage),
+			sessions:   make(map[string]*Session),
 			queue: cache.NewFIFO(func(obj interface{}) (string, error) {
 				msg := obj.(*pb.ClusterMessage)
 				return msg.GetReqUUID(), nil
@@ -238,7 +291,7 @@ func NewClientStream(stream pb.ClusterService_SendMessageClient) Stream {
 			stopChan:   make(chan struct{}),
 			processors: make(map[string]ProcessFunc, 0),
 			handlers:   make(map[string]MessageHandler, 0),
-			sessions:   make(map[string]chan protoreflect.ProtoMessage),
+			sessions:   make(map[string]*Session),
 			queue: cache.NewFIFO(func(obj interface{}) (string, error) {
 				msg := obj.(*pb.ClusterMessage)
 				return msg.GetReqUUID(), nil

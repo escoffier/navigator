@@ -72,7 +72,7 @@ func GetSingeVulnDao() *VulnDao {
 	if singeVulnDao != nil {
 		return singeVulnDao
 	}
-	singeVulnDao = &VulnDao{rdb: GetScannerWrapperDb()}
+	singeVulnDao = &VulnDao{rdb: GetRDBInstance()}
 	return singeVulnDao
 }
 

@@ -16,7 +16,7 @@ const (
 	savApiBinBase           = "savapi"
 	DefaultSavApiPath       = "/usr/local/savapi-sdk-linux64"
 	DefaultSavApiListenAddr = 9180
-	DefaultSavApiLogFile    = "/tmp/sav-server.log"
+	DefaultSavApiLogFile    = "/tmp/avira-server.log"
 )
 
 type SavServer struct {
@@ -116,6 +116,7 @@ func (s *SavServer) StartServer() {
 		// cmd := exec.Command("sh", "-c", daemonCmdStr)
 		cmd := exec.Command(savApiBin, s.generateDaemonArgs()...)
 		err := cmd.Start()
+		logging.Get().Info().Strs("cmd", cmd.Args).Msg("start avira service")
 		if err != nil {
 			logging.Get().Err(err).Msg("failed to start avira daemon")
 			continue

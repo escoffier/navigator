@@ -677,9 +677,9 @@ definitions:
         type: string
     type: object
 info:
-  contact: {}
+  contact: { }
   description: This is the Vegeta central server - Scanner
-  license: {}
+  license: { }
   title: Vegeta API·
   version: "1.0"
 paths:
@@ -687,88 +687,88 @@ paths:
     post:
       description: k8s&在线监控生成接口
       parameters:
-      - description: JSON数据
-        in: body
-        name: body
-        required: true
-        schema:
-          items:
-            allOf:
-            - $ref: '#/definitions/model.RejectOnlineMoniterImage'
-            - properties:
-                NotifyContext:
-                  allOf:
-                  - $ref: '#/definitions/model.NotifyContext'
-                  - properties:
-                      CustomKV:
-                        items:
-                          allOf:
-                          - $ref: '#/definitions/model.KVHashs'
-                          - properties:
-                              KVHash:
-                                $ref: '#/definitions/model.KVHash'
-                            type: object
-                        type: array
-                    type: object
-              type: object
-          type: array
+        - description: JSON数据
+          in: body
+          name: body
+          required: true
+          schema:
+            items:
+              allOf:
+                - $ref: '#/definitions/model.RejectOnlineMoniterImage'
+                - properties:
+                    NotifyContext:
+                      allOf:
+                        - $ref: '#/definitions/model.NotifyContext'
+                        - properties:
+                            CustomKV:
+                              items:
+                                allOf:
+                                  - $ref: '#/definitions/model.KVHashs'
+                                  - properties:
+                                      KVHash:
+                                        $ref: '#/definitions/model.KVHash'
+                                    type: object
+                              type: array
+                          type: object
+                  type: object
+            type: array
       responses:
         "200":
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/api.ApiWithItem'
-            - properties:
-                data:
-                  allOf:
-                  - $ref: '#/definitions/api.ApiItem'
-                  - properties:
-                      item:
-                        $ref: '#/definitions/api.OnlyFlagRes'
-                    type: object
-              type: object
+              - $ref: '#/definitions/api.ApiWithItem'
+              - properties:
+                  data:
+                    allOf:
+                      - $ref: '#/definitions/api.ApiItem'
+                      - properties:
+                          item:
+                            $ref: '#/definitions/api.OnlyFlagRes'
+                        type: object
+                type: object
       summary: TickOnlineScan
       tags:
-      - image reject
+        - image reject
   /api/v1/imagereject/overview:
     get:
       description: 展示阻断信息列表
       parameters:
-      - description: 镜像名模糊搜索
-        in: query
-        name: search
-        required: true
-        type: string
-      - description: 仓库筛选
-        in: query
-        name: library
-        required: true
-        type: string
-      - description: 阻断理由筛选
-        in: query
-        name: reject_reason
-        required: true
-        type: string
+        - description: 镜像名模糊搜索
+          in: query
+          name: search
+          required: true
+          type: string
+        - description: 仓库筛选
+          in: query
+          name: library
+          required: true
+          type: string
+        - description: 阻断理由筛选
+          in: query
+          name: reject_reason
+          required: true
+          type: string
       responses:
         "200":
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/api.ApiWithItem'
-            - properties:
-                data:
-                  allOf:
-                  - $ref: '#/definitions/api.ApiItems'
-                  - properties:
-                      items:
-                        items:
-                          $ref: '#/definitions/model.RejectRecord'
-                        type: array
-                    type: object
-              type: object
+              - $ref: '#/definitions/api.ApiWithItem'
+              - properties:
+                  data:
+                    allOf:
+                      - $ref: '#/definitions/api.ApiItems'
+                      - properties:
+                          items:
+                            items:
+                              $ref: '#/definitions/model.RejectRecord'
+                            type: array
+                        type: object
+                type: object
       summary: ListRejectRecord
       tags:
-      - image reject
+        - image reject
   /api/v1/imagereject/policy/global:
     get:
       description: 获取全局策略
@@ -777,41 +777,41 @@ paths:
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/api.ApiWithItem'
-            - properties:
-                data:
-                  allOf:
-                  - $ref: '#/definitions/api.ApiItem'
-                  - properties:
-                      item:
-                        $ref: '#/definitions/model.GlobalRejectPolicy'
-                    type: object
-              type: object
+              - $ref: '#/definitions/api.ApiWithItem'
+              - properties:
+                  data:
+                    allOf:
+                      - $ref: '#/definitions/api.ApiItem'
+                      - properties:
+                          item:
+                            $ref: '#/definitions/model.GlobalRejectPolicy'
+                        type: object
+                type: object
       summary: GetGlobalPolicy
       tags:
-      - image reject
+        - image reject
     put:
       description: 更新全局策略
       parameters:
-      - description: 全局策略JSON数据
-        in: body
-        name: body
-        required: true
-        schema:
-          $ref: '#/definitions/model.GlobalRejectPolicy'
+        - description: 全局策略JSON数据
+          in: body
+          name: body
+          required: true
+          schema:
+            $ref: '#/definitions/model.GlobalRejectPolicy'
       responses:
         "200":
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/api.ApiWithItem'
-            - properties:
-                data:
-                  $ref: '#/definitions/api.ApiItem'
-              type: object
+              - $ref: '#/definitions/api.ApiWithItem'
+              - properties:
+                  data:
+                    $ref: '#/definitions/api.ApiItem'
+                type: object
       summary: UpdateGlobalPolicy
       tags:
-      - image reject
+        - image reject
   /api/v1/imagereject/policy/single:
     get:
       description: 获取策略列表
@@ -820,92 +820,92 @@ paths:
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/api.ApiWithItem'
-            - properties:
-                data:
-                  allOf:
-                  - $ref: '#/definitions/api.ApiItems'
-                  - properties:
-                      items:
-                        items:
-                          $ref: '#/definitions/model.RejectPolicy'
-                        type: array
-                    type: object
-              type: object
+              - $ref: '#/definitions/api.ApiWithItem'
+              - properties:
+                  data:
+                    allOf:
+                      - $ref: '#/definitions/api.ApiItems'
+                      - properties:
+                          items:
+                            items:
+                              $ref: '#/definitions/model.RejectPolicy'
+                            type: array
+                        type: object
+                type: object
       summary: ListPolicy
       tags:
-      - image reject
+        - image reject
     post:
       description: 新增策略接口
       parameters:
-      - description: 策略JSON数据
-        in: body
-        name: body
-        required: true
-        schema:
-          $ref: '#/definitions/model.RejectPolicy'
+        - description: 策略JSON数据
+          in: body
+          name: body
+          required: true
+          schema:
+            $ref: '#/definitions/model.RejectPolicy'
       responses:
         "200":
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/api.ApiWithItem'
-            - properties:
-                data:
-                  $ref: '#/definitions/api.ApiItem'
-              type: object
+              - $ref: '#/definitions/api.ApiWithItem'
+              - properties:
+                  data:
+                    $ref: '#/definitions/api.ApiItem'
+                type: object
       summary: CreatePolicy
       tags:
-      - image reject
+        - image reject
   /api/v1/imagereject/policy/single/:id:
     delete:
       description: 删除单条策略
       parameters:
-      - description: policy ID
-        in: path
-        name: id
-        required: true
-        type: integer
+        - description: policy ID
+          in: path
+          name: id
+          required: true
+          type: integer
       responses:
         "200":
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/api.ApiWithItem'
-            - properties:
-                data:
-                  $ref: '#/definitions/api.ApiItem'
-              type: object
+              - $ref: '#/definitions/api.ApiWithItem'
+              - properties:
+                  data:
+                    $ref: '#/definitions/api.ApiItem'
+                type: object
       summary: DeletePolicy
       tags:
-      - image reject
+        - image reject
     put:
       description: 更新策略接口
       parameters:
-      - description: JSON数据
-        in: body
-        name: body
-        required: true
-        schema:
-          $ref: '#/definitions/model.RejectPolicy'
-      - description: 策略ID
-        in: path
-        name: id
-        required: true
-        type: integer
+        - description: JSON数据
+          in: body
+          name: body
+          required: true
+          schema:
+            $ref: '#/definitions/model.RejectPolicy'
+        - description: 策略ID
+          in: path
+          name: id
+          required: true
+          type: integer
       responses:
         "200":
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/api.ApiWithItem'
-            - properties:
-                data:
-                  $ref: '#/definitions/api.ApiItem'
-              type: object
+              - $ref: '#/definitions/api.ApiWithItem'
+              - properties:
+                  data:
+                    $ref: '#/definitions/api.ApiItem'
+                type: object
       summary: UpdatePolicy
       tags:
-      - image reject
+        - image reject
   /api/v1/imagereject/reasons:
     get:
       description: 获取阻断原因的map
@@ -914,368 +914,368 @@ paths:
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/api.ApiWithItem'
-            - properties:
-                data:
-                  allOf:
-                  - $ref: '#/definitions/api.ApiItem'
-                  - properties:
-                      item:
-                        $ref: '#/definitions/model.RejectReasonMap'
-                    type: object
-              type: object
+              - $ref: '#/definitions/api.ApiWithItem'
+              - properties:
+                  data:
+                    allOf:
+                      - $ref: '#/definitions/api.ApiItem'
+                      - properties:
+                          item:
+                            $ref: '#/definitions/model.RejectReasonMap'
+                        type: object
+                type: object
       summary: RejectReasons
       tags:
-      - image reject
+        - image reject
   /api/v1/imagereject/result/cicd:
     post:
       description: CICD的第二个API，获取CICD扫描结果
       parameters:
-      - description: JSON数据
-        in: body
-        name: body
-        required: true
-        schema:
-          $ref: '#/definitions/model.ScanOneCICDResultRequest'
+        - description: JSON数据
+          in: body
+          name: body
+          required: true
+          schema:
+            $ref: '#/definitions/model.ScanOneCICDResultRequest'
       responses:
         "200":
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/api.ApiWithItem'
-            - properties:
-                data:
-                  allOf:
-                  - $ref: '#/definitions/api.ApiItem'
-                  - properties:
-                      item:
-                        $ref: '#/definitions/model.ScanOneForCICDResponse'
-                    type: object
-              type: object
+              - $ref: '#/definitions/api.ApiWithItem'
+              - properties:
+                  data:
+                    allOf:
+                      - $ref: '#/definitions/api.ApiItem'
+                      - properties:
+                          item:
+                            $ref: '#/definitions/model.ScanOneForCICDResponse'
+                        type: object
+                type: object
       summary: 获取CICD扫描结果
       tags:
-      - image reject
+        - image reject
   /api/v1/imagereject/scanone/cicd:
     post:
       description: CICD的第一个API，用于触发CICD扫描
       parameters:
-      - description: JSON数据
-        in: body
-        name: body
-        required: true
-        schema:
-          $ref: '#/definitions/model.ScanOneForCICDRequest'
+        - description: JSON数据
+          in: body
+          name: body
+          required: true
+          schema:
+            $ref: '#/definitions/model.ScanOneForCICDRequest'
       responses:
         "200":
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/api.ApiWithItem'
-            - properties:
-                data:
-                  allOf:
-                  - $ref: '#/definitions/api.ApiItem'
-                  - properties:
-                      item:
-                        $ref: '#/definitions/model.ScanOneStatusResponse'
-                    type: object
-              type: object
+              - $ref: '#/definitions/api.ApiWithItem'
+              - properties:
+                  data:
+                    allOf:
+                      - $ref: '#/definitions/api.ApiItem'
+                      - properties:
+                          item:
+                            $ref: '#/definitions/model.ScanOneStatusResponse'
+                        type: object
+                type: object
       summary: 用于触发CICD扫描
       tags:
-      - image reject
+        - image reject
   /api/v1/imagereject/whitelist:
     post:
       description: 创建白名单
       parameters:
-      - description: JSON数据
-        in: body
-        name: body
-        required: true
-        schema:
-          $ref: '#/definitions/model.ImageWhitelist'
+        - description: JSON数据
+          in: body
+          name: body
+          required: true
+          schema:
+            $ref: '#/definitions/model.ImageWhitelist'
       responses:
         "200":
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/api.ApiWithItem'
-            - properties:
-                data:
-                  allOf:
-                  - $ref: '#/definitions/api.ApiItem'
-                  - properties:
-                      item:
-                        $ref: '#/definitions/model.ImageWhitelist'
-                    type: object
-              type: object
+              - $ref: '#/definitions/api.ApiWithItem'
+              - properties:
+                  data:
+                    allOf:
+                      - $ref: '#/definitions/api.ApiItem'
+                      - properties:
+                          item:
+                            $ref: '#/definitions/model.ImageWhitelist'
+                        type: object
+                type: object
       summary: CreateWhitelist
       tags:
-      - image reject
+        - image reject
   /api/v1/imagereject/whitelist/:id:
     delete:
       description: 删除白名单
       parameters:
-      - description: 白名单ID
-        in: path
-        name: id
-        required: true
-        type: integer
+        - description: 白名单ID
+          in: path
+          name: id
+          required: true
+          type: integer
       responses:
         "200":
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/api.ApiWithItem'
-            - properties:
-                data:
-                  $ref: '#/definitions/api.ApiItem'
-              type: object
+              - $ref: '#/definitions/api.ApiWithItem'
+              - properties:
+                  data:
+                    $ref: '#/definitions/api.ApiItem'
+                type: object
       summary: DeleteWhitelist
       tags:
-      - image reject
+        - image reject
   /api/v1/images/:imgDigest/layers:
     get:
       description: 获取镜像各层级的信息
       parameters:
-      - description: imgDigest
-        in: query
-        name: imgDigest
-        required: true
-        type: string
+        - description: imgDigest
+          in: query
+          name: imgDigest
+          required: true
+          type: string
       responses:
         "200":
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/api.ApiWithItem'
-            - properties:
-                data:
-                  allOf:
-                  - $ref: '#/definitions/api.ApiItem'
-                  - properties:
-                      items:
-                        items:
-                          $ref: '#/definitions/model.ReportImgBackInfo'
-                        type: array
-                    type: object
-              type: object
+              - $ref: '#/definitions/api.ApiWithItem'
+              - properties:
+                  data:
+                    allOf:
+                      - $ref: '#/definitions/api.ApiItem'
+                      - properties:
+                          items:
+                            items:
+                              $ref: '#/definitions/model.ReportImgBackInfo'
+                            type: array
+                        type: object
+                type: object
       summary: ListImgLayers
       tags:
-      - scan image
+        - scan image
   /api/v1/images/app/:imageID/bases:
     get:
       description: 获取应用镜像的基础镜像列表
       parameters:
-      - description: 镜像ID
-        in: path
-        name: imageID
-        required: true
-        type: integer
+        - description: 镜像ID
+          in: path
+          name: imageID
+          required: true
+          type: integer
       responses:
         "200":
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/api.ApiWithItem'
-            - properties:
-                data:
-                  allOf:
-                  - $ref: '#/definitions/api.ApiItem'
-                  - properties:
-                      items:
-                        items:
-                          $ref: '#/definitions/model.ImageResponse'
-                        type: array
-                    type: object
-              type: object
+              - $ref: '#/definitions/api.ApiWithItem'
+              - properties:
+                  data:
+                    allOf:
+                      - $ref: '#/definitions/api.ApiItem'
+                      - properties:
+                          items:
+                            items:
+                              $ref: '#/definitions/model.ImageResponse'
+                            type: array
+                        type: object
+                type: object
       summary: ListAppToBaseImage
       tags:
-      - image reject
+        - image reject
   /api/v1/images/base:
     get:
       description: 基础镜像列表
       parameters:
-      - description: 搜索关键词
-        in: query
-        name: search
-        type: string
+        - description: 搜索关键词
+          in: query
+          name: search
+          type: string
       responses:
         "200":
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/api.ApiWithItem'
-            - properties:
-                data:
-                  allOf:
-                  - $ref: '#/definitions/api.ApiItem'
-                  - properties:
-                      items:
-                        items:
-                          $ref: '#/definitions/model.ImageResponse'
-                        type: array
-                    type: object
-              type: object
+              - $ref: '#/definitions/api.ApiWithItem'
+              - properties:
+                  data:
+                    allOf:
+                      - $ref: '#/definitions/api.ApiItem'
+                      - properties:
+                          items:
+                            items:
+                              $ref: '#/definitions/model.ImageResponse'
+                            type: array
+                        type: object
+                type: object
       summary: ListBaseImage
       tags:
-      - image reject
+        - image reject
   /api/v1/images/base/:imageID:
     delete:
       description: 删除基础镜像
       parameters:
-      - description: 镜像ID
-        in: path
-        name: imageID
-        required: true
-        type: integer
+        - description: 镜像ID
+          in: path
+          name: imageID
+          required: true
+          type: integer
       responses:
         "200":
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/api.ApiWithItem'
-            - properties:
-                data:
-                  $ref: '#/definitions/api.ApiItem'
-              type: object
+              - $ref: '#/definitions/api.ApiWithItem'
+              - properties:
+                  data:
+                    $ref: '#/definitions/api.ApiItem'
+                type: object
       summary: DeleteBaseImage
       tags:
-      - image reject
+        - image reject
   /api/v1/images/base/:imageID/apps:
     get:
       description: 获取基础镜像的应用镜像列表
       parameters:
-      - description: 镜像ID
-        in: path
-        name: imageID
-        required: true
-        type: integer
+        - description: 镜像ID
+          in: path
+          name: imageID
+          required: true
+          type: integer
       responses:
         "200":
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/api.ApiWithItem'
-            - properties:
-                data:
-                  allOf:
-                  - $ref: '#/definitions/api.ApiItem'
-                  - properties:
-                      items:
-                        items:
-                          $ref: '#/definitions/model.ImageResponse'
-                        type: array
-                    type: object
-              type: object
+              - $ref: '#/definitions/api.ApiWithItem'
+              - properties:
+                  data:
+                    allOf:
+                      - $ref: '#/definitions/api.ApiItem'
+                      - properties:
+                          items:
+                            items:
+                              $ref: '#/definitions/model.ImageResponse'
+                            type: array
+                        type: object
+                type: object
       summary: ListBaseToAppImage
       tags:
-      - image reject
+        - image reject
   /api/v1/images/bases:
     post:
       description: 创建基础镜像
       parameters:
-      - description: 镜像ID列表
-        in: body
-        name: body
-        required: true
-        schema:
-          items:
-            type: integer
-          type: array
+        - description: 镜像ID列表
+          in: body
+          name: body
+          required: true
+          schema:
+            items:
+              type: integer
+            type: array
       responses:
         "200":
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/api.ApiWithItem'
-            - properties:
-                data:
-                  $ref: '#/definitions/api.ApiItem'
-              type: object
+              - $ref: '#/definitions/api.ApiWithItem'
+              - properties:
+                  data:
+                    $ref: '#/definitions/api.ApiItem'
+                type: object
       summary: CreateBaseImage
       tags:
-      - image reject
+        - image reject
   /api/v1/layers/:imgDigest/layers:
     get:
       description: 获取镜像各层级的信息
       parameters:
-      - description: layerDigest
-        in: query
-        name: layerDigest
-        required: true
-        type: string
+        - description: layerDigest
+          in: query
+          name: layerDigest
+          required: true
+          type: string
       responses:
         "200":
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/api.ApiWithItem'
-            - properties:
-                data:
-                  allOf:
-                  - $ref: '#/definitions/api.ApiItem'
-                  - properties:
-                      items:
-                        $ref: '#/definitions/model.ScanLayer'
-                    type: object
-              type: object
+              - $ref: '#/definitions/api.ApiWithItem'
+              - properties:
+                  data:
+                    allOf:
+                      - $ref: '#/definitions/api.ApiItem'
+                      - properties:
+                          items:
+                            $ref: '#/definitions/model.ScanLayer'
+                        type: object
+                type: object
       summary: ImgLayerInfo
       tags:
-      - scan image
+        - scan image
   /api/v1/register/registries:
     get:
       description: 获取registry列表信息
       parameters:
-      - description: 是否需要配置策略的仓库
-        in: query
-        name: no_policy
-        required: true
-        type: boolean
+        - description: 是否需要配置策略的仓库
+          in: query
+          name: no_policy
+          required: true
+          type: boolean
       responses:
         "200":
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/api.ApiWithItem'
-            - properties:
-                data:
-                  allOf:
-                  - $ref: '#/definitions/api.ApiItem'
-                  - properties:
-                      item:
-                        $ref: '#/definitions/api.OnlyAccountRes'
-                    type: object
-              type: object
+              - $ref: '#/definitions/api.ApiWithItem'
+              - properties:
+                  data:
+                    allOf:
+                      - $ref: '#/definitions/api.ApiItem'
+                      - properties:
+                          item:
+                            $ref: '#/definitions/api.OnlyAccountRes'
+                        type: object
+                type: object
       summary: 获取仓库列表
       tags:
-      - registry
+        - registry
   /api/v1/register/registry:
     get:
       description: 获取registry具体信息
       parameters:
-      - description: 仓库类型
-        in: query
-        name: usetype
-        required: true
-        type: string
+        - description: 仓库类型
+          in: query
+          name: usetype
+          required: true
+          type: string
       responses:
         "200":
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/api.ApiWithItem'
-            - properties:
-                data:
-                  allOf:
-                  - $ref: '#/definitions/api.ApiItem'
-                  - properties:
-                      item:
-                        $ref: '#/definitions/api.OnlyAccountRes'
-                    type: object
-              type: object
+              - $ref: '#/definitions/api.ApiWithItem'
+              - properties:
+                  data:
+                    allOf:
+                      - $ref: '#/definitions/api.ApiItem'
+                      - properties:
+                          item:
+                            $ref: '#/definitions/api.OnlyAccountRes'
+                        type: object
+                type: object
       summary: 获取指定仓库的具体信息
       tags:
-      - registry
+        - registry
   /api/v1/scan/harbor/GetScanStatus:
     get:
       description: 获取镜像列表的扫描状态
@@ -1284,29 +1284,29 @@ paths:
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/api.ApiWithItem'
-            - properties:
-                data:
-                  allOf:
-                  - $ref: '#/definitions/api.ApiItem'
-                  - properties:
-                      item:
-                        allOf:
-                        - $ref: '#/definitions/api.ScanStatusRes'
-                        - properties:
-                            harborStatus:
-                              allOf:
-                              - $ref: '#/definitions/harbor.ScanAllStatus'
+              - $ref: '#/definitions/api.ApiWithItem'
+              - properties:
+                  data:
+                    allOf:
+                      - $ref: '#/definitions/api.ApiItem'
+                      - properties:
+                          item:
+                            allOf:
+                              - $ref: '#/definitions/api.ScanStatusRes'
                               - properties:
-                                  metrics:
-                                    $ref: '#/definitions/harbor.ScanAllStatusMetrics'
+                                  harborStatus:
+                                    allOf:
+                                      - $ref: '#/definitions/harbor.ScanAllStatus'
+                                      - properties:
+                                          metrics:
+                                            $ref: '#/definitions/harbor.ScanAllStatusMetrics'
+                                        type: object
                                 type: object
-                          type: object
-                    type: object
-              type: object
+                        type: object
+                type: object
       summary: scanStatus
       tags:
-      - scan image
+        - scan image
   /api/v1/scan/harbor/scanAllNow:
     post:
       description: 扫描全部列表中的镜像
@@ -1317,326 +1317,326 @@ paths:
             $ref: '#/definitions/api.ApiWithItem'
       summary: ScanAllNow
       tags:
-      - scan image
+        - scan image
   /api/v1/scan/harbor/scanOneStatus:
     get:
       description: 获取单个镜像的扫描状态
       parameters:
-      - description: Image ID
-        in: query
-        name: id
-        required: true
-        type: integer
+        - description: Image ID
+          in: query
+          name: id
+          required: true
+          type: integer
       responses:
         "200":
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/api.ApiWithItem'
-            - properties:
-                data:
-                  allOf:
-                  - $ref: '#/definitions/api.ApiItem'
-                  - properties:
-                      item:
-                        $ref: '#/definitions/model.ScanOneStatusResponse'
-                    type: object
-              type: object
+              - $ref: '#/definitions/api.ApiWithItem'
+              - properties:
+                  data:
+                    allOf:
+                      - $ref: '#/definitions/api.ApiItem'
+                      - properties:
+                          item:
+                            $ref: '#/definitions/model.ScanOneStatusResponse'
+                        type: object
+                type: object
       summary: GetScanOneStatus
       tags:
-      - scan image
+        - scan image
   /api/v1/scan/reportsByImageDetails:
     get:
       description: 获取单个镜像的扫描状态
       parameters:
-      - description: image id
-        in: query
-        name: id
-        type: integer
+        - description: image id
+          in: query
+          name: id
+          type: integer
       responses:
         "200":
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/api.ApiWithItem'
-            - properties:
-                data:
-                  allOf:
-                  - $ref: '#/definitions/api.ApiItem'
-                  - properties:
-                      item:
-                        allOf:
-                        - $ref: '#/definitions/model.ImageList'
-                        - properties:
-                            image_scan_virus:
-                              items:
-                                $ref: '#/definitions/model.VirusFileInfo'
-                              type: array
-                            image_scan_vuln:
-                              $ref: '#/definitions/model.ImageScanSummaryResult'
-                            questions:
-                              items:
-                                $ref: '#/definitions/model.QuestionInfo'
-                              type: array
-                          type: object
-                    type: object
-              type: object
+              - $ref: '#/definitions/api.ApiWithItem'
+              - properties:
+                  data:
+                    allOf:
+                      - $ref: '#/definitions/api.ApiItem'
+                      - properties:
+                          item:
+                            allOf:
+                              - $ref: '#/definitions/model.ImageList'
+                              - properties:
+                                  image_scan_virus:
+                                    items:
+                                      $ref: '#/definitions/model.VirusFileInfo'
+                                    type: array
+                                  image_scan_vuln:
+                                    $ref: '#/definitions/model.ImageScanSummaryResult'
+                                  questions:
+                                    items:
+                                      $ref: '#/definitions/model.QuestionInfo'
+                                    type: array
+                                type: object
+                        type: object
+                type: object
       summary: reportsByImageDetails
       tags:
-      - scan image
+        - scan image
   /api/v1/scan/reportsByImageList:
     get:
       description: 获取单个镜像的扫描状态
       parameters:
-      - description: 'for image like '
-        in: query
-        name: search
-        type: string
-      - description: 0:vuln,1:vrius,2:senstive
-        in: query
-        name: kind
-        type: integer
-      - description: is online?
-        in: query
-        name: online
-        required: true
-        type: boolean
-      - description: int
-        in: query
-        name: offset
-        required: true
-        type: integer
-      - description: int
-        in: query
-        name: limit
-        required: true
-        type: integer
+        - description: 'for image like '
+          in: query
+          name: search
+          type: string
+        - description: 0:vuln,1:vrius,2:senstive
+          in: query
+          name: kind
+          type: integer
+        - description: is online?
+          in: query
+          name: online
+          required: true
+          type: boolean
+        - description: int
+          in: query
+          name: offset
+          required: true
+          type: integer
+        - description: int
+          in: query
+          name: limit
+          required: true
+          type: integer
       responses:
         "200":
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/api.ApiWithItem'
-            - properties:
-                data:
-                  allOf:
-                  - $ref: '#/definitions/api.ApiItems'
-                  - properties:
-                      items:
-                        items:
-                          $ref: '#/definitions/model.ImageResponse'
-                        type: array
-                    type: object
-              type: object
+              - $ref: '#/definitions/api.ApiWithItem'
+              - properties:
+                  data:
+                    allOf:
+                      - $ref: '#/definitions/api.ApiItems'
+                      - properties:
+                          items:
+                            items:
+                              $ref: '#/definitions/model.ImageResponse'
+                            type: array
+                        type: object
+                type: object
       summary: ListScannedByImageList
       tags:
-      - scan image
+        - scan image
   /api/v1/scan/reportsByImageOverview:
     get:
       description: 获取单个镜像的扫描状态
       parameters:
-      - description: registry url
-        in: query
-        name: fromUrl
-        type: string
+        - description: registry url
+          in: query
+          name: fromUrl
+          type: string
       responses:
         "200":
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/api.ApiWithItem'
-            - properties:
-                data:
-                  allOf:
-                  - $ref: '#/definitions/api.ApiWithItem'
-                  - properties:
-                      item:
-                        allOf:
-                        - $ref: '#/definitions/model.OverView'
-                        - properties:
-                            online:
-                              $ref: '#/definitions/model.SafeOver'
-                          type: object
-                    type: object
-              type: object
+              - $ref: '#/definitions/api.ApiWithItem'
+              - properties:
+                  data:
+                    allOf:
+                      - $ref: '#/definitions/api.ApiWithItem'
+                      - properties:
+                          item:
+                            allOf:
+                              - $ref: '#/definitions/model.OverView'
+                              - properties:
+                                  online:
+                                    $ref: '#/definitions/model.SafeOver'
+                                type: object
+                        type: object
+                type: object
       summary: reportsByImageOverview
       tags:
-      - scan image
+        - scan image
   /api/v1/scan/reportsBySimpleImageDetails:
     get:
       description: 获取简略的镜像扫描详情（目前只有风险探索页面在使用，没有前端访问）
       parameters:
-      - description: image tag
-        in: query
-        name: tag
-        required: true
-        type: string
-      - description: image digest
-        in: query
-        name: digest
-        required: true
-        type: string
-      - description: image from library
-        in: query
-        name: library
-        required: true
-        type: string
-      - description: image full_repo_name
-        in: query
-        name: full_repo_name
-        required: true
-        type: string
+        - description: image tag
+          in: query
+          name: tag
+          required: true
+          type: string
+        - description: image digest
+          in: query
+          name: digest
+          required: true
+          type: string
+        - description: image from library
+          in: query
+          name: library
+          required: true
+          type: string
+        - description: image full_repo_name
+          in: query
+          name: full_repo_name
+          required: true
+          type: string
       responses:
         "200":
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/api.ApiWithItem'
-            - properties:
-                data:
-                  allOf:
-                  - $ref: '#/definitions/api.ApiItem'
-                  - properties:
-                      item:
-                        allOf:
-                        - $ref: '#/definitions/model.SimpleImageDetail'
-                        - properties:
-                            sensitive_info:
-                              items:
-                                $ref: '#/definitions/model.Sensitive'
-                              type: array
-                            vuln_info:
-                              items:
-                                $ref: '#/definitions/model.VulnerabilityInfo'
-                              type: array
-                          type: object
-                    type: object
-              type: object
+              - $ref: '#/definitions/api.ApiWithItem'
+              - properties:
+                  data:
+                    allOf:
+                      - $ref: '#/definitions/api.ApiItem'
+                      - properties:
+                          item:
+                            allOf:
+                              - $ref: '#/definitions/model.SimpleImageDetail'
+                              - properties:
+                                  sensitive_info:
+                                    items:
+                                      $ref: '#/definitions/model.Sensitive'
+                                    type: array
+                                  vuln_info:
+                                    items:
+                                      $ref: '#/definitions/model.VulnerabilityInfo'
+                                    type: array
+                                type: object
+                        type: object
+                type: object
       summary: reportsBySimpleImageDetails
       tags:
-      - Internal API
+        - Internal API
   /api/v1/scan/scanone:
     post:
       description: 扫描列表中某一个镜像，参数为单个id
       parameters:
-      - description: Json数据
-        in: body
-        name: body
-        required: true
-        schema:
-          $ref: '#/definitions/api.OnlyIdRes'
+        - description: Json数据
+          in: body
+          name: body
+          required: true
+          schema:
+            $ref: '#/definitions/api.OnlyIdRes'
       responses:
         "200":
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/api.ApiWithItem'
-            - properties:
-                data:
-                  allOf:
-                  - $ref: '#/definitions/api.ApiItem'
-                  - properties:
-                      item:
-                        $ref: '#/definitions/api.OnlyStatusRes'
-                    type: object
-              type: object
+              - $ref: '#/definitions/api.ApiWithItem'
+              - properties:
+                  data:
+                    allOf:
+                      - $ref: '#/definitions/api.ApiItem'
+                      - properties:
+                          item:
+                            $ref: '#/definitions/api.OnlyStatusRes'
+                        type: object
+                type: object
       summary: ScanOne
       tags:
-      - scan image
+        - scan image
   /api/v1/vulns/all:
     get:
       description: 获取漏洞列表
       parameters:
-      - description: 'for vuln like '
-        in: query
-        name: search
-        type: string
-      - description: int
-        in: query
-        name: offset
-        required: true
-        type: integer
-      - description: int
-        in: query
-        name: limit
-        required: true
-        type: integer
+        - description: 'for vuln like '
+          in: query
+          name: search
+          type: string
+        - description: int
+          in: query
+          name: offset
+          required: true
+          type: integer
+        - description: int
+          in: query
+          name: limit
+          required: true
+          type: integer
       responses:
         "200":
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/api.ApiWithItem'
-            - properties:
-                data:
-                  allOf:
-                  - $ref: '#/definitions/api.ApiItems'
-                  - properties:
-                      items:
-                        items:
-                          $ref: '#/definitions/model.VulnList'
-                        type: array
-                    type: object
-              type: object
+              - $ref: '#/definitions/api.ApiWithItem'
+              - properties:
+                  data:
+                    allOf:
+                      - $ref: '#/definitions/api.ApiItems'
+                      - properties:
+                          items:
+                            items:
+                              $ref: '#/definitions/model.VulnList'
+                            type: array
+                        type: object
+                type: object
       summary: all
       tags:
-      - Vuln
+        - Vuln
   /api/v1/vulns/detail/:name:
     get:
       description: 获取漏洞详细信息
       parameters:
-      - description: vuln name
-        in: query
-        name: name
-        required: true
-        type: string
+        - description: vuln name
+          in: query
+          name: name
+          required: true
+          type: string
       responses:
         "200":
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/api.ApiWithItem'
-            - properties:
-                data:
-                  allOf:
-                  - $ref: '#/definitions/api.ApiItem'
-                  - properties:
-                      item:
-                        $ref: '#/definitions/model.VulnDetail'
-                    type: object
-              type: object
+              - $ref: '#/definitions/api.ApiWithItem'
+              - properties:
+                  data:
+                    allOf:
+                      - $ref: '#/definitions/api.ApiItem'
+                      - properties:
+                          item:
+                            $ref: '#/definitions/model.VulnDetail'
+                        type: object
+                type: object
       summary: detail/:name
       tags:
-      - Vuln
+        - Vuln
   /api/v1/vulns/query/:name:
     get:
       description: 用于console通过vuln_nmae获取关联镜像信息
       parameters:
-      - description: vuln name like CVE-2020-XXXX
-        in: query
-        name: name
-        required: true
-        type: string
+        - description: vuln name like CVE-2020-XXXX
+          in: query
+          name: name
+          required: true
+          type: string
       responses:
         "200":
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/api.ApiWithItem'
-            - properties:
-                data:
-                  allOf:
-                  - $ref: '#/definitions/api.ApiItems'
-                  - properties:
-                      items:
-                        items:
-                          $ref: '#/definitions/model.VulnImageList'
-                        type: array
-                    type: object
-              type: object
+              - $ref: '#/definitions/api.ApiWithItem'
+              - properties:
+                  data:
+                    allOf:
+                      - $ref: '#/definitions/api.ApiItems'
+                      - properties:
+                          items:
+                            items:
+                              $ref: '#/definitions/model.VulnImageList'
+                            type: array
+                        type: object
+                type: object
       summary: query/:name
       tags:
-      - Internal API
+        - Internal API
   /api/v1/vulns/statistic:
     get:
       description: 获取漏洞视角概览信息
@@ -1645,24 +1645,24 @@ paths:
           description: OK
           schema:
             allOf:
-            - $ref: '#/definitions/api.ApiWithItem'
-            - properties:
-                data:
-                  allOf:
-                  - $ref: '#/definitions/api.ApiItem'
-                  - properties:
-                      item:
-                        allOf:
-                        - $ref: '#/definitions/model.VulnOverview'
-                        - properties:
-                            top5:
-                              items:
-                                $ref: '#/definitions/model.ImageRiskScore'
-                              type: array
-                          type: object
-                    type: object
-              type: object
+              - $ref: '#/definitions/api.ApiWithItem'
+              - properties:
+                  data:
+                    allOf:
+                      - $ref: '#/definitions/api.ApiItem'
+                      - properties:
+                          item:
+                            allOf:
+                              - $ref: '#/definitions/model.VulnOverview'
+                              - properties:
+                                  top5:
+                                    items:
+                                      $ref: '#/definitions/model.ImageRiskScore'
+                                    type: array
+                                type: object
+                        type: object
+                type: object
       summary: statistic
       tags:
-      - Vuln
+        - Vuln
 swagger: "2.0"

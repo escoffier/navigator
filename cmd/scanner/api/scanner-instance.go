@@ -8,17 +8,17 @@ import (
 	"github.com/gin-gonic/gin"
 	"gitlab.com/security-rd/go-pkg/logging"
 
-	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/imagesec"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 )
 
 type ScannerInstanceInfoAPISrv struct {
-	ScannerInfoSrv component.ScannerInstanceInfoInterface
+	ScannerInfoSrv imagesec.ScanInstanceService
 }
 
-func NewScannerInstanceInfoSrv(scannerInfoSrv component.ScannerInstanceInfoInterface) *ScannerInstanceInfoAPISrv {
+func NewScannerInstanceInfoSrv(scannerInfoSrv imagesec.ScanInstanceService) *ScannerInstanceInfoAPISrv {
 	return &ScannerInstanceInfoAPISrv{ScannerInfoSrv: scannerInfoSrv}
 }
 

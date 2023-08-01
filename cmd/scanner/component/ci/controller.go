@@ -121,10 +121,10 @@ func (c *Controller) logPostgresRecord(ctx context.Context, result scanner_ci.Po
 		}
 	}
 	if len(result.MatchSensitiveFiles.Files) > 0 {
-		flag |= (1 << (scanner_ci.SenSitiveQuestion - 1))
+		flag |= 1 << (scanner_ci.SenSitiveQuestion - 1)
 	}
 	if len(result.MatchSensitiveFiles.DefaultFiles) > 0 {
-		flag |= (1 << (scanner_ci.SenSitiveQuestion - 1))
+		flag |= 1 << (scanner_ci.SenSitiveQuestion - 1)
 	}
 	remediation := scanner_ci.ImageRemediation{Vuln: result.MatchVulns.Remediation, Sensitive: result.MatchSensitiveFiles.Remediation}
 	remediationBytes, err := json.Marshal(remediation)

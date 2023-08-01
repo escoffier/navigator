@@ -7,5 +7,5 @@ import (
 
 type NotifyEvent struct {
 	Type            consts.NotifyEventType
-	NodeImageConfig imagesecModel.NodeImageConfig
+	NodeImageConfig imagesecModel.ImageScanConfig
 }

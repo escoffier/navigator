@@ -23,22 +23,67 @@ type ScanDbMeta struct {
 }
 
 type DBMeta struct {
-	DBVersion     string `json:"dBVersion"` // 上传时的毫秒时间戳
-	DBComment     string `json:"dbComment"`
-	DBHash        string `json:"dbBHash"`
-	EngineHash    string `json:"engineHash"`
-	EngineVersion string `json:"engineVersion"`
-	EngineComment string `json:"engineComment"`
-	Enable        bool   `json:"enable"` // 是否启用
-	Updater       string `json:"updater"`
-	Filename      string `json:"filename"` // zip包的绝对路径位置
+	DBVersion     string     `json:"dBVersion"` // 上传时的毫秒时间戳
+	DBComment     string     `json:"dbComment"`
+	DBHash        string     `json:"dbBHash"`
+	EngineHash    string     `json:"engineHash"`
+	EngineVersion string     `json:"engineVersion"`
+	EngineComment string     `json:"engineComment"`
+	Enable        bool       `json:"enable"` // 是否启用
+	Updater       string     `json:"updater"`
+	Filename      string     `json:"filename"` // zip包的绝对路径位置
+	DBPathInfo    DBPathInfo `json:"dBPathInfo"`
 }
 
 type DBVersion struct {
+	Version       string     `json:"version"`
+	Comment       string     `json:"comment"`
+	Hash          string     `json:"hash"`
+	UpdateAt      int64      `json:"updateAt"`
+	DBVersion     string     `json:"dBVersion"` // 上传时的毫秒时间戳
+	DBComment     string     `json:"dbComment"`
+	DBHash        string     `json:"dbBHash"`
+	EngineHash    string     `json:"engineHash"`
+	EngineVersion string     `json:"engineVersion"`
+	EngineComment string     `json:"engineComment"`
+	Enable        bool       `json:"enable"` // 是否启用
+	Updater       string     `json:"updater"`
+	DBPathInfo    DBPathInfo `json:"dBPathInfo"`
+}
+
+// 路径信息做统一规整
+type DBPathInfo struct {
+	WorkVersionFilename   string `json:"workVersionFile"`   // 正在使用的文件中version文件的绝对路径文件名
+	UpdateVersionFilename string `json:"updateVersionFile"` // 上传文件中version文件的绝对路径文件名
+	WorkPath              string `json:"workPath"`          // 执行执行所加载的二进制文件目录
+	BinFilename           string `json:"binFile"`           // 二制进执行文件名
+	WorkConfFilename      string `json:"savApiConfFile"`    // 配置文件名
+	UpdatePath            string `json:"updatePath"`        // 上传文件所保存的目录
+	UpdateZipFilename     string `json:"updateZipFile"`     // 上传zip文件的绝对路径文件名
+	UpdateUnZipPath       string `json:"updateUnZipPath"`   // 上传文件的解压路径
+}
+
+func (vi *DBPathInfo) DeepCopy() DBPathInfo {
+	pa := DBPathInfo{
+		WorkVersionFilename:   vi.WorkVersionFilename,
+		UpdateVersionFilename: vi.UpdateVersionFilename,
+		WorkPath:              vi.WorkPath,
+		BinFilename:           vi.BinFilename,
+		WorkConfFilename:      vi.WorkConfFilename,
+		UpdatePath:            vi.UpdatePath,
+		UpdateZipFilename:     vi.UpdateZipFilename,
+		UpdateUnZipPath:       vi.UpdateUnZipPath,
+	}
+	return pa
+}
+
+// 版本信息，和scanner 一起调整，统一结构
+type DBVersionInfo struct {
+	DBType   string `json:"dBType"`
 	Version  string `json:"version"`
+	UpdateAt int64  `json:"updateAt"`
 	Comment  string `json:"comment"`
 	Hash     string `json:"hash"`
-	UpdateAt int64  `json:"updateAt"`
 }
 
 func (vi *ScanDbMeta) Same(after *ScanDbMeta) bool {
@@ -88,7 +133,9 @@ func (vi *ScanDbMeta) Check() error {
 
 func (vi *ScanDbMeta) GenUniqueID() uint64 {
 	key := fmt.Sprintf("%s-%s", vi.DBType, vi.DBVersion)
-	return util.GenerateUUID64(key)
+	uid := util.GenerateUUID64(key)
+	vi.UniqueID = uid
+	return uid
 }
 
 func (vi *ScanDbMeta) TableName() string {
@@ -103,4 +150,22 @@ type SearchScanDbMetaParam struct {
 	ID        int64
 	UniqueID  uint64
 	Filter    *model.Filter
+}
+
+type UpdateDbParam struct {
+	Updater string
+	DbType  string
+	Data    []byte
+}
+
+type SearchDbParam struct {
+	DbType string
+	Filter *model.Filter
+}
+
+type LastDB struct {
+	VulnDb     ScanDbMeta `json:"vulnDb"`
+	AviraDB    ScanDbMeta `json:"aviraDB"`
+	ClamavDB   ScanDbMeta `json:"clamavDB"`
+	WebshellDB ScanDbMeta `json:"webshellDB"`
 }

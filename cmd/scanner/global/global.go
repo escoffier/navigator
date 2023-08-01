@@ -15,6 +15,7 @@ var ClusterKey string
 var ClusterName string
 var ScannerInstance string // scanner扫描器的ID,重启后不会改变，主要用于调度仓库的同步和扫描
 var VulnDBVersion *scannermodel.ScannerDBVersion
+var SubtaskParallel int
 var PVCPath string
 
 func init() {

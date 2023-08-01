@@ -41,33 +41,44 @@ func init() {
 }
 
 func newService(config register.ScannerServiceConfig) (register.ScannerService, error) {
-	scannerWrapperDb := store.GetScannerWrapperDb()
+	rdbInstance := store.GetRDBInstance()
 
-	registryDal := store.NewRegistryDao(scannerWrapperDb)
-	nodeScanResultDal := imagesecStore.NewScanResultDao(scannerWrapperDb)
-	nodeImageDal := imagesecStore.NewImageMetaDao(scannerWrapperDb, nil)
-	resourceDal := store.NewResourceDao(scannerWrapperDb)
-	trustedImageDal := store.NewScannerOrm(scannerWrapperDb)
-
-	policyDal := imagesecStore.NewDetectPolicyDao(scannerWrapperDb)
-	detectResultDal := imagesecStore.NewImageDetectResultDao(scannerWrapperDb)
-	sensitiveRuleDal := imagesecStore.NewSensitiveRuleDao(scannerWrapperDb)
-	nodeReportDal := imagesecStore.NewNodeReportDao(scannerWrapperDb)
-	scannerConfigDal := imagesecStore.NewScannerConfigDao(scannerWrapperDb)
+	registryDal := imagesecStore.NewRegistryDao(rdbInstance)
+	nodeScanResultDal := imagesecStore.NewScanResultDao(rdbInstance)
+	nodeImageDal := imagesecStore.NewImageMetaDao(rdbInstance, nil)
+	resourceDal := imagesecStore.NewResourceDao(rdbInstance)
+	trustedImageDal := store.NewScannerOrm(rdbInstance)
+	scanInstanceDal := imagesecStore.NewScannerInstanceDao(rdbInstance)
+	policyDal := imagesecStore.NewDetectPolicyDao(rdbInstance)
+	detectResultDal := imagesecStore.NewImageDetectResultDao(rdbInstance)
+	sensitiveRuleDal := imagesecStore.NewSensitiveRuleDao(rdbInstance)
+	userDal := imagesecStore.NewUserDao(rdbInstance)
+	nodeReportDal := imagesecStore.NewNodeReportDao(rdbInstance)
+	scannerConfigDal := imagesecStore.NewScanImageConfigDao(rdbInstance)
 	imagePolicyChecker := detect.NewImagePolicyCheck()
-	nodeScanTaskDal := imagesecStore.NewScanTaskDao(scannerWrapperDb)
+	nodeScanTaskDal := imagesecStore.NewScanTaskDao(rdbInstance)
+	deployDal := imagesecStore.NewDeployDao(rdbInstance)
 
-	imageDataSrv := imagemeta.NewNodeImageSrv(nodeImageDal, registryDal, nodeScanResultDal,
-		resourceDal, nodeReportDal, policyDal, detectResultDal, trustedImageDal, scannerConfigDal, nodeScanTaskDal)
+	imageDataSrv := imagemeta.NewImageMetaSrv(
+		nodeImageDal,
+		registryDal,
+		nodeScanResultDal,
+		resourceDal,
+		nodeReportDal,
+		policyDal,
+		detectResultDal,
+		trustedImageDal,
+		scannerConfigDal,
+		nodeScanTaskDal,
+		scanInstanceDal,
+		deployDal,
+	)
 
-	imagePolicySrv := imagesecSrv.NewPolicySrv(policyDal, nil, sensitiveRuleDal)
+	imagePolicySrv := imagesecSrv.NewPolicySrv(policyDal, nil, sensitiveRuleDal, userDal)
 
-	nodeImageSvc := imagemeta.NewNodeImageSrv(nodeImageDal, registryDal, nodeScanResultDal,
-		resourceDal, nodeReportDal, policyDal, detectResultDal, trustedImageDal, scannerConfigDal, nodeScanTaskDal)
+	detectTaskDal := imagesecStore.NewDetectTaskDao(rdbInstance)
 
-	detectTaskDal := imagesecStore.NewDetectTaskDao(scannerWrapperDb)
-
-	detectTaskSrv := detect.NewImageDetectTaskSrv(nodeImageSvc, detectTaskDal, policyDal)
+	detectTaskSrv := detect.NewImageDetectTaskSrv(imageDataSrv, detectTaskDal, policyDal, detectResultDal)
 
 	p := &ImageDetect{
 		detectSrv: detect.NewDetector(imagePolicySrv, detectResultDal, nodeScanTaskDal, detectTaskDal,

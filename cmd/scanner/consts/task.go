@@ -80,5 +80,7 @@ const (
 )
 
 const (
-	DetectAtHour = 18 // 每天03点的时候加检测任务(服务器中用的是 utc 时间)
+	DetectAtHour             = 18 // 每天03点的时候加检测任务(服务器中用的是 utc 时间)
+	DefaultHmEnginCnt        = 5  // 默认河马引擎的个数
+	DefaultFileExpirationDay = 14 // webshell文件默认保存14天
 )

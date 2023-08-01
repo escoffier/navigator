@@ -3,6 +3,10 @@ package vulnmatch
 import (
 	"context"
 	"fmt"
+	"sort"
+	"strings"
+	"time"
+
 	ftypes "scm.tensorsecurity.cn/tensorsecurity-rd/fanal/types"
 	"scm.tensorsecurity.cn/tensorsecurity-rd/trivy/pkg/detector/library"
 	ospkgDetector "scm.tensorsecurity.cn/tensorsecurity-rd/trivy/pkg/detector/ospkg"
@@ -10,9 +14,6 @@ import (
 	"scm.tensorsecurity.cn/tensorsecurity-rd/trivy/pkg/report"
 	"scm.tensorsecurity.cn/tensorsecurity-rd/trivy/pkg/scanner/local"
 	"scm.tensorsecurity.cn/tensorsecurity-rd/trivy/pkg/types"
-	"sort"
-	"strings"
-	"time"
 )
 
 var (

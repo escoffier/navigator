@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	json "github.com/json-iterator/go"
 	"io"
 	"os"
 	"os/exec"
@@ -13,9 +12,11 @@ import (
 	"strings"
 	"sync"
 
+	json "github.com/json-iterator/go"
+
 	"gitlab.com/piccolo_su/vegeta/cmd/node-image/consts"
 	"gitlab.com/piccolo_su/vegeta/cmd/node-image/services/types"
-	"gitlab.com/piccolo_su/vegeta/pkg/model/scanner-ci"
+	scanner_ci "gitlab.com/piccolo_su/vegeta/pkg/model/scanner-ci"
 
 	"github.com/rs/zerolog"
 
@@ -55,7 +56,7 @@ type ScanTaskManager struct {
 	taskLock            sync.RWMutex
 	mqWriter            mq.Writer
 	runtimeConfig       config.Config                 // 运行时配置
-	nodeImageConfig     imagesecModel.NodeImageConfig // 扫描时配置，从console同步
+	nodeImageConfig     imagesecModel.ImageScanConfig // 扫描时配置，从console同步
 	nodeImageConfigLock sync.RWMutex
 	scanTaskWg          *sync.WaitGroup
 	dbUpdateWg          *sync.WaitGroup
@@ -251,7 +252,6 @@ func (m *ScanTaskManager) syncResult(t imagesec.ScanSubTask) error {
 	scanResult.SubTaskID = t.SubTaskID
 	if tmpRes.ExitCode == 0 {
 		scanResult.StatusStr = imagesecModel.TaskStatusScanFinishedStr
-		scanResult.Msg = "ok"
 	} else {
 		scanResult.StatusStr = imagesecModel.TaskStatusFailedStr
 		scanResult.Msg = tmpRes.ExistMsg
@@ -259,6 +259,9 @@ func (m *ScanTaskManager) syncResult(t imagesec.ScanSubTask) error {
 	logging.Get().Debug().
 		Int64("subTaskID", t.SubTaskID).
 		Int("aviraMalwareCnt", len(scanResult.Malwares.AviraScanResults)).
+		Int("pkgCnt", len(scanResult.VulnResults)).
+		Int("sensitiveCnt", len(scanResult.Sensitives.SensitiveFiles)).
+		Int("vulnCnt", len(scanResult.VulnResults)).
 		Int("webshellCnt", len(scanResult.Webshells.HmWebshells)).
 		Msg("result info")
 
@@ -325,12 +328,12 @@ func (m *ScanTaskManager) scanImage(ctx context.Context, subtask imagesec.ScanSu
 	infoLog().Msg("start scanning")
 
 	imageName := ""
-	if len(subtask.ImageMeta.RepoTags) == 0 {
+	if len(subtask.NodeImageMeta.RepoTags) == 0 {
 		// local build image without repo tags,use image id instead
-		imageName = subtask.ImageMeta.ImageId
+		imageName = subtask.NodeImageMeta.ImageId
 	} else {
 		// only need first repo tag
-		imageName = subtask.ImageMeta.RepoTags[0]
+		imageName = subtask.NodeImageMeta.RepoTags[0]
 	}
 
 	cmdArgs := m.makeScanCmd(imageName, subtask)
@@ -340,7 +343,7 @@ func (m *ScanTaskManager) scanImage(ctx context.Context, subtask imagesec.ScanSu
 	debugLog().Str("cmd", strings.Join(cmdArgs, " ")).Msg("make cmd")
 
 	binaryPath := filepath.Join(m.ireneWorkingDir, ireneBinaryName)
-	//cmd := exec.Command("/bin/sh", "-c", cmdStr)
+	// cmd := exec.Command("/bin/sh", "-c", cmdStr)
 	cmd := exec.Command(binaryPath, cmdArgs...)
 	if m.runtimeConfig.ScanConfig.RealTimeLog {
 		var stdBuffer bytes.Buffer
@@ -459,7 +462,7 @@ func (m *ScanTaskManager) Type() consts.ServiceType {
 	return consts.TypeServiceTaskManager
 }
 
-func (m *ScanTaskManager) PreRun(cfg config.Config, nc imagesecModel.NodeImageConfig, bs *util.BroadcastServer) error {
+func (m *ScanTaskManager) PreRun(cfg config.Config, nc imagesecModel.ImageScanConfig, bs *util.BroadcastServer) error {
 	// create msg que cli
 	mqWriter, err := mq.GetClientFactory().Writer(context.Background())
 	if err != nil {
@@ -476,7 +479,7 @@ func (m *ScanTaskManager) PreRun(cfg config.Config, nc imagesecModel.NodeImageCo
 	return nil
 }
 
-func (m *ScanTaskManager) updateNodeImageConfig(cfg imagesecModel.NodeImageConfig) {
+func (m *ScanTaskManager) updateNodeImageConfig(cfg imagesecModel.ImageScanConfig) {
 	m.nodeImageConfigLock.Lock()
 	defer m.nodeImageConfigLock.Unlock()
 	m.nodeImageConfig = cfg
@@ -519,7 +522,7 @@ func (m *ScanTaskManager) Run() error {
 		case imagesec.ScanSubTask:
 			subTask := item.(imagesec.ScanSubTask)
 			logging.Get().Info().Int64("taskID", subTask.TaskID).Int64("subTaskID", subTask.SubTaskID).
-				Strs("image", subTask.ImageMeta.RepoTags).Msg("start scanning task")
+				Strs("image", subTask.NodeImageMeta.RepoTags).Msg("start scanning task")
 			if err := limit.Acquire(context.Background(), 1); err != nil {
 				logging.Get().Err(err).Msg("failed to acquire semaphore")
 				return
@@ -573,7 +576,7 @@ func (m *ScanTaskManager) transformResult(result *scanner_ci.PolicyResult) image
 				Version:    v.Version,
 				SrcName:    v.SrcName,
 				SrcVersion: v.SrcVersion,
-				License:    strings.Split(v.License, " "),
+				License:    v.License,
 				FilePath:   v.FilePath,
 				DependsOn:  nil, // todo: need high version fanal
 			}

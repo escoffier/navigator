@@ -14,6 +14,7 @@ create table if not exists ivan_scan_image_meta
     os              varchar(500)    not null default '' comment '镜像运行的OS',
     size            bigint unsigned not null default 0 comment '镜像大小，单位：byte',
     layer           longtext        not null comment '层级信息序列化后的数据',
+    layer_str       longtext        not null,
     build_at        bigint unsigned not null default 0 comment '镜像build时间戳，单位：毫秒',
     `user`          varchar(300)    not null default '' comment '启动用户',
     flag            bigint unsigned not null default 0 comment '每一个二进制位标识一种类型的值',
@@ -22,12 +23,15 @@ create table if not exists ivan_scan_image_meta
     node_id         bigint unsigned not null default 0 comment '该镜像所在的节点uniqueId',
     project         varchar(200)    not null default '',
     heartbeat       bigint unsigned not null default 0,
+    pull_count      bigint unsigned not null default 0,
     created_at      bigint unsigned not null default 0,
     updated_at      bigint unsigned not null default 0,
 
     primary key (id),
     unique index unq_idx_unique (unique_id),
     index idx_image_flag (image_from_type, flag),
+    index idx_reg_id (reg_id, flag),
+    index idx_node_id (node_id, flag),
     index idx_image_project (image_from_type, project),
     index idx_image_name (image_from_type, image_name)
 );

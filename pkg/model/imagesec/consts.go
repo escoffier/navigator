@@ -17,26 +17,18 @@ const (
 	ImageFromCI       string = "ci"
 	ImageFromNode     string = "node"
 	ImageFromRegistry string = "registry"
+	ImageFromDeploy   string = "deploy"
 )
 
 const (
 	DetectScopeTypeCluster = "cluster"
+	DetectScopeTypeReg     = "registry"
 	DetectScopeTypeImage   = "image"
 )
 
-// ci暂时不整合
-func CheckImageFromType(imageFromType string) error {
-	switch imageFromType {
-	case ImageFromRegistry, ImageFromNode, ImageFromCI:
-		return nil
-	}
-	return fmt.Errorf("incorrect image type:%s", imageFromType)
-
-}
-
 func (vi ImageFromType) Check() error {
 	switch vi.String() {
-	case ImageFromRegistry, ImageFromNode, ImageFromCI:
+	case ImageFromRegistry, ImageFromNode, ImageFromCI, ImageFromDeploy:
 		return nil
 	}
 	return fmt.Errorf("incorrect image type:%s", vi)
@@ -50,8 +42,8 @@ const (
 	UniquePkgFormat       = "%s-%s-%s-%s"
 	UniqueEnvFormat       = "%d-%s-%s-%s"
 	UniqueWebshellFormat  = "%s-%s"
-	UniqueLibImageFormat  = "%d-%s-%s-%s"    // RegID+ImageName+Digest+ImageFromType
-	UniqueNodeImageFormat = "%d-%s-%s-%s-%s" // NodeID+ImageName+Digest+ImageID+ImageFromType
+	UniqueLibImageFormat  = "%d-%s-%s-%s"    // RegID+Image+Digest+ImageFromType
+	UniqueNodeImageFormat = "%d-%s-%s-%s-%s" // NodeID+Image+Digest+ImageID+ImageFromType
 )
 
 const (
@@ -73,12 +65,12 @@ const (
 )
 
 const (
-	VulnFlagKernelPkg    = iota // 内核软件包
+	VulnFlagKernel       = iota // 内核软件包
 	VulnFlagClassOSPkg          // 系统包(trivy扫描的)
 	VulnFlagClassLangPkg        // 应用包
 	VulnFlagClassConfig         // 配置文件
 	VulnFlagHasFixed            // 可修复
-	VulnFlagAppPkg              // 应用软件包，节点镜像时新增，所以没有按顺序
+	VulnFlagNotKernel           // 应用软件包，节点镜像时新增，所以没有按顺序
 	VulnFlagNoFixed             // 不可修复
 
 	// 攻击位置难易
@@ -116,7 +108,7 @@ const (
 	CVSSFlagPRL // 低
 	CVSSFlagPRH // 高
 
-	OnlineVuln = 28 // 在线镜像的漏洞
+	VulnFlagOnlineImage = 28 // 在线镜像的漏洞
 )
 
 const (
@@ -136,9 +128,12 @@ const (
 )
 
 const (
-	DetectPriorityScan         = 100
-	DetectPriorityPolicyChange = 99
-	DetectPriorityCycle        = 98
+	DetectPriorityScan          = 100
+	DetectPriorityPolicyCreate  = 99
+	DetectPriorityPolicyUpdate  = 98
+	DetectPriorityPolicyDelete  = 97
+	DetectPriorityDefaultPolicy = 96
+	DetectPriorityCycle         = 95
 )
 
 const (
@@ -165,6 +160,8 @@ const (
 	TaskStatusFailedStr         = "failed"       // 失败
 	TaskStatusSendFinishedStr   = "sendFinished" //  发送完成
 	TaskStatusDetectFinishedStr = "finished"     //  扫描完成，检测也完成
+
+	TaskStatusImageSyncFinishedStr = "finished" //  镜像同步完成
 )
 
 var scanStatusToStrMap map[int64]string
@@ -206,13 +203,15 @@ func ScanStatusStrToInt(st string) int64 {
 }
 
 const (
-	TaskFailedReasonTimeout         = "timeout"        // 超时
-	TaskFailedReasonSaveData        = "saveData"       // 保存数据出错
-	TaskFailedReasonScanner         = "scanFailed"     // 扫描出器
-	TaskFailedReasonSendNode        = "notSendToNode"  // 未发送到扫描节点
-	TaskFailedReasonNotFindImage    = "notFindImage"   // 未找到对应的镜像
-	TaskFailedReasonNotFindNodeInfo = "notFindNode"    // 未找到对应的节点
-	TaskFailedTerminated            = "taskTerminated" // 任务已被终止
+	TaskFailedReasonTimeout         = "timeout"             // 超时
+	TaskFailedReasonSaveData        = "saveData"            // 保存数据出错
+	TaskFailedReasonScanner         = "scanFailed"          // 扫描出器
+	TaskFailedReasonSendNode        = "notSendToNode"       // 未发送到扫描节点
+	TaskFailedReasonSendScanner     = "notSendToScanner"    // 未发送到扫描的scanner
+	TaskFailedReasonNotFindImage    = "notFindImage"        // 未找到对应的镜像
+	TaskFailedReasonNotFindNodeInfo = "notFindNode"         // 未找到对应的节点
+	TaskFailedReasonNotFindScanner  = "notFindScanInstance" // 未找到对应的扫描器
+	TaskFailedTerminated            = "taskTerminated"      // 任务已被终止
 )
 
 var taskReasonEN map[string]string
@@ -225,8 +224,10 @@ func GetTaskReason(reason, lang string) string {
 			TaskFailedReasonSaveData:        "保存数据出错",
 			TaskFailedReasonScanner:         "扫描出错",
 			TaskFailedReasonSendNode:        "未发送到扫描节点",
+			TaskFailedReasonSendScanner:     "未发送到扫描器",
 			TaskFailedReasonNotFindImage:    "未找到对应镜像",
 			TaskFailedReasonNotFindNodeInfo: "未找到对应节点",
+			TaskFailedReasonNotFindScanner:  "未找到对应的扫描器",
 			TaskFailedTerminated:            "任务被终止",
 		}
 	}
@@ -237,8 +238,10 @@ func GetTaskReason(reason, lang string) string {
 			TaskFailedReasonSaveData:        "can not save scan data",
 			TaskFailedReasonScanner:         "scan fail",
 			TaskFailedReasonSendNode:        "can send scan task to node",
+			TaskFailedReasonSendScanner:     "can send scan task to scanner",
 			TaskFailedReasonNotFindImage:    "can not find image",
 			TaskFailedReasonNotFindNodeInfo: "can not find node",
+			TaskFailedReasonNotFindScanner:  "can not find scanner",
 			TaskFailedTerminated:            "task terminated",
 		}
 	}
@@ -266,6 +269,8 @@ const (
 
 const (
 	ConfigTypeNodeScanImage = "nodeImage"
+	ConfigTypeRegScanImage  = "regImage"
+	ConfigTypeDeploy        = "deploy"
 )
 
 const (
@@ -287,4 +292,33 @@ const (
 	DBMetaTypeWebshell = "webshell"
 	DBMetaTypeClamav   = "clamav"
 	DBMetaTypeAvira    = "avira"
+)
+
+const (
+	AliAcrVersion           = "ali-acr"
+	AliAcrEEVersion         = "ali-acr-ee"
+	DockerRegistryV2Version = "registry-v2"
+	HarborV1Version         = "harbor-v1.0"
+	HarborV2Version         = "harbor-v2.0"
+	HarborVersion           = "harbor" // 前端不再区分v1,v2
+	HaiWeiSwrVersion        = "hw-swr"
+	HaiWeiSwrENVersion      = "hw-swr-en"
+	JfrogVersion            = "jfrog"
+)
+
+type SyncType string
+
+func (s SyncType) String() string {
+	return string(s)
+}
+
+const (
+	TimingFullSync SyncType = "TimingFullSync"
+	CycleFullSync  SyncType = "CycleFullSync"
+	CycleIncSync   SyncType = "CycleIncSync"
+	ManualSync     SyncType = "ManualSync"
+)
+const (
+	RegAbnormal = "abnormal" // 仓库异常
+	RegNormal   = "normal"   // 仓库正常
 )

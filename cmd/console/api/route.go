@@ -2,21 +2,24 @@ package api
 
 import (
 	"context"
+
+	"gitlab.com/security-rd/go-pkg/translate"
+
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/assets"
+	"gitlab.com/piccolo_su/vegeta/pkg/audit"
 	"gitlab.com/piccolo_su/vegeta/pkg/echelper"
 	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
-	"gitlab.com/security-rd/go-pkg/translate"
 
 	"github.com/go-chi/chi"
 	"github.com/go-redis/redis/v8"
-	"gitlab.com/piccolo_su/vegeta/pkg/middleware"
-	"gitlab.com/piccolo_su/vegeta/pkg/token"
 	"gitlab.com/security-rd/go-pkg/databases"
 	"gitlab.com/security-rd/go-pkg/elastic"
 	"gitlab.com/security-rd/go-pkg/logging"
 
+	"gitlab.com/piccolo_su/vegeta/pkg/middleware"
+	"gitlab.com/piccolo_su/vegeta/pkg/token"
+
 	"gitlab.com/piccolo_su/vegeta/pkg/api/apikey"
-	"gitlab.com/piccolo_su/vegeta/pkg/audit"
 	"gitlab.com/piccolo_su/vegeta/pkg/harbor"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
 )

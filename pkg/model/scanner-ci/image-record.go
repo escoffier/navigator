@@ -46,8 +46,10 @@ func (vl VulnLists) Swap(i, j int) {
 }
 
 type PkgList struct {
+	Pkg        string `json:"-"`
 	PkgName    string
 	PkgVersion string
+	UniqueVuln []uint64
 	Histogram  model.SeverityHistogramInfo
 }
 

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/google/go-containerregistry/pkg/name"
+
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 
 	json "github.com/json-iterator/go"

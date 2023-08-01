@@ -9,13 +9,16 @@ import (
 	"strings"
 	"time"
 
-	"gitlab.com/piccolo_su/vegeta/pkg/assets"
-	"gitlab.com/piccolo_su/vegeta/pkg/model"
-	"gitlab.com/piccolo_su/vegeta/pkg/request"
-	"gitlab.com/piccolo_su/vegeta/pkg/util"
 	"gitlab.com/security-rd/go-pkg/logging"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
+
+	"gitlab.com/piccolo_su/vegeta/pkg/assets"
+	"gitlab.com/piccolo_su/vegeta/pkg/model"
+	"gitlab.com/piccolo_su/vegeta/pkg/request"
+
+	"gitlab.com/piccolo_su/vegeta/pkg/model/imagesec"
+	"gitlab.com/piccolo_su/vegeta/pkg/util"
 )
 
 func updateDriftVersionStamp(tx *gorm.DB, config *model.TensorConfig) error {
@@ -534,9 +537,10 @@ func GetImageID(ctx context.Context, rdb *gorm.DB, ids uint32) ([]int64, error) 
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 	res := []int64{}
+	reg := &imagesec.Registry{}
 	err := rdb.Table(fmt.Sprintf("%s AS t", model.ImageList{}.TableName())).
 		WithContext(ctx).
-		Joins(fmt.Sprintf("JOIN  %s AS s on t.registry_id=s.id", model.Registry{}.TableName())).
+		Joins(fmt.Sprintf("JOIN  %s AS s on t.registry_id=s.id", reg.TableName())).
 		Where("t.image_uuid = ? and deleted_at=0", ids).Select("t.id").Find(&res).Error
 	if err != nil {
 		return nil, err

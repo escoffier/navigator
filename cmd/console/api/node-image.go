@@ -35,6 +35,9 @@ func (api *api) NodeImage() func(chi.Router) {
 		r.Get("/images/webshell/detail", api.NodeImageRedirectToScanner())
 		r.Get("/images/webshell/content", api.NodeImageRedirectToScanner())
 		r.Get("/images/webshell/file", api.NodeImageRedirectToScanner())
+		r.Get("/images/sensitive/file", api.NodeImageRedirectToScanner())
+		r.Get("/images/malware/file", api.NodeImageRedirectToScanner())
+		r.Get("/images/license/file", api.NodeImageRedirectToScanner())
 		// 安全策略及镜像检测
 		r.Post("/security/detect/policy", api.NodeImageRedirectToScanner())
 		r.Delete("/security/detect/policy", api.NodeImageRedirectToScanner())

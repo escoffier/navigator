@@ -2,17 +2,18 @@ package imagesec
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
 
 	"gitlab.com/security-rd/go-pkg/databases"
+	"gitlab.com/security-rd/go-pkg/logging"
 	"gorm.io/gorm"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	imagesecModel "gitlab.com/piccolo_su/vegeta/pkg/model/imagesec"
-	"gitlab.com/piccolo_su/vegeta/pkg/util"
 )
 
 // 镜像扫描结果
@@ -32,9 +33,18 @@ type ScanResultDal interface {
 	// 环境变量
 	CreateImageEnv(ctx context.Context, imageID uint64, data []*imagesecModel.ImageEnv) error
 	SearchImageEnv(ctx context.Context, param imagesecModel.ScanResultSearchParam) ([]*imagesecModel.ImageEnv, int64, error)
+
+	// License
+	CreateLicense(ctx context.Context, data []*imagesecModel.License) error
+	SearchLicense(ctx context.Context, param imagesecModel.ScanResultSearchParam) ([]*imagesecModel.License, int64, error)
+
 	// 漏洞
-	CreateVuln(ctx context.Context, data []*imagesecModel.Vuln) error
-	SearchVuln(ctx context.Context, param imagesecModel.ApiSearchVulnParam) ([]*imagesecModel.Vuln, int64, error)
+	CreateVuln(ctx context.Context, param imagesecModel.CreateVulnParam) error
+	SearchVuln(ctx context.Context, param imagesecModel.SearchVulnDalParam) ([]*imagesecModel.Vuln, int64, error)
+	CreateVulnPkg(ctx context.Context, data2 []*imagesecModel.VulnToPkg) error
+	DeleteOnlineVuln(ctx context.Context, data2 []uint64) error
+
+	CreateWebFrameInfo(ctx context.Context, imageUuid uint32, data []model.WebFrameInfo) error
 }
 
 type ScanResultDao struct {
@@ -45,11 +55,15 @@ func NewScanResultDao(db *databases.RDBInstance) *ScanResultDao {
 	return &ScanResultDao{db: db}
 }
 
-func (dal *ScanResultDao) CreateMalware(ctx context.Context, data []*imagesecModel.Malware) error {
-	for i := range data {
-		if err := data[i].Check(); err != nil {
-			return err
+func (dal *ScanResultDao) CreateMalware(ctx context.Context, data2 []*imagesecModel.Malware) error {
+	data := make([]*imagesecModel.Malware, 0)
+
+	for i := range data2 {
+		if err := data2[i].Check(); err != nil {
+			logging.Get().Err(err).Str("module", "imagescan").Interface("malware", data2[i]).Msg("CreateMalware")
+			continue
 		}
+		data = append(data, data2[i])
 	}
 
 	uniqueIds := make([]uint64, 0)
@@ -101,7 +115,7 @@ func (dal *ScanResultDao) CreateMalware(ctx context.Context, data []*imagesecMod
 
 	if len(deleteData) > 0 {
 		if err := dal.db.Get().WithContext(ctx).Table(tableName).Where("id IN  ? ", deleteData).
-			Delete(&model.ImageVirus{}).Error; err != nil {
+			Delete(&imagesecModel.Malware{}).Error; err != nil {
 			return err
 		}
 	}
@@ -118,7 +132,8 @@ func (dal *ScanResultDao) CreateMalware(ctx context.Context, data []*imagesecMod
 	return nil
 }
 
-func (dal *ScanResultDao) SearchMalware(ctx context.Context, param imagesecModel.ScanResultSearchParam) ([]*imagesecModel.Malware, int64, error) {
+func (dal *ScanResultDao) SearchMalware(ctx context.Context, param imagesecModel.ScanResultSearchParam) (
+	[]*imagesecModel.Malware, int64, error) {
 	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*10)
 	defer cancelFunc()
 
@@ -162,18 +177,23 @@ func (dal *ScanResultDao) SearchMalware(ctx context.Context, param imagesecModel
 	return res, cnt, nil
 }
 
-func (dal *ScanResultDao) CreateWebshell(ctx context.Context, data []*imagesecModel.Webshell) error {
-	for i := range data {
-		if err := data[i].Check(); err != nil {
-			return err
-		}
-		data[i].Serialize()
-	}
+func (dal *ScanResultDao) CreateWebshell(ctx context.Context, data2 []*imagesecModel.Webshell) error {
 
+	data := make([]*imagesecModel.Webshell, 0)
+
+	for i := range data2 {
+		data2[i].Serialize()
+		if err := data2[i].Check(); err != nil {
+			logging.Get().Err(err).Str("module", "imagescan").Interface("webshell", data2[i]).Msg("CreateWebshell")
+			continue
+		}
+		data = append(data, data2[i])
+	}
 	uniqueIds := make([]uint64, 0)
 	for i := range data {
-		uniqueIds = append(uniqueIds, data[i].UniqueID)
+		uniqueIds = append(uniqueIds, data[i].GenUniqueID())
 	}
+
 	if len(data) == 0 || len(uniqueIds) == 0 {
 		return nil
 	}
@@ -219,7 +239,7 @@ func (dal *ScanResultDao) CreateWebshell(ctx context.Context, data []*imagesecMo
 
 	if len(deleteData) > 0 {
 		if err := dal.db.Get().WithContext(ctx).Table(tableName).Where("id IN  ? ", deleteData).
-			Delete(&model.ImageVirus{}).Error; err != nil {
+			Delete(&imagesecModel.Webshell{}).Error; err != nil {
 			return err
 		}
 	}
@@ -236,7 +256,8 @@ func (dal *ScanResultDao) CreateWebshell(ctx context.Context, data []*imagesecMo
 	return nil
 }
 
-func (dal *ScanResultDao) SearchWebshell(ctx context.Context, param imagesecModel.ScanResultSearchParam) ([]*imagesecModel.Webshell, int64, error) {
+func (dal *ScanResultDao) SearchWebshell(ctx context.Context, param imagesecModel.ScanResultSearchParam) (
+	[]*imagesecModel.Webshell, int64, error) {
 	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*10)
 	defer cancelFunc()
 
@@ -278,11 +299,14 @@ func (dal *ScanResultDao) SearchWebshell(ctx context.Context, param imagesecMode
 	return res, cnt, nil
 }
 
-func (dal *ScanResultDao) CreateSensitive(ctx context.Context, data []*imagesecModel.SensitiveFile) error {
-	for i := range data {
-		if err := data[i].Check(); err != nil {
-			return err
+func (dal *ScanResultDao) CreateSensitive(ctx context.Context, data2 []*imagesecModel.SensitiveFile) error {
+	data := make([]*imagesecModel.SensitiveFile, 0)
+	for i := range data2 {
+		if err := data2[i].Check(); err != nil {
+			logging.Get().Err(err).Str("module", "imagescan").Interface("sensitive", data2[i]).Msg("CreateSensitive")
+			continue
 		}
+		data = append(data, data2[i])
 	}
 
 	uniqueIds := make([]uint64, 0)
@@ -334,7 +358,7 @@ func (dal *ScanResultDao) CreateSensitive(ctx context.Context, data []*imagesecM
 
 	if len(deleteData) > 0 {
 		if err := dal.db.Get().WithContext(ctx).Table(tableName).Where("id IN  ? ", deleteData).
-			Delete(&model.Sensitive{}).Error; err != nil {
+			Delete(&imagesecModel.SensitiveFile{}).Error; err != nil {
 			return err
 		}
 	}
@@ -351,7 +375,8 @@ func (dal *ScanResultDao) CreateSensitive(ctx context.Context, data []*imagesecM
 	return nil
 }
 
-func (dal *ScanResultDao) SearchSensitive(ctx context.Context, param imagesecModel.ScanResultSearchParam) ([]*imagesecModel.SensitiveFile, int64, error) {
+func (dal *ScanResultDao) SearchSensitive(ctx context.Context, param imagesecModel.ScanResultSearchParam) (
+	[]*imagesecModel.SensitiveFile, int64, error) {
 	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*10)
 	defer cancelFunc()
 
@@ -364,7 +389,7 @@ func (dal *ScanResultDao) SearchSensitive(ctx context.Context, param imagesecMod
 	}
 
 	if param.Keyword != "" {
-		db = db.Where("name LIKE ? ", fmt.Sprintf("%%%s%%", param.Keyword))
+		db = db.Where("filename LIKE ? ", fmt.Sprintf("%%%s%%", param.Keyword))
 	}
 	// 查单个镜像
 	if param.ImageUniqueID > 0 {
@@ -387,15 +412,24 @@ func (dal *ScanResultDao) SearchSensitive(ctx context.Context, param imagesecMod
 	if err := db.Find(&res).Error; err != nil {
 		return nil, 0, err
 	}
+	for i := range res {
+		res[i].Deserialize()
+	}
+
 	return res, cnt, nil
 }
 
-func (dal *ScanResultDao) CreatePkg(ctx context.Context, data []*imagesecModel.Pkg) error {
-	for i := range data {
-		data[i].Serialize()
-		if err := data[i].Check(); err != nil {
-			return err
+func (dal *ScanResultDao) CreatePkg(ctx context.Context, data2 []*imagesecModel.Pkg) error {
+
+	data := make([]*imagesecModel.Pkg, 0)
+
+	for i := range data2 {
+		data2[i].Serialize()
+		if err := data2[i].Check(); err != nil {
+			logging.Get().Err(err).Str("module", "imagescan").Interface("pkg", data2[i]).Msg("CreatePkg")
+			continue
 		}
+		data = append(data, data2[i])
 	}
 
 	uniqueIds := make([]uint64, 0)
@@ -464,7 +498,8 @@ func (dal *ScanResultDao) CreatePkg(ctx context.Context, data []*imagesecModel.P
 	return nil
 }
 
-func (dal *ScanResultDao) SearchPkg(ctx context.Context, param imagesecModel.ScanResultSearchParam) ([]*imagesecModel.Pkg, int64, error) {
+func (dal *ScanResultDao) SearchPkg(ctx context.Context, param imagesecModel.ScanResultSearchParam) (
+	[]*imagesecModel.Pkg, int64, error) {
 	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*10)
 	defer cancelFunc()
 
@@ -476,13 +511,17 @@ func (dal *ScanResultDao) SearchPkg(ctx context.Context, param imagesecModel.Sca
 		db = db.Where("unique_id IN ?", param.UniqueIds)
 	}
 
-	if param.ExceptionPkg == consts.TrueString {
-
-	}
 	if param.Keyword != "" {
-		db = db.Where("name LIKE ? OR version LIKE ? ", fmt.Sprintf("%%%s%%", param.Keyword),
-			fmt.Sprintf("%%%s%%", param.Keyword))
+		db = db.Where("name LIKE ? OR version LIKE ? OR license LIKE ?", fmt.Sprintf("%%%s%%", param.Keyword),
+			fmt.Sprintf("%%%s%%", param.Keyword), fmt.Sprintf("%%%s%%", param.Keyword))
 	}
+	if param.VulnName != "" {
+		ov := imagesecModel.VulnToPkg{}
+		sub := dal.db.Get().WithContext(ctx).Table(ov.TableName()).
+			Select("pkg_unique_id").Where("vuln_name = ?", param.VulnName)
+		db = db.Where("unique_id IN ( ? )", sub)
+	}
+
 	// 查单个镜像
 	if param.ImageUniqueID > 0 {
 		sub := dal.db.Get().WithContext(ctx).Table(issueTableName).
@@ -510,18 +549,22 @@ func (dal *ScanResultDao) SearchPkg(ctx context.Context, param imagesecModel.Sca
 	return res, cnt, nil
 }
 
-func (dal *ScanResultDao) CreateImageEnv(ctx context.Context, imageID uint64, data []*imagesecModel.ImageEnv) error {
+func (dal *ScanResultDao) CreateImageEnv(ctx context.Context, imageID uint64, data2 []*imagesecModel.ImageEnv) error {
+	data := make([]*imagesecModel.ImageEnv, 0)
+	for i := range data2 {
+		if err := data2[i].Check(); err != nil {
+			logging.Get().Err(err).Str("module", "imagescan").Interface("env", data2[i]).Msg("CreateImageEnv")
+			continue
+		}
+		data = append(data, data2[i])
+	}
 	if len(data) == 0 {
 		return nil
-	}
-	for i := range data {
-		if err := data[i].Check(); err != nil {
-			return err
-		}
 	}
 
 	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*20)
 	defer cancelFunc()
+
 	tableName := data[0].TableName()
 	dbPre := make([]*imagesecModel.ImageEnv, 0)
 	if err := dal.db.Get().Table(tableName).Where("image_unique_id = ?", imageID).Find(&dbPre).Error; err != nil {
@@ -559,7 +602,7 @@ func (dal *ScanResultDao) CreateImageEnv(ctx context.Context, imageID uint64, da
 	}
 
 	if len(deleteData) > 0 {
-		if err := dal.db.Get().WithContext(ctx).Table(tableName).Where("id IN  ? ", deleteData).Delete(&model.ImageEnv{}).Error; err != nil {
+		if err := dal.db.Get().WithContext(ctx).Table(tableName).Where("id IN  ? ", deleteData).Delete(&imagesecModel.ImageEnv{}).Error; err != nil {
 			return err
 		}
 	}
@@ -575,7 +618,8 @@ func (dal *ScanResultDao) CreateImageEnv(ctx context.Context, imageID uint64, da
 	return nil
 }
 
-func (dal *ScanResultDao) SearchImageEnv(ctx context.Context, param imagesecModel.ScanResultSearchParam) ([]*imagesecModel.ImageEnv, int64, error) {
+func (dal *ScanResultDao) SearchImageEnv(ctx context.Context, param imagesecModel.ScanResultSearchParam) (
+	[]*imagesecModel.ImageEnv, int64, error) {
 
 	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*10)
 	defer cancelFunc()
@@ -610,13 +654,22 @@ func (dal *ScanResultDao) SearchImageEnv(ctx context.Context, param imagesecMode
 	return res, cnt, nil
 }
 
-func (dal *ScanResultDao) CreateVuln(ctx context.Context, data []*imagesecModel.Vuln) error {
+func (dal *ScanResultDao) CreateLicense(ctx context.Context, data2 []*imagesecModel.License) error {
+
+	data := make([]*imagesecModel.License, 0)
+
+	for i := range data2 {
+		data2[i].Serialize()
+		if err := data2[i].Check(); err != nil {
+			logging.Get().Err(err).Str("module", "imagescan").Interface("license", data2[i]).Msg("CreateLicense")
+			continue
+		}
+		data = append(data, data2[i])
+	}
 
 	uniqueIds := make([]uint64, 0)
 	for i := range data {
-		data[i].UniqueID = data[i].GenUniqueID()
 		uniqueIds = append(uniqueIds, data[i].UniqueID)
-		data[i].Serialize()
 	}
 	if len(data) == 0 || len(uniqueIds) == 0 {
 		return nil
@@ -626,12 +679,12 @@ func (dal *ScanResultDao) CreateVuln(ctx context.Context, data []*imagesecModel.
 	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*1000)
 	defer cancelFunc()
 
-	dbPre, _, err := dal.SearchVuln(ctx, imagesecModel.ApiSearchVulnParam{VulnUniqueIds: uniqueIds})
+	dbPre, _, err := dal.SearchLicense(ctx, imagesecModel.ScanResultSearchParam{UniqueIds: uniqueIds})
 	if err != nil {
 		return err
 	}
 
-	createData := make([]*imagesecModel.Vuln, 0)
+	createData := make([]*imagesecModel.License, 0)
 	deleteData := make([]int64, 0)
 
 	// find need delete data
@@ -663,7 +716,7 @@ func (dal *ScanResultDao) CreateVuln(ctx context.Context, data []*imagesecModel.
 
 	if len(deleteData) > 0 {
 		if err := dal.db.Get().WithContext(ctx).Table(tableName).Where("id IN  ? ", deleteData).
-			Delete(&model.Sensitive{}).Error; err != nil {
+			Delete(&imagesecModel.License{}).Error; err != nil {
 			return err
 		}
 	}
@@ -680,17 +733,192 @@ func (dal *ScanResultDao) CreateVuln(ctx context.Context, data []*imagesecModel.
 	return nil
 }
 
-func (dal *ScanResultDao) SearchVuln(ctx context.Context, param imagesecModel.ApiSearchVulnParam) ([]*imagesecModel.Vuln, int64, error) {
+func (dal *ScanResultDao) SearchLicense(ctx context.Context, param imagesecModel.ScanResultSearchParam) (
+	[]*imagesecModel.License, int64, error) {
+	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*10)
+	defer cancelFunc()
+
+	scanModel, issueModel := &imagesecModel.License{}, &imagesecModel.LicenseToImage{}
+	scanTableName, issueTableName := scanModel.TableName(), issueModel.TableName()
+
+	db := dal.db.Get().WithContext(ctx).Table(scanTableName)
+
+	if len(param.UniqueIds) > 0 {
+		db = db.Where("unique_id IN ?", param.UniqueIds)
+	}
+
+	if param.Keyword != "" {
+		db = db.Where("filename LIKE ? ", fmt.Sprintf("%%%s%%", param.Keyword))
+	}
+
+	if len(param.LicenseSearch) > 0 {
+		db = db.Where("name IN  ?  ", param.LicenseSearch)
+	}
+	// 查单个镜像
+	if param.ImageUniqueID > 0 {
+		sub := dal.db.Get().WithContext(ctx).Table(issueTableName).
+			Select("distinct unique_target").Where("image_unique_id = ?", param.ImageUniqueID)
+		// 查镜像的层级
+		if param.LayerDigest != "" {
+			sub = sub.Where("layer_digest = ?", param.LayerDigest)
+		}
+
+		db = db.Where("unique_id IN ( ? )", sub)
+	}
+	if len(param.Fields) > 0 {
+		db = db.Select(param.Fields)
+	}
+	res := make([]*imagesecModel.License, 0)
+	var cnt int64
+	if err := db.Count(&cnt).Error; err != nil {
+		return nil, 0, err
+	}
+	db = model.AddFilter(db, param.Filter)
+
+	if err := db.Find(&res).Error; err != nil {
+		return nil, 0, err
+	}
+
+	for i := range res {
+		res[i].Deserialize()
+	}
+
+	return res, cnt, nil
+}
+
+func (dal *ScanResultDao) CreateVuln(ctx context.Context, param imagesecModel.CreateVulnParam) error {
+
+	pkgVuln := make([]*imagesecModel.VulnToPkg, 0)
+
+	data2 := param.Data
+
+	data := make([]*imagesecModel.Vuln, 0)
+	for i := range data2 {
+		vu := data2[i]
+		vu.Serialize()
+		if err := vu.Check(); err != nil {
+			logging.Get().Err(err).Str("module", "imagescan").Str("vulnName", vu.Name).Msg("CreateVuln")
+			continue
+		}
+
+		if param.OnlineVuln {
+			vu = vu.GenOnlineVuln()
+		}
+		data = append(data, vu)
+	}
+
+	uniqueIds := make([]uint64, 0)
+	vulnNames := make([]string, 0)
+	for i := range data {
+		if param.OnlineVuln {
+			vulnNames = append(vulnNames, data[i].Name)
+		} else {
+			uniqueIds = append(uniqueIds, data[i].UniqueID)
+		}
+		pv := &imagesecModel.VulnToPkg{
+			VulnName:    data[i].Name,
+			PkgUniqueID: data[i].PkgUniqueID,
+		}
+
+		pkgVuln = append(pkgVuln, pv)
+	}
+	if len(data) == 0 {
+		return nil
+	}
+	mo := imagesecModel.Vuln{OnlineVuln: param.OnlineVuln}
+
+	tableName := mo.TableName()
+
+	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*1000)
+	defer cancelFunc()
+
+	dbPre, _, err := dal.SearchVuln(ctx, imagesecModel.SearchVulnDalParam{
+		OnlineVuln:    param.OnlineVuln,
+		VulnUniqueIds: uniqueIds,
+		VulnNames:     vulnNames,
+	})
+	if err != nil {
+		return err
+	}
+
+	createData := make([]*imagesecModel.Vuln, 0)
+	deleteData := make([]int64, 0)
+
+	// find need delete data
+	for i := range dbPre {
+		needDelete := false
+		for j := range data {
+			if data[j].UniqueID == dbPre[i].UniqueID && !dbPre[i].Same(data[j]) {
+				needDelete = true
+				break
+			}
+		}
+		if needDelete {
+			deleteData = append(deleteData, dbPre[i].ID)
+		}
+	}
+	// find need create
+	for i := range data {
+		needCreate := true
+		for j := range dbPre {
+			if data[i].UniqueID == dbPre[j].UniqueID && data[i].Same(dbPre[j]) {
+				needCreate = false
+				break
+			}
+		}
+		if needCreate {
+			createData = append(createData, data[i])
+		}
+	}
+	logging.Get().Info().Int("deleteData", len(deleteData)).Int("dbPre", len(dbPre)).Int("createData", len(createData)).Int("allVUln", len(data)).Msg("CreateVuln")
+
+	if len(deleteData) > 0 {
+		if err := dal.db.Get().WithContext(ctx).Table(tableName).Where("id IN  ? ", deleteData).
+			Delete(&imagesecModel.SensitiveFile{}).Error; err != nil {
+			return err
+		}
+	}
+	for i := range createData {
+		da := createData[i]
+		if err := dal.db.Get().WithContext(ctx).Table(tableName).Create(da).Error; err != nil {
+			if strings.Contains(err.Error(), consts.DuplicateKey) {
+				continue
+			} else {
+				return err
+			}
+		}
+	}
+
+	// 存入漏洞和软件的关联关系
+	if err := dal.CreateVulnPkg(ctx, pkgVuln); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (dal *ScanResultDao) SearchVuln(ctx context.Context, param imagesecModel.SearchVulnDalParam) (
+	[]*imagesecModel.Vuln, int64, error) {
 	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*30)
 	defer cancelFunc()
 
-	db := dal.db.Get().WithContext(ctx).Table(new(imagesecModel.Vuln).TableName())
+	mo := &imagesecModel.Vuln{OnlineVuln: param.OnlineVuln}
+
+	tableName := mo.TableName()
+
+	db := dal.db.Get().WithContext(ctx).Table(tableName)
 
 	if len(param.VulnUniqueIds) > 0 {
 		db = db.Where("unique_id IN  ?", param.VulnUniqueIds)
 	}
+	if len(param.VulnNames) > 0 {
+		db = db.Where("name IN  ?", param.VulnNames)
+	}
 	if param.VulnUniqueID > 0 {
 		db = db.Where("unique_id =?", param.VulnUniqueID)
+	}
+	if param.LanguageName != "" {
+		// LanguagePath可能为空，前端是区分了这种情况，所以要一起查
+		db = db.Where("`language` = ?", param.LanguageName).Where("target = ?", param.LanguagePath)
 	}
 	if param.VulnId > 0 {
 		db = db.Where("id = ? ", param.VulnId)
@@ -702,20 +930,26 @@ func (dal *ScanResultDao) SearchVuln(ctx context.Context, param imagesecModel.Ap
 		db = db.Omit(param.OmitFields...)
 	}
 
-	if param.OnlineImageVuln == consts.TrueString {
-		// 暂时不用，后期整合时再加
-	}
-
 	if len(param.VulnIds) > 0 {
 		db = db.Where("id IN ?", param.VulnIds)
 	}
-	if param.NeedKernel == consts.FalseString {
-		flag := util.SetBit1(0, imagesecModel.VulnFlagKernelPkg)
-		db = db.Where("flag & ? = 0", flag)
+
+	if param.NeedKernelFlag > 0 {
+		db = db.Where("flag & ? > 0", param.NeedKernelFlag)
 	}
-	if len(param.ClassType) > 0 {
-		db = db.Where("`class` IN ?", param.ClassType)
+
+	if param.CanFixedFlag > 0 {
+		db = db.Where("flag & ? > 0", param.CanFixedFlag)
 	}
+
+	if param.ClassTypeFlag > 0 {
+		db = db.Where("flag & ? > 0", param.ClassTypeFlag)
+	}
+
+	if param.AttackPathFlag > 0 {
+		db = db.Where("flag & ? > 0", param.AttackPathFlag)
+	}
+
 	if param.StartID > 0 {
 		db = db.Where("id > ?", param.StartID)
 	}
@@ -733,18 +967,7 @@ func (dal *ScanResultDao) SearchVuln(ctx context.Context, param imagesecModel.Ap
 	if param.PkgUniqueID > 0 {
 		db = db.Where("pkg_unique_id = ?", param.PkgUniqueID)
 	}
-	if param.PkgName != "" {
-		db = db.Where("pkg_name = ?", param.PkgName)
-	}
-	if param.PkgVersion != "" {
-		db = db.Where("pkg_version = ?", param.PkgVersion)
-	}
-	if param.CanFixed == consts.TrueString || param.CanFixed == consts.YesString {
-		db = db.Where("fixed_version != ''")
-	}
-	if param.CanFixed == consts.FalseString || param.CanFixed == consts.NoString {
-		db = db.Where("fixed_version = ''")
-	}
+
 	if param.PkgKeyword != "" {
 		db = db.Where("pkg_name LIKE ? OR pkg_version LIKE ? ",
 			fmt.Sprintf("%%%s%%", param.PkgKeyword), fmt.Sprintf("%%%s%%", param.PkgKeyword))
@@ -763,7 +986,7 @@ func (dal *ScanResultDao) SearchVuln(ctx context.Context, param imagesecModel.Ap
 			fmt.Sprintf("%%%s%%", param.VulnKeyword))
 	}
 	if len(param.SeverityInt) > 0 {
-		db = db.Where("severity IN  ? ", param.SeverityInt)
+		db = db.Where("severity IN ? ", param.SeverityInt)
 	}
 
 	res := make([]*imagesecModel.Vuln, 0)
@@ -773,7 +996,6 @@ func (dal *ScanResultDao) SearchVuln(ctx context.Context, param imagesecModel.Ap
 		// https://cloud.tencent.com/developer/article/1658068
 		// 一般来说，mysql优化了count(*),count(*)也是性能更好的方式，但是我们环境中count(*)会耗时5s以上，用count(unique_vuln)到是很快，
 		// 没有找到具体原因，后面需要持续关注
-
 		if err := db2.Select("count(unique_id) as cnt").Find(&cnt).Error; err != nil {
 			return nil, 0, err
 		}
@@ -790,6 +1012,96 @@ func (dal *ScanResultDao) SearchVuln(ctx context.Context, param imagesecModel.Ap
 
 	for i := range res {
 		res[i].Deserialize()
+		res[i].OnlineVuln = param.OnlineVuln
 	}
 	return res, cnt, nil
+}
+
+func (dal *ScanResultDao) CreateWebFrameInfo(ctx context.Context, imageUuid uint32, data []model.WebFrameInfo) error {
+	if len(data) == 0 || imageUuid <= 0 {
+		return nil
+	}
+	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*30)
+	defer cancelFunc()
+	tableName := new(model.WebFrameScan).TableName()
+
+	_ = dal.db.Get().WithContext(ctx).Table(tableName).Where("image_uuid = ?", imageUuid).Delete(&model.WebFrameScan{}).Error
+
+	bys, err := json.Marshal(data)
+	if err != nil {
+		return err
+	}
+
+	tmp := model.WebFrameScan{
+		ImageUUID:        imageUuid,
+		WebFrameInfoJSON: bys,
+		WebFrameInfos:    data,
+	}
+	err = dal.db.Get().WithContext(ctx).Table(tableName).Create(&tmp).Error
+	return err
+}
+
+func (dal *ScanResultDao) CreateVulnPkg(ctx context.Context, pkgs []*imagesecModel.VulnToPkg) error {
+
+	if len(pkgs) == 0 {
+		return nil
+	}
+	tableName := pkgs[0].TableName()
+	uniqueIds := make([]uint64, 0)
+	for i := range pkgs {
+		pkgs[i].UniqueID = pkgs[i].GenUniqueID()
+		uniqueIds = append(uniqueIds, pkgs[i].UniqueID)
+	}
+
+	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*1000)
+	defer cancelFunc()
+
+	createData := make([]*imagesecModel.VulnToPkg, 0)
+	dbPre := make([]*imagesecModel.VulnToPkg, 0)
+
+	if err := dal.db.Get().WithContext(ctx).Table(tableName).Where("unique_id IN ?", uniqueIds).Find(&dbPre).Error; err != nil {
+		return err
+	}
+
+	// find need create
+	for i := range pkgs {
+		needCreate := true
+		for j := range dbPre {
+			if dbPre[j].UniqueID == pkgs[i].UniqueID {
+				needCreate = false
+				break
+			}
+		}
+		if needCreate {
+			createData = append(createData, pkgs[i])
+		}
+	}
+
+	for i := range createData {
+		da := createData[i]
+		if err := dal.db.Get().WithContext(ctx).Table(tableName).Create(da).Error; err != nil {
+			if strings.Contains(err.Error(), consts.DuplicateKey) {
+				continue
+			} else {
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+
+func (dal *ScanResultDao) DeleteOnlineVuln(ctx context.Context, data2 []uint64) error {
+	if len(data2) == 0 {
+		return nil
+	}
+	mo := &imagesecModel.Vuln{OnlineVuln: true}
+	tableName := mo.TableName()
+
+	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*1000)
+	defer cancelFunc()
+
+	err := dal.db.Get().WithContext(ctx).Table(tableName).Where("unique_id IN ?", data2).
+		Delete(&imagesecModel.Vuln{OnlineVuln: true}).Error
+	return err
 }

@@ -15,6 +15,8 @@ type VirusInfo struct {
 	FileName  string `json:"filename"`
 	FilePath  string `json:"filepath"`
 	VirusName string `json:"virusname"`
+	Md5       string `json:"md5"`
+	Content   []byte `json:"content"` // 文件内容
 }
 
 // WebShellInfo is the result of webshell detection

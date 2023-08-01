@@ -117,8 +117,8 @@ func (w *Worker) createRegistryClient(username, password, repository, url string
 
 // 	r := ioutil.NopCloser(strings.NewReader("hello world")) // r type is io.ReadCloser
 
-// 	return r, nil
-// }
+//		return r, nil
+//	}
 func (w *Worker) doTask(wg *sync.WaitGroup) {
 
 	errMsg := ""

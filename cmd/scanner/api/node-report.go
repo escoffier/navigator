@@ -23,7 +23,7 @@ func NewNodeReportAPISrv(nodeSrv imagesecSrv.NodeReportService) *NodeReportAPISr
 func (s *NodeReportAPISrv) SearchNode(ctx *gin.Context) {
 	param := imagesecModel.SearchNodeInfoParam{
 		Keyword: util.GetKeywordFromQuery(ctx, "keyword"),
-		Filter:  model.GetFilter(ctx).SetDefault().SetMaxLimit(consts.DefaultLimit),
+		Filter:  model.GetFilter(ctx).SetDefault().SetMaxLimit(consts.DefaultMaxLimit),
 	}
 
 	node, cnt, err := s.nodeSrv.SearchNode(ctx, param)

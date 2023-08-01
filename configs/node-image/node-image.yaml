@@ -7,7 +7,8 @@ report:
   # 发送kafka超时设置
   mq_timeout: 5
   # 镜像白名单.正则匹配命中的镜像将不会上报
-  exclude_image: [ "tensorsecurity/*", "idss" ]
+  #  exclude_image: [ "tensorsecurity/*", "idss" ]
+  exclude_image: [ ]
   # 单节点每批次发送的镜像数
   batch_size: 50
 

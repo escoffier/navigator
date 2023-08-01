@@ -724,7 +724,7 @@ var doc = `{
                 "tags": [
                     "image reject"
                 ],
-                "summary": "ListAppToBaseImage",
+                "summary": "GetAppImages",
                 "parameters": [
                     {
                         "type": "integer",
@@ -777,7 +777,7 @@ var doc = `{
                 "tags": [
                     "image reject"
                 ],
-                "summary": "ListBaseImage",
+                "summary": "GetAllBaseImages",
                 "parameters": [
                     {
                         "type": "string",
@@ -867,7 +867,7 @@ var doc = `{
                 "tags": [
                     "image reject"
                 ],
-                "summary": "ListBaseToAppImage",
+                "summary": "GetBaseImages",
                 "parameters": [
                     {
                         "type": "integer",
@@ -1794,7 +1794,7 @@ var doc = `{
                                                         "item": {
                                                             "allOf": [
                                                                 {
-                                                                    "$ref": "#/definitions/model.VulnOverview"
+                                                                    "$ref": "#/definitions/model.Statistic"
                                                                 },
                                                                 {
                                                                     "type": "object",
@@ -2788,7 +2788,7 @@ var doc = `{
                 }
             }
         },
-        "model.VulnOverview": {
+        "model.Statistic": {
             "type": "object",
             "properties": {
                 "severity": {

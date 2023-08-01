@@ -240,6 +240,18 @@ func DuplicateInt64Slice(va []int64) []int64 {
 	return ans
 }
 
+func DuplicateIntSlice(va []int) []int {
+	exit := make(map[int]struct{})
+	ans := make([]int, 0, len(va))
+	for i := range va {
+		if _, ok := exit[va[i]]; !ok {
+			ans = append(ans, va[i])
+			exit[va[i]] = struct{}{}
+		}
+	}
+	return ans
+}
+
 func DuplicateUint64Slice(va []uint64) []uint64 {
 	exit := make(map[uint64]struct{})
 	ans := make([]uint64, 0, len(va))
@@ -419,14 +431,14 @@ func Unzip(zipFile, destDir, passwd string) error {
 		if f.IsEncrypted() {
 			f.SetPassword(passwd)
 		}
-		fpath := filepath.Join(destDir, f.Name)
+		path := filepath.Join(destDir, f.Name)
 		if f.FileInfo().IsDir() {
-			err = os.MkdirAll(fpath, os.ModePerm)
+			err = os.MkdirAll(path, os.ModePerm)
 			if err != nil {
 				return err
 			}
 		} else {
-			if err = os.MkdirAll(filepath.Dir(fpath), os.ModePerm); err != nil {
+			if err = os.MkdirAll(filepath.Dir(path), os.ModePerm); err != nil {
 				return err
 			}
 
@@ -435,7 +447,7 @@ func Unzip(zipFile, destDir, passwd string) error {
 				return err
 			}
 
-			outFile, err := os.OpenFile(fpath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, f.Mode())
+			outFile, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, f.Mode())
 			if err != nil {
 				_ = inFile.Close()
 				return err
@@ -480,6 +492,8 @@ func CopyFile(src, dst string) (int64, error) {
 
 const (
 	defaultGrpcTimeout = 600
+	GrpcStreamKey      = "scanner-grpc"
+	GrpcFmt            = "%s@%s"
 )
 
 func ImageSecGrpcTimeOut() int64 {
@@ -492,6 +506,16 @@ func ImageSecGrpcTimeOut() int64 {
 		return defaultGrpcTimeout
 	}
 	return int64(val)
+}
+
+// ScannerClusterManagerGrpcStreamKey grpc stream key used for scanner connecting to cluster manager
+func ScannerClusterManagerGrpcStreamKey(clusterKey string) string {
+	return fmt.Sprintf(GrpcFmt, clusterKey, GrpcStreamKey)
+}
+
+// ScannerConsoleGrpcStreamKey grpc stream key used for scanner connecting to console
+func ScannerConsoleGrpcStreamKey() string {
+	return fmt.Sprintf(GrpcFmt, "console", GrpcStreamKey)
 }
 
 func ParseByteSize(b int64) string {
@@ -523,4 +547,58 @@ func GetTimeUnixMilli(ti *time.Time) int64 {
 
 func IsEmpty(str string) bool {
 	return strings.TrimSpace(str) == ""
+}
+
+func SplitUint64(str string) []uint64 {
+	split := strings.Split(str, ",")
+	ans := make([]uint64, 0)
+	for i := range split {
+		ui, _ := strconv.ParseUint(split[i], 10, 64)
+		if ui > 0 {
+			ans = append(ans, ui)
+		}
+	}
+	return ans
+}
+
+func ConnectUint64(uid []uint64) string {
+	if len(uid) == 0 {
+		return ""
+	}
+	ans := make([]string, 0)
+	for i := range uid {
+		u := strconv.FormatUint(uid[i], 10)
+		if u != "" {
+			ans = append(ans, u)
+		}
+	}
+	return strings.Join(ans, ",")
+}
+
+func DaysSinceUnixEpoch(date time.Time) int64 {
+	unixEpoch := time.Date(1970, time.January, 1, 0, 0, 0, 0, time.UTC)
+	duration := date.Sub(unixEpoch)
+
+	days := int64(math.Ceil(duration.Hours() / 24))
+	return days
+}
+
+func HourSinceUnixEpoch(date time.Time) int64 {
+	unixEpoch := time.Date(1970, time.January, 1, 0, 0, 0, 0, time.UTC)
+	duration := date.Sub(unixEpoch)
+
+	hours := int64(math.Ceil(duration.Hours()))
+	return hours
+}
+
+func UnixEpochAddDay(d int64) int64 {
+	unixEpoch := time.Date(1970, time.January, 1, 0, 0, 0, 0, time.UTC)
+	at := unixEpoch.Add(24 * time.Hour * time.Duration(d))
+	return at.UnixMilli()
+}
+
+func UnixEpochAddHour(h int64) int64 {
+	unixEpoch := time.Date(1970, time.January, 1, 0, 0, 0, 0, time.UTC)
+	at := unixEpoch.Add(time.Hour * time.Duration(h))
+	return at.UnixMilli()
 }

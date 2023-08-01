@@ -2,6 +2,7 @@ package imagesec
 
 import (
 	"fmt"
+	"time"
 
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 )
@@ -14,21 +15,21 @@ type NodeInfo struct {
 	Hostname    string `gorm:"column:hostname" json:"hostname"`         // 结点的HostName
 	ClusterKey  string `gorm:"column:cluster_key" json:"clusterKey"`
 	ClusterName string `gorm:"-" json:"clusterName"` // 集群名
-	// todo（liuqiang）下期做
-	// AviraDB     string `gorm:"avira_db" json:"aviraDB"`
-	// ClamavDB    string `gorm:"clamav_db" json:"clamavDB"`
-	// WebshellDB  string `gorm:"webshell_db" json:"webshellDB"`
+	// 下期功能
+	VulnDb     string `gorm:"-"  json:"vulnDb"`
+	AviraDB    string `gorm:"-" json:"aviraDB"`
+	ClamavDB   string `gorm:"-" json:"clamavDB"`
+	WebshellDB string `gorm:"-" json:"webshellDB"`
 
 	CreatedAt int64 `gorm:"autoCreateTime:milli;column:created_at" json:"createdAt"` // milliseconds
 	UpdatedAt int64 `gorm:"autoUpdateTime:milli;column:updated_at" json:"updatedAt"` // milliseconds
 }
 
 func (vi *NodeInfo) Same(after *NodeInfo) bool {
-	// if vi.UniqueID != after.UniqueID || vi.AviraDB != after.AviraDB || vi.ClamavDB != after.ClamavDB ||
-	// 	vi.WebshellDB != after.WebshellDB {
-	// 	return false
-	// }
-	return vi.UniqueID == after.UniqueID
+	if vi.UniqueID != after.UniqueID {
+		return false
+	}
+	return true
 }
 
 func (vi *NodeInfo) TableName() string {
@@ -60,5 +61,55 @@ func (vi *NodeInfo) Check() error {
 
 func (vi *NodeInfo) GenUniqueID() uint64 {
 	key := fmt.Sprintf("%s-%s-%s", vi.IP, vi.Hostname, vi.ClusterKey)
-	return util.GenerateUUID64(key)
+	uid := util.GenerateUUID64(key)
+	vi.UniqueID = uid
+	return uid
+}
+
+type ScannerInstanceInfo struct {
+	ID              int64  `gorm:"id"  json:"id"`
+	ClusterKey      string `gorm:"column:cluster_key" json:"clusterKey"`
+	ClusterName     string `gorm:"column:cluster_name" json:"clusterName"`
+	ScannerPodID    string `gorm:"column:scanner_pod_id" json:"scannerPodID"`      // scanner当前Pod，重新启动改变
+	ScannerInstance string `gorm:"column:scanner_instance" json:"scannerInstance"` // scanner当前实例，重新启动不会改变
+	ScannerVersion  string `gorm:"column:scanner_version" json:"scannerVersion"`   // 扫描器版本号
+	HeartBeatAt     int64  `gorm:"column:heart_beat_at" json:"heartBeatAt"`        // 上报的心跳
+
+	// 下期功能
+	VulnDb     string `gorm:"-"  json:"vulnDb"`
+	AviraDB    string `gorm:"-" json:"aviraDB"`
+	ClamavDB   string `gorm:"-" json:"clamavDB"`
+	WebshellDB string `gorm:"-" json:"webshellDB"`
+}
+
+func (*ScannerInstanceInfo) TableName() string { return "ivan_scanner_instance" }
+
+func (pre *ScannerInstanceInfo) Same(info ScannerInstanceInfo) bool {
+	return pre.ClusterKey == info.ClusterKey &&
+		pre.ClusterName == info.ClusterName &&
+		pre.ScannerPodID == info.ScannerPodID &&
+		pre.ScannerInstance == info.ScannerInstance
+}
+
+func (pre *ScannerInstanceInfo) ToUpdater() map[string]interface{} {
+	updater := map[string]interface{}{
+		"cluster_key":      pre.ClusterKey,
+		"cluster_name":     pre.ClusterName,
+		"scanner_instance": pre.ScannerInstance,
+		"scanner_pod_id":   pre.ScannerPodID,
+		"heart_beat_at":    time.Now().Unix(),
+	}
+	return updater
+}
+
+func (pre *ScannerInstanceInfo) ToHeartBeatAt() map[string]interface{} {
+	updater := map[string]interface{}{
+		"heart_beat_at":   time.Now().Unix(),
+		"scanner_version": pre.ScannerVersion,
+	}
+	return updater
+}
+
+type ScanInstanceParam struct {
+	ScannerInstance string
 }

@@ -180,121 +180,9 @@ type Package struct {
 
 func (Package) TableName() string { return "ivan_scanner_package" }
 
-// Registry Registry表
-type Registry struct {
-	ID              int64  `gorm:"primaryKey" json:"id"`
-	Name            string `gorm:"type:varchar(255);uniqueIndex:uniq_idx_registry_name;priority:1" json:"name"` // 仓库名字,仓库名是仓库的唯一标识,一个仓库名称  对应一个用户
-	RegType         string `gorm:"type:varchar(255);column:reg_type" json:"reg_type"`                           // 仓库类型
-	Url             string `gorm:"type:varchar(255);column:url" json:"url"`                                     // 如:docker.io/v2, quay.io/v2
-	Username        string `gorm:"type:varchar(255);column:username" json:"username"`                           // user for login registry
-	Password        []byte `gorm:"type:blob" json:"-"`                                                          // DES加密
-	PasswordString  string `gorm:"-" json:"password"`
-	Token           string `gorm:"-" json:"token"`
-	Description     string `gorm:"type:varchar(255);column:description"  json:"description"`
-	AuthStr         string `gorm:"-" json:"auth_str"`                         // 用户名和密码加密后的数据，不存入数据库中
-	UseType         int    `gorm:"column:use_type" json:"use_type"`           // 1-用户仓库,2-buf仓库
-	SyncInterval    int64  `gorm:"column:sync_interval" json:"sync_interval"` // 单位：分钟
-	LastSyncAt      int64  `gorm:"column:last_sync_at" json:"last_sync_at"`   // 最后一次同步时间(单位：秒)
-	AccessKey       string `gorm:"access_key" json:"access_key"`              // 阿里云仓库的AccessKey
-	AccessSecret    string `gorm:"access_secret" json:"access_secret"`        // 阿里云仓库的AccessSecret
-	InstanceID      string `gorm:"instance_id" json:"instance_id"`            // 阿里云仓库企业版实例ID
-	RegionID        string `gorm:"region_id" json:"region_id"`                // 阿里云仓库企业版地域ID
-	ScannerInstance string `gorm:"scanner_instance" json:"scanner_instance"`  // 当前仓库所用扫描器
-	Status          string `gorm:"column:status" json:"status"`               // 健康状况
-	HealthMsg       string `gorm:"column:health_msg" json:"health_msg"`       // 不健康时的错误信息
-	HeatBeat        int64  `gorm:"column:heat_beat" json:"heat_beat"`         // 上一次检查时间
-
-	CreatedAt time.Time `gorm:"column:created_at" json:"created_at"`
-	UpdatedAt time.Time `gorm:"column:updated_at" json:"updated_at"`
-	DeletedAt int64     `gorm:"column:deleted_at; default:0;uniqueIndex:uniq_idx_registry_name;priority:2" json:"deleted_at"`
-}
-
-type SyncTask struct {
-	ID         int64  `gorm:"primaryKey" json:"id"`
-	RegistryID int64  `gorm:"column:registry_id" json:"registryID"`
-	SyncType   string `gorm:"column:sync_type" json:"syncType"`
-	Result     string `gorm:"column:result" json:"result"`
-	FinishAt   int64  `gorm:"column:finish_at" json:"finishAt"` // 完成时间
-	CreatedAt  int64  `gorm:"autoCreateTime:milli" json:"createdAt"`
-}
-
-func (*SyncTask) TableName() string {
-	return "ivan_scanner_sync_tasks"
-}
-
 type LabelValue struct {
 	Label string `json:"label"` // 用于前端展示
 	Value string `json:"value"` // 后端逻辑
-}
-
-func (r *Registry) WhetherToStartSync() bool {
-	if r.LastSyncAt == 0 {
-		return true
-	}
-
-	now := time.Now().Unix()
-
-	if r.LastSyncAt/1000+r.SyncInterval*60 < now {
-		return false
-	}
-	return true
-}
-
-func (Registry) TableName() string {
-	return "ivan_scanner_registries"
-}
-
-func GetRegType(lan string) map[string]LabelValue {
-	zh := make(map[string]LabelValue)
-	zh[consts.AliAcrVersion] = LabelValue{Value: consts.AliAcrVersion, Label: "阿里云 ACR 个人版 (公有云)"}
-	zh[consts.AliAcrEEVersion] = LabelValue{Value: consts.AliAcrEEVersion, Label: "阿里云 ACR 企业版 (公有云)"}
-	zh[consts.DockerRegistryV2Version] = LabelValue{Value: consts.DockerRegistryV2Version, Label: "Docker Registry (v2)"}
-	zh[consts.HarborVersion] = LabelValue{Value: consts.HarborVersion, Label: "Harbor"}
-	zh[consts.HaiWeiSwrVersion] = LabelValue{Value: consts.HaiWeiSwrVersion, Label: "华为云 SWR 个人版 (公有云)"}
-	zh[consts.HaiWeiSwrENVersion] = LabelValue{Value: consts.HaiWeiSwrENVersion, Label: "华为云 SWR 企业版 (公有云)"}
-	zh[consts.JfrogVersion] = LabelValue{Value: consts.JfrogVersion, Label: "JFrog Artifactory"}
-
-	en := make(map[string]LabelValue)
-	en[consts.AliAcrVersion] = LabelValue{Value: consts.AliAcrVersion, Label: "Alibaba Cloud Container Registry Personal Edition"}
-	en[consts.AliAcrEEVersion] = LabelValue{Value: consts.AliAcrEEVersion, Label: "Alibaba Cloud Container Registry Enterprise Edition"}
-	en[consts.DockerRegistryV2Version] = LabelValue{Value: consts.DockerRegistryV2Version, Label: "Docker Registry (v2)"}
-	en[consts.HarborVersion] = LabelValue{Value: consts.HarborVersion, Label: "Harbor"}
-	en[consts.HaiWeiSwrVersion] = LabelValue{Value: consts.HaiWeiSwrVersion, Label: "Huawei Cloud SoftWare Repository for Container Personal Edition"}
-	en[consts.HaiWeiSwrENVersion] = LabelValue{Value: consts.HaiWeiSwrENVersion, Label: "Huawei Cloud SoftWare Repository for Container Enterprise Edition"}
-	en[consts.JfrogVersion] = LabelValue{Value: consts.JfrogVersion, Label: "JFrog Artifactory"}
-	if lan == LangEn {
-		return en
-	}
-	return zh
-}
-
-func (r *Registry) FitHarborVersion() {
-	if r.RegType == consts.HarborV1Version || r.RegType == consts.HarborV2Version {
-		r.RegType = consts.HarborVersion
-	}
-}
-
-func (r *Registry) Validate(valTY string) error {
-
-	if strings.Trim(r.Name, " ") == "" {
-		return errors.New("no name")
-	}
-	if strings.Trim(r.Username, " ") == "" {
-		return errors.New("no username")
-	}
-	if strings.Trim(r.PasswordString, " ") == "" {
-		return errors.New("no password")
-	}
-	// FIXME: 这里的增量支持适配代码散落在各处，日后支持的越来越多后是一个隐患。需要重构
-	if r.RegType != consts.HarborV1Version && r.RegType != consts.HarborV2Version && r.RegType != consts.HarborVersion && r.SyncInterval <= 0 {
-		return errors.New("SyncInterval must be larger than 0")
-	}
-	if valTY == consts.ValidateCreate {
-		if r.Url == "" && len([]rune(r.Url)) > 255 {
-			return errors.New("registry address is illegal")
-		}
-	}
-	return nil
 }
 
 // ConfigFile is the configuration file that holds the metadata describing
@@ -471,7 +359,7 @@ type FSLayerV1 struct {
 type HistoryV1 struct {
 	Throwaway       bool              `json:"throwaway"`
 	Created         time.Time         `json:"created"` // "2020-12-22T18:04:24.760519058Z",
-	LayerDegest     string            `json:"id"`
+	LayerDigest     string            `json:"id"`
 	ContainerConfig ContainerConfigV1 `json:"container_config"`
 }
 
@@ -711,6 +599,7 @@ type SubTask struct {
 	HeartBeat  *time.Time `gorm:"heart_beat" json:"heart_beat"`
 	RetryCount int        `gorm:"column:retry_count" json:"retry_count"`
 
+	RegID        int64  `gorm:"-" json:"regID"`
 	FullRepoName string `gorm:"column:full_repo_name" json:"full_repo_name"` // eg:library/redis,may not use,could fetch by image list table
 	Tag          string `gorm:"column:tag" json:"tag"`                       // eg:1.10, may not use
 	Library      string `gorm:"column:library" json:"library"`               // registry name
@@ -808,43 +697,3 @@ func (sri *SyncRetryImage) GenUniqueImage() uint64 {
 }
 
 func (*SyncRetryImage) TableName() string { return "ivan_scanner_sync_retry_image" }
-
-type ScannerInstanceInfo struct {
-	ID              int64  `gorm:"id"  json:"id"`
-	ClusterKey      string `gorm:"cluster_key" json:"clusterKey"`
-	ClusterName     string `gorm:"cluster_name" json:"clusterName"`
-	ScannerPodID    string `gorm:"column:scanner_pod_id" json:"scannerPodID"`    // scanner当前Pod，重新启动改变
-	ScannerInstance string `gorm:"scanner_instance" json:"scannerInstance"`      // scanner当前实例，重新启动不会改变
-	ScannerVersion  string `gorm:"column:scanner_version" json:"scannerVersion"` // 扫描器版本号
-	HeartBeatAt     int64  `gorm:"column:heart_beat_at" json:"heartBeatAt"`      // 上报的心跳
-	CreatedAt       int64  `gorm:"autoUpdateTime:milli" json:"createdAt"`
-	UpdatedAt       int64  `gorm:"autoUpdateTime:milli" json:"updatedAt"`
-}
-
-func (*ScannerInstanceInfo) TableName() string { return "ivan_scanner_instance" }
-
-func (pre *ScannerInstanceInfo) Same(info ScannerInstanceInfo) bool {
-	return pre.ClusterKey == info.ClusterKey &&
-		pre.ClusterName == info.ClusterName &&
-		pre.ScannerPodID == info.ScannerPodID &&
-		pre.ScannerInstance == info.ScannerInstance
-}
-
-func (pre *ScannerInstanceInfo) ToUpdater() map[string]interface{} {
-	updater := map[string]interface{}{
-		"cluster_key":      pre.ClusterKey,
-		"cluster_name":     pre.ClusterName,
-		"scanner_instance": pre.ScannerInstance,
-		"scanner_pod_id":   pre.ScannerPodID,
-		"heart_beat_at":    time.Now().Unix(),
-	}
-	return updater
-}
-
-func (pre *ScannerInstanceInfo) ToHeartBeatAt() map[string]interface{} {
-	updater := map[string]interface{}{
-		"heart_beat_at":   time.Now().Unix(),
-		"scanner_version": pre.ScannerVersion,
-	}
-	return updater
-}

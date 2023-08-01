@@ -24,7 +24,7 @@ func (c *CleanService) Start(ctx context.Context) error {
 		defer wg.Done()
 		ticker := time.NewTicker(6 * time.Hour)
 		defer ticker.Stop()
-		for _ = range ticker.C {
+		for range ticker.C {
 			dal := store.GetCiDb()
 			if dal == nil {
 				continue

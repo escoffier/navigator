@@ -3,18 +3,18 @@ package imagecache
 import (
 	"bytes"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"net/http"
 	"strconv"
 
 	json "github.com/json-iterator/go"
-	"gitlab.com/security-rd/go-pkg/logging"
 	"gitlab.com/security-rd/go-pkg/httputil"
+	"gitlab.com/security-rd/go-pkg/logging"
 )
 
 type Client struct {
 	serverAddr string
-	//sics       *ScannerImageCacheService
 }
 
 func GenerateImageCacheURL(repoName, tag string) string {
@@ -22,18 +22,14 @@ func GenerateImageCacheURL(repoName, tag string) string {
 }
 
 func NewLocalLayerManageClientT(URI string) (*Client, error) {
-	icc := &Client{
-		//sics: sics,
-	}
+	icc := &Client{}
 
 	icc.serverAddr = fmt.Sprintf("http://%s:%d%s", innerRegistryIP, innerRegistryPort, URI)
 	return icc, nil
 }
 
 func NewLocalLayerManageClient() (*Client, error) {
-	icc := &Client{
-		//sics: sics,
-	}
+	icc := &Client{}
 
 	icc.serverAddr = fmt.Sprintf("http://%s:%d%s", innerRegistryIP, innerRegistryPort, httpRequestPath)
 	return icc, nil
@@ -59,19 +55,20 @@ func (icc *Client) GetManifest(username, password, url, repository, tag string, 
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Content-Length", strconv.Itoa(len(jsonStr)))
+
 	rsp, err := httputil.DefaultClient.Do(req)
 	if err != nil {
 		logging.Get().Err(err).Msg("client do req err")
 		return "", err
 	}
-	defer rsp.Body.Close()
+	defer func() { _ = rsp.Body.Close() }()
 
 	if rsp.StatusCode != http.StatusOK {
 		logging.Get().Error().Msgf("manifest manage client request end. status code: %d", rsp.StatusCode)
 		return "", err
 	}
 
-	body, _ := ioutil.ReadAll(rsp.Body)
+	body, _ := io.ReadAll(rsp.Body)
 	return string(body), nil
 }
 
@@ -104,14 +101,14 @@ func (icc *Client) GetLayer(username, password, url, repository, digest string, 
 		return "", "", err
 	}
 	defer rsp.Body.Close()
-	logging.Get().Info().Msgf("layer manage client request end. statuscode: %d", rsp.StatusCode)
+	logging.Get().Debug().Msgf("layer manage client request end. statuscode: %d", rsp.StatusCode)
 
 	if rsp.StatusCode != http.StatusOK {
 		return "", "", fmt.Errorf("request layer err:%v", rsp.StatusCode)
 	}
 
 	body, _ := ioutil.ReadAll(rsp.Body)
-	//log.Info().Msgf("layer manage client request end. body: %s", body)
+	// log.Info().Msgf("layer manage client request end. body: %s", body)
 
 	rspLayerInfo := &ResponseLayerInfo{}
 	err = json.Unmarshal(body, &rspLayerInfo)
@@ -119,7 +116,7 @@ func (icc *Client) GetLayer(username, password, url, repository, digest string, 
 
 		return "", "", err
 	}
-	logging.Get().Info().Msgf("layer manage client get rsp %+v", rspLayerInfo)
+	logging.Get().Debug().Msgf("layer manage client get rsp %+v", rspLayerInfo)
 	return rspLayerInfo.LayerURL, rspLayerInfo.URL, nil
 }
 

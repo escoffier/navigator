@@ -68,60 +68,60 @@ func ExistFlag(value uint64, flag uint64) bool {
 }
 
 func (si *ScanImage) GenImageFlag(preFlag uint64) uint64 {
-	si.Deserialize()
-	si.Serialize()
-
-	if si.VulnScore > 0 {
-		preFlag = util.SetBit1(preFlag, FlagHasVuln)
-	} else {
-		preFlag = util.SetBit0(preFlag, FlagHasVuln)
-	}
-
-	if len(si.SensitiveFile) > 0 {
-		preFlag = util.SetBit1(preFlag, FlagHasSensitive)
-	} else {
-		preFlag = util.SetBit0(preFlag, FlagHasSensitive)
-	}
-
-	if len(si.MaliciousInfo) > 0 {
-		preFlag = util.SetBit1(preFlag, FlagHasMalicious)
-	} else {
-		preFlag = util.SetBit0(preFlag, FlagHasMalicious)
-	}
-
-	if si.WebshellScore > 0 {
-		preFlag = util.SetBit1(preFlag, FlagHasWebshell)
-	} else {
-		preFlag = util.SetBit0(preFlag, FlagHasWebshell)
-	}
-	env := false
-	for i := range si.EnvKeyValue {
-		if si.EnvKeyValue[i].IsAbnormal > 0 {
-			preFlag = util.SetBit1(preFlag, FlagHasExceptEnv)
-			env = true
-			break
-		}
-	}
-	if !env {
-		preFlag = util.SetBit0(preFlag, FlagHasExceptEnv)
-	}
-
-	if len(si.Software) > 0 {
-		preFlag = util.SetBit1(preFlag, FlagHasExceptPKG)
-	} else {
-		preFlag = util.SetBit0(preFlag, FlagHasExceptPKG)
-	}
-
-	if len(si.LicenseInfo) > 0 {
-		preFlag = util.SetBit1(preFlag, FlagHasExceptLicense)
-	} else {
-		preFlag = util.SetBit0(preFlag, FlagHasExceptLicense)
-	}
-	if si.HasFixedVuln > 0 {
-		preFlag = util.SetBit1(preFlag, FlagHasFixedVuln)
-	} else {
-		preFlag = util.SetBit0(preFlag, FlagHasFixedVuln)
-	}
+	// si.Deserialize()
+	// si.Serialize()
+	//
+	// if si.VulnScore > 0 {
+	// 	preFlag = util.SetBit1(preFlag, imagesec.FlagHasExceptionVuln)
+	// } else {
+	// 	preFlag = util.SetBit0(preFlag, imagesec.FlagHasExceptionVuln)
+	// }
+	//
+	// if len(si.SensitiveFile) > 0 {
+	// 	preFlag = util.SetBit1(preFlag, imagesec.FlagHasExceptionSensitive)
+	// } else {
+	// 	preFlag = util.SetBit0(preFlag, imagesec.FlagHasExceptionSensitive)
+	// }
+	//
+	// if len(si.MaliciousInfo) > 0 {
+	// 	preFlag = util.SetBit1(preFlag, imagesec.FlagHasExceptionMalware)
+	// } else {
+	// 	preFlag = util.SetBit0(preFlag, imagesec.FlagHasExceptionMalware)
+	// }
+	//
+	// if si.WebshellScore > 0 {
+	// 	preFlag = util.SetBit1(preFlag, imagesec.FlagHasExceptionWebshell)
+	// } else {
+	// 	preFlag = util.SetBit0(preFlag, imagesec.FlagHasExceptionWebshell)
+	// }
+	// env := false
+	// for i := range si.EnvKeyValue {
+	// 	if si.EnvKeyValue[i].IsAbnormal > 0 {
+	// 		preFlag = util.SetBit1(preFlag, imagesec.FlagHasExceptionEnv)
+	// 		env = true
+	// 		break
+	// 	}
+	// }
+	// if !env {
+	// 	preFlag = util.SetBit0(preFlag, imagesec.FlagHasExceptionEnv)
+	// }
+	//
+	// if len(si.Software) > 0 {
+	// 	preFlag = util.SetBit1(preFlag, imagesec.FlagHasExceptionPKG)
+	// } else {
+	// 	preFlag = util.SetBit0(preFlag, imagesec.FlagHasExceptionPKG)
+	// }
+	//
+	// if len(si.LicenseInfo) > 0 {
+	// 	preFlag = util.SetBit1(preFlag, imagesec.FlagHasExceptionLicensePKG)
+	// } else {
+	// 	preFlag = util.SetBit0(preFlag, imagesec.FlagHasExceptionLicensePKG)
+	// }
+	// if si.HasFixedVuln > 0 {
+	// 	preFlag = util.SetBit1(preFlag, imagesec.FlagHasFixedVuln)
+	// } else {
+	// 	preFlag = util.SetBit0(preFlag, imagesec.FlagHasFixedVuln)
+	// }
 
 	return preFlag
 }
@@ -319,6 +319,7 @@ func (vi *ImageVirus) TableName() string {
 func (vi *ImageVirus) GenUniqueID() uint64 {
 	key := fmt.Sprintf(consts.UniqueVirusFamat, vi.Name, vi.Filename, vi.Filepath)
 	uid := util.GenerateUUID64(key)
+	vi.UniqueID = uid
 	return uid
 }
 
@@ -361,6 +362,7 @@ func (ws *ImageSensitiveFile) TableName() string {
 func (ws *ImageSensitiveFile) GenUniqueID() uint64 {
 	key := fmt.Sprintf(consts.UniqueSensitiveFamat, ws.Name, ws.Description)
 	uid := util.GenerateUUID64(key)
+	ws.UniqueID = uid
 	return uid
 }
 
@@ -508,6 +510,7 @@ type ImageSoftware struct {
 func (s *ImageSoftware) GenUniqueID() uint64 {
 	key := fmt.Sprintf(consts.UniqueSoftwareFamat, s.Name, s.Version)
 	uid := util.GenerateUUID64(key)
+	s.UniqueID = uid
 	return uid
 }
 

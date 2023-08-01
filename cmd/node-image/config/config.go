@@ -1,9 +1,10 @@
 package config
 
 import (
-	json "github.com/json-iterator/go"
 	"os"
 	"path/filepath"
+
+	json "github.com/json-iterator/go"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/global"
 	imagesecModel "gitlab.com/piccolo_su/vegeta/pkg/model/imagesec"
@@ -28,7 +29,7 @@ const (
 
 var (
 	globalConfig    *Config                        // config loaded from yaml
-	nodeImageConfig *imagesecModel.NodeImageConfig // config sync from console
+	nodeImageConfig *imagesecModel.ImageScanConfig // config sync from console
 )
 
 // Config define content int node-image.yaml
@@ -102,9 +103,11 @@ func NewDefaultConfig() *Config {
 			Slow:        defaultSlowMode,
 		},
 		ReportConfig: ReportConfig{
-			Interval:     defaultReportInterval,
-			MqTimeout:    defaultMqTimeout,
-			ExcludeImage: []string{defaultExcludeImageScope},
+			Interval:  defaultReportInterval,
+			MqTimeout: defaultMqTimeout,
+			// fixme 临时
+			// ExcludeImage: []string{defaultExcludeImageScope},
+			ExcludeImage: []string{},
 			BatchSize:    defaultImageSendBatchSize,
 		},
 		AviraConfig: AviraConfig{
@@ -119,11 +122,11 @@ func SetGlobalConfig(cfg *Config) {
 	globalConfig = cfg
 }
 
-func GetNodeImageConfig() *imagesecModel.NodeImageConfig {
+func GetNodeImageConfig() *imagesecModel.ImageScanConfig {
 	return nodeImageConfig
 }
 
-func UpdateNodeImageConfig(config *imagesecModel.NodeImageConfig) {
+func UpdateNodeImageConfig(config *imagesecModel.ImageScanConfig) {
 	nodeImageConfig.DeepScan = config.DeepScan
 	nodeImageConfig.SyncInterval = config.SyncInterval
 	nodeImageConfig.ScanTimeout = config.ScanTimeout
@@ -140,8 +143,8 @@ func FlushNodeImageConfigToFile() error {
 	return nil
 }
 
-func NewDefaultNodeImageConfig() *imagesecModel.NodeImageConfig {
-	c := &imagesecModel.NodeImageConfig{
+func NewDefaultNodeImageConfig() *imagesecModel.ImageScanConfig {
+	c := &imagesecModel.ImageScanConfig{
 		DeepScan:     defaultSwitchDeepScan,
 		SyncInterval: defaultReportInterval,
 		ScanTimeout:  defaultScanTimeout,
@@ -153,8 +156,8 @@ func GetDefaultNodeImageConfigFilePath() string {
 	return filepath.Join(global.WorkingDir, defaultNodeImageConfigFile)
 }
 
-func LoadNodeImageConfigFromFile(cfgFile string) (*imagesecModel.NodeImageConfig, error) {
-	nc := &imagesecModel.NodeImageConfig{}
+func LoadNodeImageConfigFromFile(cfgFile string) (*imagesecModel.ImageScanConfig, error) {
+	nc := &imagesecModel.ImageScanConfig{}
 	data, err := os.ReadFile(cfgFile)
 	if err != nil {
 		return nil, err
