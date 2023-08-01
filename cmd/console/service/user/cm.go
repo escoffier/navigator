@@ -300,16 +300,22 @@ func (s *CMUserService) StartSubscribeCMUserMsg(ctx context.Context, pulsarURL s
 			URL: pulsarURL,
 		}, nil
 	})
-
 	if err != nil {
-		return err
+		logging.Get().Err(err).Msg("mq.NewPulsalClient")
+		return nil
 	}
 
 	topic := "persistent://central/portal/fouralInfo"
 	if t := os.Getenv(CMTopicEnvKey); t != "" {
 		topic = t
 	}
-	return client.SubscribeV2(topic, "SSO-Security", s.handleCMUserMsg)
+
+	err = client.SubscribeV2(topic, "SSO-Security", s.handleCMUserMsg)
+	if err != nil {
+		logging.Get().Err(err).Msg("client.SubscribeV2")
+	}
+
+	return nil
 }
 
 func (s *CMUserService) handleCMUserMsg(ctx context.Context, data []byte) error {
