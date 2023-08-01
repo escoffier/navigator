@@ -84,7 +84,7 @@ require (
 	k8s.io/client-go v0.27.2
 	scm.tensorsecurity.cn/tensorsecurity-rd/cloudwalker v0.0.5
 	scm.tensorsecurity.cn/tensorsecurity-rd/falcosider v0.2.62
-	scm.tensorsecurity.cn/tensorsecurity-rd/trivy v1.0.1
+	scm.tensorsecurity.cn/tensorsecurity-rd/trivy v1.0.2
 )
 
 require github.com/go-ldap/ldap/v3 v3.4.1
@@ -113,6 +113,7 @@ require (
 	github.com/imroc/req/v3 v3.35.1
 	github.com/jarcoal/httpmock v1.2.0
 	github.com/jellydator/ttlcache/v3 v3.0.0
+	github.com/jinzhu/copier v0.3.2
 	github.com/panjf2000/ants/v2 v2.7.4
 	github.com/rookie-ninja/rk-entry v1.0.11
 	github.com/rookie-ninja/rk-gin v1.2.22
@@ -224,7 +225,6 @@ require (
 	github.com/jcmturner/gofork v1.7.6 // indirect
 	github.com/jcmturner/gokrb5/v8 v8.4.4 // indirect
 	github.com/jcmturner/rpc/v2 v2.0.3 // indirect
-	github.com/jinzhu/copier v0.3.2 // indirect
 	github.com/juju/ratelimit v1.0.1 // indirect
 	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51 // indirect
 	github.com/klauspost/cpuid/v2 v2.2.5 // indirect

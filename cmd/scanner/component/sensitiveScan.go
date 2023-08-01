@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	dockerarchive "github.com/docker/docker/pkg/archive"
+	"gitlab.com/security-rd/go-pkg/logging"
 
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 )
@@ -89,6 +90,7 @@ func (s *SensitiveScan) FindSensitiveFileNamesInImage(tarFileName string, sensit
 			continue
 		}
 		if s.SensitiveFilenameRegExp.FindString(header.Name) != "" {
+			logging.Get().Debug().Str("file", header.Name).Msg("FindSensitiveFile")
 			if err == nil {
 				sensitiveFilenames = append(sensitiveFilenames, header.Name)
 			}
@@ -125,6 +127,8 @@ func (s *SensitiveScan) enrichSensitiveFilesWithDescriptions(sensitiveFiles []st
 			// it's very important.
 			//
 			if re.MatchString(f) {
+				logging.Get().Debug().Str("file", f).Str("description", description.En).Msg("FindSensitiveFile")
+
 				imageSensitiveFiles = append(imageSensitiveFiles, model.Sensitive{
 					Name:          f,
 					DescriptionEn: description.En,

@@ -50,10 +50,14 @@ func ConvertSensitive(imageID int64, data []model.PerLayerSensitiveResult) ([]*m
 				DescriptionEn: vir.Sensitives[j].DescriptionEn,
 				DescriptionZh: vir.Sensitives[j].DescriptionZh,
 			}
+
+			// 扫描的结果有这样的: ./usr/share/terminfo/p/p12
+			if viru.Name != "" && strings.HasPrefix(viru.Name, "./") {
+				viru.Name = strings.Replace(viru.Name, "./", "/", 1)
+			}
 			if !strings.HasPrefix(viru.Name, "/") {
 				viru.Name = "/" + viru.Name
 			}
-
 			viru.UniqueID = viru.GenUniqueID()
 			virus = append(virus, viru)
 			issue = append(issue, &model.ScanSensitiveToImage{
