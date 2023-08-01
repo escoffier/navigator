@@ -146,6 +146,11 @@ func (s *ScanResultHandle) arrangeSensitive(sensitivesResult []model.PerLayerSen
 	}
 
 	for i := range imageSensitive {
+		// 扫描的结果有这样的: ./usr/share/terminfo/p/p12
+		if imageSensitive[i].Name != "" && strings.HasPrefix(imageSensitive[i].Name, "./") {
+			imageSensitive[i].Name = strings.Replace(imageSensitive[i].Name, "./", "/", 1)
+		}
+
 		if !strings.HasPrefix(imageSensitive[i].Name, "/") {
 			imageSensitive[i].Name = "/" + imageSensitive[i].Name
 		}
@@ -207,7 +212,7 @@ func (s *ScanResultHandle) logPostgresLayer(ctx context.Context, layerMp map[str
 func (s *ScanResultHandle) logPostgresWebshell(ctx context.Context, scanDetails *model.ScanDetailScanImage, layerMp map[string]*model.LayerScanDetail, imageID int64) error {
 	scannerOrm := store.GetSingeWebsehllDao()
 	webshells := []scannermodel.Webshell{}
-	for k, _ := range scanDetails.WebshellInfos {
+	for k := range scanDetails.WebshellInfos {
 		webshells = append(webshells, scanDetails.WebshellInfos[k].TransToWebshell())
 	}
 	err := scannerOrm.CreateWebshell(ctx, webshells)

@@ -14,6 +14,7 @@ import (
 
 	registry2 "github.com/heroku/docker-registry-client/registry"
 	"github.com/opencontainers/go-digest"
+
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
@@ -127,7 +128,7 @@ func (h *HarborV2) ListProjectRepos(project string) ([]Repository, error) {
 		page++
 	}
 
-	logging.GetLogger().Info().Msgf("repos %+v", repos)
+	logging.GetLogger().Debug().Msgf("repos %+v", repos)
 	return repos, nil
 }
 
