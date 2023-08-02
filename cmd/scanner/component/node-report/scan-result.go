@@ -694,7 +694,7 @@ func (s *ScanResultReportSrv) ReceiveImageScanResult(ctx context.Context, msg ka
 
 	if err := s.CreateScanResult(ctx, data); err != nil {
 		logging.Get().Err(err).Msg("CreateScanResult")
-		return err
+		// 消费消息后，不管扫描结果入库是否成功，对于 kafka来说都是成功消费，所以只记录，不返回 error
 	}
 
 	return nil
