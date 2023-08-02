@@ -143,6 +143,8 @@ holmes:
     done
   - mkdir avira/
   - cp ~/.docker/savapi-sdk-linux64.tgz avira/
+  - mkdir hm/
+  - cp ~/.docker/hm-linux.tgz hm/
   script:
   - make daemon holmes
   - docker rmi harbor.tensorsecurity.com/tensorsecurity/daemon:ci || true

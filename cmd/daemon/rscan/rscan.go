@@ -23,6 +23,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/container"
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/nodeinfo"
 	"gitlab.com/piccolo_su/vegeta/pkg/avira"
+	"gitlab.com/piccolo_su/vegeta/pkg/hm"
 	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 
@@ -463,6 +464,49 @@ func (rs *RuntimeScanner) fillK8sPodInfo(podID string, ev *EventArg) error {
 	return nil
 }
 
+func (rs *RuntimeScanner) sendAlertHMResult(hmResult []hm.ResultItem, cf ContainerFile) error {
+	malwareNames := make([]string, 0)
+	for _, v := range hmResult {
+		malwareNames = append(malwareNames, v.Name)
+	}
+
+	// get cluster key.不管是不是k8s容器，我们现在都需要clusterKey
+	clusterKey, ok := rs.cim.ClusterKey()
+	if !ok {
+		logging.Get().Error().Msg("failed to get cluster key")
+		return fmt.Errorf("failed to get cluster key")
+	}
+	clusterName, ok := rs.cim.ClusterName()
+	if !ok {
+		logging.Get().Error().Msg("failed to get cluster name")
+		return fmt.Errorf("failed to get cluster name")
+	}
+
+	// basic info
+	ev := &EventArg{
+		FilePath:      cf.filenameInContainer,
+		ContainerID:   cf.ID,
+		ContainerName: cf.Name,
+		Hostname:      rs.npw.NodeName,
+		ClusterID:     clusterKey,
+		Cluster:       clusterName,
+		Malware:       malwareNames,
+	}
+	if len(cf.PodUID) == 0 {
+		logging.Get().Debug().Msg("raw container")
+		// raw container
+		return rs.alerter.Send(ev)
+	}
+
+	// for k8s
+	if err := rs.fillK8sPodInfo(cf.PodUID, ev); err != nil {
+		logging.Get().Err(err).Msg("failed to fill pod info to event")
+		return err
+	}
+
+	return rs.alerter.Send(ev)
+}
+
 func (rs *RuntimeScanner) sendAlert(malware []avira.Malware, cf ContainerFile) error {
 	malwareNames := make([]string, 0)
 	for _, v := range malware {
@@ -568,6 +612,28 @@ func (rs *RuntimeScanner) ScanFile() {
 					infoLog().Msg("scan ok,not found malware")
 				}
 
+				if os.Getenv("WEB_SHELL_SCAN") == "true" {
+					// webshell scan
+					hmHandler := hm.NewHMWebshell()
+					if err := hmHandler.GenerateCmdDir(cf.filenameInHost); err != nil {
+						errLog(err).Msg("failed to generate cmd dir")
+						return
+					}
+					hmHandler.ScanFile(cf.filenameInHost)
+					result, err := hmHandler.ReadAndCleanResult()
+					if err != nil {
+						errLog(err).Msg("failed to read result")
+						return
+					}
+					if len(result) > 0 {
+						err = rs.sendAlertHMResult(result, cf)
+						if err != nil {
+							errLog(err).Msg("failed to send to event center")
+						} else {
+							infoLog().Msg("send to event center ok")
+						}
+					}
+				}
 			default:
 				logging.Get().Error().Msgf("file queue element type err.%v", typed)
 			}
