@@ -514,6 +514,9 @@ func (s *ScanResultHandle) Run(ctx context.Context, param jobs.Param) (jobs.Arti
 
 		// 漏洞层级信息（原来的逻辑，暂时不删除）
 		for i := range vulnImages {
+			if layerMp[vulnImages[i].LayerDigest] == nil {
+				continue
+			}
 			if layerMp[vulnImages[i].LayerDigest].Vulns == nil {
 				layerMp[vulnImages[i].LayerDigest].Vulns = make([]uint64, 0)
 			}
