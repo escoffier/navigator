@@ -31,4 +31,7 @@ COPY ./configs/daemon/cis /cis
 ADD avira/savapi-sdk-linux64.tgz /usr/local
 ADD ./configs/daemon/savapi.conf /etc/savapi/savapi.conf
 
+## hm
+ADD hm/hm-linux.tgz /usr/bin/
+
 CMD ["supervisord"]
