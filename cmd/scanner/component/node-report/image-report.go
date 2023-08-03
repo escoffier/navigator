@@ -134,11 +134,11 @@ func (s *NodeImageReport) ReceiveAssetReport(ctx context.Context, msg kafka.Mess
 		exit[pre[i].UniqueID] = true
 	}
 
-	addImage := make([]*imagesecModel.Image, 0)
+	addImage := make([]uint64, 0)
 
 	for i := range images {
 		if _, ok := exit[images[i].UniqueID]; !ok {
-			addImage = append(addImage, images[i])
+			addImage = append(addImage, images[i].UniqueID)
 		}
 	}
 
@@ -149,13 +149,13 @@ func (s *NodeImageReport) ReceiveAssetReport(ctx context.Context, msg kafka.Mess
 
 	if err := s.AddScanTask(ctx, addImage); err != nil {
 		logging.Get().Err(err).Interface("image", addImage).Msg("NodeImageReport AddScanTask")
-		return err
+		// 消费消息后，不管扫描任务创建成功与否，对于 kafka来说都是成功消费，所以只记录，不返回 error
 	}
 
 	return nil
 }
 
-func (s *NodeImageReport) AddScanTask(ctx context.Context, newImages []*imagesecModel.Image) error {
+func (s *NodeImageReport) AddScanTask(ctx context.Context, newImages []uint64) error {
 	if len(newImages) == 0 {
 		return nil
 	}
@@ -171,27 +171,19 @@ func (s *NodeImageReport) AddScanTask(ctx context.Context, newImages []*imagesec
 		logging.Get().Info().Bool("autoAdd", autoAdd).Msg("AddScanTask")
 		return nil
 	}
-
-	newImageIds := make([]int64, 0)
-	for i := range newImages {
-		newImageIds = append(newImageIds, newImages[i].ID)
+	param := imagesecModel.ImageListParam{UniqueIds: newImages, ImageFromType: imagesecModel.ImageFromNode}
+	taskInfo := imagesecModel.ImageScanTask{
+		ImageFromType:  imagesecModel.ImageFromNode,
+		ScanType:       imagesecModel.ImageSyncTrigger,
+		Status:         imagesecModel.TaskStatusPending,
+		ImageListParam: param,
 	}
 
-	if len(newImageIds) > 0 && autoAdd {
-		taskInfo := imagesecModel.ImageScanTask{
-			ImageFromType: imagesecModel.ImageFromNode,
-			ScanType:      imagesecModel.ImageSyncTrigger,
-			Status:        imagesecModel.TaskStatusPending,
-		}
-
-		param := imagesecModel.ImageListParam{ImageIds: newImageIds, ImageFromType: imagesecModel.ImageFromNode}
-		if err := s.scanTaskSrv.CreateImageScanTask(ctx, param, taskInfo); err != nil {
-			logging.Get().Err(err).Interface("taskInfo", taskInfo).Msg("CreateImageScanTask")
-			return err
-		} else {
-			logging.Get().Info().Interface("taskInfo", taskInfo).Msg("CreateImageScanTask succeed")
-		}
+	if err := s.scanTaskSrv.CreateImageScanTask(ctx, param, taskInfo); err != nil {
+		logging.Get().Err(err).Interface("taskInfo", taskInfo).Msg("CreateImageScanTask")
+		return err
 	}
+	logging.Get().Info().Interface("taskInfo", taskInfo).Msg("CreateImageScanTask succeed")
 	return nil
 }
 
