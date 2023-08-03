@@ -191,6 +191,7 @@ type CheckBreakdown struct {
 	Fail         int    `json:"fail"`
 	Warn         int    `json:"warn"`
 	Info         int    `json:"info"`
+	Runtime      string `json:"runtime,omitempty"`
 }
 
 type ScapScanRecordNodeItem struct {

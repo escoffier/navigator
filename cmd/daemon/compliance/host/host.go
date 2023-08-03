@@ -1,9 +1,11 @@
 package host
 
 import (
+	"context"
 	"fmt"
 	"os/exec"
 	"syscall"
+	"time"
 
 	"github.com/spf13/viper"
 	"gitlab.com/security-rd/go-pkg/cis/check"
@@ -87,7 +89,8 @@ func (c *Host) InitConfig() error {
 	chroot := c.v.GetString("chroot")
 	if chroot != "" {
 		nc = func() *exec.Cmd {
-			cmd := exec.Command("sh")
+			ctx, _ := context.WithTimeout(context.Background(), time.Minute*5)
+			cmd := exec.CommandContext(ctx, "sh")
 			cmd.Dir = "/"
 			cmd.SysProcAttr = &syscall.SysProcAttr{Chroot: chroot}
 			return cmd

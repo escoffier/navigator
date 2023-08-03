@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/shopspring/decimal"
-	"gitlab.com/piccolo_su/vegeta/pkg/lang"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/security-rd/go-pkg/cis/check"
 	"gitlab.com/security-rd/go-pkg/logging"
@@ -64,13 +63,13 @@ func (k *kube) BuildResult(taskId, hostname, clusterKey string) []*model.ScanRes
 					PolicyID:    check.ID,
 					State:       model.ScapScanResultStateType(check.State),
 					ActualValue: check.ActualValue,
-					UDBCP:       svc.GetUDBCPMap(lang.LanguageZH, check.ID, checkType), // TODO: 这个有问题,zh
 					CreatedAt:   time.Now().Unix(),
 				}
 
 				policy, err := svc.GetPolicyInfo(ctx, check.ID, checkType)
 				if err == nil {
 					tmp.Section = policy.TitleZh
+					tmp.UDBCP = policy.ClassifiedZh
 				}
 				items = append(items, tmp)
 			}
@@ -110,6 +109,10 @@ func (c *cri) BuildResult(taskId, hostname, clusterKey string) []*model.ScanResu
 	checkType := model.ComplianceCheckTargetTypeDocker
 	items := make([]*model.ScanResult, 0)
 
+	if c.Controls == nil {
+		return items
+	}
+
 	for _, grooup := range c.Controls.Groups {
 		for _, check := range grooup.Checks {
 			// 避免数据过长，无法写入db
@@ -125,13 +128,13 @@ func (c *cri) BuildResult(taskId, hostname, clusterKey string) []*model.ScanResu
 				PolicyID:    check.ID,
 				State:       model.ScapScanResultStateType(check.State),
 				ActualValue: check.ActualValue,
-				UDBCP:       svc.GetUDBCPMap(lang.LanguageZH, check.ID, checkType), // TODO: 这个有问题,zh
 				CreatedAt:   time.Now().Unix(),
 			}
 
 			policy, err := svc.GetPolicyInfo(ctx, check.ID, checkType)
 			if err == nil {
 				tmp.Section = policy.TitleZh
+				tmp.UDBCP = policy.ClassifiedZh
 			}
 			items = append(items, tmp)
 		}
@@ -184,13 +187,13 @@ func (h *host) BuildResult(taskId, hostname, clusterKey string) []*model.ScanRes
 				PolicyID:    check.ID,
 				State:       model.ScapScanResultStateType(check.State),
 				ActualValue: check.ActualValue,
-				UDBCP:       svc.GetUDBCPMap(lang.LanguageZH, check.ID, checkType), // TODO: 这个有问题,zh
 				CreatedAt:   time.Now().Unix(),
 			}
 
 			policy, err := svc.GetPolicyInfo(ctx, check.ID, checkType)
 			if err == nil {
 				tmp.Section = policy.TitleZh
+				tmp.UDBCP = policy.ClassifiedZh
 			}
 			items = append(items, tmp)
 		}

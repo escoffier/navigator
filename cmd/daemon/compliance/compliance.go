@@ -19,14 +19,14 @@ type ScanProvider interface {
 	Run() error
 }
 
-func StartComplianceScan(typ model.ComplianceCheckType, mqWriter mq.Writer, taskId, clusterId, nodeName string, checkList []string) error {
+func StartComplianceScan(typ model.ComplianceCheckType, mqWriter mq.Writer, taskId, clusterId, nodeName string, checkList []string, runtimeName, runtimeVersion string) error {
 	var p ScanProvider
 	switch typ {
 	case model.ComplianceCheckTargetTypeKube:
 		opt := kube.NewKubeOptions(taskId, clusterId, nodeName, mqWriter, kube.CheckList(checkList))
 		p = kube.NewKube(opt)
 	case model.ComplianceCheckTargetTypeCRI:
-		opt := cri.NewCriOptions(taskId, clusterId, nodeName, mqWriter, cri.CheckList(checkList))
+		opt := cri.NewCriOptions(taskId, clusterId, nodeName, mqWriter, runtimeName, runtimeVersion, cri.CheckList(checkList))
 		p = cri.NewCri(opt)
 	case model.ComplianceCheckTargetTypeHost:
 		opt := host.NewHostOptions(taskId, clusterId, nodeName, mqWriter, host.CheckList(checkList))

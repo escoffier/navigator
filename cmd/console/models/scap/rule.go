@@ -12,4 +12,5 @@ type Rule struct {
 	Audit          string                             `json:"audit"`
 	Classified     string                             `json:"classified"`
 	ExtraDetail    *model.PolicyDetailInfoExtraDetail `json:"extraDetail,omitempty"`
+	Runtime        string                             `json:"runtime,omitempty"`
 }

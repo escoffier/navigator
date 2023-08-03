@@ -79,7 +79,7 @@ func (providerComplianceSection) FindSuggestList(ctx context.Context, db *gorm.D
 
 	db = db.WithContext(ctx).Model(&model.ScanResult{}).
 		Select("section AS value, section AS label").
-		Where("task_id = ?", taskID).Group("section")
+		Where("task_id = ? AND section<>''", taskID).Group("section")
 	if keyword != "" {
 		db = db.Where("section LIKE ?", "%"+keyword+"%")
 	}
@@ -98,7 +98,7 @@ func (providerUDBCP) FindSuggestList(ctx context.Context, db *gorm.DB, taskID, k
 
 	db = db.WithContext(ctx).Model(&model.ScanResult{}).
 		Select("udbcp AS value,udbcp AS label").
-		Where("task_id = ?", taskID).Group("udbcp")
+		Where("task_id = ? AND udbcp<>''", taskID).Group("udbcp")
 	if keyword != "" {
 		db = db.Where("udbcp LIKE ?", "%"+keyword+"%")
 	}

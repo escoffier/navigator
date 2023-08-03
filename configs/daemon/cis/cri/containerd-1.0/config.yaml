@@ -1,0 +1,16 @@
+---
+## Controls Files.
+# These are YAML files that hold all the details for running checks.
+# In here you can set all parameter substitution for cri-bench
+
+components:
+  - containerd
+
+containerd:
+  storages:
+    - "/var/lib/containerd"
+  defaultstorage: /var/lib/containerd
+
+  confs:
+    - /etc/containerd/config.toml
+  defaultconf: /etc/containerd/config.toml

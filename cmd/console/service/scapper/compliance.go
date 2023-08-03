@@ -101,7 +101,7 @@ func (sh *ScanHandler) OnCreate(s rpcstream.Stream, reqID string, message protor
 	}()
 
 	nodeName := os.Getenv("MY_NODE_NAME")
-	err = compliance.StartComplianceScan(model.ComplianceCheckType(req.CheckType), sh.Writer, req.RequestID, req.ClusterKey, nodeName, req.CheckIds)
+	err = compliance.StartComplianceScan(model.ComplianceCheckType(req.CheckType), sh.Writer, req.RequestID, req.ClusterKey, nodeName, req.CheckIds, req.RuntimeName, req.RuntimeVersion)
 	if err != nil {
 		logging.Get().Error().Err(err).Str("method", "OnCreate").
 			Str("reqID", reqID).Str("msgID", req.RequestID).

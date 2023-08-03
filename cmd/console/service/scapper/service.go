@@ -319,37 +319,6 @@ func (s *ScapService) GetLatestHistory(ctx context.Context, clusterId string, ch
 	return scanHistory.TaskID, scanHistory.FinishedAt, nil
 }
 
-func (s *ScapService) GetUDBCPMap(language lang.LanguageType, policyId string, checkType model.ComplianceCheckType) string {
-	var value string
-	switch checkType {
-	case model.ComplianceCheckTargetTypeKube:
-		classified, ok := model.UDBCPKubeMap[policyId]
-		if !ok {
-			return ""
-		}
-
-		if language == lang.LanguageEN {
-			value = classified[1]
-		} else {
-			value = classified[0]
-		}
-	case model.ComplianceCheckTargetTypeDocker:
-		classified, ok := model.UDBCPDockerMap[policyId]
-		if !ok {
-			return ""
-		}
-		if language == lang.LanguageEN {
-			value = classified[1]
-		} else {
-			value = classified[0]
-		}
-	default:
-		value = ""
-	}
-
-	return value
-}
-
 func (s *ScapService) GetNodeCheckDetails(ctx context.Context, nodeName, taskID string, nodeCheckDetails *model.NodeCheckDetails) error {
 	node := model.ScanNodeRecord{}
 	err := s.rdb.GetReadDB().WithContext(ctx).
@@ -390,7 +359,7 @@ func (s *ScapService) GetNodeCheckDetails(ctx context.Context, nodeName, taskID 
 func (s *ScapService) GetPolicyInfo(ctx context.Context, policyId string, checkType model.ComplianceCheckType) (*model.PolicyDetailInfo, error) {
 	var policy model.PolicyDetailInfo
 
-	// try get by cache
+	// try to get by cache
 	key := fmt.Sprintf("%s:%s", checkType, policyId)
 	rawJSON, err := s.cache.Get(ctx, key).Bytes()
 	if err != nil {
@@ -449,6 +418,16 @@ func (s *ScapService) FindBreakdownEntries(ctx context.Context, taskID string, c
 
 	language := lang.Language(ctx)
 	for i := range list {
+		if checkType == model.ComplianceCheckTargetTypeDocker {
+			if strings.HasPrefix(list[i].PolicyNumber, "co") {
+				list[i].Runtime = "cri-o"
+			} else if strings.HasPrefix(list[i].PolicyNumber, "cd") {
+				list[i].Runtime = "containerd"
+			} else {
+				list[i].Runtime = "docker"
+			}
+		}
+
 		policy, err := s.GetPolicyInfo(ctx, list[i].PolicyNumber, checkType)
 		if err != nil {
 			logging.Get().Err(err).Msgf("get policy information failed, policy id : %s, checkType : %s.", list[i].PolicyNumber, checkType)
@@ -458,10 +437,11 @@ func (s *ScapService) FindBreakdownEntries(ctx context.Context, taskID string, c
 		if language == lang.LanguageEN {
 			list[i].Section = policy.TitleEn
 			list[i].Description = policy.DetailEn
-			list[i].UDBCP = s.GetUDBCPMap(language, list[i].PolicyNumber, checkType)
+			list[i].UDBCP = policy.ClassifiedEn
 		} else {
 			list[i].Section = policy.TitleZh
 			list[i].Description = policy.DetailZh
+			list[i].UDBCP = policy.ClassifiedZh
 		}
 	}
 
@@ -511,12 +491,13 @@ func (s *ScapService) GetPolicyDetails(ctx context.Context, policyDetails *model
 	if language == lang.LanguageEN {
 		policyDetails.Section = policy.TitleEn
 		policyDetails.Description = policy.RemediationEn
+		policyDetails.UDBCP = policy.ClassifiedEn
 	} else {
 		policyDetails.Section = policy.TitleZh
 		policyDetails.Description = policy.RemediationZh
+		policyDetails.UDBCP = policy.ClassifiedZh
 	}
 
-	policyDetails.UDBCP = s.GetUDBCPMap(language, policyId, checkType)
 	if policy.PolicyDetailInfoExtraDetail != nil {
 		policyDetails.ExtraDetail = &model.PolicyDetailInfoExtraDetail{
 			References: policy.PolicyDetailInfoExtraDetail.References,
@@ -560,7 +541,7 @@ func (s *ScapService) GetFileData(filename string) ([]byte, error) {
 	return data, nil
 }
 
-func (s *ScapService) GetScanResultToFile(task *model.ExportTask) error {
+func (s *ScapService) GetScanResultToFile(language lang.LanguageType, task *model.ExportTask) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
@@ -603,7 +584,7 @@ func (s *ScapService) GetScanResultToFile(task *model.ExportTask) error {
 	}
 	// add row
 	row := sheet.AddRow()
-	row.WriteStruct(model.GetTitleZh(), -1)
+	row.WriteStruct(model.GetTitle(language, task.CheckType), -1)
 
 	for _, value := range scanRet {
 		policy, err := s.GetPolicyInfo(ctx, value.PolicyID, model.ComplianceCheckType(task.CheckType))
@@ -613,16 +594,38 @@ func (s *ScapService) GetScanResultToFile(task *model.ExportTask) error {
 		}
 		exfile.NodeName = value.NodeName
 		exfile.LastTime = time.Unix(value.CreatedAt, 0).Format("2006-01-02 15:04:05")
-		exfile.Status = model.GetStatusZh(value.State)
+		exfile.Status = model.GetStatus(language, value.State)
 		exfile.PolicyId = value.PolicyID
 		exfile.TestResult = value.ActualValue
-		exfile.Section = policy.TitleZh
-		exfile.Descript = policy.RemediationZh
-		exfile.DecDetail = policy.DetailZh
-		exfile.Classified = s.GetUDBCPMap(lang.LanguageZH, value.PolicyID, model.ComplianceCheckType(task.CheckType))
+		if language == lang.LanguageEN {
+			exfile.Section = policy.TitleEn
+			exfile.Descript = policy.RemediationEn
+			exfile.DecDetail = policy.DetailEn
+			exfile.Classified = policy.ClassifiedEn
+		} else {
+			exfile.Section = policy.TitleZh
+			exfile.Descript = policy.RemediationZh
+			exfile.DecDetail = policy.DetailZh
+			exfile.Classified = policy.ClassifiedZh
+		}
 		if policy.PolicyDetailInfoExtraDetail != nil {
-			exfile.Audit = policy.PolicyDetailInfoExtraDetail.Audit
-			exfile.Remediation = policy.PolicyDetailInfoExtraDetail.Remediation
+			if language == lang.LanguageEN {
+				exfile.Audit = policy.PolicyDetailInfoExtraDetail.AuditEn
+				exfile.Remediation = policy.PolicyDetailInfoExtraDetail.RemediationEn
+			} else {
+				exfile.Audit = policy.PolicyDetailInfoExtraDetail.Audit
+				exfile.Remediation = policy.PolicyDetailInfoExtraDetail.Remediation
+			}
+		}
+
+		if model.ComplianceCheckType(task.CheckType) == model.ComplianceCheckTargetTypeDocker {
+			if strings.HasPrefix(value.PolicyID, "co") {
+				exfile.Runtime = "cri-o"
+			} else if strings.HasPrefix(value.PolicyID, "cd") {
+				exfile.Runtime = "containerd"
+			} else {
+				exfile.Runtime = "docker"
+			}
 		}
 
 		row = sheet.AddRow()
@@ -648,13 +651,13 @@ func (s *ScapService) AddScapScanResults(ctx context.Context, rs []*model.ScanRe
 
 	var pass, warn, info, fail int
 	for i := range rs {
-		// TODO: 暂时这样，id应该发送端修改
+		// 老版本的发送端的数据有id字段，这里不需要设置id值
 		rs[i].ID = 0
-		rs[i].UDBCP = s.GetUDBCPMap(lang.LanguageZH, rs[i].PolicyID, rs[i].CheckType)
 
 		policy, err := s.GetPolicyInfo(ctx, rs[i].PolicyID, rs[i].CheckType)
 		if err == nil {
 			rs[i].Section = policy.TitleZh
+			rs[i].UDBCP = policy.ClassifiedZh
 		}
 
 		if rs[i].State == "PASS" || rs[i].State == "pass" {

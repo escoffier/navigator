@@ -1583,7 +1583,7 @@
             "rule": "1.6.1.1"
         },
         "extraDetail": {
-            "description": "SELinux提供强制访问控制。",
+            "description": "SELinux提供强制访问控制",
             "rationale": "如果没有安装强制访问控制系统，只能使用默认的自由访问控制系统",
             "audit": "检查SELinux是否已安装。# rpm -q libselinux libselinux-<version> .执行以下命令",
             "remediation": "执行以下命令安装SELinux。# yum install libselinux ",

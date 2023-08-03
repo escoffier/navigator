@@ -143,7 +143,7 @@ func (h *Host) loadConfig(file string) (string, error) {
 	}
 
 	// Merge version-specific config if any.
-	if err = conf.MergeConfig(path); err != nil {
+	if err = conf.MergeConfig(h.v, path); err != nil {
 		return "", err
 	}
 

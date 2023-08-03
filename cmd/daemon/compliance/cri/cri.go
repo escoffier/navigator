@@ -1,9 +1,11 @@
 package cri
 
 import (
+	"context"
 	"fmt"
 	"os/exec"
 	"syscall"
+	"time"
 
 	"github.com/spf13/viper"
 	"gitlab.com/security-rd/go-pkg/cis/check"
@@ -16,7 +18,8 @@ type criOptions struct {
 	taskID           string
 	nodeName         string
 	clusterID        string
-	dockerVersion    string
+	runtimeName      string
+	runtimeVersion   string
 	benchmarkVersion string
 	cfgDir           string
 	cfgFile          string
@@ -34,12 +37,13 @@ func CheckList(checkList []string) CriOption {
 	}
 }
 
-func NewCriOptions(taskID, clusterID, nodeName string, mqWriter mq.Writer, opts ...CriOption) *criOptions {
+func NewCriOptions(taskID, clusterID, nodeName string, mqWriter mq.Writer, runtimeName, runtimeVersion string, opts ...CriOption) *criOptions {
 	o := &criOptions{
 		taskID:           taskID,
 		nodeName:         nodeName,
 		clusterID:        clusterID,
-		dockerVersion:    "",
+		runtimeName:      runtimeName,
+		runtimeVersion:   runtimeVersion,
 		benchmarkVersion: "",
 		cfgDir:           "/cis/cri/",
 		cfgFile:          "",
@@ -59,9 +63,9 @@ func NewCriOptions(taskID, clusterID, nodeName string, mqWriter mq.Writer, opts 
 }
 
 type Cri struct {
-	opts                  *criOptions
-	chroot                string
-	detectedDockerVersion string
+	opts               *criOptions
+	chroot             string
+	detectedCriVersion string
 	outputter.Outputter
 	v *viper.Viper
 }
@@ -91,7 +95,8 @@ func (c *Cri) InitConfig() error {
 	c.chroot = c.v.GetString("chroot")
 	if c.chroot != "" {
 		nc = func() *exec.Cmd {
-			cmd := exec.Command("sh")
+			ctx, _ := context.WithTimeout(context.Background(), time.Minute*5)
+			cmd := exec.CommandContext(ctx, "sh")
 			cmd.Dir = "/"
 			cmd.SysProcAttr = &syscall.SysProcAttr{Chroot: c.chroot}
 			return cmd
@@ -102,15 +107,21 @@ func (c *Cri) InitConfig() error {
 }
 
 func (c *Cri) MappingBenchmarkVersion() error {
-	platform := getPlatformInfo()
-	bv, err := getBenchmarkVersion(c.opts.benchmarkVersion, c.detectedDockerVersion, platform, c.v)
+	platform := Platform{}
+	if c.opts.runtimeName != "" && c.opts.runtimeVersion != "" {
+		platform.Name = c.opts.runtimeName
+		platform.Version = c.opts.runtimeVersion
+	} else {
+		platform = getPlatformInfo()
+	}
+	bv, err := getBenchmarkVersion(c.opts.benchmarkVersion, platform, c.v)
 	if err != nil {
 		return fmt.Errorf("unable to determine benchmark version: %v", err)
 	}
 
 	logging.Get().Info().Msgf("Running checks for benchmark %v", bv)
 	c.opts.benchmarkVersion = bv
-	c.detectedDockerVersion = platform.String()
+	c.detectedCriVersion = platform.String()
 	return nil
 }
 
@@ -126,6 +137,7 @@ func (c *Cri) Run() error {
 		logging.Get().Error().Err(err).Msg("")
 		return c.writeFailed(err.Error())
 	}
+
 	controls, err := c.getControls(testYamlFile, constraints)
 	if err != nil {
 		logging.Get().Error().Msgf("error setting up controls: %v", err)

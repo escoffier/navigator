@@ -255,6 +255,16 @@ func (a *ApiServer) PolicyDetail(w http.ResponseWriter, r *http.Request) {
 			Audit:          checks[i].Audit,
 		}
 
+		if model.ComplianceCheckType(policy.Type) == model.ComplianceCheckTargetTypeDocker {
+			if strings.HasPrefix(checks[i].PolicyId, "co") {
+				tmp.Runtime = "cri-o"
+			} else if strings.HasPrefix(checks[i].PolicyId, "cd") {
+				tmp.Runtime = "containerd"
+			} else {
+				tmp.Runtime = "docker"
+			}
+		}
+
 		if language == lang.LanguageEN {
 			tmp.Title = checks[i].TitleEn
 			tmp.Detail = checks[i].DetailEn
