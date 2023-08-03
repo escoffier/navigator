@@ -9,4 +9,6 @@ message complianceScanReq {
     string requestID = 3;
     repeated string checkIds = 4;
     string checkType = 5;
+    string runtimeName = 6;
+    string runtimeVersion = 7;
 }

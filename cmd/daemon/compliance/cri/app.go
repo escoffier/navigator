@@ -7,8 +7,8 @@ import (
 
 	"github.com/hashicorp/go-version"
 	"github.com/spf13/viper"
+	"gitlab.com/piccolo_su/vegeta/cmd/daemon/cis/pkg/utils"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
-	"gitlab.com/piccolo_su/vegeta/pkg/util"
 	"gitlab.com/security-rd/go-pkg/cis/check"
 	"gitlab.com/security-rd/go-pkg/cis/conf"
 	"gitlab.com/security-rd/go-pkg/cis/outputter"
@@ -16,28 +16,21 @@ import (
 )
 
 // getBenchmarkVersion returns final benchmark version to use.
-func getBenchmarkVersion(benchmarkVersion, dockerVersion string, platform Platform, v *viper.Viper) (string, error) {
+func getBenchmarkVersion(benchmarkVersion string, platform Platform, v *viper.Viper) (string, error) {
 	var err error
 
-	// Benchmark flag is specify
-	if !util.IsEmpty(benchmarkVersion) && !util.IsEmpty(dockerVersion) {
-		return "", fmt.Errorf("It is an error to specify both --version and --benchmark flags")
-	}
-
-	if util.IsEmpty(benchmarkVersion) {
-		// Auto-detect the version of Docker that's running
-		if util.IsEmpty(dockerVersion) {
-			dockerVersion = platform.Version
-		}
+	if utils.IsEmpty(benchmarkVersion) {
 		// Set appropriate  CIS benchmark version according to docker version
-		benchmarkVersion, err = getDockerCisVersion(dockerVersion, v)
+		benchmarkVersion, err = getCriCisVersion(platform, v)
 		if err != nil {
-			return "", fmt.Errorf("Failed to get a valid CIS benchmark version for Docker version %s: %v", dockerVersion, err)
+			return "", fmt.Errorf("failed to get a valid CIS benchmark version for CRI version %s: %v", platform.String(), err)
 		}
 
-		// TODO: fixed benchmark version
-		logging.Get().Info().Msgf("替换cis基线版本为 %s=>cis-1.2", benchmarkVersion)
-		benchmarkVersion = "cis-1.2"
+		if platform.Name == RuntimeDocker {
+			// fixed benchmark version
+			logging.Get().Info().Msgf("替换cis基线版本为 %s=>cis-1.2", benchmarkVersion)
+			benchmarkVersion = "cis-1.2"
+		}
 	}
 
 	return benchmarkVersion, nil
@@ -105,16 +98,18 @@ func (c *Cri) getControls(testYamlFile string, constraints []string) (check.Cont
 	logging.Get().Info().Msg(fmt.Sprintf("Using test file: %s\n", testYamlFile))
 
 	storagemap, _ := getFiles(c.v, "storage", c.chroot)
+	runstoragemap, _ := getFiles(c.v, "runstorage", c.chroot)
 	logmap, _ := getFiles(c.v, "log", c.chroot)
 	confmap, _ := getFiles(c.v, "config", c.chroot)
 
 	// Variable substitutions. Replace all occurrences of variables in controls files.
 	s := string(in)
 	s, _ = conf.MakeSubstitutions(s, "storage", storagemap)
+	s, _ = conf.MakeSubstitutions(s, "runstorage", runstoragemap)
 	s, _ = conf.MakeSubstitutions(s, "conf", confmap)
 	s, _ = conf.MakeSubstitutions(s, "log", logmap)
 
-	controls, err := check.NewControls("", []byte(s), c.detectedDockerVersion, constraints)
+	controls, err := check.NewControls("", []byte(s), c.detectedCriVersion, constraints)
 	if err != nil {
 		return nil, fmt.Errorf("error setting up controls: %v", err)
 	}
@@ -136,42 +131,42 @@ func getConstraints() (constraints []string, err error) {
 	return constraints, nil
 }
 
-// getDockerCisVersion select the correct CIS version in compare to running docker version
-// TBD ocp-3.9 auto-detection
-func getDockerCisVersion(stringVersion string, v *viper.Viper) (string, error) {
-	dockerVersion, err := trimVersion(stringVersion)
+func getCriCisVersion(platform Platform, v *viper.Viper) (string, error) {
+	criVersion, err := trimVersion(platform.Version)
 
 	if err != nil {
 		return "", err
 	}
 
-	dockerToBenchmarkMap, err := conf.LoadVersionMapping(v)
+	criToBenchmarkMap, err := conf.LoadVersionMapping(v, platform.Name)
 	if err != nil {
 		return "", err
 	}
 
-	for benchVersion, dockerConstraints := range dockerToBenchmarkMap {
-		currConstraints, err := version.NewConstraint(dockerConstraints)
+	for benchVersion, criConstraints := range criToBenchmarkMap {
+		currConstraints, err := version.NewConstraint(criConstraints)
 		if err != nil {
 			return "", err
 		}
-		if currConstraints.Check(dockerVersion) {
-			logging.Get().Info().Msgf("docker version %s satisfies constraints %s", dockerVersion, currConstraints)
+		if currConstraints.Check(criVersion) {
+			logging.Get().Info().Msgf("cri version %s satisfies constraints %s", platform.String(), currConstraints)
 			return benchVersion, nil
 		}
 	}
 
-	tooOldVersion, err := version.NewConstraint("< 1.13.0")
-	if err != nil {
-		return "", err
+	if platform.Name == RuntimeDocker {
+		tooOldVersion, err := version.NewConstraint("< 1.13.0")
+		if err != nil {
+			return "", err
+		}
+
+		// Vesions before 1.13.0 are not supported by CIS.
+		if tooOldVersion.Check(criVersion) {
+			return "", fmt.Errorf("docker version %s is too old", criVersion)
+		}
 	}
 
-	// Vesions before 1.13.0 are not supported by CIS.
-	if tooOldVersion.Check(dockerVersion) {
-		return "", fmt.Errorf("docker version %s is too old", stringVersion)
-	}
-
-	return "", fmt.Errorf("no suitable CIS version has been found for docker version %s", stringVersion)
+	return "", fmt.Errorf("no suitable CIS version has been found for docker version %s", criVersion)
 }
 
 // TrimVersion function remove all Matadate or  Prerelease parts

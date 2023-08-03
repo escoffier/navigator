@@ -10,9 +10,10 @@ import (
 
 var (
 	TypeMap = map[string][]string{
-		"storage": {"storages", "defaultstorage"},
-		"config":  {"confs", "defaultconf"},
-		"log":     {"logs", "defaultlog"},
+		"storage":    {"storages", "defaultstorage"},
+		"runstorage": {"runstorages", "defaultrunstorages"},
+		"config":     {"confs", "defaultconf"},
+		"log":        {"logs", "defaultlog"},
 	}
 )
 
@@ -27,7 +28,7 @@ func (c *Cri) loadConfig(file string) (string, error) {
 	}
 
 	// Merge version-specific config if any.
-	if err = conf.MergeConfig(path); err != nil {
+	if err = conf.MergeConfig(c.v, path); err != nil {
 		return "", err
 	}
 

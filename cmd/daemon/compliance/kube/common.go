@@ -106,7 +106,7 @@ func (k *Kube) loadConfig(nodetype check.NodeType) (string, error) {
 	}
 
 	// Merge version-specific config if any.
-	if err = conf.MergeConfig(path); err != nil {
+	if err = conf.MergeConfig(k.v, path); err != nil {
 		return "", err
 	}
 

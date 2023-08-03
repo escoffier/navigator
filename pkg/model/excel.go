@@ -1,5 +1,9 @@
 package model
 
+import (
+	"gitlab.com/piccolo_su/vegeta/pkg/lang"
+)
+
 type ExportTask struct {
 	Status     uint8  `gorm:"column:status"`
 	CheckType  string `gorm:"type:varchar(255);column:check_type"`
@@ -28,26 +32,74 @@ type ScapRetData struct {
 	TestResult  string `xlsx:"8"`
 	Audit       string `xlsx:"9"`
 	Remediation string `xlsx:"10"`
+	Runtime     string
 }
 
-func GetStatusZh(status ScapScanResultStateType) string {
+func GetStatus(language lang.LanguageType, status ScapScanResultStateType) string {
 	var ret string
 	switch status {
 	case ScapScanResultStateFAIL:
-		ret = "未通过"
+		if language == lang.LanguageEN {
+			ret = "NotPass"
+		} else {
+			ret = "未通过"
+		}
 	case ScapScanResultStateWARN:
-		ret = "警告"
+		if language == lang.LanguageEN {
+			ret = "Warn"
+		} else {
+			ret = "警告"
+		}
 	case ScapScanResultStatePASS:
-		ret = "通过"
+		if language == lang.LanguageEN {
+			ret = "Pass"
+		} else {
+			ret = "通过"
+		}
 	case ScapScanResultStateINFO:
-		ret = "忽略"
+		if language == lang.LanguageEN {
+			ret = "Ignore"
+		} else {
+			ret = "忽略"
+		}
 	default:
-		ret = "未知: " + string(status)
+		if language == lang.LanguageEN {
+			ret = "Unknown"
+		} else {
+			ret = "未知"
+		}
+		ret += string(": " + status)
 	}
 	return ret
 }
 
-func GetTitleZh() *ScapRetData {
+func GetTitle(language lang.LanguageType, checkType string) *ScapRetData {
+	runtime := ""
+	if ComplianceCheckType(checkType) == ComplianceCheckTargetTypeDocker {
+		if language == lang.LanguageEN {
+			runtime = "Runtime Type"
+		} else {
+			runtime = "运行时类型"
+		}
+	}
+
+	if language == lang.LanguageEN {
+		return &ScapRetData{
+			NodeName:    "Node",
+			PolicyId:    "Compliance ID",
+			Classified:  "Dengbao",
+			Section:     "Compliance Policies",
+			Descript:    "Rule requirements",
+			DecDetail:   "Detail",
+			LastTime:    "Last Time",
+			Status:      "Status",
+			TestResult:  "Test Result",
+			Audit:       "Audit",
+			Remediation: "Remediation",
+			Runtime:     runtime,
+		}
+	}
+
 	return &ScapRetData{
 		NodeName:    "节点",
 		PolicyId:    "合规 ID",
@@ -60,5 +112,6 @@ func GetTitleZh() *ScapRetData {
 		TestResult:  "检测结果",
 		Audit:       "验证方法",
 		Remediation: "修复建议",
+		Runtime:     runtime,
 	}
 }

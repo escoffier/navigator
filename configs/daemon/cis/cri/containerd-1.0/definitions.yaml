@@ -1,0 +1,226 @@
+---
+controls:
+version: "containerd-1.0"
+id: "1.0"
+text: "Tensor containerd Benchmark"
+groups:
+  - id: 1
+    text: "Linux Hosts Specific Configuration"
+    checks:
+      - id: cd.1.1
+        text: "Ensure a separate partition for containers has been created"
+        audit: "grep '$containerdstorage\\s' /proc/mounts"
+        tests:
+          test_items:
+            - flag: "$containerdstorage"
+              set: true
+        scored: true
+
+      - id: cd.1.2
+        text: "Ensure auditing is configured for Containerd files and directories - /run/containerd"
+        audit: "grep /run/containerd /etc/audit/audit.rules"
+        tests:
+          test_items:
+            - flag: "/run/containerd"
+              set: true
+        scored: true
+
+      - id: cd.1.3
+        text: "Ensure auditing is configured for Containerd files and directories - $containerdstorage"
+        audit: "grep $containerdstorage /etc/audit/audit.rules"
+        tests:
+          test_items:
+            - flag: "$containerdstorage"
+              set: true
+        scored: true
+
+      - id: cd.1.4
+        text: "Ensure auditing is configured for Containerd files and directories - /etc/containerd"
+        audit: "grep /etc/containerd /etc/audit/audit.rules"
+        tests:
+          test_items:
+            - flag: "/etc/containerd"
+              set: true
+        scored: true
+
+      - id: cd.1.5
+        text: "Ensure auditing is configured for Containerd files and directories - containerd.sock"
+        audit: |
+          test_file=$(grep 'containerd.sock' $containerdconf | awk -F "=" '{print $2}' | tr -d "\"")
+          if test -e $test_file; then
+            grep $test_file /etc/audit/audit.rules
+          fi
+        tests:
+          test_items:
+            - flag: "containerd.sock"
+              set: true
+        scored: true
+
+      - id: cd.1.6
+        text: "Ensure auditing is configured for Containerd files and directories - $containerdconf"
+        audit: "grep $containerdconf /etc/audit/audit.rules"
+        tests:
+          test_items:
+            - flag: "$containerdconf"
+              set: true
+        scored: true
+
+      - id: cd.1.7
+        text: "Ensure auditing is configured for Containerd files and directories - /usr/bin/containerd"
+        audit: "grep /usr/bin/containerd /etc/audit/audit.rules"
+        tests:
+          test_items:
+            - flag: "/usr/bin/containerd"
+              set: true
+        scored: true
+
+      - id: cd.1.8
+        text: "Ensure auditing is configured for Containerd files and directories - /usr/bin/containerd-shim"
+        audit: "grep /usr/bin/containerd-shim /etc/audit/audit.rules"
+        tests:
+          test_items:
+            - flag: "/usr/bin/containerd-shim"
+              set: true
+        scored: true
+
+      - id: cd.1.9
+        text: "Ensure auditing is configured for Containerd files and directories - /usr/bin/containerd-shim-runc-v1"
+        audit: "grep /usr/bin/containerd-shim-runc-v1 /etc/audit/audit.rules"
+        tests:
+          test_items:
+            - flag: "/usr/bin/containerd-shim-runc-v1"
+              set: true
+        scored: true
+
+      - id: cd.1.10
+        text: "Ensure auditing is configured for Containerd files and directories - /usr/bin/containerd-shim-runc-v2"
+        audit: "grep /usr/bin/containerd-shim-runc-v2 /etc/audit/audit.rules"
+        tests:
+          test_items:
+            - flag: "/usr/bin/containerd-shim-runc-v2"
+              set: true
+        scored: true
+
+      - id: cd.1.11
+        text: "Ensure auditing is configured for Containerd files and directories - /usr/bin/runc"
+        audit: "grep /usr/bin/runc /etc/audit/audit.rules"
+        tests:
+          test_items:
+            - flag: "/usr/bin/runc"
+              set: true
+        scored: true
+
+  - id: 3
+    text: "Containerd configuration files"
+    checks:
+      - id: cd.3.1
+        text: "Ensure that the /etc/containerd directory ownership is set to root:root"
+        audit: stat -c "%N %U:%G" /etc/containerd
+        tests:
+          test_items:
+            - flag: "root:root"
+              set: true
+        scored: true
+
+      - id: cd.3.2
+        text: "Ensure that the /etc/containerd directory permissions are set to 755 or more restrictive"
+        audit: stat -c "%N permissions=%a" /etc/containerd
+        tests:
+          test_items:
+            - flag: "permissions"
+              compare:
+                op: bitmask
+                value: "755"
+              set: true
+        scored: true
+
+      - id: cd.3.3
+        text: "Ensure that registry certificate file ownership is set to root:root"
+        audit: |
+          dir=/etc/containerd/certs.d
+          if [ -d $dir ] && [ "$(ls -A $dir)" != "" ]; then
+          	stat -c "%N %U:%G" $dir/*
+          else
+          	echo "PASSED"
+          fi
+        use_multiple_values: true
+        tests:
+          bin_op: or
+          test_items:
+            - flag: "PASSED"
+              set: true
+            - flag: "root:root"
+              set: true
+        scored: true
+
+      - id: cd.3.4
+        text: "Ensure that registry certificate file permissions are set to 444 or more restrictive"
+        audit: |
+          dir=/etc/containerd/certs.d
+          if [ -d $dir ] && [ "$(ls -A $dir)" != "" ]; then
+          	stat -c "%N permissions=%a" $dir/*
+          else
+          	echo "PASSED"
+          fi
+        use_multiple_values: true
+        tests:
+          bin_op: or
+          test_items:
+            - flag: "PASSED"
+              set: true
+            - flag: "permissions"
+              compare:
+                op: bitmask
+                value: "444"
+              set: true
+        scored: true
+
+      - id: cd.3.5
+        text: "Ensure that the Containerd socket file ownership is set to root:root"
+        audit: |
+          test_file=$(grep 'containerd.sock' $containerdconf | awk -F "=" '{print $2}' | tr -d "\"")
+          if test -e $test_file; then
+            stat -c "%N %U:%G" $test_file
+          fi
+        tests:
+          test_items:
+            - flag: "root:root"
+              set: true
+        scored: true
+
+      - id: cd.3.6
+        text: "Ensure that the Containerd socket file permissions are set to 660 or more restrictive"
+        audit: |
+          test_file=$(grep 'containerd.sock' $containerdconf | awk -F "=" '{print $2}' | tr -d "\"")
+          if test -e $test_file; then
+            stat -c "%N permissions=%a" $test_file
+          fi
+        tests:
+          test_items:
+            - flag: "permissions"
+              compare:
+                op: bitmask
+                value: "660"
+              set: true
+        scored: true
+
+      - id: cd.3.7
+        text: "Ensure that the config.toml file ownership is set to root:root"
+        audit: stat -c "%N %U:%G" $containerdconf
+        tests:
+          test_items:
+            - flag: "root:root"
+              set: true
+        scored: true
+
+      - id: cd.3.8
+        text: "Ensure that the config.toml file permissions are set to 644 or more restrictive"
+        audit: stat -c "%N permissions=%a" $containerdconf
+        tests:
+          test_items:
+            - flag: "permissions"
+              compare:
+                op: bitmask
+                value: "644"
+              set: true
+        scored: true

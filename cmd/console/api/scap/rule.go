@@ -4,12 +4,14 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"strings"
 	"time"
 
 	param "github.com/oceanicdev/chi-param"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/models/scap"
 	"gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	"gitlab.com/piccolo_su/vegeta/pkg/lang"
+	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
 )
 
@@ -54,6 +56,16 @@ func (a *ApiServer) RuleBatch(w http.ResponseWriter, r *http.Request) {
 		tmp := scap.Rule{
 			ID:    list[i].Id,
 			RawID: list[i].PolicyId,
+		}
+
+		if model.ComplianceCheckType(scapType) == model.ComplianceCheckTargetTypeDocker {
+			if strings.HasPrefix(list[i].PolicyId, "co") {
+				tmp.Runtime = "cri-o"
+			} else if strings.HasPrefix(list[i].PolicyId, "cd") {
+				tmp.Runtime = "containerd"
+			} else {
+				tmp.Runtime = "docker"
+			}
 		}
 
 		if language == lang.LanguageEN {
@@ -103,6 +115,16 @@ func (a *ApiServer) RuleDetail(w http.ResponseWriter, r *http.Request) {
 		RawID:          rule.PolicyId,
 		ExpectedResult: rule.ExpectedResult,
 		Audit:          rule.Audit,
+	}
+
+	if model.ComplianceCheckType(scapType) == model.ComplianceCheckTargetTypeDocker {
+		if strings.HasPrefix(rule.PolicyId, "co") {
+			resp.Runtime = "cri-o"
+		} else if strings.HasPrefix(rule.PolicyId, "cd") {
+			resp.Runtime = "containerd"
+		} else {
+			resp.Runtime = "docker"
+		}
 	}
 
 	if lang.Language(ctx) == lang.LanguageEN {

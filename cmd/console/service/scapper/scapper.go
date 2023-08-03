@@ -21,6 +21,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/dal"
 	"gitlab.com/piccolo_su/vegeta/pkg/flag"
 	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
+	"gitlab.com/piccolo_su/vegeta/pkg/lang"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	rpcstream "gitlab.com/piccolo_su/vegeta/pkg/streaming"
 	"gitlab.com/piccolo_su/vegeta/pkg/streaming/pb"
@@ -239,6 +240,15 @@ func (s *Scapper) checkTargetTypeTasksStillInProgress(ctx context.Context, check
 	return false
 }
 
+func getContainerRuntimeVersion(containerRuntimeVersion string) (string, string, error) {
+	runtime := strings.Split(containerRuntimeVersion, "://")
+	if len(runtime) != 2 {
+		return "", "", fmt.Errorf("get node runtime failed: %s", containerRuntimeVersion)
+	}
+
+	return runtime[0], runtime[1], nil
+}
+
 func (s *Scapper) RunComplianceCheck(
 	clusterID string,
 	checkType model.ComplianceCheckType,
@@ -319,12 +329,12 @@ func (s *Scapper) RunComplianceCheck(
 			}
 
 			db := s.rdb.Get().WithContext(ctx).Model(&model.TensorNode{}).
-				Select("host_name").Where("status=0 AND cluster_key = ?", clusterID)
+				Select("host_name,container_runtime_version").Where("status=0 AND cluster_key = ?", clusterID)
 			if !clusterInfo.IsAllNodes {
 				db = db.Where("id IN ?", clusterInfo.ClusterNodeIds)
 			}
 
-			var nodes []string
+			var nodes []model.TensorNode
 			if err = db.Find(&nodes).Error; err != nil {
 				return apperror.NewAnError(http.StatusInternalServerError,
 					fmt.Errorf("can't list nodes name in this cluster from db: %v", err))
@@ -340,13 +350,27 @@ func (s *Scapper) RunComplianceCheck(
 				checkType = model.ComplianceCheckTargetTypeCRI
 			}
 
-			for _, name := range nodes {
+			for _, node := range nodes {
+				check.NodeName = node.HostName
+
+				runtimeName, runtimeVersion, err := getContainerRuntimeVersion(node.ContainerRuntimeVersion)
+				if err != nil {
+					logging.Get().Warn().Err(err).Msg("")
+					err = s.dbAddScapNodeTask(ctx, &check, model.ScanStateFailed, err.Error(), "daemon")
+					if err != nil {
+						logging.Get().Err(err).Msgf("set node %s daemon for check task %+v error", node.HostName, check)
+					}
+					continue
+				}
+
 				req := pb.ComplianceScanReq{
-					ClusterKey: clusterID,
-					NodeName:   name,
-					RequestID:  checkUUID,
-					CheckIds:   checks,
-					CheckType:  string(checkType),
+					ClusterKey:     clusterID,
+					NodeName:       node.HostName,
+					RequestID:      checkUUID,
+					CheckIds:       checks,
+					CheckType:      string(checkType),
+					RuntimeName:    runtimeName,
+					RuntimeVersion: runtimeVersion,
 				}
 
 				var (
@@ -369,10 +393,9 @@ func (s *Scapper) RunComplianceCheck(
 					message = resp.StatusMessage
 				}
 
-				check.NodeName = name
-				err = s.dbAddDaemonStatusInProgress(ctx, &check, status, message, "daemon")
+				err = s.dbAddScapNodeTask(ctx, &check, status, message, "daemon")
 				if err != nil {
-					logging.Get().Err(err).Msgf("set node %s daemon for check task %+v error", name, check)
+					logging.Get().Err(err).Msgf("set node %s daemon for check task %+v error", req.NodeName, check)
 				}
 			}
 
@@ -422,17 +445,6 @@ func (s *Scapper) RunComplianceCheck(
 				return "", apperror.NewCheckAlreadyInProgressError(http.StatusInternalServerError, errors.Errorf("currently there are tasks still running"))
 			}
 
-			// get cluster manager
-			// clusterManager, ok := k8s.GetClusterManager()
-			// if !ok {
-			// 	return "", apperror.NewKubernetesError(http.StatusInternalServerError, fmt.Errorf("get cluster manager failed"))
-			// }
-			// // get k8s client
-			// kubeClient, ok = clusterManager.GetClient(clusterID)
-			// if !ok {
-			// 	return "", apperror.NewKubernetesError(http.StatusInternalServerError, fmt.Errorf("get k8s client failed, cluster id: %s", clusterID))
-			// }
-
 			err := s.garbageCollectHistoricalJobs(ctx, kubeClient, checkType, namespace)
 			if err != nil {
 				return "", apperror.NewKubernetesError(http.StatusInternalServerError, fmt.Errorf("Failed to garbage collect historical jobs: %v", err))
@@ -467,7 +479,19 @@ func (s *Scapper) RunComplianceCheck(
 			for i := range nodes {
 				// TODO: resilience. We should save a task to mongo so that in case of Console crash we can restart the check?
 				// or do we not care about this since this is a rare operation?
-				err = s.dbAddJobStatusInProgress(ctx, &check, &nodes[i])
+
+				status := model.ScanStateInProgress
+				message := ""
+				if !pkgassets.NodeIsReady(&nodes[i]) {
+					message = "node is not ready"
+					status = model.ScanStateFailed
+					logging.Get().Warn().
+						Str("task", check.CheckUUID).
+						Str("nodeName", check.NodeName).
+						Msg("node is not ready, check this node failed")
+				}
+				check.NodeName = nodes[i].Name
+				err = s.dbAddScapNodeTask(ctx, &check, status, message, "job")
 				if err != nil {
 					logging.Get().Err(err).Msgf("set node %s for check task %+v error", nodes[i].Name, check)
 					continue
@@ -502,9 +526,9 @@ func (s *Scapper) RunComplianceCheck(
 	return checkUUID, nil
 }
 
-func (s *Scapper) RunExportFileTask(task *model.ExportTask) {
+func (s *Scapper) RunExportFileTask(language lang.LanguageType, task *model.ExportTask) {
 	// export file to xlsx
-	err := s.ScapService.GetScanResultToFile(task)
+	err := s.ScapService.GetScanResultToFile(language, task)
 	// print debug log
 	// logging.Get().Info().Msgf("save scan result to xlsx over!!")
 	// update task status
@@ -664,9 +688,14 @@ FOR:
 
 			nodeName := targetNode.Name
 
+			runtimeName, runtimeVersion, err := getContainerRuntimeVersion(targetNode.Status.NodeInfo.ContainerRuntimeVersion)
+			if err != nil {
+				logging.Get().Warn().Err(err).Msg("")
+				continue
+			}
 			jobName := s.CreateJobName(check.CheckUUID, check.CheckType, nodeName)
 			// schedule job
-			err := s.scheduleOneJob(ctx, kubeClient, check, jobObj.DeepCopy(), clusterName, jobName, nodeName, targetNode.Status.NodeInfo.Architecture)
+			err = s.scheduleOneJob(ctx, kubeClient, check, jobObj.DeepCopy(), clusterName, jobName, nodeName, targetNode.Status.NodeInfo.Architecture, runtimeName, runtimeVersion)
 			if err != nil {
 				logging.Get().Error().Msgf("Failed to schedule job, %v.", err)
 
@@ -792,7 +821,7 @@ func (s Scapper) readJobObjFromYamlFile(checkType model.ComplianceCheckType, old
 	return jobObj, nil
 }
 
-func (s *Scapper) scheduleOneJob(ctx context.Context, kubeClient *pkgassets.Clientset, check *model.Check, jobObj *batchv1.Job, clusterName, jobName, targetNodeName, targetNodeArch string) error {
+func (s *Scapper) scheduleOneJob(ctx context.Context, kubeClient *pkgassets.Clientset, check *model.Check, jobObj *batchv1.Job, clusterName, jobName, targetNodeName, targetNodeArch, runtimeName, runtimeVersion string) error {
 	// 使用节点亲和性替代nodeName
 	jobObj.Spec.Template.Spec.Affinity = &corev1.Affinity{
 		NodeAffinity: &corev1.NodeAffinity{
@@ -860,6 +889,11 @@ func (s *Scapper) scheduleOneJob(ctx context.Context, kubeClient *pkgassets.Clie
 		jobObj.Spec.Template.Spec.Containers[0].Image = repo + ":arm64"
 	}
 
+	if model.ComplianceCheckType(check.CheckType) == model.ComplianceCheckTargetTypeDocker {
+		jobObj.Spec.Template.Spec.Containers[0].Args = append(jobObj.Spec.Template.Spec.Containers[0].Args, "--runtime-name="+runtimeName)
+		jobObj.Spec.Template.Spec.Containers[0].Args = append(jobObj.Spec.Template.Spec.Containers[0].Args, "--runtime-version="+runtimeVersion)
+	}
+
 	jobsClient := kubeClient.BatchV1().Jobs(check.Namespace)
 	res, err := jobsClient.Create(ctx, jobObj, metav1.CreateOptions{})
 	// HACK
@@ -887,46 +921,7 @@ func (s *Scapper) scheduleOneJob(ctx context.Context, kubeClient *pkgassets.Clie
 	return nil
 }
 
-func (s *Scapper) dbAddJobStatusInProgress(ctx context.Context, check *model.Check, targetNode *corev1.Node) error {
-	jobName := s.CreateJobName(check.CheckUUID, check.CheckType, targetNode.Name)
-
-	status := model.ScanStateInProgress
-	createAt := time.Now().Unix()
-	finishedAt := int64(0)
-	message := ""
-	if !pkgassets.NodeIsReady(targetNode) {
-		message = "node is not ready"
-		status = model.ScanStateFailed
-		finishedAt = createAt // 当不可以创建pods时(node 时not ready状态)
-		logging.Get().Info().
-			Str("task", check.CheckUUID).
-			Str("nodeName", targetNode.Name).
-			Msg("node is not ready, check this node failed")
-	}
-
-	task := model.ScanNodeRecord{
-		TaskID:       check.CheckUUID,
-		CheckType:    check.CheckType,
-		ClusterKey:   check.ClusterID,
-		Operator:     check.Operator,
-		NodeName:     targetNode.Name,
-		Namespace:    check.Namespace,
-		JobName:      jobName,
-		State:        status,
-		CreatedAt:    createAt,
-		FinishedAt:   finishedAt,
-		Message:      message,
-		ScheduleType: "job",
-	}
-
-	err := s.rdb.Get().WithContext(ctx).Create(&task).Error
-	if err != nil {
-		return errors.Errorf("create scan task failed, %v", err)
-	}
-	return nil
-}
-
-func (s *Scapper) dbAddDaemonStatusInProgress(ctx context.Context, check *model.Check, status model.ScanState, message, scheduleType string) error {
+func (s *Scapper) dbAddScapNodeTask(ctx context.Context, check *model.Check, status model.ScanState, message, scheduleType string) error {
 	createAt := time.Now().Unix()
 	var finishedAt int64
 	if status == model.ScanStateFailed {
@@ -940,12 +935,15 @@ func (s *Scapper) dbAddDaemonStatusInProgress(ctx context.Context, check *model.
 		Operator:     check.Operator,
 		NodeName:     check.NodeName,
 		Namespace:    check.Namespace,
-		JobName:      "",
 		State:        status,
 		CreatedAt:    createAt,
 		FinishedAt:   finishedAt,
 		Message:      message,
 		ScheduleType: scheduleType,
+	}
+
+	if scheduleType == "job" {
+		task.JobName = s.CreateJobName(check.CheckUUID, check.CheckType, check.NodeName)
 	}
 
 	err := s.rdb.Get().WithContext(ctx).Create(&task).Error

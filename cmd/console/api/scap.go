@@ -109,6 +109,7 @@ func (a *api) findScanNodeDetailList() http.HandlerFunc {
 			TestResult   string                            `json:"testResult"`
 			UDBCP        string                            `json:"udbcp"`
 			ExtraDetail  model.PolicyDetailInfoExtraDetail `json:"extraDetail"  gorm:"-"`
+			Runtime      string                            `json:"runtime,omitempty"`
 		} `json:"compliances" gorm:"-"`
 	}
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -170,6 +171,16 @@ func (a *api) findScanNodeDetailList() http.HandlerFunc {
 		language := lang.Language(ctx)
 		svc, _ := scapper.GetService(ctx)
 		for i, c := range result.Compliances {
+			if checkType == model.ComplianceCheckTargetTypeDocker {
+				if strings.HasPrefix(result.Compliances[i].PolicyNumber, "co") {
+					result.Compliances[i].Runtime = "cri-o"
+				} else if strings.HasPrefix(result.Compliances[i].PolicyNumber, "cd") {
+					result.Compliances[i].Runtime = "containerd"
+				} else {
+					result.Compliances[i].Runtime = "docker"
+				}
+			}
+
 			policy, err := svc.GetPolicyInfo(ctx, c.PolicyNumber, checkType)
 			if err != nil {
 				logging.Get().Warn().Err(err).Msg("svc.GetPolicyInfo")
@@ -180,10 +191,11 @@ func (a *api) findScanNodeDetailList() http.HandlerFunc {
 			if language == lang.LanguageEN {
 				result.Compliances[i].Description = policy.DetailEn
 				result.Compliances[i].Section = policy.TitleEn
-				result.Compliances[i].UDBCP = svc.GetUDBCPMap(language, c.PolicyNumber, checkType)
+				result.Compliances[i].UDBCP = policy.ClassifiedEn
 			} else {
 				result.Compliances[i].Description = policy.DetailZh
 				result.Compliances[i].Section = policy.TitleZh
+				result.Compliances[i].UDBCP = policy.ClassifiedZh
 			}
 
 			if policy.PolicyDetailInfoExtraDetail != nil {
@@ -252,26 +264,30 @@ func (a *api) findSuggest() http.HandlerFunc {
 		suggestType, _ := param.QueryString(r, "suggestType")
 
 		result, err := scap.GetSuggestProvider(suggestType).
-			FindSuggestList(ctx, a.rdb.GetReadDB(), taskID, keyword, 0, 20)
+			FindSuggestList(ctx, a.rdb.GetReadDB(), taskID, keyword, 0, 500)
 		if err != nil {
 			logging.Get().Error().Err(err).Msg("")
 			RespAndLog(w, ctx, err)
 			return
 		}
 
-		// if language := lang.Language(ctx); language == lang.LanguageEN {
-		// 	svc, _ := scapper.GetService(ctx)
-		// 	if suggestType == "section" {
-		// 		for i := range result {
-		// 			svc.GetUDBCPMap(language, "", "")
-		// 			result[i].Label = "//i18n"
-		// 		}
-		// 	} else if suggestType == "udbcp" {
-		// 		for i := range result {
-		// 			result[i].Label = "//i18n"
-		// 		}
-		// 	}
-		// }
+		if language := lang.Language(ctx); language == lang.LanguageEN {
+			if suggestType == "udbcp" {
+				for i := range result {
+					label, ok := model.UDBCPTranslateMap[strings.TrimSpace(result[i].Label)]
+					if ok {
+						result[i].Label = label
+					}
+				}
+			} else if suggestType == "section" {
+				for i := range result {
+					label, ok := model.SectionPTranslateMap[strings.TrimSpace(result[i].Label)]
+					if ok {
+						result[i].Label = label
+					}
+				}
+			}
+		}
 
 		response.Ok(w, response.WithItems(result))
 	}
@@ -410,7 +426,12 @@ func (a *api) findCheckBreakdown() http.HandlerFunc {
 				Where("state = ? AND finished_at>0 AND suc_node>0", model.ScanStateCompleted).
 				First(&scanHistory).Error
 			if err != nil {
-				RespAndLog(w, ctx, NewNotFoundError(http.StatusBadRequest, err))
+				logging.Get().Warn().Err(err).Msg("gets scan result fail by taskId")
+
+				response.Ok(w, response.WithItems([]string{}),
+					response.WithTotalItems(0),
+					response.WithCustomField("taskID", taskID),
+					response.WithCustomField("taskFinishedAt", taskFinishedAt))
 				return
 			}
 			taskFinishedAt = scanHistory.FinishedAt
@@ -700,9 +721,11 @@ func (api *api) exportFile() http.HandlerFunc {
 		if err != nil {
 			task.Status = 2
 		} else {
+			language := lang.Language(ctx)
+
 			// run export file task
 			scap, _ := scapper.GetScapper(ctx)
-			go scap.RunExportFileTask(&task)
+			go scap.RunExportFileTask(language, &task)
 		}
 
 		response.Ok(w, response.WithExportFileStatus(task.Status))

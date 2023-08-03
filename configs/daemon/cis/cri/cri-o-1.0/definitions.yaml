@@ -1,0 +1,353 @@
+---
+controls:
+version: "cri-o-1.0"
+id: "1.0"
+text: "Tensor CRI-O Benchmark"
+groups:
+  - id: 1
+    text: "Linux Hosts Specific Configuration"
+    checks:
+      - id: co.1.1
+        text: "Ensure auditing is configured for CRI-O files and directories - $cri-ostorage"
+        audit: "grep $cri-ostorage /etc/audit/audit.rules"
+        tests:
+          test_items:
+            - flag: "$cri-ostorage"
+              set: true
+        scored: true
+
+      - id: co.1.2
+        text: "Ensure auditing is configured for CRI-O files and directories - $cri-orunstorage"
+        audit: "grep $cri-orunstorage /etc/audit/audit.rules"
+        tests:
+          test_items:
+            - flag: "$cri-orunstorage"
+              set: true
+        scored: true
+
+      - id: co.1.3
+        text: "Ensure auditing is configured for CRI-O files and directories - /etc/crio"
+        audit: "grep /etc/crio /etc/audit/audit.rules"
+        tests:
+          test_items:
+            - flag: "/etc/crio"
+              set: true
+        scored: true
+
+      - id: co.1.4
+        text: "Ensure auditing is configured for CRI-O files and directories - crio.sock"
+        audit: |
+          test_file=$(grep 'crio.sock' $cri-oconf | awk -F "=" '{print $2}' | tr -d "\"")
+          if test -e $test_file; then
+            grep $test_file /etc/audit/audit.rules
+          fi
+        tests:
+          test_items:
+            - flag: "crio.sock"
+              set: true
+        scored: true
+
+      - id: co.1.5
+        text: "Ensure auditing is configured for CRI-O files and directories - $cri-oconf"
+        audit: "grep $cri-oconf /etc/audit/audit.rules"
+        tests:
+          test_items:
+            - flag: "$cri-oconf"
+              set: true
+        scored: true
+
+      - id: co.1.6
+        text: "Ensure auditing is configured for CRI-O files and directories - /usr/bin/runc"
+        audit: "grep /usr/bin/runc /etc/audit/audit.rules"
+        tests:
+          test_items:
+            - flag: "/usr/bin/runc"
+              set: true
+        scored: true
+
+  - id: 2
+    text: "CRI-O configuration"
+    checks:
+      - id: co.2.1
+        text: "Ensure the logging level is set to 'info'"
+        audit: crio config | grep log_level
+        tests:
+          bin_op: or
+          test_items:
+            - flag: "log_level"
+              set: false
+            - flag: "log_level"
+              compare:
+                op: eq
+                value: "\"info\""
+              set: true
+        scored: true
+
+      - id: co.2.2
+        text: "Ensure aufs storage driver is not used"
+        audit: crio config | grep storage_driver
+        tests:
+          test_items:
+            - flag: "aufs"
+              set: false
+        scored: true
+
+      - id: co.2.3
+        text: "Ensure TLS authentication for CRI-O daemon is configured"
+        audit: |
+          grep tls $cri-oconf
+        tests:
+          bin_op: and
+          test_items:
+            - flag: "stream_enable_tls"
+              compare:
+                op: eq
+                value: true
+              set: true
+            - flag: "stream_tls_cert"
+              compare:
+                op: noteq
+                value: '""'
+              set: true
+            - flag: "stream_tls_key"
+              compare:
+                op: noteq
+                value: '""'
+              set: true
+            - flag: "stream_tls_ca"
+              compare:
+                op: noteq
+                value: '""'
+              set: true
+        scored: true
+
+  - id: 3
+    text: "CRI-O configuration files"
+    checks:
+      - id: co.3.1
+        text: "Ensure that /etc/crio directory ownership is set to root:root"
+        audit: stat -c "%N %U:%G" /etc/crio
+        tests:
+          test_items:
+            - flag: "root:root"
+              set: true
+        scored: true
+
+      - id: co.3.2
+        text: "Ensure that /etc/crio directory permissions are set to 755 or more restrictive"
+        audit: stat -c "%N permissions=%a" /etc/crio
+        tests:
+          test_items:
+            - flag: "permissions"
+              compare:
+                op: bitmask
+                value: "755"
+              set: true
+        scored: true
+
+      - id: co.3.3
+        text: "Ensure that CRI global auth file ownership is set to root:root"
+        audit: |
+          test_file=$(grep 'global_auth_file' $cri-oconf | awk -F "=" '{print $2}')
+          if test -e $test_file; then
+            stat -c "%N %U:%G" $test_file
+          else
+              echo "IGNORE"
+          fi
+        tests:
+          test_items:
+            - flag: "root:root"
+              set: true
+        scored: true
+
+      - id: co.3.4
+        text: "Ensure that CRI global auth file permissions are set to 444 or more restrictive"
+        audit: |
+          test_file=$(grep 'global_auth_file' $cri-oconf | awk -F "=" '{print $2}')
+          if test -e $test_file; then
+            stat -c "%N permissions=%a" $test_file
+          else
+              echo "IGNORE"
+          fi
+        tests:
+          test_items:
+            - flag: "permissions"
+              compare:
+                op: bitmask
+                value: "444"
+              set: true
+        scored: true
+
+      - id: co.3.5
+        text: "Ensure that the CRI-O socket file ownership is set to root:root"
+        audit: |
+          test_file=$(grep 'crio.sock' $cri-oconf | awk -F "=" '{print $2}' | tr -d "\"")
+          if test -e $test_file; then
+            stat -c "%N %U:%G" $test_file
+          fi
+        tests:
+          test_items:
+            - flag: "root:root"
+              set: true
+        scored: true
+
+      - id: co.3.6
+        text: "Ensure that the CRI-O socket file permissions are set to 660 or more restrictive"
+        audit: |
+          test_file=$(grep 'crio.sock' $cri-oconf | awk -F "=" '{print $2}' | tr -d "\"")
+          if test -e $test_file; then
+            stat -c "%N permissions=%a" $test_file
+          fi
+        tests:
+          test_items:
+            - flag: "permissions"
+              compare:
+                op: bitmask
+                value: "660"
+              set: true
+        scored: true
+
+      - id: co.3.7
+        text: "Ensure that crio.conf file ownership is set to root:root"
+        audit: stat -c "%N %U:%G" $cri-oconf
+        tests:
+          test_items:
+            - flag: "root:root"
+              set: true
+        scored: true
+
+      - id: co.3.8
+        text: "Ensure that crio.conf file permissions are set to 644 or more restrictive"
+        audit: stat -c "%N permissions=%a" $cri-oconf
+        tests:
+          test_items:
+            - flag: "permissions"
+              compare:
+                op: bitmask
+                value: "644"
+              set: true
+        scored: true
+
+      - id: co.3.9
+        text: "Ensure that crio.service file ownership is set to root:root"
+        audit: systemctl show -p FragmentPath crio.service | cut -d= -f2 | xargs stat -c "%N %U:%G"
+        tests:
+          test_items:
+            - flag: "root:root"
+              set: true
+        scored: true
+
+      - id: co.3.10
+        text: "Ensure that crio.service file permissions are set to 644 or more restrictive"
+        audit: systemctl show -p FragmentPath crio.service | cut -d= -f2 | xargs stat -c "%N permissions=%a"
+        tests:
+          test_items:
+            - flag: "permissions"
+              compare:
+                op: bitmask
+                value: "644"
+              set: true
+        scored: true
+
+      - id: co.3.11
+        text: "Ensure that the /etc/sysconfig/crio file ownership is set to root:root"
+        audit: stat -c "%N %U:%G" /etc/sysconfig/crio
+        tests:
+          test_items:
+            - flag: "root:root"
+              set: true
+        scored: true
+
+      - id: co.3.12
+        text: "Ensure that /etc/sysconfig/crio file permissions are set to 644 or more restrictive"
+        audit: stat -c "%N permissions=%a" /etc/sysconfig/crio
+        tests:
+          test_items:
+            - flag: "permissions"
+              compare:
+                op: bitmask
+                value: "644"
+              set: true
+        scored: true
+
+  - id: 5
+    text: "Container Runtime Configuration"
+    checks:
+      - id: co.5.1
+        text: "Ensure that privileged containers are not used"
+        audit: "crictl ps --quiet --all | xargs crictl inspect -o go-template --template='{{ .status.id }}: Privileged={{ .info.privileged }}'"
+        use_multiple_values: true
+        tests:
+          test_items:
+            - flag: "Privileged=true"
+              set: false
+        scored: true
+
+      - id: co.5.2
+        text: "Ensure sensitive host system directories are not mounted on containers"
+        audit: "crictl ps --quiet --all | xargs crictl inspect -o go-template --template='{{ .status.id }}: Volumes={{ .info.runtimeSpec.mounts }}'"
+        use_multiple_values: true
+        tests:
+          test_items:
+            - flag: "source:/ "
+              set: false
+            - flag: "source:/boot "
+              set: false
+            - flag: "source:/dev "
+              set: false
+            - flag: "source:/etc "
+              set: false
+            - flag: "source:/lib "
+              set: false
+            - flag: "source:/proc "
+              set: false
+            - flag: "source:/sys "
+              set: false
+            - flag: "source:/usr "
+              set: false
+        scored: true
+
+      - id: co.5.3
+        text: "Ensure that the memory usage for containers is limited"
+        audit: |
+          tests=$(crictl ps --quiet --all)
+          for test in $tests; do
+            crictl inspect -o go-template --template='{{ .status.id }}: Memory={{ .info.runtimeSpec.linux.resources.memory.limit }}' $test
+          done
+        use_multiple_values: true
+        tests:
+          test_items:
+            - flag: "Memory"
+              compare:
+                op: gt
+                value: 0
+              set: true
+
+        scored: true
+
+      - id: co.5.4
+        text: "Ensure that CPU priority is set appropriately on containers"
+        audit: "crictl ps --quiet --all | xargs crictl inspect -o go-template --template='{{ .status.id }}: CpuShares={{ .info.runtimeSpec.linux.resources.cpu.shares }}'"
+        use_multiple_values: true
+        tests:
+          test_items:
+            - flag: "CpuShares"
+              compare:
+                op: gt
+                value: 0
+              set: true
+            - flag: "CpuShares"
+              compare:
+                op: lt
+                value: 1024
+              set: true
+        scored: true
+
+      - id: co.5.5
+        text: "Ensure that the CRI-O socket is not mounted inside any containers"
+        audit: "crictl ps --quiet --all | xargs crictl inspect -o go-template --template='{{ .status.id }}: Volumes={{ .info.runtimeSpec.mounts }}' | grep crio.sock"
+        tests:
+          test_items:
+            - flag: "crio.sock"
+              set: false
+        scored: true

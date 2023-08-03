@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
@@ -74,23 +73,6 @@ func getBinaries(v *viper.Viper, nodetype check.NodeType) (map[string]string, er
 	}
 
 	return binmap, nil
-}
-
-// getYamlFilesFromDir returns a list of yaml files in the specified directory, ignoring config.yaml
-func getYamlFilesFromDir(path string) (names []string, err error) {
-	err = filepath.Walk(path, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
-
-		_, name := filepath.Split(path)
-		if name != "" && name != "config.yaml" && filepath.Ext(name) == ".yaml" {
-			names = append(names, path)
-		}
-
-		return nil
-	})
-	return names, err
 }
 
 // decrementVersion decrements the version number
@@ -280,7 +262,7 @@ func getPlatformInfo() Platform {
 }
 
 func getPlatformInfoFromVersion(kv *KubeVersion) Platform {
-	versionRe := regexp.MustCompile(`v(\d+\.\d+)\.\d+-(\w+)(?:[.\-])\w+`)
+	versionRe := regexp.MustCompile(`v(\d+\.\d+)\.\d+[-+](\w+)(?:[.\-])\w+`)
 	subs := versionRe.FindStringSubmatch(kv.GitVersion)
 	if len(subs) < 3 {
 		return Platform{
