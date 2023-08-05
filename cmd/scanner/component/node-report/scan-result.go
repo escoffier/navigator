@@ -304,11 +304,12 @@ func (s *ScanResultReportSrv) CreatePkgVuln(ctx context.Context, data imagesecTy
 				PkgType:    res.Type,
 				SrcName:    pk.SrcName,
 				SrcVersion: pk.SrcVersion,
-				License:    strings.Split(pk.License, " "),
+				License:    GetLicense(pk.License),
 				DependsOn:  nil, // 老版本没有这些数据
 				Filepath:   pk.FilePath,
 				Class:      string(res.Class),
 			}
+
 			pkg.UniqueID = pkg.GenUniqueID()
 
 			pkgMap[pkg.UniqueID] = pkg

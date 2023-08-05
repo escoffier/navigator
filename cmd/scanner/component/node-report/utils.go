@@ -295,3 +295,14 @@ func parseNodeImageEnv(imageUniqueID uint64, data []string) []*imagesecModel.Ima
 	}
 	return envs
 }
+
+func GetLicense(l string) []string {
+	ans := make([]string, 0)
+	split := strings.Split(l, " ")
+	for i := range split {
+		if split[i] != "" {
+			ans = append(ans)
+		}
+	}
+	return ans
+}
