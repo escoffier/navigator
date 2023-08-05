@@ -87,7 +87,11 @@ func (vi *Pkg) Deserialize() {
 	if vi.LicenseJson != "" {
 		li := make([]string, 0)
 		if err := json.Unmarshal([]byte(vi.LicenseJson), &li); err == nil {
-			vi.License = li
+			for i := range li {
+				if li[i] != "" {
+					vi.License = append(vi.License, li[i])
+				}
+			}
 		}
 	}
 
