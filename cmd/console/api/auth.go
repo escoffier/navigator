@@ -21,6 +21,9 @@ import (
 	"gopkg.in/gomail.v2"
 	"gorm.io/gorm"
 
+	"gitlab.com/security-rd/go-pkg/databases"
+	"gitlab.com/security-rd/go-pkg/logging"
+
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/captcha"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/idp"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/license"
@@ -33,8 +36,6 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
-	"gitlab.com/security-rd/go-pkg/databases"
-	"gitlab.com/security-rd/go-pkg/logging"
 )
 
 type getLoginSecretResp struct {
@@ -1014,6 +1015,7 @@ func jwtAccessCheck(db *databases.RDBInstance) func(http.Handler) http.Handler {
 				r.URL.Path == "/api/v2/platform/sherlock/palace/signals" ||
 				r.URL.Path == "/api/v2/platform/sherlock/palace/event/stats" ||
 				r.URL.Path == "/api/v2/platform/sherlock/hola/rules" ||
+				r.URL.Path == "/api/v2/platform/nodeImage/images/list" ||
 				r.URL.Path == "/api/v2/containerSec/scanner/images/list" ||
 				r.URL.Path == "/api/v2/containerSec/scanner/images/detail/riskInfo" ||
 				r.URL.Path == "/api/v2/platform/sherlock/palace/attck/matrix" {
