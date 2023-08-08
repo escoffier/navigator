@@ -33,6 +33,8 @@ irene:
   log_level: debug
   # 是否打开深层debug开关.会打印分析软件包文件等日志
   deeper_debug: false
+  # 是否慢速模式。适用于资源消耗要求严格的场景
+  slow: true
 
 # deep scan 配置
 deep_scan:

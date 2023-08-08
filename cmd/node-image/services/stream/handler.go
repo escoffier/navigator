@@ -1,8 +1,8 @@
 package stream
 
 import (
-	"encoding/json"
 	"fmt"
+	json "github.com/json-iterator/go"
 	"os"
 
 	"gitlab.com/security-rd/go-pkg/logging"

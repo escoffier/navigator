@@ -2,8 +2,8 @@ package assets
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
+	json "github.com/json-iterator/go"
 	"regexp"
 	"runtime/debug"
 	"sync"

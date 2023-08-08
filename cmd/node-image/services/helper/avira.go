@@ -1,7 +1,7 @@
 package helper
 
 import (
-	"encoding/json"
+	json "github.com/json-iterator/go"
 	"os"
 	"path/filepath"
 

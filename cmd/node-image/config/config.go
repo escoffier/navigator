@@ -1,7 +1,7 @@
 package config
 
 import (
-	"encoding/json"
+	json "github.com/json-iterator/go"
 	"os"
 	"path/filepath"
 
@@ -24,6 +24,7 @@ const (
 	DeepScanTypesAvira              = "avira"
 	DeepScanTypesWebshell           = "tws"
 	DeepScanTypesClamAV             = "clamav"
+	defaultSlowMode                 = true
 )
 
 var (
@@ -63,6 +64,7 @@ type ScanConfig struct {
 type IreneConfig struct {
 	LogLevel    string `mapstructure:"log_level"`
 	DeeperDebug bool   `mapstructure:"deeper_debug"`
+	Slow        bool   `mapstructure:"slow"`
 }
 
 type DeepScanConfig struct {
@@ -103,6 +105,7 @@ func NewDefaultConfig() *Config {
 		IreneConfig: IreneConfig{
 			LogLevel:    "debug",
 			DeeperDebug: false,
+			Slow:        defaultSlowMode,
 		},
 		ReportConfig: ReportConfig{
 			Interval:     defaultReportInterval,
