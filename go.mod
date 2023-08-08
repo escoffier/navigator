@@ -123,7 +123,7 @@ require (
 	github.com/sony/gobreaker v0.5.0
 	github.com/tealeg/xlsx/v3 v3.3.0
 	github.com/xuri/excelize/v2 v2.6.0
-	gitlab.com/security-rd/go-pkg v0.2.69
+	gitlab.com/security-rd/go-pkg v0.2.77
 	go.uber.org/atomic v1.11.0
 	golang.org/x/exp v0.0.0-20230522175609-2e198f4a06a1
 	gomodules.xyz/jsonpatch/v3 v3.0.1
@@ -504,7 +504,7 @@ require (
 	github.com/youmark/pkcs8 v0.0.0-20181117223130-1be2e3e5546d // indirect
 	github.com/zclconf/go-cty v1.13.2 // indirect
 	github.com/zclconf/go-cty-yaml v1.0.3 // indirect
-	go.etcd.io/bbolt v1.3.7 // indirect
+	go.etcd.io/bbolt v1.3.7
 	go.opencensus.io v0.24.0 // indirect
 	golang.org/x/crypto v0.10.0 // indirect
 	golang.org/x/mod v0.10.0 // indirect
