@@ -448,6 +448,16 @@ func (c *Console) Run() func() {
 	// 	logging.Get().Error().Err(err).Msg("When starting cron jobs")
 	// }
 
+	driftService, ok := drvSvc.GetDriftService(ctx)
+	if ok {
+		err = driftService.Start()
+		if err != nil {
+			logging.Get().Error().Err(err).Msg("When starting drift service")
+		}
+	} else {
+		logging.Get().Error().Err(errors.New("drift service not exist")).Msg("get a nil drift service")
+	}
+
 	scapper, _ := scapper.GetScapper(ctx)
 	err = scapper.InitCheckUnFinishedJobs(ctx)
 	if err != nil {

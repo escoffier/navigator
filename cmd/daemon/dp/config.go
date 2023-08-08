@@ -26,7 +26,6 @@ import (
 	"gitlab.com/security-rd/go-pkg/logging"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/apimachinery/pkg/watch"
 )
 
@@ -270,35 +269,37 @@ func (cm *ConfigManager) Start(ij *Injector) error {
 		namespace = "tensorsec"
 	}
 
-	softName := os.Getenv("SOFT_NAME")
-	if softName == "" {
-		softName = "tensorsec"
-	}
+	// softName := os.Getenv("SOFT_NAME")
+	// if softName == "" {
+	// 	softName = "tensorsec"
+	// }
 
-	consoleDeploymentName := fmt.Sprintf("%s-console", softName)
-	if os.Getenv("TENSORSEC_CONSOLE_DEPLOYMENT_NAME") != "" {
-		consoleDeploymentName = os.Getenv("TENSORSEC_CONSOLE_DEPLOYMENT_NAME")
-	}
+	// consoleDeploymentName := fmt.Sprintf("%s-console", softName)
+	// if os.Getenv("TENSORSEC_CONSOLE_DEPLOYMENT_NAME") != "" {
+	// 	consoleDeploymentName = os.Getenv("TENSORSEC_CONSOLE_DEPLOYMENT_NAME")
+	// }
 
-	// Wait for the Deployment to be ready
-	err := wait.PollImmediate(time.Second, 5*time.Minute, func() (bool, error) {
-		deployment, err := cm.clusterMgr.HostClient.AppsV1().Deployments(namespace).Get(context.Background(), consoleDeploymentName, metav1.GetOptions{})
-		if err != nil {
-			return false, err
-		}
-		return deployment.Status.ReadyReplicas > 0, nil
-	})
-	if err != nil {
-		logging.Get().Error().Err(err).Msg("wait for console deployment error")
-		return err
-	}
+	// // Wait for the Deployment to be ready
+	// err := wait.PollImmediate(time.Second, 5*time.Minute, func() (bool, error) {
+	// 	deployment, err := cm.clusterMgr.HostClient.AppsV1().Deployments(namespace).Get(context.Background(), consoleDeploymentName, metav1.GetOptions{})
+	// 	if err != nil {
+	// 		return false, err
+	// 	}
+	// 	return deployment.Status.ReadyReplicas > 0, nil
+	// })
+	// if err != nil {
+	// 	logging.Get().Error().Err(err).Msg("wait for console deployment error")
+	// 	return err
+	// }
 
-	// Wait for the drift configmap init
-	time.Sleep(5 * time.Second)
+	// // Wait for the drift configmap init
+	// time.Sleep(5 * time.Second)
 
 	// Start the initial timer
 	outTime := time.Minute * 20
 	timer := time.NewTimer(outTime)
+
+
 
 	watcher, err := cm.clusterMgr.HostClient.CoreV1().ConfigMaps(namespace).Watch(context.Background(), metav1.ListOptions{
 		// FieldSelector: "metadata.name=drift-config",
