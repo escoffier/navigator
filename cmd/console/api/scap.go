@@ -422,8 +422,7 @@ func (a *api) findCheckBreakdown() http.HandlerFunc {
 		} else {
 			var scanHistory model.ScanHistory
 			err = a.rdb.GetReadDB().WithContext(ctx).Select("task_id", "finished_at").
-				Where("check_type = ? AND task_id = ?", checkType, taskID).
-				Where("state = ? AND finished_at>0 AND suc_node>0", model.ScanStateCompleted).
+				Where("check_type = ? AND task_id = ? AND state = ?", checkType, taskID, model.ScanStateCompleted).
 				First(&scanHistory).Error
 			if err != nil {
 				logging.Get().Warn().Err(err).Msg("gets scan result fail by taskId")
@@ -576,8 +575,7 @@ func (a *api) findScanRecordWithNode() http.HandlerFunc {
 		} else {
 			var scanHistory model.ScanHistory
 			err = a.rdb.GetReadDB().WithContext(ctx).Select("task_id", "finished_at").
-				Where("check_type = ? AND task_id = ?", checkType, taskID).
-				Where("state = ? AND finished_at>0 AND suc_node>0", model.ScanStateCompleted).
+				Where("check_type = ? AND task_id = ? AND state = ?", checkType, taskID, model.ScanStateCompleted).
 				First(&scanHistory).Error
 			if err != nil {
 				RespAndLog(w, ctx, NewNotFoundError(http.StatusBadRequest, err))
