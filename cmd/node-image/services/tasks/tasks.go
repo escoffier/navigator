@@ -3,8 +3,8 @@ package tasks
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
+	json "github.com/json-iterator/go"
 	"io"
 	"os"
 	"os/exec"
@@ -131,6 +131,9 @@ func (m *ScanTaskManager) ScanCommOpt() string {
 	}
 	if m.runtimeConfig.IreneConfig.DeeperDebug {
 		opts = fmt.Sprintf(" %s --deeper-debug true ", opts)
+	}
+	if m.runtimeConfig.IreneConfig.Slow {
+		opts = fmt.Sprintf(" %s --slow true ", opts)
 	}
 	// scan os-pkgs,lang-pkgs,disabled iac
 	opts = fmt.Sprintf(" --disable-types=iac %v", opts)
