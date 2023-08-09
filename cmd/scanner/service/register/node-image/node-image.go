@@ -67,10 +67,10 @@ func (n *NodeImage) Start(ctx context.Context) error {
 
 	logging.Get().Info().Msg("scanTaskService.ContinueUpdateScanTask succeed")
 
-	if err := n.nodeUpdateImageService.ContinueUpdateAndCleanImage(ctx); err != nil {
-		logging.Get().Err(err).Msg("nodeUpdateImageService.ContinueUpdateAndCleanImage")
-	}
-	logging.Get().Info().Msg("nodeUpdateImageService.ContinueUpdateDeleteImage succeed")
+	// if err := n.nodeUpdateImageService.ContinueUpdateAndCleanImage(ctx); err != nil {
+	// 	logging.Get().Err(err).Msg("nodeUpdateImageService.ContinueUpdateAndCleanImage")
+	// }
+	// logging.Get().Info().Msg("nodeUpdateImageService.ContinueUpdateDeleteImage succeed")
 
 	if err := n.syncConfigService.SyncConfig(ctx); err != nil {
 		logging.Get().Err(err).Msg("failed to start config sync service")
