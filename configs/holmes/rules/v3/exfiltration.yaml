@@ -275,7 +275,7 @@
     rule_type: Exfiltration
     priority: ALERT
     urgency: false
-    tags: [ATT&CK, network, mitre_execution, L2]
+    tags: [ATT&CK, network, mitre_execution, L1]
 
 - key: Detect crypto miners using the Stratum protocol
   hid: exf_13
@@ -372,8 +372,7 @@
 - key: Execute commands through the docker api
   hid: exf_18
   condition: >
-    evt.type in (sendto, sendmsg, connect) and fd.sport = 2375 and shell_parent_procs and
-    (proc.name in (system_network_tools) or proc.name = docker )
+    evt.type in (sendto, sendmsg, connect) and fd.sport = 2375 and shell_parent_procs
   output: >
     proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,container=%container.info,container_id=%container.id,container_name=%container.name
   steps:
@@ -397,11 +396,14 @@
 - key: Access k8s component ports detected
   hid: exf_19
   condition: >
-    easy_outbound and proc.name in (system_network_tools) and
+    easy_outbound and
     fd.sport in (k8s_ports) and
     shell_parent_procs
   output: >
     proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,connection=%fd.name,client_ip=%fd.cip,client_port=%fd.cport,server_ip=%fd.sip,server_port=%fd.sport,user=%user.name,user_loginuid=%user.loginuid,container_id=%container.id,container_name=%container.name,image=%container.image.repository
+  steps:
+    - name: checkRegexMatch
+      params: [ '(((2(5[0-5]|[0-4]\d))|[0-1]?\d{1,2})(\.((2(5[0-5]|[0-4]\d))|[0-1]?\d{1,2})){3})', trigger.payload.output_map.proc_cmdline ]
   info:
     name:
       en: "Access k8s component ports detected"
