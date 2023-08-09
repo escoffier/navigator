@@ -357,8 +357,9 @@ func (api *api) driftResourceStats() http.HandlerFunc {
 		ctx, cancel := context.WithTimeout(r.Context(), 60*time.Second)
 		defer cancel()
 		type stats struct {
-			Total int64 `json:"total"`
-			Used  int64 `json:"used"`
+			Total     int64 `json:"total"`
+			Used      int64 `json:"used"`
+			CanCreate int64 `json:"can_create"`
 		}
 		clusterKey, err := param.QueryString(r, "cluster_key")
 		if err != nil {
@@ -381,6 +382,18 @@ func (api *api) driftResourceStats() http.HandlerFunc {
 			return
 		}
 
+		policyData, err := driSvc.GetAllPolicies(ctx, clusterKey)
+		if err != nil {
+			logging.GetLogger().Err(err).Msgf("get all policies error")
+			apperror.RespAndLog(w, ctx, apperror.NewAnError(http.StatusInternalServerError, errors.New("get all policies error")))
+			return
+		}
+		var policyMap = make(map[uint32]struct{})
+		for _, policy := range policyData.Policies {
+			uuid := util.GenerateUUID(policy.ClusterKey, policy.Namespace, policy.ResourceKind, policy.Resource)
+			policyMap[uuid] = struct{}{}
+		}
+
 		allRes, err := driSvc.GetSupportResources(ctx, clusterKey)
 		if err != nil {
 			logging.GetLogger().Err(err).Msgf("get support resource count error")
@@ -399,6 +412,7 @@ func (api *api) driftResourceStats() http.HandlerFunc {
 			return
 		}
 
+		canCreateCount := 0
 		for _, res := range allRes {
 			if _, ok := excludeNS[res.Namespace]; ok {
 				continue
@@ -412,11 +426,15 @@ func (api *api) driftResourceStats() http.HandlerFunc {
 				continue
 			}
 			total += 1
+			if _, ok := policyMap[uuid]; !ok {
+				canCreateCount += 1
+			}
 		}
 
 		res := stats{
-			Total: total,
-			Used:  usedCount,
+			Total:     total,
+			Used:      usedCount,
+			CanCreate: int64(canCreateCount),
 		}
 		response.Ok(w, response.WithItem(res))
 
