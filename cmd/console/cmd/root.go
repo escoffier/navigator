@@ -3,12 +3,14 @@ package cmd
 
 import (
 	"context"
+	flag2 "flag"
 	"fmt"
 	"os"
 	"strconv"
 
 	"github.com/rs/zerolog"
 	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service"
 	"gitlab.com/piccolo_su/vegeta/pkg/flag"
 	"gitlab.com/piccolo_su/vegeta/pkg/leaderelection"
@@ -16,6 +18,7 @@ import (
 	"gitlab.com/security-rd/go-pkg/databases"
 	"gitlab.com/security-rd/go-pkg/logging"
 	"gorm.io/gorm/logger"
+	"k8s.io/klog/v2"
 )
 
 var (
@@ -99,6 +102,12 @@ var rootCmd = &cobra.Command{
 			Str("index", elasticOpts.Index).
 			Str("username", elasticOpts.Username).
 			Msg("Elastic options")
+		electionOpts := flag.GetElectionOpts(cmd)
+		logging.Get().Info().
+			Str("easeDuration", electionOpts.LeaseDuration.String()).
+			Str("renewDeadline", electionOpts.RenewDeadline.String()).
+			Str("retryPeriod", electionOpts.RetryPeriod.String()).
+			Msg("Election options")
 
 		run := func(ctx context.Context) {
 			console, err := service.NewConsole(httpOpts, rdbOpts, scannerOpts, exporterOpts, scapOpts, elasticOpts, rdbOptions)
@@ -119,7 +128,7 @@ var rootCmd = &cobra.Command{
 		}
 
 		if enableLeaderElection {
-			elector, err := leaderelection.New(run)
+			elector, err := leaderelection.New(run, electionOpts)
 			if err != nil {
 				return err
 			}
@@ -154,6 +163,10 @@ func init() {
 			rdbLogLevel = int(logger.Error)
 		}
 	}
+	rootCmd.Flags().SortFlags = false
+	klog.InitFlags(nil)
+	pflag.CommandLine.AddGoFlag(flag2.CommandLine.Lookup("v"))
+
 	rootCmd.Flags().BoolVar(&enableLeaderElection, "leader-elect", false,
 		"Enable leader election for console. "+
 			"Enabling this will ensure there is only one active console.")
@@ -177,6 +190,7 @@ func init() {
 	flag.AddSecProfilesOpts(rootCmd)
 	flag.AddClusterManagerFlags(rootCmd)
 	flag.AddWebHookFlags(rootCmd)
+	flag.AddElectionFlags(rootCmd)
 
 	flag.ConfigViper()
 }

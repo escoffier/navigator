@@ -5,9 +5,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"time"
 
 	"github.com/google/uuid"
+	"gitlab.com/piccolo_su/vegeta/pkg/flag"
 	"gitlab.com/security-rd/go-pkg/logging"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -23,11 +23,13 @@ type Elector struct {
 	podName       string
 }
 
-func New(f func(context.Context)) (*Elector, error) {
+func New(f func(context.Context), opts *flag.ElectionOpts) (*Elector, error) {
 	kubeConfig, err := rest.InClusterConfig()
 	if err != nil {
 		return nil, err
 	}
+	kubeConfig.QPS = 100
+	kubeConfig.Burst = 100
 	client, err := kubernetes.NewForConfig(kubeConfig)
 	if err != nil {
 		return nil, err
@@ -54,10 +56,11 @@ func New(f func(context.Context)) (*Elector, error) {
 	}
 
 	config := kubeleletcion.LeaderElectionConfig{
-		Lock:          lock,
-		LeaseDuration: 15 * time.Second,
-		RenewDeadline: 10 * time.Second,
-		RetryPeriod:   2 * time.Second,
+		Lock:            lock,
+		ReleaseOnCancel: true,
+		LeaseDuration:   opts.LeaseDuration,
+		RenewDeadline:   opts.RenewDeadline,
+		RetryPeriod:     opts.RetryPeriod,
 		Callbacks: kubeleletcion.LeaderCallbacks{
 			OnStartedLeading: func(ctx context.Context) {
 				go f(ctx)

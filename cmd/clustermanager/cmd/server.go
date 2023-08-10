@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"context"
-	"flag"
 	"os"
 	"strconv"
 	"strings"
@@ -32,7 +31,6 @@ import (
 	"gitlab.com/security-rd/go-pkg/mq"
 	"gitlab.com/security-rd/go-pkg/redisearch"
 	"k8s.io/client-go/informers"
-	"k8s.io/klog/v2"
 	"scm.tensorsecurity.cn/tensorsecurity-rd/api/pkg/generated/informers/externalversions"
 )
 
@@ -233,16 +231,13 @@ func NewServer() (*server, error) {
 	return s, nil
 }
 
-func (s *server) Run() error {
-	errChn := make(chan error)
-
+func (s *server) Run() {
 	if s.config.ClusterType == model.MemberCluster {
 		go s.agent.RegisterToHostCluster()
 	}
 
 	go s.httpserver.Run()
 	logging.Get().Info().Msg("clusterManage server run")
-	return <-errChn
 }
 
 func fullHTTPSURL(str string) string {
@@ -317,9 +312,14 @@ func AddFlags(fs *pflag.FlagSet, rootCmd *cobra.Command) {
 }
 
 func init() {
-	klog.InitFlags(flag.CommandLine)
-	err := flag.CommandLine.Lookup("v").Value.Set("3")
-	if err != nil {
-		return
-	}
+	// klog.InitFlags(nil)
+	// level := os.Getenv("KLOG_LEVEL")
+	// if level == "" {
+	// 	level = "3"
+	// }
+	// fmt.Printf("klog level %v", flag.CommandLine.Lookup("v").Value.String())
+	// flag.CommandLine.Lookup("v").Value.Set(level)
+	// if err != nil {
+	// 	return
+	// }
 }
