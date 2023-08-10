@@ -1,6 +1,12 @@
 #!/bin/bash
 
-# block hm request
-iptables -I OUTPUT -p tcp --dport 58000:58100 -j REJECT && echo "Iptable rules add SUCCESS!" || echo "Iptable rules add FAILED!"
+# clear
+num=`iptables -S |grep 58000 | wc -l`
+echo "iptables num:$num"
+for i in  $(seq 1 $num)
+do
+  ret=`iptables -D OUTPUT -p tcp -m tcp --dport 58000:58100 -j REJECT`
+  echo "delete ret:$ret"
+done
 
 /var/lib/tensor/node-image -c /var/lib/tensor/node-image.yaml "$@"
