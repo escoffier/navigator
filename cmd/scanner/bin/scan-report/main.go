@@ -31,6 +31,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
 	imagesecStore "gitlab.com/piccolo_su/vegeta/cmd/scanner/store/imagesec"
+	flag2 "gitlab.com/piccolo_su/vegeta/pkg/flag"
 	"gitlab.com/piccolo_su/vegeta/pkg/leaderelection"
 )
 
@@ -49,6 +50,7 @@ var (
 	HTTPListenAddr          string
 	expiration              int64
 	maxImageByOneExportTask int64
+	electionOpts            *flag2.ElectionOpts
 )
 
 var (
@@ -56,6 +58,7 @@ var (
 )
 
 func init() {
+	electionOpts = flag2.NewDefaultElectionOpts()
 	flag.DurationVar(&internal, "interval", 1*time.Minute, "job interval")
 	flag.StringVar(&logLevel, "log-level", "info", "log level model")
 	flag.IntVar(&batchSize, "batch-size", 50, "the batch size of data")
@@ -65,6 +68,9 @@ func init() {
 	flag.Int64Var(&maxImageByOneExportTask, "export-max-image", 100000, "The maximum number of images exported by one export task")
 	flag.StringVar(&fileDir, "file-dir", "/tmp", "export file storage directory")
 	flag.StringVar(&HTTPListenAddr, "http-listen-addr", ":8080", "api addr")
+	flag.DurationVar(&electionOpts.LeaseDuration, "leader-elect-lease-duration", 15*time.Second, "lease duration")
+	flag.DurationVar(&electionOpts.RenewDeadline, "leader-elect-renew-deadline", 12*time.Second, "renew deadline")
+	flag.DurationVar(&electionOpts.RetryPeriod, "leader-elect-retry-period", 2*time.Second, "retry period")
 }
 
 func main() {
@@ -161,7 +167,7 @@ func main() {
 		elector, err := leaderelection.New(func(ctx context.Context) {
 			start(config)
 			logging.Get().Info().Msg("start scan report service")
-		})
+		}, electionOpts)
 		if err != nil {
 			logging.Get().Err(err).Msg("error occurred when server running")
 			return

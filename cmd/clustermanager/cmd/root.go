@@ -2,14 +2,18 @@ package cmd
 
 import (
 	"context"
+	"flag"
 	"fmt"
 	"os"
 	"strconv"
 
 	"github.com/rs/zerolog"
 	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
+	flag2 "gitlab.com/piccolo_su/vegeta/pkg/flag"
 	"gitlab.com/piccolo_su/vegeta/pkg/leaderelection"
 	"gitlab.com/security-rd/go-pkg/logging"
+	"k8s.io/klog/v2"
 )
 
 var (
@@ -17,7 +21,6 @@ var (
 )
 
 func NewClusterManagerCommand() *cobra.Command {
-
 	cmd := &cobra.Command{
 		Use:  "cluster-manager",
 		Long: "cluster manager",
@@ -28,13 +31,13 @@ func NewClusterManagerCommand() *cobra.Command {
 
 			// 建议移除verbose
 			// 使用log-level调节日志输出等级
-			verbose, _ := cmd.Flags().GetBool("verbose")
-			if verbose {
-				loggingOptions.Level = int(zerolog.DebugLevel)
-			}
+			// verbose, _ := cmd.Flags().GetBool("verbose")
+			// if verbose {
+			// 	loggingOptions.Level = int(zerolog.DebugLevel)
+			// }
 
-			loggingOptions.SetConsoleWriterWrapper(logging.ConsoleCallerWriter)
-			logging.ReplaceLogger(loggingOptions)
+			// loggingOptions.SetConsoleWriterWrapper(logging.ConsoleCallerWriter)
+			// logging.ReplaceLogger(loggingOptions)
 
 			logLevel := zerolog.InfoLevel
 			logLevelStr := os.Getenv("LOGGING_LEVEL")
@@ -50,27 +53,37 @@ func NewClusterManagerCommand() *cobra.Command {
 			if elect == "true" {
 				enableLeaderElection = true
 			}
-
-			run := func(context.Context) {
-				server, err := NewServer()
-				if err != nil {
-					logging.Get().Err(err).Msg("failed to create server")
-					return
-				}
-				err = server.Run()
-				if err != nil {
-					logging.Get().Err(err).Msg("error occurred when server running")
-					return
-				}
+			electionOpts := flag2.GetElectionOpts(cmd)
+			logging.Get().Info().
+				Str("easeDuration", electionOpts.LeaseDuration.String()).
+				Str("renewDeadline", electionOpts.RenewDeadline.String()).
+				Str("retryPeriod", electionOpts.RetryPeriod.String()).
+				Msg("Election options")
+			server, err := NewServer()
+			if err != nil {
+				logging.Get().Err(err).Msg("failed to create server")
+				return
 			}
 
+			run := func(context.Context) {
+				server.Run()
+			}
+
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			go func() {
+				stopCh := SetupSignalHandler()
+				<-stopCh
+				cancel()
+			}()
+
 			if enableLeaderElection {
-				elector, err := leaderelection.New(run)
+				elector, err := leaderelection.New(run, electionOpts)
 				if err != nil {
 					logging.Get().Err(err).Msg("error occurred when server running")
 					return
 				}
-				elector.Run(context.TODO())
+				elector.Run(ctx)
 				logging.Get().Info().Msg("lost lease")
 				return
 			}
@@ -78,11 +91,18 @@ func NewClusterManagerCommand() *cobra.Command {
 		},
 	}
 
-	cmd.AddCommand(versionCmd)
-	cmd.PersistentFlags().BoolP("verbose", "v", false, "verbose mode")
-	AddFlags(cmd.Flags(), cmd)
+	cmd.Flags().SortFlags = false
+	klog.InitFlags(nil)
+	pflag.CommandLine.AddGoFlag(flag.CommandLine.Lookup("v"))
 
+	cmd.AddCommand(versionCmd)
+	// cmd.PersistentFlags().Int32P("v", "", 3, "log level")
+	AddFlags(cmd.Flags(), cmd)
+	flag2.AddElectionFlags(cmd)
+	// klog.InitFlags(nil)
 	loggingOptions = logging.NewLoggingOptions()
 	loggingOptions.AddFlags(cmd.Flags())
+	// flag.Parse()
+
 	return cmd
 }

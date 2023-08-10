@@ -3,18 +3,21 @@ package cmd
 
 import (
 	"context"
+	"flag"
 	"fmt"
 	"os"
 	"strconv"
 
 	"github.com/rs/zerolog"
 	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 	"gitlab.com/security-rd/go-pkg/logging"
+	"k8s.io/klog/v2"
 
 	flag2 "gitlab.com/piccolo_su/vegeta/cmd/scanner/flag"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/global"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/service"
-	"gitlab.com/piccolo_su/vegeta/pkg/flag"
+	flag3 "gitlab.com/piccolo_su/vegeta/pkg/flag"
 	"gitlab.com/piccolo_su/vegeta/pkg/leaderelection"
 	"gitlab.com/piccolo_su/vegeta/pkg/lifecycle"
 	scannermodel "gitlab.com/piccolo_su/vegeta/pkg/model/scanner-model"
@@ -70,6 +73,12 @@ var rootCmd = &cobra.Command{
 			Interface("ScannerPodID", global.ScannerPodID).
 			Msg("starting scanner")
 
+		electionOpts := flag3.GetElectionOpts(cmd)
+		logging.Get().Info().
+			Str("easeDuration", electionOpts.LeaseDuration.String()).
+			Str("renewDeadline", electionOpts.RenewDeadline.String()).
+			Str("retryPeriod", electionOpts.RetryPeriod.String()).
+			Msg("Election options")
 		elect := os.Getenv("ENABLE_LEADER_ELECTION")
 		if elect == "true" {
 			flag2.EnableLeaderElection = true
@@ -79,7 +88,7 @@ var rootCmd = &cobra.Command{
 				lifecycle.NewApplication(
 					scanner,
 				).Run()
-			})
+			}, electionOpts)
 			if err != nil {
 				logging.Get().Err(err).Msg("error occurred when server running")
 				return err
@@ -106,6 +115,11 @@ func Execute() {
 }
 
 func init() {
+	rootCmd.Flags().SortFlags = false
+	klog.InitFlags(nil)
+	pflag.CommandLine.AddGoFlag(flag.CommandLine.Lookup("v"))
+
 	flag2.AddScannerFlags(rootCmd)
-	flag.ConfigViper()
+	flag3.AddElectionFlags(rootCmd)
+	flag3.ConfigViper()
 }
