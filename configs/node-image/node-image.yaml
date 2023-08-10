@@ -38,9 +38,9 @@ irene:
 
 # deep scan 配置
 deep_scan:
-  # deep-scan时进行哪些类型的扫描。支持以下：avira(小红伞),tws(tensor webshell scan),clamav
-  # types: ["avira", "tws", "clamav"]
-  types: [ "avira", "tws" ]
+  # deep-scan时进行哪些类型的扫描。支持以下：avira(小红伞),clamav
+  # types: ["avira", "clamav"]
+  types: [ "avira" ]
 
 ### 以下为deep scan里各个扫描引擎的配置 ###
 # 小红伞配置
