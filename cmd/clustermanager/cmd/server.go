@@ -231,13 +231,14 @@ func NewServer() (*server, error) {
 	return s, nil
 }
 
-func (s *server) Run() {
+func (s *server) Run(stopCh <-chan struct{}) {
 	if s.config.ClusterType == model.MemberCluster {
 		go s.agent.RegisterToHostCluster()
 	}
 
 	go s.httpserver.Run()
 	logging.Get().Info().Msg("clusterManage server run")
+	<-stopCh
 }
 
 func fullHTTPSURL(str string) string {

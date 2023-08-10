@@ -65,14 +65,17 @@ func NewClusterManagerCommand() *cobra.Command {
 				return
 			}
 
+			var stopCh <-chan struct{}
+
 			run := func(context.Context) {
-				server.Run()
+				server.Run(stopCh)
 			}
 
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
+
 			go func() {
-				stopCh := SetupSignalHandler()
+				stopCh = SetupSignalHandler()
 				<-stopCh
 				cancel()
 			}()
