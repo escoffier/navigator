@@ -375,21 +375,15 @@ func (api *api) driftResourceStats() http.HandlerFunc {
 			return
 		}
 
-		usedCount, err := driSvc.GetPoliciesCount(ctx, clusterKey)
-		if err != nil {
-			logging.GetLogger().Err(err).Msgf("get policies count error")
-			apperror.RespAndLog(w, ctx, apperror.NewAnError(http.StatusInternalServerError, errors.New("get policies count error")))
-			return
-		}
-
-		policyData, err := driSvc.GetAllPolicies(ctx, clusterKey)
+		policyData, err := driSvc.GetAllPoliciesFromDB(ctx, clusterKey)
 		if err != nil {
 			logging.GetLogger().Err(err).Msgf("get all policies error")
 			apperror.RespAndLog(w, ctx, apperror.NewAnError(http.StatusInternalServerError, errors.New("get all policies error")))
 			return
 		}
+
 		var policyMap = make(map[uint32]struct{})
-		for _, policy := range policyData.Policies {
+		for _, policy := range policyData {
 			uuid := util.GenerateUUID(policy.ClusterKey, policy.Namespace, policy.ResourceKind, policy.Resource)
 			policyMap[uuid] = struct{}{}
 		}
@@ -433,7 +427,7 @@ func (api *api) driftResourceStats() http.HandlerFunc {
 
 		res := stats{
 			Total:     total,
-			Used:      usedCount,
+			Used:      int64(len(policyData)),
 			CanCreate: int64(canCreateCount),
 		}
 		response.Ok(w, response.WithItem(res))
