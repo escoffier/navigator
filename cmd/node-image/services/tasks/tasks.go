@@ -149,22 +149,23 @@ func (m *ScanTaskManager) shouldDeepScan() bool {
 	return m.nodeImageConfig.DeepScan
 }
 
-func (m *ScanTaskManager) makeScanCmd(imageName string, subtask imagesec.ScanSubTask) string {
-	binaryPath := filepath.Join(m.ireneWorkingDir, ireneBinaryName)
+func (m *ScanTaskManager) makeScanCmd(imageName string, subtask imagesec.ScanSubTask) []string {
 	policyPath := m.GetPolicyPath(context.Background(), subtask)
 	cachePath := filepath.Join(m.ireneWorkingDir, defaultCacheDir)
 
 	// default scan cmd without malware and webshell opt
-	cmdStr := fmt.Sprintf("%s local-scan %s -i %s --parse-pkgs-only --cache-dir %s --policy-file-name %s "+
+	cmdStr := fmt.Sprintf(" local-scan %s -i %s --parse-pkgs-only --cache-dir %s --policy-file-name %s "+
 		"--output %s -t %d --mount-prefix %s ",
-		binaryPath, m.ScanCommOpt(), imageName, cachePath, policyPath,
+		m.ScanCommOpt(), imageName, cachePath, policyPath,
 		m.scanOutputFile(subtask), m.getTimeOutOpt(), m.runtimeConfig.ScanConfig.MountPrefix)
 
 	if m.shouldDeepScan() {
 		cmdStr = fmt.Sprintf("%s %s", cmdStr, m.deepScanOption())
 	}
 
-	return cmdStr
+	arr := strings.Split(cmdStr, " ")
+
+	return arr
 }
 
 func (m *ScanTaskManager) transformWebshellToUpload(res *scanner_ci.PolicyResult) []scannermodel.WebshellSaveInfo {
@@ -332,13 +333,15 @@ func (m *ScanTaskManager) scanImage(ctx context.Context, subtask imagesec.ScanSu
 		imageName = subtask.ImageMeta.RepoTags[0]
 	}
 
-	cmdStr := m.makeScanCmd(imageName, subtask)
+	cmdArgs := m.makeScanCmd(imageName, subtask)
 
 	defer func() { _ = m.DeletePolicyPath(ctx, subtask) }()
 
-	debugLog().Str("cmd", cmdStr).Msg("make cmd")
+	debugLog().Str("cmd", strings.Join(cmdArgs, " ")).Msg("make cmd")
 
-	cmd := exec.Command("/bin/sh", "-c", cmdStr)
+	binaryPath := filepath.Join(m.ireneWorkingDir, ireneBinaryName)
+	//cmd := exec.Command("/bin/sh", "-c", cmdStr)
+	cmd := exec.Command(binaryPath, cmdArgs...)
 	if m.runtimeConfig.ScanConfig.RealTimeLog {
 		var stdBuffer bytes.Buffer
 		mw := io.MultiWriter(os.Stdout, &stdBuffer) // real time output

@@ -61,7 +61,7 @@ func (r *RpcStream) Run() error {
 	}
 
 	// cluster manager's grpc server may delay,so we wait
-	stopChan := make(chan struct{})
+	stopChan := make(chan struct{}, 1)
 	wait.Until(func() {
 		err := rpcStream.Start()
 		if err != nil {
