@@ -426,7 +426,7 @@ func (api *api) driftResourceStats() http.HandlerFunc {
 		}
 
 		res := stats{
-			Total:     total,
+			Total:     int64(len(policyData) + canCreateCount),
 			Used:      int64(len(policyData)),
 			CanCreate: int64(canCreateCount),
 		}
