@@ -212,7 +212,7 @@ func (c *ClusterAgent) Init() error {
 
 func (c *ClusterAgent) RegisterToHostCluster() {
 	stopChan := make(chan struct{})
-	err := wait.PollImmediateUntil(time.Second*60, func() (bool, error) {
+	err := wait.PollImmediateUntil(time.Second*30, func() (bool, error) {
 		var err error
 		if usingGrpc {
 			err = c.grpcRegisterClusterInfo()
@@ -228,7 +228,7 @@ func (c *ClusterAgent) RegisterToHostCluster() {
 		logging.Get().Err(err).Msg("failed to register host cluster")
 		return
 	}
-	logging.Get().Info().Msg("successfully registered to master cluster")
+	logging.Get().Info().Msg("registered to master cluster successfully")
 }
 
 func (c *ClusterAgent) registerClusterInfo() error {
@@ -300,7 +300,7 @@ func (c *ClusterAgent) registerClusterInfo() error {
 }
 
 func (c *ClusterAgent) grpcRegisterClusterInfo() error {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
 	defer cancel()
 	version, err := k8s.GetProductVersionFrom(context.Background(), c.HostClient, MyResourcePrefix, c.workerNamespace)
 	if err != nil {
@@ -339,6 +339,7 @@ func (c *ClusterAgent) grpcRegisterClusterInfo() error {
 
 	_, err = c.Stream.CreateCluster(ctx, "default", cluster)
 	if err != nil {
+		logging.Get().Err(err).Msgf("create cluster err: ")
 		return err
 	}
 	return nil
