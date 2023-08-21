@@ -2,6 +2,7 @@ package imagemeta
 
 import (
 	"context"
+	"os"
 	"time"
 
 	"gitlab.com/security-rd/go-pkg/logging"
@@ -56,6 +57,12 @@ func NewImageUpdateSrv(
 }
 
 func (s *ImageUpdateSrv) ContinueUpdateAndCleanImage(ctx context.Context) error {
+
+	update := os.Getenv("CONTINUE_UPDATE_IMAGE")
+	if update == consts.FalseString {
+		logging.Get().Info().Msg("Close update image")
+		return nil
+	}
 
 	go func() {
 		defer func() {
