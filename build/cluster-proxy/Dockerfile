@@ -12,4 +12,4 @@ RUN sed -i "s!archive.ubuntu.com/!${MIRROR_SOURCE}/!g" /etc/apt/sources.list \
 
 COPY bootstrap.yaml /etc/envoy/bootstrap.yaml
 
-CMD ["/usr/local/bin/envoy", "-c", "/etc/envoy/bootstrap.yaml"]
+ENTRYPOINT ["/usr/local/bin/envoy", "-c", "/etc/envoy/bootstrap.yaml"]

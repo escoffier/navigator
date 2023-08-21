@@ -10,8 +10,6 @@ import (
 	"sync"
 	"time"
 
-	"google.golang.org/grpc/connectivity"
-
 	"gitlab.com/security-rd/go-pkg/logging"
 
 	"github.com/google/uuid"
@@ -336,34 +334,16 @@ func (c *messageStreamClient) Start() error {
 	opts := []grpc.DialOption{grpc.WithTransportCredentials(insecure.NewCredentials()),
 		grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(maxSize), grpc.MaxCallSendMsgSize(maxSize))}
 
-	conn, err := grpc.Dial(c.remoteAddress, opts...)
-	if err != nil {
-		logging.Get().Err(err).Msg("dial peer err")
-		return err
-	}
-	c.pbClient = pb.NewClusterServiceClient(conn)
-
 	stopChan := make(chan struct{})
 	go func() {
 		wait.PollImmediateUntil(time.Second*5, func() (done bool, err error) {
-			if c.reConnect {
-				conn.Connect()
-				if conn.GetState() != connectivity.Ready {
-					logging.Get().Error().Msgf("failed to establish connction to %s", c.remoteAddress)
-					return false, nil
-				}
-				logging.Get().Info().Msgf("reconnect to %s", c.remoteAddress)
+			conn, err := grpc.Dial(c.remoteAddress, opts...)
+			if err != nil {
+				logging.Get().Err(err).Msg("dial peer err")
+				return false, nil
 			}
-			logging.Get().Info().Msg("stream client try connect")
-			if c.reConnect {
-				conn.Connect()
-				if conn.GetState() != connectivity.Ready {
-					logging.Get().Error().Msgf("failed to establish connection to %s", c.remoteAddress)
-					return false, nil
-				}
-				logging.Get().Info().Msgf("reconnect to %s", c.remoteAddress)
-			}
-
+			defer conn.Close()
+			c.pbClient = pb.NewClusterServiceClient(conn)
 			stream, err := c.pbClient.SendMessage(context.Background())
 			if err != nil {
 				logging.Get().Err(err).Msg("calling grpc server err")
@@ -388,13 +368,17 @@ func (c *messageStreamClient) Start() error {
 			logging.Get().Debug().Msg("add stream handler end")
 
 			// register
-			_, _ = c.Request(context.Background(), defaultNodeKey, pb.MessageType_CREATE, &pb.Register{
+			_, err = c.Request(context.Background(), defaultNodeKey, pb.MessageType_CREATE, &pb.Register{
 				NodeKey: defaultNodeKey,
 			}, false)
+
+			if err != nil {
+				return false, nil
+			}
 			logging.Get().Debug().Msg("client register ok")
 
 			_ = cs.Dispatch()
-			logging.Get().Info().Msg("connection lost, will try to reconnect")
+			logging.Get().Info().Msg("connection lost, try to reconnect")
 			c.reConnect = true
 
 			// clean all session and close chan
