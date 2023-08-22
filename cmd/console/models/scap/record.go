@@ -8,7 +8,7 @@ type RecordDetail struct {
 	CheckID     string          `json:"checkId" bson:"checkId"`
 	CheckType   string          `json:"checkType" bson:"checkType"`
 	ClusterID   string          `json:"clusterId" bson:"clusterId"`
-	Operator    string          `json:"operator" bson:"operator"`
+	Operator    *model.UserLite `json:"operator" bson:"operator"`
 	ClusterName string          `json:"clusterName" bson:"-"`
 	CreatedAt   int64           `json:"createdAt" bson:"createdAt"`
 	FinishedAt  int64           `json:"finishedAt,omitempty" bson:"finishedAt,omitempty"`

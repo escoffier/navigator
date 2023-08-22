@@ -14,10 +14,10 @@ const (
 )
 
 type LdapGroupItem struct {
-	ID      int    `json:"id"`
-	Name    string `json:"name"`
-	Role    string `json:"role"`
-	Modules []int  `json:"modules"`
+	ID      int      `json:"id"`
+	Name    string   `json:"name"`
+	Role    RoleType `json:"role"`
+	Modules []int    `json:"modules"`
 }
 
 type LdapServerConf struct {

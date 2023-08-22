@@ -22,11 +22,16 @@ type limiter struct {
 	cache cache.Store
 }
 
-func NewLimiter(r rate.Limit, b int) *limiter {
+func NewLimiter(r rate.Limit, b int, cacheExpireDuration ...time.Duration) *limiter {
+	duration := defaultLimiterCacheExpireAt
+	if len(cacheExpireDuration) > 0 {
+		duration = cacheExpireDuration[0]
+	}
+
 	return &limiter{
 		limit: r,
 		burst: b,
-		cache: cache.NewTTLStore(func(obj interface{}) (string, error) { return obj.(*limiterWrapper).key, nil }, defaultLimiterCacheExpireAt),
+		cache: cache.NewTTLStore(func(obj interface{}) (string, error) { return obj.(*limiterWrapper).key, nil }, duration),
 	}
 }
 

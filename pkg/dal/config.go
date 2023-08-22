@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
+	"gitlab.com/piccolo_su/vegeta/pkg/request"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
@@ -39,7 +40,7 @@ func GetConfig(ctx context.Context, rdb *gorm.DB, key string) (*model.TensorConf
 }
 
 func NewConfig(ctx context.Context, key string, val []byte, utime time.Time) *model.TensorConfig {
-	userName := model.GetUsernameFromContext(ctx)
+	userName := request.GetUsernameFromContext(ctx)
 	c := model.TensorConfig{
 		Key:       key,
 		Config:    val,

@@ -1,4 +1,4 @@
-package user
+package cmcc
 
 import (
 	"context"
@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/dgrijalva/jwt-go"
+	"github.com/golang-jwt/jwt/v5"
 	"gitlab.com/security-rd/go-pkg/databases"
 )
 

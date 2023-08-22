@@ -9,10 +9,12 @@ import (
 	"time"
 	"unsafe"
 
+	"github.com/go-redis/redis/v8"
 	json "github.com/json-iterator/go"
+	"gitlab.com/security-rd/go-pkg/id"
+	"gitlab.com/security-rd/go-pkg/logging"
 	"gorm.io/gorm"
 
-	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 )
@@ -68,12 +70,9 @@ func SelectUserAll(ctx context.Context, rdb *gorm.DB, keyword string, roles []st
 	var user []model.User
 	var count int64
 
-	pgCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
-	defer cancel()
-
-	db := rdb.WithContext(pgCtx).Where("username != ?", model.UserSuperAdmin)
+	db := rdb.WithContext(ctx)
 	if keyword != "" {
-		db = db.Where("username LIKE ?", "%"+keyword+"%")
+		db = db.Where("account LIKE ?", "%"+keyword+"%")
 	}
 	if len(roles) != 0 {
 		db = db.Where("rule IN ?", roles)
@@ -92,17 +91,9 @@ func SelectUserAll(ctx context.Context, rdb *gorm.DB, keyword string, roles []st
 		return 0, nil, err
 	}
 
-	p := db.Limit(limit).Offset(offset).Order("id DESC")
-	err = p.Where("username != ?", model.UserSuperAdmin).Find(&user).Error
+	err = db.Limit(limit).Offset(offset).Order("id DESC").Find(&user).Error
 	if err != nil {
 		return count, user, err
-	}
-
-	for i := range user {
-		groups, err := GetModuleGroup(pgCtx, rdb, user[i].ModuleID)
-		if err == nil {
-			user[i].ModuleGroup = append(user[i].ModuleGroup, groups...)
-		}
 	}
 
 	return count, user, nil
@@ -160,14 +151,15 @@ func GetAccessUrl(db *gorm.DB, moduleID string) ([]string, error) {
 	return strURL, nil
 }
 
-func SetAccountStatus(ctx context.Context, rdb *gorm.DB, userName string, status int) error {
+func SetAccountStatus(ctx context.Context, rdb *gorm.DB, account string, status int) error {
 	pgCtx, cancel := context.WithTimeout(ctx, 1*time.Second)
 	defer cancel()
 	var innerErr error
 	err := util.RetryWithBackoff(pgCtx, func() error {
 		oneCtx, oneCancel := context.WithTimeout(pgCtx, 300*time.Millisecond)
 		defer oneCancel()
-		innerErr = rdb.WithContext(oneCtx).Model(&model.User{}).Where("username = ?", userName).Update("status", status).Error
+		innerErr = rdb.WithContext(oneCtx).Model(&model.User{}).Where("account = ?", account).
+			Update("status", status).Error
 		if innerErr == gorm.ErrRecordNotFound {
 			return nil
 		}
@@ -200,6 +192,48 @@ func GetAllModules(ctx context.Context, db *gorm.DB) ([]*model.ModuleGroup, erro
 	return m, err
 }
 
+func GetUserLiteWithCache(ctx context.Context, rdb *gorm.DB, redisClient *redis.Client, username string) (*model.UserLite, error) {
+	queryUser := model.UserLite{}
+
+	redisCtx, cancel := context.WithTimeout(ctx, time.Millisecond*500)
+	defer cancel()
+
+	key := fmt.Sprintf("u:%s", username)
+	rawJson, err := redisClient.Get(redisCtx, key).Bytes()
+	if err == nil {
+		if err = json.Unmarshal(rawJson, &queryUser); err != nil {
+			logging.Get().Error().Err(err).Msg("")
+		}
+	}
+
+	if err != nil {
+		logging.Get().Warn().Err(err).Msg("")
+
+		u := model.User{}
+		err = rdb.WithContext(ctx).Model(&u).
+			Where("username = ?", username).First(&queryUser).Error
+		if err != nil {
+			logging.Get().Error().Err(err).Msg("")
+			return nil, err
+		}
+
+		queryUser.Username = u.UserName
+		queryUser.Account = u.Account
+		if err == redis.Nil {
+			b, err := json.Marshal(queryUser)
+			if err != nil {
+				logging.Get().Error().Err(err).Msg("")
+			}
+
+			if err = redisClient.Set(redisCtx, key, b, time.Minute*10).Err(); err != nil {
+				logging.Get().Error().Err(err).Msg("save to cache failed")
+			}
+		}
+	}
+
+	return &queryUser, nil
+}
+
 func SelectUser(ctx context.Context, rdb *gorm.DB, userName string) (bool, *model.User, error) {
 	queryUser := model.User{}
 
@@ -216,33 +250,50 @@ func SelectUser(ctx context.Context, rdb *gorm.DB, userName string) (bool, *mode
 	return true, &queryUser, nil
 }
 
-func InsertUser(ctx context.Context, rdb *gorm.DB, userName, role string, moduleID []string, mustChangePwd bool) (err error) {
+func SelectUserByAccount(ctx context.Context, rdb *gorm.DB, account string) (bool, *model.User, error) {
+	queryUser := model.User{}
+
+	err := rdb.WithContext(ctx).Model(&queryUser).Where("account = ?", account).First(&queryUser).Error
+	if err == gorm.ErrRecordNotFound {
+		return false, nil, nil
+	}
+	if err != nil {
+		return false, nil, err
+	}
+	return true, &queryUser, nil
+}
+
+func InsertInactiveUser(ctx context.Context, rdb *gorm.DB, account string, role model.RoleType, moduleID []string, mustChangePwd bool, creator string) (*model.User, error) {
 	data, err := json.Marshal(moduleID)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	user := model.User{
-		UserName:      userName,
+		UserName:      id.Str(),
+		Account:       account,
+		Nickname:      account,
 		Salt:          RandStringBytesMaskImprSrcUnsafe(8),
 		Role:          role,
 		ModuleID:      string(data),
 		CreatedAt:     time.Now().Unix(),
+		Creator:       creator,
 		Status:        model.UserStatusInactive,
 		MustChangePwd: mustChangePwd,
 	}
 
-	pgCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
-	defer cancel()
-	return rdb.WithContext(pgCtx).Create(&user).Error
+	err = rdb.WithContext(ctx).Create(&user).Error
+	return &user, err
 }
 
-func UpdateUser(ctx context.Context, rdb *gorm.DB, userName, role string, moduleID []string) (err error) {
+func UpdateUser(ctx context.Context, rdb *gorm.DB, userName, account string, moduleID []string) (err error) {
 	data, _ := json.Marshal(moduleID)
-	user := model.User{Role: role, ModuleID: string(data)}
 
-	pgCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
-	defer cancel()
-	return rdb.WithContext(pgCtx).Model(&model.User{}).Where("username = ? ", userName).Updates(user).Error
+	return rdb.WithContext(ctx).Model(&model.User{}).
+		Where("username = ? ", userName).
+		UpdateColumns(map[string]interface{}{
+			"account":   account,
+			"module_id": data,
+		}).Error
 }
 
 func InsertEmail(ctx context.Context, rdb *gorm.DB, username, hashcode string) error {
@@ -252,7 +303,7 @@ func InsertEmail(ctx context.Context, rdb *gorm.DB, username, hashcode string) e
 	// TODO insert on duplicate key update
 	err := rdb.WithContext(pgCtx).Delete(model.Email{}, "username = ?", username).Error
 	if err != nil {
-		logging.GetLogger().Err(err).Msgf("Insert email to delete error: username: %s", username)
+		logging.Get().Err(err).Msgf("Insert email to delete error: username: %s", username)
 	}
 	email := model.Email{HashCode: hashcode, UserName: username, CreatedAt: time.Now().Unix()}
 
@@ -263,12 +314,13 @@ func InsertEmail(ctx context.Context, rdb *gorm.DB, username, hashcode string) e
 func GetSaltedPwd(pwd, salt string) string {
 	return fmt.Sprintf("%x", md5.Sum([]byte(pwd+salt)))
 }
-func GetUserByPassword(ctx context.Context, db *gorm.DB, userName, pwd string) (bool, *model.User, error) {
+
+func GetUserByAccountPwd(ctx context.Context, db *gorm.DB, account, pwd string) (bool, *model.User, error) {
 	pgCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
 	defer cancel()
 
 	queryUser := model.User{}
-	err := db.WithContext(pgCtx).Where("username = ?", userName).First(&queryUser).Error
+	err := db.WithContext(pgCtx).Where("account = ?", account).First(&queryUser).Error
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
 			return false, nil, nil
@@ -278,7 +330,7 @@ func GetUserByPassword(ctx context.Context, db *gorm.DB, userName, pwd string) (
 	if GetSaltedPwd(pwd, queryUser.Salt) == queryUser.Pwd {
 		return true, &queryUser, nil
 	} else {
-		return false, nil, nil
+		return false, &queryUser, nil
 	}
 }
 
@@ -297,7 +349,7 @@ func CheckHashCode(ctx context.Context, db *gorm.DB, hashCode string) (string, b
 	defer cancel()
 	err := db.WithContext(tCtx).Where("hash_code = ?", hashCode).First(&queryEmail).Error
 	if err != nil {
-		logging.GetLogger().Err(err).Msgf("get email hashcode error:%+v", err)
+		logging.Get().Err(err).Msgf("get email hashcode error:%+v", err)
 		return "", false
 	}
 	return queryEmail.UserName, true
@@ -364,8 +416,8 @@ func UpdateUserTokenExpireAt(ctx context.Context, db *gorm.DB, username string, 
 		UpdateColumn("token_expire_at", expireAt).Error
 }
 
-func UpdateUserLoginKey(ctx context.Context, db *gorm.DB, username, key string, expireAt int64) error {
-	return db.WithContext(ctx).Model(&model.User{}).Where("username = ?", username).
+func UpdateUserLoginKey(ctx context.Context, db *gorm.DB, account, key string, expireAt int64) error {
+	return db.WithContext(ctx).Model(&model.User{}).Where("account = ?", account).
 		UpdateColumns(map[string]interface{}{
 			"login_secret_key":           key,
 			"login_secret_key_expire_at": expireAt,
@@ -374,7 +426,7 @@ func UpdateUserLoginKey(ctx context.Context, db *gorm.DB, username, key string, 
 }
 
 func HasSuperadminUser(ctx context.Context, db *gorm.DB) (bool, error) {
-	err := db.WithContext(ctx).Where("rule = ?", model.RoleSuperAdmin).First(&model.User{}).Error
+	err := db.WithContext(ctx).Where("rule = ?", model.RoleTypeSuperAdmin).First(&model.User{}).Error
 	if err != nil && err != gorm.ErrRecordNotFound {
 		return false, err
 	}
@@ -382,24 +434,78 @@ func HasSuperadminUser(ctx context.Context, db *gorm.DB) (bool, error) {
 	return err == nil, nil
 }
 
-func CreateSuperAdmin(ctx context.Context, db *gorm.DB, pwd string) error {
-	err := db.WithContext(ctx).Where("username = ?", model.UserSuperAdmin).First(&model.User{}).Error
-	if err == gorm.ErrRecordNotFound {
-		salt := RandStringBytesMaskImprSrcUnsafe(8)
-		hashPwd := fmt.Sprintf("%x", md5.Sum([]byte(pwd+salt)))
-		user := model.User{UserName: model.UserSuperAdmin, Status: model.UserStatusNormal, CreatedAt: time.Now().Unix(), Role: model.RoleSuperAdmin, Salt: salt, Pwd: hashPwd}
-		authToken := util.GenerateUUIDHex()
-		err = db.Transaction(func(tx *gorm.DB) error {
-			if _err := tx.WithContext(ctx).Create(&user).Error; _err != nil {
-				return _err
-			}
-
-			return SaveAuthToken(ctx, tx, user.UserName, authToken)
-		})
-		if err != nil {
+func CreateSuperAdmin(ctx context.Context, db *gorm.DB, account, pwd string) error {
+	err := db.WithContext(ctx).Where("username = ? OR account = ?", model.SuperAdminUsername, account).First(&model.User{}).Error
+	if err != nil {
+		if err != gorm.ErrRecordNotFound {
 			return err
 		}
+	} else {
+		return fmt.Errorf("super admin is exists")
+	}
+
+	salt := RandStringBytesMaskImprSrcUnsafe(8)
+	hashPwd := fmt.Sprintf("%x", md5.Sum([]byte(pwd+salt)))
+	user := model.User{
+		UserName:  model.SuperAdminUsername,
+		Account:   account,
+		Nickname:  account,
+		Status:    model.UserStatusNormal,
+		CreatedAt: time.Now().Unix(),
+		Creator:   "system",
+		ModuleID:  "[]",
+		Role:      model.RoleTypeSuperAdmin,
+		Salt:      salt,
+		Pwd:       hashPwd,
+	}
+	authToken := util.GenerateUUIDHex()
+
+	err = db.Transaction(func(tx *gorm.DB) error {
+		if _err := tx.WithContext(ctx).Create(&user).Error; _err != nil {
+			return _err
+		}
+
+		return SaveAuthToken(ctx, tx, user.UserName, authToken)
+	})
+	if err != nil {
+		return err
 	}
 
 	return err
+}
+
+// mfa
+// 消除mfa密钥绑定信息
+func DeleteUserMfaSecret(ctx context.Context, db *gorm.DB) error {
+	return db.WithContext(ctx).Model(&model.User{}).Where("1 = 1").
+		Updates(map[string]interface{}{
+			"mfa_secret": "",
+			"MfaStatus":  false,
+		}).Error
+}
+
+// 存储密钥值信息
+func UpdateUserMfaSecret(ctx context.Context, db *gorm.DB, secret, username string) error {
+	return db.WithContext(ctx).Model(&model.User{}).Where("username = ?", username).
+		Updates(map[string]interface{}{
+			"mfa_secret": secret,
+			"MfaStatus":  false,
+		}).Error
+}
+
+// 更新mfa密钥的绑定状态
+func UpdateUserMfaStatus(ctx context.Context, db *gorm.DB, mfaStatus bool, username string) error {
+	return db.WithContext(ctx).Model(&model.User{}).Where("username = ?", username).
+		Updates(map[string]interface{}{
+			"MfaStatus": mfaStatus,
+		}).Error
+}
+
+// 更新二步登录验证密钥  --添加
+func UpdateLoginTwoFactorSecret(ctx context.Context, db *gorm.DB, account, TwoFactorSecret string, expireAt int64) error {
+	return db.WithContext(ctx).Model(&model.User{}).Where("account = ?", account).
+		UpdateColumns(map[string]interface{}{
+			"two_factor_key":           TwoFactorSecret,
+			"two_factor_key_expire_at": expireAt,
+		}).Error
 }

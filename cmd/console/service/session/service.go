@@ -2,7 +2,6 @@ package session
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"math/rand"
@@ -10,16 +9,12 @@ import (
 	"sync/atomic"
 	"time"
 
+	"gitlab.com/security-rd/go-pkg/logging"
 	"gorm.io/gorm"
 
 	"gitlab.com/piccolo_su/vegeta/pkg/dal"
 
-	"gitlab.com/piccolo_su/vegeta/pkg/model"
-
 	"github.com/go-redis/redis/v8"
-
-	"gitlab.com/piccolo_su/vegeta/pkg/logging"
-	"gitlab.com/piccolo_su/vegeta/pkg/util"
 )
 
 var (
@@ -27,9 +22,11 @@ var (
 )
 
 const (
-	userSessionPrefix        = "session@"
+	// userSessionPrefix        = "session@"
 	loginSecretSessionPrefix = "loginsecret@"
 	userTokenPrefix          = "session@token@"
+	loginConfig              = "loginConfig"
+	ipBlackList              = "ipBlackList"
 	defaultOneTimeout        = time.Millisecond * 500
 	loginSecretExpireTime    = time.Minute
 
@@ -115,9 +112,11 @@ func (s *Service) GetToken(ctx context.Context, db *gorm.DB, username string) (s
 
 	tokenStr, err := s.redisCli.Get(redisCtx, userTokenPrefix+username).Result()
 	if err != nil {
-		logging.GetLogger().Warn().Err(err)
+		logging.Get().Warn().Err(err).Msg("")
 
-		exist, user, err := dal.SelectUser(context.Background(), db, username)
+		// 这里不能用redisCtx
+		// 这个err可能就是redisCtx超时导致的
+		exist, user, err := dal.SelectUser(ctx, db, username)
 		if err != nil {
 			return "", err
 		}
@@ -129,15 +128,15 @@ func (s *Service) GetToken(ctx context.Context, db *gorm.DB, username string) (s
 
 			tokenStr = user.Token
 
-			// attempt save to redis
-			// The odds are 1 in 10
+			// redis may still be in crash state
+			// attempt save to redis, the odds are 1 in 10
 			go func(chance int) {
 				if chance != 1 && tokenStr != "" {
 					return
 				}
 
-				if err = s.SaveToken(context.Background(), username, tokenStr); err != nil {
-					logging.GetLogger().Warn().Err(err)
+				if gerr := s.SaveToken(context.Background(), username, tokenStr); err != nil {
+					logging.Get().Warn().Err(gerr).Msg("")
 				}
 			}(rand.Intn(10))
 		}
@@ -146,21 +145,21 @@ func (s *Service) GetToken(ctx context.Context, db *gorm.DB, username string) (s
 	return tokenStr, nil
 }
 
-func (s *Service) SaveUserLoginSecret(ctx context.Context, username, key string) error {
+func (s *Service) SaveUserLoginSecret(ctx context.Context, account, key string) error {
 	oneCtx, oneCancel := context.WithTimeout(ctx, defaultOneTimeout)
 	defer oneCancel()
-	return s.redisCli.Set(oneCtx, getLoginSecretRedisKey(username), key, loginSecretExpireTime).Err()
+	return s.redisCli.Set(oneCtx, getLoginSecretRedisKey(account), key, loginSecretExpireTime).Err()
 }
 
-func (s *Service) GetUserLoginSecret(ctx context.Context, db *gorm.DB, username string) (string, error) {
+func (s *Service) GetUserLoginSecret(ctx context.Context, db *gorm.DB, account string) (string, error) {
 	redisCtx, redisCancel := context.WithTimeout(ctx, defaultOneTimeout)
 	defer redisCancel()
 
-	key, err := s.redisCli.Get(redisCtx, getLoginSecretRedisKey(username)).Result()
+	key, err := s.redisCli.Get(redisCtx, getLoginSecretRedisKey(account)).Result()
 	if err != nil {
-		logging.GetLogger().Warn().Err(err)
+		logging.Get().Warn().Err(err).Msg("")
 
-		exist, user, err := dal.SelectUser(context.Background(), db, username)
+		exist, user, err := dal.SelectUserByAccount(context.Background(), db, account)
 		if err != nil {
 			return "", err
 		}
@@ -181,81 +180,58 @@ func (s *Service) GetUserLoginSecret(ctx context.Context, db *gorm.DB, username 
 	return key, nil
 }
 
-func (s *Service) GetUserSession(ctx context.Context, db *gorm.DB, username string, external bool) (*model.UserSession, error) {
+func getLoginSecretRedisKey(username string) string {
+	return fmt.Sprintf("%s%s", loginSecretSessionPrefix, username)
+}
+
+func (s *Service) SaveLoginConf(ctx context.Context, tokenStr []byte) error {
+	oneCtx, oneCancel := context.WithTimeout(ctx, defaultOneTimeout)
+	defer oneCancel()
+
+	return s.redisCli.Set(oneCtx, loginConfig, tokenStr, DefaultTokenTTL).Err()
+}
+
+func (s *Service) GetLoginConf(ctx context.Context) ([]byte, error) {
 	redisCtx, redisCancel := context.WithTimeout(ctx, defaultOneTimeout)
 	defer redisCancel()
 
-	cacheContent, err := s.redisCli.Get(redisCtx, getRedisKey(username)).Result()
-	if err == nil && cacheContent != "" {
-		return decode(cacheContent)
-	}
-
-	logging.GetLogger().Warn().Err(err)
-
-	mysqlCtx, mysqlCancel := context.WithTimeout(ctx, defaultOneTimeout)
-	defer mysqlCancel()
-
-	exist, user, err := dal.SelectUser(mysqlCtx, db, username)
-	if err != nil {
-		return nil, err
-	}
-
-	if !exist {
-		return nil, ErrNotFound
-	}
-
-	return user.GenerateSession(external), nil
-
+	return s.redisCli.Get(redisCtx, loginConfig).Bytes()
 }
 
-func (s *Service) SaveUserSession(ctx context.Context, user *model.UserSession) error {
+func (s *Service) DelLoginConf(ctx context.Context) error {
 	oneCtx, oneCancel := context.WithTimeout(ctx, defaultOneTimeout)
 	defer oneCancel()
 
-	content := encode(user)
-	return s.redisCli.Set(oneCtx, getRedisKey(user.Username), content, s.conf.SessionExpiration).Err()
+	return s.redisCli.Del(oneCtx, loginConfig).Err()
 }
 
-func (s *Service) DeleteUserSession(ctx context.Context, username string) error {
-	del := func() error {
-		oneCtx, oneCancel := context.WithTimeout(ctx, defaultOneTimeout)
-		defer oneCancel()
-		return s.redisCli.Del(oneCtx, getRedisKey(username)).Err()
-	}
-
-	if err := util.RetryWithBackoff(ctx, del); err != nil {
-		logging.GetLogger().Err(err).Msg("delete user session fail")
-		return err
-	}
-	return nil
-}
-
-func (s *Service) RefreshUserSession(ctx context.Context, username string) error {
+func (s *Service) SaveBlackList(ctx context.Context, ip map[string]interface{}) (err error) {
 	oneCtx, oneCancel := context.WithTimeout(ctx, defaultOneTimeout)
 	defer oneCancel()
-	return s.redisCli.Expire(oneCtx, getRedisKey(username), s.conf.SessionExpiration).Err()
-}
 
-func encode(userSession *model.UserSession) string {
-	jsonBytes, _ := json.Marshal(userSession)
-	return util.Bytes2StringNoCopy(jsonBytes)
-}
-
-func decode(content string) (*model.UserSession, error) {
-	var result *model.UserSession
-	jsonBytes := util.String2BytesNoCopy(content)
-	var err = json.Unmarshal(jsonBytes, &result)
-	if err != nil {
-		return nil, err
+	for k, _ := range ip {
+		err = s.redisCli.HSet(oneCtx, ipBlackList, k, DefaultTokenTTL).Err()
 	}
-
-	return result, nil
+	return
 }
 
-func getRedisKey(username string) string {
-	return fmt.Sprintf("%s%s", userSessionPrefix, username)
+func (s *Service) DelBlackList(ctx context.Context) error {
+	oneCtx, oneCancel := context.WithTimeout(ctx, defaultOneTimeout)
+	defer oneCancel()
+
+	return s.redisCli.Del(oneCtx, ipBlackList).Err()
 }
 
-func getLoginSecretRedisKey(username string) string {
-	return fmt.Sprintf("%s%s", loginSecretSessionPrefix, username)
+func (s *Service) CheckIP(ctx context.Context, ip string) (bool, error) {
+	oneCtx, redisCancel := context.WithTimeout(ctx, defaultOneTimeout)
+	defer redisCancel()
+
+	return s.redisCli.HExists(oneCtx, ipBlackList, ip).Result()
+}
+
+func (s *Service) CheckBlackListExists(ctx context.Context) (int64, error) {
+	oneCtx, redisCancel := context.WithTimeout(ctx, defaultOneTimeout)
+	defer redisCancel()
+
+	return s.redisCli.Exists(oneCtx, ipBlackList).Result()
 }

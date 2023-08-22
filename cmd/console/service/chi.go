@@ -6,11 +6,12 @@ import (
 	"strings"
 	"time"
 
+	"github.com/golang-jwt/jwt/v5"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
+	"gitlab.com/piccolo_su/vegeta/pkg/token"
 
 	"github.com/go-chi/chi"
 	"github.com/go-chi/chi/middleware"
-	"github.com/go-chi/jwtauth"
 	"github.com/go-redis/redis/v8"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/api"
 	"gitlab.com/piccolo_su/vegeta/pkg/harbor"
@@ -19,9 +20,7 @@ import (
 	"gitlab.com/security-rd/go-pkg/elastic"
 )
 
-var (
-	jwtSignKey = []byte("skielsJKL@qlLKYY9091LSAqweVGY8769VHKskafhw239s$kskSJ)ksj!jHN7hJs")
-)
+var jwtSignKey = []byte("skielsJKL@qlLKYY9091LSAqweVGY8769VHKskafhw239s$kskSJ)ksj!jHN7hJs.v1")
 
 func setupChiRouter(
 	ctx context.Context,
@@ -38,7 +37,7 @@ func setupChiRouter(
 	harborClient *harbor.HarborRESTClient,
 ) http.Handler {
 	// ch := make(chan model.AccessLog, 1000)
-	tokenAuth := jwtauth.New("HS256", jwtSignKey, nil)
+	tokenManager := token.NewJWTTokenManager(jwtSignKey, jwt.SigningMethodHS256)
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID)
 	r.Use(middleware.RealIP)
@@ -52,7 +51,7 @@ func setupChiRouter(
 	}
 
 	api.SetupRoutes(ctx, r,
-		tokenAuth,
+		tokenManager,
 		rdb,
 		scannerURL,
 		exportURL,

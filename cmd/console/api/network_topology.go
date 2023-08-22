@@ -51,12 +51,6 @@ type OldNetworkFlow struct {
 	UpdatedAt        time.Time `json:"updated_at" gorm:"updated_at"`
 }
 
-type request struct {
-	UUID   uint32 `json:"uuid"`
-	Time   int64  `json:"time"`
-	Status int    `json:"status"`
-}
-
 func NetflowsConvert(datas []*OldNetworkFlow) []*model.TensorNetworkFlow {
 	rets := make([]*model.TensorNetworkFlow, len(datas))
 	for i := 0; i < len(datas); i++ {

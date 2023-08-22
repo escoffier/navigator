@@ -16,7 +16,6 @@ import (
 
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/captcha"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/license"
-	"gitlab.com/piccolo_su/vegeta/cmd/console/service/session"
 	"gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	"gitlab.com/piccolo_su/vegeta/pkg/dal"
 	"gitlab.com/piccolo_su/vegeta/pkg/env"
@@ -51,6 +50,7 @@ func (api *api) UpdateLdapConf() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx, cancel := context.WithTimeout(r.Context(), defaultAccountTimeout)
 		defer cancel()
+
 		if authErr := api.verifyAuthorization(ctx); authErr != nil {
 			apperror.RespAndLog(w, ctx,
 				apperror.NewNoAccess(http.StatusForbidden,
@@ -391,7 +391,7 @@ func (api *api) GetLoginOption() http.HandlerFunc {
 
 func (api *api) LdapLogin() http.HandlerFunc {
 	type req struct {
-		Username     string `json:"username"`
+		Account      string `json:"account"`
 		Password     string `json:"password"`
 		CaptchaID    string `json:"captchaID"`
 		CaptchaValue string `json:"captchaValue"`
@@ -415,7 +415,7 @@ func (api *api) LdapLogin() http.HandlerFunc {
 			return
 		}
 
-		if cliReq.Username == "" || cliReq.Password == "" {
+		if cliReq.Account == "" || cliReq.Password == "" {
 			apperror.RespAndLog(w, ctx,
 				apperror.NewMalformedRequestError(http.StatusBadRequest,
 					fmt.Errorf("missing field 'password' or 'username'")))
@@ -452,7 +452,7 @@ func (api *api) LdapLogin() http.HandlerFunc {
 		if ldapConf.ConnType != model.LdapModeNonTLS {
 			tlsConf = api.getLdapTlsConfig(ctx, ldapConf.ServerNameOverride)
 		}
-		group, err := ldap.Login(cliReq.Username, cliReq.Password, ldapConf, tlsConf)
+		group, err := ldap.Login(cliReq.Account, cliReq.Password, ldapConf, tlsConf)
 		if err != nil {
 			if err == ldap.ErrUserPasswordNotMatch {
 				apperror.RespAndLog(w, ctx,
@@ -466,13 +466,12 @@ func (api *api) LdapLogin() http.HandlerFunc {
 			return
 		}
 
-		ldapUsername := fmt.Sprintf("%s%s", LdapUsernamePrefix, cliReq.Username)
+		ldapUsername := fmt.Sprintf("%s%s", LdapUsernamePrefix, cliReq.Account)
 		api.externalLogin(ctx, w, &externalUserArg{
-			username:       ldapUsername,
-			originUsername: cliReq.Username,
-			accountType:    AccountTypeLdap,
-			group:          group,
-			userAgent:      r.UserAgent(),
+			username:    ldapUsername,
+			accountType: AccountTypeLdap,
+			group:       group,
+			userAgent:   r.UserAgent(),
 		})
 	}
 }
@@ -523,7 +522,7 @@ func (api *api) getLdapTlsConfig(ctx context.Context, serverName string) *tls.Co
 
 func (api *api) RadiusLogin() http.HandlerFunc {
 	type req struct {
-		Username     string `json:"username"`
+		Account      string `json:"account"`
 		Password     string `json:"password"`
 		CaptchaID    string `json:"captchaID"`
 		CaptchaValue string `json:"captchaValue"`
@@ -548,7 +547,7 @@ func (api *api) RadiusLogin() http.HandlerFunc {
 			return
 		}
 
-		if cliReq.Username == "" || cliReq.Password == "" {
+		if cliReq.Account == "" || cliReq.Password == "" {
 			apperror.RespAndLog(w, ctx,
 				apperror.NewMalformedRequestError(http.StatusBadRequest,
 					fmt.Errorf("missing field 'password' or 'username'")))
@@ -569,7 +568,7 @@ func (api *api) RadiusLogin() http.HandlerFunc {
 			return
 		}
 
-		api.radiusLogin(ctx, w, cliReq.Username, cliReq.Password, "", r.UserAgent())
+		api.radiusLogin(ctx, w, cliReq.Account, cliReq.Password, "", r.UserAgent())
 	}
 }
 
@@ -610,7 +609,7 @@ func (api *api) RadiusResponseChallenge() http.HandlerFunc {
 	}
 }
 
-func (api *api) radiusLogin(ctx context.Context, w http.ResponseWriter, username, password, challengeState, userAgent string) {
+func (api *api) radiusLogin(ctx context.Context, w http.ResponseWriter, account, password, challengeState, userAgent string) {
 	ldapConf, err := api.getLdapConf(ctx)
 	if err != nil {
 		apperror.RespAndLog(w, ctx, err)
@@ -635,7 +634,7 @@ func (api *api) radiusLogin(ctx context.Context, w http.ResponseWriter, username
 		return
 	}
 
-	nextChallengeState, err := radius.Login(ctx, username, password, challengeState, radiusConf)
+	nextChallengeState, err := radius.Login(ctx, account, password, challengeState, radiusConf)
 	if err != nil {
 		if err == radius.ErrUserPasswordNotMatch {
 			apperror.RespAndLog(w, ctx,
@@ -661,78 +660,68 @@ func (api *api) radiusLogin(ctx context.Context, w http.ResponseWriter, username
 	if ldapConf.ConnType != model.LdapModeNonTLS {
 		tlsConf = api.getLdapTlsConfig(ctx, ldapConf.ServerNameOverride)
 	}
-	group, err := ldap.GetUserGroup(username, ldapConf, tlsConf)
+	group, err := ldap.GetUserGroup(account, ldapConf, tlsConf)
 	if err != nil {
 		apperror.RespAndLog(w, ctx,
 			apperror.NewCommonError(http.StatusPreconditionFailed, err, "获取ldap组失败", "get ldap group failed"))
 		return
 	}
 
-	radiusUsername := fmt.Sprintf("%s%s", RadiusUsernamePrefix, username)
+	radiusUsername := fmt.Sprintf("%s%s", RadiusUsernamePrefix, account)
 	api.externalLogin(ctx, w, &externalUserArg{
-		username:       radiusUsername,
-		originUsername: username,
-		group:          group,
-		accountType:    AccountTypeRadius,
-		userAgent:      userAgent,
+		username:    radiusUsername,
+		group:       group,
+		accountType: AccountTypeRadius,
+		userAgent:   userAgent,
 	})
 }
 
 type externalUserArg struct {
-	username       string
-	originUsername string
-	accountType    string
-	group          string
-	userAgent      string
+	username    string
+	accountType string
+	group       string
+	userAgent   string
 }
 
 func (api *api) externalLogin(ctx context.Context, w http.ResponseWriter, arg *externalUserArg) {
-	userSession, err := api.makeUserSessionByGroup(ctx, arg.username, arg.group)
+	user, err := api.makeUserSessionByGroup(ctx, arg.username, arg.group)
 	if err != nil {
 		apperror.RespAndLog(w, ctx, err)
 		return
 	}
 
-	tokenString, err := api.issueJWTToken(ctx, arg.username, userSession.Role, arg.userAgent, userSession.External)
+	tokenString, err := api.issueJWTToken(ctx, user, "", true)
 	if err != nil {
 		apperror.RespAndLog(w, ctx, ErrServiceNotReady)
 		return
-	}
-	sessionService, ok := session.GetService()
-	if !ok {
-		apperror.RespAndLog(w, ctx, ErrServiceNotReady)
-		return
-	}
-
-	if err = sessionService.SaveUserSession(ctx, userSession); err != nil {
-		logging.Get().Warn().Err(err).Msgf("external_login save user session fail")
 	}
 
 	response.Ok(w, response.WithItem(LoginResponse{
-		CurrentAuthority: arg.originUsername,
-		Status:           "ok",
-		Type:             arg.accountType,
-		Token:            tokenString,
-		Role:             userSession.Role,
-		LicenseStatus:    license.ValidateLicense(false),
+		Username:      user.UserName,
+		Account:       user.Account,
+		Status:        "ok",
+		Type:          arg.accountType,
+		Token:         tokenString,
+		Role:          user.Role,
+		LicenseStatus: license.ValidateLicense(false),
 	}))
 }
 
-func (api *api) makeUserSessionByGroup(ctx context.Context, username, group string) (*model.UserSession, error) {
+func (api *api) makeUserSessionByGroup(ctx context.Context, username, group string) (*model.User, error) {
 	ldapGroup, err := dal.GetLdapGroupByName(ctx, api.rdb.Get(), group)
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
-			ldapGroup = &model.LdapGroup{Role: model.RoleNormal, Modules: "[]"}
+			ldapGroup = &model.LdapGroup{Role: model.RoleTypeNormal, Modules: "[]"}
 		} else {
 			return nil, fmt.Errorf("get ldap group fail, err:%w", err)
 		}
 	}
-	user := &model.UserSession{
-		Username: username,
-		External: true,
-		Status:   model.UserStatusNormal,
-		ModuleID: convertModule(ldapGroup.Modules),
+	user := &model.User{
+		UserName: username,
+		Account:  username,
 		Role:     ldapGroup.Role,
+		ModuleID: convertModule(ldapGroup.Modules),
+		Status:   model.UserStatusNormal,
 	}
 	return user, nil
 }
@@ -881,10 +870,10 @@ func (api *api) truncateLdapGroup(ctx context.Context) error {
 
 func (api *api) UpdateLdapGroup() http.HandlerFunc {
 	type req struct {
-		ID      int32  `json:"id"`
-		Name    string `json:"name"`
-		Role    string `json:"role"`
-		Modules []int  `json:"modules"`
+		ID      int32          `json:"id"`
+		Name    string         `json:"name"`
+		Role    model.RoleType `json:"role"`
+		Modules []int          `json:"modules"`
 	}
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx, cancel := context.WithTimeout(r.Context(), defaultAccountTimeout)
@@ -963,12 +952,12 @@ var (
 	CheckLdapGroupInterError = errors.New("checkLdapGroup internal error")
 )
 
-func (api *api) checkLdapGroup(ctx context.Context, name, role string, modules []int) ([]*model.ModuleGroup, error) {
+func (api *api) checkLdapGroup(ctx context.Context, name string, role model.RoleType, modules []int) ([]*model.ModuleGroup, error) {
 	if len(name) == 0 || len(name) > 255 {
 		return nil, fmt.Errorf("invalid name:%s", name)
 	}
 
-	if role != model.RoleAdmin && role != model.RoleSuperAdmin && role != model.RoleNormal {
+	if role != model.RoleTypeAdmin && role != model.RoleTypeSuperAdmin && role != model.RoleTypeNormal {
 		return nil, fmt.Errorf("invalid role:%s", role)
 	}
 

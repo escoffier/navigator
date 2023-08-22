@@ -351,6 +351,18 @@ func (api *api) getPolicyDetailsOpenApi() http.HandlerFunc {
 }
 
 func (api *api) getScapCheckStatus() http.HandlerFunc {
+	type detail struct {
+		CheckID     string          `json:"checkId" bson:"checkId"`
+		CheckType   string          `json:"checkType" bson:"checkType"`
+		ClusterID   string          `json:"clusterId" bson:"clusterId"`
+		Operator    string          `json:"operator" bson:"operator"`
+		ClusterName string          `json:"clusterName" bson:"-"`
+		CreatedAt   int64           `json:"createdAt" bson:"createdAt"`
+		FinishedAt  int64           `json:"finishedAt,omitempty" bson:"finishedAt,omitempty"`
+		PolicyID    uint            `json:"policyId" bson:"policyId"`
+		PolicyName  string          `json:"policyName" bson:"policyName"`
+		State       model.ScanState `json:"state" bson:"state"`
+	}
 
 	// NodeInfo 节点信息
 	type Response struct {
@@ -370,14 +382,35 @@ func (api *api) getScapCheckStatus() http.HandlerFunc {
 
 		scapApiV2 := scapservice.NewService(api.rdb, api.redisClient)
 
-		detail, err := scapApiV2.RecordDetail(ctx, checkUUID)
-
+		value, err := scapApiV2.RecordDetail(ctx, checkUUID)
 		if err != nil {
 			apperror.RespAndLog(w, ctx, apperror.NewMongoError(http.StatusInternalServerError, errors.New("get check status error")))
 			return
 		}
-		res := Response{Status: "", CheckUUID: detail.CheckID}
-		switch detail.State {
+
+		data := detail{
+			CheckID:     value.TaskID,
+			CheckType:   value.CheckType,
+			ClusterID:   value.ClusterKey,
+			Operator:    value.Operator,
+			ClusterName: value.ClusterName,
+			CreatedAt:   value.CreatedAt,
+			FinishedAt:  value.FinishedAt,
+			PolicyID:    value.PolicyID,
+		}
+
+		// data.NumFailed = value.FailNode
+		// check finish state
+		if value.State == model.ScanStateInProgress {
+			data.State = 1
+		} else if value.State == model.ScanStateCompleted {
+			data.State = 2
+		} else {
+			data.State = 3
+		}
+
+		res := Response{Status: "", CheckUUID: data.CheckID}
+		switch data.State {
 		case 1:
 			res.Status = "inprogress"
 		case 2:
@@ -443,6 +476,15 @@ func (api *api) getKubeScapCheckDetail() http.HandlerFunc {
 }
 
 func (api *api) getScapScanPolicy() http.HandlerFunc {
+	type reso struct {
+		ID        uint64 `json:"id"`
+		Name      string `json:"name"`
+		Operator  string `json:"operator"`
+		CreatedAt int64  `json:"createdAt"`
+		UpdatedAt int64  `json:"updatedAt"`
+		Comment   string `json:"comment"`
+		IsDefault bool   `json:"isDefault"`
+	}
 
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx, cancel := context.WithTimeout(r.Context(), time.Second*60)
@@ -468,10 +510,10 @@ func (api *api) getScapScanPolicy() http.HandlerFunc {
 			return
 		}
 
-		var resp = make([]scap.PolicyBrief, 0, len(result))
+		var resp = make([]reso, 0, len(result))
 		for i := range result {
 
-			s := scap.PolicyBrief{
+			s := reso{
 				ID:        result[i].ID,
 				Name:      result[i].Name,
 				Comment:   result[i].Comment,

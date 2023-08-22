@@ -12,6 +12,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/dal"
 	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
+	"gitlab.com/piccolo_su/vegeta/pkg/request"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 	"gitlab.com/security-rd/go-pkg/databases"
 	"gitlab.com/security-rd/go-pkg/elastic"
@@ -163,7 +164,7 @@ func (s *Service) CreateProcessingRecord(ctx context.Context, arg *AddProcessing
 
 func (s *Service) saveProcessingRecord(ctx context.Context, arg *AddProcessingRecordArg, object []string, initialStatus string) (id string, err error) {
 	nowTime := time.Now()
-	username := model.GetUsernameFromContext(ctx)
+	username := request.GetUsernameFromContext(ctx)
 	processingRecord := makeProcessingRecord(arg, object, username, initialStatus, nowTime)
 	err = dal.SaveProcessingAction(ctx, s.db.Get(), makeProcessingAction(username, arg.Action, processingRecord.ID, object, nowTime))
 	if err != nil {
@@ -342,7 +343,7 @@ func (s *Service) UpdateProcessingRecordStatus(ctx context.Context, id, status s
 	return dal.UpdateProcessingRecord(ctx, esCli, s.getProcessingIndexPattern(), &model.ProcessingRecordChange{
 		ID:         id,
 		UpdatedAt:  util.GetMillisecondTimestampByTime(time.Now()),
-		LastOpUser: model.GetUsernameFromContext(ctx),
+		LastOpUser: request.GetUsernameFromContext(ctx),
 		Status:     status,
 	})
 }
@@ -409,7 +410,7 @@ func (s *Service) AddProcessingAction(ctx context.Context, arg *AddProcessingAct
 		partial = true
 	}
 
-	username := model.GetUsernameFromContext(ctx)
+	username := request.GetUsernameFromContext(ctx)
 	nowTime := time.Now()
 	successObj := encodePods(successPods)
 

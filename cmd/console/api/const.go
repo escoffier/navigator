@@ -6,8 +6,4 @@ const (
 	userUnknown    = "unknown"
 	orderAsc       = "asc"
 	orderDesc      = "desc"
-
-	headerAutoRequest      = "X-Auto-Request"
-	autoRequestTypeDefault = "auto"
-	autoRequestTypePolling = "polling"
 )

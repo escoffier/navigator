@@ -116,29 +116,29 @@ func (l *LoginRateLimiter) UpdateEnable(enable bool) {
 	l.config.SetEnable(enable)
 }
 
-func (l *LoginRateLimiter) getOrCreateStatus(_ context.Context, userName string) *failStatus {
-	status, _ := l.counts.LoadOrStore(userName, newFailStatus())
+func (l *LoginRateLimiter) getOrCreateStatus(_ context.Context, account string) *failStatus {
+	status, _ := l.counts.LoadOrStore(account, newFailStatus())
 	return status.(*failStatus)
 }
 
-func (l *LoginRateLimiter) LoginFailToReachLimit(ctx context.Context, userName string) bool {
+func (l *LoginRateLimiter) LoginFailToReachLimit(ctx context.Context, account string) bool {
 	if !l.config.GetEnable() {
 		return false
 	}
 
-	status := l.getOrCreateStatus(ctx, userName)
+	status := l.getOrCreateStatus(ctx, account)
 	status.Incr()
 
 	if status.Count() >= l.config.getThreshold() {
-		err := dal.SetAccountStatus(ctx, l.rdb.Get(), userName, model.UserStatusLock)
+		err := dal.SetAccountStatus(ctx, l.rdb.Get(), account, model.UserStatusLock)
 		if err != nil {
-			logging.GetLogger().Err(err).Msgf("banning user %s error", userName)
+			logging.GetLogger().Err(err).Msgf("banning user %s error", account)
 		}
 		return true
 	}
 	return false
 }
 
-func (l *LoginRateLimiter) LoginSuccessClean(userName string) {
-	l.counts.Delete(userName)
+func (l *LoginRateLimiter) LoginSuccessClean(account string) {
+	l.counts.Delete(account)
 }

@@ -3,14 +3,16 @@ package api
 import (
 	"github.com/go-chi/chi"
 	"gitlab.com/piccolo_su/vegeta/pkg/audit"
+	"gitlab.com/piccolo_su/vegeta/pkg/middleware"
 )
 
 func (api *api) userCenter() func(chi.Router) {
 	return func(r chi.Router) {
 		r.Get("/config/loginOption", api.GetLoginOption())
 		r.Get("/login/secret", api.getLoginSecret())
+		r.Get("/login/getVerifyAppURL", api.getVerifyAppURL())
 		r.Group(func(r chi.Router) {
-			r.Use(licenseVerify)
+			r.Use(middleware.LicenseVerify)
 			if !api.httpAuditDisabled {
 				ecCli, err := api.esCli.Get()
 				if err == nil {
@@ -28,13 +30,18 @@ func (api *api) userCenter() func(chi.Router) {
 		r.Get("/getCaptchaValue", api.getCaptchaValue())
 		r.Post("/forgetpwd", api.forgetPwd())
 		r.Post("/activeuser", api.activeUser())
+		r.Post("/getMfaBindImage", api.BindGetMFASecret())
+		r.Post("/bindMfaVerify", api.BindMfaSecretVerify())
+		r.Post("/loginMfaVerify", api.LoginMfaSecretVerify())
 		r.Post("/superAdminInit", api.superAdminInit())
 		r.Group(func(r chi.Router) {
-			r.Use(verifier(api.tokenAuth), bypassAuthenticator(api.rdb), authenticator(api.rdb), jwtAccessCheck(api.rdb))
+			r.Use(middleware.Authenticator(api.tokenManager, api.rdb))
+			r.Get("/profile", api.getProfile())
+			r.Post("/resetPassword", api.resetPassword())
 			r.Post("/logout", api.logout())
 		})
 		r.Group(func(r chi.Router) {
-			r.Use(verifier(api.tokenAuth), bypassAuthenticator(api.rdb), authenticator(api.rdb), jwtAccessCheck(api.rdb))
+			r.Use(middleware.Authenticator(api.tokenManager, api.rdb), middleware.Access(api.rdb))
 			if !api.httpAuditDisabled {
 				ecCli, err := api.esCli.Get()
 				if err == nil {
@@ -53,14 +60,13 @@ func (api *api) userCenter() func(chi.Router) {
 			r.Put("/config/login", api.updateLoginConfig())
 			r.Get("/openapi/token", api.getOpenAPIToken())
 			r.Get("/userList", api.userList())
-			r.Get("/profile", api.getProfile())
-			r.Get("/userModule", api.userModule())
 			r.Post("/addUser", api.addUser())
 			r.Post("/editUser", api.editUser())
-			r.Post("/resetPassword", api.resetPassword())
 			r.Post("/enable", api.userEnable())
 			r.Delete("/delete", api.deleteUser())
 			r.Post("/admin/resetpwd", api.adminResetPwd())
+			// 管理员重置用户的mfa绑定
+			r.Post("/admin/resetMfaSecret", api.adminResetMfaSecret())
 		})
 	}
 }

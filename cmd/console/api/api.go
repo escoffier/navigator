@@ -7,11 +7,11 @@ import (
 	"net/url"
 
 	"github.com/go-chi/chi"
-	"github.com/go-chi/jwtauth"
 	"github.com/go-redis/redis/v8"
 	param "github.com/oceanicdev/chi-param"
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	"gitlab.com/piccolo_su/vegeta/pkg/harbor"
+	"gitlab.com/piccolo_su/vegeta/pkg/token"
 	"gitlab.com/security-rd/go-pkg/databases"
 	"gitlab.com/security-rd/go-pkg/elastic"
 	"gitlab.com/security-rd/go-pkg/logging"
@@ -19,10 +19,10 @@ import (
 )
 
 type api struct {
-	tokenAuth   *jwtauth.JWTAuth
-	rdb         *databases.RDBInstance
-	microsegURL string
-	webhookURL  *url.URL
+	tokenManager token.Manager
+	rdb          *databases.RDBInstance
+	microsegURL  string
+	webhookURL   *url.URL
 
 	scannerURL   string
 	exportURL    string
@@ -38,7 +38,7 @@ type api struct {
 }
 
 func newAPI(
-	tokenAuth *jwtauth.JWTAuth,
+	tokenManager token.Manager,
 	rdb *databases.RDBInstance,
 	scannerURL string,
 	exportURL string,
@@ -57,7 +57,7 @@ func newAPI(
 	}
 
 	return &api{
-		tokenAuth:         tokenAuth,
+		tokenManager:      tokenManager,
 		rdb:               rdb,
 		scannerURL:        scannerURL,
 		exportURL:         exportURL,

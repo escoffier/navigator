@@ -32,4 +32,6 @@ type NaviAuditEvent struct {
 	HttpResponse *HttpResponse
 	Timestamp    int64
 	MetaData     map[string]interface{}
+	Status       string
+	Err          string
 }

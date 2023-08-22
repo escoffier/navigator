@@ -1,6 +1,8 @@
 package assets
 
-import corev1 "k8s.io/api/core/v1"
+import (
+	corev1 "k8s.io/api/core/v1"
+)
 
 // NodeIsReady 检查node是否处于ready状态
 // 只有当node的`存在`Ready状态且为true，且磁盘空间压力、内存压力、进程压力、网络配置都为false时 nodes才算可用。

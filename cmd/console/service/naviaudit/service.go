@@ -5,6 +5,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"gitlab.com/security-rd/go-pkg/databases"
+	"gitlab.com/security-rd/go-pkg/pb"
+	"gitlab.com/security-rd/go-pkg/syslog"
 	"sync"
 
 	"github.com/olivere/elastic/v7"
@@ -16,9 +19,10 @@ import (
 const timeStampKey = "Timestamp"
 
 var (
-	instance              *Service
-	rlOnce                sync.Once
-	ErrESDocumentNotFound = errors.New("es document not found")
+	instance                *Service
+	rlOnce                  sync.Once
+	ErrESDocumentNotFound   = errors.New("es document not found")
+	ErrInvalidSyslogSetting = errors.New("invalid syslog setting")
 	// verbLangDic           = map[string]string{
 	// 	"编辑":    "Edit",
 	// 	"新增":    "Create",
@@ -35,6 +39,9 @@ var (
 type Service struct {
 	esCli       *pkgelastic.ESClient
 	indexPrefix string
+	// add mhx syslog
+	db            *databases.RDBInstance
+	syslogHandler *syslog.Handler
 }
 
 type QueryNaviAuditLogOpt struct {
@@ -54,17 +61,26 @@ type Resp struct {
 	Ip        string
 	Operation string
 	Detail    string
+	Status    string
+	Err       string
 }
 
-func InitService(ecCli *pkgelastic.ESClient) error {
+func InitService(ecCli *pkgelastic.ESClient, rdb *databases.RDBInstance) (err error) {
 	rlOnce.Do(func() {
-		instance = newService(ecCli)
+		instance, err = newService(ecCli, rdb)
+		if err != nil {
+			return
+		}
 	})
 	return nil
 }
 
-func newService(client *pkgelastic.ESClient) *Service {
-	return &Service{esCli: client, indexPrefix: "navi-audit-"}
+func newService(client *pkgelastic.ESClient, rdb *databases.RDBInstance) (*Service, error) {
+	syslogHandler, err := syslog.NewHandler(&Store{Db: rdb})
+	if err != nil {
+		return nil, err
+	}
+	return &Service{esCli: client, indexPrefix: "navi-audit-", db: rdb, syslogHandler: syslogHandler}, nil
 }
 
 func GetService() (*Service, bool) {
@@ -76,6 +92,7 @@ func (s *Service) GetAuditLog(ctx context.Context, opt *QueryNaviAuditLogOpt) ([
 	if err != nil {
 		return nil, err
 	}
+
 	searchService := esCli.Search(fmt.Sprintf("%s*", s.indexPrefix)).
 		Sort(timeStampKey, opt.Asc).Sort("_id", opt.Asc).Size(opt.Limit)
 
@@ -99,6 +116,10 @@ func (s *Service) GetAuditLog(ctx context.Context, opt *QueryNaviAuditLogOpt) ([
 			}
 			if k == "User.Name" {
 				queries = append(queries, elastic.NewWildcardQuery(k+".keyword", fmt.Sprintf("*%s*", v)))
+				continue
+			}
+			if k == "Status" {
+				queries = append(queries, elastic.NewTermQuery(k, v))
 				continue
 			}
 			queries = append(queries, elastic.NewWildcardQuery(k, fmt.Sprintf("*%s*", v)))
@@ -137,16 +158,20 @@ func (s *Service) GetAuditLog(ctx context.Context, opt *QueryNaviAuditLogOpt) ([
 			Ip:        record.HttpRequest.RemoteIP,
 			Operation: record.Verb,
 			Detail:    record.Detail,
+			Status:    record.Status,
+			Err:       record.Err,
 		}
 		if opt.Lang == "zh" {
 			r.Operation = record.Verb
 			r.Detail = record.Detail
+			r.Status = record.Status
 		} else {
 			data, ok := record.MetaData[opt.Lang]
 			if ok {
 				eninfo := data.(map[string]interface{})
 				r.Operation = eninfo["verb"].(string)
 				r.Detail = eninfo["detail"].(string)
+				r.Status = eninfo["status"].(string)
 			}
 		}
 		result = append(result, r)
@@ -177,4 +202,20 @@ func parseRecord(item *elastic.SearchHit) (*model.NaviAuditEvent, error) {
 	var record model.NaviAuditEvent
 	var err = json.Unmarshal(item.Source, &record)
 	return &record, err
+}
+
+func (s *Service) GetSyslogSettings(ctx context.Context) (*pb.SyslogSetting, error) {
+	return s.syslogHandler.GetSetting(ctx)
+}
+
+func (s *Service) UpdateSyslogSettings(ctx context.Context, setting *pb.SyslogSetting) error {
+	err := s.syslogHandler.UpdateSetting(ctx, setting)
+	if err == syslog.ErrInvalidSyslogSetting {
+		return ErrInvalidSyslogSetting
+	}
+	return err
+}
+
+func (s *Service) SendLog(data []byte) error {
+	return s.syslogHandler.Log(data)
 }

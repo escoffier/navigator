@@ -16,7 +16,7 @@ var (
 	ErrUserPasswordNotMatch = errors.New("user password not match")
 )
 
-func Login(username, password string, conf *model.LdapServerConf, tlsConf *tls.Config) (string, error) {
+func Login(account, password string, conf *model.LdapServerConf, tlsConf *tls.Config) (string, error) {
 	l, err := dial(conf, tlsConf)
 	if err != nil {
 		return "", err
@@ -28,7 +28,7 @@ func Login(username, password string, conf *model.LdapServerConf, tlsConf *tls.C
 		return "", fmt.Errorf("bind fail, err:%w", err)
 	}
 
-	dn, group, err := getUserInfo(l, username, conf)
+	dn, group, err := getUserInfo(l, account, conf)
 	if err != nil {
 		return "", err
 	}
@@ -44,7 +44,7 @@ func Login(username, password string, conf *model.LdapServerConf, tlsConf *tls.C
 	return group, nil
 }
 
-func GetUserGroup(username string, conf *model.LdapServerConf, tlsConf *tls.Config) (string, error) {
+func GetUserGroup(account string, conf *model.LdapServerConf, tlsConf *tls.Config) (string, error) {
 	l, err := dial(conf, tlsConf)
 	if err != nil {
 		return "", err
@@ -56,7 +56,7 @@ func GetUserGroup(username string, conf *model.LdapServerConf, tlsConf *tls.Conf
 		return "", fmt.Errorf("bind fail, err:%w", err)
 	}
 
-	_, group, err := getUserInfo(l, username, conf)
+	_, group, err := getUserInfo(l, account, conf)
 	return group, err
 }
 
@@ -90,7 +90,7 @@ func dial(conf *model.LdapServerConf, tlsConf *tls.Config) (*ldap.Conn, error) {
 	return l, nil
 }
 
-func getUserInfo(l *ldap.Conn, username string, conf *model.LdapServerConf) (string, string, error) {
+func getUserInfo(l *ldap.Conn, account string, conf *model.LdapServerConf) (string, string, error) {
 	searchRequest := ldap.NewSearchRequest(
 		conf.BaseDN,
 		ldap.ScopeWholeSubtree,
@@ -98,7 +98,7 @@ func getUserInfo(l *ldap.Conn, username string, conf *model.LdapServerConf) (str
 		0,
 		0,
 		false,
-		fmt.Sprintf(conf.UserFilter, username),
+		fmt.Sprintf(conf.UserFilter, account),
 		[]string{conf.GroupField},
 		nil,
 	)

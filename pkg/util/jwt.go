@@ -4,7 +4,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/dgrijalva/jwt-go"
+	"github.com/golang-jwt/jwt/v5"
+	"gitlab.com/security-rd/go-pkg/logging"
 )
 
 type JWT struct {
@@ -20,9 +21,9 @@ func NewJWT(secretKey string) *JWT {
 const DownloadFileKey = "MDa8NSNQRcaZZnZO"
 
 func (j *JWT) GenJWTToken(sub string, expire time.Duration) (string, error) {
-	clm := jwt.StandardClaims{
-		IssuedAt:  time.Now().Unix(),
-		ExpiresAt: time.Now().Unix() + int64(expire.Seconds()),
+	clm := jwt.RegisteredClaims{
+		IssuedAt:  jwt.NewNumericDate(time.Now()),
+		ExpiresAt: jwt.NewNumericDate(time.Now().Add(expire)),
 		Subject:   sub,
 	}
 
@@ -35,14 +36,14 @@ func (j *JWT) GenJWTToken(sub string, expire time.Duration) (string, error) {
 	return tokenString, nil
 }
 
-func (j *JWT) DecodeJwtToken(token string) (*jwt.StandardClaims, error) {
-	clm := &jwt.StandardClaims{}
+func (j *JWT) DecodeJwtToken(token string) (*jwt.RegisteredClaims, error) {
+	clm := &jwt.RegisteredClaims{}
 	jwtToken, err := jwt.ParseWithClaims(token, clm, j.keyFunc)
 	if err != nil {
 		return nil, err
 	}
 
-	clm2, ok := jwtToken.Claims.(*jwt.StandardClaims)
+	clm2, ok := jwtToken.Claims.(*jwt.RegisteredClaims)
 	if !ok {
 		return nil, fmt.Errorf("not StandardClaims")
 	}
@@ -51,11 +52,13 @@ func (j *JWT) DecodeJwtToken(token string) (*jwt.StandardClaims, error) {
 }
 
 func (j *JWT) ValidateToken(token string) bool {
-	jwtToken, err := j.DecodeJwtToken(token)
+	_, err := j.DecodeJwtToken(token)
 	if err != nil {
+		logging.Get().Info().Err(err).Msg("")
 		return false
 	}
-	return jwtToken.Valid() == nil
+
+	return true
 }
 
 func (j *JWT) keyFunc(token *jwt.Token) (i interface{}, err error) {

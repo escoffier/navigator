@@ -3,10 +3,11 @@ package api
 import (
 	"context"
 	"fmt"
-	"gitlab.com/piccolo_su/vegeta/pkg/lang"
-	"gitlab.com/piccolo_su/vegeta/pkg/model"
-	"gitlab.com/piccolo_su/vegeta/pkg/util"
 	"net/http"
+
+	"gitlab.com/piccolo_su/vegeta/pkg/lang"
+	"gitlab.com/piccolo_su/vegeta/pkg/request"
+	"gitlab.com/piccolo_su/vegeta/pkg/util"
 
 	param "github.com/oceanicdev/chi-param"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/attck"
@@ -70,7 +71,7 @@ func (api *api) createRuleTemplates() http.HandlerFunc {
 			return
 		}
 
-		err = service.CreateRuleTemplates(ctx, req.Version1, req.Name, req.Description, model.GetUsernameFromContext(r.Context()), lang.Language(r.Context()))
+		err = service.CreateRuleTemplates(ctx, req.Version1, req.Name, req.Description, request.GetUsernameFromContext(r.Context()), lang.Language(r.Context()))
 		if err != nil {
 			apperror.RespAndLog(w, ctx, apperror.NewAnErrorWithErrMsg(http.StatusInternalServerError, err))
 			return
@@ -101,7 +102,7 @@ func (api *api) applyRuleTemplates() http.HandlerFunc {
 			return
 		}
 
-		err = service.ApplyRuleTemplates(ctx, req.Version1, req.ID, lang.Language(r.Context()), model.GetUsernameFromContext(r.Context()))
+		err = service.ApplyRuleTemplates(ctx, req.Version1, req.ID, lang.Language(r.Context()), request.GetUsernameFromContext(r.Context()))
 		if err != nil {
 			apperror.RespAndLog(w, ctx, apperror.NewAnErrorWithErrMsg(http.StatusInternalServerError, err))
 			return
