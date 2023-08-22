@@ -1,34 +1,34 @@
 package api
 
 import (
+	"bytes"
 	"context"
 	"crypto/tls"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
-	"errors"
 	"fmt"
+	"image/png"
 	"io"
-	"io/ioutil"
 	"net/http"
+	"os"
 	"strconv"
 	"strings"
 	"time"
 
-	"github.com/dgrijalva/jwt-go"
-	"github.com/go-chi/jwtauth"
+	"github.com/pquerna/otp/totp"
+	"golang.org/x/time/rate"
+
 	param "github.com/oceanicdev/chi-param"
+	"gitlab.com/piccolo_su/vegeta/pkg/request"
+	"gitlab.com/piccolo_su/vegeta/pkg/token"
 	"gopkg.in/gomail.v2"
 	"gorm.io/gorm"
-
-	"gitlab.com/security-rd/go-pkg/databases"
-	"gitlab.com/security-rd/go-pkg/logging"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/captcha"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/idp"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/license"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/session"
-	"gitlab.com/piccolo_su/vegeta/cmd/console/service/user"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/usercenter"
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	"gitlab.com/piccolo_su/vegeta/pkg/dal"
@@ -36,6 +36,8 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
+	"gitlab.com/security-rd/go-pkg/databases"
+	"gitlab.com/security-rd/go-pkg/logging"
 )
 
 type getLoginSecretResp struct {
@@ -48,36 +50,40 @@ func (api *api) getLoginSecret() http.HandlerFunc {
 		ctx, cancel := context.WithTimeout(r.Context(), defaultAccountTimeout)
 		defer cancel()
 
-		username := r.URL.Query().Get("seed")
-		if username == "" {
+		account := r.URL.Query().Get("seed")
+		if account == "" {
 			RespAndLog(w, ctx, NewMalformedRequestError(http.StatusBadRequest,
 				fmt.Errorf("missing params 'seed'")))
 			return
 		}
 
-		exist, _, err := dal.SelectUser(ctx, api.rdb.Get(), username)
-		if !exist || err != nil {
-			RespAndLog(w, ctx, UserNotExistError(http.StatusBadRequest,
+		aesKey := dal.RandStringBytesMaskImprSrcUnsafe(16)
+
+		exist, _, err := dal.SelectUserByAccount(ctx, api.rdb.Get(), account)
+		if err != nil {
+			RespAndLog(w, ctx, LoginError(http.StatusBadRequest,
 				fmt.Errorf("user not found %w", err)))
 			return
 		}
 
-		// generate AES key and save to redis
-		aesKey := dal.RandStringBytesMaskImprSrcUnsafe(16)
 		sessionService, ok := session.GetService()
 		if !ok {
 			RespAndLog(w, ctx, ErrServiceNotReady)
 			return
 		}
 
-		if err = sessionService.SaveUserLoginSecret(ctx, username, aesKey); err != nil {
+		if err = sessionService.SaveUserLoginSecret(ctx, account, aesKey); err != nil {
 			logging.Get().Warn().Err(err).Msg("save login secret fail")
 		}
 
-		// save to mysql
-		if err = dal.UpdateUserLoginKey(ctx, api.rdb.Get(), username, aesKey, time.Now().Add(time.Minute).Unix()); err != nil {
-			RespAndLog(w, ctx, fmt.Errorf("save login secret fail:%w", err))
-			return
+		// 如果用户不存在也直接返回key
+		// 防止前端利用error遍历用户名
+		if exist {
+			// save to mysql
+			if err = dal.UpdateUserLoginKey(ctx, api.rdb.Get(), account, aesKey, time.Now().Add(time.Minute).Unix()); err != nil {
+				RespAndLog(w, ctx, fmt.Errorf("save login secret fail:%w", err))
+				return
+			}
 		}
 
 		response.Ok(w, response.WithItem(getLoginSecretResp{Key: aesKey}))
@@ -85,7 +91,7 @@ func (api *api) getLoginSecret() http.HandlerFunc {
 }
 
 func (api *api) loginBodyDecrypt(ctx context.Context, r io.ReadCloser) ([]byte, error) {
-	body, err := ioutil.ReadAll(r)
+	body, err := io.ReadAll(r)
 	defer r.Close()
 	if err != nil {
 		return nil, err
@@ -122,18 +128,30 @@ func (api *api) loginBodyDecrypt(ctx context.Context, r io.ReadCloser) ([]byte, 
 
 // LoginResponse is the response of the login API
 type LoginResponse struct {
-	CurrentAuthority  string         `json:"currentAuthority"`
-	Status            string         `json:"status"`
-	Type              string         `json:"type"`
-	Token             string         `json:"token"`
-	Role              string         `json:"role"`
-	Platform          string         `json:"platform"`
-	ChallengeState    string         `json:"challengeState"`
-	LicenseStatus     license.Status `json:"licenseStatus"`
-	CycleChangePwdDay int            `json:"cycleChangePwdDay"`
-	MustChangePwd     bool           `json:"mustChangePwd"`
-	ChangePwdHashCode string         `json:"changePwdHashCode"`
+	Username             string          `json:"username"`
+	Account              string          `json:"account"`
+	Status               string          `json:"status"`
+	Type                 string          `json:"type"`
+	Token                string          `json:"token"`
+	Role                 model.RoleType  `json:"role"`
+	Platform             string          `json:"platform"`
+	ChallengeState       string          `json:"challengeState"`
+	LicenseStatus        license.Status  `json:"licenseStatus"`
+	CycleChangePwdDay    int             `json:"cycleChangePwdDay"`
+	MustChangePwd        bool            `json:"mustChangePwd"`
+	ChangePwdHashCode    string          `json:"changePwdHashCode"`
+	TwoFactorLoginStatus string          `json:"twoFactorLoginStatus"`
+	TwoFactorSecret      string          `json:"twoFactorSecret"`
+	ModuleID             json.RawMessage `json:"module_id"`
 }
+
+const (
+	MfaBinding            = "MfaBinding"            // 绑定获取二维码
+	MfaSecretVerify       = "mfaSecretVerify"       // 验证绑定是否成功
+	MfaVerify             = "MfaVerify"             // 二次验证
+	AnewLogin             = "anewLogin"             // 重新登录
+	TwoFactorVerifyFailed = "TwoFactorVerifyFailed" // 动态码验证失败，重新操作
+)
 
 type DXLoginResponse struct {
 	LoginResponse
@@ -142,14 +160,38 @@ type DXLoginResponse struct {
 
 func (api *api) login() http.HandlerFunc {
 	type credentials struct {
-		Username     string `json:"username"`
+		Account      string `json:"account"`
 		Password     string `json:"password"`
 		CaptchaID    string `json:"captchaID"`
 		CaptchaValue string `json:"captchavalue"`
 	}
+
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx, cancel := context.WithTimeout(r.Context(), defaultAccountTimeout)
 		defer cancel()
+
+		loginConf, err := getLoginConf(ctx, api.rdb)
+		if err != nil {
+			RespAndLog(w, r.Context(),
+				LoginError(http.StatusInternalServerError,
+					fmt.Errorf("query login conf fails")))
+			return
+		}
+
+		// check ip address
+		flag, err := checkIpBlackList(ctx, loginConf.IPBlackList, r.RemoteAddr)
+		if err != nil {
+			RespAndLog(w, ctx,
+				LoginError(http.StatusInternalServerError,
+					err))
+			return
+		}
+		if flag {
+			RespAndLog(w, ctx,
+				NewIPListBlackError(http.StatusInternalServerError,
+					fmt.Errorf("this ip address cannot be logged in")))
+			return
+		}
 
 		decrypted, err := api.loginBodyDecrypt(ctx, r.Body)
 		if err != nil {
@@ -166,14 +208,14 @@ func (api *api) login() http.HandlerFunc {
 			return
 		}
 
-		if creds.Username == "" || creds.Password == "" {
+		if creds.Account == "" || creds.Password == "" {
 			// Handle case where  username or password are missing
 			// We probably should have some validation helper instead of nested
 			// ifs like this.
 			RespAndLog(w, ctx,
 				NewMalformedRequestError(http.StatusBadRequest,
-					fmt.Errorf("missing field 'password' or 'username'"),
-					Suberror{Location: "username", Message: ""}, Suberror{Location: "password", Message: ""}))
+					fmt.Errorf("missing field 'password' or 'account': %s", decrypted),
+					Suberror{Location: "account", Message: ""}, Suberror{Location: "password", Message: ""}))
 			return
 		}
 
@@ -191,106 +233,103 @@ func (api *api) login() http.HandlerFunc {
 			return
 		}
 
-		passwordOk, findUser, err := dal.GetUserByPassword(ctx, api.rdb.GetReadDB(), creds.Username, creds.Password)
-		if err != nil {
+		passwordOk, findUser, err := dal.GetUserByAccountPwd(ctx, api.rdb.GetReadDB(), creds.Account, creds.Password)
+		if err != nil || findUser == nil {
 			RespAndLog(w, r.Context(),
 				LoginError(http.StatusInternalServerError,
 					fmt.Errorf("error when checking login credentials in database: %w", err)))
 			return
 		}
-		userRole := ""
-		if !passwordOk {
-			// 用username查询user
-			nameOk, userByName, err := dal.SelectUser(ctx, api.rdb.GetReadDB(), creds.Username)
-			if err != nil {
-				RespAndLog(w, r.Context(),
-					LoginError(http.StatusInternalServerError,
-						fmt.Errorf("error when checking login credentials in database: %w", err)))
-				return
-			}
-			if !nameOk {
-				RespAndLog(w, r.Context(),
-					LoginError(http.StatusInternalServerError,
-						fmt.Errorf("invalid user name")))
-				return
-			}
-			userRole = userByName.Role
-		} else {
-			userRole = findUser.Role
-		}
-		cycleChangePwdDay := 0
-		// super-admin 只返回密码不对
-		if userRole == model.RoleSuperAdmin {
-			if !passwordOk {
-				RespAndLog(w, r.Context(),
-					LoginError(http.StatusPreconditionFailed,
-						fmt.Errorf("user and password not match")))
-				return
-			}
-		} else { // 非super-admin的检查逻辑
-			loginConf, err := getLoginConf(ctx, api.rdb)
-			if err != nil {
-				RespAndLog(w, r.Context(),
-					LoginError(http.StatusInternalServerError,
-						fmt.Errorf("query login conf fails")))
-				return
-			}
-			// 多次输错密码检查
-			limiter := usercenter.GetLimiter(ctx)
-			if !passwordOk {
-				if loginConf.RateLimitEnable {
-					locking := limiter.LoginFailToReachLimit(ctx, creds.Username)
-					if locking {
-						RespAndLog(w, r.Context(),
-							NewAccountLockError(http.StatusPreconditionFailed,
-								fmt.Errorf("the account %s is banned", creds.Username)))
-						return
-					}
-				}
-				RespAndLog(w, r.Context(),
-					LoginError(http.StatusPreconditionFailed,
-						fmt.Errorf("user and password not match")))
-				return
-			}
-			limiter.LoginSuccessClean(findUser.UserName)
 
-			// 周期修改密码检查
-			// 获取周期修改密码时间
-			if loginConf.CycleChangePwd {
-				cycleChangePwdDay, err = getCycleChangePwdDay(ctx, api.rdb, loginConf, findUser)
-				if err != nil {
-					RespAndLog(w, ctx, err)
+		// 多次输错密码检查
+		limiter := usercenter.GetLimiter(ctx)
+		if !passwordOk {
+			if loginConf.RateLimitEnable && findUser.Role != model.RoleTypeSuperAdmin {
+				locking := limiter.LoginFailToReachLimit(ctx, creds.Account)
+				if locking {
+					RespAndLog(w, r.Context(),
+						NewAccountLockError(http.StatusPreconditionFailed,
+							fmt.Errorf("the account %s is banned", creds.Account)))
 					return
 				}
 			}
+			RespAndLog(w, r.Context(),
+				LoginError(http.StatusPreconditionFailed,
+					fmt.Errorf("user and password not match")))
+			return
+		}
+		limiter.LoginSuccessClean(findUser.UserName)
 
-			// 账户状态检查
-			if err = checkUserStatus(findUser.UserName, findUser.Status); err != nil {
+		cycleChangePwdDay := 0
+		// 周期修改密码检查
+		// 获取周期修改密码时间
+		if loginConf.CycleChangePwd && findUser.Role != model.RoleTypeSuperAdmin {
+			cycleChangePwdDay, err = getCycleChangePwdDay(ctx, api.rdb, loginConf, findUser)
+			if err != nil {
 				RespAndLog(w, ctx, err)
 				return
 			}
+		}
 
-			// 是否需要立即修改密码（首次登录）
-			if findUser.MustChangePwd {
-				emailHashCode := dal.RandStringBytesMaskImprSrcUnsafe(64)
-				innerErr := dal.InsertEmail(ctx, api.rdb.Get(), findUser.UserName, emailHashCode)
-				if innerErr != nil {
-					RespAndLog(w, ctx, innerErr)
-					return
-				}
-				response.Ok(w, response.WithItem(LoginResponse{
-					CurrentAuthority:  findUser.UserName,
-					Role:              findUser.Role,
-					CycleChangePwdDay: cycleChangePwdDay,
-					MustChangePwd:     true,
-					ChangePwdHashCode: emailHashCode,
-				}))
+		// 账户状态检查
+		if err = checkUserStatus(findUser.UserName, findUser.Status); err != nil {
+			RespAndLog(w, ctx, err)
+			return
+		}
+
+		// 是否需要立即修改密码（首次登录）
+		if findUser.MustChangePwd {
+			emailHashCode := dal.RandStringBytesMaskImprSrcUnsafe(64)
+			innerErr := dal.InsertEmail(ctx, api.rdb.Get(), findUser.UserName, emailHashCode)
+			if innerErr != nil {
+				RespAndLog(w, ctx, innerErr)
 				return
 			}
+			response.Ok(w, response.WithItem(LoginResponse{
+				Username:          findUser.UserName,
+				Account:           findUser.Account,
+				Role:              findUser.Role,
+				CycleChangePwdDay: cycleChangePwdDay,
+				MustChangePwd:     true,
+				ChangePwdHashCode: emailHashCode,
+			}))
+			return
+		}
+
+		// mfa认证
+		if loginConf.MfaVerityLogin {
+			twoFactorSecret, err := loginTwoFactorEncrypt(ctx, api.rdb.Get(), findUser.Account)
+			if err != nil {
+				RespAndLog(w, ctx,
+					NewTwoFactorSecretError(http.StatusInternalServerError, err))
+				return
+			}
+			var NextStep string
+			if findUser.MfaStatus {
+				NextStep = MfaVerify
+			} else {
+				NextStep = MfaBinding
+			}
+
+			response.Ok(w, response.WithItem(LoginResponse{
+				Username:             findUser.UserName,
+				Account:              findUser.Account,
+				Role:                 findUser.Role,
+				CycleChangePwdDay:    cycleChangePwdDay,
+				TwoFactorLoginStatus: NextStep,
+				TwoFactorSecret:      twoFactorSecret,
+				ModuleID:             json.RawMessage(findUser.ModuleID),
+			}), response.WithTarget(&response.TargetRef{
+				Name:   findUser.Account,
+				ID:     "",
+				Link:   "",
+				Active: NextStep,
+			}))
+			return
 		}
 
 		// issue JWT Token
-		tokenString, err := api.issueJWTToken(ctx, findUser.UserName, findUser.Role, r.UserAgent(), false)
+		tokenString, err := api.issueJWTToken(ctx, findUser, r.UserAgent(), false)
 		if err != nil {
 			RespAndLog(w, r.Context(),
 				LoginError(http.StatusInternalServerError,
@@ -298,18 +337,12 @@ func (api *api) login() http.HandlerFunc {
 			return
 		}
 
-		sessionService, ok := session.GetService()
-		if !ok {
-			RespAndLog(w, ctx, ErrServiceNotReady)
-			return
+		if findUser.ModuleID == "" {
+			findUser.ModuleID = "[]"
 		}
-
-		if err = sessionService.SaveUserSession(ctx, findUser.GenerateSession(false)); err != nil {
-			logging.Get().Warn().Err(err).Msgf("login save user session fail")
-		}
-
 		response.Ok(w, response.WithItem(LoginResponse{
-			CurrentAuthority:  findUser.UserName,
+			Username:          findUser.UserName,
+			Account:           findUser.Account,
 			Status:            "ok",
 			Type:              AccountTypeNormal,
 			Token:             tokenString,
@@ -317,8 +350,9 @@ func (api *api) login() http.HandlerFunc {
 			Platform:          findUser.Platform,
 			LicenseStatus:     license.ValidateLicense(false),
 			CycleChangePwdDay: cycleChangePwdDay,
+			ModuleID:          json.RawMessage(findUser.ModuleID),
 		}), response.WithTarget(&response.TargetRef{
-			Name: creds.Username,
+			Name: creds.Account,
 			ID:   "",
 			Link: "",
 		}))
@@ -327,9 +361,40 @@ func (api *api) login() http.HandlerFunc {
 
 func getLoginConf(ctx context.Context, rdb *databases.RDBInstance) (loginConfigInfo, error) {
 	loginConf := loginConfigInfo{}
+	// select from redis
+	sessionService, ok := session.GetService()
+	if !ok {
+		return loginConf, ErrServiceNotReady
+	}
+
+	config, err := sessionService.GetLoginConf(ctx)
+	if err == nil {
+		if err = json.Unmarshal(config, &loginConf); err != nil {
+			return loginConf, err
+		}
+		return loginConf, nil
+	}
+
+	// select from mysql
 	dbConf, err := dal.GetConfig(ctx, rdb.GetReadDB(), model.ConfLogin)
 	if err != nil {
 		if err != gorm.ErrRecordNotFound {
+			return loginConf, err
+		}
+		dbConf = &model.TensorConfig{}
+		loginConf = loginConfigInfo{
+			FirstLoginChangePwd: false,
+			ResetLoginChangePwd: false,
+			CycleChangePwd:      false,
+			CycleDay:            90,
+			RateLimitEnable:     false,
+			RateLimitThreshold:  5,
+			MfaVerityLogin:      false,
+			PwdSecurityLevel:    AVERAGE,
+			IPBlackList:         nil,
+		}
+		dbConf.Config, err = json.Marshal(&loginConf)
+		if err != nil {
 			return loginConf, err
 		}
 	} else {
@@ -337,6 +402,10 @@ func getLoginConf(ctx context.Context, rdb *databases.RDBInstance) (loginConfigI
 			return loginConf, err
 		}
 	}
+	if err = sessionService.SaveLoginConf(ctx, dbConf.Config); err != nil {
+		logging.Get().Warn().Err(err).Msgf("redis: save login config fail")
+	}
+
 	return loginConf, nil
 }
 
@@ -467,7 +536,7 @@ func (api *api) idpLogin() http.HandlerFunc {
 		}
 
 		// issue JWT Token
-		tokenString, err := api.issueJWTToken(ctx, user.UserName, user.Role, r.UserAgent(), false)
+		tokenString, err := api.issueJWTToken(ctx, user, r.UserAgent(), false)
 		if err != nil {
 			RespAndLog(w, r.Context(),
 				LoginError(http.StatusInternalServerError,
@@ -475,25 +544,20 @@ func (api *api) idpLogin() http.HandlerFunc {
 			return
 		}
 
-		sessionService, ok := session.GetService()
-		if !ok {
-			RespAndLog(w, ctx, ErrServiceNotReady)
-			return
+		if user.ModuleID == "" {
+			user.ModuleID = "[]"
 		}
-
-		if err = sessionService.SaveUserSession(ctx, user.GenerateSession(false)); err != nil {
-			logging.Get().Warn().Err(err).Msgf("login save user session fail")
-		}
-
 		response.Ok(w, response.WithItem(DXLoginResponse{
 			LoginResponse: LoginResponse{
-				CurrentAuthority: user.UserName,
-				Status:           "ok",
-				Type:             AccountTypeNormal,
-				Token:            tokenString,
-				Role:             user.Role,
-				Platform:         user.Platform,
-				LicenseStatus:    license.ValidateLicense(false),
+				Username:      user.UserName,
+				Account:       user.Account,
+				Status:        "ok",
+				Type:          AccountTypeNormal,
+				Token:         tokenString,
+				Role:          user.Role,
+				Platform:      user.Platform,
+				LicenseStatus: license.ValidateLicense(false),
+				ModuleID:      json.RawMessage(user.ModuleID),
 			},
 			IDToken: idpInfo.IDToken,
 		}), response.WithTarget(&response.TargetRef{
@@ -549,10 +613,13 @@ func createUserByIdp(ctx context.Context, rdb *databases.RDBInstance, platform s
 	// 默认生成一个账号
 	u := model.User{
 		UserName:  username,
-		Role:      model.RoleNormal,
+		Account:   username,
+		Nickname:  thirdInfo.Username,
+		Role:      model.RoleTypeAdmin,
 		ModuleID:  string(moduleID),
 		Platform:  platform,
-		CreatedAt: time.Now().UnixMilli(),
+		CreatedAt: time.Now().Unix(),
+		Creator:   "system",
 		Status:    model.UserStatusNormal,
 		Token:     util.GenerateUUIDHex(),
 	}
@@ -565,8 +632,7 @@ func createUserByIdp(ctx context.Context, rdb *databases.RDBInstance, platform s
 }
 
 func checkUserStatus(username string, status int) error {
-	return nil
-	if username == model.UserSuperAdmin {
+	if username == model.SuperAdminUsername {
 		return nil
 	}
 	if status == model.UserStatusInactive {
@@ -583,33 +649,20 @@ func checkUserStatus(username string, status int) error {
 	return nil
 }
 
-type resp struct {
-	Status string `json:"status"`
-}
-
 func (api *api) logout() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx, cancel := context.WithTimeout(r.Context(), defaultAccountTimeout)
 		defer cancel()
 
-		token, claims, err := jwtauth.FromContext(r.Context())
-		if err != nil || token == nil || !token.Valid {
-			response.Ok(w)
-			return
-		}
+		username := request.GetUsernameFromContext(ctx)
 
-		username := claims[JWTKeyUsername].(string)
 		sessionService, ok := session.GetService()
 		if !ok {
 			RespAndLog(w, ctx, ErrServiceNotReady)
 			return
 		}
 
-		if err = sessionService.DeleteUserSession(ctx, username); err != nil {
-			logging.Get().Warn().Err(err)
-		}
-
-		if err = sessionService.DeleteToken(ctx, api.rdb.Get(), username); err != nil {
+		if err := sessionService.DeleteToken(ctx, api.rdb.Get(), username); err != nil {
 			logging.Get().Warn().Err(err)
 		}
 
@@ -646,6 +699,21 @@ func (api *api) activeUser() http.HandlerFunc {
 			return
 		}
 
+		loginConf, err := getLoginConf(r.Context(), api.rdb)
+		if err != nil {
+			RespAndLog(w, r.Context(),
+				LoginError(http.StatusInternalServerError,
+					fmt.Errorf("query login conf fails")))
+			return
+		}
+
+		if !checkPWD(ru.Pwd, loginConf.PwdSecurityLevel) {
+			RespAndLog(w, r.Context(),
+				NewPwdSecurityLevelError(http.StatusBadRequest,
+					fmt.Errorf("the password strength is not up to standard")))
+			return
+		}
+
 		// active user
 		user, err := dal.ActiveUser(r.Context(), api.rdb.Get(), username, ru.Pwd, false)
 		if err != nil {
@@ -654,8 +722,27 @@ func (api *api) activeUser() http.HandlerFunc {
 			return
 		}
 
+		// mfa
+		if loginConf.MfaVerityLogin {
+			twoFactorSecret, err := loginTwoFactorEncrypt(r.Context(), api.rdb.Get(), username)
+			if err != nil {
+				RespAndLog(w, r.Context(),
+					NewTwoFactorSecretError(http.StatusInternalServerError, err))
+				return
+			}
+
+			response.Ok(w, response.WithItem(LoginResponse{
+				Username:             user.UserName,
+				Account:              user.Account,
+				Role:                 user.Role,
+				TwoFactorLoginStatus: MfaBinding,
+				TwoFactorSecret:      twoFactorSecret,
+			}))
+			return
+		}
+
 		// issue JWT Token
-		tokenString, err := api.issueJWTToken(r.Context(), user.UserName, user.Role, r.UserAgent(), false)
+		tokenString, err := api.issueJWTToken(r.Context(), user, r.UserAgent(), false)
 		if err != nil {
 			RespAndLog(w, r.Context(),
 				LoginError(http.StatusInternalServerError,
@@ -663,24 +750,7 @@ func (api *api) activeUser() http.HandlerFunc {
 			return
 		}
 
-		sessionService, ok := session.GetService()
-		if !ok {
-			RespAndLog(w, r.Context(), ErrServiceNotReady)
-			return
-		}
-
-		if err = sessionService.SaveUserSession(r.Context(), user.GenerateSession(false)); err != nil {
-			logging.Get().Warn().Err(err).Msgf("login save user session fail")
-		}
-
 		// 获取周期修改密码时间
-		loginConf, err := getLoginConf(r.Context(), api.rdb)
-		if err != nil {
-			RespAndLog(w, r.Context(),
-				LoginError(http.StatusInternalServerError,
-					fmt.Errorf("query login conf fails")))
-			return
-		}
 		cycleChangePwdDay := 0
 		if loginConf.CycleChangePwd {
 			cycleChangePwdDay, err = getCycleChangePwdDay(r.Context(), api.rdb, loginConf, user)
@@ -690,8 +760,12 @@ func (api *api) activeUser() http.HandlerFunc {
 			}
 		}
 
+		if user.ModuleID == "" {
+			user.ModuleID = "[]"
+		}
 		response.Ok(w, response.WithItem(LoginResponse{
-			CurrentAuthority:  user.UserName,
+			Username:          user.UserName,
+			Account:           user.Account,
 			Status:            "ok",
 			Type:              AccountTypeNormal,
 			Token:             tokenString,
@@ -699,6 +773,7 @@ func (api *api) activeUser() http.HandlerFunc {
 			Platform:          user.Platform,
 			LicenseStatus:     license.ValidateLicense(false),
 			CycleChangePwdDay: cycleChangePwdDay,
+			ModuleID:          json.RawMessage(user.ModuleID),
 		}), response.WithTarget(&response.TargetRef{
 			Name: user.UserName,
 			ID:   "",
@@ -708,13 +783,26 @@ func (api *api) activeUser() http.HandlerFunc {
 }
 
 func (api *api) forgetPwd() http.HandlerFunc {
+	// 1 token is generated per minute, maximum 5
+	lmt := util.NewLimiter(rate.Every(time.Minute), 5, time.Minute*10)
 
 	type reqForgetUser struct {
-		Username     string `json:"username" binding:"required,max=32"`
+		Account      string `json:"account" binding:"required,max=32"`
 		CaptchaID    string `json:"captchaID"`
 		CaptchaValue string `json:"captchavalue"`
 	}
+
 	return func(w http.ResponseWriter, r *http.Request) {
+		if !lmt.AllowKey(util.MD5Hex(r.UserAgent())) {
+			RespAndLog(w, r.Context(),
+				NewCommonError(http.StatusBadRequest, fmt.Errorf("忘记密码请求过快:%s", r.UserAgent()),
+					"发送邮件频率过快，请稍后再试", "Request is too fast. Please try again later"))
+			return
+		}
+
+		ctx, cancel := context.WithTimeout(r.Context(), defaultAccountTimeout)
+		defer cancel()
+
 		rf := reqForgetUser{}
 		err := json.NewDecoder(r.Body).Decode(&rf)
 		if err != nil {
@@ -723,8 +811,11 @@ func (api *api) forgetPwd() http.HandlerFunc {
 			return
 		}
 
-		ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
-		defer cancel()
+		if rf.Account == "" {
+			RespAndLog(w, r.Context(),
+				NewMalformedRequestError(http.StatusBadRequest, fmt.Errorf("account is empty")))
+			return
+		}
 
 		captchaService, ok := captcha.GetService()
 		if !ok {
@@ -739,37 +830,38 @@ func (api *api) forgetPwd() http.HandlerFunc {
 			return
 		}
 
-		exist, _, err := dal.SelectUser(ctx, api.rdb.Get(), rf.Username)
+		exist, u, err := dal.SelectUserByAccount(ctx, api.rdb.Get(), rf.Account)
 		if err != nil {
 			RespAndLog(w, ctx,
 				RDBError(http.StatusInternalServerError, fmt.Errorf("database error: %w", err)))
 			return
 		}
 		if !exist {
-			RespAndLog(w, ctx,
-				UserNotExistError(http.StatusBadRequest, fmt.Errorf("user not exist")))
+			// 用户不存在直接返回成功
+			// 防止利用error遍历用户
+			logging.Get().Warn().Str("account", rf.Account).Msg("forgetPwd: user not exist")
+
+			response.Ok(w)
 			return
 		}
 
 		emailHashCode := dal.RandStringBytesMaskImprSrcUnsafe(64)
 
-		successful := SendEmail(rf.Username, r.Host, emailHashCode)
+		successful := SendEmail(rf.Account, r.Host, emailHashCode)
 		if !successful {
 			RespAndLog(w, ctx,
 				SendmailError(http.StatusBadRequest, fmt.Errorf("send email error")))
 			return
 		}
 
-		err = dal.InsertEmail(ctx, api.rdb.Get(), rf.Username, emailHashCode)
+		err = dal.InsertEmail(ctx, api.rdb.Get(), u.UserName, emailHashCode)
 		if err != nil {
 			RespAndLog(w, ctx,
 				RDBError(http.StatusInternalServerError, fmt.Errorf("database error: %w", err)))
 			return
 		}
 
-		response.Ok(w, response.WithItem(resp{
-			Status: fmt.Sprintf("%v", "OK"),
-		}))
+		response.Ok(w)
 	}
 }
 
@@ -801,12 +893,12 @@ func SendMails(mailTo []string, subject string, body string) error {
 
 }
 
-func SendEmail(username, host, emailHashCode string) bool {
+func SendEmail(account, host, emailHashCode string) bool {
 
-	mailBody := "<div\n      style=\"\n  height:560px; \n    width: 752px;\n        min-width: 752px;\n        margin: 0 auto;\n        overflow-x: scroll;\n        position: relative;\n      \"\n    >\n      <div\n        style=\"\n          border-radius: 4px 4px 0 0;\n          border: 1px solid #9bb1c7;\n          border-bottom: 0px;\n          background-color: #ffffff;\n          height: 100%;\n          z-index: 10;\n          margin: 0 30px;\n          padding: 50px 60px 150px;\n          box-sizing: border-box;\n        \"\n      >\n        <div\n          style=\"width: 100%; border-top: 2px solid #d1d8dc; margin: 20px 0\"\n        ></div>\n        <div style=\"width: 100%; padding: 14px 0; box-sizing: border-box\">\n          <span\n            style=\"\n              display: block;\n              font-size: 16px;e\n              font-family: PingFangSC-Medium, PingFang SC;\n              font-weight: 500;\n              color: #333333;\n            \"\n          >\n            " + username + " ,您好！\n          </span>\n          <span\n            style=\"\n              display: block;\n              font-size: 16px;\n              font-family: PingFangSC-Medium, PingFang SC;\n              font-weight: 400;\n              color: #333333;\n              margin-top: 20px;\n              text-indent: 2em;\n            \"\n          >\n            有人请求激活或者重置您的帐户的密码。\n            如果您没有执行此请求，则可以放心地忽略此电子邮件。\n            否则，请单击下面的链接以完成该过程。\n            <a href=\" http://" + host + "/#/email/password/" + emailHashCode + "\"  \"target=\"_blank\">点击此链接</a>\n          </span>\n        </div>\n        <div\n          style=\"width: 100%; border-top: 2px solid #d1d8dc; margin: 20px 0\"\n        ></div>\n        <span\n          style=\"\n            display: block;\n            font-size: 14px;\n            font-family: PingFangSC-Medium, PingFang SC;\n            font-weight: 400;\n            color: #777777;\n          \"\n          >如有任何问题，可以与我们联系，我们将尽快为你解答。\n        </span>\n        <span\n          style=\"\n            display: block;\n            font-size: 14px;\n            font-family: PingFangSC-Medium, PingFang SC;\n            font-weight: 400;\n            color: #777777;\n            margin-top: 4px;\n          \"\n          >Email：" + env.GetContactEmail() + " \n        </span>\n\n      </div>\n      <div style=\"width: 100%; height: 100%; margin-top: -160px\">\n        </div>\n    </div>"
+	mailBody := "<div\n      style=\"\n  height:560px; \n    width: 752px;\n        min-width: 752px;\n        margin: 0 auto;\n        overflow-x: scroll;\n        position: relative;\n      \"\n    >\n      <div\n        style=\"\n          border-radius: 4px 4px 0 0;\n          border: 1px solid #9bb1c7;\n          border-bottom: 0px;\n          background-color: #ffffff;\n          height: 100%;\n          z-index: 10;\n          margin: 0 30px;\n          padding: 50px 60px 150px;\n          box-sizing: border-box;\n        \"\n      >\n        <div\n          style=\"width: 100%; border-top: 2px solid #d1d8dc; margin: 20px 0\"\n        ></div>\n        <div style=\"width: 100%; padding: 14px 0; box-sizing: border-box\">\n          <span\n            style=\"\n              display: block;\n              font-size: 16px;e\n              font-family: PingFangSC-Medium, PingFang SC;\n              font-weight: 500;\n              color: #333333;\n            \"\n          >\n            " + account + " ,您好！\n          </span>\n          <span\n            style=\"\n              display: block;\n              font-size: 16px;\n              font-family: PingFangSC-Medium, PingFang SC;\n              font-weight: 400;\n              color: #333333;\n              margin-top: 20px;\n              text-indent: 2em;\n            \"\n          >\n            有人请求激活或者重置您的帐户的密码。\n            如果您没有执行此请求，则可以放心地忽略此电子邮件。\n            否则，请单击下面的链接以完成该过程。\n            <a href=\" http://" + host + "/#/email/password/" + emailHashCode + "\"  \"target=\"_blank\">点击此链接</a>\n          </span>\n        </div>\n        <div\n          style=\"width: 100%; border-top: 2px solid #d1d8dc; margin: 20px 0\"\n        ></div>\n        <span\n          style=\"\n            display: block;\n            font-size: 14px;\n            font-family: PingFangSC-Medium, PingFang SC;\n            font-weight: 400;\n            color: #777777;\n          \"\n          >如有任何问题，可以与我们联系，我们将尽快为你解答。\n        </span>\n        <span\n          style=\"\n            display: block;\n            font-size: 14px;\n            font-family: PingFangSC-Medium, PingFang SC;\n            font-weight: 400;\n            color: #777777;\n            margin-top: 4px;\n          \"\n          >Email：" + env.GetContactEmail() + " \n        </span>\n\n      </div>\n      <div style=\"width: 100%; height: 100%; margin-top: -160px\">\n        </div>\n    </div>"
 	subject := "Account manager"
 
-	err := SendMails([]string{username}, subject, mailBody)
+	err := SendMails([]string{account}, subject, mailBody)
 	if err != nil {
 		logging.Get().Error().Msgf("send email error:%+v", err)
 		return false
@@ -817,28 +909,21 @@ func SendEmail(username, host, emailHashCode string) bool {
 }
 
 // -----jwt-----
-const (
-	JWTKeyUsername   = "user_name"
-	JWTKeyUserRole   = "user_role"
-	JWTKeyExternal   = "external"
-	JWTKeyEigenvalue = "eigenvalue"
-
-	accessCheckTimeout = time.Second * 3
-)
-
-func (api *api) issueJWTToken(ctx context.Context, username, role, userAgent string, external bool) (string, error) {
-	jwtMC := jwt.MapClaims{
-		JWTKeyUsername:   username,
-		JWTKeyUserRole:   role,
-		JWTKeyExternal:   external,
-		JWTKeyEigenvalue: util.MD5Hex(userAgent),
+func (api *api) issueJWTToken(ctx context.Context, u *model.User, userAgent string, external bool) (string, error) {
+	tokenPayload := token.Payload{
+		Username:   u.UserName,
+		Account:    u.Account,
+		Role:       u.Role,
+		Platform:   u.Platform,
+		ModuleID:   u.ModuleID,
+		External:   external,
+		Status:     u.Status,
+		Eigenvalue: util.MD5Hex(userAgent),
 	}
-	jwtauth.SetIssuedNow(jwtMC)
-	jwtauth.SetExpiryIn(jwtMC, time.Hour*24)
 
-	_, tokenString, err := api.tokenAuth.Encode(jwtMC)
+	tokenString, err := api.tokenManager.IssueTo(tokenPayload, time.Hour*24)
 	if err != nil {
-		logging.Get().Error().Err(err)
+		logging.Get().Info().Err(err).Msg("")
 		return "", err
 	}
 
@@ -848,207 +933,18 @@ func (api *api) issueJWTToken(ctx context.Context, username, role, userAgent str
 		return "", ErrServiceNotReady
 	}
 
-	if err = sessionService.SaveToken(ctx, username, tokenString); err != nil {
+	if err = sessionService.SaveToken(ctx, u.UserName, tokenString); err != nil {
 		logging.Get().Warn().Err(err).Msgf("redis: save user token fail")
 	}
 
 	// save to mysql
-	err = dal.UpdateUserToken(ctx, api.rdb.Get(), username, tokenString, time.Now().Add(session.DefaultTokenTTL).Unix())
+	err = dal.UpdateUserToken(ctx, api.rdb.Get(), u.UserName, tokenString, time.Now().Add(session.DefaultTokenTTL).Unix())
 	if err != nil {
 		return "", fmt.Errorf("save user token fail:%w", err)
 	}
 
-	logging.Get().Debug().Msgf("login token issue: %s %s %t", username, tokenString, external)
+	logging.Get().Debug().Msgf("login token issue: %s %s %t", u.UserName, tokenString, external)
 	return tokenString, nil
-}
-
-func authenticator(db *databases.RDBInstance) func(http.Handler) http.Handler {
-	return func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			ctx, cancel := context.WithTimeout(r.Context(), accessCheckTimeout)
-			defer cancel()
-
-			if skipNormalAuth(ctx) {
-				next.ServeHTTP(w, r)
-				return
-			}
-
-			token, claims, err := jwtauth.FromContext(ctx)
-			if err != nil {
-				RespAndLog(w, ctx, NewInvalidAuthToken(http.StatusUnauthorized,
-					fmt.Errorf("ctx not found the token: %w", err)))
-				return
-			}
-
-			if token == nil || !token.Valid {
-				RespAndLog(w, ctx, NewInvalidAuthToken(http.StatusUnauthorized,
-					fmt.Errorf("token invalid")))
-				return
-			}
-
-			var username string
-			if v, ok := claims[JWTKeyUsername]; ok {
-				username = v.(string)
-			}
-
-			if username == "" {
-				RespAndLog(w, ctx, NewInvalidAuthToken(http.StatusUnauthorized,
-					fmt.Errorf("username is empty. not found the token")))
-				return
-			}
-
-			sessionService, ok := session.GetService()
-			if !ok {
-				RespAndLog(w, ctx, ErrServiceNotReady)
-				return
-			}
-
-			// check whether the token exists
-			tokenStr, err := sessionService.GetToken(ctx, db.Get(), username)
-			if err != nil {
-				logging.Get().Warn().Err(err).Msgf("redis not found the token: %s", username)
-			}
-
-			if token.Raw != tokenStr {
-				logging.Get().Debug().Msgf("%s\n%s\n%s", username, token.Raw, tokenStr)
-				RespAndLog(w, ctx, NewInvalidAuthToken(http.StatusUnauthorized,
-					fmt.Errorf("token not match")))
-				return
-			}
-
-			// check user-agent
-			var eigenvalue string
-			if v, ok := claims[JWTKeyEigenvalue]; ok {
-				eigenvalue = v.(string)
-			}
-
-			if util.MD5Hex(r.UserAgent()) != eigenvalue {
-				if err = sessionService.DeleteToken(ctx, db.Get(), username); err != nil {
-					logging.Get().Warn().Err(err).Msgf("user-agent not match: delete token failed")
-				}
-
-				logging.Get().Debug().Msgf("%s %s %s", username, util.MD5Hex(r.UserAgent()), eigenvalue)
-				RespAndLog(w, ctx, NewInvalidAuthToken(http.StatusUnauthorized,
-					fmt.Errorf("user-agent not match")))
-				return
-			}
-
-			// renewal the token
-			if h := r.Header.Get(headerAutoRequest); h != autoRequestTypeDefault && h != autoRequestTypePolling {
-				go func() {
-					// if redis timeout mysql cannot update, via goroutine update redis
-					if err = sessionService.RenewalToken(ctx, username); err != nil {
-						logging.Get().Warn().Err(err).Msgf("redis renewal the token failed")
-					}
-				}()
-
-				err = dal.UpdateUserTokenExpireAt(ctx, db.Get(), username, time.Now().Add(session.DefaultTokenTTL).Unix())
-				if err != nil {
-					logging.Get().Warn().Err(err).Msgf("mysql renewal the token failed")
-				}
-			}
-
-			// Token is authenticated, pass it through
-			next.ServeHTTP(w, r)
-		})
-	}
-}
-
-func jwtAccessCheck(db *databases.RDBInstance) func(http.Handler) http.Handler {
-	return func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			ctx, cancel := context.WithTimeout(r.Context(), accessCheckTimeout)
-			defer cancel()
-
-			if skipNormalAuth(ctx) {
-				next.ServeHTTP(w, r)
-				return
-			}
-
-			token, claims, err := jwtauth.FromContext(ctx)
-			if err != nil {
-				RespAndLog(w, ctx,
-					NewInvalidAuthToken(http.StatusUnauthorized,
-						fmt.Errorf("error when getting token & claims from context: %w", err)))
-				return
-			}
-			if token == nil || !token.Valid {
-				RespAndLog(w, ctx,
-					NewInvalidAuthToken(http.StatusUnauthorized,
-						fmt.Errorf("token empty or invalid")))
-				return
-			}
-
-			username, _ := claims[JWTKeyUsername].(string)
-			external, _ := claims[JWTKeyExternal].(bool)
-			sessionService, ok := session.GetService()
-			if !ok {
-				RespAndLog(w, ctx, ErrServiceNotReady)
-				return
-			}
-
-			userSession, err := sessionService.GetUserSession(ctx, db.GetReadDB(), username, external)
-			if err != nil {
-				if err == session.ErrNotFound {
-					RespAndLog(w, r.Context(),
-						NewSessionExpired(http.StatusUnauthorized,
-							fmt.Errorf("user not in cache")))
-					return
-				}
-
-				RespAndLog(w, ctx, err)
-				return
-			}
-
-			if err = sessionService.RefreshUserSession(ctx, username); err != nil {
-				logging.Get().Err(err).Msgf("refresh session fail")
-			}
-
-			if err = checkUserStatus(username, userSession.Status); err != nil {
-				RespAndLog(w, r.Context(), err)
-				return
-			}
-
-			ctx = context.WithValue(r.Context(), model.CtxUserSessionKey, userSession)
-			if r.Method == http.MethodGet ||
-				r.URL.Path == "/api/v2/platform/sherlock/palace/events" ||
-				r.URL.Path == "/api/v2/platform/sherlock/palace/signals" ||
-				r.URL.Path == "/api/v2/platform/sherlock/palace/event/stats" ||
-				r.URL.Path == "/api/v2/platform/sherlock/hola/rules" ||
-				r.URL.Path == "/api/v2/platform/nodeImage/images/list" ||
-				r.URL.Path == "/api/v2/containerSec/scanner/images/list" ||
-				r.URL.Path == "/api/v2/containerSec/scanner/images/detail/riskInfo" ||
-				r.URL.Path == "/api/v2/platform/sherlock/palace/attck/matrix" {
-				next.ServeHTTP(w, r.WithContext(ctx))
-				return
-			}
-
-			accessListUrl, err := dal.GetAccessUrl(db.GetReadDB(), userSession.ModuleID)
-			if err != nil {
-				RespAndLog(w, r.Context(), fmt.Errorf("select access error: %w", err))
-				return
-			}
-			hasAccess := false
-
-			currentURL := strings.ToLower(r.URL.Path)
-			for i := range accessListUrl {
-				url := strings.ToLower(accessListUrl[i])
-				if strings.HasPrefix(currentURL, url) {
-					hasAccess = true
-					break
-				}
-			}
-
-			if !hasAccess {
-				RespAndLog(w, r.Context(),
-					NewNoAccess(http.StatusForbidden,
-						fmt.Errorf("access invalid")))
-				return
-			}
-
-			next.ServeHTTP(w, r.WithContext(ctx))
-		})
-	}
 }
 
 func downloadAuth() func(http.Handler) http.Handler {
@@ -1092,150 +988,367 @@ func downloadAuth() func(http.Handler) http.Handler {
 	}
 }
 
-func verifier(ja *jwtauth.JWTAuth) func(http.Handler) http.Handler {
-	return func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			var (
-				ctx context.Context
-				err error
-			)
-			cmToken := getCMToken(r)
+// MFA
+const (
+	Issuer  = "tensorsecurity.cn"
+	android = "https://jms-pkg.oss-cn-beijing.aliyuncs.com/Google%20Authenticator_v5.10_apkpure.com.apk"
+	ios     = "https://apps.apple.com/cn/app/google-authenticator/id388497605?l=en-GB"
+)
 
-			if cmToken == "" {
-				ctx, err = verify(ja, r)
-			} else {
-				ctx, err = verifyCM(cmToken, r)
-			}
+type GetImageResponse struct {
+	CurrentAuthority     string `json:"currentAuthority"`
+	TwoFactorLoginStatus string `json:"twoFactorLoginStatus"`
+	TwoFactorSecret      string `json:"twoFactorSecret"`
+	MfaImage             string `json:"mfaImage"`
+	MfaSecret            string `json:"mfaSecret"`
+	MfaQrCodeInfo        string `json:"mfaQrCodeInfo"`
+}
 
+type VerifyMfaResponse struct {
+	CurrentAuthority     string `json:"currentAuthority"`
+	TwoFactorLoginStatus string `json:"twoFactorLoginStatus"`
+	TwoFactorSecret      string `json:"twoFactorSecret"`
+}
+
+func (api *api) getVerifyAppURL() http.HandlerFunc {
+	type AppUrl struct {
+		Android string `json:"android"`
+		Ios     string `json:"ios"`
+	}
+	iosUrl := os.Getenv("IOS_APP_URL")
+	if iosUrl == "" {
+		iosUrl = ios
+	}
+	androidUrl := os.Getenv("ANDROIDURL")
+	if androidUrl == "" {
+		androidUrl = android
+	}
+	return func(w http.ResponseWriter, r *http.Request) {
+
+		response.Ok(w, response.WithItem(AppUrl{
+			Android: androidUrl,
+			Ios:     iosUrl,
+		}))
+	}
+}
+
+func (api *api) BindGetMFASecret() http.HandlerFunc {
+	type CreateImage struct {
+		Account         string `json:"account"`
+		TwoFactorSecret string `json:"loginTwoFactorSecret"`
+		Width           int    `json:"width"`
+		Height          int    `json:"height"`
+	}
+
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(r.Context(), defaultAccountTimeout)
+		defer cancel()
+
+		createInfo := &CreateImage{}
+		if err := json.NewDecoder(r.Body).Decode(createInfo); err != nil {
+			RespAndLog(w, ctx,
+				NewMalformedRequestError(http.StatusBadRequest, fmt.Errorf("failed to decode json: %w", err)))
+			return
+		}
+
+		u, _, err := loginTwoFactorDecrypt(ctx, api.rdb.Get(), createInfo.Account, createInfo.TwoFactorSecret)
+		if err != nil {
+			RespAndLog(w, ctx,
+				NewTwoFactorVerifyError(http.StatusInternalServerError, err))
+			return
+		}
+
+		if u.MfaStatus {
+			RespAndLog(w, ctx,
+				NewMfaSecretStatusIsExistError(http.StatusInternalServerError, fmt.Errorf("密钥已绑定")))
+			return
+		}
+
+		key, err := totp.Generate(totp.GenerateOpts{
+			Issuer:      Issuer,
+			AccountName: u.Account,
+		})
+		if err != nil {
+			RespAndLog(w, ctx,
+				NewMfaSecretError(http.StatusInternalServerError,
+					fmt.Errorf("create mfa secret fail:%w", err)))
+			return
+		}
+
+		img, err := key.Image(200, 200)
+		if err != nil {
+			RespAndLog(w, ctx,
+				NewMfaSecretError(http.StatusInternalServerError,
+					fmt.Errorf("create mfa QR fail:%w", err)))
+			return
+		}
+
+		var image bytes.Buffer
+		png.Encode(&image, img)
+		imgStr := base64.StdEncoding.EncodeToString(image.Bytes())
+
+		if err := dal.UpdateUserMfaSecret(ctx, api.rdb.GetReadDB(), key.Secret(), u.UserName); err != nil {
+			RespAndLog(w, ctx,
+				RDBError(http.StatusInternalServerError,
+					fmt.Errorf("save login mfa secret fail:%w", err)))
+			return
+		}
+
+		TwoFactorSecret, err := loginTwoFactorEncrypt(ctx, api.rdb.Get(), u.Account)
+		if err != nil {
+			RespAndLog(w, ctx,
+				NewTwoFactorSecretError(http.StatusInternalServerError, err))
+			return
+		}
+
+		response.Ok(w, response.WithItem(GetImageResponse{
+			CurrentAuthority:     u.Account,
+			TwoFactorSecret:      TwoFactorSecret,
+			MfaImage:             imgStr,
+			MfaQrCodeInfo:        key.String(),
+			TwoFactorLoginStatus: MfaSecretVerify,
+			MfaSecret:            key.Secret(),
+		}))
+	}
+}
+
+func (api *api) BindMfaSecretVerify() http.HandlerFunc {
+	type VerifyInfo struct {
+		MfaCode         string `json:"mfaCode"`
+		Account         string `json:"account"`
+		TwoFactorSecret string `json:"loginTwoFactorSecret"`
+	}
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(r.Context(), defaultAccountTimeout)
+		defer cancel()
+
+		bindVerifyInfo := &VerifyInfo{}
+		if err := json.NewDecoder(r.Body).Decode(bindVerifyInfo); err != nil {
+			RespAndLog(w, ctx,
+				NewMalformedRequestError(http.StatusBadRequest, fmt.Errorf("failed to decode json: %w", err)))
+			return
+		}
+
+		u, _, err := loginTwoFactorDecrypt(ctx, api.rdb.Get(), bindVerifyInfo.Account, bindVerifyInfo.TwoFactorSecret)
+		if err != nil {
+			RespAndLog(w, r.Context(),
+				NewTwoFactorVerifyError(http.StatusInternalServerError, err))
+			return
+		}
+		if u.MfaStatus {
+			RespAndLog(w, ctx,
+				NewMfaSecretStatusIsExistError(http.StatusInternalServerError, fmt.Errorf("密钥已绑定")))
+			return
+		}
+		if u.MfaSecret == "" {
+			RespAndLog(w, r.Context(),
+				NewTwoFactorVerifyError(http.StatusInternalServerError, fmt.Errorf("data missing")))
+			return
+		}
+
+		if valid := totp.Validate(bindVerifyInfo.MfaCode, u.MfaSecret); !valid {
+			TwoFactorSecret, err := loginTwoFactorEncrypt(r.Context(), api.rdb.Get(), u.Account)
 			if err != nil {
-				RespAndLog(w, ctx, NewInvalidAuthToken(http.StatusUnauthorized,
-					fmt.Errorf("ctx not found the token: %w", err)))
+				RespAndLog(w, ctx,
+					NewTwoFactorSecretError(http.StatusInternalServerError, err))
 				return
 			}
 
-			next.ServeHTTP(w, r.WithContext(ctx))
-		})
-	}
-}
+			response.Ok(w, response.WithItem(VerifyMfaResponse{
+				CurrentAuthority:     u.Account,
+				TwoFactorSecret:      TwoFactorSecret,
+				TwoFactorLoginStatus: TwoFactorVerifyFailed,
+			}))
+			return
+		}
 
-var (
-	tokenCtxKey          struct{}
-	skipNormalAuthCtxKey struct{}
-)
-
-type tokenCtxValue struct {
-	// token签发平台
-	IssuePlatform string
-	// token
-	Token *jwt.Token
-}
-
-// normal way
-func verify(ja *jwtauth.JWTAuth, r *http.Request) (context.Context, error) {
-	ctx := r.Context()
-	token, err := jwtauth.VerifyRequest(ja, r, jwtauth.TokenFromHeader, jwtauth.TokenFromCookie, jwtauth.TokenFromQuery)
-	if err != nil {
-		return ctx, err
-	}
-	ctx = jwtauth.NewContext(ctx, token, err)
-
-	ctx = context.WithValue(ctx, &tokenCtxKey, &tokenCtxValue{IssuePlatform: "TensorSecurity", Token: token})
-
-	return ctx, nil
-}
-
-func verifyCM(tokenStr string, r *http.Request) (context.Context, error) {
-	ctx := r.Context()
-	ja, ok := user.GetCMUserAuth(context.Background())
-	if !ok {
-		return ctx, errors.New("ChinaMobile auth not initialated")
-	}
-
-	token, err := jwtauth.VerifyRequest(ja, r, getCMToken)
-	if err != nil {
-		return ctx, err
-	}
-
-	ctx = context.WithValue(ctx, &tokenCtxKey, &tokenCtxValue{IssuePlatform: "ChinaMobile", Token: token})
-
-	return ctx, nil
-}
-
-// 获取中移磐基系统的用户token
-func getCMToken(r *http.Request) string {
-	token := r.Header.Get("ai-jwt-token")
-	if len(token) > 7 && strings.ToUpper(token[0:6]) == "BEARER" {
-		return token[7:]
-	}
-	return token
-}
-
-func shouldUseCM(ctx context.Context) bool {
-	value, ok := ctx.Value(&tokenCtxKey).(*tokenCtxValue)
-	if !ok {
-		return false
-	}
-
-	if value != nil && value.IssuePlatform == "ChinaMobile" {
-		return true
-	}
-	return false
-}
-
-func skipNormalAuth(ctx context.Context) bool {
-	skip, ok := ctx.Value(skipNormalAuthCtxKey).(bool)
-	if !ok {
-		return false
-	}
-
-	return skip
-}
-
-// 旁路验证
-func bypassAuthenticator(rdb *databases.RDBInstance) func(http.Handler) http.Handler {
-	return func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			ctx, cancel := context.WithTimeout(r.Context(), accessCheckTimeout)
-			defer cancel()
-
-			if shouldUseCM(ctx) {
-				cm, ok := user.GetCMUserService(ctx)
-
-				if !ok {
-					RespAndLog(w, ctx, NewInvalidAuthToken(http.StatusInternalServerError, errors.New("ChinaMobile service not initialized")))
-					return
-				}
-
-				tokenValue, ok := ctx.Value(&tokenCtxKey).(*tokenCtxValue)
-
-				if !ok {
-					RespAndLog(w, ctx, NewInvalidAuthToken(http.StatusUnauthorized, errors.New("ChinaMobile token not found")))
-					return
-				}
-
-				cmUser, err := cm.Authenticate(ctx, tokenValue.Token)
-				if err != nil {
-					RespAndLog(w, ctx, NewInvalidAuthToken(http.StatusUnauthorized, fmt.Errorf("authorized failed: %v", err)))
-					return
-				}
-
-				// set skip the normal way
-				newCtx := context.WithValue(ctx, skipNormalAuthCtxKey, true)
-
-				// save user info to ctx
-				userSession := &model.UserSession{
-					Username: cmUser.UserName,
-					Role:     cmUser.Role,
-					ModuleID: cmUser.ModuleID,
-					Status:   cmUser.Status,
-					External: true,
-				}
-				newCtx = context.WithValue(newCtx, model.CtxUserSessionKey, userSession)
-
-				r = r.WithContext(newCtx)
+		if err := dal.UpdateUserMfaStatus(r.Context(), api.rdb.GetReadDB(), true, u.UserName); err != nil {
+			var TwoFactorSecret string
+			if TwoFactorSecret, err = loginTwoFactorEncrypt(r.Context(), api.rdb.Get(), u.UserName); err != nil {
+				RespAndLog(w, ctx,
+					NewTwoFactorSecretError(http.StatusInternalServerError, err))
+				return
 			}
 
-			next.ServeHTTP(w, r)
-		})
+			response.Ok(w, response.WithItem(VerifyMfaResponse{
+				CurrentAuthority:     u.Account,
+				TwoFactorSecret:      TwoFactorSecret,
+				TwoFactorLoginStatus: TwoFactorVerifyFailed,
+			}))
+			return
+		}
+
+		response.Ok(w, response.WithItem(VerifyMfaResponse{
+			CurrentAuthority:     u.Account,
+			TwoFactorLoginStatus: AnewLogin,
+		}))
 	}
+}
+
+func (api *api) LoginMfaSecretVerify() http.HandlerFunc {
+	type VerifyInfo struct {
+		MfaCode         string `json:"mfaCode"`
+		Account         string `json:"account"`
+		TwoFactorSecret string `json:"loginTwoFactorSecret"`
+	}
+
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(r.Context(), defaultAccountTimeout)
+		defer cancel()
+
+		bindVerifyInfo := &VerifyInfo{}
+		if err := json.NewDecoder(r.Body).Decode(bindVerifyInfo); err != nil {
+			RespAndLog(w, ctx,
+				NewMalformedRequestError(http.StatusBadRequest, fmt.Errorf("failed to decode json: %w", err)))
+			return
+		}
+
+		u, _, err := loginTwoFactorDecrypt(ctx, api.rdb.Get(), bindVerifyInfo.Account, bindVerifyInfo.TwoFactorSecret)
+		if err != nil {
+			RespAndLog(w, r.Context(),
+				NewTwoFactorVerifyError(http.StatusInternalServerError, err))
+			return
+		}
+		if !u.MfaStatus {
+			RespAndLog(w, ctx,
+				NewMfaSecretStatusNotExistError(http.StatusInternalServerError, fmt.Errorf("密钥未绑定")))
+			return
+		}
+
+		if valid := totp.Validate(bindVerifyInfo.MfaCode, u.MfaSecret); !valid {
+			TwoFactorSecret, err := loginTwoFactorEncrypt(r.Context(), api.rdb.Get(), u.Account)
+			if err != nil {
+				RespAndLog(w, ctx,
+					NewTwoFactorSecretError(http.StatusInternalServerError, err))
+				return
+			}
+
+			response.Ok(w, response.WithItem(VerifyMfaResponse{
+				CurrentAuthority:     u.UserName,
+				TwoFactorSecret:      TwoFactorSecret,
+				TwoFactorLoginStatus: TwoFactorVerifyFailed,
+			}))
+			return
+		}
+
+		// issue JWT Token
+		tokenString, err := api.issueJWTToken(r.Context(), u, r.UserAgent(), false)
+		if err != nil {
+			RespAndLog(w, r.Context(),
+				LoginError(http.StatusInternalServerError,
+					fmt.Errorf("issue jwt token failed %w", err)))
+			return
+		}
+
+		loginConf, err := getLoginConf(r.Context(), api.rdb)
+
+		cycleChangePwdDay := 0
+		if loginConf.CycleChangePwd {
+			cycleChangePwdDay, err = getCycleChangePwdDay(r.Context(), api.rdb, loginConf, u)
+			if err != nil {
+				RespAndLog(w, r.Context(), err)
+				return
+			}
+		}
+
+		if u.ModuleID == "" {
+			u.ModuleID = "[]"
+		}
+		response.Ok(w, response.WithItem(LoginResponse{
+			Username:             u.UserName,
+			Account:              u.Account,
+			Status:               "ok",
+			Type:                 AccountTypeNormal,
+			Token:                tokenString,
+			Role:                 u.Role,
+			TwoFactorLoginStatus: "",
+			Platform:             u.Platform,
+			LicenseStatus:        license.ValidateLicense(false),
+			CycleChangePwdDay:    cycleChangePwdDay,
+			ModuleID:             json.RawMessage(u.ModuleID),
+		}), response.WithTarget(&response.TargetRef{
+			Name: u.Account,
+			ID:   "",
+			Link: "",
+		}))
+	}
+}
+
+func loginTwoFactorEncrypt(ctx context.Context, db *gorm.DB, account string) (string, error) {
+	aeskey := dal.RandStringBytesMaskImprSrcUnsafe(16)
+	// save to mysql
+	if err := dal.UpdateLoginTwoFactorSecret(ctx, db, account, aeskey, time.Now().Add(time.Hour).Unix()); err != nil {
+		return "", fmt.Errorf("save two-factor secret failed:%w", err)
+	}
+
+	data := []byte(account + "" + strconv.FormatInt(time.Now().Unix(), 10))
+	Encrypted, err := util.AesEncryptCBC(data, []byte(aeskey))
+	if err != nil {
+		return "", fmt.Errorf("AesEncryptCBC failed:%w", err)
+	}
+	EncryptedStr := base64.StdEncoding.EncodeToString(Encrypted)
+	return EncryptedStr, nil
+}
+
+func loginTwoFactorDecrypt(ctx context.Context, db *gorm.DB, account, EncryptedStr string) (*model.User, string, error) {
+	exist, user, err := dal.SelectUserByAccount(ctx, db, account)
+	if err != nil {
+		return nil, "", fmt.Errorf("get user information failed:%w", err)
+	}
+	if !exist {
+		return nil, "", fmt.Errorf("invalid user name")
+	}
+	if time.Now().Unix() > user.TwoFactorKeyExpireAt { // 密钥过期
+		return nil, "", fmt.Errorf("login two-factor secret expire, Plase try again")
+	}
+	aesKey := user.TwoFactorKey
+	if EncryptedStr == "" {
+		return nil, "", fmt.Errorf("two-factor secret missing")
+	}
+	encrypted, err := base64.StdEncoding.DecodeString(EncryptedStr)
+	if err != nil {
+		return nil, "", fmt.Errorf("DecodeString str failed:%w", err)
+	}
+	decrypted, err := util.AesDecryptCBC(encrypted, []byte(aesKey))
+	if err != nil {
+		return nil, "", fmt.Errorf("AesDecryptCBC failed:%w", err)
+	}
+	return user, string(decrypted), nil
+
+}
+
+func checkIpBlackList(ctx context.Context, ipBlackList []string, ip string) (flag bool, err error) {
+	if ipBlackList == nil {
+		return false, nil
+	}
+
+	sessionService, ok := session.GetService()
+	if !ok {
+		return false, ErrServiceNotReady
+	}
+
+	// select from redis
+	exists, err := sessionService.CheckBlackListExists(ctx)
+	if err != nil {
+		logging.Get().Warn().Msg("IPBlackList not save in redis")
+	}
+	if exists == 1 {
+		flag, err = sessionService.CheckIP(ctx, ip)
+		if err != nil {
+			return false, err
+		}
+		return flag, nil
+	}
+	// save in redis
+	data := make(map[string]interface{})
+	for _, v := range ipBlackList {
+		data[v] = v
+		if v == ip {
+			flag = true
+		}
+	}
+	if err := sessionService.SaveBlackList(ctx, data); err != nil {
+		return flag, err
+	}
+	return flag, nil
 }

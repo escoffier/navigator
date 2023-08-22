@@ -14,6 +14,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/assets"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
+	"gitlab.com/piccolo_su/vegeta/pkg/request"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
@@ -2126,7 +2127,7 @@ func UpdateCluster(ctx context.Context, rdb *gorm.DB, clusterKey string, cluster
 	ctx, cancel := context.WithTimeout(ctx, 1000*time.Millisecond)
 	defer cancel()
 
-	userInfo, ok := model.GetSessionFromContext(ctx)
+	userInfo, ok := request.GetSessionFromContext(ctx)
 	updateMap := map[string]interface{}{
 		"updated_at": time.Now(),
 	}
@@ -2156,7 +2157,7 @@ func AddCluster(ctx context.Context, rdb *gorm.DB, cluster *model.TensorCluster)
 	ctx, cancel := context.WithTimeout(ctx, 1000*time.Millisecond)
 	defer cancel()
 
-	userInfo, ok := model.GetSessionFromContext(ctx)
+	userInfo, ok := request.GetSessionFromContext(ctx)
 	if ok {
 		cluster.Creator = userInfo.Username
 		cluster.Updater = userInfo.Username

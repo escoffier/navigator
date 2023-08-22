@@ -10,13 +10,13 @@ import (
 	"time"
 
 	"github.com/go-chi/chi"
-	"github.com/go-chi/jwtauth"
 	param "github.com/oceanicdev/chi-param"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/attck"
 	"gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	"gitlab.com/piccolo_su/vegeta/pkg/dal"
 	"gitlab.com/piccolo_su/vegeta/pkg/lang"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
+	"gitlab.com/piccolo_su/vegeta/pkg/request"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 	"gitlab.com/security-rd/go-pkg/logging"
@@ -375,7 +375,7 @@ func (api *api) updateATTCKConf() http.HandlerFunc {
 			return
 		}
 
-		username := getUsername(ctx)
+		username := request.GetUsernameFromContext(ctx)
 		err := r.ParseMultipartForm(100 << 20)
 		if err != nil {
 			apperror.RespAndLog(w, ctx, apperror.NewMalformedRequestError(http.StatusBadRequest,
@@ -396,7 +396,7 @@ func (api *api) updateATTCKConf() http.HandlerFunc {
 		}
 
 		logging.Get().Debug().Msgf("filename:%s", header.Filename)
-		item, err := service.UpdateConfig(ctx, username, data, model.GetUsernameFromContext(r.Context()))
+		item, err := service.UpdateConfig(ctx, username, data, request.GetUsernameFromContext(r.Context()))
 		if err != nil {
 			if err == attck.ErrInvalidRuleData {
 				apperror.RespAndLog(w, ctx,
@@ -418,21 +418,6 @@ func (api *api) updateATTCKConf() http.HandlerFunc {
 			LastUpdateTime: util.GetMillisecondTimestampByTime(item.CreatedAt),
 		}), response.WithApiVersion(versionAPIVersion))
 	}
-}
-
-func getUsername(ctx context.Context) string {
-	token, claims, err := jwtauth.FromContext(ctx)
-	if err != nil || token == nil || !token.Valid {
-		return ""
-	}
-
-	// check if we can find the user's session
-	username, ok := claims[JWTKeyUsername].(string)
-	if ok {
-		return username
-	}
-
-	return ""
 }
 
 func (api *api) getATTCKRuleList() http.HandlerFunc {
@@ -535,7 +520,7 @@ func (api *api) updateRuleSwitch() http.HandlerFunc {
 			return
 		}
 
-		switches, err := service.UpdateRuleSettings(ctx, items.Items, items.Version1, model.GetUsernameFromContext(r.Context()))
+		switches, err := service.UpdateRuleSettings(ctx, items.Items, items.Version1, request.GetUsernameFromContext(r.Context()))
 		if err != nil {
 			if err == dal.ErrRuleNotExists {
 				apperror.RespAndLog(w, ctx,

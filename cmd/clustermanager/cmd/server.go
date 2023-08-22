@@ -192,7 +192,7 @@ func NewServer() (*server, error) {
 		}
 		kafkaGroupID := os.Getenv(EnvGroupID)
 		if kafkaGroupID == "" {
-			kafkaTopic = defaultGroupID
+			kafkaGroupID = defaultGroupID
 		}
 		// Redis DB client
 		redisClient, err := cache.NewRedis()

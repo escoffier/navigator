@@ -22,7 +22,6 @@ func InitPprofMontitor() {
 		err := http.ListenAndServe(addr, nil)
 		if err != nil {
 			logging.GetLogger().Err(err).Msg("Listen for pprof error")
-
 		}
 	}()
 

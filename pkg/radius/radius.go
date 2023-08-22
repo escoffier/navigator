@@ -17,9 +17,9 @@ var (
 	ErrUserPasswordNotMatch = errors.New("user password not match")
 )
 
-func Login(ctx context.Context, username, password, state string, conf *model.RadiusServerConf) (string, error) {
+func Login(ctx context.Context, account, password, state string, conf *model.RadiusServerConf) (string, error) {
 	packet := radius.New(radius.CodeAccessRequest, []byte(conf.Secret))
-	err := rfc2865.UserName_SetString(packet, username)
+	err := rfc2865.UserName_SetString(packet, account)
 	if err != nil {
 		return "", err
 	}

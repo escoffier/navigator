@@ -18,6 +18,7 @@ import (
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	"gitlab.com/piccolo_su/vegeta/pkg/lang"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
+	"gitlab.com/piccolo_su/vegeta/pkg/request"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 	"gitlab.com/security-rd/go-pkg/logging"
@@ -676,7 +677,7 @@ func (api *api) exportFile() http.HandlerFunc {
 		defer cancel()
 
 		// username
-		username := model.GetUsernameFromContext(r.Context())
+		username := request.GetUsernameFromContext(r.Context())
 		checkID := chi.URLParam(r, "checkID")
 		if checkID == "" {
 			RespAndLog(w, ctx, NewFieldError(http.StatusBadRequest, fmt.Errorf("checkID param missing")))
@@ -737,7 +738,7 @@ func (api *api) getFile() http.HandlerFunc {
 		defer cancel()
 
 		// username
-		username := model.GetUsernameFromContext(r.Context()) // get token
+		username := request.GetUsernameFromContext(r.Context()) // get token
 
 		checkID := chi.URLParam(r, "checkID")
 		if checkID == "" {

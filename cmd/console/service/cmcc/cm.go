@@ -1,4 +1,4 @@
-package user
+package cmcc
 
 import (
 	"context"
@@ -13,8 +13,7 @@ import (
 	"time"
 
 	"github.com/apache/pulsar-client-go/pulsar"
-	"github.com/dgrijalva/jwt-go"
-	"github.com/go-chi/jwtauth"
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/pkg/errors"
 	"github.com/spf13/cast"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/idp"
@@ -40,7 +39,7 @@ var (
 		},
 	}
 
-	cmALGO    = "HS256"
+	cmALGO    = jwt.SigningMethodHS256
 	cmAuthKey = "PWGKz4CPdOGVBLd7CgHzyPrRhlSikiTG"
 )
 
@@ -101,9 +100,9 @@ type CMUserService struct {
 	host         string
 	apiKey       string
 	appid        string
+	verifyKey    string
 	lastSyncTime time.Time
 	rdb          *databases.RDBInstance
-	tokenAuth    *jwtauth.JWTAuth
 }
 
 func InitCMUserService(rdb *databases.RDBInstance, appid, apiHost, apiKey, authKey string) (*CMUserService, error) {
@@ -125,23 +124,14 @@ func NewCMUserService(rdb *databases.RDBInstance, appid, apiHost, apiKey, authKe
 	return &CMUserService{
 		appid:     appid,
 		apiKey:    apiKey,
+		verifyKey: authKey,
 		host:      apiHost,
 		rdb:       rdb,
-		tokenAuth: jwtauth.New(cmALGO, []byte(authKey), nil),
 	}
 }
 
 func GetCMUserService(_ context.Context) (*CMUserService, bool) {
 	return instance, instance != nil
-}
-
-func GetCMUserAuth(ctx context.Context) (*jwtauth.JWTAuth, bool) {
-	s, ok := GetCMUserService(ctx)
-	if !ok {
-		return nil, ok
-	}
-
-	return s.tokenAuth, true
 }
 
 const (
@@ -180,10 +170,14 @@ type CMUser struct {
 
 func FromCMUser(cm CMUser) (*model.User, error) {
 	user := &model.User{
-		UserName: cm.UserName,
-		Pwd:      cm.Password,
-		Role:     model.RoleAdmin,
-		Platform: CMUserPlatform,
+		UserName:  cm.UserName,
+		Account:   cm.UserName,
+		Nickname:  cm.UserName,
+		Pwd:       cm.Password,
+		Role:      model.RoleTypeAdmin,
+		Platform:  CMUserPlatform,
+		CreatedAt: time.Now().Unix(),
+		Creator:   "system",
 	}
 	if cm.Status == 0 {
 		user.Status = model.UserStatusNormal
@@ -198,9 +192,9 @@ func FromCMUser(cm CMUser) (*model.User, error) {
 			return nil, err
 		}
 
-		user.CreatedAt = createTime.UnixMilli()
+		user.CreatedAt = createTime.Unix()
 	} else {
-		user.CreatedAt = time.Now().UnixMilli()
+		user.CreatedAt = time.Now().Unix()
 	}
 
 	return user, nil
@@ -222,6 +216,10 @@ type CMUserMsg struct {
 
 func (m *CMUserMsg) String() string {
 	return fmt.Sprintf("operation: %s happens on user: %s on %s", m.OperationType, m.User.UserName, m.OperationTime)
+}
+
+func (s *CMUserService) GetCMVerifyKey() string {
+	return s.verifyKey
 }
 
 func (s *CMUserService) SyncAndUpsertAllUser(ctx context.Context) error {
@@ -251,6 +249,8 @@ func (s *CMUserService) SyncAndUpsertAllUser(ctx context.Context) error {
 func (s *CMUserService) listUsers(ctx context.Context) (*CMUserList, error) {
 	url := fmt.Sprintf("%s/manager/openapi/users", s.host)
 
+	logging.Get().Debug().Str("url", url).Msg("get cm listUsers")
+
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 
 	if err != nil {
@@ -267,6 +267,7 @@ func (s *CMUserService) listUsers(ctx context.Context) (*CMUserList, error) {
 
 	resp, err := cmClient.Do(req)
 	if err != nil {
+		logging.Get().Warn().Err(err).Msgf("apikey: %s", s.apiKey)
 		return nil, err
 	}
 
@@ -282,6 +283,10 @@ func (s *CMUserService) listUsers(ctx context.Context) (*CMUserList, error) {
 	err = json.Unmarshal(data, userList)
 	if err != nil {
 		return nil, err
+	}
+
+	if userList.Code != 200 {
+		logging.Get().Warn().Msgf("get cm listUsers failed: %v", resp)
 	}
 
 	return userList, nil
@@ -472,26 +477,15 @@ func (s *CMUserService) getDefaultAuth(ctx context.Context) (string, error) {
 type cmUserInfo struct {
 	UserId   uint64 `json:"userId"`
 	UserName string `json:"userName"`
-	ModuleID string
-	Role     string
-	Status   int
 }
 
-func (s *CMUserService) Authenticate(ctx context.Context, token *jwt.Token) (*cmUserInfo, error) {
-	if !token.Valid {
-		return nil, errors.New("Invalid ChinaMobile token")
-	}
-	claims, ok := token.Claims.(jwt.MapClaims)
-	if !ok {
-		return nil, errors.New("extract claim from ChinaMobile token failed")
-	}
+func (s *CMUserService) Authenticate(ctx context.Context, claims jwt.MapClaims) (*model.User, error) {
 	userInfoString := cast.ToString(claims["userInfo"])
 	if userInfoString == "" {
 		return nil, errors.New("userInfo must be provided in token")
 	}
 
 	u := &cmUserInfo{}
-
 	if err := json.Unmarshal([]byte(userInfoString), u); err != nil {
 		return nil, errors.Wrap(err, "ChinaMobile token userInfo malformat")
 	}
@@ -500,6 +494,7 @@ func (s *CMUserService) Authenticate(ctx context.Context, token *jwt.Token) (*cm
 	if err != nil {
 		return nil, err
 	}
+
 	if !exist {
 		return nil, errors.New("user not found")
 	}
@@ -508,8 +503,5 @@ func (s *CMUserService) Authenticate(ctx context.Context, token *jwt.Token) (*cm
 		return nil, errors.New(fmt.Sprintf("user %s status unauthorized", u.UserName))
 	}
 
-	u.Role = user.Role
-	u.ModuleID = user.ModuleID
-	u.Status = user.Status
-	return u, nil
+	return user, nil
 }

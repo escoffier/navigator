@@ -5,13 +5,14 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
-	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"os"
 	"runtime/debug"
 	"sort"
 	"strings"
 	"sync"
 	"time"
+
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 
 	"github.com/avast/retry-go"
 	"github.com/go-redis/redis/v8"
@@ -621,12 +622,12 @@ type CustomConfigsQueryOption struct {
 }
 
 type CustomConfigItem struct {
-	ID            uint64        `json:"id"`
-	Rule          RuleInfo      `json:"rule"`
-	CustomSetting CustomSetting `json:"customSetting"`
-	Effect        string        `json:"effect"`
-	Updater       string        `json:"updater"`
-	UpdatedAt     int64         `json:"updatedAt"`
+	ID            uint64         `json:"id"`
+	Rule          RuleInfo       `json:"rule"`
+	CustomSetting CustomSetting  `json:"customSetting"`
+	Effect        string         `json:"effect"`
+	Updater       model.UserLite `json:"updater"`
+	UpdatedAt     int64          `json:"updatedAt"`
 }
 
 func fromBoolToInt(b bool) int {
@@ -701,7 +702,15 @@ func (h *ATTCKHandler) GetCustomConfigs(ctx context.Context, query CustomConfigs
 		}
 		retList[i].CustomSetting.Value = valueList
 		retList[i].UpdatedAt = dbItem.UpdatedAt
-		retList[i].Updater = dbItem.Updater
+		ok, u, err := dal.SelectUser(ctx, h.db.GetReadDB(), dbItem.Updater)
+		if ok {
+			retList[i].Updater.Username = u.UserName
+			retList[i].Updater.Account = u.Account
+		} else {
+			logging.Get().Warn().Err(err).Str("username", dbItem.Updater).Msg("user not found")
+			retList[i].Updater.Username = dbItem.Updater
+			retList[i].Updater.Account = dbItem.Updater
+		}
 
 		retList[i].Rule.Key = dbItem.RuleKey
 		store, exist := h.rulesManager.getStore(ctx)

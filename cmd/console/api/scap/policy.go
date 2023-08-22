@@ -16,6 +16,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	"gitlab.com/piccolo_su/vegeta/pkg/lang"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
+	"gitlab.com/piccolo_su/vegeta/pkg/request"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
 )
 
@@ -43,7 +44,7 @@ func (a *ApiServer) PolicyCreate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	username := model.GetUsernameFromContext(r.Context())
+	username := request.GetUsernameFromContext(r.Context())
 	value := &model.ScapPolicy{
 		Name:     req.Name,
 		Type:     scapType,
@@ -109,7 +110,7 @@ func (a *ApiServer) PolicyBatch(w http.ResponseWriter, r *http.Request) {
 		resp[i] = scap.PolicyBrief{
 			ID:        v.ID,
 			Name:      v.Name,
-			Operator:  v.Operator,
+			Operator:  a.service.GetUserHelper(ctx, v.Operator),
 			CreatedAt: v.CreatedAt.UnixMilli(),
 			UpdatedAt: v.UpdatedAt.UnixMilli(),
 			IsDefault: v.IsDefault,
@@ -153,7 +154,7 @@ func (a *ApiServer) PolicyUpdate(w http.ResponseWriter, r *http.Request) {
 	value := &model.ScapPolicy{
 		Name:     policy.Name,
 		Type:     scapType,
-		Operator: model.GetUsernameFromContext(r.Context()),
+		Operator: request.GetUsernameFromContext(r.Context()),
 		Comment:  policy.Comment,
 		RuleIds:  policy.RuleIds,
 	}
@@ -235,13 +236,13 @@ func (a *ApiServer) PolicyDetail(w http.ResponseWriter, r *http.Request) {
 		PolicyBrief: scap.PolicyBrief{
 			ID:        policy.ID,
 			Name:      policy.Name,
-			Operator:  policy.Operator,
+			Operator:  a.service.GetUserHelper(ctx, policy.Operator),
 			CreatedAt: policy.CreatedAt.UnixMilli(),
 			UpdatedAt: policy.UpdatedAt.UnixMilli(),
 			Comment:   policy.Comment,
 			IsDefault: policy.IsDefault,
 		},
-		Creator: policy.Creator,
+		Creator: a.service.GetUserHelper(ctx, policy.Creator),
 	}
 
 	result.Rules = make([]scap.Rule, 0, len(checks))

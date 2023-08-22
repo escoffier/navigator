@@ -17,6 +17,7 @@ import (
 
 	"gitlab.com/piccolo_su/vegeta/pkg/dal"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
+	"gitlab.com/piccolo_su/vegeta/pkg/request"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 )
 
@@ -312,7 +313,7 @@ func (s *Service) AddPolicy(ctx context.Context, policy *PolicyView) (int64, err
 	}
 
 	now := time.Now()
-	userName := model.GetUsernameFromContext(ctx)
+	userName := request.GetUsernameFromContext(ctx)
 	policyModel := policy.ImmunePolicy
 	policyModel.Creator = userName
 	policyModel.Updater = userName
@@ -365,7 +366,7 @@ func (s *Service) EditPolicy(ctx context.Context, policyID int64, policyView *Po
 	// temporarily ignore stamp version check
 
 	now := time.Now()
-	userName := model.GetUsernameFromContext(ctx)
+	userName := request.GetUsernameFromContext(ctx)
 	policy := policyView.ImmunePolicy
 	policy.Updater = userName
 	policy.UpdatedAt = now
@@ -509,7 +510,7 @@ func (s *Service) CheckTaskState(ctx context.Context, resourceUUID uint32) (mode
 
 func (s *Service) StartTask(ctx context.Context, resourceUUID uint32, policyKind model.PolicyKind, ttl time.Duration) (int64, error) {
 	now := time.Now()
-	userName := model.GetUsernameFromContext(ctx)
+	userName := request.GetUsernameFromContext(ctx)
 
 	t := new(model.ImmuneTask)
 	t.ResourceUUID = resourceUUID

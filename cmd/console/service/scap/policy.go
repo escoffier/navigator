@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/pkg/errors"
+	"gitlab.com/piccolo_su/vegeta/pkg/dal"
 	"gitlab.com/security-rd/go-pkg/logging"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
@@ -219,4 +220,17 @@ func (s *Service) PolicyBrief(ctx context.Context, policyId uint) (*model.ScapPo
 	}
 
 	return &policy, nil
+}
+
+func (s *Service) GetUserHelper(ctx context.Context, username string) *model.UserLite {
+	ul, err := dal.GetUserLiteWithCache(ctx, s.rdb.GetReadDB(), s.redisClient, username)
+	if err != nil {
+		logging.Get().Warn().Err(err).Msg("")
+		return &model.UserLite{
+			Username: username,
+			Account:  username,
+		}
+	}
+
+	return ul
 }

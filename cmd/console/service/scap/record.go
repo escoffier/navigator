@@ -35,7 +35,7 @@ func (s *Service) RecordBatch(ctx context.Context, scapType string, limit, offse
 			CheckID:     r[i].TaskID,
 			CheckType:   r[i].CheckType,
 			ClusterID:   r[i].ClusterKey,
-			Operator:    r[i].Operator,
+			Operator:    s.GetUserHelper(ctx, r[i].Operator),
 			ClusterName: r[i].ClusterName,
 			CreatedAt:   r[i].CreatedAt,
 			FinishedAt:  r[i].FinishedAt,
@@ -70,8 +70,7 @@ func (s *Service) RecordBatch(ctx context.Context, scapType string, limit, offse
 	return result, n, nil
 }
 
-func (s *Service) RecordDetail(ctx context.Context, checkUUID string) (scap.RecordDetail, error) {
-
+func (s *Service) RecordDetail(ctx context.Context, checkUUID string) (*model.ScanHistory, error) {
 	pgCtx, mpgCancel := context.WithTimeout(ctx, time.Second*2)
 	defer mpgCancel()
 
@@ -81,32 +80,13 @@ func (s *Service) RecordDetail(ctx context.Context, checkUUID string) (scap.Reco
 	var scanHistory = make([]model.ScanHistory, 0)
 	err := db.Find(&scanHistory).Error
 	if err != nil {
-		return scap.RecordDetail{}, err
+		return nil, err
 	}
 	if len(scanHistory) == 0 {
-		return scap.RecordDetail{}, fmt.Errorf("not fond:%s", checkUUID)
+		return nil, fmt.Errorf("not fond:%s", checkUUID)
 	}
 
 	value := scanHistory[0]
-	data := scap.RecordDetail{
-		CheckID:     value.TaskID,
-		CheckType:   value.CheckType,
-		ClusterID:   value.ClusterKey,
-		Operator:    value.Operator,
-		ClusterName: value.ClusterName,
-		CreatedAt:   value.CreatedAt,
-		FinishedAt:  value.FinishedAt,
-		PolicyID:    value.PolicyID,
-	}
+	return &value, nil
 
-	// data.NumFailed = value.FailNode
-	// check finish state
-	if value.State == model.ScanStateInProgress {
-		data.State = 1
-	} else if value.State == model.ScanStateCompleted {
-		data.State = 2
-	} else {
-		data.State = 3
-	}
-	return data, nil
 }

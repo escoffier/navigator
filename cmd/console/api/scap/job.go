@@ -10,7 +10,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/console/models/scap"
 	scapservice "gitlab.com/piccolo_su/vegeta/cmd/console/service/scap"
 	"gitlab.com/piccolo_su/vegeta/pkg/apperror"
-	"gitlab.com/piccolo_su/vegeta/pkg/model"
+	"gitlab.com/piccolo_su/vegeta/pkg/request"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
 )
 
@@ -36,7 +36,7 @@ func (a *ApiServer) JobCreate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_, err = a.service.CreateJob(ctx, &scapservice.Job{Job: req, UserName: model.GetUsernameFromContext(r.Context()), Type: scapType})
+	_, err = a.service.CreateJob(ctx, &scapservice.Job{Job: req, UserName: request.GetUsernameFromContext(r.Context()), Type: scapType})
 	if err != nil {
 		apperror.RespAndLog(w, ctx, apperror.NewErrorWithCode(
 			http.StatusInternalServerError,

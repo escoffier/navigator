@@ -10,6 +10,8 @@ import (
 
 	"github.com/go-chi/chi"
 	param "github.com/oceanicdev/chi-param"
+	"gitlab.com/piccolo_su/vegeta/pkg/request"
+	"gitlab.com/piccolo_su/vegeta/pkg/token"
 	"gitlab.com/security-rd/go-pkg/databases"
 	"gitlab.com/security-rd/go-pkg/logging"
 
@@ -91,7 +93,7 @@ func (api *api) getOpenAPIToken() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx, cancel := context.WithTimeout(r.Context(), OpenAPIAuthTimeout)
 		defer cancel()
-		user, ok := model.GetSessionFromContext(ctx)
+		user, ok := request.GetSessionFromContext(ctx)
 		if !ok {
 			apperror.RespAndLog(w, ctx, errors.New("unexpected request: no user info"))
 			return
@@ -180,26 +182,26 @@ func openAPIAccessCheck(rdb *databases.RDBInstance) func(http.Handler) http.Hand
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			timeoutCtx, cancel := context.WithTimeout(r.Context(), OpenAPIAuthTimeout)
 			defer cancel()
-			token := r.Header.Get(OpenAPITokenKey)
+			tokenStr := r.Header.Get(OpenAPITokenKey)
 			// 如果没有，可能是用jwt传递的
-			logging.Get().Debug().Str("token", token).Msg("openAPIAccessCheck")
-			if token == "" {
+			logging.Get().Debug().Str("token", tokenStr).Msg("openAPIAccessCheck")
+			if tokenStr == "" {
 				jwt, err := param.QueryString(r, "jwt")
 				if err != nil || jwt == "" {
 					logging.Get().Err(err).Str("jwt", jwt).Msg("openAPIAccessCheck")
 					apperror.RespAndLog(w, r.Context(), apperror.NewInvalidAuthToken(http.StatusUnauthorized, err))
 					return
 				}
-				token = jwt
+				tokenStr = jwt
 			}
-			logging.Get().Debug().Str("token", token).Msg("openAPIAccessCheck")
+			logging.Get().Debug().Str("token", tokenStr).Msg("openAPIAccessCheck")
 			service, ok := openapiauth.GetServiceInstance()
 			if !ok {
 				apperror.RespAndLog(w, r.Context(), ErrServiceNotReady)
 				return
 			}
 
-			username, err := service.GetUsernameByToken(timeoutCtx, token)
+			username, err := service.GetUsernameByToken(timeoutCtx, tokenStr)
 			if err != nil {
 				if err == openapiauth.ErrInvalidToken {
 					apperror.RespAndLog(w, r.Context(), apperror.NewInvalidAuthToken(http.StatusUnauthorized, err))
@@ -226,7 +228,16 @@ func openAPIAccessCheck(rdb *databases.RDBInstance) func(http.Handler) http.Hand
 				return
 			}
 
-			ctx := context.WithValue(r.Context(), model.CtxUserSessionKey, user.GenerateSession(false))
+			ctx := request.WithSession(r.Context(), token.Payload{
+				Username:   user.UserName,
+				Account:    user.Account,
+				Role:       user.Role,
+				Platform:   user.Platform,
+				ModuleID:   user.ModuleID,
+				External:   false,
+				Status:     user.Status,
+				Eigenvalue: "",
+			})
 			if r.Method == http.MethodGet {
 				next.ServeHTTP(w, r.WithContext(ctx))
 				return

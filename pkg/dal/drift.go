@@ -11,6 +11,7 @@ import (
 
 	"gitlab.com/piccolo_su/vegeta/pkg/assets"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
+	"gitlab.com/piccolo_su/vegeta/pkg/request"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 	"gitlab.com/security-rd/go-pkg/logging"
 	"gorm.io/gorm"
@@ -72,7 +73,7 @@ func DelDriftGlobalWhiteList(ctx context.Context, rdb *gorm.DB, id uint64) (mode
 		return model.DriftGlobalWhitelistItem{}, err
 	}
 
-	userName := model.GetUsernameFromContext(ctx)
+	userName := request.GetUsernameFromContext(ctx)
 	if userName == "" {
 		userName = "system"
 	}
@@ -279,7 +280,7 @@ func DeleteDriftPolicy(ctx context.Context, rdb *gorm.DB, policyID int64) error 
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
-	userName := model.GetUsernameFromContext(ctx)
+	userName := request.GetUsernameFromContext(ctx)
 	if userName == "" {
 		userName = "system"
 	}

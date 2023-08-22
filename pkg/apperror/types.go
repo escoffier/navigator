@@ -180,18 +180,6 @@ func NewCaptchaLimitError(httpCode int, err error, suberrors ...Suberror) error 
 	}
 }
 
-func NewLoginError(httpCode int, err error, suberrors ...Suberror) error {
-	return AnError{
-		detailedError{
-			err:       err,
-			English:   "username and password not match",
-			Chinese:   "用户名/密码错误",
-			HTTPCode:  httpCode,
-			Suberrors: suberrors,
-		},
-	}
-}
-
 func NewAccountLockError(httpCode int, err error, suberrors ...Suberror) error {
 	return AnError{
 		detailedError{
@@ -1527,6 +1515,90 @@ func NewSSONotEnabledError(httpCode int, err error, suberrors ...Suberror) error
 			err:       err,
 			English:   "sso config not enabled",
 			Chinese:   "sso配置未开启",
+			HTTPCode:  httpCode,
+			Suberrors: suberrors,
+		},
+	}
+}
+
+func NewTwoFactorVerifyError(httpCode int, err error, suberrors ...Suberror) error {
+	return AddBaitServiceError{
+		detailedError{
+			err:       err,
+			English:   "Two-Factor Login Verify failed",
+			Chinese:   "多因素登录参数验证失败",
+			HTTPCode:  httpCode,
+			Suberrors: suberrors,
+		},
+	}
+}
+
+func NewMfaSecretStatusIsExistError(httpCode int, err error, suberrors ...Suberror) error {
+	return AddBaitServiceError{
+		detailedError{
+			err:       err,
+			English:   "two-factor Mfa Secret is binding",
+			Chinese:   "多因素认证 mfa 密钥已经绑定",
+			HTTPCode:  httpCode,
+			Suberrors: suberrors,
+		},
+	}
+}
+
+func NewMfaSecretStatusNotExistError(httpCode int, err error, suberrors ...Suberror) error {
+	return AddBaitServiceError{
+		detailedError{
+			err:       err,
+			English:   "two-factor Mfa Secret not binding",
+			Chinese:   "多因素认证 mfa 密钥未绑定",
+			HTTPCode:  httpCode,
+			Suberrors: suberrors,
+		},
+	}
+}
+
+func NewMfaSecretError(httpCode int, err error, suberrors ...Suberror) error {
+	return AddBaitServiceError{
+		detailedError{
+			err:       err,
+			English:   "two-factor Mfa Secret failed",
+			Chinese:   "多因素认证 mfa 密钥出错",
+			HTTPCode:  httpCode,
+			Suberrors: suberrors,
+		},
+	}
+}
+
+func NewTwoFactorSecretError(httpCode int, err error, suberrors ...Suberror) error {
+	return AddBaitServiceError{
+		detailedError{
+			err:       err,
+			English:   "two-factor Login token err",
+			Chinese:   "多因素登录token错误",
+			HTTPCode:  httpCode,
+			Suberrors: suberrors,
+		},
+	}
+}
+
+func NewPwdSecurityLevelError(httpCode int, err error, suberrors ...Suberror) error {
+	return AddBaitServiceError{
+		detailedError{
+			err:       err,
+			English:   "the password strength is not up to standard",
+			Chinese:   "密码强度不足",
+			HTTPCode:  httpCode,
+			Suberrors: suberrors,
+		},
+	}
+}
+
+func NewIPListBlackError(httpCode int, err error, suberrors ...Suberror) error {
+	return AddBaitServiceError{
+		detailedError{
+			err:       err,
+			English:   "this ip address cannot be logged in",
+			Chinese:   "此ip地址无法登陆",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
 		},

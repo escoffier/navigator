@@ -204,7 +204,7 @@ func (s *ExportApiSrv) CreateVulnExportTask(ctx *gin.Context) {
 	}
 	response.JSONOK(ctx, response.WithItem(
 		GenResponseMsg(ctx, task.ID, task.FilePath)),
-		response.WithTarget(&response.TargetRef{}))
+		response.WithTarget(&response.TargetRef{Name: "export", ID: "0"}))
 }
 
 func (s *ExportApiSrv) CheckScanTask(ctx *gin.Context) {
@@ -345,6 +345,7 @@ func (s *ExportApiSrv) GetExportTaskDetail(ctx *gin.Context) {
 		response.JSONError(ctx, err)
 		return
 	}
+
 	token, err := util.NewJWT(urlPath).GenJWTToken(hex.EncodeToString(encrypted), time.Minute*60)
 
 	if err != nil {

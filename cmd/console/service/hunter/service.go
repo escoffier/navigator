@@ -23,6 +23,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
 	"gitlab.com/piccolo_su/vegeta/pkg/lang"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
+	"gitlab.com/piccolo_su/vegeta/pkg/request"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 	"gitlab.com/security-rd/go-pkg/databases"
 	"gitlab.com/security-rd/go-pkg/logging"
@@ -147,7 +148,7 @@ func (s *Service) Scan(ctx context.Context, clusterID string) (err error) {
 	}
 
 	uuid := util.GenerateUUIDHex()
-	_, err = s.taskManager.CreateKubeHunterRecord(ctx, clusterID, uuid, model.GetUsernameFromContext(ctx))
+	_, err = s.taskManager.CreateKubeHunterRecord(ctx, clusterID, uuid, request.GetUsernameFromContext(ctx))
 	if err != nil {
 		return err
 	}

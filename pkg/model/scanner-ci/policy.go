@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"gitlab.com/piccolo_su/vegeta/pkg/types/imagesec"
-
 	"scm.tensorsecurity.cn/tensorsecurity-rd/trivy/pkg/report"
 	"scm.tensorsecurity.cn/tensorsecurity-rd/trivy/pkg/types"
 

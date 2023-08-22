@@ -60,7 +60,7 @@ func (h *Handler) loadAdminEmails(ctx context.Context) ([]string, error) {
 	platformModuleID := strconv.Itoa(module.Id)
 
 	var users []*model.User
-	err = h.db.GetReadDB().WithContext(ctx).Where("rule = ?", model.RoleAdmin).Select("username, module_id").Find(&users).Error
+	err = h.db.GetReadDB().WithContext(ctx).Where("rule = ?", model.RoleTypePlatformAdmin).Select("username, module_id").Find(&users).Error
 	if err != nil {
 		return nil, err
 	}

@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"fmt"
+	"gitlab.com/piccolo_su/vegeta/pkg/util"
 	"net"
 	"net/http"
 	"net/http/httputil"
@@ -19,10 +20,17 @@ import (
 	"gitlab.com/security-rd/go-pkg/logging"
 )
 
+const (
+	naviAuditDefaultTimeout = time.Second * 5
+)
+
 func (api *api) naviAudit() func(chi.Router) {
 	return func(r chi.Router) {
 		r.Get("/", api.getNaviAuditLog())
 		r.Post("/exportTask", api.RedirectToAuditExport())
+		//	syslog
+		r.Get("/config/syslog", api.getNaviAuditSyslogSettings())
+		r.Post("/config/syslog", api.updateNaviAuditSyslogSettings())
 	}
 }
 
@@ -148,5 +156,62 @@ func (api *api) RedirectToAuditExport() http.HandlerFunc {
 			Transport: roundTripper,
 		}
 		proxy.ServeHTTP(w, r)
+	}
+}
+
+func (api *api) getNaviAuditSyslogSettings() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(r.Context(), naviAuditDefaultTimeout)
+		defer cancel()
+
+		service, ok := naviaudit.GetService()
+		if !ok {
+			apperror.RespAndLog(w, ctx, ErrServiceNotReady)
+			return
+		}
+		setting, err := service.GetSyslogSettings(ctx)
+		if err != nil {
+			apperror.RespAndLog(w, ctx,
+				apperror.NewAnError(http.StatusInternalServerError,
+					fmt.Errorf("GetSyslogSettings fail, err:%s", err.Error())))
+			return
+		}
+
+		response.Ok(w, response.WithApiVersion(auditAPIVersion), response.WithItem(*convertSyslogSettingFromPb(setting)))
+	}
+}
+
+func (api *api) updateNaviAuditSyslogSettings() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(r.Context(), naviAuditDefaultTimeout)
+		defer cancel()
+
+		service, ok := naviaudit.GetService()
+		if !ok {
+			apperror.RespAndLog(w, ctx, ErrServiceNotReady)
+			return
+		}
+
+		var setting syslogSetting
+		err := util.DecodeJSONBody(w, r, &setting)
+		if err != nil {
+			apperror.RespAndLog(w, ctx,
+				apperror.NewMalformedRequestError(http.StatusBadRequest,
+					fmt.Errorf("failed to decode json: %w", err)))
+			return
+		}
+
+		err = service.UpdateSyslogSettings(ctx, convertSyslogSettingToPb(&setting))
+		if err != nil {
+			if err == naviaudit.ErrInvalidSyslogSetting {
+				apperror.RespAndLog(w, ctx, apperror.NewInvalidArgError(http.StatusBadRequest, err))
+				return
+			}
+
+			apperror.RespAndLog(w, ctx, err)
+			return
+		}
+
+		response.Ok(w, response.WithApiVersion(auditAPIVersion), response.WithItem(setting))
 	}
 }

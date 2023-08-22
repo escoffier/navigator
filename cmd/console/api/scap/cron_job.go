@@ -13,6 +13,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	"gitlab.com/piccolo_su/vegeta/pkg/lang"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
+	"gitlab.com/piccolo_su/vegeta/pkg/request"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
 )
 
@@ -45,7 +46,7 @@ func (a *ApiServer) CronJobCreate(w http.ResponseWriter, r *http.Request) {
 
 	var cronRecord = model.ScapCronRecord{
 		Type:     scapType,
-		Operator: model.GetUsernameFromContext(r.Context()),
+		Operator: request.GetUsernameFromContext(r.Context()),
 		Cron:     cron,
 		Status:   req.Status,
 		PolicyID: req.PolicyID,

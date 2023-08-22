@@ -2,10 +2,10 @@ package api
 
 import (
 	"context"
-
 	"github.com/go-chi/chi"
-	"github.com/go-chi/jwtauth"
 	"github.com/go-redis/redis/v8"
+	"gitlab.com/piccolo_su/vegeta/pkg/middleware"
+	"gitlab.com/piccolo_su/vegeta/pkg/token"
 	"gitlab.com/security-rd/go-pkg/databases"
 	"gitlab.com/security-rd/go-pkg/elastic"
 	"gitlab.com/security-rd/go-pkg/logging"
@@ -26,7 +26,7 @@ const (
 func SetupRoutes(
 	ctx context.Context,
 	r *chi.Mux,
-	tokenAuth *jwtauth.JWTAuth,
+	tokenManager token.Manager,
 	rdb *databases.RDBInstance,
 	scannerURL string,
 	exportURL string,
@@ -41,7 +41,7 @@ func SetupRoutes(
 	logging.Get().Debug().Msg("setting up routes...")
 
 	api := newAPI(
-		tokenAuth,
+		tokenManager,
 		rdb,
 		scannerURL,
 		exportURL,
@@ -74,7 +74,7 @@ func SetupRoutes(
 	// Open API v1
 	r.Route(OpenAPIURLPrefix, func(r chi.Router) {
 		r.Group(func(r chi.Router) {
-			r.Use(licenseVerify)
+			r.Use(middleware.LicenseVerify)
 			r.Route("/auth", api.openapiAuth())
 		})
 		r.Group(func(r chi.Router) {
@@ -98,7 +98,7 @@ func SetupRoutes(
 
 		r.Group(func(r chi.Router) {
 			// normal check
-			r.Use(verifier(api.tokenAuth), bypassAuthenticator(api.rdb), authenticator(api.rdb), jwtAccessCheck(api.rdb))
+			r.Use(middleware.Authenticator(api.tokenManager, api.rdb), middleware.Access(api.rdb))
 			if !httpAuditDisabled {
 				cli, err := es.Get()
 				if err == nil {

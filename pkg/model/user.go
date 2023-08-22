@@ -1,8 +1,6 @@
 package model
 
 import (
-	"context"
-
 	json "github.com/json-iterator/go"
 )
 
@@ -26,13 +24,17 @@ func (u Url) TableName() string {
 	return "ivan_platform_urls"
 }
 
-const (
-	RoleSuperAdmin = "super-admin"
-	RoleAdmin      = "admin"
-	RoleNormal     = "normal"
+type RoleType string
 
-	UserSuperAdmin  = "SeedAdmin"
-	DefaultPassword = "ksJ@12MczH"
+const (
+	RoleTypeSuperAdmin    RoleType = "super-admin"
+	RoleTypePlatformAdmin RoleType = "platform-admin"
+	RoleTypeAdmin         RoleType = "admin"
+	RoleTypeAudit         RoleType = "audit"
+	RoleTypeNormal        RoleType = "normal"
+
+	SuperAdminUsername = "SeedAdmin"
+	DefaultPassword    = "ksJ@12MczH"
 
 	UserStatusNormal   = 1 // "normal"
 	UserStatusInactive = 2 // "inactive"
@@ -41,44 +43,39 @@ const (
 )
 
 type User struct {
-	ID                     int64         `gorm:"primary_key;AUTO_INCREMENT" json:"-"`
-	UserName               string        `gorm:"index:username,unique;column:username" json:"userName"` // index
-	Pwd                    string        `json:"-" bson:"pwd"`
-	Salt                   string        `gorm:"column:salt" json:"-"`
-	Role                   string        `gorm:"column:rule" json:"rule"` // typo; role
-	ModuleID               string        `gorm:"column:module_id" json:"-"`
-	ModuleGroup            []ModuleGroup `gorm:"-" json:"module_group"`
-	CreatedAt              int64         `json:"create_at"`
-	LoginSecretKey         string        `gorm:"column:login_secret_key" json:"-"`
-	LoginSecretKeyExpireAt int64         `gorm:"column:login_secret_key_expire_at" json:"-"`
-	Token                  string        `gorm:"column:token; type:text" json:"-"`
-	TokenExpireAt          int64         `gorm:"column:token_expire_at" json:"-"`
-	Platform               string        `gorm:"column:platform" json:"platform"`
-	Status                 int           `gorm:"column:status" json:"status"`
-	MustChangePwd          bool          `gorm:"column:must_change_pwd" json:"mustChangePwd"`      // 该用户是否必须修改密码
-	LastChangePwdAt        int64         `gorm:"column:last_change_pwd_at" json:"lastChangePwdAt"` // 上次修改密码的时间
-}
+	ID                     int64    `gorm:"primary_key;AUTO_INCREMENT" json:"-"`
+	UserName               string   `gorm:"index:username,unique;column:username" json:"userName"` // index
+	Account                string   `gorm:"index:account,unique;column:account" json:"account"`
+	Nickname               string   `gorm:"column:nickname"`
+	Pwd                    string   `json:"-" bson:"pwd"`
+	Salt                   string   `gorm:"column:salt" json:"-"`
+	Role                   RoleType `gorm:"column:rule" json:"rule"` // typo; role
+	ModuleID               string   `gorm:"column:module_id" json:"-"`
+	CreatedAt              int64    `json:"create_at"`
+	Creator                string   `gorm:"column:creator"`
+	LoginSecretKey         string   `gorm:"column:login_secret_key" json:"-"`
+	LoginSecretKeyExpireAt int64    `gorm:"column:login_secret_key_expire_at" json:"-"`
+	Token                  string   `gorm:"column:token; type:text" json:"-"`
+	TokenExpireAt          int64    `gorm:"column:token_expire_at" json:"-"`
+	Platform               string   `gorm:"column:platform" json:"platform"`
+	Status                 int      `gorm:"column:status" json:"status"`
+	MustChangePwd          bool     `gorm:"column:must_change_pwd" json:"mustChangePwd"`      // 该用户是否必须修改密码
+	LastChangePwdAt        int64    `gorm:"column:last_change_pwd_at" json:"lastChangePwdAt"` // 上次修改密码的时间
 
-func (u *User) GenerateSession(external bool) *UserSession {
-	return &UserSession{
-		Username: u.UserName,
-		Role:     u.Role,
-		ModuleID: u.ModuleID,
-		Status:   u.Status,
-		External: external,
-	}
-}
-
-type UserSession struct {
-	Username string `json:"username"`
-	Role     string `json:"role"`
-	ModuleID string `json:"moduleID"`
-	External bool   `json:"external"`
-	Status   int    `json:"status"`
+	// 添加字段：MFA密钥 和 MFA绑定状态
+	MfaSecret            string `gorm:"column:mfa_secret" json:"-"`
+	MfaStatus            bool   `gorm:"column:mfa_status" json:"-"`
+	TwoFactorKey         string `gorm:"column:two_factor_key" json:"-"`
+	TwoFactorKeyExpireAt int64  `gorm:"column:two_factor_key_expire_at" json:"-"`
 }
 
 func (u User) TableName() string {
 	return "ivan_platform_users"
+}
+
+type UserLite struct {
+	Username string `json:"username"`
+	Account  string `json:"account"`
 }
 
 type Email struct {
@@ -93,16 +90,16 @@ func (e Email) TableName() string {
 }
 
 type LdapGroup struct {
-	ID      int32  `gorm:"primaryKey;autoIncrement;column:id"`
-	Name    string `gorm:"column:name; unique"`
-	Role    string `gorm:"column:role"`
-	Modules string `gorm:"column:modules"`
+	ID      int32    `gorm:"primaryKey;autoIncrement;column:id"`
+	Name    string   `gorm:"column:name; unique"`
+	Role    RoleType `gorm:"column:role"`
+	Modules string   `gorm:"column:modules"`
 }
 
 type LdapGroupDisplay struct {
 	ID      int32          `json:"id"`
 	Name    string         `json:"name"`
-	Role    string         `json:"role"`
+	Role    RoleType       `json:"role"`
 	Modules []*ModuleGroup `json:"modules"`
 }
 
@@ -133,25 +130,4 @@ func GetModuleIDByGroups(groups []*LdapGroup) []int {
 	}
 
 	return result
-}
-
-const (
-	CtxUserSessionKey = "ctx_user_session"
-)
-
-func GetSessionFromContext(ctx context.Context) (*UserSession, bool) {
-	val := ctx.Value(CtxUserSessionKey)
-	if val == nil {
-		return nil, false
-	}
-	userSession, ok := val.(*UserSession)
-	return userSession, ok
-}
-
-func GetUsernameFromContext(ctx context.Context) string {
-	userSession, ok := GetSessionFromContext(ctx)
-	if ok && userSession != nil {
-		return userSession.Username
-	}
-	return ""
 }

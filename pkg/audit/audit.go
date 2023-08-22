@@ -5,6 +5,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"gitlab.com/piccolo_su/vegeta/cmd/console/service/naviaudit"
+	"gitlab.com/security-rd/go-pkg/logging"
 	"io/ioutil"
 	"net/http"
 	"strings"
@@ -14,6 +16,7 @@ import (
 	"github.com/go-chi/chi/middleware"
 	v7 "github.com/olivere/elastic/v7"
 	"github.com/rs/zerolog"
+	"gitlab.com/piccolo_su/vegeta/pkg/request"
 	"k8s.io/apimachinery/pkg/util/wait"
 
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
@@ -50,6 +53,10 @@ type targetResponse struct {
 	Target response.TargetRef `json:"target"`
 }
 
+type HTTPErrorResponse struct {
+	HTTPError response.HTTPError `json:"error"`
+}
+
 type Store interface {
 	store(ctx context.Context, event *model.NaviAuditEvent) error
 }
@@ -73,9 +80,14 @@ func RequestLogger(store Store, queue *util.Queue) func(next http.Handler) http.
 			t1 := time.Now()
 
 			defer func() {
-				if !needAudit(ww) {
-					return
+				var status string
+
+				if failedAudit(ww) {
+					status = "false"
+				} else {
+					status = "true"
 				}
+
 				verb := rMap["zh"]["verb"]
 				detail := rMap["zh"]["detail"].(string)
 				detailEN := rMap["en"]["detail"].(string)
@@ -93,8 +105,26 @@ func RequestLogger(store Store, queue *util.Queue) func(next http.Handler) http.
 						data["body"] = respBody
 						objName := getObjectName(respBody)
 						data["objName"] = objName
+						data["status"] = status
 						detail, _ = generateDetail(detail, objName)
 						detailEN, _ = generateDetail(detailEN, objName)
+						if status == "false" {
+							data["err"] = getObjectErrInfo(respBody)
+						}
+						if r.URL.Path == "/api/v2/usercenter/login" {
+							active := getObjectActive(respBody)
+							switch active {
+							case "MfaBinding":
+								detail = "多因素认证绑定密钥"
+								detailEN = "binding mfa secret"
+							case "MfaVerify":
+								detail = "多因素登录认证"
+								detailEN = "verify mfa secret"
+							default:
+
+							}
+						}
+
 						data["detail"] = detail
 					}
 				} else {
@@ -104,6 +134,7 @@ func RequestLogger(store Store, queue *util.Queue) func(next http.Handler) http.
 						err := json.Unmarshal([]byte(target), &targetRef)
 						if err == nil {
 							data["objName"] = targetRef.Name
+							data["status"] = targetRef.Status
 							detail, _ = generateDetail(detail, targetRef.Name)
 							detailEN, _ = generateDetail(detailEN, targetRef.Name)
 							data["detail"] = detail
@@ -113,9 +144,8 @@ func RequestLogger(store Store, queue *util.Queue) func(next http.Handler) http.
 
 				verbEN := rMap["en"]["verb"]
 				data["metaData"] = map[string]interface{}{
-					"en": map[string]interface{}{"verb": verbEN, "detail": detailEN},
+					"en": map[string]interface{}{"verb": verbEN, "detail": detailEN, "status": status},
 				}
-
 				entry.Write(ww.Status(), ww.BytesWritten(), ww.Header(), time.Since(t1), data)
 			}()
 
@@ -156,6 +186,20 @@ func sendLog(store Store, queue *util.Queue) {
 					return
 				}
 			}()
+			func() {
+				service, ok := naviaudit.GetService()
+				if !ok {
+					return
+				}
+				data, err := json.Marshal(auditEvt)
+				if err != nil {
+					logging.Get().Error().Msgf("send log from syslog failed:%v", err)
+				}
+				err = service.SendLog(data)
+				if err != nil {
+					logging.Get().Error().Msgf("send log from syslog failed:%v", err)
+				}
+			}()
 		}
 	}, time.Second*3, stopChan)
 
@@ -185,6 +229,7 @@ func (e *LogEntry) Write(status, bytes int, header http.Header, elapsed time.Dur
 	}
 
 	extraData, _ := extra.(map[string]interface{})
+
 	body, ok := extraData["body"]
 	if ok {
 		resp.Body = string(body.([]byte))
@@ -193,6 +238,9 @@ func (e *LogEntry) Write(status, bytes int, header http.Header, elapsed time.Dur
 	e.auditEvt.MetaData = make(map[string]interface{})
 	verb := extraData["verb"]
 	detail := extraData["detail"]
+	extraDataStatus := extraData["status"]
+	err := extraData["err"]
+
 	metaData, ok := extraData["metaData"].(map[string]interface{})
 	if ok {
 		for k, v := range metaData {
@@ -216,6 +264,10 @@ func (e *LogEntry) Write(status, bytes int, header http.Header, elapsed time.Dur
 	e.auditEvt.HttpResponse = resp
 	e.auditEvt.Verb = verb.(string)
 	e.auditEvt.Detail = detail.(string)
+	e.auditEvt.Status = extraDataStatus.(string)
+	if e.auditEvt.Status == "false" {
+		e.auditEvt.Err = err.(string)
+	}
 
 	if e.auditEvt.HttpRequest.Path == "/api/v2/usercenter/login" {
 		name := objName.(string)
@@ -272,7 +324,7 @@ func requestLogFields(r *http.Request) *model.NaviAuditEvent {
 			remoteIP = r.RemoteAddr
 		}
 	}
-	request := &model.HttpRequest{
+	req := &model.HttpRequest{
 		RequestURL: requestURL,
 		Method:     r.Method,
 		Path:       r.URL.Path,
@@ -286,13 +338,13 @@ func requestLogFields(r *http.Request) *model.NaviAuditEvent {
 		requestID = reqID
 	}
 
-	userName := model.GetUsernameFromContext(r.Context())
+	userName := request.GetAccountFromContext(r.Context())
 	user := &model.UserInfo{Name: userName}
 
 	return &model.NaviAuditEvent{
 		RequestID:   requestID,
 		User:        user,
-		HttpRequest: request,
+		HttpRequest: req,
 		Timestamp:   time.Now().UnixMilli(),
 		MetaData:    nil,
 	}
@@ -347,6 +399,11 @@ func statusLabel(status int) string {
 	}
 }
 
+func needAudit(w middleware.WrapResponseWriter) bool {
+	status := w.Status()
+	return status < 400
+}
+
 func getObjectName(body []byte) string {
 	resp := &targetResponse{}
 	err := json.Unmarshal(body, resp)
@@ -356,11 +413,28 @@ func getObjectName(body []byte) string {
 	return resp.Target.Name
 }
 
-func needAudit(w middleware.WrapResponseWriter) bool {
-	status := w.Status()
-	return status < 400
+func getObjectActive(body []byte) string {
+	resp := &targetResponse{}
+	err := json.Unmarshal(body, resp)
+	if err != nil {
+		return ""
+	}
+	return resp.Target.Active
 }
 
+func getObjectErrInfo(body []byte) string {
+	resp := &HTTPErrorResponse{}
+	err := json.Unmarshal(body, resp)
+	if err != nil {
+		return ""
+	}
+	return resp.HTTPError.Message
+}
+
+func failedAudit(w middleware.WrapResponseWriter) bool {
+	status := w.Status()
+	return status != 200
+}
 func init() {
 	routeAction = newRouter()
 	// 平台报告
@@ -461,6 +535,20 @@ func init() {
 			"en": {
 				"verb":   "Login",
 				"detail": "Login",
+			},
+		}
+	})
+
+	// 多因素认证登录
+	routeAction.POST("/api/v2/usercenter/loginMfaVerify", func(p Params) map[string]map[string]interface{} {
+		return map[string]map[string]interface{}{
+			"zh": {
+				"verb":   "多因素认证登录",
+				"detail": "{{.}}多因素认证登录",
+			},
+			"en": {
+				"verb":   "MfaLogin",
+				"detail": "{{.}}MfaLogin",
 			},
 		}
 	})
@@ -1485,7 +1573,7 @@ func init() {
 			},
 		}
 	})
-	routeAction.POST("/api/v2/usercenter/config/login", func(p Params) map[string]map[string]interface{} {
+	routeAction.PUT("/api/v2/usercenter/config/login", func(p Params) map[string]map[string]interface{} {
 		return map[string]map[string]interface{}{
 			"zh": {
 				"verb":   editAction,

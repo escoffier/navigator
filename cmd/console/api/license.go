@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/go-chi/chi"
+	"gitlab.com/piccolo_su/vegeta/pkg/middleware"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
 
@@ -29,7 +30,7 @@ func (api *api) licenseRouter() func(chi.Router) {
 		r.Post("/register", api.licenseRegister())
 
 		r.Group(func(r chi.Router) {
-			r.Use(verifier(api.tokenAuth), bypassAuthenticator(api.rdb), authenticator(api.rdb), jwtAccessCheck(api.rdb))
+			r.Use(middleware.Authenticator(api.tokenManager, api.rdb))
 			r.Get("/info", api.getLicenseInfo())
 		})
 	}
@@ -189,22 +190,4 @@ func licenseTypeByLang(ctx context.Context, type_ string) string {
 		}
 	}
 	return type_
-}
-
-func licenseVerify(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		ctx, cancel := context.WithTimeout(r.Context(), defaultLicenseTimeout)
-		defer cancel()
-
-		status := license.ValidateLicense(false)
-		if !status.IsValid() {
-			apperror.RespAndLog(w, ctx,
-				apperror.NewInvalidLicenseError(http.StatusPreconditionFailed,
-					fmt.Errorf("license valid: %v", status)))
-			return
-		}
-
-		// license is valid, pass it through
-		next.ServeHTTP(w, r)
-	})
 }

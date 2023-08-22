@@ -5,9 +5,10 @@ import (
 	"fmt"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
+	"gitlab.com/security-rd/go-pkg/logging"
 	"sync"
 
-	//"gitlab.com/security-rd/go-pkg/elastic"
+	// "gitlab.com/security-rd/go-pkg/elastic"
 	v7 "github.com/olivere/elastic/v7"
 	"net/http"
 	"time"
@@ -37,6 +38,7 @@ func ESAudit(client *v7.Client) func(next http.Handler) http.Handler {
 	esOnce.Do(func() {
 		esStore = newESStore(client)
 		esQueue = util.NewQueue()
+		logging.Get().Log().Msg("start sendlog...")
 		go sendLog(esStore, esQueue)
 	})
 

@@ -15,6 +15,7 @@ import (
 	assetsSvc "gitlab.com/piccolo_su/vegeta/cmd/console/service/assets"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/attck"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/captcha"
+	"gitlab.com/piccolo_su/vegeta/cmd/console/service/cmcc"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/containers"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/data"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/defense"
@@ -35,7 +36,6 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/scapper"
 	sp "gitlab.com/piccolo_su/vegeta/cmd/console/service/scapper"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/session"
-	"gitlab.com/piccolo_su/vegeta/cmd/console/service/user"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/usercenter"
 	"gitlab.com/piccolo_su/vegeta/cmd/data/notifyhandler"
 	"gitlab.com/piccolo_su/vegeta/cmd/platform-report/def"
@@ -254,16 +254,16 @@ func NewConsole(
 		logging.Get().Err(ntErr).Msg("ERROR: platform report service init error")
 	}
 
-	if os.Getenv("TENSOR_CLIENT_PLATFORM") == "ChinaMobile" {
+	if os.Getenv("TENSOR_CLIENT_PLATFORM") == cmcc.CMUserPlatform {
 		// 中移SSO用户关系
-		cmOpt, err := user.GetCMUserOption()
+		cmOpt, err := cmcc.GetCMUserOption()
 		if err != nil {
 			logging.Get().Err(err).Msg("ERROR: read ChinaMobile env option error")
 			mainCancel()
 			return nil, err
 		}
 		// 初始化
-		cm, err := user.InitCMUserService(rdb, cmOpt.Appid, cmOpt.APIHost, cmOpt.APIKey, cmOpt.AuthKey)
+		cm, err := cmcc.InitCMUserService(rdb, cmOpt.Appid, cmOpt.APIHost, cmOpt.APIKey, cmOpt.AuthKey)
 		if err != nil {
 			logging.Get().Err(err).Msg("ERROR: init ChinaMobile service error")
 			mainCancel()
@@ -351,7 +351,7 @@ func NewConsole(
 		return nil, err
 	}
 
-	err = naviaudit.InitService(es)
+	err = naviaudit.InitService(es, rdb)
 	if err != nil {
 		logging.Get().Err(err).Msg("ERROR: navi-audit service init error")
 	}

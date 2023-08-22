@@ -13,6 +13,7 @@ import (
 	json "github.com/json-iterator/go"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
+	"gitlab.com/piccolo_su/vegeta/pkg/request"
 	"gitlab.com/security-rd/go-pkg/httputil"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
@@ -377,7 +378,7 @@ func CreateCustomConfig(ctx context.Context, db *gorm.DB, data *model.AttckCusto
 	defer cancel()
 
 	if data.Updater == "" {
-		updater := model.GetUsernameFromContext(ctx)
+		updater := request.GetUsernameFromContext(ctx)
 		if updater == "" {
 			updater = "system"
 		}
@@ -431,7 +432,7 @@ func ModifyCustomConfigValues(ctx context.Context, db *gorm.DB, ruleKey, cconfig
 			"cconfig_value": newValue,
 			"status":        model.StatusPending,
 			"updated_at":    time.Now().Unix(),
-			"updater":       model.GetUsernameFromContext(tctx),
+			"updater":       request.GetUsernameFromContext(tctx),
 		}).Error
 	})
 	return err
@@ -448,7 +449,7 @@ func UpdateCustomConfig(ctx context.Context, db *gorm.DB, query *CustomConfigsOp
 		data["updated_at"] = time.Now().Unix()
 	}
 	if v, exist := data["updater"]; !exist || v == nil {
-		updater := model.GetUsernameFromContext(ctx)
+		updater := request.GetUsernameFromContext(ctx)
 		data["updater"] = updater
 	}
 
@@ -476,7 +477,7 @@ func SetCustomConfigStatus(ctx context.Context, db *gorm.DB, query *CustomConfig
 	defer cancel()
 
 	data := make(map[string]interface{}, 3)
-	updater := model.GetUsernameFromContext(ctx)
+	updater := request.GetUsernameFromContext(ctx)
 	if updater != "" {
 		data["updater"] = updater
 		data["updated_at"] = time.Now().Unix()

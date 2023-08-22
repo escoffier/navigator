@@ -7,7 +7,7 @@ import (
 
 	"github.com/go-chi/chi"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
-	"gitlab.com/piccolo_su/vegeta/pkg/model"
+	"gitlab.com/piccolo_su/vegeta/pkg/request"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
 	"gitlab.com/security-rd/go-pkg/pb"
 	"k8s.io/apimachinery/pkg/util/proxy"
@@ -37,7 +37,7 @@ func (api *api) sherlock() func(chi.Router) {
 
 			logging.GetLogger().Debug().Str("url", u.String()).Msg("proxy")
 
-			r.Header.Set("X-Username", model.GetUsernameFromContext(r.Context()))
+			r.Header.Set("X-Username", request.GetUsernameFromContext(r.Context()))
 			httpProxy := proxy.NewUpgradeAwareHandler(u, http.DefaultTransport, false, false, &errorResponder{})
 			httpProxy.ServeHTTP(w, r)
 		}
