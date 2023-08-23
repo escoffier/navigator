@@ -17,6 +17,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 	"gitlab.com/security-rd/go-pkg/httputil"
+	"gitlab.com/security-rd/go-pkg/logging"
 	"gitlab.com/security-rd/go-pkg/pb"
 )
 
@@ -36,6 +37,9 @@ func (c *SherlockClient) getURL(path string, a ...interface{}) string {
 		return c.SherlockHost + "/api/v1/palace/rules/templates/delete"
 	case "GetRuleTemplatesRules":
 		return c.SherlockHost + "/api/v1/palace/rules/templates/rules"
+	case "HolaTranslateOne":
+		return fmt.Sprintf(c.SherlockHost+"/api/v1/hola/internal/translate/one?domain=%s&key=%s&value=%s", netURl.QueryEscape(a[0].(string)), netURl.QueryEscape(a[1].(string)), netURl.QueryEscape(a[2].(string)))
+
 	}
 
 	return c.SherlockHost
@@ -423,4 +427,81 @@ func (c *SherlockClient) GetRuleTemplatesRules(ctx context.Context, version1, id
 	}
 
 	return result.Data.Items, nil
+}
+
+// hola
+
+const (
+	HolaDomainIacYaml       = "iac_yaml"
+	HolaDomainIacDockerfile = "iac_dockerfile"
+	HolaDomainConfigInEx    = "config_in_ex"
+
+	HolaKeyTemplateName        = "template_name"
+	HolaKeyTemplateDescription = "template_description"
+	HolaKeyRuleName            = "rule_name"
+	HolaKeyRuleDescription     = "rule_description"
+	HolaKeyRuleResolution      = "rule_resolution"
+	HolaKeyRuleMessage         = "rule_message"
+	HolaKeyProductModule       = "product_module"
+	HolaKeyProductCategory     = "product_category"
+)
+
+func (c *SherlockClient) HolaTranslateOne(ctx context.Context, domain, key, value string, lang lang.LanguageType) string {
+	domain = strings.TrimSpace(domain)
+	key = strings.TrimSpace(key)
+	value = strings.TrimSpace(value)
+	if domain == "" || key == "" || value == "" {
+		return value
+	}
+
+	url := c.getURL("HolaTranslateOne", domain, key, value)
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		logging.Get().Error().Err(err).Str("url", url).Msg("new request fails")
+		return value
+	}
+	req.Header.Set("Accept-Language", string(lang))
+
+	rsp, err := httputil.DefaultClient.Do(req)
+	if err != nil {
+		logging.Get().Error().Err(err).Str("url", url).Msg("do request fails")
+		return value
+	}
+	defer util.CloseBodyWithLog(rsp.Body)
+
+	body, err := io.ReadAll(rsp.Body)
+	if err != nil {
+		logging.Get().Error().Err(err).Str("url", url).Msg("read response fails")
+		return value
+	}
+
+	type Response struct {
+		Data struct {
+			Status int    `json:"status"`
+			Item   string `json:"item"`
+		}
+		Error struct {
+			Code    int    `json:"code"`
+			Message string `json:"message"`
+			Data    string `json:"data"`
+		}
+	}
+
+	result := Response{}
+	if err = json.Unmarshal(body, &result); err != nil {
+		logging.Get().Error().Err(err).Str("url", url).Msg("unmarshal response fails")
+		return value
+	}
+
+	if result.Data.Status != 0 || result.Error.Message != "" {
+		err = errors.New("request sherlock HolaTranslateOne fails")
+		if result.Error.Message != "" {
+			err = errors.New(result.Error.Message)
+		}
+		logging.Get().Error().Err(err).Str("url", url).Msg("response has error")
+		return value
+	}
+
+	return result.Data.Item
 }
