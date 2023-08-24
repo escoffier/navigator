@@ -5,13 +5,14 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"gitlab.com/piccolo_su/vegeta/cmd/console/service/naviaudit"
-	"gitlab.com/security-rd/go-pkg/logging"
 	"io/ioutil"
 	"net/http"
 	"strings"
 	"text/template"
 	"time"
+
+	"gitlab.com/piccolo_su/vegeta/cmd/console/service/naviaudit"
+	"gitlab.com/security-rd/go-pkg/logging"
 
 	"github.com/go-chi/chi/middleware"
 	v7 "github.com/olivere/elastic/v7"
@@ -1994,4 +1995,125 @@ func init() {
 		}
 	})
 
+	// waf
+	routeAction.POST("/api/v2/platform/waf/service", func(p Params) map[string]map[string]interface{} {
+		return map[string]map[string]interface{}{
+			"zh": {
+				"verb":   createAction,
+				"detail": "新增waf应用",
+			},
+			"en": {
+				"verb":   createActionEN,
+				"detail": "Create waf application",
+			},
+		}
+	})
+	routeAction.PUT("/api/v2/platform/waf/service", func(p Params) map[string]map[string]interface{} {
+		return map[string]map[string]interface{}{
+			"zh": {
+				"verb":   editAction,
+				"detail": "修改waf应用",
+			},
+			"en": {
+				"verb":   editActionEN,
+				"detail": "Edit waf application",
+			},
+		}
+	})
+	routeAction.DELETE("/api/v2/platform/waf/service/:id", func(p Params) map[string]map[string]interface{} {
+		return map[string]map[string]interface{}{
+			"zh": {
+				"verb":   deleteAction,
+				"detail": "删除waf应用",
+			},
+			"en": {
+				"verb":   deleteActionEN,
+				"detail": "Delete waf application",
+			},
+		}
+	})
+	routeAction.POST("/api/v2/platform/waf/certCrt", func(p Params) map[string]map[string]interface{} {
+		return map[string]map[string]interface{}{
+			"zh": {
+				"verb":   createAction,
+				"detail": "新增公钥",
+			},
+			"en": {
+				"verb":   createActionEN,
+				"detail": "Create cert",
+			},
+		}
+	})
+	routeAction.POST("/api/v2/platform/waf/certKey", func(p Params) map[string]map[string]interface{} {
+		return map[string]map[string]interface{}{
+			"zh": {
+				"verb":   createAction,
+				"detail": "新增私钥",
+			},
+			"en": {
+				"verb":   createActionEN,
+				"detail": "Create private key",
+			},
+		}
+	})
+	routeAction.PUT("/api/v2/platform/waf/config", func(p Params) map[string]map[string]interface{} {
+		return map[string]map[string]interface{}{
+			"zh": {
+				"verb":   createAction,
+				"detail": "新增私钥",
+			},
+			"en": {
+				"verb":   createActionEN,
+				"detail": "Create private key",
+			},
+		}
+	})
+	routeAction.POST("/api/v2/platform/waf/blackwhitelist", func(p Params) map[string]map[string]interface{} {
+		return map[string]map[string]interface{}{
+			"zh": {
+				"verb":   createAction,
+				"detail": "新增黑白名单",
+			},
+			"en": {
+				"verb":   createActionEN,
+				"detail": "Create black/white list",
+			},
+		}
+	})
+	routeAction.PUT("/api/v2/platform/waf/blackwhitelist", func(p Params) map[string]map[string]interface{} {
+		return map[string]map[string]interface{}{
+			"zh": {
+				"verb":   editAction,
+				"detail": "修改黑白名单",
+			},
+			"en": {
+				"verb":   editActionEN,
+				"detail": "Edit black/white list",
+			},
+		}
+	})
+	routeAction.DELETE("/api/v2/platform/waf/blackwhitelist/:id", func(p Params) map[string]map[string]interface{} {
+		return map[string]map[string]interface{}{
+			"zh": {
+				"verb":   editAction,
+				"detail": "删除黑白名单",
+			},
+			"en": {
+				"verb":   editActionEN,
+				"detail": "Delete black/white list",
+			},
+		}
+	})
+	routeAction.PUT("/api/v2/platform/waf/rules", func(p Params) map[string]map[string]interface{} {
+		return map[string]map[string]interface{}{
+			"zh": {
+				"verb":   editAction,
+				"detail": "修改规则",
+			},
+			"en": {
+				"verb":   editActionEN,
+				"detail": "Edit rules",
+			},
+		}
+	})
 }

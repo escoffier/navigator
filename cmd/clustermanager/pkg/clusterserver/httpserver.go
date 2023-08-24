@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
+	"gitlab.com/security-rd/go-pkg/sdk/palace"
 	"net/http"
 	"strings"
 	"time"
@@ -20,9 +21,11 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
 	"gitlab.com/security-rd/go-pkg/logging"
+	pkg "gitlab.com/security-rd/go-pkg/model"
 )
 
 type ClusterServer struct {
+	Palace             *palace.Palace
 	server             *http.Server
 	engine             *gin.Engine
 	ClusterID          string
@@ -129,7 +132,60 @@ func (cs *ClusterServer) handleATTACKLatestData(c *gin.Context) {
 	})
 }
 
-func NewHTTPServer(agent *clusterAgent.ClusterAgent, config *config.Config) (*ClusterServer, error) {
+func (cs *ClusterServer) handleAttackLogs(c *gin.Context) {
+
+	var waf model.WafAttackLogs
+	err := c.BindJSON(&waf)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, response.HTTPEnvelope{
+			Error: &response.HTTPError{
+				Code:    1,
+				Message: err.Error(),
+			},
+		})
+		return
+	}
+
+	logging.Get().Info().Msgf("rcv waf log : %+v", waf)
+	var attack pkg.WafDetectionMessage
+	attack.CreatedAt = time.Now().UnixMilli()
+	attack.AppName = waf.AppName
+	attack.ClusterKey = waf.ClusterKey
+	attack.Namespace = waf.Namespace
+	attack.ResKind = waf.ResKind
+	attack.ResName = waf.ResName
+	attack.ServiceID = waf.ServiceId
+	for i := 0; i < len(waf.AttackedLog); i++ {
+		atLog := pkg.WafDetectionAttackedLog{
+			RuleID:         waf.AttackedLog[i].RuleId,
+			Action:         waf.AttackedLog[i].Action,
+			RuleName:       waf.AttackedLog[i].RuleName,
+			AttackIP:       waf.AttackedLog[i].AttackIp,
+			AttackType:     waf.AttackedLog[i].AttackType,
+			AttackedApp:    waf.AttackedLog[i].AttackedApp,
+			AttackedURL:    waf.AttackedLog[i].AttackedUrl,
+			AttackLoad:     waf.AttackedLog[i].AttackLoad,
+			AttackTime:     waf.AttackedLog[i].AttackTime,
+			RspContentType: waf.AttackedLog[i].RspContentType,
+			ReqPkg:         waf.AttackedLog[i].ReqPkg,
+			RspPkg:         waf.AttackedLog[i].RspPkg,
+		}
+		attack.AttackedLog = append(attack.AttackedLog, atLog)
+	}
+
+	err = cs.Palace.SendWafDetection(attack)
+	if err != nil {
+		logging.Get().Error().Msgf("save waf attack log failed, error : %+v", err)
+	}
+
+	c.JSON(http.StatusOK, response.HTTPEnvelope{
+		Data: &response.HTTPData{
+			Status: 0,
+		},
+	})
+}
+
+func NewHTTPServer(agent *clusterAgent.ClusterAgent, config *config.Config, Palace *palace.Palace) (*ClusterServer, error) {
 	tlsConfig := &tls.Config{}
 	if config.TLSServer {
 		tlsKeyPair, err := tls.LoadX509KeyPair(config.CertFile, config.KeyFile)
@@ -141,6 +197,7 @@ func NewHTTPServer(agent *clusterAgent.ClusterAgent, config *config.Config) (*Cl
 	}
 
 	s := &ClusterServer{
+		Palace:             Palace,
 		ClusterID:          agent.CusterID,
 		Name:               config.Name,
 		config:             config,
@@ -155,6 +212,7 @@ func NewHTTPServer(agent *clusterAgent.ClusterAgent, config *config.Config) (*Cl
 	r.GET("/internal/cluster", s.handleClusterQuery)
 	r.GET("/internal/watch_cluster", s.handleWatchCluster)
 	r.GET("/api/openapi/ATTCK/latestData", s.handleATTACKLatestData)
+	r.POST("/internal/attack/logs", s.handleAttackLogs)
 
 	s.engine = r
 

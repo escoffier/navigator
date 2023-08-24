@@ -94,6 +94,7 @@ require (
 	github.com/ahmetb/go-linq/v3 v3.2.0
 	github.com/apache/pulsar-client-go v0.11.0
 	github.com/containernetworking/plugins v1.2.0
+	github.com/dgrijalva/jwt-go v3.2.0+incompatible
 	github.com/dlclark/regexp2 v1.8.1
 	github.com/elastic/go-libaudit/v2 v2.2.0
 	github.com/facebookarchive/freeport v0.0.0-20150612182905-d4adf43b75b9
@@ -134,7 +135,7 @@ require (
 	k8s.io/kubernetes v1.24.0
 	layeh.com/radius v0.0.0-20210819152912-ad72663a72ab
 	moul.io/http2curl v1.0.0
-	scm.tensorsecurity.cn/tensorsecurity-rd/api v0.2.3
+	scm.tensorsecurity.cn/tensorsecurity-rd/api v0.2.4-0.20230809062140-8296db0e9feb
 	scm.tensorsecurity.cn/tensorsecurity-rd/trivy-db v0.0.4
 )
 
@@ -358,7 +359,7 @@ require (
 	github.com/Masterminds/semver v1.5.0 // indirect
 	github.com/Masterminds/sprig v2.22.0+incompatible // indirect
 	github.com/Microsoft/go-winio v0.6.0 // indirect
-	github.com/Microsoft/hcsshim v0.10.0-rc.7 // indirect
+	github.com/Microsoft/hcsshim v0.10.0-rc.1 // indirect
 	github.com/NYTimes/gziphandler v1.1.1 // indirect
 	github.com/OneOfOne/xxhash v1.2.8 // indirect
 	github.com/ProtonMail/go-crypto v0.0.0-20230217124315-7d5c6f04bbb8 // indirect

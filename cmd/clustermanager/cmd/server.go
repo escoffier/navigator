@@ -30,6 +30,7 @@ import (
 	"gitlab.com/security-rd/go-pkg/logging"
 	"gitlab.com/security-rd/go-pkg/mq"
 	"gitlab.com/security-rd/go-pkg/redisearch"
+	"gitlab.com/security-rd/go-pkg/sdk/palace"
 	"k8s.io/client-go/informers"
 	"scm.tensorsecurity.cn/tensorsecurity-rd/api/pkg/generated/informers/externalversions"
 )
@@ -44,6 +45,7 @@ const (
 )
 
 type server struct {
+	Palace     palace.Palace
 	config     *conf.Config
 	agent      *clusterAgent.ClusterAgent
 	httpserver *clusterserver.ClusterServer
@@ -54,8 +56,15 @@ var microsegv2 = false
 var enableLeaderElection bool
 
 func NewServer() (*server, error) {
+	Palace, err := palace.Init()
+	if err != nil {
+		logging.Get().Error().Msgf("init palace failed, %+v.", err)
+		return nil, err
+	}
+
 	s := &server{
 		config: ServerConfig,
+		Palace: Palace,
 	}
 
 	s.loadConfig()
@@ -63,7 +72,7 @@ func NewServer() (*server, error) {
 	logging.Get().Info().Msgf("config: %+v", s.config)
 
 	agent := clusterAgent.NewClusterAgent(s.config)
-	err := agent.Init()
+	err = agent.Init()
 	if err != nil {
 		logging.Get().Err(err).Msg("failed to init cluster manager")
 		return nil, err
@@ -87,7 +96,7 @@ func NewServer() (*server, error) {
 
 	s.agent = agent
 
-	httpserver, err := clusterserver.NewHTTPServer(agent, s.config)
+	httpserver, err := clusterserver.NewHTTPServer(agent, s.config, &s.Palace)
 	if err != nil {
 		logging.Get().Err(err).Msg("cluster server err")
 		return nil, err

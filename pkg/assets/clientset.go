@@ -22,6 +22,5 @@ func NewForConfig(c *rest.Config) (*Clientset, error) {
 	if err != nil {
 		return nil, err
 	}
-
 	return &cs, nil
 }
