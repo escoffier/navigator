@@ -67,6 +67,7 @@ func SetupRoutes(
 			r.Route("/export", api.export())
 			r.Route("/assets", api.assets())
 			r.Route("/drift", api.drift())
+			r.Route("/waf", api.waf())
 			r.Post("/hunter-report/{uuid}", api.reportKubeHunterResult())
 		})
 	})
@@ -121,5 +122,7 @@ func SetupRoutes(
 		r.Handle("/webhook/*", api.webhook())
 		r.Route("/scap", api.scapInternal())
 		r.Route("/defense", api.defense())
+		r.Route("/platform/waf", api.waf())
+		r.Route("/waf", api.waf())
 	})
 }

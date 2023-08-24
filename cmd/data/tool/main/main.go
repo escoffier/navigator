@@ -17,6 +17,7 @@ func main() {
 			DumpHotLogicStorageCmd,
 			ClearHotOfflineStorageCmd,
 			ClearColdStorageCmd,
+			ClearWafCountCmd,
 		},
 		Version: "0.0.1",
 	}

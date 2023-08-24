@@ -17,6 +17,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 	"gitlab.com/security-rd/go-pkg/httputil"
+	pkgModel "gitlab.com/security-rd/go-pkg/model"
 	"gitlab.com/security-rd/go-pkg/pb"
 )
 
@@ -36,6 +37,10 @@ func (c *SherlockClient) getURL(path string, a ...interface{}) string {
 		return c.SherlockHost + "/api/v1/palace/rules/templates/delete"
 	case "GetRuleTemplatesRules":
 		return c.SherlockHost + "/api/v1/palace/rules/templates/rules"
+	case "FindWafDetections":
+		return fmt.Sprintf(c.SherlockHost + "/api/v1/palace/wafDetections")
+	case "GetWafDetectionDetail":
+		return fmt.Sprintf(c.SherlockHost+"/api/v1/palace/wafDetections/detail?id=%s", a...)
 	}
 
 	return c.SherlockHost
@@ -423,4 +428,137 @@ func (c *SherlockClient) GetRuleTemplatesRules(ctx context.Context, version1, id
 	}
 
 	return result.Data.Items, nil
+}
+
+func (c *SherlockClient) FindWafDetections(ctx context.Context, serviceID *int64, clusterKey, attackedURL, attackIP, attackedApp *string, attackTypes, actions *[]string, startTime, endTime *int64, offset, limit int, token string) ([]*pkgModel.WafDetection, string, error) {
+	wafDetections := make([]*pkgModel.WafDetection, 0)
+
+	type listPagination struct {
+		Token  string `json:"token"`
+		Offset int    `json:"offset"`
+		Limit  int    `json:"limit"`
+	}
+	type Request struct {
+		ServiceID   *int64         `json:"service_id"`
+		ClusterKey  *string        `json:"cluster_key"`
+		AttackedURL *string        `json:"attacked_url"`
+		AttackIP    *string        `json:"attack_ip"`
+		AttackedApp *string        `json:"attacked_app"`
+		AttackTypes *[]string      `json:"attack_types"`
+		Actions     *[]string      `json:"actions"`
+		StartTime   *int64         `json:"start_time"`
+		EndTime     *int64         `json:"end_time"`
+		Page        listPagination `json:"page"`
+	}
+
+	jsonBytes, err := json.Marshal(Request{
+		ServiceID:   serviceID,
+		ClusterKey:  clusterKey,
+		AttackedURL: attackedURL,
+		AttackIP:    attackIP,
+		AttackedApp: attackedApp,
+		AttackTypes: attackTypes,
+		Actions:     actions,
+		StartTime:   startTime,
+		EndTime:     endTime,
+		Page: listPagination{
+			Offset: offset,
+			Limit:  limit,
+			Token:  token,
+		},
+	})
+	if err != nil {
+		return wafDetections, "", err
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.getURL("FindWafDetections"), bytes.NewBuffer(jsonBytes))
+	if err != nil {
+		return wafDetections, "", err
+	}
+
+	rsp, err := httputil.DefaultClient.Do(req)
+	if err != nil {
+		return nil, "", err
+	}
+	defer util.CloseBodyWithLog(rsp.Body)
+
+	body, err := io.ReadAll(rsp.Body)
+	if err != nil {
+		return nil, "", err
+	}
+
+	type Response struct {
+		Data struct {
+			Status    int                      `json:"status"`
+			Items     []*pkgModel.WafDetection `json:"items"`
+			PageToken string                   `json:"pageToken,omitempty"`
+		}
+		Error struct {
+			Code    int    `json:"code"`
+			Message string `json:"message"`
+			Data    string `json:"data"`
+		}
+	}
+
+	result := Response{}
+	if err = json.Unmarshal(body, &result); err != nil {
+		return nil, "", err
+	}
+
+	if result.Data.Status != 0 || result.Error.Message != "" {
+		err := errors.New("request sherlock FindWafDetections fails")
+		if result.Error.Message != "" {
+			err = errors.New(result.Error.Message)
+		}
+		return nil, "", err
+	}
+
+	return result.Data.Items, result.Data.PageToken, nil
+}
+
+func (c *SherlockClient) GetWafDetectionDetail(ctx context.Context, id string) (*pkgModel.WafDetection, error) {
+
+	url := c.getURL("GetWafDetectionDetail", id)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	rsp, err := httputil.DefaultClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer util.CloseBodyWithLog(rsp.Body)
+
+	body, err := io.ReadAll(rsp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	type Response struct {
+		Data struct {
+			Status int                    `json:"status"`
+			Item   *pkgModel.WafDetection `json:"item"`
+		}
+		Error struct {
+			Code    int    `json:"code"`
+			Message string `json:"message"`
+			Data    string `json:"data"`
+		}
+	}
+
+	result := Response{}
+	if err = json.Unmarshal(body, &result); err != nil {
+		return nil, err
+	}
+
+	if result.Data.Status != 0 || result.Error.Message != "" {
+		err := errors.New("request sherlock GetWafDetectionDetail fails")
+		if result.Error.Message != "" {
+			err = errors.New(result.Error.Message)
+		}
+		return nil, err
+	}
+
+	return result.Data.Item, nil
 }

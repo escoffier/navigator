@@ -13,6 +13,8 @@ import (
 	"time"
 
 	"github.com/apache/pulsar-client-go/pulsar"
+	"gitlab.com/security-rd/go-pkg/mq"
+
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/pkg/errors"
 	"github.com/spf13/cast"
@@ -22,7 +24,6 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 	"gitlab.com/security-rd/go-pkg/databases"
 	"gitlab.com/security-rd/go-pkg/logging"
-	"gitlab.com/security-rd/go-pkg/mq"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 	"moul.io/http2curl"

@@ -1521,12 +1521,60 @@ func NewSSONotEnabledError(httpCode int, err error, suberrors ...Suberror) error
 	}
 }
 
+func NewWafNameDuplicateError(httpCode int, err error, suberrors ...Suberror) error {
+	return BaitNameDuplicateError{
+		detailedError{
+			err:       err,
+			English:   "duplicate app name",
+			Chinese:   "应用名称重复",
+			HTTPCode:  httpCode,
+			Suberrors: suberrors,
+		},
+	}
+}
+
+func NewWafWorkloadDuplicateError(httpCode int, err error, suberrors ...Suberror) error {
+	return BaitNameDuplicateError{
+		detailedError{
+			err:       err,
+			English:   "this resource has created an application",
+			Chinese:   "该资源已创建应用",
+			HTTPCode:  httpCode,
+			Suberrors: suberrors,
+		},
+	}
+}
+
+func NewAddWafServiceError(httpCode int, err error, suberrors ...Suberror) error {
+	return AddBaitServiceError{
+		detailedError{
+			err:       err,
+			English:   "failed to add, please try again",
+			Chinese:   "新增失败，请重试",
+			HTTPCode:  httpCode,
+			Suberrors: suberrors,
+		},
+	}
+}
+
 func NewTwoFactorVerifyError(httpCode int, err error, suberrors ...Suberror) error {
 	return AddBaitServiceError{
 		detailedError{
 			err:       err,
 			English:   "Two-Factor Login Verify failed",
 			Chinese:   "多因素登录参数验证失败",
+			HTTPCode:  httpCode,
+			Suberrors: suberrors,
+		},
+	}
+}
+
+func NewExprNameDuplicateError(httpCode int, err error, suberrors ...Suberror) error {
+	return BaitNameDuplicateError{
+		detailedError{
+			err:       err,
+			English:   "duplicate black/white list name",
+			Chinese:   "黑白名单名称重复",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
 		},
