@@ -20,6 +20,8 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 
 	"gitlab.com/piccolo_su/vegeta/pkg/streaming/pb"
+	"google.golang.org/grpc/health"
+	healthpb "google.golang.org/grpc/health/grpc_health_v1"
 )
 
 type StreamFactoryOption func(*streamFactory) *streamFactory
@@ -309,7 +311,10 @@ func (s *messageStreamServer) Start() error {
 	}
 	srv := grpc.NewServer(options...)
 	pb.RegisterClusterServiceServer(srv, s)
+	healthCheck := health.NewServer()
+	healthpb.RegisterHealthServer(srv, healthCheck)
 	go srv.Serve(lis)
+	healthCheck.SetServingStatus("cluster", healthpb.HealthCheckResponse_SERVING)
 	return nil
 }
 
@@ -329,10 +334,19 @@ func (f *streamFactory) Client(remoteAddress string) MessageStream {
 	}
 }
 
+var serviceConfig = `{
+	"healthCheckConfig": {
+		"serviceName": "cluster"
+	}
+}`
+
 func (c *messageStreamClient) Start() error {
 	maxSize := 1024 * 1024 * 1024
-	opts := []grpc.DialOption{grpc.WithTransportCredentials(insecure.NewCredentials()),
-		grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(maxSize), grpc.MaxCallSendMsgSize(maxSize))}
+	opts := []grpc.DialOption{
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(maxSize), grpc.MaxCallSendMsgSize(maxSize)),
+		grpc.WithDefaultServiceConfig(serviceConfig),
+	}
 
 	stopChan := make(chan struct{})
 	go func() {
