@@ -12,6 +12,7 @@ func (api *api) containerSec() func(chi.Router) {
 		r.Route("/export", api.export())
 		r.Route("/immune", api.immune())
 		r.Route("/watson", api.defense())
+		r.Route("/waf", api.waf())
 	}
 }
 
