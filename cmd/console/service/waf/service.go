@@ -550,7 +550,7 @@ func (s *WafService) attachGlobalMatchExpression(ctx context.Context, request *M
 			found := false
 			//replace existed expression
 			for i, expr := range bwList {
-				if expr.Name == request.Name {
+				if expr.ID == request.ID {
 					bwList[i] = v1alpha1.MatchExpression{
 						ID:     request.ID,
 						Name:   request.Name,
