@@ -284,11 +284,7 @@ func AddBlackWhiteList(ctx context.Context, rdb *gorm.DB, expr *model.MatcherExp
 	oneCtx, oneCancel := context.WithTimeout(ctx, 750*time.Millisecond)
 	defer oneCancel()
 
-	logging.GetLogger().Info().Msgf("upsert blackwhite list %+v", expr)
-	// err := rdb.WithContext(oneCtx).Model(&model.MatcherExpr{}).Clauses(clause.OnConflict{
-	// 	Columns:   []clause.Column{{Name: "id"}},
-	// 	DoUpdates: clause.AssignmentColumns(onDupUpdatedColsForWaf),
-	// }).Create(expr).Error
+	logging.GetLogger().Debug().Msgf("upsert blackwhite list %+v", expr)
 	err := rdb.WithContext(oneCtx).Model(&model.MatcherExpr{}).Create(expr).Error
 	if err != nil {
 		return 0, err
@@ -300,15 +296,9 @@ func UpdateBlackWhiteList(ctx context.Context, rdb *gorm.DB, expr *model.Matcher
 	oneCtx, oneCancel := context.WithTimeout(ctx, 750*time.Millisecond)
 	defer oneCancel()
 
-	logging.GetLogger().Info().Msgf("upsert blackwhite list %+v", expr)
-	// err := rdb.WithContext(oneCtx).Model(&model.MatcherExpr{}).Clauses(clause.OnConflict{
-	// 	Columns:   []clause.Column{{Name: "id"}},
-	// 	DoUpdates: clause.AssignmentColumns(onDupUpdatedColsForWaf),
-	// }).Create(expr).Error
-
+	logging.GetLogger().Debug().Msgf("upsert blackwhite list %+v", expr)
 	err := rdb.WithContext(oneCtx).Model(&model.MatcherExpr{}).Where("id = ?", expr.ID).
 		Updates(map[string]interface{}{"name": expr.Name, "scope": expr.Scope, "mode": expr.Mode, "expr": expr.Expr, "global": expr.Global, "status": expr.Status}).Error
-	// err := rdb.WithContext(oneCtx).Model(&model.MatcherExpr{}).Where("id = ?", expr.ID).Updates(expr).Error
 	if err != nil {
 		return err
 	}
@@ -330,11 +320,6 @@ func EnableBlackWhiteList(ctx context.Context, rdb *gorm.DB, id uint32, status i
 func DeleteBlackWhiteList(ctx context.Context, rdb *gorm.DB, id uint32) error {
 	oneCtx, oneCancel := context.WithTimeout(ctx, 750*time.Millisecond)
 	defer oneCancel()
-
-	// err := rdb.WithContext(oneCtx).Model(&model.MatcherExpr{}).Clauses(clause.OnConflict{
-	// 	Columns:   []clause.Column{{Name: "id"}},
-	// 	DoUpdates: clause.AssignmentColumns(onDupUpdatedColsForWaf),
-	// }).Create(expr).Error
 	err := rdb.WithContext(oneCtx).Where("id = ?", id).Delete(&model.MatcherExpr{}).Error
 	if err != nil {
 		return err
@@ -360,7 +345,7 @@ func GetBlackWhiteLists(ctx context.Context, rdb *gorm.DB, queryOpt *MatchExprQu
 	if limit > 0 && offset >= 0 {
 		db = db.Offset(offset).Limit(limit)
 	}
-	err = db.Find(&exprs).Error
+	err = db.Order("updated_at DESC").Find(&exprs).Error
 	return
 }
 
