@@ -426,6 +426,7 @@ func (d *DockerInfoManager) containerFromRaw(containerJson *types.ContainerJSON)
 		NodeName:       d.hostName,
 		NodeIP:         d.hostIP,
 		ImageName:      imageName,
+		ImageUUID:      model.GetImageUUID(imageName, imageDigest),
 		ImageCreated:   imageCreated,
 		ImageSize:      imageSize,
 		ImageID:        containerJson.Image,
@@ -516,6 +517,7 @@ func (d *DockerInfoManager) updateContainerDetail(ctx context.Context, container
 	// container.ImageDigest = getImageDigest(containerJson.Config.Image)
 	// container.ImageName, container.ImageCreated, container.ImageSize = d.getImageInfo(container.ImageID)
 	container.ImageName, container.ImageDigest, container.ImageCreated, container.ImageSize = d.getImageInfoV2(containerJson.Config.Image, container.ImageID)
+	container.ImageUUID = model.GetImageUUID(container.ImageName, container.ImageDigest)
 	container.User = containerJson.Config.User
 	container.Ports = getContainerPorts(container.Pid)
 

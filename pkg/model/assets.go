@@ -3,6 +3,7 @@ package model
 import (
 	"database/sql/driver"
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 
@@ -664,6 +665,7 @@ type TensorRawContainer struct {
 	Processes      ProcessSlice     `json:"processes" gorm:"column:processes"`
 	Ports          PortSlice        `json:"ports" gorm:"column:ports"`
 	User           string           `json:"user" gorm:"column:user"`
+	ImageUUID      uint32           `json:"imageUUID" gorm:"column:image_uuid"`
 }
 
 func (rc TensorRawContainer) TableName() string {
@@ -682,4 +684,10 @@ type ResourceApp struct {
 
 func (rc ResourceApp) TableName() string {
 	return "ivan_assets_containers"
+}
+
+// imageuuid 计算方式：(imageName@imageDigest)
+func GetImageUUID(imageName string, imageDigest string) uint32 {
+	key := fmt.Sprintf("%s@%s", imageName, imageDigest)
+	return util.GenerateUUID(key)
 }
