@@ -1115,13 +1115,15 @@ func (s *WafService) GetAttackLogsList(ctx context.Context, filter *AttackLogFil
 	if len(filter.AttackType) == 0 {
 		attackTypes = nil
 	} else {
-		attackTypes = &[]string{filter.AttackType}
+		at := strings.Split(filter.AttackType, ",")
+		attackTypes = &at
 	}
 
 	if len(filter.Action) == 0 {
 		actions = nil
 	} else {
-		actions = &[]string{filter.Action}
+		act := strings.Split(filter.Action, ",")
+		actions = &act
 	}
 
 	if filter.StartTime == 0 {
@@ -1138,11 +1140,6 @@ func (s *WafService) GetAttackLogsList(ctx context.Context, filter *AttackLogFil
 			return nil, "", fmt.Errorf("get waf attack log list failed, error : %+v", err)
 		}
 		for i := 0; i < len(ret); i++ {
-			//filter pass action
-			if ret[i].Action == "pass" {
-				continue
-			}
-
 			log := AttackLog{
 				Uuid:         ret[i].ID,
 				AttackIp:     ret[i].AttackIP,
