@@ -369,6 +369,7 @@ func (c *CRIOInfoManager) buildContainerDetail(container *runtimeapi.Container) 
 		NodeIP:         c.hostIP,
 		ImageName:      containerStatus.Image.Image,
 		ImageID:        containerStatus.ImageRef,
+		ImageUUID:      model.GetImageUUID(containerStatus.Image.Image, digest),
 		ImageDigest:    digest,
 		ImageSize:      int64(imageStatus.Size()),
 		ImageCreated:   imageInfo.ImageSpec.Created.Format(time.RFC3339Nano),

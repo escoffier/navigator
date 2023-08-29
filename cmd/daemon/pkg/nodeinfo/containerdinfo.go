@@ -475,6 +475,7 @@ func (d *ContainerdInfoManager) containerFromRaw(ctx context.Context, container 
 		NodeName:       d.hostName,
 		NodeIP:         d.hostIP,
 		ImageName:      imageName,
+		ImageUUID:      model.GetImageUUID(imageName, imageDigest),
 		ImageCreated:   imageCreated,
 		ImageSize:      imageSize,
 		ImageID:        imageId, // docker.io/library/nginx:latest

@@ -105,6 +105,7 @@ var (
 		"node_name",
 		"cmd",
 		"image_digest",
+		"image_uuid",
 		"process_number",
 		"processes",
 		"ports",
@@ -3226,7 +3227,6 @@ func UpsertRawContainerWithRedis(ctx context.Context, rdb *gorm.DB, redisClient 
 		Set("updated_at", container.UpdatedAt.UnixMilli())
 
 	containerUUId := util.GenerateUUID(container.ContainerID)
-	imageUUid := GetImageUUID(container.ImageName, container.ImageDigest)
 	return rdb.WithContext(rCtx).Transaction(func(tx *gorm.DB) error {
 		err := tx.Model(&model.TensorRawContainer{}).Clauses(clause.OnConflict{
 			Columns:   []clause.Column{{Name: "id"}},
@@ -3245,19 +3245,13 @@ func UpsertRawContainerWithRedis(ctx context.Context, rdb *gorm.DB, redisClient 
 			return redisClient.DeleteDoc(rCtx, doc.Id)
 		} else {
 			logging.GetLogger().Info().Msgf("upsert rawContainer: %s to redis", doc.Id)
-			err = addResourceImageByRawContainer(rCtx, redisClient, containerUUId, imageUUid)
+			err = addResourceImageByRawContainer(rCtx, redisClient, containerUUId, container.ImageUUID)
 			if err != nil {
 				return err
 			}
 			return redisClient.AddDoc(rCtx, doc)
 		}
 	})
-}
-
-// imageuuid 计算方式：(imageName@imageDigest)
-func GetImageUUID(imageName string, imageDigest string) uint32 {
-	key := fmt.Sprintf("%s@%s", imageName, imageDigest)
-	return util.GenerateUUID(key)
 }
 
 func UpsertRawContainers(ctx context.Context, rdb *gorm.DB, container *model.TensorRawContainer) error {
