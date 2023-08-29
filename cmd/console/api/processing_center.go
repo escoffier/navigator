@@ -8,6 +8,8 @@ import (
 	"net/http"
 	"time"
 
+	"gitlab.com/piccolo_su/vegeta/pkg/dal"
+
 	"github.com/go-chi/chi"
 	param "github.com/oceanicdev/chi-param"
 
@@ -134,6 +136,15 @@ func (api *api) getProcessingRecords() http.HandlerFunc {
 	}
 
 	convert := func(record *model.ProcessingRecord) *item {
+		if record.LastOpUser != "" {
+			u, err := dal.GetUserLiteWithCache(context.Background(), api.rdb.GetReadDB(), api.redisClient, record.LastOpUser)
+			if err != nil {
+				logging.GetLogger().Warn().Err(err).Msg("")
+			} else {
+				record.LastOpUser = u.Account
+			}
+		}
+
 		return &item{
 			ID:         record.ID,
 			EventID:    record.EventID,
@@ -395,6 +406,16 @@ func (api *api) getProcessingDetail() http.HandlerFunc {
 			apperror.RespAndLog(w, ctx, err)
 			return
 		}
+
+		if detail.LastOpUser == "" {
+			u, err := dal.GetUserLiteWithCache(context.Background(), api.rdb.GetReadDB(), api.redisClient, detail.LastOpUser)
+			if err != nil {
+				logging.GetLogger().Warn().Err(err).Msg("")
+			} else {
+				detail.LastOpUser = u.Account
+			}
+		}
+
 		response.Ok(w, response.WithApiVersion(processingCenterAPIVersion), response.WithItem(*detail))
 	}
 }
