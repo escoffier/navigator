@@ -74,6 +74,7 @@ var accessUrlMap = map[string][]string{
 		"/api/v2/platform/nodeImage/security/detect/policy/list",
 		"/api/v2/platform/nodeImage/scanTask/image/scan/task/list",
 		"/api/v2/containerSec/scanner/vulns/imageHistogram/",
+		"/api/v2/containerSec/scanner/images/detail/riskInfo",
 		"/api/v2/containerSec/scap/",
 	},
 	// 容器安全
@@ -172,11 +173,12 @@ func Access(db *databases.RDBInstance) func(http.Handler) http.Handler {
 				}
 			}
 
-			// debug log
-			logging.Get().Debug().Str("username", userSession.Username).Str("account", userSession.Account).
-				Msgf("权限：%v， 角色：%s，URL：%s", hasAccess, userSession.Role, r.URL.Path)
-
 			if !hasAccess {
+				logging.Get().Debug().Str("username", userSession.Username).
+					Str("account", userSession.Account).
+					Str("role", string(userSession.Role)).
+					Msgf("权限：%v， URL：%s", hasAccess, r.URL.Path)
+
 				apperror.RespAndLog(w, r.Context(),
 					apperror.NewNoAccess(http.StatusForbidden,
 						fmt.Errorf("access invalid")))

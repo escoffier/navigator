@@ -99,6 +99,15 @@ func (api *api) getATTCKVersionHistory() http.HandlerFunc {
 	convert := func(items []*model.ATTCKConfVersion) []*history {
 		result := make([]*history, len(items))
 		for i := range items {
+			if items[i].Username != "" {
+				u, err := dal.GetUserLiteWithCache(context.Background(), api.rdb.GetReadDB(), api.redisClient, items[i].Username)
+				if err != nil {
+					logging.GetLogger().Warn().Err(err).Msg("")
+				} else {
+					items[i].Username = u.Account
+				}
+			}
+
 			result[i] = &history{
 				Version:   items[i].VString(),
 				User:      items[i].Username,
