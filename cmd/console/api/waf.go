@@ -12,6 +12,9 @@ import (
 	"strings"
 	"time"
 
+	"crypto/x509"
+	"encoding/pem"
+
 	"github.com/go-chi/chi"
 	"github.com/go-sql-driver/mysql"
 	param "github.com/oceanicdev/chi-param"
@@ -193,6 +196,19 @@ func (api *api) uploadCertFiles() http.HandlerFunc {
 			apperror.RespAndLog(w, ctx, err)
 			return
 		}
+		block, _ := pem.Decode([]byte(data))
+		if block == nil {
+			apperror.RespAndLog(w, ctx, fmt.Errorf("not PEM data"))
+			return
+		}
+
+		if fileName == "tls-crt" {
+			_, err = x509.ParseCertificate(block.Bytes)
+			if err != nil {
+				apperror.RespAndLog(w, ctx, err)
+				return
+			}
+		}
 
 		h := md5.New()
 		h.Write(data)
@@ -200,9 +216,6 @@ func (api *api) uploadCertFiles() http.HandlerFunc {
 
 		logging.Get().Info().Msgf("filename:%s--hash: %s", header.Filename, key)
 		err = svc.AddCertFile(ctx, key, data)
-		// err = svc.CreateTLSSecret(ctx, &waf.SecretRequest{
-		// 	CertData: data,
-		// })
 		if err != nil {
 			apperror.RespAndLog(w, ctx, err)
 			return
