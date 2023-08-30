@@ -1996,7 +1996,7 @@ func init() {
 	})
 
 	// waf
-	routeAction.POST("/api/v2/platform/waf/service", func(p Params) map[string]map[string]interface{} {
+	routeAction.POST("/api/v2/containerSec/waf/service", func(p Params) map[string]map[string]interface{} {
 		return map[string]map[string]interface{}{
 			"zh": {
 				"verb":   createAction,
@@ -2008,7 +2008,7 @@ func init() {
 			},
 		}
 	})
-	routeAction.PUT("/api/v2/platform/waf/service", func(p Params) map[string]map[string]interface{} {
+	routeAction.PUT("/api/v2/containerSec/waf/service", func(p Params) map[string]map[string]interface{} {
 		return map[string]map[string]interface{}{
 			"zh": {
 				"verb":   editAction,
@@ -2020,7 +2020,7 @@ func init() {
 			},
 		}
 	})
-	routeAction.DELETE("/api/v2/platform/waf/service/:id", func(p Params) map[string]map[string]interface{} {
+	routeAction.DELETE("/api/v2/containerSec/waf/service/:id", func(p Params) map[string]map[string]interface{} {
 		return map[string]map[string]interface{}{
 			"zh": {
 				"verb":   deleteAction,
@@ -2032,7 +2032,7 @@ func init() {
 			},
 		}
 	})
-	routeAction.POST("/api/v2/platform/waf/certCrt", func(p Params) map[string]map[string]interface{} {
+	routeAction.POST("/api/v2/containerSec/waf/certCrt", func(p Params) map[string]map[string]interface{} {
 		return map[string]map[string]interface{}{
 			"zh": {
 				"verb":   createAction,
@@ -2044,7 +2044,7 @@ func init() {
 			},
 		}
 	})
-	routeAction.POST("/api/v2/platform/waf/certKey", func(p Params) map[string]map[string]interface{} {
+	routeAction.POST("/api/v2/containerSec/waf/certKey", func(p Params) map[string]map[string]interface{} {
 		return map[string]map[string]interface{}{
 			"zh": {
 				"verb":   createAction,
@@ -2056,7 +2056,7 @@ func init() {
 			},
 		}
 	})
-	routeAction.PUT("/api/v2/platform/waf/config", func(p Params) map[string]map[string]interface{} {
+	routeAction.PUT("/api/v2/containerSec/waf/config", func(p Params) map[string]map[string]interface{} {
 		return map[string]map[string]interface{}{
 			"zh": {
 				"verb":   createAction,
@@ -2068,7 +2068,7 @@ func init() {
 			},
 		}
 	})
-	routeAction.POST("/api/v2/platform/waf/blackwhitelist", func(p Params) map[string]map[string]interface{} {
+	routeAction.POST("/api/v2/containerSec/waf/blackwhitelist", func(p Params) map[string]map[string]interface{} {
 		return map[string]map[string]interface{}{
 			"zh": {
 				"verb":   createAction,
@@ -2080,7 +2080,7 @@ func init() {
 			},
 		}
 	})
-	routeAction.PUT("/api/v2/platform/waf/blackwhitelist", func(p Params) map[string]map[string]interface{} {
+	routeAction.PUT("/api/v2/containerSec/waf/blackwhitelist", func(p Params) map[string]map[string]interface{} {
 		return map[string]map[string]interface{}{
 			"zh": {
 				"verb":   editAction,
@@ -2092,7 +2092,7 @@ func init() {
 			},
 		}
 	})
-	routeAction.DELETE("/api/v2/platform/waf/blackwhitelist/:id", func(p Params) map[string]map[string]interface{} {
+	routeAction.DELETE("/api/v2/containerSec/waf/blackwhitelist/:id", func(p Params) map[string]map[string]interface{} {
 		return map[string]map[string]interface{}{
 			"zh": {
 				"verb":   editAction,
@@ -2104,7 +2104,7 @@ func init() {
 			},
 		}
 	})
-	routeAction.PUT("/api/v2/platform/waf/rules", func(p Params) map[string]map[string]interface{} {
+	routeAction.PUT("/api/v2/containerSec/waf/rules", func(p Params) map[string]map[string]interface{} {
 		return map[string]map[string]interface{}{
 			"zh": {
 				"verb":   editAction,
