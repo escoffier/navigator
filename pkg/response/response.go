@@ -137,6 +137,12 @@ func WithTarget(ref *TargetRef) ResponseDataOptionFunc {
 	}
 }
 
+func WithTargetErr(ref *TargetRef) ResponseErrorOptionFunc {
+	return func(ev *HTTPEnvelope) {
+		ev.Target = ref
+	}
+}
+
 func Ok(w http.ResponseWriter, opts ...ResponseDataOptionFunc) {
 	RespData(w, http.StatusOK, opts...)
 }

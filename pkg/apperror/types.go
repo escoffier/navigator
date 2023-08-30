@@ -1652,3 +1652,15 @@ func NewIPListBlackError(httpCode int, err error, suberrors ...Suberror) error {
 		},
 	}
 }
+
+func NewSyslogInvalidArgError(httpCode int, err error, suberrors ...Suberror) error {
+	return ArgError{
+		detailedError{
+			err:       err,
+			English:   "Syslog config invalid args",
+			Chinese:   "Syslog导出配置参数有误，请重新配置",
+			HTTPCode:  httpCode,
+			Suberrors: suberrors,
+		},
+	}
+}

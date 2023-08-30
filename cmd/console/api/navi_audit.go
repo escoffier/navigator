@@ -204,7 +204,7 @@ func (api *api) updateNaviAuditSyslogSettings() http.HandlerFunc {
 		err = service.UpdateSyslogSettings(ctx, convertSyslogSettingToPb(&setting))
 		if err != nil {
 			if err == naviaudit.ErrInvalidSyslogSetting {
-				apperror.RespAndLog(w, ctx, apperror.NewInvalidArgError(http.StatusBadRequest, err))
+				apperror.RespAndLog(w, ctx, apperror.NewSyslogInvalidArgError(http.StatusBadRequest, err))
 				return
 			}
 
