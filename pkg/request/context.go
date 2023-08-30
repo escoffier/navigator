@@ -42,5 +42,6 @@ func GetAccountFromContext(ctx context.Context) string {
 	if ok {
 		return userSession.Account
 	}
+
 	return ""
 }

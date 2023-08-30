@@ -172,9 +172,9 @@ func (api *api) login() http.HandlerFunc {
 
 		loginConf, err := getLoginConf(ctx, api.rdb)
 		if err != nil {
-			RespAndLog(w, r.Context(),
+			LoginRespAndLog(w, r.Context(),
 				LoginError(http.StatusInternalServerError,
-					fmt.Errorf("query login conf fails")))
+					fmt.Errorf("query login conf fails")), "")
 			return
 		}
 
@@ -183,7 +183,7 @@ func (api *api) login() http.HandlerFunc {
 		if err != nil {
 			RespAndLog(w, ctx,
 				LoginError(http.StatusInternalServerError,
-					err))
+					fmt.Errorf("query login conf fails")))
 			return
 		}
 		if flag {
@@ -212,32 +212,32 @@ func (api *api) login() http.HandlerFunc {
 			// Handle case where  username or password are missing
 			// We probably should have some validation helper instead of nested
 			// ifs like this.
-			RespAndLog(w, ctx,
+			LoginRespAndLog(w, ctx,
 				NewMalformedRequestError(http.StatusBadRequest,
 					fmt.Errorf("missing field 'password' or 'account': %s", decrypted),
-					Suberror{Location: "account", Message: ""}, Suberror{Location: "password", Message: ""}))
+					Suberror{Location: "account", Message: ""}, Suberror{Location: "password", Message: ""}), creds.Account)
 			return
 		}
 
 		captchaService, ok := captcha.GetService()
 		if !ok {
-			RespAndLog(w, ctx, ErrServiceNotReady)
+			LoginRespAndLog(w, ctx, ErrServiceNotReady, creds.Account)
 			return
 		}
 
 		if captchaService.IsBreakerClosed() &&
 			!captchaService.Verify(creds.CaptchaID, creds.CaptchaValue) {
-			RespAndLog(w, ctx,
+			LoginRespAndLog(w, ctx,
 				NewCaptchaError(http.StatusBadRequest,
-					fmt.Errorf("captcha value error")))
+					fmt.Errorf("captcha value error")), creds.Account)
 			return
 		}
 
 		passwordOk, findUser, err := dal.GetUserByAccountPwd(ctx, api.rdb.GetReadDB(), creds.Account, creds.Password)
 		if err != nil || findUser == nil {
-			RespAndLog(w, r.Context(),
+			LoginRespAndLog(w, r.Context(),
 				LoginError(http.StatusInternalServerError,
-					fmt.Errorf("error when checking login credentials in database: %w", err)))
+					fmt.Errorf("error when checking login credentials in database: %w", err)), creds.Account)
 			return
 		}
 
@@ -247,15 +247,15 @@ func (api *api) login() http.HandlerFunc {
 			if loginConf.RateLimitEnable && findUser.Role != model.RoleTypeSuperAdmin {
 				locking := limiter.LoginFailToReachLimit(ctx, creds.Account)
 				if locking {
-					RespAndLog(w, r.Context(),
+					LoginRespAndLog(w, r.Context(),
 						NewAccountLockError(http.StatusPreconditionFailed,
-							fmt.Errorf("the account %s is banned", creds.Account)))
+							fmt.Errorf("the account %s is banned", creds.Account)), creds.Account)
 					return
 				}
 			}
-			RespAndLog(w, r.Context(),
+			LoginRespAndLog(w, r.Context(),
 				LoginError(http.StatusPreconditionFailed,
-					fmt.Errorf("user and password not match")))
+					fmt.Errorf("user and password not match")), creds.Account)
 			return
 		}
 		limiter.LoginSuccessClean(findUser.UserName)
@@ -266,14 +266,14 @@ func (api *api) login() http.HandlerFunc {
 		if loginConf.CycleChangePwd && findUser.Role != model.RoleTypeSuperAdmin {
 			cycleChangePwdDay, err = getCycleChangePwdDay(ctx, api.rdb, loginConf, findUser)
 			if err != nil {
-				RespAndLog(w, ctx, err)
+				LoginRespAndLog(w, ctx, err, creds.Account)
 				return
 			}
 		}
 
 		// 账户状态检查
 		if err = checkUserStatus(findUser.UserName, findUser.Status); err != nil {
-			RespAndLog(w, ctx, err)
+			LoginRespAndLog(w, ctx, err, creds.Account)
 			return
 		}
 
@@ -282,7 +282,7 @@ func (api *api) login() http.HandlerFunc {
 			emailHashCode := dal.RandStringBytesMaskImprSrcUnsafe(64)
 			innerErr := dal.InsertEmail(ctx, api.rdb.Get(), findUser.UserName, emailHashCode)
 			if innerErr != nil {
-				RespAndLog(w, ctx, innerErr)
+				LoginRespAndLog(w, ctx, innerErr, creds.Account)
 				return
 			}
 			response.Ok(w, response.WithItem(LoginResponse{
@@ -300,8 +300,8 @@ func (api *api) login() http.HandlerFunc {
 		if loginConf.MfaVerityLogin {
 			twoFactorSecret, err := loginTwoFactorEncrypt(ctx, api.rdb.Get(), findUser.Account)
 			if err != nil {
-				RespAndLog(w, ctx,
-					NewTwoFactorSecretError(http.StatusInternalServerError, err))
+				LoginRespAndLog(w, ctx,
+					NewTwoFactorSecretError(http.StatusInternalServerError, err), creds.Account)
 				return
 			}
 			var NextStep string
@@ -331,9 +331,9 @@ func (api *api) login() http.HandlerFunc {
 		// issue JWT Token
 		tokenString, err := api.issueJWTToken(ctx, findUser, r.UserAgent(), false)
 		if err != nil {
-			RespAndLog(w, r.Context(),
+			LoginRespAndLog(w, r.Context(),
 				LoginError(http.StatusInternalServerError,
-					fmt.Errorf("issue jwt token failed %w", err)))
+					fmt.Errorf("issue jwt token failed %w", err)), creds.Account)
 			return
 		}
 
