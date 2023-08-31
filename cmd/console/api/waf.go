@@ -122,7 +122,10 @@ func (api *api) createService() http.HandlerFunc {
 			apperror.RespAndLog(w, ctx, err)
 			return
 		}
-		response.Ok(w, response.WithCustomField("id", id))
+		response.Ok(w, response.WithCustomField("id", id), response.WithTarget(&response.TargetRef{
+			Name: req.Name,
+			ID:   strconv.Itoa(int(req.ID)),
+		}))
 	}
 }
 
@@ -154,7 +157,10 @@ func (api *api) updateService() http.HandlerFunc {
 					fmt.Errorf("failed to update waf service: %w", err)))
 			return
 		}
-		response.Ok(w)
+		response.Ok(w, response.WithTarget(&response.TargetRef{
+			Name: req.Name,
+			ID:   strconv.Itoa(int(req.ID)),
+		}))
 	}
 }
 
@@ -353,12 +359,20 @@ func (api *api) deleteService() http.HandlerFunc {
 			apperror.RespAndLog(w, ctx, apperror.NewAnError(http.StatusInternalServerError, errors.New("service waf instance get error")))
 			return
 		}
+		var name string
+		wafSvc, err := svc.GetWafService(ctx, uint32(intId))
+		if err == nil {
+			name = wafSvc.Name
+		}
 		err = svc.DeleteSerivce(ctx, uint32(intId))
 		if err != nil {
 			apperror.RespAndLog(w, ctx, apperror.NewAnError(http.StatusInternalServerError, fmt.Errorf("delete waf services error %w", err)))
 			return
 		}
-		response.Ok(w)
+		response.Ok(w, response.WithTarget(&response.TargetRef{
+			Name: name,
+			ID:   strconv.Itoa(intId),
+		}))
 	}
 }
 
@@ -438,7 +452,10 @@ func (api *api) createBlackWhiteList() http.HandlerFunc {
 			apperror.RespAndLog(w, ctx, err)
 			return
 		}
-		response.Ok(w, response.WithCustomField("id", id))
+		response.Ok(w, response.WithCustomField("id", id), response.WithTarget(&response.TargetRef{
+			Name: req.Name,
+			ID:   strconv.Itoa(int(req.ID)),
+		}))
 	}
 }
 
@@ -468,7 +485,10 @@ func (api *api) updateBlackWhiteList() http.HandlerFunc {
 					fmt.Errorf("failed to update blackwhite list: %w", err)))
 			return
 		}
-		response.Ok(w)
+		response.Ok(w, response.WithTarget(&response.TargetRef{
+			Name: req.Name,
+			ID:   strconv.Itoa(int(req.ID)),
+		}))
 	}
 }
 
@@ -498,7 +518,10 @@ func (api *api) enableBlackWhiteList() http.HandlerFunc {
 					fmt.Errorf("failed to update blackwhite list: %w", err)))
 			return
 		}
-		response.Ok(w)
+		response.Ok(w, response.WithTarget(&response.TargetRef{
+			Name: req.Name,
+			ID:   strconv.Itoa(int(req.ID)),
+		}))
 	}
 }
 
@@ -576,12 +599,20 @@ func (api *api) deleteBlackWhiteList() http.HandlerFunc {
 				apperror.NewAnError(http.StatusInternalServerError,
 					fmt.Errorf("failed to parse id: %w", err)))
 		}
+		var name string
+		wafSvc, err := svc.GetMatchExpression(ctx, uint32(intID))
+		if err == nil {
+			name = wafSvc.Name
+		}
 		err = svc.DeleteMatchExpression(ctx, uint32(intID))
 		if err != nil {
 			apperror.RespAndLog(w, ctx, apperror.NewAnError(http.StatusInternalServerError, fmt.Errorf("delete black/white list err %w", err)))
 			return
 		}
-		response.Ok(w)
+		response.Ok(w, response.WithTarget(&response.TargetRef{
+			Name: name,
+			ID:   strconv.Itoa(int(intID)),
+		}))
 	}
 }
 

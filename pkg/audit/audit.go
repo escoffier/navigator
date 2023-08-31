@@ -2000,11 +2000,11 @@ func init() {
 		return map[string]map[string]interface{}{
 			"zh": {
 				"verb":   createAction,
-				"detail": "新增waf应用",
+				"detail": "新增waf应用{{.}}",
 			},
 			"en": {
 				"verb":   createActionEN,
-				"detail": "Create waf application",
+				"detail": "Create waf application {{.}}",
 			},
 		}
 	})
@@ -2012,11 +2012,11 @@ func init() {
 		return map[string]map[string]interface{}{
 			"zh": {
 				"verb":   editAction,
-				"detail": "修改waf应用",
+				"detail": "修改waf应用{{.}}",
 			},
 			"en": {
 				"verb":   editActionEN,
-				"detail": "Edit waf application",
+				"detail": "Edit waf application {{.}}",
 			},
 		}
 	})
@@ -2024,11 +2024,11 @@ func init() {
 		return map[string]map[string]interface{}{
 			"zh": {
 				"verb":   deleteAction,
-				"detail": "删除waf应用",
+				"detail": "删除waf应用{{.}}",
 			},
 			"en": {
 				"verb":   deleteActionEN,
-				"detail": "Delete waf application",
+				"detail": "Delete waf application {{.}}",
 			},
 		}
 	})
@@ -2059,12 +2059,12 @@ func init() {
 	routeAction.PUT("/api/v2/containerSec/waf/config", func(p Params) map[string]map[string]interface{} {
 		return map[string]map[string]interface{}{
 			"zh": {
-				"verb":   createAction,
-				"detail": "新增私钥",
+				"verb":   editAction,
+				"detail": "修改waf配置",
 			},
 			"en": {
-				"verb":   createActionEN,
-				"detail": "Create private key",
+				"verb":   editActionEN,
+				"detail": "Edit waf configuration",
 			},
 		}
 	})
@@ -2072,11 +2072,11 @@ func init() {
 		return map[string]map[string]interface{}{
 			"zh": {
 				"verb":   createAction,
-				"detail": "新增黑白名单",
+				"detail": "新增黑白名单{{.}}",
 			},
 			"en": {
 				"verb":   createActionEN,
-				"detail": "Create black/white list",
+				"detail": "Create black/white list {{.}}",
 			},
 		}
 	})
@@ -2084,11 +2084,11 @@ func init() {
 		return map[string]map[string]interface{}{
 			"zh": {
 				"verb":   editAction,
-				"detail": "修改黑白名单",
+				"detail": "修改黑白名单{{.}}",
 			},
 			"en": {
 				"verb":   editActionEN,
-				"detail": "Edit black/white list",
+				"detail": "Edit black/white list {{.}}",
 			},
 		}
 	})
@@ -2096,11 +2096,23 @@ func init() {
 		return map[string]map[string]interface{}{
 			"zh": {
 				"verb":   editAction,
-				"detail": "删除黑白名单",
+				"detail": "删除黑白名单{{.}}",
 			},
 			"en": {
 				"verb":   editActionEN,
-				"detail": "Delete black/white list",
+				"detail": "Delete black/white list {{.}}",
+			},
+		}
+	})
+	routeAction.PUT("/api/v2/containerSec/waf/blackwhitelist/enabling", func(p Params) map[string]map[string]interface{} {
+		return map[string]map[string]interface{}{
+			"zh": {
+				"verb":   eAnddAction,
+				"detail": "启/禁用黑白名单{{.}}",
+			},
+			"en": {
+				"verb":   eAnddActionEN,
+				"detail": "Enable/Disable black/white list {{.}}",
 			},
 		}
 	})
@@ -2108,11 +2120,11 @@ func init() {
 		return map[string]map[string]interface{}{
 			"zh": {
 				"verb":   editAction,
-				"detail": "修改规则",
+				"detail": "修改waf规则",
 			},
 			"en": {
 				"verb":   editActionEN,
-				"detail": "Edit rules",
+				"detail": "Edit waf rules",
 			},
 		}
 	})
