@@ -210,8 +210,8 @@ func GetUserLiteWithCache(ctx context.Context, rdb *gorm.DB, redisClient *redis.
 		logging.Get().Warn().Err(err).Msg("")
 
 		u := model.User{}
-		err = rdb.WithContext(ctx).Model(&u).
-			Where("username = ?", username).First(&queryUser).Error
+		err = rdb.WithContext(ctx).Select("username", "account").
+			Where("username = ?", username).First(&u).Error
 		if err != nil {
 			logging.Get().Error().Err(err).Msg("")
 			return nil, err

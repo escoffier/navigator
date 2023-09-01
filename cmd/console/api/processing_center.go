@@ -416,6 +416,17 @@ func (api *api) getProcessingDetail() http.HandlerFunc {
 			}
 		}
 
+		for i := range detail.Actions {
+			if detail.Actions[i].User != "" {
+				u, err := dal.GetUserLiteWithCache(context.Background(), api.rdb.GetReadDB(), api.redisClient, detail.Actions[i].User)
+				if err != nil {
+					logging.GetLogger().Warn().Err(err).Msg("")
+				} else {
+					detail.Actions[i].User = u.Account
+				}
+			}
+		}
+
 		response.Ok(w, response.WithApiVersion(processingCenterAPIVersion), response.WithItem(*detail))
 	}
 }
