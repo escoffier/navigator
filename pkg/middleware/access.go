@@ -111,7 +111,10 @@ var accessUrlMap = map[string][]string{
 		"/api/v2/platform/naviAudit",
 		"/api/v2/platform/audit/config/syslog",
 		"/api/v2/platform/version",
+		"/api/v2/containerSec/ATTCK/conf",
 		"/api/v2/containerSec/scanner/db/version",
+		"/api/v2/containerSec/scanner/db/history",
+		"/api/v2/containerSec/scanner/db/update",
 		"/api/v2/containerSec/scanner/managementCenter/docs",
 	},
 }
