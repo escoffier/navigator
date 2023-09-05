@@ -359,8 +359,8 @@ func (s *WafService) Config(ctx context.Context, config *WafConfig) error {
 						Namespace: s.rootNamespace,
 						Name:      wafConfig,
 					},
-					BinaryData: map[string][]byte{
-						"config": data,
+					Data: map[string]string{
+						"config": string(data),
 					},
 				}, v1.CreateOptions{})
 
@@ -369,33 +369,10 @@ func (s *WafService) Config(ctx context.Context, config *WafConfig) error {
 			return false
 		}
 
-		cm.BinaryData = map[string][]byte{
-			"config": data,
-		}
+		cm.Data["config"] = string(data)
 		_, err = client.CoreV1().ConfigMaps(s.rootNamespace).Update(ctx, cm, v1.UpdateOptions{})
 		return err == nil
 	})
-	// cm, err := clusterManager.GetHostClient().Clientset.CoreV1().ConfigMaps("tensorsec").Get(ctx, wafConfig, v1.GetOptions{})
-	// if err != nil {
-	// 	if errors.IsNotFound(err) {
-	// 		_, err = clusterManager.GetHostClient().Clientset.CoreV1().ConfigMaps("tensorsec").Create(ctx, &corev1.ConfigMap{
-	// 			ObjectMeta: v1.ObjectMeta{
-	// 				Namespace: "tensorsec",
-	// 				Name:      wafConfig,
-	// 			},
-	// 			BinaryData: map[string][]byte{
-	// 				"config": data,
-	// 			},
-	// 		}, v1.CreateOptions{})
-	// 		return err
-	// 	}
-	// 	return err
-	// }
-
-	// cm.BinaryData = map[string][]byte{
-	// 	"config": data,
-	// }
-	// _, err = clusterManager.GetHostClient().Clientset.CoreV1().ConfigMaps("tensorsec").Update(ctx, cm, v1.UpdateOptions{})
 	return err
 }
 
@@ -413,9 +390,9 @@ func (s *WafService) GetConfig(ctx context.Context) (*WafConfig, error) {
 		}
 		return nil, err
 	}
-	if data, ok := cm.BinaryData["config"]; ok {
+	if data, ok := cm.Data["config"]; ok {
 		config := &WafConfig{}
-		err = json.Unmarshal(data, config)
+		err = json.Unmarshal([]byte(data), config)
 		if err != nil {
 			return nil, err
 		}
