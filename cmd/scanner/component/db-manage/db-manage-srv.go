@@ -4,17 +4,19 @@ import (
 	"fmt"
 
 	"github.com/gin-gonic/gin"
-	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
-	"gitlab.com/piccolo_su/vegeta/pkg/response"
 	"gitlab.com/security-rd/go-pkg/logging"
+
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
+	imagesecStore "gitlab.com/piccolo_su/vegeta/cmd/scanner/store/imagesec"
+	"gitlab.com/piccolo_su/vegeta/pkg/response"
 )
 
 type DBManageSrv struct {
 	Srv DBManage
 }
 
-func NewDBManageSrv(dal store.VersionDal) DBManageSrv {
-	return DBManageSrv{NewDBManage(dal)}
+func NewDBManageSrv(dal store.VersionDal, useDal imagesecStore.UserDal) DBManageSrv {
+	return DBManageSrv{NewDBManage(dal, useDal)}
 }
 
 func (d *DBManageSrv) UploadVulnOffline(ctx *gin.Context) {

@@ -12,12 +12,11 @@ import (
 	"strings"
 	"time"
 
-	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/task"
-	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
-
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/imagemeta"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/imagescan"
 	imagesecSrv "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/imagesec"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/task"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	imagesecStore "gitlab.com/piccolo_su/vegeta/cmd/scanner/store/imagesec"
 	imagesecModel "gitlab.com/piccolo_su/vegeta/pkg/model/imagesec"
 
@@ -35,12 +34,13 @@ import (
 )
 
 type DBManage struct {
-	dal   store.VersionDal
-	upSrv *vulnupdata.UpdateVersionSrv
+	dal     store.VersionDal
+	upSrv   *vulnupdata.UpdateVersionSrv
+	userDal imagesecStore.UserDal
 }
 
-func NewDBManage(dal store.VersionDal) DBManage {
-	return DBManage{dal: dal, upSrv: vulnupdata.GetUpdateVersionSrv()}
+func NewDBManage(dal store.VersionDal, userDal imagesecStore.UserDal) DBManage {
+	return DBManage{dal: dal, upSrv: vulnupdata.GetUpdateVersionSrv(), userDal: userDal}
 }
 
 func (v *DBManage) GetParseInt(ctx *gin.Context, s string) int64 {
@@ -525,6 +525,25 @@ func (v *DBManage) GetHistory(ctx *gin.Context, search string, dbType string) ([
 		logging.Get().Err(err).Msg("SearchVersionHistory error")
 		return nil, err
 	}
+
+	// 换username
+	username := make([]string, 0)
+	for i := range his {
+		username = append(username, his[i].Updater)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	// 换username
+	userAccount, err := v.userDal.GetUsername(ctx, username)
+	if err != nil {
+		return nil, err
+	}
+	for i := range his {
+		his[i].Updater = userAccount[his[i].Updater]
+	}
+
 	res := make([]scannermodel.HistoryResp, 0)
 	for k := range his {
 		res = append(res, scannermodel.HistoryResp{CompressVersion: his[k].ComPressDBVersion, UpdateTime: his[k].UpdatedAt,
