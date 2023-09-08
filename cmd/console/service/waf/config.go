@@ -128,6 +128,6 @@ var DefAttackClass = []AttackClasses{{1, "Remote Command Execution", "远程代�
 	{17, "Server-side request forgery", "跨站请求伪造", "SSRF"},
 	{18, "Famous application vulnerable", "针对知名应用的针对性规则", "FAPPV"},
 	{19, "Other", "其它", "Other"},
-	{20, "black list", "黑名单", "black"},
-	{21, "white list", "白名单", "white"},
-	{22, "force white list", "强白名单", "force-white"}}
+	{20, "blacklist", "黑名单", "black"},
+	{21, "whitelist", "白名单", "white"},
+	{22, "strong whitelist", "强白名单", "force-white"}}
