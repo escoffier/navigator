@@ -80,6 +80,7 @@ func newService(config register.ScannerServiceConfig) (register.ScannerService, 
 	vulnDal := store.NewVulnDao(scannerWrapperDb)
 	scanResultDal := store.NewImageScanResultDao(scannerWrapperDb)
 	ciDal := store.NewCiDao(scannerWrapperDb)
+	userDal := imagesecStore.NewUserDao(scannerWrapperDb)
 	webshellDal := store.NewWebsehllDao(scannerWrapperDb)
 	scannerInstanceDal := store.NewScannerInstanceDao(scannerWrapperDb)
 	scanTaskDal := store.NewScannerOrm(scannerWrapperDb)
@@ -158,7 +159,7 @@ func newService(config register.ScannerServiceConfig) (register.ScannerService, 
 			scanConfigSrv,
 			component.NewVulnService(vulnDal, scanTaskDal),
 			syncSrv,
-			ci.NewCiComponent(ciDal),
+			ci.NewCiComponent(ciDal, userDal),
 			component.NewScannerInstanceInfoSrv(store.NewScannerInstanceDao(scannerWrapperDb)),
 			scanwebshell.NewWebshellComponent(webshellDal),
 			exportSrv,

@@ -9,15 +9,17 @@ import (
 	"gitlab.com/security-rd/go-pkg/logging"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
+	imagesecStore "gitlab.com/piccolo_su/vegeta/cmd/scanner/store/imagesec"
 	scanner_ci "gitlab.com/piccolo_su/vegeta/pkg/model/scanner-ci"
 )
 
 type PolicyManager struct {
-	dal store.ScanCiInterface
+	dal     store.ScanCiInterface
+	userDal imagesecStore.UserDal
 }
 
-func NewPolicyManager(dal store.ScanCiInterface) PolicyManager {
-	return PolicyManager{dal: dal}
+func NewPolicyManager(dal store.ScanCiInterface, userDal imagesecStore.UserDal) PolicyManager {
+	return PolicyManager{dal: dal, userDal: userDal}
 }
 
 func (p *PolicyManager) GetPolicyList(ctx context.Context, limit int64, offset int64, name string) ([]scanner_ci.CiPolicyAPI, int64, error) {
@@ -29,6 +31,21 @@ func (p *PolicyManager) GetPolicyList(ctx context.Context, limit int64, offset i
 	for k := range policies {
 		res = append(res, policies[k].TransToPolicyAPI())
 	}
+	// 换username
+	username := make([]string, 0)
+	for i := range policies {
+		username = append(username, policies[i].Operator)
+		username = append(username, policies[i].Updater)
+	}
+	userAccount, err := p.userDal.GetUsername(ctx, username)
+	if err != nil {
+		return res, cnt, err
+	}
+	for i := range policies {
+		policies[i].Operator = userAccount[policies[i].Operator]
+		policies[i].Updater = userAccount[policies[i].Updater]
+	}
+
 	return res, cnt, err
 }
 
@@ -60,6 +77,18 @@ func (p *PolicyManager) GetPolicyByName(ctx context.Context, name string) (scann
 		logging.Get().Err(err).Str("policyName", name).Msg("get policy failed")
 		return scanner_ci.Policy{}, err
 	}
+
+	// 换username
+	username := make([]string, 0)
+	username = append(username, ciPolicy.Operator)
+	username = append(username, ciPolicy.Updater)
+	userAccount, err := p.userDal.GetUsername(ctx, username)
+	if err != nil {
+		return scanner_ci.Policy{}, err
+	}
+
+	ciPolicy.Operator = userAccount[ciPolicy.Operator]
+	ciPolicy.Updater = userAccount[ciPolicy.Updater]
 
 	// get image whitelist
 	imageWhiteList, _, err := p.dal.GetWhitelist(context.Background(), scanner_ci.WhitelistParams{})
