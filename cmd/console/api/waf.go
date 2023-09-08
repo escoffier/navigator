@@ -700,12 +700,19 @@ func (api *api) GetAttackClassesList() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 		defer cancel()
+
+		lang := r.Header.Get("Accept-Language")
+		if lang == "" {
+			lang = "zh"
+		}
+
 		svc, ok := waf.GetService(ctx)
 		if !ok {
 			apperror.RespAndLog(w, ctx, apperror.NewAnError(http.StatusInternalServerError, errors.New("service waf instance get error")))
 			return
 		}
-		rules, err := svc.GetAttackClassesList(ctx)
+
+		rules, err := svc.GetAttackClassesList(ctx, lang)
 		if err != nil {
 			apperror.RespAndLog(w, ctx, apperror.NewAnError(http.StatusInternalServerError, fmt.Errorf("get attack classes failed, error : %w", err)))
 			return

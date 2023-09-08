@@ -1187,13 +1187,12 @@ func (s *WafService) GetAttackLogRspPkg(ctx context.Context, uuid, length string
 	return rspPkg, nil
 }
 
-func (s *WafService) GetAttackClassesList(ctx context.Context) ([]AttackClasses, error) {
-	var isEn bool
+func (s *WafService) GetAttackClassesList(ctx context.Context, lang string) ([]AttackClasses, error) {
 	var attackClass []AttackClasses
 
-	lang, ok := ctx.Value(AcceptLanguage).(string)
-	if ok && lang == "en" {
-		isEn = true
+	isEn := true
+	if lang == "zh" {
+		isEn = false
 	}
 
 	for i := 0; i < len(DefAttackClass); i++ {
