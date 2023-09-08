@@ -1,25 +1,30 @@
 package model
 
 var UDBCPTranslateMap = map[string]string{
-	"访问控制专项":   "Access Control",
-	"访问控制":     "Access Control",
-	"访问控制(AC)": "Access Control",
+	"访问控制专项":     "Access Control",
+	"访问控制":       "Access Control",
+	"访问控制(AC)":   "Access Control",
+	"访问控制专项(AC)": "Access Control",
 
-	"身份鉴别专项":     "Authentication",
-	"身份鉴别":       "Authentication",
-	"身份鉴别(Auth)": "Authentication",
+	"身份鉴别专项":       "Authentication",
+	"身份鉴别":         "Authentication",
+	"身份鉴别(Auth)":   "Authentication",
+	"身份鉴别专项(Auth)": "Authentication",
 
-	"入侵防御专项":    "Intrusion Detection",
-	"入侵防御":      "Intrusion Detection",
-	"入侵防御(IDS)": "Intrusion Detection",
+	"入侵防御专项":      "Intrusion Detection",
+	"入侵防御":        "Intrusion Detection",
+	"入侵防御(IDS)":   "Intrusion Detection",
+	"入侵防御专项(IDS)": "Intrusion Detection",
 
-	"安全审计专项":         "Auditing",
-	"安全审计":           "Auditing",
-	"安全审计(Auditing)": "Auditing",
+	"安全审计专项":           "Auditing",
+	"安全审计":             "Auditing",
+	"安全审计(Auditing)":   "Auditing",
+	"安全审计专项(Auditing)": "Auditing",
 
-	"资源控制专项":           "Resource Control",
-	"资源控制":             "Resource Control",
-	"资源控制(ResControl)": "Resource Control",
+	"资源控制专项":             "Resource Control",
+	"资源控制":               "Resource Control",
+	"资源控制(ResControl)":   "Resource Control",
+	"资源控制专项(ResControl)": "Resource Control",
 
 	"恶意代码防护":          "Malicious code",
 	"恶意代码防护(Malcode)": "Malicious code",
@@ -27,6 +32,7 @@ var UDBCPTranslateMap = map[string]string{
 	"业务监控":           "Business Monitoring",
 	"业务监测":           "Business Monitoring",
 	"业务监测(DataProc)": "Business Monitoring",
+	"业务监控(DataProc)": "Business Monitoring",
 }
 
 var SectionPTranslateMap = map[string]string{
