@@ -2,6 +2,7 @@ package ci
 
 import (
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
+	imagesecStore "gitlab.com/piccolo_su/vegeta/cmd/scanner/store/imagesec"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 )
 
@@ -13,10 +14,10 @@ type CiComponent struct {
 	Ctrl Controller
 }
 
-func NewCiComponent(dal store.ScanCiInterface) CiComponent {
+func NewCiComponent(dal store.ScanCiInterface, userDal imagesecStore.UserDal) CiComponent {
 	ctrl, err := NewCiController(dal)
 	if err != nil {
 		logging.GetLogger().Err(err).Msgf("init Ci Controller error")
 	}
-	return CiComponent{PM: NewPolicyManager(dal), IM: NewImageManager(dal), WM: NewWhiteList(dal), WH: NewWebhookManager(dal), Ctrl: *ctrl}
+	return CiComponent{PM: NewPolicyManager(dal, userDal), IM: NewImageManager(dal), WM: NewWhiteList(dal), WH: NewWebhookManager(dal), Ctrl: *ctrl}
 }
