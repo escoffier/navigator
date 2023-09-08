@@ -27,11 +27,9 @@ func (p *PolicyManager) GetPolicyList(ctx context.Context, limit int64, offset i
 	if err != nil {
 		return nil, 0, err
 	}
-	res := []scanner_ci.CiPolicyAPI{}
-	for k := range policies {
-		res = append(res, policies[k].TransToPolicyAPI())
-	}
+
 	// 换username
+	res := []scanner_ci.CiPolicyAPI{}
 	username := make([]string, 0)
 	for i := range policies {
 		username = append(username, policies[i].Operator)
@@ -44,6 +42,10 @@ func (p *PolicyManager) GetPolicyList(ctx context.Context, limit int64, offset i
 	for i := range policies {
 		policies[i].Operator = userAccount[policies[i].Operator]
 		policies[i].Updater = userAccount[policies[i].Updater]
+	}
+
+	for k := range policies {
+		res = append(res, policies[k].TransToPolicyAPI())
 	}
 
 	return res, cnt, err

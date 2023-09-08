@@ -28,7 +28,7 @@ func (dal *UserDao) GetUsername(ctx context.Context, username []string) (map[str
 	if len(username) == 0 {
 		return res, nil
 	}
-	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*1000)
+	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*10)
 	defer cancelFunc()
 	us := make([]model.User, 0)
 	err := dal.db.Get().WithContext(ctx).Model(&model.User{}).Where("username IN ?", username).Find(&us).Error
