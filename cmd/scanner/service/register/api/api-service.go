@@ -120,7 +120,7 @@ func newService(config register.ScannerServiceConfig) (register.ScannerService, 
 	registrySrv := component.NewRegistrySrv(registryDal, scanConfigDal, syncTaskDal)
 	scanConfigSrv := component.NewScanConfigSrv(scanConfigDal, registryDal, dal, scanTaskDal, scannerInstanceDal)
 	syncSrv := component.NewSyncRepoImage(registryDal, imageDal, syncRetryImageDal, scanConfigDal, vulnDal, syncTaskDal)
-	versionSrv := dbManage.NewDBManageSrv(versionDal)
+	versionSrv := dbManage.NewDBManageSrv(versionDal, userDal)
 
 	imageSvcMap := map[string]imagemeta.ImageService{
 		imagesecModel.ImageFromRegistry: libImageSvc,

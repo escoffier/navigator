@@ -64,6 +64,19 @@ func (p *PolicyManager) GetPolicyDetail(ctx context.Context, id int64) (scanner_
 	if err != nil {
 		return scanner_ci.CiPolicyAPI{}, err
 	}
+
+	// 换username
+	username := make([]string, 0)
+	username = append(username, policy.Operator)
+	username = append(username, policy.Updater)
+	userAccount, err := p.userDal.GetUsername(ctx, username)
+	if err != nil {
+		return scanner_ci.CiPolicyAPI{}, err
+	}
+
+	policy.Operator = userAccount[policy.Operator]
+	policy.Updater = userAccount[policy.Updater]
+
 	return policy.TransToPolicyAPI(), nil
 }
 
