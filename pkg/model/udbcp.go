@@ -85,4 +85,5 @@ var SectionPTranslateMap = map[string]string{
 	"容器安全检查":                 "Containersecurity checks",
 	"CRI-O守护程序配置":            "CRI-O daemon configuration",
 	"CRI-O守护程序配置文件":          "CRI-O daemon configuration files",
+	"登录":                     "Login",
 }
