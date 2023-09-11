@@ -379,12 +379,22 @@ func NewConsole(
 
 	// init iac-yaml scan
 	logging.Get().Debug().Msg("start NewYamlScanner")
-	iac.NewYamlScanner(rdb.Get())
+	err = iac.NewYamlScanner(rdb.Get())
+	if err != nil {
+		logging.Get().Error().Err(err).Msg("ERROR: YamlScanner init error")
+		mainCancel()
+		return nil, err
+	}
 	logging.Get().Debug().Msg("end NewYamlScanner")
 
 	// init iac-dockerfile
 	logging.Get().Debug().Msg("start NewDockerfile")
-	iac.NewDockerfile(rdb.Get())
+	err = iac.NewDockerfile(rdb.Get())
+	if err != nil {
+		logging.Get().Error().Err(err).Msg("ERROR: Dockerfile init error")
+		mainCancel()
+		return nil, err
+	}
 	logging.Get().Debug().Msg("end NewDockerfile")
 
 	translation, err := translate.NewTranslation(mainCtx, rdb)
