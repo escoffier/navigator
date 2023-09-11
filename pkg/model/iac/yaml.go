@@ -234,10 +234,10 @@ func CreateYamlTemplateSnapshot(ctx context.Context, db *gorm.DB, task YamlTempl
 type YamlRule struct {
 	ID           int    `json:"id"`
 	BuiltinID    string `json:"builtin_id"`
-	ThirdPartyID string `json:"third_party_id"`
 	Name         string `json:"name"`
 	Description  string `json:"description"`
 	Severity     string `json:"severity"`
+	ThirdPartyID string `json:"third_party_id"`
 }
 
 func (YamlRule) TableName() string {
