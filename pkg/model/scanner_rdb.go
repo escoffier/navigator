@@ -244,20 +244,28 @@ func (Registry) TableName() string {
 	return "ivan_scanner_registries"
 }
 
-var regTypeNameKey map[string]LabelValue
+func GetRegType(lan string) map[string]LabelValue {
+	zh := make(map[string]LabelValue)
+	zh[consts.AliAcrVersion] = LabelValue{Value: consts.AliAcrVersion, Label: "阿里云 ACR 个人版 (公有云)"}
+	zh[consts.AliAcrEEVersion] = LabelValue{Value: consts.AliAcrEEVersion, Label: "阿里云 ACR 企业版 (公有云)"}
+	zh[consts.DockerRegistryV2Version] = LabelValue{Value: consts.DockerRegistryV2Version, Label: "Docker Registry (v2)"}
+	zh[consts.HarborVersion] = LabelValue{Value: consts.HarborVersion, Label: "Harbor"}
+	zh[consts.HaiWeiSwrVersion] = LabelValue{Value: consts.HaiWeiSwrVersion, Label: "华为云 SWR 个人版 (公有云)"}
+	zh[consts.HaiWeiSwrENVersion] = LabelValue{Value: consts.HaiWeiSwrENVersion, Label: "华为云 SWR 企业版 (公有云)"}
+	zh[consts.JfrogVersion] = LabelValue{Value: consts.JfrogVersion, Label: "JFrog Artifactory"}
 
-func GetRegType() map[string]LabelValue {
-	if regTypeNameKey == nil {
-		regTypeNameKey = make(map[string]LabelValue)
-		regTypeNameKey[consts.AliAcrVersion] = LabelValue{Value: consts.AliAcrVersion, Label: "阿里云 ACR 个人版 (公有云)"}
-		regTypeNameKey[consts.AliAcrEEVersion] = LabelValue{Value: consts.AliAcrEEVersion, Label: "阿里云 ACR 企业版 (公有云)"}
-		regTypeNameKey[consts.DockerRegistryV2Version] = LabelValue{Value: consts.DockerRegistryV2Version, Label: "Docker Registry (v2)"}
-		regTypeNameKey[consts.HarborVersion] = LabelValue{Value: consts.HarborVersion, Label: "Harbor"}
-		regTypeNameKey[consts.HaiWeiSwrVersion] = LabelValue{Value: consts.HaiWeiSwrVersion, Label: "华为云 SWR 个人版 (公有云)"}
-		regTypeNameKey[consts.HaiWeiSwrENVersion] = LabelValue{Value: consts.HaiWeiSwrENVersion, Label: "华为云 SWR 企业版 (公有云)"}
-		regTypeNameKey[consts.JfrogVersion] = LabelValue{Value: consts.JfrogVersion, Label: "JFrog Artifactory"}
+	en := make(map[string]LabelValue)
+	en[consts.AliAcrVersion] = LabelValue{Value: consts.AliAcrVersion, Label: "Alibaba Cloud Container Registry Personal Edition"}
+	en[consts.AliAcrEEVersion] = LabelValue{Value: consts.AliAcrEEVersion, Label: "Alibaba Cloud Container Registry Enterprise Edition"}
+	en[consts.DockerRegistryV2Version] = LabelValue{Value: consts.DockerRegistryV2Version, Label: "Docker Registry (v2)"}
+	en[consts.HarborVersion] = LabelValue{Value: consts.HarborVersion, Label: "Harbor"}
+	en[consts.HaiWeiSwrVersion] = LabelValue{Value: consts.HaiWeiSwrVersion, Label: "Huawei Cloud SoftWare Repository for Container Personal Edition"}
+	en[consts.HaiWeiSwrENVersion] = LabelValue{Value: consts.HaiWeiSwrENVersion, Label: "Huawei Cloud SoftWare Repository for Container Enterprise Edition"}
+	en[consts.JfrogVersion] = LabelValue{Value: consts.JfrogVersion, Label: "JFrog Artifactory"}
+	if lan == LangEn {
+		return en
 	}
-	return regTypeNameKey
+	return zh
 }
 
 func (r *Registry) FitHarborVersion() {
