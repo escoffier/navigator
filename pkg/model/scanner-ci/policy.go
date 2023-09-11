@@ -3,11 +3,13 @@ package scanner_ci
 import (
 	"encoding/json"
 	"fmt"
+	iacModel "gitlab.com/piccolo_su/vegeta/pkg/model/iac"
 	"sort"
 	"strings"
 	"time"
 
 	"gitlab.com/piccolo_su/vegeta/pkg/types/imagesec"
+	"gitlab.com/security-rd/go-pkg/iac/pkg/scan"
 	"scm.tensorsecurity.cn/tensorsecurity-rd/trivy/pkg/report"
 	"scm.tensorsecurity.cn/tensorsecurity-rd/trivy/pkg/types"
 
@@ -170,6 +172,18 @@ type PolicyResult struct {
 
 	// webshell result
 	WebshellResults imagesec.WebshellResults
+
+	// iac - dockerfile scan
+	Dockerfiles            map[string]string
+	DockerfilesScanResults map[string]DockerfilesScanResults
+	DockerfilesPolicy      iacModel.DockerfilePolicy
+}
+
+type DockerfilesScanResults struct {
+	ParseErr     scan.ParseError
+	Result       []scan.FlatResult
+	HitWhitelist bool
+	Error        string
 }
 
 type VulnWhitelist struct {
@@ -184,6 +198,35 @@ type Policy struct {
 	SensitiveFile       SensitiveFileRule  `json:"sensitive_file"`
 	ImageNameWhiteLists []ImageNamePattern `json:"white_lists"`
 	RawVulnWhiteList    []VulnWhitelist    `json:"raw_vuln_white_list"` // [{ "name":"cve-x-y","object":"zlib@123,bash@456"}]
+}
+
+func (p *Policy) GetName() string { return p.Name }
+
+type DockerfilePolicy struct {
+	Name  string   `json:"name"`
+	Rules []string `json:"rules"`
+}
+
+func (p *DockerfilePolicy) GetName() string { return p.Name }
+
+func (p *DockerfilePolicy) Check(result []scan.FlatResult) ([]scan.FlatResult, bool) {
+	rulesMap := map[string]struct{}{}
+	for i := range p.Rules {
+		rulesMap[p.Rules[i]] = struct{}{}
+	}
+
+	results := make([]scan.FlatResult, 0)
+	for i := range result {
+		if _, ok := rulesMap[result[i].RuleID]; ok {
+			results = append(results, result[i])
+		}
+	}
+
+	return results, len(results) == 0
+}
+
+type IPolicy interface {
+	GetName() string
 }
 
 // CiPolicy policy db schema

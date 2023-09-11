@@ -2,6 +2,11 @@ package api
 
 import (
 	"context"
+	"gitlab.com/piccolo_su/vegeta/cmd/console/service/assets"
+	"gitlab.com/piccolo_su/vegeta/pkg/echelper"
+	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
+	"gitlab.com/security-rd/go-pkg/translate"
+
 	"github.com/go-chi/chi"
 	"github.com/go-redis/redis/v8"
 	"gitlab.com/piccolo_su/vegeta/pkg/middleware"
@@ -33,10 +38,14 @@ func SetupRoutes(
 	sherlockURL string,
 	microsegURL string,
 	webhookURL string,
+	sherlockClient *echelper.SherlockClient,
 	redisClient *redis.Client,
 	harborClient *harbor.HarborRESTClient,
 	es *elastic.ESClient,
+	translation *translate.Translation,
 	httpAuditDisabled bool,
+	clusterManager *k8s.ClusterManager,
+	resSvc *assets.TensorResourcesService,
 ) {
 	logging.Get().Debug().Msg("setting up routes...")
 
@@ -48,10 +57,14 @@ func SetupRoutes(
 		sherlockURL,
 		microsegURL,
 		webhookURL,
+		sherlockClient,
 		redisClient,
 		harborClient,
 		es,
+		translation,
 		httpAuditDisabled,
+		clusterManager,
+		resSvc,
 	)
 	r.Get("/ping", response.Pong)
 	// disable swagger APIs

@@ -3,6 +3,9 @@ package api
 import (
 	"errors"
 	"fmt"
+	"gitlab.com/piccolo_su/vegeta/cmd/console/service/assets"
+	"gitlab.com/piccolo_su/vegeta/pkg/echelper"
+	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
 	"net/http"
 	"net/url"
 
@@ -15,6 +18,7 @@ import (
 	"gitlab.com/security-rd/go-pkg/databases"
 	"gitlab.com/security-rd/go-pkg/elastic"
 	"gitlab.com/security-rd/go-pkg/logging"
+	"gitlab.com/security-rd/go-pkg/translate"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
@@ -24,17 +28,22 @@ type api struct {
 	microsegURL  string
 	webhookURL   *url.URL
 
-	scannerURL   string
-	exportURL    string
-	sherlockURL  string
-	redisClient  *redis.Client
-	harborClient *harbor.HarborRESTClient
-	esCli        *elastic.ESClient
+	scannerURL     string
+	exportURL      string
+	sherlockURL    string
+	sherlockClient *echelper.SherlockClient
+	redisClient    *redis.Client
+	harborClient   *harbor.HarborRESTClient
+	esCli          *elastic.ESClient
+	translation    *translate.Translation
 
 	// For managing state in Harbor plugin API
 	abortAnyNewScansBool int32
 
 	httpAuditDisabled bool
+
+	clusterManager *k8s.ClusterManager
+	redisSvc       *assets.TensorResourcesService
 }
 
 func newAPI(
@@ -45,10 +54,14 @@ func newAPI(
 	sherlockURL string,
 	microsegURL string,
 	webhookURL string,
+	sherlockClient *echelper.SherlockClient,
 	redisClient *redis.Client,
 	harborClient *harbor.HarborRESTClient,
 	esCli *elastic.ESClient,
+	translation *translate.Translation,
 	httpAuditDisabled bool,
+	clusterManager *k8s.ClusterManager,
+	resSvc *assets.TensorResourcesService,
 ) *api {
 	whUrl, err := url.Parse(webhookURL)
 	if err != nil {
@@ -64,10 +77,14 @@ func newAPI(
 		sherlockURL:       sherlockURL,
 		microsegURL:       microsegURL,
 		webhookURL:        whUrl,
+		sherlockClient:    sherlockClient,
 		redisClient:       redisClient,
 		harborClient:      harborClient,
 		esCli:             esCli,
+		translation:       translation,
 		httpAuditDisabled: httpAuditDisabled,
+		clusterManager:    clusterManager,
+		redisSvc:          resSvc,
 	}
 }
 

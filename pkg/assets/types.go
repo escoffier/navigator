@@ -31,6 +31,17 @@ const (
 	KindPodNoOwner            ResourceKind = "Pod"
 )
 
+var ResourceKindApiVersion = map[ResourceKind]string{
+	KindDeployment:            "apps/v1",
+	KindDaemonSet:             "apps/v1",
+	KindReplicaSet:            "apps/v1",
+	KindStatefulSet:           "apps/v1",
+	KindJob:                   "batch/v1",
+	KindCronJob:               "batch/v1beta1",
+	KindReplicationController: "v1",
+	KindPodNoOwner:            "v1",
+}
+
 const (
 	Running = iota
 	Created

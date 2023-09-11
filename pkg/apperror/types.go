@@ -1416,6 +1416,30 @@ func NewResourceNameDuplicateError(httpCode int, err error, suberrors ...Suberro
 	}
 }
 
+func NewFieldInvalidError(httpCode int, fieldName string, err error, suberrors ...Suberror) error {
+	return ResourceNameDuplicateError{
+		detailedError{
+			err:       err,
+			English:   fieldName + " Invalid",
+			Chinese:   fieldEn2Zh(fieldName) + " 无效",
+			HTTPCode:  httpCode,
+			Suberrors: suberrors,
+		},
+	}
+}
+
+func NewFieldDuplicateError(httpCode int, fieldName string, err error, suberrors ...Suberror) error {
+	return ResourceNameDuplicateError{
+		detailedError{
+			err:       err,
+			English:   fieldName + " Duplicated",
+			Chinese:   fieldEn2Zh(fieldName) + " 重复",
+			HTTPCode:  httpCode,
+			Suberrors: suberrors,
+		},
+	}
+}
+
 func NewAddBaitServiceError(httpCode int, err error, suberrors ...Suberror) error {
 	return AddBaitServiceError{
 		detailedError{
@@ -1662,5 +1686,19 @@ func NewSyslogInvalidArgError(httpCode int, err error, suberrors ...Suberror) er
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
 		},
+	}
+}
+
+var m = map[string]string{
+	"benchmark_name":        "基线名称",
+	"benchmark_description": "基线描述",
+}
+
+func fieldEn2Zh(e string) string {
+	z, ok := m[e]
+	if ok {
+		return z
+	} else {
+		return e
 	}
 }

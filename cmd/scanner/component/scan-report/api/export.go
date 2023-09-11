@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -307,6 +308,102 @@ func (s *ExportApiSrv) CreateAuditExportTask(ctx *gin.Context) {
 		FilePath:    fileName,
 		CreatedAt:   time.Now(),
 		TaskType:    model.ExportExcel, // 日志审计现只支持excel，所以这里赋默认值
+	}
+	if err := s.exportSrv.CreateExportTask(ctx, task); err != nil {
+		response.JSONError(ctx, err)
+		return
+	}
+	response.JSONOK(ctx, response.WithItem(
+		GenResponseMsg(ctx, task.ID, task.FilePath)))
+}
+
+func (s *ExportApiSrv) CreateYamlExportTask(ctx *gin.Context) {
+	type Request struct {
+		Filter       *map[string]interface{} `json:"filter"`
+		TaskID       *int                    `json:"task_id"`
+		RecordIDs    *[]int                  `json:"record_ids"`
+		TaskCreateAt string                  `json:"taskCreateAt"`
+		Creator      string                  `json:"creator"` // 任务创建人
+	}
+	data := &Request{}
+	if err := ctx.BindJSON(data); err != nil {
+		response.JSONError(ctx, err)
+		return
+	}
+
+	params := struct {
+		Filter    *map[string]interface{} `json:"filter"`
+		TaskID    *int                    `json:"task_id"`
+		RecordIDs *[]int                  `json:"record_ids"`
+	}{
+		Filter:    data.Filter,
+		TaskID:    data.TaskID,
+		RecordIDs: data.RecordIDs,
+	}
+	bp, err := json.Marshal(params)
+	if err != nil {
+		response.JSONError(ctx, err)
+		return
+	}
+
+	fileName := fmt.Sprintf("iac_yaml_%s.zip", strings.ReplaceAll(data.TaskCreateAt, " ", "T"))
+	task := &model.ExportTensorTask{
+		ExecuteType: consts.IACYamlExportType,
+		Parameter:   string(bp),
+		Creator:     data.Creator,
+		FilePath:    fileName,
+		CreatedAt:   time.Now(),
+		TaskType:    model.ExportExcel,
+		Lang:        util.GetLanguage(ctx),
+	}
+	if err := s.exportSrv.CreateExportTask(ctx, task); err != nil {
+		response.JSONError(ctx, err)
+		return
+	}
+	response.JSONOK(ctx, response.WithItem(
+		GenResponseMsg(ctx, task.ID, task.FilePath)))
+}
+
+func (s *ExportApiSrv) CreateDockerfileExportTask(ctx *gin.Context) {
+	type Request struct {
+		RecordID     int    `json:"record_id"`
+		ResultID     int    `json:"result_id"`
+		TaskCreateAt string `json:"taskCreateAt"`
+		Creator      string `json:"creator"` // 任务创建人
+	}
+	data := &Request{}
+	if err := ctx.BindJSON(data); err != nil {
+		response.JSONError(ctx, err)
+		return
+	}
+
+	if data.RecordID == 0 && data.ResultID == 0 {
+		response.JSONError(ctx, errors.New("invalid request record id | result id"))
+		return
+	}
+
+	params := struct {
+		RecordID int `json:"record_id"`
+		ResultID int `json:"result_id"`
+	}{
+		RecordID: data.RecordID,
+		ResultID: data.ResultID,
+	}
+	bp, err := json.Marshal(params)
+	if err != nil {
+		response.JSONError(ctx, err)
+		return
+	}
+
+	fileName := fmt.Sprintf("iac_dockerfile_%s.zip", strings.ReplaceAll(data.TaskCreateAt, " ", "T"))
+	task := &model.ExportTensorTask{
+		ExecuteType: consts.IACDockerfileExportType,
+		Parameter:   string(bp),
+		Creator:     data.Creator,
+		FilePath:    fileName,
+		CreatedAt:   time.Now(),
+		TaskType:    model.ExportExcel,
+		Lang:        util.GetLanguage(ctx),
 	}
 	if err := s.exportSrv.CreateExportTask(ctx, task); err != nil {
 		response.JSONError(ctx, err)

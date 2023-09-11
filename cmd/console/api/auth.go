@@ -18,11 +18,11 @@ import (
 
 	"github.com/pquerna/otp/totp"
 	"golang.org/x/time/rate"
+	"gopkg.in/gomail.v2"
 
 	param "github.com/oceanicdev/chi-param"
 	"gitlab.com/piccolo_su/vegeta/pkg/request"
 	"gitlab.com/piccolo_su/vegeta/pkg/token"
-	"gopkg.in/gomail.v2"
 	"gorm.io/gorm"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/captcha"
@@ -340,6 +340,7 @@ func (api *api) login() http.HandlerFunc {
 		if findUser.ModuleID == "" {
 			findUser.ModuleID = "[]"
 		}
+
 		response.Ok(w, response.WithItem(LoginResponse{
 			Username:          findUser.UserName,
 			Account:           findUser.Account,

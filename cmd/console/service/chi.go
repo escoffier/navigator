@@ -2,6 +2,10 @@ package service
 
 import (
 	"context"
+	"gitlab.com/piccolo_su/vegeta/cmd/console/service/assets"
+	"gitlab.com/piccolo_su/vegeta/pkg/echelper"
+	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
+	"gitlab.com/security-rd/go-pkg/translate"
 	"net/http"
 	"strings"
 	"time"
@@ -33,8 +37,12 @@ func setupChiRouter(
 	webhookURL string,
 	httpLoggerDisabled bool,
 	httpAuditDisabled bool,
+	sherlockClient *echelper.SherlockClient,
 	redisClient *redis.Client,
 	harborClient *harbor.HarborRESTClient,
+	translation *translate.Translation,
+	clusterManager *k8s.ClusterManager,
+	resSvc *assets.TensorResourcesService,
 ) http.Handler {
 	// ch := make(chan model.AccessLog, 1000)
 	tokenManager := token.NewJWTTokenManager(jwtSignKey, jwt.SigningMethodHS256)
@@ -58,10 +66,14 @@ func setupChiRouter(
 		sherlockURL,
 		microsegURL,
 		webhookURL,
+		sherlockClient,
 		redisClient,
 		harborClient,
 		es,
+		translation,
 		httpAuditDisabled,
+		clusterManager,
+		resSvc,
 	)
 
 	return r
