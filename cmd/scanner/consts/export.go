@@ -5,8 +5,10 @@ import (
 )
 
 const (
-	ExportVuln   string = "ExportVuln"
-	AuditExeType string = "ExportNaviAudit"
+	ExportVuln              string = "ExportVuln"
+	AuditExeType            string = "ExportNaviAudit"
+	IACYamlExportType       string = "ExportIACYamls"
+	IACDockerfileExportType string = "ExportIACDockerfiles"
 
 	ExportSingleImage     string = "ExportImage"
 	ExportLibImageSearch  string = "ExportImageSearch"
@@ -15,13 +17,17 @@ const (
 	ExportCIReport        string = "ExportCIReport"
 	ExportLibTask         string = "ExportScanTask"
 
-	ExportImageViewCH  string = "镜像报告"
-	AuditExeTypeViewCH string = "审计日志"
-	ExportVulnViewCH   string = "漏洞报告"
+	ExportImageViewCH         string = "镜像报告"
+	AuditExeTypeViewCH        string = "审计日志"
+	ExportVulnViewCH          string = "漏洞报告"
+	ExportIACYamlViewCH       string = "yaml扫描"
+	ExportIACDockerfileViewCH string = "dockerfile扫描"
 
-	ExportImageViewEN  string = "Image Report"
-	AuditExeTypeViewEN string = "Audit Log"
-	ExportVulnViewEN   string = "Vulnerability Report"
+	ExportImageViewEN         string = "Image Report"
+	AuditExeTypeViewEN        string = "Audit Log"
+	ExportVulnViewEN          string = "Vulnerability Report"
+	ExportIACYamlViewEN       string = "Yaml Scan"
+	ExportIACDockerfileViewEN string = "Dockerfile Scan"
 
 	ExportCIType = "ci"
 )
@@ -42,6 +48,10 @@ func GetExportTypeView(exportType string, lang string) string {
 			return ExportVulnViewCH
 		case AuditExeType:
 			return AuditExeTypeViewCH
+		case IACYamlExportType:
+			return ExportIACYamlViewCH
+		case IACDockerfileExportType:
+			return ExportIACDockerfileViewCH
 		}
 	}
 
@@ -53,6 +63,10 @@ func GetExportTypeView(exportType string, lang string) string {
 			return ExportVulnViewEN
 		case AuditExeType:
 			return AuditExeTypeViewEN
+		case IACYamlExportType:
+			return ExportIACYamlViewEN
+		case IACDockerfileExportType:
+			return ExportIACDockerfileViewEN
 		}
 	}
 	return ""

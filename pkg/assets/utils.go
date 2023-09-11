@@ -1,6 +1,9 @@
 package assets
 
 import (
+	appsv1 "k8s.io/api/apps/v1"
+	batchv1 "k8s.io/api/batch/v1"
+	"k8s.io/api/batch/v1beta1"
 	corev1 "k8s.io/api/core/v1"
 )
 
@@ -28,4 +31,83 @@ func NodeIsReady(node *corev1.Node) bool {
 	}
 
 	return isReady
+}
+
+func PureObject(object interface{}) interface{} {
+	key1 := "kubectl.kubernetes.io/last-applied-configuration"
+	switch o := object.(type) {
+	case *appsv1.Deployment:
+		o.APIVersion = ResourceKindApiVersion[KindDeployment]
+		o.Kind = string(KindDeployment)
+		o.ObjectMeta.SetManagedFields(nil)
+		annotations := o.ObjectMeta.GetAnnotations()
+		delete(annotations, key1)
+		o.ObjectMeta.SetAnnotations(annotations)
+		o.Status = appsv1.DeploymentStatus{}
+		object = o
+	case *appsv1.DaemonSet:
+		o.APIVersion = ResourceKindApiVersion[KindDaemonSet]
+		o.Kind = string(KindDaemonSet)
+		o.ObjectMeta.SetManagedFields(nil)
+		annotations := o.ObjectMeta.GetAnnotations()
+		delete(annotations, key1)
+		o.ObjectMeta.SetAnnotations(annotations)
+		o.Status = appsv1.DaemonSetStatus{}
+		object = o
+	case *appsv1.ReplicaSet:
+		o.APIVersion = ResourceKindApiVersion[KindReplicaSet]
+		o.Kind = string(KindReplicaSet)
+		o.ObjectMeta.SetManagedFields(nil)
+		annotations := o.ObjectMeta.GetAnnotations()
+		delete(annotations, key1)
+		o.ObjectMeta.SetAnnotations(annotations)
+		o.Status = appsv1.ReplicaSetStatus{}
+		object = o
+	case *appsv1.StatefulSet:
+		o.APIVersion = ResourceKindApiVersion[KindStatefulSet]
+		o.Kind = string(KindStatefulSet)
+		o.ObjectMeta.SetManagedFields(nil)
+		annotations := o.ObjectMeta.GetAnnotations()
+		delete(annotations, key1)
+		o.ObjectMeta.SetAnnotations(annotations)
+		o.Status = appsv1.StatefulSetStatus{}
+		object = o
+	case *corev1.ReplicationController:
+		o.APIVersion = ResourceKindApiVersion[KindReplicationController]
+		o.Kind = string(KindReplicationController)
+		o.ObjectMeta.SetManagedFields(nil)
+		annotations := o.ObjectMeta.GetAnnotations()
+		delete(annotations, key1)
+		o.ObjectMeta.SetAnnotations(annotations)
+		o.Status = corev1.ReplicationControllerStatus{}
+		object = o
+	case *batchv1.Job:
+		o.APIVersion = ResourceKindApiVersion[KindJob]
+		o.Kind = string(KindJob)
+		o.ObjectMeta.SetManagedFields(nil)
+		annotations := o.ObjectMeta.GetAnnotations()
+		delete(annotations, key1)
+		o.ObjectMeta.SetAnnotations(annotations)
+		o.Status = batchv1.JobStatus{}
+		object = o
+	case *v1beta1.CronJob:
+		o.APIVersion = ResourceKindApiVersion[KindCronJob]
+		o.Kind = string(KindCronJob)
+		o.ObjectMeta.SetManagedFields(nil)
+		annotations := o.ObjectMeta.GetAnnotations()
+		delete(annotations, key1)
+		o.ObjectMeta.SetAnnotations(annotations)
+		o.Status = v1beta1.CronJobStatus{}
+		object = o
+	case *corev1.Pod:
+		o.APIVersion = ResourceKindApiVersion[KindPodNoOwner]
+		o.Kind = string(KindPodNoOwner)
+		o.ObjectMeta.SetManagedFields(nil)
+		annotations := o.ObjectMeta.GetAnnotations()
+		delete(annotations, key1)
+		o.ObjectMeta.SetAnnotations(annotations)
+		o.Status = corev1.PodStatus{}
+		object = o
+	}
+	return object
 }

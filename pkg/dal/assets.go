@@ -2121,6 +2121,22 @@ func GetClustersByKey(ctx context.Context, rdb *gorm.DB, key string) *model.Tens
 
 	return &cluster
 }
+func GetClustersByKeys(ctx context.Context, rdb *gorm.DB, keys []string) []model.TensorCluster {
+	ctx, cancel := context.WithTimeout(ctx, 1000*time.Millisecond)
+	defer cancel()
+	var clusters []model.TensorCluster
+	err := util.RetryWithBackoff(ctx, func() error {
+		oneCtx, oneCancel := context.WithTimeout(ctx, 300*time.Millisecond)
+		defer oneCancel()
+
+		return rdb.WithContext(oneCtx).Model(&model.TensorCluster{}).Where("status = ? AND id in ?", 0, keys).Find(&clusters).Error
+	})
+	if err != nil {
+		return nil
+	}
+
+	return clusters
+}
 func UpdateCluster(ctx context.Context, rdb *gorm.DB, clusterKey string, clusterName, description, ruleVersion string) error {
 	if clusterKey == "" {
 		return errors.New("illegal cluster key argument")

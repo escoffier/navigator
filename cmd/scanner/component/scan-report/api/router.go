@@ -30,6 +30,8 @@ func SetupGinRouter(exportSrv service.ExportTaskInterface, exportHtmlDriver map[
 		v1.POST("/vuln", exportApiSrv.CreateVulnExportTask)
 		v1.POST("/imageSearch", exportApiSrv.CreateImageSearchExportTask)
 		v1.POST("/naviAudit", exportApiSrv.CreateAuditExportTask)
+		v1.POST("/yaml", exportApiSrv.CreateYamlExportTask)
+		v1.POST("/dockerfile", exportApiSrv.CreateDockerfileExportTask)
 		v1.GET("/checkScanTask", exportApiSrv.CheckScanTask)
 		v1.GET("/detail", exportApiSrv.GetExportTaskDetail)
 		v1.GET("/list", exportApiSrv.GetReportTaskList)

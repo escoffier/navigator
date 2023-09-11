@@ -117,7 +117,7 @@ func NewMozartEngine(ctx context.Context, options ...option) (*Engine, error) {
 
 	initHangupQueue(e)
 
-	rand.Seed(time.Now().UnixMilli())
+	rand.NewSource(time.Now().UnixMilli())
 
 	return e, nil
 }

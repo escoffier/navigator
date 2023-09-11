@@ -2,6 +2,7 @@ package starter
 
 import (
 	"context"
+	"gitlab.com/security-rd/go-pkg/translate"
 	"runtime/debug"
 	"time"
 
@@ -35,6 +36,8 @@ type BackgroundTasks struct {
 	LibImageExportHtml         *html.ExportLibImageHtmlSrv
 	NodeImageExportHtml        *html.ExportNodeImageHtmlSrv
 	CICDImageExportHtml        *html.ExportCiImageHtmlSrv
+	YamlScanExportExcel        *excel.YamlScanExportExcel
+	DockerfileScanExportExcel  *excel.DockerfileScanExportExcel
 }
 
 type Config struct {
@@ -57,7 +60,7 @@ type Config struct {
 	VulnClassType           []string
 }
 
-func NewBackgroundTasks(ctx context.Context, config Config) *BackgroundTasks {
+func NewBackgroundTasks(ctx context.Context, config Config) (*BackgroundTasks, error) {
 	scanReportServer := scanreport.NewScanReportSrv(
 		scanreport.WithDB(store.NewScannerOrm(config.Rdb)),
 		scanreport.WithVulnDal(store.NewVulnDao(config.Rdb)),
@@ -120,6 +123,14 @@ func NewBackgroundTasks(ctx context.Context, config Config) *BackgroundTasks {
 	nodeImageHtmlSrv := html.NewExportNodeImageHtmlSrv(nodeImageSvc, exportTaskDal, updateTask, vulnSrv, config.FileDir, config.VulnClassType)
 	cicdImageHtmlSrv := html.NewExportCiImageHtmlSrv(libImageSvc, vulnDal, exportTaskDal, updateTask, config.FileDir)
 
+	translation, err := translate.NewTranslation(ctx, config.Rdb)
+	if err != nil {
+		logging.Get().Error().Err(err).Msg("translation init fails")
+		return nil, err
+	}
+	yamlScanExportExcel := excel.NewYamlScanExportExcel(exportTaskDal, updateTask, config.Rdb, config.FileDir, translation)
+	dockerfileScanExportExcel := excel.NewDockerfileScanExportExcel(exportTaskDal, updateTask, config.Rdb, config.FileDir, translation)
+
 	srv := &BackgroundTasks{
 		ScanReport:                 scanReportServer,
 		LibScanTaskExportExcel:     libScanTaskExportSrv,
@@ -133,8 +144,10 @@ func NewBackgroundTasks(ctx context.Context, config Config) *BackgroundTasks {
 		LibImageExportHtml:         libImageHtmlSrv,
 		NodeImageExportHtml:        nodeImageHtmlSrv,
 		CICDImageExportHtml:        cicdImageHtmlSrv,
+		YamlScanExportExcel:        yamlScanExportExcel,
+		DockerfileScanExportExcel:  dockerfileScanExportExcel,
 	}
-	return srv
+	return srv, nil
 }
 
 func (s *BackgroundTasks) Start(ctx context.Context) {
@@ -162,6 +175,8 @@ func (s *BackgroundTasks) Start(ctx context.Context) {
 	s.NodeImageSearchExportExcel.Run(ctx)
 	s.SingeImageExportExcel.Run(ctx)
 	s.ClearFileAndRecord.Run(ctx)
+	s.YamlScanExportExcel.Run(ctx)
+	s.DockerfileScanExportExcel.Run(ctx)
 
 	// 导出漏洞数据
 	go func() {

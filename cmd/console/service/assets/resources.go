@@ -143,6 +143,24 @@ func (rl *TensorResourcesService) CountResource(ctx context.Context, queryOption
 	return resCnt, nil
 }
 
+func (rl *TensorResourcesService) CountResourceWithRedis(ctx context.Context, queryOptions *dal.ResourcesQueryOption) (int64, error) {
+	if rl.rsearchClient == nil {
+		return rl.CountResource(ctx, queryOptions)
+	}
+
+	ic, err := rl.rsearchClient.GetIndexClient("resource")
+	if err != nil {
+		return 0, err
+	}
+
+	resCnt, err := dal.CountResourcesWithRedis(ctx, rl.rdb.GetReadDB(), ic, queryOptions)
+	if err != nil {
+		return 0, err
+	}
+
+	return resCnt, nil
+}
+
 func (rl *TensorResourcesService) UpdateResourceUserData(ctx context.Context, res *model.TensorResource) error {
 	return dal.UpdateResourceUserData(ctx, rl.rdb.Get(), res)
 }

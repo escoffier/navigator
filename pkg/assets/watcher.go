@@ -74,6 +74,7 @@ type ResourceEvent struct {
 	Type       WatchedType `json:"type"`
 	ClusterKey string
 	Resource   interface{} `json:"resource"`
+	YamlData   []byte      `json:"yamlData"`
 }
 
 type clusterCallbacks struct {

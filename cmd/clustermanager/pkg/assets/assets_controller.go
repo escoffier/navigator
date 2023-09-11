@@ -31,6 +31,7 @@ import (
 	defensev1 "scm.tensorsecurity.cn/tensorsecurity-rd/api/pkg/apis/defense/v1"
 	"scm.tensorsecurity.cn/tensorsecurity-rd/api/pkg/generated/informers/externalversions"
 	defenselisters "scm.tensorsecurity.cn/tensorsecurity-rd/api/pkg/generated/listers/defense/v1"
+	sigYaml "sigs.k8s.io/yaml"
 )
 
 const (
@@ -92,8 +93,10 @@ type Controller struct {
 }
 
 type Assets struct {
-	Type reflect.Type
-	key  string
+	Object interface{}
+	Type   reflect.Type
+	key    string
+	Action pkgassets.Action
 }
 
 func NewAssetsController(factory informers.SharedInformerFactory, tensorFactory externalversions.SharedInformerFactory, writer mq.Writer, clusterKey, topic string, poolInfo *pkgassets.PoolInfo, version int) *Controller {
@@ -251,191 +254,225 @@ func (ac *Controller) Run(stopChan <-chan struct{}) {
 func (ac *Controller) addDeployment(obj interface{}) {
 	d := obj.(*appsv1.Deployment)
 	logging.Get().Debug().Msgf("add deployment %s/%s", d.Namespace, d.Name)
-	ac.enqueue(d)
+
+	ac.enqueue(d, pkgassets.ActionAdd)
 }
 
 func (ac *Controller) updateDeployment(oldObj, newObject interface{}) {
 	oldD := oldObj.(*appsv1.Deployment)
 	newD := newObject.(*appsv1.Deployment)
 	logging.Get().Debug().Msgf("update deployment %s", oldD.Name)
-	ac.enqueue(newD)
+
+	if newD.Generation != oldD.Generation {
+		ac.enqueue(newD, pkgassets.ActionUpdate)
+	}
 }
 
 func (ac *Controller) deleteDeployment(obj interface{}) {
 	d := obj.(*appsv1.Deployment)
 	logging.Get().Debug().Msgf("delete deployment %s/%s", d.Namespace, d.Name)
-	ac.enqueue(d)
+	ac.enqueue(d, pkgassets.ActionDelete)
 }
 
 func (ac *Controller) addDaemonSet(obj interface{}) {
 	d := obj.(*appsv1.DaemonSet)
 	logging.Get().Debug().Msgf("add daemonset %s/%s", d.Namespace, d.Name)
-	ac.enqueue(d)
+	ac.enqueue(d, pkgassets.ActionAdd)
 }
 
 func (ac *Controller) updateDaemonSet(oldObj, newObject interface{}) {
 	oldD := oldObj.(*appsv1.DaemonSet)
 	newD := newObject.(*appsv1.DaemonSet)
 	logging.Get().Debug().Msgf("update daemonset %s", oldD.Name)
-	ac.enqueue(newD)
+
+	if newD.Generation != oldD.Generation {
+		ac.enqueue(newD, pkgassets.ActionUpdate)
+	}
 }
 
 func (ac *Controller) deleteDaemonSet(obj interface{}) {
 	d := obj.(*appsv1.DaemonSet)
 	logging.Get().Debug().Msgf("delete daemonset %s/%s", d.Namespace, d.Name)
-	ac.enqueue(d)
+	ac.enqueue(d, pkgassets.ActionDelete)
 }
 
 func (ac *Controller) addReplicaSet(obj interface{}) {
 	d := obj.(*appsv1.ReplicaSet)
 	logging.Get().Debug().Msgf("add replica set %s/%s", d.Namespace, d.Name)
-	ac.enqueue(d)
+	if d.OwnerReferences != nil && len(d.OwnerReferences) != 0 { // 表示该replicaSet为其他资源(如deployment)派生
+		return
+	}
+	ac.enqueue(d, pkgassets.ActionAdd)
 }
 
 func (ac *Controller) updateReplicaSet(oldObj, newObject interface{}) {
 	oldD := oldObj.(*appsv1.ReplicaSet)
 	newD := newObject.(*appsv1.ReplicaSet)
 	logging.Get().Debug().Msgf("update replica set %s", oldD.Name)
-	ac.enqueue(newD)
+	if newD.OwnerReferences != nil && len(newD.OwnerReferences) != 0 { // 表示该replicaSet为其他资源(如deployment)派生
+		return
+	}
+
+	if newD.Generation != oldD.Generation {
+		ac.enqueue(newD, pkgassets.ActionUpdate)
+	}
 }
 
 func (ac *Controller) deleteReplicaSet(obj interface{}) {
 	d := obj.(*appsv1.ReplicaSet)
 	logging.Get().Debug().Msgf("delete replica set %s/%s", d.Namespace, d.Name)
-	ac.enqueue(d)
+	ac.enqueue(d, pkgassets.ActionDelete)
 }
 
 func (ac *Controller) addPod(obj interface{}) {
 	d := obj.(*corev1.Pod)
 	logging.Get().Debug().Msgf("add pod %s/%s", d.Namespace, d.Name)
-	ac.enqueue(d)
+	ac.enqueue(d, pkgassets.ActionAdd)
 }
 
 func (ac *Controller) updatePod(oldObj, newObject interface{}) {
 	oldD := oldObj.(*corev1.Pod)
 	newD := newObject.(*corev1.Pod)
 	logging.Get().Debug().Msgf("update pod %s", oldD.Name)
-	ac.enqueue(newD)
+
+	if newD.Generation != oldD.Generation {
+		ac.enqueue(newD, pkgassets.ActionUpdate)
+	}
 }
 
 func (ac *Controller) deletePod(obj interface{}) {
 	d := obj.(*corev1.Pod)
 	logging.Get().Debug().Msgf("delete pod %s/%s", d.Namespace, d.Name)
-	ac.enqueue(d)
+	ac.enqueue(d, pkgassets.ActionDelete)
 }
 
 func (ac *Controller) addRole(obj interface{}) {
 	d := obj.(*rbacv1.Role)
 	logging.Get().Debug().Msgf("add role %s/%s", d.Namespace, d.Name)
-	ac.enqueue(d)
+	ac.enqueue(d, pkgassets.ActionAdd)
 }
 
 func (ac *Controller) updateRole(oldObj, newObject interface{}) {
 	oldR := oldObj.(*rbacv1.Role)
 	newR := newObject.(*rbacv1.Role)
 	logging.Get().Debug().Msgf("update role %s", oldR.Name)
-	ac.enqueue(newR)
+	if newR.Generation != oldR.Generation {
+		ac.enqueue(newR, pkgassets.ActionUpdate)
+	}
 }
 
 func (ac *Controller) deleteRole(obj interface{}) {
 	d := obj.(*rbacv1.Role)
 	logging.Get().Debug().Msgf("delete role %s/%s", d.Namespace, d.Name)
-	ac.enqueue(d)
+	ac.enqueue(d, pkgassets.ActionDelete)
 }
 
 func (ac *Controller) addClusterRole(obj interface{}) {
 	d := obj.(*rbacv1.ClusterRole)
 	logging.Get().Debug().Msgf("add cluster role %s", d.Name)
-	ac.enqueue(d)
+	ac.enqueue(d, pkgassets.ActionAdd)
 }
 
 func (ac *Controller) updateClusterRole(oldObj, newObject interface{}) {
 	oldR := oldObj.(*rbacv1.ClusterRole)
 	newR := newObject.(*rbacv1.ClusterRole)
 	logging.Get().Debug().Msgf("update cluster role %s", oldR.Name)
-	ac.enqueue(newR)
+	if newR.Generation != oldR.Generation {
+		ac.enqueue(newR, pkgassets.ActionUpdate)
+	}
 }
 
 func (ac *Controller) deleteClusterRole(obj interface{}) {
 	d := obj.(*rbacv1.ClusterRole)
 	logging.Get().Debug().Msgf("delete cluster role %s", d.Name)
-	ac.enqueue(d)
+	ac.enqueue(d, pkgassets.ActionDelete)
 }
 
 func (ac *Controller) addNamespace(obj interface{}) {
 	d := obj.(*corev1.Namespace)
 	logging.Get().Debug().Msgf("add namespace %s", d.Name)
-	ac.enqueue(d)
+	ac.enqueue(d, pkgassets.ActionAdd)
 }
 
 func (ac *Controller) updateNamespace(oldObj, newObject interface{}) {
 	oldR := oldObj.(*corev1.Namespace)
 	newR := newObject.(*corev1.Namespace)
 	logging.Get().Debug().Msgf("update namespace %s", oldR.Name)
-	ac.enqueue(newR)
+	if newR.Generation != oldR.Generation {
+		ac.enqueue(newR, pkgassets.ActionUpdate)
+	}
 }
 
 func (ac *Controller) deleteNamespace(obj interface{}) {
 	d := obj.(*corev1.Namespace)
 	logging.Get().Debug().Msgf("delete namespace %s", d.Name)
-	ac.enqueue(d)
+	ac.enqueue(d, pkgassets.ActionDelete)
 }
 
 func (ac *Controller) addNode(obj interface{}) {
 	d := obj.(*corev1.Node)
 	logging.Get().Debug().Msgf("add node %s", d.Name)
-	ac.enqueue(d)
+	ac.enqueue(d, pkgassets.ActionAdd)
 }
 
 func (ac *Controller) updateNode(oldObj, newObject interface{}) {
 	oldR := oldObj.(*corev1.Node)
 	newR := newObject.(*corev1.Node)
 	logging.Get().Debug().Msgf("update node %s", oldR.Name)
-	ac.enqueue(newR)
+	if newR.Generation != oldR.Generation {
+		ac.enqueue(newR, pkgassets.ActionUpdate)
+	}
 }
 
 func (ac *Controller) deleteNode(obj interface{}) {
 	d := obj.(*corev1.Node)
 	logging.Get().Debug().Msgf("delete node %s", d.Name)
-	ac.enqueue(d)
+	ac.enqueue(d, pkgassets.ActionDelete)
 }
 
 func (ac *Controller) addStatefulSet(obj interface{}) {
 	d := obj.(*appsv1.StatefulSet)
 	logging.Get().Debug().Msgf("add StatefulSet %s/%s", d.Namespace, d.Name)
-	ac.enqueue(d)
+	ac.enqueue(d, pkgassets.ActionAdd)
 }
 
 func (ac *Controller) updateStatefulSet(oldObj, newObject interface{}) {
 	oldR := oldObj.(*appsv1.StatefulSet)
 	newR := newObject.(*appsv1.StatefulSet)
 	logging.Get().Debug().Msgf("update StatefulSet %s", oldR.Name)
-	ac.enqueue(newR)
+	if newR.Generation != oldR.Generation {
+		ac.enqueue(newR, pkgassets.ActionUpdate)
+	}
 }
 
 func (ac *Controller) deleteStatefulSet(obj interface{}) {
 	d := obj.(*appsv1.StatefulSet)
 	logging.Get().Debug().Msgf("delete StatefulSet %s/%s", d.Namespace, d.Name)
-	ac.enqueue(d)
+	ac.enqueue(d, pkgassets.ActionDelete)
 }
 
 func (ac *Controller) addJob(obj interface{}) {
 	d := obj.(*batchv1.Job)
 	logging.Get().Debug().Msgf("add Job %s/%s", d.Namespace, d.Name)
-	ac.enqueue(d)
+	ac.enqueue(d, pkgassets.ActionAdd)
 }
 
 func (ac *Controller) updateJob(oldObj, newObject interface{}) {
 	oldR := oldObj.(*batchv1.Job)
 	newR := newObject.(*batchv1.Job)
 	logging.Get().Debug().Msgf("update Job %s", oldR.Name)
-	ac.enqueue(newR)
+	if newR.OwnerReferences != nil && len(newR.OwnerReferences) != 0 { // 表示该job为其他资源(如cronjob)派生
+		return
+	}
+	if newR.Generation != oldR.Generation {
+		ac.enqueue(newR, pkgassets.ActionUpdate)
+	}
 }
 
 func (ac *Controller) deleteJob(obj interface{}) {
 	d := obj.(*batchv1.Job)
 	logging.Get().Debug().Msgf("delete Job %s/%s", d.Namespace, d.Name)
-	ac.enqueue(d)
+	ac.enqueue(d, pkgassets.ActionDelete)
 }
 
 func (ac *Controller) addCronJob(obj interface{}) {
@@ -445,7 +482,7 @@ func (ac *Controller) addCronJob(obj interface{}) {
 		return
 	}
 	logging.Get().Debug().Msgf("add CronJob V1 %s/%s", meta.GetNamespace(), meta.GetName())
-	ac.enqueue(obj)
+	ac.enqueue(obj, pkgassets.ActionAdd)
 }
 
 func (ac *Controller) updateCronJob(oldObj, newObject interface{}) {
@@ -455,7 +492,22 @@ func (ac *Controller) updateCronJob(oldObj, newObject interface{}) {
 		return
 	}
 	logging.Get().Debug().Msgf("update CronJob %s/%s", meta.GetNamespace(), meta.GetName())
-	ac.enqueue(newObject)
+	if oldR, ok := oldObj.(*v1beta1.CronJob); ok {
+		newR, _ := newObject.(*v1beta1.CronJob)
+		if newR.Generation != oldR.Generation {
+			ac.enqueue(newR, pkgassets.ActionUpdate)
+		}
+	} else {
+		oldR, ok := oldObj.(*batchv1.CronJob)
+		if !ok {
+			logging.Get().Error().Msg("invalid CronJob type")
+			return
+		}
+		newR, _ := newObject.(*batchv1.CronJob)
+		if newR.Generation != oldR.Generation {
+			ac.enqueue(newR, pkgassets.ActionUpdate)
+		}
+	}
 }
 
 func (ac *Controller) deleteCronJob(obj interface{}) {
@@ -465,56 +517,62 @@ func (ac *Controller) deleteCronJob(obj interface{}) {
 		return
 	}
 	logging.Get().Debug().Msgf("delete CronJob %s/%s", meta.GetNamespace(), meta.GetName())
-	ac.enqueue(obj)
+	ac.enqueue(obj, pkgassets.ActionDelete)
 }
 
 func (ac *Controller) addReplicationController(obj interface{}) {
 	d := obj.(*corev1.ReplicationController)
 	logging.Get().Debug().Msgf("add ReplicationController %s/%s", d.Namespace, d.Name)
-	ac.enqueue(d)
+	ac.enqueue(d, pkgassets.ActionAdd)
 }
 
 func (ac *Controller) updateReplicationController(oldObj, newObject interface{}) {
 	oldR := oldObj.(*corev1.ReplicationController)
 	newR := newObject.(*corev1.ReplicationController)
 	logging.Get().Debug().Msgf("update ReplicationController %s", oldR.Name)
-	ac.enqueue(newR)
+	if newR.Generation != oldR.Generation {
+		ac.enqueue(newR, pkgassets.ActionUpdate)
+	}
 }
 
 func (ac *Controller) deleteReplicationController(obj interface{}) {
 	d := obj.(*corev1.ReplicationController)
 	logging.Get().Debug().Msgf("delete ReplicationController %s/%s", d.Namespace, d.Name)
-	ac.enqueue(d)
+	ac.enqueue(d, pkgassets.ActionDelete)
 }
 
 func (ac *Controller) addHoneySpot(obj interface{}) {
 	d := obj.(*defensev1.Honeypot)
 	logging.Get().Debug().Msgf("add HoneySpot %s/%s", d.Namespace, d.Name)
-	ac.enqueue(d)
+	ac.enqueue(d, pkgassets.ActionAdd)
 }
 
 func (ac *Controller) updateHoneySpot(oldObj, newObject interface{}) {
 	oldD := oldObj.(*defensev1.Honeypot)
 	newD := newObject.(*defensev1.Honeypot)
 	logging.Get().Debug().Msgf("update HoneySpot %s", oldD.Name)
-	ac.enqueue(newD)
+	if newD.Generation != oldD.Generation {
+		ac.enqueue(newD, pkgassets.ActionUpdate)
+	}
 }
 
 func (ac *Controller) deleteHoneySpot(obj interface{}) {
 	d := obj.(*defensev1.Honeypot)
 	logging.Get().Debug().Msgf("delete HoneySpot %s/%s", d.Namespace, d.Name)
-	ac.enqueue(d)
+	ac.enqueue(d, pkgassets.ActionDelete)
 }
 
-func (ac *Controller) enqueue(obj interface{}) {
+func (ac *Controller) enqueue(obj interface{}, action pkgassets.Action) {
 	key, err := cache.DeletionHandlingMetaNamespaceKeyFunc(obj)
 	if err != nil {
 		logging.Get().Err(err).Msgf("couldn't get object key for object %#v", obj)
 		return
 	}
 	ac.queue.Add(&Assets{
-		Type: reflect.TypeOf(obj),
-		key:  key,
+		Object: obj,
+		Type:   reflect.TypeOf(obj),
+		key:    key,
+		Action: action,
 	})
 }
 
@@ -534,50 +592,50 @@ func (ac *Controller) processNextItem() bool {
 	as := key.(*Assets)
 	var err error
 
-	switch as.Type {
-	case DeploymentType:
-		err = ac.syncWorkLoad(as.key, pkgassets.KindDeployment, func(namespace, name string) (interface{}, error) {
+	switch as.Object.(type) {
+	case *appsv1.Deployment:
+		err = ac.syncWorkLoad(as, pkgassets.KindDeployment, func(namespace, name string) (interface{}, error) {
 			return ac.dpLister.Deployments(namespace).Get(name)
 		})
-	case DaemonSetType:
-		err = ac.syncWorkLoad(as.key, pkgassets.KindDaemonSet, func(namespace, name string) (interface{}, error) {
+	case *appsv1.DaemonSet:
+		err = ac.syncWorkLoad(as, pkgassets.KindDaemonSet, func(namespace, name string) (interface{}, error) {
 			return ac.dsLister.DaemonSets(namespace).Get(name)
 		})
-	case ReplicaSetType:
-		err = ac.syncWorkLoad(as.key, pkgassets.KindReplicaSet, func(namespace, name string) (interface{}, error) {
+	case *appsv1.ReplicaSet:
+		err = ac.syncWorkLoad(as, pkgassets.KindReplicaSet, func(namespace, name string) (interface{}, error) {
 			return ac.rsLister.ReplicaSets(namespace).Get(name)
 		})
-	case StatefulSetType:
-		err = ac.syncWorkLoad(as.key, pkgassets.KindStatefulSet, func(namespace, name string) (interface{}, error) {
+	case *appsv1.StatefulSet:
+		err = ac.syncWorkLoad(as, pkgassets.KindStatefulSet, func(namespace, name string) (interface{}, error) {
 			return ac.ssLister.StatefulSets(namespace).Get(name)
 		})
-	case ReplicaControllerType:
-		err = ac.syncWorkLoad(as.key, pkgassets.KindReplicationController, func(namespace, name string) (interface{}, error) {
+	case *corev1.ReplicationController:
+		err = ac.syncWorkLoad(as, pkgassets.KindReplicationController, func(namespace, name string) (interface{}, error) {
 			return ac.rcLister.ReplicationControllers(namespace).Get(name)
 		})
-	case JobType:
-		err = ac.syncWorkLoad(as.key, pkgassets.KindJob, func(namespace, name string) (interface{}, error) {
+	case *batchv1.Job:
+		err = ac.syncWorkLoad(as, pkgassets.KindJob, func(namespace, name string) (interface{}, error) {
 			return ac.jbLister.Jobs(namespace).Get(name)
 		})
-	case CronJobType:
-		err = ac.syncWorkLoad(as.key, pkgassets.KindCronJob, func(namespace, name string) (interface{}, error) {
+	case *v1beta1.CronJob:
+		err = ac.syncWorkLoad(as, pkgassets.KindCronJob, func(namespace, name string) (interface{}, error) {
 			return ac.cjbLister.CronJobs(namespace).Get(name)
 		})
-	case CronJobV1Type:
-		err = ac.syncWorkLoad(as.key, pkgassets.KindCronJob, func(namespace, name string) (interface{}, error) {
+	case *batchv1.CronJob:
+		err = ac.syncWorkLoad(as, pkgassets.KindCronJob, func(namespace, name string) (interface{}, error) {
 			return ac.cjbv1Lister.CronJobs(namespace).Get(name)
 		})
-	case PodType:
+	case *corev1.Pod:
 		err = ac.syncPod(as.key)
-	case RoleType:
+	case *rbacv1.Role:
 		err = ac.syncRole(as.key)
-	case ClusterRoleType:
+	case *rbacv1.ClusterRole:
 		err = ac.syncClusterRole(as.key)
-	case NamespaceType:
+	case *corev1.Namespace:
 		err = ac.syncNamespace(as.key)
-	case NodeType:
+	case *corev1.Node:
 		err = ac.syncNode(as.key)
-	case HoneySportType:
+	case *defensev1.Honeypot:
 		err = ac.syncHoneySpot(as.key)
 	default:
 		logging.Get().Error().Msgf("invalid resource type %v", as.Type)
@@ -621,7 +679,7 @@ func (ac *Controller) syncPod(key string) error {
 		//static pod as tensor resource
 		if len(pod.OwnerReferences) == 0 || pod.OwnerReferences[0].Kind == "Node" {
 			res := pkgassets.NewResourceFromPodNoOwnerOrStaticPod(ac.clusterKey, pod)
-			return ac.sendToMainClusterManager(ctx, pkgassets.ActionAdd, pkgassets.TensorResources2Watch, res)
+			return ac.sendToMainClusterManager(ctx, pkgassets.ActionAdd, pkgassets.TensorResources2Watch, res, nil)
 		}
 
 		owner, _ := ac.getUpperOwnerOfPod(pod)
@@ -639,7 +697,7 @@ func (ac *Controller) syncPod(key string) error {
 			PoolInfo: ac.poolInfo,
 		}
 	}
-	return ac.sendToMainClusterManager(ctx, action, pkgassets.Pods2Watch, res)
+	return ac.sendToMainClusterManager(ctx, action, pkgassets.Pods2Watch, res, nil)
 }
 
 func (ac *Controller) syncRole(key string) error {
@@ -675,7 +733,7 @@ func (ac *Controller) syncRole(key string) error {
 		Cluster: ac.clusterKey,
 		Role:    r,
 	}
-	return ac.sendToMainClusterManager(ctx, action, pkgassets.Roles2Watch, &role)
+	return ac.sendToMainClusterManager(ctx, action, pkgassets.Roles2Watch, &role, nil)
 }
 
 func (ac *Controller) syncClusterRole(key string) error {
@@ -710,7 +768,7 @@ func (ac *Controller) syncClusterRole(key string) error {
 		Cluster:     ac.clusterKey,
 		ClusterRole: r,
 	}
-	return ac.sendToMainClusterManager(ctx, action, pkgassets.ClusterRoles2Watch, &role)
+	return ac.sendToMainClusterManager(ctx, action, pkgassets.ClusterRoles2Watch, &role, nil)
 }
 
 func (ac *Controller) syncNamespace(key string) error {
@@ -744,7 +802,7 @@ func (ac *Controller) syncNamespace(key string) error {
 		Cluster:   ac.clusterKey,
 		Namespace: ns,
 	}
-	return ac.sendToMainClusterManager(ctx, action, pkgassets.Namespaces2Watch, &res)
+	return ac.sendToMainClusterManager(ctx, action, pkgassets.Namespaces2Watch, &res, nil)
 }
 
 func (ac *Controller) syncNode(key string) error {
@@ -779,7 +837,7 @@ func (ac *Controller) syncNode(key string) error {
 		Node:    node,
 	}
 	n.TailorSelf()
-	return ac.sendToMainClusterManager(ctx, action, pkgassets.Nodes2Watch, n)
+	return ac.sendToMainClusterManager(ctx, action, pkgassets.Nodes2Watch, n, nil)
 }
 
 func (ac *Controller) syncHoneySpot(key string) error {
@@ -813,21 +871,21 @@ func (ac *Controller) syncHoneySpot(key string) error {
 		Cluster:  ac.clusterKey,
 		Honeypot: hp,
 	}
-	return ac.sendToMainClusterManager(ctx, action, pkgassets.Honeyspots2Watch, n)
+	return ac.sendToMainClusterManager(ctx, action, pkgassets.Honeyspots2Watch, n, nil)
 }
 
-func (ac *Controller) syncWorkLoad(key string, kind pkgassets.ResourceKind, f func(namespace, name string) (interface{}, error)) error {
-	namespace, name, err := cache.SplitMetaNamespaceKey(key)
+func (ac *Controller) syncWorkLoad(asset *Assets, kind pkgassets.ResourceKind, f func(namespace, name string) (interface{}, error)) error {
+	namespace, name, err := cache.SplitMetaNamespaceKey(asset.key)
 	if err != nil {
 		return err
 	}
 	if len(namespace) == 0 || len(name) == 0 {
-		err := fmt.Errorf("empty namespace or name from key: %s, kind: %s", key, kind)
+		err := fmt.Errorf("empty namespace or name from key: %s, kind: %s", asset.key, kind)
 		logging.Get().Err(err).Msg("empty namespace or name")
 		return err
 	}
 	var res *pkgassets.TensorResource
-	action := pkgassets.ActionAdd
+	action := asset.Action
 	wl, err := f(namespace, name)
 	if err != nil {
 		if errors.IsNotFound(err) {
@@ -848,24 +906,24 @@ func (ac *Controller) syncWorkLoad(key string, kind pkgassets.ResourceKind, f fu
 	}
 
 	if res == nil {
-		logging.Get().Error().Msgf("resource: %s is nil", key)
+		logging.Get().Error().Msgf("resource: %s is nil", asset.key)
 		return err
 	}
 
-	return ac.sendToMainClusterManager(context.Background(), action, pkgassets.TensorResources2Watch, res)
+	bYaml, err := sigYaml.Marshal(pkgassets.PureObject(asset.Object))
+	if err != nil {
+		logging.Get().Error().Err(err).Str("asset", asset.key).Msgf("object marshal to yaml fails")
+		return err
+	}
+
+	return ac.sendToMainClusterManager(context.Background(), action, pkgassets.TensorResources2Watch, res, bYaml)
 }
 
-func (ac *Controller) sendToMainClusterManager(ctx context.Context, action pkgassets.Action, watchedType pkgassets.WatchedType, obj pkgassets.IdentifiableItem) error {
+func (ac *Controller) sendToMainClusterManager(ctx context.Context, action pkgassets.Action, watchedType pkgassets.WatchedType, obj pkgassets.IdentifiableItem, yamlData []byte) error {
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
-	obj.SetDuplicatedChecked(true)
-	if action != pkgassets.ActionDelete && ac.dupCache.Check(obj) {
-		logging.Get().Info().Str("key", obj.KeyName()).Str("idStr", obj.IdentityString()).Msg("duplicated resource. cancel send to main stream")
-		return nil
-	}
-
-	err := ac.sendToMq(ctx, action, watchedType, obj)
+	err := ac.sendToMq(ctx, action, watchedType, obj, yamlData)
 
 	if err == nil {
 		if action != pkgassets.ActionDelete {
@@ -909,12 +967,13 @@ func (ac *Controller) getUpperOwnerOfPod(pod *corev1.Pod) (*metav1.OwnerReferenc
 	return owner, owner != nil
 }
 
-func (ac *Controller) sendToMq(ctx context.Context, action pkgassets.Action, watchedType pkgassets.WatchedType, obj interface{}) error {
+func (ac *Controller) sendToMq(ctx context.Context, action pkgassets.Action, watchedType pkgassets.WatchedType, obj interface{}, yamlData []byte) error {
 	event := &pkgassets.ResourceEvent{
 		ClusterKey: ac.clusterKey,
 		Action:     action,
 		Type:       watchedType,
 		Resource:   obj,
+		YamlData:   yamlData,
 	}
 	msg, err := json.Marshal(event)
 	if err != nil {
@@ -943,7 +1002,7 @@ func (ac *Controller) sendToMq(ctx context.Context, action pkgassets.Action, wat
 func (ac *Controller) notifySync() {
 	logging.Get().Info().Msg("notify for syncing")
 	err := wait.PollImmediateUntil(3*time.Second, func() (bool, error) {
-		err1 := ac.sendToMq(context.Background(), pkgassets.ActionSync, pkgassets.AssetsSync, nil)
+		err1 := ac.sendToMq(context.Background(), pkgassets.ActionSync, pkgassets.AssetsSync, nil, nil)
 		if err1 != nil {
 			logging.Get().Err(err1).Msg("sending AssetsSync err, will try again")
 			return false, nil

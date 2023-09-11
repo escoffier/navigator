@@ -184,7 +184,10 @@ func start(config starter.Config) {
 	logging.Get().Info().Int64("MaxVulnCol", config.MaxVulnCol).Int64("MaxImageByOneExportTask",
 		config.MaxImageByOneExportTask).Msg("config")
 	// 起后台协程服务
-	backgroundSrv := starter.NewBackgroundTasks(context.Background(), config)
+	backgroundSrv, err := starter.NewBackgroundTasks(context.Background(), config)
+	if err != nil {
+		os.Exit(1)
+	}
 	backgroundSrv.Start(context.Background())
 
 	registryDal := store.NewRegistryDao(config.Rdb)

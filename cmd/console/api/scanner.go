@@ -187,6 +187,8 @@ func (api *api) export() func(chi.Router) {
 		r.Post("/task/scanTask", api.RedirectToExport())
 		r.Post("/task/vuln", api.RedirectToExport())
 		r.Post("/task/imageSearch", api.RedirectToExport())
+		r.Post("/task/yaml", api.RedirectToExport())
+		r.Post("/task/dockerfile", api.RedirectToExport())
 		r.Get("/task/detail", api.RedirectToExport())
 		r.Get("/task/list", api.RedirectToExport())
 		r.Get("/task/download", api.RedirectToExport())

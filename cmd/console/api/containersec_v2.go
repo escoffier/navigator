@@ -12,6 +12,7 @@ func (api *api) containerSec() func(chi.Router) {
 		r.Route("/export", api.export())
 		r.Route("/immune", api.immune())
 		r.Route("/watson", api.defense())
+		r.Route("/iac", api.iac())
 		r.Route("/waf", api.waf())
 	}
 }
@@ -23,5 +24,6 @@ func (api *api) OpenApiContainerSec() func(chi.Router) {
 		r.Route("/ATTCK", api.ATTCKOpenAPI())
 		r.Route("/watson", api.defenseOpenApi())
 		r.Route("/export", api.export())
+		r.Route("/iac", api.iacOpenApi())
 	}
 }

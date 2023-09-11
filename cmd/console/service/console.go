@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"gitlab.com/piccolo_su/vegeta/cmd/console/service/iac"
+	"gitlab.com/security-rd/go-pkg/translate"
 	"net/http"
 	"os"
 	"runtime/debug"
@@ -182,6 +184,11 @@ func NewConsole(
 	rlErr := assetsSvc.InitResourcesService(rdb, redisearchClient, scannerURL)
 	if rlErr != nil {
 		logging.Get().Err(rlErr).Msg("ERROR: InitResourcesService init error")
+	}
+
+	resSvc, ok := assetsSvc.GetResourcesService(mainCtx)
+	if !ok {
+		logging.Get().Panic().Msg("init GetResourcesService fails")
 	}
 
 	ucErr := usercenter.Init(rdb)
@@ -370,6 +377,23 @@ func NewConsole(
 		}
 	}
 
+	// init iac-yaml scan
+	logging.Get().Debug().Msg("start NewYamlScanner")
+	iac.NewYamlScanner(rdb.Get())
+	logging.Get().Debug().Msg("end NewYamlScanner")
+
+	// init iac-dockerfile
+	logging.Get().Debug().Msg("start NewDockerfile")
+	iac.NewDockerfile(rdb.Get())
+	logging.Get().Debug().Msg("end NewDockerfile")
+
+	translation, err := translate.NewTranslation(mainCtx, rdb)
+	if err != nil {
+		logging.Get().Error().Err(err).Msg("ERROR: translation init error")
+		mainCancel()
+		return nil, err
+	}
+
 	return &Console{
 		server: &http.Server{
 			Addr: httpOpts.HTTPListen,
@@ -384,8 +408,12 @@ func NewConsole(
 				env.GetWebHookUrl(),
 				httpOpts.HTTPLoggerDisabled,
 				httpOpts.HTTPAuditDisabled,
+				sherlockClient,
 				redisClient,
 				nil, // harborClient,
+				translation,
+				clusterManager,
+				resSvc,
 			),
 		},
 		webHookServer: &http.Server{Addr: httpOpts.HTTPWebHookListen, Handler: setupWebHookRouter()},
@@ -443,7 +471,13 @@ func (c *Console) Run() func() {
 		logging.Get().Error().Err(errors.New("cluster manager not exist")).Msg("get a nil cluster manager")
 	}
 
-	err := rdbCheck(c.rdb.Get())
+	// 初始化资源同步
+	err := iac.SyncResources()
+	if err != nil {
+		logging.Get().Error().Err(err).Msg("syncResources fails")
+	}
+
+	err = rdbCheck(c.rdb.Get())
 	if err != nil {
 		logging.Get().Err(err).Msg("When check admin data in postgres")
 	}
