@@ -45,8 +45,13 @@ type SearchRegistryParam struct {
 }
 
 func (s *RegistrySrv) GetRegistryType(ctx context.Context) ([]model.LabelValue, error) {
+	lang := model.LangZh
+	u, ok := ctx.Value(consts.LangKey).(string)
+	if ok && u == model.LangEn {
+		lang = model.LangEn
+	}
 	ans := make([]model.LabelValue, 0)
-	reg := model.GetRegType()
+	reg := model.GetRegType(lang)
 	for k := range reg {
 		ans = append(ans, reg[k])
 	}
