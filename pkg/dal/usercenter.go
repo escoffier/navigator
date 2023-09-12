@@ -70,7 +70,7 @@ func SelectUserAll(ctx context.Context, rdb *gorm.DB, keyword string, roles []st
 	var user []model.User
 	var count int64
 
-	db := rdb.WithContext(ctx)
+	db := rdb.WithContext(ctx).Where("rule <> ?", model.RoleTypeSuperAdmin)
 	if keyword != "" {
 		db = db.Where("account LIKE ?", "%"+keyword+"%")
 	}
