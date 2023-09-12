@@ -199,18 +199,21 @@ func main() {
 	if versionNum[0] > 2 {
 		userRules, _, err := mozart2UserRule(ctx, fileBytes)
 		if err != nil {
+			printYamlWithLineNo(fileBytes)
 			fmt.Printf("\033[1;37;41m%s\033[0m\n", err)
 			fp.Close()
 			os.Exit(2)
 		}
 		finalBytes, err = yaml.Marshal(userRules)
 		if err != nil {
+			printYamlWithLineNo(finalBytes)
 			fmt.Printf("\033[1;37;41m%s\033[0m\n", err)
 			fp.Close()
 			os.Exit(3)
 		}
 
 		if err = checkRulesFile(finalBytes); err != nil {
+			printYamlWithLineNo(finalBytes)
 			fmt.Printf("\033[1;37;41m%s\033[0m\n", err)
 			fp.Close()
 			os.Exit(4)
@@ -229,6 +232,7 @@ func main() {
 
 	thrBytes, err := holmes.ToThrBytes(finalBytes, versionNum)
 	if err != nil {
+		printYamlWithLineNo(finalBytes)
 		fmt.Println(err)
 		fp.Close()
 		os.Exit(8)
@@ -321,4 +325,13 @@ func readBytesFromDir(dirPath string) ([]byte, []byte) {
 	fileBytes = []byte(sNewCConfig + sNewOther)
 
 	return fileBytes, cConfigBytes
+}
+
+func printYamlWithLineNo(finalBytes []byte) {
+	fmt.Println("---------- ---------- ---------- yaml start ---------- ---------- ---------- ")
+	lines := strings.Split(string(finalBytes), "\n")
+	for i := range lines {
+		fmt.Printf("%05d: %s\n", i+1, lines[i])
+	}
+	fmt.Println("---------- ---------- ---------- yaml end ---------- ---------- ---------- ")
 }

@@ -447,10 +447,14 @@ func handlePeriodScan(ctx context.Context) error {
 		allClusters = false
 	}
 	if !allClusters {
-		clusterKeys, ok := config["clusters"].([]string)
-		if !ok {
+		iClusterKeys, ok := config["clusters"].([]interface{})
+		if !ok || len(iClusterKeys) == 0 {
 			logging.Get().Info().Interface("config", config).Msg("BuiltInPeriodSchedule.Config.clusters may not set")
 			return nil
+		}
+		clusterKeys := make([]string, len(iClusterKeys))
+		for i := range iClusterKeys {
+			clusterKeys[i] = iClusterKeys[i].(string)
 		}
 		query = dal.ResourcesQuery().WithInConditionCustom("cluster_key", clusterKeys)
 	}

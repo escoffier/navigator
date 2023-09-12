@@ -7,6 +7,7 @@ import (
 	"fmt"
 	iacModel "gitlab.com/piccolo_su/vegeta/pkg/model/iac"
 	"gitlab.com/security-rd/go-pkg/logging"
+	"gorm.io/gorm"
 	"io"
 	"net/http"
 	"time"
@@ -117,6 +118,7 @@ func (api *api) OpenApiDockerfileResult() http.HandlerFunc {
 		}
 
 		dockerfileRecord := iacModel.DockerfileRecord{
+			UUID:            result.UUID,
 			PipelineName:    result.PipelineName,
 			TemplateID:      result.DockerfilesPolicy.TemplateID,
 			TemplateName:    result.DockerfilesPolicy.Name,
@@ -126,55 +128,73 @@ func (api *api) OpenApiDockerfileResult() http.HandlerFunc {
 			CreatedAt:       time.Now(),
 		}
 
-		dockerfileRecord, err = iacModel.CreateDockerfileRecord(ctx, api.rdb.Get(), dockerfileRecord)
+		_, rs, err := iacModel.FindDockerfileRecords(ctx, api.rdb.Get(), map[string]interface{}{"uuid": result.UUID}, map[string]interface{}{})
 		if err != nil {
-			logging.Get().Error().Err(fmt.Errorf("CreateDockerfileRecord err: %v", err)).Msg("CreateDockerfileRecord fails")
 			RespAndLog(w, ctx,
-				NewAnError(http.StatusInternalServerError, errors.New("CreateDockerfileRecord fails")))
+				NewAnError(http.StatusInternalServerError, errors.New("FindDockerfileRecords by uuid fails")))
+			return
+		}
+		// 相同uuid的扫描记录已经存在
+		if len(rs) > 0 {
+			logging.Get().Warn().Str("uuid", result.UUID).Str("pipeline", result.PipelineName).Any("dockerfiles", result.Dockerfiles).Msg("record with same uuid exists")
+			RespAndLog(w, ctx,
+				NewAnError(http.StatusBadRequest, errors.New("record with same uuid exists")))
 			return
 		}
 
-		dockerfileResults := make([]iacModel.DockerfileResult, 0)
-		for i := range dockerfilePaths {
-			scanResult, ok := result.DockerfilesScanResults[dockerfilePaths[i]]
-			if !ok {
-				logging.Get().Error().Str("dockerfile path", dockerfilePaths[i]).Interface("dockerfile scan results", result.DockerfilesScanResults).Msg("find dockerfile scan result fails")
-				continue
-			}
-			dockerFile, ok := result.Dockerfiles[dockerfilePaths[i]]
-			if !ok {
-				logging.Get().Error().Str("dockerfile path", dockerfilePaths[i]).Interface("dockerfile scan dockerfiles", result.Dockerfiles).Msg("find dockerfile fails")
-				continue
-			}
-			bsr, err := json.Marshal(scanResult.Result)
+		err = api.rdb.Get().Transaction(func(tx *gorm.DB) error {
+			dockerfileRecord, err = iacModel.CreateDockerfileRecord(ctx, tx, dockerfileRecord)
 			if err != nil {
-				logging.Get().Error().Err(err).Msg("marshal scan result fails")
-				continue
+				logging.Get().Error().Err(fmt.Errorf("CreateDockerfileRecord err: %v", err)).Msg("CreateDockerfileRecord fails")
+				return err
 			}
-			successRate := float64(len(result.DockerfilesPolicy.Rules)-len(scanResult.Result)) / float64(len(result.DockerfilesPolicy.Rules))
-			resultStatus := iacModel.DockerfileResultStatusPass
-			if len(scanResult.Result) != 0 {
-				resultStatus = result.DockerfilesPolicy.Action
-			}
-			dockerfileResults = append(dockerfileResults, iacModel.DockerfileResult{
-				RecordID:       dockerfileRecord.ID,
-				DockerfilePath: dockerfilePaths[i],
-				Dockerfile:     dockerFile,
-				Result:         string(bsr),
-				HitWhitelist:   scanResult.HitWhitelist,
-				SuccessRate:    successRate,
-				Status:         resultStatus,
-				ParseError:     string(scanResult.ParseErr),
-				Error:          scanResult.Error,
-				CreatedAt:      time.Now(),
-			})
-		}
 
-		err = iacModel.CreateDockerfileResultInBatch(ctx, api.rdb.Get(), dockerfileResults)
+			dockerfileResults := make([]iacModel.DockerfileResult, 0)
+			for i := range dockerfilePaths {
+				scanResult, ok := result.DockerfilesScanResults[dockerfilePaths[i]]
+				if !ok {
+					logging.Get().Error().Str("dockerfile path", dockerfilePaths[i]).Interface("dockerfile scan results", result.DockerfilesScanResults).Msg("find dockerfile scan result fails")
+					continue
+				}
+				dockerFile, ok := result.Dockerfiles[dockerfilePaths[i]]
+				if !ok {
+					logging.Get().Error().Str("dockerfile path", dockerfilePaths[i]).Interface("dockerfile scan dockerfiles", result.Dockerfiles).Msg("find dockerfile fails")
+					continue
+				}
+				bsr, err := json.Marshal(scanResult.Result)
+				if err != nil {
+					logging.Get().Error().Err(err).Msg("marshal scan result fails")
+					continue
+				}
+				successRate := float64(len(result.DockerfilesPolicy.Rules)-len(scanResult.Result)) / float64(len(result.DockerfilesPolicy.Rules))
+				resultStatus := iacModel.DockerfileResultStatusPass
+				if len(scanResult.Result) != 0 {
+					resultStatus = result.DockerfilesPolicy.Action
+				}
+				dockerfileResults = append(dockerfileResults, iacModel.DockerfileResult{
+					RecordID:       dockerfileRecord.ID,
+					DockerfilePath: dockerfilePaths[i],
+					Dockerfile:     dockerFile,
+					Result:         string(bsr),
+					HitWhitelist:   scanResult.HitWhitelist,
+					SuccessRate:    successRate,
+					Status:         resultStatus,
+					ParseError:     string(scanResult.ParseErr),
+					Error:          scanResult.Error,
+					CreatedAt:      time.Now(),
+				})
+			}
+
+			err = iacModel.CreateDockerfileResultInBatch(ctx, tx, dockerfileResults)
+			if err != nil {
+				logging.Get().Error().Err(fmt.Errorf("CreateDockerfileResultInBatch err: %v", err)).Msg("CreateDockerfileResultInBatch fails")
+				return err
+			}
+			return nil
+		})
+
 		if err != nil {
-			logging.Get().Error().Err(fmt.Errorf("CreateDockerfileResultInBatch err: %v", err)).Msg("CreateDockerfileResultInBatch fails")
-			RespAndLog(w, ctx,
-				NewAnError(http.StatusInternalServerError, errors.New("CreateDockerfileResultInBatch fails")))
+			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, err))
 			return
 		}
 
