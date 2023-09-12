@@ -110,10 +110,10 @@ func (api *api) OpenApiDockerfileResult() http.HandlerFunc {
 		}
 
 		status := result.DockerfilesPolicy.Action
-		if result.ExitCode == iacModel.DockerfileRecordStatusExceptionCode {
+		if result.PolicyResultCode == iacModel.DockerfileRecordStatusExceptionCode {
 			status = iacModel.DockerfileRecordStatusException
 		}
-		if result.ExitCode == iacModel.DockerfileRecordStatusPassCode {
+		if result.PolicyResultCode == iacModel.DockerfileRecordStatusPassCode {
 			status = iacModel.DockerfileRecordStatusPass
 		}
 
