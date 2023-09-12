@@ -1220,6 +1220,12 @@ func (api *api) YamlConfigsUpdate() http.HandlerFunc {
 		nextTime := scheduleCron.Next(time.Now().Add(time.Hour * 8)).Add(time.Hour * -8)
 		updates["next_time"] = nextTime
 		iac.BuiltInPeriodSchedule.NextTime = nextTime
+		if !req.PeriodObjects.All && len(req.PeriodObjects.Clusters) == 0 {
+			err = errors.New("req PeriodObjects invalid")
+			logging.Get().Error().Err(err).Msg("req PeriodObjects invalid")
+			RespAndLog(w, ctx, NewFieldInvalidError(http.StatusBadRequest, "period_objects", err))
+			return
+		}
 		bpo, err := json.Marshal(req.PeriodObjects)
 		if err != nil {
 			logging.Get().Error().Err(err).Msg("marshal req PeriodObjects fails")

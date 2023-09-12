@@ -1692,6 +1692,7 @@ func NewSyslogInvalidArgError(httpCode int, err error, suberrors ...Suberror) er
 var m = map[string]string{
 	"benchmark_name":        "基线名称",
 	"benchmark_description": "基线描述",
+	"period_objects":        "周期扫描对象",
 }
 
 func fieldEn2Zh(e string) string {

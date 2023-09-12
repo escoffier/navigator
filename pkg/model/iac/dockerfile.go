@@ -36,6 +36,7 @@ const (
 
 type DockerfileRecord struct {
 	ID              int             `json:"id"`
+	UUID            string          `json:"uuid"`
 	PipelineName    string          `json:"pipeline_name"`
 	TemplateID      int             `json:"template_id"`
 	TemplateName    string          `json:"template_name"`
