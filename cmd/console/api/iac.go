@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"gitlab.com/piccolo_su/vegeta/pkg/dal"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 	"gorm.io/gorm"
 	"io"
@@ -1121,27 +1120,18 @@ func (api *api) YamlConfigs() http.HandlerFunc {
 					return
 				}
 				allClusters, ok := config["all"].(bool)
-				if !ok {
-					logging.Get().Error().Err(err).Msg("config all not ok")
-					RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.New("get config fails")))
-					return
-				}
-				if allClusters {
+				if ok && allClusters {
 					resp.PeriodObjects.All = true
 				} else {
 					iClusterKeys, ok := config["clusters"].([]interface{})
-					clusterKeys := make([]string, len(iClusterKeys))
-					for j := range iClusterKeys {
-						clusterKeys[j] = iClusterKeys[j].(string)
-					}
 					if !ok {
-						logging.Get().Error().Err(err).Msg("config clusters not ok")
-						RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.New("get config fails")))
-						return
-					}
-					clusters := dal.GetClustersByKeys(ctx, api.rdb.GetReadDB(), clusterKeys)
-					for j := range clusters {
-						resp.PeriodObjects.Clusters = append(resp.PeriodObjects.Clusters, clusters[j].Key)
+						resp.PeriodObjects.Clusters = make([]string, 0)
+					} else {
+						clusterKeys := make([]string, len(iClusterKeys))
+						for j := range iClusterKeys {
+							clusterKeys[j] = iClusterKeys[j].(string)
+						}
+						resp.PeriodObjects.Clusters = clusterKeys
 					}
 				}
 			}
