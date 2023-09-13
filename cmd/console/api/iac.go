@@ -40,6 +40,7 @@ func (api *api) iac() func(chi.Router) {
 		r.Post("/yaml/templates", api.YamlTemplatesCreate())
 		r.Put("/yaml/templates", api.YamlTemplatesUpdate())
 		r.Delete("/yaml/templates", api.YamlTemplatesDelete())
+		r.Get("/yaml/templates/deleteConfirm", api.YamlTemplatesDeleteConfirm())
 		r.Get("/yaml/templates/detail", api.YamlTemplatesDetail())
 		r.Get("/yaml/templateSnapshots/detail", api.YamlTemplateSnapshotsDetail())
 		r.Get("/yaml/rules", api.YamlRules())
@@ -643,15 +644,15 @@ func (api *api) YamlTemplatesCreate() http.HandlerFunc {
 			return
 		}
 		if req.Name == "" || len(req.Name) > 50 {
-			RespAndLog(w, ctx, NewFieldInvalidError(http.StatusBadRequest, "benchmark_name", errors.New("invalid request name")))
+			RespAndLog(w, ctx, NewFieldInvalidError(http.StatusBadRequest, ErrFieldBenchmarkName, errors.New("invalid request name")))
 			return
 		}
 		if !util.MatchName(req.Name) {
-			RespAndLog(w, ctx, NewFieldInvalidError(http.StatusBadRequest, "benchmark_name", errors.New("invalid request name")))
+			RespAndLog(w, ctx, NewFieldInvalidError(http.StatusBadRequest, ErrFieldBenchmarkName, errors.New("invalid request name")))
 			return
 		}
 		if len(req.Description) > 100 {
-			RespAndLog(w, ctx, NewFieldInvalidError(http.StatusBadRequest, "benchmark_description", errors.New("invalid request description")))
+			RespAndLog(w, ctx, NewFieldInvalidError(http.StatusBadRequest, ErrFieldBenchmarkDescription, errors.New("invalid request description")))
 			return
 		}
 
@@ -671,7 +672,7 @@ func (api *api) YamlTemplatesCreate() http.HandlerFunc {
 				Strs("rules", req.Rules).
 				Msgf("CreateYamlTemplate fails")
 			if strings.Contains(err.Error(), "Error 1062 (23000)") && strings.Contains(err.Error(), ".uni_name") {
-				RespAndLog(w, ctx, NewFieldDuplicateError(http.StatusBadRequest, "benchmark_name", errors.New("db operate fails")))
+				RespAndLog(w, ctx, NewFieldDuplicateError(http.StatusBadRequest, ErrFieldBenchmarkName, errors.New("db operate fails")))
 			} else {
 				RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.New("db operate fails")))
 			}
@@ -737,15 +738,15 @@ func (api *api) YamlTemplatesUpdate() http.HandlerFunc {
 			return
 		}
 		if req.Name == "" || len(req.Name) > 50 {
-			RespAndLog(w, ctx, NewFieldInvalidError(http.StatusBadRequest, "benchmark_name", errors.New("invalid request name")))
+			RespAndLog(w, ctx, NewFieldInvalidError(http.StatusBadRequest, ErrFieldBenchmarkName, errors.New("invalid request name")))
 			return
 		}
 		if !util.MatchName(req.Name) {
-			RespAndLog(w, ctx, NewFieldInvalidError(http.StatusBadRequest, "benchmark_name", errors.New("invalid request name")))
+			RespAndLog(w, ctx, NewFieldInvalidError(http.StatusBadRequest, ErrFieldBenchmarkName, errors.New("invalid request name")))
 			return
 		}
 		if len(req.Description) > 100 {
-			RespAndLog(w, ctx, NewFieldInvalidError(http.StatusBadRequest, "benchmark_description", errors.New("invalid request description")))
+			RespAndLog(w, ctx, NewFieldInvalidError(http.StatusBadRequest, ErrFieldBenchmarkDescription, errors.New("invalid request description")))
 			return
 		}
 
@@ -777,7 +778,7 @@ func (api *api) YamlTemplatesUpdate() http.HandlerFunc {
 				Strs("rules", req.Rules).
 				Msgf("UpdateYamlTemplate fails")
 			if strings.Contains(err.Error(), "Error 1062 (23000)") && strings.Contains(err.Error(), ".uni_name") {
-				RespAndLog(w, ctx, NewFieldDuplicateError(http.StatusBadRequest, "benchmark_name", errors.New("db operate fails")))
+				RespAndLog(w, ctx, NewFieldDuplicateError(http.StatusBadRequest, ErrFieldBenchmarkName, errors.New("db operate fails")))
 			} else {
 				RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.New("db operate fails")))
 			}
@@ -854,6 +855,56 @@ func (api *api) YamlTemplatesDelete() http.HandlerFunc {
 	}
 }
 
+const (
+	defaultDeleteConfirm           = "After deletion, the benchmark will not be recovered. Are you sure to delete it?"
+	addUpdateDeleteConfirm         = "After deletion, when adding/modifying a YAML file, the scanning benchmark will revert to the default benchmark. Are you sure to delete it?"
+	periodDeleteConfirm            = "After deletion, when period scanning, the scanning benchmark will revert to the default benchmark. Are you sure to delete it?"
+	addUpdateOrPeriodDeleteConfirm = "After deletion, when adding/modifying a YAML file or period scanning, the scanning benchmark will revert to the default benchmark. Are you sure to delete it?"
+)
+
+func (api *api) YamlTemplatesDeleteConfirm() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+		defer cancel()
+
+		templateID, err := param.QueryInt(r, "id")
+		if err != nil {
+			RespAndLog(w, ctx,
+				NewAnError(http.StatusBadRequest, errors.New("invalid template id")))
+			return
+		}
+
+		schedules, err := iacModel.FindYamlSchedules(ctx, api.rdb.GetReadDB(), map[string]interface{}{})
+		if err != nil {
+			RespAndLog(w, ctx,
+				NewAnError(http.StatusInternalServerError, errors.New("FindYamlSchedules fails")))
+			return
+		}
+
+		confirmText := defaultDeleteConfirm
+		x := 0
+		for i := range schedules {
+			if schedules[i].TemplateID == templateID && schedules[i].Name == iac.DBPeriodScheduleName {
+				x += 1
+			}
+			if schedules[i].TemplateID == templateID && schedules[i].Name == iac.DBUpdateScheduleName {
+				x += 2
+			}
+		}
+		if x == 1 {
+			confirmText = periodDeleteConfirm
+		} else if x == 2 {
+			confirmText = addUpdateDeleteConfirm
+		} else if x != 0 {
+			confirmText = addUpdateOrPeriodDeleteConfirm
+		}
+
+		confirmText = api.translation.One(translate.DomainIacYaml, translate.KeyTemplateDeleteConfirm, confirmText, string(lang.Language(r.Context())))
+
+		response.Ok(w, response.WithItem(confirmText))
+	}
+}
+
 func (api *api) YamlTemplatesDetail() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
@@ -868,7 +919,7 @@ func (api *api) YamlTemplatesDetail() http.HandlerFunc {
 
 		templates, err := iacModel.FindYamlTemplates(ctx, api.rdb.GetReadDB(), map[string]interface{}{"id": id})
 		if err != nil || len(templates) != 1 {
-			logging.Get().Error().Err(fmt.Errorf("FindYamlTemplates err: %v, len: %d", err, len(templates))).Msg("FindYamlTemplateSnapshots fails")
+			logging.Get().Error().Err(fmt.Errorf("FindYamlTemplates err: %v, len: %d", err, len(templates))).Msg("FindYamlTemplates fails")
 			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.New("db operate fails")))
 			return
 		}
@@ -1223,7 +1274,7 @@ func (api *api) YamlConfigsUpdate() http.HandlerFunc {
 		if !req.PeriodObjects.All && len(req.PeriodObjects.Clusters) == 0 {
 			err = errors.New("req PeriodObjects invalid")
 			logging.Get().Error().Err(err).Msg("req PeriodObjects invalid")
-			RespAndLog(w, ctx, NewFieldInvalidError(http.StatusBadRequest, "period_objects", err))
+			RespAndLog(w, ctx, NewFieldInvalidError(http.StatusBadRequest, ErrFieldPeriodObjects, err))
 			return
 		}
 		bpo, err := json.Marshal(req.PeriodObjects)
@@ -1910,15 +1961,15 @@ func (api *api) DockerfileTemplatesCreate() http.HandlerFunc {
 			return
 		}
 		if req.Name == "" || len(req.Name) > 50 {
-			RespAndLog(w, ctx, NewFieldInvalidError(http.StatusBadRequest, "benchmark_name", errors.New("invalid request name")))
+			RespAndLog(w, ctx, NewFieldInvalidError(http.StatusBadRequest, ErrFieldBenchmarkName, errors.New("invalid request name")))
 			return
 		}
 		if !util.MatchEnName(req.Name) {
-			RespAndLog(w, ctx, NewFieldInvalidError(http.StatusBadRequest, "benchmark_name", errors.New("invalid request name")))
+			RespAndLog(w, ctx, NewFieldInvalidError(http.StatusBadRequest, ErrFieldBenchmarkName, errors.New("invalid request name")))
 			return
 		}
 		if len(req.Description) > 100 {
-			RespAndLog(w, ctx, NewFieldInvalidError(http.StatusBadRequest, "benchmark_description", errors.New("invalid request description")))
+			RespAndLog(w, ctx, NewFieldInvalidError(http.StatusBadRequest, ErrFieldBenchmarkDescription, errors.New("invalid request description")))
 			return
 		}
 
@@ -1939,7 +1990,7 @@ func (api *api) DockerfileTemplatesCreate() http.HandlerFunc {
 				Strs("rules", req.Rules).
 				Msgf("CreateDockerfileTemplate fails")
 			if strings.Contains(err.Error(), "Error 1062 (23000)") && strings.Contains(err.Error(), ".uni_name") {
-				RespAndLog(w, ctx, NewFieldDuplicateError(http.StatusBadRequest, "benchmark_name", errors.New("db operate fails")))
+				RespAndLog(w, ctx, NewFieldDuplicateError(http.StatusBadRequest, ErrFieldBenchmarkName, errors.New("db operate fails")))
 			} else {
 				RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.New("db operate fails")))
 			}
@@ -2005,15 +2056,15 @@ func (api *api) DockerfileTemplatesUpdate() http.HandlerFunc {
 			return
 		}
 		if req.Name == "" || len(req.Name) > 50 {
-			RespAndLog(w, ctx, NewFieldInvalidError(http.StatusBadRequest, "benchmark_name", errors.New("invalid request name")))
+			RespAndLog(w, ctx, NewFieldInvalidError(http.StatusBadRequest, ErrFieldBenchmarkName, errors.New("invalid request name")))
 			return
 		}
 		if !util.MatchEnName(req.Name) {
-			RespAndLog(w, ctx, NewFieldInvalidError(http.StatusBadRequest, "benchmark_name", errors.New("invalid request name")))
+			RespAndLog(w, ctx, NewFieldInvalidError(http.StatusBadRequest, ErrFieldBenchmarkName, errors.New("invalid request name")))
 			return
 		}
 		if len(req.Description) > 100 {
-			RespAndLog(w, ctx, NewFieldInvalidError(http.StatusBadRequest, "benchmark_description", errors.New("invalid request description")))
+			RespAndLog(w, ctx, NewFieldInvalidError(http.StatusBadRequest, ErrFieldBenchmarkDescription, errors.New("invalid request description")))
 			return
 		}
 
