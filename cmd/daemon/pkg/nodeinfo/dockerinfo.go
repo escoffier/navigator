@@ -567,7 +567,18 @@ func (d *DockerInfoManager) getImageInfoV2(imageRef string, imageID string) (ima
 	if i != -1 && i < len(imageRef)-1 {
 		imageDigest = imageRef[i+1:]
 	} else {
-		imageName = imageRef
+		count := strings.Count(imageRef, "/")
+		switch count {
+		case 0: //  tomcat
+			imageName = "library/" + imageRef
+		case 1: // library/tomcat:latest
+			imageName = imageRef
+		case 2:
+			imageName = strings.TrimPrefix(imageRef, "http://")
+			imageName = strings.TrimPrefix(imageName, "https://")
+		default:
+			imageName = imageRef
+		}
 	}
 
 	imageInspect, _, err := d.dockerCli.ImageInspectWithRaw(context.Background(), imageID)
@@ -588,6 +599,11 @@ func (d *DockerInfoManager) getImageInfoV2(imageRef string, imageID string) (ima
 		if i != -1 && i < len(imageInspect.RepoDigests[0])-1 {
 			imageDigest = imageInspect.RepoDigests[0][i+1:]
 		}
+	}
+
+	if !strings.Contains(imageName, ":") && len(imageInspect.RepoTags) > 0 {
+		split := strings.Split(imageInspect.RepoTags[0], ":")
+		imageName += ":" + split[len(split)-1]
 	}
 
 	return imageName, imageDigest, imageInspect.Created, imageInspect.Size
