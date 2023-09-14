@@ -856,7 +856,7 @@ func (api *api) YamlTemplatesDelete() http.HandlerFunc {
 }
 
 const (
-	defaultDeleteConfirm           = "After deletion, the benchmark will not be recovered. Are you sure to delete it?"
+	defaultDeleteConfirm           = "After deletion, the benchmark will be unable to recovered. Are you sure to delete it?"
 	addUpdateDeleteConfirm         = "After deletion, when adding/modifying a YAML file, the scanning benchmark will revert to the default benchmark. Are you sure to delete it?"
 	periodDeleteConfirm            = "After deletion, when period scanning, the scanning benchmark will revert to the default benchmark. Are you sure to delete it?"
 	addUpdateOrPeriodDeleteConfirm = "After deletion, when adding/modifying a YAML file or period scanning, the scanning benchmark will revert to the default benchmark. Are you sure to delete it?"
@@ -901,7 +901,9 @@ func (api *api) YamlTemplatesDeleteConfirm() http.HandlerFunc {
 
 		confirmText = api.translation.One(translate.DomainIacYaml, translate.KeyTemplateDeleteConfirm, confirmText, string(lang.Language(r.Context())))
 
-		response.Ok(w, response.WithItem(confirmText))
+		response.Ok(w, response.WithItem(struct {
+			Text string `json:"text"`
+		}{Text: confirmText}))
 	}
 }
 
