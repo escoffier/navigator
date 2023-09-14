@@ -834,13 +834,37 @@ func (api *api) YamlTemplatesDelete() http.HandlerFunc {
 
 		templates, err := iacModel.FindYamlTemplates(ctx, api.rdb.Get(), map[string]interface{}{"id": req.ID})
 		if err != nil || len(templates) != 1 {
-			logging.Get().Error().Err(fmt.Errorf("FindYamlTemplates err: %v, len: %d", err, len(templates))).Msg("FindYamlTemplateSnapshots fails")
+			logging.Get().Error().Err(fmt.Errorf("FindYamlTemplates err: %v, len: %d", err, len(templates))).Msg("FindYamlTemplates fails")
 			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.New("db operate fails")))
 			return
 		}
 		if templates[0].Builtin {
 			RespAndLog(w, ctx, NewAnError(http.StatusBadRequest, errors.New("builtin template cannot be removed")))
 			return
+		}
+
+		defaultTemplates, err := iacModel.FindYamlTemplates(ctx, api.rdb.Get(), map[string]interface{}{"name": iac.DefaultTemplateName})
+		if err != nil || len(defaultTemplates) != 1 {
+			logging.Get().Error().Err(fmt.Errorf("FindYamlTemplates err: %v, len: %d", err, len(defaultTemplates))).Msg("FindYamlTemplates fails")
+			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.New("db operate fails")))
+			return
+		}
+		schedules, err := iacModel.FindYamlSchedules(ctx, api.rdb.GetReadDB(), map[string]interface{}{})
+		if err != nil {
+			RespAndLog(w, ctx,
+				NewAnError(http.StatusInternalServerError, errors.New("FindYamlSchedules fails")))
+			return
+		}
+		for i := range schedules {
+			if schedules[i].TemplateID == req.ID {
+				// 更新成默认基线
+				err = iacModel.UpdateYamlSchedule(ctx, api.rdb.Get(), map[string]interface{}{"id": schedules[i].ID}, map[string]interface{}{"template_id": defaultTemplates[0].ID})
+				if err != nil {
+					logging.Get().Error().Err(err).Msg("UpdateYamlSchedule fails")
+					RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.New("db operate fails")))
+					return
+				}
+			}
 		}
 
 		err = iacModel.DeleteYamlTemplate(ctx, api.rdb.Get(), map[string]interface{}{"id": req.ID})
