@@ -95,7 +95,7 @@ func (a *ApiServer) CronJobDetail(w http.ResponseWriter, r *http.Request) {
 
 	policy, _ := a.service.PolicyBrief(ctx, cronJob.PolicyID)
 	if policy.IsDefault && lang.LanguageEN == lang.Language(ctx) {
-		policy.Name = strings.ReplaceAll(policy.Name, "合规检测默认策略", "default policy")
+		policy.Name = strings.ReplaceAll(policy.Name, "合规检测默认基线", "default benchmark")
 	}
 
 	resp.Cron = internal.ParseCron(cronJob.Cron)

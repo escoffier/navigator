@@ -104,7 +104,7 @@ func (a *ApiServer) PolicyBatch(w http.ResponseWriter, r *http.Request) {
 	language := lang.Language(ctx)
 	for i, v := range result {
 		if v.IsDefault && lang.LanguageEN == language {
-			v.Name = strings.ReplaceAll(v.Name, "合规检测默认策略", "default policy")
+			v.Name = strings.ReplaceAll(v.Name, "合规检测默认基线", "default benchmark")
 		}
 
 		resp[i] = scap.PolicyBrief{
@@ -228,8 +228,8 @@ func (a *ApiServer) PolicyDetail(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if policy.IsDefault && lang.LanguageEN == lang.Language(ctx) {
-		policy.Name = strings.ReplaceAll(policy.Name, "合规检测默认策略", "default policy")
-		policy.Comment = strings.ReplaceAll(policy.Comment, "合规检测默认策略", "default policy")
+		policy.Name = strings.ReplaceAll(policy.Name, "合规检测默认基线", "default benchmark")
+		policy.Comment = strings.ReplaceAll(policy.Comment, "合规检测默认基线", "default benchmark")
 	}
 
 	var result = scap.PolicyDetail{
