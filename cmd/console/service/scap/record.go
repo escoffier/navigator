@@ -53,7 +53,7 @@ func (s *Service) RecordBatch(ctx context.Context, scapType string, limit, offse
 			}
 
 			if r.IsDefault && language == lang.LanguageEN {
-				r.Name = strings.ReplaceAll(r.Name, "合规检测默认策略", "default policy")
+				r.Name = strings.ReplaceAll(r.Name, "合规检测默认基线", "default benchmark")
 			}
 
 			tmp.PolicyName = r.Name
