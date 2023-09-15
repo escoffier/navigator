@@ -596,8 +596,8 @@ func (api *api) YamlTemplates() http.HandlerFunc {
 		for i := range templates {
 			if templates[i].Name == iac.DefaultTemplateName {
 				defaultTemplateIndex = i
+				templates[i].Name = api.translation.One(translate.DomainIacYaml, translate.KeyTemplateName, templates[i].Name, string(lang.Language(r.Context())))
 			}
-			templates[i].Name = api.translation.One(translate.DomainIacYaml, translate.KeyTemplateName, templates[i].Name, string(lang.Language(r.Context())))
 		}
 		nt := make([]iacModel.YamlTemplate, 0)
 		if defaultTemplateIndex != -1 {
@@ -880,10 +880,10 @@ func (api *api) YamlTemplatesDelete() http.HandlerFunc {
 }
 
 const (
-	defaultDeleteConfirm           = "After deletion, the benchmark will be unable to recovered. Are you sure to delete it?"
-	addUpdateDeleteConfirm         = "After deletion, when adding/modifying a YAML file, the scanning benchmark will revert to the default benchmark. Are you sure to delete it?"
-	periodDeleteConfirm            = "After deletion, when period scanning, the scanning benchmark will revert to the default benchmark. Are you sure to delete it?"
-	addUpdateOrPeriodDeleteConfirm = "After deletion, when adding/modifying a YAML file or period scanning, the scanning benchmark will revert to the default benchmark. Are you sure to delete it?"
+	defaultDeleteConfirm           = "After deletion, the benchmark will be unable to recovered. Are you sure to delete %s ?"
+	addUpdateDeleteConfirm         = "After deletion, when adding / modifying a YAML file, the scanning benchmark will revert to the default benchmark. Are you sure to delete %s ?"
+	periodDeleteConfirm            = "After deletion, when period scanning, the scanning benchmark will revert to the default benchmark. Are you sure to delete %s ?"
+	addUpdateOrPeriodDeleteConfirm = "After deletion, when adding / modifying a YAML file or period scanning, the scanning benchmark will revert to the default benchmark. Are you sure to delete %s ?"
 )
 
 func (api *api) YamlTemplatesDeleteConfirm() http.HandlerFunc {
@@ -895,6 +895,19 @@ func (api *api) YamlTemplatesDeleteConfirm() http.HandlerFunc {
 		if err != nil {
 			RespAndLog(w, ctx,
 				NewAnError(http.StatusBadRequest, errors.New("invalid template id")))
+			return
+		}
+
+		templates, err := iacModel.FindYamlTemplates(ctx, api.rdb.Get(), map[string]interface{}{"id": templateID})
+		if err != nil || len(templates) != 1 {
+			logging.Get().Error().Err(fmt.Errorf("FindYamlTemplates err: %v, len: %d", err, len(templates))).Msg("FindYamlTemplates fails")
+			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.New("db operate fails")))
+			return
+		}
+
+		templateName := templates[0].Name
+		if templates[0].Builtin {
+			templateName = api.translation.One(translate.DomainIacYaml, translate.KeyTemplateName, templates[0].Name, string(lang.Language(r.Context())))
 			return
 		}
 
@@ -923,6 +936,7 @@ func (api *api) YamlTemplatesDeleteConfirm() http.HandlerFunc {
 			confirmText = addUpdateOrPeriodDeleteConfirm
 		}
 
+		confirmText = fmt.Sprintf(confirmText, templateName)
 		confirmText = api.translation.One(translate.DomainIacYaml, translate.KeyTemplateDeleteConfirm, confirmText, string(lang.Language(r.Context())))
 
 		response.Ok(w, response.WithItem(struct {
