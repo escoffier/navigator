@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"gitlab.com/piccolo_su/vegeta/cmd/console/service/configs"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/iac"
 	"gitlab.com/security-rd/go-pkg/translate"
 	"net/http"
@@ -375,6 +376,11 @@ func NewConsole(
 		if cntErr != nil {
 			logging.Get().Err(cntErr).Msg("ERROR: InitContainersService init error")
 		}
+	}
+
+	err = configs.Init(rdb, redisClient)
+	if err != nil {
+		logging.Get().Err(err).Msg("ERROR: configs service init error")
 	}
 
 	// init iac-yaml scan

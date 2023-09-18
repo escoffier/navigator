@@ -27,11 +27,10 @@ func (api *api) data() func(chi.Router) {
 	return func(r chi.Router) {
 		r.Post("/gc", api.runGCTask())
 		r.Get("/gc/{gcID}", api.getGCTask())
-		r.Post("/ttl", api.setDataTTL())
-		r.Get("/ttl", api.getDataTTL())
-		r.Get("/storage", api.getStorageView())
-		r.Get("/waterline", api.getWaterline())
-		r.Post("/waterline", api.setWaterline())
+
+		r.Get("/getdata", api.getDataTTLs())
+		r.Post("/setdata", api.setDataTTLs())
+
 	}
 }
 
@@ -70,7 +69,7 @@ func (api *api) runGCTask() http.HandlerFunc {
 
 		if !ttlValid {
 			apperror.RespAndLog(w, ctx,
-				apperror.NewInvalidArgError(http.StatusBadRequest, def.ErrInvalidTTL, apperror.Suberror{
+				apperror.NewInvalidTtlDataError(http.StatusBadRequest, def.ErrInvalidTTL, apperror.Suberror{
 					Location: "daysOffset",
 					Message:  def.ErrInvalidTTL.Error(),
 				}))
@@ -137,145 +136,120 @@ func (api *api) getGCTask() http.HandlerFunc {
 	}
 }
 
-func (api *api) setDataTTL() http.HandlerFunc {
-	type req struct {
-		DataType string `json:"dataType"`
-		TTLDays  int    `json:"ttlDays"`
-	}
-
+func (api *api) getDataTTLs() http.HandlerFunc {
 	type rsp struct {
-		TTLDays int `json:"ttlDays"`
+		ColdTTLDays       int `json:"coldTTLDays"`
+		HotOfflineTTLDays int `json:"hotOfflineTTLDays"`
+		HotLogicTTLDays   int `json:"hotLogicTTLDays"`
 	}
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx, cancel := context.WithTimeout(r.Context(), dataDefaultTimeout)
 		defer cancel()
-		var cliReq req
-		err := util.DecodeJSONBody(w, r, &cliReq)
+
+		dataService, ok := data.GetService(ctx)
+		if !ok {
+			apperror.RespAndLog(w, ctx, ErrServiceNotReady)
+			return
+		}
+
+		ttlInfo := model.TTLDays{}
+		dataTypeList := getDataTypeList()
+		// get ttl data
+		for _, value := range dataTypeList {
+			dataTTL, err := dataService.GetDataTTL(ctx, value)
+			if err != nil {
+				apperror.RespAndLog(w, ctx, fmt.Errorf("couldn't get data tll: %w", err))
+				return
+			}
+
+			storageView, err := dataService.GetStorageView(ctx, value)
+			if err != nil {
+				apperror.RespAndLog(w, ctx, fmt.Errorf("couldn't get storage view: %w", err))
+				return
+			}
+			switch value {
+			case model.DataTypeCold:
+				ttlInfo.ColdTTLDays = dataTTL
+				ttlInfo.ColdView = *storageView
+			case model.DataTypeHotOffline:
+				ttlInfo.HotOfflineTTLDays = dataTTL
+				ttlInfo.HotOfflineView = *storageView
+			case model.DataTypeHotLogic:
+				ttlInfo.HotLogicTTLDays = dataTTL
+				ttlInfo.HotLogicView = *storageView
+			}
+		}
+
+		// get waterline data
+		percentage, err := dataService.GetDataWaterline(ctx)
+		if err != nil {
+			apperror.RespAndLog(w, ctx, fmt.Errorf("couldn't get waterline: %w", err))
+			return
+		}
+		ttlInfo.WaterlineData = percentage
+
+		response.Ok(w, response.WithItem(ttlInfo), response.WithApiVersion(dataAPIVersion))
+	}
+}
+
+func (api *api) setDataTTLs() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(r.Context(), dataDefaultTimeout)
+		defer cancel()
+
+		var config model.TTLDays
+		err := util.DecodeJSONBody(w, r, &config)
 		if err != nil {
 			apperror.RespAndLog(w, ctx,
 				apperror.NewMalformedRequestError(http.StatusBadRequest,
 					fmt.Errorf("failed to decode json: %w", err)))
 			return
 		}
-
-		if !checkDataType(cliReq.DataType) {
-			apperror.RespAndLog(w, ctx,
-				apperror.NewInvalidArgError(http.StatusBadRequest, def.ErrInvalidDataType, apperror.Suberror{
-					Location: "dataType",
-					Message:  def.ErrInvalidDataType.Error(),
-				}))
-			return
-		}
-
-		ttlValid, err := api.checkTTL(ctx, cliReq.DataType, cliReq.TTLDays)
-		if err != nil {
-			apperror.RespAndLog(w, ctx, fmt.Errorf("couldn't check data tll: %w", err))
-			return
-		}
-
-		if !ttlValid {
-			apperror.RespAndLog(w, ctx,
-				apperror.NewInvalidArgError(http.StatusBadRequest, def.ErrInvalidTTL, apperror.Suberror{
-					Location: "ttlDays",
-					Message:  def.ErrInvalidTTL.Error(),
-				}))
-			return
-		}
-
 		dataService, ok := data.GetService(ctx)
 		if !ok {
 			apperror.RespAndLog(w, ctx, ErrServiceNotReady)
 			return
 		}
-		err = dataService.SetDataTTL(ctx, cliReq.DataType, cliReq.TTLDays)
-		if err != nil {
-			apperror.RespAndLog(w, ctx, fmt.Errorf("couldn't set data tll: %w", err))
-			return
+
+		dataTypeList := getDataTypeList()
+		// set ttl
+		for _, value := range dataTypeList {
+			var ttldata int
+			switch value {
+			case model.DataTypeCold:
+				ttldata = config.ColdTTLDays
+			case model.DataTypeHotOffline:
+				ttldata = config.HotOfflineTTLDays
+			case model.DataTypeHotLogic:
+				ttldata = config.HotLogicTTLDays
+
+			}
+
+			ttlValid, err := api.checkTTL(ctx, value, ttldata)
+			if err != nil {
+				apperror.RespAndLog(w, ctx, fmt.Errorf("couldn't check data tll: %w", err))
+				return
+			}
+
+			if !ttlValid {
+				apperror.RespAndLog(w, ctx,
+					apperror.NewInvalidTtlDataError(http.StatusBadRequest, def.ErrInvalidTTL, apperror.Suberror{
+						Location: "ttlDays",
+						Message:  def.ErrInvalidTTL.Error(),
+					}))
+				return
+			}
+
+			err = dataService.SetDataTTL(ctx, value, ttldata)
+			if err != nil {
+				apperror.RespAndLog(w, ctx, fmt.Errorf("couldn't set data tll: %w", err))
+				return
+			}
+
 		}
 
-		response.Ok(w, response.WithItem(rsp{TTLDays: cliReq.TTLDays}), response.WithApiVersion(dataAPIVersion))
-	}
-}
-
-func (api *api) getDataTTL() http.HandlerFunc {
-	type rsp struct {
-		TTLDays int `json:"ttlDays"`
-	}
-	return func(w http.ResponseWriter, r *http.Request) {
-		ctx, cancel := context.WithTimeout(r.Context(), dataDefaultTimeout)
-		defer cancel()
-		dataType, err := api.getDataType(r)
-		if err != nil {
-			apperror.RespAndLog(w, ctx,
-				apperror.NewInvalidArgError(http.StatusBadRequest, err, apperror.Suberror{
-					Location: "dataType",
-					Message:  err.Error(),
-				}))
-			return
-		}
-
-		dataService, ok := data.GetService(ctx)
-		if !ok {
-			apperror.RespAndLog(w, ctx, ErrServiceNotReady)
-			return
-		}
-		dataTTL, err := dataService.GetDataTTL(ctx, dataType)
-		if err != nil {
-			apperror.RespAndLog(w, ctx, fmt.Errorf("couldn't get data tll: %w", err))
-			return
-		}
-
-		response.Ok(w, response.WithItem(rsp{TTLDays: dataTTL}), response.WithApiVersion(dataAPIVersion))
-	}
-}
-
-func (api *api) getStorageView() http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		ctx, cancel := context.WithTimeout(r.Context(), dataDefaultTimeout)
-		defer cancel()
-		dataType, err := api.getDataType(r)
-		if err != nil {
-			apperror.RespAndLog(w, ctx,
-				apperror.NewInvalidArgError(http.StatusBadRequest, err, apperror.Suberror{
-					Location: "dataType",
-					Message:  err.Error(),
-				}))
-			return
-		}
-
-		dataService, ok := data.GetService(ctx)
-		if !ok {
-			apperror.RespAndLog(w, ctx, ErrServiceNotReady)
-			return
-		}
-		storageView, err := dataService.GetStorageView(ctx, dataType)
-		if err != nil {
-			apperror.RespAndLog(w, ctx, fmt.Errorf("couldn't get storage view: %w", err))
-			return
-		}
-
-		response.Ok(w, response.WithItem(*storageView), response.WithApiVersion(dataAPIVersion))
-	}
-}
-
-func (api *api) setWaterline() http.HandlerFunc {
-	type req struct {
-		Percentage int `json:"percentage"`
-	}
-
-	return func(w http.ResponseWriter, r *http.Request) {
-		ctx, cancel := context.WithTimeout(r.Context(), dataDefaultTimeout)
-		defer cancel()
-		var cliReq req
-		err := util.DecodeJSONBody(w, r, &cliReq)
-		if err != nil {
-			apperror.RespAndLog(w, ctx,
-				apperror.NewMalformedRequestError(http.StatusBadRequest,
-					fmt.Errorf("failed to decode json: %w", err)))
-			return
-		}
-
-		if !checkWaterline(cliReq.Percentage) {
+		// set waterline data
+		if !checkWaterline(config.WaterlineData) {
 			apperror.RespAndLog(w, ctx,
 				apperror.NewInvalidArgError(http.StatusBadRequest, def.ErrInvalidWaterline, apperror.Suberror{
 					Location: "percentage",
@@ -284,39 +258,13 @@ func (api *api) setWaterline() http.HandlerFunc {
 			return
 		}
 
-		dataService, ok := data.GetService(ctx)
-		if !ok {
-			apperror.RespAndLog(w, ctx, ErrServiceNotReady)
-			return
-		}
-		err = dataService.SetDataWaterline(ctx, cliReq.Percentage)
+		err = dataService.SetDataWaterline(ctx, config.WaterlineData)
 		if err != nil {
 			apperror.RespAndLog(w, ctx, fmt.Errorf("couldn't set waterline: %w", err))
 			return
 		}
-		response.Ok(w, response.WithItem(cliReq), response.WithApiVersion(dataAPIVersion))
-	}
-}
 
-func (api *api) getWaterline() http.HandlerFunc {
-	type rsp struct {
-		Percentage int `json:"percentage"`
-	}
-	return func(w http.ResponseWriter, r *http.Request) {
-		ctx, cancel := context.WithTimeout(r.Context(), dataDefaultTimeout)
-		defer cancel()
-
-		dataService, ok := data.GetService(ctx)
-		if !ok {
-			apperror.RespAndLog(w, ctx, ErrServiceNotReady)
-			return
-		}
-		percentage, err := dataService.GetDataWaterline(ctx)
-		if err != nil {
-			apperror.RespAndLog(w, ctx, fmt.Errorf("couldn't get waterline: %w", err))
-			return
-		}
-		response.Ok(w, response.WithItem(rsp{Percentage: percentage}), response.WithApiVersion(dataAPIVersion))
+		response.Ok(w, response.WithItem(config), response.WithApiVersion(dataAPIVersion))
 	}
 }
 
@@ -384,4 +332,8 @@ func (api *api) checkTTL(ctx context.Context, dataType string, ttl int) (bool, e
 
 func checkWaterline(percentage int) bool {
 	return percentage >= 1 && percentage <= 100
+}
+
+func getDataTypeList() []string {
+	return []string{model.DataTypeCold, model.DataTypeHotLogic, model.DataTypeHotOffline}
 }

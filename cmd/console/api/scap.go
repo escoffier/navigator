@@ -41,7 +41,6 @@ func (api *api) scap() func(chi.Router) {
 
 		r.Get("/{checkType}/{checkID}/exportfile", api.exportFile())
 		r.Get("/{checkID}/getfile", api.getFile())
-
 		scapApiV2 := scap.NewAipServer(scapservice.NewService(api.rdb, api.redisClient))
 		r.Route("/v2", scapApiV2.InitRouter())
 	}

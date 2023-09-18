@@ -117,3 +117,7 @@ func BatchGetConfig(ctx context.Context, rdb *gorm.DB, keys []string) ([]*model.
 
 	return configs, nil
 }
+
+func DeleteConfig(ctx context.Context, rdb *gorm.DB, key string) error {
+	return rdb.WithContext(ctx).Where(" k=?", key).Delete(model.TensorConfig{}).Error
+}

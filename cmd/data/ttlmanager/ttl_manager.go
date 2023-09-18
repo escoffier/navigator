@@ -35,7 +35,7 @@ func (m *Manager) GetTTLDayOffset(ctx context.Context, taskType def.GCTaskType) 
 		return 0, fmt.Errorf("GetConfig fail, err:%w", err)
 	}
 
-	if conf == nil || err != gorm.ErrRecordNotFound {
+	if conf == nil {
 		return def.DefaultTTLDays[taskType], nil
 	}
 
