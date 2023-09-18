@@ -1581,6 +1581,18 @@ func NewAddWafServiceError(httpCode int, err error, suberrors ...Suberror) error
 	}
 }
 
+func NewGetConfigInfoError(httpCode int, err error, suberrors ...Suberror) error {
+	return AddBaitServiceError{
+		detailedError{
+			err:       err,
+			English:   "get Config information failed",
+			Chinese:   "获取配置信息出错",
+			HTTPCode:  httpCode,
+			Suberrors: suberrors,
+		},
+	}
+}
+
 func NewTwoFactorVerifyError(httpCode int, err error, suberrors ...Suberror) error {
 	return AddBaitServiceError{
 		detailedError{
@@ -1683,6 +1695,30 @@ func NewSyslogInvalidArgError(httpCode int, err error, suberrors ...Suberror) er
 			err:       err,
 			English:   "Syslog config invalid args",
 			Chinese:   "Syslog导出配置参数有误，请重新配置",
+			HTTPCode:  httpCode,
+			Suberrors: suberrors,
+		},
+	}
+}
+
+func NewInvalidTtlDataError(httpCode int, err error, suberrors ...Suberror) error {
+	return ArgError{
+		detailedError{
+			err:       err,
+			English:   "hot storage days should be less than the number of cold storage days",
+			Chinese:   "热存储天数应小于冷存储天数",
+			HTTPCode:  httpCode,
+			Suberrors: suberrors,
+		},
+	}
+}
+
+func NewImportStatusError(httpCode int, err error, suberrors ...Suberror) error {
+	return ArgError{
+		detailedError{
+			err:       err,
+			English:   "is backing up configs",
+			Chinese:   "正在导入配置",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
 		},

@@ -3,6 +3,7 @@ package data
 import (
 	"context"
 	"errors"
+	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"sync"
 	"time"
 
@@ -71,4 +72,8 @@ func newService(conf *Conf) *Service {
 	go service.checkStorageLoop()
 	go service.expireGCTaskLoop()
 	return service
+}
+
+func (s *Service) GetConfigList() []string {
+	return []string{model.DataTypeCold, model.DataTypeHotLogic, model.DataTypeHotOffline, "waterline"}
 }

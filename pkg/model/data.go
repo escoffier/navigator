@@ -17,6 +17,17 @@ const (
 	DataTypeCold       = "cold"
 )
 
+// TTLs ...
+type TTLDays struct {
+	ColdTTLDays       int         `json:"coldTTLDays"`
+	HotOfflineTTLDays int         `json:"hotOfflineTTLDays"`
+	HotLogicTTLDays   int         `json:"hotLogicTTLDays"`
+	WaterlineData     int         `json:"waterlineData"`
+	ColdView          StorageView `json:"coldView"`
+	HotOfflineView    StorageView `json:"hotOfflineView"`
+	HotLogicView      StorageView `json:"hotLogicView"`
+}
+
 // StorageView ...
 type StorageView struct {
 	Total int64 `json:"total"`
