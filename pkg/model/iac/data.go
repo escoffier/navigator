@@ -204,7 +204,7 @@ var DockerfileRules = []DockerfileRule{
 	{
 		ID:           26,
 		BuiltinID:    "ts-misc-dockerfile-025",
-		Name:         "User Absolute Workdir",
+		Name:         "Use Absolute Workdir",
 		Description:  "WORKDIR path not absolute",
 		Severity:     "HIGH",
 		ThirdPartyID: "AVD-DS-0009",
@@ -215,7 +215,7 @@ var YamlRules = []YamlRule{
 	{
 		ID:           1,
 		BuiltinID:    "ts-misc-yaml-000",
-		Name:         "Cluster Admin0 Role Only Used Where Required",
+		Name:         "Cluster Admin Role Only Used Where Required",
 		Description:  "Ensure that the cluster-admin role is only used where required",
 		Severity:     "MEDIUM",
 		ThirdPartyID: "AVD-KSV-0111",
@@ -223,7 +223,7 @@ var YamlRules = []YamlRule{
 	{
 		ID:           2,
 		BuiltinID:    "ts-misc-yaml-001",
-		Name:         "Configmap_with_secrets",
+		Name:         "Configmap with secrets",
 		Description:  "ConfigMap with secrets",
 		Severity:     "HIGH",
 		ThirdPartyID: "AVD-KSV-0109",
@@ -231,7 +231,7 @@ var YamlRules = []YamlRule{
 	{
 		ID:           3,
 		BuiltinID:    "ts-misc-yaml-002",
-		Name:         "Configmap_with_sensitive",
+		Name:         "Configmap with sensitive",
 		Description:  "ConfigMap with sensitive content",
 		Severity:     "HIGH",
 		ThirdPartyID: "AVD-KSV-01010",
@@ -311,7 +311,7 @@ var YamlRules = []YamlRule{
 	{
 		ID:           13,
 		BuiltinID:    "ts-misc-yaml-012",
-		Name:         "Ensure Admin Config Ownership Set Root:root",
+		Name:         "Ensure Admin Config Ownership Set root:root",
 		Description:  "Ensure that the admin config  file ownership is set to root:root",
 		Severity:     "CRITICAL",
 		ThirdPartyID: "AVD-KCV-0061",
@@ -391,7 +391,7 @@ var YamlRules = []YamlRule{
 	{
 		ID:           23,
 		BuiltinID:    "ts-misc-yaml-022",
-		Name:         "Ensure Api Server Pod Specification Ownership Set Root:root",
+		Name:         "Ensure Api Server Pod Specification Ownership Set root:root",
 		Description:  "Ensure that the API server pod specification file ownership is set to root:root",
 		Severity:     "HIGH",
 		ThirdPartyID: "AVD-KCV-0049",
@@ -487,7 +487,7 @@ var YamlRules = []YamlRule{
 	{
 		ID:           35,
 		BuiltinID:    "ts-misc-yaml-034",
-		Name:         "Ensure Certificate_authorities Ownership Set Root:root",
+		Name:         "Ensure Certificate_authorities Ownership Set root:root",
 		Description:  "Ensure that the client certificate authorities file ownership is set to root:root",
 		Severity:     "CRITICAL",
 		ThirdPartyID: "AVD-KCV-0076",
@@ -527,7 +527,7 @@ var YamlRules = []YamlRule{
 	{
 		ID:           40,
 		BuiltinID:    "ts-misc-yaml-039",
-		Name:         "Ensure Container Network Interface Ownership Set Root:root",
+		Name:         "Ensure Container Network Interface Ownership Set root:root",
 		Description:  "Ensure that the container network interface file ownership is set to root:root",
 		Severity:     "HIGH",
 		ThirdPartyID: "AVD-KCV-0057",
@@ -551,7 +551,7 @@ var YamlRules = []YamlRule{
 	{
 		ID:           43,
 		BuiltinID:    "ts-misc-yaml-042",
-		Name:         "Ensure Controller Manager Config Ownership Set Root:root",
+		Name:         "Ensure Controller Manager Config Ownership Set root:root",
 		Description:  "Ensure that the controller-manager config  file ownership is set to root:root",
 		Severity:     "HIGH",
 		ThirdPartyID: "AVD-KCV-0065",
@@ -567,7 +567,7 @@ var YamlRules = []YamlRule{
 	{
 		ID:           45,
 		BuiltinID:    "ts-misc-yaml-044",
-		Name:         "Ensure Controller Manager Pod Specification Ownership Set Root:root",
+		Name:         "Ensure Controller Manager Pod Specification Ownership Set root:root",
 		Description:  "Ensure that the controller manager pod specification file ownership is set to root:root",
 		Severity:     "HIGH",
 		ThirdPartyID: "AVD-KCV-0051",
@@ -599,7 +599,7 @@ var YamlRules = []YamlRule{
 	{
 		ID:           49,
 		BuiltinID:    "ts-misc-yaml-048",
-		Name:         "Ensure Etcd Data Directory Ownership Set Etcd:etcd",
+		Name:         "Ensure Etcd Data Directory Ownership Set etcd:etcd",
 		Description:  "Ensure that the etcd data directory ownership is set to etcd:etcd",
 		Severity:     "LOW",
 		ThirdPartyID: "AVD-KCV-0059",
@@ -623,7 +623,7 @@ var YamlRules = []YamlRule{
 	{
 		ID:           52,
 		BuiltinID:    "ts-misc-yaml-051",
-		Name:         "Ensure Etcd Pod Specification Ownership Set Root:root",
+		Name:         "Ensure Etcd Pod Specification Ownership Set root:root",
 		Description:  "Ensure that the etcd pod specification file ownership is set to root:root",
 		Severity:     "HIGH",
 		ThirdPartyID: "AVD-KCV-0055",
@@ -647,7 +647,7 @@ var YamlRules = []YamlRule{
 	{
 		ID:           55,
 		BuiltinID:    "ts-misc-yaml-054",
-		Name:         "Ensure Kubeconfig Kubelet Config.yaml Ownership Set Root:root",
+		Name:         "Ensure Kubeconfig Kubelet Config.yaml Ownership Set root:root",
 		Description:  "If the kubelet config.yaml configuration file is being used validate file ownership is set to root:root",
 		Severity:     "HIGH",
 		ThirdPartyID: "AVD-KCV-0078",
@@ -655,7 +655,7 @@ var YamlRules = []YamlRule{
 	{
 		ID:           56,
 		BuiltinID:    "ts-misc-yaml-055",
-		Name:         "Ensure Kubeconfig Kubelet.conf Ownership Set Root:root",
+		Name:         "Ensure Kubeconfig Kubelet.conf Ownership Set root:root",
 		Description:  "Ensure that the --kubeconfig kubelet.conf file ownership is set to root:root",
 		Severity:     "HIGH",
 		ThirdPartyID: "AVD-KCV-0074",
@@ -703,7 +703,7 @@ var YamlRules = []YamlRule{
 	{
 		ID:           62,
 		BuiltinID:    "ts-misc-yaml-061",
-		Name:         "Ensure Kubelet Service File Ownership Set Root:root",
+		Name:         "Ensure Kubelet Service File Ownership Set root:root",
 		Description:  "Ensure that the kubelet service file ownership is set to root:root",
 		Severity:     "CRITICAL",
 		ThirdPartyID: "AVD-KCV-0070",
@@ -735,7 +735,7 @@ var YamlRules = []YamlRule{
 	{
 		ID:           66,
 		BuiltinID:    "ts-misc-yaml-065",
-		Name:         "Ensure Kubernetes Pki Directory File Ownership Set Root:root",
+		Name:         "Ensure Kubernetes Pki Directory File Ownership Set root:root",
 		Description:  "Ensure that the Kubernetes PKI directory and file file ownership is set to root:root",
 		Severity:     "CRITICAL",
 		ThirdPartyID: "AVD-KCV-0066",
@@ -815,7 +815,7 @@ var YamlRules = []YamlRule{
 	{
 		ID:           76,
 		BuiltinID:    "ts-misc-yaml-075",
-		Name:         "Ensure Proxy Kubeconfig Ownership Set Root:root If Exist",
+		Name:         "Ensure Proxy Kubeconfig Ownership Set root:root If Exist",
 		Description:  "if proxy kubeconfig file exists ensure ownership is set to root:root",
 		Severity:     "HIGH",
 		ThirdPartyID: "AVD-KCV-0072",
@@ -871,7 +871,7 @@ var YamlRules = []YamlRule{
 	{
 		ID:           83,
 		BuiltinID:    "ts-misc-yaml-082",
-		Name:         "Ensure Scheduler Config Ownership Set Root:root",
+		Name:         "Ensure Scheduler Config Ownership Set root:root",
 		Description:  "Ensure that the scheduler config  file ownership is set to root:root",
 		Severity:     "HIGH",
 		ThirdPartyID: "AVD-KCV-0063",
@@ -887,7 +887,7 @@ var YamlRules = []YamlRule{
 	{
 		ID:           85,
 		BuiltinID:    "ts-misc-yaml-084",
-		Name:         "Ensure Scheduler Pod Specification Ownership Set Root:root",
+		Name:         "Ensure Scheduler Pod Specification Ownership Set root:root",
 		Description:  "Ensure that the scheduler pod specification file ownership is set to root:root",
 		Severity:     "HIGH",
 		ThirdPartyID: "AVD-KCV-0053",
@@ -935,7 +935,7 @@ var YamlRules = []YamlRule{
 	{
 		ID:           91,
 		BuiltinID:    "ts-misc-yaml-090",
-		Name:         "Ensure That The   Encryption Provider Config Argument Is Set As Appropriate",
+		Name:         "Ensure That The Encryption Provider Config Argument Is Set As Appropriate",
 		Description:  "Ensure that the --encryption-provider-config argument is set as appropriate",
 		Severity:     "LOW",
 		ThirdPartyID: "AVD-KCV-0030",
@@ -1287,7 +1287,7 @@ var YamlRules = []YamlRule{
 	{
 		ID:           135,
 		BuiltinID:    "ts-misc-yaml-134",
-		Name:         "No_svc_with_extip",
+		Name:         "No svc with extip",
 		Description:  "Service with External IP",
 		Severity:     "HIGH",
 		ThirdPartyID: "AVD-KSV-0108",
@@ -1359,7 +1359,7 @@ var YamlRules = []YamlRule{
 	{
 		ID:           144,
 		BuiltinID:    "ts-misc-yaml-143",
-		Name:         "View All Secrets",
+		Name:         "No Allow Users Rolebinding Add Other Users Rolebindings",
 		Description:  "Do not allow users in a rolebinding to add other users to their rolebindings",
 		Severity:     "LOW",
 		ThirdPartyID: "AVD-KSV-0055",
