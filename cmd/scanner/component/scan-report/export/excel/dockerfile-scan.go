@@ -24,6 +24,14 @@ import (
 	"time"
 )
 
+const (
+	CsvColumnNameLines           = "lines"
+	CsvColumnNameRuleName        = "rule_name"
+	CsvColumnNameRuleDescription = "rule_description"
+	CsvColumnNameItemDescription = "item_description"
+	CsvColumnNameResolution      = "resolution"
+)
+
 type DockerfileScanExportExcel struct {
 	ExportTaskDao *store.ExportTaskDao
 	UpdateTask    types.UpdateExportTask
@@ -219,7 +227,13 @@ func (y *DockerfileScanExportExcel) export(ctx context.Context, task model.Expor
 			continue
 		}
 		csvRecord := make([][]string, 0)
-		csvRecord = append(csvRecord, []string{"问题行数", "规则名称", "规则描述", "问题描述", "修复方案"})
+		csvRecord = append(csvRecord, []string{
+			y.translation.One(translate.DomainIacDockerfile, translate.KeyDownloadCsvColumnName, CsvColumnNameLines, task.Lang),
+			y.translation.One(translate.DomainIacDockerfile, translate.KeyDownloadCsvColumnName, CsvColumnNameRuleName, task.Lang),
+			y.translation.One(translate.DomainIacDockerfile, translate.KeyDownloadCsvColumnName, CsvColumnNameRuleDescription, task.Lang),
+			y.translation.One(translate.DomainIacDockerfile, translate.KeyDownloadCsvColumnName, CsvColumnNameItemDescription, task.Lang),
+			y.translation.One(translate.DomainIacDockerfile, translate.KeyDownloadCsvColumnName, CsvColumnNameResolution, task.Lang),
+		})
 		flattenResults := make([]scan.FlatResult, 0)
 		err = json.Unmarshal([]byte(filterResult), &flattenResults)
 		if err != nil {
