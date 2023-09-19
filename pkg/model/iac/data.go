@@ -447,7 +447,7 @@ var YamlRules = []YamlRule{
 	{
 		ID:           30,
 		BuiltinID:    "ts-misc-yaml-029",
-		Name:         "Ensure Authorization Mode Argument Is Not Set To Alwaysallow",
+		Name:         "Ensure Authorization Mode Argument Is Not Set To AlwaysAllow",
 		Description:  "Ensure that the --authorization-mode argument is not set to AlwaysAllow",
 		Severity:     "LOW",
 		ThirdPartyID: "AVD-KCV-0007",
@@ -455,7 +455,7 @@ var YamlRules = []YamlRule{
 	{
 		ID:           31,
 		BuiltinID:    "ts-misc-yaml-030",
-		Name:         "Ensure Authorization Mode Argument Set Alwaysallow",
+		Name:         "Ensure Authorization Mode Argument Set AlwaysAllow",
 		Description:  "Ensure that the --authorization-mode argument is not set to AlwaysAllow",
 		Severity:     "HIGH",
 		ThirdPartyID: "AVD-KCV-0080",
