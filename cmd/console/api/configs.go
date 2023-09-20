@@ -25,8 +25,8 @@ const (
 	OperatorNameAccountConfig        = "Account Config"
 	OperatorNameLogAuditConfig       = "Log Audit Config"
 	OperatorModulePlatform           = "Platform"
-	OperatorNameMicrosegConfig       = "Microisolation policy, infrastructure, NMS, crew group, namespace group, and tenant configuration"
-	OperatorModuleMicroseg           = "microseg"
+	OperatorNameMicrosegConfig       = "MicroSeg policy, infrastructure, gateway, resource group, namespace group, and tenant configuration"
+	OperatorModuleMicroseg           = "MicroSeg"
 )
 
 func (api *api) configs() func(chi.Router) {
