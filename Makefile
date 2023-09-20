@@ -188,7 +188,7 @@ platform-report:
 .PHONY: scan_report
 scan_report: 		## Build cleaner binary
 	@echo "+ $@"
-	CGO_ENABLED=1 GOOS=linux GOARCH=amd64 go build -trimpath -v \
+	CGO_ENABLED=1 go build -trimpath -v \
 		-o dist/scan_report cmd/scanner/bin/scan-report/main.go
 	#upx --lzma --best dist/scan_report
 	docker build -t $(REPOPREFIX)/scan-report:$(IMAGE_TAG) -f ./build/scan_report/Dockerfile \
