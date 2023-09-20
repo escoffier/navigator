@@ -20,6 +20,9 @@ MIRROR_SOURCE?=mirrors.aliyun.com
 ## holmes-packages的镜像tag
 FETCHTAG?=latest
 
+## base image的tag
+BASE_IMAGE_TAG?=latest
+
 ## license版本: "sit"/"release"
 LICENSE_SECRET?=sit
 
@@ -109,7 +112,7 @@ faulty:
 	@echo "+ $@"
 	@echo "faulty will use mirror"
 	docker build -t $(REPOPREFIX)/faulty:$(IMAGE_TAG) -f ./build/faulty/Dockerfile \
-		--build-arg REPO=$(REPOPREFIX) .
+		--build-arg REPO=$(REPOPREFIX) --build-arg TAG=$(BASE_IMAGE_TAG) .
 
 
 .PHONY: faulty-base
