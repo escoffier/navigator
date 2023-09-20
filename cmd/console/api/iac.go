@@ -2250,6 +2250,10 @@ func (api *api) DockerfileTemplatesDetail() http.HandlerFunc {
 
 		resp := Response{}
 		resp.DockerfileTemplate = templates[0]
+		if resp.DockerfileTemplate.Builtin {
+			resp.DockerfileTemplate.Name = api.translation.One(translate.DomainIacDockerfile, translate.KeyTemplateName, resp.DockerfileTemplate.Name, string(lang.Language(r.Context())))
+			resp.DockerfileTemplate.Description = api.translation.One(translate.DomainIacDockerfile, translate.KeyTemplateDescription, resp.DockerfileTemplate.Description, string(lang.Language(r.Context())))
+		}
 		for i := range rules {
 			resp.Rules = append(resp.Rules, ResponseRule{
 				ID:          rules[i].ID,
