@@ -2,12 +2,16 @@ package nodeinfo
 
 import (
 	"context"
+	"strings"
+	"sync"
+
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/containerassets"
 	"gitlab.com/piccolo_su/vegeta/pkg/assets"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
+	"gitlab.com/piccolo_su/vegeta/pkg/util"
 	"gitlab.com/security-rd/go-pkg/logging"
-	"strings"
-	"sync"
+	corev1 "k8s.io/api/core/v1"
+	"k8s.io/client-go/tools/cache"
 )
 
 type PodResInfo struct {
@@ -32,17 +36,19 @@ func (pr *PodResInfo) GetPod(namespace, name string) (*Resource, bool) {
 	return obj.(*Resource), true
 }
 
-func (pr *PodResInfo) OnAdd(newPod *PodEvent, containerInfo ContainerInfoManager) {
-	owner := newPod.FinalOwnerResource(context.Background())
-	pr.data.Store(getKey(newPod.Pod.Namespace, newPod.Pod.Name), newPod.FinalOwnerResource(context.Background()))
-	logging.Get().Debug().Msgf("raw-container - add pod: %s/%s owner: %s/%s", newPod.Pod.Namespace, newPod.Pod.Name, owner.Kind, owner.Name)
-	if newPod.Pod.Status.PodIP == "" {
+func (pr *PodResInfo) OnAdd(pod *corev1.Pod) {
+	if pod.Status.PodIP == "" {
 		logging.Get().Debug().Str("raw-container", "add pod event").Msg("skip pod before ip address not yet allocated")
 		return
 	}
+	key, _ := cache.MetaNamespaceKeyFunc(pod)
+	var owner *Resource = &Resource{}
+	owner.Name, owner.Kind = util.GetOwnerOfPod(pod)
+	pr.data.Store(key, owner)
+	logging.Get().Debug().Msgf("raw-container - add pod: %s/%s owner: %s/%s", pod.Namespace, pod.Name, owner.Kind, owner.Name)
 
 	var volumeMounts []model.Mounts
-	for _, c := range newPod.Pod.Spec.Containers {
+	for _, c := range pod.Spec.Containers {
 		for _, m := range c.VolumeMounts {
 			volumeMounts = append(volumeMounts, model.Mounts{
 				MountPath:   m.MountPath,
@@ -52,32 +58,33 @@ func (pr *PodResInfo) OnAdd(newPod *PodEvent, containerInfo ContainerInfoManager
 		}
 	}
 	pr.agent.HandlerContainerEvent(context.Background(), pr.clusterKey, assets.ActionAdd, &model.TensorRawContainer{
-		Namespace:    newPod.Pod.Namespace,
-		PodName:      newPod.Pod.Name,
-		PodUid:       string(newPod.Pod.UID),
+		Namespace:    pod.Namespace,
+		PodName:      pod.Name,
+		PodUid:       string(pod.UID),
 		ResourceName: owner.Name,
 		ResourceKind: owner.Kind,
 		K8sManaged:   true,
 		VolumeMounts: volumeMounts,
-		IP:           newPod.Pod.Status.PodIP,
+		IP:           pod.Status.PodIP,
 	})
 }
 
-func (pr *PodResInfo) OnDelete(oldPod *PodEvent) {
-	pr.data.Delete(getKey(oldPod.Pod.Namespace, oldPod.Pod.Name))
+func (pr *PodResInfo) OnDelete(pod *corev1.Pod) {
+	pr.data.Delete(getKey(pod.Namespace, pod.Name))
 }
 
-func (pr *PodResInfo) OnUpdate(oldPod, newPod *PodEvent, containerInfo ContainerInfoManager) {
-	owner := newPod.FinalOwnerResource(context.Background())
-	logging.Get().Debug().Msgf("raw-container - update pod: %s/%s owner: %s/%s", newPod.Pod.Namespace, newPod.Pod.Name, owner.Kind, owner.Name)
-	for _, status := range newPod.Pod.Status.ContainerStatuses {
+func (pr *PodResInfo) OnUpdate(oldPod, newPod *corev1.Pod) {
+	var owner Resource
+	owner.Name, owner.Kind = util.GetOwnerOfPod(newPod)
+	logging.Get().Debug().Msgf("raw-container - update pod: %s/%s owner: %s/%s", newPod.Namespace, newPod.Name, owner.Kind, owner.Name)
+	for _, status := range newPod.Status.ContainerStatuses {
 		if status.State.Terminated != nil {
 			containerID := strings.TrimPrefix(status.ContainerID, "docker://")
 			pr.agent.HandlerContainerEvent(context.Background(), pr.clusterKey, assets.ActionDelete, &model.TensorRawContainer{
 				ContainerID:  containerID,
-				Namespace:    newPod.Pod.Namespace,
-				PodName:      newPod.Pod.Name,
-				PodUid:       string(newPod.Pod.UID),
+				Namespace:    newPod.Namespace,
+				PodName:      newPod.Name,
+				PodUid:       string(newPod.UID),
 				ResourceName: owner.Name,
 				ResourceKind: owner.Kind,
 				K8sManaged:   true,
@@ -86,13 +93,13 @@ func (pr *PodResInfo) OnUpdate(oldPod, newPod *PodEvent, containerInfo Container
 			})
 		}
 	}
-	if newPod.Pod.Status.PodIP == "" {
+	if newPod.Status.PodIP == "" {
 		logging.Get().Debug().Str("raw-container", "update pod event").Msg("skip pod before ip address not yet allocated")
 		return
 	}
 
 	var volumeMounts []model.Mounts
-	for _, c := range newPod.Pod.Spec.Containers {
+	for _, c := range newPod.Spec.Containers {
 		for _, m := range c.VolumeMounts {
 			volumeMounts = append(volumeMounts, model.Mounts{
 				MountPath:   m.MountPath,
@@ -102,15 +109,15 @@ func (pr *PodResInfo) OnUpdate(oldPod, newPod *PodEvent, containerInfo Container
 		}
 	}
 	pr.agent.HandlerContainerEvent(context.Background(), pr.clusterKey, assets.ActionUpdate, &model.TensorRawContainer{
-		Namespace:    newPod.Pod.Namespace,
-		PodName:      newPod.Pod.Name,
-		PodUid:       string(newPod.Pod.UID),
+		Namespace:    newPod.Namespace,
+		PodName:      newPod.Name,
+		PodUid:       string(newPod.UID),
 		ResourceName: owner.Name,
 		ResourceKind: owner.Kind,
 		K8sManaged:   true,
 		ClusterKey:   pr.clusterKey,
 		VolumeMounts: volumeMounts,
-		IP:           newPod.Pod.Status.PodIP,
+		IP:           newPod.Status.PodIP,
 	})
 }
 

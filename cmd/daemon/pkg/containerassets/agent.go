@@ -3,6 +3,10 @@ package containerassets
 import (
 	"context"
 	"encoding/json"
+	"sync"
+	"sync/atomic"
+	"time"
+
 	"github.com/segmentio/kafka-go"
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/utils"
 	"gitlab.com/piccolo_su/vegeta/pkg/assets"
@@ -10,9 +14,6 @@ import (
 	"gitlab.com/security-rd/go-pkg/logging"
 	"gitlab.com/security-rd/go-pkg/mq"
 	"k8s.io/apimachinery/pkg/util/wait"
-	"sync"
-	"sync/atomic"
-	"time"
 )
 
 type Agent struct {
@@ -62,7 +63,7 @@ func (a *Agent) HandlerContainerEvent(ctx context.Context, clusterKey string, ac
 			finalContainer.Ports = utils.MergeContainerPorts(container.Ports, rawContainer.Ports, container.IP)
 			a.cache.remove(container.Namespace, container.PodName)
 		} else {
-			logging.Get().Debug().Msgf("raw-container - incomplete container %+v", finalContainer)
+			logging.Get().Debug().Msgf("raw-container - incomplete container (%s/%s)-(%s)", finalContainer.Namespace, finalContainer.ResourceName, finalContainer.Name)
 			return
 		}
 	}
@@ -102,7 +103,7 @@ func (a *Agent) HandlerContainerSync(ctx context.Context, clusterKey, nodeName s
 	}
 	data, err := json.Marshal(event)
 	if err != nil {
-		logging.Get().Err(err).Msgf("marshal container sync: %s failed")
+		logging.Get().Err(err).Msg("marshal container sync failed")
 		return
 	}
 

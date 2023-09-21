@@ -20,6 +20,8 @@ import (
 )
 
 const maxRetries = 15
+const moduleKey = "module"
+const moduleName = "microseg"
 
 type RuleGroupController struct {
 	ruleInformer    cache.SharedIndexInformer
@@ -83,19 +85,13 @@ func (rg *RuleGroupController) handleErr(err error, key interface{}) {
 		rg.queue.Forget(key)
 		return
 	}
-
-	// ns, name, keyErr := cache.SplitMetaNamespaceKey(key.(string))
-	// if keyErr != nil {
-	// 	logging.Get().Err(err).Msgf("Failed to split meta namespace cache key", key)
-	// }
-
 	if rg.queue.NumRequeues(key) < maxRetries {
-		logging.Get().Err(err).Str("microseg", "controller").Msgf("Error syncing policy rule, retrying %s", key)
+		logging.Get().Err(err).Str(moduleKey, moduleName).Msgf("Error syncing policy rule, retrying %s", key)
 		rg.queue.AddRateLimited(key)
 		return
 	}
 
-	logging.Get().Warn().Str("microseg", "controller").Msgf("Dropping policy rule %q out of the queue: %v", key, err)
+	logging.Get().Warn().Str(moduleKey, moduleName).Msgf("Dropping policy rule %q out of the queue: %v", key, err)
 	rg.queue.Forget(key)
 	// utilruntime.HandleError(err)
 }
@@ -152,7 +148,7 @@ func (rg *RuleGroupController) syncPolicy(name string) error {
 	rule, err := rg.ruleLister.Get(name)
 	if err != nil {
 		if errors.IsNotFound(err) {
-			logging.Get().Info().Msgf("deleting policy: %s", name)
+			logging.Get().Info().Str(moduleKey, moduleName).Msgf("deleting policy: %s", name)
 			policyName := strings.TrimSuffix(name, "-"+rg.nodeName)
 			err = rg.polCli.DeletePolicy(&PolicyRule{
 				MessageType: 4,
@@ -160,29 +156,29 @@ func (rg *RuleGroupController) syncPolicy(name string) error {
 			})
 			return err
 		}
-		logging.Get().Err(err).Str("microseg", "controller").Msgf("get rulegroup %s err ", name)
+		logging.Get().Err(err).Str(moduleKey, moduleName).Msgf("get rulegroup %s err ", name)
 		return err
 	}
 
 	data, err := json.Marshal(rule)
 	if err != nil {
-		logging.Get().Err(err).Str("microseg", "controller").Msgf("marshal rulegroup %s err ", name)
+		logging.Get().Err(err).Str(moduleKey, moduleName).Msgf("marshal rulegroup %s err ", name)
 		return err
 	}
-	logging.Get().Info().Str("microseg", "controller").Msgf("policy rule: %s", string(data))
+	logging.Get().Info().Str(moduleKey, moduleName).Msgf("policy rule: %s", string(data))
 
 	msg := buildPolicyRuleMessage(3, rule)
 	err = rg.polCli.AddPolicy(msg)
 	if err != nil {
-		logging.Get().Err(err).Msgf("send rule message err")
+		logging.Get().Err(err).Str(moduleKey, moduleName).Msgf("send rule message err")
 	}
 
 	msgData, err := json.Marshal(msg)
 	if err != nil {
-		logging.Get().Err(err).Str("microseg", "controller").Msgf("marshal rulegroup %s err ", name)
+		logging.Get().Err(err).Str(moduleKey, moduleName).Msgf("marshal rulegroup %s err ", name)
 		return err
 	}
-	logging.Get().Info().Str("microseg", "controller").Msgf("policy rule msg to dp: %s", string(msgData))
+	logging.Get().Info().Str(moduleKey, moduleName).Msgf("policy rule msg to dp: %s", string(msgData))
 
 	return nil
 }
@@ -198,14 +194,11 @@ func (rg *RuleGroupController) processNextItem() bool {
 	err := rg.syncPolicy(policyName)
 	rg.handleErr(err, key)
 
-	// err := rg.syncPolicy(key.(string))
-	// npc.handleErr(err, key)
-
 	return true
 }
 
 func (rg *RuleGroupController) Run(stopChan chan struct{}) {
-	logging.Get().Info().Str("microseg", "controller").Msg("run Network Policy Controller")
+	logging.Get().Info().Str(moduleKey, moduleName).Msg("run Network Policy Controller")
 	if !cache.WaitForNamedCacheSync("network_policy", stopChan, rg.ruleGroupSynced) {
 		return
 	}
@@ -213,7 +206,7 @@ func (rg *RuleGroupController) Run(stopChan chan struct{}) {
 }
 
 func (rg *RuleGroupController) worker() {
-	logging.Get().Info().Str("microseg", "controller").Msg("start worker")
+	logging.Get().Info().Str(moduleKey, moduleName).Msg("start worker")
 	for rg.processNextItem() {
 	}
 }

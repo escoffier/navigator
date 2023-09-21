@@ -222,7 +222,6 @@ func (d *DockerInfoManager) Start() error {
 			}
 		}()
 
-		logging.Get().Debug().Msg("start DockerInfoManager")
 		if ExportRawContainer {
 			// check if mq ready
 			d.agent.HandlerContainerSyncCheck(context.Background(), d.clusterKey, d.hostName)

@@ -3,17 +3,20 @@ package nodeinfo
 import (
 	"context"
 	"fmt"
+	"regexp"
 	"runtime/debug"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/pkg/errors"
-	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
+	"gitlab.com/piccolo_su/vegeta/pkg/util"
 	"gitlab.com/security-rd/go-pkg/logging"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	v1 "k8s.io/client-go/informers/core/v1"
 	"k8s.io/client-go/kubernetes"
+	listerv1 "k8s.io/client-go/listers/core/v1"
 	"k8s.io/client-go/tools/cache"
 )
 
@@ -22,10 +25,68 @@ const (
 	CrioType       = "cri-o"
 	PodmanType     = "podman"
 	ContainerdType = "containerd"
+	PodUIDIndex    = "podUID"
+	PodIPIndex     = "podIP"
 )
 
-const PodUIDIndex = "podUID"
-const PodIPIndex = "podIP"
+var cronJobNameRegexp = regexp.MustCompile(`(.+)-\d{8,10}$`)
+
+func ExtractPod(obj any) *corev1.Pod {
+	var empty *corev1.Pod
+	if obj == nil {
+		return empty
+	}
+	o, ok := obj.(*corev1.Pod)
+	if !ok {
+		tombstone, ok := obj.(cache.DeletedFinalStateUnknown)
+		if !ok {
+			logging.Get().Error().Msgf("couldn't get object from tombstone: %+v", obj)
+			return empty
+		}
+		o, ok = tombstone.Obj.(*corev1.Pod)
+		if !ok {
+			logging.Get().Error().Msgf("tombstone contained object that is not an object (key:%v, obj:%T)", tombstone.Key, tombstone.Obj)
+			return empty
+		}
+	}
+	return o
+}
+
+func stripUnusedFields(obj any) (any, error) {
+	o, ok := obj.(metav1.ObjectMetaAccessor)
+	if !ok {
+		return obj, nil
+	}
+	o.GetObjectMeta().SetManagedFields(nil)
+	return o, nil
+}
+
+type PodEventHandlerFuncs struct {
+	AddFunc    func(obj *corev1.Pod)
+	UpdateFunc func(oldObj, newObj *corev1.Pod)
+	DeleteFunc func(obj *corev1.Pod)
+}
+
+// OnAdd calls AddFunc if it's not nil.
+func (r PodEventHandlerFuncs) OnAdd(obj interface{}) {
+	if r.AddFunc != nil {
+		r.AddFunc(ExtractPod(obj))
+	}
+}
+
+// OnUpdate calls UpdateFunc if it's not nil.
+func (r PodEventHandlerFuncs) OnUpdate(oldObj, newObj interface{}) {
+	if r.UpdateFunc != nil {
+		r.UpdateFunc(ExtractPod(oldObj), ExtractPod(newObj))
+	}
+}
+
+// OnDelete calls DeleteFunc if it's not nil.
+func (r PodEventHandlerFuncs) OnDelete(obj interface{}) {
+	if r.DeleteFunc != nil {
+		r.DeleteFunc(ExtractPod(obj))
+	}
+}
 
 type Resource struct {
 	Name string
@@ -53,16 +114,6 @@ func newPodEvent(pod *corev1.Pod, ffunc func(ctx context.Context, pod *corev1.Po
 	}
 }
 
-func (p *PodEvent) FinalOwnerResource(ctx context.Context) *Resource {
-	if p.finalOwnerResource == nil {
-		p.Lock()
-		defer p.Unlock()
-
-		p.finalOwnerResource = p.fetchFunc(ctx, p.Pod)
-	}
-	return p.finalOwnerResource
-}
-
 type PodWatcher interface {
 	OnAdd(newPod *PodEvent, containerInfo ContainerInfoManager)
 	OnDelete(oldPod *PodEvent)
@@ -71,12 +122,10 @@ type PodWatcher interface {
 }
 
 type NodePodsWatcher struct {
-	watchers    []PodWatcher
-	store       cache.Indexer
-	controller  cache.Controller
-	k8sClient   *kubernetes.Clientset
-	ownRefCache *ownerRefCache
-
+	store      cache.Indexer
+	podLister  listerv1.PodLister
+	k8sClient  *kubernetes.Clientset
+	informer   cache.SharedIndexInformer
 	NodeName   string
 	clusterKey string
 }
@@ -89,38 +138,62 @@ type Builder struct {
 	instance *NodePodsWatcher
 }
 
-func NewNodePodsWatcher(nodeName, clusterKey string) *Builder {
-	return &Builder{
-		instance: &NodePodsWatcher{
-			watchers:    make([]PodWatcher, 0, 3),
-			NodeName:    nodeName,
-			ownRefCache: newOwnerRefCache(50, 30*time.Minute),
-			clusterKey:  clusterKey,
+func NewNodePodsWatcher(nodeName, clusterKey string, kubeClient *kubernetes.Clientset) *Builder {
+	n := &NodePodsWatcher{
+		NodeName:   nodeName,
+		clusterKey: clusterKey,
+		k8sClient:  kubeClient,
+	}
+	logging.Get().Info().Str("base", "pods").Msgf("start watching pod on node %s", n.NodeName)
+	n.informer = v1.NewFilteredPodInformer(kubeClient, corev1.NamespaceAll, 0, cache.Indexers{}, func(lo *metav1.ListOptions) {
+		lo.FieldSelector = "spec.nodeName=" + n.NodeName
+	})
+	n.informer.SetTransform(stripUnusedFields)
+	n.store = n.informer.GetIndexer()
+	n.podLister = listerv1.NewPodLister(n.informer.GetIndexer())
+	n.informer.AddEventHandler(cache.ResourceEventHandlerFuncs{
+		AddFunc: func(obj interface{}) {
+			pod := obj.(*corev1.Pod)
+			logging.Get().Info().Str("base", "pods").Msgf("add pod %s/%s", pod.Namespace, pod.Name)
 		},
+		UpdateFunc: func(oldObj, newObj interface{}) {
+			newPod := newObj.(*corev1.Pod)
+			logging.Get().Info().Str("base", "pods").Msgf("update pod %s/%s", newPod.Namespace, newPod.Name)
+		},
+		DeleteFunc: func(obj interface{}) {
+			pod := GetPodFromDeleteAction(obj)
+			logging.Get().Info().Str("base", "pods").Msgf("delete pod %s/%s", pod.Namespace, pod.Name)
+		},
+	})
+	n.informer.AddIndexers(cache.Indexers{
+		PodUIDIndex: func(obj interface{}) ([]string, error) {
+			pod, ok := obj.(*corev1.Pod)
+			if ok {
+				return []string{string(pod.UID)}, nil
+			}
+			return nil, fmt.Errorf("object is not pod")
+		},
+		PodIPIndex: func(obj interface{}) ([]string, error) {
+			pod, ok := obj.(*corev1.Pod)
+			if ok {
+				return []string{string(pod.Status.PodIP)}, nil
+			}
+			return nil, fmt.Errorf("object is not pod")
+		},
+	})
+
+	return &Builder{
+		instance: n,
 	}
 }
 
-func (b *Builder) AddWatcher(pw PodWatcher) *Builder {
-	b.instance.watchers = append(b.instance.watchers, pw)
+func (b *Builder) AddEventHandler(handler cache.ResourceEventHandler) *Builder {
+	b.instance.informer.AddEventHandler(handler)
 	return b
 }
 
 func (b *Builder) Build() *NodePodsWatcher {
 	return b.instance
-}
-
-func (n *NodePodsWatcher) InitK8sClient() (*kubernetes.Clientset, error) {
-	config, err := k8s.KubeConfig()
-	if err != nil {
-		return nil, errors.Errorf("Couldn't initialize k8s config: %v", err)
-	}
-	// k8s client
-	n.k8sClient, err = kubernetes.NewForConfig(config)
-	if err != nil {
-		return nil, errors.Errorf("Couldn't initialize k8s clientset: %v", err)
-	}
-
-	return n.k8sClient, nil
 }
 
 func (n *NodePodsWatcher) GetContainerType() (string, error) {
@@ -160,211 +233,53 @@ func (n *NodePodsWatcher) GetContainerType() (string, error) {
 	return "", errors.Errorf("can not support this container type:" + containerType)
 }
 
-func (n *NodePodsWatcher) getFinalResourceOfPod(ctx context.Context, pod *corev1.Pod) (name string, kind string) {
-	if pod == nil {
-		return name, kind
+func GetPodFromDeleteAction(obj interface{}) *corev1.Pod {
+	if pod, ok := obj.(*corev1.Pod); ok {
+		// Enqueue all the services that the pod used to be a member of.
+		// This is the same thing we do when we add a pod.
+		return pod
 	}
-
-	owner := metav1.GetControllerOf(pod)
-	if owner == nil {
-		kind = pod.Kind
-		if len(kind) == 0 {
-			kind = "Pod"
-		}
-		return pod.GetName(), kind
+	// If we reached here it means the pod was deleted but its final state is unrecorded.
+	tombstone, ok := obj.(cache.DeletedFinalStateUnknown)
+	if !ok {
+		logging.Get().Warn().Msgf("Couldn't get object from tombstone %#v", obj)
+		// utilruntime.HandleError(fmt.Errorf("Couldn't get object from tombstone %#v", obj))
+		return nil
 	}
-
-	tctx, cancel := context.WithTimeout(ctx, 1*time.Second)
-	defer cancel()
-
-	switch owner.Kind {
-	case "ReplicaSet":
-		ownerRes, exist := n.ownRefCache.GetOwnerFrom(owner.Name, owner.Kind, pod.Namespace)
-		if exist {
-			return ownerRes.Name, ownerRes.Kind
-		}
-
-		rs, err := n.k8sClient.AppsV1().ReplicaSets(pod.Namespace).Get(tctx, owner.Name, metav1.GetOptions{})
-		if err != nil {
-			logging.Get().Err(err).Msgf("get replicaset for %s/%s error", pod.Namespace, owner.Name)
-			return owner.Name, owner.Kind
-		}
-		nextOwner := metav1.GetControllerOf(rs)
-		if nextOwner != nil {
-			err = n.ownRefCache.Put(owner.Name, owner.Kind, pod.Namespace, Resource{
-				Name: nextOwner.Name,
-				Kind: nextOwner.Kind,
-			})
-			if err != nil {
-				logging.Get().Warn().Msgf("Put to owner cache error: %v. data: %+v -> %+v", err, owner, nextOwner)
-			}
-			return nextOwner.Name, nextOwner.Kind
-		}
-		return owner.Name, owner.Kind
-	case "Job":
-		ownerRes, exist := n.ownRefCache.GetOwnerFrom(owner.Name, owner.Kind, pod.Namespace)
-		if exist {
-			return ownerRes.Name, ownerRes.Kind
-		}
-
-		job, err := n.k8sClient.BatchV1().Jobs(pod.Namespace).Get(tctx, owner.Name, metav1.GetOptions{})
-		if err != nil {
-			logging.Get().Err(err).Msgf("get job for %s/%s error", pod.Namespace, owner.Name)
-			return owner.Name, owner.Kind
-		}
-		nextOwner := metav1.GetControllerOf(job)
-		if nextOwner != nil {
-			err = n.ownRefCache.Put(owner.Name, owner.Kind, pod.Namespace, Resource{
-				Name: nextOwner.Name,
-				Kind: nextOwner.Kind,
-			})
-			if err != nil {
-				logging.Get().Warn().Msgf("Put to owner cache error: %v. data: %+v -> %+v", err, owner, nextOwner)
-			}
-			return nextOwner.Name, nextOwner.Kind
-		}
-		return owner.Name, owner.Kind
-	default:
-		return owner.Name, owner.Kind
+	pod, ok := tombstone.Obj.(*corev1.Pod)
+	if !ok {
+		logging.Get().Warn().Msgf("Tombstone contained object that is not a Pod: %#v", obj)
+		return nil
 	}
+	return pod
 }
 
-func (n *NodePodsWatcher) Start(ctx context.Context, containerInfo ContainerInfoManager) (err error) {
+func (n *NodePodsWatcher) syncPod(key string) error {
+	namespace, name, err := cache.SplitMetaNamespaceKey(key)
+	if err != nil {
+		return err
+	}
+	pod, err := n.podLister.Pods(namespace).Get(name)
+	if err != nil {
+		return err
+	}
+	logging.Get().Info().Msgf("pod: %+v", pod)
+	return nil
+}
 
-	watchlist := cache.NewFilteredListWatchFromClient(
-		n.k8sClient.CoreV1().RESTClient(),
-		string(corev1.ResourcePods),
-		corev1.NamespaceAll,
-		func(options *metav1.ListOptions) {
-			options.FieldSelector = fmt.Sprintf("spec.nodeName=%v", n.NodeName)
-		},
-	)
-	n.store, n.controller = cache.NewIndexerInformer(
-		watchlist,
-		&corev1.Pod{},
-		0,
-		cache.ResourceEventHandlerFuncs{
-			AddFunc: func(obj interface{}) {
-				if obj == nil {
-					return
-				}
-				if pod, ok := obj.(*corev1.Pod); ok {
-					defer func() {
-						if r := recover(); r != nil {
-							logging.Get().Error().Msgf("Panic: %v. Stack: %s", r, debug.Stack())
-						}
-					}()
-					podEvt := newPodEvent(pod, func(ctx context.Context, pod *corev1.Pod) *Resource {
-						finalRes, finalKind := n.getFinalResourceOfPod(ctx, pod)
-						return &Resource{
-							Name: finalRes,
-							Kind: finalKind,
-						}
-					})
-
-					for _, w := range n.watchers {
-						w.OnAdd(podEvt, containerInfo)
-					}
-				}
-			},
-			DeleteFunc: func(obj interface{}) {
-				if obj == nil {
-					return
-				}
-				if pod, ok := obj.(*corev1.Pod); ok {
-					defer func() {
-						if r := recover(); r != nil {
-							logging.Get().Error().Msgf("Panic: %v. Stack: %s", r, debug.Stack())
-						}
-					}()
-
-					podEvt := newPodEvent(pod, func(ctx context.Context, pod *corev1.Pod) *Resource {
-						finalRes, finalKind := n.getFinalResourceOfPod(ctx, pod)
-						return &Resource{
-							Name: finalRes,
-							Kind: finalKind,
-						}
-					})
-
-					for _, w := range n.watchers {
-						w.OnDelete(podEvt)
-					}
-				}
-			},
-			UpdateFunc: func(oldObj, newObj interface{}) {
-				if newObj == nil || oldObj == nil {
-					return
-				}
-				if oldPod, ok0 := oldObj.(*corev1.Pod); ok0 {
-					if newPod, ok1 := newObj.(*corev1.Pod); ok1 {
-						defer func() {
-							if r := recover(); r != nil {
-								logging.Get().Error().Msgf("Panic: %v. Stack: %s", r, debug.Stack())
-							}
-						}()
-
-						newPodEvt := newPodEvent(newPod, func(ctx context.Context, pod *corev1.Pod) *Resource {
-							finalRes, finalKind := n.getFinalResourceOfPod(ctx, pod)
-							return &Resource{
-								Name: finalRes,
-								Kind: finalKind,
-							}
-						})
-						oldPodEvt := newPodEvent(oldPod, func(ctx context.Context, pod *corev1.Pod) *Resource {
-							finalRes, finalKind := n.getFinalResourceOfPod(ctx, pod)
-							return &Resource{
-								Name: finalRes,
-								Kind: finalKind,
-							}
-						})
-						for _, w := range n.watchers {
-							w.OnUpdate(oldPodEvt, newPodEvt, containerInfo)
-						}
-					}
-				}
-			},
-		},
-		cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
-	)
-	n.store.AddIndexers(cache.Indexers{
-		PodUIDIndex: func(obj interface{}) ([]string, error) {
-			pod, ok := obj.(*corev1.Pod)
-			if ok {
-				return []string{string(pod.UID)}, nil
-			}
-			return nil, fmt.Errorf("object is not pod")
-		},
-		PodIPIndex: func(obj interface{}) ([]string, error) {
-			pod, ok := obj.(*corev1.Pod)
-			if ok {
-				//if pod.Status.PodIP == "" {
-				//	return nil, fmt.Errorf("pod ip not allocated")
-				//}
-				return []string{string(pod.Status.PodIP)}, nil
-			}
-			return nil, fmt.Errorf("object is not pod")
-		},
-	})
-
-	stopChan := make(chan struct{}, 1)
+func (n *NodePodsWatcher) Start(ctx context.Context, stop <-chan struct{}) (err error) {
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
 				logging.Get().Error().Msgf("Panic: %v. Stack: %s", r, debug.Stack())
 			}
 		}()
-		n.controller.Run(stopChan)
+		n.informer.Run(stop)
 	}()
 
-	// wait for 10 seconds for sync
-	for i := 0; i < 10; i++ {
-		if n.controller.HasSynced() {
-			logging.Get().Info().Msg("the node pods controller has synced")
-			break
-		}
-		time.Sleep(1 * time.Second)
+	if !cache.WaitForCacheSync(stop, n.informer.HasSynced) {
+		return fmt.Errorf("pod cache sync err")
 	}
-
 	return nil
 }
 
@@ -402,7 +317,7 @@ func (n *NodePodsWatcher) GetPodOwner(namespace, name string) (string, string, e
 		return "", "", errors.Errorf("pod %s not found", namespace+"/"+name)
 	}
 	pod := obj.(*corev1.Pod)
-	resName, resKind := n.getFinalResourceOfPod(context.Background(), pod)
+	resName, resKind := util.GetOwnerOfPod(pod)
 	return resName, resKind, nil
 }
 

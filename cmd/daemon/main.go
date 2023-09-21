@@ -5,10 +5,12 @@ import (
 	"fmt"
 	"math/rand"
 	"os"
+	"os/signal"
 	"runtime/debug"
 	"strconv"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/pkg/errors"
@@ -38,6 +40,7 @@ import (
 	"gitlab.com/security-rd/go-pkg/mq"
 	"gitlab.com/security-rd/go-pkg/sdk/palace"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes"
 	"scm.tensorsecurity.cn/tensorsecurity-rd/api/pkg/generated/informers/externalversions"
 )
 
@@ -57,21 +60,46 @@ const (
 	defaultRTBuffSize     = 100
 )
 
+func WaitSignal(stop chan struct{}) {
+	sigs := make(chan os.Signal, 1)
+	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
+	<-sigs
+	close(stop)
+}
+
 func initEventStreams(udsAddr, nodeName, myNamespace, ctrlURL, ruleDirPath string, cm *k8s.ClusterInfoManager, containerInfo nodeinfo.ContainerInfoManager, podResInfo *nodeinfo.PodResInfo, palaceHandler *palace.Palace, mozartEngine *mozart.Engine) (*holmes.EngineStreamHandler, error) {
 	config := holmes.NewEngineStreamConfig()
 	config.WithCtrlServerURL(ctrlURL).WithMyNodeName(nodeName).WithRulesDirPath(ruleDirPath).WithUnixSocketPath(udsAddr).WithMyNamespace(myNamespace)
 	handler := holmes.NewEventsStreamHandler(config, cm, containerInfo, podResInfo, palaceHandler, mozartEngine)
 	return handler, nil
 }
+func K8sClient() (*kubernetes.Clientset, error) {
+	config, err := k8s.KubeConfig()
+	if err != nil {
+		return nil, errors.Errorf("Couldn't initialize k8s config: %v", err)
+	}
+	// k8s client
+	k8sClient, err := kubernetes.NewForConfig(config)
+	if err != nil {
+		return nil, errors.Errorf("Couldn't initialize k8s clientset: %v", err)
+	}
 
-func initNodeInfos(hostName, hostIP, clusterKey, myNamespace string, policyCli microseg.PolicyClient) (nodeinfo.ContainerInfoManager, *netflow.NodePodsInfo, *nodeinfo.PodResInfo, *nodeinfo.NodePodsWatcher, string, error) {
-	nodePods := nodeinfo.NewNodePodsWatcher(hostName, clusterKey)
-	k8sCli, err := nodePods.Build().InitK8sClient()
+	return k8sClient, nil
+}
+
+func initNodeInfos(hostName, hostIP, clusterKey, myNamespace string, policyCli microseg.PolicyClient, stop <-chan struct{}) (nodeinfo.ContainerInfoManager, *netflow.NodePodsInfo, *nodeinfo.PodResInfo, *nodeinfo.NodePodsWatcher, string, error) {
+	kubeClient, err := K8sClient()
+	if err != nil {
+		return nil, nil, nil, nil, "", errors.Errorf("k8s client init failed, %v", err)
+
+	}
+	nodePods := nodeinfo.NewNodePodsWatcher(hostName, clusterKey, kubeClient)
+	nodePods.Build()
 	if err != nil {
 		return nil, nil, nil, nil, "", errors.Errorf("k8s client init failed, %v", err)
 	}
 
-	cmWatcher := cmap.NewWatcher(k8sCli, myNamespace, "ivan-degradation-controller").AddFunc(degrade.DegradationCmapWatcher).Build()
+	cmWatcher := cmap.NewWatcher(kubeClient, myNamespace, "ivan-degradation-controller").AddFunc(degrade.DegradationCmapWatcher).Build()
 	_ = cmWatcher.Start()
 
 	containerType, err := nodePods.Build().GetContainerType()
@@ -86,7 +114,7 @@ func initNodeInfos(hostName, hostIP, clusterKey, myNamespace string, policyCli m
 
 	agent := containerassets.NewAgent(mqWriter)
 	podResInfo := nodeinfo.NewPodResInfo(agent, clusterKey)
-	k8sInfo := netflow.NewNodePodInfo(k8sCli, policyCli)
+	k8sInfo := netflow.NewNodePodInfo(kubeClient, policyCli)
 
 	var containerInfo nodeinfo.ContainerInfoManager
 	switch containerType {
@@ -116,6 +144,7 @@ func initNodeInfos(hostName, hostIP, clusterKey, myNamespace string, policyCli m
 		logging.Get().Info().Msgf("new containerd client success!")
 	}
 
+	k8sInfo.SetContainerManager(containerInfo)
 	containerInfo.AddEventHandler(nodeinfo.ContainerEventHandlerFuncs{
 		AddFunc: func(object interface{}) {
 			ctx, cancel := context.WithTimeout(context.Background(), time.Second*1)
@@ -125,11 +154,6 @@ func initNodeInfos(hostName, hostIP, clusterKey, myNamespace string, policyCli m
 			if !ok {
 				return
 			}
-			// err := policyCli.AddContainer(container.Pid)
-			// if err != nil {
-			// 	logging.Get().Warn().Msgf("container %s (pid: %s) to dp err: %v",
-			// 		container.ContainerID, container.Pid, err)
-			// }
 			if (!container.K8sManaged) && (container.IP != "" || container.IPV6 != "") {
 				ip := container.IP
 				if container.IPV6 != "" {
@@ -151,11 +175,6 @@ func initNodeInfos(hostName, hostIP, clusterKey, myNamespace string, policyCli m
 			if !ok {
 				return
 			}
-			// err := policyCli.AddContainer(container.Pid)
-			// if err != nil {
-			// 	logging.Get().Warn().Msgf("container %s (pid: %s) to dp err: %v",
-			// 		container.ContainerID, container.Pid, err)
-			// }
 			if (!container.K8sManaged) && (container.IP != "" || container.IPV6 != "") {
 				ip := container.IP
 				if container.IPV6 != "" {
@@ -177,11 +196,6 @@ func initNodeInfos(hostName, hostIP, clusterKey, myNamespace string, policyCli m
 				return
 			}
 
-			// err := policyCli.DeleteContaier(container.Pid)
-			// if err != nil {
-			// 	logging.Get().Warn().Msgf("container %s (pid: %s) to dp err: %v",
-			// 		container.ContainerID, container.Pid, err)
-			// }
 			if (!container.K8sManaged) && (container.IP != "" || container.IPV6 != "") {
 				ip := container.IP
 				if container.IPV6 != "" {
@@ -194,8 +208,17 @@ func initNodeInfos(hostName, hostIP, clusterKey, myNamespace string, policyCli m
 		},
 	})
 
-	podsWatcher := nodePods.AddWatcher(k8sInfo).AddWatcher(podResInfo).Build()
-	err = podsWatcher.Start(context.Background(), containerInfo)
+	// podsWatcher := nodePods.AddWatcher(k8sInfo).AddWatcher(podResInfo).Build()
+	podsWatcher := nodePods.AddEventHandler(nodeinfo.PodEventHandlerFuncs{
+		AddFunc:    podResInfo.OnAdd,
+		UpdateFunc: podResInfo.OnUpdate,
+		DeleteFunc: podResInfo.OnDelete,
+	}).AddEventHandler(nodeinfo.PodEventHandlerFuncs{
+		AddFunc:    k8sInfo.OnAdd,
+		UpdateFunc: k8sInfo.OnUpdate,
+		DeleteFunc: k8sInfo.OnDelete,
+	}).Build()
+	err = podsWatcher.Start(context.Background(), stop)
 	if err != nil {
 		return nil, nil, nil, nil, "", fmt.Errorf("start pods watcher error: %v", err)
 	}
@@ -246,7 +269,7 @@ func GetEnvInfo() (string, string) {
 	return hostName, hostIP
 }
 
-func Run(ctx context.Context) error {
+func Run(ctx context.Context, stopCh chan struct{}) error {
 	logging.Get().Info().Msg("start initing")
 
 	wg := sync.WaitGroup{}
@@ -336,7 +359,7 @@ func Run(ctx context.Context) error {
 		}
 	}
 
-	containerInfo, k8sInfo, podResInfo, podWatcher, containerType, err := initNodeInfos(hostName, hostIP, clusterKey, myNamespace, policyClient)
+	containerInfo, k8sInfo, podResInfo, podWatcher, containerType, err := initNodeInfos(hostName, hostIP, clusterKey, myNamespace, policyClient, stopCh)
 	if err != nil {
 		return err
 	}
@@ -450,7 +473,7 @@ func Run(ctx context.Context) error {
 		}
 
 		dpService, err := dp.NewDriftAssurance(podWatcher, podResInfo, mqWriter, consoleAddr,
-			clusterName, clusterKey,containerType, &palaceHandler, clusterManager )
+			clusterName, clusterKey, containerType, &palaceHandler, clusterManager)
 		if err != nil {
 			logging.Get().Err(err).Msg("new drift assurance service failed")
 			return err
@@ -527,9 +550,8 @@ func Run(ctx context.Context) error {
 			}
 		}()
 	}
-
+	WaitSignal(stopCh)
 	wg.Wait()
-
 	return err
 }
 
@@ -559,7 +581,9 @@ func main() {
 	defer mainCancel()
 
 	util.InitPprofMontitor()
-	err := Run(mainCtx)
+
+	stopCh := make(chan struct{})
+	err := Run(mainCtx, stopCh)
 	if err != nil {
 		logging.Get().Err(err).Msg("failed to run daemon.")
 		os.Exit(1)

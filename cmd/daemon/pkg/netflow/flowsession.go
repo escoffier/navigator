@@ -779,7 +779,7 @@ func (fs *FlowSession) GetContainerInfo(netRes *model.TensorNetworkFlow, src, ds
 	if src != nil {
 		pinfo, err := fs.GetContainerProcessName(daemon.SND_ADDR, src, addr)
 		if err != nil {
-			errn := fs.nodePodsInfo.UpdateContainerData(fs.CriManage, addr.SrcIp, src.Namespace, src.PodName)
+			errn := fs.nodePodsInfo.UpdateContainerData(addr.SrcIp, src.Namespace, src.PodName)
 			if errn != nil {
 				logging.Get().Err(errn).Msg("update src container failed")
 			}
@@ -801,7 +801,7 @@ func (fs *FlowSession) GetContainerInfo(netRes *model.TensorNetworkFlow, src, ds
 		if !ok {
 			pinfo, err := fs.GetContainerProcessName(daemon.RCV_ADDR, dst, addr)
 			if err != nil {
-				errn := fs.nodePodsInfo.UpdateContainerData(fs.CriManage, addr.DstIp, dst.Namespace, dst.PodName)
+				errn := fs.nodePodsInfo.UpdateContainerData(addr.DstIp, dst.Namespace, dst.PodName)
 				if errn != nil {
 					logging.Get().Err(errn).Msg("update dst container failed")
 				}
@@ -1019,7 +1019,7 @@ func (fs *FlowSession) ProcSessionData(netSession *daemon.NetSessionLink) error 
 	netData.CreateUuid()
 	//print debug log
 	if fs.NetLog {
-		logging.Get().Info().Msgf("[post] %+v, %+v", *netSession, *netData)
+		logging.Get().Debug().Msgf("[post] %+v, %+v", *netSession, *netData)
 	}
 	//post net flow
 	return fs.submitter.Submit(context.Background(), netData)
