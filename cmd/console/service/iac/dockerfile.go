@@ -2,15 +2,42 @@ package iac
 
 import (
 	"context"
+	"fmt"
 	iacModel "gitlab.com/piccolo_su/vegeta/pkg/model/iac"
 	"gitlab.com/security-rd/go-pkg/logging"
 	"gorm.io/gorm"
 	"time"
 )
 
+const (
+	DockerfileConfigActionAlert = "alert"
+)
+
 func NewDockerfile(rdb *gorm.DB) error {
 	timeOutCtx, cancel := context.WithTimeout(context.Background(), time.Second*5)
 	defer cancel()
+
+	// config
+	_, err := iacModel.GetDockerfileConfig(timeOutCtx, db)
+	if err != nil {
+		if err != gorm.ErrRecordNotFound {
+			logging.Get().Error().Err(fmt.Errorf("GetDockerfileConfig err: %v", err)).Msg("GetDockerfileConfig fails")
+			return err
+		} else {
+			err = iacModel.CreateOrUpdateDockerfileConfig(timeOutCtx, db, iacModel.DockerfileConfig{
+				ID:        1, // 只有一条配置
+				Status:    0,
+				Action:    DockerfileConfigActionAlert,
+				WhiteList: []string{},
+				CreatedAt: time.Now(),
+				UpdatedAt: time.Now(),
+			})
+			if err != nil {
+				logging.Get().Error().Err(fmt.Errorf("CreateOrUpdateDockerfileConfig err: %v", err)).Msg("CreateOrUpdateDockerfileConfig fails")
+				return err
+			}
+		}
+	}
 
 	// template
 	templates, err := iacModel.FindDockerfileTemplates(timeOutCtx, db, map[string]interface{}{"builtin": 1})
@@ -66,6 +93,6 @@ func NewDockerfile(rdb *gorm.DB) error {
 			return err
 		}
 	}
-	
+
 	return nil
 }

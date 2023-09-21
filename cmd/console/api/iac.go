@@ -1194,7 +1194,7 @@ func (api *api) YamlConfigs() http.HandlerFunc {
 				}
 				templates, err := iacModel.FindYamlTemplates(ctx, api.rdb.GetReadDB(), map[string]interface{}{"id": schedules[i].TemplateID})
 				if err != nil || len(templates) != 1 {
-					logging.Get().Error().Err(fmt.Errorf("FindYamlTemplates err: %v, len: %d", err, len(schedules))).Msg("FindYamlTemplates fails")
+					logging.Get().Error().Err(fmt.Errorf("FindYamlTemplates err: %v, len: %d", err, len(templates))).Msg("FindYamlTemplates fails")
 					RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.New("db operate fails")))
 					return
 				}
