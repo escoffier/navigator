@@ -280,7 +280,7 @@ func initBuiltInScheduleAndTemplate() error {
 		logging.Get().Error().Err(err).Msg("find builtin template fails")
 		return err
 	}
-	var templateSnapshot iacModel.YamlTemplateSnapshot
+	var template iacModel.YamlTemplate
 	if len(templates) == 0 {
 		rules, err := iacModel.FindYamlRules(timeOutCtx, db, map[string]interface{}{}, map[string]interface{}{})
 		if err != nil {
@@ -299,7 +299,7 @@ func initBuiltInScheduleAndTemplate() error {
 		for i := range rules {
 			ruleBuiltinIDs[i] = rules[i].BuiltinID
 		}
-		template, err := iacModel.CreateYamlTemplate(timeOutCtx, db, iacModel.YamlTemplate{
+		template, err = iacModel.CreateYamlTemplate(timeOutCtx, db, iacModel.YamlTemplate{
 			Name:        DefaultTemplateName,
 			Description: "",
 			Rules:       ruleBuiltinIDs,
@@ -313,7 +313,7 @@ func initBuiltInScheduleAndTemplate() error {
 			logging.Get().Error().Err(err).Msgf("CreateYamlTemplate fails")
 			return err
 		}
-		templateSnapshot, err = iacModel.CreateYamlTemplateSnapshot(timeOutCtx, db, iacModel.YamlTemplateSnapshot{
+		_, err = iacModel.CreateYamlTemplateSnapshot(timeOutCtx, db, iacModel.YamlTemplateSnapshot{
 			TemplateID:  template.ID,
 			Name:        DefaultTemplateName,
 			Description: "",
@@ -328,6 +328,8 @@ func initBuiltInScheduleAndTemplate() error {
 				Int("id", template.ID).Msgf("CreateYamlTemplateSnapshot fails")
 			return err
 		}
+	} else {
+		template = templates[0]
 	}
 	// 创建默认schedule
 	// 周期计划：period_schedule, tid, built-in user-set period schedule, * * * * *, time, time, time
@@ -337,7 +339,7 @@ func initBuiltInScheduleAndTemplate() error {
 		logging.Get().Error().Err(err).Str("name", DBPeriodScheduleName).Msg("FindYamlSchedules fails")
 		return err
 	}
-	templateID := templateSnapshot.ID
+	templateID := template.ID
 	if len(schedules) == 0 {
 		BuiltInPeriodSchedule, err = iacModel.CreateYamlSchedule(timeOutCtx, db, iacModel.YamlSchedule{
 			Name:        DBPeriodScheduleName,
