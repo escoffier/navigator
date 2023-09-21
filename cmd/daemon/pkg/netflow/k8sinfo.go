@@ -13,6 +13,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/microseg"
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/nodeinfo"
 	"gitlab.com/piccolo_su/vegeta/pkg/daemon"
+	"gitlab.com/piccolo_su/vegeta/pkg/util"
 	"gitlab.com/security-rd/go-pkg/logging"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/kubernetes"
@@ -23,9 +24,10 @@ const (
 )
 
 type NodePodsInfo struct {
-	resInfos  *sync.Map // map[string]*daemon.K8sResData
-	k8sCli    *kubernetes.Clientset
-	policyCli microseg.PolicyClient
+	resInfos      *sync.Map // map[string]*daemon.K8sResData
+	k8sCli        *kubernetes.Clientset
+	policyCli     microseg.PolicyClient
+	containerInfo nodeinfo.ContainerInfoManager
 }
 
 func NewNodePodInfo(k8sCli *kubernetes.Clientset, policyCli microseg.PolicyClient) *NodePodsInfo {
@@ -38,7 +40,7 @@ func NewNodePodInfo(k8sCli *kubernetes.Clientset, policyCli microseg.PolicyClien
 	return info
 }
 
-func (n *NodePodsInfo) getContainerData(pod *corev1.Pod, containerInfo nodeinfo.ContainerInfoManager) (map[string]*daemon.ContainerData, error) {
+func (n *NodePodsInfo) getContainerData(pod *corev1.Pod) (map[string]*daemon.ContainerData, error) {
 	containerData := make(map[string]*daemon.ContainerData)
 
 	for _, container := range pod.Status.ContainerStatuses {
@@ -48,15 +50,18 @@ func (n *NodePodsInfo) getContainerData(pod *corev1.Pod, containerInfo nodeinfo.
 				continue
 			}
 		}
+		if container.State.Running == nil {
+			continue
+		}
 		//check container id
 		if len(container.ContainerID) == 0 {
-			logging.Get().Warn().Msgf("container is nil, namespace : %v, pod name : %v.", pod.GetNamespace(), pod.GetName())
+			logging.Get().Debug().Str("pod", pod.GetNamespace()+pod.GetName()).Msgf("container id is nil")
 			continue
 		}
 		//get container pid
-		cPid, id, err := containerInfo.GetContainerPid(container.ContainerID)
+		cPid, id, err := n.containerInfo.GetContainerPid(container.ContainerID)
 		if len(container.Name) == 0 || err != nil {
-			logging.Get().Warn().Msgf("get container info failed, namespace : %v, pod name : %v. err: %v", pod.GetNamespace(), pod.GetName(), err)
+			logging.Get().Debug().Str("pod", pod.GetNamespace()+pod.GetName()).Msgf("get container pid failed : %v", err)
 			continue
 		}
 		//print debug log
@@ -71,45 +76,41 @@ func (n *NodePodsInfo) getContainerData(pod *corev1.Pod, containerInfo nodeinfo.
 	}
 
 	if len(containerData) == 0 {
-		return nil, errors.Errorf("container id is nil, ns : %v, pod name : %v.", pod.GetNamespace(), pod.GetName())
+		return nil, errors.Errorf("container data is nil, ns : %v, pod name : %v.", pod.GetNamespace(), pod.GetName())
 	}
 
 	return containerData, nil
 }
 
-func (n *NodePodsInfo) OnAdd(newPod *nodeinfo.PodEvent, containerInfo nodeinfo.ContainerInfoManager) {
-	if newPod.Pod == nil {
+func (n *NodePodsInfo) OnAdd(newPod *corev1.Pod) {
+	if newPod.Spec.HostNetwork {
 		return
 	}
 
-	if newPod.Pod.Spec.HostNetwork {
-		return
-	}
-
-	n.savePodData(newPod, containerInfo)
+	n.savePodData(newPod)
 }
 
-func (n *NodePodsInfo) OnDelete(oldPod *nodeinfo.PodEvent) {
-	if oldPod.Pod == nil {
+func (n *NodePodsInfo) OnDelete(oldPod *corev1.Pod) {
+	if oldPod == nil {
 		return
 	}
 
-	if oldPod.Pod.Spec.HostNetwork {
+	if oldPod.Spec.HostNetwork {
 		return
 	}
 
-	for _, podIp := range oldPod.Pod.Status.PodIPs {
+	for _, podIp := range oldPod.Status.PodIPs {
 		if podIp.IP == "" || podIp.IP == NoneValue {
 			continue
 		}
 		n.DeleteResData(podIp.IP)
 	}
-	if len(oldPod.Pod.Status.PodIPs) > 0 && n.policyCli != nil {
-		ip := oldPod.Pod.Status.PodIPs[0]
+	if len(oldPod.Status.PodIPs) > 0 && n.policyCli != nil {
+		ip := oldPod.Status.PodIPs[0]
 		if value, exist := n.resInfos.Load(ip); exist {
 			resData := value.(*daemon.K8sResData)
 			for _, c := range resData.ContainerInfo {
-				err := n.policyCli.DeleteContaier(c.ContainerPid, podID(oldPod.Pod))
+				err := n.policyCli.DeleteContaier(c.ContainerPid, podID(oldPod))
 				if err != nil {
 					logging.Get().Warn().Msgf("container %s (pid: %d) to dp err: %v",
 						c.ContainerName, c.ContainerPid, err)
@@ -121,21 +122,19 @@ func (n *NodePodsInfo) OnDelete(oldPod *nodeinfo.PodEvent) {
 	}
 }
 
-func (n *NodePodsInfo) OnUpdate(oldPod, newPod *nodeinfo.PodEvent, containerInfo nodeinfo.ContainerInfoManager) {
-	n.OnAdd(newPod, containerInfo)
+func (n *NodePodsInfo) OnUpdate(oldPod, newPod *corev1.Pod) {
+	n.OnAdd(newPod)
 }
 
 func (n *NodePodsInfo) Name() string {
 	return "netflow_watcher"
 }
 
-func (n *NodePodsInfo) savePodData(podEvt *nodeinfo.PodEvent, containerInfo nodeinfo.ContainerInfoManager) {
-	if podEvt.Pod == nil {
-		return
-	}
+func (n *NodePodsInfo) savePodData(pod *corev1.Pod) {
+	logging.Get().Debug().Str("microseg", "common").Msgf("save pod %s/%s", pod.Namespace, pod.Name)
 	//need save
 	keys := make([]string, 0)
-	for _, podIP := range podEvt.Pod.Status.PodIPs {
+	for _, podIP := range pod.Status.PodIPs {
 		if podIP.IP == "" || podIP.IP == NoneValue {
 			continue
 		}
@@ -146,23 +145,20 @@ func (n *NodePodsInfo) savePodData(podEvt *nodeinfo.PodEvent, containerInfo node
 		}
 		keys = append(keys, podIP.IP)
 	}
-	//check ip
-	if len(keys) == 0 {
-		return
-	}
 
 	var err error
 	var rsData daemon.K8sResData
-	rsData.ContainerInfo, err = n.getContainerData(podEvt.Pod, containerInfo)
+	rsData.ContainerInfo, err = n.getContainerData(pod)
 	if err != nil {
+		logging.Get().Err(err).Str("microseg", "common").Msgf("get pod(%s/%s) contaier info err", pod.Namespace, pod.Name)
 		return
 	}
 
 	if n.policyCli != nil {
-		logging.Get().Info().Msgf("to dp %d", len(rsData.ContainerInfo))
-
+		logging.Get().Debug().Str("microseg", "policy").Msgf("to dp %d", len(rsData.ContainerInfo))
 		for _, c := range rsData.ContainerInfo {
-			err := n.policyCli.AddContainer(c.ContainerPid, podID(podEvt.Pod))
+			logging.Get().Info().Str("microseg", "policy").Msgf("sync pod: %s/%s with pid : %d to dp", pod.Namespace, pod.Name, c.ContainerPid)
+			err := n.policyCli.AddContainer(c.ContainerPid, podID(pod))
 			if err != nil {
 				logging.Get().Warn().Msgf("container %s (pid: %d) to dp err: %v",
 					c.ContainerName, c.ContainerPid, err)
@@ -170,16 +166,18 @@ func (n *NodePodsInfo) savePodData(podEvt *nodeinfo.PodEvent, containerInfo node
 			break
 		}
 	}
-	res := podEvt.FinalOwnerResource(context.Background())
+
+	var res nodeinfo.Resource
+	res.Name, res.Kind = util.GetOwnerOfPod(pod)
 	rsData.OwnerName = res.Name
 	rsData.Kind = res.Kind
-	rsData.PodName = podEvt.Pod.Name
-	rsData.PodUid = string(podEvt.Pod.GetUID())
-	rsData.Namespace = podEvt.Pod.Namespace
+	rsData.PodName = pod.Name
+	rsData.PodUid = string(pod.GetUID())
+	rsData.Namespace = pod.Namespace
 	rsData.ListenPorts = make(map[string]*daemon.ProcessInfo, 2)
 
 	for _, ip := range keys {
-		//logging.Get().Info().Msgf("save pods : %+v.", ip)
+		logging.Get().Info().Msgf("save pods : %+v.", ip)
 		n.resInfos.LoadOrStore(ip, &rsData)
 	}
 }
@@ -222,7 +220,7 @@ func (n *NodePodsInfo) GetResDataByIp(ip string) (*daemon.K8sResData, bool) {
 	return v.(*daemon.K8sResData), true
 }
 
-func (n *NodePodsInfo) UpdateContainerData(crim nodeinfo.ContainerInfoManager, ip, ns, podName string) error {
+func (n *NodePodsInfo) UpdateContainerData(ip, ns, podName string) error {
 	data, ok := n.GetResDataByIp(ip)
 	if !ok {
 		return errors.Errorf("get pod info by ip failed, ns : %v, pod name : %v", ns, podName)
@@ -236,13 +234,17 @@ func (n *NodePodsInfo) UpdateContainerData(crim nodeinfo.ContainerInfoManager, i
 		return errors.Errorf("get pod failed, ns : %v, pod name : %v, err : %+v", ns, podName, err)
 	}
 
-	data.ContainerInfo, err = n.getContainerData(pod, crim)
+	data.ContainerInfo, err = n.getContainerData(pod)
 	if err != nil {
 		return errors.Errorf("update container failed, ns : %v, pod name : %v, %+v", ns, podName, err)
 	}
 
 	logging.Get().Debug().Msgf("update container id success, ns : %v, pod name : %v.", ns, podName)
 	return nil
+}
+
+func (n *NodePodsInfo) SetContainerManager(containerInfo nodeinfo.ContainerInfoManager) {
+	n.containerInfo = containerInfo
 }
 
 func podID(pod *corev1.Pod) uint64 {

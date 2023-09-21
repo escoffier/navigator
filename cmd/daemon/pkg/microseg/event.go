@@ -15,7 +15,7 @@ func (p *EventProcessor) Run() {
 			continue
 		}
 		if nBytes > 0 {
-			logging.Get().Info().Msgf("received dp event: %v", string(event))
+			logging.Get().Debug().Str(moduleKey, moduleName).Msgf("received dp event: %v", string(event))
 		}
 	}
 

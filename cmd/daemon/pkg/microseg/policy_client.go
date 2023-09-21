@@ -93,7 +93,7 @@ func (cli *policyCliet) AddPolicy(rule *PolicyRule) error {
 	if err != nil {
 		return err
 	}
-	logging.Get().Info().Str("microseg", "policy-client").Msgf("policy reponse: %v", resp)
+	logging.Get().Debug().Str(moduleKey, moduleName).Msgf("policy reponse: %v", resp)
 	if resp.Status != 0 {
 		return fmt.Errorf("data plane err :%d", resp.Status)
 	}
@@ -105,7 +105,7 @@ func (cli *policyCliet) DeletePolicy(rule *PolicyRule) error {
 	if err != nil {
 		return err
 	}
-	logging.Get().Info().Str("microseg", "policy-client").Msgf("policy reponse: %v", resp)
+	logging.Get().Debug().Str(moduleKey, moduleName).Msgf("policy reponse: %v", resp)
 	if resp.Status != 0 {
 		return fmt.Errorf("data plane err :%d", resp.Status)
 	}
@@ -118,7 +118,7 @@ func (cli *policyCliet) sendMessage(msg interface{}) (*Response, error) {
 		return nil, err
 	}
 	cli.conn.SetWriteDeadline(time.Now().Add(time.Second * 3))
-	logging.Get().Info().Str("microseg", "client").Msgf("send data: %s", string(data))
+	logging.Get().Info().Str(moduleKey, moduleName).Msgf("send data: %s", string(data))
 	// cli.writeDeadline = time.Time{}
 	_, err = cli.conn.Write(data)
 	if err != nil {
@@ -136,9 +136,9 @@ func (cli *policyCliet) receiveResponse() (*Response, error) {
 	if err != nil {
 		return nil, err
 	}
-	logging.Get().Info().Str("microseg", "policy-client").Msgf("received %d bytes response", nBytes)
+	logging.Get().Debug().Str(moduleKey, moduleName).Msgf("received %d bytes response", nBytes)
 	if nBytes > 0 {
-		logging.Get().Info().Msgf("response: %s", string(data))
+		logging.Get().Debug().Str(moduleKey, moduleName).Msgf("response: %s", string(data))
 		err = json.Unmarshal(data[:nBytes], resp)
 		if err != nil {
 			return nil, err
