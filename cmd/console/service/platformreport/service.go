@@ -61,7 +61,7 @@ func newService(db *databases.RDBInstance, emailConf *def.EmailConf) (*Service, 
 	return service, nil
 }
 
-func (s *Service) AddReportTaskTemplate(ctx context.Context, template *model.ReportTaskTemplate) error {
+func (s *Service) AddReportTaskTemplate(ctx context.Context, template *model.ReportTaskTemplate, lang string) error {
 	if err := checkTemplate(template); err != nil {
 		logging.Get().Err(err).Msg("invalid template")
 		return ErrInvalidTemplate
@@ -69,6 +69,7 @@ func (s *Service) AddReportTaskTemplate(ctx context.Context, template *model.Rep
 
 	nowTime := time.Now()
 	taskMeta := template.Convert()
+	taskMeta.Lang = lang
 	taskMeta.CreatedAt = nowTime
 	taskMeta.UpdatedAt = nowTime
 	id, err := s.manager.CreateTaskTemplate(ctx, taskMeta)

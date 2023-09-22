@@ -3,6 +3,8 @@ package main
 import (
 	"context"
 	"fmt"
+	"github.com/olivere/elastic/v7"
+	"gitlab.com/security-rd/go-pkg/translate"
 	"time"
 
 	json "github.com/json-iterator/go"
@@ -15,6 +17,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 	"gitlab.com/security-rd/go-pkg/databases"
+	myES "gitlab.com/security-rd/go-pkg/elastic"
 	_ "go.uber.org/automaxprocs"
 )
 
@@ -25,6 +28,7 @@ var (
 	endTimestamp   = int64(util.GetIntValWithDefault(env.EndTimestamp, 0))
 	maxTaskTime    = time.Duration(util.GetIntValWithDefault(env.MaxTaskTimeSec, env.DefaultMaxTaskTimeSec)) * time.Second
 	db             *databases.RDBInstance
+	es             *elastic.Client
 	manager        def.TaskManager
 	handler        def.NotifyHandler
 	emailConf      = &def.EmailConf{
@@ -55,6 +59,11 @@ func main() {
 		logrus.Fatalf("new db fail, err:%s", err)
 	}
 
+	es, err = myES.NewESClientWithEnv(context.Background()).Get()
+	if err != nil {
+		logrus.Fatalf("new es fail, err:%s", err)
+	}
+
 	manager = taskmanager.NewManager(db, maxTaskTime)
 	handler = notifyhandler.NewHandler(emailConf)
 
@@ -78,6 +87,11 @@ func handleTask() (err error) {
 			}
 		}
 	}()
+
+	translation, err := translate.NewTranslation(ctx, db)
+	if err != nil {
+		return err
+	}
 
 	taskTemplate, err := getTaskTemplate(ctx)
 	if err != nil {
@@ -112,7 +126,7 @@ func handleTask() (err error) {
 	}
 
 	clusterItems := reporter.GetClusters(ctx, db.GetReadDB(), clusters, util.GetTimeByMillisecondTimestamp(endTimestamp))
-	clusterKeyHash := reporter.GenerateClusterKeyHash(clusterItems)
+	//clusterKeyHash := reporter.GenerateClusterKeyHash(clusterItems)
 	for category := range categoryHash {
 		switch category {
 		case model.ReportCategoryEvents:
@@ -120,7 +134,7 @@ func handleTask() (err error) {
 				report.EventsReport = &model.EventsReport{}
 				continue
 			}
-			report.EventsReport = reporter.LoadEventsReport(ctx, db.GetReadDB(), startTimestamp, endTimestamp, clusterKeyHash)
+			report.EventsReport = reporter.LoadEventsReportFromES(ctx, db.GetReadDB(), es, translation, startTimestamp, endTimestamp, taskTemplate.Lang)
 		case model.ReportCategoryAssets:
 			if len(clusterItems) == 0 {
 				report.AssetsReport = &model.AssetsReport{}
