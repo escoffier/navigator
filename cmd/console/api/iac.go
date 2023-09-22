@@ -855,6 +855,7 @@ func (api *api) YamlTemplatesDelete() http.HandlerFunc {
 				NewAnError(http.StatusInternalServerError, errors.New("FindYamlSchedules fails")))
 			return
 		}
+		// 检查并更新schedule的基线（db）
 		for i := range schedules {
 			if schedules[i].TemplateID == req.ID {
 				// 更新成默认基线
@@ -865,6 +866,13 @@ func (api *api) YamlTemplatesDelete() http.HandlerFunc {
 					return
 				}
 			}
+		}
+		// 检查并更新schedule的基线（内存）
+		if iac.BuiltInPeriodSchedule.TemplateID == req.ID {
+			iac.BuiltInPeriodSchedule.TemplateID = defaultTemplates[0].ID
+		}
+		if iac.BuiltInUpdateSchedule.TemplateID == req.ID {
+			iac.BuiltInUpdateSchedule.TemplateID = defaultTemplates[0].ID
 		}
 
 		err = iacModel.DeleteYamlTemplate(ctx, api.rdb.Get(), map[string]interface{}{"id": req.ID})
