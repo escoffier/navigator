@@ -2,6 +2,9 @@ package reporter
 
 import (
 	"context"
+	"fmt"
+	"github.com/olivere/elastic/v7"
+	"gitlab.com/security-rd/go-pkg/translate"
 	"math"
 	"time"
 
@@ -107,6 +110,160 @@ func LoadEventsReport(ctx context.Context, db *gorm.DB, startTimestamp, endTimes
 		}
 
 		time.Sleep(eventInterval)
+	}
+
+	return result
+}
+
+type RuleKey struct {
+	Version1 uint16 `json:"version1"`
+	Name     string `json:"name"`
+	Category string `json:"category"`
+}
+
+type Scope struct {
+	Kind string `json:"kind"` // required
+	ID   string `json:"id"`   // optional，视具体情况
+	Name string `json:"name"` // required
+}
+
+type Event struct {
+	ID           string                 `json:"id"`
+	Type         string                 `json:"type"`         // 事件类型（关联类型）
+	Description  string                 `json:"description"`  // 事件描述
+	RuleKeys     []RuleKey              `json:"ruleKeys"`     // 该event涉及到的signals，触发的rule列表，去重
+	Scopes       map[string][]Scope     `json:"scopes"`       // 关联后，需要保留每个signal的scope，去重
+	Resources    []map[string]Scope     `json:"resources"`    // 资源列表，关联信号的所有scope，保留了scope内部的关系，去重
+	Relation     map[string]interface{} `json:"relation"`     // 事件的关联表达，可能是图、时间轴
+	Severity     int                    `json:"severity"`     // 严重程度 枚举；算法见下方
+	Tags         []string               `json:"tags"`         // 事件标签，一期只有系统生成(规则子标签)，二期用户可自定义(标签系统)
+	SignalsCount map[int]int            `json:"signalsCount"` // 关联的信号数量，按严重程度拆分
+	Context      map[string]interface{} `json:"context"`
+	UpdatedAt    int64                  `json:"updatedAt"` // 更新时间
+	CreatedAt    int64                  `json:"createdAt"` // 创建时间
+	Timestamp    time.Time              `json:"timestamp"`
+}
+
+func LoadEventsReportFromES(ctx context.Context, db *gorm.DB, es *elastic.Client, translation *translate.Translation, startTimestamp, endTimestamp int64, lang string) *model.EventsReport {
+	var result = &model.EventsReport{}
+	boolQuery := elastic.NewBoolQuery()
+	//termsQuery := elastic.NewTermsQuery("severity", []interface{}{0, 1, 2, 3}...)
+	//boolQuery.Filter(termsQuery)
+	rangeQuery := elastic.NewRangeQuery("updatedAt").Gte(startTimestamp).Lte(endTimestamp)
+	boolQuery.Filter(rangeQuery)
+	boolQuery.Filter(elastic.NewBoolQuery().MustNot(elastic.NewPrefixQuery("ruleKeys.path", "kubeMonitor")))
+	res, err := es.Search("events*").Query(boolQuery).Sort("updatedAt", false).From(0).Size(10000).Do(ctx)
+	if err != nil {
+		logrus.Errorf("search events fail, err:%s", err)
+		return result
+	}
+
+	if len(res.Hits.Hits) == 0 {
+		return result
+	}
+
+	rules := make([]model.EvtCenterRule, 0)
+	err = db.Find(&rules, "status = 0").Error
+	if err != nil {
+		logrus.Errorf("find rules fail, err:%s", err)
+		return result
+	}
+	rulesMap := make(map[string]model.EvtCenterRule)
+	for i := range rules {
+		rulesMap[rules[i].Category+"$"+rules[i].Name] = rules[i]
+	}
+
+	countHigh := 0
+	countMedium := 0
+	countLow := 0
+	for _, hit := range res.Hits.Hits {
+		e := Event{}
+		if err = json.Unmarshal(hit.Source, &e); err != nil {
+			logrus.Errorf("unmarshal event fail, err:%s", err)
+			continue
+		}
+
+		clusterResult := ""
+		clusters, ok := e.Scopes["cluster"]
+		if ok && len(clusters) != 0 {
+			for i := range clusters {
+				clusterResult += clusters[i].Name + "、"
+			}
+			clusterResult = clusterResult[:len(clusterResult)-3]
+		}
+
+		namespaceResult := ""
+		namespaces, ok := e.Scopes["namespace"]
+		if ok && len(namespaces) != 0 {
+			for i := range namespaces {
+				namespaceResult += namespaces[i].Name + "、"
+			}
+			namespaceResult = namespaceResult[:len(namespaceResult)-3]
+		}
+
+		hostnameResult := ""
+		hostnames, ok := e.Scopes["hostname"]
+		if ok && len(hostnames) != 0 {
+			for i := range hostnames {
+				hostnameResult += hostnames[i].Name + "、"
+			}
+			hostnameResult = hostnameResult[:len(hostnameResult)-3]
+		}
+
+		if len(e.RuleKeys) == 0 {
+			continue
+		}
+		rule, ok := rulesMap[e.RuleKeys[0].Category+"$"+e.RuleKeys[0].Name]
+		if !ok {
+			continue
+		}
+
+		contextString := ""
+		nContext := translation.Translate(translate.DomainSignalContext, e.Context, lang)
+		for k, v := range nContext {
+			contextString += fmt.Sprintf("%s: %v<br />", k, v)
+		}
+		if len(contextString) != 0 {
+			contextString = contextString[:len(contextString)-1]
+		}
+
+		resolution := ""
+		for i := range rule.CustomKV {
+			for k, v := range rule.CustomKV[i].KVHash {
+				if k == "en" && v.Key == "Suggestions" && lang == "en" {
+					resolution = v.Value
+				} else if k == "zh" && v.Key == "处置建议" && lang == "zh" {
+					resolution = v.Value
+				}
+			}
+		}
+
+		result.Events = append(result.Events, &model.EventItem{
+			Cluster:         clusterResult,
+			Namespace:       namespaceResult,
+			NodeKey:         hostnameResult,
+			Severity:        uint8(e.Severity),
+			RuleCategory:    translation.One(translate.DomainRuleKey, translate.KeyCategory, rule.Category, lang),
+			RuleName:        translation.One(translate.HolaKey(e.RuleKeys[0].Version1, translate.DomainRuleKey), translate.KeyName, rule.Name, lang),
+			RuleDescription: translation.One(translate.HolaKey(e.RuleKeys[0].Version1, translate.DomainRuleEvent), translate.KeyDescription, rule.Description, lang),
+			Resolution:      resolution,
+			Context:         contextString,
+			Timestamp:       e.UpdatedAt,
+		})
+
+		if e.Severity >= 0 && e.Severity <= 3 {
+			countHigh++
+		} else if e.Severity >= 4 && e.Severity <= 5 {
+			countMedium++
+		} else {
+			countLow++
+		}
+	}
+
+	result.Count = map[string]int{
+		"high":   countHigh,
+		"medium": countMedium,
+		"low":    countLow,
 	}
 
 	return result

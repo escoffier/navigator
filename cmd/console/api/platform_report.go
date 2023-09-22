@@ -15,6 +15,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/platformreport"
 	"gitlab.com/piccolo_su/vegeta/cmd/platform-report/def"
 	"gitlab.com/piccolo_su/vegeta/pkg/apperror"
+	"gitlab.com/piccolo_su/vegeta/pkg/lang"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
@@ -58,7 +59,7 @@ func (api *api) addReportTemplate() http.HandlerFunc {
 			return
 		}
 
-		err = service.AddReportTaskTemplate(ctx, &template)
+		err = service.AddReportTaskTemplate(ctx, &template, string(lang.Language(r.Context())))
 		if err != nil {
 			if err == platformreport.ErrInvalidTemplate {
 				apperror.RespAndLog(w, ctx,

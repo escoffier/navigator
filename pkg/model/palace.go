@@ -2,6 +2,7 @@ package model
 
 import (
 	"database/sql/driver"
+	"fmt"
 	"time"
 
 	json "github.com/json-iterator/go"
@@ -129,8 +130,39 @@ func (l MultiLanguage) Value() (driver.Value, error) {
 	return json.Marshal(l)
 }
 
+type Tags []string
+
+func (t *Tags) Scan(value interface{}) error {
+	bytes, ok := value.([]byte)
+	if !ok {
+		return fmt.Errorf("gorm.Scan failed to assert Tags: %v", value)
+	}
+	if len(bytes) == 0 {
+		bytes = []byte("[]")
+	}
+
+	result := Tags{}
+	err := json.Unmarshal(bytes, &result)
+	*t = result
+	return err
+}
+
+func (t Tags) Value() (driver.Value, error) {
+	bt := make([]byte, 0)
+	if t == nil {
+		return bt, nil
+	}
+
+	bt, err := json.Marshal(t)
+	if err != nil {
+		return bt, nil
+	}
+	return bt, nil
+}
+
 type EvtCenterRule struct {
 	ID            int32         `gorm:"primaryKey; autoIncrement; column:id"`
+	Version1      string        `gorm:"column:version1; size:32"`
 	Name          string        `gorm:"uniqueIndex:rules_key; column:name; size:255"`
 	Module        string        `gorm:"uniqueIndex:rules_key; column:module; size:32"`
 	Category      string        `gorm:"uniqueIndex:rules_key; column:category; size:32"`
@@ -139,6 +171,7 @@ type EvtCenterRule struct {
 	CustomKV      CustomKVs     `gorm:"column:custom_kv"`
 	MultiLanguage MultiLanguage `gorm:"column:multi_language"`
 	Status        uint8         `gorm:"column:status"`
+	Tags          Tags          `gorm:"column:tags"`
 }
 
 func (EvtCenterRule) TableName() string {

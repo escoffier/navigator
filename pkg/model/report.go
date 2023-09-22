@@ -70,6 +70,7 @@ type ReportTaskTemplateMeta struct {
 	Categories              string    `gorm:"column:categories"`
 	Emails                  string    `gorm:"column:emails"`
 	Description             string    `gorm:"column:description"`
+	Lang                    string    `gorm:"column:lang"`
 	CycleDay                uint8     `gorm:"column:cycle_day"`
 	StartTimestamp          int64     `gorm:"column:start_timestamp"`
 	EndTimestamp            int64     `gorm:"column:end_timestamp"`
@@ -128,17 +129,21 @@ type ReportDetail struct {
 }
 
 type EventsReport struct {
-	Events []*EventItem `json:"events"`
+	Events []*EventItem   `json:"events"`
+	Count  map[string]int `json:"count"`
 }
 
 type EventItem struct {
-	RuleCategory string `json:"ruleCategory"`
-	RuleName     string `json:"ruleName"`
-	Cluster      string `json:"cluster"`
-	Namespace    string `json:"namespace"`
-	NodeKey      string `json:"nodeKey"`
-	Severity     uint8  `json:"severity"`
-	Timestamp    int64  `json:"timestamp"`
+	RuleCategory    string `json:"ruleCategory"`
+	RuleName        string `json:"ruleName"`
+	RuleDescription string `json:"ruleDescription"`
+	Resolution      string `json:"resolution"`
+	Cluster         string `json:"cluster"`
+	Namespace       string `json:"namespace"`
+	NodeKey         string `json:"nodeKey"`
+	Severity        uint8  `json:"severity"`
+	Context         string `json:"context"`
+	Timestamp       int64  `json:"timestamp"`
 }
 
 type AssetsReport struct {
