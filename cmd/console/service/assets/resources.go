@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -44,9 +45,9 @@ var (
 )
 
 // TODO:直接传入rsearchClient，在查询时判断rsearchClient实例是否为nil不是一种好的方式，如有必要，考虑将dal的操作抽象为接口
-func InitResourcesService(rdb *databases.RDBInstance, rsearchClient *redisearch.Client, scannerURL string) error {
+func InitResourcesService(rdb *databases.RDBInstance, rsearchClient *redisearch.Client, scannerURL string, stream rpcstream.MessageStream) error {
 	rlOnce.Do(func() {
-		instance = newTensorResourcesService(rdb, rsearchClient, scannerURL)
+		instance = newTensorResourcesService(rdb, rsearchClient, scannerURL, stream)
 	})
 	return nil
 }
@@ -59,13 +60,15 @@ type TensorResourcesService struct {
 	rdb           *databases.RDBInstance
 	rsearchClient *redisearch.Client
 	scannerURL    string
+	stream        rpcstream.MessageStream
 }
 
-func newTensorResourcesService(rdb *databases.RDBInstance, rsearchClient *redisearch.Client, scannerURL string) *TensorResourcesService {
+func newTensorResourcesService(rdb *databases.RDBInstance, rsearchClient *redisearch.Client, scannerURL string, stream rpcstream.MessageStream) *TensorResourcesService {
 	return &TensorResourcesService{
 		rdb:           rdb,
 		rsearchClient: rsearchClient,
 		scannerURL:    scannerURL,
+		stream:        stream,
 	}
 }
 
@@ -111,10 +114,70 @@ func (rl *TensorResourcesService) GetResources(ctx context.Context, queryOptions
 	return resources, resCnt, nil
 }
 
+type TensorResourceView struct {
+	*model.TensorResource
+	Managers []*dal.UserNameAccount
+}
+
+// 由 queryOptions.WithUserAccount 决定
+func (rl *TensorResourcesService) GetResourcesWithUserAccount(ctx context.Context, queryOptions *dal.ResourcesQueryOption, offset, limit int) ([]*TensorResourceView, int64, error) {
+	resources, total, err := rl.GetResources(ctx, queryOptions, offset, limit)
+	if err != nil {
+		return nil, 0, err
+	}
+	var result []*TensorResourceView
+	if queryOptions.WithUserAccount {
+		result = getResourceViewByResources(ctx, resources, rl.rdb.GetReadDB())
+	} else {
+		for _, r := range resources {
+			result = append(result, &TensorResourceView{TensorResource: r})
+		}
+	}
+	return result, total, nil
+}
+
+func getResourceViewByResources(ctx context.Context, resources []*model.TensorResource, db *gorm.DB) []*TensorResourceView {
+	nameAccountMap := make(map[string]*dal.UserNameAccount)
+	var names []string
+	nameMap := make(map[string]struct{})
+	for _, namespace := range resources {
+		for _, manager := range namespace.Managers {
+			_, isOk := nameMap[manager]
+			if !isOk {
+				nameMap[manager] = struct{}{}
+				names = append(names, manager)
+			}
+		}
+	}
+	if len(names) > 0 {
+		ok, resultMap, err := dal.SelectUserAccountByNames(ctx, db, names)
+		if ok {
+			nameAccountMap = resultMap
+		} else {
+			logging.Get().Warn().Err(err).Msg("SelectUserAccountByNames failed.")
+		}
+	}
+	result := make([]*TensorResourceView, len(resources))
+	for i, resource := range resources {
+		result[i] = &TensorResourceView{TensorResource: resource}
+		for _, manager := range resource.Managers {
+			tmp := nameAccountMap[manager]
+			if tmp == nil {
+				tmp = &dal.UserNameAccount{
+					UserName: manager,
+					Account:  manager,
+				}
+			}
+			result[i].Managers = append(result[i].Managers, tmp)
+		}
+	}
+	return result
+}
+
 // GetResourceWithRedis will send query to redis only if redisearch client is ready and queryOptions meet with redisearch.
-func (rl *TensorResourcesService) GetResourceWithRedis(ctx context.Context, queryOptions *dal.ResourcesQueryOption, offset, limit int) ([]*model.TensorResource, int64, error) {
+func (rl *TensorResourcesService) GetResourceWithRedis(ctx context.Context, queryOptions *dal.ResourcesQueryOption, offset, limit int) ([]*TensorResourceView, int64, error) {
 	if rl.rsearchClient == nil {
-		return rl.GetResources(ctx, queryOptions, offset, limit)
+		return rl.GetResourcesWithUserAccount(ctx, queryOptions, offset, limit)
 	}
 
 	ic, err := rl.rsearchClient.GetIndexClient("resource")
@@ -126,12 +189,20 @@ func (rl *TensorResourcesService) GetResourceWithRedis(ctx context.Context, quer
 	if err != nil {
 		return nil, 0, err
 	}
+	var result []*TensorResourceView
+	if queryOptions.WithUserAccount {
+		result = getResourceViewByResources(ctx, resources, rl.rdb.GetReadDB())
+	} else {
+		for _, r := range resources {
+			result = append(result, &TensorResourceView{TensorResource: r})
+		}
+	}
 
 	resCnt, err := dal.CountResourcesWithRedis(ctx, rl.rdb.GetReadDB(), ic, queryOptions)
 	if err != nil {
 		return nil, 0, err
 	}
-	return resources, resCnt, nil
+	return result, resCnt, nil
 }
 
 func (rl *TensorResourcesService) CountResource(ctx context.Context, queryOptions *dal.ResourcesQueryOption) (int64, error) {
@@ -185,7 +256,12 @@ func (rl *TensorResourcesService) CountNamespaces(ctx context.Context, clusterKe
 	return cnt, nil
 }
 
-func (rl *TensorResourcesService) GetNamespacesWithOption(ctx context.Context, query *dal.NamespacesQueryOption, offset, limit int) ([]*model.TensorNamespace, int64, error) {
+type NamespaceView struct {
+	*model.TensorNamespace
+	Managers []*dal.UserNameAccount
+}
+
+func (rl *TensorResourcesService) GetNamespacesWithOption(ctx context.Context, query *dal.NamespacesQueryOption, offset, limit int) ([]*NamespaceView, int64, error) {
 	ns, err := dal.GetNamespaceWithOption(ctx, rl.rdb.GetReadDB(), query, offset, limit)
 	if err != nil {
 		return nil, 0, err
@@ -194,7 +270,41 @@ func (rl *TensorResourcesService) GetNamespacesWithOption(ctx context.Context, q
 	if err != nil {
 		return nil, 0, err
 	}
-	return ns, cnt, nil
+	nameAccountMap := make(map[string]*dal.UserNameAccount)
+	var names []string
+	nameMap := make(map[string]struct{})
+	for _, namespace := range ns {
+		for _, manager := range namespace.Managers {
+			_, isOk := nameMap[manager]
+			if !isOk {
+				nameMap[manager] = struct{}{}
+				names = append(names, manager)
+			}
+		}
+	}
+	if len(names) > 0 {
+		ok, resultMap, err := dal.SelectUserAccountByNames(ctx, rl.rdb.GetReadDB(), names)
+		if ok {
+			nameAccountMap = resultMap
+		} else {
+			logging.Get().Warn().Err(err).Msg("SelectUserAccountByNames failed.")
+		}
+	}
+	view := make([]*NamespaceView, len(ns))
+	for i, n := range ns {
+		view[i] = &NamespaceView{TensorNamespace: n}
+		for _, manager := range n.Managers {
+			tmp := nameAccountMap[manager]
+			if tmp == nil {
+				tmp = &dal.UserNameAccount{
+					UserName: manager,
+					Account:  manager,
+				}
+			}
+			view[i].Managers = append(view[i].Managers, tmp)
+		}
+	}
+	return view, cnt, nil
 }
 
 func (rl *TensorResourcesService) UpdateNamespaces(ctx context.Context, clusterKey, name, alias string, manager []string, authority string) error {
@@ -237,6 +347,40 @@ func (rl *TensorResourcesService) GetResourcePods(ctx context.Context, queryOpti
 	return pods, cnt, err
 }
 
+type PodsBySvcReq struct {
+	Namespace  string
+	ClusterKey string
+	SvcName    string
+	Query      string //pod_name
+	Limit      int
+	Offset     int
+	UseRedis   bool
+}
+
+func (rl *TensorResourcesService) GetPodsBySvc(ctx context.Context, req PodsBySvcReq, offset, limit int) ([]*model.PodResourceRelation, int64, error) {
+	podNameList, err := dal.GetPodNameListBySvc(ctx, rl.rdb.GetReadDB(), req.ClusterKey, req.Namespace, req.SvcName)
+	if err != nil {
+		return nil, 0, err
+	}
+	if len(podNameList) == 0 {
+		return nil, 0, nil
+	}
+	query := dal.ResourcePodssQuery()
+	if req.ClusterKey != "" {
+		query.WithCluster(req.ClusterKey)
+	}
+	if req.Namespace != "" {
+		query.WithNamespace(req.Namespace)
+	}
+	if req.Query != "" {
+		query.WithMulColumnQuery([]string{"pod_name"}, req.Query)
+	}
+	if len(podNameList) > 0 {
+		query.WithInPodNameList(podNameList)
+	}
+	return rl.GetResourcePods(ctx, query, offset, limit)
+}
+
 func (rl *TensorResourcesService) CountPods(ctx context.Context, queryOptions *dal.ResPodsQueryOption) (int64, error) {
 	cnt, err := dal.CountPods(ctx, rl.rdb.GetReadDB(), queryOptions)
 	if err != nil {
@@ -271,6 +415,83 @@ func (rl *TensorResourcesService) CountContainer(ctx context.Context, queryOptio
 
 func (rl *TensorResourcesService) GetNodes(ctx context.Context, queryOptions *dal.NodeQueryOption, offset, limit int) ([]*model.TensorNode, error) {
 	return dal.GetNodes(ctx, rl.rdb.GetReadDB(), queryOptions, offset, limit)
+}
+
+type NodeExtraCount struct {
+	ImageCount     int64
+	ContainerCount int64
+	PodCount       int64
+	Cpu            string
+	Memory         string
+	Disk           string
+}
+
+func (rl *TensorResourcesService) GetNodeCount(ctx context.Context, clusterKey string, nodeName string, ip string) *NodeExtraCount {
+	var nodeExtra NodeExtraCount
+	wg := sync.WaitGroup{}
+	wg.Add(2)
+	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*8)
+	defer cancelFunc()
+	go func() {
+		logging.Get().WithContext(ctx).Infof("GetNodeCount begin grcp")
+		// 	grpc
+		defer func() {
+			wg.Done()
+		}()
+
+		logging.Get().WithContext(ctx).Infof("GetNodeCount nodeKey:%s ", clusterKey)
+		resp, err := rl.stream.GetNodeLoadInfo(ctx, clusterKey, &pb.NodeLoadReq{
+			ClusterKey: clusterKey,
+			NodeName:   nodeName,
+		})
+		if err != nil {
+			logging.Get().WithContext(ctx).Errorf(err, "GetNodeCount %s error", clusterKey)
+			return
+		}
+		if resp.ErrMsg != "" {
+			logging.Get().WithContext(ctx).Errorf(nil, "GetNodeCount %s errMsg:%s", clusterKey, resp.ErrMsg)
+			return
+		}
+		nodeExtra.Cpu = resp.Cpu
+		nodeExtra.Disk = resp.DiskUsed
+		if resp.MemoryUsed != "" {
+			parseInt, err := strconv.ParseFloat(resp.MemoryUsed, 10)
+			if err != nil {
+				nodeExtra.Memory = resp.MemoryUsed
+				return
+			}
+			nodeExtra.Memory = fmt.Sprintf("%0.2fG", parseInt/(1024*1024))
+		}
+	}()
+	go func() {
+		logging.Get().WithContext(ctx).Infof("GetNodeCount begin sqlCount ")
+		defer func() {
+			wg.Done()
+		}()
+		// 	container count
+		err := rl.rdb.GetReadDB().WithContext(ctx).Model(&model.TensorRawContainer{}).Where("cluster_key=? and node_name=? and status<5", clusterKey, nodeName).Count(&nodeExtra.ContainerCount).Error
+		if err != nil {
+			logging.Get().WithContext(ctx).Errorf(err, "GetNodeCount calculate ContainerCount err")
+		}
+		// pod count
+		err = rl.rdb.GetReadDB().WithContext(ctx).Model(&model.PodResourceRelation{}).Where("cluster_key=? and node_name=? and status<5", clusterKey, nodeName).Count(&nodeExtra.PodCount).Error
+		if err != nil {
+			logging.Get().WithContext(ctx).Errorf(err, "GetNodeCount calculate PodCount err")
+		}
+		// image count
+		nodeInfo := &imagesec.NodeInfo{
+			IP:         ip,
+			Hostname:   nodeName,
+			ClusterKey: clusterKey,
+		}
+		uniqueID := nodeInfo.GenUniqueID()
+		err = rl.rdb.GetReadDB().WithContext(ctx).Model(&imagesec.Image{}).Where("node_id =  ?", uniqueID).Count(&nodeExtra.ImageCount).Error
+		if err != nil {
+			logging.Get().WithContext(ctx).Errorf(err, "GetNodeCount calculate NodeCount err")
+		}
+	}()
+	wg.Wait()
+	return &nodeExtra
 }
 
 func (rl *TensorResourcesService) CountNodes(ctx context.Context, queryOptions *dal.NodeQueryOption) (int64, error) {
@@ -848,6 +1069,243 @@ func (rl *TensorResourcesService) ListRawContainerWithRedis(ctx context.Context,
 
 }
 
+func (rl *TensorResourcesService) ListRawContainerWithFrameworkWithRedis(ctx context.Context, queryOptions *dal.RawContainersWithFrameworkQueryOption, offset, limit int) ([]*dal.RawContainerWithFrameworkStr, int64, error) {
+	var rawContainerQuery *dal.RawContainersQueryOption
+	if rl.rsearchClient == nil {
+		return rl.ListRawContainerWithFramework(ctx, queryOptions, offset, limit)
+	}
+	if len(queryOptions.WhereFrameworkLikeCondition) == 0 {
+		rawContainerQuery = queryOptions.RawContainersQueryOption
+	}
+	ic, err := rl.rsearchClient.GetIndexClient("rawContainer")
+	if err != nil {
+		return nil, 0, err
+	}
+	var cnt int64
+
+	if rawContainerQuery != nil {
+		cnt, err = dal.CountRawContainerWithRedis(ctx, rl.rdb.GetReadDB(), ic, rawContainerQuery)
+	} else {
+		cnt, err = dal.CountRawContainerWithFramework(ctx, rl.rdb.GetReadDB(), queryOptions)
+	}
+	if err != nil {
+		return nil, 0, err
+	}
+	containers, err := dal.GetRawContainersWithFrameworkWithRedis(ctx, rl.rdb.GetReadDB(), ic, queryOptions, offset, limit)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	return containers, cnt, nil
+}
+
+func (rl *TensorResourcesService) ListRawContainerWithFramework(ctx context.Context, queryOptions *dal.RawContainersWithFrameworkQueryOption, offset, limit int) ([]*dal.RawContainerWithFrameworkStr, int64, error) {
+	cnt, err := dal.CountRawContainerWithFramework(ctx, rl.rdb.GetReadDB(), queryOptions)
+	if err != nil {
+		return nil, 0, err
+	}
+	containers, err := dal.GetRawContainersWithFramework(ctx, rl.rdb.GetReadDB(), queryOptions, offset, limit)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	return containers, cnt, nil
+}
+
+func (rl *TensorResourcesService) CountIngress(ctx context.Context, queryOptions *dal.IngressesQueryOption) (int64, error) {
+	return dal.CountIngress(ctx, rl.rdb.GetReadDB(), queryOptions)
+}
+func (rl *TensorResourcesService) GetIngressBase(ctx context.Context, option *dal.IngressesQueryOption, offset int, limit int) ([]*model.TensorIngress, error) {
+	return dal.GetIngresses(ctx, rl.rdb.GetReadDB(), option, offset, limit)
+}
+
+func (rl *TensorResourcesService) ListIngress(ctx context.Context, queryOptions *dal.IngressesQueryOption, offset, limit int) ([]*model.TensorIngress, int64, error) {
+	cnt, err := rl.CountIngress(ctx, queryOptions)
+	if err != nil {
+		return nil, 0, err
+	}
+	ingresses, err := rl.GetIngressBase(ctx, queryOptions, offset, limit)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	return ingresses, cnt, nil
+}
+
+func (rl *TensorResourcesService) GetIngressBackendKinds(ctx context.Context) ([]string, error) {
+	return dal.GetIngressBackendKinds(ctx, rl.rdb.GetReadDB())
+}
+
+func (rl *TensorResourcesService) GetIngressRules(ctx context.Context, queryOptions *dal.IngressesRuleQueryOption, offset, limit int) ([]*model.TensorIngressRule, error) {
+	return dal.GetIngressRules(ctx, rl.rdb.GetReadDB(), queryOptions, offset, limit)
+}
+
+func (rl *TensorResourcesService) CountIngressRule(ctx context.Context, queryOptions *dal.IngressesRuleQueryOption) (int64, error) {
+	return dal.CountIngressRule(ctx, rl.rdb.GetReadDB(), queryOptions)
+}
+
+func (rl *TensorResourcesService) ListIngressRule(ctx context.Context, queryOptions *dal.IngressesRuleQueryOption, offset, limit int) ([]*model.TensorIngressRule, int64, error) {
+	cnt, err := rl.CountIngressRule(ctx, queryOptions)
+	if err != nil {
+		return nil, 0, err
+	}
+	ingresses, err := rl.GetIngressRules(ctx, queryOptions, offset, limit)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	return ingresses, cnt, nil
+}
+
+func (rl *TensorResourcesService) ListService(ctx context.Context, queryOptions *dal.ServicesQueryOption, offset, limit int) ([]*model.TensorService, int64, error) {
+	cnt, err := dal.CountService(ctx, rl.rdb.GetReadDB(), queryOptions)
+	if err != nil {
+		return nil, 0, err
+	}
+	services, err := dal.GetService(ctx, rl.rdb.GetReadDB(), queryOptions, offset, limit)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	return services, cnt, nil
+}
+func (rl *TensorResourcesService) GetService(ctx context.Context, queryOptions *dal.ServicesQueryOption, offset, limit int) ([]*model.TensorService, error) {
+	return dal.GetService(ctx, rl.rdb.GetReadDB(), queryOptions, offset, limit)
+}
+
+func (rl *TensorResourcesService) CountEndpoint(ctx context.Context, queryOptions *dal.EndpointsQueryOption) (int64, error) {
+	return dal.CountEndpoints(ctx, rl.rdb.GetReadDB(), queryOptions)
+}
+func (rl *TensorResourcesService) GetEndpointBase(ctx context.Context, option *dal.EndpointsQueryOption, offset int, limit int) ([]*model.TensorEndpoints, error) {
+	return dal.GetEndpoints(ctx, rl.rdb.GetReadDB(), option, offset, limit)
+}
+
+func (rl *TensorResourcesService) ListEndpoint(ctx context.Context, queryOptions *dal.EndpointsQueryOption, offset, limit int) ([]*model.TensorEndpoints, int64, error) {
+	cnt, err := rl.CountEndpoint(ctx, queryOptions)
+	if err != nil {
+		return nil, 0, err
+	}
+	endpoints, err := rl.GetEndpointBase(ctx, queryOptions, offset, limit)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	return endpoints, cnt, nil
+}
+
+func (rl *TensorResourcesService) GetEndpointSubsetKinds(ctx context.Context) ([]string, error) {
+	return dal.GetEndpointSubsetKinds(ctx, rl.rdb.GetReadDB())
+}
+
+func (rl *TensorResourcesService) GetEndpointSubsets(ctx context.Context, queryOptions *dal.EndpointsSubsetsQueryOption, offset, limit int) ([]*model.TensorEndpointsSubset, error) {
+	return dal.GetEndpointSubsets(ctx, rl.rdb.GetReadDB(), queryOptions, offset, limit)
+}
+
+func (rl *TensorResourcesService) CountEndpointSubsets(ctx context.Context, queryOptions *dal.EndpointsSubsetsQueryOption) (int64, error) {
+	return dal.CountEndpointsSubsets(ctx, rl.rdb.GetReadDB(), queryOptions)
+}
+
+func (rl *TensorResourcesService) ListEndpointsSubset(ctx context.Context, queryOptions *dal.EndpointsSubsetsQueryOption, offset, limit int) ([]*model.TensorEndpointsSubset, int64, error) {
+	cnt, err := rl.CountEndpointSubsets(ctx, queryOptions)
+	if err != nil {
+		return nil, 0, err
+	}
+	ingresses, err := rl.GetEndpointSubsets(ctx, queryOptions, offset, limit)
+	if err != nil {
+		return nil, 0, err
+	}
+	return ingresses, cnt, nil
+}
+
+func (rl *TensorResourcesService) GetSecrets(ctx context.Context, queryOptions *dal.SecretsQueryOption, offset, limit int) ([]*model.TensorSecret, error) {
+	return dal.GetSecrets(ctx, rl.rdb.GetReadDB(), queryOptions, offset, limit)
+}
+
+func (rl *TensorResourcesService) CountSecrets(ctx context.Context, queryOptions *dal.SecretsQueryOption) (int64, error) {
+	return dal.CountSecrets(ctx, rl.rdb.GetReadDB(), queryOptions)
+}
+
+func (rl *TensorResourcesService) ListSecret(ctx context.Context, queryOptions *dal.SecretsQueryOption, offset, limit int) ([]*model.TensorSecret, int64, error) {
+	cnt, err := rl.CountSecrets(ctx, queryOptions)
+	if err != nil {
+		return nil, 0, err
+	}
+	ingresses, err := rl.GetSecrets(ctx, queryOptions, offset, limit)
+	if err != nil {
+		return nil, 0, err
+	}
+	return ingresses, cnt, nil
+}
+
+func (rl *TensorResourcesService) ListPV(ctx context.Context, queryOptions *dal.PVQueryOption, offset, limit int) ([]*model.TensorPV, int64, error) {
+	cnt, err := dal.CountPVs(ctx, rl.rdb.GetReadDB(), queryOptions)
+	if err != nil {
+		return nil, 0, err
+	}
+	pvs, err := dal.GetPVs(ctx, rl.rdb.GetReadDB(), queryOptions, offset, limit)
+	if err != nil {
+		return nil, 0, err
+	}
+	return pvs, cnt, nil
+}
+
+func (rl *TensorResourcesService) ListPVC(ctx context.Context, queryOptions *dal.PVCQueryOption, offset, limit int) ([]*model.TensorPVC, int64, error) {
+	cnt, err := dal.CountPVCs(ctx, rl.rdb.GetReadDB(), queryOptions)
+	if err != nil {
+		return nil, 0, err
+	}
+	pvcs, err := dal.GetPVCs(ctx, rl.rdb.GetReadDB(), queryOptions, offset, limit)
+	if err != nil {
+		return nil, 0, err
+	}
+	return pvcs, cnt, nil
+}
+
+func (rl *TensorResourcesService) ListNamespaceLabel(ctx context.Context, queryOptions *dal.NamespaceLabelQueryOption, offset int, limit int) ([]*model.TensorNamespaceLabel, int64, error) {
+
+	cnt, err := dal.CountNamespaceLabels(ctx, rl.rdb.GetReadDB(), queryOptions)
+	if err != nil {
+		return nil, 0, err
+	}
+	labels, err := dal.GetNamespaceLabels(ctx, rl.rdb.GetReadDB(), queryOptions, offset, limit)
+	if err != nil {
+		return nil, 0, err
+	}
+	return labels, cnt, nil
+}
+
+func (rl *TensorResourcesService) ListBusiSvc(ctx context.Context, queryOptions *dal.BusiSvcQueryOption, offset int, limit int) ([]*dal.PodBusiSvcBase, int64, error) {
+	cnt, err := dal.CountBusiSvcs(ctx, rl.rdb.GetReadDB(), queryOptions)
+	if err != nil {
+		return nil, 0, err
+	}
+	svcs, err := dal.GetBusiSvcs(ctx, rl.rdb.GetReadDB(), queryOptions, offset, limit)
+	if err != nil {
+		return nil, 0, err
+	}
+	return svcs, cnt, nil
+}
+
+func (rl *TensorResourcesService) GetBusiSvcDetail(ctx context.Context, id int32) (*dal.PodBusiSvcBaseDetail, error) {
+	return dal.GetBusiSvcDetail(ctx, rl.rdb.GetReadDB(), id)
+}
+
+func (rl *TensorResourcesService) ListExposeHost(ctx context.Context, webDesc, protocol string, offset, limit int) ([]*dal.ExposeHostBase, int64, error) {
+	cnt, err := dal.CountExposeHost(ctx, rl.rdb.GetReadDB(), webDesc, protocol)
+	if err != nil {
+		return nil, 0, err
+	}
+	svcs, err := dal.GetExposeHosts(ctx, rl.rdb.GetReadDB(), webDesc, protocol, offset, limit)
+	if err != nil {
+		return nil, 0, err
+	}
+	return svcs, cnt, nil
+}
+
+func (rl *TensorResourcesService) GetExposeHostDetail(ctx context.Context, id int64) (*dal.ExposeHostDetail, error) {
+	return dal.GetExposeHostDetail(ctx, rl.rdb.GetReadDB(), id)
+}
+
 func (rl *TensorResourcesService) GetRuleVersions(ctx context.Context, offset, limit int) ([]string, int64, error) {
 	ruleVersions, err := dal.GetRuleVersions(ctx, rl.rdb.GetReadDB(), offset, limit)
 	if err != nil {
@@ -1011,4 +1469,198 @@ func (rl *TensorResourcesService) GetAppTargets(ctx context.Context, clusterKey,
 		}
 	}
 	return appTargets, nil
+}
+
+type NamespaceLabel struct {
+	Namespace  string `json:"namespace"`
+	ClusterKey string `json:"cluster_key"`
+	LabelName  string `json:"label_name"`
+	LabelValue string `json:"label_value"`
+}
+
+func (rl *TensorResourcesService) AddNamespaceLabel(ctx context.Context, data NamespaceLabel) error {
+	if dal.IsBlockLabel(data.LabelName) {
+		return errors.New("该标签名已被锁定，不允许添加")
+	}
+	labelId := util.GenerateUUID(data.ClusterKey, data.Namespace, data.LabelName)
+	var label model.TensorNamespaceLabel
+	err := rl.rdb.GetReadDB().Find(&label, labelId).Error
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil
+		}
+		return err
+	}
+	if label.ID > 0 {
+		return errors.New("标签名重复")
+	}
+	// 	grpc
+	rCtx, cancel := context.WithTimeout(ctx, 8000*time.Millisecond)
+	defer cancel()
+
+	errResp, err := rl.stream.SetNamespaceLabel(rCtx, data.ClusterKey, &pb.NamespaceLabelSetReq{
+		Namespace:  data.Namespace,
+		ClusterKey: data.ClusterKey,
+		Name:       data.LabelName,
+		Value:      data.LabelValue,
+	})
+	if err != nil {
+		logging.Get().Error().Msgf("add ns's label failed. grpc err:%w ", err)
+		return fmt.Errorf("新增失败")
+	}
+	if errResp.GetErrMsg() != "" {
+		logging.Get().Error().Msgf("add ns's label failed. ErrMsg :%w ", errResp.GetErrMsg())
+		return fmt.Errorf("新增失败")
+	}
+	// check
+	for true {
+		select {
+		case <-ctx.Done():
+			return errors.New("检测超时，请稍后查看")
+		default:
+			time.Sleep(time.Millisecond * 500)
+			isOk := rl.checkNamespaceLabelUntil(ctx, CheckNsLabel{
+				Action:     "add",
+				ClusterKey: data.ClusterKey,
+				Namespace:  data.Namespace,
+				LabelName:  data.LabelName,
+				LabelValue: data.LabelValue,
+			})
+			if isOk {
+				return nil
+			}
+		}
+	}
+	return nil
+}
+
+func (rl *TensorResourcesService) UpdateNamespaceLabel(ctx context.Context, labelId int64, newValue string) error {
+	var label model.TensorNamespaceLabel
+	err := rl.rdb.GetReadDB().Find(&label, labelId).Error
+	if err != nil {
+		return err
+	}
+	if label.ID == 0 {
+		return errors.New("标签不存在")
+	}
+	if dal.IsBlockLabel(label.Name) {
+		return errors.New("该标签名已被锁定，不允许修改")
+	}
+	// 	grpc
+	rCtx, cancel := context.WithTimeout(ctx, 8000*time.Millisecond)
+	defer cancel()
+
+	errResp, err := rl.stream.SetNamespaceLabel(rCtx, label.ClusterKey, &pb.NamespaceLabelSetReq{
+		Namespace:  label.Namespace,
+		ClusterKey: label.ClusterKey,
+		Name:       label.Name,
+		Value:      newValue,
+	})
+	if err != nil {
+		logging.Get().Error().Msgf("update ns's label failed. grpc err:%w ", err)
+		return fmt.Errorf("更新失败")
+	}
+	if errResp.GetErrMsg() != "" {
+		logging.Get().Error().Msgf("update ns's label failed. ErrMsg:%w ", errResp.GetErrMsg())
+		return fmt.Errorf("更新失败")
+	}
+	// check
+	for true {
+		select {
+		case <-ctx.Done():
+			return errors.New("检测超时，请稍后查看")
+		default:
+			time.Sleep(time.Millisecond * 500)
+			isOk := rl.checkNamespaceLabelUntil(ctx, CheckNsLabel{
+				Action:     "update",
+				ClusterKey: label.ClusterKey,
+				Namespace:  label.Namespace,
+				LabelName:  label.Name,
+				LabelValue: newValue,
+			})
+			if isOk {
+				return nil
+			}
+		}
+	}
+	return nil
+}
+
+func (rl *TensorResourcesService) DeleteNamespaceLabel(ctx context.Context, labelId int64) error {
+	var label model.TensorNamespaceLabel
+	err := rl.rdb.GetReadDB().Find(&label, labelId).Error
+	if err != nil {
+		return err
+	}
+	if label.ID == 0 {
+		return nil
+	}
+	if dal.IsBlockLabel(label.Name) {
+		return errors.New("该标签名已被锁定，不允许删除")
+	}
+	// 	grpc
+	rCtx, cancel := context.WithTimeout(ctx, 8000*time.Millisecond)
+	defer cancel()
+
+	errResp, err := rl.stream.DeleteNamespaceLabel(rCtx, label.ClusterKey, &pb.NamespaceLabelSetReq{
+		Namespace:  label.Namespace,
+		ClusterKey: label.ClusterKey,
+		Name:       label.Name,
+	})
+	if err != nil {
+		logging.Get().Error().Msgf("delete ns's label failed. grpc err:%w ", err)
+		return fmt.Errorf("删除失败")
+	}
+	if errResp.GetErrMsg() != "" {
+		logging.Get().Error().Msgf("delete ns's label failed. ErrMsg:%w ", errResp.GetErrMsg())
+		return fmt.Errorf("删除失败")
+	}
+	// check
+	for true {
+		select {
+		case <-ctx.Done():
+			return errors.New("检测超时，请稍后查看")
+		default:
+			time.Sleep(time.Millisecond * 500)
+			isOk := rl.checkNamespaceLabelUntil(ctx, CheckNsLabel{
+				Action:     "delete",
+				ClusterKey: label.ClusterKey,
+				Namespace:  label.Namespace,
+				LabelName:  label.Name,
+				LabelValue: label.Value,
+			})
+			if isOk {
+				return nil
+			}
+		}
+	}
+	return nil
+}
+
+type CheckNsLabel struct {
+	Action     string
+	ClusterKey string `json:"cluster_key"`
+	Namespace  string `json:"namespace"`
+	LabelName  string `json:"label_name"`
+	LabelValue string `json:"label_value"`
+}
+
+func (rl *TensorResourcesService) checkNamespaceLabelUntil(ctx context.Context, check CheckNsLabel) bool {
+	if check.Action == "" {
+		return false
+	}
+	var label model.TensorNamespaceLabel
+	rl.rdb.GetReadDB().WithContext(ctx).Where("cluster_key = ? and namespace = ? and name =? and value=?", check.ClusterKey, check.Namespace, check.LabelName, check.LabelValue).
+		Take(&label)
+	if check.Action == "delete" {
+		if label.ID == 0 {
+			return true
+		}
+		return false
+	}
+	// add ,update
+	if label.ID != 0 {
+		return true
+	}
+	return false
 }

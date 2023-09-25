@@ -1,10 +1,13 @@
 package nodeinfo
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"github.com/docker/docker/pkg/stdcopy"
 	"os"
 	"runtime/debug"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -375,6 +378,7 @@ func (d *DockerInfoManager) listAll() {
 
 func (d *DockerInfoManager) containerFromRaw(containerJson *types.ContainerJSON) *model.TensorRawContainer {
 	volumeMounts := make([]model.Mounts, 0, len(containerJson.Mounts))
+	var isNfs, isCephfs, isHostPath bool
 	for _, m := range containerJson.Mounts {
 		ro := false
 		if m.Mode == "ro" {
@@ -388,6 +392,13 @@ func (d *DockerInfoManager) containerFromRaw(containerJson *types.ContainerJSON)
 			MountPath:        m.Destination,
 			MountPropagation: string(m.Propagation),
 		})
+		if strings.Contains(m.Source, StorageTypeNfs) {
+			isNfs = true
+		} else if strings.Contains(m.Source, StorageTypeCephfs) {
+			isCephfs = true
+		} else {
+			isHostPath = true
+		}
 	}
 	var k8sManaged bool
 	podName, ok := containerJson.Config.Labels["io.kubernetes.pod.name"]
@@ -403,10 +414,34 @@ func (d *DockerInfoManager) containerFromRaw(containerJson *types.ContainerJSON)
 	if err != nil {
 		return nil
 	}
-
+	containerName := strings.TrimPrefix(containerJson.Name, "/")
 	processes := getContainerProcessInfo(containerJson.State.Pid)
 	// imageName, imageCreated, imageSize := d.getImageInfo(containerJson.Image)
 	imageName, imageDigest, imageCreated, imageSize := d.getImageInfoV2(containerJson.Config.Image, containerJson.Image)
+	imageName = buildImageWithTag(imageName, containerJson.Config.Labels, containerName)
+	var user string
+	if containerJson.Config.User == "0" {
+		user = "root"
+	} else {
+		var uid string
+		split := strings.Split(containerJson.Config.User, ":")
+		if len(split) == 2 {
+			uid = split[0]
+		} else if _, err := strconv.ParseInt(containerJson.Config.User, 10, 32); err == nil {
+			uid = containerJson.Config.User
+		}
+		if uid != "" {
+			ctx, _ := context.WithTimeout(context.Background(), 2*time.Second)
+			resp, err := d.RunCmd(ctx, containerJson.ID, []string{"/bin/sh", "-c", "whoami"})
+			if err == nil && resp != "" && !strings.Contains(resp, "stdout:") && !strings.Contains(resp, "OCI runtime exec failed") {
+				user = strings.TrimSpace(resp)
+			}
+		}
+		if user == "" {
+			user = containerJson.Config.User
+		}
+	}
+
 	return &model.TensorRawContainer{
 		Status:         getContainerStatus(containerJson.State.Status),
 		CreatedAt:      t,
@@ -417,7 +452,7 @@ func (d *DockerInfoManager) containerFromRaw(containerJson *types.ContainerJSON)
 		Gateway:        containerJson.NetworkSettings.Gateway,
 		Mac:            containerJson.NetworkSettings.MacAddress,
 		NetworkMode:    getNetworkMode(string(containerJson.HostConfig.NetworkMode)),
-		Name:           strings.TrimPrefix(containerJson.Name, "/"),
+		Name:           containerName,
 		PodName:        podName,
 		PodUid:         podUid,
 		Namespace:      containerJson.Config.Labels["io.kubernetes.pod.namespace"],
@@ -433,6 +468,7 @@ func (d *DockerInfoManager) containerFromRaw(containerJson *types.ContainerJSON)
 		Cmd:            getCommandFromDocker(containerJson),
 		Arguments:      containerJson.Args,
 		VolumeMounts:   volumeMounts,
+		StorageType:    getContainerStorageType(isNfs, isCephfs, isHostPath),
 		Path:           containerJson.Path,
 		ReservedCPU:    getCPUFromDocker(containerJson),
 		ReservedMemory: containerJson.HostConfig.Memory,
@@ -441,7 +477,7 @@ func (d *DockerInfoManager) containerFromRaw(containerJson *types.ContainerJSON)
 		Environment:    util.DeIdentificationEnvs(containerJson.Config.Env),
 		ProcessNumber:  len(processes),
 		Processes:      processes,
-		User:           containerJson.Config.User,
+		User:           user,
 		Ports:          getContainerPorts(containerJson.State.Pid),
 	}
 }
@@ -478,6 +514,7 @@ func (d *DockerInfoManager) updateContainerDetail(ctx context.Context, container
 		return container
 	}
 	volumeMounts := make([]model.Mounts, 0, len(containerJson.Mounts))
+	var isNfs, isCephfs, isHostPath bool
 	for _, m := range containerJson.Mounts {
 		ro := false
 		if m.Mode == "ro" {
@@ -491,6 +528,13 @@ func (d *DockerInfoManager) updateContainerDetail(ctx context.Context, container
 			MountPath:        m.Destination,
 			MountPropagation: string(m.Propagation),
 		})
+		if strings.Contains(m.Source, StorageTypeNfs) {
+			isNfs = true
+		} else if strings.Contains(m.Source, StorageTypeCephfs) {
+			isCephfs = true
+		} else {
+			isHostPath = true
+		}
 	}
 
 	t, err := time.Parse(time.RFC3339Nano, containerJson.Created)
@@ -511,13 +555,36 @@ func (d *DockerInfoManager) updateContainerDetail(ctx context.Context, container
 	container.Mac = containerJson.NetworkSettings.MacAddress
 	container.NetworkMode = getNetworkMode(string(containerJson.HostConfig.NetworkMode))
 	container.VolumeMounts = volumeMounts
+	container.StorageType = getContainerStorageType(isNfs, isCephfs, isHostPath)
 	container.Environment = util.DeIdentificationEnvs(containerJson.Config.Env)
 	container.ImageID = containerJson.Image
 	// container.ImageDigest = getImageDigest(containerJson.Config.Image)
 	// container.ImageName, container.ImageCreated, container.ImageSize = d.getImageInfo(container.ImageID)
 	container.ImageName, container.ImageDigest, container.ImageCreated, container.ImageSize = d.getImageInfoV2(containerJson.Config.Image, container.ImageID)
 	container.ImageUUID = model.GetImageUUID(container.ImageName, container.ImageDigest)
-	container.User = containerJson.Config.User
+	var user string
+	if containerJson.Config.User == "0" {
+		user = "root"
+	} else {
+		var uid string
+		split := strings.Split(containerJson.Config.User, ":")
+		if len(split) == 2 {
+			uid = split[0]
+		} else if _, err := strconv.ParseInt(containerJson.Config.User, 10, 32); err == nil {
+			uid = containerJson.Config.User
+		}
+		if uid != "" {
+			ctx, _ := context.WithTimeout(context.Background(), 2*time.Second)
+			resp, err := d.RunCmd(ctx, containerJson.ID, []string{"/bin/sh", "-c", "whoami"})
+			if err == nil && resp != "" && !strings.Contains(resp, "stdout:") {
+				user = strings.TrimSpace(resp)
+			}
+		}
+		if user == "" {
+			user = containerJson.Config.User
+		}
+	}
+	container.User = user
 	container.Ports = getContainerPorts(container.Pid)
 
 	processes := getContainerProcessInfo(container.Pid)
@@ -606,6 +673,47 @@ func (d *DockerInfoManager) getImageInfoV2(imageRef string, imageID string) (ima
 	}
 
 	return imageName, imageDigest, imageInspect.Created, imageInspect.Size
+}
+
+func (d *DockerInfoManager) RunCmd(ctx context.Context, containerId string, cmd []string) (resp string, err error) {
+	cmdStr := fmt.Sprint(cmd)
+
+	if containerId == "" || len(cmd) == 0 {
+		return "", errors.New("param is empty.  containerId:" + containerId + " cmd:" + cmdStr)
+	}
+
+	tCtx, cancelFunc := context.WithTimeout(ctx, 5*time.Second)
+	defer cancelFunc()
+
+	logging.Get().Debug().Msgf("RunCmd run cmd:[%s] in container:[%s]", cmd, containerId)
+	execConfig := types.ExecConfig{
+		AttachStdout: true,
+		AttachStderr: true,
+		Cmd:          cmd,
+	}
+	createData, err := d.dockerCli.ContainerExecCreate(tCtx, containerId, execConfig)
+	if err != nil {
+		logging.Get().Debug().Msgf("RunCmd  ContainerExecCreate failed.%w", err)
+		return "", err
+	}
+	attachData, err := d.dockerCli.ContainerExecAttach(tCtx, createData.ID, types.ExecStartCheck{})
+	if err != nil {
+		logging.Get().Debug().Msgf("RunCmd  ContainerExecAttach failed.%w", err)
+		return "", err
+	}
+	defer attachData.Close()
+
+	stdOut := bytes.Buffer{}
+	stdErr := bytes.Buffer{}
+	_, err = stdcopy.StdCopy(&stdOut, &stdErr, attachData.Reader)
+	if err != nil {
+		logging.Get().Debug().Msgf("RunCmd  Read output  failed.%w", err)
+		return "", err
+	}
+	if stdErr.Len() == 0 {
+		return strings.TrimSpace(string(stdOut.Bytes())), nil
+	}
+	return fmt.Sprintf("stdout:%sstderr:%s", string(stdOut.Bytes()), string(stdErr.Bytes())), nil
 }
 
 func getImageDigest(image string) string {

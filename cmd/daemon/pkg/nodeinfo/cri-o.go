@@ -296,7 +296,6 @@ func (c *CRIOInfoManager) listAll() {
 }
 
 func (c *CRIOInfoManager) buildContainerDetail(container *runtimeapi.Container) (*model.TensorRawContainer, error) {
-	//  todo sandbox
 	create := time.Unix(0, container.CreatedAt)
 
 	containerStatus, containerInfo, err := GetCrioContainerDetail(c.runClient, container.Id, true)
@@ -327,6 +326,7 @@ func (c *CRIOInfoManager) buildContainerDetail(container *runtimeapi.Container) 
 	pid := containerInfo.Pid
 
 	volumeMounts := make([]model.Mounts, 0, len(runtime.Mounts))
+	var isNfs, isCephfs, isHostPath bool
 	for _, m := range runtime.Mounts {
 		mountPropagation, ro := getMountPropagationAndIsRO(m.Options)
 		volumeMounts = append(volumeMounts, model.Mounts{
@@ -336,20 +336,42 @@ func (c *CRIOInfoManager) buildContainerDetail(container *runtimeapi.Container) 
 			MountPath:        m.Destination,
 			MountPropagation: mountPropagation,
 		})
+		if strings.Contains(m.Source, StorageTypeNfs) {
+			isNfs = true
+		} else if strings.Contains(m.Source, StorageTypeCephfs) {
+			isCephfs = true
+		} else {
+			isHostPath = true
+		}
 	}
 	var k8sManaged bool
 	if podName != "" {
 		k8sManaged = true
 	}
-	userMarshal, err := json.Marshal(runtime.Process.User)
-	if err != nil {
-		logging.Get().Err(err).Msg("json Marshal User failed.")
+	var user string
+	if runtime.Process.User.Uid == 0 {
+		user = "root"
+	} else {
+		ctx, _ := context.WithTimeout(context.Background(), 2*time.Second)
+		resp, err := c.RunCmd(ctx, container.Id, []string{"/bin/sh", "-c", "whoami"})
+		logging.Get().Error().Msgf("get user by cmd . output:%s,uid:%d,containerId:%s", resp, runtime.Process.User.Uid, container.Id)
+		if err == nil && resp != "" && !strings.Contains(resp, "stderr:") {
+			user = resp
+		} else {
+			userByte, err := json.Marshal(runtime.Process.User)
+			if err != nil {
+				logging.Get().Err(err).Msg("json Marshal User failed.")
+			}
+			user = string(userByte)
+		}
 	}
 	networkSettings, err := c.TryGetNetworkSettings(pid)
 	if err != nil {
 		logging.Get().Error().Msg("TryGetNetworkSettings failed,err:" + err.Error())
 		networkSettings = &NetworkSettings{}
 	}
+	imageName := containerStatus.Image.Image
+	imageName = buildImageWithTag(imageName, containerStatus.Labels, name)
 	reslult := model.TensorRawContainer{
 		CreatedAt:   create,
 		UpdatedAt:   time.Now(),
@@ -367,9 +389,9 @@ func (c *CRIOInfoManager) buildContainerDetail(container *runtimeapi.Container) 
 		ClusterKey:     c.clusterKey,
 		NodeName:       c.hostName,
 		NodeIP:         c.hostIP,
-		ImageName:      containerStatus.Image.Image,
+		ImageName:      imageName,
 		ImageID:        containerStatus.ImageRef,
-		ImageUUID:      model.GetImageUUID(containerStatus.Image.Image, digest),
+		ImageUUID:      model.GetImageUUID(imageName, digest),
 		ImageDigest:    digest,
 		ImageSize:      int64(imageStatus.Size()),
 		ImageCreated:   imageInfo.ImageSpec.Created.Format(time.RFC3339Nano),
@@ -377,6 +399,7 @@ func (c *CRIOInfoManager) buildContainerDetail(container *runtimeapi.Container) 
 		Arguments:      runtime.Process.Args,
 		Environment:    runtime.Process.Env,
 		VolumeMounts:   volumeMounts,
+		StorageType:    getContainerStorageType(isNfs, isCephfs, isHostPath),
 		Path:           runtime.Process.Cwd,
 		ReservedCPU:    getCPUFromCRIO(runtime),
 		ReservedMemory: getMemoryFromCRIO(runtime),
@@ -385,7 +408,7 @@ func (c *CRIOInfoManager) buildContainerDetail(container *runtimeapi.Container) 
 		// ProcessNumber:  ,
 		Processes: getContainerProcessInfo(pid),
 		Ports:     getContainerPorts(pid),
-		User:      string(userMarshal),
+		User:      user,
 	}
 	return &reslult, nil
 }
@@ -497,6 +520,18 @@ func (c *CRIOInfoManager) TryGetNetworkSettings(pid int) (*NetworkSettings, erro
 		return nil, err
 	}
 	return networkSettings, nil
+}
+
+func (c *CRIOInfoManager) RunCmd(ctx context.Context, containerId string, cmd []string) (resp string, err error) {
+	// 向容器发送命令
+	stdout, stderr, err := c.runClient.ExecSync(containerId, cmd, time.Second*5)
+	if err != nil {
+		return "", err
+	}
+	if len(stderr) == 0 {
+		return string(stdout), nil
+	}
+	return fmt.Sprintf("stdout:%s\nstderr:%s", string(stdout), string(stderr)), nil
 }
 
 // GetCrioImageDetail  获取crio image信息，verbose 是否需要额外详细信息 ，verbose is false, *ImageInfo  return nil

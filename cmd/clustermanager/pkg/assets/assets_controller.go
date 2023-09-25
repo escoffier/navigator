@@ -3,6 +3,8 @@ package assets
 import (
 	"context"
 	"fmt"
+	netv1 "k8s.io/api/networking/v1"
+	netLister "k8s.io/client-go/listers/networking/v1"
 	"reflect"
 	"time"
 
@@ -42,6 +44,12 @@ var (
 	DeploymentType        = reflect.TypeOf(&appsv1.Deployment{})
 	DaemonSetType         = reflect.TypeOf(&appsv1.DaemonSet{})
 	PodType               = reflect.TypeOf(&corev1.Pod{})
+	IngressType           = reflect.TypeOf(&netv1.Ingress{})
+	ServiceType           = reflect.TypeOf(&corev1.Service{})
+	EndpointsType         = reflect.TypeOf(&corev1.Endpoints{})
+	SecretType            = reflect.TypeOf(&corev1.Secret{})
+	PVType                = reflect.TypeOf(&corev1.PersistentVolume{})
+	PVCType               = reflect.TypeOf(&corev1.PersistentVolumeClaim{})
 	ReplicaSetType        = reflect.TypeOf(&appsv1.ReplicaSet{})
 	JobType               = reflect.TypeOf(&batchv1.Job{})
 	CronJobType           = reflect.TypeOf(&v1beta1.CronJob{})
@@ -56,38 +64,50 @@ var (
 )
 
 type Controller struct {
-	podLister   corelisters.PodLister
-	dpLister    applisters.DeploymentLister
-	dsLister    applisters.DaemonSetLister
-	jbLister    batchv1lister.JobLister
-	cjbLister   v1beta1lister.CronJobLister
-	cjbv1Lister batchv1lister.CronJobLister
-	rcLister    corelisters.ReplicationControllerLister
-	ssLister    applisters.StatefulSetLister
-	rsLister    applisters.ReplicaSetLister
-	rlLister    rbaclisters.RoleLister
-	crlLister   rbaclisters.ClusterRoleLister
-	nsLister    corelisters.NamespaceLister
-	nodeLister  corelisters.NodeLister
-	hpLister    defenselisters.HoneypotLister
-	podSynced   cache.InformerSynced
-	dsSynced    cache.InformerSynced
-	dpSynced    cache.InformerSynced
-	jbSynced    cache.InformerSynced
-	cjbSynced   cache.InformerSynced
-	rcSynced    cache.InformerSynced
-	ssSynced    cache.InformerSynced
-	rsSynced    cache.InformerSynced
-	rlSynced    cache.InformerSynced
-	crlSynced   cache.InformerSynced
-	nsSynced    cache.InformerSynced
-	nodeSynced  cache.InformerSynced
-	hpSynced    cache.InformerSynced
-	queue       workqueue.RateLimitingInterface
-	clusterKey  string
-	mqWriter    mq.Writer
-	topic       string
-	poolInfo    *pkgassets.PoolInfo
+	podLister    corelisters.PodLister
+	dpLister     applisters.DeploymentLister
+	dsLister     applisters.DaemonSetLister
+	jbLister     batchv1lister.JobLister
+	cjbLister    v1beta1lister.CronJobLister
+	cjbv1Lister  batchv1lister.CronJobLister
+	rcLister     corelisters.ReplicationControllerLister
+	ssLister     applisters.StatefulSetLister
+	rsLister     applisters.ReplicaSetLister
+	rlLister     rbaclisters.RoleLister
+	crlLister    rbaclisters.ClusterRoleLister
+	nsLister     corelisters.NamespaceLister
+	nodeLister   corelisters.NodeLister
+	hpLister     defenselisters.HoneypotLister
+	svcLister    corelisters.ServiceLister
+	endLister    corelisters.EndpointsLister
+	secretLister corelisters.SecretLister
+	pvLister     corelisters.PersistentVolumeLister
+	pvcLister    corelisters.PersistentVolumeClaimLister
+	ingLister    netLister.IngressLister
+	podSynced    cache.InformerSynced
+	dsSynced     cache.InformerSynced
+	dpSynced     cache.InformerSynced
+	jbSynced     cache.InformerSynced
+	cjbSynced    cache.InformerSynced
+	rcSynced     cache.InformerSynced
+	ssSynced     cache.InformerSynced
+	rsSynced     cache.InformerSynced
+	rlSynced     cache.InformerSynced
+	crlSynced    cache.InformerSynced
+	nsSynced     cache.InformerSynced
+	nodeSynced   cache.InformerSynced
+	hpSynced     cache.InformerSynced
+	svcSynced    cache.InformerSynced
+	endSynced    cache.InformerSynced
+	secretSynced cache.InformerSynced
+	pvSynced     cache.InformerSynced
+	pvcSynced    cache.InformerSynced
+	ingSynced    cache.InformerSynced
+	queue        workqueue.RateLimitingInterface
+	clusterKey   string
+	mqWriter     mq.Writer
+	topic        string
+	poolInfo     *pkgassets.PoolInfo
 
 	dupCache *pkgassets.DuplicationCheckingCache
 }
@@ -101,24 +121,30 @@ type Assets struct {
 
 func NewAssetsController(factory informers.SharedInformerFactory, tensorFactory externalversions.SharedInformerFactory, writer mq.Writer, clusterKey, topic string, poolInfo *pkgassets.PoolInfo, version int) *Controller {
 	ac := &Controller{
-		podLister:  factory.Core().V1().Pods().Lister(),
-		dpLister:   factory.Apps().V1().Deployments().Lister(),
-		dsLister:   factory.Apps().V1().DaemonSets().Lister(),
-		rsLister:   factory.Apps().V1().ReplicaSets().Lister(),
-		ssLister:   factory.Apps().V1().StatefulSets().Lister(),
-		rlLister:   factory.Rbac().V1().Roles().Lister(),
-		crlLister:  factory.Rbac().V1().ClusterRoles().Lister(),
-		nsLister:   factory.Core().V1().Namespaces().Lister(),
-		nodeLister: factory.Core().V1().Nodes().Lister(),
-		rcLister:   factory.Core().V1().ReplicationControllers().Lister(),
-		jbLister:   factory.Batch().V1().Jobs().Lister(),
-		hpLister:   tensorFactory.Defense().V1().Honeypots().Lister(),
-		queue:      workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "assets"),
-		clusterKey: clusterKey,
-		mqWriter:   writer,
-		topic:      topic,
-		poolInfo:   poolInfo,
-		dupCache:   pkgassets.NewDuplicationCheckingCache(3*time.Hour, dupCacheSize),
+		podLister:    factory.Core().V1().Pods().Lister(),
+		dpLister:     factory.Apps().V1().Deployments().Lister(),
+		dsLister:     factory.Apps().V1().DaemonSets().Lister(),
+		ssLister:     factory.Apps().V1().StatefulSets().Lister(),
+		rsLister:     factory.Apps().V1().ReplicaSets().Lister(),
+		rlLister:     factory.Rbac().V1().Roles().Lister(),
+		crlLister:    factory.Rbac().V1().ClusterRoles().Lister(),
+		nsLister:     factory.Core().V1().Namespaces().Lister(),
+		nodeLister:   factory.Core().V1().Nodes().Lister(),
+		jbLister:     factory.Batch().V1().Jobs().Lister(),
+		rcLister:     factory.Core().V1().ReplicationControllers().Lister(),
+		hpLister:     tensorFactory.Defense().V1().Honeypots().Lister(),
+		svcLister:    factory.Core().V1().Services().Lister(),
+		endLister:    factory.Core().V1().Endpoints().Lister(),
+		secretLister: factory.Core().V1().Secrets().Lister(),
+		pvLister:     factory.Core().V1().PersistentVolumes().Lister(),
+		pvcLister:    factory.Core().V1().PersistentVolumeClaims().Lister(),
+		ingLister:    factory.Networking().V1().Ingresses().Lister(),
+		queue:        workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "assets"),
+		clusterKey:   clusterKey,
+		mqWriter:     writer,
+		topic:        topic,
+		poolInfo:     poolInfo,
+		dupCache:     pkgassets.NewDuplicationCheckingCache(3*time.Hour, dupCacheSize),
 	}
 
 	// cronjob is deprecated in v1.21+ unavailable in v1.25+
@@ -165,7 +191,7 @@ func NewAssetsController(factory informers.SharedInformerFactory, tensorFactory 
 	})
 	ac.dsSynced = factory.Apps().V1().DaemonSets().Informer().HasSynced
 
-	//ReplicaSets
+	// ReplicaSets
 	factory.Apps().V1().ReplicaSets().Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc:    ac.addReplicaSet,
 		UpdateFunc: ac.updateReplicaSet,
@@ -173,7 +199,7 @@ func NewAssetsController(factory informers.SharedInformerFactory, tensorFactory 
 	})
 	ac.rsSynced = factory.Apps().V1().ReplicaSets().Informer().HasSynced
 
-	//Roles
+	// Roles
 	factory.Rbac().V1().Roles().Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc:    ac.addRole,
 		UpdateFunc: ac.updateRole,
@@ -181,7 +207,7 @@ func NewAssetsController(factory informers.SharedInformerFactory, tensorFactory 
 	})
 	ac.rlSynced = factory.Rbac().V1().Roles().Informer().HasSynced
 
-	//ClusterRoles
+	// ClusterRoles
 	factory.Rbac().V1().ClusterRoles().Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc:    ac.addClusterRole,
 		UpdateFunc: ac.updateClusterRole,
@@ -189,13 +215,61 @@ func NewAssetsController(factory informers.SharedInformerFactory, tensorFactory 
 	})
 	ac.crlSynced = factory.Rbac().V1().ClusterRoles().Informer().HasSynced
 
-	//Namespaces
+	// Namespaces
 	factory.Core().V1().Namespaces().Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc:    ac.addNamespace,
 		UpdateFunc: ac.updateNamespace,
 		DeleteFunc: ac.deleteNamespace,
 	})
 	ac.nsSynced = factory.Core().V1().Namespaces().Informer().HasSynced
+
+	// Ingress
+	factory.Networking().V1().Ingresses().Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+		AddFunc:    ac.addIngress,
+		UpdateFunc: ac.updateIngress,
+		DeleteFunc: ac.deleteIngress,
+	})
+	ac.ingSynced = factory.Networking().V1().Ingresses().Informer().HasSynced
+
+	// Service
+	factory.Core().V1().Services().Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+		AddFunc:    ac.addSvc,
+		UpdateFunc: ac.updateSvc,
+		DeleteFunc: ac.deleteSvc,
+	})
+	ac.svcSynced = factory.Core().V1().Services().Informer().HasSynced
+
+	// Endpoints
+	factory.Core().V1().Endpoints().Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+		AddFunc:    ac.addEndpoints,
+		UpdateFunc: ac.updateEndpoints,
+		DeleteFunc: ac.deleteEndpoints,
+	})
+	ac.endSynced = factory.Core().V1().Endpoints().Informer().HasSynced
+
+	// Secret
+	factory.Core().V1().Secrets().Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+		AddFunc:    ac.addSecret,
+		UpdateFunc: ac.updateSecret,
+		DeleteFunc: ac.deleteSecret,
+	})
+	ac.secretSynced = factory.Core().V1().Secrets().Informer().HasSynced
+
+	// PV
+	factory.Core().V1().PersistentVolumes().Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+		AddFunc:    ac.addPV,
+		UpdateFunc: ac.updatePV,
+		DeleteFunc: ac.deletePV,
+	})
+	ac.pvSynced = factory.Core().V1().PersistentVolumes().Informer().HasSynced
+
+	// PVC
+	factory.Core().V1().PersistentVolumeClaims().Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+		AddFunc:    ac.addPVC,
+		UpdateFunc: ac.updatePVC,
+		DeleteFunc: ac.deletePVC,
+	})
+	ac.pvcSynced = factory.Core().V1().PersistentVolumeClaims().Informer().HasSynced
 
 	// Nodes
 	factory.Core().V1().Nodes().Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
@@ -243,7 +317,8 @@ func (ac *Controller) Run(stopChan <-chan struct{}) {
 	defer ac.queue.ShutDown()
 
 	if !cache.WaitForNamedCacheSync("assetsController", stopChan, ac.dpSynced, ac.dsSynced, ac.podSynced, ac.rsSynced,
-		ac.rlSynced, ac.crlSynced, ac.nsSynced, ac.nodeSynced, ac.jbSynced, ac.cjbSynced, ac.rcSynced, ac.ssSynced, ac.hpSynced) {
+		ac.rlSynced, ac.crlSynced, ac.nsSynced, ac.nodeSynced, ac.jbSynced, ac.cjbSynced, ac.rcSynced, ac.ssSynced, ac.hpSynced, ac.ingSynced, ac.svcSynced, ac.endSynced,
+		ac.secretSynced, ac.pvSynced, ac.pvcSynced) {
 		return
 	}
 	ac.notifySync()
@@ -629,6 +704,18 @@ func (ac *Controller) processNextItem() bool {
 		err = ac.syncPod(as.key)
 	case *rbacv1.Role:
 		err = ac.syncRole(as.key)
+	case *netv1.Ingress:
+		err = ac.syncIngress(as.key)
+	case *corev1.Service:
+		err = ac.syncService(as.key)
+	case *corev1.Endpoints:
+		err = ac.syncEndpoints(as.key)
+	case *corev1.Secret:
+		err = ac.syncSecret(as.key)
+	case *corev1.PersistentVolume:
+		err = ac.syncPV(as.key)
+	case *corev1.PersistentVolumeClaim:
+		err = ac.syncPVC(as.key)
 	case *rbacv1.ClusterRole:
 		err = ac.syncClusterRole(as.key)
 	case *corev1.Namespace:
@@ -734,6 +821,257 @@ func (ac *Controller) syncRole(key string) error {
 		Role:    r,
 	}
 	return ac.sendToMainClusterManager(ctx, action, pkgassets.Roles2Watch, &role, nil)
+}
+
+func (ac *Controller) syncIngress(key string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	namespace, name, err := cache.SplitMetaNamespaceKey(key)
+	if err != nil {
+		return err
+	}
+	if len(namespace) == 0 || len(name) == 0 {
+		err := fmt.Errorf("empty namespace or name from key: %s", key)
+		logging.Get().Err(err).Msg("empty namespace or name")
+		return err
+	}
+	action := pkgassets.ActionAdd
+	r, err := ac.ingLister.Ingresses(namespace).Get(name)
+	if err != nil {
+		if errors.IsNotFound(err) {
+			action = pkgassets.ActionDelete
+			r = &netv1.Ingress{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      name,
+					Namespace: namespace,
+				},
+			}
+		} else {
+			return err
+		}
+	}
+	//
+	for i := 0; i < len(r.Spec.Rules); i++ {
+		for j := 0; j < len(r.Spec.Rules[i].HTTP.Paths); j++ {
+			if r.Spec.Rules[i].HTTP.Paths[j].Backend.Service == nil {
+				continue
+			}
+			if r.Spec.Rules[i].HTTP.Paths[j].Backend.Service.Port.Number != 0 {
+				continue
+			}
+			svc, err := ac.svcLister.Services(namespace).Get(r.Spec.Rules[i].HTTP.Paths[j].Backend.Service.Name)
+			if err != nil && ac.svcSynced() == false { //未缓存完成
+				logging.Get().Err(err).Msgf("get svc failed from cache ,reEnqueue. namespace:%s,name:%s", namespace, r.Spec.Rules[i].HTTP.Paths[j].Backend.Service.Name)
+				ac.enqueue(r, pkgassets.ActionAdd)
+				return nil
+			} else if svc != nil {
+				for _, port := range svc.Spec.Ports {
+					if port.Name == r.Spec.Rules[i].HTTP.Paths[j].Backend.Service.Port.Name {
+						r.Spec.Rules[i].HTTP.Paths[j].Backend.Service.Port.Number = port.Port
+						logging.Get().Err(err).Msgf("get svc success from cache . namespace:%s,name:%s", namespace, r.Spec.Rules[i].HTTP.Paths[j].Backend.Service.Name)
+						break
+					}
+				}
+			}
+		}
+	}
+
+	ingress := pkgassets.TensorIngress{
+		Cluster: ac.clusterKey,
+		Ingress: r,
+	}
+	return ac.sendToMainClusterManager(ctx, action, pkgassets.Ingress2Watch, &ingress, nil)
+}
+
+func (ac *Controller) syncService(key string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	namespace, name, err := cache.SplitMetaNamespaceKey(key)
+	if err != nil {
+		return err
+	}
+	if len(namespace) == 0 || len(name) == 0 {
+		err := fmt.Errorf("empty namespace or name from key: %s", key)
+		logging.Get().Err(err).Msg("empty namespace or name")
+		return err
+	}
+	action := pkgassets.ActionAdd
+	r, err := ac.svcLister.Services(namespace).Get(name)
+	if err != nil {
+		if errors.IsNotFound(err) {
+			action = pkgassets.ActionDelete
+			r = &corev1.Service{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      name,
+					Namespace: namespace,
+				},
+			}
+		} else {
+			return err
+		}
+	}
+	res := pkgassets.TensorService{
+		Cluster: ac.clusterKey,
+		Service: r,
+	}
+	return ac.sendToMainClusterManager(ctx, action, pkgassets.Services2Watch, &res, nil)
+}
+
+func (ac *Controller) syncEndpoints(key string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	namespace, name, err := cache.SplitMetaNamespaceKey(key)
+	if err != nil {
+		return err
+	}
+	if len(namespace) == 0 || len(name) == 0 {
+		err := fmt.Errorf("empty namespace or name from key: %s", key)
+		logging.Get().Err(err).Msg("empty namespace or name")
+		return err
+	}
+	action := pkgassets.ActionAdd
+	r, err := ac.endLister.Endpoints(namespace).Get(name)
+	if err != nil {
+		if errors.IsNotFound(err) {
+			action = pkgassets.ActionDelete
+			r = &corev1.Endpoints{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      name,
+					Namespace: namespace,
+				},
+			}
+		} else {
+			return err
+		}
+	}
+	serviceName := ""
+	if action != pkgassets.ActionDelete {
+		_, err := ac.svcLister.Services(namespace).Get(name)
+		if err == nil {
+			serviceName = name
+		}
+	}
+	endpointsTmp := &pkgassets.EndpointsTmp{
+		Endpoints:   r,
+		ServiceName: serviceName,
+	}
+
+	res := pkgassets.TensorEndpoints{
+		Cluster:      ac.clusterKey,
+		EndpointsTmp: endpointsTmp,
+	}
+	return ac.sendToMainClusterManager(ctx, action, pkgassets.Endpoints2Watch, &res, nil)
+}
+
+func (ac *Controller) syncSecret(key string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	namespace, name, err := cache.SplitMetaNamespaceKey(key)
+	if err != nil {
+		return err
+	}
+	if len(namespace) == 0 || len(name) == 0 {
+		err := fmt.Errorf("empty namespace or name from key: %s", key)
+		logging.Get().Err(err).Msg("empty namespace or name")
+		return err
+	}
+	action := pkgassets.ActionAdd
+	r, err := ac.secretLister.Secrets(namespace).Get(name)
+	if err != nil {
+		if errors.IsNotFound(err) {
+			action = pkgassets.ActionDelete
+			r = &corev1.Secret{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      name,
+					Namespace: namespace,
+				},
+			}
+		} else {
+			return err
+		}
+	}
+
+	res := pkgassets.TensorSecret{
+		Cluster: ac.clusterKey,
+		Secret:  r,
+	}
+	return ac.sendToMainClusterManager(ctx, action, pkgassets.Secrets2Watch, &res, nil)
+}
+
+func (ac *Controller) syncPV(key string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	namespace, name, err := cache.SplitMetaNamespaceKey(key)
+	if err != nil {
+		return err
+	}
+	if len(name) == 0 {
+		err := fmt.Errorf("empty  name from key: %s", key)
+		logging.Get().Err(err).Msg("empty  name")
+		return err
+	}
+	action := pkgassets.ActionAdd
+	r, err := ac.pvLister.Get(name)
+	if err != nil {
+		if errors.IsNotFound(err) {
+			action = pkgassets.ActionDelete
+			r = &corev1.PersistentVolume{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      name,
+					Namespace: namespace,
+				},
+			}
+		} else {
+			return err
+		}
+	}
+
+	res := pkgassets.TensorPV{
+		Cluster:          ac.clusterKey,
+		PersistentVolume: r,
+	}
+	return ac.sendToMainClusterManager(ctx, action, pkgassets.PVs2Watch, &res, nil)
+}
+
+func (ac *Controller) syncPVC(key string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	namespace, name, err := cache.SplitMetaNamespaceKey(key)
+	if err != nil {
+		return err
+	}
+	if len(namespace) == 0 || len(name) == 0 {
+		err := fmt.Errorf("empty namespace or name from key: %s", key)
+		logging.Get().Err(err).Msg("empty namespace or name")
+		return err
+	}
+	action := pkgassets.ActionAdd
+	r, err := ac.pvcLister.PersistentVolumeClaims(namespace).Get(name)
+	if err != nil {
+		if errors.IsNotFound(err) {
+			action = pkgassets.ActionDelete
+			r = &corev1.PersistentVolumeClaim{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      name,
+					Namespace: namespace,
+				},
+			}
+		} else {
+			return err
+		}
+	}
+
+	res := pkgassets.TensorPVC{
+		Cluster:               ac.clusterKey,
+		PersistentVolumeClaim: r,
+	}
+	return ac.sendToMainClusterManager(ctx, action, pkgassets.PVCs2Watch, &res, nil)
 }
 
 func (ac *Controller) syncClusterRole(key string) error {
@@ -1013,4 +1351,130 @@ func (ac *Controller) notifySync() {
 		logging.Get().Error().Msg("poll sending msg to mq err")
 		return
 	}
+}
+
+func (ac *Controller) addSvc(obj interface{}) {
+	d := obj.(*corev1.Service)
+	logging.Get().Debug().Msgf("add svc  %s/%s", d.Namespace, d.Name)
+	ac.enqueue(d, pkgassets.ActionAdd)
+}
+
+func (ac *Controller) updateSvc(oldObj, newObj interface{}) {
+	oldS := oldObj.(*corev1.Service)
+	newS := newObj.(*corev1.Service)
+	logging.Get().Debug().Msgf("update pod %s", oldS.Name)
+	if oldS.Generation != newS.Generation {
+		ac.enqueue(newS, pkgassets.ActionUpdate)
+	}
+}
+
+func (ac *Controller) deleteSvc(obj interface{}) {
+	svc := obj.(*corev1.Service)
+	logging.Get().Debug().Msgf("delete pod %s/%s", svc.Namespace, svc.Name)
+	ac.enqueue(svc, pkgassets.ActionDelete)
+}
+
+func (ac *Controller) addIngress(obj interface{}) {
+	d := obj.(*netv1.Ingress)
+	logging.Get().Debug().Msgf("add ingress  %s/%s", d.Namespace, d.Name)
+	ac.enqueue(d, pkgassets.ActionAdd)
+}
+
+func (ac *Controller) updateIngress(oldObj, newObj interface{}) {
+	oldS := oldObj.(*netv1.Ingress)
+	newS := newObj.(*netv1.Ingress)
+	logging.Get().Debug().Msgf("update ingress %s", oldS.Name)
+	if oldS.Generation != newS.Generation {
+		ac.enqueue(newS, pkgassets.ActionUpdate)
+	}
+}
+
+func (ac *Controller) deleteIngress(obj interface{}) {
+	svc := obj.(*netv1.Ingress)
+	logging.Get().Debug().Msgf("delete ingress %s/%s", svc.Namespace, svc.Name)
+	ac.enqueue(svc, pkgassets.ActionDelete)
+}
+
+func (ac *Controller) addEndpoints(obj interface{}) {
+	tmp := obj.(*corev1.Endpoints)
+	logging.Get().Debug().Msgf("add endpoints  %s/%s", tmp.Namespace, tmp.Name)
+	ac.enqueue(tmp, pkgassets.ActionAdd)
+}
+
+func (ac *Controller) updateEndpoints(oldObj, newObj interface{}) {
+	oldS := oldObj.(*corev1.Endpoints)
+	newS := newObj.(*corev1.Endpoints)
+	logging.Get().Debug().Msgf("update endpoints %s", oldS.Name)
+	if oldS.Generation != newS.Generation {
+		ac.enqueue(newS, pkgassets.ActionUpdate)
+	}
+}
+
+func (ac *Controller) deleteEndpoints(obj interface{}) {
+	tmp := obj.(*corev1.Endpoints)
+	logging.Get().Debug().Msgf("delete endpoints %s/%s", tmp.Namespace, tmp.Name)
+	ac.enqueue(tmp, pkgassets.ActionDelete)
+}
+
+func (ac *Controller) addSecret(obj interface{}) {
+	tmp := obj.(*corev1.Secret)
+	logging.Get().Debug().Msgf("add secret  %s/%s", tmp.Namespace, tmp.Name)
+	ac.enqueue(tmp, pkgassets.ActionAdd)
+}
+
+func (ac *Controller) updateSecret(oldObj, newObj interface{}) {
+	oldS := oldObj.(*corev1.Secret)
+	newS := newObj.(*corev1.Secret)
+	logging.Get().Debug().Msgf("update secret %s", oldS.Name)
+	if oldS.Generation != newS.Generation {
+		ac.enqueue(newS, pkgassets.ActionUpdate)
+	}
+}
+
+func (ac *Controller) deleteSecret(obj interface{}) {
+	tmp := obj.(*corev1.Secret)
+	logging.Get().Debug().Msgf("delete secret %s/%s", tmp.Namespace, tmp.Name)
+	ac.enqueue(tmp, pkgassets.ActionDelete)
+}
+
+func (ac *Controller) addPV(obj interface{}) {
+	tmp := obj.(*corev1.PersistentVolume)
+	logging.Get().Debug().Msgf("add pv  %s", tmp.Name)
+	ac.enqueue(tmp, pkgassets.ActionAdd)
+}
+
+func (ac *Controller) updatePV(oldObj, newObj interface{}) {
+	oldS := oldObj.(*corev1.PersistentVolume)
+	newS := newObj.(*corev1.PersistentVolume)
+	logging.Get().Debug().Msgf("update pv %s", oldS.Name)
+	if oldS.Generation != newS.Generation {
+		ac.enqueue(newS, pkgassets.ActionUpdate)
+	}
+}
+
+func (ac *Controller) deletePV(obj interface{}) {
+	tmp := obj.(*corev1.PersistentVolume)
+	logging.Get().Debug().Msgf("delete pv %s", tmp.Name)
+	ac.enqueue(tmp, pkgassets.ActionDelete)
+}
+
+func (ac *Controller) addPVC(obj interface{}) {
+	tmp := obj.(*corev1.PersistentVolumeClaim)
+	logging.Get().Debug().Msgf("add pvc  %s/%s", tmp.Namespace, tmp.Name)
+	ac.enqueue(tmp, pkgassets.ActionAdd)
+}
+
+func (ac *Controller) updatePVC(oldObj, newObj interface{}) {
+	oldS := oldObj.(*corev1.PersistentVolumeClaim)
+	newS := newObj.(*corev1.PersistentVolumeClaim)
+	logging.Get().Debug().Msgf("update pvc %s", oldS.Name)
+	if oldS.Generation != newS.Generation {
+		ac.enqueue(newS, pkgassets.ActionUpdate)
+	}
+}
+
+func (ac *Controller) deletePVC(obj interface{}) {
+	tmp := obj.(*corev1.PersistentVolumeClaim)
+	logging.Get().Debug().Msgf("delete pvc %s/%s", tmp.Namespace, tmp.Name)
+	ac.enqueue(tmp, pkgassets.ActionDelete)
 }

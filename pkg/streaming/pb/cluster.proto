@@ -57,6 +57,29 @@ message HoneySpotResp {
     repeated HoneySpotReq Results = 5;
 }
 
+message NamespaceLabelSetReq {
+    string Namespace = 1;
+    string ClusterKey = 2;
+    string Name = 3;
+    string Value = 4;
+}
+
+message NamespaceLabelErrResp {
+    string ErrMsg = 1;
+}
+
+message NodeLoadReq {
+    string ClusterKey = 1;
+    string NodeName = 2;
+}
+
+message NodeLoadResp {
+    string Cpu =1;
+    string MemoryUsed =2;
+    string DiskUsed =3;
+    string ErrMsg = 4;
+}
+
 message Register {
     string NodeKey = 1;
 }

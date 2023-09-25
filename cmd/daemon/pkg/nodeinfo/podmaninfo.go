@@ -33,6 +33,11 @@ type PodmanInfoManager struct {
 func (p *PodmanInfoManager) SetPodStore(store containerassets.PodCache) {
 }
 
+func (p *PodmanInfoManager) RunCmd(ctx context.Context, containerId string, cmd []string) (resp string, err error) {
+	//TODO implement me
+	return "", errors.New("podman: implement me")
+}
+
 func (p *PodmanInfoManager) AddEventHandler(handler ContainerEventHandler) {
 	//TODO implement me
 	panic("implement me")

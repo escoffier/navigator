@@ -9,7 +9,6 @@ import (
 	"github.com/segmentio/kafka-go"
 	"gitlab.com/security-rd/go-pkg/logging"
 	"gitlab.com/security-rd/go-pkg/mq"
-	corev1 "k8s.io/api/core/v1"
 )
 
 type Action uint8
@@ -29,6 +28,10 @@ const (
 
 	Endpoints2Watch           WatchedType = "endpoints"
 	Services2Watch            WatchedType = "services"
+	Ingress2Watch             WatchedType = "ingresses"
+	Secrets2Watch             WatchedType = "secrets"
+	PVs2Watch                 WatchedType = "pvs"
+	PVCs2Watch                WatchedType = "pvcs"
 	Pods2Watch                WatchedType = "pods"
 	Namespaces2Watch          WatchedType = "namespaces"
 	ReplicaSets2Watch         WatchedType = "replicasets"
@@ -56,13 +59,19 @@ type Callback interface {
 
 type ClusterCallback interface {
 	OnTensorResourceEvent(newResource, oldResource *TensorResource, action Action) error
-	OnNodeEvent(newNode, oldNode *corev1.Node, action Action) error
+	// OnNodeEvent(newNode, oldNode *corev1.Node, action Action) error   // 未调用
 	AfterDataSynced(ctx context.Context, dataSynced bool, clusterKey string)
 	OnTensorPod(pod *TensorPod, action Action) error
 	OnTensorRole(role *TensorRole, action Action) error
 	OnTensorClusterRole(clusterRole *TensorClusterRole, action Action) error
 	OnTensorNamespace(ns *TensorNamespace, action Action) error
 	OnTensorNode(node *TensorNode, action Action) error
+	OnTensorIngress(node *TensorIngress, action Action) error
+	OnTensorService(node *TensorService, action Action) error
+	OnTensorEndpoints(node *TensorEndpoints, action Action) error
+	OnTensorSecret(node *TensorSecret, action Action) error
+	OnTensorPV(node *TensorPV, action Action) error
+	OnTensorPVC(node *TensorPVC, action Action) error
 	OnHoneyspot(honeyspot *TensorHoneySpot, action Action) error
 	OnRawContainer(container *TensorRawContainer, action Action) error
 	OnSync(*TensorSync) error
@@ -149,6 +158,7 @@ func (w *Watcher) process(ctx context.Context, message kafka.Message) error {
 		logging.Get().Err(err).Msg("unmarshal message err")
 		return err
 	}
+	logging.Get().Debug().Msgf("kafka offset :%d,time:%v", message.Offset, message.Time)
 
 	cbs := w.getOrCreateClusterCallbacks(event.ClusterKey)
 	switch event.Type {
@@ -251,6 +261,7 @@ func (w *Watcher) process(ctx context.Context, message kafka.Message) error {
 		} else {
 			logging.Get().Info().Str("key", role.KeyName()).Str("idStr", role.IdentityString()).Msg("duplicated and bypass.")
 		}
+
 	case ClusterRoles2Watch:
 		role := &TensorClusterRole{}
 		err = json.Unmarshal(rawMsg, role)
@@ -384,6 +395,193 @@ func (w *Watcher) process(ctx context.Context, message kafka.Message) error {
 				logging.Get().Err(err).Msgf("process raw container err: %v", rc)
 				continue
 			}
+		}
+	case Ingress2Watch:
+		logging.Get().Debug().Msg("processing ingress")
+		ingre := &TensorIngress{}
+		err = json.Unmarshal(rawMsg, ingre)
+		if err != nil {
+			logging.Get().Err(err).Msg("unmarshal TensorIngress err")
+			return err
+		}
+		if ingre.Name == "" {
+			logging.Get().Warn().Msgf("empty keyname: %+v", ingre)
+		}
+		if event.Action == ActionDelete || ingre.DuplicatedChecked() || !w.dupCache.Check(ingre) {
+			errored := false
+			for _, cb := range cbs.callbacks {
+				err := cb.OnTensorIngress(ingre, event.Action)
+				if err != nil {
+					logging.Get().Err(err).Msgf("process ingress err: %v", ingre)
+					errored = true
+					continue
+				}
+			}
+			if !errored && !ingre.DuplicatedChecked() {
+				if event.Action != ActionDelete {
+					w.dupCache.Put(ingre)
+				} else {
+					w.dupCache.Remove(ingre)
+				}
+			}
+		} else {
+			logging.Get().Info().Str("key", ingre.KeyName()).Str("idStr", ingre.IdentityString()).Msg("duplicated and bypass.")
+		}
+	case Services2Watch:
+		obj := &TensorService{}
+		err = json.Unmarshal(rawMsg, obj)
+		if err != nil {
+			logging.Get().Err(err).Msg("unmarshal TensorService err")
+			return err
+		}
+		logging.Get().Debug().Msgf("processing service,svcName:%s", obj.Service.Name)
+
+		if obj.Name == "" {
+			logging.Get().Warn().Msgf("empty keyname: %+v", obj)
+		}
+		if event.Action == ActionDelete || obj.DuplicatedChecked() || !w.dupCache.Check(obj) {
+			errored := false
+			for _, cb := range cbs.callbacks {
+				err := cb.OnTensorService(obj, event.Action)
+				if err != nil {
+					logging.Get().Err(err).Msgf("process service err: %v", obj)
+					errored = true
+					continue
+				}
+			}
+			if !errored && !obj.DuplicatedChecked() {
+				if event.Action != ActionDelete {
+					w.dupCache.Put(obj)
+				} else {
+					w.dupCache.Remove(obj)
+				}
+			}
+		} else {
+			logging.Get().Info().Str("key", obj.KeyName()).Str("idStr", obj.IdentityString()).Msg("duplicated and bypass.")
+		}
+	case Endpoints2Watch:
+		logging.Get().Debug().Msg("processing endpoints")
+		obj := &TensorEndpoints{}
+		err = json.Unmarshal(rawMsg, obj)
+		if err != nil {
+			logging.Get().Err(err).Msg("unmarshal TensorEndpoints err")
+			return err
+		}
+		if obj.Name == "" {
+			logging.Get().Warn().Msgf("empty keyname: %+v", obj)
+		}
+		if event.Action == ActionDelete || obj.DuplicatedChecked() || !w.dupCache.Check(obj) {
+			errored := false
+			for _, cb := range cbs.callbacks {
+				err := cb.OnTensorEndpoints(obj, event.Action)
+				if err != nil {
+					logging.Get().Err(err).Msgf("process endpoints err: %v", obj)
+					errored = true
+					continue
+				}
+			}
+			if !errored && !obj.DuplicatedChecked() {
+				if event.Action != ActionDelete {
+					w.dupCache.Put(obj)
+				} else {
+					w.dupCache.Remove(obj)
+				}
+			}
+		} else {
+			logging.Get().Info().Str("key", obj.KeyName()).Str("idStr", obj.IdentityString()).Msg("duplicated and bypass.")
+		}
+	case Secrets2Watch:
+		logging.Get().Debug().Msg("processing secret")
+		obj := &TensorSecret{}
+		err = json.Unmarshal(rawMsg, obj)
+		if err != nil {
+			logging.Get().Err(err).Msg("unmarshal TensorSecret err")
+			return err
+		}
+		if obj.Name == "" {
+			logging.Get().Warn().Msgf("empty keyname: %+v", obj)
+		}
+		if event.Action == ActionDelete || obj.DuplicatedChecked() || !w.dupCache.Check(obj) {
+			errored := false
+			for _, cb := range cbs.callbacks {
+				err := cb.OnTensorSecret(obj, event.Action)
+				if err != nil {
+					logging.Get().Err(err).Msgf("process secret err: %v", obj)
+					errored = true
+					continue
+				}
+			}
+			if !errored && !obj.DuplicatedChecked() {
+				if event.Action != ActionDelete {
+					w.dupCache.Put(obj)
+				} else {
+					w.dupCache.Remove(obj)
+				}
+			}
+		} else {
+			logging.Get().Info().Str("key", obj.KeyName()).Str("idStr", obj.IdentityString()).Msg("duplicated and bypass.")
+		}
+	case PVs2Watch:
+		obj := &TensorPV{}
+		err = json.Unmarshal(rawMsg, obj)
+		if err != nil {
+			logging.Get().Err(err).Msg("unmarshal TensorPV err")
+			return err
+		}
+		if obj.Name == "" {
+			logging.Get().Warn().Msgf("empty keyname: %+v", obj)
+		}
+		logging.Get().Debug().Msgf("processing pv %s", obj.Name)
+		if event.Action == ActionDelete || obj.DuplicatedChecked() || !w.dupCache.Check(obj) {
+			errored := false
+			for _, cb := range cbs.callbacks {
+				err := cb.OnTensorPV(obj, event.Action)
+				if err != nil {
+					logging.Get().Err(err).Msgf("process pv err: %v", obj)
+					errored = true
+					continue
+				}
+			}
+			if !errored && !obj.DuplicatedChecked() {
+				if event.Action != ActionDelete {
+					w.dupCache.Put(obj)
+				} else {
+					w.dupCache.Remove(obj)
+				}
+			}
+		} else {
+			logging.Get().Info().Str("key", obj.KeyName()).Str("idStr", obj.IdentityString()).Msg("duplicated and bypass.")
+		}
+	case PVCs2Watch:
+		obj := &TensorPVC{}
+		err = json.Unmarshal(rawMsg, obj)
+		if err != nil {
+			logging.Get().Err(err).Msg("unmarshal TensorPVC err")
+			return err
+		}
+		if obj.Name == "" {
+			logging.Get().Warn().Msgf("empty keyname: %+v", obj)
+		}
+		logging.Get().Debug().Msgf("processing pvc %s", obj.Name)
+		if event.Action == ActionDelete || obj.DuplicatedChecked() || !w.dupCache.Check(obj) {
+			errored := false
+			for _, cb := range cbs.callbacks {
+				err := cb.OnTensorPVC(obj, event.Action)
+				if err != nil {
+					logging.Get().Err(err).Msgf("process pvc err: %v", obj)
+					errored = true
+					continue
+				}
+			}
+			if !errored && !obj.DuplicatedChecked() {
+				if event.Action != ActionDelete {
+					w.dupCache.Put(obj)
+				} else {
+					w.dupCache.Remove(obj)
+				}
+			}
+		} else {
+			logging.Get().Info().Str("key", obj.KeyName()).Str("idStr", obj.IdentityString()).Msg("duplicated and bypass.")
 		}
 	case ContainerSync:
 		logging.Get().Debug().Msg("sync raw container")

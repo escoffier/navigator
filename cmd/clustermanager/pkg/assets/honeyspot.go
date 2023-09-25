@@ -12,7 +12,6 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/dal"
 	"gitlab.com/security-rd/go-pkg/databases"
 	"gitlab.com/security-rd/go-pkg/logging"
-	corev1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/util/workqueue"
 	defensev1 "scm.tensorsecurity.cn/tensorsecurity-rd/api/pkg/apis/defense/v1"
 )
@@ -150,10 +149,6 @@ func (cb *HoneyspotCallback) processHoneyspot(event HoneyspotEvent) error {
 	return nil
 }
 
-func (cb *HoneyspotCallback) OnNodeEvent(*corev1.Node, *corev1.Node, assets.Action) error {
-	return nil
-}
-
 func (cb *HoneyspotCallback) OnTensorResourceEvent(newResource, oldResource *assets.TensorResource, action assets.Action) error {
 	return nil
 }
@@ -167,6 +162,30 @@ func (cb *HoneyspotCallback) OnTensorRole(*assets.TensorRole, assets.Action) err
 }
 
 func (cb *HoneyspotCallback) OnTensorClusterRole(*assets.TensorClusterRole, assets.Action) error {
+	return nil
+}
+
+func (cb *HoneyspotCallback) OnTensorIngress(*assets.TensorIngress, assets.Action) error {
+	return nil
+}
+
+func (cb *HoneyspotCallback) OnTensorService(*assets.TensorService, assets.Action) error {
+	return nil
+}
+
+func (cb *HoneyspotCallback) OnTensorEndpoints(*assets.TensorEndpoints, assets.Action) error {
+	return nil
+}
+
+func (cb *HoneyspotCallback) OnTensorSecret(*assets.TensorSecret, assets.Action) error {
+	return nil
+}
+
+func (cb *HoneyspotCallback) OnTensorPV(*assets.TensorPV, assets.Action) error {
+	return nil
+}
+
+func (cb *HoneyspotCallback) OnTensorPVC(*assets.TensorPVC, assets.Action) error {
 	return nil
 }
 

@@ -2,6 +2,7 @@ package nodeinfo
 
 import (
 	"context"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"github.com/containerd/containerd"
@@ -24,6 +25,9 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 	"gitlab.com/security-rd/go-pkg/logging"
+	cri "k8s.io/cri-api/pkg/apis"
+	"k8s.io/kubernetes/pkg/kubelet/cri/remote"
+	"math/rand"
 	"net"
 	"os"
 	"path/filepath"
@@ -38,6 +42,11 @@ const containerK8sNamespace = "k8s.io"
 const shortContainerIDLength int = 12
 const clientConnectTimeout time.Duration = time.Duration(5 * time.Second)
 
+const (
+	StorageTypeNfs    = "kubernetes.io~nfs"
+	StorageTypeCephfs = "kubernetes.io~kubernetes.io~rbd"
+)
+
 type ContainerdInfoManager struct {
 	containerdCli *containerd.Client
 	hostIP        string
@@ -49,6 +58,7 @@ type ContainerdInfoManager struct {
 	clusterKey    string
 	mqReady       atomic.Bool
 	sync.RWMutex
+	runClient cri.RuntimeService // 向容器发送命令
 }
 
 // unix://xxx
@@ -97,7 +107,11 @@ func NewContainerdInfoManager(clusterKey, hostName, hostIP string, agent *contai
 		}()
 		containerdInfoManager.clearContainerTimeoutData()
 	}()
-
+	runClient, err := remote.NewRemoteRuntimeService(uri, 2*time.Second)
+	if err != nil {
+		return nil, errors.Errorf("containerd new NewContainerdInfoManager failed, %v", err)
+	}
+	containerdInfoManager.runClient = runClient
 	return &containerdInfoManager, nil
 }
 func (d *ContainerdInfoManager) clearContainerTimeoutData() {
@@ -398,6 +412,7 @@ func (d *ContainerdInfoManager) containerFromRaw(ctx context.Context, container 
 		return nil, err
 	}
 	volumeMounts := make([]model.Mounts, 0, len(spec.Mounts))
+	var isNfs, isCephfs, isHostPath bool
 	for _, m := range spec.Mounts {
 		mountPropagation, ro := getMountPropagationAndIsRO(m.Options)
 		volumeMounts = append(volumeMounts, model.Mounts{
@@ -407,6 +422,13 @@ func (d *ContainerdInfoManager) containerFromRaw(ctx context.Context, container 
 			MountPath:        m.Destination,
 			MountPropagation: mountPropagation,
 		})
+		if strings.Contains(m.Source, StorageTypeNfs) {
+			isNfs = true
+		} else if strings.Contains(m.Source, StorageTypeCephfs) {
+			isCephfs = true
+		} else {
+			isHostPath = true
+		}
 	}
 	var pid int
 	var networkModel string
@@ -431,7 +453,7 @@ func (d *ContainerdInfoManager) containerFromRaw(ctx context.Context, container 
 	if ok {
 		k8sManaged = true
 	}
-
+	containerName := info.Labels["io.kubernetes.container.name"]
 	var (
 		imageId      = info.Image
 		imageName    string
@@ -445,6 +467,7 @@ func (d *ContainerdInfoManager) containerFromRaw(ctx context.Context, container 
 	} else {
 		imageId = image.Name()
 		imageName = image.Name()
+		imageName = buildImageWithTag(imageName, info.Labels, containerName)
 		imageCreated = image.Metadata().CreatedAt.Format(time.RFC3339Nano)
 		imageDigest = image.Target().Digest.String()
 		imageSize, err = image.Size(ctx)
@@ -467,7 +490,7 @@ func (d *ContainerdInfoManager) containerFromRaw(ctx context.Context, container 
 		// Gateway:        networkSettings.Gateway,
 		Mac:            networkSettings.MacAddress,
 		NetworkMode:    networkModel,
-		Name:           info.Labels["io.kubernetes.container.name"],
+		Name:           containerName,
 		PodName:        podName,
 		PodUid:         info.Labels["io.kubernetes.pod.uid"],
 		Namespace:      info.Labels["io.kubernetes.pod.namespace"],
@@ -483,6 +506,7 @@ func (d *ContainerdInfoManager) containerFromRaw(ctx context.Context, container 
 		Cmd:            spec.Process.Args,
 		Arguments:      spec.Process.Args,
 		VolumeMounts:   volumeMounts,
+		StorageType:    getContainerStorageType(isNfs, isCephfs, isHostPath),
 		Path:           spec.Process.Cwd,
 		ReservedCPU:    getCPUFromContainerd(spec),
 		ReservedMemory: getMemoryFromContainerd(spec),
@@ -491,7 +515,7 @@ func (d *ContainerdInfoManager) containerFromRaw(ctx context.Context, container 
 		Environment:    util.DeIdentificationEnvs(spec.Process.Env),
 		ProcessNumber:  len(processes),
 		Processes:      getContainerProcessInfo(pid),
-		User:           getUserFromContainerd(spec),
+		User:           getUserFromContainerd(d, container.ID(), spec),
 		Ports:          getContainerPorts(pid),
 	}
 	return tensorRawContainer, nil
@@ -589,6 +613,25 @@ func (d *ContainerdInfoManager) processEvents(container *model.TensorRawContaine
 	}
 }
 
+func (d *ContainerdInfoManager) RunCmd(ctx context.Context, containerId string, cmd []string) (resp string, err error) {
+	//通用 向容器发送命令
+	stdout, stderr, err := d.runClient.ExecSync(containerId, cmd, time.Second*5)
+	if err != nil {
+		return "", err
+	}
+	if len(stderr) == 0 {
+		return string(stdout), nil
+	}
+	return fmt.Sprintf("stdout:%s\nstderr:%s", string(stdout), string(stderr)), nil
+}
+
+// GenerateID generates a random unique id.
+func generateID() string {
+	b := make([]byte, 32)
+	rand.Read(b)
+	return hex.EncodeToString(b)
+}
+
 func getCPUFromContainerd(spec *oci.Spec) (limit int64) {
 	defer func() {
 		if r := recover(); r != nil {
@@ -610,12 +653,22 @@ func getMemoryFromContainerd(spec *oci.Spec) int64 {
 	return *spec.Linux.Resources.Memory.Limit
 }
 
-func getUserFromContainerd(spec *oci.Spec) string {
+func getUserFromContainerd(d *ContainerdInfoManager, containerId string, spec *oci.Spec) string {
 	defer func() {
 		if r := recover(); r != nil {
 			logging.Get().Info().Msgf("get user info failed,err:%v. stack: %s", r, debug.Stack())
 		}
 	}()
+	if spec.Process.User.UID == 0 {
+		return "root"
+	}
+	ctx, _ := context.WithTimeout(context.Background(), 2*time.Second)
+
+	resp, err := d.RunCmd(ctx, containerId, []string{"/bin/sh", "-c", "whoami"})
+	logging.Get().Error().Msgf("get user by cmd . output:%s, uid:%d, containerId:%s", resp, spec.Process.User.UID, containerId)
+	if err == nil && resp != "" && !strings.Contains(resp, "stderr:") {
+		return resp
+	}
 	bytes, err := json.Marshal(spec.Process.User)
 	if err != nil {
 		return ""
@@ -761,4 +814,38 @@ func networkSettingsFromNative(n *native.NetNS) (*NetworkSettings, error) {
 		res.DefaultNetworkSettings.GlobalIPv6PrefixLen = primary.GlobalIPv6PrefixLen
 	}
 	return res, nil
+}
+
+// nfs ceph
+func getContainerStorageType(isNfs, isCephfs, isHostPath bool) string {
+	var storageType []string
+
+	if isNfs {
+		storageType = append(storageType, "nfs")
+	}
+	if isCephfs {
+		storageType = append(storageType, "cephfs")
+	}
+	if isHostPath {
+		storageType = append(storageType, "hostpath")
+	}
+	return strings.Join(storageType, "、")
+}
+
+func buildImageWithTag(imageName string, labels map[string]string, containerName string) string {
+	if len(labels) == 0 {
+		return imageName
+	}
+	if !strings.Contains(imageName, "@") {
+		return imageName
+	}
+	ima, isOk := labels[fmt.Sprintf("%s-image-tag", containerName)]
+	if !isOk {
+		return imageName
+	}
+	split := strings.Split(imageName, "@")
+	if len(split) == 2 {
+		return split[0] + ":" + ima
+	}
+	return imageName
 }

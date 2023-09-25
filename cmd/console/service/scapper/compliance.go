@@ -125,3 +125,56 @@ func (sh *ScanHandler) OnUpdate(s rpcstream.Stream, reqID string, message protor
 func (sh *ScanHandler) OnDelete(s rpcstream.Stream, reqID string, message protoreflect.ProtoMessage) {
 	logging.Get().Error().Str("reqID", reqID).Msg("not implement compliance msg onDelete")
 }
+
+type NodeLoadProxyHandler struct {
+	ServerStream rpcstream.MessageStream
+}
+
+func (n *NodeLoadProxyHandler) OnCreate(s rpcstream.Stream, reqID string, message protoreflect.ProtoMessage) {
+	req := message.(*pb.NodeLoadReq)
+	logging.Get().Info().Str("obj", "NodeLoadProxyHandler-OnCreate").
+		Str("reqID", reqID).Msg("received console stream msg")
+
+	var (
+		resp *pb.NodeLoadResp
+		err  error
+	)
+	defer func() {
+		if err = s.SendResponse(reqID, resp); err != nil {
+			logging.Get().Error().Err(err).Str("obj", "NodeLoadProxyHandler-OnCreate").
+				Str("reqID", reqID).Msg("failed, send response to console")
+		} else {
+			logging.Get().Info().Str("obj", "NodeLoadProxyHandler").Str("method", "OnCreate").
+				Str("reqID", reqID).Msg("success, send response to console")
+		}
+	}()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	resp, err = n.ServerStream.GetNodeLoadInfo(ctx, req.NodeName+"-daemon", req)
+	if err != nil {
+		if resp == nil {
+			resp = &pb.NodeLoadResp{
+				ErrMsg: err.Error(),
+			}
+		}
+		logging.Get().Err(err).Str("obj", "NodeLoadProxyHandler-OnCreate").Str("reqID", reqID).Msg("failed to get  node load info.")
+		return
+	}
+}
+
+func (n *NodeLoadProxyHandler) OnRead(stream rpcstream.Stream, reqID string, message protoreflect.ProtoMessage) {
+	logging.Get().Error().Str("reqID", reqID).Msg("not implement NodeLoadProxyHandler msg OnRead")
+
+}
+
+func (n *NodeLoadProxyHandler) OnUpdate(stream rpcstream.Stream, reqID string, message protoreflect.ProtoMessage) {
+	logging.Get().Error().Str("reqID", reqID).Msg("not implement NodeLoadProxyHandler msg OnUpdate")
+
+}
+
+func (n *NodeLoadProxyHandler) OnDelete(stream rpcstream.Stream, reqID string, message protoreflect.ProtoMessage) {
+	logging.Get().Error().Str("reqID", reqID).Msg("not implement NodeLoadProxyHandler msg onDelete")
+
+}

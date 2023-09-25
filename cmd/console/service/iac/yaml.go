@@ -198,7 +198,9 @@ func syncOnlineResources() {
 				c()
 				return err
 			}
-			totalResources = append(totalResources, resources...)
+			for _, r := range resources {
+				totalResources = append(totalResources, r.TensorResource)
+			}
 			offset += limit
 			c()
 		}

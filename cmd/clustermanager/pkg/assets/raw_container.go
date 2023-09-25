@@ -9,12 +9,10 @@ import (
 	rs "github.com/March-deng/godisearch/redisearch"
 	"gitlab.com/piccolo_su/vegeta/pkg/assets"
 	"gitlab.com/piccolo_su/vegeta/pkg/dal"
-	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 	"gitlab.com/security-rd/go-pkg/databases"
 	"gitlab.com/security-rd/go-pkg/logging"
 	"gitlab.com/security-rd/go-pkg/redisearch"
-	corev1 "k8s.io/api/core/v1"
 )
 
 var _ assets.Callback = (*RawContainerWatcher)(nil)
@@ -123,16 +121,16 @@ func (cb *RawContainerCallBack) doOnRawContainerEvent(ctx context.Context, e con
 		}
 		deleteErr = dal.DeleteRawContainerSyncReason(tctx, cb.parent.rdb.Get(), e.container.ClusterKey, e.container.Namespace, e.container.ContainerID)
 		if deleteErr != nil {
-			logging.Get().Err(deleteErr).Msg("delete raw container sync reason in rdb error")
+			logging.Get().Err(deleteErr).Msgf("delete raw container sync reason in rdb error.%s,%s,%s", e.container.ContainerID)
 		}
 
 	case assets.ActionUpdate, assets.ActionAdd:
 
 		var upsertErr error
 		if useRedis {
-			upsertErr = dal.UpsertRawContainerWithRedis(tctx, cb.parent.rdb.Get(), cb.parent.mustGetRedisSearchClient("rawContainer"), (*model.TensorRawContainer)(e.container))
+			upsertErr = dal.UpsertRawContainerWithRedis(tctx, cb.parent.rdb.Get(), cb.parent.mustGetRedisSearchClient("rawContainer"), e.container)
 		} else {
-			upsertErr = dal.UpsertRawContainers(tctx, cb.parent.rdb.Get(), (*model.TensorRawContainer)(e.container))
+			upsertErr = dal.UpsertRawContainers(tctx, cb.parent.rdb.Get(), e.container)
 		}
 
 		if upsertErr != nil {
@@ -152,10 +150,6 @@ func (cb *RawContainerCallBack) removeInactiveData(ctx context.Context, sync *as
 }
 
 func (cb *RawContainerCallBack) OnTensorResourceEvent(*assets.TensorResource, *assets.TensorResource, assets.Action) error {
-	return nil
-}
-
-func (cb *RawContainerCallBack) OnNodeEvent(*corev1.Node, *corev1.Node, assets.Action) error {
 	return nil
 }
 
@@ -179,6 +173,30 @@ func (cb *RawContainerCallBack) OnTensorNamespace(*assets.TensorNamespace, asset
 }
 
 func (cb *RawContainerCallBack) OnTensorNode(*assets.TensorNode, assets.Action) error {
+	return nil
+}
+
+func (cb *RawContainerCallBack) OnTensorIngress(*assets.TensorIngress, assets.Action) error {
+	return nil
+}
+
+func (cb *RawContainerCallBack) OnTensorService(*assets.TensorService, assets.Action) error {
+	return nil
+}
+
+func (cb *RawContainerCallBack) OnTensorEndpoints(*assets.TensorEndpoints, assets.Action) error {
+	return nil
+}
+
+func (cb *RawContainerCallBack) OnTensorSecret(*assets.TensorSecret, assets.Action) error {
+	return nil
+}
+
+func (cb *RawContainerCallBack) OnTensorPV(*assets.TensorPV, assets.Action) error {
+	return nil
+}
+
+func (cb *RawContainerCallBack) OnTensorPVC(*assets.TensorPVC, assets.Action) error {
 	return nil
 }
 

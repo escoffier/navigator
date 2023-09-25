@@ -57,7 +57,7 @@ func (pr *PodResInfo) OnAdd(pod *corev1.Pod) {
 			})
 		}
 	}
-	pr.agent.HandlerContainerEvent(context.Background(), pr.clusterKey, assets.ActionAdd, &model.TensorRawContainer{
+	pr.agent.HandlerContainerEvent(context.Background(), pr.clusterKey, assets.ActionAdd, &assets.TensorRawContainer{TensorRawContainer: &model.TensorRawContainer{
 		Namespace:    pod.Namespace,
 		PodName:      pod.Name,
 		PodUid:       string(pod.UID),
@@ -66,7 +66,7 @@ func (pr *PodResInfo) OnAdd(pod *corev1.Pod) {
 		K8sManaged:   true,
 		VolumeMounts: volumeMounts,
 		IP:           pod.Status.PodIP,
-	})
+	}})
 }
 
 func (pr *PodResInfo) OnDelete(pod *corev1.Pod) {
@@ -80,7 +80,7 @@ func (pr *PodResInfo) OnUpdate(oldPod, newPod *corev1.Pod) {
 	for _, status := range newPod.Status.ContainerStatuses {
 		if status.State.Terminated != nil {
 			containerID := strings.TrimPrefix(status.ContainerID, "docker://")
-			pr.agent.HandlerContainerEvent(context.Background(), pr.clusterKey, assets.ActionDelete, &model.TensorRawContainer{
+			pr.agent.HandlerContainerEvent(context.Background(), pr.clusterKey, assets.ActionDelete, &assets.TensorRawContainer{TensorRawContainer: &model.TensorRawContainer{
 				ContainerID:  containerID,
 				Namespace:    newPod.Namespace,
 				PodName:      newPod.Name,
@@ -90,7 +90,7 @@ func (pr *PodResInfo) OnUpdate(oldPod, newPod *corev1.Pod) {
 				K8sManaged:   true,
 				Status:       assets.Exited,
 				ClusterKey:   pr.clusterKey,
-			})
+			}})
 		}
 	}
 	if newPod.Status.PodIP == "" {
@@ -108,7 +108,7 @@ func (pr *PodResInfo) OnUpdate(oldPod, newPod *corev1.Pod) {
 			})
 		}
 	}
-	pr.agent.HandlerContainerEvent(context.Background(), pr.clusterKey, assets.ActionUpdate, &model.TensorRawContainer{
+	pr.agent.HandlerContainerEvent(context.Background(), pr.clusterKey, assets.ActionUpdate, &assets.TensorRawContainer{TensorRawContainer: &model.TensorRawContainer{
 		Namespace:    newPod.Namespace,
 		PodName:      newPod.Name,
 		PodUid:       string(newPod.UID),
@@ -118,7 +118,7 @@ func (pr *PodResInfo) OnUpdate(oldPod, newPod *corev1.Pod) {
 		ClusterKey:   pr.clusterKey,
 		VolumeMounts: volumeMounts,
 		IP:           newPod.Status.PodIP,
-	})
+	}})
 }
 
 func (pr *PodResInfo) Name() string {

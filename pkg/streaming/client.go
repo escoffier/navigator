@@ -13,6 +13,9 @@ type MessageStreamClient interface {
 	CreateHoneySpot(ctx context.Context, nodeKey string, honeySpot *pb.HoneySpotReq) (*pb.HoneySpotResp, error)
 	DeleteHoneySpot(ctx context.Context, nodeKey, namespace, name string) error
 	PublishHoneySpot(ctx context.Context, nodeKeys []string, msgType pb.MessageType, honeySpot *pb.HoneySpotReq) error
+	SetNamespaceLabel(ctx context.Context, nodeKey string, req *pb.NamespaceLabelSetReq) (*pb.NamespaceLabelErrResp, error)
+	DeleteNamespaceLabel(ctx context.Context, nodeKey string, req *pb.NamespaceLabelSetReq) (*pb.NamespaceLabelErrResp, error)
+	GetNodeLoadInfo(ctx context.Context, nodeKey string, req *pb.NodeLoadReq) (*pb.NodeLoadResp, error)
 	CreateCluster(ctx context.Context, nodeKey string, honeySpot *pb.ClusterRegister) (*pb.CommonReponse, error)
 	UpdateVulnDB(ctx context.Context, nodeKey string, vulnReq *pb.ImageSecReq) (*pb.ImageSecResp, error)
 	DeliverImageSecMsg(ctx context.Context, nodeKey string, imageSecReq *pb.ImageSecReq) (*pb.ImageSecResp, error)
@@ -94,6 +97,51 @@ func (s *messageStream) DeleteHoneySpot(ctx context.Context, nodeKey, namespace,
 		return fmt.Errorf("%s", r.StatusMessage)
 	}
 	return nil
+}
+
+func (s *messageStream) SetNamespaceLabel(ctx context.Context, nodeKey string, req *pb.NamespaceLabelSetReq) (*pb.NamespaceLabelErrResp, error) {
+	resp, err := s.Request(ctx, nodeKey, pb.MessageType_CREATE, req, true)
+
+	if err != nil {
+		logging.Get().Err(err).Msg("request err")
+		return nil, err
+	}
+	r, ok := resp.(*pb.NamespaceLabelErrResp)
+	if !ok {
+		return nil, fmt.Errorf("invalid message type: %s", resp.ProtoReflect().Descriptor().FullName())
+	}
+	logging.Get().Info().Msgf("response: %s", r.String())
+	return r, nil
+}
+
+func (s *messageStream) DeleteNamespaceLabel(ctx context.Context, nodeKey string, req *pb.NamespaceLabelSetReq) (*pb.NamespaceLabelErrResp, error) {
+	resp, err := s.Request(ctx, nodeKey, pb.MessageType_DELETE, req, true)
+
+	if err != nil {
+		logging.Get().Err(err).Msg("request err")
+		return nil, err
+	}
+	r, ok := resp.(*pb.NamespaceLabelErrResp)
+	if !ok {
+		return nil, fmt.Errorf("invalid message type: %s", resp.ProtoReflect().Descriptor().FullName())
+	}
+	logging.Get().Info().Msgf("response: %s", r.String())
+	return r, nil
+}
+
+func (s *messageStream) GetNodeLoadInfo(ctx context.Context, nodeKey string, req *pb.NodeLoadReq) (*pb.NodeLoadResp, error) {
+	resp, err := s.Request(ctx, nodeKey, pb.MessageType_CREATE, req, true)
+
+	if err != nil {
+		logging.Get().Err(err).Msg("request err")
+		return nil, err
+	}
+	r, ok := resp.(*pb.NodeLoadResp)
+	if !ok {
+		return nil, fmt.Errorf("invalid message type: %s", resp.ProtoReflect().Descriptor().FullName())
+	}
+	logging.Get().Info().Msgf("response: %s", r.String())
+	return r, nil
 }
 
 func (s *messageStream) CreateCluster(ctx context.Context, nodeKey string, cluster *pb.ClusterRegister) (*pb.CommonReponse, error) {

@@ -146,7 +146,7 @@ func (s *OnlineMonitorCB) cleanUpMap(now time.Time) {
 		}
 
 		// to prevent the memory leak of go map
-		if rand.Float64() < 0.1 { //nolint
+		if rand.Float64() < 0.1 { // nolint
 			newMap := make(map[string]int64, len(s.exitMap))
 			for key, val := range s.exitMap {
 				newMap[key] = val
@@ -190,9 +190,6 @@ func (s *OnlineMonitorCB) OnTensorResourceEvent(newResource, oldResource *assets
 	// monitor resource creation and chages including replicasets, statefulsets, daemonsets, cronjobs, jobs, deployments, replicationcontrollers, pods with no owner.
 	return nil
 }
-func (s *OnlineMonitorCB) OnNodeEvent(newNode, oldNode *corev1.Node, action assets.Action) error {
-	return nil
-}
 
 func (s *OnlineMonitorCB) OnHoneyspot(honeyspot *assets.TensorHoneySpot, action assets.Action) error {
 	return nil
@@ -202,6 +199,30 @@ func (s *OnlineMonitorCB) OnTensorRole(tensorRole *assets.TensorRole, action ass
 }
 
 func (s *OnlineMonitorCB) OnTensorClusterRole(tensorRole *assets.TensorClusterRole, action assets.Action) error {
+	return nil
+}
+
+func (s *OnlineMonitorCB) OnTensorIngress(*assets.TensorIngress, assets.Action) error {
+	return nil
+}
+
+func (s *OnlineMonitorCB) OnTensorService(*assets.TensorService, assets.Action) error {
+	return nil
+}
+
+func (s *OnlineMonitorCB) OnTensorEndpoints(*assets.TensorEndpoints, assets.Action) error {
+	return nil
+}
+
+func (s *OnlineMonitorCB) OnTensorSecret(*assets.TensorSecret, assets.Action) error {
+	return nil
+}
+
+func (s *OnlineMonitorCB) OnTensorPV(*assets.TensorPV, assets.Action) error {
+	return nil
+}
+
+func (s *OnlineMonitorCB) OnTensorPVC(*assets.TensorPVC, assets.Action) error {
 	return nil
 }
 

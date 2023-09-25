@@ -106,10 +106,14 @@ func (m *Mutator) Mutate(ctx context.Context, parameters *processors.MutatorPara
 		digests.InitContainerImages = append(digests.InitContainerImages,
 			m.buildDigestImage(ctx, parameters, &pod.Spec.InitContainers[index], kubeSecretNames))
 	}
-
+	labelMap := make(map[string]string)
 	for index := range pod.Spec.Containers {
-		digests.ContainerImages = append(digests.ContainerImages,
-			m.buildDigestImage(ctx, parameters, &pod.Spec.Containers[index], kubeSecretNames))
+		digestImage := m.buildDigestImage(ctx, parameters, &pod.Spec.Containers[index], kubeSecretNames)
+		if digestImage != "" {
+			imagTag := getImageTag(pod.Spec.Containers[index].Image)
+			labelMap[pod.Spec.Containers[index].Name] = imagTag
+		}
+		digests.ContainerImages = append(digests.ContainerImages, digestImage)
 	}
 	patch := patchImageDigest(digests)
 	err := m.validator.Validate(ctx, digests, &processors.ValidatingParameters{
@@ -118,6 +122,9 @@ func (m *Mutator) Mutate(ctx context.Context, parameters *processors.MutatorPara
 		ResourceKind: parameters.ResourceKind,
 		ResourceName: parameters.ResourceName,
 	})
+	if len(labelMap) > 0 {
+		patch = append(patch, patchLabel(labelMap)...)
+	}
 	return patch, err
 }
 
@@ -176,6 +183,21 @@ func patchImageDigest(imageDigest *ImageDigest) []*processors.Patch {
 				Op:    "replace",
 				Path:  path,
 				Value: imageDigest.ContainerImages[i],
+			})
+		}
+	}
+	logPatches(patches)
+	return patches
+}
+
+func patchLabel(labelMap map[string]string) []*processors.Patch {
+	patches := make([]*processors.Patch, 0)
+	for key, value := range labelMap {
+		if value != "" {
+			patches = append(patches, &processors.Patch{
+				Op:    "add",
+				Path:  "/metadata/labels/" + fmt.Sprintf("%s-image-tag", key),
+				Value: value,
 			})
 		}
 	}
@@ -303,4 +325,15 @@ func replaceTagWithDigest(image, digest string) string {
 	}
 
 	return s[0] + "@" + digest
+}
+
+func getImageTag(image string) string {
+	if strings.Contains(image, "@sha256") {
+		return ""
+	}
+	s := strings.SplitN(image, ":", 2)
+	if s == nil || len(s) == 1 {
+		return "latest"
+	}
+	return s[1]
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	netv1 "k8s.io/api/networking/v1"
 	"runtime/debug"
 	"sync"
 	"time"
@@ -140,10 +141,14 @@ func (rl *ResourcesWatcher) enableRedisSearch(modelType string) bool {
 type resourceEvent struct {
 	wtype        assets.WatchedType
 	newResource  *assets.TensorResource
-	oldResource  *assets.TensorResource
 	newNamespace *corev1.Namespace
 	newNode      *corev1.Node
-	oldNode      *corev1.Node
+	newIngress   *netv1.Ingress
+	newService   *corev1.Service
+	newEndpoints *assets.EndpointsTmp
+	newSecret    *corev1.Secret
+	newPV        *corev1.PersistentVolume
+	newPVC       *corev1.PersistentVolumeClaim
 	clusterKey   string
 	action       assets.Action
 	updateTime   time.Time
@@ -238,30 +243,31 @@ func (cl *ResourcesClusterListener) sendToRetry(resAction resourceEvent) {
 	cl.retryQueue.Add(resAction)
 }
 
-func (cl *ResourcesClusterListener) OnNodeEvent(newNode, oldNode *corev1.Node, action assets.Action) error {
-	defer func() {
-		if r := recover(); r != nil {
-			logging.GetLogger().Error().Msgf("Panic when OnNodeEvent: %v. stack: %s", r, debug.Stack())
-		}
-	}()
-
-	now := time.Now()
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	err := cl.doOnResource(ctx, resourceEvent{
-		wtype:      assets.Nodes2Watch,
-		newNode:    newNode,
-		oldNode:    oldNode,
-		action:     action,
-		updateTime: now,
-	})
-	if err != nil {
-		logging.GetLogger().Err(err).Msgf("OnNodeEvent action: %d. new: %+v. old: %+v", action, newNode, oldNode)
-		return err
-	}
-	return nil
-}
+//
+// func (cl *ResourcesClusterListener) OnNodeEvent(newNode, oldNode *corev1.Node, action assets.Action) error {
+// 	defer func() {
+// 		if r := recover(); r != nil {
+// 			logging.GetLogger().Error().Msgf("Panic when OnNodeEvent: %v. stack: %s", r, debug.Stack())
+// 		}
+// 	}()
+//
+// 	now := time.Now()
+// 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+// 	defer cancel()
+//
+// 	err := cl.doOnResource(ctx, resourceEvent{
+// 		wtype:      assets.Nodes2Watch,
+// 		newNode:    newNode,
+// 		oldNode:    oldNode,
+// 		action:     action,
+// 		updateTime: now,
+// 	})
+// 	if err != nil {
+// 		logging.GetLogger().Err(err).Msgf("OnNodeEvent action: %d. new: %+v. old: %+v", action, newNode, oldNode)
+// 		return err
+// 	}
+// 	return nil
+// }
 
 func (cl *ResourcesClusterListener) doOnResource(ctx context.Context, resEvent resourceEvent) error {
 	if resEvent.action == assets.ActionAdd || resEvent.action == assets.ActionUpdate {
@@ -287,7 +293,6 @@ func (cl *ResourcesClusterListener) doOnResource(ctx context.Context, resEvent r
 				cl.sendToRetry(resEvent)
 				return upsertErr
 			}
-
 		case assets.Namespaces2Watch:
 			if resEvent.newNamespace == nil {
 				return errors.New("newNamespace is nil")
@@ -307,6 +312,66 @@ func (cl *ResourcesClusterListener) doOnResource(ctx context.Context, resEvent r
 			if err != nil {
 				logging.GetLogger().Err(err).Msgf("upsert node error. node: %+v. action: %v", resEvent.newNode, resEvent.action)
 				// will periodically retry to write
+				cl.sendToRetry(resEvent)
+				return err
+			}
+		case assets.Ingress2Watch:
+			if resEvent.newIngress == nil {
+				return errors.New("newIngress is nil")
+			}
+			_, err := dal.UpsertIngresses(ctx, cl.parent.rdb.Get(), resEvent.newIngress, resEvent.clusterKey, resEvent.updateTime)
+			if err != nil {
+				logging.GetLogger().Err(err).Msgf("upsert ingress error. ingress:%v. action:%v", resEvent.newIngress, resEvent.updateTime)
+				cl.sendToRetry(resEvent)
+				return err
+			}
+		case assets.Services2Watch:
+			if resEvent.newService == nil {
+				return errors.New("newService is nil")
+			}
+			_, err := dal.UpsertService(ctx, cl.parent.rdb.Get(), resEvent.newService, resEvent.clusterKey, resEvent.updateTime)
+			if err != nil {
+				logging.GetLogger().Err(err).Msgf("upsert service error. service:%v. action:%v", resEvent.newService, resEvent.updateTime)
+				cl.sendToRetry(resEvent)
+				return err
+			}
+		case assets.Endpoints2Watch:
+			if resEvent.newEndpoints == nil {
+				return errors.New("newEndpoints is nil")
+			}
+			_, err := dal.UpsertEndpoints(ctx, cl.parent.rdb.Get(), resEvent.newEndpoints, resEvent.clusterKey, resEvent.updateTime)
+			if err != nil {
+				logging.GetLogger().Err(err).Msgf("upsert endpoints error. endpoint:%v. action:%v", resEvent.newEndpoints, resEvent.updateTime)
+				cl.sendToRetry(resEvent)
+				return err
+			}
+		case assets.Secrets2Watch:
+			if resEvent.newSecret == nil {
+				return errors.New("newSecret is nil")
+			}
+			err := dal.UpsertSecrets(ctx, cl.parent.rdb.Get(), resEvent.newSecret, resEvent.clusterKey, resEvent.updateTime)
+			if err != nil {
+				logging.GetLogger().Err(err).Msgf("upsert secret error. secret:%v. action:%v", resEvent.newSecret, resEvent.updateTime)
+				cl.sendToRetry(resEvent)
+				return err
+			}
+		case assets.PVs2Watch:
+			if resEvent.newPV == nil {
+				return errors.New("newPV is nil")
+			}
+			err := dal.UpsertPVs(ctx, cl.parent.rdb.Get(), resEvent.newPV, resEvent.clusterKey, resEvent.updateTime)
+			if err != nil {
+				logging.GetLogger().Err(err).Msgf("upsert pv error. pv:%v. action:%v", resEvent.newPV, resEvent.updateTime)
+				cl.sendToRetry(resEvent)
+				return err
+			}
+		case assets.PVCs2Watch:
+			if resEvent.newPVC == nil {
+				return errors.New("newPVC is nil")
+			}
+			err := dal.UpsertPVCs(ctx, cl.parent.rdb.Get(), resEvent.newPVC, resEvent.clusterKey, resEvent.updateTime)
+			if err != nil {
+				logging.GetLogger().Err(err).Msgf("upsert pvc error. pvc:%v. action:%v", resEvent.newIngress, resEvent.updateTime)
 				cl.sendToRetry(resEvent)
 				return err
 			}
@@ -354,7 +419,73 @@ func (cl *ResourcesClusterListener) doOnResource(ctx context.Context, resEvent r
 			}
 			err := dal.SoftDeleteNode(ctx, cl.parent.rdb.Get(), resEvent.newNode, resEvent.clusterKey, resEvent.updateTime)
 			if err != nil {
-				logging.GetLogger().Err(err).Msgf("delete node error. node: %+v. action: %v", resEvent.oldNode, resEvent.action)
+				logging.GetLogger().Err(err).Msgf("delete node error. node: %+v. action: %v", resEvent.newNode, resEvent.action)
+				// will periodically retry to write
+				cl.sendToRetry(resEvent)
+				return err
+			}
+		case assets.Ingress2Watch:
+			if resEvent.newIngress == nil {
+				return errors.New("oldIngress is nil")
+			}
+			err := dal.SoftDeleteIngress(ctx, cl.parent.rdb.Get(), resEvent.newIngress, resEvent.clusterKey, resEvent.updateTime)
+			if err != nil {
+				logging.GetLogger().Err(err).Msgf("delete ingress error. node: %+v. action: %v", resEvent.newIngress, resEvent.action)
+				// will periodically retry to write
+				cl.sendToRetry(resEvent)
+				return err
+			}
+		case assets.Services2Watch:
+			if resEvent.newService == nil {
+				return errors.New("oldService is nil")
+			}
+			err := dal.SoftDeleteService(ctx, cl.parent.rdb.Get(), resEvent.newService, resEvent.clusterKey, resEvent.updateTime)
+			if err != nil {
+				logging.GetLogger().Err(err).Msgf("delete service error. node: %+v. action: %v", resEvent.newService, resEvent.action)
+				// will periodically retry to write
+				cl.sendToRetry(resEvent)
+				return err
+			}
+		case assets.Endpoints2Watch:
+			if resEvent.newEndpoints == nil {
+				return errors.New("oldIngress is nil")
+			}
+			err := dal.SoftDeleteEndpoints(ctx, cl.parent.rdb.Get(), resEvent.newEndpoints, resEvent.clusterKey, resEvent.updateTime)
+			if err != nil {
+				logging.GetLogger().Err(err).Msgf("delete endpoints error. node: %+v. action: %v", resEvent.newEndpoints, resEvent.action)
+				// will periodically retry to write
+				cl.sendToRetry(resEvent)
+				return err
+			}
+		case assets.Secrets2Watch:
+			if resEvent.newSecret == nil {
+				return errors.New("oldIngress is nil")
+			}
+			err := dal.SoftDeleteSecret(ctx, cl.parent.rdb.Get(), resEvent.newSecret, resEvent.clusterKey, resEvent.updateTime)
+			if err != nil {
+				logging.GetLogger().Err(err).Msgf("delete secret error. node: %+v. action: %v", resEvent.newSecret, resEvent.action)
+				// will periodically retry to write
+				cl.sendToRetry(resEvent)
+				return err
+			}
+		case assets.PVs2Watch:
+			if resEvent.newPV == nil {
+				return errors.New("oldPV is nil")
+			}
+			err := dal.SoftDeletePV(ctx, cl.parent.rdb.Get(), resEvent.newPV, resEvent.clusterKey, resEvent.updateTime)
+			if err != nil {
+				logging.GetLogger().Err(err).Msgf("delete ingress error. node: %+v. action: %v", resEvent.newPV, resEvent.action)
+				// will periodically retry to write
+				cl.sendToRetry(resEvent)
+				return err
+			}
+		case assets.PVCs2Watch:
+			if resEvent.newPVC == nil {
+				return errors.New("oldIngress is nil")
+			}
+			err := dal.SoftDeletePVC(ctx, cl.parent.rdb.Get(), resEvent.newPVC, resEvent.clusterKey, resEvent.updateTime)
+			if err != nil {
+				logging.GetLogger().Err(err).Msgf("delete pvc error. node: %+v. action: %v", resEvent.newPVC, resEvent.action)
 				// will periodically retry to write
 				cl.sendToRetry(resEvent)
 				return err
@@ -380,7 +511,6 @@ func (cl *ResourcesClusterListener) OnTensorResourceEvent(newResource, oldResour
 	err := cl.doOnResource(ctx, resourceEvent{
 		wtype:       assets.TensorResources2Watch,
 		newResource: newResource,
-		oldResource: nil,
 		action:      action,
 		updateTime:  now,
 	})
@@ -458,7 +588,6 @@ func (cl *ResourcesClusterListener) OnTensorNode(node *assets.TensorNode, action
 		clusterKey: node.Cluster,
 		wtype:      assets.Nodes2Watch,
 		newNode:    node.Node,
-		oldNode:    nil,
 		action:     action,
 		updateTime: now,
 	})
@@ -501,6 +630,31 @@ func (cl *ResourcesClusterListener) AfterDataSynced(ctx context.Context, dataSyn
 	if err != nil {
 		logging.GetLogger().Err(err).Msgf("CleanUpUnUpdatedNodes error. refreshTime: %v", cl.refreshTime)
 	}
+
+	err = dal.CleanUpUnUpdatedIngresses(ctx, cl.parent.rdb.Get(), cl.refreshTime, clusterKey)
+	if err != nil {
+		logging.GetLogger().Err(err).Msgf("CleanUpUnUpdatedIngresses error. refreshTime: %v", cl.refreshTime)
+	}
+	err = dal.CleanUpUnUpdatedServices(ctx, cl.parent.rdb.Get(), cl.refreshTime, clusterKey)
+	if err != nil {
+		logging.GetLogger().Err(err).Msgf("CleanUpUnUpdatedServices error. refreshTime: %v", cl.refreshTime)
+	}
+	err = dal.CleanUpUnUpdatedEndpoints(ctx, cl.parent.rdb.Get(), cl.refreshTime, clusterKey)
+	if err != nil {
+		logging.GetLogger().Err(err).Msgf("CleanUpUnUpdatedEndpoints error. refreshTime: %v", cl.refreshTime)
+	}
+	err = dal.CleanUpUnUpdatedSecrets(ctx, cl.parent.rdb.Get(), cl.refreshTime, clusterKey)
+	if err != nil {
+		logging.GetLogger().Err(err).Msgf("CleanUpUnUpdatedSecrets error. refreshTime: %v", cl.refreshTime)
+	}
+	err = dal.CleanUpUnUpdatedPVs(ctx, cl.parent.rdb.Get(), cl.refreshTime, clusterKey)
+	if err != nil {
+		logging.GetLogger().Err(err).Msgf("CleanUpUnUpdatedPVs error. refreshTime: %v", cl.refreshTime)
+	}
+	err = dal.CleanUpUnUpdatedPVCs(ctx, cl.parent.rdb.Get(), cl.refreshTime, clusterKey)
+	if err != nil {
+		logging.GetLogger().Err(err).Msgf("CleanUpUnUpdatedPVCs error. refreshTime: %v", cl.refreshTime)
+	}
 }
 
 func (cl *ResourcesClusterListener) Name() string {
@@ -528,9 +682,8 @@ func (cl *ResourcesClusterListener) OnTensorPod(pod *assets.TensorPod, action as
 				Kind:       assets.KindPodNoOwner,
 				CreateTime: time.Time{},
 			},
-			oldResource: nil,
-			action:      action,
-			updateTime:  now,
+			action:     action,
+			updateTime: now,
 		})
 		if err != nil {
 			logging.GetLogger().Err(err).Msgf("on OnTensorPod action: %d. pod: %+v.", action, pod)
@@ -549,5 +702,164 @@ func (cl *ResourcesClusterListener) OnTensorRole(*assets.TensorRole, assets.Acti
 }
 
 func (cl *ResourcesClusterListener) OnTensorClusterRole(*assets.TensorClusterRole, assets.Action) error {
+	return nil
+}
+
+func (cl *ResourcesClusterListener) OnTensorIngress(ingress *assets.TensorIngress, action assets.Action) error {
+	defer func() {
+		if r := recover(); r != nil {
+			logging.GetLogger().Error().Msgf("Panic when OnTensorIngress: %v. stack: %s", r, debug.Stack())
+		}
+	}()
+	if ingress == nil {
+		return fmt.Errorf("invalid Ingress")
+	}
+	now := time.Now()
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	err := cl.doOnResource(ctx, resourceEvent{
+		clusterKey: ingress.Cluster,
+		wtype:      assets.Ingress2Watch,
+		newIngress: ingress.Ingress,
+		action:     action,
+		updateTime: now,
+	})
+	if err != nil {
+		logging.GetLogger().Err(err).Msgf("OnTensorIngress action: %d. new: %+v.", action, ingress)
+		return err
+	}
+	return nil
+}
+
+func (cl *ResourcesClusterListener) OnTensorService(service *assets.TensorService, action assets.Action) error {
+	defer func() {
+		if r := recover(); r != nil {
+			logging.GetLogger().Error().Msgf("Panic when OnTensorService: %v. stack: %s", r, debug.Stack())
+		}
+	}()
+	if service == nil {
+		return fmt.Errorf("invalid Service")
+	}
+	now := time.Now()
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	err := cl.doOnResource(ctx, resourceEvent{
+		clusterKey: service.Cluster,
+		wtype:      assets.Services2Watch,
+		newService: service.Service,
+		action:     action,
+		updateTime: now,
+	})
+	if err != nil {
+		logging.GetLogger().Err(err).Msgf("OnTensorService action: %d. new: %+v.", action, service)
+		return err
+	}
+	return nil
+}
+
+func (cl *ResourcesClusterListener) OnTensorEndpoints(endpoints *assets.TensorEndpoints, action assets.Action) error {
+	defer func() {
+		if r := recover(); r != nil {
+			logging.GetLogger().Error().Msgf("Panic when OnTensorEndpoints: %v. stack: %s", r, debug.Stack())
+		}
+	}()
+	if endpoints == nil {
+		return fmt.Errorf("invalid Endpoints")
+	}
+	now := time.Now()
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	err := cl.doOnResource(ctx, resourceEvent{
+		clusterKey:   endpoints.Cluster,
+		wtype:        assets.Endpoints2Watch,
+		newEndpoints: endpoints.EndpointsTmp,
+		action:       action,
+		updateTime:   now,
+	})
+	if err != nil {
+		logging.GetLogger().Err(err).Msgf("OnTensorEndpoints action: %d. new: %+v.", action, endpoints)
+		return err
+	}
+	return nil
+
+}
+
+func (cl *ResourcesClusterListener) OnTensorSecret(secret *assets.TensorSecret, action assets.Action) error {
+	defer func() {
+		if r := recover(); r != nil {
+			logging.GetLogger().Error().Msgf("Panic when OnTensorService: %v. stack: %s", r, debug.Stack())
+		}
+	}()
+	if secret == nil {
+		return fmt.Errorf("invalid Secret")
+	}
+	now := time.Now()
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	err := cl.doOnResource(ctx, resourceEvent{
+		clusterKey: secret.Cluster,
+		wtype:      assets.Secrets2Watch,
+		newSecret:  secret.Secret,
+		action:     action,
+		updateTime: now,
+	})
+	if err != nil {
+		logging.GetLogger().Err(err).Msgf("OnTensorService action: %d. new: %+v.", action, secret)
+		return err
+	}
+	return nil
+
+}
+
+func (cl *ResourcesClusterListener) OnTensorPV(pv *assets.TensorPV, action assets.Action) error {
+	defer func() {
+		if r := recover(); r != nil {
+			logging.GetLogger().Error().Msgf("Panic when OnTensorPV: %v. stack: %s", r, debug.Stack())
+		}
+	}()
+	if pv == nil {
+		return fmt.Errorf("invalid PersistentVolume")
+	}
+	now := time.Now()
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	err := cl.doOnResource(ctx, resourceEvent{
+		clusterKey: pv.Cluster,
+		wtype:      assets.PVs2Watch,
+		newPV:      pv.PersistentVolume,
+		action:     action,
+		updateTime: now,
+	})
+	if err != nil {
+		logging.GetLogger().Err(err).Msgf("OnTensorPV action: %d. new: %+v.", action, pv)
+		return err
+	}
+	return nil
+
+}
+
+func (cl *ResourcesClusterListener) OnTensorPVC(pvc *assets.TensorPVC, action assets.Action) error {
+	defer func() {
+		if r := recover(); r != nil {
+			logging.GetLogger().Error().Msgf("Panic when OnTensorService: %v. stack: %s", r, debug.Stack())
+		}
+	}()
+	if pvc == nil {
+		return fmt.Errorf("invalid Service")
+	}
+	now := time.Now()
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	err := cl.doOnResource(ctx, resourceEvent{
+		clusterKey: pvc.Cluster,
+		wtype:      assets.PVCs2Watch,
+		newPVC:     pvc.PersistentVolumeClaim,
+		action:     action,
+		updateTime: now,
+	})
+	if err != nil {
+		logging.GetLogger().Err(err).Msgf("OnTensorPVC action: %d. new: %+v.", action, pvc)
+		return err
+	}
 	return nil
 }

@@ -31,8 +31,8 @@ func (api *api) waf() func(chi.Router) {
 	return func(r chi.Router) {
 		r.Post("/service", api.createService())
 		r.Put("/service", api.updateService())
-		r.Get("/services", api.getServices())
-		r.Get("/service/{id}", api.getService())
+		r.Get("/services", api.getWafServices())
+		r.Get("/service/{id}", api.getWafService())
 		r.Delete("/service/{id}", api.deleteService())
 		r.Post("/certCrt", api.uploadCertFiles())
 		r.Post("/certKey", api.uploadCertFiles())
@@ -230,7 +230,7 @@ func (api *api) uploadCertFiles() http.HandlerFunc {
 	}
 }
 
-func (api *api) getServices() http.HandlerFunc {
+func (api *api) getWafServices() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 		defer cancel()
@@ -301,7 +301,7 @@ func (api *api) getServices() http.HandlerFunc {
 	}
 }
 
-func (api *api) getService() http.HandlerFunc {
+func (api *api) getWafService() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 		defer cancel()

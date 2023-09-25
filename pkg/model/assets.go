@@ -657,6 +657,7 @@ type TensorRawContainer struct {
 	Arguments      StringSlice      `json:"arguments" gorm:"column:arguments;type:varchar(128)"`
 	Environment    StringSlice      `json:"environment" gorm:"column:environment"`
 	VolumeMounts   VolumeMountSlice `json:"volumeMounts" gorm:"column:volume_mounts;type:varchar(256)"`
+	StorageType    string           `json:"storageType" gorm:"column:storage_type"`
 	Path           string           `json:"path" gorm:"column:path"`
 	ReservedCPU    int64            `json:"reservedCPU" gorm:"column:reserved_cpu"`
 	ReservedMemory int64            `json:"reservedMemory" gorm:"reserved_memory"`
@@ -673,6 +674,41 @@ func (rc TensorRawContainer) TableName() string {
 	return "ivan_assets_raw_containers"
 }
 
+type TensorRawContainerFramework struct {
+	TableBase               // id: cluster_key/namespace/Name
+	RawContainerID   string `json:"rawContainerId" gorm:"column:raw_container_id"`
+	LanguageName     string `json:"languageName" gorm:"column:language_name"`
+	LanguageVersion  string `json:"languageVersion" gorm:"column:language_version"`
+	FrameworkName    string `json:"frameworkName" gorm:"column:framework_name"`
+	FrameworkVersion string `json:"frameworkVersion" gorm:"column:framework_version"`
+}
+
+func (rc TensorRawContainerFramework) TableName() string {
+	return "ivan_assets_raw_containers_frameworks"
+}
+
+type TensorRawContainerSvc struct {
+	TableBase             // id: cluster_key/namespace/Name
+	PodName        string `json:"podName" gorm:"column:pod_name"`
+	RawContainerID string `json:"rawContainerId" gorm:"column:raw_container_id"`
+	SvcName        string `json:"svcName" gorm:"column:svc_name"`
+	SvcVersion     string `json:"svcVersion" gorm:"column:svc_version"`
+	SvcType        string `json:"svcType" gorm:"column:svc_type"`
+	User           string `json:"user" gorm:"column:user"`
+	UserGroup      string `json:"userGroup" gorm:"column:user_group"`
+	Cmd            string `json:"cmd" gorm:"column:cmd"`
+	Port           string `json:"port" gorm:"column:port"`
+	RootDir        string `json:"rootDir" gorm:"column:root_dir"` // 主目录路径
+	BinaryDir      string `json:"binaryDir" gorm:"column:binary_dir"`
+	ConfigDir      string `json:"configDir" gorm:"column:config_dir"`
+	DataDir        string `json:"dataDir" gorm:"column:data_dir"`
+	LogDir         string `json:"logDir" gorm:"column:log_dir"`
+}
+
+func (rc TensorRawContainerSvc) TableName() string {
+	return "ivan_assets_raw_containers_svcs"
+}
+
 type ResourceApp struct {
 	ID               uint32
 	ClusterKey       string  `json:"clusterKey,omitempty"`
@@ -685,6 +721,190 @@ type ResourceApp struct {
 
 func (rc ResourceApp) TableName() string {
 	return "ivan_assets_containers"
+}
+
+type TensorIngress struct {
+	TableBase         // id: cluster_key/namespace/Name
+	Name       string `gorm:"column:name" json:"name"`
+	Namespace  string `gorm:"column:namespace;index:idx_tr_list_q,priority:2" json:"namespace"`
+	ClusterKey string `gorm:"column:cluster_key;index:idx_tr_list_q,priority:1" json:"clusterKey"`
+	UID        string `gorm:"column:uid" json:"uid"`
+}
+
+func (rc TensorIngress) TableName() string {
+	return "ivan_assets_ingresses"
+}
+
+type TensorIngressRule struct {
+	TableBase              // id: cluster_key/namespace/kind/resource_name
+	IngressId       uint32 `gorm:"column:ingress_id;type:bigint;index:idx_ingress_id" json:"ingressId"`
+	Protocol        string `json:"protocol" gorm:"column:protocol;"`
+	Host            string `json:"host" gorm:"column:host;"`
+	Path            string `json:"path" gorm:"column:path;"`
+	PathType        string `json:"pathType" gorm:"column:path_type"`
+	BackendKind     string `json:"backendKind" gorm:"column:backend_kind;"`         // service、resource.kind
+	BackendApiGroup string `json:"backendApiGroup" gorm:"column:backend_api_group"` // service:v1 、resource.apigroup
+	BackendName     string `json:"backendName" gorm:"column:backend_name"`          // service.name resource.name
+	ServicePort     string `json:"servicePort" gorm:"column:service_port"`
+	WebDesc         string `json:"WebDesc" gorm:"column:web_desc"`
+}
+
+func (rc TensorIngressRule) TableName() string {
+	return "ivan_assets_ingress_rules"
+}
+
+type MapType map[string]string
+
+func (l *MapType) Scan(value interface{}) error {
+	b, ok := value.([]byte)
+	if !ok {
+		return TypeAssertErr
+	}
+	return json.Unmarshal(b, &l)
+}
+func (l MapType) Value() (driver.Value, error) {
+	return json.Marshal(l)
+}
+
+type ServicePortSlice []ServicePort
+
+func (ev *ServicePortSlice) Scan(value interface{}) error {
+	b, ok := value.([]byte)
+	if !ok {
+		return TypeAssertErr
+	}
+	return json.Unmarshal(b, &ev)
+}
+
+func (ev ServicePortSlice) Value() (driver.Value, error) {
+	return json.Marshal(ev)
+}
+
+type TensorService struct {
+	TableBase                   // id: cluster_key/namespace/Name
+	Name       string           `gorm:"column:name" json:"name"`
+	Namespace  string           `gorm:"column:namespace;index:idx_tr_list_q,priority:2" json:"namespace"`
+	ClusterKey string           `gorm:"column:cluster_key;index:idx_tr_list_q,priority:1" json:"clusterKey"`
+	UID        string           `gorm:"column:uid" json:"uid"`
+	Labels     MapType          `json:"labels" gorm:"column:labels"`
+	Type       string           `json:"type" gorm:"column:type"`
+	ClusterIp  string           `json:"clusterIp" gorm:"column:cluster_ip"`
+	PortsStr   string           `json:"portsStr" gorm:"column:ports_str"`
+	Ports      ServicePortSlice `json:"ports" gorm:"column:ports"`
+	Selector   MapType          `json:"selector" gorm:"column:selector"`
+}
+
+func (rc TensorService) TableName() string {
+	return "ivan_assets_services"
+}
+
+type ServicePort struct {
+	Name        string  `json:"name,omitempty" `
+	Protocol    string  `json:"protocol,omitempty" `
+	AppProtocol *string `json:"appProtocol,omitempty"`
+	Port        string  `json:"port"`                  // 暴露端口
+	TargetPort  string  `json:"targetPort,omitempty" ` //容器端口
+	NodePort    string  `json:"nodePort,omitempty" `
+}
+
+func (ev *ServicePort) Scan(value interface{}) error {
+	b, ok := value.([]byte)
+	if !ok {
+		return TypeAssertErr
+	}
+	return json.Unmarshal(b, &ev)
+}
+func (ev ServicePort) Value() (driver.Value, error) {
+	return json.Marshal(ev)
+}
+
+type TensorEndpoints struct {
+	TableBase          // id: cluster_key/namespace/Name
+	Name        string `gorm:"column:name" json:"name"`
+	Namespace   string `gorm:"column:namespace;index:idx_tr_list_q,priority:2" json:"namespace"`
+	ClusterKey  string `gorm:"column:cluster_key;index:idx_tr_list_q,priority:1" json:"clusterKey"`
+	ServiceName string `gorm:"column:service_name" json:"serviceName"`
+	UID         string `gorm:"column:uid" json:"uid"`
+}
+
+func (rc TensorEndpoints) TableName() string {
+	return "ivan_assets_endpoints"
+}
+
+type TensorEndpointsSubset struct {
+	TableBase            // id: cluster_key/namespace/kind/name
+	EndpointsId   uint32 `json:"endpointsId" gorm:"column:endpoints_id"`
+	Name          string `json:"name" gorm:"column:name"`
+	NameSpace     string `json:"namespace" gorm:"column:namespace"`
+	TargetRefKind string `json:"targetRefKind" gorm:"column:target_ref_kind"`
+	AddressStatus string `json:"addressStatus" gorm:"column:address_status"`
+	Ip            string `json:"ip" gorm:"column:ip"`
+	NodeName      string `json:"nodeName" gorm:"column:node_name"`
+	Ports         string `json:"ports" gorm:"column:ports"`
+}
+
+func (rc TensorEndpointsSubset) TableName() string {
+	return "ivan_assets_endpointsSubsets"
+}
+
+type TensorSecret struct {
+	TableBase          // id: cluster_key/namespace/Name
+	Name       string  `gorm:"column:name" json:"name"`
+	Namespace  string  `gorm:"column:namespace;index:idx_tr_list_q,priority:2" json:"namespace"`
+	ClusterKey string  `gorm:"column:cluster_key;index:idx_tr_list_q,priority:1" json:"clusterKey"`
+	UID        string  `gorm:"column:uid" json:"uid"`
+	Labels     MapType `json:"labels" gorm:"column:labels"`
+}
+
+func (rc TensorSecret) TableName() string {
+	return "ivan_assets_secrets"
+}
+
+type TensorPV struct {
+	TableBase                            // id: cluster_key/namespace/name
+	Name                          string `json:"name" gorm:"column:name"`
+	ClusterKey                    string `json:"clusterKey" gorm:"column:cluster_key"`
+	AccessMode                    string `json:"accessMode" gorm:"column:access_mode"`
+	StorageClassName              string `json:"storageClassName" gorm:"column:storage_class_name"`
+	VolumeMode                    string `json:"volumeMode" gorm:"column:volume_mode"`
+	Storage                       string `json:"storage" gorm:"column:storage"`
+	PvStatus                      string `json:"pvStatus" gorm:"column:pv_status"`
+	PersistentVolumeReclaimPolicy string `json:"persistentVolumeReclaimPolicy" gorm:"column:persistent_volume_reclaim_policy"`
+	ClaimRefName                  string `json:"claimRefName" gorm:"column:claim_ref_name"`
+}
+
+func (rc TensorPV) TableName() string {
+	return "ivan_assets_pvs"
+}
+
+type TensorPVC struct {
+	TableBase               // id: cluster_key/namespace/name
+	Name             string `json:"name" gorm:"column:name"`
+	ClusterKey       string `json:"clusterKey" gorm:"column:cluster_key"`
+	Namespace        string `json:"namespace" gorm:"column:namespace"`
+	AccessMode       string `json:"accessMode" gorm:"column:access_mode"`
+	StorageClassName string `json:"storageClassName" gorm:"column:storage_class_name"`
+	VolumeMode       string `json:"volumeMode" gorm:"column:volume_mode"`
+	Storage          string `json:"storage" gorm:"column:storage"` // 20Gi~30Gi
+	PVNames          string `json:"PVNames" gorm:"column:pv_names"`
+	PvcStatus        string `json:"pvcStatus" gorm:"column:pvc_status"`
+}
+
+func (rc TensorPVC) TableName() string {
+	return "ivan_assets_pvcs"
+}
+
+type TensorNamespaceLabel struct {
+	TableBase         // id: cluster_key/namespace/name
+	Name       string `json:"name" gorm:"column:name"`
+	Namespace  string `json:"namespace" gorm:"column:namespace"`
+	ClusterKey string `json:"clusterKey" gorm:"column:cluster_key"`
+	Value      string `json:"value" gorm:"column:value"`
+	IsBlock    bool   `json:"isBlock" gorm:"column:is_block"`
+}
+
+func (rc TensorNamespaceLabel) TableName() string {
+	return "ivan_assets_namespace_labels"
 }
 
 // imageuuid 计算方式：(imageName@imageDigest)
