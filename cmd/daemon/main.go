@@ -16,6 +16,15 @@ import (
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
 	flag "github.com/spf13/pflag"
+	"gitlab.com/security-rd/go-pkg/cache"
+	"gitlab.com/security-rd/go-pkg/cmap"
+	"gitlab.com/security-rd/go-pkg/logging"
+	"gitlab.com/security-rd/go-pkg/mq"
+	"gitlab.com/security-rd/go-pkg/sdk/palace"
+	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes"
+	"scm.tensorsecurity.cn/tensorsecurity-rd/api/pkg/generated/informers/externalversions"
+
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/scapper"
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/cis"
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/dp"
@@ -34,14 +43,6 @@ import (
 	rpcstream "gitlab.com/piccolo_su/vegeta/pkg/streaming"
 	"gitlab.com/piccolo_su/vegeta/pkg/streaming/pb"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
-	"gitlab.com/security-rd/go-pkg/cache"
-	"gitlab.com/security-rd/go-pkg/cmap"
-	"gitlab.com/security-rd/go-pkg/logging"
-	"gitlab.com/security-rd/go-pkg/mq"
-	"gitlab.com/security-rd/go-pkg/sdk/palace"
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/kubernetes"
-	"scm.tensorsecurity.cn/tensorsecurity-rd/api/pkg/generated/informers/externalversions"
 )
 
 var loggingOptions *logging.Options

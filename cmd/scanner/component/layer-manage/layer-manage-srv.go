@@ -155,7 +155,7 @@ func (llms *LocalLayerManageSrv) DecLayerRefCount(digest string) error {
 		return nil
 	}
 	llms.layerList[digest].refCount--
-	logging.Get().Info().Msgf("DecRef refcount(%d) ", llms.layerList[digest].refCount)
+	logging.Get().Debug().Msgf("DecRef refcount(%d) ", llms.layerList[digest].refCount)
 	return nil
 }
 

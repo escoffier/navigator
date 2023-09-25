@@ -18,17 +18,17 @@ type ScanImageConfig struct {
 	ID              int64            `gorm:"column:id" json:"id"`
 	ConfigType      string           `gorm:"column:config_type" json:"configType"` // 配置类型
 	ConfigData      string           `gorm:"column:config_data" json:"configData"`
-	NodeImageConfig *NodeImageConfig `gorm:"-" json:"nodeImageConfig"`
+	ImageScanConfig *ImageScanConfig `gorm:"-" json:"imageScanConfig"`                                // 命名不规范，得改
 	CreatedAt       int64            `gorm:"autoCreateTime:milli;column:created_at" json:"createdAt"` // milliseconds
 	UpdatedAt       int64            `gorm:"autoUpdateTime:milli;column:updated_at" json:"updatedAt"` // milliseconds
 }
 
-func (vi *ScanImageConfig) Check() *i18.ErrI18 {
+func (vi *ScanImageConfig) Check() error {
 	if vi.ConfigType == "" {
 		return i18.CreateI18BadReqErr("没有获取到配置类型", "not get configType")
 	}
-	if vi.NodeImageConfig != nil {
-		if err := vi.NodeImageConfig.Check(); err != nil {
+	if vi.ImageScanConfig != nil {
+		if err := vi.ImageScanConfig.Check(); err != nil {
 			return err
 		}
 	}
@@ -50,45 +50,50 @@ func (vi *ScanImageConfig) TableName() string {
 
 func (vi *ScanImageConfig) Deserialize() {
 
-	if vi.ConfigType == ConfigTypeNodeScanImage {
-		empty := &NodeImageConfig{}
-		nodeImageConfig := &NodeImageConfig{}
-		if err := json.Unmarshal([]byte(vi.ConfigData), nodeImageConfig); err != nil {
-			logging.Get().Err(err).Msg("ScanImageConfig Deserialize")
-			vi.NodeImageConfig = empty
-		} else {
-			vi.NodeImageConfig = nodeImageConfig
-		}
-		if len(vi.NodeImageConfig.ScanCycle.ClusterKey) == 0 {
-			vi.NodeImageConfig.ScanCycle.ClusterKey = make([]string, 0)
-		}
-
-		if len(vi.NodeImageConfig.ScanCycle.Day) == 0 {
-			vi.NodeImageConfig.ScanCycle.Day = make([]int64, 0)
-		}
-
-		if len(vi.NodeImageConfig.ScanCycle.Weekday) == 0 {
-			vi.NodeImageConfig.ScanCycle.Weekday = make([]int64, 0)
-		}
-		vi.NodeImageConfig.ID = vi.ID
+	empty := &ImageScanConfig{}
+	nodeImageConfig := &ImageScanConfig{}
+	if err := json.Unmarshal([]byte(vi.ConfigData), nodeImageConfig); err != nil {
+		logging.Get().Err(err).Msg("ScanImageConfig Deserialize")
+		vi.ImageScanConfig = empty
+	} else {
+		vi.ImageScanConfig = nodeImageConfig
 	}
+
+	vi.ImageScanConfig.ScanCycle.RegIds = util.DuplicateInt64Slice(vi.ImageScanConfig.ScanCycle.RegIds)
+	vi.ImageScanConfig.ScanCycle.ClusterKey = util.DuplicateStringSlice(vi.ImageScanConfig.ScanCycle.ClusterKey)
+
+	if len(vi.ImageScanConfig.ScanCycle.ClusterKey) == 0 || vi.ImageScanConfig.ScanCycle.AllCluster {
+		vi.ImageScanConfig.ScanCycle.ClusterKey = make([]string, 0)
+	}
+
+	if len(vi.ImageScanConfig.ScanCycle.RegIds) == 0 || vi.ImageScanConfig.ScanCycle.AllReg {
+		vi.ImageScanConfig.ScanCycle.RegIds = make([]int64, 0)
+	}
+
+	if len(vi.ImageScanConfig.ScanCycle.Day) == 0 {
+		vi.ImageScanConfig.ScanCycle.Day = make([]int64, 0)
+	}
+
+	if len(vi.ImageScanConfig.ScanCycle.Weekday) == 0 {
+		vi.ImageScanConfig.ScanCycle.Weekday = make([]int64, 0)
+	}
+	vi.ImageScanConfig.ID = vi.ID
+
 }
 
 func (vi *ScanImageConfig) Serialize() {
 
-	if vi.ConfigType == ConfigTypeNodeScanImage {
-		vi.NodeImageConfig.ScanCycle.Serialize()
+	vi.ImageScanConfig.ScanCycle.Serialize()
 
-		bys, err := json.Marshal(vi.NodeImageConfig)
-		if err != nil {
-			logging.Get().Err(err).Msg("ScanImageConfig Serialize")
-		} else {
-			vi.ConfigData = string(bys)
-		}
+	bys, err := json.Marshal(vi.ImageScanConfig)
+	if err != nil {
+		logging.Get().Err(err).Msg("ScanImageConfig Serialize")
+	} else {
+		vi.ConfigData = string(bys)
 	}
 }
 
-type NodeImageConfig struct {
+type ImageScanConfig struct {
 	ID             int64     `json:"id"`
 	VulnFlush      bool      `json:"vulnFlush"`
 	MalwareFlush   bool      `json:"malwareFlush"`
@@ -98,6 +103,7 @@ type NodeImageConfig struct {
 	SyncInterval   int64     `json:"syncInterval"`  // 单位分钟
 	ScanTimeout    int64     `json:"scanTimeout"`   // 单个镜像超时设置:单位分钟
 	ClearInterval  int64     `json:"clearInterval"` // 单位：天
+	OldImage       int64     `json:"oldImage"`      // 多少天前的镜像被认为是过期镜像
 	ScanCycle      ScanCycle `json:"scanCycle"`
 	Updater        string    `json:"updater"`
 }
@@ -106,6 +112,8 @@ type ScanCycle struct {
 	Enable         bool     `json:"enable"`         // 周期扫描开关
 	ClusterKey     []string `json:"clusterKey"`     // 扫描集群的 clusterKey
 	AllCluster     bool     `json:"allCluster"`     // 未选 cluster 时扫描全部
+	RegIds         []int64  `json:"regIds"`         // 扫描仓库
+	AllReg         bool     `json:"allReg"`         // 未选仓库时
 	ScanTime       string   `json:"scanTime"`       // 扫描时间:12:23:20的格式
 	ScanTimeHour   int64    `json:"scanTimeHour"`   // 扫描时间
 	ScanTimeMinute int64    `json:"scanTimeMinute"` // 扫描时间
@@ -131,13 +139,14 @@ func (vi *ScanCycle) Serialize() {
 
 	vi.ScanTimeHour = int64(h)
 	vi.ScanTimeMinute = int64(m)
-
+	vi.RegIds = util.DuplicateInt64Slice(vi.RegIds)
+	vi.ClusterKey = util.DuplicateStringSlice(vi.ClusterKey)
 	vi.Day = util.SortInt64Slice(util.DuplicateInt64Slice(vi.Day))
 	vi.Weekday = util.SortInt64Slice(util.DuplicateInt64Slice(vi.Weekday))
 	vi.Mouth = util.SortInt64Slice(util.DuplicateInt64Slice(vi.Mouth))
 }
 
-func (vi *ScanCycle) Check() *i18.ErrI18 {
+func (vi *ScanCycle) Check() error {
 	if err := checkTime(vi.ScanTime); err != nil {
 		return i18.CreateI18BadReqErr("周期扫描时间不正确", "cycle scan time is incorrect")
 	}
@@ -183,7 +192,7 @@ func (vi *ScanCycle) Check() *i18.ErrI18 {
 	return nil
 }
 
-func (vi *NodeImageConfig) IsTimeToAddTask(checkInter time.Duration) bool {
+func (vi *ImageScanConfig) IsTimeToAddTask(checkInter time.Duration) bool {
 	logging.Get().Debug().Msgf("AddTaskByStrategy config: %+v", vi)
 	if !vi.ScanCycle.Enable {
 		logging.Get().Debug().Msg("IsTimeToAddTask cycle scan not enable")
@@ -220,7 +229,7 @@ func (vi *NodeImageConfig) IsTimeToAddTask(checkInter time.Duration) bool {
 	}
 	if add {
 		year, month, day := now.Date()
-		next := time.Date(year, month, day, int(vi.ScanCycle.ScanTimeHour), int(vi.ScanCycle.ScanTimeMinute), 0, 0, time.UTC)
+		next := time.Date(year, month, day, int(vi.ScanCycle.ScanTimeHour), int(vi.ScanCycle.ScanTimeMinute), 30, 30, time.UTC)
 
 		logging.Get().Info().Msgf("AddTaskByStrategy,next:%s,now:%s", next.String(), now.String())
 		if now.Sub(next) <= checkInter && now.Sub(next) > 0 {
@@ -253,7 +262,7 @@ func checkTime(ti string) error {
 	return nil
 }
 
-func (vi *NodeImageConfig) Check() *i18.ErrI18 {
+func (vi *ImageScanConfig) Check() error {
 	if vi.ScanCycle.CycleType == "" {
 		return i18.CreateI18BadReqErr("未获取周期扫描类型", "not get cycle type")
 	}
@@ -299,7 +308,7 @@ func (vi *SensitiveRule) TableName() string {
 	return "ivan_scan_sensitive_rule"
 }
 
-func (vi *SensitiveRule) Check() *i18.ErrI18 {
+func (vi *SensitiveRule) Check() error {
 	vi.Value = strings.TrimSpace(vi.Value)
 	if vi == nil {
 		return i18.CreateI18BadReqErr("程序出错", "not get model")

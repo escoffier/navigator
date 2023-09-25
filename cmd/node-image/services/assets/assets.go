@@ -3,11 +3,12 @@ package assets
 import (
 	"context"
 	"fmt"
-	json "github.com/json-iterator/go"
 	"regexp"
 	"runtime/debug"
 	"sync"
 	"time"
+
+	json "github.com/json-iterator/go"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/node-image/consts"
 	"gitlab.com/piccolo_su/vegeta/cmd/node-image/services/helper"
@@ -36,7 +37,7 @@ type Manager struct {
 	err             error
 	mqWriter        mq.Writer
 	initConfig      config.Config                 // init config load from yaml
-	nodeImageConfig imagesecModel.NodeImageConfig // dynamic config synced from console
+	nodeImageConfig imagesecModel.ImageScanConfig // dynamic config synced from console
 	subscribeChan   <-chan interface{}
 }
 
@@ -68,7 +69,7 @@ func (m *Manager) getReportInterval() int64 {
 	return m.nodeImageConfig.SyncInterval * 60
 }
 
-func (m *Manager) PreRun(cfg config.Config, nc imagesecModel.NodeImageConfig, bs *util.BroadcastServer) error {
+func (m *Manager) PreRun(cfg config.Config, nc imagesecModel.ImageScanConfig, bs *util.BroadcastServer) error {
 	// copy config
 	m.initConfig = cfg
 	m.nodeImageConfig = nc
@@ -99,7 +100,7 @@ func (m *Manager) PreRun(cfg config.Config, nc imagesecModel.NodeImageConfig, bs
 	return nil
 }
 
-func (m *Manager) updateNodeImageConfig(cfg imagesecModel.NodeImageConfig) {
+func (m *Manager) updateNodeImageConfig(cfg imagesecModel.ImageScanConfig) {
 	m.Lock()
 	defer m.Unlock()
 	m.nodeImageConfig = cfg
@@ -127,19 +128,42 @@ func (m *Manager) handleNotifyEvent() {
 	}
 }
 
-func (m *Manager) shouldExcludeImage(imageName []string) bool {
-	for _, n := range imageName {
-		// filter by regexp
-		for _, v := range m.initConfig.ReportConfig.ExcludeImage {
-			reg, err := regexp.Compile(v)
-			if err != nil {
-				logging.Get().Err(err).Msg("invalid report exclude image rule,please check config file")
-				continue
-			}
-			match := reg.FindString(n)
-			if len(match) > 0 {
-				return true
-			}
+func (m *Manager) FilterRepoTag(im container.ImageSummary) container.ImageSummary {
+	rt := make([]string, 0)
+
+	for i := range im.RepoTags {
+		if m.shouldExclude(im.RepoTags[i]) {
+			continue
+		}
+		rt = append(rt, im.RepoTags[i])
+	}
+	im.RepoTags = rt
+	return im
+}
+
+func (m *Manager) FilterRepoDigest(im container.ImageSummary) container.ImageSummary {
+	rt := make([]string, 0)
+
+	for i := range im.RepoDigests {
+		if m.shouldExclude(im.RepoDigests[i]) {
+			continue
+		}
+		rt = append(rt, im.RepoDigests[i])
+	}
+	im.RepoDigests = rt
+	return im
+}
+
+func (m *Manager) shouldExclude(im string) bool {
+	for _, v := range m.initConfig.ReportConfig.ExcludeImage {
+		reg, err := regexp.Compile(v)
+		if err != nil {
+			logging.Get().Err(err).Msg("invalid report exclude image rule,please check config file")
+			continue
+		}
+		match := reg.FindString(im)
+		if len(match) > 0 {
+			return true
 		}
 	}
 	return false
@@ -148,17 +172,13 @@ func (m *Manager) shouldExcludeImage(imageName []string) bool {
 func (m *Manager) filterImage(images []container.ImageSummary) []container.ImageSummary {
 	ans := make([]container.ImageSummary, 0)
 	for i := range images {
-		image := images[i]
-		if m.shouldExcludeImage(image.RepoTags) {
-			logging.Get().Info().Interface("repoTags", image.RepoTags).Msg("repo tag match report exclude rule,not reported")
+		im := images[i]
+		im = m.FilterRepoTag(im)
+		im = m.FilterRepoDigest(im)
+		if len(im.RepoTags) == 0 || len(im.RepoDigests) == 0 {
 			continue
 		}
-		// filter by digest.some image with digest curlimages/curl@sha256:5a2a25d9 while have empty repo tags.
-		if m.shouldExcludeImage(image.RepoDigests) {
-			logging.Get().Info().Interface("repoDigests", image.RepoDigests).Msg("digest match report exclude rule,not reported")
-			continue
-		}
-		ans = append(ans, image)
+		ans = append(ans, im)
 	}
 	return ans
 }
@@ -172,6 +192,7 @@ func (m *Manager) SendAsset(ctx context.Context) {
 	defer ticker.Stop()
 	batchSize := int(m.initConfig.ReportConfig.BatchSize)
 	for {
+		<-ticker.C
 		images, err := m.runtime.ListImages()
 		if err != nil {
 			logging.Get().Err(err).Msg("failed to list images")
@@ -193,7 +214,6 @@ func (m *Manager) SendAsset(ctx context.Context) {
 		}
 
 		ticker.Reset(time.Duration(m.getReportInterval()) * time.Second)
-		<-ticker.C
 	}
 }
 
@@ -205,7 +225,7 @@ func (m *Manager) sendAssetHelp(ctx context.Context, images []container.ImageSum
 			Ip:         sysInfo.HostIP,
 			HostName:   sysInfo.HostName,
 		},
-		Images:          make([]imagesec.ImageMeta, 0),
+		NodeImages:      make([]imagesec.ImageMeta, 0),
 		ReportedAt:      time.Now().UnixMilli(),
 		ReportDBVersion: versionReport,
 	}
@@ -227,7 +247,7 @@ func (m *Manager) sendAssetHelp(ctx context.Context, images []container.ImageSum
 		}
 
 		imageMeta := transformImageInfo(detail, history)
-		report.Images = append(report.Images, imageMeta)
+		report.NodeImages = append(report.NodeImages, imageMeta)
 
 		logging.Get().
 			Info().

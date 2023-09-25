@@ -2,8 +2,9 @@ package stream
 
 import (
 	"fmt"
-	json "github.com/json-iterator/go"
 	"os"
+
+	json "github.com/json-iterator/go"
 
 	"gitlab.com/security-rd/go-pkg/logging"
 	"google.golang.org/protobuf/reflect/protoreflect"
@@ -25,7 +26,12 @@ type Handler struct {
 }
 
 func (vi *Handler) OnCreate(s rpcstream.Stream, reqID string, msg protoreflect.ProtoMessage) {
-	req := msg.(*pb.ImageSecReq)
+	req, ok := msg.(*pb.ImageSecReq)
+	if !ok {
+		logging.Get().Info().Msg("ProtoMessage is *pb.ImageSecResp, not *pb.ImageSecReq")
+		return
+	}
+
 	msgType := req.ImageSecReqType
 	msgID := req.RequestID
 	logging.Get().Info().Str("msgID", msgID).Int32("type", int32(msgType)).Msg("receive grpc msg")
@@ -34,9 +40,11 @@ func (vi *Handler) OnCreate(s rpcstream.Stream, reqID string, msg protoreflect.P
 	case pb.ImageSecReqType_NodeImageScan:
 		_ = vi.doScanTask(s, reqID, msgID, req.Payload)
 	case pb.ImageSecReqType_TiDBUpdate:
+		logging.Get().Info().Int32("msgType", int32(msgType)).Msg("get ImageSecReqType_TiDBUpdate")
 	case pb.ImageSecReqType_SyncResult:
+		logging.Get().Info().Int32("msgType", int32(msgType)).Msg("get ImageSecReqType_SyncResult")
 	case pb.ImageSecReqType_SyncConfig:
-		_ = vi.updateConfig(s, reqID, req.Payload)
+		// _ = vi.updateConfig(s, reqID, req.Payload)
 	case pb.ImageSecReqType_AviraDBUpdate:
 		_ = vi.saveAviraDB(s, reqID, req.Payload)
 	default:
@@ -94,7 +102,7 @@ func (vi *Handler) doScanTask(s rpcstream.Stream, reqID, msgID string, payload [
 }
 
 func (vi *Handler) updateConfig(s rpcstream.Stream, reqID string, payload []byte) error {
-	toUpdateConfig := imagesecModel.NodeImageConfig{}
+	toUpdateConfig := imagesecModel.ImageScanConfig{}
 	err := json.Unmarshal(payload, &toUpdateConfig)
 	if err != nil {
 		logging.Get().Err(err).Msg("failed to unmarshal payload to scan config")
@@ -129,7 +137,6 @@ func (vi *Handler) updateConfig(s rpcstream.Stream, reqID string, payload []byte
 	return nil
 }
 
-// todo（liuqiang）未验证
 func (vi *Handler) saveAviraDB(s rpcstream.Stream, reqID string, payload []byte) error {
 
 	aviraDBPathInfo := helper.GetAviraDBPathInfo()

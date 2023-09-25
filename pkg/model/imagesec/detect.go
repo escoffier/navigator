@@ -1,6 +1,7 @@
 package imagesec
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 
@@ -43,9 +44,9 @@ func (vi *ImageDetectResult) TableName() string {
 		return "ivan_image_sensitive_detect"
 	case DetectTypeMalwareRule:
 		return "ivan_image_malware_detect"
-	case DetectTypePkgVersionRule:
+	case DetectTypePkgRule:
 		return "ivan_image_pkg_detect"
-	case DetectTypePkgLicenseRule:
+	case DetectTypeLicenseRule:
 		return "ivan_image_license_detect"
 	case DetectTypeWebshellRule:
 		return "ivan_image_webshell_detect"
@@ -53,6 +54,12 @@ func (vi *ImageDetectResult) TableName() string {
 		return "ivan_image_root_detect"
 	case DetectTypeEnvRule:
 		return "ivan_image_env_detect"
+	case DetectTypeBaseImageRule:
+		return "ivan_image_base_detect"
+	case DetectTypeTrustedImageRule:
+		return "ivan_image_trusted_detect"
+	case DetectTypeExistInRegRule:
+		return "ivan_image_exist_reg_detect"
 	}
 	return ""
 }
@@ -71,14 +78,22 @@ func (vi ImageDetectType) Check() error {
 }
 
 const (
-	DetectTypeVulnRule       = "vuln-rule"
-	DetectTypeSensRule       = "sens-rule"
-	DetectTypeMalwareRule    = "malware-rule"
-	DetectTypePkgVersionRule = "pkg-rule"
-	DetectTypePkgLicenseRule = "pkg-license-rule"
-	DetectTypeWebshellRule   = "webshell-rule"
-	DetectTypeRootRule       = "root-rule"
-	DetectTypeEnvRule        = "env-rule"
+	DetectTypeVulnRule         = "vuln-rule"
+	DetectTypeSensRule         = "sens-rule"
+	DetectTypeMalwareRule      = "malware-rule"
+	DetectTypePkgRule          = "pkg-rule"
+	DetectTypeLicenseRule      = "license-rule"
+	DetectTypeWebshellRule     = "webshell-rule"
+	DetectTypeRootRule         = "root-rule"
+	DetectTypeEnvRule          = "env-rule"
+	DetectTypeExistInRegRule   = "exist-in-reg"
+	DetectTypeBaseImageRule    = "base-image-rule"
+	DetectTypeTrustedImageRule = "trusted-image-rule"
+
+	// 部署上线特有
+	DetectTypeImageExit    = "image-exit"
+	DetectTypeImageScanned = "image-scanned"
+	DetectTypeImageHasErr  = "has-error"
 )
 
 func GetDetectTypes() []string {
@@ -86,20 +101,23 @@ func GetDetectTypes() []string {
 		DetectTypeVulnRule,
 		DetectTypeSensRule,
 		DetectTypeMalwareRule,
-		DetectTypePkgVersionRule,
-		DetectTypePkgLicenseRule,
+		DetectTypePkgRule,
 		DetectTypeWebshellRule,
 		DetectTypeRootRule,
 		DetectTypeEnvRule,
+		DetectTypeExistInRegRule,
+		DetectTypeBaseImageRule,
+		DetectTypeTrustedImageRule,
 	}
 }
 
 type PolicyDetect struct {
-	InBlack          bool `json:"inBlack"`
-	InWhite          bool `json:"inWhite"`
-	Exception        bool `json:"exception"`
-	ExceptionLicense bool `json:"exceptionLicense"` // 只针对软件
-	PasswdEnv        bool `json:"passwdEnv"`        // 包含密码的 ENV
+	InBlack             bool   `json:"inBlack"`
+	InWhite             bool   `json:"inWhite"`
+	Exception           bool   `json:"exception"`
+	ExceptionPkgLicense bool   `json:"exceptionPkgLicense"` // 只针对软件的License
+	PasswdEnv           bool   `json:"passwdEnv"`           // 包含密码的 ENV
+	DeployAction        string `json:"deployAction"`
 }
 
 const (
@@ -112,7 +130,54 @@ const (
 	FlagDetectVulnSeverityMedium   = 7
 	FlagDetectVulnSeverityLow      = 8
 	FlagDetectVulnSeverityKnown    = 9
+	FlagDetectExceptionPkgLicense  = 10
+
+	FlagDetectDeployActionBlock = 11 // 阻断
+	FlagDetectDeployActionAlarm = 12 // 报警
 )
+
+func (vi *PolicyDetect) GenPolicyDetect(flag uint64) {
+
+	if util.ExistBit1(flag, FlagDetectException) {
+		vi.Exception = true
+	}
+	if util.ExistBit1(flag, FlagDetectInBlack) {
+		vi.InBlack = true
+		vi.Exception = true
+	}
+	if util.ExistBit1(flag, FlagDetectEnvHasPasswd) {
+		vi.Exception = true
+		vi.PasswdEnv = true
+	}
+
+	if util.ExistBit1(flag, FlagDetectExceptionPkgLicense) {
+		vi.Exception = true
+		vi.ExceptionPkgLicense = true
+	}
+	if util.ExistBit1(flag, FlagImageDeployBlock) {
+		vi.Exception = true
+	}
+	if util.ExistBit1(flag, FlagImageDeployAlarm) {
+		vi.DeployAction = DeployActionAlarm
+	}
+
+	if util.ExistBit1(flag, FlagDetectDeployActionBlock) {
+		vi.DeployAction = DeployActionBlock
+	}
+	if util.ExistBit1(flag, FlagDetectDeployActionAlarm) {
+		vi.DeployAction = DeployActionAlarm
+	}
+
+	// 白名单优先级最高
+	if vi.InWhite || util.ExistBit1(flag, FlagDetectInWhite) {
+		vi.InWhite = true
+		vi.Exception = false
+		vi.InBlack = false
+		vi.PasswdEnv = false
+		vi.ExceptionPkgLicense = false
+		vi.DeployAction = DeployActionPass
+	}
+}
 
 func (vi *PolicyDetect) AddPolicyDetect(uid uint64, ds []*ImageDetectResult) {
 	if vi == nil || len(ds) == 0 {
@@ -124,30 +189,27 @@ func (vi *PolicyDetect) AddPolicyDetect(uid uint64, ds []*ImageDetectResult) {
 		if uid != d.UniqueTarget {
 			continue
 		}
-		// 白名单优先级最高
-		if vi.InWhite || util.ExistBit1(d.Flag, FlagDetectInWhite) {
-			vi.Exception = false
-			vi.InBlack = false
-			vi.PasswdEnv = false
-			vi.ExceptionLicense = false
-			return
-		}
-		if util.ExistBit1(d.Flag, FlagDetectException) {
-			vi.Exception = true
-		}
-		if util.ExistBit1(d.Flag, FlagDetectInBlack) {
-			vi.InBlack = true
-			vi.Exception = true
-		}
-		if util.ExistBit1(d.Flag, FlagDetectEnvHasPasswd) {
-			vi.Exception = true
-			vi.PasswdEnv = true
-		}
+		vi.GenPolicyDetect(d.Flag)
+	}
+}
 
-		if util.ExistBit1(d.Flag, FlagDetectException) {
-			vi.Exception = true
-			vi.ExceptionLicense = true
+// 注意：白名单只影响当前策略，不影响其他策略
+func (vi *PolicyDetect) AddDeployDetect(uid uint64, ds []DeployIssue) {
+	if vi.DeployAction == "" {
+		vi.DeployAction = DeployActionPass
+	}
+
+	if vi == nil || len(ds) == 0 {
+		return
+	}
+
+	for i := range ds {
+		d := ds[i]
+		if uid != d.Target {
+			continue
 		}
+		vi.GenPolicyDetect(d.Flag)
+		break
 	}
 }
 
@@ -188,12 +250,15 @@ func (vi *ImageDetectResult) ToPolicyDetect() PolicyDetect {
 
 // 按策略对镜像的检测结果(简略，只是标记是否安全)
 type ImageDetectBrief struct {
-	ID            int64           `gorm:"primaryKey" json:"id"`
-	ImageUniqueID uint64          `gorm:"column:image_unique_id" json:"imageUniqueID,string"`
-	PolicyID      int64           `gorm:"column:policy_id" json:"policyID"`
-	Flag          uint64          `gorm:"column:flag" json:"flag"`
-	PolicyJson    string          `gorm:"column:policy" json:"-"`
-	Policy        *SecurityPolicy `gorm:"-" json:"policy"`
+	ID             int64  `gorm:"primaryKey" json:"id"`
+	ImageUniqueID  uint64 `gorm:"column:image_unique_id" json:"imageUniqueID,string"`
+	PolicyID       int64  `gorm:"column:policy_id" json:"policyID"`
+	PolicyUniqueID uint64 `gorm:"column:policy_unique_id" json:"policyUniqueID"` // 主要是为了保存快照
+	Flag           uint64 `gorm:"column:flag" json:"flag"`
+	// 2.20之前全量保存了策略数据，2.20之后进行了优化，只是保存了SimplePolicy
+	PolicyJson   string          `gorm:"column:policy" json:"-"`
+	SimplePolicy *SimplePolicy   `gorm:"-" json:"simplePolicy"` // 数据库的结
+	Policy       *SecurityPolicy `gorm:"-" json:"policy"`       // 查询用
 
 	CreatedAt int64 `gorm:"autoCreateTime:milli;column:created_at" json:"createdAt"` // milliseconds
 	UpdatedAt int64 `gorm:"autoUpdateTime:milli;column:updated_at" json:"updatedAt"` // milliseconds
@@ -204,6 +269,29 @@ func (vi *ImageDetectBrief) TableName() string {
 		return ""
 	}
 	return "ivan_image_detect_brief"
+}
+
+func (vi *ImageDetectBrief) ChangePolicyName(ctx context.Context) *ImageDetectBrief {
+	if vi == nil {
+		return nil
+	}
+
+	po := vi.Policy
+	po2 := vi.SimplePolicy
+
+	la, ok := ctx.Value(AcceptLanguage).(string)
+
+	if ok && la == model.LangZh && po != nil && (po.IsDefault || po.Name == DefaultPolicyNameEN) {
+		po.Name = DefaultPolicyNameZH
+	}
+	vi.Policy = po
+
+	if ok && la == model.LangZh && po2 != nil && (po2.IsDefault || po2.Name == DefaultPolicyNameEN) {
+		po2.Name = DefaultPolicyNameZH
+	}
+	vi.SimplePolicy = po2
+
+	return vi
 }
 
 func (vi *ImageDetectBrief) Check() error {
@@ -220,25 +308,54 @@ func (vi *ImageDetectBrief) Check() error {
 }
 
 func (vi *ImageDetectBrief) Same(after *ImageDetectBrief) bool {
-	if vi.ImageUniqueID != after.ImageUniqueID || vi.PolicyID != after.PolicyID || vi.Flag != vi.Flag || vi.PolicyJson != after.PolicyJson {
+	if vi.ImageUniqueID != after.ImageUniqueID || vi.PolicyID != after.PolicyID || vi.Flag != vi.Flag ||
+		vi.PolicyJson != after.PolicyJson {
 		return false
 	}
 	return true
 }
 
 func (vi *ImageDetectBrief) Deserialize() {
-	po := SecurityPolicy{}
-
 	if vi.PolicyJson != "" {
-		if err := json.Unmarshal([]byte(vi.PolicyJson), &po); err == nil {
-			vi.Policy = &po
+		po := &SimplePolicy{}
+		if err := json.Unmarshal([]byte(vi.PolicyJson), po); err == nil {
+			vi.SimplePolicy = po
+		}
+		// 2.20版本
+		if vi.Policy == nil {
+			po2 := &SecurityPolicy{}
+			if err := json.Unmarshal([]byte(vi.PolicyJson), po2); err == nil {
+				vi.Policy = po2
+			}
+		}
+	}
+	if vi.Policy != nil && vi.SimplePolicy == nil {
+		vi.SimplePolicy = &SimplePolicy{
+			ID:        vi.Policy.ID,
+			UniqueID:  vi.Policy.UniqueID,
+			IsDefault: vi.Policy.IsDefault,
+			Name:      vi.Policy.Name,
 		}
 	}
 }
 
 func (vi *ImageDetectBrief) Serialize() {
+	if vi.SimplePolicy != nil {
+		vi.PolicyUniqueID = vi.SimplePolicy.UniqueID
+		vi.PolicyID = vi.SimplePolicy.ID
+		if bys, err := json.Marshal(vi.SimplePolicy); err == nil {
+			vi.PolicyJson = string(bys)
+		}
+	}
 	if vi.Policy != nil {
-		if bys, err := json.Marshal(vi.Policy); err == nil {
+		vi.PolicyUniqueID = vi.Policy.UniqueID
+		vi.PolicyID = vi.Policy.ID
+		pn := SimplePolicy{
+			ID:       vi.Policy.ID,
+			UniqueID: vi.Policy.UniqueID,
+			Name:     vi.Policy.Name,
+		}
+		if bys, err := json.Marshal(pn); err == nil {
 			vi.PolicyJson = string(bys)
 		}
 	}
@@ -249,10 +366,10 @@ type ImageDetectBriefResult []*ImageDetectBrief
 func AddImageSafeFlag(vi []*ImageDetectBrief, preFlag uint64) uint64 {
 	// 能这样判断是有以下两个条件：
 	// 1: 默认检测策略 包括全部集群（也就是包括全部镜像）
-	// 2，默认策略是开启动，且不可以关闭
+	// 2，默认策略是开启的，且不可以关闭
 	// 如果之后需要有变动，则需要相应的变动
 	if len(vi) == 0 {
-		preFlag = util.SetBit0(util.SetBit0(util.SetBit1(preFlag, model.FlagImageSafeUnknown), model.FlagImageUnsafe), model.FlagImageSafe)
+		preFlag = util.SetBit0(util.SetBit0(util.SetBit1(preFlag, FlagImageSafeUnknown), FlagImageUnsafe), FlagImageSafe)
 		return preFlag
 	}
 
@@ -264,9 +381,9 @@ func AddImageSafeFlag(vi []*ImageDetectBrief, preFlag uint64) uint64 {
 		}
 	}
 	if safe {
-		preFlag = util.SetBit0(util.SetBit0(util.SetBit1(preFlag, model.FlagImageSafe), model.FlagImageUnsafe), model.FlagImageSafeUnknown)
+		preFlag = util.SetBit0(util.SetBit0(util.SetBit1(preFlag, FlagImageSafe), FlagImageUnsafe), FlagImageSafeUnknown)
 	} else {
-		preFlag = util.SetBit0(util.SetBit0(util.SetBit1(preFlag, model.FlagImageUnsafe), model.FlagImageSafe), model.FlagImageSafeUnknown)
+		preFlag = util.SetBit0(util.SetBit0(util.SetBit1(preFlag, FlagImageUnsafe), FlagImageSafe), FlagImageSafeUnknown)
 	}
 	logging.Get().Debug().Bool("safe", safe).Msg("AddImageSafeFlag")
 	return preFlag

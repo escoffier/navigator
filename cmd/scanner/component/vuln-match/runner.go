@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+
 	"gitlab.com/security-rd/go-pkg/logging"
 	"scm.tensorsecurity.cn/tensorsecurity-rd/fanal/cache"
 	ftypes "scm.tensorsecurity.cn/tensorsecurity-rd/fanal/types"
@@ -36,10 +37,6 @@ type runner struct {
 
 type runnerOption func(*runner)
 
-//var (
-//	dbInitOnce sync.Once
-//)
-
 func NewRunner(cliOption artifact.Option, opts ...runnerOption) (Runner, error) {
 	r := &runner{}
 	for _, opt := range opts {
@@ -54,13 +51,6 @@ func NewRunner(cliOption artifact.Option, opts ...runnerOption) (Runner, error) 
 		return nil, fmt.Errorf("logger error: %v", err)
 	}
 
-	// scanner will init db
-	//dbInitOnce.Do(func() {
-	//	if err = r.initDB(cliOption); err != nil {
-	//		logging.Get().Err(err).Msg("init vuln db err")
-	//	}
-	//})
-
 	return r, err
 }
 
@@ -68,7 +58,7 @@ func (r *runner) ScanFilesystem(ctx context.Context, opt artifact.Option, artifa
 	logging.Get().Debug().Interface("opt", opt).Msg("start match vuln")
 
 	// Disable the individual package scanning
-	//opt.DisabledAnalyzers = append(opt.DisabledAnalyzers, analyzer.TypeIndividualPkgs...)
+	// opt.DisabledAnalyzers = append(opt.DisabledAnalyzers, analyzer.TypeIndividualPkgs...)
 
 	// detect vuln
 	target := " " // only use in report
@@ -87,9 +77,9 @@ func (r *runner) ScanFilesystem(ctx context.Context, opt artifact.Option, artifa
 		return report.Report{}, err
 	}
 
-	//logging.Get().Debug().Msgf("os:%+v", *os)
-	//logging.Get().Debugf("vulns:%+v", vulns)
-	//logging.Get().Debug().Msgf("vulns num:%+v", len(vulns[0].Vulnerabilities))
+	// logging.Get().Debug().Msgf("os:%+v", *os)
+	// logging.Get().Debugf("vulns:%+v", vulns)
+	// logging.Get().Debug().Msgf("vulns num:%+v", len(vulns[0].Vulnerabilities))
 
 	return report.Report{
 		SchemaVersion: report.SchemaVersion,
@@ -191,7 +181,7 @@ func initializeResultClient() result.Client {
 // UpdateDB for test, should not use in prod
 func UpdateDB(c artifact.Option) error {
 	// download the database file
-	//noProgress := c.Quiet || c.NoProgress
+	// noProgress := c.Quiet || c.NoProgress
 	if err := operation.DownloadDB(c.AppVersion, c.CacheDir, false, c.SkipDBUpdate); err != nil {
 		return err
 	}

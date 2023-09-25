@@ -35,9 +35,11 @@ func main() {
 
 	time.Sleep(time.Second * 10)
 
+	logging.Get().Info().Msgf("streams: %s", stream.DumpStreams())
+
 	start := time.Now()
 	wg := &sync.WaitGroup{}
-	for i := 0; i < 1; i++ {
+	for i := 0; i < 10; i++ {
 		wg.Add(1)
 		index := i
 		go func() {
@@ -56,6 +58,7 @@ func main() {
 				logging.Get().Error().Msgf("unexpect response: %s", resp.String())
 			}
 		}()
+		logging.Get().Info().Msgf("streams: %s", stream.DumpStreams())
 	}
 	wg.Wait()
 	logging.Get().Info().Msgf("elapse time: %v", time.Since(start))

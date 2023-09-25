@@ -1,7 +1,6 @@
 package api
 
 import (
-	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -11,65 +10,41 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component"
+	imagesec2 "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/imagesec"
+	registryService "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry/service"
+	scani18 "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scanI18"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/global"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
+	"gitlab.com/piccolo_su/vegeta/pkg/model/imagesec"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 )
 
 type RegistrySrv struct {
-	RegistrySrv     component.RegistrySrvInterface
-	ScannerInstance component.ScannerInstanceInfoInterface
+	RegistrySrv     registryService.RegistryService
+	ScannerInstance imagesec2.ScanInstanceService
 	RejectSrv       component.ImageRejectSrv
 }
 
 func NewRegistrySrv(
-	registrySrv component.RegistrySrvInterface,
+	registrySrv registryService.RegistryService,
 	rejectSrv component.ImageRejectSrv,
-	scannerInstance component.ScannerInstanceInfoInterface) *RegistrySrv {
+	scannerInstance imagesec2.ScanInstanceService) *RegistrySrv {
 	return &RegistrySrv{RegistrySrv: registrySrv, RejectSrv: rejectSrv, ScannerInstance: scannerInstance}
 }
 
 func (s *RegistrySrv) UpdateRegistry(ctx *gin.Context) {
-	id, err := strconv.ParseInt(ctx.Param("id"), 10, 64)
-	if err != nil {
-		response.JSONError(ctx, errors.New("仓库ID不正确"))
-		return
-	}
+	id := util.GetInt64FromQuery(ctx, "id")
 
-	reg := new(model.Registry)
+	reg := new(imagesec.Registry)
 	if err := ctx.BindJSON(reg); err != nil {
-		logging.GetLogger().Err(err).Msg("UpdateRegistry序列化数据出错")
 		response.JSONError(ctx, err)
-		return
-	}
-	if reg.ScannerInstance == "" {
-		response.JSONError(ctx, response.NewHttpError(http.StatusBadRequest, fmt.Errorf("not get scanner_instance")))
 		return
 	}
 
-	err = s.RegistrySrv.UpdateRegistry(ctx, id, *reg)
-	if err != nil {
-		response.JSONError(ctx, err)
-		return
-	}
-	response.JSONOK(ctx)
-}
-
-func (s *RegistrySrv) CreateRegistry(ctx *gin.Context) {
-	reg := model.Registry{}
-	if err := ctx.BindJSON(&reg); err != nil {
-		logging.GetLogger().Err(err).Msg("CreateRegistry序列化数据出错")
-		response.JSONError(ctx, err)
-		return
-	}
-	if reg.ScannerInstance == "" {
-		response.JSONError(ctx, response.NewHttpError(http.StatusBadRequest, fmt.Errorf("not get scanner_instance")))
-		return
-	}
-	reg.UseType = model.UserRegistry
-	_, err := s.RegistrySrv.CreateRegistry(ctx, reg)
+	err := s.RegistrySrv.UpdateRegistry(ctx, id, *reg)
 	if err != nil {
 		response.JSONError(ctx, err)
 		return
@@ -77,25 +52,39 @@ func (s *RegistrySrv) CreateRegistry(ctx *gin.Context) {
 	response.JSONOK(ctx, response.WithTarget(&response.TargetRef{
 		Name: reg.Name,
 		ID:   strconv.FormatInt(reg.ID, 10),
-		Link: "api/v2/containerSec/scanner/register/registry",
+		Link: "api/v2/containerSec/scanner/syncImage/registry",
+	}))
+}
+
+func (s *RegistrySrv) CreateRegistry(ctx *gin.Context) {
+	// 做一下兼容
+	reg := &imagesec.Registry{}
+	if err := ctx.BindJSON(reg); err != nil {
+		response.JSONError(ctx, err)
+		return
+	}
+	err := s.RegistrySrv.CreateRegistry(ctx, reg)
+	if err != nil {
+		response.JSONError(ctx, err)
+		return
+	}
+	response.JSONOK(ctx, response.WithTarget(&response.TargetRef{
+		Name: reg.Name,
+		ID:   strconv.FormatInt(reg.ID, 10),
+		Link: "api/v2/containerSec/scanner/syncImage/registry",
 	}))
 }
 
 func (s *RegistrySrv) DeleteRegistry(ctx *gin.Context) {
-	id, err := strconv.ParseInt(ctx.Param("id"), 10, 64)
-	if err != nil {
-		response.JSONError(ctx, errors.New("仓库ID不正确"))
-		return
-	}
-
+	id := util.GetInt64FromQuery(ctx, "id")
 	if err := s.RegistrySrv.DeleteRegistry(ctx, id); err != nil {
 		response.JSONError(ctx, err)
 		return
 	}
 	response.JSONOK(ctx, response.WithTarget(&response.TargetRef{
-		Name: fmt.Sprintf("Registry %d", id),
-		ID:   strconv.Itoa(int(id)),
-		Link: "api/v2/containerSec/scanner/register/registry/" + strconv.Itoa(int(id)),
+		Name: fmt.Sprintf("%d", id),
+		ID:   strconv.FormatInt(id, 10),
+		Link: "api/v2/containerSec/scanner/syncImage/registry",
 	}))
 }
 
@@ -110,76 +99,76 @@ func (s *RegistrySrv) GetRegistryType(ctx *gin.Context) {
 }
 
 func (s *RegistrySrv) GetRegions(ctx *gin.Context) {
-	regType := ctx.Query("reg_type")
-	if regType == consts.AliAcrEEVersion {
+	regType := ctx.Query("regType")
+	if regType == imagesec.AliAcrEEVersion {
 		data := []map[string]string{
 			{
-				"region_id":  "cn-hangzhou",
-				"local_name": "华东1（杭州）",
+				"regionID":  "cn-hangzhou",
+				"localName": "华东1（杭州）",
 			},
 			{
-				"region_id":  "cn-shanghai",
-				"local_name": "华东2（上海）",
+				"regionID":  "cn-shanghai",
+				"localName": "华东2（上海）",
 			},
 			{
-				"region_id":  "cn-beijing",
-				"local_name": "华北2（北京）",
+				"regionID":  "cn-beijing",
+				"localName": "华北2（北京）",
 			},
 			{
-				"region_id":  "cn-zhangjiakou",
-				"local_name": "华北3（张家口）",
+				"regionID":  "cn-zhangjiakou",
+				"localName": "华北3（张家口）",
 			},
 			{
-				"region_id":  "cn-shenzhen",
-				"local_name": "华南1（深圳）",
+				"regionID":  "cn-shenzhen",
+				"localName": "华南1（深圳）",
 			},
 			{
-				"region_id":  "cn-heyuan",
-				"local_name": "华南2（河源）",
+				"regionID":  "cn-heyuan",
+				"localName": "华南2（河源）",
 			},
 			{
-				"region_id":  "cn-chengdu",
-				"local_name": "西南1（成都）",
+				"regionID":  "cn-chengdu",
+				"localName": "西南1（成都）",
 			},
 			{
-				"region_id":  "cn-hongkong",
-				"local_name": "中国（香港）",
+				"regionID":  "cn-hongkong",
+				"localName": "中国（香港）",
 			},
 			{
-				"region_id":  "ap-northeast-1",
-				"local_name": "日本（东京）",
+				"regionID":  "ap-northeast-1",
+				"localName": "日本（东京）",
 			},
 			{
-				"region_id":  "ap-southeast-1",
-				"local_name": "新加坡",
+				"regionID":  "ap-southeast-1",
+				"localName": "新加坡",
 			},
 			{
-				"region_id":  "ap-southeast-2",
-				"local_name": "澳大利亚（悉尼）",
+				"regionID":  "ap-southeast-2",
+				"localName": "澳大利亚（悉尼）",
 			},
 			{
-				"region_id":  "ap-southeast-5",
-				"local_name": "印度尼西亚（雅加达）",
+				"regionID":  "ap-southeast-5",
+				"localName": "印度尼西亚（雅加达）",
 			},
 			{
-				"region_id":  "eu-central-1",
-				"local_name": "德国（法兰克福）",
+				"regionId":  "eu-central-1",
+				"localName": "德国（法兰克福）",
 			},
 			{
-				"region_id":  "eu-west-1",
-				"local_name": "英国（伦敦）",
+				"regionID":  "eu-west-1",
+				"localName": "英国（伦敦）",
 			},
 			{
-				"region_id":  "us-east-1",
-				"local_name": "美国（弗吉尼亚）",
+				"regionID":  "us-east-1",
+				"localName": "美国（弗吉尼亚）",
 			},
 			{
-				"region_id":  "us-west-1",
-				"local_name": "美国（硅谷）",
+				"regionID":  "us-west-1",
+				"localName": "美国（硅谷）",
 			},
 			{
-				"region_id":  "ap-south-1",
-				"local_name": "印度（孟买）",
+				"regionID":  "ap-south-1",
+				"localName": "印度（孟买）",
 			},
 		}
 		response.JSONOK(ctx, response.WithItems(data))
@@ -189,33 +178,42 @@ func (s *RegistrySrv) GetRegions(ctx *gin.Context) {
 }
 
 func (s *RegistrySrv) SearchRegistry(ctx *gin.Context) {
-	useType, _ := strconv.ParseInt(ctx.Query("usetype"), 10, 64)
-	search := ctx.Query("search")
+	name := util.GetKeywordFromQuery(ctx, "name")
+	url := util.GetKeywordFromQuery(ctx, "url")
+	regType := util.GetStringSliceFromQuery(ctx, "regType")
+	status := util.GetStringSliceFromQuery(ctx, "status")
+	startSyncAt := util.GetInt64FromQuery(ctx, "startTime")
+	endSyncAt := util.GetInt64FromQuery(ctx, "endTime")
 
-	regType := ctx.Query("reg_type")
-	filter := model.GetFilter(ctx)
-	if useType <= 0 {
-		useType = model.UserRegistry
-	}
-	param := component.SearchRegistryParam{Search: search, UseType: useType}
-	if regType != "" {
-		param.RegType = strings.Split(strings.ReplaceAll(regType, " ", ""), ",")
+	filter := model.GetFilter(ctx).SetMaxLimit(consts.DefaultMaxLimit).SetSortDesc().SetSortFiled("id")
+
+	param := imagesec.SearchRegistryParam{
+		RegType:     regType,
+		NameKeyword: name,
+		UrlKeyword:  url,
+		Status:      status,
+		StartSyncAt: startSyncAt,
+		EndSyncAt:   endSyncAt,
+		Deleted:     consts.FalseString,
+		Filter:      filter,
 	}
 
-	registries, cnt, err := s.RegistrySrv.SearchRegistry(ctx, param, filter)
+	registries, cnt, err := s.RegistrySrv.SearchRegistry(ctx, param)
 	if err != nil {
 		response.JSONError(ctx, err)
 		return
 	}
 	for i := range registries {
 		registries[i].FitHarborVersion()
+		registries[i].HidePassword()
 	}
+
 	instances, err := s.ScannerInstance.SearchScannerInfo(ctx)
 	if err != nil {
 		response.JSONError(ctx, err)
 		return
 	}
-	instanceMap := make(map[string]model.ScannerInstanceInfo)
+	instanceMap := make(map[string]imagesec.ScannerInstanceInfo)
 	for i := range instances {
 		instanceMap[instances[i].ScannerInstance] = instances[i]
 	}
@@ -237,7 +235,6 @@ func (s *RegistrySrv) SearchRegistry(ctx *gin.Context) {
 				registries[i].ScannerInstance = ins.ScannerInstance + "(异常)"
 			}
 		}
-
 	}
 
 	response.JSONOK(ctx, response.WithItems(registries),
@@ -247,19 +244,19 @@ func (s *RegistrySrv) SearchRegistry(ctx *gin.Context) {
 }
 
 func (s *RegistrySrv) GetRegistry(ctx *gin.Context) {
-	id, _ := strconv.ParseInt(ctx.Param("id"), 10, 64)
-
-	regs, _, err := s.RegistrySrv.SearchRegistry(ctx, component.SearchRegistryParam{Ids: []int64{id}}, nil)
+	id := util.GetInt64FromQuery(ctx, "id")
+	regs, _, err := s.RegistrySrv.SearchRegistry(ctx, imagesec.SearchRegistryParam{RegIds: []int64{id}})
 	if err != nil {
 		response.JSONError(ctx, err)
 		return
 	}
 	if len(regs) == 0 {
-		response.JSONError(ctx, response.NewHttpError(http.StatusFailedDependency, fmt.Errorf("not find registry")))
+		response.JSONError(ctx, scani18.SearchReg(fmt.Errorf("not find registry")))
 		return
 	}
 	reg := regs[0]
 	reg.FitHarborVersion()
+	reg.HidePassword()
 	response.JSONOK(ctx, response.WithItem(reg))
 }
 
@@ -273,12 +270,12 @@ func (s *RegistrySrv) RegistryOverview(ctx *gin.Context) {
 		response.JSONError(ctx, fmt.Errorf("未解析到libraries"))
 		return
 	}
-	reges, _, err := s.RegistrySrv.SearchRegistry(ctx, component.SearchRegistryParam{UseType: model.UserRegistry}, nil)
+	reges, _, err := s.RegistrySrv.SearchRegistry(ctx, imagesec.SearchRegistryParam{})
 	if err != nil {
 		response.JSONError(ctx, err)
 		return
 	}
-	regMap := make(map[string]model.Registry)
+	regMap := make(map[string]imagesec.Registry)
 	for i := range reges {
 		regMap[reges[i].Url] = reges[i]
 	}
@@ -307,4 +304,99 @@ func (s *RegistrySrv) RegistryOverview(ctx *gin.Context) {
 
 	response.JSONOK(ctx, response.WithTotalItems(int64(len(res))), response.WithItems(res))
 
+}
+
+func (s *RegistrySrv) CreateSyncTask(ctx *gin.Context) {
+	param := SyncImageParam{}
+	if err := ctx.BindJSON(&param); err != nil {
+		response.JSONError(ctx, err)
+		return
+	}
+	if param.RegistryID <= 0 {
+		response.JSONError(ctx, scani18.NotGetRegID())
+		return
+	}
+
+	if err := s.RegistrySrv.CreateSyncTask(ctx, imagesec.CreateSyncTaskParam{
+		RegID:    param.RegistryID,
+		SyncType: imagesec.ManualSync,
+	}); err != nil {
+		logging.GetLogger().Err(err).Msg("CreateSyncTask")
+		response.JSONError(ctx, err)
+		return
+	}
+	response.JSONOK(ctx,
+		response.WithItem(ResponseMsg{RegistryID: param.RegistryID, Msg: fmt.Sprintf("开启同步任务:registryID:%d", param.RegistryID)}),
+		response.WithTarget(&response.TargetRef{
+			Name: fmt.Sprintf("registry %d", param.RegistryID),
+			ID:   strconv.Itoa(int(param.RegistryID)),
+			Link: "api/v2/containerSec/scanner/syncImage/startSync",
+		}),
+	)
+}
+
+func (s *RegistrySrv) StartSyncByRegName(ctx *gin.Context) {
+	param := SyncImageParam{}
+	if err := ctx.BindJSON(&param); err != nil {
+		response.JSONError(ctx, err)
+		return
+	}
+
+	if param.RegistryName == "" {
+		response.JSONError(ctx, fmt.Errorf("not get registryName:%s", param.RegistryName))
+		return
+	}
+
+	regs, _, err := s.RegistrySrv.SearchRegistry(ctx, imagesec.SearchRegistryParam{Name: param.RegistryName})
+	if err != nil {
+		response.JSONError(ctx, err)
+		return
+	}
+	if len(regs) == 0 {
+		response.JSONError(ctx, fmt.Errorf("not find registry:%s", param.RegistryName))
+		return
+	}
+
+	err = s.RegistrySrv.CreateSyncTask(ctx, imagesec.CreateSyncTaskParam{
+		RegID:           regs[0].ID,
+		SyncType:        imagesec.ManualSync,
+		ScannerInstance: global.ScannerInstance,
+	})
+	if err != nil {
+		logging.GetLogger().Err(err).Msg("StartSyncAllImage")
+		response.JSONError(ctx, response.NewHttpError(http.StatusInternalServerError, err))
+		return
+	}
+	response.JSONOK(ctx,
+		response.WithItem(ResponseMsg{RegistryID: regs[0].ID, RegistryName: param.RegistryName, Msg: fmt.Sprintf("开启同步任务:registryName:%s", param.RegistryName)}))
+}
+
+func (s *RegistrySrv) GetSyncProgress(ctx *gin.Context) {
+
+}
+
+func (s *RegistrySrv) GetSyncStatus(ctx *gin.Context) {
+	status, err := s.RegistrySrv.GetSyncStatus(ctx)
+
+	if err != nil {
+		response.JSONError(ctx, err)
+		return
+	}
+	response.JSONOK(ctx, response.WithItems(status))
+}
+
+type SyncImageParam struct {
+	RegistryID   int64  `json:"registryID"`
+	RegistryName string `json:"registryName"`
+}
+
+type ResponseMsg struct {
+	Msg          string `json:"msg"`
+	RegistryID   int64  `json:"registryID"`
+	RegistryName string `json:"registryName"`
+}
+
+type ResponseGetSyncStatus struct {
+	Status     bool  `json:"status"`
+	RegistryID int64 `json:"registryID"`
 }

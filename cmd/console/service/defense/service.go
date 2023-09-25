@@ -13,13 +13,6 @@ import (
 	json "github.com/json-iterator/go"
 	"github.com/olivere/elastic/v7"
 	"github.com/pkg/errors"
-	"gitlab.com/piccolo_su/vegeta/pkg/dal"
-	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
-	"gitlab.com/piccolo_su/vegeta/pkg/model"
-	"gitlab.com/piccolo_su/vegeta/pkg/response"
-	rpcstream "gitlab.com/piccolo_su/vegeta/pkg/streaming"
-	"gitlab.com/piccolo_su/vegeta/pkg/streaming/pb"
-	"gitlab.com/piccolo_su/vegeta/pkg/util"
 	"gitlab.com/security-rd/go-pkg/databases"
 	pkgelastic "gitlab.com/security-rd/go-pkg/elastic"
 	"gitlab.com/security-rd/go-pkg/httputil"
@@ -29,6 +22,14 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/wait"
 	v1 "scm.tensorsecurity.cn/tensorsecurity-rd/api/pkg/apis/defense/v1"
+
+	"gitlab.com/piccolo_su/vegeta/pkg/dal"
+	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
+	"gitlab.com/piccolo_su/vegeta/pkg/model"
+	"gitlab.com/piccolo_su/vegeta/pkg/response"
+	rpcstream "gitlab.com/piccolo_su/vegeta/pkg/streaming"
+	"gitlab.com/piccolo_su/vegeta/pkg/streaming/pb"
+	"gitlab.com/piccolo_su/vegeta/pkg/util"
 )
 
 const (
@@ -483,11 +484,10 @@ type ImageDetail struct {
 
 func (s *TensorDefenseService) GetBaitImageRepoInfo(ctx context.Context, imageName string) ([]*ImageDetail, error) {
 	type ImageBase struct {
-		FullRepoName      string `json:"full_repo_name"`
-		Library           string `json:"library"`
-		Tag               string `json:"tags"`
-		RegistryID        int    `json:"registry_id"`
-		RegistryDeletedAt int64  `json:"registry_deleted_at"`
+		FullRepoName string `json:"fullRepoName"`
+		RegistryUrl  string `json:"registryUrl"`
+		Tag          string `json:"tag"`
+		RegistryID   int64  `json:"registryID"`
 	}
 
 	var tag string
@@ -538,16 +538,13 @@ func (s *TensorDefenseService) GetBaitImageRepoInfo(ctx context.Context, imageNa
 				return err
 			}
 			for _, item := range matchedImages {
-				if tag != item.Tag || item.RegistryDeletedAt > 0 {
-					continue
-				}
-				if item.RegistryDeletedAt > 0 {
+				if tag != item.Tag {
 					continue
 				}
 
-				library := removePrefix(item.Library)
+				library := removePrefix(item.RegistryUrl)
 				images = append(images, &ImageDetail{
-					RegistryID: item.RegistryID,
+					RegistryID: int(item.RegistryID),
 					Image:      fmt.Sprintf("%s/%s:%s", library, item.FullRepoName, item.Tag),
 				})
 			}

@@ -11,14 +11,16 @@ import (
 	"text/template"
 	"time"
 
-	"gitlab.com/piccolo_su/vegeta/cmd/console/service/naviaudit"
 	"gitlab.com/security-rd/go-pkg/logging"
+
+	"gitlab.com/piccolo_su/vegeta/cmd/console/service/naviaudit"
 
 	"github.com/go-chi/chi/middleware"
 	v7 "github.com/olivere/elastic/v7"
 	"github.com/rs/zerolog"
-	"gitlab.com/piccolo_su/vegeta/pkg/request"
 	"k8s.io/apimachinery/pkg/util/wait"
+
+	"gitlab.com/piccolo_su/vegeta/pkg/request"
 
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
@@ -1050,7 +1052,7 @@ func init() {
 		}
 	})
 
-	routeAction.POST("/api/v2/containerSec/scanner/register/registry", func(p Params) map[string]map[string]interface{} {
+	routeAction.POST("/api/v2/containerSec/scanner/syncImage/registry", func(p Params) map[string]map[string]interface{} {
 		return map[string]map[string]interface{}{
 			"zh": {
 				"verb":   createAction,
@@ -1062,7 +1064,7 @@ func init() {
 			},
 		}
 	})
-	routeAction.PUT("/api/v2/containerSec/scanner/register/registry/:id", func(p Params) map[string]map[string]interface{} {
+	routeAction.PUT("/api/v2/containerSec/scanner/syncImage/registry", func(p Params) map[string]map[string]interface{} {
 		return map[string]map[string]interface{}{
 			"zh": {
 				"verb":   editAction,
@@ -1074,7 +1076,7 @@ func init() {
 			},
 		}
 	})
-	routeAction.DELETE("/api/v2/containerSec/scanner/register/registry/:id", func(p Params) map[string]map[string]interface{} {
+	routeAction.DELETE("/api/v2/containerSec/scanner/syncImage/registry", func(p Params) map[string]map[string]interface{} {
 		return map[string]map[string]interface{}{
 			"zh": {
 				"verb":   deleteAction,
@@ -1099,6 +1101,20 @@ func init() {
 			},
 		}
 	})
+
+	routeAction.POST("/api/v2/containerSec/scanner/images/baseImage", func(p Params) map[string]map[string]interface{} {
+		return map[string]map[string]interface{}{
+			"zh": {
+				"verb":   createAction,
+				"detail": "新增基础镜像{{.}}至基础镜像列表",
+			},
+			"en": {
+				"verb":   createActionEN,
+				"detail": "Add base image {{.}} to base image list",
+			},
+		}
+	})
+
 	routeAction.DELETE("/api/v2/containerSec/scanner/images/bases/:id", func(p Params) map[string]map[string]interface{} {
 		return map[string]map[string]interface{}{
 			"zh": {
@@ -1107,7 +1123,20 @@ func init() {
 			},
 			"en": {
 				"verb":   deleteActionEN,
-				"detail": "Delete base-image {{.}} from base-imgage list",
+				"detail": "Delete base-image {{.}} from base-image list",
+			},
+		}
+	})
+
+	routeAction.DELETE("/api/v2/containerSec/scanner/images/baseImage", func(p Params) map[string]map[string]interface{} {
+		return map[string]map[string]interface{}{
+			"zh": {
+				"verb":   deleteAction,
+				"detail": "删除基础镜像{{.}}出基础镜像列表",
+			},
+			"en": {
+				"verb":   deleteActionEN,
+				"detail": "Delete base image {{.}} from base image list",
 			},
 		}
 	})

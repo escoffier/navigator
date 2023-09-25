@@ -10,6 +10,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	imagesecModel "gitlab.com/piccolo_su/vegeta/pkg/model/imagesec"
+	"gitlab.com/piccolo_su/vegeta/pkg/util"
 )
 
 type DetectPolicyDal interface {
@@ -17,6 +18,8 @@ type DetectPolicyDal interface {
 	DeleteDetectPolicy(ctx context.Context, policyID int64) error
 	UpdateDetectPolicy(ctx context.Context, param imagesecModel.UpdateSecurityPolicyParam) error
 	SearchDetectPolicy(ctx context.Context, param imagesecModel.SearchSecurityPolicyParam) ([]*imagesecModel.SecurityPolicy, int64, error)
+	SearchDetectPolicySnapshot(ctx context.Context, param imagesecModel.SearchSecurityPolicyParam) ([]imagesecModel.SecurityPolicy, error)
+	CreateDetectPolicySnapshot(ctx context.Context, data *imagesecModel.SecurityPolicy) error
 }
 
 type DetectPolicyDao struct {
@@ -34,7 +37,12 @@ func (dal *DetectPolicyDao) CreateDetectPolicy(ctx context.Context, data *images
 	}
 	cancelCtx, cancelFunc := context.WithTimeout(ctx, time.Second*3)
 	defer cancelFunc()
-	return dal.db.Get().WithContext(cancelCtx).Table(data.TableName()).Create(data).Error
+	err := dal.db.Get().WithContext(cancelCtx).Table(data.TableName()).Create(data).Error
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (dal *DetectPolicyDao) DeleteDetectPolicy(ctx context.Context, policyID int64) error {
@@ -64,17 +72,27 @@ func (dal *DetectPolicyDao) UpdateDetectPolicy(ctx context.Context, param images
 	}
 	cancelCtx, cancelFunc := context.WithTimeout(ctx, time.Second*3)
 	defer cancelFunc()
+
 	db := dal.db.Get().WithContext(cancelCtx).Table(new(imagesecModel.SecurityPolicy).TableName())
-	db = db.Where("id = ?", param.ID).Where("is_default = ?", false).Where("deleted_at = ?", 0)
+
+	db = db.Where("id = ?", param.ID)
+
+	if !param.UpdateDefault {
+		db = db.Where("is_default = ?", false)
+	}
 
 	if len(param.Updater) > 0 {
-		return db.Updates(param.Updater).Error
+		if err := db.Updates(param.Updater).Error; err != nil {
+			return nil
+		}
 	}
+
 	return nil
 }
 
 func (dal *DetectPolicyDao) SearchDetectPolicy(ctx context.Context, param imagesecModel.SearchSecurityPolicyParam) (
 	[]*imagesecModel.SecurityPolicy, int64, error) {
+
 	cancelCtx, cancelFunc := context.WithTimeout(ctx, time.Second*3)
 	defer cancelFunc()
 
@@ -90,6 +108,21 @@ func (dal *DetectPolicyDao) SearchDetectPolicy(ctx context.Context, param images
 		clusterMap[clusters[i].Key] = clusters[i].Name
 	}
 
+	regs := make([]imagesecModel.Registry, 0)
+	if err := dal.db.Get().WithContext(cancelCtx).Table(new(imagesecModel.Registry).TableName()).
+		Find(&regs).Error; err != nil {
+		return nil, 0, err
+	}
+
+	regMap := make(map[int64]string)
+	for i := range regs {
+		if param.JustRegName {
+			regMap[regs[i].ID] = regs[i].Name
+		} else {
+			regMap[regs[i].ID] = fmt.Sprintf("%s(%s)", regs[i].Name, regs[i].Url)
+		}
+	}
+
 	db := dal.db.Get().WithContext(cancelCtx).Table(new(imagesecModel.SecurityPolicy).TableName())
 
 	if len(param.Ids) > 0 {
@@ -101,6 +134,15 @@ func (dal *DetectPolicyDao) SearchDetectPolicy(ctx context.Context, param images
 		db = db.Where("deleted_at > ?", 0)
 	}
 
+	if util.ExistInStringSlice(param.Enable, consts.TrueString) && util.ExistInStringSlice(param.Enable, consts.FalseString) {
+		param.Enable = make([]string, 0)
+	}
+
+	if len(param.Enable) > 0 && param.Enable[0] == consts.TrueString {
+		db = db.Where("enable = ?", true)
+	} else if len(param.Enable) > 0 && param.Enable[0] == consts.FalseString {
+		db = db.Where("enable = ?", false)
+	}
 	if param.Default == consts.TrueString {
 		db = db.Where("is_default = ?", true)
 	} else if param.Default == consts.FalseString {
@@ -109,6 +151,15 @@ func (dal *DetectPolicyDao) SearchDetectPolicy(ctx context.Context, param images
 
 	if param.Keyword != "" {
 		db = db.Where("name LIKE ? ", fmt.Sprintf("%%%s%%", param.Keyword))
+	}
+	if param.PolicyType != "" {
+		db = db.Where("policy_type = ? ", param.PolicyType)
+	}
+	if util.ExistInStringSlice(param.DeployMod, imagesecModel.ImageSafeString) && util.ExistInStringSlice(param.DeployMod, imagesecModel.BaseImageTypeString) {
+		param.DeployMod = make([]string, 0)
+	}
+	if len(param.DeployMod) > 0 && param.DeployMod[0] != "" {
+		db = db.Where("deploy_mod = ? ", param.DeployMod[0])
 	}
 	var cnt int64
 
@@ -134,9 +185,50 @@ func (dal *DetectPolicyDao) SearchDetectPolicy(ctx context.Context, param images
 		return nil, 0, err
 	}
 	for i := range res {
-		res[i].Deserialize(clusterMap)
+		res[i].Deserialize(clusterMap, regMap)
 		res[i].ChangePolicyName(ctx)
 	}
 
 	return res, cnt, err
+}
+
+func (dal *DetectPolicyDao) SearchDetectPolicySnapshot(ctx context.Context, param imagesecModel.SearchSecurityPolicyParam) ([]imagesecModel.SecurityPolicy, error) {
+	cancelCtx, cancelFunc := context.WithTimeout(ctx, time.Second*3)
+	defer cancelFunc()
+
+	ans := make([]*imagesecModel.SecurityPolicySnapshot, 0)
+	db := dal.db.Get().WithContext(cancelCtx).Model(&imagesecModel.SecurityPolicySnapshot{})
+	if param.UniqueID > 0 {
+		db = db.Where("unique_id = ?", param.UniqueID)
+	}
+	if len(param.UniqueIds) > 0 {
+		db = db.Where("unique_id IN ?", param.UniqueIds)
+	}
+
+	db = model.AddFilter(db, param.Filter)
+	err := db.Find(&ans).Error
+
+	if err != nil {
+		return nil, err
+	}
+	res := make([]imagesecModel.SecurityPolicy, 0)
+	for i := range ans {
+		ans[i].Deserialize()
+		res = append(res, ans[i].SecurityPolicy)
+	}
+	return res, nil
+}
+
+func (dal *DetectPolicyDao) CreateDetectPolicySnapshot(ctx context.Context, data *imagesecModel.SecurityPolicy) error {
+
+	sna := &imagesecModel.SecurityPolicySnapshot{
+		UniqueID:       data.UniqueID,
+		PolicyID:       data.ID,
+		SecurityPolicy: *data,
+	}
+	sna.Serialize()
+	cancelCtx, cancelFunc := context.WithTimeout(ctx, time.Second*3)
+	defer cancelFunc()
+
+	return dal.db.Get().WithContext(cancelCtx).Model(imagesecModel.SecurityPolicySnapshot{}).Create(sna).Error
 }

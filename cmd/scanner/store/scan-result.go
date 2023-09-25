@@ -167,7 +167,7 @@ func (dal *ImageScanResultDao) SearchScanImage(ctx context.Context, param images
 				soft = append(soft, &model.ImageSoftware{
 					Name:    layer.Software[i].Name,
 					Version: layer.Software[i].Version,
-					Flag:    util.SetBit1(0, model.FlagHasExceptPKG),
+					Flag:    util.SetBit1(0, imagesec.FlagHasExceptionPKG),
 				})
 			}
 		}
@@ -863,18 +863,14 @@ func (dal *ImageScanResultDao) CreateSoftwareToImage(ctx context.Context, imageI
 	return nil
 }
 
-var SingeScanResultDAO *ImageScanResultDao
-
-func GetSingeScanResultDAO() *ImageScanResultDao {
-	if SingeScanResultDAO != nil {
-		return SingeScanResultDAO
-	}
-	SingeScanResultDAO = NewImageScanResultDao(GetScannerWrapperDb())
-	return SingeScanResultDAO
-}
+var singeScanResultDAO *ImageScanResultDao
 
 func NewImageScanResultDao(rdb *databases.RDBInstance) *ImageScanResultDao {
-	return &ImageScanResultDao{rdb: rdb}
+	if singeScanResultDAO != nil {
+		return singeScanResultDAO
+	}
+	singeScanResultDAO = &ImageScanResultDao{rdb: rdb}
+	return singeScanResultDAO
 }
 
 func DuplicateSoft(data []*model.ImageSoftware) []*model.ImageSoftware {

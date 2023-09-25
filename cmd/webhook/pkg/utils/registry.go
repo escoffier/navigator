@@ -12,7 +12,9 @@ import (
 
 	"github.com/google/go-containerregistry/pkg/name"
 	registry2 "github.com/heroku/docker-registry-client/registry"
-	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry"
+
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry/warehouse"
+
 	"gitlab.com/security-rd/go-pkg/logging"
 )
 
@@ -98,7 +100,7 @@ func getImageDigest(userName, password string, skipTLSVerify bool, imageName str
 		}
 	}
 
-	dig, _, err1 := registry.SHA256(bytes.NewReader(data))
+	dig, _, err1 := warehouse.SHA256(bytes.NewReader(data))
 	if err1 != nil {
 		return "", err1
 	}

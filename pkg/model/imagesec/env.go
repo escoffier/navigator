@@ -24,6 +24,7 @@ type ImageEnv struct {
 func (vi *ImageEnv) GenUniqueID() uint64 {
 	key := fmt.Sprintf(UniqueEnvFormat, vi.ImageUniqueID, vi.Key, vi.Value, vi.LayerDigest)
 	uid := util.GenerateUUID64(key)
+	vi.UniqueID = uid
 	return uid
 }
 

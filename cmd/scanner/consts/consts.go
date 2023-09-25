@@ -105,8 +105,7 @@ const (
 	SpecialImageTypeK8s  = "k8s"
 	DefaultVulnTopNImage = 5
 	MaxVulnTopNImage     = 20
-	DefaultBathSize      = 500 // 批量取数据时，默认每次取的条数
-	DefaultLimit         = 200
+	DefaultMaxLimit      = 100
 	DefaultOffset        = 0
 	DefaultPerPage       = 10
 
@@ -132,5 +131,6 @@ const (
 
 const (
 	ScannerVersion211    = "2.11.1"
+	ScannerVersion220    = "2.20"
 	ScannerVersionLatest = "latest"
 )

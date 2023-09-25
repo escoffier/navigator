@@ -12,6 +12,7 @@ import (
 
 const (
 	WebshellKafkaTopic   = "ivan_scanner_webshell"
+	WebshellKafkaKey     = "ivan_scanner_webshell_key"
 	WebshellKafkaGroupID = "ivan_scanner_webshell_scanner"
 	WebshellSize         = (1 << 20) * 10
 )
@@ -62,7 +63,7 @@ type TblB struct {
 	FilePath      string `json:"filePath" gorm:"column:filePath;type:text"`
 	Md5Hash       string `json:"md5Hash" gorm:"column:md5hash;type:text"`
 	Description   string `json:"description" gorm:"column:description;type:text"`
-	MaliciousData string `json:"maliciousData" gorm:"malicous_data;type:text"`
+	MaliciousData string `json:"maliciousData" gorm:"malicous_data;type:text"` // fixme会不会是写错的了哦
 }
 
 func (TblB) TableName() string {

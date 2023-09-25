@@ -49,10 +49,10 @@ type ImageWithCorrelateData struct {
 	BaseImageCnt      int64
 	AppImages         []*ImageBaseResponse // 应用镜像列表
 	AppImageCnt       int64
-	Container         []*ImageContainerResources
+	Container         []*ContainerResources
 	SubTask           []model.SubTask
 	SubTaskCnt        int64
-	Registry          *model.Registry
+	Registry          *Registry
 }
 
 func imageListToImage(im model.ImageList) Image {
@@ -91,7 +91,7 @@ func convertSensitiveFile(ss []*model.ImageSensitiveFile) []*SensitiveFile {
 		ans = append(ans, &SensitiveFile{
 			ID:            ss[i].ID,
 			UniqueID:      ss[i].UniqueID,
-			Name:          ss[i].Name,
+			Filename:      ss[i].Name,
 			DescriptionEn: ss[i].DescriptionEn,
 			DescriptionZh: ss[i].DescriptionZh,
 			CreatedAt:     ss[i].CreatedAt,
@@ -164,6 +164,7 @@ func convertWebshell(ss []*scannermodel.Webshell) []*WebshellView {
 			Description: ss[i].Description,
 			CreatedAt:   ss[i].CreatedAt,
 			UpdatedAt:   ss[i].UpdatedAt,
+			CodeJSON:    ss[i].MaliciousData,
 		}
 
 		// home/webshell/SS.PhP
@@ -213,18 +214,15 @@ func convertPkg(ss []*model.ImageSoftware) []*Pkg {
 			Version:   ss[i].Version,
 			CreatedAt: ss[i].CreatedAt,
 			UpdatedAt: ss[i].UpdatedAt,
-			License:   make([]string, 0),
+			License:   ss[i].License,
 			DependsOn: make([]string, 0),
 		}
 
-		if ss[i].License != "" {
-			pkg.License = strings.Split(ss[i].License, " ") // 老版本是用空格分格
-		}
-		if util.ExistBit1(ss[i].Flag, model.FlagHasExceptPKG) {
+		if util.ExistBit1(ss[i].Flag, FlagHasExceptionPKG) {
 			pkg.PolicyDetect.Exception = true
 		}
-		if util.ExistBit1(ss[i].Flag, model.FlagHasExceptLicense) {
-			pkg.PolicyDetect.ExceptionLicense = true
+		if util.ExistBit1(ss[i].Flag, FlagHasExceptionPkgLicense) {
+			pkg.PolicyDetect.ExceptionPkgLicense = true
 		}
 
 		ans = append(ans, pkg)
@@ -257,7 +255,7 @@ func ConvertVuln(ss []*model.Vuln) []*VulnView {
 			AttackPathView: GetVulnAVView(model.LangZh)[ss[i].Attr["AV"]],
 			Class:          ss[i].Class,
 			ClassView:      ss[i].GetVulnClassView(),
-			KernelVuln:     util.ExistBit1(ss[i].Flag, VulnFlagKernelPkg),
+			KernelVuln:     util.ExistBit1(ss[i].Flag, VulnFlagKernel),
 			Language:       ss[i].Language,
 			FixedVersion:   ss[i].FixedBy,
 			Frame:          ss[i].Frame,
@@ -298,17 +296,16 @@ func (iws *ImageWithCorrelateData) Adapt() *ImageWithCorrelateData2 {
 		VulnCnt:      iws.VulnCnt,
 		Pkg:          convertPkg(iws.Software),
 		PkgCnt:       iws.SoftwareCnt,
-		License:      iws.License,
 		Malware:      convertMalware(iws.Virus),
 		MalwareCnt:   iws.VirusCnt,
 		BaseImages:   iws.BaseImages,
 		BaseImageCnt: iws.BaseImageCnt,
 		AppImages:    iws.AppImages,
 		AppImageCnt:  iws.AppImageCnt,
-		Container:    iws.Container,
-		ScanSubTask:  convertSubtask(iws.SubTask),
-		SubTaskCnt:   iws.SubTaskCnt,
-		Registry:     iws.Registry,
+		// Container:    iws.Container,
+		ScanSubTask: convertSubtask(iws.SubTask),
+		SubTaskCnt:  iws.SubTaskCnt,
+		Registry:    iws.Registry,
 	}
 	return ans
 }

@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"reflect"
 	"testing"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	json "github.com/json-iterator/go"
@@ -235,4 +236,18 @@ func TestListDeduplicate(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestDaysSinceUnixEpoch(t *testing.T) {
+	convey.Convey("DaysSinceUnixEpoch ", t, func() {
+		unixEpoch := time.Date(1970, time.January, 1, 1, 0, 0, 0, time.UTC)
+		convey.So(DaysSinceUnixEpoch(unixEpoch), convey.ShouldEqual, 1)
+	})
+}
+
+func TestHourSinceUnixEpoch(t *testing.T) {
+	convey.Convey("HourSinceUnixEpoch ", t, func() {
+		unixEpoch := time.Date(1970, time.January, 1, 1, 0, 0, 0, time.UTC)
+		convey.So(HourSinceUnixEpoch(unixEpoch), convey.ShouldEqual, 2)
+	})
 }

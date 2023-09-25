@@ -6,6 +6,7 @@ import (
 	"context"
 	"crypto/md5"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -14,6 +15,9 @@ import (
 	"strings"
 
 	dockerarchive "github.com/docker/docker/pkg/archive"
+	"github.com/segmentio/kafka-go"
+	"gitlab.com/security-rd/go-pkg/mq"
+
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	scannermodel "gitlab.com/piccolo_su/vegeta/pkg/model/scanner-model"
 )
@@ -21,6 +25,7 @@ import (
 type WebshellScan struct {
 	WebshellAddr string
 	TotalFileNum int64
+	MqWriter     mq.Writer
 }
 
 func (w *WebshellScan) FileMD5(tar io.Reader) (string, error) {
@@ -47,6 +52,29 @@ func (w *WebshellScan) ScanLayer(ctx context.Context, digest string, layerPath s
 	}
 	return nil
 
+}
+
+func (w *WebshellScan) SendKafka(saveInfo scannermodel.WebshellSaveInfo) error {
+	// if len(saveInfo.Data) == 0 {
+	// 	logging.GetLogger().Error().Msg("WebshellScan file data is empty")
+	// 	return nil
+	// }
+
+	bys, err := json.Marshal(saveInfo)
+	if err != nil {
+		return err
+	}
+
+	err = w.MqWriter.Write(context.Background(), scannermodel.WebshellKafkaTopic, kafka.Message{
+		Key:   []byte(scannermodel.WebshellKafkaKey),
+		Value: bys,
+	})
+	if err != nil {
+		logging.GetLogger().Err(err).Str("Filename", saveInfo.Filename).Str("FileMd5", saveInfo.FileMd5).Msg("WebshellScan SendKafka")
+		return err
+	}
+	logging.GetLogger().Debug().Int("Data", len(saveInfo.Data)).Str("FileMd5", saveInfo.FileMd5).Msg("WebshellScan SendKafka")
+	return nil
 }
 
 func (w *WebshellScan) parseLayerTar(tarFileName string, digestPath string, digest string, mp map[string][]scannermodel.WebshellFileInfo, IDMap scannermodel.IDMap) (uint64, error) {
@@ -104,19 +132,32 @@ func (w *WebshellScan) parseLayerTar(tarFileName string, digestPath string, dige
 			fileByte, err := io.ReadAll(tarReader)
 			if err != nil {
 				logging.GetLogger().Err(err).Msgf("copy from tarReader error")
+				continue
+			}
+			if len(fileByte) == 0 {
+				continue
 			}
 			fileMd5, err := w.FileMD5(bytes.NewReader(fileByte))
 			if err != nil {
+				logging.GetLogger().Err(err).Msgf("FileMD5")
+				continue
+			}
+			saveInfo := scannermodel.WebshellSaveInfo{
+				FileMd5: fileMd5,
+				Data:    fileByte,
+			}
+			if err := w.SendKafka(saveInfo); err != nil {
 				logging.GetLogger().Err(err).Msg("generate md5 failed")
 				continue
 			}
+
 			tmpPath := filepath.Join(digestPath, fileMd5)
 			tmpfs, err := os.Create(tmpPath)
 			if err != nil {
 				logging.GetLogger().Err(err).Msg("generate tmpFile failed")
 				continue
 			}
-			//logging.GetLogger().Info().Msgf("name :%v,size:%v", header.Name, header.Size)
+
 			_, err = io.Copy(tmpfs, bytes.NewReader(fileByte))
 			if err != nil {
 				logging.GetLogger().Err(err).Msg("copy tmpFile failed")
@@ -129,6 +170,7 @@ func (w *WebshellScan) parseLayerTar(tarFileName string, digestPath string, dige
 			tmpInfo.FileName = header.Name
 			tmpInfo.Size = header.Size
 			tmpInfo.LayerDigest = digest
+			tmpInfo.Md5Hash = fileMd5
 			tmpInfo.ModeTime = header.ModTime.UnixMilli()
 			tmpInfo.Mode = header.FileInfo().Mode().String()
 			mp[fileMd5] = append(mp[fileMd5], tmpInfo)

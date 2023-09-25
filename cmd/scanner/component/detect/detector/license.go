@@ -11,32 +11,38 @@ func CheckImageLicense(ctx context.Context, data *imagesecModel.ImageWithCorrela
 	policy *imagesecModel.SecurityPolicy) []*imagesecModel.ImageDetectResult {
 
 	ans := make([]*imagesecModel.ImageDetectResult, 0)
-	if !policy.License.Enable {
+	if policy == nil || data == nil || data.Image.ID <= 0 || !policy.Enable || !policy.License.Enable || len(data.License) == 0 {
 		return ans
 	}
 	black := policy.License.Black
 
-	for i := range data.Pkg {
-		licenses := data.Pkg[i].License
+	for i := range data.License {
 		var flag uint64
-
 		for j := range black {
-			for k := range licenses {
-				if licenses[k] == black[j] {
-					flag = util.SetBit1(util.SetBit1(flag, imagesecModel.FlagDetectInBlack),
-						imagesecModel.FlagDetectException)
-				}
+			if data.License[i].Name == black[j] {
+				flag = util.SetBit1(flag, imagesecModel.FlagDetectInBlack)
+				flag = util.SetBit1(flag, imagesecModel.FlagDetectException)
 			}
 		}
 
+		if util.ExistBit1(flag, imagesecModel.FlagDetectException) && !util.ExistBit1(flag, imagesecModel.FlagDetectInWhite) {
+			switch policy.License.Action {
+			case imagesecModel.DeployActionBlock:
+				flag = util.SetBit1(flag, imagesecModel.FlagDetectDeployActionBlock)
+			case imagesecModel.DeployActionAlarm:
+				flag = util.SetBit1(flag, imagesecModel.FlagDetectDeployActionAlarm)
+			}
+		}
 		if flag > 0 {
-			ans = append(ans, &imagesecModel.ImageDetectResult{
-				DetectType:    imagesecModel.DetectTypePkgLicenseRule,
+			red := &imagesecModel.ImageDetectResult{
+				DetectType:    imagesecModel.DetectTypeLicenseRule,
 				Flag:          flag,
-				UniqueTarget:  data.Pkg[i].UniqueID,
+				UniqueTarget:  data.License[i].UniqueID,
 				ImageUniqueID: data.Image.UniqueID,
 				PolicyID:      policy.ID,
-			})
+			}
+
+			ans = append(ans, red)
 		}
 	}
 	return ans

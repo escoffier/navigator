@@ -8,8 +8,8 @@ create table if not exists ivan_scan_node_info
     ip          varchar(200)    not null default '' comment '节点IP',
     cluster_key varchar(200)    not null default '' comment '节点clusterKey',
     clamav_db   bigint unsigned not null default 0,
-    avira_db   bigint unsigned not null default 0,
-    webshell_db   bigint unsigned not null default 0,
+    avira_db    bigint unsigned not null default 0,
+    webshell_db bigint unsigned not null default 0,
 
 
     created_at  bigint unsigned not null default 0,

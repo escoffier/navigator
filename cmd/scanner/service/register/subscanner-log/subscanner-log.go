@@ -36,7 +36,7 @@ func (s *SubScannerLogService) getDao(name string) store.SubScannerInterface {
 func (s *SubScannerLogService) dispatchSql(ctx context.Context, data scannermodel.SubScannerToMainSql) error {
 	dal := s.getDao(data.DalName)
 	if dal == nil {
-		def := store.GetScannerWrapperDb()
+		def := store.GetRDBInstance()
 		if data.Action == scannermodel.SubSqlUpdate {
 			err := def.Get().Model(data.Data).Updates(data.Data).Omit("id").Error // 不指定dal的情况下需要谨慎使用
 			if err != nil {

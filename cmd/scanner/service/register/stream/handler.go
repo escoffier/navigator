@@ -23,7 +23,38 @@ type GrpcHandler struct {
 }
 
 func (g *GrpcHandler) OnCreate(s rpcstream.Stream, reqID string, message protoreflect.ProtoMessage) {
-	logging.Get().Error().Str("reqID", reqID).Msg("onCreate not implement")
+	req := message.(*pb.ImageSecReq)
+	msgType := req.ImageSecReqType
+	msgID := req.RequestID
+	logging.Get().Info().
+		Str("reqID", reqID).
+		Str("msgID", msgID).
+		Int32("type", int32(msgType)).
+		Str("dstClusterKey", req.ClusterKey).
+		Msg("rcv image sec grpc msg")
+
+	rspFunc := func() {
+		resp := &pb.ImageSecResp{}
+		resp.Status = 3 // test
+		resp.StatusMessage = "not rcv ok"
+
+		err := s.SendResponse(reqID, resp)
+		if err != nil {
+			logging.Get().Err(err).Str("msgID", msgID).Str("reqID", reqID).Msg("failed to send response")
+		} else {
+			logging.Get().Info().Str("msgID", msgID).Str("reqID", reqID).Msg("send response ok")
+		}
+	}
+	switch msgType {
+	case pb.ImageSecReqType_RegistryHealthyCheck:
+		rspFunc()
+	case pb.ImageSecReqType_RegistryImageSync:
+		rspFunc()
+	case pb.ImageSecReqType_RegistryImageScan:
+		rspFunc()
+	default:
+		logging.Get().Error().Int32("type", int32(msgType)).Msg("not support msg type")
+	}
 }
 
 func (g *GrpcHandler) OnRead(s rpcstream.Stream, reqID string, message protoreflect.ProtoMessage) {

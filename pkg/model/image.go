@@ -13,26 +13,6 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 )
 
-const (
-	BaseImageType              = 1
-	AppImageType               = 0
-	BaseImageTypeString        = "base"
-	AppImageTypeString         = "app"
-	AndString                  = "and"
-	OrString                   = "or"
-	TrueString                 = "true"
-	FalseString                = "false"
-	TrustedString              = "trusted"
-	UnTrustedString            = "untrusted"
-	HasFixedVulnString         = "hasFixedVuln"
-	ImageHasSuggestionString   = "imageHasSuggestion"
-	NodeImageNotLibImageString = "nodeImageNotLibImage"
-
-	ImageSafeString   = "safe"    // 镜像的安全状态：安全
-	ImageUnsafeString = "unsafe"  // 镜像的安全状态:风险
-	ImageSafeUnknown  = "unknown" // 镜像的安全状态:未知
-)
-
 type ImageInfo struct {
 	ID           int64  `json:"id"`
 	Digest       string `json:"digest"`
@@ -152,25 +132,6 @@ type Artifacts1 struct {
 	PullTime  time.Time     `json:"pull_time"`
 }
 
-type OverView struct {
-	ImageTotal  int64                 `json:"imageTotal"`
-	OnlineTotal int64                 `json:"onlineTotal"`
-	Sum         SecurityIssueOverview `json:"sum"`
-	Online      SecurityIssueOverview `json:"online"`
-	DetectRisk  SecurityIssueOverview `json:"detectRisk"`
-}
-
-type SecurityIssueOverview struct {
-	VULN           int64 `json:"vuln"`
-	VIRUS          int64 `json:"virus"`
-	SENSITIVE      int64 `json:"sensitive"`
-	Webshell       int64 `json:"webshell"`
-	Envs           int64 `json:"envs"`
-	Software       int64 `json:"software"`
-	License        int64 `json:"license"`
-	PrivilegedBoot int64 `json:"privilegedBoot"`
-}
-
 // ImageList 镜像信息表
 type ImageList struct {
 	ID                int64                   `gorm:"primary_key;AUTO_INCREMENT" json:"id" `
@@ -264,43 +225,43 @@ func (im *ImageList) FromTypeToString() string {
 }
 
 func (im *ImageList) SetScanStatusFlag(status uint64) {
-	if status < FlagImageScanUnknown || status > FlagImageNotScan {
-		return
-	}
-	scanStatusFlag := GetScanStatusFlag()
-
-	flag := im.Flag
-	for i := range scanStatusFlag {
-		flag = util.SetBit0(flag, scanStatusFlag[i])
-	}
-
-	// 然后设置成1
-	flag = util.SetBit1(flag, status)
-	im.Flag = flag
+	// if status < imagesec.FlagImageScanUnknown || status > imagesec.FlagImageNotScan {
+	// 	return
+	// }
+	// scanStatusFlag := imagesec.GetScanStatusFlag()
+	//
+	// flag := im.Flag
+	// for i := range scanStatusFlag {
+	// 	flag = util.SetBit0(flag, scanStatusFlag[i])
+	// }
+	//
+	// // 然后设置成1
+	// flag = util.SetBit1(flag, status)
+	// im.Flag = flag
 }
 
 func (im *ImageList) IsItNotScanned() bool {
-	scanStatusFlag := GetScanStatusFlag()
-	flag := im.Flag
-
-	for i := range scanStatusFlag {
-		if flag&(1<<scanStatusFlag[i]) == 1 {
-			return true
-		}
-	}
+	// scanStatusFlag := imagesec.GetScanStatusFlag()
+	// flag := im.Flag
+	//
+	// for i := range scanStatusFlag {
+	// 	if flag&(1<<scanStatusFlag[i]) == 1 {
+	// 		return true
+	// 	}
+	// }
 	return false
 }
 
 func (im *ImageList) SetFlagBaseImage() {
-	flag := im.Flag
-	flag = util.SetBit1(flag, FlagBaseImage)
-	im.Flag = flag
+	// flag := im.Flag
+	// flag = util.SetBit1(flag, imagesec.FlagBaseImage)
+	// im.Flag = flag
 }
 
 func (im *ImageList) SetFlagAppImage() {
-	flag := im.Flag
-	flag = util.SetBit0(flag, FlagBaseImage)
-	im.Flag = flag
+	// flag := im.Flag
+	// flag = util.SetBit0(flag, imagesec.FlagBaseImage)
+	// im.Flag = flag
 }
 
 func (im *ImageList) Serialize() {
@@ -411,7 +372,7 @@ func (im *ImageList) GetLayerString() string {
 	// 再看v1
 	if len(lays) == 0 && im.ManifestV1 != nil {
 		for j := range im.ManifestV1.HistoryV1 {
-			lays = append(lays, "sha256:"+im.ManifestV1.HistoryV1[j].LayerDegest)
+			lays = append(lays, "sha256:"+im.ManifestV1.HistoryV1[j].LayerDigest)
 		}
 	}
 	// 转成uuid的方式，缩短索引长度
@@ -423,17 +384,45 @@ func (im *ImageList) GetLayerString() string {
 }
 
 func (im *ImageList) GenImageFlag() {
-	flag := im.Flag
-	boot := false
+	// flag := im.Flag
+	// boot := false
+	//
+	// if im.ConfigFile != nil {
+	// 	if im.ConfigFile.Config.User == "" || strings.Contains(im.ConfigFile.Config.User, "root") {
+	// 		flag = util.SetBit1(flag, imagesec.FlagExceptionBoot)
+	// 		boot = true
+	// 	}
+	// }
+	// if !boot {
+	// 	flag = util.SetBit0(flag, imagesec.FlagExceptionBoot)
+	// }
+	// im.Flag = flag
+}
 
-	if im.ConfigFile != nil {
-		if im.ConfigFile.Config.User == "" || strings.Contains(im.ConfigFile.Config.User, "root") {
-			flag = util.SetBit1(flag, FlagPrivilegedBoot)
-			boot = true
-		}
-	}
-	if !boot {
-		flag = util.SetBit0(flag, FlagPrivilegedBoot)
-	}
-	im.Flag = flag
+// 兼容老代码，等稳定运行一个版本后，再删除
+type Registry struct {
+	ID              int64  `gorm:"primaryKey" json:"id"`
+	Name            string `gorm:"type:varchar(255);uniqueIndex:uniq_idx_registry_name;priority:1" json:"name"` // 仓库名字,仓库名是仓库的唯一标识,一个仓库名称  对应一个用户
+	RegType         string `gorm:"type:varchar(255);column:reg_type" json:"reg_type"`                           // 仓库类型
+	Url             string `gorm:"type:varchar(255);column:url" json:"url"`                                     // 如:docker.io/v2, quay.io/v2
+	Username        string `gorm:"type:varchar(255);column:username" json:"username"`                           // user for login registry
+	Password        []byte `gorm:"type:blob" json:"-"`                                                          // DES加密
+	PasswordString  string `gorm:"-" json:"password"`
+	Token           string `gorm:"-" json:"token"`
+	Description     string `gorm:"type:varchar(255);column:description"  json:"description"`
+	AuthStr         string `gorm:"-" json:"auth_str"`                         // 用户名和密码加密后的数据，不存入数据库中
+	SyncInterval    int64  `gorm:"column:sync_interval" json:"sync_interval"` // 单位：分钟
+	LastSyncAt      int64  `gorm:"column:last_sync_at" json:"last_sync_at"`   // 最后一次同步时间(单位：秒)
+	AccessKey       string `gorm:"access_key" json:"access_key"`              // 阿里云仓库的AccessKey
+	AccessSecret    string `gorm:"access_secret" json:"access_secret"`        // 阿里云仓库的AccessSecret
+	InstanceID      string `gorm:"instance_id" json:"instance_id"`            // 阿里云仓库企业版实例ID
+	RegionID        string `gorm:"region_id" json:"region_id"`                // 阿里云仓库企业版地域ID
+	ScannerInstance string `gorm:"scanner_instance" json:"scanner_instance"`  // 当前仓库所用扫描器
+	Status          string `gorm:"column:status" json:"status"`               // 健康状况
+	HealthMsg       string `gorm:"column:health_msg" json:"health_msg"`       // 不健康时的错误信息
+	HeatBeat        int64  `gorm:"column:heat_beat" json:"heat_beat"`         // 上一次检查时间
+
+	CreatedAt time.Time `gorm:"column:created_at" json:"created_at"`
+	UpdatedAt time.Time `gorm:"column:updated_at" json:"updated_at"`
+	DeletedAt int64     `gorm:"column:deleted_at; default:0;uniqueIndex:uniq_idx_registry_name;priority:2" json:"deleted_at"`
 }

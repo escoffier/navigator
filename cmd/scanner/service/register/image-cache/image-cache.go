@@ -14,8 +14,9 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"gitlab.com/piccolo_su/vegeta/cmd/scanner/service/register"
 	"gitlab.com/security-rd/go-pkg/logging"
+
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/service/register"
 )
 
 const (
@@ -108,7 +109,7 @@ func (s *ScannerImageCacheService) IsLayerPulled(digest string) bool {
 
 func (s *ScannerImageCacheService) IncLayerRefCount(digest string) {
 	s.layerList[digest].refCount = s.layerList[digest].refCount + 1
-	logging.Get().Info().Msgf("digest %s,ADD layer refcount(%d)  ", digest, s.layerList[digest].refCount)
+	logging.Get().Debug().Msgf("digest %s,ADD layer refcount(%d)  ", digest, s.layerList[digest].refCount)
 }
 
 func (s *ScannerImageCacheService) IsLayerNoRef(digest string) bool {
@@ -128,7 +129,7 @@ func (s *ScannerImageCacheService) DecLayerRefCount(digest string) error {
 		return nil
 	}
 	s.layerList[digest].refCount = s.layerList[digest].refCount - 1
-	logging.Get().Info().Msgf("DecRef ref count(%d) ", s.layerList[digest].refCount)
+	logging.Get().Debug().Msgf("DecRef ref count(%d) ", s.layerList[digest].refCount)
 	return nil
 }
 
@@ -189,7 +190,7 @@ func (s *ScannerImageCacheService) ResponseCodeAndMsg(code int, msg, digest stri
 	} else {
 		ctx.JSON(http.StatusBadRequest, rsp)
 	}
-	logging.Get().Info().Msgf("server resp %v", rsp)
+	logging.Get().Debug().Msgf("server resp %v", rsp)
 }
 
 func (s *ScannerImageCacheService) ResponseOK(digest string, ctx *gin.Context) {
@@ -221,7 +222,7 @@ func (s *ScannerImageCacheService) ResponseErr(digest string, ctx *gin.Context) 
 func (s *ScannerImageCacheService) handleDelete(ctx *gin.Context) {
 	// repository 	:= ctx.Query("repository")
 	digest := ctx.Query("digest")
-	logging.Get().Info().Msgf("get delete req,digest %s", digest)
+	logging.Get().Debug().Msgf("get delete req,digest %s", digest)
 
 	s.taskLock.Lock()
 	if !s.IsLayerExist(digest) {
@@ -244,7 +245,7 @@ func (s *ScannerImageCacheService) handleDelete(ctx *gin.Context) {
 			logging.Get().Err(err).Msgf("delete layer file err,digest %s", digest)
 		}
 	} else {
-		logging.Get().Info().Msgf("digest %s still has ref,no delete", digest)
+		logging.Get().Debug().Msgf("digest %s still has ref,no delete", digest)
 	}
 
 	// delete from layerlist
@@ -345,7 +346,7 @@ func (s *ScannerImageCacheService) handleManifest(ctx *gin.Context) {
 
 // url : http://0.0.0.0:xxx/layer?
 func (s *ScannerImageCacheService) handlePost(ctx *gin.Context) {
-	logging.Get().Info().Msg("local layer manage get post request")
+	logging.Get().Debug().Msg("local layer manage get post request")
 
 	var body []byte
 	if ctx.Request.Body != nil {
@@ -374,12 +375,12 @@ func (s *ScannerImageCacheService) handlePost(ctx *gin.Context) {
 		})
 	}
 
-	logging.Get().Info().Msgf("get request %+v", rq)
+	logging.Get().Debug().Msgf("get request %+v", rq)
 
 	s.taskLock.Lock()
 	// check if already pulled
 	if s.IsLayerExist(rq.Digest) {
-		logging.Get().Info().Msgf("layer %s exist", rq.Digest)
+		logging.Get().Debug().Msgf("layer %s exist", rq.Digest)
 		s.IncLayerRefCount(rq.Digest)
 		s.taskLock.Unlock()
 		if s.IsLayerPulled(rq.Digest) {
@@ -389,19 +390,19 @@ func (s *ScannerImageCacheService) handlePost(ctx *gin.Context) {
 		}
 		// if exist but not pulled,go to WaitLayerPulled
 	} else {
-		logging.Get().Info().Msgf("add record ")
+		logging.Get().Debug().Msgf("add record ")
 
 		// not find,add new record
 		s.AddLayerRecord(rq)
 		s.taskLock.Unlock()
 	}
 
-	logging.Get().Info().Msgf("wait layer pulled,refcount %d", s.layerList[rq.Digest].refCount)
+	logging.Get().Debug().Msgf("wait layer pulled,refcount %d", s.layerList[rq.Digest].refCount)
 
 	// check if layer has been pulled
 	s.WaitLayerPulled(rq.Digest)
 
-	logging.Get().Info().Msgf("layer %s check end", rq.Digest)
+	logging.Get().Debug().Msgf("layer %s check end", rq.Digest)
 
 	if s.layerList[rq.Digest].status == LayerPulled {
 		s.ResponseOK(rq.Digest, ctx)

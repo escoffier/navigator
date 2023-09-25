@@ -24,7 +24,7 @@ type SavServer struct {
 	scanTaskWg          *sync.WaitGroup
 	dbFileUpdateWg      *sync.WaitGroup
 	subscribeChan       <-chan interface{}
-	nodeImageConfig     imagesecModel.NodeImageConfig // dynamic config synced from console
+	nodeImageConfig     imagesecModel.ImageScanConfig // dynamic config synced from console
 	nodeImageConfigLock sync.RWMutex
 	initConfig          config.Config // init config loaded from yaml
 	AviraDBPathInfo     types.DBPathInfo
@@ -70,7 +70,7 @@ func (s *SavServer) Run() error {
 	return nil
 }
 
-func (s *SavServer) PreRun(cfg config.Config, nc imagesecModel.NodeImageConfig, bs *util.BroadcastServer) error {
+func (s *SavServer) PreRun(cfg config.Config, nc imagesecModel.ImageScanConfig, bs *util.BroadcastServer) error {
 	// make copy of config
 	s.nodeImageConfig = nc
 	s.initConfig = cfg
@@ -109,7 +109,7 @@ func (s *SavServer) handleAviraDBUpdateEvent(server *avira.SavServer, _ types.No
 	return nil
 }
 
-func (s *SavServer) updateNodeImageConfig(cfg imagesecModel.NodeImageConfig) {
+func (s *SavServer) updateNodeImageConfig(cfg imagesecModel.ImageScanConfig) {
 	s.nodeImageConfigLock.Lock()
 	defer s.nodeImageConfigLock.Unlock()
 	s.nodeImageConfig = cfg

@@ -57,7 +57,7 @@ const (
 
 const (
 	MaxVulnScore             = 50
-	MaxWebshellScore         = 30
+	MaxWebshellScore         = 40
 	MaxVirusScore            = 40
 	MaxSensitiveScore        = 10
 	SingleSensitiveScore     = 5
@@ -88,10 +88,17 @@ const (
 )
 
 const (
-	NodeImageTopic           = "node_image_asset"
-	NodeImageGroup           = "node_image_asset_group"
+	NodeImageTopic = "node_image_asset"
+	NodeImageGroup = "node_image_asset_group"
+	NodeImageKey   = "node_image_asset_key"
+
+	ScanInstanceTopic = "scan_instance"
+	ScanInstanceGroup = "scan_instance_group"
+	ScanInstanceKey   = "scan_instance_key"
+
 	NodeImageScanResultTopic = "node_image_scan_result"
 	NodeImageScanResultGroup = "node_image_scan_result_group"
+	NodeImageScanResultKey   = "node_image_scan_result_key"
 )
 
 var reasonZHMap = map[int64]string{
@@ -185,7 +192,7 @@ func GetVulnRuleKey(vulnLevel string, lag string) string {
 	return ""
 }
 
-var OpenLicense = []string{"GPL", "MIT", "Apache License", "BSD", "MPL"}
+var OpenLicense = []string{"GPL", "MIT", "Apache License", "BSD", "MPL", "FreeBSD", "ISC"}
 
 const (
 	ExportExcel = "excel"

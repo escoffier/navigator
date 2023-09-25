@@ -40,22 +40,24 @@ type WebshellToImage struct {
 }
 
 type WebshellView struct {
-	ID          int64          `json:"id"`
-	UniqueID    uint64         `json:"uniqueID,string"`
-	Filename    string         `json:"filename"`
-	Filepath    string         `json:"filepath"`
-	FileType    string         `json:"filetype"`
-	Size        string         `json:"size"`
-	MD5         string         `json:"md5"`
-	Mod         Mod            `json:"mod"`
-	Code        []WebshellCode `json:"code"`
-	RiskLevel   string         `json:"riskLevel"`
-	Description string         `json:"description"` // 描述。如php一句话木马
-	RiskDetail  string         `json:"riskDetail"`
-	Recommend   string         `json:"recommend"`
-	Version     uint64         `json:"version"`
-	CreatedAt   int64          `json:"createdAt"`
-	UpdatedAt   int64          `json:"updatedAt"`
+	ID               int64          `json:"id"`
+	UniqueID         uint64         `json:"uniqueID,string"`
+	Filename         string         `json:"filename"`
+	Filepath         string         `json:"filepath"`
+	FileType         string         `json:"filetype"`
+	Size             string         `json:"size"`
+	MD5              string         `json:"md5"`
+	Mod              Mod            `json:"mod"`
+	Code             []WebshellCode `json:"code"`
+	CodeJSON         string         `json:"-"` // 原数据
+	RiskLevel        string         `json:"riskLevel"`
+	Description      string         `json:"description"` // 描述。如php一句话木马
+	RiskDetail       string         `json:"riskDetail"`
+	Recommend        string         `json:"recommend"`
+	Version          uint64         `json:"version"`
+	DownloadFilename string         `json:"downloadFilename"`
+	CreatedAt        int64          `json:"createdAt"`
+	UpdatedAt        int64          `json:"updatedAt"`
 
 	PolicyDetect PolicyDetect `json:"policyDetect"` // 对各个策略的检测结果
 }
@@ -63,6 +65,21 @@ type WebshellView struct {
 func (vi *WebshellView) CodeContent() string {
 	if bys, err := json.Marshal(vi.Code); err == nil {
 		return string(bys)
+	}
+	return ""
+}
+
+func (vi *WebshellView) GenFullFilename() string {
+	return vi.Filepath + vi.Filename
+}
+
+func (vi *WebshellView) GenDownloadFilename() string {
+
+	split := strings.Split(vi.Filename, ".")
+	if len(split) > 0 && split[0] != "" {
+		df := split[0] + ".zip"
+		vi.DownloadFilename = df
+		return df
 	}
 	return ""
 }
@@ -101,6 +118,7 @@ func (vi *Webshell) ToWebshellView() *WebshellView {
 		after.Filename = split[len(split)-1]
 		after.Filepath = strings.Join(split[:len(split)-1], "/")
 	}
+
 	if after.Filepath != "" {
 		after.Filepath = after.Filepath + "/"
 	}
@@ -152,6 +170,18 @@ func (vi *Webshell) ToWebshellView() *WebshellView {
 		after.RiskDetail = "webshell"
 	}
 
+	if after.Filepath == "" {
+		after.Filepath = "/"
+	}
+	if !strings.HasPrefix(after.Filepath, "/") {
+		after.Filepath = "/" + after.Filepath
+	}
+	if !strings.HasSuffix(after.Filepath, "/") {
+		after.Filepath = after.Filepath + "/"
+	}
+
+	after.DownloadFilename = after.GenDownloadFilename()
+
 	return &after
 }
 
@@ -187,6 +217,9 @@ func (vi *Webshell) Check() error {
 	if vi.Filename == "" {
 		return fmt.Errorf("not get Filename")
 	}
+	// if vi.MD5 == "" {
+	// 	return fmt.Errorf("not get md5")
+	// }
 	if vi.UniqueID == 0 {
 		vi.UniqueID = vi.GenUniqueID()
 	}
@@ -234,7 +267,9 @@ func (vi *Webshell) Same(after *Webshell) bool {
 
 func (vi *Webshell) GenUniqueID() uint64 {
 	key := fmt.Sprintf(UniqueWebshellFormat, vi.MD5, vi.Filename)
-	return util.GenerateUUID64(key)
+	uid := util.GenerateUUID64(key)
+	vi.UniqueID = uid
+	return uid
 }
 
 func (vi *Webshell) TableName() string {
@@ -260,7 +295,6 @@ func (vi *WebshellToImage) Same(after *WebshellToImage) bool {
 }
 
 func (vi *WebshellToImage) TableName() string {
-	// 由于仓库镜像，节点镜像，CI镜像的数据结构一致，但是数据量较大，所以要做分表处理
 	if vi == nil {
 		return ""
 	}
@@ -372,4 +406,36 @@ func WebshellRecommendEN(rec string) string {
 		ans = "recommend clean"
 	}
 	return ans
+}
+
+type CertainWebshell struct {
+	ID            int64  `json:"id" gorm:"column:id"`
+	Size          int64  `json:"size" gorm:"column:size"`
+	Filepath      string `json:"filepath" gorm:"column:filepath;type:text"`
+	Md5Hash       string `json:"md5Hash" gorm:"column:md5hash;type:text"`
+	Description   string `json:"description" gorm:"column:description;type:text"`
+	MaliciousData string `json:"maliciousData" gorm:"column:malicious_data;type:text"`
+}
+
+func (CertainWebshell) TableName() string {
+	return "tbl_b"
+}
+
+type MaybeWebshell struct {
+	ID            int64  `json:"id" gorm:"column:id"`
+	Size          int64  `json:"size" gorm:"column:size"`
+	Filepath      string `json:"filepath" gorm:"column:filepath;type:text"`
+	Md5Hash       string `json:"md5Hash" gorm:"column:md5hash;type:text"`
+	Description   string `json:"description" gorm:"column:description;type:text"`
+	MaliciousData string `json:"maliciousData" gorm:"column:malicious_data;type:text"`
+}
+
+func (MaybeWebshell) TableName() string {
+	return "tbl_s"
+}
+
+type WebshellKafkaInfo struct {
+	FileMd5  string `json:"fileMd5"`
+	Data     []byte `json:"data"`
+	Filename string `json:"filename"`
 }

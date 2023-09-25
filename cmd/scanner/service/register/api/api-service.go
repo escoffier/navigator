@@ -2,32 +2,31 @@ package api
 
 import (
 	"context"
-	"fmt"
-	"math"
 	"net/http"
-
-	"gitlab.com/security-rd/go-pkg/sdk/palace"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/api"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/ci"
 	dbManage "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/db-manage"
+	deployService "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/deployment"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/detect"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/imagemeta"
-	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/imagescan"
+	aviraengin "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/imagescan/engin/avira"
+	clamavengin "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/imagescan/engin/clamav"
+	imagescanSrv "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/imagescan/service"
 	imagesecSrv "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/imagesec"
-	scanReportService "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scan-report/service"
+	regSrv "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry/service"
 	scanwebshell "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scanner-webshell"
 	flag2 "gitlab.com/piccolo_su/vegeta/cmd/scanner/flag"
+	scanReportService "gitlab.com/piccolo_su/vegeta/cmd/scanner/scan-report/service"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/service/register"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
 	imagesecStore "gitlab.com/piccolo_su/vegeta/cmd/scanner/store/imagesec"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
-	imagesecModel "gitlab.com/piccolo_su/vegeta/pkg/model/imagesec"
 )
 
 const (
-	serviceName = "api-service"
+	serviceName = "api-imagescanSrv"
 )
 
 type Config struct {
@@ -61,13 +60,13 @@ func (s *ScannerAPIService) Stop(ctx context.Context) error {
 func init() {
 	err := register.Register(serviceName, newService)
 	if err != nil {
-		logging.GetLogger().Err(err).Str("serviceName", serviceName).Msg("int service err")
+		logging.GetLogger().Err(err).Str("serviceName", serviceName).Msg("int imagescanSrv err")
 	}
 }
 
 func newService(config register.ScannerServiceConfig) (register.ScannerService, error) {
 	dal := store.GetScannerOrmDb()
-	scannerWrapperDb := store.GetScannerWrapperDb()
+	rdbInstance := store.GetRDBInstance()
 
 	rc, err := store.GetRedisClient(0)
 	if err != nil {
@@ -75,73 +74,80 @@ func newService(config register.ScannerServiceConfig) (register.ScannerService, 
 		return nil, err
 	}
 
-	registryDal := store.NewRegistryDao(scannerWrapperDb)
-	scanConfigDal := store.NewScanConfigDao(scannerWrapperDb)
-	vulnDal := store.NewVulnDao(scannerWrapperDb)
-	scanResultDal := store.NewImageScanResultDao(scannerWrapperDb)
-	ciDal := store.NewCiDao(scannerWrapperDb)
-	userDal := imagesecStore.NewUserDao(scannerWrapperDb)
-	webshellDal := store.NewWebsehllDao(scannerWrapperDb)
-	scannerInstanceDal := store.NewScannerInstanceDao(scannerWrapperDb)
-	scanTaskDal := store.NewScannerOrm(scannerWrapperDb)
-	imageDal := store.NewScannerOrm(scannerWrapperDb)
-	nodeImageDal := imagesecStore.NewImageMetaDao(scannerWrapperDb, nil)
-	nodeReportDal := imagesecStore.NewNodeReportDao(scannerWrapperDb)
-	policyDal := imagesecStore.NewDetectPolicyDao(scannerWrapperDb)
-	detectTaskDal := imagesecStore.NewDetectTaskDao(scannerWrapperDb)
-	detectResultDal := imagesecStore.NewImageDetectResultDao(scannerWrapperDb)
-	nodeScanTaskDal := imagesecStore.NewScanTaskDao(scannerWrapperDb)
+	registryDal := imagesecStore.NewRegistryDao(rdbInstance)
+	vulnDal := store.NewVulnDao(rdbInstance)
+	ciDal := store.NewCiDao(rdbInstance)
+	webshellDal := store.NewWebsehllDao(rdbInstance)
+	scannerInstanceDal := imagesecStore.NewScannerInstanceDao(rdbInstance)
+	nodeImageDal := imagesecStore.NewImageMetaDao(rdbInstance, nil)
+	nodeReportDal := imagesecStore.NewNodeReportDao(rdbInstance)
+	policyDal := imagesecStore.NewDetectPolicyDao(rdbInstance)
+	userDal := imagesecStore.NewUserDao(rdbInstance)
+	scanInstanceDal := imagesecStore.NewScannerInstanceDao(rdbInstance)
+	detectTaskDal := imagesecStore.NewDetectTaskDao(rdbInstance)
+	detectResultDal := imagesecStore.NewImageDetectResultDao(rdbInstance)
+	scanTaskDal := imagesecStore.NewScanTaskDao(rdbInstance)
+	scanTaskPreDal := imagesecStore.NewScanTaskPreDao(rdbInstance)
 
-	nodeScanResultDal := imagesecStore.NewScanResultDao(scannerWrapperDb)
-	sensitiveRuleDal := imagesecStore.NewSensitiveRuleDao(scannerWrapperDb)
-	scannerConfigDal := imagesecStore.NewScannerConfigDao(scannerWrapperDb)
-	syncRetryImageDal := store.NewSyncRetryImageDao(scannerWrapperDb)
-	resourceDal := store.NewResourceDao(scannerWrapperDb)
-	trustedImageDal := store.NewScannerOrm(scannerWrapperDb)
-	syncTaskDal := store.NewSyncTaskDao(scannerWrapperDb)
-	exportDal := store.NewExportTaskDao(scannerWrapperDb)
-	versionDal := store.NewVersionDao(scannerWrapperDb)
-	palaceHandler, err := palace.Init()
-	if err != nil {
-		logging.GetLogger().Error().Err(err).Msgf("Failed to init palaceHandler, %v", err)
-		return nil, fmt.Errorf("failed to init palaceHandler, %v", err)
-	}
+	scanResultDal := imagesecStore.NewScanResultDao(rdbInstance)
+	sensitiveRuleDal := imagesecStore.NewSensitiveRuleDao(rdbInstance)
+	scannerConfigDal := imagesecStore.NewScanImageConfigDao(rdbInstance)
+	resourceDal := imagesecStore.NewResourceDao(rdbInstance)
+	trustedImageDal := store.NewScannerOrm(rdbInstance)
+	syncTaskDal := imagesecStore.NewSyncTaskDao(rdbInstance)
+	exportDal := imagesecStore.NewExportTaskDao(rdbInstance)
+	versionDal := store.NewVersionDao(rdbInstance)
+	imageDal := imagesecStore.NewImageMetaDao(rdbInstance, rc)
 
-	scannerSvc := component.NewConScannerSrv(dal, registryDal, scanTaskDal, scanConfigDal, vulnDal, webshellDal, &palaceHandler)
-	libImageSvc := component.NewLibImageSrv(imageDal, registryDal, scanTaskDal, vulnDal, scanResultDal,
-		webshellDal, trustedImageDal, resourceDal, scannerInstanceDal)
+	detectPolicyDal := imagesecStore.NewDetectPolicyDao(rdbInstance)
+	deployRecordDal := imagesecStore.NewDeployDao(rdbInstance)
 
-	nodeImageSvc := imagemeta.NewNodeImageSrv(nodeImageDal, registryDal, nodeScanResultDal,
-		resourceDal, nodeReportDal, policyDal, detectResultDal, trustedImageDal, scannerConfigDal, nodeScanTaskDal)
-	nodeVulnSrv := imagescan.NewVulnSrv(nodeScanResultDal)
-	webshellSrv := imagescan.NewWebshellSrv(nodeScanResultDal)
+	scanDbMetaDal := imagesecStore.NewScanDbMetaDao(rdbInstance)
+	nodeInfoDal := imagesecStore.NewNodeReportDao(rdbInstance)
+	deployDal := imagesecStore.NewDeployDao(rdbInstance)
+
+	imageSrv := imagemeta.NewImageMetaSrv(
+		nodeImageDal,
+		registryDal,
+		scanResultDal,
+		resourceDal,
+		nodeReportDal,
+		policyDal,
+		detectResultDal,
+		trustedImageDal,
+		scannerConfigDal,
+		scanTaskDal,
+		scannerInstanceDal,
+		deployDal,
+	)
+
+	vulnSrv := imagescanSrv.NewScanResultSrv(scanResultDal)
 	rejectSvc := component.NewImageRejectSrc(dal)
-	harborSvc := component.NewHarborSrc(dal, rc)
-	registrySrv := component.NewRegistrySrv(registryDal, scanConfigDal, syncTaskDal)
-	scanConfigSrv := component.NewScanConfigSrv(scanConfigDal, registryDal, dal, scanTaskDal, scannerInstanceDal)
-	syncSrv := component.NewSyncRepoImage(registryDal, imageDal, syncRetryImageDal, scanConfigDal, vulnDal, syncTaskDal)
-	versionSrv := dbManage.NewDBManageSrv(versionDal, userDal)
+	registrySrv := regSrv.NewRegistrySrv(registryDal, syncTaskDal, scanInstanceDal, policyDal, scannerConfigDal)
+	dbManagerSrv := dbManage.NewDBManageSrv(versionDal, userDal)
 
-	imageSvcMap := map[string]imagemeta.ImageService{
-		imagesecModel.ImageFromRegistry: libImageSvc,
-		imagesecModel.ImageFromNode:     nodeImageSvc,
-	}
-	detectTaskSrv := detect.NewImageDetectTaskSrv(nodeImageSvc, detectTaskDal, policyDal)
-	policySrv := imagesecSrv.NewPolicySrv(policyDal, detectTaskSrv, sensitiveRuleDal)
-
-	nodeScanTaskSrv := imagescan.NewScanTaskSrv(nodeScanTaskDal, detectTaskDal, nodeImageSvc, scannerConfigDal)
+	detectTaskSrv := detect.NewImageDetectTaskSrv(imageSrv, detectTaskDal, policyDal, detectResultDal)
+	policySrv := imagesecSrv.NewPolicySrv(policyDal, detectTaskSrv, sensitiveRuleDal, userDal)
+	scanInfoSrv := imagesecSrv.NewScanInstanceSrv(imagesecStore.NewScannerInstanceDao(rdbInstance))
+	webshellSrv2 := scanwebshell.NewWebshellComponent(webshellDal)
+	scanTaskSrv := imagescanSrv.NewScanTaskSrv(scanTaskDal, scanTaskPreDal, detectTaskDal, imageSrv, imageDal, scannerConfigDal, imageDal, userDal)
 	scanImageConfigSrv := imagesecSrv.NewScannerConfigSrv(scannerConfigDal)
-	sensitiveRuleSrv := imagesecSrv.NewSensitiveRuleSrv(sensitiveRuleDal, nodeScanTaskSrv, scanImageConfigSrv)
+	sensitiveRuleSrv := imagesecSrv.NewSensitiveRuleSrv(sensitiveRuleDal, scanImageConfigSrv)
 
 	nodeInfoSrv := imagesecSrv.NewNodeReportSrv(nodeReportDal)
 
+	aviraUpdateSrv := aviraengin.NewAviraUpdateSrv()
+	clamavUpdateSrv := clamavengin.NewClamavUpdateSrv()
+
+	dbUpdateSrv := imagescanSrv.NewDBManagerSrv(aviraUpdateSrv, clamavUpdateSrv, scanDbMetaDal, nodeInfoDal, scanInstanceDal)
+	checker := detect.NewImagePolicyCheck()
+
+	deploySrv := deployService.NewDeploySrv(checker, imageDal, detectPolicyDal, scanResultDal, scanTaskDal, imageSrv, deployRecordDal)
+
 	exportSrv := scanReportService.NewExportTaskSrv(
 		exportDal,
-		math.MaxInt32/2,
-		store.NewScannerOrm(scannerWrapperDb),
-		libImageSvc,
-		nodeImageSvc,
-		nodeScanTaskSrv,
+		imageSrv,
+		scanTaskSrv,
 		nil,
 		vulnDal,
 	)
@@ -151,26 +157,22 @@ func newService(config register.ScannerServiceConfig) (register.ScannerService, 
 	s.ginServer = &http.Server{
 		Addr: s.config.Options.HTTPListenAddr,
 		Handler: api.SetupGinRouter(
-			scannerSvc,
-			imageSvcMap,
+			imageSrv,
 			rejectSvc,
-			harborSvc,
 			registrySrv,
-			scanConfigSrv,
-			component.NewVulnService(vulnDal, scanTaskDal),
-			syncSrv,
+			vulnSrv,
 			ci.NewCiComponent(ciDal, userDal),
-			component.NewScannerInstanceInfoSrv(store.NewScannerInstanceDao(scannerWrapperDb)),
-			scanwebshell.NewWebshellComponent(webshellDal),
+			scanInfoSrv,
+			webshellSrv2,
 			exportSrv,
-			versionSrv,
+			dbManagerSrv,
 			policySrv,
-			nodeScanTaskSrv,
+			scanTaskSrv,
 			sensitiveRuleSrv,
 			scanImageConfigSrv,
-			nodeVulnSrv,
-			webshellSrv,
 			nodeInfoSrv,
+			dbUpdateSrv,
+			deploySrv,
 		),
 	}
 

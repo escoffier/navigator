@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
+	"gitlab.com/piccolo_su/vegeta/pkg/model/imagesec"
 	scanreport "gitlab.com/piccolo_su/vegeta/pkg/model/scan-report"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 
@@ -335,7 +336,7 @@ func (s *ScannerOrm) GetImagesByTask(ctx context.Context, limit, offset int, tas
 				db1 = s.rdb.Get().
 					Where(
 						"registry_id IN (?)",
-						s.rdb.Get().Model(model.Registry{}).Select("id").
+						s.rdb.Get().Model(imagesec.Registry{}).Select("id").
 							Where("name IN ?", task.TensorScanReportTasks.RegistryImageObjects).
 							Where("deleted_at = ?", 0),
 					)
@@ -355,7 +356,7 @@ func (s *ScannerOrm) GetImagesByTask(ctx context.Context, limit, offset int, tas
 				db1 = db1.
 					Where(
 						"registry_id IN (?)",
-						s.rdb.Get().Model(model.Registry{}).Select("id").
+						s.rdb.Get().Model(imagesec.Registry{}).Select("id").
 							Where("name IN ?", registies),
 					)
 			}

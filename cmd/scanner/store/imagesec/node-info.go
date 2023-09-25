@@ -10,25 +10,25 @@ import (
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
-	"gitlab.com/piccolo_su/vegeta/pkg/model/imagesec"
+	imagesecModel "gitlab.com/piccolo_su/vegeta/pkg/model/imagesec"
 )
 
 type NodeInfoDal interface {
-	CreateNodeInfo(ctx context.Context, data *imagesec.NodeInfo) error
-	SearchNodeInfo(ctx context.Context, param imagesec.SearchNodeInfoParam) ([]*imagesec.NodeInfo, int64, error)
+	CreateNodeInfo(ctx context.Context, data *imagesecModel.NodeInfo) error
+	SearchNodeInfo(ctx context.Context, param imagesecModel.SearchNodeInfoParam) ([]*imagesecModel.NodeInfo, int64, error)
 }
 
 type NodeReportDao struct {
 	db *databases.RDBInstance
 }
 
-func (dal *NodeReportDao) CreateNodeInfo(ctx context.Context, data *imagesec.NodeInfo) error {
+func (dal *NodeReportDao) CreateNodeInfo(ctx context.Context, data *imagesecModel.NodeInfo) error {
 	if err := data.Check(); err != nil {
 		return err
 	}
 	cancelCtx, cancelFunc := context.WithTimeout(ctx, time.Second*3)
 	defer cancelFunc()
-	pre := make([]*imagesec.NodeInfo, 0)
+	pre := make([]*imagesecModel.NodeInfo, 0)
 	if err := dal.db.Get().WithContext(cancelCtx).Table(data.TableName()).
 		Where("unique_id = ?", data.UniqueID).Find(&pre).Error; err != nil {
 		return err
@@ -53,11 +53,12 @@ func (dal *NodeReportDao) CreateNodeInfo(ctx context.Context, data *imagesec.Nod
 	return nil
 }
 
-func (dal *NodeReportDao) SearchNodeInfo(ctx context.Context, param imagesec.SearchNodeInfoParam) ([]*imagesec.NodeInfo, int64, error) {
+func (dal *NodeReportDao) SearchNodeInfo(ctx context.Context, param imagesecModel.SearchNodeInfoParam) (
+	[]*imagesecModel.NodeInfo, int64, error) {
 	cancelCtx, cancelFunc := context.WithTimeout(ctx, time.Second*3)
 	defer cancelFunc()
 
-	db := dal.db.Get().WithContext(cancelCtx).Table(new(imagesec.NodeInfo).TableName())
+	db := dal.db.Get().WithContext(cancelCtx).Table(new(imagesecModel.NodeInfo).TableName())
 	if param.Keyword != "" {
 		db = db.Where("hostname LIKE ?  OR ip LIKE ? ", fmt.Sprintf("%%%s%%", param.Keyword),
 			fmt.Sprintf("%%%s%%", param.Keyword))
@@ -74,7 +75,7 @@ func (dal *NodeReportDao) SearchNodeInfo(ctx context.Context, param imagesec.Sea
 	if err := db.Count(&cnt).Error; err != nil {
 		return nil, 0, err
 	}
-	res := make([]*imagesec.NodeInfo, 0)
+	res := make([]*imagesecModel.NodeInfo, 0)
 	db = model.AddFilter(db, param.Filter)
 	err := db.Find(&res).Error
 	return res, cnt, err

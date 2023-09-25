@@ -11,6 +11,7 @@ import (
 
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
+	"gitlab.com/piccolo_su/vegeta/pkg/model/imagesec"
 	scannermodel "gitlab.com/piccolo_su/vegeta/pkg/model/scanner-model"
 )
 
@@ -45,7 +46,7 @@ func GetSingeWebsehllDao() *WebshellDao {
 	if singeWebshellDao != nil {
 		return singeWebshellDao
 	}
-	singeWebshellDao = &WebshellDao{rdb: GetScannerWrapperDb()}
+	singeWebshellDao = &WebshellDao{rdb: GetRDBInstance()}
 	return singeWebshellDao
 }
 
@@ -112,7 +113,7 @@ func (w *WebshellDao) CreateWebshellImage(ctx context.Context, imageID int64, we
 			continue
 		}
 		tmp := model.ScanIssueToImageWebshell{}
-		tmp.SecurityIssue = model.FlagHasWebshell
+		tmp.SecurityIssue = imagesec.FlagHasExceptionWebshell
 		tmp.UniqueTarget = v.UniqueID
 		tmp.LayerDigest = v.LayerDigest
 		tmp.ImageID = imageID
@@ -217,7 +218,7 @@ func (w *WebshellDao) SearchWebshellImage(ctx context.Context, params SearchWebs
 	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*10)
 	defer cancelFunc()
 	db := w.rdb.Get().WithContext(ctx).Model(model.ScanIssueToImageWebshell{})
-	db = db.Where("security_issue = ?", model.FlagHasWebshell)
+	db = db.Where("security_issue = ?", imagesec.FlagHasExceptionWebshell)
 	if params.ImageID != 0 {
 		db = db.Where("image_id = ?", params.ImageID)
 	}
@@ -247,7 +248,7 @@ func (w *WebshellDao) DeleteWebshellImage(ctx context.Context, params SearchWebs
 	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*10)
 	defer cancelFunc()
 	db := w.rdb.Get().WithContext(ctx).Model(model.ScanIssueToImageWebshell{})
-	db = db.Where("security_issue = ?", model.FlagHasWebshell)
+	db = db.Where("security_issue = ?", imagesec.FlagHasExceptionWebshell)
 	var err error
 	if len(params.UUIDS) > 0 {
 		db = db.Where("unique_id in ?", params.UUIDS)
@@ -269,8 +270,8 @@ func (w *WebshellDao) SearchRegistry(ctx context.Context, images []int64) ([]sca
 		logging.GetLogger().Err(err).Msg("get images error")
 		return nil, err
 	}
-	dbb := w.rdb.Get().WithContext(ctx).Model(model.Registry{})
-	allRegisty := []model.Registry{}
+	dbb := w.rdb.Get().WithContext(ctx).Model(imagesec.Registry{})
+	allRegisty := []imagesec.Registry{}
 	err = dbb.Find(&allRegisty).Error
 	if err != nil {
 		logging.GetLogger().Err(err).Msg("get registry error")

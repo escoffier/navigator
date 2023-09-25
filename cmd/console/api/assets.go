@@ -3,13 +3,14 @@ package api
 import (
 	"context"
 	"fmt"
-	"github.com/google/go-containerregistry/pkg/name"
 	"io"
 	"net/http"
 	"os"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/google/go-containerregistry/pkg/name"
 
 	"github.com/go-chi/chi"
 	json "github.com/json-iterator/go"
@@ -2049,14 +2050,14 @@ func (api *api) getImageProblems() http.HandlerFunc {
 			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.New("get images failed")))
 			return
 		}
-		problems := make(map[int64]struct{})
+		problems := make(map[string]struct{})
 		for _, i := range images {
 			for _, q := range i.SecurityIssue {
 				problems[q.Value] = struct{}{}
 			}
 		}
 
-		var resp []int64
+		var resp []string
 		for k, _ := range problems {
 			resp = append(resp, k)
 		}

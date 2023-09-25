@@ -4,14 +4,17 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
 	"time"
+
+	"github.com/google/uuid"
+
+	"gitlab.com/security-rd/go-pkg/logging"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/service/register"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/service/register/stream"
-	"gitlab.com/piccolo_su/vegeta/pkg/model/imagesec"
 	rpcstream "gitlab.com/piccolo_su/vegeta/pkg/streaming"
 	"gitlab.com/piccolo_su/vegeta/pkg/streaming/pb"
-	"gitlab.com/security-rd/go-pkg/logging"
 )
 
 const (
@@ -25,7 +28,13 @@ type Syncer struct {
 }
 
 func (s *Syncer) Start(_ context.Context) error {
-	logging.Get().Info().Msg("sync config started")
+	isHostCluster := os.Getenv("IS_MAIN_CLUSTER")
+	if isHostCluster != "true" {
+		logging.Get().Info().Msg("test publish msg not  started in slave cluster")
+		return nil
+	}
+
+	logging.Get().Info().Msg("test publish msg started")
 
 	// get grpc client
 	s.streamClient = stream.MustGetGrpcClient()
@@ -33,46 +42,52 @@ func (s *Syncer) Start(_ context.Context) error {
 
 	for {
 		time.Sleep(syncInterval * time.Second)
+		//
+		// // mock config
+		// mockConfig := imagesec.NodeImageConfig{
+		// 	DeepScan:     true,
+		// 	SyncInterval: 300,
+		// 	ScanTimeout:  300,
+		// }
+		// clusterKey := "076f5418-9d9b-4708-a268-9b21ba32724e"
+		clusterKey := "f815c6f8-8264-46a0-a273-c039de27492d" // local cluster02
+		// dstNodes := make([]string, 0)
+		// dstNodes = append(dstNodes, "cluster01-node01-192.168.3.11-centos")
 
-		// mock config
-		mockConfig := imagesec.NodeImageConfig{
-			DeepScan:     true,
-			SyncInterval: 300,
-			ScanTimeout:  300,
-		}
-		clusterKey := "494c5054-4b9b-4944-8452-84b8893c21b7"
-		dstNodes := make([]string, 0)
-		dstNodes = append(dstNodes, "cluster01-node01-192.168.3.11-centos")
-
-		data, err := json.Marshal(mockConfig)
+		data, err := json.Marshal(nil)
 		if err != nil {
 			logging.Get().Err(err).Msg("failed to marshal task")
 			return err
 		}
+		reqId := uuid.New().String()
 		req := &pb.ImageSecReq{
-			ImageSecReqType: pb.ImageSecReqType_SyncConfig,
+			ImageSecReqType: pb.ImageSecReqType_RegistryHealthyCheck,
 			ClusterKey:      clusterKey,
-			NodeName:        dstNodes,
-			Payload:         data,
+			RequestID:       reqId,
+			// NodeName:        dstNodes,
+			Payload: data,
 		}
 		publishFunc := func() error {
+			logging.Get().Info().Str("msgID", reqId).Msg("ready to publish health check msg")
+
 			ctx, cancel := context.WithTimeout(context.Background(), defaultGrpcTimeout*time.Second)
 			defer cancel()
 			rsp, err := s.streamClient.ScannerPushImageSecMsg(ctx, req)
 			if err != nil {
-				logging.Get().Err(err).Msg("failed to publish config by grpc stream")
+				logging.Get().Err(err).Str("msgID", reqId).Msg("failed to publish health check by grpc stream")
 				return err
 			}
 			if rsp.Status != 0 {
-				err = fmt.Errorf("publish config response err code:%v", rsp.Status)
-				logging.Get().Err(err).Msg("failed to publish config,rsp err code")
+				err = fmt.Errorf("publish health check response err code:%v", rsp.Status)
+				logging.Get().Err(err).Int32("rspStatus", rsp.Status).Str("msgID", reqId).Msg("failed to publish health check msg,rsp err code")
 				return err
 			}
+			logging.Get().Info().Str("msgID", reqId).Msg("publish health check msg ok")
 			return nil
 		}
 		_ = publishFunc()
 
-		logging.Get().Info().Msg("publish node image config end")
+		logging.Get().Info().Msg("publish health check msg end")
 	}
 
 }

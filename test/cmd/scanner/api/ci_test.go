@@ -18,7 +18,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"gitlab.com/security-rd/go-pkg/logging"
 
-	"gitlab.com/piccolo_su/vegeta/pkg/model/scanner-ci"
+	scanner_ci "gitlab.com/piccolo_su/vegeta/pkg/model/scanner-ci"
 )
 
 var testImageName = "wade23/deploy:deploytest"

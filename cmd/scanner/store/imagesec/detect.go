@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"gitlab.com/security-rd/go-pkg/databases"
+	"gitlab.com/security-rd/go-pkg/logging"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
@@ -49,11 +50,13 @@ type ImageDetectResultDal interface {
 }
 
 type ImageDetectResultDao struct {
-	db *databases.RDBInstance
+	db        *databases.RDBInstance
+	policyDal DetectPolicyDal
 }
 
 func NewImageDetectResultDao(db *databases.RDBInstance) *ImageDetectResultDao {
-	return &ImageDetectResultDao{db: db}
+	policyDal := NewDetectPolicyDao(db)
+	return &ImageDetectResultDao{db: db, policyDal: policyDal}
 }
 
 func (dal *ImageDetectResultDao) CreateDetectResult(ctx context.Context, param imagesecModel.CreateDetectResultParam) error {
@@ -176,9 +179,6 @@ func (dal *ImageDetectResultDao) SearchDetectBrief(ctx context.Context, param im
 	if param.LastID > 0 {
 		db = db.Where("id > ?", param.LastID)
 	}
-	if len(param.Fields) > 0 {
-		db = db.Select(param.Fields)
-	}
 	db = model.AddFilter(db, param.Filter)
 
 	res := make([]*imagesecModel.ImageDetectBrief, 0)
@@ -186,19 +186,35 @@ func (dal *ImageDetectResultDao) SearchDetectBrief(ctx context.Context, param im
 		return nil, err
 	}
 	for i := range res {
+		if param.NeedPolicy {
+			res[i].Deserialize()
+			if res[i].PolicyUniqueID == 0 { // 2.20版本才是以快照的方式存
+				continue
+			}
+			snapshot, err := dal.policyDal.SearchDetectPolicySnapshot(ctx, imagesecModel.SearchSecurityPolicyParam{UniqueID: res[i].PolicyUniqueID})
+			if err != nil {
+				return nil, err
+			}
+			if len(snapshot) == 0 {
+				logging.Get().Err(err).Str("module", "detect").Msg("SearchDetectPolicySnapshot")
+				continue
+			}
+			sp := snapshot[0]
+			res[i].Policy = &sp
+		}
 		res[i].Deserialize()
-		res[i].Policy.ChangePolicyName(ctx)
+		res[i] = res[i].ChangePolicyName(ctx)
 	}
 
 	return res, nil
 }
 
 func (dal *ImageDetectResultDao) CreateDetectBrief(ctx context.Context, data *imagesecModel.ImageDetectBrief) error {
+	data.Serialize()
+
 	if err := data.Check(); err != nil {
 		return err
 	}
-	data.Serialize()
-
 	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*100) // 大批量写入，时间会久些
 	defer cancelFunc()
 
@@ -257,6 +273,10 @@ func (dal *ImageDetectResultDao) DeleteDetectResult(ctx context.Context, param i
 	if len(param.PolicyIds) > 0 {
 		db = db.Where("policy_id IN ?", param.PolicyIds)
 	}
+	if param.PolicyID > 0 {
+		db = db.Where("policy_id =  ?", param.PolicyID)
+	}
+
 	if len(param.Ids) > 0 {
 		db = db.Where("id IN ?", param.Ids)
 	}
@@ -330,6 +350,9 @@ func (dal *DetectTaskDao) DeleteDetectSubtask(ctx context.Context, param imagese
 	if param.TaskID > 0 {
 		db = db.Where("task_id = ?", param.TaskID)
 	}
+	if len(param.SubtaskIds) > 0 {
+		db = db.Where("id IN ?", param.SubtaskIds)
+	}
 	if len(param.TaskIds) > 0 {
 		db = db.Where("task_id IN ?", param.TaskIds)
 	}
@@ -384,7 +407,6 @@ func (dal *DetectTaskDao) SearchDetectTask(ctx context.Context, param imagesecMo
 	if param.TaskID > 0 {
 		db = db.Where("id = ?", param.TaskID)
 	}
-
 	if param.Started == consts.TrueString {
 		db = db.Where("started_at > 0 ")
 	} else if param.Started == consts.FalseString {
@@ -417,18 +439,23 @@ func (dal *DetectTaskDao) SearchDetectTask(ctx context.Context, param imagesecMo
 	return res, cnt, err
 }
 
-func (dal *DetectTaskDao) CreateDetectSubtask(ctx context.Context, data []*imagesecModel.ImageDetectSubTask) error {
-	for i := range data {
-		data[i].Serialize()
-		if err := data[i].Check(); err != nil {
-			return err
+func (dal *DetectTaskDao) CreateDetectSubtask(ctx context.Context, data2 []*imagesecModel.ImageDetectSubTask) error {
+	data := make([]*imagesecModel.ImageDetectSubTask, 0)
+	for i := range data2 {
+		data2[i].Serialize()
+		if err := data2[i].Check(); err != nil {
+			continue
 		}
+		data = append(data, data2[i])
 	}
-
+	if len(data) == 0 {
+		return nil
+	}
 	cancelCtx, cancelFunc := context.WithTimeout(ctx, time.Second*10)
 	defer cancelFunc()
 	m := &imagesecModel.ImageDetectSubTask{}
-	return dal.db.Get().WithContext(cancelCtx).Table(m.TableName()).CreateInBatches(data, consts.DefaultBathSize).Error
+	err := dal.db.Get().WithContext(cancelCtx).Table(m.TableName()).CreateInBatches(data, consts.DefaultMaxLimit).Error
+	return err
 }
 
 func (dal *DetectTaskDao) UpdateDetectSubtask(ctx context.Context, param imagesecModel.UpdateTaskParam) error {
@@ -456,6 +483,9 @@ func (dal *DetectTaskDao) SearchDetectSubtask(ctx context.Context, param imagese
 	db := dal.db.Get().WithContext(cancelCtx).Table(m.TableName())
 	if param.StartID > 0 {
 		db = db.Where("id > ?", param.StartID)
+	}
+	if param.PolicyID > 0 {
+		db = db.Where("policy_id = ?", param.PolicyID)
 	}
 	if param.ImageUniqueID > 0 {
 		db = db.Where("image_unique_id = ?", param.ImageUniqueID)

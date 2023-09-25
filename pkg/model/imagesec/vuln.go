@@ -33,11 +33,12 @@ func (vi *VulnToImage) Same(after *VulnToImage) bool {
 }
 
 func (vi *VulnToImage) GenUniqueID() uint64 {
-	return util.GenerateUUID64(fmt.Sprintf("%d-%d-%s", vi.UniqueTarget, vi.ImageUniqueID, vi.LayerDigest))
+	uid := util.GenerateUUID64(fmt.Sprintf("%d-%d-%s", vi.UniqueTarget, vi.ImageUniqueID, vi.LayerDigest))
+	vi.UniqueID = uid
+	return uid
 }
 
 func (vi *VulnToImage) TableName() string {
-	// 由于仓库镜像，节点镜像，CI镜像的数据结构一致，但是数据量较大，所以要做分表处理
 	if vi == nil {
 		return ""
 	}
@@ -70,38 +71,78 @@ func (vi *Vuln) GenAttackPath() string {
 }
 
 func (vi *Vuln) GenFlag() uint64 {
-
-	vi.Deserialize()
 	// class
 	var flag uint64
 	switch vi.Class {
 	case report.ClassOSPkg:
 		flag = util.SetBit1(flag, VulnFlagClassOSPkg)
+		flag = util.SetBit0(flag, VulnFlagClassLangPkg)
+		flag = util.SetBit0(flag, VulnFlagClassConfig)
 	case report.ClassLangPkg:
 		flag = util.SetBit1(flag, VulnFlagClassLangPkg)
+		flag = util.SetBit0(flag, VulnFlagClassOSPkg)
+		flag = util.SetBit0(flag, VulnFlagClassConfig)
 	case report.ClassConfig:
 		flag = util.SetBit1(flag, VulnFlagClassConfig)
+		flag = util.SetBit0(flag, VulnFlagClassOSPkg)
+		flag = util.SetBit0(flag, VulnFlagClassLangPkg)
 	}
 
 	attr := vi.GenCVSSAttr()
+
+	for i := CVSSFlagAVN; i <= CVSSFlagPRH; i++ {
+		flag = util.SetBit0(flag, uint64(i))
+	}
+
 	for k, v := range attr {
 		flag = util.SetBit1(flag, vulnVectorFlag[k][v])
 	}
 	// can fixed
 	if vi.FixedVersion == "" {
 		flag = util.SetBit1(flag, VulnFlagNoFixed)
+		flag = util.SetBit0(flag, VulnFlagHasFixed)
 	}
 	if vi.FixedVersion != "" {
 		flag = util.SetBit1(flag, VulnFlagHasFixed)
+		flag = util.SetBit0(flag, VulnFlagNoFixed)
 	}
 
 	// 是否内核
-	if vi.SrcName == "kernel" || vi.SrcName == "linux" {
-		flag = util.SetBit1(flag, VulnFlagKernelPkg)
+	if (vi.SrcName == "kernel" || vi.SrcName == "linux") && vi.Class == report.ClassOSPkg {
+		flag = util.SetBit1(flag, VulnFlagKernel)
+		flag = util.SetBit0(flag, VulnFlagNotKernel)
 	} else {
-		flag = util.SetBit1(flag, VulnFlagAppPkg)
+		flag = util.SetBit1(flag, VulnFlagNotKernel)
+		flag = util.SetBit0(flag, VulnFlagKernel)
 	}
+	// 特别处理攻击路径
+	for i := CVSSFlagAVN; i <= CVSSFlagAVA; i++ {
+		flag = util.SetBit0(flag, uint64(i))
+	}
+	switch strings.ToUpper(vi.AttackPath) {
+	case "L":
+		flag = util.SetBit1(flag, CVSSFlagAVL)
+	case "N":
+		flag = util.SetBit1(flag, CVSSFlagAVN)
+	case "P":
+		flag = util.SetBit1(flag, CVSSFlagAVP)
+	case "A":
+		flag = util.SetBit1(flag, CVSSFlagAVA)
+	case "":
+		flag = util.SetBit1(flag, CVSSFlagAVEmpty)
+	}
+
 	return flag
+}
+
+func (vi *Vuln) Check() error {
+	if vi.Name == "" || vi.PkgName == "" || vi.PkgVersion == "" {
+		return fmt.Errorf("not get name or pkg info")
+	}
+	if len(vi.CVSS) == 0 {
+		return fmt.Errorf("not get cvss")
+	}
+	return nil
 }
 
 func GetVulnLanguageMap() map[string]string {
@@ -159,6 +200,7 @@ func GetSeverityZH(level int64) string {
 // 漏洞表
 type Vuln struct {
 	ID                 int64           `gorm:"primaryKey" json:"id"`
+	OnlineVuln         bool            `gorm:"-" json:"onlineVuln"`
 	UniqueID           uint64          `gorm:"column:unique_id" json:"uniqueID,string"`
 	PkgUniqueID        uint64          `gorm:"column:pkg_unique_id" json:"pkgUniqueID,string"`
 	Name               string          `gorm:"column:name" json:"name"`               // 形如CVE-2021-28831
@@ -187,10 +229,55 @@ type Vuln struct {
 	Frame              string          `gorm:"column:frame" json:"frame"`       // 开发框架筛选
 	FixedVersion       string          `gorm:"column:fixed_version" json:"fixedVersion"`
 	Target             string          `gorm:"column:target" json:"target"`
-	Flag               uint64          `gorm:"column:flag" json:"flag,string"`
+	AttackPath         string          `gorm:"column:attack_path" json:"attackPath"`
+	Flag               uint64          `gorm:"column:flag" json:"flag,string"` // 把在线镜像的漏洞更新到这里
 
 	CreatedAt int64 `gorm:"autoCreateTime:milli;column:created_at" json:"createdAt"` // milliseconds
 	UpdatedAt int64 `gorm:"autoUpdateTime:milli;column:updated_at" json:"updatedAt"` // milliseconds
+}
+
+func (vi *Vuln) GenOnlineVuln() *Vuln {
+	vu := &Vuln{
+		OnlineVuln:         true,
+		UniqueID:           vi.UniqueID,
+		Name:               vi.Name,
+		CnnvdName:          vi.CnnvdName,
+		CnnvdFixSuggestion: vi.CnnvdFixSuggestion,
+		Class:              vi.Class,
+		Title:              vi.Title,
+		CnvdTitle:          vi.CnvdTitle,
+		PublishAt:          vi.PublishAt,
+		ModifyAt:           vi.ModifyAt,
+		Severity:           vi.Severity,
+		Language:           vi.Language,
+		Frame:              vi.Frame,
+		AttackPath:         vi.AttackPath,
+		Flag:               vi.Flag,
+	}
+	vu.CheckSum = vu.GenCheckSum()
+	return vu
+}
+
+type VulnToPkg struct {
+	ID          int64  `gorm:"primaryKey" json:"id"`
+	UniqueID    uint64 `gorm:"column:unique_id" json:"uniqueID,string"`
+	VulnName    string `gorm:"column:vuln_name" json:"vulnName"`
+	PkgUniqueID uint64 `gorm:"column:pkg_unique_id" json:"pkgUniqueID,string"`
+	CreatedAt   int64  `gorm:"autoCreateTime:milli;column:created_at" json:"createdAt"` // milliseconds
+	UpdatedAt   int64  `gorm:"autoUpdateTime:milli;column:updated_at" json:"updatedAt"` // milliseconds
+}
+
+func (vi *VulnToPkg) TableName() string {
+	return "ivan_scan_vuln_pkg"
+}
+
+func (vi *VulnToPkg) GenUniqueID() uint64 {
+	if vi.UniqueID > 0 {
+		return vi.UniqueID
+	}
+	uid := util.GenerateUUID64(fmt.Sprintf("%s-%d", vi.VulnName, vi.PkgUniqueID))
+	vi.UniqueID = uid
+	return uid
 }
 
 func (vi *Vuln) Same(after *Vuln) bool {
@@ -200,10 +287,14 @@ func (vi *Vuln) Same(after *Vuln) bool {
 }
 
 func (vi *Vuln) GenCheckSum() uint64 {
-	createdAt, updatedAt, preCheck := vi.CreatedAt, vi.UpdatedAt, vi.CheckSum
-	vi.CreatedAt, vi.UpdatedAt, vi.CheckSum = 0, 0, 0
+	if vi.CheckSum > 0 {
+		return vi.CheckSum
+	}
+	createdAt, updatedAt, preCheck, uniqueID := vi.CreatedAt, vi.UpdatedAt, vi.CheckSum, vi.UniqueID
+	vi.CreatedAt, vi.UpdatedAt, vi.CheckSum, vi.UniqueID = 0, 0, 0, 0
+
 	bys, err := json.Marshal(vi)
-	vi.CreatedAt, vi.UpdatedAt, vi.CheckSum = createdAt, updatedAt, preCheck
+	vi.CreatedAt, vi.UpdatedAt, vi.CheckSum, vi.UniqueID = createdAt, updatedAt, preCheck, uniqueID
 	if err != nil {
 		return 0
 	}
@@ -211,11 +302,27 @@ func (vi *Vuln) GenCheckSum() uint64 {
 }
 
 func (vi *Vuln) TableName() string {
+	if vi == nil {
+		return ""
+	}
+	if vi.OnlineVuln {
+		return "ivan_scan_online_vuln"
+	}
 	return "ivan_scan_image_vuln"
 }
 
 func (vi *Vuln) GenUniqueID() uint64 {
-	return util.GenerateUUID64(fmt.Sprintf(UniqueVulnFormat, vi.Name, vi.PkgUniqueID))
+	if vi.UniqueID > 0 {
+		return vi.UniqueID
+	}
+	if vi.OnlineVuln {
+		uid := util.GenerateUUID64(vi.Name)
+		vi.UniqueID = uid
+		return uid
+	}
+	uid := util.GenerateUUID64(fmt.Sprintf(UniqueVulnFormat, vi.Name, vi.PkgUniqueID))
+	vi.UniqueID = uid
+	return uid
 }
 
 func (vi *Vuln) GenPkgUniqueID(pkgOS types.OS) uint64 {
@@ -225,7 +332,6 @@ func (vi *Vuln) GenPkgUniqueID(pkgOS types.OS) uint64 {
 }
 
 func (vi *Vuln) GenCVSSAttr() map[string]string {
-	vi.Deserialize()
 
 	nvd := vi.CVSS[CVSSNvd]
 	if nvd.V3Vector != "" {
@@ -274,7 +380,6 @@ func (vi *Vuln) Serialize() {
 			vi.CweIdsJSON = string(bys)
 		}
 	}
-	vi.Flag = vi.GenFlag()
 
 	vi.Language = GetVulnLanguageMap()[vi.PkgType] // 如果没有编程语言，就存空
 
@@ -287,6 +392,10 @@ func (vi *Vuln) Serialize() {
 		}
 	}
 
+	vi.AttackPath = vi.GenAttackPath()
+	vi.CheckSum = vi.GenCheckSum()
+	vi.UniqueID = vi.GenUniqueID()
+	vi.Flag = vi.GenFlag()
 }
 
 func (vi *Vuln) Deserialize() {
@@ -314,6 +423,9 @@ func (vi *Vuln) Deserialize() {
 			cweIds = make([]string, 0)
 		}
 		vi.CweIds = cweIds
+	}
+	if vi.Target != "" && !strings.HasPrefix(vi.Target, "/") {
+		vi.Target = "/" + vi.Target
 	}
 }
 
@@ -350,7 +462,7 @@ func (vi *Vuln) GenVulnView() *VulnView {
 		AttackPath:         vi.GenAttackPath(),
 		Class:              vi.Class,
 		ClassView:          vi.GenClassView(),
-		KernelVuln:         util.ExistBit1(vi.Flag, VulnFlagKernelPkg),
+		KernelVuln:         util.ExistBit1(vi.Flag, VulnFlagKernel),
 		Language:           vi.Language,
 		Frame:              vi.Frame,
 		FixedVersion:       vi.FixedVersion,
@@ -375,7 +487,12 @@ func (vi *Vuln) GenVulnView() *VulnView {
 	if vv.Description == "" {
 		vv.Description = vi.DescriptionEn
 	}
-
+	if vv.FixedVersion != "" {
+		vv.CanFixed = true
+	}
+	if vv.Target != "" && !strings.HasPrefix(vv.Target, "/") {
+		vv.Target = "/" + vv.Target
+	}
 	return &vv
 }
 
@@ -420,17 +537,22 @@ type VulnView struct {
 	Language           string            `json:"language"`       // 编程语言
 	Frame              string            `json:"frame"`          // 开发框架
 	FixedVersion       string            `json:"fixedVersion"`
+	CanFixed           bool              `json:"canFixed"`
 	Target             string            `json:"target"`
 	CnnvdFixSuggestion string            `json:"cnnvdFixSuggestion"`
 	PosAttr            map[string]string `json:"posAttr"`       // 漏洞详情中雷达图的位置数据
 	Attr               map[string]string `json:"attr"`          // 漏洞详情中雷达图的数据,从vector解析出
 	AttrValueView      map[string]string `json:"attrValueView"` // 漏洞详情中雷达图的数据,value 适配中英文
 	AttrKeyView        map[string]string `json:"attrKeyView"`   // 漏洞详情中雷达图的数据,key 适配中英文
-
-	CreatedAt int64 `json:"createdAt"` // milliseconds
-	UpdatedAt int64 `json:"updatedAt"` // milliseconds
+	CreatedAt          int64             `json:"createdAt"`     // milliseconds
+	UpdatedAt          int64             `json:"updatedAt"`     // milliseconds
 
 	PolicyDetect PolicyDetect `json:"policyDetect"` // 对各个策略的检测结果
+}
+
+func (vi *VulnView) Simplify() *VulnView {
+	vi.References = make([]string, 0)
+	return vi
 }
 
 func (vi *VulnView) AdaptI18(ctx context.Context) {
@@ -451,4 +573,35 @@ func (vi *VulnView) AdaptI18(ctx context.Context) {
 	if lang == model.LangEn {
 		vi.Description = vi.DescriptionEn
 	}
+}
+
+type VulnOverview struct {
+	VulnTotal int64         `json:"vulnTotal"`
+	Severity  SeverityCount `json:"severity"`
+}
+
+type SeverityCount struct {
+	Critical int64 `json:"critical"`
+	High     int64 `json:"high"`
+	Medium   int64 `json:"medium"`
+	Low      int64 `json:"low"`
+	Unknown  int64 `json:"unknown"`
+}
+
+type VulnOverviewParam struct {
+	OnlineImage string
+}
+
+type VulnViews []*VulnView
+
+func (vl VulnViews) Len() int {
+	return len(vl)
+}
+
+func (vl VulnViews) Less(i, j int) bool {
+	return vl[i].SeverityInt >= vl[j].SeverityInt
+}
+
+func (vl VulnViews) Swap(i, j int) {
+	vl[i], vl[j] = vl[j], vl[i]
 }

@@ -12,6 +12,7 @@ import (
 	"github.com/facebookarchive/freeport"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
 	"gitlab.com/piccolo_su/vegeta/pkg/flag"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"

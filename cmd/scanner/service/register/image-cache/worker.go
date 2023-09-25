@@ -121,8 +121,8 @@ func (w *Worker) createRegistryClient(username, password, repository, url string
 
 // 	r := ioutil.NopCloser(strings.NewReader("hello world")) // r type is io.ReadCloser
 
-// 	return r, nil
-// }
+//		return r, nil
+//	}
 func (w *Worker) doTask(wg *sync.WaitGroup) {
 
 	errMsg := ""
@@ -206,7 +206,7 @@ func (w *Worker) doTask(wg *sync.WaitGroup) {
 			if inerr != nil {
 				logging.Get().Err(inerr).Msgf("worker %d create registry client UpdateTaskStatusAndLayerURL", w.id)
 			}
-			logging.Get().Info().Msgf("worker %d pull task ok.repository %s,digest %s,path %s", w.id, task.repository, task.digest, fullFilePath)
+			logging.Get().Debug().Msgf("worker %d pull task ok.repository %s,digest %s,path %s", w.id, task.repository, task.digest, fullFilePath)
 		}
 		// notify layer pulled
 		err = w.llms.NotifyLayerPulled(task.digest)

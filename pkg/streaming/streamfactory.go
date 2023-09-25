@@ -2,6 +2,7 @@ package rpcstream
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net"
@@ -72,6 +73,7 @@ type MessageStream interface {
 	AddHandler(msg protoreflect.ProtoMessage, handler MessageHandler) error
 	AddHandlerFunc(msg protoreflect.ProtoMessage, f ProcessFunc) error
 	Response(stream Stream, reqUUID string, resp protoreflect.ProtoMessage) error
+	DumpStreams() string
 }
 
 type StreamFactory interface {
@@ -245,7 +247,7 @@ func (s *messageStream) Request(ctx context.Context, nodeKey string, msgType pb.
 	if stream == nil {
 		return nil, fmt.Errorf("not found stream: %s", nodeKey)
 	}
-	stream.AddSession(r.ReqUUID)
+	stream.AddSession(r.ReqUUID, ack)
 	defer stream.DelSession(r.ReqUUID)
 	logging.Get().Debug().Str("reqID", r.ReqUUID).Msg("stream add session end")
 
@@ -257,20 +259,8 @@ func (s *messageStream) Request(ctx context.Context, nodeKey string, msgType pb.
 
 	logging.Get().Debug().Str("reqID", r.ReqUUID).Bool("ack", ack).Msg("stream send end,wait rsp")
 	if ack {
-		select {
-		case resp := <-stream.Response(r.ReqUUID):
-			// 当client收到server端的eof，dispatch退出时会清理session,这里返回的resp为nil
-			if resp == nil {
-				logging.Get().Error().Str("reqID", r.ReqUUID).Msg("recv nil resp")
-				return nil, fmt.Errorf("reqID %v,recv nil resp. maybe session has been clear", r.ReqUUID)
-			}
-			return resp, nil
-		case <-ctx.Done():
-			logging.Get().Error().Str("reqID", r.ReqUUID).Msg("context timeout")
-			return nil, ctx.Err()
-		}
+		return stream.Response(ctx, r.ReqUUID)
 	}
-
 	return nil, nil
 }
 
@@ -297,6 +287,22 @@ func (s *messageStream) Response(stream Stream, reqUUID string, resp protoreflec
 		Payload: payload,
 	}
 	return stream.Send(req)
+}
+
+func (s *messageStream) DumpStreams() string {
+	s.streamLock.Lock()
+	defer s.streamLock.Unlock()
+	allInfo := make(map[string]interface{})
+	for id, stream := range s.streams {
+		allInfo[id] = stream.Dump()
+
+	}
+
+	data, err := json.Marshal(allInfo)
+	if err != nil {
+		return ""
+	}
+	return string(data)
 }
 
 func (s *messageStreamServer) Start() error {

@@ -34,23 +34,23 @@ func (s *SavClient) GetProductID() string {
 }
 
 func (s *SavClient) ScanFile(filePath string) ([]Malware, error) {
-	logging.Get().Info().Str("file", filePath).Msg("start scan")
+	logging.Get().Info().Str("file", filePath).Msg("SavClient start scan")
 
 	// send scan command
 	err := s.send([]byte(fmt.Sprintf("SCAN %s", filePath)))
 	if err != nil {
-		logging.Get().Err(err).Str("file", filePath).Msg("failed to send scan command")
+		logging.Get().Err(err).Str("file", filePath).Msg("SavClient failed to send scan command")
 		return nil, err
 	}
 
 	// read response
 	res, err := s.readScanResult()
 	if err != nil {
-		logging.Get().Err(err).Str("file", filePath).Msg("scan err")
+		logging.Get().Err(err).Str("file", filePath).Msg("SavClient scan err")
 		return res, err
 	}
 
-	logging.Get().Info().Str("file", filePath).Int("malwareCnt", len(res)).Msg("scan end")
+	logging.Get().Info().Str("file", filePath).Int("malwareCnt", len(res)).Msg("SavClient scan end")
 	return res, nil
 }
 
@@ -212,7 +212,7 @@ func (s *SavClient) readScanResult() ([]Malware, error) {
 		}
 
 		if shouldFinish {
-			logging.Get().Debug().Msg("finish this response")
+			logging.Get().Debug().Msg("SavClient finish this response")
 			close(stopChan)
 		}
 
@@ -269,6 +269,7 @@ func (s *SavClient) send(data []byte) error {
 	}
 	return nil
 }
+
 func (s *SavClient) Close() error {
 	err := s.send([]byte("QUIT"))
 	if err != nil {

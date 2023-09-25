@@ -25,7 +25,6 @@ func GetVulnAVView(lang string) map[string]string {
 		"L": "本地访问",
 		"P": "物理访问",
 		"A": "相邻网络访问", // https://www.first.org/cvss/calculator/3.1
-		"":  "相邻网络访问",
 	}
 
 	avEn := map[string]string{
@@ -206,7 +205,7 @@ func init() {
 			"H": "高",
 		}
 		//  权限范围扩大
-		vulnVectorAttrWithZHView["S"] = map[string]string{
+		vulnVectorAttrWithZHView["Stream"] = map[string]string{
 			"C": "扩大",
 			"U": "不变",
 		}
@@ -218,14 +217,14 @@ func init() {
 		}
 
 		defaultAttr = map[string]string{
-			"AV": "A", // 攻击位置难易
-			"UI": "R", // 是否自动化触发
-			"AC": "N", // 攻击复杂度
-			"C":  "N", // 信息泄露风险
-			"A":  "N", // 信息/系统篡改风险
-			"PR": "N", // 所需权限级别
-			"S":  "U", // 权限范围扩大
-			"I":  "N", // 触发dos风险
+			"AV":     "A", // 攻击位置难易
+			"UI":     "R", // 是否自动化触发
+			"AC":     "N", // 攻击复杂度
+			"C":      "N", // 信息泄露风险
+			"A":      "N", // 信息/系统篡改风险
+			"PR":     "N", // 所需权限级别
+			"Stream": "U", // 权限范围扩大
+			"I":      "N", // 触发dos风险
 		}
 
 		vulnPosAttr = make(map[string]map[string]string, 0)
@@ -260,7 +259,7 @@ func init() {
 			"H": "100%",
 		}
 		//  权限范围扩大
-		vulnPosAttr["S"] = map[string]string{
+		vulnPosAttr["Stream"] = map[string]string{
 			"C": "100%",
 			"U": "0%",
 		}
@@ -310,7 +309,7 @@ func init() {
 			"H": CVSSFlagAH,
 		}
 		//  权限范围扩大
-		vulnVectorFlag["S"] = map[string]uint64{
+		vulnVectorFlag["Stream"] = map[string]uint64{
 			"C": CVSSFlagSC,
 			"U": CVSSFlagSU,
 		}
@@ -400,7 +399,7 @@ func GetDefaultAttr() map[string]string {
 	return attr
 }
 
-// "cvssV3Vector": "CVSS:3.1/AV:L/AC:L/PR:H/UI:N/S:C/C:L/I:L/A:L",
+// "cvssV3Vector": "CVSS:3.1/AV:L/AC:L/PR:H/UI:N/Stream:C/C:L/I:L/A:L",
 func genCVSSv3Vector(v3Vector string) map[string]string {
 	ans := make(map[string]string)
 	if v3Vector == "" {
@@ -413,6 +412,9 @@ func genCVSSv3Vector(v3Vector string) map[string]string {
 		if len(attr) >= 2 && attr[0] != "CVSS" {
 			ans[attr[0]] = attr[1]
 		}
+	}
+	if ans[VulnCvssKeyAV] == "" {
+		ans[VulnCvssKeyAV] = VulnCvssKeyA
 	}
 	return ans
 }
@@ -466,6 +468,59 @@ func GetSeverityView(lang string) map[string]string {
 	return avCH
 }
 
+func GetSeverityView2(lang string) []LabelValue {
+	avEN := []LabelValue{
+		{
+			Label: SeverityCritical,
+			Value: SeverityCritical,
+		},
+		{
+			Label: SeverityHigh,
+			Value: SeverityHigh,
+		},
+		{
+			Label: SeverityMedium,
+			Value: SeverityMedium,
+		},
+		{
+			Label: SeverityLow,
+			Value: SeverityLow,
+		},
+		{
+			Label: SeverityUnknown,
+			Value: SeverityUnknown,
+		},
+	}
+
+	avCH := []LabelValue{
+		{
+			Label: SeverityCriticalView,
+			Value: SeverityCritical,
+		},
+		{
+			Label: SeverityHighView,
+			Value: SeverityHigh,
+		},
+		{
+			Label: SeverityMediumView,
+			Value: SeverityMedium,
+		},
+		{
+			Label: SeverityLowView,
+			Value: SeverityLow,
+		},
+		{
+			Label: SeverityUnknownView,
+			Value: SeverityUnknown,
+		},
+	}
+
+	if lang == model.LangEn {
+		return avEN
+	}
+	return avCH
+}
+
 // 漏洞类型
 func GetVulnClassView(lang string) map[string]string {
 	avCH := map[string]string{
@@ -493,7 +548,7 @@ const (
 	VulnCvssKeyC  = "C"
 	VulnCvssKeyA  = "A"
 	VulnCvssKeyPR = "PR"
-	VulnCvssKeyS  = "S"
+	VulnCvssKeyS  = "Stream"
 	VulnCvssKeyI  = "I"
 
 	VulnCvssKeyAVViewZH = "攻击位置难易"

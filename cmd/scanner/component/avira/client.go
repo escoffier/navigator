@@ -5,6 +5,7 @@ import (
 	"io/fs"
 	"net"
 	"path/filepath"
+
 	// "runtime/debug"
 	"strconv"
 	"strings"
@@ -219,7 +220,7 @@ func ScanDir(path string) (map[string][]string, error) {
 	getScanFiles(path, scannerCli)
 	logging.Get().Info().Msgf("avira scan files size: %v", len(scannerCli.dirs))
 
-	for d, _ := range scannerCli.dirs {
+	for d := range scannerCli.dirs {
 		result, err := scannerCli.Scan(d)
 		if err != nil {
 			logging.Get().Err(err).Msgf("scan file %v fail", d)

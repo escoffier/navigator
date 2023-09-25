@@ -9,6 +9,9 @@ enum ImageSecReqType {
   SyncResult = 3;
   SyncConfig = 4;
   AviraDBUpdate=5;
+  RegistryImageScan = 6;
+  RegistryHealthyCheck = 7;
+  RegistryImageSync = 8;
 }
 
 enum ImageSecDstType{

@@ -11,28 +11,35 @@ import (
 func CheckImageVuln(ctx context.Context, data *imagesecModel.ImageWithCorrelateData2,
 	policy *imagesecModel.SecurityPolicy) []*imagesecModel.ImageDetectResult {
 	ans := make([]*imagesecModel.ImageDetectResult, 0)
-	if !policy.Vuln.Enable {
+	if policy == nil || data == nil || data.Image.ID <= 0 || !policy.Enable || !policy.VulnDB.Enable || len(data.Vuln) == 0 {
 		return ans
 	}
-	white := policy.Vuln.White
-	black := policy.Vuln.Black
+	white := policy.VulnDB.White
+	black := policy.VulnDB.Black
 	vulns := data.Vuln
+
 	for i := range vulns {
 		var flag uint64
-		if policy.Vuln.IgnoreUnfixed && vulns[i].FixedVersion == "" ||
-			policy.Vuln.IgnoreKernelVuln && util.ExistBit1(vulns[i].Flag, imagesecModel.VulnFlagKernelPkg) ||
-			policy.Vuln.IgnoreLangVuln && util.ExistBit1(vulns[i].Flag, imagesecModel.VulnFlagClassLangPkg) {
-			continue
+		vu := vulns[i]
+
+		if policy.VulnDB.IgnoreUnfixed && vu.FixedVersion == "" {
+			flag = util.SetBit1(flag, imagesecModel.FlagDetectInWhite)
+		}
+		if policy.VulnDB.IgnoreKernelVuln && util.ExistBit1(vu.Flag, imagesecModel.VulnFlagKernel) {
+			flag = util.SetBit1(flag, imagesecModel.FlagDetectInWhite)
+		}
+		if policy.VulnDB.IgnoreLangVuln && util.ExistBit1(vu.Flag, imagesecModel.VulnFlagClassLangPkg) {
+			flag = util.SetBit1(flag, imagesecModel.FlagDetectInWhite)
 		}
 
 		whiteAdd, blackAdd := false, false
 		for _, wh := range white {
-			if vulns[i].Name == wh.VulnID {
+			if vu.Name == wh.VulnID {
 				whiteAdd = true
-				if wh.PkgName != "" && vulns[i].PkgName != wh.PkgName {
+				if wh.PkgName != "" && vu.PkgName != wh.PkgName {
 					whiteAdd = false
 				}
-				if wh.PkgVersion != "" && vulns[i].PkgVersion != wh.PkgVersion {
+				if wh.PkgVersion != "" && vu.PkgVersion != wh.PkgVersion {
 					whiteAdd = false
 				}
 			}
@@ -42,12 +49,12 @@ func CheckImageVuln(ctx context.Context, data *imagesecModel.ImageWithCorrelateD
 		}
 
 		for _, wh := range black {
-			if vulns[i].Name == wh.VulnID {
+			if vu.Name == wh.VulnID {
 				blackAdd = true
-				if wh.PkgName != "" && vulns[i].PkgName != wh.PkgName {
+				if wh.PkgName != "" && vu.PkgName != wh.PkgName {
 					blackAdd = false
 				}
-				if wh.PkgVersion != "" && vulns[i].PkgVersion != wh.PkgVersion {
+				if wh.PkgVersion != "" && vu.PkgVersion != wh.PkgVersion {
 					blackAdd = false
 				}
 			}
@@ -57,19 +64,32 @@ func CheckImageVuln(ctx context.Context, data *imagesecModel.ImageWithCorrelateD
 			flag = util.SetBit1(util.SetBit1(flag, imagesecModel.FlagDetectInBlack), imagesecModel.FlagDetectException)
 		}
 
-		if !util.ExistBit1(flag, imagesecModel.FlagDetectInWhite) && (policy.Vuln.Severity != "" &&
-			imagesecModel.GetSeverityInt(strings.ToUpper(policy.Vuln.Severity)) <= vulns[i].SeverityInt) {
-			flag = util.SetBit1(util.SetBit1(flag, imagesecModel.GetVulnSeverityDetectFlag(vulns[i].SeverityInt)),
+		if !util.ExistBit1(flag, imagesecModel.FlagDetectInWhite) && (policy.VulnDB.Severity != "" &&
+			imagesecModel.GetSeverityInt(strings.ToUpper(policy.VulnDB.Severity)) <= vu.SeverityInt) {
+
+			flag = util.SetBit1(util.SetBit1(flag, imagesecModel.GetVulnSeverityDetectFlag(vu.SeverityInt)),
 				imagesecModel.FlagDetectException)
 		}
+
+		if util.ExistBit1(flag, imagesecModel.FlagDetectException) && !util.ExistBit1(flag, imagesecModel.FlagDetectInWhite) {
+			switch policy.VulnDB.Action {
+			case imagesecModel.DeployActionBlock:
+				flag = util.SetBit1(flag, imagesecModel.FlagDetectDeployActionBlock)
+			case imagesecModel.DeployActionAlarm:
+				flag = util.SetBit1(flag, imagesecModel.FlagDetectDeployActionAlarm)
+			}
+		}
+
 		if flag > 0 {
-			ans = append(ans, &imagesecModel.ImageDetectResult{
+			red := &imagesecModel.ImageDetectResult{
 				DetectType:    imagesecModel.DetectTypeVulnRule,
 				Flag:          flag,
-				UniqueTarget:  vulns[i].UniqueID,
+				UniqueTarget:  vu.UniqueID,
 				ImageUniqueID: data.Image.UniqueID,
 				PolicyID:      policy.ID,
-			})
+			}
+
+			ans = append(ans, red)
 		}
 	}
 

@@ -2,70 +2,80 @@ package registry
 
 import (
 	"context"
-	"time"
 
-	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component"
-	"gitlab.com/piccolo_su/vegeta/cmd/scanner/global"
+	"gitlab.com/security-rd/go-pkg/logging"
+	"gitlab.com/security-rd/go-pkg/mq"
+
+	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry/warehouse/support/aliacr"
+	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry/warehouse/support/aliacr-ee"
+	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry/warehouse/support/docker"
+	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry/warehouse/support/harborv1"
+	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry/warehouse/support/harborv2"
+	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry/warehouse/support/hw-swr"
+	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry/warehouse/support/hw-swr-en"
+	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry/warehouse/support/jfrog"
+
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry/dispatch"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry/sync"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/service/register"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
-	"gitlab.com/piccolo_su/vegeta/pkg/logging"
+	imagesecStore "gitlab.com/piccolo_su/vegeta/cmd/scanner/store/imagesec"
+	scannerUtils "gitlab.com/piccolo_su/vegeta/cmd/scanner/utils"
 )
 
 const (
-	serviceName = "scanner-registry"
+	serviceName = "image-registry-service"
 )
 
-type Registry struct {
-	registrySrv component.RegistrySrvInterface
-	imageSrv    store.ImageDal
+type RegSyncTask struct {
+	SyncSrv            sync.ImageSyncService
+	SyncTaskDispatcher dispatch.SyncTaskDispatcher
 }
 
-func (s *Registry) Start(ctx context.Context) error {
-	// 检查仓库的健康状况
-	go func() {
-		defer func() {
-			if err := recover(); err != nil {
-				logging.GetLogger().Error().Msg("CheckHealth recover")
-			}
-		}()
-		ticker := time.NewTicker(time.Minute)
-		defer ticker.Stop()
+func (s *RegSyncTask) Start(ctx context.Context) error {
+	if !scannerUtils.MainCluster() {
+		logging.Get().Info().Msg("RegSyncTask not in main cluster")
+		return nil
+	}
+	_ = s.SyncSrv.AddSyncTask(ctx)
 
-		for {
-			<-ticker.C
-			if global.ScannerInstance == "" {
-				logging.GetLogger().Info().Msg("CheckHealth Registry global.ScannerInstance is empty ")
-				continue
-			}
-			if err := s.registrySrv.CheckHealth(ctx, global.ScannerInstance); err != nil {
-				logging.GetLogger().Err(err).Str("ScannerInstance", global.ScannerInstance).Msg("CheckHealth service end")
-				continue
-			}
-			logging.GetLogger().Debug().Str("ScannerInstance", global.ScannerInstance).Msg("CheckHealth start success")
-		}
-	}()
+	logging.Get().Info().Str("serviceName", serviceName).Msg("start success AddSyncTask")
 
+	_ = s.SyncTaskDispatcher.DispatchSyncTask(ctx)
+
+	logging.Get().Info().Str("serviceName", serviceName).Msg("start success DispatchSyncTask")
 	return nil
 }
 
-func (s *Registry) Stop(ctx context.Context) error {
+func (s *RegSyncTask) Stop(ctx context.Context) error {
 	return nil
 }
 
 func init() {
 	err := register.Register(serviceName, newService)
 	if err != nil {
-		logging.GetLogger().Err(err).Str("serviceName", serviceName).Msg("scanner-registry int service err")
+		logging.Get().Err(err).Str("serviceName", serviceName).Msg("int service err")
+		return
 	}
-	logging.GetLogger().Info().Msg("scanner-registry register success")
+	logging.Get().Info().Str("serviceName", serviceName).Msg("register success")
 }
 
 func newService(config register.ScannerServiceConfig) (register.ScannerService, error) {
-	scannerWrapperDb := store.GetScannerWrapperDb()
+	rdbInstance := store.GetRDBInstance()
+	mqWriter, err := mq.GetClientFactory().Writer(context.Background())
+	if err != nil {
+		logging.Get().Err(err).Msg("not get mqWriter")
+		return nil, err
+	}
 
-	registryDal := store.NewRegistryDao(scannerWrapperDb)
-	scanConfigDal := store.NewScanConfigDao(scannerWrapperDb)
-	syncTaskDal := store.NewSyncTaskDao(scannerWrapperDb)
-	s := component.NewRegistrySrv(registryDal, scanConfigDal, syncTaskDal)
-	return &Registry{registrySrv: s}, nil
+	registryDal := imagesecStore.NewRegistryDao(rdbInstance)
+	scanInstanceDal := imagesecStore.NewScannerInstanceDao(rdbInstance)
+	syncTaskDal := imagesecStore.NewSyncTaskDao(rdbInstance)
+	syncSrv := sync.NewRegSyncSrv(mqWriter, registryDal, syncTaskDal, scanInstanceDal)
+
+	syncTaskDispatcher := dispatch.NewRegDispatchSrv(registryDal, syncTaskDal, scanInstanceDal)
+
+	p := &RegSyncTask{SyncSrv: syncSrv, SyncTaskDispatcher: syncTaskDispatcher}
+
+	return p, nil
 }

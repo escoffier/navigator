@@ -15,6 +15,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	scanner_ci "gitlab.com/piccolo_su/vegeta/pkg/model/scanner-ci"
+	"gitlab.com/piccolo_su/vegeta/pkg/util"
 )
 
 var ModeToString = map[int]string{
@@ -329,78 +330,91 @@ func (im *ImageManager) GetImageDetail(ctx context.Context, id int64) (scanner_c
 }
 
 func (im *ImageManager) GetRecordPkgs(ctx context.Context, limit int64, offset int64, search string, imageID int64) ([]scanner_ci.PkgList, int64, error) {
-	disPkgs, cnt, err := im.dal.GetPkgs(ctx, int(limit), int(offset), imageID, search)
+	res := make([]scanner_ci.PkgList, 0)
+
+	// 全部 Pkg
+	all, cnt, err := im.dal.GetPkgs(ctx, 0, 0, imageID, search)
 	if err != nil {
 		logging.GetLogger().Err(err).Msgf("SearchPkgImage error")
 		return nil, 0, err
 	}
 	if cnt == 0 {
-		return []scanner_ci.PkgList{}, 0, nil
+		return res, 0, nil
 	}
-	allPkgs := []scanner_ci.CiPkgImage{}
-
-	for _, v := range disPkgs {
-		pkgs, _, err := im.dal.SearchPkgImage(ctx, 0, 0, v.UniquePkg, imageID, false)
-		if err != nil {
-			logging.GetLogger().Err(err).Msgf("get pkgs error")
+	hasVulnPkg, _, err := im.dal.SearchPkgImage(ctx, 0, 0, "", imageID, false)
+	if err != nil {
+		logging.GetLogger().Err(err).Msgf("get pkgs error")
+		return nil, 0, err
+	}
+	for i := range all {
+		al := all[i]
+		split := strings.Split(al.UniquePkg, ":")
+		if len(split) != 2 || split[0] == "" || split[1] == "" {
+			continue
 		}
-		allPkgs = append(allPkgs, pkgs...)
-	}
-
-	mp := make(map[string][]uint64, 0)
-	for _, v := range allPkgs {
-		if _, ok := mp[v.UniquePkg]; !ok {
-			mp[v.UniquePkg] = []uint64{v.UniqueVuln}
-		} else {
-			mp[v.UniquePkg] = append(mp[v.UniquePkg], v.UniqueVuln)
+		pk := scanner_ci.PkgList{
+			Pkg:        al.UniquePkg,
+			PkgName:    split[0],
+			PkgVersion: split[1],
+			UniqueVuln: make([]uint64, 0),
+			Histogram:  model.SeverityHistogramInfo{},
 		}
+
+		res = append(res, pk)
 	}
 
-	// 把没有漏洞的软件包也加入
-	for _, v := range disPkgs {
-		if _, ok := mp[v.UniquePkg]; !ok {
-			mp[v.UniquePkg] = []uint64{}
-		}
-	}
-
-	res := []scanner_ci.PkgList{}
-	for k := range mp {
-		index := strings.LastIndex(k, "|")
-		var tmp scanner_ci.PkgList
-		if index != -1 {
-			tmp = scanner_ci.PkgList{PkgName: k[0:index], PkgVersion: k[index+1:]}
-		} else {
-			index = strings.LastIndex(k, ":")
-			if index != -1 {
-				tmp = scanner_ci.PkgList{PkgName: k[0:index], PkgVersion: k[index+1:]}
+	vulnU := make([]uint64, 0)
+	for i := range hasVulnPkg {
+		vulnU = append(vulnU, hasVulnPkg[i].UniqueVuln)
+		for j := range res {
+			if res[j].Pkg == hasVulnPkg[i].UniquePkg {
+				res[j].UniqueVuln = append(res[j].UniqueVuln, hasVulnPkg[i].UniqueVuln)
+				break
 			}
 		}
-		if len(mp[k]) == 0 {
-			res = append(res, tmp)
-			continue
-		}
-		vulns, _, _, err := im.dal.SearchVuln(ctx, scanner_ci.SearchVulnParm{UniqueVulns: mp[k]}, nil)
+	}
+
+	vulnSerMap := make(map[uint64]string)
+	if len(vulnU) > 0 {
+		vulns, _, _, err := im.dal.SearchVuln(ctx, scanner_ci.SearchVulnParm{UniqueVulns: vulnU}, nil)
 		if err != nil {
-			logging.GetLogger().Err(err).Msgf("get %s vulns error", k)
-			continue
+			logging.GetLogger().Err(err).Msgf("SearchPkgImage error")
+			return nil, 0, err
 		}
-		for _, v := range vulns {
-			switch v.Severity {
+		for i := range vulns {
+			vulnSerMap[vulns[i].UniqueVuln] = vulns[i].Severity
+		}
+	}
+	for i := range res {
+		for j := range res[i].UniqueVuln {
+			un := res[i].UniqueVuln[j]
+			serv := vulnSerMap[un]
+			switch strings.ToUpper(serv) {
 			case "CRITICAL":
-				tmp.Histogram.NumCritical++
+				res[i].Histogram.NumCritical++
 			case "HIGH":
-				tmp.Histogram.NumHigh++
+				res[i].Histogram.NumHigh++
 			case "MEDIUM":
-				tmp.Histogram.NumMedium++
+				res[i].Histogram.NumMedium++
 			case "LOW":
-				tmp.Histogram.NumLow++
+				res[i].Histogram.NumLow++
 			case "UNKNOWN":
-				tmp.Histogram.NumUnknown++
+				res[i].Histogram.NumUnknown++
 			}
 		}
-		res = append(res, tmp)
 	}
-	return res, cnt, nil
+
+	count := int64(len(res))
+	// 程序中分页
+	start := int(offset)
+	end := int(offset + limit)
+
+	if len(res) <= start {
+		res = make([]scanner_ci.PkgList, 0)
+	} else {
+		res = res[start:util.MinInt(end, len(res))]
+	}
+	return res, count, nil
 }
 
 func (im *ImageManager) SearchVulns(ctx context.Context, param scanner_ci.SearchVulnParam, filter *model.Filter) ([]*scanner_ci.CiVulns, model.SeverityHistogramInfo, int64, error) {
@@ -460,7 +474,7 @@ func (im *ImageManager) TransCvss3ToPercent(cvss string) map[string]string {
 		"H": "100%",
 	}
 	//  权限范围扩大
-	VulnAttr["S"] = map[string]string{
+	VulnAttr["Stream"] = map[string]string{
 		"C": "100%",
 		"U": "0%",
 	}

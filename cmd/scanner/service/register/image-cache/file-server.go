@@ -138,7 +138,7 @@ func (fs *FileServer) SaveFile(digest string, r io.ReadCloser) (string, error) {
 	}
 
 	fullFilePath := filepath.Join(fp, LayerFileName)
-	logging.Get().Info().Msgf("save file %s,digest %s,server root path %s,fp %s", fullFilePath, digest, fs.serverRootPath, fp)
+	logging.Get().Debug().Msgf("save file %s,digest %s,server root path %s,fp %s", fullFilePath, digest, fs.serverRootPath, fp)
 	outFile, err := os.Create(fullFilePath)
 	defer func() { outFile.Close() }()
 	if err != nil {
@@ -162,7 +162,7 @@ func (fs *FileServer) DeleteFile(digest string) error {
 
 	// only delete file,not directory
 	err := os.RemoveAll(fullFilePath)
-	logging.Get().Info().Msgf("remove file %s,err %v", fullFilePath, err)
+	logging.Get().Debug().Msgf("remove file %s,err %v", fullFilePath, err)
 	if err != nil {
 		return fmt.Errorf("remove layer file :%s err %v", fullFilePath, err)
 	}

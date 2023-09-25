@@ -19,16 +19,13 @@ import (
 	"github.com/imroc/req/v3"
 	json "github.com/json-iterator/go"
 	"github.com/yeka/zip"
-	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/task"
+	"gitlab.com/security-rd/go-pkg/httputil"
+
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/vuln-updata/register"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/global"
-	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
-	"gitlab.com/piccolo_su/vegeta/pkg/model"
-	imagesecModel "gitlab.com/piccolo_su/vegeta/pkg/model/imagesec"
 	scannermodel "gitlab.com/piccolo_su/vegeta/pkg/model/scanner-model"
-	"gitlab.com/security-rd/go-pkg/httputil"
 )
 
 type VulnUpdata struct {
@@ -51,91 +48,94 @@ var (
 )
 
 func (srv *UpdataService) AutoScanAll(ctx context.Context, fromType int64, operator string) error {
-	if srv == nil {
-		return fmt.Errorf("srv is nil")
-	}
-	imageDal := store.GetScannerOrmDb()
-	regDal := store.GetRegistryDao()
-	scanConfigDal := store.GetScanConfigDao()
+	logging.GetLogger().Error().Msg("漏洞库定时更新已废弃")
 
-	db := store.GetScannerWrapperDb()
-	if db == nil {
-		return fmt.Errorf("globle db not init")
-	}
-	scannerInstanceDal := store.NewScannerInstanceDao(db)
-	if imageDal == nil || scanConfigDal == nil || regDal == nil || scannerInstanceDal == nil {
-		return fmt.Errorf("can't get global dal")
-	}
+	// if srv == nil {
+	// 	return fmt.Errorf("srv is nil")
+	// }
+	// imageDal := store.GetScannerOrmDb()
+	// regDal := store.GetRegistryDao()
+	// scanConfigDal := store.GetScanConfigDao()
+	//
+	// db := store.GetRDBInstance()
+	// if db == nil {
+	// 	return fmt.Errorf("globle db not init")
+	// }
+	// scannerInstanceDal := imagesec.NewScannerInstanceDao(db)
+	// if imageDal == nil || scanConfigDal == nil || regDal == nil || scannerInstanceDal == nil {
+	// 	return fmt.Errorf("can't get global dal")
+	// }
+	//
+	// // 获取扫描器名字
+	// scannerInstance, err := scannerInstanceDal.SearchScannerInfo(ctx, imagesecModel.ScanInstanceParam{ScannerInstance: global.ScannerInstance})
+	// if err != nil {
+	// 	logging.GetLogger().Info().Msg("addLibraryScanTask SearchScannerInfo")
+	// 	return err
+	// }
+	// if len(scannerInstance) == 0 {
+	// 	logging.GetLogger().Info().Msg("addLibraryScanTask not find scanInstance")
+	// 	return nil
+	// }
+	//
+	// operator = fmt.Sprintf("%s(scanner-%s)", operator, scannerInstance[0].ClusterName)
+	//
+	// config, cnt, err := scanConfigDal.SearchScanConfig(ctx, store.SearchScanConfigParam{}, nil)
+	// if err != nil {
+	// 	logging.GetLogger().Err(err).Msg("search scan config err")
+	// 	return err
+	// }
+	// if cnt == 0 || !config[0].VulnFlushTrigEnable {
+	// 	return nil
+	// }
+	//
+	// logging.GetLogger().Info().Int64("fromType", fromType).Msg("start full scan")
+	// // 先查询当前时刻已存在的仓库列表
+	// registries, _, err := regDal.SearchRegistry(ctx, imagesecModel.SearchRegistryParam{
+	// 	Deleted:         consts.FalseString,
+	// 	UseType:         model.UserRegistry,
+	// 	ScannerInstance: global.ScannerInstance,
+	// })
+	// if err != nil {
+	// 	logging.GetLogger().Err(err).Msg("not found registry info")
+	// 	return err
+	// }
+	// registryIds := make([]int64, len(registries))
+	// for i := range registries {
+	// 	registryIds[i] = registries[i].ID
+	// }
+	//
+	// if len(registryIds) == 0 {
+	// 	return nil
+	// }
+	//
+	// imgIds := make([]int64, 0)
+	//
+	// imgs, _, err := imageDal.SearchImage(ctx, imagesecModel.SearchImageParam{RegistryIds: registryIds, Fields: []string{"id"}}, nil)
+	// if err != nil {
+	// 	logging.GetLogger().Err(err).Msg("query images error")
+	// 	return err
+	// }
+	//
+	// for i := range imgs {
+	// 	imgIds = append(imgIds, imgs[i].ID)
+	// }
+	//
+	// if len(imgIds) == 0 {
+	// 	logging.GetLogger().Info().Msg("full image scan not found match images")
+	// 	return nil
+	// }
+	// // 更新漏洞添加任务（fixme）
 
-	// 获取扫描器名字
-	scannerInstance, err := scannerInstanceDal.SearchScannerInfo(ctx, store.ScannerInstanceInfoDaoParam{ScannerInstance: global.ScannerInstance})
-	if err != nil {
-		logging.GetLogger().Info().Msg("addLibraryScanTask SearchScannerInfo")
-		return err
-	}
-	if len(scannerInstance) == 0 {
-		logging.GetLogger().Info().Msg("addLibraryScanTask not find scanInstance")
-		return nil
-	}
-
-	operator = fmt.Sprintf("%s(scanner-%s)", operator, scannerInstance[0].ClusterName)
-
-	config, cnt, err := scanConfigDal.SearchScanConfig(ctx, store.SearchScanConfigParam{}, nil)
-	if err != nil {
-		logging.GetLogger().Err(err).Msg("search scan config err")
-		return err
-	}
-	if cnt == 0 || !config[0].VulnFlushTrigEnable {
-		return nil
-	}
-
-	logging.GetLogger().Info().Int64("fromType", fromType).Msg("start full scan")
-	// 先查询当前时刻已存在的仓库列表
-	registries, _, err := regDal.SearchRegistry(ctx, store.SearchRegistryParam{
-		Deleted:         consts.FalseString,
-		UseType:         model.UserRegistry,
-		ScannerInstance: global.ScannerInstance,
-	}, nil)
-	if err != nil {
-		logging.GetLogger().Err(err).Msg("not found registry info")
-		return err
-	}
-	registryIds := make([]int64, len(registries))
-	for i := range registries {
-		registryIds[i] = registries[i].ID
-	}
-
-	if len(registryIds) == 0 {
-		return nil
-	}
-
-	imgIds := make([]int64, 0)
-
-	imgs, _, err := imageDal.SearchImage(ctx, imagesecModel.SearchImageParam{RegistryIds: registryIds, Fields: []string{"id"}}, nil)
-	if err != nil {
-		logging.GetLogger().Err(err).Msg("query images error")
-		return err
-	}
-
-	for i := range imgs {
-		imgIds = append(imgIds, imgs[i].ID)
-	}
-
-	if len(imgIds) == 0 {
-		logging.GetLogger().Info().Msg("full image scan not found match images")
-		return nil
-	}
-
-	ts := task.NewTaskSrv()
-	if err := ts.GenerateScanTask(ctx, imgIds,
-		task.UpdateTaskInfo{
-			TriggerType: consts.VulDataUpdateTrigger,
-			Scope:       consts.FullScan,
-			Operator:    operator}); err != nil {
-		logging.GetLogger().Err(err).Msg("add full scan task failed")
-		return err
-	}
-	logging.GetLogger().Info().Msg("add full scan task end")
+	// ts := task.NewTaskSrv()
+	// if err := ts.GenerateScanTask(ctx, imgIds,
+	// 	task.UpdateTaskInfo{
+	// 		TriggerType: consts.VulDataUpdateTrigger,
+	// 		Scope:       consts.FullScan,
+	// 		Operator:    operator}); err != nil {
+	// 	logging.GetLogger().Err(err).Msg("add full scan task failed")
+	// 	return err
+	// }
+	// logging.GetLogger().Info().Msg("add full scan task end")
 	return nil
 }
 

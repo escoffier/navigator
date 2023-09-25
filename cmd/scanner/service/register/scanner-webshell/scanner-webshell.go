@@ -160,13 +160,17 @@ func (s *ScannerWebshellService) handleMsg(stopCh <-chan struct{}) {
 func (s *ScannerWebshellService) Start(ctx context.Context) error {
 	s.CreateHmBack(s.Num)
 	go func() {
-		if r := recover(); r != nil {
-			logging.Get().Error().Stack().Msg("ScannerWebshellService DeleteFile panic")
-		}
+		defer func() {
+			if r := recover(); r != nil {
+				logging.Get().Error().Stack().Msg("ScannerWebshellService DeleteExpirationFile panic")
+			}
+		}()
+
 		s.DeleteFile()
 	}()
-	ch := make(chan struct{})
-	s.handleMsg(ch)
+	// 统一保存了
+	// ch := make(chan struct{})
+	// s.handleMsg(ch)
 	return nil
 }
 

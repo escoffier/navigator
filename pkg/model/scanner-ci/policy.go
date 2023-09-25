@@ -3,15 +3,17 @@ package scanner_ci
 import (
 	"encoding/json"
 	"fmt"
-	iacModel "gitlab.com/piccolo_su/vegeta/pkg/model/iac"
 	"sort"
 	"strings"
 	"time"
 
-	"gitlab.com/piccolo_su/vegeta/pkg/types/imagesec"
+	iacModel "gitlab.com/piccolo_su/vegeta/pkg/model/iac"
+
 	"gitlab.com/security-rd/go-pkg/iac/pkg/scan"
 	"scm.tensorsecurity.cn/tensorsecurity-rd/trivy/pkg/report"
 	"scm.tensorsecurity.cn/tensorsecurity-rd/trivy/pkg/types"
+
+	"gitlab.com/piccolo_su/vegeta/pkg/types/imagesec"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
@@ -249,6 +251,7 @@ type CiPolicy struct {
 	SensitiveFilePolicy string `gorm:"type:varchar(255);" json:"sensitive_file_policy"` // 自定义敏感文件规则
 	SensitiveWhitelist  string `gorm:"type:varchar(255);" json:"sensitive_whitelist"`
 	SensitiveRuleMode   string `gorm:"type:varchar(255);" json:"sensitive_rule_mode"`
+	OperatorName        string `gorm:"-" json:"operatorName"` // 操作员名字
 	DeletedAt           int    `json:"deleted_at,omitempty"`
 }
 

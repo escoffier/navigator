@@ -48,7 +48,7 @@ func (c *Config) ExecuteContext(ctx context.Context, program string, args ...str
 		return "", "", fmt.Errorf("Error while building command: %v", err)
 	}
 
-	// Prepare command
+	// PullImage command
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
 	cmd.Stdout = &stdout

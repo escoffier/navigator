@@ -120,6 +120,7 @@ type ScanImageConfigDal interface {
 	CreateScanImageConfig(ctx context.Context, data *imagesecModel.ScanImageConfig) error
 	GetScanImageConfig(ctx context.Context, configType string) (*imagesecModel.ScanImageConfig, error)
 	UpdateScanImageConfig(ctx context.Context, id int64, data *imagesecModel.ScanImageConfig) error
+	SearchImageConfig(ctx context.Context) ([]*imagesecModel.ScanImageConfig, error)
 }
 
 type ScanImageConfigDao struct {
@@ -150,6 +151,21 @@ func (dal *ScanImageConfigDao) GetScanImageConfig(ctx context.Context, configTyp
 	return &m, nil
 }
 
+func (dal *ScanImageConfigDao) SearchImageConfig(ctx context.Context) ([]*imagesecModel.ScanImageConfig, error) {
+	cancelCtx, cancelFunc := context.WithTimeout(ctx, time.Second*10)
+	defer cancelFunc()
+	m := make([]*imagesecModel.ScanImageConfig, 0)
+	tb := imagesecModel.ScanImageConfig{}
+	err := dal.db.Get().WithContext(cancelCtx).Table(tb.TableName()).Find(&m).Error
+	if err != nil {
+		return nil, err
+	}
+	for i := range m {
+		m[i].Deserialize()
+	}
+	return m, nil
+}
+
 func (dal *ScanImageConfigDao) UpdateScanImageConfig(ctx context.Context, id int64, data *imagesecModel.ScanImageConfig) error {
 	if id <= 0 {
 		return fmt.Errorf("not get id")
@@ -175,6 +191,6 @@ func (dal *ScanImageConfigDao) UpdateScanImageConfig(ctx context.Context, id int
 	return dal.db.Get().WithContext(cancelCtx).Table(tb).Where("id = ?", id).Updates(updater).Error
 }
 
-func NewScannerConfigDao(db *databases.RDBInstance) *ScanImageConfigDao {
+func NewScanImageConfigDao(db *databases.RDBInstance) *ScanImageConfigDao {
 	return &ScanImageConfigDao{db: db}
 }

@@ -146,7 +146,9 @@ func (f *Filter) SetDefault() *Filter {
 
 func (f *Filter) DeepCopy() *Filter {
 	if f == nil {
-		return &Filter{}
+		return &Filter{
+			Limit: math.MaxInt32,
+		}
 	}
 	res := Filter{
 		SortBy:    f.SortBy,

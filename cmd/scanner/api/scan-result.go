@@ -9,10 +9,9 @@ import (
 	"github.com/gin-gonic/gin"
 	"gitlab.com/security-rd/go-pkg/logging"
 
-	apimodel "gitlab.com/piccolo_su/vegeta/cmd/scanner/api/model"
 	imageMetaSrv "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/imagemeta"
-	imagesecSrv "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/imagescan"
-	scani18 "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scan-i18"
+	imagesecScanSrv "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/imagescan/service"
+	scani18 "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scanI18"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/pkg/i18"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
@@ -22,41 +21,56 @@ import (
 )
 
 type ScanResultAPI struct {
-	ImageSrv    map[string]imageMetaSrv.ImageService
-	NodeVulnSrv imagesecSrv.VulnService
+	ImageSrv      imageMetaSrv.ImageService
+	ScanResultSrv imagesecScanSrv.ScanResultService
 }
 
 func NewScanResultAPI(
-	imageSrv map[string]imageMetaSrv.ImageService,
-	nodeVulnSrv imagesecSrv.VulnService,
+	imageSrv imageMetaSrv.ImageService,
+	nodeVulnSrv imagesecScanSrv.ScanResultService,
 ) *ScanResultAPI {
-	return &ScanResultAPI{ImageSrv: imageSrv, NodeVulnSrv: nodeVulnSrv}
+	return &ScanResultAPI{ImageSrv: imageSrv, ScanResultSrv: nodeVulnSrv}
+}
+
+func GetRelatedSearchParam(ctx *gin.Context) imagesecModel.RelatedSearchParam {
+
+	param := imagesecModel.RelatedSearchParam{
+		VulnUniqueID: util.GetUint64FromQuery(ctx, "vulnUniqueID"),
+		PkgUniqueID:  util.GetUint64FromQuery(ctx, "pkgUniqueID"),
+		WebshellMD5:  util.GetKeywordFromQuery(ctx, "webshellMd5"),
+		SensitiveMd5: util.GetKeywordFromQuery(ctx, "sensitiveMd5"),
+		MalwareMd5:   util.GetKeywordFromQuery(ctx, "malwareMd5"),
+		ImageKeyword: util.GetKeywordFromQuery(ctx, "imageKeyword"),
+
+		Filter: model.GetFilter(ctx).SetDefault(),
+	}
+	return param
 }
 
 func GetScanResultSearchParamFromCtx(ctx *gin.Context) imagesecModel.ScanResultSearchParam {
 	param := imagesecModel.ScanResultSearchParam{
-		ImageFromType:      util.GetKeywordFromQuery(ctx, "imageFromType"),
-		ImageID:            util.GetInt64FromQuery(ctx, "imageID"),
-		ImageUniqueID:      util.GetUint64FromQuery(ctx, "imageUniqueID"),
-		LayerDigest:        util.GetKeywordFromQuery(ctx, "layerDigest"),
-		Keyword:            util.GetKeywordFromQuery(ctx, "keyword"),
-		ExceptionPkg:       util.GetKeywordFromQuery(ctx, "exceptionPkg"),     // 查看异常软件
-		ExceptionLicense:   util.GetKeywordFromQuery(ctx, "exceptionLicense"), // 查看不允许的开源协议
-		ExceptionEnv:       util.GetKeywordFromQuery(ctx, "exceptionEnv"),     // 查看不允许的开源协议
-		PasswdEnv:          util.GetKeywordFromQuery(ctx, "passwdEnv"),        // 查看不允许的开源协议
-		ExceptionVuln:      util.GetKeywordFromQuery(ctx, "exceptionVuln"),
-		ExceptionMalware:   util.GetKeywordFromQuery(ctx, "exceptionMalware"),
-		ExceptionSensitive: util.GetKeywordFromQuery(ctx, "exceptionSensitive"),
-		ExceptionWebshell:  util.GetKeywordFromQuery(ctx, "exceptionWebshell"),
-		VulnSeverity:       util.GetStringSliceFromQuery(ctx, "vulnSeverity"),
-		LicenseSearch:      util.GetStringSliceFromQuery(ctx, "license"),
-		SecurityPolicyIds:  util.GetInt64SliceFromQuery(ctx, "securityPolicyIds"),
-		WebshellRiskLevel:  util.GetStringSliceFromQuery(ctx, "riskLevel"),
-		Filter:             model.GetFilter(ctx).SetDefault(),
-	}
-	// 对于老接口可能没有这个参数，后期和前端统一后，把这个兼容去了
-	if param.ImageFromType == "" {
-		param.ImageFromType = imagesecModel.ImageFromRegistry
+		ImageFromType:       util.GetKeywordFromQuery(ctx, "imageFromType"),
+		ImageID:             util.GetInt64FromQuery(ctx, "imageID"),
+		ImageUniqueID:       util.GetUint64FromQuery(ctx, "imageUniqueID"),
+		VulnUniqueID:        util.GetUint64FromQuery(ctx, "vulnUniqueID"),
+		LayerDigest:         util.GetKeywordFromQuery(ctx, "layerDigest"),
+		Keyword:             util.GetKeywordFromQuery(ctx, "keyword"),
+		ExceptionPkg:        util.GetKeywordFromQuery(ctx, "exceptionPkg"),        // 查看异常软件
+		ExceptionLicense:    util.GetKeywordFromQuery(ctx, "exceptionLicense"),    // 查看不允许的开源协议
+		ExceptionPkgLicense: util.GetKeywordFromQuery(ctx, "exceptionPkgLicense"), // 查看不允许的开源协议
+		ExceptionEnv:        util.GetKeywordFromQuery(ctx, "exceptionEnv"),        // 查看不允许的开源协议
+		PasswdEnv:           util.GetKeywordFromQuery(ctx, "passwdEnv"),           // 查看不允许的开源协议
+		ExceptionVuln:       util.GetKeywordFromQuery(ctx, "exceptionVuln"),
+		ExceptionMalware:    util.GetKeywordFromQuery(ctx, "exceptionMalware"),
+		ExceptionSensitive:  util.GetKeywordFromQuery(ctx, "exceptionSensitive"),
+		ExceptionWebshell:   util.GetKeywordFromQuery(ctx, "exceptionWebshell"),
+		VulnSeverity:        util.GetStringSliceFromQuery(ctx, "vulnSeverity"),
+		LicenseSearch:       util.GetStringSliceFromQuery(ctx, "license"),
+		DeployRecordID:      util.GetInt64FromQuery(ctx, "deployRecordID"),
+		DeployAction:        util.GetKeywordFromQuery(ctx, "deployAction"),
+		SecurityPolicyIds:   util.GetInt64SliceFromQuery(ctx, "securityPolicyIds"),
+		WebshellRiskLevel:   util.GetStringSliceFromQuery(ctx, "riskLevel"),
+		Filter:              model.GetFilter(ctx).SetDefault(),
 	}
 	if param.ImageID <= 0 {
 		param.ImageID = util.GetInt64FromQuery(ctx, "id")
@@ -71,17 +85,15 @@ func GetScanResultSearchParamFromCtx(ctx *gin.Context) imagesecModel.ScanResultS
 func (s *ScanResultAPI) SearchVirus(ctx *gin.Context) {
 	param := GetScanResultSearchParamFromCtx(ctx)
 
-	filter := model.GetFilter(ctx)
-
-	data, err := s.getImageSrv(ctx).GetImageCorrelateData(ctx, imagesecModel.GetImageAssociateDataParam{
+	data, err := s.ImageSrv.GetImageCorrelateData(ctx, imagesecModel.GetImageAssociateDataParam{
 		ImageFromType:         param.ImageFromType,
 		ImageId:               param.ImageID,
 		ImageUniqueID:         param.ImageUniqueID,
+		DeployRecordID:        param.DeployRecordID,
 		DetectParam:           imagesecModel.DetectResultParam{SecurityPolicyIds: param.SecurityPolicyIds},
 		MalwareEnable:         true,
 		DetectResultEnable:    true,
 		ScanResultSearchParam: param,
-		Filter:                filter,
 	})
 	if err != nil {
 		response.JSONError(ctx, scani18.GetImageInfo(err))
@@ -90,66 +102,46 @@ func (s *ScanResultAPI) SearchVirus(ctx *gin.Context) {
 
 	response.JSONOK(ctx, response.WithItems(data.Malware),
 		response.WithTotalItems(data.MalwareCnt),
-		response.WithItemsPerPage(filter.Limit),
-		response.WithStartIndex(filter.Offset))
+		response.WithItemsPerPage(param.Filter.Limit),
+		response.WithStartIndex(param.Filter.Offset))
 }
 
 func (s *ScanResultAPI) SearchSensitive(ctx *gin.Context) {
 	param := GetScanResultSearchParamFromCtx(ctx)
 
-	filter := model.GetFilter(ctx)
-	data, err := s.getImageSrv(ctx).GetImageCorrelateData(ctx, imagesecModel.GetImageAssociateDataParam{
+	data, err := s.ImageSrv.GetImageCorrelateData(ctx, imagesecModel.GetImageAssociateDataParam{
 		ImageFromType:         param.ImageFromType,
 		ImageId:               param.ImageID,
 		ImageUniqueID:         param.ImageUniqueID,
+		DeployRecordID:        param.DeployRecordID,
 		DetectParam:           imagesecModel.DetectResultParam{SecurityPolicyIds: param.SecurityPolicyIds},
 		SensitiveEnable:       true,
 		DetectResultEnable:    true,
 		ScanResultSearchParam: param,
-		Filter:                filter,
 	})
 	if err != nil {
 		response.JSONError(ctx, scani18.GetImageInfo(err))
 		return
 	}
 
-	ans := make([]apimodel.ImageSensitiveFile, 0)
-	res := data.Sensitive
-	for i := range res {
-		split := strings.Split(res[i].Name, "/")
-		ses := apimodel.ImageSensitiveFile{
-			ID:           res[i].ID,
-			Path:         res[i].Name,
-			Name:         res[i].Name,
-			PolicyDetect: res[i].PolicyDetect,
-		}
-		if len(split) >= 2 {
-			ses.Name = split[len(split)-1]
-		}
-
-		ans = append(ans, ses)
-	}
-
-	response.JSONOK(ctx, response.WithItems(ans),
+	response.JSONOK(ctx, response.WithItems(data.Sensitive),
 		response.WithTotalItems(data.SensitiveCnt),
-		response.WithItemsPerPage(filter.Limit),
-		response.WithStartIndex(filter.Offset))
+		response.WithItemsPerPage(param.Filter.Limit),
+		response.WithStartIndex(param.Filter.Offset))
 }
 
 func (s *ScanResultAPI) SearchEnv(ctx *gin.Context) {
 	param := GetScanResultSearchParamFromCtx(ctx)
 
-	filter := model.GetFilter(ctx)
-
-	data, err := s.getImageSrv(ctx).GetImageCorrelateData(ctx, imagesecModel.GetImageAssociateDataParam{
+	data, err := s.ImageSrv.GetImageCorrelateData(ctx, imagesecModel.GetImageAssociateDataParam{
 		ImageFromType:         param.ImageFromType,
 		ImageId:               param.ImageID,
 		ImageUniqueID:         param.ImageUniqueID,
+		DeployRecordID:        param.DeployRecordID,
 		EnvEnable:             true,
 		ScanResultSearchParam: param,
 		DetectResultEnable:    true,
 		DetectParam:           imagesecModel.DetectResultParam{SecurityPolicyIds: param.SecurityPolicyIds},
-		Filter:                filter,
 	})
 	if err != nil {
 		response.JSONError(ctx, scani18.GetImageInfo(err))
@@ -158,26 +150,40 @@ func (s *ScanResultAPI) SearchEnv(ctx *gin.Context) {
 
 	response.JSONOK(ctx, response.WithItems(data.Env),
 		response.WithTotalItems(data.EnvCnt),
-		response.WithItemsPerPage(filter.Limit),
-		response.WithStartIndex(filter.Offset))
+		response.WithItemsPerPage(param.Filter.Limit),
+		response.WithStartIndex(param.Filter.Offset))
+}
+
+func (s *ScanResultAPI) SearchRelatedSoftware(ctx *gin.Context) {
+	param := GetScanResultSearchParamFromCtx(ctx)
+
+	pkg, cnt, err := s.ScanResultSrv.SearchPkg(ctx, param)
+	if err != nil {
+		response.JSONError(ctx, scani18.GetImageInfo(err))
+		return
+	}
+	response.JSONOK(ctx, response.WithItems(pkg),
+		response.WithTotalItems(cnt),
+		response.WithItemsPerPage(param.Filter.Limit),
+		response.WithStartIndex(param.Filter.Offset))
 }
 
 func (s *ScanResultAPI) SearchSoftware(ctx *gin.Context) {
 	param := GetScanResultSearchParamFromCtx(ctx)
 
-	filter := model.GetFilter(ctx)
+	filter := param.Filter.DeepCopy()
+	param.Filter = nil
 
-	data, err := s.getImageSrv(ctx).GetImageCorrelateData(ctx, imagesecModel.GetImageAssociateDataParam{
+	data, err := s.ImageSrv.GetImageCorrelateData(ctx, imagesecModel.GetImageAssociateDataParam{
 		ImageFromType:         param.ImageFromType,
 		ImageId:               param.ImageID,
 		ImageUniqueID:         param.ImageUniqueID,
+		DeployRecordID:        param.DeployRecordID,
 		PkgEnable:             true,
 		DetectResultEnable:    true,
 		VulnEnable:            true,
-		LicenseEnable:         true,
 		ScanResultSearchParam: param,
 		DetectParam:           imagesecModel.DetectResultParam{SecurityPolicyIds: param.SecurityPolicyIds},
-		Filter:                model.EmptyFilterForTotalQuery(),
 	})
 	if err != nil {
 		response.JSONError(ctx, scani18.GetImageInfo(err))
@@ -185,30 +191,31 @@ func (s *ScanResultAPI) SearchSoftware(ctx *gin.Context) {
 	}
 
 	preVulns := data.Vuln
-	vulnMap := make(map[string][]VulnResponse) // pkg--->[]vuln
+	vulnMap := make(map[uint64][]*imagesecModel.VulnView) // pkg--->[]vuln
 	for i := range preVulns {
-		key := fmt.Sprintf("%s|%s", preVulns[i].PkgName, preVulns[i].PkgVersion)
+		key := preVulns[i].PkgUniqueID
 		if vulnMap[key] == nil {
-			vulnMap[key] = make([]VulnResponse, 0)
+			vulnMap[key] = make([]*imagesecModel.VulnView, 0)
 		}
 		vus := vulnMap[key]
-		vus = append(vus, convertNodeVulnView(preVulns[i]))
+		vus = append(vus, preVulns[i].Simplify())
 		vulnMap[key] = vus
 	}
 
 	// 整理数据
-	pkgMap := make(map[string]VulnPKG)
+	pkgMap := make(map[uint64]VulnPKG)
 	software := data.Pkg
 	for i := range software {
-		key := fmt.Sprintf("%s|%s", software[i].Name, software[i].Version)
+		key := software[i].UniqueID
 		if _, ok := pkgMap[key]; !ok {
 			vp := VulnPKG{
 				PkgName:          software[i].Name,
 				PkgVersion:       software[i].Version,
+				Filepath:         software[i].Filepath,
 				UniqueID:         software[i].UniqueID,
 				SeverityOverview: make([]imagesecModel.SeverityGroup, 0),
-				Vulns:            make([]VulnResponse, 0),
-				License:          software[i].License,
+				Vulns:            make([]*imagesecModel.VulnView, 0),
+				License:          []string{software[i].License},
 				PolicyDetect:     software[i].PolicyDetect,
 			}
 			pkgMap[key] = vp
@@ -243,7 +250,7 @@ func (s *ScanResultAPI) SearchSoftware(ctx *gin.Context) {
 	for i := range res {
 		sort.Sort(imagesecModel.SeverityGroups(res[i].SeverityOverview))
 		res[i].SortScore = res[i].GetSortScore()
-		res[i].Vulns = make([]VulnResponse, 0)
+		res[i].Vulns = make([]*imagesecModel.VulnView, 0)
 	}
 	sort.Sort(VulnPKGs(res))
 
@@ -263,11 +270,12 @@ func (s *ScanResultAPI) SearchSoftware(ctx *gin.Context) {
 
 func (s *ScanResultAPI) ImageBaseDetail(ctx *gin.Context) {
 	param := GetScanResultSearchParamFromCtx(ctx)
-
-	data, err := s.getImageSrv(ctx).GetImageCorrelateData(ctx, imagesecModel.GetImageAssociateDataParam{
+	param.Filter = model.EmptyFilter()
+	apiParam := imagesecModel.GetImageAssociateDataParam{
 		ImageFromType:      param.ImageFromType,
 		ImageId:            param.ImageID,
 		ImageUniqueID:      param.ImageUniqueID,
+		DeployRecordID:     param.DeployRecordID,
 		VulnEnable:         true,
 		MalwareEnable:      true,
 		EnvEnable:          true,
@@ -276,12 +284,20 @@ func (s *ScanResultAPI) ImageBaseDetail(ctx *gin.Context) {
 		WebshellEnable:     true,
 		SubtaskEnable:      true,
 		RegistryEnable:     true,
+		LicenseEnable:      true,
 		ContainerEnable:    true,
 		RiskPolicyEnable:   true,
 		DetectResultEnable: true,
 		DetectParam:        imagesecModel.DetectResultParam{SecurityPolicyIds: param.SecurityPolicyIds},
 		NodeInfoEnable:     true,
-	})
+	}
+	if param.DeployRecordID > 0 {
+		// 不会根据策略来决定问题
+		apiParam.SimplePolicyEnable = true
+		apiParam.RiskPolicyEnable = false
+	}
+
+	data, err := s.ImageSrv.GetImageCorrelateData(ctx, apiParam)
 
 	if err != nil {
 		response.JSONError(ctx, scani18.GetImageInfo(err))
@@ -303,7 +319,7 @@ func (s *ScanResultAPI) ImageLayers(ctx *gin.Context) {
 		return
 	}
 
-	data, err := s.getImageSrv(ctx).GetImageCorrelateData(ctx, imagesecModel.GetImageAssociateDataParam{
+	data, err := s.ImageSrv.GetImageCorrelateData(ctx, imagesecModel.GetImageAssociateDataParam{
 		ImageId:         param.ImageID,
 		VulnEnable:      true,
 		MalwareEnable:   true,
@@ -325,17 +341,20 @@ func (s *ScanResultAPI) ImageLayers(ctx *gin.Context) {
 	response.JSONOK(ctx, response.WithItem(baseImage))
 }
 
-func (s *ScanResultAPI) ImageIssueStatistic(ctx *gin.Context) {
+func (s *ScanResultAPI) SecurityIssueOverview(ctx *gin.Context) {
 	param := GetScanResultSearchParamFromCtx(ctx)
+	param.Filter = model.EmptyFilter()
 
 	assParam := imagesecModel.GetImageAssociateDataParam{
 		ImageFromType:      param.ImageFromType,
 		ImageId:            param.ImageID,
 		ImageUniqueID:      param.ImageUniqueID,
+		DeployRecordID:     param.DeployRecordID,
 		VulnEnable:         true,
 		MalwareEnable:      true,
 		EnvEnable:          true,
 		PkgEnable:          true,
+		LicenseEnable:      true,
 		SensitiveEnable:    true,
 		WebshellEnable:     true,
 		RegistryEnable:     true,
@@ -347,28 +366,63 @@ func (s *ScanResultAPI) ImageIssueStatistic(ctx *gin.Context) {
 			ImageID:           param.ImageID,
 			ImageUniqueID:     param.ImageUniqueID,
 		},
-		Filter: model.EmptyFilterForTotalQuery(),
 	}
 
-	data, err := s.getImageSrv(ctx).GetImageCorrelateData(ctx, assParam)
+	data, err := s.ImageSrv.GetImageCorrelateData(ctx, assParam)
 	if err != nil {
 		response.JSONError(ctx, scani18.GetImageInfo(err))
 		return
 	}
-	if param.ImageFromType == imagesecModel.ImageFromRegistry {
-		response.JSONOK(ctx, response.WithItem(data.ToSecurityIssueOverview()))
-		return
-	}
-	if param.ImageFromType == imagesecModel.ImageFromNode {
+	if param.ImageFromType == imagesecModel.ImageFromDeploy {
 		response.JSONOK(ctx, response.WithItem(data.ToSecurityIssueOverview2()))
 		return
 	}
+
+	response.JSONOK(ctx, response.WithItem(data.ToSecurityIssueOverview1()))
+	return
+}
+
+func (s *ScanResultAPI) ImageIssueStatistic(ctx *gin.Context) {
+	param := GetScanResultSearchParamFromCtx(ctx)
+	param.Filter = model.EmptyFilter()
+
+	assParam := imagesecModel.GetImageAssociateDataParam{
+		ImageFromType:      param.ImageFromType,
+		ImageId:            param.ImageID,
+		ImageUniqueID:      param.ImageUniqueID,
+		DeployRecordID:     param.DeployRecordID,
+		VulnEnable:         true,
+		MalwareEnable:      true,
+		EnvEnable:          true,
+		PkgEnable:          true,
+		LicenseEnable:      true,
+		SensitiveEnable:    true,
+		WebshellEnable:     true,
+		RegistryEnable:     true,
+		DetectResultEnable: true,
+		RiskPolicyEnable:   true,
+		DetectParam:        imagesecModel.DetectResultParam{SecurityPolicyIds: param.SecurityPolicyIds},
+		ScanResultSearchParam: imagesecModel.ScanResultSearchParam{
+			SecurityPolicyIds: param.SecurityPolicyIds,
+			ImageID:           param.ImageID,
+			ImageUniqueID:     param.ImageUniqueID,
+		},
+	}
+
+	data, err := s.ImageSrv.GetImageCorrelateData(ctx, assParam)
+	if err != nil {
+		response.JSONError(ctx, scani18.GetImageInfo(err))
+		return
+	}
+
+	response.JSONOK(ctx, response.WithItem(data.ToSecurityIssueStatistic()))
+	return
 }
 
 func (s *ScanResultAPI) GetImageRiskInfo(ctx *gin.Context) {
 	param := GetScanResultSearchParamFromCtx(ctx)
 
-	body := imagesecModel.ImageListParam{}
+	body := imagesecModel.ImageSearchApiParam{}
 	if err := ctx.BindJSON(&body); err != nil {
 		response.JSONError(ctx, response.NewHttpError(http.StatusBadRequest, err))
 		return
@@ -377,9 +431,9 @@ func (s *ScanResultAPI) GetImageRiskInfo(ctx *gin.Context) {
 	body.Fields = []string{"id", "image_uuid"}
 	body.ImageFromType = param.ImageFromType
 
-	body.Filter = model.EmptyFilterForTotalQuery().SetLimit(consts.DefaultLimit)
+	body.Filter = model.EmptyFilterForTotalQuery().SetLimit(consts.DefaultMaxLimit)
 
-	images, _, err := s.getImageSrv(ctx).ListImageWithScanInfo(ctx, body)
+	images, _, err := s.ImageSrv.ListImageWithScanInfo(ctx, body)
 	if err != nil {
 		response.JSONError(ctx, scani18.GetImageInfo(err))
 		return
@@ -388,7 +442,7 @@ func (s *ScanResultAPI) GetImageRiskInfo(ctx *gin.Context) {
 	ans := make([]ImageRiskStatic, 0)
 
 	for i := range images {
-		data, err := s.getImageSrv(ctx).GetImageCorrelateData(ctx, imagesecModel.GetImageAssociateDataParam{
+		data, err := s.ImageSrv.GetImageCorrelateData(ctx, imagesecModel.GetImageAssociateDataParam{
 			ImageId:         images[i].ID,
 			VulnEnable:      true,
 			MalwareEnable:   true,
@@ -398,10 +452,10 @@ func (s *ScanResultAPI) GetImageRiskInfo(ctx *gin.Context) {
 			WebshellEnable:  true,
 			RegistryEnable:  true,
 			ScanResultSearchParam: imagesecModel.ScanResultSearchParam{
-				ImageID:          images[i].ID,
-				ExceptionPkg:     consts.TrueString,
-				ExceptionLicense: consts.TrueString,
-				ExceptionEnv:     consts.TrueString,
+				ImageID:             images[i].ID,
+				ExceptionPkg:        consts.TrueString,
+				ExceptionPkgLicense: consts.TrueString,
+				ExceptionEnv:        consts.TrueString,
 			},
 		})
 		if err != nil {
@@ -415,7 +469,7 @@ func (s *ScanResultAPI) GetImageRiskInfo(ctx *gin.Context) {
 
 		risk := ImageRiskStatic{
 			ImageBaseResponse: data.ImageBaseResponse,
-			Issue:             data.ToSecurityIssueOverview(),
+			Issue:             data.ToSecurityIssueStatistic(),
 			SeverityOverview:  make([]imagesecModel.SeverityGroup, 0),
 		}
 
@@ -444,42 +498,42 @@ func (s *ScanResultAPI) GetImageRiskInfo(ctx *gin.Context) {
 func (s *ScanResultAPI) GetImageLayer(ctx *gin.Context) {
 	param := GetScanResultSearchParamFromCtx(ctx)
 
-	image, err := s.getImageSrv(ctx).GetImageCorrelateData(ctx, imagesecModel.GetImageAssociateDataParam{
-		ImageId:       param.ImageID,
-		ImageUniqueID: param.ImageUniqueID,
+	image, err := s.ImageSrv.GetImageCorrelateData(ctx, imagesecModel.GetImageAssociateDataParam{
+		DeployRecordID: param.DeployRecordID,
+		ImageId:        param.ImageID,
+		ImageUniqueID:  param.ImageUniqueID,
 	})
 
 	if err != nil {
 		response.JSONError(ctx, scani18.SearchImageLayer(err))
 		return
 	}
-	response.JSONOK(ctx, response.WithItems(image.Image.Layer))
+
+	im := image.Image
+
+	im.SortLayer()
+
+	response.JSONOK(ctx, response.WithItems(im.Layer))
 }
 
-// 获取镜像漏洞-漏洞视角(只是节点镜像使用)
+// 获取镜像漏洞-漏洞视角
 func (s *ScanResultAPI) GetImageVulns(ctx *gin.Context) {
 	vulnParam := GetSearchVulnParamFromCtx(ctx)
-	param := GetScanResultSearchParamFromCtx(ctx)
 
-	severity := util.GetStringSliceFromQuery(ctx, "severity")
-	attackPath := util.GetStringSliceFromQuery(ctx, "attackPath") // 攻击途径
-	class := util.GetStringSliceFromQuery(ctx, "class")           // 漏洞类型
-	kernel := util.GetStringSliceFromQuery(ctx, "kernelVuln")     // 是否内核漏洞
-	if util.ExistInStringSlice(kernel, consts.TrueString) && util.ExistInStringSlice(kernel, consts.FalseString) {
-		kernel = nil
-	}
+	resultParam := GetScanResultSearchParamFromCtx(ctx)
 
-	filter := param.Filter.DeepCopy()
 	vulnParam.Filter = vulnParam.Filter.SetSortFiled("severity").SetSortDesc()
+	resultParam.Filter = resultParam.Filter.SetSortFiled("severity").SetSortDesc()
 
-	data, err := s.getImageSrv(ctx).GetImageCorrelateData(ctx, imagesecModel.GetImageAssociateDataParam{
-		ImageFromType:         param.ImageFromType,
-		ImageId:               param.ImageID,
-		ImageUniqueID:         param.ImageUniqueID,
+	data, err := s.ImageSrv.GetImageCorrelateData(ctx, imagesecModel.GetImageAssociateDataParam{
+		ImageFromType:         resultParam.ImageFromType,
+		ImageId:               resultParam.ImageID,
+		ImageUniqueID:         resultParam.ImageUniqueID,
+		DeployRecordID:        resultParam.DeployRecordID,
 		VulnEnable:            true,
 		DetectResultEnable:    true,
-		ScanResultSearchParam: param,
-		DetectParam:           imagesecModel.DetectResultParam{SecurityPolicyIds: param.SecurityPolicyIds},
+		ScanResultSearchParam: resultParam,
+		DetectParam:           imagesecModel.DetectResultParam{SecurityPolicyIds: resultParam.SecurityPolicyIds},
 		SearchVulnParam:       vulnParam,
 	})
 	if err != nil {
@@ -487,64 +541,37 @@ func (s *ScanResultAPI) GetImageVulns(ctx *gin.Context) {
 		return
 	}
 
-	res := make([]VulnResponse, len(data.Vuln))
 	for i := range data.Vuln {
 		data.Vuln[i].AdaptI18(ctx)
-
-		res[i] = convertNodeVulnView(data.Vuln[i])
-	}
-	ans := make([]VulnResponse, 0)
-	for i := range res {
-		if len(attackPath) > 0 && !util.ExistInStringSlice(attackPath, res[i].AttackPath) {
-			continue
-		}
-		if len(class) > 0 && !util.ExistInStringSlice(class, res[i].Class) {
-			continue
-		}
-		if len(kernel) > 0 && ((res[i].KernelVuln && kernel[0] == consts.FalseString) || (!res[i].KernelVuln && kernel[0] == consts.TrueString)) {
-			continue
-		}
-		if len(severity) > 0 && !util.ExistInStringSlice(severity, res[i].Severity) {
-			continue
-		}
-		ans = append(ans, res[i])
+		data.Vuln[i].Simplify()
 	}
 
-	cnt := int64(len(ans))
-
-	if len(ans) <= int(filter.Offset) {
-		ans = make([]VulnResponse, 0)
-	} else if len(ans) <= int(filter.Offset+filter.Limit) {
-		ans = ans[int(filter.Offset):]
-	} else {
-		ans = ans[int(filter.Offset):int(filter.Offset+filter.Limit)]
-	}
-
-	response.JSONOK(ctx, response.WithItems(ans),
-		response.WithTotalItems(cnt),
-		response.WithItemsPerPage(filter.Limit),
-		response.WithStartIndex(filter.Offset))
+	response.JSONOK(ctx, response.WithItems(data.Vuln),
+		response.WithTotalItems(data.VulnCnt),
+		response.WithItemsPerPage(vulnParam.Filter.Limit),
+		response.WithStartIndex(vulnParam.Filter.Offset))
 }
 
-// 获取镜像漏洞-软件视角(只是节点镜像使用)
+// 获取镜像漏洞-软件视角
 func (s *ScanResultAPI) GetImageVulnPkg(ctx *gin.Context) {
 	param := GetScanResultSearchParamFromCtx(ctx)
 
 	filter := param.Filter.DeepCopy()
+
 	param.Filter = param.Filter.SetLimit(0).SetOffset(0)
 
 	vulnParam := imagesecModel.ApiSearchVulnParam{
 		ImageFromType:    param.ImageFromType,
 		PkgKeyword:       param.Keyword,
-		ImageID:          param.ImageID,
 		ImageUniqueID:    param.ImageUniqueID,
 		ImageLayerDigest: util.GetKeywordFromQuery(ctx, "layerDigest"),
 	}
 
-	data, err := s.getImageSrv(ctx).GetImageCorrelateData(ctx, imagesecModel.GetImageAssociateDataParam{
+	data, err := s.ImageSrv.GetImageCorrelateData(ctx, imagesecModel.GetImageAssociateDataParam{
 		ImageFromType:         param.ImageFromType,
 		ImageId:               param.ImageID,
 		ImageUniqueID:         param.ImageUniqueID,
+		DeployRecordID:        param.DeployRecordID,
 		VulnEnable:            true,
 		LicenseEnable:         true,
 		PkgEnable:             true,
@@ -559,9 +586,9 @@ func (s *ScanResultAPI) GetImageVulnPkg(ctx *gin.Context) {
 	}
 
 	// 整理数据
-	pkgVulnMap := make(map[uint64]VulnResponse)
+	pkgVulnMap := make(map[uint64]*imagesecModel.VulnView)
 	for i := range data.Vuln {
-		pkgVulnMap[data.Vuln[i].PkgUniqueID] = convertNodeVulnView(data.Vuln[i])
+		pkgVulnMap[data.Vuln[i].PkgUniqueID] = data.Vuln[i]
 	}
 
 	pkgMap := make(map[uint64]VulnPKG)
@@ -571,13 +598,11 @@ func (s *ScanResultAPI) GetImageVulnPkg(ctx *gin.Context) {
 			PkgName:          pkg.Name,
 			PkgVersion:       pkg.Version,
 			UniqueID:         pkg.UniqueID,
+			Filepath:         pkg.Filepath,
 			SeverityOverview: make([]imagesecModel.SeverityGroup, 0),
-			Vulns:            make([]VulnResponse, 0),
-			License:          pkg.License,
+			Vulns:            make([]*imagesecModel.VulnView, 0),
+			License:          []string{pkg.License},
 			PolicyDetect:     pkg.PolicyDetect,
-		}
-		if _, ok := pkgVulnMap[pkg.UniqueID]; ok {
-			vp.Target = pkgVulnMap[pkg.UniqueID].Target
 		}
 		pkgMap[vp.UniqueID] = vp
 	}
@@ -588,7 +613,6 @@ func (s *ScanResultAPI) GetImageVulnPkg(ctx *gin.Context) {
 		if !ok {
 			continue
 		}
-		// sf.Vulns = append(sf.Vulns, convertNodeVulnView(data.Vuln[i]))
 		sf.SeverityOverview = imagesecModel.AddSeverityGroup(sf.SeverityOverview, vu.SeverityInt)
 		pkgMap[sf.UniqueID] = sf
 	}
@@ -619,19 +643,20 @@ func (s *ScanResultAPI) GetImageVulnPkg(ctx *gin.Context) {
 		response.WithStartIndex(filter.Offset))
 }
 
-// 获取镜像漏洞-编程语言(节点镜像使用)
+// 获取镜像漏洞-编程语言
 func (s *ScanResultAPI) GetImageVulnLanguage(ctx *gin.Context) {
 
 	param := GetScanResultSearchParamFromCtx(ctx)
-
 	filter := param.Filter.DeepCopy()
 	param.Filter = param.Filter.SetLimit(0).SetOffset(0)
 	vulnParam := GetSearchVulnParamFromCtx(ctx)
+	vulnParam.Filter = model.EmptyFilter()
 
-	data, err := s.getImageSrv(ctx).GetImageCorrelateData(ctx, imagesecModel.GetImageAssociateDataParam{
+	data, err := s.ImageSrv.GetImageCorrelateData(ctx, imagesecModel.GetImageAssociateDataParam{
 		ImageFromType:         param.ImageFromType,
 		ImageId:               param.ImageID,
 		ImageUniqueID:         param.ImageUniqueID,
+		DeployRecordID:        param.DeployRecordID,
 		VulnEnable:            true,
 		DetectResultEnable:    true,
 		DetectParam:           imagesecModel.DetectResultParam{SecurityPolicyIds: param.SecurityPolicyIds},
@@ -656,18 +681,17 @@ func (s *ScanResultAPI) GetImageVulnLanguage(ctx *gin.Context) {
 				LanguageName:     vulns[i].Language,
 				LanguagePath:     vulns[i].Target,
 				SeverityOverview: make([]imagesecModel.SeverityGroup, 0),
-				Vulns:            make([]VulnResponse, 0),
+				Vulns:            make([]*imagesecModel.VulnView, 0),
 			}
 		}
 		sf := languageMap[key]
-		// sf.Vulns = append(sf.Vulns, convertNodeVulnView(vulns[i]))
 		sf.SeverityOverview = imagesecModel.AddSeverityGroup(sf.SeverityOverview, vulns[i].SeverityInt)
 		languageMap[key] = sf
 	}
 	// 按层级排序一下,便于前端展示
 	for _, v := range languageMap {
 		sort.Sort(imagesecModel.SeverityGroups(v.SeverityOverview))
-		sort.Sort(VulnLists(v.Vulns))
+		sort.Sort(imagesecModel.VulnViews(v.Vulns))
 	}
 	res := make([]*VulnLanguage, 0)
 	for _, vp := range languageMap {
@@ -690,7 +714,7 @@ func (s *ScanResultAPI) GetImageVulnLanguage(ctx *gin.Context) {
 		response.WithStartIndex(filter.Offset))
 }
 
-// 获取镜像漏洞-Gobinary视角(节点镜像使用)
+// 获取镜像漏洞-Gobinary视角
 func (s *ScanResultAPI) GetImageVulnGoBinary(ctx *gin.Context) {
 	param := GetScanResultSearchParamFromCtx(ctx)
 
@@ -698,17 +722,18 @@ func (s *ScanResultAPI) GetImageVulnGoBinary(ctx *gin.Context) {
 	param.Filter = param.Filter.SetLimit(0).SetOffset(0)
 
 	vulnParam := GetSearchVulnParamFromCtx(ctx)
+	vulnParam.Filter = model.EmptyFilter()
 
-	data, err := s.getImageSrv(ctx).GetImageCorrelateData(ctx, imagesecModel.GetImageAssociateDataParam{
+	data, err := s.ImageSrv.GetImageCorrelateData(ctx, imagesecModel.GetImageAssociateDataParam{
 		ImageFromType:         param.ImageFromType,
 		ImageId:               param.ImageID,
 		ImageUniqueID:         param.ImageUniqueID,
+		DeployRecordID:        param.DeployRecordID,
 		VulnEnable:            true,
 		DetectResultEnable:    true,
 		ScanResultSearchParam: param,
 		DetectParam:           imagesecModel.DetectResultParam{SecurityPolicyIds: param.SecurityPolicyIds},
 		SearchVulnParam:       vulnParam,
-		Filter:                nil,
 	})
 	if err != nil {
 		response.JSONError(ctx, scani18.GetImageInfo(err))
@@ -721,12 +746,15 @@ func (s *ScanResultAPI) GetImageVulnGoBinary(ctx *gin.Context) {
 		if vulns[i].Language != consts.VulnLanguageGO {
 			continue
 		}
+		if vulns[i].Target == "" {
+			continue
+		}
 
 		index := strings.LastIndex(vulns[i].Target, "/")
 
 		vulnGO := VulnGobinary{
 			SeverityOverview: make([]imagesecModel.SeverityGroup, 0),
-			Vulns:            make([]VulnResponse, 0),
+			Vulns:            make([]*imagesecModel.VulnView, 0),
 		}
 		if index == -1 {
 			vulnGO.GoName = vulns[i].Target
@@ -742,14 +770,14 @@ func (s *ScanResultAPI) GetImageVulnGoBinary(ctx *gin.Context) {
 			gobinaryMap[key] = &vulnGO
 		}
 		sf := gobinaryMap[key]
-		sf.Vulns = append(sf.Vulns, convertNodeVulnView(vulns[i]))
+		sf.Vulns = append(sf.Vulns, vulns[i])
 		sf.SeverityOverview = imagesecModel.AddSeverityGroup(sf.SeverityOverview, vulns[i].SeverityInt)
 		gobinaryMap[key] = sf
 	}
 	// 按层级排序一下,便于前端展示
 	for _, v := range gobinaryMap {
 		sort.Sort(imagesecModel.SeverityGroups(v.SeverityOverview))
-		sort.Sort(VulnLists(v.Vulns))
+		sort.Sort(imagesecModel.VulnViews(v.Vulns))
 	}
 	res := make([]*VulnGobinary, 0)
 	for _, vp := range gobinaryMap {
@@ -772,7 +800,7 @@ func (s *ScanResultAPI) GetImageVulnGoBinary(ctx *gin.Context) {
 		response.WithStartIndex(filter.Offset))
 }
 
-// 获取镜像漏洞-开发框架视角(节点镜像使用)
+// 获取镜像漏洞-开发框架视角
 func (s *ScanResultAPI) GetImageVulnFrame(ctx *gin.Context) {
 	param := GetScanResultSearchParamFromCtx(ctx)
 
@@ -782,21 +810,20 @@ func (s *ScanResultAPI) GetImageVulnFrame(ctx *gin.Context) {
 	vulnParam := imagesecModel.ApiSearchVulnParam{
 		ImageFromType:    param.ImageFromType,
 		PkgKeyword:       param.Keyword,
-		ImageID:          param.ImageID,
 		ImageUniqueID:    param.ImageUniqueID,
 		ImageLayerDigest: util.GetKeywordFromQuery(ctx, "layerDigest"),
 	}
 
-	data, err := s.getImageSrv(ctx).GetImageCorrelateData(ctx, imagesecModel.GetImageAssociateDataParam{
+	data, err := s.ImageSrv.GetImageCorrelateData(ctx, imagesecModel.GetImageAssociateDataParam{
 		ImageFromType:         param.ImageFromType,
 		ImageId:               param.ImageID,
 		ImageUniqueID:         param.ImageUniqueID,
+		DeployRecordID:        param.DeployRecordID,
 		VulnEnable:            true,
 		DetectResultEnable:    true,
 		DetectParam:           imagesecModel.DetectResultParam{SecurityPolicyIds: param.SecurityPolicyIds},
 		ScanResultSearchParam: param,
 		SearchVulnParam:       vulnParam,
-		Filter:                nil,
 	})
 	if err != nil {
 		response.JSONError(ctx, scani18.GetImageInfo(err))
@@ -817,14 +844,14 @@ func (s *ScanResultAPI) GetImageVulnFrame(ctx *gin.Context) {
 			frameMap[vulns[i].Frame] = vulnFrame
 		}
 		sf := frameMap[vulns[i].Frame]
-		sf.Vulns = append(sf.Vulns, convertNodeVulnView(vulns[i]))
+		sf.Vulns = append(sf.Vulns, vulns[i])
 		sf.SeverityOverview = imagesecModel.AddSeverityGroup(sf.SeverityOverview, vulns[i].SeverityInt)
 		frameMap[vulns[i].Frame] = sf
 	}
 	// 按层级排序一下,便于前端展示
 	for _, v := range frameMap {
 		sort.Sort(imagesecModel.SeverityGroups(v.SeverityOverview))
-		sort.Sort(VulnLists(v.Vulns))
+		sort.Sort(imagesecModel.VulnViews(v.Vulns))
 	}
 	res := make([]*VulnFrame, 0)
 	for _, vp := range frameMap {
@@ -847,21 +874,21 @@ func (s *ScanResultAPI) GetImageVulnFrame(ctx *gin.Context) {
 		response.WithStartIndex(filter.Offset))
 }
 
-// webshell(节点镜像使用)
+// webshell
 func (s *ScanResultAPI) GetImageWebshell(ctx *gin.Context) {
 	param := GetScanResultSearchParamFromCtx(ctx)
 
 	filter := model.GetFilter(ctx)
 
-	data, err := s.getImageSrv(ctx).GetImageCorrelateData(ctx, imagesecModel.GetImageAssociateDataParam{
+	data, err := s.ImageSrv.GetImageCorrelateData(ctx, imagesecModel.GetImageAssociateDataParam{
 		ImageFromType:         param.ImageFromType,
 		ImageId:               param.ImageID,
 		ImageUniqueID:         param.ImageUniqueID,
+		DeployRecordID:        param.DeployRecordID,
 		WebshellEnable:        true,
 		DetectResultEnable:    true,
 		DetectParam:           imagesecModel.DetectResultParam{SecurityPolicyIds: param.SecurityPolicyIds},
 		ScanResultSearchParam: param,
-		Filter:                filter,
 	})
 	if err != nil {
 		response.JSONError(ctx, scani18.GetImageInfo(err))
@@ -877,14 +904,13 @@ func (s *ScanResultAPI) GetImageWebshell(ctx *gin.Context) {
 		response.WithStartIndex(filter.Offset))
 }
 
-// 漏洞详情(只是节点镜像使用)
+// 漏洞详情
 func (s *ScanResultAPI) GetVulnDetail(ctx *gin.Context) {
 	param := GetSearchVulnParamFromCtx(ctx)
 	vulnParam := imagesecModel.ApiSearchVulnParam{
-		VulnId:       param.VulnId,
 		VulnUniqueID: param.VulnUniqueID,
 	}
-	vuln, _, err := s.NodeVulnSrv.SearchVuln(ctx, vulnParam)
+	vuln, _, err := s.ScanResultSrv.SearchVuln(ctx, vulnParam)
 	if err != nil {
 		response.JSONError(ctx, i18.SearchErr(err))
 		return
@@ -899,71 +925,30 @@ func (s *ScanResultAPI) GetVulnDetail(ctx *gin.Context) {
 	response.JSONOK(ctx, response.WithItem(vuln[0]))
 }
 
-func (s *ScanResultAPI) getImageSrv(ctx *gin.Context) imageMetaSrv.ImageService {
-	imageFromType := util.GetKeywordFromQuery(ctx, "imageFromType")
-	if imageFromType == "" {
-		imageFromType = imagesecModel.ImageFromRegistry
-	}
-	if err := imagesecModel.ImageFromType(imageFromType).Check(); err != nil {
-		logging.Get().Error().Msg("not get imageFromType")
-		imageFromType = imagesecModel.ImageFromRegistry
-	}
-
-	return s.ImageSrv[imageFromType]
-}
-
 func GetSearchVulnParamFromCtx(ctx *gin.Context) imagesecModel.ApiSearchVulnParam {
 	param := imagesecModel.ApiSearchVulnParam{
 		ImageFromType:    util.GetKeywordFromQuery(ctx, "imageFromType"),
-		VulnId:           util.GetInt64FromQuery(ctx, "id"),
 		PkgKeyword:       util.GetKeywordFromQuery(ctx, "pkgKeyword"),
 		LanguageKeyword:  util.GetKeywordFromQuery(ctx, "languageKeyword"),
 		TargetKeyword:    util.GetKeywordFromQuery(ctx, "targetKeyword"),
-		VulnKeyword:      util.GetKeywordFromQuery(ctx, "keyword"),
+		VulnKeyword:      util.GetKeywordFromQuery(ctx, "vulnKeyword"),
+		LanguageName:     util.GetKeywordFromQuery(ctx, "languageName"),
+		LanguagePath:     util.GetKeywordFromQuery(ctx, "languagePath"),
 		FrameKeyword:     util.GetKeywordFromQuery(ctx, "frame"),
 		PkgUniqueID:      util.GetUint64FromQuery(ctx, "pkgUniqueID"),
 		VulnUniqueID:     util.GetUint64FromQuery(ctx, "uniqueID"),
-		ImageID:          util.GetInt64FromQuery(ctx, "imageID"),
 		ImageUniqueID:    util.GetUint64FromQuery(ctx, "imageUniqueID"),
 		ImageLayerDigest: util.GetKeywordFromQuery(ctx, "layerDigest"),
-		PkgName:          util.GetKeywordFromQuery(ctx, "pkgName"),
-		PkgVersion:       util.GetKeywordFromQuery(ctx, "pkgVersion"),
-		CanFixed:         util.GetKeywordFromQuery(ctx, "canFixed"),
+		CanFixed:         util.GetStringSliceFromQuery(ctx, "canFixed"),
 		SeverityStr:      util.GetStringSliceFromQuery(ctx, "severity"),
-		ClassType:        util.GetStringSliceFromQuery(ctx, "classType"),
-		NeedKernel:       util.GetKeywordFromQuery(ctx, "kernelVuln"),
+		NeedKernel:       util.GetStringSliceFromQuery(ctx, "kernelVuln"),
+		ClassType:        util.GetStringSliceFromQuery(ctx, "class"),
 		AttackPath:       util.GetStringSliceFromQuery(ctx, "attackPath"),
-		VulnClass:        util.GetStringSliceFromQuery(ctx, "class"),
-		OnlineImageVuln:  util.GetKeywordFromQuery(ctx, "onlineImageVuln"),
-		Filter:           model.GetFilter(ctx).SetDefault(),
+		Filter:           model.GetFilter(ctx).SetDefault().SetMaxLimit(consts.DefaultPerPage),
 	}
-	// 对于老接口可能没有这个参数，后期和前端统一后，把这个兼容去了
-	if param.ImageFromType == "" {
-		param.ImageFromType = imagesecModel.ImageFromNode
-	}
-
-	if param.PkgUniqueID > 0 {
-		param.PkgName = ""
-		param.PkgVersion = ""
-	}
-
-	goName := util.GetKeywordFromQuery(ctx, "goName")
-	goPath := util.GetKeywordFromQuery(ctx, "goPath")
-
-	if goPath != "/" && goPath != "" {
-		goName = goName + "/" + goPath
-	}
-	if goName != "" {
-		param.TargetKeyword = goName
-		param.LanguageKeyword = consts.VulnLanguageGO
-	}
-	languageName := util.GetKeywordFromQuery(ctx, "languageName")
-	languagePath := util.GetKeywordFromQuery(ctx, "languagePath")
-	if languageName != "" {
-		param.LanguageKeyword = languageName
-	}
-	if languagePath != "" {
-		param.TargetKeyword = languagePath
+	keyword := util.GetKeywordFromQuery(ctx, "keyword")
+	if keyword != "" {
+		param.VulnKeyword = keyword
 	}
 
 	return param

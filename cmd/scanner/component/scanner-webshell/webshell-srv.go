@@ -10,12 +10,13 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
+	"gitlab.com/security-rd/go-pkg/logging"
+
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/global"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	scannermodel "gitlab.com/piccolo_su/vegeta/pkg/model/scanner-model"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
-	"gitlab.com/security-rd/go-pkg/logging"
 )
 
 type WebshellSrv struct {
@@ -136,7 +137,7 @@ func (w *WebshellSrv) GetDetail(ctx *gin.Context, params store.SearchWebshellPar
 		mp[webshellImages[k].ImageID] = struct{}{}
 	}
 	images := []int64{}
-	for k, _ := range mp {
+	for k := range mp {
 		images = append(images, k)
 	}
 	logging.Get().Info().Msgf("webshell images:%v", images)
@@ -157,7 +158,7 @@ func (w *WebshellSrv) GetCode(md5 string, uuid uint64) ([]scannermodel.ProblemCo
 		data, err := os.ReadFile(filePath)
 		if err != nil {
 			logging.Get().Err(err).Msg("read file error")
-			//response.JSONError(ctx, fmt.Errorf("read file error"))
+			// response.JSONError(ctx, fmt.Errorf("read file error"))
 			return nil, err
 		}
 		datas = bytes.Split(data, []byte{'\n'})
@@ -213,7 +214,7 @@ func (w *WebshellSrv) GetCode(md5 string, uuid uint64) ([]scannermodel.ProblemCo
 				}
 			}
 		}
-		lenth += len(datas[k]) + 1 //补足换行
+		lenth += len(datas[k]) + 1 // 补足换行
 		if len(tmpPro.Problem) > 0 {
 			str := base64.StdEncoding.EncodeToString([]byte(tmpPro.Problem[0]))
 			tmpPro.Problem[0] = str

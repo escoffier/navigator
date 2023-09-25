@@ -128,7 +128,7 @@ func init() {
 }
 
 func newService(config register.ScannerServiceConfig) (register.ScannerService, error) {
-	t := &TiUpdate{} //TrivySrv的初始化在这个阶段，为了避免顺序混乱我们在start时再获取服务
+	t := &TiUpdate{} // TrivySrv的初始化在这个阶段，为了避免顺序混乱我们在start时再获取服务
 
 	return t, nil
 }

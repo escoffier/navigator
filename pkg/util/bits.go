@@ -118,3 +118,7 @@ func CompareVersion(version1 string, version2 string) int {
 	}
 	return 0
 }
+
+func ThanVersion(version1 string, version2 string) bool {
+	return CompareVersion(version1, version2) >= 0
+}

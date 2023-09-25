@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"time"
 
-	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
+	"gitlab.com/piccolo_su/vegeta/pkg/model/imagesec"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 )
 
@@ -103,8 +103,8 @@ type SearchRegistryParam struct {
 func (s *SearchRegistryParam) Compatible() {
 	s.RegType = util.DuplicateStringSlice(s.RegType)
 	for i := range s.RegType {
-		if s.RegType[i] == consts.HarborVersion {
-			s.RegType = append(s.RegType, consts.HarborV2Version, consts.HarborV1Version)
+		if s.RegType[i] == imagesec.HarborVersion {
+			s.RegType = append(s.RegType, imagesec.HarborV2Version, imagesec.HarborV1Version)
 		}
 	}
 }
@@ -119,6 +119,7 @@ type SearchSyncTaskParam struct {
 	RegIds   []int64
 	Finished string
 	SyncType string
+	Filter   *model.Filter
 }
 
 type GetImageOverViewParam struct {
@@ -321,40 +322,6 @@ type VulnPkg struct {
 	PkgVersion string
 }
 
-type SearchExportVulnDuplicateParam struct {
-	TaskID      int64
-	UniqueVulns []uint64
-	UseType     int64
-}
-
-type SearchExportTensorTask struct {
-	ExecuteType     []string
-	TaskType        string
-	Parameter       string
-	Finished        string
-	Failure         string
-	ID              int64
-	NotIds          []int64
-	ExpirationDate  time.Time
-	ExportHtmlReady string
-	NeedCiReport    string
-}
-
-type SearchExportTaskImageParam struct {
-	TaskID   int64
-	StartID  int64
-	ImageIds []int64
-}
-
-type SearchHtmlVulnImageParam struct {
-	TaskID      int64
-	UniqueVulns []uint64
-	CanFixed    string
-	Severity    int64
-	Fields      []string
-	StartID     int64
-}
-
 type GroupImageVuln struct {
 	ImageID     int64 `gorm:"column:image_id"  json:"imageID"`
 	SeverityInt int64 `gorm:"column:severity_int" json:"severityInt"`
@@ -372,10 +339,6 @@ type GroupRegistryRepoParam struct {
 
 type GroupVulnSeverityParam struct {
 	ImageIds []int64
-}
-
-type ScannerInstanceInfoDaoParam struct {
-	ScannerInstance string
 }
 
 type SearchWebshellParam struct {

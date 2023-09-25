@@ -2,18 +2,15 @@ package preinit
 
 import (
 	"context"
-	"encoding/json"
-	"fmt"
+	"os"
 	"strings"
 
+	"gitlab.com/security-rd/go-pkg/databases"
 	"gitlab.com/security-rd/go-pkg/logging"
 
-	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component"
-	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/utils"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
-	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
 	imagesecStore "gitlab.com/piccolo_su/vegeta/cmd/scanner/store/imagesec"
-	"gitlab.com/piccolo_su/vegeta/pkg/model"
+	scannerUtils "gitlab.com/piccolo_su/vegeta/cmd/scanner/utils"
 	imagesecModel "gitlab.com/piccolo_su/vegeta/pkg/model/imagesec"
 )
 
@@ -22,89 +19,50 @@ type InitScannerInterface interface {
 }
 
 type InitScanner struct {
-	regDal              store.RegistryDal
-	imageDal            store.ScannerDalInterface
-	vulnDal             store.VulnDalInterface
-	scanConfigDal       store.ScanConfigDal
-	nodeConfigDal       imagesecStore.ScanImageConfigDal
-	nodeDetectPolicyDal imagesecStore.DetectPolicyDal
-	sensitiveRuleDal    imagesecStore.SensitiveRuleDal
+	imageConfigDal   imagesecStore.ScanImageConfigDal
+	detectPolicyDal  imagesecStore.DetectPolicyDal
+	sensitiveRuleDal imagesecStore.SensitiveRuleDal
+	dataMigrateDal   imagesecStore.DataMigrateDal
+	scanResultDal    imagesecStore.ScanResultDal
 }
 
-func (s *InitScanner) Init(ctx context.Context, scannerInstance string) error {
-	if err := s.createGlobalPolicy(ctx); err != nil {
+func (s *InitScanner) Init(ctx context.Context) error {
+	if !scannerUtils.MainCluster() {
+		logging.Get().Info().Msg("not in main cluster")
+		return nil
+	}
+	// 节点镜像默认扫描配置
+	if err := s.createNodeImageScanConfig(ctx); err != nil {
 		return err
 	}
-	// 默认扫描策略
-	if err := s.createDefaultScanStrategy(ctx); err != nil {
-		return err
-	}
-	// 全局扫描配置
-	if err := s.createGlobalScanConfig(ctx); err != nil {
-		return err
-	}
-	// 节点镜像默认扫描策略
-	if err := s.createNodeScanConfig(ctx); err != nil {
+	// 仓库镜像认扫描配置
+	if err := s.createRegImageScanConfig(ctx); err != nil {
 		return err
 	}
 	// 节点镜像默认安全策略
-	if err := s.createNodeDefaultDetectConfig(ctx); err != nil {
+	if err := s.createNodeDefaultDetectPolicy(ctx); err != nil {
+		return err
+	}
+	// 仓库镜像的默认安全策略
+	if err := s.createRegDefaultDetectPolicy(ctx); err != nil {
 		return err
 	}
 	// 写入默认敏感文件规则
 	if err := s.createDefaultSensitiveRule(ctx); err != nil {
 		return err
 	}
+	// 2.10版本数据迁移
+	if err := s.createLicenseVer210DataMigrate(ctx); err != nil {
+		return err
+	}
+	// 已存在的策略快照
+	_ = s.createDetectPolicySnapshot(ctx)
 	return nil
 }
 
-func (s *InitScanner) createGlobalScanConfig(ctx context.Context) error {
-	// 先查询默认策略
-	strategies, _, err := s.scanConfigDal.SearchStrategy(ctx, store.SearchStrategyParam{IsDefault: consts.TrueString}, nil)
-	if err != nil {
-		return err
-	}
-	if len(strategies) == 0 {
-		return fmt.Errorf("no default scan strategy")
-	}
+func (s *InitScanner) createNodeImageScanConfig(ctx context.Context) error {
 
-	// 先查一下
-	config, _, err := s.scanConfigDal.SearchScanConfig(ctx, store.SearchScanConfigParam{}, nil)
-	if err != nil {
-		return err
-	}
-	if len(config) > 0 {
-		return nil
-	}
-
-	defaultConfig := model.ScanConfigSinge{
-		ScanCycleEnable: false,
-		Libraries:       []int64{},
-		ScanCycle:       []int64{},
-		ScanTime:        "",
-		ScanAll:         false,
-		StrategyID:      strategies[0].ID,
-	}
-
-	bys, err := json.Marshal(defaultConfig)
-	if err != nil {
-		return err
-	}
-
-	data := model.ScanConfig{
-		LibraryImageAddTrigEnable: false,
-		NodeImageAddTrigEnable:    false,
-		VulnFlushTrigEnable:       false,
-		MaliciousFlushTrigEnable:  false,
-		LibraryImageJson:          string(bys),
-		NodeImageJson:             string(bys),
-	}
-	return s.scanConfigDal.CreateScanConfig(ctx, &data)
-}
-
-func (s *InitScanner) createNodeScanConfig(ctx context.Context) error {
-
-	_, err := s.nodeConfigDal.GetScanImageConfig(ctx, imagesecModel.ConfigTypeNodeScanImage)
+	_, err := s.imageConfigDal.GetScanImageConfig(ctx, imagesecModel.ConfigTypeNodeScanImage)
 	if err == nil {
 		logging.Get().Info().Str("configType", imagesecModel.ConfigTypeNodeScanImage).Msg("GetScanImageConfig")
 		return nil
@@ -112,19 +70,19 @@ func (s *InitScanner) createNodeScanConfig(ctx context.Context) error {
 
 	nodeConfig := imagesecModel.ScanImageConfig{
 		ConfigType: imagesecModel.ConfigTypeNodeScanImage,
-		NodeImageConfig: &imagesecModel.NodeImageConfig{
+		ImageScanConfig: &imagesecModel.ImageScanConfig{
 			VulnFlush:     false,
 			MalwareFlush:  false,
 			AutoScanAdded: false,
 			DeepScan:      false,
-			SyncInterval:  10,
+			SyncInterval:  30,
 			ScanTimeout:   30,
-			ClearInterval: 1,
+			ClearInterval: 30,
 			ScanCycle: imagesecModel.ScanCycle{
 				Enable:     false,
 				ClusterKey: make([]string, 0),
-				AllCluster: false,
-				ScanTime:   "0:01:00",
+				AllCluster: true,
+				ScanTime:   "00:00:00",
 				Day:        make([]int64, 0),
 				Weekday:    make([]int64, 0),
 				Mouth:      make([]int64, 0),
@@ -134,18 +92,61 @@ func (s *InitScanner) createNodeScanConfig(ctx context.Context) error {
 		},
 	}
 
-	if err := s.nodeConfigDal.CreateScanImageConfig(ctx, &nodeConfig); err != nil {
+	if err := s.imageConfigDal.CreateScanImageConfig(ctx, &nodeConfig); err != nil {
 		logging.Get().Err(err).Str("configType", imagesecModel.ConfigTypeNodeScanImage).Msg("GetScanImageConfig")
 		return err
 	}
 	return nil
 }
 
-func (s *InitScanner) createNodeDefaultDetectConfig(ctx context.Context) error {
+func (s *InitScanner) createRegImageScanConfig(ctx context.Context) error {
 
-	nodeDetectConfig := imagesecModel.SecurityPolicy{
-		Name:      imagesecModel.DefaultPolicyNameEN,
-		IsDefault: true,
+	_, err := s.imageConfigDal.GetScanImageConfig(ctx, imagesecModel.ConfigTypeRegScanImage)
+	if err == nil {
+		logging.Get().Info().Str("configType", imagesecModel.ConfigTypeRegScanImage).Msg("GetScanImageConfig")
+		return nil
+	}
+
+	nodeConfig := imagesecModel.ScanImageConfig{
+		ConfigType: imagesecModel.ConfigTypeRegScanImage,
+		ImageScanConfig: &imagesecModel.ImageScanConfig{
+			VulnFlush:     false,
+			MalwareFlush:  false,
+			AutoScanAdded: true,
+			DeepScan:      false,
+			SyncInterval:  10,
+			ScanTimeout:   30,
+			ClearInterval: 30,
+			OldImage:      30,
+			ScanCycle: imagesecModel.ScanCycle{
+				Enable:     false,
+				ClusterKey: make([]string, 0),
+				AllReg:     true,
+				ScanTime:   "00:00:00",
+				Day:        make([]int64, 0),
+				Weekday:    make([]int64, 0),
+				Mouth:      make([]int64, 0),
+				CycleType:  imagesecModel.CycleTypeDay,
+			},
+			Updater: consts.DefaultAdminUser,
+		},
+	}
+
+	if err := s.imageConfigDal.CreateScanImageConfig(ctx, &nodeConfig); err != nil {
+		logging.Get().Err(err).Str("configType", imagesecModel.ConfigTypeRegScanImage).Msg("GetScanImageConfig")
+		return err
+	}
+	return nil
+}
+
+func (s *InitScanner) createNodeDefaultDetectPolicy(ctx context.Context) error {
+
+	detectConfig := &imagesecModel.SecurityPolicy{
+		UniqueID:   0,
+		Enable:     true,
+		PolicyType: imagesecModel.ConfigTypeNodeScanImage,
+		Name:       imagesecModel.DefaultPolicyNameEN,
+		IsDefault:  true,
 		Scope: imagesecModel.PolicyScope{
 			ImageFromType: imagesecModel.ImageFromNode,
 			ScopeType:     imagesecModel.DetectScopeTypeCluster,
@@ -155,20 +156,30 @@ func (s *InitScanner) createNodeDefaultDetectConfig(ctx context.Context) error {
 		Updater:  consts.DefaultAdminUser,
 		Malware:  imagesecModel.MalwareDetectRule{Enable: true},
 		Webshell: imagesecModel.WebshellDetectRule{Enable: true, RiskLevel: []string{imagesecModel.WebshellRiskLevelCertain}},
-		Vuln: imagesecModel.VulnDetectRule{Enable: true, Severity: imagesecModel.SeverityCritical,
-			IgnoreKernelVuln: false, IgnoreLangVuln: true, IgnoreUnfixed: true},
-		Sensitive:      imagesecModel.SensitiveDetectRule{Enable: true, AllBlack: true},
-		Pkg:            imagesecModel.PkgRule{Enable: false},
-		License:        imagesecModel.LicenseDetectRule{Enable: false},
-		Env:            imagesecModel.EnvDetectRule{Enable: false, CheckPassword: false},
-		RootBootEnable: false,
+		Vuln: imagesecModel.VulnDetectRuleView{
+			Enable:           true,
+			Severity:         imagesecModel.SeverityCritical,
+			IgnoreUnfixed:    true,
+			IgnoreKernelVuln: true,
+			IgnoreLangVuln:   true,
+			HasFixedVuln:     true,
+		},
+		Sensitive:  imagesecModel.SensitiveDetectRule{Enable: true, AllBlack: true},
+		Pkg:        imagesecModel.PkgRule{Enable: false},
+		License:    imagesecModel.LicenseDetectRule{Enable: false},
+		Env:        imagesecModel.EnvDetectRule{Enable: false, CheckPassword: false},
+		RootBoot:   imagesecModel.EnableActionRule{Enable: false},
+		TrustImage: imagesecModel.EnableActionRule{Enable: false},
+		PkgLicense: imagesecModel.LicenseDetectRule{Enable: false},
+		ExistInReg: imagesecModel.EnableActionRule{Enable: false},
 	}
-	nodeDetectConfig.Serialize()
+	detectConfig.Serialize()
 
-	policies, _, err := s.nodeDetectPolicyDal.SearchDetectPolicy(ctx, imagesecModel.SearchSecurityPolicyParam{
-		NotCount: true,
-		Default:  consts.TrueString,
-		Deleted:  consts.FalseString,
+	policies, _, err := s.detectPolicyDal.SearchDetectPolicy(ctx, imagesecModel.SearchSecurityPolicyParam{
+		PolicyType: imagesecModel.ConfigTypeNodeScanImage,
+		NotCount:   true,
+		Default:    consts.TrueString,
+		Deleted:    consts.FalseString,
 	})
 	if err != nil {
 		logging.Get().Err(err).Msg("SearchDetectPolicy")
@@ -177,9 +188,9 @@ func (s *InitScanner) createNodeDefaultDetectConfig(ctx context.Context) error {
 	if len(policies) > 0 {
 		logging.Get().Err(err).Msg("SearchDetectPolicy has default detect policy")
 
-		if err := s.nodeDetectPolicyDal.UpdateDetectPolicy(ctx, imagesecModel.UpdateSecurityPolicyParam{
+		if err := s.detectPolicyDal.UpdateDetectPolicy(ctx, imagesecModel.UpdateSecurityPolicyParam{
 			ID:      policies[0].ID,
-			Updater: nodeDetectConfig.ToUpdater(),
+			Updater: detectConfig.ToUpdater(),
 		}); err != nil {
 			logging.Get().Err(err).Msg("UpdateDetectPolicy")
 			return err
@@ -187,7 +198,7 @@ func (s *InitScanner) createNodeDefaultDetectConfig(ctx context.Context) error {
 		return nil
 	}
 
-	if err := s.nodeDetectPolicyDal.CreateDetectPolicy(ctx, &nodeDetectConfig); err != nil {
+	if err := s.detectPolicyDal.CreateDetectPolicy(ctx, detectConfig); err != nil {
 		logging.Get().Err(err).Msg("CreateDetectPolicy")
 		return err
 	}
@@ -195,77 +206,97 @@ func (s *InitScanner) createNodeDefaultDetectConfig(ctx context.Context) error {
 	return nil
 }
 
-func (s *InitScanner) createDefaultScanStrategy(ctx context.Context) error {
-	// 先查一下
-	strategy, _, err := s.scanConfigDal.SearchStrategy(ctx, store.SearchStrategyParam{IsDefault: consts.TrueString}, nil)
+func (s *InitScanner) createRegDefaultDetectPolicy(ctx context.Context) error {
+
+	detectConfig := &imagesecModel.SecurityPolicy{
+		UniqueID:   0,
+		PolicyType: imagesecModel.ConfigTypeRegScanImage,
+		Name:       imagesecModel.DefaultPolicyNameEN,
+		Enable:     true,
+		IsDefault:  true,
+		Scope: imagesecModel.PolicyScope{
+			ImageFromType: imagesecModel.ImageFromRegistry,
+			ScopeType:     imagesecModel.DetectScopeTypeReg,
+			AllCluster:    false,
+			AllReg:        true,
+		},
+		Creator:  consts.DefaultAdminUser,
+		Updater:  consts.DefaultAdminUser,
+		Malware:  imagesecModel.MalwareDetectRule{Enable: true},
+		Webshell: imagesecModel.WebshellDetectRule{Enable: true, RiskLevel: []string{imagesecModel.WebshellRiskLevelCertain}},
+		Vuln: imagesecModel.VulnDetectRuleView{
+			Enable:           true,
+			Severity:         imagesecModel.SeverityCritical,
+			IgnoreUnfixed:    true,
+			IgnoreKernelVuln: true,
+			IgnoreLangVuln:   true,
+			HasFixedVuln:     true,
+		},
+		Sensitive:  imagesecModel.SensitiveDetectRule{Enable: true, AllBlack: true},
+		Pkg:        imagesecModel.PkgRule{Enable: false},
+		License:    imagesecModel.LicenseDetectRule{Enable: false},
+		Env:        imagesecModel.EnvDetectRule{Enable: false, CheckPassword: false},
+		RootBoot:   imagesecModel.EnableActionRule{Enable: false},
+		TrustImage: imagesecModel.EnableActionRule{Enable: false},
+		PkgLicense: imagesecModel.LicenseDetectRule{Enable: false},
+	}
+	detectConfig.Serialize()
+
+	policies, _, err := s.detectPolicyDal.SearchDetectPolicy(ctx, imagesecModel.SearchSecurityPolicyParam{
+		PolicyType: imagesecModel.ConfigTypeRegScanImage,
+		NotCount:   true,
+		Default:    consts.TrueString,
+		Deleted:    consts.FalseString,
+	})
 	if err != nil {
+		logging.Get().Err(err).Msg("SearchDetectPolicy")
 		return err
 	}
-	if len(strategy) > 0 {
+	if len(policies) > 0 {
+		logging.Get().Err(err).Msg("SearchDetectPolicy has default detect policy")
+
+		if err := s.detectPolicyDal.UpdateDetectPolicy(ctx, imagesecModel.UpdateSecurityPolicyParam{
+			ID:            policies[0].ID,
+			UpdateDefault: true,
+			Updater:       detectConfig.ToUpdater(),
+		}); err != nil {
+			logging.Get().Err(err).Msg("UpdateDetectPolicy")
+			return err
+		}
 		return nil
 	}
 
-	data := model.ScanStrategy{
-		Name:              "默认扫描策略",
-		Describe:          "系统创建",
-		Operator:          "系统创建",
-		IsDefault:         true,
-		OpenLicenseEnable: true,
-		SoftwareEnable:    true,
-		EnvsEnable:        true,
-		SensitiveEnable:   true,
-		VulEnable:         true,
-		WebshellEnable:    true, // default disable webshell scan
-		MaliciousEnable:   true,
-	}
-	return s.scanConfigDal.CreateStrategy(ctx, &data)
-}
-
-func (s *InitScanner) createGlobalPolicy(ctx context.Context) error {
-	policies, err := s.imageDal.SearchRejectPolicy(ctx, store.SearchRejectPolicyParam{Global: consts.TrueString})
-	if err != nil {
-		logging.Get().Err(err).Msg("InitScanner.createGlobalPolicy")
+	if err := s.detectPolicyDal.CreateDetectPolicy(ctx, detectConfig); err != nil {
+		logging.Get().Err(err).Msg("CreateDetectPolicy")
 		return err
 	}
 
-	if len(policies) == 0 {
-		policy := model.RejectPolicy{
-			CicdEnable:    false,
-			K8sEnable:     false,
-			Mode:          model.RejectPolicyBaseModel,
-			OnlineMonitor: false,
-			IsGlobal:      true,
-		}
-
-		global := model.GlobalRejectPolicy{
-			CICDEnable:    false,
-			K8sEnable:     false,
-			Mode:          model.RejectPolicyBaseModel,
-			OnlineMonitor: false,
-		}
-
-		if _, err := s.imageDal.CreateRejectPolicy(ctx, policy); err != nil {
-			logging.Get().Err(err).Msg("InitScanner.CreateGlobalPolicy")
-			return err
-		}
-
-		updater := component.GlobalRejectPolicyToUpdater(global)
-
-		if err := s.imageDal.UpdateGlobalPolicy(ctx, updater); err != nil {
-			logging.Get().Err(err).Msg("InitScanner.CreateGlobalPolicy")
-			return err
-		}
-	}
 	return nil
 }
 
 func (s *InitScanner) createDefaultSensitiveRule(ctx context.Context) error {
-	preData, err := utils.GetSensitiveRuleFromFile(consts.DefaultSensitiveRuleENPath)
+
+	preData, err := scannerUtils.GetSensitiveRuleFromFile(consts.DefaultSensitiveRuleENPath)
 	if err != nil {
 		logging.Get().Err(err).Msg("InitScanner createDefaultSensitiveRule")
 		return err
 	}
+
+	rule, _, err := s.sensitiveRuleDal.SearchSensitiveRule(ctx, imagesecModel.SearchSensitiveRuleParam{})
+	if err != nil {
+		return err
+	}
+	exit := make(map[string]bool)
+
+	for i := range rule {
+		exit[rule[i].Value] = true
+	}
+
 	for i := range preData {
+		if exit[preData[i].Value] {
+			continue
+		}
+
 		data := &imagesecModel.SensitiveRule{
 			Description: preData[i].Description,
 			Value:       preData[i].Value,
@@ -287,20 +318,54 @@ func (s *InitScanner) createDefaultSensitiveRule(ctx context.Context) error {
 	return nil
 }
 
-func NewInitScanner(regDal store.RegistryDal,
-	imageDal store.ScannerDalInterface,
-	scanConfigDAl store.ScanConfigDal,
-	vulnDal store.VulnDalInterface,
-	nodeConfigDal imagesecStore.ScanImageConfigDal,
-	nodeDetectPolicyDal imagesecStore.DetectPolicyDal,
-	sensitiveRuleDal imagesecStore.SensitiveRuleDal,
-) *InitScanner {
-	return &InitScanner{regDal: regDal,
-		imageDal:            imageDal,
-		scanConfigDal:       scanConfigDAl,
-		vulnDal:             vulnDal,
-		nodeConfigDal:       nodeConfigDal,
-		nodeDetectPolicyDal: nodeDetectPolicyDal,
-		sensitiveRuleDal:    sensitiveRuleDal,
+// 2.10版本数据迁移
+func (s *InitScanner) createLicenseVer210DataMigrate(ctx context.Context) error {
+
+	ver := os.Getenv("SOFT_VERSION")
+	if !strings.HasPrefix(ver, "2.10") {
+		return nil
+	}
+	data := &imagesecModel.DataMigrate{
+		SoftVersion: ver,
+		Model:       consts.DataMigrateModelImage,
+	}
+	if err := s.dataMigrateDal.CreateDataMigrate(ctx, data); err != nil {
+		logging.Get().Err(err).Str("SOFT_VERSION", ver).Msg("CreateDataMigrate")
+		return err
+	}
+	return nil
+}
+
+func (s *InitScanner) createDetectPolicySnapshot(ctx context.Context) error {
+	policy, _, err := s.detectPolicyDal.SearchDetectPolicy(ctx, imagesecModel.SearchSecurityPolicyParam{})
+	if err != nil {
+		logging.Get().Err(err).Msg("MigratePolicy SearchDetectPolicy")
+		return err
+	}
+	for i := range policy {
+		po := policy[i]
+
+		if err := s.detectPolicyDal.CreateDetectPolicySnapshot(ctx, po); err != nil {
+			if !strings.Contains(err.Error(), consts.DuplicateKey) {
+				logging.Get().Err(err).Msg("MigratePolicy CreateDetectPolicySnapshot")
+				continue
+			}
+		}
+	}
+	return nil
+}
+
+func NewInitScanner(db *databases.RDBInstance) *InitScanner {
+	imageConfigDal := imagesecStore.NewScanImageConfigDao(db)
+	detectPolicyDal := imagesecStore.NewDetectPolicyDao(db)
+	sensitiveRuleDal := imagesecStore.NewSensitiveRuleDao(db)
+	dataMigrateDal := imagesecStore.NewDataMigrateDao(db)
+	scanResultDal := imagesecStore.NewScanResultDao(db)
+	return &InitScanner{
+		imageConfigDal:   imageConfigDal,
+		detectPolicyDal:  detectPolicyDal,
+		sensitiveRuleDal: sensitiveRuleDal,
+		dataMigrateDal:   dataMigrateDal,
+		scanResultDal:    scanResultDal,
 	}
 }

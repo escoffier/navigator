@@ -97,6 +97,7 @@ type Sensitive struct {
 	Description   string `json:"description"`
 	DescriptionEn string `json:"description_en"`
 	DescriptionZh string `json:"description_zh"`
+	Md5           string `json:"md5"`
 }
 
 const (
@@ -271,6 +272,18 @@ type PerLayerLicenseResult struct {
 	LicenseInfos []LicenseInfo
 }
 
+type PerLayerPasswordResult struct {
+	LayerDigest   string
+	PasswordInfos []PasswordInfo
+}
+
+// PasswordInfo 明文密码的状态
+type PasswordInfo struct {
+	Name     string `json:"name"`
+	IsWeak   bool   `json:"isWeak"`
+	MatchStr string `json:"matchStr"`
+}
+
 type NewVulnDetail struct {
 	CVEID string                        `json:"CVEID"`
 	Cnvd  []cnvd.Metadata               `json:"cnvd"`
@@ -355,6 +368,9 @@ type LicenseInfo struct {
 	Value       string `json:"value"`
 	Description string `json:"description"`
 	Name        string `json:"name"`
+	Filename    string `json:"filename"`
+	MD5         string `json:"md5"`
+	Data        []byte `json:"data"`
 }
 
 type WebFrameInfo struct {

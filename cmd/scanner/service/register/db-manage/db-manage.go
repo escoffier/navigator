@@ -3,18 +3,19 @@ package dbManage
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"os"
 	"path/filepath"
+
+	"gitlab.com/piccolo_su/vegeta/pkg/util"
+
+	"gitlab.com/security-rd/go-pkg/mq"
 
 	vulnupdata "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/vuln-updata"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/global"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/service/register"
-	"gitlab.com/piccolo_su/vegeta/cmd/scanner/service/register/stream"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	scannermodel "gitlab.com/piccolo_su/vegeta/pkg/model/scanner-model"
-	"gitlab.com/security-rd/go-pkg/mq"
 )
 
 const (
@@ -38,15 +39,15 @@ func (v *VersionSrv) getVersion(clusterKey string, objType string) (scannermodel
 		err = json.Unmarshal(vulnVer, &nowVulnVer)
 		if err != nil {
 			logging.GetLogger().Err(err).Msg("marshal ver error")
-			//return scannermodel.ScanDBVersion{}, err
+			// return scannermodel.ScanDBVersion{}, err
 		}
 	}
 
 	nowMaliciousVer := scannermodel.MaliciousDBVersion{}
 	clamavVer, err := os.ReadFile(filepath.Join(v.PvcPath, scannermodel.ClamavVersionPath))
 	if err != nil {
-		logging.GetLogger().Err(err).Msg("read Clamav ver error")
-		//return scannermodel.ScanDBVersion{}, err
+		logging.GetLogger().Err(err).Msg("read ClamavUpdate ver error")
+		// return scannermodel.ScanDBVersion{}, err
 	} else {
 		err = json.Unmarshal(clamavVer, &nowMaliciousVer.Clamav)
 		if err != nil {
@@ -58,7 +59,7 @@ func (v *VersionSrv) getVersion(clusterKey string, objType string) (scannermodel
 	aviraVer, err := os.ReadFile(filepath.Join(v.PvcPath, scannermodel.AviraVersionPath))
 	if err != nil {
 		logging.GetLogger().Err(err).Msg("read avira ver error")
-		//return scannermodel.ScanDBVersion{}, err
+		// return scannermodel.ScanDBVersion{}, err
 	} else {
 		err = json.Unmarshal(aviraVer, &nowMaliciousVer.Avira)
 		if err != nil {
@@ -84,7 +85,7 @@ func (v *VersionSrv) notMainCluster(ctx context.Context, c *vulnupdata.UpdateVer
 		return err
 	}
 	c.MqWriter = wr
-	allVer, err := v.getVersion(fmt.Sprintf(stream.GrpcFmt, global.ClusterKey, stream.GrpcStreamKey), scannermodel.SubScannerObject)
+	allVer, err := v.getVersion(util.ScannerClusterManagerGrpcStreamKey(global.ClusterKey), scannermodel.SubScannerObject)
 	if err != nil {
 		logging.GetLogger().Err(err).Msg("get version error")
 		return err
@@ -94,7 +95,7 @@ func (v *VersionSrv) notMainCluster(ctx context.Context, c *vulnupdata.UpdateVer
 	global.VulnDBVersion.MaliciousVersion.Avira = allVer.AviraDBVersion
 	global.VulnDBVersion.MaliciousVersion.Clamav = allVer.ClamavDBVersion
 	initDbVersion := scannermodel.ScanDBVersion{
-		KeyPath:         fmt.Sprintf(stream.GrpcFmt, global.ClusterKey, stream.GrpcStreamKey),
+		KeyPath:         util.ScannerClusterManagerGrpcStreamKey(global.ClusterKey),
 		ObjectType:      scannermodel.SubScannerObject,
 		VulnDBVersion:   allVer.VulnDBVersion,
 		ClamavDBVersion: allVer.ClamavDBVersion,

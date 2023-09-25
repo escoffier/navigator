@@ -30,17 +30,15 @@ require (
 	github.com/heroku/docker-registry-client v0.0.0-20211012143308-9463674c8930
 	github.com/huaweicloud/huaweicloud-sdk-go-v3 v0.0.59
 	github.com/json-iterator/go v1.1.12
-	github.com/lib/pq v1.10.9
+	github.com/lib/pq v1.10.9 // indirect
 	github.com/mattn/go-colorable v0.1.13 // indirect
 	github.com/mcuadros/go-version v0.0.0-20190830083331-035f6764e8d2
-	github.com/mileusna/crontab v1.2.0
 	github.com/mitchellh/go-homedir v1.1.0
 	github.com/mozilla/tls-observatory v0.0.0-20210609171429-7bc42856d2e5
 	github.com/nats-io/nats.go v1.15.0
 	github.com/nats-io/stan.go v0.10.2
 	github.com/novln/docker-parser v1.0.0
 	github.com/oceanicdev/chi-param v1.1.0
-	github.com/oleiade/lane v1.0.1
 	github.com/olekukonko/tablewriter v0.0.5 // indirect; ct
 	github.com/olivere/elastic/v7 v7.0.32
 	github.com/opencontainers/go-digest v1.0.0
@@ -82,7 +80,7 @@ require (
 	k8s.io/client-go v0.27.2
 	scm.tensorsecurity.cn/tensorsecurity-rd/cloudwalker v0.0.5
 	scm.tensorsecurity.cn/tensorsecurity-rd/falcosider v0.2.62
-	scm.tensorsecurity.cn/tensorsecurity-rd/trivy v1.0.2
+	scm.tensorsecurity.cn/tensorsecurity-rd/trivy v1.0.4
 )
 
 require github.com/go-ldap/ldap/v3 v3.4.1
@@ -135,7 +133,7 @@ require (
 	layeh.com/radius v0.0.0-20210819152912-ad72663a72ab
 	moul.io/http2curl v1.0.0
 	scm.tensorsecurity.cn/tensorsecurity-rd/api v0.2.4-0.20230809062140-8296db0e9feb
-	scm.tensorsecurity.cn/tensorsecurity-rd/trivy-db v0.0.4
+	scm.tensorsecurity.cn/tensorsecurity-rd/trivy-db v0.0.5
 )
 
 require (
@@ -600,7 +598,7 @@ require (
 	golang.org/x/term v0.9.0 // indirect
 	golang.org/x/text v0.10.0 // indirect
 	golang.org/x/tools v0.9.1 // indirect
-	golang.org/x/xerrors v0.0.0-20220907171357-04be3eba64a2 // indirect
+	golang.org/x/xerrors v0.0.0-20220907171357-04be3eba64a2
 	gomodules.xyz/orderedmap v0.1.0 // indirect
 	google.golang.org/api v0.114.0 // indirect
 	google.golang.org/appengine v1.6.7 // indirect
@@ -612,7 +610,7 @@ require (
 	gopkg.in/yaml.v3 v3.0.1
 	k8s.io/kube-openapi v0.0.0-20230501164219-8b0f38b5fd1f // indirect
 	k8s.io/utils v0.0.0-20230505201702-9f6742963106
-	scm.tensorsecurity.cn/tensorsecurity-rd/fanal v1.1.2
+	scm.tensorsecurity.cn/tensorsecurity-rd/fanal v1.1.4
 	sigs.k8s.io/structured-merge-diff/v4 v4.2.3 // indirect
 	sigs.k8s.io/yaml v1.3.0
 )

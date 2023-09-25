@@ -6,381 +6,290 @@ import (
 	"sort"
 	"strconv"
 	"strings"
-	"time"
 
 	"gitlab.com/security-rd/go-pkg/logging"
 	"scm.tensorsecurity.cn/tensorsecurity-rd/trivy/pkg/report"
 
-	"gitlab.com/piccolo_su/vegeta/pkg/i18"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 )
 
-// 镜像属性
-type ImageAttrParam struct {
-	Trusted              string `json:"trusted"`              // 是否是可信镜像：是："true"，否："false"
-	ImageType            string `json:"imageType"`            // 镜像类型,基础镜像："base",应用镜像："app"
-	HasFixedVuln         string `json:"hasFixedVuln"`         // 是否包含可修复漏洞: 是:"true",否："false"
-	ImageHasSuggestion   string `json:"imageHasSuggestion"`   // 可修复镜像:是："true",否："false"
-	NodeImageNotLibImage string `json:"nodeImageNotLibImage"` // 节点镜像不是仓库镜像
+type ImageSearchApiParam struct {
+	ImageFromType          string   `json:"imageFromType"`
+	OnlineStr              []string `json:"onlineStr"` // 在线 "true",离线："false" // 节点镜像使用
+	NodeKeyword            string   `json:"nodeKeyword"`
+	ImageKeyword           string   `json:"imageKeyword"`
+	RegistryKeyword        string   `json:"registryKeyword"`
+	PolicyUniqueID         []string `json:"policyUniqueID"`
+	PolicyIntersection     string   `json:"policyIntersection"`
+	SecurityIssue          []string `json:"securityIssue"`   // 安全问题,镜像属性也放在这里
+	RegIds                 []int64  `json:"regIds"`          // 仓库ID
+	ImageAttrView          []string `json:"imageAttr"`       // 镜像属性,前端以列表的方式传递
+	SafeAttr               []string `json:"safeAttr"`        // safe，unsafe,unknown
+	VulnStatic             []string `json:"vulnStatic"`      // 镜像漏洞统计
+	ImageIds               []int64  `json:"imageIds"`        // 镜像ID列表
+	ImageID                int64    `json:"imageID"`         // 镜像ID
+	ScanStatus             []string `json:"scanStatus"`      // 扫描状态
+	JustReturnImage        bool     `json:"justReturnImage"` // 只需要镜像信息，不需要镜像关联信息
+	ReturnMalicious        bool     `json:"returnMalicious"` // 是否返回恶义文件
+	UUIDs                  []uint32 `json:"uuids"`           // 镜像uuid
+	UniqueIds              []uint64 `json:"uniqueIds"`
+	UniqueId               uint64   `json:"uniqueId,string"`
+	Projects               []string `json:"projects"`               // 仓库和repo的筛选
+	AttrIntersection       string   `json:"attrIntersection"`       // 属性交集还是并集 and or
+	IssueIntersection      string   `json:"issueIntersection"`      // 安全问题交集还是并集 and or
+	VulnStaticIntersection string   `json:"vulnStaticIntersection"` // 漏洞统计交集还是并集 and or
+	StartID                int64    `json:"startID"`                // 分页请求时，上一页最后一条数据的ID
+	Creator                string   `json:"creator"`                // 扫描任务的操作
+	ClusterKey             []string `json:"clusterKey"`
+	// 部署上线特有
+	DeployAction []string `json:"deployAction"`
+	StartTime    int64    `json:"startTime"`
+	EndTime      int64    `json:"endTime"`
+
+	// 以下几个查询关联镜像，单独的接口
+	WebshellMD5  string `json:"webshellMd5"`
+	MalwareMD5   string `json:"malwareMD5"`
+	SensitiveMD5 string `json:"sensitiveMD5"`
+	VulnUniqueID uint64 `json:"vulnUniqueID"`
+	PkgUniqueID  uint64 `json:"pkgUniqueID"`
+
+	AssociateParam GetImageAssociateDataParam `json:"associateParam"`
+	Fields         []string                   `json:"fields"`
+	Filter         *model.Filter
 }
 
-type ImageListParam struct {
-	ImageFromType          string            `json:"imageFromType"`
-	Online                 string            `json:"online"`    // 在线 "true",离线："false" 仓库镜像在用，后期修正
-	OnlineStr              []string          `json:"onlineStr"` // 在线 "true",离线："false" // 节点镜像使用
-	OnlineFlag             uint64            `json:"onlineFlag"`
-	NodeKeyword            string            `json:"nodeKeyword"`
-	ImageKeyword           string            `json:"imageKeyword"`
-	SecurityIssue          []uint64          `json:"securityIssue"` // 安全问题
-	SecurityIssueFlag      uint64            `json:"-"`             // 安全问题: 前端传字符串
-	ImageAttr              ImageAttrParam    `json:"-"`             // 镜像属性
-	ImageAttrFlag          uint64            `json:"-"`
-	ImageAttrView          []string          `json:"imageAttr"` // 镜像属性,前端以列表的方式传递
-	SafeAttr               []string          `json:"safeAttr"`  // safe，unsafe,unknown
-	SafeAttrFlag           uint64            `json:"-"`
-	VulnStatic             []string          `json:"vulnStatic"`      // 镜像漏洞统计
-	VulnStaticFlag         uint64            `json:"-"`               // 镜像漏洞统计
-	ImageIds               []int64           `json:"imageIds"`        // 镜像ID列表
-	ScanStatus             []string          `json:"scanStatus"`      // 扫描状态
-	ScanStatusFlag         uint64            `json:"-"`               // 扫描状态(对应数据库中的数据)
-	JustReturnImage        bool              `json:"justReturnImage"` // 只需要镜像信息，不需要镜像关联信息
-	ReturnMalicious        bool              `json:"returnMalicious"` // 是否返回恶义文件
-	UUIDs                  []uint32          `json:"uuids"`           // 镜像uuid
-	UniqueIds              []uint64          `json:"uniqueIds"`
-	Projects               []string          `json:"projects"`               // 仓库和repo的筛选
-	AttrIntersection       string            `json:"attrIntersection"`       // 属性交集还是并集 and or
-	IssueIntersection      string            `json:"issueIntersection"`      // 安全问题交集还是并集 and or
-	VulnStaticIntersection string            `json:"vulnStaticIntersection"` // 漏洞统计交集还是并集 and or
-	NotIdentifyOnline      bool              `json:"notIdentifyOnline"`      // 是否识别是在线还是离线 默认需要识别
-	NotIdentifyTrusted     bool              `json:"notIdentifyTrusted"`     // 是否识别是可信镜像 默认需要识别
-	StartID                int64             `json:"startID"`                // 分页请求时，上一页最后一条数据的ID
-	ImageScanTaskInfo      ImageScanTaskInfo `json:"imageScanTaskInfo"`
-	ClusterKey             []string          `json:"clusterKey"`
-	WebshellMD5            string            `json:"webshellMd5"`
-	// 后端处理数据的中间结构
-	RegistryIds []int64              `json:"-"`
-	Repos       []SearchProjectParam `json:"-"`
-	Fields      []string             `json:"fields"`
+func (sp *ImageSearchApiParam) ToImageDalParam() ImageDalParam {
 
-	Filter *model.Filter
+	if sp.IssueIntersection == "" {
+		sp.IssueIntersection = OrString
+	}
+	if sp.AttrIntersection == "" {
+		sp.AttrIntersection = OrString
+	}
+	if sp.PolicyIntersection == "" {
+		sp.PolicyIntersection = OrString
+	}
+	if sp.VulnStaticIntersection == "" {
+		sp.VulnStaticIntersection = OrString
+	}
+	daoParam := ImageDalParam{
+		ImageFromType:          sp.ImageFromType,
+		ImageIds:               sp.ImageIds,
+		ImageKeyword:           strings.TrimSpace(sp.ImageKeyword),
+		NodeKeyword:            strings.TrimSpace(sp.NodeKeyword),
+		RegKeyword:             strings.TrimSpace(sp.RegistryKeyword),
+		StartID:                sp.StartID,
+		Fields:                 sp.Fields,
+		UUIDs:                  sp.UUIDs,
+		UniqueIds:              sp.UniqueIds,
+		UniqueId:               sp.UniqueId,
+		WebshellMD5:            sp.WebshellMD5,
+		MalwareMD5:             sp.MalwareMD5,
+		SensitiveMD5:           sp.SensitiveMD5,
+		AttrIntersection:       sp.AttrIntersection,
+		IssueIntersection:      sp.IssueIntersection,
+		VulnStaticIntersection: sp.VulnStaticIntersection,
+		NotNeedCount:           false,
+		ClusterKey:             sp.ClusterKey,
+		RegIds:                 sp.RegIds,
+		VulnUniqueID:           sp.VulnUniqueID,
+		PolicyIntersection:     sp.PolicyIntersection,
+		PolicyUniqueID:         sp.PolicyUniqueID,
+		Filter:                 sp.Filter,
+	}
+
+	repos := make([]SearchProjectParam, 0)
+	for _, v := range sp.Projects {
+		split := strings.Split(v, ",")
+		// 说明只是registryID的筛选
+		if len(split) == 1 && split[0] != "" {
+			regID, err := strconv.ParseInt(split[0], 10, 64)
+			if err != nil {
+				logging.Get().Error().Str("project", v).Msg("project param incorrect")
+				continue
+			}
+			repos = append(repos, SearchProjectParam{RegID: regID})
+		}
+		if len(split) == 2 && split[0] != "" && split[1] != "" {
+			regID, err := strconv.ParseInt(split[0], 10, 64)
+			if err != nil {
+				logging.Get().Error().Str("project", v).Msg("project param incorrect")
+				continue
+			}
+			repos = append(repos, SearchProjectParam{RegID: regID, ProjectName: split[1]})
+		}
+	}
+	daoParam.Projects = repos
+	daoParam.VulnStaticFlag = sp.GenVulnStaticFlag()
+	daoParam.SafeAttrFlag = sp.GenSafeAttrFlag()
+	daoParam.SecurityIssueFlag = sp.GenSecurityIssueFlag()
+	daoParam.OnlineFlag = sp.GenOnlineFlag()
+	daoParam.ImageAttrFlag = sp.GenAttrFlag()
+	daoParam.DeployActionFlag = sp.GenDeployActionFlag()
+
+	return daoParam
 }
 
-func (sp *ImageListParam) Check() *i18.ErrI18 {
-	if sp == nil {
-		return i18.CreateI18BadReqErr("程序出错", "not get model")
-	}
-	if err := ImageFromType(sp.ImageFromType).Check(); err != nil {
-		return i18.CreateI18BadReqErr("未获取到镜像类型", "not get image from type")
-	}
+func (sp *ImageSearchApiParam) Check() error {
 	return nil
 }
 
-// 生成属性的flag
-func (sp *ImageListParam) GenAttrFlag() uint64 {
-	var flag uint64
-	if sp.ImageAttr.ImageType == model.BaseImageTypeString {
-		flag = util.SetBit1(flag, model.FlagBaseImage)
-	}
-	if sp.ImageAttr.HasFixedVuln == model.TrueString {
-		flag = util.SetBit1(flag, model.FlagHasFixedVuln)
-	}
-	if sp.ImageAttr.Trusted == model.TrueString {
-		flag = util.SetBit1(flag, model.FlagImageTrusted)
-	}
-	if sp.ImageAttr.NodeImageNotLibImage == model.TrueString {
-		flag = util.SetBit1(flag, model.FlagNodeImageNotInLib)
-	}
-	if sp.ImageAttr.ImageHasSuggestion == model.TrueString {
-		flag = util.SetBit1(flag, model.FlagImageHasFixSuggest)
-	}
-	return flag
-}
-
-// 生成属性的flag
-func (sp *ImageListParam) GenAttrFlagList() []uint64 {
-	flag := make([]uint64, 0)
-	if sp.ImageAttr.ImageType == model.BaseImageTypeString {
-		flag = append(flag, model.FlagBaseImage)
-	}
-	if sp.ImageAttr.HasFixedVuln == model.TrueString {
-		flag = append(flag, model.FlagHasFixedVuln)
-	}
-
-	return flag
-}
-
-// 生成安全问题的flag
-func (sp *ImageListParam) GenSecurityIssueFlag() uint64 {
-	var flag uint64
-
-	kinds := util.DuplicateUint64Slice(sp.SecurityIssue)
-	for _, kind := range kinds {
-		for _, imageFlag := range model.GetAllFlag() {
-			if kind == imageFlag {
-				flag = 1<<imageFlag + flag
-			}
-		}
-	}
-
-	return flag
-}
-
-func (sp *ImageListParam) GenSafeAttrFlag() uint64 {
+func (sp *ImageSearchApiParam) GenSafeAttrFlag() uint64 {
 	// 镜像是否安全
 	var safeAttrFlag uint64
 	for i := range sp.SafeAttr {
 		switch sp.SafeAttr[i] {
-		case model.ImageSafeString:
-			safeAttrFlag = util.SetBit1(safeAttrFlag, model.FlagImageSafe)
-		case model.ImageUnsafeString:
-			safeAttrFlag = util.SetBit1(safeAttrFlag, model.FlagImageUnsafe)
-		case model.ImageSafeUnknown:
-			safeAttrFlag = util.SetBit1(safeAttrFlag, model.FlagImageSafeUnknown)
+		case ImageSafeString:
+			safeAttrFlag = util.SetBit1(safeAttrFlag, FlagImageSafe)
+		case ImageUnsafeString:
+			safeAttrFlag = util.SetBit1(safeAttrFlag, FlagImageUnsafe)
+		case ImageSafeUnknown:
+			safeAttrFlag = util.SetBit1(safeAttrFlag, FlagImageSafeUnknown)
 		}
 	}
 	return safeAttrFlag
 }
 
-func (sp *ImageListParam) GenOnlineFlag() uint64 {
+// 生成属性的flag
+func (sp *ImageSearchApiParam) GenAttrFlag() uint64 {
+	var flag uint64
+	for i := range sp.ImageAttrView {
+		switch sp.ImageAttrView[i] {
+		case BaseImageTypeString:
+			flag = util.SetBit1(flag, FlagBaseImage)
+		case AppImageTypeString:
+			flag = util.SetBit1(flag, FlagAppImage)
+		case HasFixedVulnString:
+			flag = util.SetBit1(flag, FlagHasFixedVuln)
+		}
+	}
+	return flag
+}
+
+func (sp *ImageSearchApiParam) GenDeployActionFlag() uint64 {
+	var flag uint64
+	for i := range sp.DeployAction {
+		switch sp.DeployAction[i] {
+		case DeployActionBlock:
+			flag = util.SetBit1(flag, FlagImageDeployBlock)
+		case DeployActionPass:
+			flag = util.SetBit1(flag, FlagImageDeployPassed)
+		case DeployActionAlarm:
+			flag = util.SetBit1(flag, FlagImageDeployPassed)
+		}
+	}
+	return flag
+}
+
+func (sp *ImageSearchApiParam) GenOnlineFlag() uint64 {
 	// 镜像是否安全
 	var safeAttrFlag uint64
 	for i := range sp.OnlineStr {
 		switch sp.OnlineStr[i] {
-		case model.TrueString:
-			safeAttrFlag = util.SetBit1(safeAttrFlag, model.FlagImageOnline)
-		case model.FalseString:
-			safeAttrFlag = util.SetBit1(safeAttrFlag, model.FlagImageNotOnline)
+		case TrueString:
+			safeAttrFlag = util.SetBit1(safeAttrFlag, FlagImageOnline)
+		case FalseString:
+			safeAttrFlag = util.SetBit1(safeAttrFlag, FlagImageNotOnline)
 		}
 	}
 	return safeAttrFlag
 }
 
-func (sp *ImageListParam) GenVulnStaticFlag() uint64 {
+func (sp *ImageSearchApiParam) GenVulnStaticFlag() uint64 {
 	// 镜像漏洞筛选
 	var imageVulnStaticFlag uint64
 	for i := range sp.VulnStatic {
 		switch strings.ToUpper(sp.VulnStatic[i]) {
 		case SeverityCritical:
-			imageVulnStaticFlag = util.SetBit1(imageVulnStaticFlag, model.FlagImageHasCriticalVuln)
+			imageVulnStaticFlag = util.SetBit1(imageVulnStaticFlag, FlagImageHasCriticalVuln)
 		case SeverityHigh:
-			imageVulnStaticFlag = util.SetBit1(imageVulnStaticFlag, model.FlagImageHasHighVuln)
+			imageVulnStaticFlag = util.SetBit1(imageVulnStaticFlag, FlagImageHasHighVuln)
 		case SeverityMedium:
-			imageVulnStaticFlag = util.SetBit1(imageVulnStaticFlag, model.FlagImageHasMediumVuln)
+			imageVulnStaticFlag = util.SetBit1(imageVulnStaticFlag, FlagImageHasMediumVuln)
 		case SeverityLow:
-			imageVulnStaticFlag = util.SetBit1(imageVulnStaticFlag, model.FlagImageHasLowVuln)
+			imageVulnStaticFlag = util.SetBit1(imageVulnStaticFlag, FlagImageHasLowVuln)
 		case SeverityUnknown:
-			imageVulnStaticFlag = util.SetBit1(imageVulnStaticFlag, model.FlagImageHasUnknownVun)
+			imageVulnStaticFlag = util.SetBit1(imageVulnStaticFlag, FlagImageHasUnknownVun)
 		}
 	}
 	return imageVulnStaticFlag
 }
 
-func (sp *ImageListParam) GenImageAttrFlag() uint64 {
-	// 镜像属性flag
-	var imageAttrFlag uint64
-	for i := range sp.ImageAttrView {
-		switch sp.ImageAttrView[i] {
-		case model.AppImageTypeString:
-			imageAttrFlag = util.SetBit1(imageAttrFlag, model.FlagAppImage)
-		case model.BaseImageTypeString:
-			imageAttrFlag = util.SetBit1(imageAttrFlag, model.FlagBaseImage)
-		case model.TrustedString:
-			imageAttrFlag = util.SetBit1(imageAttrFlag, model.FlagImageTrusted)
-		case model.UnTrustedString:
-			imageAttrFlag = util.SetBit1(imageAttrFlag, model.FlagImageUnTrusted)
-		case model.HasFixedVulnString:
-			imageAttrFlag = util.SetBit1(imageAttrFlag, model.FlagHasFixedVuln)
-		case model.ImageHasSuggestionString:
-			imageAttrFlag = util.SetBit1(imageAttrFlag, model.FlagImageHasFixSuggest)
-		case model.NodeImageNotLibImageString:
-			imageAttrFlag = util.SetBit1(imageAttrFlag, model.FlagNodeImageNotInLib)
+func (sp *ImageSearchApiParam) GenSecurityIssueFlag() uint64 {
+	// 镜像问题
+	var flag uint64
+	for i := range sp.SecurityIssue {
+		switch sp.SecurityIssue[i] {
+		case AppImageTypeString:
+			flag = util.SetBit1(flag, FlagAppImage)
+		case BaseImageTypeString:
+			flag = util.SetBit1(flag, FlagBaseImage)
+		case TrustedString:
+			flag = util.SetBit1(flag, FlagImageTrusted)
+		case UnTrustedString:
+			flag = util.SetBit1(flag, FlagImageUnTrusted)
+		case HasFixedVulnString:
+			flag = util.SetBit1(flag, FlagHasFixedVuln)
+		case ImageHasSuggestionString:
+			flag = util.SetBit1(flag, FlagImageHasFixSuggest)
+		case ImageNotInReg:
+			flag = util.SetBit1(flag, FlagImageNotInRegistry)
+		case ExceptionVuln:
+			flag = util.SetBit1(flag, FlagHasExceptionVuln)
+		case ExceptionMalware:
+			flag = util.SetBit1(flag, FlagHasExceptionMalware)
+		case ExceptionSensitive:
+			flag = util.SetBit1(flag, FlagHasExceptionSensitive)
+		case ExceptionWebshell:
+			flag = util.SetBit1(flag, FlagHasExceptionWebshell)
+		case ExceptionPKG:
+			flag = util.SetBit1(flag, FlagHasExceptionPKG)
+		case ExceptionEnv:
+			flag = util.SetBit1(flag, FlagHasExceptionEnv)
+		case ExceptionBoot:
+			flag = util.SetBit1(flag, FlagExceptionBoot)
+		case ExceptionPkgLicense:
+			flag = util.SetBit1(flag, FlagHasExceptionPkgLicense)
+		case ExceptionLicense:
+			flag = util.SetBit1(flag, FlagHasExceptionLicense)
 		}
 	}
-	return imageAttrFlag
-}
-
-// 中间过度阶段，两种不同的解析方式，后期统一成Deserialize2
-// 查询条件实在太多了，后期得空需要整理得更明了
-// 更好的做法是 提供一个方法 把 ImageListParam 转为 NodeImageDalParam 后期修改
-func (sp *ImageListParam) Deserialize() {
-	if sp.ImageFromType == "" {
-		sp.ImageFromType = ImageFromRegistry
-	}
-	if sp.ImageFromType == ImageFromNode {
-		sp.deserialize2()
-	}
-	if sp.ImageFromType == ImageFromRegistry {
-		sp.deserialize1()
-	}
-}
-
-func (sp *ImageListParam) deserialize1() {
-	if sp.AttrIntersection == "" {
-		sp.AttrIntersection = model.AndString
-	}
-	if sp.IssueIntersection == "" {
-		sp.IssueIntersection = model.AndString
-	}
-	if sp.VulnStaticIntersection == "" {
-		sp.VulnStaticIntersection = model.AndString
-	}
-
-	if sp.NotIdentifyOnline {
-		sp.Online = ""
-	}
-	if sp.NotIdentifyTrusted {
-		sp.ImageAttr.Trusted = ""
-	}
-
-	repos := make([]SearchProjectParam, 0)
-	for _, v := range sp.Projects {
-		split := strings.Split(v, ",")
-		// 说明只是registryID的筛选
-		if len(split) == 1 && split[0] != "" {
-			regID, err := strconv.ParseInt(split[0], 10, 64)
-			if err != nil {
-				logging.Get().Error().Str("project", v).Msg("project parameter incorrect")
-				continue
-			}
-			repos = append(repos, SearchProjectParam{RegID: regID})
-		}
-		if len(split) == 2 && split[0] != "" && split[1] != "" {
-			regID, err := strconv.ParseInt(split[0], 10, 64)
-			if err != nil {
-				logging.Get().Error().Str("project", v).Msg("project parameter incorrect")
-				continue
-			}
-			repos = append(repos, SearchProjectParam{RegID: regID, ProjectName: split[1]})
-		}
-	}
-	sp.Repos = repos
-
-	// // 如果可信和非可信都在选项中，就移出
-	// if util.ContainsString(sp.ImageAttrView, model.TrustedString) && util.ContainsString(sp.ImageAttrView, model.UnTrustedString) {
-	// 	attrView := make([]string, 0)
-	// 	for i := range sp.ImageAttrView {
-	// 		if !util.ContainsString([]string{model.TrustedString, model.UnTrustedString}, sp.ImageAttrView[i]) {
-	// 			attrView = append(attrView, sp.ImageAttrView[i])
-	// 		}
-	// 	}
-	// 	sp.ImageAttrView = attrView
-	// }
-
-	for i := range sp.ImageAttrView {
-		switch sp.ImageAttrView[i] {
-		case model.AppImageTypeString:
-			sp.ImageAttr.ImageType = model.AppImageTypeString
-		case model.BaseImageTypeString:
-			sp.ImageAttr.ImageType = model.BaseImageTypeString
-		case model.TrustedString:
-			sp.ImageAttr.Trusted = model.TrueString
-		case model.UnTrustedString:
-			sp.ImageAttr.Trusted = model.FalseString
-		case model.HasFixedVulnString:
-			sp.ImageAttr.HasFixedVuln = model.TrueString
-		}
-	}
-
-	// 如果只有一个条件，取交集或者并集是一样的，统一设置成交集，便于处理
-	if len(sp.ImageAttrView) == 1 {
-		sp.AttrIntersection = model.AndString
-	}
-
-	var scanStatusFlag uint64
-	for i := range sp.ScanStatus {
-		scanStatusFlag = util.SetBit1(scanStatusFlag, GetSubTaskScanStatusFlag(sp.ScanStatus[i]))
-	}
-	sp.ScanStatusFlag = scanStatusFlag
-	sp.SecurityIssueFlag = sp.GenSecurityIssueFlag()
-	if sp.NotIdentifyOnline {
-		sp.Online = ""
-	}
-	if sp.NotIdentifyTrusted {
-		sp.ImageAttr.Trusted = ""
-	}
-	sp.ImageKeyword = strings.TrimSpace(sp.ImageKeyword)
-}
-
-func (sp *ImageListParam) deserialize2() {
-	if sp.AttrIntersection == "" || len(sp.ImageAttrView) == 1 {
-		sp.AttrIntersection = model.AndString
-	}
-	if sp.IssueIntersection == "" || len(sp.SecurityIssue) == 1 {
-		sp.IssueIntersection = model.AndString
-	}
-	if sp.VulnStaticIntersection == "" {
-		sp.VulnStaticIntersection = model.OrString
-	}
-
-	repos := make([]SearchProjectParam, 0)
-	for _, v := range sp.Projects {
-		split := strings.Split(v, ",")
-		// 说明只是registryID的筛选
-		if len(split) == 1 && split[0] != "" {
-			regID, err := strconv.ParseInt(split[0], 10, 64)
-			if err != nil {
-				logging.Get().Error().Str("project", v).Msg("project parameter incorrect")
-				continue
-			}
-			repos = append(repos, SearchProjectParam{RegID: regID})
-		}
-		if len(split) == 2 && split[0] != "" && split[1] != "" {
-			regID, err := strconv.ParseInt(split[0], 10, 64)
-			if err != nil {
-				logging.Get().Error().Str("project", v).Msg("project parameter incorrect")
-				continue
-			}
-			repos = append(repos, SearchProjectParam{RegID: regID, ProjectName: split[1]})
-		}
-	}
-	sp.Repos = repos
-
-	sp.ImageAttrFlag = sp.GenImageAttrFlag()
-	sp.VulnStaticFlag = sp.GenVulnStaticFlag()
-
-	sp.SafeAttrFlag = sp.GenSafeAttrFlag()
-	// 安全问题
-	sp.SecurityIssueFlag = sp.GenSecurityIssueFlag()
-	sp.OnlineFlag = sp.GenOnlineFlag()
-	sp.ImageKeyword = strings.TrimSpace(sp.ImageKeyword)
-	sp.NodeKeyword = strings.TrimSpace(sp.NodeKeyword)
-
+	return flag
 }
 
 // 镜像属性
 type ImageAttrResponse struct {
-	Trusted              bool   `json:"trusted"`              // 是否是可信镜像：是：true，否：false
-	ImageType            string `json:"imageType"`            // 镜像类型,基础镜像："base",应用镜像："app"
-	HasFixedVuln         bool   `json:"hasFixedVuln"`         // 是否包含可修复漏洞: 是:true,否：false
-	ImageHasSuggestion   bool   `json:"imageHasSuggestion"`   // 可修复镜像:是："true",否："false"
-	NodeImageNotLibImage bool   `json:"nodeImageNotLibImage"` // 节点镜像不是仓库镜像
+	ImageType    string `json:"imageType"`    // 镜像类型,基础镜像："base",应用镜像："app"
+	HasFixedVuln bool   `json:"hasFixedVuln"` // 是否包含可修复漏洞: 是:true,否：false
 }
 
 type GetImageAssociateDataParam struct {
 	ImageFromType         string
 	ImageId               int64  // 对于仓库镜像这个参数是必须的
 	ImageUniqueID         uint64 // 对于节点镜像这个对数是必须的，后续仓库镜像也要整合到这里
+	DeployRecordID        int64  // 部署上线的记录 ID
 	VulnEnable            bool
 	MalwareEnable         bool
 	EnvEnable             bool
 	PkgEnable             bool
 	LicenseEnable         bool
+	ImageLicenseEnable    bool
 	SensitiveEnable       bool
 	WebshellEnable        bool
 	ContainerEnable       bool
 	SubtaskEnable         bool
 	RegistryEnable        bool
+	ScanInstanceEnable    bool
 	BaseImageEnable       bool
 	AppImageEnable        bool
 	NodeInfoEnable        bool                  // 查询节点镜像的节点信息
 	RiskPolicyEnable      bool                  // 查风险来源
+	SimplePolicyEnable    bool                  // 查看命中的策略
 	DetectResultEnable    bool                  // 查看检测结果
 	ScanResultSearchParam ScanResultSearchParam // 除了漏洞之外其他扫描结果的查询
 	SearchVulnParam       ApiSearchVulnParam    // 漏洞查询
 	DetectParam           DetectResultParam
-
-	Filter *model.Filter
 }
 
 func (vi *GetImageAssociateDataParam) GetDetectTypes() []string {
@@ -398,7 +307,7 @@ func (vi *GetImageAssociateDataParam) GetDetectTypes() []string {
 		ans = append(ans, DetectTypeVulnRule)
 	}
 	if vi.LicenseEnable {
-		ans = append(ans, DetectTypePkgLicenseRule)
+		ans = append(ans, DetectTypeLicenseRule)
 	}
 	if vi.MalwareEnable {
 		ans = append(ans, DetectTypeMalwareRule)
@@ -407,7 +316,7 @@ func (vi *GetImageAssociateDataParam) GetDetectTypes() []string {
 		ans = append(ans, DetectTypeSensRule)
 	}
 	if vi.PkgEnable {
-		ans = append(ans, DetectTypePkgVersionRule)
+		ans = append(ans, DetectTypePkgRule)
 	}
 	ans = append(ans, DetectTypeRootRule)
 	return ans
@@ -418,29 +327,60 @@ type DetectResultParam struct {
 	AllPolicy         bool    `json:"allPolicy"`
 }
 
+type RelatedSearchParam struct {
+	VulnUniqueID uint64 `json:"vulnUniqueID,string"`
+	PkgUniqueID  uint64 `json:"pkgUniqueID,string"`
+	WebshellMD5  string `json:"webshellMd5"`
+	SensitiveMd5 string `json:"sensitiveMd5"`
+	MalwareMd5   string `json:"malwareMd5"`
+	ImageKeyword string `json:"imageKeyword"`
+	Filter       *model.Filter
+}
+
+func (vi *RelatedSearchParam) Check() error {
+	if vi.WebshellMD5+vi.SensitiveMd5+vi.MalwareMd5 == "" && vi.VulnUniqueID+vi.PkgUniqueID == 0 {
+		return fmt.Errorf("not get condition")
+	}
+	return nil
+}
+
 type ScanResultSearchParam struct {
-	ImageFromType      string   `json:"imageFromType"`
-	ImageID            int64    `json:"imageID"`
-	ImageUniqueID      uint64   `json:"imageUniqueID,string"`
-	LayerDigest        string   `json:"layerDigest"`
-	Keyword            string   `json:"keyword"`
-	ExceptionPkg       string   `json:"exceptionPkg"`
-	ExceptionLicense   string   `json:"exceptionLicense"`
-	ExceptionEnv       string   `json:"exceptionEnv"`
-	PasswdEnv          string   `json:"passwdEnv"`
-	ExceptionVuln      string   `json:"exceptionVuln"`
-	ExceptionMalware   string   `json:"exceptionMalware"`
-	ExceptionSensitive string   `json:"exceptionSensitive"`
-	ExceptionWebshell  string   `json:"exceptWebshell"`
-	VulnSeverity       []string `json:"vulnSeverity"`
-	LicenseSearch      []string `json:"licenseSearch"`     // 开源协议筛选
-	UniqueIds          []uint64 `json:"uniqueIds"`         //
-	WebshellRiskLevel  []string `json:"webshellRiskLevel"` //
-	OmitFields         []string // 数据库中不查询的字段
-	Fields             []string // 数据库中查询的字段
-	SecurityPolicyIds  []int64  `json:"securityPolicyIds"` // 检测策略ID
+	ImageFromType       string   `json:"imageFromType"`
+	ImageID             int64    `json:"imageID"`
+	ImageUniqueID       uint64   `json:"imageUniqueID,string"`
+	VulnUniqueID        uint64   `json:"vulnUniqueID,string"`
+	VulnName            string   `json:"vulnName"`
+	LayerDigest         string   `json:"layerDigest"`
+	Keyword             string   `json:"keyword"`
+	ExceptionPkg        string   `json:"exceptionPkg"`
+	ExceptionPkgLicense string   `json:"exceptionPkgLicense"`
+	ExceptionEnv        string   `json:"exceptionEnv"`
+	PasswdEnv           string   `json:"passwdEnv"`
+	ExceptionVuln       string   `json:"exceptionVuln"`
+	ExceptionLicense    string   `json:"exceptionLicense"`
+	ExceptionMalware    string   `json:"exceptionMalware"`
+	ExceptionSensitive  string   `json:"exceptionSensitive"`
+	ExceptionWebshell   string   `json:"exceptWebshell"`
+	VulnSeverity        []string `json:"vulnSeverity"`
+	LicenseSearch       []string `json:"licenseSearch"`     // 开源协议筛选
+	UniqueIds           []uint64 `json:"uniqueIds"`         //
+	WebshellRiskLevel   []string `json:"webshellRiskLevel"` //
+	DeployRecordID      int64    `json:"deployRecordID"`
+	DeployAction        string   `json:"deployAction"`
+	OmitFields          []string // 数据库中不查询的字段
+	Fields              []string // 数据库中查询的字段
+	SecurityPolicyIds   []int64  `json:"securityPolicyIds"` // 检测策略ID
 
 	Filter *model.Filter
+}
+
+func (vi *ScanResultSearchParam) Serialize() {
+	if vi.ExceptionPkgLicense == TrueString && vi.ExceptionPkg == TrueString {
+		vi.ExceptionPkgLicense = "" // 新的需求，取并集
+	}
+	if vi.PasswdEnv == TrueString && vi.ExceptionEnv == TrueString {
+		vi.PasswdEnv = ""
+	}
 }
 
 func (vi *ScanResultSearchParam) Check() error {
@@ -455,15 +395,9 @@ func (vi *ScanResultSearchParam) Check() error {
 }
 
 func (vi *GetImageAssociateDataParam) Check() error {
-	if vi.ImageId <= 0 && vi.ImageUniqueID <= 0 {
-		return fmt.Errorf("no image id")
+	if vi.ImageId <= 0 && vi.ImageUniqueID <= 0 && vi.DeployRecordID <= 0 {
+		return fmt.Errorf("no image id or deploy record id")
 	}
-	// if vi.DetectResultEnable {
-	// 	if len(vi.ScanResultSearchParam.SecurityPolicyIds) == 0 {
-	// 		return fmt.Errorf("not get SecurityPolicyIds")
-	// 	}
-	// }
-
 	return nil
 }
 
@@ -471,15 +405,21 @@ func (vi *GetImageAssociateDataParam) Deserialize() {
 	if vi.ImageId > 0 {
 		vi.ImageUniqueID = 0
 	}
+	// 需要通过 regID查扫描器的 ID
+	if vi.ScanInstanceEnable {
+		vi.RegistryEnable = true
+	}
 
 	vi.ScanResultSearchParam.ImageID = vi.ImageId
 	vi.ScanResultSearchParam.ImageUniqueID = vi.ImageUniqueID
+	vi.SearchVulnParam.ImageID = vi.ImageId
+	vi.SearchVulnParam.ImageUniqueID = vi.ImageUniqueID
 	vi.ScanResultSearchParam.Keyword = strings.ToLower(vi.ScanResultSearchParam.Keyword)
 	vi.ScanResultSearchParam.ImageFromType = vi.ImageFromType
 	vi.SearchVulnParam.ImageFromType = vi.ImageFromType
 }
 
-type ImageScanTaskInfo struct {
+type CreateScanTaskInfo struct {
 	Scope        int    `json:"scope"`
 	TriggerType  int    `json:"triggerType"`  // 扫描类型
 	StrategyID   int64  `json:"strategyId"`   // 扫描策略ID
@@ -487,82 +427,9 @@ type ImageScanTaskInfo struct {
 	Operator     string `json:"operator"`     // 操作人
 }
 
-// image(subtask) scan status
-// 以前老的调度常量，后期需要统一
-const (
-	ImageScanUnknown    = "unknown"
-	ImageScanPending    = "pending"
-	ImageScanInProgress = "inprogress"
-	ImageScanSuccess    = "success"
-	ImageScanFailed     = "failed"
-	ImageNotScan        = "notscan"
-)
-
-func GetSubTaskScanStatusFlag(status string) uint64 {
-	switch status {
-	case ImageScanPending:
-		return model.FlagImageScanPending
-	case ImageScanInProgress:
-		return model.FlagImageScanInProgress
-	case ImageScanSuccess:
-		return model.FlagImageScanSuccess
-	case ImageScanFailed:
-		return model.FlagImageScanFailed
-	case ImageNotScan:
-		return model.FlagImageNotScan
-	case ImageScanUnknown:
-		return model.FlagImageScanUnknown
-	default:
-		return 0
-	}
-}
-
-func GetSubTaskStatusFlagString(flag uint64) string {
-	for _, v := range model.GetScanStatusFlag() {
-		if !util.ExistBit1(flag, v) {
-			continue
-		}
-		switch v {
-		case model.FlagImageScanUnknown:
-			return ImageScanUnknown
-		case model.FlagImageScanPending:
-			return ImageScanPending
-		case model.FlagImageScanInProgress:
-			return ImageScanInProgress
-		case model.FlagImageScanSuccess:
-			return ImageScanSuccess
-		case model.FlagImageScanFailed:
-			return ImageScanFailed
-		case model.FlagImageNotScan:
-			return ImageNotScan
-		default:
-			return ""
-		}
-	}
-	return ""
-}
-
-func GetSubTaskScanStatusString(status uint8) string {
-	switch status {
-	case model.FlagImageScanUnknown:
-		return ImageScanUnknown
-	case model.FlagImageScanPending:
-		return ImageScanPending
-	case model.FlagImageScanInProgress:
-		return ImageScanInProgress
-	case model.FlagImageScanSuccess:
-		return ImageScanSuccess
-	case model.FlagImageScanFailed:
-		return ImageScanFailed
-	case model.FlagImageNotScan:
-		return ImageNotScan
-	default:
-		return ""
-	}
-}
-
+// 资产也在用，// imageProblems 这个接口
 type SecurityIssueLabel struct {
-	Value   int64  `json:"value"`   // 安全问题的ID
+	Value   string `json:"value"`   // 安全问题的ID
 	LabelZH string `json:"labelZH"` // 安全问题
 	LabelEN string `json:"labelEN"` // 安全问题:英文
 	Info    string `json:"info"`    // 详细信息
@@ -570,7 +437,6 @@ type SecurityIssueLabel struct {
 
 type ImageWithCorrelateData2 struct {
 	Image             Image
-	Flag              uint64
 	ImageBaseResponse ImageBaseResponse
 	Sensitive         []*SensitiveFile
 	SensitiveCnt      int64
@@ -582,21 +448,25 @@ type ImageWithCorrelateData2 struct {
 	VulnCnt           int64
 	Pkg               []*Pkg
 	PkgCnt            int64
-	License           []string // 异常的license
+	License           []*License // 异常的license
+	LicenseCnt        int64
 	Malware           []*Malware
 	MalwareCnt        int64
+	WeakPassword      []string
 	BaseImages        []*ImageBaseResponse // 基础镜像列表
 	BaseImageCnt      int64
 	AppImages         []*ImageBaseResponse // 应用镜像列表
 	AppImageCnt       int64
-	Container         []*ImageContainerResources
+	Container         []*RawContainer
 	ScanSubTask       []*ImageScanSubTask
 	SubTaskCnt        int64
-	Registry          *model.Registry
+	Registry          *Registry
 	NodeInfo          *NodeInfo
-	RiskPolicy        []*SecurityPolicy               // 镜像的风险来源
-	TotalPolicy       []*SecurityPolicy               // 已使用的安全策略
+	ScanInstance      *ScannerInstanceInfo
+	RiskPolicy        []SecurityPolicy                // 镜像的风险来源
+	TotalPolicy       []SecurityPolicy                // 已使用的安全策略
 	DetectResult      map[string][]*ImageDetectResult // 检测结果
+	DeployRecord      *DeployRecord                   // 阻断结果
 }
 
 func GetDetectBriefFlag(detectResult map[string][]*ImageDetectResult) uint64 {
@@ -615,21 +485,25 @@ type ImageLicence struct {
 	PolicyDetect PolicyDetect `gorm:"-" json:"policyDetect"` // 对各个策略的检测结果
 }
 
-func (iws *ImageWithCorrelateData2) GenImageFlag() uint64 {
-	return 0
-}
-
 func (iws *ImageWithCorrelateData2) ExceptionFilter(param ScanResultSearchParam) *ImageWithCorrelateData2 {
+	param.Serialize()
 
-	if param.ExceptionLicense == model.TrueString || param.ExceptionPkg == model.TrueString {
-
+	if param.ExceptionPkgLicense == TrueString || param.DeployAction != "" || param.ExceptionPkg == TrueString {
 		pkg := make([]*Pkg, 0)
 		for i := range iws.Pkg {
-			add := false
-			if (iws.Pkg[i].PolicyDetect.ExceptionLicense && param.ExceptionLicense == model.TrueString) ||
-				(iws.Pkg[i].PolicyDetect.Exception && param.ExceptionPkg == model.TrueString) {
-				add = true
+			add := true
+			// 最新需求，取交集
+			if !iws.Pkg[i].PolicyDetect.ExceptionPkgLicense && param.ExceptionPkgLicense == TrueString {
+				add = false
 			}
+			if !iws.Pkg[i].PolicyDetect.Exception && param.ExceptionPkg == TrueString {
+				add = false
+			}
+
+			if param.DeployAction != "" && iws.Pkg[i].PolicyDetect.DeployAction != param.DeployAction {
+				add = false
+			}
+
 			if add {
 				pkg = append(pkg, iws.Pkg[i])
 			}
@@ -638,30 +512,39 @@ func (iws *ImageWithCorrelateData2) ExceptionFilter(param ScanResultSearchParam)
 		iws.PkgCnt = int64(len(pkg))
 	}
 
-	if param.ExceptionPkg == model.TrueString {
-
-		pkg := make([]*Pkg, 0)
-		for i := range iws.Pkg {
-			add := false
-			if iws.Pkg[i].PolicyDetect.ExceptionLicense || param.ExceptionLicense == model.TrueString {
-				add = true
+	if param.ExceptionLicense == TrueString || param.DeployAction != "" {
+		license := make([]*License, 0)
+		for i := range iws.License {
+			add := true
+			if !iws.License[i].PolicyDetect.Exception && param.ExceptionLicense == TrueString {
+				add = false
 			}
-			if iws.Pkg[i].PolicyDetect.Exception || param.ExceptionPkg == model.TrueString {
-				add = true
+			if param.DeployAction != "" && iws.License[i].PolicyDetect.DeployAction != param.DeployAction {
+				add = false
 			}
 			if add {
-				pkg = append(pkg, iws.Pkg[i])
+				license = append(license, iws.License[i])
 			}
 		}
-		iws.Pkg = pkg
-		iws.PkgCnt = int64(len(pkg))
+		iws.License = license
+		iws.LicenseCnt = int64(len(license))
 	}
 
-	if param.ExceptionEnv == model.TrueString || param.PasswdEnv == model.TrueString {
+	if param.ExceptionEnv == TrueString || param.DeployAction != "" || param.PasswdEnv == TrueString {
 		data := make([]*ImageEnv, 0)
 		for i := range iws.Env {
-			if (iws.Env[i].PolicyDetect.Exception && param.ExceptionEnv == model.TrueString) ||
-				(iws.Env[i].PolicyDetect.PasswdEnv && param.PasswdEnv == model.TrueString) {
+			add := true
+			if !iws.Env[i].PolicyDetect.Exception && param.ExceptionEnv == TrueString {
+				add = false
+			}
+			if !iws.Env[i].PolicyDetect.PasswdEnv && param.PasswdEnv == TrueString {
+				add = false
+			}
+
+			if param.DeployAction != "" && iws.Env[i].PolicyDetect.DeployAction != param.DeployAction {
+				add = false
+			}
+			if add {
 				data = append(data, iws.Env[i])
 			}
 		}
@@ -669,10 +552,19 @@ func (iws *ImageWithCorrelateData2) ExceptionFilter(param ScanResultSearchParam)
 		iws.EnvCnt = int64(len(data))
 	}
 
-	if param.ExceptionVuln == model.TrueString {
+	if param.ExceptionVuln == TrueString || param.DeployAction != "" {
 		data := make([]*VulnView, 0)
 		for i := range iws.Vuln {
-			if iws.Vuln[i].PolicyDetect.Exception {
+			add := true
+
+			if !iws.Vuln[i].PolicyDetect.Exception && param.ExceptionVuln == TrueString {
+				add = false
+			}
+			if param.DeployAction != "" && iws.Vuln[i].PolicyDetect.DeployAction != param.DeployAction {
+				add = false
+			}
+
+			if add {
 				data = append(data, iws.Vuln[i])
 			}
 		}
@@ -680,10 +572,18 @@ func (iws *ImageWithCorrelateData2) ExceptionFilter(param ScanResultSearchParam)
 		iws.VulnCnt = int64(len(data))
 	}
 
-	if param.ExceptionSensitive == model.TrueString {
+	if param.ExceptionSensitive == TrueString || param.DeployAction != "" {
 		data := make([]*SensitiveFile, 0)
 		for i := range iws.Sensitive {
-			if iws.Sensitive[i].PolicyDetect.Exception {
+			add := true
+			if !iws.Sensitive[i].PolicyDetect.Exception && param.ExceptionSensitive == TrueString {
+				add = false
+			}
+			if param.DeployAction != "" && iws.Sensitive[i].PolicyDetect.DeployAction != param.DeployAction {
+				add = false
+			}
+
+			if add {
 				data = append(data, iws.Sensitive[i])
 			}
 		}
@@ -691,10 +591,17 @@ func (iws *ImageWithCorrelateData2) ExceptionFilter(param ScanResultSearchParam)
 		iws.SensitiveCnt = int64(len(data))
 	}
 
-	if param.ExceptionMalware == model.TrueString {
+	if param.ExceptionMalware == TrueString || param.DeployAction != "" {
 		data := make([]*Malware, 0)
 		for i := range iws.Malware {
-			if iws.Malware[i].PolicyDetect.Exception {
+			add := true
+			if !iws.Malware[i].PolicyDetect.Exception && param.ExceptionMalware == TrueString {
+				add = false
+			}
+			if param.DeployAction != "" && iws.Malware[i].PolicyDetect.DeployAction != param.DeployAction {
+				add = false
+			}
+			if add {
 				data = append(data, iws.Malware[i])
 			}
 		}
@@ -702,10 +609,17 @@ func (iws *ImageWithCorrelateData2) ExceptionFilter(param ScanResultSearchParam)
 		iws.MalwareCnt = int64(len(data))
 	}
 
-	if param.ExceptionWebshell == model.TrueString {
+	if param.ExceptionWebshell == TrueString || param.DeployAction != "" {
 		data := make([]*WebshellView, 0)
 		for i := range iws.Webshell {
-			if iws.Webshell[i].PolicyDetect.Exception {
+			add := true
+			if !iws.Webshell[i].PolicyDetect.Exception && param.ExceptionWebshell == TrueString {
+				add = false
+			}
+			if param.DeployAction != "" && iws.Webshell[i].PolicyDetect.DeployAction != param.DeployAction {
+				add = false
+			}
+			if add {
 				data = append(data, iws.Webshell[i])
 			}
 		}
@@ -717,7 +631,7 @@ func (iws *ImageWithCorrelateData2) ExceptionFilter(param ScanResultSearchParam)
 
 // 程序中分页
 func (iws *ImageWithCorrelateData2) AddFilter(filter *model.Filter) *ImageWithCorrelateData2 {
-	if filter == nil {
+	if filter == nil || filter.Limit <= 0 {
 		return iws
 	}
 	start := int(filter.Offset)
@@ -754,7 +668,7 @@ func (iws *ImageWithCorrelateData2) AddFilter(filter *model.Filter) *ImageWithCo
 	}
 
 	if len(iws.License) <= start {
-		iws.License = make([]string, 0)
+		iws.License = make([]*License, 0)
 	} else {
 		iws.License = iws.License[start:util.MinInt(end, len(iws.License))]
 	}
@@ -851,14 +765,7 @@ func (iws *ImageWithCorrelateData2) GenSensitiveFileSuggest() ImageSuggest {
 
 	for i := range iws.Sensitive {
 		file := iws.Sensitive[i]
-		if file.Name == "" {
-			continue
-		}
-		if !strings.HasPrefix(file.Name, "/") {
-			file.Name = "/" + file.Name
-		}
-
-		files = append(files, file.Name)
+		files = append(files, file.GenFullFilename())
 	}
 	files = util.DuplicateStringSlice(files)
 	return ImageSuggest{Data: files, Title: SensSuggestTitle}
@@ -868,7 +775,8 @@ func (iws *ImageWithCorrelateData2) GenWebshellSuggest() ImageSuggest {
 	files := make([]string, 0)
 
 	for i := range iws.Webshell {
-		files = append(files, iws.Webshell[i].Filepath+iws.Webshell[i].Filename)
+		wb := iws.Webshell[i]
+		files = append(files, wb.GenFullFilename())
 	}
 	files = util.DuplicateStringSlice(files)
 	return ImageSuggest{Data: files, Title: WebshellSuggestTitle}
@@ -878,10 +786,35 @@ func (iws *ImageWithCorrelateData2) GenMalwareSuggest() ImageSuggest {
 	files := make([]string, 0)
 
 	for i := range iws.Malware {
-		files = append(files, iws.Malware[i].Filepath+iws.Malware[i].Filename)
+		files = append(files, iws.Malware[i].GenFullFilename())
 	}
 	files = util.DuplicateStringSlice(files)
 	return ImageSuggest{Data: files, Title: MalwareSuggestTitle}
+}
+
+func (iws *ImageWithCorrelateData2) GenSafe() string {
+	imageFlag := iws.Image.Flag
+	if util.ExistBit1(imageFlag, FlagImageSafe) {
+		return DeployModSafe
+	}
+	if util.ExistBit1(imageFlag, FlagImageUnsafe) {
+		return ImageUnsafeString
+	}
+	return ImageSafeUnknown
+}
+
+func (iws *ImageWithCorrelateData2) GenAction() string {
+	imageFlag := iws.Image.Flag
+	if util.ExistBit1(imageFlag, FlagImageDeployBlock) {
+		return DeployActionBlock
+	}
+	if util.ExistBit1(imageFlag, FlagImageDeployPassed) {
+		return DeployActionPass
+	}
+	if util.ExistBit1(imageFlag, FlagImageDeployAlarm) {
+		return DeployActionAlarm
+	}
+	return DeployActionPass
 }
 
 func (iws *ImageWithCorrelateData2) GetImageAttr() ImageAttrResponse {
@@ -889,90 +822,127 @@ func (iws *ImageWithCorrelateData2) GetImageAttr() ImageAttrResponse {
 
 	imageFlag := iws.Image.Flag
 
-	if util.ExistBit1(imageFlag, model.FlagBaseImage) {
-		attr.ImageType = model.BaseImageTypeString
+	if util.ExistBit1(imageFlag, FlagBaseImage) {
+		attr.ImageType = BaseImageTypeString
 	} else {
-		attr.ImageType = model.AppImageTypeString
+		attr.ImageType = AppImageTypeString
 	}
-	if util.ExistBit1(imageFlag, model.FlagHasFixedVuln) {
+	if util.ExistBit1(imageFlag, FlagHasFixedVuln) {
 		attr.HasFixedVuln = true
 	}
-	if util.ExistBit1(imageFlag, model.FlagImageTrusted) {
-		attr.Trusted = true
-	}
-	if util.ExistBit1(imageFlag, model.FlagImageHasFixSuggest) {
-		attr.ImageHasSuggestion = true
-	}
-	if util.ExistBit1(imageFlag, model.FlagNodeImageNotInLib) {
-		attr.NodeImageNotLibImage = true
-	}
-
 	return attr
 }
 
 func (iws *ImageWithCorrelateData2) GetSecurityIssue() []SecurityIssueLabel {
 	securityIssue := make([]SecurityIssueLabel, 0)
-	if iws.Flag <= 0 {
-		iws.Flag = iws.Image.Flag
-	}
-	imageFlag := iws.Flag
+	imageFlag := iws.Image.Flag
 
-	if util.ExistBit1(imageFlag, model.FlagHasVuln) {
+	if util.ExistBit1(imageFlag, FlagHasExceptionVuln) {
 		securityIssue = append(securityIssue, SecurityIssueLabel{
-			Value:   model.FlagHasVuln,
-			LabelZH: model.GetSecurityIssueLabelZH(model.FlagHasVuln),
-			LabelEN: model.GetSecurityIssueLabelEN(model.FlagHasVuln),
+			Value:   ExceptionVuln,
+			LabelZH: GetSecurityIssueLabelZH(FlagHasExceptionVuln),
+			LabelEN: GetSecurityIssueLabelEN(FlagHasExceptionVuln),
 		})
 	}
-	if util.ExistBit1(imageFlag, model.FlagHasSensitive) {
+	if util.ExistBit1(imageFlag, FlagHasExceptionSensitive) {
 		securityIssue = append(securityIssue, SecurityIssueLabel{
-			Value:   model.FlagHasSensitive,
-			LabelZH: model.GetSecurityIssueLabelZH(model.FlagHasSensitive),
-			LabelEN: model.GetSecurityIssueLabelEN(model.FlagHasSensitive),
+			Value:   ExceptionSensitive,
+			LabelZH: GetSecurityIssueLabelZH(FlagHasExceptionSensitive),
+			LabelEN: GetSecurityIssueLabelEN(FlagHasExceptionSensitive),
 		})
 	}
-	if util.ExistBit1(imageFlag, model.FlagHasMalicious) {
+	if util.ExistBit1(imageFlag, FlagHasExceptionMalware) {
 		securityIssue = append(securityIssue, SecurityIssueLabel{
-			Value:   model.FlagHasMalicious,
-			LabelZH: model.GetSecurityIssueLabelZH(model.FlagHasMalicious),
-			LabelEN: model.GetSecurityIssueLabelEN(model.FlagHasMalicious),
+			Value:   ExceptionMalware,
+			LabelZH: GetSecurityIssueLabelZH(FlagHasExceptionMalware),
+			LabelEN: GetSecurityIssueLabelEN(FlagHasExceptionMalware),
 		})
 	}
-	if util.ExistBit1(imageFlag, model.FlagHasWebshell) {
+	if util.ExistBit1(imageFlag, FlagHasExceptionWebshell) {
 		securityIssue = append(securityIssue, SecurityIssueLabel{
-			Value:   model.FlagHasWebshell,
-			LabelZH: model.GetSecurityIssueLabelZH(model.FlagHasWebshell),
-			LabelEN: model.GetSecurityIssueLabelEN(model.FlagHasWebshell),
+			Value:   ExceptionWebshell,
+			LabelZH: GetSecurityIssueLabelZH(FlagHasExceptionWebshell),
+			LabelEN: GetSecurityIssueLabelEN(FlagHasExceptionWebshell),
 		})
 	}
-	if util.ExistBit1(imageFlag, model.FlagHasExceptEnv) {
+	if util.ExistBit1(imageFlag, FlagHasExceptionEnv) {
 		securityIssue = append(securityIssue, SecurityIssueLabel{
-			Value:   model.FlagHasExceptEnv,
-			LabelZH: model.GetSecurityIssueLabelZH(model.FlagHasExceptEnv),
-			LabelEN: model.GetSecurityIssueLabelEN(model.FlagHasExceptEnv),
+			Value:   ExceptionEnv,
+			LabelZH: GetSecurityIssueLabelZH(FlagHasExceptionEnv),
+			LabelEN: GetSecurityIssueLabelEN(FlagHasExceptionEnv),
 			Info:    ParseConfigEnv(iws.Env),
 		})
 	}
-	if util.ExistBit1(imageFlag, model.FlagHasExceptLicense) {
+	if util.ExistBit1(imageFlag, FlagHasExceptionPkgLicense) {
 		securityIssue = append(securityIssue, SecurityIssueLabel{
-			Value:   model.FlagHasExceptLicense,
-			LabelZH: model.GetSecurityIssueLabelZH(model.FlagHasExceptLicense),
-			LabelEN: model.GetSecurityIssueLabelEN(model.FlagHasExceptLicense),
+			Value:   ExceptionPkgLicense,
+			LabelZH: GetSecurityIssueLabelZH(FlagHasExceptionPkgLicense),
+			LabelEN: GetSecurityIssueLabelEN(FlagHasExceptionPkgLicense),
 			Info:    ParseLicense(iws.Pkg)})
 	}
-	if util.ExistBit1(imageFlag, model.FlagHasExceptPKG) {
+
+	if util.ExistBit1(imageFlag, FlagHasExceptionPKG) {
 		securityIssue = append(securityIssue, SecurityIssueLabel{
-			Value:   model.FlagHasExceptPKG,
-			LabelZH: model.GetSecurityIssueLabelZH(model.FlagHasExceptPKG),
-			LabelEN: model.GetSecurityIssueLabelEN(model.FlagHasExceptPKG),
+			Value:   ExceptionPKG,
+			LabelZH: GetSecurityIssueLabelZH(FlagHasExceptionPKG),
+			LabelEN: GetSecurityIssueLabelEN(FlagHasExceptionPKG),
+			Info:    ParseLicense(iws.Pkg)})
+	}
+	if util.ExistBit1(imageFlag, FlagHasExceptionLicense) {
+		securityIssue = append(securityIssue, SecurityIssueLabel{
+			Value:   ExceptionLicense,
+			LabelZH: GetSecurityIssueLabelZH(FlagHasExceptionLicense),
+			LabelEN: GetSecurityIssueLabelEN(FlagHasExceptionLicense),
 			Info:    ParseSoftWare(iws.Pkg)})
 	}
-	if util.ExistBit1(imageFlag, model.FlagPrivilegedBoot) {
+	if util.ExistBit1(imageFlag, FlagExceptionBoot) {
 		securityIssue = append(securityIssue,
 			SecurityIssueLabel{
-				Value:   model.FlagPrivilegedBoot,
-				LabelZH: model.GetSecurityIssueLabelZH(model.FlagPrivilegedBoot),
-				LabelEN: model.GetSecurityIssueLabelEN(model.FlagPrivilegedBoot)})
+				Value:   ExceptionBoot,
+				LabelZH: GetSecurityIssueLabelZH(FlagExceptionBoot),
+				LabelEN: GetSecurityIssueLabelEN(FlagExceptionBoot)})
+	}
+
+	if util.ExistBit1(imageFlag, FlagImageUnTrusted) {
+		securityIssue = append(securityIssue,
+			SecurityIssueLabel{
+				Value:   UnTrustedString,
+				LabelZH: GetSecurityIssueLabelZH(FlagImageUnTrusted),
+				LabelEN: GetSecurityIssueLabelEN(FlagImageUnTrusted)})
+	}
+
+	if util.ExistBit1(imageFlag, FlagHasFixedVuln) {
+		securityIssue = append(securityIssue,
+			SecurityIssueLabel{
+				Value:   HasFixedVulnString,
+				LabelZH: GetSecurityIssueLabelZH(FlagHasFixedVuln),
+				LabelEN: GetSecurityIssueLabelEN(FlagHasFixedVuln)})
+	}
+
+	if util.ExistBit1(imageFlag, FlagImageNotScanned) {
+		securityIssue = append(securityIssue,
+			SecurityIssueLabel{
+				Value:   ImageNotScanned,
+				LabelZH: GetSecurityIssueLabelZH(FlagImageNotScanned),
+				LabelEN: GetSecurityIssueLabelEN(FlagImageNotScanned)})
+	}
+
+	// if util.ExistBit1(imageFlag, FlagImageHasFixSuggest) {
+	// 	securityIssue = append(securityIssue,
+	// 		SecurityIssueLabel{
+	// 			Value:   ImageHasSuggestionString,
+	// 			LabelZH: GetSecurityIssueLabelZH(FlagImageHasFixSuggest),
+	// 			LabelEN: GetSecurityIssueLabelEN(FlagImageHasFixSuggest)})
+	// }
+
+	if iws.Image.ImageFromType == ImageFromNode {
+		if util.ExistBit1(imageFlag, FlagImageNotInRegistry) {
+			securityIssue = append(securityIssue,
+				SecurityIssueLabel{
+					Value:   ImageNotInReg,
+					LabelZH: GetSecurityIssueLabelZH(FlagImageNotInRegistry),
+					LabelEN: GetSecurityIssueLabelEN(FlagImageNotInRegistry)})
+		}
 	}
 
 	return securityIssue
@@ -984,10 +954,21 @@ func (iws *ImageWithCorrelateData2) GetRiskScore() int64 {
 		util.MinInt64(CalculateWebshellScore(iws.WebshellCnt)+CalculateMalwareScore(iws.MalwareCnt),
 			model.MaxWebshellAndVirusScore))
 
-	if util.ExistBit1(iws.Flag, model.FlagImageNotScan) && riskScore == 100 {
-		riskScore = 0
-	}
+	// 又改啦，没有扫描过的100分
+	// if len(iws.ScanSubTask) == 0 && riskScore == 100 {
+	// 	riskScore = 0
+	// }
 	return riskScore
+}
+
+func (iws *ImageWithCorrelateData2) GetMaxVulnLevel() int64 {
+	var ans int64
+	for i := range iws.Vuln {
+		if iws.Vuln[i].SeverityInt > ans {
+			ans = iws.Vuln[i].SeverityInt
+		}
+	}
+	return ans
 }
 
 func (iws *ImageWithCorrelateData2) GetImageOs() ImageOS {
@@ -998,36 +979,157 @@ func (iws *ImageWithCorrelateData2) GetImageOs() ImageOS {
 	}
 }
 
-// 兼容以前的逻辑，后期去除
-func (iws *ImageWithCorrelateData2) ToSecurityIssueOverview() model.SecurityIssueOverview {
-	issueStatic := model.SecurityIssueOverview{
-		VULN:      iws.VulnCnt,
-		VIRUS:     iws.MalwareCnt,
-		SENSITIVE: iws.SensitiveCnt,
-		Webshell:  iws.WebshellCnt,
+func (iws *ImageWithCorrelateData2) ToSecurityIssueOverview1() SecurityOverview {
+	ans := SecurityOverview{
+		Vuln:       ImageSafeString,
+		Malware:    ImageSafeString,
+		Sensitive:  ImageSafeString,
+		Webshell:   ImageSafeString,
+		Env:        ImageSafeString,
+		Pkg:        ImageSafeString,
+		License:    ImageSafeString,
+		PkgLicense: ImageSafeString,
 	}
-	if iws.Image.BootRoot() {
-		issueStatic.PrivilegedBoot += 1
-	}
+
 	for i := range iws.Pkg {
 		if iws.Pkg[i].PolicyDetect.Exception {
-			issueStatic.Software++
+			ans.Pkg = ImageUnsafeString
+			break
 		}
-		if iws.Pkg[i].PolicyDetect.ExceptionLicense {
-			issueStatic.License++
+		if iws.Pkg[i].PolicyDetect.ExceptionPkgLicense {
+			ans.PkgLicense = ImageUnsafeString
+			break
+		}
+	}
+	for i := range iws.License {
+		if iws.License[i].PolicyDetect.Exception {
+			ans.License = ImageUnsafeString
+			break
 		}
 	}
 	for i := range iws.Env {
 		if iws.Env[i].PolicyDetect.Exception {
-			issueStatic.Envs++
+			ans.Env = ImageUnsafeString
+			break
 		}
 	}
-
-	return issueStatic
+	for i := range iws.Sensitive {
+		if iws.Sensitive[i].PolicyDetect.Exception {
+			ans.Sensitive = ImageUnsafeString
+			break
+		}
+	}
+	for i := range iws.Malware {
+		if iws.Malware[i].PolicyDetect.Exception {
+			ans.Malware = ImageUnsafeString
+			break
+		}
+	}
+	for i := range iws.Vuln {
+		if iws.Vuln[i].PolicyDetect.Exception {
+			ans.Vuln = ImageUnsafeString
+			break
+		}
+	}
+	for i := range iws.Webshell {
+		if iws.Webshell[i].PolicyDetect.Exception {
+			ans.Webshell = ImageUnsafeString
+			break
+		}
+	}
+	return ans
 }
 
-func (iws *ImageWithCorrelateData2) ToSecurityIssueOverview2() SecurityOverView {
-	sv := SecurityOverView{
+func (iws *ImageWithCorrelateData2) ToSecurityIssueOverview2() SecurityOverview {
+	ans := SecurityOverview{
+		Vuln:       DeployActionPass,
+		Malware:    DeployActionPass,
+		Sensitive:  DeployActionPass,
+		Webshell:   DeployActionPass,
+		Env:        DeployActionPass,
+		Pkg:        DeployActionPass,
+		License:    DeployActionPass,
+		PkgLicense: DeployActionPass,
+	}
+
+	for i := range iws.Pkg {
+		if ans.Pkg != DeployActionBlock && iws.Pkg[i].PolicyDetect.DeployAction == DeployActionAlarm {
+			ans.Pkg = DeployActionAlarm
+		}
+
+		if iws.Pkg[i].PolicyDetect.DeployAction == DeployActionBlock {
+			ans.Pkg = DeployActionBlock
+		}
+
+		if ans.PkgLicense != DeployActionBlock && iws.Pkg[i].PolicyDetect.DeployAction == DeployActionAlarm {
+			ans.PkgLicense = DeployActionAlarm
+		}
+
+		if iws.Pkg[i].PolicyDetect.DeployAction == DeployActionBlock {
+			ans.PkgLicense = DeployActionBlock
+		}
+	}
+	for i := range iws.License {
+		if ans.License != DeployActionBlock && iws.License[i].PolicyDetect.DeployAction == DeployActionAlarm {
+			ans.License = DeployActionAlarm
+		}
+
+		if iws.License[i].PolicyDetect.DeployAction == DeployActionBlock {
+			ans.License = DeployActionBlock
+			break
+		}
+	}
+	for i := range iws.Env {
+		if ans.Env != DeployActionBlock && iws.Env[i].PolicyDetect.DeployAction == DeployActionAlarm {
+			ans.Env = DeployActionAlarm
+		}
+
+		if iws.Env[i].PolicyDetect.DeployAction == DeployActionBlock {
+			ans.Env = DeployActionBlock
+			break
+		}
+	}
+	for i := range iws.Sensitive {
+		if ans.Sensitive != DeployActionBlock && iws.Sensitive[i].PolicyDetect.DeployAction == DeployActionAlarm {
+			ans.Sensitive = DeployActionAlarm
+		}
+		if iws.Sensitive[i].PolicyDetect.DeployAction == DeployActionBlock {
+			ans.Sensitive = DeployActionBlock
+			break
+		}
+	}
+	for i := range iws.Malware {
+		if ans.Malware != DeployActionBlock && iws.Malware[i].PolicyDetect.DeployAction == DeployActionAlarm {
+			ans.Malware = DeployActionAlarm
+		}
+		if iws.Malware[i].PolicyDetect.DeployAction == DeployActionBlock {
+			ans.Malware = DeployActionBlock
+			break
+		}
+	}
+	for i := range iws.Vuln {
+		if ans.Vuln != DeployActionBlock && iws.Vuln[i].PolicyDetect.DeployAction == DeployActionAlarm {
+			ans.Vuln = DeployActionAlarm
+		}
+		if iws.Vuln[i].PolicyDetect.DeployAction == DeployActionBlock {
+			ans.Vuln = DeployActionBlock
+			break
+		}
+	}
+	for i := range iws.Webshell {
+		if ans.Webshell != DeployActionBlock && iws.Webshell[i].PolicyDetect.DeployAction == DeployActionAlarm {
+			ans.Webshell = DeployActionAlarm
+		}
+		if iws.Webshell[i].PolicyDetect.DeployAction == DeployActionBlock {
+			ans.Webshell = DeployActionBlock
+			break
+		}
+	}
+	return ans
+}
+
+func (iws *ImageWithCorrelateData2) ToSecurityIssueStatistic() SecurityStatistic {
+	sv := SecurityStatistic{
 		Total: SecurityIssueStatic{
 			Vuln:      iws.VulnCnt,
 			Malware:   iws.MalwareCnt,
@@ -1039,14 +1141,32 @@ func (iws *ImageWithCorrelateData2) ToSecurityIssueOverview2() SecurityOverView 
 		},
 	}
 	if iws.Image.BootRoot() {
-		sv.Total.PrivilegedBoot += 1
+		sv.Total.ExceptionBoot += 1
 	}
+	if util.ExistBit1(iws.Image.Flag, FlagHasFixedVuln) {
+		sv.Total.HasFixedVuln = 1
+	}
+	if util.ExistBit1(iws.Image.Flag, FlagImageUnTrusted) {
+		sv.Total.Untrusted = 1
+	}
+	if util.ExistBit1(iws.Image.Flag, FlagImageHasFixSuggest) {
+		sv.Total.HasSuggestion = 1
+	}
+	if util.ExistBit1(iws.Image.Flag, FlagImageNotInRegistry) {
+		sv.Total.NotInRegistry = 1
+	}
+
 	risk := SecurityIssueStatic{}
 	for i := range iws.Pkg {
 		if iws.Pkg[i].PolicyDetect.Exception {
 			risk.Pkg++
 		}
-		if iws.Pkg[i].PolicyDetect.ExceptionLicense {
+		if iws.Pkg[i].PolicyDetect.ExceptionPkgLicense {
+			risk.PkgLicense++
+		}
+	}
+	for i := range iws.License {
+		if iws.License[i].PolicyDetect.Exception {
 			risk.License++
 		}
 	}
@@ -1060,13 +1180,11 @@ func (iws *ImageWithCorrelateData2) ToSecurityIssueOverview2() SecurityOverView 
 			risk.Sensitive++
 		}
 	}
-
 	for i := range iws.Malware {
 		if iws.Malware[i].PolicyDetect.Exception {
 			risk.Malware++
 		}
 	}
-
 	for i := range iws.Vuln {
 		if iws.Vuln[i].PolicyDetect.Exception {
 			risk.Vuln++
@@ -1077,10 +1195,22 @@ func (iws *ImageWithCorrelateData2) ToSecurityIssueOverview2() SecurityOverView 
 			risk.Webshell++
 		}
 	}
+
 	for i := range iws.RiskPolicy {
-		if iws.RiskPolicy[i].RootBootEnable && iws.Image.BootRoot() {
-			risk.PrivilegedBoot = 1
-			break
+		if iws.RiskPolicy[i].RootBoot.Enable && iws.Image.BootRoot() {
+			risk.ExceptionBoot = 1
+		}
+		if util.ExistBit1(iws.Image.Flag, FlagHasFixedVuln) {
+			risk.HasFixedVuln = 1
+		}
+		if iws.RiskPolicy[i].TrustImage.Enable && util.ExistBit1(iws.Image.Flag, FlagImageUnTrusted) {
+			risk.Untrusted = 1
+		}
+		if util.ExistBit1(iws.Image.Flag, FlagImageHasFixSuggest) {
+			risk.HasSuggestion = 1
+		}
+		if iws.RiskPolicy[i].ExistInReg.Enable && util.ExistBit1(iws.Image.Flag, FlagImageNotInRegistry) {
+			risk.NotInRegistry = 1
 		}
 	}
 
@@ -1102,33 +1232,48 @@ func (iws *ImageWithCorrelateData2) ToImageBaseResponse() ImageBaseResponse {
 	image := iws.Image
 
 	baseResponse := ImageBaseResponse{
-		ID:                   image.ID,
-		UniqueID:             image.UniqueID,
-		ImageFromType:        image.ImageFromType,
-		Digest:               image.Digest,
-		SecurityIssue:        iws.GetSecurityIssue(),
-		ImageAttr:            iws.GetImageAttr(),
-		UUID:                 image.ImageUUID,
-		FullRepoName:         image.Repo,
-		Tag:                  image.Tag,
-		Size:                 util.ParseByteSize(image.Size),
-		Os:                   iws.GetImageOs(),
-		Flag:                 image.Flag,
-		BootUser:             image.User,
-		RiskScore:            iws.GetRiskScore(),
-		Suggests:             iws.GenSuggest(),
-		VulnSeverityOverview: iws.GenVulnSeverityOverview(),
-		RegistryID:           image.RegID,
-		RegistryUrl:          image.Host,
-		Project:              image.Project,
-		RiskPolicy:           iws.RiskPolicy,
-		LastSyncAt:           image.Heartbeat,
-		TotalPolicy:          iws.TotalPolicy,
-		VulnStatic:           iws.StaticVuln(),
-		RiskPolicyName:       make([]string, 0),
+		ID:            image.ID,
+		UniqueID:      image.UniqueID,
+		ImageID:       image.ID,
+		ImageUniqueID: image.UniqueID,
+		ImageFromType: image.ImageFromType,
+		Digest:        image.Digest,
+		SecurityIssue: iws.GetSecurityIssue(),
+		ImageAttr:     iws.GetImageAttr(),
+		UUID:          image.ImageUUID,
+		FullRepoName:  image.Repo,
+		Tag:           image.Tag,
+		Size:          util.ParseByteSize(image.Size),
+		Os:            iws.GetImageOs(),
+		Flag:          image.Flag,
+		BootUser:      image.User,
+		RiskScore:     iws.GetRiskScore(),
+		Suggests:      iws.GenSuggest(),
+		RegistryID:    image.RegID,
+		RegistryUrl:   image.Host,
+		Project:       image.Project,
+		RiskPolicy:    make([]SimplePolicy, 0),
+		LastSyncAt:    image.Heartbeat,
+		TotalPolicy:   make([]SimplePolicy, 0),
+		Safe:          iws.GenSafe(),
+		Action:        iws.GenAction(),
+		Online:        util.ExistBit1(image.Flag, FlagImageOnline),
+		VulnStatic:    iws.StaticVuln(),
+		PullCount:     image.PullCount,
+		BuildAt:       image.BuildAt,
+		White:         util.ExistBit1(image.Flag, FlagImageDeployWhite),
 	}
+
 	if baseResponse.BootUser == "" {
 		baseResponse.BootUser = BootRootUser
+	}
+	for i := range iws.RiskPolicy {
+		po := iws.RiskPolicy[i].ToSimplePolicy()
+		baseResponse.RiskPolicy = append(baseResponse.RiskPolicy, po)
+	}
+	for i := range iws.TotalPolicy {
+		po := iws.TotalPolicy[i].ToSimplePolicy()
+		baseResponse.TotalPolicy = append(baseResponse.TotalPolicy, po)
 	}
 
 	// 把仓库信息加上
@@ -1137,46 +1282,38 @@ func (iws *ImageWithCorrelateData2) ToImageBaseResponse() ImageBaseResponse {
 		baseResponse.RegistryUrl = iws.Registry.Url
 		baseResponse.RegistryID = iws.Registry.ID
 	}
-	if baseResponse.LastSyncAt < time.Now().UnixMilli()/100 && baseResponse.LastSyncAt > 0 {
-		baseResponse.LastSyncAt = baseResponse.LastSyncAt * 1000 // 2.11.1之前用的是秒，2.11.1之后统一用的毫秒，中移部分集群还没有升级2.11.2
-	}
-	if baseResponse.LastSyncAt <= 0 && iws.Registry != nil {
-		baseResponse.LastSyncAt = iws.Registry.LastSyncAt
-	}
-	// 扫描状态
-	baseResponse.ScanStatus = GetSubTaskStatusFlagString(image.Flag)
-	if len(iws.ScanSubTask) > 0 {
-		if iws.ScanSubTask[0].FinishedAt > 0 {
-			baseResponse.LastScanAt = iws.ScanSubTask[0].FinishedAt
-		}
-	} else {
-		baseResponse.ScanStatus = ImageNotScan
-	}
 
-	if len(iws.Container) > 0 || util.ExistBit1(baseResponse.Flag, model.FlagImageOnline) {
+	if util.ExistBit1(baseResponse.Flag, FlagImageOnline) {
 		baseResponse.Online = true
 	}
-
+	baseResponse.NodeUniqueID = iws.Image.NodeID
 	if iws.NodeInfo != nil {
 		baseResponse.NodeHostname = iws.NodeInfo.Hostname
-		baseResponse.NodeClusterName = iws.NodeInfo.ClusterName
-		baseResponse.NodeClusterKey = iws.NodeInfo.ClusterKey
-		baseResponse.NodeUniqueID = iws.NodeInfo.UniqueID
+		baseResponse.ClusterName = iws.NodeInfo.ClusterName
+		baseResponse.ClusterKey = iws.NodeInfo.ClusterKey
 	}
-
-	if util.ExistBit1(image.Flag, model.FlagImageSafe) {
-		baseResponse.Safe = model.ImageSafeString
-	} else if util.ExistBit1(image.Flag, model.FlagImageUnsafe) {
-		baseResponse.Safe = model.ImageUnsafeString
-	} else {
-		baseResponse.Safe = model.ImageSafeUnknown
+	if iws.ScanInstance != nil {
+		baseResponse.ScanInstanceID = iws.ScanInstance.ID
+		baseResponse.ScanInsVer = iws.ScanInstance.ScannerVersion
+		baseResponse.ScanInstance = iws.ScanInstance.ScannerInstance
+		baseResponse.ClusterKey = iws.ScanInstance.ClusterKey
+		baseResponse.ClusterName = iws.ScanInstance.ClusterName
 	}
-
-	for i := range iws.RiskPolicy {
-		baseResponse.RiskPolicyName = append(baseResponse.RiskPolicyName, iws.RiskPolicy[i].Name)
+	if len(iws.ScanSubTask) > 0 {
+		baseResponse.LastScanAt = iws.ScanSubTask[0].FinishedAt
+	}
+	if len(iws.ScanSubTask) == 0 && iws.DeployRecord != nil {
+		baseResponse.LastScanAt = iws.DeployRecord.LastScanAt
 	}
 	baseResponse.SecurityIssueView = baseResponse.GetSecurityIssueViewView(model.LangZh)
 	baseResponse.ImageAttrView = baseResponse.GetImageAttrView(model.LangZh)
+
+	// 把容器名加上
+	for i := range iws.Container {
+		baseResponse.ContainerName = append(baseResponse.ContainerName, iws.Container[i].TensorRawContainer.Name)
+	}
+
+	baseResponse.FullNull()
 
 	return baseResponse
 }
@@ -1184,17 +1321,17 @@ func (iws *ImageWithCorrelateData2) ToImageBaseResponse() ImageBaseResponse {
 func (iws *ImageWithCorrelateData2) CheckSafeByPolicy() string {
 
 	if len(iws.DetectResult) == 0 {
-		return model.ImageSafeString
+		return ImageSafeString
 	}
 	for _, res := range iws.DetectResult {
 		for i := range res {
 			if util.ExistBit1(res[i].Flag, FlagDetectException) {
-				return model.ImageUnsafeString
+				return ImageUnsafeString
 			}
 		}
 	}
 
-	return model.ImageSafeString
+	return ImageSafeString
 }
 
 func (iws *ImageWithCorrelateData2) StaticVuln() ImageVulnSeverityStatic {
@@ -1224,13 +1361,9 @@ func (iws *ImageWithCorrelateData2) AddDetectResult() {
 	for i := range iws.Env {
 		iws.Env[i].PolicyDetect.AddPolicyDetect(iws.Env[i].UniqueID, iws.DetectResult[DetectTypeEnvRule])
 	}
-
 	for i := range iws.Pkg {
-		iws.Pkg[i].PolicyDetect.AddPolicyDetect(iws.Pkg[i].UniqueID, iws.DetectResult[DetectTypePkgVersionRule])
-		// license
-		iws.Pkg[i].PolicyDetect.AddPolicyDetect(iws.Pkg[i].UniqueID, iws.DetectResult[DetectTypePkgLicenseRule])
+		iws.Pkg[i].PolicyDetect.AddPolicyDetect(iws.Pkg[i].UniqueID, iws.DetectResult[DetectTypePkgRule])
 	}
-
 	for i := range iws.Vuln {
 		iws.Vuln[i].PolicyDetect.AddPolicyDetect(iws.Vuln[i].UniqueID, iws.DetectResult[DetectTypeVulnRule])
 	}
@@ -1243,6 +1376,43 @@ func (iws *ImageWithCorrelateData2) AddDetectResult() {
 	for i := range iws.Malware {
 		iws.Malware[i].PolicyDetect.AddPolicyDetect(iws.Malware[i].UniqueID, iws.DetectResult[DetectTypeMalwareRule])
 	}
+	for i := range iws.License {
+		iws.License[i].PolicyDetect.AddPolicyDetect(iws.License[i].UniqueID, iws.DetectResult[DetectTypeLicenseRule])
+	}
+}
+
+// 部署上线检测
+func (iws *ImageWithCorrelateData2) AddDeployDetect() {
+	if iws.DeployRecord == nil {
+		return
+	}
+	for i := range iws.Pkg {
+		iws.Env[i].PolicyDetect.AddDeployDetect(iws.Env[i].UniqueID, iws.DeployRecord.EnvIssue)
+	}
+
+	for i := range iws.Pkg {
+		iws.Pkg[i].PolicyDetect.AddDeployDetect(iws.Pkg[i].UniqueID, iws.DeployRecord.PkgIssue)
+	}
+
+	for i := range iws.Vuln {
+		iws.Vuln[i].PolicyDetect.AddDeployDetect(iws.Vuln[i].UniqueID, iws.DeployRecord.VulnIssue)
+	}
+	for i := range iws.Sensitive {
+		iws.Sensitive[i].PolicyDetect.AddDeployDetect(iws.Sensitive[i].UniqueID, iws.DeployRecord.SensitiveIssue)
+	}
+	for i := range iws.Webshell {
+		iws.Webshell[i].PolicyDetect.AddDeployDetect(iws.Webshell[i].UniqueID, iws.DeployRecord.WebshellIssue)
+	}
+	for i := range iws.Malware {
+		iws.Malware[i].PolicyDetect.AddDeployDetect(iws.Malware[i].UniqueID, iws.DeployRecord.MalwareIssue)
+	}
+	for i := range iws.License {
+		iws.License[i].PolicyDetect.AddDeployDetect(iws.License[i].UniqueID, iws.DeployRecord.LicenseIssue)
+	}
+
+	for i := range iws.Env {
+		iws.Env[i].PolicyDetect.AddDeployDetect(iws.Env[i].UniqueID, iws.DeployRecord.EnvIssue)
+	}
 }
 
 type ImageOS struct {
@@ -1252,43 +1422,67 @@ type ImageOS struct {
 }
 
 type ImageBaseResponse struct {
-	ID                   int64                `json:"id"`
-	ImageFromType        string               `json:"imageFromType"`
-	UniqueID             uint64               `json:"uniqueID,string"`
-	Digest               string               `json:"digest"`
-	Online               bool                 `json:"online"`            // 在线 "true",离线："false"
-	SecurityIssue        []SecurityIssueLabel `json:"securityIssue"`     // 安全问题
-	SecurityIssueView    []string             `json:"securityIssueView"` // 安全问题
-	ImageAttr            ImageAttrResponse    `json:"imageAttr"`         // 镜像属性
-	ImageAttrView        []string             `json:"imageAttrView"`     // 镜像属性
-	UUID                 uint32               `json:"uuid"`              // 镜像uuid
-	FullRepoName         string               `json:"fullRepoName"`
-	Tag                  string               `json:"tag"`
-	Size                 string               `json:"size"`
-	Os                   ImageOS              `json:"os"`
-	Flag                 uint64               `json:"flag,string"`
-	LastSyncAt           int64                `json:"lastSyncAt"` // 上次同步时间(单位：毫秒)
-	BootUser             string               `json:"bootUser"`   // 启动用户
-	RiskScore            int64                `json:"riskScore"`
-	Suggests             []ImageSuggest       `json:"suggests"`
-	ScanStatus           string               `json:"scanStatus"`
-	LastScanAt           int64                `json:"lastScanAt"` // 扫描完成时间戳(单位毫秒)
-	RegistryID           int64                `json:"registryId"`
-	RegistryName         string               `json:"registryName"`
-	RegistryUrl          string               `json:"registryUrl"`
-	Project              string               `json:"project"`
-	VulnSeverityOverview []SeverityGroup      `json:"vulnSeverityOverview"` // 漏洞统计
+	ID                int64                   `json:"id"`
+	ImageFromType     string                  `json:"imageFromType"`
+	UniqueID          uint64                  `json:"uniqueID,string"`
+	ImageUniqueID     uint64                  `json:"imageUniqueID,string"`
+	ImageID           int64                   `json:"imageID"`
+	Digest            string                  `json:"digest"`
+	Online            bool                    `json:"online"`            // 在线 "true",离线："false"
+	SecurityIssue     []SecurityIssueLabel    `json:"securityIssue"`     // 安全问题
+	SecurityIssueView []string                `json:"securityIssueView"` // 安全问题
+	ImageAttr         ImageAttrResponse       `json:"imageAttr"`         // 镜像属性
+	ImageAttrView     []string                `json:"imageAttrView"`     // 镜像属性
+	UUID              uint32                  `json:"uuid"`              // 镜像uuid
+	FullRepoName      string                  `json:"fullRepoName"`
+	Tag               string                  `json:"tag"`
+	Size              string                  `json:"size"`
+	Os                ImageOS                 `json:"os"`
+	Flag              uint64                  `json:"flag,string"`
+	LastSyncAt        int64                   `json:"lastSyncAt"` // 上次同步时间(单位：毫秒)
+	BootUser          string                  `json:"bootUser"`   // 启动用户
+	RiskScore         int64                   `json:"riskScore"`
+	Suggests          []ImageSuggest          `json:"suggests"`
+	ScanStatus        string                  `json:"scanStatus"`
+	LastScanAt        int64                   `json:"lastScanAt"` // 扫描完成时间戳(单位毫秒)
+	RegistryID        int64                   `json:"registryId"`
+	RegistryName      string                  `json:"registryName"`
+	RegistryUrl       string                  `json:"registryUrl"`
+	Project           string                  `json:"project"`
+	NodeHostname      string                  `json:"nodeHostname"`
+	ClusterName       string                  `json:"nodeClusterName"` // json tag 不一致，是因为前端要使用数据
+	ClusterKey        string                  `json:"nodeClusterKey"`
+	NodeUniqueID      uint64                  `json:"nodeUniqueID,string"`
+	ScanInstanceID    int64                   `json:"scanInstanceID"`
+	ScanInstance      string                  `json:"scanInstance"`
+	ScanInsVer        string                  `json:"scanInsVer"`
+	VulnStatic        ImageVulnSeverityStatic `json:"vulnStatic"`
+	RiskPolicy        []SimplePolicy          `json:"riskPolicy"`    // 镜像的风险来源
+	TotalPolicy       []SimplePolicy          `json:"totalPolicy"`   // 已使用的安全策略
+	Safe              string                  `json:"safe"`          // 镜像安全状态
+	Action            string                  `json:"action"`        // 部署上线的状态
+	PullCount         int64                   `json:"pullCount"`     // 镜像下载次数
+	BuildAt           int64                   `json:"buildAt"`       // 镜像的创建时间
+	ContainerName     []string                `json:"containerName"` // 容器列表
+	White             bool                    `json:"white"`         // 部署上线是否是白名单通过
+}
 
-	// 节点镜像新增
-	NodeHostname    string                  `json:"nodeHostname"`
-	NodeClusterName string                  `json:"nodeClusterName"`
-	NodeClusterKey  string                  `json:"nodeClusterKey"`
-	NodeUniqueID    uint64                  `json:"nodeUniqueID,string"`
-	VulnStatic      ImageVulnSeverityStatic `json:"vulnStatic"`
-	RiskPolicyName  []string                `json:"riskPolicyName"` // 镜像的风险来源
-	RiskPolicy      []*SecurityPolicy       `json:"riskPolicy"`     // 镜像的风险来源
-	TotalPolicy     []*SecurityPolicy       `json:"totalPolicy"`    // 已使用的安全策略
-	Safe            string                  `json:"safe"`           // 镜像安全状态
+func (vi *ImageBaseResponse) RegNameView() string {
+	r := vi.RegistryUrl
+	if vi.RegistryName != "" {
+		r = fmt.Sprintf("(%s)%s", vi.RegistryName, r)
+	}
+	return r
+}
+
+func (vi *ImageBaseResponse) FullNull() {
+	if len(vi.SecurityIssue) == 0 {
+		vi.SecurityIssue = make([]SecurityIssueLabel, 0)
+	}
+
+	if len(vi.Suggests) == 0 {
+		vi.Suggests = make([]ImageSuggest, 0)
+	}
 }
 
 func (vi *ImageBaseResponse) AdaptI18(ctx context.Context) {
@@ -1304,18 +1498,18 @@ func (vi *ImageBaseResponse) AdaptI18(ctx context.Context) {
 		}
 	}
 	if lang == model.LangZh {
-		for i := range vi.RiskPolicyName {
-			if vi.RiskPolicyName[i] == DefaultPolicyNameEN {
-				vi.RiskPolicyName[i] = DefaultPolicyNameZH
-			}
-		}
+		// for i := range vi.RiskPolicyName {
+		// if vi.RiskPolicyName[i] == DefaultPolicyNameEN {
+		// 	vi.RiskPolicyName[i] = DefaultPolicyNameZH
+		// }
+		// }
 		for i := range vi.TotalPolicy {
-			if vi.TotalPolicy[i].IsDefault {
+			if vi.TotalPolicy[i].Name == DefaultPolicyNameEN {
 				vi.TotalPolicy[i].Name = DefaultPolicyNameZH
 			}
 		}
 		for i := range vi.RiskPolicy {
-			if vi.RiskPolicy[i].IsDefault {
+			if vi.RiskPolicy[i].Name == DefaultPolicyNameEN {
 				vi.RiskPolicy[i].Name = DefaultPolicyNameZH
 			}
 		}
@@ -1352,7 +1546,7 @@ func (vi *ImageBaseResponse) GetImageAttrView(lang string) []string {
 	}
 	ans := make([]string, 0)
 
-	if vi.ImageAttr.ImageType == model.BaseImageTypeString {
+	if vi.ImageAttr.ImageType == BaseImageTypeString {
 		if lang == model.LangZh {
 			ans = append(ans, "基础镜像")
 		} else {
@@ -1360,7 +1554,7 @@ func (vi *ImageBaseResponse) GetImageAttrView(lang string) []string {
 		}
 	}
 
-	if vi.ImageAttr.ImageType == model.AppImageTypeString {
+	if vi.ImageAttr.ImageType == AppImageTypeString {
 		if lang == model.LangZh {
 			ans = append(ans, "应用镜像")
 		} else {
@@ -1368,37 +1562,37 @@ func (vi *ImageBaseResponse) GetImageAttrView(lang string) []string {
 		}
 	}
 
-	if vi.ImageAttr.Trusted {
-		if lang == model.LangZh {
-			ans = append(ans, "可信镜像")
-		} else {
-			ans = append(ans, "Trusted Image")
-		}
-	}
-
-	if !vi.ImageAttr.Trusted {
-		if lang == model.LangZh {
-			ans = append(ans, "非可信镜像")
-		} else {
-			ans = append(ans, "Untrusted Image")
-		}
-	}
-
-	if vi.ImageAttr.ImageHasSuggestion {
-		if lang == model.LangZh {
-			ans = append(ans, "存在修复建议")
-		} else {
-			ans = append(ans, "Has Suggestion")
-		}
-	}
-
-	if vi.ImageAttr.HasFixedVuln {
-		if lang == model.LangZh {
-			ans = append(ans, "存在可修复漏洞")
-		} else {
-			ans = append(ans, "Has Fixed Vulnerability")
-		}
-	}
+	// if vi.ImageAttr.Trusted {
+	// 	if lang == model.LangZh {
+	// 		ans = append(ans, "可信镜像")
+	// 	} else {
+	// 		ans = append(ans, "Trusted Image")
+	// 	}
+	// }
+	//
+	// if !vi.ImageAttr.Trusted {
+	// 	if lang == model.LangZh {
+	// 		ans = append(ans, "非可信镜像")
+	// 	} else {
+	// 		ans = append(ans, "Untrusted Image")
+	// 	}
+	// }
+	//
+	// if vi.ImageAttr.ImageHasSuggestion {
+	// 	if lang == model.LangZh {
+	// 		ans = append(ans, "存在修复建议")
+	// 	} else {
+	// 		ans = append(ans, "Has Suggestion")
+	// 	}
+	// }
+	//
+	// if vi.ImageAttr.HasFixedVuln {
+	// 	if lang == model.LangZh {
+	// 		ans = append(ans, "存在可修复漏洞")
+	// 	} else {
+	// 		ans = append(ans, "Has Fixed Vulnerability")
+	// 	}
+	// }
 
 	return ans
 }
@@ -1428,13 +1622,10 @@ type ImageVulnSeverityStatic struct {
 
 func (vi *ImageBaseResponse) GetImageName() string {
 
-	imageName := vi.FullRepoName
+	imageName := vi.FullRepoName + ":" + vi.Tag
 
 	if vi.RegistryUrl != "" {
 		imageName = fmt.Sprintf("%s/%s", vi.RegistryUrl, imageName)
-	}
-	if vi.Tag != "" {
-		imageName = fmt.Sprintf("%s:%s", imageName, vi.Tag)
 	}
 	if vi.RegistryName != "" {
 		imageName = fmt.Sprintf("(%s)%s", vi.RegistryName, imageName)
@@ -1459,7 +1650,7 @@ func ParseSoftWare(soft []*Pkg) string {
 	}
 	lit := make([]string, 0)
 	for i := range soft {
-		if soft[i].Name != "" && soft[i].Version != "" && util.ExistBit1(soft[i].Flag, model.FlagHasExceptPKG) {
+		if soft[i].Name != "" && soft[i].Version != "" && util.ExistBit1(soft[i].Flag, FlagHasExceptionPKG) {
 			lit = append(lit, fmt.Sprintf("%s(%s)", soft[i].Name, soft[i].Version))
 		}
 	}
@@ -1473,8 +1664,8 @@ func ParseLicense(soft []*Pkg) string {
 	}
 	lit := make([]string, 0)
 	for i := range soft {
-		if len(soft[i].License) > 0 && util.ExistBit1(soft[i].Flag, model.FlagHasExceptLicense) {
-			lit = append(lit, soft[i].License...)
+		if soft[i].License != "" && util.ExistBit1(soft[i].Flag, FlagHasExceptionPkgLicense) {
+			lit = append(lit, soft[i].License)
 		}
 	}
 
@@ -1528,7 +1719,7 @@ func CalculateVulnScore(vulns []*VulnView) int64 {
 	return score
 }
 
-type ImageContainerResources struct {
+type ContainerResources struct {
 	ImageUUID    uint32 `json:"imageUUID"`
 	Name         string `json:"name"`
 	ResourceName string `json:"resourceName"`

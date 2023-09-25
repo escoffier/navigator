@@ -17,6 +17,7 @@ import (
 	jsoniter "github.com/json-iterator/go"
 	"github.com/patrickmn/go-cache"
 	"github.com/rs/zerolog/log"
+
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	"gitlab.com/piccolo_su/vegeta/pkg/flag"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
@@ -266,7 +267,7 @@ func (h HarborRESTClient) ScanOneStatus(ctx context.Context, projectName, reposi
 			return NewFieldError(http.StatusInternalServerError, fmt.Errorf("json Unmarshal error: %w", err))
 		}
 		if scanOneStatus.ScanOverview.Version.ScanStatus == "" {
-			scanOneStatus.ScanOverview.Version.ScanStatus = model.JobNotScan
+			scanOneStatus.ScanOverview.Version.ScanStatus = "not_scan"
 		}
 		return nil
 	}

@@ -34,7 +34,7 @@ type ScannerDalInterface interface {
 	UpdateImageScanStatus(ctx context.Context, imageID int64, status uint64) error
 	DeleteImage(ctx context.Context, imageId int64) error
 	UpdateImage(ctx context.Context, where string, updater map[string]interface{}, image *model.ImageList) error
-	CreateImage(ctx context.Context, data *model.ImageList) (*model.ImageList, error)
+	CreateImage(ctx context.Context, data *model.ImageList) error
 	CreateImageAndUpdate(ctx context.Context, im *model.ImageList) (*model.ImageList, error)
 
 	SearchScanLayer(ctx context.Context, param SearchScanLayerParam, filter *model.Filter) ([]*model.ScanLayer, int64, error)
@@ -43,7 +43,7 @@ type ScannerDalInterface interface {
 
 	InsertScanImage(ctx context.Context, sis []model.ScanImage) (int64, error)
 	InsertAdapterImageList(ctx context.Context, im model.ImageList) (int64, error)
-	SearchRegistry(ctx context.Context, param SearchRegistryParam, filter *model.Filter) ([]model.Registry, int64, error)
+	SearchRegistry(ctx context.Context, param SearchRegistryParam, filter *model.Filter) ([]imagesec.Registry, int64, error)
 	GroupImageFlags(ctx context.Context, param GetImageOverViewParam) ([]model.ImageFlagGroup, error)
 	GroupRegistryProject(ctx context.Context, param GroupRegistryRepoParam) ([]imagesec.Project, error)
 
@@ -99,7 +99,7 @@ type ScanTaskInterface interface {
 	UpdateSubTasksInfo(ctx context.Context, param SearchSubTaskParam, updateInfo map[string]interface{}) error
 	AddSubTasksRetryCount(ctx context.Context, ids []int64) error
 	GetTotalTaskNum(ctx context.Context) (int64, error)
-	GetRegistryInfo(ctx context.Context, ID int64) (*model.Registry, error)
+	GetRegistryInfo(ctx context.Context, ID int64) (*imagesec.Registry, error)
 
 	AddTaskAndSubTask(ctx context.Context, task model.Task, subtask []model.SubTask) (int64, error)
 	AddTask(ctx context.Context, task model.Task) (int64, error)
@@ -145,8 +145,8 @@ func (s *ScannerOrm) GroupRegistryProject(ctx context.Context, param GroupRegist
 	ans := make([]imagesec.Project, 0)
 	for i := range res {
 		ans = append(ans, imagesec.Project{
-			RegistryID: res[i].RegistryID,
-			Project:    res[i].Project,
+			RegID:   res[i].RegistryID,
+			Project: res[i].Project,
 		})
 	}
 
@@ -188,7 +188,8 @@ func (s *ScannerOrm) CreateImageAndUpdate(ctx context.Context, im *model.ImageLi
 		return nil, err
 	}
 	if len(imageLists) == 0 {
-		return s.CreateImage(ctx, im)
+		err = s.CreateImage(ctx, im)
+		return im, err
 	}
 	im.ID = imageLists[0].ID
 	if err := s.UpdateImage(ctx, fmt.Sprintf("id = %d", im.ID), nil, im); err != nil {
@@ -197,7 +198,7 @@ func (s *ScannerOrm) CreateImageAndUpdate(ctx context.Context, im *model.ImageLi
 	return im, nil
 }
 
-func (s *ScannerOrm) CreateImage(ctx context.Context, im *model.ImageList) (*model.ImageList, error) {
+func (s *ScannerOrm) CreateImage(ctx context.Context, im *model.ImageList) error {
 	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*5)
 	defer cancelFunc()
 
@@ -208,10 +209,10 @@ func (s *ScannerOrm) CreateImage(ctx context.Context, im *model.ImageList) (*mod
 
 	err := s.rdb.Get().WithContext(ctx).Create(im).Error
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	return im, nil
+	return nil
 }
 
 type ImageListWithScan struct {
@@ -321,7 +322,7 @@ func (s *ScannerOrm) DeleteScanImage(ctx context.Context, imageIds []int64) erro
 func (s *ScannerOrm) IsInRegistry(ctx context.Context, library string) bool {
 	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*1)
 	defer cancelFunc()
-	res := s.rdb.Get().WithContext(ctx).Model(model.Registry{}).Where("url = ? AND use_type!=0", library).First(&model.Registry{})
+	res := s.rdb.Get().WithContext(ctx).Model(imagesec.Registry{}).Where("url = ? AND use_type!=0", library).First(&imagesec.Registry{})
 	return res.Error == nil
 }
 
@@ -759,7 +760,7 @@ func (s *ScannerOrm) GetAuthFromRegistry(ctx context.Context, registryID int64) 
 	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*1)
 	defer cancelFunc()
 
-	tmp := model.Registry{}
+	tmp := imagesec.Registry{}
 	res := s.rdb.Get().WithContext(ctx).Where("id = ?", registryID).First(&tmp)
 	if res.Error != nil {
 		return ""
@@ -979,10 +980,10 @@ func (s *ScannerOrm) SearchScanImage(ctx context.Context, param SearchScanImageP
 	return res, cnt, nil
 }
 
-func (s *ScannerOrm) SearchRegistry(ctx context.Context, param SearchRegistryParam, filter *model.Filter) ([]model.Registry, int64, error) {
+func (s *ScannerOrm) SearchRegistry(ctx context.Context, param SearchRegistryParam, filter *model.Filter) ([]imagesec.Registry, int64, error) {
 	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*3)
 	defer cancelFunc()
-	db := s.rdb.Get().Model(new(model.Registry)).WithContext(ctx)
+	db := s.rdb.Get().Model(new(imagesec.Registry)).WithContext(ctx)
 	// 默认查询没有删除的,如果不传就是0
 	if len(param.RegistryIds) > 0 {
 		db = db.Where("id IN ? ", param.RegistryIds)
@@ -993,19 +994,13 @@ func (s *ScannerOrm) SearchRegistry(ctx context.Context, param SearchRegistryPar
 	if param.LibraryURL != "" {
 		db = db.Where("url = ? ", param.LibraryURL)
 	}
-	if param.UseType > 0 {
-		db = db.Where("use_type = ? ", param.UseType)
-	}
-	if len(param.UseTypes) > 0 {
-		db = db.Where("use_type IN ? ", param.UseTypes)
-	}
 
 	// 先查总数
 	var cnt int64
 	if err := db.Count(&cnt).Error; err != nil {
 		return nil, 0, err
 	}
-	res := make([]model.Registry, 0)
+	res := make([]imagesec.Registry, 0)
 	db = model.AddFilter(db, filter)
 	if err := db.Find(&res).Error; err != nil {
 		return nil, 0, err
@@ -1128,7 +1123,7 @@ func (s *ScannerOrm) SearchImage(ctx context.Context, param imagesec.SearchImage
 		}
 		// 非可信镜像单处理
 		if param.TrustedImage == consts.FalseString {
-			where = append(where, fmt.Sprintf("(flag & %d = 0)", util.SetBit1(0, model.FlagImageTrusted)))
+			where = append(where, fmt.Sprintf("(flag & %d = 0)", util.SetBit1(0, imagesec.FlagImageTrusted)))
 		}
 
 		if len(where) > 0 {
@@ -1180,7 +1175,7 @@ func (s *ScannerOrm) SearchImage(ctx context.Context, param imagesec.SearchImage
 		return nil, cnt, nil
 	}
 
-	if filter != nil && filter.Offset >= consts.DefaultLimit {
+	if filter != nil && filter.Offset >= consts.DefaultMaxLimit {
 		db2 := db.Session(&gorm.Session{})
 		db2 = db2.Offset(int(filter.Offset)).Limit(1)
 		db2 = db2.Select("id")
@@ -1197,7 +1192,6 @@ func (s *ScannerOrm) SearchImage(ctx context.Context, param imagesec.SearchImage
 	}
 	// serialize
 	for i := range res {
-		res[i].Serialize()
 		res[i].Deserialize()
 	}
 
@@ -1596,10 +1590,10 @@ func (s *ScannerOrm) GetTotalTaskNum(ctx context.Context) (int64, error) {
 	return cnt, nil
 }
 
-func (s *ScannerOrm) GetRegistryInfo(ctx context.Context, ID int64) (*model.Registry, error) {
+func (s *ScannerOrm) GetRegistryInfo(ctx context.Context, ID int64) (*imagesec.Registry, error) {
 	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*5)
 	defer cancelFunc()
-	tmp := model.Registry{}
+	tmp := imagesec.Registry{}
 	if err := s.rdb.Get().WithContext(ctx).Where("id = ? ", ID).First(&tmp).Error; err != nil {
 		return nil, fmt.Errorf("not find registry:%v", err)
 	}

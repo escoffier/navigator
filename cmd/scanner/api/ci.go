@@ -15,12 +15,12 @@ import (
 	"strings"
 	"time"
 
-	scani18 "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scan-i18"
+	scani18 "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scanI18"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/scan-report/service"
 
 	"github.com/gin-gonic/gin"
 	"gitlab.com/security-rd/go-pkg/logging"
 
-	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scan-report/service"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/global"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/ci"
@@ -55,7 +55,7 @@ func (c *CiApiSrv) GetImageOverView(ctx *gin.Context) {
 	interval := c.GetParseInt(ctx, "interval")
 	res, err := c.Component.IM.GetImageOverView(ctx, int(interval))
 	if err != nil {
-		logging.Get().Err(err).Msgf("GetImageOverView error ")
+		logging.Get().Err(err).Msgf("GetImageOverViewHelper error ")
 		response.JSONError(ctx, err)
 		return
 	}

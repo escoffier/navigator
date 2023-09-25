@@ -16,6 +16,9 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 
+	"gitlab.com/security-rd/go-pkg/cache"
+	"gitlab.com/security-rd/go-pkg/databases"
+
 	"gitlab.com/piccolo_su/vegeta/cmd/security-profiles-manager/service/builder"
 	"gitlab.com/piccolo_su/vegeta/cmd/security-profiles-manager/service/falco"
 	"gitlab.com/piccolo_su/vegeta/cmd/security-profiles-manager/service/policy"
@@ -25,8 +28,6 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/flag"
 	"gitlab.com/piccolo_su/vegeta/pkg/lifecycle"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
-	"gitlab.com/security-rd/go-pkg/cache"
-	"gitlab.com/security-rd/go-pkg/databases"
 )
 
 var (

@@ -1,13 +1,14 @@
 package vulnmatch
 
 import (
+	"strings"
+
 	dbTypes "scm.tensorsecurity.cn/tensorsecurity-rd/trivy-db/pkg/types"
 	"scm.tensorsecurity.cn/tensorsecurity-rd/trivy/pkg/commands/artifact"
 	"scm.tensorsecurity.cn/tensorsecurity-rd/trivy/pkg/commands/option"
 	"scm.tensorsecurity.cn/tensorsecurity-rd/trivy/pkg/log"
 	"scm.tensorsecurity.cn/tensorsecurity-rd/trivy/pkg/types"
 	"scm.tensorsecurity.cn/tensorsecurity-rd/trivy/pkg/utils"
-	"strings"
 )
 
 const (

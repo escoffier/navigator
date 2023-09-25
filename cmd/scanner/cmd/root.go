@@ -30,6 +30,7 @@ var rootCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 
 		ScannerRunOpts := flag2.GetScannerOpts(cmd)
+
 		global.ScannerOpts = ScannerRunOpts
 
 		// 建议改为loggingOptions用法
@@ -57,6 +58,8 @@ var rootCmd = &cobra.Command{
 		global.ClusterName = scanner.ClusterName
 		global.ClusterKey = scanner.ClusterKey
 		global.PVCPath = ScannerRunOpts.PvcPath
+		global.SubtaskParallel = ScannerRunOpts.ParallelSubTaskNum * ScannerRunOpts.ParallelTaskNum
+
 		vv := scannermodel.ScannerDBVersion{
 			VulnVersion: scannermodel.VulnDBVersion{
 				TrivyVersion:    scannermodel.DBMateData{Version: "123"},

@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"fmt"
+	"os"
 	"sync"
 	"time"
 
@@ -15,12 +16,34 @@ import (
 
 var dbInitOnce sync.Once
 var scannerDB *databases.RDBInstance
-var scannerOrm *ScannerOrm
-var scannerDb *ScannerDB // todo: should be deprecated
-var scanConfigDao *ScanConfigDao
-var ciDao *CiDao
-var redisClients []*redis.Client = make([]*redis.Client, 2)
-var registryDao *RegistryDao
+var scannerOrm *ScannerOrm // 还在用
+var ciDao *CiDao           // 还在用
+var redisClients = make([]*redis.Client, 2)
+
+func NewRDBInstance() *databases.RDBInstance {
+	if scannerDB != nil {
+		return scannerDB
+	}
+	db, err := databases.NewRDBWithMySQLByEnv(context.Background(), databases.OptionWithmaxOpenConnections(60),
+		databases.OptionWithMaxIdleConns(30),
+		databases.OptionWithConnMaxLifeTime(time.Hour),
+	)
+	if err != nil {
+		logging.Get().Err(err).Msg("New RDBInstance")
+		err = fmt.Errorf("connect db err:%v", err)
+		return nil
+	}
+
+	logLevelStr := os.Getenv("LOGGING_LEVEL")
+	if logLevelStr == "0" {
+		db.SetDebugMode()
+	}
+	scannerDB = db
+	scannerOrm = NewScannerOrm(scannerDB)
+	ciDao = NewCiDao(scannerDB)
+
+	return scannerDB
+}
 
 func InitDb(loglevel string) (err error) {
 	dbInitOnce.Do(func() {
@@ -38,34 +61,25 @@ func InitDb(loglevel string) (err error) {
 			scannerDB.SetDebugMode()
 		}
 		scannerOrm = NewScannerOrm(scannerDB)
-		scanConfigDao = NewScanConfigDao(scannerDB)
-		// todo: should be deprecated
-		scannerDb = NewScannerDB(scannerDB)
 		ciDao = NewCiDao(scannerDB)
-		registryDao = NewRegistryDao(scannerDB)
 	})
 
 	return
 }
 
-func GetScannerWrapperDb() *databases.RDBInstance {
-	return scannerDB
-}
-
-func GetRegistryDao() *RegistryDao {
-	return registryDao
-}
-
-func GetScanConfigDao() *ScanConfigDao {
-	return scanConfigDao
+func GetRDBInstance() *databases.RDBInstance {
+	for {
+		if scannerDB != nil {
+			return scannerDB
+		}
+		scannerDB = NewRDBInstance()
+		logging.Get().Info().Msg("RDBInstance is nil waite 1 minute")
+		time.Sleep(time.Second * 10)
+	}
 }
 
 func GetScannerOrmDb() *ScannerOrm {
 	return scannerOrm
-}
-
-func GetScannerDb() *ScannerDB {
-	return scannerDb
 }
 
 func GetCiDb() ScanCiInterface {
