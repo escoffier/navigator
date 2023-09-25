@@ -7,21 +7,22 @@ import (
 	"gitlab.com/security-rd/go-pkg/logging"
 
 	scani18 "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scanI18"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	imagesecModel "gitlab.com/piccolo_su/vegeta/pkg/model/imagesec"
 )
 
-func (s *ScanResultSrv) VulnOverview(ctx context.Context, param imagesecModel.VulnOverviewParam) (imagesecModel.VulnOverview, error) {
-	if s.vulnOverview.Exit() {
-		o := s.vulnOverview.Get()
-		return o, nil
-	}
-	o, err := s.vulnStatistic(ctx)
+func (s *ScanResultSrv) VulnOverview(ctx context.Context, param imagesecModel.VulnOverviewParam) (*imagesecModel.VulnOverview, error) {
+	info, err := s.imageCacheDal.SearchCacheInfo(ctx, imagesecModel.CacheTypVulnOverview)
 	if err != nil {
-		logging.Get().Err(err).Str("module", "imagescan").Msg("VulnOverview")
-		return imagesecModel.VulnOverview{}, scani18.GetVulnInfo(err)
+		logging.Get().Err(err).Str("module", consts.ModelImageScan).Msg("SearchCacheInfo")
+		return nil, scani18.NotGetVuln()
 	}
-	s.vulnOverview.Set(o)
-	return *o, nil
+	if info.VulnOverview == nil {
+		logging.Get().Err(err).Str("module", consts.ModelImageScan).Msg("SearchCacheInfo VulnOverview is nil")
+		return nil, scani18.NotGetVuln()
+	}
+
+	return info.VulnOverview, nil
 }
 
 func (s *ScanResultSrv) vulnStatistic(ctx context.Context) (*imagesecModel.VulnOverview, error) {
@@ -62,6 +63,15 @@ func (s *ScanResultSrv) vulnOverviewHelper(ctx context.Context) {
 			o, err := s.vulnStatistic(ctx)
 			if err != nil {
 				logging.Get().Err(err).Str("module", "imagescan").Msg("vulnOverviewHelper SearchVuln")
+				continue
+			}
+			cache := &imagesecModel.CacheInfo{
+				DataType:     imagesecModel.CacheTypVulnOverview,
+				VulnOverview: o,
+			}
+
+			if err := s.imageCacheDal.CreateCacheInfo(ctx, cache); err != nil {
+				logging.Get().Err(err).Str("module", consts.ModelImageScan).Msg("CreateCacheInfo")
 				continue
 			}
 

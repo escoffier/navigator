@@ -136,7 +136,6 @@ func (vi *SecurityPolicy) ToSecurityPolicyBrief() *SecurityPolicyBrief {
 
 func (vi *SecurityPolicy) Same(after *SecurityPolicy) bool {
 	// 🐶 即使 enable 变动，生成的 UniqueID是一样的，
-
 	return false
 }
 
@@ -168,6 +167,7 @@ func (vi *SecurityPolicy) Serialize() {
 		vi.Enable = true
 	case ConfigTypeDeploy:
 		vi.Scope.ImageFromType = ImageFromRegistry
+		vi.Scope.ScopeType = DetectScopeTypeImage
 	}
 
 	if vi.Updater == "" && vi.Creator != "" {
@@ -836,6 +836,63 @@ func (vi *PolicyScope) Check() error {
 	return nil
 }
 
+func (vi *PolicyScope) Same(after PolicyScope) bool {
+
+	if vi.ScopeType != vi.ScopeType {
+		return false
+	}
+
+	if vi.ScopeType == DetectScopeTypeCluster && vi.AllCluster != after.AllCluster {
+		return false
+	}
+
+	if vi.ScopeType == DetectScopeTypeReg && vi.AllReg != after.AllReg {
+		return false
+	}
+
+	if vi.ScopeType == DetectScopeTypeReg {
+		for i := range vi.RegIds {
+			if !util.ExistInInt64Slice(after.RegIds, vi.RegIds[i]) {
+				return false
+			}
+		}
+
+		for i := range after.RegIds {
+			if !util.ExistInInt64Slice(vi.RegIds, after.RegIds[i]) {
+				return false
+			}
+		}
+	}
+	if vi.ScopeType == DetectScopeTypeCluster {
+		for i := range vi.ClusterKey {
+			if !util.ExistInStringSlice(after.ClusterKey, vi.ClusterKey[i]) {
+				return false
+			}
+		}
+
+		for i := range after.ClusterKey {
+			if !util.ExistInStringSlice(vi.ClusterKey, after.ClusterKey[i]) {
+				return false
+			}
+		}
+	}
+	if vi.ScopeType == DetectScopeTypeImage {
+		for i := range vi.ImageRegexp {
+			if !util.ExistInStringSlice(after.ImageRegexp, vi.ImageRegexp[i]) {
+				return false
+			}
+		}
+
+		for i := range after.ImageRegexp {
+			if !util.ExistInStringSlice(vi.ImageRegexp, after.ImageRegexp[i]) {
+				return false
+			}
+		}
+	}
+
+	return true
+}
+
 func (vi *PolicyScope) Serialize() {
 	vi.ClusterName = make([]string, 0)
 	vi.RegName = make([]string, 0)
@@ -866,10 +923,12 @@ func (vi *SecurityPolicySnapshot) Serialize() {
 
 func (vi *SecurityPolicySnapshot) Deserialize() {
 	po := SecurityPolicy{}
-	if err := json.Unmarshal([]byte(vi.SecurityPolicyJson), &po); err != nil {
-		logging.Get().Err(err).Msg("SecurityPolicySnapshot Deserialize")
-	} else {
-		vi.SecurityPolicy = po
+	if len(vi.SecurityPolicyJson) > 0 {
+		if err := json.Unmarshal([]byte(vi.SecurityPolicyJson), &po); err != nil {
+			logging.Get().Err(err).Msg("SecurityPolicySnapshot Deserialize")
+		} else {
+			vi.SecurityPolicy = po
+		}
 	}
 	vi.SecurityPolicy.SetEmptySlice()
 }

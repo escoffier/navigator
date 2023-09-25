@@ -326,7 +326,7 @@ func (vi *Vuln) GenUniqueID() uint64 {
 }
 
 func (vi *Vuln) GenPkgUniqueID(pkgOS types.OS) uint64 {
-	key := fmt.Sprintf(UniquePkgFormat, vi.PkgName, vi.PkgVersion, pkgOS.Family, pkgOS.Name)
+	key := fmt.Sprintf("%s-%s-%s-%s", vi.PkgName, vi.PkgVersion, pkgOS.Family, pkgOS.Name)
 	uid := util.GenerateUUID64(key)
 	return uid
 }

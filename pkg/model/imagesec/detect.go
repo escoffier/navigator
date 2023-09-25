@@ -112,7 +112,6 @@ func GetDetectTypes() []string {
 }
 
 type PolicyDetect struct {
-	InBlack             bool   `json:"inBlack"`
 	InWhite             bool   `json:"inWhite"`
 	Exception           bool   `json:"exception"`
 	ExceptionPkgLicense bool   `json:"exceptionPkgLicense"` // 只针对软件的License
@@ -121,8 +120,8 @@ type PolicyDetect struct {
 }
 
 const (
-	FlagDetectException            = 1
-	FlagDetectInBlack              = 2
+	FlagDetectException = 1
+	// 差一个，以后补上
 	FlagDetectInWhite              = 3
 	FlagDetectEnvHasPasswd         = 4
 	FlagDetectVulnSeverityCritical = 5
@@ -131,18 +130,32 @@ const (
 	FlagDetectVulnSeverityLow      = 8
 	FlagDetectVulnSeverityKnown    = 9
 	FlagDetectExceptionPkgLicense  = 10
-
-	FlagDetectDeployActionBlock = 11 // 阻断
-	FlagDetectDeployActionAlarm = 12 // 报警
+	FlagDetectDeployActionBlock    = 11 // 阻断
+	FlagDetectDeployActionAlarm    = 12 // 报警
 )
 
 func (vi *PolicyDetect) GenPolicyDetect(flag uint64) {
 
-	if util.ExistBit1(flag, FlagDetectException) {
-		vi.Exception = true
+	// 白名单只对自已策略有效
+	// 所有策略的并集，如果一个策略检测出是风险，那么即使另一个策略加了白名单，也是风险的
+
+	// TODO 这一期 异常软件和异常开源协议分开算，下一期整合
+	if vi.Exception || vi.ExceptionPkgLicense {
+		// 讨厌的开源协议
+		if util.ExistBit1(flag, FlagDetectExceptionPkgLicense) {
+			// TODO 这一期 异常软件和异常开源协议分开算，下一期整合
+			// vi.Exception = true
+			vi.ExceptionPkgLicense = true
+		}
+		if util.ExistBit1(flag, FlagDetectException) {
+			vi.Exception = true
+		}
+		return
 	}
-	if util.ExistBit1(flag, FlagDetectInBlack) {
-		vi.InBlack = true
+	if vi.DeployAction == DeployActionBlock {
+		return
+	}
+	if util.ExistBit1(flag, FlagDetectException) {
 		vi.Exception = true
 	}
 	if util.ExistBit1(flag, FlagDetectEnvHasPasswd) {
@@ -151,7 +164,8 @@ func (vi *PolicyDetect) GenPolicyDetect(flag uint64) {
 	}
 
 	if util.ExistBit1(flag, FlagDetectExceptionPkgLicense) {
-		vi.Exception = true
+		// TODO 这一期 异常软件和异常开源协议分开算，下一期整合
+		// vi.Exception = true
 		vi.ExceptionPkgLicense = true
 	}
 	if util.ExistBit1(flag, FlagImageDeployBlock) {
@@ -172,7 +186,6 @@ func (vi *PolicyDetect) GenPolicyDetect(flag uint64) {
 	if vi.InWhite || util.ExistBit1(flag, FlagDetectInWhite) {
 		vi.InWhite = true
 		vi.Exception = false
-		vi.InBlack = false
 		vi.PasswdEnv = false
 		vi.ExceptionPkgLicense = false
 		vi.DeployAction = DeployActionPass
@@ -240,10 +253,6 @@ func (vi *ImageDetectResult) ToPolicyDetect() PolicyDetect {
 	if util.ExistBit1(vi.Flag, FlagDetectException) {
 		ans.Exception = true
 	}
-	if util.ExistBit1(vi.Flag, FlagDetectInBlack) {
-		ans.InBlack = true
-		ans.Exception = true
-	}
 
 	return ans
 }
@@ -309,7 +318,7 @@ func (vi *ImageDetectBrief) Check() error {
 
 func (vi *ImageDetectBrief) Same(after *ImageDetectBrief) bool {
 	if vi.ImageUniqueID != after.ImageUniqueID || vi.PolicyID != after.PolicyID || vi.Flag != vi.Flag ||
-		vi.PolicyJson != after.PolicyJson {
+		vi.PolicyUniqueID != after.PolicyUniqueID {
 		return false
 	}
 	return true
@@ -350,10 +359,12 @@ func (vi *ImageDetectBrief) Serialize() {
 	if vi.Policy != nil {
 		vi.PolicyUniqueID = vi.Policy.UniqueID
 		vi.PolicyID = vi.Policy.ID
+
 		pn := SimplePolicy{
-			ID:       vi.Policy.ID,
-			UniqueID: vi.Policy.UniqueID,
-			Name:     vi.Policy.Name,
+			IsDefault: vi.Policy.IsDefault,
+			ID:        vi.Policy.ID,
+			UniqueID:  vi.Policy.UniqueID,
+			Name:      vi.Policy.Name,
 		}
 		if bys, err := json.Marshal(pn); err == nil {
 			vi.PolicyJson = string(bys)

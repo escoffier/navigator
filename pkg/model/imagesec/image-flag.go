@@ -8,28 +8,31 @@ const (
 	FlagHasExceptionWebshell   = 3
 	FlagHasExceptionPKG        = 4
 	FlagHasExceptionEnv        = 5
-	FlagExceptionBoot          = 6
+	FlagDetectExceptionBoot    = 6 // root启动(检测问题)
 	FlagHasExceptionPkgLicense = 7
 	FlagHasFixedVuln           = 8
-	FlagAppImage               = 9  // 应用镜像
-	FlagBaseImage              = 10 // 基础镜像
+	FlagAppImage               = 9  // 应用镜像(本身属性)
+	FlagBaseImage              = 10 // 基础镜像(本身属性)
 	FlagHasExceptionLicense    = 11 // 含有不合规的 license 文件
 
+	FlagImageDetectNotExitINReg = 12 // 镜像在仓库内(问题)
 	// 部署上线特有
-	FlagImageNotScanned  = 13
-	FlagImageHasErr      = 14
-	FlagNotExitBaseImage = 15
-	FlagImageDeployWhite = 16
+	FlagImageNotScanned      = 13
+	FlagImageDetectUnTrusted = 14 // 镜像不可信 (问题)
+	FlagNotExitBaseImage     = 15 // (问题)
+	FlagImageDeployWhite     = 16
 
 	FlagImageNotMaintained = 17 // os不再维护
-	FlagImageTrusted       = 18 // 可信息镜像
-	FlagImageUnTrusted     = 19 // 不可信息镜像
+	FlagImageTrusted       = 18 // 可信息镜像(本身属性)
+	FlagImageUnTrusted     = 19 // 不可信息镜像(本身属性)
+
+	FlagImageExceptionBoot = 20 // root启动(本身属性)
 
 	FlagImageOnline        = 23 // 镜像在线
 	FlagImageNotOnline     = 24 // 镜像离线
 	FlagImageHasFixSuggest = 25 // 镜像有可修复建议
-	FlagImageNotInRegistry = 26 // 节点镜像不在仓库内
-	FlagImageInRegistry    = 27 // 节点镜像在仓库内
+	FlagImageNotInRegistry = 26 // 镜像不在仓库内(本身的属性)
+	FlagImageInRegistry    = 27 // 镜像在仓库内(本身的属性)
 
 	FlagImageHasUnknownVun   = 28
 	FlagImageHasLowVuln      = 29
@@ -37,8 +40,7 @@ const (
 	FlagImageHasHighVuln     = 31
 	FlagImageHasCriticalVuln = 32 // 镜像存在高危漏洞
 
-	// 部署上线特有
-	FlagImageDeployBlock  = 33
+	FlagImageDeployBlock  = 33 // 部署上线状态
 	FlagImageDeployAlarm  = 34
 	FlagImageDeployPassed = 35
 
@@ -60,7 +62,7 @@ func GetSecurityIssueLabelZH(flag int64) string {
 		return "不合规软件"
 	case FlagHasExceptionEnv:
 		return "异常环境变量"
-	case FlagExceptionBoot:
+	case FlagDetectExceptionBoot:
 		return "root用户启动"
 	case FlagHasExceptionPkgLicense:
 		return "不允许的开源许可"
@@ -68,16 +70,19 @@ func GetSecurityIssueLabelZH(flag int64) string {
 		return "恶意文件"
 	case FlagHasExceptionLicense:
 		return "风险文件引用"
-	case FlagImageUnTrusted:
+	case FlagImageDetectUnTrusted:
 		return "非可信镜像"
 	case FlagHasFixedVuln:
 		return "包含可修复漏洞"
 	case FlagImageHasFixSuggest:
 		return "存在修复建议"
-	case FlagImageNotInRegistry:
+	case FlagImageDetectNotExitINReg:
 		return "非仓库镜像"
 	case FlagImageNotScanned:
 		return "镜像未扫描"
+	case FlagNotExitBaseImage:
+		return "非基础镜像构建"
+
 	default:
 		return ""
 	}
@@ -95,7 +100,7 @@ func GetSecurityIssueLabelEN(flag int64) string {
 		return "Non-compliant software"
 	case FlagHasExceptionEnv:
 		return "Abnormal environment variables"
-	case FlagExceptionBoot:
+	case FlagDetectExceptionBoot:
 		return "Start by non-root user"
 	case FlagHasExceptionPkgLicense:
 		return "Prohibited open source license"
@@ -103,16 +108,18 @@ func GetSecurityIssueLabelEN(flag int64) string {
 		return "Trojan Virus"
 	case FlagHasExceptionLicense:
 		return "Non-compliant License"
-	case FlagImageUnTrusted:
+	case FlagImageDetectUnTrusted:
 		return "Un-trusted"
 	case FlagHasFixedVuln:
 		return "Has fixed Vulnerability"
 	case FlagImageHasFixSuggest:
 		return "Has fixed suggest"
-	case FlagImageNotInRegistry:
+	case FlagImageDetectNotExitINReg:
 		return "image not in registry"
 	case FlagImageNotScanned:
 		return "image not scanned"
+	case FlagNotExitBaseImage:
+		return "not exit base image"
 	default:
 		return ""
 	}
@@ -120,21 +127,21 @@ func GetSecurityIssueLabelEN(flag int64) string {
 
 func GetSecurityIssueLabelKey() map[uint64]string {
 	ans := map[uint64]string{
-		FlagHasExceptionVuln:       ExceptionVuln,
-		FlagHasExceptionSensitive:  ExceptionSensitive,
-		FlagHasExceptionWebshell:   ExceptionWebshell,
-		FlagHasExceptionPKG:        ExceptionPKG,
-		FlagHasExceptionEnv:        ExceptionEnv,
-		FlagExceptionBoot:          ExceptionBoot,
-		FlagHasExceptionPkgLicense: ExceptionPkgLicense,
-		FlagHasExceptionMalware:    ExceptionMalware,
-		FlagHasExceptionLicense:    ExceptionLicense,
-		FlagImageUnTrusted:         UnTrustedString,
-		FlagHasFixedVuln:           HasFixedVulnString,
-		FlagImageHasFixSuggest:     ImageHasSuggestionString,
-		FlagImageNotInRegistry:     ImageNotInReg,
-		FlagImageNotScanned:        ImageNotScanned,
-		FlagNotExitBaseImage:       ImageNotHasBaseImage,
+		FlagHasExceptionVuln:        ExceptionVuln,
+		FlagHasExceptionSensitive:   ExceptionSensitive,
+		FlagHasExceptionWebshell:    ExceptionWebshell,
+		FlagHasExceptionPKG:         ExceptionPKG,
+		FlagHasExceptionEnv:         ExceptionEnv,
+		FlagDetectExceptionBoot:     ExceptionBoot,
+		FlagHasExceptionPkgLicense:  ExceptionPkgLicense,
+		FlagHasExceptionMalware:     ExceptionMalware,
+		FlagHasExceptionLicense:     ExceptionLicense,
+		FlagImageDetectUnTrusted:    UnTrustedString,
+		FlagHasFixedVuln:            HasFixedVulnString,
+		FlagImageHasFixSuggest:      ImageHasSuggestionString,
+		FlagImageDetectNotExitINReg: ImageNotInReg,
+		FlagImageNotScanned:         ImageNotScanned,
+		FlagNotExitBaseImage:        ImageNotExitBaseImage,
 	}
 
 	return ans
@@ -167,7 +174,7 @@ const (
 	ImageHasSuggestionString = "hasSuggestion"
 	ImageNotInReg            = "notInRegistry"
 	ImageNotScanned          = "imageNotScanned"
-	ImageNotHasBaseImage     = "notExitBaseImage"
+	ImageNotExitBaseImage    = "notExitBaseImage"
 
 	DeployActionBlock = "block"
 	DeployActionAlarm = "alarm"

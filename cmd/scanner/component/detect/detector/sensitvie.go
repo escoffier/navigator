@@ -65,13 +65,12 @@ func CheckImageSensitive(ctx context.Context, data *imagesecModel.ImageWithCorre
 		if !util.ExistBit1(flag, imagesecModel.FlagDetectInWhite) {
 			if policy.Sensitive.AllBlack {
 				flag = util.SetBit1(flag, imagesecModel.FlagDetectException)
-				flag = util.SetBit1(flag, imagesecModel.FlagDetectInBlack)
 			}
 
 			for j := range blackReg {
 				bl := blackReg[j]
 				if bl.FindString(ses.Filename) != "" {
-					flag = util.SetBit1(util.SetBit1(flag, imagesecModel.FlagDetectInBlack), imagesecModel.FlagDetectException)
+					flag = util.SetBit1(flag, imagesecModel.FlagDetectException)
 				}
 			}
 		}
@@ -117,7 +116,6 @@ func CheckImageSensitiveAllWhite(ctx context.Context, data *imagesecModel.ImageW
 		var flag uint64
 		flag = util.SetBit1(flag, imagesecModel.FlagDetectInWhite)
 		flag = util.SetBit0(flag, imagesecModel.FlagDetectException)
-		flag = util.SetBit0(flag, imagesecModel.FlagDetectInBlack)
 		red := &imagesecModel.ImageDetectResult{
 			DetectType:    imagesecModel.DetectTypeSensRule,
 			Flag:          flag,
@@ -147,7 +145,6 @@ func CheckImageSensitiveAllBlock(ctx context.Context, data *imagesecModel.ImageW
 	for i := range sess {
 		ses := sess[i]
 		var flag uint64
-		flag = util.SetBit1(flag, imagesecModel.FlagDetectInBlack)
 		flag = util.SetBit1(flag, imagesecModel.FlagDetectException)
 		red := &imagesecModel.ImageDetectResult{
 			DetectType:    imagesecModel.DetectTypeSensRule,

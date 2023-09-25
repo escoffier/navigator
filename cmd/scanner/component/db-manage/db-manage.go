@@ -559,11 +559,12 @@ func (v *DBManage) generateScanTask() error {
 	trustedImageDal := store.NewScannerOrm(rdbInstance)
 	deployDal := imagesecStore.NewDeployDao(rdbInstance)
 	userDal := imagesecStore.NewUserDao(rdbInstance)
+	cacheDal := imagesecStore.NewImageCacheDao(rdbInstance)
 
 	imageSvc := imagemeta.NewImageMetaSrv(
 		imageDal, registryDal, scanResultDal,
 		resourceDal, nodeReportDal, policyDal,
-		detectResultDal, trustedImageDal, scannerConfigDal, scanTaskDal, instanceDal, deployDal,
+		detectResultDal, trustedImageDal, scannerConfigDal, scanTaskDal, instanceDal, deployDal, cacheDal,
 	)
 
 	detectTaskDal := imagesecStore.NewDetectTaskDao(rdbInstance)

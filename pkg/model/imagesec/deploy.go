@@ -47,23 +47,23 @@ type DeployRecord struct {
 	Env                []uint64       `gorm:"-" json:"env"`
 	EnvIssue           []DeployIssue  `gorm:"-" json:"envIssue"`
 	RootBootJSON       string         `gorm:"column:root_boot" json:"-"`
-	RootBoot           bool           `gorm:"-" json:"rootBoot"`
 	RootBootIssue      []DeployIssue  `gorm:"-" json:"rootBootIssue"`
 	BaseImageJSON      string         `gorm:"column:base_image" json:"-"`
 	BaseImage          bool           `gorm:"-" json:"baseImage"`
 	BaseImageIssue     []DeployIssue  `gorm:"-" json:"baseImageIssue"`
 	TrustedImageJSON   string         `gorm:"column:trusted_image" json:"-"`
-	TrustedImage       bool           `gorm:"-" json:"trustedImage"`
 	TrustedImageIssue  []DeployIssue  `gorm:"-" json:"trustedImageIssue"`
-	PolicyJson         string         `gorm:"column:policy" json:"-"`
-	Policy             []SimplePolicy `gorm:"-" json:"policy"`
+	RiskPolicyJson     string         `gorm:"column:risk_policy" json:"-"`
+	TotalPolicyJson    string         `gorm:"column:total_policy" json:"-"`
+	RiskPolicy         []SimplePolicy `gorm:"-" json:"riskPolicy"`
+	TotalPolicy        []SimplePolicy `gorm:"-" json:"totalPolicy"`
 	PolicyUniqueIDJson string         `gorm:"column:policy_unique_id" json:"-"`
-	LastScanAt         int64          `gorm:"column:last_scan_at" json:"lastScanAt"`
 	Hour               int64          `gorm:"column:hour" json:"hour"`
 	Day                int64          `gorm:"column:day" json:"day"`
 
 	CreatedAt int64 `gorm:"autoCreateTime:milli;column:created_at" json:"createdAt"` // milliseconds
 	UpdatedAt int64 `gorm:"autoUpdateTime:milli;column:updated_at" json:"updatedAt"` // milliseconds
+
 }
 
 func (vi *DeployRecord) TableName() string {
@@ -95,7 +95,8 @@ func (vi *DeployRecord) Deserialize() {
 	_ = json.Unmarshal([]byte(vi.SensitiveJSON), &vi.SensitiveIssue)
 	_ = json.Unmarshal([]byte(vi.LicenseJSON), &vi.LicenseIssue)
 	_ = json.Unmarshal([]byte(vi.EnvJSON), &vi.EnvIssue)
-	_ = json.Unmarshal([]byte(vi.PolicyJson), &vi.Policy)
+	_ = json.Unmarshal([]byte(vi.RiskPolicyJson), &vi.RiskPolicy)
+	_ = json.Unmarshal([]byte(vi.TotalPolicyJson), &vi.TotalPolicy)
 
 	vi.Vuln = vi.GetTarget(vi.VulnIssue)
 	vi.Malware = vi.GetTarget(vi.MalwareIssue)
@@ -129,24 +130,28 @@ func (vi *DeployRecord) Serialize() {
 
 	policyUniqueID := make([]string, 0)
 
-	for i := range vi.Policy {
-		policyUniqueID = append(policyUniqueID, fmt.Sprintf("%d", vi.Policy[i].UniqueID))
+	for i := range vi.RiskPolicy {
+		policyUniqueID = append(policyUniqueID, fmt.Sprintf("%d", vi.RiskPolicy[i].UniqueID))
 	}
 
 	vi.PolicyUniqueIDJson = strings.Join(policyUniqueID, ",")
 
-	if pn, err := json.Marshal(vi.Policy); err == nil {
-		vi.PolicyJson = string(pn)
+	if pn, err := json.Marshal(vi.RiskPolicy); err == nil {
+		vi.RiskPolicyJson = string(pn)
+	}
+
+	if pn, err := json.Marshal(vi.TotalPolicy); err == nil {
+		vi.TotalPolicyJson = string(pn)
 	}
 	if pn, err := json.Marshal(vi.Image); err == nil {
 		vi.ImageJson = string(pn)
 	}
 
 	if vi.Day <= 0 {
-		vi.Day = util.DaysSinceUnixEpoch(time.Now())
+		vi.Day = util.DaySinceUnixEpoch(time.Now().UTC())
 	}
 	if vi.Hour <= 0 {
-		vi.Hour = util.HourSinceUnixEpoch(time.Now())
+		vi.Hour = util.HourSinceUnixEpoch(time.Now().UTC())
 	}
 
 	vi.SetActionFlag()
@@ -244,10 +249,6 @@ func (vi *DeployMonitorImage) Empty() bool {
 	if vi.Image == "" || vi.Digest == "" {
 		return true
 	}
-	if vi.Repo == "" || vi.Tag == "" || vi.Digest == "" {
-		return false
-	}
-
 	return false
 }
 
@@ -309,6 +310,10 @@ type ActionOverview struct {
 	Group  ActionGroup `json:"group"`
 }
 
+func (vi *ActionOverview) AdaptTimeZone() {
+	vi.TimeAt = vi.TimeAt - 8*60*60*1000
+}
+
 type ActionOverviews []*ActionOverview
 
 func (vi ActionOverviews) Len() int {
@@ -344,21 +349,18 @@ type GroupDeployFlagParam struct {
 func (vi *GroupDeployFlagParam) Serialize() {
 	if vi.Day7 == TrueString {
 		vi.Day = TrueString
-		vi.StartDay = util.DaysSinceUnixEpoch(time.Now()) - 7
-		// vi.EndDay = util.DaysSinceUnixEpoch(time.Now())
+		vi.StartDay = util.DaySinceUnixEpoch(time.Now()) - 7
 	}
 	if vi.Day30 == TrueString {
 		vi.Day = TrueString
-		vi.StartDay = util.DaysSinceUnixEpoch(time.Now()) - 30
-		// vi.EndDay = util.DaysSinceUnixEpoch(time.Now())
+		vi.StartDay = util.DaySinceUnixEpoch(time.Now()) - 30
 	}
 	if vi.Hour24 == TrueString {
 		vi.Hour = TrueString
 		vi.StartHour = util.HourSinceUnixEpoch(time.Now()) - 24
-		// vi.EndDay = util.HourSinceUnixEpoch(time.Now())
 	}
 	if vi.Reason == TrueString {
-		vi.StartDay = util.DaysSinceUnixEpoch(time.Now()) - 30
+		vi.StartDay = util.DaySinceUnixEpoch(time.Now()) - 30
 	}
 }
 
@@ -382,15 +384,16 @@ type DeployRecordView struct {
 	ImageUniqueID uint64                  `json:"imageUniqueID,string"`
 	SecurityIssue []SecurityIssueLabel    `json:"securityIssue"` // 安全问题
 	VulnStatic    ImageVulnSeverityStatic `json:"vulnStatic"`
-	RiskPolicy    []SimplePolicy          `json:"riskPolicy"` // 镜像的风险来源
-	// 以下是为了和镜像列表保持一致，便于前端统一
-	FullRepoName string `json:"fullRepoName"`
-	Tag          string `json:"tag"`
-	LastScanAt   int64  `json:"lastScanAt"` // 扫描完成时间戳(单位毫秒)
-	RegistryUrl  string `json:"registryUrl"`
+	RiskPolicy    []SimplePolicy          `json:"riskPolicy"`   // 镜像的风险来源
+	TotalPolicy   []SimplePolicy          `json:"totalPolicy"`  // 镜像的风险来源
+	FullRepoName  string                  `json:"fullRepoName"` // 以下是为了和镜像列表保持一致，便于前端统一
+	Tag           string                  `json:"tag"`
+	LastScanAt    int64                   `json:"lastScanAt"` // 扫描完成时间戳(单位毫秒)
+	RegistryUrl   string                  `json:"registryUrl"`
+	CreatedAt     int64                   `json:"createdAt"` // milliseconds
+	UpdatedAt     int64                   `json:"updatedAt"` // milliseconds
 
-	CreatedAt int64 `json:"createdAt"` // milliseconds
-	UpdatedAt int64 `json:"updatedAt"` // milliseconds
+	DeployRecord *DeployRecord `json:"-"`
 }
 
 func (vi *DeployRecordView) FullNull() {
@@ -402,7 +405,7 @@ func (vi *DeployRecordView) FullNull() {
 	}
 }
 
-func GenDeployRecordView(base ImageBaseResponse, rec *DeployRecord) DeployRecordView {
+func GenDeployRecordView(base *ImageBaseResponse, rec *DeployRecord) DeployRecordView {
 	view := DeployRecordView{
 		ID:            rec.ID,
 		ImageUUID:     rec.ImageUUID,
@@ -414,17 +417,23 @@ func GenDeployRecordView(base ImageBaseResponse, rec *DeployRecord) DeployRecord
 		ImageUniqueID: rec.ImageUniqueID,
 		SecurityIssue: base.SecurityIssue,
 		VulnStatic:    base.VulnStatic,
-		RiskPolicy:    rec.Policy,
+		RiskPolicy:    rec.RiskPolicy,
+		TotalPolicy:   rec.TotalPolicy,
 		Digest:        rec.Digest,
 		FullRepoName:  rec.Repo,
 		Tag:           rec.Tag,
-		LastScanAt:    rec.LastScanAt,
 		RegistryUrl:   rec.Host,
 		CreatedAt:     rec.CreatedAt,
 		UpdatedAt:     rec.UpdatedAt,
+		DeployRecord:  rec,
+		InWhite:       false,
 	}
 	if util.ExistBit1(rec.Flag, FlagImageDeployWhite) {
 		view.White = true
+	}
+	if base != nil {
+		view.SecurityIssue = base.SecurityIssue
+		view.VulnStatic = base.VulnStatic
 	}
 
 	return view

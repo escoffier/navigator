@@ -82,14 +82,14 @@ func NewBackgroundTasks(ctx context.Context, config Config) *BackgroundTasks {
 	deployDal := imagesecStore.NewDeployDao(config.Rdb)
 
 	updateTask := common2.NewUpdateTaskSrv(imagesecStore.NewExportTaskDao(config.Rdb), config.RedisCli)
-
+	cacheDal := imagesecStore.NewImageCacheDao(config.Rdb)
 	imageSvc := imagemeta.NewImageMetaSrv(
 		imageDal, registryDal, scanResultDal,
 		resourceDal, nodeReportDal, policyDal, detectResultDal, trustedImageDal,
-		scanConfigDal, scanTaskDal, scanInstanceDal, deployDal,
+		scanConfigDal, scanTaskDal, scanInstanceDal, deployDal, cacheDal,
 	)
 
-	scanResSrv := imagescanSrv.NewScanResultSrv(scanResultDal)
+	scanResSrv := imagescanSrv.NewScanResultSrv(scanResultDal, cacheDal)
 
 	imageExportSrv := common2.NewExcelExportSrv(exportTaskDal, imageSvc, imageSvc, config.FileDir,
 		updateTask, config.MaxVulnCol)

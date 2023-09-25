@@ -55,7 +55,7 @@ func NewExportTaskSrv(
 	}
 }
 
-func (s *ExportTaskSrv) GetImageCorrelateData(ctx context.Context, param imagesecModel.GetImageAssociateDataParam) (
+func (s *ExportTaskSrv) GetImageCorrelateData(ctx context.Context, param imagesecModel.ImageAssociateParam) (
 	*imagesecModel.ImageWithCorrelateData2, error) {
 	return s.ImageSrv.GetImageCorrelateData(ctx, param)
 }

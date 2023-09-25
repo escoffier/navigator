@@ -13,7 +13,7 @@ type ScanInstance struct {
 }
 
 type ScanImageMeta struct {
-	UniqueID  uint64 `json:"uniqueID"`
+	UniqueID  uint64 `json:"uniqueID,string"`
 	ImageUUID uint32 `json:"imageUUID"`
 	Host      string `json:"host"`
 	Digest    string `json:"digest"`

@@ -51,7 +51,7 @@ func (vi *Pkg) Check() error {
 }
 
 func (vi *Pkg) GenUniqueID() uint64 {
-	key := fmt.Sprintf(UniquePkgFormat, vi.Name, vi.Version, vi.OSFamily, vi.OSName)
+	key := fmt.Sprintf("%s-%s-%s-%s", vi.Name, vi.Version, vi.OSFamily, vi.OSName)
 	uid := util.GenerateUUID64(key)
 	vi.UniqueID = uid
 	return uid
@@ -62,8 +62,7 @@ func (vi *Pkg) TableName() string {
 }
 
 func (vi *Pkg) Same(after *Pkg) bool {
-	if vi.Name != after.Name || vi.Version == after.Version || vi.License != after.License ||
-		vi.SrcName != after.SrcName || vi.SrcVersion != after.SrcVersion {
+	if vi.License != after.License || vi.DependsOnJSON != after.DependsOnJSON {
 		return false
 	}
 	return true

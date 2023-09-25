@@ -239,15 +239,27 @@ func TestListDeduplicate(t *testing.T) {
 }
 
 func TestDaysSinceUnixEpoch(t *testing.T) {
-	convey.Convey("DaysSinceUnixEpoch ", t, func() {
+	convey.Convey("DaySinceUnixEpoch ", t, func() {
 		unixEpoch := time.Date(1970, time.January, 1, 1, 0, 0, 0, time.UTC)
-		convey.So(DaysSinceUnixEpoch(unixEpoch), convey.ShouldEqual, 1)
+		convey.So(DaySinceUnixEpoch(unixEpoch), convey.ShouldEqual, 1)
+
+		n := DaySinceUnixEpoch(time.Now())
+
+		fmt.Println(time.Now().UnixMilli())
+
+		nu := UnixEpochAddDay(n)
+
+		fmt.Println(((nu - time.Now().UnixMilli()) / 1000) / 60 / 60)
+
 	})
 }
 
 func TestHourSinceUnixEpoch(t *testing.T) {
 	convey.Convey("HourSinceUnixEpoch ", t, func() {
-		unixEpoch := time.Date(1970, time.January, 1, 1, 0, 0, 0, time.UTC)
-		convey.So(HourSinceUnixEpoch(unixEpoch), convey.ShouldEqual, 2)
+		n3 := HourSinceUnixEpoch(time.Now().UTC())
+		convey.So(n3, convey.ShouldEqual, 471050)
+
+		n1 := UnixEpochAddHour(n3)
+		fmt.Println(n1)
 	})
 }

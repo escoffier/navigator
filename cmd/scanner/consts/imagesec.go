@@ -35,3 +35,9 @@ const (
 const (
 	RiskImageTOPN = 5
 )
+
+const (
+	ModelImageMeta   = "imageMeta"
+	ModelImageScan   = "imagescan"
+	ModelImageDetect = "imageDetect"
+)

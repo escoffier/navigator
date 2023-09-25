@@ -12,11 +12,11 @@ func CheckExistInReg(ctx context.Context, data *imagesecModel.ImageWithCorrelate
 
 	ans := make([]*imagesecModel.ImageDetectResult, 0)
 	if policy == nil || data == nil || data.Image.ID <= 0 || !policy.Enable ||
-		!policy.ExistInReg.Enable || data.Image.ImageFromType != imagesecModel.ImageFromNode {
+		!policy.ExistInReg.Enable || data.Image.ImageFromType == imagesecModel.ImageFromRegistry {
 		return ans
 	}
 
-	if util.ExistBit1(data.Image.Flag, imagesecModel.FlagImageNotInRegistry) {
+	if len(data.RegIds) == 0 {
 		red := &imagesecModel.ImageDetectResult{
 			DetectType:    imagesecModel.DetectTypeExistInRegRule,
 			Flag:          util.SetBit1(0, imagesecModel.FlagDetectException),

@@ -12,9 +12,11 @@ type RawContainer struct {
 }
 
 type RelatedImageRes struct {
+	ImageID       int64            `json:"imageID"`
 	ImageFromType string           `json:"imageFromType"`
 	ImageUniqueID uint64           `json:"imageUniqueID,string"`
 	Image         string           `json:"image"`
+	Digest        string           `json:"digest"`
 	Registry      []RegistrySimple `json:"registry"`
 	Node          []*NodeInfo      `json:"node"`
 	Container     []string         `json:"container"`

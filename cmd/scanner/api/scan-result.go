@@ -85,7 +85,7 @@ func GetScanResultSearchParamFromCtx(ctx *gin.Context) imagesecModel.ScanResultS
 func (s *ScanResultAPI) SearchVirus(ctx *gin.Context) {
 	param := GetScanResultSearchParamFromCtx(ctx)
 
-	data, err := s.ImageSrv.GetImageCorrelateData(ctx, imagesecModel.GetImageAssociateDataParam{
+	data, err := s.ImageSrv.GetImageCorrelateData(ctx, imagesecModel.ImageAssociateParam{
 		ImageFromType:         param.ImageFromType,
 		ImageId:               param.ImageID,
 		ImageUniqueID:         param.ImageUniqueID,
@@ -93,6 +93,7 @@ func (s *ScanResultAPI) SearchVirus(ctx *gin.Context) {
 		DetectParam:           imagesecModel.DetectResultParam{SecurityPolicyIds: param.SecurityPolicyIds},
 		MalwareEnable:         true,
 		DetectResultEnable:    true,
+		CheckDownloadable:     true,
 		ScanResultSearchParam: param,
 	})
 	if err != nil {
@@ -109,7 +110,7 @@ func (s *ScanResultAPI) SearchVirus(ctx *gin.Context) {
 func (s *ScanResultAPI) SearchSensitive(ctx *gin.Context) {
 	param := GetScanResultSearchParamFromCtx(ctx)
 
-	data, err := s.ImageSrv.GetImageCorrelateData(ctx, imagesecModel.GetImageAssociateDataParam{
+	data, err := s.ImageSrv.GetImageCorrelateData(ctx, imagesecModel.ImageAssociateParam{
 		ImageFromType:         param.ImageFromType,
 		ImageId:               param.ImageID,
 		ImageUniqueID:         param.ImageUniqueID,
@@ -117,6 +118,7 @@ func (s *ScanResultAPI) SearchSensitive(ctx *gin.Context) {
 		DetectParam:           imagesecModel.DetectResultParam{SecurityPolicyIds: param.SecurityPolicyIds},
 		SensitiveEnable:       true,
 		DetectResultEnable:    true,
+		CheckDownloadable:     true,
 		ScanResultSearchParam: param,
 	})
 	if err != nil {
@@ -133,7 +135,7 @@ func (s *ScanResultAPI) SearchSensitive(ctx *gin.Context) {
 func (s *ScanResultAPI) SearchEnv(ctx *gin.Context) {
 	param := GetScanResultSearchParamFromCtx(ctx)
 
-	data, err := s.ImageSrv.GetImageCorrelateData(ctx, imagesecModel.GetImageAssociateDataParam{
+	data, err := s.ImageSrv.GetImageCorrelateData(ctx, imagesecModel.ImageAssociateParam{
 		ImageFromType:         param.ImageFromType,
 		ImageId:               param.ImageID,
 		ImageUniqueID:         param.ImageUniqueID,
@@ -174,7 +176,7 @@ func (s *ScanResultAPI) SearchSoftware(ctx *gin.Context) {
 	filter := param.Filter.DeepCopy()
 	param.Filter = nil
 
-	data, err := s.ImageSrv.GetImageCorrelateData(ctx, imagesecModel.GetImageAssociateDataParam{
+	data, err := s.ImageSrv.GetImageCorrelateData(ctx, imagesecModel.ImageAssociateParam{
 		ImageFromType:         param.ImageFromType,
 		ImageId:               param.ImageID,
 		ImageUniqueID:         param.ImageUniqueID,
@@ -271,7 +273,7 @@ func (s *ScanResultAPI) SearchSoftware(ctx *gin.Context) {
 func (s *ScanResultAPI) ImageBaseDetail(ctx *gin.Context) {
 	param := GetScanResultSearchParamFromCtx(ctx)
 	param.Filter = model.EmptyFilter()
-	apiParam := imagesecModel.GetImageAssociateDataParam{
+	apiParam := imagesecModel.ImageAssociateParam{
 		ImageFromType:      param.ImageFromType,
 		ImageId:            param.ImageID,
 		ImageUniqueID:      param.ImageUniqueID,
@@ -286,7 +288,7 @@ func (s *ScanResultAPI) ImageBaseDetail(ctx *gin.Context) {
 		RegistryEnable:     true,
 		LicenseEnable:      true,
 		ContainerEnable:    true,
-		RiskPolicyEnable:   true,
+		RiskPolicyEnable:   true, // 需要查询所有使用到的策略，根据策略决定镜像的问题
 		DetectResultEnable: true,
 		DetectParam:        imagesecModel.DetectResultParam{SecurityPolicyIds: param.SecurityPolicyIds},
 		NodeInfoEnable:     true,
@@ -319,7 +321,7 @@ func (s *ScanResultAPI) ImageLayers(ctx *gin.Context) {
 		return
 	}
 
-	data, err := s.ImageSrv.GetImageCorrelateData(ctx, imagesecModel.GetImageAssociateDataParam{
+	data, err := s.ImageSrv.GetImageCorrelateData(ctx, imagesecModel.ImageAssociateParam{
 		ImageId:         param.ImageID,
 		VulnEnable:      true,
 		MalwareEnable:   true,
@@ -345,7 +347,7 @@ func (s *ScanResultAPI) SecurityIssueOverview(ctx *gin.Context) {
 	param := GetScanResultSearchParamFromCtx(ctx)
 	param.Filter = model.EmptyFilter()
 
-	assParam := imagesecModel.GetImageAssociateDataParam{
+	assParam := imagesecModel.ImageAssociateParam{
 		ImageFromType:      param.ImageFromType,
 		ImageId:            param.ImageID,
 		ImageUniqueID:      param.ImageUniqueID,
@@ -386,7 +388,7 @@ func (s *ScanResultAPI) ImageIssueStatistic(ctx *gin.Context) {
 	param := GetScanResultSearchParamFromCtx(ctx)
 	param.Filter = model.EmptyFilter()
 
-	assParam := imagesecModel.GetImageAssociateDataParam{
+	assParam := imagesecModel.ImageAssociateParam{
 		ImageFromType:      param.ImageFromType,
 		ImageId:            param.ImageID,
 		ImageUniqueID:      param.ImageUniqueID,
@@ -401,6 +403,8 @@ func (s *ScanResultAPI) ImageIssueStatistic(ctx *gin.Context) {
 		RegistryEnable:     true,
 		DetectResultEnable: true,
 		RiskPolicyEnable:   true,
+		TrustedEnable:      true,
+		ImageInReg:         true,
 		DetectParam:        imagesecModel.DetectResultParam{SecurityPolicyIds: param.SecurityPolicyIds},
 		ScanResultSearchParam: imagesecModel.ScanResultSearchParam{
 			SecurityPolicyIds: param.SecurityPolicyIds,
@@ -442,7 +446,7 @@ func (s *ScanResultAPI) GetImageRiskInfo(ctx *gin.Context) {
 	ans := make([]ImageRiskStatic, 0)
 
 	for i := range images {
-		data, err := s.ImageSrv.GetImageCorrelateData(ctx, imagesecModel.GetImageAssociateDataParam{
+		data, err := s.ImageSrv.GetImageCorrelateData(ctx, imagesecModel.ImageAssociateParam{
 			ImageId:         images[i].ID,
 			VulnEnable:      true,
 			MalwareEnable:   true,
@@ -498,7 +502,7 @@ func (s *ScanResultAPI) GetImageRiskInfo(ctx *gin.Context) {
 func (s *ScanResultAPI) GetImageLayer(ctx *gin.Context) {
 	param := GetScanResultSearchParamFromCtx(ctx)
 
-	image, err := s.ImageSrv.GetImageCorrelateData(ctx, imagesecModel.GetImageAssociateDataParam{
+	image, err := s.ImageSrv.GetImageCorrelateData(ctx, imagesecModel.ImageAssociateParam{
 		DeployRecordID: param.DeployRecordID,
 		ImageId:        param.ImageID,
 		ImageUniqueID:  param.ImageUniqueID,
@@ -525,7 +529,7 @@ func (s *ScanResultAPI) GetImageVulns(ctx *gin.Context) {
 	vulnParam.Filter = vulnParam.Filter.SetSortFiled("severity").SetSortDesc()
 	resultParam.Filter = resultParam.Filter.SetSortFiled("severity").SetSortDesc()
 
-	data, err := s.ImageSrv.GetImageCorrelateData(ctx, imagesecModel.GetImageAssociateDataParam{
+	data, err := s.ImageSrv.GetImageCorrelateData(ctx, imagesecModel.ImageAssociateParam{
 		ImageFromType:         resultParam.ImageFromType,
 		ImageId:               resultParam.ImageID,
 		ImageUniqueID:         resultParam.ImageUniqueID,
@@ -567,7 +571,7 @@ func (s *ScanResultAPI) GetImageVulnPkg(ctx *gin.Context) {
 		ImageLayerDigest: util.GetKeywordFromQuery(ctx, "layerDigest"),
 	}
 
-	data, err := s.ImageSrv.GetImageCorrelateData(ctx, imagesecModel.GetImageAssociateDataParam{
+	data, err := s.ImageSrv.GetImageCorrelateData(ctx, imagesecModel.ImageAssociateParam{
 		ImageFromType:         param.ImageFromType,
 		ImageId:               param.ImageID,
 		ImageUniqueID:         param.ImageUniqueID,
@@ -652,7 +656,7 @@ func (s *ScanResultAPI) GetImageVulnLanguage(ctx *gin.Context) {
 	vulnParam := GetSearchVulnParamFromCtx(ctx)
 	vulnParam.Filter = model.EmptyFilter()
 
-	data, err := s.ImageSrv.GetImageCorrelateData(ctx, imagesecModel.GetImageAssociateDataParam{
+	data, err := s.ImageSrv.GetImageCorrelateData(ctx, imagesecModel.ImageAssociateParam{
 		ImageFromType:         param.ImageFromType,
 		ImageId:               param.ImageID,
 		ImageUniqueID:         param.ImageUniqueID,
@@ -724,7 +728,7 @@ func (s *ScanResultAPI) GetImageVulnGoBinary(ctx *gin.Context) {
 	vulnParam := GetSearchVulnParamFromCtx(ctx)
 	vulnParam.Filter = model.EmptyFilter()
 
-	data, err := s.ImageSrv.GetImageCorrelateData(ctx, imagesecModel.GetImageAssociateDataParam{
+	data, err := s.ImageSrv.GetImageCorrelateData(ctx, imagesecModel.ImageAssociateParam{
 		ImageFromType:         param.ImageFromType,
 		ImageId:               param.ImageID,
 		ImageUniqueID:         param.ImageUniqueID,
@@ -814,7 +818,7 @@ func (s *ScanResultAPI) GetImageVulnFrame(ctx *gin.Context) {
 		ImageLayerDigest: util.GetKeywordFromQuery(ctx, "layerDigest"),
 	}
 
-	data, err := s.ImageSrv.GetImageCorrelateData(ctx, imagesecModel.GetImageAssociateDataParam{
+	data, err := s.ImageSrv.GetImageCorrelateData(ctx, imagesecModel.ImageAssociateParam{
 		ImageFromType:         param.ImageFromType,
 		ImageId:               param.ImageID,
 		ImageUniqueID:         param.ImageUniqueID,
@@ -880,12 +884,13 @@ func (s *ScanResultAPI) GetImageWebshell(ctx *gin.Context) {
 
 	filter := model.GetFilter(ctx)
 
-	data, err := s.ImageSrv.GetImageCorrelateData(ctx, imagesecModel.GetImageAssociateDataParam{
+	data, err := s.ImageSrv.GetImageCorrelateData(ctx, imagesecModel.ImageAssociateParam{
 		ImageFromType:         param.ImageFromType,
 		ImageId:               param.ImageID,
 		ImageUniqueID:         param.ImageUniqueID,
 		DeployRecordID:        param.DeployRecordID,
 		WebshellEnable:        true,
+		CheckDownloadable:     true,
 		DetectResultEnable:    true,
 		DetectParam:           imagesecModel.DetectResultParam{SecurityPolicyIds: param.SecurityPolicyIds},
 		ScanResultSearchParam: param,

@@ -25,6 +25,11 @@ func (s *DeploySrv) GetImageDataForDeploy(ctx context.Context, param imagesecMod
 		Scanned:       false,
 		Errs:          make([]error, 0),
 	}
+	if param.Digest == "" {
+		ans.Exit = false
+		ans.Scanned = false
+	}
+
 	if param.ImageUUID <= 0 {
 		im := imagesecModel.Image{
 			ImageName: param.Image,
@@ -35,6 +40,7 @@ func (s *DeploySrv) GetImageDataForDeploy(ctx context.Context, param imagesecMod
 
 	images, _, err := s.imageDal.SearchImage(ctx, imagesecModel.ImageDalParam{
 		UUIDs:         []uint32{param.ImageUUID},
+		Digests:       []string{param.Digest},
 		ImageFromType: imagesecModel.ImageFromRegistry,
 	})
 	if err != nil {
@@ -64,8 +70,8 @@ func (s *DeploySrv) GetImageDataForDeploy(ctx context.Context, param imagesecMod
 		}
 	}
 
-	if ans.Exit && ans.Scanned && len(ans.Errs) == 0 {
-		data, err := s.ImageService.GetImageCorrelateData(ctx, imagesecModel.GetImageAssociateDataParam{
+	if ans.Exit && len(ans.Errs) == 0 {
+		data, err := s.ImageService.GetImageCorrelateData(ctx, imagesecModel.ImageAssociateParam{
 			ImageFromType:      imagesecModel.ImageFromRegistry,
 			ImageUniqueID:      ans.CorrelateData.Image.UniqueID,
 			VulnEnable:         true,
@@ -78,6 +84,8 @@ func (s *DeploySrv) GetImageDataForDeploy(ctx context.Context, param imagesecMod
 			WebshellEnable:     true,
 			SubtaskEnable:      true,
 			BaseImageEnable:    true,
+			TrustedEnable:      true,
+			ImageInReg:         true,
 		})
 		if err != nil {
 			ans.Errs = append(ans.Errs, err)
@@ -147,7 +155,8 @@ func (s *DeploySrv) CheckDeploy(ctx context.Context, param imagesecModel.DeployM
 		EnvIssue:       make([]imagesecModel.DeployIssue, 0),
 		RootBootIssue:  make([]imagesecModel.DeployIssue, 0),
 		BaseImageIssue: make([]imagesecModel.DeployIssue, 0),
-		Policy:         make([]imagesecModel.SimplePolicy, 0),
+		RiskPolicy:     make([]imagesecModel.SimplePolicy, 0),
+		TotalPolicy:    make([]imagesecModel.SimplePolicy, 0),
 	}
 
 	if res.Exit {
@@ -165,10 +174,6 @@ func (s *DeploySrv) CheckDeploy(ctx context.Context, param imagesecModel.DeployM
 	}
 	// logging.Get().Debug().Str("module", "deployment").Interface("CorrelateData", res).Msg("GetImageDataForDeploy")
 
-	if res.Scanned && len(res.CorrelateData.ScanSubTask) > 0 {
-		record.LastScanAt = res.CorrelateData.ScanSubTask[0].FinishedAt
-	}
-
 	pos, _, err := s.detectPolicyDal.SearchDetectPolicy(ctx, imagesecModel.SearchSecurityPolicyParam{PolicyType: imagesecModel.ConfigTypeDeploy})
 
 	policy := make([]*imagesecModel.SecurityPolicy, 0)
@@ -178,33 +183,38 @@ func (s *DeploySrv) CheckDeploy(ctx context.Context, param imagesecModel.DeployM
 			policy = append(policy, pos[i])
 		}
 	}
-	det := make(map[string][]*imagesecModel.ImageDetectResult)
+	det := make(map[string]map[uint64]*imagesecModel.ImageDetectResult)
 
 	for i := range policy {
 		po := policy[i]
+		var sinFlag uint64
 		if !detector.CheckImageExit(ctx, res, po) {
-			record.Flag = util.SetBit1(record.Flag, imagesecModel.FlagImageNotInRegistry)
-			record.Flag = util.SetBit1(record.Flag, imagesecModel.FlagImageDeployBlock)
-			record.Action = imagesecModel.DeployActionBlock
+			sinFlag = util.SetBit1(sinFlag, imagesecModel.FlagImageDetectNotExitINReg)
+			sinFlag = util.SetBit1(sinFlag, imagesecModel.FlagImageDeployBlock)
 		}
-		if !detector.CheckImageScanned(ctx, res, po) {
-			record.Flag = util.SetBit1(record.Flag, imagesecModel.FlagImageNotScanned)
-			record.Flag = util.SetBit1(record.Flag, imagesecModel.FlagImageDeployBlock)
-			record.Action = imagesecModel.DeployActionBlock
+		if !detector.CheckImageScanned(ctx, res, po) && res.Exit {
+			sinFlag = util.SetBit1(sinFlag, imagesecModel.FlagImageNotScanned)
+			sinFlag = util.SetBit1(sinFlag, imagesecModel.FlagImageDeployBlock)
 		}
 		if detector.CheckImageHasErr(ctx, res, po) {
 			// 内部出错，不可阻断，也不记录
 			return true
 		}
 
-		sin := s.ImagePolicyChecker.Check(ctx, res.CorrelateData, po)
-		// 这里的 flag 包含的信息不全，不优雅
-		sinFlag := util.SetBit1(0, GenPolicyFlag(sin))
+		if res.Exit {
+			sin := s.ImagePolicyChecker.Check(ctx, res.CorrelateData, po)
+			det = detect.MergeDetectResult(det, sin)
+			// 这里的 flag 包含的信息不全，不优雅
+			sinFlag = util.SetBit1(sinFlag, GenPolicyActionFlag(sin))
+		}
+
 		sim := imagesecModel.SimplePolicy{UniqueID: po.UniqueID, Name: po.Name, Flag: sinFlag, ID: po.ID}
 
-		record.Policy = append(record.Policy, sim)
-
-		det = MergeDetectResult(det, sin)
+		record.TotalPolicy = append(record.TotalPolicy, sim)
+		if util.ExistBit1(sim.Flag, imagesecModel.FlagImageDeployBlock) ||
+			util.ExistBit1(sim.Flag, imagesecModel.FlagImageDeployAlarm) {
+			record.RiskPolicy = append(record.RiskPolicy, sim)
+		}
 	}
 
 	white, err := s.CheckWhite(ctx, param)
@@ -230,6 +240,20 @@ func (s *DeploySrv) CheckDeploy(ctx context.Context, param imagesecModel.DeployM
 	// 阻断问题列表flag(和镜像列表 flag 类似) 主要用于筛选
 	flag = detect.GenImageIssueFlag(det, flag)
 
+	// 如果是未扫描和不在仓库中
+	for i := range record.TotalPolicy {
+		po := record.TotalPolicy[i]
+		if util.ExistBit1(po.Flag, imagesecModel.FlagImageDetectNotExitINReg) {
+			flag = util.SetBit1(flag, imagesecModel.FlagImageDetectNotExitINReg)
+		}
+		if util.ExistBit1(po.Flag, imagesecModel.FlagImageNotScanned) {
+			flag = util.SetBit1(flag, imagesecModel.FlagImageNotScanned)
+		}
+		if util.ExistBit1(po.Flag, imagesecModel.FlagImageDeployBlock) {
+			flag = util.SetBit1(flag, imagesecModel.FlagImageDeployBlock)
+		}
+	}
+
 	act := GenAction(det, flag)
 
 	record = AddIssueDeployRecord(record, det)
@@ -247,17 +271,7 @@ func (s *DeploySrv) CheckDeploy(ctx context.Context, param imagesecModel.DeployM
 	return record.Action != imagesecModel.DeployActionBlock
 }
 
-func MergeDetectResult(det map[string][]*imagesecModel.ImageDetectResult, res map[string][]*imagesecModel.ImageDetectResult) map[string][]*imagesecModel.ImageDetectResult {
-	for k, v := range res {
-		if det[k] == nil {
-			det[k] = make([]*imagesecModel.ImageDetectResult, 0)
-		}
-		det[k] = append(det[k], v...)
-	}
-	return det
-}
-
-func AddIssueDeployRecord(record imagesecModel.DeployRecord, det map[string][]*imagesecModel.ImageDetectResult) imagesecModel.DeployRecord {
+func AddIssueDeployRecord(record imagesecModel.DeployRecord, det map[string]map[uint64]*imagesecModel.ImageDetectResult) imagesecModel.DeployRecord {
 	for k, v := range det {
 		switch k {
 		case imagesecModel.DetectTypeVulnRule:
@@ -318,7 +332,6 @@ func AddIssueDeployRecord(record imagesecModel.DeployRecord, det map[string][]*i
 
 		case imagesecModel.DetectTypeBaseImageRule:
 			for _, d := range v {
-
 				record.BaseImageIssue = append(record.BaseImageIssue, imagesecModel.DeployIssue{
 					Target: d.UniqueTarget,
 					Flag:   d.Flag,
@@ -378,7 +391,7 @@ func compareAndSetFlag(pre, flag uint64, base uint64) uint64 {
 }
 
 // 检测完成获取是否阻断的 action
-func GenAction(det map[string][]*imagesecModel.ImageDetectResult, imageFlag uint64) string {
+func GenAction(det map[string]map[uint64]*imagesecModel.ImageDetectResult, imageFlag uint64) string {
 
 	if util.ExistBit1(imageFlag, imagesecModel.FlagImageDeployWhite) {
 		return imagesecModel.DeployActionPass
@@ -405,7 +418,7 @@ func GenAction(det map[string][]*imagesecModel.ImageDetectResult, imageFlag uint
 }
 
 // 单个策略检测后的 flag 标签
-func GenPolicyFlag(det map[string][]*imagesecModel.ImageDetectResult) uint64 {
+func GenPolicyActionFlag(det map[string][]*imagesecModel.ImageDetectResult) uint64 {
 	hasAlarm := false
 	for _, res := range det {
 		for k := range res {

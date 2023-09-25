@@ -185,16 +185,10 @@ func (s *InitScanner) createNodeDefaultDetectPolicy(ctx context.Context) error {
 		logging.Get().Err(err).Msg("SearchDetectPolicy")
 		return err
 	}
-	if len(policies) > 0 {
-		logging.Get().Err(err).Msg("SearchDetectPolicy has default detect policy")
 
-		if err := s.detectPolicyDal.UpdateDetectPolicy(ctx, imagesecModel.UpdateSecurityPolicyParam{
-			ID:      policies[0].ID,
-			Updater: detectConfig.ToUpdater(),
-		}); err != nil {
-			logging.Get().Err(err).Msg("UpdateDetectPolicy")
-			return err
-		}
+	if len(policies) > 0 {
+
+		logging.Get().Err(err).Msg("SearchDetectPolicy has default detect policy")
 		return nil
 	}
 
@@ -254,15 +248,6 @@ func (s *InitScanner) createRegDefaultDetectPolicy(ctx context.Context) error {
 	}
 	if len(policies) > 0 {
 		logging.Get().Err(err).Msg("SearchDetectPolicy has default detect policy")
-
-		if err := s.detectPolicyDal.UpdateDetectPolicy(ctx, imagesecModel.UpdateSecurityPolicyParam{
-			ID:            policies[0].ID,
-			UpdateDefault: true,
-			Updater:       detectConfig.ToUpdater(),
-		}); err != nil {
-			logging.Get().Err(err).Msg("UpdateDetectPolicy")
-			return err
-		}
 		return nil
 	}
 
@@ -337,13 +322,42 @@ func (s *InitScanner) createLicenseVer210DataMigrate(ctx context.Context) error 
 }
 
 func (s *InitScanner) createDetectPolicySnapshot(ctx context.Context) error {
-	policy, _, err := s.detectPolicyDal.SearchDetectPolicy(ctx, imagesecModel.SearchSecurityPolicyParam{})
+	policy1, _, err := s.detectPolicyDal.SearchDetectPolicy(ctx, imagesecModel.SearchSecurityPolicyParam{
+		Filed: []string{"id", "unique_id"},
+	})
 	if err != nil {
 		logging.Get().Err(err).Msg("MigratePolicy SearchDetectPolicy")
 		return err
 	}
-	for i := range policy {
-		po := policy[i]
+
+	policy2, err := s.detectPolicyDal.SearchDetectPolicySnapshot(ctx, imagesecModel.SearchSecurityPolicyParam{
+		Filed: []string{"id", "unique_id"},
+	})
+	if err != nil {
+		logging.Get().Err(err).Msg("MigratePolicy SearchDetectPolicy")
+		return err
+	}
+	exit := make(map[uint64]bool)
+	for i := range policy2 {
+		exit[policy2[i].UniqueID] = true
+	}
+
+	for i := range policy1 {
+		if exit[policy1[i].UniqueID] {
+			continue
+		}
+		pol, _, err := s.detectPolicyDal.SearchDetectPolicy(ctx, imagesecModel.SearchSecurityPolicyParam{
+			UniqueID: policy1[i].UniqueID,
+		})
+		if err != nil {
+			logging.Get().Err(err).Msg("MigratePolicy SearchDetectPolicy")
+			return err
+		}
+		if len(pol) == 0 {
+			continue
+		}
+
+		po := pol[i]
 
 		if err := s.detectPolicyDal.CreateDetectPolicySnapshot(ctx, po); err != nil {
 			if !strings.Contains(err.Error(), consts.DuplicateKey) {
@@ -361,6 +375,7 @@ func NewInitScanner(db *databases.RDBInstance) *InitScanner {
 	sensitiveRuleDal := imagesecStore.NewSensitiveRuleDao(db)
 	dataMigrateDal := imagesecStore.NewDataMigrateDao(db)
 	scanResultDal := imagesecStore.NewScanResultDao(db)
+
 	return &InitScanner{
 		imageConfigDal:   imageConfigDal,
 		detectPolicyDal:  detectPolicyDal,

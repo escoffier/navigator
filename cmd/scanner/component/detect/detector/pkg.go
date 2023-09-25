@@ -20,13 +20,13 @@ func CheckImagePkg(ctx context.Context, data *imagesecModel.ImageWithCorrelateDa
 
 	for i := range data.Pkg {
 		var flag uint64
+		pk := data.Pkg[i]
 		if policy.Pkg.Enable {
 			for j := range pkgBlack {
-				if data.Pkg[i].Name == pkgBlack[j].Name && (data.Pkg[i].Version == pkgBlack[j].InstallVersion ||
-					pkgBlack[j].InstallVersion == "") {
+				pb := pkgBlack[j]
+				if pk.Name == pb.Name && (pk.Version == pb.InstallVersion || pb.InstallVersion == "") {
 
 					flag = util.SetBit1(flag, imagesecModel.FlagDetectException)
-					flag = util.SetBit1(flag, imagesecModel.FlagDetectInBlack)
 
 					switch policy.Pkg.Action {
 					case imagesecModel.DeployActionBlock:
@@ -39,13 +39,14 @@ func CheckImagePkg(ctx context.Context, data *imagesecModel.ImageWithCorrelateDa
 		}
 
 		if policy.PkgLicense.Enable {
-			license := data.Pkg[i].License
+			lic := data.Pkg[i].License
 
 			for j := range blackPkgLicense {
 				bl := blackPkgLicense[j]
-				if strings.Contains(license, bl) {
-					flag = util.SetBit1(flag, imagesecModel.FlagDetectException)
-					flag = util.SetBit1(flag, imagesecModel.FlagDetectInBlack)
+
+				if strings.Contains(lic, bl) {
+					// flag = util.SetBit1(flag, imagesecModel.FlagDetectException)
+					// 新变动，不容许的开源协议，不算异常软件包
 					flag = util.SetBit1(flag, imagesecModel.FlagDetectExceptionPkgLicense)
 
 					switch policy.PkgLicense.Action {
@@ -62,7 +63,7 @@ func CheckImagePkg(ctx context.Context, data *imagesecModel.ImageWithCorrelateDa
 			red := &imagesecModel.ImageDetectResult{
 				DetectType:    imagesecModel.DetectTypePkgRule,
 				Flag:          flag,
-				UniqueTarget:  data.Pkg[i].UniqueID,
+				UniqueTarget:  pk.UniqueID,
 				ImageUniqueID: data.Image.UniqueID,
 				PolicyID:      policy.ID,
 			}

@@ -125,7 +125,7 @@ func (s *VulnExport) worker(ctx context.Context, task model.ExportTensorTask) er
 	resources := make([]*imagesec.ImageWithCorrelateData2, 0)
 	if len(vulnImage) > 0 {
 		for i := range vulnImage {
-			data, err := s.ImageSrv.GetImageCorrelateData(ctx, imagesec.GetImageAssociateDataParam{ImageId: vulnImage[i].ID, ContainerEnable: true})
+			data, err := s.ImageSrv.GetImageCorrelateData(ctx, imagesec.ImageAssociateParam{ImageId: vulnImage[i].ID, ContainerEnable: true})
 			if err != nil {
 				logging.Get().Err(err).Int64("taskID", task.ID).Int64("imageID", vulnImage[i].ID).Msg("GetImageCorrelateData")
 				continue

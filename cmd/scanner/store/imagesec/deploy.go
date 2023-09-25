@@ -9,6 +9,7 @@ import (
 	"gitlab.com/security-rd/go-pkg/databases"
 	"gitlab.com/security-rd/go-pkg/logging"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
@@ -56,7 +57,7 @@ func (dal *DeployDao) SearchDeployRecord(ctx context.Context, param imagesecMode
 	if len(param.PolicyUniqueID) > 0 {
 		sp := make([]string, 0)
 		for i := range param.PolicyUniqueID {
-			sp = append(sp, fmt.Sprintf("policy_unique_id LIKE %%%s%%", param.PolicyUniqueID[i]))
+			sp = append(sp, fmt.Sprintf("policy_unique_id LIKE '%%%s%%'", param.PolicyUniqueID[i]))
 		}
 		if param.PolicyIntersection == consts.OrString {
 			db = db.Where(strings.Join(sp, " OR "))
@@ -116,10 +117,11 @@ func (dal *DeployDao) SearchDeployRecord(ctx context.Context, param imagesecMode
 
 	if param.Filter != nil && param.Filter.Offset >= consts.DefaultMaxLimit {
 		db2 := db.Session(&gorm.Session{})
+		db2 = db2.Order(clause.OrderByColumn{Column: clause.Column{Name: "id"}, Desc: true})
 		db2 = db2.Offset(int(param.Filter.Offset)).Limit(1)
 		db2 = db2.Select("id")
 
-		db = db.Where("id >= ( ? )", db2)
+		db = db.Where("id < ( ? )", db2)
 		param.Filter = param.Filter.SetOffset(0)
 	}
 
@@ -191,7 +193,7 @@ func (dal *DeployDao) SearchDeployWhiteImage(ctx context.Context, param imagesec
 }
 
 func (dal *DeployDao) CreateDeployWhiteImage(ctx context.Context, data2 []*imagesecModel.DeployWhiteImage) error {
-	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*20)
+	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*200)
 	defer cancelFunc()
 	data := make([]*imagesecModel.DeployWhiteImage, 0)
 	for i := range data2 {
@@ -201,9 +203,19 @@ func (dal *DeployDao) CreateDeployWhiteImage(ctx context.Context, data2 []*image
 		}
 		data = append(data, data2[i])
 	}
+	mo := &imagesecModel.DeployWhiteImage{}
 	for i := range data {
 		da := data[i]
-		if err := dal.db.Get().WithContext(ctx).Model(&imagesecModel.DeployWhiteImage{}).Create(da).Error; err != nil {
+		pre := &imagesecModel.DeployWhiteImage{}
+		if err := dal.db.Get().WithContext(ctx).Model(mo).Where("image_name = ?", da.ImageName).First(pre).Error; err == nil {
+			up := da.ToUpdater()
+			if err := dal.db.Get().WithContext(ctx).Model(mo).Where("id = ?", pre.ID).Updates(up).Error; err != nil {
+				return err
+			}
+			continue
+		}
+
+		if err := dal.db.Get().WithContext(ctx).Model(mo).Create(da).Error; err != nil {
 			if strings.Contains(err.Error(), consts.DuplicateKey) {
 				continue
 			}

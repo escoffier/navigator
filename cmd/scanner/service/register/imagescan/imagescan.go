@@ -8,7 +8,7 @@ import (
 	imagemataSrv "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/imagemeta"
 	dispatcherSrv "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/imagescan/dispatch"
 	aviraengin "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/imagescan/engin/avira"
-	clamavengin "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/imagescan/engin/clamav"
+	clamavengin "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/imagescan/engin/clamav2"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/imagescan/managedb/mainscanner"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/imagescan/managedb/subscanner"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/imagescan/types"
@@ -72,12 +72,13 @@ func newService(config register.ScannerServiceConfig) (register.ScannerService, 
 	scannerInstanceDal := imagesecStore.NewScannerInstanceDao(rdbInstance)
 	deployDal := imagesecStore.NewDeployDao(rdbInstance)
 	nodeScanTaskDal := imagesecStore.NewScanTaskDao(rdbInstance)
+	cacheDal := imagesecStore.NewImageCacheDao(rdbInstance)
 
-	nodeImageSvc := imagemataSrv.NewImageMetaSrv(nodeImageDal, registryDal, nodeScanResultDal,
+	imageSvc := imagemataSrv.NewImageMetaSrv(nodeImageDal, registryDal, nodeScanResultDal,
 		resourceDal, nodeReportDal, policyDal, detectResultDal, trustedImageDal, scannerConfigDal,
-		nodeScanTaskDal, scannerInstanceDal, deployDal)
+		nodeScanTaskDal, scannerInstanceDal, deployDal, cacheDal)
 
-	imageTaskDispatcher := dispatcherSrv.NewImageScanTaskDispatcher(nodeScanTaskDal, nodeImageSvc,
+	imageTaskDispatcher := dispatcherSrv.NewImageScanTaskDispatcher(nodeScanTaskDal, imageSvc,
 		nodeReportDal, scannerInstanceDal, sensitiveRuleDal, scannerConfigDal)
 	aviraUpdateSrv := aviraengin.NewAviraUpdateSrv()
 	clamavUpdateSrv := clamavengin.NewClamavUpdateSrv()

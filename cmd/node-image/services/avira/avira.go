@@ -104,6 +104,7 @@ func (s *SavServer) handleAviraDBUpdateEvent(server *avira.SavServer, _ types.No
 	}
 
 	server.StartServer()
+
 	logging.Get().Info().Msg("reload avira server db file ok")
 
 	return nil

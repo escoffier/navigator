@@ -128,6 +128,9 @@ func (dal *DetectPolicyDao) SearchDetectPolicy(ctx context.Context, param images
 	if len(param.Ids) > 0 {
 		db = db.Where("id IN ?", param.Ids)
 	}
+	if len(param.Filed) > 0 {
+		db = db.Select(param.Filed)
+	}
 	if param.Deleted == consts.FalseString {
 		db = db.Where("deleted_at = ?", 0)
 	} else if param.Deleted == consts.TrueString {
@@ -203,6 +206,9 @@ func (dal *DetectPolicyDao) SearchDetectPolicySnapshot(ctx context.Context, para
 	}
 	if len(param.UniqueIds) > 0 {
 		db = db.Where("unique_id IN ?", param.UniqueIds)
+	}
+	if len(param.Filed) > 0 {
+		db = db.Select(param.Filed)
 	}
 
 	db = model.AddFilter(db, param.Filter)

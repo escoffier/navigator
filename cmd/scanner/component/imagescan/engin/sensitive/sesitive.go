@@ -10,7 +10,8 @@ import (
 )
 
 type SensitiveScanner struct {
-	Rules map[string]*regexp.Regexp
+	RegexpMap map[string]*regexp.Regexp
+	Rule      map[string]*imagesecModel.SensitiveRule
 }
 
 func (s SensitiveScanner) ScanFilename(ctx context.Context, filename string, rules []imagesecModel.SensitiveRule) (

@@ -42,6 +42,7 @@ type ImageSearchApiParam struct {
 	StartID                int64    `json:"startID"`                // 分页请求时，上一页最后一条数据的ID
 	Creator                string   `json:"creator"`                // 扫描任务的操作
 	ClusterKey             []string `json:"clusterKey"`
+	Digests                []string `json:"digests"`
 	// 部署上线特有
 	DeployAction []string `json:"deployAction"`
 	StartTime    int64    `json:"startTime"`
@@ -54,8 +55,8 @@ type ImageSearchApiParam struct {
 	VulnUniqueID uint64 `json:"vulnUniqueID"`
 	PkgUniqueID  uint64 `json:"pkgUniqueID"`
 
-	AssociateParam GetImageAssociateDataParam `json:"associateParam"`
-	Fields         []string                   `json:"fields"`
+	AssociateParam ImageAssociateParam `json:"associateParam"`
+	Fields         []string            `json:"fields"`
 	Filter         *model.Filter
 }
 
@@ -90,6 +91,7 @@ func (sp *ImageSearchApiParam) ToImageDalParam() ImageDalParam {
 		AttrIntersection:       sp.AttrIntersection,
 		IssueIntersection:      sp.IssueIntersection,
 		VulnStaticIntersection: sp.VulnStaticIntersection,
+		Digests:                sp.Digests,
 		NotNeedCount:           false,
 		ClusterKey:             sp.ClusterKey,
 		RegIds:                 sp.RegIds,
@@ -97,6 +99,14 @@ func (sp *ImageSearchApiParam) ToImageDalParam() ImageDalParam {
 		PolicyIntersection:     sp.PolicyIntersection,
 		PolicyUniqueID:         sp.PolicyUniqueID,
 		Filter:                 sp.Filter,
+		StartTime:              sp.StartTime,
+		EndTime:                sp.EndTime,
+		VulnStaticFlag:         sp.GenVulnStaticFlag(),
+		SafeAttrFlag:           sp.GenSafeAttrFlag(),
+		SecurityIssueFlag:      sp.GenSecurityIssueFlag(),
+		OnlineFlag:             sp.GenOnlineFlag(),
+		DeployActionFlag:       sp.GenDeployActionFlag(),
+		ImageAttrFlag:          sp.GenImageAttrFlag(),
 	}
 
 	repos := make([]SearchProjectParam, 0)
@@ -121,12 +131,6 @@ func (sp *ImageSearchApiParam) ToImageDalParam() ImageDalParam {
 		}
 	}
 	daoParam.Projects = repos
-	daoParam.VulnStaticFlag = sp.GenVulnStaticFlag()
-	daoParam.SafeAttrFlag = sp.GenSafeAttrFlag()
-	daoParam.SecurityIssueFlag = sp.GenSecurityIssueFlag()
-	daoParam.OnlineFlag = sp.GenOnlineFlag()
-	daoParam.ImageAttrFlag = sp.GenAttrFlag()
-	daoParam.DeployActionFlag = sp.GenDeployActionFlag()
 
 	return daoParam
 }
@@ -152,7 +156,7 @@ func (sp *ImageSearchApiParam) GenSafeAttrFlag() uint64 {
 }
 
 // 生成属性的flag
-func (sp *ImageSearchApiParam) GenAttrFlag() uint64 {
+func (sp *ImageSearchApiParam) GenImageAttrFlag() uint64 {
 	var flag uint64
 	for i := range sp.ImageAttrView {
 		switch sp.ImageAttrView[i] {
@@ -221,20 +225,16 @@ func (sp *ImageSearchApiParam) GenSecurityIssueFlag() uint64 {
 	var flag uint64
 	for i := range sp.SecurityIssue {
 		switch sp.SecurityIssue[i] {
-		case AppImageTypeString:
-			flag = util.SetBit1(flag, FlagAppImage)
-		case BaseImageTypeString:
-			flag = util.SetBit1(flag, FlagBaseImage)
 		case TrustedString:
 			flag = util.SetBit1(flag, FlagImageTrusted)
 		case UnTrustedString:
-			flag = util.SetBit1(flag, FlagImageUnTrusted)
+			flag = util.SetBit1(flag, FlagImageDetectUnTrusted)
 		case HasFixedVulnString:
 			flag = util.SetBit1(flag, FlagHasFixedVuln)
 		case ImageHasSuggestionString:
 			flag = util.SetBit1(flag, FlagImageHasFixSuggest)
 		case ImageNotInReg:
-			flag = util.SetBit1(flag, FlagImageNotInRegistry)
+			flag = util.SetBit1(flag, FlagImageDetectNotExitINReg)
 		case ExceptionVuln:
 			flag = util.SetBit1(flag, FlagHasExceptionVuln)
 		case ExceptionMalware:
@@ -248,11 +248,15 @@ func (sp *ImageSearchApiParam) GenSecurityIssueFlag() uint64 {
 		case ExceptionEnv:
 			flag = util.SetBit1(flag, FlagHasExceptionEnv)
 		case ExceptionBoot:
-			flag = util.SetBit1(flag, FlagExceptionBoot)
+			flag = util.SetBit1(flag, FlagDetectExceptionBoot)
 		case ExceptionPkgLicense:
 			flag = util.SetBit1(flag, FlagHasExceptionPkgLicense)
 		case ExceptionLicense:
 			flag = util.SetBit1(flag, FlagHasExceptionLicense)
+		case ImageNotScanned:
+			flag = util.SetBit1(flag, FlagImageNotScanned)
+		case ImageNotExitBaseImage:
+			flag = util.SetBit1(flag, FlagNotExitBaseImage)
 		}
 	}
 	return flag
@@ -260,11 +264,12 @@ func (sp *ImageSearchApiParam) GenSecurityIssueFlag() uint64 {
 
 // 镜像属性
 type ImageAttrResponse struct {
-	ImageType    string `json:"imageType"`    // 镜像类型,基础镜像："base",应用镜像："app"
-	HasFixedVuln bool   `json:"hasFixedVuln"` // 是否包含可修复漏洞: 是:true,否：false
+	ImageType     string `json:"imageType"`    // 镜像类型,基础镜像："base",应用镜像："app"
+	HasFixedVuln  bool   `json:"hasFixedVuln"` // 是否包含可修复漏洞: 是:true,否：false
+	HasFixSuggest bool   `json:"hasFixSuggest"`
 }
 
-type GetImageAssociateDataParam struct {
+type ImageAssociateParam struct {
 	ImageFromType         string
 	ImageId               int64  // 对于仓库镜像这个参数是必须的
 	ImageUniqueID         uint64 // 对于节点镜像这个对数是必须的，后续仓库镜像也要整合到这里
@@ -283,6 +288,9 @@ type GetImageAssociateDataParam struct {
 	ScanInstanceEnable    bool
 	BaseImageEnable       bool
 	AppImageEnable        bool
+	CheckDownloadable     bool
+	TrustedEnable         bool                  // 查可digest 是否是可信
+	ImageInReg            bool                  // 查看节点镜像及部署上线的镜像是否在仓库中
 	NodeInfoEnable        bool                  // 查询节点镜像的节点信息
 	RiskPolicyEnable      bool                  // 查风险来源
 	SimplePolicyEnable    bool                  // 查看命中的策略
@@ -292,7 +300,7 @@ type GetImageAssociateDataParam struct {
 	DetectParam           DetectResultParam
 }
 
-func (vi *GetImageAssociateDataParam) GetDetectTypes() []string {
+func (vi *ImageAssociateParam) GetDetectTypes() []string {
 	ans := make([]string, 0)
 	if !vi.DetectResultEnable {
 		return ans
@@ -374,15 +382,6 @@ type ScanResultSearchParam struct {
 	Filter *model.Filter
 }
 
-func (vi *ScanResultSearchParam) Serialize() {
-	if vi.ExceptionPkgLicense == TrueString && vi.ExceptionPkg == TrueString {
-		vi.ExceptionPkgLicense = "" // 新的需求，取并集
-	}
-	if vi.PasswdEnv == TrueString && vi.ExceptionEnv == TrueString {
-		vi.PasswdEnv = ""
-	}
-}
-
 func (vi *ScanResultSearchParam) Check() error {
 	if err := ImageFromType(vi.ImageFromType).Check(); err != nil {
 		return err
@@ -394,22 +393,17 @@ func (vi *ScanResultSearchParam) Check() error {
 	return nil
 }
 
-func (vi *GetImageAssociateDataParam) Check() error {
+func (vi *ImageAssociateParam) Check() error {
 	if vi.ImageId <= 0 && vi.ImageUniqueID <= 0 && vi.DeployRecordID <= 0 {
 		return fmt.Errorf("no image id or deploy record id")
 	}
 	return nil
 }
 
-func (vi *GetImageAssociateDataParam) Deserialize() {
+func (vi *ImageAssociateParam) Deserialize() {
 	if vi.ImageId > 0 {
 		vi.ImageUniqueID = 0
 	}
-	// 需要通过 regID查扫描器的 ID
-	if vi.ScanInstanceEnable {
-		vi.RegistryEnable = true
-	}
-
 	vi.ScanResultSearchParam.ImageID = vi.ImageId
 	vi.ScanResultSearchParam.ImageUniqueID = vi.ImageUniqueID
 	vi.SearchVulnParam.ImageID = vi.ImageId
@@ -452,7 +446,6 @@ type ImageWithCorrelateData2 struct {
 	LicenseCnt        int64
 	Malware           []*Malware
 	MalwareCnt        int64
-	WeakPassword      []string
 	BaseImages        []*ImageBaseResponse // 基础镜像列表
 	BaseImageCnt      int64
 	AppImages         []*ImageBaseResponse // 应用镜像列表
@@ -462,11 +455,14 @@ type ImageWithCorrelateData2 struct {
 	SubTaskCnt        int64
 	Registry          *Registry
 	NodeInfo          *NodeInfo
+	TrustedDigest     []string
 	ScanInstance      *ScannerInstanceInfo
+	RegIds            []int64
 	RiskPolicy        []SecurityPolicy                // 镜像的风险来源
 	TotalPolicy       []SecurityPolicy                // 已使用的安全策略
 	DetectResult      map[string][]*ImageDetectResult // 检测结果
 	DeployRecord      *DeployRecord                   // 阻断结果
+	DeployInWhite     bool                            // 是否在白名单中
 }
 
 func GetDetectBriefFlag(detectResult map[string][]*ImageDetectResult) uint64 {
@@ -486,22 +482,27 @@ type ImageLicence struct {
 }
 
 func (iws *ImageWithCorrelateData2) ExceptionFilter(param ScanResultSearchParam) *ImageWithCorrelateData2 {
-	param.Serialize()
 
 	if param.ExceptionPkgLicense == TrueString || param.DeployAction != "" || param.ExceptionPkg == TrueString {
 		pkg := make([]*Pkg, 0)
 		for i := range iws.Pkg {
-			add := true
-			// 最新需求，取交集
-			if !iws.Pkg[i].PolicyDetect.ExceptionPkgLicense && param.ExceptionPkgLicense == TrueString {
-				add = false
-			}
-			if !iws.Pkg[i].PolicyDetect.Exception && param.ExceptionPkg == TrueString {
-				add = false
+			add := false
+
+			// 1:不做筛选
+			if param.ExceptionPkgLicense != TrueString && param.ExceptionPkg != TrueString && param.DeployAction == "" {
+				add = true
 			}
 
-			if param.DeployAction != "" && iws.Pkg[i].PolicyDetect.DeployAction != param.DeployAction {
-				add = false
+			// 又变了，取并集了 https://project.feishu.cn/tensorsecurity/issue/detail/16674613
+			if iws.Pkg[i].PolicyDetect.ExceptionPkgLicense && param.ExceptionPkgLicense == TrueString {
+				add = true
+			}
+			if iws.Pkg[i].PolicyDetect.Exception && param.ExceptionPkg == TrueString {
+				add = true
+			}
+
+			if param.DeployAction != "" && iws.Pkg[i].PolicyDetect.DeployAction == param.DeployAction {
+				add = true
 			}
 
 			if add {
@@ -533,17 +534,25 @@ func (iws *ImageWithCorrelateData2) ExceptionFilter(param ScanResultSearchParam)
 	if param.ExceptionEnv == TrueString || param.DeployAction != "" || param.PasswdEnv == TrueString {
 		data := make([]*ImageEnv, 0)
 		for i := range iws.Env {
-			add := true
-			if !iws.Env[i].PolicyDetect.Exception && param.ExceptionEnv == TrueString {
-				add = false
-			}
-			if !iws.Env[i].PolicyDetect.PasswdEnv && param.PasswdEnv == TrueString {
-				add = false
+			add := false
+
+			// 1:不做筛选
+			if param.ExceptionEnv != TrueString && param.PasswdEnv != TrueString && param.DeployAction == "" {
+				add = true
 			}
 
-			if param.DeployAction != "" && iws.Env[i].PolicyDetect.DeployAction != param.DeployAction {
-				add = false
+			// 又变了，取并集了 https://project.feishu.cn/tensorsecurity/issue/detail/16674613
+			if iws.Env[i].PolicyDetect.Exception && param.ExceptionEnv == TrueString {
+				add = true
 			}
+			if iws.Env[i].PolicyDetect.PasswdEnv && param.PasswdEnv == TrueString {
+				add = true
+			}
+
+			if param.DeployAction != "" && iws.Env[i].PolicyDetect.DeployAction == param.DeployAction {
+				add = true
+			}
+
 			if add {
 				data = append(data, iws.Env[i])
 			}
@@ -824,12 +833,16 @@ func (iws *ImageWithCorrelateData2) GetImageAttr() ImageAttrResponse {
 
 	if util.ExistBit1(imageFlag, FlagBaseImage) {
 		attr.ImageType = BaseImageTypeString
-	} else {
+	} else if util.ExistBit1(imageFlag, FlagAppImage) {
 		attr.ImageType = AppImageTypeString
 	}
 	if util.ExistBit1(imageFlag, FlagHasFixedVuln) {
 		attr.HasFixedVuln = true
 	}
+	if util.ExistBit1(imageFlag, FlagImageHasFixSuggest) {
+		attr.HasFixSuggest = true
+	}
+
 	return attr
 }
 
@@ -849,6 +862,13 @@ func (iws *ImageWithCorrelateData2) GetSecurityIssue() []SecurityIssueLabel {
 			Value:   ExceptionSensitive,
 			LabelZH: GetSecurityIssueLabelZH(FlagHasExceptionSensitive),
 			LabelEN: GetSecurityIssueLabelEN(FlagHasExceptionSensitive),
+		})
+	}
+	if util.ExistBit1(imageFlag, FlagNotExitBaseImage) {
+		securityIssue = append(securityIssue, SecurityIssueLabel{
+			Value:   ImageNotExitBaseImage,
+			LabelZH: GetSecurityIssueLabelZH(FlagNotExitBaseImage),
+			LabelEN: GetSecurityIssueLabelEN(FlagNotExitBaseImage),
 		})
 	}
 	if util.ExistBit1(imageFlag, FlagHasExceptionMalware) {
@@ -895,29 +915,31 @@ func (iws *ImageWithCorrelateData2) GetSecurityIssue() []SecurityIssueLabel {
 			LabelEN: GetSecurityIssueLabelEN(FlagHasExceptionLicense),
 			Info:    ParseSoftWare(iws.Pkg)})
 	}
-	if util.ExistBit1(imageFlag, FlagExceptionBoot) {
+	if util.ExistBit1(imageFlag, FlagDetectExceptionBoot) {
 		securityIssue = append(securityIssue,
 			SecurityIssueLabel{
 				Value:   ExceptionBoot,
-				LabelZH: GetSecurityIssueLabelZH(FlagExceptionBoot),
-				LabelEN: GetSecurityIssueLabelEN(FlagExceptionBoot)})
+				LabelZH: GetSecurityIssueLabelZH(FlagDetectExceptionBoot),
+				LabelEN: GetSecurityIssueLabelEN(FlagDetectExceptionBoot)})
 	}
-
-	if util.ExistBit1(imageFlag, FlagImageUnTrusted) {
-		securityIssue = append(securityIssue,
-			SecurityIssueLabel{
-				Value:   UnTrustedString,
-				LabelZH: GetSecurityIssueLabelZH(FlagImageUnTrusted),
-				LabelEN: GetSecurityIssueLabelEN(FlagImageUnTrusted)})
+	// 节点镜像没有可信、非可信的问题，但是有仓库镜像和非仓库镜像
+	if iws.Image.ImageFromType != ImageFromNode {
+		if util.ExistBit1(imageFlag, FlagImageDetectUnTrusted) {
+			securityIssue = append(securityIssue,
+				SecurityIssueLabel{
+					Value:   UnTrustedString,
+					LabelZH: GetSecurityIssueLabelZH(FlagImageDetectUnTrusted),
+					LabelEN: GetSecurityIssueLabelEN(FlagImageDetectUnTrusted)})
+		}
 	}
-
-	if util.ExistBit1(imageFlag, FlagHasFixedVuln) {
-		securityIssue = append(securityIssue,
-			SecurityIssueLabel{
-				Value:   HasFixedVulnString,
-				LabelZH: GetSecurityIssueLabelZH(FlagHasFixedVuln),
-				LabelEN: GetSecurityIssueLabelEN(FlagHasFixedVuln)})
-	}
+	// 现在归类到属性中的
+	// if util.ExistBit1(imageFlag, FlagHasFixedVuln) {
+	// 	securityIssue = append(securityIssue,
+	// 		SecurityIssueLabel{
+	// 			Value:   HasFixedVulnString,
+	// 			LabelZH: GetSecurityIssueLabelZH(FlagHasFixedVuln),
+	// 			LabelEN: GetSecurityIssueLabelEN(FlagHasFixedVuln)})
+	// }
 
 	if util.ExistBit1(imageFlag, FlagImageNotScanned) {
 		securityIssue = append(securityIssue,
@@ -934,14 +956,13 @@ func (iws *ImageWithCorrelateData2) GetSecurityIssue() []SecurityIssueLabel {
 	// 			LabelZH: GetSecurityIssueLabelZH(FlagImageHasFixSuggest),
 	// 			LabelEN: GetSecurityIssueLabelEN(FlagImageHasFixSuggest)})
 	// }
-
-	if iws.Image.ImageFromType == ImageFromNode {
-		if util.ExistBit1(imageFlag, FlagImageNotInRegistry) {
+	if iws.Image.ImageFromType != ImageFromRegistry {
+		if util.ExistBit1(imageFlag, FlagImageDetectNotExitINReg) {
 			securityIssue = append(securityIssue,
 				SecurityIssueLabel{
 					Value:   ImageNotInReg,
-					LabelZH: GetSecurityIssueLabelZH(FlagImageNotInRegistry),
-					LabelEN: GetSecurityIssueLabelEN(FlagImageNotInRegistry)})
+					LabelZH: GetSecurityIssueLabelZH(FlagImageDetectNotExitINReg),
+					LabelEN: GetSecurityIssueLabelEN(FlagImageDetectNotExitINReg)})
 		}
 	}
 
@@ -979,6 +1000,7 @@ func (iws *ImageWithCorrelateData2) GetImageOs() ImageOS {
 	}
 }
 
+// 镜像是否安全 仓库镜像和节点镜像使用
 func (iws *ImageWithCorrelateData2) ToSecurityIssueOverview1() SecurityOverview {
 	ans := SecurityOverview{
 		Vuln:       ImageSafeString,
@@ -1040,94 +1062,74 @@ func (iws *ImageWithCorrelateData2) ToSecurityIssueOverview1() SecurityOverview 
 	return ans
 }
 
+// 只能是告警或阻断
+func getAction(pre string, n string) string {
+	if pre == DeployActionBlock {
+		return pre
+	}
+	if n == DeployActionBlock {
+		return DeployActionBlock
+	}
+	return DeployActionAlarm
+}
+
+// 部署上线使用
+// 最新的要求，这里就展示策略的动作，和数据无关 (也就是策略设置的病毒阻断，即使没有病毒，也返回阻断)
 func (iws *ImageWithCorrelateData2) ToSecurityIssueOverview2() SecurityOverview {
-	ans := SecurityOverview{
-		Vuln:       DeployActionPass,
-		Malware:    DeployActionPass,
-		Sensitive:  DeployActionPass,
-		Webshell:   DeployActionPass,
-		Env:        DeployActionPass,
-		Pkg:        DeployActionPass,
-		License:    DeployActionPass,
-		PkgLicense: DeployActionPass,
+	ans := SecurityOverview{}
+	if iws.DeployRecord == nil && util.ExistBit1(iws.DeployRecord.Flag, FlagImageDetectNotExitINReg) {
+		return ans
+	}
+	// 未扫描就只有环境变量
+	if util.ExistBit1(iws.DeployRecord.Flag, FlagImageNotScanned) {
+		for i := range iws.RiskPolicy {
+			po := iws.RiskPolicy[i]
+			if po.Enable && po.Env.Enable {
+				if ans.Env == DeployActionBlock {
+					continue
+				}
+				ans.Env = po.Env.Action
+			}
+		}
+		return ans
 	}
 
-	for i := range iws.Pkg {
-		if ans.Pkg != DeployActionBlock && iws.Pkg[i].PolicyDetect.DeployAction == DeployActionAlarm {
-			ans.Pkg = DeployActionAlarm
+	for i := range iws.RiskPolicy {
+		po := iws.RiskPolicy[i]
+		if !po.Enable {
+			continue
 		}
 
-		if iws.Pkg[i].PolicyDetect.DeployAction == DeployActionBlock {
-			ans.Pkg = DeployActionBlock
+		if po.Env.Enable {
+			ans.Env = getAction(ans.Env, po.Env.Action)
 		}
-
-		if ans.PkgLicense != DeployActionBlock && iws.Pkg[i].PolicyDetect.DeployAction == DeployActionAlarm {
-			ans.PkgLicense = DeployActionAlarm
+		if po.Webshell.Enable {
+			ans.Webshell = getAction(ans.Webshell, po.Webshell.Action)
 		}
-
-		if iws.Pkg[i].PolicyDetect.DeployAction == DeployActionBlock {
-			ans.PkgLicense = DeployActionBlock
+		if po.Vuln.Enable {
+			ans.Vuln = getAction(ans.Vuln, po.Vuln.Action)
 		}
-	}
-	for i := range iws.License {
-		if ans.License != DeployActionBlock && iws.License[i].PolicyDetect.DeployAction == DeployActionAlarm {
-			ans.License = DeployActionAlarm
+		if po.Sensitive.Enable {
+			ans.Sensitive = getAction(ans.Sensitive, po.Sensitive.Action)
 		}
-
-		if iws.License[i].PolicyDetect.DeployAction == DeployActionBlock {
-			ans.License = DeployActionBlock
-			break
+		if po.Malware.Enable {
+			ans.Malware = getAction(ans.Malware, po.Malware.Action)
 		}
-	}
-	for i := range iws.Env {
-		if ans.Env != DeployActionBlock && iws.Env[i].PolicyDetect.DeployAction == DeployActionAlarm {
-			ans.Env = DeployActionAlarm
+		if po.Pkg.Enable {
+			ans.Pkg = getAction(ans.Env, po.Pkg.Action)
 		}
-
-		if iws.Env[i].PolicyDetect.DeployAction == DeployActionBlock {
-			ans.Env = DeployActionBlock
-			break
+		if po.PkgLicense.Enable {
+			ans.Pkg = getAction(ans.Pkg, po.PkgLicense.Action)
 		}
-	}
-	for i := range iws.Sensitive {
-		if ans.Sensitive != DeployActionBlock && iws.Sensitive[i].PolicyDetect.DeployAction == DeployActionAlarm {
-			ans.Sensitive = DeployActionAlarm
-		}
-		if iws.Sensitive[i].PolicyDetect.DeployAction == DeployActionBlock {
-			ans.Sensitive = DeployActionBlock
-			break
-		}
-	}
-	for i := range iws.Malware {
-		if ans.Malware != DeployActionBlock && iws.Malware[i].PolicyDetect.DeployAction == DeployActionAlarm {
-			ans.Malware = DeployActionAlarm
-		}
-		if iws.Malware[i].PolicyDetect.DeployAction == DeployActionBlock {
-			ans.Malware = DeployActionBlock
-			break
-		}
-	}
-	for i := range iws.Vuln {
-		if ans.Vuln != DeployActionBlock && iws.Vuln[i].PolicyDetect.DeployAction == DeployActionAlarm {
-			ans.Vuln = DeployActionAlarm
-		}
-		if iws.Vuln[i].PolicyDetect.DeployAction == DeployActionBlock {
-			ans.Vuln = DeployActionBlock
-			break
-		}
-	}
-	for i := range iws.Webshell {
-		if ans.Webshell != DeployActionBlock && iws.Webshell[i].PolicyDetect.DeployAction == DeployActionAlarm {
-			ans.Webshell = DeployActionAlarm
-		}
-		if iws.Webshell[i].PolicyDetect.DeployAction == DeployActionBlock {
-			ans.Webshell = DeployActionBlock
-			break
+		if po.License.Enable {
+			ans.License = getAction(ans.License, po.License.Action)
 		}
 	}
 	return ans
 }
 
+// 单个镜像统计，要区分镜像本身属性和检测问题
+// 节点镜像和仓库镜像
 func (iws *ImageWithCorrelateData2) ToSecurityIssueStatistic() SecurityStatistic {
 	sv := SecurityStatistic{
 		Total: SecurityIssueStatic{
@@ -1140,19 +1142,14 @@ func (iws *ImageWithCorrelateData2) ToSecurityIssueStatistic() SecurityStatistic
 			License:   int64(len(iws.License)),
 		},
 	}
+
 	if iws.Image.BootRoot() {
-		sv.Total.ExceptionBoot += 1
+		sv.Total.ExceptionBoot = 1
 	}
-	if util.ExistBit1(iws.Image.Flag, FlagHasFixedVuln) {
-		sv.Total.HasFixedVuln = 1
-	}
-	if util.ExistBit1(iws.Image.Flag, FlagImageUnTrusted) {
+	if len(iws.TrustedDigest) == 0 {
 		sv.Total.Untrusted = 1
 	}
-	if util.ExistBit1(iws.Image.Flag, FlagImageHasFixSuggest) {
-		sv.Total.HasSuggestion = 1
-	}
-	if util.ExistBit1(iws.Image.Flag, FlagImageNotInRegistry) {
+	if len(iws.RegIds) == 0 && iws.Image.ImageFromType != ImageFromRegistry {
 		sv.Total.NotInRegistry = 1
 	}
 
@@ -1195,21 +1192,16 @@ func (iws *ImageWithCorrelateData2) ToSecurityIssueStatistic() SecurityStatistic
 			risk.Webshell++
 		}
 	}
-
+	// 单个镜像和所选的策略相关,所以不能直接使用镜像的 flag
 	for i := range iws.RiskPolicy {
 		if iws.RiskPolicy[i].RootBoot.Enable && iws.Image.BootRoot() {
 			risk.ExceptionBoot = 1
 		}
-		if util.ExistBit1(iws.Image.Flag, FlagHasFixedVuln) {
-			risk.HasFixedVuln = 1
-		}
-		if iws.RiskPolicy[i].TrustImage.Enable && util.ExistBit1(iws.Image.Flag, FlagImageUnTrusted) {
+
+		if iws.RiskPolicy[i].TrustImage.Enable && len(iws.TrustedDigest) == 0 {
 			risk.Untrusted = 1
 		}
-		if util.ExistBit1(iws.Image.Flag, FlagImageHasFixSuggest) {
-			risk.HasSuggestion = 1
-		}
-		if iws.RiskPolicy[i].ExistInReg.Enable && util.ExistBit1(iws.Image.Flag, FlagImageNotInRegistry) {
+		if iws.RiskPolicy[i].ExistInReg.Enable && len(iws.RegIds) == 0 && iws.Image.ImageFromType == ImageFromNode {
 			risk.NotInRegistry = 1
 		}
 	}
@@ -1253,15 +1245,17 @@ func (iws *ImageWithCorrelateData2) ToImageBaseResponse() ImageBaseResponse {
 		RegistryUrl:   image.Host,
 		Project:       image.Project,
 		RiskPolicy:    make([]SimplePolicy, 0),
-		LastSyncAt:    image.Heartbeat,
 		TotalPolicy:   make([]SimplePolicy, 0),
+		LastSyncAt:    image.Heartbeat,
 		Safe:          iws.GenSafe(),
 		Action:        iws.GenAction(),
 		Online:        util.ExistBit1(image.Flag, FlagImageOnline),
 		VulnStatic:    iws.StaticVuln(),
 		PullCount:     image.PullCount,
+		InWhite:       iws.DeployInWhite,
 		BuildAt:       image.BuildAt,
 		White:         util.ExistBit1(image.Flag, FlagImageDeployWhite),
+		CreatedAt:     image.CreatedAt,
 	}
 
 	if baseResponse.BootUser == "" {
@@ -1301,9 +1295,6 @@ func (iws *ImageWithCorrelateData2) ToImageBaseResponse() ImageBaseResponse {
 	}
 	if len(iws.ScanSubTask) > 0 {
 		baseResponse.LastScanAt = iws.ScanSubTask[0].FinishedAt
-	}
-	if len(iws.ScanSubTask) == 0 && iws.DeployRecord != nil {
-		baseResponse.LastScanAt = iws.DeployRecord.LastScanAt
 	}
 	baseResponse.SecurityIssueView = baseResponse.GetSecurityIssueViewView(model.LangZh)
 	baseResponse.ImageAttrView = baseResponse.GetImageAttrView(model.LangZh)
@@ -1465,6 +1456,8 @@ type ImageBaseResponse struct {
 	BuildAt           int64                   `json:"buildAt"`       // 镜像的创建时间
 	ContainerName     []string                `json:"containerName"` // 容器列表
 	White             bool                    `json:"white"`         // 部署上线是否是白名单通过
+	InWhite           bool                    `json:"inWhite"`       // 部署上线是否已在白名单中
+	CreatedAt         int64                   `json:"createdAt"`
 }
 
 func (vi *ImageBaseResponse) RegNameView() string {
@@ -1498,11 +1491,6 @@ func (vi *ImageBaseResponse) AdaptI18(ctx context.Context) {
 		}
 	}
 	if lang == model.LangZh {
-		// for i := range vi.RiskPolicyName {
-		// if vi.RiskPolicyName[i] == DefaultPolicyNameEN {
-		// 	vi.RiskPolicyName[i] = DefaultPolicyNameZH
-		// }
-		// }
 		for i := range vi.TotalPolicy {
 			if vi.TotalPolicy[i].Name == DefaultPolicyNameEN {
 				vi.TotalPolicy[i].Name = DefaultPolicyNameZH

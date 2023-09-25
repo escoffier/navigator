@@ -23,41 +23,77 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 )
 
-var aviraSrv *AviraSrv
+var singleAviraSrv *SingleAviraSrv
+
+type SingleAviraSrv struct {
+	AviraSrv *AviraSrv
+	WG       sync.Locker
+}
+
+// 这样才保险
+func init() {
+	singleAviraSrv = &SingleAviraSrv{
+		AviraSrv: nil,
+		WG:       &sync.Mutex{},
+	}
+}
+
+type AviraClient struct {
+	ClientNO int
+	Client   *avira.SavClient
+	Status   string // 执行的状态：
+}
+
+func (vi *AviraClient) LogStr() string {
+	str := fmt.Sprintf("ClientNO=%d Status=%s SavClient=%s", vi.ClientNO, vi.Status, vi.Client.ServerAddr)
+	return str
+}
 
 type AviraSrv struct {
 	MalwareEnginName string
-	EnginChan        chan *avira.SavClient
-	Engin            *avira.SavClient
+	ClientChan       chan *avira.SavClient
+	Client           *avira.SavClient // 应该起多个 client
+	ClientPoll       []*AviraClient
 	WorkingVersion   imagesecModel.DBVersionInfo
 	LastVersion      imagesecModel.DBVersionInfo
 	LastDBPathInfo   imagesecModel.DBPathInfo
 	WorkDBPathInfo   imagesecModel.DBPathInfo
 	AviraServer      *avira.SavServer
 	TaskWG           sync.WaitGroup // 任务执行情况
+	ClientWG         sync.Locker
+	ClientPollCnt    int
 	ServerAddr       string
+	ScanTimeout      int64
 }
 
 func NewSavServer() (*AviraSrv, error) {
-	if aviraSrv != nil {
-		return aviraSrv, nil
+	singleAviraSrv.WG.Lock()
+	defer singleAviraSrv.WG.Unlock()
+
+	if singleAviraSrv.AviraSrv != nil {
+		return singleAviraSrv.AviraSrv, nil
 	}
+
 	srv := &AviraSrv{
 		ServerAddr:       fmt.Sprintf("tcp:127.0.0.1:%d", avira.DefaultSavApiListenAddr),
 		MalwareEnginName: consts.AviraName,
-		EnginChan:        make(chan *avira.SavClient),
+		ClientChan:       make(chan *avira.SavClient),
 		WorkingVersion:   imagesecModel.DBVersionInfo{},
 		LastVersion:      imagesecModel.DBVersionInfo{},
 		LastDBPathInfo:   types.GetAviraDBPathInfo(),
 		WorkDBPathInfo:   types.GetAviraDBPathInfo(),
 		TaskWG:           sync.WaitGroup{},
+		ClientWG:         &sync.Mutex{},
+		ScanTimeout:      5 * 60, // 单个文件扫描的超时时间2分种
+		ClientPollCnt:    20,     // FIXME 后期应该做成可配置的
 	}
+	srv.ClientPoll = make([]*AviraClient, 0)
 
 	if err := srv.generateVersionFromWorkPath(); err != nil {
 		return nil, err
 	}
-
-	srv.WorkingVersion = srv.getVersionFromFile(context.Background(), srv.WorkDBPathInfo.WorkVersionFilename)
+	// 后期功能
+	// srv.WorkingVersion = srv.getVersionFromFile(context.Background(), srv.WorkDBPathInfo.WorkVersionFilename)
 
 	if err := os.MkdirAll(srv.WorkDBPathInfo.UpdatePath, os.ModePerm); err != nil {
 		return nil, err
@@ -65,10 +101,13 @@ func NewSavServer() (*AviraSrv, error) {
 
 	srv.AviraServer = NewSavEngin()
 
-	srv.GenEnginChan(context.Background())
-	aviraSrv = srv
+	if err := srv.CreateClientPoll(context.Background()); err != nil {
+		return nil, err
+	}
 
-	return aviraSrv, nil
+	singleAviraSrv.AviraSrv = srv
+
+	return singleAviraSrv.AviraSrv, nil
 }
 
 func NewAviraUpdateSrv() *AviraSrv {
@@ -82,6 +121,7 @@ func NewAviraUpdateSrv() *AviraSrv {
 	return srv
 }
 
+// 会持续检测进程是否存活
 func NewSavEngin() *avira.SavServer {
 	savServer := avira.NewSavServer(avira.WithListenPort(avira.DefaultSavApiListenAddr))
 	go func() {
@@ -93,8 +133,38 @@ func NewSavEngin() *avira.SavServer {
 		savServer.StartServer()
 		logging.Get().Info().Str("module", "imagescan").Msg("start avira server succeed")
 	}()
-
+	// 一定要做这一步，不然就会出错，具体原因不明白
+	time.Sleep(time.Minute) // 等实例化好
 	return savServer
+}
+
+func (s *AviraSrv) CreateClientPoll(ctx context.Context) error {
+	ticker := time.NewTicker(time.Second)
+	defer ticker.Stop()
+	cnt := 0
+	for i := 0; i < s.ClientPollCnt; i++ {
+		for {
+			<-ticker.C
+			client, err := avira.NewSavClient(s.ServerAddr)
+			if err != nil {
+				cnt++
+				if cnt > s.ClientPollCnt*5 {
+					logging.Get().Info().Str("module", "imagescan").Msg("AviraSrv not CreateClientPoll")
+					return fmt.Errorf("can not create aviara client")
+				}
+				continue
+			}
+			cl := &AviraClient{
+				ClientNO: i,
+				Client:   client,
+				Status:   AviraClientUnUsing,
+			}
+			s.ClientPoll = append(s.ClientPoll, cl)
+			break
+		}
+	}
+	logging.Get().Info().Str("module", "imagescan").Int("pollCnt", len(s.ClientPoll)).Msg("AviraSrv CreateClientPoll")
+	return nil
 }
 
 func (s *AviraSrv) GenEnginChan(ctx context.Context) {
@@ -103,14 +173,17 @@ func (s *AviraSrv) GenEnginChan(ctx context.Context) {
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
-				logging.Get().Error().Msg("panic recover GenEnginChan")
+				logging.Get().Error().Stack().Str("module", "imagescan").Msg("panic recover GenEnginChan")
 			}
 		}()
 
-		ticker := time.NewTicker(10 * time.Second)
+		ticker := time.NewTicker(time.Second)
 		defer ticker.Stop()
 
 		for {
+			// FIXME 小红伞请求过多的会拒绝连接，所以要做控制 限制并发
+			<-ticker.C
+			// 下期功能
 			if lastPath, err := s.getLastUpdatePath(ctx); err == nil {
 				verPath := path.Join(s.LastDBPathInfo.UpdatePath, lastPath, s.MalwareEnginName, consts.VersionStr)
 				s.LastVersion = s.getVersionFromFile(ctx, verPath)
@@ -119,32 +192,38 @@ func (s *AviraSrv) GenEnginChan(ctx context.Context) {
 			}
 
 			if !s.needUpdate(ctx) {
-				logging.Get().Debug().Str("module", "imagescan").Interface("LastDBPathInfo", s.LastDBPathInfo).Msg("GenEnginChan do not need update db")
-				if s.Engin == nil {
+				logging.Get().Debug().Str("module", "imagescan").Interface("LastDBPathInfo",
+					s.LastDBPathInfo).Msg("AviraSrv GenEnginChan do not need update db")
+
+				if s.Client == nil {
+					logging.Get().Debug().Str("module", "imagescan").Msg("AviraSrv GenEnginChan client is nil")
 					client, err := avira.NewSavClient(s.ServerAddr)
 					if err != nil {
-						logging.Get().Err(err).Str("module", "imagescan").Msg("NewSavClient")
+						ticker.Reset(10 * time.Second)
+						logging.Get().Err(err).Str("module", "imagescan").Msg("AviraSrv NewSavClient")
 						<-ticker.C
 						continue
 					}
-					s.Engin = client
+					ticker.Reset(time.Second)
+					s.Client = client
 				}
 
-				s.EnginChan <- s.Engin
+				logging.Get().Info().Str("module", "imagescan").Msg("AviraSrv GenEnginChan send client")
+				s.ClientChan <- s.Client
 				continue
 			}
 
-			logging.Get().Debug().Str("module", "imagescan").Interface("LastDBPathInfo", s.LastDBPathInfo).Msg("GenEnginChan need update db")
+			logging.Get().Debug().Str("module", "imagescan").Interface("LastDBPathInfo", s.LastDBPathInfo).Msg("AviraSrv GenEnginChan need update db")
 
 			s.TaskWG.Wait() // 等待任务执行完成
 
 			if err := s.AviraServer.KillServer(); err != nil {
-				logging.Get().Err(err).Str("module", "imagescan").Msg("GenEnginChan Close AviraServer")
+				logging.Get().Err(err).Str("module", "imagescan").Msg("AviraSrv GenEnginChan Close AviraServer")
 				<-ticker.C
 				continue
 			}
 
-			logging.Get().Debug().Str("module", "imagescan").Msg("GenEnginChan killed server")
+			logging.Get().Debug().Str("module", "imagescan").Msg("AviraSrv GenEnginChan killed server")
 
 			// copy all db files
 			osCMD := exec.Command("cp", "-rf", s.getUpdateClamavPath(ctx), s.WorkDBPathInfo.WorkPath)
@@ -155,10 +234,10 @@ func (s *AviraSrv) GenEnginChan(ctx context.Context) {
 				<-ticker.C
 				continue
 			}
-			// restart server
 
+			// restart server
 			s.AviraServer = NewSavEngin()
-			s.Engin = nil
+			s.Client = nil
 
 			logging.Get().Debug().Str("module", "imagescan").Interface("LastVersion", s.LastVersion).Msg("GenEnginChan restart server")
 
@@ -189,29 +268,117 @@ func (s *AviraSrv) needUpdate(_ context.Context) bool {
 	return true
 }
 
-func (s *AviraSrv) ScanFile(_ context.Context, filename string) ([]imagesecModel.Malware, error) {
-
-	engin := <-s.EnginChan
+// 会卡死，一定要设置超时
+func (s *AviraSrv) ScanFile(_ context.Context, engin *avira.SavClient, filename string) ([]avira.Malware, error) {
 
 	s.TaskWG.Add(1)
 	defer s.TaskWG.Done()
 
-	file, err := engin.ScanFile(filename)
+	malware, err := engin.ScanFile(filename)
 	if err != nil {
-		logging.Get().Err(err).Str("module", "imagescan").Str("MalwareEnginName", s.MalwareEnginName).Msg("ScanFile")
+		logging.Get().Err(err).Str("module", "imagescan").Str("filename", filename).
+			Str("MalwareEnginName", s.MalwareEnginName).Msg("AviraSrv ScanFile")
 		return nil, err
 	}
-	res := make([]imagesecModel.Malware, 0)
-	for i := range file {
-		res = append(res, imagesecModel.Malware{
-			Name:        file[i].Name,
-			Filename:    filename,
-			MalwareType: file[i].Type,
-			Description: file[i].Desc,
-		})
-	}
 
-	return res, nil
+	return malware, nil
+}
+
+type AviraScanRes struct {
+	data []avira.Malware
+	err  error
+}
+
+func (s *AviraSrv) Task(ctx context.Context, cli *avira.SavClient, filename string) chan AviraScanRes {
+	out := make(chan AviraScanRes)
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				logging.Get().Error().Str("module", "imagescan").Stack().Str("Stack", string(debug.Stack())).Msg("AviraSrv panic")
+			}
+		}()
+
+		data, err := s.ScanFile(ctx, cli, filename)
+		res := AviraScanRes{
+			data: data,
+			err:  err,
+		}
+		out <- res
+
+		logging.Get().Debug().Str("module", "imagescan").Str("filename", filename).
+			Str("MalwareEnginName", s.MalwareEnginName).Msg("AviraSrv scan end")
+	}()
+	return out
+}
+
+// 病毒扫描可能卡死
+func (s *AviraSrv) DoScanFile(ctx context.Context, client *avira.SavClient, filename string) ([]avira.Malware, error) {
+	ctxT, can := context.WithTimeout(ctx, time.Second*time.Duration(s.ScanTimeout))
+	defer can()
+
+	for {
+		select {
+		case <-ctxT.Done():
+			logging.Get().Info().Str("module", "imagescan").Str("filename", filename).Msg("AviraSrv time out")
+			return []avira.Malware{}, fmt.Errorf("scan %s timeout", filename)
+		case res := <-s.Task(ctxT, client, filename):
+			return res.data, res.err
+		}
+	}
+}
+
+// 获取引擎
+func (s *AviraSrv) GetClient(ctx context.Context) (*AviraClient, error) {
+	start := time.Now().Unix()
+	ticker := time.NewTicker(time.Second * 10)
+	defer ticker.Stop()
+
+	for {
+		s.ClientWG.Lock()
+		for i := range s.ClientPoll {
+			eng := s.ClientPoll[i]
+			if eng.Status == AviraClientUnUsing {
+				s.ClientPoll[i].Status = AviraClientUsing
+				eng.Status = AviraClientUsing
+				s.ClientWG.Unlock()
+				logging.Get().Info().Str("model", "imagescan").Str("engin", eng.LogStr()).Msg("AviraSrv GetClient")
+				return eng, nil
+			}
+		}
+		s.ClientWG.Unlock()
+		logging.Get().Info().Str("model", "imagescan").Msg("AviraSrv not get client and wait next")
+
+		if time.Now().Unix()-start > s.ScanTimeout*int64(s.ClientPollCnt) {
+			err := fmt.Errorf("get avira client engin timeout")
+			logging.Get().Err(err).Str("model", "imagescan").Msg("AviraSrv get client timeout")
+			return nil, err
+		}
+		<-ticker.C
+	}
+}
+
+const (
+	AviraClientUsing    = "using"    // 使用中
+	AviraClientUnUsing  = "notUse"   // 未使用但是正常的
+	AviraClientAbnormal = "abnormal" // 如果执行超时，就认为是异常，就应该用 poll 中删除 (先不实现)
+)
+
+// 归还引擎
+func (s *AviraSrv) BackClient(ctx context.Context, eng *AviraClient) {
+	if eng == nil {
+		return
+	}
+	logging.Get().Debug().Str("model", "imagescan").Str("engin", eng.LogStr()).Msg("AviraSrv BackClient start")
+	s.ClientWG.Lock()
+	defer s.ClientWG.Unlock()
+	for i := range s.ClientPoll {
+		en := s.ClientPoll[i]
+		if en.ClientNO == eng.ClientNO {
+			s.ClientPoll[i].Status = AviraClientUnUsing
+			en.Status = AviraClientUnUsing
+		}
+	}
+	logging.Get().Info().Str("model", "imagescan").Str("engin", eng.LogStr()).Msg("AviraSrv BackClient end")
 }
 
 // 当用户在界面上更新病毒库后，只有当获取扫描 engin 时才会去加载新的病毒库，如果一直没有扫描任务则一直不会加载病毒库
@@ -227,7 +394,7 @@ func (s *AviraSrv) getEnginBackground(_ context.Context) {
 		defer ticker.Stop()
 		for {
 			<-ticker.C
-			<-s.EnginChan
+			<-s.ClientChan
 		}
 	}()
 }
@@ -444,7 +611,8 @@ func (s *AviraSrv) getLastUpdatePath(_ context.Context) (string, error) {
 	}
 	sort.Ints(dirs)
 	if len(dirs) == 0 {
-		logging.Get().Info().Str("module", "imagescan").Msg("not find last db path")
+		// 如果没有升级过就不会有这个目录，所以这里最好 debug 日志
+		logging.Get().Debug().Str("module", "imagescan").Msg("not find last db path")
 		return "", fmt.Errorf("not find last db path")
 	}
 	return fmt.Sprintf("%d", dirs[0]), nil

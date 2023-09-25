@@ -16,11 +16,12 @@ type HmWebshell struct {
 	Code                string `json:"code"`                // 可疑代码
 	RiskLevel           string `json:"riskLevel"`           // 风险程度
 	Description         string `json:"description"`         // 描述。如php一句话木马
-	FilePathInContainer string `json:"filePathInContainer"` // webshell file path in container.e.g. /opt/abc
+	FilePathInContainer string `json:"filePathInContainer"` // webshell file path in container.e.g. /opt/abc  节点镜像使用
 }
 
 // WebshellResults webshell扫描结果
 type WebshellResults struct {
+	Scanned         bool            `json:"scanned"`
 	HmWebshells     []HmWebshell    `json:"webshells"` // 所有webshell结果
 	HmEngineVersion HmEngineVersion `json:"hmEngineVersion"`
 }

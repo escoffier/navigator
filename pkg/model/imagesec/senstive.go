@@ -18,8 +18,8 @@ type SensitiveFile struct {
 	CreatedAt     int64  `gorm:"autoCreateTime:milli;column:created_at" json:"createdAt"` // milliseconds
 	UpdatedAt     int64  `gorm:"autoUpdateTime:milli;column:updated_at" json:"updatedAt"` // milliseconds
 
-	DownloadFilename string       `gorm:"-" json:"downloadFilename"`
-	PolicyDetect     PolicyDetect `gorm:"-" json:"policyDetect"` // 对各个策略的检测结果
+	DownloadFilename string       `gorm:"-" json:"downloadFilename"` // 下载的文件名，如果为空，说明文件不存在等，不能下载
+	PolicyDetect     PolicyDetect `gorm:"-" json:"policyDetect"`     // 对各个策略的检测结果
 }
 
 func (vi *SensitiveFile) TableName() string {

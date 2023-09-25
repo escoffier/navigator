@@ -45,7 +45,7 @@ type ImageDetectResultDal interface {
 	CreateDetectResult(ctx context.Context, param imagesecModel.CreateDetectResultParam) error
 	DeleteDetectResult(ctx context.Context, param imagesecModel.SearchDetectResultParam) error
 	SearchDetectBrief(ctx context.Context, param imagesecModel.SearchDetectBriefParam) ([]*imagesecModel.ImageDetectBrief, error)
-	CreateDetectBrief(ctx context.Context, data *imagesecModel.ImageDetectBrief) error
+	CreateDetectBrief(ctx context.Context, imageUniqueID uint64, data2 []*imagesecModel.ImageDetectBrief) error
 	DeleteDetectBrief(ctx context.Context, param imagesecModel.SearchDetectBriefParam) error
 }
 
@@ -72,7 +72,7 @@ func (dal *ImageDetectResultDao) CreateDetectResult(ctx context.Context, param i
 
 	dbPre, createData, deleteData := make([]*imagesecModel.ImageDetectResult, 0), make([]*imagesecModel.ImageDetectResult, 0), make([]int64, 0)
 
-	if err := dal.db.Get().WithContext(ctx).Table(tableName).Where("image_unique_id = ?", param.ImageUniqueID).Where("policy_id = ?", param.PolicyID).
+	if err := dal.db.Get().WithContext(ctx).Table(tableName).Where("image_unique_id = ?", param.ImageUniqueID).
 		Find(&dbPre).Error; err != nil {
 		return err
 	}
@@ -209,21 +209,25 @@ func (dal *ImageDetectResultDao) SearchDetectBrief(ctx context.Context, param im
 	return res, nil
 }
 
-func (dal *ImageDetectResultDao) CreateDetectBrief(ctx context.Context, data *imagesecModel.ImageDetectBrief) error {
-	data.Serialize()
+func (dal *ImageDetectResultDao) CreateDetectBrief(ctx context.Context, imageUniqueID uint64, data2 []*imagesecModel.ImageDetectBrief) error {
 
-	if err := data.Check(); err != nil {
-		return err
+	data := make([]*imagesecModel.ImageDetectBrief, 0)
+	for i := range data2 {
+		data2[i].Serialize()
+
+		if err := data2[i].Check(); err == nil {
+			data = append(data, data2[i])
+		}
 	}
+
 	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*100) // 大批量写入，时间会久些
 	defer cancelFunc()
 
 	mo := &imagesecModel.ImageDetectBrief{}
 	tableName := mo.TableName()
 
-	brief, err := dal.SearchDetectBrief(ctx, imagesecModel.SearchDetectBriefParam{
-		ImageUniqueID: data.ImageUniqueID,
-		PolicyID:      data.PolicyID,
+	dbPre, err := dal.SearchDetectBrief(ctx, imagesecModel.SearchDetectBriefParam{
+		ImageUniqueID: imageUniqueID,
 	})
 
 	if err != nil {
@@ -231,11 +235,31 @@ func (dal *ImageDetectResultDao) CreateDetectBrief(ctx context.Context, data *im
 	}
 	deleteData := make([]int64, 0)
 	createData := make([]*imagesecModel.ImageDetectBrief, 0)
-	if len(brief) > 0 && !data.Same(brief[0]) {
-		deleteData = append(deleteData, brief[0].ID)
+	// find need delete data
+	for i := range dbPre {
+		needDelete := true
+		for j := range data {
+			if dbPre[i].Same(data[j]) {
+				needDelete = false
+				break
+			}
+		}
+		if needDelete {
+			deleteData = append(deleteData, dbPre[i].ID)
+		}
 	}
-	if len(brief) == 0 || !data.Same(brief[0]) {
-		createData = append(createData, data)
+	// find need create
+	for i := range data {
+		needCreate := true
+		for j := range dbPre {
+			if data[i].Same(dbPre[j]) {
+				needCreate = false
+				break
+			}
+		}
+		if needCreate {
+			createData = append(createData, data[i])
+		}
 	}
 
 	if len(deleteData) > 0 {

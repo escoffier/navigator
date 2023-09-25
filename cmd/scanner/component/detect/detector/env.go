@@ -26,7 +26,6 @@ func CheckImageEnv(ctx context.Context, data *imagesecModel.ImageWithCorrelateDa
 
 		if util.ExistInStringSlice(policy.Env.Black, v.Key) {
 			flag = util.SetBit1(flag, imagesecModel.FlagDetectException)
-			flag = util.SetBit1(flag, imagesecModel.FlagDetectInBlack)
 		}
 
 		if util.ExistBit1(flag, imagesecModel.FlagDetectException) {

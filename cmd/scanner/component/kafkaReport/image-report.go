@@ -10,6 +10,7 @@ import (
 	"gitlab.com/security-rd/go-pkg/logging"
 	"gitlab.com/security-rd/go-pkg/mq"
 
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/detect"
 	imageMetaSrv "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/imagemeta/metaGlobal"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/imagescan/service"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
@@ -28,6 +29,7 @@ type ImageReport struct {
 	mqReader      mq.Reader
 	configDal     imagesecStore.ScanImageConfigDal
 	scanTaskSrv   service.ScanTaskService
+	detectTaskSrv detect.ImageDetectTaskService
 	NodeImageQ    *ImageQueue
 	RegImageQ     *ImageQueue
 }
@@ -41,6 +43,7 @@ func NewImageReport(
 	mqReader mq.Reader,
 	configDal imagesecStore.ScanImageConfigDal,
 	scanTaskSrv service.ScanTaskService,
+	detectTaskSrv detect.ImageDetectTaskService,
 ) *ImageReport {
 	if imageReport != nil {
 		return imageReport
@@ -52,6 +55,7 @@ func NewImageReport(
 		mqReader:      mqReader,
 		configDal:     configDal,
 		scanTaskSrv:   scanTaskSrv,
+		detectTaskSrv: detectTaskSrv,
 		NodeImageQ:    NewImageQueue(consts.SyncScanTaskCheckInterval),
 		RegImageQ:     NewImageQueue(consts.SyncScanTaskCheckInterval),
 	}
@@ -183,19 +187,21 @@ func (s *ImageReport) NodeImage(ctx context.Context, imageReport imagesecTypes.N
 	}
 
 	if err = s.imageDal.CreateNodeImage(ctx, images); err != nil {
-		logging.Get().Err(err).Str("module", "KafkaReport").Interface("image", images).Msg("ImageReport CreateNodeImage")
+		logging.Get().Err(err).Str("module", "KafkaReport").Interface("image", images).
+			Msg("ImageReport CreateNodeImage")
 		return err
 	}
 
 	_ = s.AddNodeImageScanTask(ctx, addImage)
-
+	_ = s.AddImageDetectTask(ctx, addImage)
 	return nil
 }
 
 func (s *ImageReport) RegImage(ctx context.Context, imageReport imagesecTypes.NodeReport) error {
 	images, envs := GetRegImageInfo(imageReport)
 
-	logging.Get().Debug().Str("module", "KafkaReport").Int("images", len(images)).Int("envs", len(envs)).Msg("ImageReport ImageMateToModel")
+	logging.Get().Debug().Str("module", "KafkaReport").Int("images", len(images)).
+		Int("envs", len(envs)).Msg("ImageReport ImageMateToModel")
 	if len(images) == 0 {
 		return nil
 	}
@@ -203,7 +209,8 @@ func (s *ImageReport) RegImage(ctx context.Context, imageReport imagesecTypes.No
 	updateChan := imageMetaSrv.GetImageUpdateChan()
 	for imageID, en := range envs {
 		if err := s.scanResultDal.CreateImageEnv(ctx, imageID, en); err != nil {
-			logging.Get().Err(err).Str("module", "KafkaReport").Uint64("imageID", images[0].UniqueID).Msg("ImageReport CreateImageEnv")
+			logging.Get().Err(err).Str("module", "KafkaReport").Uint64("imageID", images[0].UniqueID).
+				Msg("ImageReport CreateImageEnv")
 		}
 	}
 
@@ -213,7 +220,8 @@ func (s *ImageReport) RegImage(ctx context.Context, imageReport imagesecTypes.No
 	}
 	pre, _, err := s.imageDal.SearchImage(ctx, imagesecModel.ImageDalParam{UniqueIds: uniqueIds})
 	if err != nil {
-		logging.Get().Err(err).Str("module", "KafkaReport").Str("configType", imagesecModel.ImageFromNode).Msg("ImageReport SearchImage")
+		logging.Get().Err(err).Str("module", "KafkaReport").Str("configType", imagesecModel.ImageFromNode).
+			Msg("ImageReport SearchImage")
 		return err
 	}
 	exit := make(map[uint64]bool)
@@ -230,11 +238,13 @@ func (s *ImageReport) RegImage(ctx context.Context, imageReport imagesecTypes.No
 	}
 
 	if err = s.imageDal.CreateRegImage(ctx, images); err != nil {
-		logging.Get().Err(err).Str("module", "KafkaReport").Interface("image", images).Msg("ImageReport CreateRegImage")
+		logging.Get().Err(err).Str("module", "KafkaReport").Interface("image", images).
+			Msg("ImageReport CreateRegImage")
 		return err
 	}
 
 	_ = s.AddRegImageScanTask(ctx, addImage)
+	_ = s.AddImageDetectTask(ctx, addImage)
 
 	return nil
 }
@@ -269,17 +279,43 @@ func (s *ImageReport) AddRegImageScanTask(ctx context.Context, newImages []*imag
 	autoAdd := false
 	config, err := s.configDal.GetScanImageConfig(ctx, imagesecModel.ConfigTypeRegScanImage)
 	if err != nil {
-		logging.Get().Err(err).Str("module", "KafkaReport").Str("configType", imagesecModel.ConfigTypeRegScanImage).Msg("ImageReport CreateScanTask")
+		logging.Get().Err(err).Str("module", "KafkaReport").Str("configType", imagesecModel.ConfigTypeRegScanImage).
+			Msg("ImageReport CreateScanTask")
 	} else {
 		autoAdd = config.ImageScanConfig.AutoScanAdded
 	}
 	if !autoAdd {
-		logging.Get().Info().Str("module", "KafkaReport").Bool("autoAdd", autoAdd).Msg("ImageReport CreateScanTask")
+		logging.Get().Info().Str("module", "KafkaReport").Bool("autoAdd", autoAdd).
+			Msg("ImageReport CreateScanTask")
 		return nil
 	}
 
 	for i := range newImages {
 		s.RegImageQ.Add(newImages[i])
+	}
+
+	return nil
+}
+
+func (s *ImageReport) AddImageDetectTask(ctx context.Context, newImages []*imagesecModel.Image) error {
+	if len(newImages) == 0 {
+		return nil
+	}
+	uniqueIds := make([]uint64, 0)
+	for i := range newImages {
+		uniqueIds = append(uniqueIds, newImages[i].UniqueID)
+	}
+
+	imageSearchParam := imagesecModel.ImageSearchApiParam{
+		UniqueIds: uniqueIds,
+	}
+	if err := s.detectTaskSrv.CreateImageDetectTask(ctx,
+		imageSearchParam,
+		imagesecModel.ImageDetectTask{Priority: imagesecModel.DetectAddImage},
+		nil,
+	); err != nil {
+		logging.Get().Err(err).Msg("updateImageInReg CreateDetectTask")
+		return err
 	}
 
 	return nil

@@ -105,6 +105,8 @@ func (s *DeploySrv) CheckDeploy(ctx *gin.Context) {
 		}
 	}
 	res.Flag = safe
+	logging.Get().Info().Interface("res", res).Msg("CheckDeploy")
+
 	response.JSONOK(ctx, response.WithItem(res))
 }
 

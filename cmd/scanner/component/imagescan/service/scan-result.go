@@ -24,7 +24,7 @@ type ScanResultService interface {
 	SearchLicense(ctx context.Context, param imagesecModel.ScanResultSearchParam) ([]*imagesecModel.License, error)
 	SearchSensitive(ctx context.Context, param imagesecModel.ScanResultSearchParam) ([]*imagesecModel.SensitiveFile, error)
 	SearchMalware(ctx context.Context, param imagesecModel.ScanResultSearchParam) ([]*imagesecModel.Malware, error)
-	VulnOverview(ctx context.Context, param imagesecModel.VulnOverviewParam) (imagesecModel.VulnOverview, error) // 默认查在线
+	VulnOverview(ctx context.Context, param imagesecModel.VulnOverviewParam) (*imagesecModel.VulnOverview, error) // 默认查在线
 	GetWebshellContent(ctx context.Context, param imagesecModel.ScanResultSearchParam) ([]imagesecModel.WebshellContent, error)
 	SearchWebshell(ctx context.Context, param imagesecModel.ScanResultSearchParam) ([]*imagesecModel.WebshellView, int64, error)
 
@@ -37,17 +37,19 @@ type ScanResultService interface {
 type ScanResultSrv struct {
 	ScanResultDal imagesecStore.ScanResultDal
 	vulnOverview  *VulnOverView
+	imageCacheDal imagesecStore.ImageCacheDal
 }
 
 var scanResultSrv *ScanResultSrv
 
 func NewScanResultSrv(
 	scanResultDal imagesecStore.ScanResultDal,
+	imageCacheDal imagesecStore.ImageCacheDal,
 ) *ScanResultSrv {
 	if scanResultSrv != nil {
 		return scanResultSrv
 	}
-	s := &ScanResultSrv{ScanResultDal: scanResultDal}
+	s := &ScanResultSrv{ScanResultDal: scanResultDal, imageCacheDal: imageCacheDal}
 	s.vulnOverview = NewVulnOverView()
 
 	s.vulnOverviewHelper(context.Background())
@@ -176,22 +178,22 @@ func (s *ScanResultSrv) GetWebshellContent(ctx context.Context, param imagesecMo
 
 	res := make([]imagesecModel.WebshellContent, 0)
 	var offset int64
-	for i := range data {
+
+	for lineNo := range data {
 		line := imagesecModel.WebshellContent{
-			Line:    string(data[i]),
+			Line:    string(data[lineNo]),
 			Problem: make([]string, 0),
 		}
 		for j := range ws.Code {
 			po := ws.Code[j]
 			if !po.Parsed {
-				offset += int64(len(data[i]))
 				continue
 			}
-			if po.Offset >= offset && po.Offset <= offset+int64(len(data[i])) && strings.Contains(line.Line, po.Data) {
+			if po.Offset >= offset && po.Offset <= offset+int64(len(data[lineNo])) && strings.Contains(line.Line, po.Data) {
 				line.Problem = append(line.Problem, po.Data)
 			}
 		}
-		offset += int64(len(data[i]))
+		offset += int64(len(data[lineNo])) + 1 // 注意：\n 也算一个字符，要把换行的 \n 加上
 
 		res = append(res, line)
 	}

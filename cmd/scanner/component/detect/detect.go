@@ -36,11 +36,11 @@ type UpdateImage struct {
 	ImageUniqueID uint64
 	ImageFromType string
 	CreateAt      int64
-	DetectResult  PolicyDetectResult
+	DetectResult  PolicyDetectResult2 // 当前镜像所有策略的匹配结果
 }
 
 type GetImageWithCorrelateData interface {
-	GetImageCorrelateData(ctx context.Context, param imagesecModel.GetImageAssociateDataParam) (*imagesecModel.ImageWithCorrelateData2, error)
+	GetImageCorrelateData(ctx context.Context, param imagesecModel.ImageAssociateParam) (*imagesecModel.ImageWithCorrelateData2, error)
 	UpdateImage(ctx context.Context, param imagesecModel.UpdateImageParam) error
 }
 
@@ -94,6 +94,15 @@ func (s *Detector) Start(ctx context.Context) {
 		s.ContinueUpdateImage(ctx)
 	}()
 
+	// go func() {
+	// 	defer func() {
+	// 		if r := recover(); r != nil {
+	// 			logging.Get().Error().Str("stack", string(debug.Stack())).Msg("Detector recover")
+	// 		}
+	// 	}()
+	// 	s.ContinueUpdateTaskFinished(ctx)
+	// }()
+
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
@@ -109,7 +118,7 @@ func (s *Detector) Start(ctx context.Context) {
 				logging.Get().Error().Str("stack", string(debug.Stack())).Msg("Detector recover")
 			}
 		}()
-		ticker := time.NewTicker(time.Minute)
+		ticker := time.NewTicker(30 * time.Second)
 		defer ticker.Stop()
 		for {
 			<-ticker.C
@@ -141,7 +150,7 @@ func (s *Detector) DetectImage(ctx context.Context) {
 			for i := range subData.SubtaskIds {
 				_ = s.UpdateDetectSubTask(ctx, subData.SubtaskIds[i], getStartUpdater())
 			}
-			resultAll := make([]PolicyDetectResult, 0)
+			resultAll := make(map[string]map[uint64]*imagesecModel.ImageDetectResult)
 
 			imageData, err := s.GetImageData(ctx, subData.ImageUniqueID)
 			if err != nil {
@@ -153,7 +162,7 @@ func (s *Detector) DetectImage(ctx context.Context) {
 					Msg("Detector GetImageData")
 				continue
 			}
-
+			// FIXME 这里应该加缓存，不应该每一个子任务都去查询
 			param1 := imagesecModel.SearchSecurityPolicyParam{PolicyType: GetImagePolicyType(imageData.Image)}
 			allPolicy, _, err := s.policySrv.SearchPolicy(ctx, param1)
 
@@ -165,37 +174,54 @@ func (s *Detector) DetectImage(ctx context.Context) {
 			policy := make([]*imagesecModel.SecurityPolicy, 0)
 			for i := range allPolicy {
 				bas := imageData.ToImageBaseResponse()
-				if NeedAddDetectSubtask(&bas, allPolicy[i]) {
+				if NeedDetectImage(&bas, allPolicy[i]) {
 					policy = append(policy, allPolicy[i])
 				}
 			}
 
-			for _, po := range policy {
+			detectResults := make(map[string][]*imagesecModel.ImageDetectResult)
+			// 如果策略有变动，就需要把原来的数据删除，所以这里全量增加
+			for dt := range GetChecker() {
+				detectResults[dt] = make([]*imagesecModel.ImageDetectResult, 0)
+			}
+
+			briefs := make([]*imagesecModel.ImageDetectBrief, 0)
+
+			logging.Get().Debug().Int("policyCnt", len(policy)).Str("module", "detectImage").Msg("NeedDetectImage find policy")
+
+			for i := range policy {
+				po := policy[i]
 				result := s.checker.Check(ctx, imageData, po)
-				resultAll = append(resultAll, result)
+				resultAll = MergeDetectResult(resultAll, result)
 
 				for dt, data := range result {
-					if err := s.detectResultDal.CreateDetectResult(ctx, imagesecModel.CreateDetectResultParam{
-						ImageUniqueID: imageData.Image.UniqueID,
-						PolicyID:      po.ID,
-						DetectType:    dt,
-						Data:          data,
-					}); err != nil {
-						// _ = s.UpdateDetectSubTask(ctx, subData.ID, getEndUpdater(err))
-						logging.Get().Err(err).Str("module", "detectImage").Uint64("ImageUniqueID", subData.ImageUniqueID).
-							Msg("Detector CreateDetectResult")
-						continue
+					if detectResults[dt] == nil {
+						detectResults[dt] = make([]*imagesecModel.ImageDetectResult, 0)
 					}
+					detectResults[dt] = append(detectResults[dt], data...)
 				}
-				err2 := s.detectResultDal.CreateDetectBrief(ctx, &imagesecModel.ImageDetectBrief{
+				bre := &imagesecModel.ImageDetectBrief{
 					ImageUniqueID: imageData.Image.UniqueID,
 					Flag:          imagesecModel.GetDetectBriefFlag(result),
 					Policy:        po,
-				})
-				if err2 != nil {
-					logging.Get().Err(err2).Str("module", "detectImage").Uint64("ImageUniqueID", subData.ImageUniqueID).
-						Msg("Detector CreateDetectBrief")
-					// _ = s.UpdateDetectSubTask(ctx, subData.ID, getEndUpdater(err))
+				}
+				briefs = append(briefs, bre)
+			}
+
+			err2 := s.detectResultDal.CreateDetectBrief(ctx, imageData.Image.UniqueID, briefs)
+			if err2 != nil {
+				logging.Get().Err(err2).Str("module", "detectImage").Uint64("ImageUniqueID", subData.ImageUniqueID).
+					Msg("Detector CreateDetectBrief")
+			}
+
+			for dt, res := range detectResults {
+				if err := s.detectResultDal.CreateDetectResult(ctx, imagesecModel.CreateDetectResultParam{
+					ImageUniqueID: imageData.Image.UniqueID,
+					DetectType:    dt,
+					Data:          res,
+				}); err != nil {
+					logging.Get().Err(err).Str("module", "detectImage").Uint64("ImageUniqueID", subData.ImageUniqueID).
+						Msg("Detector CreateDetectResult")
 					continue
 				}
 			}
@@ -204,8 +230,9 @@ func (s *Detector) DetectImage(ctx context.Context) {
 				ImageUniqueID: imageData.Image.UniqueID,
 				ImageFromType: imageData.Image.ImageFromType,
 				CreateAt:      time.Now().UnixMilli(),
-				DetectResult:  MergePolicyDetectResult(resultAll),
+				DetectResult:  resultAll,
 			}
+
 			go func() { s.updateImageChan <- up }()
 
 			for _, subID := range subData.SubtaskIds {
@@ -216,7 +243,7 @@ func (s *Detector) DetectImage(ctx context.Context) {
 				Uint64("imageUniqueID", subData.ImageUniqueID).Str("imageName", imageData.Image.GetImageName()).
 				Msg("Detector finished detect image")
 		}
-
+		// 更新的扫描任务,因为一个扫描的任务的检测任务最多只有一个子任务，所以这样写不会出错
 		_ = s.updateScanSubtask(ctx, task.ScanSubTaskID, imagesecModel.TaskStatusDetectFinished)
 	}
 }
@@ -264,12 +291,12 @@ func (s *Detector) GenSubtaskChan(ctx context.Context, task *imagesecModel.Image
 			if err != nil {
 				logging.Get().Error().Int64("taskID", task.ID).Str("stack", string(debug.Stack())).
 					Msg("Detector SearchDetectSubtask")
-				return
+				continue
 			}
 			if len(detectSubtask) == 0 {
-				_ = s.UpdateTask(ctx, task.ID, getEndUpdater(nil))
-				logging.Get().Debug().Str("module", "detectImage").Int64("taskID", task.ID).Msg("Detector scan image subtask finish")
-				return
+				logging.Get().Debug().Str("module", "detectImage").Int64("taskID", task.ID).
+					Msg("Detector scan image subtask finish")
+				continue
 			}
 			subtaskIds := make([]int64, 0)
 			for j := range detectSubtask {
@@ -277,18 +304,20 @@ func (s *Detector) GenSubtaskChan(ctx context.Context, task *imagesecModel.Image
 				subtaskIds = append(subtaskIds, sb.ID)
 			}
 			if len(subtaskIds) == 0 {
-				_ = s.UpdateTask(ctx, task.ID, getEndUpdater(nil))
-				logging.Get().Debug().Str("module", "detectImage").Int64("taskID", task.ID).Msg("Detector scan image subtask finish")
-				return
+				logging.Get().Debug().Str("module", "detectImage").Int64("taskID", task.ID).
+					Msg("Detector scan image subtask finish")
+				continue
 			}
 			data.SubtaskIds = subtaskIds
 
 			out <- data
 
-			logging.Get().Info().Str("module", "detectImage").Int64("taskID", task.ID).
-				Int64("subtaskID", subtask[i].ID).Uint64("ImageUniqueID", im).
+			logging.Get().Debug().Str("module", "detectImage").Int64("taskID", task.ID).
+				Ints64("subtaskIds", subtaskIds).Uint64("ImageUniqueID", im).
 				Msg("Detector GenSubtaskChan get subtask")
 		}
+		logging.Get().Info().Str("module", "detectImage").Int64("taskID", task.ID).
+			Int("subtaskCnt", len(subtask)).Msg("Detector GenSubtaskChan get subtask")
 	}()
 
 	return out
@@ -303,11 +332,10 @@ func (s *Detector) GenTaskChan(ctx context.Context) chan *imagesecModel.ImageDet
 			}
 		}()
 
-		ticker := time.NewTicker(time.Second * 5)
+		ticker := time.NewTicker(time.Millisecond * 10)
 		defer close(out)
 		defer ticker.Stop()
 
-		var startID int64
 		priorityOrder := clause.OrderByColumn{
 			Column: clause.Column{Name: "priority"},
 			Desc:   true,
@@ -320,8 +348,9 @@ func (s *Detector) GenTaskChan(ctx context.Context) chan *imagesecModel.ImageDet
 		filter := &model.Filter{Limit: consts.DefaultPerPage, OrderByColumns: []clause.OrderByColumn{priorityOrder, idOrder}}
 		for {
 			<-ticker.C
-			tasks, _, err := s.detectTaskDal.SearchDetectTask(ctx, imagesecModel.SearchTaskParam{
-				StartID:    startID,
+
+			runTasks, _, err := s.detectTaskDal.SearchDetectTask(ctx, imagesecModel.SearchTaskParam{
+				// 不对分开查，因为扫描的任务要优先执行
 				ScanStatus: []int64{imagesecModel.TaskStatusInprogress, imagesecModel.TaskStatusPending},
 				Filter:     filter,
 			})
@@ -332,21 +361,16 @@ func (s *Detector) GenTaskChan(ctx context.Context) chan *imagesecModel.ImageDet
 				continue
 			}
 
-			if len(tasks) == 0 {
-				ticker.Reset(30 * time.Second)
-				startID = 0
+			if len(runTasks) == 0 {
+				ticker.Reset(5 * time.Second)
 				continue
 			}
 
-			logging.Get().Info().Str("module", "detectImage").Int64("startID", startID).
-				Int("taskCnt", len(tasks)).Msg("Detector SearchDetectTask")
+			logging.Get().Info().Str("module", "detectImage").Int("taskCnt", len(runTasks)).
+				Msg("Detector SearchDetectTask")
 
-			for i := range tasks {
-				out <- tasks[i]
-				if tasks[i].Priority != imagesecModel.DetectPriorityScan {
-					startID = 0
-					break
-				}
+			for i := range runTasks {
+				out <- runTasks[i]
 			}
 		}
 	}()
@@ -355,7 +379,7 @@ func (s *Detector) GenTaskChan(ctx context.Context) chan *imagesecModel.ImageDet
 }
 
 func (s *Detector) GetImageData(ctx context.Context, imageUniqueID uint64) (*imagesecModel.ImageWithCorrelateData2, error) {
-	data, err := s.imageDataSrv.GetImageCorrelateData(ctx, imagesecModel.GetImageAssociateDataParam{
+	data, err := s.imageDataSrv.GetImageCorrelateData(ctx, imagesecModel.ImageAssociateParam{
 		ImageUniqueID:   imageUniqueID,
 		VulnEnable:      true,
 		MalwareEnable:   true,
@@ -365,6 +389,9 @@ func (s *Detector) GetImageData(ctx context.Context, imageUniqueID uint64) (*ima
 		SensitiveEnable: true,
 		WebshellEnable:  true,
 		ContainerEnable: true,
+		ImageInReg:      true,
+		TrustedEnable:   true,
+		BaseImageEnable: true,
 	})
 	return data, err
 }
@@ -439,6 +466,7 @@ func (s *Detector) UpdateDetectTaskFinished(ctx context.Context) error {
 		}
 
 		if group.DetectFinished+group.Failed >= group.All {
+			// 即使删除了子任务，这里也不会卡住扫描任务
 			_ = s.updateScanSubtask(ctx, task.ScanSubTaskID, imagesecModel.TaskStatusDetectFinished)
 
 			if err := s.detectTaskDal.UpdateDetectTask(ctx, imagesecModel.UpdateTaskParam{
@@ -521,6 +549,54 @@ func (s *Detector) ContinueUpdateImage(ctx context.Context) {
 	}
 }
 
+// func (s *Detector) ContinueUpdateTaskFinished(ctx context.Context) {
+// 	taskFilter := &model.Filter{
+// 		SortBy:    consts.SortByDesc,
+// 		SortFiled: "id",
+// 		Limit:     consts.DefaultMaxLimit,
+// 	}
+//
+// 	subtaskFilter := &model.Filter{
+// 		Limit: 1,
+// 	}
+//
+// 	taskParam := imagesecModel.SearchTaskParam{ScanStatus: []int64{imagesecModel.TaskStatusInprogress}, Filter: taskFilter}
+//
+// 	subtaskParam := imagesecModel.SearchTaskParam{
+// 		ScanStatus: []int64{imagesecModel.TaskStatusInprogress, imagesecModel.TaskStatusPending},
+// 		Filter:     subtaskFilter}
+//
+// 	ticker := time.NewTicker(time.Second * 30)
+// 	defer ticker.Stop()
+// 	for {
+// 		tasks, _, err := s.detectTaskDal.SearchDetectTask(ctx, taskParam)
+// 		if err != nil {
+// 			logging.Get().Err(err).Str("module", consts.ModelImageDetect).Msg("SearchDetectTask")
+// 			continue
+// 		}
+//
+// 		for i := range tasks {
+// 			ta := tasks[i]
+// 			subtaskParam.TaskID = ta.ID
+// 			_, cnt, err := s.detectTaskDal.SearchDetectSubtask(ctx, subtaskParam)
+// 			if err != nil {
+// 				logging.Get().Err(err).Str("module", consts.ModelImageDetect).Msg("SearchDetectSubtask")
+// 				continue
+// 			}
+// 			if cnt == 0 {
+// 				err := s.detectTaskDal.UpdateDetectTask(ctx, imagesecModel.UpdateTaskParam{
+// 					ID:      ta.ID,
+// 					Updater: getEndUpdater(nil),
+// 				})
+// 				if err != nil {
+// 					logging.Get().Err(err).Str("module", consts.ModelImageDetect).Msg("UpdateDetectTask")
+// 					continue
+// 				}
+// 			}
+// 		}
+// 	}
+// }
+
 func (s *Detector) AddDetectTaskEveryDay(ctx context.Context) error {
 	if !s.addDetectTaskEveryDay {
 		logging.Get().Info().Str("module", "detectImage").Msg("do not add detect task everyday")
@@ -535,7 +611,7 @@ func (s *Detector) AddDetectTaskEveryDay(ctx context.Context) error {
 				if err := s.imageDetectTaskSrv.CreateImageDetectTask(ctx,
 					imagesecModel.ImageSearchApiParam{ImageFromType: imagesecModel.ImageFromNode},
 					imagesecModel.ImageDetectTask{Priority: imagesecModel.DetectPriorityCycle},
-					make([]*imagesecModel.SecurityPolicy, 0),
+					nil,
 				); err != nil {
 					logging.Get().Err(err).Str("module", "detectImage").Msg("AddDetectTaskEveryDay")
 				}
@@ -622,71 +698,6 @@ func GetChecker() map[string]Checker {
 	ruleCheckers[imagesecModel.DetectTypeExistInRegRule] = detector.CheckExistInReg
 
 	return ruleCheckers
-}
-
-type PolicyDetectResult map[string][]*imagesecModel.ImageDetectResult
-
-func MergePolicyDetectResult(res []PolicyDetectResult) PolicyDetectResult {
-	ans := make(map[string][]*imagesecModel.ImageDetectResult)
-	for i := range res {
-		da := res[i]
-		for k, v := range da {
-			if ans[k] == nil {
-				ans[k] = make([]*imagesecModel.ImageDetectResult, 0)
-			}
-			ans[k] = append(ans[k], v...)
-		}
-	}
-
-	return ans
-}
-
-func check(res PolicyDetectResult, flag uint64, ruleType string, exceptFlag uint64) uint64 {
-	flag = util.SetBit0(flag, exceptFlag)
-	for i := range res[ruleType] {
-		data := res[ruleType][i]
-		if util.ExistBit1(data.Flag, imagesecModel.FlagDetectException) {
-			flag = util.SetBit1(flag, exceptFlag)
-			break
-		}
-	}
-
-	// 对于软件包，需要判断软件包版本号和license
-	if ruleType == imagesecModel.DetectTypePkgRule {
-		flag = util.SetBit0(flag, imagesecModel.FlagHasExceptionPkgLicense)
-		for i := range res[ruleType] {
-			data := res[ruleType][i]
-			if util.ExistBit1(data.Flag, imagesecModel.FlagDetectExceptionPkgLicense) {
-				flag = util.SetBit1(flag, imagesecModel.FlagHasExceptionPkgLicense)
-				break
-			}
-		}
-	}
-
-	return flag
-}
-
-func GenImageIssueFlag(res PolicyDetectResult, flag uint64) uint64 {
-	flag = check(res, flag, imagesecModel.DetectTypeVulnRule, imagesecModel.FlagHasExceptionVuln)
-	flag = check(res, flag, imagesecModel.DetectTypeSensRule, imagesecModel.FlagHasExceptionSensitive)
-	flag = check(res, flag, imagesecModel.DetectTypeMalwareRule, imagesecModel.FlagHasExceptionMalware)
-	flag = check(res, flag, imagesecModel.DetectTypePkgRule, imagesecModel.FlagHasExceptionPKG)
-	flag = check(res, flag, imagesecModel.DetectTypeWebshellRule, imagesecModel.FlagHasExceptionWebshell)
-	flag = check(res, flag, imagesecModel.DetectTypeRootRule, imagesecModel.FlagExceptionBoot)
-	flag = check(res, flag, imagesecModel.DetectTypeEnvRule, imagesecModel.FlagHasExceptionEnv)
-	flag = check(res, flag, imagesecModel.DetectTypeBaseImageRule, imagesecModel.FlagNotExitBaseImage)
-	flag = check(res, flag, imagesecModel.DetectTypeTrustedImageRule, imagesecModel.FlagImageUnTrusted)
-	flag = check(res, flag, imagesecModel.DetectTypeLicenseRule, imagesecModel.FlagHasExceptionLicense)
-
-	return flag
-}
-
-func GenDeployActionFlag(res PolicyDetectResult, flag uint64) uint64 {
-	flag = check(res, flag, imagesecModel.DetectTypeVulnRule, imagesecModel.FlagImageDeployPassed)
-	flag = check(res, flag, imagesecModel.DetectTypeSensRule, imagesecModel.FlagImageDeployBlock)
-	flag = check(res, flag, imagesecModel.DetectTypeMalwareRule, imagesecModel.FlagImageDeployAlarm)
-
-	return flag
 }
 
 type ImagePolicyChecker interface {

@@ -14,6 +14,11 @@ func CheckBaseImage(ctx context.Context, data *imagesecModel.ImageWithCorrelateD
 	if policy == nil || data == nil || data.Image.ID <= 0 || !policy.Enable || !policy.BaseImage.Enable {
 		return ans
 	}
+
+	if util.ExistBit1(data.Image.Flag, imagesecModel.FlagBaseImage) {
+		return ans
+	}
+
 	if data.BaseImageCnt <= 0 {
 		red := &imagesecModel.ImageDetectResult{
 			DetectType:    imagesecModel.DetectTypeBaseImageRule,

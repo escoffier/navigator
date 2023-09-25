@@ -123,7 +123,7 @@ func (s *ImageMigrate) MigrateImage(ctx context.Context, imageID int64, subtaskI
 		logging.Get().Err(err).Str("module", "migrate").Int64("imageID", imageID).Msg("MigrateImage sendImageToKafka")
 		return err
 	}
-	data, err := s.ImageService.GetImageCorrelateData(ctx, imagesecModel.GetImageAssociateDataParam{
+	data, err := s.ImageService.GetImageCorrelateData(ctx, imagesecModel.ImageAssociateParam{
 		ImageFromType:   imagesecModel.ImageFromRegistry,
 		ImageId:         images[0].ID,
 		VulnEnable:      true,

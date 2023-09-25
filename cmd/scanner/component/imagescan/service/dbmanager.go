@@ -18,8 +18,8 @@ type DBManagerService interface {
 }
 
 type DBManagerSrv struct {
-	AviraUpdate     types.UpdateDEngin
-	ClamavUpdate    types.UpdateDEngin
+	AviraUpdate     types.UpdateDBEngin
+	ClamavUpdate    types.UpdateDBEngin
 	ScanDbMetaDal   imagesecStore.ScanDbMetaDal
 	NodeInfoDal     imagesecStore.NodeInfoDal
 	ScanInstanceDal imagesecStore.ScanInstanceDal
@@ -27,8 +27,8 @@ type DBManagerSrv struct {
 }
 
 func NewDBManagerSrv(
-	aviraUpdateSrv types.UpdateDEngin,
-	clamavUpdateSrv types.UpdateDEngin,
+	aviraUpdateSrv types.UpdateDBEngin,
+	clamavUpdateSrv types.UpdateDBEngin,
 	scanDbMetaDal imagesecStore.ScanDbMetaDal,
 	nodeInfoDal imagesecStore.NodeInfoDal,
 	scanInstanceDal imagesecStore.ScanInstanceDal,

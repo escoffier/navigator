@@ -7,6 +7,7 @@ import (
 
 	"gitlab.com/security-rd/go-pkg/logging"
 
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/detect"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/imagemeta/metaGlobal"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
@@ -32,6 +33,8 @@ type ImageUpdateSrv struct {
 	nodeTaskDal     imagesecStore.ScanTaskDal
 	nodeDal         imagesecStore.NodeInfoDal
 	scanResult      imagesecStore.ScanResultDal
+	imageCacheDal   imagesecStore.ImageCacheDal
+	imageDetectSrv  detect.ImageDetectTaskService
 	TrustedDigest   map[string]struct{} // 可信镜像的 digest
 	OnlineUUID      map[uint32]struct{} // 在线镜像 UUID
 }
@@ -48,6 +51,8 @@ func NewImageUpdateSrv(
 	nodeTaskDal imagesecStore.ScanTaskDal,
 	nodeDal imagesecStore.NodeInfoDal,
 	scanResult imagesecStore.ScanResultDal,
+	imageDetectSrv detect.ImageDetectTaskService,
+	imageCacheDal imagesecStore.ImageCacheDal,
 ) *ImageUpdateSrv {
 	srv := ImageUpdateSrv{
 		imageDal:        imageDal,
@@ -61,6 +66,8 @@ func NewImageUpdateSrv(
 		nodeTaskDal:     nodeTaskDal,
 		nodeDal:         nodeDal,
 		scanResult:      scanResult,
+		imageDetectSrv:  imageDetectSrv,
+		imageCacheDal:   imageCacheDal,
 		TrustedDigest:   make(map[string]struct{}),
 		OnlineUUID:      make(map[uint32]struct{}),
 	}
@@ -118,8 +125,7 @@ func (s *ImageUpdateSrv) ContinueUpdate(ctx context.Context) error {
 		ticker := time.NewTicker(time.Minute * 5)
 		defer ticker.Stop()
 		for {
-			_ = s.UpdateImageOverView(ctx)
-			_ = s.UpdateProject(ctx)
+			_ = s.UpdateImagePrepareData(ctx)
 			<-ticker.C
 		}
 	}()
@@ -188,6 +194,7 @@ func (s *ImageUpdateSrv) cleanAfterDeleteRegistry(ctx context.Context) error {
 }
 
 // 更新可信息镜像
+// 有问题
 func (s *ImageUpdateSrv) updateTrustedImage(ctx context.Context) error {
 
 	trusted, err := s.trustedDal.SearchTrustedImage(ctx, store.SearchTrustedImageParam{IsTrusted: consts.TrueString})
@@ -345,6 +352,8 @@ func (s *ImageUpdateSrv) updateOnlineImage(ctx context.Context) error {
 		logging.Get().Err(err).Str("module", "imageMeta").Msg("updateOnlineImage")
 		return err
 	}
+	logging.Get().Info().Str("module", consts.ModelImageMeta).Int("uuidCnt", len(uuids)).
+		Msg("updateOnlineImage get redis uuid")
 
 	if len(s.OnlineUUID) == 0 {
 		var startID int64
@@ -472,11 +481,12 @@ func (s *ImageUpdateSrv) updateImageInReg(ctx context.Context) error {
 			if im == nil {
 				continue
 			}
-			dig := im.Digest
+			// 本身属性
+			dig := im.GenUUID()
 			images, _, err := s.imageDal.SearchImage(ctx, imagesecModel.ImageDalParam{
 				ImageFromType: imagesecModel.ImageFromNode,
-				Fields:        []string{"id", "flag"},
-				Digests:       []string{dig},
+				Fields:        []string{"id", "flag", "image_uuid"},
+				UUIDs:         []uint32{dig},
 			})
 			if err != nil {
 				logging.Get().Err(err).Str("module", "imageMeta").Msg("updateImageInReg SearchImage")
@@ -484,7 +494,9 @@ func (s *ImageUpdateSrv) updateImageInReg(ctx context.Context) error {
 			}
 			for i := range images {
 				nodeImage := images[i]
-				flag := util.SetBit0(util.SetBit1(nodeImage.Flag, imagesecModel.FlagImageInRegistry), imagesecModel.FlagImageNotInRegistry)
+				flag := util.SetBit1(nodeImage.Flag, imagesecModel.FlagImageInRegistry)
+				flag = util.SetBit0(nodeImage.Flag, imagesecModel.FlagImageNotInRegistry)
+
 				if flag == nodeImage.Flag {
 					continue
 				}
@@ -497,8 +509,24 @@ func (s *ImageUpdateSrv) updateImageInReg(ctx context.Context) error {
 					continue
 				}
 			}
-			logging.Get().Info().Str("module", "imageMeta").Str("digest", dig).
+			logging.Get().Info().Str("module", "imageMeta").Uint32("imageUUID", dig).
 				Msg("updateImageInReg update node image in registry")
+			// 检测
+			imageSearchParam := imagesecModel.ImageSearchApiParam{
+				ImageFromType: imagesecModel.ImageFromNode,
+				UUIDs:         []uint32{dig},
+			}
+			if err := s.imageDetectSrv.CreateImageDetectTask(ctx,
+				imageSearchParam,
+				imagesecModel.ImageDetectTask{Priority: imagesecModel.DetectUpdateNodeImageInReg},
+				nil,
+			); err != nil {
+				logging.Get().Err(err).Msg("updateImageInReg CreateDetectTask")
+				return
+			}
+
+			logging.Get().Info().Str("module", "imageMeta").Str("digest", im.Digest).
+				Msg("updateImageInReg create detect task update node image in registry")
 		}
 
 	}()
@@ -510,7 +538,8 @@ func (s *ImageUpdateSrv) updateImageInReg(ctx context.Context) error {
 func (s *ImageUpdateSrv) cleanDeletedDetectPolicy(ctx context.Context) error {
 
 	policy, _, err := s.policyDal.SearchDetectPolicy(ctx, imagesecModel.SearchSecurityPolicyParam{
-		Deleted: consts.TrueString, Default: consts.FalseString, Filter: &model.Filter{Limit: consts.DefaultMaxLimit}})
+		Deleted: consts.TrueString, Default: consts.FalseString,
+		Filter: &model.Filter{Limit: consts.DefaultMaxLimit}})
 	if err != nil {
 		logging.Get().Err(err).Str("module", "imageMeta").Msg("cleanDeletedDetectPolicy GetScanImageConfig")
 		return err

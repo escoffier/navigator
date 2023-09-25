@@ -10,7 +10,7 @@ type ImageDetectTaskService interface {
 	CreateImageDetectTask(ctx context.Context,
 		imageSearchParam imagesecModel.ImageSearchApiParam,
 		taskInfo imagesecModel.ImageDetectTask,
-		policy []*imagesecModel.SecurityPolicy,
+		policy *imagesecModel.SecurityPolicy,
 	) error
 }
 
