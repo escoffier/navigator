@@ -49,7 +49,7 @@ func NewMicroSegOperator(rdb *databases.RDBInstance) (*MicroSegOperator, error) 
 	}
 
 	scannerURL := os.Getenv("SCANNER_URL")
-	err = assets.InitResourcesService(rdb, redisearchClient, scannerURL)
+	err = assets.InitResourcesService(rdb, redisearchClient, scannerURL, nil)
 	if err != nil {
 		logging.Get().Err(err).Msg("ERROR: InitResourcesService init error")
 		return nil, err

@@ -2,6 +2,7 @@ package containerassets
 
 import (
 	"github.com/jellydator/ttlcache/v3"
+	"gitlab.com/piccolo_su/vegeta/pkg/assets"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"time"
 )
@@ -12,14 +13,14 @@ type Store interface {
 }
 
 type cache struct {
-	store    *ttlcache.Cache[string, model.TensorRawContainer]
+	store    *ttlcache.Cache[string, assets.TensorRawContainer]
 	maxLimit int
 }
 
 func newCache(limit int) *cache {
-	c := ttlcache.New[string, model.TensorRawContainer](
-		ttlcache.WithCapacity[string, model.TensorRawContainer](uint64(limit)),
-		ttlcache.WithTTL[string, model.TensorRawContainer](time.Second*60))
+	c := ttlcache.New[string, assets.TensorRawContainer](
+		ttlcache.WithCapacity[string, assets.TensorRawContainer](uint64(limit)),
+		ttlcache.WithTTL[string, assets.TensorRawContainer](time.Second*60))
 
 	return &cache{
 		store:    c,
@@ -27,15 +28,15 @@ func newCache(limit int) *cache {
 	}
 }
 
-func (c *cache) add(namespace, name string, value model.TensorRawContainer) error {
+func (c *cache) add(namespace, name string, value assets.TensorRawContainer) error {
 	c.store.Set(keyFunc(namespace, name), value, time.Second*60)
 	return nil
 }
 
-func (c *cache) get(key string) (model.TensorRawContainer, bool) {
+func (c *cache) get(key string) (assets.TensorRawContainer, bool) {
 	obj := c.store.Get(key)
 	if obj == nil {
-		return model.TensorRawContainer{}, false
+		return assets.TensorRawContainer{}, false
 	}
 	return obj.Value(), true
 }

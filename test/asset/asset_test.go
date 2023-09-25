@@ -333,7 +333,7 @@ func TestResourceFuzzyOnLocal02(t *testing.T) {
 	db := setupRDBClient()
 	rClient := setupRedis()
 
-	assets.InitResourcesService(db, rClient, "")
+	assets.InitResourcesService(db, rClient, "", nil)
 
 	var requests = []*api.GetResourceFuzzy{
 
@@ -408,7 +408,7 @@ func TestPodFuzzyOnLocal02(t *testing.T) {
 	db := setupRDBClient()
 	rClient := setupRedis()
 
-	err := assets.InitResourcesService(db, rClient, "")
+	err := assets.InitResourcesService(db, rClient, "", nil)
 	panicOnError(err)
 
 	var requests = []*api.GetPods{
@@ -475,7 +475,7 @@ func TestRawContainerFuzzyOnLocal02(t *testing.T) {
 	db := setupRDBClient()
 	rClient := setupRedis()
 
-	err := assets.InitResourcesService(db, rClient, "")
+	err := assets.InitResourcesService(db, rClient, "", nil)
 	panicOnError(err)
 
 	var k8sManaged bool = true

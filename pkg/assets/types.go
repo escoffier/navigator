@@ -3,17 +3,19 @@ package assets
 import (
 	// don't replace it; need the order of fields for marshal
 	"encoding/json"
+	"gitlab.com/piccolo_su/vegeta/pkg/model"
+	netv1 "k8s.io/api/networking/v1"
 	"strconv"
 	"strings"
 	"time"
 
-	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/security-rd/go-pkg/logging"
 	appsv1 "k8s.io/api/apps/v1"
 	batchv1 "k8s.io/api/batch/v1"
 	batchv1beta "k8s.io/api/batch/v1beta1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
+
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	defensev1 "scm.tensorsecurity.cn/tensorsecurity-rd/api/pkg/apis/defense/v1"
 )
@@ -52,6 +54,49 @@ const (
 	Dead
 	All
 )
+
+const (
+	BusiSvcTomcat   = "Tomcat"
+	BusiSvcAppache  = "Appache"
+	BusiSvcNginx    = "Nginx"
+	BusiSvcWeblogic = "Weblogic"
+	BusiSvcWildfly  = "Wildfly"
+	//BusiSvcJboss      = "Jboss"
+	BusiSvcWebSphere  = "WebSphere"
+	BusiSvcOpenResty  = "OpenResty"
+	BusiSvcGrafana    = "Grafana"
+	BusiSvcRedis      = "Redis"
+	BusiSvcMysql      = "Mysql"
+	BusiSvcPostgreSQL = "PostgreSQL  "
+	BusiSvcMogoDB     = "MogoDB"
+	BusiSvcRsyslog    = "Rsyslog"
+)
+
+const (
+	BusiFrameworkJava   = "Java"
+	BusiFrameworkPhp    = "Php"
+	BusiFrameworkPython = "Python"
+	BusiFrameworkNet    = ".Net"
+	BusiFrameworkRuby   = "Ruby"
+	BusiFrameworkNodejs = "Node.js"
+)
+
+var BusiSvcTypeMap = map[string]string{
+	BusiSvcTomcat:   "Web服务",
+	BusiSvcAppache:  "Web服务",
+	BusiSvcNginx:    "Web服务",
+	BusiSvcWeblogic: "Web服务",
+	BusiSvcWildfly:  "Web服务",
+	//BusiSvcJboss:      "Web服务",
+	BusiSvcWebSphere:  "Web服务",
+	BusiSvcOpenResty:  "Web服务",
+	BusiSvcGrafana:    "监控服务",
+	BusiSvcRedis:      "数据库",
+	BusiSvcMysql:      "数据库",
+	BusiSvcPostgreSQL: "数据库",
+	BusiSvcMogoDB:     "数据库",
+	BusiSvcRsyslog:    "数据库",
+}
 
 func GetRawContainerStatus(status int) string {
 	switch status {
@@ -200,6 +245,212 @@ func (p *TensorPod) IdentityString() string {
 	return sb.String()
 }
 
+// ingress
+type TensorIngress struct {
+	Cluster string
+	*netv1.Ingress
+	dupChecked bool
+}
+
+func (t *TensorIngress) IdentityString() string {
+	sb := strings.Builder{}
+	sb.WriteString(t.ResourceVersion)
+	return sb.String()
+}
+
+func (t *TensorIngress) KeyName() string {
+	sb := strings.Builder{}
+	sb.WriteString(t.Cluster)
+	sb.WriteRune('\n')
+	sb.WriteString("Ingress")
+	sb.WriteRune('\n')
+	sb.WriteString(t.Name)
+	sb.WriteRune('\n')
+	sb.WriteString(t.Namespace)
+	return sb.String()
+}
+
+func (t *TensorIngress) SetDuplicatedChecked(checked bool) {
+	t.dupChecked = checked
+}
+
+func (t *TensorIngress) DuplicatedChecked() bool {
+	return t.dupChecked
+}
+
+// Service
+type TensorService struct {
+	Cluster string
+	*corev1.Service
+	dupChecked bool
+}
+
+func (t *TensorService) IdentityString() string {
+	sb := strings.Builder{}
+	sb.WriteString(t.ResourceVersion)
+	return sb.String()
+}
+
+func (t *TensorService) KeyName() string {
+	sb := strings.Builder{}
+	sb.WriteString(t.Cluster)
+	sb.WriteRune('\n')
+	sb.WriteString("Service")
+	sb.WriteRune('\n')
+	sb.WriteString(t.Name)
+	sb.WriteRune('\n')
+	sb.WriteString(t.Namespace)
+	return sb.String()
+}
+
+func (t *TensorService) SetDuplicatedChecked(checked bool) {
+	t.dupChecked = checked
+}
+
+func (t *TensorService) DuplicatedChecked() bool {
+	return t.dupChecked
+}
+
+// Endpoints
+type TensorEndpoints struct {
+	Cluster string
+	*EndpointsTmp
+	dupChecked bool
+}
+type EndpointsTmp struct {
+	*corev1.Endpoints
+	ServiceName string
+}
+
+func (t *TensorEndpoints) IdentityString() string {
+	sb := strings.Builder{}
+	if len(t.Subsets) > 0 {
+		sb.WriteString(t.ResourceVersion)
+	} else {
+		sb.WriteString("0")
+	}
+	return sb.String()
+}
+
+func (t *TensorEndpoints) KeyName() string {
+	sb := strings.Builder{}
+	sb.WriteString(t.Cluster)
+	sb.WriteRune('\n')
+	sb.WriteString("Endpoints")
+	sb.WriteRune('\n')
+	sb.WriteString(t.Name)
+	sb.WriteRune('\n')
+	sb.WriteString(t.Namespace)
+	return sb.String()
+}
+
+func (t *TensorEndpoints) SetDuplicatedChecked(checked bool) {
+	t.dupChecked = checked
+}
+
+func (t *TensorEndpoints) DuplicatedChecked() bool {
+	return t.dupChecked
+}
+
+// Secret
+type TensorSecret struct {
+	Cluster string
+	*corev1.Secret
+	dupChecked bool
+}
+
+func (t *TensorSecret) IdentityString() string {
+	sb := strings.Builder{}
+	sb.WriteString(t.ResourceVersion)
+	return sb.String()
+}
+
+func (t *TensorSecret) KeyName() string {
+	sb := strings.Builder{}
+	sb.WriteString(t.Cluster)
+	sb.WriteRune('\n')
+	sb.WriteString("Secret")
+	sb.WriteRune('\n')
+	sb.WriteString(t.Name)
+	sb.WriteRune('\n')
+	sb.WriteString(t.Namespace)
+	return sb.String()
+}
+
+func (t *TensorSecret) SetDuplicatedChecked(checked bool) {
+	t.dupChecked = checked
+}
+
+func (t *TensorSecret) DuplicatedChecked() bool {
+	return t.dupChecked
+}
+
+// PV
+type TensorPV struct {
+	Cluster string
+	*corev1.PersistentVolume
+	dupChecked bool
+}
+
+func (t *TensorPV) IdentityString() string {
+	sb := strings.Builder{}
+	sb.WriteString(t.ResourceVersion)
+	return sb.String()
+}
+
+func (t *TensorPV) KeyName() string {
+	sb := strings.Builder{}
+	sb.WriteString(t.Cluster)
+	sb.WriteRune('\n')
+	sb.WriteString("PersistentVolume")
+	sb.WriteRune('\n')
+	sb.WriteString(t.Name)
+	sb.WriteRune('\n')
+	sb.WriteString(t.Namespace)
+	return sb.String()
+}
+
+func (t *TensorPV) SetDuplicatedChecked(checked bool) {
+	t.dupChecked = checked
+}
+
+func (t *TensorPV) DuplicatedChecked() bool {
+	return t.dupChecked
+}
+
+// PVC
+type TensorPVC struct {
+	Cluster string
+	*corev1.PersistentVolumeClaim
+	dupChecked bool
+}
+
+func (t *TensorPVC) IdentityString() string {
+	sb := strings.Builder{}
+	sb.WriteString(t.ResourceVersion)
+	return sb.String()
+}
+
+func (t *TensorPVC) KeyName() string {
+	sb := strings.Builder{}
+	sb.WriteString(t.Cluster)
+	sb.WriteRune('\n')
+	sb.WriteString("PersistentVolumeClaim")
+	sb.WriteRune('\n')
+	sb.WriteString(t.Name)
+	sb.WriteRune('\n')
+	sb.WriteString(t.Namespace)
+	return sb.String()
+}
+
+func (t *TensorPVC) SetDuplicatedChecked(checked bool) {
+	t.dupChecked = checked
+}
+
+func (t *TensorPVC) DuplicatedChecked() bool {
+	return t.dupChecked
+}
+
 type TensorRole struct {
 	Cluster string
 	*rbacv1.Role
@@ -281,7 +532,9 @@ func (p *TensorNamespace) KeyName() string {
 	return sb.String()
 }
 func (p *TensorNamespace) IdentityString() string {
-	return ""
+	sb := strings.Builder{}
+	sb.WriteString(p.ResourceVersion)
+	return sb.String()
 }
 
 type TensorNode struct {
@@ -378,7 +631,35 @@ func (r *TensorHoneySpot) IdentityString() string {
 	return sb.String()
 }
 
-type TensorRawContainer model.TensorRawContainer
+// type TensorRawContainer model.TensorRawContainer
+type TensorRawContainer struct {
+	*model.TensorRawContainer
+	Discovery *TensorRawContainerDiscovery `json:"discovery,omitempty"`
+}
+
+type TensorRawContainerDiscovery struct {
+	Frameworks []*ContainerFrameworkInfo
+	Services   []*ContainerSvcInfo
+}
+
+type ContainerSvcInfo struct {
+	Name      string // 服务类型
+	Version   string
+	Cmd       string
+	Port      string
+	RootDir   string // 主目录路径
+	BinaryDir string
+	ConfigDir string
+	DataDir   string
+	LogDir    string
+}
+
+type ContainerFrameworkInfo struct {
+	LanguageName     string
+	LanguageVersion  string
+	FrameworkName    string
+	FrameworkVersion string
+}
 
 type TensorSync struct {
 	Cluster  string
@@ -396,8 +677,8 @@ func NewResourceFromPodNoOwnerOrStaticPod(cluster string, pod *corev1.Pod) *Tens
 		Cluster:       cluster,
 		originRef:     pod,
 		LabelSelector: nil,
-		//OwnerReferences: pod.OwnerReferences,
-		//Labels:          pod.Labels,
+		// OwnerReferences: pod.OwnerReferences,
+		// Labels:          pod.Labels,
 		PodTemplate: &corev1.PodTemplateSpec{Spec: pod.Spec},
 		CreateTime:  pod.CreationTimestamp.Time,
 	}
@@ -412,11 +693,11 @@ func NewResourceFromReplicationController(cluster string, wl interface{}) *Tenso
 		ObjectMeta: *rs.ObjectMeta.DeepCopy(),
 		Kind:       KindReplicationController,
 		Cluster:    cluster,
-		//UID:           string(rs.UID),
+		// UID:           string(rs.UID),
 		originRef:     rs,
 		LabelSelector: &metav1.LabelSelector{MatchLabels: rs.Spec.Selector},
-		//OwnerReferences: rs.OwnerReferences,
-		//Labels:          rs.Labels,
+		// OwnerReferences: rs.OwnerReferences,
+		// Labels:          rs.Labels,
 		PodTemplate: rs.Spec.Template,
 		CreateTime:  rs.CreationTimestamp.Time,
 	}
@@ -435,13 +716,13 @@ func NewResourceFromReplicaSet(cluster string, wl interface{}) *TensorResource {
 		ObjectMeta: *rs.ObjectMeta.DeepCopy(),
 		Kind:       KindReplicaSet,
 		Cluster:    cluster,
-		//Namespace:       rs.Namespace,
-		//Name:            rs.Name,
-		//UID:           string(rs.UID),
+		// Namespace:       rs.Namespace,
+		// Name:            rs.Name,
+		// UID:           string(rs.UID),
 		originRef:     rs,
 		LabelSelector: rs.Spec.Selector,
-		//OwnerReferences: rs.OwnerReferences,
-		//Labels:          rs.Labels,
+		// OwnerReferences: rs.OwnerReferences,
+		// Labels:          rs.Labels,
 		PodTemplate: &rs.Spec.Template,
 		CreateTime:  rs.CreationTimestamp.Time,
 	}
@@ -460,13 +741,13 @@ func NewResourceFromStatefulSet(cluster string, obj interface{}) *TensorResource
 		ObjectMeta: *ss.ObjectMeta.DeepCopy(),
 		Kind:       KindStatefulSet,
 		Cluster:    cluster,
-		//Namespace:       ss.Namespace,
-		//Name:            ss.Name,
-		//UID:           string(ss.UID),
+		// Namespace:       ss.Namespace,
+		// Name:            ss.Name,
+		// UID:           string(ss.UID),
 		originRef:     ss,
 		LabelSelector: ss.Spec.Selector,
-		//OwnerReferences: ss.OwnerReferences,
-		//Labels:          ss.Labels,
+		// OwnerReferences: ss.OwnerReferences,
+		// Labels:          ss.Labels,
 		PodTemplate: &ss.Spec.Template,
 		CreateTime:  ss.CreationTimestamp.Time,
 	}
@@ -486,13 +767,13 @@ func NewResourceFromDaemonSet(cluster string, ss *appsv1.DaemonSet) *TensorResou
 		ObjectMeta: *ss.ObjectMeta.DeepCopy(),
 		Kind:       KindDaemonSet,
 		Cluster:    cluster,
-		//Namespace:       ss.Namespace,
-		//Name:            ss.Name,
-		//UID:           string(ss.UID),
+		// Namespace:       ss.Namespace,
+		// Name:            ss.Name,
+		// UID:           string(ss.UID),
 		originRef:     ss,
 		LabelSelector: ss.Spec.Selector,
-		//OwnerReferences: ss.OwnerReferences,
-		//Labels:          ss.Labels,
+		// OwnerReferences: ss.OwnerReferences,
+		// Labels:          ss.Labels,
 		PodTemplate: &ss.Spec.Template,
 		CreateTime:  ss.CreationTimestamp.Time,
 	}
@@ -512,11 +793,11 @@ func NewResourceFromDeployment(cluster string, wl interface{}) *TensorResource {
 		ObjectMeta: *ss.ObjectMeta.DeepCopy(),
 		Kind:       KindDeployment,
 		Cluster:    cluster,
-		//UID:           string(ss.UID),
+		// UID:           string(ss.UID),
 		originRef:     ss,
 		LabelSelector: ss.Spec.Selector,
-		//OwnerReferences: ss.OwnerReferences,
-		//Labels:          ss.Labels,
+		// OwnerReferences: ss.OwnerReferences,
+		// Labels:          ss.Labels,
 		PodTemplate: &ss.Spec.Template,
 		CreateTime:  ss.CreationTimestamp.Time,
 	}
@@ -565,13 +846,13 @@ func NewResourceFromJob(cluster string, wl interface{}) *TensorResource {
 		ObjectMeta: *ss.ObjectMeta.DeepCopy(),
 		Kind:       KindJob,
 		Cluster:    cluster,
-		//Namespace:       ss.Namespace,
-		//Name:            ss.Name,
-		//UID:           string(ss.UID),
+		// Namespace:       ss.Namespace,
+		// Name:            ss.Name,
+		// UID:           string(ss.UID),
 		originRef:     ss,
 		LabelSelector: ss.Spec.Selector,
-		//OwnerReferences: ss.OwnerReferences,
-		//Labels:          ss.Labels,
+		// OwnerReferences: ss.OwnerReferences,
+		// Labels:          ss.Labels,
 		PodTemplate: &ss.Spec.Template,
 		CreateTime:  ss.CreationTimestamp.Time,
 	}

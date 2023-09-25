@@ -10,7 +10,6 @@ import (
 	"github.com/segmentio/kafka-go"
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/utils"
 	"gitlab.com/piccolo_su/vegeta/pkg/assets"
-	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/security-rd/go-pkg/logging"
 	"gitlab.com/security-rd/go-pkg/mq"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -28,7 +27,7 @@ func NewAgent(writer mq.Writer) *Agent {
 }
 
 // HandlerContainerEvent 调用方：运行时事件;k8s事件
-func (a *Agent) HandlerContainerEvent(ctx context.Context, clusterKey string, action assets.Action, container *model.TensorRawContainer) {
+func (a *Agent) HandlerContainerEvent(ctx context.Context, clusterKey string, action assets.Action, container *assets.TensorRawContainer) {
 	if !a.mqReady.Load() {
 		logging.Get().Debug().Str("raw-container", "handle event").Msg("mq is not ready")
 		return

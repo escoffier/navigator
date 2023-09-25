@@ -85,11 +85,13 @@ func NewServer() (*server, error) {
 	_ = stream.AddHandler(&pb.HoneySpotReq{}, &service.HoneypotHandler{
 		KubeClient: agent.GetHostClient(),
 	})
+	_ = stream.AddHandler(&pb.NamespaceLabelSetReq{}, &service.NamespaceLabelHandler{KubeClient: agent.GetHostClient().Clientset})
 	_ = stream.AddHandler(&pb.ImageSecReq{}, &service.ImageSecHandler{
 		ServerStream: inClusterStream,
 		ClusterKey:   agent.CusterID,
 	})
 	_ = stream.AddHandler(&pb.ComplianceScanReq{}, &scapper.ProxyHandler{ServerStream: inClusterStream})
+	_ = stream.AddHandler(&pb.NodeLoadReq{}, &scapper.NodeLoadProxyHandler{ServerStream: inClusterStream})
 	_ = stream.Start()
 
 	agent.Stream = stream

@@ -182,7 +182,29 @@ func NewConsole(
 		}
 
 	}
-	rlErr := assetsSvc.InitResourcesService(rdb, redisearchClient, scannerURL)
+	// stream
+	stream := rpcstream.NewStreamFactory(rpcstream.WithClusterKey("main")).Server("tcp", ":19090")
+	_ = stream.AddHandler(&pb.ClusterRegister{}, &assetsSvc.ClustertHandler{
+		DB: rdb,
+	})
+	_ = stream.AddHandler(&pb.ImageSecReq{}, &imagesec.StreamHandler{
+		ServerStream: stream,
+	})
+	err = stream.Start()
+	if err != nil {
+		// log but not exit
+		logging.Get().Err(err).Msg("failed to start grpc server")
+	}
+	// scap service
+	err = sp.Init(mainCtx, sp.EnvironmentInfo{
+		MyNamespace: myNamespace,
+		MyPodName:   myPodName,
+	}, scapOpts, redisClient, rdb, stream, mqReader)
+	if err != nil {
+		logging.Get().Err(err).Msg("ERROR: scapService  init error")
+	}
+
+	rlErr := assetsSvc.InitResourcesService(rdb, redisearchClient, scannerURL, stream)
 	if rlErr != nil {
 		logging.Get().Err(rlErr).Msg("ERROR: InitResourcesService init error")
 	}
@@ -329,28 +351,6 @@ func NewConsole(
 	drErr := drvSvc.InitDriftService(rdb, es, mqReader)
 	if drErr != nil {
 		logging.Get().Err(drErr).Msg("ERROR: InitDriftService init error")
-	}
-
-	stream := rpcstream.NewStreamFactory(rpcstream.WithClusterKey("main")).Server("tcp", ":19090")
-	_ = stream.AddHandler(&pb.ClusterRegister{}, &assetsSvc.ClustertHandler{
-		DB: rdb,
-	})
-	_ = stream.AddHandler(&pb.ImageSecReq{}, &imagesec.StreamHandler{
-		ServerStream: stream,
-	})
-	err = stream.Start()
-	if err != nil {
-		// log but not exit
-		logging.Get().Err(err).Msg("failed to start grpc server")
-	}
-
-	// scap service
-	err = sp.Init(mainCtx, sp.EnvironmentInfo{
-		MyNamespace: myNamespace,
-		MyPodName:   myPodName,
-	}, scapOpts, redisClient, rdb, stream, mqReader)
-	if err != nil {
-		logging.Get().Err(err).Msg("ERROR: scapService  init error")
 	}
 
 	err = defense.InitDefenseService(rdb, es, scannerURL, stream)

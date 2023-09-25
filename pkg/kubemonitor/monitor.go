@@ -406,9 +406,30 @@ func (l *KubeClusterMonitor) OnTensorClusterRole(tensorRole *assets.TensorCluste
 	return nil
 }
 
-func (l *KubeClusterMonitor) OnNodeEvent(newNode, oldNode *corev1.Node, action assets.Action) error {
+func (l *KubeClusterMonitor) OnTensorIngress(*assets.TensorIngress, assets.Action) error {
 	return nil
 }
+
+func (l *KubeClusterMonitor) OnTensorService(node *assets.TensorService, action assets.Action) error {
+	return nil
+}
+
+func (l *KubeClusterMonitor) OnTensorEndpoints(node *assets.TensorEndpoints, action assets.Action) error {
+	return nil
+}
+
+func (l *KubeClusterMonitor) OnTensorSecret(node *assets.TensorSecret, action assets.Action) error {
+	return nil
+}
+
+func (l *KubeClusterMonitor) OnTensorPV(node *assets.TensorPV, action assets.Action) error {
+	return nil
+}
+
+func (l *KubeClusterMonitor) OnTensorPVC(node *assets.TensorPVC, action assets.Action) error {
+	return nil
+}
+
 func (l *KubeClusterMonitor) OnHoneyspot(honeyspot *assets.TensorHoneySpot, action assets.Action) error {
 	return nil
 }

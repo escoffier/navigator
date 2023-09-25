@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	netv1 "k8s.io/api/networking/v1"
 	"strconv"
 	"strings"
 	"time"
@@ -60,6 +61,12 @@ var (
 		"labels",
 		"updated_at",
 		"status",
+	}
+	onDupUpdatedColsForNamespaceLabel = []string{
+		"value",
+		"updated_at",
+		"status",
+		"is_block",
 	}
 	onDupUpdatedColsForPodResRel = []string{
 		"status",
@@ -118,7 +125,106 @@ var (
 		"mac",
 		"network_mode",
 	}
+	OnDupUpdatedColsForRawCtnFramework = []string{
+		"updated_at",
+		"status",
+		"language_name",
+		"language_version",
+		"framework_name",
+		"framework_version",
+	}
+	OnDupUpdatedColsForRawCtnSvc = []string{
+		"updated_at",
+		"status",
+		"svc_name",
+		"svc_version",
+		"svc_type",
+		"user",
+		"user_group",
+		"cmd",
+		"port",
+		"root_dir",
+		"binary_dir",
+		"config_dir",
+		"data_dir",
+		"log_dir",
+	}
+	OnDupUpdatedColsForIngress = []string{
+		"updated_at",
+		"status",
+		"name",
+		"uid",
+		"namespace",
+		"cluster_key",
+	}
+	OnDupUpdatedColsForIngressRule = []string{
+		"updated_at",
+		"status",
+		"host",
+		"protocol",
+		"path",
+		"path_type",
+		"backend_kind",
+		"backend_api_group",
+		"backend_name",
+		"service_port",
+	}
+	OnDupUpdatedColsForService = []string{
+		"updated_at",
+		"status",
+		"uid",
+		"labels",
+		"type",
+		"cluster_ip",
+		"ports",
+		"selector",
+	}
+	OnDupUpdatedColsForEndpoint = []string{
+		"updated_at",
+		"uid",
+		"status",
+	}
+	OnDupUpdatedColsForEndpointSubset = []string{
+		"updated_at",
+		"status",
+		"name",
+		"namespace",
+		"target_ref_kind",
+		"address_status",
+		"ip",
+		"node_name",
+		"ports",
+	}
+	OnDupUpdatedColsForSecret = []string{
+		"updated_at",
+		"status",
+		"uid",
+		"labels",
+	}
+	OnDupUpdatedColsForPV = []string{
+		"updated_at",
+		"status",
+		"access_mode",
+		"storage_class_name",
+		"volume_mode",
+		"storage",
+		"pv_status",
+		"persistent_volume_reclaim_policy",
+		"claim_ref_name",
+	}
+	OnDupUpdatedColsForPVC = []string{
+		"updated_at",
+		"status",
+		"access_mode",
+		"storage_class_name",
+		"volume_mode",
+		"storage",
+		"pv_names",
+	}
 )
+
+// 禁止修改的标签 业务使用
+var BlockNsLabels = []string{"microseg-tenant", "microseg-nsgrp"}
 
 type NamespacesQueryOption struct {
 	WhereLikeCondition map[string]string
@@ -295,6 +401,37 @@ func GetNamespaceWithOption(ctx context.Context, rdb *gorm.DB, queryOpt *Namespa
 	return namespaces, nil
 }
 
+type NamespaceLabelQueryOption struct {
+	WhereLikeCondition map[string]string
+	WhereEqCondition   map[string]interface{}
+	TimeRange          TimeRange
+}
+
+func (n *NamespaceLabelQueryOption) WithTimeRange(start, end time.Time) {
+	n.TimeRange.start = start
+	n.TimeRange.end = end
+}
+
+func NamespaceLabelQuery() *NamespaceLabelQueryOption {
+	return &NamespaceLabelQueryOption{
+		WhereEqCondition:   make(map[string]interface{}),
+		WhereLikeCondition: make(map[string]string),
+	}
+}
+
+type BusiSvcQueryOption struct {
+	WhereLikeCondition map[string]string
+	WhereEqCondition   map[string]interface{}
+	ContainerName      string
+}
+
+func GetBusiSvcQueryOption() *BusiSvcQueryOption {
+	return &BusiSvcQueryOption{
+		WhereLikeCondition: make(map[string]string, 2),
+		WhereEqCondition:   make(map[string]interface{}, 2),
+	}
+}
+
 type colQuery struct {
 	column string
 	query  string
@@ -309,6 +446,7 @@ type ResourcesQueryOption struct {
 	whereInCondition   map[string]interface{}
 	WhereLikeCondition map[string]string
 	columnQuery        colQuery
+	WithUserAccount    bool
 }
 
 func ResourcesQuery() *ResourcesQueryOption {
@@ -413,7 +551,7 @@ func (q *ResourcesQueryOption) RedisRawQuery() string {
 		rawQuery.WriteString(fmt.Sprintf(" @%s:{*%s*}", field, redisearch.EscapeTextFileString(value)))
 	}
 	query := rawQuery.String()
-	//如果没有条件，就匹配所有
+	// 如果没有条件，就匹配所有
 	if query == "" {
 		query = "*"
 	}
@@ -767,7 +905,7 @@ func GetResourceContainerBases(ctx context.Context, rdb *gorm.DB, query *ResCont
 		if limit > 0 && offset >= 0 {
 			db = db.Offset(offset).Limit(limit)
 		}
-		//return db.Order("id ASC").Find(&containers).Error
+		// return db.Order("id ASC").Find(&containers).Error
 		return db.Order("id ASC").Scan(&containers).Error
 	})
 	if err != nil {
@@ -1046,8 +1184,8 @@ func addResourceImageByRawContainer(ctx context.Context, redisClient *redisearch
 
 	return err
 }
-func deleteResourceImageByRawContainer(ctx context.Context, redisClient *redisearch.Client, rawContainerUUID uint32) error {
-	if rawContainerUUID == 0 {
+func deleteResourceImageByRawContainer(ctx context.Context, redisClient *redisearch.Client, rawContainerUUIDList []uint32) error {
+	if len(rawContainerUUIDList) == 0 {
 		return nil
 	}
 	conn, err := redisClient.GetConn(ctx)
@@ -1058,7 +1196,12 @@ func deleteResourceImageByRawContainer(ctx context.Context, redisClient *redisea
 	args := make([]interface{}, 0)
 	args = append(args, "container_images")
 
-	args = append(args, fmt.Sprintf("%d", rawContainerUUID))
+	for _, uuid := range rawContainerUUIDList {
+		if uuid == 0 {
+			continue
+		}
+		args = append(args, fmt.Sprintf("%d", uuid))
+	}
 
 	_, err = conn.Do("ZREM", args...)
 	return err
@@ -1338,25 +1481,74 @@ func fromNamespaceToModel(ns *corev1.Namespace, clusterKey string, updateTime ti
 func UpsertNamespace(ctx context.Context, rdb *gorm.DB, ns *corev1.Namespace, clusterKey string, updateTime time.Time) (*model.TensorNamespace, error) {
 	nsModel := fromNamespaceToModel(ns, clusterKey, updateTime)
 
-	oneCtx, oneCancel := context.WithTimeout(ctx, 500*time.Millisecond)
+	var labels []*model.TensorNamespaceLabel
+	for key, value := range ns.Labels {
+		labels = append(labels, &model.TensorNamespaceLabel{
+			TableBase: model.TableBase{
+				ID:        util.GenerateUUID(clusterKey, ns.Name, key),
+				CreatedAt: updateTime,
+				UpdatedAt: updateTime,
+			},
+			Name:       key,
+			Namespace:  ns.Name,
+			ClusterKey: clusterKey,
+			Value:      value,
+			IsBlock:    IsBlockLabel(key),
+		})
+	}
+	oneCtx, oneCancel := context.WithTimeout(ctx, 2000*time.Millisecond)
 	defer oneCancel()
-	err := rdb.WithContext(oneCtx).Model(nsModel).Clauses(clause.OnConflict{
-		Columns:   []clause.Column{{Name: "id"}},
-		DoUpdates: clause.AssignmentColumns(onDupUpdatedColsForNamespace),
-	}).Create(nsModel).Error
+
+	err := rdb.WithContext(oneCtx).Transaction(func(tx *gorm.DB) error {
+		err := tx.Model(nsModel).Clauses(clause.OnConflict{
+			Columns:   []clause.Column{{Name: "id"}},
+			DoUpdates: clause.AssignmentColumns(onDupUpdatedColsForNamespace),
+		}).Create(nsModel).Error
+		if err != nil {
+			return err
+		}
+		if len(labels) > 0 {
+			err = tx.Model(&model.TensorNamespaceLabel{}).Clauses(clause.OnConflict{
+				Columns:   []clause.Column{{Name: "id"}},
+				DoUpdates: clause.AssignmentColumns(onDupUpdatedColsForNamespaceLabel),
+			}).Create(&labels).Error
+			if err != nil {
+				return err
+			}
+		}
+		deleteTime := updateTime.Add(-1 * time.Second * time.Duration(1)) // 避免将本次的记录删掉
+		err = tx.Where("cluster_key=? and namespace=? and updated_at < ?", clusterKey, ns.Name, deleteTime).Delete(&model.TensorNamespaceLabel{}).Error
+		return err
+	})
 
 	return nsModel, err
 }
 
+func IsBlockLabel(labelKey string) bool {
+	for _, label := range BlockNsLabels {
+		if label == labelKey {
+			return true
+		}
+	}
+	return false
+}
+
 func SoftDeleteNamespace(ctx context.Context, rdb *gorm.DB, ns *corev1.Namespace, clusterKey string, updateTime time.Time) error {
-	oneCtx, oneCancel := context.WithTimeout(ctx, 500*time.Millisecond)
+	oneCtx, oneCancel := context.WithTimeout(ctx, 1500*time.Millisecond)
 	defer oneCancel()
 
 	id := util.GenerateUUID(clusterKey, ns.Name)
-	return rdb.WithContext(oneCtx).Model(&model.TensorNamespace{}).Where("id = ? AND status = ?", id, 0).Updates(map[string]interface{}{
-		"status":     1,
-		"updated_at": updateTime,
-	}).Error
+
+	return rdb.WithContext(oneCtx).Transaction(func(tx *gorm.DB) error {
+		err := tx.Model(&model.TensorNamespace{}).Where("id = ? AND status = ?", id, 0).Updates(map[string]interface{}{
+			"status":     1,
+			"updated_at": updateTime,
+		}).Error
+		if err != nil {
+			return err
+		}
+		return tx.Where("cluster_key=? and namespace=?", clusterKey, ns.Name).Delete(model.TensorNamespaceLabel{}).Error
+	})
 }
 
 func CleanUpUnUpdatedNamespaces(ctx context.Context, rdb *gorm.DB, ts time.Time, clusterKey string) error {
@@ -1368,10 +1560,16 @@ func CleanUpUnUpdatedNamespaces(ctx context.Context, rdb *gorm.DB, ts time.Time,
 		defer cancel()
 
 		now := time.Now()
-		return rdb.WithContext(oneCtx).Model(&model.TensorNamespace{}).Where("updated_at < ? AND status = ? AND cluster_key = ?", ts, 0, clusterKey).Updates(map[string]interface{}{
-			"status":     1,
-			"updated_at": now,
-		}).Error
+		return rdb.WithContext(oneCtx).Transaction(func(tx *gorm.DB) error {
+			err := tx.Model(&model.TensorNamespace{}).Where("updated_at < ? AND status = ? AND cluster_key = ?", ts, 0, clusterKey).Updates(map[string]interface{}{
+				"status":     1,
+				"updated_at": now,
+			}).Error
+			if err != nil {
+				return err
+			}
+			return tx.Where("cluster_key=?  and updated_at <", clusterKey, now).Delete(&model.TensorNamespaceLabel{}).Error
+		})
 	})
 }
 
@@ -1694,6 +1892,12 @@ func (q *ResPodsQueryOption) WithMulColumnQuery(column []string, query string) *
 	q.mulColQuery.query = query
 	return q
 }
+
+func (q *ResPodsQueryOption) WithInPodNameList(podNames []string) *ResPodsQueryOption {
+	q.whereInCondition["pod_name"] = podNames
+	return q
+}
+
 func (q *ResPodsQueryOption) WithTimeRange(start, end time.Time) *ResPodsQueryOption {
 	q.timeRange.start = start
 	q.timeRange.end = end
@@ -1927,6 +2131,20 @@ func GetResourcePodsList(ctx context.Context, rdb *gorm.DB, queryOptions *ResPod
 		return nil, err
 	}
 	return rels, nil
+}
+
+func GetPodNameListBySvc(ctx context.Context, rdb *gorm.DB, clusterKey string, namespace string, svcName string) ([]string, error) {
+	rctx, cancel := context.WithTimeout(ctx, 2000*time.Millisecond)
+	defer cancel()
+
+	var podNameList []string
+
+	err := rdb.WithContext(rctx).Model(&model.TensorEndpointsSubset{}).Joins("join ivan_assets_endpoints end on end.id=ivan_assets_endpointsSubsets.endpoints_id").
+		Where("end.cluster_key=? and end.namespace=? and end.name = ? and end.status=0", clusterKey, namespace, svcName).Distinct("ivan_assets_endpointsSubsets.name").Scan(&podNameList).Error
+	if err != nil {
+		return nil, err
+	}
+	return podNameList, nil
 }
 
 func CountPodsWithRedis(ctx context.Context, rdb *gorm.DB, redisClient *redisearch.Client, queryOptions *ResPodsQueryOption) (int64, error) {
@@ -2838,12 +3056,11 @@ type colMultiQuery struct {
 }
 
 type RawContainersQueryOption struct {
-	whereEqCondition      map[string]interface{}
-	whereNotNullCondition map[string]struct{}
-	whereInCondition      map[string]interface{}
-	columnQuery           colQuery
-	columnQueries         []colMultiQuery
-	prefixColumnQuery     colQuery
+	whereEqCondition  map[string]interface{}
+	whereInCondition  map[string]interface{}
+	columnQuery       colQuery
+	columnQueries     []colMultiQuery
+	prefixColumnQuery colQuery
 }
 
 func RawContainersQuery() *RawContainersQueryOption {
@@ -3224,7 +3441,247 @@ func GetRawContainers(ctx context.Context, rdb *gorm.DB, queryOptions *RawContai
 	return containers, nil
 }
 
-func UpsertRawContainerWithRedis(ctx context.Context, rdb *gorm.DB, redisClient *redisearch.Client, container *model.TensorRawContainer) error {
+type RawContainersWithFrameworkQueryOption struct {
+	WhereFrameworkLikeCondition map[string]string
+	*RawContainersQueryOption
+}
+
+func RawContainersWithFrameworkQuery() *RawContainersWithFrameworkQueryOption {
+	return &RawContainersWithFrameworkQueryOption{
+		WhereFrameworkLikeCondition: make(map[string]string),
+		RawContainersQueryOption:    RawContainersQuery(),
+	}
+}
+
+func CountRawContainerWithFramework(ctx context.Context, rdb *gorm.DB, queryOptions *RawContainersWithFrameworkQueryOption) (int64, error) {
+	ctx, cancel := context.WithTimeout(ctx, 9*time.Second)
+	defer cancel()
+
+	var cntNum int64
+	var db *gorm.DB
+	db = rdb.WithContext(ctx).Model(&model.TensorRawContainer{})
+	if len(queryOptions.whereEqCondition) > 0 {
+		db.Where(queryOptions.whereEqCondition)
+	}
+	status, statusCondition := queryOptions.whereInCondition["status"]
+	if len(queryOptions.whereInCondition) > 0 {
+		if statusCondition && status == assets.All {
+			delete(queryOptions.whereInCondition, "status")
+		}
+		for column, val := range queryOptions.whereInCondition {
+			db = db.Where(fmt.Sprintf("%s in ?", column), val)
+		}
+	}
+	if len(queryOptions.columnQuery.column) > 0 && len(queryOptions.columnQuery.query) > 0 {
+		db = db.Where(fmt.Sprintf("%s LIKE ?", queryOptions.columnQuery.column), GetLikeExpr(queryOptions.columnQuery.query))
+	}
+	if len(queryOptions.prefixColumnQuery.column) > 0 && len(queryOptions.prefixColumnQuery.query) > 0 {
+		db = db.Where(fmt.Sprintf("%s LIKE ?", queryOptions.prefixColumnQuery.column), fmt.Sprintf("%s%%", queryOptions.prefixColumnQuery.query))
+	}
+	for _, c := range queryOptions.columnQueries {
+		if len(c.query) > 0 {
+			if len(c.query) == 1 {
+				db = db.Where(fmt.Sprintf("%s LIKE ?", c.column), GetLikeExpr(c.query[0]))
+				continue
+			}
+			subQuery := rdb.WithContext(ctx).Model(&model.TensorRawContainer{}).Where(fmt.Sprintf("%s LIKE ?", c.column), GetLikeExpr(c.query[0]))
+			for _, q := range c.query[1:] {
+				subQuery = subQuery.Or(fmt.Sprintf("%s LIKE ?", c.column), GetLikeExpr(q))
+			}
+			db = db.Where(subQuery)
+		}
+	}
+
+	if len(queryOptions.WhereFrameworkLikeCondition) > 0 {
+		db = db.Joins("left join ivan_assets_raw_containers_frameworks f on ivan_assets_raw_containers.id = f.raw_container_id ")
+		if len(queryOptions.WhereFrameworkLikeCondition) > 0 {
+			for k, v := range queryOptions.WhereFrameworkLikeCondition {
+				db = db.Where(k+" LIKE ?", GetLikeExpr(v))
+			}
+		}
+		db.Distinct("ivan_assets_raw_containers.id")
+	} else {
+		db = db.Select("id")
+	}
+	err := db.Count(&cntNum).Error
+	if err != nil {
+		return 0, err
+	}
+	return cntNum, err
+}
+
+type RawContainerWithFramework struct {
+	model.TensorRawContainer
+	FrameworkName    string `json:"frameworkName" gorm:"column:framework_name"`
+	FrameworkVersion string `json:"frameworkVersion" gorm:"column:framework_version"`
+}
+type RawContainerWithFrameworkStr struct {
+	*model.TensorRawContainer
+	FrameworkStr string // spring(1.23),xxx
+}
+
+func GetRawContainersWithFrameworkWithRedis(ctx context.Context, rdb *gorm.DB, redisClient *redisearch.Client, queryOptions *RawContainersWithFrameworkQueryOption, offset int, limit int) ([]*RawContainerWithFrameworkStr, error) {
+	if !queryOptions.OkForRedis() || len(queryOptions.WhereFrameworkLikeCondition) > 0 {
+		return GetRawContainersWithFramework(ctx, rdb, queryOptions, offset, limit)
+	}
+	rawQuery := queryOptions.RedisRawQuery()
+
+	rCtx, cancel := context.WithTimeout(ctx, 6000*time.Millisecond)
+	defer cancel()
+
+	oneCtx, oneCancel := context.WithTimeout(rCtx, 2000*time.Millisecond)
+	defer oneCancel()
+
+	result, _, err := redisClient.Search(oneCtx,
+		redisearch.NewQuery(rawQuery).
+			Limit(offset, limit).
+			SetReturnFields("id").
+			SetSortBy("id", true),
+	)
+
+	if err != nil {
+		return nil, err
+	}
+
+	containerIDs := make([]string, 0, len(result))
+	for _, doc := range result {
+		containerIDs = append(containerIDs, cast.ToString(doc.Properties["id"]))
+	}
+	if len(containerIDs) == 0 {
+		return nil, nil
+	}
+
+	var containerWithF []*RawContainerWithFramework
+	db := rdb.WithContext(rCtx).Model(&model.TensorRawContainer{}).Select(" ivan_assets_raw_containers.* ,f.framework_name,f.framework_version")
+	db = db.Joins("left join ivan_assets_raw_containers_frameworks f on ivan_assets_raw_containers.id = f.raw_container_id ").
+		Where("ivan_assets_raw_containers.id in ?", containerIDs)
+
+	err = db.Order("ivan_assets_raw_containers.id  ASC").Find(&containerWithF).Error
+
+	if err == gorm.ErrRecordNotFound {
+		return nil, nil
+	}
+
+	if err != nil {
+		return nil, err
+	}
+	var containers []*RawContainerWithFrameworkStr
+	idMap := make(map[string]struct{})
+	for i, withFramework := range containerWithF {
+		_, isOk := idMap[withFramework.ContainerID]
+		if !isOk {
+			containers = append(containers, &RawContainerWithFrameworkStr{
+				TensorRawContainer: &(containerWithF[i].TensorRawContainer),
+				FrameworkStr:       fmt.Sprintf("%s(%s)", withFramework.FrameworkName, withFramework.FrameworkVersion),
+			})
+			idMap[withFramework.ContainerID] = struct{}{}
+			continue
+		}
+		containers[len(containers)-1].FrameworkStr += fmt.Sprintf(",%s(%s)", withFramework.FrameworkName, withFramework.FrameworkVersion)
+	}
+
+	return containers, err
+}
+
+func GetRawContainersWithFramework(ctx context.Context, rdb *gorm.DB, queryOptions *RawContainersWithFrameworkQueryOption, offset int, limit int) ([]*RawContainerWithFrameworkStr, error) {
+	rCtx, cancel := context.WithTimeout(ctx, 8000*time.Millisecond)
+	defer cancel()
+	var containerIds []string
+	var db *gorm.DB
+	db = rdb.WithContext(rCtx).Model(&model.TensorRawContainer{})
+
+	if len(queryOptions.whereEqCondition) > 0 {
+		db.Where(queryOptions.whereEqCondition)
+	}
+	status, statusCondition := queryOptions.whereInCondition["status"]
+	if len(queryOptions.whereInCondition) > 0 {
+		if statusCondition && status == assets.All {
+			delete(queryOptions.whereInCondition, "status")
+		}
+		for column, val := range queryOptions.whereInCondition {
+			db = db.Where(fmt.Sprintf("%s in ?", column), val)
+		}
+	}
+	if len(queryOptions.columnQuery.column) > 0 && len(queryOptions.columnQuery.query) > 0 {
+		db = db.Where(fmt.Sprintf("%s LIKE ?", queryOptions.columnQuery.column), GetLikeExpr(queryOptions.columnQuery.query))
+	}
+	if len(queryOptions.prefixColumnQuery.column) > 0 && len(queryOptions.prefixColumnQuery.query) > 0 {
+		db = db.Where(fmt.Sprintf("%s LIKE ?", queryOptions.prefixColumnQuery.column), fmt.Sprintf("%s%%", queryOptions.prefixColumnQuery.query))
+	}
+	for _, c := range queryOptions.columnQueries {
+		if len(c.query) > 0 {
+			if len(c.query) == 1 {
+				db = db.Where(fmt.Sprintf("%s LIKE ?", c.column), GetLikeExpr(c.query[0]))
+				continue
+			}
+			subQuery := rdb.WithContext(ctx).Model(&model.TensorRawContainer{}).Where(fmt.Sprintf("%s LIKE ?", c.column), GetLikeExpr(c.query[0]))
+			for _, q := range c.query[1:] {
+				subQuery = subQuery.Or(fmt.Sprintf("%s LIKE ?", c.column), GetLikeExpr(q))
+			}
+			db = db.Where(subQuery)
+		}
+	}
+
+	if len(queryOptions.WhereFrameworkLikeCondition) > 0 {
+		db = db.Joins("left join ivan_assets_raw_containers_frameworks f on ivan_assets_raw_containers.id = f.raw_container_id ")
+		if len(queryOptions.WhereFrameworkLikeCondition) > 0 {
+			for k, v := range queryOptions.WhereFrameworkLikeCondition {
+				db = db.Where(k+" LIKE ?", GetLikeExpr(v))
+			}
+		}
+		db.Distinct("ivan_assets_raw_containers.id")
+	} else {
+		db = db.Select("id")
+	}
+
+	if offset >= 0 && limit >= 0 {
+		db.Offset(offset).Limit(limit)
+	}
+
+	err := db.Order("id ASC").Scan(&containerIds).Error
+	if err == gorm.ErrRecordNotFound {
+		return nil, nil
+	}
+
+	if err != nil {
+		return nil, err
+	}
+	//
+	if len(containerIds) == 0 {
+		return nil, nil
+	}
+	var containerWithF []*RawContainerWithFramework
+	db = rdb.WithContext(rCtx).Model(&model.TensorRawContainer{}).Select(" ivan_assets_raw_containers.* ,f.framework_name,f.framework_version")
+	db = db.Joins("left join ivan_assets_raw_containers_frameworks f on ivan_assets_raw_containers.id = f.raw_container_id ").
+		Where("ivan_assets_raw_containers.id in ?", containerIds)
+
+	err = db.Order("ivan_assets_raw_containers.id  ASC").Scan(&containerWithF).Error
+
+	if err == gorm.ErrRecordNotFound {
+		return nil, nil
+	}
+
+	if err != nil {
+		return nil, err
+	}
+	var containers []*RawContainerWithFrameworkStr
+	idMap := make(map[string]struct{})
+	for i, withFramework := range containerWithF {
+		_, isOk := idMap[withFramework.ContainerID]
+		if !isOk {
+			containers = append(containers, &RawContainerWithFrameworkStr{
+				TensorRawContainer: &(containerWithF[i].TensorRawContainer),
+				FrameworkStr:       fmt.Sprintf("%s(%s)", withFramework.FrameworkName, withFramework.FrameworkVersion),
+			})
+			idMap[withFramework.ContainerID] = struct{}{}
+			continue
+		}
+		containers[len(containers)-1].FrameworkStr += fmt.Sprintf(",%s(%s)", withFramework.FrameworkName, withFramework.FrameworkVersion)
+	}
+	return containers, nil
+}
+
+func UpsertRawContainerWithRedis(ctx context.Context, rdb *gorm.DB, redisClient *redisearch.Client, container *assets.TensorRawContainer) error {
 	rCtx, cancel := context.WithTimeout(ctx, 15000*time.Millisecond)
 	defer cancel()
 
@@ -3244,17 +3701,13 @@ func UpsertRawContainerWithRedis(ctx context.Context, rdb *gorm.DB, redisClient 
 
 	containerUUId := util.GenerateUUID(container.ContainerID)
 	return rdb.WithContext(rCtx).Transaction(func(tx *gorm.DB) error {
-		err := tx.Model(&model.TensorRawContainer{}).Clauses(clause.OnConflict{
-			Columns:   []clause.Column{{Name: "id"}},
-			DoUpdates: clause.AssignmentColumns(OnDupUpdatedColsForRawContainer),
-		}).Create(container).Error
-
+		err := upsertRawContainersWithTx(tx, container)
 		if err != nil {
 			return err
 		}
 		if container.Status >= assets.Exited {
 			logging.GetLogger().Info().Msgf("container status %d, delete rawContainer: %s from redis", container.ContainerID, doc.Id)
-			err = deleteResourceImageByRawContainer(rCtx, redisClient, containerUUId)
+			err = deleteResourceImageByRawContainer(rCtx, redisClient, []uint32{containerUUId})
 			if err != nil {
 				return err
 			}
@@ -3270,14 +3723,2088 @@ func UpsertRawContainerWithRedis(ctx context.Context, rdb *gorm.DB, redisClient 
 	})
 }
 
-func UpsertRawContainers(ctx context.Context, rdb *gorm.DB, container *model.TensorRawContainer) error {
+func UpsertRawContainers(ctx context.Context, rdb *gorm.DB, container *assets.TensorRawContainer) error {
 	rCtx, cancel := context.WithTimeout(ctx, 15000*time.Millisecond)
 	defer cancel()
+	return rdb.WithContext(rCtx).Transaction(func(tx *gorm.DB) error {
+		return upsertRawContainersWithTx(tx, container)
+	})
+}
 
-	return rdb.WithContext(rCtx).Model(&model.TensorRawContainer{}).Clauses(clause.OnConflict{
+func upsertRawContainersWithTx(tx *gorm.DB, container *assets.TensorRawContainer) error {
+	var svcList []*model.TensorRawContainerSvc
+	var frameworkList []*model.TensorRawContainerFramework
+	if container.Discovery != nil {
+		svcList, frameworkList = getModelFromRawContainer(container)
+	}
+	rawContainer := container.TensorRawContainer
+	err := tx.Model(&model.TensorRawContainer{}).Clauses(clause.OnConflict{
 		Columns:   []clause.Column{{Name: "id"}},
 		DoUpdates: clause.AssignmentColumns(OnDupUpdatedColsForRawContainer),
-	}).Create(container).Error
+	}).Create(rawContainer).Error
+	if err != nil {
+		return err
+	}
+	if len(svcList) > 0 {
+		err = tx.Model(&model.TensorRawContainerSvc{}).Clauses(clause.OnConflict{Columns: []clause.Column{{Name: "id"}}, DoUpdates: clause.AssignmentColumns(OnDupUpdatedColsForRawCtnSvc)}).Create(svcList).Error
+		if err != nil {
+			return err
+		}
+	}
+	if len(frameworkList) > 0 {
+		err = tx.Model(&model.TensorRawContainerFramework{}).Clauses(clause.OnConflict{Columns: []clause.Column{{Name: "id"}}, DoUpdates: clause.AssignmentColumns(OnDupUpdatedColsForRawCtnFramework)}).Create(frameworkList).Error
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func getModelFromRawContainer(container *assets.TensorRawContainer) ([]*model.TensorRawContainerSvc, []*model.TensorRawContainerFramework) {
+	if container.Discovery == nil {
+		return nil, nil
+	}
+	var svcList []*model.TensorRawContainerSvc
+	var frameworkList []*model.TensorRawContainerFramework
+	updateTime := container.UpdatedAt
+	for _, service := range container.Discovery.Services {
+		svc := &model.TensorRawContainerSvc{
+			TableBase: model.TableBase{
+				ID:        util.GenerateUUID(container.ContainerID, service.Name),
+				CreatedAt: updateTime,
+				UpdatedAt: updateTime,
+			},
+			PodName:        container.PodName,
+			RawContainerID: container.ContainerID,
+			SvcName:        service.Name,
+			SvcVersion:     service.Version,
+			SvcType:        getSvcType(service.Name),
+			User:           container.User,
+			UserGroup:      "-",
+			Cmd:            service.Cmd,
+			Port:           service.Port,
+			RootDir:        service.RootDir,
+			BinaryDir:      service.BinaryDir,
+			ConfigDir:      service.ConfigDir,
+			DataDir:        service.DataDir,
+			LogDir:         service.LogDir,
+		}
+		svcList = append(svcList, svc)
+	}
+
+	for _, framework := range container.Discovery.Frameworks {
+		frame := &model.TensorRawContainerFramework{
+			TableBase: model.TableBase{
+				ID:        util.GenerateUUID(container.ContainerID, framework.LanguageName, framework.FrameworkName),
+				CreatedAt: updateTime,
+				UpdatedAt: updateTime,
+			},
+			RawContainerID:   container.ContainerID,
+			LanguageName:     framework.LanguageName,
+			LanguageVersion:  framework.LanguageVersion,
+			FrameworkName:    framework.FrameworkName,
+			FrameworkVersion: framework.FrameworkVersion,
+		}
+		frameworkList = append(frameworkList, frame)
+	}
+	return svcList, frameworkList
+}
+
+func getSvcType(svcName string) string {
+	svcType := assets.BusiSvcTypeMap[svcName]
+	if svcType == "" {
+		svcType = "未知"
+	}
+	return svcType
+}
+
+// ingress
+func CountIngress(ctx context.Context, rdb *gorm.DB, queryOptions *IngressesQueryOption) (int64, error) {
+	ctx, cancel := context.WithTimeout(ctx, 9*time.Second)
+	defer cancel()
+
+	var cntNum int64
+	err := util.RetryWithBackoff(ctx, func() error {
+		oneCtx, oneCancel := context.WithTimeout(ctx, 4*time.Second)
+		defer oneCancel()
+
+		var db *gorm.DB
+		db = rdb.WithContext(oneCtx).Model(&model.TensorIngress{})
+
+		if len(queryOptions.whereEqCondition) > 0 {
+			db = db.Where(queryOptions.whereEqCondition)
+		}
+		for k, v := range queryOptions.whereLikeCondition {
+			db = db.Where(fmt.Sprintf("%s LIKE ?", k), GetLikeExpr(v))
+		}
+		if !queryOptions.timeRange.start.IsZero() {
+			db = db.Where("created_at > ?", queryOptions.timeRange.start)
+		}
+		if !queryOptions.timeRange.end.IsZero() {
+			db = db.Where("created_at < ?", queryOptions.timeRange.end)
+		}
+		db = db.Where("status=0")
+
+		return db.Count(&cntNum).Error
+	})
+
+	return cntNum, err
+}
+
+func GetIngresses(ctx context.Context, rdb *gorm.DB, queryOptions *IngressesQueryOption, offset int, limit int) ([]*model.TensorIngress, error) {
+	rCtx, cancel := context.WithTimeout(ctx, 6000*time.Millisecond)
+	defer cancel()
+
+	var ingresses []*model.TensorIngress
+	notFound := false
+	err := util.RetryWithBackoff(rCtx, func() error {
+		oneCtx, oneCancel := context.WithTimeout(rCtx, 2000*time.Millisecond)
+		defer oneCancel()
+
+		var db *gorm.DB
+		db = rdb.WithContext(oneCtx).Model(&model.TensorIngress{})
+
+		if len(queryOptions.whereEqCondition) > 0 {
+			db.Where(queryOptions.whereEqCondition)
+		}
+		for k, v := range queryOptions.whereLikeCondition {
+			db = db.Where(fmt.Sprintf("%s LIKE ?", k), GetLikeExpr(v))
+		}
+		db = db.Where("status=0")
+		if !queryOptions.timeRange.start.IsZero() {
+			db = db.Where("created_at > ?", queryOptions.timeRange.start)
+		}
+		if !queryOptions.timeRange.end.IsZero() {
+			db = db.Where("created_at < ?", queryOptions.timeRange.end)
+		}
+
+		if offset >= 0 && limit >= 0 {
+			db.Offset(offset).Limit(limit)
+		}
+		err := db.Order("id ASC").Find(&ingresses).Error
+		if err == gorm.ErrRecordNotFound {
+			notFound = true
+			return nil
+		}
+		return err
+	})
+	if notFound {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return ingresses, nil
+}
+
+type IngressesQueryOption struct {
+	whereEqCondition   map[string]interface{}
+	whereLikeCondition map[string]string
+	timeRange          TimeRange
+}
+
+func IngressesQuery() *IngressesQueryOption {
+	return &IngressesQueryOption{
+		whereEqCondition:   make(map[string]interface{}),
+		whereLikeCondition: make(map[string]string),
+	}
+}
+
+func (q *IngressesQueryOption) WithCluster(clusterKey string) *IngressesQueryOption {
+	q.whereEqCondition["cluster_key"] = clusterKey
+	return q
+}
+
+func (q *IngressesQueryOption) WithNamespace(ns string) *IngressesQueryOption {
+	q.whereEqCondition["namespace"] = ns
+	return q
+}
+func (q *IngressesQueryOption) WithFuzzNamespace(ns string) *IngressesQueryOption {
+	q.whereLikeCondition["namespace"] = ns
+	return q
+}
+func (q *IngressesQueryOption) WithFuzzName(name string) *IngressesQueryOption {
+	q.whereLikeCondition["name"] = name
+	return q
+}
+func (q *IngressesQueryOption) WithName(name string) *IngressesQueryOption {
+	q.whereEqCondition["name"] = name
+	return q
+}
+func (q *IngressesQueryOption) WithTimeRange(start, end time.Time) *IngressesQueryOption {
+	q.timeRange.start = start
+	q.timeRange.end = end
+	return q
+}
+
+func GetIngressBackendKinds(ctx context.Context, rdb *gorm.DB) ([]string, error) {
+	rCtx, cancel := context.WithTimeout(ctx, 6000*time.Millisecond)
+	defer cancel()
+
+	notFound := false
+	var kindList []string
+	err := util.RetryWithBackoff(rCtx, func() error {
+		oneCtx, oneCancel := context.WithTimeout(rCtx, 2000*time.Millisecond)
+		defer oneCancel()
+		err := rdb.WithContext(oneCtx).Model(&model.TensorIngressRule{}).Where(" status =0 ").
+			Distinct("backend_kind").Scan(&kindList).Error
+		if err == gorm.ErrRecordNotFound {
+			notFound = true
+			return nil
+		}
+		return err
+	})
+	if notFound {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return kindList, nil
+}
+
+type IngressesRuleQueryOption struct {
+	whereEqCondition   map[string]interface{}
+	whereLikeCondition map[string]string
+	whereInCondition   map[string]interface{}
+	query              mulColQuery
+}
+
+func NewIngressesRuleQuery() *IngressesRuleQueryOption {
+	return &IngressesRuleQueryOption{
+		whereEqCondition:   make(map[string]interface{}),
+		whereLikeCondition: make(map[string]string),
+		whereInCondition:   make(map[string]interface{}),
+	}
+}
+
+func (i *IngressesRuleQueryOption) WithQuery(query string, columns []string) {
+	if len(query) == 0 || len(columns) == 0 {
+		return
+	}
+	i.query = mulColQuery{
+		columns: columns,
+		query:   query,
+	}
+}
+func (i *IngressesRuleQueryOption) WithBackendKind(backendKinds []string) {
+	if len(backendKinds) == 0 {
+		return
+	}
+	i.whereInCondition["backend_kind"] = backendKinds
+}
+func (i *IngressesRuleQueryOption) WithPathType(pathTypes []string) {
+	if len(pathTypes) == 0 {
+		return
+	}
+	i.whereInCondition["path_type"] = pathTypes
+}
+func (i *IngressesRuleQueryOption) WithIngressId(ingressId int64) {
+	i.whereEqCondition["ingress_id"] = ingressId
+}
+
+func CountIngressRule(ctx context.Context, rdb *gorm.DB, queryOptions *IngressesRuleQueryOption) (int64, error) {
+	ctx, cancel := context.WithTimeout(ctx, 9*time.Second)
+	defer cancel()
+
+	var cntNum int64
+	err := util.RetryWithBackoff(ctx, func() error {
+		oneCtx, oneCancel := context.WithTimeout(ctx, 4*time.Second)
+		defer oneCancel()
+
+		var db *gorm.DB
+		db = rdb.WithContext(oneCtx).Model(&model.TensorIngressRule{})
+
+		if len(queryOptions.whereEqCondition) > 0 {
+			db = db.Where(queryOptions.whereEqCondition)
+		}
+		for k, v := range queryOptions.whereLikeCondition {
+			db = db.Where(fmt.Sprintf("%s LIKE ?", k), GetLikeExpr(v))
+		}
+		for k, v := range queryOptions.whereInCondition {
+			db = db.Where(fmt.Sprintf("%s IN ?", k), v)
+		}
+		if queryOptions.query.query != "" {
+			var sql string
+			expr := GetLikeExpr(queryOptions.query.query)
+			for i := 0; i < len(queryOptions.query.columns); i++ {
+				if i != 0 {
+					sql += " OR "
+				}
+				sql += fmt.Sprintf("%s like '%s'", queryOptions.query.columns[i], expr)
+			}
+			db = db.Where(sql)
+		}
+
+		db = db.Where("status=0")
+
+		return db.Count(&cntNum).Error
+	})
+
+	return cntNum, err
+}
+
+func GetIngressRules(ctx context.Context, rdb *gorm.DB, queryOptions *IngressesRuleQueryOption, offset int, limit int) ([]*model.TensorIngressRule, error) {
+	rCtx, cancel := context.WithTimeout(ctx, 6000*time.Millisecond)
+	defer cancel()
+
+	var ingressRules []*model.TensorIngressRule
+	notFound := false
+	err := util.RetryWithBackoff(rCtx, func() error {
+		oneCtx, oneCancel := context.WithTimeout(rCtx, 2000*time.Millisecond)
+		defer oneCancel()
+
+		var db *gorm.DB
+		db = rdb.WithContext(oneCtx).Model(&model.TensorIngressRule{})
+
+		if len(queryOptions.whereEqCondition) > 0 {
+			db.Where(queryOptions.whereEqCondition)
+		}
+		for k, v := range queryOptions.whereLikeCondition {
+			db = db.Where(fmt.Sprintf("%s LIKE ?", k), GetLikeExpr(v))
+		}
+		for k, v := range queryOptions.whereInCondition {
+			db = db.Where(fmt.Sprintf("%s IN ?", k), v)
+		}
+		if queryOptions.query.query != "" {
+			var sql string
+			expr := GetLikeExpr(queryOptions.query.query)
+			for i := 0; i < len(queryOptions.query.columns); i++ {
+				if i != 0 {
+					sql += " OR "
+				}
+				sql += fmt.Sprintf("%s like '%s'", queryOptions.query.columns[i], expr)
+			}
+			db = db.Where(sql)
+		}
+		db = db.Where("status=0")
+		if offset >= 0 && limit >= 0 {
+			db.Offset(offset).Limit(limit)
+		}
+		err := db.Order("id ASC").Find(&ingressRules).Error
+		if err == gorm.ErrRecordNotFound {
+			notFound = true
+			return nil
+		}
+		return err
+	})
+	if notFound {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return ingressRules, nil
+
+}
+
+type IngressDetail struct {
+	model.TensorIngress
+	Rules []model.TensorIngressRule
+}
+
+func UpsertIngresses(ctx context.Context, rdb *gorm.DB, ingress *netv1.Ingress, clusterKey string, updateTime time.Time) (uint32, error) {
+	detail, createErr := newModelFromIngress(ingress, clusterKey, updateTime)
+	if createErr != nil || detail == nil {
+		return 0, createErr
+	}
+
+	tctx, cancel := context.WithTimeout(ctx, 5000*time.Millisecond)
+	defer cancel()
+
+	err := rdb.WithContext(tctx).Transaction(func(tx *gorm.DB) error {
+		err := tx.Model(&model.TensorIngress{}).Clauses(clause.OnConflict{
+			Columns:   []clause.Column{{Name: "id"}},
+			DoUpdates: clause.AssignmentColumns(OnDupUpdatedColsForIngress),
+		}).Create(&detail.TensorIngress).Error
+		if err != nil {
+			return err
+		}
+		if len(detail.Rules) > 0 {
+			err = tx.Model(&model.TensorIngressRule{}).Clauses(clause.OnConflict{
+				Columns:   []clause.Column{{Name: "id"}},
+				DoUpdates: clause.AssignmentColumns(OnDupUpdatedColsForIngressRule),
+			}).Create(&detail.Rules).Error
+		}
+		if err != nil {
+			return err
+		}
+		deleteTime := updateTime.Add(time.Second * time.Duration(-1))
+		return tx.Where("ingress_id=? and updated_at < ?", detail.ID, deleteTime).Delete(&model.TensorIngressRule{}).Error
+	})
+
+	return detail.ID, err
+}
+
+func SoftDeleteIngress(ctx context.Context, rdb *gorm.DB, ingress *netv1.Ingress, clusterKey string, updateTime time.Time) error {
+	tctx, cancel := context.WithTimeout(ctx, 3000*time.Millisecond)
+	defer cancel()
+
+	uuid := util.GenerateUUID(clusterKey, ingress.Namespace, ingress.Name)
+	return util.RetryWithBackoff(ctx, func() error {
+		oneCtx, cancel := context.WithTimeout(tctx, 1000*time.Millisecond)
+		defer cancel()
+
+		err := rdb.WithContext(oneCtx).Transaction(func(tx *gorm.DB) error {
+			err := tx.Model(&model.TensorIngress{}).Where("id = ?", uuid).Updates(map[string]interface{}{
+				"status":     1,
+				"updated_at": updateTime,
+			}).Error
+			if err != nil {
+				return err
+			}
+			return tx.Where("ingress_id = ?", uuid).Delete(&model.TensorIngressRule{}).Error
+		})
+		return err
+	})
+}
+
+func newModelFromIngress(ingress *netv1.Ingress, clusterKey string, updateTime time.Time) (*IngressDetail, error) {
+	detail := &IngressDetail{}
+	detail.ID = util.GenerateUUID(clusterKey, ingress.Namespace, ingress.Name)
+	detail.CreatedAt = ingress.CreationTimestamp.Time
+	detail.UpdatedAt = updateTime
+	detail.Name = ingress.Name
+	detail.Namespace = ingress.Namespace
+	detail.ClusterKey = clusterKey
+	detail.UID = string(ingress.UID)
+
+	tlsMap := make(map[string]struct{})
+	for _, tl := range ingress.Spec.TLS {
+		for _, t := range tl.Hosts {
+			tlsMap[t] = struct{}{}
+		}
+	}
+
+	for _, rule := range ingress.Spec.Rules {
+		for _, path := range rule.HTTP.Paths {
+			tmp := model.TensorIngressRule{
+				TableBase: model.TableBase{
+					ID:        util.GenerateUUID(clusterKey, ingress.Namespace, ingress.Name, rule.Host, path.Path),
+					CreatedAt: updateTime,
+					UpdatedAt: updateTime,
+				},
+				IngressId: detail.ID,
+				Host:      rule.Host,
+				Path:      path.Path,
+				Protocol:  "HTTP",
+			}
+			if _, isOK := tlsMap[rule.Host]; isOK {
+				tmp.Protocol = "HTTPS"
+			}
+			if path.PathType != nil {
+				tmp.PathType = string(*path.PathType)
+			}
+			if path.Backend.Service != nil {
+				tmp.BackendKind = "Service"
+				tmp.BackendApiGroup = "V1"
+				tmp.BackendName = path.Backend.Service.Name
+				tmp.ServicePort = strconv.Itoa(int(path.Backend.Service.Port.Number))
+				if tmp.ServicePort == "0" {
+					tmp.ServicePort = "-"
+				}
+			} else if path.Backend.Resource != nil {
+				tmp.BackendKind = path.Backend.Resource.Kind
+				if path.Backend.Resource.APIGroup != nil {
+					tmp.BackendApiGroup = *path.Backend.Resource.APIGroup
+				}
+				tmp.BackendName = path.Backend.Resource.Name
+			}
+			tmp.WebDesc = fmt.Sprintf("%s:%s%s", strings.ToLower(tmp.Protocol), tmp.Host, tmp.Path)
+			detail.Rules = append(detail.Rules, tmp)
+		}
+	}
+	return detail, nil
+}
+
+func CleanUpUnUpdatedIngresses(ctx context.Context, rdb *gorm.DB, ts time.Time, clusterKey string) error {
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+
+	return util.RetryWithBackoff(ctx, func() error {
+		oneCtx, cancel := context.WithTimeout(ctx, 2000*time.Millisecond)
+		defer cancel()
+
+		return rdb.WithContext(oneCtx).Transaction(func(tx *gorm.DB) error {
+			var ingressIds []int32
+			err := tx.Model(&model.TensorIngress{}).Where("updated_at < ? AND status = ? AND cluster_key = ?", ts, 0, clusterKey).Select("id").Scan(&ingressIds).Error
+			if err != nil {
+				return err
+			}
+			if len(ingressIds) == 0 {
+				return nil
+			}
+			err = tx.Model(&model.TensorIngress{}).Where("id in ?", ingressIds).Updates(map[string]interface{}{
+				"status":     1,
+				"updated_at": ts,
+			}).Error
+			if err != nil {
+				return err
+			}
+			return tx.Where("updated_at < ?  AND  ingress_id in ( ?)", ts, ingressIds).Delete(&model.TensorIngressRule{}).Error
+		})
+	})
+}
+
+type ServicesQueryOption struct {
+	whereEqCondition   map[string]interface{}
+	whereLikeCondition map[string]string
+	whereInCondition   map[string]interface{}
+	timeRange          TimeRange
+}
+
+func ServicesQuery() *ServicesQueryOption {
+	return &ServicesQueryOption{
+		whereEqCondition:   make(map[string]interface{}),
+		whereLikeCondition: make(map[string]string),
+		whereInCondition:   make(map[string]interface{}),
+	}
+}
+
+func (q *ServicesQueryOption) WithCluster(clusterKey string) *ServicesQueryOption {
+	q.whereEqCondition["cluster_key"] = clusterKey
+	return q
+}
+
+func (q *ServicesQueryOption) WithNamespace(ns string) *ServicesQueryOption {
+	q.whereEqCondition["namespace"] = ns
+	return q
+}
+func (q *ServicesQueryOption) WithFuzzNamespace(ns string) *ServicesQueryOption {
+	q.whereLikeCondition["namespace"] = ns
+	return q
+}
+func (q *ServicesQueryOption) WithFuzzName(name string) *ServicesQueryOption {
+	q.whereLikeCondition["name"] = name
+	return q
+}
+func (q *ServicesQueryOption) WithName(name string) *ServicesQueryOption {
+	q.whereEqCondition["name"] = name
+	return q
+}
+func (q *ServicesQueryOption) WithClusterIp(ip string) {
+	q.whereLikeCondition["cluster_ip"] = ip
+}
+func (q *ServicesQueryOption) WithServiceTypes(types []string) {
+	q.whereInCondition["type"] = types
+}
+func (q *ServicesQueryOption) WithTimeRange(start, end time.Time) *ServicesQueryOption {
+	q.timeRange.start = start
+	q.timeRange.end = end
+	return q
+}
+
+type ServicesListBase struct {
+	Id         int       // id: cluster_key/namespace/Name
+	Name       string    `json:"name"`
+	Namespace  string    ` json:"namespace"`
+	ClusterKey string    ` json:"clusterKey"`
+	PortsStr   string    `json:"portsStr"`
+	Type       string    `json:"type"`
+	ClusterIp  string    `json:"clusterIp"`
+	CreatedAt  time.Time `json:"createdAt"`
+}
+
+func CountService(ctx context.Context, rdb *gorm.DB, queryOptions *ServicesQueryOption) (int64, error) {
+	ctx, cancel := context.WithTimeout(ctx, 9*time.Second)
+	defer cancel()
+
+	var cntNum int64
+	err := util.RetryWithBackoff(ctx, func() error {
+		oneCtx, oneCancel := context.WithTimeout(ctx, 4*time.Second)
+		defer oneCancel()
+
+		var db *gorm.DB
+		db = rdb.WithContext(oneCtx).Model(&model.TensorService{})
+
+		if len(queryOptions.whereEqCondition) > 0 {
+			db = db.Where(queryOptions.whereEqCondition)
+		}
+		for k, v := range queryOptions.whereLikeCondition {
+			db = db.Where(fmt.Sprintf("%s LIKE ?", k), GetLikeExpr(v))
+		}
+		for k, v := range queryOptions.whereInCondition {
+			db = db.Where(fmt.Sprintf("%s IN ?", k), v)
+		}
+		if !queryOptions.timeRange.start.IsZero() {
+			db = db.Where("created_at > ?", queryOptions.timeRange.start)
+		}
+		if !queryOptions.timeRange.end.IsZero() {
+			db = db.Where("created_at < ?", queryOptions.timeRange.end)
+		}
+
+		db = db.Where("status=0")
+
+		return db.Count(&cntNum).Error
+	})
+
+	return cntNum, err
+}
+
+func GetService(ctx context.Context, rdb *gorm.DB, queryOptions *ServicesQueryOption, offset int, limit int) ([]*model.TensorService, error) {
+	rCtx, cancel := context.WithTimeout(ctx, 6000*time.Millisecond)
+	defer cancel()
+
+	var services []*model.TensorService
+	notFound := false
+	err := util.RetryWithBackoff(rCtx, func() error {
+		oneCtx, oneCancel := context.WithTimeout(rCtx, 2000*time.Millisecond)
+		defer oneCancel()
+
+		var db *gorm.DB
+		db = rdb.WithContext(oneCtx).Model(&model.TensorService{})
+
+		if len(queryOptions.whereEqCondition) > 0 {
+			db.Where(queryOptions.whereEqCondition)
+		}
+		for k, v := range queryOptions.whereLikeCondition {
+			db = db.Where(fmt.Sprintf("%s LIKE ?", k), GetLikeExpr(v))
+		}
+		for k, v := range queryOptions.whereInCondition {
+			db = db.Where(fmt.Sprintf("%s IN ?", k), v)
+		}
+		db = db.Where("status=0")
+		if !queryOptions.timeRange.start.IsZero() {
+			db = db.Where("created_at > ?", queryOptions.timeRange.start)
+		}
+		if !queryOptions.timeRange.end.IsZero() {
+			db = db.Where("created_at < ?", queryOptions.timeRange.end)
+		}
+
+		if offset >= 0 && limit >= 0 {
+			db.Offset(offset).Limit(limit)
+		}
+		err := db.Order("id ASC").Find(&services).Error
+		if err == gorm.ErrRecordNotFound {
+			notFound = true
+			return nil
+		}
+		return err
+	})
+	if notFound {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return services, nil
+}
+
+func UpsertService(ctx context.Context, rdb *gorm.DB, svc *corev1.Service, clusterKey string, updateTime time.Time) (uint32, error) {
+	s, createErr := newModelFromService(svc, clusterKey, updateTime)
+	if createErr != nil || s == nil {
+		return 0, createErr
+	}
+
+	rCtx, cancel := context.WithTimeout(ctx, 5000*time.Millisecond)
+	defer cancel()
+
+	err := rdb.WithContext(rCtx).Model(&model.TensorService{}).Clauses(clause.OnConflict{
+		Columns:   []clause.Column{{Name: "id"}},
+		DoUpdates: clause.AssignmentColumns(OnDupUpdatedColsForService),
+	}).Create(s).Error
+	if err != nil {
+		return 0, err
+	}
+	return s.ID, nil
+}
+
+func SoftDeleteService(ctx context.Context, rdb *gorm.DB, svc *corev1.Service, clusterKey string, updateTime time.Time) error {
+	tctx, cancel := context.WithTimeout(ctx, 3000*time.Millisecond)
+	defer cancel()
+
+	uuid := util.GenerateUUID(clusterKey, svc.Namespace, svc.Name)
+	return util.RetryWithBackoff(ctx, func() error {
+		oneCtx, cancel := context.WithTimeout(tctx, 1000*time.Millisecond)
+		defer cancel()
+		return rdb.WithContext(oneCtx).Model(&model.TensorService{}).Where("id = ?", uuid).Updates(map[string]interface{}{
+			"status":     1,
+			"updated_at": updateTime,
+		}).Error
+	})
+}
+
+func newModelFromService(svc *corev1.Service, clusterKey string, updateTime time.Time) (*model.TensorService, error) {
+	var ports []model.ServicePort
+	var portStr []string
+	for _, port := range svc.Spec.Ports {
+		portStr = append(portStr, fmt.Sprintf("%d/%s", port.Port, port.Protocol))
+		ports = append(ports, model.ServicePort{
+			Name:        port.Name,
+			Protocol:    string(port.Protocol),
+			AppProtocol: port.AppProtocol,
+			Port:        strconv.Itoa(int(port.Port)),
+			TargetPort:  port.TargetPort.String(),
+			NodePort:    strconv.Itoa(int(port.NodePort)),
+		})
+	}
+	result := &model.TensorService{
+		TableBase: model.TableBase{
+			ID:        util.GenerateUUID(clusterKey, svc.Namespace, svc.Name),
+			CreatedAt: svc.CreationTimestamp.Time,
+			UpdatedAt: updateTime,
+		},
+		Name:       svc.Name,
+		Namespace:  svc.Namespace,
+		ClusterKey: clusterKey,
+		UID:        string(svc.UID),
+		Labels:     svc.Labels,
+		Type:       string(svc.Spec.Type),
+		ClusterIp:  svc.Spec.ClusterIP,
+		PortsStr:   strings.Join(portStr, ","),
+		Ports:      ports,
+		Selector:   svc.Spec.Selector,
+	}
+	if result.ClusterIp == "None" {
+		result.ClusterIp = ""
+	}
+	return result, nil
+
+}
+
+func CleanUpUnUpdatedServices(ctx context.Context, rdb *gorm.DB, t time.Time, clusterKey string) error {
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+
+	return util.RetryWithBackoff(ctx, func() error {
+		oneCtx, cancel := context.WithTimeout(ctx, 2000*time.Millisecond)
+		defer cancel()
+		logging.GetLogger().Info().Msgf("CleanUpUnUpdatedServices 清理更新时间小于%v的记录", t)
+		return rdb.WithContext(oneCtx).Model(&model.TensorService{}).Where("updated_at < ? AND status = ? AND cluster_key = ?", t, 0, clusterKey).Updates(map[string]interface{}{
+			"status":     1,
+			"updated_at": t,
+		}).Error
+	})
+}
+
+type EndpointsQueryOption struct {
+	WhereEqCondition   map[string]interface{}
+	WhereLikeCondition map[string]string
+	TimeRange          TimeRange
+}
+
+func EndpointsQuery() *EndpointsQueryOption {
+	return &EndpointsQueryOption{
+		WhereEqCondition:   make(map[string]interface{}),
+		WhereLikeCondition: make(map[string]string),
+	}
+}
+func (q *EndpointsQueryOption) WithTimeRange(start, end time.Time) *EndpointsQueryOption {
+	q.TimeRange.start = start
+	q.TimeRange.end = end
+	return q
+}
+
+func CountEndpoints(ctx context.Context, rdb *gorm.DB, queryOptions *EndpointsQueryOption) (int64, error) {
+	ctx, cancel := context.WithTimeout(ctx, 9*time.Second)
+	defer cancel()
+
+	var cntNum int64
+	err := util.RetryWithBackoff(ctx, func() error {
+		oneCtx, oneCancel := context.WithTimeout(ctx, 4*time.Second)
+		defer oneCancel()
+
+		var db *gorm.DB
+		db = rdb.WithContext(oneCtx).Model(&model.TensorEndpoints{})
+
+		if len(queryOptions.WhereEqCondition) > 0 {
+			db = db.Where(queryOptions.WhereEqCondition)
+		}
+		for k, v := range queryOptions.WhereLikeCondition {
+			db = db.Where(fmt.Sprintf("%s LIKE ?", k), GetLikeExpr(v))
+		}
+		if !queryOptions.TimeRange.start.IsZero() {
+			db = db.Where("created_at > ?", queryOptions.TimeRange.start)
+		}
+		if !queryOptions.TimeRange.end.IsZero() {
+			db = db.Where("created_at < ?", queryOptions.TimeRange.end)
+		}
+		db = db.Where("status=0")
+
+		return db.Count(&cntNum).Error
+	})
+
+	return cntNum, err
+}
+
+func GetEndpoints(ctx context.Context, rdb *gorm.DB, queryOptions *EndpointsQueryOption, offset int, limit int) ([]*model.TensorEndpoints, error) {
+	rCtx, cancel := context.WithTimeout(ctx, 6000*time.Millisecond)
+	defer cancel()
+
+	var endpoints []*model.TensorEndpoints
+	notFound := false
+	err := util.RetryWithBackoff(rCtx, func() error {
+		oneCtx, oneCancel := context.WithTimeout(rCtx, 2000*time.Millisecond)
+		defer oneCancel()
+
+		var db *gorm.DB
+		db = rdb.WithContext(oneCtx).Model(&model.TensorEndpoints{})
+
+		if len(queryOptions.WhereEqCondition) > 0 {
+			db.Where(queryOptions.WhereEqCondition)
+		}
+		for k, v := range queryOptions.WhereLikeCondition {
+			db = db.Where(fmt.Sprintf("%s LIKE ?", k), GetLikeExpr(v))
+		}
+		db = db.Where("status=0")
+		if !queryOptions.TimeRange.start.IsZero() {
+			db = db.Where("created_at > ?", queryOptions.TimeRange.start)
+		}
+		if !queryOptions.TimeRange.end.IsZero() {
+			db = db.Where("created_at < ?", queryOptions.TimeRange.end)
+		}
+		if offset >= 0 && limit >= 0 {
+			db.Offset(offset).Limit(limit)
+		}
+		err := db.Order("id ASC").Find(&endpoints).Error
+		if err == gorm.ErrRecordNotFound {
+			notFound = true
+			return nil
+		}
+		return err
+	})
+	if notFound {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return endpoints, nil
+
+}
+
+func GetEndpointSubsetKinds(ctx context.Context, rdb *gorm.DB) ([]string, error) {
+	rCtx, cancel := context.WithTimeout(ctx, 6000*time.Millisecond)
+	defer cancel()
+
+	notFound := false
+	var kindList []string
+	err := util.RetryWithBackoff(rCtx, func() error {
+		oneCtx, oneCancel := context.WithTimeout(rCtx, 2000*time.Millisecond)
+		defer oneCancel()
+		err := rdb.WithContext(oneCtx).Model(&model.TensorEndpointsSubset{}).Where(" status =0 ").
+			Distinct("target_ref_kind").Scan(&kindList).Error
+		if err == gorm.ErrRecordNotFound {
+			notFound = true
+			return nil
+		}
+		return err
+	})
+	if notFound {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return kindList, nil
+}
+
+type EndpointsSubsetsQueryOption struct {
+	WhereEqCondition   map[string]interface{}
+	WhereLikeCondition map[string]string
+	WhereInCondition   map[string]interface{}
+}
+
+func EndpointsSubsetsQuery() *EndpointsSubsetsQueryOption {
+	return &EndpointsSubsetsQueryOption{
+		WhereEqCondition:   make(map[string]interface{}),
+		WhereLikeCondition: make(map[string]string),
+		WhereInCondition:   make(map[string]interface{}),
+	}
+}
+
+func CountEndpointsSubsets(ctx context.Context, rdb *gorm.DB, queryOptions *EndpointsSubsetsQueryOption) (int64, error) {
+	ctx, cancel := context.WithTimeout(ctx, 9*time.Second)
+	defer cancel()
+
+	var cntNum int64
+	err := util.RetryWithBackoff(ctx, func() error {
+		oneCtx, oneCancel := context.WithTimeout(ctx, 4*time.Second)
+		defer oneCancel()
+
+		var db *gorm.DB
+		db = rdb.WithContext(oneCtx).Model(&model.TensorEndpointsSubset{})
+
+		if len(queryOptions.WhereEqCondition) > 0 {
+			db = db.Where(queryOptions.WhereEqCondition)
+		}
+		for k, v := range queryOptions.WhereLikeCondition {
+			db = db.Where(fmt.Sprintf("%s LIKE ?", k), GetLikeExpr(v))
+		}
+		for k, v := range queryOptions.WhereInCondition {
+			db = db.Where(fmt.Sprintf("%s IN ?", k), v)
+		}
+		db = db.Where("status=0")
+		return db.Count(&cntNum).Error
+	})
+
+	return cntNum, err
+}
+
+func GetEndpointSubsets(ctx context.Context, rdb *gorm.DB, queryOptions *EndpointsSubsetsQueryOption, offset int, limit int) ([]*model.TensorEndpointsSubset, error) {
+	rCtx, cancel := context.WithTimeout(ctx, 6000*time.Millisecond)
+	defer cancel()
+
+	var ingressRules []*model.TensorEndpointsSubset
+	notFound := false
+	err := util.RetryWithBackoff(rCtx, func() error {
+		oneCtx, oneCancel := context.WithTimeout(rCtx, 2000*time.Millisecond)
+		defer oneCancel()
+
+		var db *gorm.DB
+		db = rdb.WithContext(oneCtx).Model(&model.TensorEndpointsSubset{})
+
+		if len(queryOptions.WhereEqCondition) > 0 {
+			db.Where(queryOptions.WhereEqCondition)
+		}
+		for k, v := range queryOptions.WhereLikeCondition {
+			db = db.Where(fmt.Sprintf("%s LIKE ?", k), GetLikeExpr(v))
+		}
+		for k, v := range queryOptions.WhereInCondition {
+			db = db.Where(fmt.Sprintf("%s IN ?", k), v)
+		}
+		db = db.Where("status=0")
+		if offset >= 0 && limit >= 0 {
+			db.Offset(offset).Limit(limit)
+		}
+		err := db.Order("id ASC").Find(&ingressRules).Error
+		if err == gorm.ErrRecordNotFound {
+			notFound = true
+			return nil
+		}
+		return err
+	})
+	if notFound {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return ingressRules, nil
+}
+
+func UpsertEndpoints(ctx context.Context, rdb *gorm.DB, endpoints *assets.EndpointsTmp, clusterKey string, updateTime time.Time) (uint32, error) {
+	rCtx, cancel := context.WithTimeout(ctx, 5000*time.Millisecond)
+	defer cancel()
+
+	endpointsDetail := newModeFromEndpoints(endpoints, clusterKey, updateTime)
+	err := rdb.WithContext(rCtx).Transaction(func(tx *gorm.DB) error {
+		err := tx.Model(&model.TensorEndpoints{}).Clauses(clause.OnConflict{
+			Columns:   []clause.Column{{Name: "id"}},
+			DoUpdates: clause.AssignmentColumns(OnDupUpdatedColsForEndpoint),
+		}).Create(endpointsDetail.TensorEndpoints).Error
+		if err != nil {
+			return err
+		}
+		if len(endpointsDetail.Subsets) > 0 {
+			err = tx.Model(&model.TensorEndpointsSubset{}).Clauses(clause.OnConflict{
+				Columns:   []clause.Column{{Name: "id"}},
+				DoUpdates: clause.AssignmentColumns(OnDupUpdatedColsForEndpointSubset),
+			}).Create(&endpointsDetail.Subsets).Error
+		}
+		if err != nil {
+			return err
+		}
+		deleteTime := updateTime.Add(time.Second * time.Duration(-1))
+		return tx.Where("endpoints_id =? and updated_at < ?", endpointsDetail.ID, deleteTime).Delete(&model.TensorEndpointsSubset{}).Error
+	})
+	if err != nil {
+		return 0, err
+	}
+	return endpointsDetail.ID, nil
+}
+
+func SoftDeleteEndpoints(ctx context.Context, rdb *gorm.DB, endpoints *assets.EndpointsTmp, clusterKey string, updateTime time.Time) error {
+	tctx, cancel := context.WithTimeout(ctx, 3000*time.Millisecond)
+	defer cancel()
+
+	uuid := util.GenerateUUID(clusterKey, endpoints.Namespace, endpoints.Name)
+	return util.RetryWithBackoff(ctx, func() error {
+		oneCtx, cancel := context.WithTimeout(tctx, 1000*time.Millisecond)
+		defer cancel()
+
+		err := rdb.WithContext(oneCtx).Transaction(func(tx *gorm.DB) error {
+			err := tx.Model(&model.TensorEndpoints{}).Where("id = ?", uuid).Updates(map[string]interface{}{
+				"status":     1,
+				"updated_at": updateTime,
+			}).Error
+			if err != nil {
+				return err
+			}
+			return tx.Where("endpoints_id = ?", uuid).Delete(&model.TensorEndpointsSubset{}).Error
+		})
+		return err
+	})
+}
+
+type EndpointsDetail struct {
+	*model.TensorEndpoints
+	Subsets []model.TensorEndpointsSubset
+}
+
+func newModeFromEndpoints(endpoints *assets.EndpointsTmp, clusterKey string, updateTime time.Time) *EndpointsDetail {
+	detail := EndpointsDetail{
+		TensorEndpoints: &model.TensorEndpoints{
+			TableBase: model.TableBase{
+				ID:        util.GenerateUUID(clusterKey, endpoints.Namespace, endpoints.Name),
+				CreatedAt: updateTime,
+				UpdatedAt: updateTime,
+			},
+			Name:        endpoints.Name,
+			Namespace:   endpoints.Namespace,
+			ClusterKey:  clusterKey,
+			ServiceName: endpoints.ServiceName,
+			UID:         string(endpoints.UID),
+		},
+	}
+	newSubsetFunc := func(address corev1.EndpointAddress, isReady bool, ports string) model.TensorEndpointsSubset {
+		tmp := model.TensorEndpointsSubset{
+			TableBase: model.TableBase{
+				ID:        util.GenerateUUID(clusterKey, endpoints.Namespace, endpoints.Name, address.IP),
+				CreatedAt: updateTime,
+				UpdatedAt: updateTime,
+			},
+			EndpointsId: detail.ID,
+			Ip:          address.IP,
+		}
+		if isReady {
+			tmp.AddressStatus = "Ready"
+		} else {
+			tmp.AddressStatus = "NotReady"
+		}
+		if address.NodeName != nil {
+			tmp.NodeName = *address.NodeName
+		}
+		if address.TargetRef != nil {
+			tmp.TargetRefKind = address.TargetRef.Kind
+			tmp.Name = address.TargetRef.Name
+			tmp.NameSpace = address.TargetRef.Namespace
+		}
+		tmp.Ports = ports
+		return tmp
+	}
+
+	for _, subset := range endpoints.Subsets {
+		var portsStr string
+		builder := strings.Builder{}
+		for i, port := range subset.Ports {
+			builder.WriteString(fmt.Sprintf("%d/%s", int(port.Port), string(port.Protocol)))
+			if i != len(subset.Ports)-1 {
+				builder.WriteString(" , ")
+			}
+		}
+		portsStr = builder.String()
+		for _, address := range subset.Addresses {
+			tmp := newSubsetFunc(address, true, portsStr)
+			detail.Subsets = append(detail.Subsets, tmp)
+		}
+		for _, address := range subset.NotReadyAddresses {
+			tmp := newSubsetFunc(address, false, portsStr)
+			detail.Subsets = append(detail.Subsets, tmp)
+		}
+	}
+	return &detail
+}
+
+func CleanUpUnUpdatedEndpoints(ctx context.Context, rdb *gorm.DB, ts time.Time, clusterKey string) error {
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+
+	return util.RetryWithBackoff(ctx, func() error {
+		oneCtx, cancel := context.WithTimeout(ctx, 2000*time.Millisecond)
+		defer cancel()
+
+		return rdb.WithContext(oneCtx).Transaction(func(tx *gorm.DB) error {
+			var endIds []int32
+			err := tx.Model(&model.TensorEndpoints{}).Where("updated_at < ? AND status = ? AND cluster_key = ?", ts, 0, clusterKey).Select("id").Scan(&endIds).Error
+			if err != nil {
+				return err
+			}
+			if len(endIds) == 0 {
+				return nil
+			}
+			err = tx.Model(&model.TensorEndpoints{}).Where("id in ?", endIds).Updates(map[string]interface{}{
+				"status":     1,
+				"updated_at": ts,
+			}).Error
+			if err != nil {
+				return err
+			}
+			return tx.Where("updated_at < ?  AND  endpoints_id in ?", ts, endIds).Delete(&model.TensorEndpointsSubset{}).Error
+		})
+	})
+}
+
+type SecretsQueryOption struct {
+	WhereEqCondition   map[string]interface{}
+	WhereLikeCondition map[string]string
+	TimeRange          TimeRange
+}
+
+func (s *SecretsQueryOption) WithTimeRange(start, end time.Time) {
+	s.TimeRange.start = start
+	s.TimeRange.end = end
+}
+
+func SecretsQuery() *SecretsQueryOption {
+	return &SecretsQueryOption{
+		WhereEqCondition:   make(map[string]interface{}),
+		WhereLikeCondition: make(map[string]string),
+	}
+}
+
+func CountSecrets(ctx context.Context, rdb *gorm.DB, queryOptions *SecretsQueryOption) (int64, error) {
+	ctx, cancel := context.WithTimeout(ctx, 9*time.Second)
+	defer cancel()
+
+	var cntNum int64
+	err := util.RetryWithBackoff(ctx, func() error {
+		oneCtx, oneCancel := context.WithTimeout(ctx, 4*time.Second)
+		defer oneCancel()
+
+		var db *gorm.DB
+		db = rdb.WithContext(oneCtx).Model(&model.TensorSecret{})
+
+		if len(queryOptions.WhereEqCondition) > 0 {
+			db = db.Where(queryOptions.WhereEqCondition)
+		}
+		for k, v := range queryOptions.WhereLikeCondition {
+			db = db.Where(fmt.Sprintf("%s LIKE ?", k), GetLikeExpr(v))
+		}
+		if !queryOptions.TimeRange.start.IsZero() {
+			db = db.Where("created_at > ?", queryOptions.TimeRange.start)
+		}
+		if !queryOptions.TimeRange.end.IsZero() {
+			db = db.Where("created_at < ?", queryOptions.TimeRange.end)
+		}
+		db = db.Where("status=0")
+		return db.Count(&cntNum).Error
+	})
+
+	return cntNum, err
+}
+
+func GetSecrets(ctx context.Context, rdb *gorm.DB, queryOptions *SecretsQueryOption, offset int, limit int) ([]*model.TensorSecret, error) {
+	rCtx, cancel := context.WithTimeout(ctx, 6000*time.Millisecond)
+	defer cancel()
+
+	var ingressRules []*model.TensorSecret
+	notFound := false
+	err := util.RetryWithBackoff(rCtx, func() error {
+		oneCtx, oneCancel := context.WithTimeout(rCtx, 2000*time.Millisecond)
+		defer oneCancel()
+
+		var db *gorm.DB
+		db = rdb.WithContext(oneCtx).Model(&model.TensorSecret{})
+
+		if len(queryOptions.WhereEqCondition) > 0 {
+			db.Where(queryOptions.WhereEqCondition)
+		}
+		for k, v := range queryOptions.WhereLikeCondition {
+			db = db.Where(fmt.Sprintf("%s LIKE ?", k), GetLikeExpr(v))
+		}
+		if !queryOptions.TimeRange.start.IsZero() {
+			db = db.Where("created_at > ?", queryOptions.TimeRange.start)
+		}
+		if !queryOptions.TimeRange.end.IsZero() {
+			db = db.Where("created_at < ?", queryOptions.TimeRange.end)
+		}
+
+		db = db.Where("status=0")
+		if offset >= 0 && limit >= 0 {
+			db.Offset(offset).Limit(limit)
+		}
+		err := db.Order("id ASC").Find(&ingressRules).Error
+		if err == gorm.ErrRecordNotFound {
+			notFound = true
+			return nil
+		}
+		return err
+	})
+	if notFound {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return ingressRules, nil
+}
+
+type PVQueryOption struct {
+	WhereEqCondition   map[string]interface{}
+	WhereLikeCondition map[string]string
+	WhererInCondition  map[string]interface{}
+	TimeRange          TimeRange
+}
+
+func (s *PVQueryOption) WithTimeRange(start, end time.Time) {
+	s.TimeRange.start = start
+	s.TimeRange.end = end
+}
+
+func PVQuery() *PVQueryOption {
+	return &PVQueryOption{
+		WhereEqCondition:   make(map[string]interface{}),
+		WhereLikeCondition: make(map[string]string),
+		WhererInCondition:  make(map[string]interface{}),
+	}
+}
+func CountPVs(ctx context.Context, rdb *gorm.DB, queryOptions *PVQueryOption) (int64, error) {
+	ctx, cancel := context.WithTimeout(ctx, 9*time.Second)
+	defer cancel()
+
+	var cntNum int64
+	err := util.RetryWithBackoff(ctx, func() error {
+		oneCtx, oneCancel := context.WithTimeout(ctx, 4*time.Second)
+		defer oneCancel()
+
+		var db *gorm.DB
+		db = rdb.WithContext(oneCtx).Model(&model.TensorPV{})
+
+		if len(queryOptions.WhereEqCondition) > 0 {
+			db = db.Where(queryOptions.WhereEqCondition)
+		}
+		for k, v := range queryOptions.WhereLikeCondition {
+			db = db.Where(fmt.Sprintf("%s LIKE ?", k), GetLikeExpr(v))
+		}
+		for k, v := range queryOptions.WhererInCondition {
+			db = db.Where(fmt.Sprintf("%s IN ?", k), v)
+		}
+		if !queryOptions.TimeRange.start.IsZero() {
+			db = db.Where("created_at > ?", queryOptions.TimeRange.start)
+		}
+		if !queryOptions.TimeRange.end.IsZero() {
+			db = db.Where("created_at < ?", queryOptions.TimeRange.end)
+		}
+		db = db.Where("status=0")
+		return db.Count(&cntNum).Error
+	})
+
+	return cntNum, err
+}
+
+func GetPVs(ctx context.Context, rdb *gorm.DB, queryOptions *PVQueryOption, offset int, limit int) ([]*model.TensorPV, error) {
+	rCtx, cancel := context.WithTimeout(ctx, 6000*time.Millisecond)
+	defer cancel()
+
+	var pvs []*model.TensorPV
+	notFound := false
+	err := util.RetryWithBackoff(rCtx, func() error {
+		oneCtx, oneCancel := context.WithTimeout(rCtx, 2000*time.Millisecond)
+		defer oneCancel()
+
+		var db *gorm.DB
+		db = rdb.WithContext(oneCtx).Model(&model.TensorPV{})
+
+		if len(queryOptions.WhereEqCondition) > 0 {
+			db.Where(queryOptions.WhereEqCondition)
+		}
+		for k, v := range queryOptions.WhereLikeCondition {
+			db = db.Where(fmt.Sprintf("%s LIKE ?", k), GetLikeExpr(v))
+		}
+		for k, v := range queryOptions.WhererInCondition {
+			db = db.Where(fmt.Sprintf("%s IN ?", k), v)
+		}
+		if !queryOptions.TimeRange.start.IsZero() {
+			db = db.Where("created_at > ?", queryOptions.TimeRange.start)
+		}
+		if !queryOptions.TimeRange.end.IsZero() {
+			db = db.Where("created_at < ?", queryOptions.TimeRange.end)
+		}
+
+		db = db.Where("status=0")
+		if offset >= 0 && limit >= 0 {
+			db.Offset(offset).Limit(limit)
+		}
+		err := db.Order("id ASC").Find(&pvs).Error
+		if err == gorm.ErrRecordNotFound {
+			notFound = true
+			return nil
+		}
+		return err
+	})
+	if notFound {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return pvs, nil
+}
+
+func UpsertSecrets(ctx context.Context, rdb *gorm.DB, secret *corev1.Secret, clusterKey string, updateTime time.Time) error {
+	rCtx, cancel := context.WithTimeout(ctx, 5000*time.Millisecond)
+	defer cancel()
+
+	secr := newModeFromSecret(secret, clusterKey, updateTime)
+
+	return rdb.WithContext(rCtx).Model(&model.TensorSecret{}).Clauses(clause.OnConflict{
+		Columns:   []clause.Column{{Name: "id"}},
+		DoUpdates: clause.AssignmentColumns(OnDupUpdatedColsForSecret),
+	}).Create(secr).Error
+}
+
+func SoftDeleteSecret(ctx context.Context, rdb *gorm.DB, secret *corev1.Secret, clusterKey string, updateTime time.Time) error {
+	tctx, cancel := context.WithTimeout(ctx, 3000*time.Millisecond)
+	defer cancel()
+
+	uuid := util.GenerateUUID(clusterKey, secret.Namespace, secret.Name)
+	return util.RetryWithBackoff(ctx, func() error {
+		oneCtx, cancel := context.WithTimeout(tctx, 1000*time.Millisecond)
+		defer cancel()
+		return rdb.WithContext(oneCtx).Model(&model.TensorSecret{}).Where("id = ?", uuid).Updates(map[string]interface{}{
+			"status":     1,
+			"updated_at": updateTime,
+		}).Error
+	})
+}
+
+func newModeFromSecret(secret *corev1.Secret, clusterKey string, updateTime time.Time) *model.TensorSecret {
+	return &model.TensorSecret{
+		TableBase: model.TableBase{
+			ID:        util.GenerateUUID(clusterKey, secret.Namespace, secret.Name),
+			CreatedAt: secret.CreationTimestamp.Time,
+			UpdatedAt: updateTime,
+		},
+		Name:       secret.Name,
+		Namespace:  secret.Namespace,
+		ClusterKey: clusterKey,
+		UID:        string(secret.UID),
+		Labels:     secret.Labels,
+	}
+
+}
+
+func CleanUpUnUpdatedSecrets(ctx context.Context, rdb *gorm.DB, t time.Time, clusterKey string) error {
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+
+	return util.RetryWithBackoff(ctx, func() error {
+		oneCtx, cancel := context.WithTimeout(ctx, 2000*time.Millisecond)
+		defer cancel()
+
+		return rdb.WithContext(oneCtx).Model(&model.TensorSecret{}).Where("updated_at < ? AND status = ? AND cluster_key = ?", t, 0, clusterKey).Updates(map[string]interface{}{
+			"status":     1,
+			"updated_at": t,
+		}).Error
+	})
+}
+
+func UpsertPVs(ctx context.Context, rdb *gorm.DB, pv *corev1.PersistentVolume, clusterKey string, updateTime time.Time) error {
+	rCtx, cancel := context.WithTimeout(ctx, 5000*time.Millisecond)
+	defer cancel()
+
+	tensorPV := newModelFromPV(pv, clusterKey, updateTime)
+
+	return rdb.WithContext(rCtx).Model(&model.TensorPV{}).Clauses(clause.OnConflict{
+		Columns:   []clause.Column{{Name: "id"}},
+		DoUpdates: clause.AssignmentColumns(OnDupUpdatedColsForPV),
+	}).Create(tensorPV).Error
+}
+
+func SoftDeletePV(ctx context.Context, rdb *gorm.DB, pv *corev1.PersistentVolume, clusterKey string, updateTime time.Time) error {
+	tctx, cancel := context.WithTimeout(ctx, 3000*time.Millisecond)
+	defer cancel()
+
+	uuid := util.GenerateUUID(clusterKey, pv.Name)
+	return util.RetryWithBackoff(ctx, func() error {
+		oneCtx, cancel := context.WithTimeout(tctx, 1000*time.Millisecond)
+		defer cancel()
+		return rdb.WithContext(oneCtx).Model(&model.TensorPV{}).Where("id = ?", uuid).Updates(map[string]interface{}{
+			"status":     1,
+			"updated_at": updateTime,
+		}).Error
+	})
+}
+
+func newModelFromPV(pv *corev1.PersistentVolume, clusterKey string, updateTime time.Time) *model.TensorPV {
+	tensorPV := model.TensorPV{
+		TableBase: model.TableBase{
+			ID:        util.GenerateUUID(clusterKey, pv.Name),
+			CreatedAt: pv.CreationTimestamp.Time,
+			UpdatedAt: updateTime,
+		},
+		Name:                          pv.Name,
+		ClusterKey:                    clusterKey,
+		AccessMode:                    getShortAccessMode(string(pv.Spec.AccessModes[0])),
+		StorageClassName:              pv.Spec.StorageClassName,
+		Storage:                       pv.Spec.Capacity.Storage().String(),
+		PvStatus:                      string(pv.Status.Phase),
+		PersistentVolumeReclaimPolicy: string(pv.Spec.PersistentVolumeReclaimPolicy),
+	}
+	if pv.Spec.VolumeMode != nil {
+		tensorPV.VolumeMode = string(*pv.Spec.VolumeMode)
+	}
+	if pv.Spec.ClaimRef != nil {
+		tensorPV.ClaimRefName = pv.Spec.ClaimRef.Name
+	}
+	return &tensorPV
+}
+func getShortAccessMode(mode string) string {
+	shortModeName := ""
+	switch mode {
+	case "ReadWriteOnce":
+		shortModeName = "RWO"
+	case "ReadOnlyMany":
+		shortModeName = "ROX"
+	case "ReadWriteMany":
+		shortModeName = "RWX"
+	case "ReadWriteOncePod":
+		shortModeName = "RWOP"
+	default:
+		logging.GetLogger().Err(errors.New("invalid access_mode value,mode:" + mode))
+		return ""
+	}
+	return shortModeName
+}
+func CleanUpUnUpdatedPVs(ctx context.Context, rdb *gorm.DB, t time.Time, clusterKey string) error {
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+
+	return util.RetryWithBackoff(ctx, func() error {
+		oneCtx, cancel := context.WithTimeout(ctx, 2000*time.Millisecond)
+		defer cancel()
+
+		return rdb.WithContext(oneCtx).Model(&model.TensorPV{}).Where("updated_at < ? AND status = ? AND cluster_key = ?", t, 0, clusterKey).Updates(map[string]interface{}{
+			"status":     1,
+			"updated_at": t,
+		}).Error
+	})
+}
+
+type PVCQueryOption struct {
+	WhereEqCondition   map[string]interface{}
+	WhereLikeCondition map[string]string
+	WhereInCondition   map[string]interface{}
+	TimeRange          TimeRange
+}
+
+func (s *PVCQueryOption) WithTimeRange(start, end time.Time) {
+	s.TimeRange.start = start
+	s.TimeRange.end = end
+}
+
+func PVCQuery() *PVCQueryOption {
+	return &PVCQueryOption{
+		WhereEqCondition:   make(map[string]interface{}),
+		WhereLikeCondition: make(map[string]string),
+		WhereInCondition:   make(map[string]interface{}),
+	}
+}
+func CountPVCs(ctx context.Context, rdb *gorm.DB, queryOptions *PVCQueryOption) (int64, error) {
+	ctx, cancel := context.WithTimeout(ctx, 9*time.Second)
+	defer cancel()
+
+	var cntNum int64
+	err := util.RetryWithBackoff(ctx, func() error {
+		oneCtx, oneCancel := context.WithTimeout(ctx, 4*time.Second)
+		defer oneCancel()
+
+		var db *gorm.DB
+		db = rdb.WithContext(oneCtx).Model(&model.TensorPVC{})
+
+		if len(queryOptions.WhereEqCondition) > 0 {
+			db = db.Where(queryOptions.WhereEqCondition)
+		}
+		for k, v := range queryOptions.WhereLikeCondition {
+			db = db.Where(fmt.Sprintf("%s LIKE ?", k), GetLikeExpr(v))
+		}
+		for k, v := range queryOptions.WhereInCondition {
+			db = db.Where(fmt.Sprintf("%s IN ?", k), v)
+		}
+		if !queryOptions.TimeRange.start.IsZero() {
+			db = db.Where("created_at > ?", queryOptions.TimeRange.start)
+		}
+		if !queryOptions.TimeRange.end.IsZero() {
+			db = db.Where("created_at < ?", queryOptions.TimeRange.end)
+		}
+		db = db.Where("status=0")
+		return db.Count(&cntNum).Error
+	})
+
+	return cntNum, err
+}
+
+func GetPVCs(ctx context.Context, rdb *gorm.DB, queryOptions *PVCQueryOption, offset int, limit int) ([]*model.TensorPVC, error) {
+	rCtx, cancel := context.WithTimeout(ctx, 6000*time.Millisecond)
+	defer cancel()
+
+	var pvs []*model.TensorPVC
+	notFound := false
+	err := util.RetryWithBackoff(rCtx, func() error {
+		oneCtx, oneCancel := context.WithTimeout(rCtx, 2000*time.Millisecond)
+		defer oneCancel()
+
+		var db *gorm.DB
+		db = rdb.WithContext(oneCtx).Model(&model.TensorPVC{})
+
+		if len(queryOptions.WhereEqCondition) > 0 {
+			db.Where(queryOptions.WhereEqCondition)
+		}
+		for k, v := range queryOptions.WhereLikeCondition {
+			db = db.Where(fmt.Sprintf("%s LIKE ?", k), GetLikeExpr(v))
+		}
+		for k, v := range queryOptions.WhereInCondition {
+			db = db.Where(fmt.Sprintf("%s IN ?", k), v)
+		}
+		if !queryOptions.TimeRange.start.IsZero() {
+			db = db.Where("created_at > ?", queryOptions.TimeRange.start)
+		}
+		if !queryOptions.TimeRange.end.IsZero() {
+			db = db.Where("created_at < ?", queryOptions.TimeRange.end)
+		}
+
+		db = db.Where("status=0")
+		if offset >= 0 && limit >= 0 {
+			db.Offset(offset).Limit(limit)
+		}
+		err := db.Order("id ASC").Find(&pvs).Error
+		if err == gorm.ErrRecordNotFound {
+			notFound = true
+			return nil
+		}
+		return err
+	})
+	if notFound {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return pvs, nil
+}
+
+func UpsertPVCs(ctx context.Context, rdb *gorm.DB, pvc *corev1.PersistentVolumeClaim, clusterKey string, updateTime time.Time) error {
+	rCtx, cancel := context.WithTimeout(ctx, 5000*time.Millisecond)
+	defer cancel()
+	tensorPVC := newModelFromPVC(pvc, clusterKey, updateTime)
+
+	return rdb.WithContext(rCtx).Model(&model.TensorPVC{}).Clauses(clause.OnConflict{
+		Columns:   []clause.Column{{Name: "id"}},
+		DoUpdates: clause.AssignmentColumns(OnDupUpdatedColsForPVC),
+	}).Create(tensorPVC).Error
+}
+
+func SoftDeletePVC(ctx context.Context, rdb *gorm.DB, pvc *corev1.PersistentVolumeClaim, clusterKey string, updateTime time.Time) error {
+	tctx, cancel := context.WithTimeout(ctx, 3000*time.Millisecond)
+	defer cancel()
+
+	uuid := util.GenerateUUID(clusterKey, pvc.Namespace, pvc.Name)
+	return util.RetryWithBackoff(ctx, func() error {
+		oneCtx, cancel := context.WithTimeout(tctx, 1000*time.Millisecond)
+		defer cancel()
+		return rdb.WithContext(oneCtx).Model(&model.TensorPVC{}).Where("id = ?", uuid).Updates(map[string]interface{}{
+			"status":     1,
+			"updated_at": updateTime,
+		}).Error
+	})
+}
+
+func newModelFromPVC(pvc *corev1.PersistentVolumeClaim, clusterKey string, updateTime time.Time) *model.TensorPVC {
+	tensorPVC := &model.TensorPVC{
+		TableBase: model.TableBase{
+			ID:        util.GenerateUUID(clusterKey, pvc.Namespace, pvc.Name),
+			CreatedAt: pvc.CreationTimestamp.Time,
+			UpdatedAt: updateTime,
+		},
+		Name:       pvc.Name,
+		ClusterKey: clusterKey,
+		Namespace:  pvc.Namespace,
+		Storage:    pvc.Spec.Resources.Requests.Storage().String(),
+		PVNames:    pvc.Spec.VolumeName,
+		PvcStatus:  string(pvc.Status.Phase),
+	}
+	if len(pvc.Spec.AccessModes) != 0 {
+		tensorPVC.AccessMode = getShortAccessMode(string(pvc.Spec.AccessModes[0]))
+	}
+	if pvc.Spec.StorageClassName != nil {
+		tensorPVC.StorageClassName = *pvc.Spec.StorageClassName
+	}
+	if pvc.Spec.VolumeMode != nil {
+		tensorPVC.VolumeMode = string(*pvc.Spec.VolumeMode)
+	}
+	if pvc.Spec.Resources.Limits.Storage() != nil && !pvc.Spec.Resources.Limits.Storage().IsZero() {
+		tensorPVC.Storage += "~" + pvc.Spec.Resources.Limits.Storage().String()
+	}
+	return tensorPVC
+}
+
+func CleanUpUnUpdatedPVCs(ctx context.Context, rdb *gorm.DB, t time.Time, clusterKey string) error {
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+
+	return util.RetryWithBackoff(ctx, func() error {
+		oneCtx, cancel := context.WithTimeout(ctx, 2000*time.Millisecond)
+		defer cancel()
+
+		return rdb.WithContext(oneCtx).Model(&model.TensorPVC{}).Where("updated_at < ? AND status = ? AND cluster_key = ?", t, 0, clusterKey).Updates(map[string]interface{}{
+			"status":     1,
+			"updated_at": t,
+		}).Error
+	})
+}
+
+func CountNamespaceLabels(ctx context.Context, rdb *gorm.DB, queryOptions *NamespaceLabelQueryOption) (int64, error) {
+	ctx, cancel := context.WithTimeout(ctx, 9*time.Second)
+	defer cancel()
+
+	var cntNum int64
+	err := util.RetryWithBackoff(ctx, func() error {
+		oneCtx, oneCancel := context.WithTimeout(ctx, 4*time.Second)
+		defer oneCancel()
+
+		var db *gorm.DB
+		db = rdb.WithContext(oneCtx).Model(&model.TensorNamespaceLabel{})
+
+		if len(queryOptions.WhereEqCondition) > 0 {
+			db = db.Where(queryOptions.WhereEqCondition)
+		}
+		for k, v := range queryOptions.WhereLikeCondition {
+			db = db.Where(fmt.Sprintf("%s LIKE ?", k), GetLikeExpr(v))
+		}
+		if !queryOptions.TimeRange.start.IsZero() {
+			db = db.Where("created_at > ?", queryOptions.TimeRange.start)
+		}
+		if !queryOptions.TimeRange.end.IsZero() {
+			db = db.Where("created_at < ?", queryOptions.TimeRange.end)
+		}
+		db = db.Where("status=0")
+		return db.Count(&cntNum).Error
+	})
+
+	return cntNum, err
+}
+
+func GetNamespaceLabels(ctx context.Context, rdb *gorm.DB, queryOptions *NamespaceLabelQueryOption, offset int, limit int) ([]*model.TensorNamespaceLabel, error) {
+	rCtx, cancel := context.WithTimeout(ctx, 6000*time.Millisecond)
+	defer cancel()
+
+	var pvs []*model.TensorNamespaceLabel
+	notFound := false
+	err := util.RetryWithBackoff(rCtx, func() error {
+		oneCtx, oneCancel := context.WithTimeout(rCtx, 2000*time.Millisecond)
+		defer oneCancel()
+
+		var db *gorm.DB
+		db = rdb.WithContext(oneCtx).Model(&model.TensorNamespaceLabel{})
+
+		if len(queryOptions.WhereEqCondition) > 0 {
+			db.Where(queryOptions.WhereEqCondition)
+		}
+		for k, v := range queryOptions.WhereLikeCondition {
+			db = db.Where(fmt.Sprintf("%s LIKE ?", k), GetLikeExpr(v))
+		}
+		if !queryOptions.TimeRange.start.IsZero() {
+			db = db.Where("created_at > ?", queryOptions.TimeRange.start)
+		}
+		if !queryOptions.TimeRange.end.IsZero() {
+			db = db.Where("created_at < ?", queryOptions.TimeRange.end)
+		}
+
+		db = db.Where("status=0")
+		if offset >= 0 && limit >= 0 {
+			db.Offset(offset).Limit(limit)
+		}
+		err := db.Order("id ASC").Find(&pvs).Error
+		if err == gorm.ErrRecordNotFound {
+			notFound = true
+			return nil
+		}
+		return err
+	})
+	if notFound {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return pvs, nil
+}
+
+type PodBusiSvcBase struct {
+	Id            uint32 `json:"id"`
+	ContainerId   string `json:"containerId"`
+	ContainerName string `json:"containerName"`
+	SvcName       string `json:"svcName"`
+	SvcVersion    string `json:"svcVersion"`
+	SvcType       string `json:"svcType"`
+	User          string `json:"user"`
+	BinaryDir     string `json:"binaryDir"`
+	ConfigDir     string `json:"configDir"`
+}
+
+type PodBusiSvcBaseDetail struct {
+	*model.TensorRawContainerSvc
+	ContainerId   string             `json:"containerId"`
+	ContainerName string             `json:"containerName"`
+	PodName       string             `json:"podName"`
+	Ports         model.PortSlice    `json:"ports"`
+	Processes     model.ProcessSlice `json:"processes"`
+}
+
+func CountBusiSvcs(ctx context.Context, rdb *gorm.DB, queryOptions *BusiSvcQueryOption) (int64, error) {
+	ctx, cancel := context.WithTimeout(ctx, 9*time.Second)
+	defer cancel()
+
+	var cntNum int64
+	err := util.RetryWithBackoff(ctx, func() error {
+		oneCtx, oneCancel := context.WithTimeout(ctx, 4*time.Second)
+		defer oneCancel()
+
+		var db *gorm.DB
+		db = rdb.WithContext(oneCtx).Model(&model.TensorRawContainerSvc{})
+
+		if len(queryOptions.WhereEqCondition) > 0 {
+			db = db.Where(queryOptions.WhereEqCondition)
+		}
+		for k, v := range queryOptions.WhereLikeCondition {
+			db = db.Where(fmt.Sprintf("%s LIKE ?", k), GetLikeExpr(v))
+		}
+		db = db.Where("ivan_assets_raw_containers_svcs.status=0")
+		db = db.Joins("left join ivan_assets_raw_containers raw on  raw.id = ivan_assets_raw_containers_svcs.raw_container_id")
+		db = db.Where("raw.status=0")
+		if queryOptions.ContainerName != "" {
+			db = db.Where("raw.name like ?", GetLikeExpr(queryOptions.ContainerName))
+		}
+		return db.Count(&cntNum).Error
+	})
+	return cntNum, err
+}
+
+func GetBusiSvcs(ctx context.Context, rdb *gorm.DB, queryOptions *BusiSvcQueryOption, offset int, limit int) ([]*PodBusiSvcBase, error) {
+	rCtx, cancel := context.WithTimeout(ctx, 6000*time.Millisecond)
+	defer cancel()
+
+	var svcs []*PodBusiSvcBase
+	notFound := false
+	err := util.RetryWithBackoff(rCtx, func() error {
+		oneCtx, oneCancel := context.WithTimeout(rCtx, 2000*time.Millisecond)
+		defer oneCancel()
+
+		var db *gorm.DB
+		db = rdb.WithContext(oneCtx).Model(&model.TensorRawContainerSvc{}).
+			Select("ivan_assets_raw_containers_svcs.*, raw.id as containerId ,raw.name as containerName")
+		if len(queryOptions.WhereEqCondition) > 0 {
+			db.Where(queryOptions.WhereEqCondition)
+		}
+		for k, v := range queryOptions.WhereLikeCondition {
+			db = db.Where(fmt.Sprintf("%s LIKE ?", k), GetLikeExpr(v))
+		}
+		db = db.Where("ivan_assets_raw_containers_svcs.status=0")
+		db = db.Joins("left join ivan_assets_raw_containers raw on  raw.id = ivan_assets_raw_containers_svcs.raw_container_id")
+		db = db.Where("raw.status=0")
+		if queryOptions.ContainerName != "" {
+			db = db.Where("raw.name like ?", GetLikeExpr(queryOptions.ContainerName))
+		}
+		if offset >= 0 && limit >= 0 {
+			db.Offset(offset).Limit(limit)
+		}
+		err := db.Order("id ASC").Find(&svcs).Error
+		if err == gorm.ErrRecordNotFound {
+			notFound = true
+			return nil
+		}
+		return err
+	})
+	if notFound {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return svcs, nil
+}
+
+func GetBusiSvcDetail(ctx context.Context, rdb *gorm.DB, id int32) (*PodBusiSvcBaseDetail, error) {
+	rCtx, cancel := context.WithTimeout(ctx, 6000*time.Millisecond)
+	defer cancel()
+
+	detail := &PodBusiSvcBaseDetail{}
+	notFound := false
+	err := util.RetryWithBackoff(rCtx, func() error {
+		oneCtx, oneCancel := context.WithTimeout(rCtx, 2000*time.Millisecond)
+		defer oneCancel()
+
+		var db *gorm.DB
+		db = rdb.WithContext(oneCtx).Model(&model.TensorRawContainerSvc{}).
+			Select("ivan_assets_raw_containers_svcs.*, raw.id as containerId , raw.pod_name as podName ,raw.name as containerName,raw.processes,raw.ports").
+			Where("id=?", id)
+		db = db.Joins("left join ivan_assets_raw_containers raw on  raw.id = ivan_assets_raw_containers_svcs.raw_container_id")
+		err := db.Find(detail).Error
+		if err == gorm.ErrRecordNotFound {
+			notFound = true
+			return nil
+		}
+		return err
+	})
+	if notFound {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return detail, nil
+}
+
+type ExposeHostBase struct {
+	Id        uint32 `json:"id" gorm:"column:id;"`
+	IngressId uint32 `json:"ingressId" gorm:"column:ingressId;"`
+	WebDesc   string `json:"webDesc" gorm:"column:webDesc;"`
+	//HostIp         string `json:"hostIp"`
+	Protocol       string `json:"protocol" gorm:"column:protocol;"`
+	HostPort       string `json:"hostPort" gorm:"column:hostPort;"`
+	ContainerPort  string `json:"containerPort" gorm:"column:containerPort;"`
+	ContainerNames string `json:"containerNames" gorm:"column:containerNames;"`
+	BackendKind    string `json:"backendKind" gorm:"column:backendKind;"`
+	K8sSvcName     string `json:"k8sSvcName" gorm:"column:k8sSvcName;"`
+	SvcName        string `json:"svcName" gorm:"column:svcName;"`
+	RootDir        string `json:"rootDir" gorm:"column:rootDir;"`
+	ClusterKey     string `json:"clusterKey" gorm:"column:clusterKey;"`
+	Namespace      string `json:"namespace" gorm:"column:namespace;"`
+}
+
+func CountExposeHost(ctx context.Context, rdb *gorm.DB, webDesc, protocol string) (int64, error) {
+	ctx, cancel := context.WithTimeout(ctx, 9*time.Second)
+	defer cancel()
+
+	var cntNum int64
+	err := util.RetryWithBackoff(ctx, func() error {
+		oneCtx, oneCancel := context.WithTimeout(ctx, 4*time.Second)
+		defer oneCancel()
+
+		var db *gorm.DB
+		db = rdb.WithContext(oneCtx).Model(&model.TensorIngressRule{})
+		if len(webDesc) > 0 {
+			db = db.Where("web_desc like ?", GetLikeExpr(webDesc))
+		}
+		if protocol != "" {
+			db = db.Where("protocol = ?", GetLikeExpr(protocol))
+		}
+		db = db.Where("status =0 ")
+		return db.Count(&cntNum).Error
+	})
+	return cntNum, err
+}
+
+func GetExposeHosts(ctx context.Context, rdb *gorm.DB, webDesc, protocol string, offset int, limit int) ([]*ExposeHostBase, error) {
+	rCtx, cancel := context.WithTimeout(ctx, 10000*time.Millisecond)
+	defer cancel()
+
+	var baseList []*ExposeHostBase
+	var db *gorm.DB
+	db = rdb.WithContext(rCtx).Model(&model.TensorIngressRule{}).
+		Select("ivan_assets_ingress_rules.id ,ingress_id as ingressId,cluster_key as clusterKey ,namespace,web_desc as webDesc ," +
+			"protocol,service_port as hostPort,backend_kind as backendKind ,backend_name as k8sSvcName")
+	if len(webDesc) > 0 {
+		db = db.Where("web_desc like ?", GetLikeExpr(webDesc))
+	}
+	if protocol != "" {
+		db = db.Where("protocol = ?", GetLikeExpr(protocol))
+	}
+	db = db.Joins("join ivan_assets_ingresses  ingress on ingress.id= ivan_assets_ingress_rules.ingress_id")
+	db = db.Where("ivan_assets_ingress_rules.status =0 ")
+
+	if offset >= 0 && limit >= 0 {
+		db.Offset(offset).Limit(limit)
+	}
+	err := db.Order("ivan_assets_ingress_rules.id ASC").Scan(&baseList).Error
+	if err == gorm.ErrRecordNotFound {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	if len(baseList) == 0 {
+		return nil, nil
+	}
+
+	for _, base := range baseList {
+		k8sService := &model.TensorService{}
+		err := rdb.WithContext(rCtx).Model(&model.TensorService{}).Where("cluster_key = ? and namespace=? and name=? and status=0", base.ClusterKey, base.Namespace, base.K8sSvcName).Select("ports").
+			Find(&k8sService).Error
+		if err != nil {
+			logging.GetLogger().Err(err).Msgf("select service failed.")
+			if errors.Is(err, context.DeadlineExceeded) {
+				return nil, err
+			}
+			continue
+		}
+		// containerPort
+		for _, port := range k8sService.Ports {
+			if port.Port == base.HostPort {
+				base.ContainerPort = port.TargetPort
+				break
+			}
+		}
+		if base.ContainerPort == "" {
+			logging.GetLogger().Debug().Msgf("get ContainerPort failed.")
+			continue
+		}
+		//	containerNames
+		var podNames []string
+		err = rdb.WithContext(rCtx).Model(&model.TensorEndpoints{}).Select("sub.name").Where("ivan_assets_endpoints.cluster_key = ? and ivan_assets_endpoints.namespace=? and ivan_assets_endpoints.name=? and ivan_assets_endpoints.status=0", base.ClusterKey, base.Namespace, base.K8sSvcName).
+			Joins("join  ivan_assets_endpointsSubsets sub on sub.endpoints_id=ivan_assets_endpoints.id").Where("sub.status=0 and sub.target_ref_kind='Pod'").
+			Scan(&podNames).Error
+		if err != nil {
+			logging.GetLogger().Err(err).Msgf("get podNames failed.")
+			if errors.Is(err, context.DeadlineExceeded) {
+				return nil, err
+			}
+			continue
+		}
+		matchStr := fmt.Sprintf(`"ContainerPort":%s,`, base.ContainerPort)
+		type containerIdName struct {
+			Id   string `json:"id"`
+			Name string `json:"name"`
+		}
+		var containerIdNames []containerIdName
+		err = rdb.WithContext(rCtx).Model(&model.TensorRawContainer{}).Select("id,name").
+			Where("cluster_key = ? and namespace=? and pod_name in ? and status=0", base.ClusterKey, base.Namespace, podNames).
+			Where("ports like ? ", GetLikeExpr(matchStr)).
+			Scan(&containerIdNames).Error
+		if err != nil {
+			logging.GetLogger().Err(err).Msgf("get containerNames failed.")
+			if errors.Is(err, context.DeadlineExceeded) {
+				return nil, err
+			}
+			continue
+		}
+		var containerNames []string
+		for _, idName := range containerIdNames {
+			containerNames = append(containerNames, idName.Name)
+		}
+		if len(containerNames) == 0 {
+			continue
+		}
+		base.ContainerNames = strings.Join(containerNames, ",")
+		//busiSvc
+		type busiTemp struct {
+			SvcName string `json:"svcName"`
+			RootDir string `json:"rootDir"`
+		}
+		var busiSvc busiTemp
+		err = rdb.WithContext(rCtx).Model(&model.TensorRawContainerSvc{}).Select("svc_name,root_dir").
+			Where("pod_name = ? and port =? ", podNames[0], base.ContainerPort).
+			Scan(&busiSvc).Error
+		if err != nil {
+			logging.GetLogger().Err(err).Msgf("get busiSvc failed.")
+			if errors.Is(err, context.DeadlineExceeded) {
+				return nil, err
+			}
+			continue
+		}
+		base.SvcName = busiSvc.SvcName
+		base.RootDir = busiSvc.RootDir
+	}
+	return baseList, nil
+}
+
+type ExposeHostDetail struct {
+	*ExposeHostBase
+	User  string
+	Ports model.PortSlice `json:"ports"`
+}
+
+func GetExposeHostDetail(ctx context.Context, rdb *gorm.DB, id int64) (*ExposeHostDetail, error) {
+	rCtx, cancel := context.WithTimeout(ctx, 6000*time.Millisecond)
+	defer cancel()
+
+	detail := &ExposeHostDetail{}
+	db := rdb.WithContext(rCtx).Model(&model.TensorIngressRule{}).
+		Select("ivan_assets_ingress_rules.id ,ingress_id as ingressId,cluster_key as clusterKey ,namespace,web_desc as webDesc ," +
+			"protocol,service_port as hostPort,backend_kind as backendKind ,backend_name as k8sSvcName")
+	db = db.Joins("join ivan_assets_ingresses  ingress on ingress.id= ivan_assets_ingress_rules.ingress_id")
+	err := db.Where("ivan_assets_ingress_rules.id=?", id).Scan(detail).Error
+	if err != nil {
+		logging.GetLogger().Err(err).Msgf("select service failed.")
+		if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, gorm.ErrRecordNotFound) {
+			return detail, err
+		}
+	}
+
+	k8sService := &model.TensorService{}
+	err = rdb.WithContext(rCtx).Model(&model.TensorService{}).Where("cluster_key = ? and namespace=? and name=? and status=0", detail.ClusterKey, detail.Namespace, detail.K8sSvcName).Select("ports").
+		Find(k8sService).Error
+	if err != nil {
+		logging.GetLogger().Err(err).Msgf("select service failed.")
+		if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, gorm.ErrRecordNotFound) {
+			return detail, err
+		}
+	}
+	// containerPort
+	for _, port := range k8sService.Ports {
+		if port.Port == detail.HostPort {
+			detail.ContainerPort = port.TargetPort
+			break
+		}
+	}
+	if detail.ContainerPort == "" {
+		logging.GetLogger().Debug().Msgf("get ContainerPort failed.")
+		return detail, nil
+	}
+	//	containerNames
+	var podNames []string
+	err = rdb.WithContext(rCtx).Model(&model.TensorEndpoints{}).Select("sub.name").Where("ivan_assets_endpoints.cluster_key = ? and ivan_assets_endpoints.namespace=? and ivan_assets_endpoints.name=? and ivan_assets_endpoints.status=0", detail.ClusterKey, detail.Namespace, detail.K8sSvcName).
+		Joins("join  ivan_assets_endpointsSubsets sub on sub.endpoints_id=ivan_assets_endpoints.id").Where("sub.status=0 and sub.target_ref_kind='Pod'").
+		Scan(&podNames).Error
+	if err != nil || len(podNames) == 0 {
+		logging.GetLogger().Err(err).Msgf("get podNames failed.")
+		if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, gorm.ErrRecordNotFound) {
+			return detail, err
+		}
+		return detail, nil
+	}
+	matchStr := fmt.Sprintf(`"ContainerPort":%s,`, detail.ContainerPort)
+	type containerIdName struct {
+		Id    string          `json:"id"`
+		Name  string          `json:"name"`
+		Ports model.PortSlice `json:"ports" `
+	}
+	var containerIdNames []containerIdName
+	err = rdb.WithContext(rCtx).Model(&model.TensorRawContainer{}).Select("id,name,ports").
+		Where("cluster_key = ? and namespace=? and pod_name in ? and status=0", detail.ClusterKey, detail.Namespace, podNames).
+		Where("ports like ? ", GetLikeExpr(matchStr)).
+		Scan(&containerIdNames).Error
+	if err != nil {
+		logging.GetLogger().Err(err).Msgf("get containerNames failed.")
+		if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, gorm.ErrRecordNotFound) {
+			return detail, nil
+		}
+		return detail, nil
+	}
+	var containerNames []string
+	var ports model.PortSlice
+	for _, idName := range containerIdNames {
+		containerNames = append(containerNames, idName.Name)
+		ports = append(ports, idName.Ports...)
+	}
+	if len(containerNames) == 0 {
+		return detail, nil
+	}
+	detail.ContainerNames = strings.Join(containerNames, ",")
+	detail.Ports = ports
+	//busiSvc
+	type busiTemp struct {
+		SvcName string `json:"svcName"`
+		RootDir string `json:"rootDir"`
+		User    string `json:"user"`
+	}
+	var busiSvc busiTemp
+	err = rdb.WithContext(rCtx).Model(&model.TensorRawContainerSvc{}).Select("svc_name,root_dir,user").
+		Where("pod_name = ? and port =? ", podNames[0], detail.ContainerPort).
+		Scan(&busiSvc).Error
+	if err != nil {
+		logging.GetLogger().Err(err).Msgf("get busiSvc failed.")
+		if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, gorm.ErrRecordNotFound) {
+			return detail, err
+		}
+		return detail, nil
+	}
+	detail.SvcName = busiSvc.SvcName
+	detail.RootDir = busiSvc.RootDir
+	detail.User = busiSvc.User
+
+	return detail, nil
 }
 
 func DeleteRawContainerWithRedis(ctx context.Context, rdb *gorm.DB, redisClient *redisearch.Client, clusterKey, id string) error {
@@ -3285,15 +5812,12 @@ func DeleteRawContainerWithRedis(ctx context.Context, rdb *gorm.DB, redisClient 
 	defer cancel()
 
 	return rdb.WithContext(rCtx).Transaction(func(tx *gorm.DB) error {
-		err := tx.Model(&model.TensorRawContainer{}).Where("cluster_key = ? and id = ?", clusterKey, id).Updates(map[string]interface{}{
-			"status":     assets.Exited,
-			"updated_at": time.Now(),
-		}).Error
+		err := deleteRawContainerWithTx(tx, clusterKey, id)
 
 		if err != nil {
 			return err
 		}
-		err = deleteResourceImageByRawContainer(rCtx, redisClient, util.GenerateUUID(id))
+		err = deleteResourceImageByRawContainer(rCtx, redisClient, []uint32{util.GenerateUUID(id)})
 		if err != nil {
 			return err
 		}
@@ -3305,10 +5829,25 @@ func DeleteRawContainer(ctx context.Context, rdb *gorm.DB, clusterKey, id string
 	rCtx, cancel := context.WithTimeout(ctx, 2500*time.Millisecond)
 	defer cancel()
 
-	return rdb.WithContext(rCtx).Model(&model.TensorRawContainer{}).Where("cluster_key = ? and id = ?", clusterKey, id).Updates(map[string]interface{}{
+	return rdb.WithContext(rCtx).Transaction(func(tx *gorm.DB) error {
+		return deleteRawContainerWithTx(tx, clusterKey, id)
+	})
+
+}
+
+func deleteRawContainerWithTx(tx *gorm.DB, clusterKey, id string) error {
+	err := tx.Model(&model.TensorRawContainer{}).Where("cluster_key = ? and id = ?", clusterKey, id).Updates(map[string]interface{}{
 		"status":     assets.Exited,
 		"updated_at": time.Now(),
 	}).Error
+	if err != nil {
+		return err
+	}
+	err = tx.Where("raw_container_id=?", id).Delete(&model.TensorRawContainerSvc{}).Error
+	if err != nil {
+		return err
+	}
+	return tx.Where("raw_container_id=?", id).Delete(&model.TensorRawContainerFramework{}).Error
 }
 
 func DeleteRawContainerSyncReason(ctx context.Context, rdb *gorm.DB, clusterKey, namespace, id string) error {
@@ -3379,23 +5918,30 @@ func CleanUpRawContainerWithRedis(ctx context.Context, rdb *gorm.DB, redisClient
 
 		err = rdb.WithContext(oneCtx).Transaction(func(tx *gorm.DB) error {
 			dbErr := tx.Model(&model.TensorRawContainer{}).
-				Where("cluster_key = ? and node_name = ? and updated_at < ?", clusterKey, nodeName, ts).Updates(map[string]interface{}{
+				Where("cluster_key = ? and node_name = ? and updated_at < ? and status <5 ", clusterKey, nodeName, ts).Updates(map[string]interface{}{
 				"status":     assets.Exited,
 				"updated_at": time.Now(),
 			}).Error
 			if dbErr != nil {
+				return dbErr
+			}
+			if len(keys) == 0 {
+				return nil
+			}
+			containerUuid := make([]uint32, len(keys))
+			// 重复计算container_uuid
+			for i, containerId := range keys {
+				containerUuid[i] = util.GenerateUUID(containerId)
+			}
+			logging.GetLogger().Info().Msgf("CleanUpRawContainer delete Zset:container_images  nodeName:%s from redis: %v", nodeName, containerUuid)
+			err := deleteResourceImageByRawContainer(rCtx, redisClient, containerUuid)
+			if err != nil {
 				return err
 			}
-
-			if len(keys) != 0 {
-				logging.GetLogger().Info().Msgf("delete raw container from redis: %v", keys)
-				return redisClient.DeleteDoc(oneCtx, keys...)
-			}
-			return nil
+			logging.GetLogger().Info().Msgf("CleanUpRawContainer delete raw container nodeName:%s from redis: %v", nodeName, keys)
+			return redisClient.DeleteDoc(oneCtx, keys...)
 		})
-
 		return err
-
 	})
 }
 
@@ -3404,15 +5950,38 @@ func CleanUpRawContainer(ctx context.Context, rdb *gorm.DB, ts time.Time, cluste
 	rCtx, cancel := context.WithTimeout(ctx, 2500*time.Millisecond)
 	defer cancel()
 
-	return rdb.WithContext(rCtx).Model(&model.TensorRawContainer{}).
-		Where("cluster_key = ? and node_name = ? and updated_at < ? and status < 5", clusterKey, nodeName, ts).Updates(map[string]interface{}{
-		"status":     assets.Exited,
-		"updated_at": time.Now(),
-	}).Error
+	return rdb.WithContext(rCtx).Transaction(func(tx *gorm.DB) error {
+		//err := rdb.Model(&model.TensorRawContainer{}).
+		//	Where("cluster_key = ? and node_name = ? and updated_at < ? and status < 5", clusterKey, nodeName, ts).Updates(map[string]interface{}{
+		//	"status":     assets.Exited,
+		//	"updated_at": time.Now(),
+		//}).Error
+		var rawS []model.TensorRawContainer
+		err := rdb.Model(&rawS).Clauses(clause.Returning{Columns: []clause.Column{{Name: "id"}}}).Where("cluster_key = ? and node_name = ? and updated_at < ? and status < 5", clusterKey, nodeName, ts).Updates(map[string]interface{}{
+			"status":     assets.Exited,
+			"updated_at": time.Now(),
+		}).Error
+		if err != nil {
+			return err
+		}
+		var rawIds []string
+		for _, raw := range rawS {
+			rawIds = append(rawIds, raw.ContainerID)
+		}
+		logging.GetLogger().Info().Msgf("本次容器清理，clean count:%d", len(rawIds))
+		if len(rawIds) == 0 {
+			return nil
+		}
+		err = rdb.Where(" updated_at < ? and status =0 and raw_container_id in ?", ts, rawIds).Delete(&model.TensorRawContainerSvc{}).Error
+		if err != nil {
+			return err
+		}
+		return rdb.Where(" updated_at < ? and status =0 and raw_container_id in ?", ts, rawIds).Delete(&model.TensorRawContainerFramework{}).Error
+	})
 }
 
 func DeleteClusterAll(ctx context.Context, rdb *gorm.DB, clusterKey string) error {
-	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, 8*time.Second)
 	defer cancel()
 
 	return rdb.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
@@ -3430,12 +5999,85 @@ func DeleteClusterAll(ctx context.Context, rdb *gorm.DB, clusterKey string) erro
 			return err
 		}
 
+		err = tx.Table(model.TensorRawContainerFramework{}.TableName()).
+			Joins("join ivan_assets_raw_containers on ivan_assets_raw_containers.id =  ivan_assets_raw_containers_frameworks.raw_container_id").
+			Where("ivan_assets_raw_containers.cluster_key = ?", clusterKey).Delete(&model.TensorRawContainerFramework{}).Error
+		if err != nil {
+			return err
+		}
+
+		err = tx.Table(model.TensorRawContainerSvc{}.TableName()).
+			Joins("join ivan_assets_raw_containers on ivan_assets_raw_containers.id =  ivan_assets_raw_containers_svcs.raw_container_id").
+			Where("ivan_assets_raw_containers.cluster_key = ?", clusterKey).Delete(&model.TensorRawContainerSvc{}).Error
+		if err != nil {
+			return err
+		}
+
 		err = tx.Where("cluster_key = ?", clusterKey).Delete(&model.TensorRawContainer{}).Error
 		if err != nil {
 			return err
 		}
 
 		err = tx.WithContext(ctx).Where("cluster_key = ?", clusterKey).Delete(&model.TensorNamespace{}).Error
+		if err != nil {
+			return err
+		}
+
+		err = tx.WithContext(ctx).Where("cluster_key = ?", clusterKey).Delete(&model.TensorService{}).Error
+		if err != nil {
+			return err
+		}
+
+		var endpointsIdList []uint32
+		endpoints := &model.TensorEndpoints{}
+		err = tx.WithContext(ctx).Table(endpoints.TableName()).Where("cluster_key = ?", clusterKey).Pluck("id", &endpointsIdList).Error
+		if err != nil {
+			return err
+		}
+		if len(endpointsIdList) > 0 {
+			err = tx.WithContext(ctx).Where("id in ?", endpointsIdList).Delete(endpoints).Error
+			if err != nil {
+				return err
+			}
+			err = tx.WithContext(ctx).Where("endpoints_id in ?", endpointsIdList).Delete(&model.TensorEndpointsSubset{}).Error
+			if err != nil {
+				return err
+			}
+		}
+
+		var ingressIds []uint32
+		ingress := &model.TensorIngress{}
+		err = tx.WithContext(ctx).Table(ingress.TableName()).Where("cluster_key = ?", clusterKey).Pluck("id", &ingressIds).Error
+		if err != nil {
+			return err
+		}
+		if len(ingressIds) > 0 {
+			err = tx.WithContext(ctx).Where("id in ?", ingressIds).Delete(ingress).Error
+			if err != nil {
+				return err
+			}
+			err = tx.WithContext(ctx).Where("ingress_id in ?", ingressIds).Delete(&model.TensorIngressRule{}).Error
+			if err != nil {
+				return err
+			}
+		}
+
+		err = tx.WithContext(ctx).Where("cluster_key = ?", clusterKey).Delete(&model.TensorSecret{}).Error
+		if err != nil {
+			return err
+		}
+
+		err = tx.WithContext(ctx).Where("cluster_key = ?", clusterKey).Delete(&model.TensorPV{}).Error
+		if err != nil {
+			return err
+		}
+
+		err = tx.WithContext(ctx).Where("cluster_key = ?", clusterKey).Delete(&model.TensorPVC{}).Error
+		if err != nil {
+			return err
+		}
+
+		err = tx.WithContext(ctx).Where("cluster_key = ?", clusterKey).Delete(&model.TensorNamespaceLabel{}).Error
 		if err != nil {
 			return err
 		}

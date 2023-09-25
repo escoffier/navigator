@@ -3,6 +3,8 @@ package main
 import (
 	"context"
 	"fmt"
+	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/nodeinfo/handler"
+	svcdiscovery "gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/nodeinfo/svc-discovery"
 	"math/rand"
 	"os"
 	"os/signal"
@@ -144,16 +146,33 @@ func initNodeInfos(hostName, hostIP, clusterKey, myNamespace string, policyCli m
 		}
 		logging.Get().Info().Msgf("new containerd client success!")
 	}
-
+	discoveryHandler := svcdiscovery.NewDiscoveryHandler("/host", containerInfo.RunCmd)
 	k8sInfo.SetContainerManager(containerInfo)
 	containerInfo.AddEventHandler(nodeinfo.ContainerEventHandlerFuncs{
 		AddFunc: func(object interface{}) {
-			ctx, cancel := context.WithTimeout(context.Background(), time.Second*1)
+			ctx, cancel := context.WithTimeout(context.Background(), time.Second*3)
 			defer cancel()
 
 			container, ok := object.(*model.TensorRawContainer)
 			if !ok {
 				return
+			}
+			assetsContainer := &assets.TensorRawContainer{
+				TensorRawContainer: container,
+				Discovery:          &assets.TensorRawContainerDiscovery{},
+			}
+			// 服务识别
+			if container.Pid > 0 {
+				logging.Get().Info().Msgf("discovery pid:%d", container.Pid)
+				frameworkInfos, svcInfos, err := discoveryHandler.Discovery(container.ContainerID, strconv.Itoa(container.Pid), container.Path)
+				if err != nil {
+					logging.Get().Err(err).Msgf("discovery rawContainer failed ,containerName:%s ,pid:%d", container.Name, container.Pid)
+				}
+				if len(frameworkInfos) > 0 || len(svcInfos) > 0 {
+					logging.Get().Err(err).Msgf("discovery  containerName:%s  result. frameworkInfos:%d, svcInfos:%d", container.Name, len(frameworkInfos), len(svcInfos))
+				}
+				assetsContainer.Discovery.Frameworks = frameworkInfos
+				assetsContainer.Discovery.Services = svcInfos
 			}
 			if (!container.K8sManaged) && (container.IP != "" || container.IPV6 != "") {
 				ip := container.IP
@@ -165,7 +184,7 @@ func initNodeInfos(hostName, hostIP, clusterKey, myNamespace string, policyCli m
 					ContainerPid:  container.Pid,
 				})
 			}
-			agent.HandlerContainerEvent(ctx, clusterKey, assets.ActionAdd, container)
+			agent.HandlerContainerEvent(ctx, clusterKey, assets.ActionAdd, assetsContainer)
 		},
 		UpdateFunc: func(oldObj, newObj interface{}) {
 			ctx, cancel := context.WithTimeout(context.Background(), time.Second*1)
@@ -176,6 +195,7 @@ func initNodeInfos(hostName, hostIP, clusterKey, myNamespace string, policyCli m
 			if !ok {
 				return
 			}
+
 			if (!container.K8sManaged) && (container.IP != "" || container.IPV6 != "") {
 				ip := container.IP
 				if container.IPV6 != "" {
@@ -186,7 +206,10 @@ func initNodeInfos(hostName, hostIP, clusterKey, myNamespace string, policyCli m
 					ContainerPid:  container.Pid,
 				})
 			}
-			agent.HandlerContainerEvent(ctx, clusterKey, assets.ActionUpdate, container)
+			final := &assets.TensorRawContainer{
+				TensorRawContainer: container,
+			}
+			agent.HandlerContainerEvent(ctx, clusterKey, assets.ActionUpdate, final)
 		},
 		DeleteFunc: func(obj interface{}) {
 			ctx, cancel := context.WithTimeout(context.Background(), time.Second*1)
@@ -205,7 +228,10 @@ func initNodeInfos(hostName, hostIP, clusterKey, myNamespace string, policyCli m
 				k8sInfo.DeleteResData(ip)
 			}
 			logging.Get().Debug().Msgf("delete container: %s, action %v", container.ContainerID, assets.ActionDelete)
-			agent.HandlerContainerEvent(ctx, clusterKey, assets.ActionDelete, container)
+			final := &assets.TensorRawContainer{
+				TensorRawContainer: container,
+			}
+			agent.HandlerContainerEvent(ctx, clusterKey, assets.ActionDelete, final)
 		},
 	})
 
@@ -321,6 +347,7 @@ func Run(ctx context.Context, stopCh chan struct{}) error {
 	nodeKey := fmt.Sprintf("%s-daemon", os.Getenv("MY_NODE_NAME"))
 	rpcStream := rpcstream.NewStreamFactory(rpcstream.WithClusterKey(nodeKey)).Client(clusterGrpcAddr)
 	_ = rpcStream.AddHandler(&pb.ComplianceScanReq{}, &scapper.ScanHandler{Writer: mqWriter})
+	_ = rpcStream.AddHandler(&pb.NodeLoadReq{}, &handler.NodeLoadHandler{})
 	rpcStream.Start()
 
 	clusterManager := k8s.NewClusterInfoManager(clusterAddr)

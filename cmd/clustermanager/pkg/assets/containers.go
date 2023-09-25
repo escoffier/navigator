@@ -9,7 +9,6 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 	"gitlab.com/security-rd/go-pkg/databases"
 	"gitlab.com/security-rd/go-pkg/logging"
-	corev1 "k8s.io/api/core/v1"
 	"runtime/debug"
 	"sync/atomic"
 	"time"
@@ -74,10 +73,6 @@ func (cb *PodContainerCallBack) OnTensorResourceEvent(*assets.TensorResource, *a
 	return nil
 }
 
-func (cb *PodContainerCallBack) OnNodeEvent(*corev1.Node, *corev1.Node, assets.Action) error {
-	return nil
-}
-
 func (cb *PodContainerCallBack) AfterDataSynced(_ context.Context, dataSynced bool, clusterKey string) {
 	if dataSynced {
 		cb.inputQueue.Add(syncSignal{clusterKey: clusterKey})
@@ -98,6 +93,31 @@ func (cb *PodContainerCallBack) OnTensorRole(*assets.TensorRole, assets.Action) 
 }
 
 func (cb *PodContainerCallBack) OnTensorClusterRole(*assets.TensorClusterRole, assets.Action) error {
+	return nil
+}
+
+func (cb *PodContainerCallBack) OnTensorIngress(*assets.TensorIngress, assets.Action) error {
+	// TODO implement me
+	panic("implement me")
+}
+
+func (cb *PodContainerCallBack) OnTensorService(*assets.TensorService, assets.Action) error {
+	return nil
+}
+
+func (cb *PodContainerCallBack) OnTensorEndpoints(*assets.TensorEndpoints, assets.Action) error {
+	return nil
+}
+
+func (cb *PodContainerCallBack) OnTensorSecret(*assets.TensorSecret, assets.Action) error {
+	return nil
+}
+
+func (cb *PodContainerCallBack) OnTensorPV(*assets.TensorPV, assets.Action) error {
+	return nil
+}
+
+func (cb *PodContainerCallBack) OnTensorPVC(*assets.TensorPVC, assets.Action) error {
 	return nil
 }
 

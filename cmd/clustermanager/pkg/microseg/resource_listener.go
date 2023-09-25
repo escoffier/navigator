@@ -11,7 +11,6 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 	"gitlab.com/security-rd/go-pkg/databases"
 	"gorm.io/gorm/clause"
-	corev1 "k8s.io/api/core/v1"
 )
 
 const (
@@ -111,9 +110,6 @@ func (cl *ResourcesClusterListener) removeMicrosegResource(ctx context.Context, 
 	})
 }
 
-func (cl *ResourcesClusterListener) OnNodeEvent(newNode, oldNode *corev1.Node, action assets.Action) error {
-	return nil
-}
 func (cl *ResourcesClusterListener) OnTensorResourceEvent(newResource, oldResource *assets.TensorResource, action assets.Action) error {
 
 	switch action {
@@ -180,6 +176,30 @@ func (cl *ResourcesClusterListener) OnTensorRole(tensorRole *assets.TensorRole, 
 }
 
 func (cl *ResourcesClusterListener) OnTensorClusterRole(tensorRole *assets.TensorClusterRole, action assets.Action) error {
+	return nil
+}
+
+func (cl *ResourcesClusterListener) OnTensorIngress(*assets.TensorIngress, assets.Action) error {
+	return nil
+}
+
+func (cl *ResourcesClusterListener) OnTensorService(*assets.TensorService, assets.Action) error {
+	return nil
+}
+
+func (cl *ResourcesClusterListener) OnTensorEndpoints(*assets.TensorEndpoints, assets.Action) error {
+	return nil
+}
+
+func (cl *ResourcesClusterListener) OnTensorSecret(*assets.TensorSecret, assets.Action) error {
+	return nil
+}
+
+func (cl *ResourcesClusterListener) OnTensorPV(*assets.TensorPV, assets.Action) error {
+	return nil
+}
+
+func (cl *ResourcesClusterListener) OnTensorPVC(*assets.TensorPVC, assets.Action) error {
 	return nil
 }
 

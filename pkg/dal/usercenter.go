@@ -250,6 +250,30 @@ func SelectUser(ctx context.Context, rdb *gorm.DB, userName string) (bool, *mode
 	return true, &queryUser, nil
 }
 
+type UserNameAccount struct {
+	UserName string `gorm:"column:username" json:"userName"`
+	Account  string `gorm:"column:account" json:"account"`
+}
+
+func SelectUserAccountByNames(ctx context.Context, rdb *gorm.DB, userNames []string) (bool, map[string]*UserNameAccount, error) {
+	var data []*UserNameAccount
+	pgCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	defer cancel()
+
+	err := rdb.WithContext(pgCtx).Model(&model.User{}).Select("username,account").Where("username in ?", userNames).Scan(&data).Error
+	if err == gorm.ErrRecordNotFound {
+		return false, nil, nil
+	}
+	if err != nil {
+		return false, nil, err
+	}
+	resultMap := make(map[string]*UserNameAccount)
+	for _, d := range data {
+		resultMap[d.UserName] = d
+	}
+	return true, resultMap, nil
+}
+
 func SelectUserByAccount(ctx context.Context, rdb *gorm.DB, account string) (bool, *model.User, error) {
 	queryUser := model.User{}
 

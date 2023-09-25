@@ -3,14 +3,15 @@ package api
 import (
 	"context"
 	"fmt"
+	"github.com/google/go-containerregistry/pkg/name"
+	"github.com/jinzhu/copier"
 	"io"
 	"net/http"
 	"os"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
-
-	"github.com/google/go-containerregistry/pkg/name"
 
 	"github.com/go-chi/chi"
 	json "github.com/json-iterator/go"
@@ -24,6 +25,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/defense"
 	. "gitlab.com/piccolo_su/vegeta/pkg/apperror"
 	assetsPkg "gitlab.com/piccolo_su/vegeta/pkg/assets"
+	pkgAssets "gitlab.com/piccolo_su/vegeta/pkg/assets"
 	"gitlab.com/piccolo_su/vegeta/pkg/dal"
 	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
@@ -52,6 +54,7 @@ func (api *api) assets() func(chi.Router) {
 		// TODO: support redis search
 		r.Get("/pods", api.getPods())
 		r.Get("/podsByOwner", api.getPodsByOwner())
+		r.Get("/podsBySvc", api.getPodsBySvc())
 
 		r.Get("/resources/count", api.countResource())
 		r.Get("/containers/count", api.countContainers())
@@ -73,7 +76,7 @@ func (api *api) assets() func(chi.Router) {
 			r.Get("/containers", api.getContainers())
 		}
 		// TODO: support redis search
-		r.Get("/rawContainers", api.getRawContainers())
+		r.Get("/rawContainers", api.getRawContainersWithFramework())
 		r.Get("/rawContainersByPod", api.getRawContainersByPod())
 		r.Get("/rawContainers/count", api.countRawContainers())
 		r.Get("/rawContainer/{containerID}", api.getRawContainer())
@@ -84,12 +87,44 @@ func (api *api) assets() func(chi.Router) {
 		r.Get("/cluster/{cluster_key}/namespace/{namespace}/kind/{kind}/resources/{name}", api.getResource())
 		r.Get("/cluster/{cluster_key}/namespace/{namespace}/pods/{name}", api.getPod())
 		r.Get("/cluster/{cluster_key}/nodes/{name}", api.getNode())
+		r.Get("/cluster/{cluster_key}/nodes/withCount/{name}", api.getNodeWithCount())
 
 		r.Get("/applications", api.getApplications())
 		r.Get("/applications/count", api.countApplications())
 		r.Get("/applications/types", api.getApplicationTypes())
 		r.Get("/applications/versions", api.getApplicationVersions())
 		r.Get("/applications/targets", api.getApplicationTargets())
+
+		// ingress
+		r.Get("/ingresses", api.getIngresses())
+		r.Get("/cluster/{cluster_key}/namespace/{namespace}/ingresses/{ingress_name}", api.getIngressBase())
+		r.Get("/ingresses/backendKinds", api.getIngressBackendKinds())
+		r.Get("/ingresses/{ingress_id}/rules", api.getIngressRules())
+		// service
+		r.Get("/services", api.getServices())
+		r.Get("/cluster/{cluster_key}/namespace/{namespace}/services/{service_name}", api.getService())
+		// endpoints
+		r.Get("/endpoints", api.getEndpointsList())
+		r.Get("/cluster/{cluster_key}/namespace/{namespace}/endpoints/{endpoints_name}", api.getEndpointsBase())
+		r.Get("/endpoints/SubsetKinds", api.getEndpointSubsetKinds())
+		r.Get("/endpoints/{endpoints_id}/subsets", api.getEndpointsSubsets())
+		r.Get("/secrets", api.getSecrets())
+		r.Get("/pvs", api.getPVs())
+		r.Get("/pvcs", api.getPVCs())
+		// ns's labels
+		r.Get("/namespaceLabels", api.getNamespaceLabels())
+		r.Post("/namespaceLabel", api.addNamespaceLabel())
+		r.Put("/namespaceLabel/{label_id}", api.updateNamespaceLabel())
+		r.Delete("/namespaceLabel/{label_id}", api.deleteNamespaceLabels())
+		//服务识别
+		r.Get("/busiServices", api.getBusiServices())
+		r.Get("/busiServices/db", api.getDbBusiServices())
+		r.Get("/busiServices/web", api.getWebBusiServices())
+		r.Get("/busiService/{id}", api.getBusiService())
+		r.Get("/busiServiceKind", api.getBusiServiceKind())
+		// 站点
+		r.Get("/exposeHosts", api.getExposeHosts())
+		r.Get("/exposeHost/{id}", api.getExposeHostDetail())
 	}
 }
 
@@ -540,9 +575,9 @@ func (api *api) updateClusterInfo() http.HandlerFunc {
 // @Router /api/v2/platform/assets/cluster
 func (api *api) deleteCluster() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+		ctx, cancel := context.WithTimeout(r.Context(), 8*time.Second)
 		defer cancel()
-
+		now := time.Now()
 		clusterKey := chi.URLParam(r, "clusterKey")
 		resSvc, ok := assets.GetResourcesService(ctx)
 		if !ok {
@@ -572,7 +607,8 @@ func (api *api) deleteCluster() http.HandlerFunc {
 		if err != nil {
 			logging.Get().Warn().Err(fmt.Errorf("delete bait services in cluster error: %v", err))
 		}
-
+		second := now.Sub(time.Now())
+		logging.Get().Debug().Msgf("deleteCluster grpc api cost: %d ms", second.Milliseconds())
 		err = resSvc.DeleteCluster(ctx, clusterKey)
 		if err != nil {
 			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, fmt.Errorf("delete cluster error: %v", err)))
@@ -947,7 +983,7 @@ func (req *GetResourceFuzzy) Render(r *http.Request) error {
 	return nil
 }
 
-func (req *GetResourceFuzzy) Execute(ctx context.Context) ([]*model.TensorResource, int64, error) {
+func (req *GetResourceFuzzy) Execute(ctx context.Context) ([]*assets.TensorResourceView, int64, error) {
 	resSvc, ok := assets.GetResourcesService(ctx)
 	if !ok {
 		return nil, 0, NewAnError(http.StatusInternalServerError, errors.New("service instance get error"))
@@ -969,9 +1005,10 @@ func (req *GetResourceFuzzy) Execute(ctx context.Context) ([]*model.TensorResour
 	if req.Name != "" {
 		rQuery = rQuery.WithFuzzyName(req.Name)
 	}
+	rQuery.WithUserAccount = true
 
 	var (
-		resources []*model.TensorResource
+		resources []*assets.TensorResourceView
 		totalCnt  int64
 		err       error
 	)
@@ -979,8 +1016,7 @@ func (req *GetResourceFuzzy) Execute(ctx context.Context) ([]*model.TensorResour
 	if req.UseRedis {
 		resources, totalCnt, err = resSvc.GetResourceWithRedis(ctx, rQuery, req.Offset, req.Limit)
 	} else {
-		resources, totalCnt, err = resSvc.GetResources(ctx, rQuery, req.Offset, req.Limit)
-
+		resources, totalCnt, err = resSvc.GetResourcesWithUserAccount(ctx, rQuery, req.Offset, req.Limit)
 	}
 
 	if err != nil {
@@ -993,16 +1029,16 @@ func (req *GetResourceFuzzy) Execute(ctx context.Context) ([]*model.TensorResour
 
 func (api *api) getResourcesFuzzy() http.HandlerFunc {
 	type resource struct {
-		Cluster   string   `json:"cluster"`
-		Namespace string   `json:"namespace"`
-		Kind      string   `json:"kind"`
-		Name      string   `json:"name"`
-		UID       string   `json:"uid"`
-		Alias     string   `json:"alias"`
-		Managers  []string `json:"managers"`
-		Authority string   `json:"authority"`
+		Cluster   string                 `json:"cluster"`
+		Namespace string                 `json:"namespace"`
+		Kind      string                 `json:"kind"`
+		Name      string                 `json:"name"`
+		UID       string                 `json:"uid"`
+		Alias     string                 `json:"alias"`
+		Managers  []*dal.UserNameAccount `json:"managers"`
+		Authority string                 `json:"authority"`
 	}
-	modelToResource := func(rm *model.TensorResource) *resource {
+	modelToResource := func(rm *assets.TensorResourceView) *resource {
 		r := new(resource)
 		r.Cluster = rm.ClusterKey
 		r.Namespace = rm.Namespace
@@ -1432,6 +1468,71 @@ func (api *api) getPodsByOwner() http.HandlerFunc {
 		err := req.Render(r)
 		if err != nil {
 			logging.Get().Err(err).Msgf("render GetPodsByOwner body failed")
+			RespAndLog(w, ctx, NewAnError(http.StatusBadRequest, err))
+			return
+		}
+		pods, cnt, err := req.Execute(ctx)
+		if err != nil {
+			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, fmt.Errorf("get resource pod by owner err: %v", err)))
+			return
+		}
+		response.Ok(w, response.WithItems(pods), response.WithTotalItems(cnt))
+	}
+}
+
+type PodsBySvcReq struct {
+	Namespace  string
+	ClusterKey string
+	SvcName    string
+	Query      string //pod_name
+	Limit      int
+	Offset     int
+}
+
+func (req *PodsBySvcReq) Render(r *http.Request) error {
+	limit, offset, err := getLimitAndOffset(r)
+	if err != nil {
+		return err
+	}
+	req.Limit = limit
+	req.Offset = offset
+	req.ClusterKey = getNormalizedQueryParam(r, "cluster_key")
+	req.Namespace = getNormalizedQueryParam(r, "namespace")
+	req.SvcName = getNormalizedQueryParam(r, "svc_name")
+	req.Query, _ = param.QueryString(r, "query")
+	return nil
+}
+
+func (req *PodsBySvcReq) Execute(ctx context.Context) ([]*model.PodResourceRelation, int64, error) {
+
+	resSvc, ok := assets.GetResourcesService(ctx)
+	if !ok {
+		return nil, 0, NewAnError(http.StatusInternalServerError, errors.New("get resource service err"))
+	}
+	var (
+		pods []*model.PodResourceRelation
+		cnt  int64
+		err  error
+	)
+	r := assets.PodsBySvcReq{
+		Namespace:  req.Namespace,
+		ClusterKey: req.ClusterKey,
+		SvcName:    req.SvcName,
+		Query:      req.Query,
+	}
+	pods, cnt, err = resSvc.GetPodsBySvc(ctx, r, req.Offset, req.Limit)
+
+	return pods, cnt, err
+}
+
+func (api *api) getPodsBySvc() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancelFunc := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancelFunc()
+		req := &PodsBySvcReq{}
+		err := req.Render(r)
+		if err != nil {
+			logging.Get().Err(err).Msgf("render getPodsBySvc body failed")
 			RespAndLog(w, ctx, NewAnError(http.StatusBadRequest, err))
 			return
 		}
@@ -2235,12 +2336,12 @@ func (req *GetRawContainers) Execute(ctx context.Context) ([]*model.TensorRawCon
 	return containers, totalCnt, err
 }
 
-func (api *api) getRawContainers() http.HandlerFunc {
+func (api *api) getRawContainersWithFramework() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 
-		req := &GetRawContainers{UseRedis: true}
+		req := &GetRawContainersWithFramework{UseRedis: true}
 
 		err := req.Render(r)
 		if err != nil {
@@ -2259,6 +2360,93 @@ func (api *api) getRawContainers() http.HandlerFunc {
 			response.WithStartIndex(int64(req.Offset+len(containers))),
 		)
 	}
+}
+
+type GetRawContainersWithFramework struct {
+	Limit            int      `in:"query" name:"limit"`
+	Offset           int      `in:"query" name:"offset"`
+	ClusterKey       string   `in:"query" name:"cluster_key"`
+	NodeNames        []string `in:"query" name:"node_name"`
+	Namespaces       []string `in:"query" name:"namespace"`
+	PodNames         []string `in:"query" name:"pod_name"`
+	ContainerName    string   `in:"query" name:"container_name"`
+	K8sManaged       *bool    `in:"query" name:"k8s_managed"`
+	Status           []int    `in:"query" name:"status"`
+	ResourceNames    []string `in:"query" name:"resource_name"`
+	UseRedis         bool     `in:"-"`
+	FrameworkName    string   `in:"query" name:"framework_name"`
+	FrameworkVersion string   `in:"query" name:"framework_version"`
+}
+
+func (req *GetRawContainersWithFramework) Render(r *http.Request) error {
+	limit, offset, err := getLimitAndOffset(r)
+	if err != nil {
+		return errors.New("no limit or offset given in params")
+	}
+	req.Limit = limit
+	req.Offset = offset
+
+	req.ClusterKey, _ = param.QueryString(r, "cluster_key")
+	req.FrameworkName, _ = param.QueryString(r, "framework_name")
+	req.FrameworkVersion, _ = param.QueryString(r, "framework_version")
+	req.NodeNames, _ = param.QueryStringArray(r, "node_name")
+	req.Namespaces, _ = param.QueryStringArray(r, "namespace")
+	req.PodNames, _ = param.QueryStringArray(r, "pod_name")
+	req.ContainerName, _ = param.QueryString(r, "container_name")
+	isK8sManaged, err := param.QueryBool(r, "k8s_managed")
+	if err == nil {
+		req.K8sManaged = &isK8sManaged
+	}
+	req.Status, _ = param.QueryIntArray(r, "status")
+	req.ResourceNames, _ = param.QueryStringArray(r, "resource_name")
+	return nil
+}
+
+func (req *GetRawContainersWithFramework) Execute(ctx context.Context) ([]*dal.RawContainerWithFrameworkStr, int64, error) {
+	query := dal.RawContainersWithFrameworkQuery()
+	if req.K8sManaged != nil {
+		query.WithK8sManaged(*req.K8sManaged)
+	}
+	if len(req.Status) > 0 {
+		query.WithInConditionCustom("status", req.Status)
+	}
+	if req.ClusterKey != "" {
+		query.WithCluster(req.ClusterKey)
+	}
+	if len(req.NodeNames) != 0 {
+		query.WithColumnMultiQuery("node_name", req.NodeNames)
+	}
+	if len(req.Namespaces) != 0 {
+		query.WithColumnMultiQuery("namespace", req.Namespaces)
+	}
+	if len(req.PodNames) != 0 {
+		query.WithColumnMultiQuery("pod_name", req.PodNames)
+	}
+	if len(req.ContainerName) != 0 {
+		query.WithColumnQuery("name", req.ContainerName)
+	}
+	if len(req.ResourceNames) != 0 {
+		query.WithColumnMultiQuery("resource_name", req.ResourceNames)
+	}
+
+	resSvc, ok := assets.GetResourcesService(ctx)
+	if !ok {
+		return nil, 0, errors.New("service instance get error")
+	}
+
+	var (
+		containers []*dal.RawContainerWithFrameworkStr
+		totalCnt   int64
+		err        error
+	)
+
+	if req.UseRedis {
+		containers, totalCnt, err = resSvc.ListRawContainerWithFrameworkWithRedis(ctx, query, req.Offset, req.Limit)
+	} else {
+		containers, totalCnt, err = resSvc.ListRawContainerWithFramework(ctx, query, req.Offset, req.Limit)
+	}
+
+	return containers, totalCnt, err
 }
 
 type GetRawContainersByPod struct {
@@ -2501,7 +2689,7 @@ func (api *api) getNamespace() http.HandlerFunc {
 			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, err))
 			return
 		}
-		var ns *model.TensorNamespace
+		var ns *assets.NamespaceView
 		if len(namespaces) > 0 {
 			ns = namespaces[0]
 		}
@@ -2691,6 +2879,56 @@ func (api *api) getNode() http.HandlerFunc {
 	}
 }
 
+type NodeDetail struct {
+	*model.TensorNode
+	*assets.NodeExtraCount
+}
+
+func (api *api) getNodeWithCount() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+		defer cancel()
+
+		clusterKey := chi.URLParam(r, "cluster_key")
+		name := chi.URLParam(r, "name")
+		if clusterKey == "" || name == "" {
+			RespAndLog(w, ctx, NewAnError(http.StatusBadRequest, errors.New("service instance get error")))
+			return
+		}
+
+		resSvc, ok := assets.GetResourcesService(ctx)
+		if !ok {
+			logging.Get().Error().Msg("service instance get error")
+			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.New("service instance get error")))
+			return
+		}
+		queryOpt := dal.NodeQuery()
+		queryOpt.WithCluster(clusterKey)
+		queryOpt.WithNodeName(name)
+
+		nodes, err := resSvc.GetNodes(ctx, queryOpt, 0, 1)
+		if err != nil {
+			logging.Get().Err(err).Msg("getNodes error")
+			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, err))
+			return
+		}
+		var detail NodeDetail
+		if len(nodes) > 0 {
+			detail.TensorNode = nodes[0]
+			detail.NodeExtraCount = resSvc.GetNodeCount(ctx, clusterKey, name, detail.TensorNode.NodeIP)
+		}
+
+		response.Ok(w, func(ev *response.HTTPEnvelope) {
+			data, err := json.Marshal(detail)
+			if err != nil {
+				ev.EnvelopeError = fmt.Sprintf("Failed to marshal item to json: %v", err)
+			} else {
+				ev.Data.Item = data
+			}
+		})
+	}
+}
+
 func (api *api) getApplications() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
@@ -2860,5 +3098,1354 @@ func (api *api) getApplicationTargets() http.HandlerFunc {
 			return
 		}
 		response.Ok(w, response.WithItems(appTargets), response.WithTotalItems(int64(len(appTargets))))
+	}
+}
+
+type GetIngresses struct {
+	ingressName string
+	namespace   string
+	clusterKey  string
+	start       time.Time
+	end         time.Time
+	limit       int
+	offset      int
+}
+
+func (req *GetIngresses) Render(r *http.Request) error {
+	req.limit, req.offset = getLimitAndOffsetWithDefault(r)
+	req.ingressName = getNormalizedQueryParam(r, "name")
+	req.clusterKey = getNormalizedQueryParam(r, "cluster_key")
+	req.namespace = getNormalizedQueryParam(r, "namespace")
+	var start, end time.Time
+	var err error
+	startTime, _ := param.QueryString(r, "start_time")
+	if startTime != "" {
+		start, err = time.Parse(time.RFC3339, startTime)
+		if err != nil {
+			logging.Get().Err(err).Msgf("parse start_time failed")
+			return err
+		}
+	}
+	endTime, _ := param.QueryString(r, "end_time")
+	if endTime != "" {
+		end, err = time.Parse(time.RFC3339, endTime)
+		if err != nil {
+			logging.Get().Err(err).Msgf(" parse end_time failed")
+			return err
+		}
+	}
+	req.start = start
+	req.end = end
+	return nil
+}
+
+func (req *GetIngresses) Execute(ctx context.Context) ([]*model.TensorIngress, int64, error) {
+	queryOpt := dal.IngressesQuery()
+
+	if req.ingressName != "" {
+		queryOpt.WithFuzzName(req.ingressName)
+	}
+	if req.clusterKey != "" {
+		queryOpt.WithCluster(req.clusterKey)
+	}
+	if req.namespace != "" {
+		queryOpt.WithFuzzNamespace(req.namespace)
+	}
+	queryOpt.WithTimeRange(req.start, req.end)
+	resSvc, ok := assets.GetResourcesService(ctx)
+	if !ok {
+		return nil, 0, errors.New("service instance get error")
+	}
+	return resSvc.ListIngress(ctx, queryOpt, req.offset, req.limit)
+}
+
+// ingress 列表
+func (api *api) getIngresses() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+
+		req := &GetIngresses{}
+		err := req.Render(r)
+		if err != nil {
+			logging.Get().Err(err).Msg("parse req failed.")
+			RespAndLog(w, ctx, NewAnError(http.StatusBadRequest, err))
+			return
+		}
+		ingresses, total, err := req.Execute(ctx)
+
+		if err != nil {
+			logging.Get().Err(err).Msg("get Ingresses error")
+			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, err))
+			return
+		}
+
+		response.Ok(w, response.WithItems(ingresses),
+			response.WithTotalItems(total),
+			response.WithStartIndex(int64(req.offset+len(ingresses))),
+		)
+	}
+}
+
+func (api *api) getIngressBase() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+
+		query := dal.IngressesQuery()
+		query.WithCluster(chi.URLParam(r, "cluster_key"))
+		query.WithNamespace(chi.URLParam(r, "namespace"))
+		query.WithName(chi.URLParam(r, "ingress_name"))
+
+		resSvc, ok := assets.GetResourcesService(ctx)
+		if !ok {
+			RespAndLog(w, ctx, NewAnError(http.StatusBadRequest, errors.New("service instance get error")))
+			return
+		}
+		ingress, err := resSvc.GetIngressBase(ctx, query, 0, 1)
+
+		if err != nil {
+			logging.Get().Err(err).Msgf("get ingress error")
+			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, err))
+			return
+		}
+		ing := &model.TensorIngress{}
+		if len(ingress) > 0 {
+			ing = ingress[0]
+		}
+		response.Ok(w, func(ev *response.HTTPEnvelope) {
+			data, err := json.Marshal(ing)
+			if err != nil {
+				ev.EnvelopeError = fmt.Sprintf("Failed to marshal item to json: %v", err)
+			} else {
+				ev.Data.Item = data
+			}
+		})
+	}
+
+}
+
+func (api *api) getIngressBackendKinds() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+
+		//ingressId := chi.URLParam(r, "ingress_id")
+		//ingId, err := strconv.ParseInt(ingressId, 10, 64)
+		//if err != nil {
+		//	RespAndLog(w, ctx, NewAnError(http.StatusBadRequest, errors.New("parse ingress_id failed."+ingressId)))
+		//	return
+		//}
+
+		resSvc, ok := assets.GetResourcesService(ctx)
+		if !ok {
+			RespAndLog(w, ctx, NewAnError(http.StatusBadRequest, errors.New("service instance get error")))
+			return
+		}
+
+		kinds, err := resSvc.GetIngressBackendKinds(ctx)
+		if err != nil {
+			logging.Get().Err(err).Msgf("get IngressBackendKinds  error")
+			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, err))
+			return
+		}
+		response.Ok(w, response.WithItems(kinds))
+	}
+}
+
+type GetIngressRulesReq struct {
+	ingressId   int64
+	query       string
+	backendKind string
+	pathType    string
+	offset      int
+	limit       int
+}
+
+func (g *GetIngressRulesReq) Render(r *http.Request) error {
+	ingressId := chi.URLParam(r, "ingress_id")
+	ingId, err := strconv.ParseInt(ingressId, 10, 64)
+	if err != nil {
+		return err
+	}
+	g.ingressId = ingId
+	g.backendKind = getNormalizedQueryParam(r, "backendKind")
+	g.pathType = getNormalizedQueryParam(r, "pathType")
+	g.query = getNormalizedQueryParam(r, "query")
+	g.limit, g.offset = getLimitAndOffsetWithDefault(r)
+	return nil
+}
+
+func (api *api) getIngressRules() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+
+		req := &GetIngressRulesReq{}
+		err := req.Render(r)
+		if err != nil {
+			RespAndLog(w, ctx, NewAnError(http.StatusBadRequest, errors.New("parse req failed.")))
+			return
+		}
+		resSvc, ok := assets.GetResourcesService(ctx)
+		if !ok {
+			RespAndLog(w, ctx, NewAnError(http.StatusBadRequest, errors.New("service instance get error")))
+			return
+		}
+
+		opt := dal.NewIngressesRuleQuery()
+		opt.WithIngressId(req.ingressId)
+		if req.query != "" {
+			opt.WithQuery(req.query, []string{"host", "backend_name"})
+		}
+		if req.backendKind != "" {
+			kinds := strings.Split(req.backendKind, ",")
+			opt.WithBackendKind(kinds)
+		}
+		if req.pathType != "" {
+			types := strings.Split(req.pathType, ",")
+			opt.WithPathType(types)
+		}
+
+		ingressRules, total, err := resSvc.ListIngressRule(ctx, opt, req.offset, req.limit)
+		if err != nil {
+			logging.Get().Err(err).Msg("get Ingresses Rules error")
+			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, err))
+			return
+		}
+
+		response.Ok(w, response.WithItems(ingressRules),
+			response.WithTotalItems(total),
+			response.WithStartIndex(int64(req.offset+len(ingressRules))),
+		)
+
+	}
+}
+
+// service
+type GetServicesReq struct {
+	name        string
+	namespace   string
+	clusterIp   string
+	serviceType string
+	clusterKey  string
+	start       time.Time
+	end         time.Time
+	limit       int
+	offset      int
+}
+
+func (req *GetServicesReq) Render(r *http.Request) error {
+	req.limit, req.offset = getLimitAndOffsetWithDefault(r)
+	req.name = getNormalizedQueryParam(r, "name")
+	req.clusterKey = getNormalizedQueryParam(r, "cluster_key")
+	req.namespace = getNormalizedQueryParam(r, "namespace")
+	req.clusterIp = getNormalizedQueryParam(r, "ip")
+	req.serviceType = getNormalizedQueryParam(r, "type")
+	var start, end time.Time
+	var err error
+	startTime, _ := param.QueryString(r, "start_time")
+	if startTime != "" {
+		start, err = time.Parse(time.RFC3339, startTime)
+		if err != nil {
+			logging.Get().Err(err).Msgf("parse start_time failed")
+			return err
+		}
+	}
+	endTime, _ := param.QueryString(r, "end_time")
+	if endTime != "" {
+		end, err = time.Parse(time.RFC3339, endTime)
+		if err != nil {
+			logging.Get().Err(err).Msgf(" parse end_time failed")
+			return err
+		}
+	}
+	req.start = start
+	req.end = end
+	return nil
+}
+
+func (req *GetServicesReq) Execute(ctx context.Context) ([]*model.TensorService, int64, error) {
+
+	queryOpt := dal.ServicesQuery()
+
+	if req.name != "" {
+		queryOpt.WithFuzzName(req.name)
+	}
+	if req.clusterKey != "" {
+		queryOpt.WithCluster(req.clusterKey)
+	}
+	if req.namespace != "" {
+		queryOpt.WithFuzzNamespace(req.namespace)
+	}
+	if req.clusterIp != "" {
+		queryOpt.WithClusterIp(req.clusterIp)
+	}
+	if req.serviceType != "" {
+		types := strings.Split(req.serviceType, ",")
+		queryOpt.WithServiceTypes(types)
+	}
+	queryOpt.WithTimeRange(req.start, req.end)
+	resSvc, ok := assets.GetResourcesService(ctx)
+	if !ok {
+		return nil, 0, errors.New("service instance get error")
+	}
+	return resSvc.ListService(ctx, queryOpt, req.offset, req.limit)
+}
+
+func (api *api) getServices() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+
+		req := &GetServicesReq{}
+		err := req.Render(r)
+		if err != nil {
+			logging.Get().Err(err).Msg("parse req failed.")
+			RespAndLog(w, ctx, NewAnError(http.StatusBadRequest, err))
+			return
+		}
+		services, total, err := req.Execute(ctx)
+		if err != nil {
+			logging.Get().Err(err).Msg("get service error")
+			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, err))
+			return
+		}
+		response.Ok(w, response.WithItems(services),
+			response.WithTotalItems(total),
+			response.WithStartIndex(int64(req.offset+len(services))),
+		)
+	}
+}
+
+type ServiceDetail struct {
+	ID         uint32                 `json:"id,omitempty"`
+	CreatedAt  time.Time              `json:"CreatedAt,omitempty"`
+	UpdatedAt  time.Time              `json:"UpdatedAt,omitempty"`
+	Status     int32                  `json:"Status,omitempty"`
+	Name       string                 `json:"name"`
+	Namespace  string                 `json:"namespace"`
+	ClusterKey string                 `json:"clusterKey"`
+	UID        string                 `json:"uid"`
+	Labels     []Label                `json:"labels"`
+	Type       string                 `json:"type"`
+	ClusterIp  string                 `json:"clusterIp"`
+	PortsStr   string                 `json:"portsStr"`
+	Ports      model.ServicePortSlice `json:"ports"`
+}
+type Label struct {
+	LabelName  string
+	LabelValue string
+}
+
+func (api *api) getService() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+
+		queryOpt := dal.ServicesQuery()
+
+		queryOpt.WithCluster(chi.URLParam(r, "cluster_key"))
+		queryOpt.WithNamespace(chi.URLParam(r, "namespace"))
+		queryOpt.WithName(chi.URLParam(r, "service_name"))
+
+		resSvc, ok := assets.GetResourcesService(ctx)
+		if !ok {
+			logging.Get().Error().Msg("get resSvc failed.")
+			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.New("get service instence failed.")))
+			return
+		}
+
+		service, err := resSvc.GetService(ctx, queryOpt, 0, 1)
+		if err != nil {
+			logging.Get().Err(err).Msg("get service error")
+			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, err))
+			return
+		}
+		svc := &model.TensorService{}
+		finalSvc := &ServiceDetail{}
+		if len(service) > 0 {
+			svc = service[0]
+		}
+		// 转换labels格式，前端要求
+		err = copier.Copy(finalSvc, svc)
+		if err != nil {
+			logging.Get().Err(err).Msg("copier failed.")
+			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, err))
+			return
+		}
+		for key, v := range svc.Labels {
+			finalSvc.Labels = append(finalSvc.Labels, Label{
+				LabelName:  key,
+				LabelValue: v,
+			})
+		}
+		response.Ok(w, func(ev *response.HTTPEnvelope) {
+			data, err := json.Marshal(finalSvc)
+			if err != nil {
+				ev.EnvelopeError = fmt.Sprintf("Failed to marshal item to json: %v", err)
+			} else {
+				ev.Data.Item = data
+			}
+		})
+	}
+}
+
+// endpoints
+type GetEndpoints struct {
+	endpointsName string
+	serviceName   string
+	namespace     string
+	clusterKey    string
+	start         time.Time
+	end           time.Time
+	limit         int
+	offset        int
+}
+
+func (req *GetEndpoints) Render(r *http.Request) error {
+	req.limit, req.offset = getLimitAndOffsetWithDefault(r)
+	req.endpointsName = getNormalizedQueryParam(r, "endpoints_name")
+	req.serviceName = getNormalizedQueryParam(r, "service_name")
+	req.clusterKey = getNormalizedQueryParam(r, "cluster_key")
+	req.namespace = getNormalizedQueryParam(r, "namespace")
+	var start, end time.Time
+	var err error
+	startTime, _ := param.QueryString(r, "start_time")
+	if startTime != "" {
+		start, err = time.Parse(time.RFC3339, startTime)
+		if err != nil {
+			logging.Get().Err(err).Msgf("parse start_time failed")
+			return err
+		}
+	}
+	endTime, _ := param.QueryString(r, "end_time")
+	if endTime != "" {
+		end, err = time.Parse(time.RFC3339, endTime)
+		if err != nil {
+			logging.Get().Err(err).Msgf(" parse end_time failed")
+			return err
+		}
+	}
+	req.start = start
+	req.end = end
+	return nil
+}
+
+func (req *GetEndpoints) Execute(ctx context.Context) ([]*model.TensorEndpoints, int64, error) {
+	queryOpt := dal.EndpointsQuery()
+	if req.endpointsName != "" {
+		queryOpt.WhereLikeCondition["name"] = req.endpointsName
+	}
+	if req.serviceName != "" {
+		queryOpt.WhereLikeCondition["service_name"] = req.serviceName
+	}
+	if req.clusterKey != "" {
+		queryOpt.WhereEqCondition["cluster_key"] = req.clusterKey
+	}
+	if req.namespace != "" {
+		queryOpt.WhereLikeCondition["namespace"] = req.namespace
+	}
+	queryOpt.WithTimeRange(req.start, req.end)
+	resSvc, ok := assets.GetResourcesService(ctx)
+	if !ok {
+		return nil, 0, errors.New("service instance get error")
+	}
+	return resSvc.ListEndpoint(ctx, queryOpt, req.offset, req.limit)
+}
+
+// endpoints 列表
+func (api *api) getEndpointsList() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+
+		req := &GetEndpoints{}
+		err := req.Render(r)
+		if err != nil {
+			logging.Get().Err(err).Msg("parse req failed.")
+			RespAndLog(w, ctx, NewAnError(http.StatusBadRequest, err))
+			return
+		}
+		ingresses, total, err := req.Execute(ctx)
+
+		if err != nil {
+			logging.Get().Err(err).Msg("get Ingresses error")
+			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, err))
+			return
+		}
+
+		response.Ok(w, response.WithItems(ingresses),
+			response.WithTotalItems(total),
+			response.WithStartIndex(int64(req.offset+len(ingresses))),
+		)
+	}
+}
+
+func (api *api) getEndpointsBase() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+
+		query := dal.EndpointsQuery()
+
+		query.WhereEqCondition["cluster_key"] = chi.URLParam(r, "cluster_key")
+		query.WhereEqCondition["namespace"] = chi.URLParam(r, "namespace")
+		query.WhereEqCondition["name"] = chi.URLParam(r, "endpoints_name")
+
+		resSvc, ok := assets.GetResourcesService(ctx)
+		if !ok {
+			RespAndLog(w, ctx, NewAnError(http.StatusBadRequest, errors.New("service instance get error")))
+			return
+		}
+		endpoints, err := resSvc.GetEndpointBase(ctx, query, 0, 1)
+
+		if err != nil {
+			logging.Get().Err(err).Msgf("get endpoints error")
+			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, err))
+			return
+		}
+		end := &model.TensorEndpoints{}
+		if len(endpoints) > 0 {
+			end = endpoints[0]
+		}
+		response.Ok(w, func(ev *response.HTTPEnvelope) {
+			data, err := json.Marshal(end)
+			if err != nil {
+				ev.EnvelopeError = fmt.Sprintf("Failed to marshal item to json: %v", err)
+			} else {
+				ev.Data.Item = data
+			}
+		})
+	}
+
+}
+
+func (api *api) getEndpointSubsetKinds() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+
+		//endId := chi.URLParam(r, "endpoints_id")
+		//ingId, err := strconv.ParseInt(endId, 10, 64)
+		//if err != nil {
+		//	RespAndLog(w, ctx, NewAnError(http.StatusBadRequest, errors.New("parse ingress_id failed."+endId)))
+		//	return
+		//}
+
+		resSvc, ok := assets.GetResourcesService(ctx)
+		if !ok {
+			RespAndLog(w, ctx, NewAnError(http.StatusBadRequest, errors.New("service instance get error")))
+			return
+		}
+
+		kinds, err := resSvc.GetEndpointSubsetKinds(ctx)
+		if err != nil {
+			logging.Get().Err(err).Msgf("get GetEndpointSubsetKinds  error")
+			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, err))
+			return
+		}
+		response.Ok(w, response.WithItems(kinds))
+	}
+}
+
+type GetEndpointsSubsetsReq struct {
+	endpointsId  int
+	endpointName string
+	nodeName     string
+	ip           string
+	refKind      string
+	addrStatus   string
+	offset       int
+	limit        int
+}
+
+func (g *GetEndpointsSubsetsReq) Render(r *http.Request) error {
+	endId := chi.URLParam(r, "endpoints_id")
+	ingId, err := strconv.ParseInt(endId, 10, 64)
+	if err != nil {
+		return err
+	}
+	g.endpointsId = int(ingId)
+	g.endpointName = getNormalizedQueryParam(r, "endpoint_name")
+	g.nodeName = getNormalizedQueryParam(r, "node_name")
+	g.ip = getNormalizedQueryParam(r, "ip")
+	g.refKind = getNormalizedQueryParam(r, "ref_kind")
+	g.addrStatus = getNormalizedQueryParam(r, "addr_status")
+	g.limit, g.offset = getLimitAndOffsetWithDefault(r)
+
+	return nil
+}
+
+func (api *api) getEndpointsSubsets() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+
+		req := &GetEndpointsSubsetsReq{}
+		err := req.Render(r)
+		if err != nil {
+			RespAndLog(w, ctx, NewAnError(http.StatusBadRequest, errors.New("parse req failed.")))
+			return
+		}
+		resSvc, ok := assets.GetResourcesService(ctx)
+		if !ok {
+			RespAndLog(w, ctx, NewAnError(http.StatusBadRequest, errors.New("service instance get error")))
+			return
+		}
+
+		opt := dal.EndpointsSubsetsQuery()
+		opt.WhereEqCondition["endpoints_id"] = req.endpointsId
+		if req.endpointName != "" {
+			opt.WhereLikeCondition["name"] = req.endpointName
+		}
+		if req.nodeName != "" {
+			opt.WhereLikeCondition["node_name"] = req.nodeName
+		}
+		if req.ip != "" {
+			opt.WhereLikeCondition["ip"] = req.ip
+		}
+		if req.refKind != "" {
+			kinds := strings.Split(req.refKind, ",")
+			opt.WhereInCondition["target_ref_kind"] = kinds
+		}
+		if req.addrStatus != "" {
+			status := strings.Split(req.addrStatus, ",")
+			opt.WhereInCondition["address_status"] = status
+		}
+
+		endpointsSubsets, total, err := resSvc.ListEndpointsSubset(ctx, opt, req.offset, req.limit)
+		if err != nil {
+			logging.Get().Err(err).Msg("get Ingresses Rules error")
+			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, err))
+			return
+		}
+
+		response.Ok(w, response.WithItems(endpointsSubsets),
+			response.WithTotalItems(total),
+			response.WithStartIndex(int64(req.offset+len(endpointsSubsets))),
+		)
+	}
+}
+
+type GetSecretsReq struct {
+	name       string
+	namespace  string
+	clusterKey string
+	start      time.Time
+	end        time.Time
+	offset     int
+	limit      int
+}
+
+type SecretsView struct {
+	*model.TensorSecret
+	LabelList []Label
+}
+
+func (api *api) getSecrets() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+
+		req := &GetSecretsReq{}
+
+		req.name = getNormalizedQueryParam(r, "name")
+		req.namespace = getNormalizedQueryParam(r, "namespace")
+		req.clusterKey = getNormalizedQueryParam(r, "cluster_key")
+		req.limit, req.offset = getLimitAndOffsetWithDefault(r)
+
+		var start, end time.Time
+		var err error
+		startTime, _ := param.QueryString(r, "start_time")
+		if startTime != "" {
+			start, err = time.Parse(time.RFC3339, startTime)
+			if err != nil {
+				logging.Get().Err(err).Msg("parse startTime error")
+				RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, err))
+				return
+			}
+		}
+		endTime, _ := param.QueryString(r, "end_time")
+		if endTime != "" {
+			end, err = time.Parse(time.RFC3339, endTime)
+			if err != nil {
+				logging.Get().Err(err).Msg("parse endTime error")
+				RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, err))
+				return
+			}
+		}
+		req.start = start
+		req.end = end
+		resSvc, ok := assets.GetResourcesService(ctx)
+		if !ok {
+			RespAndLog(w, ctx, NewAnError(http.StatusBadRequest, errors.New("service instance get error")))
+			return
+		}
+		opt := dal.SecretsQuery()
+		if req.name != "" {
+			opt.WhereLikeCondition["name"] = req.name
+		}
+		if req.namespace != "" {
+			opt.WhereLikeCondition["namespace"] = req.namespace
+		}
+		if req.clusterKey != "" {
+			opt.WhereLikeCondition["cluster_key"] = req.clusterKey
+		}
+		opt.WithTimeRange(req.start, req.end)
+
+		secrets, total, err := resSvc.ListSecret(ctx, opt, req.offset, req.limit)
+		if err != nil {
+			logging.Get().Err(err).Msg("get Ingresses Rules error")
+			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, err))
+			return
+		}
+		var result []SecretsView
+		for _, sec := range secrets {
+			tmp := SecretsView{TensorSecret: sec}
+			for k, v := range sec.Labels {
+				tmp.LabelList = append(tmp.LabelList, Label{
+					LabelName:  k,
+					LabelValue: v,
+				})
+			}
+			tmp.Labels = nil
+			result = append(result, tmp)
+		}
+		response.Ok(w, response.WithItems(result),
+			response.WithTotalItems(total),
+			response.WithStartIndex(int64(req.offset+len(secrets))),
+		)
+	}
+}
+
+type GetPVsReq struct {
+	name                          string
+	storageClassName              string
+	namespace                     string
+	clusterKey                    string
+	accessMode                    string // 转换
+	volumeMode                    string
+	pvStatus                      string
+	persistentVolumeReclaimPolicy string
+	start                         time.Time
+	end                           time.Time
+	offset                        int
+	limit                         int
+}
+
+func (g *GetPVsReq) Render(r *http.Request) error {
+	g.limit, g.offset = getLimitAndOffsetWithDefault(r)
+	g.name = getNormalizedQueryParam(r, "name")
+	g.storageClassName = getNormalizedQueryParam(r, "storage_cluass_name")
+	g.accessMode = getNormalizedQueryParam(r, "access_mode")
+	g.volumeMode = getNormalizedQueryParam(r, "volume_mode")
+	g.pvStatus = getNormalizedQueryParam(r, "pv_status")
+	g.clusterKey = getNormalizedQueryParam(r, "cluster_key")
+	g.persistentVolumeReclaimPolicy = getNormalizedQueryParam(r, "persistent_volume_reclaim_policy")
+
+	var start, end time.Time
+	var err error
+	startTime, _ := param.QueryString(r, "start_time")
+	if startTime != "" {
+		start, err = time.Parse(time.RFC3339, startTime)
+		if err != nil {
+			logging.Get().Err(err).Msgf("parse start_time failed")
+			return err
+		}
+	}
+	endTime, _ := param.QueryString(r, "end_time")
+	if endTime != "" {
+		end, err = time.Parse(time.RFC3339, endTime)
+		if err != nil {
+			logging.Get().Err(err).Msgf(" parse end_time failed")
+			return err
+		}
+	}
+	g.start = start
+	g.end = end
+	return nil
+}
+
+func (g *GetPVsReq) Execute(ctx context.Context) ([]*model.TensorPV, int64, error) {
+	resSvc, ok := assets.GetResourcesService(ctx)
+	if !ok {
+		return nil, 0, errors.New("service instance get error")
+	}
+	pvQuery := dal.PVQuery()
+	if g.name != "" {
+		pvQuery.WhereLikeCondition["name"] = g.name
+	}
+	if g.storageClassName != "" {
+		pvQuery.WhereLikeCondition["storage_class_name"] = g.storageClassName
+	}
+	if g.accessMode != "" {
+		models := strings.Split(g.accessMode, ",")
+		pvQuery.WhererInCondition["access_mode"] = models
+	}
+	if g.volumeMode != "" {
+		models := strings.Split(g.volumeMode, ",")
+		pvQuery.WhererInCondition["volume_mode"] = models
+	}
+	if g.pvStatus != "" {
+		models := strings.Split(g.pvStatus, ",")
+		pvQuery.WhererInCondition["pv_status"] = models
+	}
+	if g.persistentVolumeReclaimPolicy != "" {
+		models := strings.Split(g.persistentVolumeReclaimPolicy, ",")
+		pvQuery.WhererInCondition["persistent_volume_reclaim_policy"] = models
+	}
+	if g.clusterKey != "" {
+		models := strings.Split(g.clusterKey, ",")
+		pvQuery.WhererInCondition["cluster_key"] = models
+	}
+	pvQuery.WithTimeRange(g.start, g.end)
+
+	return resSvc.ListPV(ctx, pvQuery, g.offset, g.limit)
+}
+
+func (api *api) getPVs() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+
+		req := &GetPVsReq{}
+		err := req.Render(r)
+		if err != nil {
+			logging.Get().Err(err).Msg("parse req failed.")
+			RespAndLog(w, ctx, NewAnError(http.StatusBadRequest, err))
+			return
+		}
+		pvs, total, err := req.Execute(ctx)
+		if err != nil {
+			logging.Get().Err(err).Msg("get pv error")
+			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, err))
+			return
+		}
+		response.Ok(w, response.WithItems(pvs),
+			response.WithTotalItems(total),
+			response.WithStartIndex(int64(req.offset+len(pvs))),
+		)
+	}
+}
+
+type GetPVCsReq struct {
+	name             string
+	storageClassName string
+	namespace        string
+	clusterKey       string
+	accessMode       string // 转换
+	volumeMode       string
+	pvcStatus        string
+	start            time.Time
+	end              time.Time
+	offset           int
+	limit            int
+}
+
+func (g *GetPVCsReq) Render(r *http.Request) error {
+	g.limit, g.offset = getLimitAndOffsetWithDefault(r)
+	g.name = getNormalizedQueryParam(r, "name")
+	g.storageClassName = getNormalizedQueryParam(r, "storage_cluass_name")
+	g.namespace = getNormalizedQueryParam(r, "namespace")
+	g.accessMode = getNormalizedQueryParam(r, "access_mode")
+	g.volumeMode = getNormalizedQueryParam(r, "volume_mode")
+	g.pvcStatus = getNormalizedQueryParam(r, "pv_status")
+	g.clusterKey = getNormalizedQueryParam(r, "cluster_key")
+
+	var start, end time.Time
+	var err error
+	startTime, _ := param.QueryString(r, "start_time")
+	if startTime != "" {
+		start, err = time.Parse(time.RFC3339, startTime)
+		if err != nil {
+			logging.Get().Err(err).Msgf("parse start_time failed")
+			return err
+		}
+	}
+	endTime, _ := param.QueryString(r, "end_time")
+	if endTime != "" {
+		end, err = time.Parse(time.RFC3339, endTime)
+		if err != nil {
+			logging.Get().Err(err).Msgf(" parse end_time failed")
+			return err
+		}
+	}
+	g.start = start
+	g.end = end
+	return nil
+}
+
+func (g *GetPVCsReq) Execute(ctx context.Context) ([]*model.TensorPVC, int64, error) {
+	resSvc, ok := assets.GetResourcesService(ctx)
+	if !ok {
+		return nil, 0, errors.New("service instance get error")
+	}
+	pvQuery := dal.PVCQuery()
+	if g.name != "" {
+		pvQuery.WhereLikeCondition["name"] = g.name
+	}
+	if g.storageClassName != "" {
+		models := strings.Split(g.storageClassName, ",")
+		pvQuery.WhereInCondition["storage_class_name"] = models
+	}
+	if g.namespace != "" {
+		pvQuery.WhereLikeCondition["namespace"] = g.namespace
+	}
+	if g.accessMode != "" {
+		models := strings.Split(g.accessMode, ",")
+		pvQuery.WhereInCondition["access_mode"] = models
+	}
+	if g.volumeMode != "" {
+		models := strings.Split(g.volumeMode, ",")
+		pvQuery.WhereInCondition["volume_mode"] = models
+	}
+	if g.pvcStatus != "" {
+		models := strings.Split(g.pvcStatus, ",")
+		pvQuery.WhereInCondition["pvc_status"] = models
+	}
+
+	if g.clusterKey != "" {
+		models := strings.Split(g.clusterKey, ",")
+		pvQuery.WhereInCondition["cluster_key"] = models
+	}
+	pvQuery.WithTimeRange(g.start, g.end)
+
+	return resSvc.ListPVC(ctx, pvQuery, g.offset, g.limit)
+}
+
+func (api *api) getPVCs() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+
+		req := &GetPVCsReq{}
+		err := req.Render(r)
+		if err != nil {
+			logging.Get().Err(err).Msg("parse req failed.")
+			RespAndLog(w, ctx, NewAnError(http.StatusBadRequest, err))
+			return
+		}
+		pvcs, total, err := req.Execute(ctx)
+
+		if err != nil {
+			logging.Get().Err(err).Msg("get Ingresses error")
+			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, err))
+			return
+		}
+		response.Ok(w, response.WithItems(pvcs),
+			response.WithTotalItems(total),
+			response.WithStartIndex(int64(req.offset+len(pvcs))),
+		)
+	}
+}
+
+type getNamespaceLabels struct {
+	namespace  string
+	clusterKey string
+	start      time.Time
+	end        time.Time
+	offset     int
+	limit      int
+}
+
+func (g *getNamespaceLabels) Render(r *http.Request) error {
+	g.limit, g.offset = getLimitAndOffsetWithDefault(r)
+	g.namespace = getNormalizedQueryParam(r, "namespace")
+	g.clusterKey = getNormalizedQueryParam(r, "cluster_key")
+	var start, end time.Time
+	var err error
+	startTime, _ := param.QueryString(r, "start_time")
+	if startTime != "" {
+		start, err = time.Parse(time.RFC3339, startTime)
+		if err != nil {
+			logging.Get().Err(err).Msgf("parse start_time failed")
+			return err
+		}
+	}
+	endTime, _ := param.QueryString(r, "end_time")
+	if endTime != "" {
+		end, err = time.Parse(time.RFC3339, endTime)
+		if err != nil {
+			logging.Get().Err(err).Msgf(" parse end_time failed")
+			return err
+		}
+	}
+	g.start = start
+	g.end = end
+	return nil
+}
+
+func (g *getNamespaceLabels) Execute(ctx context.Context) ([]*model.TensorNamespaceLabel, int64, error) {
+	query := dal.NamespaceLabelQuery()
+	if g.namespace != "" {
+		query.WhereLikeCondition["namespace"] = g.namespace
+	}
+	if g.clusterKey != "" {
+		query.WhereEqCondition["cluster_key"] = g.clusterKey
+	}
+	query.WithTimeRange(g.start, g.end)
+
+	resSvc, ok := assets.GetResourcesService(ctx)
+	if !ok {
+		return nil, 0, errors.New("service instance get error")
+	}
+	return resSvc.ListNamespaceLabel(ctx, query, g.offset, g.limit)
+
+}
+
+func (api *api) getNamespaceLabels() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+
+		req := &getNamespaceLabels{}
+		err := req.Render(r)
+		if err != nil {
+			logging.Get().Err(err).Msg("parse req failed.")
+			RespAndLog(w, ctx, NewAnError(http.StatusBadRequest, err))
+			return
+		}
+		labels, total, err := req.Execute(ctx)
+
+		if err != nil {
+			logging.Get().Err(err).Msg("get Ingresses error")
+			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, err))
+			return
+		}
+		response.Ok(w, response.WithItems(labels),
+			response.WithTotalItems(total),
+			response.WithStartIndex(int64(req.offset+len(labels))),
+		)
+	}
+}
+
+func (api *api) addNamespaceLabel() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+
+		var data assets.NamespaceLabel
+		err := util.DecodeJSONBody(w, r, &data)
+		if err != nil {
+			RespAndLog(w, ctx, NewMalformedRequestError(http.StatusBadRequest, fmt.Errorf("failed to decode json: %w", err)))
+			return
+		}
+		//校验 labelName 格式
+		matched, err := regexp.MatchString(`^[a-zA-Z0-9_.-]+$`, data.LabelName)
+		if err != nil || matched == false {
+			RespAndLog(w, ctx, NewAnErrorWithErrMsg(http.StatusBadRequest, errors.New(`标签名不合法，只能由英文字符，数字，和"-","_","." 组成`)))
+			return
+		}
+		resSvc, ok := assets.GetResourcesService(ctx)
+		if !ok {
+			RespAndLog(w, ctx, NewAnError(http.StatusBadRequest, errors.New("service instance get error")))
+			return
+		}
+		err = resSvc.AddNamespaceLabel(ctx, data)
+		if err != nil {
+			logging.Get().Err(err).Msgf("namespaceLabes: AddNamespaceLabel failed.")
+			RespAndLog(w, ctx, NewAnErrorWithErrMsg(http.StatusBadRequest, err))
+			return
+		}
+		response.Ok(w)
+	}
+}
+
+func (api *api) updateNamespaceLabel() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		labelIdStr := chi.URLParam(r, "label_id")
+		labelId, err := strconv.ParseInt(labelIdStr, 10, 64)
+		if err != nil {
+			RespAndLog(w, ctx, NewMalformedRequestError(http.StatusBadRequest, fmt.Errorf("update:failed to parse labelId: %w", err)))
+			return
+		}
+		type data struct {
+			LabelValue string `json:"label_value"`
+		}
+		var d data
+		err = util.DecodeJSONBody(w, r, &d)
+		if err != nil {
+			RespAndLog(w, ctx, NewMalformedRequestError(http.StatusBadRequest, fmt.Errorf("failed to decode json: %w", err)))
+			return
+		}
+		resSvc, ok := assets.GetResourcesService(ctx)
+		if !ok {
+			RespAndLog(w, ctx, NewAnErrorWithErrMsg(http.StatusBadRequest, errors.New("service instance get error")))
+			return
+		}
+		err = resSvc.UpdateNamespaceLabel(ctx, labelId, d.LabelValue)
+		if err != nil {
+			logging.Get().Err(err).Msgf("namespaceLabes: updateNamespaceLabel failed.")
+			RespAndLog(w, ctx, NewAnErrorWithErrMsg(http.StatusBadRequest, errors.New("更新失败")))
+			return
+		}
+		response.Ok(w)
+	}
+}
+
+func (api *api) deleteNamespaceLabels() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		labelIdStr := chi.URLParam(r, "label_id")
+		labelId, err := strconv.ParseInt(labelIdStr, 10, 64)
+		if err != nil {
+			RespAndLog(w, ctx, NewInvalidArgError(http.StatusBadRequest, fmt.Errorf("delete:failed to parse labelId: %w", err)))
+			return
+		}
+
+		resSvc, ok := assets.GetResourcesService(ctx)
+		if !ok {
+			RespAndLog(w, ctx, NewAnErrorWithErrMsg(http.StatusBadRequest, errors.New("service instance get error")))
+			return
+		}
+		err = resSvc.DeleteNamespaceLabel(ctx, labelId)
+		if err != nil {
+			logging.Get().Err(err).Msgf("namespaceLabes: deleteNamespaceLabels  failed.")
+			RespAndLog(w, ctx, NewAnErrorWithErrMsg(http.StatusBadRequest, errors.New("删除失败")))
+			return
+		}
+		response.Ok(w)
+	}
+}
+
+type BusiServiceReq struct {
+	containerName string
+	svcName       string
+	svcVersion    string
+	svcType       string
+	user          string
+	limit         int
+	offset        int
+}
+
+func (g *BusiServiceReq) Render(r *http.Request) {
+	g.limit, g.offset = getLimitAndOffsetWithDefault(r)
+	g.containerName = getNormalizedQueryParam(r, "containerName")
+	g.svcName = getNormalizedQueryParam(r, "svcName")
+	g.svcVersion = getNormalizedQueryParam(r, "svcVersion")
+	g.svcType = getNormalizedQueryParam(r, "svcType")
+	g.user = getNormalizedQueryParam(r, "user")
+}
+
+func (g *BusiServiceReq) Execute(ctx context.Context) ([]*dal.PodBusiSvcBase, int64, error) {
+	query := dal.GetBusiSvcQueryOption()
+	if g.containerName != "" {
+		query.ContainerName = g.containerName
+	}
+	if g.svcVersion != "" {
+		query.WhereLikeCondition["svcVersion"] = g.svcVersion
+	}
+	if g.svcName != "" {
+		query.WhereEqCondition["svcName"] = g.svcName
+	}
+	if g.svcType != "" {
+		query.WhereEqCondition["svcType"] = g.svcType
+	}
+	if g.user != "" {
+		query.WhereEqCondition["user"] = g.user
+	}
+
+	resSvc, ok := assets.GetResourcesService(ctx)
+	if !ok {
+		return nil, 0, errors.New("service instance get error")
+	}
+	return resSvc.ListBusiSvc(ctx, query, g.offset, g.limit)
+}
+
+func (api *api) getBusiServices() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+
+		req := &BusiServiceReq{}
+		req.Render(r)
+		labels, total, err := req.Execute(ctx)
+
+		if err != nil {
+			logging.Get().Err(err).Msg("get Ingresses error")
+			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, err))
+			return
+		}
+		response.Ok(w, response.WithItems(labels),
+			response.WithTotalItems(total),
+			response.WithStartIndex(int64(req.offset+len(labels))),
+		)
+	}
+}
+
+func (api *api) getWebBusiServices() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+
+		req := &BusiServiceReq{}
+		req.Render(r)
+		req.svcType = "Web服务"
+		labels, total, err := req.Execute(ctx)
+		if err != nil {
+			logging.Get().Err(err).Msg("get Ingresses error")
+			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, err))
+			return
+		}
+		response.Ok(w, response.WithItems(labels),
+			response.WithTotalItems(total),
+			response.WithStartIndex(int64(req.offset+len(labels))),
+		)
+	}
+}
+
+func (api *api) getDbBusiServices() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+
+		req := &BusiServiceReq{}
+		req.Render(r)
+		req.svcType = "数据库服务"
+		labels, total, err := req.Execute(ctx)
+		if err != nil {
+			logging.Get().Err(err).Msg("get Ingresses error")
+			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, err))
+			return
+		}
+		response.Ok(w, response.WithItems(labels),
+			response.WithTotalItems(total),
+			response.WithStartIndex(int64(req.offset+len(labels))),
+		)
+	}
+}
+
+func (api *api) getBusiService() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+
+		id := chi.URLParam(r, "id")
+		parseInt, err := strconv.ParseInt(id, 10, 32)
+		if err != nil {
+			RespAndLog(w, ctx, NewAnError(http.StatusBadRequest, errors.New("parse id error.id:"+id)))
+			return
+		}
+		resSvc, ok := assets.GetResourcesService(ctx)
+		if !ok {
+			RespAndLog(w, ctx, NewAnError(http.StatusBadRequest, errors.New("service instance get error")))
+			return
+		}
+		detail, err := resSvc.GetBusiSvcDetail(ctx, int32(parseInt))
+		if err != nil {
+			logging.Get().Err(err).Msg("get Ingresses error")
+			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, err))
+			return
+		}
+		response.Ok(w, func(ev *response.HTTPEnvelope) {
+			data, err := json.Marshal(detail)
+			if err != nil {
+				ev.EnvelopeError = fmt.Sprintf("Failed to marshal item to json: %v", err)
+			} else {
+				ev.Data.Item = data
+			}
+		})
+	}
+}
+
+var webServiceKind = []string{
+	pkgAssets.BusiSvcTomcat,
+	pkgAssets.BusiSvcAppache,
+	pkgAssets.BusiSvcTomcat,
+	pkgAssets.BusiSvcAppache,
+	pkgAssets.BusiSvcNginx,
+	pkgAssets.BusiSvcWeblogic,
+	pkgAssets.BusiSvcWildfly,
+	pkgAssets.BusiSvcWebSphere,
+	pkgAssets.BusiSvcOpenResty,
+}
+
+func (api *api) getBusiServiceKind() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		response.Ok(w, response.WithItems(webServiceKind))
+	}
+}
+
+type ExposeHostReq struct {
+	webDesc  string
+	protocol string
+	limit    int
+	offset   int
+	//Ip            string //?
+	//ContainerName string
+	//SvcName       string
+}
+
+func (e *ExposeHostReq) Render(r *http.Request) {
+	e.limit, e.offset = getLimitAndOffsetWithDefault(r)
+	e.webDesc = getNormalizedQueryParam(r, "webDesc")
+	e.protocol = getNormalizedQueryParam(r, "protocol")
+}
+
+func (g *ExposeHostReq) Execute(ctx context.Context) ([]*dal.ExposeHostBase, int64, error) {
+
+	resSvc, ok := assets.GetResourcesService(ctx)
+	if !ok {
+		return nil, 0, errors.New("service instance get error")
+	}
+	return resSvc.ListExposeHost(ctx, g.webDesc, g.protocol, g.offset, g.limit)
+}
+
+func (api *api) getExposeHosts() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+
+		req := &ExposeHostReq{}
+		req.Render(r)
+		labels, total, err := req.Execute(ctx)
+
+		if err != nil {
+			logging.Get().Err(err).Msg("get getExposeHosts error")
+			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, err))
+			return
+		}
+		response.Ok(w, response.WithItems(labels),
+			response.WithTotalItems(total),
+			response.WithStartIndex(int64(req.offset+len(labels))),
+		)
+	}
+}
+
+func (api *api) getExposeHostDetail() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+
+		id := chi.URLParam(r, "id")
+		parseInt, err := strconv.ParseInt(id, 10, 64)
+		if err != nil {
+			RespAndLog(w, ctx, NewAnError(http.StatusBadRequest, errors.New("parse id error.id:"+id)))
+			return
+		}
+		resSvc, ok := assets.GetResourcesService(ctx)
+		if !ok {
+			RespAndLog(w, ctx, NewAnError(http.StatusBadRequest, errors.New("service instance get error")))
+			return
+		}
+		detail, err := resSvc.GetExposeHostDetail(ctx, parseInt)
+
+		if err != nil {
+			logging.Get().Err(err).Msg("get getExposeHosts error")
+			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, err))
+			return
+		}
+		response.Ok(w, func(ev *response.HTTPEnvelope) {
+			data, err := json.Marshal(detail)
+			if err != nil {
+				ev.EnvelopeError = fmt.Sprintf("Failed to marshal item to json: %v", err)
+			} else {
+				ev.Data.Item = data
+			}
+		})
 	}
 }

@@ -24,10 +24,10 @@ import (
 )
 
 type PodResourcesService struct {
-	//sync.RWMutex
+	// sync.RWMutex
 	rdb *databases.RDBInstance
 	// redisCli *redis.Client
-	//clusterCallbacks map[string]*PodResourcesClusterCallback
+	// clusterCallbacks map[string]*PodResourcesClusterCallback
 	syncedClusters map[string]struct{}
 	// redisearch clients
 	redisearchClis *redisearch.Client
@@ -49,7 +49,7 @@ type PodResourcesClusterCallback struct {
 }
 
 func (cb *PodResourcesClusterCallback) OnSync(tensorSync *assets.TensorSync) error {
-	//TODO implement me
+	// TODO implement me
 	return nil
 }
 
@@ -61,7 +61,7 @@ func newPodResourcesService(redisCli *redis.Client, rdb *databases.RDBInstance, 
 	return &PodResourcesService{
 		// redisCli: redisCli,
 		rdb: rdb,
-		//clusterCallbacks: make(map[string]*PodResourcesClusterCallback, 2),
+		// clusterCallbacks: make(map[string]*PodResourcesClusterCallback, 2),
 		syncedClusters: make(map[string]struct{}),
 		redisearchClis: redisearchClis,
 	}
@@ -133,9 +133,9 @@ func (cb *PodResourcesService) BeforeWatchNewCluster(ctx context.Context, cluste
 			logging.Get().Info().Msg("start to consume pods")
 		}
 	}()
-	//cb.Lock()
-	//defer cb.Unlock()
-	//cb.clusterCallbacks[clusterName] = ccb
+	// cb.Lock()
+	// defer cb.Unlock()
+	// cb.clusterCallbacks[clusterName] = ccb
 
 	return ccb
 }
@@ -176,10 +176,6 @@ func (cb *PodResourcesClusterCallback) getUpperOwnerOfPod(pod *corev1.Pod) (*met
 		}
 	}
 	return owner, owner != nil
-}
-
-func (cb *PodResourcesClusterCallback) OnNodeEvent(newNode, oldNode *corev1.Node, action assets.Action) error {
-	return nil
 }
 
 func (cb *PodResourcesClusterCallback) sendInput(ctx context.Context, e podEvent) error {
@@ -351,6 +347,30 @@ func (cb *PodResourcesClusterCallback) OnTensorNamespace(namespace *assets.Tenso
 }
 
 func (cb *PodResourcesClusterCallback) OnTensorNode(node *assets.TensorNode, action assets.Action) error {
+	return nil
+}
+
+func (cb *PodResourcesClusterCallback) OnTensorIngress(*assets.TensorIngress, assets.Action) error {
+	return nil
+}
+
+func (cb *PodResourcesClusterCallback) OnTensorService(*assets.TensorService, assets.Action) error {
+	return nil
+}
+
+func (cb *PodResourcesClusterCallback) OnTensorEndpoints(*assets.TensorEndpoints, assets.Action) error {
+	return nil
+}
+
+func (cb *PodResourcesClusterCallback) OnTensorSecret(*assets.TensorSecret, assets.Action) error {
+	return nil
+}
+
+func (cb *PodResourcesClusterCallback) OnTensorPV(*assets.TensorPV, assets.Action) error {
+	return nil
+}
+
+func (cb *PodResourcesClusterCallback) OnTensorPVC(*assets.TensorPVC, assets.Action) error {
 	return nil
 }
 
